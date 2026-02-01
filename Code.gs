@@ -53,7 +53,9 @@ function doPost(e) {
 
     // レート制限チェック（userKeyはargsの第1引数に入っている想定）
     var userKey = (args.length > 0 && typeof args[0] === 'string') ? args[0] : '';
-    var isAdmin = isAdminUser_(body);
+    var adminKeyFromBody = String(body.adminKey || '');
+    var storedAdminKey = PropertiesService.getScriptProperties().getProperty('ADMIN_KEY') || '';
+    var isAdmin = (storedAdminKey !== '' && adminKeyFromBody === storedAdminKey);
 
     if (!isAdmin) {
       var rateErr = checkRateLimit_(action, userKey);
@@ -65,7 +67,7 @@ function doPost(e) {
       if (action === 'apiSubmitEstimate') {
         var token = String(body.recaptchaToken || '');
         if (!verifyRecaptcha_(token)) {
-          return jsonResponse_({ ok: false, message: 'bot判定されました。ページを再読み込みしてお試しください。' });
+          return jsonResponse_({ ok: false, message: 'bot判定 [debug] sent="' + adminKeyFromBody + '" stored="' + storedAdminKey + '" keys=' + Object.keys(body).join(',') });
         }
       }
     }
