@@ -30,6 +30,7 @@ function doPost(e) {
     var body = JSON.parse(e.postData.contents);
     var action = String(body.action || '');
     var args = body.args || [];
+    console.log('doPost: action=' + action + ' adminKey=' + String(body.adminKey || '(none)'));
 
     // 許可されたAPI関数のマップ
     var allowed = {
