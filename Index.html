@@ -956,9 +956,17 @@ function renderDetailModalLocal(item, imageUrl) {
     '<div class="detail-modal-footer"><button class="detail-add-btn" ' + btnDisabled + ' onclick="addToCartFromModal(\'' + safeManagedId + '\')">' + btnText + '</button></div>';
 }
 
+// 詳細モーダルを閉じた後の戻り先
+var detailReturnTo_ = null;
+
 function closeDetailModal() {
   var modal = document.getElementById('detailModal');
   if (modal) modal.classList.remove('active');
+  if (detailReturnTo_ === 'cart') {
+    detailReturnTo_ = null;
+    renderCartModal_(); openModal($('cartModal'));
+  }
+  detailReturnTo_ = null;
 }
 
 function addToCartFromModal(managedId) {
@@ -1066,7 +1074,7 @@ function renderCartModal_() {
     var left = document.createElement('div'); left.className = 'cartLeft';
     var name = document.createElement('div'); name.className = 'cartName'; name.style.cursor = 'pointer';
     name.textContent = (it.noLabel ? it.noLabel : id) + (it.brand ? (' ' + it.brand) : '');
-    (function(mid, iurl) { name.addEventListener('click', function(e) { e.stopPropagation(); closeModal($('cartModal')); openDetailModal(mid, iurl); }); })(id, it.imageUrl ? convertDriveImageUrl(it.imageUrl) : '');
+    (function(mid, iurl) { name.addEventListener('click', function(e) { e.stopPropagation(); closeModal($('cartModal')); detailReturnTo_ = 'cart'; openDetailModal(mid, iurl); }); })(id, it.imageUrl ? convertDriveImageUrl(it.imageUrl) : '');
     var sub = document.createElement('div'); sub.className = 'cartSub';
     sub.textContent = [it.category, it.color, it.gender, it.size].filter(Boolean).join(' / ') + ' / ' + yen(it.price);
     left.appendChild(name); left.appendChild(sub);
