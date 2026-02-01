@@ -14,6 +14,11 @@
     .wrap{max-width:1200px;margin:0 auto;padding:12px 14px 90px;}
     .title{font-weight:900;font-size:18px;}
     .subnote{margin-top:6px;font-size:12px;color:#666;line-height:1.4;}
+    .topDetails{margin-top:6px;}
+    .topSummary{font-size:12px;font-weight:900;color:#555;cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;}
+    .topSummary::-webkit-details-marker{display:none;}
+    .topSummary::before{content:'▼';font-size:10px;transition:transform .2s;}
+    details:not([open])>.topSummary::before{content:'▶';}
     .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
     .field{min-width:170px;flex:1 1 170px;}
     .field.big{min-width:240px;flex:2 1 240px;}
@@ -133,7 +138,10 @@
         <div class="title" id="appTitle">選べる卸商品</div>
         <div class="badge ok" id="totalCountBadge"></div>
       </div>
-      <div class="subnote" id="topNotes"></div>
+      <details open class="topDetails">
+        <summary class="topSummary">ご利用案内・注意事項</summary>
+        <div class="subnote" id="topNotes"></div>
+      </details>
     </div>
   </div>
 
