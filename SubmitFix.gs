@@ -14,26 +14,148 @@
 
 /**
  * 見積もり送信（高速版）
+ * - バリデーション・確保チェック・価格計算は同期で実行
+ * - シート書き込み・状態更新・メール送信はバックグラウンドで実行
  * - 受付番号とテンプレートを即座に返す
- * - 実際の書き込みはバックグラウンドで実行
  */
 function apiSubmitEstimate(userKey, form, ids) {
   try {
-    if (!userKey) return { ok: false, message: 'userKeyがありません' };
-    if (!ids || !ids.length) return { ok: false, message: '商品が選択されていません' };
+    // === 同期バリデーション ===
+    var uk = String(userKey || '').trim();
+    if (!uk) return { ok: false, message: 'userKeyが不正です' };
 
-    // 受付番号を生成
-    var receiptNo = generateReceiptNo_();
+    var list = u_unique_(u_normalizeIds_(ids || []));
+    if (!list.length) return { ok: false, message: '選択リストが空です' };
 
-    // テンプレートを生成
-    var templateText = generateTemplateText_(receiptNo, form, ids);
+    var min = Number(APP_CONFIG.minOrderCount || 10);
+    if (list.length < min) return { ok: false, message: min + '点以上選択してください' };
 
-    // 書き込みデータをPropertiesServiceに保存（バックグラウンド処理用）
+    var f = form || {};
+    var companyName = String(f.companyName || '').trim();
+    var contact = String(f.contact || '').trim();
+    var contactMethod = String(f.contactMethod || '').trim();
+    var delivery = String(f.delivery || '').trim();
+    var postal = String(f.postal || '').trim();
+    var address = String(f.address || '').trim();
+    var phone = String(f.phone || '').trim();
+    var note = String(f.note || '').trim();
+    var measureOpt = String(f.measureOpt || 'with');
+
+    if (!companyName) return { ok: false, message: '会社名/氏名は必須です' };
+    if (!contact) return { ok: false, message: '連絡先は必須です' };
+    if (!contactMethod) return { ok: false, message: '参照元は必須です' };
+
+    var okSources = ['BASE', 'ジモティ', 'スマセル'];
+    if (okSources.indexOf(String(contactMethod || '').trim()) === -1) {
+      return { ok: false, message: '参照元は「BASE/ジモティ/スマセル」から選択してください' };
+    }
+
+    if (!delivery) return { ok: false, message: '希望引渡しは必須です' };
+    if (delivery === '配送') {
+      if (!postal) return { ok: false, message: '配送の場合、郵便番号は必須です' };
+      if (!address) return { ok: false, message: '配送の場合、住所は必須です' };
+      if (!phone) return { ok: false, message: '配送の場合、電話番号は必須です' };
+    }
+
+    // === 同期：確保チェック ===
+    var orderSs = sh_getOrderSs_();
+    sh_ensureAllOnce_(orderSs);
+
+    var now = u_nowMs_();
+    var openSet = st_getOpenSetFast_(orderSs) || {};
+    var holdState = st_getHoldState_(orderSs) || {};
+    var holdItems = (holdState.items && typeof holdState.items === 'object') ? holdState.items : {};
+    st_cleanupExpiredHolds_(holdItems, now);
+
+    var bad = [];
+    for (var i = 0; i < list.length; i++) {
+      var id = list[i];
+      if (openSet[id]) {
+        bad.push(id);
+        continue;
+      }
+      var it = holdItems[id];
+      if (it && u_toInt_(it.untilMs, 0) > now && String(it.userKey || '') !== uk) {
+        bad.push(id);
+        continue;
+      }
+    }
+    if (bad.length) {
+      return { ok: false, message: '確保できない商品が含まれています: ' + bad.join('、') };
+    }
+
+    // === 同期：価格計算 ===
+    var products = pr_readProducts_();
+    var productMap = {};
+    for (var i = 0; i < products.length; i++) productMap[String(products[i].managedId)] = products[i];
+
+    var sum = 0;
+    for (var i = 0; i < list.length; i++) {
+      var p = productMap[list[i]];
+      if (!p) return { ok: false, message: '商品が見つかりません: ' + list[i] };
+      sum += Number(p.price || 0);
+    }
+
+    var totalCount = list.length;
+    var discountRate = 0;
+    if (measureOpt === 'without') discountRate = 0.05;
+    if (totalCount >= 30) {
+      discountRate = (measureOpt === 'without') ? 0.15 : 0.10;
+    }
+    var discounted = Math.round(sum * (1 - discountRate));
+
+    // === 同期：受付番号・テンプレート生成 ===
+    var receiptNo = u_makeReceiptNo_();
+    var selectionList = u_sortManagedIds_(list).join('、');
+    var measureLabel = app_measureOptLabel_(measureOpt);
+
+    var validatedForm = {
+      companyName: companyName,
+      contact: contact,
+      contactMethod: contactMethod,
+      delivery: delivery,
+      postal: postal,
+      address: address,
+      phone: phone,
+      note: note,
+      measureOpt: measureOpt
+    };
+
+    var templateText = app_buildTemplateText_(receiptNo, validatedForm, list, totalCount, discounted);
+
+    // === 同期：open/hold状態を即座に更新（他ユーザーとの競合防止） ===
+    var openState = st_getOpenState_(orderSs) || {};
+    var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
+
+    for (var i = 0; i < list.length; i++) {
+      var id = list[i];
+      openItems[id] = { receiptNo: receiptNo, status: APP_CONFIG.statuses.open, updatedAtMs: now };
+      if (holdItems[id]) delete holdItems[id];
+    }
+
+    openState.items = openItems;
+    openState.updatedAt = now;
+    st_setOpenState_(orderSs, openState);
+
+    holdState.items = holdItems;
+    holdState.updatedAt = now;
+    st_setHoldState_(orderSs, holdState);
+
+    st_invalidateStatusCache_(orderSs);
+
+    // === バックグラウンド：シート書き込み・メール送信をキューに追加 ===
     var writeData = {
-      userKey: userKey,
-      form: form,
-      ids: ids,
+      userKey: uk,
+      form: validatedForm,
+      ids: list,
       receiptNo: receiptNo,
+      selectionList: selectionList,
+      measureLabel: measureLabel,
+      measureOpt: measureOpt,
+      totalCount: totalCount,
+      discounted: discounted,
+      createdAtMs: now,
+      templateText: templateText,
       timestamp: new Date().toISOString()
     };
 
@@ -68,52 +190,8 @@ function apiSubmitEstimate(userKey, form, ids) {
 
   } catch (e) {
     console.error('apiSubmitEstimate error:', e);
-    return { ok: false, message: e.message || '送信に失敗しました' };
+    return { ok: false, message: (e && e.message) ? e.message : String(e) };
   }
-}
-
-/**
- * 受付番号を生成
- */
-function generateReceiptNo_() {
-  var now = new Date();
-  var y = now.getFullYear();
-  var m = ('0' + (now.getMonth() + 1)).slice(-2);
-  var d = ('0' + now.getDate()).slice(-2);
-  var h = ('0' + now.getHours()).slice(-2);
-  var min = ('0' + now.getMinutes()).slice(-2);
-  var s = ('0' + now.getSeconds()).slice(-2);
-  var rand = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-  return 'E' + y + m + d + '-' + h + min + s + '-' + rand;
-}
-
-/**
- * テンプレートテキストを生成
- */
-function generateTemplateText_(receiptNo, form, ids) {
-  var lines = [];
-  lines.push('【見積もり依頼】');
-  lines.push('受付番号: ' + receiptNo);
-  lines.push('');
-  lines.push('会社名/氏名: ' + (form.companyName || ''));
-  lines.push('連絡先: ' + (form.contact || ''));
-  lines.push('参照元: ' + (form.contactMethod || ''));
-  lines.push('希望引渡し: ' + (form.delivery || ''));
-  if (form.delivery === '配送') {
-    lines.push('郵便番号: ' + (form.postal || ''));
-    lines.push('住所: ' + (form.address || ''));
-    lines.push('電話番号: ' + (form.phone || ''));
-  }
-  lines.push('採寸データ: ' + (form.measureOpt === 'without' ? '無し（5%OFF）' : '付き'));
-  lines.push('商品点数: ' + ids.length + '点');
-  if (form.note) {
-    lines.push('備考: ' + form.note);
-  }
-  lines.push('');
-  lines.push('上記内容で見積もり依頼いたします。');
-  lines.push('ご確認よろしくお願いいたします。');
-
-  return lines.join('\n');
 }
 
 // =====================================================
@@ -172,141 +250,80 @@ function processSubmitQueue_() {
 }
 
 /**
- * 送信データを実際に書き込む
+ * 送信データを実際に書き込む（バックグラウンド）
+ * - 依頼管理シートへの書き込み
+ * - hold/openログシートの同期
+ * - メール通知
  */
 function writeSubmitData_(data) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var orderSs = sh_getOrderSs_();
+  sh_ensureAllOnce_(orderSs);
+
+  var now = data.createdAtMs || u_nowMs_();
 
   // 1. 依頼管理シートに書き込み
-  writeToRequestSheet_(ss, data);
-
-  // 2. データ1シートのステータスを「依頼中」に更新
-  updateProductStatus_(ss, data.ids, data.userKey);
-
-  // 3. 確保シートからクリア
-  clearHoldSheet_(ss, data.userKey, data.ids);
-}
-
-/**
- * 依頼管理シートに書き込み（空行対策済み）
- */
-function writeToRequestSheet_(ss, data) {
-  var sheet = ss.getSheetByName('依頼管理');
-  if (!sheet) {
-    console.log('依頼管理シートが見つかりません');
-    return;
-  }
-
-  // 実データがある最終行を取得（空行対策）
-  var lastRow = getActualLastRow_(sheet, 1); // A列を基準
-  var newRow = lastRow + 1;
-
-  var form = data.form || {};
-  var ids = data.ids || [];
-  var now = new Date();
-
-  // 書き込むデータ（シートの列構造に合わせて調整）
-  var rowData = [
-    now,                          // A: 日時
-    data.receiptNo,               // B: 受付番号
-    form.companyName || '',       // C: 会社名/氏名
-    form.contact || '',           // D: 連絡先
-    form.contactMethod || '',     // E: 参照元
-    form.delivery || '',          // F: 希望引渡し
-    form.postal || '',            // G: 郵便番号
-    form.address || '',           // H: 住所
-    form.phone || '',             // I: 電話番号
-    form.note || '',              // J: 備考
-    form.measureOpt || 'with',    // K: 採寸オプション
-    ids.length,                   // L: 商品点数
-    ids.join(','),                // M: 商品ID一覧
-    data.userKey || '',           // N: userKey
-    '未対応'                       // O: ステータス
+  var reqSh = sh_ensureRequestSheet_(orderSs);
+  var row = [
+    data.receiptNo,
+    new Date(now),
+    data.form.companyName || '',
+    data.form.contact || '',
+    data.form.contactMethod || '',
+    data.form.delivery || '',
+    data.form.postal || '',
+    data.form.address || '',
+    data.form.phone || '',
+    data.form.note || '',
+    '',
+    data.selectionList || data.ids.join('、'),
+    data.ids.length,
+    data.discounted || 0,
+    '未着手',
+    '未',
+    '未',
+    APP_CONFIG.statuses.open,
+    '',
+    '',
+    data.measureLabel || ''
   ];
+  var writeRow = sh_findNextRowByDisplayKey_(reqSh, 1, 1);
+  reqSh.getRange(writeRow, 1, 1, row.length).setValues([row]);
 
-  sheet.getRange(newRow, 1, 1, rowData.length).setValues([rowData]);
-}
+  var needCols = 26;
+  var maxCols = reqSh.getMaxColumns();
+  if (maxCols < needCols) reqSh.insertColumnsAfter(maxCols, needCols - maxCols);
+  reqSh.getRange(writeRow, 26).setValue('選べるxlsx付きパッケージ');
 
-/**
- * 実データがある最終行を取得（空行をスキップ）
- */
-function getActualLastRow_(sheet, column) {
-  var lastRow = sheet.getLastRow();
-  if (lastRow === 0) return 0;
-
-  // A列のデータを取得
-  var values = sheet.getRange(1, column, lastRow, 1).getValues();
-
-  // 下から探して、最初にデータがある行を見つける
-  for (var i = values.length - 1; i >= 0; i--) {
-    if (values[i][0] !== '' && values[i][0] !== null && values[i][0] !== undefined) {
-      return i + 1;
-    }
+  // 2. hold/openログシートの同期
+  var holdState = st_getHoldState_(orderSs) || {};
+  var holdItems = (holdState.items && typeof holdState.items === 'object') ? holdState.items : {};
+  if (APP_CONFIG.holds && APP_CONFIG.holds.syncHoldSheet) {
+    od_writeHoldSheetFromState_(orderSs, holdItems, now);
   }
 
-  return 0;
-}
+  var openState = st_getOpenState_(orderSs) || {};
+  var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
+  od_writeOpenLogSheetFromState_(orderSs, openItems, now);
 
-/**
- * 商品ステータスを「依頼中」に更新
- */
-function updateProductStatus_(ss, ids, userKey) {
-  var sheet = ss.getSheetByName('データ1');
-  if (!sheet) return;
-
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 4) return;
-
-  // K列（管理ID）とJ列（ステータス）を取得
-  var range = sheet.getRange(4, 10, lastRow - 3, 2); // J〜K列
-  var values = range.getValues();
-
-  var updates = [];
-
-  for (var i = 0; i < values.length; i++) {
-    var status = values[i][0];   // J列: ステータス
-    var managedId = String(values[i][1] || '').trim(); // K列: 管理ID
-
-    if (managedId && ids.indexOf(managedId) !== -1) {
-      // 依頼中に更新
-      updates.push({ row: i + 4, status: '依頼中（' + userKey.slice(-6) + '）' });
-    }
-  }
-
-  // 一括更新
-  for (var j = 0; j < updates.length; j++) {
-    sheet.getRange(updates[j].row, 10).setValue(updates[j].status); // J列
-  }
-}
-
-/**
- * 確保シートからクリア
- */
-function clearHoldSheet_(ss, userKey, ids) {
-  var sheet = ss.getSheetByName('確保');
-  if (!sheet) return;
-
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 2) return;
-
-  var range = sheet.getRange(2, 1, lastRow - 1, 2); // A〜B列
-  var values = range.getValues();
-
-  var rowsToDelete = [];
-
-  for (var i = values.length - 1; i >= 0; i--) {
-    var holdUserKey = String(values[i][0] || '').trim();
-    var holdId = String(values[i][1] || '').trim();
-
-    if (holdUserKey === userKey && ids.indexOf(holdId) !== -1) {
-      rowsToDelete.push(i + 2);
-    }
-  }
-
-  // 下から削除（行番号がずれないように）
-  for (var j = 0; j < rowsToDelete.length; j++) {
-    sheet.deleteRow(rowsToDelete[j]);
-  }
+  // 3. メール通知
+  app_sendEstimateNotifyMail_(orderSs, data.receiptNo, {
+    companyName: data.form.companyName || '',
+    contact: data.form.contact || '',
+    contactMethod: data.form.contactMethod || '',
+    delivery: data.form.delivery || '',
+    postal: data.form.postal || '',
+    address: data.form.address || '',
+    phone: data.form.phone || '',
+    note: data.form.note || '',
+    measureLabel: data.measureLabel || '',
+    totalCount: data.totalCount || data.ids.length,
+    discounted: data.discounted || 0,
+    selectionList: data.selectionList || data.ids.join('、'),
+    writeRow: writeRow,
+    createdAtMs: now,
+    userKey: data.userKey,
+    templateText: data.templateText || ''
+  });
 }
 
 /**
@@ -319,6 +336,28 @@ function cleanupTriggers_(functionName) {
       ScriptApp.deleteTrigger(triggers[i]);
     }
   }
+}
+
+// =====================================================
+// ヘルパー関数
+// =====================================================
+
+/**
+ * 実データがある最終行を取得（空行をスキップ）
+ */
+function getActualLastRow_(sheet, column) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow === 0) return 0;
+
+  var values = sheet.getRange(1, column, lastRow, 1).getValues();
+
+  for (var i = values.length - 1; i >= 0; i--) {
+    if (values[i][0] !== '' && values[i][0] !== null && values[i][0] !== undefined) {
+      return i + 1;
+    }
+  }
+
+  return 0;
 }
 
 // =====================================================
