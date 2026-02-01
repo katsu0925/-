@@ -148,11 +148,12 @@ function isAdminUser_(body) {
 
 /**
  * 管理者キーを設定（GASエディタで1回だけ実行）
- * 例: setAdminKey('my-secret-key-123')
+ * ★ 下の 'my-secret-key-123' を好きなキーに変えてから実行
  */
-function setAdminKey(key) {
+function setAdminKey() {
+  var key = 'my-secret-key-123';  // ← ここを変更してから実行
   PropertiesService.getScriptProperties().setProperty('ADMIN_KEY', key);
-  console.log('ADMIN_KEY を設定しました');
+  console.log('ADMIN_KEY を設定しました: ' + key);
 }
 
 function apiLogPV(payload) {
