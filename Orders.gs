@@ -1,88 +1,6 @@
-function st_invalidateStatusCache_(orderSs) {
-  const cache = CacheService.getScriptCache();
-  const id = orderSs.getId();
-  try { cache.remove('STATUSMAPS_V4:' + id); } catch (e0) {}
-  try { cache.remove('OPENSETV4:' + id); } catch (e1) {}
-  try { cache.remove('STATECACHE_V1:STATE_HOLDS_V4:' + id); } catch (e2) {}
-  try { cache.remove('STATECACHE_V1:STATE_OPEN_V4:' + id); } catch (e3) {}
-}
-
-function st_getOpenSetFast_(orderSs) {
-  const cache = CacheService.getScriptCache();
-  const ck = 'OPENSETV4:' + orderSs.getId();
-  const cached = cache.get(ck);
-  if (cached) {
-    try {
-      const json = u_ungzipFromB64_(cached);
-      const obj = JSON.parse(json);
-      if (obj && typeof obj === 'object') return obj;
-    } catch (e0) {}
-  }
-
-  const openState = st_getOpenState_(orderSs);
-  const items = openState.items || {};
-  const out = {};
-  for (const id in items) out[id] = true;
-
-  try { cache.put(ck, u_gzipToB64_(JSON.stringify(out)), Math.max(3, u_toInt_(APP_CONFIG.cache.statusSeconds, 10))); } catch (e1) {}
-  return out;
-}
-
-
-function st_buildNeedles_(keywordRaw, syn) {
-  return u_expandKeywordNeedles_(keywordRaw, syn);
-}
-
-function st_getSelectedBrandKeys_(params) {
-  const p = (params && typeof params === 'object') ? params : {};
-  const f = (p.filters && typeof p.filters === 'object') ? p.filters : {};
-
-  let list = [];
-  if (Array.isArray(f.brand)) list = f.brand;
-  else if (typeof f.brand === 'string' && f.brand.trim()) list = [f.brand];
-
-  const set = {};
-  for (let i = 0; i < list.length; i++) {
-    const k = st_normBrandKey_(list[i]);
-    if (k) set[k] = true;
-  }
-  return set;
-}
-
-function st_searchPage_(userKey, params) {
-  const uk = String(userKey || '').trim();
-  const orderSs = sh_getOrderSs_();
-  const products = pr_readProducts_();
-  const maps = st_buildStatusMaps_(orderSs);
-  return st_applyFiltersAndSort_(products, maps, uk, params || {});
-}
-
-function st_buildDigestMap_(orderSs, userKey, ids) {
-  const now = u_nowMs_();
-  const maps = st_buildStatusMaps_(orderSs);
-  const out = {};
-  const list = u_unique_(u_normalizeIds_(ids || []));
-
-  for (let i = 0; i < list.length; i++) {
-    const id = list[i];
-
-    if (maps.openSet && maps.openSet[id]) {
-      out[id] = { status: '依頼中', heldByOther: false, untilMs: 0 };
-      continue;
-    }
-
-    const h = maps.holds ? maps.holds[id] : null;
-    if (h && u_toInt_(h.untilMs, 0) > now) {
-      const other = String(h.userKey || '') && String(h.userKey || '') !== String(userKey || '');
-      out[id] = { status: '確保中', heldByOther: other, untilMs: u_toInt_(h.untilMs, 0) };
-      continue;
-    }
-
-    out[id] = { status: '在庫あり', heldByOther: false, untilMs: 0 };
-  }
-
-  return out;
-}
+// st_invalidateStatusCache_, st_getOpenSetFast_, st_buildNeedles_,
+// st_getSelectedBrandKeys_, st_searchPage_, st_buildDigestMap_
+// は Status.gs で定義済み
 
 function od_headerMap_(sh) {
   const lastCol = sh.getLastColumn();
@@ -105,135 +23,6 @@ function od_toMs_(v) {
   const d = new Date(s);
   if (!isNaN(d.getTime())) return d.getTime();
   return 0;
-}
-
-function od_rebuildHoldStateFromSheet_(orderSs) {
-  try {
-    const ss = orderSs;
-    const sh = sh_ensureHoldSheet_(ss);
-    const map = od_headerMap_(sh);
-    const colId = map['管理番号'] || 1;
-    const colHoldId = map['確保ID'] || 2;
-    const colUser = map['userKey'] || 3;
-    const colUntil = map['確保期限'] || 4;
-    const colCreated = map['作成日時'] || 5;
-
-    const lastRow = sh.getLastRow();
-    const items = {};
-    const now = u_nowMs_();
-
-    if (lastRow >= 2) {
-      const vals = sh.getRange(2, 1, lastRow - 1, Math.max(colCreated, colUntil, colUser, colHoldId, colId)).getValues();
-      for (let i = 0; i < vals.length; i++) {
-        const row = vals[i];
-        const id = u_normalizeId_(row[colId - 1]);
-        if (!id) continue;
-        const untilMs = od_toMs_(row[colUntil - 1]);
-        if (!untilMs || untilMs <= now) continue;
-        items[id] = {
-          holdId: String(row[colHoldId - 1] || ''),
-          userKey: String(row[colUser - 1] || ''),
-          untilMs: untilMs,
-          createdAtMs: od_toMs_(row[colCreated - 1]) || now
-        };
-      }
-    }
-
-    return { items: items, updatedAt: now };
-  } catch (e) {
-    return { items: {}, updatedAt: u_nowMs_() };
-  }
-}
-
-function od_rebuildOpenStateFromRequestSheet_(orderSs) {
-  const ss = orderSs;
-  const sh = sh_ensureRequestSheet_(ss);
-  const map = od_headerMap_(sh);
-
-  const colReceipt = map['受付番号'] || 1;
-  const colAt = map['依頼日時'] || 2;
-  const colSelNo = map['選択No.'] || 11;
-  const colList = map['選択リスト'] || 12;
-  const colStatus = map['ステータス'] || 18;
-
-  const lastRow = sh.getLastRow();
-  const items = {};
-  const now = u_nowMs_();
-
-  if (lastRow >= 2) {
-    const needCols = Math.max(colReceipt, colAt, colSelNo, colList, colStatus);
-    const vals = sh.getRange(2, 1, lastRow - 1, needCols).getValues();
-
-    for (let i = 0; i < vals.length; i++) {
-      const row = vals[i];
-      const status = String(row[colStatus - 1] || '').trim();
-      if (status !== APP_CONFIG.statuses.open) continue;
-
-      const receiptNo = String(row[colReceipt - 1] || '').trim();
-      const atMs = od_toMs_(row[colAt - 1]) || now;
-
-      const listRaw = String(row[colList - 1] || '').trim();
-      let ids = listRaw ? u_parseSelectionList_(listRaw) : [];
-
-      if (!ids.length) {
-        const one = u_normalizeId_(row[colSelNo - 1]);
-        if (one) ids = [one];
-      }
-
-      for (let j = 0; j < ids.length; j++) {
-        const id = ids[j];
-        const prev = items[id];
-        if (!prev || u_toInt_(prev.updatedAtMs, 0) <= atMs) {
-          items[id] = { receiptNo: receiptNo, status: status, updatedAtMs: atMs };
-        }
-      }
-    }
-  }
-
-  return { items: items, updatedAt: now };
-}
-
-function od_writeHoldSheetFromState_(orderSs, holdItems, nowMs) {
-  const sh = sh_ensureHoldSheet_(orderSs);
-  const lastRow = sh.getLastRow();
-  if (lastRow >= 2) sh.getRange(2, 1, lastRow - 1, 5).clearContent();
-
-  const rows = [];
-  for (const id in (holdItems || {})) {
-    const it = holdItems[id];
-    if (!it) continue;
-    const mid = u_normalizeId_(id);
-    if (!mid) continue;
-    const untilMs = u_toInt_(it.untilMs, 0);
-    if (!untilMs || untilMs <= nowMs) continue;
-    const holdId = String(it.holdId || '');
-    const userKey = String(it.userKey || '');
-    let createdAtMs = u_toInt_(it.createdAtMs, 0);
-    if (!createdAtMs) createdAtMs = nowMs;
-    rows.push([mid, holdId, userKey, new Date(untilMs), new Date(createdAtMs)]);
-  }
-  rows.sort((a, b) => u_compareManagedId_(a[0], b[0]));
-  if (rows.length) sh.getRange(2, 1, rows.length, 5).setValues(rows);
-}
-
-function od_writeOpenLogSheetFromState_(orderSs, openItems, nowMs) {
-  const sh = sh_ensureOpenLogSheet_(orderSs);
-  const lastRow = sh.getLastRow();
-  if (lastRow >= 2) sh.getRange(2, 1, lastRow - 1, 4).clearContent();
-
-  const rows = [];
-  for (const id in (openItems || {})) {
-    const it = openItems[id];
-    if (!it) continue;
-    const mid = u_normalizeId_(id);
-    if (!mid) continue;
-    const receiptNo = String(it.receiptNo || '');
-    const status = String(it.status || '');
-    const at = u_toInt_(it.updatedAtMs, 0) || nowMs;
-    rows.push([mid, receiptNo, status, new Date(at)]);
-  }
-  rows.sort((a, b) => u_compareManagedId_(a[0], b[0]));
-  if (rows.length) sh.getRange(2, 1, rows.length, 4).setValues(rows);
 }
 
 /**
@@ -529,4 +318,41 @@ function od_appendRequestRow_(sheet, rowData) {
   sheet.getRange(newRow, 1, 1, numCols).setValues([rowData]);
   
   return newRow;
+}
+
+/**
+ * 依頼中シートの現在の内容からopenStateを再構築
+ * シート上で行を削除すると、その商品のopenStateも消える
+ */
+function od_rebuildOpenStateFromOpenLogSheet_(orderSs) {
+  const sh = sh_ensureOpenLogSheet_(orderSs);
+  const lastRow = sh.getLastRow();
+  const items = {};
+  const now = u_nowMs_();
+
+  if (lastRow >= 2) {
+    const values = sh.getRange(2, 1, lastRow - 1, 4).getValues();
+
+    for (let i = 0; i < values.length; i++) {
+      const row = values[i];
+      const managedId = String(row[0] || '').trim();
+      if (!managedId) continue;
+
+      const receiptNo = String(row[1] || '').trim();
+      const status = String(row[2] || '').trim();
+      const updatedAtMs = (row[3] instanceof Date) ? row[3].getTime() : u_toInt_(row[3], now);
+
+      if (!receiptNo || !status) continue;
+      if (u_isClosedStatus_(status)) continue;
+
+      items[managedId] = { receiptNo: receiptNo, status: status, updatedAtMs: updatedAtMs };
+    }
+  }
+
+  const openState = { items: items, updatedAt: now };
+  st_setOpenState_(orderSs, openState);
+  st_invalidateStatusCache_(orderSs);
+
+  console.log('依頼中シートからopenState再構築: ' + Object.keys(items).length + '件');
+  return openState;
 }
