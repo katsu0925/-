@@ -5,6 +5,7 @@
   <base target="_top">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <script src="https://www.google.com/recaptcha/api.js?render=6Lc_RECAPTCHA_SITE_KEY" async defer></script>
   <style>
     html, body { margin:0; padding:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif; color:#111; background:#f6f7f9; -webkit-text-size-adjust:100%; }
     * { box-sizing:border-box; }
@@ -442,18 +443,35 @@ function saveMeasureOpt_() { try { localStorage.setItem('estimate_measureOpt', g
 // =====================================================
 
 // ★ スタンドアロン（Cloudflare Pages等）で使う場合はここにGAS Web App URLを設定
-var GAS_API_URL = '';  // 例: 'https://script.google.com/macros/s/XXXXX/exec'
+var GAS_API_URL = 'https://script.google.com/macros/s/AKfycbxNZRfqvh7p7RTy27I-I7HCkb7E3FIZMr6SHeGPf5vP4ngrqCSUB0kvgy-hhptM45J1BQ/exec';
 
 var IS_STANDALONE = (typeof google === 'undefined' || !google.script);
 
-function runApi(fn) {
+// reCAPTCHA v3 サイトキー（★ Google reCAPTCHA管理画面で取得して設定）
+var RECAPTCHA_SITE_KEY = '6Lc_RECAPTCHA_SITE_KEY';
+
+function getRecaptchaToken_() {
+  if (typeof grecaptcha === 'undefined' || !RECAPTCHA_SITE_KEY || RECAPTCHA_SITE_KEY.indexOf('RECAPTCHA') !== -1) {
+    return Promise.resolve('');
+  }
+  return grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'submit' });
+}
+
+function runApi(fn, _extra) {
   var args = Array.prototype.slice.call(arguments, 1);
+  var extra = {};
+  // 最後の引数が _runApiExtra_ なら取り出す
+  if (args.length > 0 && args[args.length - 1] && args[args.length - 1]._runApiExtra_) {
+    extra = args.pop();
+  }
 
   if (IS_STANDALONE) {
+    var payload = { action: fn, args: args };
+    if (extra.recaptchaToken) payload.recaptchaToken = extra.recaptchaToken;
     return fetch(GAS_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: fn, args: args }),
+      body: JSON.stringify(payload),
       redirect: 'follow'
     })
     .then(function(res) {
@@ -1127,7 +1145,9 @@ function submitNow_() {
         saveCartStorage(); updateCartCount(); renderCartModal_();
         throw new Error('一部確保できない商品があります');
       }
-      return runApi('apiSubmitEstimate', state.userKey, f, ids);
+      return getRecaptchaToken_().then(function(token) {
+        return runApi('apiSubmitEstimate', state.userKey, f, ids, { _runApiExtra_: true, recaptchaToken: token });
+      });
     })
     .then(function(res) {
       if (!res || !res.ok) throw new Error(res && res.message ? res.message : '送信に失敗しました');

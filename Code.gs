@@ -50,6 +50,21 @@ function doPost(e) {
       return jsonResponse_({ ok: false, message: '不明なアクション: ' + action });
     }
 
+    // レート制限チェック（userKeyはargsの第1引数に入っている想定）
+    var userKey = (args.length > 0 && typeof args[0] === 'string') ? args[0] : '';
+    var rateErr = checkRateLimit_(action, userKey);
+    if (rateErr) {
+      return jsonResponse_({ ok: false, message: rateErr });
+    }
+
+    // reCAPTCHA検証（送信時のみ）
+    if (action === 'apiSubmitEstimate') {
+      var token = String(body.recaptchaToken || '');
+      if (!verifyRecaptcha_(token)) {
+        return jsonResponse_({ ok: false, message: 'bot判定されました。ページを再読み込みしてお試しください。' });
+      }
+    }
+
     var result = fn.apply(null, args);
     return jsonResponse_(result);
   } catch (err) {
@@ -60,6 +75,58 @@ function doPost(e) {
 function jsonResponse_(data) {
   return ContentService.createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+// =====================================================
+// レート制限（CacheServiceベース）
+// =====================================================
+
+var RATE_LIMITS = {
+  'apiSubmitEstimate': { max: 3, windowSec: 3600, label: '見積もり送信は1時間に3回まで' },
+  'apiSyncHolds':     { max: 30, windowSec: 60,   label: '確保操作は1分に30回まで' }
+};
+
+function checkRateLimit_(action, userKey) {
+  var rule = RATE_LIMITS[action];
+  if (!rule || !userKey) return null;
+
+  var cache = CacheService.getScriptCache();
+  var key = 'RL:' + action + ':' + userKey;
+  var raw = cache.get(key);
+  var count = raw ? parseInt(raw, 10) : 0;
+
+  if (count >= rule.max) {
+    return rule.label + '。しばらくお待ちください。';
+  }
+
+  cache.put(key, String(count + 1), rule.windowSec);
+  return null;
+}
+
+// =====================================================
+// reCAPTCHA v3 検証
+// =====================================================
+
+var RECAPTCHA_SECRET_KEY = '';  // ★ Google reCAPTCHA v3のシークレットキーを設定
+
+function verifyRecaptcha_(token) {
+  if (!RECAPTCHA_SECRET_KEY) return true;  // 未設定ならスキップ
+  if (!token) return false;
+
+  try {
+    var res = UrlFetchApp.fetch('https://www.google.com/recaptcha/api/siteverify', {
+      method: 'post',
+      payload: {
+        secret: RECAPTCHA_SECRET_KEY,
+        response: token
+      },
+      muteHttpExceptions: true
+    });
+    var json = JSON.parse(res.getContentText());
+    return json.success === true && (json.score || 0) >= 0.3;
+  } catch (e) {
+    return true;  // 検証失敗時は通す（可用性優先）
+  }
 }
 
 function apiLogPV(payload) {
