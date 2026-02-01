@@ -30,15 +30,15 @@
     .row1{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;}
     .leftTitle{display:flex;flex-direction:column;gap:2px;min-width:0;font-weight:900;line-height:1.25;}
     .noText{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-weight:900;white-space:nowrap;}
-    .brandText{font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;display:block;}
+    .brandText{font-weight:900;word-break:break-word;line-height:1.2;}
     .price{font-weight:900;color:#b8002a;white-space:nowrap;}
     .meta{font-size:12px;color:#444;line-height:1.35;white-space:pre-line;}
-    .badges{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
+    .badges{display:flex;gap:4px;flex-wrap:nowrap;align-items:center;}
     .badge{font-size:11px;padding:4px 8px;border-radius:999px;border:1px solid #e6e8ee;background:#f7f8fb;color:#333;}
     .badge.ok{background:#eef7ee;border-color:#cfe9cf;}
     .badge.warn{background:#fff5e6;border-color:#ffe0ad;}
     .badge.lock{background:#ffecec;border-color:#ffd0d0;color:#a40000;}
-    .actions{margin-top:auto;display:flex;gap:10px;align-items:center;}
+    .actions{display:flex;gap:10px;align-items:center;}
     .selectBtn{width:100%;padding:10px 12px;border-radius:12px;border:1px solid #d9deea;background:#0b6;color:#fff;font-weight:900;cursor:pointer;display:flex;justify-content:center;align-items:center;}
     .selectBtn.off{background:#fff;color:#111;border-color:#d9deea;}
     .selectBtn.disabled{background:#f2f3f6;color:#777;border-color:#e3e5ec;cursor:not-allowed;}

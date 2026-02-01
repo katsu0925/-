@@ -1,5 +1,19 @@
-const ACCESS_TOKEN = 'JFY7/Af0zPbgyeBSeie1hMOLcMgx1fPfsnpwnB+mxNaKMFTN5A6iNlIkhe/n1Wfy3cvH5ySVJZ1PEIUAGBsXVsHMWFyx+BYoWA4PhIIKp9y5iZf6HwOXty+tIJCoA4Ap4oIUdr3htabt5rTj47ShPgdB04t89/1O/w1cDnyilFU=';
-const TO_ID = 'C4c444a421bc6cb92ad4127c2d9c5c850';
+/**
+ * LINE通知の認証情報をPropertiesServiceに設定（GASエディタで1回だけ実行）
+ */
+function setLineNotifyCredentials() {
+  var p = PropertiesService.getScriptProperties();
+  p.setProperty('LINE_ACCESS_TOKEN', 'ここにアクセストークンを貼り付け');
+  p.setProperty('LINE_TO_ID', 'ここにTO_IDを貼り付け');
+  console.log('LINE認証情報を設定しました');
+}
+
+function getLineAccessToken_() {
+  return PropertiesService.getScriptProperties().getProperty('LINE_ACCESS_TOKEN') || '';
+}
+function getLineToId_() {
+  return PropertiesService.getScriptProperties().getProperty('LINE_TO_ID') || '';
+}
 
 function notifyUnsentRequests() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -26,7 +40,7 @@ function notifyUnsentRequests() {
       '連絡手段: ' + e + '\n' +
       '備考: ' + z;
     const payload = JSON.stringify({
-      to: TO_ID,
+      to: getLineToId_(),
       messages: [{
         type: 'text',
         text: message
@@ -37,7 +51,7 @@ function notifyUnsentRequests() {
       contentType: 'application/json',
       payload: payload,
       headers: {
-        Authorization: 'Bearer ' + ACCESS_TOKEN
+        Authorization: 'Bearer ' + getLineAccessToken_()
       }
     };
     UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', options);
