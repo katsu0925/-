@@ -315,6 +315,57 @@ function st_applyFiltersAndSort_(products, maps, userKey, params) {
   };
 }
 
+function st_getSelectedBrandKeys_(params) {
+  const p = (params && typeof params === 'object') ? params : {};
+  const f = (p.filters && typeof p.filters === 'object') ? p.filters : {};
+
+  let list = [];
+  if (Array.isArray(f.brand)) list = f.brand;
+  else if (typeof f.brand === 'string' && f.brand.trim()) list = [f.brand];
+
+  const set = {};
+  for (let i = 0; i < list.length; i++) {
+    const k = st_normBrandKey_(list[i]);
+    if (k) set[k] = true;
+  }
+  return set;
+}
+
+function st_searchPage_(userKey, params) {
+  const uk = String(userKey || '').trim();
+  const orderSs = sh_getOrderSs_();
+  const products = pr_readProducts_();
+  const maps = st_buildStatusMaps_(orderSs);
+  return st_applyFiltersAndSort_(products, maps, uk, params || {});
+}
+
+function st_buildDigestMap_(orderSs, userKey, ids) {
+  const now = u_nowMs_();
+  const maps = st_buildStatusMaps_(orderSs);
+  const out = {};
+  const list = u_unique_(u_normalizeIds_(ids || []));
+
+  for (let i = 0; i < list.length; i++) {
+    const id = list[i];
+
+    if (maps.openSet && maps.openSet[id]) {
+      out[id] = { status: '依頼中', heldByOther: false, untilMs: 0 };
+      continue;
+    }
+
+    const h = maps.holds ? maps.holds[id] : null;
+    if (h && u_toInt_(h.untilMs, 0) > now) {
+      const other = String(h.userKey || '') && String(h.userKey || '') !== String(userKey || '');
+      out[id] = { status: '確保中', heldByOther: other, untilMs: u_toInt_(h.untilMs, 0) };
+      continue;
+    }
+
+    out[id] = { status: '在庫あり', heldByOther: false, untilMs: 0 };
+  }
+
+  return out;
+}
+
 /**
  * ステータスキャッシュ無効化
  */
