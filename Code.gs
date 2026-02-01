@@ -21,6 +21,47 @@ function doGet(e) {
 }
 
 
+/**
+ * JSON API エンドポイント（外部フロントエンド用）
+ * Cloudflare Pages等からfetch()で呼び出す
+ */
+function doPost(e) {
+  try {
+    var body = JSON.parse(e.postData.contents);
+    var action = String(body.action || '');
+    var args = body.args || [];
+
+    // 許可されたAPI関数のマップ
+    var allowed = {
+      'apiGetCachedProducts': apiGetCachedProducts,
+      'apiInit': apiInit,
+      'apiSearch': apiSearch,
+      'apiGetStatusDigest': apiGetStatusDigest,
+      'apiSyncHolds': apiSyncHolds,
+      'apiSubmitEstimate': apiSubmitEstimate,
+      'apiGetProductDetail': apiGetProductDetail,
+      'apiGetAllDetails': apiGetAllDetails,
+      'apiRefreshOpenState': apiRefreshOpenState,
+      'apiLogPV': apiLogPV
+    };
+
+    var fn = allowed[action];
+    if (!fn) {
+      return jsonResponse_({ ok: false, message: '不明なアクション: ' + action });
+    }
+
+    var result = fn.apply(null, args);
+    return jsonResponse_(result);
+  } catch (err) {
+    return jsonResponse_({ ok: false, message: (err && err.message) ? err.message : String(err) });
+  }
+}
+
+function jsonResponse_(data) {
+  return ContentService.createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
 function apiLogPV(payload) {
   const body = (payload && typeof payload === 'object') ? payload : {};
   const noLog = String(body.noLog || '') === '1';

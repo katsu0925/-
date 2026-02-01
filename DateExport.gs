@@ -27,6 +27,54 @@
 var EXPORT_FOLDER_ID = '1Wxx7J71PImov3MDU-RgCIwTSPHFlu9ot'; // ★★★ ここにフォルダIDを設定 ★★★
 
 /**
+ * ブランド名の正規化マップ
+ * キー: 正規化後の名前, 値: 統合される元の名前の配列
+ * ★ 新しいブランド表記揺れを見つけたらここに追加 ★
+ */
+var BRAND_NORMALIZE_MAP = {
+  '&.NOSTALGIA': ['&. NOSTALGIA'],
+  'Alma Design': ['Alma Designs'],
+  'ADAM ET ROPE': ['ADAM ET ROPÉ', 'Adam et Rope', 'adam et rope'],
+  'UNITED ARROWS': ['United Arrows', 'UNITED  ARROWS'],
+  'BEAMS': ['Beams', 'beams'],
+  'JOURNAL STANDARD': ['Journal Standard', 'JOURNAL  STANDARD'],
+  'URBAN RESEARCH': ['Urban Research', 'URBAN  RESEARCH'],
+  'SHIPS': ['Ships', 'ships'],
+  'nano・universe': ['nano universe', 'NANO UNIVERSE', 'nano・universe ']
+};
+
+/**
+ * ブランド名の正規化用逆引きマップを構築（起動時に1度だけ）
+ */
+function buildBrandNormLookup_() {
+  var lookup = {};
+  for (var canonical in BRAND_NORMALIZE_MAP) {
+    var variants = BRAND_NORMALIZE_MAP[canonical];
+    for (var i = 0; i < variants.length; i++) {
+      lookup[variants[i].toLowerCase().replace(/\s+/g, ' ').trim()] = canonical;
+    }
+  }
+  return lookup;
+}
+
+/**
+ * ブランド名を正規化
+ * 1. 前後スペース除去
+ * 2. 連続スペースを1つに
+ * 3. 明示マップで統合
+ */
+function normalizeBrand_(raw) {
+  if (!raw) return '';
+  var s = String(raw).replace(/\s+/g, ' ').trim();
+  if (!s) return '';
+  var key = s.toLowerCase();
+  if (!normalizeBrand_._lookup) {
+    normalizeBrand_._lookup = buildBrandNormLookup_();
+  }
+  return normalizeBrand_._lookup[key] || s;
+}
+
+/**
  * データ1シートの列マッピング（0-indexed）
  * 実際のシート構造に合わせて調整してください
  */
@@ -139,7 +187,7 @@ function exportProductData_() {
         managedId: managedId,
         noLabel: String(row[DATA_COLUMNS.noLabel] || ''),
         imageUrl: String(row[DATA_COLUMNS.imageUrl] || ''),
-        brand: String(row[DATA_COLUMNS.brand] || '').trim(),
+        brand: normalizeBrand_(row[DATA_COLUMNS.brand]),
         category: String(row[DATA_COLUMNS.category] || '').trim(),
         size: String(row[DATA_COLUMNS.size] || '').trim(),
         color: String(row[DATA_COLUMNS.color] || '').trim(),
