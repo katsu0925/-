@@ -598,6 +598,25 @@ function cancelByReceiptNo(receiptNo) {
 }
 
 /**
+ * 現在の依頼中をリフレッシュ（API用 - フロントからも呼べる）
+ * 依頼管理シートの最新状態からopenStateを再構築する
+ */
+function apiRefreshOpenState() {
+  try {
+    var orderSs = sh_getOrderSs_();
+    var openState = od_rebuildOpenStateFromRequestSheet_(orderSs);
+    st_setOpenState_(orderSs, openState);
+    var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
+    od_writeOpenLogSheetFromState_(orderSs, openItems, u_nowMs_());
+    st_invalidateStatusCache_(orderSs);
+    var count = Object.keys(openItems).length;
+    return { ok: true, message: '依頼中を再構築しました（' + count + '件）' };
+  } catch (e) {
+    return { ok: false, message: (e && e.message) ? e.message : String(e) };
+  }
+}
+
+/**
  * キューの内容を確認
  */
 function viewSubmitQueue() {

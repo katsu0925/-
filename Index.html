@@ -21,7 +21,7 @@
     .btn.primary{background:#111;color:#fff;border-color:#111;}
     .btn:disabled{opacity:.5;cursor:not-allowed;}
     .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:12px;}
-    @media (max-width:800px){.grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+    @media (max-width:800px){.grid{grid-template-columns:repeat(3,minmax(0,1fr));} .card{min-height:auto;} .cardbody{padding:8px 8px;gap:4px;} .noText{font-size:12px;} .brandText{font-size:12px;} .price{font-size:13px;} .meta{font-size:10px;} .badge{font-size:10px;padding:2px 6px;} .selectBtn{padding:8px 6px;font-size:12px;}}
     .card{background:#fff;border:1px solid #e6e8ee;border-radius:14px;overflow:hidden;display:flex;flex-direction:column;min-height:310px;}
     .thumb{width:100%;aspect-ratio:1/1;background:#f0f2f7;display:flex;align-items:center;justify-content:center;overflow:hidden;}
     .thumb img{width:100%;height:100%;object-fit:contain;display:block;}
@@ -98,6 +98,9 @@
     .price-new { color:#b8002a; font-weight:700; }
     .filter-control { border: 2px solid #3b82f6 !important; background-color: #eff6ff !important; }
     .sort-control { border: 2px solid #8b5cf6 !important; background-color: #f5f3ff !important; }
+    .section-label { font-size: 12px; font-weight: 900; color: #555; width: 100%; padding: 4px 0 0; }
+    .section-label.filter-label { color: #2563eb; }
+    .section-label.sort-label { color: #7c3aed; }
     .detail-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); z-index: 9999; justify-content: center; align-items: center; }
     .detail-modal-overlay.active { display: flex; }
     .detail-modal { background: white; border-radius: 12px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; position: relative; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
@@ -141,11 +144,12 @@
           <span class="muted" id="brandBtnSub">未選択</span>
         </button>
       </div>
-      <div class="field"><select id="fStatus" class="filter-control"></select></div>
+      <div class="section-label filter-label">絞り込み（フィルタ）</div>
       <div class="field"><select id="fCategory" class="filter-control"></select></div>
       <div class="field"><select id="fState" class="filter-control"></select></div>
       <div class="field"><select id="fGender" class="filter-control"></select></div>
       <div class="field"><select id="fSize" class="filter-control"></select></div>
+      <div class="section-label sort-label">並べ替え（ソート）</div>
       <div class="field"><select id="sortKey" class="sort-control"></select></div>
       <div class="field" style="min-width:140px; flex:0 0 140px;">
         <select id="sortDir" class="sort-control">
@@ -333,7 +337,7 @@ var state = {
   settings: null,
   options: null,
   query: {
-    filters: { brand: [], status: '', category: '', state: '', gender: '', size: '' },
+    filters: { brand: [], category: '', state: '', gender: '', size: '' },
     sort: { key: 'default', dir: 'asc' },
     page: 1,
     pageSize: 60
@@ -505,7 +509,6 @@ function applyFilters_() {
   if (f.brand && f.brand.length > 0) {
     products = products.filter(function(p) { return f.brand.indexOf(p.brand) !== -1; });
   }
-  if (f.status) { products = products.filter(function(p) { return p.status === f.status; }); }
   if (f.category) { products = products.filter(function(p) { return p.category === f.category; }); }
   if (f.state) { products = products.filter(function(p) { return p.state === f.state; }); }
   if (f.gender) { products = products.filter(function(p) { return p.gender === f.gender; }); }
@@ -1173,7 +1176,6 @@ function bindUi_() {
   });
   
   var doFilter_ = function() { state.query.page = 1; filterAndRender(true); };
-  $('fStatus').addEventListener('change', function() { state.query.filters.status = this.value; doFilter_(); });
   $('fCategory').addEventListener('change', function() { state.query.filters.category = this.value; doFilter_(); });
   $('fState').addEventListener('change', function() { state.query.filters.state = this.value; doFilter_(); });
   $('fGender').addEventListener('change', function() { state.query.filters.gender = this.value; doFilter_(); });
@@ -1182,13 +1184,13 @@ function bindUi_() {
   $('sortDir').addEventListener('change', function() { state.query.sort.dir = this.value; doFilter_(); });
   
   $('btnReset').addEventListener('click', function() {
-    state.query.filters = { brand: [], status: '', category: '', state: '', gender: '', size: '' };
+    state.query.filters = { brand: [], category: '', state: '', gender: '', size: '' };
     state.query.sort = { key: 'default', dir: 'asc' };
     state.query.page = 1;
     var prev = Object.keys(state.brandUi.selected || {});
     for (var i = 0; i < prev.length; i++) { var cb = state.brandUi.cbByName[prev[i]]; if (cb) cb.checked = false; }
     state.brandUi.selected = {}; updateBrandBtn_();
-    $('fStatus').value = ''; $('fCategory').value = ''; $('fState').value = '';
+    $('fCategory').value = ''; $('fState').value = '';
     $('fGender').value = ''; $('fSize').value = ''; $('sortKey').value = 'default'; $('sortDir').value = 'asc';
     filterAndRender(true);
   });
@@ -1271,7 +1273,6 @@ function boot() {
       buildTopNotes();
       setBaseLink_();
       
-      setSelectOptions($('fStatus'), state.options.status || [], 'ステータス');
       setSelectOptions($('fCategory'), state.options.category || [], 'カテゴリ');
       setSelectOptions($('fState'), state.options.state || [], '状態');
       setSelectOptions($('fGender'), state.options.gender || [], '性別');

@@ -190,7 +190,7 @@ function sh_findNextRowByDisplayKey_(sh, keyCol, headerRows) {
     const vals = sh.getRange(start, col, h, 1).getDisplayValues();
     for (let i = vals.length - 1; i >= 0; i--) {
       if (String(vals[i][0] || '').trim() !== '') {
-        return (start + i + 1) + 1;
+        return start + i + 1;
       }
     }
   }
