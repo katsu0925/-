@@ -52,16 +52,20 @@ function doPost(e) {
 
     // レート制限チェック（userKeyはargsの第1引数に入っている想定）
     var userKey = (args.length > 0 && typeof args[0] === 'string') ? args[0] : '';
-    var rateErr = checkRateLimit_(action, userKey);
-    if (rateErr) {
-      return jsonResponse_({ ok: false, message: rateErr });
-    }
+    var isAdmin = isAdminUser_(body);
 
-    // reCAPTCHA検証（送信時のみ）
-    if (action === 'apiSubmitEstimate') {
-      var token = String(body.recaptchaToken || '');
-      if (!verifyRecaptcha_(token)) {
-        return jsonResponse_({ ok: false, message: 'bot判定されました。ページを再読み込みしてお試しください。' });
+    if (!isAdmin) {
+      var rateErr = checkRateLimit_(action, userKey);
+      if (rateErr) {
+        return jsonResponse_({ ok: false, message: rateErr });
+      }
+
+      // reCAPTCHA検証（送信時のみ）
+      if (action === 'apiSubmitEstimate') {
+        var token = String(body.recaptchaToken || '');
+        if (!verifyRecaptcha_(token)) {
+          return jsonResponse_({ ok: false, message: 'bot判定されました。ページを再読み込みしてお試しください。' });
+        }
       }
     }
 
@@ -130,6 +134,25 @@ function verifyRecaptcha_(token) {
   } catch (e) {
     return true;  // 検証失敗時は通す（可用性優先）
   }
+}
+
+// =====================================================
+// 管理者判定（レート制限・reCAPTCHAをスキップ）
+// =====================================================
+
+function isAdminUser_(body) {
+  var adminKey = PropertiesService.getScriptProperties().getProperty('ADMIN_KEY') || '';
+  if (!adminKey) return false;
+  return String(body.adminKey || '') === adminKey;
+}
+
+/**
+ * 管理者キーを設定（GASエディタで1回だけ実行）
+ * 例: setAdminKey('my-secret-key-123')
+ */
+function setAdminKey(key) {
+  PropertiesService.getScriptProperties().setProperty('ADMIN_KEY', key);
+  console.log('ADMIN_KEY を設定しました');
 }
 
 function apiLogPV(payload) {
