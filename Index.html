@@ -449,6 +449,7 @@ var IS_STANDALONE = (typeof google === 'undefined' || !google.script);
 
 // reCAPTCHA v3 サイトキー（★ Google reCAPTCHA管理画面で取得して設定）
 var RECAPTCHA_SITE_KEY = '6LeMeF0sAAAAAK1DLANrMyfuugoe6mdWMQbY2ao1';
+var ADMIN_KEY = (new URLSearchParams(window.location.search)).get('admin') || '';
 
 function getRecaptchaToken_() {
   if (typeof grecaptcha === 'undefined' || !RECAPTCHA_SITE_KEY || RECAPTCHA_SITE_KEY.indexOf('RECAPTCHA') !== -1) {
@@ -468,6 +469,7 @@ function runApi(fn, _extra) {
   if (IS_STANDALONE) {
     var payload = { action: fn, args: args };
     if (extra.recaptchaToken) payload.recaptchaToken = extra.recaptchaToken;
+    if (ADMIN_KEY) payload.adminKey = ADMIN_KEY;
     return fetch(GAS_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
