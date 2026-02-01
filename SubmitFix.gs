@@ -171,14 +171,14 @@ function apiSubmitEstimate(userKey, form, ids) {
 
     // バックグラウンド処理をトリガーで実行（1秒後）
     try {
-      ScriptApp.newTrigger('processSubmitQueue_')
+      ScriptApp.newTrigger('processSubmitQueue')
         .timeBased()
         .after(1000)
         .create();
     } catch (e) {
       // トリガー作成に失敗しても、同期的に実行
       console.log('トリガー作成失敗、同期実行:', e);
-      processSubmitQueue_();
+      processSubmitQueue();
     }
 
     // 即座に完了を返す
@@ -201,7 +201,7 @@ function apiSubmitEstimate(userKey, form, ids) {
 /**
  * キューに溜まった送信データを処理（トリガーから呼ばれる）
  */
-function processSubmitQueue_() {
+function processSubmitQueue() {
   var lock = LockService.getScriptLock();
 
   try {
@@ -241,11 +241,11 @@ function processSubmitQueue_() {
     }
 
   } catch (e) {
-    console.error('processSubmitQueue_ error:', e);
+    console.error('processSubmitQueue error:', e);
     try { lock.releaseLock(); } catch (x) {}
   } finally {
     // このトリガーを削除
-    cleanupTriggers_('processSubmitQueue_');
+    cleanupTriggers_('processSubmitQueue');
   }
 }
 
@@ -519,7 +519,7 @@ function resetProductStatusForRefresh_(ss, ids) {
  * キューに溜まったデータを手動で処理
  */
 function processQueueManually() {
-  processSubmitQueue_();
+  processSubmitQueue();
 }
 
 /**
