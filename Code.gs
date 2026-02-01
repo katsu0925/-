@@ -142,8 +142,10 @@ function verifyRecaptcha_(token) {
 
 function isAdminUser_(body) {
   var adminKey = PropertiesService.getScriptProperties().getProperty('ADMIN_KEY') || '';
+  var sent = String(body.adminKey || '');
+  console.log('isAdminUser_ check: sent="' + sent + '" stored="' + adminKey + '" match=' + (sent === adminKey));
   if (!adminKey) return false;
-  return String(body.adminKey || '') === adminKey;
+  return sent === adminKey;
 }
 
 /**
