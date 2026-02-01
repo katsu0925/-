@@ -94,6 +94,18 @@ function onEdit(e) {
         lock.releaseLock();
       }
     }
+    // 依頼中シートの編集・行削除を検知してopenStateを再構築
+    const openLogSheetName = String(APP_CONFIG.order.openLogSheetName || '依頼中');
+    if (ssId === orderId && sheet.getName() === openLogSheetName) {
+      try {
+        const orderSs = sh_getOrderSs_();
+        od_rebuildOpenStateFromOpenLogSheet_(orderSs);
+      } catch (e2) {
+        console.error('依頼中シート同期エラー:', e2);
+      }
+      return;
+    }
+
   } catch (err) {
   }
 }

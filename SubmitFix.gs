@@ -532,6 +532,72 @@ function clearSubmitQueue() {
 }
 
 /**
+ * 依頼中状態を全リセット（テスト後のクリーンアップ用）
+ * - openStateをクリア
+ * - 依頼中シートをクリア
+ * - キャッシュを無効化
+ * GASエディタから手動実行
+ */
+function resetAllOpenState() {
+  var orderSs = sh_getOrderSs_();
+
+  // openStateをクリア
+  st_setOpenState_(orderSs, { items: {}, updatedAt: u_nowMs_() });
+
+  // 依頼中シートをクリア
+  var sh = sh_ensureOpenLogSheet_(orderSs);
+  var lastRow = sh.getLastRow();
+  if (lastRow >= 2) {
+    sh.getRange(2, 1, lastRow - 1, sh.getLastColumn()).clearContent();
+  }
+
+  // キャッシュ無効化
+  st_invalidateStatusCache_(orderSs);
+
+  console.log('依頼中状態を全リセットしました');
+}
+
+/**
+ * 指定した受付番号の依頼中を取り消す
+ * GASエディタから手動実行
+ * @param {string} receiptNo - 受付番号
+ */
+function cancelByReceiptNo(receiptNo) {
+  if (!receiptNo) {
+    console.log('受付番号を指定してください');
+    return;
+  }
+
+  var orderSs = sh_getOrderSs_();
+  var openState = st_getOpenState_(orderSs) || {};
+  var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
+
+  var removed = [];
+  for (var id in openItems) {
+    if (openItems[id] && String(openItems[id].receiptNo || '') === String(receiptNo)) {
+      removed.push(id);
+      delete openItems[id];
+    }
+  }
+
+  if (removed.length === 0) {
+    console.log('受付番号 ' + receiptNo + ' に該当する依頼中商品はありません');
+    return;
+  }
+
+  openState.items = openItems;
+  openState.updatedAt = u_nowMs_();
+  st_setOpenState_(orderSs, openState);
+
+  // 依頼中シートも更新
+  od_writeOpenLogSheetFromState_(orderSs, openItems, u_nowMs_());
+  st_invalidateStatusCache_(orderSs);
+
+  console.log('受付番号 ' + receiptNo + ' の依頼中を取り消しました（' + removed.length + '点）');
+  console.log('対象: ' + removed.join('、'));
+}
+
+/**
  * キューの内容を確認
  */
 function viewSubmitQueue() {
