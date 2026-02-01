@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <style>
+    html, body { margin:0; padding:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif; color:#111; background:#f6f7f9; -webkit-text-size-adjust:100%; }
+    * { box-sizing:border-box; }
+    .wrap{max-width:900px;margin:0 auto;padding:14px;}
+    .card{background:#fff;border:1px solid #e6e8ee;border-radius:14px;padding:14px;}
+    .title{font-weight:900;font-size:18px;}
+    .btnRow{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;}
+    button{padding:10px 12px;border:1px solid #d9deea;border-radius:10px;background:#fff;cursor:pointer;font-weight:900;}
+    button.primary{background:#111;color:#fff;border-color:#111;}
+    .log{margin-top:12px;font-size:12px;color:#333;white-space:pre-wrap;line-height:1.5;}
+    .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#111;color:#fff;padding:10px 12px;border-radius:12px;display:none;z-index:50;font-weight:900;max-width:92vw;}
+    .toast.show{display:block;}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="title">管理</div>
+      <div class="btnRow">
+        <button class="primary" id="btnCompact" type="button">期限切れ確保の整理</button>
+        <button id="btnRebuild" type="button">状態の再構築</button>
+        <button id="btnClearCache" type="button">商品キャッシュ削除</button>
+        <button id="btnApplyDv" type="button">依頼管理ステータスのプルダウン適用</button>
+      </div>
+      <div class="log" id="log"></div>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+
+<script>
+  function $(id){ return document.getElementById(id); }
+  function showToast(msg){
+    const t = $('toast');
+    t.textContent = String(msg || '');
+    t.classList.add('show');
+    setTimeout(()=>t.classList.remove('show'), 2400);
+  }
+  function log(msg){
+    const el = $('log');
+    el.textContent = (el.textContent ? el.textContent + '\n' : '') + String(msg || '');
+  }
+  function run(fn){
+    return new Promise((resolve, reject)=>{
+      let done = false;
+      const timer = setTimeout(()=>{
+        if (done) return;
+        done = true;
+        reject(new Error('サーバー応答がありません: ' + fn));
+      }, 25000);
+
+      const runner = (typeof google !== 'undefined' && google && google.script && google.script.run) ? google.script.run : null;
+      if (!runner) { clearTimeout(timer); reject(new Error('google.script.run が見つかりません')); return; }
+
+      const call = runner
+        .withSuccessHandler((res)=>{
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          resolve(res);
+        })
+        .withFailureHandler((err)=>{
+          if (done) return;
+          done = true;
+          clearTimeout(timer);
+          reject(new Error(err && err.message ? err.message : String(err)));
+        })[fn];
+
+      if (typeof call !== 'function') { clearTimeout(timer); reject(new Error('関数が見つかりません: ' + fn)); return; }
+      call();
+    });
+  }
+
+  $('btnCompact').addEventListener('click', async ()=>{
+    try{
+      log('実行: 期限切れ確保の整理');
+      const res = await run('adminCompactHolds');
+      if (!res || !res.ok) { showToast(res && res.message ? res.message : '失敗'); log('失敗'); return; }
+      showToast('完了');
+      log('完了');
+    }catch(e){
+      showToast(e.message || '失敗');
+      log('失敗: ' + (e.message || ''));
+    }
+  });
+
+  $('btnRebuild').addEventListener('click', async ()=>{
+    try{
+      log('実行: 状態の再構築');
+      const res = await run('adminRebuildStates');
+      if (!res || !res.ok) { showToast(res && res.message ? res.message : '失敗'); log('失敗'); return; }
+      showToast('完了');
+      log('完了');
+    }catch(e){
+      showToast(e.message || '失敗');
+      log('失敗: ' + (e.message || ''));
+    }
+  });
+
+  $('btnClearCache').addEventListener('click', async ()=>{
+    try{
+      log('実行: 商品キャッシュ削除');
+      const res = await run('adminClearProductsCache');
+      if (!res || !res.ok) { showToast(res && res.message ? res.message : '失敗'); log('失敗'); return; }
+      showToast('完了');
+      log('完了');
+    }catch(e){
+      showToast(e.message || '失敗');
+      log('失敗: ' + (e.message || ''));
+    }
+  });
+
+  $('btnApplyDv').addEventListener('click', async ()=>{
+    try{
+      log('実行: 依頼管理ステータスのプルダウン適用');
+      const res = await run('adminApplyStatusDropdown');
+      if (!res || !res.ok) { showToast(res && res.message ? res.message : '失敗'); log('失敗'); return; }
+      showToast('完了');
+      log('完了');
+    }catch(e){
+      showToast(e.message || '失敗');
+      log('失敗: ' + (e.message || ''));
+    }
+  });
+</script>
+</body>
+</html>
