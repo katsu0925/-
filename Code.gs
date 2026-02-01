@@ -107,17 +107,20 @@ function checkRateLimit_(action, userKey) {
 // reCAPTCHA v3 検証
 // =====================================================
 
-var RECAPTCHA_SECRET_KEY = '';  // ★ Google reCAPTCHA v3のシークレットキーを設定
+function getRecaptchaSecret_() {
+  return PropertiesService.getScriptProperties().getProperty('RECAPTCHA_SECRET') || '';
+}
 
 function verifyRecaptcha_(token) {
-  if (!RECAPTCHA_SECRET_KEY) return true;  // 未設定ならスキップ
+  var secret = getRecaptchaSecret_();
+  if (!secret) return true;  // 未設定ならスキップ
   if (!token) return false;
 
   try {
     var res = UrlFetchApp.fetch('https://www.google.com/recaptcha/api/siteverify', {
       method: 'post',
       payload: {
-        secret: RECAPTCHA_SECRET_KEY,
+        secret: secret,
         response: token
       },
       muteHttpExceptions: true
