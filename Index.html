@@ -27,9 +27,9 @@
     .thumb img{width:100%;height:100%;object-fit:contain;display:block;}
     .cardbody{padding:10px 12px;display:flex;flex-direction:column;gap:6px;flex:1;}
     .row1{display:flex;justify-content:space-between;gap:8px;align-items:flex-start;}
-    .leftTitle{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;min-width:0;font-weight:900;line-height:1.25;}
+    .leftTitle{display:flex;flex-direction:column;gap:2px;min-width:0;font-weight:900;line-height:1.25;}
     .noText{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-weight:900;white-space:nowrap;}
-    .brandText{font-weight:900;}
+    .brandText{font-weight:900;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;display:block;}
     .price{font-weight:900;color:#b8002a;white-space:nowrap;}
     .meta{font-size:12px;color:#444;line-height:1.35;white-space:pre-line;}
     .badges{display:flex;gap:6px;flex-wrap:wrap;align-items:center;}
@@ -129,7 +129,7 @@
   <div class="topbar">
     <div class="wrap" style="padding:0 14px;">
       <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-end; flex-wrap:wrap;">
-        <div class="title" id="appTitle"><?= appTitle ?></div>
+        <div class="title" id="appTitle">選べる卸商品</div>
         <div class="badge ok" id="totalCountBadge"></div>
       </div>
       <div class="subnote" id="topNotes"></div>
@@ -438,11 +438,34 @@ function loadMeasureOpt_() { try { return localStorage.getItem('estimate_measure
 function saveMeasureOpt_() { try { localStorage.setItem('estimate_measureOpt', getMeasureOptValue_()); } catch (e) {} }
 
 // =====================================================
-// GAS API呼び出し
+// GAS API呼び出し（GASモード / スタンドアロンモード自動判定）
 // =====================================================
+
+// ★ スタンドアロン（Cloudflare Pages等）で使う場合はここにGAS Web App URLを設定
+var GAS_API_URL = '';  // 例: 'https://script.google.com/macros/s/XXXXX/exec'
+
+var IS_STANDALONE = (typeof google === 'undefined' || !google.script);
 
 function runApi(fn) {
   var args = Array.prototype.slice.call(arguments, 1);
+
+  if (IS_STANDALONE) {
+    return fetch(GAS_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: fn, args: args }),
+      redirect: 'follow'
+    })
+    .then(function(res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    })
+    .then(function(data) {
+      if (data && data.ok === false) throw new Error(data.message || 'APIエラー');
+      return data;
+    });
+  }
+
   return new Promise(function(resolve, reject) {
     var done = false;
     var timer = setTimeout(function() {
@@ -450,7 +473,7 @@ function runApi(fn) {
       done = true;
       reject(new Error('タイムアウト'));
     }, 30000);
-    
+
     try {
       var runner = google.script.run
         .withSuccessHandler(function(res) {
@@ -465,7 +488,7 @@ function runApi(fn) {
           clearTimeout(timer);
           reject(err);
         });
-      
+
       runner[fn].apply(runner, args);
     } catch (e) {
       if (done) return;
@@ -481,6 +504,16 @@ function runApi(fn) {
 // =====================================================
 
 function loadProductData() {
+  if (IS_STANDALONE) {
+    return runApi('apiGetCachedProducts').then(function(res) {
+      if (res && res.ok && res.data) {
+        console.log('データ読み込み完了:', res.data.totalCount + '件');
+        return res.data;
+      }
+      throw new Error(res && res.message ? res.message : 'データ取得に失敗');
+    });
+  }
+
   return new Promise(function(resolve, reject) {
     google.script.run
       .withSuccessHandler(function(res) {
@@ -738,19 +771,17 @@ function renderGrid_(items) {
     
     var body = document.createElement('div'); body.className = 'cardbody';
     var row1 = document.createElement('div'); row1.className = 'row1';
-    var leftTitle = document.createElement('div'); leftTitle.className = 'leftTitle';
+    var leftTitle = document.createElement('div'); leftTitle.className = 'leftTitle'; leftTitle.style.cursor = 'pointer';
     var spanNo = document.createElement('span'); spanNo.className = 'noText'; spanNo.textContent = it.noLabel ? it.noLabel : ('No. ' + id);
     var spanBrand = document.createElement('span'); spanBrand.className = 'brandText'; spanBrand.textContent = it.brand || '';
     leftTitle.appendChild(spanNo); if (spanBrand.textContent) leftTitle.appendChild(spanBrand);
+    (function(mid, iurl) { leftTitle.addEventListener('click', function(e) { e.stopPropagation(); openDetailModal(mid, iurl); }); })(id, it.imageUrl ? convertDriveImageUrl(it.imageUrl) : '');
     var price = document.createElement('div'); price.className = 'price'; price.textContent = yen(it.price);
     row1.appendChild(leftTitle); row1.appendChild(price); body.appendChild(row1);
     
     var badges = document.createElement('div'); badges.className = 'badges';
     var bState = document.createElement('div'); bState.className = 'badge'; bState.textContent = it.state || ''; badges.appendChild(bState);
     var bStatus = document.createElement('div'); setStatusBadge_(bStatus, r.effectiveStatus); badges.appendChild(bStatus); body.appendChild(badges);
-    
-    var meta = document.createElement('div'); meta.className = 'meta';
-    meta.textContent = [it.category, it.color, it.gender, it.size].filter(Boolean).join(' / '); body.appendChild(meta);
     
     var btn = document.createElement('button'); btn.type = 'button'; applyBtnUi_(btn, it, id);
     (function(itemRef, idRef) { btn.addEventListener('click', function() { if (computeDisabledForCard_(itemRef, idRef).disabled) return; toggleCartOptimistic_(idRef); }); })(it, id);
@@ -1015,8 +1046,9 @@ function renderCartModal_() {
     if (!it) continue;
     var row = document.createElement('div'); row.className = 'cartRow';
     var left = document.createElement('div'); left.className = 'cartLeft';
-    var name = document.createElement('div'); name.className = 'cartName';
+    var name = document.createElement('div'); name.className = 'cartName'; name.style.cursor = 'pointer';
     name.textContent = (it.noLabel ? it.noLabel : id) + (it.brand ? (' ' + it.brand) : '');
+    (function(mid, iurl) { name.addEventListener('click', function(e) { e.stopPropagation(); closeModal($('cartModal')); openDetailModal(mid, iurl); }); })(id, it.imageUrl ? convertDriveImageUrl(it.imageUrl) : '');
     var sub = document.createElement('div'); sub.className = 'cartSub';
     sub.textContent = [it.category, it.color, it.gender, it.size].filter(Boolean).join(' / ') + ' / ' + yen(it.price);
     left.appendChild(name); left.appendChild(sub);
