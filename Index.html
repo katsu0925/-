@@ -14,7 +14,8 @@
     .wrap{max-width:1200px;margin:0 auto;padding:12px 14px 90px;}
     .title{font-weight:900;font-size:18px;}
     .subnote{margin-top:6px;font-size:12px;color:#666;line-height:1.4;}
-    .topDetails{margin-top:6px;}
+    .topDetails{margin-top:6px;cursor:pointer;}
+    .topDetails a{cursor:pointer;}
     .topSummary{font-size:12px;font-weight:900;color:#555;cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;}
     .topSummary::-webkit-details-marker{display:none;}
     .topSummary::before{content:'▼';font-size:10px;transition:transform .2s;}
@@ -801,11 +802,14 @@ function renderGrid_(items) {
     var row1 = document.createElement('div'); row1.className = 'row1';
     var leftTitle = document.createElement('div'); leftTitle.className = 'leftTitle'; leftTitle.style.cursor = 'pointer';
     var spanNo = document.createElement('span'); spanNo.className = 'noText'; spanNo.textContent = it.noLabel ? it.noLabel : ('No. ' + id);
-    var spanBrand = document.createElement('span'); spanBrand.className = 'brandText'; spanBrand.textContent = it.brand || '';
-    leftTitle.appendChild(spanNo); if (spanBrand.textContent) leftTitle.appendChild(spanBrand);
+    var spanBrand = document.createElement('div'); spanBrand.className = 'brandText'; spanBrand.textContent = it.brand || '';
+    spanBrand.style.cursor = 'pointer';
+    leftTitle.appendChild(spanNo);
     (function(mid, iurl) { leftTitle.addEventListener('click', function(e) { e.stopPropagation(); openDetailModal(mid, iurl); }); })(id, it.imageUrl ? convertDriveImageUrl(it.imageUrl) : '');
+    (function(mid, iurl) { spanBrand.addEventListener('click', function(e) { e.stopPropagation(); openDetailModal(mid, iurl); }); })(id, it.imageUrl ? convertDriveImageUrl(it.imageUrl) : '');
     var price = document.createElement('div'); price.className = 'price'; price.textContent = yen(it.price);
     row1.appendChild(leftTitle); row1.appendChild(price); body.appendChild(row1);
+    if (spanBrand.textContent) body.appendChild(spanBrand);
     
     var badges = document.createElement('div'); badges.className = 'badges';
     var bState = document.createElement('div'); bState.className = 'badge'; bState.textContent = it.state || ''; badges.appendChild(bState);
@@ -1326,7 +1330,17 @@ function boot() {
   bindUi_();
   setupScrollTopButton_();
   setupDetailModalEvents_();
-  
+
+  // 説明欄どこを押しても折りたたみ
+  var topDet = document.querySelector('.topDetails');
+  if (topDet) {
+    topDet.addEventListener('click', function(e) {
+      if (e.target.tagName === 'A') return; // リンクはそのまま
+      if (e.target.closest('summary')) return; // summaryは標準動作
+      topDet.open = !topDet.open;
+    });
+  }
+
   var mo = loadMeasureOpt_();
   if (mo) setMeasureOptValue_(mo);
   
