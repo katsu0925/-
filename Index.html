@@ -462,9 +462,18 @@ var ADMIN_KEY = (new URLSearchParams(window.location.search)).get('admin') || ''
 
 function getRecaptchaToken_() {
   if (typeof grecaptcha === 'undefined' || !RECAPTCHA_SITE_KEY || RECAPTCHA_SITE_KEY.indexOf('RECAPTCHA') !== -1) {
+    console.warn('reCAPTCHA not available: grecaptcha=' + (typeof grecaptcha) + ' siteKey=' + !!RECAPTCHA_SITE_KEY);
     return Promise.resolve('');
   }
-  return grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'submit' });
+  try {
+    return grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'submit' }).catch(function(e) {
+      console.warn('reCAPTCHA execute failed:', e);
+      return '';
+    });
+  } catch (e) {
+    console.warn('reCAPTCHA execute error:', e);
+    return Promise.resolve('');
+  }
 }
 
 function runApi(fn, _extra) {
@@ -477,7 +486,7 @@ function runApi(fn, _extra) {
 
   if (IS_STANDALONE) {
     var payload = { action: fn, args: args };
-    if (extra.recaptchaToken) payload.recaptchaToken = extra.recaptchaToken;
+    if ('recaptchaToken' in extra) payload.recaptchaToken = extra.recaptchaToken;
     if (ADMIN_KEY) payload.adminKey = ADMIN_KEY;
     return fetch(GAS_API_URL, {
       method: 'POST',

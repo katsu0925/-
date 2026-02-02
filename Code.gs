@@ -67,7 +67,8 @@ function doPost(e) {
       if (action === 'apiSubmitEstimate') {
         var token = String(body.recaptchaToken || '');
         if (!verifyRecaptcha_(token)) {
-          return jsonResponse_({ ok: false, message: 'bot判定 [debug] sent="' + adminKeyFromBody + '" stored="' + storedAdminKey + '" keys=' + Object.keys(body).join(',') });
+          console.log('reCAPTCHA failed: token=' + (token ? 'present(' + token.length + 'chars)' : 'empty') + ' keys=' + Object.keys(body).join(','));
+          return jsonResponse_({ ok: false, message: 'bot判定されました。ブラウザを再読み込みして再度お試しください。' });
         }
       }
     }
@@ -121,7 +122,10 @@ function getRecaptchaSecret_() {
 function verifyRecaptcha_(token) {
   var secret = getRecaptchaSecret_();
   if (!secret) return true;  // 未設定ならスキップ
-  if (!token) return false;
+  if (!token) {
+    console.warn('reCAPTCHA token empty — client may not have loaded reCAPTCHA. Allowing request (availability first).');
+    return true;
+  }
 
   try {
     var res = UrlFetchApp.fetch('https://www.google.com/recaptcha/api/siteverify', {
