@@ -1,6 +1,6 @@
 // === Config.gs 全体抜粋 ===
 const APP_CONFIG = {
-  appTitle: '選べる卸商品',
+  appTitle: '選べる古着卸',
   // 最低購入（見積もり）点数を 10 に変更
   minOrderCount: 10,
   notifyEmails: 'nsdktts1030@gmail.com',
