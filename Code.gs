@@ -137,8 +137,14 @@ function verifyRecaptcha_(token) {
       muteHttpExceptions: true
     });
     var json = JSON.parse(res.getContentText());
-    return json.success === true && (json.score || 0) >= 0.3;
+    console.log('reCAPTCHA verify: success=' + json.success + ' score=' + json.score + ' hostname=' + json.hostname + ' errors=' + JSON.stringify(json['error-codes'] || []));
+    // スコアが十分に低い場合(0.1未満)のみブロック。それ以外はレート制限で保護されているため通す
+    if (json.success === true && (json.score || 0) < 0.1) {
+      return false;
+    }
+    return true;
   } catch (e) {
+    console.warn('reCAPTCHA fetch error: ' + e);
     return true;  // 検証失敗時は通す（可用性優先）
   }
 }
