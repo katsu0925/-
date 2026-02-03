@@ -272,10 +272,7 @@ function findAnyCol_(headerMap, candidates) {
   return -1;
 }
 
-function normalizeKey_(v) {
-  if (v == null) return '';
-  return String(v).trim();
-}
+// normalizeKey_ はコード.gsで定義済み
 
 function findAppendRowByMainCol_(sheet, col1Based) {
   const last = sheet.getLastRow();
