@@ -472,6 +472,14 @@ function getExportedJsonUrl() {
 function runExportManually() {
   exportProductData_();
   getExportedJsonUrl();
+  var data = loadFromCache_();
+  if (data) {
+    console.log('='.repeat(50));
+    console.log('エクスポート成功！');
+    console.log('商品数: ' + data.totalCount + '件');
+    console.log('生成日時: ' + data.generatedAt);
+    console.log('='.repeat(50));
+  }
 }
 
 // =====================================================
@@ -514,19 +522,3 @@ function removeExportTrigger() {
   }
   console.log('トリガーを' + removed + '件削除しました');
 }
-
-/**
- * 手動でエクスポートを実行（テスト用）
- */
-function runExportManually() {
-  exportProductData_();
-  var data = loadFromCache_();
-  if (data) {
-    console.log('='.repeat(50));
-    console.log('エクスポート成功！');
-    console.log('商品数: ' + data.totalCount + '件');
-    console.log('生成日時: ' + data.generatedAt);
-    console.log('='.repeat(50));
-  }
-}
-
