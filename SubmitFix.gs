@@ -143,7 +143,7 @@ function apiSubmitEstimate(userKey, form, ids) {
 
     st_invalidateStatusCache_(orderSs);
 
-    // === バックグラウンド：シート書き込み・メール送信をキューに追加 ===
+    // === シート書き込み・メール送信を同期実行 ===
     var writeData = {
       userKey: uk,
       form: validatedForm,
@@ -159,26 +159,24 @@ function apiSubmitEstimate(userKey, form, ids) {
       timestamp: new Date().toISOString()
     };
 
-    var props = PropertiesService.getScriptProperties();
-    var queue = [];
     try {
-      var queueStr = props.getProperty('SUBMIT_QUEUE');
-      if (queueStr) queue = JSON.parse(queueStr);
-    } catch (e) {}
-
-    queue.push(writeData);
-    props.setProperty('SUBMIT_QUEUE', JSON.stringify(queue));
-
-    // バックグラウンド処理をトリガーで実行（1秒後）
-    try {
-      ScriptApp.newTrigger('processSubmitQueue')
-        .timeBased()
-        .after(1000)
-        .create();
-    } catch (e) {
-      // トリガー作成に失敗しても、同期的に実行
-      console.log('トリガー作成失敗、同期実行:', e);
-      processSubmitQueue();
+      writeSubmitData_(writeData);
+      console.log('書き込み完了: ' + receiptNo);
+    } catch (writeErr) {
+      console.error('書き込みエラー（送信自体は成功）: ' + receiptNo, writeErr);
+      // 書き込み失敗時はキューに保存してリトライ可能にする
+      try {
+        var props = PropertiesService.getScriptProperties();
+        var queue = [];
+        try {
+          var queueStr = props.getProperty('SUBMIT_QUEUE');
+          if (queueStr) queue = JSON.parse(queueStr);
+        } catch (e) {}
+        queue.push(writeData);
+        props.setProperty('SUBMIT_QUEUE', JSON.stringify(queue));
+      } catch (e2) {
+        console.error('キュー保存も失敗:', e2);
+      }
     }
 
     // 即座に完了を返す
