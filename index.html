@@ -1326,6 +1326,29 @@ function setupScrollTopButton_() {
 }
 
 // =====================================================
+// アクセスログ（PV記録）
+// =====================================================
+
+function logPageView_() {
+  try {
+    var payload = {
+      page: 'Index',
+      userKey: state.userKey || '',
+      url: window.location.href || '',
+      referrer: document.referrer || '',
+      userAgent: navigator.userAgent || '',
+      language: navigator.language || '',
+      screen: (screen.width || 0) + 'x' + (screen.height || 0)
+    };
+    runApi('apiLogPV', payload).catch(function(e) {
+      console.log('PVログエラー:', e);
+    });
+  } catch (e) {
+    console.log('PVログ送信失敗:', e);
+  }
+}
+
+// =====================================================
 // 起動
 // =====================================================
 
@@ -1335,7 +1358,10 @@ function boot() {
   state.cart.ids = c.ids || [];
   state.cart.itemsById = c.itemsById || {};
   updateCartCount();
-  
+
+  // アクセスログ送信
+  logPageView_();
+
   bindUi_();
   setupScrollTopButton_();
   setupDetailModalEvents_();
