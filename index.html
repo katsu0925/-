@@ -375,6 +375,17 @@ function yen(n) {
   return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '円';
 }
 
+// ブランド名を正規化（大文字小文字・スペース統一）
+function normalizeBrand_(name) {
+  if (!name) return '';
+  // スペースを除去し、大文字に統一
+  return String(name).replace(/\s+/g, '').toUpperCase();
+}
+
+// 正規化ブランドキー → 表示名のマップ（最初に見つかったものを使用）
+var brandDisplayMap_ = {};
+var brandNormalizedMap_ = {}; // 元のブランド名 → 正規化キー
+
 function showToast(msg) {
   var t = $('toast');
   t.textContent = String(msg || '');
@@ -578,7 +589,10 @@ function applyFilters_() {
   var products = state.allProducts.slice();
   
   if (f.brand && f.brand.length > 0) {
-    products = products.filter(function(p) { return f.brand.indexOf(p.brand) !== -1; });
+    products = products.filter(function(p) {
+      var normalizedBrand = normalizeBrand_(p.brand);
+      return f.brand.indexOf(normalizedBrand) !== -1;
+    });
   }
   if (f.category) { products = products.filter(function(p) { return p.category === f.category; }); }
   if (f.state) { products = products.filter(function(p) { return p.state === f.state; }); }
@@ -1022,34 +1036,50 @@ function buildBrandListOnce_(brands) {
   state.brandUi.all = Array.isArray(brands) ? brands.slice() : [];
   state.brandUi.selected = {};
   state.brandUi.cbByName = {};
-  
-  var list = $('brandList'); list.innerHTML = '';
-  var frag = document.createDocumentFragment();
+
+  // ブランド名を正規化して統合
+  brandDisplayMap_ = {};
+  brandNormalizedMap_ = {};
+  var normalizedOrder = []; // 表示順を保持
+
   for (var i = 0; i < state.brandUi.all.length; i++) {
     var name = String(state.brandUi.all[i] || '').trim();
     if (!name) continue;
-    var row = document.createElement('div'); row.className = 'brandItem'; row.dataset.name = name; row.dataset.key = name.toLowerCase();
-    var cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = name; cb.checked = false;
-    var label = document.createElement('div'); label.className = 'brandName'; label.textContent = name;
+    var key = normalizeBrand_(name);
+    brandNormalizedMap_[name] = key;
+    if (!brandDisplayMap_[key]) {
+      brandDisplayMap_[key] = name; // 最初に見つかった表記を使用
+      normalizedOrder.push(key);
+    }
+  }
+
+  var list = $('brandList'); list.innerHTML = '';
+  var frag = document.createDocumentFragment();
+  for (var i = 0; i < normalizedOrder.length; i++) {
+    var key = normalizedOrder[i];
+    var displayName = brandDisplayMap_[key];
+    var row = document.createElement('div'); row.className = 'brandItem'; row.dataset.name = key; row.dataset.key = key.toLowerCase();
+    var cb = document.createElement('input'); cb.type = 'checkbox'; cb.value = key; cb.checked = false;
+    var label = document.createElement('div'); label.className = 'brandName'; label.textContent = displayName;
     row.appendChild(cb); row.appendChild(label);
-    state.brandUi.cbByName[name] = cb;
+    state.brandUi.cbByName[key] = cb;
     frag.appendChild(row);
   }
   list.appendChild(frag);
-  
+
   list.addEventListener('click', function(ev) {
     var item = ev.target.closest ? ev.target.closest('.brandItem') : null;
     if (!item) return;
-    var name = String(item.dataset.name || '');
-    if (!name) return;
-    var cb = state.brandUi.cbByName[name];
+    var key = String(item.dataset.name || '');
+    if (!key) return;
+    var cb = state.brandUi.cbByName[key];
     if (!cb) return;
     if (ev.target.tagName === 'INPUT') {
-      if (cb.checked) state.brandUi.selected[name] = true; else delete state.brandUi.selected[name];
+      if (cb.checked) state.brandUi.selected[key] = true; else delete state.brandUi.selected[key];
       updateBrandBtn_(); return;
     }
     cb.checked = !cb.checked;
-    if (cb.checked) state.brandUi.selected[name] = true; else delete state.brandUi.selected[name];
+    if (cb.checked) state.brandUi.selected[key] = true; else delete state.brandUi.selected[key];
     updateBrandBtn_();
   });
 }
