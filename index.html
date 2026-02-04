@@ -1447,6 +1447,8 @@ function boot() {
 
 window.addEventListener('error', function(ev) {
   var msg = (ev && ev.error && ev.error.message) ? ev.error.message : (ev && ev.message ? ev.message : 'エラー');
+  // Suppress cross-origin "Script error" messages (not useful to users)
+  if (msg === 'Script error.' || msg === 'Script error') return;
   try { showToast(msg); } catch (e) {}
 });
 
