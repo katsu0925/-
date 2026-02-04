@@ -62,6 +62,8 @@ function pr_readProducts_() {
     const price = u_toNumber_(row[8]);
     const qty = u_toNumber_(row[9]);
     const managedId = u_normalizeId_(row[10]);
+    // 傷汚れ詳細 (17列目 = index 16)
+    const defectDetail = row.length > 16 ? String(row[16] || '').trim() : '';
     if (!managedId) continue;
 
     list.push({
@@ -75,7 +77,8 @@ function pr_readProducts_() {
       category: category,
       color: color,
       price: price,
-      qty: qty
+      qty: qty,
+      defectDetail: defectDetail
     });
   }
 

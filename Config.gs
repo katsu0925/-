@@ -8,7 +8,7 @@ const APP_CONFIG = {
     spreadsheetId: '1eDkAMm_QUDFHbSzkL4IMaFeB2YV6_Gw5Dgi-HqIB2Sc',
     sheetName: 'データ1',
     headerRow: 3,
-    readCols: 11
+    readCols: 17  // 傷汚れ詳細(17列目)まで読み込み
   },
   order: {
     spreadsheetId: '',
