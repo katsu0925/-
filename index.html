@@ -207,10 +207,6 @@
       <div style="display:flex; gap:16px; margin-top:8px; flex-wrap:wrap; align-items:center;">
         <a href="#" id="openGuideLink" style="font-size:13px; font-weight:600; color:#3b82f6; text-decoration:none;">📦 商品ガイド</a>
         <a href="#" id="openShippingLink" style="font-size:13px; font-weight:600; color:#3b82f6; text-decoration:none;">🚚 送料表</a>
-        <details class="topDetails" style="flex:1; min-width:200px;">
-          <summary class="topSummary">ご利用案内・注意事項</summary>
-          <div class="subnote" id="topNotes"></div>
-        </details>
       </div>
     </div>
   </div>
@@ -520,47 +516,114 @@
           <li>最低注文数量は<strong>10点</strong>からとなります</li>
           <li>商品の確保期間は<strong>15分</strong>です（カートに入れた時点から）</li>
           <li>見積もり送信後のキャンセル・変更はできません</li>
-          <li>返品・交換は商品到着後7日以内にご連絡ください</li>
+          <li>返品・交換は原則お受けしておりません。万一、商品内容が記載事項と大きく異なる場合は、商品到着後7日以内にご連絡ください</li>
         </ul>
       </div>
     </div>
   </div>
 
   <!-- 送料表モーダル -->
-  <div class="modal" id="shippingModal" aria-hidden="true" style="width:min(600px,94vw);">
+  <div class="modal" id="shippingModal" aria-hidden="true" style="width:min(800px,96vw);">
     <div class="modalHeader">
       <div class="modalTitle">🚚 送料表</div>
       <button class="modalClose" id="shippingCloseBtn" aria-label="close">×</button>
     </div>
     <div class="modalBody" style="line-height:1.7;">
+      <!-- 西日本 -->
       <div class="guide-section">
-        <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #10b981;padding-bottom:8px;">配送料金</h3>
-        <table style="width:100%;border-collapse:collapse;font-size:13px;">
-          <tr style="background:#f1f5f9;">
-            <th style="padding:10px;text-align:left;border:1px solid #e2e8f0;">地域</th>
-            <th style="padding:10px;text-align:right;border:1px solid #e2e8f0;">60サイズ</th>
-            <th style="padding:10px;text-align:right;border:1px solid #e2e8f0;">80サイズ</th>
-            <th style="padding:10px;text-align:right;border:1px solid #e2e8f0;">100サイズ</th>
-            <th style="padding:10px;text-align:right;border:1px solid #e2e8f0;">140サイズ</th>
-          </tr>
-          <tr><td style="padding:10px;border:1px solid #e2e8f0;">北海道</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,500円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,800円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">2,100円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">2,700円</td></tr>
-          <tr><td style="padding:10px;border:1px solid #e2e8f0;">東北</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,100円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,300円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,600円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">2,200円</td></tr>
-          <tr><td style="padding:10px;border:1px solid #e2e8f0;">関東・信越・中部・北陸</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,000円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,200円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,500円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">2,100円</td></tr>
-          <tr><td style="padding:10px;border:1px solid #e2e8f0;">関西</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,100円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,300円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,600円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">2,200円</td></tr>
-          <tr><td style="padding:10px;border:1px solid #e2e8f0;">中国・四国</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,200円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,400円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,700円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">2,300円</td></tr>
-          <tr><td style="padding:10px;border:1px solid #e2e8f0;">九州</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,300円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,500円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,800円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">2,400円</td></tr>
-          <tr><td style="padding:10px;border:1px solid #e2e8f0;">沖縄・離島</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">2,000円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">2,500円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">3,000円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">要相談</td></tr>
-        </table>
-        <p style="margin:12px 0 0;font-size:12px;color:#64748b;">※送料は商品の大きさ・重量により変動する場合があります</p>
+        <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #f472b6;padding-bottom:8px;">西日本（南九州〜北陸）</h3>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:500px;">
+            <tr style="background:#fce7f3;">
+              <th style="padding:8px;text-align:center;border:1px solid #f9a8d4;width:80px;">宅急便</th>
+              <th style="padding:8px;text-align:center;border:1px solid #f9a8d4;">南九州</th>
+              <th style="padding:8px;text-align:center;border:1px solid #f9a8d4;">北九州</th>
+              <th style="padding:8px;text-align:center;border:1px solid #f9a8d4;">四国</th>
+              <th style="padding:8px;text-align:center;border:1px solid #f9a8d4;">中国</th>
+              <th style="padding:8px;text-align:center;border:1px solid #f9a8d4;">関西</th>
+              <th style="padding:8px;text-align:center;border:1px solid #f9a8d4;">北陸</th>
+            </tr>
+            <tr style="background:#fdf2f8;font-size:10px;color:#6b7280;">
+              <td style="padding:6px;border:1px solid #f9a8d4;text-align:center;">都道府県</td>
+              <td style="padding:6px;border:1px solid #f9a8d4;text-align:center;">鹿児島・熊本・宮崎</td>
+              <td style="padding:6px;border:1px solid #f9a8d4;text-align:center;">福岡・佐賀・大分・長崎</td>
+              <td style="padding:6px;border:1px solid #f9a8d4;text-align:center;">香川・愛媛・高知・徳島</td>
+              <td style="padding:6px;border:1px solid #f9a8d4;text-align:center;">広島・岡山・島根・山口・鳥取</td>
+              <td style="padding:6px;border:1px solid #f9a8d4;text-align:center;">大阪・兵庫・京都・奈良・和歌山・滋賀</td>
+              <td style="padding:6px;border:1px solid #f9a8d4;text-align:center;">石川・福井・富山</td>
+            </tr>
+            <tr>
+              <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;font-weight:700;background:#fff0f6;">宅急便（小）</td>
+              <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,320円</td>
+              <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,280円</td>
+              <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,180円</td>
+              <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,200円</td>
+              <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,100円</td>
+              <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,160円</td>
+            </tr>
+            <tr>
+              <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;font-weight:700;background:#fff0f6;">宅急便（大）</td>
+              <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,700円</td>
+              <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,620円</td>
+              <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,440円</td>
+              <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,480円</td>
+              <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,260円</td>
+              <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,420円</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- 東日本 -->
+      <div class="guide-section" style="margin-top:20px;">
+        <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #67e8f9;padding-bottom:8px;">東日本（東海〜北海道）</h3>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:500px;">
+            <tr style="background:#cffafe;">
+              <th style="padding:8px;text-align:center;border:1px solid #a5f3fc;width:80px;">宅急便</th>
+              <th style="padding:8px;text-align:center;border:1px solid #a5f3fc;">東海</th>
+              <th style="padding:8px;text-align:center;border:1px solid #a5f3fc;">信越</th>
+              <th style="padding:8px;text-align:center;border:1px solid #a5f3fc;">関東</th>
+              <th style="padding:8px;text-align:center;border:1px solid #a5f3fc;">南東北</th>
+              <th style="padding:8px;text-align:center;border:1px solid #a5f3fc;">北東北</th>
+              <th style="padding:8px;text-align:center;border:1px solid #a5f3fc;">北海道</th>
+            </tr>
+            <tr style="background:#ecfeff;font-size:10px;color:#6b7280;">
+              <td style="padding:6px;border:1px solid #a5f3fc;text-align:center;">都道府県</td>
+              <td style="padding:6px;border:1px solid #a5f3fc;text-align:center;">愛知・静岡・岐阜・三重</td>
+              <td style="padding:6px;border:1px solid #a5f3fc;text-align:center;">新潟・長野</td>
+              <td style="padding:6px;border:1px solid #a5f3fc;text-align:center;">東京・神奈川・埼玉・千葉・茨城・栃木・群馬・山梨</td>
+              <td style="padding:6px;border:1px solid #a5f3fc;text-align:center;">宮城・福島・山形</td>
+              <td style="padding:6px;border:1px solid #a5f3fc;text-align:center;">岩手・秋田・青森</td>
+              <td style="padding:6px;border:1px solid #a5f3fc;text-align:center;">北海道</td>
+            </tr>
+            <tr>
+              <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;font-weight:700;background:#f0fdff;">宅急便（小）</td>
+              <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,180円</td>
+              <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,220円</td>
+              <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,300円</td>
+              <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,400円</td>
+              <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,460円</td>
+              <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,640円</td>
+            </tr>
+            <tr>
+              <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;font-weight:700;background:#f0fdff;">宅急便（大）</td>
+              <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,440円</td>
+              <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,540円</td>
+              <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,680円</td>
+              <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,900円</td>
+              <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,980円</td>
+              <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">2,380円</td>
+            </tr>
+          </table>
+        </div>
       </div>
 
       <div class="guide-section" style="margin-top:20px;">
         <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #10b981;padding-bottom:8px;">サイズの目安</h3>
         <ul style="margin:0;padding-left:20px;color:#475569;font-size:13px;">
-          <li><strong>60サイズ</strong>：Tシャツ5〜10枚程度</li>
-          <li><strong>80サイズ</strong>：Tシャツ10〜20枚程度</li>
-          <li><strong>100サイズ</strong>：Tシャツ20〜30枚程度、アウター5〜10枚程度</li>
-          <li><strong>140サイズ</strong>：大量注文・アウター多数の場合</li>
+          <li><strong>宅急便（小）</strong>：10着程度</li>
+          <li><strong>宅急便（大）</strong>：11〜40着程度</li>
         </ul>
       </div>
 
@@ -568,14 +631,10 @@
         <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #10b981;padding-bottom:8px;">配送について</h3>
         <ul style="margin:0;padding-left:20px;color:#475569;">
           <li>発送はご入金確認後<strong>2〜5営業日</strong>以内</li>
-          <li>配送業者：ヤマト運輸・佐川急便（指定不可）</li>
+          <li>配送業者：ヤマト運輸（指定不可）</li>
           <li>日時指定はBASEご注文時に備考欄にご記入ください</li>
           <li>店頭引き取りも可能です（事前にご連絡ください）</li>
         </ul>
-      </div>
-
-      <div class="guide-section" style="margin-top:20px;background:#fef3c7;padding:14px;border-radius:10px;border:1px solid #fcd34d;">
-        <p style="margin:0;font-size:13px;color:#92400e;"><strong>💡 まとめ買いがお得！</strong><br>複数の商品をまとめてご注文いただくと、送料がお得になる場合があります。</p>
       </div>
     </div>
   </div>
@@ -2052,6 +2111,10 @@ function getRecommendedProducts_(maxCount, excludeIds) {
 
     // 傷汚れ詳細がある場合は除外
     if (p.defectDetail && p.defectDetail.trim()) continue;
+
+    // ブランド不明・記載なしは除外
+    var brand = String(p.brand || '').trim().toLowerCase();
+    if (!brand || brand === '不明' || brand === '記載なし' || brand === 'なし' || brand === '無し' || brand === 'ノーブランド' || brand === 'unknown' || brand === 'none') continue;
 
     // スコア計算
     var score = 0;
