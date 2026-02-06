@@ -120,14 +120,15 @@
     .brandTools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
     .brandTools input{flex:1 1 240px;min-width:200px;padding:12px 16px;border:2px solid #e2e8f0;border-radius:12px;background:#fff;outline:none;font-size:14px;transition:border-color .2s,box-shadow .2s;}
     .brandTools input:focus{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.15);}
-    .brandToolsBar{position:sticky;top:0;z-index:20;background:#fff;border-bottom:1px solid #eef0f6;margin:-14px -16px 0;padding:14px 16px 12px;}
+    .brandToolsBar{position:sticky;top:0;z-index:100;background:#fff;border-bottom:1px solid #eef0f6;margin:-14px -16px 0;padding:14px 16px 12px;box-shadow:0 2px 8px rgba(0,0,0,.08);}
     .brandIndexNav{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px;padding-bottom:8px;}
     .brandIndexBtn{padding:6px 10px;border:none;border-radius:8px;background:#f1f5f9;color:#64748b;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;}
     .brandIndexBtn:hover{background:#e2e8f0;}
     .brandIndexBtn.active{background:#3b82f6;color:#fff;}
-    .brandGroupHeader{padding:12px 16px;margin:8px -16px 8px;background:linear-gradient(135deg,#f8fafc,#e2e8f0);font-size:16px;font-weight:900;color:#1e293b;display:flex;align-items:center;gap:8px;position:sticky;top:0;z-index:5;}
+    .brandIndexBtn.filter-active{background:#10b981;color:#fff;}
+    .brandGroupHeader{padding:12px 16px;margin:8px -16px 8px;background:linear-gradient(135deg,#f8fafc,#e2e8f0);font-size:16px;font-weight:900;color:#1e293b;display:flex;align-items:center;gap:8px;}
     .brandGroupHeader::before{content:'';width:4px;height:20px;background:linear-gradient(180deg,#3b82f6,#8b5cf6);border-radius:2px;}
-    .brandList{display:flex;flex-direction:column;gap:4px;}
+    .brandList{display:flex;flex-direction:column;gap:4px;padding-top:8px;}
     .brandItem{display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:10px;background:#fff;cursor:pointer;user-select:none;transition:all .15s;}
     .brandItem:hover{background:#f8fafc;}
     .brandItem.selected{background:linear-gradient(135deg,#eff6ff,#dbeafe);border:1px solid #93c5fd;}
@@ -196,17 +197,21 @@
     <div class="wrap" style="padding:0 14px;">
       <div style="display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap;">
         <div style="display:flex; align-items:flex-end; gap:10px;">
-          <div class="title" id="appTitle">選べる古着卸</div>
+          <div class="title" id="appTitle">採寸データ付き選べる古着卸</div>
           <div class="badge ok" id="totalCountBadge"></div>
         </div>
         <div class="authArea" id="authArea">
           <button class="authBtn" id="openAuthBtn" type="button">ログイン</button>
         </div>
       </div>
-      <details open class="topDetails">
-        <summary class="topSummary">ご利用案内・注意事項</summary>
-        <div class="subnote" id="topNotes"></div>
-      </details>
+      <div style="display:flex; gap:16px; margin-top:8px; flex-wrap:wrap; align-items:center;">
+        <a href="#" id="openGuideLink" style="font-size:13px; font-weight:600; color:#3b82f6; text-decoration:none;">📦 商品ガイド</a>
+        <a href="#" id="openShippingLink" style="font-size:13px; font-weight:600; color:#3b82f6; text-decoration:none;">🚚 送料表</a>
+        <details class="topDetails" style="flex:1; min-width:200px;">
+          <summary class="topSummary">ご利用案内・注意事項</summary>
+          <div class="subnote" id="topNotes"></div>
+        </details>
+      </div>
     </div>
   </div>
 
@@ -437,7 +442,7 @@
       <div style="font-weight:900; font-size:14px;">受付番号</div>
       <div style="margin-top:8px; font-size:24px; font-weight:900; color:#3b82f6;" id="doneReceipt"></div>
       <div style="margin-top:16px; font-size:14px; color:#333; line-height:1.6;">
-        BASE購入リンクをメールアドレスに送付いたしますので、しばらくお待ちください。
+        BASE購入リンクをメールアドレスに送付いたしますので、受付番号をお控えの上、しばらくお待ちください。
       </div>
     </div>
   </div>
@@ -456,6 +461,121 @@
       <button class="detail-modal-close" onclick="closeDetailModal()">×</button>
       <div id="detailModalBody">
         <div class="detail-loading">読み込み中...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 商品ガイドモーダル -->
+  <div class="modal" id="guideModal" aria-hidden="true" style="width:min(700px,94vw);">
+    <div class="modalHeader">
+      <div class="modalTitle">📦 商品ガイド</div>
+      <button class="modalClose" id="guideCloseBtn" aria-label="close">×</button>
+    </div>
+    <div class="modalBody" style="line-height:1.7;">
+      <div class="guide-section">
+        <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">商品について</h3>
+        <ul style="margin:0;padding-left:20px;color:#475569;">
+          <li>すべての商品には<strong>採寸データ</strong>が付いています</li>
+          <li>写真はサンプルイメージです。実物と多少異なる場合があります</li>
+          <li>状態ランクは目視による判定となります</li>
+        </ul>
+      </div>
+
+      <div class="guide-section" style="margin-top:20px;">
+        <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">状態ランクについて</h3>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tr style="background:#f1f5f9;"><th style="padding:10px;text-align:left;border:1px solid #e2e8f0;">ランク</th><th style="padding:10px;text-align:left;border:1px solid #e2e8f0;">状態</th></tr>
+          <tr><td style="padding:10px;border:1px solid #e2e8f0;font-weight:700;color:#10b981;">S</td><td style="padding:10px;border:1px solid #e2e8f0;">新品・未使用・タグ付きなど</td></tr>
+          <tr><td style="padding:10px;border:1px solid #e2e8f0;font-weight:700;color:#3b82f6;">A</td><td style="padding:10px;border:1px solid #e2e8f0;">使用感がほとんどない美品</td></tr>
+          <tr><td style="padding:10px;border:1px solid #e2e8f0;font-weight:700;color:#6366f1;">AB</td><td style="padding:10px;border:1px solid #e2e8f0;">多少の使用感があるが状態良好</td></tr>
+          <tr><td style="padding:10px;border:1px solid #e2e8f0;font-weight:700;color:#8b5cf6;">B</td><td style="padding:10px;border:1px solid #e2e8f0;">一般的な使用感・軽微なダメージあり</td></tr>
+          <tr><td style="padding:10px;border:1px solid #e2e8f0;font-weight:700;color:#a855f7;">C</td><td style="padding:10px;border:1px solid #e2e8f0;">使用感強め・目立つダメージあり</td></tr>
+          <tr><td style="padding:10px;border:1px solid #e2e8f0;font-weight:700;color:#d946ef;">D</td><td style="padding:10px;border:1px solid #e2e8f0;">ジャンク・難あり品</td></tr>
+        </table>
+      </div>
+
+      <div class="guide-section" style="margin-top:20px;">
+        <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">ご注文の流れ</h3>
+        <ol style="margin:0;padding-left:20px;color:#475569;">
+          <li style="margin-bottom:8px;"><strong>商品選択</strong>：お好みの商品をカートに追加（10点以上）</li>
+          <li style="margin-bottom:8px;"><strong>見積もり送信</strong>：フォームに必要事項を入力して送信</li>
+          <li style="margin-bottom:8px;"><strong>確認メール</strong>：受付番号とBASE購入リンクをメールでお送りします</li>
+          <li style="margin-bottom:8px;"><strong>お支払い</strong>：BASEにてお支払い手続き</li>
+          <li><strong>発送</strong>：ご入金確認後、商品を発送いたします</li>
+        </ol>
+      </div>
+
+      <div class="guide-section" style="margin-top:20px;">
+        <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">割引について</h3>
+        <ul style="margin:0;padding-left:20px;color:#475569;">
+          <li><strong>会員割引</strong>：会員登録で<span style="color:#b8002a;font-weight:700;">10%OFF</span></li>
+          <li><strong>まとめ買い割引</strong>：30点以上で<span style="color:#b8002a;font-weight:700;">10%OFF</span></li>
+          <li>※割引は併用可能です</li>
+        </ul>
+      </div>
+
+      <div class="guide-section" style="margin-top:20px;">
+        <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">注意事項</h3>
+        <ul style="margin:0;padding-left:20px;color:#475569;">
+          <li>最低注文数量は<strong>10点</strong>からとなります</li>
+          <li>商品の確保期間は<strong>15分</strong>です（カートに入れた時点から）</li>
+          <li>見積もり送信後のキャンセル・変更はできません</li>
+          <li>返品・交換は商品到着後7日以内にご連絡ください</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- 送料表モーダル -->
+  <div class="modal" id="shippingModal" aria-hidden="true" style="width:min(600px,94vw);">
+    <div class="modalHeader">
+      <div class="modalTitle">🚚 送料表</div>
+      <button class="modalClose" id="shippingCloseBtn" aria-label="close">×</button>
+    </div>
+    <div class="modalBody" style="line-height:1.7;">
+      <div class="guide-section">
+        <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #10b981;padding-bottom:8px;">配送料金</h3>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tr style="background:#f1f5f9;">
+            <th style="padding:10px;text-align:left;border:1px solid #e2e8f0;">地域</th>
+            <th style="padding:10px;text-align:right;border:1px solid #e2e8f0;">60サイズ</th>
+            <th style="padding:10px;text-align:right;border:1px solid #e2e8f0;">80サイズ</th>
+            <th style="padding:10px;text-align:right;border:1px solid #e2e8f0;">100サイズ</th>
+            <th style="padding:10px;text-align:right;border:1px solid #e2e8f0;">140サイズ</th>
+          </tr>
+          <tr><td style="padding:10px;border:1px solid #e2e8f0;">北海道</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,500円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,800円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">2,100円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">2,700円</td></tr>
+          <tr><td style="padding:10px;border:1px solid #e2e8f0;">東北</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,100円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,300円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,600円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">2,200円</td></tr>
+          <tr><td style="padding:10px;border:1px solid #e2e8f0;">関東・信越・中部・北陸</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,000円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,200円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,500円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">2,100円</td></tr>
+          <tr><td style="padding:10px;border:1px solid #e2e8f0;">関西</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,100円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,300円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,600円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">2,200円</td></tr>
+          <tr><td style="padding:10px;border:1px solid #e2e8f0;">中国・四国</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,200円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,400円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,700円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">2,300円</td></tr>
+          <tr><td style="padding:10px;border:1px solid #e2e8f0;">九州</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,300円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,500円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">1,800円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">2,400円</td></tr>
+          <tr><td style="padding:10px;border:1px solid #e2e8f0;">沖縄・離島</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">2,000円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">2,500円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">3,000円</td><td style="padding:10px;border:1px solid #e2e8f0;text-align:right;">要相談</td></tr>
+        </table>
+        <p style="margin:12px 0 0;font-size:12px;color:#64748b;">※送料は商品の大きさ・重量により変動する場合があります</p>
+      </div>
+
+      <div class="guide-section" style="margin-top:20px;">
+        <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #10b981;padding-bottom:8px;">サイズの目安</h3>
+        <ul style="margin:0;padding-left:20px;color:#475569;font-size:13px;">
+          <li><strong>60サイズ</strong>：Tシャツ5〜10枚程度</li>
+          <li><strong>80サイズ</strong>：Tシャツ10〜20枚程度</li>
+          <li><strong>100サイズ</strong>：Tシャツ20〜30枚程度、アウター5〜10枚程度</li>
+          <li><strong>140サイズ</strong>：大量注文・アウター多数の場合</li>
+        </ul>
+      </div>
+
+      <div class="guide-section" style="margin-top:20px;">
+        <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #10b981;padding-bottom:8px;">配送について</h3>
+        <ul style="margin:0;padding-left:20px;color:#475569;">
+          <li>発送はご入金確認後<strong>2〜5営業日</strong>以内</li>
+          <li>配送業者：ヤマト運輸・佐川急便（指定不可）</li>
+          <li>日時指定はBASEご注文時に備考欄にご記入ください</li>
+          <li>店頭引き取りも可能です（事前にご連絡ください）</li>
+        </ul>
+      </div>
+
+      <div class="guide-section" style="margin-top:20px;background:#fef3c7;padding:14px;border-radius:10px;border:1px solid #fcd34d;">
+        <p style="margin:0;font-size:13px;color:#92400e;"><strong>💡 まとめ買いがお得！</strong><br>複数の商品をまとめてご注文いただくと、送料がお得になる場合があります。</p>
       </div>
     </div>
   </div>
@@ -732,6 +852,36 @@ function setupAuthUi_() {
   if (authCloseBtn) {
     authCloseBtn.addEventListener('click', function() {
       closeModal($('authModal'));
+    });
+  }
+
+  // 商品ガイドモーダル
+  var openGuideLink = $('openGuideLink');
+  if (openGuideLink) {
+    openGuideLink.addEventListener('click', function(e) {
+      e.preventDefault();
+      openModal($('guideModal'));
+    });
+  }
+  var guideCloseBtn = $('guideCloseBtn');
+  if (guideCloseBtn) {
+    guideCloseBtn.addEventListener('click', function() {
+      closeModal($('guideModal'));
+    });
+  }
+
+  // 送料表モーダル
+  var openShippingLink = $('openShippingLink');
+  if (openShippingLink) {
+    openShippingLink.addEventListener('click', function(e) {
+      e.preventDefault();
+      openModal($('shippingModal'));
+    });
+  }
+  var shippingCloseBtn = $('shippingCloseBtn');
+  if (shippingCloseBtn) {
+    shippingCloseBtn.addEventListener('click', function() {
+      closeModal($('shippingModal'));
     });
   }
 
@@ -1536,10 +1686,10 @@ function updateBrandBtn_() {
   if ($('brandHint')) $('brandHint').textContent = n ? ('選択中：' + n + '件') : '複数選択して「適用」で検索します';
 }
 
-// 日本語ブランド名エイリアス（検索用）
+// 日本語ブランド名エイリアス（検索用）- ひらがな・カタカナ両対応
 var brandAliases_ = {
   'nike': ['ナイキ', 'ないき'],
-  'adidas': ['アディダス', 'あでぃだす'],
+  'adidas': ['アディダス', 'あでぃだす', 'あでいだす'],
   'puma': ['プーマ', 'ぷーま'],
   'gucci': ['グッチ', 'ぐっち'],
   'chanel': ['シャネル', 'しゃねる'],
@@ -1565,7 +1715,7 @@ var brandAliases_ = {
   'diesel': ['ディーゼル', 'でぃーぜる'],
   'jill stuart': ['ジルスチュアート', 'じるすちゅあーと'],
   'marc jacobs': ['マークジェイコブス', 'まーくじぇいこぶす'],
-  'versace': ['ヴェルサーチ', 'べるさーち'],
+  'versace': ['ヴェルサーチ', 'べるさーち', 'ベルサーチ'],
   'armani': ['アルマーニ', 'あるまーに'],
   'fendi': ['フェンディ', 'ふぇんでぃ'],
   'balenciaga': ['バレンシアガ', 'ばれんしあが'],
@@ -1574,8 +1724,51 @@ var brandAliases_ = {
   'ysl': ['イヴサンローラン', 'いぶさんろーらん'],
   'comme des garcons': ['コムデギャルソン', 'こむでぎゃるそん'],
   'issey miyake': ['イッセイミヤケ', 'いっせいみやけ'],
-  'yohji yamamoto': ['ヨウジヤマモト', 'ようじやまもと']
+  'yohji yamamoto': ['ヨウジヤマモト', 'ようじやまもと'],
+  'asics': ['アシックス', 'あしっくす'],
+  'adam et rope': ['アダムエロペ', 'あだむえろぺ'],
+  'adam et rope\'': ['アダムエロペ', 'あだむえろぺ'],
+  'new balance': ['ニューバランス', 'にゅーばらんす'],
+  'converse': ['コンバース', 'こんばーす'],
+  'vans': ['ヴァンズ', 'ばんず', 'バンズ'],
+  'reebok': ['リーボック', 'りーぼっく'],
+  'under armour': ['アンダーアーマー', 'あんだーあーまー'],
+  'columbia': ['コロンビア', 'ころんびあ'],
+  'arc\'teryx': ['アークテリクス', 'あーくてりくす'],
+  'the north face': ['ザノースフェイス', 'ざのーすふぇいす', 'ノースフェイス'],
+  'beams': ['ビームス', 'びーむす'],
+  'united arrows': ['ユナイテッドアローズ', 'ゆないてっどあろーず'],
+  'ships': ['シップス', 'しっぷす'],
+  'journal standard': ['ジャーナルスタンダード', 'じゃーなるすたんだーど'],
+  'urban research': ['アーバンリサーチ', 'あーばんりさーち'],
+  'nano universe': ['ナノユニバース', 'なのゆにばーす'],
+  'green label relaxing': ['グリーンレーベル', 'ぐりーんれーべる'],
+  'beauty&youth': ['ビューティーアンドユース', 'びゅーてぃーあんどゆーす'],
+  'lowrys farm': ['ローリーズファーム', 'ろーりーずふぁーむ'],
+  'global work': ['グローバルワーク', 'ぐろーばるわーく'],
+  'snidel': ['スナイデル', 'すないでる'],
+  'moussy': ['マウジー', 'まうじー'],
+  'sly': ['スライ', 'すらい'],
+  'emoda': ['エモダ', 'えもだ'],
+  'murua': ['ムルーア', 'むるーあ'],
+  'mercuryduo': ['マーキュリーデュオ', 'まーきゅりーでゅお'],
+  'dazzlin': ['ダズリン', 'だずりん'],
+  'lily brown': ['リリーブラウン', 'りりーぶらうん'],
+  'fray i.d': ['フレイアイディー', 'ふれいあいでぃー'],
+  'theory': ['セオリー', 'せおりー'],
+  'untitled': ['アンタイトル', 'あんたいとる'],
+  'natural beauty basic': ['ナチュラルビューティーベーシック', 'なちゅらるびゅーてぃーべーしっく'],
+  'rope': ['ロペ', 'ろぺ'],
+  'iena': ['イエナ', 'いえな'],
+  'spick and span': ['スピックアンドスパン', 'すぴっくあんどすぱん'],
+  'tomorrowland': ['トゥモローランド', 'とぅもろーらんど'],
+  'macphee': ['マカフィー', 'まかふぃー'],
+  'onward': ['オンワード', 'おんわーど'],
+  'world': ['ワールド', 'わーるど']
 };
+
+// 現在の頭文字フィルター
+var currentInitialFilter_ = null;
 
 // 検索キーワードからブランド名候補を取得
 function getBrandSearchKeys_(brandKey) {
@@ -1682,16 +1875,42 @@ function buildBrandListOnce_(brands) {
   var nav = $('brandIndexNav');
   if (nav) {
     nav.innerHTML = '';
+    // 「すべて」ボタンを追加
+    var allBtn = document.createElement('button');
+    allBtn.className = 'brandIndexBtn filter-active';
+    allBtn.textContent = 'すべて';
+    allBtn.dataset.initial = 'all';
+    allBtn.addEventListener('click', function() {
+      currentInitialFilter_ = null;
+      filterBrandList_();
+      updateIndexBtnState_('all');
+    });
+    nav.appendChild(allBtn);
+
     groupOrder.forEach(function(initial) {
       var btn = document.createElement('button');
       btn.className = 'brandIndexBtn';
       btn.textContent = initial;
       btn.dataset.initial = initial;
       btn.addEventListener('click', function() {
-        var header = document.querySelector('.brandGroupHeader[data-initial="' + initial + '"]');
-        if (header) header.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // 同じボタンをもう一度クリックしたら解除
+        if (currentInitialFilter_ === initial) {
+          currentInitialFilter_ = null;
+          updateIndexBtnState_('all');
+        } else {
+          currentInitialFilter_ = initial;
+          updateIndexBtnState_(initial);
+        }
+        filterBrandList_();
       });
       nav.appendChild(btn);
+    });
+  }
+
+  function updateIndexBtnState_(activeInitial) {
+    document.querySelectorAll('.brandIndexBtn').forEach(function(b) {
+      b.classList.remove('filter-active');
+      if (b.dataset.initial === activeInitial) b.classList.add('filter-active');
     });
   }
 
@@ -1757,7 +1976,10 @@ function filterBrandList_() {
   list.querySelectorAll('.brandItem').forEach(function(el) {
     var key = String(el.dataset.key || '');
     var initial = el.dataset.initial;
-    var ok = matchesBrandSearch_(key, q);
+    // 検索クエリと頭文字フィルターの両方をチェック
+    var matchQuery = matchesBrandSearch_(key, q);
+    var matchInitial = !currentInitialFilter_ || initial === currentInitialFilter_;
+    var ok = matchQuery && matchInitial;
     el.style.display = ok ? '' : 'none';
     if (ok) {
       shown++;
@@ -1768,13 +1990,8 @@ function filterBrandList_() {
   // グループヘッダーの表示/非表示
   list.querySelectorAll('.brandGroupHeader').forEach(function(header) {
     var initial = header.dataset.initial;
-    header.style.display = visibleGroups[initial] ? '' : 'none';
-  });
-
-  // インデックスボタンのハイライト
-  document.querySelectorAll('.brandIndexBtn').forEach(function(btn) {
-    var initial = btn.dataset.initial;
-    btn.classList.toggle('active', !!visibleGroups[initial]);
+    var showHeader = currentInitialFilter_ ? (initial === currentInitialFilter_) : visibleGroups[initial];
+    header.style.display = showHeader ? '' : 'none';
   });
 
   if ($('brandHint')) {
@@ -2288,7 +2505,16 @@ function applyProductData_(data) {
 
   // マルチセレクトフィルターを構築
   buildMultiSelectDropdown('category', state.options.category || []);
-  buildMultiSelectDropdown('state', state.options.state || []);
+  // 状態フィルタはS→A→AB→B→C→D順にソート
+  var stateOrder = ['S', 'A', 'AB', 'B', 'C', 'D', '新品', '美品', '良品'];
+  var sortedStates = (state.options.state || []).slice().sort(function(a, b) {
+    var idxA = stateOrder.indexOf(a);
+    var idxB = stateOrder.indexOf(b);
+    if (idxA === -1) idxA = 999;
+    if (idxB === -1) idxB = 999;
+    return idxA - idxB;
+  });
+  buildMultiSelectDropdown('state', sortedStates);
   buildMultiSelectDropdown('gender', state.options.gender || []);
   buildMultiSelectDropdown('size', state.options.size || []);
   setSortOptions($('sortKey'), state.options.sort || [{ key: 'default', label: '標準' }]);
