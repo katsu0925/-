@@ -65,10 +65,34 @@
     .modalBody{padding:14px 16px;overflow:auto;max-height:calc(86vh - 56px);}
     .cartList{display:flex;flex-direction:column;gap:8px;}
     .cartRow{display:flex;gap:10px;align-items:center;justify-content:space-between;border-bottom:1px solid #eef0f6;padding:10px 0;}
+    .cartImg{width:50px;height:50px;object-fit:cover;border-radius:4px;flex-shrink:0;background:#f5f5f5;cursor:pointer;}
+    .cartInfo{display:flex;gap:10px;align-items:center;min-width:0;flex:1;}
     .cartLeft{display:flex;flex-direction:column;gap:3px;min-width:0;}
     .cartName{font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:560px;display:flex;gap:8px;flex-wrap:wrap;align-items:baseline;}
     .cartSub{font-size:12px;color:#666;}
     .dangerBtn{border:1px solid #ff4d4f;color:#ff4d4f;background:#fff;border-radius:8px;padding:8px 10px;cursor:pointer;font-weight:900;}
+    .recommendSection{margin-top:16px;padding-top:16px;border-top:1px solid #eef0f6;}
+    .recommendTitle{font-weight:900;font-size:14px;color:#333;margin-bottom:10px;}
+    .recommendList{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;}
+    .recommendCard{flex-shrink:0;width:100px;cursor:pointer;border:1px solid #eef0f6;border-radius:8px;overflow:hidden;background:#fff;transition:box-shadow .2s;}
+    .recommendCard:hover{box-shadow:0 2px 8px rgba(0,0,0,.1);}
+    .recommendCard img{width:100px;height:100px;object-fit:cover;display:block;}
+    .recommendCard .rcInfo{padding:6px;font-size:11px;}
+    .recommendCard .rcBrand{font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .recommendCard .rcPrice{color:#b8002a;font-weight:900;}
+    .mainRecommendSection{margin-bottom:20px;padding:16px;background:#f8f9fc;border-radius:12px;}
+    .mainRecommendTitle{font-weight:900;font-size:16px;color:#333;margin-bottom:12px;display:flex;align-items:center;gap:8px;}
+    .mainRecommendTitle::before{content:'★';color:#ffc107;}
+    .mainRecommendList{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;}
+    .mainRecommendList .recommendCard{width:120px;}
+    .mainRecommendList .recommendCard img{width:120px;height:120px;}
+    .authArea{display:flex;align-items:center;gap:10px;font-size:13px;}
+    .authBtn{background:#fff;border:1px solid #d9deea;border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:900;font-size:13px;}
+    .authBtn:hover{background:#f8f9fc;}
+    .authBtn.logout{background:transparent;border:none;color:#666;text-decoration:underline;padding:4px 8px;}
+    .authUser{display:flex;align-items:center;gap:8px;}
+    .authUserName{font-weight:900;color:#333;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .authDiscount{background:#b8002a;color:#fff;font-size:11px;padding:2px 6px;border-radius:4px;font-weight:900;}
     .sumBox{margin-top:10px;display:flex;flex-direction:column;gap:6px;align-items:flex-end;}
     .sumLine{font-weight:900;}
     .hint{font-size:12px;color:#666;line-height:1.45;}
@@ -135,9 +159,14 @@
 <body>
   <div class="topbar">
     <div class="wrap" style="padding:0 14px;">
-      <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-end; flex-wrap:wrap;">
-        <div class="title" id="appTitle">選べる古着卸</div>
-        <div class="badge ok" id="totalCountBadge"></div>
+      <div style="display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap;">
+        <div style="display:flex; align-items:flex-end; gap:10px;">
+          <div class="title" id="appTitle">選べる古着卸</div>
+          <div class="badge ok" id="totalCountBadge"></div>
+        </div>
+        <div class="authArea" id="authArea">
+          <button class="authBtn" id="openAuthBtn" type="button">ログイン</button>
+        </div>
       </div>
       <details open class="topDetails">
         <summary class="topSummary">ご利用案内・注意事項</summary>
@@ -170,6 +199,11 @@
       <div class="field" style="min-width:140px; flex:0 0 140px;">
         <button class="btn" id="btnReset" type="button">リセット</button>
       </div>
+    </div>
+    <!-- メイン画面おすすめ商品 -->
+    <div class="mainRecommendSection" id="mainRecommend" style="display:none;">
+      <div class="mainRecommendTitle">おすすめ商品</div>
+      <div class="mainRecommendList" id="mainRecommendList"></div>
     </div>
     <div id="grid" class="grid"></div>
     <div id="pager" class="pager"></div>
@@ -214,6 +248,11 @@
       <div class="hint" id="shippingHint"></div>
       <div class="hint" style="margin-top:6px;" id="shippingNote"></div>
       <div class="cartList" id="cartList" style="margin-top:10px;"></div>
+      <!-- おすすめ商品 -->
+      <div class="recommendSection" id="cartRecommend" style="display:none;">
+        <div class="recommendTitle">おすすめ商品</div>
+        <div class="recommendList" id="cartRecommendList"></div>
+      </div>
       <div class="sumBox">
         <div class="sumLine" id="sumCount"></div>
         <div class="sumLine" id="sumPrice"></div>
@@ -235,6 +274,76 @@
           <button class="btn primary" id="goFormBtn" style="min-width:220px;" type="button">見積もりを送信</button>
         </div>
         <div class="hint" id="minNotice"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ログイン/登録モーダル -->
+  <div class="modal" id="authModal" aria-hidden="true">
+    <div class="modalHeader">
+      <div class="modalTitle" id="authModalTitle">ログイン</div>
+      <button class="modalClose" id="authCloseBtn" aria-label="close">×</button>
+    </div>
+    <div class="modalBody">
+      <!-- ログインフォーム -->
+      <div id="loginForm">
+        <div class="formGrid" style="grid-template-columns:1fr;">
+          <div class="formField">
+            <label>メールアドレス *</label>
+            <input id="loginEmail" type="email" autocomplete="email">
+          </div>
+          <div class="formField">
+            <label>パスワード *</label>
+            <input id="loginPassword" type="password" autocomplete="current-password">
+          </div>
+        </div>
+        <div class="formActions" style="flex-direction:column;align-items:stretch;">
+          <button class="btn primary" id="loginBtn" type="button">ログイン</button>
+          <div style="text-align:center;margin-top:12px;font-size:13px;">
+            アカウントをお持ちでない方は <a href="#" id="showRegisterLink">新規登録</a>
+          </div>
+        </div>
+      </div>
+      <!-- 登録フォーム -->
+      <div id="registerForm" style="display:none;">
+        <div class="formGrid">
+          <div class="formField">
+            <label>メールアドレス *</label>
+            <input id="regEmail" type="email" autocomplete="email">
+          </div>
+          <div class="formField">
+            <label>パスワード（6文字以上） *</label>
+            <input id="regPassword" type="password" autocomplete="new-password">
+          </div>
+          <div class="formField">
+            <label>会社名/氏名 *</label>
+            <input id="regCompanyName" type="text" autocomplete="name">
+          </div>
+          <div class="formField">
+            <label>電話番号</label>
+            <input id="regPhone" type="tel" inputmode="numeric">
+          </div>
+          <div class="formField">
+            <label>郵便番号</label>
+            <input id="regPostal" type="text" inputmode="numeric" placeholder="0000000">
+          </div>
+          <div class="formField">
+            <label>住所</label>
+            <input id="regAddress" type="text" autocomplete="street-address">
+          </div>
+        </div>
+        <div class="formField" style="margin-top:10px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+            <input type="checkbox" id="regNewsletter" checked>
+            <span>お得な情報をメールで受け取る</span>
+          </label>
+        </div>
+        <div class="formActions" style="flex-direction:column;align-items:stretch;">
+          <button class="btn primary" id="registerBtn" type="button">登録する</button>
+          <div style="text-align:center;margin-top:12px;font-size:13px;">
+            既にアカウントをお持ちの方は <a href="#" id="showLoginLink">ログイン</a>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -356,6 +465,9 @@ var state = {
   ui: { cardEls: {} },
   timers: { statusPoll: null },
   brandUi: { all: [], selected: {}, cbByName: {}, built: false },
+  // 顧客認証
+  customer: null,  // { id, email, companyName, phone, postal, address, newsletter }
+  sessionId: null,
   dataLoaded: false
 };
 
@@ -391,6 +503,249 @@ function showToast(msg) {
   t.textContent = String(msg || '');
   t.classList.add('show');
   setTimeout(function() { t.classList.remove('show'); }, 2600);
+}
+
+// =====================================================
+// 顧客認証
+// =====================================================
+
+var SESSION_KEY = 'estimate_session';
+var MEMBER_DISCOUNT_RATE = 0.20;  // 会員割引20%
+
+function loadSession_() {
+  try {
+    var raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch (e) { return null; }
+}
+
+function saveSession_(sessionId, customer) {
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ sessionId: sessionId, customer: customer }));
+  } catch (e) {}
+}
+
+function clearSession_() {
+  try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+  state.sessionId = null;
+  state.customer = null;
+}
+
+function updateAuthUi_() {
+  var area = $('authArea');
+  if (!area) return;
+
+  if (state.customer) {
+    area.innerHTML = '<div class="authUser">' +
+      '<span class="authUserName">' + escapeHtml_(state.customer.companyName || state.customer.email) + '</span>' +
+      '<span class="authDiscount">20%OFF</span>' +
+      '</div>' +
+      '<button class="authBtn logout" id="logoutBtn" type="button">ログアウト</button>';
+
+    var logoutBtn = $('logoutBtn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', function() {
+        doLogout_();
+      });
+    }
+  } else {
+    area.innerHTML = '<button class="authBtn" id="openAuthBtn" type="button">ログイン / 新規登録</button>';
+    var openAuthBtn = $('openAuthBtn');
+    if (openAuthBtn) {
+      openAuthBtn.addEventListener('click', function() {
+        openAuthModal_('login');
+      });
+    }
+  }
+}
+
+function openAuthModal_(mode) {
+  var modal = $('authModal');
+  if (!modal) return;
+
+  if (mode === 'register') {
+    $('authModalTitle').textContent = '新規登録';
+    $('loginForm').style.display = 'none';
+    $('registerForm').style.display = '';
+  } else {
+    $('authModalTitle').textContent = 'ログイン';
+    $('loginForm').style.display = '';
+    $('registerForm').style.display = 'none';
+  }
+
+  openModal(modal);
+}
+
+function doLogin_() {
+  var email = ($('loginEmail').value || '').trim();
+  var password = $('loginPassword').value || '';
+
+  if (!email || !password) {
+    showToast('メールアドレスとパスワードを入力してください');
+    return;
+  }
+
+  setSending_(true, 'ログイン中...');
+
+  runApi('apiLoginCustomer', state.userKey, { email: email, password: password })
+    .then(function(res) {
+      setSending_(false);
+      if (res.ok && res.data) {
+        state.sessionId = res.data.sessionId;
+        state.customer = res.data.customer;
+        saveSession_(res.data.sessionId, res.data.customer);
+        updateAuthUi_();
+        closeModal($('authModal'));
+        showToast('ログインしました');
+        // 割引を反映
+        updateCartPrice();
+        if ($('cartModal').classList.contains('open')) renderCartModal_();
+      } else {
+        showToast(res.message || 'ログインに失敗しました');
+      }
+    })
+    .catch(function(e) {
+      setSending_(false);
+      showToast('ログインに失敗しました');
+    });
+}
+
+function doRegister_() {
+  var email = ($('regEmail').value || '').trim();
+  var password = $('regPassword').value || '';
+  var companyName = ($('regCompanyName').value || '').trim();
+  var phone = ($('regPhone').value || '').trim();
+  var postal = ($('regPostal').value || '').trim();
+  var address = ($('regAddress').value || '').trim();
+  var newsletter = $('regNewsletter').checked;
+
+  if (!email || !email.includes('@')) {
+    showToast('有効なメールアドレスを入力してください');
+    return;
+  }
+  if (!password || password.length < 6) {
+    showToast('パスワードは6文字以上で入力してください');
+    return;
+  }
+  if (!companyName) {
+    showToast('会社名/氏名は必須です');
+    return;
+  }
+
+  setSending_(true, '登録中...');
+
+  runApi('apiRegisterCustomer', state.userKey, {
+    email: email,
+    password: password,
+    companyName: companyName,
+    phone: phone,
+    postal: postal,
+    address: address,
+    newsletter: newsletter
+  })
+    .then(function(res) {
+      setSending_(false);
+      if (res.ok && res.data) {
+        state.sessionId = res.data.sessionId;
+        state.customer = res.data.customer;
+        saveSession_(res.data.sessionId, res.data.customer);
+        updateAuthUi_();
+        closeModal($('authModal'));
+        showToast('登録が完了しました！20%割引が適用されます');
+        updateCartPrice();
+        if ($('cartModal').classList.contains('open')) renderCartModal_();
+      } else {
+        showToast(res.message || '登録に失敗しました');
+      }
+    })
+    .catch(function(e) {
+      setSending_(false);
+      showToast('登録に失敗しました');
+    });
+}
+
+function doLogout_() {
+  var sessionId = state.sessionId;
+  clearSession_();
+  updateAuthUi_();
+  updateCartPrice();
+  if ($('cartModal').classList.contains('open')) renderCartModal_();
+  showToast('ログアウトしました');
+
+  if (sessionId) {
+    runApi('apiLogoutCustomer', state.userKey, { sessionId: sessionId }).catch(function() {});
+  }
+}
+
+function validateSession_() {
+  var saved = loadSession_();
+  if (!saved || !saved.sessionId) return;
+
+  runApi('apiValidateSession', state.userKey, { sessionId: saved.sessionId })
+    .then(function(res) {
+      if (res.ok && res.data && res.data.customer) {
+        state.sessionId = saved.sessionId;
+        state.customer = res.data.customer;
+        updateAuthUi_();
+        updateCartPrice();
+      } else {
+        clearSession_();
+      }
+    })
+    .catch(function() {
+      // ネットワークエラー時は保存されたデータを一旦使用
+      state.sessionId = saved.sessionId;
+      state.customer = saved.customer;
+      updateAuthUi_();
+    });
+}
+
+function setupAuthUi_() {
+  // ログインボタン
+  var openAuthBtn = $('openAuthBtn');
+  if (openAuthBtn) {
+    openAuthBtn.addEventListener('click', function() {
+      openAuthModal_('login');
+    });
+  }
+
+  // モーダル閉じる
+  var authCloseBtn = $('authCloseBtn');
+  if (authCloseBtn) {
+    authCloseBtn.addEventListener('click', function() {
+      closeModal($('authModal'));
+    });
+  }
+
+  // ログインボタン
+  var loginBtn = $('loginBtn');
+  if (loginBtn) {
+    loginBtn.addEventListener('click', doLogin_);
+  }
+
+  // 登録ボタン
+  var registerBtn = $('registerBtn');
+  if (registerBtn) {
+    registerBtn.addEventListener('click', doRegister_);
+  }
+
+  // フォーム切り替え
+  var showRegisterLink = $('showRegisterLink');
+  if (showRegisterLink) {
+    showRegisterLink.addEventListener('click', function(e) {
+      e.preventDefault();
+      openAuthModal_('register');
+    });
+  }
+
+  var showLoginLink = $('showLoginLink');
+  if (showLoginLink) {
+    showLoginLink.addEventListener('click', function(e) {
+      e.preventDefault();
+      openAuthModal_('login');
+    });
+  }
 }
 
 function setSending_(on, text) {
@@ -552,11 +907,35 @@ function runApi(fn, _extra) {
 // データ読み込み（キャッシュから高速取得）
 // =====================================================
 
+var PRODUCT_CACHE_KEY = 'estimate_products_cache';
+var PRODUCT_CACHE_TTL = 5 * 60 * 1000; // 5分
+
+function saveProductCache_(data) {
+  try {
+    var cache = { ts: Date.now(), data: data };
+    localStorage.setItem(PRODUCT_CACHE_KEY, JSON.stringify(cache));
+  } catch (e) { console.warn('キャッシュ保存失敗:', e); }
+}
+
+function loadProductCache_() {
+  try {
+    var raw = localStorage.getItem(PRODUCT_CACHE_KEY);
+    if (!raw) return null;
+    var cache = JSON.parse(raw);
+    // 5分以内のキャッシュなら使用
+    if (cache && cache.ts && (Date.now() - cache.ts < PRODUCT_CACHE_TTL) && cache.data) {
+      return cache.data;
+    }
+    return cache && cache.data ? { data: cache.data, stale: true } : null;
+  } catch (e) { return null; }
+}
+
 function loadProductData() {
   if (IS_STANDALONE) {
     return runApi('apiGetCachedProducts').then(function(res) {
       if (res && res.ok && res.data) {
         console.log('データ読み込み完了:', res.data.totalCount + '件');
+        saveProductCache_(res.data);
         return res.data;
       }
       throw new Error(res && res.message ? res.message : 'データ取得に失敗');
@@ -568,6 +947,7 @@ function loadProductData() {
       .withSuccessHandler(function(res) {
         if (res && res.ok && res.data) {
           console.log('データ読み込み完了:', res.data.totalCount + '件');
+          saveProductCache_(res.data);
           resolve(res.data);
         } else {
           reject(new Error(res && res.message ? res.message : 'データ取得に失敗'));
@@ -886,6 +1266,8 @@ function updateCartPrice() {
   var discountRate = 0;
   if (mo === 'without') discountRate = 0.05;
   if (count >= 30) discountRate = (mo === 'without') ? 0.15 : 0.10;
+  // 会員割引（20%）を適用
+  if (state.customer) discountRate = Math.max(discountRate, MEMBER_DISCOUNT_RATE);
   if (discountRate > 0) {
     var discounted = Math.round(sum * (1 - discountRate));
     $('cartTotal').innerHTML = '<span class="price-old">' + yen(sum) + '</span> → <span class="price-new">' + yen(discounted) + '</span>';
@@ -1103,6 +1485,153 @@ function filterBrandList_() {
 }
 
 // =====================================================
+// おすすめ商品
+// =====================================================
+
+// おすすめ対象の状態（S, A, AB または同等の日本語表現）
+var RECOMMEND_STATES = ['S', 'A', 'AB', '新品', '美品', '良品', '新品同様', '未使用', '未使用に近い'];
+
+function isRecommendableState_(state) {
+  if (!state) return false;
+  var s = String(state).trim().toUpperCase();
+  for (var i = 0; i < RECOMMEND_STATES.length; i++) {
+    if (s === RECOMMEND_STATES[i].toUpperCase() || s.indexOf(RECOMMEND_STATES[i].toUpperCase()) !== -1) return true;
+  }
+  return false;
+}
+
+function getRecommendedProducts_(maxCount, excludeIds) {
+  if (!state.allProducts || !state.allProducts.length) return [];
+
+  var cartIds = excludeIds || state.cart.ids || [];
+  var cartItems = [];
+  for (var i = 0; i < cartIds.length; i++) {
+    var it = state.cart.itemsById[cartIds[i]];
+    if (it) cartItems.push(it);
+  }
+
+  // カート内のブランド・カテゴリ・性別・サイズ・価格帯を収集
+  var cartBrands = {}, cartCategories = {}, cartGenders = {}, cartSizes = {};
+  var priceSum = 0, priceCount = 0;
+  for (var i = 0; i < cartItems.length; i++) {
+    var ci = cartItems[i];
+    if (ci.brand) cartBrands[normalizeBrand_(ci.brand)] = true;
+    if (ci.category) cartCategories[ci.category] = true;
+    if (ci.gender) cartGenders[ci.gender] = true;
+    if (ci.size) cartSizes[ci.size] = true;
+    if (ci.price) { priceSum += ci.price; priceCount++; }
+  }
+  var avgPrice = priceCount > 0 ? (priceSum / priceCount) : 0;
+
+  // フィルタリング＆スコアリング
+  var candidates = [];
+  for (var i = 0; i < state.allProducts.length; i++) {
+    var p = state.allProducts[i];
+
+    // カート内の商品は除外
+    if (cartIds.indexOf(p.managedId) !== -1) continue;
+
+    // 状態チェック（S, A, AB等）
+    if (!isRecommendableState_(p.state)) continue;
+
+    // 傷汚れ詳細がある場合は除外
+    if (p.defectDetail && p.defectDetail.trim()) continue;
+
+    // スコア計算
+    var score = 0;
+    if (cartBrands[normalizeBrand_(p.brand)]) score += 30;
+    if (cartCategories[p.category]) score += 20;
+    if (cartGenders[p.gender]) score += 15;
+    if (cartSizes[p.size]) score += 10;
+    if (avgPrice > 0 && p.price) {
+      var priceDiff = Math.abs(p.price - avgPrice) / avgPrice;
+      if (priceDiff <= 0.3) score += 5;
+    }
+
+    // カートが空の場合は価格が高い順にランダム
+    if (cartItems.length === 0) {
+      score = p.price || 0;
+    }
+
+    candidates.push({ product: p, score: score });
+  }
+
+  // スコア降順、同スコアなら価格降順でソート後、ランダム要素追加
+  candidates.sort(function(a, b) {
+    if (b.score !== a.score) return b.score - a.score;
+    return (b.product.price || 0) - (a.product.price || 0);
+  });
+
+  // 上位を取得してシャッフル（同スコア帯でランダム性を出す）
+  var top = candidates.slice(0, Math.min(maxCount * 3, candidates.length));
+  for (var i = top.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var temp = top[i]; top[i] = top[j]; top[j] = temp;
+  }
+
+  var result = [];
+  for (var i = 0; i < Math.min(maxCount, top.length); i++) {
+    result.push(top[i].product);
+  }
+  return result;
+}
+
+function renderRecommendations_(containerId, sectionId, maxCount, isMainScreen) {
+  var container = $(containerId);
+  var section = $(sectionId);
+  if (!container || !section) return;
+
+  var recommendations = getRecommendedProducts_(maxCount || 6, state.cart.ids);
+
+  if (recommendations.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+
+  section.style.display = '';
+  container.innerHTML = '';
+
+  for (var i = 0; i < recommendations.length; i++) {
+    var p = recommendations[i];
+    var card = document.createElement('div');
+    card.className = 'recommendCard';
+
+    var imgUrl = p.imageUrl ? convertDriveImageUrl(p.imageUrl) : '';
+    var img = document.createElement('img');
+    img.src = imgUrl || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect fill="%23eee" width="100" height="100"/%3E%3Ctext x="50" y="55" text-anchor="middle" fill="%23999" font-size="12"%3ENo Image%3C/text%3E%3C/svg%3E';
+    img.alt = p.noLabel || p.managedId;
+
+    var info = document.createElement('div');
+    info.className = 'rcInfo';
+    var brand = document.createElement('div');
+    brand.className = 'rcBrand';
+    brand.textContent = p.brand || '-';
+    var price = document.createElement('div');
+    price.className = 'rcPrice';
+    price.textContent = yen(p.price);
+    info.appendChild(brand);
+    info.appendChild(price);
+
+    card.appendChild(img);
+    card.appendChild(info);
+
+    (function(mid, iurl, mainScreen) {
+      card.addEventListener('click', function() {
+        if (!mainScreen) closeModal($('cartModal'));
+        detailReturnTo_ = mainScreen ? null : 'cart';
+        openDetailModal(mid, iurl);
+      });
+    })(p.managedId, imgUrl, isMainScreen);
+
+    container.appendChild(card);
+  }
+}
+
+function renderMainRecommendations_() {
+  renderRecommendations_('mainRecommendList', 'mainRecommend', 8, true);
+}
+
+// =====================================================
 // カートモーダル・送信
 // =====================================================
 
@@ -1124,13 +1653,26 @@ function renderCartModal_() {
     var it = state.cart.itemsById[id];
     if (!it) continue;
     var row = document.createElement('div'); row.className = 'cartRow';
+
+    // 画像とテキストを囲むコンテナ
+    var info = document.createElement('div'); info.className = 'cartInfo';
+
+    // 商品画像
+    var imgUrl = it.imageUrl ? convertDriveImageUrl(it.imageUrl) : '';
+    var img = document.createElement('img'); img.className = 'cartImg';
+    img.src = imgUrl || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50"%3E%3Crect fill="%23eee" width="50" height="50"/%3E%3Ctext x="25" y="30" text-anchor="middle" fill="%23999" font-size="10"%3ENo Image%3C/text%3E%3C/svg%3E';
+    img.alt = it.noLabel || id;
+    (function(mid, iurl) { img.addEventListener('click', function(e) { e.stopPropagation(); closeModal($('cartModal')); detailReturnTo_ = 'cart'; openDetailModal(mid, iurl); }); })(id, imgUrl);
+
     var left = document.createElement('div'); left.className = 'cartLeft';
     var name = document.createElement('div'); name.className = 'cartName'; name.style.cursor = 'pointer';
     name.textContent = (it.noLabel ? it.noLabel : id) + (it.brand ? (' ' + it.brand) : '');
-    (function(mid, iurl) { name.addEventListener('click', function(e) { e.stopPropagation(); closeModal($('cartModal')); detailReturnTo_ = 'cart'; openDetailModal(mid, iurl); }); })(id, it.imageUrl ? convertDriveImageUrl(it.imageUrl) : '');
+    (function(mid, iurl) { name.addEventListener('click', function(e) { e.stopPropagation(); closeModal($('cartModal')); detailReturnTo_ = 'cart'; openDetailModal(mid, iurl); }); })(id, imgUrl);
     var sub = document.createElement('div'); sub.className = 'cartSub';
     sub.textContent = [it.category, it.color, it.gender, it.size].filter(Boolean).join(' / ') + ' / ' + yen(it.price);
     left.appendChild(name); left.appendChild(sub);
+    info.appendChild(img); info.appendChild(left);
+
     var btn = document.createElement('button'); btn.className = 'dangerBtn'; btn.type = 'button'; btn.textContent = '削除';
     (function(idRef) {
       btn.addEventListener('click', function() {
@@ -1141,7 +1683,7 @@ function renderCartModal_() {
         renderCartModal_();
       });
     })(id);
-    row.appendChild(left); row.appendChild(btn); listEl.appendChild(row);
+    row.appendChild(info); row.appendChild(btn); listEl.appendChild(row);
     sum += Number(it.price || 0);
   }
   
@@ -1151,16 +1693,22 @@ function renderCartModal_() {
   var discountRate = 0;
   if (mo === 'without') discountRate = 0.05;
   if (count >= 30) discountRate = (mo === 'without') ? 0.15 : 0.10;
+  // 会員割引（20%）を適用
+  if (state.customer) discountRate = Math.max(discountRate, MEMBER_DISCOUNT_RATE);
   var discounted = Math.round(sum * (1 - discountRate));
   var shippingLink = '<a href="https://drive.google.com/file/d/1g7UYUBw3-Y6M5HkSv3mfMe5jEjs795E3/view?usp=sharing" target="_blank">(送料別)</a>';
+  var discountLabel = state.customer ? '（会員20%OFF）' : '';
   if (discountRate > 0) {
-    $('sumPrice').innerHTML = '合計金額：<span class="price-old">' + yen(sum) + '</span> → <span class="price-new">' + yen(discounted) + '</span>' + shippingLink;
+    $('sumPrice').innerHTML = '合計金額：<span class="price-old">' + yen(sum) + '</span> → <span class="price-new">' + yen(discounted) + '</span>' + discountLabel + shippingLink;
   } else { $('sumPrice').innerHTML = '合計金額：' + yen(discounted) + shippingLink; }
   
   var min = Number(state.settings?.minOrderCount || 10);
   var need = Math.max(0, min - count);
   $('minNotice').textContent = need > 0 ? (min + '点以上で送信できます（あと' + need + '点）') : (min + '点以上OK');
   $('goFormBtn').disabled = (count < min);
+
+  // おすすめ商品を表示
+  renderRecommendations_('cartRecommendList', 'cartRecommend', 6);
 }
 
 function readForm_() {
@@ -1315,7 +1863,18 @@ function bindUi_() {
     showToast('カートを空にしました');
   });
   $('cartCloseBtn').addEventListener('click', function() { closeModal($('cartModal')); });
-  $('goFormBtn').addEventListener('click', function() { closeModal($('cartModal')); openModal($('formModal')); });
+  $('goFormBtn').addEventListener('click', function() {
+    closeModal($('cartModal'));
+    // ログインユーザーの情報を自動入力
+    if (state.customer) {
+      if (state.customer.companyName && !$('companyName').value) $('companyName').value = state.customer.companyName;
+      if (state.customer.email && !$('contact').value) $('contact').value = state.customer.email;
+      if (state.customer.phone && !$('phone').value) $('phone').value = state.customer.phone;
+      if (state.customer.postal && !$('postal').value) $('postal').value = state.customer.postal;
+      if (state.customer.address && !$('address').value) $('address').value = state.customer.address;
+    }
+    openModal($('formModal'));
+  });
   $('formCloseBtn').addEventListener('click', function() { closeModal($('formModal')); });
   $('formBackBtn').addEventListener('click', function() { closeModal($('formModal')); renderCartModal_(); openModal($('cartModal')); });
   $('submitBtn').addEventListener('click', submitNow_);
@@ -1395,6 +1954,10 @@ function boot() {
   bindUi_();
   setupScrollTopButton_();
   setupDetailModalEvents_();
+  setupAuthUi_();
+
+  // セッション検証（ログイン状態復元）
+  validateSession_();
 
   // 説明欄どこを押しても折りたたみ
   var topDet = document.querySelector('.topDetails');
@@ -1409,40 +1972,64 @@ function boot() {
   var mo = loadMeasureOpt_();
   if (mo) setMeasureOptValue_(mo);
   
-  renderLoadingGrid_();
-  
-  // キャッシュから商品データを取得
+  // キャッシュがあれば即座に表示
+  var cached = loadProductCache_();
+  if (cached && !cached.stale && cached.products) {
+    console.log('キャッシュから即時表示:', cached.products.length + '件');
+    applyProductData_(cached);
+  } else if (cached && cached.stale && cached.data && cached.data.products) {
+    console.log('古いキャッシュから即時表示:', cached.data.products.length + '件');
+    applyProductData_(cached.data);
+  } else {
+    renderLoadingGrid_();
+  }
+
+  // 最新データをバックグラウンドで取得
   loadProductData()
     .then(function(data) {
-      state.allProducts = data.products || [];
-      state.options = data.options || {};
-      state.settings = normalizeSettings_(data.settings);
-      
-      $('appTitle').textContent = state.settings.appTitle || '見積もりシステム';
-      buildTopNotes();
-      setBaseLink_();
-      
-      setSelectOptions($('fCategory'), state.options.category || [], 'カテゴリ');
-      setSelectOptions($('fState'), state.options.state || [], '状態');
-      setSelectOptions($('fGender'), state.options.gender || [], '性別');
-      setSelectOptions($('fSize'), state.options.size || [], 'サイズ');
-      setSortOptions($('sortKey'), state.options.sort || [{ key: 'default', label: '標準' }]);
-      $('sortKey').value = 'default';
-      $('sortDir').value = 'asc';
-      
-      buildBrandListOnce_(state.options.brand || []);
-      updateBrandBtn_();
-      filterBrandList_();
-      
-      state.dataLoaded = true;
-      filterAndRender(false);
-      
-      console.log('起動完了: ' + state.allProducts.length + '件');
+      // キャッシュと件数が異なる場合のみ再描画
+      var needsRender = !state.dataLoaded || state.allProducts.length !== (data.products || []).length;
+      applyProductData_(data);
+      if (needsRender) {
+        console.log('最新データで更新: ' + state.allProducts.length + '件');
+      }
     })
     .catch(function(err) {
       console.error('起動エラー:', err);
-      showToast('データの読み込みに失敗しました: ' + (err.message || err));
+      if (!state.dataLoaded) {
+        showToast('データの読み込みに失敗しました: ' + (err.message || err));
+      }
     });
+}
+
+function applyProductData_(data) {
+  state.allProducts = data.products || [];
+  state.options = data.options || {};
+  state.settings = normalizeSettings_(data.settings);
+
+  $('appTitle').textContent = state.settings.appTitle || '見積もりシステム';
+  buildTopNotes();
+  setBaseLink_();
+
+  setSelectOptions($('fCategory'), state.options.category || [], 'カテゴリ');
+  setSelectOptions($('fState'), state.options.state || [], '状態');
+  setSelectOptions($('fGender'), state.options.gender || [], '性別');
+  setSelectOptions($('fSize'), state.options.size || [], 'サイズ');
+  setSortOptions($('sortKey'), state.options.sort || [{ key: 'default', label: '標準' }]);
+  if (!state.dataLoaded) {
+    $('sortKey').value = 'default';
+    $('sortDir').value = 'asc';
+  }
+
+  buildBrandListOnce_(state.options.brand || []);
+  updateBrandBtn_();
+  filterBrandList_();
+
+  state.dataLoaded = true;
+  filterAndRender(false);
+
+  // メイン画面おすすめ商品を表示
+  renderMainRecommendations_();
 }
 
 window.addEventListener('error', function(ev) {

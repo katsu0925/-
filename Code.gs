@@ -43,7 +43,12 @@ function doPost(e) {
       'apiGetProductDetail': apiGetProductDetail,
       'apiGetAllDetails': apiGetAllDetails,
       'apiRefreshOpenState': apiRefreshOpenState,
-      'apiLogPV': apiLogPV
+      'apiLogPV': apiLogPV,
+      // 顧客認証API
+      'apiRegisterCustomer': apiRegisterCustomer,
+      'apiLoginCustomer': apiLoginCustomer,
+      'apiValidateSession': apiValidateSession,
+      'apiLogoutCustomer': apiLogoutCustomer
     };
 
     var fn = allowed[action];
@@ -91,7 +96,9 @@ function jsonResponse_(data) {
 
 var RATE_LIMITS = {
   'apiSubmitEstimate': { max: 3, windowSec: 3600, label: '見積もり送信は1時間に3回まで' },
-  'apiSyncHolds':     { max: 30, windowSec: 60,   label: '確保操作は1分に30回まで' }
+  'apiSyncHolds':     { max: 30, windowSec: 60,   label: '確保操作は1分に30回まで' },
+  'apiLoginCustomer': { max: 5, windowSec: 3600, label: 'ログインは1時間に5回まで' },
+  'apiRegisterCustomer': { max: 3, windowSec: 3600, label: '登録は1時間に3回まで' }
 };
 
 function checkRateLimit_(action, userKey) {
