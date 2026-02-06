@@ -122,7 +122,7 @@
     .brandTools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
     .brandTools input{flex:1 1 240px;min-width:200px;padding:12px 16px;border:2px solid #e2e8f0;border-radius:12px;background:#fff;outline:none;font-size:14px;transition:border-color .2s,box-shadow .2s;}
     .brandTools input:focus{border-color:#3b82f6;box-shadow:0 0 0 3px rgba(59,130,246,.15);}
-    .brandToolsBar{position:sticky;top:0;z-index:100;background:#fff;border-bottom:1px solid #eef0f6;margin:-14px -16px 0;padding:14px 16px 12px;box-shadow:0 2px 8px rgba(0,0,0,.08);}
+    .brandToolsBar{background:#fff;border-bottom:1px solid #eef0f6;padding:14px 16px 12px;}
     .brandIndexNav{display:flex;flex-wrap:wrap;gap:4px;margin-top:10px;padding-bottom:8px;}
     .brandIndexBtn{padding:6px 10px;border:none;border-radius:8px;background:#f1f5f9;color:#64748b;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;}
     .brandIndexBtn:hover{background:#e2e8f0;}
@@ -282,16 +282,16 @@
       <div class="modalTitle">ブランド選択</div>
       <button class="modalClose" id="brandCloseBtn" aria-label="close">×</button>
     </div>
-    <div class="modalBody">
-      <div class="brandToolsBar">
-        <div class="brandTools">
-          <input id="brandSearch" type="text" placeholder="ブランド名を検索（例：ナイキ、NIKE）">
-          <button class="btn" id="brandClearBtn" type="button">クリア</button>
-          <button class="btn primary" id="brandApplyBtn" type="button">適用</button>
-        </div>
-        <div class="hint" style="margin-top:8px;" id="brandHint"></div>
-        <div class="brandIndexNav" id="brandIndexNav"></div>
+    <div class="brandToolsBar">
+      <div class="brandTools">
+        <input id="brandSearch" type="text" placeholder="ブランド名を検索（例：ナイキ、NIKE）">
+        <button class="btn" id="brandClearBtn" type="button">クリア</button>
+        <button class="btn primary" id="brandApplyBtn" type="button">適用</button>
       </div>
+      <div class="hint" style="margin-top:8px;" id="brandHint"></div>
+      <div class="brandIndexNav" id="brandIndexNav"></div>
+    </div>
+    <div class="modalBody" style="max-height:calc(86vh - 180px);">
       <div id="brandList" class="brandList"></div>
     </div>
   </div>
