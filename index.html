@@ -2349,7 +2349,7 @@ function normalizeSettings_(s) {
   var src = (s && typeof s === 'object') ? s : {};
   var ui = (src.uiText && typeof src.uiText === 'object') ? src.uiText : {};
   var out = {};
-  out.appTitle = String(src.appTitle || ui.appTitle || '見積もりシステム');
+  out.appTitle = String(src.appTitle || ui.appTitle || '採寸データ付き選べる古着卸');
   out.minOrderCount = Number(src.minOrderCount != null ? src.minOrderCount : (ui.minOrderCount != null ? ui.minOrderCount : 10));
   out.shippingEstimateText = String(src.shippingEstimateText || ui.shippingEstimateText || '');
   out.notes = Array.isArray(src.notes) ? src.notes : (Array.isArray(src.topNotes) ? src.topNotes : (Array.isArray(ui.notes) ? ui.notes : []));
@@ -2563,7 +2563,7 @@ function applyProductData_(data) {
   state.options = data.options || {};
   state.settings = normalizeSettings_(data.settings);
 
-  $('appTitle').textContent = state.settings.appTitle || '見積もりシステム';
+  $('appTitle').textContent = '採寸データ付き選べる古着卸';
   buildTopNotes();
   setBaseLink_();
 
