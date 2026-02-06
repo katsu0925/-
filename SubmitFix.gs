@@ -42,20 +42,8 @@ function apiSubmitEstimate(userKey, form, ids) {
     var measureOpt = String(f.measureOpt || 'with');
 
     if (!companyName) return { ok: false, message: '会社名/氏名は必須です' };
-    if (!contact) return { ok: false, message: '連絡先は必須です' };
-    if (!contactMethod) return { ok: false, message: '参照元は必須です' };
-
-    var okSources = ['BASE', 'ジモティ', 'スマセル'];
-    if (okSources.indexOf(String(contactMethod || '').trim()) === -1) {
-      return { ok: false, message: '参照元は「BASE/ジモティ/スマセル」から選択してください' };
-    }
-
-    if (!delivery) return { ok: false, message: '希望引渡しは必須です' };
-    if (delivery === '配送') {
-      if (!postal) return { ok: false, message: '配送の場合、郵便番号は必須です' };
-      if (!address) return { ok: false, message: '配送の場合、住所は必須です' };
-      if (!phone) return { ok: false, message: '配送の場合、電話番号は必須です' };
-    }
+    if (!contact) return { ok: false, message: 'メールアドレスは必須です' };
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact)) return { ok: false, message: '有効なメールアドレスを入力してください' };
 
     // === 同期：確保チェック ===
     var orderSs = sh_getOrderSs_();
@@ -322,6 +310,25 @@ function writeSubmitData_(data) {
     userKey: data.userKey,
     templateText: data.templateText || ''
   });
+
+  // 4. Gmail下書き作成
+  try {
+    createEstimateDraft_(data.receiptNo, {
+      companyName: data.form.companyName || '',
+      contact: data.form.contact || '',
+      postal: data.form.postal || '',
+      address: data.form.address || '',
+      phone: data.form.phone || '',
+      note: data.form.note || '',
+      measureLabel: data.measureLabel || '',
+      totalCount: data.totalCount || data.ids.length,
+      discounted: data.discounted || 0,
+      selectionList: data.selectionList || data.ids.join('、')
+    });
+  } catch (e) {
+    // 下書き作成に失敗してもエラーにしない
+    Logger.log('Gmail下書き作成エラー: ' + (e.message || e));
+  }
 }
 
 /**
@@ -334,6 +341,47 @@ function cleanupTriggers_(functionName) {
       ScriptApp.deleteTrigger(triggers[i]);
     }
   }
+}
+
+// =====================================================
+// Gmail下書き作成
+// =====================================================
+
+/**
+ * 見積もり依頼の下書きメールを作成
+ */
+function createEstimateDraft_(receiptNo, info) {
+  var to = String(info.contact || '').trim();
+  if (!to || !to.includes('@')) return; // メールアドレスがない場合はスキップ
+
+  var subject = '【見積もり依頼】受付番号: ' + receiptNo;
+
+  var lines = [];
+  lines.push(String(info.companyName || '') + ' 様');
+  lines.push('');
+  lines.push('この度は見積もり依頼をいただき、誠にありがとうございます。');
+  lines.push('');
+  lines.push('■ 受付番号: ' + receiptNo);
+  lines.push('■ 点数: ' + String(info.totalCount || 0) + '点');
+  lines.push('■ 見積金額: ' + u_formatYen_(info.discounted || 0));
+  if (info.measureLabel) lines.push('■ 採寸データ: ' + String(info.measureLabel || ''));
+  lines.push('');
+  if (String(info.postal || '').trim()) lines.push('郵便番号: ' + String(info.postal || ''));
+  if (String(info.address || '').trim()) lines.push('住所: ' + String(info.address || ''));
+  if (String(info.phone || '').trim()) lines.push('電話番号: ' + String(info.phone || ''));
+  if (String(info.note || '').trim()) {
+    lines.push('');
+    lines.push('備考:');
+    lines.push(String(info.note || ''));
+  }
+  lines.push('');
+  lines.push('ご確認の上、ご不明点がございましたらお気軽にお問い合わせください。');
+  lines.push('');
+  lines.push('よろしくお願いいたします。');
+
+  var body = lines.join('\n');
+
+  GmailApp.createDraft(to, subject, body);
 }
 
 // =====================================================

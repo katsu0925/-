@@ -8,14 +8,10 @@ function app_buildTemplateText_(receiptNo, form, ids, totalCount, totalYen) {
   const lines = [];
   lines.push('受付番号：' + String(receiptNo || ''));
   lines.push('会社名/氏名：' + String(f.companyName || ''));
-  lines.push('連絡先：' + String(f.contact || ''));
-  lines.push('連絡手段：' + String(f.contactMethod || ''));
-  lines.push('希望引渡し：' + String(f.delivery || ''));
-  if (String(f.delivery || '') === '配送') {
-    lines.push('郵便番号：' + String(f.postal || ''));
-    lines.push('住所：' + String(f.address || ''));
-    lines.push('電話番号：' + String(f.phone || ''));
-  }
+  lines.push('メールアドレス：' + String(f.contact || ''));
+  if (String(f.postal || '').trim()) lines.push('郵便番号：' + String(f.postal || ''));
+  if (String(f.address || '').trim()) lines.push('住所：' + String(f.address || ''));
+  if (String(f.phone || '').trim()) lines.push('電話番号：' + String(f.phone || ''));
   lines.push('採寸データ：' + app_measureOptLabel_(f.measureOpt));
   if (String(f.note || '').trim()) lines.push('備考：' + String(f.note || '').trim());
   lines.push('合計点数：' + String(totalCount || 0) + '点');

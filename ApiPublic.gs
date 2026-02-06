@@ -275,14 +275,10 @@ function app_buildEstimateNotifyBody_(orderSs, receiptNo, info) {
   if (info && info.userKey) lines.push('userKey: ' + String(info.userKey || ''));
   lines.push('');
   if (info && info.companyName) lines.push('会社名/氏名: ' + String(info.companyName || ''));
-  if (info && info.contact) lines.push('連絡先: ' + String(info.contact || ''));
-  if (info && info.contactMethod) lines.push('参照元: ' + String(info.contactMethod || ''));
-  if (info && info.delivery) lines.push('希望引渡し: ' + String(info.delivery || ''));
-  if (info && info.delivery === '配送') {
-    lines.push('郵便番号: ' + String(info.postal || ''));
-    lines.push('住所: ' + String(info.address || ''));
-    lines.push('電話番号: ' + String(info.phone || ''));
-  }
+  if (info && info.contact) lines.push('メールアドレス: ' + String(info.contact || ''));
+  if (info && info.postal) lines.push('郵便番号: ' + String(info.postal || ''));
+  if (info && info.address) lines.push('住所: ' + String(info.address || ''));
+  if (info && info.phone) lines.push('電話番号: ' + String(info.phone || ''));
   if (info && info.note) {
     lines.push('');
     lines.push('備考:');
