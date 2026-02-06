@@ -144,9 +144,12 @@ function apiRegisterCustomer(userKey, params) {
     const customerId = 'C' + Date.now().toString(36).toUpperCase();
     const now = new Date();
 
+    // 電話番号・郵便番号は先頭の0が消えないようにアポストロフィを付加
+    const phoneForSheet = phone ? ("'" + phone) : '';
+    const postalForSheet = postal ? ("'" + postal) : '';
     sheet.appendRow([
-      customerId, email, passwordHash, companyName, phone,
-      postal, address, newsletter, now, now, sessionId, sessionExpiry
+      customerId, email, passwordHash, companyName, phoneForSheet,
+      postalForSheet, address, newsletter, now, now, sessionId, sessionExpiry
     ]);
 
     return {
