@@ -37,6 +37,8 @@
     .leftTitle{display:flex;flex-direction:column;gap:2px;min-width:0;font-weight:900;line-height:1.25;}
     .noText{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;font-weight:900;white-space:nowrap;}
     .brandText{font-weight:900;font-size:13px;line-height:1.2;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;}
+    .defectLine{font-size:11px;min-height:16px;line-height:16px;color:transparent;}
+    .defectLine.hasDefect{color:#b8002a;font-weight:700;}
     .price{font-weight:900;color:#b8002a;white-space:nowrap;}
     .meta{font-size:12px;color:#444;line-height:1.35;white-space:pre-line;}
     .badges{display:flex;gap:4px;flex-wrap:nowrap;align-items:center;}
@@ -128,6 +130,15 @@
     .price-old { text-decoration: line-through; color:#999; }
     .price-new { color:#b8002a; font-weight:700; }
     .filter-control { border: 2px solid #3b82f6 !important; background-color: #eff6ff !important; }
+    .multiSelectField{position:relative;}
+    .multiSelectBtn{width:100%;padding:10px 12px;border:2px solid #3b82f6;border-radius:10px;background:#eff6ff;cursor:pointer;font-weight:900;text-align:left;display:flex;align-items:center;justify-content:space-between;}
+    .multiSelectBtn .filterCount{background:#3b82f6;color:#fff;font-size:11px;padding:2px 6px;border-radius:10px;margin-left:6px;}
+    .multiSelectBtn .filterCount:empty{display:none;}
+    .multiSelectDropdown{display:none;position:absolute;top:100%;left:0;right:0;background:#fff;border:1px solid #d9deea;border-radius:10px;box-shadow:0 4px 12px rgba(0,0,0,.15);z-index:100;max-height:200px;overflow-y:auto;margin-top:4px;}
+    .multiSelectDropdown.open{display:block;}
+    .multiSelectItem{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;font-size:13px;}
+    .multiSelectItem:hover{background:#f8f9fc;}
+    .multiSelectItem input{margin:0;}
     .sort-control { border: 2px solid #8b5cf6 !important; background-color: #f5f3ff !important; }
     .section-label { font-size: 12px; font-weight: 900; color: #555; width: 100%; padding: 4px 0 0; }
     .section-label.filter-label { color: #2563eb; }
@@ -184,10 +195,22 @@
         </button>
       </div>
       <div class="section-label filter-label">絞り込み（フィルタ）</div>
-      <div class="field"><select id="fCategory" class="filter-control"></select></div>
-      <div class="field"><select id="fState" class="filter-control"></select></div>
-      <div class="field"><select id="fGender" class="filter-control"></select></div>
-      <div class="field"><select id="fSize" class="filter-control"></select></div>
+      <div class="field multiSelectField">
+        <button class="multiSelectBtn" id="fCategoryBtn" type="button">カテゴリ <span class="filterCount"></span></button>
+        <div class="multiSelectDropdown" id="fCategoryDropdown"></div>
+      </div>
+      <div class="field multiSelectField">
+        <button class="multiSelectBtn" id="fStateBtn" type="button">状態 <span class="filterCount"></span></button>
+        <div class="multiSelectDropdown" id="fStateDropdown"></div>
+      </div>
+      <div class="field multiSelectField">
+        <button class="multiSelectBtn" id="fGenderBtn" type="button">性別 <span class="filterCount"></span></button>
+        <div class="multiSelectDropdown" id="fGenderDropdown"></div>
+      </div>
+      <div class="field multiSelectField">
+        <button class="multiSelectBtn" id="fSizeBtn" type="button">サイズ <span class="filterCount"></span></button>
+        <div class="multiSelectDropdown" id="fSizeDropdown"></div>
+      </div>
       <div class="section-label sort-label">並べ替え（ソート）</div>
       <div class="field"><select id="sortKey" class="sort-control"></select></div>
       <div class="field" style="min-width:140px; flex:0 0 140px;">
@@ -331,14 +354,14 @@
             <label>住所</label>
             <input id="regAddress" type="text" autocomplete="street-address">
           </div>
+          <div class="formField" style="grid-column:1/-1;">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400;">
+              <input type="checkbox" id="regNewsletter" checked style="width:18px;height:18px;">
+              <span>お得な情報をメールで受け取る</span>
+            </label>
+          </div>
         </div>
-        <div class="formField" style="margin-top:10px;">
-          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-            <input type="checkbox" id="regNewsletter" checked>
-            <span>お得な情報をメールで受け取る</span>
-          </label>
-        </div>
-        <div class="formActions" style="flex-direction:column;align-items:stretch;">
+        <div class="formActions" style="flex-direction:column;align-items:stretch;margin-top:14px;">
           <button class="btn primary" id="registerBtn" type="button">登録する</button>
           <div style="text-align:center;margin-top:12px;font-size:13px;">
             既にアカウントをお持ちの方は <a href="#" id="showLoginLink">ログイン</a>
@@ -360,25 +383,8 @@
           <input id="companyName" type="text" autocomplete="name">
         </div>
         <div class="formField">
-          <label>連絡先（メールアドレス or BASE・スマセルメッセージ） *</label>
-          <input id="contact" type="text" autocomplete="email">
-        </div>
-        <div class="formField">
-          <label>参照元 *</label>
-          <select id="contactMethod">
-            <option value="">選択してください</option>
-            <option value="BASE">BASE</option>
-            <option value="ジモティ">ジモティ</option>
-            <option value="スマセル">スマセル</option>
-          </select>
-        </div>
-        <div class="formField">
-          <label>希望引渡し *</label>
-          <select id="delivery">
-            <option value="">選択してください</option>
-            <option value="配送">配送</option>
-            <option value="引き取り">引き取り</option>
-          </select>
+          <label>メールアドレス *</label>
+          <input id="contact" type="email" autocomplete="email" placeholder="example@example.com">
         </div>
         <div class="formField">
           <label>郵便番号（配送時は必須）</label>
@@ -409,20 +415,13 @@
       <div class="modalTitle">送信完了</div>
       <button class="modalClose" id="doneCloseBtn" aria-label="close">×</button>
     </div>
-    <div class="modalBody">
-      <div style="font-weight:900;">受付番号</div>
-      <div style="margin-top:6px; font-size:18px; font-weight:900;" id="doneReceipt"></div>
-      <div class="hint" style="margin-top:8px;">
-        受付番号をお控えの上、
-        <a id="baseLink" href="" target="_blank" rel="noopener"></a>
-        から連絡テンプレをコピーしたものを、画面下もしくは右下の吹き出しマークからメッセージしてください。
+    <div class="modalBody" style="text-align:center;">
+      <div style="font-weight:900; font-size:14px;">受付番号</div>
+      <div style="margin-top:8px; font-size:24px; font-weight:900; color:#3b82f6;" id="doneReceipt"></div>
+      <div style="margin-top:16px; font-size:14px; color:#333;">
+        BASEからご依頼いただいた場合は、BASEショップのメッセージからこの受付番号をお送りください。
       </div>
-      <div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">
-        <button class="btn" id="copyReceiptBtn" type="button">受付番号をコピー</button>
-        <button class="btn" id="copyTemplateBtn" type="button">連絡テンプレをコピー</button>
-      </div>
-      <div style="margin-top:12px; font-weight:900;">連絡テンプレ</div>
-      <pre id="doneTemplate" style="white-space:pre-wrap; margin:8px 0 0; font-family:inherit;"></pre>
+      <button class="btn primary" id="copyReceiptBtn" type="button" style="margin-top:16px;">受付番号をコピー</button>
     </div>
   </div>
 
@@ -456,7 +455,7 @@ var state = {
   settings: null,
   options: null,
   query: {
-    filters: { brand: [], category: '', state: '', gender: '', size: '' },
+    filters: { brand: [], category: [], state: [], gender: [], size: [] },
     sort: { key: 'default', dir: 'asc' },
     page: 1,
     pageSize: 60
@@ -510,7 +509,8 @@ function showToast(msg) {
 // =====================================================
 
 var SESSION_KEY = 'estimate_session';
-var MEMBER_DISCOUNT_RATE = 0.20;  // 会員割引20%
+var MEMBER_DISCOUNT_RATE = 0.10;  // 会員割引10%
+var BULK_DISCOUNT_RATE = 0.10;    // 30点以上割引10%
 
 function loadSession_() {
   try {
@@ -539,7 +539,7 @@ function updateAuthUi_() {
   if (state.customer) {
     area.innerHTML = '<div class="authUser">' +
       '<span class="authUserName">' + escapeHtml_(state.customer.companyName || state.customer.email) + '</span>' +
-      '<span class="authDiscount">20%OFF</span>' +
+      '<span class="authDiscount">10%OFF</span>' +
       '</div>' +
       '<button class="authBtn logout" id="logoutBtn" type="button">ログアウト</button>';
 
@@ -652,7 +652,7 @@ function doRegister_() {
         saveSession_(res.data.sessionId, res.data.customer);
         updateAuthUi_();
         closeModal($('authModal'));
-        showToast('登録が完了しました！20%割引が適用されます');
+        showToast('登録が完了しました！10%割引が適用されます');
         updateCartPrice();
         if ($('cartModal').classList.contains('open')) renderCartModal_();
       } else {
@@ -967,18 +967,26 @@ function loadProductData() {
 function applyFilters_() {
   var f = state.query.filters;
   var products = state.allProducts.slice();
-  
+
   if (f.brand && f.brand.length > 0) {
     products = products.filter(function(p) {
       var normalizedBrand = normalizeBrand_(p.brand);
       return f.brand.indexOf(normalizedBrand) !== -1;
     });
   }
-  if (f.category) { products = products.filter(function(p) { return p.category === f.category; }); }
-  if (f.state) { products = products.filter(function(p) { return p.state === f.state; }); }
-  if (f.gender) { products = products.filter(function(p) { return p.gender === f.gender; }); }
-  if (f.size) { products = products.filter(function(p) { return p.size === f.size; }); }
-  
+  if (f.category && f.category.length > 0) {
+    products = products.filter(function(p) { return f.category.indexOf(p.category) !== -1; });
+  }
+  if (f.state && f.state.length > 0) {
+    products = products.filter(function(p) { return f.state.indexOf(p.state) !== -1; });
+  }
+  if (f.gender && f.gender.length > 0) {
+    products = products.filter(function(p) { return f.gender.indexOf(p.gender) !== -1; });
+  }
+  if (f.size && f.size.length > 0) {
+    products = products.filter(function(p) { return f.size.indexOf(p.size) !== -1; });
+  }
+
   return products;
 }
 
@@ -1092,6 +1100,99 @@ function setSelectOptions(select, list, placeholder) {
   for (var i = 0; i < list.length; i++) {
     var op = document.createElement('option'); op.value = String(list[i]); op.textContent = String(list[i]); select.appendChild(op);
   }
+}
+
+// マルチセレクトフィルター
+var multiSelectState = { category: [], state: [], gender: [], size: [] };
+
+function buildMultiSelectDropdown(filterKey, options) {
+  var dropdown = $('f' + filterKey.charAt(0).toUpperCase() + filterKey.slice(1) + 'Dropdown');
+  if (!dropdown) return;
+  dropdown.innerHTML = '';
+  for (var i = 0; i < options.length; i++) {
+    var val = String(options[i]);
+    var item = document.createElement('label');
+    item.className = 'multiSelectItem';
+    var cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.value = val;
+    cb.checked = multiSelectState[filterKey].indexOf(val) !== -1;
+    cb.addEventListener('change', (function(key, v) {
+      return function(e) {
+        if (e.target.checked) {
+          if (multiSelectState[key].indexOf(v) === -1) multiSelectState[key].push(v);
+        } else {
+          var idx = multiSelectState[key].indexOf(v);
+          if (idx !== -1) multiSelectState[key].splice(idx, 1);
+        }
+        state.query.filters[key] = multiSelectState[key].slice();
+        updateMultiSelectBtn(key);
+        filterAndRender(true);
+      };
+    })(filterKey, val));
+    var span = document.createElement('span');
+    span.textContent = val;
+    item.appendChild(cb);
+    item.appendChild(span);
+    dropdown.appendChild(item);
+  }
+}
+
+function updateMultiSelectBtn(filterKey) {
+  var btnId = 'f' + filterKey.charAt(0).toUpperCase() + filterKey.slice(1) + 'Btn';
+  var btn = $(btnId);
+  if (!btn) return;
+  var count = multiSelectState[filterKey].length;
+  var countSpan = btn.querySelector('.filterCount');
+  if (countSpan) countSpan.textContent = count > 0 ? count : '';
+}
+
+function setupMultiSelectFilters() {
+  var filters = ['category', 'state', 'gender', 'size'];
+  var labels = { category: 'カテゴリ', state: '状態', gender: '性別', size: 'サイズ' };
+
+  filters.forEach(function(key) {
+    var btnId = 'f' + key.charAt(0).toUpperCase() + key.slice(1) + 'Btn';
+    var dropdownId = 'f' + key.charAt(0).toUpperCase() + key.slice(1) + 'Dropdown';
+    var btn = $(btnId);
+    var dropdown = $(dropdownId);
+    if (!btn || !dropdown) return;
+
+    btn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      // 他のドロップダウンを閉じる
+      document.querySelectorAll('.multiSelectDropdown').forEach(function(d) {
+        if (d.id !== dropdownId) d.classList.remove('open');
+      });
+      dropdown.classList.toggle('open');
+    });
+  });
+
+  // 外側クリックでドロップダウンを閉じる
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.multiSelectField')) {
+      document.querySelectorAll('.multiSelectDropdown').forEach(function(d) {
+        d.classList.remove('open');
+      });
+    }
+  });
+}
+
+function resetMultiSelectFilters() {
+  multiSelectState = { category: [], state: [], gender: [], size: [] };
+  state.query.filters.category = [];
+  state.query.filters.state = [];
+  state.query.filters.gender = [];
+  state.query.filters.size = [];
+  ['category', 'state', 'gender', 'size'].forEach(function(key) {
+    updateMultiSelectBtn(key);
+    var dropdown = $('f' + key.charAt(0).toUpperCase() + key.slice(1) + 'Dropdown');
+    if (dropdown) {
+      dropdown.querySelectorAll('input[type="checkbox"]').forEach(function(cb) {
+        cb.checked = false;
+      });
+    }
+  });
 }
 
 function setSortOptions(select, sortDefs) {
@@ -1214,6 +1315,16 @@ function renderGrid_(items) {
     row1.appendChild(leftTitle); row1.appendChild(price); body.appendChild(row1);
     if (spanBrand.textContent) body.appendChild(spanBrand);
     
+    // 傷汚れ詳細の有無を表示（カードの高さを揃えるため常にスペースを確保）
+    var defectLine = document.createElement('div'); defectLine.className = 'defectLine';
+    if (it.defectDetail && it.defectDetail.trim()) {
+      defectLine.textContent = '詳細事項あり';
+      defectLine.classList.add('hasDefect');
+    } else {
+      defectLine.innerHTML = '&nbsp;'; // 空白でも高さを確保
+    }
+    body.appendChild(defectLine);
+
     var badges = document.createElement('div'); badges.className = 'badges';
     var bState = document.createElement('div'); bState.className = 'badge'; bState.textContent = it.state || ''; badges.appendChild(bState);
     var bStatus = document.createElement('div'); setStatusBadge_(bStatus, r.effectiveStatus); badges.appendChild(bStatus); body.appendChild(badges);
@@ -1262,12 +1373,10 @@ function updateCartPrice() {
     if (it) sum += Number(it.price || 0);
   }
   var count = ids.length;
-  var mo = getMeasureOptValue_();
+  // 割引を累積（会員10% + 30点以上10% = 最大20%）
   var discountRate = 0;
-  if (mo === 'without') discountRate = 0.05;
-  if (count >= 30) discountRate = (mo === 'without') ? 0.15 : 0.10;
-  // 会員割引（20%）を適用
-  if (state.customer) discountRate = Math.max(discountRate, MEMBER_DISCOUNT_RATE);
+  if (count >= 30) discountRate += BULK_DISCOUNT_RATE;
+  if (state.customer) discountRate += MEMBER_DISCOUNT_RATE;
   if (discountRate > 0) {
     var discounted = Math.round(sum * (1 - discountRate));
     $('cartTotal').innerHTML = '<span class="price-old">' + yen(sum) + '</span> → <span class="price-new">' + yen(discounted) + '</span>';
@@ -1689,15 +1798,14 @@ function renderCartModal_() {
   
   var count = ids.length;
   $('sumCount').textContent = '合計点数：' + count + '点';
-  var mo = getMeasureOptValue_();
+  // 割引を累積（会員10% + 30点以上10% = 最大20%）
   var discountRate = 0;
-  if (mo === 'without') discountRate = 0.05;
-  if (count >= 30) discountRate = (mo === 'without') ? 0.15 : 0.10;
-  // 会員割引（20%）を適用
-  if (state.customer) discountRate = Math.max(discountRate, MEMBER_DISCOUNT_RATE);
+  var discountLabels = [];
+  if (count >= 30) { discountRate += BULK_DISCOUNT_RATE; discountLabels.push('30点以上10%OFF'); }
+  if (state.customer) { discountRate += MEMBER_DISCOUNT_RATE; discountLabels.push('会員10%OFF'); }
   var discounted = Math.round(sum * (1 - discountRate));
   var shippingLink = '<a href="https://drive.google.com/file/d/1g7UYUBw3-Y6M5HkSv3mfMe5jEjs795E3/view?usp=sharing" target="_blank">(送料別)</a>';
-  var discountLabel = state.customer ? '（会員20%OFF）' : '';
+  var discountLabel = discountLabels.length > 0 ? '（' + discountLabels.join('＋') + '）' : '';
   if (discountRate > 0) {
     $('sumPrice').innerHTML = '合計金額：<span class="price-old">' + yen(sum) + '</span> → <span class="price-new">' + yen(discounted) + '</span>' + discountLabel + shippingLink;
   } else { $('sumPrice').innerHTML = '合計金額：' + yen(discounted) + shippingLink; }
@@ -1713,23 +1821,16 @@ function renderCartModal_() {
 
 function readForm_() {
   return {
-    companyName: $('companyName').value || '', contact: $('contact').value || '', contactMethod: $('contactMethod').value || '',
-    delivery: $('delivery').value || '', postal: $('postal').value || '', address: $('address').value || '',
+    companyName: $('companyName').value || '', contact: $('contact').value || '',
+    postal: $('postal').value || '', address: $('address').value || '',
     phone: $('phone').value || '', note: $('note').value || '', measureOpt: getMeasureOptValue_()
   };
 }
 
 function validateForm_(f) {
   if (!f.companyName.trim()) return '会社名/氏名は必須です';
-  if (!f.contact.trim()) return '連絡先は必須です';
-  if (!f.contactMethod.trim()) return '参照元は必須です';
-  if (!f.delivery.trim()) return '希望引渡しは必須です';
-  if (['BASE', 'ジモティ', 'スマセル'].indexOf(f.contactMethod) === -1) return '参照元を選択してください';
-  if (f.delivery === '配送') {
-    if (!f.postal.trim()) return '配送の場合、郵便番号は必須です';
-    if (!f.address.trim()) return '配送の場合、住所は必須です';
-    if (!f.phone.trim()) return '配送の場合、電話番号は必須です';
-  }
+  if (!f.contact.trim()) return 'メールアドレスは必須です';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.contact.trim())) return '有効なメールアドレスを入力してください';
   return '';
 }
 
@@ -1761,7 +1862,6 @@ function submitNow_() {
     .then(function(res) {
       if (!res || !res.ok) throw new Error(res && res.message ? res.message : '送信に失敗しました');
       $('doneReceipt').textContent = res.receiptNo || '';
-      $('doneTemplate').textContent = res.templateText || '';
       state.cart.ids = [];
       saveCartStorage(); updateCartCount(); closeAllModals(); openModal($('doneModal'));
       showToast('送信完了しました');
@@ -1837,22 +1937,21 @@ function bindUi_() {
   });
   
   var doFilter_ = function() { state.query.page = 1; filterAndRender(true); };
-  $('fCategory').addEventListener('change', function() { state.query.filters.category = this.value; doFilter_(); });
-  $('fState').addEventListener('change', function() { state.query.filters.state = this.value; doFilter_(); });
-  $('fGender').addEventListener('change', function() { state.query.filters.gender = this.value; doFilter_(); });
-  $('fSize').addEventListener('change', function() { state.query.filters.size = this.value; doFilter_(); });
+  // マルチセレクトフィルターはsetupMultiSelectFilters()で設定
   $('sortKey').addEventListener('change', function() { state.query.sort.key = this.value; doFilter_(); });
   $('sortDir').addEventListener('change', function() { state.query.sort.dir = this.value; doFilter_(); });
   
   $('btnReset').addEventListener('click', function() {
-    state.query.filters = { brand: [], category: '', state: '', gender: '', size: '' };
+    state.query.filters = { brand: [], category: [], state: [], gender: [], size: [] };
     state.query.sort = { key: 'default', dir: 'asc' };
     state.query.page = 1;
+    // ブランドフィルターをリセット
     var prev = Object.keys(state.brandUi.selected || {});
     for (var i = 0; i < prev.length; i++) { var cb = state.brandUi.cbByName[prev[i]]; if (cb) cb.checked = false; }
     state.brandUi.selected = {}; updateBrandBtn_();
-    $('fCategory').value = ''; $('fState').value = '';
-    $('fGender').value = ''; $('fSize').value = ''; $('sortKey').value = 'default'; $('sortDir').value = 'asc';
+    // マルチセレクトフィルターをリセット
+    resetMultiSelectFilters();
+    $('sortKey').value = 'default'; $('sortDir').value = 'asc';
     filterAndRender(true);
   });
   
@@ -1882,10 +1981,6 @@ function bindUi_() {
   
   $('copyReceiptBtn').addEventListener('click', function() {
     var txt = $('doneReceipt').textContent || '';
-    navigator.clipboard.writeText(txt).then(function() { showToast('コピーしました'); }).catch(function() { showToast('コピーできませんでした'); });
-  });
-  $('copyTemplateBtn').addEventListener('click', function() {
-    var txt = $('doneTemplate').textContent || '';
     navigator.clipboard.writeText(txt).then(function() { showToast('コピーしました'); }).catch(function() { showToast('コピーできませんでした'); });
   });
   
@@ -1955,6 +2050,7 @@ function boot() {
   setupScrollTopButton_();
   setupDetailModalEvents_();
   setupAuthUi_();
+  setupMultiSelectFilters();
 
   // セッション検証（ログイン状態復元）
   validateSession_();
@@ -2011,10 +2107,11 @@ function applyProductData_(data) {
   buildTopNotes();
   setBaseLink_();
 
-  setSelectOptions($('fCategory'), state.options.category || [], 'カテゴリ');
-  setSelectOptions($('fState'), state.options.state || [], '状態');
-  setSelectOptions($('fGender'), state.options.gender || [], '性別');
-  setSelectOptions($('fSize'), state.options.size || [], 'サイズ');
+  // マルチセレクトフィルターを構築
+  buildMultiSelectDropdown('category', state.options.category || []);
+  buildMultiSelectDropdown('state', state.options.state || []);
+  buildMultiSelectDropdown('gender', state.options.gender || []);
+  buildMultiSelectDropdown('size', state.options.size || []);
   setSortOptions($('sortKey'), state.options.sort || [{ key: 'default', label: '標準' }]);
   if (!state.dataLoaded) {
     $('sortKey').value = 'default';

@@ -1288,8 +1288,12 @@ function checkManagement() {
   const lock = LockService.getScriptLock();
 
   try {
-    SpreadsheetApp.getActiveSpreadsheet().toast("他の処理が終わるまで待機中…", "チェック管理", 5);
-    lock.waitLock(30000);
+    SpreadsheetApp.getActiveSpreadsheet().toast("他の処理が終わるまで待機中…", "チェック管理", 10);
+    // タイムアウトを60秒に延長、tryLockで最初に試行
+    if (!lock.tryLock(5000)) {
+      // 5秒で取得できない場合は待機
+      lock.waitLock(60000);
+    }
 
     setGuardOn_();
 
@@ -1298,6 +1302,7 @@ function checkManagement() {
     const startRow = CONFIG.DEST_START_ROW;
     const lastRow = destSheet.getLastRow();
     if (lastRow < startRow) {
+      lock.releaseLock();
       ui.alert("データがありません（" + startRow + "行目以降）。");
       return;
     }
@@ -1337,6 +1342,7 @@ function checkManagement() {
     const notFound = uniqueIds.filter(id => !foundSet.has(id));
 
     if (matchedRows === 0) {
+      lock.releaseLock();
       ui.alert("該当なし", "一致する管理番号がデータ1のK列に見つかりませんでした。", ui.ButtonSet.OK);
       return;
     }
@@ -1355,12 +1361,13 @@ function checkManagement() {
       );
     }
   } catch (err) {
-    if (String(err && err.message || err).indexOf("timed out") !== -1) {
-      ui.alert("別の処理が実行中です。30秒待っても終わらなかったため中断しました。");
+    const errMsg = String(err && err.message || err);
+    if (errMsg.indexOf("timed out") !== -1 || errMsg.indexOf("ロックのタイムアウト") !== -1) {
+      ui.alert("ロックエラー", "別の処理が実行中です。しばらく待ってから再度お試しください。\n\n詳細: " + errMsg, ui.ButtonSet.OK);
       return;
     }
     saveError_(err);
-    throw err;
+    ui.alert("エラー", "処理中にエラーが発生しました: " + errMsg, ui.ButtonSet.OK);
   } finally {
     try {
       if (lock && lock.hasLock()) lock.releaseLock();
