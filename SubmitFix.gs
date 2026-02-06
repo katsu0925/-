@@ -131,7 +131,7 @@ function apiSubmitEstimate(userKey, form, ids) {
 
     st_invalidateStatusCache_(orderSs);
 
-    // === シート書き込み・メール送信を同期実行 ===
+    // === バックグラウンド処理用にキューに追加 ===
     var writeData = {
       userKey: uk,
       form: validatedForm,
@@ -147,27 +147,31 @@ function apiSubmitEstimate(userKey, form, ids) {
       timestamp: new Date().toISOString()
     };
 
+    // キューに追加してバックグラウンドトリガーを設定
     try {
-      writeSubmitData_(writeData);
-      console.log('書き込み完了: ' + receiptNo);
-    } catch (writeErr) {
-      console.error('書き込みエラー（送信自体は成功）: ' + receiptNo, writeErr);
-      // 書き込み失敗時はキューに保存してリトライ可能にする
+      var props = PropertiesService.getScriptProperties();
+      var queue = [];
       try {
-        var props = PropertiesService.getScriptProperties();
-        var queue = [];
-        try {
-          var queueStr = props.getProperty('SUBMIT_QUEUE');
-          if (queueStr) queue = JSON.parse(queueStr);
-        } catch (e) {}
-        queue.push(writeData);
-        props.setProperty('SUBMIT_QUEUE', JSON.stringify(queue));
-      } catch (e2) {
-        console.error('キュー保存も失敗:', e2);
+        var queueStr = props.getProperty('SUBMIT_QUEUE');
+        if (queueStr) queue = JSON.parse(queueStr);
+      } catch (e) {}
+      queue.push(writeData);
+      props.setProperty('SUBMIT_QUEUE', JSON.stringify(queue));
+
+      // バックグラウンドトリガーを作成（まだなければ）
+      scheduleBackgroundProcess_();
+      console.log('バックグラウンド処理をスケジュール: ' + receiptNo);
+    } catch (queueErr) {
+      // キュー追加に失敗した場合は同期で実行（フォールバック）
+      console.error('キュー追加失敗、同期実行: ' + receiptNo, queueErr);
+      try {
+        writeSubmitData_(writeData);
+      } catch (writeErr) {
+        console.error('同期書き込みも失敗: ' + receiptNo, writeErr);
       }
     }
 
-    // 即座に完了を返す
+    // 即座に完了を返す（バックグラウンド処理完了を待たない）
     return {
       ok: true,
       receiptNo: receiptNo,
@@ -183,6 +187,27 @@ function apiSubmitEstimate(userKey, form, ids) {
 // =====================================================
 // バックグラウンド書き込み処理
 // =====================================================
+
+/**
+ * バックグラウンド処理をスケジュール
+ * 既存のトリガーがなければ1秒後に実行するトリガーを作成
+ */
+function scheduleBackgroundProcess_() {
+  // 既存のトリガーをチェック
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'processSubmitQueue') {
+      // 既にスケジュール済み
+      return;
+    }
+  }
+
+  // 1秒後に実行するトリガーを作成
+  ScriptApp.newTrigger('processSubmitQueue')
+    .timeBased()
+    .after(1000) // 1秒後
+    .create();
+}
 
 /**
  * キューに溜まった送信データを処理（トリガーから呼ばれる）
