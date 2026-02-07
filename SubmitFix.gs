@@ -729,3 +729,64 @@ function getProductNamesFromIds_(ids) {
     return ids.join('、');
   }
 }
+
+/**
+ * 注文をキャンセル（決済失敗時に呼び出す）
+ * - open状態から商品を解除
+ * - キューから該当受付番号を削除
+ * @param {string} receiptNo - 受付番号
+ * @returns {object} - { ok, message }
+ */
+function apiCancelOrder(receiptNo) {
+  try {
+    if (!receiptNo) {
+      return { ok: false, message: '受付番号が必要です' };
+    }
+
+    var orderSs = sh_getOrderSs_();
+    var now = u_nowMs_();
+
+    // 1. open状態から該当受付番号の商品を解除
+    var openState = st_getOpenState_(orderSs) || {};
+    var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
+    var removedIds = [];
+
+    for (var id in openItems) {
+      if (openItems[id] && String(openItems[id].receiptNo) === String(receiptNo)) {
+        removedIds.push(id);
+        delete openItems[id];
+      }
+    }
+
+    if (removedIds.length > 0) {
+      openState.items = openItems;
+      openState.updatedAt = now;
+      st_setOpenState_(orderSs, openState);
+      st_invalidateStatusCache_(orderSs);
+      console.log('Cancelled order ' + receiptNo + ', released ' + removedIds.length + ' items');
+    }
+
+    // 2. キューから該当受付番号を削除
+    try {
+      var props = PropertiesService.getScriptProperties();
+      var queueStr = props.getProperty('SUBMIT_QUEUE');
+      if (queueStr) {
+        var queue = JSON.parse(queueStr);
+        var newQueue = queue.filter(function(item) {
+          return item.receiptNo !== receiptNo;
+        });
+        if (newQueue.length !== queue.length) {
+          props.setProperty('SUBMIT_QUEUE', JSON.stringify(newQueue));
+          console.log('Removed from queue: ' + receiptNo);
+        }
+      }
+    } catch (qe) {
+      console.error('Queue cleanup error:', qe);
+    }
+
+    return { ok: true, message: 'キャンセルしました', releasedCount: removedIds.length };
+  } catch (e) {
+    console.error('apiCancelOrder error:', e);
+    return { ok: false, message: (e && e.message) ? e.message : String(e) };
+  }
+}
