@@ -472,6 +472,7 @@ function deleteKomojuSecretKey() {
 
 /**
  * KOMOJU接続テスト
+ * テスト用の決済セッションを作成して接続を確認
  */
 function testKomojuConnection() {
   var secretKey = getKomojuSecretKey_();
@@ -481,15 +482,39 @@ function testKomojuConnection() {
     return;
   }
 
-  // アカウント情報を取得してテスト
-  var response = komojuRequest_('GET', '/merchants', null, secretKey);
+  console.log('KOMOJU接続テスト開始...');
+  console.log('Secret Key: ' + secretKey.substring(0, 8) + '...');
+
+  // テスト用セッションを作成
+  var sessionData = {
+    amount: 100,
+    currency: 'JPY',
+    return_url: 'https://example.com/return',
+    cancel_url: 'https://example.com/cancel',
+    payment_types: ['credit_card']
+  };
+
+  var response = komojuRequest_('POST', '/sessions', sessionData, secretKey);
 
   if (response.error) {
     console.log('ERROR: KOMOJU接続失敗');
-    console.log(response.error);
+    console.log('エラーコード: ' + response.error.code);
+    console.log('エラーメッセージ: ' + response.error.message);
+
+    if (response.error.code === 'invalid_token' || response.error.code === 'authentication_required') {
+      console.log('→ APIキーが正しくありません。KOMOJUダッシュボードでSecret Keyを確認してください。');
+    } else if (response.error.code === 'forbidden') {
+      console.log('→ このAPIキーには必要な権限がありません。');
+    }
+  } else if (response.id) {
+    console.log('SUCCESS: KOMOJU接続成功！');
+    console.log('テストセッションID: ' + response.id);
+    console.log('決済URL: ' + response.session_url);
+    console.log('');
+    console.log('※このテストセッションは自動的に期限切れになります');
   } else {
-    console.log('SUCCESS: KOMOJU接続成功');
-    console.log('Merchant:', response);
+    console.log('WARNING: 予期しないレスポンス');
+    console.log(JSON.stringify(response));
   }
 }
 
