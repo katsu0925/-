@@ -57,6 +57,7 @@ function doPost(e) {
       'apiLoginCustomer': apiLoginCustomer,
       'apiValidateSession': apiValidateSession,
       'apiLogoutCustomer': apiLogoutCustomer,
+      'apiUpdateCustomerProfile': apiUpdateCustomerProfile,
       // KOMOJU決済API
       'apiCreateKomojuSession': apiCreateKomojuSession,
       'apiCheckPaymentStatus': apiCheckPaymentStatus,

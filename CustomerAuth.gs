@@ -296,6 +296,99 @@ function apiValidateSession(userKey, params) {
 }
 
 /**
+ * 会員属性変更API（パスワード再認証必須）
+ * JCA不正ログイン対策: 属性変更時の本人確認（二要素認証等）
+ */
+function apiUpdateCustomerProfile(userKey, params) {
+  try {
+    var sessionId = String(params.sessionId || '');
+    var currentPassword = String(params.currentPassword || '');
+
+    // --- 本人確認: セッション + パスワード再入力の二段階認証 ---
+    if (!sessionId) {
+      return { ok: false, message: 'ログインが必要です' };
+    }
+    if (!currentPassword) {
+      return { ok: false, message: '本人確認のため現在のパスワードを入力してください' };
+    }
+
+    var customer = findCustomerBySession_(sessionId);
+    if (!customer) {
+      return { ok: false, message: 'セッションが無効または期限切れです。再ログインしてください' };
+    }
+
+    // パスワード再認証（セッション認証 + パスワード = 二段階の本人確認）
+    var fullCustomer = findCustomerByEmail_(customer.email);
+    if (!fullCustomer) {
+      return { ok: false, message: '顧客情報が見つかりません' };
+    }
+    var parts = fullCustomer.passwordHash.split(':');
+    if (parts.length < 2) {
+      return { ok: false, message: '認証エラーが発生しました' };
+    }
+    var salt = parts[0];
+    var storedHash = parts.slice(1).join(':');
+    var inputHash = hashPassword_(currentPassword, salt);
+    if (!timingSafeEqual_(inputHash, storedHash)) {
+      // レガシーハッシュもチェック
+      var inputHashLegacy = hashPasswordLegacy_(currentPassword, salt);
+      if (!timingSafeEqual_(inputHashLegacy, storedHash)) {
+        return { ok: false, message: 'パスワードが正しくありません' };
+      }
+    }
+
+    // --- 本人確認OK: 属性変更を実行 ---
+    var sheet = getCustomerSheet_();
+    var row = fullCustomer.row;
+    var updated = [];
+
+    if (params.companyName !== undefined) {
+      var companyName = String(params.companyName || '').trim();
+      if (!companyName) return { ok: false, message: '会社名/氏名は必須です' };
+      sheet.getRange(row, 4).setValue(companyName);
+      updated.push('会社名/氏名');
+    }
+    if (params.phone !== undefined) {
+      var phone = String(params.phone || '').trim();
+      sheet.getRange(row, 5).setValue(phone ? "'" + phone : '');
+      updated.push('電話番号');
+    }
+    if (params.postal !== undefined) {
+      var postal = String(params.postal || '').trim();
+      sheet.getRange(row, 6).setValue(postal ? "'" + postal : '');
+      updated.push('郵便番号');
+    }
+    if (params.address !== undefined) {
+      var address = String(params.address || '').trim();
+      sheet.getRange(row, 7).setValue(address);
+      updated.push('住所');
+    }
+    if (params.email !== undefined) {
+      var newEmail = String(params.email || '').trim().toLowerCase();
+      if (!newEmail || !newEmail.includes('@')) {
+        return { ok: false, message: '有効なメールアドレスを入力してください' };
+      }
+      if (newEmail !== fullCustomer.email) {
+        var existing = findCustomerByEmail_(newEmail);
+        if (existing) return { ok: false, message: 'このメールアドレスは既に使用されています' };
+        sheet.getRange(row, 2).setValue(newEmail);
+        updated.push('メールアドレス');
+      }
+    }
+
+    if (updated.length === 0) {
+      return { ok: false, message: '変更する項目がありません' };
+    }
+
+    console.log('Customer profile updated: ' + fullCustomer.id + ' fields=' + updated.join(','));
+    return { ok: true, message: updated.join('、') + ' を更新しました' };
+  } catch (e) {
+    console.error('apiUpdateCustomerProfile error:', e);
+    return { ok: false, message: '更新に失敗しました' };
+  }
+}
+
+/**
  * ログアウトAPI
  */
 function apiLogoutCustomer(userKey, params) {
