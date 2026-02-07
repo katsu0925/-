@@ -251,9 +251,11 @@ function writeSubmitData_(data) {
   var now = data.createdAtMs || u_nowMs_();
 
   // 1. 依頼管理シートに書き込み
-  // 列構成: A=受付番号, B=依頼日時, C=会社名/氏名, D=連絡先, E=郵便番号, F=住所, G=電話番号, H=商品名,
+  // 列構成（27列）:
+  // A=受付番号, B=依頼日時, C=会社名/氏名, D=連絡先, E=郵便番号, F=住所, G=電話番号, H=商品名,
   // I=確認リンク, J=選択リスト, K=合計点数, L=合計金額, M=発送ステータス, N=リスト同梱, O=xlsx送付,
-  // P=ステータス, Q=担当者, R=入金確認, S-U=予備(3列), V=備考
+  // P=ステータス, Q=担当者, R=入金確認, S-U=予備(3列), V=備考,
+  // W=配送業者, X=伝票番号, Y=作業報酬, Z=更新日時, AA=通知フラグ
   var reqSh = sh_ensureRequestSheet_(orderSs);
   var productNames = getProductNamesFromIds_(data.ids);
   var paymentStatus = data.paymentStatus || '入金待ち';
@@ -277,7 +279,12 @@ function writeSubmitData_(data) {
     '',                                          // Q: 担当者
     paymentStatus,                               // R: 入金確認
     '', '', '',                                  // S-U: 予備(3列)
-    data.form.note || ''                         // V: 備考
+    data.form.note || '',                        // V: 備考
+    '',                                          // W: 配送業者
+    '',                                          // X: 伝票番号
+    '',                                          // Y: 作業報酬
+    new Date(now),                               // Z: 更新日時
+    ''                                           // AA: 通知フラグ
   ];
   var writeRow = sh_findNextRowByDisplayKey_(reqSh, 1, 1);
   reqSh.getRange(writeRow, 1, 1, row.length).setValues([row]);
