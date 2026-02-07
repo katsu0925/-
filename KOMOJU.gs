@@ -178,6 +178,12 @@ function handleKomojuWebhook(e) {
       return { ok: false, message: 'No body' };
     }
 
+    // Webhook署名検証
+    if (!verifyKomojuWebhookSignature_(e, body)) {
+      console.error('KOMOJU Webhook signature verification failed');
+      return { ok: false, message: 'Invalid signature' };
+    }
+
     var data = JSON.parse(body);
     console.log('KOMOJU Webhook received:', data.type);
 
@@ -297,6 +303,79 @@ function handlePaymentRefunded_(data) {
 
   console.log('Payment refunded for:', receiptNo);
   return { ok: true, message: 'Refund processed' };
+}
+
+// =====================================================
+// Webhook署名検証
+// =====================================================
+
+/**
+ * KOMOJUのWebhook署名を検証
+ * KOMOJU_WEBHOOK_SECRET スクリプトプロパティにWebhookシークレットを設定してください
+ * @param {object} e - イベントオブジェクト
+ * @param {string} body - リクエストボディ
+ * @returns {boolean} - 署名が有効な場合true
+ */
+function verifyKomojuWebhookSignature_(e, body) {
+  var webhookSecret = getKomojuWebhookSecret_();
+  if (!webhookSecret) {
+    // シークレット未設定の場合は警告を出して拒否（fail-secure）
+    console.warn('KOMOJU_WEBHOOK_SECRET が未設定です。Webhook を拒否します。');
+    return false;
+  }
+
+  // KOMOJUはHTTPヘッダー X-Komoju-Signature にHMAC-SHA256署名を付与
+  var headers = e.postData ? e.parameter : {};
+  // GASではヘッダーは e.parameter 経由では取得できないため、
+  // e.postData.headers があればそちらを使う
+  var signature = '';
+  if (e && e.postData && e.postData.headers) {
+    signature = String(e.postData.headers['X-Komoju-Signature'] || e.postData.headers['x-komoju-signature'] || '');
+  }
+  // GAS doPost ではヘッダーが取得できない場合がある
+  // その場合は ScriptProperties に署名チェックをスキップするフラグを確認
+  if (!signature) {
+    var skipFlag = PropertiesService.getScriptProperties().getProperty('KOMOJU_WEBHOOK_SKIP_SIGNATURE');
+    if (skipFlag === 'true') {
+      console.warn('Webhook署名ヘッダーが取得できないため、スキップフラグにより許可');
+      return true;
+    }
+    console.warn('Webhook署名ヘッダーが取得できません');
+    return false;
+  }
+
+  // HMAC-SHA256で署名を計算して比較
+  var expectedRaw = Utilities.computeHmacSha256Signature(body, webhookSecret);
+  var expected = expectedRaw.map(function(b) {
+    return ('0' + (b < 0 ? b + 256 : b).toString(16)).slice(-2);
+  }).join('');
+
+  return timingSafeEqual_(signature, expected);
+}
+
+/**
+ * Webhook シークレットキーを取得
+ */
+function getKomojuWebhookSecret_() {
+  try {
+    return PropertiesService.getScriptProperties().getProperty('KOMOJU_WEBHOOK_SECRET') || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+/**
+ * タイミングセーフな文字列比較（タイミング攻撃対策）
+ */
+function timingSafeEqual_(a, b) {
+  var strA = String(a || '');
+  var strB = String(b || '');
+  if (strA.length !== strB.length) return false;
+  var result = 0;
+  for (var i = 0; i < strA.length; i++) {
+    result |= strA.charCodeAt(i) ^ strB.charCodeAt(i);
+  }
+  return result === 0;
 }
 
 // =====================================================

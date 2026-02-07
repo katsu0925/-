@@ -42,9 +42,16 @@ function apiSubmitEstimate(userKey, form, ids) {
     if (!contact) return { ok: false, message: 'メールアドレスは必須です' };
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact)) return { ok: false, message: '有効なメールアドレスを入力してください' };
 
-    // === 同期：確保チェック ===
+    // === 同期：確保チェック（ロック付き） ===
     var orderSs = sh_getOrderSs_();
     sh_ensureAllOnce_(orderSs);
+
+    var lock = LockService.getScriptLock();
+    if (!lock.tryLock(15000)) {
+      return { ok: false, message: '現在混雑しています。少し時間を置いて再度お試しください。' };
+    }
+
+    try {
 
     var now = u_nowMs_();
     var openSet = st_getOpenSetFast_(orderSs) || {};
@@ -122,6 +129,10 @@ function apiSubmitEstimate(userKey, form, ids) {
     holdState.updatedAt = now;
     st_setHoldState_(orderSs, holdState);
     st_invalidateStatusCache_(orderSs);
+
+    } finally {
+      lock.releaseLock();
+    }
 
     // === 決済待ち注文データを保存（決済完了時に使用） ===
     var pendingOrderData = {
@@ -214,11 +225,12 @@ function processSubmitQueue() {
       return;
     }
 
-    // キューをクリア（処理中に新しいデータが来ても別キューになる）
-    props.deleteProperty('SUBMIT_QUEUE');
+    // キューを取得してからロック解放（処理後に削除する）
     lock.releaseLock();
 
     // 各送信データを処理
+    var allSuccess = true;
+    var failedItems = [];
     for (var i = 0; i < queue.length; i++) {
       var data = queue[i];
       try {
@@ -226,6 +238,22 @@ function processSubmitQueue() {
         console.log('書き込み完了: ' + data.receiptNo);
       } catch (e) {
         console.error('書き込みエラー: ' + data.receiptNo, e);
+        allSuccess = false;
+        failedItems.push(data);
+      }
+    }
+
+    // 処理完了後にキューを削除（失敗分は再キューイング）
+    if (allSuccess) {
+      props.deleteProperty('SUBMIT_QUEUE');
+    } else if (failedItems.length > 0) {
+      // 失敗分のみ再キューイング
+      try {
+        props.setProperty('SUBMIT_QUEUE', JSON.stringify(failedItems));
+        console.warn('失敗したキューアイテムを再保存: ' + failedItems.length + '件');
+      } catch (requeueErr) {
+        console.error('再キューイング失敗:', requeueErr);
+        props.deleteProperty('SUBMIT_QUEUE');
       }
     }
 

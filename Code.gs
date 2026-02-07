@@ -1,4 +1,5 @@
-const LOG_SPREADSHEET_ID = "1eDkAMm_QUDFHbSzkL4IMaFeB2YV6_Gw5Dgi-HqIB2Sc";
+// APP_CONFIG.data.spreadsheetId と同じスプレッドシートをログ先に使用
+var LOG_SPREADSHEET_ID = String(APP_CONFIG.data.spreadsheetId || '');
 const LOG_SHEET_NAME = "アクセスログ";
 
 function doGet(e) {
@@ -37,7 +38,7 @@ function doPost(e) {
     var body = JSON.parse(e.postData.contents);
     var action = String(body.action || '');
     var args = body.args || [];
-    console.log('doPost: action=' + action + ' adminKey=' + String(body.adminKey || '(none)'));
+    console.log('doPost: action=' + action);
 
     // 許可されたAPI関数のマップ
     var allowed = {
@@ -71,7 +72,7 @@ function doPost(e) {
     var userKey = (args.length > 0 && typeof args[0] === 'string') ? args[0] : '';
     var adminKeyFromBody = String(body.adminKey || '');
     var storedAdminKey = PropertiesService.getScriptProperties().getProperty('ADMIN_KEY') || '';
-    var isAdmin = (storedAdminKey !== '' && adminKeyFromBody === storedAdminKey);
+    var isAdmin = (storedAdminKey !== '' && timingSafeEqual_(adminKeyFromBody, storedAdminKey));
 
     if (!isAdmin) {
       var rateErr = checkRateLimit_(action, userKey);
@@ -139,10 +140,13 @@ function getRecaptchaSecret_() {
 
 function verifyRecaptcha_(token) {
   var secret = getRecaptchaSecret_();
-  if (!secret) return true;  // 未設定ならスキップ
+  if (!secret) {
+    console.warn('RECAPTCHA_SECRET が未設定です。reCAPTCHA検証をスキップします。');
+    return true;  // 未設定ならスキップ（開発環境対応）
+  }
   if (!token) {
-    console.warn('reCAPTCHA token empty — client may not have loaded reCAPTCHA. Allowing request (availability first).');
-    return true;
+    console.warn('reCAPTCHA token empty — リクエストを拒否します');
+    return false;  // トークンなしは拒否（fail-secure）
   }
 
   try {
@@ -155,15 +159,24 @@ function verifyRecaptcha_(token) {
       muteHttpExceptions: true
     });
     var json = JSON.parse(res.getContentText());
-    console.log('reCAPTCHA verify: success=' + json.success + ' score=' + json.score + ' hostname=' + json.hostname + ' errors=' + JSON.stringify(json['error-codes'] || []));
-    // スコアが十分に低い場合(0.1未満)のみブロック。それ以外はレート制限で保護されているため通す
-    if (json.success === true && (json.score || 0) < 0.1) {
+    console.log('reCAPTCHA verify: success=' + json.success + ' score=' + json.score);
+
+    // 検証失敗の場合は拒否
+    if (json.success !== true) {
+      console.warn('reCAPTCHA verification failed: ' + JSON.stringify(json['error-codes'] || []));
       return false;
     }
+
+    // スコアが 0.3 未満はbot判定で拒否
+    if ((json.score || 0) < 0.3) {
+      console.warn('reCAPTCHA score too low: ' + json.score);
+      return false;
+    }
+
     return true;
   } catch (e) {
-    console.warn('reCAPTCHA fetch error: ' + e);
-    return true;  // 検証失敗時は通す（可用性優先）
+    console.error('reCAPTCHA fetch error: ' + e);
+    return false;  // 検証失敗時は拒否（fail-secure）
   }
 }
 
@@ -174,9 +187,9 @@ function verifyRecaptcha_(token) {
 function isAdminUser_(body) {
   var adminKey = PropertiesService.getScriptProperties().getProperty('ADMIN_KEY') || '';
   var sent = String(body.adminKey || '');
-  console.log('isAdminUser_ check: sent="' + sent + '" stored="' + adminKey + '" match=' + (sent === adminKey));
   if (!adminKey) return false;
-  return sent === adminKey;
+  // タイミングセーフな比較を使用
+  return timingSafeEqual_(sent, adminKey);
 }
 
 /**
@@ -185,8 +198,12 @@ function isAdminUser_(body) {
  */
 function setAdminKey() {
   var key = 'my-secret-key-123';  // ← ここを変更してから実行
+  if (key === 'my-secret-key-123') {
+    console.log('ERROR: key を実際の管理キーに置き換えてください');
+    return;
+  }
   PropertiesService.getScriptProperties().setProperty('ADMIN_KEY', key);
-  console.log('ADMIN_KEY を設定しました: ' + key);
+  console.log('ADMIN_KEY を設定しました（セキュリティのため値は表示しません）');
 }
 
 function apiLogPV(payload) {

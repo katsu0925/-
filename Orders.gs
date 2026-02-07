@@ -68,11 +68,12 @@ function od_rebuildOpenStateFromRequestSheet_(orderSs) {
   if (lastRow >= 2) {
     const values = sh.getRange(2, 1, lastRow - 1, 18).getValues();
     
+    var rc = APP_CONFIG.requestCols || {};
     for (let i = 0; i < values.length; i++) {
       const row = values[i];
-      const receiptNo = String(row[0] || '').trim();
-      const selectionList = String(row[11] || '');  // 列L = 選択リスト
-      const status = String(row[17] || '').trim();   // 列R = ステータス
+      const receiptNo = String(row[rc.receiptNo || 0] || '').trim();
+      const selectionList = String(row[rc.selectionList || 9] || '');
+      const status = String(row[rc.status || 15] || '').trim();
       
       if (!receiptNo || !status) continue;
       
@@ -171,14 +172,15 @@ function od_handleRequestSheetStatusEdits_(orderSs, requestSheet, startRow, endR
   
   const values = requestSheet.getRange(startRow, 1, numRows, 18).getValues();
   
+  var rc = APP_CONFIG.requestCols || {};
   for (let i = 0; i < values.length; i++) {
     const row = values[i];
-    const receiptNo = String(row[0] || '').trim();
-    const selectionList = String(row[11] || '');
-    const status = String(row[17] || '').trim();
-    
+    const receiptNo = String(row[rc.receiptNo || 0] || '').trim();
+    const selectionList = String(row[rc.selectionList || 9] || '');
+    const status = String(row[rc.status || 15] || '').trim();
+
     if (!receiptNo) continue;
-    
+
     od_syncOpenStateForReceipt_(orderSs, receiptNo, selectionList, status, nowMs);
   }
 }

@@ -68,6 +68,34 @@ const APP_CONFIG = {
       hip: 31              // ヒップ
     }
   },
+  // 依頼管理シートの列インデックス（0-based配列用）
+  // sh_ensureRequestSheet_ のヘッダー定義と対応
+  requestCols: {
+    receiptNo: 0,     // A列: 受付番号
+    datetime: 1,      // B列: 依頼日時
+    companyName: 2,    // C列: 会社名/氏名
+    contact: 3,       // D列: 連絡先
+    postal: 4,        // E列: 郵便番号
+    address: 5,       // F列: 住所
+    phone: 6,         // G列: 電話番号
+    productNames: 7,  // H列: 商品名
+    confirmLink: 8,   // I列: 確認リンク
+    selectionList: 9, // J列: 選択リスト
+    totalCount: 10,   // K列: 合計点数
+    totalAmount: 11,  // L列: 合計金額
+    shippingStatus: 12, // M列: 発送ステータス
+    listEnclosed: 13, // N列: リスト同梱
+    xlsxSent: 14,     // O列: xlsx送付
+    status: 15,       // P列: ステータス
+    person: 16,       // Q列: 担当者
+    paymentConfirm: 17, // R列: 入金確認
+    note: 21,         // V列: 備考
+    carrier: 22,      // W列: 配送業者
+    trackingNo: 23,   // X列: 伝票番号
+    reward: 24,       // Y列: 作業報酬
+    updatedAt: 25,    // Z列: 更新日時
+    notifyFlag: 26    // AA列: 通知フラグ
+  },
   statuses: {
     open: '依頼中',
     closed: ['キャンセル', '返品', '完了'],

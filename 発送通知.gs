@@ -1,7 +1,9 @@
 const SHIPMAIL_CONFIG = {
-  SPREADSHEET_ID: '1eDkAMm_QUDFHbSzkL4IMaFeB2YV6_Gw5Dgi-HqIB2Sc',
+  // APP_CONFIG.data.spreadsheetId から取得（一元管理）
+  get SPREADSHEET_ID() { return String(APP_CONFIG.data.spreadsheetId || ''); },
   SHEET_NAME: '依頼管理',
-  TO_EMAIL: 'nsdktts1030@gmail.com',
+  // 通知先メールも APP_CONFIG から取得
+  get TO_EMAIL() { return String(APP_CONFIG.notifyEmails || ''); },
   SUBJECT: 'BASEの発送が完了しました',
   STATUS_VALUE: '発送済み',
   // 新列構成: M=発送ステータス, C=会社名/氏名, I=確認リンク, W=予備, X=予備
