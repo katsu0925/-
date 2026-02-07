@@ -423,9 +423,88 @@ function st_getOpenSetFast_(orderSs) {
     }
   }
 
-  try { 
+  try {
     const ttl = APP_CONFIG.cache && APP_CONFIG.cache.statusSeconds ? APP_CONFIG.cache.statusSeconds : 300;
-    cache.put(ck, u_gzipToB64_(JSON.stringify(out)), Math.max(3, u_toInt_(ttl, 10))); 
+    cache.put(ck, u_gzipToB64_(JSON.stringify(out)), Math.max(3, u_toInt_(ttl, 10)));
   } catch (e) {}
   return out;
+}
+
+// =====================================================
+// スクリプトプロパティのクリーンアップ
+// =====================================================
+
+/**
+ * 不要なスクリプトプロパティを削除
+ * GASエディタから手動実行
+ */
+function cleanupScriptProperties() {
+  const props = PropertiesService.getScriptProperties();
+  const all = props.getProperties();
+  const keys = Object.keys(all);
+
+  console.log('総プロパティ数: ' + keys.length);
+
+  // STATE_HOLDS と STATE_OPEN のチャンクを整理
+  const metaKeys = {};
+  const chunkKeys = [];
+  const otherKeys = [];
+
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    if (key.indexOf(':META') !== -1) {
+      // メタキー（保持する）
+      const baseKey = key.replace(':META', '');
+      metaKeys[baseKey] = all[key];
+    } else if (key.indexOf(':CHUNK:') !== -1) {
+      chunkKeys.push(key);
+    } else {
+      otherKeys.push(key);
+    }
+  }
+
+  console.log('METAキー数: ' + Object.keys(metaKeys).length);
+  console.log('CHUNKキー数: ' + chunkKeys.length);
+  console.log('その他キー数: ' + otherKeys.length);
+
+  // 有効なチャンクを特定
+  const validChunks = {};
+  for (const baseKey in metaKeys) {
+    const meta = String(metaKeys[baseKey]).split('|');
+    const ver = meta[0];
+    const n = parseInt(meta[1], 10) || 0;
+    for (let j = 0; j < n; j++) {
+      validChunks[baseKey + ':CHUNK:' + ver + ':' + j] = true;
+    }
+  }
+
+  // 無効なチャンクを削除
+  let deleted = 0;
+  for (let i = 0; i < chunkKeys.length; i++) {
+    const key = chunkKeys[i];
+    if (!validChunks[key]) {
+      props.deleteProperty(key);
+      deleted++;
+    }
+  }
+
+  console.log('削除したチャンク数: ' + deleted);
+  console.log('残りのプロパティ数: ' + (keys.length - deleted));
+}
+
+/**
+ * すべてのSTATE関連プロパティを表示（デバッグ用）
+ */
+function listStateProperties() {
+  const props = PropertiesService.getScriptProperties();
+  const all = props.getProperties();
+  const keys = Object.keys(all).filter(function(k) {
+    return k.indexOf('STATE_') !== -1;
+  });
+
+  console.log('STATE関連プロパティ数: ' + keys.length);
+  keys.sort().forEach(function(k) {
+    const val = all[k];
+    console.log(k + ' = ' + (val.length > 50 ? val.substring(0, 50) + '...' : val));
+  });
 }
