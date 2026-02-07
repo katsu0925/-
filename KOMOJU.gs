@@ -228,8 +228,21 @@ function handlePaymentSuccess_(data) {
   saved.amount = payment.amount;
   savePaymentSession_(receiptNo, saved);
 
-  // 依頼管理シートのステータスを更新
-  updateOrderPaymentStatus_(receiptNo, 'paid', payment.payment_method_type);
+  // 決済方法に応じた入金ステータスを決定
+  // クレジットカード、PayPay、LINE Pay、メルペイは即時決済なので「対応済」
+  // コンビニ払い、銀行振込は後払いなので「入金待ち」
+  var paymentStatus = '対応済';
+  if (payment.payment_method_type === 'konbini' || payment.payment_method_type === 'bank_transfer') {
+    paymentStatus = '入金待ち';
+  }
+
+  // 注文を確定（hold → open、シート書き込み）
+  var confirmResult = confirmPaymentAndCreateOrder(receiptNo, paymentStatus);
+  if (!confirmResult.ok) {
+    console.error('Failed to confirm order:', confirmResult.message);
+    // 既にシートに書き込まれている可能性があるため、ステータスのみ更新を試みる
+    updateOrderPaymentStatus_(receiptNo, 'paid', payment.payment_method_type);
+  }
 
   // 確認メール送信（オプション）
   // sendPaymentConfirmationEmail_(receiptNo, saved);
@@ -385,7 +398,7 @@ function getPaymentSession_(receiptNo) {
 
 /**
  * 依頼管理シートの決済ステータスを更新
- * 列構成: T列(20)=入金確認
+ * 列構成: R列(18)=入金確認
  */
 function updateOrderPaymentStatus_(receiptNo, paymentStatus, paymentMethod) {
   try {
@@ -402,8 +415,8 @@ function updateOrderPaymentStatus_(receiptNo, paymentStatus, paymentMethod) {
       if (String(data[i][0]) === String(receiptNo)) {
         var row = i + 2;
 
-        // T列(20): 入金確認ステータスを更新
-        var paymentConfirmCol = 20;  // T列
+        // R列(18): 入金確認ステータスを更新
+        var paymentConfirmCol = 18;  // R列
         var statusText = paymentStatus === 'paid' ? '対応済' : (paymentStatus === 'pending' ? '入金待ち' : '未対応');
         sheet.getRange(row, paymentConfirmCol).setValue(statusText);
 

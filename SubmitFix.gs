@@ -105,34 +105,31 @@ function apiSubmitEstimate(userKey, form, ids) {
 
     var templateText = app_buildTemplateText_(receiptNo, validatedForm, list, totalCount, discounted);
 
-    // === 同期：open/hold状態を即座に更新（他ユーザーとの競合防止） ===
-    var openState = st_getOpenState_(orderSs) || {};
-    var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
-
+    // === 決済待ち状態：商品は「確保中」のまま、hold時間を延長（30分） ===
+    // 依頼中への変更は決済完了時（KOMOJU webhook）に行う
+    var holdUntilMs = now + (30 * 60 * 1000);  // 30分間確保
     for (var i = 0; i < list.length; i++) {
       var id = list[i];
-      openItems[id] = { receiptNo: receiptNo, status: APP_CONFIG.statuses.open, updatedAtMs: now };
-      if (holdItems[id]) delete holdItems[id];
+      holdItems[id] = {
+        userKey: uk,
+        receiptNo: receiptNo,
+        untilMs: holdUntilMs,
+        createdAtMs: now,
+        paymentPending: true  // 決済待ちフラグ
+      };
     }
-
-    openState.items = openItems;
-    openState.updatedAt = now;
-    st_setOpenState_(orderSs, openState);
-
     holdState.items = holdItems;
     holdState.updatedAt = now;
     st_setHoldState_(orderSs, holdState);
-
     st_invalidateStatusCache_(orderSs);
 
-    // === バックグラウンド処理用にキューに追加 ===
-    var writeData = {
+    // === 決済待ち注文データを保存（決済完了時に使用） ===
+    var pendingOrderData = {
       userKey: uk,
       form: validatedForm,
       ids: list,
       receiptNo: receiptNo,
       selectionList: selectionList,
-      measureLabel: measureLabel,
       measureOpt: measureOpt,
       totalCount: totalCount,
       discounted: discounted,
@@ -141,36 +138,22 @@ function apiSubmitEstimate(userKey, form, ids) {
       timestamp: new Date().toISOString()
     };
 
-    // キューに追加してバックグラウンドトリガーを設定
     try {
       var props = PropertiesService.getScriptProperties();
-      var queue = [];
-      try {
-        var queueStr = props.getProperty('SUBMIT_QUEUE');
-        if (queueStr) queue = JSON.parse(queueStr);
-      } catch (e) {}
-      queue.push(writeData);
-      props.setProperty('SUBMIT_QUEUE', JSON.stringify(queue));
-
-      // バックグラウンドトリガーを作成（まだなければ）
-      scheduleBackgroundProcess_();
-      console.log('バックグラウンド処理をスケジュール: ' + receiptNo);
-    } catch (queueErr) {
-      // キュー追加に失敗した場合は同期で実行（フォールバック）
-      console.error('キュー追加失敗、同期実行: ' + receiptNo, queueErr);
-      try {
-        writeSubmitData_(writeData);
-      } catch (writeErr) {
-        console.error('同期書き込みも失敗: ' + receiptNo, writeErr);
-      }
+      props.setProperty('PENDING_ORDER_' + receiptNo, JSON.stringify(pendingOrderData));
+      console.log('決済待ち注文を保存: ' + receiptNo);
+    } catch (saveErr) {
+      console.error('決済待ち注文の保存に失敗: ' + receiptNo, saveErr);
+      // 保存失敗しても処理は続行（決済完了時に再取得できる可能性がある）
     }
 
-    // 即座に完了を返す（バックグラウンド処理完了を待たない）
+    // 決済待ち状態で返す（シート書き込みは決済完了後）
     return {
       ok: true,
       receiptNo: receiptNo,
       templateText: templateText,
-      totalAmount: discounted
+      totalAmount: discounted,
+      paymentPending: true  // 決済待ちフラグ
     };
 
   } catch (e) {
@@ -270,9 +253,10 @@ function writeSubmitData_(data) {
   // 1. 依頼管理シートに書き込み
   // 列構成: A=受付番号, B=依頼日時, C=会社名/氏名, D=連絡先, E=郵便番号, F=住所, G=電話番号, H=商品名,
   // I=確認リンク, J=選択リスト, K=合計点数, L=合計金額, M=発送ステータス, N=リスト同梱, O=xlsx送付,
-  // P=ステータス, Q=担当者, R=支払いURL, S=採寸データ, T=入金確認, U-Y=予備, Z=備考
+  // P=ステータス, Q=担当者, R=入金確認, S-U=予備(3列), V=備考
   var reqSh = sh_ensureRequestSheet_(orderSs);
   var productNames = getProductNamesFromIds_(data.ids);
+  var paymentStatus = data.paymentStatus || '入金待ち';
   var row = [
     data.receiptNo,                              // A: 受付番号
     new Date(now),                               // B: 依頼日時
@@ -291,11 +275,9 @@ function writeSubmitData_(data) {
     '未',                                         // O: xlsx送付
     APP_CONFIG.statuses.open,                    // P: ステータス
     '',                                          // Q: 担当者
-    '',                                          // R: 支払いURL
-    data.measureLabel || '',                     // S: 採寸データ
-    '入金待ち',                                   // T: 入金確認
-    '', '', '', '', '',                          // U-Y: 予備
-    data.form.note || ''                         // Z: 備考
+    paymentStatus,                               // R: 入金確認
+    '', '', '',                                  // S-U: 予備(3列)
+    data.form.note || ''                         // V: 備考
   ];
   var writeRow = sh_findNextRowByDisplayKey_(reqSh, 1, 1);
   reqSh.getRange(writeRow, 1, 1, row.length).setValues([row]);
@@ -731,9 +713,109 @@ function getProductNamesFromIds_(ids) {
 }
 
 /**
+ * 決済完了後に注文を確定（KOMOJU webhookから呼び出す）
+ * - 保存済みのペンディング注文データを取得
+ * - 商品をhold状態からopen状態へ変更
+ * - 依頼管理シートにデータを書き込み
+ * @param {string} receiptNo - 受付番号
+ * @param {string} paymentStatus - 入金ステータス（'入金待ち' | '未対応' | '対応済'）
+ * @returns {object} - { ok, message }
+ */
+function confirmPaymentAndCreateOrder(receiptNo, paymentStatus) {
+  try {
+    if (!receiptNo) {
+      return { ok: false, message: '受付番号が必要です' };
+    }
+
+    var props = PropertiesService.getScriptProperties();
+    var pendingKey = 'PENDING_ORDER_' + receiptNo;
+    var pendingDataStr = props.getProperty(pendingKey);
+
+    if (!pendingDataStr) {
+      console.log('PENDING_ORDER not found: ' + receiptNo);
+      return { ok: false, message: 'ペンディング注文が見つかりません: ' + receiptNo };
+    }
+
+    var pendingData = JSON.parse(pendingDataStr);
+    console.log('Found pending order: ' + receiptNo + ', items: ' + pendingData.ids.length);
+
+    var orderSs = sh_getOrderSs_();
+    var now = u_nowMs_();
+
+    // 1. 商品をhold状態からopen状態へ移行
+    var holdState = st_getHoldState_(orderSs) || {};
+    var holdItems = (holdState.items && typeof holdState.items === 'object') ? holdState.items : {};
+    var openState = st_getOpenState_(orderSs) || {};
+    var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
+
+    var movedIds = [];
+    for (var i = 0; i < pendingData.ids.length; i++) {
+      var id = pendingData.ids[i];
+      // holdから削除
+      if (holdItems[id]) {
+        delete holdItems[id];
+      }
+      // openに追加
+      openItems[id] = {
+        receiptNo: receiptNo,
+        userKey: pendingData.userKey,
+        createdAtMs: now
+      };
+      movedIds.push(id);
+    }
+
+    // hold/open状態を保存
+    holdState.items = holdItems;
+    holdState.updatedAt = now;
+    st_setHoldState_(orderSs, holdState);
+
+    openState.items = openItems;
+    openState.updatedAt = now;
+    st_setOpenState_(orderSs, openState);
+
+    // 2. 依頼管理シートにデータを書き込み
+    var writeData = {
+      userKey: pendingData.userKey,
+      form: pendingData.form,
+      ids: pendingData.ids,
+      receiptNo: receiptNo,
+      selectionList: pendingData.selectionList,
+      measureOpt: pendingData.measureOpt,
+      totalCount: pendingData.totalCount,
+      discounted: pendingData.discounted,
+      createdAtMs: now,
+      templateText: pendingData.templateText,
+      measureLabel: app_measureOptLabel_(pendingData.measureOpt),
+      paymentStatus: paymentStatus || '入金待ち'
+    };
+
+    writeSubmitData_(writeData);
+    console.log('Order written to sheet: ' + receiptNo);
+
+    // 3. ペンディングデータを削除
+    props.deleteProperty(pendingKey);
+    console.log('Deleted pending order: ' + receiptNo);
+
+    // 4. キャッシュを無効化
+    st_invalidateStatusCache_(orderSs);
+
+    return {
+      ok: true,
+      message: '注文を確定しました',
+      receiptNo: receiptNo,
+      movedCount: movedIds.length
+    };
+
+  } catch (e) {
+    console.error('confirmPaymentAndCreateOrder error:', e);
+    return { ok: false, message: (e && e.message) ? e.message : String(e) };
+  }
+}
+
+/**
  * 注文をキャンセル（決済失敗時に呼び出す）
- * - open状態から商品を解除
- * - キューから該当受付番号を削除
+ * - hold状態から商品を解除
+ * - ペンディング注文データを削除
  * @param {string} receiptNo - 受付番号
  * @returns {object} - { ok, message }
  */
@@ -745,44 +827,61 @@ function apiCancelOrder(receiptNo) {
 
     var orderSs = sh_getOrderSs_();
     var now = u_nowMs_();
+    var props = PropertiesService.getScriptProperties();
 
-    // 1. open状態から該当受付番号の商品を解除
-    var openState = st_getOpenState_(orderSs) || {};
-    var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
+    // 1. ペンディング注文データを取得して商品IDを特定
+    var pendingKey = 'PENDING_ORDER_' + receiptNo;
+    var pendingDataStr = props.getProperty(pendingKey);
+    var idsToRelease = [];
+
+    if (pendingDataStr) {
+      try {
+        var pendingData = JSON.parse(pendingDataStr);
+        idsToRelease = pendingData.ids || [];
+      } catch (pe) {
+        console.error('Failed to parse pending data:', pe);
+      }
+    }
+
+    // 2. hold状態から該当受付番号の商品を解除
+    var holdState = st_getHoldState_(orderSs) || {};
+    var holdItems = (holdState.items && typeof holdState.items === 'object') ? holdState.items : {};
     var removedIds = [];
 
-    for (var id in openItems) {
-      if (openItems[id] && String(openItems[id].receiptNo) === String(receiptNo)) {
-        removedIds.push(id);
-        delete openItems[id];
+    // ペンディングデータがある場合はそのIDリストから解除
+    if (idsToRelease.length > 0) {
+      for (var i = 0; i < idsToRelease.length; i++) {
+        var id = idsToRelease[i];
+        if (holdItems[id]) {
+          removedIds.push(id);
+          delete holdItems[id];
+        }
+      }
+    } else {
+      // ペンディングデータがない場合は受付番号で検索
+      for (var id in holdItems) {
+        if (holdItems[id] && String(holdItems[id].receiptNo) === String(receiptNo)) {
+          removedIds.push(id);
+          delete holdItems[id];
+        }
       }
     }
 
     if (removedIds.length > 0) {
-      openState.items = openItems;
-      openState.updatedAt = now;
-      st_setOpenState_(orderSs, openState);
-      st_invalidateStatusCache_(orderSs);
-      console.log('Cancelled order ' + receiptNo + ', released ' + removedIds.length + ' items');
+      holdState.items = holdItems;
+      holdState.updatedAt = now;
+      st_setHoldState_(orderSs, holdState);
+      console.log('Cancelled order ' + receiptNo + ', released ' + removedIds.length + ' items from hold');
     }
 
-    // 2. キューから該当受付番号を削除
-    try {
-      var props = PropertiesService.getScriptProperties();
-      var queueStr = props.getProperty('SUBMIT_QUEUE');
-      if (queueStr) {
-        var queue = JSON.parse(queueStr);
-        var newQueue = queue.filter(function(item) {
-          return item.receiptNo !== receiptNo;
-        });
-        if (newQueue.length !== queue.length) {
-          props.setProperty('SUBMIT_QUEUE', JSON.stringify(newQueue));
-          console.log('Removed from queue: ' + receiptNo);
-        }
-      }
-    } catch (qe) {
-      console.error('Queue cleanup error:', qe);
+    // 3. ペンディング注文データを削除
+    if (pendingDataStr) {
+      props.deleteProperty(pendingKey);
+      console.log('Deleted pending order: ' + receiptNo);
     }
+
+    // 4. キャッシュを無効化
+    st_invalidateStatusCache_(orderSs);
 
     return { ok: true, message: 'キャンセルしました', releasedCount: removedIds.length };
   } catch (e) {
