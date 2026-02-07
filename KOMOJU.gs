@@ -423,6 +423,50 @@ function updateOrderPaymentStatus_(receiptNo, paymentStatus, paymentMethod) {
 }
 
 // =====================================================
+// 設定用関数（GASエディタから実行）
+// =====================================================
+
+/**
+ * KOMOJU APIキーを設定
+ * 使い方:
+ * 1. この関数の YOUR_SECRET_KEY_HERE を実際のキーに置き換え
+ * 2. GASエディタでこの関数を実行
+ * 3. 実行後、キーを YOUR_SECRET_KEY_HERE に戻す（セキュリティのため）
+ */
+function setKomojuSecretKey() {
+  var secretKey = 'YOUR_SECRET_KEY_HERE';  // ← ここにKOMOJUのSecret Keyを入力
+
+  if (secretKey === 'YOUR_SECRET_KEY_HERE') {
+    console.log('ERROR: secretKey を実際のKOMOJU Secret Keyに置き換えてください');
+    return;
+  }
+
+  PropertiesService.getScriptProperties().setProperty('KOMOJU_SECRET_KEY', secretKey);
+  console.log('SUCCESS: KOMOJU_SECRET_KEY を設定しました');
+  console.log('セキュリティのため、コード内のキーを YOUR_SECRET_KEY_HERE に戻すことをお勧めします');
+}
+
+/**
+ * KOMOJU APIキーが設定されているか確認
+ */
+function checkKomojuSecretKey() {
+  var key = PropertiesService.getScriptProperties().getProperty('KOMOJU_SECRET_KEY');
+  if (key) {
+    console.log('KOMOJU_SECRET_KEY: 設定済み（' + key.substring(0, 8) + '...）');
+  } else {
+    console.log('KOMOJU_SECRET_KEY: 未設定');
+  }
+}
+
+/**
+ * KOMOJU APIキーを削除
+ */
+function deleteKomojuSecretKey() {
+  PropertiesService.getScriptProperties().deleteProperty('KOMOJU_SECRET_KEY');
+  console.log('KOMOJU_SECRET_KEY を削除しました');
+}
+
+// =====================================================
 // テスト・デバッグ用
 // =====================================================
 
