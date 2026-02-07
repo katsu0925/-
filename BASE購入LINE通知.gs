@@ -1,13 +1,3 @@
-/**
- * LINE通知の認証情報をPropertiesServiceに設定（GASエディタで1回だけ実行）
- */
-function setLineNotifyCredentials() {
-  var p = PropertiesService.getScriptProperties();
-  p.setProperty('LINE_ACCESS_TOKEN', 'ここにアクセストークンを貼り付け');
-  p.setProperty('LINE_TO_ID', 'ここにTO_IDを貼り付け');
-  console.log('LINE認証情報を設定しました');
-}
-
 function getLineAccessToken_() {
   return PropertiesService.getScriptProperties().getProperty('LINE_ACCESS_TOKEN') || '';
 }
