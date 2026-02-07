@@ -5,7 +5,7 @@
   <base target="_top">
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>採寸データ付き選べる古着卸</title>
+  <title>NKonlineApparel</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👕</text></svg>">
   <script src="https://www.google.com/recaptcha/api.js?render=6LeMeF0sAAAAAK1DLANrMyfuugoe6mdWMQbY2ao1" async defer></script>
   <style>
@@ -199,7 +199,7 @@
     <div class="wrap" style="padding:0 14px;">
       <div style="display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap;">
         <div style="display:flex; align-items:flex-end; gap:10px;">
-          <div class="title" id="appTitle">採寸データ付き選べる古着卸</div>
+          <div class="title" id="appTitle">NKonlineApparel</div>
           <div class="badge ok" id="totalCountBadge"></div>
         </div>
         <div class="authArea" id="authArea">
@@ -2458,7 +2458,7 @@ function normalizeSettings_(s) {
   var src = (s && typeof s === 'object') ? s : {};
   var ui = (src.uiText && typeof src.uiText === 'object') ? src.uiText : {};
   var out = {};
-  out.appTitle = String(src.appTitle || ui.appTitle || '採寸データ付き選べる古着卸');
+  out.appTitle = String(src.appTitle || ui.appTitle || 'NKonlineApparel');
   out.minOrderCount = Number(src.minOrderCount != null ? src.minOrderCount : (ui.minOrderCount != null ? ui.minOrderCount : 10));
   out.shippingEstimateText = String(src.shippingEstimateText || ui.shippingEstimateText || '');
   out.notes = Array.isArray(src.notes) ? src.notes : (Array.isArray(src.topNotes) ? src.topNotes : (Array.isArray(ui.notes) ? ui.notes : []));
@@ -2689,7 +2689,7 @@ function applyProductData_(data) {
   state.options = data.options || {};
   state.settings = normalizeSettings_(data.settings);
 
-  $('appTitle').textContent = '採寸データ付き選べる古着卸';
+  $('appTitle').textContent = 'NKonlineApparel';
   buildTopNotes();
   setBaseLink_();
 

@@ -208,7 +208,7 @@ function app_sendEstimateNotifyMail_(orderSs, receiptNo, info) {
     const toList = app_getNotifyToEmails_(orderSs);
     if (!toList.length) return;
 
-    const subject = '選べる古着卸し見積もり依頼';
+    const subject = 'NKonlineApparel 見積もり依頼';
     const body = app_buildEstimateNotifyBody_(orderSs, receiptNo, info);
 
     MailApp.sendEmail({
