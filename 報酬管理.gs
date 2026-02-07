@@ -4,10 +4,11 @@ const REWARD_CONFIG = {
   SHEET_REWARD: '報酬管理',
   TZ: 'Asia/Tokyo',
   STATUS_DONE_VALUE: '完了',
-  COL_REQUEST_DATETIME: 2,
-  COL_STATUS: 18,
-  COL_PERSON: 19,
-  COL_AMOUNT: 25
+  // 新列構成: B=依頼日時, P=ステータス, Q=担当者, L=合計金額
+  COL_REQUEST_DATETIME: 2,  // B列
+  COL_STATUS: 16,           // P列 (旧R列)
+  COL_PERSON: 17,           // Q列 (旧S列)
+  COL_AMOUNT: 12            // L列 (旧N列 合計金額)
 };
 
 function rewardUpdateDaily() {

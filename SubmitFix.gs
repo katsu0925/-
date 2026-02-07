@@ -25,10 +25,7 @@ function apiSubmitEstimate(userKey, form, ids) {
     if (!uk) return { ok: false, message: 'userKeyが不正です' };
 
     var list = u_unique_(u_normalizeIds_(ids || []));
-    if (!list.length) return { ok: false, message: '選択リストが空です' };
-
-    var min = Number(APP_CONFIG.minOrderCount || 10);
-    if (list.length < min) return { ok: false, message: min + '点以上選択してください' };
+    if (!list.length) return { ok: false, message: 'カートが空です' };
 
     var f = form || {};
     var companyName = String(f.companyName || '').trim();
@@ -87,9 +84,6 @@ function apiSubmitEstimate(userKey, form, ids) {
     var totalCount = list.length;
     var discountRate = 0;
     if (measureOpt === 'without') discountRate = 0.05;
-    if (totalCount >= 30) {
-      discountRate = (measureOpt === 'without') ? 0.15 : 0.10;
-    }
     var discounted = Math.round(sum * (1 - discountRate));
 
     // === 同期：受付番号・テンプレート生成 ===
@@ -175,7 +169,8 @@ function apiSubmitEstimate(userKey, form, ids) {
     return {
       ok: true,
       receiptNo: receiptNo,
-      templateText: templateText
+      templateText: templateText,
+      totalAmount: discounted
     };
 
   } catch (e) {
@@ -273,37 +268,37 @@ function writeSubmitData_(data) {
   var now = data.createdAtMs || u_nowMs_();
 
   // 1. 依頼管理シートに書き込み
+  // 列構成: A=受付番号, B=依頼日時, C=会社名/氏名, D=連絡先, E=郵便番号, F=住所, G=電話番号, H=商品名,
+  // I=確認リンク, J=選択リスト, K=合計点数, L=合計金額, M=発送ステータス, N=リスト同梱, O=xlsx送付,
+  // P=ステータス, Q=担当者, R=支払いURL, S=採寸データ, T=入金確認, U-Y=予備, Z=備考
   var reqSh = sh_ensureRequestSheet_(orderSs);
+  var productNames = getProductNamesFromIds_(data.ids);
   var row = [
-    data.receiptNo,
-    new Date(now),
-    data.form.companyName || '',
-    data.form.contact || '',
-    data.form.contactMethod || '',
-    data.form.delivery || '',
-    data.form.postal || '',
-    data.form.address || '',
-    data.form.phone || '',
-    data.form.note || '',
-    '',
-    data.selectionList || data.ids.join('、'),
-    data.ids.length,
-    data.discounted || 0,
-    '未着手',
-    '未',
-    '未',
-    APP_CONFIG.statuses.open,
-    '',
-    '',
-    data.measureLabel || ''
+    data.receiptNo,                              // A: 受付番号
+    new Date(now),                               // B: 依頼日時
+    data.form.companyName || '',                 // C: 会社名/氏名
+    data.form.contact || '',                     // D: 連絡先
+    data.form.postal || '',                      // E: 郵便番号
+    data.form.address || '',                     // F: 住所
+    data.form.phone || '',                       // G: 電話番号
+    productNames,                                // H: 商品名
+    '',                                          // I: 確認リンク
+    data.selectionList || data.ids.join('、'),   // J: 選択リスト
+    data.ids.length,                             // K: 合計点数
+    data.discounted || 0,                        // L: 合計金額
+    '未着手',                                     // M: 発送ステータス
+    '未',                                         // N: リスト同梱
+    '未',                                         // O: xlsx送付
+    APP_CONFIG.statuses.open,                    // P: ステータス
+    '',                                          // Q: 担当者
+    '',                                          // R: 支払いURL
+    data.measureLabel || '',                     // S: 採寸データ
+    '入金待ち',                                   // T: 入金確認
+    '', '', '', '', '',                          // U-Y: 予備
+    data.form.note || ''                         // Z: 備考
   ];
   var writeRow = sh_findNextRowByDisplayKey_(reqSh, 1, 1);
   reqSh.getRange(writeRow, 1, 1, row.length).setValues([row]);
-
-  var needCols = 26;
-  var maxCols = reqSh.getMaxColumns();
-  if (maxCols < needCols) reqSh.insertColumnsAfter(maxCols, needCols - maxCols);
-  reqSh.getRange(writeRow, 26).setValue('選べるxlsx付きパッケージ');
 
   // 2. hold/openログシートの同期
   var holdState = st_getHoldState_(orderSs) || {};
@@ -703,5 +698,34 @@ function viewSubmitQueue() {
   console.log('キュー内容: ' + queue.length + '件');
   for (var i = 0; i < queue.length; i++) {
     console.log('  ' + (i + 1) + '. ' + queue[i].receiptNo + ' (' + queue[i].ids.length + '点)');
+  }
+}
+
+/**
+ * 商品IDから商品名を取得してカンマ区切りで返す
+ * @param {string[]} ids - 商品ID配列
+ * @returns {string} - 商品名のカンマ区切り文字列
+ */
+function getProductNamesFromIds_(ids) {
+  if (!ids || !ids.length) return '';
+  try {
+    var products = pr_readProducts_();
+    var productMap = {};
+    for (var i = 0; i < products.length; i++) {
+      productMap[String(products[i].managedId)] = products[i];
+    }
+    var names = [];
+    for (var i = 0; i < ids.length; i++) {
+      var p = productMap[String(ids[i])];
+      if (p && p.brand) {
+        names.push(p.brand + (p.category ? ' ' + p.category : ''));
+      } else {
+        names.push(ids[i]);
+      }
+    }
+    return names.join('、');
+  } catch (e) {
+    console.error('getProductNamesFromIds_ error:', e);
+    return ids.join('、');
   }
 }

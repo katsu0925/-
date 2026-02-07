@@ -299,13 +299,11 @@
 
   <div class="modal" id="cartModal" aria-hidden="true">
     <div class="modalHeader">
-      <div class="modalTitle">見積もり内容</div>
+      <div class="modalTitle">カート</div>
       <button class="modalClose" id="cartCloseBtn" aria-label="close">×</button>
     </div>
     <div class="modalBody">
-      <div class="hint" id="shippingHint"></div>
-      <div class="hint" style="margin-top:6px;" id="shippingNote"></div>
-      <div class="cartList" id="cartList" style="margin-top:10px;"></div>
+      <div class="cartList" id="cartList"></div>
       <!-- おすすめ商品 -->
       <div class="recommendSection" id="cartRecommend" style="display:none;">
         <div class="recommendTitle">おすすめ商品</div>
@@ -316,9 +314,8 @@
         <div class="sumLine" id="sumPrice"></div>
         <div style="display:flex; gap:10px; align-items:center; justify-content:flex-end; flex-wrap:wrap; width:100%;">
           <button class="btn" id="clearCartBtn" style="min-width:160px;" type="button">カートを空にする</button>
-          <button class="btn primary" id="goFormBtn" style="min-width:220px;" type="button">見積もりを送信</button>
+          <button class="btn primary" id="goFormBtn" style="min-width:220px;" type="button">購入手続きへ</button>
         </div>
-        <div class="hint" id="minNotice"></div>
       </div>
     </div>
   </div>
@@ -395,7 +392,7 @@
 
   <div class="modal" id="formModal" aria-hidden="true">
     <div class="modalHeader">
-      <div class="modalTitle">依頼内容入力</div>
+      <div class="modalTitle">お届け先情報</div>
       <button class="modalClose" id="formCloseBtn" aria-label="close">×</button>
     </div>
     <div class="modalBody">
@@ -427,21 +424,21 @@
       </div>
       <div class="formActions">
         <button class="btn" id="formBackBtn" type="button">戻る</button>
-        <button class="btn primary" id="submitBtn" type="button">送信</button>
+        <button class="btn primary" id="submitBtn" type="button">お支払いへ進む</button>
       </div>
     </div>
   </div>
 
   <div class="modal" id="doneModal" aria-hidden="true">
     <div class="modalHeader">
-      <div class="modalTitle">送信完了</div>
+      <div class="modalTitle">注文完了</div>
       <button class="modalClose" id="doneCloseBtn" aria-label="close">×</button>
     </div>
     <div class="modalBody" style="text-align:center;">
       <div style="font-weight:900; font-size:14px;">受付番号</div>
       <div style="margin-top:8px; font-size:24px; font-weight:900; color:#3b82f6;" id="doneReceipt"></div>
       <div style="margin-top:16px; font-size:14px; color:#333; line-height:1.6;">
-        BASE購入リンクをメールアドレスに送付いたしますので、受付番号をお控えの上、しばらくお待ちください。
+        決済リンクをメールアドレスに送付いたします。受付番号をお控えの上、しばらくお待ちください。
       </div>
     </div>
   </div>
@@ -496,10 +493,9 @@
       <div class="guide-section" style="margin-top:20px;">
         <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">ご注文の流れ</h3>
         <ol style="margin:0;padding-left:20px;color:#475569;">
-          <li style="margin-bottom:8px;"><strong>商品選択</strong>：お好みの商品をカートに追加（10点以上）</li>
-          <li style="margin-bottom:8px;"><strong>見積もり送信</strong>：フォームに必要事項を入力して送信</li>
-          <li style="margin-bottom:8px;"><strong>確認メール</strong>：受付番号とBASE購入リンクをメールでお送りします</li>
-          <li style="margin-bottom:8px;"><strong>お支払い</strong>：BASEにてお支払い手続き</li>
+          <li style="margin-bottom:8px;"><strong>商品選択</strong>：お好みの商品をカートに追加</li>
+          <li style="margin-bottom:8px;"><strong>購入手続き</strong>：お届け先情報を入力</li>
+          <li style="margin-bottom:8px;"><strong>お支払い</strong>：クレジットカード、コンビニ決済、銀行振込、PayPay等でお支払い</li>
           <li><strong>発送</strong>：ご入金確認後、商品を発送いたします</li>
         </ol>
       </div>
@@ -508,17 +504,14 @@
         <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">割引について</h3>
         <ul style="margin:0;padding-left:20px;color:#475569;">
           <li><strong>会員割引</strong>：会員登録で<span style="color:#b8002a;font-weight:700;">10%OFF</span></li>
-          <li><strong>まとめ買い割引</strong>：30点以上で<span style="color:#b8002a;font-weight:700;">10%OFF</span></li>
-          <li>※割引は併用可能です</li>
         </ul>
       </div>
 
       <div class="guide-section" style="margin-top:20px;">
         <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">注意事項</h3>
         <ul style="margin:0;padding-left:20px;color:#475569;">
-          <li>最低注文数量は<strong>10点</strong>からとなります</li>
           <li>商品の確保期間は<strong>15分</strong>です（カートに入れた時点から）</li>
-          <li>見積もり送信後のキャンセル・変更はできません</li>
+          <li>ご注文確定後のキャンセル・変更はできません</li>
           <li>返品・交換は原則お受けしておりません。万一、商品内容が記載事項と大きく異なる場合は、商品到着後7日以内にご連絡ください</li>
         </ul>
       </div>
@@ -2314,14 +2307,6 @@ function renderMainRecommendations_() {
 // =====================================================
 
 function renderCartModal_() {
-  $('shippingHint').textContent = state.settings?.shippingEstimateText || '';
-  var notes = (state.settings?.notes || []).map(function(x) { return '・' + String(x); });
-  var steps = (state.settings?.nextSteps || []).map(function(x) { return '・' + String(x); });
-  var parts = [];
-  if (notes.length) parts = parts.concat(notes);
-  if (steps.length) { if (parts.length) parts.push(''); parts = parts.concat(steps); }
-  $('shippingNote').innerHTML = parts.join('<br>');
-  
   var listEl = $('cartList'); listEl.innerHTML = '';
   var ids = (state.cart.ids || []).slice();
   var sum = 0;
@@ -2367,22 +2352,17 @@ function renderCartModal_() {
   
   var count = ids.length;
   $('sumCount').textContent = '合計点数：' + count + '点';
-  // 割引を累積（会員10% + 30点以上10% = 最大20%）
+  // 割引を累積（会員10%）
   var discountRate = 0;
   var discountLabels = [];
-  if (count >= 30) { discountRate += BULK_DISCOUNT_RATE; discountLabels.push('30点以上10%OFF'); }
   if (state.customer) { discountRate += MEMBER_DISCOUNT_RATE; discountLabels.push('会員10%OFF'); }
   var discounted = Math.round(sum * (1 - discountRate));
-  var shippingLink = '<a href="https://drive.google.com/file/d/1g7UYUBw3-Y6M5HkSv3mfMe5jEjs795E3/view?usp=sharing" target="_blank">(送料別)</a>';
   var discountLabel = discountLabels.length > 0 ? '（' + discountLabels.join('＋') + '）' : '';
   if (discountRate > 0) {
-    $('sumPrice').innerHTML = '合計金額：<span class="price-old">' + yen(sum) + '</span> → <span class="price-new">' + yen(discounted) + '</span>' + discountLabel + shippingLink;
-  } else { $('sumPrice').innerHTML = '合計金額：' + yen(discounted) + shippingLink; }
-  
-  var min = Number(state.settings?.minOrderCount || 10);
-  var need = Math.max(0, min - count);
-  $('minNotice').textContent = need > 0 ? (min + '点以上で送信できます（あと' + need + '点）') : (min + '点以上OK');
-  $('goFormBtn').disabled = (count < min);
+    $('sumPrice').innerHTML = '合計金額：<span class="price-old">' + yen(sum) + '</span> → <span class="price-new">' + yen(discounted) + '</span>' + discountLabel;
+  } else { $('sumPrice').innerHTML = '合計金額：' + yen(discounted); }
+
+  $('goFormBtn').disabled = (count === 0);
 
   // おすすめ商品を表示
   renderRecommendations_('cartRecommendList', 'cartRecommend', 6);
@@ -2407,15 +2387,14 @@ var submitting_ = false;
 function submitNow_() {
   if (submitting_) return;
   submitting_ = true;
-  var min = Number(state.settings?.minOrderCount || 10);
-  if ((state.cart.ids || []).length < min) { showToast(min + '点以上選択してください'); submitting_ = false; return; }
+  if ((state.cart.ids || []).length === 0) { showToast('カートが空です'); submitting_ = false; return; }
   var f = readForm_();
   var err = validateForm_(f);
   if (err) { showToast(err); submitting_ = false; return; }
   $('submitBtn').disabled = true;
-  setSending_(true, '依頼送信中...');
+  setSending_(true, '注文処理中...');
   var ids = (state.cart.ids || []).slice();
-  
+
   runApi('apiSyncHolds', state.userKey, ids)
     .then(function(syncResult) {
       if (!syncResult || !syncResult.ok) throw new Error(syncResult && syncResult.message ? syncResult.message : '確保に失敗しました');
@@ -2429,13 +2408,32 @@ function submitNow_() {
       });
     })
     .then(function(res) {
-      if (!res || !res.ok) throw new Error(res && res.message ? res.message : '送信に失敗しました');
-      $('doneReceipt').textContent = res.receiptNo || '';
-      state.cart.ids = [];
-      saveCartStorage(); updateCartCount(); closeAllModals(); openModal($('doneModal'));
-      showToast('送信完了しました');
+      if (!res || !res.ok) throw new Error(res && res.message ? res.message : '注文に失敗しました');
+      var receiptNo = res.receiptNo || '';
+      var totalAmount = res.totalAmount || 0;
+
+      // KOMOJU決済セッションを作成
+      setSending_(true, '決済ページ準備中...');
+      return runApi('apiCreateKomojuSession', receiptNo, totalAmount, {
+        companyName: f.companyName,
+        email: f.contact,
+        phone: f.phone
+      }).then(function(komojuRes) {
+        if (!komojuRes || !komojuRes.ok) {
+          // KOMOJU決済作成失敗時は従来の完了画面
+          $('doneReceipt').textContent = receiptNo;
+          state.cart.ids = [];
+          saveCartStorage(); updateCartCount(); closeAllModals(); openModal($('doneModal'));
+          showToast('注文完了（決済リンクは別途メールで送信します）');
+          return;
+        }
+        // 決済ページへリダイレクト
+        state.cart.ids = [];
+        saveCartStorage(); updateCartCount();
+        window.location.href = komojuRes.sessionUrl;
+      });
     })
-    .catch(function(e) { showToast(e.message || '送信に失敗しました'); })
+    .catch(function(e) { showToast(e.message || '注文に失敗しました'); })
     .finally(function() { setSending_(false); $('submitBtn').disabled = false; submitting_ = false; });
 }
 

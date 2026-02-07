@@ -87,20 +87,20 @@ function syncBaseOrdersToIraiKanri() {
 
   const dstIdx_Name = findAnyCol_(dstMap, ['会社名/氏名', '会社名', '氏名', 'お名前']);
   const dstIdx_Email = findAnyCol_(dstMap, ['連絡先', 'メールアドレス', 'Email']);
-  const dstIdx_ContactMethod = findAnyCol_(dstMap, ['連絡手段']);
   const dstIdx_Zip = findAnyCol_(dstMap, ['郵便番号']);
   const dstIdx_Address = findAnyCol_(dstMap, ['住所']);
   const dstIdx_Tel = findAnyCol_(dstMap, ['電話番号']);
+  const dstIdx_ProductName = findAnyCol_(dstMap, ['商品名']);  // H列
 
   const dstIdx_ShipStatus = findAnyCol_(dstMap, ['発送ステータス']);
   const dstIdx_ListInclude = findAnyCol_(dstMap, ['リスト同梱']);
   const dstIdx_XlsxSend = findAnyCol_(dstMap, ['xlsx送付']);
   const dstIdx_Status = findAnyCol_(dstMap, ['ステータス']);
+  const dstIdx_PaymentStatus = findAnyCol_(dstMap, ['入金確認']);  // T列
 
   const requiredDstCols = [
     ['会社名/氏名', dstIdx_Name],
     ['連絡先', dstIdx_Email],
-    ['連絡手段', dstIdx_ContactMethod],
     ['郵便番号', dstIdx_Zip],
     ['住所', dstIdx_Address],
     ['電話番号', dstIdx_Tel],
@@ -210,19 +210,20 @@ function syncBaseOrdersToIraiKanri() {
 
       out[dstIdx_Name] = fullName;
       out[dstIdx_Email] = email;
-      out[dstIdx_ContactMethod] = 'BASE';
       out[dstIdx_Zip] = zip;
       out[dstIdx_Address] = address;
       out[dstIdx_Tel] = tel;
+      if (dstIdx_ProductName !== -1) out[dstIdx_ProductName] = itemName;  // H列: 商品名
 
       out[dstIdx_ReceiptNo] = orderKey;
-      out[dstIdx_Remarks] = itemName;
+      out[dstIdx_Remarks] = '';  // Z列: 備考（手入力用）
       out[dstIdx_TotalCount] = qty;
       out[dstIdx_TotalAmount] = subtotal;
       out[dstIdx_RequestAt] = updatedAt;
 
       out[dstIdx_ShipStatus] = '未着手';
       out[dstIdx_Status] = '依頼中';
+      if (dstIdx_PaymentStatus !== -1) out[dstIdx_PaymentStatus] = '入金待ち';  // T列: 入金確認
 
       const hasXlsx = hasXlsx_(itemName);
       out[dstIdx_ListInclude] = hasXlsx ? '未' : '無し';

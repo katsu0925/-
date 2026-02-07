@@ -16,10 +16,10 @@
 // =====================================================
 
 var KOMOJU_CONFIG = {
-  // APIエンドポイント（本番）
-  apiUrl: 'https://komoju.com/api/v1',
-  // テスト環境の場合は以下を使用
-  // apiUrl: 'https://sandbox.komoju.com/api/v1',
+  // APIエンドポイント
+  // 本番環境: 'https://komoju.com/api/v1'
+  // テスト環境: 'https://sandbox.komoju.com/api/v1'
+  apiUrl: 'https://sandbox.komoju.com/api/v1',  // テストモード有効
 
   // 対応決済方法
   paymentMethods: [
@@ -387,6 +387,7 @@ function getPaymentSession_(receiptNo) {
 
 /**
  * 依頼管理シートの決済ステータスを更新
+ * 列構成: T列(20)=入金確認
  */
 function updateOrderPaymentStatus_(receiptNo, paymentStatus, paymentMethod) {
   try {
@@ -403,17 +404,12 @@ function updateOrderPaymentStatus_(receiptNo, paymentStatus, paymentMethod) {
       if (String(data[i][0]) === String(receiptNo)) {
         var row = i + 2;
 
-        // 決済ステータス列を更新（例：P列 = 16列目）
-        // 必要に応じて列番号を調整してください
-        var statusCol = 16;  // P列
-        var methodCol = 17;  // Q列（決済方法）
+        // T列(20): 入金確認ステータスを更新
+        var paymentConfirmCol = 20;  // T列
+        var statusText = paymentStatus === 'paid' ? '対応済' : (paymentStatus === 'pending' ? '入金待ち' : '未対応');
+        sheet.getRange(row, paymentConfirmCol).setValue(statusText);
 
-        sheet.getRange(row, statusCol).setValue(paymentStatus === 'paid' ? '済' : paymentStatus);
-        if (paymentMethod) {
-          sheet.getRange(row, methodCol).setValue(paymentMethod);
-        }
-
-        console.log('Updated payment status for row ' + row + ': ' + paymentStatus);
+        console.log('Updated payment status for row ' + row + ': ' + statusText);
         break;
       }
     }

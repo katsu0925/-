@@ -4,11 +4,12 @@ const SHIPMAIL_CONFIG = {
   TO_EMAIL: 'nsdktts1030@gmail.com',
   SUBJECT: 'BASEの発送が完了しました',
   STATUS_VALUE: '発送済み',
-  COL_STATUS_O: 15,
-  COL_CUSTOMER_C: 3,
-  COL_XLSX_K: 11,
-  COL_CARRIER_W: 23,
-  COL_TRACKING_X: 24,
+  // 新列構成: M=発送ステータス, C=会社名/氏名, I=確認リンク, W=予備, X=予備
+  COL_STATUS_M: 13,       // M列: 発送ステータス (旧O列)
+  COL_CUSTOMER_C: 3,      // C列: 会社名/氏名
+  COL_CONFIRM_I: 9,       // I列: 確認リンク (旧K列)
+  COL_CARRIER_W: 23,      // W列: 配送業者
+  COL_TRACKING_X: 24,     // X列: 追跡番号
   FLAG_COL: 27
 };
 
@@ -50,7 +51,7 @@ function shipMailOnEdit(e) {
       return;
     }
 
-    if (col !== SHIPMAIL_CONFIG.COL_STATUS_O) {
+    if (col !== SHIPMAIL_CONFIG.COL_STATUS_M) {
       Logger.log('STOP: not O column edit');
       return;
     }
@@ -73,9 +74,9 @@ function shipMailOnEdit(e) {
     }
 
     const maxCol = Math.max(
-      SHIPMAIL_CONFIG.COL_STATUS_O,
+      SHIPMAIL_CONFIG.COL_STATUS_M,
       SHIPMAIL_CONFIG.COL_CUSTOMER_C,
-      SHIPMAIL_CONFIG.COL_XLSX_K,
+      SHIPMAIL_CONFIG.COL_CONFIRM_I,
       SHIPMAIL_CONFIG.COL_CARRIER_W,
       SHIPMAIL_CONFIG.COL_TRACKING_X,
       SHIPMAIL_CONFIG.FLAG_COL
@@ -86,7 +87,7 @@ function shipMailOnEdit(e) {
     const customer = String(rowVals[SHIPMAIL_CONFIG.COL_CUSTOMER_C - 1] || '').trim();
     const carrier = String(rowVals[SHIPMAIL_CONFIG.COL_CARRIER_W - 1] || '').trim();
     const tracking = String(rowVals[SHIPMAIL_CONFIG.COL_TRACKING_X - 1] || '').trim();
-    const xlsx = String(rowVals[SHIPMAIL_CONFIG.COL_XLSX_K - 1] || '').trim();
+    const xlsx = String(rowVals[SHIPMAIL_CONFIG.COL_CONFIRM_I - 1] || '').trim();
 
     Logger.log('customer=' + customer);
     Logger.log('carrier=' + carrier);
@@ -133,7 +134,7 @@ function testShipMailForRow(rowNumber) {
   const sh = ss.getSheetByName(SHIPMAIL_CONFIG.SHEET_NAME);
   if (!sh) throw new Error('依頼管理シートが見つかりません');
 
-  const rng = sh.getRange(rowNumber, SHIPMAIL_CONFIG.COL_STATUS_O, 1, 1);
+  const rng = sh.getRange(rowNumber, SHIPMAIL_CONFIG.COL_STATUS_M, 1, 1);
   const e = {
     range: rng,
     value: SHIPMAIL_CONFIG.STATUS_VALUE
