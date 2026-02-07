@@ -16,10 +16,8 @@
 // =====================================================
 
 var KOMOJU_CONFIG = {
-  // APIエンドポイント
-  // 本番環境: 'https://komoju.com/api/v1'
-  // テスト環境: 'https://sandbox.komoju.com/api/v1'
-  apiUrl: 'https://sandbox.komoju.com/api/v1',  // テストモード有効
+  // APIエンドポイント（テストキーを使えば本番URLでもテストモードになる）
+  apiUrl: 'https://komoju.com/api/v1',
 
   // 対応決済方法
   paymentMethods: [

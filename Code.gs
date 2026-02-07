@@ -58,7 +58,8 @@ function doPost(e) {
       'apiLogoutCustomer': apiLogoutCustomer,
       // KOMOJU決済API
       'apiCreateKomojuSession': apiCreateKomojuSession,
-      'apiCheckPaymentStatus': apiCheckPaymentStatus
+      'apiCheckPaymentStatus': apiCheckPaymentStatus,
+      'apiCancelOrder': apiCancelOrder
     };
 
     var fn = allowed[action];

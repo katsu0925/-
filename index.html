@@ -269,7 +269,7 @@
   <div class="stickyBar">
     <div class="stickyInner">
       <button class="cartBtn" id="openCartBtn" type="button">
-       <span>見積もりを確認</span>
+       <span>カートを確認</span>
        <span class="countPill" id="cartCount">0</span>
        <span id="cartTotal" style="font-weight:900; margin-left:8px;">0円</span>
       </button>
@@ -1566,7 +1566,7 @@ function applyBtnUi_(btn, it, id) {
     return;
   }
   if (r.selected) { btn.className = 'selectBtn'; btn.disabled = false; btn.textContent = '選択中（解除）'; return; }
-  btn.className = 'selectBtn off'; btn.disabled = false; btn.textContent = '見積もりへ追加';
+  btn.className = 'selectBtn off'; btn.disabled = false; btn.textContent = 'カートへ追加';
 }
 
 function updateCardUi_(id) {
@@ -2384,9 +2384,12 @@ function validateForm_(f) {
 }
 
 var submitting_ = false;
+var pendingReceiptNo_ = null;  // 決済待ち受付番号（エラー時キャンセル用）
+
 function submitNow_() {
   if (submitting_) return;
   submitting_ = true;
+  pendingReceiptNo_ = null;
   if ((state.cart.ids || []).length === 0) { showToast('カートが空です'); submitting_ = false; return; }
   var f = readForm_();
   var err = validateForm_(f);
@@ -2411,6 +2414,7 @@ function submitNow_() {
       if (!res || !res.ok) throw new Error(res && res.message ? res.message : '注文に失敗しました');
       var receiptNo = res.receiptNo || '';
       var totalAmount = res.totalAmount || 0;
+      pendingReceiptNo_ = receiptNo;  // キャンセル用に保持
 
       // KOMOJU決済セッションを作成
       setSending_(true, '決済ページ準備中...');
@@ -2420,20 +2424,29 @@ function submitNow_() {
         phone: f.phone
       }).then(function(komojuRes) {
         if (!komojuRes || !komojuRes.ok) {
-          // KOMOJU決済作成失敗時は従来の完了画面
-          $('doneReceipt').textContent = receiptNo;
-          state.cart.ids = [];
-          saveCartStorage(); updateCartCount(); closeAllModals(); openModal($('doneModal'));
-          showToast('注文完了（決済リンクは別途メールで送信します）');
-          return;
+          // KOMOJU決済作成失敗 → 注文をキャンセルして商品を解放
+          var errorMsg = (komojuRes && komojuRes.message) || '決済システムに接続できません';
+          setSending_(true, '注文をキャンセル中...');
+          return runApi('apiCancelOrder', receiptNo).then(function() {
+            pendingReceiptNo_ = null;
+            throw new Error(errorMsg + '。しばらく経ってから再度お試しください。');
+          });
         }
         // 決済ページへリダイレクト
+        pendingReceiptNo_ = null;
         state.cart.ids = [];
         saveCartStorage(); updateCartCount();
         window.location.href = komojuRes.sessionUrl;
       });
     })
-    .catch(function(e) { showToast(e.message || '注文に失敗しました'); })
+    .catch(function(e) {
+      // エラー発生時、保留中の受付番号があればキャンセル
+      if (pendingReceiptNo_) {
+        runApi('apiCancelOrder', pendingReceiptNo_).catch(function() {});
+        pendingReceiptNo_ = null;
+      }
+      showToast(e.message || '注文に失敗しました');
+    })
     .finally(function() { setSending_(false); $('submitBtn').disabled = false; submitting_ = false; });
 }
 
