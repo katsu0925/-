@@ -2409,7 +2409,11 @@ function bindUi_() {
     $('brandSearch').value = '';
     // 頭文字フィルターもリセット
     currentInitialFilter_ = null;
-    updateIndexBtnState_('all');
+    // インデックスボタンの状態をリセット
+    $('brandIndexNav').querySelectorAll('.brandIndexBtn').forEach(function(btn) {
+      btn.classList.remove('filter-active');
+      if (btn.dataset.initial === 'all') btn.classList.add('filter-active');
+    });
     // 状態をクリア
     state.brandUi.selected = {};
     updateBrandBtn_();
