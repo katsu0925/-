@@ -124,11 +124,11 @@ function sh_ensureRequestSheet_(ss) {
   if (!sh) sh = ss.insertSheet(name);
   // 列構成: A=受付番号, B=依頼日時, C=会社名/氏名, D=連絡先, E=郵便番号, F=住所, G=電話番号, H=商品名,
   // I=確認リンク, J=選択リスト, K=合計点数, L=合計金額, M=発送ステータス, N=リスト同梱, O=xlsx送付,
-  // P=ステータス, Q=担当者, R=支払いURL, S=採寸データ, T=入金確認, U-Y=予備, Z=備考
+  // P=ステータス, Q=担当者, R=入金確認, S-U=予備(3列), V=備考
   const header = [
     '受付番号','依頼日時','会社名/氏名','連絡先','郵便番号','住所','電話番号','商品名',
-    '確認リンク','選択リスト','合計点数','合計金額','発送ステータス','リスト同梱','xlsx送付','ステータス','担当者','支払いURL','採寸データ','入金確認',
-    '','','','','','備考'
+    '確認リンク','選択リスト','合計点数','合計金額','発送ステータス','リスト同梱','xlsx送付','ステータス','担当者','入金確認',
+    '','','','備考'
   ];
   const r1 = sh.getRange(1, 1, 1, header.length).getValues()[0];
   let needs = false;
@@ -171,12 +171,12 @@ function sh_applyRequestStatusDropdown_(ss) {
     .build();
   sh.getRange(2, 16, Math.max(1, maxRows - 1), 1).setDataValidation(statusRule);
 
-  // T列(20): 入金確認ステータス
+  // R列(18): 入金確認ステータス
   const paymentRule = SpreadsheetApp.newDataValidation()
     .requireValueInList(['入金待ち', '未対応', '対応済'], true)
     .setAllowInvalid(false)
     .build();
-  sh.getRange(2, 20, Math.max(1, maxRows - 1), 1).setDataValidation(paymentRule);
+  sh.getRange(2, 18, Math.max(1, maxRows - 1), 1).setDataValidation(paymentRule);
   return true;
 }
 
