@@ -8,6 +8,13 @@ function doGet(e) {
     return baseHandleOAuthCallback_(e);
   }
 
+  // KOMOJU Webhook処理
+  if (p.action === 'komoju_webhook') {
+    var result = handleKomojuWebhook(e);
+    return ContentService.createTextOutput(JSON.stringify(result))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
   var tplName = (String(p.admin || '') === '1') ? 'Admin' : 'Index';
 
   var t = HtmlService.createTemplateFromFile(tplName);
@@ -48,7 +55,10 @@ function doPost(e) {
       'apiRegisterCustomer': apiRegisterCustomer,
       'apiLoginCustomer': apiLoginCustomer,
       'apiValidateSession': apiValidateSession,
-      'apiLogoutCustomer': apiLogoutCustomer
+      'apiLogoutCustomer': apiLogoutCustomer,
+      // KOMOJU決済API
+      'apiCreateKomojuSession': apiCreateKomojuSession,
+      'apiCheckPaymentStatus': apiCheckPaymentStatus
     };
 
     var fn = allowed[action];

@@ -2398,9 +2398,22 @@ function bindUi_() {
   $('brandCloseBtn').addEventListener('click', function() { closeModal($('brandModal')); });
   $('brandSearch').addEventListener('input', filterBrandList_);
   $('brandClearBtn').addEventListener('click', function() {
+    // チェックボックスをクリア
     var prev = Object.keys(state.brandUi.selected || {});
     for (var i = 0; i < prev.length; i++) { var cb = state.brandUi.cbByName[prev[i]]; if (cb) cb.checked = false; }
-    state.brandUi.selected = {}; updateBrandBtn_(); filterBrandList_();
+    // ビジュアル選択状態もクリア
+    $('brandList').querySelectorAll('.brandItem.selected').forEach(function(el) {
+      el.classList.remove('selected');
+    });
+    // 検索入力もクリア
+    $('brandSearch').value = '';
+    // 頭文字フィルターもリセット
+    currentInitialFilter_ = null;
+    updateIndexBtnState_('all');
+    // 状態をクリア
+    state.brandUi.selected = {};
+    updateBrandBtn_();
+    filterBrandList_();
   });
   $('brandApplyBtn').addEventListener('click', function() {
     state.query.filters.brand = Object.keys(state.brandUi.selected || {});
