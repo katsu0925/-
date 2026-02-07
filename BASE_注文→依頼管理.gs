@@ -149,15 +149,17 @@ function syncBaseOrdersToIraiKanri() {
   const existingKeys = new Set();
   const pidColInDst = findAnyCol_(dstMap, ['商品ID', 'product_id', 'productId', 'Product ID']);
   Logger.log('pidColInDst=' + pidColInDst);
+  Logger.log('dstIdx_ProductName=' + dstIdx_ProductName);
 
   for (let r = 0; r < dstValues.length; r++) {
     const row = dstValues[r];
     const ok = normalizeKey_(row[dstIdx_ReceiptNo]);
     if (!ok) continue;
 
+    // 重複チェック: 商品ID列があればそれを使用、なければ商品名(H列)を使用
     const subKey = (pidColInDst !== -1)
       ? normalizeKey_(row[pidColInDst])
-      : normalizeKey_(row[dstIdx_Remarks]);
+      : (dstIdx_ProductName !== -1 ? normalizeKey_(row[dstIdx_ProductName]) : normalizeKey_(row[dstIdx_Remarks]));
 
     existingKeys.add(ok + '||' + subKey);
   }
@@ -182,8 +184,9 @@ function syncBaseOrdersToIraiKanri() {
       const pid = normalizeKey_(itemRow[idxProductId_Item]);
       const itemName = String(itemRow[idxProductName_Item] || '').trim();
 
+      // 重複チェック: 商品ID列があればそれを使用、なければ商品名を使用（既存行チェックと同じロジック）
       const subKey = (pidColInDst !== -1) ? pid : itemName;
-      const dedupKey = orderKey + '||' + subKey;
+      const dedupKey = orderKey + '||' + normalizeKey_(subKey);
 
       if (existingKeys.has(dedupKey)) continue;
 
