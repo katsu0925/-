@@ -209,6 +209,7 @@
       <div style="display:flex; gap:16px; margin-top:8px; flex-wrap:wrap; align-items:center;">
         <a href="#" id="openGuideLink" style="font-size:13px; font-weight:600; color:#3b82f6; text-decoration:none;">📦 商品ガイド</a>
         <a href="#" id="openShippingLink" style="font-size:13px; font-weight:600; color:#3b82f6; text-decoration:none;">🚚 送料表</a>
+        <a href="#" id="openLegalLink" style="font-size:13px; font-weight:600; color:#3b82f6; text-decoration:none;">📋 特定商取引法</a>
       </div>
     </div>
   </div>
@@ -640,6 +641,79 @@
     </div>
   </div>
 
+  <!-- 特定商取引法モーダル -->
+  <div class="modal" id="legalModal" aria-hidden="true" style="width:min(700px,94vw);">
+    <div class="modalHeader">
+      <div class="modalTitle">特定商取引法に基づく表記</div>
+      <button class="modalClose" id="legalCloseBtn" aria-label="close">×</button>
+    </div>
+    <div class="modalBody" style="line-height:1.7;">
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <tr>
+          <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;width:140px;vertical-align:top;">販売業者</th>
+          <td style="padding:12px;border:1px solid #e2e8f0;">【販売業者名を入力】</td>
+        </tr>
+        <tr>
+          <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">運営責任者</th>
+          <td style="padding:12px;border:1px solid #e2e8f0;">【責任者名を入力】</td>
+        </tr>
+        <tr>
+          <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">所在地</th>
+          <td style="padding:12px;border:1px solid #e2e8f0;">【住所を入力】</td>
+        </tr>
+        <tr>
+          <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">電話番号</th>
+          <td style="padding:12px;border:1px solid #e2e8f0;">【電話番号を入力】</td>
+        </tr>
+        <tr>
+          <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">メールアドレス</th>
+          <td style="padding:12px;border:1px solid #e2e8f0;">【メールアドレスを入力】</td>
+        </tr>
+        <tr>
+          <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">販売価格</th>
+          <td style="padding:12px;border:1px solid #e2e8f0;">各商品ページに表示された価格（税込）</td>
+        </tr>
+        <tr>
+          <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">送料</th>
+          <td style="padding:12px;border:1px solid #e2e8f0;">地域・サイズにより異なります。詳細は<a href="#" id="legalShippingLink" style="color:#3b82f6;">送料表</a>をご確認ください。</td>
+        </tr>
+        <tr>
+          <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">支払方法</th>
+          <td style="padding:12px;border:1px solid #e2e8f0;">クレジットカード、コンビニ決済、銀行振込、PayPay、LINE Pay、メルペイ</td>
+        </tr>
+        <tr>
+          <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">支払時期</th>
+          <td style="padding:12px;border:1px solid #e2e8f0;">
+            クレジットカード：ご注文時に決済<br>
+            コンビニ決済：ご注文後7日以内にお支払い<br>
+            銀行振込：ご注文後7日以内にお振込み<br>
+            その他電子決済：ご注文時に決済
+          </td>
+        </tr>
+        <tr>
+          <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">商品引渡し時期</th>
+          <td style="padding:12px;border:1px solid #e2e8f0;">ご入金確認後、2〜5営業日以内に発送</td>
+        </tr>
+        <tr>
+          <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">返品・交換</th>
+          <td style="padding:12px;border:1px solid #e2e8f0;">
+            原則として返品・交換はお受けしておりません。<br>
+            万一、商品内容が記載事項と大きく異なる場合は、商品到着後7日以内にご連絡ください。
+          </td>
+        </tr>
+        <tr>
+          <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">返金について</th>
+          <td style="padding:12px;border:1px solid #e2e8f0;">
+            当方の都合による返金の場合、ご利用の決済方法に応じて返金処理を行います。<br>
+            クレジットカード：カード会社経由での返金<br>
+            コンビニ決済・銀行振込：ご指定の銀行口座へ返金<br>
+            電子決済：各サービス経由での返金
+          </td>
+        </tr>
+      </table>
+    </div>
+  </div>
+
 <script>
 // =====================================================
 // 状態管理
@@ -942,6 +1016,30 @@ function setupAuthUi_() {
   if (shippingCloseBtn) {
     shippingCloseBtn.addEventListener('click', function() {
       closeModal($('shippingModal'));
+    });
+  }
+
+  // 特定商取引法モーダル
+  var openLegalLink = $('openLegalLink');
+  if (openLegalLink) {
+    openLegalLink.addEventListener('click', function(e) {
+      e.preventDefault();
+      openModal($('legalModal'));
+    });
+  }
+  var legalCloseBtn = $('legalCloseBtn');
+  if (legalCloseBtn) {
+    legalCloseBtn.addEventListener('click', function() {
+      closeModal($('legalModal'));
+    });
+  }
+  // 特商法ページ内の送料表リンク
+  var legalShippingLink = $('legalShippingLink');
+  if (legalShippingLink) {
+    legalShippingLink.addEventListener('click', function(e) {
+      e.preventDefault();
+      closeModal($('legalModal'));
+      openModal($('shippingModal'));
     });
   }
 
