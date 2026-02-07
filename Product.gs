@@ -192,6 +192,55 @@ function sh_ensureAllOnce_(ss) {
 }
 
 // =====================================================
+// GASエディタから実行できる関数
+// =====================================================
+
+/**
+ * 依頼管理シートのヘッダーを更新
+ * GASエディタから直接実行可能
+ */
+function updateRequestSheetHeaders() {
+  const ss = sh_getOrderSs_();
+  // キャッシュをリセットして強制更新
+  const props = PropertiesService.getScriptProperties();
+  const k = 'SHEETS_READY_V2:' + ss.getId();
+  props.deleteProperty(k);
+
+  sh_ensureRequestSheet_(ss);
+  console.log('依頼管理シートのヘッダーを更新しました');
+}
+
+/**
+ * 依頼管理シートにステータスと入金確認のプルダウンを適用
+ * GASエディタから直接実行可能
+ */
+function applyStatusDropdowns() {
+  const ss = sh_getOrderSs_();
+  sh_applyRequestStatusDropdown_(ss);
+  console.log('ステータスと入金確認のプルダウンを適用しました');
+}
+
+/**
+ * 依頼管理シートを完全に初期化（ヘッダー更新＋プルダウン適用）
+ * GASエディタから直接実行可能
+ */
+function initializeRequestSheet() {
+  const ss = sh_getOrderSs_();
+  // キャッシュをリセット
+  const props = PropertiesService.getScriptProperties();
+  const k = 'SHEETS_READY_V2:' + ss.getId();
+  props.deleteProperty(k);
+
+  sh_ensureRequestSheet_(ss);
+  sh_ensureHoldSheet_(ss);
+  sh_ensureOpenLogSheet_(ss);
+  sh_applyRequestStatusDropdown_(ss);
+
+  props.setProperty(k, '1');
+  console.log('依頼管理シートを初期化しました（ヘッダー＋プルダウン）');
+}
+
+// =====================================================
 // ★★★ Products.gs に追加する関数 ★★★
 // 以下の内容を Products.gs の末尾にコピー＆ペーストしてください
 // （商品詳細モーダル機能を使う場合のみ必要）
