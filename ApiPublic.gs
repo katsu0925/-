@@ -174,6 +174,7 @@ function app_onEdit(e) {
     od_writeOpenLogSheetFromState_(ss, rebuilt.items || {}, u_nowMs_());
     st_invalidateStatusCache_(ss);
   } catch (err) {
+    console.error('app_onEdit error:', err);
   }
 }
 
@@ -216,6 +217,7 @@ function app_sendEstimateNotifyMail_(orderSs, receiptNo, info) {
       body: body
     });
   } catch (e) {
+    console.error('app_sendEstimateNotifyMail_ error:', e);
   }
 }
 

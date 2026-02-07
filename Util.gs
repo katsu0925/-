@@ -301,3 +301,38 @@ function u_expandKeywordNeedles_(keyword, synonymMaps) {
 function u_expandKeywordNeedlesDynamic_(keyword) {
   return u_expandKeywordNeedles_(keyword, { aliasToCanon: {}, canonToAliases: {} });
 }
+
+// =====================================================
+// 共通ユーティリティ: ヘッダー列検索
+// =====================================================
+
+/**
+ * ヘッダー行から指定名の列インデックスを検索（0-based）
+ * 複数のファイルで重複していた findCol() を統合
+ * @param {Array} headers - ヘッダー行の配列
+ * @param {Array<string>} names - 検索する列名の候補配列
+ * @returns {number} - 見つかった列の0-basedインデックス、見つからない場合 -1
+ */
+function u_findCol_(headers, names) {
+  for (var i = 0; i < headers.length; i++) {
+    var h = String(headers[i] || '').trim();
+    for (var j = 0; j < names.length; j++) {
+      if (h === names[j] || h.indexOf(names[j]) !== -1) return i;
+    }
+  }
+  return -1;
+}
+
+/**
+ * ヘッダー行からヘッダーマップを構築（名前 → 0-basedインデックス）
+ * @param {Array} headers - ヘッダー行の配列
+ * @returns {Object} - { 列名: インデックス } のマップ
+ */
+function u_buildHeaderMap_(headers) {
+  var map = {};
+  for (var i = 0; i < headers.length; i++) {
+    var h = String(headers[i] || '').trim();
+    if (h) map[h] = i;
+  }
+  return map;
+}

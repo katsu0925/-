@@ -1,5 +1,6 @@
 const REWARD_CONFIG = {
-  SPREADSHEET_ID: '1eDkAMm_QUDFHbSzkL4IMaFeB2YV6_Gw5Dgi-HqIB2Sc',
+  // APP_CONFIG.data.spreadsheetId から取得（一元管理）
+  get SPREADSHEET_ID() { return String(APP_CONFIG.data.spreadsheetId || ''); },
   SHEET_REQUEST: '依頼管理',
   SHEET_REWARD: '報酬管理',
   TZ: 'Asia/Tokyo',

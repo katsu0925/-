@@ -19,10 +19,13 @@ const BASE_APP = {
   LIST_LIMIT: 100
 };
 
+// 初期設定用の入力値（baseSetupDirect()で使用）
+// ハードコードではなく PropertiesService から取得する
+// 初回セットアップ時のみここに値を入れて baseSetupDirect() を実行し、その後空に戻す
 const BASE_CLIENT_ID_INPUT = '';
 const BASE_CLIENT_SECRET_INPUT = '';
-const BASE_REDIRECT_URI_EXEC = 'https://script.google.com/macros/s/AKfycbxNZRfqvh7p7RTy27I-I7HCkb7E3FIZMr6SHeGPf5vP4ngrqCSUB0kvgy-hhptM45J1BQ/exec';
-const BASE_TARGET_SPREADSHEET_ID_INPUT = '1eDkAMm_QUDFHbSzkL4IMaFeB2YV6_Gw5Dgi-HqIB2Sc';
+const BASE_REDIRECT_URI_EXEC = '';
+const BASE_TARGET_SPREADSHEET_ID_INPUT = '';
 
 function baseCanHandleOAuthCallback_(e) {
   const p = (e && e.parameter) ? e.parameter : {};

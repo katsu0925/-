@@ -20,26 +20,45 @@ function getCustomerSheet_() {
 }
 
 /**
- * SHA-256ハッシュ生成
+ * 反復SHA-256ハッシュ生成（PBKDF2相当の強化）
+ * 10000回の反復でブルートフォース・レインボーテーブル攻撃を困難にする
  */
 function hashPassword_(password, salt) {
-  const input = password + ':' + salt;
-  const rawHash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, input);
+  var iterations = 10000;
+  var input = password + ':' + salt;
+  var hash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, input);
+  for (var i = 1; i < iterations; i++) {
+    // 前回のハッシュ結果 + ソルトで再ハッシュ
+    var combined = hash.concat(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, Utilities.newBlob(salt).getBytes()));
+    hash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, combined);
+  }
+  return hash.map(function(b) {
+    return ('0' + (b < 0 ? b + 256 : b).toString(16)).slice(-2);
+  }).join('');
+}
+
+/**
+ * レガシーハッシュ（旧方式、移行期間中の互換性用）
+ */
+function hashPasswordLegacy_(password, salt) {
+  var input = password + ':' + salt;
+  var rawHash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, input);
   return rawHash.map(function(b) {
     return ('0' + (b < 0 ? b + 256 : b).toString(16)).slice(-2);
   }).join('');
 }
 
 /**
- * ランダムなソルト/セッションID生成
+ * 暗号論的に安全なランダムID生成
+ * Utilities.getUuid() を使用してセキュアな乱数を生成
  */
 function generateRandomId_(length) {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  // Utilities.getUuid() は暗号論的に安全なUUIDを生成
   let result = '';
-  for (let i = 0; i < length; i++) {
-    result += chars.charAt(Math.floor(Math.random() * chars.length));
+  while (result.length < length) {
+    result += Utilities.getUuid().replace(/-/g, '');
   }
-  return result;
+  return result.substring(0, length);
 }
 
 /**
@@ -189,17 +208,26 @@ function apiLoginCustomer(userKey, params) {
       return { ok: false, message: 'メールアドレスまたはパスワードが正しくありません' };
     }
 
-    // パスワード検証
+    // パスワード検証（新旧ハッシュ方式に対応）
     const parts = customer.passwordHash.split(':');
-    if (parts.length !== 2) {
+    if (parts.length < 2) {
       return { ok: false, message: '認証エラーが発生しました' };
     }
     const salt = parts[0];
-    const storedHash = parts[1];
+    const storedHash = parts.slice(1).join(':');
     const inputHash = hashPassword_(password, salt);
+    const inputHashLegacy = hashPasswordLegacy_(password, salt);
 
-    if (inputHash !== storedHash) {
+    var matched = timingSafeEqual_(inputHash, storedHash) || timingSafeEqual_(inputHashLegacy, storedHash);
+    if (!matched) {
       return { ok: false, message: 'メールアドレスまたはパスワードが正しくありません' };
+    }
+
+    // レガシーハッシュの場合は新方式に自動移行
+    if (timingSafeEqual_(inputHashLegacy, storedHash) && !timingSafeEqual_(inputHash, storedHash)) {
+      const newPasswordHash = salt + ':' + inputHash;
+      const sheet2 = getCustomerSheet_();
+      sheet2.getRange(customer.row, 3).setValue(newPasswordHash);
     }
 
     // 新しいセッションID生成

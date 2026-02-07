@@ -1,11 +1,13 @@
 const CONFIG = {
-  SRC_SPREADSHEET_ID: "1lp7XngTC0Nnc6SaA_-KlZ0SZVuRiVml6ICZ5L2riQTo",
+  // APP_CONFIG.detail.spreadsheetId から取得（一元管理）
+  get SRC_SPREADSHEET_ID() { return String((APP_CONFIG.detail && APP_CONFIG.detail.spreadsheetId) || ''); },
   SRC_SHEET_RECOVERY_NAME: "回収完了",
   SRC_SHEET_PRODUCT_NAME: "商品管理",
   SRC_SHEET_RETURN_NAME: "返送管理",
   SRC_SHEET_AI_NAME: "AIキーワード抽出",
 
-  DEST_SPREADSHEET_ID: "1eDkAMm_QUDFHbSzkL4IMaFeB2YV6_Gw5Dgi-HqIB2Sc",
+  // APP_CONFIG.data.spreadsheetId から取得（一元管理）
+  get DEST_SPREADSHEET_ID() { return String(APP_CONFIG.data.spreadsheetId || ''); },
   DEST_SHEET_NAME: "データ1",
 
   DEST_START_ROW: 4,

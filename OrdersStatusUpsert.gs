@@ -32,6 +32,7 @@ function od_handleRequestSheetStatusEditsUpsert_(orderSs, requestSheet, startRow
     }
     if (typeof st_invalidateStatusCache_ === 'function') st_invalidateStatusCache_(orderSs);
   } catch (e) {
+    console.error('od_handleRequestSheetStatusEditsUpsert_ state sync error:', e);
   }
 }
 
@@ -116,6 +117,7 @@ function od_getInProgressSheetName_() {
     const s = String(n || '').trim();
     if (s) return s;
   } catch (e) {
+    console.warn('od_getInProgressSheetName_ error:', e.message || e);
   }
   return '依頼中';
 }

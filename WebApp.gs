@@ -107,5 +107,6 @@ function onEdit(e) {
     }
 
   } catch (err) {
+    console.error('app_onEdit error:', err);
   }
 }

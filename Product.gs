@@ -15,7 +15,7 @@ function pr_getAllProductDetails_() {
   if (cached) {
     try {
       return JSON.parse(cached);
-    } catch (e) {}
+    } catch (e) { console.warn('Cache parse error:', e.message || e); }
   }
   
   // シートから取得
@@ -29,17 +29,9 @@ function pr_getAllProductDetails_() {
   
   const data = sheet.getRange(3, 1, lastRow - 2, lastCol).getValues();
   const headers = data[0] || [];
-  
-  function findCol(names) {
-    for (let i = 0; i < headers.length; i++) {
-      const h = String(headers[i] || '').trim();
-      for (let j = 0; j < names.length; j++) {
-        if (h === names[j] || h.indexOf(names[j]) !== -1) return i;
-      }
-    }
-    return -1;
-  }
-  
+  // 共通ユーティリティ u_findCol_ を使用
+  var findCol = function(names) { return u_findCol_(headers, names); };
+
   const colManagedId = findCol(['管理番号']);
   const colTake = findCol(['着丈']);
   const colShoulder = findCol(['肩幅']);
@@ -275,7 +267,7 @@ function pr_getProductDetail_(managedId) {
   if (cached) {
     try {
       return JSON.parse(cached);
-    } catch (e) {}
+    } catch (e) { console.warn('Cache parse error:', e.message || e); }
   }
   
   // キャッシュにない場合はシートから取得
@@ -285,7 +277,7 @@ function pr_getProductDetail_(managedId) {
   if (detail) {
     try {
       cache.put(cacheKey, JSON.stringify(detail), 300);
-    } catch (e) {}
+    } catch (e) { console.warn('Cache parse error:', e.message || e); }
   }
   
   return detail;
@@ -307,18 +299,9 @@ function pr_getProductDetailFromSheet_(id) {
   
   const data = sheet.getRange(3, 1, lastRow - 2, lastCol).getValues();
   const headers = data[0] || [];
-  
-  // 列インデックスを検索
-  function findCol(names) {
-    for (let i = 0; i < headers.length; i++) {
-      const h = String(headers[i] || '').trim();
-      for (let j = 0; j < names.length; j++) {
-        if (h === names[j] || h.indexOf(names[j]) !== -1) return i;
-      }
-    }
-    return -1;
-  }
-  
+  // 共通ユーティリティ u_findCol_ を使用
+  var findCol = function(names) { return u_findCol_(headers, names); };
+
   const colManagedId = findCol(['管理番号']);
   const colBrand = findCol(['ブランド']);
   const colState = findCol(['状態']);
@@ -428,20 +411,12 @@ function pr_prebuildProductDetailCache_() {
   
   const data = sheet.getRange(3, 1, lastRow - 2, lastCol).getValues();
   const headers = data[0] || [];
-  
-  function findCol(names) {
-    for (let i = 0; i < headers.length; i++) {
-      const h = String(headers[i] || '').trim();
-      for (let j = 0; j < names.length; j++) {
-        if (h === names[j] || h.indexOf(names[j]) !== -1) return i;
-      }
-    }
-    return -1;
-  }
-  
+  // 共通ユーティリティ u_findCol_ を使用
+  var findCol = function(names) { return u_findCol_(headers, names); };
+
   const colManagedId = findCol(['管理番号']);
   if (colManagedId < 0) return;
-  
+
   const cache = CacheService.getScriptCache();
   const toCache = {};
   

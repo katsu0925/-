@@ -23,7 +23,8 @@ function ad_requireAdmin_(adminKey) {
   const props = PropertiesService.getScriptProperties();
   const saved = String(props.getProperty(APP_CONFIG.admin.accessKeyProp) || '').trim();
   if (!saved) throw new Error('管理キーが未設定です（ad_initAdminOwnerAndKeyOnce をスクリプトエディタから実行してください）');
-  if (key !== saved) throw new Error('権限がありません');
+  // タイミングセーフな比較を使用
+  if (!timingSafeEqual_(key, saved)) throw new Error('権限がありません');
 }
 
 // =====================================================
@@ -139,5 +140,6 @@ function onEdit(e) {
     }
 
   } catch (err) {
+    console.error('onEdit error:', err);
   }
 }

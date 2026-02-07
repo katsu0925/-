@@ -69,6 +69,11 @@ function apiUpdateRequestStatus(adminKey, receiptNo, newStatus) {
     if (targetRow === -1) return { ok: false, message: '受付番号が見つかりません' };
     const st = String(newStatus || '').trim();
     if (!st) return { ok: false, message: 'ステータスが不正です' };
+    // ステータス値を許可リストで検証
+    var allowedStatuses = APP_CONFIG.statuses.allowed || [];
+    if (allowedStatuses.length > 0 && allowedStatuses.indexOf(st) === -1) {
+      return { ok: false, message: '許可されていないステータスです: ' + st };
+    }
     sheet.getRange(targetRow, 18).setValue(st);
 
     const lock = LockService.getScriptLock();
