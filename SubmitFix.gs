@@ -112,30 +112,31 @@ function apiSubmitEstimate(userKey, form, ids) {
 
     var templateText = app_buildTemplateText_(receiptNo, validatedForm, list, totalCount, discounted);
 
-    // === 決済待ち状態：商品は「確保中」のまま、hold時間を延長（30分） ===
-    // 依頼中への変更は決済完了時（KOMOJU webhook）に行う
-    var holdUntilMs = now + (30 * 60 * 1000);  // 30分間確保
+    // === 見積もりモード：確保を解除して依頼中に変更 ===
     for (var i = 0; i < list.length; i++) {
-      var id = list[i];
-      holdItems[id] = {
-        userKey: uk,
-        receiptNo: receiptNo,
-        untilMs: holdUntilMs,
-        createdAtMs: now,
-        paymentPending: true  // 決済待ちフラグ
-      };
+      delete holdItems[list[i]];
     }
     holdState.items = holdItems;
     holdState.updatedAt = now;
     st_setHoldState_(orderSs, holdState);
     st_invalidateStatusCache_(orderSs);
 
+    // openState に追加（依頼中として記録）
+    var openState = st_getOpenState_(orderSs) || {};
+    var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
+    for (var j = 0; j < list.length; j++) {
+      openItems[list[j]] = { receiptNo: receiptNo, status: APP_CONFIG.statuses.open, updatedAtMs: now };
+    }
+    openState.items = openItems;
+    openState.updatedAt = now;
+    st_setOpenState_(orderSs, openState);
+
     } finally {
       lock.releaseLock();
     }
 
-    // === 決済待ち注文データを保存（決済完了時に使用） ===
-    var pendingOrderData = {
+    // === 見積もりモード：即座にシート書き込み・メール通知 ===
+    var submitData = {
       userKey: uk,
       form: validatedForm,
       ids: list,
@@ -146,25 +147,29 @@ function apiSubmitEstimate(userKey, form, ids) {
       discounted: discounted,
       createdAtMs: now,
       templateText: templateText,
-      timestamp: new Date().toISOString()
+      paymentStatus: '見積もり'
     };
 
+    // キュー経由ではなく直接書き込み
     try {
+      writeSubmitData_(submitData);
+      console.log('見積もりデータを書き込み完了: ' + receiptNo);
+    } catch (writeErr) {
+      console.error('見積もりデータ書き込み失敗、キューに保存: ' + receiptNo, writeErr);
+      // 書き込み失敗時はキューに保存してバックグラウンド処理
       var props = PropertiesService.getScriptProperties();
-      props.setProperty('PENDING_ORDER_' + receiptNo, JSON.stringify(pendingOrderData));
-      console.log('決済待ち注文を保存: ' + receiptNo);
-    } catch (saveErr) {
-      console.error('決済待ち注文の保存に失敗: ' + receiptNo, saveErr);
-      // 保存失敗しても処理は続行（決済完了時に再取得できる可能性がある）
+      var queue = [];
+      try { queue = JSON.parse(props.getProperty('SUBMIT_QUEUE') || '[]'); } catch (x) { queue = []; }
+      queue.push(submitData);
+      props.setProperty('SUBMIT_QUEUE', JSON.stringify(queue));
+      scheduleBackgroundProcess_();
     }
 
-    // 決済待ち状態で返す（シート書き込みは決済完了後）
     return {
       ok: true,
       receiptNo: receiptNo,
       templateText: templateText,
-      totalAmount: discounted,
-      paymentPending: true  // 決済待ちフラグ
+      totalAmount: discounted
     };
 
   } catch (e) {
