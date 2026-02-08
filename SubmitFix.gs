@@ -147,7 +147,7 @@ function apiSubmitEstimate(userKey, form, ids) {
       discounted: discounted,
       createdAtMs: now,
       templateText: templateText,
-      paymentStatus: '見積もり'
+      paymentStatus: '未対応'
     };
 
     // 直接書き込み
