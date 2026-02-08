@@ -5,11 +5,12 @@ const REWARD_CONFIG = {
   SHEET_REWARD: '報酬管理',
   TZ: 'Asia/Tokyo',
   STATUS_DONE_VALUE: '完了',
-  // 新列構成: B=依頼日時, P=ステータス, Q=担当者, L=合計金額
-  COL_REQUEST_DATETIME: 2,  // B列
-  COL_STATUS: 16,           // P列 (旧R列)
-  COL_PERSON: 17,           // Q列 (旧S列)
-  COL_AMOUNT: 12            // L列 (旧N列 合計金額)
+  // 列構成: B=依頼日時, P=ステータス, Q=担当者, K=合計点数, Y=作業報酬
+  COL_REQUEST_DATETIME: 2,  // B列: 依頼日時
+  COL_STATUS: 16,           // P列: ステータス
+  COL_PERSON: 17,           // Q列: 担当者
+  COL_COUNT: 11,            // K列: 合計点数
+  COL_REWARD: 25            // Y列: 作業報酬
 };
 
 function rewardUpdateDaily() {
@@ -25,7 +26,7 @@ function rewardUpdateDaily() {
     return;
   }
 
-  const maxCol = Math.max(REWARD_CONFIG.COL_REQUEST_DATETIME, REWARD_CONFIG.COL_STATUS, REWARD_CONFIG.COL_PERSON, REWARD_CONFIG.COL_AMOUNT);
+  const maxCol = Math.max(REWARD_CONFIG.COL_REQUEST_DATETIME, REWARD_CONFIG.COL_STATUS, REWARD_CONFIG.COL_PERSON, REWARD_CONFIG.COL_COUNT, REWARD_CONFIG.COL_REWARD);
   const values = shReq.getRange(2, 1, lastRow - 1, maxCol).getValues();
 
   const agg = new Map();
@@ -44,13 +45,15 @@ function rewardUpdateDaily() {
 
     const ym = Utilities.formatDate(reqDate, REWARD_CONFIG.TZ, 'yyyy-MM');
 
-    const amount = toNumber_(row[REWARD_CONFIG.COL_AMOUNT - 1]);
-    if (!isFinite(amount)) continue;
+    const reward = toNumber_(row[REWARD_CONFIG.COL_REWARD - 1]);
+    if (!isFinite(reward)) continue;
+
+    const count = toNumber_(row[REWARD_CONFIG.COL_COUNT - 1]);
 
     const key = ym + '\t' + person;
     const cur = agg.get(key) || { ym: ym, person: person, sum: 0, cnt: 0 };
-    cur.sum += amount;
-    cur.cnt += 1;
+    cur.sum += reward;
+    cur.cnt += (isFinite(count) ? count : 0);
     agg.set(key, cur);
   }
 
@@ -79,6 +82,9 @@ function removeRewardTriggers_() {
 function writeRewardOutput_(shOut, rows, updatedAtText) {
   shOut.getRange('A2:D').clearContent();
 
+  // ヘッダー行を設定
+  shOut.getRange(1, 1, 1, 4).setValues([['年月', '担当者', '報酬合計', '合計点数']]);
+
   shOut.getRange('F1').setValue('最終更新日時');
   shOut.getRange('F2').setValue(updatedAtText);
   shOut.getRange('F2').setNumberFormat('yyyy/mm/dd hh:mm:ss');
@@ -88,6 +94,7 @@ function writeRewardOutput_(shOut, rows, updatedAtText) {
   }
 
   shOut.getRange('C2:C').setNumberFormat('#,##0');
+  shOut.getRange('D2:D').setNumberFormat('#,##0');
   shOut.getRange('A:A').setNumberFormat('yyyy-mm');
 }
 
