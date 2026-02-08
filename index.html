@@ -95,7 +95,7 @@
     .authBtn:hover{background:#475569;}
     .authBtn.logout{background:transparent;border:none;color:#94a3b8;text-decoration:underline;padding:4px 8px;}
     .authUser{display:flex;align-items:center;gap:8px;}
-    .authUserName{font-weight:900;color:#333;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .authUserName{font-weight:900;color:#f1f5f9;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .authDiscount{background:#b8002a;color:#fff;font-size:11px;padding:2px 6px;border-radius:4px;font-weight:900;}
     .sumBox{margin-top:10px;display:flex;flex-direction:column;gap:6px;align-items:flex-end;}
     .sumLine{font-weight:900;}
@@ -209,7 +209,7 @@
       <div style="display:flex; gap:16px; margin-top:8px; flex-wrap:wrap; align-items:center;">
         <a href="#" id="openGuideLink" style="font-size:13px; font-weight:600; color:#93c5fd; text-decoration:none;">📦 商品ガイド</a>
         <a href="#" id="openShippingLink" style="font-size:13px; font-weight:600; color:#93c5fd; text-decoration:none;">🚚 送料表</a>
-        <a href="https://mail.google.com/mail/?view=cm&to=nkonline1030@gmail.com" target="_blank" rel="noopener noreferrer" style="font-size:13px; font-weight:600; color:#93c5fd; text-decoration:none;">✉ お問い合わせ</a>
+        <a href="#" id="openContactLink" style="font-size:13px; font-weight:600; color:#93c5fd; text-decoration:none;">✉ お問い合わせ</a>
       </div>
     </div>
   </div>
@@ -406,15 +406,15 @@
           <input id="contact" type="email" autocomplete="email" placeholder="example@example.com">
         </div>
         <div class="formField">
-          <label>郵便番号（配送時は必須）</label>
+          <label>郵便番号</label>
           <input id="postal" type="text" inputmode="numeric" autocomplete="postal-code" placeholder="0000000">
         </div>
         <div class="formField">
-          <label>住所（配送時は必須）</label>
+          <label>住所</label>
           <input id="address" type="text" autocomplete="street-address">
         </div>
         <div class="formField">
-          <label>電話番号（配送時は必須）</label>
+          <label>電話番号</label>
           <input id="phone" type="tel" inputmode="numeric" placeholder="00000000000" autocomplete="tel">
         </div>
         <div class="formField">
@@ -439,6 +439,31 @@
       <div style="margin-top:8px; font-size:24px; font-weight:900; color:#3b82f6;" id="doneReceipt"></div>
       <div style="margin-top:16px; font-size:14px; color:#333; line-height:1.6;">
         見積もりを受け付けました。確定金額・送料をメールでご案内いたしますので、受付番号をお控えの上しばらくお待ちください。
+      </div>
+    </div>
+  </div>
+
+  <!-- お問い合わせモーダル -->
+  <div class="modal" id="contactModal" aria-hidden="true" style="width:min(500px,94vw);">
+    <div class="modalHeader">
+      <div class="modalTitle">お問い合わせ</div>
+      <button class="modalClose" id="contactCloseBtn" aria-label="close">×</button>
+    </div>
+    <div class="modalBody">
+      <div class="formField">
+        <label>お名前 *</label>
+        <input type="text" id="contactName" placeholder="会社名/氏名">
+      </div>
+      <div class="formField">
+        <label>メールアドレス *</label>
+        <input type="email" id="contactEmail" placeholder="返信先メールアドレス">
+      </div>
+      <div class="formField">
+        <label>お問い合わせ内容 *</label>
+        <textarea id="contactMessage" rows="6" placeholder="お問い合わせ内容をご記入ください"></textarea>
+      </div>
+      <div style="text-align:right; margin-top:12px;">
+        <button class="btn primary" id="contactSubmitBtn" type="button">送信</button>
       </div>
     </div>
   </div>
@@ -937,6 +962,53 @@ function setupAuthUi_() {
   if (shippingCloseBtn) {
     shippingCloseBtn.addEventListener('click', function() {
       closeModal($('shippingModal'));
+    });
+  }
+
+  // お問い合わせモーダル
+  var openContactLink = $('openContactLink');
+  if (openContactLink) {
+    openContactLink.addEventListener('click', function(e) {
+      e.preventDefault();
+      // ログイン中なら名前・メールを自動入力
+      if (state.customer) {
+        $('contactName').value = state.customer.companyName || '';
+        $('contactEmail').value = state.customer.email || '';
+      }
+      openModal($('contactModal'));
+    });
+  }
+  var contactCloseBtn = $('contactCloseBtn');
+  if (contactCloseBtn) {
+    contactCloseBtn.addEventListener('click', function() {
+      closeModal($('contactModal'));
+    });
+  }
+  var contactSubmitBtn = $('contactSubmitBtn');
+  if (contactSubmitBtn) {
+    contactSubmitBtn.addEventListener('click', function() {
+      var name = ($('contactName').value || '').trim();
+      var email = ($('contactEmail').value || '').trim();
+      var message = ($('contactMessage').value || '').trim();
+      if (!name) { showToast('お名前を入力してください'); return; }
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showToast('有効なメールアドレスを入力してください'); return; }
+      if (!message) { showToast('お問い合わせ内容を入力してください'); return; }
+      contactSubmitBtn.disabled = true;
+      contactSubmitBtn.textContent = '送信中...';
+      runApi('apiSendContactForm', { name: name, email: email, message: message })
+        .then(function(res) {
+          if (res && res.ok) {
+            closeModal($('contactModal'));
+            $('contactName').value = '';
+            $('contactEmail').value = '';
+            $('contactMessage').value = '';
+            showToast('お問い合わせを送信しました');
+          } else {
+            showToast((res && res.message) || '送信に失敗しました');
+          }
+        })
+        .catch(function(e) { showToast('送信に失敗しました'); })
+        .finally(function() { contactSubmitBtn.disabled = false; contactSubmitBtn.textContent = '送信'; });
     });
   }
 

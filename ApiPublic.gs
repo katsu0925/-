@@ -403,3 +403,39 @@ function apiGetProductDetail(params) {
     return { ok: false, message: (e && e.message) ? e.message : String(e) };
   }
 }
+
+/**
+ * お問い合わせフォーム送信API
+ */
+function apiSendContactForm(params) {
+  try {
+    var name = String((params && params.name) || '').trim();
+    var email = String((params && params.email) || '').trim();
+    var message = String((params && params.message) || '').trim();
+
+    if (!name) return { ok: false, message: 'お名前を入力してください' };
+    if (!email || email.indexOf('@') === -1) return { ok: false, message: '有効なメールアドレスを入力してください' };
+    if (!message) return { ok: false, message: 'お問い合わせ内容を入力してください' };
+
+    var to = 'nkonline1030@gmail.com';
+    var subject = '【NKonlineApparel】お問い合わせ: ' + name;
+    var body = 'お問い合わせを受信しました。\n\n'
+      + 'お名前: ' + name + '\n'
+      + 'メールアドレス: ' + email + '\n'
+      + '日時: ' + new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) + '\n'
+      + '\n--- お問い合わせ内容 ---\n'
+      + message + '\n';
+
+    MailApp.sendEmail({
+      to: to,
+      replyTo: email,
+      subject: subject,
+      body: body
+    });
+
+    return { ok: true };
+  } catch (e) {
+    console.error('apiSendContactForm error:', e);
+    return { ok: false, message: '送信に失敗しました' };
+  }
+}
