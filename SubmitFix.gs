@@ -150,20 +150,9 @@ function apiSubmitEstimate(userKey, form, ids) {
       paymentStatus: '見積もり'
     };
 
-    // キュー経由ではなく直接書き込み
-    try {
-      writeSubmitData_(submitData);
-      console.log('見積もりデータを書き込み完了: ' + receiptNo);
-    } catch (writeErr) {
-      console.error('見積もりデータ書き込み失敗、キューに保存: ' + receiptNo, writeErr);
-      // 書き込み失敗時はキューに保存してバックグラウンド処理
-      var props = PropertiesService.getScriptProperties();
-      var queue = [];
-      try { queue = JSON.parse(props.getProperty('SUBMIT_QUEUE') || '[]'); } catch (x) { queue = []; }
-      queue.push(submitData);
-      props.setProperty('SUBMIT_QUEUE', JSON.stringify(queue));
-      scheduleBackgroundProcess_();
-    }
+    // 直接書き込み
+    writeSubmitData_(submitData);
+    console.log('見積もりデータを書き込み完了: ' + receiptNo);
 
     return {
       ok: true,
