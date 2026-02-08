@@ -218,8 +218,6 @@
     </div>
   </div>
 
-  <div id="topNotes" style="max-width:900px;margin:0 auto;padding:8px 14px;font-size:13px;color:#475569;line-height:1.6;"></div>
-
   <div class="wrap">
     <div class="filter-sort-section">
       <!-- ブランド選択 -->
@@ -522,6 +520,16 @@
       </div>
 
       <div class="guide-section" style="margin-top:20px;">
+        <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">ご注文について</h3>
+        <ul style="margin:0;padding-left:20px;color:#475569;">
+          <li style="margin-bottom:8px;"><strong style="color:#1e293b;">10点から</strong>見積もり可能です</li>
+          <li style="margin-bottom:8px;">合計金額は商品代のみです（<a href="https://drive.google.com/file/d/1g7UYUBw3-Y6M5HkSv3mfMe5jEjs795E3/view?usp=sharing" target="_blank" rel="noopener noreferrer">送料別</a>）。送料はBASE側で確定します</li>
+          <li style="margin-bottom:8px;">在庫は先着のため、送信後に欠品となる場合があります（確保中表示がある場合はその時間内は確保）</li>
+          <li>送信後、受付番号をお控えください。確定金額・送料をご案内後、BASEで決済となります</li>
+        </ul>
+      </div>
+
+      <div class="guide-section" style="margin-top:20px;">
         <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">ご注文の流れ</h3>
         <ol style="margin:0;padding-left:20px;color:#475569;">
           <li style="margin-bottom:8px;"><strong>商品選択</strong>：お好みの商品をカートに追加</li>
@@ -534,6 +542,7 @@
       <div class="guide-section" style="margin-top:20px;">
         <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">割引について</h3>
         <ul style="margin:0;padding-left:20px;color:#475569;">
+          <li style="margin-bottom:8px;"><span style="color:#b8002a;font-weight:700;">30点以上で10%割引</span></li>
           <li><strong>会員割引</strong>：会員登録で<span style="color:#b8002a;font-weight:700;">10%OFF</span></li>
         </ul>
       </div>
@@ -2417,27 +2426,10 @@ function normalizeSettings_(s) {
   out.appTitle = String(src.appTitle || ui.appTitle || 'NKonlineApparel');
   out.minOrderCount = Number(src.minOrderCount != null ? src.minOrderCount : (ui.minOrderCount != null ? ui.minOrderCount : 10));
   out.shippingEstimateText = String(src.shippingEstimateText || ui.shippingEstimateText || '');
-  out.notes = Array.isArray(src.notes) ? src.notes : (Array.isArray(src.topNotes) ? src.topNotes : (Array.isArray(ui.notes) ? ui.notes : []));
+  out.notes = Array.isArray(src.notes) ? src.notes : (Array.isArray(ui.notes) ? ui.notes : []);
   out.nextSteps = Array.isArray(src.nextSteps) ? src.nextSteps : (Array.isArray(ui.nextSteps) ? ui.nextSteps : []);
   out.basePaymentUrl = String(src.basePaymentUrl || ui.basePaymentUrl || '');
-  out.topNotes = Array.isArray(src.topNotes) ? src.topNotes : out.notes;
   return out;
-}
-
-function buildTopNotes() {
-  var el = $('topNotes');
-  if (!el) return;
-  var s = state.settings || {};
-  var arr = Array.isArray(s.topNotes) ? s.topNotes : (Array.isArray(s.notes) ? s.notes : []);
-  el.innerHTML = '';
-  if (!arr.length) return;
-  var ul = document.createElement('ul'); ul.style.margin = '0'; ul.style.paddingLeft = '1.1em';
-  for (var i = 0; i < arr.length; i++) {
-    var t = String(arr[i] || '').trim();
-    if (!t) continue;
-    var li = document.createElement('li'); li.innerHTML = t; ul.appendChild(li);
-  }
-  el.appendChild(ul);
 }
 
 function setBaseLink_() {
@@ -2652,7 +2644,6 @@ function applyProductData_(data) {
   state.settings = normalizeSettings_(data.settings);
 
   $('appTitle').textContent = 'NKonlineApparel';
-  buildTopNotes();
   setBaseLink_();
 
   // マルチセレクトフィルターを構築
