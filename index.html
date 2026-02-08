@@ -425,21 +425,21 @@
       </div>
       <div class="formActions">
         <button class="btn" id="formBackBtn" type="button">戻る</button>
-        <button class="btn primary" id="submitBtn" type="button">お支払いへ進む</button>
+        <button class="btn primary" id="submitBtn" type="button">見積もりを送信</button>
       </div>
     </div>
   </div>
 
   <div class="modal" id="doneModal" aria-hidden="true">
     <div class="modalHeader">
-      <div class="modalTitle">注文完了</div>
+      <div class="modalTitle">見積もり送信完了</div>
       <button class="modalClose" id="doneCloseBtn" aria-label="close">×</button>
     </div>
     <div class="modalBody" style="text-align:center;">
       <div style="font-weight:900; font-size:14px;">受付番号</div>
       <div style="margin-top:8px; font-size:24px; font-weight:900; color:#3b82f6;" id="doneReceipt"></div>
       <div style="margin-top:16px; font-size:14px; color:#333; line-height:1.6;">
-        決済リンクをメールアドレスに送付いたします。受付番号をお控えの上、しばらくお待ちください。
+        見積もりを受け付けました。確定金額・送料をメールでご案内いたしますので、受付番号をお控えの上しばらくお待ちください。
       </div>
     </div>
   </div>
@@ -495,9 +495,9 @@
         <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">ご注文の流れ</h3>
         <ol style="margin:0;padding-left:20px;color:#475569;">
           <li style="margin-bottom:8px;"><strong>商品選択</strong>：お好みの商品をカートに追加</li>
-          <li style="margin-bottom:8px;"><strong>購入手続き</strong>：お届け先情報を入力</li>
-          <li style="margin-bottom:8px;"><strong>お支払い</strong>：クレジットカード、コンビニ決済、銀行振込、PayPay等でお支払い</li>
-          <li><strong>発送</strong>：ご入金確認後、商品を発送いたします</li>
+          <li style="margin-bottom:8px;"><strong>見積もり送信</strong>：お届け先情報を入力して送信</li>
+          <li style="margin-bottom:8px;"><strong>ご案内</strong>：確定金額・送料をメールでご案内</li>
+          <li><strong>発送</strong>：お支払い確認後、商品を発送いたします</li>
         </ol>
       </div>
 
@@ -627,7 +627,7 @@
       <div class="guide-section" style="margin-top:20px;">
         <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #10b981;padding-bottom:8px;">配送について</h3>
         <ul style="margin:0;padding-left:20px;color:#475569;">
-          <li>発送はご入金確認後<strong>2〜5営業日</strong>以内</li>
+          <li>発送はお支払い確認後<strong>2〜5営業日</strong>以内</li>
           <li>配送業者：佐川急便・ヤマト運輸・郵便局のいずれか（指定不可）</li>
           <li>日時指定不可</li>
         </ul>
@@ -2290,18 +2290,15 @@ function validateForm_(f) {
 }
 
 var submitting_ = false;
-var pendingReceiptNo_ = null;  // 決済待ち受付番号（エラー時キャンセル用）
-
 function submitNow_() {
   if (submitting_) return;
   submitting_ = true;
-  pendingReceiptNo_ = null;
   if ((state.cart.ids || []).length === 0) { showToast('カートが空です'); submitting_ = false; return; }
   var f = readForm_();
   var err = validateForm_(f);
   if (err) { showToast(err); submitting_ = false; return; }
   $('submitBtn').disabled = true;
-  setSending_(true, '注文処理中...');
+  setSending_(true, '見積もり送信中...');
   var ids = (state.cart.ids || []).slice();
 
   runApi('apiSyncHolds', state.userKey, ids)
@@ -2317,41 +2314,17 @@ function submitNow_() {
       });
     })
     .then(function(res) {
-      if (!res || !res.ok) throw new Error(res && res.message ? res.message : '注文に失敗しました');
+      if (!res || !res.ok) throw new Error(res && res.message ? res.message : '見積もり送信に失敗しました');
       var receiptNo = res.receiptNo || '';
-      var totalAmount = res.totalAmount || 0;
-      pendingReceiptNo_ = receiptNo;  // キャンセル用に保持
-
-      // KOMOJU決済セッションを作成
-      setSending_(true, '決済ページ準備中...');
-      return runApi('apiCreateKomojuSession', receiptNo, totalAmount, {
-        companyName: f.companyName,
-        email: f.contact,
-        phone: f.phone
-      }).then(function(komojuRes) {
-        if (!komojuRes || !komojuRes.ok) {
-          // KOMOJU決済作成失敗 → 注文をキャンセルして商品を解放
-          var errorMsg = (komojuRes && komojuRes.message) || '決済システムに接続できません';
-          setSending_(true, '注文をキャンセル中...');
-          return runApi('apiCancelOrder', receiptNo).then(function() {
-            pendingReceiptNo_ = null;
-            throw new Error(errorMsg + '。しばらく経ってから再度お試しください。');
-          });
-        }
-        // 決済ページへリダイレクト
-        pendingReceiptNo_ = null;
-        state.cart.ids = [];
-        saveCartStorage(); updateCartCount();
-        window.location.href = komojuRes.sessionUrl;
-      });
+      // 見積もり完了 → カートクリア & 完了モーダル表示
+      state.cart.ids = [];
+      saveCartStorage(); updateCartCount();
+      $('doneReceipt').textContent = receiptNo;
+      closeModal($('formModal'));
+      openModal($('doneModal'));
     })
     .catch(function(e) {
-      // エラー発生時、保留中の受付番号があればキャンセル
-      if (pendingReceiptNo_) {
-        runApi('apiCancelOrder', pendingReceiptNo_).catch(function() {});
-        pendingReceiptNo_ = null;
-      }
-      showToast(e.message || '注文に失敗しました');
+      showToast(e.message || '見積もり送信に失敗しました');
     })
     .finally(function() { setSending_(false); $('submitBtn').disabled = false; submitting_ = false; });
 }
