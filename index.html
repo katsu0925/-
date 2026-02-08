@@ -6,6 +6,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
   <title>NKonlineApparel</title>
+  <meta property="og:title" content="NKonlineApparel">
+  <meta property="og:description" content="採寸データ付き古着卸 - 10点から見積もり可能">
+  <meta property="og:type" content="website">
+  <meta name="description" content="採寸データ付き古着卸 - 10点から見積もり可能">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>👕</text></svg>">
   <script src="https://www.google.com/recaptcha/api.js?render=6LeMeF0sAAAAAK1DLANrMyfuugoe6mdWMQbY2ao1" async defer></script>
   <style>
@@ -213,6 +217,8 @@
       </div>
     </div>
   </div>
+
+  <div id="topNotes" style="max-width:900px;margin:0 auto;padding:8px 14px;font-size:13px;color:#475569;line-height:1.6;"></div>
 
   <div class="wrap">
     <div class="filter-sort-section">
@@ -1007,7 +1013,7 @@ function setupAuthUi_() {
             showToast((res && res.message) || '送信に失敗しました');
           }
         })
-        .catch(function(e) { showToast('送信に失敗しました'); })
+        .catch(function(e) { showToast(e.message || '送信に失敗しました'); })
         .finally(function() { contactSubmitBtn.disabled = false; contactSubmitBtn.textContent = '送信'; });
     });
   }
@@ -2510,6 +2516,12 @@ function bindUi_() {
   });
   $('cartCloseBtn').addEventListener('click', function() { closeModal($('cartModal')); });
   $('goFormBtn').addEventListener('click', function() {
+    var min = (state.settings && state.settings.minOrderCount) ? Number(state.settings.minOrderCount) : 10;
+    var count = (state.cart.ids || []).length;
+    if (count < min) {
+      showToast(min + '点以上で見積もり可能です（現在' + count + '点）');
+      return;
+    }
     closeModal($('cartModal'));
     // ログインユーザーの情報を自動入力
     if (state.customer) {
