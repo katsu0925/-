@@ -168,9 +168,8 @@ function syncBaseOrdersToIraiKanri() {
   const newRows = [];
   const dstColCount = dstHeader.length;
 
-  if (dstColCount < DST_AB_COL_1BASED) {
-    throw new Error('「依頼管理」の列数が不足しています（AB列が存在しません）');
-  }
+  // AB列がなくてもエラーにしない（任意列として扱う）
+  const hasAbCol = (dstColCount >= DST_AB_COL_1BASED);
 
   for (const entry of itemsByKey.entries()) {
     const orderKey = entry[0];
@@ -233,7 +232,7 @@ function syncBaseOrdersToIraiKanri() {
       out[dstIdx_ListInclude] = hasXlsx ? '未' : '無し';
       out[dstIdx_XlsxSend] = hasXlsx ? '未' : '無し';
 
-      out[DST_AB_COL_1BASED - 1] = false;
+      if (hasAbCol) out[DST_AB_COL_1BASED - 1] = false;
 
       if (pidColInDst !== -1) {
         out[pidColInDst] = pid;
