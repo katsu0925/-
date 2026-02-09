@@ -226,7 +226,7 @@ function syncBaseOrdersToIraiKanri() {
 
       out[dstIdx_ShipStatus] = '未着手';
       out[dstIdx_Status] = '依頼中';
-      if (dstIdx_PaymentStatus !== -1) out[dstIdx_PaymentStatus] = '入金待ち';  // T列: 入金確認
+      if (dstIdx_PaymentStatus !== -1) out[dstIdx_PaymentStatus] = '未対応';  // R列: 入金確認
 
       const hasXlsx = hasXlsx_(itemName);
       out[dstIdx_ListInclude] = hasXlsx ? '未' : '無し';
