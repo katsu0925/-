@@ -345,10 +345,21 @@ function baseTestOrders() {
 
 function baseSyncOrdersNow() {
   const last = baseGetLastSyncAt_();
+  var result;
   if (!last) {
-    return baseSyncOrdersSinceDays(BASE_APP.SYNC_DEFAULT_DAYS);
+    result = baseSyncOrdersSinceDays(BASE_APP.SYNC_DEFAULT_DAYS);
+  } else {
+    result = baseSyncOrdersBetween_(new Date(last.getTime() - BASE_APP.SYNC_BUFFER_DAYS * 24 * 3600 * 1000), new Date());
   }
-  return baseSyncOrdersBetween_(new Date(last.getTime() - BASE_APP.SYNC_BUFFER_DAYS * 24 * 3600 * 1000), new Date());
+
+  // BASE_注文 → 依頼管理 自動反映
+  try {
+    syncBaseOrdersToIraiKanri();
+  } catch (e) {
+    console.error('syncBaseOrdersToIraiKanri error:', e);
+  }
+
+  return result;
 }
 
 function baseSyncOrdersSinceDays(days) {

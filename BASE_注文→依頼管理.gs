@@ -4,7 +4,8 @@ function syncBaseOrdersToIraiKanri() {
   const ORDER_STATUS_VALUE = '未対応';
   const DST_AB_COL_1BASED = 28;
 
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  // トリガーからも動作するようID指定で開く（getActiveSpreadsheetはトリガー非対応）
+  const ss = baseGetTargetSpreadsheet_();
   const shOrder = ss.getSheetByName('BASE_注文');
   const shItem = ss.getSheetByName('BASE_注文商品');
   const shDst = ss.getSheetByName('依頼管理');
