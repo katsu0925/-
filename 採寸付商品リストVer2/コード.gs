@@ -1,7 +1,6 @@
 const CONFIG = {
   // APP_CONFIG.detail.spreadsheetId から取得（一元管理）
   get SRC_SPREADSHEET_ID() { return String((APP_CONFIG.detail && APP_CONFIG.detail.spreadsheetId) || ''); },
-  SRC_SHEET_RECOVERY_NAME: "回収完了",
   SRC_SHEET_PRODUCT_NAME: "商品管理",
   SRC_SHEET_RETURN_NAME: "返送管理",
   SRC_SHEET_AI_NAME: "AIキーワード抽出",
@@ -16,17 +15,7 @@ const CONFIG = {
   DEST_COL_CHECK: 10,
   DEST_COL_KEY: 11,
 
-  SRC_RECOVERY_START_ROW: 7,
-  SRC_RECOVERY_COL_C: 3,
-  SRC_RECOVERY_COL_MARK: 1,
-  SRC_RECOVERY_RANGE_COLS: 13,
-  SRC_RECOVERY_COL_K: 11,
-
   SRC_PRODUCT_START_ROW: 2,
-  SRC_PRODUCT_COL_F: 6,
-  SRC_PRODUCT_COL_G: 7,
-  SRC_PRODUCT_COL_L: 12,
-  SRC_PRODUCT_COL_Q: 17,
 
   DEST_COL_SHIPPING: 25,
 
@@ -39,7 +28,6 @@ const CONFIG = {
 
   AI_DEFAULT_FOLDER_NAME: "AIキーワード抽出_Images",
 
-  MARK_COLOR: "#f4cccc",
   CACHE_TTL_SEC: 300,
 
   GUARD_KEY: "PUBLIC_SYNC_GUARD",
@@ -58,11 +46,10 @@ function initializePublicList() {
 
   try {
     setGuardOn_();
-    const { recoverySheet, productSheet, returnSheet, aiSheet, destSheet } = openSheets_();
-    syncFull_(recoverySheet, productSheet, returnSheet, aiSheet, destSheet);
+    const { productSheet, returnSheet, aiSheet, destSheet } = openSheets_();
+    syncFull_(productSheet, returnSheet, aiSheet, destSheet);
     const lastRow = Math.max(destSheet.getLastRow(), CONFIG.DEST_START_ROW);
     ensureCheckboxValidation_(destSheet, CONFIG.DEST_START_ROW, Math.max(0, lastRow - CONFIG.DEST_START_ROW + 1));
-    syncCheckboxMarksAll_(destSheet, recoverySheet, returnSheet);
     PropertiesService.getScriptProperties().setProperty(PROP_KEYS.LAST_OK_AT, new Date().toISOString());
   } catch (err) {
     saveError_(err);
@@ -125,58 +112,6 @@ function syncListingPublic(e) {
     const sheet = e.range.getSheet();
     const name = sheet.getName();
 
-    if (name === CONFIG.SRC_SHEET_RECOVERY_NAME) {
-      const r1 = e.range.getRow();
-      const r2 = r1 + e.range.getNumRows() - 1;
-      const c1 = e.range.getColumn();
-      const c2 = c1 + e.range.getNumColumns() - 1;
-
-      app_log_('RECOVERY edit', { r1: r1, r2: r2, c1: c1, c2: c2 });
-
-      if (r2 < CONFIG.SRC_RECOVERY_START_ROW) {
-        app_log_('RECOVERY SKIP rowUnderStart', { r2: r2, start: CONFIG.SRC_RECOVERY_START_ROW });
-        return;
-      }
-
-      const touchesMain = !(c2 < CONFIG.SRC_RECOVERY_COL_C || c1 > (CONFIG.SRC_RECOVERY_COL_C + CONFIG.SRC_RECOVERY_RANGE_COLS - 1));
-      const touchesK = !(c2 < CONFIG.SRC_RECOVERY_COL_K || c1 > CONFIG.SRC_RECOVERY_COL_K);
-
-      app_log_('RECOVERY touches', { touchesMain: touchesMain, touchesK: touchesK });
-
-      if (!touchesMain && !touchesK) {
-        app_log_('RECOVERY SKIP notTargetCols');
-        return;
-      }
-
-      clearRecoveryKeyRowMap_();
-      setGuardOn_();
-
-      const t0 = Date.now();
-      app_log_('openSheets_ START');
-      const { recoverySheet, productSheet, returnSheet, aiSheet, destSheet } = openSheets_();
-      app_log_('openSheets_ DONE', { ms: Date.now() - t0 });
-
-      const t1 = Date.now();
-      app_log_('syncFull_ START');
-      syncFull_(recoverySheet, productSheet, returnSheet, aiSheet, destSheet);
-      app_log_('syncFull_ DONE', { ms: Date.now() - t1 });
-
-      const lastRow = Math.max(destSheet.getLastRow(), CONFIG.DEST_START_ROW);
-      const t2 = Date.now();
-      app_log_('ensureCheckboxValidation_ START', { lastRow: lastRow });
-      ensureCheckboxValidation_(destSheet, CONFIG.DEST_START_ROW, Math.max(0, lastRow - CONFIG.DEST_START_ROW + 1));
-      app_log_('ensureCheckboxValidation_ DONE', { ms: Date.now() - t2 });
-
-      const t3 = Date.now();
-      app_log_('syncCheckboxMarksAll_ START');
-      syncCheckboxMarksAll_(destSheet, recoverySheet, returnSheet);
-      app_log_('syncCheckboxMarksAll_ DONE', { ms: Date.now() - t3 });
-
-      PropertiesService.getScriptProperties().setProperty(PROP_KEYS.LAST_OK_AT, new Date().toISOString());
-      app_log_('RECOVERY END OK', { totalMs: Date.now() - started });
-      return;
-    }
-
     if (name === CONFIG.SRC_SHEET_PRODUCT_NAME) {
       app_log_('PRODUCT edit');
       clearProductCache_();
@@ -184,24 +119,16 @@ function syncListingPublic(e) {
 
       const t0 = Date.now();
       app_log_('openSheets_ START');
-      const { recoverySheet, productSheet, returnSheet, aiSheet, destSheet } = openSheets_();
+      const { productSheet, returnSheet, aiSheet, destSheet } = openSheets_();
       app_log_('openSheets_ DONE', { ms: Date.now() - t0 });
 
       const t1 = Date.now();
       app_log_('syncFull_ START');
-      syncFull_(recoverySheet, productSheet, returnSheet, aiSheet, destSheet);
+      syncFull_(productSheet, returnSheet, aiSheet, destSheet);
       app_log_('syncFull_ DONE', { ms: Date.now() - t1 });
 
       const lastRow = Math.max(destSheet.getLastRow(), CONFIG.DEST_START_ROW);
-      const t2 = Date.now();
-      app_log_('ensureCheckboxValidation_ START', { lastRow: lastRow });
       ensureCheckboxValidation_(destSheet, CONFIG.DEST_START_ROW, Math.max(0, lastRow - CONFIG.DEST_START_ROW + 1));
-      app_log_('ensureCheckboxValidation_ DONE', { ms: Date.now() - t2 });
-
-      const t3 = Date.now();
-      app_log_('syncCheckboxMarksAll_ START');
-      syncCheckboxMarksAll_(destSheet, recoverySheet, returnSheet);
-      app_log_('syncCheckboxMarksAll_ DONE', { ms: Date.now() - t3 });
 
       PropertiesService.getScriptProperties().setProperty(PROP_KEYS.LAST_OK_AT, new Date().toISOString());
       app_log_('PRODUCT END OK', { totalMs: Date.now() - started });
@@ -215,24 +142,16 @@ function syncListingPublic(e) {
 
       const t0 = Date.now();
       app_log_('openSheets_ START');
-      const { recoverySheet, productSheet, returnSheet, aiSheet, destSheet } = openSheets_();
+      const { productSheet, returnSheet, aiSheet, destSheet } = openSheets_();
       app_log_('openSheets_ DONE', { ms: Date.now() - t0 });
 
       const t1 = Date.now();
       app_log_('syncFull_ START');
-      syncFull_(recoverySheet, productSheet, returnSheet, aiSheet, destSheet);
+      syncFull_(productSheet, returnSheet, aiSheet, destSheet);
       app_log_('syncFull_ DONE', { ms: Date.now() - t1 });
 
       const lastRow = Math.max(destSheet.getLastRow(), CONFIG.DEST_START_ROW);
-      const t2 = Date.now();
-      app_log_('ensureCheckboxValidation_ START', { lastRow: lastRow });
       ensureCheckboxValidation_(destSheet, CONFIG.DEST_START_ROW, Math.max(0, lastRow - CONFIG.DEST_START_ROW + 1));
-      app_log_('ensureCheckboxValidation_ DONE', { ms: Date.now() - t2 });
-
-      const t3 = Date.now();
-      app_log_('syncCheckboxMarksAll_ START');
-      syncCheckboxMarksAll_(destSheet, recoverySheet, returnSheet);
-      app_log_('syncCheckboxMarksAll_ DONE', { ms: Date.now() - t3 });
 
       PropertiesService.getScriptProperties().setProperty(PROP_KEYS.LAST_OK_AT, new Date().toISOString());
       app_log_('RETURN END OK', { totalMs: Date.now() - started });
@@ -246,24 +165,16 @@ function syncListingPublic(e) {
 
       const t0 = Date.now();
       app_log_('openSheets_ START');
-      const { recoverySheet, productSheet, returnSheet, aiSheet, destSheet } = openSheets_();
+      const { productSheet, returnSheet, aiSheet, destSheet } = openSheets_();
       app_log_('openSheets_ DONE', { ms: Date.now() - t0 });
 
       const t1 = Date.now();
       app_log_('syncFull_ START');
-      syncFull_(recoverySheet, productSheet, returnSheet, aiSheet, destSheet);
+      syncFull_(productSheet, returnSheet, aiSheet, destSheet);
       app_log_('syncFull_ DONE', { ms: Date.now() - t1 });
 
       const lastRow = Math.max(destSheet.getLastRow(), CONFIG.DEST_START_ROW);
-      const t2 = Date.now();
-      app_log_('ensureCheckboxValidation_ START', { lastRow: lastRow });
       ensureCheckboxValidation_(destSheet, CONFIG.DEST_START_ROW, Math.max(0, lastRow - CONFIG.DEST_START_ROW + 1));
-      app_log_('ensureCheckboxValidation_ DONE', { ms: Date.now() - t2 });
-
-      const t3 = Date.now();
-      app_log_('syncCheckboxMarksAll_ START');
-      syncCheckboxMarksAll_(destSheet, recoverySheet, returnSheet);
-      app_log_('syncCheckboxMarksAll_ DONE', { ms: Date.now() - t3 });
 
       PropertiesService.getScriptProperties().setProperty(PROP_KEYS.LAST_OK_AT, new Date().toISOString());
       app_log_('AI END OK', { totalMs: Date.now() - started });
@@ -296,19 +207,17 @@ function syncListingPublicCron() {
     app_log_('syncListingPublicCron START');
     setGuardOn_();
 
-    // データ鮮度に影響するキャッシュのみクリア（AIパスは重いので維持）
-    clearRecoveryKeyRowMap_();
     clearProductCache_();
     clearReturnCache_();
 
     const t0 = Date.now();
     app_log_('openSheets_ START');
-    const { recoverySheet, productSheet, returnSheet, aiSheet, destSheet } = openSheets_();
+    const { productSheet, returnSheet, aiSheet, destSheet } = openSheets_();
     app_log_('openSheets_ DONE', { ms: Date.now() - t0 });
 
     const t1 = Date.now();
     app_log_('syncFull_ START');
-    syncFull_(recoverySheet, productSheet, returnSheet, aiSheet, destSheet);
+    syncFull_(productSheet, returnSheet, aiSheet, destSheet);
     app_log_('syncFull_ DONE', { ms: Date.now() - t1 });
 
     const lastRow = Math.max(destSheet.getLastRow(), CONFIG.DEST_START_ROW);
@@ -316,11 +225,6 @@ function syncListingPublicCron() {
     app_log_('ensureCheckboxValidation_ START', { lastRow: lastRow });
     ensureCheckboxValidation_(destSheet, CONFIG.DEST_START_ROW, Math.max(0, lastRow - CONFIG.DEST_START_ROW + 1));
     app_log_('ensureCheckboxValidation_ DONE', { ms: Date.now() - t2 });
-
-    const t3 = Date.now();
-    app_log_('syncCheckboxMarksAll_ START');
-    syncCheckboxMarksAll_(destSheet, recoverySheet, returnSheet);
-    app_log_('syncCheckboxMarksAll_ DONE', { ms: Date.now() - t3 });
 
     PropertiesService.getScriptProperties().setProperty(PROP_KEYS.LAST_OK_AT, new Date().toISOString());
     app_log_('syncListingPublicCron END OK', { totalMs: Date.now() - started });
@@ -406,70 +310,11 @@ function app_cacheDeleteLarge_(cache, baseKey) {
   cache.remove(baseKey);
 }
 
-function onDestCheckboxEdit(e) {
-  const lock = LockService.getScriptLock();
-  try {
-    lock.waitLock(10000);
-  } catch (err) {
-    return;
-  }
-
-  try {
-    if (!e || !e.range) return;
-
-    const sh = e.range.getSheet();
-    if (sh.getName() !== CONFIG.DEST_SHEET_NAME) return;
-
-    const r1 = e.range.getRow();
-    const r2 = r1 + e.range.getNumRows() - 1;
-    const c1 = e.range.getColumn();
-    const c2 = c1 + e.range.getNumColumns() - 1;
-
-    if (r2 < CONFIG.DEST_START_ROW) return;
-    if (c2 < CONFIG.DEST_COL_CHECK || c1 > CONFIG.DEST_COL_CHECK) return;
-
-    const { recoverySheet, returnSheet, destSheet } = openSheets_();
-
-    const startRow = Math.max(CONFIG.DEST_START_ROW, r1);
-    const numRows = r2 - startRow + 1;
-    if (numRows <= 0) return;
-
-    const checks = destSheet.getRange(startRow, CONFIG.DEST_COL_CHECK, numRows, 1).getValues();
-    const keys = destSheet.getRange(startRow, CONFIG.DEST_COL_KEY, numRows, 1).getValues();
-
-    const returnSet = getReturnSetCached_(returnSheet);
-    const keyRowMap = getRecoveryKeyRowMapCached_(recoverySheet);
-
-    const rowToColor = {};
-    for (let i = 0; i < numRows; i++) {
-      const k = normalizeKey_(keys[i][0]);
-      if (!k) continue;
-      const row = keyRowMap[k];
-      if (!row) continue;
-      const checked = checks[i][0] === true;
-      const color = (returnSet[k] && checked) ? CONFIG.MARK_COLOR : "";
-      rowToColor[row] = color;
-    }
-
-    const rows = Object.keys(rowToColor);
-    if (rows.length === 0) return;
-
-    const pairs = new Array(rows.length);
-    for (let i = 0; i < rows.length; i++) {
-      const rr = Number(rows[i]);
-      pairs[i] = [rr, rowToColor[rr]];
-    }
-
-    applyRowBackgrounds_(recoverySheet, CONFIG.SRC_RECOVERY_COL_MARK, CONFIG.SRC_RECOVERY_RANGE_COLS, pairs);
-    PropertiesService.getScriptProperties().setProperty(PROP_KEYS.LAST_OK_AT, new Date().toISOString());
-  } catch (err) {
-    saveError_(err);
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-function syncFull_(recoverySheet, productSheet, returnSheet, aiSheet, destSheet) {
+/**
+ * syncFull_ — 商品管理+返送管理+AIキーワード抽出 → データ1 直接同期
+ * フィルタ: 管理番号 が 返送管理 に存在するもののみ
+ */
+function syncFull_(productSheet, returnSheet, aiSheet, destSheet) {
   const productMap = getProductMapCached_(productSheet);
   const returnSet = getReturnSetCached_(returnSheet);
   const aiPathMap = getAiPathMapCached_(aiSheet);
@@ -487,48 +332,23 @@ function syncFull_(recoverySheet, productSheet, returnSheet, aiSheet, destSheet)
     }
   }
 
-  const recLastRow = recoverySheet.getLastRow();
-  const srcStart = CONFIG.SRC_RECOVERY_START_ROW;
-  const recN = Math.max(0, recLastRow - srcStart + 1);
-
-  let recoveryValues = [];
-  let recoveryK = [];
-  if (recN > 0) {
-    recoveryValues = withRetry_(
-      () => recoverySheet.getRange(srcStart, CONFIG.SRC_RECOVERY_COL_C, recN, CONFIG.SRC_RECOVERY_RANGE_COLS).getValues(),
-      2,
-      300
-    );
-    recoveryK = withRetry_(
-      () => recoverySheet.getRange(srcStart, CONFIG.SRC_RECOVERY_COL_K, recN, 1).getValues(),
-      2,
-      300
-    );
-  }
-
   const out = [];
   const outShipping = [];
-  for (let i = 0; i < recN; i++) {
-    const r = recoveryValues[i];
+  const keys = Object.keys(productMap);
 
-    const keyC = normalizeKey_(r[0]);
-    const d = r[1];
-    const eCol = convertFreeSizeToF_(r[2]);
-    const f = r[3];
-    const g = r[4];
-    const kVal = recoveryK[i] ? recoveryK[i][0] : "";
-
-    const allBlank = !keyC && isBlank_(d) && isBlank_(eCol) && isBlank_(f) && isBlank_(g) && isBlank_(kVal);
-    if (allBlank) continue;
-
-    if (!keyC) continue;
+  for (let i = 0; i < keys.length; i++) {
+    const keyC = keys[i];
     if (!returnSet[keyC]) continue;
 
-    const rec = Object.prototype.hasOwnProperty.call(productMap, keyC) ? productMap[keyC] : null;
-    const insertedStatus = convertCondition(rec ? rec.g : "");
-    const insertedColor = rec ? rec.q : "";
-    const shippingMethod = rec ? (rec.l || '') : '';
-    const insertedPrice = convertRecoveryK_(kVal);
+    const rec = productMap[keyC];
+    const insertedStatus = convertCondition(rec.status);
+    const brand = rec.brand;
+    const size = convertFreeSizeToF_(rec.size);
+    const gender = rec.gender;
+    const category = rec.category;
+    const color = rec.color;
+    const insertedPrice = convertRecoveryK_(rec.cost);
+    const shippingMethod = rec.shipping;
     const keepCheck = keepCheckByKey[keyC] === true;
 
     const rawPath = aiPathMap[keyC] || "";
@@ -543,7 +363,7 @@ function syncFull_(recoverySheet, productSheet, returnSheet, aiSheet, destSheet)
     }
     const imgFormula = fileId ? buildImageFormula_(fileId) : "";
 
-    out.push([imgFormula, insertedStatus, d, eCol, f, convertCondition(g), insertedColor, insertedPrice, keepCheck, keyC]);
+    out.push([imgFormula, insertedStatus, brand, size, gender, category, color, insertedPrice, keepCheck, keyC]);
     outShipping.push([shippingMethod]);
   }
 
@@ -557,13 +377,11 @@ function syncFull_(recoverySheet, productSheet, returnSheet, aiSheet, destSheet)
     ensureSheetSize_(destSheet, targetLast, CONFIG.DEST_COL_SHIPPING);
 
     if (writeCount > 0) {
-      // B〜K列のメインデータ
       withRetry_(
         () => destSheet.getRange(CONFIG.DEST_START_ROW, CONFIG.DEST_WRITE_START_COL, writeCount, width).setValues(out),
         2,
         500
       );
-      // Y列に発送方法
       withRetry_(
         () => destSheet.getRange(CONFIG.DEST_START_ROW, CONFIG.DEST_COL_SHIPPING, writeCount, 1).setValues(outShipping),
         2,
@@ -574,13 +392,12 @@ function syncFull_(recoverySheet, productSheet, returnSheet, aiSheet, destSheet)
     const clearStart = CONFIG.DEST_START_ROW + writeCount;
     const clearRows = targetLast - clearStart + 1;
     if (clearRows > 0) {
-      // L列以降も含めた全列をクリア（孤立データ防止）
       const destLastCol = Math.max(destSheet.getLastColumn(), CONFIG.DEST_COL_SHIPPING);
       const fullWidth = Math.max(width, destLastCol - CONFIG.DEST_WRITE_START_COL + 1);
       const blanks = new Array(clearRows);
       for (let i = 0; i < clearRows; i++) {
         const row = new Array(fullWidth).fill('');
-        row[CONFIG.DEST_COL_CHECK - CONFIG.DEST_WRITE_START_COL] = false; // J列チェックボックス
+        row[CONFIG.DEST_COL_CHECK - CONFIG.DEST_WRITE_START_COL] = false;
         blanks[i] = row;
       }
       withRetry_(
@@ -591,154 +408,10 @@ function syncFull_(recoverySheet, productSheet, returnSheet, aiSheet, destSheet)
     }
   }
 
-  // Webアプリ用の商品JSONキャッシュを無効化
   try {
     pr_bumpProductsVersion_();
     pr_clearProductsCache_();
   } catch (e) {}
-}
-
-function syncCheckboxMarksAll_(destSheet, recoverySheet, returnSheet) {
-  const destLast = destSheet.getLastRow();
-  if (destLast < CONFIG.DEST_START_ROW) return;
-
-  const n = destLast - CONFIG.DEST_START_ROW + 1;
-
-  const checks = destSheet.getRange(CONFIG.DEST_START_ROW, CONFIG.DEST_COL_CHECK, n, 1).getValues();
-  const keys = destSheet.getRange(CONFIG.DEST_START_ROW, CONFIG.DEST_COL_KEY, n, 1).getValues();
-
-  const checkedMap = {};
-  for (let i = 0; i < n; i++) {
-    const k = normalizeKey_(keys[i][0]);
-    if (!k) continue;
-    if (checks[i][0] === true) checkedMap[k] = true;
-  }
-
-  const returnSet = getReturnSetCached_(returnSheet);
-
-  const recLast = recoverySheet.getLastRow();
-  const recStart = CONFIG.SRC_RECOVERY_START_ROW;
-  const recN = Math.max(0, recLast - recStart + 1);
-  if (recN <= 0) return;
-
-  const recKeys = recoverySheet.getRange(recStart, CONFIG.SRC_RECOVERY_COL_C, recN, 1).getValues();
-
-  const w = CONFIG.SRC_RECOVERY_RANGE_COLS;
-  const bgs = new Array(recN);
-  for (let i = 0; i < recN; i++) {
-    const k = normalizeKey_(recKeys[i][0]);
-    const color = (k && returnSet[k] && checkedMap[k]) ? CONFIG.MARK_COLOR : "";
-    const row = new Array(w);
-    for (let j = 0; j < w; j++) row[j] = color;
-    bgs[i] = row;
-  }
-
-  recoverySheet.getRange(recStart, CONFIG.SRC_RECOVERY_COL_MARK, recN, w).setBackgrounds(bgs);
-}
-
-function buildRecoveryKeyRowMap_(recoverySheet) {
-  const lastRow = recoverySheet.getLastRow();
-  const start = CONFIG.SRC_RECOVERY_START_ROW;
-  if (lastRow < start) return {};
-
-  const n = lastRow - start + 1;
-  const vals = recoverySheet.getRange(start, CONFIG.SRC_RECOVERY_COL_C, n, 1).getValues();
-
-  const map = {};
-  for (let i = 0; i < n; i++) {
-    const k = normalizeKey_(vals[i][0]);
-    if (!k) continue;
-    if (!map[k]) map[k] = start + i;
-  }
-  return map;
-}
-
-function getRecoveryKeyRowMapCached_(recoverySheet) {
-  const cache = CacheService.getScriptCache();
-  const start = CONFIG.SRC_RECOVERY_START_ROW;
-  const lastRow = recoverySheet.getLastRow();
-
-  let firstKey = "";
-  let lastKey = "";
-  if (lastRow >= start) {
-    firstKey = normalizeKey_(recoverySheet.getRange(start, CONFIG.SRC_RECOVERY_COL_C, 1, 1).getValue());
-    lastKey = normalizeKey_(recoverySheet.getRange(lastRow, CONFIG.SRC_RECOVERY_COL_C, 1, 1).getValue());
-  }
-
-  const sig = [lastRow, firstKey, lastKey].join("|");
-  const sigKey = "RECOVERY_MAP_SIG";
-  const dataKey = "RECOVERY_KEY_ROW_MAP_JSON";
-
-  const cachedSig = cache.get(sigKey);
-  const cachedLarge = app_cacheGetLarge_(cache, dataKey);
-  const cached = cachedLarge != null ? cachedLarge : cache.get(dataKey);
-
-  if (cached && cachedSig === sig) {
-    try {
-      return JSON.parse(cached);
-    } catch (e) {}
-  }
-
-  const map = buildRecoveryKeyRowMap_(recoverySheet);
-  cache.put(sigKey, sig, CONFIG.CACHE_TTL_SEC);
-
-  const json = JSON.stringify(map);
-  try {
-    app_cachePutLarge_(cache, dataKey, json, CONFIG.CACHE_TTL_SEC);
-  } catch (e) {
-    try {
-      cache.put(dataKey, json, CONFIG.CACHE_TTL_SEC);
-    } catch (e2) {}
-  }
-
-  return map;
-}
-
-function clearRecoveryKeyRowMap_() {
-  const cache = CacheService.getScriptCache();
-  cache.remove("RECOVERY_MAP_SIG");
-  app_cacheDeleteLarge_(cache, "RECOVERY_KEY_ROW_MAP_JSON");
-}
-
-function applyRowBackgrounds_(sheet, startCol, numCols, rowColorPairs) {
-  if (!rowColorPairs || rowColorPairs.length === 0) return;
-
-  rowColorPairs.sort((a, b) => a[0] - b[0]);
-
-  const groups = [];
-  let s = rowColorPairs[0][0];
-  let e = rowColorPairs[0][0];
-  let colors = [makeBgRow_(rowColorPairs[0][1], numCols)];
-
-  for (let i = 1; i < rowColorPairs.length; i++) {
-    const r = rowColorPairs[i][0];
-    const c = rowColorPairs[i][1];
-
-    if (r === e + 1) {
-      e = r;
-      colors.push(makeBgRow_(c, numCols));
-    } else {
-      groups.push([s, e, colors]);
-      s = r;
-      e = r;
-      colors = [makeBgRow_(c, numCols)];
-    }
-  }
-  groups.push([s, e, colors]);
-
-  for (let i = 0; i < groups.length; i++) {
-    const g = groups[i];
-    const startRow = g[0];
-    const endRow = g[1];
-    const bg = g[2];
-    sheet.getRange(startRow, startCol, endRow - startRow + 1, numCols).setBackgrounds(bg);
-  }
-}
-
-function makeBgRow_(color, width) {
-  const row = new Array(width);
-  for (let i = 0; i < width; i++) row[i] = color;
-  return row;
 }
 
 function ensureCheckboxValidation_(destSheet, startRow, numRows) {
@@ -779,27 +452,37 @@ function clearProductCache_() {
   app_cacheDeleteLarge_(cache, "PRODUCT_MAP_JSON");
 }
 
+/**
+ * buildProductMap_ — 商品管理をヘッダベースで読み取り、管理番号→全フィールドのマップを構築
+ */
 function buildProductMap_(productSheet) {
   const lastRow = productSheet.getLastRow();
+  const lastCol = productSheet.getLastColumn();
   const map = {};
-  if (lastRow < CONFIG.SRC_PRODUCT_START_ROW) return map;
+  if (lastRow < CONFIG.SRC_PRODUCT_START_ROW || lastCol < 1) return map;
+
+  const headers = productSheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  const idx = {};
+  headers.forEach(function(h, i) { idx[String(h || '').trim()] = i; });
 
   const rows = lastRow - CONFIG.SRC_PRODUCT_START_ROW + 1;
-
-  const colF = productSheet.getRange(CONFIG.SRC_PRODUCT_START_ROW, CONFIG.SRC_PRODUCT_COL_F, rows, 1).getValues();
-  const colG = productSheet.getRange(CONFIG.SRC_PRODUCT_START_ROW, CONFIG.SRC_PRODUCT_COL_G, rows, 1).getValues();
-  const colL = productSheet.getRange(CONFIG.SRC_PRODUCT_START_ROW, CONFIG.SRC_PRODUCT_COL_L, rows, 1).getValues();
-  const colQ = productSheet.getRange(CONFIG.SRC_PRODUCT_START_ROW, CONFIG.SRC_PRODUCT_COL_Q, rows, 1).getValues();
+  const data = productSheet.getRange(CONFIG.SRC_PRODUCT_START_ROW, 1, rows, lastCol).getValues();
 
   for (let i = 0; i < rows; i++) {
-    const keyF = normalizeKey_(colF[i][0]);
-    const valG = colG[i][0];
-    const valL = String(colL[i][0] ?? '').trim();
-    const valQ = colQ[i][0];
-    const keyQ = normalizeKey_(valQ);
+    const r = data[i];
+    const key = normalizeKey_(idx['管理番号'] !== undefined ? r[idx['管理番号']] : '');
+    if (!key) continue;
 
-    if (keyF) map[keyF] = { g: valG, q: valQ, l: valL };
-    if (keyQ) map[keyQ] = { g: valG, q: valQ, l: valL };
+    map[key] = {
+      status: idx['状態'] !== undefined ? (r[idx['状態']] || '') : '',
+      brand: idx['ブランド'] !== undefined ? (r[idx['ブランド']] || '') : '',
+      size: idx['メルカリサイズ'] !== undefined ? (r[idx['メルカリサイズ']] || '') : '',
+      gender: idx['性別'] !== undefined ? (r[idx['性別']] || '') : '',
+      category: idx['カテゴリ2'] !== undefined ? (r[idx['カテゴリ2']] || '') : '',
+      color: idx['カラー'] !== undefined ? (r[idx['カラー']] || '') : '',
+      cost: idx['仕入れ値'] !== undefined ? r[idx['仕入れ値']] : '',
+      shipping: idx['発送方法'] !== undefined ? (r[idx['発送方法']] || '') : ''
+    };
   }
 
   return map;
@@ -975,11 +658,10 @@ function testDrivePermission() {
 
 /** 手動テスト用（ロック/ガード無視） — エディタから実行 */
 function syncManualTest() {
-  clearRecoveryKeyRowMap_();
   clearProductCache_();
   clearReturnCache_();
-  const { recoverySheet, productSheet, returnSheet, aiSheet, destSheet } = openSheets_();
-  syncFull_(recoverySheet, productSheet, returnSheet, aiSheet, destSheet);
+  const { productSheet, returnSheet, aiSheet, destSheet } = openSheets_();
+  syncFull_(productSheet, returnSheet, aiSheet, destSheet);
   console.log('syncManualTest 完了');
 }
 
@@ -1087,12 +769,10 @@ function publishAiImagesInDest() {
 
 function openSheets_() {
   const srcSS = SpreadsheetApp.openById(CONFIG.SRC_SPREADSHEET_ID);
-  const recoverySheet = srcSS.getSheetByName(CONFIG.SRC_SHEET_RECOVERY_NAME);
   const productSheet = srcSS.getSheetByName(CONFIG.SRC_SHEET_PRODUCT_NAME);
   const returnSheet = srcSS.getSheetByName(CONFIG.SRC_SHEET_RETURN_NAME);
   const aiSheet = srcSS.getSheetByName(CONFIG.SRC_SHEET_AI_NAME);
 
-  if (!recoverySheet) throw new Error("元シートが見つかりません: " + CONFIG.SRC_SHEET_RECOVERY_NAME);
   if (!productSheet) throw new Error("元シートが見つかりません: " + CONFIG.SRC_SHEET_PRODUCT_NAME);
   if (!returnSheet) throw new Error("元シートが見つかりません: " + CONFIG.SRC_SHEET_RETURN_NAME);
   if (!aiSheet) throw new Error("元シートが見つかりません: " + CONFIG.SRC_SHEET_AI_NAME);
@@ -1101,19 +781,17 @@ function openSheets_() {
   let destSheet = destSS.getSheetByName(CONFIG.DEST_SHEET_NAME);
   if (!destSheet) destSheet = destSS.insertSheet(CONFIG.DEST_SHEET_NAME);
 
-  return { srcSS, recoverySheet, productSheet, returnSheet, aiSheet, destSS, destSheet };
+  return { srcSS, productSheet, returnSheet, aiSheet, destSS, destSheet };
 }
 
 function installTriggers() {
   deleteTriggers();
 
   const srcSS = SpreadsheetApp.openById(CONFIG.SRC_SPREADSHEET_ID);
-  const destSS = SpreadsheetApp.openById(CONFIG.DEST_SPREADSHEET_ID);
 
   ScriptApp.newTrigger("syncListingPublic").forSpreadsheet(srcSS).onEdit().create();
   ScriptApp.newTrigger("syncListingPublic").forSpreadsheet(srcSS).onFormSubmit().create();
   ScriptApp.newTrigger("syncListingPublicCron").timeBased().everyMinutes(1).create();
-  ScriptApp.newTrigger("onDestCheckboxEdit").forSpreadsheet(destSS).onEdit().create();
 }
 
 function deleteTriggers() {
@@ -1121,7 +799,7 @@ function deleteTriggers() {
   for (let i = 0; i < triggers.length; i++) {
     const t = triggers[i];
     const fn = t.getHandlerFunction();
-    if (fn === "syncListingPublic" || fn === "syncListingPublicCron" || fn === "onDestCheckboxEdit") {
+    if (fn === "syncListingPublic" || fn === "syncListingPublicCron") {
       ScriptApp.deleteTrigger(t);
     }
   }
@@ -1266,7 +944,6 @@ function onOpen(e) {
     .createMenu("管理メニュー")
     .addItem("一括でチェックをつける", "checkManagement")
     .addItem("チェック全解除", "clearAllChecks")
-    .addItem("色を再同期", "syncCheckboxMarksNow")
     .addToUi();
 }
 
@@ -1276,7 +953,7 @@ function clearAllChecks() {
 
   try {
     setGuardOn_();
-    const { recoverySheet, returnSheet, destSheet } = openSheets_();
+    const { destSheet } = openSheets_();
 
     const last = destSheet.getLastRow();
     if (last >= CONFIG.DEST_START_ROW) {
@@ -1286,24 +963,6 @@ function clearAllChecks() {
       destSheet.getRange(CONFIG.DEST_START_ROW, CONFIG.DEST_COL_CHECK, n, 1).setValues(falses);
     }
 
-    syncCheckboxMarksAll_(destSheet, recoverySheet, returnSheet);
-    PropertiesService.getScriptProperties().setProperty(PROP_KEYS.LAST_OK_AT, new Date().toISOString());
-  } catch (err) {
-    saveError_(err);
-    throw err;
-  } finally {
-    lock.releaseLock();
-  }
-}
-
-function syncCheckboxMarksNow() {
-  const lock = LockService.getScriptLock();
-  if (!lock.tryLock(5000)) return;
-
-  try {
-    setGuardOn_();
-    const { recoverySheet, returnSheet, destSheet } = openSheets_();
-    syncCheckboxMarksAll_(destSheet, recoverySheet, returnSheet);
     PropertiesService.getScriptProperties().setProperty(PROP_KEYS.LAST_OK_AT, new Date().toISOString());
   } catch (err) {
     saveError_(err);
@@ -1346,15 +1005,13 @@ function checkManagement() {
 
   try {
     SpreadsheetApp.getActiveSpreadsheet().toast("他の処理が終わるまで待機中…", "チェック管理", 10);
-    // タイムアウトを60秒に延長、tryLockで最初に試行
     if (!lock.tryLock(5000)) {
-      // 5秒で取得できない場合は待機
       lock.waitLock(60000);
     }
 
     setGuardOn_();
 
-    const { recoverySheet, returnSheet, destSheet } = openSheets_();
+    const { destSheet } = openSheets_();
 
     const startRow = CONFIG.DEST_START_ROW;
     const lastRow = destSheet.getLastRow();
@@ -1391,8 +1048,6 @@ function checkManagement() {
     }
 
     jRange.setValues(jVals);
-
-    syncCheckboxMarksAll_(destSheet, recoverySheet, returnSheet);
 
     PropertiesService.getScriptProperties().setProperty(PROP_KEYS.LAST_OK_AT, new Date().toISOString());
 
