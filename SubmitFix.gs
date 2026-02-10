@@ -279,7 +279,7 @@ function writeSubmitData_(data) {
   // P=ステータス, Q=担当者, R=入金確認, S-U=予備(3列), V=備考,
   // W=配送業者, X=伝票番号, Y=作業報酬, Z=更新日時, AA=通知フラグ
   var reqSh = sh_ensureRequestSheet_(orderSs);
-  var productNames = getProductNamesFromIds_(data.ids);
+  var productNames = '選べるxlsx付きパッケージ';
   var paymentStatus = data.paymentStatus || '入金待ち';
   var row = [
     data.receiptNo,                              // A: 受付番号
