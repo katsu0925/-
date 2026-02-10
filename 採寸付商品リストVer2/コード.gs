@@ -341,6 +341,7 @@ function syncFull_(productSheet, returnSheet, aiSheet, destSheet) {
     if (!returnSet[keyC]) continue;
 
     const rec = productMap[keyC];
+    if (rec.bizStatus !== '返品済み') continue;
     const insertedStatus = convertCondition(rec.status);
     const brand = rec.brand;
     const size = convertFreeSizeToF_(rec.size);
@@ -475,6 +476,7 @@ function buildProductMap_(productSheet) {
 
     map[key] = {
       status: idx['状態'] !== undefined ? (r[idx['状態']] || '') : '',
+      bizStatus: idx['ステータス'] !== undefined ? (r[idx['ステータス']] || '') : '',
       brand: idx['ブランド'] !== undefined ? (r[idx['ブランド']] || '') : '',
       size: idx['メルカリサイズ'] !== undefined ? (r[idx['メルカリサイズ']] || '') : '',
       gender: idx['性別'] !== undefined ? (r[idx['性別']] || '') : '',
