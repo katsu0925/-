@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body { font-family:sans-serif; padding:1em; margin:0; line-height:1.6; color:#222; }
+    .top-control { display:flex; justify-content:center; align-items:center; gap:2em; margin:0 0 1em; }
+    .slider-label { font-size:2.4em; user-select:none; }
+    .slider-toggle { transform:scale(3); margin-left:0.5em; }
+    .mercari-link { text-align:center; margin:1.5em 0; font-size:2.4em; }
+    .mercari-link a { color:#1565c0; text-decoration:underline; }
+    .zoom-slider-vertical {
+      position:fixed; right:2vw; bottom:6vh;
+      display:none; flex-direction:column; align-items:center; gap:0.5em;
+    }
+    .zoom-slider-vertical input[type="range"] {
+      -webkit-appearance: slider-vertical;
+      width: 5.5em; min-width: 44px; min-height: 44px;
+      height: 400px; background: #ddd; border-radius: 0.5em;
+      outline: none; cursor: pointer; touch-action: manipulation; margin-left: 0.2em;
+    }
+    .zoom-slider-vertical input[type="range"]::-webkit-slider-thumb {
+      width: 5.8em; height: 5.8em; border-radius: 50%;
+      background: #2196F3; cursor: pointer;
+      box-shadow: 0 0 0 0.8em rgba(0,0,0,0.0);
+    }
+    .zoom-slider-vertical input[type="range"]::-moz-range-thumb {
+      width: 2.8em; height: 2.8em; border-radius: 50%;
+      background: #2196F3; cursor: pointer;
+      box-shadow: 0 0 0 0.8em rgba(0,0,0,0.0);
+    }
+    .zoom-slider-vertical input[type="range"]:focus { outline: none; }
+    @media (max-width:600px) {
+      .zoom-slider-vertical { bottom:5vh; }
+      .zoom-slider-vertical input[type="range"] { height:300px; width:3.5em; }
+      .zoom-slider-vertical input[type="range"]::-webkit-slider-thumb,
+      .zoom-slider-vertical input[type="range"]::-moz-range-thumb { width:3.2em; height:3.2em; }
+      .zoom-value { font-size:1.6em; }
+      .slider-label { font-size:1.8em; }
+      .slider-toggle { transform:scale(2.5); }
+      .mercari-link { font-size:1.8em; }
+      .preview-box { font-size:2.2em; padding:13px 8px; }
+      .copy-btn { font-size:1.5em; padding:1.3em 0; }
+    }
+    .zoom-slider-vertical .zoom-value { font-size:2.3em; margin-top:0.3em; }
+    h1 { font-size:1.3em; margin:0.5em 0; }
+    .preview-container { margin-bottom:1.5em; }
+    .preview-box {
+      width:100%; background:#f7f7f7; border:1px solid #eee; border-radius:12px;
+      padding:24px 18px; box-sizing:border-box; max-height:520px; overflow:auto;
+      font-size:2.2em; white-space:pre-line;
+    }
+    .copy-btn {
+      display:block; width:98vw; max-width:500px; margin:0.8em auto 1.7em;
+      font-size:2.25em; padding:28px 0; background:#4caf50; color:#fff; border:none;
+      border-radius:16px; font-weight:bold; box-shadow:0 4px 16px rgba(0,0,0,0.1);
+      cursor:pointer; transition:background 0.2s;
+    }
+    .copy-btn:active { background:#369b3c; }
+    .supplement a {
+      display:inline-block; max-width:100%; word-break:break-all; white-space:normal;
+      color:#1565c0; text-decoration:underline; margin-top:0.3em;
+    }
+    .supplement {
+      font-size:1.3em; margin-top:1em; padding-left:14px;
+      border-left:5px solid #86caf7; background:#f4f9fd; color:#234;
+    }
+    .supplement-title { font-weight:bold; margin-bottom:0.3em; display:block; }
+    .snackbar {
+      visibility:hidden; min-width:180px; background:#222; color:#fff;
+      text-align:center; border-radius:14px; padding:22px 26px;
+      position:fixed; left:50%; bottom:7vh; transform:translateX(-50%);
+      font-size:1.3em; opacity:0; transition:opacity 0.35s,visibility 0.35s; z-index:1000;
+    }
+    .snackbar.show { visibility:visible; opacity:0.95; }
+  </style>
+</head>
+<body>
+  <div class="top-control">
+    <span class="slider-label">拡大縮小バー表示</span>
+    <input type="checkbox" id="zoomToggle" class="slider-toggle">
+  </div>
+
+  <div class="mercari-link">
+    <a href="https://jp.mercari.com/sell/create" target="_blank" rel="noopener noreferrer">メルカリ新規出品ページへ飛ぶ</a>
+  </div>
+
+  <div class="zoom-slider-vertical" id="zoomSliderContainer">
+    <input type="range" id="zoomRange" min="0" max="100" step="1" value="50">
+    <div class="zoom-value" id="zoomValue">50%</div>
+  </div>
+
+  <h1>タイトルプレビュー</h1>
+  <div class="preview-container">
+    <div id="titlePreview" class="preview-box"><?= data.generatedTitle ?></div>
+    <button class="copy-btn" onclick="copyText('title')">タイトルをコピー</button>
+  </div>
+
+  <h1>商品説明文プレビュー</h1>
+  <div class="preview-container">
+    <div id="descPreview" class="preview-box"><?= data.description ?></div>
+    <button class="copy-btn" onclick="copyText('desc')">商品説明文をコピー</button>
+
+    <? if (data.market || data.reason || data.link) { ?>
+      <div class="supplement">
+        <span class="supplement-title">相場・理由・リンク</span>
+        <? if (data.market) { ?><div>・相場：<?= data.market ?></div><? } ?>
+        <? if (data.reason) { ?><div>・理由：<?= data.reason ?></div><? } ?>
+        <? if (data.link) { ?>
+          <div>・リンク：
+            <a href="<?= data.link ?>" target="_blank" rel="noopener noreferrer"><?= data.link ?></a>
+          </div>
+        <? } ?>
+      </div>
+    <? } ?>
+  </div>
+
+  <div id="snackbar" class="snackbar"></div>
+
+  <script>
+    const tMin=0.7,tMax=4.0,dMin=0.7,dMax=4.0;
+    const slider=document.getElementById('zoomRange'),
+          display=document.getElementById('zoomValue'),
+          toggle=document.getElementById('zoomToggle'),
+          container=document.getElementById('zoomSliderContainer');
+
+    applyZoom(0.5);
+
+    toggle.addEventListener('change',()=>{container.style.display=toggle.checked?'flex':'none';});
+    slider.addEventListener('input',()=>{
+      const pct=slider.value/100;
+      display.textContent=slider.value+'%';
+      applyZoom(pct);
+    });
+
+    function applyZoom(pct){
+      const tf=tMin+pct*(tMax-tMin),
+            df=dMin+pct*(dMax-dMin);
+      document.getElementById('titlePreview').style.fontSize=tf+'em';
+      document.getElementById('descPreview').style.fontSize=df+'em';
+    }
+
+    function copyText(type){
+      const element = (type === 'title')
+        ? document.getElementById('titlePreview')
+        : document.getElementById('descPreview');
+      const text = element.textContent.replace(/\r?\n/g, '\r\n');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(()=>{
+          showSnackbar(type==='title'?'タイトルをコピーしました':'商品説明文をコピーしました');
+        }).catch(() => { legacyCopy(text, type); });
+      } else { legacyCopy(text, type); }
+    }
+
+    function legacyCopy(text, type){
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-100%';
+      document.body.appendChild(textarea);
+      textarea.focus(); textarea.select();
+      document.execCommand('copy');
+      textarea.blur(); document.body.removeChild(textarea);
+      showSnackbar(type==='title'?'タイトルをコピーしました':'商品説明文をコピーしました');
+    }
+
+    function showSnackbar(msg){
+      const bar=document.getElementById('snackbar');
+      bar.innerText=msg;
+      bar.classList.add('show');
+      setTimeout(()=>bar.classList.remove('show'),1200);
+    }
+  </script>
+</body>
+</html>
