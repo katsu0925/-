@@ -942,8 +942,16 @@ function setGuardOn_() {
 function onOpen(e) {
   SpreadsheetApp.getUi()
     .createMenu("管理メニュー")
+    .addItem("1. 依頼展開（受付番号→回収完了へ展開）", "expandOrder")
+    .addItem("2. 配布用リスト生成＋XLSX出力", "generateAndExportForOrder")
+    .addItem("3. 欠品処理", "handleMissingProducts")
+    .addItem("4. 売却反映（チェック行を一括処理）", "processSelectedSales")
+    .addItem("5. 再生成（受付番号で回収完了を再作成）", "regenerateOrder")
+    .addSeparator()
     .addItem("一括でチェックをつける", "checkManagement")
     .addItem("チェック全解除", "clearAllChecks")
+    .addSeparator()
+    .addItem("不要トリガー一括削除", "cleanupObsoleteTriggers")
     .addToUi();
 }
 
