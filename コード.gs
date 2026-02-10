@@ -531,7 +531,12 @@ function syncFull_(recoverySheet, productSheet, returnSheet, aiSheet, destSheet)
     var fileId = "";
     try {
       fileId = rawPath ? resolveAiFileId_(rawPath) : "";
-    } catch (e) {}
+    } catch (e) {
+      if (!syncFull_._aiErrLogged) {
+        console.warn('resolveAiFileId_ error (以降省略):', e.message || e);
+        syncFull_._aiErrLogged = true;
+      }
+    }
     const imgFormula = fileId ? buildImageFormula_(fileId) : "";
 
     out.push([imgFormula, insertedStatus, d, eCol, f, convertCondition(g), insertedColor, insertedPrice, keepCheck, keyC]);
