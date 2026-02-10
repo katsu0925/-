@@ -207,7 +207,7 @@
           <div class="badge ok" id="totalCountBadge"></div>
         </div>
         <div class="authArea" id="authArea">
-          <button class="authBtn" id="openAuthBtn" type="button">ログイン</button>
+          <button class="authBtn" id="openAuthBtn" type="button">ログイン/新規登録</button>
         </div>
       </div>
       <div style="display:flex; gap:16px; margin-top:8px; flex-wrap:wrap; align-items:center;">
@@ -1401,7 +1401,7 @@ function applySort_(products) {
   var s = state.query.sort;
   var sorted = products.slice();
   
-  if (s.key === 'default') return sorted;
+  if (s.key === 'default') return s.dir === 'desc' ? sorted.reverse() : sorted;
   
   sorted.sort(function(a, b) {
     var va, vb;
