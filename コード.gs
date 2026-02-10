@@ -953,6 +953,12 @@ function buildAiPathMap_(aiSheet) {
   return map;
 }
 
+/** Drive権限テスト — エディタから実行して権限を承認する用 */
+function testDrivePermission() {
+  var it = DriveApp.getFoldersByName('_test_permission_check_');
+  console.log('DriveApp OK: フォルダ検索権限あり');
+}
+
 function resolveAiFileId_(raw) {
   const s = String(raw ?? "").trim();
   if (!s) return "";
