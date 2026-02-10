@@ -25,7 +25,10 @@ const CONFIG = {
   SRC_PRODUCT_START_ROW: 2,
   SRC_PRODUCT_COL_F: 6,
   SRC_PRODUCT_COL_G: 7,
+  SRC_PRODUCT_COL_L: 12,
   SRC_PRODUCT_COL_Q: 17,
+
+  DEST_COL_SHIPPING: 25,
 
   SRC_RETURN_START_ROW: 2,
   SRC_RETURN_COL_C: 3,
@@ -293,11 +296,10 @@ function syncListingPublicCron() {
     app_log_('syncListingPublicCron START');
     setGuardOn_();
 
-    // キャッシュを全クリアして最新データで同期
+    // データ鮮度に影響するキャッシュのみクリア（AIパスは重いので維持）
     clearRecoveryKeyRowMap_();
     clearProductCache_();
     clearReturnCache_();
-    clearAiPathCache_();
 
     const t0 = Date.now();
     app_log_('openSheets_ START');
@@ -505,6 +507,7 @@ function syncFull_(recoverySheet, productSheet, returnSheet, aiSheet, destSheet)
   }
 
   const out = [];
+  const outShipping = [];
   for (let i = 0; i < recN; i++) {
     const r = recoveryValues[i];
 
@@ -524,6 +527,7 @@ function syncFull_(recoverySheet, productSheet, returnSheet, aiSheet, destSheet)
     const rec = Object.prototype.hasOwnProperty.call(productMap, keyC) ? productMap[keyC] : null;
     const insertedStatus = convertCondition(rec ? rec.g : "");
     const insertedColor = rec ? rec.q : "";
+    const shippingMethod = rec ? (rec.l || '') : '';
     const insertedPrice = convertRecoveryK_(kVal);
     const keepCheck = keepCheckByKey[keyC] === true;
 
@@ -540,6 +544,7 @@ function syncFull_(recoverySheet, productSheet, returnSheet, aiSheet, destSheet)
     const imgFormula = fileId ? buildImageFormula_(fileId) : "";
 
     out.push([imgFormula, insertedStatus, d, eCol, f, convertCondition(g), insertedColor, insertedPrice, keepCheck, keyC]);
+    outShipping.push([shippingMethod]);
   }
 
   const width = CONFIG.DEST_COL_KEY - CONFIG.DEST_WRITE_START_COL + 1;
@@ -549,11 +554,18 @@ function syncFull_(recoverySheet, productSheet, returnSheet, aiSheet, destSheet)
   const targetLast = Math.max(currentLast, CONFIG.DEST_START_ROW + Math.max(0, writeCount - 1));
 
   if (targetLast >= CONFIG.DEST_START_ROW) {
-    ensureSheetSize_(destSheet, targetLast, CONFIG.DEST_COL_KEY);
+    ensureSheetSize_(destSheet, targetLast, CONFIG.DEST_COL_SHIPPING);
 
     if (writeCount > 0) {
+      // B〜K列のメインデータ
       withRetry_(
         () => destSheet.getRange(CONFIG.DEST_START_ROW, CONFIG.DEST_WRITE_START_COL, writeCount, width).setValues(out),
+        2,
+        500
+      );
+      // Y列に発送方法
+      withRetry_(
+        () => destSheet.getRange(CONFIG.DEST_START_ROW, CONFIG.DEST_COL_SHIPPING, writeCount, 1).setValues(outShipping),
         2,
         500
       );
@@ -563,7 +575,7 @@ function syncFull_(recoverySheet, productSheet, returnSheet, aiSheet, destSheet)
     const clearRows = targetLast - clearStart + 1;
     if (clearRows > 0) {
       // L列以降も含めた全列をクリア（孤立データ防止）
-      const destLastCol = destSheet.getLastColumn();
+      const destLastCol = Math.max(destSheet.getLastColumn(), CONFIG.DEST_COL_SHIPPING);
       const fullWidth = Math.max(width, destLastCol - CONFIG.DEST_WRITE_START_COL + 1);
       const blanks = new Array(clearRows);
       for (let i = 0; i < clearRows; i++) {
@@ -776,16 +788,18 @@ function buildProductMap_(productSheet) {
 
   const colF = productSheet.getRange(CONFIG.SRC_PRODUCT_START_ROW, CONFIG.SRC_PRODUCT_COL_F, rows, 1).getValues();
   const colG = productSheet.getRange(CONFIG.SRC_PRODUCT_START_ROW, CONFIG.SRC_PRODUCT_COL_G, rows, 1).getValues();
+  const colL = productSheet.getRange(CONFIG.SRC_PRODUCT_START_ROW, CONFIG.SRC_PRODUCT_COL_L, rows, 1).getValues();
   const colQ = productSheet.getRange(CONFIG.SRC_PRODUCT_START_ROW, CONFIG.SRC_PRODUCT_COL_Q, rows, 1).getValues();
 
   for (let i = 0; i < rows; i++) {
     const keyF = normalizeKey_(colF[i][0]);
     const valG = colG[i][0];
+    const valL = String(colL[i][0] ?? '').trim();
     const valQ = colQ[i][0];
     const keyQ = normalizeKey_(valQ);
 
-    if (keyF) map[keyF] = { g: valG, q: valQ };
-    if (keyQ) map[keyQ] = { g: valG, q: valQ };
+    if (keyF) map[keyF] = { g: valG, q: valQ, l: valL };
+    if (keyQ) map[keyQ] = { g: valG, q: valQ, l: valL };
   }
 
   return map;
@@ -964,7 +978,6 @@ function syncManualTest() {
   clearRecoveryKeyRowMap_();
   clearProductCache_();
   clearReturnCache_();
-  clearAiPathCache_();
   const { recoverySheet, productSheet, returnSheet, aiSheet, destSheet } = openSheets_();
   syncFull_(recoverySheet, productSheet, returnSheet, aiSheet, destSheet);
   console.log('syncManualTest 完了');
