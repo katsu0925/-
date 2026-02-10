@@ -528,7 +528,10 @@ function syncFull_(recoverySheet, productSheet, returnSheet, aiSheet, destSheet)
     const keepCheck = keepCheckByKey[keyC] === true;
 
     const rawPath = aiPathMap[keyC] || "";
-    const fileId = rawPath ? resolveAiFileId_(rawPath) : "";
+    var fileId = "";
+    try {
+      fileId = rawPath ? resolveAiFileId_(rawPath) : "";
+    } catch (e) {}
     const imgFormula = fileId ? buildImageFormula_(fileId) : "";
 
     out.push([imgFormula, insertedStatus, d, eCol, f, convertCondition(g), insertedColor, insertedPrice, keepCheck, keyC]);
