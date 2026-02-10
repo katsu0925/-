@@ -40,7 +40,7 @@ const CONFIG = {
   CACHE_TTL_SEC: 300,
 
   GUARD_KEY: "PUBLIC_SYNC_GUARD",
-  GUARD_TTL_SEC: 80
+  GUARD_TTL_SEC: 50
 };
 
 const PROP_KEYS = {
@@ -292,6 +292,12 @@ function syncListingPublicCron() {
   try {
     app_log_('syncListingPublicCron START');
     setGuardOn_();
+
+    // キャッシュを全クリアして最新データで同期
+    clearRecoveryKeyRowMap_();
+    clearProductCache_();
+    clearReturnCache_();
+    clearAiPathCache_();
 
     const t0 = Date.now();
     app_log_('openSheets_ START');
@@ -548,17 +554,28 @@ function syncFull_(recoverySheet, productSheet, returnSheet, aiSheet, destSheet)
     const clearStart = CONFIG.DEST_START_ROW + writeCount;
     const clearRows = targetLast - clearStart + 1;
     if (clearRows > 0) {
+      // L列以降も含めた全列をクリア（孤立データ防止）
+      const destLastCol = destSheet.getLastColumn();
+      const fullWidth = Math.max(width, destLastCol - CONFIG.DEST_WRITE_START_COL + 1);
       const blanks = new Array(clearRows);
       for (let i = 0; i < clearRows; i++) {
-        blanks[i] = ["", "", "", "", "", "", "", "", false, ""];
+        const row = new Array(fullWidth).fill('');
+        row[CONFIG.DEST_COL_CHECK - CONFIG.DEST_WRITE_START_COL] = false; // J列チェックボックス
+        blanks[i] = row;
       }
       withRetry_(
-        () => destSheet.getRange(clearStart, CONFIG.DEST_WRITE_START_COL, clearRows, width).setValues(blanks),
+        () => destSheet.getRange(clearStart, CONFIG.DEST_WRITE_START_COL, clearRows, fullWidth).setValues(blanks),
         2,
         500
       );
     }
   }
+
+  // Webアプリ用の商品JSONキャッシュを無効化
+  try {
+    pr_bumpProductsVersion_();
+    pr_clearProductsCache_();
+  } catch (e) {}
 }
 
 function syncCheckboxMarksAll_(destSheet, recoverySheet, returnSheet) {
