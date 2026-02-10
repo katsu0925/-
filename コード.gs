@@ -959,6 +959,17 @@ function testDrivePermission() {
   console.log('DriveApp OK: フォルダ検索権限あり');
 }
 
+/** 手動テスト用（ロック/ガード無視） — エディタから実行 */
+function syncManualTest() {
+  clearRecoveryKeyRowMap_();
+  clearProductCache_();
+  clearReturnCache_();
+  clearAiPathCache_();
+  const { recoverySheet, productSheet, returnSheet, aiSheet, destSheet } = openSheets_();
+  syncFull_(recoverySheet, productSheet, returnSheet, aiSheet, destSheet);
+  console.log('syncManualTest 完了');
+}
+
 function resolveAiFileId_(raw) {
   const s = String(raw ?? "").trim();
   if (!s) return "";
