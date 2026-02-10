@@ -112,30 +112,4 @@ function stampByThreshold() {
   }
 }
 
-function toggleKaishuKanryoFilter() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const sheet = ss.getSheetByName('回収完了');
-  if (!sheet) throw new Error('「回収完了」シートが見つかりません。');
-
-  const existingFilter = sheet.getFilter();
-  if (existingFilter) {
-    existingFilter.remove();
-    return;
-  }
-
-  const headerRow = 6;
-  const dataStartRow = 7;
-  const startCol = 1;
-  const numCols = 17;
-
-  const lastRow = sheet.getLastRow();
-  if (lastRow < dataStartRow) return;
-
-  const range = sheet.getRange(headerRow, startCol, lastRow - headerRow + 1, numCols);
-  range.createFilter();
-
-  const filter = sheet.getFilter();
-  const color = SpreadsheetApp.newColor().setRgbColor('#f4cccc').build();
-  const criteria = SpreadsheetApp.newFilterCriteria().setVisibleBackgroundColor(color).build();
-  filter.setColumnFilterCriteria(1, criteria);
-}
+// toggleKaishuKanryoFilter は不要になったため削除

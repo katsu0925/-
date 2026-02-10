@@ -16,8 +16,7 @@ function FULL_RESTORE_ALL() {
   ScriptApp.newTrigger('handleChange_Inventory').forSpreadsheet(ss).onChange().create();
   // 1分ごと (AIキーワード抽出)
   ScriptApp.newTrigger('processPendingKeywordRows').timeBased().everyMinutes(1).create();
-  // 1時間ごと (リスト更新・分析)
-  ScriptApp.newTrigger('generateCompletionList').timeBased().everyHours(1).inTimezone('GMT+9').create();
+  // 1時間ごと (分析)
   ScriptApp.newTrigger('buildWorkAnalysis').timeBased().everyHours(1).inTimezone('GMT+9').create();
   // 毎日 3時 (報酬計算・欠番確認)
   ScriptApp.newTrigger('updateRewardsNoFormula').timeBased().everyDays(1).atHour(3).inTimezone('GMT+9').create();

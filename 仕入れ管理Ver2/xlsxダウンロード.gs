@@ -21,8 +21,10 @@ function exportDistributionList() {
   const baseName = rawName + '様';
   const exportFileName = baseName + '.xlsx';
   const folder = DriveApp.getFolderById(EXPORT_FOLDER_ID);
-  if (folderHasFileName_(folder, exportFileName)) {
-    return { ok: false, message: '同名ファイルが既に存在するため処理を中止しました', fileName: exportFileName };
+  // 同名ファイルが存在する場合は上書き（既存を削除）
+  var existingFiles = folder.getFilesByName(exportFileName);
+  while (existingFiles.hasNext()) {
+    existingFiles.next().setTrashed(true);
   }
   const srcSheet = getSheetById_(srcSs, SOURCE_SHEET_GID);
   const tmpSs = SpreadsheetApp.create('tmp_' + baseName + '_' + Date.now());
