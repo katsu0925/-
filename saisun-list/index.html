@@ -335,7 +335,7 @@
 
   <div class="modal" id="cartModal" aria-hidden="true">
     <div class="modalHeader">
-      <div class="modalTitle">カート</div>
+      <div class="modalTitle" id="cartModalTitle">カート</div>
       <button class="modalClose" id="cartCloseBtn" aria-label="close">×</button>
     </div>
     <div class="modalBody">
@@ -345,12 +345,56 @@
         <div class="recommendTitle">おすすめ商品</div>
         <div class="recommendList" id="cartRecommendList"></div>
       </div>
-      <div class="sumBox">
+      <div class="sumBox" id="cartSumBox">
         <div class="sumLine" id="sumCount"></div>
         <div class="sumLine" id="sumPrice"></div>
-        <div style="display:flex; gap:10px; align-items:center; justify-content:flex-end; flex-wrap:wrap; width:100%;">
+        <div id="cartActions" style="display:flex; gap:10px; align-items:center; justify-content:flex-end; flex-wrap:wrap; width:100%;">
           <button class="btn" id="clearCartBtn" style="min-width:160px;" type="button">カートを空にする</button>
           <button class="btn primary" id="goFormBtn" style="min-width:220px;" type="button">購入手続きへ</button>
+        </div>
+      </div>
+      <!-- お届け先情報（初期非表示、「購入手続きへ」で表示） -->
+      <div id="cartFormSection" style="display:none;">
+        <div style="border-top:1px solid #e0e0e0;margin:16px 0 12px;"></div>
+        <div style="font-weight:700;font-size:15px;margin-bottom:10px;">お届け先情報</div>
+        <div class="formGrid">
+          <div class="formField">
+            <label>会社名/氏名 *</label>
+            <input id="companyName" type="text" autocomplete="name">
+          </div>
+          <div class="formField">
+            <label>メールアドレス *</label>
+            <input id="contact" type="email" autocomplete="email" placeholder="example@example.com">
+          </div>
+          <div class="formField">
+            <label>郵便番号</label>
+            <input id="postal" type="text" inputmode="numeric" autocomplete="postal-code" placeholder="0000000">
+          </div>
+          <div class="formField">
+            <label>住所</label>
+            <input id="address" type="text" autocomplete="street-address">
+          </div>
+          <div class="formField">
+            <label>電話番号</label>
+            <input id="phone" type="tel" inputmode="numeric" placeholder="00000000000" autocomplete="tel">
+          </div>
+          <div class="formField">
+            <label>備考</label>
+            <textarea id="note"></textarea>
+          </div>
+          <div class="formField" id="pointUseSection" style="display:none;grid-column:1/-1;">
+            <label>ポイント利用 <span id="pointAvailable" style="font-weight:400;color:#888;"></span></label>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <input id="usePoints" type="number" min="0" value="0" style="width:120px;" inputmode="numeric">
+              <span style="font-size:13px;color:#666;">pt（1pt = 1円）</span>
+              <button class="btn" id="useAllPointsBtn" type="button" style="font-size:12px;padding:4px 10px;">全額使用</button>
+            </div>
+            <div id="pointDiscountInfo" style="font-size:12px;color:#b8002a;margin-top:4px;"></div>
+          </div>
+        </div>
+        <div class="formActions">
+          <button class="btn" id="formBackBtn" type="button">カートに戻る</button>
+          <button class="btn primary" id="submitBtn" type="button">見積もりを送信</button>
         </div>
       </div>
     </div>
@@ -474,53 +518,7 @@
     </div>
   </div>
 
-  <div class="modal" id="formModal" aria-hidden="true">
-    <div class="modalHeader">
-      <div class="modalTitle">お届け先情報</div>
-      <button class="modalClose" id="formCloseBtn" aria-label="close">×</button>
-    </div>
-    <div class="modalBody">
-      <div class="formGrid">
-        <div class="formField">
-          <label>会社名/氏名 *</label>
-          <input id="companyName" type="text" autocomplete="name">
-        </div>
-        <div class="formField">
-          <label>メールアドレス *</label>
-          <input id="contact" type="email" autocomplete="email" placeholder="example@example.com">
-        </div>
-        <div class="formField">
-          <label>郵便番号</label>
-          <input id="postal" type="text" inputmode="numeric" autocomplete="postal-code" placeholder="0000000">
-        </div>
-        <div class="formField">
-          <label>住所</label>
-          <input id="address" type="text" autocomplete="street-address">
-        </div>
-        <div class="formField">
-          <label>電話番号</label>
-          <input id="phone" type="tel" inputmode="numeric" placeholder="00000000000" autocomplete="tel">
-        </div>
-        <div class="formField">
-          <label>備考</label>
-          <textarea id="note"></textarea>
-        </div>
-        <div class="formField" id="pointUseSection" style="display:none;grid-column:1/-1;">
-          <label>ポイント利用 <span id="pointAvailable" style="font-weight:400;color:#888;"></span></label>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <input id="usePoints" type="number" min="0" value="0" style="width:120px;" inputmode="numeric">
-            <span style="font-size:13px;color:#666;">pt（1pt = 1円）</span>
-            <button class="btn" id="useAllPointsBtn" type="button" style="font-size:12px;padding:4px 10px;">全額使用</button>
-          </div>
-          <div id="pointDiscountInfo" style="font-size:12px;color:#b8002a;margin-top:4px;"></div>
-        </div>
-      </div>
-      <div class="formActions">
-        <button class="btn" id="formBackBtn" type="button">戻る</button>
-        <button class="btn primary" id="submitBtn" type="button">見積もりを送信</button>
-      </div>
-    </div>
-  </div>
+
 
   <!-- マイページモーダル -->
   <div class="modal" id="myPageModal" aria-hidden="true">
@@ -2915,7 +2913,32 @@ function renderMainRecommendations_() {
 // カートモーダル・送信
 // =====================================================
 
+/**
+ * カート内の表示切替: true=カート一覧, false=お届け先フォーム
+ */
+function showCartSection_(showCart) {
+  var cartList = $('cartList');
+  var cartRecommend = $('cartRecommend');
+  var cartActions = $('cartActions');
+  var cartForm = $('cartFormSection');
+  var title = $('cartModalTitle');
+  if (showCart) {
+    if (cartList) cartList.style.display = '';
+    if (cartRecommend) cartRecommend.style.display = '';
+    if (cartActions) cartActions.style.display = '';
+    if (cartForm) cartForm.style.display = 'none';
+    if (title) title.textContent = 'カート';
+  } else {
+    if (cartList) cartList.style.display = 'none';
+    if (cartRecommend) cartRecommend.style.display = 'none';
+    if (cartActions) cartActions.style.display = 'none';
+    if (cartForm) cartForm.style.display = '';
+    if (title) title.textContent = 'ご注文内容の確認';
+  }
+}
+
 function renderCartModal_() {
+  showCartSection_(true); // カート一覧ビューで表示
   var listEl = $('cartList'); listEl.innerHTML = '';
   var ids = (state.cart.ids || []).slice();
   var sum = 0;
@@ -3055,7 +3078,8 @@ function submitNow_() {
       state.cart.ids = [];
       saveCartStorage(); updateCartCount();
       $('doneReceipt').textContent = receiptNo;
-      closeModal($('formModal'));
+      showCartSection_(true); // カートビューに戻す
+      closeModal($('cartModal'));
       openModal($('doneModal'));
     })
     .catch(function(e) {
@@ -3155,7 +3179,10 @@ function bindUi_() {
     runApi('apiSyncHolds', state.userKey, []).catch(function() {});
     showToast('カートを空にしました');
   });
-  $('cartCloseBtn').addEventListener('click', function() { closeModal($('cartModal')); });
+  $('cartCloseBtn').addEventListener('click', function() {
+    showCartSection_(true); // カートビューに戻してから閉じる
+    closeModal($('cartModal'));
+  });
   $('goFormBtn').addEventListener('click', function() {
     var min = (state.settings && state.settings.minOrderCount) ? Number(state.settings.minOrderCount) : 10;
     var count = (state.cart.ids || []).length;
@@ -3163,7 +3190,6 @@ function bindUi_() {
       showToast(min + '点以上で見積もり可能です（現在' + count + '点）');
       return;
     }
-    closeModal($('cartModal'));
     // ログインユーザーの情報を自動入力
     if (state.customer) {
       if (state.customer.companyName && !$('companyName').value) $('companyName').value = state.customer.companyName;
@@ -3172,12 +3198,10 @@ function bindUi_() {
       if (state.customer.postal && !$('postal').value) $('postal').value = state.customer.postal;
       if (state.customer.address && !$('address').value) $('address').value = state.customer.address;
     }
-    // ポイント利用セクション
     showPointSection_();
-    openModal($('formModal'));
+    showCartSection_(false); // フォーム表示に切り替え
   });
-  $('formCloseBtn').addEventListener('click', function() { closeModal($('formModal')); });
-  $('formBackBtn').addEventListener('click', function() { closeModal($('formModal')); renderCartModal_(); openModal($('cartModal')); });
+  $('formBackBtn').addEventListener('click', function() { showCartSection_(true); });
   $('submitBtn').addEventListener('click', submitNow_);
   $('doneCloseBtn').addEventListener('click', function() { closeModal($('doneModal')); });
   
