@@ -436,6 +436,6 @@ function apiSendContactForm(params) {
     return { ok: true };
   } catch (e) {
     console.error('apiSendContactForm error:', e);
-    return { ok: false, message: '送信に失敗しました' };
+    return { ok: false, message: '送信に失敗しました: ' + (e.message || String(e)) };
   }
 }
