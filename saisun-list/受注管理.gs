@@ -177,16 +177,10 @@ function generateAndExportForOrder() {
   if (lastRow < 7) { activeSs.toast('リストが空です', 'エラー'); return; }
 
   var listData = listSheet.getRange(7, 1, lastRow - 6, 13).getValues();
-  var checkedRows = listData.filter(function(r) { return r[0] === true; });
 
-  if (checkedRows.length === 0) {
-    activeSs.toast('チェックされた項目がありません。', '処理中断');
-    return;
-  }
-
-  // 受付番号でグループ化
+  // 受付番号でグループ化（全行対象）
   var groups = {};
-  checkedRows.forEach(function(r) {
+  listData.forEach(function(r) {
     var rn = String(r[12] || '').trim();
     if (!rn) rn = '__none__';
     if (!groups[rn]) groups[rn] = [];
@@ -325,28 +319,39 @@ function generateAndExportForOrder() {
 function handleMissingProducts() {
   var ui = SpreadsheetApp.getUi();
   var activeSs = SpreadsheetApp.getActiveSpreadsheet();
+
+  var res = ui.prompt('欠品処理', '欠品の管理番号を入力してください（複数の場合は「、」区切り）:', ui.ButtonSet.OK_CANCEL);
+  if (res.getSelectedButton() !== ui.Button.OK) return;
+
+  var input = String(res.getResponseText() || '').trim();
+  if (!input) { ui.alert('管理番号が空です。'); return; }
+
+  var targetIds = input.split(/[、,，\s]+/).map(function(s) { return s.trim(); }).filter(function(s) { return s; });
+  if (targetIds.length === 0) { ui.alert('有効な管理番号がありません。'); return; }
+  var targetSet = {};
+  targetIds.forEach(function(id) { targetSet[id] = true; });
+
   var shiireSs = SpreadsheetApp.openById(OM_SHIIRE_SS_ID);
-
   var listSheet = shiireSs.getSheetByName('回収完了');
-
   var lastRow = listSheet.getLastRow();
   if (lastRow < 7) { activeSs.toast('データがありません', '終了'); return; }
 
   var listData = listSheet.getRange(7, 1, lastRow - 6, 13).getValues();
-  var checkedRows = [];
+  var matchedRows = [];
   for (var i = 0; i < listData.length; i++) {
-    if (listData[i][0] === true) {
-      checkedRows.push({ idx: i, data: listData[i] });
+    var id = String(listData[i][2] || '').trim();
+    if (targetSet[id]) {
+      matchedRows.push({ idx: i, data: listData[i] });
     }
   }
 
-  if (checkedRows.length === 0) {
-    activeSs.toast('欠品対象のチェックがありません。', '処理中断');
+  if (matchedRows.length === 0) {
+    ui.alert('該当する管理番号が回収完了に見つかりませんでした。');
     return;
   }
 
   var confirm = ui.alert('欠品処理',
-    checkedRows.length + '件を欠品として処理します。\n' +
+    matchedRows.length + '件を欠品として処理します。\n' +
     '回収完了から削除し、依頼管理の選択リストを更新します。\nよろしいですか？',
     ui.ButtonSet.YES_NO);
   if (confirm !== ui.Button.YES) return;
@@ -355,7 +360,7 @@ function handleMissingProducts() {
 
   // 受付番号別にグループ化
   var groups = {};
-  checkedRows.forEach(function(r) {
+  matchedRows.forEach(function(r) {
     var receiptNo = String(r.data[12] || '').trim();
     if (!receiptNo) return;
     if (!groups[receiptNo]) groups[receiptNo] = [];
@@ -393,12 +398,12 @@ function handleMissingProducts() {
     }
   });
 
-  // 回収完了からチェック行を削除（下から）
-  var rowsToDelete = checkedRows.map(function(r) { return r.idx + 7; });
+  // 回収完了から該当行を削除（下から）
+  var rowsToDelete = matchedRows.map(function(r) { return r.idx + 7; });
   rowsToDelete.sort(function(a, b) { return b - a; });
   rowsToDelete.forEach(function(r) { listSheet.deleteRow(r); });
 
-  activeSs.toast(checkedRows.length + '件の欠品処理を完了しました', '処理完了', 5);
+  activeSs.toast(matchedRows.length + '件の欠品処理を完了しました', '処理完了', 5);
 }
 
 // ═══════════════════════════════════════════
@@ -575,7 +580,7 @@ function regenerateOrder() {
     if (!row) return;
 
     outArr.push([
-      false,
+      '',
       boxMap[mgmtId] || '',
       mgmtId,
       row[mIdx['ブランド']] || '',
@@ -594,7 +599,6 @@ function regenerateOrder() {
   if (outArr.length > 0) {
     var startRow = Math.max(listSheet.getLastRow() + 1, 7);
     listSheet.getRange(startRow, 1, outArr.length, outArr[0].length).setValues(outArr);
-    listSheet.getRange(startRow, 1, outArr.length, 1).insertCheckboxes();
   }
 
   om_ensureRecoveryHeaders_(listSheet);
