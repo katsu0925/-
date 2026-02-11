@@ -525,7 +525,7 @@ function buildProductMap_(productSheet) {
         idx['ワタリ'] !== undefined ? (r[idx['ワタリ']] ?? '') : '',
         idx['裾幅'] !== undefined ? (r[idx['裾幅']] ?? '') : '',
         idx['ヒップ'] !== undefined ? (r[idx['ヒップ']] ?? '') : '',
-        idx['汚れ詳細'] !== undefined ? (r[idx['汚れ詳細']] ?? '') : ''
+        idx['傷汚れ詳細'] !== undefined ? (r[idx['傷汚れ詳細']] ?? '') : ''
       ]
     };
   }
