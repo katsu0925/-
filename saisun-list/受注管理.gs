@@ -81,7 +81,7 @@ function expandOrder() {
       if (!row) return;
 
       outArr.push([
-        false,
+        '',
         boxMap[mgmtId] || '',
         mgmtId,
         row[mIdx['ブランド']] || '',
@@ -100,7 +100,6 @@ function expandOrder() {
     if (outArr.length > 0) {
       var startRow = Math.max(out.getLastRow() + 1, 7);
       out.getRange(startRow, 1, outArr.length, outArr[0].length).setValues(outArr);
-      out.getRange(startRow, 1, outArr.length, 1).insertCheckboxes();
       totalAdded += outArr.length;
     }
   });
@@ -461,9 +460,6 @@ function processSelectedSales() {
 
   for (var i = 0; i < values.length; i++) {
     var rowData = values[i];
-
-    var isChecked = rowData[0] === true;
-    if (!isChecked) continue;
 
     var id = String(rowData[2] || '').trim();
     if (id === '') continue;
