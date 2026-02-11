@@ -37,6 +37,11 @@
     .mp-order-products{font-size:12px;color:#666;line-height:1.5;margin-bottom:6px;}
     .mp-order-footer{display:flex;justify-content:space-between;font-size:13px;flex-wrap:wrap;gap:4px;}
     .mp-order-total{font-weight:700;color:#333;}
+    .pw-wrap{position:relative;display:flex;align-items:center;}
+    .pw-wrap input{flex:1;padding-right:38px;}
+    .pw-toggle{position:absolute;right:6px;background:none;border:none;cursor:pointer;font-size:16px;padding:4px;opacity:0.5;line-height:1;}
+    .pw-toggle:hover{opacity:0.8;}
+    .pw-toggle.active{opacity:1;}
     .topbar{position:sticky;top:0;z-index:20;background:#1e293b;border-bottom:1px solid #334155;padding:12px 14px;}
     .wrap{margin:0 auto;padding:12px 14px 90px;}
         .title{font-weight:900;font-size:18px;color:#f1f5f9;}
@@ -367,7 +372,13 @@
           </div>
           <div class="formField">
             <label>パスワード *</label>
-            <input id="loginPassword" type="password" autocomplete="current-password">
+            <div class="pw-wrap"><input id="loginPassword" type="password" autocomplete="current-password"><button type="button" class="pw-toggle" data-target="loginPassword">&#x1F441;</button></div>
+          </div>
+          <div class="formField" style="margin-top:-4px;">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:400;font-size:13px;">
+              <input type="checkbox" id="rememberMe" style="width:16px;height:16px;">
+              ログイン状態を保持する（30日間）
+            </label>
           </div>
         </div>
         <div class="formActions" style="flex-direction:column;align-items:stretch;">
@@ -428,7 +439,7 @@
           </div>
           <div class="formField">
             <label>パスワード（6文字以上） *</label>
-            <input id="regPassword" type="password" autocomplete="new-password">
+            <div class="pw-wrap"><input id="regPassword" type="password" autocomplete="new-password"><button type="button" class="pw-toggle" data-target="regPassword">&#x1F441;</button></div>
           </div>
           <div class="formField">
             <label>会社名/氏名 *</label>
@@ -494,6 +505,15 @@
           <label>備考</label>
           <textarea id="note"></textarea>
         </div>
+        <div class="formField" id="pointUseSection" style="display:none;grid-column:1/-1;">
+          <label>ポイント利用 <span id="pointAvailable" style="font-weight:400;color:#888;"></span></label>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input id="usePoints" type="number" min="0" value="0" style="width:120px;" inputmode="numeric">
+            <span style="font-size:13px;color:#666;">pt（1pt = 1円）</span>
+            <button class="btn" id="useAllPointsBtn" type="button" style="font-size:12px;padding:4px 10px;">全額使用</button>
+          </div>
+          <div id="pointDiscountInfo" style="font-size:12px;color:#b8002a;margin-top:4px;"></div>
+        </div>
       </div>
       <div class="formActions">
         <button class="btn" id="formBackBtn" type="button">戻る</button>
@@ -548,9 +568,9 @@
         </div>
         <div id="mpPasswordSection" style="display:none;margin-top:14px;padding:14px;background:#f9f9f9;border-radius:8px;">
           <div class="formGrid" style="grid-template-columns:1fr;">
-            <div class="formField"><label>現在のパスワード *</label><input id="mpCurPass" type="password"></div>
-            <div class="formField"><label>新しいパスワード（6文字以上） *</label><input id="mpNewPass" type="password"></div>
-            <div class="formField"><label>新しいパスワード（確認） *</label><input id="mpNewPassConfirm" type="password"></div>
+            <div class="formField"><label>現在のパスワード *</label><div class="pw-wrap"><input id="mpCurPass" type="password"><button type="button" class="pw-toggle" data-target="mpCurPass">&#x1F441;</button></div></div>
+            <div class="formField"><label>新しいパスワード（6文字以上） *</label><div class="pw-wrap"><input id="mpNewPass" type="password"><button type="button" class="pw-toggle" data-target="mpNewPass">&#x1F441;</button></div></div>
+            <div class="formField"><label>新しいパスワード（確認） *</label><div class="pw-wrap"><input id="mpNewPassConfirm" type="password"><button type="button" class="pw-toggle" data-target="mpNewPassConfirm">&#x1F441;</button></div></div>
           </div>
           <button class="btn primary" id="mpChangePassBtn" type="button" style="margin-top:10px;">パスワードを変更</button>
         </div>
@@ -1069,6 +1089,7 @@ function openAuthModal_(mode) {
 function doLogin_() {
   var email = ($('loginEmail').value || '').trim();
   var password = $('loginPassword').value || '';
+  var rememberMe = $('rememberMe') ? $('rememberMe').checked : false;
 
   if (!email || !password) {
     showToast('メールアドレスとパスワードを入力してください');
@@ -1077,7 +1098,7 @@ function doLogin_() {
 
   setSending_(true, 'ログイン中...');
 
-  runApi('apiLoginCustomer', state.userKey, { email: email, password: password })
+  runApi('apiLoginCustomer', state.userKey, { email: email, password: password, rememberMe: rememberMe })
     .then(function(res) {
       setSending_(false);
       if (res.ok && res.data) {
@@ -1520,6 +1541,41 @@ function setupAuthUi_() {
     promoLink.addEventListener('click', function(e) {
       e.preventDefault();
       openAuthModal_('register');
+    });
+  }
+
+  // =====================================================
+  // パスワード表示/非表示トグル
+  // =====================================================
+  document.querySelectorAll('.pw-toggle').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var target = $(btn.getAttribute('data-target'));
+      if (!target) return;
+      if (target.type === 'password') {
+        target.type = 'text';
+        btn.classList.add('active');
+      } else {
+        target.type = 'password';
+        btn.classList.remove('active');
+      }
+    });
+  });
+
+  // =====================================================
+  // ポイント利用（お届け先フォーム）
+  // =====================================================
+  var usePointsInput = $('usePoints');
+  if (usePointsInput) {
+    usePointsInput.addEventListener('input', function() {
+      updatePointDiscountInfo_();
+    });
+  }
+  var useAllPointsBtn = $('useAllPointsBtn');
+  if (useAllPointsBtn) {
+    useAllPointsBtn.addEventListener('click', function() {
+      var max = (state.customer && state.customer.points) ? state.customer.points : 0;
+      $('usePoints').value = max;
+      updatePointDiscountInfo_();
     });
   }
 
@@ -2922,11 +2978,43 @@ function renderCartModal_() {
 }
 
 function readForm_() {
-  return {
+  var f = {
     companyName: $('companyName').value || '', contact: $('contact').value || '',
     postal: $('postal').value || '', address: $('address').value || '',
     phone: $('phone').value || '', note: $('note').value || '', measureOpt: getMeasureOptValue_()
   };
+  // ポイント利用
+  var pts = parseInt($('usePoints').value, 10) || 0;
+  if (pts > 0 && state.customer) f.usePoints = pts;
+  return f;
+}
+
+function showPointSection_() {
+  var section = $('pointUseSection');
+  if (!section) return;
+  if (state.customer && state.customer.points > 0) {
+    section.style.display = '';
+    $('pointAvailable').textContent = '（保有: ' + state.customer.points + ' pt）';
+    $('usePoints').value = 0;
+    $('usePoints').max = state.customer.points;
+    updatePointDiscountInfo_();
+  } else {
+    section.style.display = 'none';
+  }
+}
+
+function updatePointDiscountInfo_() {
+  var info = $('pointDiscountInfo');
+  if (!info) return;
+  var pts = parseInt($('usePoints').value, 10) || 0;
+  var max = (state.customer && state.customer.points) ? state.customer.points : 0;
+  if (pts > max) { pts = max; $('usePoints').value = max; }
+  if (pts < 0) { pts = 0; $('usePoints').value = 0; }
+  if (pts > 0) {
+    info.textContent = pts + 'ポイント利用で -' + yen(pts) + ' 割引';
+  } else {
+    info.textContent = '';
+  }
 }
 
 function validateForm_(f) {
@@ -3084,6 +3172,8 @@ function bindUi_() {
       if (state.customer.postal && !$('postal').value) $('postal').value = state.customer.postal;
       if (state.customer.address && !$('address').value) $('address').value = state.customer.address;
     }
+    // ポイント利用セクション
+    showPointSection_();
     openModal($('formModal'));
   });
   $('formCloseBtn').addEventListener('click', function() { closeModal($('formModal')); });
