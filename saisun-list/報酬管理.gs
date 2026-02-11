@@ -5,11 +5,12 @@ const REWARD_CONFIG = {
   SHEET_REWARD: '報酬管理',
   TZ: 'Asia/Tokyo',
   STATUS_DONE_VALUE: '完了',
-  // 列構成: B=依頼日時, P=ステータス, Q=担当者, K=合計点数, Y=作業報酬
+  // 列構成: B=依頼日時, I=確認リンク, K=合計点数, P=ステータス, Q=担当者, Y=作業報酬
   COL_REQUEST_DATETIME: 2,  // B列: 依頼日時
+  COL_CONFIRM_LINK: 9,      // I列: 確認リンク
+  COL_COUNT: 11,            // K列: 合計点数
   COL_STATUS: 16,           // P列: ステータス
   COL_PERSON: 17,           // Q列: 担当者
-  COL_COUNT: 11,            // K列: 合計点数
   COL_REWARD: 25            // Y列: 作業報酬
 };
 
@@ -26,7 +27,7 @@ function rewardUpdateDaily() {
     return;
   }
 
-  const maxCol = Math.max(REWARD_CONFIG.COL_REQUEST_DATETIME, REWARD_CONFIG.COL_STATUS, REWARD_CONFIG.COL_PERSON, REWARD_CONFIG.COL_COUNT, REWARD_CONFIG.COL_REWARD);
+  const maxCol = Math.max(REWARD_CONFIG.COL_REQUEST_DATETIME, REWARD_CONFIG.COL_CONFIRM_LINK, REWARD_CONFIG.COL_STATUS, REWARD_CONFIG.COL_PERSON, REWARD_CONFIG.COL_COUNT, REWARD_CONFIG.COL_REWARD);
   const values = shReq.getRange(2, 1, lastRow - 1, maxCol).getValues();
 
   const agg = new Map();
@@ -48,7 +49,9 @@ function rewardUpdateDaily() {
     const reward = toNumber_(row[REWARD_CONFIG.COL_REWARD - 1]);
     if (!isFinite(reward)) continue;
 
-    const count = toNumber_(row[REWARD_CONFIG.COL_COUNT - 1]);
+    // 確認リンク(I列)にデータがあれば点数=1、なければK列の合計点数を使用
+    const confirmLink = String(row[REWARD_CONFIG.COL_CONFIRM_LINK - 1] || '').trim();
+    const count = confirmLink ? 1 : toNumber_(row[REWARD_CONFIG.COL_COUNT - 1]);
 
     const key = ym + '\t' + person;
     const cur = agg.get(key) || { ym: ym, person: person, sum: 0, cnt: 0 };
