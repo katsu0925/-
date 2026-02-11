@@ -542,6 +542,15 @@ function apiGetMyPage(userKey, params) {
     var orders = getOrderHistory_(customer.email);
     var points = fullCustomer ? fullCustomer.points : 0;
 
+    // 統計データ計算
+    var totalOrders = orders.length;
+    var totalSpent = 0;
+    var totalItems = 0;
+    for (var i = 0; i < orders.length; i++) {
+      totalSpent += Number(orders[i].total) || 0;
+      totalItems += Number(orders[i].count) || 0;
+    }
+
     return {
       ok: true,
       data: {
@@ -555,7 +564,12 @@ function apiGetMyPage(userKey, params) {
           registeredAt: fullCustomer ? formatDate_(fullCustomer.registeredAt) : ''
         },
         orders: orders,
-        points: points
+        points: points,
+        stats: {
+          totalOrders: totalOrders,
+          totalSpent: totalSpent,
+          totalItems: totalItems
+        }
       }
     };
   } catch (e) {
@@ -670,6 +684,192 @@ function deductPoints_(email, points) {
   var sheet = getCustomerSheet_();
   sheet.getRange(customer.row, 13).setValue(customer.points - points);
   return true;
+}
+
+// =====================================================
+// インボイス領収書
+// =====================================================
+
+/**
+ * 完了済み注文にインボイス付き領収書を自動送付（メニューまたはトリガーから実行）
+ * S列="希望" かつ T列が空 かつ P列="完了" の注文に送付
+ */
+function processInvoiceReceipts() {
+  var ss = sh_getOrderSs_();
+  var reqSheet = ss.getSheetByName('依頼管理');
+  if (!reqSheet) return;
+
+  var data = reqSheet.getDataRange().getValues();
+  var props = PropertiesService.getScriptProperties();
+  var invoiceNo = props.getProperty('INVOICE_REGISTRATION_NO') || 'T0000000000000';
+
+  var sent = 0;
+  for (var i = 1; i < data.length; i++) {
+    var status = String(data[i][15] || '');       // P列: ステータス
+    var invoiceFlag = String(data[i][18] || '');   // S列: 領収書希望
+    var sentFlag = String(data[i][19] || '');       // T列: 送付済
+    var email = String(data[i][3] || '').trim();   // D列: 連絡先
+    var companyName = String(data[i][2] || '');     // C列: 会社名
+
+    if (status === '完了' && invoiceFlag === '希望' && !sentFlag && email) {
+      var receiptNo = String(data[i][0] || '');
+      var orderDate = data[i][1] ? formatDate_(data[i][1]) : '';
+      var totalAmount = Number(data[i][11]) || 0;
+      var note = String(data[i][21] || '');
+
+      try {
+        sendInvoiceReceipt_(email, {
+          receiptNo: receiptNo,
+          companyName: companyName,
+          orderDate: orderDate,
+          totalAmount: totalAmount,
+          note: note,
+          invoiceNo: invoiceNo
+        });
+        reqSheet.getRange(i + 1, 20).setValue('送付済');
+        sent++;
+      } catch (e) {
+        console.error('領収書送付エラー: ' + receiptNo, e);
+      }
+    }
+  }
+
+  if (sent > 0) {
+    SpreadsheetApp.getUi().alert('領収書送付完了: ' + sent + '件');
+  } else {
+    SpreadsheetApp.getUi().alert('送付対象の注文はありませんでした');
+  }
+}
+
+/**
+ * キャンセル・返品時の領収書取消処理
+ * P列="キャンセル"or"返品" かつ T列="送付済" の注文に取消通知を送付
+ */
+function processCancelledInvoices() {
+  var ss = sh_getOrderSs_();
+  var reqSheet = ss.getSheetByName('依頼管理');
+  if (!reqSheet) return;
+
+  var data = reqSheet.getDataRange().getValues();
+  var props = PropertiesService.getScriptProperties();
+  var invoiceNo = props.getProperty('INVOICE_REGISTRATION_NO') || 'T0000000000000';
+
+  var sent = 0;
+  for (var i = 1; i < data.length; i++) {
+    var status = String(data[i][15] || '');
+    var sentFlag = String(data[i][19] || '');
+    var email = String(data[i][3] || '').trim();
+
+    if ((status === 'キャンセル' || status === '返品') && sentFlag === '送付済' && email) {
+      var receiptNo = String(data[i][0] || '');
+      var companyName = String(data[i][2] || '');
+      var orderDate = data[i][1] ? formatDate_(data[i][1]) : '';
+      var totalAmount = Number(data[i][11]) || 0;
+
+      try {
+        sendCancelReceipt_(email, {
+          receiptNo: receiptNo,
+          companyName: companyName,
+          orderDate: orderDate,
+          totalAmount: totalAmount,
+          invoiceNo: invoiceNo,
+          cancelType: status
+        });
+        reqSheet.getRange(i + 1, 20).setValue('取消送付済');
+        sent++;
+      } catch (e) {
+        console.error('取消通知エラー: ' + receiptNo, e);
+      }
+    }
+  }
+
+  if (sent > 0) {
+    SpreadsheetApp.getUi().alert('取消通知送付完了: ' + sent + '件');
+  } else {
+    SpreadsheetApp.getUi().alert('取消対象の注文はありませんでした');
+  }
+}
+
+/**
+ * インボイス付き領収書メール送信
+ */
+function sendInvoiceReceipt_(email, data) {
+  var taxRate = 0.10;
+  var taxExcluded = Math.floor(data.totalAmount / (1 + taxRate));
+  var taxAmount = data.totalAmount - taxExcluded;
+  var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy年MM月dd日');
+
+  var subject = '【NKonline Apparel】領収書 No.' + data.receiptNo;
+  var body = '━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
+    + '　　　　　　　　領　収　書\n'
+    + '━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n'
+    + data.companyName + ' 様\n\n'
+    + '下記の通り領収いたしました。\n\n'
+    + '──────────────────────────\n'
+    + '受付番号　: ' + data.receiptNo + '\n'
+    + '注文日　　: ' + data.orderDate + '\n'
+    + '発行日　　: ' + today + '\n'
+    + '──────────────────────────\n\n'
+    + '【ご請求内容】\n'
+    + '　税抜金額　　: ' + formatYen_(taxExcluded) + '\n'
+    + '　消費税(10%)　: ' + formatYen_(taxAmount) + '\n'
+    + '　────────────────\n'
+    + '　合計金額(税込): ' + formatYen_(data.totalAmount) + '\n\n';
+
+  if (data.note) {
+    body += '【備考】\n' + data.note + '\n\n';
+  }
+
+  body += '──────────────────────────\n'
+    + '【発行者情報】\n'
+    + '　事業者名　: NKonline Apparel（西出克利）\n'
+    + '　登録番号　: ' + data.invoiceNo + '\n'
+    + '　所在地　　: 大阪府大東市灰塚4-16-15\n'
+    + '　電話番号　: 080-3130-9250\n'
+    + '　メール　　: nkonline1030@gmail.com\n'
+    + '──────────────────────────\n\n'
+    + '※ この領収書は適格請求書（インボイス）として発行しています。\n'
+    + '※ 本メールは自動送信です。ご不明な点がございましたらお問い合わせください。\n\n'
+    + 'NKonline Apparel\n'
+    + 'https://wholesale.nkonline-tool.com\n';
+
+  MailApp.sendEmail({ to: email, subject: subject, body: body, noReply: true });
+}
+
+/**
+ * キャンセル/返品時の取消領収書メール
+ */
+function sendCancelReceipt_(email, data) {
+  var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy年MM月dd日');
+
+  var subject = '【NKonline Apparel】領収書取消通知 No.' + data.receiptNo;
+  var body = data.companyName + ' 様\n\n'
+    + '下記の注文について' + data.cancelType + 'に伴い、領収書を取り消しいたします。\n\n'
+    + '──────────────────────────\n'
+    + '受付番号　: ' + data.receiptNo + '\n'
+    + '注文日　　: ' + data.orderDate + '\n'
+    + '取消日　　: ' + today + '\n'
+    + '取消理由　: ' + data.cancelType + '\n'
+    + '取消金額　: ' + formatYen_(data.totalAmount) + '\n'
+    + '──────────────────────────\n\n'
+    + '【発行者情報】\n'
+    + '　事業者名　: NKonline Apparel（西出克利）\n'
+    + '　登録番号　: ' + data.invoiceNo + '\n'
+    + '　所在地　　: 大阪府大東市灰塚4-16-15\n'
+    + '──────────────────────────\n\n'
+    + '※ 先にお送りした領収書は無効となります。\n'
+    + '※ 返金処理は別途ご案内いたします。\n\n'
+    + 'NKonline Apparel\n'
+    + 'https://wholesale.nkonline-tool.com\n';
+
+  MailApp.sendEmail({ to: email, subject: subject, body: body, noReply: true });
+}
+
+/**
+ * 金額フォーマット（領収書用）
+ */
+function formatYen_(n) {
+  return String(Math.round(Number(n || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '円';
 }
 
 // =====================================================

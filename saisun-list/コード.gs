@@ -1001,6 +1001,9 @@ function onOpen(e) {
     .addSeparator()
     .addItem("顧客ポイント付与（完了済み注文）", "processCustomerPoints")
     .addSeparator()
+    .addItem("領収書送付（完了済み・希望者）", "processInvoiceReceipts")
+    .addItem("領収書取消（キャンセル/返品）", "processCancelledInvoices")
+    .addSeparator()
     .addItem("不要トリガー一括削除", "cleanupObsoleteTriggers")
     .addToUi();
 }
