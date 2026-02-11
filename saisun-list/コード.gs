@@ -996,6 +996,9 @@ function onOpen(e) {
     .addItem("一括でチェックをつける", "checkManagement")
     .addItem("チェック全解除", "clearAllChecks")
     .addSeparator()
+    .addItem("会員割引 ON/OFF 切替", "toggleMemberDiscount")
+    .addItem("会員割引 期限変更", "setMemberDiscountEndDate")
+    .addSeparator()
     .addItem("不要トリガー一括削除", "cleanupObsoleteTriggers")
     .addToUi();
 }

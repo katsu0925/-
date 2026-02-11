@@ -543,7 +543,7 @@
         <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">割引について</h3>
         <ul style="margin:0;padding-left:20px;color:#475569;">
           <li style="margin-bottom:8px;"><span style="color:#b8002a;font-weight:700;">30点以上で10%割引</span></li>
-          <li style="margin-bottom:8px;"><strong>会員割引</strong>：会員登録で<span style="color:#b8002a;font-weight:700;">10%OFF</span></li>
+          <li style="margin-bottom:8px;"><strong>会員割引</strong>：会員登録で<span style="color:#b8002a;font-weight:700;">10%OFF</span><span style="color:#666;font-size:13px;">（2026年9月末まで）</span></li>
           <li><span style="color:#b8002a;font-weight:700;">※ 併用可</span>（30点割引＋会員割引の同時適用OK）</li>
         </ul>
       </div>
@@ -825,7 +825,9 @@ function showToast(msg) {
 // =====================================================
 
 var SESSION_KEY = 'estimate_session';
-var MEMBER_DISCOUNT_RATE = 0.10;  // 会員割引10%
+var MEMBER_DISCOUNT_RATE = 0.10;  // 会員割引（APIから更新される）
+var MEMBER_DISCOUNT_ENABLED = true; // 会員割引ON/OFF（APIから更新される）
+var MEMBER_DISCOUNT_END_DATE = '2026-09-30'; // 期限（APIから更新される）
 var BULK_DISCOUNT_RATE = 0.10;    // 30点以上割引10%
 
 function loadSession_() {
@@ -1791,7 +1793,7 @@ function updateCartPrice() {
   // 割引を累積（会員10% + 30点以上10% = 最大20%）
   var discountRate = 0;
   if (count >= 30) discountRate += BULK_DISCOUNT_RATE;
-  if (state.customer) discountRate += MEMBER_DISCOUNT_RATE;
+  if (state.customer && MEMBER_DISCOUNT_ENABLED) discountRate += MEMBER_DISCOUNT_RATE;
   if (discountRate > 0) {
     var discounted = Math.round(sum * (1 - discountRate));
     $('cartTotal').innerHTML = '<span class="price-old">' + yen(sum) + '</span> → <span class="price-new">' + yen(discounted) + '</span>';
@@ -2454,7 +2456,7 @@ function renderCartModal_() {
   // 割引を累積（会員10%）
   var discountRate = 0;
   var discountLabels = [];
-  if (state.customer) { discountRate += MEMBER_DISCOUNT_RATE; discountLabels.push('会員10%OFF'); }
+  if (state.customer && MEMBER_DISCOUNT_ENABLED) { discountRate += MEMBER_DISCOUNT_RATE; discountLabels.push('会員10%OFF'); }
   var discounted = Math.round(sum * (1 - discountRate));
   var discountLabel = discountLabels.length > 0 ? '（' + discountLabels.join('＋') + '）' : '';
   if (discountRate > 0) {
@@ -2749,6 +2751,14 @@ function applyProductData_(data) {
   state.allProducts = data.products || [];
   state.options = data.options || {};
   state.settings = normalizeSettings_(data.settings);
+
+  // 会員割引設定をAPIから反映
+  if (data.settings && data.settings.memberDiscount) {
+    var md = data.settings.memberDiscount;
+    MEMBER_DISCOUNT_ENABLED = !!md.enabled;
+    MEMBER_DISCOUNT_RATE = MEMBER_DISCOUNT_ENABLED ? Number(md.rate || 0.10) : 0;
+    MEMBER_DISCOUNT_END_DATE = md.endDate || '2026-09-30';
+  }
 
   $('appTitle').textContent = 'NKonlineApparel';
   setBaseLink_();
