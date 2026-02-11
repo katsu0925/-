@@ -651,17 +651,17 @@ function processCustomerPoints() {
   var awarded = 0;
   for (var i = 1; i < reqData.length; i++) {
     var status = String(reqData[i][15] || '');       // P列: ステータス
-    var notifFlag = String(reqData[i][26] || '');     // AA列: 通知フラグ
+    var pointFlag = String(reqData[i][27] || '');     // AB列: ポイント付与済
     var email = String(reqData[i][3] || '').trim().toLowerCase(); // D列: 連絡先
     var total = Number(reqData[i][11]) || 0;         // L列: 合計金額
 
-    if (status === '完了' && notifFlag.indexOf('PT') === -1 && email && total > 0) {
+    if (status === '完了' && pointFlag !== 'PT' && email && total > 0) {
       var points = Math.floor(total * POINT_RATE);
       if (points > 0 && custMap[email]) {
         custMap[email].points += points;
         custSheet.getRange(custMap[email].row, 13).setValue(custMap[email].points);
-        // ポイント付与済みマーク
-        reqSheet.getRange(i + 1, 27).setValue(notifFlag ? notifFlag + ',PT' : 'PT');
+        // AB列にポイント付与済みマーク
+        reqSheet.getRange(i + 1, 28).setValue('PT');
         awarded++;
       }
     }
@@ -822,7 +822,7 @@ function sendInvoiceReceipt_(email, data) {
 
   body += '──────────────────────────\n'
     + '【発行者情報】\n'
-    + '　事業者名　: NKonline Apparel（西出克利）\n'
+    + '　事業者名　: NKonline\n'
     + '　登録番号　: ' + data.invoiceNo + '\n'
     + '　所在地　　: 大阪府大東市灰塚4-16-15\n'
     + '　電話番号　: 080-3130-9250\n'
@@ -853,7 +853,7 @@ function sendCancelReceipt_(email, data) {
     + '取消金額　: ' + formatYen_(data.totalAmount) + '\n'
     + '──────────────────────────\n\n'
     + '【発行者情報】\n'
-    + '　事業者名　: NKonline Apparel（西出克利）\n'
+    + '　事業者名　: NKonline\n'
     + '　登録番号　: ' + data.invoiceNo + '\n'
     + '　所在地　　: 大阪府大東市灰塚4-16-15\n'
     + '──────────────────────────\n\n'

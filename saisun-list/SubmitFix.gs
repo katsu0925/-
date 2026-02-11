@@ -329,7 +329,8 @@ function writeSubmitData_(data) {
     '',                                          // X: 伝票番号
     '',                                          // Y: 作業報酬
     new Date(now),                               // Z: 更新日時
-    ''                                           // AA: 通知フラグ
+    '',                                          // AA: 通知フラグ
+    ''                                           // AB: ポイント付与済
   ];
   var writeRow = sh_findNextRowByDisplayKey_(reqSh, 1, 1);
   reqSh.getRange(writeRow, 1, 1, row.length).setValues([row]);
