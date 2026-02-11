@@ -111,7 +111,7 @@ const APP_CONFIG = {
       '送信後、受付番号をお控えください。確定金額・送料をご案内後、BASEで決済となります。',
       '在庫は先着のため、送信後に欠品となる場合があります（確保中表示がある場合はその時間内は確保）。',
       // 赤字メッセージ追加
-      '<span style="color:#b8002a;">30点以上で10％割引 ／ 会員登録で10％OFF（併用可）</span>'
+      '<span style="color:#b8002a;">30点以上で10％割引 ／ 会員登録で10％OFF（2026年9月末まで・併用可）</span>'
     ],
     // 次のステップ（受付番号コピー〜発送まで）は不要になったため空配列に
     nextSteps: [],
@@ -139,6 +139,8 @@ function app_publicSettings_() {
     (typeof WEB_CONFIG !== 'undefined' && WEB_CONFIG && WEB_CONFIG.basePaymentUrl) ? String(WEB_CONFIG.basePaymentUrl) :
     String(ui.basePaymentUrl || '');
 
+  const memberDiscount = app_getMemberDiscountStatus_();
+
   return {
     appTitle: appTitle,
     minOrderCount: minOrderCount,
@@ -147,6 +149,7 @@ function app_publicSettings_() {
     topNotes: notes,
     notes: notes,
     nextSteps: nextSteps,
+    memberDiscount: memberDiscount,
     uiText: {
       appTitle: appTitle,
       minOrderCount: minOrderCount,
@@ -156,6 +159,74 @@ function app_publicSettings_() {
       nextSteps: nextSteps
     }
   };
+}
+
+// =====================================================
+// 会員割引管理（Script Properties + 期限自動チェック）
+// =====================================================
+const MEMBER_DISCOUNT_DEFAULTS = {
+  rate: 0.10,
+  endDate: '2026-09-30'
+};
+
+/**
+ * 会員割引の現在のステータスを取得（期限切れなら自動OFF）
+ */
+function app_getMemberDiscountStatus_() {
+  const props = PropertiesService.getScriptProperties();
+  const endDate = props.getProperty('MEMBER_DISCOUNT_END_DATE') || MEMBER_DISCOUNT_DEFAULTS.endDate;
+  const rate = Number(props.getProperty('MEMBER_DISCOUNT_RATE') || MEMBER_DISCOUNT_DEFAULTS.rate);
+
+  // 手動OFF判定
+  const manualFlag = props.getProperty('MEMBER_DISCOUNT_ENABLED');
+  if (manualFlag === 'false') {
+    return { enabled: false, rate: 0, endDate: endDate, reason: 'manual_off' };
+  }
+
+  // 期限切れ判定
+  const now = new Date();
+  const end = new Date(endDate + 'T23:59:59+09:00');
+  if (now > end) {
+    return { enabled: false, rate: 0, endDate: endDate, reason: 'expired' };
+  }
+
+  return { enabled: true, rate: rate, endDate: endDate, reason: 'active' };
+}
+
+/**
+ * 会員割引をON/OFFトグル（管理メニューから呼び出し）
+ */
+function toggleMemberDiscount() {
+  const props = PropertiesService.getScriptProperties();
+  const current = props.getProperty('MEMBER_DISCOUNT_ENABLED');
+  const newVal = (current === 'false') ? 'true' : 'false';
+  props.setProperty('MEMBER_DISCOUNT_ENABLED', newVal);
+
+  const status = app_getMemberDiscountStatus_();
+  const ui = SpreadsheetApp.getUi();
+  if (status.enabled) {
+    ui.alert('会員割引をONにしました\n（期限: ' + status.endDate + ' まで）');
+  } else {
+    ui.alert('会員割引をOFFにしました\n（理由: ' + (status.reason === 'expired' ? '期限切れ' : '手動OFF') + '）');
+  }
+}
+
+/**
+ * 会員割引の期限を変更
+ */
+function setMemberDiscountEndDate() {
+  const ui = SpreadsheetApp.getUi();
+  const resp = ui.prompt('会員割引の期限を設定', '終了日を入力してください（例: 2026-09-30）', ui.ButtonSet.OK_CANCEL);
+  if (resp.getSelectedButton() !== ui.Button.OK) return;
+
+  const dateStr = resp.getResponseText().trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    ui.alert('日付の形式が正しくありません。YYYY-MM-DD で入力してください。');
+    return;
+  }
+
+  PropertiesService.getScriptProperties().setProperty('MEMBER_DISCOUNT_END_DATE', dateStr);
+  ui.alert('会員割引の期限を ' + dateStr + ' に設定しました。');
 }
 
 function st_normBrandDisplay_(v) {
