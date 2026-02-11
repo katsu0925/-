@@ -462,6 +462,7 @@ function processSelectedSales() {
   var uniqueRowSet = {};
   var statusRows = [];
   var saleLogEntries = [];
+  var receiptByRow = {}; // 行番号→受付番号のマップ
 
   for (var i = 0; i < values.length; i++) {
     var rowData = values[i];
@@ -487,6 +488,7 @@ function processSelectedSales() {
       uniqueRowSet[tgtRow] = true;
       statusRows.push(tgtRow);
     }
+    receiptByRow[tgtRow] = receiptNo;
   }
 
   if (rowsToDelete.length === 0) {
@@ -501,6 +503,21 @@ function processSelectedSales() {
     statusA1s.push(statusColLetter + statusRows[a]);
   }
   main.getRangeList(statusA1s).setValue('売却済み');
+
+  // BO列(67列目)に受付番号を書き込み
+  var boColLetter = om_colNumToLetter_(67);
+  var boA1s = [];
+  var boValues = [];
+  for (var b = 0; b < statusRows.length; b++) {
+    boA1s.push(boColLetter + statusRows[b]);
+    boValues.push(receiptByRow[statusRows[b]] || '');
+  }
+  if (boA1s.length > 0) {
+    for (var c = 0; c < boA1s.length; c++) {
+      main.getRange(boA1s[c]).setValue(boValues[c]);
+    }
+  }
+
   SpreadsheetApp.flush();
 
   // 売却履歴ログ
