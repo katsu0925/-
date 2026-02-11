@@ -690,14 +690,17 @@ function om_exportDistributionXlsx_() {
   if (!receiptNo) return { ok: false, message: '配布用リスト!I1（受付番号）が空です' };
 
   var baseName = rawName + '様';
-  var exportFileName = baseName + '.xlsx';
+  var exportFileName = baseName + '_' + receiptNo + '.xlsx';
   var folder = DriveApp.getFolderById(OM_XLSX_FOLDER_ID);
 
-  // 同名ファイルが存在する場合は上書き
-  var existingFiles = folder.getFilesByName(exportFileName);
-  while (existingFiles.hasNext()) {
-    existingFiles.next().setTrashed(true);
-  }
+  // 同名ファイル・旧形式（受付番号なし）を削除
+  var oldFileName = baseName + '.xlsx';
+  [exportFileName, oldFileName].forEach(function(fname) {
+    var existing = folder.getFilesByName(fname);
+    while (existing.hasNext()) {
+      existing.next().setTrashed(true);
+    }
+  });
 
   var srcSheet = om_getSheetByGid_(shiireSs, OM_DIST_SHEET_GID);
   var tmpSs = SpreadsheetApp.create('tmp_' + baseName + '_' + Date.now());
