@@ -322,21 +322,25 @@ function syncFull_(productSheet, returnSheet, aiSheet, destSheet) {
   const MEAS_START_COL = 12; // L列
   const MEAS_END_COL = 24;   // X列
   const MEAS_WIDTH = MEAS_END_COL - MEAS_START_COL + 1; // 13列
+  const IMG_COL = CONFIG.DEST_WRITE_START_COL; // B列(=2)
 
   const keepCheckByKey = {};
   const measurementsByKey = {};
+  const existImgByKey = {};
   const destLastRow = destSheet.getLastRow();
   if (destLastRow >= CONFIG.DEST_START_ROW) {
     const nExist = destLastRow - CONFIG.DEST_START_ROW + 1;
     const existChecks = destSheet.getRange(CONFIG.DEST_START_ROW, CONFIG.DEST_COL_CHECK, nExist, 1).getValues();
     const existKeys = destSheet.getRange(CONFIG.DEST_START_ROW, CONFIG.DEST_COL_KEY, nExist, 1).getValues();
     const existMeas = destSheet.getRange(CONFIG.DEST_START_ROW, MEAS_START_COL, nExist, MEAS_WIDTH).getValues();
+    const existImgs = destSheet.getRange(CONFIG.DEST_START_ROW, IMG_COL, nExist, 1).getFormulas();
     for (let i = 0; i < nExist; i++) {
       const k = normalizeKey_(existKeys[i][0]);
       if (!k) continue;
       if (existChecks[i][0] === true) keepCheckByKey[k] = true;
       const hasData = existMeas[i].some(v => v !== '' && v !== null && v !== undefined);
       if (hasData) measurementsByKey[k] = existMeas[i];
+      if (existImgs[i][0]) existImgByKey[k] = existImgs[i][0];
     }
   }
 
@@ -362,17 +366,21 @@ function syncFull_(productSheet, returnSheet, aiSheet, destSheet) {
     const shippingMethod = rec.shipping;
     const keepCheck = keepCheckByKey[keyC] === true;
 
-    const rawPath = aiPathMap[keyC] || "";
-    var fileId = "";
-    try {
-      fileId = rawPath ? resolveAiFileId_(rawPath) : "";
-    } catch (e) {
-      if (!syncFull_._aiErrLogged) {
-        console.warn('resolveAiFileId_ error (以降省略):', e.message || e);
-        syncFull_._aiErrLogged = true;
+    // 既存の画像数式があればDrive API呼び出しをスキップ
+    let imgFormula = existImgByKey[keyC] || "";
+    if (!imgFormula) {
+      const rawPath = aiPathMap[keyC] || "";
+      var fileId = "";
+      try {
+        fileId = rawPath ? resolveAiFileId_(rawPath) : "";
+      } catch (e) {
+        if (!syncFull_._aiErrLogged) {
+          console.warn('resolveAiFileId_ error (以降省略):', e.message || e);
+          syncFull_._aiErrLogged = true;
+        }
       }
+      imgFormula = fileId ? buildImageFormula_(fileId) : "";
     }
-    const imgFormula = fileId ? buildImageFormula_(fileId) : "";
 
     out.push([imgFormula, insertedStatus, brand, size, gender, category, color, insertedPrice, keepCheck, keyC]);
     outShipping.push([shippingMethod]);
