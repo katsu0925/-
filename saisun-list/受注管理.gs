@@ -398,6 +398,38 @@ function handleMissingProducts() {
     }
   });
 
+  // 商品管理のステータスを廃棄済みに、廃棄日に今日の日付を設定
+  var mainSheet = shiireSs.getSheetByName('商品管理');
+  if (mainSheet) {
+    var mHeaderRow = mainSheet.getRange(1, 1, 1, mainSheet.getLastColumn()).getValues()[0];
+    var mColMap = {};
+    mHeaderRow.forEach(function(name, i) { if (name) mColMap[String(name).trim()] = i + 1; });
+
+    var mStatusCol = mColMap['ステータス'];
+    var mIdCol = mColMap['管理番号'];
+    var mDiscardDateCol = mColMap['廃棄日'];
+
+    if (mStatusCol && mIdCol) {
+      var mLastRow = mainSheet.getLastRow();
+      if (mLastRow >= 2) {
+        var mIds = mainSheet.getRange(2, mIdCol, mLastRow - 1, 1).getValues().flat();
+        var mIdToRow = {};
+        mIds.forEach(function(id, idx) {
+          var k = String(id).trim();
+          if (k) mIdToRow[k] = idx + 2;
+        });
+
+        var today = new Date();
+        targetIds.forEach(function(tid) {
+          var row = mIdToRow[tid];
+          if (!row) return;
+          mainSheet.getRange(row, mStatusCol).setValue('廃棄済み');
+          if (mDiscardDateCol) mainSheet.getRange(row, mDiscardDateCol).setValue(today);
+        });
+      }
+    }
+  }
+
   // 回収完了から該当行を削除（下から）
   var rowsToDelete = matchedRows.map(function(r) { return r.idx + 7; });
   rowsToDelete.sort(function(a, b) { return b - a; });
@@ -658,14 +690,17 @@ function om_exportDistributionXlsx_() {
   if (!receiptNo) return { ok: false, message: '配布用リスト!I1（受付番号）が空です' };
 
   var baseName = rawName + '様';
-  var exportFileName = baseName + '.xlsx';
+  var exportFileName = baseName + '_' + receiptNo + '.xlsx';
   var folder = DriveApp.getFolderById(OM_XLSX_FOLDER_ID);
 
-  // 同名ファイルが存在する場合は上書き
-  var existingFiles = folder.getFilesByName(exportFileName);
-  while (existingFiles.hasNext()) {
-    existingFiles.next().setTrashed(true);
-  }
+  // 同名ファイル・旧形式（受付番号なし）を削除
+  var oldFileName = baseName + '.xlsx';
+  [exportFileName, oldFileName].forEach(function(fname) {
+    var existing = folder.getFilesByName(fname);
+    while (existing.hasNext()) {
+      existing.next().setTrashed(true);
+    }
+  });
 
   var srcSheet = om_getSheetByGid_(shiireSs, OM_DIST_SHEET_GID);
   var tmpSs = SpreadsheetApp.create('tmp_' + baseName + '_' + Date.now());
