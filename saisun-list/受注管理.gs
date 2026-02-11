@@ -398,6 +398,38 @@ function handleMissingProducts() {
     }
   });
 
+  // 商品管理のステータスを廃棄済みに、廃棄日に今日の日付を設定
+  var mainSheet = shiireSs.getSheetByName('商品管理');
+  if (mainSheet) {
+    var mHeaderRow = mainSheet.getRange(1, 1, 1, mainSheet.getLastColumn()).getValues()[0];
+    var mColMap = {};
+    mHeaderRow.forEach(function(name, i) { if (name) mColMap[String(name).trim()] = i + 1; });
+
+    var mStatusCol = mColMap['ステータス'];
+    var mIdCol = mColMap['管理番号'];
+    var mDiscardDateCol = mColMap['廃棄日'];
+
+    if (mStatusCol && mIdCol) {
+      var mLastRow = mainSheet.getLastRow();
+      if (mLastRow >= 2) {
+        var mIds = mainSheet.getRange(2, mIdCol, mLastRow - 1, 1).getValues().flat();
+        var mIdToRow = {};
+        mIds.forEach(function(id, idx) {
+          var k = String(id).trim();
+          if (k) mIdToRow[k] = idx + 2;
+        });
+
+        var today = new Date();
+        targetIds.forEach(function(tid) {
+          var row = mIdToRow[tid];
+          if (!row) return;
+          mainSheet.getRange(row, mStatusCol).setValue('廃棄済み');
+          if (mDiscardDateCol) mainSheet.getRange(row, mDiscardDateCol).setValue(today);
+        });
+      }
+    }
+  }
+
   // 回収完了から該当行を削除（下から）
   var rowsToDelete = matchedRows.map(function(r) { return r.idx + 7; });
   rowsToDelete.sort(function(a, b) { return b - a; });
