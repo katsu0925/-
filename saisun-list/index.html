@@ -21,6 +21,22 @@
     .promo-banner a:hover{color:#ffd700;}
     .promo-banner .promo-close{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;opacity:0.8;}
     .promo-banner .promo-close:hover{opacity:1;}
+    .mypage-tabs{display:flex;gap:0;border-bottom:2px solid #e0e0e0;margin-bottom:16px;}
+    .mypage-tab{background:none;border:none;padding:10px 18px;font-size:14px;font-weight:600;color:#888;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .2s,border-color .2s;}
+    .mypage-tab:hover{color:#333;}
+    .mypage-tab.active{color:#b8002a;border-bottom-color:#b8002a;}
+    .mypage-content{min-height:120px;}
+    .mp-order-card{border:1px solid #e8e8e8;border-radius:8px;padding:14px;margin-bottom:10px;background:#fafafa;}
+    .mp-order-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;}
+    .mp-order-no{font-weight:700;font-size:14px;color:#333;}
+    .mp-order-date{font-size:12px;color:#999;}
+    .mp-order-status{font-size:12px;padding:2px 8px;border-radius:10px;font-weight:600;}
+    .mp-order-status.done{background:#e8f5e9;color:#2e7d32;}
+    .mp-order-status.pending{background:#fff3e0;color:#e65100;}
+    .mp-order-status.active{background:#e3f2fd;color:#1565c0;}
+    .mp-order-products{font-size:12px;color:#666;line-height:1.5;margin-bottom:6px;}
+    .mp-order-footer{display:flex;justify-content:space-between;font-size:13px;flex-wrap:wrap;gap:4px;}
+    .mp-order-total{font-weight:700;color:#333;}
     .topbar{position:sticky;top:0;z-index:20;background:#1e293b;border-bottom:1px solid #334155;padding:12px 14px;}
     .wrap{margin:0 auto;padding:12px 14px 90px;}
         .title{font-weight:900;font-size:18px;color:#f1f5f9;}
@@ -106,6 +122,8 @@
     .authUser{display:flex;align-items:center;gap:8px;}
     .authUserName{font-weight:900;color:#f1f5f9;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .authDiscount{background:#b8002a;color:#fff;font-size:11px;padding:2px 6px;border-radius:4px;font-weight:900;}
+    .authPoints{background:#e65100;color:#fff;font-size:11px;padding:2px 6px;border-radius:4px;font-weight:900;}
+    .authBtn.mypage{background:#475569;font-size:12px;padding:4px 10px;}
     .sumBox{margin-top:10px;display:flex;flex-direction:column;gap:6px;align-items:flex-end;}
     .sumLine{font-weight:900;}
     .hint{font-size:12px;color:#666;line-height:1.45;}
@@ -480,6 +498,77 @@
       <div class="formActions">
         <button class="btn" id="formBackBtn" type="button">戻る</button>
         <button class="btn primary" id="submitBtn" type="button">見積もりを送信</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- マイページモーダル -->
+  <div class="modal" id="myPageModal" aria-hidden="true">
+    <div class="modalHeader">
+      <div class="modalTitle">マイページ</div>
+      <button class="modalClose" id="myPageCloseBtn" aria-label="close">×</button>
+    </div>
+    <div class="modalBody">
+      <div class="mypage-tabs">
+        <button class="mypage-tab active" data-tab="profile" type="button">プロフィール</button>
+        <button class="mypage-tab" data-tab="orders" type="button">注文履歴</button>
+        <button class="mypage-tab" data-tab="points" type="button">ポイント</button>
+      </div>
+
+      <!-- プロフィールタブ -->
+      <div class="mypage-content" id="mypageProfile">
+        <div class="formGrid" style="grid-template-columns:1fr;">
+          <div class="formField">
+            <label>メールアドレス</label>
+            <input id="mpEmail" type="email" readonly style="background:#f5f5f5;">
+          </div>
+          <div class="formField">
+            <label>会社名/氏名 *</label>
+            <input id="mpCompanyName" type="text">
+          </div>
+          <div class="formField">
+            <label>電話番号</label>
+            <input id="mpPhone" type="tel" inputmode="numeric">
+          </div>
+          <div class="formField">
+            <label>郵便番号</label>
+            <input id="mpPostal" type="text" inputmode="numeric">
+          </div>
+          <div class="formField">
+            <label>住所</label>
+            <input id="mpAddress" type="text">
+          </div>
+          <div class="formField">
+            <label style="font-size:12px;color:#999;">登録日: <span id="mpRegisteredAt">-</span></label>
+          </div>
+        </div>
+        <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn primary" id="mpSaveBtn" type="button">変更を保存</button>
+          <button class="btn" id="mpTogglePasswordBtn" type="button">パスワード変更</button>
+        </div>
+        <div id="mpPasswordSection" style="display:none;margin-top:14px;padding:14px;background:#f9f9f9;border-radius:8px;">
+          <div class="formGrid" style="grid-template-columns:1fr;">
+            <div class="formField"><label>現在のパスワード *</label><input id="mpCurPass" type="password"></div>
+            <div class="formField"><label>新しいパスワード（6文字以上） *</label><input id="mpNewPass" type="password"></div>
+            <div class="formField"><label>新しいパスワード（確認） *</label><input id="mpNewPassConfirm" type="password"></div>
+          </div>
+          <button class="btn primary" id="mpChangePassBtn" type="button" style="margin-top:10px;">パスワードを変更</button>
+        </div>
+      </div>
+
+      <!-- 注文履歴タブ -->
+      <div class="mypage-content" id="mypageOrders" style="display:none;">
+        <div id="mpOrderList" style="font-size:13px;color:#666;">読み込み中...</div>
+      </div>
+
+      <!-- ポイントタブ -->
+      <div class="mypage-content" id="mypagePoints" style="display:none;">
+        <div style="text-align:center;padding:24px 0;">
+          <div style="font-size:13px;color:#888;">ポイント残高</div>
+          <div id="mpPointBalance" style="font-size:40px;font-weight:bold;color:#b8002a;margin:8px 0;">0</div>
+          <div style="font-size:12px;color:#aaa;">1ポイント = 1円としてご利用いただけます</div>
+          <div style="font-size:12px;color:#aaa;margin-top:4px;">購入金額の1%がポイントとして付与されます</div>
+        </div>
       </div>
     </div>
   </div>
@@ -919,17 +1008,21 @@ function updateAuthUi_() {
 
   if (state.customer) {
     var discountLabel = MEMBER_DISCOUNT_ENABLED ? '<span class="authDiscount">10%OFF</span>' : '';
+    var pointsLabel = (state.customer.points > 0) ? '<span class="authPoints">' + state.customer.points + 'pt</span>' : '';
     area.innerHTML = '<div class="authUser">' +
       '<span class="authUserName">' + escapeHtml_(state.customer.companyName || state.customer.email) + '</span>' +
-      discountLabel +
+      discountLabel + pointsLabel +
       '</div>' +
+      '<button class="authBtn mypage" id="openMyPageBtn" type="button">マイページ</button>' +
       '<button class="authBtn logout" id="logoutBtn" type="button">ログアウト</button>';
 
+    var openMyPageBtn = $('openMyPageBtn');
+    if (openMyPageBtn) {
+      openMyPageBtn.addEventListener('click', function() { openMyPage_(); });
+    }
     var logoutBtn = $('logoutBtn');
     if (logoutBtn) {
-      logoutBtn.addEventListener('click', function() {
-        doLogout_();
-      });
+      logoutBtn.addEventListener('click', function() { doLogout_(); });
     }
   } else {
     area.innerHTML = '<button class="authBtn" id="openAuthBtn" type="button">ログイン / 新規登録</button>';
@@ -1059,6 +1152,78 @@ function doRegister_() {
       setSending_(false);
       showToast('登録に失敗しました');
     });
+}
+
+// =====================================================
+// マイページ
+// =====================================================
+
+function openMyPage_() {
+  var modal = $('myPageModal');
+  if (!modal) return;
+  openModal(modal);
+  loadMyPage_();
+}
+
+function loadMyPage_() {
+  if (!state.sessionId) return;
+  var orderList = $('mpOrderList');
+  if (orderList) orderList.innerHTML = '<div style="text-align:center;padding:20px;color:#999;">読み込み中...</div>';
+
+  runApi('apiGetMyPage', state.userKey || '', { sessionId: state.sessionId })
+    .then(function(res) {
+      if (!res || !res.ok || !res.data) {
+        showToast((res && res.message) || 'マイページの読み込みに失敗しました');
+        return;
+      }
+      var d = res.data;
+      // プロフィール
+      $('mpEmail').value = d.profile.email || '';
+      $('mpCompanyName').value = d.profile.companyName || '';
+      $('mpPhone').value = d.profile.phone || '';
+      $('mpPostal').value = d.profile.postal || '';
+      $('mpAddress').value = d.profile.address || '';
+      $('mpRegisteredAt').textContent = d.profile.registeredAt || '-';
+      // ポイント
+      $('mpPointBalance').textContent = String(d.points || 0);
+      if (state.customer) state.customer.points = d.points || 0;
+      updateAuthUi_();
+      // 注文履歴
+      renderOrderHistory_(d.orders || []);
+    })
+    .catch(function() { showToast('マイページの読み込みに失敗しました'); });
+}
+
+function renderOrderHistory_(orders) {
+  var el = $('mpOrderList');
+  if (!el) return;
+  if (!orders || orders.length === 0) {
+    el.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">注文履歴はまだありません</div>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < orders.length; i++) {
+    var o = orders[i];
+    var statusClass = (o.status === '完了') ? 'done' : (o.status === '依頼中') ? 'active' : 'pending';
+    var trackHtml = '';
+    if (o.carrier && o.tracking) {
+      trackHtml = '<div style="font-size:11px;color:#888;margin-top:4px;">配送: ' + escapeHtml_(o.carrier) + ' ' + escapeHtml_(o.tracking) + '</div>';
+    }
+    html += '<div class="mp-order-card">'
+      + '<div class="mp-order-header">'
+      + '<span class="mp-order-no">' + escapeHtml_(o.receiptNo) + '</span>'
+      + '<span class="mp-order-date">' + escapeHtml_(o.date) + '</span>'
+      + '<span class="mp-order-status ' + statusClass + '">' + escapeHtml_(o.status) + '</span>'
+      + '</div>'
+      + '<div class="mp-order-products">' + escapeHtml_(o.products) + '</div>'
+      + '<div class="mp-order-footer">'
+      + '<span>' + o.count + '点</span>'
+      + '<span class="mp-order-total">' + yen(o.total) + '</span>'
+      + '</div>'
+      + trackHtml
+      + '</div>';
+  }
+  el.innerHTML = html;
 }
 
 function doLogout_() {
@@ -1355,6 +1520,101 @@ function setupAuthUi_() {
     promoLink.addEventListener('click', function(e) {
       e.preventDefault();
       openAuthModal_('register');
+    });
+  }
+
+  // =====================================================
+  // マイページモーダル
+  // =====================================================
+  var myPageCloseBtn = $('myPageCloseBtn');
+  if (myPageCloseBtn) {
+    myPageCloseBtn.addEventListener('click', function() { closeModal($('myPageModal')); });
+  }
+
+  // タブ切り替え
+  var tabs = document.querySelectorAll('.mypage-tab');
+  tabs.forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      tabs.forEach(function(t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      var target = tab.getAttribute('data-tab');
+      $('mypageProfile').style.display = (target === 'profile') ? '' : 'none';
+      $('mypageOrders').style.display = (target === 'orders') ? '' : 'none';
+      $('mypagePoints').style.display = (target === 'points') ? '' : 'none';
+    });
+  });
+
+  // プロフィール保存
+  var mpSaveBtn = $('mpSaveBtn');
+  if (mpSaveBtn) {
+    mpSaveBtn.addEventListener('click', function() {
+      var pw = prompt('本人確認のため現在のパスワードを入力してください');
+      if (!pw) return;
+      mpSaveBtn.disabled = true;
+      mpSaveBtn.textContent = '保存中...';
+      runApi('apiUpdateCustomerProfile', state.userKey || '', {
+        sessionId: state.sessionId,
+        currentPassword: pw,
+        companyName: $('mpCompanyName').value,
+        phone: $('mpPhone').value,
+        postal: $('mpPostal').value,
+        address: $('mpAddress').value
+      }).then(function(res) {
+        if (res && res.ok) {
+          showToast(res.message || '更新しました');
+          if (state.customer) {
+            state.customer.companyName = $('mpCompanyName').value;
+            state.customer.phone = $('mpPhone').value;
+            state.customer.postal = $('mpPostal').value;
+            state.customer.address = $('mpAddress').value;
+            saveSession_(state.sessionId, state.customer);
+            updateAuthUi_();
+          }
+        } else {
+          showToast((res && res.message) || '更新に失敗しました');
+        }
+      }).catch(function() { showToast('更新に失敗しました'); })
+        .finally(function() { mpSaveBtn.disabled = false; mpSaveBtn.textContent = '変更を保存'; });
+    });
+  }
+
+  // パスワード変更トグル
+  var mpTogglePasswordBtn = $('mpTogglePasswordBtn');
+  if (mpTogglePasswordBtn) {
+    mpTogglePasswordBtn.addEventListener('click', function() {
+      var section = $('mpPasswordSection');
+      section.style.display = section.style.display === 'none' ? '' : 'none';
+    });
+  }
+
+  // パスワード変更実行
+  var mpChangePassBtn = $('mpChangePassBtn');
+  if (mpChangePassBtn) {
+    mpChangePassBtn.addEventListener('click', function() {
+      var cur = $('mpCurPass').value;
+      var np = $('mpNewPass').value;
+      var npc = $('mpNewPassConfirm').value;
+      if (!cur) { showToast('現在のパスワードを入力してください'); return; }
+      if (!np || np.length < 6) { showToast('新しいパスワードは6文字以上で入力してください'); return; }
+      if (np !== npc) { showToast('新しいパスワードが一致しません'); return; }
+      mpChangePassBtn.disabled = true;
+      mpChangePassBtn.textContent = '変更中...';
+      runApi('apiChangePassword', state.userKey || '', {
+        sessionId: state.sessionId,
+        currentPassword: cur,
+        newPassword: np
+      }).then(function(res) {
+        if (res && res.ok) {
+          showToast(res.message || 'パスワードを変更しました');
+          $('mpCurPass').value = '';
+          $('mpNewPass').value = '';
+          $('mpNewPassConfirm').value = '';
+          $('mpPasswordSection').style.display = 'none';
+        } else {
+          showToast((res && res.message) || 'パスワード変更に失敗しました');
+        }
+      }).catch(function() { showToast('パスワード変更に失敗しました'); })
+        .finally(function() { mpChangePassBtn.disabled = false; mpChangePassBtn.textContent = 'パスワードを変更'; });
     });
   }
 }

@@ -999,6 +999,8 @@ function onOpen(e) {
     .addItem("会員割引 ON/OFF 切替", "toggleMemberDiscount")
     .addItem("会員割引 期限変更", "setMemberDiscountEndDate")
     .addSeparator()
+    .addItem("顧客ポイント付与（完了済み注文）", "processCustomerPoints")
+    .addSeparator()
     .addItem("不要トリガー一括削除", "cleanupObsoleteTriggers")
     .addToUi();
 }
