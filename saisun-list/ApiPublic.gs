@@ -417,7 +417,7 @@ function apiSendContactForm(params) {
     if (!email || email.indexOf('@') === -1) return { ok: false, message: '有効なメールアドレスを入力してください' };
     if (!message) return { ok: false, message: 'お問い合わせ内容を入力してください' };
 
-    var to = 'nkonline1030@gmail.com';
+    var to = 'nkonline1030@gmail.com,nsdktts1030@gmail.com';
     var subject = '【NKonlineApparel】お問い合わせ: ' + name;
     var body = 'お問い合わせを受信しました。\n\n'
       + 'お名前: ' + name + '\n'
