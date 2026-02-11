@@ -322,7 +322,7 @@ function writeSubmitData_(data) {
   var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
   od_writeOpenLogSheetFromState_(orderSs, openItems, now);
 
-  // 3. メール通知
+  // 3. 管理者宛メール通知
   app_sendEstimateNotifyMail_(orderSs, data.receiptNo, {
     companyName: data.form.companyName || '',
     contact: data.form.contact || '',
@@ -341,6 +341,9 @@ function writeSubmitData_(data) {
     userKey: data.userKey,
     templateText: data.templateText || ''
   });
+
+  // 4. 顧客宛確認メール
+  app_sendEstimateConfirmToCustomer_(data);
 
 }
 
