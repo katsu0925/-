@@ -9,7 +9,8 @@
     "https://www.googleapis.com/auth/gmail.compose",
     "https://mail.google.com/",
     "https://www.googleapis.com/auth/drive.readonly",
-    "https://www.googleapis.com/auth/script.scriptapp"
+    "https://www.googleapis.com/auth/script.scriptapp",
+    "https://www.googleapis.com/auth/script.send_mail"
   ],
   "webapp": {
     "executeAs": "USER_DEPLOYING",

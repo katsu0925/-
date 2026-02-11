@@ -319,21 +319,31 @@ function syncFull_(productSheet, returnSheet, aiSheet, destSheet) {
   const returnSet = getReturnSetCached_(returnSheet);
   const aiPathMap = getAiPathMapCached_(aiSheet);
 
+  const MEAS_START_COL = 12; // L列
+  const MEAS_END_COL = 24;   // X列
+  const MEAS_WIDTH = MEAS_END_COL - MEAS_START_COL + 1; // 13列
+
   const keepCheckByKey = {};
+  const measurementsByKey = {};
   const destLastRow = destSheet.getLastRow();
   if (destLastRow >= CONFIG.DEST_START_ROW) {
     const nExist = destLastRow - CONFIG.DEST_START_ROW + 1;
     const existChecks = destSheet.getRange(CONFIG.DEST_START_ROW, CONFIG.DEST_COL_CHECK, nExist, 1).getValues();
     const existKeys = destSheet.getRange(CONFIG.DEST_START_ROW, CONFIG.DEST_COL_KEY, nExist, 1).getValues();
+    const existMeas = destSheet.getRange(CONFIG.DEST_START_ROW, MEAS_START_COL, nExist, MEAS_WIDTH).getValues();
     for (let i = 0; i < nExist; i++) {
       const k = normalizeKey_(existKeys[i][0]);
       if (!k) continue;
       if (existChecks[i][0] === true) keepCheckByKey[k] = true;
+      const hasData = existMeas[i].some(v => v !== '' && v !== null && v !== undefined);
+      if (hasData) measurementsByKey[k] = existMeas[i];
     }
   }
 
   const out = [];
   const outShipping = [];
+  const outMeasurements = [];
+  const emptyMeas = new Array(MEAS_WIDTH).fill('');
   const keys = Object.keys(productMap);
 
   for (let i = 0; i < keys.length; i++) {
@@ -366,6 +376,7 @@ function syncFull_(productSheet, returnSheet, aiSheet, destSheet) {
 
     out.push([imgFormula, insertedStatus, brand, size, gender, category, color, insertedPrice, keepCheck, keyC]);
     outShipping.push([shippingMethod]);
+    outMeasurements.push(measurementsByKey[keyC] || emptyMeas);
   }
 
   const width = CONFIG.DEST_COL_KEY - CONFIG.DEST_WRITE_START_COL + 1;
@@ -385,6 +396,11 @@ function syncFull_(productSheet, returnSheet, aiSheet, destSheet) {
       );
       withRetry_(
         () => destSheet.getRange(CONFIG.DEST_START_ROW, CONFIG.DEST_COL_SHIPPING, writeCount, 1).setValues(outShipping),
+        2,
+        500
+      );
+      withRetry_(
+        () => destSheet.getRange(CONFIG.DEST_START_ROW, MEAS_START_COL, writeCount, MEAS_WIDTH).setValues(outMeasurements),
         2,
         500
       );
