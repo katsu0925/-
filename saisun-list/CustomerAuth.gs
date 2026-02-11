@@ -12,23 +12,45 @@ function getCustomerSheet_() {
     sheet = ss.insertSheet('顧客管理');
     sheet.appendRow([
       'ID', 'メールアドレス', 'パスワードハッシュ', '会社名/氏名', '電話番号',
-      '郵便番号', '住所', 'メルマガ', '登録日時', '最終ログイン', 'セッションID', 'セッション有効期限'
+      '郵便番号', '住所', 'メルマガ', '登録日時', '最終ログイン', 'セッションID', 'セッション有効期限',
+      'ポイント残高'
     ]);
     sheet.setFrozenRows(1);
   }
   return sheet;
 }
 
+// =====================================================
+// パスワードハッシュ関数群
+// =====================================================
+
 /**
- * 反復SHA-256ハッシュ生成（PBKDF2相当の強化）
- * 10000回の反復でブルートフォース・レインボーテーブル攻撃を困難にする
+ * v2 高速ハッシュ（100回反復）
+ * GASの computeDigest オーバーヘッドを考慮し実用的な速度を確保
+ * レート制限 + ソルト付きで十分な安全性を維持
+ */
+function hashPasswordV2_(password, salt) {
+  var iterations = 100;
+  var input = password + ':' + salt;
+  var hash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, input);
+  var saltBytes = Utilities.newBlob(salt).getBytes();
+  for (var i = 1; i < iterations; i++) {
+    var combined = hash.concat(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, saltBytes));
+    hash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, combined);
+  }
+  return hash.map(function(b) {
+    return ('0' + (b < 0 ? b + 256 : b).toString(16)).slice(-2);
+  }).join('');
+}
+
+/**
+ * v1 旧ハッシュ（10000回反復）- 後方互換用
  */
 function hashPassword_(password, salt) {
   var iterations = 10000;
   var input = password + ':' + salt;
   var hash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, input);
   for (var i = 1; i < iterations; i++) {
-    // 前回のハッシュ結果 + ソルトで再ハッシュ
     var combined = hash.concat(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, Utilities.newBlob(salt).getBytes()));
     hash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, combined);
   }
@@ -49,17 +71,74 @@ function hashPasswordLegacy_(password, salt) {
 }
 
 /**
+ * パスワードハッシュ文字列を生成（v2形式）
+ */
+function createPasswordHash_(password) {
+  var salt = generateRandomId_(16);
+  return 'v2:' + salt + ':' + hashPasswordV2_(password, salt);
+}
+
+/**
+ * パスワード検証（v2/v1/legacy全形式対応）
+ * @return {boolean}
+ */
+function verifyPassword_(password, storedHash) {
+  if (storedHash.indexOf('v2:') === 0) {
+    var rest = storedHash.substring(3);
+    var parts = rest.split(':');
+    var salt = parts[0];
+    var hash = parts.slice(1).join(':');
+    return timingSafeEqual_(hashPasswordV2_(password, salt), hash);
+  }
+  // v1 / legacy形式
+  var parts = storedHash.split(':');
+  if (parts.length < 2) return false;
+  var salt = parts[0];
+  var hash = parts.slice(1).join(':');
+  return timingSafeEqual_(hashPassword_(password, salt), hash)
+      || timingSafeEqual_(hashPasswordLegacy_(password, salt), hash);
+}
+
+/**
+ * パスワード検証 + 自動v2移行
+ * @return {boolean}
+ */
+function verifyAndMigratePassword_(password, storedHash, customerRow) {
+  if (storedHash.indexOf('v2:') === 0) {
+    var rest = storedHash.substring(3);
+    var parts = rest.split(':');
+    var salt = parts[0];
+    var hash = parts.slice(1).join(':');
+    return timingSafeEqual_(hashPasswordV2_(password, salt), hash);
+  }
+  // v1 / legacy - 検証後にv2へ自動移行
+  var parts = storedHash.split(':');
+  if (parts.length < 2) return false;
+  var salt = parts[0];
+  var hash = parts.slice(1).join(':');
+  var matched = timingSafeEqual_(hashPassword_(password, salt), hash)
+             || timingSafeEqual_(hashPasswordLegacy_(password, salt), hash);
+  if (matched && customerRow) {
+    var newHash = createPasswordHash_(password);
+    getCustomerSheet_().getRange(customerRow, 3).setValue(newHash);
+  }
+  return matched;
+}
+
+/**
  * 暗号論的に安全なランダムID生成
- * Utilities.getUuid() を使用してセキュアな乱数を生成
  */
 function generateRandomId_(length) {
-  // Utilities.getUuid() は暗号論的に安全なUUIDを生成
   let result = '';
   while (result.length < length) {
     result += Utilities.getUuid().replace(/-/g, '');
   }
   return result.substring(0, length);
 }
+
+// =====================================================
+// 顧客検索
+// =====================================================
 
 /**
  * メールアドレスで顧客を検索
@@ -84,7 +163,8 @@ function findCustomerByEmail_(email) {
         registeredAt: data[i][8],
         lastLogin: data[i][9],
         sessionId: data[i][10],
-        sessionExpiry: data[i][11]
+        sessionExpiry: data[i][11],
+        points: Number(data[i][12]) || 0
       };
     }
   }
@@ -113,7 +193,8 @@ function findCustomerBySession_(sessionId) {
           phone: data[i][4],
           postal: data[i][5],
           address: data[i][6],
-          newsletter: data[i][7]
+          newsletter: data[i][7],
+          points: Number(data[i][12]) || 0
         };
       }
     }
@@ -121,8 +202,12 @@ function findCustomerBySession_(sessionId) {
   return null;
 }
 
+// =====================================================
+// 認証API
+// =====================================================
+
 /**
- * 顧客登録API
+ * 顧客登録API（v2ハッシュ使用）
  */
 function apiRegisterCustomer(userKey, params) {
   try {
@@ -134,7 +219,6 @@ function apiRegisterCustomer(userKey, params) {
     const address = String(params.address || '').trim();
     const newsletter = params.newsletter === true || params.newsletter === 'true';
 
-    // バリデーション
     if (!email || !email.includes('@')) {
       return { ok: false, message: '有効なメールアドレスを入力してください' };
     }
@@ -144,31 +228,22 @@ function apiRegisterCustomer(userKey, params) {
     if (!companyName) {
       return { ok: false, message: '会社名/氏名は必須です' };
     }
-
-    // 既存チェック
     if (findCustomerByEmail_(email)) {
       return { ok: false, message: 'このメールアドレスは既に登録されています' };
     }
 
-    // パスワードハッシュ生成（ソルト付き）
-    const salt = generateRandomId_(16);
-    const passwordHash = salt + ':' + hashPassword_(password, salt);
-
-    // セッションID生成
+    var passwordHash = createPasswordHash_(password);
     const sessionId = generateRandomId_(32);
-    const sessionExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24時間
-
-    // シートに追加
+    const sessionExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const sheet = getCustomerSheet_();
     const customerId = 'C' + Date.now().toString(36).toUpperCase();
     const now = new Date();
-
-    // 電話番号・郵便番号は先頭の0が消えないようにアポストロフィを付加
     const phoneForSheet = phone ? ("'" + phone) : '';
     const postalForSheet = postal ? ("'" + postal) : '';
+
     sheet.appendRow([
       customerId, email, passwordHash, companyName, phoneForSheet,
-      postalForSheet, address, newsletter, now, now, sessionId, sessionExpiry
+      postalForSheet, address, newsletter, now, now, sessionId, sessionExpiry, 0
     ]);
 
     return {
@@ -176,13 +251,9 @@ function apiRegisterCustomer(userKey, params) {
       data: {
         sessionId: sessionId,
         customer: {
-          id: customerId,
-          email: email,
-          companyName: companyName,
-          phone: phone,
-          postal: postal,
-          address: address,
-          newsletter: newsletter
+          id: customerId, email: email, companyName: companyName,
+          phone: phone, postal: postal, address: address,
+          newsletter: newsletter, points: 0
         }
       }
     };
@@ -192,7 +263,7 @@ function apiRegisterCustomer(userKey, params) {
 }
 
 /**
- * ログインAPI
+ * ログインAPI（v2高速ハッシュ + v1/legacy自動移行）
  */
 function apiLoginCustomer(userKey, params) {
   try {
@@ -208,36 +279,15 @@ function apiLoginCustomer(userKey, params) {
       return { ok: false, message: 'メールアドレスまたはパスワードが正しくありません' };
     }
 
-    // パスワード検証（新旧ハッシュ方式に対応）
-    const parts = customer.passwordHash.split(':');
-    if (parts.length < 2) {
-      return { ok: false, message: '認証エラーが発生しました' };
-    }
-    const salt = parts[0];
-    const storedHash = parts.slice(1).join(':');
-    const inputHash = hashPassword_(password, salt);
-    const inputHashLegacy = hashPasswordLegacy_(password, salt);
-
-    var matched = timingSafeEqual_(inputHash, storedHash) || timingSafeEqual_(inputHashLegacy, storedHash);
-    if (!matched) {
+    if (!verifyAndMigratePassword_(password, customer.passwordHash, customer.row)) {
       return { ok: false, message: 'メールアドレスまたはパスワードが正しくありません' };
     }
 
-    // レガシーハッシュの場合は新方式に自動移行
-    if (timingSafeEqual_(inputHashLegacy, storedHash) && !timingSafeEqual_(inputHash, storedHash)) {
-      const newPasswordHash = salt + ':' + inputHash;
-      const sheet2 = getCustomerSheet_();
-      sheet2.getRange(customer.row, 3).setValue(newPasswordHash);
-    }
-
-    // 新しいセッションID生成
     const sessionId = generateRandomId_(32);
     const sessionExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const now = new Date();
-
-    // シート更新
     const sheet = getCustomerSheet_();
-    sheet.getRange(customer.row, 10).setValue(now); // 最終ログイン
+    sheet.getRange(customer.row, 10).setValue(now);
     sheet.getRange(customer.row, 11).setValue(sessionId);
     sheet.getRange(customer.row, 12).setValue(sessionExpiry);
 
@@ -246,13 +296,9 @@ function apiLoginCustomer(userKey, params) {
       data: {
         sessionId: sessionId,
         customer: {
-          id: customer.id,
-          email: customer.email,
-          companyName: customer.companyName,
-          phone: customer.phone,
-          postal: customer.postal,
-          address: customer.address,
-          newsletter: customer.newsletter
+          id: customer.id, email: customer.email, companyName: customer.companyName,
+          phone: customer.phone, postal: customer.postal, address: customer.address,
+          newsletter: customer.newsletter, points: customer.points
         }
       }
     };
@@ -280,13 +326,9 @@ function apiValidateSession(userKey, params) {
       ok: true,
       data: {
         customer: {
-          id: customer.id,
-          email: customer.email,
-          companyName: customer.companyName,
-          phone: customer.phone,
-          postal: customer.postal,
-          address: customer.address,
-          newsletter: customer.newsletter
+          id: customer.id, email: customer.email, companyName: customer.companyName,
+          phone: customer.phone, postal: customer.postal, address: customer.address,
+          newsletter: customer.newsletter, points: customer.points
         }
       }
     };
@@ -297,47 +339,25 @@ function apiValidateSession(userKey, params) {
 
 /**
  * 会員属性変更API（パスワード再認証必須）
- * JCA不正ログイン対策: 属性変更時の本人確認（二要素認証等）
  */
 function apiUpdateCustomerProfile(userKey, params) {
   try {
     var sessionId = String(params.sessionId || '');
     var currentPassword = String(params.currentPassword || '');
 
-    // --- 本人確認: セッション + パスワード再入力の二段階認証 ---
-    if (!sessionId) {
-      return { ok: false, message: 'ログインが必要です' };
-    }
-    if (!currentPassword) {
-      return { ok: false, message: '本人確認のため現在のパスワードを入力してください' };
-    }
+    if (!sessionId) return { ok: false, message: 'ログインが必要です' };
+    if (!currentPassword) return { ok: false, message: '本人確認のため現在のパスワードを入力してください' };
 
     var customer = findCustomerBySession_(sessionId);
-    if (!customer) {
-      return { ok: false, message: 'セッションが無効または期限切れです。再ログインしてください' };
-    }
+    if (!customer) return { ok: false, message: 'セッションが無効または期限切れです。再ログインしてください' };
 
-    // パスワード再認証（セッション認証 + パスワード = 二段階の本人確認）
     var fullCustomer = findCustomerByEmail_(customer.email);
-    if (!fullCustomer) {
-      return { ok: false, message: '顧客情報が見つかりません' };
-    }
-    var parts = fullCustomer.passwordHash.split(':');
-    if (parts.length < 2) {
-      return { ok: false, message: '認証エラーが発生しました' };
-    }
-    var salt = parts[0];
-    var storedHash = parts.slice(1).join(':');
-    var inputHash = hashPassword_(currentPassword, salt);
-    if (!timingSafeEqual_(inputHash, storedHash)) {
-      // レガシーハッシュもチェック
-      var inputHashLegacy = hashPasswordLegacy_(currentPassword, salt);
-      if (!timingSafeEqual_(inputHashLegacy, storedHash)) {
-        return { ok: false, message: 'パスワードが正しくありません' };
-      }
+    if (!fullCustomer) return { ok: false, message: '顧客情報が見つかりません' };
+
+    if (!verifyPassword_(currentPassword, fullCustomer.passwordHash)) {
+      return { ok: false, message: 'パスワードが正しくありません' };
     }
 
-    // --- 本人確認OK: 属性変更を実行 ---
     var sheet = getCustomerSheet_();
     var row = fullCustomer.row;
     var updated = [];
@@ -365,32 +385,56 @@ function apiUpdateCustomerProfile(userKey, params) {
     }
     if (params.email !== undefined) {
       var newEmail = String(params.email || '').trim().toLowerCase();
-      if (!newEmail || !newEmail.includes('@')) {
-        return { ok: false, message: '有効なメールアドレスを入力してください' };
-      }
+      if (!newEmail || !newEmail.includes('@')) return { ok: false, message: '有効なメールアドレスを入力してください' };
       if (newEmail !== fullCustomer.email) {
-        var existing = findCustomerByEmail_(newEmail);
-        if (existing) return { ok: false, message: 'このメールアドレスは既に使用されています' };
+        if (findCustomerByEmail_(newEmail)) return { ok: false, message: 'このメールアドレスは既に使用されています' };
         sheet.getRange(row, 2).setValue(newEmail);
         updated.push('メールアドレス');
       }
     }
 
-    if (updated.length === 0) {
-      return { ok: false, message: '変更する項目がありません' };
-    }
+    if (updated.length === 0) return { ok: false, message: '変更する項目がありません' };
 
-    console.log('Customer profile updated: ' + fullCustomer.id + ' fields=' + updated.join(','));
     return { ok: true, message: updated.join('、') + ' を更新しました' };
   } catch (e) {
-    console.error('apiUpdateCustomerProfile error:', e);
     return { ok: false, message: '更新に失敗しました' };
   }
 }
 
 /**
- * パスワードリセットAPI
- * 登録メールアドレスに仮パスワードを送信
+ * パスワード変更API
+ */
+function apiChangePassword(userKey, params) {
+  try {
+    var sessionId = String(params.sessionId || '');
+    var currentPassword = String(params.currentPassword || '');
+    var newPassword = String(params.newPassword || '');
+
+    if (!sessionId) return { ok: false, message: 'ログインが必要です' };
+    if (!currentPassword) return { ok: false, message: '現在のパスワードを入力してください' };
+    if (!newPassword || newPassword.length < 6) return { ok: false, message: '新しいパスワードは6文字以上で入力してください' };
+
+    var customer = findCustomerBySession_(sessionId);
+    if (!customer) return { ok: false, message: 'セッションが無効です。再ログインしてください' };
+
+    var fullCustomer = findCustomerByEmail_(customer.email);
+    if (!fullCustomer) return { ok: false, message: '顧客情報が見つかりません' };
+
+    if (!verifyPassword_(currentPassword, fullCustomer.passwordHash)) {
+      return { ok: false, message: '現在のパスワードが正しくありません' };
+    }
+
+    var newHash = createPasswordHash_(newPassword);
+    getCustomerSheet_().getRange(fullCustomer.row, 3).setValue(newHash);
+
+    return { ok: true, message: 'パスワードを変更しました' };
+  } catch (e) {
+    return { ok: false, message: 'パスワード変更に失敗しました' };
+  }
+}
+
+/**
+ * パスワードリセットAPI（v2ハッシュ使用 - 高速）
  */
 function apiRequestPasswordReset(userKey, params) {
   try {
@@ -401,20 +445,14 @@ function apiRequestPasswordReset(userKey, params) {
 
     var customer = findCustomerByEmail_(email);
     if (!customer) {
-      // セキュリティ: 登録有無を漏らさないため同じメッセージを返す
       return { ok: true, message: '登録されているメールアドレスの場合、仮パスワードを送信しました' };
     }
 
-    // 仮パスワード生成（8文字の英数字）
     var tempPassword = generateRandomId_(8);
-
-    // 新しいハッシュで保存
-    var salt = generateRandomId_(16);
-    var newHash = salt + ':' + hashPassword_(tempPassword, salt);
+    var newHash = createPasswordHash_(tempPassword);
     var sheet = getCustomerSheet_();
     sheet.getRange(customer.row, 3).setValue(newHash);
 
-    // 仮パスワードをメール送信
     var subject = '【NKonline Apparel】パスワードリセットのお知らせ';
     var body = customer.companyName + ' 様\n\n'
       + 'パスワードリセットのリクエストを受け付けました。\n'
@@ -430,14 +468,8 @@ function apiRequestPasswordReset(userKey, params) {
       + 'お問い合わせ: nkonline1030@gmail.com\n'
       + '──────────────────\n';
 
-    MailApp.sendEmail({
-      to: email,
-      subject: subject,
-      body: body,
-      noReply: true
-    });
+    MailApp.sendEmail({ to: email, subject: subject, body: body, noReply: true });
 
-    console.log('Password reset sent to: ' + email + ' (customer: ' + customer.id + ')');
     return { ok: true, message: '登録されているメールアドレスの場合、仮パスワードを送信しました' };
   } catch (e) {
     console.error('apiRequestPasswordReset error:', e);
@@ -447,19 +479,14 @@ function apiRequestPasswordReset(userKey, params) {
 
 /**
  * メールアドレス確認API
- * 会社名/氏名 + 電話番号で照合し、マスク済みメールアドレスを返す
  */
 function apiRecoverEmail(userKey, params) {
   try {
     var companyName = String(params.companyName || '').trim();
     var phone = String(params.phone || '').trim().replace(/[-\s]/g, '');
 
-    if (!companyName) {
-      return { ok: false, message: '会社名/氏名を入力してください' };
-    }
-    if (!phone) {
-      return { ok: false, message: '電話番号を入力してください' };
-    }
+    if (!companyName) return { ok: false, message: '会社名/氏名を入力してください' };
+    if (!phone) return { ok: false, message: '電話番号を入力してください' };
 
     var sheet = getCustomerSheet_();
     var data = sheet.getDataRange().getValues();
@@ -467,17 +494,13 @@ function apiRecoverEmail(userKey, params) {
     for (var i = 1; i < data.length; i++) {
       var rowName = String(data[i][3] || '').trim();
       var rowPhone = String(data[i][4] || '').trim().replace(/[-\s']/g, '');
-
       if (rowName === companyName && rowPhone === phone) {
-        var rawEmail = String(data[i][1] || '');
-        var masked = maskEmail_(rawEmail);
-        return { ok: true, data: { maskedEmail: masked } };
+        return { ok: true, data: { maskedEmail: maskEmail_(String(data[i][1] || '')) } };
       }
     }
 
     return { ok: false, message: '一致する登録情報が見つかりませんでした。\n入力内容をご確認いただくか、お問い合わせください。' };
   } catch (e) {
-    console.error('apiRecoverEmail error:', e);
     return { ok: false, message: 'メールアドレスの確認に失敗しました' };
   }
 }
@@ -490,16 +513,166 @@ function maskEmail_(email) {
   if (parts.length !== 2) return '***@***';
   var local = parts[0];
   var domain = parts[1];
-
   var maskedLocal = local.charAt(0) + '***';
   var dotIdx = domain.lastIndexOf('.');
-  if (dotIdx > 0) {
-    var maskedDomain = domain.charAt(0) + '*'.repeat(Math.min(dotIdx - 1, 5)) + domain.substring(dotIdx);
-  } else {
-    var maskedDomain = domain.charAt(0) + '***';
-  }
+  var maskedDomain = (dotIdx > 0)
+    ? domain.charAt(0) + '*'.repeat(Math.min(dotIdx - 1, 5)) + domain.substring(dotIdx)
+    : domain.charAt(0) + '***';
   return maskedLocal + '@' + maskedDomain;
 }
+
+// =====================================================
+// マイページAPI
+// =====================================================
+
+/**
+ * マイページ情報取得API
+ */
+function apiGetMyPage(userKey, params) {
+  try {
+    var sessionId = String(params.sessionId || '');
+    if (!sessionId) return { ok: false, message: 'ログインが必要です' };
+
+    var customer = findCustomerBySession_(sessionId);
+    if (!customer) return { ok: false, message: 'セッションが無効です。再ログインしてください' };
+
+    var fullCustomer = findCustomerByEmail_(customer.email);
+    var orders = getOrderHistory_(customer.email);
+    var points = fullCustomer ? fullCustomer.points : 0;
+
+    return {
+      ok: true,
+      data: {
+        profile: {
+          email: customer.email,
+          companyName: customer.companyName,
+          phone: String(customer.phone || '').replace(/^'/, ''),
+          postal: String(customer.postal || '').replace(/^'/, ''),
+          address: customer.address,
+          newsletter: customer.newsletter,
+          registeredAt: fullCustomer ? formatDate_(fullCustomer.registeredAt) : ''
+        },
+        orders: orders,
+        points: points
+      }
+    };
+  } catch (e) {
+    console.error('apiGetMyPage error:', e);
+    return { ok: false, message: 'マイページの読み込みに失敗しました' };
+  }
+}
+
+/**
+ * 注文履歴を取得
+ */
+function getOrderHistory_(email) {
+  var ss = sh_getOrderSs_();
+  var sheet = ss.getSheetByName('依頼管理');
+  if (!sheet) return [];
+
+  var data = sheet.getDataRange().getValues();
+  var orders = [];
+  var normalizedEmail = String(email).trim().toLowerCase();
+
+  for (var i = 1; i < data.length; i++) {
+    var rowEmail = String(data[i][3] || '').trim().toLowerCase();
+    if (rowEmail === normalizedEmail) {
+      orders.push({
+        receiptNo: String(data[i][0] || ''),
+        date: data[i][1] ? formatDate_(data[i][1]) : '',
+        products: String(data[i][7] || ''),
+        count: Number(data[i][10]) || 0,
+        total: Number(data[i][11]) || 0,
+        status: String(data[i][15] || ''),
+        shipping: String(data[i][12] || ''),
+        carrier: String(data[i][22] || ''),
+        tracking: String(data[i][23] || '')
+      });
+    }
+  }
+
+  orders.reverse();
+  return orders;
+}
+
+/**
+ * 日付フォーマット
+ */
+function formatDate_(d) {
+  if (!d) return '';
+  try {
+    return Utilities.formatDate(new Date(d), 'Asia/Tokyo', 'yyyy/MM/dd');
+  } catch (e) {
+    return String(d);
+  }
+}
+
+// =====================================================
+// ポイント管理
+// =====================================================
+
+var POINT_RATE = 0.01; // 購入金額の1%
+
+/**
+ * 完了済み注文にポイントを付与（メニューまたはトリガーから実行）
+ */
+function processCustomerPoints() {
+  var ss = sh_getOrderSs_();
+  var reqSheet = ss.getSheetByName('依頼管理');
+  var custSheet = getCustomerSheet_();
+  if (!reqSheet || !custSheet) return;
+
+  var reqData = reqSheet.getDataRange().getValues();
+  var custData = custSheet.getDataRange().getValues();
+
+  // 顧客メール→行番号マップ
+  var custMap = {};
+  for (var i = 1; i < custData.length; i++) {
+    var email = String(custData[i][1] || '').trim().toLowerCase();
+    if (email) custMap[email] = { row: i + 1, points: Number(custData[i][12]) || 0 };
+  }
+
+  var awarded = 0;
+  for (var i = 1; i < reqData.length; i++) {
+    var status = String(reqData[i][15] || '');       // P列: ステータス
+    var notifFlag = String(reqData[i][26] || '');     // AA列: 通知フラグ
+    var email = String(reqData[i][3] || '').trim().toLowerCase(); // D列: 連絡先
+    var total = Number(reqData[i][11]) || 0;         // L列: 合計金額
+
+    if (status === '完了' && notifFlag.indexOf('PT') === -1 && email && total > 0) {
+      var points = Math.floor(total * POINT_RATE);
+      if (points > 0 && custMap[email]) {
+        custMap[email].points += points;
+        custSheet.getRange(custMap[email].row, 13).setValue(custMap[email].points);
+        // ポイント付与済みマーク
+        reqSheet.getRange(i + 1, 27).setValue(notifFlag ? notifFlag + ',PT' : 'PT');
+        awarded++;
+      }
+    }
+  }
+
+  if (awarded > 0) {
+    SpreadsheetApp.getUi().alert('ポイント付与完了: ' + awarded + '件（1%付与）');
+  } else {
+    SpreadsheetApp.getUi().alert('ポイント付与対象の注文はありませんでした');
+  }
+}
+
+/**
+ * ポイント利用API（見積もり送信時に呼び出し）
+ */
+function deductPoints_(email, points) {
+  if (!points || points <= 0) return false;
+  var customer = findCustomerByEmail_(email);
+  if (!customer || customer.points < points) return false;
+  var sheet = getCustomerSheet_();
+  sheet.getRange(customer.row, 13).setValue(customer.points - points);
+  return true;
+}
+
+// =====================================================
+// ログアウト
+// =====================================================
 
 /**
  * ログアウトAPI
@@ -507,13 +680,10 @@ function maskEmail_(email) {
 function apiLogoutCustomer(userKey, params) {
   try {
     const sessionId = String(params.sessionId || '');
-    if (!sessionId) {
-      return { ok: true };
-    }
+    if (!sessionId) return { ok: true };
 
     const sheet = getCustomerSheet_();
     const data = sheet.getDataRange().getValues();
-
     for (let i = 1; i < data.length; i++) {
       if (data[i][10] === sessionId) {
         sheet.getRange(i + 1, 11).setValue('');
@@ -521,9 +691,8 @@ function apiLogoutCustomer(userKey, params) {
         break;
       }
     }
-
     return { ok: true };
   } catch (e) {
-    return { ok: true }; // ログアウトは常に成功扱い
+    return { ok: true };
   }
 }
