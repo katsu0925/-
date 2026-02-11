@@ -312,6 +312,63 @@ function app_buildEstimateNotifyBody_(orderSs, receiptNo, info) {
   return lines.join('\n');
 }
 
+// =====================================================
+// 顧客宛 見積もり確認メール
+// =====================================================
+function app_sendEstimateConfirmToCustomer_(data) {
+  try {
+    var email = (data.form && data.form.contact) || '';
+    if (!email || email.indexOf('@') === -1) return;
+
+    var companyName = (data.form && data.form.companyName) || '';
+    var datetime = new Date(data.createdAtMs || Date.now()).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+    var totalCount = data.totalCount || (data.ids ? data.ids.length : 0);
+    var discounted = data.discounted || 0;
+    var selectionList = data.selectionList || (data.ids ? data.ids.join('、') : '');
+    var note = (data.form && data.form.note) || '';
+
+    var subject = '【NKonline Apparel】ご依頼を受け付けました（受付番号：' + data.receiptNo + '）';
+    var body = companyName + ' 様\n\n'
+      + 'ご依頼いただきありがとうございます。\n'
+      + '以下の内容で受け付けました。確定金額・送料はメールでご案内いたします。\n\n'
+      + '━━━━━━━━━━━━━━━━━━━━\n'
+      + '■ ご依頼内容\n'
+      + '━━━━━━━━━━━━━━━━━━━━\n'
+      + '受付番号：' + data.receiptNo + '\n'
+      + '依頼日時：' + datetime + '\n'
+      + '会社名/氏名：' + companyName + '\n'
+      + '合計点数：' + totalCount + '点\n'
+      + '合計金額：' + Number(discounted).toLocaleString() + '円（税込）\n';
+
+    if (note) {
+      body += '備考：' + note + '\n';
+    }
+
+    body += '\n■ 選択商品\n'
+      + selectionList + '\n'
+      + '━━━━━━━━━━━━━━━━━━━━\n\n'
+      + '【ご注文の流れ】\n'
+      + '1. 確定金額・送料をメールでご案内\n'
+      + '2. お支払い確認後、商品を発送\n\n'
+      + '※ このメールは自動送信です。\n'
+      + '※ ご注文確定後のキャンセル・変更はできません。\n\n'
+      + '──────────────────\n'
+      + 'NKonline Apparel（卸売サイト）\n'
+      + 'https://wholesale.nkonline-tool.com/\n'
+      + 'お問い合わせ：nkonline1030@gmail.com\n'
+      + '──────────────────\n';
+
+    MailApp.sendEmail({
+      to: email,
+      subject: subject,
+      body: body,
+      noReply: true
+    });
+  } catch (e) {
+    console.error('app_sendEstimateConfirmToCustomer_ error:', e);
+  }
+}
+
 function apiGetAllDetails(managedIds) {
   try {
     if (!Array.isArray(managedIds) || managedIds.length === 0) {
@@ -417,20 +474,51 @@ function apiSendContactForm(params) {
     if (!email || email.indexOf('@') === -1) return { ok: false, message: '有効なメールアドレスを入力してください' };
     if (!message) return { ok: false, message: 'お問い合わせ内容を入力してください' };
 
-    var to = 'nkonline1030@gmail.com,nsdktts1030@gmail.com';
-    var subject = '【NKonlineApparel】お問い合わせ: ' + name;
-    var body = 'お問い合わせを受信しました。\n\n'
+    var datetime = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+
+    // 1. 管理者宛通知
+    var adminTo = 'nkonline1030@gmail.com,nsdktts1030@gmail.com';
+    var adminSubject = '【NKonlineApparel】お問い合わせ: ' + name;
+    var adminBody = 'お問い合わせを受信しました。\n\n'
       + 'お名前: ' + name + '\n'
       + 'メールアドレス: ' + email + '\n'
-      + '日時: ' + new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' }) + '\n'
+      + '日時: ' + datetime + '\n'
       + '\n--- お問い合わせ内容 ---\n'
       + message + '\n';
 
     MailApp.sendEmail({
-      to: to,
+      to: adminTo,
       replyTo: email,
-      subject: subject,
-      body: body
+      subject: adminSubject,
+      body: adminBody
+    });
+
+    // 2. 顧客宛確認メール
+    var custSubject = '【NKonline Apparel】お問い合わせを受け付けました';
+    var custBody = name + ' 様\n\n'
+      + 'お問い合わせいただきありがとうございます。\n'
+      + '以下の内容で受け付けました。2営業日以内にご連絡いたします。\n\n'
+      + '━━━━━━━━━━━━━━━━━━━━\n'
+      + '■ お問い合わせ内容\n'
+      + '━━━━━━━━━━━━━━━━━━━━\n'
+      + 'お名前：' + name + '\n'
+      + 'メールアドレス：' + email + '\n'
+      + '日時：' + datetime + '\n\n'
+      + message + '\n'
+      + '━━━━━━━━━━━━━━━━━━━━\n\n'
+      + '※ このメールは自動送信です。\n'
+      + '  このメールへの返信はお控えください。\n\n'
+      + '──────────────────\n'
+      + 'NKonline Apparel（卸売サイト）\n'
+      + 'https://wholesale.nkonline-tool.com/\n'
+      + 'お問い合わせ：nkonline1030@gmail.com\n'
+      + '──────────────────\n';
+
+    MailApp.sendEmail({
+      to: email,
+      subject: custSubject,
+      body: custBody,
+      noReply: true
     });
 
     return { ok: true };
