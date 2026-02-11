@@ -384,7 +384,10 @@ function syncFull_(productSheet, returnSheet, aiSheet, destSheet) {
 
     out.push([imgFormula, insertedStatus, brand, size, gender, category, color, insertedPrice, keepCheck, keyC]);
     outShipping.push([shippingMethod]);
-    outMeasurements.push(measurementsByKey[keyC] || emptyMeas);
+    // 商品管理の採寸データを優先、なければ既存データ1の値を保持
+    const srcMeas = rec.measurements || emptyMeas;
+    const hasSrcMeas = srcMeas.some(v => v !== '' && v !== null && v !== undefined);
+    outMeasurements.push(hasSrcMeas ? srcMeas : (measurementsByKey[keyC] || emptyMeas));
   }
 
   const width = CONFIG.DEST_COL_KEY - CONFIG.DEST_WRITE_START_COL + 1;
@@ -507,7 +510,23 @@ function buildProductMap_(productSheet) {
       category: idx['カテゴリ2'] !== undefined ? (r[idx['カテゴリ2']] || '') : '',
       color: idx['カラー'] !== undefined ? (r[idx['カラー']] || '') : '',
       cost: idx['仕入れ値'] !== undefined ? r[idx['仕入れ値']] : '',
-      shipping: idx['発送方法'] !== undefined ? (r[idx['発送方法']] || '') : ''
+      shipping: idx['発送方法'] !== undefined ? (r[idx['発送方法']] || '') : '',
+      // 採寸情報 (L-X列: 着丈,肩幅,身幅,袖丈,桁丈,総丈,ウエスト,股上,股下,ワタリ,裾幅,ヒップ,汚れ詳)
+      measurements: [
+        idx['着丈'] !== undefined ? (r[idx['着丈']] ?? '') : '',
+        idx['肩幅'] !== undefined ? (r[idx['肩幅']] ?? '') : '',
+        idx['身幅'] !== undefined ? (r[idx['身幅']] ?? '') : '',
+        idx['袖丈'] !== undefined ? (r[idx['袖丈']] ?? '') : '',
+        idx['桁丈'] !== undefined ? (r[idx['桁丈']] ?? '') : '',
+        idx['総丈'] !== undefined ? (r[idx['総丈']] ?? '') : '',
+        idx['ウエスト'] !== undefined ? (r[idx['ウエスト']] ?? '') : '',
+        idx['股上'] !== undefined ? (r[idx['股上']] ?? '') : '',
+        idx['股下'] !== undefined ? (r[idx['股下']] ?? '') : '',
+        idx['ワタリ'] !== undefined ? (r[idx['ワタリ']] ?? '') : '',
+        idx['裾幅'] !== undefined ? (r[idx['裾幅']] ?? '') : '',
+        idx['ヒップ'] !== undefined ? (r[idx['ヒップ']] ?? '') : '',
+        idx['汚れ詳細'] !== undefined ? (r[idx['汚れ詳細']] ?? '') : ''
+      ]
     };
   }
 
