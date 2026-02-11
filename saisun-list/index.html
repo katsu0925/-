@@ -357,6 +357,48 @@
           <div style="text-align:center;margin-top:12px;font-size:13px;">
             アカウントをお持ちでない方は <a href="#" id="showRegisterLink">新規登録</a>
           </div>
+          <div style="text-align:center;margin-top:8px;font-size:12px;color:#888;">
+            <a href="#" id="showForgotPasswordLink" style="color:#666;">パスワードを忘れた方</a>
+            <span style="margin:0 6px;">|</span>
+            <a href="#" id="showForgotEmailLink" style="color:#666;">メールアドレスを忘れた方</a>
+          </div>
+        </div>
+      </div>
+      <!-- パスワードリセットフォーム -->
+      <div id="forgotPasswordForm" style="display:none;">
+        <p style="font-size:13px;color:#555;margin:0 0 14px;">登録済みのメールアドレスを入力してください。仮パスワードをメールでお送りします。</p>
+        <div class="formGrid" style="grid-template-columns:1fr;">
+          <div class="formField">
+            <label>メールアドレス *</label>
+            <input id="resetEmail" type="email" autocomplete="email">
+          </div>
+        </div>
+        <div class="formActions" style="flex-direction:column;align-items:stretch;">
+          <button class="btn primary" id="resetPasswordBtn" type="button">仮パスワードを送信</button>
+          <div style="text-align:center;margin-top:12px;font-size:13px;">
+            <a href="#" id="backToLoginFromReset">ログインに戻る</a>
+          </div>
+        </div>
+      </div>
+      <!-- メールアドレス確認フォーム -->
+      <div id="forgotEmailForm" style="display:none;">
+        <p style="font-size:13px;color:#555;margin:0 0 14px;">ご登録時の会社名/氏名と電話番号を入力してください。登録メールアドレスのヒントを表示します。</p>
+        <div class="formGrid" style="grid-template-columns:1fr;">
+          <div class="formField">
+            <label>会社名/氏名 *</label>
+            <input id="recoverCompanyName" type="text">
+          </div>
+          <div class="formField">
+            <label>電話番号 *</label>
+            <input id="recoverPhone" type="tel" inputmode="numeric">
+          </div>
+        </div>
+        <div id="recoverEmailResult" style="display:none;margin:12px 0;padding:12px;background:#f0f7ff;border-radius:6px;font-size:14px;text-align:center;"></div>
+        <div class="formActions" style="flex-direction:column;align-items:stretch;">
+          <button class="btn primary" id="recoverEmailBtn" type="button">メールアドレスを確認</button>
+          <div style="text-align:center;margin-top:12px;font-size:13px;">
+            <a href="#" id="backToLoginFromRecover">ログインに戻る</a>
+          </div>
         </div>
       </div>
       <!-- 登録フォーム -->
@@ -904,14 +946,28 @@ function openAuthModal_(mode) {
   var modal = $('authModal');
   if (!modal) return;
 
+  // 全フォームを非表示
+  $('loginForm').style.display = 'none';
+  $('registerForm').style.display = 'none';
+  $('forgotPasswordForm').style.display = 'none';
+  $('forgotEmailForm').style.display = 'none';
+
+  // 結果表示をリセット
+  var recoverResult = $('recoverEmailResult');
+  if (recoverResult) recoverResult.style.display = 'none';
+
   if (mode === 'register') {
     $('authModalTitle').textContent = '新規登録';
-    $('loginForm').style.display = 'none';
     $('registerForm').style.display = '';
+  } else if (mode === 'forgotPassword') {
+    $('authModalTitle').textContent = 'パスワードをお忘れの方';
+    $('forgotPasswordForm').style.display = '';
+  } else if (mode === 'forgotEmail') {
+    $('authModalTitle').textContent = 'メールアドレスをお忘れの方';
+    $('forgotEmailForm').style.display = '';
   } else {
     $('authModalTitle').textContent = 'ログイン';
     $('loginForm').style.display = '';
-    $('registerForm').style.display = 'none';
   }
 
   openModal(modal);
@@ -1183,6 +1239,101 @@ function setupAuthUi_() {
   var showLoginLink = $('showLoginLink');
   if (showLoginLink) {
     showLoginLink.addEventListener('click', function(e) {
+      e.preventDefault();
+      openAuthModal_('login');
+    });
+  }
+
+  // パスワードを忘れた方
+  var showForgotPasswordLink = $('showForgotPasswordLink');
+  if (showForgotPasswordLink) {
+    showForgotPasswordLink.addEventListener('click', function(e) {
+      e.preventDefault();
+      openAuthModal_('forgotPassword');
+    });
+  }
+
+  // メールアドレスを忘れた方
+  var showForgotEmailLink = $('showForgotEmailLink');
+  if (showForgotEmailLink) {
+    showForgotEmailLink.addEventListener('click', function(e) {
+      e.preventDefault();
+      openAuthModal_('forgotEmail');
+    });
+  }
+
+  // パスワードリセット送信
+  var resetPasswordBtn = $('resetPasswordBtn');
+  if (resetPasswordBtn) {
+    resetPasswordBtn.addEventListener('click', function() {
+      var email = ($('resetEmail').value || '').trim();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showToast('有効なメールアドレスを入力してください');
+        return;
+      }
+      resetPasswordBtn.disabled = true;
+      resetPasswordBtn.textContent = '送信中...';
+      runApi('apiRequestPasswordReset', state.userKey || '', { email: email })
+        .then(function(res) {
+          if (res && res.ok) {
+            showToast(res.message || '仮パスワードを送信しました');
+            $('resetEmail').value = '';
+            // ログイン画面に戻す
+            setTimeout(function() { openAuthModal_('login'); }, 2000);
+          } else {
+            showToast((res && res.message) || '送信に失敗しました');
+          }
+        })
+        .catch(function(e) { showToast('送信に失敗しました'); })
+        .finally(function() {
+          resetPasswordBtn.disabled = false;
+          resetPasswordBtn.textContent = '仮パスワードを送信';
+        });
+    });
+  }
+
+  // パスワードリセット→ログインに戻る
+  var backToLoginFromReset = $('backToLoginFromReset');
+  if (backToLoginFromReset) {
+    backToLoginFromReset.addEventListener('click', function(e) {
+      e.preventDefault();
+      openAuthModal_('login');
+    });
+  }
+
+  // メールアドレス確認送信
+  var recoverEmailBtn = $('recoverEmailBtn');
+  if (recoverEmailBtn) {
+    recoverEmailBtn.addEventListener('click', function() {
+      var companyName = ($('recoverCompanyName').value || '').trim();
+      var phone = ($('recoverPhone').value || '').trim();
+      if (!companyName) { showToast('会社名/氏名を入力してください'); return; }
+      if (!phone) { showToast('電話番号を入力してください'); return; }
+      recoverEmailBtn.disabled = true;
+      recoverEmailBtn.textContent = '確認中...';
+      var resultDiv = $('recoverEmailResult');
+      resultDiv.style.display = 'none';
+      runApi('apiRecoverEmail', state.userKey || '', { companyName: companyName, phone: phone })
+        .then(function(res) {
+          if (res && res.ok && res.data && res.data.maskedEmail) {
+            resultDiv.innerHTML = 'ご登録のメールアドレス:<br><strong style="font-size:16px;">' + escapeHtml_(res.data.maskedEmail) + '</strong>';
+            resultDiv.style.display = 'block';
+          } else {
+            showToast((res && res.message) || '一致する情報が見つかりませんでした');
+          }
+        })
+        .catch(function(e) { showToast('確認に失敗しました'); })
+        .finally(function() {
+          recoverEmailBtn.disabled = false;
+          recoverEmailBtn.textContent = 'メールアドレスを確認';
+        });
+    });
+  }
+
+  // メールアドレス確認→ログインに戻る
+  var backToLoginFromRecover = $('backToLoginFromRecover');
+  if (backToLoginFromRecover) {
+    backToLoginFromRecover.addEventListener('click', function(e) {
       e.preventDefault();
       openAuthModal_('login');
     });
