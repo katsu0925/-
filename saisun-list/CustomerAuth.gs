@@ -284,7 +284,9 @@ function apiLoginCustomer(userKey, params) {
     }
 
     const sessionId = generateRandomId_(32);
-    const sessionExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    var rememberMe = params.rememberMe === true || params.rememberMe === 'true';
+    var sessionDuration = rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+    const sessionExpiry = new Date(Date.now() + sessionDuration);
     const now = new Date();
     const sheet = getCustomerSheet_();
     sheet.getRange(customer.row, 10).setValue(now);

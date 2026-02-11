@@ -37,6 +37,7 @@ function apiSubmitEstimate(userKey, form, ids) {
     var phone = String(f.phone || '').trim();
     var note = String(f.note || '').trim();
     var measureOpt = String(f.measureOpt || 'with');
+    var usePoints = Math.max(0, Math.floor(Number(f.usePoints || 0)));
 
     if (!companyName) return { ok: false, message: '会社名/氏名は必須です' };
     if (!contact) return { ok: false, message: 'メールアドレスは必須です' };
@@ -92,6 +93,23 @@ function apiSubmitEstimate(userKey, form, ids) {
     var discountRate = 0;
     if (measureOpt === 'without') discountRate = 0.05;
     var discounted = Math.round(sum * (1 - discountRate));
+
+    // === ポイント利用 ===
+    var pointsUsed = 0;
+    if (usePoints > 0 && contact) {
+      var custForPoints = findCustomerByEmail_(contact);
+      if (custForPoints && custForPoints.points >= usePoints) {
+        pointsUsed = Math.min(usePoints, discounted); // 合計金額を超えない
+        discounted = discounted - pointsUsed;
+        // ポイント残高を差し引き
+        deductPoints_(contact, pointsUsed);
+        if (note) {
+          note += '\n【ポイント利用: ' + pointsUsed + 'pt（-' + pointsUsed + '円）】';
+        } else {
+          note = '【ポイント利用: ' + pointsUsed + 'pt（-' + pointsUsed + '円）】';
+        }
+      }
+    }
 
     // === 同期：受付番号・テンプレート生成 ===
     var receiptNo = u_makeReceiptNo_();
