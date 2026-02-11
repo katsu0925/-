@@ -116,6 +116,8 @@ function apiSubmitEstimate(userKey, form, ids) {
     var selectionList = u_sortManagedIds_(list).join('、');
     var measureLabel = app_measureOptLabel_(measureOpt);
 
+    var invoiceReceipt = (f.invoiceReceipt === true || f.invoiceReceipt === 'true');
+
     var validatedForm = {
       companyName: companyName,
       contact: contact,
@@ -125,7 +127,8 @@ function apiSubmitEstimate(userKey, form, ids) {
       address: address,
       phone: phone,
       note: note,
-      measureOpt: measureOpt
+      measureOpt: measureOpt,
+      invoiceReceipt: invoiceReceipt
     };
 
     var templateText = app_buildTemplateText_(receiptNo, validatedForm, list, totalCount, discounted);
@@ -318,7 +321,9 @@ function writeSubmitData_(data) {
     APP_CONFIG.statuses.open,                    // P: ステータス
     '',                                          // Q: 担当者
     paymentStatus,                               // R: 入金確認
-    '', '', '',                                  // S-U: 予備(3列)
+    data.form.invoiceReceipt ? '希望' : '',      // S: 領収書希望
+    '',                                          // T: 領収書送付済
+    '',                                          // U: 予備
     data.form.note || '',                        // V: 備考
     '',                                          // W: 配送業者
     '',                                          // X: 伝票番号

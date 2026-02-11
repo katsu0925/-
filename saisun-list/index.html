@@ -382,12 +382,19 @@
             <label>備考</label>
             <textarea id="note"></textarea>
           </div>
+          <div class="formField" style="grid-column:1/-1;">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400;">
+              <input type="checkbox" id="invoiceReceipt" style="width:18px;height:18px;">
+              <span>インボイス付き領収書を希望する</span>
+            </label>
+          </div>
           <div class="formField" id="pointUseSection" style="display:none;grid-column:1/-1;">
             <label>ポイント利用 <span id="pointAvailable" style="font-weight:400;color:#888;"></span></label>
             <div style="display:flex;align-items:center;gap:8px;">
               <input id="usePoints" type="number" min="0" value="0" style="width:120px;" inputmode="numeric">
               <span style="font-size:13px;color:#666;">pt（1pt = 1円）</span>
               <button class="btn" id="useAllPointsBtn" type="button" style="font-size:12px;padding:4px 10px;">全額使用</button>
+              <button class="btn primary" id="applyPointsBtn" type="button" style="font-size:12px;padding:4px 12px;">変更を適用</button>
             </div>
             <div id="pointDiscountInfo" style="font-size:12px;color:#b8002a;margin-top:4px;"></div>
           </div>
@@ -579,13 +586,34 @@
         <div id="mpOrderList" style="font-size:13px;color:#666;">読み込み中...</div>
       </div>
 
-      <!-- ポイントタブ -->
+      <!-- ポイント・統計タブ -->
       <div class="mypage-content" id="mypagePoints" style="display:none;">
         <div style="text-align:center;padding:24px 0;">
           <div style="font-size:13px;color:#888;">ポイント残高</div>
           <div id="mpPointBalance" style="font-size:40px;font-weight:bold;color:#b8002a;margin:8px 0;">0</div>
           <div style="font-size:12px;color:#aaa;">1ポイント = 1円としてご利用いただけます</div>
           <div style="font-size:12px;color:#aaa;margin-top:4px;">購入金額の1%がポイントとして付与されます</div>
+        </div>
+        <div style="border-top:1px solid #eee;padding-top:16px;margin-top:8px;">
+          <div style="font-size:14px;font-weight:600;color:#333;margin-bottom:12px;">ご利用状況</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+            <div style="background:#f8fafc;border-radius:8px;padding:14px;text-align:center;">
+              <div style="font-size:11px;color:#888;">累計注文回数</div>
+              <div id="mpTotalOrders" style="font-size:22px;font-weight:bold;color:#1e293b;margin-top:4px;">-</div>
+            </div>
+            <div style="background:#f8fafc;border-radius:8px;padding:14px;text-align:center;">
+              <div style="font-size:11px;color:#888;">累計購入金額</div>
+              <div id="mpTotalSpent" style="font-size:22px;font-weight:bold;color:#1e293b;margin-top:4px;">-</div>
+            </div>
+            <div style="background:#f8fafc;border-radius:8px;padding:14px;text-align:center;">
+              <div style="font-size:11px;color:#888;">累計購入点数</div>
+              <div id="mpTotalItems" style="font-size:22px;font-weight:bold;color:#1e293b;margin-top:4px;">-</div>
+            </div>
+            <div style="background:#f8fafc;border-radius:8px;padding:14px;text-align:center;">
+              <div style="font-size:11px;color:#888;">会員ランク</div>
+              <div id="mpMemberRank" style="font-size:22px;font-weight:bold;color:#1e293b;margin-top:4px;">-</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -1180,6 +1208,17 @@ function doRegister_() {
 function openMyPage_() {
   var modal = $('myPageModal');
   if (!modal) return;
+
+  // ローカルデータで即時表示（API応答前のラグ解消）
+  if (state.customer) {
+    $('mpEmail').value = state.customer.email || '';
+    $('mpCompanyName').value = state.customer.companyName || '';
+    $('mpPhone').value = String(state.customer.phone || '').replace(/^'/, '');
+    $('mpPostal').value = String(state.customer.postal || '').replace(/^'/, '');
+    $('mpAddress').value = state.customer.address || '';
+    $('mpPointBalance').textContent = String(state.customer.points || 0);
+  }
+
   openModal(modal);
   loadMyPage_();
 }
@@ -1207,10 +1246,25 @@ function loadMyPage_() {
       $('mpPointBalance').textContent = String(d.points || 0);
       if (state.customer) state.customer.points = d.points || 0;
       updateAuthUi_();
+      // 統計データ
+      if (d.stats) {
+        $('mpTotalOrders').textContent = String(d.stats.totalOrders || 0) + '回';
+        $('mpTotalSpent').textContent = yen(d.stats.totalSpent || 0);
+        $('mpTotalItems').textContent = String(d.stats.totalItems || 0) + '点';
+        var rank = getMemberRank_(d.stats.totalSpent || 0);
+        $('mpMemberRank').innerHTML = '<span style="color:' + rank.color + ';">' + rank.name + '</span>';
+      }
       // 注文履歴
       renderOrderHistory_(d.orders || []);
     })
     .catch(function() { showToast('マイページの読み込みに失敗しました'); });
+}
+
+function getMemberRank_(totalSpent) {
+  if (totalSpent >= 500000) return { name: 'ダイヤモンド', color: '#00bcd4' };
+  if (totalSpent >= 200000) return { name: 'ゴールド', color: '#f59e0b' };
+  if (totalSpent >= 50000) return { name: 'シルバー', color: '#94a3b8' };
+  return { name: 'レギュラー', color: '#64748b' };
 }
 
 function renderOrderHistory_(orders) {
@@ -1575,6 +1629,10 @@ function setupAuthUi_() {
       $('usePoints').value = max;
       updatePointDiscountInfo_();
     });
+  }
+  var applyPointsBtn = $('applyPointsBtn');
+  if (applyPointsBtn) {
+    applyPointsBtn.addEventListener('click', applyPointDiscount_);
   }
 
   // =====================================================
@@ -3009,6 +3067,8 @@ function readForm_() {
   // ポイント利用
   var pts = parseInt($('usePoints').value, 10) || 0;
   if (pts > 0 && state.customer) f.usePoints = pts;
+  // インボイス領収書
+  if ($('invoiceReceipt') && $('invoiceReceipt').checked) f.invoiceReceipt = true;
   return f;
 }
 
@@ -3034,10 +3094,61 @@ function updatePointDiscountInfo_() {
   if (pts > max) { pts = max; $('usePoints').value = max; }
   if (pts < 0) { pts = 0; $('usePoints').value = 0; }
   if (pts > 0) {
-    info.textContent = pts + 'ポイント利用で -' + yen(pts) + ' 割引';
+    info.textContent = pts + 'ポイント利用で -' + yen(pts) + ' 割引（「変更を適用」で合計に反映）';
   } else {
     info.textContent = '';
   }
+}
+
+function applyPointDiscount_() {
+  var pts = parseInt($('usePoints').value, 10) || 0;
+  var max = (state.customer && state.customer.points) ? state.customer.points : 0;
+  if (pts > max) { pts = max; $('usePoints').value = max; }
+  if (pts < 0) { pts = 0; $('usePoints').value = 0; }
+
+  // カート合計を再計算
+  var sum = 0;
+  var ids = state.cart.ids || [];
+  for (var i = 0; i < ids.length; i++) {
+    var it = state.cart.itemsById[ids[i]];
+    if (it) sum += Number(it.price || 0);
+  }
+
+  var discountRate = 0;
+  var discountLabels = [];
+  if (state.customer && MEMBER_DISCOUNT_ENABLED) { discountRate += MEMBER_DISCOUNT_RATE; discountLabels.push('会員10%OFF'); }
+  var discounted = Math.round(sum * (1 - discountRate));
+
+  var pointsApplied = Math.min(pts, discounted);
+  var finalPrice = discounted - pointsApplied;
+  var discountLabel = discountLabels.length > 0 ? '（' + discountLabels.join('＋') + '）' : '';
+
+  var priceHtml = '';
+  if (pointsApplied > 0) {
+    if (discountRate > 0) {
+      priceHtml = '合計金額：<span class="price-old">' + yen(sum) + '</span> → <span class="price-new">' + yen(finalPrice) + '</span>' + discountLabel;
+    } else {
+      priceHtml = '合計金額：<span class="price-old">' + yen(discounted) + '</span> → <span class="price-new">' + yen(finalPrice) + '</span>';
+    }
+    priceHtml += '<div style="font-size:12px;color:#b8002a;margin-top:2px;">（ポイント利用: -' + yen(pointsApplied) + '）</div>';
+  } else {
+    if (discountRate > 0) {
+      priceHtml = '合計金額：<span class="price-old">' + yen(sum) + '</span> → <span class="price-new">' + yen(discounted) + '</span>' + discountLabel;
+    } else {
+      priceHtml = '合計金額：' + yen(discounted);
+    }
+  }
+  $('sumPrice').innerHTML = priceHtml;
+
+  var info = $('pointDiscountInfo');
+  if (info) {
+    if (pointsApplied > 0) {
+      info.innerHTML = '<span style="color:#2e7d32;">&#10003; ' + pointsApplied + 'ポイント適用済み（-' + yen(pointsApplied) + '）</span>';
+    } else {
+      info.textContent = '';
+    }
+  }
+  if (pointsApplied > 0) showToast('ポイント割引を適用しました');
 }
 
 function validateForm_(f) {
