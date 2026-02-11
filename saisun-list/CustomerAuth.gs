@@ -551,6 +551,9 @@ function apiGetMyPage(userKey, params) {
       totalItems += Number(orders[i].count) || 0;
     }
 
+    // ランク情報取得
+    var rankInfo = calculateCustomerRank_(customer.email);
+
     return {
       ok: true,
       data: {
@@ -569,6 +572,18 @@ function apiGetMyPage(userKey, params) {
           totalOrders: totalOrders,
           totalSpent: totalSpent,
           totalItems: totalItems
+        },
+        rank: {
+          name: rankInfo.name,
+          rank: rankInfo.rank,
+          pointRate: rankInfo.pointRate,
+          freeShipping: rankInfo.freeShipping,
+          color: rankInfo.color,
+          annualSpent: rankInfo.annualSpent,
+          nextRank: rankInfo.nextRank,
+          nextThreshold: rankInfo.nextThreshold,
+          remaining: rankInfo.remaining,
+          graceInfo: rankInfo.graceInfo
         }
       }
     };
@@ -624,10 +639,115 @@ function formatDate_(d) {
 }
 
 // =====================================================
-// ポイント管理
+// ランクシステム
 // =====================================================
 
-var POINT_RATE = 0.01; // 購入金額の1%
+var RANK_TIERS = {
+  DIAMOND:  { name: 'ダイヤモンド', threshold: 500000, pointRate: 0.05, freeShipping: true, color: '#00bcd4' },
+  GOLD:     { name: 'ゴールド',     threshold: 200000, pointRate: 0.05, freeShipping: false, color: '#f59e0b' },
+  SILVER:   { name: 'シルバー',     threshold: 50000,  pointRate: 0.03, freeShipping: false, color: '#94a3b8' },
+  REGULAR:  { name: 'レギュラー',   threshold: 0,      pointRate: 0.01, freeShipping: false, color: '#64748b' }
+};
+
+/**
+ * 顧客のランクを判定（過去12ヶ月の購入金額ベース）
+ * @param {string} email - 顧客メールアドレス
+ * @return {object} { rank, name, pointRate, freeShipping, color, annualSpent, nextRank, nextThreshold, graceInfo }
+ */
+function calculateCustomerRank_(email) {
+  var orders = getOrderHistory_(email);
+  var now = new Date();
+  var oneYearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+  var oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+  // 過去12ヶ月の完了済み注文の合計金額
+  var annualSpent = 0;
+  var recentSpent = 0; // 直近1ヶ月の購入金額
+  for (var i = 0; i < orders.length; i++) {
+    var o = orders[i];
+    if (o.status !== '完了') continue;
+    var orderDate;
+    try { orderDate = new Date(o.date.replace(/\//g, '-')); } catch (e) { continue; }
+    if (orderDate >= oneYearAgo) {
+      annualSpent += Number(o.total) || 0;
+    }
+    if (orderDate >= oneMonthAgo) {
+      recentSpent += Number(o.total) || 0;
+    }
+  }
+
+  // 過去13-24ヶ月のデータ（前年ランク推定用）
+  var twoYearsAgo = new Date(now.getTime() - 730 * 24 * 60 * 60 * 1000);
+  var prevYearSpent = 0;
+  for (var i = 0; i < orders.length; i++) {
+    var o = orders[i];
+    if (o.status !== '完了') continue;
+    var orderDate;
+    try { orderDate = new Date(o.date.replace(/\//g, '-')); } catch (e) { continue; }
+    if (orderDate >= twoYearsAgo && orderDate < oneYearAgo) {
+      prevYearSpent += Number(o.total) || 0;
+    }
+  }
+
+  // 前年のランクを判定
+  var prevRank = 'REGULAR';
+  if (prevYearSpent >= 500000) prevRank = 'DIAMOND';
+  else if (prevYearSpent >= 200000) prevRank = 'GOLD';
+  else if (prevYearSpent >= 50000) prevRank = 'SILVER';
+
+  // 現在のランクを判定
+  var currentRank = 'REGULAR';
+  if (annualSpent >= 500000) currentRank = 'DIAMOND';
+  else if (annualSpent >= 200000) currentRank = 'GOLD';
+  else if (annualSpent >= 50000) currentRank = 'SILVER';
+
+  // 救済措置: 前年ダイヤモンド/ゴールドが更新切れ → 直近1ヶ月で5万円以上購入 → 前ランク復活
+  var graceInfo = null;
+  if (currentRank === 'REGULAR' && (prevRank === 'DIAMOND' || prevRank === 'GOLD')) {
+    if (recentSpent >= 50000) {
+      currentRank = prevRank;
+      graceInfo = { restored: true, prevRank: prevRank };
+    } else {
+      graceInfo = { restored: false, prevRank: prevRank, needed: 50000 - recentSpent };
+    }
+  }
+
+  // 復帰ゴールド限定: 年間35万でダイヤモンド昇格（通常は50万必要）
+  if (currentRank === 'GOLD' && graceInfo && graceInfo.restored && prevRank === 'GOLD') {
+    if (annualSpent >= 350000) {
+      currentRank = 'DIAMOND';
+    }
+  }
+
+  var tier = RANK_TIERS[currentRank];
+
+  // 次のランクまでの情報
+  var nextRank = null;
+  var nextThreshold = 0;
+  if (currentRank === 'REGULAR') { nextRank = 'SILVER'; nextThreshold = 50000; }
+  else if (currentRank === 'SILVER') { nextRank = 'GOLD'; nextThreshold = 200000; }
+  else if (currentRank === 'GOLD') {
+    nextRank = 'DIAMOND';
+    nextThreshold = (graceInfo && graceInfo.restored) ? 350000 : 500000;
+  }
+
+  return {
+    rank: currentRank,
+    name: tier.name,
+    pointRate: tier.pointRate,
+    freeShipping: tier.freeShipping,
+    color: tier.color,
+    annualSpent: annualSpent,
+    nextRank: nextRank ? RANK_TIERS[nextRank].name : null,
+    nextThreshold: nextThreshold,
+    remaining: nextThreshold > 0 ? Math.max(0, nextThreshold - annualSpent) : 0,
+    graceInfo: graceInfo
+  };
+}
+
+// =====================================================
+// ポイント管理
+// =====================================================
 
 /**
  * 完了済み注文にポイントを付与（メニューまたはトリガーから実行）
@@ -656,19 +776,24 @@ function processCustomerPoints() {
     var total = Number(reqData[i][11]) || 0;         // L列: 合計金額
 
     if (status === '完了' && pointFlag !== 'PT' && email && total > 0) {
-      var points = Math.floor(total * POINT_RATE);
-      if (points > 0 && custMap[email]) {
-        custMap[email].points += points;
-        custSheet.getRange(custMap[email].row, 13).setValue(custMap[email].points);
-        // AB列にポイント付与済みマーク
-        reqSheet.getRange(i + 1, 28).setValue('PT');
-        awarded++;
+      if (custMap[email]) {
+        // ランクに応じたポイント付与率を取得
+        var rankInfo = calculateCustomerRank_(email);
+        var pointRate = rankInfo.pointRate || 0.01;
+        var points = Math.floor(total * pointRate);
+        if (points > 0) {
+          custMap[email].points += points;
+          custSheet.getRange(custMap[email].row, 13).setValue(custMap[email].points);
+          // AB列にポイント付与済みマーク
+          reqSheet.getRange(i + 1, 28).setValue('PT');
+          awarded++;
+        }
       }
     }
   }
 
   if (awarded > 0) {
-    SpreadsheetApp.getUi().alert('ポイント付与完了: ' + awarded + '件（1%付与）');
+    SpreadsheetApp.getUi().alert('ポイント付与完了: ' + awarded + '件（ランクに応じた付与率で付与）');
   } else {
     SpreadsheetApp.getUi().alert('ポイント付与対象の注文はありませんでした');
   }

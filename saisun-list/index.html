@@ -588,11 +588,19 @@
 
       <!-- ポイント・統計タブ -->
       <div class="mypage-content" id="mypagePoints" style="display:none;">
-        <div style="text-align:center;padding:24px 0;">
+        <!-- ランクカード -->
+        <div id="mpRankCard" style="background:linear-gradient(135deg,#1e293b,#334155);border-radius:12px;padding:20px;color:#fff;margin-bottom:16px;position:relative;overflow:hidden;">
+          <div style="font-size:11px;opacity:0.7;">現在のランク</div>
+          <div id="mpRankName" style="font-size:28px;font-weight:900;margin:4px 0;">-</div>
+          <div id="mpRankPointRate" style="font-size:13px;opacity:0.9;">ポイント還元率: -</div>
+          <div id="mpRankBenefits" style="font-size:12px;opacity:0.8;margin-top:4px;"></div>
+          <div id="mpRankProgress" style="margin-top:12px;"></div>
+        </div>
+
+        <div style="text-align:center;padding:16px 0;">
           <div style="font-size:13px;color:#888;">ポイント残高</div>
           <div id="mpPointBalance" style="font-size:40px;font-weight:bold;color:#b8002a;margin:8px 0;">0</div>
           <div style="font-size:12px;color:#aaa;">1ポイント = 1円としてご利用いただけます</div>
-          <div style="font-size:12px;color:#aaa;margin-top:4px;">購入金額の1%がポイントとして付与されます</div>
         </div>
         <div style="border-top:1px solid #eee;padding-top:16px;margin-top:8px;">
           <div style="font-size:14px;font-weight:600;color:#333;margin-bottom:12px;">ご利用状況</div>
@@ -602,7 +610,7 @@
               <div id="mpTotalOrders" style="font-size:22px;font-weight:bold;color:#1e293b;margin-top:4px;">-</div>
             </div>
             <div style="background:#f8fafc;border-radius:8px;padding:14px;text-align:center;">
-              <div style="font-size:11px;color:#888;">累計購入金額</div>
+              <div style="font-size:11px;color:#888;">年間購入金額</div>
               <div id="mpTotalSpent" style="font-size:22px;font-weight:bold;color:#1e293b;margin-top:4px;">-</div>
             </div>
             <div style="background:#f8fafc;border-radius:8px;padding:14px;text-align:center;">
@@ -613,6 +621,48 @@
               <div style="font-size:11px;color:#888;">会員ランク</div>
               <div id="mpMemberRank" style="font-size:22px;font-weight:bold;color:#1e293b;margin-top:4px;">-</div>
             </div>
+          </div>
+        </div>
+
+        <!-- ランク制度説明 -->
+        <div style="border-top:1px solid #eee;padding-top:16px;margin-top:16px;">
+          <div style="font-size:14px;font-weight:600;color:#333;margin-bottom:12px;">ランク・ポイント制度</div>
+          <table style="width:100%;border-collapse:collapse;font-size:12px;margin-bottom:12px;">
+            <tr style="background:#f8fafc;">
+              <th style="padding:8px;border:1px solid #e2e8f0;text-align:left;">ランク</th>
+              <th style="padding:8px;border:1px solid #e2e8f0;text-align:center;">年間購入金額</th>
+              <th style="padding:8px;border:1px solid #e2e8f0;text-align:center;">ポイント還元</th>
+              <th style="padding:8px;border:1px solid #e2e8f0;text-align:center;">特典</th>
+            </tr>
+            <tr>
+              <td style="padding:8px;border:1px solid #e2e8f0;"><span style="color:#00bcd4;font-weight:700;">ダイヤモンド</span></td>
+              <td style="padding:8px;border:1px solid #e2e8f0;text-align:center;">50万円〜</td>
+              <td style="padding:8px;border:1px solid #e2e8f0;text-align:center;font-weight:700;color:#b8002a;">5%</td>
+              <td style="padding:8px;border:1px solid #e2e8f0;text-align:center;">送料無料</td>
+            </tr>
+            <tr style="background:#fafafa;">
+              <td style="padding:8px;border:1px solid #e2e8f0;"><span style="color:#f59e0b;font-weight:700;">ゴールド</span></td>
+              <td style="padding:8px;border:1px solid #e2e8f0;text-align:center;">20万円〜</td>
+              <td style="padding:8px;border:1px solid #e2e8f0;text-align:center;font-weight:700;color:#b8002a;">5%</td>
+              <td style="padding:8px;border:1px solid #e2e8f0;text-align:center;">-</td>
+            </tr>
+            <tr>
+              <td style="padding:8px;border:1px solid #e2e8f0;"><span style="color:#94a3b8;font-weight:700;">シルバー</span></td>
+              <td style="padding:8px;border:1px solid #e2e8f0;text-align:center;">5万円〜</td>
+              <td style="padding:8px;border:1px solid #e2e8f0;text-align:center;font-weight:700;">3%</td>
+              <td style="padding:8px;border:1px solid #e2e8f0;text-align:center;">-</td>
+            </tr>
+            <tr style="background:#fafafa;">
+              <td style="padding:8px;border:1px solid #e2e8f0;"><span style="color:#64748b;font-weight:700;">レギュラー</span></td>
+              <td style="padding:8px;border:1px solid #e2e8f0;text-align:center;">-</td>
+              <td style="padding:8px;border:1px solid #e2e8f0;text-align:center;">1%</td>
+              <td style="padding:8px;border:1px solid #e2e8f0;text-align:center;">-</td>
+            </tr>
+          </table>
+          <div style="font-size:11px;color:#888;line-height:1.6;">
+            <div>* ランクは過去12ヶ月の購入金額で判定されます（年間更新）</div>
+            <div>* ポイントは1pt = 1円として次回以降のお買い物にご利用いただけます</div>
+            <div>* ダイヤモンド・ゴールド会員は更新切れ後1ヶ月以内に5万円以上購入でランク復活</div>
           </div>
         </div>
       </div>
@@ -1055,9 +1105,14 @@ function updateAuthUi_() {
   if (state.customer) {
     var discountLabel = MEMBER_DISCOUNT_ENABLED ? '<span class="authDiscount">10%OFF</span>' : '';
     var pointsLabel = (state.customer.points > 0) ? '<span class="authPoints">' + state.customer.points + 'pt</span>' : '';
+    // ランクバッジ
+    var rankLabel = '';
+    if (state.customer.rank && state.customer.rank.name) {
+      rankLabel = '<span style="background:' + (state.customer.rank.color || '#64748b') + ';color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700;">' + state.customer.rank.name + '</span>';
+    }
     area.innerHTML = '<div class="authUser">' +
       '<span class="authUserName">' + escapeHtml_(state.customer.companyName || state.customer.email) + '</span>' +
-      discountLabel + pointsLabel +
+      rankLabel + discountLabel + pointsLabel +
       '</div>' +
       '<button class="authBtn mypage" id="openMyPageBtn" type="button">マイページ</button>' +
       '<button class="authBtn logout" id="logoutBtn" type="button">ログアウト</button>';
@@ -1249,8 +1304,64 @@ function loadMyPage_() {
       // 統計データ
       if (d.stats) {
         $('mpTotalOrders').textContent = String(d.stats.totalOrders || 0) + '回';
-        $('mpTotalSpent').textContent = yen(d.stats.totalSpent || 0);
         $('mpTotalItems').textContent = String(d.stats.totalItems || 0) + '点';
+      }
+      // ランク情報（APIから取得）
+      if (d.rank) {
+        var r = d.rank;
+        $('mpTotalSpent').textContent = yen(r.annualSpent || 0);
+        $('mpMemberRank').innerHTML = '<span style="color:' + (r.color || '#64748b') + ';">' + (r.name || 'レギュラー') + '</span>';
+
+        // ランクカード更新
+        var rankCard = $('mpRankCard');
+        if (rankCard) {
+          var gradients = {
+            'DIAMOND': 'linear-gradient(135deg,#006064,#00838f)',
+            'GOLD': 'linear-gradient(135deg,#78350f,#b45309)',
+            'SILVER': 'linear-gradient(135deg,#475569,#64748b)',
+            'REGULAR': 'linear-gradient(135deg,#1e293b,#334155)'
+          };
+          rankCard.style.background = gradients[r.rank] || gradients['REGULAR'];
+        }
+        $('mpRankName').textContent = r.name || 'レギュラー';
+        $('mpRankPointRate').textContent = 'ポイント還元率: ' + Math.round((r.pointRate || 0.01) * 100) + '%';
+        var benefits = [];
+        if (r.freeShipping) benefits.push('送料無料');
+        $('mpRankBenefits').textContent = benefits.length > 0 ? '特典: ' + benefits.join('、') : '';
+
+        // 進捗バー
+        var progressEl = $('mpRankProgress');
+        if (progressEl && r.nextRank && r.nextThreshold > 0) {
+          var pct = Math.min(100, Math.round((r.annualSpent / r.nextThreshold) * 100));
+          progressEl.innerHTML = '<div style="font-size:11px;opacity:0.8;margin-bottom:4px;">'
+            + '次のランク（' + r.nextRank + '）まであと ' + yen(r.remaining || 0)
+            + '</div>'
+            + '<div style="background:rgba(255,255,255,0.2);border-radius:4px;height:6px;overflow:hidden;">'
+            + '<div style="background:#fff;height:100%;border-radius:4px;width:' + pct + '%;transition:width .5s;"></div>'
+            + '</div>'
+            + '<div style="font-size:10px;opacity:0.6;margin-top:2px;text-align:right;">' + yen(r.annualSpent) + ' / ' + yen(r.nextThreshold) + '</div>';
+        } else if (progressEl) {
+          progressEl.innerHTML = '<div style="font-size:11px;opacity:0.8;">最高ランクに到達しています</div>';
+        }
+
+        // 救済措置の通知
+        if (r.graceInfo && !r.graceInfo.restored && r.graceInfo.prevRank) {
+          var graceNotice = $('mpRankProgress');
+          if (graceNotice) {
+            graceNotice.innerHTML += '<div style="margin-top:8px;padding:8px;background:rgba(255,255,255,0.15);border-radius:6px;font-size:11px;">'
+              + '前年の' + (r.graceInfo.prevRank === 'DIAMOND' ? 'ダイヤモンド' : 'ゴールド') + 'ランクが更新切れです。'
+              + '1ヶ月以内にあと' + yen(r.graceInfo.needed || 0) + '購入でランク復活できます。'
+              + '</div>';
+          }
+        }
+
+        // state.customerにランク情報を保存（ヘッダー表示用）
+        if (state.customer) {
+          state.customer.rank = r;
+        }
+        updateAuthUi_();
+      } else if (d.stats) {
+        $('mpTotalSpent').textContent = yen(d.stats.totalSpent || 0);
         var rank = getMemberRank_(d.stats.totalSpent || 0);
         $('mpMemberRank').innerHTML = '<span style="color:' + rank.color + ';">' + rank.name + '</span>';
       }
@@ -1261,10 +1372,10 @@ function loadMyPage_() {
 }
 
 function getMemberRank_(totalSpent) {
-  if (totalSpent >= 500000) return { name: 'ダイヤモンド', color: '#00bcd4' };
-  if (totalSpent >= 200000) return { name: 'ゴールド', color: '#f59e0b' };
-  if (totalSpent >= 50000) return { name: 'シルバー', color: '#94a3b8' };
-  return { name: 'レギュラー', color: '#64748b' };
+  if (totalSpent >= 500000) return { name: 'ダイヤモンド', color: '#00bcd4', pointRate: 5, freeShipping: true };
+  if (totalSpent >= 200000) return { name: 'ゴールド', color: '#f59e0b', pointRate: 5, freeShipping: false };
+  if (totalSpent >= 50000) return { name: 'シルバー', color: '#94a3b8', pointRate: 3, freeShipping: false };
+  return { name: 'レギュラー', color: '#64748b', pointRate: 1, freeShipping: false };
 }
 
 function renderOrderHistory_(orders) {
