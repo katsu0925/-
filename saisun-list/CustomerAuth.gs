@@ -389,6 +389,119 @@ function apiUpdateCustomerProfile(userKey, params) {
 }
 
 /**
+ * パスワードリセットAPI
+ * 登録メールアドレスに仮パスワードを送信
+ */
+function apiRequestPasswordReset(userKey, params) {
+  try {
+    var email = String(params.email || '').trim().toLowerCase();
+    if (!email || !email.includes('@')) {
+      return { ok: false, message: '有効なメールアドレスを入力してください' };
+    }
+
+    var customer = findCustomerByEmail_(email);
+    if (!customer) {
+      // セキュリティ: 登録有無を漏らさないため同じメッセージを返す
+      return { ok: true, message: '登録されているメールアドレスの場合、仮パスワードを送信しました' };
+    }
+
+    // 仮パスワード生成（8文字の英数字）
+    var tempPassword = generateRandomId_(8);
+
+    // 新しいハッシュで保存
+    var salt = generateRandomId_(16);
+    var newHash = salt + ':' + hashPassword_(tempPassword, salt);
+    var sheet = getCustomerSheet_();
+    sheet.getRange(customer.row, 3).setValue(newHash);
+
+    // 仮パスワードをメール送信
+    var subject = '【NKonline Apparel】パスワードリセットのお知らせ';
+    var body = customer.companyName + ' 様\n\n'
+      + 'パスワードリセットのリクエストを受け付けました。\n'
+      + '以下の仮パスワードでログインしてください。\n\n'
+      + '━━━━━━━━━━━━━━━━━━━━\n'
+      + '仮パスワード: ' + tempPassword + '\n'
+      + '━━━━━━━━━━━━━━━━━━━━\n\n'
+      + 'ログイン後、マイページからパスワードの変更をお勧めします。\n'
+      + '※ このメールに心当たりがない場合は、無視してください。\n\n'
+      + '──────────────────\n'
+      + 'NKonline Apparel\n'
+      + 'https://wholesale.nkonline-tool.com\n'
+      + 'お問い合わせ: nkonline1030@gmail.com\n'
+      + '──────────────────\n';
+
+    MailApp.sendEmail({
+      to: email,
+      subject: subject,
+      body: body,
+      noReply: true
+    });
+
+    console.log('Password reset sent to: ' + email + ' (customer: ' + customer.id + ')');
+    return { ok: true, message: '登録されているメールアドレスの場合、仮パスワードを送信しました' };
+  } catch (e) {
+    console.error('apiRequestPasswordReset error:', e);
+    return { ok: false, message: 'パスワードリセットに失敗しました。しばらくしてからお試しください' };
+  }
+}
+
+/**
+ * メールアドレス確認API
+ * 会社名/氏名 + 電話番号で照合し、マスク済みメールアドレスを返す
+ */
+function apiRecoverEmail(userKey, params) {
+  try {
+    var companyName = String(params.companyName || '').trim();
+    var phone = String(params.phone || '').trim().replace(/[-\s]/g, '');
+
+    if (!companyName) {
+      return { ok: false, message: '会社名/氏名を入力してください' };
+    }
+    if (!phone) {
+      return { ok: false, message: '電話番号を入力してください' };
+    }
+
+    var sheet = getCustomerSheet_();
+    var data = sheet.getDataRange().getValues();
+
+    for (var i = 1; i < data.length; i++) {
+      var rowName = String(data[i][3] || '').trim();
+      var rowPhone = String(data[i][4] || '').trim().replace(/[-\s']/g, '');
+
+      if (rowName === companyName && rowPhone === phone) {
+        var rawEmail = String(data[i][1] || '');
+        var masked = maskEmail_(rawEmail);
+        return { ok: true, data: { maskedEmail: masked } };
+      }
+    }
+
+    return { ok: false, message: '一致する登録情報が見つかりませんでした。\n入力内容をご確認いただくか、お問い合わせください。' };
+  } catch (e) {
+    console.error('apiRecoverEmail error:', e);
+    return { ok: false, message: 'メールアドレスの確認に失敗しました' };
+  }
+}
+
+/**
+ * メールアドレスをマスク表示 (例: test@example.com → t***@e*****.com)
+ */
+function maskEmail_(email) {
+  var parts = String(email).split('@');
+  if (parts.length !== 2) return '***@***';
+  var local = parts[0];
+  var domain = parts[1];
+
+  var maskedLocal = local.charAt(0) + '***';
+  var dotIdx = domain.lastIndexOf('.');
+  if (dotIdx > 0) {
+    var maskedDomain = domain.charAt(0) + '*'.repeat(Math.min(dotIdx - 1, 5)) + domain.substring(dotIdx);
+  } else {
+    var maskedDomain = domain.charAt(0) + '***';
+  }
+  return maskedLocal + '@' + maskedDomain;
+}
+
+/**
  * ログアウトAPI
  */
 function apiLogoutCustomer(userKey, params) {

@@ -60,6 +60,8 @@ function doPost(e) {
       'apiValidateSession': apiValidateSession,
       'apiLogoutCustomer': apiLogoutCustomer,
       'apiUpdateCustomerProfile': apiUpdateCustomerProfile,
+      'apiRequestPasswordReset': apiRequestPasswordReset,
+      'apiRecoverEmail': apiRecoverEmail,
       // KOMOJU決済API
       'apiCreateKomojuSession': apiCreateKomojuSession,
       'apiCheckPaymentStatus': apiCheckPaymentStatus,
