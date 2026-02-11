@@ -106,7 +106,60 @@ function expandOrder() {
   });
 
   om_ensureRecoveryHeaders_(out);
-  activeSs.toast(totalAdded + '件を回収完了に展開しました', '完了', 5);
+
+  // --- データ1のJ列に自動チェック ---
+  // 展開された全管理番号を収集
+  var allExpandedIds = [];
+  receiptNos.forEach(function(receiptNo) {
+    var reqRow = reqData.find(function(r) { return String(r[receiptCol] || '').trim() === receiptNo; });
+    if (!reqRow) return;
+    var selectionStr = String(reqRow[selectionCol] || '');
+    var ids = selectionStr.split(/[、,，\s]+/).map(function(s) { return s.trim(); }).filter(function(s) { return s; });
+    ids.forEach(function(id) { allExpandedIds.push(id); });
+  });
+
+  if (allExpandedIds.length > 0) {
+    try {
+      var destSsId = String(APP_CONFIG.data.spreadsheetId || '').trim();
+      var destSs = destSsId ? SpreadsheetApp.openById(destSsId) : activeSs;
+      var destSheet = destSs.getSheetByName('データ1');
+      if (destSheet) {
+        var destStartRow = 4; // CONFIG.DEST_START_ROW
+        var destLastRow = destSheet.getLastRow();
+        if (destLastRow >= destStartRow) {
+          var numRows = destLastRow - destStartRow + 1;
+          var kVals = destSheet.getRange(destStartRow, 11, numRows, 1).getDisplayValues(); // K列=11
+          var jRange = destSheet.getRange(destStartRow, 10, numRows, 1); // J列=10
+          var jVals = jRange.getValues();
+
+          var idSet = {};
+          allExpandedIds.forEach(function(id) { idSet[String(id).trim()] = true; });
+
+          var checkedCount = 0;
+          for (var k = 0; k < numRows; k++) {
+            var key = String(kVals[k][0] || '').trim();
+            if (key && idSet[key] && jVals[k][0] !== true) {
+              jVals[k][0] = true;
+              checkedCount++;
+            }
+          }
+          if (checkedCount > 0) {
+            jRange.setValues(jVals);
+          }
+          activeSs.toast(totalAdded + '件を回収完了に展開し、' + checkedCount + '件のJ列チェックを付けました', '完了', 5);
+        } else {
+          activeSs.toast(totalAdded + '件を回収完了に展開しました（データ1にデータなし）', '完了', 5);
+        }
+      } else {
+        activeSs.toast(totalAdded + '件を回収完了に展開しました（データ1シート未検出）', '完了', 5);
+      }
+    } catch (e) {
+      console.error('J列自動チェックエラー:', e);
+      activeSs.toast(totalAdded + '件を回収完了に展開しました（チェック付与でエラー）', '完了', 5);
+    }
+  } else {
+    activeSs.toast(totalAdded + '件を回収完了に展開しました', '完了', 5);
+  }
 }
 
 // ═══════════════════════════════════════════
