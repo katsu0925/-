@@ -16,6 +16,11 @@
     html, body { margin:0; padding:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif; color:#111; background:#f6f7f9; -webkit-text-size-adjust:100%; }
     * { box-sizing:border-box; }
     input, select, textarea, button { font-size:16px; }
+    .promo-banner{background:linear-gradient(90deg,#b8002a,#e63950);color:#fff;text-align:center;padding:10px 40px 10px 14px;font-size:13px;font-weight:700;position:relative;z-index:21;display:none;}
+    .promo-banner a{color:#fff;text-decoration:underline;margin-left:8px;font-weight:900;}
+    .promo-banner a:hover{color:#ffd700;}
+    .promo-banner .promo-close{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;opacity:0.8;}
+    .promo-banner .promo-close:hover{opacity:1;}
     .topbar{position:sticky;top:0;z-index:20;background:#1e293b;border-bottom:1px solid #334155;padding:12px 14px;}
     .wrap{margin:0 auto;padding:12px 14px 90px;}
         .title{font-weight:900;font-size:18px;color:#f1f5f9;}
@@ -199,6 +204,10 @@
   </style>
 </head>
 <body>
+  <div class="promo-banner" id="promoBanner">
+    期間限定：会員登録で全品<strong>10%OFF</strong>（2026年9月末まで・30点割引と併用可）<a href="#" id="promoRegisterLink">今すぐ無料登録 ＞</a>
+    <button class="promo-close" id="promoClose" type="button">✕</button>
+  </div>
   <div class="topbar">
     <div class="wrap" style="padding:0 14px;">
       <div style="display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap;">
@@ -854,10 +863,23 @@ function updateAuthUi_() {
   var area = $('authArea');
   if (!area) return;
 
+  // プロモバナーの表示制御
+  var banner = $('promoBanner');
+  if (banner) {
+    var dismissed = false;
+    try { dismissed = sessionStorage.getItem('promoBannerDismissed') === '1'; } catch (e) {}
+    if (state.customer || dismissed || !MEMBER_DISCOUNT_ENABLED) {
+      banner.style.display = 'none';
+    } else {
+      banner.style.display = 'block';
+    }
+  }
+
   if (state.customer) {
+    var discountLabel = MEMBER_DISCOUNT_ENABLED ? '<span class="authDiscount">10%OFF</span>' : '';
     area.innerHTML = '<div class="authUser">' +
       '<span class="authUserName">' + escapeHtml_(state.customer.companyName || state.customer.email) + '</span>' +
-      '<span class="authDiscount">10%OFF</span>' +
+      discountLabel +
       '</div>' +
       '<button class="authBtn logout" id="logoutBtn" type="button">ログアウト</button>';
 
@@ -1163,6 +1185,25 @@ function setupAuthUi_() {
     showLoginLink.addEventListener('click', function(e) {
       e.preventDefault();
       openAuthModal_('login');
+    });
+  }
+
+  // プロモバナー：×ボタン
+  var promoClose = $('promoClose');
+  if (promoClose) {
+    promoClose.addEventListener('click', function() {
+      var b = $('promoBanner');
+      if (b) b.style.display = 'none';
+      try { sessionStorage.setItem('promoBannerDismissed', '1'); } catch (e) {}
+    });
+  }
+
+  // プロモバナー：登録リンク
+  var promoLink = $('promoRegisterLink');
+  if (promoLink) {
+    promoLink.addEventListener('click', function(e) {
+      e.preventDefault();
+      openAuthModal_('register');
     });
   }
 }
