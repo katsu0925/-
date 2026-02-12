@@ -67,7 +67,9 @@ function doPost(e) {
       // KOMOJU決済API
       'apiCreateKomojuSession': apiCreateKomojuSession,
       'apiCheckPaymentStatus': apiCheckPaymentStatus,
-      'apiCancelOrder': apiCancelOrder
+      'apiCancelOrder': apiCancelOrder,
+      // CSRFトークン発行
+      'apiGetCsrfToken': apiGetCsrfToken
     };
 
     var fn = allowed[action];
@@ -93,6 +95,18 @@ function doPost(e) {
         if (!verifyRecaptcha_(token)) {
           console.log('reCAPTCHA failed: token=' + (token ? 'present(' + token.length + 'chars)' : 'empty') + ' keys=' + Object.keys(body).join(','));
           return jsonResponse_({ ok: false, message: 'bot判定されました。ブラウザを再読み込みして再度お試しください。' });
+        }
+      }
+
+      // CSRF検証（状態変更を伴うAPIに適用）
+      var csrfProtectedActions = [
+        'apiSubmitEstimate', 'apiUpdateCustomerProfile', 'apiChangePassword',
+        'apiCreateKomojuSession', 'apiCancelOrder', 'apiSendContactForm'
+      ];
+      if (csrfProtectedActions.indexOf(action) !== -1) {
+        var csrfToken = String(body.csrfToken || '');
+        if (!verifyCsrfToken_(userKey, csrfToken)) {
+          return jsonResponse_({ ok: false, message: '不正なリクエストです。ページを再読み込みしてください。' });
         }
       }
     }
@@ -123,7 +137,9 @@ var RATE_LIMITS = {
   'apiSyncHolds':     { max: 30, windowSec: 60,   label: '確保操作は1分に30回まで' },
   'apiLoginCustomer': { max: 5, windowSec: 3600, label: 'ログインは1時間に5回まで' },
   'apiRegisterCustomer': { max: 3, windowSec: 3600, label: '登録は1時間に3回まで' },
-  'apiSendContactForm': { max: 3, windowSec: 3600, label: 'お問い合わせは1時間に3回まで' }
+  'apiSendContactForm': { max: 3, windowSec: 3600, label: 'お問い合わせは1時間に3回まで' },
+  'apiRequestPasswordReset': { max: 3, windowSec: 3600, label: 'パスワードリセットは1時間に3回まで' },
+  'apiRecoverEmail': { max: 5, windowSec: 3600, label: 'メールアドレス確認は1時間に5回まで' }
 };
 
 function checkRateLimit_(action, userKey) {
@@ -359,4 +375,42 @@ function appendLogRow_(row) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// =====================================================
+// CSRFトークン管理
+// =====================================================
+
+/**
+ * CSRFトークンを発行するAPI
+ * フロントエンドはページロード時にこのAPIを呼び出し、
+ * 以降のmutation APIリクエストにcsrfTokenを含める。
+ * @param {string} userKey
+ * @return {object} { ok, csrfToken }
+ */
+function apiGetCsrfToken(userKey) {
+  var uk = String(userKey || '').trim();
+  if (!uk) return { ok: false, message: 'userKeyが不正です' };
+
+  var token = generateRandomId_(AUTH_CONSTANTS.CSRF_TOKEN_LENGTH);
+  var cache = CacheService.getScriptCache();
+  var key = 'CSRF:' + uk;
+  cache.put(key, token, AUTH_CONSTANTS.CSRF_TOKEN_EXPIRY_SEC);
+
+  return { ok: true, csrfToken: token };
+}
+
+/**
+ * CSRFトークンを検証
+ * @param {string} userKey
+ * @param {string} token - クライアントから送信されたCSRFトークン
+ * @return {boolean}
+ */
+function verifyCsrfToken_(userKey, token) {
+  if (!userKey || !token) return false;
+  var cache = CacheService.getScriptCache();
+  var key = 'CSRF:' + userKey;
+  var stored = cache.get(key);
+  if (!stored) return false;
+  return timingSafeEqual_(stored, token);
 }

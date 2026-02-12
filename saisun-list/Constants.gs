@@ -22,7 +22,14 @@ var AUTH_CONSTANTS = {
   SESSION_REMEMBER_ME_MS: 30 * 24 * 60 * 60 * 1000, // RememberMe有効期間（30日）
 
   // メールマスク
-  EMAIL_MASK_MAX_STARS: 5                          // メールアドレスマスク最大アスタリスク数
+  EMAIL_MASK_MAX_STARS: 5,                         // メールアドレスマスク最大アスタリスク数
+
+  // 仮パスワード
+  TEMP_PASSWORD_EXPIRY_MS: 30 * 60 * 1000,        // 仮パスワード有効期限（30分）
+
+  // CSRFトークン
+  CSRF_TOKEN_LENGTH: 32,                           // CSRFトークン文字列長
+  CSRF_TOKEN_EXPIRY_SEC: 3600                      // CSRFトークン有効期間（1時間）
 };
 
 /**
@@ -127,4 +134,26 @@ var SITE_CONSTANTS = {
   SITE_NAME: 'NKonline Apparel',
   SITE_URL: 'https://wholesale.nkonline-tool.com/',
   CONTACT_EMAIL: 'nkonline1030@gmail.com'
+};
+
+/**
+ * 環境設定
+ * ScriptPropertiesの ENV キーで 'production' / 'staging' / 'development' を切り替え。
+ * 未設定時は 'production' として動作。
+ */
+var ENV_CONFIG = {
+  /** 現在の環境を取得 */
+  getEnv: function() {
+    try {
+      return PropertiesService.getScriptProperties().getProperty('ENV') || 'production';
+    } catch (e) {
+      return 'production';
+    }
+  },
+  /** 本番環境かどうか */
+  isProduction: function() { return ENV_CONFIG.getEnv() === 'production'; },
+  /** 開発環境かどうか */
+  isDevelopment: function() { return ENV_CONFIG.getEnv() === 'development'; },
+  /** ステージング環境かどうか */
+  isStaging: function() { return ENV_CONFIG.getEnv() === 'staging'; }
 };
