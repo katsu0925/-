@@ -180,8 +180,8 @@ function verifyRecaptcha_(token) {
       return false;
     }
 
-    // スコアが 0.3 未満はbot判定で拒否
-    if ((json.score || 0) < 0.3) {
+    // スコアが閾値未満はbot判定で拒否
+    if ((json.score || 0) < RECAPTCHA_CONSTANTS.SCORE_THRESHOLD) {
       console.warn('reCAPTCHA score too low: ' + json.score);
       return false;
     }
