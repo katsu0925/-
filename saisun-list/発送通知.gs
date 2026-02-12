@@ -4,14 +4,10 @@ const SHIPMAIL_CONFIG = {
   SHEET_NAME: '依頼管理',
   // 通知先メールも APP_CONFIG から取得
   get TO_EMAIL() { return String(APP_CONFIG.notifyEmails || ''); },
-  SUBJECT: 'BASEの発送が完了しました',
   STATUS_VALUE: '発送済み',
-  // 新列構成: M=発送ステータス, C=会社名/氏名, I=確認リンク, W=予備, X=予備
-  COL_STATUS_M: 13,       // M列: 発送ステータス (旧O列)
+  COL_RECEIPT_NO: 1,      // A列: 受付番号
+  COL_STATUS_M: 13,       // M列: 発送ステータス
   COL_CUSTOMER_C: 3,      // C列: 会社名/氏名
-  COL_CONFIRM_I: 9,       // I列: 確認リンク (旧K列)
-  COL_CARRIER_W: 23,      // W列: 配送業者
-  COL_TRACKING_X: 24,     // X列: 追跡番号
   FLAG_COL: 27
 };
 
@@ -78,33 +74,25 @@ function shipMailOnEdit(e) {
     const maxCol = Math.max(
       SHIPMAIL_CONFIG.COL_STATUS_M,
       SHIPMAIL_CONFIG.COL_CUSTOMER_C,
-      SHIPMAIL_CONFIG.COL_CONFIRM_I,
-      SHIPMAIL_CONFIG.COL_CARRIER_W,
-      SHIPMAIL_CONFIG.COL_TRACKING_X,
+      SHIPMAIL_CONFIG.COL_RECEIPT_NO,
       SHIPMAIL_CONFIG.FLAG_COL
     );
 
     const rowVals = sh.getRange(row, 1, 1, maxCol).getValues()[0];
 
+    const receiptNo = String(rowVals[SHIPMAIL_CONFIG.COL_RECEIPT_NO - 1] || '').trim();
     const customer = String(rowVals[SHIPMAIL_CONFIG.COL_CUSTOMER_C - 1] || '').trim();
-    const carrier = String(rowVals[SHIPMAIL_CONFIG.COL_CARRIER_W - 1] || '').trim();
-    const tracking = String(rowVals[SHIPMAIL_CONFIG.COL_TRACKING_X - 1] || '').trim();
-    const xlsx = String(rowVals[SHIPMAIL_CONFIG.COL_CONFIRM_I - 1] || '').trim();
 
+    Logger.log('receiptNo=' + receiptNo);
     Logger.log('customer=' + customer);
-    Logger.log('carrier=' + carrier);
-    Logger.log('tracking=' + tracking);
-    Logger.log('xlsx=' + xlsx);
 
+    const subject = '発送通知: 受付番号 ' + receiptNo;
     const body =
-      'お客様名：' + customer + '\n' +
-      '配送業者：' + carrier + '\n' +
-      '伝票番号：' + tracking + '\n' +
-      'xlsxファイル：' + xlsx + '\n\n' +
-      'BASE管理画面から発送手続きを完了してください。';
+      '受付番号「' + receiptNo + '」が発送されました。\n\n' +
+      'お客様名：' + customer + '\n';
 
-    Logger.log('sending mail to=' + SHIPMAIL_CONFIG.TO_EMAIL + ' subject=' + SHIPMAIL_CONFIG.SUBJECT);
-    MailApp.sendEmail(SHIPMAIL_CONFIG.TO_EMAIL, SHIPMAIL_CONFIG.SUBJECT, body);
+    Logger.log('sending mail to=' + SHIPMAIL_CONFIG.TO_EMAIL + ' subject=' + subject);
+    MailApp.sendEmail(SHIPMAIL_CONFIG.TO_EMAIL, subject, body);
     Logger.log('mail sent');
 
     flagCell.setValue(new Date());

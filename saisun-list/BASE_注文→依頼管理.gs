@@ -67,6 +67,7 @@ function syncBaseOrdersToIraiKanri() {
   const idxPref_Order = findAnyCol_(orderMap, ['都道府県', 'prefecture', 'state', 'province']);
   const idxAddr1_Order = findAnyCol_(orderMap, ['住所1', '住所', 'address1', 'address_1', 'Address1']);
   const idxTel_Order = findAnyCol_(orderMap, ['電話番号', '電話', 'tel', 'phone', 'Phone']);
+  const idxShipping_Order = findAnyCol_(orderMap, ['送料', 'shipping_fee', 'Shipping Fee', 'shipping']);
 
   if (idxSurname_Order === -1 || idxGiven_Order === -1) throw new Error('「BASE_注文」に姓/名が見つかりません');
   if (idxEmail_Order === -1) throw new Error('「BASE_注文」にメールアドレスが見つかりません');
@@ -98,6 +99,9 @@ function syncBaseOrdersToIraiKanri() {
   const dstIdx_XlsxSend = findAnyCol_(dstMap, ['xlsx送付']);
   const dstIdx_Status = findAnyCol_(dstMap, ['ステータス']);
   const dstIdx_PaymentStatus = findAnyCol_(dstMap, ['入金確認']);  // T列
+  const dstIdx_ConfirmLink = findAnyCol_(dstMap, ['確認リンク']);  // I列
+  const dstIdx_ShippingStore = findAnyCol_(dstMap, ['送料(店負担)']);    // AC列
+  const dstIdx_ShippingCustomer = findAnyCol_(dstMap, ['送料(客負担)']); // AD列
 
   const requiredDstCols = [
     ['会社名/氏名', dstIdx_Name],
@@ -178,6 +182,31 @@ function syncBaseOrdersToIraiKanri() {
     const orderRow = orderByKey.get(orderKey);
     if (!orderRow) continue;
 
+    // --- 注文単位の送料計算 ---
+    const baseShippingFee = (idxShipping_Order !== -1) ? (Number(orderRow[idxShipping_Order]) || 0) : 0;
+    let shippingStore = 0;
+    let shippingCustomer = 0;
+
+    if (baseShippingFee > 0) {
+      // BASE側で送料が設定されている → 客負担
+      shippingCustomer = baseShippingFee;
+    } else {
+      // 送料0 → 送料表と住所から計算して店負担
+      const orderPref = String(orderRow[idxPref_Order] || '').trim();
+      // 注文内の合計点数（確認リンクがあるものは1として計算）
+      let orderTotalQty = 0;
+      for (let j = 0; j < itemRows.length; j++) {
+        const qRaw = itemRows[j][idxQty_Item];
+        const q = (qRaw == null || String(qRaw).trim() === '') ? 0 : Number(qRaw);
+        orderTotalQty += q;
+      }
+      if (orderPref && typeof calcShippingByAddress_ === 'function') {
+        shippingStore = calcShippingByAddress_(orderPref, orderTotalQty);
+      }
+    }
+
+    let shippingSetForThisOrder = false;
+
     for (let i = 0; i < itemRows.length; i++) {
       const itemRow = itemRows[i];
 
@@ -219,7 +248,7 @@ function syncBaseOrdersToIraiKanri() {
       if (dstIdx_ProductName !== -1) out[dstIdx_ProductName] = itemName;  // H列: 商品名
 
       out[dstIdx_ReceiptNo] = orderKey;
-      out[dstIdx_Remarks] = '';  // Z列: 備考（手入力用）
+      out[dstIdx_Remarks] = '';  // V列: 備考（手入力用）
       out[dstIdx_TotalCount] = qty;
       out[dstIdx_TotalAmount] = subtotal;
       out[dstIdx_RequestAt] = updatedAt;
@@ -236,6 +265,13 @@ function syncBaseOrdersToIraiKanri() {
 
       if (pidColInDst !== -1) {
         out[pidColInDst] = pid;
+      }
+
+      // 送料: 注文の最初の新規行にのみ設定（重複計上を防止）
+      if (!shippingSetForThisOrder) {
+        if (dstIdx_ShippingStore !== -1) out[dstIdx_ShippingStore] = shippingStore || '';
+        if (dstIdx_ShippingCustomer !== -1) out[dstIdx_ShippingCustomer] = shippingCustomer || '';
+        shippingSetForThisOrder = true;
       }
 
       existingKeys.add(dedupKey);

@@ -830,7 +830,7 @@ function processInvoiceReceipts() {
 
   var sent = 0;
   for (var i = 1; i < data.length; i++) {
-    var status = String(data[i][15] || '');       // P列: ステータス
+    var status = String(data[i][15] || '');         // P列: ステータス
     var invoiceFlag = String(data[i][18] || '');   // S列: 領収書希望
     var sentFlag = String(data[i][19] || '');       // T列: 送付済
     var email = String(data[i][3] || '').trim();   // D列: 連絡先

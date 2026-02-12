@@ -94,7 +94,10 @@ const APP_CONFIG = {
     trackingNo: 23,   // X列: 伝票番号
     reward: 24,       // Y列: 作業報酬
     updatedAt: 25,    // Z列: 更新日時
-    notifyFlag: 26    // AA列: 通知フラグ
+    notifyFlag: 26,   // AA列: 通知フラグ
+    pointFlag: 27,    // AB列: ポイント付与済
+    shippingStore: 28,    // AC列: 送料(店負担)
+    shippingCustomer: 29  // AD列: 送料(客負担)
   },
   statuses: {
     open: '依頼中',
@@ -237,6 +240,84 @@ function st_normBrandDisplay_(v) {
 function st_normBrandKey_(v) {
   const s = st_normBrandDisplay_(v);
   return s.replace(/[　\s]+/g, '').toLowerCase();
+}
+
+// =====================================================
+// 送料テーブル（エリアマッピング＆料金表）
+// =====================================================
+const SHIPPING_AREAS = {
+  '北海道': 'hokkaido',
+  '青森県': 'kita_tohoku', '岩手県': 'kita_tohoku', '秋田県': 'kita_tohoku',
+  '宮城県': 'minami_tohoku', '福島県': 'minami_tohoku', '山形県': 'minami_tohoku',
+  '東京都': 'kanto', '神奈川県': 'kanto', '埼玉県': 'kanto', '千葉県': 'kanto',
+  '茨城県': 'kanto', '栃木県': 'kanto', '群馬県': 'kanto', '山梨県': 'kanto',
+  '新潟県': 'shinetsu', '長野県': 'shinetsu',
+  '愛知県': 'tokai', '静岡県': 'tokai', '岐阜県': 'tokai', '三重県': 'tokai',
+  '石川県': 'hokuriku', '福井県': 'hokuriku', '富山県': 'hokuriku',
+  '大阪府': 'kansai', '兵庫県': 'kansai', '京都府': 'kansai',
+  '奈良県': 'kansai', '和歌山県': 'kansai', '滋賀県': 'kansai',
+  '広島県': 'chugoku', '岡山県': 'chugoku', '島根県': 'chugoku',
+  '山口県': 'chugoku', '鳥取県': 'chugoku',
+  '香川県': 'shikoku', '愛媛県': 'shikoku', '高知県': 'shikoku', '徳島県': 'shikoku',
+  '福岡県': 'kita_kyushu', '佐賀県': 'kita_kyushu', '大分県': 'kita_kyushu', '長崎県': 'kita_kyushu',
+  '鹿児島県': 'minami_kyushu', '熊本県': 'minami_kyushu', '宮崎県': 'minami_kyushu',
+  '沖縄県': 'okinawa'
+};
+
+//                            小      大
+const SHIPPING_RATES = {
+  minami_kyushu:       [1320,  1700],
+  kita_kyushu:         [1280,  1620],
+  shikoku:             [1180,  1440],
+  chugoku:             [1200,  1480],
+  kansai:              [1100,  1260],
+  hokuriku:            [1160,  1420],
+  tokai:               [1180,  1440],
+  shinetsu:            [1220,  1540],
+  kanto:               [1300,  1680],
+  minami_tohoku:       [1400,  1900],
+  kita_tohoku:         [1460,  1980],
+  hokkaido:            [1640,  2380]
+};
+
+/**
+ * 都道府県名を住所テキストから検出
+ */
+function detectPrefecture_(addressText) {
+  var PREFS = [
+    '北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県',
+    '茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県',
+    '新潟県','富山県','石川県','福井県','山梨県','長野県',
+    '岐阜県','静岡県','愛知県','三重県',
+    '滋賀県','京都府','大阪府','兵庫県','奈良県','和歌山県',
+    '鳥取県','島根県','岡山県','広島県','山口県',
+    '徳島県','香川県','愛媛県','高知県',
+    '福岡県','佐賀県','長崎県','熊本県','大分県','宮崎県','鹿児島県','沖縄県'
+  ];
+  var text = String(addressText || '').trim();
+  for (var i = 0; i < PREFS.length; i++) {
+    if (text.indexOf(PREFS[i]) === 0) return PREFS[i];
+  }
+  for (var j = 0; j < PREFS.length; j++) {
+    var short = PREFS[j].replace(/[都府県]$/, '');
+    if (text.indexOf(short) === 0) return PREFS[j];
+  }
+  return null;
+}
+
+/**
+ * 住所と点数から送料を計算（箱サイズ: ≤10点=小、>10点=大）
+ * @param {string} prefOrAddress - 都道府県名 or 住所テキスト
+ * @param {number} totalCount - 合計点数
+ * @returns {number} 送料金額（エリア不明の場合0）
+ */
+function calcShippingByAddress_(prefOrAddress, totalCount) {
+  var pref = SHIPPING_AREAS[prefOrAddress] ? prefOrAddress : detectPrefecture_(prefOrAddress);
+  if (!pref) return 0;
+  var area = SHIPPING_AREAS[pref];
+  if (!area || !SHIPPING_RATES[area]) return 0;
+  var sizeIdx = (totalCount <= 10) ? 0 : 1;
+  return SHIPPING_RATES[area][sizeIdx];
 }
 
 function app_readBrandList_() {
