@@ -2,7 +2,6 @@ function syncBaseOrdersToIraiKanri() {
   const EXCLUDE_PRODUCT_IDS = new Set(['128311731', '129152120', '129140745', '132388956', '132389794', '132388821']);
   const ORDER_STATUS_COL_1BASED = 7;
   const ORDER_STATUS_VALUE = '未対応';
-  const DST_AB_COL_1BASED = 28;
 
   // トリガーからも動作するようID指定で開く（getActiveSpreadsheetはトリガー非対応）
   const ss = baseGetTargetSpreadsheet_();
@@ -69,6 +68,15 @@ function syncBaseOrdersToIraiKanri() {
   const idxTel_Order = findAnyCol_(orderMap, ['電話番号', '電話', 'tel', 'phone', 'Phone']);
   const idxShipping_Order = findAnyCol_(orderMap, ['送料', 'shipping_fee', 'Shipping Fee', 'shipping']);
 
+  // お届け先情報（購入者と異なる場合のみ値が入る）
+  const idxRcvSurname_Order = findAnyCol_(orderMap, ['届先_姓']);
+  const idxRcvGiven_Order = findAnyCol_(orderMap, ['届先_名']);
+  const idxRcvZip_Order = findAnyCol_(orderMap, ['届先_郵便番号']);
+  const idxRcvPref_Order = findAnyCol_(orderMap, ['届先_都道府県']);
+  const idxRcvAddr1_Order = findAnyCol_(orderMap, ['届先_住所1']);
+  const idxRcvAddr2_Order = findAnyCol_(orderMap, ['届先_住所2']);
+  const idxRcvTel_Order = findAnyCol_(orderMap, ['届先_電話番号']);
+
   if (idxSurname_Order === -1 || idxGiven_Order === -1) throw new Error('「BASE_注文」に姓/名が見つかりません');
   if (idxEmail_Order === -1) throw new Error('「BASE_注文」にメールアドレスが見つかりません');
   if (idxZip_Order === -1) throw new Error('「BASE_注文」に郵便番号が見つかりません');
@@ -100,6 +108,7 @@ function syncBaseOrdersToIraiKanri() {
   const dstIdx_Status = findAnyCol_(dstMap, ['ステータス']);
   const dstIdx_PaymentStatus = findAnyCol_(dstMap, ['入金確認']);  // T列
   const dstIdx_ConfirmLink = findAnyCol_(dstMap, ['確認リンク']);  // I列
+  const dstIdx_NotifyFlag = findAnyCol_(dstMap, ['通知フラグ']);          // AA列
   const dstIdx_ShippingStore = findAnyCol_(dstMap, ['送料(店負担)']);    // AC列
   const dstIdx_ShippingCustomer = findAnyCol_(dstMap, ['送料(客負担)']); // AD列
 
@@ -172,9 +181,6 @@ function syncBaseOrdersToIraiKanri() {
   const newRows = [];
   const dstColCount = dstHeader.length;
 
-  // AB列がなくてもエラーにしない（任意列として扱う）
-  const hasAbCol = (dstColCount >= DST_AB_COL_1BASED);
-
   for (const entry of itemsByKey.entries()) {
     const orderKey = entry[0];
     const itemRows = entry[1];
@@ -192,7 +198,9 @@ function syncBaseOrdersToIraiKanri() {
       shippingCustomer = baseShippingFee;
     } else {
       // 送料0 → 送料表と住所から計算して店負担
-      const orderPref = String(orderRow[idxPref_Order] || '').trim();
+      // お届け先の都道府県があればそちらを優先
+      const rcvPrefForShip = (idxRcvPref_Order !== -1) ? String(orderRow[idxRcvPref_Order] || '').trim() : '';
+      const orderPref = rcvPrefForShip || String(orderRow[idxPref_Order] || '').trim();
       // 注文内の合計点数（確認リンクがあるものは1として計算）
       let orderTotalQty = 0;
       for (let j = 0; j < itemRows.length; j++) {
@@ -221,19 +229,31 @@ function syncBaseOrdersToIraiKanri() {
 
       const out = new Array(dstColCount).fill('');
 
-      const surname = String(orderRow[idxSurname_Order] || '');
-      const given = String(orderRow[idxGiven_Order] || '');
+      // お届け先情報があればそちらを優先（購入者≠届け先のケース）
+      const rcvSurname = (idxRcvSurname_Order !== -1) ? String(orderRow[idxRcvSurname_Order] || '').trim() : '';
+      const rcvGiven = (idxRcvGiven_Order !== -1) ? String(orderRow[idxRcvGiven_Order] || '').trim() : '';
+      const hasReceiver = !!(rcvSurname || rcvGiven);
+
+      const surname = hasReceiver ? rcvSurname : String(orderRow[idxSurname_Order] || '');
+      const given = hasReceiver ? rcvGiven : String(orderRow[idxGiven_Order] || '');
       const fullName = (surname + given).trim();
 
       const email = String(orderRow[idxEmail_Order] || '').trim();
-      const zip = String(orderRow[idxZip_Order] || '').trim();
 
-      const pref = String(orderRow[idxPref_Order] || '').trim();
-      const addr1 = String(orderRow[idxAddr1_Order] || '').trim();
-      const addr2 = pickFirstNonDateText_(orderRow, addr2CandidateIdxs);
+      const rcvZip = (hasReceiver && idxRcvZip_Order !== -1) ? String(orderRow[idxRcvZip_Order] || '').trim() : '';
+      const zip = rcvZip || String(orderRow[idxZip_Order] || '').trim();
+
+      const rcvPref = (hasReceiver && idxRcvPref_Order !== -1) ? String(orderRow[idxRcvPref_Order] || '').trim() : '';
+      const rcvAddr1 = (hasReceiver && idxRcvAddr1_Order !== -1) ? String(orderRow[idxRcvAddr1_Order] || '').trim() : '';
+      const rcvAddr2 = (hasReceiver && idxRcvAddr2_Order !== -1) ? String(orderRow[idxRcvAddr2_Order] || '').trim() : '';
+
+      const pref = rcvPref || String(orderRow[idxPref_Order] || '').trim();
+      const addr1 = rcvAddr1 || String(orderRow[idxAddr1_Order] || '').trim();
+      const addr2 = (hasReceiver && rcvAddr2) ? rcvAddr2 : pickFirstNonDateText_(orderRow, addr2CandidateIdxs);
       const address = (pref + addr1 + addr2).trim();
 
-      const tel = String(orderRow[idxTel_Order] || '').trim();
+      const rcvTel = (hasReceiver && idxRcvTel_Order !== -1) ? String(orderRow[idxRcvTel_Order] || '').trim() : '';
+      const tel = rcvTel || String(orderRow[idxTel_Order] || '').trim();
 
       const subtotal = itemRow[idxSubtotal_Item];
       const qtyRaw = itemRow[idxQty_Item];
@@ -261,7 +281,8 @@ function syncBaseOrdersToIraiKanri() {
       out[dstIdx_ListInclude] = hasXlsx ? '未' : '無し';
       out[dstIdx_XlsxSend] = hasXlsx ? '未' : '無し';
 
-      if (hasAbCol) out[DST_AB_COL_1BASED - 1] = false;
+      // AA列: 通知フラグにFALSEを設定（発送通知の二重送信防止）
+      if (dstIdx_NotifyFlag !== -1) out[dstIdx_NotifyFlag] = false;
 
       if (pidColInDst !== -1) {
         out[pidColInDst] = pid;

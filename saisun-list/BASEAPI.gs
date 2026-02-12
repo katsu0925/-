@@ -548,6 +548,13 @@ function baseEnsureOrdersSheet_(ss) {
     '追跡番号',
     '配送日',
     '配送時間帯',
+    '届先_名',
+    '届先_姓',
+    '届先_電話番号',
+    '届先_郵便番号',
+    '届先_都道府県',
+    '届先_住所1',
+    '届先_住所2',
     '注文RAW(JSON)',
     '取得日時'
   ];
@@ -556,7 +563,7 @@ function baseEnsureOrdersSheet_(ss) {
   if (!sh) sh = ss.insertSheet(BASE_APP.SHEET_ORDERS);
 
   baseEnsureHeaderRow_(sh, headers);
-  baseEnsurePlainTextColumns_(sh, ['電話番号', '住所2']);
+  baseEnsurePlainTextColumns_(sh, ['電話番号', '住所2', '届先_電話番号', '届先_住所2']);
   return sh;
 }
 
@@ -620,6 +627,7 @@ function baseBuildItemIndexMap_(sheet) {
 
 function baseBuildOrderRow_(o, tz) {
   const now = new Date();
+  const rcv = (o && o.order_receiver) ? o.order_receiver : {};
   return [
     o && o.unique_key != null ? String(o.unique_key) : '',
     baseToDate_(o.ordered),
@@ -644,6 +652,14 @@ function baseBuildOrderRow_(o, tz) {
     o && o.tracking_number != null ? String(o.tracking_number) : '',
     o && o.delivery_date != null ? String(o.delivery_date) : '',
     o && o.delivery_time_zone != null ? String(o.delivery_time_zone) : '',
+    // お届け先情報（購入者と異なる場合にBASE APIから取得）
+    rcv.first_name != null ? String(rcv.first_name) : '',
+    rcv.last_name != null ? String(rcv.last_name) : '',
+    rcv.tel != null ? String(rcv.tel) : '',
+    rcv.zip_code != null ? String(rcv.zip_code) : '',
+    rcv.prefecture != null ? String(rcv.prefecture) : '',
+    rcv.address != null ? String(rcv.address) : '',
+    rcv.address2 != null ? String(rcv.address2) : '',
     JSON.stringify(o || {}),
     Utilities.formatDate(now, tz, 'yyyy-MM-dd HH:mm:ss')
   ];

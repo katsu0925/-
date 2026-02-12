@@ -8,6 +8,7 @@ const SHIPMAIL_CONFIG = {
   COL_RECEIPT_NO: 1,      // A列: 受付番号
   COL_STATUS_M: 13,       // M列: 発送ステータス
   COL_CUSTOMER_C: 3,      // C列: 会社名/氏名
+  COL_STATUS_P: 16,       // P列: ステータス
   FLAG_COL: 27
 };
 
@@ -98,6 +99,10 @@ function shipMailOnEdit(e) {
     flagCell.setValue(new Date());
     flagCell.setNumberFormat('yyyy/mm/dd hh:mm:ss');
     Logger.log('flag set at col=' + SHIPMAIL_CONFIG.FLAG_COL);
+
+    // P列(ステータス)を自動で「完了」に更新
+    sh.getRange(row, SHIPMAIL_CONFIG.COL_STATUS_P).setValue('完了');
+    Logger.log('status set to 完了 at col=' + SHIPMAIL_CONFIG.COL_STATUS_P);
 
     Logger.log('--- shipMailOnEdit END (success) ---');
   } catch (err) {
