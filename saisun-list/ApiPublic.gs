@@ -1,3 +1,10 @@
+/**
+ * 初期化API — 商品一覧・フィルタオプション・設定を返す
+ * フロントエンドのページロード時に呼び出される。
+ * @param {string} userKey - クライアント識別キー
+ * @param {object} params - 検索パラメータ（ページ番号、フィルタ等）
+ * @return {object} { ok, settings, options, page }
+ */
 function apiInit(userKey, params) {
   try {
     const uk = String(userKey || '').trim();
@@ -23,6 +30,12 @@ function apiInit(userKey, params) {
   }
 }
 
+/**
+ * 商品検索API — キーワード・フィルタに基づいてページネーション済み結果を返す
+ * @param {string} userKey - クライアント識別キー
+ * @param {object} params - { keyword, brand, category, sort, page, ... }
+ * @return {object} { ok, items, total, page, pageSize, ... }
+ */
 function apiSearch(userKey, params) {
   try {
     const uk = String(userKey || '').trim();
@@ -35,6 +48,12 @@ function apiSearch(userKey, params) {
   }
 }
 
+/**
+ * ステータスダイジェストAPI — 指定商品IDの確保/依頼中状態を返す
+ * @param {string} userKey - クライアント識別キー
+ * @param {Array<string>} ids - 商品ID配列
+ * @return {object} { ok, map: { id: status } }
+ */
 function apiGetStatusDigest(userKey, ids) {
   try {
     const uk = String(userKey || '').trim();
@@ -53,84 +72,99 @@ function apiGetStatusDigest(userKey, ids) {
 }
 
 /**
- * 確保同期API（ロックなし高速版）
+ * 確保同期API（短時間ロック付き版）
+ * 並行リクエストによるレースコンディションを防止するため、
+ * CacheService状態の読み書きをScriptLockで保護する。
+ * ロック待機は最大3秒。取得できない場合はリトライを促す。
+ * @param {string} userKey
+ * @param {Array} ids - 確保したい商品ID配列
+ * @return {object} { ok, digest, failed }
  */
 function apiSyncHolds(userKey, ids) {
   try {
     const uk = String(userKey || '').trim();
     if (!uk) return { ok: false, message: 'userKeyが不正です' };
-    
+
     const orderSs = sh_getOrderSs_();
     sh_ensureAllOnce_(orderSs);
-    
+
     const now = u_nowMs_();
     const wantIds = u_unique_(u_normalizeIds_(ids || []));
-    
-    // ★★★ ロックを使わない方式 ★★★
-    const holdState = st_getHoldState_(orderSs) || {};
-    const holdItems = (holdState.items && typeof holdState.items === 'object') ? holdState.items : {};
-    
-    st_cleanupExpiredHolds_(holdItems, now);
-    
-    const openSet = st_getOpenSetFast_(orderSs) || {};
-    
-    const want = {};
-    for (let i = 0; i < wantIds.length; i++) want[wantIds[i]] = true;
-    
-    const toRemove = [];
-    for (const id in holdItems) {
-      const it = holdItems[id];
-      if (!it) continue;
-      if (String(it.userKey || '') === uk && !want[id]) {
-        toRemove.push(id);
-      }
+
+    // 短時間ロックで並行制御（最大3秒待機）
+    var lock = LockService.getScriptLock();
+    if (!lock.tryLock(3000)) {
+      return { ok: false, message: '現在混雑しています。少し時間を置いて再度お試しください。' };
     }
-    for (let i = 0; i < toRemove.length; i++) {
-      delete holdItems[toRemove[i]];
-    }
-    
-    const failed = [];
-    const untilMsNew = now + app_holdMs_();
-    
-    for (let i = 0; i < wantIds.length; i++) {
-      const id = wantIds[i];
-      
-      if (openSet[id]) {
-        const cur0 = holdItems[id];
-        if (cur0 && String(cur0.userKey || '') === uk) delete holdItems[id];
-        failed.push({ id: id, reason: '依頼中' });
-        continue;
+
+    try {
+      var holdState = st_getHoldState_(orderSs) || {};
+      var holdItems = (holdState.items && typeof holdState.items === 'object') ? holdState.items : {};
+
+      st_cleanupExpiredHolds_(holdItems, now);
+
+      var openSet = st_getOpenSetFast_(orderSs) || {};
+
+      var want = {};
+      for (let i = 0; i < wantIds.length; i++) want[wantIds[i]] = true;
+
+      var toRemove = [];
+      for (const id in holdItems) {
+        const it = holdItems[id];
+        if (!it) continue;
+        if (String(it.userKey || '') === uk && !want[id]) {
+          toRemove.push(id);
+        }
       }
-      
-      const cur = holdItems[id];
-      const curUntil = cur ? u_toInt_(cur.untilMs, 0) : 0;
-      
-      if (cur && curUntil > now) {
-        if (String(cur.userKey || '') !== uk) {
-          failed.push({ id: id, reason: '確保中' });
+      for (let i = 0; i < toRemove.length; i++) {
+        delete holdItems[toRemove[i]];
+      }
+
+      var failed = [];
+      var untilMsNew = now + app_holdMs_();
+
+      for (let i = 0; i < wantIds.length; i++) {
+        const id = wantIds[i];
+
+        if (openSet[id]) {
+          const cur0 = holdItems[id];
+          if (cur0 && String(cur0.userKey || '') === uk) delete holdItems[id];
+          failed.push({ id: id, reason: '依頼中' });
           continue;
         }
-        cur.untilMs = untilMsNew;
-        continue;
+
+        const cur = holdItems[id];
+        const curUntil = cur ? u_toInt_(cur.untilMs, 0) : 0;
+
+        if (cur && curUntil > now) {
+          if (String(cur.userKey || '') !== uk) {
+            failed.push({ id: id, reason: '確保中' });
+            continue;
+          }
+          cur.untilMs = untilMsNew;
+          continue;
+        }
+
+        holdItems[id] = {
+          holdId: uk + ':' + String(now),
+          userKey: uk,
+          untilMs: untilMsNew,
+          createdAtMs: now
+        };
       }
-      
-      holdItems[id] = {
-        holdId: uk + ':' + String(now),
-        userKey: uk,
-        untilMs: untilMsNew,
-        createdAtMs: now
-      };
+
+      holdState.items = holdItems;
+      holdState.updatedAt = now;
+      st_setHoldState_(orderSs, holdState);
+    } finally {
+      try { lock.releaseLock(); } catch (e) {}
     }
-    
-    holdState.items = holdItems;
-    holdState.updatedAt = now;
-    st_setHoldState_(orderSs, holdState);
-    
+
     try { st_invalidateStatusCache_(orderSs); } catch(e) {}
-    
+
     const digest = st_buildDigestMap_(orderSs, uk, wantIds);
     return { ok: true, digest: digest, failed: failed };
-    
+
   } catch (e) {
     console.error('apiSyncHolds error:', e);
     return { ok: false, message: '一時的なエラーが発生しました。再度お試しください。' };

@@ -111,6 +111,20 @@ legacy: salt + ":" + SHA-256(1回)            ← 移行対象
 ```
 
 ログイン時にv1/legacyからv2へ自動移行する。
+v1/legacy用のハッシュ関数は `hashWithIterations_()` に統合済み。
+
+### パスワードリセット
+
+仮パスワードは元のパスワードを上書きせず、ScriptPropertiesに有効期限付きで保存。
+- 有効期限: 30分（`AUTH_CONSTANTS.TEMP_PASSWORD_EXPIRY_MS`）
+- ログイン時に仮パスワードが有効なら認証成功→本パスワードに昇格
+- 期限切れの仮パスワードは自動削除
+
+### CSRF対策
+
+- `apiGetCsrfToken` でユーザーごとのCSRFトークンを発行（CacheService、1時間有効）
+- 状態変更を伴うAPI（送信、プロフィール更新、決済作成等）でCSRFトークンを検証
+- タイミングセーフ比較で検証
 
 ### セッション管理
 
@@ -127,6 +141,8 @@ legacy: salt + ":" + SHA-256(1回)            ← 移行対象
 | apiLoginCustomer | 5回 | 1時間 |
 | apiRegisterCustomer | 3回 | 1時間 |
 | apiSendContactForm | 3回 | 1時間 |
+| apiRequestPasswordReset | 3回 | 1時間 |
+| apiRecoverEmail | 5回 | 1時間 |
 
 ## スプレッドシート構造
 

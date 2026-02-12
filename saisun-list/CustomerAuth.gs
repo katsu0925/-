@@ -45,27 +45,38 @@ function hashPasswordV2_(password, salt) {
 
 /**
  * v1 旧ハッシュ（10000回反復）- 後方互換用
+ * @deprecated v2への自動移行完了後に削除予定
  */
 function hashPassword_(password, salt) {
-  var iterations = 10000;
-  var input = password + ':' + salt;
-  var hash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, input);
-  for (var i = 1; i < iterations; i++) {
-    var combined = hash.concat(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, Utilities.newBlob(salt).getBytes()));
-    hash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, combined);
-  }
-  return hash.map(function(b) {
-    return ('0' + (b < 0 ? b + 256 : b).toString(16)).slice(-2);
-  }).join('');
+  return hashWithIterations_(password, salt, 10000);
 }
 
 /**
  * レガシーハッシュ（旧方式、移行期間中の互換性用）
+ * @deprecated v2への自動移行完了後に削除予定
  */
 function hashPasswordLegacy_(password, salt) {
+  return hashWithIterations_(password, salt, 1);
+}
+
+/**
+ * SHA-256反復ハッシュの共通実装（v1/legacy統合）
+ * @param {string} password
+ * @param {string} salt
+ * @param {number} iterations - 反復回数
+ * @return {string} 16進ハッシュ文字列
+ */
+function hashWithIterations_(password, salt, iterations) {
   var input = password + ':' + salt;
-  var rawHash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, input);
-  return rawHash.map(function(b) {
+  var hash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, input);
+  if (iterations > 1) {
+    var saltBytes = Utilities.newBlob(salt).getBytes();
+    for (var i = 1; i < iterations; i++) {
+      var combined = hash.concat(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, saltBytes));
+      hash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, combined);
+    }
+  }
+  return hash.map(function(b) {
     return ('0' + (b < 0 ? b + 256 : b).toString(16)).slice(-2);
   }).join('');
 }
@@ -279,7 +290,22 @@ function apiLoginCustomer(userKey, params) {
       return { ok: false, message: 'メールアドレスまたはパスワードが正しくありません' };
     }
 
-    if (!verifyAndMigratePassword_(password, customer.passwordHash, customer.row)) {
+    // 1. 通常パスワードで検証（v2自動移行付き）
+    var passwordOk = verifyAndMigratePassword_(password, customer.passwordHash, customer.row);
+
+    // 2. 通常パスワードが不一致の場合、仮パスワード（有効期限内）を検証
+    if (!passwordOk) {
+      var temp = getTempPassword_(email);
+      if (temp && verifyPassword_(password, temp.hash)) {
+        // 仮パスワードで認証成功 → 本パスワードに昇格
+        var newHash = createPasswordHash_(password);
+        getCustomerSheet_().getRange(customer.row, 3).setValue(newHash);
+        clearTempPassword_(email);
+        passwordOk = true;
+      }
+    }
+
+    if (!passwordOk) {
       return { ok: false, message: 'メールアドレスまたはパスワードが正しくありません' };
     }
 
@@ -436,7 +462,12 @@ function apiChangePassword(userKey, params) {
 }
 
 /**
- * パスワードリセットAPI（v2ハッシュ使用 - 高速）
+ * パスワードリセットAPI（仮パスワードに有効期限付き）
+ * 仮パスワードは元のパスワードを上書きせず、ScriptPropertiesに期限付きで保存。
+ * ログイン時に仮パスワードが有効期限内であれば認証成功→本パスワードに昇格。
+ * @param {string} userKey
+ * @param {object} params - { email }
+ * @return {object} { ok, message }
  */
 function apiRequestPasswordReset(userKey, params) {
   try {
@@ -447,27 +478,33 @@ function apiRequestPasswordReset(userKey, params) {
 
     var customer = findCustomerByEmail_(email);
     if (!customer) {
+      // ユーザー列挙攻撃を防ぐため、存在しない場合も同じメッセージ
       return { ok: true, message: '登録されているメールアドレスの場合、仮パスワードを送信しました' };
     }
 
     var tempPassword = generateRandomId_(AUTH_CONSTANTS.TEMP_PASSWORD_LENGTH);
-    var newHash = createPasswordHash_(tempPassword);
-    var sheet = getCustomerSheet_();
-    sheet.getRange(customer.row, 3).setValue(newHash);
+    var tempHash = createPasswordHash_(tempPassword);
+    var expiresAt = Date.now() + AUTH_CONSTANTS.TEMP_PASSWORD_EXPIRY_MS;
 
+    // 仮パスワードをScriptPropertiesに保存（元のパスワードは上書きしない）
+    storeTempPassword_(email, tempHash, expiresAt);
+
+    var expiryMinutes = Math.round(AUTH_CONSTANTS.TEMP_PASSWORD_EXPIRY_MS / 60000);
     var subject = '【NKonline Apparel】パスワードリセットのお知らせ';
     var body = customer.companyName + ' 様\n\n'
       + 'パスワードリセットのリクエストを受け付けました。\n'
       + '以下の仮パスワードでログインしてください。\n\n'
       + '━━━━━━━━━━━━━━━━━━━━\n'
       + '仮パスワード: ' + tempPassword + '\n'
+      + '有効期限: ' + expiryMinutes + '分\n'
       + '━━━━━━━━━━━━━━━━━━━━\n\n'
+      + '※ 有効期限を過ぎると仮パスワードは無効になります。\n'
       + 'ログイン後、マイページからパスワードの変更をお勧めします。\n'
       + '※ このメールに心当たりがない場合は、無視してください。\n\n'
       + '──────────────────\n'
-      + 'NKonline Apparel\n'
-      + 'https://wholesale.nkonline-tool.com\n'
-      + 'お問い合わせ: nkonline1030@gmail.com\n'
+      + SITE_CONSTANTS.SITE_NAME + '\n'
+      + SITE_CONSTANTS.SITE_URL + '\n'
+      + 'お問い合わせ: ' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
       + '──────────────────\n';
 
     MailApp.sendEmail({ to: email, subject: subject, body: body, noReply: true });
@@ -477,6 +514,57 @@ function apiRequestPasswordReset(userKey, params) {
     console.error('apiRequestPasswordReset error:', e);
     return { ok: false, message: 'パスワードリセットに失敗しました。しばらくしてからお試しください' };
   }
+}
+
+/**
+ * 仮パスワードをScriptPropertiesに保存
+ * @param {string} email
+ * @param {string} hash - v2形式ハッシュ
+ * @param {number} expiresAt - 有効期限のタイムスタンプ(ms)
+ */
+function storeTempPassword_(email, hash, expiresAt) {
+  var key = 'TEMP_PW_' + Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256, email
+  ).map(function(b) { return ('0' + (b < 0 ? b + 256 : b).toString(16)).slice(-2); }).join('').substring(0, 16);
+  var data = JSON.stringify({ hash: hash, expiresAt: expiresAt });
+  PropertiesService.getScriptProperties().setProperty(key, data);
+}
+
+/**
+ * 仮パスワードを取得（有効期限チェック付き）
+ * @param {string} email
+ * @return {object|null} { hash, expiresAt } or null
+ */
+function getTempPassword_(email) {
+  var key = 'TEMP_PW_' + Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256, email
+  ).map(function(b) { return ('0' + (b < 0 ? b + 256 : b).toString(16)).slice(-2); }).join('').substring(0, 16);
+  try {
+    var raw = PropertiesService.getScriptProperties().getProperty(key);
+    if (!raw) return null;
+    var data = JSON.parse(raw);
+    if (Date.now() > data.expiresAt) {
+      // 期限切れ→削除
+      PropertiesService.getScriptProperties().deleteProperty(key);
+      return null;
+    }
+    return data;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * 仮パスワードを削除
+ * @param {string} email
+ */
+function clearTempPassword_(email) {
+  var key = 'TEMP_PW_' + Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256, email
+  ).map(function(b) { return ('0' + (b < 0 ? b + 256 : b).toString(16)).slice(-2); }).join('').substring(0, 16);
+  try {
+    PropertiesService.getScriptProperties().deleteProperty(key);
+  } catch (e) {}
 }
 
 /**
@@ -657,79 +745,21 @@ var RANK_TIERS = {
 function calculateCustomerRank_(email) {
   var orders = getOrderHistory_(email);
   var now = new Date();
-  var oneYearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-  var oneMonthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-  // 過去12ヶ月の完了済み注文の合計金額
-  var annualSpent = 0;
-  var recentSpent = 0; // 直近1ヶ月の購入金額
-  for (var i = 0; i < orders.length; i++) {
-    var o = orders[i];
-    if (o.status !== '完了') continue;
-    var orderDate;
-    try { orderDate = new Date(o.date.replace(/\//g, '-')); } catch (e) { continue; }
-    if (orderDate >= oneYearAgo) {
-      annualSpent += Number(o.total) || 0;
-    }
-    if (orderDate >= oneMonthAgo) {
-      recentSpent += Number(o.total) || 0;
-    }
-  }
+  var spendData = calcSpendByPeriod_(orders, now);
+  var prevRank = rankFromSpent_(spendData.prevYearSpent);
+  var currentRank = rankFromSpent_(spendData.annualSpent);
 
-  // 過去13-24ヶ月のデータ（前年ランク推定用）
-  var twoYearsAgo = new Date(now.getTime() - 730 * 24 * 60 * 60 * 1000);
-  var prevYearSpent = 0;
-  for (var i = 0; i < orders.length; i++) {
-    var o = orders[i];
-    if (o.status !== '完了') continue;
-    var orderDate;
-    try { orderDate = new Date(o.date.replace(/\//g, '-')); } catch (e) { continue; }
-    if (orderDate >= twoYearsAgo && orderDate < oneYearAgo) {
-      prevYearSpent += Number(o.total) || 0;
-    }
-  }
+  var graceInfo = applyGraceRule_(currentRank, prevRank, spendData.recentSpent);
+  currentRank = graceInfo.rank;
 
-  // 前年のランクを判定
-  var prevRank = 'REGULAR';
-  if (prevYearSpent >= 500000) prevRank = 'DIAMOND';
-  else if (prevYearSpent >= 200000) prevRank = 'GOLD';
-  else if (prevYearSpent >= 50000) prevRank = 'SILVER';
-
-  // 現在のランクを判定
-  var currentRank = 'REGULAR';
-  if (annualSpent >= 500000) currentRank = 'DIAMOND';
-  else if (annualSpent >= 200000) currentRank = 'GOLD';
-  else if (annualSpent >= 50000) currentRank = 'SILVER';
-
-  // 救済措置: 前年ダイヤモンド/ゴールドが更新切れ → 直近1ヶ月で5万円以上購入 → 前ランク復活
-  var graceInfo = null;
-  if (currentRank === 'REGULAR' && (prevRank === 'DIAMOND' || prevRank === 'GOLD')) {
-    if (recentSpent >= 50000) {
-      currentRank = prevRank;
-      graceInfo = { restored: true, prevRank: prevRank };
-    } else {
-      graceInfo = { restored: false, prevRank: prevRank, needed: 50000 - recentSpent };
-    }
-  }
-
-  // 復帰ゴールド限定: 年間35万でダイヤモンド昇格（通常は50万必要）
-  if (currentRank === 'GOLD' && graceInfo && graceInfo.restored && prevRank === 'GOLD') {
-    if (annualSpent >= 350000) {
-      currentRank = 'DIAMOND';
-    }
+  // 復帰ゴールド限定: 年間35万でダイヤモンド昇格
+  if (currentRank === 'GOLD' && graceInfo.info && graceInfo.info.restored && prevRank === 'GOLD') {
+    if (spendData.annualSpent >= 350000) currentRank = 'DIAMOND';
   }
 
   var tier = RANK_TIERS[currentRank];
-
-  // 次のランクまでの情報
-  var nextRank = null;
-  var nextThreshold = 0;
-  if (currentRank === 'REGULAR') { nextRank = 'SILVER'; nextThreshold = 50000; }
-  else if (currentRank === 'SILVER') { nextRank = 'GOLD'; nextThreshold = 200000; }
-  else if (currentRank === 'GOLD') {
-    nextRank = 'DIAMOND';
-    nextThreshold = (graceInfo && graceInfo.restored) ? 350000 : 500000;
-  }
+  var nextInfo = getNextRankInfo_(currentRank, graceInfo.info);
 
   return {
     rank: currentRank,
@@ -737,12 +767,83 @@ function calculateCustomerRank_(email) {
     pointRate: tier.pointRate,
     freeShipping: tier.freeShipping,
     color: tier.color,
-    annualSpent: annualSpent,
-    nextRank: nextRank ? RANK_TIERS[nextRank].name : null,
-    nextThreshold: nextThreshold,
-    remaining: nextThreshold > 0 ? Math.max(0, nextThreshold - annualSpent) : 0,
-    graceInfo: graceInfo
+    annualSpent: spendData.annualSpent,
+    nextRank: nextInfo.nextRank ? RANK_TIERS[nextInfo.nextRank].name : null,
+    nextThreshold: nextInfo.nextThreshold,
+    remaining: nextInfo.nextThreshold > 0 ? Math.max(0, nextInfo.nextThreshold - spendData.annualSpent) : 0,
+    graceInfo: graceInfo.info
   };
+}
+
+/**
+ * 完了済み注文を期間別に集計
+ * @param {Array} orders - 注文履歴
+ * @param {Date} now - 現在日時
+ * @return {object} { annualSpent, recentSpent, prevYearSpent }
+ */
+function calcSpendByPeriod_(orders, now) {
+  var oneYearAgo = new Date(now.getTime() - TIME_CONSTANTS.ONE_YEAR_MS);
+  var oneMonthAgo = new Date(now.getTime() - TIME_CONSTANTS.ONE_MONTH_MS);
+  var twoYearsAgo = new Date(now.getTime() - TIME_CONSTANTS.TWO_YEARS_MS);
+
+  var annualSpent = 0, recentSpent = 0, prevYearSpent = 0;
+
+  for (var i = 0; i < orders.length; i++) {
+    var o = orders[i];
+    if (o.status !== '完了') continue;
+    var orderDate;
+    try { orderDate = new Date(o.date.replace(/\//g, '-')); } catch (e) { continue; }
+    var total = Number(o.total) || 0;
+    if (orderDate >= oneYearAgo) annualSpent += total;
+    if (orderDate >= oneMonthAgo) recentSpent += total;
+    if (orderDate >= twoYearsAgo && orderDate < oneYearAgo) prevYearSpent += total;
+  }
+
+  return { annualSpent: annualSpent, recentSpent: recentSpent, prevYearSpent: prevYearSpent };
+}
+
+/**
+ * 購入金額からランクを判定
+ * @param {number} spent - 購入金額
+ * @return {string} ランクキー
+ */
+function rankFromSpent_(spent) {
+  if (spent >= 500000) return 'DIAMOND';
+  if (spent >= 200000) return 'GOLD';
+  if (spent >= 50000) return 'SILVER';
+  return 'REGULAR';
+}
+
+/**
+ * 救済措置を適用
+ * @param {string} currentRank
+ * @param {string} prevRank
+ * @param {number} recentSpent
+ * @return {object} { rank, info }
+ */
+function applyGraceRule_(currentRank, prevRank, recentSpent) {
+  if (currentRank === 'REGULAR' && (prevRank === 'DIAMOND' || prevRank === 'GOLD')) {
+    if (recentSpent >= 50000) {
+      return { rank: prevRank, info: { restored: true, prevRank: prevRank } };
+    }
+    return { rank: currentRank, info: { restored: false, prevRank: prevRank, needed: 50000 - recentSpent } };
+  }
+  return { rank: currentRank, info: null };
+}
+
+/**
+ * 次のランクまでの情報を取得
+ * @param {string} currentRank
+ * @param {object|null} graceInfo
+ * @return {object} { nextRank, nextThreshold }
+ */
+function getNextRankInfo_(currentRank, graceInfo) {
+  if (currentRank === 'REGULAR') return { nextRank: 'SILVER', nextThreshold: 50000 };
+  if (currentRank === 'SILVER') return { nextRank: 'GOLD', nextThreshold: 200000 };
+  if (currentRank === 'GOLD') {
+    return { nextRank: 'DIAMOND', nextThreshold: (graceInfo && graceInfo.restored) ? 350000 : 500000 };
+  }
+  return { nextRank: null, nextThreshold: 0 };
 }
 
 // =====================================================
