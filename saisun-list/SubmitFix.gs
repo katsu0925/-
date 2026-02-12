@@ -312,7 +312,7 @@ function writeSubmitData_(data) {
     data.form.address || '',                     // F: 住所
     data.form.phone || '',                       // G: 電話番号
     productNames,                                // H: 商品名
-    '',                                          // I: 確認リンク
+    createOrderConfirmLink_(data.receiptNo, data),  // I: 確認リンク（Drive共有URL）
     data.selectionList || data.ids.join('、'),   // J: 選択リスト
     data.ids.length,                             // K: 合計点数
     data.discounted || 0,                        // L: 合計金額
@@ -887,5 +887,90 @@ function apiCancelOrder(receiptNo) {
   } catch (e) {
     console.error('apiCancelOrder error:', e);
     return { ok: false, message: (e && e.message) ? e.message : String(e) };
+  }
+}
+
+// =====================================================
+// 注文確認用 Google Drive 共有リンク生成
+// =====================================================
+
+/**
+ * 注文確認用スプレッドシートをDriveに作成し、共有リンクを返す
+ * リンクを知っている全員がVIEW可能（Googleアカウント不要）
+ * @param {string} receiptNo - 受付番号
+ * @param {object} data - 注文データ
+ * @returns {string} - Google Drive共有URL（失敗時は空文字）
+ */
+function createOrderConfirmLink_(receiptNo, data) {
+  try {
+    if (!receiptNo || !data) return '';
+
+    var form = data.form || {};
+    var ids = data.ids || [];
+    var datetime = new Date(data.createdAtMs || Date.now());
+    var dateStr = Utilities.formatDate(datetime, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm');
+
+    // スプレッドシートを新規作成
+    var ss = SpreadsheetApp.create('注文明細_' + receiptNo);
+    var sheet = ss.getActiveSheet();
+    sheet.setName('注文明細');
+
+    // ヘッダー情報
+    var headerRows = [
+      ['NKonline Apparel - ご注文明細'],
+      [''],
+      ['受付番号', receiptNo],
+      ['依頼日時', dateStr],
+      ['会社名/氏名', form.companyName || ''],
+      ['合計点数', String(ids.length) + '点'],
+      ['合計金額', String(Number(data.discounted || 0).toLocaleString()) + '円（税込）'],
+      [''],
+      ['■ 選択商品一覧'],
+      ['No.', '管理番号']
+    ];
+
+    // 商品リストを追加
+    for (var i = 0; i < ids.length; i++) {
+      headerRows.push([i + 1, ids[i]]);
+    }
+
+    headerRows.push(['']);
+    headerRows.push(['※ このシートは閲覧専用です。']);
+    headerRows.push(['※ ご不明点はお問い合わせください: nkonline1030@gmail.com']);
+
+    sheet.getRange(1, 1, headerRows.length, 2).setValues(headerRows);
+
+    // タイトル行の書式設定
+    sheet.getRange(1, 1).setFontSize(14).setFontWeight('bold');
+    sheet.getRange(10, 1, 1, 2).setFontWeight('bold').setBackground('#f0f0f0');
+    sheet.setColumnWidth(1, 120);
+    sheet.setColumnWidth(2, 200);
+
+    // シートを保護（閲覧のみ）
+    var protection = sheet.protect().setDescription('注文明細（閲覧専用）');
+    protection.setWarningOnly(true);
+
+    // リンクを知っている全員に VIEW 権限を付与
+    var file = DriveApp.getFileById(ss.getId());
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+    // エクスポートフォルダに移動（設定されている場合）
+    try {
+      if (typeof EXPORT_FOLDER_ID !== 'undefined' && EXPORT_FOLDER_ID) {
+        var folder = DriveApp.getFolderById(EXPORT_FOLDER_ID);
+        folder.addFile(file);
+        DriveApp.getRootFolder().removeFile(file);
+      }
+    } catch (moveErr) {
+      console.warn('フォルダ移動スキップ: ' + (moveErr.message || moveErr));
+    }
+
+    var url = ss.getUrl();
+    console.log('注文確認リンク作成: ' + receiptNo + ' → ' + url);
+    return url;
+
+  } catch (e) {
+    console.error('createOrderConfirmLink_ error:', e);
+    return '';
   }
 }

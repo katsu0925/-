@@ -332,15 +332,9 @@ function verifyKomojuWebhookSignature_(e, body) {
   if (e && e.postData && e.postData.headers) {
     signature = String(e.postData.headers['X-Komoju-Signature'] || e.postData.headers['x-komoju-signature'] || '');
   }
-  // GAS doPost ではヘッダーが取得できない場合がある
-  // その場合は ScriptProperties に署名チェックをスキップするフラグを確認
+  // 署名ヘッダーが取得できない場合は拒否（fail-secure）
   if (!signature) {
-    var skipFlag = PropertiesService.getScriptProperties().getProperty('KOMOJU_WEBHOOK_SKIP_SIGNATURE');
-    if (skipFlag === 'true') {
-      console.warn('Webhook署名ヘッダーが取得できないため、スキップフラグにより許可');
-      return true;
-    }
-    console.warn('Webhook署名ヘッダーが取得できません');
+    console.warn('Webhook署名ヘッダーが取得できません。リクエストを拒否します。');
     return false;
   }
 

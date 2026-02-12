@@ -25,12 +25,12 @@ function getCustomerSheet_() {
 // =====================================================
 
 /**
- * v2 高速ハッシュ（100回反復）
- * GASの computeDigest オーバーヘッドを考慮し実用的な速度を確保
- * レート制限 + ソルト付きで十分な安全性を維持
+ * v2 ハッシュ（10,000回反復）
+ * OWASP推奨の最低反復回数を満たすセキュアなハッシュ
+ * レート制限 + ソルト付きで安全性を確保
  */
 function hashPasswordV2_(password, salt) {
-  var iterations = 100;
+  var iterations = AUTH_CONSTANTS.HASH_ITERATIONS;
   var input = password + ':' + salt;
   var hash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, input);
   var saltBytes = Utilities.newBlob(salt).getBytes();
@@ -74,8 +74,8 @@ function hashPasswordLegacy_(password, salt) {
  * パスワードハッシュ文字列を生成（v2形式）
  */
 function createPasswordHash_(password) {
-  var salt = generateRandomId_(16);
-  return 'v2:' + salt + ':' + hashPasswordV2_(password, salt);
+  var salt = generateRandomId_(AUTH_CONSTANTS.SALT_LENGTH);
+  return AUTH_CONSTANTS.HASH_PREFIX + ':' + salt + ':' + hashPasswordV2_(password, salt);
 }
 
 /**
@@ -222,8 +222,8 @@ function apiRegisterCustomer(userKey, params) {
     if (!email || !email.includes('@')) {
       return { ok: false, message: '有効なメールアドレスを入力してください' };
     }
-    if (!password || password.length < 6) {
-      return { ok: false, message: 'パスワードは6文字以上で入力してください' };
+    if (!password || password.length < AUTH_CONSTANTS.MIN_PASSWORD_LENGTH) {
+      return { ok: false, message: 'パスワードは' + AUTH_CONSTANTS.MIN_PASSWORD_LENGTH + '文字以上で入力してください' };
     }
     if (!companyName) {
       return { ok: false, message: '会社名/氏名は必須です' };
@@ -233,8 +233,8 @@ function apiRegisterCustomer(userKey, params) {
     }
 
     var passwordHash = createPasswordHash_(password);
-    const sessionId = generateRandomId_(32);
-    const sessionExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const sessionId = generateRandomId_(AUTH_CONSTANTS.SESSION_ID_LENGTH);
+    const sessionExpiry = new Date(Date.now() + AUTH_CONSTANTS.SESSION_DURATION_MS);
     const sheet = getCustomerSheet_();
     const customerId = 'C' + Date.now().toString(36).toUpperCase();
     const now = new Date();
@@ -283,9 +283,9 @@ function apiLoginCustomer(userKey, params) {
       return { ok: false, message: 'メールアドレスまたはパスワードが正しくありません' };
     }
 
-    const sessionId = generateRandomId_(32);
+    const sessionId = generateRandomId_(AUTH_CONSTANTS.SESSION_ID_LENGTH);
     var rememberMe = params.rememberMe === true || params.rememberMe === 'true';
-    var sessionDuration = rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+    var sessionDuration = rememberMe ? AUTH_CONSTANTS.SESSION_REMEMBER_ME_MS : AUTH_CONSTANTS.SESSION_DURATION_MS;
     const sessionExpiry = new Date(Date.now() + sessionDuration);
     const now = new Date();
     const sheet = getCustomerSheet_();
@@ -414,7 +414,7 @@ function apiChangePassword(userKey, params) {
 
     if (!sessionId) return { ok: false, message: 'ログインが必要です' };
     if (!currentPassword) return { ok: false, message: '現在のパスワードを入力してください' };
-    if (!newPassword || newPassword.length < 6) return { ok: false, message: '新しいパスワードは6文字以上で入力してください' };
+    if (!newPassword || newPassword.length < AUTH_CONSTANTS.MIN_PASSWORD_LENGTH) return { ok: false, message: '新しいパスワードは' + AUTH_CONSTANTS.MIN_PASSWORD_LENGTH + '文字以上で入力してください' };
 
     var customer = findCustomerBySession_(sessionId);
     if (!customer) return { ok: false, message: 'セッションが無効です。再ログインしてください' };
@@ -450,7 +450,7 @@ function apiRequestPasswordReset(userKey, params) {
       return { ok: true, message: '登録されているメールアドレスの場合、仮パスワードを送信しました' };
     }
 
-    var tempPassword = generateRandomId_(8);
+    var tempPassword = generateRandomId_(AUTH_CONSTANTS.TEMP_PASSWORD_LENGTH);
     var newHash = createPasswordHash_(tempPassword);
     var sheet = getCustomerSheet_();
     sheet.getRange(customer.row, 3).setValue(newHash);
@@ -919,7 +919,7 @@ function processCancelledInvoices() {
  * インボイス付き領収書メール送信
  */
 function sendInvoiceReceipt_(email, data) {
-  var taxRate = 0.10;
+  var taxRate = TAX_RATE;
   var taxExcluded = Math.floor(data.totalAmount / (1 + taxRate));
   var taxAmount = data.totalAmount - taxExcluded;
   var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy年MM月dd日');

@@ -6,9 +6,16 @@ const SHIPMAIL_CONFIG = {
   get TO_EMAIL() { return String(APP_CONFIG.notifyEmails || ''); },
   STATUS_VALUE: '発送済み',
   COL_RECEIPT_NO: 1,      // A列: 受付番号
-  COL_STATUS_M: 13,       // M列: 発送ステータス
   COL_CUSTOMER_C: 3,      // C列: 会社名/氏名
-  COL_STATUS_P: 16,       // P列: ステータス
+  COL_CONTACT_D: 4,       // D列: 連絡先メール
+  COL_CONFIRM_LINK_I: 9,  // I列: 確認リンク
+  COL_SELECTION_J: 10,     // J列: 選択リスト
+  COL_COUNT_K: 11,         // K列: 合計点数
+  COL_AMOUNT_L: 12,        // L列: 合計金額
+  COL_STATUS_M: 13,        // M列: 発送ステータス
+  COL_STATUS_P: 16,        // P列: ステータス
+  COL_CARRIER_W: 23,       // W列: 配送業者
+  COL_TRACKING_X: 24,      // X列: 伝票番号
   FLAG_COL: 27
 };
 
@@ -76,6 +83,7 @@ function shipMailOnEdit(e) {
       SHIPMAIL_CONFIG.COL_STATUS_M,
       SHIPMAIL_CONFIG.COL_CUSTOMER_C,
       SHIPMAIL_CONFIG.COL_RECEIPT_NO,
+      SHIPMAIL_CONFIG.COL_TRACKING_X,
       SHIPMAIL_CONFIG.FLAG_COL
     );
 
@@ -83,18 +91,67 @@ function shipMailOnEdit(e) {
 
     const receiptNo = String(rowVals[SHIPMAIL_CONFIG.COL_RECEIPT_NO - 1] || '').trim();
     const customer = String(rowVals[SHIPMAIL_CONFIG.COL_CUSTOMER_C - 1] || '').trim();
+    const contactEmail = String(rowVals[SHIPMAIL_CONFIG.COL_CONTACT_D - 1] || '').trim();
+    const confirmLink = String(rowVals[SHIPMAIL_CONFIG.COL_CONFIRM_LINK_I - 1] || '').trim();
+    const selectionList = String(rowVals[SHIPMAIL_CONFIG.COL_SELECTION_J - 1] || '').trim();
+    const totalCount = rowVals[SHIPMAIL_CONFIG.COL_COUNT_K - 1] || 0;
+    const totalAmount = rowVals[SHIPMAIL_CONFIG.COL_AMOUNT_L - 1] || 0;
+    const carrier = String(rowVals[SHIPMAIL_CONFIG.COL_CARRIER_W - 1] || '').trim();
+    const trackingNo = String(rowVals[SHIPMAIL_CONFIG.COL_TRACKING_X - 1] || '').trim();
 
     Logger.log('receiptNo=' + receiptNo);
     Logger.log('customer=' + customer);
 
-    const subject = '発送通知: 受付番号 ' + receiptNo;
-    const body =
+    // --- 管理者宛通知メール ---
+    const adminSubject = '発送通知: 受付番号 ' + receiptNo;
+    const adminBody =
       '受付番号「' + receiptNo + '」が発送されました。\n\n' +
       'お客様名：' + customer + '\n';
 
-    Logger.log('sending mail to=' + SHIPMAIL_CONFIG.TO_EMAIL + ' subject=' + subject);
-    MailApp.sendEmail(SHIPMAIL_CONFIG.TO_EMAIL, subject, body);
-    Logger.log('mail sent');
+    Logger.log('sending admin mail to=' + SHIPMAIL_CONFIG.TO_EMAIL + ' subject=' + adminSubject);
+    MailApp.sendEmail(SHIPMAIL_CONFIG.TO_EMAIL, adminSubject, adminBody);
+    Logger.log('admin mail sent');
+
+    // --- 顧客宛発送通知メール（Drive共有リンク付き） ---
+    if (contactEmail && contactEmail.indexOf('@') !== -1) {
+      var custSubject = '【NKonline Apparel】商品を発送しました（受付番号：' + receiptNo + '）';
+      var custBody = customer + ' 様\n\n'
+        + 'ご注文いただきありがとうございます。\n'
+        + '下記の内容で商品を発送いたしました。\n\n'
+        + '━━━━━━━━━━━━━━━━━━━━\n'
+        + '■ 発送内容\n'
+        + '━━━━━━━━━━━━━━━━━━━━\n'
+        + '受付番号：' + receiptNo + '\n'
+        + '合計点数：' + totalCount + '点\n'
+        + '合計金額：' + Number(totalAmount).toLocaleString() + '円（税込）\n';
+
+      if (carrier) {
+        custBody += '配送業者：' + carrier + '\n';
+      }
+      if (trackingNo) {
+        custBody += '伝票番号：' + trackingNo + '\n';
+      }
+
+      custBody += '━━━━━━━━━━━━━━━━━━━━\n\n';
+
+      // Google Drive 共有リンク
+      if (confirmLink) {
+        custBody += '■ ご注文明細（Google Drive）\n'
+          + '以下のリンクからご注文内容をご確認いただけます。\n'
+          + confirmLink + '\n\n';
+      }
+
+      custBody += '商品到着まで今しばらくお待ちください。\n'
+        + '到着後、内容にご不明点がございましたらお気軽にお問い合わせください。\n\n'
+        + '──────────────────\n'
+        + 'NKonline Apparel（卸売サイト）\n'
+        + 'https://wholesale.nkonline-tool.com/\n'
+        + 'お問い合わせ：nkonline1030@gmail.com\n'
+        + '──────────────────\n';
+
+      MailApp.sendEmail({ to: contactEmail, subject: custSubject, body: custBody, noReply: true });
+      Logger.log('customer mail sent to=' + contactEmail);
+    }
 
     flagCell.setValue(new Date());
     flagCell.setNumberFormat('yyyy/mm/dd hh:mm:ss');
