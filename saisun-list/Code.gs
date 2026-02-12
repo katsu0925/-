@@ -224,6 +224,21 @@ function apiLogPV(payload) {
   const noLog = String(body.noLog || '') === '1';
   if (noLog) return { ok: true, skipped: true };
 
+  // GASモード: オーナーのアクセスはログしない（メールアドレスで判定）
+  try {
+    var ownerEmail = String(PropertiesService.getScriptProperties().getProperty(APP_CONFIG.admin.ownerEmailProp) || '').trim().toLowerCase();
+    if (ownerEmail) {
+      var activeEmail = String((Session.getActiveUser && Session.getActiveUser().getEmail ? Session.getActiveUser().getEmail() : '') || '').trim().toLowerCase();
+      if (activeEmail && activeEmail === ownerEmail) return { ok: true, skipped: true };
+    }
+  } catch(e) {}
+
+  // ボット除外（サーバーサイド）
+  var ua = String(body.userAgent || '').toLowerCase();
+  if (/headlesschrome|google-read-aloud|bot|crawl|spider|slurp/.test(ua)) return { ok: true, skipped: true };
+  var scr = String(body.screen || '');
+  if (scr === '0x0' || scr === '2000x2000' || scr === '400x400') return { ok: true, skipped: true };
+
   const now = new Date();
   const tz = Session.getScriptTimeZone() || "Asia/Tokyo";
   const page = body.page ? String(body.page) : "Index";
@@ -245,6 +260,74 @@ function apiLogPV(payload) {
 
   appendLogRow_(row);
   return { ok: true };
+}
+
+/**
+ * 既存アクセスログからオーナー＆ボットの行を一括削除
+ * ★ GASエディタから1回だけ実行してください
+ */
+function ad_cleanAccessLog() {
+  var ss = SpreadsheetApp.openById(String(LOG_SPREADSHEET_ID).trim());
+  var sheet = ss.getSheetByName(LOG_SHEET_NAME);
+  if (!sheet) { console.log('アクセスログシートが見つかりません'); return; }
+  var last = sheet.getLastRow();
+  if (last < 2) { console.log('データなし'); return; }
+  var data = sheet.getRange(2, 1, last - 1, 12).getValues();
+
+  // オーナーのuserKey（Mac Chrome / iPhone Safari / Mac GAS）
+  var ownerKeys = {
+    'u_tgneiv48y4ml4o0t4e': true,
+    'u_gwzmndr3ymaml5an2qq': true,
+    'u_jdgyiye97ommjkccuc5': true
+  };
+
+  var botUaRe = /headlesschrome|google-read-aloud|bot|crawl|spider|slurp/i;
+  var botScreens = { '0x0': true, '2000x2000': true, '400x400': true };
+  var suspectLangs = { 'en-US@posix': true, 'es-ES': true, 'it-IT': true };
+
+  var deleteRows = [];
+  for (var i = 0; i < data.length; i++) {
+    var userKey = String(data[i][4] || '');
+    var ua      = String(data[i][7] || '');
+    var lang    = String(data[i][8] || '');
+    var scr     = String(data[i][9] || '');
+
+    var remove = false;
+
+    // オーナーのuserKey
+    if (ownerKeys[userKey]) remove = true;
+
+    // ボットUA
+    if (botUaRe.test(ua)) remove = true;
+
+    // 異常なスクリーンサイズ
+    if (botScreens[scr]) remove = true;
+
+    // 疑わしい言語
+    if (suspectLangs[lang]) remove = true;
+
+    // en-US + 800x600（スクレーパー）
+    if (lang === 'en-US' && scr === '800x600') remove = true;
+
+    // en-US + 1024x1024（ボット）
+    if (lang === 'en-US' && scr === '1024x1024') remove = true;
+
+    // en-US + 古いChrome（バージョン < 135）
+    if (lang === 'en-US') {
+      var m = ua.match(/Chrome\/(\d+)\./);
+      if (m && parseInt(m[1], 10) < 135) remove = true;
+    }
+
+    if (remove) deleteRows.push(i + 2); // 1-indexed, ヘッダー分+1
+  }
+
+  // 下から削除（インデックスずれ防止）
+  for (var j = deleteRows.length - 1; j >= 0; j--) {
+    sheet.deleteRow(deleteRows[j]);
+  }
+
+  console.log('クリーンアップ完了: ' + deleteRows.length + '行削除 / ' + data.length + '行中');
+  return { ok: true, deleted: deleteRows.length, total: data.length };
 }
 
 function appendLogRow_(row) {

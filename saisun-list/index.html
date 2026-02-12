@@ -3471,6 +3471,11 @@ function setupScrollTopButton_() {
 
 function logPageView_() {
   if (IS_OWNER) return;  // オーナーのアクセスはログしない
+  // ボット・クローラー除外
+  var ua = navigator.userAgent || '';
+  if (/HeadlessChrome|Google-Read-Aloud|bot|crawl|spider|slurp/i.test(ua)) return;
+  var sw = screen.width || 0, sh = screen.height || 0;
+  if ((sw === 0 && sh === 0) || (sw >= 2000 && sh >= 2000) || (sw === 400 && sh === 400)) return;
   try {
     var payload = {
       page: 'Index',
