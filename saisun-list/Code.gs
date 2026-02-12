@@ -97,6 +97,11 @@ function doPost(e) {
       }
     }
 
+    // オーナー（管理者）のPVアクセスはログしない
+    if (isAdmin && action === 'apiLogPV') {
+      return jsonResponse_({ ok: true, skipped: true });
+    }
+
     var result = fn.apply(null, args);
     return jsonResponse_(result);
   } catch (err) {
