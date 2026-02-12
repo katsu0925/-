@@ -816,8 +816,8 @@ function deductPoints_(email, points) {
 // =====================================================
 
 /**
- * 完了済み注文にインボイス付き領収書を自動送付（メニューまたはトリガーから実行）
- * S列="希望" かつ T列が空 かつ P列="完了" の注文に送付
+ * 発送済み注文にインボイス付き領収書を自動送付（メニューまたはトリガーから実行）
+ * S列="希望" かつ T列が空 かつ M列(発送ステータス)="発送済み" の注文に送付
  */
 function processInvoiceReceipts() {
   var ss = sh_getOrderSs_();
@@ -830,13 +830,13 @@ function processInvoiceReceipts() {
 
   var sent = 0;
   for (var i = 1; i < data.length; i++) {
-    var status = String(data[i][15] || '');       // P列: ステータス
+    var shippingStatus = String(data[i][12] || ''); // M列: 発送ステータス
     var invoiceFlag = String(data[i][18] || '');   // S列: 領収書希望
     var sentFlag = String(data[i][19] || '');       // T列: 送付済
     var email = String(data[i][3] || '').trim();   // D列: 連絡先
     var companyName = String(data[i][2] || '');     // C列: 会社名
 
-    if (status === '完了' && invoiceFlag === '希望' && !sentFlag && email) {
+    if (shippingStatus === '発送済み' && invoiceFlag === '希望' && !sentFlag && email) {
       var receiptNo = String(data[i][0] || '');
       var orderDate = data[i][1] ? formatDate_(data[i][1]) : '';
       var totalAmount = Number(data[i][11]) || 0;

@@ -3091,18 +3091,29 @@ function showCartSection_(showCart) {
   var cartActions = $('cartActions');
   var cartForm = $('cartFormSection');
   var title = $('cartModalTitle');
+  var sumBox = $('cartSumBox');
   if (showCart) {
     if (cartList) cartList.style.display = '';
     if (cartRecommend) cartRecommend.style.display = '';
     if (cartActions) cartActions.style.display = '';
     if (cartForm) cartForm.style.display = 'none';
     if (title) title.textContent = 'カート';
+    // sumBoxを元の位置（cartFormSectionの前）に戻す
+    if (sumBox && cartForm) {
+      cartForm.parentNode.insertBefore(sumBox, cartForm);
+    }
   } else {
     if (cartList) cartList.style.display = 'none';
     if (cartRecommend) cartRecommend.style.display = 'none';
     if (cartActions) cartActions.style.display = 'none';
     if (cartForm) cartForm.style.display = '';
     if (title) title.textContent = 'ご注文内容の確認';
+    // sumBoxをフォーム内のformActionsの直前に移動（カートと同じ下部位置）
+    if (sumBox && cartForm) {
+      var formActs = cartForm.querySelector('.formActions');
+      if (formActs) cartForm.insertBefore(sumBox, formActs);
+      else cartForm.appendChild(sumBox);
+    }
   }
 }
 
