@@ -230,6 +230,32 @@
     .detail-info-grid { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-bottom: 8px; }
     .detail-info-item { font-size: 14px; color: #374151; background: #f9fafb; padding: 4px 10px; border-radius: 6px; }
     .detail-info-label { font-weight: 600; color: #6b7280; }
+
+    /* ===== Image Zoom (Amazon-style) ===== */
+    .detail-zoom-wrap { position: relative; cursor: zoom-in; background: #f9fafb; border-radius: 12px 12px 0 0; }
+    .detail-zoom-wrap img.detail-modal-image { pointer-events: none; }
+    .detail-zoom-lens { display: none; position: absolute; width: 120px; height: 120px; border: 2.5px solid rgba(59,130,246,.7); border-radius: 8px; pointer-events: none; z-index: 2; background: rgba(59,130,246,.08); }
+    .detail-zoom-result { display: none; position: fixed; width: 300px; height: 300px; border: 1px solid #e5e7eb; border-radius: 12px; background-repeat: no-repeat; background-color: #fff; box-shadow: 0 8px 30px rgba(0,0,0,.18); z-index: 10001; overflow: hidden; pointer-events: none; }
+    .detail-zoom-wrap:hover .detail-zoom-lens { display: block; }
+    .detail-zoom-hint { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.55); color: #fff; font-size: 11px; padding: 3px 10px; border-radius: 12px; pointer-events: none; z-index: 3; white-space: nowrap; transition: opacity .3s; }
+    .detail-zoom-wrap:hover .detail-zoom-hint { opacity: 0; }
+
+    /* Mobile: zoom result inside overlay instead of side-by-side */
+    @media (max-width: 700px) {
+      .detail-zoom-wrap { cursor: pointer; }
+      .detail-zoom-lens, .detail-zoom-result { display: none !important; }
+      .detail-zoom-hint-mobile { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.55); color: #fff; font-size: 11px; padding: 3px 10px; border-radius: 12px; pointer-events: none; z-index: 3; white-space: nowrap; }
+    }
+    @media (min-width: 701px) {
+      .detail-zoom-hint-mobile { display: none; }
+    }
+
+    /* Fullscreen image viewer (mobile) */
+    .fullscreen-viewer { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,.92); z-index: 10002; justify-content: center; align-items: center; flex-direction: column; }
+    .fullscreen-viewer.active { display: flex; }
+    .fullscreen-viewer img { max-width: 100%; max-height: 85vh; object-fit: contain; touch-action: pinch-zoom; user-select: none; -webkit-user-select: none; transition: transform .2s ease; }
+    .fullscreen-viewer-close { position: absolute; top: 12px; right: 12px; background: rgba(255,255,255,.2); border: none; color: #fff; width: 40px; height: 40px; border-radius: 50%; font-size: 24px; cursor: pointer; z-index: 10003; backdrop-filter: blur(4px); }
+    .fullscreen-viewer-hint { color: rgba(255,255,255,.6); font-size: 13px; margin-top: 12px; }
   </style>
 </head>
 <body>
@@ -716,6 +742,13 @@
         <div class="detail-loading">読み込み中...</div>
       </div>
     </div>
+  </div>
+
+  <!-- フルスクリーン画像ビューア (モバイル用) -->
+  <div class="fullscreen-viewer" id="fullscreenViewer">
+    <button class="fullscreen-viewer-close" onclick="closeFullscreenViewer_()">×</button>
+    <img id="fullscreenViewerImg" src="" alt="拡大画像">
+    <div class="fullscreen-viewer-hint">ダブルタップ or ピンチで拡大・縮小</div>
   </div>
 
   <!-- 商品ガイドモーダル -->
@@ -2607,10 +2640,174 @@ function renderDetailModalLocal(item, imageUrl) {
   var noInfo = (!basicInfoHtml && !defectHtml && !measurementsHtml) ? '<div class="detail-loading" style="color:#999;">追加情報はありません</div>' : '';
   
   body.innerHTML =
-    '<img class="detail-modal-image" src="' + safeImageUrl + '" alt="' + safeBrand + '" onerror="this.style.display=\'none\'">' +
+    '<div class="detail-zoom-wrap" id="detailZoomWrap">' +
+      '<img class="detail-modal-image" id="detailZoomImg" src="' + safeImageUrl + '" alt="' + safeBrand + '" onerror="this.parentNode.style.display=\'none\'">' +
+      '<div class="detail-zoom-lens" id="detailZoomLens"></div>' +
+      '<span class="detail-zoom-hint">🔍 ホバーで拡大</span>' +
+      '<span class="detail-zoom-hint-mobile">タップで拡大</span>' +
+    '</div>' +
+    '<div class="detail-zoom-result" id="detailZoomResult"></div>' +
     '<div class="detail-modal-content"><div class="detail-modal-title">' + safeBrand + ' - ' + safeManagedId + '</div>' +
     basicInfoHtml + defectHtml + measurementsHtml + noInfo + '</div>' +
     '<div class="detail-modal-footer"><button class="detail-add-btn" ' + btnDisabled + ' onclick="addToCartFromModal(\'' + safeManagedId + '\')">' + btnText + '</button></div>';
+
+  // Initialize zoom after rendering
+  initDetailZoom_(safeImageUrl);
+}
+
+// =====================================================
+// 画像ズーム機能 (Amazon-style)
+// =====================================================
+
+function initDetailZoom_(imageUrl) {
+  var wrap = document.getElementById('detailZoomWrap');
+  var img = document.getElementById('detailZoomImg');
+  var lens = document.getElementById('detailZoomLens');
+  var result = document.getElementById('detailZoomResult');
+  if (!wrap || !img || !lens || !result) return;
+
+  var isMobile = window.matchMedia('(max-width: 700px)').matches;
+
+  if (isMobile) {
+    // Mobile: tap to open fullscreen viewer
+    wrap.addEventListener('click', function() { openFullscreenViewer_(imageUrl); });
+    return;
+  }
+
+  // Desktop: Amazon-style hover magnifier
+  var zoomLevel = 2.5;
+  var ready = false;
+
+  img.addEventListener('load', function() {
+    ready = true;
+    result.style.backgroundImage = 'url(' + imageUrl + ')';
+    result.style.backgroundSize = (img.naturalWidth * zoomLevel) + 'px ' + (img.naturalHeight * zoomLevel) + 'px';
+  });
+
+  // If image is already cached and loaded
+  if (img.complete && img.naturalWidth > 0) {
+    ready = true;
+    result.style.backgroundImage = 'url(' + imageUrl + ')';
+    result.style.backgroundSize = (img.naturalWidth * zoomLevel) + 'px ' + (img.naturalHeight * zoomLevel) + 'px';
+  }
+
+  wrap.addEventListener('mouseenter', function() { if (ready) result.style.display = 'block'; });
+  wrap.addEventListener('mouseleave', function() { result.style.display = 'none'; });
+
+  wrap.addEventListener('mousemove', function(e) {
+    if (!ready) return;
+    var rect = wrap.getBoundingClientRect();
+    var x = e.clientX - rect.left;
+    var y = e.clientY - rect.top;
+
+    // Position lens (centered on cursor)
+    var lensW = lens.offsetWidth / 2;
+    var lensH = lens.offsetHeight / 2;
+    lens.style.left = (x - lensW) + 'px';
+    lens.style.top = (y - lensH) + 'px';
+
+    // Calculate ratios based on image display size
+    var imgRect = img.getBoundingClientRect();
+    var imgOffsetX = imgRect.left - rect.left;
+    var imgOffsetY = imgRect.top - rect.top;
+    var relX = (x - imgOffsetX) / imgRect.width;
+    var relY = (y - imgOffsetY) / imgRect.height;
+
+    // Background position for zoom result
+    var bgX = relX * (img.naturalWidth * zoomLevel) - result.offsetWidth / 2;
+    var bgY = relY * (img.naturalHeight * zoomLevel) - result.offsetHeight / 2;
+    result.style.backgroundPosition = '-' + Math.max(0, bgX) + 'px -' + Math.max(0, bgY) + 'px';
+
+    // Position zoom result panel next to the modal (fixed positioning)
+    var modal = wrap.closest('.detail-modal');
+    if (modal) {
+      var modalRect = modal.getBoundingClientRect();
+      var spaceRight = window.innerWidth - modalRect.right;
+      var resultTop = Math.max(10, modalRect.top);
+      result.style.top = resultTop + 'px';
+      if (spaceRight >= 310) {
+        result.style.left = (modalRect.right + 10) + 'px';
+      } else {
+        result.style.left = (modalRect.left - 310) + 'px';
+      }
+    }
+  });
+}
+
+// Fullscreen image viewer for mobile
+function openFullscreenViewer_(imageUrl) {
+  var viewer = document.getElementById('fullscreenViewer');
+  var viewerImg = document.getElementById('fullscreenViewerImg');
+  if (!viewer || !viewerImg) return;
+  viewerImg.src = imageUrl;
+  viewerImg.style.transform = 'scale(1)';
+  viewer.classList.add('active');
+
+  // Pinch-to-zoom state
+  var scale = 1;
+  var startDist = 0;
+  var startScale = 1;
+  var translateX = 0, translateY = 0;
+  var lastTap = 0;
+
+  function applyTransform() {
+    viewerImg.style.transform = 'scale(' + scale + ') translate(' + (translateX / scale) + 'px, ' + (translateY / scale) + 'px)';
+  }
+
+  function getDistance(t1, t2) {
+    var dx = t1.clientX - t2.clientX;
+    var dy = t1.clientY - t2.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  // Double-tap to toggle zoom
+  viewerImg.ontouchend = function(e) {
+    var now = Date.now();
+    if (now - lastTap < 300) {
+      e.preventDefault();
+      if (scale > 1) {
+        scale = 1; translateX = 0; translateY = 0;
+      } else {
+        scale = 2.5;
+      }
+      applyTransform();
+    }
+    lastTap = now;
+  };
+
+  // Pinch zoom & pan
+  viewerImg.ontouchmove = function(e) {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      var dist = getDistance(e.touches[0], e.touches[1]);
+      scale = Math.min(5, Math.max(1, startScale * (dist / startDist)));
+      applyTransform();
+    } else if (e.touches.length === 1 && scale > 1) {
+      e.preventDefault();
+      translateX += e.touches[0].clientX - (viewerImg._lastX || e.touches[0].clientX);
+      translateY += e.touches[0].clientY - (viewerImg._lastY || e.touches[0].clientY);
+      viewerImg._lastX = e.touches[0].clientX;
+      viewerImg._lastY = e.touches[0].clientY;
+      applyTransform();
+    }
+  };
+
+  viewerImg.ontouchstart = function(e) {
+    if (e.touches.length === 2) {
+      e.preventDefault();
+      startDist = getDistance(e.touches[0], e.touches[1]);
+      startScale = scale;
+    }
+    if (e.touches.length === 1) {
+      viewerImg._lastX = e.touches[0].clientX;
+      viewerImg._lastY = e.touches[0].clientY;
+    }
+  };
+}
+
+function closeFullscreenViewer_() {
+  var viewer = document.getElementById('fullscreenViewer');
+  if (viewer) viewer.classList.remove('active');
 }
 
 // 詳細モーダルを閉じた後の戻り先
@@ -2619,6 +2816,9 @@ var detailReturnTo_ = null;
 function closeDetailModal() {
   var modal = document.getElementById('detailModal');
   if (modal) modal.classList.remove('active');
+  var zoomResult = document.getElementById('detailZoomResult');
+  if (zoomResult) zoomResult.style.display = 'none';
+  closeFullscreenViewer_();
   if (detailReturnTo_ === 'cart') {
     detailReturnTo_ = null;
     renderCartModal_(); openModal($('cartModal'));
@@ -2635,6 +2835,9 @@ function addToCartFromModal(managedId) {
 function setupDetailModalEvents_() {
   var modal = document.getElementById('detailModal');
   if (modal) { modal.addEventListener('click', function(e) { if (e.target === modal) closeDetailModal(); }); }
+  // Close fullscreen viewer on background tap
+  var viewer = document.getElementById('fullscreenViewer');
+  if (viewer) { viewer.addEventListener('click', function(e) { if (e.target === viewer) closeFullscreenViewer_(); }); }
 }
 
 // =====================================================
