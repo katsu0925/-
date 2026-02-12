@@ -1910,6 +1910,14 @@ var IS_STANDALONE = (typeof google === 'undefined' || !google.script);
 // reCAPTCHA v3 サイトキー（★ Google reCAPTCHA管理画面で取得して設定）
 var RECAPTCHA_SITE_KEY = '6LeMeF0sAAAAAK1DLANrMyfuugoe6mdWMQbY2ao1';
 var ADMIN_KEY = (new URLSearchParams(window.location.search)).get('admin') || '';
+// オーナー識別: ?admin=KEY でアクセスした端末を記憶し、以降のPVログを除外
+var IS_OWNER = false;
+if (ADMIN_KEY) {
+  try { localStorage.setItem('_nk_owner_key', ADMIN_KEY); } catch(e) {}
+  IS_OWNER = true;
+} else {
+  try { IS_OWNER = !!localStorage.getItem('_nk_owner_key'); } catch(e) {}
+}
 
 function getRecaptchaToken_() {
   if (typeof grecaptcha === 'undefined' || !RECAPTCHA_SITE_KEY || RECAPTCHA_SITE_KEY.indexOf('RECAPTCHA') !== -1) {
@@ -3462,6 +3470,7 @@ function setupScrollTopButton_() {
 // =====================================================
 
 function logPageView_() {
+  if (IS_OWNER) return;  // オーナーのアクセスはログしない
   try {
     var payload = {
       page: 'Index',
