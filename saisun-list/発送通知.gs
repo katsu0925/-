@@ -132,6 +132,11 @@ function shipMailOnEdit(e) {
         custBody += '伝票番号：' + trackingNo + '\n';
       }
 
+      // 選択商品リスト
+      if (selectionList) {
+        custBody += '\n■ 選択商品\n' + selectionList + '\n';
+      }
+
       custBody += '━━━━━━━━━━━━━━━━━━━━\n\n';
 
       // Google Drive 共有リンク
