@@ -374,9 +374,9 @@ function app_sendEstimateConfirmToCustomer_(data) {
     var selectionList = data.selectionList || (data.ids ? data.ids.join('、') : '');
     var note = (data.form && data.form.note) || '';
 
-    var subject = '【NKonline Apparel】ご依頼を受け付けました（受付番号：' + data.receiptNo + '）';
+    var subject = '【デタウリ.Detauri】ご依頼を受け付けました（受付番号：' + data.receiptNo + '）';
     var body = companyName + ' 様\n\n'
-      + 'ご依頼いただきありがとうございます。\n'
+      + 'デタウリ.Detauri をご利用いただきありがとうございます。\n'
       + '以下の内容で受け付けました。確定金額・送料はメールでご案内いたします。\n\n'
       + '━━━━━━━━━━━━━━━━━━━━\n'
       + '■ ご依頼内容\n'
@@ -414,7 +414,7 @@ function app_sendEstimateConfirmToCustomer_(data) {
       + '※ このメールは自動送信です。\n'
       + '※ ご注文確定後のキャンセル・変更はできません。\n\n'
       + '──────────────────\n'
-      + 'NKonline Apparel（卸売サイト）\n'
+      + 'デタウリ.Detauri（NKonline Apparel 卸売サイト）\n'
       + 'https://wholesale.nkonline-tool.com/\n'
       + 'お問い合わせ：nkonline1030@gmail.com\n'
       + '──────────────────\n';

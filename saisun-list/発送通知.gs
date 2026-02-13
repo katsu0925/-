@@ -114,9 +114,9 @@ function shipMailOnEdit(e) {
 
     // --- 顧客宛発送通知メール（Drive共有リンク付き） ---
     if (contactEmail && contactEmail.indexOf('@') !== -1) {
-      var custSubject = '【NKonline Apparel】商品を発送しました（受付番号：' + receiptNo + '）';
+      var custSubject = '【デタウリ.Detauri】商品を発送しました（受付番号：' + receiptNo + '）';
       var custBody = customer + ' 様\n\n'
-        + 'ご注文いただきありがとうございます。\n'
+        + 'デタウリ.Detauri をご利用いただきありがとうございます。\n'
         + '下記の内容で商品を発送いたしました。\n\n'
         + '━━━━━━━━━━━━━━━━━━━━\n'
         + '■ 発送内容\n'
@@ -149,7 +149,7 @@ function shipMailOnEdit(e) {
       custBody += '商品到着まで今しばらくお待ちください。\n'
         + '到着後、内容にご不明点がございましたらお気軽にお問い合わせください。\n\n'
         + '──────────────────\n'
-        + 'NKonline Apparel（卸売サイト）\n'
+        + 'デタウリ.Detauri（NKonline Apparel 卸売サイト）\n'
         + 'https://wholesale.nkonline-tool.com/\n'
         + 'お問い合わせ：nkonline1030@gmail.com\n'
         + '──────────────────\n';
