@@ -242,7 +242,7 @@ function app_sendEstimateNotifyMail_(orderSs, receiptNo, info) {
     const toList = app_getNotifyToEmails_(orderSs);
     if (!toList.length) return;
 
-    const subject = 'NKonlineApparel 見積もり依頼';
+    const subject = 'デタウリ.Detauri 見積もり依頼';
     const body = app_buildEstimateNotifyBody_(orderSs, receiptNo, info);
 
     MailApp.sendEmail({
@@ -512,7 +512,7 @@ function apiSendContactForm(params) {
 
     // 1. 管理者宛通知
     var adminTo = 'nkonline1030@gmail.com,nsdktts1030@gmail.com';
-    var adminSubject = '【NKonlineApparel】お問い合わせ: ' + name;
+    var adminSubject = '【デタウリ.Detauri】お問い合わせ: ' + name;
     var adminBody = 'お問い合わせを受信しました。\n\n'
       + 'お名前: ' + name + '\n'
       + 'メールアドレス: ' + email + '\n'
