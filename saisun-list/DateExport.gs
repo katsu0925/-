@@ -18,7 +18,7 @@
  * エクスポート先のGoogle DriveフォルダID
  * 
  * 設定方法：
- * 1. Google Driveで新しいフォルダを作成（例：「見積もりシステムデータ」）
+ * 1. Google Driveで新しいフォルダを作成（例：「決済システムデータ」）
  * 2. フォルダを開き、URLからIDをコピー
  *    例：https://drive.google.com/drive/folders/XXXXXXXXXXXXXXXXXX
  *    → 「XXXXXXXXXXXXXXXXXX」の部分がフォルダID
@@ -404,7 +404,7 @@ function getExportSettings_() {
         return n;
       });
       return {
-        appTitle: APP_CONFIG.appTitle || '見積もりシステム',
+        appTitle: APP_CONFIG.appTitle || '決済システム',
         minOrderCount: APP_CONFIG.minOrderCount || 10,
         shippingEstimateText: (APP_CONFIG.uiText && APP_CONFIG.uiText.shippingEstimateText) || '',
         notes: notes,
@@ -424,7 +424,7 @@ function getExportSettings_() {
 
     // デフォルト
     return {
-      appTitle: '見積もりシステム',
+      appTitle: '決済システム',
       minOrderCount: 10,
       shippingEstimateText: '',
       notes: [],
@@ -434,7 +434,7 @@ function getExportSettings_() {
       memberDiscount: memberDiscount
     };
   } catch (e) {
-    return { appTitle: '見積もりシステム', minOrderCount: 10 };
+    return { appTitle: '決済システム', minOrderCount: 10 };
   }
 }
 

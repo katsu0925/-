@@ -133,7 +133,7 @@ function jsonResponse_(data) {
 // =====================================================
 
 var RATE_LIMITS = {
-  'apiSubmitEstimate': { max: 5, windowSec: 3600, label: '注文は1時間に5回まで' },
+  'apiSubmitEstimate': { max: 5, windowSec: 3600, label: '決済は1時間に5回まで' },
   'apiSyncHolds':     { max: 30, windowSec: 60,   label: '確保操作は1分に30回まで' },
   'apiLoginCustomer': { max: 5, windowSec: 3600, label: 'ログインは1時間に5回まで' },
   'apiRegisterCustomer': { max: 3, windowSec: 3600, label: '登録は1時間に3回まで' },

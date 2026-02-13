@@ -13,7 +13,7 @@
 // =====================================================
 
 /**
- * 見積もり送信（高速版）
+ * 注文送信（高速版）
  * - バリデーション・確保チェック・価格計算は同期で実行
  * - シート書き込み・状態更新・メール送信はバックグラウンドで実行
  * - 受付番号とテンプレートを即座に返す
@@ -162,7 +162,7 @@ function apiSubmitEstimate(userKey, form, ids) {
 
     var templateText = app_buildTemplateText_(receiptNo, validatedForm, list, totalCount, discounted);
 
-    // === 見積もりモード：確保を解除して依頼中に変更 ===
+    // === 注文モード：確保を解除して依頼中に変更 ===
     for (var i = 0; i < list.length; i++) {
       delete holdItems[list[i]];
     }
@@ -185,7 +185,7 @@ function apiSubmitEstimate(userKey, form, ids) {
       lock.releaseLock();
     }
 
-    // === 見積もりモード：即座にシート書き込み・メール通知 ===
+    // === 注文モード：即座にシート書き込み・メール通知 ===
     // メール用の商品詳細リストを構築
     var itemDetails = [];
     for (var idx = 0; idx < list.length; idx++) {
@@ -224,7 +224,7 @@ function apiSubmitEstimate(userKey, form, ids) {
 
     // 直接書き込み
     writeSubmitData_(submitData);
-    console.log('見積もりデータを書き込み完了: ' + receiptNo);
+    console.log('注文データを書き込み完了: ' + receiptNo);
 
     return {
       ok: true,
@@ -384,7 +384,7 @@ function writeSubmitData_(data) {
     new Date(now),                               // Z: 更新日時
     '',                                          // AA: 通知フラグ
     '',                                          // AB: ポイント付与済
-    '',                                          // AC: 送料(店負担) — 見積もりモード時に使用
+    '',                                          // AC: 送料(店負担) — 後決済モード時に使用
     data.shippingAmount || ''                    // AD: 送料(客負担) — フロントから送料あり時
   ];
   var writeRow = sh_findNextRowByDisplayKey_(reqSh, 1, 1);
