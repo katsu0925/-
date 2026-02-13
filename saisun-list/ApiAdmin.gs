@@ -149,6 +149,57 @@ function apiAdminCompactHolds(adminKey) {
   }
 }
 
+// =====================================================
+// Admin.html から呼ばれるラッパー関数（adminKey 自動解決）
+// =====================================================
+function ad_resolveAdminKey_() {
+  return String(PropertiesService.getScriptProperties().getProperty(APP_CONFIG.admin.accessKeyProp) || '');
+}
+
+function adminRebuildStates() {
+  return apiAdminRebuildStates(ad_resolveAdminKey_());
+}
+
+function adminApplyStatusDropdown() {
+  return apiAdminSetupAll(ad_resolveAdminKey_());
+}
+
+function adminClearProductsCache() {
+  return apiAdminForceRefreshProducts(ad_resolveAdminKey_());
+}
+
+function adminCompactHolds() {
+  return apiAdminCompactHolds(ad_resolveAdminKey_());
+}
+
+// =====================================================
+// 会員割引管理（Admin.html 用）
+// =====================================================
+function adminGetMemberDiscountStatus() {
+  try {
+    var status = app_getMemberDiscountStatus_();
+    return { ok: true, enabled: status.enabled, rate: status.rate, endDate: status.endDate, reason: status.reason };
+  } catch (e) {
+    return { ok: false, message: String(e && e.message ? e.message : e) };
+  }
+}
+
+function adminToggleMemberDiscount() {
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var current = props.getProperty('MEMBER_DISCOUNT_ENABLED');
+    var newVal = (current === 'false') ? 'true' : 'false';
+    props.setProperty('MEMBER_DISCOUNT_ENABLED', newVal);
+    var status = app_getMemberDiscountStatus_();
+    var msg = status.enabled
+      ? '会員割引をONにしました（期限: ' + status.endDate + ' まで）'
+      : '会員割引をOFFにしました（理由: ' + (status.reason === 'expired' ? '期限切れ' : '手動OFF') + '）';
+    return { ok: true, enabled: status.enabled, rate: status.rate, endDate: status.endDate, reason: status.reason, message: msg };
+  } catch (e) {
+    return { ok: false, message: String(e && e.message ? e.message : e) };
+  }
+}
+
 function setupAllFromEditor() {
   const orderSs = sh_getOrderSs_();
   sh_ensureAllOnce_(orderSs);
