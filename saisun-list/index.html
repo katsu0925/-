@@ -424,7 +424,7 @@
         </div>
         <div class="formActions">
           <button class="btn" id="formBackBtn" type="button">カートに戻る</button>
-          <button class="btn primary" id="submitBtn" type="button">見積もりを送信</button>
+          <button class="btn primary" id="submitBtn" type="button">決済に進む</button>
         </div>
       </div>
     </div>
@@ -2745,7 +2745,8 @@ function upsertCartItem_(it) {
   state.cart.itemsById[it.managedId] = {
     managedId: it.managedId, noLabel: it.noLabel, imageUrl: it.imageUrl, brand: it.brand,
     size: it.size, gender: it.gender, category: it.category, color: it.color, state: it.state,
-    price: Number(it.price || 0), measurements: it.measurements || {}, defectDetail: it.defectDetail || ''
+    price: Number(it.price || 0), measurements: it.measurements || {}, defectDetail: it.defectDetail || '',
+    shippingMethod: it.shippingMethod || ''
   };
 }
 
