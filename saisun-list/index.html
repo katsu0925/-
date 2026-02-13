@@ -1075,6 +1075,7 @@ var state = {
   // 顧客認証
   customer: null,  // { id, email, companyName, phone, postal, address, newsletter }
   sessionId: null,
+  csrfToken: null,
   dataLoaded: false
 };
 
@@ -1367,6 +1368,18 @@ function clearSession_() {
   try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
   state.sessionId = null;
   state.customer = null;
+  state.csrfToken = null;
+}
+
+function fetchCsrfToken_() {
+  if (!state.userKey) return;
+  runApi('apiGetCsrfToken', state.userKey)
+    .then(function(res) {
+      if (res && res.ok && res.csrfToken) {
+        state.csrfToken = res.csrfToken;
+      }
+    })
+    .catch(function() {});
 }
 
 function updateAuthUi_() {
@@ -1469,6 +1482,7 @@ function doLogin_() {
         state.sessionId = res.data.sessionId;
         state.customer = res.data.customer;
         saveSession_(res.data.sessionId, res.data.customer);
+        fetchCsrfToken_();
         updateAuthUi_();
         closeModal($('authModal'));
         showToast('ログインしました');
@@ -1524,6 +1538,7 @@ function doRegister_() {
         state.sessionId = res.data.sessionId;
         state.customer = res.data.customer;
         saveSession_(res.data.sessionId, res.data.customer);
+        fetchCsrfToken_();
         updateAuthUi_();
         closeModal($('authModal'));
         showToast(MEMBER_DISCOUNT_ENABLED ? '登録が完了しました！10%割引が適用されます' : '登録が完了しました！');
@@ -1715,6 +1730,7 @@ function validateSession_() {
       if (res.ok && res.data && res.data.customer) {
         state.sessionId = saved.sessionId;
         state.customer = res.data.customer;
+        fetchCsrfToken_();
         updateAuthUi_();
         updateCartPrice();
       } else {
@@ -2270,6 +2286,7 @@ function runApi(fn, _extra) {
     var payload = { action: fn, args: args };
     if ('recaptchaToken' in extra) payload.recaptchaToken = extra.recaptchaToken;
     if (ADMIN_KEY) payload.adminKey = ADMIN_KEY;
+    if (state.csrfToken) payload.csrfToken = state.csrfToken;
     return fetch(GAS_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
