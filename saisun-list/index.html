@@ -3915,7 +3915,7 @@ function submitNow_() {
       if (!res || !res.ok) throw new Error(res && res.message ? res.message : '見積もり送信に失敗しました');
       var receiptNo = res.receiptNo || '';
       // 見積もり完了 → カートクリア & 完了モーダル表示
-      state.cart.ids = []; state.cart.itemsById = {}; state.lastShipping = null;
+      state.cart.ids = []; state.cart.itemsById = {}; state.cart.digest = {}; state.lastShipping = null;
       saveCartStorage(); updateCartCount();
       $('doneReceipt').textContent = receiptNo;
       showCartSection_(true); // カートビューに戻す
@@ -4028,7 +4028,7 @@ function bindUi_() {
   
   $('openCartBtn').addEventListener('click', function() { renderCartModal_(); openModal($('cartModal')); });
   $('clearCartBtn').addEventListener('click', function() {
-    state.cart.ids = []; state.cart.itemsById = {}; state.lastShipping = null;
+    state.cart.ids = []; state.cart.itemsById = {}; state.cart.digest = {}; state.lastShipping = null;
     saveCartStorage(); updateCartCount(); renderCartModal_(); updateShippingDisplay_(); filterAndRender(false);
     runApi('apiSyncHolds', state.userKey, []).catch(function() {});
     showToast('カートを空にしました');
