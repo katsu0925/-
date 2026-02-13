@@ -390,15 +390,15 @@
             <input id="contact" type="email" autocomplete="email" placeholder="example@example.com">
           </div>
           <div class="formField">
-            <label>郵便番号</label>
+            <label>郵便番号 *</label>
             <input id="postal" type="text" inputmode="numeric" autocomplete="postal-code" placeholder="0000000">
           </div>
           <div class="formField">
-            <label>住所</label>
+            <label>住所 *</label>
             <input id="address" type="text" autocomplete="street-address">
           </div>
           <div class="formField">
-            <label>電話番号</label>
+            <label>電話番号 *</label>
             <input id="phone" type="tel" inputmode="numeric" placeholder="00000000000" autocomplete="tel">
           </div>
           <div class="formField">
@@ -3885,6 +3885,9 @@ function validateForm_(f) {
   if (!f.companyName.trim()) return '会社名/氏名は必須です';
   if (!f.contact.trim()) return 'メールアドレスは必須です';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.contact.trim())) return '有効なメールアドレスを入力してください';
+  if (!String(f.postal || '').trim()) return '郵便番号は必須です';
+  if (!String(f.address || '').trim()) return '住所は必須です';
+  if (!String(f.phone || '').trim()) return '電話番号は必須です';
   // 離島チェック
   var address = String(f.address || '').trim();
   if (address && isRemoteIslandAddress_(address)) return '離島への配送は対象外です。恐れ入りますがご注文いただけません。';

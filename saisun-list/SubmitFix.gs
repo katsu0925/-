@@ -42,6 +42,9 @@ function apiSubmitEstimate(userKey, form, ids) {
     if (!companyName) return { ok: false, message: '会社名/氏名は必須です' };
     if (!contact) return { ok: false, message: 'メールアドレスは必須です' };
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact)) return { ok: false, message: '有効なメールアドレスを入力してください' };
+    if (!postal) return { ok: false, message: '郵便番号は必須です' };
+    if (!address) return { ok: false, message: '住所は必須です' };
+    if (!phone) return { ok: false, message: '電話番号は必須です' };
 
     // === 同期：確保チェック（ロック付き） ===
     var orderSs = sh_getOrderSs_();
