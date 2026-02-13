@@ -104,7 +104,9 @@ var DATA_COLUMNS = {
   measure_裾幅: 21,
   measure_ヒップ: 22,
   // 傷汚れ詳細
-  defectDetail: 23  // X列
+  defectDetail: 23,  // X列
+  // 発送方法
+  shippingMethod: 24  // Y列
 };
 
 // キャッシュキー
@@ -141,7 +143,7 @@ function exportProductData_() {
       console.log('データがありません');
       return;
     }
-    var range = sheet.getRange(3, 1, lastRow - 2, 24); // A〜X列
+    var range = sheet.getRange(3, 1, lastRow - 2, 25); // A〜Y列（発送方法含む）
     var values = range.getValues();
     
     // 商品データを構築
@@ -197,7 +199,8 @@ function exportProductData_() {
         status: status,
         selectable: (statusKind === 'available'),
         measurements: measurements,
-        defectDetail: String(row[DATA_COLUMNS.defectDetail] || '').trim()
+        defectDetail: String(row[DATA_COLUMNS.defectDetail] || '').trim(),
+        shippingMethod: String(row[DATA_COLUMNS.shippingMethod] || '').trim()
       };
       
       products.push(product);
