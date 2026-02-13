@@ -22,6 +22,9 @@
     .mode-badge.test{background:#fff3cd;color:#856404;border:1px solid #ffc107;}
     .mode-badge.live{background:#d4edda;color:#155724;border:1px solid #28a745;}
     .mode-keys{font-size:12px;color:#666;margin-top:6px;}
+    .mode-badge.on{background:#d4edda;color:#155724;border:1px solid #28a745;}
+    .mode-badge.off{background:#f8d7da;color:#721c24;border:1px solid #dc3545;}
+    .discount-info{font-size:12px;color:#666;margin-top:6px;}
   </style>
 </head>
 <body>
@@ -44,6 +47,14 @@
         <button class="primary" id="btnToggleMode" type="button" disabled>切替</button>
       </div>
       <div class="mode-keys" id="modeKeys"></div>
+    </div>
+    <div class="card mode-card">
+      <div class="title">会員割引</div>
+      <div class="mode-row">
+        <span class="mode-badge" id="discountBadge">読込中...</span>
+        <button class="primary" id="btnToggleDiscount" type="button" disabled>切替</button>
+      </div>
+      <div class="discount-info" id="discountInfo"></div>
     </div>
   </div>
   <div class="toast" id="toast"></div>
@@ -171,6 +182,62 @@
       $('modeBadge').textContent = 'エラー';
     }
   })();
+
+  // =====================================================
+  // 会員割引管理
+  // =====================================================
+  function updateDiscountBadge(enabled, rate, endDate, reason) {
+    const badge = $('discountBadge');
+    const btn = $('btnToggleDiscount');
+    const info = $('discountInfo');
+    badge.textContent = enabled ? 'ON' : 'OFF';
+    badge.className = 'mode-badge ' + (enabled ? 'on' : 'off');
+    btn.disabled = false;
+    btn.textContent = enabled ? 'OFFにする' : 'ONにする';
+    var infoText = '割引率: ' + Math.round((rate || 0) * 100) + '% ／ 期限: ' + (endDate || '未設定');
+    if (reason === 'expired') infoText += '（期限切れ）';
+    info.textContent = infoText;
+  }
+
+  // 会員割引 初回読み込み
+  (async ()=>{
+    try {
+      const res = await run('adminGetMemberDiscountStatus');
+      if (res && res.ok) {
+        updateDiscountBadge(res.enabled, res.rate, res.endDate, res.reason);
+      } else {
+        $('discountBadge').textContent = '取得失敗';
+      }
+    } catch(e) {
+      $('discountBadge').textContent = 'エラー';
+    }
+  })();
+
+  $('btnToggleDiscount').addEventListener('click', async ()=>{
+    const badge = $('discountBadge');
+    const current = badge.textContent;
+    const target = (current === 'ON') ? 'OFF' : 'ON';
+    if (!confirm('会員割引を「' + target + '」に切り替えますか？')) return;
+
+    $('btnToggleDiscount').disabled = true;
+    try {
+      log('実行: 会員割引切替 → ' + target);
+      const res = await run('adminToggleMemberDiscount');
+      if (!res || !res.ok) {
+        showToast(res && res.message ? res.message : '切替失敗');
+        log('失敗: ' + (res && res.message ? res.message : ''));
+        $('btnToggleDiscount').disabled = false;
+        return;
+      }
+      updateDiscountBadge(res.enabled, res.rate, res.endDate, res.reason);
+      showToast(res.message || '切替完了');
+      log(res.message || '切替完了');
+    } catch(e) {
+      showToast(e.message || '切替失敗');
+      log('失敗: ' + (e.message || ''));
+      $('btnToggleDiscount').disabled = false;
+    }
+  });
 
   $('btnToggleMode').addEventListener('click', async ()=>{
     const badge = $('modeBadge');
