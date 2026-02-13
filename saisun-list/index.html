@@ -2868,6 +2868,7 @@ function updateCartPrice() {
 function toggleCartOptimistic_(id) {
   var idx = state.cart.ids.indexOf(id);
   if (idx !== -1) { state.cart.ids.splice(idx, 1); } else { state.cart.ids.push(id); }
+  state.lastShipping = null; // カート変更時に送料キャッシュを無効化
   saveCartStorage(); updateCartCount(); updateCardUi_(id);
   
   runApi('apiSyncHolds', state.userKey, state.cart.ids.slice())
@@ -3772,6 +3773,9 @@ function renderCartModal_() {
 
   // おすすめ商品を表示
   renderRecommendations_('cartRecommendList', 'cartRecommend', 6);
+
+  // カート変更時に送料を再計算
+  updateShippingDisplay_();
 }
 
 function readForm_() {
