@@ -135,7 +135,7 @@ function app_publicSettings_() {
 
   const shippingEstimateText = String(ui.shippingEstimateText || '');
 
-  const notes = Array.isArray(ui.notes) ? ui.notes : [];
+  const rawNotes = Array.isArray(ui.notes) ? ui.notes : [];
   const nextSteps = Array.isArray(ui.nextSteps) ? ui.nextSteps : [];
 
   const basePaymentUrl =
@@ -143,6 +143,14 @@ function app_publicSettings_() {
     String(ui.basePaymentUrl || '');
 
   const memberDiscount = app_getMemberDiscountStatus_();
+
+  // 会員割引OFFの場合、ノートから会員割引の記述を除去（30点割引は残す）
+  const notes = rawNotes.map(function(n) {
+    if (!memberDiscount.enabled && String(n).indexOf('会員登録で10％OFF') !== -1) {
+      return '<span style="color:#b8002a;">30点以上で10％割引</span>';
+    }
+    return n;
+  });
 
   return {
     appTitle: appTitle,

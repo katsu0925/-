@@ -810,8 +810,8 @@
         <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">割引について</h3>
         <ul style="margin:0;padding-left:20px;color:#475569;">
           <li style="margin-bottom:8px;"><span style="color:#b8002a;font-weight:700;">30点以上で10%割引</span></li>
-          <li style="margin-bottom:8px;"><strong>会員割引</strong>：会員登録で<span style="color:#b8002a;font-weight:700;">10%OFF</span><span style="color:#666;font-size:13px;">（2026年9月末まで）</span></li>
-          <li><span style="color:#b8002a;font-weight:700;">※ 併用可</span>（30点割引＋会員割引の同時適用OK）</li>
+          <li style="margin-bottom:8px;" id="guideMemberDiscount"><strong>会員割引</strong>：会員登録で<span style="color:#b8002a;font-weight:700;">10%OFF</span><span style="color:#666;font-size:13px;">（2026年9月末まで）</span></li>
+          <li id="guideCombineDiscount"><span style="color:#b8002a;font-weight:700;">※ 併用可</span>（30点割引＋会員割引の同時適用OK）</li>
         </ul>
       </div>
 
@@ -1526,7 +1526,7 @@ function doRegister_() {
         saveSession_(res.data.sessionId, res.data.customer);
         updateAuthUi_();
         closeModal($('authModal'));
-        showToast('登録が完了しました！10%割引が適用されます');
+        showToast(MEMBER_DISCOUNT_ENABLED ? '登録が完了しました！10%割引が適用されます' : '登録が完了しました！');
         updateCartPrice();
         if ($('cartModal').classList.contains('open')) renderCartModal_();
       } else {
@@ -4171,6 +4171,16 @@ function applyProductData_(data) {
     MEMBER_DISCOUNT_RATE = MEMBER_DISCOUNT_ENABLED ? Number(md.rate || 0.10) : 0;
     MEMBER_DISCOUNT_END_DATE = md.endDate || '2026-09-30';
   }
+
+  // 会員割引OFFの場合、ガイドセクションの会員割引表示を非表示にする
+  var guideMember = $('guideMemberDiscount');
+  var guideCombine = $('guideCombineDiscount');
+  if (guideMember) guideMember.style.display = MEMBER_DISCOUNT_ENABLED ? '' : 'none';
+  if (guideCombine) guideCombine.style.display = MEMBER_DISCOUNT_ENABLED ? '' : 'none';
+
+  // 割引設定反映後にUI更新（バッジ・プロモバナー・価格）
+  updateAuthUi_();
+  updateCartPrice();
 
   $('appTitle').textContent = 'デタウリ.Detauri';
   setBaseLink_();
