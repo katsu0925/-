@@ -234,7 +234,7 @@
     /* ===== Image Zoom (Amazon-style) ===== */
     .detail-zoom-wrap { position: relative; cursor: zoom-in; background: #f9fafb; border-radius: 12px 12px 0 0; }
     .detail-zoom-wrap img.detail-modal-image { pointer-events: none; }
-    .detail-zoom-lens { display: none; position: absolute; width: 120px; height: 120px; border: 2.5px solid rgba(59,130,246,.7); border-radius: 8px; pointer-events: none; z-index: 2; background: rgba(59,130,246,.08); }
+    .detail-zoom-lens { display: none; position: absolute; width: 120px; height: 120px; border: 2.5px solid rgba(59,130,246,.7); border-radius: 8px; pointer-events: none; z-index: 2; background: rgba(59,130,246,.08); box-sizing: border-box; transform: translate(-50%, -50%); }
     .detail-zoom-result { display: none; position: fixed; width: 300px; height: 300px; border: 1px solid #e5e7eb; border-radius: 12px; background-repeat: no-repeat; background-color: #fff; box-shadow: 0 8px 30px rgba(0,0,0,.18); z-index: 10001; overflow: hidden; pointer-events: none; }
     /* lens display is controlled by JS to only show over actual image */
     .detail-zoom-hint { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.55); color: #fff; font-size: 11px; padding: 3px 10px; border-radius: 12px; pointer-events: none; z-index: 3; white-space: nowrap; transition: opacity .3s; }
@@ -323,7 +323,7 @@
   <div class="stickyBar">
     <div class="stickyInner">
       <button class="cartBtn" id="openCartBtn" type="button">
-       <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' rx='32' fill='%235B86C5'/%3E%3Cpath d='M50 62 L62 62 L80 128 L148 128 L162 78 L74 78' stroke='%232B3A5C' stroke-width='7' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Crect x='82' y='78' width='18' height='42' fill='%23E8943E' rx='2'/%3E%3Crect x='105' y='78' width='18' height='42' fill='%23E8943E' rx='2'/%3E%3Crect x='128' y='78' width='18' height='42' fill='%23E8943E' rx='2'/%3E%3Ccircle cx='92' cy='140' r='7' fill='%23E8943E'/%3E%3Ccircle cx='136' cy='140' r='7' fill='%23E8943E'/%3E%3Ctext x='100' y='178' text-anchor='middle' font-family='Arial,sans-serif' font-weight='bold' font-size='28' fill='white'%3ESHOP NOW%3C/text%3E%3C/svg%3E" alt="SHOP NOW" style="height:36px; border-radius:6px; flex-shrink:0;">
+       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:22px;height:22px;flex-shrink:0;"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
        <span class="countPill" id="cartCount">0</span>
        <span id="cartTotal" style="font-weight:900; margin-left:8px;">0円</span>
       </button>
@@ -2502,7 +2502,10 @@ function renderGrid_(items) {
       var fullUrl = convertDriveImageUrl(it.imageUrl);
       img.src = fixedUrl; img.alt = it.noLabel || id; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer';
       img.className = 'product-image-clickable'; img.style.cursor = 'zoom-in';
-      (function(mid, iurl) { img.addEventListener('click', function(e) { e.stopPropagation(); openDetailModal(mid, iurl); }); })(id, fullUrl);
+      (function(mid, iurl, thumbUrl) {
+        img.addEventListener('click', function(e) { e.stopPropagation(); openDetailModal(mid, iurl, thumbUrl); });
+        img.addEventListener('mouseenter', function() { var p = new Image(); p.src = iurl; }, { once: true });
+      })(id, fullUrl, fixedUrl);
       imgEl = img; thumb.appendChild(img);
     } else { thumb.textContent = 'NO IMAGE'; }
     card.appendChild(thumb);
@@ -2514,8 +2517,8 @@ function renderGrid_(items) {
     var spanBrand = document.createElement('div'); spanBrand.className = 'brandText'; spanBrand.textContent = it.brand || '';
     spanBrand.style.cursor = 'pointer';
     leftTitle.appendChild(spanNo);
-    (function(mid, iurl) { leftTitle.addEventListener('click', function(e) { e.stopPropagation(); openDetailModal(mid, iurl); }); })(id, it.imageUrl ? convertDriveImageUrl(it.imageUrl) : '');
-    (function(mid, iurl) { spanBrand.addEventListener('click', function(e) { e.stopPropagation(); openDetailModal(mid, iurl); }); })(id, it.imageUrl ? convertDriveImageUrl(it.imageUrl) : '');
+    (function(mid, iurl, thumbUrl) { leftTitle.addEventListener('click', function(e) { e.stopPropagation(); openDetailModal(mid, iurl, thumbUrl); }); })(id, it.imageUrl ? convertDriveImageUrl(it.imageUrl) : '', it.imageUrl ? convertDriveImageUrl(it.imageUrl, 300) : '');
+    (function(mid, iurl, thumbUrl) { spanBrand.addEventListener('click', function(e) { e.stopPropagation(); openDetailModal(mid, iurl, thumbUrl); }); })(id, it.imageUrl ? convertDriveImageUrl(it.imageUrl) : '', it.imageUrl ? convertDriveImageUrl(it.imageUrl, 300) : '');
     var price = document.createElement('div'); price.className = 'price'; price.textContent = yen(it.price);
     row1.appendChild(leftTitle); row1.appendChild(price); body.appendChild(row1);
     if (spanBrand.textContent) body.appendChild(spanBrand);
@@ -2616,24 +2619,24 @@ function toggleCartOptimistic_(id) {
 // 詳細モーダル
 // =====================================================
 
-function openDetailModal(managedId, imageUrl) {
+function openDetailModal(managedId, imageUrl, thumbUrl) {
   var modal = document.getElementById('detailModal');
   var body = document.getElementById('detailModalBody');
   if (!modal || !body) return;
-  
+
   var item = null;
   for (var i = 0; i < state.allProducts.length; i++) {
     if (state.allProducts[i] && state.allProducts[i].managedId === managedId) { item = state.allProducts[i]; break; }
   }
   if (!item) item = state.cart.itemsById ? state.cart.itemsById[managedId] : null;
-  
-  if (item) { renderDetailModalLocal(item, imageUrl); }
+
+  if (item) { renderDetailModalLocal(item, imageUrl, thumbUrl); }
   else { body.innerHTML = '<div class="detail-loading">商品情報が見つかりません</div>'; }
-  
+
   modal.classList.add('active');
 }
 
-function renderDetailModalLocal(item, imageUrl) {
+function renderDetailModalLocal(item, imageUrl, thumbUrl) {
   var body = document.getElementById('detailModalBody');
   if (!body) return;
   
@@ -2678,13 +2681,17 @@ function renderDetailModalLocal(item, imageUrl) {
   var btnText = inCart ? '✓ カートに入っています' : 'カートに追加';
   var btnDisabled = inCart ? 'disabled' : '';
   var safeImageUrl = String(imageUrl || '').replace(/"/g, '&quot;');
+  var safeThumbUrl = String(thumbUrl || safeImageUrl).replace(/"/g, '&quot;');
   var safeBrand = escapeHtml_(item.brand || '');
   var safeManagedId = escapeHtml_(item.managedId || '');
   var noInfo = (!basicInfoHtml && !defectHtml && !measurementsHtml) ? '<div class="detail-loading" style="color:#999;">追加情報はありません</div>' : '';
-  
+
+  // Show thumbnail immediately (already cached), then swap to full-res
+  var initialSrc = safeThumbUrl || safeImageUrl;
+
   body.innerHTML =
     '<div class="detail-zoom-wrap" id="detailZoomWrap">' +
-      '<img class="detail-modal-image" id="detailZoomImg" src="' + safeImageUrl + '" alt="' + safeBrand + '" onerror="this.parentNode.style.display=\'none\'">' +
+      '<img class="detail-modal-image" id="detailZoomImg" src="' + initialSrc + '" alt="' + safeBrand + '" onerror="this.parentNode.style.display=\'none\'">' +
       '<div class="detail-zoom-lens" id="detailZoomLens"></div>' +
       '<span class="detail-zoom-hint">🔍 ホバーで拡大</span>' +
       '<span class="detail-zoom-hint-mobile">タップで拡大</span>' +
@@ -2694,8 +2701,19 @@ function renderDetailModalLocal(item, imageUrl) {
     basicInfoHtml + defectHtml + measurementsHtml + noInfo + '</div>' +
     '<div class="detail-modal-footer"><button class="detail-add-btn" ' + btnDisabled + ' onclick="addToCartFromModal(\'' + safeManagedId + '\')">' + btnText + '</button></div>';
 
-  // Initialize zoom after rendering
-  initDetailZoom_(safeImageUrl);
+  // Swap to full-res image when loaded (if different from thumbnail)
+  if (safeImageUrl && safeImageUrl !== safeThumbUrl) {
+    var fullImg = new Image();
+    fullImg.onload = function() {
+      var el = document.getElementById('detailZoomImg');
+      if (el) el.src = safeImageUrl;
+      initDetailZoom_(safeImageUrl);
+    };
+    fullImg.src = safeImageUrl;
+  }
+
+  // Initialize zoom with current image (thumbnail or full if already cached)
+  initDetailZoom_(safeImageUrl || initialSrc);
 }
 
 // =====================================================
@@ -2756,11 +2774,9 @@ function initDetailZoom_(imageUrl) {
     result.style.display = 'block';
     lens.style.display = 'block';
 
-    // Position lens (centered on cursor)
-    var lensW = lens.offsetWidth / 2;
-    var lensH = lens.offsetHeight / 2;
-    lens.style.left = (x - lensW) + 'px';
-    lens.style.top = (y - lensH) + 'px';
+    // Position lens (centered on cursor via CSS transform: translate(-50%, -50%))
+    lens.style.left = x + 'px';
+    lens.style.top = y + 'px';
 
     // Calculate ratios based on image display size
     var relX = (x - imgOffsetX) / imgRect.width;
