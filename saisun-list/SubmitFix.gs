@@ -91,7 +91,20 @@ function apiSubmitEstimate(userKey, form, ids) {
 
     var totalCount = list.length;
     var discountRate = 0;
-    if (measureOpt === 'without') discountRate = 0.05;
+
+    // 30点以上割引（10%）
+    if (totalCount >= 30) discountRate += 0.10;
+
+    // 会員割引（ログイン会員のみ、enabled時のみ）
+    var memberDiscountStatus = app_getMemberDiscountStatus_();
+    if (memberDiscountStatus.enabled && contact) {
+      var custForDiscount = findCustomerByEmail_(contact);
+      if (custForDiscount) {
+        discountRate += memberDiscountStatus.rate;
+      }
+    }
+
+    if (measureOpt === 'without') discountRate += 0.05;
     // ※割引は商品代のみに適用。送料は割引対象外（税込み固定）。
     var discounted = Math.round(sum * (1 - discountRate));
 
