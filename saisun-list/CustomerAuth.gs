@@ -929,6 +929,19 @@ function deductPoints_(email, points) {
   return true;
 }
 
+/**
+ * ポイント返還（注文キャンセル時に呼び出し）
+ */
+function addPoints_(email, points) {
+  if (!points || points <= 0) return false;
+  var customer = findCustomerByEmail_(email);
+  if (!customer) return false;
+  var sheet = getCustomerSheet_();
+  var currentPoints = Number(customer.points || 0);
+  sheet.getRange(customer.row, 13).setValue(currentPoints + points);
+  return true;
+}
+
 // =====================================================
 // インボイス領収書
 // =====================================================

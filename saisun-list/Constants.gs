@@ -107,7 +107,9 @@ var REQUEST_SHEET_COLS = {
   NOTIFY_FLAG: 27,    // AA: 通知フラグ
   POINTS_AWARDED: 28, // AB: ポイント付与済
   SHIP_COST_SHOP: 29, // AC: 送料(店負担)
-  SHIP_COST_CUST: 30  // AD: 送料(客負担)
+  SHIP_COST_CUST: 30, // AD: 送料(客負担)
+  PAYMENT_METHOD: 31, // AE: 決済方法
+  PAYMENT_ID: 32      // AF: 決済ID
 };
 
 /**

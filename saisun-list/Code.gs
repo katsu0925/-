@@ -35,6 +35,14 @@ function doGet(e) {
  */
 function doPost(e) {
   try {
+    // KOMOJU Webhook処理（POSTリクエスト、query param: ?action=komoju_webhook）
+    var queryAction = (e && e.parameter) ? String(e.parameter.action || '') : '';
+    if (queryAction === 'komoju_webhook') {
+      var result = handleKomojuWebhook(e);
+      return ContentService.createTextOutput(JSON.stringify(result))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
     var body = JSON.parse(e.postData.contents);
     var action = String(body.action || '');
     var args = body.args || [];
