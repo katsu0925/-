@@ -2760,13 +2760,16 @@ function initDetailZoom_(imageUrl) {
     var x = e.clientX - rect.left;
     var y = e.clientY - rect.top;
 
-    // Calculate actual image display area (object-fit: contain leaves blank space)
-    var imgRect = img.getBoundingClientRect();
-    var imgOffsetX = imgRect.left - rect.left;
-    var imgOffsetY = imgRect.top - rect.top;
+    // Calculate actual rendered image area within object-fit:contain element
+    var natW = img.naturalWidth, natH = img.naturalHeight;
+    var contW = rect.width, contH = rect.height;
+    var scale = Math.min(contW / natW, contH / natH);
+    var renderedW = natW * scale, renderedH = natH * scale;
+    var imgOffsetX = (contW - renderedW) / 2;
+    var imgOffsetY = (contH - renderedH) / 2;
 
     // Only react when cursor is over the actual image pixels
-    if (x < imgOffsetX || x > imgOffsetX + imgRect.width || y < imgOffsetY || y > imgOffsetY + imgRect.height) {
+    if (x < imgOffsetX || x > imgOffsetX + renderedW || y < imgOffsetY || y > imgOffsetY + renderedH) {
       result.style.display = 'none';
       lens.style.display = 'none';
       return;
@@ -2778,9 +2781,9 @@ function initDetailZoom_(imageUrl) {
     lens.style.left = x + 'px';
     lens.style.top = y + 'px';
 
-    // Calculate ratios based on image display size
-    var relX = (x - imgOffsetX) / imgRect.width;
-    var relY = (y - imgOffsetY) / imgRect.height;
+    // Calculate ratios based on actual rendered image size
+    var relX = (x - imgOffsetX) / renderedW;
+    var relY = (y - imgOffsetY) / renderedH;
 
     // Background position for zoom result
     var bgX = relX * (img.naturalWidth * zoomLevel) - result.offsetWidth / 2;
