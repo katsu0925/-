@@ -10,7 +10,7 @@
   <meta property="og:description" content="採寸データ付き古着卸 - 10点から見積もり可能">
   <meta property="og:type" content="website">
   <meta name="description" content="採寸データ付き古着卸 - 10点から見積もり可能">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cpath%20d%3D%22M50%2028%20C50%2014%2066%2012%2066%2022%20C66%2030%2056%2034%2050%2038%22%20fill%3D%22none%22%20stroke%3D%22%232563eb%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3Cpath%20d%3D%22M50%2038%20L18%2070%22%20fill%3D%22none%22%20stroke%3D%22%232563eb%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M50%2038%20L82%2070%22%20fill%3D%22none%22%20stroke%3D%22%232563eb%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22%2F%3E%3Crect%20x%3D%2252%22%20y%3D%2244%22%20width%3D%2226%22%20height%3D%2226%22%20rx%3D%223%22%20transform%3D%22rotate%2845%2065%2057%29%22%20fill%3D%22none%22%20stroke%3D%22%23ef4444%22%20stroke-width%3D%225%22%20stroke-linejoin%3D%22round%22%2F%3E%3Ccircle%20cx%3D%2265%22%20cy%3D%2257%22%20r%3D%223%22%20fill%3D%22%23ef4444%22%2F%3E%3C%2Fsvg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cpath%20d%3D%22M25%2035%20L30%2070%20H75%20L82%2035%20Z%22%20fill%3D%22none%22%20stroke%3D%22%232563eb%22%20stroke-width%3D%225%22%20stroke-linejoin%3D%22round%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M25%2035%20L18%2022%22%20fill%3D%22none%22%20stroke%3D%22%232563eb%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22%2F%3E%3Ccircle%20cx%3D%2238%22%20cy%3D%2278%22%20r%3D%226%22%20fill%3D%22%232563eb%22%2F%3E%3Ccircle%20cx%3D%2267%22%20cy%3D%2278%22%20r%3D%226%22%20fill%3D%22%232563eb%22%2F%3E%3C%2Fsvg%3E">
   <script src="https://www.google.com/recaptcha/api.js?render=6LeMeF0sAAAAAK1DLANrMyfuugoe6mdWMQbY2ao1" async defer></script>
   <style>
     html, body { margin:0; padding:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif; color:#111; background:#f6f7f9; -webkit-text-size-adjust:100%; }
@@ -2760,13 +2760,16 @@ function initDetailZoom_(imageUrl) {
     var x = e.clientX - rect.left;
     var y = e.clientY - rect.top;
 
-    // Calculate actual image display area (object-fit: contain leaves blank space)
-    var imgRect = img.getBoundingClientRect();
-    var imgOffsetX = imgRect.left - rect.left;
-    var imgOffsetY = imgRect.top - rect.top;
+    // Calculate actual rendered image area within object-fit:contain element
+    var natW = img.naturalWidth, natH = img.naturalHeight;
+    var contW = rect.width, contH = rect.height;
+    var scale = Math.min(contW / natW, contH / natH);
+    var renderedW = natW * scale, renderedH = natH * scale;
+    var imgOffsetX = (contW - renderedW) / 2;
+    var imgOffsetY = (contH - renderedH) / 2;
 
     // Only react when cursor is over the actual image pixels
-    if (x < imgOffsetX || x > imgOffsetX + imgRect.width || y < imgOffsetY || y > imgOffsetY + imgRect.height) {
+    if (x < imgOffsetX || x > imgOffsetX + renderedW || y < imgOffsetY || y > imgOffsetY + renderedH) {
       result.style.display = 'none';
       lens.style.display = 'none';
       return;
@@ -2778,9 +2781,9 @@ function initDetailZoom_(imageUrl) {
     lens.style.left = x + 'px';
     lens.style.top = y + 'px';
 
-    // Calculate ratios based on image display size
-    var relX = (x - imgOffsetX) / imgRect.width;
-    var relY = (y - imgOffsetY) / imgRect.height;
+    // Calculate ratios based on actual rendered image size
+    var relX = (x - imgOffsetX) / renderedW;
+    var relY = (y - imgOffsetY) / renderedH;
 
     // Background position for zoom result
     var bgX = relX * (img.naturalWidth * zoomLevel) - result.offsetWidth / 2;
