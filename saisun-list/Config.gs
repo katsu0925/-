@@ -212,6 +212,9 @@ function toggleMemberDiscount() {
   const current = props.getProperty('MEMBER_DISCOUNT_ENABLED');
   const newVal = (current === 'false') ? 'true' : 'false';
   props.setProperty('MEMBER_DISCOUNT_ENABLED', newVal);
+  // 商品キャッシュを無効化し、顧客ページで次回読み込み時に最新の割引設定を反映
+  pr_bumpProductsVersion_();
+  pr_clearProductsCache_();
 
   const status = app_getMemberDiscountStatus_();
   const ui = SpreadsheetApp.getUi();

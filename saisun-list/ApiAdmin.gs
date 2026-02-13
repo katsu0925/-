@@ -190,6 +190,9 @@ function adminToggleMemberDiscount() {
     var current = props.getProperty('MEMBER_DISCOUNT_ENABLED');
     var newVal = (current === 'false') ? 'true' : 'false';
     props.setProperty('MEMBER_DISCOUNT_ENABLED', newVal);
+    // 商品キャッシュを無効化し、顧客ページで次回読み込み時に最新の割引設定を反映
+    pr_bumpProductsVersion_();
+    pr_clearProductsCache_();
     var status = app_getMemberDiscountStatus_();
     var msg = status.enabled
       ? '会員割引をONにしました（期限: ' + status.endDate + ' まで）'
