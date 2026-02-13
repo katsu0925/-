@@ -7,7 +7,7 @@ const APP_CONFIG = {
   data: {
     spreadsheetId: '1eDkAMm_QUDFHbSzkL4IMaFeB2YV6_Gw5Dgi-HqIB2Sc',
     sheetName: 'データ1',
-    headerRow: 3,
+    headerRow: 2,
     readCols: 25  // Y列(発送方法)まで読み込み
   },
   order: {
@@ -377,9 +377,9 @@ function app_readBrandList_() {
   if (!sh) return [];
 
   const last = sh.getLastRow();
-  if (last < 4) return [];
+  if (last < 3) return [];
 
-  const vals = sh.getRange(4, 4, last - 3, 1).getValues();
+  const vals = sh.getRange(3, 4, last - 2, 1).getValues();
 
   const map = {};
   for (let i = 0; i < vals.length; i++) {

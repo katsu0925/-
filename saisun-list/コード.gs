@@ -9,7 +9,7 @@ const CONFIG = {
   get DEST_SPREADSHEET_ID() { return String(APP_CONFIG.data.spreadsheetId || ''); },
   DEST_SHEET_NAME: "データ1",
 
-  DEST_START_ROW: 4,
+  DEST_START_ROW: 3,
   DEST_WRITE_START_COL: 2,
 
   DEST_COL_CHECK: 10,
@@ -1149,7 +1149,7 @@ function checkManagement() {
 function app_debugData1_() {
   const ssId = String(APP_CONFIG.data.spreadsheetId || '').trim();
   const shName = String(APP_CONFIG.data.sheetName || '').trim();
-  const headerRow = Number(APP_CONFIG.data.headerRow || 3);
+  const headerRow = Number(APP_CONFIG.data.headerRow || 2);
   const readCols = Number(APP_CONFIG.data.readCols || 11);
 
   const ss = SpreadsheetApp.openById(ssId);
