@@ -64,6 +64,8 @@ function pr_readProducts_() {
     const managedId = u_normalizeId_(row[10]);
     // 傷汚れ詳細 (17列目 = index 16)
     const defectDetail = row.length > 16 ? String(row[16] || '').trim() : '';
+    // 発送方法 (25列目 = index 24, Y列)
+    const shippingMethod = row.length > 24 ? String(row[24] || '').trim() : '';
     if (!managedId) continue;
 
     list.push({
@@ -78,7 +80,8 @@ function pr_readProducts_() {
       color: color,
       price: price,
       qty: qty,
-      defectDetail: defectDetail
+      defectDetail: defectDetail,
+      shippingMethod: shippingMethod
     });
   }
 

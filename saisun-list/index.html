@@ -366,6 +366,10 @@
       <div class="sumBox" id="cartSumBox">
         <div class="sumLine" id="sumCount"></div>
         <div class="sumLine" id="sumPrice"></div>
+        <div class="sumLine" id="sumShipping" style="display:none;font-size:13px;color:#475569;"></div>
+        <div class="sumLine" id="sumTotal" style="display:none;font-weight:700;font-size:15px;"></div>
+        <div id="shippingNote" style="display:none;font-size:11px;color:#888;text-align:right;width:100%;">※送料は税込み・会員割引対象外です</div>
+        <div id="remoteIslandWarning" style="display:none;font-size:13px;color:#b8002a;text-align:right;width:100%;font-weight:600;"></div>
         <div id="cartActions" style="display:flex; gap:10px; align-items:center; justify-content:flex-end; flex-wrap:wrap; width:100%;">
           <button class="btn" id="clearCartBtn" style="min-width:160px;" type="button">カートを空にする</button>
           <button class="btn primary" id="goFormBtn" style="min-width:220px;" type="button">購入手続きへ</button>
@@ -919,6 +923,28 @@
         </div>
       </div>
 
+      <!-- 沖縄 -->
+      <div class="guide-section" style="margin-top:20px;">
+        <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #f59e0b;padding-bottom:8px;">沖縄本島</h3>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;max-width:300px;">
+            <tr style="background:#fef3c7;">
+              <th style="padding:8px;text-align:center;border:1px solid #fcd34d;width:80px;">宅配便</th>
+              <th style="padding:8px;text-align:center;border:1px solid #fcd34d;">沖縄本島</th>
+            </tr>
+            <tr>
+              <td style="padding:8px;border:1px solid #fcd34d;text-align:center;font-weight:700;background:#fffbeb;">宅配便（小）</td>
+              <td style="padding:8px;border:1px solid #fcd34d;text-align:center;">2,500円</td>
+            </tr>
+            <tr>
+              <td style="padding:8px;border:1px solid #fcd34d;text-align:center;font-weight:700;background:#fffbeb;">宅配便（大）</td>
+              <td style="padding:8px;border:1px solid #fcd34d;text-align:center;">3,500円</td>
+            </tr>
+          </table>
+        </div>
+        <p style="margin:8px 0 0;color:#b45309;font-size:12px;">※ 沖縄県の離島（宮古島・石垣島等）は配送対象外です。</p>
+      </div>
+
       <div class="guide-section" style="margin-top:20px;">
         <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #10b981;padding-bottom:8px;">サイズの目安</h3>
         <ul style="margin:0;padding-left:20px;color:#475569;font-size:13px;">
@@ -930,9 +956,12 @@
       <div class="guide-section" style="margin-top:20px;">
         <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #10b981;padding-bottom:8px;">配送について</h3>
         <ul style="margin:0;padding-left:20px;color:#475569;">
+          <li>上記送料は全て<strong>税込み</strong>です</li>
+          <li>会員割引は商品代のみに適用されます（<strong>送料は割引対象外</strong>）</li>
           <li>発送はお支払い確認後<strong>2〜5営業日</strong>以内</li>
           <li>配送業者：佐川急便・ヤマト運輸・郵便局のいずれか（指定不可）</li>
           <li>日時指定不可</li>
+          <li style="color:#b8002a;"><strong>離島への配送は対象外です</strong></li>
         </ul>
       </div>
     </div>
@@ -977,7 +1006,7 @@
         </tr>
         <tr>
           <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">支払方法</th>
-          <td style="padding:12px;border:1px solid #e2e8f0;">クレジットカード、コンビニ決済、銀行振込、PayPay、LINE Pay、メルペイ</td>
+          <td style="padding:12px;border:1px solid #e2e8f0;">クレジットカード（Visa/Mastercard）、コンビニ決済（セブン-イレブンを除く）、銀行振込、LINE Pay<br><span style="font-size:12px;color:#888;">※JCB/AMEX/Diners/Discover・PayPay・Paidy（あと払い）は準備中</span></td>
         </tr>
         <tr>
           <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">支払時期</th>
@@ -1018,7 +1047,7 @@
       <a href="#" id="openLegalLink" style="color:#cbd5e1; text-decoration:none;">特定商取引法に基づく表記</a>
       <a href="https://nkonline.buyshop.jp/privacy" target="_blank" rel="noopener noreferrer" style="color:#cbd5e1; text-decoration:none;">プライバシーポリシー</a>
     </div>
-    <div style="color:#64748b;">&copy; 2025 デタウリ.Detauri</div>
+    <div style="color:#64748b;">&copy; 2025-2026 NKonline デタウリ.Detauri</div>
   </div>
 </footer>
 
@@ -1092,6 +1121,233 @@ var MEMBER_DISCOUNT_RATE = 0.10;  // 会員割引（APIから更新される）
 var MEMBER_DISCOUNT_ENABLED = true; // 会員割引ON/OFF（APIから更新される）
 var MEMBER_DISCOUNT_END_DATE = '2026-09-30'; // 期限（APIから更新される）
 var BULK_DISCOUNT_RATE = 0.10;    // 30点以上割引10%
+
+// =====================================================
+// 送料計算（フロントエンド）
+// ※送料は全て税込み。会員割引は送料には適用しない。
+// =====================================================
+
+var SHIPPING_AREAS = {
+  '北海道': 'hokkaido',
+  '青森県': 'kita_tohoku', '岩手県': 'kita_tohoku', '秋田県': 'kita_tohoku',
+  '宮城県': 'minami_tohoku', '福島県': 'minami_tohoku', '山形県': 'minami_tohoku',
+  '東京都': 'kanto', '神奈川県': 'kanto', '埼玉県': 'kanto', '千葉県': 'kanto',
+  '茨城県': 'kanto', '栃木県': 'kanto', '群馬県': 'kanto', '山梨県': 'kanto',
+  '新潟県': 'shinetsu', '長野県': 'shinetsu',
+  '愛知県': 'tokai', '静岡県': 'tokai', '岐阜県': 'tokai', '三重県': 'tokai',
+  '石川県': 'hokuriku', '福井県': 'hokuriku', '富山県': 'hokuriku',
+  '大阪府': 'kansai', '兵庫県': 'kansai', '京都府': 'kansai',
+  '奈良県': 'kansai', '和歌山県': 'kansai', '滋賀県': 'kansai',
+  '広島県': 'chugoku', '岡山県': 'chugoku', '島根県': 'chugoku',
+  '山口県': 'chugoku', '鳥取県': 'chugoku',
+  '香川県': 'shikoku', '愛媛県': 'shikoku', '高知県': 'shikoku', '徳島県': 'shikoku',
+  '福岡県': 'kita_kyushu', '佐賀県': 'kita_kyushu', '大分県': 'kita_kyushu', '長崎県': 'kita_kyushu',
+  '鹿児島県': 'minami_kyushu', '熊本県': 'minami_kyushu', '宮崎県': 'minami_kyushu',
+  '沖縄県': 'okinawa'
+};
+
+var SHIPPING_RATES = {
+  minami_kyushu: [1320, 1700], kita_kyushu: [1280, 1620],
+  shikoku: [1180, 1440], chugoku: [1200, 1480],
+  kansai: [1100, 1260], hokuriku: [1160, 1420],
+  tokai: [1180, 1440], shinetsu: [1220, 1540],
+  kanto: [1300, 1680], minami_tohoku: [1400, 1900],
+  kita_tohoku: [1460, 1980], hokkaido: [1640, 2380],
+  okinawa: [2500, 3500]
+};
+
+var REMOTE_ISLANDS_KEYWORDS = [
+  '大島町','利島村','新島村','神津島村','三宅村','御蔵島村','八丈町','青ヶ島村','小笠原村',
+  '奄美市','大和村','宇検村','瀬戸内町','龍郷町','喜界町','徳之島町','天城町','伊仙町',
+  '和泊町','知名町','与論町','三島村','十島村',
+  '宮古島市','石垣市','多良間村','竹富町','与那国町','久米島町','座間味村','渡嘉敷村',
+  '粟国村','渡名喜村','南大東村','北大東村','伊江村','伊是名村','伊平屋村',
+  '佐渡市','隠岐の島町','海士町','西ノ島町','知夫村',
+  '対馬市','壱岐市','五島市','新上五島町','小値賀町',
+  '利尻町','利尻富士町','礼文町','奥尻町'
+];
+
+var PREFECTURES = [
+  '北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県',
+  '茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県',
+  '新潟県','富山県','石川県','福井県','山梨県','長野県',
+  '岐阜県','静岡県','愛知県','三重県',
+  '滋賀県','京都府','大阪府','兵庫県','奈良県','和歌山県',
+  '鳥取県','島根県','岡山県','広島県','山口県',
+  '徳島県','香川県','愛媛県','高知県',
+  '福岡県','佐賀県','長崎県','熊本県','大分県','宮崎県','鹿児島県','沖縄県'
+];
+
+function detectPrefectureFromAddress_(text) {
+  text = String(text || '').trim();
+  for (var i = 0; i < PREFECTURES.length; i++) {
+    if (text.indexOf(PREFECTURES[i]) === 0) return PREFECTURES[i];
+  }
+  for (var j = 0; j < PREFECTURES.length; j++) {
+    var short = PREFECTURES[j].replace(/[都府県]$/, '');
+    if (text.indexOf(short) === 0) return PREFECTURES[j];
+  }
+  return null;
+}
+
+function isRemoteIslandAddress_(text) {
+  text = String(text || '');
+  for (var i = 0; i < REMOTE_ISLANDS_KEYWORDS.length; i++) {
+    if (text.indexOf(REMOTE_ISLANDS_KEYWORDS[i]) !== -1) return true;
+  }
+  return false;
+}
+
+function classifyThickness_(items) {
+  var thick = 0, thin = 0;
+  for (var i = 0; i < items.length; i++) {
+    if (String(items[i].shippingMethod || '').trim() === 'ゆうパケットポスト') thin++;
+    else thick++;
+  }
+  return { thick: thick, thin: thin, total: thick + thin };
+}
+
+function calcShippingSize_(thick, thin) {
+  var total = thick + thin;
+  if (thin === 0) {
+    // 厚手のみ
+    if (total > 20) return { size: null, reason: 'overLimit' };
+    return { size: 'large', label: '大' };
+  }
+  if (thick === 0) {
+    // 薄手のみ
+    if (total > 40) return { size: null, reason: 'overLimit' };
+    return total <= 10 ? { size: 'small', label: '小' } : { size: 'large', label: '大' };
+  }
+  // 混合
+  if (total > 40) return { size: null, reason: 'overLimit' };
+  if (thick >= 10) return { size: 'large', label: '大' };
+  return total <= 10 ? { size: 'small', label: '小' } : { size: 'large', label: '大' };
+}
+
+/** 送料計算メイン */
+function calculateShipping_() {
+  var ids = state.cart.ids || [];
+  if (ids.length === 0) return { amount: null, label: '', canAutoPayment: false };
+
+  // ダイヤモンド会員 → 送料無料
+  if (state.customer && state.customer.rank && state.customer.rank.freeShipping) {
+    return { amount: 0, label: '送料無料（ダイヤモンド会員特典）', canAutoPayment: true };
+  }
+
+  var addressEl = $('address');
+  var address = addressEl ? addressEl.value.trim() : '';
+  if (!address) return { amount: null, label: '住所を入力すると送料が表示されます', canAutoPayment: false };
+
+  // 離島チェック
+  if (isRemoteIslandAddress_(address)) {
+    return { amount: null, label: '離島への配送は対象外です', canAutoPayment: false, isRemoteIsland: true };
+  }
+
+  var pref = detectPrefectureFromAddress_(address);
+  if (!pref) return { amount: null, label: '住所を正しく入力してください（都道府県から）', canAutoPayment: false };
+
+  var area = SHIPPING_AREAS[pref];
+  if (!area || !SHIPPING_RATES[area]) return { amount: null, label: '送料は別途ご案内します', canAutoPayment: false };
+
+  // カート商品の厚み情報を取得
+  var items = [];
+  for (var i = 0; i < ids.length; i++) {
+    var it = state.cart.itemsById[ids[i]];
+    if (it) items.push(it);
+  }
+
+  var t = classifyThickness_(items);
+  var sizeResult = calcShippingSize_(t.thick, t.thin);
+
+  if (!sizeResult.size) {
+    return { amount: null, label: '点数が多いため送料は別途ご案内します', canAutoPayment: false };
+  }
+
+  var rateIdx = (sizeResult.size === 'small') ? 0 : 1;
+  var amount = SHIPPING_RATES[area][rateIdx];
+
+  return {
+    amount: amount,
+    label: yen(amount) + '（' + pref + '・' + sizeResult.label + '・税込）',
+    canAutoPayment: true,
+    size: sizeResult.size,
+    sizeLabel: sizeResult.label,
+    area: area,
+    pref: pref
+  };
+}
+
+/** 送料表示を更新 */
+function updateShippingDisplay_() {
+  var shipEl = $('sumShipping');
+  var totalEl = $('sumTotal');
+  var noteEl = $('shippingNote');
+  var warnEl = $('remoteIslandWarning');
+  if (!shipEl) return;
+
+  var result = calculateShipping_();
+  state.lastShipping = result; // 送信時に参照
+
+  if (result.isRemoteIsland) {
+    shipEl.style.display = 'none';
+    totalEl.style.display = 'none';
+    noteEl.style.display = 'none';
+    warnEl.style.display = '';
+    warnEl.textContent = '離島への配送は対象外です。恐れ入りますがご注文いただけません。';
+    return;
+  }
+
+  warnEl.style.display = 'none';
+
+  if (result.amount === null && !result.label) {
+    shipEl.style.display = 'none';
+    totalEl.style.display = 'none';
+    noteEl.style.display = 'none';
+    return;
+  }
+
+  if (result.amount === null) {
+    shipEl.style.display = '';
+    shipEl.innerHTML = '送料：' + result.label;
+    totalEl.style.display = 'none';
+    noteEl.style.display = '';
+    return;
+  }
+
+  // 送料計算成功
+  shipEl.style.display = '';
+  noteEl.style.display = '';
+  shipEl.innerHTML = '送料：' + result.label;
+
+  // 商品合計を計算（割引後）
+  var productTotal = calcProductTotal_();
+  var grandTotal = productTotal + result.amount;
+  totalEl.style.display = '';
+  totalEl.innerHTML = 'お支払い合計：' + yen(grandTotal);
+}
+
+/** 商品代合計（割引・ポイント適用後） */
+function calcProductTotal_() {
+  var ids = state.cart.ids || [];
+  var sum = 0;
+  for (var i = 0; i < ids.length; i++) {
+    var it = state.cart.itemsById[ids[i]];
+    if (it) sum += Number(it.price || 0);
+  }
+  var discountRate = 0;
+  if (ids.length >= 30) discountRate += BULK_DISCOUNT_RATE;
+  if (state.customer && MEMBER_DISCOUNT_ENABLED) discountRate += MEMBER_DISCOUNT_RATE;
+  var discounted = Math.round(sum * (1 - discountRate));
+  // ポイント適用
+  var pts = parseInt(($('usePoints') ? $('usePoints').value : 0), 10) || 0;
+  if (pts > 0 && state.customer) {
+    var maxPts = (state.customer.points || 0);
+    pts = Math.min(pts, maxPts, discounted);
+    discounted -= pts;
+  }
+  return discounted;
+}
 
 function loadSession_() {
   try {
@@ -3509,6 +3765,14 @@ function readForm_() {
   if (pts > 0 && state.customer) f.usePoints = pts;
   // インボイス領収書
   if ($('invoiceReceipt') && $('invoiceReceipt').checked) f.invoiceReceipt = true;
+  // 送料情報を追加
+  var shipping = state.lastShipping || calculateShipping_();
+  if (shipping && shipping.amount != null) {
+    f.shippingAmount = shipping.amount;
+    f.shippingSize = shipping.size || '';
+    f.shippingArea = shipping.area || '';
+    f.shippingPref = shipping.pref || '';
+  }
   return f;
 }
 
@@ -3589,12 +3853,17 @@ function applyPointDiscount_() {
     }
   }
   if (pointsApplied > 0) showToast('ポイント割引を適用しました');
+  // ポイント適用後に送料込み合計も更新
+  updateShippingDisplay_();
 }
 
 function validateForm_(f) {
   if (!f.companyName.trim()) return '会社名/氏名は必須です';
   if (!f.contact.trim()) return 'メールアドレスは必須です';
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(f.contact.trim())) return '有効なメールアドレスを入力してください';
+  // 離島チェック
+  var address = String(f.address || '').trim();
+  if (address && isRemoteIslandAddress_(address)) return '離島への配送は対象外です。恐れ入りますがご注文いただけません。';
   return '';
 }
 
@@ -3764,9 +4033,15 @@ function bindUi_() {
     }
     showPointSection_();
     showCartSection_(false); // フォーム表示に切り替え
+    // フォーム表示時に住所があれば送料を計算
+    updateShippingDisplay_();
   });
   $('formBackBtn').addEventListener('click', function() { showCartSection_(true); });
   $('submitBtn').addEventListener('click', submitNow_);
+  // 住所入力時に送料をリアルタイム更新
+  if ($('address')) {
+    $('address').addEventListener('input', function() { updateShippingDisplay_(); });
+  }
   $('doneCloseBtn').addEventListener('click', function() { closeModal($('doneModal')); });
   
 }

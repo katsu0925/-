@@ -177,7 +177,8 @@ KOMOJU決済セッション作成。
 | customerInfo.email | string | No | 顧客メール |
 | customerInfo.companyName | string | No | 会社名 |
 
-**対応決済:** クレジットカード / コンビニ払い / 銀行振込 / PayPay / LINE Pay / メルペイ
+**対応決済:** クレジットカード（Visa/Mastercard） / コンビニ払い（セブン-イレブン除く） / 銀行振込 / LINE Pay
+**申請中:** JCB/AMEX/Diners/Discover（日本） / PayPay / Paidy（あと払い）
 
 ### `apiCheckPaymentStatus(receiptNo)`
 決済状態確認。

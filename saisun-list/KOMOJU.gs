@@ -2,7 +2,8 @@
  * KOMOJU.gs
  *
  * KOMOJU決済連携モジュール
- * クレジットカード、コンビニ払い、銀行振込、PayPay等に対応
+ * クレジットカード（Visa/Mastercard）、コンビニ払い（セブン除く）、銀行振込、LINE Pay に対応
+ * ※申請中: JCB/AMEX/Diners/Discover(日本)、PayPay、Paidy
  *
  * 設定方法:
  * 1. https://komoju.com/ でアカウント作成
@@ -19,14 +20,14 @@ var KOMOJU_CONFIG = {
   // APIエンドポイント（テストキーを使えば本番URLでもテストモードになる）
   apiUrl: 'https://komoju.com/api/v1',
 
-  // 対応決済方法
+  // 対応決済方法（現在利用可能なもののみ）
   paymentMethods: [
-    'credit_card',      // クレジットカード
-    'konbini',          // コンビニ払い
+    'credit_card',      // クレジットカード（Visa/Mastercard）※JCB/AMEX/Diners/Discover(日本)は申請中
+    'konbini',          // コンビニ払い（セブン-イレブンを除く）
     'bank_transfer',    // 銀行振込
-    'paypay',           // PayPay
-    'linepay',          // LINE Pay
-    'merpay'            // メルペイ
+    'linepay'           // LINE Pay
+    // 'paypay'         // PayPay — 申請中
+    // 'paidy'          // Paidy（あと払い） — 申請中
   ],
 
   // 通貨
@@ -76,7 +77,10 @@ function apiCreateKomojuSession(receiptNo, amount, customerInfo) {
       metadata: {
         receipt_no: receiptNo,
         company_name: String(info.companyName || ''),
-        email: email
+        email: email,
+        product_amount: info.productAmount || 0,
+        shipping_amount: info.shippingAmount || 0,
+        shipping_size: info.shippingSize || ''
       }
     };
 
@@ -235,8 +239,9 @@ function handlePaymentSuccess_(data) {
   savePaymentSession_(receiptNo, saved);
 
   // 決済方法に応じた入金ステータスを決定
-  // クレジットカード、PayPay、LINE Pay、メルペイは即時決済なので「対応済」
+  // クレジットカード、LINE Pay は即時決済なので「対応済」
   // コンビニ払い、銀行振込は後払いなので「入金待ち」
+  // ※PayPay, Paidy は申請中（承認後に追加）
   var paymentStatus = '対応済';
   if (payment.payment_method_type === 'konbini' || payment.payment_method_type === 'bank_transfer') {
     paymentStatus = '入金待ち';
