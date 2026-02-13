@@ -92,7 +92,14 @@ function apiSubmitEstimate(userKey, form, ids) {
     var totalCount = list.length;
     var discountRate = 0;
     if (measureOpt === 'without') discountRate = 0.05;
+    // ※割引は商品代のみに適用。送料は割引対象外（税込み固定）。
     var discounted = Math.round(sum * (1 - discountRate));
+
+    // === 送料計算 ===
+    var shippingAmount = Math.max(0, Math.floor(Number(f.shippingAmount || 0)));
+    var shippingSize = String(f.shippingSize || '');
+    var shippingArea = String(f.shippingArea || '');
+    var shippingPref = String(f.shippingPref || '');
 
     // === ポイント利用 ===
     var pointsUsed = 0;
@@ -110,6 +117,15 @@ function apiSubmitEstimate(userKey, form, ids) {
         }
       }
     }
+
+    // === 送料を備考に追記 ===
+    if (shippingAmount > 0) {
+      var shippingLabel = '【送料: ¥' + shippingAmount.toLocaleString() + '（' + (shippingPref || '') + '・' + (shippingSize === 'small' ? '小' : '大') + '・税込）】';
+      note = note ? (note + '\n' + shippingLabel) : shippingLabel;
+    }
+
+    // 送料込みの合計金額
+    var totalWithShipping = discounted + shippingAmount;
 
     // === 同期：受付番号・テンプレート生成 ===
     var receiptNo = u_makeReceiptNo_();
@@ -182,7 +198,11 @@ function apiSubmitEstimate(userKey, form, ids) {
       selectionList: selectionList,
       measureOpt: measureOpt,
       totalCount: totalCount,
-      discounted: discounted,
+      discounted: totalWithShipping,
+      shippingAmount: shippingAmount,
+      shippingSize: shippingSize,
+      shippingArea: shippingArea,
+      shippingPref: shippingPref,
       createdAtMs: now,
       templateText: templateText,
       paymentStatus: '未対応',
@@ -197,7 +217,8 @@ function apiSubmitEstimate(userKey, form, ids) {
       ok: true,
       receiptNo: receiptNo,
       templateText: templateText,
-      totalAmount: discounted
+      totalAmount: totalWithShipping,
+      shippingAmount: shippingAmount
     };
 
   } catch (e) {
@@ -350,8 +371,8 @@ function writeSubmitData_(data) {
     new Date(now),                               // Z: 更新日時
     '',                                          // AA: 通知フラグ
     '',                                          // AB: ポイント付与済
-    '',                                          // AC: 送料(店負担)
-    ''                                           // AD: 送料(客負担)
+    '',                                          // AC: 送料(店負担) — 見積もりモード時に使用
+    data.shippingAmount || ''                    // AD: 送料(客負担) — フロントから送料あり時
   ];
   var writeRow = sh_findNextRowByDisplayKey_(reqSh, 1, 1);
   reqSh.getRange(writeRow, 1, 1, row.length).setValues([row]);

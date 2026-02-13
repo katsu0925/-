@@ -8,7 +8,7 @@ const APP_CONFIG = {
     spreadsheetId: '1eDkAMm_QUDFHbSzkL4IMaFeB2YV6_Gw5Dgi-HqIB2Sc',
     sheetName: 'データ1',
     headerRow: 3,
-    readCols: 17  // 傷汚れ詳細(17列目)まで読み込み
+    readCols: 25  // Y列(発送方法)まで読み込み
   },
   order: {
     spreadsheetId: '',
@@ -264,7 +264,7 @@ const SHIPPING_AREAS = {
   '沖縄県': 'okinawa'
 };
 
-//                            小      大
+//                            小      大       ※全て税込
 const SHIPPING_RATES = {
   minami_kyushu:       [1320,  1700],
   kita_kyushu:         [1280,  1620],
@@ -277,8 +277,42 @@ const SHIPPING_RATES = {
   kanto:               [1300,  1680],
   minami_tohoku:       [1400,  1900],
   kita_tohoku:         [1460,  1980],
-  hokkaido:            [1640,  2380]
+  hokkaido:            [1640,  2380],
+  okinawa:             [2500,  3500]
 };
+
+// 離島リスト（配送対象外）
+const REMOTE_ISLANDS = [
+  // 東京都離島
+  '大島町', '利島村', '新島村', '神津島村', '三宅村', '御蔵島村', '八丈町', '青ヶ島村', '小笠原村',
+  // 鹿児島県離島（本土以外）
+  '奄美市', '大和村', '宇検村', '瀬戸内町', '龍郷町', '喜界町', '徳之島町', '天城町', '伊仙町',
+  '和泊町', '知名町', '与論町', '三島村', '十島村',
+  // 沖縄県離島（本島以外の主要離島地域）
+  '宮古島市', '石垣市', '多良間村', '竹富町', '与那国町', '久米島町', '座間味村', '渡嘉敷村',
+  '粟国村', '渡名喜村', '南大東村', '北大東村', '伊江村', '伊是名村', '伊平屋村',
+  // 新潟県離島
+  '佐渡市',
+  // 島根県離島
+  '隠岐の島町', '海士町', '西ノ島町', '知夫村',
+  // 長崎県離島
+  '対馬市', '壱岐市', '五島市', '新上五島町', '小値賀町',
+  // 北海道離島
+  '利尻町', '利尻富士町', '礼文町', '奥尻町'
+];
+
+/**
+ * 住所テキストから離島かどうかを判定
+ * @param {string} addressText - 住所テキスト
+ * @returns {boolean} - 離島の場合true
+ */
+function isRemoteIsland_(addressText) {
+  var text = String(addressText || '').trim();
+  for (var i = 0; i < REMOTE_ISLANDS.length; i++) {
+    if (text.indexOf(REMOTE_ISLANDS[i]) !== -1) return true;
+  }
+  return false;
+}
 
 /**
  * 都道府県名を住所テキストから検出
@@ -307,11 +341,14 @@ function detectPrefecture_(addressText) {
 
 /**
  * 住所と点数から送料を計算（箱サイズ: ≤10点=小、>10点=大）
+ * ※送料は全て税込み。会員割引は送料には適用しない。
  * @param {string} prefOrAddress - 都道府県名 or 住所テキスト
  * @param {number} totalCount - 合計点数
- * @returns {number} 送料金額（エリア不明の場合0）
+ * @returns {number|null} 送料金額（エリア不明の場合0、離島の場合null）
  */
 function calcShippingByAddress_(prefOrAddress, totalCount) {
+  // 離島チェック
+  if (isRemoteIsland_(prefOrAddress)) return null;
   var pref = SHIPPING_AREAS[prefOrAddress] ? prefOrAddress : detectPrefecture_(prefOrAddress);
   if (!pref) return 0;
   var area = SHIPPING_AREAS[pref];
