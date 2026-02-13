@@ -587,10 +587,10 @@ function resetProductStatusForRefresh_(ss, ids) {
   if (!sheet) return 0;
 
   var lastRow = sheet.getLastRow();
-  if (lastRow < 4) return 0;
+  if (lastRow < 3) return 0;
 
   // J列（ステータス）とK列（管理ID）を取得
-  var range = sheet.getRange(4, 10, lastRow - 3, 2);
+  var range = sheet.getRange(3, 10, lastRow - 2, 2);
   var values = range.getValues();
 
   var count = 0;
@@ -604,7 +604,7 @@ function resetProductStatusForRefresh_(ss, ids) {
     var matchId = !ids || ids.length === 0 || ids.indexOf(managedId) !== -1;
 
     if (isTarget && matchId) {
-      sheet.getRange(i + 4, 10).setValue(''); // J列をクリア
+      sheet.getRange(i + 3, 10).setValue(''); // J列をクリア
       count++;
     }
   }

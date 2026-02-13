@@ -123,7 +123,7 @@ function expandOrder() {
       var destSs = destSsId ? SpreadsheetApp.openById(destSsId) : activeSs;
       var destSheet = destSs.getSheetByName('データ1');
       if (destSheet) {
-        var destStartRow = 4; // CONFIG.DEST_START_ROW
+        var destStartRow = 3; // CONFIG.DEST_START_ROW
         var destLastRow = destSheet.getLastRow();
         if (destLastRow >= destStartRow) {
           var numRows = destLastRow - destStartRow + 1;

@@ -136,12 +136,12 @@ function exportProductData_() {
       return;
     }
     
-    // 全データ取得（4行目から。1〜3行目はヘッダー）
-    if (lastRow < 4) {
+    // 全データ取得（3行目から。1〜2行目はヘッダー）
+    if (lastRow < 3) {
       console.log('データがありません');
       return;
     }
-    var range = sheet.getRange(4, 1, lastRow - 3, 24); // A〜X列
+    var range = sheet.getRange(3, 1, lastRow - 2, 24); // A〜X列
     var values = range.getValues();
     
     // 商品データを構築

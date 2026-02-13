@@ -25,9 +25,9 @@ function pr_getAllProductDetails_() {
   
   const lastRow = sheet.getLastRow();
   const lastCol = sheet.getLastColumn();
-  if (lastRow < 4) return {};
-  
-  const data = sheet.getRange(3, 1, lastRow - 2, lastCol).getValues();
+  if (lastRow < 3) return {};
+
+  const data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
   const headers = data[0] || [];
   // 共通ユーティリティ u_findCol_ を使用
   var findCol = function(names) { return u_findCol_(headers, names); };
@@ -297,9 +297,9 @@ function pr_getProductDetailFromSheet_(id) {
   // ★最適化: 必要な範囲だけ取得
   const lastRow = sheet.getLastRow();
   const lastCol = sheet.getLastColumn();
-  if (lastRow < 4) return null;
-  
-  const data = sheet.getRange(3, 1, lastRow - 2, lastCol).getValues();
+  if (lastRow < 3) return null;
+
+  const data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
   const headers = data[0] || [];
   // 共通ユーティリティ u_findCol_ を使用
   var findCol = function(names) { return u_findCol_(headers, names); };
@@ -409,9 +409,9 @@ function pr_prebuildProductDetailCache_() {
   
   const lastRow = sheet.getLastRow();
   const lastCol = sheet.getLastColumn();
-  if (lastRow < 4) return;
-  
-  const data = sheet.getRange(3, 1, lastRow - 2, lastCol).getValues();
+  if (lastRow < 3) return;
+
+  const data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
   const headers = data[0] || [];
   // 共通ユーティリティ u_findCol_ を使用
   var findCol = function(names) { return u_findCol_(headers, names); };
@@ -487,9 +487,9 @@ function debugCheckHeaders() {
   }
   
   const data = sheet.getDataRange().getValues();
-  const headers = data[2] || []; // 3行目がヘッダー
+  const headers = data[1] || []; // 2行目がヘッダー
   
-  console.log('=== データ1シートのヘッダー（3行目）===');
+  console.log('=== データ1シートのヘッダー（2行目）===');
   for (let i = 0; i < headers.length; i++) {
     const h = String(headers[i] || '').trim();
     if (h) {
