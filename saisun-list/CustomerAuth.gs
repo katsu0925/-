@@ -34,8 +34,9 @@ function hashPasswordV2_(password, salt) {
   var input = password + ':' + salt;
   var hash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, input);
   var saltBytes = Utilities.newBlob(salt).getBytes();
+  var saltHash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, saltBytes);
   for (var i = 1; i < iterations; i++) {
-    var combined = hash.concat(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, saltBytes));
+    var combined = hash.concat(saltHash);
     hash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, combined);
   }
   return hash.map(function(b) {
@@ -71,8 +72,9 @@ function hashWithIterations_(password, salt, iterations) {
   var hash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, input);
   if (iterations > 1) {
     var saltBytes = Utilities.newBlob(salt).getBytes();
+    var saltHash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, saltBytes);
     for (var i = 1; i < iterations; i++) {
-      var combined = hash.concat(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, saltBytes));
+      var combined = hash.concat(saltHash);
       hash = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, combined);
     }
   }
@@ -90,6 +92,15 @@ function createPasswordHash_(password) {
 }
 
 /**
+ * 仮パスワード用の軽量ハッシュ生成（tmp形式）
+ * 仮パスワードは30分で失効するランダム文字列のため、1回のハッシュで十分
+ */
+function createTempPasswordHash_(password) {
+  var salt = generateRandomId_(AUTH_CONSTANTS.SALT_LENGTH);
+  return 'tmp:' + salt + ':' + hashWithIterations_(password, salt, 1);
+}
+
+/**
  * パスワード検証（v2/v1/legacy全形式対応）
  * @return {boolean}
  */
@@ -100,6 +111,14 @@ function verifyPassword_(password, storedHash) {
     var salt = parts[0];
     var hash = parts.slice(1).join(':');
     return timingSafeEqual_(hashPasswordV2_(password, salt), hash);
+  }
+  // tmp形式（仮パスワード用軽量ハッシュ）
+  if (storedHash.indexOf('tmp:') === 0) {
+    var rest = storedHash.substring(4);
+    var parts = rest.split(':');
+    var salt = parts[0];
+    var hash = parts.slice(1).join(':');
+    return timingSafeEqual_(hashWithIterations_(password, salt, 1), hash);
   }
   // v1 / legacy形式
   var parts = storedHash.split(':');
@@ -315,9 +334,7 @@ function apiLoginCustomer(userKey, params) {
     const sessionExpiry = new Date(Date.now() + sessionDuration);
     const now = new Date();
     const sheet = getCustomerSheet_();
-    sheet.getRange(customer.row, 10).setValue(now);
-    sheet.getRange(customer.row, 11).setValue(sessionId);
-    sheet.getRange(customer.row, 12).setValue(sessionExpiry);
+    sheet.getRange(customer.row, 10, 1, 3).setValues([[now, sessionId, sessionExpiry]]);
 
     return {
       ok: true,
@@ -483,7 +500,7 @@ function apiRequestPasswordReset(userKey, params) {
     }
 
     var tempPassword = generateRandomId_(AUTH_CONSTANTS.TEMP_PASSWORD_LENGTH);
-    var tempHash = createPasswordHash_(tempPassword);
+    var tempHash = createTempPasswordHash_(tempPassword);
     var expiresAt = Date.now() + AUTH_CONSTANTS.TEMP_PASSWORD_EXPIRY_MS;
 
     // 仮パスワードをScriptPropertiesに保存（元のパスワードは上書きしない）

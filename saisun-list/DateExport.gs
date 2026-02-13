@@ -326,24 +326,37 @@ function apiGetCachedProducts() {
   try {
     // キャッシュから取得を試みる
     var data = loadFromCache_();
-    
+
+    if (!data) {
+      // キャッシュがなければ生成
+      console.log('キャッシュなし、生成開始');
+      exportProductData_();
+      data = loadFromCache_();
+    }
+
     if (data) {
       console.log('キャッシュから取得: ' + data.totalCount + '件');
+      // 会員割引ステータスは常に最新値で上書き（キャッシュ中の古い値を使わない）
+      if (typeof app_getMemberDiscountStatus_ === 'function') {
+        var memberDiscount = app_getMemberDiscountStatus_();
+        if (!data.settings) data.settings = {};
+        data.settings.memberDiscount = memberDiscount;
+        // notesも会員割引状態に応じて更新
+        if (data.settings.notes && Array.isArray(data.settings.notes)) {
+          data.settings.notes = data.settings.notes.map(function(n) {
+            if (!memberDiscount.enabled && String(n).indexOf('会員登録で10％OFF') !== -1) {
+              return '<span style="color:#b8002a;">30点以上で10％割引</span>';
+            }
+            return n;
+          });
+          data.settings.topNotes = data.settings.notes;
+        }
+      }
       return { ok: true, data: data };
     }
-    
-    // キャッシュがなければ生成
-    console.log('キャッシュなし、生成開始');
-    exportProductData_();
-    
-    // 再度取得
-    data = loadFromCache_();
-    if (data) {
-      return { ok: true, data: data };
-    }
-    
+
     return { ok: false, message: 'データの生成に失敗しました' };
-    
+
   } catch (e) {
     console.error('apiGetCachedProducts error:', e);
     return { ok: false, message: e.message || 'エラーが発生しました' };
@@ -372,24 +385,40 @@ function getStatusKind_(status) {
  */
 function getExportSettings_() {
   try {
+    // 会員割引ステータスを常に最新で取得
+    var memberDiscount = (typeof app_getMemberDiscountStatus_ === 'function')
+      ? app_getMemberDiscountStatus_()
+      : { enabled: false, rate: 0, endDate: '', reason: 'unknown' };
+
     // APP_CONFIG があれば使用
     if (typeof APP_CONFIG !== 'undefined' && APP_CONFIG) {
+      var rawNotes = (APP_CONFIG.uiText && APP_CONFIG.uiText.notes) || [];
+      // 会員割引OFFの場合、ノートから会員割引の記述を除去（app_publicSettings_と同じロジック）
+      var notes = rawNotes.map(function(n) {
+        if (!memberDiscount.enabled && String(n).indexOf('会員登録で10％OFF') !== -1) {
+          return '<span style="color:#b8002a;">30点以上で10％割引</span>';
+        }
+        return n;
+      });
       return {
         appTitle: APP_CONFIG.appTitle || '見積もりシステム',
         minOrderCount: APP_CONFIG.minOrderCount || 10,
         shippingEstimateText: (APP_CONFIG.uiText && APP_CONFIG.uiText.shippingEstimateText) || '',
-        notes: (APP_CONFIG.uiText && APP_CONFIG.uiText.notes) || [],
-        topNotes: (APP_CONFIG.uiText && APP_CONFIG.uiText.notes) || [],
+        notes: notes,
+        topNotes: notes,
         nextSteps: (APP_CONFIG.uiText && APP_CONFIG.uiText.nextSteps) || [],
-        basePaymentUrl: (APP_CONFIG.uiText && APP_CONFIG.uiText.basePaymentUrl) || ''
+        basePaymentUrl: (APP_CONFIG.uiText && APP_CONFIG.uiText.basePaymentUrl) || '',
+        memberDiscount: memberDiscount
       };
     }
-    
+
     // cfg_getSettings_ があれば使用
     if (typeof cfg_getSettings_ === 'function') {
-      return cfg_getSettings_();
+      var settings = cfg_getSettings_();
+      settings.memberDiscount = memberDiscount;
+      return settings;
     }
-    
+
     // デフォルト
     return {
       appTitle: '見積もりシステム',
@@ -398,7 +427,8 @@ function getExportSettings_() {
       notes: [],
       topNotes: [],
       nextSteps: [],
-      basePaymentUrl: ''
+      basePaymentUrl: '',
+      memberDiscount: memberDiscount
     };
   } catch (e) {
     return { appTitle: '見積もりシステム', minOrderCount: 10 };

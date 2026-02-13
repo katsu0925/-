@@ -232,6 +232,7 @@
       updateDiscountBadge(res.enabled, res.rate, res.endDate, res.reason);
       showToast(res.message || '切替完了');
       log(res.message || '切替完了');
+      $('btnToggleDiscount').disabled = false;
     } catch(e) {
       showToast(e.message || '切替失敗');
       log('失敗: ' + (e.message || ''));
