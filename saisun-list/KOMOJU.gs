@@ -429,13 +429,49 @@ function mapKomojuStatus_(komojuStatus) {
 }
 
 /**
- * Secret Keyを取得
+ * Secret Keyを取得（モードに応じてテスト/本番キーを返す）
+ * 優先順位:
+ *   1. KOMOJU_MODE が 'test' → KOMOJU_SECRET_KEY_TEST
+ *   2. KOMOJU_MODE が 'live' → KOMOJU_SECRET_KEY_LIVE
+ *   3. フォールバック → 従来の KOMOJU_SECRET_KEY（移行前互換）
  */
 function getKomojuSecretKey_() {
   try {
-    return PropertiesService.getScriptProperties().getProperty('KOMOJU_SECRET_KEY');
+    var props = PropertiesService.getScriptProperties();
+    var mode = String(props.getProperty('KOMOJU_MODE') || 'test').trim();
+    var key;
+    if (mode === 'live') {
+      key = props.getProperty('KOMOJU_SECRET_KEY_LIVE');
+    } else {
+      key = props.getProperty('KOMOJU_SECRET_KEY_TEST');
+    }
+    // フォールバック: 新プロパティ未設定なら従来キーを使用
+    if (!key) {
+      key = props.getProperty('KOMOJU_SECRET_KEY');
+    }
+    return key || null;
   } catch (e) {
     return null;
+  }
+}
+
+/**
+ * 現在のKOMOJU決済モードを取得
+ * @returns {object} { mode: 'test'|'live', hasTestKey, hasLiveKey, hasLegacyKey }
+ */
+function getKomojuMode_() {
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var mode = String(props.getProperty('KOMOJU_MODE') || 'test').trim();
+    if (mode !== 'live') mode = 'test';
+    return {
+      mode: mode,
+      hasTestKey: !!props.getProperty('KOMOJU_SECRET_KEY_TEST'),
+      hasLiveKey: !!props.getProperty('KOMOJU_SECRET_KEY_LIVE'),
+      hasLegacyKey: !!props.getProperty('KOMOJU_SECRET_KEY')
+    };
+  } catch (e) {
+    return { mode: 'test', hasTestKey: false, hasLiveKey: false, hasLegacyKey: false };
   }
 }
 
@@ -512,13 +548,14 @@ function updateOrderPaymentStatus_(receiptNo, paymentStatus, paymentMethod) {
 // =====================================================
 
 /**
- * KOMOJU APIキーを設定
+ * KOMOJU APIキーを設定（テスト用 / 本番用を個別に保存）
  * 使い方:
- * 1. この関数の YOUR_SECRET_KEY_HERE を実際のキーに置き換え
+ * 1. mode と secretKey を書き換え
  * 2. GASエディタでこの関数を実行
  * 3. 実行後、キーを YOUR_SECRET_KEY_HERE に戻す（セキュリティのため）
  */
 function setKomojuSecretKey() {
+  var mode = 'test';  // ← 'test' または 'live' を指定
   var secretKey = 'YOUR_SECRET_KEY_HERE';  // ← ここにKOMOJUのSecret Keyを入力
 
   if (secretKey === 'YOUR_SECRET_KEY_HERE') {
@@ -526,8 +563,9 @@ function setKomojuSecretKey() {
     return;
   }
 
-  PropertiesService.getScriptProperties().setProperty('KOMOJU_SECRET_KEY', secretKey);
-  console.log('SUCCESS: KOMOJU_SECRET_KEY を設定しました');
+  var propName = (mode === 'live') ? 'KOMOJU_SECRET_KEY_LIVE' : 'KOMOJU_SECRET_KEY_TEST';
+  PropertiesService.getScriptProperties().setProperty(propName, secretKey);
+  console.log('SUCCESS: ' + propName + ' を設定しました');
   console.log('セキュリティのため、コード内のキーを YOUR_SECRET_KEY_HERE に戻すことをお勧めします');
 }
 
@@ -535,11 +573,18 @@ function setKomojuSecretKey() {
  * KOMOJU APIキーが設定されているか確認
  */
 function checkKomojuSecretKey() {
-  var key = PropertiesService.getScriptProperties().getProperty('KOMOJU_SECRET_KEY');
-  if (key) {
-    console.log('KOMOJU_SECRET_KEY: 設定済み（' + key.substring(0, 8) + '...）');
+  var props = PropertiesService.getScriptProperties();
+  var info = getKomojuMode_();
+  console.log('現在のモード: ' + info.mode);
+  console.log('テストキー: ' + (info.hasTestKey ? '設定済み' : '未設定'));
+  console.log('本番キー: ' + (info.hasLiveKey ? '設定済み' : '未設定'));
+  console.log('旧キー（KOMOJU_SECRET_KEY）: ' + (info.hasLegacyKey ? '設定済み' : '未設定'));
+
+  var activeKey = getKomojuSecretKey_();
+  if (activeKey) {
+    console.log('使用中のキー: ' + activeKey.substring(0, 8) + '...');
   } else {
-    console.log('KOMOJU_SECRET_KEY: 未設定');
+    console.log('使用中のキー: なし（未設定）');
   }
 }
 
@@ -547,8 +592,52 @@ function checkKomojuSecretKey() {
  * KOMOJU APIキーを削除
  */
 function deleteKomojuSecretKey() {
-  PropertiesService.getScriptProperties().deleteProperty('KOMOJU_SECRET_KEY');
-  console.log('KOMOJU_SECRET_KEY を削除しました');
+  var props = PropertiesService.getScriptProperties();
+  props.deleteProperty('KOMOJU_SECRET_KEY');
+  props.deleteProperty('KOMOJU_SECRET_KEY_TEST');
+  props.deleteProperty('KOMOJU_SECRET_KEY_LIVE');
+  console.log('KOMOJU関連のキーを全て削除しました');
+}
+
+/**
+ * 決済モードを切り替え（管理画面から呼び出し）
+ * @returns {object} { ok, mode, message }
+ */
+function adminToggleKomojuMode() {
+  var props = PropertiesService.getScriptProperties();
+  var current = String(props.getProperty('KOMOJU_MODE') || 'test').trim();
+  var newMode = (current === 'live') ? 'test' : 'live';
+
+  // 切替先のキーが設定されているか確認
+  var targetKeyProp = (newMode === 'live') ? 'KOMOJU_SECRET_KEY_LIVE' : 'KOMOJU_SECRET_KEY_TEST';
+  var targetKey = props.getProperty(targetKeyProp);
+  if (!targetKey) {
+    // フォールバックキーもチェック
+    var legacyKey = props.getProperty('KOMOJU_SECRET_KEY');
+    if (!legacyKey) {
+      return {
+        ok: false,
+        mode: current,
+        message: (newMode === 'live' ? '本番' : 'テスト') + '用のAPIキーが設定されていません。先にキーを設定してください。'
+      };
+    }
+  }
+
+  props.setProperty('KOMOJU_MODE', newMode);
+  return {
+    ok: true,
+    mode: newMode,
+    message: '決済モードを「' + (newMode === 'live' ? '本番' : 'テスト') + '」に切り替えました'
+  };
+}
+
+/**
+ * 現在の決済モード情報を取得（管理画面用）
+ * @returns {object} { ok, mode, hasTestKey, hasLiveKey }
+ */
+function adminGetKomojuMode() {
+  var info = getKomojuMode_();
+  return { ok: true, mode: info.mode, hasTestKey: info.hasTestKey, hasLiveKey: info.hasLiveKey };
 }
 
 // =====================================================
