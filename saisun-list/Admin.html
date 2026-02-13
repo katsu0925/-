@@ -16,6 +16,12 @@
     .log{margin-top:12px;font-size:12px;color:#333;white-space:pre-wrap;line-height:1.5;}
     .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:#111;color:#fff;padding:10px 12px;border-radius:12px;display:none;z-index:50;font-weight:900;max-width:92vw;}
     .toast.show{display:block;}
+    .mode-card{margin-top:14px;}
+    .mode-row{display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap;}
+    .mode-badge{display:inline-block;padding:4px 10px;border-radius:8px;font-weight:900;font-size:13px;}
+    .mode-badge.test{background:#fff3cd;color:#856404;border:1px solid #ffc107;}
+    .mode-badge.live{background:#d4edda;color:#155724;border:1px solid #28a745;}
+    .mode-keys{font-size:12px;color:#666;margin-top:6px;}
   </style>
 </head>
 <body>
@@ -29,6 +35,15 @@
         <button id="btnApplyDv" type="button">依頼管理ステータスのプルダウン適用</button>
       </div>
       <div class="log" id="log"></div>
+    </div>
+
+    <div class="card mode-card">
+      <div class="title">KOMOJU 決済モード</div>
+      <div class="mode-row">
+        <span class="mode-badge" id="modeBadge">読込中...</span>
+        <button class="primary" id="btnToggleMode" type="button" disabled>切替</button>
+      </div>
+      <div class="mode-keys" id="modeKeys"></div>
     </div>
   </div>
   <div class="toast" id="toast"></div>
@@ -125,6 +140,65 @@
     }catch(e){
       showToast(e.message || '失敗');
       log('失敗: ' + (e.message || ''));
+    }
+  });
+
+  // =====================================================
+  // KOMOJU 決済モード切替
+  // =====================================================
+  function updateModeBadge(mode, hasTestKey, hasLiveKey) {
+    const badge = $('modeBadge');
+    const btn = $('btnToggleMode');
+    const keys = $('modeKeys');
+    badge.textContent = (mode === 'live') ? '本番' : 'テスト';
+    badge.className = 'mode-badge ' + (mode === 'live' ? 'live' : 'test');
+    btn.disabled = false;
+    btn.textContent = (mode === 'live') ? 'テストに切替' : '本番に切替';
+    keys.textContent = 'テストキー: ' + (hasTestKey ? '設定済' : '未設定')
+                     + ' ／ 本番キー: ' + (hasLiveKey ? '設定済' : '未設定');
+  }
+
+  // 初回読み込み
+  (async ()=>{
+    try {
+      const res = await run('adminGetKomojuMode');
+      if (res && res.ok) {
+        updateModeBadge(res.mode, res.hasTestKey, res.hasLiveKey);
+      } else {
+        $('modeBadge').textContent = '取得失敗';
+      }
+    } catch(e) {
+      $('modeBadge').textContent = 'エラー';
+    }
+  })();
+
+  $('btnToggleMode').addEventListener('click', async ()=>{
+    const badge = $('modeBadge');
+    const currentMode = badge.textContent;
+    const targetMode = (currentMode === '本番') ? 'テスト' : '本番';
+    if (!confirm('決済モードを「' + targetMode + '」に切り替えますか？')) return;
+
+    $('btnToggleMode').disabled = true;
+    try {
+      log('実行: 決済モード切替 → ' + targetMode);
+      const res = await run('adminToggleKomojuMode');
+      if (!res || !res.ok) {
+        showToast(res && res.message ? res.message : '切替失敗');
+        log('失敗: ' + (res && res.message ? res.message : ''));
+        $('btnToggleMode').disabled = false;
+        return;
+      }
+      // 最新状態を再取得
+      const info = await run('adminGetKomojuMode');
+      if (info && info.ok) {
+        updateModeBadge(info.mode, info.hasTestKey, info.hasLiveKey);
+      }
+      showToast(res.message || '切替完了');
+      log(res.message || '切替完了');
+    } catch(e) {
+      showToast(e.message || '切替失敗');
+      log('失敗: ' + (e.message || ''));
+      $('btnToggleMode').disabled = false;
     }
   });
 </script>
