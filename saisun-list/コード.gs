@@ -96,7 +96,7 @@ function syncListingPublic(e) {
   }
 
   const lock = LockService.getScriptLock();
-  if (!lock.tryLock(3000)) {
+  if (!lock.tryLock(30000)) {
     app_log_('syncListingPublic SKIP lockBusy');
     return;
   }
@@ -198,7 +198,7 @@ function syncListingPublicCron() {
   }
 
   const lock = LockService.getScriptLock();
-  if (!lock.tryLock(3000)) {
+  if (!lock.tryLock(30000)) {
     app_log_('syncListingPublicCron SKIP lockBusy');
     return;
   }
