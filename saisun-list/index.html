@@ -10,7 +10,7 @@
   <meta property="og:description" content="採寸データ付き古着卸 - 10点から見積もり可能">
   <meta property="og:type" content="website">
   <meta name="description" content="採寸データ付き古着卸 - 10点から見積もり可能">
-  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cpath%20d%3D%22M50%2028%20C50%2014%2066%2012%2066%2022%20C66%2030%2056%2034%2050%2038%22%20fill%3D%22none%22%20stroke%3D%22%23454a50%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3Cpath%20d%3D%22M50%2038%20L18%2070%22%20fill%3D%22none%22%20stroke%3D%22%23454a50%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M50%2038%20L82%2070%22%20fill%3D%22none%22%20stroke%3D%22%23454a50%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22%2F%3E%3Crect%20x%3D%2252%22%20y%3D%2244%22%20width%3D%2226%22%20height%3D%2226%22%20rx%3D%223%22%20transform%3D%22rotate%2845%2065%2057%29%22%20fill%3D%22none%22%20stroke%3D%22%23c45a35%22%20stroke-width%3D%225%22%20stroke-linejoin%3D%22round%22%2F%3E%3Ccircle%20cx%3D%2265%22%20cy%3D%2257%22%20r%3D%223%22%20fill%3D%22%23c45a35%22%2F%3E%3C%2Fsvg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20100%20100%22%3E%3Cpath%20d%3D%22M50%2028%20C50%2014%2066%2012%2066%2022%20C66%2030%2056%2034%2050%2038%22%20fill%3D%22none%22%20stroke%3D%22%232563eb%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3Cpath%20d%3D%22M50%2038%20L18%2070%22%20fill%3D%22none%22%20stroke%3D%22%232563eb%22%20stroke-width%3D%226%22%20stroke-linecap%3D%22round%22%2F%3E%3Cpath%20d%3D%22M50%2038%20L82%2070%22%20fill%3D%22none%22%20stroke%3D%22%232563eb%22%20stroke-width%3D%225%22%20stroke-linecap%3D%22round%22%2F%3E%3Crect%20x%3D%2252%22%20y%3D%2244%22%20width%3D%2226%22%20height%3D%2226%22%20rx%3D%223%22%20transform%3D%22rotate%2845%2065%2057%29%22%20fill%3D%22none%22%20stroke%3D%22%23ef4444%22%20stroke-width%3D%225%22%20stroke-linejoin%3D%22round%22%2F%3E%3Ccircle%20cx%3D%2265%22%20cy%3D%2257%22%20r%3D%223%22%20fill%3D%22%23ef4444%22%2F%3E%3C%2Fsvg%3E">
   <script src="https://www.google.com/recaptcha/api.js?render=6LeMeF0sAAAAAK1DLANrMyfuugoe6mdWMQbY2ao1" async defer></script>
   <style>
     html, body { margin:0; padding:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif; color:#111; background:#f6f7f9; -webkit-text-size-adjust:100%; }
@@ -567,26 +567,28 @@
           </div>
           <div class="formField">
             <label>会社名/氏名 *</label>
-            <input id="mpCompanyName" type="text">
+            <input id="mpCompanyName" type="text" readonly style="background:#f5f5f5;">
           </div>
           <div class="formField">
             <label>電話番号</label>
-            <input id="mpPhone" type="tel" inputmode="numeric">
+            <input id="mpPhone" type="tel" inputmode="numeric" readonly style="background:#f5f5f5;">
           </div>
           <div class="formField">
             <label>郵便番号</label>
-            <input id="mpPostal" type="text" inputmode="numeric">
+            <input id="mpPostal" type="text" inputmode="numeric" readonly style="background:#f5f5f5;">
           </div>
           <div class="formField">
             <label>住所</label>
-            <input id="mpAddress" type="text">
+            <input id="mpAddress" type="text" readonly style="background:#f5f5f5;">
           </div>
           <div class="formField">
             <label style="font-size:12px;color:#999;">登録日: <span id="mpRegisteredAt">-</span></label>
           </div>
         </div>
         <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;">
-          <button class="btn primary" id="mpSaveBtn" type="button">変更を保存</button>
+          <button class="btn" id="mpEditBtn" type="button">編集</button>
+          <button class="btn primary" id="mpSaveBtn" type="button" style="display:none;">変更を保存</button>
+          <button class="btn" id="mpCancelEditBtn" type="button" style="display:none;">キャンセル</button>
           <button class="btn" id="mpTogglePasswordBtn" type="button">パスワード変更</button>
         </div>
         <div id="mpPasswordSection" style="display:none;margin-top:14px;padding:14px;background:#f9f9f9;border-radius:8px;">
@@ -1792,6 +1794,41 @@ function setupAuthUi_() {
     });
   });
 
+  // 編集ボタン：readonly解除＋保存/キャンセル表示
+  var mpEditBtn = $('mpEditBtn');
+  var mpCancelEditBtn = $('mpCancelEditBtn');
+  var mpProfileFields = ['mpCompanyName', 'mpPhone', 'mpPostal', 'mpAddress'];
+  function setProfileEditable_(editable) {
+    for (var fi = 0; fi < mpProfileFields.length; fi++) {
+      var inp = $(mpProfileFields[fi]);
+      if (inp) { inp.readOnly = !editable; inp.style.background = editable ? '#fff' : '#f5f5f5'; }
+    }
+    if ($('mpEditBtn')) $('mpEditBtn').style.display = editable ? 'none' : '';
+    if ($('mpSaveBtn')) $('mpSaveBtn').style.display = editable ? '' : 'none';
+    if ($('mpCancelEditBtn')) $('mpCancelEditBtn').style.display = editable ? '' : 'none';
+  }
+  if (mpEditBtn) {
+    mpEditBtn.addEventListener('click', function() {
+      // 編集前の値を保存
+      mpEditBtn._backup = {};
+      for (var fi = 0; fi < mpProfileFields.length; fi++) {
+        mpEditBtn._backup[mpProfileFields[fi]] = $(mpProfileFields[fi]).value;
+      }
+      setProfileEditable_(true);
+    });
+  }
+  if (mpCancelEditBtn) {
+    mpCancelEditBtn.addEventListener('click', function() {
+      // 編集前の値に戻す
+      if (mpEditBtn && mpEditBtn._backup) {
+        for (var fi = 0; fi < mpProfileFields.length; fi++) {
+          $(mpProfileFields[fi]).value = mpEditBtn._backup[mpProfileFields[fi]] || '';
+        }
+      }
+      setProfileEditable_(false);
+    });
+  }
+
   // プロフィール保存
   var mpSaveBtn = $('mpSaveBtn');
   if (mpSaveBtn) {
@@ -1818,6 +1855,7 @@ function setupAuthUi_() {
             saveSession_(state.sessionId, state.customer);
             updateAuthUi_();
           }
+          setProfileEditable_(false);
         } else {
           showToast((res && res.message) || '更新に失敗しました');
         }
@@ -1901,10 +1939,14 @@ function openModal(modal) { $('overlay').classList.add('open'); modal.classList.
 function closeModal(modal) { modal.classList.remove('open'); if (!document.querySelector('.modal.open')) $('overlay').classList.remove('open'); }
 function closeAllModals() { document.querySelectorAll('.modal').forEach(function(m) { m.classList.remove('open'); }); $('overlay').classList.remove('open'); }
 
-function convertDriveImageUrl(url) {
+function convertDriveImageUrl(url, maxWidth) {
   if (!url) return '';
   var m = url.match(/(?:id=|\/d\/)([A-Za-z0-9_-]{10,})/);
-  if (m && m[1]) return 'https://lh3.googleusercontent.com/d/' + m[1];
+  if (m && m[1]) {
+    var base = 'https://lh3.googleusercontent.com/d/' + m[1];
+    if (maxWidth) return base + '=w' + maxWidth;
+    return base;
+  }
   return url;
 }
 
@@ -2456,10 +2498,11 @@ function renderGrid_(items) {
     
     if (it.imageUrl) {
       var img = document.createElement('img');
-      var fixedUrl = convertDriveImageUrl(it.imageUrl);
+      var fixedUrl = convertDriveImageUrl(it.imageUrl, 300);
+      var fullUrl = convertDriveImageUrl(it.imageUrl);
       img.src = fixedUrl; img.alt = it.noLabel || id; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer';
       img.className = 'product-image-clickable'; img.style.cursor = 'zoom-in';
-      (function(mid, iurl) { img.addEventListener('click', function(e) { e.stopPropagation(); openDetailModal(mid, iurl); }); })(id, fixedUrl);
+      (function(mid, iurl) { img.addEventListener('click', function(e) { e.stopPropagation(); openDetailModal(mid, iurl); }); })(id, fullUrl);
       imgEl = img; thumb.appendChild(img);
     } else { thumb.textContent = 'NO IMAGE'; }
     card.appendChild(thumb);
@@ -3285,10 +3328,12 @@ function renderRecommendations_(containerId, sectionId, maxCount, isMainScreen) 
     var card = document.createElement('div');
     card.className = 'recommendCard';
 
-    var imgUrl = p.imageUrl ? convertDriveImageUrl(p.imageUrl) : '';
+    var imgUrl = p.imageUrl ? convertDriveImageUrl(p.imageUrl, 200) : '';
+    var fullImgUrl = p.imageUrl ? convertDriveImageUrl(p.imageUrl) : '';
     var img = document.createElement('img');
     img.src = imgUrl || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"%3E%3Crect fill="%23eee" width="100" height="100"/%3E%3Ctext x="50" y="55" text-anchor="middle" fill="%23999" font-size="12"%3ENo Image%3C/text%3E%3C/svg%3E';
     img.alt = p.noLabel || p.managedId;
+    img.loading = 'lazy'; img.referrerPolicy = 'no-referrer';
 
     var info = document.createElement('div');
     info.className = 'rcInfo';
@@ -3310,7 +3355,7 @@ function renderRecommendations_(containerId, sectionId, maxCount, isMainScreen) 
         detailReturnTo_ = mainScreen ? null : 'cart';
         openDetailModal(mid, iurl);
       });
-    })(p.managedId, imgUrl, isMainScreen);
+    })(p.managedId, fullImgUrl, isMainScreen);
 
     container.appendChild(card);
   }
@@ -3375,16 +3420,18 @@ function renderCartModal_() {
     var info = document.createElement('div'); info.className = 'cartInfo';
 
     // 商品画像
-    var imgUrl = it.imageUrl ? convertDriveImageUrl(it.imageUrl) : '';
+    var imgUrl = it.imageUrl ? convertDriveImageUrl(it.imageUrl, 150) : '';
+    var fullImgUrl = it.imageUrl ? convertDriveImageUrl(it.imageUrl) : '';
     var img = document.createElement('img'); img.className = 'cartImg';
     img.src = imgUrl || 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 50 50"%3E%3Crect fill="%23eee" width="50" height="50"/%3E%3Ctext x="25" y="30" text-anchor="middle" fill="%23999" font-size="10"%3ENo Image%3C/text%3E%3C/svg%3E';
     img.alt = it.noLabel || id;
-    (function(mid, iurl) { img.addEventListener('click', function(e) { e.stopPropagation(); closeModal($('cartModal')); detailReturnTo_ = 'cart'; openDetailModal(mid, iurl); }); })(id, imgUrl);
+    img.loading = 'lazy'; img.referrerPolicy = 'no-referrer';
+    (function(mid, iurl) { img.addEventListener('click', function(e) { e.stopPropagation(); closeModal($('cartModal')); detailReturnTo_ = 'cart'; openDetailModal(mid, iurl); }); })(id, fullImgUrl);
 
     var left = document.createElement('div'); left.className = 'cartLeft';
     var name = document.createElement('div'); name.className = 'cartName'; name.style.cursor = 'pointer';
     name.textContent = (it.noLabel ? it.noLabel : id) + (it.brand ? (' ' + it.brand) : '');
-    (function(mid, iurl) { name.addEventListener('click', function(e) { e.stopPropagation(); closeModal($('cartModal')); detailReturnTo_ = 'cart'; openDetailModal(mid, iurl); }); })(id, imgUrl);
+    (function(mid, iurl) { name.addEventListener('click', function(e) { e.stopPropagation(); closeModal($('cartModal')); detailReturnTo_ = 'cart'; openDetailModal(mid, iurl); }); })(id, fullImgUrl);
     var sub = document.createElement('div'); sub.className = 'cartSub';
     sub.textContent = [it.category, it.color, it.gender, it.size].filter(Boolean).join(' / ') + ' / ' + yen(it.price);
     left.appendChild(name); left.appendChild(sub);

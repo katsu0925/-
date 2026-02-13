@@ -324,7 +324,20 @@ function app_buildEstimateNotifyBody_(orderSs, receiptNo, info) {
   if (info && typeof info.totalCount !== 'undefined') lines.push('点数: ' + String(info.totalCount));
   if (info && typeof info.discounted !== 'undefined') lines.push('見積金額: ' + String(info.discounted));
   if (info && info.measureLabel) lines.push('採寸: ' + String(info.measureLabel || ''));
-  if (info && info.selectionList) {
+  if (info && info.itemDetails && info.itemDetails.length > 0) {
+    lines.push('');
+    lines.push('選択商品:');
+    for (var di = 0; di < info.itemDetails.length; di++) {
+      var d_item = info.itemDetails[di];
+      var label = d_item.noLabel || d_item.managedId || '';
+      var parts = [];
+      if (d_item.brand) parts.push(d_item.brand);
+      if (d_item.category) parts.push(d_item.category);
+      if (d_item.size) parts.push(d_item.size);
+      if (d_item.color) parts.push(d_item.color);
+      lines.push('  ' + label + '  ' + parts.join(' / ') + '  ' + Number(d_item.price || 0).toLocaleString() + '円');
+    }
+  } else if (info && info.selectionList) {
     lines.push('');
     lines.push('選択ID:');
     lines.push(String(info.selectionList || ''));
@@ -378,9 +391,23 @@ function app_sendEstimateConfirmToCustomer_(data) {
       body += '備考：' + note + '\n';
     }
 
-    body += '\n■ 選択商品\n'
-      + selectionList + '\n'
-      + '━━━━━━━━━━━━━━━━━━━━\n\n'
+    // 商品詳細リスト（itemDetailsがある場合はブランド・サイズ等を表示）
+    body += '\n■ 選択商品\n';
+    if (data.itemDetails && data.itemDetails.length > 0) {
+      for (var di = 0; di < data.itemDetails.length; di++) {
+        var d_item = data.itemDetails[di];
+        var label = d_item.noLabel || d_item.managedId || '';
+        var parts = [];
+        if (d_item.brand) parts.push(d_item.brand);
+        if (d_item.category) parts.push(d_item.category);
+        if (d_item.size) parts.push(d_item.size);
+        if (d_item.color) parts.push(d_item.color);
+        body += '  ' + label + '  ' + parts.join(' / ') + '  ' + Number(d_item.price || 0).toLocaleString() + '円\n';
+      }
+    } else {
+      body += selectionList + '\n';
+    }
+    body += '━━━━━━━━━━━━━━━━━━━━\n\n'
       + '【ご注文の流れ】\n'
       + '1. 確定金額・送料をメールでご案内\n'
       + '2. お支払い確認後、商品を発送\n\n'

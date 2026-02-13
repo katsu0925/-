@@ -157,6 +157,23 @@ function apiSubmitEstimate(userKey, form, ids) {
     }
 
     // === 見積もりモード：即座にシート書き込み・メール通知 ===
+    // メール用の商品詳細リストを構築
+    var itemDetails = [];
+    for (var idx = 0; idx < list.length; idx++) {
+      var pd = productMap[list[idx]];
+      if (pd) {
+        itemDetails.push({
+          managedId: pd.managedId,
+          noLabel: pd.noLabel || '',
+          brand: pd.brand || '',
+          category: pd.category || '',
+          size: pd.size || '',
+          color: pd.color || '',
+          price: pd.price || 0
+        });
+      }
+    }
+
     var submitData = {
       userKey: uk,
       form: validatedForm,
@@ -168,7 +185,8 @@ function apiSubmitEstimate(userKey, form, ids) {
       discounted: discounted,
       createdAtMs: now,
       templateText: templateText,
-      paymentStatus: '未対応'
+      paymentStatus: '未対応',
+      itemDetails: itemDetails
     };
 
     // 直接書き込み
@@ -363,6 +381,7 @@ function writeSubmitData_(data) {
     totalCount: data.totalCount || data.ids.length,
     discounted: data.discounted || 0,
     selectionList: data.selectionList || data.ids.join('、'),
+    itemDetails: data.itemDetails || [],
     writeRow: writeRow,
     createdAtMs: now,
     userKey: data.userKey,
