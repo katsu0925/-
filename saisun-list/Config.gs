@@ -1,7 +1,7 @@
 // === Config.gs 全体抜粋 ===
 const APP_CONFIG = {
   appTitle: 'デタウリ.Detauri',
-  // 最低購入（見積もり）点数を 10 に変更
+  // 最低購入（注文）点数を 10 に変更
   minOrderCount: 10,
   notifyEmails: 'nsdktts1030@gmail.com',
   data: {
@@ -109,8 +109,8 @@ const APP_CONFIG = {
     notes: [
       // 商品ページガイドのリンク差し替え
       '<a href="https://drive.google.com/file/d/18X6qgQPWkaOXTg4YxELtru-4oBJxn7mn/view?usp=sharing" target="_blank" rel="noopener noreferrer">商品ページガイド</a>',
-      // 「購入」を「見積もり」に変更し、（送料別）をリンク化
-      '10点から見積もり可能です。合計金額は商品代のみ <a href="https://drive.google.com/file/d/1g7UYUBw3-Y6M5HkSv3mfMe5jEjs795E3/view?usp=sharing" target="_blank" rel="noopener noreferrer">（送料別）</a>。送料はBASE側で確定します。',
+      // 「購入」の最低点数案内（送料別）をリンク化
+      '10点から購入可能です。合計金額は商品代のみ <a href="https://drive.google.com/file/d/1g7UYUBw3-Y6M5HkSv3mfMe5jEjs795E3/view?usp=sharing" target="_blank" rel="noopener noreferrer">（送料別）</a>。送料はBASE側で確定します。',
       '送信後、受付番号をお控えください。確定金額・送料をご案内後、BASEで決済となります。',
       '在庫は先着のため、送信後に欠品となる場合があります（確保中表示がある場合はその時間内は確保）。',
       // 赤字メッセージ追加

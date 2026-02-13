@@ -2,7 +2,7 @@
 
 ## 概要
 
-Google Apps Script (GAS) 上で動作するB2B卸売アパレル見積もりシステムのJSON API。
+Google Apps Script (GAS) 上で動作するB2B卸売アパレル決済システムのJSON API。
 フロントエンド（Cloudflare Pages等）から `doPost` エンドポイントに対してJSON形式でリクエストを送信する。
 
 ## エンドポイント
@@ -87,7 +87,7 @@ Content-Type: application/json
 商品のステータス一覧を取得。
 
 ### `apiSubmitEstimate(userKey, form, ids)`
-見積もり依頼を送信。**reCAPTCHAトークン必須。**
+注文を送信。**reCAPTCHAトークン必須。**
 
 | パラメータ | 型 | 必須 | 説明 |
 |---|---|---|---|

@@ -2,7 +2,7 @@
 
 ## システム概要
 
-B2B卸売アパレル見積もりプラットフォーム。Google Apps Script (GAS) をバックエンドに、
+B2B卸売アパレル決済プラットフォーム。Google Apps Script (GAS) をバックエンドに、
 Google Sheets をデータストアとして使用する。外部決済はKOMOJU、EC連携はBASE。
 
 ```
@@ -35,7 +35,7 @@ Google Sheets をデータストアとして使用する。外部決済はKOMOJU
 | **Constants.gs** | マジックナンバー・定数の集約 |
 | **Code.gs** | doGet/doPost、レート制限、reCAPTCHA、ログ |
 | **ApiPublic.gs** | 公開API（検索、確保、注文、メール通知） |
-| **SubmitFix.gs** | 見積もり送信（高速版）、Drive確認リンク生成 |
+| **SubmitFix.gs** | 注文送信（高速版）、Drive確認リンク生成 |
 | **CustomerAuth.gs** | 顧客認証（登録/ログイン/セッション/ランク/ポイント） |
 | **KOMOJU.gs** | KOMOJU決済連携（セッション作成/Webhook/署名検証） |
 | **発送通知.gs** | 発送ステータス変更時のメール通知（管理者+顧客） |
@@ -63,7 +63,7 @@ Google Sheets をデータストアとして使用する。外部決済はKOMOJU
 ```
 仕入れ管理Ver.2 (商品管理シート)
   ↓ syncListingPublic (onEdit トリガー)
-データ1シート (見積もりシステム用)
+データ1シート (決済システム用)
   ↓ exportProductData_ (5分間隔トリガー)
 JSONキャッシュ (CacheService)
   ↓ apiGetCachedProducts / apiInit
@@ -74,7 +74,7 @@ JSONキャッシュ (CacheService)
 
 ```
 1. フロント: apiSyncHolds で商品を15分間確保
-2. フロント: apiSubmitEstimate で見積もり送信
+2. フロント: apiSubmitEstimate で注文送信
    ├─ バリデーション（reCAPTCHA含む）
    ├─ 価格計算（数量割引・会員割引・ポイント）
    ├─ 依頼管理シートに書き込み

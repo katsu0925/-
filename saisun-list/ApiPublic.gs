@@ -242,7 +242,7 @@ function app_sendEstimateNotifyMail_(orderSs, receiptNo, info) {
     const toList = app_getNotifyToEmails_(orderSs);
     if (!toList.length) return;
 
-    const subject = 'デタウリ.Detauri 見積もり依頼';
+    const subject = 'デタウリ.Detauri ご注文受付';
     const body = app_buildEstimateNotifyBody_(orderSs, receiptNo, info);
 
     MailApp.sendEmail({
@@ -304,7 +304,7 @@ function app_buildEstimateNotifyBody_(orderSs, receiptNo, info) {
   const createdAt = info && info.createdAtMs ? new Date(info.createdAtMs) : new Date();
   const lines = [];
 
-  lines.push('新しい見積もり依頼が作成されました。');
+  lines.push('新しい注文が作成されました。');
   lines.push('');
   lines.push('受付番号: ' + String(receiptNo || ''));
   lines.push('作成日時: ' + createdAt);
@@ -322,7 +322,7 @@ function app_buildEstimateNotifyBody_(orderSs, receiptNo, info) {
   }
   lines.push('');
   if (info && typeof info.totalCount !== 'undefined') lines.push('点数: ' + String(info.totalCount));
-  if (info && typeof info.discounted !== 'undefined') lines.push('見積金額: ' + String(info.discounted));
+  if (info && typeof info.discounted !== 'undefined') lines.push('注文金額: ' + String(info.discounted));
   if (info && info.measureLabel) lines.push('採寸: ' + String(info.measureLabel || ''));
   if (info && info.itemDetails && info.itemDetails.length > 0) {
     lines.push('');
@@ -360,7 +360,7 @@ function app_buildEstimateNotifyBody_(orderSs, receiptNo, info) {
 }
 
 // =====================================================
-// 顧客宛 見積もり確認メール
+// 顧客宛 注文確認メール
 // =====================================================
 function app_sendEstimateConfirmToCustomer_(data) {
   try {

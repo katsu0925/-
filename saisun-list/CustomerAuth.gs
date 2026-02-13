@@ -918,7 +918,7 @@ function processCustomerPoints() {
 }
 
 /**
- * ポイント利用API（見積もり送信時に呼び出し）
+ * ポイント利用API（注文送信時に呼び出し）
  */
 function deductPoints_(email, points) {
   if (!points || points <= 0) return false;
