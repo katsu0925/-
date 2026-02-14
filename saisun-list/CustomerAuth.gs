@@ -249,7 +249,7 @@ function apiRegisterCustomer(userKey, params) {
     const address = String(params.address || '').trim();
     const newsletter = params.newsletter === true || params.newsletter === 'true';
 
-    if (!email || !email.includes('@')) {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return { ok: false, message: '有効なメールアドレスを入力してください' };
     }
     if (!password || password.length < AUTH_CONSTANTS.MIN_PASSWORD_LENGTH) {
@@ -489,7 +489,7 @@ function apiChangePassword(userKey, params) {
 function apiRequestPasswordReset(userKey, params) {
   try {
     var email = String(params.email || '').trim().toLowerCase();
-    if (!email || !email.includes('@')) {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return { ok: false, message: '有効なメールアドレスを入力してください' };
     }
 
