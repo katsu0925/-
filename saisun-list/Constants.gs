@@ -135,7 +135,7 @@ var CUSTOMER_SHEET_COLS = {
  * サイト共通情報
  */
 var SITE_CONSTANTS = {
-  SITE_NAME: 'NKonline Apparel',
+  SITE_NAME: 'デタウリ.Detauri',
   SITE_URL: 'https://wholesale.nkonline-tool.com/',
   CONTACT_EMAIL: 'nkonline1030@gmail.com'
 };

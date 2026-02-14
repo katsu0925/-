@@ -507,7 +507,7 @@ function apiRequestPasswordReset(userKey, params) {
     storeTempPassword_(email, tempHash, expiresAt);
 
     var expiryMinutes = Math.round(AUTH_CONSTANTS.TEMP_PASSWORD_EXPIRY_MS / 60000);
-    var subject = '【NKonline Apparel】パスワードリセットのお知らせ';
+    var subject = '【デタウリ.Detauri】パスワードリセットのお知らせ';
     var body = customer.companyName + ' 様\n\n'
       + 'パスワードリセットのリクエストを受け付けました。\n'
       + '以下の仮パスワードでログインしてください。\n\n'
@@ -1055,7 +1055,7 @@ function sendInvoiceReceipt_(email, data) {
   var taxAmount = data.totalAmount - taxExcluded;
   var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy年MM月dd日');
 
-  var subject = '【NKonline Apparel】領収書 No.' + data.receiptNo;
+  var subject = '【デタウリ.Detauri】領収書 No.' + data.receiptNo;
   var body = '━━━━━━━━━━━━━━━━━━━━━━━━━━\n'
     + '　　　　　　　　領　収　書\n'
     + '━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n'
@@ -1078,7 +1078,7 @@ function sendInvoiceReceipt_(email, data) {
 
   body += '──────────────────────────\n'
     + '【発行者情報】\n'
-    + '　事業者名　: NKonline\n'
+    + '　事業者名　: デタウリ.Detauri\n'
     + '　登録番号　: ' + data.invoiceNo + '\n'
     + '　所在地　　: 大阪府大東市灰塚4-16-15\n'
     + '　電話番号　: 080-3130-9250\n'
@@ -1086,7 +1086,7 @@ function sendInvoiceReceipt_(email, data) {
     + '──────────────────────────\n\n'
     + '※ この領収書は適格請求書（インボイス）として発行しています。\n'
     + '※ 本メールは自動送信です。ご不明な点がございましたらお問い合わせください。\n\n'
-    + 'NKonline Apparel\n'
+    + 'デタウリ.Detauri\n'
     + 'https://wholesale.nkonline-tool.com\n';
 
   MailApp.sendEmail({ to: email, subject: subject, body: body, noReply: true });
@@ -1098,7 +1098,7 @@ function sendInvoiceReceipt_(email, data) {
 function sendCancelReceipt_(email, data) {
   var today = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy年MM月dd日');
 
-  var subject = '【NKonline Apparel】領収書取消通知 No.' + data.receiptNo;
+  var subject = '【デタウリ.Detauri】領収書取消通知 No.' + data.receiptNo;
   var body = data.companyName + ' 様\n\n'
     + '下記の注文について' + data.cancelType + 'に伴い、領収書を取り消しいたします。\n\n'
     + '──────────────────────────\n'
@@ -1109,13 +1109,13 @@ function sendCancelReceipt_(email, data) {
     + '取消金額　: ' + formatYen_(data.totalAmount) + '\n'
     + '──────────────────────────\n\n'
     + '【発行者情報】\n'
-    + '　事業者名　: NKonline\n'
+    + '　事業者名　: デタウリ.Detauri\n'
     + '　登録番号　: ' + data.invoiceNo + '\n'
     + '　所在地　　: 大阪府大東市灰塚4-16-15\n'
     + '──────────────────────────\n\n'
     + '※ 先にお送りした領収書は無効となります。\n'
     + '※ 返金処理は別途ご案内いたします。\n\n'
-    + 'NKonline Apparel\n'
+    + 'デタウリ.Detauri\n'
     + 'https://wholesale.nkonline-tool.com\n';
 
   MailApp.sendEmail({ to: email, subject: subject, body: body, noReply: true });

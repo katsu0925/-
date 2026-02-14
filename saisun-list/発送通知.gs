@@ -149,7 +149,7 @@ function shipMailOnEdit(e) {
       custBody += '商品到着まで今しばらくお待ちください。\n'
         + '到着後、内容にご不明点がございましたらお気軽にお問い合わせください。\n\n'
         + '──────────────────\n'
-        + 'デタウリ.Detauri（NKonline Apparel 卸売サイト）\n'
+        + 'デタウリ.Detauri\n'
         + 'https://wholesale.nkonline-tool.com/\n'
         + 'お問い合わせ：nkonline1030@gmail.com\n'
         + '──────────────────\n';

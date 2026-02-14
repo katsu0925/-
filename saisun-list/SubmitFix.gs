@@ -879,7 +879,7 @@ function createOrderConfirmLink_(receiptNo, data) {
     sheet.setName('注文明細');
 
     var headerRows = [
-      ['NKonline Apparel - ご注文明細'],
+      ['デタウリ.Detauri - ご注文明細'],
       [''],
       ['受付番号', receiptNo],
       ['注文日時', dateStr],
@@ -897,7 +897,7 @@ function createOrderConfirmLink_(receiptNo, data) {
 
     headerRows.push(['']);
     headerRows.push(['※ このシートは閲覧専用です。']);
-    headerRows.push(['※ ご不明点はお問い合わせください: nkonline1030@gmail.com']);
+    headerRows.push(['※ ご不明点はお問い合わせください: ' + SITE_CONSTANTS.CONTACT_EMAIL]);
 
     sheet.getRange(1, 1, headerRows.length, 2).setValues(headerRows);
 
