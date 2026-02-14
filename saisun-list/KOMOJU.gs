@@ -647,25 +647,40 @@ function setKomojuSecretKey() {
 }
 
 /**
- * KOMOJU Webhookシークレットを設定
- * 使い方:
- * 1. webhookSecret を書き換え
- * 2. GASエディタでこの関数を実行
- * 3. 実行後、シークレットを YOUR_WEBHOOK_SECRET_HERE に戻す（セキュリティのため）
- * 4. Webhook URLを [デプロイURL]?action=komoju_webhook&webhook_token=設定した値 にする
+ * KOMOJU Webhookシークレットを自動生成して設定
+ *
+ * GASエディタでこの関数を実行すると:
+ * 1. ランダムなシークレットキーを自動生成
+ * 2. スクリプトプロパティ KOMOJU_WEBHOOK_SECRET に保存
+ * 3. KOMOJUダッシュボードに設定すべき値をログに出力
+ *
+ * ログに表示される「シークレットキー」と「Webhook URL」を
+ * KOMOJUダッシュボードのWebhook設定にコピーしてください。
  */
 function setKomojuWebhookSecret() {
-  var webhookSecret = 'YOUR_WEBHOOK_SECRET_HERE';  // ← ここにWebhookシークレットを入力
-
-  if (webhookSecret === 'YOUR_WEBHOOK_SECRET_HERE') {
-    console.log('ERROR: webhookSecret を実際のシークレットに置き換えてください');
-    return;
+  // ランダムなシークレットキーを生成（32バイト = 64文字の16進数）
+  var rawBytes = [];
+  for (var i = 0; i < 32; i++) {
+    rawBytes.push(Math.floor(Math.random() * 256));
   }
+  var webhookSecret = rawBytes.map(function(b) {
+    return ('0' + b.toString(16)).slice(-2);
+  }).join('');
 
   PropertiesService.getScriptProperties().setProperty('KOMOJU_WEBHOOK_SECRET', webhookSecret);
-  console.log('SUCCESS: KOMOJU_WEBHOOK_SECRET を設定しました');
-  console.log('Webhook URLに ?webhook_token=' + webhookSecret + ' を追加してください');
-  console.log('セキュリティのため、コード内のシークレットを YOUR_WEBHOOK_SECRET_HERE に戻すことをお勧めします');
+
+  // デプロイURLを取得
+  var deployUrl = ScriptApp.getService().getUrl();
+
+  console.log('=== KOMOJU Webhook 設定情報 ===');
+  console.log('');
+  console.log('【1】KOMOJUダッシュボードの「シークレットキー」欄に以下を貼り付け:');
+  console.log(webhookSecret);
+  console.log('');
+  console.log('【2】KOMOJUダッシュボードの「Webhook URL」欄に以下を設定:');
+  console.log(deployUrl + '?action=komoju_webhook&webhook_token=' + webhookSecret);
+  console.log('');
+  console.log('=== 設定完了 ===');
 }
 
 /**
