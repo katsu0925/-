@@ -702,7 +702,20 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
     openState.updatedAt = now;
     st_setOpenState_(orderSs, openState);
 
-    // 2. 決済情報を付与してシート書き込み + メール送信
+    // 2. シートレベルの重複チェック（最終安全弁 — ロック・PENDING_ORDER_削除で防げないケース対策）
+    var reqSh = sh_ensureRequestSheet_(orderSs);
+    var shLastRow = reqSh.getLastRow();
+    if (shLastRow >= 2) {
+      var existingReceipts = reqSh.getRange(2, 1, shLastRow - 1, 1).getDisplayValues();
+      for (var k = 0; k < existingReceipts.length; k++) {
+        if (String(existingReceipts[k][0]).trim() === String(receiptNo).trim()) {
+          console.warn('confirmPaymentAndCreateOrder: 受付番号が既にシートに存在するため書き込みスキップ: ' + receiptNo);
+          return { ok: true, message: '既に登録済みです' };
+        }
+      }
+    }
+
+    // 3. 決済情報を付与してシート書き込み + メール送信
     var writeData = {
       userKey: pendingData.userKey,
       form: pendingData.form,
@@ -729,7 +742,7 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
     writeSubmitData_(writeData);
     console.log('Order written to sheet: ' + receiptNo);
 
-    // 3. キャッシュを無効化
+    // 4. キャッシュを無効化
     st_invalidateStatusCache_(orderSs);
 
     return {
