@@ -647,6 +647,28 @@ function setKomojuSecretKey() {
 }
 
 /**
+ * KOMOJU Webhookシークレットを設定
+ * 使い方:
+ * 1. webhookSecret を書き換え
+ * 2. GASエディタでこの関数を実行
+ * 3. 実行後、シークレットを YOUR_WEBHOOK_SECRET_HERE に戻す（セキュリティのため）
+ * 4. Webhook URLを [デプロイURL]?action=komoju_webhook&webhook_token=設定した値 にする
+ */
+function setKomojuWebhookSecret() {
+  var webhookSecret = 'YOUR_WEBHOOK_SECRET_HERE';  // ← ここにWebhookシークレットを入力
+
+  if (webhookSecret === 'YOUR_WEBHOOK_SECRET_HERE') {
+    console.log('ERROR: webhookSecret を実際のシークレットに置き換えてください');
+    return;
+  }
+
+  PropertiesService.getScriptProperties().setProperty('KOMOJU_WEBHOOK_SECRET', webhookSecret);
+  console.log('SUCCESS: KOMOJU_WEBHOOK_SECRET を設定しました');
+  console.log('Webhook URLに ?webhook_token=' + webhookSecret + ' を追加してください');
+  console.log('セキュリティのため、コード内のシークレットを YOUR_WEBHOOK_SECRET_HERE に戻すことをお勧めします');
+}
+
+/**
  * KOMOJU APIキーが設定されているか確認
  */
 function checkKomojuSecretKey() {
