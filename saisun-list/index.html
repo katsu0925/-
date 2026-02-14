@@ -3803,9 +3803,10 @@ function renderCartModal_() {
   
   var count = ids.length;
   $('sumCount').textContent = '合計点数：' + count + '点';
-  // 割引を累積（会員10%）
+  // 割引を累積（30点以上10% + 会員10%）
   var discountRate = 0;
   var discountLabels = [];
+  if (count >= 30) { discountRate += BULK_DISCOUNT_RATE; discountLabels.push('30点割引10%OFF'); }
   if (state.customer && MEMBER_DISCOUNT_ENABLED) { discountRate += MEMBER_DISCOUNT_RATE; discountLabels.push('会員10%OFF'); }
   var discounted = Math.round(sum * (1 - discountRate));
   var discountLabel = discountLabels.length > 0 ? '（' + discountLabels.join('＋') + '）' : '';
@@ -3888,6 +3889,7 @@ function applyPointDiscount_() {
 
   var discountRate = 0;
   var discountLabels = [];
+  if (ids.length >= 30) { discountRate += BULK_DISCOUNT_RATE; discountLabels.push('30点割引10%OFF'); }
   if (state.customer && MEMBER_DISCOUNT_ENABLED) { discountRate += MEMBER_DISCOUNT_RATE; discountLabels.push('会員10%OFF'); }
   var discounted = Math.round(sum * (1 - discountRate));
 
