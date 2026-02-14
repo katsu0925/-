@@ -2,7 +2,7 @@
  * KOMOJU.gs
  *
  * KOMOJU決済連携モジュール
- * クレジットカード（Visa/Mastercard）、コンビニ払い（セブン除く）、銀行振込に対応
+ * クレジットカード（Visa/Mastercard）、コンビニ払い、銀行振込に対応
  * ※申請中: JCB/AMEX/Diners/Discover(日本)、PayPay、Paidy
  *
  * 設定方法:
@@ -23,7 +23,7 @@ var KOMOJU_CONFIG = {
   // 対応決済方法（現在利用可能なもののみ）
   paymentMethods: [
     'credit_card',      // クレジットカード（Visa/Mastercard）※JCB/AMEX/Diners/Discover(日本)は申請中
-    'konbini',          // コンビニ払い（セブン-イレブンを除く）
+    'konbini',          // コンビニ払い
     'bank_transfer'     // 銀行振込
     // 'linepay'        // LINE Pay — サービス終了のため削除
     // 'paypay'         // PayPay — 申請中
