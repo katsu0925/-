@@ -148,7 +148,7 @@ function apiCheckPaymentStatus(receiptNo) {
     saved.updatedAt = new Date().toISOString();
     if (response.payment) {
       saved.paymentId = response.payment.id;
-      saved.paymentMethod = response.payment.payment_method_type;
+      saved.paymentMethod = extractPaymentMethodType_(response.payment);
     }
     savePaymentSession_(receiptNo, saved);
 
@@ -160,7 +160,7 @@ function apiCheckPaymentStatus(receiptNo) {
       var pendingKey = 'PENDING_ORDER_' + receiptNo;
       if (props.getProperty(pendingKey)) {
         console.log('Webhookが未処理のため、ステータスチェック経由で注文を確定: ' + receiptNo);
-        var paymentMethodType = response.payment.payment_method_type || '';
+        var paymentMethodType = extractPaymentMethodType_(response.payment);
         var paymentStatus = '未対応';
         if (paymentMethodType === 'konbini' || paymentMethodType === 'bank_transfer') {
           paymentStatus = '入金待ち';
@@ -183,7 +183,7 @@ function apiCheckPaymentStatus(receiptNo) {
       ok: true,
       status: status,
       komojuStatus: response.status,
-      paymentMethod: response.payment ? response.payment.payment_method_type : null,
+      paymentMethod: response.payment ? extractPaymentMethodType_(response.payment) : null,
       paidAt: response.payment ? response.payment.created_at : null
     };
 
@@ -283,22 +283,25 @@ function handlePaymentSuccess_(data) {
 
   // === 検証済みのAPIデータで決済情報を更新 ===
   var payment = apiPayment;  // 以降はAPI検証済みデータを使用
+  var paymentMethodType = extractPaymentMethodType_(payment);
   var saved = getPaymentSession_(receiptNo) || {};
   saved.status = 'paid';
   saved.komojuStatus = payment.status;
   saved.paymentId = payment.id;
-  saved.paymentMethod = payment.payment_method_type;
+  saved.paymentMethod = paymentMethodType;
   saved.paidAt = new Date().toISOString();
   saved.amount = payment.amount;
   saved.verifiedViaApi = true;
   savePaymentSession_(receiptNo, saved);
+
+  console.log('Payment method detected: ' + paymentMethodType + ' (for ' + receiptNo + ')');
 
   // 決済方法に応じた入金ステータスを決定
   // クレジットカードは即時決済完了なので「未対応」（入金済み・処理待ち）
   // コンビニ払い、銀行振込は後払いなので「入金待ち」
   // ※PayPay, Paidy は申請中（承認後に追加）
   var paymentStatus = '未対応';
-  if (payment.payment_method_type === 'konbini' || payment.payment_method_type === 'bank_transfer') {
+  if (paymentMethodType === 'konbini' || paymentMethodType === 'bank_transfer') {
     paymentStatus = '入金待ち';
   }
 
@@ -306,13 +309,13 @@ function handlePaymentSuccess_(data) {
   var confirmResult = confirmPaymentAndCreateOrder(
     receiptNo,
     paymentStatus,
-    payment.payment_method_type || '',
+    paymentMethodType,
     payment.id || ''
   );
   if (!confirmResult.ok) {
     console.error('Failed to confirm order:', confirmResult.message);
     // 既にシートに書き込まれている可能性があるため、ステータスのみ更新を試みる
-    updateOrderPaymentStatus_(receiptNo, 'paid', payment.payment_method_type);
+    updateOrderPaymentStatus_(receiptNo, 'paid', paymentMethodType);
   }
 
   console.log('Payment success processed (API verified) for:', receiptNo);
@@ -613,6 +616,24 @@ function komojuRequest_(method, endpoint, data, secretKey) {
     console.error('Failed to parse KOMOJU response:', responseText);
     return { error: { message: 'Invalid response from KOMOJU' } };
   }
+}
+
+/**
+ * KOMOJUの決済オブジェクトから決済方法タイプを抽出する。
+ * KOMOJU APIバージョンによってフィールド名が異なるため、複数のパスを確認する:
+ *   1. payment_method_type（セッション内のpaymentオブジェクト）
+ *   2. payment_details.type（/payments/ APIレスポンス）
+ *
+ * @param {object} payment - KOMOJU決済オブジェクト
+ * @returns {string} - 決済方法タイプ（例: 'credit_card'）。取得できない場合は空文字
+ */
+function extractPaymentMethodType_(payment) {
+  if (!payment) return '';
+  // 1. payment_method_type を確認
+  if (payment.payment_method_type) return String(payment.payment_method_type);
+  // 2. payment_details.type を確認（KOMOJU /payments/ API レスポンス形式）
+  if (payment.payment_details && payment.payment_details.type) return String(payment.payment_details.type);
+  return '';
 }
 
 /**
@@ -1155,7 +1176,7 @@ function checkPendingOrders() {
 
       if ((status === 'paid' || status === 'authorized') && response.payment) {
         console.log('checkPendingOrders: [' + receiptNo + '] 決済完了を検出 → 注文確定');
-        var paymentMethodType = response.payment.payment_method_type || '';
+        var paymentMethodType = extractPaymentMethodType_(response.payment);
         var paymentStatus = '未対応';
         if (paymentMethodType === 'konbini' || paymentMethodType === 'bank_transfer') {
           paymentStatus = '入金待ち';
