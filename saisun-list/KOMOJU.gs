@@ -863,31 +863,57 @@ function checkPendingOrders() {
     try {
       // ペンディングデータの経過時間を確認（古すぎるものは自動キャンセル）
       var pendingDataStr = props.getProperty(pendingKey);
-      if (!pendingDataStr) continue;
+      if (!pendingDataStr) {
+        console.warn('checkPendingOrders: ペンディングデータが空: ' + receiptNo);
+        continue;
+      }
       var pendingData = JSON.parse(pendingDataStr);
       var elapsedMs = Date.now() - (pendingData.createdAtMs || 0);
+      var elapsedMin = Math.round(elapsedMs / 60000);
+      console.log('checkPendingOrders: [' + receiptNo + '] 経過' + elapsedMin + '分');
 
       // 3日（259200秒 = KOMOJU有効期限）を超過 → 自動キャンセル
       if (elapsedMs > 259200 * 1000) {
-        console.log('ペンディング注文の期限切れ → 自動キャンセル: ' + receiptNo);
+        console.log('checkPendingOrders: ペンディング注文の期限切れ → 自動キャンセル: ' + receiptNo);
         apiCancelOrder(receiptNo);
         continue;
       }
 
       // KOMOJU決済セッションの状態を確認
       var saved = getPaymentSession_(receiptNo);
-      if (!saved || !saved.sessionId) continue;
+      var sessionId = saved && saved.sessionId ? saved.sessionId : null;
 
-      var response = komojuRequest_('GET', '/sessions/' + saved.sessionId, null, secretKey);
+      if (!sessionId) {
+        // PAYMENT_ データがない場合、external_order_num で KOMOJU API を検索
+        console.warn('checkPendingOrders: [' + receiptNo + '] PAYMENT_データなし → KOMOJU APIで検索');
+        var searchResp = komojuRequest_('GET', '/sessions?external_order_num=' + encodeURIComponent(receiptNo), null, secretKey);
+        if (searchResp && searchResp.data && searchResp.data.length > 0) {
+          var foundSession = searchResp.data[0];
+          sessionId = foundSession.id;
+          // 見つかったセッション情報を保存（次回から高速に取得）
+          savePaymentSession_(receiptNo, {
+            sessionId: sessionId,
+            status: foundSession.status,
+            createdAt: foundSession.created_at
+          });
+          console.log('checkPendingOrders: [' + receiptNo + '] KOMOJU検索でセッション発見: ' + sessionId);
+        } else {
+          console.warn('checkPendingOrders: [' + receiptNo + '] KOMOJUにもセッションなし → スキップ');
+          continue;
+        }
+      }
+
+      var response = komojuRequest_('GET', '/sessions/' + sessionId, null, secretKey);
       if (response.error) {
-        console.warn('checkPendingOrders: KOMOJU API error for ' + receiptNo + ': ' + (response.error.message || ''));
+        console.warn('checkPendingOrders: [' + receiptNo + '] KOMOJU API error: ' + (response.error.message || JSON.stringify(response.error)));
         continue;
       }
 
       var status = mapKomojuStatus_(response.status);
+      console.log('checkPendingOrders: [' + receiptNo + '] KOMOJUステータス=' + response.status + ' → ' + status);
 
       if ((status === 'paid' || status === 'authorized') && response.payment) {
-        console.log('checkPendingOrders: 決済完了を検出 → 注文確定: ' + receiptNo);
+        console.log('checkPendingOrders: [' + receiptNo + '] 決済完了を検出 → 注文確定');
         var paymentMethodType = response.payment.payment_method_type || '';
         var paymentStatus = '対応済';
         if (paymentMethodType === 'konbini' || paymentMethodType === 'bank_transfer') {
@@ -897,13 +923,15 @@ function checkPendingOrders() {
           receiptNo, paymentStatus, paymentMethodType, response.payment.id || ''
         );
         if (confirmResult && confirmResult.ok) {
-          console.log('checkPendingOrders: 注文確定成功: ' + receiptNo);
+          console.log('checkPendingOrders: [' + receiptNo + '] 注文確定成功');
         } else {
-          console.error('checkPendingOrders: 注文確定失敗: ' + receiptNo, confirmResult);
+          console.error('checkPendingOrders: [' + receiptNo + '] 注文確定失敗:', confirmResult);
         }
       } else if (status === 'failed' || status === 'expired' || status === 'cancelled') {
-        console.log('checkPendingOrders: 決済失敗/期限切れ → キャンセル: ' + receiptNo);
+        console.log('checkPendingOrders: [' + receiptNo + '] 決済失敗/期限切れ → キャンセル');
         apiCancelOrder(receiptNo);
+      } else {
+        console.log('checkPendingOrders: [' + receiptNo + '] まだ決済未完了（status=' + status + '）→ 次回再チェック');
       }
     } catch (checkErr) {
       console.error('checkPendingOrders error for ' + receiptNo + ':', checkErr);
