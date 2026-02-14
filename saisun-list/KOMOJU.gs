@@ -249,18 +249,40 @@ function handleKomojuWebhook(e) {
 
 /**
  * 決済成功時の処理
+ * Webhookの通知を受けた後、KOMOJU APIで決済状態と金額を検証してから処理を実行する。
  */
 function handlePaymentSuccess_(data) {
-  var payment = data.data;
-  var receiptNo = payment.external_order_num ||
-                  (payment.metadata ? payment.metadata.receipt_no : null);
+  var webhookPayment = data.data;
+  var receiptNo = webhookPayment.external_order_num ||
+                  (webhookPayment.metadata ? webhookPayment.metadata.receipt_no : null);
 
   if (!receiptNo) {
     console.error('Receipt number not found in webhook data');
     return { ok: false, message: 'Receipt number not found' };
   }
 
-  // 決済情報を更新
+  // === KOMOJU APIで決済状態を裏取り ===
+  var apiPayment = fetchPaymentFromApi_(webhookPayment.id);
+  if (!apiPayment) {
+    console.error('KOMOJU API verification failed for: ' + receiptNo + ' (paymentId=' + webhookPayment.id + ')');
+    return { ok: false, message: 'API verification failed' };
+  }
+
+  // APIから取得したステータスが本当に成功しているか確認
+  var apiStatus = mapKomojuStatus_(apiPayment.status);
+  if (apiStatus !== 'paid' && apiStatus !== 'authorized') {
+    console.error('API検証: 決済ステータスが成功ではない: status=' + apiPayment.status + ', receiptNo=' + receiptNo);
+    return { ok: false, message: 'Payment not confirmed by API (status=' + apiPayment.status + ')' };
+  }
+
+  // 金額の照合
+  if (!verifyPaymentAmount_(receiptNo, apiPayment.amount)) {
+    console.error('API検証: 金額不一致のため処理を中止: receiptNo=' + receiptNo);
+    return { ok: false, message: 'Amount mismatch' };
+  }
+
+  // === 検証済みのAPIデータで決済情報を更新 ===
+  var payment = apiPayment;  // 以降はAPI検証済みデータを使用
   var saved = getPaymentSession_(receiptNo) || {};
   saved.status = 'paid';
   saved.komojuStatus = payment.status;
@@ -268,6 +290,7 @@ function handlePaymentSuccess_(data) {
   saved.paymentMethod = payment.payment_method_type;
   saved.paidAt = new Date().toISOString();
   saved.amount = payment.amount;
+  saved.verifiedViaApi = true;
   savePaymentSession_(receiptNo, saved);
 
   // 決済方法に応じた入金ステータスを決定
@@ -292,20 +315,37 @@ function handlePaymentSuccess_(data) {
     updateOrderPaymentStatus_(receiptNo, 'paid', payment.payment_method_type);
   }
 
-  console.log('Payment success processed for:', receiptNo);
+  console.log('Payment success processed (API verified) for:', receiptNo);
   return { ok: true, message: 'Payment processed' };
 }
 
 /**
  * 決済失敗時の処理
+ * Webhookの通知を受けた後、KOMOJU APIで決済状態を検証してから処理を実行する。
  */
 function handlePaymentFailed_(data) {
-  var payment = data.data;
-  var receiptNo = payment.external_order_num ||
-                  (payment.metadata ? payment.metadata.receipt_no : null);
+  var webhookPayment = data.data;
+  var receiptNo = webhookPayment.external_order_num ||
+                  (webhookPayment.metadata ? webhookPayment.metadata.receipt_no : null);
 
   if (!receiptNo) {
     return { ok: false, message: 'Receipt number not found' };
+  }
+
+  // === KOMOJU APIで決済状態を裏取り ===
+  var apiPayment = fetchPaymentFromApi_(webhookPayment.id);
+  var payment = apiPayment || webhookPayment;  // API取得失敗時はWebhookデータで続行（キャンセルは安全側）
+
+  if (apiPayment) {
+    var apiStatus = mapKomojuStatus_(apiPayment.status);
+    if (apiStatus === 'paid' || apiStatus === 'authorized') {
+      // APIでは決済成功しているのに失敗Webhookが来た → 偽のWebhookの可能性
+      console.error('API検証: Webhookは失敗だがAPIでは決済成功 → 処理を中止: receiptNo=' + receiptNo);
+      return { ok: false, message: 'API shows payment succeeded, ignoring failure webhook' };
+    }
+    console.log('決済失敗をAPI検証で確認: receiptNo=' + receiptNo + ', status=' + apiPayment.status);
+  } else {
+    console.warn('API検証失敗、Webhookデータで処理を続行（安全側）: receiptNo=' + receiptNo);
   }
 
   var saved = getPaymentSession_(receiptNo) || {};
@@ -313,6 +353,7 @@ function handlePaymentFailed_(data) {
   saved.komojuStatus = payment.status;
   saved.failedAt = new Date().toISOString();
   saved.failReason = payment.payment_details ? payment.payment_details.failure_reason : null;
+  saved.verifiedViaApi = !!apiPayment;
   savePaymentSession_(receiptNo, saved);
 
   // 決済失敗 → 注文をキャンセルして商品を解放
@@ -323,32 +364,49 @@ function handlePaymentFailed_(data) {
     console.error('Failed to cancel order after payment failure:', receiptNo);
   }
 
-  console.log('Payment failed for:', receiptNo);
+  console.log('Payment failed (API verified) for:', receiptNo);
   return { ok: true, message: 'Payment failure processed' };
 }
 
 /**
  * 返金時の処理
+ * Webhookの通知を受けた後、KOMOJU APIで決済状態を検証してから処理を実行する。
  */
 function handlePaymentRefunded_(data) {
-  var payment = data.data;
-  var receiptNo = payment.external_order_num ||
-                  (payment.metadata ? payment.metadata.receipt_no : null);
+  var webhookPayment = data.data;
+  var receiptNo = webhookPayment.external_order_num ||
+                  (webhookPayment.metadata ? webhookPayment.metadata.receipt_no : null);
 
   if (!receiptNo) {
     return { ok: false, message: 'Receipt number not found' };
   }
 
+  // === KOMOJU APIで決済状態を裏取り ===
+  var apiPayment = fetchPaymentFromApi_(webhookPayment.id);
+  if (!apiPayment) {
+    console.error('KOMOJU API verification failed for refund: ' + receiptNo + ' (paymentId=' + webhookPayment.id + ')');
+    return { ok: false, message: 'API verification failed for refund' };
+  }
+
+  // APIから取得したステータスが本当に返金されているか確認
+  var apiStatus = mapKomojuStatus_(apiPayment.status);
+  if (apiStatus !== 'refunded') {
+    console.error('API検証: 返金ステータスではない: status=' + apiPayment.status + ', receiptNo=' + receiptNo);
+    return { ok: false, message: 'Refund not confirmed by API (status=' + apiPayment.status + ')' };
+  }
+
+  var payment = apiPayment;
   var saved = getPaymentSession_(receiptNo) || {};
   saved.status = 'refunded';
   saved.komojuStatus = payment.status;
   saved.refundedAt = new Date().toISOString();
+  saved.verifiedViaApi = true;
   savePaymentSession_(receiptNo, saved);
 
   // 依頼管理シートのステータスを更新
   updateOrderPaymentStatus_(receiptNo, 'refunded', null);
 
-  console.log('Payment refunded for:', receiptNo);
+  console.log('Payment refunded (API verified) for:', receiptNo);
   return { ok: true, message: 'Refund processed' };
 }
 
@@ -448,6 +506,78 @@ function timingSafeEqual_(a, b) {
     result |= strA.charCodeAt(i) ^ strB.charCodeAt(i);
   }
   return result === 0;
+}
+
+// =====================================================
+// KOMOJU API による決済検証
+// =====================================================
+
+/**
+ * KOMOJU APIで決済情報を取得し、Webhookデータの正当性を検証する。
+ * Webhookの通知内容を鵜呑みにせず、API経由で実際の決済状態を確認する。
+ *
+ * @param {string} paymentId - KOMOJUの決済ID (webhook data.id)
+ * @returns {object|null} - 検証済みの決済情報。取得失敗時はnull
+ */
+function fetchPaymentFromApi_(paymentId) {
+  if (!paymentId) return null;
+
+  var secretKey = getKomojuSecretKey_();
+  if (!secretKey) {
+    console.error('fetchPaymentFromApi_: APIキー未設定');
+    return null;
+  }
+
+  var response = komojuRequest_('GET', '/payments/' + paymentId, null, secretKey);
+  if (response.error) {
+    console.error('fetchPaymentFromApi_: KOMOJU API error:', response.error.message || JSON.stringify(response.error));
+    return null;
+  }
+
+  if (!response.id) {
+    console.error('fetchPaymentFromApi_: 不正なレスポンス');
+    return null;
+  }
+
+  return response;
+}
+
+/**
+ * Webhookの金額とペンディング注文の期待金額を照合する。
+ * 金額の不一致は改ざんの可能性があるため、不一致時はfalseを返す。
+ *
+ * @param {string} receiptNo - 受付番号
+ * @param {number} apiAmount - KOMOJU APIから取得した実際の決済金額
+ * @returns {boolean} - 金額が一致すればtrue
+ */
+function verifyPaymentAmount_(receiptNo, apiAmount) {
+  // PAYMENT_ セッションの金額と照合
+  var saved = getPaymentSession_(receiptNo);
+  if (saved && saved.amount) {
+    if (Math.round(Number(saved.amount)) !== Math.round(Number(apiAmount))) {
+      console.error('金額不一致（PAYMENT_セッション）: 期待=' + saved.amount + ', 実際=' + apiAmount + ', 受付番号=' + receiptNo);
+      return false;
+    }
+  }
+
+  // PENDING_ORDER_ の金額とも照合
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var pendingStr = props.getProperty('PENDING_ORDER_' + receiptNo);
+    if (pendingStr) {
+      var pending = JSON.parse(pendingStr);
+      if (pending.discounted) {
+        if (Math.round(Number(pending.discounted)) !== Math.round(Number(apiAmount))) {
+          console.error('金額不一致（PENDING_ORDER）: 期待=' + pending.discounted + ', 実際=' + apiAmount + ', 受付番号=' + receiptNo);
+          return false;
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('verifyPaymentAmount_: ペンディング注文の金額照合スキップ:', e);
+  }
+
+  return true;
 }
 
 // =====================================================
@@ -562,7 +692,18 @@ function getReturnUrl_() {
   if (typeof SITE_CONSTANTS !== 'undefined' && SITE_CONSTANTS && SITE_CONSTANTS.SITE_URL) {
     return String(SITE_CONSTANTS.SITE_URL).replace(/\/+$/, '');
   }
-  return ScriptApp.getService().getUrl();
+  // DEPLOY_URL が設定されていればそれを使用
+  try {
+    var deployUrl = PropertiesService.getScriptProperties().getProperty('DEPLOY_URL');
+    if (deployUrl) return deployUrl.replace(/\/+$/, '');
+  } catch (e) {}
+  // 最終フォールバック: ScriptApp.getService().getUrl()
+  // ※ エディタ実行時はデプロイIDが異なるため正しくない場合がある
+  var gasUrl = ScriptApp.getService().getUrl();
+  if (gasUrl && gasUrl.indexOf('/dev') === gasUrl.length - 4) {
+    gasUrl = gasUrl.slice(0, -4) + '/exec';
+  }
+  return gasUrl;
 }
 
 /**
@@ -675,8 +816,31 @@ function setKomojuWebhookSecret() {
 
   PropertiesService.getScriptProperties().setProperty('KOMOJU_WEBHOOK_SECRET', webhookSecret);
 
-  // デプロイURLを取得
-  var deployUrl = ScriptApp.getService().getUrl();
+  // デプロイURLを取得（DEPLOY_URL スクリプトプロパティを最優先）
+  var props = PropertiesService.getScriptProperties();
+  var deployUrl = props.getProperty('DEPLOY_URL');
+
+  if (deployUrl) {
+    deployUrl = deployUrl.replace(/\/+$/, '');
+  } else {
+    // DEPLOY_URL 未設定の場合はエラーを表示して中断
+    // ScriptApp.getService().getUrl() はエディタ実行時に /dev のURLを返し、
+    // さらにデプロイIDも本番と異なるため信頼できない
+    console.log('=== エラー: DEPLOY_URL が未設定です ===');
+    console.log('');
+    console.log('Webhookが正しく動作するには、本番デプロイURLの設定が必要です。');
+    console.log('');
+    console.log('【手順】');
+    console.log('1. GASエディタで「デプロイ」→「デプロイを管理」を開く');
+    console.log('2. ウェブアプリのURLをコピー（/exec で終わるURL）');
+    console.log('3. 以下のいずれかの方法で設定:');
+    console.log('   a) setDeployUrl() 関数を実行（実行時にプロンプトが表示されます）');
+    console.log('   b) スクリプトプロパティに DEPLOY_URL を手動追加');
+    console.log('4. 設定後、この setKomojuWebhookSecret() を再実行');
+    console.log('');
+    console.log('=== Webhook設定を中断しました ===');
+    return;
+  }
 
   console.log('=== KOMOJU Webhook 設定情報 ===');
   console.log('');
@@ -686,7 +850,60 @@ function setKomojuWebhookSecret() {
   console.log('【2】KOMOJUダッシュボードの「Webhook URL」欄に以下を設定:');
   console.log(deployUrl + '?action=komoju_webhook&webhook_token=' + webhookSecret);
   console.log('');
+  console.log('使用中のデプロイURL: ' + deployUrl);
+  console.log('');
   console.log('=== 設定完了 ===');
+}
+
+/**
+ * 本番デプロイURLをスクリプトプロパティに保存するヘルパー関数
+ * GASエディタから実行すると、入力ダイアログが表示されます。
+ * ダイアログが使えない場合は、引数付きで呼び出すか、
+ * スクリプトプロパティに DEPLOY_URL を直接設定してください。
+ */
+function setDeployUrl() {
+  var ui;
+  try {
+    ui = SpreadsheetApp.getUi();
+  } catch (e) {
+    // スプレッドシートUIが使えない場合
+    console.log('UIが利用できません。スクリプトプロパティに DEPLOY_URL を直接設定してください。');
+    console.log('例: https://script.google.com/macros/s/XXXXX/exec');
+    return;
+  }
+
+  var result = ui.prompt(
+    'デプロイURL設定',
+    '本番デプロイURLを入力してください（/exec で終わるURL）:',
+    ui.ButtonSet.OK_CANCEL
+  );
+
+  if (result.getSelectedButton() !== ui.Button.OK) {
+    console.log('キャンセルされました。');
+    return;
+  }
+
+  var url = result.getResponseText().trim();
+  if (!url) {
+    console.log('URLが空です。');
+    return;
+  }
+
+  // 基本的なバリデーション
+  if (url.indexOf('https://script.google.com/macros/s/') !== 0) {
+    console.log('エラー: GASデプロイURLの形式ではありません。');
+    console.log('正しい形式: https://script.google.com/macros/s/XXXXX/exec');
+    return;
+  }
+  if (url.indexOf('/dev') === url.length - 4) {
+    console.log('エラー: /dev URLは使用できません。/exec で終わる本番URLを指定してください。');
+    return;
+  }
+
+  PropertiesService.getScriptProperties().setProperty('DEPLOY_URL', url.replace(/\/+$/, ''));
+  console.log('DEPLOY_URL を保存しました: ' + url);
+  console.log('');
+  console.log('次に setKomojuWebhookSecret() を実行してWebhookを設定してください。');
 }
 
 /**
