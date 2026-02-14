@@ -857,37 +857,27 @@ function setKomojuWebhookSecret() {
 
 /**
  * 本番デプロイURLをスクリプトプロパティに保存するヘルパー関数
- * GASエディタから実行すると、入力ダイアログが表示されます。
- * ダイアログが使えない場合は、引数付きで呼び出すか、
- * スクリプトプロパティに DEPLOY_URL を直接設定してください。
+ * 使い方:
+ * 1. deployUrl を実際のデプロイURLに書き換え
+ * 2. GASエディタでこの関数を実行
+ * 3. 実行後、URLを 'YOUR_DEPLOY_URL_HERE' に戻す（セキュリティのため）
  */
 function setDeployUrl() {
-  var ui;
-  try {
-    ui = SpreadsheetApp.getUi();
-  } catch (e) {
-    // スプレッドシートUIが使えない場合
-    console.log('UIが利用できません。スクリプトプロパティに DEPLOY_URL を直接設定してください。');
-    console.log('例: https://script.google.com/macros/s/XXXXX/exec');
+  var deployUrl = 'YOUR_DEPLOY_URL_HERE';  // ← ここにデプロイURLを入力（/exec で終わるURL）
+
+  if (deployUrl === 'YOUR_DEPLOY_URL_HERE') {
+    console.log('ERROR: deployUrl を実際のデプロイURLに置き換えてください');
+    console.log('');
+    console.log('【手順】');
+    console.log('1. GASエディタで「デプロイ」→「デプロイを管理」を開く');
+    console.log('2. ウェブアプリのURLをコピー（/exec で終わるURL）');
+    console.log('3. このコード内の deployUrl を書き換えて再実行');
+    console.log('');
+    console.log('例: var deployUrl = \'https://script.google.com/macros/s/XXXXX/exec\';');
     return;
   }
 
-  var result = ui.prompt(
-    'デプロイURL設定',
-    '本番デプロイURLを入力してください（/exec で終わるURL）:',
-    ui.ButtonSet.OK_CANCEL
-  );
-
-  if (result.getSelectedButton() !== ui.Button.OK) {
-    console.log('キャンセルされました。');
-    return;
-  }
-
-  var url = result.getResponseText().trim();
-  if (!url) {
-    console.log('URLが空です。');
-    return;
-  }
+  var url = deployUrl.trim();
 
   // 基本的なバリデーション
   if (url.indexOf('https://script.google.com/macros/s/') !== 0) {
@@ -902,6 +892,8 @@ function setDeployUrl() {
 
   PropertiesService.getScriptProperties().setProperty('DEPLOY_URL', url.replace(/\/+$/, ''));
   console.log('DEPLOY_URL を保存しました: ' + url);
+  console.log('');
+  console.log('セキュリティのため、コード内のURLを YOUR_DEPLOY_URL_HERE に戻すことをお勧めします');
   console.log('');
   console.log('次に setKomojuWebhookSecret() を実行してWebhookを設定してください。');
 }
