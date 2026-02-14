@@ -43,6 +43,24 @@ function doPost(e) {
         .setMimeType(ContentService.MimeType.JSON);
     }
 
+    // KOMOJU Webhookボディ検出（GASリダイレクトでquery paramが消失した場合のフォールバック）
+    // KOMOJUのWebhookペイロードは type: "payment.*" と data オブジェクトを持つ
+    try {
+      var rawContents = (e && e.postData) ? e.postData.contents : '';
+      if (rawContents) {
+        var preCheck = JSON.parse(rawContents);
+        if (preCheck && preCheck.type && typeof preCheck.type === 'string' &&
+            preCheck.type.indexOf('payment.') === 0 && preCheck.data) {
+          console.log('KOMOJU Webhook detected by body content (query param fallback): ' + preCheck.type);
+          var result = handleKomojuWebhook(e);
+          return ContentService.createTextOutput(JSON.stringify(result))
+            .setMimeType(ContentService.MimeType.JSON);
+        }
+      }
+    } catch (webhookDetectErr) {
+      // Webhookではない通常APIリクエスト — 次の処理へ続行
+    }
+
     var body = JSON.parse(e.postData.contents);
     var action = String(body.action || '');
     var args = body.args || [];

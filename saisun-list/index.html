@@ -370,6 +370,7 @@
         <div class="sumLine" id="sumShipping" style="display:none;font-size:13px;color:#475569;"></div>
         <div class="sumLine" id="sumTotal" style="display:none;font-weight:700;font-size:15px;"></div>
         <div id="shippingNote" style="display:none;font-size:11px;color:#888;text-align:right;width:100%;">※送料は税込み・会員割引対象外です</div>
+        <div id="paymentFeeNote" style="display:none;font-size:11px;color:#888;text-align:right;width:100%;line-height:1.5;">※コンビニ決済は別途手数料190円（税込）がかかります<br>※銀行振込の振込手数料はお客様負担です</div>
         <div id="remoteIslandWarning" style="display:none;font-size:13px;color:#b8002a;text-align:right;width:100%;font-weight:600;"></div>
         <div id="cartActions" style="display:flex; gap:10px; align-items:center; justify-content:flex-end; flex-wrap:wrap; width:100%;">
           <button class="btn" id="clearCartBtn" style="min-width:160px;" type="button">カートを空にする</button>
@@ -801,7 +802,7 @@
         <ol style="margin:0;padding-left:20px;color:#475569;">
           <li style="margin-bottom:8px;"><strong>商品選択</strong>：お好みの商品をカートに追加</li>
           <li style="margin-bottom:8px;"><strong>お届け先入力</strong>：住所を入力すると送料が自動表示されます</li>
-          <li style="margin-bottom:8px;"><strong>お支払い</strong>：商品代＋送料をオンライン決済</li>
+          <li style="margin-bottom:8px;"><strong>お支払い</strong>：商品代＋送料をオンライン決済<br><span style="font-size:12px;color:#888;">※コンビニ決済は別途手数料190円、銀行振込の振込手数料はお客様負担</span></li>
           <li><strong>発送</strong>：決済完了後、商品を発送いたします</li>
         </ol>
       </div>
@@ -964,6 +965,15 @@
           <li style="color:#b8002a;"><strong>離島への配送は対象外です</strong></li>
         </ul>
       </div>
+
+      <div class="guide-section" style="margin-top:20px;">
+        <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #f59e0b;padding-bottom:8px;">お客様ご負担の決済手数料</h3>
+        <ul style="margin:0;padding-left:20px;color:#475569;">
+          <li><strong>コンビニ決済</strong>：190円（税込）の決済手数料がかかります</li>
+          <li><strong>銀行振込</strong>：振込手数料はお客様のご負担となります（金額は金融機関により異なります）</li>
+          <li style="color:#888;">クレジットカード・LINE Pay：手数料はかかりません</li>
+        </ul>
+      </div>
     </div>
   </div>
 
@@ -1015,6 +1025,14 @@
             コンビニ決済：ご注文後7日以内にお支払い<br>
             銀行振込：ご注文後7日以内にお振込み<br>
             その他電子決済：ご注文時に決済
+          </td>
+        </tr>
+        <tr>
+          <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">お客様負担の手数料</th>
+          <td style="padding:12px;border:1px solid #e2e8f0;">
+            コンビニ決済：<strong>190円（税込）</strong>の決済手数料がかかります（お客様負担）<br>
+            銀行振込：<strong>振込手数料</strong>はお客様のご負担となります（金額は金融機関により異なります）<br>
+            <span style="font-size:12px;color:#888;">※クレジットカード・LINE Pay：手数料はかかりません</span>
           </td>
         </tr>
         <tr>
@@ -1285,6 +1303,7 @@ function updateShippingDisplay_() {
   var totalEl = $('sumTotal');
   var noteEl = $('shippingNote');
   var warnEl = $('remoteIslandWarning');
+  var feeNoteEl = $('paymentFeeNote');
   if (!shipEl) return;
 
   var result = calculateShipping_();
@@ -1294,6 +1313,7 @@ function updateShippingDisplay_() {
     shipEl.style.display = 'none';
     totalEl.style.display = 'none';
     noteEl.style.display = 'none';
+    if (feeNoteEl) feeNoteEl.style.display = 'none';
     warnEl.style.display = '';
     warnEl.textContent = '離島への配送は対象外です。恐れ入りますがご注文いただけません。';
     return;
@@ -1305,6 +1325,7 @@ function updateShippingDisplay_() {
     shipEl.style.display = 'none';
     totalEl.style.display = 'none';
     noteEl.style.display = 'none';
+    if (feeNoteEl) feeNoteEl.style.display = 'none';
     return;
   }
 
@@ -1313,12 +1334,14 @@ function updateShippingDisplay_() {
     shipEl.innerHTML = '送料：' + result.label;
     totalEl.style.display = 'none';
     noteEl.style.display = '';
+    if (feeNoteEl) feeNoteEl.style.display = '';
     return;
   }
 
   // 送料計算成功
   shipEl.style.display = '';
   noteEl.style.display = '';
+  if (feeNoteEl) feeNoteEl.style.display = '';
   shipEl.innerHTML = '送料：' + result.label;
 
   // 商品合計を計算（割引後）
