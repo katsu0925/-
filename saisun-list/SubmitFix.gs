@@ -386,7 +386,7 @@ function writeSubmitData_(data) {
     '',                                          // X: 伝票番号
     '',                                          // Y: 作業報酬
     new Date(now),                               // Z: 更新日時
-    '',                                          // AA: 通知フラグ
+    false,                                        // AA: 通知フラグ（FALSEで初期化 — 発送通知の二重送信防止）
     '',                                          // AB: ポイント付与済
     '',                                          // AC: 送料(店負担)
     data.shippingAmount || '',                   // AD: 送料(客負担)
@@ -657,6 +657,15 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
       return { ok: false, message: '受付番号が必要です' };
     }
 
+    // === ロックを取得して二重登録を防止 ===
+    var lock = LockService.getScriptLock();
+    if (!lock.tryLock(30000)) {
+      console.warn('confirmPaymentAndCreateOrder: ロック取得失敗: ' + receiptNo);
+      return { ok: false, message: '処理中です。しばらくお待ちください。' };
+    }
+
+    try {
+
     var props = PropertiesService.getScriptProperties();
     var pendingKey = 'PENDING_ORDER_' + receiptNo;
     var pendingDataStr = props.getProperty(pendingKey);
@@ -667,6 +676,10 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
       updateOrderPaymentStatus_(receiptNo, 'paid', paymentMethod);
       return { ok: true, message: '入金ステータスを更新しました（ペンディングデータなし）' };
     }
+
+    // === ペンディングデータを即座に削除（他のプロセスが同じ注文を処理しないように） ===
+    props.deleteProperty(pendingKey);
+    console.log('Claimed pending order (deleted key): ' + receiptNo);
 
     var pendingData = JSON.parse(pendingDataStr);
     console.log('Found pending order: ' + receiptNo + ', items: ' + pendingData.ids.length);
@@ -716,11 +729,7 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
     writeSubmitData_(writeData);
     console.log('Order written to sheet: ' + receiptNo);
 
-    // 3. ペンディングデータを削除
-    props.deleteProperty(pendingKey);
-    console.log('Deleted pending order: ' + receiptNo);
-
-    // 4. キャッシュを無効化
+    // 3. キャッシュを無効化
     st_invalidateStatusCache_(orderSs);
 
     return {
@@ -729,6 +738,10 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
       receiptNo: receiptNo,
       movedCount: pendingData.ids.length
     };
+
+    } finally {
+      lock.releaseLock();
+    }
 
   } catch (e) {
     console.error('confirmPaymentAndCreateOrder error:', e);
