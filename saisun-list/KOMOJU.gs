@@ -75,12 +75,12 @@ function apiCreateKomojuSession(receiptNo, amount, customerInfo) {
       cancel_url: getReturnUrl_() + '?receipt=' + encodeURIComponent(receiptNo) + '&status=cancel',
       payment_types: KOMOJU_CONFIG.paymentMethods,
       metadata: {
-        receipt_no: receiptNo,
+        receipt_no: String(receiptNo),
         company_name: String(info.companyName || ''),
-        email: email,
-        product_amount: info.productAmount || 0,
-        shipping_amount: info.shippingAmount || 0,
-        shipping_size: info.shippingSize || ''
+        email: String(email),
+        product_amount: String(info.productAmount || 0),
+        shipping_amount: String(info.shippingAmount || 0),
+        shipping_size: String(info.shippingSize || '')
       }
     };
 
