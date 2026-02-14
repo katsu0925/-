@@ -696,14 +696,14 @@
 
   <div class="modal" id="doneModal" aria-hidden="true">
     <div class="modalHeader">
-      <div class="modalTitle">注文送信完了</div>
+      <div class="modalTitle" id="doneModalTitle">注文完了</div>
       <button class="modalClose" id="doneCloseBtn" aria-label="close">×</button>
     </div>
     <div class="modalBody" style="text-align:center;">
       <div style="font-weight:900; font-size:14px;">受付番号</div>
       <div style="margin-top:8px; font-size:24px; font-weight:900; color:#3b82f6;" id="doneReceipt"></div>
-      <div style="margin-top:16px; font-size:14px; color:#333; line-height:1.6;">
-        ご注文を受け付けました。確定金額・送料をメールでご案内いたしますので、受付番号をお控えの上しばらくお待ちください。
+      <div style="margin-top:16px; font-size:14px; color:#333; line-height:1.6;" id="doneMessage">
+        お支払いが完了しました。注文確認メールをお送りしましたのでご確認ください。商品の発送準備を進めてまいります。
       </div>
     </div>
   </div>
@@ -3928,18 +3928,52 @@ function submitNow_() {
     .then(function(res) {
       if (!res || !res.ok) throw new Error(res && res.message ? res.message : '注文送信に失敗しました');
       var receiptNo = res.receiptNo || '';
-      // 注文完了 → カートクリア & 完了モーダル表示
+      var sessionUrl = res.sessionUrl || '';
+      if (!sessionUrl) throw new Error('決済URLの取得に失敗しました');
+      // カートクリア（決済完了後にページに戻ってくるので先にクリア）
       state.cart.ids = []; state.cart.itemsById = {}; state.cart.digest = {}; state.lastShipping = null;
       saveCartStorage(); updateCartCount();
-      $('doneReceipt').textContent = receiptNo;
-      showCartSection_(true); // カートビューに戻す
-      closeModal($('cartModal'));
-      openModal($('doneModal'));
+      // KOMOJU決済ページへリダイレクト
+      setSending_(true, '決済ページへ移動中...');
+      window.location.href = sessionUrl;
     })
     .catch(function(e) {
       showToast(e.message || '注文送信に失敗しました');
     })
     .finally(function() { setSending_(false); $('submitBtn').disabled = false; submitting_ = false; });
+}
+
+// =====================================================
+// KOMOJU決済からの戻り処理
+// =====================================================
+
+function handlePaymentReturn_() {
+  var params = new URLSearchParams(window.location.search);
+  var receipt = params.get('receipt');
+  var status = params.get('status');
+  if (!receipt || !status) return;
+
+  // URLからクエリパラメータを削除（履歴を汚さない）
+  if (window.history && window.history.replaceState) {
+    var cleanUrl = window.location.pathname;
+    window.history.replaceState({}, document.title, cleanUrl);
+  }
+
+  if (status === 'complete') {
+    // 決済完了
+    $('doneReceipt').textContent = receipt;
+    if ($('doneModalTitle')) $('doneModalTitle').textContent = '注文完了';
+    if ($('doneMessage')) $('doneMessage').textContent = 'お支払いが完了しました。注文確認メールをお送りしましたのでご確認ください。商品の発送準備を進めてまいります。';
+    openModal($('doneModal'));
+  } else if (status === 'cancel') {
+    // 決済キャンセル
+    $('doneReceipt').textContent = receipt;
+    if ($('doneModalTitle')) $('doneModalTitle').textContent = '決済キャンセル';
+    if ($('doneMessage')) $('doneMessage').textContent = '決済がキャンセルされました。商品は自動的に解放されます。再度ご注文いただく場合はカートから商品を選択してください。';
+    openModal($('doneModal'));
+    // キャンセル処理をバックエンドに通知
+    runApi('apiCancelOrder', receipt).catch(function() {});
+  }
 }
 
 // =====================================================
@@ -4147,6 +4181,9 @@ function boot() {
   setupAuthUi_();
   updateAuthUi_();  // 初回表示（プロモバナー等）
   setupMultiSelectFilters();
+
+  // KOMOJU決済からの戻りを処理
+  handlePaymentReturn_();
 
   // セッション検証（ログイン状態復元）
   validateSession_();

@@ -237,13 +237,13 @@ function forceRefreshProducts() {
   pr_clearProductsCache_();
 }
 
-function app_sendEstimateNotifyMail_(orderSs, receiptNo, info) {
+function app_sendOrderNotifyMail_(orderSs, receiptNo, info) {
   try {
     const toList = app_getNotifyToEmails_(orderSs);
     if (!toList.length) return;
 
-    const subject = 'デタウリ.Detauri ご注文受付';
-    const body = app_buildEstimateNotifyBody_(orderSs, receiptNo, info);
+    const subject = 'デタウリ.Detauri 注文確定（決済完了）';
+    const body = app_buildOrderNotifyBody_(orderSs, receiptNo, info);
 
     MailApp.sendEmail({
       to: toList.join(','),
@@ -251,7 +251,7 @@ function app_sendEstimateNotifyMail_(orderSs, receiptNo, info) {
       body: body
     });
   } catch (e) {
-    console.error('app_sendEstimateNotifyMail_ error:', e);
+    console.error('app_sendOrderNotifyMail_ error:', e);
   }
 }
 
@@ -299,15 +299,18 @@ function app_getNotifyToEmails_(orderSs) {
   return res;
 }
 
-function app_buildEstimateNotifyBody_(orderSs, receiptNo, info) {
+function app_buildOrderNotifyBody_(orderSs, receiptNo, info) {
   const ssUrl = orderSs && orderSs.getUrl ? orderSs.getUrl() : '';
   const createdAt = info && info.createdAtMs ? new Date(info.createdAtMs) : new Date();
   const lines = [];
 
-  lines.push('新しい注文が作成されました。');
+  lines.push('【決済完了】新しい注文が確定しました。');
   lines.push('');
   lines.push('受付番号: ' + String(receiptNo || ''));
-  lines.push('作成日時: ' + createdAt);
+  lines.push('注文日時: ' + createdAt);
+  if (info && info.paymentMethod) lines.push('決済方法: ' + String(info.paymentMethod || ''));
+  if (info && info.paymentId) lines.push('決済ID: ' + String(info.paymentId || ''));
+  if (info && info.paymentStatus) lines.push('入金ステータス: ' + String(info.paymentStatus || ''));
   if (info && info.userKey) lines.push('userKey: ' + String(info.userKey || ''));
   lines.push('');
   if (info && info.companyName) lines.push('会社名/氏名: ' + String(info.companyName || ''));
@@ -322,7 +325,7 @@ function app_buildEstimateNotifyBody_(orderSs, receiptNo, info) {
   }
   lines.push('');
   if (info && typeof info.totalCount !== 'undefined') lines.push('点数: ' + String(info.totalCount));
-  if (info && typeof info.discounted !== 'undefined') lines.push('注文金額: ' + String(info.discounted));
+  if (info && typeof info.discounted !== 'undefined') lines.push('注文金額（税込・送料込）: ' + String(info.discounted) + '円');
   if (info && info.measureLabel) lines.push('採寸: ' + String(info.measureLabel || ''));
   if (info && info.itemDetails && info.itemDetails.length > 0) {
     lines.push('');
@@ -350,19 +353,14 @@ function app_buildEstimateNotifyBody_(orderSs, receiptNo, info) {
   if (info && typeof info.writeRow !== 'undefined') {
     lines.push('書込行: ' + String(info.writeRow));
   }
-  if (info && info.templateText) {
-    lines.push('');
-    lines.push('--- テンプレート文面 ---');
-    lines.push(String(info.templateText || ''));
-  }
 
   return lines.join('\n');
 }
 
 // =====================================================
-// 顧客宛 注文確認メール
+// 顧客宛 注文確認メール（決済完了後に送信）
 // =====================================================
-function app_sendEstimateConfirmToCustomer_(data) {
+function app_sendOrderConfirmToCustomer_(data) {
   try {
     var email = (data.form && data.form.contact) || '';
     if (!email || email.indexOf('@') === -1) return;
@@ -371,27 +369,47 @@ function app_sendEstimateConfirmToCustomer_(data) {
     var datetime = new Date(data.createdAtMs || Date.now()).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
     var totalCount = data.totalCount || (data.ids ? data.ids.length : 0);
     var discounted = data.discounted || 0;
+    var shippingAmount = data.shippingAmount || 0;
     var selectionList = data.selectionList || (data.ids ? data.ids.join('、') : '');
     var note = (data.form && data.form.note) || '';
+    var paymentMethod = data.paymentMethod || '';
 
-    var subject = '【デタウリ.Detauri】ご依頼を受け付けました（受付番号：' + data.receiptNo + '）';
+    // 決済方法の日本語表示
+    var paymentMethodLabel = '';
+    switch (paymentMethod) {
+      case 'credit_card': paymentMethodLabel = 'クレジットカード'; break;
+      case 'konbini': paymentMethodLabel = 'コンビニ払い'; break;
+      case 'bank_transfer': paymentMethodLabel = '銀行振込'; break;
+      case 'linepay': paymentMethodLabel = 'LINE Pay'; break;
+      default: paymentMethodLabel = paymentMethod || ''; break;
+    }
+
+    var subject = '【デタウリ.Detauri】ご注文ありがとうございます（受付番号：' + data.receiptNo + '）';
     var body = companyName + ' 様\n\n'
       + 'デタウリ.Detauri をご利用いただきありがとうございます。\n'
-      + '以下の内容で受け付けました。確定金額・送料はメールでご案内いたします。\n\n'
+      + 'お支払いを確認しました。以下の内容でご注文が確定しました。\n\n'
       + '━━━━━━━━━━━━━━━━━━━━\n'
-      + '■ ご依頼内容\n'
+      + '■ ご注文内容\n'
       + '━━━━━━━━━━━━━━━━━━━━\n'
       + '受付番号：' + data.receiptNo + '\n'
-      + '依頼日時：' + datetime + '\n'
+      + '注文日時：' + datetime + '\n'
       + '会社名/氏名：' + companyName + '\n'
       + '合計点数：' + totalCount + '点\n'
-      + '合計金額：' + Number(discounted).toLocaleString() + '円（税込）\n';
+      + '合計金額：' + Number(discounted).toLocaleString() + '円（税込・送料込）\n';
+
+    if (shippingAmount > 0) {
+      body += '（うち送料：' + Number(shippingAmount).toLocaleString() + '円）\n';
+    }
+
+    if (paymentMethodLabel) {
+      body += '決済方法：' + paymentMethodLabel + '\n';
+    }
 
     if (note) {
       body += '備考：' + note + '\n';
     }
 
-    // 商品詳細リスト（itemDetailsがある場合はブランド・サイズ等を表示）
+    // 商品詳細リスト
     body += '\n■ 選択商品\n';
     if (data.itemDetails && data.itemDetails.length > 0) {
       for (var di = 0; di < data.itemDetails.length; di++) {
@@ -408,9 +426,8 @@ function app_sendEstimateConfirmToCustomer_(data) {
       body += selectionList + '\n';
     }
     body += '━━━━━━━━━━━━━━━━━━━━\n\n'
-      + '【ご注文の流れ】\n'
-      + '1. 確定金額・送料をメールでご案内\n'
-      + '2. お支払い確認後、商品を発送\n\n'
+      + '商品の発送準備を進めてまいります。\n'
+      + '発送が完了しましたら、追跡番号とともにメールでお知らせいたします。\n\n'
       + '※ このメールは自動送信です。\n'
       + '※ ご注文確定後のキャンセル・変更はできません。\n\n'
       + '──────────────────\n'
@@ -426,7 +443,7 @@ function app_sendEstimateConfirmToCustomer_(data) {
       noReply: true
     });
   } catch (e) {
-    console.error('app_sendEstimateConfirmToCustomer_ error:', e);
+    console.error('app_sendOrderConfirmToCustomer_ error:', e);
   }
 }
 

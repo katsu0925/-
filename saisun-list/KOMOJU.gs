@@ -247,16 +247,18 @@ function handlePaymentSuccess_(data) {
     paymentStatus = '入金待ち';
   }
 
-  // 注文を確定（hold → open、シート書き込み）
-  var confirmResult = confirmPaymentAndCreateOrder(receiptNo, paymentStatus);
+  // 注文を確定（シート書き込み・注文確認メール送信）
+  var confirmResult = confirmPaymentAndCreateOrder(
+    receiptNo,
+    paymentStatus,
+    payment.payment_method_type || '',
+    payment.id || ''
+  );
   if (!confirmResult.ok) {
     console.error('Failed to confirm order:', confirmResult.message);
     // 既にシートに書き込まれている可能性があるため、ステータスのみ更新を試みる
     updateOrderPaymentStatus_(receiptNo, 'paid', payment.payment_method_type);
   }
-
-  // 確認メール送信（オプション）
-  // sendPaymentConfirmationEmail_(receiptNo, saved);
 
   console.log('Payment success processed for:', receiptNo);
   return { ok: true, message: 'Payment processed' };
@@ -280,6 +282,14 @@ function handlePaymentFailed_(data) {
   saved.failedAt = new Date().toISOString();
   saved.failReason = payment.payment_details ? payment.payment_details.failure_reason : null;
   savePaymentSession_(receiptNo, saved);
+
+  // 決済失敗 → 注文をキャンセルして商品を解放
+  var cancelResult = apiCancelOrder(receiptNo);
+  if (cancelResult && cancelResult.ok) {
+    console.log('Order cancelled due to payment failure:', receiptNo);
+  } else {
+    console.error('Failed to cancel order after payment failure:', receiptNo);
+  }
 
   console.log('Payment failed for:', receiptNo);
   return { ok: true, message: 'Payment failure processed' };
@@ -476,9 +486,18 @@ function getKomojuMode_() {
 }
 
 /**
- * リターンURLを取得
+ * リターンURLを取得（フロントエンドURL優先）
+ * FRONTEND_URL が設定されていればそちらを使用（Cloudflare Pages対応）
+ * 未設定の場合は SITE_CONSTANTS.SITE_URL → GAS URLの順にフォールバック
  */
 function getReturnUrl_() {
+  try {
+    var frontendUrl = PropertiesService.getScriptProperties().getProperty('FRONTEND_URL');
+    if (frontendUrl) return frontendUrl.replace(/\/+$/, '');
+  } catch (e) {}
+  if (typeof SITE_CONSTANTS !== 'undefined' && SITE_CONSTANTS && SITE_CONSTANTS.SITE_URL) {
+    return String(SITE_CONSTANTS.SITE_URL).replace(/\/+$/, '');
+  }
   return ScriptApp.getService().getUrl();
 }
 

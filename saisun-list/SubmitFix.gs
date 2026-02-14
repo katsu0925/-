@@ -1,26 +1,27 @@
 /**
  * SubmitFix.gs
  *
- * 1. 依頼送信を即座に完了（書き込みはバックグラウンド）
- * 2. 空行問題を修正
- * 3. テスト用リフレッシュ関数
- *
- * 既存の apiSubmitEstimate を置き換えてください
+ * 決済フロー:
+ * 1. apiSubmitEstimate() — バリデーション・価格計算・商品確保・KOMOJU決済セッション作成
+ *    → フロントエンドにKOMOJU決済URLを返す（シート書き込み・メール送信はしない）
+ * 2. KOMOJU Webhook → confirmPaymentAndCreateOrder() — 決済完了後にシート書き込み・メール送信
+ * 3. apiCancelOrder() — 決済キャンセル・失敗時に商品を解放
  */
 
 // =====================================================
-// 高速版 apiSubmitEstimate（即座に完了を返す）
+// apiSubmitEstimate — 注文送信 → KOMOJU決済セッション作成
 // =====================================================
 
 /**
- * 注文送信（高速版）
+ * 注文送信（決済フロー版）
  * - バリデーション・確保チェック・価格計算は同期で実行
- * - シート書き込み・状態更新・メール送信はバックグラウンドで実行
- * - 受付番号とテンプレートを即座に返す
+ * - 商品を確保→依頼中に移行（決済完了まで予約）
+ * - KOMOJU決済セッションを作成してURLを返す
+ * - シート書き込み・メール送信は決済完了後（webhook経由）
  */
 function apiSubmitEstimate(userKey, form, ids) {
   try {
-    // === 同期バリデーション ===
+    // === バリデーション ===
     var uk = String(userKey || '').trim();
     if (!uk) return { ok: false, message: 'userKeyが不正です' };
 
@@ -46,7 +47,7 @@ function apiSubmitEstimate(userKey, form, ids) {
     if (!address) return { ok: false, message: '住所は必須です' };
     if (!phone) return { ok: false, message: '電話番号は必須です' };
 
-    // === 同期：確保チェック（ロック付き） ===
+    // === 確保チェック（ロック付き） ===
     var orderSs = sh_getOrderSs_();
     sh_ensureAllOnce_(orderSs);
 
@@ -80,7 +81,7 @@ function apiSubmitEstimate(userKey, form, ids) {
       return { ok: false, message: '確保できない商品が含まれています: ' + bad.join('、') };
     }
 
-    // === 同期：価格計算 ===
+    // === 価格計算 ===
     var products = pr_readProducts_();
     var productMap = {};
     for (var i = 0; i < products.length; i++) productMap[String(products[i].managedId)] = products[i];
@@ -143,7 +144,7 @@ function apiSubmitEstimate(userKey, form, ids) {
     // 送料込みの合計金額
     var totalWithShipping = discounted + shippingAmount;
 
-    // === 同期：受付番号・テンプレート生成 ===
+    // === 受付番号生成 ===
     var receiptNo = u_makeReceiptNo_();
     var selectionList = u_sortManagedIds_(list).join('、');
     var measureLabel = app_measureOptLabel_(measureOpt);
@@ -165,7 +166,7 @@ function apiSubmitEstimate(userKey, form, ids) {
 
     var templateText = app_buildTemplateText_(receiptNo, validatedForm, list, totalCount, discounted);
 
-    // === 注文モード：確保を解除して依頼中に変更 ===
+    // === 商品を確保→依頼中に移行（決済完了まで予約） ===
     for (var i = 0; i < list.length; i++) {
       delete holdItems[list[i]];
     }
@@ -188,8 +189,7 @@ function apiSubmitEstimate(userKey, form, ids) {
       lock.releaseLock();
     }
 
-    // === 注文モード：即座にシート書き込み・メール通知 ===
-    // メール用の商品詳細リストを構築
+    // === 商品詳細リストを構築（メール・シート用） ===
     var itemDetails = [];
     for (var idx = 0; idx < list.length; idx++) {
       var pd = productMap[list[idx]];
@@ -206,7 +206,8 @@ function apiSubmitEstimate(userKey, form, ids) {
       }
     }
 
-    var submitData = {
+    // === ペンディング注文データを保存（決済完了後にシート書き込み） ===
+    var pendingData = {
       userKey: uk,
       form: validatedForm,
       ids: list,
@@ -221,18 +222,39 @@ function apiSubmitEstimate(userKey, form, ids) {
       shippingPref: shippingPref,
       createdAtMs: now,
       templateText: templateText,
-      paymentStatus: '未対応',
-      itemDetails: itemDetails
+      itemDetails: itemDetails,
+      pointsUsed: pointsUsed
     };
 
-    // 直接書き込み
-    writeSubmitData_(submitData);
-    console.log('注文データを書き込み完了: ' + receiptNo);
+    var props = PropertiesService.getScriptProperties();
+    props.setProperty('PENDING_ORDER_' + receiptNo, JSON.stringify(pendingData));
+    console.log('ペンディング注文を保存: ' + receiptNo);
+
+    // === KOMOJU決済セッションを作成 ===
+    var komojuResult = apiCreateKomojuSession(receiptNo, totalWithShipping, {
+      email: contact,
+      companyName: companyName,
+      productAmount: discounted,
+      shippingAmount: shippingAmount,
+      shippingSize: shippingSize
+    });
+
+    if (!komojuResult || !komojuResult.ok) {
+      // KOMOJU セッション作成失敗 → 商品を解放してエラー返却
+      console.error('KOMOJU session creation failed:', komojuResult);
+      apiCancelOrder(receiptNo);
+      return {
+        ok: false,
+        message: '決済セッションの作成に失敗しました。' + (komojuResult && komojuResult.message ? komojuResult.message : '')
+      };
+    }
+
+    console.log('KOMOJU決済セッション作成: ' + receiptNo + ' → ' + komojuResult.sessionUrl);
 
     return {
       ok: true,
       receiptNo: receiptNo,
-      templateText: templateText,
+      sessionUrl: komojuResult.sessionUrl,
       totalAmount: totalWithShipping,
       shippingAmount: shippingAmount
     };
@@ -244,61 +266,35 @@ function apiSubmitEstimate(userKey, form, ids) {
 }
 
 // =====================================================
-// バックグラウンド書き込み処理
+// バックグラウンド書き込み処理（レガシー互換）
 // =====================================================
 
-/**
- * バックグラウンド処理をスケジュール
- * 既存のトリガーがなければ1秒後に実行するトリガーを作成
- */
 function scheduleBackgroundProcess_() {
-  // 既存のトリガーをチェック
   var triggers = ScriptApp.getProjectTriggers();
   for (var i = 0; i < triggers.length; i++) {
     if (triggers[i].getHandlerFunction() === 'processSubmitQueue') {
-      // 既にスケジュール済み
       return;
     }
   }
-
-  // 1秒後に実行するトリガーを作成
   ScriptApp.newTrigger('processSubmitQueue')
     .timeBased()
-    .after(1000) // 1秒後
+    .after(1000)
     .create();
 }
 
-/**
- * キューに溜まった送信データを処理（トリガーから呼ばれる）
- */
 function processSubmitQueue() {
   var lock = LockService.getScriptLock();
-
   try {
-    // ロック取得を試みる（最大10秒待機）
     if (!lock.tryLock(10000)) {
       console.log('ロック取得失敗、次回に持ち越し');
       return;
     }
-
     var props = PropertiesService.getScriptProperties();
     var queueStr = props.getProperty('SUBMIT_QUEUE');
-
-    if (!queueStr) {
-      lock.releaseLock();
-      return;
-    }
-
+    if (!queueStr) { lock.releaseLock(); return; }
     var queue = JSON.parse(queueStr);
-    if (!queue || queue.length === 0) {
-      lock.releaseLock();
-      return;
-    }
-
-    // キューを取得してからロック解放（処理後に削除する）
+    if (!queue || queue.length === 0) { lock.releaseLock(); return; }
     lock.releaseLock();
-
-    // 各送信データを処理
     var allSuccess = true;
     var failedItems = [];
     for (var i = 0; i < queue.length; i++) {
@@ -312,35 +308,31 @@ function processSubmitQueue() {
         failedItems.push(data);
       }
     }
-
-    // 処理完了後にキューを削除（失敗分は再キューイング）
     if (allSuccess) {
       props.deleteProperty('SUBMIT_QUEUE');
     } else if (failedItems.length > 0) {
-      // 失敗分のみ再キューイング
       try {
         props.setProperty('SUBMIT_QUEUE', JSON.stringify(failedItems));
-        console.warn('失敗したキューアイテムを再保存: ' + failedItems.length + '件');
       } catch (requeueErr) {
-        console.error('再キューイング失敗:', requeueErr);
         props.deleteProperty('SUBMIT_QUEUE');
       }
     }
-
   } catch (e) {
     console.error('processSubmitQueue error:', e);
     try { lock.releaseLock(); } catch (x) {}
   } finally {
-    // このトリガーを削除
     cleanupTriggers_('processSubmitQueue');
   }
 }
 
+// =====================================================
+// シート書き込み（決済完了後に呼ばれる）
+// =====================================================
+
 /**
- * 送信データを実際に書き込む（バックグラウンド）
- * - 依頼管理シートへの書き込み
- * - hold/openログシートの同期
- * - メール通知
+ * 注文データを依頼管理シートに書き込み、メール通知を送信
+ * confirmPaymentAndCreateOrder() から呼ばれる
+ * @param {object} data - 注文データ
  */
 function writeSubmitData_(data) {
   var orderSs = sh_getOrderSs_();
@@ -349,15 +341,15 @@ function writeSubmitData_(data) {
   var now = data.createdAtMs || u_nowMs_();
 
   // 1. 依頼管理シートに書き込み
-  // 列構成（30列 A-AD）:
+  // 列構成（32列 A-AF）:
   // A=受付番号, B=依頼日時, C=会社名/氏名, D=連絡先, E=郵便番号, F=住所, G=電話番号, H=商品名,
   // I=確認リンク, J=選択リスト, K=合計点数, L=合計金額, M=発送ステータス, N=リスト同梱, O=xlsx送付,
   // P=ステータス, Q=担当者, R=入金確認, S=インボイス発行, T=インボイス状況, U=予備, V=備考,
   // W=配送業者, X=伝票番号, Y=作業報酬, Z=更新日時, AA=通知フラグ,
-  // AB=ポイント付与済, AC=送料(店負担), AD=送料(客負担)
+  // AB=ポイント付与済, AC=送料(店負担), AD=送料(客負担), AE=決済方法, AF=決済ID
   var reqSh = sh_ensureRequestSheet_(orderSs);
   var productNames = '選べるxlsx付きパッケージ';
-  var paymentStatus = data.paymentStatus || '入金待ち';
+  var paymentStatus = data.paymentStatus || '対応済';
   var row = [
     data.receiptNo,                              // A: 受付番号
     new Date(now),                               // B: 依頼日時
@@ -387,8 +379,10 @@ function writeSubmitData_(data) {
     new Date(now),                               // Z: 更新日時
     '',                                          // AA: 通知フラグ
     '',                                          // AB: ポイント付与済
-    '',                                          // AC: 送料(店負担) — 後決済モード時に使用
-    data.shippingAmount || ''                    // AD: 送料(客負担) — フロントから送料あり時
+    '',                                          // AC: 送料(店負担)
+    data.shippingAmount || '',                   // AD: 送料(客負担)
+    data.paymentMethod || '',                    // AE: 決済方法
+    data.paymentId || ''                         // AF: 決済ID
   ];
   var writeRow = sh_findNextRowByDisplayKey_(reqSh, 1, 1);
   reqSh.getRange(writeRow, 1, 1, row.length).setValues([row]);
@@ -404,8 +398,8 @@ function writeSubmitData_(data) {
   var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
   od_writeOpenLogSheetFromState_(orderSs, openItems, now);
 
-  // 3. 管理者宛メール通知
-  app_sendEstimateNotifyMail_(orderSs, data.receiptNo, {
+  // 3. 管理者宛注文通知メール
+  app_sendOrderNotifyMail_(orderSs, data.receiptNo, {
     companyName: data.form.companyName || '',
     contact: data.form.contact || '',
     contactMethod: data.form.contactMethod || '',
@@ -422,12 +416,14 @@ function writeSubmitData_(data) {
     writeRow: writeRow,
     createdAtMs: now,
     userKey: data.userKey,
-    templateText: data.templateText || ''
+    templateText: data.templateText || '',
+    paymentMethod: data.paymentMethod || '',
+    paymentId: data.paymentId || '',
+    paymentStatus: paymentStatus
   });
 
-  // 4. 顧客宛確認メール
-  app_sendEstimateConfirmToCustomer_(data);
-
+  // 4. 顧客宛注文確認メール（決済完了通知）
+  app_sendOrderConfirmToCustomer_(data);
 }
 
 /**
@@ -468,31 +464,12 @@ function getActualLastRow_(sheet, column) {
 // テスト用リフレッシュ関数
 // =====================================================
 
-/**
- * テスト送信した商品の確保・依頼中をリセット
- * GASエディタから手動実行
- *
- * 使い方：
- * 1. 下の testUserKey と testIds を設定
- * 2. refreshTestSubmission() を実行
- */
 function refreshTestSubmission() {
-  // ★★★ ここを設定 ★★★
-  var testUserKey = ''; // 空の場合は全ユーザー対象
-  var testIds = [];     // 空の場合は全商品対象（注意！）
-  // ★★★★★★★★★★★★
-
+  var testUserKey = '';
+  var testIds = [];
   var ss = SpreadsheetApp.getActiveSpreadsheet();
-
-  // 1. 確保シートをクリア
   var holdCleared = clearHoldSheetForRefresh_(ss, testUserKey, testIds);
-
-  // 2. データ1シートのステータスをリセット
   var statusReset = resetProductStatusForRefresh_(ss, testIds);
-
-  // 3. 依頼管理シートから該当行を削除（オプション）
-  // var requestDeleted = deleteRequestForRefresh_(ss, testUserKey, testIds);
-
   console.log('='.repeat(50));
   console.log('リフレッシュ完了');
   console.log('確保クリア: ' + holdCleared + '件');
@@ -500,46 +477,24 @@ function refreshTestSubmission() {
   console.log('='.repeat(50));
 }
 
-/**
- * 最新のテスト送信をリフレッシュ（便利関数）
- * 依頼管理シートの最新行を見て自動でリセット
- */
 function refreshLatestSubmission() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName('依頼管理');
-  if (!sheet) {
-    console.log('依頼管理シートが見つかりません');
-    return;
-  }
-
+  if (!sheet) { console.log('依頼管理シートが見つかりません'); return; }
   var lastRow = getActualLastRow_(sheet, 1);
-  if (lastRow < 2) {
-    console.log('依頼データがありません');
-    return;
-  }
-
-  // 最新行のデータを取得
+  if (lastRow < 2) { console.log('依頼データがありません'); return; }
   var rowData = sheet.getRange(lastRow, 1, 1, 15).getValues()[0];
-  var receiptNo = rowData[1];    // B列: 受付番号
-  var idsStr = rowData[12];      // M列: 商品ID一覧
-  var userKey = rowData[13];     // N列: userKey
-
+  var receiptNo = rowData[1];
+  var idsStr = rowData[12];
+  var userKey = rowData[13];
   var ids = idsStr ? String(idsStr).split(',').map(function(s) { return s.trim(); }) : [];
-
   console.log('リフレッシュ対象:');
   console.log('  受付番号: ' + receiptNo);
   console.log('  userKey: ' + userKey);
   console.log('  商品数: ' + ids.length);
-
-  // 確保シートをクリア
   var holdCleared = clearHoldSheetForRefresh_(ss, userKey, ids);
-
-  // ステータスをリセット
   var statusReset = resetProductStatusForRefresh_(ss, ids);
-
-  // 依頼管理シートから削除
   sheet.deleteRow(lastRow);
-
   console.log('='.repeat(50));
   console.log('リフレッシュ完了');
   console.log('確保クリア: ' + holdCleared + '件');
@@ -548,163 +503,85 @@ function refreshLatestSubmission() {
   console.log('='.repeat(50));
 }
 
-/**
- * 確保シートをクリア（リフレッシュ用）
- */
 function clearHoldSheetForRefresh_(ss, userKey, ids) {
   var sheet = ss.getSheetByName('確保');
   if (!sheet) return 0;
-
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return 0;
-
   var range = sheet.getRange(2, 1, lastRow - 1, 2);
   var values = range.getValues();
-
   var rowsToDelete = [];
-
   for (var i = values.length - 1; i >= 0; i--) {
     var holdUserKey = String(values[i][0] || '').trim();
     var holdId = String(values[i][1] || '').trim();
-
     var matchUser = !userKey || holdUserKey === userKey;
     var matchId = !ids || ids.length === 0 || ids.indexOf(holdId) !== -1;
-
-    if (matchUser && matchId) {
-      rowsToDelete.push(i + 2);
-    }
+    if (matchUser && matchId) rowsToDelete.push(i + 2);
   }
-
-  for (var j = 0; j < rowsToDelete.length; j++) {
-    sheet.deleteRow(rowsToDelete[j]);
-  }
-
+  for (var j = 0; j < rowsToDelete.length; j++) sheet.deleteRow(rowsToDelete[j]);
   return rowsToDelete.length;
 }
 
-/**
- * 商品ステータスをリセット（リフレッシュ用）
- */
 function resetProductStatusForRefresh_(ss, ids) {
   var sheet = ss.getSheetByName('データ1');
   if (!sheet) return 0;
-
   var lastRow = sheet.getLastRow();
   if (lastRow < 3) return 0;
-
-  // J列（ステータス）とK列（管理ID）を取得
   var range = sheet.getRange(3, 10, lastRow - 2, 2);
   var values = range.getValues();
-
   var count = 0;
-
   for (var i = 0; i < values.length; i++) {
     var status = String(values[i][0] || '');
     var managedId = String(values[i][1] || '').trim();
-
-    // 依頼中または確保中のステータスをクリア
     var isTarget = (status.indexOf('依頼中') !== -1 || status.indexOf('確保中') !== -1);
     var matchId = !ids || ids.length === 0 || ids.indexOf(managedId) !== -1;
-
-    if (isTarget && matchId) {
-      sheet.getRange(i + 3, 10).setValue(''); // J列をクリア
-      count++;
-    }
+    if (isTarget && matchId) { sheet.getRange(i + 3, 10).setValue(''); count++; }
   }
-
   return count;
 }
 
 // =====================================================
-// キューの手動処理（デバッグ用）
+// キュー関連（デバッグ用）
 // =====================================================
 
-/**
- * キューに溜まったデータを手動で処理
- */
-function processQueueManually() {
-  processSubmitQueue();
-}
+function processQueueManually() { processSubmitQueue(); }
 
-/**
- * キューをクリア（緊急用）
- */
 function clearSubmitQueue() {
-  var props = PropertiesService.getScriptProperties();
-  props.deleteProperty('SUBMIT_QUEUE');
+  PropertiesService.getScriptProperties().deleteProperty('SUBMIT_QUEUE');
   console.log('キューをクリアしました');
 }
 
-/**
- * 依頼中状態を全リセット（テスト後のクリーンアップ用）
- * - openStateをクリア
- * - 依頼中シートをクリア
- * - キャッシュを無効化
- * GASエディタから手動実行
- */
 function resetAllOpenState() {
   var orderSs = sh_getOrderSs_();
-
-  // openStateをクリア
   st_setOpenState_(orderSs, { items: {}, updatedAt: u_nowMs_() });
-
-  // 依頼中シートをクリア
   var sh = sh_ensureOpenLogSheet_(orderSs);
   var lastRow = sh.getLastRow();
-  if (lastRow >= 2) {
-    sh.getRange(2, 1, lastRow - 1, sh.getLastColumn()).clearContent();
-  }
-
-  // キャッシュ無効化
+  if (lastRow >= 2) sh.getRange(2, 1, lastRow - 1, sh.getLastColumn()).clearContent();
   st_invalidateStatusCache_(orderSs);
-
   console.log('依頼中状態を全リセットしました');
 }
 
-/**
- * 指定した受付番号の依頼中を取り消す
- * GASエディタから手動実行
- * @param {string} receiptNo - 受付番号
- */
 function cancelByReceiptNo(receiptNo) {
-  if (!receiptNo) {
-    console.log('受付番号を指定してください');
-    return;
-  }
-
+  if (!receiptNo) { console.log('受付番号を指定してください'); return; }
   var orderSs = sh_getOrderSs_();
   var openState = st_getOpenState_(orderSs) || {};
   var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
-
   var removed = [];
   for (var id in openItems) {
     if (openItems[id] && String(openItems[id].receiptNo || '') === String(receiptNo)) {
-      removed.push(id);
-      delete openItems[id];
+      removed.push(id); delete openItems[id];
     }
   }
-
-  if (removed.length === 0) {
-    console.log('受付番号 ' + receiptNo + ' に該当する依頼中商品はありません');
-    return;
-  }
-
+  if (removed.length === 0) { console.log('受付番号 ' + receiptNo + ' に該当する依頼中商品はありません'); return; }
   openState.items = openItems;
   openState.updatedAt = u_nowMs_();
   st_setOpenState_(orderSs, openState);
-
-  // 依頼中シートも更新
   od_writeOpenLogSheetFromState_(orderSs, openItems, u_nowMs_());
   st_invalidateStatusCache_(orderSs);
-
   console.log('受付番号 ' + receiptNo + ' の依頼中を取り消しました（' + removed.length + '点）');
   console.log('対象: ' + removed.join('、'));
 }
 
-/**
- * 現在の依頼中をリフレッシュ（API用 - フロントからも呼べる）
- * 依頼管理シートの最新状態からopenStateを再構築する
- */
 function apiRefreshOpenState() {
   try {
     var orderSs = sh_getOrderSs_();
@@ -720,18 +597,10 @@ function apiRefreshOpenState() {
   }
 }
 
-/**
- * キューの内容を確認
- */
 function viewSubmitQueue() {
   var props = PropertiesService.getScriptProperties();
   var queueStr = props.getProperty('SUBMIT_QUEUE');
-
-  if (!queueStr) {
-    console.log('キューは空です');
-    return;
-  }
-
+  if (!queueStr) { console.log('キューは空です'); return; }
   var queue = JSON.parse(queueStr);
   console.log('キュー内容: ' + queue.length + '件');
   for (var i = 0; i < queue.length; i++) {
@@ -739,27 +608,17 @@ function viewSubmitQueue() {
   }
 }
 
-/**
- * 商品IDから商品名を取得してカンマ区切りで返す
- * @param {string[]} ids - 商品ID配列
- * @returns {string} - 商品名のカンマ区切り文字列
- */
 function getProductNamesFromIds_(ids) {
   if (!ids || !ids.length) return '';
   try {
     var products = pr_readProducts_();
     var productMap = {};
-    for (var i = 0; i < products.length; i++) {
-      productMap[String(products[i].managedId)] = products[i];
-    }
+    for (var i = 0; i < products.length; i++) productMap[String(products[i].managedId)] = products[i];
     var names = [];
     for (var i = 0; i < ids.length; i++) {
       var p = productMap[String(ids[i])];
-      if (p && p.brand) {
-        names.push(p.brand + (p.category ? ' ' + p.category : ''));
-      } else {
-        names.push(ids[i]);
-      }
+      if (p && p.brand) { names.push(p.brand + (p.category ? ' ' + p.category : '')); }
+      else { names.push(ids[i]); }
     }
     return names.join('、');
   } catch (e) {
@@ -768,16 +627,22 @@ function getProductNamesFromIds_(ids) {
   }
 }
 
+// =====================================================
+// 決済完了後に注文を確定（KOMOJU webhookから呼び出す）
+// =====================================================
+
 /**
- * 決済完了後に注文を確定（KOMOJU webhookから呼び出す）
- * - 保存済みのペンディング注文データを取得
- * - 商品をhold状態からopen状態へ変更
+ * 決済完了後に注文を確定
+ * - ペンディング注文データを取得
  * - 依頼管理シートにデータを書き込み
+ * - 注文確認メールを送信
  * @param {string} receiptNo - 受付番号
- * @param {string} paymentStatus - 入金ステータス（'入金待ち' | '未対応' | '対応済'）
+ * @param {string} paymentStatus - 入金ステータス（'対応済' | '入金待ち'）
+ * @param {string} paymentMethod - 決済方法（'credit_card' | 'konbini' | 'bank_transfer' | 'linepay'）
+ * @param {string} paymentId - KOMOJU決済ID
  * @returns {object} - { ok, message }
  */
-function confirmPaymentAndCreateOrder(receiptNo, paymentStatus) {
+function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, paymentId) {
   try {
     if (!receiptNo) {
       return { ok: false, message: '受付番号が必要です' };
@@ -789,7 +654,9 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus) {
 
     if (!pendingDataStr) {
       console.log('PENDING_ORDER not found: ' + receiptNo);
-      return { ok: false, message: 'ペンディング注文が見つかりません: ' + receiptNo };
+      // ペンディングがない場合は既にシートに書き込み済みの可能性 → ステータスのみ更新
+      updateOrderPaymentStatus_(receiptNo, 'paid', paymentMethod);
+      return { ok: true, message: '入金ステータスを更新しました（ペンディングデータなし）' };
     }
 
     var pendingData = JSON.parse(pendingDataStr);
@@ -798,38 +665,22 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus) {
     var orderSs = sh_getOrderSs_();
     var now = u_nowMs_();
 
-    // 1. 商品をhold状態からopen状態へ移行
-    var holdState = st_getHoldState_(orderSs) || {};
-    var holdItems = (holdState.items && typeof holdState.items === 'object') ? holdState.items : {};
+    // 1. open状態を再確認（apiSubmitEstimateで既に設定済み）
     var openState = st_getOpenState_(orderSs) || {};
     var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
-
-    var movedIds = [];
     for (var i = 0; i < pendingData.ids.length; i++) {
       var id = pendingData.ids[i];
-      // holdから削除
-      if (holdItems[id]) {
-        delete holdItems[id];
-      }
-      // openに追加
       openItems[id] = {
         receiptNo: receiptNo,
         userKey: pendingData.userKey,
         createdAtMs: now
       };
-      movedIds.push(id);
     }
-
-    // hold/open状態を保存
-    holdState.items = holdItems;
-    holdState.updatedAt = now;
-    st_setHoldState_(orderSs, holdState);
-
     openState.items = openItems;
     openState.updatedAt = now;
     st_setOpenState_(orderSs, openState);
 
-    // 2. 依頼管理シートにデータを書き込み
+    // 2. 決済情報を付与してシート書き込み + メール送信
     var writeData = {
       userKey: pendingData.userKey,
       form: pendingData.form,
@@ -839,10 +690,18 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus) {
       measureOpt: pendingData.measureOpt,
       totalCount: pendingData.totalCount,
       discounted: pendingData.discounted,
+      shippingAmount: pendingData.shippingAmount,
+      shippingSize: pendingData.shippingSize,
+      shippingArea: pendingData.shippingArea,
+      shippingPref: pendingData.shippingPref,
       createdAtMs: now,
       templateText: pendingData.templateText,
       measureLabel: app_measureOptLabel_(pendingData.measureOpt),
-      paymentStatus: paymentStatus || '入金待ち'
+      paymentStatus: paymentStatus || '対応済',
+      paymentMethod: paymentMethod || '',
+      paymentId: paymentId || '',
+      itemDetails: pendingData.itemDetails || [],
+      pointsUsed: pendingData.pointsUsed || 0
     };
 
     writeSubmitData_(writeData);
@@ -859,7 +718,7 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus) {
       ok: true,
       message: '注文を確定しました',
       receiptNo: receiptNo,
-      movedCount: movedIds.length
+      movedCount: pendingData.ids.length
     };
 
   } catch (e) {
@@ -868,10 +727,16 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus) {
   }
 }
 
+// =====================================================
+// 注文キャンセル（決済失敗・キャンセル時）
+// =====================================================
+
 /**
- * 注文をキャンセル（決済失敗時に呼び出す）
- * - hold状態から商品を解除
+ * 注文をキャンセル
+ * - open状態から商品を解除（在庫を解放）
+ * - hold状態からも念のため解除
  * - ペンディング注文データを削除
+ * - ポイントが使用されていた場合は返還
  * @param {string} receiptNo - 受付番号
  * @returns {object} - { ok, message }
  */
@@ -889,57 +754,95 @@ function apiCancelOrder(receiptNo) {
     var pendingKey = 'PENDING_ORDER_' + receiptNo;
     var pendingDataStr = props.getProperty(pendingKey);
     var idsToRelease = [];
+    var pointsToRefund = 0;
+    var refundEmail = '';
 
     if (pendingDataStr) {
       try {
         var pendingData = JSON.parse(pendingDataStr);
         idsToRelease = pendingData.ids || [];
+        pointsToRefund = pendingData.pointsUsed || 0;
+        refundEmail = (pendingData.form && pendingData.form.contact) || '';
       } catch (pe) {
         console.error('Failed to parse pending data:', pe);
       }
     }
 
-    // 2. hold状態から該当受付番号の商品を解除
-    var holdState = st_getHoldState_(orderSs) || {};
-    var holdItems = (holdState.items && typeof holdState.items === 'object') ? holdState.items : {};
-    var removedIds = [];
+    // 2. open状態から該当受付番号の商品を解除
+    var openState = st_getOpenState_(orderSs) || {};
+    var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
+    var removedFromOpen = [];
 
-    // ペンディングデータがある場合はそのIDリストから解除
     if (idsToRelease.length > 0) {
       for (var i = 0; i < idsToRelease.length; i++) {
         var id = idsToRelease[i];
-        if (holdItems[id]) {
-          removedIds.push(id);
-          delete holdItems[id];
+        if (openItems[id] && String(openItems[id].receiptNo || '') === String(receiptNo)) {
+          removedFromOpen.push(id);
+          delete openItems[id];
         }
       }
     } else {
-      // ペンディングデータがない場合は受付番号で検索
-      for (var id in holdItems) {
-        if (holdItems[id] && String(holdItems[id].receiptNo) === String(receiptNo)) {
-          removedIds.push(id);
-          delete holdItems[id];
+      for (var openId in openItems) {
+        if (openItems[openId] && String(openItems[openId].receiptNo || '') === String(receiptNo)) {
+          removedFromOpen.push(openId);
+          delete openItems[openId];
         }
       }
     }
 
-    if (removedIds.length > 0) {
+    if (removedFromOpen.length > 0) {
+      openState.items = openItems;
+      openState.updatedAt = now;
+      st_setOpenState_(orderSs, openState);
+      od_writeOpenLogSheetFromState_(orderSs, openItems, now);
+    }
+
+    // 3. hold状態からも念のため解除
+    var holdState = st_getHoldState_(orderSs) || {};
+    var holdItems = (holdState.items && typeof holdState.items === 'object') ? holdState.items : {};
+    var removedFromHold = [];
+
+    if (idsToRelease.length > 0) {
+      for (var j = 0; j < idsToRelease.length; j++) {
+        if (holdItems[idsToRelease[j]]) {
+          removedFromHold.push(idsToRelease[j]);
+          delete holdItems[idsToRelease[j]];
+        }
+      }
+    }
+
+    if (removedFromHold.length > 0) {
       holdState.items = holdItems;
       holdState.updatedAt = now;
       st_setHoldState_(orderSs, holdState);
-      console.log('Cancelled order ' + receiptNo + ', released ' + removedIds.length + ' items from hold');
     }
 
-    // 3. ペンディング注文データを削除
+    // 4. ポイント返還
+    if (pointsToRefund > 0 && refundEmail) {
+      try {
+        addPoints_(refundEmail, pointsToRefund);
+        console.log('ポイント返還: ' + refundEmail + ' +' + pointsToRefund + 'pt');
+      } catch (ptErr) {
+        console.error('ポイント返還失敗:', ptErr);
+      }
+    }
+
+    // 5. ペンディング注文データを削除
     if (pendingDataStr) {
       props.deleteProperty(pendingKey);
       console.log('Deleted pending order: ' + receiptNo);
     }
 
-    // 4. キャッシュを無効化
+    // 6. 決済セッション情報も削除
+    try { props.deleteProperty('PAYMENT_' + receiptNo); } catch (e) {}
+
+    // 7. キャッシュを無効化
     st_invalidateStatusCache_(orderSs);
 
-    return { ok: true, message: 'キャンセルしました', releasedCount: removedIds.length };
+    var totalReleased = removedFromOpen.length + removedFromHold.length;
+    console.log('Cancelled order ' + receiptNo + ', released ' + totalReleased + ' items');
+
+    return { ok: true, message: 'キャンセルしました', releasedCount: totalReleased };
   } catch (e) {
     console.error('apiCancelOrder error:', e);
     return { ok: false, message: (e && e.message) ? e.message : String(e) };
@@ -952,10 +855,6 @@ function apiCancelOrder(receiptNo) {
 
 /**
  * 注文確認用スプレッドシートをDriveに作成し、共有リンクを返す
- * リンクを知っている全員がVIEW可能（Googleアカウント不要）
- * @param {string} receiptNo - 受付番号
- * @param {object} data - 注文データ
- * @returns {string} - Google Drive共有URL（失敗時は空文字）
  */
 function createOrderConfirmLink_(receiptNo, data) {
   try {
@@ -966,26 +865,23 @@ function createOrderConfirmLink_(receiptNo, data) {
     var datetime = new Date(data.createdAtMs || Date.now());
     var dateStr = Utilities.formatDate(datetime, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm');
 
-    // スプレッドシートを新規作成
     var ss = SpreadsheetApp.create('注文明細_' + receiptNo);
     var sheet = ss.getActiveSheet();
     sheet.setName('注文明細');
 
-    // ヘッダー情報
     var headerRows = [
       ['NKonline Apparel - ご注文明細'],
       [''],
       ['受付番号', receiptNo],
-      ['依頼日時', dateStr],
+      ['注文日時', dateStr],
       ['会社名/氏名', form.companyName || ''],
       ['合計点数', String(ids.length) + '点'],
-      ['合計金額', String(Number(data.discounted || 0).toLocaleString()) + '円（税込）'],
+      ['合計金額', String(Number(data.discounted || 0).toLocaleString()) + '円（税込・送料込）'],
       [''],
       ['■ 選択商品一覧'],
       ['No.', '管理番号']
     ];
 
-    // 商品リストを追加
     for (var i = 0; i < ids.length; i++) {
       headerRows.push([i + 1, ids[i]]);
     }
@@ -996,21 +892,17 @@ function createOrderConfirmLink_(receiptNo, data) {
 
     sheet.getRange(1, 1, headerRows.length, 2).setValues(headerRows);
 
-    // タイトル行の書式設定
     sheet.getRange(1, 1).setFontSize(14).setFontWeight('bold');
     sheet.getRange(10, 1, 1, 2).setFontWeight('bold').setBackground('#f0f0f0');
     sheet.setColumnWidth(1, 120);
     sheet.setColumnWidth(2, 200);
 
-    // シートを保護（閲覧のみ）
     var protection = sheet.protect().setDescription('注文明細（閲覧専用）');
     protection.setWarningOnly(true);
 
-    // リンクを知っている全員に VIEW 権限を付与
     var file = DriveApp.getFileById(ss.getId());
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
-    // エクスポートフォルダに移動（設定されている場合）
     try {
       if (typeof EXPORT_FOLDER_ID !== 'undefined' && EXPORT_FOLDER_ID) {
         var folder = DriveApp.getFolderById(EXPORT_FOLDER_ID);

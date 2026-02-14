@@ -97,7 +97,9 @@ const APP_CONFIG = {
     notifyFlag: 26,   // AA列: 通知フラグ
     pointFlag: 27,    // AB列: ポイント付与済
     shippingStore: 28,    // AC列: 送料(店負担)
-    shippingCustomer: 29  // AD列: 送料(客負担)
+    shippingCustomer: 29, // AD列: 送料(客負担)
+    paymentMethod: 30,    // AE列: 決済方法
+    paymentId: 31         // AF列: 決済ID
   },
   statuses: {
     open: '依頼中',
@@ -105,20 +107,15 @@ const APP_CONFIG = {
     allowed: ['依頼中', 'キャンセル', '返品', '完了']
   },
   uiText: {
-    // 注意文やリンクを最新仕様に変更
     notes: [
-      // 商品ページガイドのリンク差し替え
       '<a href="https://drive.google.com/file/d/18X6qgQPWkaOXTg4YxELtru-4oBJxn7mn/view?usp=sharing" target="_blank" rel="noopener noreferrer">商品ページガイド</a>',
-      // 「購入」の最低点数案内（送料別）をリンク化
-      '10点から購入可能です。合計金額は商品代のみ <a href="https://drive.google.com/file/d/1g7UYUBw3-Y6M5HkSv3mfMe5jEjs795E3/view?usp=sharing" target="_blank" rel="noopener noreferrer">（送料別）</a>。送料はBASE側で確定します。',
-      '送信後、受付番号をお控えください。確定金額・送料をご案内後、BASEで決済となります。',
-      '在庫は先着のため、送信後に欠品となる場合があります（確保中表示がある場合はその時間内は確保）。',
-      // 赤字メッセージ追加
+      '10点から購入可能です。合計金額は商品代のみ <a href="https://drive.google.com/file/d/1g7UYUBw3-Y6M5HkSv3mfMe5jEjs795E3/view?usp=sharing" target="_blank" rel="noopener noreferrer">（送料別）</a>。送料は住所入力後に自動計算されます。',
+      'カートに入れた商品は15分間確保されます。在庫は先着順のためお早めにお手続きください。',
+      '決済方法：クレジットカード／コンビニ払い／銀行振込／LINE Pay',
       '<span style="color:#b8002a;">30点以上で10％割引 ／ 会員登録で10％OFF（2026年9月末まで・併用可）</span>'
     ],
-    // 次のステップ（受付番号コピー〜発送まで）は不要になったため空配列に
     nextSteps: [],
-    basePaymentUrl: 'https://nkonline.buyshop.jp/'
+    basePaymentUrl: ''
   }
 };
 
