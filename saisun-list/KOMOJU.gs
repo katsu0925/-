@@ -206,8 +206,13 @@ function handleKomojuWebhook(e) {
   try {
     var body = e.postData ? e.postData.contents : null;
     if (!body) {
+      console.error('KOMOJU Webhook: No body received. postData=' + JSON.stringify(e.postData || null) +
+                     ', parameter=' + JSON.stringify(e.parameter || null));
       return { ok: false, message: 'No body' };
     }
+
+    console.log('KOMOJU Webhook: body received, length=' + body.length +
+                ', parameter=' + JSON.stringify(e.parameter || null));
 
     // Webhook署名検証
     if (!verifyKomojuWebhookSignature_(e, body)) {
@@ -819,4 +824,108 @@ function testCreateSession() {
   if (result.ok) {
     console.log('決済URL:', result.sessionUrl);
   }
+}
+
+// =====================================================
+// ペンディング注文の定期チェック（Webhookセーフティネット）
+// =====================================================
+
+/**
+ * ペンディング注文をチェックし、KOMOJU側で決済完了しているものを確定する。
+ * Webhookが届かなかった場合のセーフティネット。
+ *
+ * GASエディタから時間ベースのトリガーを設定してください:
+ *   ScriptApp.newTrigger('checkPendingOrders')
+ *     .timeBased().everyMinutes(5).create();
+ */
+function checkPendingOrders() {
+  var secretKey = getKomojuSecretKey_();
+  if (!secretKey) return;
+
+  var props = PropertiesService.getScriptProperties();
+  var allProps = props.getProperties();
+  var pendingKeys = [];
+
+  for (var key in allProps) {
+    if (key.indexOf('PENDING_ORDER_') === 0) {
+      pendingKeys.push(key);
+    }
+  }
+
+  if (pendingKeys.length === 0) return;
+
+  console.log('checkPendingOrders: ' + pendingKeys.length + '件のペンディング注文を確認');
+
+  for (var i = 0; i < pendingKeys.length; i++) {
+    var pendingKey = pendingKeys[i];
+    var receiptNo = pendingKey.replace('PENDING_ORDER_', '');
+
+    try {
+      // ペンディングデータの経過時間を確認（古すぎるものは自動キャンセル）
+      var pendingDataStr = props.getProperty(pendingKey);
+      if (!pendingDataStr) continue;
+      var pendingData = JSON.parse(pendingDataStr);
+      var elapsedMs = Date.now() - (pendingData.createdAtMs || 0);
+
+      // 3日（259200秒 = KOMOJU有効期限）を超過 → 自動キャンセル
+      if (elapsedMs > 259200 * 1000) {
+        console.log('ペンディング注文の期限切れ → 自動キャンセル: ' + receiptNo);
+        apiCancelOrder(receiptNo);
+        continue;
+      }
+
+      // KOMOJU決済セッションの状態を確認
+      var saved = getPaymentSession_(receiptNo);
+      if (!saved || !saved.sessionId) continue;
+
+      var response = komojuRequest_('GET', '/sessions/' + saved.sessionId, null, secretKey);
+      if (response.error) {
+        console.warn('checkPendingOrders: KOMOJU API error for ' + receiptNo + ': ' + (response.error.message || ''));
+        continue;
+      }
+
+      var status = mapKomojuStatus_(response.status);
+
+      if ((status === 'paid' || status === 'authorized') && response.payment) {
+        console.log('checkPendingOrders: 決済完了を検出 → 注文確定: ' + receiptNo);
+        var paymentMethodType = response.payment.payment_method_type || '';
+        var paymentStatus = '対応済';
+        if (paymentMethodType === 'konbini' || paymentMethodType === 'bank_transfer') {
+          paymentStatus = '入金待ち';
+        }
+        var confirmResult = confirmPaymentAndCreateOrder(
+          receiptNo, paymentStatus, paymentMethodType, response.payment.id || ''
+        );
+        if (confirmResult && confirmResult.ok) {
+          console.log('checkPendingOrders: 注文確定成功: ' + receiptNo);
+        } else {
+          console.error('checkPendingOrders: 注文確定失敗: ' + receiptNo, confirmResult);
+        }
+      } else if (status === 'failed' || status === 'expired' || status === 'cancelled') {
+        console.log('checkPendingOrders: 決済失敗/期限切れ → キャンセル: ' + receiptNo);
+        apiCancelOrder(receiptNo);
+      }
+    } catch (checkErr) {
+      console.error('checkPendingOrders error for ' + receiptNo + ':', checkErr);
+    }
+  }
+}
+
+/**
+ * ペンディング注文チェックのトリガーを設定（GASエディタで1回だけ実行）
+ */
+function setupPendingOrderTrigger() {
+  // 既存のトリガーを削除
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'checkPendingOrders') {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  // 5分おきにペンディング注文をチェック
+  ScriptApp.newTrigger('checkPendingOrders')
+    .timeBased()
+    .everyMinutes(5)
+    .create();
+  console.log('checkPendingOrders トリガーを設定しました（5分間隔）');
 }
