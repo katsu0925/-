@@ -47,45 +47,16 @@ function apiSubmitEstimate(userKey, form, ids) {
     if (!address) return { ok: false, message: '住所は必須です' };
     if (!phone) return { ok: false, message: '電話番号は必須です' };
 
-    // === 確保チェック（ロック付き） ===
+    // === 読み取り専用操作（ロック外で先に実行 → 高速化） ===
     var orderSs = sh_getOrderSs_();
     sh_ensureAllOnce_(orderSs);
 
-    var lock = LockService.getScriptLock();
-    if (!lock.tryLock(15000)) {
-      return { ok: false, message: '現在混雑しています。少し時間を置いて再度お試しください。' };
-    }
-
-    try {
-
-    var now = u_nowMs_();
-    var openSet = st_getOpenSetFast_(orderSs) || {};
-    var holdState = st_getHoldState_(orderSs) || {};
-    var holdItems = (holdState.items && typeof holdState.items === 'object') ? holdState.items : {};
-    st_cleanupExpiredHolds_(holdItems, now);
-
-    var bad = [];
-    for (var i = 0; i < list.length; i++) {
-      var id = list[i];
-      if (openSet[id]) {
-        bad.push(id);
-        continue;
-      }
-      var it = holdItems[id];
-      if (it && u_toInt_(it.untilMs, 0) > now && String(it.userKey || '') !== uk) {
-        bad.push(id);
-        continue;
-      }
-    }
-    if (bad.length) {
-      return { ok: false, message: '確保できない商品が含まれています: ' + bad.join('、') };
-    }
-
-    // === 価格計算 ===
+    // 商品データを先に読み込み（スプレッドシート読み取りは重いためロック外で実行）
     var products = pr_readProducts_();
     var productMap = {};
     for (var i = 0; i < products.length; i++) productMap[String(products[i].managedId)] = products[i];
 
+    // 商品存在チェック（ロック不要）
     var sum = 0;
     for (var i = 0; i < list.length; i++) {
       var p = productMap[list[i]];
@@ -93,6 +64,7 @@ function apiSubmitEstimate(userKey, form, ids) {
       sum += Number(p.price || 0);
     }
 
+    // === 価格計算（ロック不要の演算） ===
     var totalCount = list.length;
     var discountRate = 0;
 
@@ -112,30 +84,31 @@ function apiSubmitEstimate(userKey, form, ids) {
     // ※割引は商品代のみに適用。送料は割引対象外（税込み固定）。
     var discounted = Math.round(sum * (1 - discountRate));
 
-    // === 送料計算 ===
+    // === 送料計算（ロック不要） ===
     var shippingAmount = Math.max(0, Math.floor(Number(f.shippingAmount || 0)));
     var shippingSize = String(f.shippingSize || '');
     var shippingArea = String(f.shippingArea || '');
     var shippingPref = String(f.shippingPref || '');
 
-    // === ポイント利用 ===
+    // === ポイント利用額の事前計算（ロック不要） ===
     var pointsUsed = 0;
+    var custForPoints = null;
     if (usePoints > 0 && contact) {
-      var custForPoints = findCustomerByEmail_(contact);
+      custForPoints = findCustomerByEmail_(contact);
       if (custForPoints && custForPoints.points >= usePoints) {
         pointsUsed = Math.min(usePoints, discounted); // 合計金額を超えない
         discounted = discounted - pointsUsed;
-        // ポイント残高を差し引き
-        deductPoints_(contact, pointsUsed);
-        if (note) {
-          note += '\n【ポイント利用: ' + pointsUsed + 'pt（-' + pointsUsed + '円）】';
-        } else {
-          note = '【ポイント利用: ' + pointsUsed + 'pt（-' + pointsUsed + '円）】';
-        }
       }
     }
 
     // === 送料を備考に追記 ===
+    if (pointsUsed > 0) {
+      if (note) {
+        note += '\n【ポイント利用: ' + pointsUsed + 'pt（-' + pointsUsed + '円）】';
+      } else {
+        note = '【ポイント利用: ' + pointsUsed + 'pt（-' + pointsUsed + '円）】';
+      }
+    }
     if (shippingAmount > 0) {
       var shippingLabel = '【送料: ¥' + shippingAmount.toLocaleString() + '（' + (shippingPref || '') + '・' + (shippingSize === 'small' ? '小' : '大') + '・税込）】';
       note = note ? (note + '\n' + shippingLabel) : shippingLabel;
@@ -165,6 +138,42 @@ function apiSubmitEstimate(userKey, form, ids) {
     };
 
     var templateText = app_buildTemplateText_(receiptNo, validatedForm, list, totalCount, discounted);
+
+    // === 確保チェック＆状態更新（ロック付き — 最小スコープ） ===
+    var lock = LockService.getScriptLock();
+    if (!lock.tryLock(30000)) {
+      return { ok: false, message: '現在混雑しています。少し時間を置いて再度お試しください。' };
+    }
+
+    try {
+
+    var now = u_nowMs_();
+    var openSet = st_getOpenSetFast_(orderSs) || {};
+    var holdState = st_getHoldState_(orderSs) || {};
+    var holdItems = (holdState.items && typeof holdState.items === 'object') ? holdState.items : {};
+    st_cleanupExpiredHolds_(holdItems, now);
+
+    var bad = [];
+    for (var i = 0; i < list.length; i++) {
+      var id = list[i];
+      if (openSet[id]) {
+        bad.push(id);
+        continue;
+      }
+      var it = holdItems[id];
+      if (it && u_toInt_(it.untilMs, 0) > now && String(it.userKey || '') !== uk) {
+        bad.push(id);
+        continue;
+      }
+    }
+    if (bad.length) {
+      return { ok: false, message: '確保できない商品が含まれています: ' + bad.join('、') };
+    }
+
+    // ポイント残高を差し引き（ロック内で実行 → 二重引き落とし防止）
+    if (pointsUsed > 0 && contact) {
+      deductPoints_(contact, pointsUsed);
+    }
 
     // === 商品を確保→依頼中に移行（決済完了まで予約） ===
     for (var i = 0; i < list.length; i++) {
