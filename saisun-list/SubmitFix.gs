@@ -386,11 +386,11 @@ function writeSubmitData_(data) {
     '',                                          // X: 伝票番号
     '',                                          // Y: 作業報酬
     new Date(now),                               // Z: 更新日時
-    false,                                        // AA: 通知フラグ（FALSEで初期化 — 発送通知の二重送信防止）
+    paymentStatus === '入金待ち' ? '' : false,     // AA: 通知フラグ（入金待ちは空白、入金済みはFALSE）
     '',                                          // AB: ポイント付与済
     '',                                          // AC: 送料(店負担)
     data.shippingAmount || '',                   // AD: 送料(客負担)
-    data.paymentMethod || '',                    // AE: 決済方法
+    data.paymentMethod ? getPaymentMethodDisplayName_(data.paymentMethod) : '',  // AE: 決済方法（日本語表示名）
     data.paymentId || ''                         // AF: 決済ID
   ];
   var writeRow = sh_findNextRowByDisplayKey_(reqSh, 1, 1);
@@ -732,7 +732,7 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
       createdAtMs: now,
       templateText: pendingData.templateText,
       measureLabel: app_measureOptLabel_(pendingData.measureOpt),
-      paymentStatus: paymentStatus || '対応済',
+      paymentStatus: paymentStatus || '未対応',
       paymentMethod: paymentMethod || '',
       paymentId: paymentId || '',
       itemDetails: pendingData.itemDetails || [],

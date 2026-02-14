@@ -161,7 +161,7 @@ function apiCheckPaymentStatus(receiptNo) {
       if (props.getProperty(pendingKey)) {
         console.log('Webhookが未処理のため、ステータスチェック経由で注文を確定: ' + receiptNo);
         var paymentMethodType = response.payment.payment_method_type || '';
-        var paymentStatus = '対応済';
+        var paymentStatus = '未対応';
         if (paymentMethodType === 'konbini' || paymentMethodType === 'bank_transfer') {
           paymentStatus = '入金待ち';
         }
@@ -294,10 +294,10 @@ function handlePaymentSuccess_(data) {
   savePaymentSession_(receiptNo, saved);
 
   // 決済方法に応じた入金ステータスを決定
-  // クレジットカードは即時決済なので「対応済」
+  // クレジットカードは即時決済完了なので「未対応」（入金済み・処理待ち）
   // コンビニ払い、銀行振込は後払いなので「入金待ち」
   // ※PayPay, Paidy は申請中（承認後に追加）
-  var paymentStatus = '対応済';
+  var paymentStatus = '未対応';
   if (payment.payment_method_type === 'konbini' || payment.payment_method_type === 'bank_transfer') {
     paymentStatus = '入金待ち';
   }
@@ -616,6 +616,20 @@ function komojuRequest_(method, endpoint, data, secretKey) {
 }
 
 /**
+ * KOMOJU決済方法を日本語表示名に変換
+ * @param {string} methodType - KOMOJUの決済方法タイプ（例: 'credit_card'）
+ * @returns {string} - 日本語表示名（例: 'クレジットカード'）
+ */
+function getPaymentMethodDisplayName_(methodType) {
+  var map = {
+    'credit_card': 'クレジットカード',
+    'konbini': 'コンビニ払い',
+    'bank_transfer': '銀行振込'
+  };
+  return map[String(methodType || '')] || String(methodType || '');
+}
+
+/**
  * KOMOJUステータスをアプリ内ステータスにマッピング
  */
 function mapKomojuStatus_(komojuStatus) {
@@ -736,7 +750,12 @@ function getPaymentSession_(receiptNo) {
 
 /**
  * 依頼管理シートの決済ステータスを更新
- * 列構成: R列(18)=入金確認
+ * 列構成: R列(18)=入金確認, AA列(27)=通知フラグ, AE列(31)=決済方法
+ *
+ * 後日入金（銀行振込・コンビニ払い）が確認された場合:
+ * - R列を「入金待ち」→「未対応」に更新
+ * - AA列にFALSEをセット（入金完了時のみ）
+ * - AE列に決済方法の日本語表示名をセット
  */
 function updateOrderPaymentStatus_(receiptNo, paymentStatus, paymentMethod) {
   try {
@@ -755,8 +774,20 @@ function updateOrderPaymentStatus_(receiptNo, paymentStatus, paymentMethod) {
 
         // R列(18): 入金確認ステータスを更新
         var paymentConfirmCol = 18;  // R列
-        var statusText = paymentStatus === 'paid' ? '対応済' : (paymentStatus === 'pending' ? '入金待ち' : '未対応');
+        var statusText = paymentStatus === 'paid' ? '未対応' : (paymentStatus === 'pending' ? '入金待ち' : '未対応');
         sheet.getRange(row, paymentConfirmCol).setValue(statusText);
+
+        // AE列(31): 決済方法（日本語表示名）
+        if (paymentMethod) {
+          var paymentMethodCol = 31;  // AE列
+          sheet.getRange(row, paymentMethodCol).setValue(getPaymentMethodDisplayName_(paymentMethod));
+        }
+
+        // AA列(27): 通知フラグ — 入金完了時（未対応に変更時）にFALSEをセット
+        if (statusText === '未対応') {
+          var notifyFlagCol = 27;  // AA列
+          sheet.getRange(row, notifyFlagCol).setValue(false);
+        }
 
         console.log('Updated payment status for row ' + row + ': ' + statusText);
         break;
@@ -1125,7 +1156,7 @@ function checkPendingOrders() {
       if ((status === 'paid' || status === 'authorized') && response.payment) {
         console.log('checkPendingOrders: [' + receiptNo + '] 決済完了を検出 → 注文確定');
         var paymentMethodType = response.payment.payment_method_type || '';
-        var paymentStatus = '対応済';
+        var paymentStatus = '未対応';
         if (paymentMethodType === 'konbini' || paymentMethodType === 'bank_transfer') {
           paymentStatus = '入金待ち';
         }
