@@ -562,7 +562,13 @@ function getReturnUrl_() {
   if (typeof SITE_CONSTANTS !== 'undefined' && SITE_CONSTANTS && SITE_CONSTANTS.SITE_URL) {
     return String(SITE_CONSTANTS.SITE_URL).replace(/\/+$/, '');
   }
-  // エディタ実行時は /dev が返る場合があるため /exec に置換
+  // DEPLOY_URL が設定されていればそれを使用
+  try {
+    var deployUrl = PropertiesService.getScriptProperties().getProperty('DEPLOY_URL');
+    if (deployUrl) return deployUrl.replace(/\/+$/, '');
+  } catch (e) {}
+  // 最終フォールバック: ScriptApp.getService().getUrl()
+  // ※ エディタ実行時はデプロイIDが異なるため正しくない場合がある
   var gasUrl = ScriptApp.getService().getUrl();
   if (gasUrl && gasUrl.indexOf('/dev') === gasUrl.length - 4) {
     gasUrl = gasUrl.slice(0, -4) + '/exec';
@@ -680,16 +686,30 @@ function setKomojuWebhookSecret() {
 
   PropertiesService.getScriptProperties().setProperty('KOMOJU_WEBHOOK_SECRET', webhookSecret);
 
-  // デプロイURLを取得（エディタ実行時は /dev が返るため /exec に置換）
-  var deployUrl = ScriptApp.getService().getUrl();
-  if (deployUrl && deployUrl.indexOf('/dev') === deployUrl.length - 4) {
-    deployUrl = deployUrl.slice(0, -4) + '/exec';
-  }
+  // デプロイURLを取得（DEPLOY_URL スクリプトプロパティを最優先）
+  var props = PropertiesService.getScriptProperties();
+  var deployUrl = props.getProperty('DEPLOY_URL');
 
-  // スクリプトプロパティに DEPLOY_URL があればそちらを優先
-  var customUrl = PropertiesService.getScriptProperties().getProperty('DEPLOY_URL');
-  if (customUrl) {
-    deployUrl = customUrl.replace(/\/+$/, '');
+  if (deployUrl) {
+    deployUrl = deployUrl.replace(/\/+$/, '');
+  } else {
+    // DEPLOY_URL 未設定の場合はエラーを表示して中断
+    // ScriptApp.getService().getUrl() はエディタ実行時に /dev のURLを返し、
+    // さらにデプロイIDも本番と異なるため信頼できない
+    console.log('=== エラー: DEPLOY_URL が未設定です ===');
+    console.log('');
+    console.log('Webhookが正しく動作するには、本番デプロイURLの設定が必要です。');
+    console.log('');
+    console.log('【手順】');
+    console.log('1. GASエディタで「デプロイ」→「デプロイを管理」を開く');
+    console.log('2. ウェブアプリのURLをコピー（/exec で終わるURL）');
+    console.log('3. 以下のいずれかの方法で設定:');
+    console.log('   a) setDeployUrl() 関数を実行（実行時にプロンプトが表示されます）');
+    console.log('   b) スクリプトプロパティに DEPLOY_URL を手動追加');
+    console.log('4. 設定後、この setKomojuWebhookSecret() を再実行');
+    console.log('');
+    console.log('=== Webhook設定を中断しました ===');
+    return;
   }
 
   console.log('=== KOMOJU Webhook 設定情報 ===');
@@ -700,10 +720,60 @@ function setKomojuWebhookSecret() {
   console.log('【2】KOMOJUダッシュボードの「Webhook URL」欄に以下を設定:');
   console.log(deployUrl + '?action=komoju_webhook&webhook_token=' + webhookSecret);
   console.log('');
-  console.log('※ 上記URLが正しいデプロイURLでない場合は、スクリプトプロパティに');
-  console.log('  DEPLOY_URL を設定してから再実行してください。');
+  console.log('使用中のデプロイURL: ' + deployUrl);
   console.log('');
   console.log('=== 設定完了 ===');
+}
+
+/**
+ * 本番デプロイURLをスクリプトプロパティに保存するヘルパー関数
+ * GASエディタから実行すると、入力ダイアログが表示されます。
+ * ダイアログが使えない場合は、引数付きで呼び出すか、
+ * スクリプトプロパティに DEPLOY_URL を直接設定してください。
+ */
+function setDeployUrl() {
+  var ui;
+  try {
+    ui = SpreadsheetApp.getUi();
+  } catch (e) {
+    // スプレッドシートUIが使えない場合
+    console.log('UIが利用できません。スクリプトプロパティに DEPLOY_URL を直接設定してください。');
+    console.log('例: https://script.google.com/macros/s/XXXXX/exec');
+    return;
+  }
+
+  var result = ui.prompt(
+    'デプロイURL設定',
+    '本番デプロイURLを入力してください（/exec で終わるURL）:',
+    ui.ButtonSet.OK_CANCEL
+  );
+
+  if (result.getSelectedButton() !== ui.Button.OK) {
+    console.log('キャンセルされました。');
+    return;
+  }
+
+  var url = result.getResponseText().trim();
+  if (!url) {
+    console.log('URLが空です。');
+    return;
+  }
+
+  // 基本的なバリデーション
+  if (url.indexOf('https://script.google.com/macros/s/') !== 0) {
+    console.log('エラー: GASデプロイURLの形式ではありません。');
+    console.log('正しい形式: https://script.google.com/macros/s/XXXXX/exec');
+    return;
+  }
+  if (url.indexOf('/dev') === url.length - 4) {
+    console.log('エラー: /dev URLは使用できません。/exec で終わる本番URLを指定してください。');
+    return;
+  }
+
+  PropertiesService.getScriptProperties().setProperty('DEPLOY_URL', url.replace(/\/+$/, ''));
+  console.log('DEPLOY_URL を保存しました: ' + url);
+  console.log('');
+  console.log('次に setKomojuWebhookSecret() を実行してWebhookを設定してください。');
 }
 
 /**
