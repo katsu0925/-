@@ -2867,10 +2867,28 @@ function updateCartPrice() {
 
 function toggleCartOptimistic_(id) {
   var idx = state.cart.ids.indexOf(id);
+  var adding = (idx === -1);
   if (idx !== -1) { state.cart.ids.splice(idx, 1); } else { state.cart.ids.push(id); }
+
+  // 追加時: itemsById にデータがなければカードから復元（カートモーダル削除後の再追加対策）
+  if (adding && !state.cart.itemsById[id]) {
+    var rec = state.ui.cardEls ? state.ui.cardEls[id] : null;
+    if (rec && rec.item) upsertCartItem_(rec.item);
+  }
+
+  // 確保ステータスの楽観的更新（API応答を待たず即時反映）
+  if (adding) {
+    // 追加時: heldByOther をクリアして自分の確保として扱う
+    if (state.cart.digest[id]) { state.cart.digest[id].heldByOther = false; }
+  } else {
+    // 削除時: digest をクリアして元のステータス（在庫あり）に即時戻す
+    delete state.cart.digest[id];
+  }
+
   state.lastShipping = null; // カート変更時に送料キャッシュを無効化
   saveCartStorage(); updateCartCount(); updateCardUi_(id);
-  
+  updateShippingDisplay_(); // 送料を即時再計算
+
   runApi('apiSyncHolds', state.userKey, state.cart.ids.slice())
     .then(function(res) {
       if (res && res.failed && res.failed.length) {
@@ -2878,15 +2896,17 @@ function toggleCartOptimistic_(id) {
           var fid = res.failed[i].id;
           var j = state.cart.ids.indexOf(fid);
           if (j !== -1) state.cart.ids.splice(j, 1);
+          delete state.cart.digest[fid];
           updateCardUi_(fid);
         }
         updateCartCount(); saveCartStorage();
+        updateShippingDisplay_(); // 失敗アイテム除外後も送料再計算
         var reasons = res.failed.map(function(f) { return f.reason; }).filter(function(v, i, a) { return a.indexOf(v) === i; });
         showToast(reasons.join('・') + 'の商品があります');
       }
     })
     .catch(function(e) { console.log('同期エラー:', e); });
-  
+
   pollStatusNow_();
 }
 
@@ -3747,6 +3767,7 @@ function renderCartModal_() {
         var idx = state.cart.ids.indexOf(idRef);
         if (idx !== -1) state.cart.ids.splice(idx, 1);
         delete state.cart.itemsById[idRef];
+        delete state.cart.digest[idRef]; // 確保ステータスを即時クリア
         saveCartStorage(); updateCartCount(); updateCardUi_(idRef);
         runApi('apiSyncHolds', state.userKey, state.cart.ids.slice()).catch(function() {});
         renderCartModal_();
