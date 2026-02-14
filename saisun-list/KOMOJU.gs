@@ -493,6 +493,7 @@ function mapKomojuStatus_(komojuStatus) {
     'pending': 'pending',
     'authorized': 'authorized',
     'captured': 'paid',
+    'completed': 'paid',
     'refunded': 'refunded',
     'cancelled': 'cancelled',
     'expired': 'expired',
