@@ -40,7 +40,6 @@ var PAYMENT_CONSTANTS = {
   PAYMENT_EXPIRY_SECONDS: 259200,                  // 決済期限（3日 = 72時間）
   PAYMENT_METHODS: ['credit_card', 'konbini', 'bank_transfer']
   // 申請中: paypay, paidy  ／ JCB/AMEX/Diners/Discover(日本)も申請中
-  // コンビニ払い: セブン-イレブンは対象外
   // LINE Pay: サービス終了のため削除
 };
 
