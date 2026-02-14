@@ -562,7 +562,12 @@ function getReturnUrl_() {
   if (typeof SITE_CONSTANTS !== 'undefined' && SITE_CONSTANTS && SITE_CONSTANTS.SITE_URL) {
     return String(SITE_CONSTANTS.SITE_URL).replace(/\/+$/, '');
   }
-  return ScriptApp.getService().getUrl();
+  // エディタ実行時は /dev が返る場合があるため /exec に置換
+  var gasUrl = ScriptApp.getService().getUrl();
+  if (gasUrl && gasUrl.indexOf('/dev') === gasUrl.length - 4) {
+    gasUrl = gasUrl.slice(0, -4) + '/exec';
+  }
+  return gasUrl;
 }
 
 /**
@@ -675,8 +680,17 @@ function setKomojuWebhookSecret() {
 
   PropertiesService.getScriptProperties().setProperty('KOMOJU_WEBHOOK_SECRET', webhookSecret);
 
-  // デプロイURLを取得
+  // デプロイURLを取得（エディタ実行時は /dev が返るため /exec に置換）
   var deployUrl = ScriptApp.getService().getUrl();
+  if (deployUrl && deployUrl.indexOf('/dev') === deployUrl.length - 4) {
+    deployUrl = deployUrl.slice(0, -4) + '/exec';
+  }
+
+  // スクリプトプロパティに DEPLOY_URL があればそちらを優先
+  var customUrl = PropertiesService.getScriptProperties().getProperty('DEPLOY_URL');
+  if (customUrl) {
+    deployUrl = customUrl.replace(/\/+$/, '');
+  }
 
   console.log('=== KOMOJU Webhook 設定情報 ===');
   console.log('');
@@ -685,6 +699,9 @@ function setKomojuWebhookSecret() {
   console.log('');
   console.log('【2】KOMOJUダッシュボードの「Webhook URL」欄に以下を設定:');
   console.log(deployUrl + '?action=komoju_webhook&webhook_token=' + webhookSecret);
+  console.log('');
+  console.log('※ 上記URLが正しいデプロイURLでない場合は、スクリプトプロパティに');
+  console.log('  DEPLOY_URL を設定してから再実行してください。');
   console.log('');
   console.log('=== 設定完了 ===');
 }
