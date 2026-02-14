@@ -431,7 +431,7 @@ function app_sendOrderConfirmToCustomer_(data) {
       + '※ このメールは自動送信です。\n'
       + '※ ご注文確定後のキャンセル・変更はできません。\n\n'
       + '──────────────────\n'
-      + 'デタウリ.Detauri（NKonline Apparel 卸売サイト）\n'
+      + 'デタウリ.Detauri\n'
       + 'https://wholesale.nkonline-tool.com/\n'
       + 'お問い合わせ：nkonline1030@gmail.com\n'
       + '──────────────────\n';
@@ -572,7 +572,7 @@ function apiSendContactForm(params) {
     });
 
     // 2. 顧客宛確認メール
-    var custSubject = '【NKonline Apparel】お問い合わせを受け付けました';
+    var custSubject = '【デタウリ.Detauri】お問い合わせを受け付けました';
     var custBody = name + ' 様\n\n'
       + 'お問い合わせいただきありがとうございます。\n'
       + '以下の内容で受け付けました。2営業日以内にご連絡いたします。\n\n'
@@ -587,7 +587,7 @@ function apiSendContactForm(params) {
       + '※ このメールは自動送信です。\n'
       + '  このメールへの返信はお控えください。\n\n'
       + '──────────────────\n'
-      + 'NKonline Apparel（卸売サイト）\n'
+      + 'デタウリ.Detauri\n'
       + 'https://wholesale.nkonline-tool.com/\n'
       + 'お問い合わせ：nkonline1030@gmail.com\n'
       + '──────────────────\n';

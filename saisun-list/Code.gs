@@ -154,6 +154,14 @@ function checkRateLimit_(action, userKey) {
   var rule = RATE_LIMITS[action];
   if (!rule || !userKey) return null;
 
+  // テストモード時は決済関連のレート制限をスキップ
+  if (action === 'apiSubmitEstimate') {
+    try {
+      var komojuMode = getKomojuMode_();
+      if (komojuMode.mode === 'test') return null;
+    } catch (e) {}
+  }
+
   var cache = CacheService.getScriptCache();
   var key = 'RL:' + action + ':' + userKey;
   var raw = cache.get(key);

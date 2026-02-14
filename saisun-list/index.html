@@ -1047,7 +1047,7 @@
       <a href="#" id="openLegalLink" style="color:#cbd5e1; text-decoration:none;">特定商取引法に基づく表記</a>
       <a href="https://nkonline.buyshop.jp/privacy" target="_blank" rel="noopener noreferrer" style="color:#cbd5e1; text-decoration:none;">プライバシーポリシー</a>
     </div>
-    <div style="color:#64748b;">&copy; 2025-2026 NKonline デタウリ.Detauri</div>
+    <div style="color:#64748b;">&copy; 2025-2026 デタウリ.Detauri</div>
   </div>
 </footer>
 
@@ -3986,6 +3986,10 @@ function handlePaymentReturn_() {
     if ($('doneModalTitle')) $('doneModalTitle').textContent = '注文完了';
     if ($('doneMessage')) $('doneMessage').textContent = 'お支払いが完了しました。注文確認メールをお送りしましたのでご確認ください。商品の発送準備を進めてまいります。';
     openModal($('doneModal'));
+    // Webhookが未処理の場合のフォールバック: ステータスチェック経由で注文確定を試行
+    runApi('apiCheckPaymentStatus', receipt).catch(function(e) {
+      console.log('Payment status check on return:', e);
+    });
   } else if (status === 'cancel') {
     // 決済キャンセル
     $('doneReceipt').textContent = receipt;
