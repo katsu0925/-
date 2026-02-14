@@ -370,7 +370,7 @@
         <div class="sumLine" id="sumShipping" style="display:none;font-size:13px;color:#475569;"></div>
         <div class="sumLine" id="sumTotal" style="display:none;font-weight:700;font-size:15px;"></div>
         <div id="shippingNote" style="display:none;font-size:11px;color:#888;text-align:right;width:100%;">※送料は税込み・会員割引対象外です</div>
-        <div id="paymentFeeNote" style="display:none;font-size:11px;color:#888;text-align:right;width:100%;line-height:1.5;">※コンビニ決済は別途手数料190円（税込）がかかります<br>※銀行振込の振込手数料はお客様負担です</div>
+        <div id="paymentFeeNote" style="display:none;font-size:11px;color:#888;text-align:right;width:100%;line-height:1.5;">※コンビニ決済は別途手数料220円（税込）がかかります<br>※銀行振込の振込手数料はお客様負担です</div>
         <div id="remoteIslandWarning" style="display:none;font-size:13px;color:#b8002a;text-align:right;width:100%;font-weight:600;"></div>
         <div id="cartActions" style="display:flex; gap:10px; align-items:center; justify-content:flex-end; flex-wrap:wrap; width:100%;">
           <button class="btn" id="clearCartBtn" style="min-width:160px;" type="button">カートを空にする</button>
@@ -802,7 +802,7 @@
         <ol style="margin:0;padding-left:20px;color:#475569;">
           <li style="margin-bottom:8px;"><strong>商品選択</strong>：お好みの商品をカートに追加</li>
           <li style="margin-bottom:8px;"><strong>お届け先入力</strong>：住所を入力すると送料が自動表示されます</li>
-          <li style="margin-bottom:8px;"><strong>お支払い</strong>：商品代＋送料をオンライン決済<br><span style="font-size:12px;color:#888;">※コンビニ決済は別途手数料190円、銀行振込の振込手数料はお客様負担</span></li>
+          <li style="margin-bottom:8px;"><strong>お支払い</strong>：商品代＋送料をオンライン決済<br><span style="font-size:12px;color:#888;">※コンビニ決済は別途手数料220円、銀行振込の振込手数料はお客様負担</span></li>
           <li><strong>発送</strong>：決済完了後、商品を発送いたします</li>
         </ol>
       </div>
@@ -969,9 +969,9 @@
       <div class="guide-section" style="margin-top:20px;">
         <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #f59e0b;padding-bottom:8px;">お客様ご負担の決済手数料</h3>
         <ul style="margin:0;padding-left:20px;color:#475569;">
-          <li><strong>コンビニ決済</strong>：190円（税込）の決済手数料がかかります</li>
+          <li><strong>コンビニ決済</strong>：220円（税込）の決済手数料がかかります</li>
           <li><strong>銀行振込</strong>：振込手数料はお客様のご負担となります（金額は金融機関により異なります）</li>
-          <li style="color:#888;">クレジットカード・LINE Pay：手数料はかかりません</li>
+          <li style="color:#888;">クレジットカード：手数料はかかりません</li>
         </ul>
       </div>
     </div>
@@ -1016,7 +1016,7 @@
         </tr>
         <tr>
           <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">支払方法</th>
-          <td style="padding:12px;border:1px solid #e2e8f0;">クレジットカード（Visa/Mastercard）、コンビニ決済（セブン-イレブンを除く）、銀行振込、LINE Pay<br><span style="font-size:12px;color:#888;">※JCB/AMEX/Diners/Discover・PayPay・Paidy（あと払い）は準備中</span></td>
+          <td style="padding:12px;border:1px solid #e2e8f0;">クレジットカード（Visa/Mastercard）、コンビニ決済（セブン-イレブンを除く）、銀行振込<br><span style="font-size:12px;color:#888;">※JCB/AMEX/Diners/Discover・PayPay・Paidy（あと払い）は準備中</span></td>
         </tr>
         <tr>
           <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">支払時期</th>
@@ -1030,9 +1030,9 @@
         <tr>
           <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">お客様負担の手数料</th>
           <td style="padding:12px;border:1px solid #e2e8f0;">
-            コンビニ決済：<strong>190円（税込）</strong>の決済手数料がかかります（お客様負担）<br>
+            コンビニ決済：<strong>220円（税込）</strong>の決済手数料がかかります（お客様負担）<br>
             銀行振込：<strong>振込手数料</strong>はお客様のご負担となります（金額は金融機関により異なります）<br>
-            <span style="font-size:12px;color:#888;">※クレジットカード・LINE Pay：手数料はかかりません</span>
+            <span style="font-size:12px;color:#888;">※クレジットカード：手数料はかかりません</span>
           </td>
         </tr>
         <tr>
@@ -3947,31 +3947,32 @@ function submitNow_() {
   var err = validateForm_(f);
   if (err) { showToast(err); submitting_ = false; return; }
   $('submitBtn').disabled = true;
-  setSending_(true, '注文送信中...');
+  setSending_(true, '注文を準備中...');
   var ids = (state.cart.ids || []).slice();
 
-  // 送信前にCSRFトークンをリフレッシュ（期限切れ対策）
-  runApi('apiGetCsrfToken', state.userKey)
-    .then(function(csrfRes) {
-      if (csrfRes && csrfRes.ok && csrfRes.csrfToken) {
-        state.csrfToken = csrfRes.csrfToken;
-      }
-      return runApi('apiSyncHolds', state.userKey, ids);
-    })
-    .then(function(syncResult) {
+  // ステップ1: CSRF更新 + reCAPTCHA + 確保同期を並列実行（高速化）
+  Promise.all([
+    runApi('apiGetCsrfToken', state.userKey).then(function(csrfRes) {
+      if (csrfRes && csrfRes.ok && csrfRes.csrfToken) state.csrfToken = csrfRes.csrfToken;
+    }).catch(function() {}),
+    getRecaptchaToken_().catch(function() { return ''; }),
+    runApi('apiSyncHolds', state.userKey, ids)
+  ])
+    .then(function(results) {
+      var recaptchaToken = results[1] || '';
+      var syncResult = results[2];
       if (!syncResult || !syncResult.ok) throw new Error(syncResult && syncResult.message ? syncResult.message : '確保に失敗しました');
       if (syncResult.failed && syncResult.failed.length) {
         state.cart.ids = state.cart.ids.filter(function(x) { return !syncResult.failed.find(function(f) { return f.id === x; }); });
         saveCartStorage(); updateCartCount(); renderCartModal_();
         throw new Error('一部確保できない商品があります');
       }
-      return getRecaptchaToken_().then(function(token) {
-        return runApi('apiSubmitEstimate', state.userKey, f, ids, { _runApiExtra_: true, recaptchaToken: token });
-      });
+      // ステップ2: 注文送信
+      setSending_(true, '注文送信中...');
+      return runApi('apiSubmitEstimate', state.userKey, f, ids, { _runApiExtra_: true, recaptchaToken: recaptchaToken });
     })
     .then(function(res) {
       if (!res || !res.ok) throw new Error(res && res.message ? res.message : '注文送信に失敗しました');
-      var receiptNo = res.receiptNo || '';
       var sessionUrl = res.sessionUrl || '';
       if (!sessionUrl) throw new Error('決済URLの取得に失敗しました');
       // カートクリア（決済完了後にページに戻ってくるので先にクリア）

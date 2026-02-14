@@ -647,7 +647,7 @@ function getProductNamesFromIds_(ids) {
  * - 注文確認メールを送信
  * @param {string} receiptNo - 受付番号
  * @param {string} paymentStatus - 入金ステータス（'対応済' | '入金待ち'）
- * @param {string} paymentMethod - 決済方法（'credit_card' | 'konbini' | 'bank_transfer' | 'linepay'）
+ * @param {string} paymentMethod - 決済方法（'credit_card' | 'konbini' | 'bank_transfer'）
  * @param {string} paymentId - KOMOJU決済ID
  * @returns {object} - { ok, message }
  */

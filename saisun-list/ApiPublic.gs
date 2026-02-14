@@ -380,7 +380,6 @@ function app_sendOrderConfirmToCustomer_(data) {
       case 'credit_card': paymentMethodLabel = 'クレジットカード'; break;
       case 'konbini': paymentMethodLabel = 'コンビニ払い'; break;
       case 'bank_transfer': paymentMethodLabel = '銀行振込'; break;
-      case 'linepay': paymentMethodLabel = 'LINE Pay'; break;
       default: paymentMethodLabel = paymentMethod || ''; break;
     }
 
