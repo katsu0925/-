@@ -95,7 +95,9 @@ function doPost(e) {
       'apiCheckPaymentStatus': apiCheckPaymentStatus,
       'apiCancelOrder': apiCancelOrder,
       // CSRFトークン発行
-      'apiGetCsrfToken': apiGetCsrfToken
+      'apiGetCsrfToken': apiGetCsrfToken,
+      // AIチャットボット
+      'apiChatbot': apiChatbot
     };
 
     var fn = allowed[action];
