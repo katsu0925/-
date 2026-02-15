@@ -54,13 +54,6 @@
     .topbar{position:sticky;top:0;z-index:20;background:#1e293b;border-bottom:1px solid #334155;padding:12px 14px;}
     .wrap{margin:0 auto;padding:12px 14px 90px;}
         .title{font-weight:900;font-size:18px;color:#f1f5f9;}
-    .subnote{margin-top:6px;font-size:12px;color:#666;line-height:1.4;}
-    .topDetails{margin-top:6px;cursor:pointer;padding:6px 14px;}
-    .topDetails a{cursor:pointer;}
-    .topSummary{font-size:12px;font-weight:900;color:#555;cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;}
-    .topSummary::-webkit-details-marker{display:none;}
-    .topSummary::before{content:'▼';font-size:10px;transition:transform .2s;}
-    details:not([open])>.topSummary::before{content:'▶';}
     .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
     .field{min-width:170px;flex:1 1 170px;}
     .field.big{min-width:240px;flex:2 1 240px;}
@@ -321,11 +314,6 @@
       </div>
     </div>
   </div>
-
-  <details class="topDetails" id="topNotes" style="display:none;">
-    <summary class="topSummary">ご案内</summary>
-    <div class="subnote" id="topNotesBody"></div>
-  </details>
 
   <div class="wrap">
     <div class="filter-sort-section">
@@ -760,6 +748,10 @@
       <button class="modalClose" id="contactCloseBtn" aria-label="close">×</button>
     </div>
     <div class="modalBody">
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#475569;line-height:1.6;">
+        <strong>営業時間</strong>：平日 10:00〜18:00（土日祝は発送・事務処理休み）<br>
+        メッセージへの返信は土日祝も対応しております。2営業日以内にご返信いたします。
+      </div>
       <div class="formField">
         <label>お名前 *</label>
         <input type="text" id="contactName" placeholder="会社名/氏名">
@@ -1049,6 +1041,10 @@
         <tr>
           <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">メールアドレス</th>
           <td style="padding:12px;border:1px solid #e2e8f0;">nkonline1030@gmail.com</td>
+        </tr>
+        <tr>
+          <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">営業時間</th>
+          <td style="padding:12px;border:1px solid #e2e8f0;">平日 10:00〜18:00<br><span style="font-size:12px;color:#888;">※土日祝は発送・事務処理休み（メッセージ返信は対応可）</span></td>
         </tr>
         <tr>
           <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">販売価格</th>
@@ -4286,16 +4282,6 @@ function boot() {
   // 全ユーザーにCSRFトークンを発行（非ログインユーザーでも注文送信に必要）
   fetchCsrfToken_();
 
-  // 説明欄どこを押しても折りたたみ
-  var topDet = document.querySelector('.topDetails');
-  if (topDet) {
-    topDet.addEventListener('click', function(e) {
-      if (e.target.tagName === 'A') return; // リンクはそのまま
-      if (e.target.closest('summary')) return; // summaryは標準動作
-      topDet.open = !topDet.open;
-    });
-  }
-
   var mo = loadMeasureOpt_();
   if (mo) setMeasureOptValue_(mo);
   
@@ -4354,15 +4340,6 @@ function applyProductData_(data) {
 
   $('appTitle').textContent = 'デタウリ.Detauri';
   setBaseLink_();
-
-  // 案内ノート表示
-  var notesArr = (state.settings && state.settings.notes) || [];
-  var notesEl = $('topNotes');
-  var notesBody = $('topNotesBody');
-  if (notesEl && notesBody && notesArr.length > 0) {
-    notesBody.innerHTML = notesArr.map(function(n) { return '<div>' + n + '</div>'; }).join('');
-    notesEl.style.display = '';
-  }
 
   // マルチセレクトフィルターを構築
   buildMultiSelectDropdown('category', state.options.category || []);
@@ -4525,7 +4502,17 @@ boot();
   function appendMessage(role, text){
     var div = document.createElement('div');
     div.className = 'chatbot-msg ' + role;
-    div.textContent = text;
+    if (role === 'bot') {
+      // XSS対策: まずtextContentでエスケープし、その後特定パターンのみリンク化
+      var span = document.createElement('span');
+      span.textContent = text;
+      var safe = span.innerHTML;
+      // 「✉ お問い合わせ」をクリック可能なリンクに変換
+      safe = safe.replace(/✉\s*お問い合わせ/g, '<a href="#" style="color:#3b82f6;text-decoration:underline;cursor:pointer;" onclick="event.preventDefault();document.getElementById(\'contactModal\').classList.add(\'open\');document.querySelector(\'.overlay\').classList.add(\'open\');return false;">✉ お問い合わせ</a>');
+      div.innerHTML = safe;
+    } else {
+      div.textContent = text;
+    }
     messagesEl.appendChild(div);
     scrollToBottom();
   }

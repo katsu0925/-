@@ -112,7 +112,6 @@ const APP_CONFIG = {
       '10点から購入可能です。合計金額は商品代のみ <a href="https://drive.google.com/file/d/1g7UYUBw3-Y6M5HkSv3mfMe5jEjs795E3/view?usp=sharing" target="_blank" rel="noopener noreferrer">（送料別）</a>。送料は住所入力後に自動計算されます。',
       'カートに入れた商品は15分間確保されます。在庫は先着順のためお早めにお手続きください。',
       '決済方法：クレジットカード／コンビニ払い／銀行振込',
-      '発送：入金確認後 2〜5営業日以内 ／ 営業時間：平日 10:00〜18:00（土日祝は発送休み・メッセージ対応可）',
       '<span style="color:#b8002a;">30点以上で10％割引 ／ 会員登録で10％OFF（2026年9月末まで・併用可）</span>'
     ],
     nextSteps: [],
