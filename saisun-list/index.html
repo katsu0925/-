@@ -174,8 +174,9 @@
     .brandItem .brand-check::after{content:'✓';color:#fff;font-size:13px;font-weight:700;opacity:0;transition:opacity .15s;}
     .brandItem.selected .brand-check::after{opacity:1;}
     .brandName{font-weight:600;line-height:1.3;word-break:break-word;color:#334155;}
-    .toTop{position:fixed;right:14px;bottom:86px;width:46px;height:46px;border-radius:999px;border:1px solid #d9deea;background:#fff;display:none;align-items:center;justify-content:center;font-weight:900;z-index:70;box-shadow:0 6px 18px rgba(0,0,0,.12);}
+    .toTop{position:fixed;right:14px;bottom:144px;width:46px;height:46px;border-radius:999px;border:1px solid #d9deea;background:#fff;display:none;align-items:center;justify-content:center;font-weight:900;z-index:70;box-shadow:0 6px 18px rgba(0,0,0,.12);transition:all .3s ease;}
     .toTop.show{display:flex;}
+    .toTop.chatbot-open{right:auto;left:auto;bottom:auto;position:static;}
     .price-old { text-decoration: line-through; color:#999; }
     .price-new { color:#b8002a; font-weight:700; }
     /* フィルタ・ソート — フラットツールバー */
@@ -260,17 +261,20 @@
     .fullscreen-viewer-hint { color: rgba(255,255,255,.6); font-size: 13px; margin-top: 12px; }
 
     /* === AI Chatbot Widget === */
-    .chatbot-fab{position:fixed;bottom:144px;right:16px;z-index:9999;width:56px;height:56px;border-radius:50%;background:#1e293b;color:#fff;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;transition:transform .2s,background .2s;}
+    .chatbot-fab{position:fixed;bottom:80px;right:16px;z-index:9999;width:56px;height:56px;border-radius:50%;background:#1e293b;color:#fff;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;transition:transform .2s,background .2s;}
     .chatbot-fab:hover{transform:scale(1.08);background:#334155;}
     .chatbot-fab svg{width:28px;height:28px;fill:#fff;}
     .chatbot-fab .chatbot-fab-close{display:none;}
-    .chatbot-fab.open .chatbot-fab-icon{display:none;}
-    .chatbot-fab.open .chatbot-fab-close{display:block;}
     .chatbot-badge{position:absolute;top:-2px;right:-2px;width:18px;height:18px;border-radius:50%;background:#ef4444;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0;transition:opacity .2s;}
     .chatbot-badge.show{opacity:1;}
-    .chatbot-panel{position:fixed;bottom:212px;right:16px;z-index:9998;width:360px;max-width:calc(100vw - 32px);height:480px;max-height:calc(100vh - 260px);background:#fff;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.18);display:none;flex-direction:column;overflow:hidden;border:1px solid #e6e8ee;}
+    .chatbot-panel{position:fixed;bottom:148px;right:16px;z-index:9998;width:360px;max-width:calc(100vw - 32px);height:480px;max-height:calc(100vh - 200px);background:#fff;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.18);display:none;flex-direction:column;overflow:hidden;border:1px solid #e6e8ee;}
     .chatbot-panel.open{display:flex;}
-    .chatbot-header{background:#1e293b;color:#fff;padding:14px 16px;font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+    .chatbot-header{background:#1e293b;color:#fff;padding:14px 16px;font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px;flex-shrink:0;position:relative;}
+    .chatbot-header-actions{display:flex;align-items:center;gap:6px;margin-left:auto;}
+    .chatbot-header-toTop{width:30px;height:30px;border-radius:50%;border:1.5px solid rgba(255,255,255,.35);background:transparent;color:#fff;font-weight:900;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+    .chatbot-header-toTop:hover{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.6);}
+    .chatbot-close-btn{width:30px;height:30px;border-radius:50%;border:1.5px solid rgba(255,255,255,.35);background:transparent;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;line-height:1;}
+    .chatbot-close-btn:hover{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.6);}
     .chatbot-header svg{width:20px;height:20px;fill:#fff;flex-shrink:0;}
     .chatbot-messages{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;scroll-behavior:smooth;}
     .chatbot-msg{max-width:85%;padding:10px 14px;border-radius:14px;font-size:13px;line-height:1.55;word-break:break-word;white-space:pre-wrap;}
@@ -288,7 +292,15 @@
     .chatbot-send-btn:hover{background:#334155;}
     .chatbot-send-btn:disabled{opacity:.4;cursor:not-allowed;}
     .chatbot-send-btn svg{width:18px;height:18px;fill:#fff;}
-    @media(max-width:480px){.chatbot-panel{bottom:0;right:0;left:0;width:100%;max-width:100%;height:100%;max-height:100%;border-radius:0;}.chatbot-fab{bottom:136px;right:12px;width:50px;height:50px;}.chatbot-fab svg{width:24px;height:24px;}}
+    .chatbot-quick-replies{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+    .chatbot-quick-btn{display:inline-block;padding:7px 13px;border-radius:18px;border:1.5px solid #e2e8f0;background:#fff;color:#334155;font-size:12px;cursor:pointer;transition:all .15s;white-space:nowrap;font-weight:500;line-height:1.3;}
+    .chatbot-quick-btn:hover{background:#eff6ff;border-color:#93c5fd;color:#2563eb;}
+    .chatbot-quick-btn:active{transform:scale(.96);}
+    .chatbot-quick-category{font-size:11px;color:#64748b;font-weight:600;margin-top:8px;margin-bottom:2px;padding-left:2px;}
+    .chatbot-quick-category:first-child{margin-top:0;}
+    .chatbot-contact-link{display:inline-flex;align-items:center;gap:4px;margin-top:10px;padding:8px 16px;border-radius:10px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;text-decoration:none;}
+    .chatbot-contact-link:hover{background:#fee2e2;border-color:#f87171;}
+    @media(max-width:480px){.chatbot-panel{bottom:0;right:0;left:0;width:100%;max-width:100%;height:100%;max-height:100%;border-radius:0;}.chatbot-fab{bottom:72px;right:12px;width:50px;height:50px;}.chatbot-fab svg{width:24px;height:24px;}}
   </style>
 </head>
 <body>
@@ -4400,6 +4412,10 @@ boot();
   <div class="chatbot-header">
     <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
     AIアシスタント
+    <span class="chatbot-header-actions">
+      <button class="chatbot-header-toTop" id="chatbotHeaderToTop" type="button" aria-label="ページ上部へ" title="ページ上部へ">↑</button>
+      <button class="chatbot-close-btn" id="chatbotCloseBtn" type="button" aria-label="閉じる" title="閉じる">×</button>
+    </span>
   </div>
   <div class="chatbot-messages" id="chatbotMessages"></div>
   <div class="chatbot-input-area">
@@ -4416,35 +4432,190 @@ boot();
   var input = document.getElementById('chatbotInput');
   var sendBtn = document.getElementById('chatbotSend');
   var badge = document.getElementById('chatbotBadge');
+  var closeBtn = document.getElementById('chatbotCloseBtn');
+  var headerToTop = document.getElementById('chatbotHeaderToTop');
+  var toTopBtn = document.getElementById('toTopBtn');
   var isOpen = false;
   var chatHistory = [];
   var isSending = false;
   var greeted = false;
 
-  var GREETING = 'こんにちは！デタウリ.Detauriへようこそ。\nご質問がありましたらお気軽にどうぞ。\n\n例えば：\n・注文方法について\n・送料はいくら？\n・決済方法は？\n・会員ランクについて';
+  // ── 定型FAQ ──
+  var FAQ = [
+    // --- 注文・購入 ---
+    { q: '注文方法を教えて', category: '注文・購入',
+      a: '【ご注文方法】\n1. 商品一覧からお好みの商品をカートに追加\n2. 10点以上でご注文可能です\n3. お届け先を入力すると送料が自動計算されます\n4. お支払い方法を選んで注文確定\n\n詳しくは画面上部の「商品ガイド」もご覧ください。' },
+    { q: '最低注文数は？', category: '注文・購入',
+      a: '最低注文数は10点からとなっております。\n10点以上であれば何点でもご注文いただけます。' },
+    { q: 'カートの使い方は？', category: '注文・購入',
+      a: '【カートの使い方】\n・商品の「カートに追加」ボタンで追加できます\n・カートアイコンをタップすると中身を確認できます\n・数量の変更や削除もカート内で行えます\n・商品の確保期間はカート追加から15分です\n\n※15分を過ぎると在庫が解放される場合があります。' },
+    { q: '在庫の確保時間は？', category: '注文・購入',
+      a: '商品の確保期間はカートに入れた時点から15分間です。\n15分を過ぎると他のお客様が購入できる状態に戻ります。\nお早めのご注文をおすすめします。' },
+    { q: '注文後のキャンセルはできる？', category: '注文・購入',
+      a: 'ご注文確定後のキャンセル・変更はお受けしておりません。\nご注文前に商品内容をよくご確認ください。\n\n万一、商品内容が記載事項と大きく異なる場合は、商品到着後7日以内にご連絡ください。' },
 
-  // FABクリックで開閉
-  fab.addEventListener('click', function(){
+    // --- 送料・配送 ---
+    { q: '送料はいくら？', category: '送料・配送',
+      a: '【送料について】\n送料はお届け先の地域と荷物のサイズによって異なります。\n\n・宅配便（小）：990円〜1,700円\n・宅配便（大）：1,260円〜2,280円\n・ダイヤモンド会員は送料無料！\n\n詳しくは画面上部の「送料表」ボタンからご確認ください。' },
+    { q: '配送にかかる日数は？', category: '送料・配送',
+      a: '決済完了後、通常2〜5営業日で発送いたします。\nお届けまでの日数は地域により異なりますが、発送から1〜3日程度です。\n\n※繁忙期や天候・災害等により遅延する場合がございます。' },
+    { q: '送料無料になる条件は？', category: '送料・配送',
+      a: 'ダイヤモンド会員のお客様は送料無料です！\n\nダイヤモンド会員になるには、累計購入額30万円以上が条件となります。\n詳しくは「会員ランクについて」をご確認ください。' },
+
+    // --- 決済 ---
+    { q: '決済方法は？', category: '決済',
+      a: '【ご利用可能な決済方法】\n・クレジットカード\n・コンビニ決済（別途手数料220円）\n・銀行振込（振込手数料はお客様負担）\n\nクレジットカードが最もスムーズにお手続きいただけます。' },
+    { q: 'コンビニ決済の手数料は？', category: '決済',
+      a: 'コンビニ決済をご利用の場合、別途220円の手数料がかかります。\n\n手数料を抑えたい場合は、クレジットカード決済がおすすめです。' },
+    { q: '銀行振込の手数料は？', category: '決済',
+      a: '銀行振込をご利用の場合、振込手数料はお客様のご負担となります。\n手数料の金額はご利用の金融機関により異なります。' },
+
+    // --- 割引・セール ---
+    { q: '割引はある？', category: '割引・セール',
+      a: '【現在の割引制度】\n\n1. 30点以上まとめ買い割引：10%OFF\n2. 会員登録割引：10%OFF（2026年9月末まで）\n3. 上記は併用可能！最大約19%OFF\n\nたくさん買うほどお得です！' },
+    { q: '30点割引の詳細は？', category: '割引・セール',
+      a: '30点以上をまとめてご注文いただくと、商品代金が10%OFFになります。\n\n・30点以上であれば何点でも10%OFF\n・会員割引との併用OK\n・割引はカート内で自動計算されます' },
+    { q: '会員割引の期間は？', category: '割引・セール',
+      a: '会員登録で全品10%OFFの特典は2026年9月末までの期間限定です。\n\n・無料登録するだけで適用\n・30点まとめ買い割引と併用可能\n・期間中はいつでもご利用いただけます\n\nお早めの登録がおすすめです！' },
+
+    // --- 会員 ---
+    { q: '会員登録の方法は？', category: '会員',
+      a: '【会員登録の方法】\n画面上部の「無料会員登録」ボタンからお手続きいただけます。\n\n・メールアドレスとパスワードの設定だけで完了\n・登録は無料です\n・登録直後から会員割引（10%OFF）が適用されます' },
+    { q: '会員ランクについて', category: '会員',
+      a: '【会員ランク制度】\n\n・レギュラー：初回登録時（10%OFF特典）\n・シルバー：累計5万円以上\n・ゴールド：累計15万円以上\n・ダイヤモンド：累計30万円以上（送料無料！）\n\nランクが上がるほど特典が充実します。' },
+    { q: 'ダイヤモンド会員の特典は？', category: '会員',
+      a: '【ダイヤモンド会員特典】\n・送料無料（国内全域）\n・優先在庫確保\n\n条件：累計購入額30万円以上\nたくさんご利用いただくほどお得になります！' },
+
+    // --- 商品 ---
+    { q: '状態ランクの見方は？', category: '商品',
+      a: '【状態ランク一覧】\n・S：新品・未使用・タグ付きなど\n・A：使用感がほとんどない美品\n・AB：多少の使用感があるが状態良好\n・B：一般的な使用感・軽微なダメージあり\n・C：使用感強め・目立つダメージあり\n・D：ジャンク・難あり品\n\n各商品の詳細ページで写真とあわせてご確認ください。' },
+    { q: '採寸データはある？', category: '商品',
+      a: 'はい、すべての商品に採寸データが付いています。\n\n商品詳細ページで寸法（着丈・身幅・肩幅・袖丈など）をご確認いただけます。\nサイズ選びの参考にしてください。' },
+    { q: '写真と実物は違う？', category: '商品',
+      a: '商品写真はできるだけ実物に近い状態で撮影しておりますが、以下の点にご注意ください：\n\n・モニター環境により色味が多少異なる場合があります\n・写真はサンプルイメージの場合があります\n・状態ランクは目視による判定です\n\n気になる点がございましたらお気軽にお問い合わせください。' },
+    { q: 'ブランドの検索方法は？', category: '商品',
+      a: '【ブランド検索の方法】\n・画面上部のフィルター機能でブランドを選択できます\n・複数ブランドの同時選択も可能です\n・キーワード検索バーからブランド名で検索することもできます\n\nぜひご活用ください！' },
+
+    // --- 返品・サポート ---
+    { q: '返品・交換はできる？', category: '返品・サポート',
+      a: '返品・交換は原則お受けしておりません。\n\nただし、商品内容が記載事項と大きく異なる場合は、商品到着後7日以内にご連絡ください。\n\n✉ お問い合わせ よりご連絡いただけます。' },
+    { q: 'お問い合わせしたい', category: '返品・サポート',
+      a: 'お問い合わせは以下の方法で承っております：\n\n✉ お問い合わせ フォームからご連絡ください。\n\n営業時間内にご返信いたします。\nお気軽にどうぞ！' },
+    { q: '営業時間は？', category: '返品・サポート',
+      a: '営業時間：平日 10:00〜18:00\n（土日祝はお休みです）\n\n営業時間外のお問い合わせは翌営業日にご返信いたします。' }
+  ];
+
+  var GREETING = 'こんにちは！デタウリ.Detauriへようこそ。\nよくあるご質問を下のボタンからお選びいただくか、自由に入力してください。';
+
+  // ── 開閉 ──
+  function toggleChat(){
     isOpen = !isOpen;
     panel.classList.toggle('open', isOpen);
     fab.classList.toggle('open', isOpen);
     badge.classList.remove('show');
+    if (isOpen) {
+      toTopBtn.classList.remove('show'); // チャット開いたらfixed版を非表示
+    } else {
+      // 閉じたときにスクロール位置に応じて再表示
+      if (typeof setupScrollTopButton_ === 'function') {
+        var y = window.pageYOffset || document.documentElement.scrollTop || 0;
+        if (y > 400) toTopBtn.classList.add('show');
+      }
+    }
     if (isOpen && !greeted) {
       greeted = true;
       appendMessage('bot', GREETING);
+      showQuickReplies();
     }
     if (isOpen) {
       setTimeout(function(){ input.focus(); }, 200);
       scrollToBottom();
     }
+  }
+
+  fab.addEventListener('click', toggleChat);
+  closeBtn.addEventListener('click', toggleChat);
+
+  // ヘッダーのページ上部ボタン
+  headerToTop.addEventListener('click', function(){
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   });
+
+  // チャットが開いているときはfixedのtoTopを非表示にする
+  var origScrollUpdate = null;
+  (function patchScrollBtn(){
+    var origUpdate;
+    var threshold = 400;
+    var btn2 = toTopBtn;
+    var update = function(){
+      if (isOpen) { btn2.classList.remove('show'); return; }
+      var hasModal = !!document.querySelector('.modal.open');
+      var sendingOn = document.getElementById('sendingOverlay') && document.getElementById('sendingOverlay').classList.contains('on');
+      if (hasModal || sendingOn) { btn2.classList.remove('show'); return; }
+      var y = window.pageYOffset || document.documentElement.scrollTop || 0;
+      if (y > threshold) btn2.classList.add('show'); else btn2.classList.remove('show');
+    };
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+  })();
 
   // 初回バッジ表示（3秒後）
   setTimeout(function(){
     if (!isOpen) badge.classList.add('show');
   }, 3000);
 
-  // 送信
+  // ── クイック返信ボタン表示 ──
+  function showQuickReplies(){
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'padding:0 2px;';
+    var categories = [];
+    var catMap = {};
+    FAQ.forEach(function(item){
+      if (!catMap[item.category]) { catMap[item.category] = []; categories.push(item.category); }
+      catMap[item.category].push(item);
+    });
+    categories.forEach(function(cat){
+      var catLabel = document.createElement('div');
+      catLabel.className = 'chatbot-quick-category';
+      catLabel.textContent = cat;
+      wrap.appendChild(catLabel);
+      var btnsWrap = document.createElement('div');
+      btnsWrap.className = 'chatbot-quick-replies';
+      catMap[cat].forEach(function(item, idx){
+        var b = document.createElement('button');
+        b.className = 'chatbot-quick-btn';
+        b.textContent = item.q;
+        b.type = 'button';
+        b.addEventListener('click', function(){
+          handleQuickReply(item);
+        });
+        btnsWrap.appendChild(b);
+      });
+      wrap.appendChild(btnsWrap);
+    });
+    messagesEl.appendChild(wrap);
+    scrollToBottom();
+  }
+
+  function handleQuickReply(item){
+    appendMessage('user', item.q);
+    chatHistory.push({ role: 'user', content: item.q });
+    appendMessage('bot', item.a);
+    chatHistory.push({ role: 'assistant', content: item.a });
+    // 回答後にまたクイックボタンを表示
+    showQuickRepliesCompact();
+  }
+
+  // 回答後のコンパクト版（「他にご質問は？」付き）
+  function showQuickRepliesCompact(){
+    var note = document.createElement('div');
+    note.className = 'chatbot-msg bot';
+    note.textContent = '他にもご質問がありましたら、下のボタンからお選びいただくか、自由に入力してください。';
+    messagesEl.appendChild(note);
+    showQuickReplies();
+  }
+
+  // ── 送信 ──
   sendBtn.addEventListener('click', sendMessage);
   input.addEventListener('keydown', function(e){
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -4473,24 +4644,40 @@ boot();
     input.value = '';
     input.style.height = 'auto';
 
+    // まずFAQマッチを試みる
+    var matched = matchFaq(text);
+    if (matched) {
+      appendMessage('bot', matched.a);
+      chatHistory.push({ role: 'assistant', content: matched.a });
+      showQuickRepliesCompact();
+      return;
+    }
+
+    // FAQに該当しない場合はAPI呼び出し
     isSending = true;
     sendBtn.disabled = true;
     var typingEl = showTyping();
 
-    // API呼び出し
     runApi('apiChatbot', getUserKey_(), { message: text, history: chatHistory.slice(-6) })
       .then(function(res){
         removeTyping(typingEl);
-        var reply = (res && res.reply) ? res.reply : '申し訳ございません。応答を取得できませんでした。';
-        appendMessage('bot', reply);
-        chatHistory.push({ role: 'assistant', content: reply });
-        // 履歴が長くなりすぎないよう制限
+        var reply = (res && res.reply) ? res.reply : '';
+        if (!reply || isUnanswerable(reply)) {
+          // AIも答えられない場合 → お問い合わせ誘導
+          var fallback = '申し訳ございません。お探しの情報が見つかりませんでした。\n\n詳しくは ✉ お問い合わせ よりスタッフにお問い合わせください。\n担当者が直接ご対応いたします。';
+          appendMessage('bot', fallback);
+          chatHistory.push({ role: 'assistant', content: fallback });
+        } else {
+          appendMessage('bot', reply);
+          chatHistory.push({ role: 'assistant', content: reply });
+        }
         if (chatHistory.length > 20) chatHistory = chatHistory.slice(-12);
+        showQuickRepliesCompact();
       })
       .catch(function(err){
         removeTyping(typingEl);
-        var msg = (err && err.message) ? err.message : '通信エラーが発生しました。';
-        appendMessage('bot', msg);
+        var fallback = '通信エラーが発生しました。\n\nお手数ですが ✉ お問い合わせ よりご連絡ください。';
+        appendMessage('bot', fallback);
       })
       .finally(function(){
         isSending = false;
@@ -4499,15 +4686,43 @@ boot();
       });
   }
 
+  // FAQキーワードマッチ
+  function matchFaq(text){
+    var t = text.toLowerCase().replace(/[\s　?？!！。、.,]/g, '');
+    var best = null;
+    var bestScore = 0;
+    FAQ.forEach(function(item){
+      var score = 0;
+      var keywords = getKeywords(item.q);
+      keywords.forEach(function(kw){
+        if (t.indexOf(kw) !== -1) score += kw.length;
+      });
+      if (score > bestScore) { bestScore = score; best = item; }
+    });
+    // スコアが閾値以上ならマッチとみなす
+    return bestScore >= 2 ? best : null;
+  }
+
+  function getKeywords(q){
+    // 質問文からキーワードを抽出
+    var words = q.replace(/[\s　?？!！。、.,を・はのにてでがもとへ]/g, ' ').split(/\s+/).filter(function(w){ return w.length >= 2; });
+    return words.map(function(w){ return w.toLowerCase(); });
+  }
+
+  // AI回答が「わからない」系かチェック
+  function isUnanswerable(reply){
+    var markers = ['わかりません', 'お答えできません', '情報がありません', '対応できません', 'お問い合わせください'];
+    var r = reply.toLowerCase();
+    return markers.some(function(m){ return r.indexOf(m) !== -1; });
+  }
+
   function appendMessage(role, text){
     var div = document.createElement('div');
     div.className = 'chatbot-msg ' + role;
     if (role === 'bot') {
-      // XSS対策: まずtextContentでエスケープし、その後特定パターンのみリンク化
       var span = document.createElement('span');
       span.textContent = text;
       var safe = span.innerHTML;
-      // 「✉ お問い合わせ」をクリック可能なリンクに変換
       safe = safe.replace(/✉\s*お問い合わせ/g, '<a href="#" style="color:#3b82f6;text-decoration:underline;cursor:pointer;" onclick="event.preventDefault();document.getElementById(\'contactModal\').classList.add(\'open\');document.querySelector(\'.overlay\').classList.add(\'open\');return false;">✉ お問い合わせ</a>');
       div.innerHTML = safe;
     } else {
@@ -4537,9 +4752,7 @@ boot();
   }
 
   function getUserKey_(){
-    // state.userKey が利用可能ならそれを使う
     if (typeof state !== 'undefined' && state && state.userKey) return state.userKey;
-    // フォールバック: localStorageから取得
     try {
       var k = localStorage.getItem('detauri_userKey');
       if (k) return k;
