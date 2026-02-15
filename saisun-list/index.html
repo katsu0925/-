@@ -55,7 +55,7 @@
     .wrap{margin:0 auto;padding:12px 14px 90px;}
         .title{font-weight:900;font-size:18px;color:#f1f5f9;}
     .subnote{margin-top:6px;font-size:12px;color:#666;line-height:1.4;}
-    .topDetails{margin-top:6px;cursor:pointer;}
+    .topDetails{margin-top:6px;cursor:pointer;padding:6px 14px;}
     .topDetails a{cursor:pointer;}
     .topSummary{font-size:12px;font-weight:900;color:#555;cursor:pointer;list-style:none;display:flex;align-items:center;gap:6px;}
     .topSummary::-webkit-details-marker{display:none;}
@@ -321,6 +321,11 @@
       </div>
     </div>
   </div>
+
+  <details class="topDetails" id="topNotes" style="display:none;">
+    <summary class="topSummary">ご案内</summary>
+    <div class="subnote" id="topNotesBody"></div>
+  </details>
 
   <div class="wrap">
     <div class="filter-sort-section">
@@ -4349,6 +4354,15 @@ function applyProductData_(data) {
 
   $('appTitle').textContent = 'デタウリ.Detauri';
   setBaseLink_();
+
+  // 案内ノート表示
+  var notesArr = (state.settings && state.settings.notes) || [];
+  var notesEl = $('topNotes');
+  var notesBody = $('topNotesBody');
+  if (notesEl && notesBody && notesArr.length > 0) {
+    notesBody.innerHTML = notesArr.map(function(n) { return '<div>' + n + '</div>'; }).join('');
+    notesEl.style.display = '';
+  }
 
   // マルチセレクトフィルターを構築
   buildMultiSelectDropdown('category', state.options.category || []);
