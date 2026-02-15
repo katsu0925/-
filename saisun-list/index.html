@@ -265,6 +265,37 @@
     .fullscreen-viewer img { max-width: 100%; max-height: 85vh; object-fit: contain; touch-action: pinch-zoom; user-select: none; -webkit-user-select: none; transition: transform .2s ease; }
     .fullscreen-viewer-close { position: absolute; top: 12px; right: 12px; background: rgba(255,255,255,.2); border: none; color: #fff; width: 40px; height: 40px; border-radius: 50%; font-size: 24px; cursor: pointer; z-index: 10003; backdrop-filter: blur(4px); }
     .fullscreen-viewer-hint { color: rgba(255,255,255,.6); font-size: 13px; margin-top: 12px; }
+
+    /* === AI Chatbot Widget === */
+    .chatbot-fab{position:fixed;bottom:80px;right:16px;z-index:9999;width:56px;height:56px;border-radius:50%;background:#1e293b;color:#fff;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;transition:transform .2s,background .2s;}
+    .chatbot-fab:hover{transform:scale(1.08);background:#334155;}
+    .chatbot-fab svg{width:28px;height:28px;fill:#fff;}
+    .chatbot-fab .chatbot-fab-close{display:none;}
+    .chatbot-fab.open .chatbot-fab-icon{display:none;}
+    .chatbot-fab.open .chatbot-fab-close{display:block;}
+    .chatbot-badge{position:absolute;top:-2px;right:-2px;width:18px;height:18px;border-radius:50%;background:#ef4444;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0;transition:opacity .2s;}
+    .chatbot-badge.show{opacity:1;}
+    .chatbot-panel{position:fixed;bottom:148px;right:16px;z-index:9998;width:360px;max-width:calc(100vw - 32px);height:480px;max-height:calc(100vh - 200px);background:#fff;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.18);display:none;flex-direction:column;overflow:hidden;border:1px solid #e6e8ee;}
+    .chatbot-panel.open{display:flex;}
+    .chatbot-header{background:#1e293b;color:#fff;padding:14px 16px;font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+    .chatbot-header svg{width:20px;height:20px;fill:#fff;flex-shrink:0;}
+    .chatbot-messages{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;scroll-behavior:smooth;}
+    .chatbot-msg{max-width:85%;padding:10px 14px;border-radius:14px;font-size:13px;line-height:1.55;word-break:break-word;white-space:pre-wrap;}
+    .chatbot-msg.bot{align-self:flex-start;background:#f1f5f9;color:#1e293b;border-bottom-left-radius:4px;}
+    .chatbot-msg.user{align-self:flex-end;background:#1e293b;color:#fff;border-bottom-right-radius:4px;}
+    .chatbot-msg.typing{align-self:flex-start;background:#f1f5f9;padding:10px 18px;}
+    .chatbot-msg.typing .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#94a3b8;margin:0 2px;animation:chatDot 1.4s infinite both;}
+    .chatbot-msg.typing .dot:nth-child(2){animation-delay:.2s;}
+    .chatbot-msg.typing .dot:nth-child(3){animation-delay:.4s;}
+    @keyframes chatDot{0%,80%,100%{opacity:.3;transform:scale(.8);}40%{opacity:1;transform:scale(1);}}
+    .chatbot-input-area{display:flex;gap:8px;padding:10px 12px;border-top:1px solid #e6e8ee;background:#fafbfc;flex-shrink:0;}
+    .chatbot-input-area textarea{flex:1;border:1px solid #d9deea;border-radius:10px;padding:9px 12px;font-size:13px;resize:none;outline:none;font-family:inherit;min-height:38px;max-height:80px;line-height:1.4;}
+    .chatbot-input-area textarea:focus{border-color:#1e293b;}
+    .chatbot-send-btn{width:38px;height:38px;border-radius:10px;border:none;background:#1e293b;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s;}
+    .chatbot-send-btn:hover{background:#334155;}
+    .chatbot-send-btn:disabled{opacity:.4;cursor:not-allowed;}
+    .chatbot-send-btn svg{width:18px;height:18px;fill:#fff;}
+    @media(max-width:480px){.chatbot-panel{bottom:0;right:0;left:0;width:100%;max-width:100%;height:100%;max-height:100%;border-radius:0;}.chatbot-fab{bottom:72px;right:12px;width:50px;height:50px;}.chatbot-fab svg{width:24px;height:24px;}}
   </style>
 </head>
 <body>
@@ -4365,6 +4396,156 @@ window.addEventListener('unhandledrejection', function(ev) {
 });
 
 boot();
+</script>
+
+<!-- === AI Chatbot Widget === -->
+<button class="chatbot-fab" id="chatbotFab" type="button" aria-label="チャットで質問する">
+  <span class="chatbot-fab-icon"><svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.2L4 17.2V4h16v12z"/><circle cx="8" cy="10" r="1.2"/><circle cx="12" cy="10" r="1.2"/><circle cx="16" cy="10" r="1.2"/></svg></span>
+  <span class="chatbot-fab-close"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></span>
+  <span class="chatbot-badge" id="chatbotBadge">1</span>
+</button>
+
+<div class="chatbot-panel" id="chatbotPanel">
+  <div class="chatbot-header">
+    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+    AIアシスタント
+  </div>
+  <div class="chatbot-messages" id="chatbotMessages"></div>
+  <div class="chatbot-input-area">
+    <textarea id="chatbotInput" placeholder="質問を入力してください..." rows="1"></textarea>
+    <button class="chatbot-send-btn" id="chatbotSend" type="button" aria-label="送信"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var fab = document.getElementById('chatbotFab');
+  var panel = document.getElementById('chatbotPanel');
+  var messagesEl = document.getElementById('chatbotMessages');
+  var input = document.getElementById('chatbotInput');
+  var sendBtn = document.getElementById('chatbotSend');
+  var badge = document.getElementById('chatbotBadge');
+  var isOpen = false;
+  var chatHistory = [];
+  var isSending = false;
+  var greeted = false;
+
+  var GREETING = 'こんにちは！デタウリ.Detauriへようこそ。\nご質問がありましたらお気軽にどうぞ。\n\n例えば：\n・注文方法について\n・送料はいくら？\n・決済方法は？\n・会員ランクについて';
+
+  // FABクリックで開閉
+  fab.addEventListener('click', function(){
+    isOpen = !isOpen;
+    panel.classList.toggle('open', isOpen);
+    fab.classList.toggle('open', isOpen);
+    badge.classList.remove('show');
+    if (isOpen && !greeted) {
+      greeted = true;
+      appendMessage('bot', GREETING);
+    }
+    if (isOpen) {
+      setTimeout(function(){ input.focus(); }, 200);
+      scrollToBottom();
+    }
+  });
+
+  // 初回バッジ表示（3秒後）
+  setTimeout(function(){
+    if (!isOpen) badge.classList.add('show');
+  }, 3000);
+
+  // 送信
+  sendBtn.addEventListener('click', sendMessage);
+  input.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  // テキストエリア自動リサイズ
+  input.addEventListener('input', function(){
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 80) + 'px';
+  });
+
+  function sendMessage(){
+    if (isSending) return;
+    var text = input.value.trim();
+    if (!text) return;
+    if (text.length > 500) {
+      appendMessage('bot', 'メッセージは500文字以内でお願いします。');
+      return;
+    }
+
+    appendMessage('user', text);
+    chatHistory.push({ role: 'user', content: text });
+    input.value = '';
+    input.style.height = 'auto';
+
+    isSending = true;
+    sendBtn.disabled = true;
+    var typingEl = showTyping();
+
+    // API呼び出し
+    runApi('apiChatbot', getUserKey_(), { message: text, history: chatHistory.slice(-6) })
+      .then(function(res){
+        removeTyping(typingEl);
+        var reply = (res && res.reply) ? res.reply : '申し訳ございません。応答を取得できませんでした。';
+        appendMessage('bot', reply);
+        chatHistory.push({ role: 'assistant', content: reply });
+        // 履歴が長くなりすぎないよう制限
+        if (chatHistory.length > 20) chatHistory = chatHistory.slice(-12);
+      })
+      .catch(function(err){
+        removeTyping(typingEl);
+        var msg = (err && err.message) ? err.message : '通信エラーが発生しました。';
+        appendMessage('bot', msg);
+      })
+      .finally(function(){
+        isSending = false;
+        sendBtn.disabled = false;
+        input.focus();
+      });
+  }
+
+  function appendMessage(role, text){
+    var div = document.createElement('div');
+    div.className = 'chatbot-msg ' + role;
+    div.textContent = text;
+    messagesEl.appendChild(div);
+    scrollToBottom();
+  }
+
+  function showTyping(){
+    var div = document.createElement('div');
+    div.className = 'chatbot-msg typing';
+    div.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
+    messagesEl.appendChild(div);
+    scrollToBottom();
+    return div;
+  }
+
+  function removeTyping(el){
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+  }
+
+  function scrollToBottom(){
+    requestAnimationFrame(function(){
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    });
+  }
+
+  function getUserKey_(){
+    // state.userKey が利用可能ならそれを使う
+    if (typeof state !== 'undefined' && state && state.userKey) return state.userKey;
+    // フォールバック: localStorageから取得
+    try {
+      var k = localStorage.getItem('detauri_userKey');
+      if (k) return k;
+    } catch(e){}
+    return 'chatbot_anon_' + Math.random().toString(36).slice(2, 10);
+  }
+})();
 </script>
 
 </body>
