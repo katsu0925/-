@@ -260,6 +260,13 @@
     .fullscreen-viewer-close { position: absolute; top: 12px; right: 12px; background: rgba(255,255,255,.2); border: none; color: #fff; width: 40px; height: 40px; border-radius: 50%; font-size: 24px; cursor: pointer; z-index: 10003; backdrop-filter: blur(4px); }
     .fullscreen-viewer-hint { color: rgba(255,255,255,.6); font-size: 13px; margin-top: 12px; }
 
+    /* === Shipping Table Scroll Indicator === */
+    .shipping-scroll-wrap{position:relative;}
+    .shipping-scroll-wrap.can-scroll-right::after{content:'';position:absolute;top:0;right:0;width:32px;height:100%;background:linear-gradient(to right,transparent,rgba(0,0,0,.08));pointer-events:none;border-radius:0 4px 4px 0;transition:opacity .2s;}
+    .shipping-scroll-wrap.scrolled-end::after{opacity:0;}
+    .shipping-scroll-hint{display:none;text-align:center;font-size:11px;color:#94a3b8;margin-top:4px;animation:scrollHintPulse 2s ease-in-out infinite;}
+    .shipping-scroll-wrap.can-scroll-right+.shipping-scroll-hint{display:block;}
+    @keyframes scrollHintPulse{0%,100%{opacity:.6;}50%{opacity:1;}}
     /* === AI Chatbot Widget === */
     .chatbot-fab{position:fixed;bottom:80px;right:16px;z-index:9999;width:56px;height:56px;border-radius:50%;background:#1e293b;color:#fff;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;transition:transform .2s,background .2s;}
     .chatbot-fab:hover{transform:scale(1.08);background:#334155;}
@@ -885,7 +892,7 @@
       <!-- 西日本 -->
       <div class="guide-section">
         <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #f472b6;padding-bottom:8px;">西日本（南九州〜北陸）</h3>
-        <div style="overflow-x:auto;">
+        <div class="shipping-scroll-wrap" style="overflow-x:auto;">
           <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:500px;">
             <tr style="background:#fce7f3;">
               <th style="padding:8px;text-align:center;border:1px solid #f9a8d4;width:80px;">宅配便</th>
@@ -925,12 +932,13 @@
             </tr>
           </table>
         </div>
+        <div class="shipping-scroll-hint">&larr; 横にスクロールできます &rarr;</div>
       </div>
 
       <!-- 東日本 -->
       <div class="guide-section" style="margin-top:20px;">
         <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #67e8f9;padding-bottom:8px;">東日本（東海〜北海道）</h3>
-        <div style="overflow-x:auto;">
+        <div class="shipping-scroll-wrap" style="overflow-x:auto;">
           <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:500px;">
             <tr style="background:#cffafe;">
               <th style="padding:8px;text-align:center;border:1px solid #a5f3fc;width:80px;">宅配便</th>
@@ -970,6 +978,7 @@
             </tr>
           </table>
         </div>
+        <div class="shipping-scroll-hint">&larr; 横にスクロールできます &rarr;</div>
       </div>
 
       <!-- 沖縄 -->
@@ -1867,6 +1876,28 @@ function setupAuthUi_() {
     });
   }
 
+  // 送料表テーブル横スクロールインジケーター
+  (function(){
+    var wraps = document.querySelectorAll('.shipping-scroll-wrap');
+    function checkScroll(el){
+      var canScroll = el.scrollWidth > el.clientWidth + 1;
+      el.classList.toggle('can-scroll-right', canScroll);
+      if (canScroll) {
+        var atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 2;
+        el.classList.toggle('scrolled-end', atEnd);
+      }
+    }
+    wraps.forEach(function(w){
+      w.addEventListener('scroll', function(){ checkScroll(w); }, { passive: true });
+      // モーダルが開かれたとき（表示後に計算するため少し遅延）
+      var observer = new MutationObserver(function(){ setTimeout(function(){ checkScroll(w); }, 50); });
+      var modal = w.closest('.modal');
+      if (modal) observer.observe(modal, { attributes: true, attributeFilter: ['class'] });
+      checkScroll(w);
+    });
+    window.addEventListener('resize', function(){ wraps.forEach(checkScroll); });
+  })();
+
   // 特定商取引法モーダル
   var openLegalLink = $('openLegalLink');
   if (openLegalLink) {
@@ -2282,9 +2313,29 @@ function saveCartStorage() {
   try { localStorage.setItem('estimate_cart_v2', JSON.stringify({ ids: state.cart.ids || [], itemsById: state.cart.itemsById || {} })); } catch (e) {}
 }
 
-function openModal(modal) { $('overlay').classList.add('open'); modal.classList.add('open'); }
-function closeModal(modal) { modal.classList.remove('open'); if (!document.querySelector('.modal.open')) $('overlay').classList.remove('open'); }
-function closeAllModals() { document.querySelectorAll('.modal').forEach(function(m) { m.classList.remove('open'); }); $('overlay').classList.remove('open'); }
+function openModal(modal) {
+  $('overlay').classList.add('open'); modal.classList.add('open');
+  // モーダル表示中はチャットボットFABとスクロールトップボタンを非表示
+  var chatFab = document.getElementById('chatbotFab');
+  var topBtn = document.getElementById('toTopBtn');
+  if (chatFab) chatFab.style.display = 'none';
+  if (topBtn) topBtn.classList.remove('show');
+}
+function closeModal(modal) {
+  modal.classList.remove('open');
+  if (!document.querySelector('.modal.open')) {
+    $('overlay').classList.remove('open');
+    // 他にモーダルがなければボタン類を再表示
+    var chatFab = document.getElementById('chatbotFab');
+    if (chatFab) chatFab.style.display = '';
+  }
+}
+function closeAllModals() {
+  document.querySelectorAll('.modal').forEach(function(m) { m.classList.remove('open'); });
+  $('overlay').classList.remove('open');
+  var chatFab = document.getElementById('chatbotFab');
+  if (chatFab) chatFab.style.display = '';
+}
 
 function convertDriveImageUrl(url, maxWidth) {
   if (!url) return '';
@@ -3004,6 +3055,11 @@ function openDetailModal(managedId, imageUrl, thumbUrl) {
   else { body.innerHTML = '<div class="detail-loading">商品情報が見つかりません</div>'; }
 
   modal.classList.add('active');
+  // 詳細モーダル表示中はチャットボットFABとスクロールトップボタンを非表示
+  var chatFab = document.getElementById('chatbotFab');
+  var topBtn = document.getElementById('toTopBtn');
+  if (chatFab) chatFab.style.display = 'none';
+  if (topBtn) topBtn.classList.remove('show');
 }
 
 function renderDetailModalLocal(item, imageUrl, thumbUrl) {
@@ -3261,6 +3317,9 @@ function closeDetailModal() {
   var zoomResult = document.getElementById('detailZoomResult');
   if (zoomResult) zoomResult.style.display = 'none';
   closeFullscreenViewer_();
+  // チャットボットFABを再表示
+  var chatFab = document.getElementById('chatbotFab');
+  if (chatFab) chatFab.style.display = '';
   if (detailReturnTo_ === 'cart') {
     detailReturnTo_ = null;
     renderCartModal_(); openModal($('cartModal'));
@@ -4440,6 +4499,17 @@ boot();
   var isSending = false;
   var greeted = false;
 
+  // お問い合わせリンク等から外部的にチャットを閉じるためのグローバル関数
+  window.closeChatbot = function(){
+    if (!isOpen) return;
+    isOpen = false;
+    panel.classList.remove('open');
+    fab.classList.remove('open');
+    // 閉じたときにスクロール位置に応じてtoTopBtn再表示
+    var y = window.pageYOffset || document.documentElement.scrollTop || 0;
+    if (y > 400) toTopBtn.classList.add('show');
+  };
+
   // ── 定型FAQ ──
   var FAQ = [
     // --- 注文・購入 ---
@@ -4472,7 +4542,7 @@ boot();
 
     // --- 割引・セール ---
     { q: '割引はある？', category: '割引・セール',
-      a: '【現在の割引制度】\n\n1. 30点以上まとめ買い割引：10%OFF\n2. 会員登録割引：10%OFF（2026年9月末まで）\n3. 上記は併用可能！最大約19%OFF\n\nたくさん買うほどお得です！' },
+      a: '【現在の割引制度】\n\n1. 30点以上まとめ買い割引：10%OFF\n2. 会員登録割引：10%OFF（2026年9月末まで）\n3. 上記は併用可能！最大20%OFF\n\nたくさん買うほどお得です！' },
     { q: '30点割引の詳細は？', category: '割引・セール',
       a: '30点以上をまとめてご注文いただくと、商品代金が10%OFFになります。\n\n・30点以上であれば何点でも10%OFF\n・会員割引との併用OK\n・割引はカート内で自動計算されます' },
     { q: '会員割引の期間は？', category: '割引・セール',
@@ -4765,7 +4835,7 @@ boot();
       var span = document.createElement('span');
       span.textContent = text;
       var safe = span.innerHTML;
-      safe = safe.replace(/✉\s*お問い合わせ/g, '<a href="#" style="color:#3b82f6;text-decoration:underline;cursor:pointer;" onclick="event.preventDefault();document.getElementById(\'contactModal\').classList.add(\'open\');document.querySelector(\'.overlay\').classList.add(\'open\');return false;">✉ お問い合わせ</a>');
+      safe = safe.replace(/✉\s*お問い合わせ/g, '<a href="#" style="color:#3b82f6;text-decoration:underline;cursor:pointer;" onclick="event.preventDefault();if(typeof closeChatbot===\'function\')closeChatbot();openModal(document.getElementById(\'contactModal\'));return false;">✉ お問い合わせ</a>');
       div.innerHTML = safe;
     } else {
       div.textContent = text;
