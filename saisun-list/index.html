@@ -4505,7 +4505,7 @@ boot();
       a: '営業時間：平日 10:00〜18:00\n（土日祝はお休みです）\n\n営業時間外のお問い合わせは翌営業日にご返信いたします。' }
   ];
 
-  var GREETING = 'こんにちは！デタウリ.Detauriへようこそ。\nよくあるご質問を下のボタンからお選びいただくか、自由に入力してください。';
+  var GREETING = 'こんにちは！デタウリ.Detauriへようこそ。\nご質問のカテゴリをお選びいただくか、下の入力欄から自由にご質問ください。';
 
   // ── 開閉 ──
   function toggleChat(){
@@ -4525,7 +4525,7 @@ boot();
     if (isOpen && !greeted) {
       greeted = true;
       appendMessage('bot', GREETING);
-      showQuickReplies();
+      showCategoryButtons();
     }
     if (isOpen) {
       setTimeout(function(){ input.focus(); }, 200);
@@ -4564,35 +4564,70 @@ boot();
     if (!isOpen) badge.classList.add('show');
   }, 3000);
 
-  // ── クイック返信ボタン表示 ──
-  function showQuickReplies(){
-    var wrap = document.createElement('div');
-    wrap.style.cssText = 'padding:0 2px;';
+  // ── クイック返信: カテゴリ一覧を表示 ──
+  function showCategoryButtons(){
     var categories = [];
-    var catMap = {};
+    var seen = {};
     FAQ.forEach(function(item){
-      if (!catMap[item.category]) { catMap[item.category] = []; categories.push(item.category); }
-      catMap[item.category].push(item);
+      if (!seen[item.category]) { seen[item.category] = true; categories.push(item.category); }
     });
+    var wrap = document.createElement('div');
+    wrap.className = 'chatbot-quick-replies';
+    wrap.style.cssText = 'margin-top:6px;';
     categories.forEach(function(cat){
-      var catLabel = document.createElement('div');
-      catLabel.className = 'chatbot-quick-category';
-      catLabel.textContent = cat;
-      wrap.appendChild(catLabel);
-      var btnsWrap = document.createElement('div');
-      btnsWrap.className = 'chatbot-quick-replies';
-      catMap[cat].forEach(function(item, idx){
-        var b = document.createElement('button');
-        b.className = 'chatbot-quick-btn';
-        b.textContent = item.q;
-        b.type = 'button';
-        b.addEventListener('click', function(){
-          handleQuickReply(item);
-        });
-        btnsWrap.appendChild(b);
+      var b = document.createElement('button');
+      b.className = 'chatbot-quick-btn';
+      b.textContent = cat;
+      b.type = 'button';
+      b.addEventListener('click', function(){
+        showQuestionsForCategory(cat);
       });
-      wrap.appendChild(btnsWrap);
+      wrap.appendChild(b);
     });
+    messagesEl.appendChild(wrap);
+    scrollToBottom();
+  }
+
+  // カテゴリ選択後 → そのカテゴリの質問ボタンを表示
+  function showQuestionsForCategory(cat){
+    // カテゴリ選択をユーザー発言として表示
+    appendMessage('user', cat);
+
+    var items = FAQ.filter(function(f){ return f.category === cat; });
+    var botMsg = document.createElement('div');
+    botMsg.className = 'chatbot-msg bot';
+    botMsg.style.cssText = 'padding-bottom:6px;';
+    botMsg.textContent = '「' + cat + '」に関するご質問をお選びください。';
+    messagesEl.appendChild(botMsg);
+
+    var wrap = document.createElement('div');
+    wrap.className = 'chatbot-quick-replies';
+    wrap.style.cssText = 'padding:0 2px;margin-top:4px;';
+    items.forEach(function(item){
+      var b = document.createElement('button');
+      b.className = 'chatbot-quick-btn';
+      b.textContent = item.q;
+      b.type = 'button';
+      b.addEventListener('click', function(){
+        handleQuickReply(item);
+      });
+      wrap.appendChild(b);
+    });
+    // 「戻る」ボタン
+    var back = document.createElement('button');
+    back.className = 'chatbot-quick-btn';
+    back.style.cssText = 'border-color:#94a3b8;color:#64748b;';
+    back.textContent = '\u2190 カテゴリに戻る';
+    back.type = 'button';
+    back.addEventListener('click', function(){
+      appendMessage('user', 'カテゴリに戻る');
+      var note = document.createElement('div');
+      note.className = 'chatbot-msg bot';
+      note.textContent = 'カテゴリをお選びください。';
+      messagesEl.appendChild(note);
+      showCategoryButtons();
+    });
+    wrap.appendChild(back);
     messagesEl.appendChild(wrap);
     scrollToBottom();
   }
@@ -4600,19 +4635,22 @@ boot();
   function handleQuickReply(item){
     appendMessage('user', item.q);
     chatHistory.push({ role: 'user', content: item.q });
-    appendMessage('bot', item.a);
+    // 回答をスクロール位置のアンカーにする
+    var answerDiv = appendMessageAndReturn('bot', item.a);
     chatHistory.push({ role: 'assistant', content: item.a });
-    // 回答後にまたクイックボタンを表示
-    showQuickRepliesCompact();
+    // 回答後にカテゴリ選択を再表示
+    showAfterAnswer(answerDiv);
   }
 
-  // 回答後のコンパクト版（「他にご質問は？」付き）
-  function showQuickRepliesCompact(){
+  // 回答後の案内＋カテゴリボタン表示（回答が見える位置にスクロール）
+  function showAfterAnswer(answerEl){
     var note = document.createElement('div');
     note.className = 'chatbot-msg bot';
-    note.textContent = '他にもご質問がありましたら、下のボタンからお選びいただくか、自由に入力してください。';
+    note.textContent = '他にもご質問がありましたら、カテゴリをお選びいただくか、自由に入力してください。';
     messagesEl.appendChild(note);
-    showQuickReplies();
+    showCategoryButtons();
+    // 回答の先頭が見える位置にスクロール
+    scrollToElement(answerEl);
   }
 
   // ── 送信 ──
@@ -4647,9 +4685,9 @@ boot();
     // まずFAQマッチを試みる
     var matched = matchFaq(text);
     if (matched) {
-      appendMessage('bot', matched.a);
+      var ansDiv = appendMessageAndReturn('bot', matched.a);
       chatHistory.push({ role: 'assistant', content: matched.a });
-      showQuickRepliesCompact();
+      showAfterAnswer(ansDiv);
       return;
     }
 
@@ -4662,17 +4700,17 @@ boot();
       .then(function(res){
         removeTyping(typingEl);
         var reply = (res && res.reply) ? res.reply : '';
+        var ansDiv;
         if (!reply || isUnanswerable(reply)) {
-          // AIも答えられない場合 → お問い合わせ誘導
           var fallback = '申し訳ございません。お探しの情報が見つかりませんでした。\n\n詳しくは ✉ お問い合わせ よりスタッフにお問い合わせください。\n担当者が直接ご対応いたします。';
-          appendMessage('bot', fallback);
+          ansDiv = appendMessageAndReturn('bot', fallback);
           chatHistory.push({ role: 'assistant', content: fallback });
         } else {
-          appendMessage('bot', reply);
+          ansDiv = appendMessageAndReturn('bot', reply);
           chatHistory.push({ role: 'assistant', content: reply });
         }
         if (chatHistory.length > 20) chatHistory = chatHistory.slice(-12);
-        showQuickRepliesCompact();
+        showAfterAnswer(ansDiv);
       })
       .catch(function(err){
         removeTyping(typingEl);
@@ -4717,6 +4755,10 @@ boot();
   }
 
   function appendMessage(role, text){
+    appendMessageAndReturn(role, text);
+  }
+
+  function appendMessageAndReturn(role, text){
     var div = document.createElement('div');
     div.className = 'chatbot-msg ' + role;
     if (role === 'bot') {
@@ -4730,6 +4772,7 @@ boot();
     }
     messagesEl.appendChild(div);
     scrollToBottom();
+    return div;
   }
 
   function showTyping(){
@@ -4748,6 +4791,17 @@ boot();
   function scrollToBottom(){
     requestAnimationFrame(function(){
       messagesEl.scrollTop = messagesEl.scrollHeight;
+    });
+  }
+
+  // 指定要素が上端付近に見える位置にスクロール
+  function scrollToElement(el){
+    if (!el) return;
+    requestAnimationFrame(function(){
+      var containerTop = messagesEl.getBoundingClientRect().top;
+      var elTop = el.getBoundingClientRect().top;
+      var offset = elTop - containerTop;
+      messagesEl.scrollTop = messagesEl.scrollTop + offset - 8;
     });
   }
 
