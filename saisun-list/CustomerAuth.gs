@@ -888,8 +888,8 @@ function processCustomerPoints() {
 
   var awarded = 0;
   for (var i = 1; i < reqData.length; i++) {
-    var status = String(reqData[i][15] || '');       // P列: ステータス
-    var pointFlag = String(reqData[i][27] || '');     // AB列: ポイント付与済
+    var status = String(reqData[i][21] || '');       // V列: ステータス
+    var pointFlag = String(reqData[i][17] || '');     // R列: ポイント付与済
     var email = String(reqData[i][3] || '').trim().toLowerCase(); // D列: 連絡先
     var total = Number(reqData[i][11]) || 0;         // L列: 合計金額
 
@@ -902,8 +902,8 @@ function processCustomerPoints() {
         if (points > 0) {
           custMap[email].points += points;
           custSheet.getRange(custMap[email].row, 13).setValue(custMap[email].points);
-          // AB列にポイント付与済みマーク
-          reqSheet.getRange(i + 1, 28).setValue('PT');
+          // R列にポイント付与済みマーク
+          reqSheet.getRange(i + 1, 18).setValue('PT');
           awarded++;
         }
       }
@@ -948,7 +948,7 @@ function addPoints_(email, points) {
 
 /**
  * 完了済み注文にインボイス付き領収書を自動送付（メニューまたはトリガーから実行）
- * S列="希望" かつ T列が空 かつ P列="完了" の注文に送付
+ * Z列="希望" かつ AA列が空 かつ V列="完了" の注文に送付
  */
 function processInvoiceReceipts() {
   var ss = sh_getOrderSs_();
@@ -961,9 +961,9 @@ function processInvoiceReceipts() {
 
   var sent = 0;
   for (var i = 1; i < data.length; i++) {
-    var status = String(data[i][15] || '');         // P列: ステータス
-    var invoiceFlag = String(data[i][18] || '');   // S列: 領収書希望
-    var sentFlag = String(data[i][19] || '');       // T列: 送付済
+    var status = String(data[i][21] || '');         // V列: ステータス
+    var invoiceFlag = String(data[i][25] || '');   // Z列: インボイス発行
+    var sentFlag = String(data[i][26] || '');       // AA列: インボイス状況
     var email = String(data[i][3] || '').trim();   // D列: 連絡先
     var companyName = String(data[i][2] || '');     // C列: 会社名
 
@@ -971,7 +971,7 @@ function processInvoiceReceipts() {
       var receiptNo = String(data[i][0] || '');
       var orderDate = data[i][1] ? formatDate_(data[i][1]) : '';
       var totalAmount = Number(data[i][11]) || 0;
-      var note = String(data[i][21] || '');
+      var note = String(data[i][29] || '');         // AD列: 備考
 
       try {
         sendInvoiceReceipt_(email, {
@@ -982,7 +982,7 @@ function processInvoiceReceipts() {
           note: note,
           invoiceNo: invoiceNo
         });
-        reqSheet.getRange(i + 1, 20).setValue('送付済');
+        reqSheet.getRange(i + 1, 27).setValue('送付済');  // AA列: インボイス状況
         sent++;
       } catch (e) {
         console.error('領収書送付エラー: ' + receiptNo, e);
@@ -1012,9 +1012,9 @@ function processCancelledInvoices() {
 
   var sent = 0;
   for (var i = 1; i < data.length; i++) {
-    var status = String(data[i][15] || '');
-    var sentFlag = String(data[i][19] || '');
-    var email = String(data[i][3] || '').trim();
+    var status = String(data[i][21] || '');          // V列: ステータス
+    var sentFlag = String(data[i][26] || '');        // AA列: インボイス状況
+    var email = String(data[i][3] || '').trim();     // D列: 連絡先
 
     if ((status === 'キャンセル' || status === '返品') && sentFlag === '送付済' && email) {
       var receiptNo = String(data[i][0] || '');
@@ -1031,7 +1031,7 @@ function processCancelledInvoices() {
           invoiceNo: invoiceNo,
           cancelType: status
         });
-        reqSheet.getRange(i + 1, 20).setValue('取消送付済');
+        reqSheet.getRange(i + 1, 27).setValue('取消送付済');  // AA列: インボイス状況
         sent++;
       } catch (e) {
         console.error('取消通知エラー: ' + receiptNo, e);

@@ -66,14 +66,14 @@ function od_rebuildOpenStateFromRequestSheet_(orderSs) {
   const items = {};
   
   if (lastRow >= 2) {
-    const values = sh.getRange(2, 1, lastRow - 1, 18).getValues();
-    
+    const values = sh.getRange(2, 1, lastRow - 1, 32).getValues();
+
     var rc = APP_CONFIG.requestCols || {};
     for (let i = 0; i < values.length; i++) {
       const row = values[i];
       const receiptNo = String(row[rc.receiptNo || 0] || '').trim();
       const selectionList = String(row[rc.selectionList || 9] || '');
-      const status = String(row[rc.status || 15] || '').trim();
+      const status = String(row[rc.status || 21] || '').trim();
       
       if (!receiptNo || !status) continue;
       
@@ -170,14 +170,14 @@ function od_handleRequestSheetStatusEdits_(orderSs, requestSheet, startRow, endR
   const numRows = Math.max(0, endRow - startRow + 1);
   if (numRows === 0) return;
   
-  const values = requestSheet.getRange(startRow, 1, numRows, 18).getValues();
-  
+  const values = requestSheet.getRange(startRow, 1, numRows, 32).getValues();
+
   var rc = APP_CONFIG.requestCols || {};
   for (let i = 0; i < values.length; i++) {
     const row = values[i];
     const receiptNo = String(row[rc.receiptNo || 0] || '').trim();
     const selectionList = String(row[rc.selectionList || 9] || '');
-    const status = String(row[rc.status || 15] || '').trim();
+    const status = String(row[rc.status || 21] || '').trim();
 
     if (!receiptNo) continue;
 

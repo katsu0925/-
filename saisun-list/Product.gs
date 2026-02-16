@@ -116,15 +116,16 @@ function sh_ensureRequestSheet_(ss) {
   if (!sh) sh = ss.insertSheet(name);
   // 列構成（32列 A-AF）:
   // A=受付番号, B=依頼日時, C=会社名/氏名, D=連絡先, E=郵便番号, F=住所, G=電話番号, H=商品名,
-  // I=確認リンク, J=選択リスト, K=合計点数, L=合計金額, M=発送ステータス, N=リスト同梱, O=xlsx送付,
-  // P=ステータス, Q=担当者, R=入金確認, S=インボイス発行, T=インボイス状況, U=予備, V=備考,
-  // W=配送業者, X=伝票番号, Y=作業報酬, Z=更新日時, AA=通知フラグ,
-  // AB=ポイント付与済, AC=送料(店負担), AD=送料(客負担), AE=決済方法, AF=決済ID
+  // I=確認リンク, J=選択リスト, K=合計点数, L=合計金額, M=送料(店負担), N=送料(客負担), O=決済方法, P=決済ID,
+  // Q=入金確認, R=ポイント付与済, S=発送ステータス, T=配送業者, U=伝票番号, V=ステータス, W=担当者,
+  // X=リスト同梱, Y=xlsx送付, Z=インボイス発行, AA=インボイス状況, AB=受注通知,
+  // AC=発送通知, AD=備考, AE=作業報酬, AF=更新日時
   const header = [
     '受付番号','依頼日時','会社名/氏名','連絡先','郵便番号','住所','電話番号','商品名',
-    '確認リンク','選択リスト','合計点数','合計金額','発送ステータス','リスト同梱','xlsx送付','ステータス','担当者','入金確認',
-    'インボイス発行','インボイス状況','','備考','配送業者','伝票番号','作業報酬','更新日時','通知フラグ',
-    'ポイント付与済','送料(店負担)','送料(客負担)','決済方法','決済ID'
+    '確認リンク','選択リスト','合計点数','合計金額','送料(店負担)','送料(客負担)','決済方法','決済ID',
+    '入金確認','ポイント付与済','発送ステータス','配送業者','伝票番号','ステータス','担当者',
+    'リスト同梱','xlsx送付','インボイス発行','インボイス状況','受注通知',
+    '発送通知','備考','作業報酬','更新日時'
   ];
   const r1 = sh.getRange(1, 1, 1, header.length).getValues()[0];
   let needs = false;
@@ -160,19 +161,19 @@ function sh_ensureOpenLogSheet_(ss) {
 function sh_applyRequestStatusDropdown_(ss) {
   const sh = sh_ensureRequestSheet_(ss);
   const maxRows = sh.getMaxRows();
-  // P列(16): ステータス（依頼中/発送済み等）
+  // V列(22): ステータス（依頼中/発送済み等）
   const statusRule = SpreadsheetApp.newDataValidation()
     .requireValueInList(APP_CONFIG.statuses.allowed, true)
     .setAllowInvalid(false)
     .build();
-  sh.getRange(2, 16, Math.max(1, maxRows - 1), 1).setDataValidation(statusRule);
+  sh.getRange(2, 22, Math.max(1, maxRows - 1), 1).setDataValidation(statusRule);
 
-  // R列(18): 入金確認ステータス
+  // Q列(17): 入金確認ステータス
   const paymentRule = SpreadsheetApp.newDataValidation()
     .requireValueInList(['入金待ち', '未対応', '対応済'], true)
     .setAllowInvalid(false)
     .build();
-  sh.getRange(2, 18, Math.max(1, maxRows - 1), 1).setDataValidation(paymentRule);
+  sh.getRange(2, 17, Math.max(1, maxRows - 1), 1).setDataValidation(paymentRule);
   return true;
 }
 

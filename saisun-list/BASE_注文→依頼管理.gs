@@ -108,10 +108,10 @@ function syncBaseOrdersToIraiKanri() {
   const dstIdx_Status = findAnyCol_(dstMap, ['ステータス']);
   const dstIdx_PaymentStatus = findAnyCol_(dstMap, ['入金確認']);  // T列
   const dstIdx_ConfirmLink = findAnyCol_(dstMap, ['確認リンク']);  // I列
-  const dstIdx_NotifyFlag = findAnyCol_(dstMap, ['通知フラグ']);          // AA列
-  const dstIdx_ShippingStore = findAnyCol_(dstMap, ['送料(店負担)']);    // AC列
-  const dstIdx_ShippingCustomer = findAnyCol_(dstMap, ['送料(客負担)']); // AD列
-  const dstIdx_PaymentMethod = findAnyCol_(dstMap, ['決済方法']);        // AE列
+  const dstIdx_NotifyFlag = findAnyCol_(dstMap, ['受注通知', '通知フラグ']);  // AB列
+  const dstIdx_ShippingStore = findAnyCol_(dstMap, ['送料(店負担)']);       // M列
+  const dstIdx_ShippingCustomer = findAnyCol_(dstMap, ['送料(客負担)']);    // N列
+  const dstIdx_PaymentMethod = findAnyCol_(dstMap, ['決済方法']);           // O列
 
   // BASE_注文シートの決済方法列を探索
   const idxPaymentMethod_Order = findAnyCol_(orderMap, ['決済方法', '支払方法', 'payment_method', 'paymentMethod', 'Payment Method', '支払い方法']);

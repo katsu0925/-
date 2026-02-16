@@ -10,20 +10,20 @@ function apiAdminListRequests(adminKey, opts) {
     const limit = Math.min(300, Math.max(1, u_toInt_(o.limit, 100)));
     const q = String(o.query || '').trim();
     const startRow = Math.max(2, lastRow - limit + 1);
-    const rows = sh.getRange(startRow, 1, lastRow - startRow + 1, 21).getValues();
+    const rows = sh.getRange(startRow, 1, lastRow - startRow + 1, 32).getValues();
     const out = [];
     for (let i = rows.length - 1; i >= 0; i--) {
       const r = rows[i];
-      const receiptNo = String(r[0] || '').trim();
-      const dt = r[1];
-      const name = String(r[2] || '');
-      const contact = String(r[3] || '');
-      const delivery = String(r[5] || '');
-      const count = u_toInt_(r[12], 0);
-      const subtotal = u_toNumber_(r[13]);
-      const status = String(r[17] || '').trim();
-      const selectionList = String(r[11] || '');
-      const measureOpt = String(r[20] || '');
+      const receiptNo = String(r[0] || '').trim();       // A列: 受付番号
+      const dt = r[1];                                    // B列: 依頼日時
+      const name = String(r[2] || '');                    // C列: 会社名/氏名
+      const contact = String(r[3] || '');                 // D列: 連絡先
+      const delivery = String(r[5] || '');                // F列: 住所
+      const count = u_toInt_(r[10], 0);                   // K列: 合計点数
+      const subtotal = u_toNumber_(r[11]);                // L列: 合計金額
+      const status = String(r[16] || '').trim();          // Q列: 入金確認
+      const selectionList = String(r[9] || '');           // J列: 選択リスト
+      const measureOpt = '';
       if (!receiptNo) continue;
       if (q) {
         const hay = (receiptNo + ' ' + name + ' ' + contact + ' ' + delivery + ' ' + status).toLowerCase();
@@ -56,13 +56,13 @@ function apiUpdateRequestStatus(adminKey, receiptNo, newStatus) {
     const sheet = sh_ensureRequestSheet_(orderSs);
     const lastRow = sheet.getLastRow();
     if (lastRow < 2) return { ok: false, message: 'データがありません' };
-    const values = sheet.getRange(2, 1, lastRow - 1, 21).getValues();
+    const values = sheet.getRange(2, 1, lastRow - 1, 32).getValues();
     let targetRow = -1;
     let selectionList = '';
     for (let i = 0; i < values.length; i++) {
       if (String(values[i][0] || '') === String(receiptNo || '')) {
         targetRow = i + 2;
-        selectionList = String(values[i][11] || '');
+        selectionList = String(values[i][9] || '');  // J列: 選択リスト
         break;
       }
     }
@@ -74,7 +74,7 @@ function apiUpdateRequestStatus(adminKey, receiptNo, newStatus) {
     if (allowedStatuses.length > 0 && allowedStatuses.indexOf(st) === -1) {
       return { ok: false, message: '許可されていないステータスです: ' + st };
     }
-    sheet.getRange(targetRow, 18).setValue(st);
+    sheet.getRange(targetRow, 17).setValue(st);  // Q列: 入金確認
 
     const lock = LockService.getScriptLock();
     if (!lock.tryLock(30000)) return { ok: false, message: '混雑しています。少し待ってから再試行してください' };

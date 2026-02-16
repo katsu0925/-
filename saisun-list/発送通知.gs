@@ -12,12 +12,12 @@ const SHIPMAIL_CONFIG = {
   COL_SELECTION_J: 10,     // J列: 選択リスト
   COL_COUNT_K: 11,         // K列: 合計点数
   COL_AMOUNT_L: 12,        // L列: 合計金額
-  COL_STATUS_M: 13,        // M列: 発送ステータス
-  COL_STATUS_P: 16,        // P列: ステータス
-  COL_CARRIER_W: 23,       // W列: 配送業者
-  COL_TRACKING_X: 24,      // X列: 伝票番号
-  FLAG_COL: 21,            // U列: 発送通知フラグ（AA列は受注通知フラグ専用）
-  COL_PAYMENT_ID_AF: 32   // AF列: 決済ID（KOMOJUのみ）
+  COL_STATUS_M: 19,        // S列: 発送ステータス
+  COL_STATUS_P: 22,        // V列: ステータス
+  COL_CARRIER_W: 20,       // T列: 配送業者
+  COL_TRACKING_X: 21,      // U列: 伝票番号
+  FLAG_COL: 29,            // AC列: 発送通知
+  COL_PAYMENT_ID_AF: 16   // P列: 決済ID（KOMOJUのみ）
 };
 
 function shipMailOnEdit(e) {
