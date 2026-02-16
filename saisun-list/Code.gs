@@ -97,7 +97,9 @@ function doPost(e) {
       // CSRFトークン発行
       'apiGetCsrfToken': apiGetCsrfToken,
       // AIチャットボット
-      'apiChatbot': apiChatbot
+      'apiChatbot': apiChatbot,
+      // 管理者用直接登録（決済バイパス）
+      'apiAdminDirectOrder': apiAdminDirectOrder
     };
 
     var fn = allowed[action];

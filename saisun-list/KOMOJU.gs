@@ -714,7 +714,8 @@ function getPaymentMethodDisplayName_(methodType) {
   var map = {
     'credit_card': 'クレジットカード',
     'konbini': 'コンビニ払い',
-    'bank_transfer': '銀行振込'
+    'bank_transfer': '銀行振込',
+    'admin': '管理者登録'
   };
   return map[String(methodType || '')] || String(methodType || '');
 }

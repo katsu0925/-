@@ -4136,8 +4136,32 @@ function submitNow_() {
   var err = validateForm_(f);
   if (err) { showToast(err); submitting_ = false; return; }
   $('submitBtn').disabled = true;
-  setSending_(true, '注文を準備中...');
   var ids = (state.cart.ids || []).slice();
+
+  // === 管理者モード: 決済バイパスで直接登録 ===
+  if (ADMIN_KEY) {
+    setSending_(true, '登録中...');
+    runApi('apiAdminDirectOrder', ADMIN_KEY, state.userKey, f, ids)
+      .then(function(res) {
+        if (!res || !res.ok) throw new Error(res && res.message ? res.message : '登録に失敗しました');
+        // カートクリア
+        state.cart.ids = []; state.cart.itemsById = {}; state.cart.digest = {}; state.lastShipping = null;
+        saveCartStorage(); updateCartCount();
+        // 完了モーダル表示
+        $('doneReceipt').textContent = res.receiptNo || '';
+        if ($('doneModalTitle')) $('doneModalTitle').textContent = '登録完了';
+        if ($('doneMessage')) $('doneMessage').textContent = '受付番号 ' + (res.receiptNo || '') + ' で依頼管理に登録しました。';
+        openModal($('doneModal'));
+      })
+      .catch(function(e) {
+        showToast(e.message || '登録に失敗しました');
+      })
+      .finally(function() { setSending_(false); $('submitBtn').disabled = false; submitting_ = false; });
+    return;
+  }
+
+  // === 通常モード: KOMOJU決済フロー ===
+  setSending_(true, '注文を準備中...');
 
   // ステップ1: CSRF更新 + reCAPTCHA + 確保同期を並列実行（高速化）
   Promise.all([
@@ -4345,6 +4369,10 @@ function bindUi_() {
   });
   $('formBackBtn').addEventListener('click', function() { showCartSection_(true); });
   $('submitBtn').addEventListener('click', submitNow_);
+  // 管理者モード: ボタンテキストを変更
+  if (ADMIN_KEY) {
+    $('submitBtn').textContent = '登録する（管理者）';
+  }
   // 住所入力時に送料をリアルタイム更新
   if ($('address')) {
     $('address').addEventListener('input', function() { updateShippingDisplay_(); });

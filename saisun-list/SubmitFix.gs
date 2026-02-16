@@ -303,6 +303,279 @@ function apiSubmitEstimate(userKey, form, ids) {
 }
 
 // =====================================================
+// apiAdminDirectOrder — 管理者用直接登録（決済バイパス）
+// =====================================================
+
+/**
+ * 管理者がUIから直接注文を登録する（KOMOJU決済・メール通知なし）
+ * BASE購入済み商品のアソート管理用
+ */
+function apiAdminDirectOrder(adminKey, userKey, form, ids) {
+  try {
+    ad_requireAdmin_(adminKey);
+
+    // === バリデーション（apiSubmitEstimateと同一） ===
+    var uk = String(userKey || '').trim();
+    if (!uk) return { ok: false, message: 'userKeyが不正です' };
+
+    var list = u_unique_(u_normalizeIds_(ids || []));
+    if (!list.length) return { ok: false, message: 'カートが空です' };
+
+    var f = form || {};
+    var companyName = String(f.companyName || '').trim();
+    var contact = String(f.contact || '').trim();
+    var contactMethod = String(f.contactMethod || '').trim();
+    var delivery = String(f.delivery || '').trim();
+    var postal = String(f.postal || '').trim();
+    var address = String(f.address || '').trim();
+    var phone = String(f.phone || '').trim();
+    var note = String(f.note || '').trim();
+    var measureOpt = String(f.measureOpt || 'with');
+    var usePoints = Math.max(0, Math.floor(Number(f.usePoints || 0)));
+    var couponCode = String(f.couponCode || '').trim();
+
+    if (!companyName) return { ok: false, message: '会社名/氏名は必須です' };
+    if (!contact) return { ok: false, message: 'メールアドレスは必須です' };
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact)) return { ok: false, message: '有効なメールアドレスを入力してください' };
+    if (!postal) return { ok: false, message: '郵便番号は必須です' };
+    if (!address) return { ok: false, message: '住所は必須です' };
+    if (!phone) return { ok: false, message: '電話番号は必須です' };
+
+    // === 読み取り専用操作 ===
+    var orderSs = sh_getOrderSs_();
+    sh_ensureAllOnce_(orderSs);
+
+    var products = pr_readProducts_();
+    var productMap = {};
+    for (var i = 0; i < products.length; i++) productMap[String(products[i].managedId)] = products[i];
+
+    var sum = 0;
+    for (var i = 0; i < list.length; i++) {
+      var p = productMap[list[i]];
+      if (!p) return { ok: false, message: '商品が見つかりません: ' + list[i] };
+      sum += Number(p.price || 0);
+    }
+
+    // === 価格計算 ===
+    var totalCount = list.length;
+    var discountRate = 0;
+    var couponDiscount = 0;
+    var couponLabel = '';
+    var validatedCoupon = null;
+
+    if (couponCode) {
+      var couponResult = validateCoupon_(couponCode, contact);
+      if (!couponResult.ok) return couponResult;
+      validatedCoupon = couponResult;
+      couponDiscount = calcCouponDiscount_(couponResult.type, couponResult.value, sum);
+      couponLabel = couponResult.type === 'rate'
+        ? ('クーポン' + Math.round(couponResult.value * 100) + '%OFF')
+        : ('クーポン' + couponResult.value + '円引き');
+    } else {
+      if (totalCount >= 30) discountRate += 0.10;
+      var memberDiscountStatus = app_getMemberDiscountStatus_();
+      if (memberDiscountStatus.enabled && contact) {
+        var custForDiscount = findCustomerByEmail_(contact);
+        if (custForDiscount) {
+          discountRate += memberDiscountStatus.rate;
+        }
+      }
+      if (measureOpt === 'without') discountRate += 0.05;
+    }
+
+    var discounted = couponCode
+      ? Math.max(0, sum - couponDiscount)
+      : Math.round(sum * (1 - discountRate));
+
+    // === 送料計算 ===
+    var shippingAmount = Math.max(0, Math.floor(Number(f.shippingAmount || 0)));
+    var shippingSize = String(f.shippingSize || '');
+    var shippingArea = String(f.shippingArea || '');
+    var shippingPref = String(f.shippingPref || '');
+
+    // === ポイント利用 ===
+    var pointsUsed = 0;
+    if (usePoints > 0 && contact) {
+      var custForPoints = findCustomerByEmail_(contact);
+      if (custForPoints && custForPoints.points >= usePoints) {
+        pointsUsed = Math.min(usePoints, discounted);
+        discounted = discounted - pointsUsed;
+      }
+    }
+
+    // === 備考追記 ===
+    // 管理者登録であることを備考に明記
+    var adminNote = '【管理者登録（決済バイパス）】';
+    note = note ? (adminNote + '\n' + note) : adminNote;
+
+    if (couponCode && couponDiscount > 0) {
+      var couponNote = '【' + couponLabel + '（-' + couponDiscount + '円）コード: ' + couponCode + '】';
+      note = note + '\n' + couponNote;
+    }
+    if (pointsUsed > 0) {
+      note += '\n【ポイント利用: ' + pointsUsed + 'pt（-' + pointsUsed + '円）】';
+    }
+    if (shippingAmount > 0) {
+      var shippingLabel = '【送料: ¥' + shippingAmount.toLocaleString() + '（' + (shippingPref || '') + '・' + (shippingSize === 'small' ? '小' : '大') + '・税込）】';
+      note += '\n' + shippingLabel;
+    }
+
+    // === 受付番号生成 ===
+    var receiptNo = u_makeReceiptNo_();
+    var selectionList = u_sortManagedIds_(list).join('、');
+    var measureLabel = app_measureOptLabel_(measureOpt);
+    var invoiceReceipt = (f.invoiceReceipt === true || f.invoiceReceipt === 'true');
+
+    var validatedForm = {
+      companyName: companyName,
+      contact: contact,
+      contactMethod: contactMethod,
+      delivery: delivery,
+      postal: postal,
+      address: address,
+      phone: phone,
+      note: note,
+      measureOpt: measureOpt,
+      invoiceReceipt: invoiceReceipt
+    };
+
+    var templateText = app_buildTemplateText_(receiptNo, validatedForm, list, totalCount, discounted);
+
+    // === 確保チェック＆状態更新（ロック付き） ===
+    var lock = LockService.getScriptLock();
+    if (!lock.tryLock(30000)) {
+      return { ok: false, message: '現在混雑しています。少し時間を置いて再度お試しください。' };
+    }
+
+    try {
+
+    var now = u_nowMs_();
+    var openSet = st_getOpenSetFast_(orderSs) || {};
+    var holdState = st_getHoldState_(orderSs) || {};
+    var holdItems = (holdState.items && typeof holdState.items === 'object') ? holdState.items : {};
+    st_cleanupExpiredHolds_(holdItems, now);
+
+    var bad = [];
+    for (var i = 0; i < list.length; i++) {
+      var id = list[i];
+      if (openSet[id]) {
+        bad.push(id);
+        continue;
+      }
+      var it = holdItems[id];
+      if (it && u_toInt_(it.untilMs, 0) > now && String(it.userKey || '') !== uk) {
+        bad.push(id);
+        continue;
+      }
+    }
+    if (bad.length) {
+      return { ok: false, message: '確保できない商品が含まれています: ' + bad.join('、') };
+    }
+
+    // ポイント差し引き
+    if (pointsUsed > 0 && contact) {
+      deductPoints_(contact, pointsUsed);
+    }
+
+    // === holdState → openState に直接遷移（決済不要） ===
+    // holdから削除
+    for (var i = 0; i < list.length; i++) {
+      delete holdItems[list[i]];
+    }
+    holdState.items = holdItems;
+    holdState.updatedAt = now;
+    st_setHoldState_(orderSs, holdState);
+
+    // openStateに追加
+    var openState = st_getOpenState_(orderSs) || {};
+    var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
+    for (var i = 0; i < list.length; i++) {
+      openItems[list[i]] = {
+        receiptNo: receiptNo,
+        userKey: uk,
+        status: APP_CONFIG.statuses.open,
+        createdAtMs: now
+      };
+    }
+    openState.items = openItems;
+    openState.updatedAt = now;
+    st_setOpenState_(orderSs, openState);
+
+    } finally {
+      lock.releaseLock();
+    }
+
+    // === 商品詳細リスト ===
+    var itemDetails = [];
+    for (var idx = 0; idx < list.length; idx++) {
+      var pd = productMap[list[idx]];
+      if (pd) {
+        itemDetails.push({
+          managedId: pd.managedId,
+          noLabel: pd.noLabel || '',
+          brand: pd.brand || '',
+          category: pd.category || '',
+          size: pd.size || '',
+          color: pd.color || '',
+          price: pd.price || 0
+        });
+      }
+    }
+
+    // === シート書き込み（メール通知なし） ===
+    var writeData = {
+      userKey: uk,
+      form: validatedForm,
+      ids: list,
+      receiptNo: receiptNo,
+      selectionList: selectionList,
+      measureOpt: measureOpt,
+      totalCount: totalCount,
+      discounted: discounted,
+      shippingAmount: shippingAmount,
+      storeShipping: calcStoreShippingByAddress_(shippingPref, totalCount) || 0,
+      shippingSize: shippingSize,
+      shippingArea: shippingArea,
+      shippingPref: shippingPref,
+      createdAtMs: now,
+      templateText: templateText,
+      measureLabel: measureLabel,
+      paymentStatus: '対応済',
+      paymentMethod: 'admin',
+      paymentId: '',
+      itemDetails: itemDetails,
+      pointsUsed: pointsUsed,
+      skipNotify: true
+    };
+
+    writeSubmitData_(writeData);
+    console.log('Admin direct order written to sheet: ' + receiptNo);
+
+    // クーポン利用記録
+    if (couponCode && validatedCoupon) {
+      try {
+        recordCouponUsage_(couponCode, contact, receiptNo);
+      } catch (couponErr) {
+        console.error('クーポン利用記録エラー:', couponErr);
+      }
+    }
+
+    // キャッシュ無効化
+    st_invalidateStatusCache_(orderSs);
+
+    return {
+      ok: true,
+      receiptNo: receiptNo,
+      message: '管理者登録が完了しました'
+    };
+
+  } catch (e) {
+    console.error('apiAdminDirectOrder error:', e);
+    return { ok: false, message: (e && e.message) ? e.message : String(e) };
+  }
+}
+
+// =====================================================
 // バックグラウンド書き込み処理（レガシー互換）
 // =====================================================
 
@@ -435,7 +708,8 @@ function writeSubmitData_(data) {
   var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
   od_writeOpenLogSheetFromState_(orderSs, openItems, now);
 
-  // 3. 管理者宛注文通知メール
+  // 3. 管理者宛注文通知メール（skipNotify時はスキップ）
+  if (data.skipNotify) return;
   app_sendOrderNotifyMail_(orderSs, data.receiptNo, {
     companyName: data.form.companyName || '',
     contact: data.form.contact || '',
