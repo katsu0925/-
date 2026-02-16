@@ -279,7 +279,7 @@ function generateAndExportForOrder() {
         '\n※素人採寸のため多少の誤差はご了承ください。';
 
       var cost = toNumber_(listRow[10]) || 0;
-      var price = om_calcPriceTier_(cost);
+      var price = normalizeSellPrice_(om_calcPriceTier_(cost));
       var priceText = price.toLocaleString('ja-JP') + '円';
 
       exportData.push([false, boxId, targetId, brand, aiTitle, item, size, condition, damageDetail, measurementText, description, priceText]);

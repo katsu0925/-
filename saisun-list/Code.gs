@@ -129,7 +129,7 @@ function doPost(e) {
       // CSRF検証（状態変更を伴うAPIに適用）
       var csrfProtectedActions = [
         'apiSubmitEstimate', 'apiUpdateCustomerProfile', 'apiChangePassword',
-        'apiCreateKomojuSession', 'apiCancelOrder', 'apiSendContactForm'
+        'apiCreateKomojuSession', 'apiCancelOrder'
       ];
       if (csrfProtectedActions.indexOf(action) !== -1) {
         var csrfToken = String(body.csrfToken || '');
