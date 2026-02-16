@@ -39,6 +39,7 @@ function apiSubmitEstimate(userKey, form, ids) {
     var note = String(f.note || '').trim();
     var measureOpt = String(f.measureOpt || 'with');
     var usePoints = Math.max(0, Math.floor(Number(f.usePoints || 0)));
+    var couponCode = String(f.couponCode || '').trim();
 
     if (!companyName) return { ok: false, message: '会社名/氏名は必須です' };
     if (!contact) return { ok: false, message: 'メールアドレスは必須です' };
@@ -67,22 +68,41 @@ function apiSubmitEstimate(userKey, form, ids) {
     // === 価格計算（ロック不要の演算） ===
     var totalCount = list.length;
     var discountRate = 0;
+    var couponDiscount = 0;
+    var couponLabel = '';
+    var validatedCoupon = null;
 
-    // 30点以上割引（10%）
-    if (totalCount >= 30) discountRate += 0.10;
+    if (couponCode) {
+      // クーポン使用時: 他の割引と併用不可
+      var couponResult = validateCoupon_(couponCode, contact);
+      if (!couponResult.ok) return couponResult;
+      validatedCoupon = couponResult;
+      couponDiscount = calcCouponDiscount_(couponResult.type, couponResult.value, sum);
+      couponLabel = couponResult.type === 'rate'
+        ? ('クーポン' + Math.round(couponResult.value * 100) + '%OFF')
+        : ('クーポン' + couponResult.value + '円引き');
+    } else {
+      // 通常割引（クーポン未使用時のみ適用）
 
-    // 会員割引（ログイン会員のみ、enabled時のみ）
-    var memberDiscountStatus = app_getMemberDiscountStatus_();
-    if (memberDiscountStatus.enabled && contact) {
-      var custForDiscount = findCustomerByEmail_(contact);
-      if (custForDiscount) {
-        discountRate += memberDiscountStatus.rate;
+      // 30点以上割引（10%）
+      if (totalCount >= 30) discountRate += 0.10;
+
+      // 会員割引（ログイン会員のみ、enabled時のみ）
+      var memberDiscountStatus = app_getMemberDiscountStatus_();
+      if (memberDiscountStatus.enabled && contact) {
+        var custForDiscount = findCustomerByEmail_(contact);
+        if (custForDiscount) {
+          discountRate += memberDiscountStatus.rate;
+        }
       }
+
+      if (measureOpt === 'without') discountRate += 0.05;
     }
 
-    if (measureOpt === 'without') discountRate += 0.05;
     // ※割引は商品代のみに適用。送料は割引対象外（税込み固定）。
-    var discounted = Math.round(sum * (1 - discountRate));
+    var discounted = couponCode
+      ? Math.max(0, sum - couponDiscount)
+      : Math.round(sum * (1 - discountRate));
 
     // === 送料計算（ロック不要） ===
     var shippingAmount = Math.max(0, Math.floor(Number(f.shippingAmount || 0)));
@@ -101,7 +121,11 @@ function apiSubmitEstimate(userKey, form, ids) {
       }
     }
 
-    // === 送料を備考に追記 ===
+    // === 割引・送料を備考に追記 ===
+    if (couponCode && couponDiscount > 0) {
+      var couponNote = '【' + couponLabel + '（-' + couponDiscount + '円）コード: ' + couponCode + '】';
+      note = note ? (note + '\n' + couponNote) : couponNote;
+    }
     if (pointsUsed > 0) {
       if (note) {
         note += '\n【ポイント利用: ' + pointsUsed + 'pt（-' + pointsUsed + '円）】';
@@ -224,7 +248,7 @@ function apiSubmitEstimate(userKey, form, ids) {
       selectionList: selectionList,
       measureOpt: measureOpt,
       totalCount: totalCount,
-      discounted: totalWithShipping,
+      discounted: discounted,
       shippingAmount: shippingAmount,
       shippingSize: shippingSize,
       shippingArea: shippingArea,
@@ -232,7 +256,10 @@ function apiSubmitEstimate(userKey, form, ids) {
       createdAtMs: now,
       templateText: templateText,
       itemDetails: itemDetails,
-      pointsUsed: pointsUsed
+      pointsUsed: pointsUsed,
+      couponCode: couponCode || '',
+      couponDiscount: couponDiscount || 0,
+      couponLabel: couponLabel || ''
     };
 
     var props = PropertiesService.getScriptProperties();
@@ -752,6 +779,16 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
 
     writeSubmitData_(writeData);
     console.log('Order written to sheet: ' + receiptNo);
+
+    // 3.5. クーポン利用を記録
+    if (pendingData.couponCode) {
+      try {
+        recordCouponUsage_(pendingData.couponCode, pendingData.form.contact, receiptNo);
+        console.log('クーポン利用記録: ' + pendingData.couponCode + ' / ' + receiptNo);
+      } catch (couponErr) {
+        console.error('クーポン利用記録エラー:', couponErr);
+      }
+    }
 
     // 4. キャッシュを無効化
     st_invalidateStatusCache_(orderSs);
