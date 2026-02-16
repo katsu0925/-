@@ -184,6 +184,8 @@ function sh_ensureAllOnce_(ss) {
   sh_ensureRequestSheet_(ss);
   sh_ensureHoldSheet_(ss);
   sh_ensureOpenLogSheet_(ss);
+  sh_ensureCouponSheet_(ss);
+  sh_ensureCouponLogSheet_(ss);
   sh_applyRequestStatusDropdown_(ss);
   props.setProperty(k, '1');
 }
