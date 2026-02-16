@@ -303,143 +303,64 @@ function apiSubmitEstimate(userKey, form, ids) {
 }
 
 // =====================================================
-// apiAdminDirectOrder — 管理者用直接登録（決済バイパス）
+// apiAdminLinkOrder — 管理者用: 既存受付番号に商品選択を紐付け
 // =====================================================
 
 /**
- * 管理者がUIから直接注文を登録する（KOMOJU決済・メール通知なし）
- * BASE購入済み商品のアソート管理用
+ * BASE注文で依頼管理に登録済みの受付番号に対し、
+ * 管理者がサイトUIで選んだアソート商品を紐付ける。
+ * - 依頼管理シートの選択リスト(J列)・合計点数(K列)を更新
+ * - 選んだ商品をopenStateに登録
+ * - 決済なし、メール通知なし
+ *
+ * @param {string} adminKey - 管理者認証キー
+ * @param {string} receiptNo - 紐付け先の受付番号（BASE注文キー）
+ * @param {string} userKey - フロントのuserKey
+ * @param {string[]} ids - 選んだ商品の管理番号リスト
  */
-function apiAdminDirectOrder(adminKey, userKey, form, ids) {
+function apiAdminLinkOrder(adminKey, receiptNo, userKey, ids) {
   try {
     ad_requireAdmin_(adminKey);
 
-    // === バリデーション（apiSubmitEstimateと同一） ===
+    var rn = String(receiptNo || '').trim();
+    if (!rn) return { ok: false, message: '受付番号を入力してください' };
+
     var uk = String(userKey || '').trim();
-    if (!uk) return { ok: false, message: 'userKeyが不正です' };
 
     var list = u_unique_(u_normalizeIds_(ids || []));
     if (!list.length) return { ok: false, message: 'カートが空です' };
 
-    var f = form || {};
-    var companyName = String(f.companyName || '').trim();
-    var contact = String(f.contact || '').trim();
-    var contactMethod = String(f.contactMethod || '').trim();
-    var delivery = String(f.delivery || '').trim();
-    var postal = String(f.postal || '').trim();
-    var address = String(f.address || '').trim();
-    var phone = String(f.phone || '').trim();
-    var note = String(f.note || '').trim();
-    var measureOpt = String(f.measureOpt || 'with');
-    var usePoints = Math.max(0, Math.floor(Number(f.usePoints || 0)));
-    var couponCode = String(f.couponCode || '').trim();
-
-    if (!companyName) return { ok: false, message: '会社名/氏名は必須です' };
-    if (!contact) return { ok: false, message: 'メールアドレスは必須です' };
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact)) return { ok: false, message: '有効なメールアドレスを入力してください' };
-    if (!postal) return { ok: false, message: '郵便番号は必須です' };
-    if (!address) return { ok: false, message: '住所は必須です' };
-    if (!phone) return { ok: false, message: '電話番号は必須です' };
-
-    // === 読み取り専用操作 ===
+    // === 依頼管理シートで受付番号の行を検索 ===
     var orderSs = sh_getOrderSs_();
     sh_ensureAllOnce_(orderSs);
+    var reqSh = sh_ensureRequestSheet_(orderSs);
+    var lastRow = reqSh.getLastRow();
 
+    if (lastRow < 2) return { ok: false, message: '依頼管理にデータがありません' };
+
+    // A列（受付番号）を全行読み込んで対象行を検索
+    var receiptCol = reqSh.getRange(2, 1, lastRow - 1, 1).getDisplayValues();
+    var targetRow = -1;
+    for (var r = 0; r < receiptCol.length; r++) {
+      if (String(receiptCol[r][0]).trim() === rn) {
+        targetRow = r + 2; // 1-based, ヘッダ行分を加算
+        break;
+      }
+    }
+    if (targetRow === -1) {
+      return { ok: false, message: '受付番号「' + rn + '」が依頼管理に見つかりません' };
+    }
+
+    // === 商品存在チェック ===
     var products = pr_readProducts_();
     var productMap = {};
     for (var i = 0; i < products.length; i++) productMap[String(products[i].managedId)] = products[i];
 
-    var sum = 0;
     for (var i = 0; i < list.length; i++) {
-      var p = productMap[list[i]];
-      if (!p) return { ok: false, message: '商品が見つかりません: ' + list[i] };
-      sum += Number(p.price || 0);
-    }
-
-    // === 価格計算 ===
-    var totalCount = list.length;
-    var discountRate = 0;
-    var couponDiscount = 0;
-    var couponLabel = '';
-    var validatedCoupon = null;
-
-    if (couponCode) {
-      var couponResult = validateCoupon_(couponCode, contact);
-      if (!couponResult.ok) return couponResult;
-      validatedCoupon = couponResult;
-      couponDiscount = calcCouponDiscount_(couponResult.type, couponResult.value, sum);
-      couponLabel = couponResult.type === 'rate'
-        ? ('クーポン' + Math.round(couponResult.value * 100) + '%OFF')
-        : ('クーポン' + couponResult.value + '円引き');
-    } else {
-      if (totalCount >= 30) discountRate += 0.10;
-      var memberDiscountStatus = app_getMemberDiscountStatus_();
-      if (memberDiscountStatus.enabled && contact) {
-        var custForDiscount = findCustomerByEmail_(contact);
-        if (custForDiscount) {
-          discountRate += memberDiscountStatus.rate;
-        }
-      }
-      if (measureOpt === 'without') discountRate += 0.05;
-    }
-
-    var discounted = couponCode
-      ? Math.max(0, sum - couponDiscount)
-      : Math.round(sum * (1 - discountRate));
-
-    // === 送料計算 ===
-    var shippingAmount = Math.max(0, Math.floor(Number(f.shippingAmount || 0)));
-    var shippingSize = String(f.shippingSize || '');
-    var shippingArea = String(f.shippingArea || '');
-    var shippingPref = String(f.shippingPref || '');
-
-    // === ポイント利用 ===
-    var pointsUsed = 0;
-    if (usePoints > 0 && contact) {
-      var custForPoints = findCustomerByEmail_(contact);
-      if (custForPoints && custForPoints.points >= usePoints) {
-        pointsUsed = Math.min(usePoints, discounted);
-        discounted = discounted - pointsUsed;
+      if (!productMap[list[i]]) {
+        return { ok: false, message: '商品が見つかりません: ' + list[i] };
       }
     }
-
-    // === 備考追記 ===
-    // 管理者登録であることを備考に明記
-    var adminNote = '【管理者登録（決済バイパス）】';
-    note = note ? (adminNote + '\n' + note) : adminNote;
-
-    if (couponCode && couponDiscount > 0) {
-      var couponNote = '【' + couponLabel + '（-' + couponDiscount + '円）コード: ' + couponCode + '】';
-      note = note + '\n' + couponNote;
-    }
-    if (pointsUsed > 0) {
-      note += '\n【ポイント利用: ' + pointsUsed + 'pt（-' + pointsUsed + '円）】';
-    }
-    if (shippingAmount > 0) {
-      var shippingLabel = '【送料: ¥' + shippingAmount.toLocaleString() + '（' + (shippingPref || '') + '・' + (shippingSize === 'small' ? '小' : '大') + '・税込）】';
-      note += '\n' + shippingLabel;
-    }
-
-    // === 受付番号生成 ===
-    var receiptNo = u_makeReceiptNo_();
-    var selectionList = u_sortManagedIds_(list).join('、');
-    var measureLabel = app_measureOptLabel_(measureOpt);
-    var invoiceReceipt = (f.invoiceReceipt === true || f.invoiceReceipt === 'true');
-
-    var validatedForm = {
-      companyName: companyName,
-      contact: contact,
-      contactMethod: contactMethod,
-      delivery: delivery,
-      postal: postal,
-      address: address,
-      phone: phone,
-      note: note,
-      measureOpt: measureOpt,
-      invoiceReceipt: invoiceReceipt
-    };
-
-    var templateText = app_buildTemplateText_(receiptNo, validatedForm, list, totalCount, discounted);
 
     // === 確保チェック＆状態更新（ロック付き） ===
     var lock = LockService.getScriptLock();
@@ -472,12 +393,6 @@ function apiAdminDirectOrder(adminKey, userKey, form, ids) {
       return { ok: false, message: '確保できない商品が含まれています: ' + bad.join('、') };
     }
 
-    // ポイント差し引き
-    if (pointsUsed > 0 && contact) {
-      deductPoints_(contact, pointsUsed);
-    }
-
-    // === holdState → openState に直接遷移（決済不要） ===
     // holdから削除
     for (var i = 0; i < list.length; i++) {
       delete holdItems[list[i]];
@@ -491,7 +406,7 @@ function apiAdminDirectOrder(adminKey, userKey, form, ids) {
     var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
     for (var i = 0; i < list.length; i++) {
       openItems[list[i]] = {
-        receiptNo: receiptNo,
+        receiptNo: rn,
         userKey: uk,
         status: APP_CONFIG.statuses.open,
         createdAtMs: now
@@ -505,72 +420,30 @@ function apiAdminDirectOrder(adminKey, userKey, form, ids) {
       lock.releaseLock();
     }
 
-    // === 商品詳細リスト ===
-    var itemDetails = [];
-    for (var idx = 0; idx < list.length; idx++) {
-      var pd = productMap[list[idx]];
-      if (pd) {
-        itemDetails.push({
-          managedId: pd.managedId,
-          noLabel: pd.noLabel || '',
-          brand: pd.brand || '',
-          category: pd.category || '',
-          size: pd.size || '',
-          color: pd.color || '',
-          price: pd.price || 0
-        });
-      }
-    }
+    // === 依頼管理シートを更新 ===
+    var selectionList = u_sortManagedIds_(list).join('、');
 
-    // === シート書き込み（メール通知なし） ===
-    var writeData = {
-      userKey: uk,
-      form: validatedForm,
-      ids: list,
-      receiptNo: receiptNo,
-      selectionList: selectionList,
-      measureOpt: measureOpt,
-      totalCount: totalCount,
-      discounted: discounted,
-      shippingAmount: shippingAmount,
-      storeShipping: calcStoreShippingByAddress_(shippingPref, totalCount) || 0,
-      shippingSize: shippingSize,
-      shippingArea: shippingArea,
-      shippingPref: shippingPref,
-      createdAtMs: now,
-      templateText: templateText,
-      measureLabel: measureLabel,
-      paymentStatus: '対応済',
-      paymentMethod: 'admin',
-      paymentId: '',
-      itemDetails: itemDetails,
-      pointsUsed: pointsUsed,
-      skipNotify: true
-    };
-
-    writeSubmitData_(writeData);
-    console.log('Admin direct order written to sheet: ' + receiptNo);
-
-    // クーポン利用記録
-    if (couponCode && validatedCoupon) {
-      try {
-        recordCouponUsage_(couponCode, contact, receiptNo);
-      } catch (couponErr) {
-        console.error('クーポン利用記録エラー:', couponErr);
-      }
-    }
+    // J列(10): 選択リスト
+    reqSh.getRange(targetRow, 10).setValue(selectionList);
+    // K列(11): 合計点数
+    reqSh.getRange(targetRow, 11).setValue(list.length);
+    // AF列(32): 更新日時
+    reqSh.getRange(targetRow, 32).setValue(new Date(now));
 
     // キャッシュ無効化
     st_invalidateStatusCache_(orderSs);
 
+    console.log('Admin link order: receipt=' + rn + ', items=' + list.length + ', selection=' + selectionList);
+
     return {
       ok: true,
-      receiptNo: receiptNo,
-      message: '管理者登録が完了しました'
+      receiptNo: rn,
+      itemCount: list.length,
+      message: '受付番号「' + rn + '」に' + list.length + '点の商品を紐付けました'
     };
 
   } catch (e) {
-    console.error('apiAdminDirectOrder error:', e);
+    console.error('apiAdminLinkOrder error:', e);
     return { ok: false, message: (e && e.message) ? e.message : String(e) };
   }
 }

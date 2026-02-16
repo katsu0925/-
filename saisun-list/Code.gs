@@ -98,8 +98,8 @@ function doPost(e) {
       'apiGetCsrfToken': apiGetCsrfToken,
       // AIチャットボット
       'apiChatbot': apiChatbot,
-      // 管理者用直接登録（決済バイパス）
-      'apiAdminDirectOrder': apiAdminDirectOrder
+      // 管理者用: 既存受付番号に商品選択を紐付け
+      'apiAdminLinkOrder': apiAdminLinkOrder
     };
 
     var fn = allowed[action];
