@@ -4136,8 +4136,41 @@ function submitNow_() {
   var err = validateForm_(f);
   if (err) { showToast(err); submitting_ = false; return; }
   $('submitBtn').disabled = true;
-  setSending_(true, '注文を準備中...');
   var ids = (state.cart.ids || []).slice();
+
+  // === 管理者モード: 受付番号に商品選択を紐付け ===
+  if (ADMIN_KEY) {
+    $('submitBtn').disabled = false;
+    submitting_ = false;
+    var receiptNo = prompt('紐付け先の受付番号を入力してください（BASE注文キー）:');
+    if (!receiptNo || !receiptNo.trim()) {
+      showToast('受付番号が入力されませんでした');
+      return;
+    }
+    submitting_ = true;
+    $('submitBtn').disabled = true;
+    setSending_(true, '紐付け登録中...');
+    runApi('apiAdminLinkOrder', ADMIN_KEY, receiptNo.trim(), state.userKey, ids)
+      .then(function(res) {
+        if (!res || !res.ok) throw new Error(res && res.message ? res.message : '登録に失敗しました');
+        // カートクリア
+        state.cart.ids = []; state.cart.itemsById = {}; state.cart.digest = {}; state.lastShipping = null;
+        saveCartStorage(); updateCartCount();
+        // 完了モーダル表示
+        $('doneReceipt').textContent = res.receiptNo || '';
+        if ($('doneModalTitle')) $('doneModalTitle').textContent = '紐付け完了';
+        if ($('doneMessage')) $('doneMessage').textContent = '受付番号「' + (res.receiptNo || '') + '」に' + (res.itemCount || ids.length) + '点の商品を紐付けました。';
+        openModal($('doneModal'));
+      })
+      .catch(function(e) {
+        showToast(e.message || '登録に失敗しました');
+      })
+      .finally(function() { setSending_(false); $('submitBtn').disabled = false; submitting_ = false; });
+    return;
+  }
+
+  // === 通常モード: KOMOJU決済フロー ===
+  setSending_(true, '注文を準備中...');
 
   // ステップ1: CSRF更新 + reCAPTCHA + 確保同期を並列実行（高速化）
   Promise.all([
@@ -4345,6 +4378,10 @@ function bindUi_() {
   });
   $('formBackBtn').addEventListener('click', function() { showCartSection_(true); });
   $('submitBtn').addEventListener('click', submitNow_);
+  // 管理者モード: ボタンテキストを変更
+  if (ADMIN_KEY) {
+    $('submitBtn').textContent = '受付番号で紐付け';
+  }
   // 住所入力時に送料をリアルタイム更新
   if ($('address')) {
     $('address').addEventListener('input', function() { updateShippingDisplay_(); });

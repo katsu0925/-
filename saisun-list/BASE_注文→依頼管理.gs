@@ -1,5 +1,5 @@
 function syncBaseOrdersToIraiKanri() {
-  const EXCLUDE_PRODUCT_IDS = new Set(['128311731', '129152120', '129140745', '132388956', '132389794', '132388821']);
+  // XLSX商品（選べるパッケージのアソート商品）も依頼管理に反映する（選択リストは管理者が後から紐付け）
   const ORDER_STATUS_COL_1BASED = 7;
   const ORDER_STATUS_VALUE = '未対応';
 
@@ -158,7 +158,6 @@ function syncBaseOrdersToIraiKanri() {
 
     const pid = normalizeKey_(row[idxProductId_Item]);
     if (!pid) continue;
-    if (EXCLUDE_PRODUCT_IDS.has(pid)) continue;
 
     if (!itemsByKey.has(key)) itemsByKey.set(key, []);
     itemsByKey.get(key).push(row);

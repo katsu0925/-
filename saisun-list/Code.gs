@@ -97,7 +97,9 @@ function doPost(e) {
       // CSRFトークン発行
       'apiGetCsrfToken': apiGetCsrfToken,
       // AIチャットボット
-      'apiChatbot': apiChatbot
+      'apiChatbot': apiChatbot,
+      // 管理者用: 既存受付番号に商品選択を紐付け
+      'apiAdminLinkOrder': apiAdminLinkOrder
     };
 
     var fn = allowed[action];

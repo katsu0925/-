@@ -303,6 +303,152 @@ function apiSubmitEstimate(userKey, form, ids) {
 }
 
 // =====================================================
+// apiAdminLinkOrder — 管理者用: 既存受付番号に商品選択を紐付け
+// =====================================================
+
+/**
+ * BASE注文で依頼管理に登録済みの受付番号に対し、
+ * 管理者がサイトUIで選んだアソート商品を紐付ける。
+ * - 依頼管理シートの選択リスト(J列)・合計点数(K列)を更新
+ * - 選んだ商品をopenStateに登録
+ * - 決済なし、メール通知なし
+ *
+ * @param {string} adminKey - 管理者認証キー
+ * @param {string} receiptNo - 紐付け先の受付番号（BASE注文キー）
+ * @param {string} userKey - フロントのuserKey
+ * @param {string[]} ids - 選んだ商品の管理番号リスト
+ */
+function apiAdminLinkOrder(adminKey, receiptNo, userKey, ids) {
+  try {
+    ad_requireAdmin_(adminKey);
+
+    var rn = String(receiptNo || '').trim();
+    if (!rn) return { ok: false, message: '受付番号を入力してください' };
+
+    var uk = String(userKey || '').trim();
+
+    var list = u_unique_(u_normalizeIds_(ids || []));
+    if (!list.length) return { ok: false, message: 'カートが空です' };
+
+    // === 依頼管理シートで受付番号の行を検索 ===
+    var orderSs = sh_getOrderSs_();
+    sh_ensureAllOnce_(orderSs);
+    var reqSh = sh_ensureRequestSheet_(orderSs);
+    var lastRow = reqSh.getLastRow();
+
+    if (lastRow < 2) return { ok: false, message: '依頼管理にデータがありません' };
+
+    // A列（受付番号）を全行読み込んで対象行を検索
+    var receiptCol = reqSh.getRange(2, 1, lastRow - 1, 1).getDisplayValues();
+    var targetRow = -1;
+    for (var r = 0; r < receiptCol.length; r++) {
+      if (String(receiptCol[r][0]).trim() === rn) {
+        targetRow = r + 2; // 1-based, ヘッダ行分を加算
+        break;
+      }
+    }
+    if (targetRow === -1) {
+      return { ok: false, message: '受付番号「' + rn + '」が依頼管理に見つかりません' };
+    }
+
+    // === 商品存在チェック ===
+    var products = pr_readProducts_();
+    var productMap = {};
+    for (var i = 0; i < products.length; i++) productMap[String(products[i].managedId)] = products[i];
+
+    for (var i = 0; i < list.length; i++) {
+      if (!productMap[list[i]]) {
+        return { ok: false, message: '商品が見つかりません: ' + list[i] };
+      }
+    }
+
+    // === 確保チェック＆状態更新（ロック付き） ===
+    var lock = LockService.getScriptLock();
+    if (!lock.tryLock(30000)) {
+      return { ok: false, message: '現在混雑しています。少し時間を置いて再度お試しください。' };
+    }
+
+    try {
+
+    var now = u_nowMs_();
+    var openSet = st_getOpenSetFast_(orderSs) || {};
+    var holdState = st_getHoldState_(orderSs) || {};
+    var holdItems = (holdState.items && typeof holdState.items === 'object') ? holdState.items : {};
+    st_cleanupExpiredHolds_(holdItems, now);
+
+    var bad = [];
+    for (var i = 0; i < list.length; i++) {
+      var id = list[i];
+      if (openSet[id]) {
+        bad.push(id);
+        continue;
+      }
+      var it = holdItems[id];
+      if (it && u_toInt_(it.untilMs, 0) > now && String(it.userKey || '') !== uk) {
+        bad.push(id);
+        continue;
+      }
+    }
+    if (bad.length) {
+      return { ok: false, message: '確保できない商品が含まれています: ' + bad.join('、') };
+    }
+
+    // holdから削除
+    for (var i = 0; i < list.length; i++) {
+      delete holdItems[list[i]];
+    }
+    holdState.items = holdItems;
+    holdState.updatedAt = now;
+    st_setHoldState_(orderSs, holdState);
+
+    // openStateに追加
+    var openState = st_getOpenState_(orderSs) || {};
+    var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
+    for (var i = 0; i < list.length; i++) {
+      openItems[list[i]] = {
+        receiptNo: rn,
+        userKey: uk,
+        status: APP_CONFIG.statuses.open,
+        createdAtMs: now
+      };
+    }
+    openState.items = openItems;
+    openState.updatedAt = now;
+    st_setOpenState_(orderSs, openState);
+
+    } finally {
+      lock.releaseLock();
+    }
+
+    // === 依頼管理シートを更新 ===
+    var selectionList = u_sortManagedIds_(list).join('、');
+
+    // J列(10): 選択リスト
+    reqSh.getRange(targetRow, 10).setValue(selectionList);
+    // K列(11): 合計点数
+    reqSh.getRange(targetRow, 11).setValue(list.length);
+    // AF列(32): 更新日時
+    reqSh.getRange(targetRow, 32).setValue(new Date(now));
+
+    // キャッシュ無効化
+    st_invalidateStatusCache_(orderSs);
+
+    console.log('Admin link order: receipt=' + rn + ', items=' + list.length + ', selection=' + selectionList);
+
+    return {
+      ok: true,
+      receiptNo: rn,
+      itemCount: list.length,
+      message: '受付番号「' + rn + '」に' + list.length + '点の商品を紐付けました'
+    };
+
+  } catch (e) {
+    console.error('apiAdminLinkOrder error:', e);
+    return { ok: false, message: (e && e.message) ? e.message : String(e) };
+  }
+}
+
+// =====================================================
 // バックグラウンド書き込み処理（レガシー互換）
 // =====================================================
 
@@ -435,7 +581,8 @@ function writeSubmitData_(data) {
   var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
   od_writeOpenLogSheetFromState_(orderSs, openItems, now);
 
-  // 3. 管理者宛注文通知メール
+  // 3. 管理者宛注文通知メール（skipNotify時はスキップ）
+  if (data.skipNotify) return;
   app_sendOrderNotifyMail_(orderSs, data.receiptNo, {
     companyName: data.form.companyName || '',
     contact: data.form.contact || '',
