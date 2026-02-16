@@ -3,7 +3,7 @@
  *
  * KOMOJU決済連携モジュール
  * クレジットカード（Visa/Mastercard）、コンビニ払い、銀行振込に対応
- * ※申請中: JCB/AMEX/Diners/Discover(日本)、PayPay、Paidy
+ * ※申請中: JCB/AMEX/Diners/Discover(日本)、PayPay、Paidy、Apple Pay
  *
  * 設定方法:
  * 1. https://komoju.com/ でアカウント作成
@@ -28,6 +28,7 @@ var KOMOJU_CONFIG = {
     // 'linepay'        // LINE Pay — サービス終了のため削除
     // 'paypay'         // PayPay — 申請中
     // 'paidy'          // Paidy（あと払い） — 申請中
+    // 'apple_pay'      // Apple Pay — 申請中
   ],
 
   // 通貨
@@ -304,7 +305,7 @@ function handlePaymentSuccess_(data) {
   // コンビニ払い・銀行振込:
   //   authorized（支払い番号発行済み・未入金）→「入金待ち」
   //   captured（入金完了）→「未対応」
-  // ※PayPay, Paidy は申請中（承認後に追加）
+  // ※PayPay, Paidy, Apple Pay は申請中（承認後に追加）
   var paymentStatus = '未対応';
   if ((paymentMethodType === 'konbini' || paymentMethodType === 'bank_transfer') &&
       data.type === 'payment.authorized') {
