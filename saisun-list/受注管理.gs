@@ -1,16 +1,19 @@
 // ═══════════════════════════════════════════
-// 受注管理.gs — 受付番号ベースの一括操作メニュー
+// 受注管理.gs — 受付番号ベースの一括操作メニュー（2ステップ版）
 // 依頼管理（本SS）⇔ 仕入れ管理Ver2（回収完了・商品管理等）を跨いで処理
+//
+// ステップ1: expandOrder()         — 依頼展開（展開→XLSX生成→売却反映 一括）
+// ステップ2: handleMissingProducts() — 欠品処理（返品+再生成 一括）
 // ═══════════════════════════════════════════
 
 var OM_SHIIRE_SS_ID = '1lp7XngTC0Nnc6SaA_-KlZ0SZVuRiVml6ICZ5L2riQTo';
 var OM_DIST_SHEET_GID  = 1614333946;
 var OM_DIST_NAME_CELL  = 'E1';
-var OM_DIST_RECEIPT_CELL = 'I1';
+var OM_DIST_RECEIPT_CELL = 'B1';
 var OM_XLSX_FOLDER_ID  = '1lq8Xb_dVwz5skrXlGvrS5epTwEc_yEts';
 
 // ═══════════════════════════════════════════
-// 1. 依頼展開 — 受付番号を指定して依頼管理から商品リストを取得し回収完了へ展開
+// 1. 依頼展開（全自動: 展開→XLSX生成→確認リンク更新→売却反映→回収完了削除）
 // ═══════════════════════════════════════════
 
 function expandOrder() {
@@ -24,10 +27,168 @@ function expandOrder() {
   var receiptNos = input.split(/[、,，\s]+/).map(function(s) { return s.trim(); }).filter(function(s) { return s; });
   if (receiptNos.length === 0) { ui.alert('有効な受付番号がありません。'); return; }
 
-  var activeSs = SpreadsheetApp.getActiveSpreadsheet();
-  activeSs.toast('依頼展開を開始します...', '処理中', 30);
+  om_executeFullPipeline_(receiptNos, '依頼展開');
+}
 
-  // 依頼管理は本SSにある
+// ═══════════════════════════════════════════
+// 2. 欠品処理（返品ステータス変更→選択リスト更新→確認リンク削除→自動再生成）
+// ═══════════════════════════════════════════
+
+function handleMissingProducts() {
+  var ui = SpreadsheetApp.getUi();
+  var activeSs = SpreadsheetApp.getActiveSpreadsheet();
+
+  var res = ui.prompt('欠品処理', '欠品の管理番号を入力してください（複数の場合は「、」区切り）:', ui.ButtonSet.OK_CANCEL);
+  if (res.getSelectedButton() !== ui.Button.OK) return;
+
+  var input = String(res.getResponseText() || '').trim();
+  if (!input) { ui.alert('管理番号が空です。'); return; }
+
+  var targetIds = input.split(/[、,，\s]+/).map(function(s) { return s.trim(); }).filter(function(s) { return s; });
+  if (targetIds.length === 0) { ui.alert('有効な管理番号がありません。'); return; }
+  var targetSet = {};
+  targetIds.forEach(function(id) { targetSet[id] = true; });
+
+  // --- 商品管理から欠品商品の受付番号（BO列）を特定 ---
+  var shiireSs = SpreadsheetApp.openById(OM_SHIIRE_SS_ID);
+  var mainSheet = shiireSs.getSheetByName('商品管理');
+  var mHeaderRow = mainSheet.getRange(1, 1, 1, mainSheet.getLastColumn()).getValues()[0];
+  var mColMap = {};
+  mHeaderRow.forEach(function(name, i) { if (name) mColMap[String(name).trim()] = i + 1; });
+
+  var mStatusCol = mColMap['ステータス'];
+  var mIdCol = mColMap['管理番号'];
+  var mDiscardDateCol = mColMap['廃棄日'];
+  var mBoCol = 67; // BO列 = 受付番号
+
+  if (!mStatusCol || !mIdCol) {
+    ui.alert('商品管理にステータス列または管理番号列が見つかりません。');
+    return;
+  }
+
+  var mLastRow = mainSheet.getLastRow();
+  if (mLastRow < 2) { ui.alert('商品管理にデータがありません。'); return; }
+
+  var mIds = mainSheet.getRange(2, mIdCol, mLastRow - 1, 1).getValues().flat();
+  var mBoVals = mainSheet.getRange(2, mBoCol, mLastRow - 1, 1).getValues().flat();
+  var mIdToRow = {};
+  mIds.forEach(function(id, idx) {
+    var k = String(id).trim();
+    if (k) mIdToRow[k] = idx + 2;
+  });
+
+  // 欠品商品の受付番号を収集
+  var affectedReceiptNos = {};
+  targetIds.forEach(function(tid) {
+    var rowIdx = mIdToRow[tid];
+    if (!rowIdx) return;
+    var boVal = String(mBoVals[rowIdx - 2] || '').trim();
+    if (boVal) affectedReceiptNos[boVal] = true;
+  });
+
+  var receiptNoList = Object.keys(affectedReceiptNos);
+  if (receiptNoList.length === 0) {
+    ui.alert('指定された管理番号に対応する受付番号が商品管理のBO列に見つかりません。');
+    return;
+  }
+
+  var confirm = ui.alert('欠品処理',
+    targetIds.length + '件を欠品として処理します。\n' +
+    '対象受付番号: ' + receiptNoList.join('、') + '\n\n' +
+    '以下を自動実行します:\n' +
+    '① 欠品商品: ステータス→廃棄済み、BO列クリア\n' +
+    '② 依頼管理: 選択リスト更新、確認リンク削除\n' +
+    '③ 残りの商品: 売却済み→解除、BO列クリア\n' +
+    '④ 自動再生成（展開→XLSX→売却反映）\n\nよろしいですか？',
+    ui.ButtonSet.YES_NO);
+  if (confirm !== ui.Button.YES) return;
+
+  activeSs.toast('欠品処理を開始します...', '処理中', 60);
+
+  // --- 依頼管理の選択リスト更新 + 確認リンク削除 ---
+  var reqSheet = activeSs.getSheetByName('依頼管理');
+  var reqLastRow = reqSheet.getLastRow();
+  var reqData = reqSheet.getRange(1, 1, reqLastRow, reqSheet.getLastColumn()).getValues();
+  var reqHeaders = reqData[0];
+  var rIdx = {};
+  reqHeaders.forEach(function(h, i) { rIdx[String(h || '').trim()] = i; });
+
+  var receiptCol = rIdx['受付番号'];
+  var selectionCol = rIdx['選択リスト'];
+  var countCol = rIdx['合計点数'];
+  var linkCol = rIdx['確認リンク'];
+
+  receiptNoList.forEach(function(receiptNo) {
+    for (var i = 1; i < reqData.length; i++) {
+      if (String(reqData[i][receiptCol] || '').trim() === receiptNo) {
+        // 選択リストから欠品商品を除外
+        var currentList = String(reqData[i][selectionCol] || '');
+        var currentIds = currentList.split(/[、,，\s]+/).map(function(s) { return s.trim(); }).filter(function(s) { return s; });
+        var newIds = currentIds.filter(function(id) { return !targetSet[id]; });
+        reqSheet.getRange(i + 1, selectionCol + 1).setValue(newIds.join('、'));
+        if (countCol !== undefined) {
+          reqSheet.getRange(i + 1, countCol + 1).setValue(newIds.length);
+        }
+        // 確認リンク削除
+        if (linkCol !== undefined) {
+          reqSheet.getRange(i + 1, linkCol + 1).setValue('');
+        }
+        break;
+      }
+    }
+  });
+
+  // --- 欠品商品: ステータス→廃棄済み、廃棄日→今日、BO列クリア ---
+  var today = new Date();
+  targetIds.forEach(function(tid) {
+    var row = mIdToRow[tid];
+    if (!row) return;
+    mainSheet.getRange(row, mStatusCol).setValue('廃棄済み');
+    if (mDiscardDateCol) mainSheet.getRange(row, mDiscardDateCol).setValue(today);
+    mainSheet.getRange(row, mBoCol).setValue('');
+  });
+
+  // --- 同じ受付番号の残り商品: 売却済み→ステータスクリア、BO列クリア ---
+  // (再生成で再度売却済みにするので、一旦元に戻す)
+  receiptNoList.forEach(function(receiptNo) {
+    for (var i = 0; i < mIds.length; i++) {
+      var id = String(mIds[i]).trim();
+      if (!id) continue;
+      if (targetSet[id]) continue; // 欠品商品はスキップ（既に廃棄済み処理済み）
+      var boVal = String(mBoVals[i] || '').trim();
+      if (boVal === receiptNo) {
+        var row = i + 2;
+        mainSheet.getRange(row, mStatusCol).setValue('');
+        mainSheet.getRange(row, mBoCol).setValue('');
+      }
+    }
+  });
+
+  // --- 売却履歴から該当受付番号のエントリを削除 ---
+  receiptNoList.forEach(function(receiptNo) {
+    om_removeSaleLogByReceipt_(shiireSs, receiptNo);
+  });
+
+  SpreadsheetApp.flush();
+
+  activeSs.toast('欠品処理完了。再生成を開始します...', '処理中', 60);
+
+  // --- 自動再生成: 残りの商品で全パイプラインを再実行 ---
+  om_executeFullPipeline_(receiptNoList, '欠品処理→再生成');
+}
+
+// ═══════════════════════════════════════════
+// 全自動パイプライン（展開→XLSX→売却反映）
+// expandOrder と handleMissingProducts の両方から呼ばれる共通処理
+// ═══════════════════════════════════════════
+
+function om_executeFullPipeline_(receiptNos, callerLabel) {
+  var activeSs = SpreadsheetApp.getActiveSpreadsheet();
+  var ui = SpreadsheetApp.getUi();
+
+  activeSs.toast(callerLabel + ': 処理を開始します（' + receiptNos.length + '件）...', '処理中', 60);
+
+  // --- 共通データ読み込み ---
   var reqSheet = activeSs.getSheetByName('依頼管理');
   if (!reqSheet) { ui.alert('依頼管理シートが見つかりません。'); return; }
 
@@ -46,10 +207,9 @@ function expandOrder() {
     return;
   }
 
-  // 仕入れ管理のシートを開く
   var shiireSs = SpreadsheetApp.openById(OM_SHIIRE_SS_ID);
-  var main = shiireSs.getSheetByName('商品管理');
-  var mData = main.getDataRange().getValues();
+  var mainSheet = shiireSs.getSheetByName('商品管理');
+  var mData = mainSheet.getDataRange().getValues();
   var mHeaders = mData.shift();
   var mIdx = {};
   mHeaders.forEach(function(h, i) { mIdx[String(h || '').trim()] = i; });
@@ -60,21 +220,55 @@ function expandOrder() {
   var returnSheet = shiireSs.getSheetByName('返送管理');
   var boxMap = om_buildBoxMap_(returnSheet);
 
-  var out = shiireSs.getSheetByName('回収完了');
+  var recoverySheet = shiireSs.getSheetByName('回収完了');
+  var exportSheet = shiireSs.getSheetByName('配布用リスト');
+  if (!exportSheet) exportSheet = shiireSs.insertSheet('配布用リスト');
 
-  var totalAdded = 0;
+  // 商品管理の行マップ（売却反映用）
+  var mainHeaderRow = mainSheet.getRange(1, 1, 1, mainSheet.getLastColumn()).getValues()[0];
+  var colMap = {};
+  mainHeaderRow.forEach(function(name, i) { if (name) colMap[String(name).trim()] = i + 1; });
+  var statusCol = colMap['ステータス'];
+  var idCol = colMap['管理番号'];
+  if (!statusCol || !idCol) {
+    ui.alert('商品管理にステータス列または管理番号列が見つかりません。');
+    return;
+  }
+  var mainLastRow = mainSheet.getLastRow();
+  var mainIds = mainLastRow >= 2 ? mainSheet.getRange(2, idCol, mainLastRow - 1, 1).getValues().flat() : [];
+  var idToRowMap = {};
+  mainIds.forEach(function(id, index) {
+    var k = String(id).trim();
+    if (k !== '') idToRowMap[k] = index + 2;
+  });
 
-  receiptNos.forEach(function(receiptNo) {
+  var results = [];
+  var allSaleLogEntries = [];
+  var allRecoveryRows = []; // { sheetRow, receiptNo } 回収完了から削除する行
+
+  // --- 受付番号ごとにループ処理 ---
+  for (var g = 0; g < receiptNos.length; g++) {
+    var receiptNo = receiptNos[g];
+
+    activeSs.toast(callerLabel + ': ' + receiptNo + ' を処理中（' + (g + 1) + '/' + receiptNos.length + '）...', '処理中', 60);
+
+    // 依頼管理から該当行を検索
     var reqRow = reqData.find(function(r) { return String(r[receiptCol] || '').trim() === receiptNo; });
     if (!reqRow) {
-      activeSs.toast('受付番号 ' + receiptNo + ' が見つかりません', '警告', 3);
-      return;
+      results.push({ receiptNo: receiptNo, ok: false, message: '依頼管理に見つかりません' });
+      continue;
     }
 
     var selectionStr = String(reqRow[selectionCol] || '');
     var ids = selectionStr.split(/[、,，\s]+/).map(function(s) { return s.trim(); }).filter(function(s) { return s; });
-    if (ids.length === 0) return;
+    if (ids.length === 0) {
+      results.push({ receiptNo: receiptNo, ok: false, message: '選択リストが空です' });
+      continue;
+    }
 
+    var customerName = String(reqRow[rIdx['会社名/氏名']] || '').trim();
+
+    // --- Phase 1: 回収完了に展開 ---
     var outArr = [];
     ids.forEach(function(mgmtId) {
       var row = mData.find(function(r) { return String(r[mIdx['管理番号']] || '').trim() === mgmtId; });
@@ -97,129 +291,21 @@ function expandOrder() {
       ]);
     });
 
-    if (outArr.length > 0) {
-      var startRow = Math.max(out.getLastRow() + 1, 7);
-      out.getRange(startRow, 1, outArr.length, outArr[0].length).setValues(outArr);
-      totalAdded += outArr.length;
-    }
-  });
-
-  om_ensureRecoveryHeaders_(out);
-
-  // --- データ1のJ列に自動チェック ---
-  // 展開された全管理番号を収集
-  var allExpandedIds = [];
-  receiptNos.forEach(function(receiptNo) {
-    var reqRow = reqData.find(function(r) { return String(r[receiptCol] || '').trim() === receiptNo; });
-    if (!reqRow) return;
-    var selectionStr = String(reqRow[selectionCol] || '');
-    var ids = selectionStr.split(/[、,，\s]+/).map(function(s) { return s.trim(); }).filter(function(s) { return s; });
-    ids.forEach(function(id) { allExpandedIds.push(id); });
-  });
-
-  if (allExpandedIds.length > 0) {
-    try {
-      var destSsId = String(APP_CONFIG.data.spreadsheetId || '').trim();
-      var destSs = destSsId ? SpreadsheetApp.openById(destSsId) : activeSs;
-      var destSheet = destSs.getSheetByName('データ1');
-      if (destSheet) {
-        var destStartRow = 3; // CONFIG.DEST_START_ROW
-        var destLastRow = destSheet.getLastRow();
-        if (destLastRow >= destStartRow) {
-          var numRows = destLastRow - destStartRow + 1;
-          var kVals = destSheet.getRange(destStartRow, 11, numRows, 1).getDisplayValues(); // K列=11
-          var jRange = destSheet.getRange(destStartRow, 10, numRows, 1); // J列=10
-          var jVals = jRange.getValues();
-
-          var idSet = {};
-          allExpandedIds.forEach(function(id) { idSet[String(id).trim()] = true; });
-
-          var checkedCount = 0;
-          for (var k = 0; k < numRows; k++) {
-            var key = String(kVals[k][0] || '').trim();
-            if (key && idSet[key] && jVals[k][0] !== true) {
-              jVals[k][0] = true;
-              checkedCount++;
-            }
-          }
-          if (checkedCount > 0) {
-            jRange.setValues(jVals);
-          }
-          activeSs.toast(totalAdded + '件を回収完了に展開し、' + checkedCount + '件のJ列チェックを付けました', '完了', 5);
-        } else {
-          activeSs.toast(totalAdded + '件を回収完了に展開しました（データ1にデータなし）', '完了', 5);
-        }
-      } else {
-        activeSs.toast(totalAdded + '件を回収完了に展開しました（データ1シート未検出）', '完了', 5);
-      }
-    } catch (e) {
-      console.error('J列自動チェックエラー:', e);
-      activeSs.toast(totalAdded + '件を回収完了に展開しました（チェック付与でエラー）', '完了', 5);
-    }
-  } else {
-    activeSs.toast(totalAdded + '件を回収完了に展開しました', '完了', 5);
-  }
-}
-
-// ═══════════════════════════════════════════
-// 2. 配布用リスト生成＋XLSX出力（バッチ対応）
-// ═══════════════════════════════════════════
-
-function generateAndExportForOrder() {
-  var ui = SpreadsheetApp.getUi();
-  var activeSs = SpreadsheetApp.getActiveSpreadsheet();
-  var shiireSs = SpreadsheetApp.openById(OM_SHIIRE_SS_ID);
-
-  var listSheet = shiireSs.getSheetByName('回収完了');
-  var mainSheet = shiireSs.getSheetByName('商品管理');
-
-  var lastRow = listSheet.getLastRow();
-  if (lastRow < 7) { activeSs.toast('リストが空です', 'エラー'); return; }
-
-  var listData = listSheet.getRange(7, 1, lastRow - 6, 13).getValues();
-
-  // 受付番号でグループ化（全行対象）
-  var groups = {};
-  listData.forEach(function(r) {
-    var rn = String(r[12] || '').trim();
-    if (!rn) rn = '__none__';
-    if (!groups[rn]) groups[rn] = [];
-    groups[rn].push(r);
-  });
-
-  var mData = mainSheet.getDataRange().getValues();
-  var headers = mData.shift();
-  var idx = {};
-  headers.forEach(function(h, i) { idx[String(h || '').trim()] = i; });
-
-  // 依頼管理は本SSから取得
-  var reqSheet = activeSs.getSheetByName('依頼管理');
-  var reqData = reqSheet.getRange(1, 1, reqSheet.getLastRow(), reqSheet.getLastColumn()).getValues();
-  var reqHeaders = reqData.shift();
-  var rIdx = {};
-  reqHeaders.forEach(function(h, i) { rIdx[String(h || '').trim()] = i; });
-
-  var results = [];
-  var exportSheet = shiireSs.getSheetByName('配布用リスト');
-  if (!exportSheet) exportSheet = shiireSs.insertSheet('配布用リスト');
-
-  var groupKeys = Object.keys(groups);
-  for (var g = 0; g < groupKeys.length; g++) {
-    var receiptNo = groupKeys[g];
-    var targetRows = groups[receiptNo];
-    if (receiptNo === '__none__') {
-      activeSs.toast('受付番号が空の行があります。スキップします。', '警告', 3);
+    if (outArr.length === 0) {
+      results.push({ receiptNo: receiptNo, ok: false, message: '商品管理に該当商品なし' });
       continue;
     }
 
-    // 顧客情報を依頼管理から取得
-    var customerName = '';
-    var reqRow = reqData.find(function(r) { return String(r[rIdx['受付番号']] || '').trim() === receiptNo; });
-    if (reqRow) {
-      customerName = String(reqRow[rIdx['会社名/氏名']] || '').trim();
+    var recoveryStartRow = Math.max(recoverySheet.getLastRow() + 1, 7);
+    recoverySheet.getRange(recoveryStartRow, 1, outArr.length, outArr[0].length).setValues(outArr);
+    om_ensureRecoveryHeaders_(recoverySheet);
+
+    // 削除対象として記録
+    for (var ri = 0; ri < outArr.length; ri++) {
+      allRecoveryRows.push(recoveryStartRow + ri);
     }
 
-    // 配布用リストシートを構築
+    // --- Phase 2: 配布用リスト生成 + XLSX出力 ---
     var maxRows = exportSheet.getMaxRows();
     var maxCols = exportSheet.getMaxColumns();
     if (maxRows >= 2) {
@@ -229,34 +315,34 @@ function generateAndExportForOrder() {
     exportSheet.getRange('A1').setValue('受付番号');
     exportSheet.getRange('B1').setValue(receiptNo);
     exportSheet.getRange('E1').setValue(customerName);
-    exportSheet.getRange('I1').setValue(receiptNo);
+    // I1には書き込まない
 
     var headerRow = ['確認', '箱ID', '管理番号(照合用)', 'ブランド', 'AIタイトル候補', 'アイテム', 'サイズ', '状態', '傷汚れ詳細', '採寸情報', '即出品用説明文（コピペ用）', '金額'];
     var exportData = [headerRow];
 
-    targetRows.forEach(function(listRow) {
+    outArr.forEach(function(listRow) {
       var boxId = listRow[1];
       var targetId = String(listRow[2] || '').trim();
       var aiTitle = listRow[7];
       if (!targetId) return;
 
-      var row = mData.find(function(r) { return String(r[idx['管理番号']] || '').trim() === targetId; });
+      var row = mData.find(function(r) { return String(r[mIdx['管理番号']] || '').trim() === targetId; });
       if (!row) return;
 
-      var condition = row[idx['状態']] || '目立った傷や汚れなし';
-      var damageDetail = row[idx['傷汚れ詳細']] || '';
-      var brand = row[idx['ブランド']] || '';
-      var size = row[idx['メルカリサイズ']] || '';
-      var item = row[idx['カテゴリ2']] || '古着';
+      var condition = row[mIdx['状態']] || '目立った傷や汚れなし';
+      var damageDetail = row[mIdx['傷汚れ詳細']] || '';
+      var brand = row[mIdx['ブランド']] || '';
+      var size = row[mIdx['メルカリサイズ']] || '';
+      var item = row[mIdx['カテゴリ2']] || '古着';
       if (!aiTitle) aiTitle = '';
 
-      var length = row[idx['着丈']] || '-';
-      var width = row[idx['身幅']] || '-';
-      var shoulder = row[idx['肩幅']] || '-';
-      var sleeve = row[idx['袖丈']] || '-';
-      var waist = row[idx['ウエスト']];
-      var rise = row[idx['股上']];
-      var inseam = row[idx['股下']];
+      var length = row[mIdx['着丈']] || '-';
+      var width = row[mIdx['身幅']] || '-';
+      var shoulder = row[mIdx['肩幅']] || '-';
+      var sleeve = row[mIdx['袖丈']] || '-';
+      var waist = row[mIdx['ウエスト']];
+      var rise = row[mIdx['股上']];
+      var inseam = row[mIdx['股下']];
 
       var measurementText = '';
       if (length != '-' || width != '-') {
@@ -292,366 +378,71 @@ function generateAndExportForOrder() {
 
     SpreadsheetApp.flush();
 
-    // XLSX出力
-    var result = om_exportDistributionXlsx_();
-    results.push({ receiptNo: receiptNo, result: result });
+    // XLSX出力 + 確認リンク更新
+    var xlsxResult = om_exportDistributionXlsx_();
+    if (!xlsxResult || !xlsxResult.ok) {
+      results.push({ receiptNo: receiptNo, ok: false, message: 'XLSX生成エラー: ' + (xlsxResult ? xlsxResult.message : '不明') });
+      continue;
+    }
+
+    // --- Phase 3: 売却反映（商品管理ステータス→売却済み、BO列→受付番号） ---
+    var statusA1s = [];
+    var statusColLetter = om_colNumToLetter_(statusCol);
+    var boColLetter = om_colNumToLetter_(67);
+
+    ids.forEach(function(mgmtId) {
+      var tgtRow = idToRowMap[mgmtId];
+      if (!tgtRow) return;
+
+      statusA1s.push(statusColLetter + tgtRow);
+      mainSheet.getRange(boColLetter + tgtRow).setValue(receiptNo);
+
+      // 売却履歴用
+      var listRow = outArr.find(function(r) { return String(r[2] || '').trim() === mgmtId; });
+      allSaleLogEntries.push({
+        date: new Date(),
+        managedId: mgmtId,
+        receiptNo: receiptNo,
+        brand: listRow ? (listRow[3] || '') : '',
+        cost: listRow ? (listRow[10] || '') : ''
+      });
+    });
+
+    if (statusA1s.length > 0) {
+      mainSheet.getRangeList(statusA1s).setValue('売却済み');
+    }
+
+    results.push({ receiptNo: receiptNo, ok: true, fileName: xlsxResult.fileName });
   }
 
-  // 結果レポート
+  // --- 後処理: 売却履歴ログ書き込み ---
+  if (allSaleLogEntries.length > 0) {
+    om_writeSaleLog_(shiireSs, allSaleLogEntries);
+  }
+
+  // --- 後処理: 回収完了から展開した行を削除（下から） ---
+  allRecoveryRows.sort(function(a, b) { return b - a; });
+  allRecoveryRows.forEach(function(r) {
+    recoverySheet.deleteRow(r);
+  });
+
+  SpreadsheetApp.flush();
+
+  // --- 結果レポート ---
   var msg = '';
   results.forEach(function(r) {
-    if (r.result && r.result.ok) {
-      msg += r.receiptNo + ': OK (' + r.result.fileName + ')\n';
+    if (r.ok) {
+      msg += r.receiptNo + ': OK (' + r.fileName + ')\n';
     } else {
-      msg += r.receiptNo + ': エラー - ' + (r.result ? r.result.message : '不明') + '\n';
+      msg += r.receiptNo + ': エラー - ' + r.message + '\n';
     }
   });
 
   if (msg) {
-    ui.alert('配布用リスト生成結果', msg, ui.ButtonSet.OK);
+    ui.alert(callerLabel + ' 結果', msg, ui.ButtonSet.OK);
+  } else {
+    activeSs.toast('処理対象がありませんでした', '完了', 5);
   }
-}
-
-// ═══════════════════════════════════════════
-// 3. 欠品処理
-// ═══════════════════════════════════════════
-
-function handleMissingProducts() {
-  var ui = SpreadsheetApp.getUi();
-  var activeSs = SpreadsheetApp.getActiveSpreadsheet();
-
-  var res = ui.prompt('欠品処理', '欠品の管理番号を入力してください（複数の場合は「、」区切り）:', ui.ButtonSet.OK_CANCEL);
-  if (res.getSelectedButton() !== ui.Button.OK) return;
-
-  var input = String(res.getResponseText() || '').trim();
-  if (!input) { ui.alert('管理番号が空です。'); return; }
-
-  var targetIds = input.split(/[、,，\s]+/).map(function(s) { return s.trim(); }).filter(function(s) { return s; });
-  if (targetIds.length === 0) { ui.alert('有効な管理番号がありません。'); return; }
-  var targetSet = {};
-  targetIds.forEach(function(id) { targetSet[id] = true; });
-
-  var shiireSs = SpreadsheetApp.openById(OM_SHIIRE_SS_ID);
-  var listSheet = shiireSs.getSheetByName('回収完了');
-  var lastRow = listSheet.getLastRow();
-  if (lastRow < 7) { activeSs.toast('データがありません', '終了'); return; }
-
-  var listData = listSheet.getRange(7, 1, lastRow - 6, 13).getValues();
-  var matchedRows = [];
-  for (var i = 0; i < listData.length; i++) {
-    var id = String(listData[i][2] || '').trim();
-    if (targetSet[id]) {
-      matchedRows.push({ idx: i, data: listData[i] });
-    }
-  }
-
-  if (matchedRows.length === 0) {
-    ui.alert('該当する管理番号が回収完了に見つかりませんでした。');
-    return;
-  }
-
-  var confirm = ui.alert('欠品処理',
-    matchedRows.length + '件を欠品として処理します。\n' +
-    '回収完了から削除し、依頼管理の選択リストを更新します。\nよろしいですか？',
-    ui.ButtonSet.YES_NO);
-  if (confirm !== ui.Button.YES) return;
-
-  activeSs.toast('欠品処理を開始します...', '処理中', 30);
-
-  // 受付番号別にグループ化
-  var groups = {};
-  matchedRows.forEach(function(r) {
-    var receiptNo = String(r.data[12] || '').trim();
-    if (!receiptNo) return;
-    if (!groups[receiptNo]) groups[receiptNo] = [];
-    groups[receiptNo].push(String(r.data[2] || '').trim());
-  });
-
-  // 依頼管理は本SSから取得
-  var reqSheet = activeSs.getSheetByName('依頼管理');
-  var reqLastRow = reqSheet.getLastRow();
-  var reqData = reqSheet.getRange(1, 1, reqLastRow, reqSheet.getLastColumn()).getValues();
-  var reqHeaders = reqData[0];
-  var rIdx = {};
-  reqHeaders.forEach(function(h, i) { rIdx[String(h || '').trim()] = i; });
-
-  var receiptCol = rIdx['受付番号'];
-  var selectionCol = rIdx['選択リスト'];
-  var countCol = rIdx['合計点数'];
-
-  Object.keys(groups).forEach(function(receiptNo) {
-    var missingIds = groups[receiptNo];
-    var missingSet = {};
-    missingIds.forEach(function(id) { missingSet[id] = true; });
-
-    for (var i = 1; i < reqData.length; i++) {
-      if (String(reqData[i][receiptCol] || '').trim() === receiptNo) {
-        var currentList = String(reqData[i][selectionCol] || '');
-        var currentIds = currentList.split(/[、,，\s]+/).map(function(s) { return s.trim(); }).filter(function(s) { return s; });
-        var newIds = currentIds.filter(function(id) { return !missingSet[id]; });
-        reqSheet.getRange(i + 1, selectionCol + 1).setValue(newIds.join('、'));
-        if (countCol !== undefined) {
-          reqSheet.getRange(i + 1, countCol + 1).setValue(newIds.length);
-        }
-        break;
-      }
-    }
-  });
-
-  // 商品管理のステータスを廃棄済みに、廃棄日に今日の日付を設定
-  var mainSheet = shiireSs.getSheetByName('商品管理');
-  if (mainSheet) {
-    var mHeaderRow = mainSheet.getRange(1, 1, 1, mainSheet.getLastColumn()).getValues()[0];
-    var mColMap = {};
-    mHeaderRow.forEach(function(name, i) { if (name) mColMap[String(name).trim()] = i + 1; });
-
-    var mStatusCol = mColMap['ステータス'];
-    var mIdCol = mColMap['管理番号'];
-    var mDiscardDateCol = mColMap['廃棄日'];
-
-    if (mStatusCol && mIdCol) {
-      var mLastRow = mainSheet.getLastRow();
-      if (mLastRow >= 2) {
-        var mIds = mainSheet.getRange(2, mIdCol, mLastRow - 1, 1).getValues().flat();
-        var mIdToRow = {};
-        mIds.forEach(function(id, idx) {
-          var k = String(id).trim();
-          if (k) mIdToRow[k] = idx + 2;
-        });
-
-        var today = new Date();
-        targetIds.forEach(function(tid) {
-          var row = mIdToRow[tid];
-          if (!row) return;
-          mainSheet.getRange(row, mStatusCol).setValue('廃棄済み');
-          if (mDiscardDateCol) mainSheet.getRange(row, mDiscardDateCol).setValue(today);
-        });
-      }
-    }
-  }
-
-  // 回収完了から該当行を削除（下から）
-  var rowsToDelete = matchedRows.map(function(r) { return r.idx + 7; });
-  rowsToDelete.sort(function(a, b) { return b - a; });
-  rowsToDelete.forEach(function(r) { listSheet.deleteRow(r); });
-
-  activeSs.toast(matchedRows.length + '件の欠品処理を完了しました', '処理完了', 5);
-}
-
-// ═══════════════════════════════════════════
-// 4. 売却反映（売却履歴ログ付き）
-// ═══════════════════════════════════════════
-
-function processSelectedSales() {
-  var activeSs = SpreadsheetApp.getActiveSpreadsheet();
-  var shiireSs = SpreadsheetApp.openById(OM_SHIIRE_SS_ID);
-
-  var sh = shiireSs.getSheetByName('回収完了');
-  var main = shiireSs.getSheetByName('商品管理');
-
-  var lastRow = sh.getLastRow();
-  if (lastRow < 7) {
-    activeSs.toast('データがありません', '終了');
-    return;
-  }
-
-  activeSs.toast('ステータス反映と削除を開始します...', '処理中', 30);
-
-  var headerRow = main.getRange(1, 1, 1, main.getLastColumn()).getValues()[0];
-  var colMap = {};
-  headerRow.forEach(function(name, i) {
-    if (name) colMap[String(name).trim()] = i + 1;
-  });
-
-  var statusCol = colMap['ステータス'];
-  if (!statusCol) {
-    SpreadsheetApp.getUi().alert('エラー：商品管理にステータス列が見つかりません。');
-    return;
-  }
-
-  var idCol = colMap['管理番号'];
-  if (!idCol) {
-    SpreadsheetApp.getUi().alert('エラー：商品管理に管理番号列が見つかりません。');
-    return;
-  }
-
-  var mainLastRow = main.getLastRow();
-  if (mainLastRow < 2) {
-    activeSs.toast('商品管理にデータがありません', '終了', 5);
-    return;
-  }
-
-  var mainIds = main.getRange(2, idCol, mainLastRow - 1, 1).getValues().flat();
-  var idToRowMap = {};
-  mainIds.forEach(function(id, index) {
-    var k = String(id).trim();
-    if (k !== '') idToRowMap[k] = index + 2;
-  });
-
-  var values = sh.getRange(7, 1, lastRow - 6, 17).getValues();
-
-  var rowsToDelete = [];
-  var uniqueRowSet = {};
-  var statusRows = [];
-  var saleLogEntries = [];
-  var receiptByRow = {}; // 行番号→受付番号のマップ
-
-  for (var i = 0; i < values.length; i++) {
-    var rowData = values[i];
-
-    var id = String(rowData[2] || '').trim();
-    if (id === '') continue;
-
-    var tgtRow = idToRowMap[id];
-    if (!tgtRow) continue;
-
-    var receiptNo = String(rowData[12] || '').trim();
-
-    rowsToDelete.push(i + 7);
-    saleLogEntries.push({
-      date: new Date(),
-      managedId: id,
-      receiptNo: receiptNo,
-      brand: rowData[3] || '',
-      cost: rowData[10] || ''
-    });
-
-    if (!uniqueRowSet[tgtRow]) {
-      uniqueRowSet[tgtRow] = true;
-      statusRows.push(tgtRow);
-    }
-    receiptByRow[tgtRow] = receiptNo;
-  }
-
-  if (rowsToDelete.length === 0) {
-    activeSs.toast('処理対象がありませんでした', '完了', 3);
-    return;
-  }
-
-  // 商品管理のステータスを売却済みに
-  var statusA1s = [];
-  var statusColLetter = om_colNumToLetter_(statusCol);
-  for (var a = 0; a < statusRows.length; a++) {
-    statusA1s.push(statusColLetter + statusRows[a]);
-  }
-  main.getRangeList(statusA1s).setValue('売却済み');
-
-  // BO列(67列目)に受付番号を書き込み
-  var boColLetter = om_colNumToLetter_(67);
-  var boA1s = [];
-  var boValues = [];
-  for (var b = 0; b < statusRows.length; b++) {
-    boA1s.push(boColLetter + statusRows[b]);
-    boValues.push(receiptByRow[statusRows[b]] || '');
-  }
-  if (boA1s.length > 0) {
-    for (var c = 0; c < boA1s.length; c++) {
-      main.getRange(boA1s[c]).setValue(boValues[c]);
-    }
-  }
-
-  SpreadsheetApp.flush();
-
-  // 売却履歴ログ
-  om_writeSaleLog_(shiireSs, saleLogEntries);
-
-  // 回収完了から削除
-  rowsToDelete.sort(function(x, y) { return y - x; }).forEach(function(r) {
-    sh.deleteRow(r);
-  });
-
-  activeSs.toast(rowsToDelete.length + '件を処理しました（売却済み反映＋売却履歴記録＋回収完了から削除）', '処理完了', 5);
-}
-
-// ═══════════════════════════════════════════
-// 5. 再生成 — 受付番号指定で回収完了の該当行を削除して再展開
-// ═══════════════════════════════════════════
-
-function regenerateOrder() {
-  var ui = SpreadsheetApp.getUi();
-  var res = ui.prompt('再生成', '再生成する受付番号を入力してください:', ui.ButtonSet.OK_CANCEL);
-  if (res.getSelectedButton() !== ui.Button.OK) return;
-
-  var receiptNo = String(res.getResponseText() || '').trim();
-  if (!receiptNo) { ui.alert('受付番号が空です。'); return; }
-
-  var activeSs = SpreadsheetApp.getActiveSpreadsheet();
-  var shiireSs = SpreadsheetApp.openById(OM_SHIIRE_SS_ID);
-  var listSheet = shiireSs.getSheetByName('回収完了');
-  var lastRow = listSheet.getLastRow();
-
-  // 既存行を削除
-  if (lastRow >= 7) {
-    var data = listSheet.getRange(7, 1, lastRow - 6, 13).getValues();
-    var rowsToDelete = [];
-    for (var i = 0; i < data.length; i++) {
-      if (String(data[i][12] || '').trim() === receiptNo) {
-        rowsToDelete.push(i + 7);
-      }
-    }
-    rowsToDelete.sort(function(a, b) { return b - a; });
-    rowsToDelete.forEach(function(r) { listSheet.deleteRow(r); });
-
-    if (rowsToDelete.length > 0) {
-      activeSs.toast(rowsToDelete.length + '件の既存行を削除しました', '再生成中', 3);
-    }
-  }
-
-  // 依頼管理は本SSから取得
-  var reqSheet = activeSs.getSheetByName('依頼管理');
-  var reqLastRow = reqSheet.getLastRow();
-  var reqData = reqSheet.getRange(1, 1, reqLastRow, reqSheet.getLastColumn()).getValues();
-  var reqHeaders = reqData.shift();
-  var rIdx = {};
-  reqHeaders.forEach(function(h, i) { rIdx[String(h || '').trim()] = i; });
-
-  var reqRow = reqData.find(function(r) { return String(r[rIdx['受付番号']] || '').trim() === receiptNo; });
-  if (!reqRow) { ui.alert('受付番号 ' + receiptNo + ' が依頼管理に見つかりません。'); return; }
-
-  var selectionStr = String(reqRow[rIdx['選択リスト']] || '');
-  var ids = selectionStr.split(/[、,，\s]+/).map(function(s) { return s.trim(); }).filter(function(s) { return s; });
-  if (ids.length === 0) { ui.alert('選択リストが空です。'); return; }
-
-  var main = shiireSs.getSheetByName('商品管理');
-  var mData = main.getDataRange().getValues();
-  var mHeaders = mData.shift();
-  var mIdx = {};
-  mHeaders.forEach(function(h, i) { mIdx[String(h || '').trim()] = i; });
-
-  var aiSheet = shiireSs.getSheetByName('AIキーワード抽出');
-  var aiMap = om_buildAiMap_(aiSheet);
-  var returnSheet = shiireSs.getSheetByName('返送管理');
-  var boxMap = om_buildBoxMap_(returnSheet);
-
-  var outArr = [];
-  ids.forEach(function(mgmtId) {
-    var row = mData.find(function(r) { return String(r[mIdx['管理番号']] || '').trim() === mgmtId; });
-    if (!row) return;
-
-    outArr.push([
-      '',
-      boxMap[mgmtId] || '',
-      mgmtId,
-      row[mIdx['ブランド']] || '',
-      row[mIdx['メルカリサイズ']] || '',
-      row[mIdx['性別']] || '',
-      row[mIdx['カテゴリ2']] || '',
-      aiMap[mgmtId] || '',
-      row[mIdx['出品日']] || '',
-      row[mIdx['使用アカウント']] || '',
-      row[mIdx['仕入れ値']] || '',
-      row[mIdx['納品場所']] || '',
-      receiptNo
-    ]);
-  });
-
-  if (outArr.length > 0) {
-    var startRow = Math.max(listSheet.getLastRow() + 1, 7);
-    listSheet.getRange(startRow, 1, outArr.length, outArr[0].length).setValues(outArr);
-  }
-
-  om_ensureRecoveryHeaders_(listSheet);
-  activeSs.toast('受付番号 ' + receiptNo + ' を ' + outArr.length + '件で再生成しました', '完了', 5);
 }
 
 // ═══════════════════════════════════════════
@@ -687,7 +478,7 @@ function om_exportDistributionXlsx_() {
   if (!rawName) return { ok: false, message: '配布用リスト!E1 が空です' };
 
   var receiptNo = String(nameSheet.getRange(OM_DIST_RECEIPT_CELL).getDisplayValue() || '').trim();
-  if (!receiptNo) return { ok: false, message: '配布用リスト!I1（受付番号）が空です' };
+  if (!receiptNo) return { ok: false, message: '配布用リスト!B1（受付番号）が空です' };
 
   var baseName = rawName + '様';
   var exportFileName = baseName + '_' + receiptNo + '.xlsx';
@@ -835,6 +626,24 @@ function om_writeSaleLog_(ss, entries) {
 
   var startRow = logSheet.getLastRow() + 1;
   logSheet.getRange(startRow, 1, logData.length, logData[0].length).setValues(logData);
+}
+
+function om_removeSaleLogByReceipt_(ss, receiptNo) {
+  var logSheet = ss.getSheetByName('売却履歴');
+  if (!logSheet) return;
+
+  var lastRow = logSheet.getLastRow();
+  if (lastRow < 2) return;
+
+  var data = logSheet.getRange(2, 1, lastRow - 1, 5).getValues();
+  var rowsToDelete = [];
+  for (var i = 0; i < data.length; i++) {
+    if (String(data[i][2] || '').trim() === receiptNo) {
+      rowsToDelete.push(i + 2);
+    }
+  }
+  rowsToDelete.sort(function(a, b) { return b - a; });
+  rowsToDelete.forEach(function(r) { logSheet.deleteRow(r); });
 }
 
 function om_calcPriceTier_(n) {
