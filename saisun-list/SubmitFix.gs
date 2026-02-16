@@ -250,6 +250,7 @@ function apiSubmitEstimate(userKey, form, ids) {
       totalCount: totalCount,
       discounted: discounted,
       shippingAmount: shippingAmount,
+      storeShipping: calcStoreShippingByAddress_(shippingPref, totalCount) || 0,
       shippingSize: shippingSize,
       shippingArea: shippingArea,
       shippingPref: shippingPref,
@@ -399,7 +400,7 @@ function writeSubmitData_(data) {
     data.selectionList || data.ids.join('、'),   // J: 選択リスト
     data.ids.length,                             // K: 合計点数
     data.discounted || 0,                        // L: 合計金額
-    '',                                          // M: 送料(店負担)
+    data.storeShipping || '',                     // M: 送料(店負担)
     data.shippingAmount || '',                   // N: 送料(客負担)
     data.paymentMethod ? getPaymentMethodDisplayName_(data.paymentMethod) : '',  // O: 決済方法（日本語表示名）
     data.paymentId || '',                        // P: 決済ID
