@@ -90,7 +90,7 @@ function setupAllTriggers() {
 
 1. KOMOJU ダッシュボード → Webhooks
 2. エンドポイントURL: `{デプロイURL}?action=komoju_webhook`
-3. イベント: `payment.captured`, `payment.failed`, `payment.expired`, `payment.refunded`
+3. イベント: `payment.captured`, `payment.updated`, `payment.failed`, `payment.expired`, `payment.refunded`
 4. Webhook Secretをスクリプトプロパティ `KOMOJU_WEBHOOK_SECRET` に設定
 
 ## 更新デプロイ

@@ -229,6 +229,9 @@ function handleKomojuWebhook(e) {
       case 'payment.authorized':
         return handlePaymentSuccess_(data);
 
+      case 'payment.updated':
+        return handlePaymentUpdated_(data);
+
       case 'payment.failed':
       case 'payment.expired':
         return handlePaymentFailed_(data);
@@ -298,10 +301,13 @@ function handlePaymentSuccess_(data) {
 
   // 決済方法に応じた入金ステータスを決定
   // クレジットカードは即時決済完了なので「未対応」（入金済み・処理待ち）
-  // コンビニ払い、銀行振込は後払いなので「入金待ち」
+  // コンビニ払い・銀行振込:
+  //   authorized（支払い番号発行済み・未入金）→「入金待ち」
+  //   captured（入金完了）→「未対応」
   // ※PayPay, Paidy は申請中（承認後に追加）
   var paymentStatus = '未対応';
-  if (paymentMethodType === 'konbini' || paymentMethodType === 'bank_transfer') {
+  if ((paymentMethodType === 'konbini' || paymentMethodType === 'bank_transfer') &&
+      data.type === 'payment.authorized') {
     paymentStatus = '入金待ち';
   }
 
@@ -411,6 +417,68 @@ function handlePaymentRefunded_(data) {
 
   console.log('Payment refunded (API verified) for:', receiptNo);
   return { ok: true, message: 'Refund processed' };
+}
+
+/**
+ * 決済更新時の処理（payment.updated）
+ * コンビニ払い・銀行振込で顧客が実際に入金した際にKOMOJUから送信される。
+ * 入金完了（captured）を検知して「入金待ち」→「未対応」にステータスを更新する。
+ */
+function handlePaymentUpdated_(data) {
+  var webhookPayment = data.data;
+  var receiptNo = webhookPayment.external_order_num ||
+                  (webhookPayment.metadata ? webhookPayment.metadata.receipt_no : null);
+
+  if (!receiptNo) {
+    console.log('payment.updated: receipt number not found, ignoring');
+    return { ok: true, message: 'No receipt number, ignored' };
+  }
+
+  // === KOMOJU APIで決済状態を裏取り ===
+  var apiPayment = fetchPaymentFromApi_(webhookPayment.id);
+  if (!apiPayment) {
+    console.error('payment.updated: API verification failed for ' + receiptNo);
+    return { ok: false, message: 'API verification failed' };
+  }
+
+  var apiStatus = mapKomojuStatus_(apiPayment.status);
+  console.log('payment.updated: receiptNo=' + receiptNo + ', apiStatus=' + apiPayment.status + ' → ' + apiStatus);
+
+  // captured（入金完了）でない場合は無視
+  if (apiStatus !== 'paid') {
+    console.log('payment.updated: status is not captured (' + apiPayment.status + '), ignoring');
+    return { ok: true, message: 'Not captured, ignored' };
+  }
+
+  var paymentMethodType = extractPaymentMethodType_(apiPayment);
+
+  // コンビニ払い・銀行振込の入金完了を処理
+  if (paymentMethodType === 'konbini' || paymentMethodType === 'bank_transfer') {
+    // 金額の照合
+    if (!verifyPaymentAmount_(receiptNo, apiPayment.amount)) {
+      console.error('payment.updated: 金額不一致: receiptNo=' + receiptNo);
+      return { ok: false, message: 'Amount mismatch' };
+    }
+
+    // 決済セッション情報を更新
+    var saved = getPaymentSession_(receiptNo) || {};
+    saved.status = 'paid';
+    saved.komojuStatus = apiPayment.status;
+    saved.paymentId = apiPayment.id;
+    saved.paymentMethod = paymentMethodType;
+    saved.paidAt = new Date().toISOString();
+    saved.verifiedViaApi = true;
+    savePaymentSession_(receiptNo, saved);
+
+    // 依頼管理シートの入金ステータスを「入金待ち」→「未対応」に更新
+    updateOrderPaymentStatus_(receiptNo, 'paid', paymentMethodType);
+    console.log('payment.updated: 入金確認完了 (' + paymentMethodType + '): ' + receiptNo);
+    return { ok: true, message: 'Payment confirmed via updated event' };
+  }
+
+  // コンビニ・銀行振込以外のupdatedイベントは無視
+  console.log('payment.updated: non-deferred payment method (' + paymentMethodType + '), ignoring');
+  return { ok: true, message: 'Non-deferred method, ignored' };
 }
 
 // =====================================================
@@ -1177,8 +1245,9 @@ function checkPendingOrders() {
       if ((status === 'paid' || status === 'authorized') && response.payment) {
         console.log('checkPendingOrders: [' + receiptNo + '] 決済完了を検出 → 注文確定');
         var paymentMethodType = extractPaymentMethodType_(response.payment);
+        // コンビニ・銀行振込: authorized=入金待ち、captured/paid=未対応（入金済み）
         var paymentStatus = '未対応';
-        if (paymentMethodType === 'konbini' || paymentMethodType === 'bank_transfer') {
+        if ((paymentMethodType === 'konbini' || paymentMethodType === 'bank_transfer') && status === 'authorized') {
           paymentStatus = '入金待ち';
         }
         var confirmResult = confirmPaymentAndCreateOrder(
