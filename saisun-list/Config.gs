@@ -368,6 +368,15 @@ function calcShippingByAddress_(prefOrAddress, totalCount) {
   return SHIPPING_RATES[area][sizeIdx];
 }
 
+/**
+ * 店負担送料を計算（配送原価 = 客向け送料の半額）
+ */
+function calcStoreShippingByAddress_(prefOrAddress, totalCount) {
+  var customerShipping = calcShippingByAddress_(prefOrAddress, totalCount);
+  if (customerShipping === null || customerShipping === 0) return customerShipping;
+  return Math.round(customerShipping / 2);
+}
+
 function app_readBrandList_() {
   const ssId = String(APP_CONFIG.data.spreadsheetId || '').trim();
   const shName = String(APP_CONFIG.data.sheetName || '').trim();

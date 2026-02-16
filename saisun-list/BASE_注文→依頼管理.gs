@@ -212,8 +212,8 @@ function syncBaseOrdersToIraiKanri() {
         const q = (qRaw == null || String(qRaw).trim() === '') ? 0 : Number(qRaw);
         orderTotalQty += q;
       }
-      if (orderPref && typeof calcShippingByAddress_ === 'function') {
-        shippingStore = calcShippingByAddress_(orderPref, orderTotalQty);
+      if (orderPref && typeof calcStoreShippingByAddress_ === 'function') {
+        shippingStore = calcStoreShippingByAddress_(orderPref, orderTotalQty);
       }
     }
 
