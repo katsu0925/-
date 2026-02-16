@@ -113,6 +113,7 @@ function apiSyncHolds(userKey, ids) {
         const it = holdItems[id];
         if (!it) continue;
         if (String(it.userKey || '') === uk && !want[id]) {
+          if (it.pendingPayment) continue;  // 決済待ちの確保は解放しない
           toRemove.push(id);
         }
       }

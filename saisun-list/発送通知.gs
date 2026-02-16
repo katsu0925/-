@@ -16,7 +16,8 @@ const SHIPMAIL_CONFIG = {
   COL_STATUS_P: 16,        // P列: ステータス
   COL_CARRIER_W: 23,       // W列: 配送業者
   COL_TRACKING_X: 24,      // X列: 伝票番号
-  FLAG_COL: 27
+  FLAG_COL: 21,            // U列: 発送通知フラグ（AA列は受注通知フラグ専用）
+  COL_PAYMENT_ID_AF: 32   // AF列: 決済ID（KOMOJUのみ）
 };
 
 function shipMailOnEdit(e) {
@@ -84,10 +85,17 @@ function shipMailOnEdit(e) {
       SHIPMAIL_CONFIG.COL_CUSTOMER_C,
       SHIPMAIL_CONFIG.COL_RECEIPT_NO,
       SHIPMAIL_CONFIG.COL_TRACKING_X,
-      SHIPMAIL_CONFIG.FLAG_COL
+      SHIPMAIL_CONFIG.COL_PAYMENT_ID_AF
     );
 
     const rowVals = sh.getRange(row, 1, 1, maxCol).getValues()[0];
+
+    // --- AF列（決済ID）チェック: KOMOJU注文のみ通知 ---
+    const paymentId = String(rowVals[SHIPMAIL_CONFIG.COL_PAYMENT_ID_AF - 1] || '').trim();
+    if (!paymentId) {
+      Logger.log('STOP: AF列(決済ID)が空 — KOMOJU注文ではないため通知スキップ');
+      return;
+    }
 
     const receiptNo = String(rowVals[SHIPMAIL_CONFIG.COL_RECEIPT_NO - 1] || '').trim();
     const customer = String(rowVals[SHIPMAIL_CONFIG.COL_CUSTOMER_C - 1] || '').trim();
