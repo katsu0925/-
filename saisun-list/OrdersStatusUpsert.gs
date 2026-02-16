@@ -2,14 +2,14 @@ function od_handleRequestSheetStatusEditsUpsert_(orderSs, requestSheet, startRow
   const numRows = Math.max(0, endRow - startRow + 1);
   if (!numRows) return;
 
-  const values = requestSheet.getRange(startRow, 1, numRows, 18).getValues();
+  const values = requestSheet.getRange(startRow, 1, numRows, 32).getValues();
   const manageMap = new Map();
 
   for (let i = 0; i < values.length; i++) {
     const r = values[i];
-    const receiptNo = String(r[0] || '').trim();
-    const selectionList = String(r[11] || '');
-    const status = String(r[17] || '').trim();
+    const receiptNo = String(r[0] || '').trim();       // A列: 受付番号
+    const selectionList = String(r[9] || '');           // J列: 選択リスト
+    const status = String(r[16] || '').trim();          // Q列: 入金確認
     if (!receiptNo) continue;
     if (!status) continue;
 

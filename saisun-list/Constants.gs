@@ -78,38 +78,38 @@ var TIME_CONSTANTS = {
  * 依頼管理シートの列番号（1-indexed）
  */
 var REQUEST_SHEET_COLS = {
-  RECEIPT_NO: 1,      // A: 受付番号
-  DATETIME: 2,        // B: 依頼日時
-  COMPANY_NAME: 3,    // C: 会社名/氏名
-  CONTACT: 4,         // D: 連絡先メール
-  POSTAL: 5,          // E: 郵便番号
-  ADDRESS: 6,         // F: 住所
-  PHONE: 7,           // G: 電話番号
-  PRODUCT_NAMES: 8,   // H: 商品名
-  CONFIRM_LINK: 9,    // I: 確認リンク
-  SELECTION_LIST: 10,  // J: 選択リスト
-  TOTAL_COUNT: 11,    // K: 合計点数
-  TOTAL_AMOUNT: 12,   // L: 合計金額
-  SHIP_STATUS: 13,    // M: 発送ステータス
-  LIST_ENCLOSED: 14,  // N: リスト同梱
-  XLSX_SENT: 15,      // O: xlsx送付
-  STATUS: 16,         // P: ステータス
-  STAFF: 17,          // Q: 担当者
-  PAYMENT: 18,        // R: 入金確認
-  INVOICE_REQ: 19,    // S: 領収書希望
-  INVOICE_SENT: 20,   // T: 領収書送付済
-  RESERVED: 21,       // U: 予備
-  NOTE: 22,           // V: 備考
-  CARRIER: 23,        // W: 配送業者
-  TRACKING: 24,       // X: 伝票番号
-  REWARD: 25,         // Y: 作業報酬
-  UPDATED_AT: 26,     // Z: 更新日時
-  NOTIFY_FLAG: 27,    // AA: 通知フラグ
-  POINTS_AWARDED: 28, // AB: ポイント付与済
-  SHIP_COST_SHOP: 29, // AC: 送料(店負担)
-  SHIP_COST_CUST: 30, // AD: 送料(客負担)
-  PAYMENT_METHOD: 31, // AE: 決済方法
-  PAYMENT_ID: 32      // AF: 決済ID
+  RECEIPT_NO: 1,        // A: 受付番号
+  DATETIME: 2,          // B: 依頼日時
+  COMPANY_NAME: 3,      // C: 会社名/氏名
+  CONTACT: 4,           // D: 連絡先メール
+  POSTAL: 5,            // E: 郵便番号
+  ADDRESS: 6,           // F: 住所
+  PHONE: 7,             // G: 電話番号
+  PRODUCT_NAMES: 8,     // H: 商品名
+  CONFIRM_LINK: 9,      // I: 確認リンク
+  SELECTION_LIST: 10,   // J: 選択リスト
+  TOTAL_COUNT: 11,      // K: 合計点数
+  TOTAL_AMOUNT: 12,     // L: 合計金額
+  SHIP_COST_SHOP: 13,   // M: 送料(店負担)
+  SHIP_COST_CUST: 14,   // N: 送料(客負担)
+  PAYMENT_METHOD: 15,   // O: 決済方法
+  PAYMENT_ID: 16,       // P: 決済ID
+  PAYMENT: 17,          // Q: 入金確認
+  POINTS_AWARDED: 18,   // R: ポイント付与済
+  SHIP_STATUS: 19,      // S: 発送ステータス
+  CARRIER: 20,          // T: 配送業者
+  TRACKING: 21,         // U: 伝票番号
+  STATUS: 22,           // V: ステータス
+  STAFF: 23,            // W: 担当者
+  LIST_ENCLOSED: 24,    // X: リスト同梱
+  XLSX_SENT: 25,        // Y: xlsx送付
+  INVOICE_REQ: 26,      // Z: インボイス発行
+  INVOICE_SENT: 27,     // AA: インボイス状況
+  NOTIFY_FLAG: 28,      // AB: 受注通知
+  SHIP_NOTIFY_FLAG: 29, // AC: 発送通知
+  NOTE: 30,             // AD: 備考
+  REWARD: 31,           // AE: 作業報酬
+  UPDATED_AT: 32        // AF: 更新日時
 };
 
 /**

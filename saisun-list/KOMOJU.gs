@@ -862,20 +862,20 @@ function updateOrderPaymentStatus_(receiptNo, paymentStatus, paymentMethod) {
       if (String(data[i][0]) === String(receiptNo)) {
         var row = i + 2;
 
-        // R列(18): 入金確認ステータスを更新
-        var paymentConfirmCol = 18;  // R列
+        // Q列(17): 入金確認ステータスを更新
+        var paymentConfirmCol = 17;  // Q列
         var statusText = paymentStatus === 'paid' ? '未対応' : (paymentStatus === 'pending' ? '入金待ち' : '未対応');
         sheet.getRange(row, paymentConfirmCol).setValue(statusText);
 
-        // AE列(31): 決済方法（日本語表示名）
+        // O列(15): 決済方法（日本語表示名）
         if (paymentMethod) {
-          var paymentMethodCol = 31;  // AE列
+          var paymentMethodCol = 15;  // O列
           sheet.getRange(row, paymentMethodCol).setValue(getPaymentMethodDisplayName_(paymentMethod));
         }
 
-        // AA列(27): 通知フラグ — 入金完了時（未対応に変更時）にFALSEをセット
+        // AB列(28): 受注通知フラグ — 入金完了時（未対応に変更時）にFALSEをセット
         if (statusText === '未対応') {
-          var notifyFlagCol = 27;  // AA列
+          var notifyFlagCol = 28;  // AB列
           sheet.getRange(row, notifyFlagCol).setValue(false);
         }
 

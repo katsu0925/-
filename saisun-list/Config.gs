@@ -71,35 +71,38 @@ const APP_CONFIG = {
   // 依頼管理シートの列インデックス（0-based配列用）
   // sh_ensureRequestSheet_ のヘッダー定義と対応
   requestCols: {
-    receiptNo: 0,     // A列: 受付番号
-    datetime: 1,      // B列: 依頼日時
-    companyName: 2,    // C列: 会社名/氏名
-    contact: 3,       // D列: 連絡先
-    postal: 4,        // E列: 郵便番号
-    address: 5,       // F列: 住所
-    phone: 6,         // G列: 電話番号
-    productNames: 7,  // H列: 商品名
-    confirmLink: 8,   // I列: 確認リンク
-    selectionList: 9, // J列: 選択リスト
-    totalCount: 10,   // K列: 合計点数
-    totalAmount: 11,  // L列: 合計金額
-    shippingStatus: 12, // M列: 発送ステータス
-    listEnclosed: 13, // N列: リスト同梱
-    xlsxSent: 14,     // O列: xlsx送付
-    status: 15,       // P列: ステータス
-    person: 16,       // Q列: 担当者
-    paymentConfirm: 17, // R列: 入金確認
-    note: 21,         // V列: 備考
-    carrier: 22,      // W列: 配送業者
-    trackingNo: 23,   // X列: 伝票番号
-    reward: 24,       // Y列: 作業報酬
-    updatedAt: 25,    // Z列: 更新日時
-    notifyFlag: 26,   // AA列: 通知フラグ
-    pointFlag: 27,    // AB列: ポイント付与済
-    shippingStore: 28,    // AC列: 送料(店負担)
-    shippingCustomer: 29, // AD列: 送料(客負担)
-    paymentMethod: 30,    // AE列: 決済方法
-    paymentId: 31         // AF列: 決済ID
+    receiptNo: 0,          // A列: 受付番号
+    datetime: 1,           // B列: 依頼日時
+    companyName: 2,        // C列: 会社名/氏名
+    contact: 3,            // D列: 連絡先
+    postal: 4,             // E列: 郵便番号
+    address: 5,            // F列: 住所
+    phone: 6,              // G列: 電話番号
+    productNames: 7,       // H列: 商品名
+    confirmLink: 8,        // I列: 確認リンク
+    selectionList: 9,      // J列: 選択リスト
+    totalCount: 10,        // K列: 合計点数
+    totalAmount: 11,       // L列: 合計金額
+    shippingStore: 12,     // M列: 送料(店負担)
+    shippingCustomer: 13,  // N列: 送料(客負担)
+    paymentMethod: 14,     // O列: 決済方法
+    paymentId: 15,         // P列: 決済ID
+    paymentConfirm: 16,    // Q列: 入金確認
+    pointFlag: 17,         // R列: ポイント付与済
+    shippingStatus: 18,    // S列: 発送ステータス
+    carrier: 19,           // T列: 配送業者
+    trackingNo: 20,        // U列: 伝票番号
+    status: 21,            // V列: ステータス
+    person: 22,            // W列: 担当者
+    listEnclosed: 23,      // X列: リスト同梱
+    xlsxSent: 24,          // Y列: xlsx送付
+    invoiceReq: 25,        // Z列: インボイス発行
+    invoiceSent: 26,       // AA列: インボイス状況
+    notifyFlag: 27,        // AB列: 受注通知
+    shipNotifyFlag: 28,    // AC列: 発送通知
+    note: 29,              // AD列: 備考
+    reward: 30,            // AE列: 作業報酬
+    updatedAt: 31          // AF列: 更新日時
   },
   statuses: {
     open: '依頼中',

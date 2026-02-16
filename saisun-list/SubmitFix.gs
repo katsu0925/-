@@ -352,10 +352,10 @@ function writeSubmitData_(data) {
   // 1. 依頼管理シートに書き込み
   // 列構成（32列 A-AF）:
   // A=受付番号, B=依頼日時, C=会社名/氏名, D=連絡先, E=郵便番号, F=住所, G=電話番号, H=商品名,
-  // I=確認リンク, J=選択リスト, K=合計点数, L=合計金額, M=発送ステータス, N=リスト同梱, O=xlsx送付,
-  // P=ステータス, Q=担当者, R=入金確認, S=インボイス発行, T=インボイス状況, U=発送通知フラグ, V=備考,
-  // W=配送業者, X=伝票番号, Y=作業報酬, Z=更新日時, AA=通知フラグ,
-  // AB=ポイント付与済, AC=送料(店負担), AD=送料(客負担), AE=決済方法, AF=決済ID
+  // I=確認リンク, J=選択リスト, K=合計点数, L=合計金額, M=送料(店負担), N=送料(客負担), O=決済方法, P=決済ID,
+  // Q=入金確認, R=ポイント付与済, S=発送ステータス, T=配送業者, U=伝票番号, V=ステータス, W=担当者,
+  // X=リスト同梱, Y=xlsx送付, Z=インボイス発行, AA=インボイス状況, AB=受注通知,
+  // AC=発送通知, AD=備考, AE=作業報酬, AF=更新日時
   var reqSh = sh_ensureRequestSheet_(orderSs);
   var productNames = '選べるxlsx付きパッケージ';
   var paymentStatus = data.paymentStatus || '対応済';
@@ -372,26 +372,26 @@ function writeSubmitData_(data) {
     data.selectionList || data.ids.join('、'),   // J: 選択リスト
     data.ids.length,                             // K: 合計点数
     data.discounted || 0,                        // L: 合計金額
-    '未着手',                                     // M: 発送ステータス
-    '未',                                         // N: リスト同梱
-    '未',                                         // O: xlsx送付
-    APP_CONFIG.statuses.open,                    // P: ステータス
-    '',                                          // Q: 担当者
-    paymentStatus,                               // R: 入金確認
-    data.form.invoiceReceipt ? '希望' : '',      // S: 領収書希望
-    '',                                          // T: 領収書送付済
-    '',                                          // U: 発送通知フラグ
-    data.form.note || '',                        // V: 備考
-    '',                                          // W: 配送業者
-    '',                                          // X: 伝票番号
-    '',                                          // Y: 作業報酬
-    new Date(now),                               // Z: 更新日時
-    paymentStatus === '入金待ち' ? '' : false,     // AA: 通知フラグ（入金待ちは空白、入金済みはFALSE）
-    '',                                          // AB: ポイント付与済
-    '',                                          // AC: 送料(店負担)
-    data.shippingAmount || '',                   // AD: 送料(客負担)
-    data.paymentMethod ? getPaymentMethodDisplayName_(data.paymentMethod) : '',  // AE: 決済方法（日本語表示名）
-    data.paymentId || ''                         // AF: 決済ID
+    '',                                          // M: 送料(店負担)
+    data.shippingAmount || '',                   // N: 送料(客負担)
+    data.paymentMethod ? getPaymentMethodDisplayName_(data.paymentMethod) : '',  // O: 決済方法（日本語表示名）
+    data.paymentId || '',                        // P: 決済ID
+    paymentStatus,                               // Q: 入金確認
+    '',                                          // R: ポイント付与済
+    '未着手',                                     // S: 発送ステータス
+    '',                                          // T: 配送業者
+    '',                                          // U: 伝票番号
+    APP_CONFIG.statuses.open,                    // V: ステータス
+    '',                                          // W: 担当者
+    '未',                                         // X: リスト同梱
+    '未',                                         // Y: xlsx送付
+    data.form.invoiceReceipt ? '希望' : '',      // Z: インボイス発行
+    '',                                          // AA: インボイス状況
+    paymentStatus === '入金待ち' ? '' : false,     // AB: 受注通知（入金待ちは空白、入金済みはFALSE）
+    '',                                          // AC: 発送通知
+    data.form.note || '',                        // AD: 備考
+    '',                                          // AE: 作業報酬
+    new Date(now)                                // AF: 更新日時
   ];
   var writeRow = sh_findNextRowByDisplayKey_(reqSh, 1, 1);
   reqSh.getRange(writeRow, 1, 1, row.length).setValues([row]);

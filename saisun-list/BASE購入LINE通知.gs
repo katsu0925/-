@@ -6,12 +6,12 @@ function getLineToId_() {
 }
 
 function notifyUnsentRequests() {
-  // 新列構成: A=受付番号, B=依頼日時, C=会社名/氏名, D=連絡先, H=商品名, Z=備考
+  // 列構成: A=受付番号, B=依頼日時, C=会社名/氏名, H=商品名, AB=受注通知, AD=備考
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sh = ss.getSheetByName('依頼管理');
   const data = sh.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
-    const flag = data[i][26];  // AA列 (index 26) = フラグ
+    const flag = data[i][27];  // AB列 (index 27) = 受注通知フラグ
     const isFalse = (flag === false) || (String(flag).toUpperCase() === 'FALSE');
     if (!isFalse) continue;
     const receiptNo = data[i][0];   // A列: 受付番号
@@ -25,7 +25,7 @@ function notifyUnsentRequests() {
     }
     const companyName = data[i][2]; // C列: 会社名/氏名
     const productName = data[i][7]; // H列: 商品名
-    const note = data[i][25];       // Z列: 備考
+    const note = data[i][29];       // AD列: 備考
     const message =
       '受付番号: ' + receiptNo + '\n' +
       '依頼日時: ' + dateStr + '\n' +
@@ -48,6 +48,6 @@ function notifyUnsentRequests() {
       }
     };
     UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', options);
-    sh.getRange(i + 1, 27).setValue(true);  // AA列 (column 27) = フラグ
+    sh.getRange(i + 1, 28).setValue(true);  // AB列 (column 28) = 受注通知フラグ
   }
 }

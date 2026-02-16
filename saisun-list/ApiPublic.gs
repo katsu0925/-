@@ -202,7 +202,7 @@ function app_onEdit(e) {
     if (r.getRow() < 2) return;
 
     const col = r.getColumn();
-    if (col !== 18 && col !== 12) return;
+    if (col !== 17 && col !== 12) return;  // Q列(17)=入金確認, L列(12)=合計金額
 
     const rebuilt = od_rebuildOpenStateFromRequestSheet_(ss);
     st_setOpenState_(ss, rebuilt);
