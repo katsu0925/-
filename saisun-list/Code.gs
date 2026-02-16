@@ -110,8 +110,14 @@ function doPost(e) {
     // レート制限チェック（userKeyはargsの第1引数に入っている想定）
     var userKey = (args.length > 0 && typeof args[0] === 'string') ? args[0] : '';
     var adminKeyFromBody = String(body.adminKey || '');
-    var storedAdminKey = PropertiesService.getScriptProperties().getProperty('ADMIN_KEY') || '';
-    var isAdmin = (storedAdminKey !== '' && timingSafeEqual_(adminKeyFromBody, storedAdminKey));
+    var props = PropertiesService.getScriptProperties();
+    var storedAdminKey = props.getProperty('ADMIN_KEY') || '';
+    var storedAccessKey = props.getProperty(APP_CONFIG.admin.accessKeyProp) || '';
+    var isAdmin = (storedAdminKey !== '' && timingSafeEqual_(adminKeyFromBody, storedAdminKey)) ||
+                  (storedAccessKey !== '' && timingSafeEqual_(adminKeyFromBody, storedAccessKey));
+    console.log('doPost: isAdmin=' + isAdmin + ', action=' + action +
+      ', ADMIN_KEY=' + (storedAdminKey ? 'set' : 'empty') +
+      ', ACCESS_KEY=' + (storedAccessKey ? 'set' : 'empty'));
 
     if (!isAdmin) {
       var rateErr = checkRateLimit_(action, userKey);
@@ -144,6 +150,12 @@ function doPost(e) {
     // オーナー（管理者）のPVアクセスはログしない
     if (isAdmin && action === 'apiLogPV') {
       return jsonResponse_({ ok: true, skipped: true });
+    }
+
+    // 管理者API: doPostで認証済みなら args[0] を ADMIN_ACCESS_KEY に統一し
+    // ad_requireAdmin_ を確実に通過させる
+    if (isAdmin && action.indexOf('apiAdmin') === 0 && args.length > 0 && storedAccessKey) {
+      args[0] = storedAccessKey;
     }
 
     var result = fn.apply(null, args);
