@@ -21,10 +21,21 @@ function ad_requireAdmin_(adminKey) {
   const key = String(adminKey || '').trim();
   if (!key) throw new Error('権限がありません');
   const props = PropertiesService.getScriptProperties();
-  const saved = String(props.getProperty(APP_CONFIG.admin.accessKeyProp) || '').trim();
-  if (!saved) throw new Error('管理キーが未設定です（ad_initAdminOwnerAndKeyOnce をスクリプトエディタから実行してください）');
-  // タイミングセーフな比較を使用
-  if (!timingSafeEqual_(key, saved)) throw new Error('権限がありません');
+  // ADMIN_ACCESS_KEY（ad_initAdminOwnerAndKeyOnce で自動生成）と
+  // ADMIN_KEY（setAdminKey で手動設定）の両方を許可
+  const savedAccess = String(props.getProperty(APP_CONFIG.admin.accessKeyProp) || '').trim();
+  const savedManual = String(props.getProperty('ADMIN_KEY') || '').trim();
+  console.log('ad_requireAdmin_: key.len=' + key.length +
+    ', ACCESS_KEY=' + (savedAccess ? 'set(' + savedAccess.length + 'chars)' : 'empty') +
+    ', ADMIN_KEY=' + (savedManual ? 'set(' + savedManual.length + 'chars)' : 'empty') +
+    ', matchAccess=' + (savedAccess ? timingSafeEqual_(key, savedAccess) : 'N/A') +
+    ', matchManual=' + (savedManual ? timingSafeEqual_(key, savedManual) : 'N/A'));
+  if (!savedAccess && !savedManual) throw new Error('管理キーが未設定です（ad_initAdminOwnerAndKeyOnce をスクリプトエディタから実行してください）');
+  if ((savedAccess && timingSafeEqual_(key, savedAccess)) ||
+      (savedManual && timingSafeEqual_(key, savedManual))) {
+    return; // 認証OK
+  }
+  throw new Error('権限がありません');
 }
 
 // =====================================================
