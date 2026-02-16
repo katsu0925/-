@@ -4132,13 +4132,9 @@ function submitNow_() {
   if (submitting_) return;
   submitting_ = true;
   if ((state.cart.ids || []).length === 0) { showToast('カートが空です'); submitting_ = false; return; }
-  var f = readForm_();
-  var err = validateForm_(f);
-  if (err) { showToast(err); submitting_ = false; return; }
-  $('submitBtn').disabled = true;
   var ids = (state.cart.ids || []).slice();
 
-  // === 管理者モード: 受付番号に商品選択を紐付け ===
+  // === 管理者モード: バリデーション不要で受付番号に紐付け ===
   if (ADMIN_KEY) {
     $('submitBtn').disabled = false;
     submitting_ = false;
@@ -4170,6 +4166,10 @@ function submitNow_() {
   }
 
   // === 通常モード: KOMOJU決済フロー ===
+  var f = readForm_();
+  var err = validateForm_(f);
+  if (err) { showToast(err); submitting_ = false; return; }
+  $('submitBtn').disabled = true;
   setSending_(true, '注文を準備中...');
 
   // ステップ1: CSRF更新 + reCAPTCHA + 確保同期を並列実行（高速化）
