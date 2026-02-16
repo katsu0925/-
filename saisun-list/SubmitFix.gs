@@ -320,7 +320,16 @@ function apiSubmitEstimate(userKey, form, ids) {
  */
 function apiAdminLinkOrder(adminKey, receiptNo, userKey, ids) {
   try {
-    ad_requireAdmin_(adminKey);
+    // 管理者認証: ADMIN_ACCESS_KEY または ADMIN_KEY どちらでも許可
+    var ak = String(adminKey || '').trim();
+    if (!ak) throw new Error('権限がありません');
+    var props = PropertiesService.getScriptProperties();
+    var savedAccess = String(props.getProperty(APP_CONFIG.admin.accessKeyProp) || '').trim();
+    var savedAdmin = String(props.getProperty('ADMIN_KEY') || '').trim();
+    if (!(savedAccess && timingSafeEqual_(ak, savedAccess)) &&
+        !(savedAdmin && timingSafeEqual_(ak, savedAdmin))) {
+      throw new Error('権限がありません');
+    }
 
     var rn = String(receiptNo || '').trim();
     if (!rn) return { ok: false, message: '受付番号を入力してください' };
