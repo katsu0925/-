@@ -178,7 +178,7 @@ KOMOJU決済セッション作成。
 | customerInfo.companyName | string | No | 会社名 |
 
 **対応決済:** クレジットカード（Visa/Mastercard） / コンビニ払い / 銀行振込
-**申請中:** JCB/AMEX/Diners/Discover（日本） / PayPay / Paidy（あと払い）
+**申請中:** JCB/AMEX/Diners/Discover（日本） / PayPay / Paidy（あと払い） / Apple Pay
 
 ### `apiCheckPaymentStatus(receiptNo)`
 決済状態確認。

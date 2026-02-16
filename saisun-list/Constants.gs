@@ -39,7 +39,7 @@ var PAYMENT_CONSTANTS = {
   KOMOJU_API_URL: 'https://komoju.com/api/v1',
   PAYMENT_EXPIRY_SECONDS: 259200,                  // 決済期限（3日 = 72時間）
   PAYMENT_METHODS: ['credit_card', 'konbini', 'bank_transfer']
-  // 申請中: paypay, paidy  ／ JCB/AMEX/Diners/Discover(日本)も申請中
+  // 申請中: paypay, paidy, apple_pay  ／ JCB/AMEX/Diners/Discover(日本)も申請中
   // LINE Pay: サービス終了のため削除
 };
 

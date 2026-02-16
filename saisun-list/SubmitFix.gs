@@ -175,24 +175,24 @@ function apiSubmitEstimate(userKey, form, ids) {
       deductPoints_(contact, pointsUsed);
     }
 
-    // === 商品を確保→依頼中に移行（決済完了まで予約） ===
+    // === 商品を確保中のまま維持（決済完了まで） ===
+    // holdのuntilMsをKOMOJU決済期限（3日間）に延長し、pendingPaymentフラグを付与
+    // 決済完了後に confirmPaymentAndCreateOrder() で holdState→openState に遷移する
+    var paymentHoldMs = PAYMENT_CONSTANTS.PAYMENT_EXPIRY_SECONDS * 1000;
     for (var i = 0; i < list.length; i++) {
-      delete holdItems[list[i]];
+      holdItems[list[i]] = {
+        holdId: uk + ':' + String(now),
+        userKey: uk,
+        untilMs: now + paymentHoldMs,
+        createdAtMs: now,
+        pendingPayment: true,
+        receiptNo: receiptNo
+      };
     }
     holdState.items = holdItems;
     holdState.updatedAt = now;
     st_setHoldState_(orderSs, holdState);
     st_invalidateStatusCache_(orderSs);
-
-    // openState に追加（依頼中として記録）
-    var openState = st_getOpenState_(orderSs) || {};
-    var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
-    for (var j = 0; j < list.length; j++) {
-      openItems[list[j]] = { receiptNo: receiptNo, status: APP_CONFIG.statuses.open, updatedAtMs: now };
-    }
-    openState.items = openItems;
-    openState.updatedAt = now;
-    st_setOpenState_(orderSs, openState);
 
     } finally {
       lock.releaseLock();
@@ -353,7 +353,7 @@ function writeSubmitData_(data) {
   // 列構成（32列 A-AF）:
   // A=受付番号, B=依頼日時, C=会社名/氏名, D=連絡先, E=郵便番号, F=住所, G=電話番号, H=商品名,
   // I=確認リンク, J=選択リスト, K=合計点数, L=合計金額, M=発送ステータス, N=リスト同梱, O=xlsx送付,
-  // P=ステータス, Q=担当者, R=入金確認, S=インボイス発行, T=インボイス状況, U=予備, V=備考,
+  // P=ステータス, Q=担当者, R=入金確認, S=インボイス発行, T=インボイス状況, U=発送通知フラグ, V=備考,
   // W=配送業者, X=伝票番号, Y=作業報酬, Z=更新日時, AA=通知フラグ,
   // AB=ポイント付与済, AC=送料(店負担), AD=送料(客負担), AE=決済方法, AF=決済ID
   var reqSh = sh_ensureRequestSheet_(orderSs);
@@ -380,7 +380,7 @@ function writeSubmitData_(data) {
     paymentStatus,                               // R: 入金確認
     data.form.invoiceReceipt ? '希望' : '',      // S: 領収書希望
     '',                                          // T: 領収書送付済
-    '',                                          // U: 予備
+    '',                                          // U: 発送通知フラグ
     data.form.note || '',                        // V: 備考
     '',                                          // W: 配送業者
     '',                                          // X: 伝票番号
@@ -687,14 +687,25 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
     var orderSs = sh_getOrderSs_();
     var now = u_nowMs_();
 
-    // 1. open状態を再確認（apiSubmitEstimateで既に設定済み）
+    // 1. holdState → openState に遷移（決済完了で確定）
+    // 1a. holdStateから商品を削除（確保中 解除）
+    var holdState = st_getHoldState_(orderSs) || {};
+    var holdItems = (holdState.items && typeof holdState.items === 'object') ? holdState.items : {};
+    for (var i = 0; i < pendingData.ids.length; i++) {
+      delete holdItems[pendingData.ids[i]];
+    }
+    holdState.items = holdItems;
+    holdState.updatedAt = now;
+    st_setHoldState_(orderSs, holdState);
+
+    // 1b. openStateに商品を追加（依頼中として確定）
     var openState = st_getOpenState_(orderSs) || {};
     var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
     for (var i = 0; i < pendingData.ids.length; i++) {
-      var id = pendingData.ids[i];
-      openItems[id] = {
+      openItems[pendingData.ids[i]] = {
         receiptNo: receiptNo,
         userKey: pendingData.userKey,
+        status: APP_CONFIG.statuses.open,
         createdAtMs: now
       };
     }
