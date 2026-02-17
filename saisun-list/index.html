@@ -3966,6 +3966,37 @@ function renderCartModal_() {
   updateShippingDisplay_();
 }
 
+/** 合計金額・送料表示だけを再計算（画面遷移なし） */
+function updateCartPrices_() {
+  var ids = state.cart.ids || [];
+  var sum = 0;
+  for (var i = 0; i < ids.length; i++) {
+    var it = state.cart.itemsById[ids[i]];
+    if (it) sum += Number(it.price || 0);
+  }
+  var count = ids.length;
+  $('sumCount').textContent = '合計点数：' + count + '点';
+  var discountLabels = [];
+  var discounted;
+  if (state.appliedCoupon && state.appliedCoupon.code) {
+    var cd = state.appliedCoupon.discountAmount || 0;
+    discounted = Math.max(0, sum - cd);
+    if (state.appliedCoupon.type !== 'shipping_free') {
+      discountLabels.push(state.appliedCoupon.label);
+    }
+  } else {
+    var discountRate = 0;
+    if (count >= 30) { discountRate += BULK_DISCOUNT_RATE; discountLabels.push('30点割引10%OFF'); }
+    if (state.customer && MEMBER_DISCOUNT_ENABLED) { discountRate += MEMBER_DISCOUNT_RATE; discountLabels.push('会員10%OFF'); }
+    discounted = Math.round(sum * (1 - discountRate));
+  }
+  var discountLabel = discountLabels.length > 0 ? '（' + discountLabels.join('＋') + '）' : '';
+  if (discounted < sum) {
+    $('sumPrice').innerHTML = '合計金額：<span class="price-old">' + yen(sum) + '</span> → <span class="price-new">' + yen(discounted) + '</span>' + discountLabel;
+  } else { $('sumPrice').innerHTML = '合計金額：' + yen(discounted); }
+  updateShippingDisplay_();
+}
+
 function readForm_() {
   var f = {
     companyName: $('companyName').value || '', contact: $('contact').value || '',
@@ -4107,8 +4138,8 @@ function applyCoupon_() {
     $('couponCode').disabled = true;
     $('applyCouponBtn').style.display = 'none';
     $('removeCouponBtn').style.display = '';
-    // 割引再計算
-    renderCartModal_();
+    // 割引再計算（画面遷移せず金額だけ更新）
+    updateCartPrices_();
     showToast('クーポンを適用しました');
   }).catch(function(e) {
     var msg = (e && e.message) ? e.message : 'エラーが発生しました';
@@ -4124,7 +4155,7 @@ function removeCoupon_() {
   $('applyCouponBtn').style.display = '';
   $('removeCouponBtn').style.display = 'none';
   $('couponInfo').innerHTML = '';
-  renderCartModal_();
+  updateCartPrices_();
   showToast('クーポンを解除しました');
 }
 
