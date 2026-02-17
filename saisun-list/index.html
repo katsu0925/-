@@ -1325,6 +1325,11 @@ function calculateShipping_() {
     return { amount: 0, label: '送料無料（ダイヤモンド会員特典）', canAutoPayment: true };
   }
 
+  // 送料無料クーポン適用中
+  if (state.appliedCoupon && state.appliedCoupon.type === 'shipping_free') {
+    return { amount: 0, label: '送料無料（クーポン適用）', canAutoPayment: true };
+  }
+
   var addressEl = $('address');
   var address = addressEl ? addressEl.value.trim() : '';
   if (!address) return { amount: null, label: '住所を入力すると送料が表示されます', canAutoPayment: false };
@@ -1430,10 +1435,16 @@ function calcProductTotal_() {
     var it = state.cart.itemsById[ids[i]];
     if (it) sum += Number(it.price || 0);
   }
-  var discountRate = 0;
-  if (ids.length >= 30) discountRate += BULK_DISCOUNT_RATE;
-  if (state.customer && MEMBER_DISCOUNT_ENABLED) discountRate += MEMBER_DISCOUNT_RATE;
-  var discounted = Math.round(sum * (1 - discountRate));
+  var discounted;
+  if (state.appliedCoupon && state.appliedCoupon.code && state.appliedCoupon.type !== 'shipping_free') {
+    var cd = state.appliedCoupon.discountAmount || 0;
+    discounted = Math.max(0, sum - cd);
+  } else {
+    var discountRate = 0;
+    if (ids.length >= 30) discountRate += BULK_DISCOUNT_RATE;
+    if (state.customer && MEMBER_DISCOUNT_ENABLED) discountRate += MEMBER_DISCOUNT_RATE;
+    discounted = Math.round(sum * (1 - discountRate));
+  }
   // ポイント適用
   var pts = parseInt(($('usePoints') ? $('usePoints').value : 0), 10) || 0;
   if (pts > 0 && state.customer) {
@@ -4091,7 +4102,8 @@ function applyCoupon_() {
       return;
     }
     state.appliedCoupon = { code: code.toUpperCase(), type: res.type, value: res.value, discountAmount: res.discountAmount, label: res.label };
-    info.innerHTML = '<span style="color:#2e7d32;">&#10003; ' + res.label + '（-' + yen(res.discountAmount) + '）適用済み</span>';
+    var discountText = res.type === 'shipping_free' ? '' : '（-' + yen(res.discountAmount) + '）';
+    info.innerHTML = '<span style="color:#2e7d32;">&#10003; ' + res.label + discountText + '適用済み</span>';
     $('couponCode').disabled = true;
     $('applyCouponBtn').style.display = 'none';
     $('removeCouponBtn').style.display = '';
