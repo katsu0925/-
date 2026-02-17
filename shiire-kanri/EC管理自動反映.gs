@@ -173,12 +173,14 @@ function syncBaseOrdersToEc() {
       const isBase = baseOrderKeys.has(rk);
       const channel = isBase ? 'BASE' : 'デタウリ';
 
+      // 手数料は顧客支払総額（商品 + 客負担送料）に対して計算
+      const paymentTotal = group.totalSales + (group.shippingCustomer || 0);
       let fee = 0;
       if (isBase) {
-        fee = Math.round(group.totalSales * cfg.BASE_FEE_RATE + cfg.BASE_FEE_FIXED);
+        fee = Math.round(paymentTotal * cfg.BASE_FEE_RATE + cfg.BASE_FEE_FIXED);
       } else {
         const rate = cfg.DETAURI_FEE_RATES[group.paymentMethod] || 0;
-        fee = Math.round(group.totalSales * rate);
+        fee = Math.round(paymentTotal * rate);
       }
 
       const existingRow = existingKeyToRow.get(rk);
