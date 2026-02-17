@@ -5,13 +5,13 @@ const REWARD_CONFIG = {
   SHEET_REWARD: '報酬管理',
   TZ: 'Asia/Tokyo',
   STATUS_DONE_VALUE: '完了',
-  // 列構成: B=依頼日時, I=確認リンク, K=合計点数, P=ステータス, Q=担当者, Y=作業報酬
-  COL_REQUEST_DATETIME: 2,  // B列: 依頼日時
-  COL_CONFIRM_LINK: 9,      // I列: 確認リンク
-  COL_COUNT: 11,            // K列: 合計点数
-  COL_STATUS: 16,           // P列: ステータス
-  COL_PERSON: 17,           // Q列: 担当者
-  COL_REWARD: 25            // Y列: 作業報酬
+  // REQUEST_SHEET_COLS (Constants.gs) と同期
+  COL_REQUEST_DATETIME: REQUEST_SHEET_COLS.DATETIME,      // B列: 依頼日時
+  COL_CONFIRM_LINK: REQUEST_SHEET_COLS.CONFIRM_LINK,      // I列: 確認リンク
+  COL_COUNT: REQUEST_SHEET_COLS.TOTAL_COUNT,               // K列: 合計点数
+  COL_STATUS: REQUEST_SHEET_COLS.STATUS,                   // V列: ステータス
+  COL_PERSON: REQUEST_SHEET_COLS.STAFF,                    // W列: 担当者
+  COL_REWARD: REQUEST_SHEET_COLS.REWARD                    // AE列: 作業報酬
 };
 
 function rewardUpdateDaily() {
