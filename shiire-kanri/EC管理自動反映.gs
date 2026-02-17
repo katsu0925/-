@@ -104,6 +104,8 @@ function syncBaseOrdersToEc() {
     const dstChannelCol = requireCol_(dstHeader, 'チャンネル', 'EC管理');
     const dstSalesCol = requireCol_(dstHeader, '売上', 'EC管理');
     const dstFeeCol = findColByName_(dstHeader, '手数料');
+    const dstProductPriceCol = findColByName_(dstHeader, '商品代金');
+    const dstDepositCol = findColByName_(dstHeader, '入金額');
     const dstShipStoreCol = requireCol_(dstHeader, '店負担送料', 'EC管理');
     const dstShipCustCol = requireCol_(dstHeader, '客負担送料', 'EC管理');
     const dstTrackingCol = findColByName_(dstHeader, '伝票番号');
@@ -190,15 +192,24 @@ function syncBaseOrdersToEc() {
         fee = Math.round(paymentTotal * rate);
       }
 
+      const productPrice = group.totalSales;
+      const deposit = paymentTotal - fee;
+
       const existingRow = existingKeyToRow.get(rk);
       if (existingRow) {
-        // --- 既存行を更新（チャンネル・伝票番号・手数料が空なら埋める） ---
+        // --- 既存行を更新（空なら埋める、伝票番号は常に上書き） ---
         const rowData = dstAllValues[existingRow - 2];
         if (!String(rowData[dstChannelCol - 1] || '').trim()) {
           dstSh.getRange(existingRow, dstChannelCol).setValue(channel);
         }
         if (dstFeeCol > 0 && !String(rowData[dstFeeCol - 1] || '').trim()) {
           dstSh.getRange(existingRow, dstFeeCol).setValue(fee);
+        }
+        if (dstProductPriceCol > 0 && !String(rowData[dstProductPriceCol - 1] || '').trim()) {
+          dstSh.getRange(existingRow, dstProductPriceCol).setValue(productPrice);
+        }
+        if (dstDepositCol > 0 && !String(rowData[dstDepositCol - 1] || '').trim()) {
+          dstSh.getRange(existingRow, dstDepositCol).setValue(deposit);
         }
         if (dstTrackingCol > 0 && group.tracking) {
           dstSh.getRange(existingRow, dstTrackingCol).setValue(group.tracking);
@@ -212,6 +223,8 @@ function syncBaseOrdersToEc() {
         channel: channel,
         sales: group.totalSales,
         fee: fee,
+        productPrice: productPrice,
+        deposit: deposit,
         shippingStore: group.shippingStore || '',
         shippingCustomer: group.shippingCustomer || '',
         tracking: group.tracking || ''
@@ -229,6 +242,8 @@ function syncBaseOrdersToEc() {
       shippingCustomer: dstShipCustCol
     };
     if (dstFeeCol > 0) cols.fee = dstFeeCol;
+    if (dstProductPriceCol > 0) cols.productPrice = dstProductPriceCol;
+    if (dstDepositCol > 0) cols.deposit = dstDepositCol;
     if (dstTrackingCol > 0) cols.tracking = dstTrackingCol;
 
     const startRow = findAppendRowByActualData_(dstSh, cols);
@@ -242,6 +257,8 @@ function syncBaseOrdersToEc() {
     dstSh.getRange(startRow, cols.channel, toInsert.length, 1).setValues(toInsert.map(o => [o.channel]));
     dstSh.getRange(startRow, cols.sales, toInsert.length, 1).setValues(toInsert.map(o => [o.sales]));
     if (cols.fee) dstSh.getRange(startRow, cols.fee, toInsert.length, 1).setValues(toInsert.map(o => [o.fee]));
+    if (cols.productPrice) dstSh.getRange(startRow, cols.productPrice, toInsert.length, 1).setValues(toInsert.map(o => [o.productPrice]));
+    if (cols.deposit) dstSh.getRange(startRow, cols.deposit, toInsert.length, 1).setValues(toInsert.map(o => [o.deposit]));
     dstSh.getRange(startRow, cols.shippingStore, toInsert.length, 1).setValues(toInsert.map(o => [o.shippingStore]));
     dstSh.getRange(startRow, cols.shippingCustomer, toInsert.length, 1).setValues(toInsert.map(o => [o.shippingCustomer]));
     if (cols.tracking) dstSh.getRange(startRow, cols.tracking, toInsert.length, 1).setValues(toInsert.map(o => [o.tracking]));
