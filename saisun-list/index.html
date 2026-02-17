@@ -140,12 +140,6 @@
     .formField input,.formField select,.formField textarea{width:100%;padding:10px 12px;border:1px solid #d9deea;border-radius:10px;background:#fff;outline:none;}
     .formField textarea{min-height:90px;resize:vertical;}
     .formActions{display:flex;gap:10px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap;}
-    .admin-fab{position:fixed;left:14px;bottom:80px;width:44px;height:44px;border-radius:999px;border:none;background:#334155;color:#fff;font-size:18px;cursor:pointer;z-index:35;box-shadow:0 4px 12px rgba(0,0,0,.2);display:none;align-items:center;justify-content:center;}
-    .admin-fab:hover{background:#475569;}
-    .admin-fab-menu{position:fixed;left:14px;bottom:130px;background:#fff;border:1px solid #e2e8f0;border-radius:12px;box-shadow:0 4px 24px rgba(0,0,0,.12);z-index:36;display:none;min-width:180px;padding:4px;}
-    .admin-fab-menu.open{display:block;}
-    .admin-fab-item{display:block;width:100%;padding:10px 14px;border:none;background:transparent;text-align:left;cursor:pointer;font-size:13px;font-weight:600;color:#334155;border-radius:8px;}
-    .admin-fab-item:hover{background:#f1f5f9;}
     .toast{position:fixed;left:50%;bottom:82px;transform:translateX(-50%);background:#111;color:#fff;padding:10px 12px;border-radius:12px;display:none;z-index:60;font-weight:900;max-width:92vw;}
     .toast.show{display:block;}
     .measureWrap{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
@@ -427,7 +421,7 @@
         <div class="sumLine" id="sumShipping" style="display:none;font-size:13px;color:#475569;"></div>
         <div class="sumLine" id="sumTotal" style="display:none;font-weight:700;font-size:15px;"></div>
         <div id="shippingNote" style="display:none;font-size:11px;color:#888;text-align:right;width:100%;">※送料は税込み・会員割引対象外です</div>
-        <div id="paymentFeeNote" style="display:none;font-size:11px;color:#888;text-align:right;width:100%;line-height:1.5;">※コンビニ決済は別途手数料220円（税込）がかかります<br>※銀行振込の振込手数料はお客様負担です</div>
+        <div id="paymentFeeNote" style="display:none;font-size:11px;color:#888;text-align:right;width:100%;line-height:1.5;">※コンビニ決済は別途手数料220円（税込）がかかります<br>※銀行振込の振込手数料はお客様負担です<br>※ペイジーの振込手数料はお客様負担です</div>
         <div id="remoteIslandWarning" style="display:none;font-size:13px;color:#b8002a;text-align:right;width:100%;font-weight:600;"></div>
         <div id="cartActions" style="display:flex; gap:10px; align-items:center; justify-content:flex-end; flex-wrap:wrap; width:100%;">
           <button class="btn" id="clearCartBtn" style="min-width:160px;" type="button">カートを空にする</button>
@@ -804,97 +798,6 @@
     </div>
   </div>
 
-  <!-- クーポン登録モーダル（管理者専用） -->
-  <div class="modal" id="couponRegModal" aria-hidden="true" style="width:min(540px,94vw);">
-    <div class="modalHeader">
-      <div class="modalTitle">クーポン登録</div>
-      <button class="modalClose" id="couponRegCloseBtn" aria-label="close">×</button>
-    </div>
-    <div class="modalBody">
-      <div class="formGrid" style="grid-template-columns:1fr 1fr;gap:12px;">
-        <!-- クーポンコード -->
-        <div class="formField" style="grid-column:1/-1;">
-          <label>クーポンコード *</label>
-          <input id="cpnCode" type="text" placeholder="例: SUMMER10" style="text-transform:uppercase;">
-        </div>
-        <!-- 割引タイプ -->
-        <div class="formField">
-          <label>割引タイプ *</label>
-          <select id="cpnType">
-            <option value="rate">割引率（%OFF）</option>
-            <option value="fixed">固定額引き（円）</option>
-            <option value="shipping_free">送料無料</option>
-          </select>
-        </div>
-        <!-- 割引値 -->
-        <div class="formField" id="cpnValueField">
-          <label id="cpnValueLabel">割引率 *</label>
-          <div style="display:flex;align-items:center;gap:6px;">
-            <input id="cpnValue" type="number" min="0" step="any" placeholder="10">
-            <span id="cpnValueUnit" style="font-size:13px;color:#666;white-space:nowrap;">%</span>
-          </div>
-          <div id="cpnValueHint" style="font-size:11px;color:#888;margin-top:4px;">1〜99の整数で入力</div>
-        </div>
-        <!-- 対象顧客 -->
-        <div class="formField">
-          <label>対象顧客</label>
-          <select id="cpnTarget">
-            <option value="all">全員</option>
-            <option value="new">新規限定</option>
-            <option value="repeat">リピーター限定</option>
-          </select>
-        </div>
-        <!-- 1人1回制限 -->
-        <div class="formField">
-          <label>1人1回制限</label>
-          <select id="cpnOncePerUser">
-            <option value="true">あり</option>
-            <option value="false">なし</option>
-          </select>
-        </div>
-        <!-- 利用上限 -->
-        <div class="formField">
-          <label>利用上限（回数）</label>
-          <select id="cpnMaxUses">
-            <option value="0">無制限</option>
-            <option value="1">1回</option>
-            <option value="5">5回</option>
-            <option value="10">10回</option>
-            <option value="20">20回</option>
-            <option value="50">50回</option>
-            <option value="100">100回</option>
-            <option value="custom">その他（手入力）</option>
-          </select>
-          <input id="cpnMaxUsesCustom" type="number" min="1" placeholder="回数を入力" style="display:none;margin-top:6px;">
-        </div>
-        <!-- 有効開始日 -->
-        <div class="formField">
-          <label>有効開始日</label>
-          <input id="cpnStartDate" type="date">
-          <div style="font-size:11px;color:#888;margin-top:4px;">空欄＝即日から有効</div>
-        </div>
-        <!-- 有効期限 -->
-        <div class="formField">
-          <label>有効期限</label>
-          <input id="cpnExpires" type="date">
-          <div style="font-size:11px;color:#888;margin-top:4px;">空欄＝無期限</div>
-        </div>
-        <!-- メモ -->
-        <div class="formField" style="grid-column:1/-1;">
-          <label>メモ（管理用）</label>
-          <input id="cpnMemo" type="text" placeholder="例: 夏セール用クーポン">
-        </div>
-      </div>
-      <!-- 確認エリア -->
-      <div id="cpnPreview" style="display:none;margin-top:14px;padding:12px;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;font-size:13px;line-height:1.7;"></div>
-      <div id="cpnError" style="display:none;margin-top:10px;padding:10px 12px;background:#fef2f2;border:1px solid #fecaca;border-radius:10px;color:#b91c1c;font-size:13px;"></div>
-      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px;">
-        <button class="btn" id="cpnCancelBtn" type="button">キャンセル</button>
-        <button class="btn primary" id="cpnSubmitBtn" type="button">登録する</button>
-      </div>
-    </div>
-  </div>
-
   <div class="toast" id="toast"></div>
   <div id="sendingOverlay" class="sendingOverlay" aria-hidden="true">
     <div class="sendingBox" role="status" aria-live="polite">
@@ -903,12 +806,6 @@
     </div>
   </div>
   <button class="toTop" id="toTopBtn" type="button" aria-label="ページ上部へ">↑</button>
-
-  <!-- 管理者FABメニュー -->
-  <button class="admin-fab" id="adminFab" type="button" title="管理メニュー">⚙</button>
-  <div class="admin-fab-menu" id="adminFabMenu">
-    <button class="admin-fab-item" id="adminCouponRegBtn" type="button">クーポン登録</button>
-  </div>
 
   <div class="detail-modal-overlay" id="detailModal">
     <div class="detail-modal">
@@ -969,7 +866,7 @@
         <ol style="margin:0;padding-left:20px;color:#475569;">
           <li style="margin-bottom:8px;"><strong>商品選択</strong>：お好みの商品をカートに追加</li>
           <li style="margin-bottom:8px;"><strong>お届け先入力</strong>：住所を入力すると送料が自動表示されます</li>
-          <li style="margin-bottom:8px;"><strong>お支払い</strong>：商品代＋送料をオンライン決済<br><span style="font-size:12px;color:#888;">※コンビニ決済は別途手数料220円、銀行振込の振込手数料はお客様負担</span></li>
+          <li style="margin-bottom:8px;"><strong>お支払い</strong>：商品代＋送料をオンライン決済<br><span style="font-size:12px;color:#888;">※コンビニ決済は別途手数料220円、銀行振込・ペイジーの振込手数料はお客様負担</span></li>
           <li><strong>発送</strong>：決済完了後、商品を発送いたします</li>
         </ol>
       </div>
@@ -1140,7 +1037,8 @@
         <ul style="margin:0;padding-left:20px;color:#475569;">
           <li><strong>コンビニ決済</strong>：220円（税込）の決済手数料がかかります</li>
           <li><strong>銀行振込</strong>：振込手数料はお客様のご負担となります（金額は金融機関により異なります）</li>
-          <li style="color:#888;">クレジットカード：手数料はかかりません</li>
+          <li><strong>ペイジー</strong>：振込手数料はお客様のご負担となります（金額は金融機関により異なります）</li>
+          <li style="color:#888;">クレジットカード・PayPay：手数料はかかりません</li>
         </ul>
       </div>
     </div>
@@ -1189,23 +1087,22 @@
         </tr>
         <tr>
           <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">支払方法</th>
-          <td style="padding:12px;border:1px solid #e2e8f0;">クレジットカード（Visa/Mastercard）、コンビニ決済、銀行振込<br><span style="font-size:12px;color:#888;">※JCB/AMEX/Diners/Discover・PayPay・Paidy（あと払い）・Apple Payは準備中</span></td>
+          <td style="padding:12px;border:1px solid #e2e8f0;">クレジットカード（Visa/Mastercard/JCB/AMEX/Diners/Discover）、コンビニ決済、銀行振込、PayPay、ペイジー</td>
         </tr>
         <tr>
           <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">支払時期</th>
           <td style="padding:12px;border:1px solid #e2e8f0;">
-            クレジットカード：ご注文時に決済<br>
-            コンビニ決済：ご注文後7日以内にお支払い<br>
-            銀行振込：ご注文後7日以内にお振込み<br>
-            その他電子決済：ご注文時に決済
+            クレジットカード・PayPay：ご注文時に決済<br>
+            コンビニ決済：ご注文後3日以内にお支払い<br>
+            銀行振込・ペイジー：ご注文後3日以内にお振込み
           </td>
         </tr>
         <tr>
           <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">お客様負担の手数料</th>
           <td style="padding:12px;border:1px solid #e2e8f0;">
             コンビニ決済：<strong>220円（税込）</strong>の決済手数料がかかります（お客様負担）<br>
-            銀行振込：<strong>振込手数料</strong>はお客様のご負担となります（金額は金融機関により異なります）<br>
-            <span style="font-size:12px;color:#888;">※クレジットカード：手数料はかかりません</span>
+            銀行振込・ペイジー：<strong>振込手数料</strong>はお客様のご負担となります（金額は金融機関により異なります）<br>
+            <span style="font-size:12px;color:#888;">※クレジットカード・PayPay：手数料はかかりません</span>
           </td>
         </tr>
         <tr>
@@ -1224,8 +1121,8 @@
           <td style="padding:12px;border:1px solid #e2e8f0;">
             当方の都合による返金の場合、ご利用の決済方法に応じて返金処理を行います。<br>
             クレジットカード：カード会社経由での返金<br>
-            コンビニ決済・銀行振込：ご指定の銀行口座へ返金<br>
-            電子決済：各サービス経由での返金
+            コンビニ決済・銀行振込・ペイジー：ご指定の銀行口座へ返金<br>
+            PayPay：PayPay残高への返金
           </td>
         </tr>
       </table>
@@ -4491,177 +4388,6 @@ function bindUi_() {
   }
   $('doneCloseBtn').addEventListener('click', function() { closeModal($('doneModal')); });
 
-  // =====================================================
-  // 管理者FAB & クーポン登録モーダル
-  // =====================================================
-  if (IS_OWNER) {
-    var fab = $('adminFab');
-    var fabMenu = $('adminFabMenu');
-    fab.style.display = 'flex';
-    fab.addEventListener('click', function(e) { e.stopPropagation(); fabMenu.classList.toggle('open'); });
-    document.addEventListener('click', function() { fabMenu.classList.remove('open'); });
-    fabMenu.addEventListener('click', function(e) { e.stopPropagation(); });
-
-    $('adminCouponRegBtn').addEventListener('click', function() {
-      fabMenu.classList.remove('open');
-      openCouponRegModal_();
-    });
-    $('couponRegCloseBtn').addEventListener('click', function() { closeModal($('couponRegModal')); });
-    $('cpnCancelBtn').addEventListener('click', function() { closeModal($('couponRegModal')); });
-    $('cpnSubmitBtn').addEventListener('click', function() { submitCouponReg_(); });
-
-    // 割引タイプ変更で値入力欄を動的切替
-    $('cpnType').addEventListener('change', function() { updateCpnValueField_(); });
-
-    // 利用上限「その他」切替
-    $('cpnMaxUses').addEventListener('change', function() {
-      $('cpnMaxUsesCustom').style.display = this.value === 'custom' ? 'block' : 'none';
-    });
-  }
-
-}
-
-// =====================================================
-// クーポン登録モーダル（管理者専用）
-// =====================================================
-
-function openCouponRegModal_() {
-  // フォームリセット
-  $('cpnCode').value = '';
-  $('cpnType').value = 'rate';
-  $('cpnValue').value = '';
-  $('cpnTarget').value = 'all';
-  $('cpnOncePerUser').value = 'true';
-  $('cpnMaxUses').value = '0';
-  $('cpnMaxUsesCustom').value = '';
-  $('cpnMaxUsesCustom').style.display = 'none';
-  $('cpnStartDate').value = '';
-  $('cpnExpires').value = '';
-  $('cpnMemo').value = '';
-  $('cpnPreview').style.display = 'none';
-  $('cpnError').style.display = 'none';
-  $('cpnSubmitBtn').disabled = false;
-  updateCpnValueField_();
-  openModal($('couponRegModal'));
-}
-
-function updateCpnValueField_() {
-  var type = $('cpnType').value;
-  var field = $('cpnValueField');
-  if (type === 'shipping_free') {
-    field.style.display = 'none';
-  } else {
-    field.style.display = '';
-    if (type === 'rate') {
-      $('cpnValueLabel').textContent = '割引率 *';
-      $('cpnValueUnit').textContent = '%';
-      $('cpnValue').placeholder = '10';
-      $('cpnValueHint').textContent = '1〜99の整数で入力';
-    } else {
-      $('cpnValueLabel').textContent = '割引金額 *';
-      $('cpnValueUnit').textContent = '円';
-      $('cpnValue').placeholder = '500';
-      $('cpnValueHint').textContent = '1円以上の金額を入力';
-    }
-  }
-}
-
-function submitCouponReg_() {
-  var code = ($('cpnCode').value || '').trim().toUpperCase();
-  var type = $('cpnType').value;
-  var target = $('cpnTarget').value;
-  var oncePerUser = $('cpnOncePerUser').value === 'true';
-  var maxUsesVal = $('cpnMaxUses').value;
-  var maxUses = maxUsesVal === 'custom' ? (parseInt($('cpnMaxUsesCustom').value, 10) || 0) : parseInt(maxUsesVal, 10);
-  var startDate = $('cpnStartDate').value || '';
-  var expires = $('cpnExpires').value || '';
-  var memo = ($('cpnMemo').value || '').trim();
-
-  // 割引値の処理
-  var value = 0;
-  if (type === 'shipping_free') {
-    value = 0;
-  } else if (type === 'rate') {
-    var pct = parseFloat($('cpnValue').value);
-    if (isNaN(pct) || pct < 1 || pct > 99) {
-      showCpnError_('割引率は1〜99の整数で入力してください');
-      return;
-    }
-    value = pct / 100; // 10 → 0.10
-  } else {
-    value = parseFloat($('cpnValue').value);
-    if (isNaN(value) || value <= 0) {
-      showCpnError_('割引金額は1以上で入力してください');
-      return;
-    }
-  }
-
-  // バリデーション
-  if (!code) { showCpnError_('クーポンコードを入力してください'); return; }
-  if (!/^[A-Z0-9_-]+$/.test(code)) { showCpnError_('コードは英数字・ハイフン・アンダースコアのみ使用できます'); return; }
-  if (maxUsesVal === 'custom' && maxUses < 1) { showCpnError_('利用上限回数を入力してください'); return; }
-
-  // 日付チェック
-  if (startDate && expires && startDate > expires) {
-    showCpnError_('有効開始日が有効期限より後になっています');
-    return;
-  }
-
-  // 確認プレビュー表示
-  var targetLabels = { all: '全員', 'new': '新規限定', repeat: 'リピーター限定' };
-  var discountLabel = type === 'rate' ? (Math.round(value * 100) + '%OFF')
-    : type === 'fixed' ? (value + '円引き')
-    : '送料無料';
-
-  var preview = '<strong>コード:</strong> ' + code + '<br>'
-    + '<strong>割引:</strong> ' + discountLabel + '<br>'
-    + '<strong>対象:</strong> ' + targetLabels[target] + '<br>'
-    + '<strong>1人1回制限:</strong> ' + (oncePerUser ? 'あり' : 'なし') + '<br>'
-    + '<strong>利用上限:</strong> ' + (maxUses > 0 ? maxUses + '回' : '無制限') + '<br>'
-    + '<strong>開始日:</strong> ' + (startDate || '即日') + '<br>'
-    + '<strong>有効期限:</strong> ' + (expires || '無期限') + '<br>'
-    + (memo ? '<strong>メモ:</strong> ' + memo : '');
-
-  $('cpnPreview').innerHTML = preview;
-  $('cpnPreview').style.display = 'block';
-  $('cpnError').style.display = 'none';
-
-  // 確認後に送信（2回目クリックで実行）
-  if ($('cpnSubmitBtn').dataset.confirmed === 'true') {
-    $('cpnSubmitBtn').disabled = true;
-    $('cpnSubmitBtn').textContent = '登録中...';
-
-    var data = {
-      code: code, type: type, value: value, target: target,
-      oncePerUser: oncePerUser, maxUses: maxUses,
-      startDate: startDate, expires: expires, memo: memo
-    };
-
-    runApi('apiAdminRegisterCoupon', ADMIN_KEY, data)
-      .then(function(res) {
-        if (!res || !res.ok) throw new Error(res && res.message ? res.message : '登録に失敗しました');
-        closeModal($('couponRegModal'));
-        showToast('クーポン「' + code + '」（' + discountLabel + '）を登録しました');
-      })
-      .catch(function(e) {
-        showCpnError_(e.message || '登録に失敗しました');
-      })
-      .finally(function() {
-        $('cpnSubmitBtn').disabled = false;
-        $('cpnSubmitBtn').textContent = '登録する';
-        $('cpnSubmitBtn').dataset.confirmed = '';
-      });
-  } else {
-    $('cpnSubmitBtn').dataset.confirmed = 'true';
-    $('cpnSubmitBtn').textContent = '確認して登録';
-  }
-}
-
-function showCpnError_(msg) {
-  $('cpnError').textContent = msg;
-  $('cpnError').style.display = 'block';
-  $('cpnSubmitBtn').dataset.confirmed = '';
-  $('cpnSubmitBtn').textContent = '登録する';
 }
 
 function setupScrollTopButton_() {
@@ -4921,11 +4647,11 @@ boot();
 
     // --- 決済 ---
     { q: '決済方法は？', category: '決済',
-      a: '【ご利用可能な決済方法】\n・クレジットカード\n・コンビニ決済（別途手数料220円）\n・銀行振込（振込手数料はお客様負担）\n\nクレジットカードが最もスムーズにお手続きいただけます。' },
+      a: '【ご利用可能な決済方法】\n・クレジットカード（Visa/Mastercard/JCB/AMEX/Diners/Discover）\n・コンビニ決済（別途手数料220円）\n・銀行振込（振込手数料はお客様負担）\n・PayPay\n・ペイジー（振込手数料はお客様負担）\n\nクレジットカードまたはPayPayが最もスムーズにお手続きいただけます。' },
     { q: 'コンビニ決済の手数料は？', category: '決済',
-      a: 'コンビニ決済をご利用の場合、別途220円の手数料がかかります。\n\n手数料を抑えたい場合は、クレジットカード決済がおすすめです。' },
+      a: 'コンビニ決済をご利用の場合、別途220円の手数料がかかります。\n\n手数料を抑えたい場合は、クレジットカードまたはPayPay決済がおすすめです。' },
     { q: '銀行振込の手数料は？', category: '決済',
-      a: '銀行振込をご利用の場合、振込手数料はお客様のご負担となります。\n手数料の金額はご利用の金融機関により異なります。' },
+      a: '銀行振込をご利用の場合、振込手数料はお客様のご負担となります。\n手数料の金額はご利用の金融機関により異なります。\nペイジーも同様です。' },
 
     // --- 割引・セール ---
     { q: '割引はある？', category: '割引・セール',
