@@ -80,7 +80,9 @@ function apiSubmitEstimate(userKey, form, ids) {
       couponDiscount = calcCouponDiscount_(couponResult.type, couponResult.value, sum);
       couponLabel = couponResult.type === 'rate'
         ? ('クーポン' + Math.round(couponResult.value * 100) + '%OFF')
-        : ('クーポン' + couponResult.value + '円引き');
+        : couponResult.type === 'shipping_free'
+          ? 'クーポン送料無料'
+          : ('クーポン' + couponResult.value + '円引き');
     } else {
       // 通常割引（クーポン未使用時のみ適用）
 
@@ -110,6 +112,11 @@ function apiSubmitEstimate(userKey, form, ids) {
     var shippingArea = String(f.shippingArea || '');
     var shippingPref = String(f.shippingPref || '');
 
+    // 送料無料クーポン適用
+    if (validatedCoupon && validatedCoupon.type === 'shipping_free') {
+      shippingAmount = 0;
+    }
+
     // === ポイント利用額の事前計算（ロック不要） ===
     var pointsUsed = 0;
     var custForPoints = null;
@@ -122,7 +129,10 @@ function apiSubmitEstimate(userKey, form, ids) {
     }
 
     // === 割引・送料を備考に追記 ===
-    if (couponCode && couponDiscount > 0) {
+    if (couponCode && validatedCoupon && validatedCoupon.type === 'shipping_free') {
+      var couponNote = '【' + couponLabel + ' コード: ' + couponCode + '】';
+      note = note ? (note + '\n' + couponNote) : couponNote;
+    } else if (couponCode && couponDiscount > 0) {
       var couponNote = '【' + couponLabel + '（-' + couponDiscount + '円）コード: ' + couponCode + '】';
       note = note ? (note + '\n' + couponNote) : couponNote;
     }

@@ -59,16 +59,74 @@ function sh_ensureCouponLogSheet_(ss) {
 // =====================================================
 
 /**
- * クーポン登録（管理メニューから呼ばれる）
+ * クーポン登録（管理メニューから呼ばれる・一括入力）
  */
 function registerCoupon() {
   var ui = SpreadsheetApp.getUi();
 
-  // --- クーポンコード ---
-  var r1 = ui.prompt('クーポン登録 (1/7)', 'クーポンコードを入力してください:', ui.ButtonSet.OK_CANCEL);
-  if (r1.getSelectedButton() !== ui.Button.OK) return;
-  var code = String(r1.getResponseText() || '').trim().toUpperCase();
+  var res = ui.prompt('クーポン登録（一括入力）',
+    'カンマ区切りで入力してください:\n\n' +
+    '書式: コード, タイプ, 値, 有効期限, 利用上限, 1人1回, 対象顧客, 有効開始日, メモ\n\n' +
+    '■ タイプ:\n' +
+    '  rate          → 割引率（例: 0.10 = 10%OFF）\n' +
+    '  fixed         → 固定額引き（例: 500 = 500円引き）\n' +
+    '  shipping_free → 送料無料（値は不要、0でOK）\n\n' +
+    '■ 対象顧客: all=全員 / new=新規限定 / repeat=リピーター限定\n\n' +
+    '■ 空欄にする場合はスキップ（カンマだけ書く）\n\n' +
+    '例1: SUMMER10, rate, 0.10, 2026-12-31, 0, true, all, , 夏セール\n' +
+    '例2: WELCOME500, fixed, 500, , 0, true, new, , 初回500円引き\n' +
+    '例3: FREESHIP, shipping_free, 0, 2026-03-31, 100, false, repeat, 2026-03-01, リピーター送料無料',
+    ui.ButtonSet.OK_CANCEL);
+  if (res.getSelectedButton() !== ui.Button.OK) return;
+
+  var input = String(res.getResponseText() || '').trim();
+  if (!input) { ui.alert('入力が空です。'); return; }
+
+  var parts = input.split(',');
+  for (var pi = 0; pi < parts.length; pi++) parts[pi] = parts[pi].trim();
+
+  // パース
+  var code = String(parts[0] || '').toUpperCase();
   if (!code) { ui.alert('クーポンコードが空です。'); return; }
+
+  var type = String(parts[1] || '').toLowerCase();
+  if (type !== 'rate' && type !== 'fixed' && type !== 'shipping_free') {
+    ui.alert('割引タイプは rate / fixed / shipping_free のいずれかを指定してください。');
+    return;
+  }
+
+  var value = 0;
+  if (type === 'shipping_free') {
+    value = 0;
+  } else {
+    value = Number(parts[2]);
+    if (isNaN(value) || value <= 0) { ui.alert('割引値は0より大きい数値を指定してください。'); return; }
+    if (type === 'rate' && value >= 1) { ui.alert('rate の場合は小数で指定してください（例: 0.10 = 10%）。'); return; }
+  }
+
+  var expiresStr = String(parts[3] || '').trim();
+  var expires = '';
+  if (expiresStr) {
+    var d = new Date(expiresStr);
+    if (isNaN(d.getTime())) { ui.alert('有効期限の日付形式が正しくありません。'); return; }
+    expires = d;
+  }
+
+  var maxUses = Number(parts[4]) || 0;
+  var oncePerUser = String(parts[5] || 'false').toLowerCase() === 'true';
+
+  var targetInput = String(parts[6] || '').toLowerCase();
+  var target = (targetInput === 'new' || targetInput === 'repeat') ? targetInput : 'all';
+
+  var startDateStr = String(parts[7] || '').trim();
+  var startDate = '';
+  if (startDateStr) {
+    var sd = new Date(startDateStr);
+    if (isNaN(sd.getTime())) { ui.alert('有効開始日の日付形式が正しくありません。'); return; }
+    startDate = sd;
+  }
+
+  var memo = String(parts[8] || '').trim();
 
   // 重複チェック
   var ss = sh_getOrderSs_();
@@ -84,80 +142,11 @@ function registerCoupon() {
     }
   }
 
-  // --- 割引タイプ + 割引値 ---
-  var r2 = ui.prompt('クーポン登録 (2/7)',
-    '割引タイプと値を入力してください:\n\n' +
-    '書式: タイプ 値\n' +
-    '  例: rate 0.10  → 10%OFF\n' +
-    '  例: fixed 500  → 500円引き',
-    ui.ButtonSet.OK_CANCEL);
-  if (r2.getSelectedButton() !== ui.Button.OK) return;
-  var parts = String(r2.getResponseText() || '').trim().split(/[\s,]+/);
-  var type = String(parts[0] || '').toLowerCase();
-  var value = Number(parts[1]);
-  if (type !== 'rate' && type !== 'fixed') { ui.alert('割引タイプは rate または fixed を指定してください。'); return; }
-  if (isNaN(value) || value <= 0) { ui.alert('割引値は0より大きい数値を指定してください。'); return; }
-  if (type === 'rate' && value >= 1) { ui.alert('rate の場合は小数で指定してください（例: 0.10 = 10%）。'); return; }
-
-  // --- 有効期限 ---
-  var r3 = ui.prompt('クーポン登録 (3/7)',
-    '有効期限を入力してください（空欄=無期限）:\n例: 2026-12-31',
-    ui.ButtonSet.OK_CANCEL);
-  if (r3.getSelectedButton() !== ui.Button.OK) return;
-  var expiresStr = String(r3.getResponseText() || '').trim();
-  var expires = '';
-  if (expiresStr) {
-    var d = new Date(expiresStr);
-    if (isNaN(d.getTime())) { ui.alert('日付の形式が正しくありません。'); return; }
-    expires = d;
-  }
-
-  // --- 利用上限 + 1人1回制限 ---
-  var r4 = ui.prompt('クーポン登録 (4/7)',
-    '利用上限と1人1回制限を入力してください:\n\n' +
-    '書式: 上限回数 1人1回制限\n' +
-    '  例: 0 true   → 無制限・1人1回\n' +
-    '  例: 100 false → 100回まで・制限なし\n' +
-    '  例: 0 false   → 無制限・制限なし',
-    ui.ButtonSet.OK_CANCEL);
-  if (r4.getSelectedButton() !== ui.Button.OK) return;
-  var p4 = String(r4.getResponseText() || '').trim().split(/[\s,]+/);
-  var maxUses = Number(p4[0]) || 0;
-  var oncePerUser = String(p4[1] || 'false').toLowerCase() === 'true';
-
-  // --- 対象顧客 ---
-  var r5 = ui.prompt('クーポン登録 (5/7)',
-    '対象顧客を選択してください:\n\n' +
-    '  all    → 全員（デフォルト）\n' +
-    '  new    → 新規限定（注文履歴なし）\n' +
-    '  repeat → リピーター限定（注文履歴あり）\n\n' +
-    '空欄の場合は all として扱います。',
-    ui.ButtonSet.OK_CANCEL);
-  if (r5.getSelectedButton() !== ui.Button.OK) return;
-  var targetInput = String(r5.getResponseText() || '').trim().toLowerCase();
-  var target = (targetInput === 'new' || targetInput === 'repeat') ? targetInput : 'all';
-
-  // --- 有効開始日 ---
-  var r6 = ui.prompt('クーポン登録 (6/7)',
-    '有効開始日を入力してください（空欄=即日有効）:\n例: 2026-03-01',
-    ui.ButtonSet.OK_CANCEL);
-  if (r6.getSelectedButton() !== ui.Button.OK) return;
-  var startDateStr = String(r6.getResponseText() || '').trim();
-  var startDate = '';
-  if (startDateStr) {
-    var sd = new Date(startDateStr);
-    if (isNaN(sd.getTime())) { ui.alert('日付の形式が正しくありません。'); return; }
-    startDate = sd;
-  }
-
-  // --- メモ ---
-  var r7 = ui.prompt('クーポン登録 (7/7)', 'メモ（任意）:', ui.ButtonSet.OK_CANCEL);
-  if (r7.getSelectedButton() !== ui.Button.OK) return;
-  var memo = String(r7.getResponseText() || '').trim();
-
-  // --- 確認 ---
-  var label = type === 'rate' ? (Math.round(value * 100) + '%OFF') : (value + '円引き');
+  // 確認
   var targetLabels = { all: '全員', 'new': '新規限定', repeat: 'リピーター限定' };
+  var label = type === 'rate' ? (Math.round(value * 100) + '%OFF')
+            : type === 'fixed' ? (value + '円引き')
+            : '送料無料';
   var summary =
     'コード: ' + code + '\n' +
     '割引: ' + label + '\n' +
@@ -171,7 +160,7 @@ function registerCoupon() {
   var confirm = ui.alert('クーポン登録 確認', summary + '\n\nこの内容で登録しますか？', ui.ButtonSet.YES_NO);
   if (confirm !== ui.Button.YES) return;
 
-  // --- 書き込み ---
+  // 書き込み
   var newRow = sh.getLastRow() + 1;
   sh.getRange(newRow, 1, 1, 11).setValues([[code, type, value, expires, maxUses, 0, oncePerUser, true, memo, target, startDate]]);
 
@@ -199,7 +188,9 @@ function deleteCoupon() {
     if (!c) continue;
     var t = data[i][COUPON_COLS.TYPE];
     var v = data[i][COUPON_COLS.VALUE];
-    var label = t === 'rate' ? (Math.round(Number(v) * 100) + '%OFF') : (v + '円引き');
+    var label = t === 'rate' ? (Math.round(Number(v) * 100) + '%OFF')
+              : t === 'shipping_free' ? '送料無料'
+              : (v + '円引き');
     var active = (data[i][COUPON_COLS.ACTIVE] === true || String(data[i][COUPON_COLS.ACTIVE]).toUpperCase() === 'TRUE');
     var uses = Number(data[i][COUPON_COLS.USE_COUNT]) || 0;
     var tgt = String(data[i][COUPON_COLS.TARGET] || '').trim().toLowerCase();
@@ -262,14 +253,18 @@ function apiValidateCoupon(code, email, productAmount) {
     if (!result.ok) return result;
 
     var discountAmount = calcCouponDiscount_(result.type, result.value, productAmount);
+    var label = result.type === 'rate'
+      ? (Math.round(result.value * 100) + '%OFF')
+      : result.type === 'shipping_free'
+        ? '送料無料'
+        : (result.value + '円引き');
     return {
       ok: true,
       type: result.type,
       value: result.value,
       discountAmount: discountAmount,
-      label: result.type === 'rate'
-        ? (Math.round(result.value * 100) + '%OFF')
-        : (result.value + '円引き')
+      freeShipping: result.type === 'shipping_free',
+      label: label
     };
   } catch (e) {
     return { ok: false, message: String(e && e.message ? e.message : e) };
@@ -367,10 +362,10 @@ function validateCoupon_(code, email) {
   var type = String(coupon[COUPON_COLS.TYPE] || 'rate').trim().toLowerCase();
   var value = Number(coupon[COUPON_COLS.VALUE]) || 0;
 
-  if (type !== 'rate' && type !== 'fixed') {
+  if (type !== 'rate' && type !== 'fixed' && type !== 'shipping_free') {
     return { ok: false, message: 'クーポン設定にエラーがあります' };
   }
-  if (value <= 0) {
+  if (type !== 'shipping_free' && value <= 0) {
     return { ok: false, message: 'クーポン設定にエラーがあります' };
   }
 
@@ -381,7 +376,9 @@ function validateCoupon_(code, email) {
  * クーポン割引額を計算
  */
 function calcCouponDiscount_(type, value, productAmount) {
-  if (type === 'rate') {
+  if (type === 'shipping_free') {
+    return 0; // 商品割引なし（送料はSubmitFix側で0にする）
+  } else if (type === 'rate') {
     return Math.round(productAmount * value);
   } else {
     return Math.min(value, productAmount);
