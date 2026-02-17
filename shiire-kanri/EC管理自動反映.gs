@@ -155,33 +155,49 @@ function syncBaseOrdersToEc() {
       }
     }
 
-    // --- 既存注文キーの収集 ---
-    const existingOrderKeys = new Set();
+    // --- 既存注文キーの収集（行番号も保持） ---
+    const existingKeyToRow = new Map();
     const dstLastRow = dstSh.getLastRow();
+    let dstAllValues = [];
     if (dstLastRow >= 2) {
-      const dstKeys2 = dstSh.getRange(2, dstOrderKeyCol, dstLastRow - 1, 1).getValues();
-      for (let i = 0; i < dstKeys2.length; i++) {
-        const k = normalizeKeyPart_(dstKeys2[i][0]);
-        if (k) existingOrderKeys.add(k);
+      dstAllValues = dstSh.getRange(2, 1, dstLastRow - 1, dstLastCol).getValues();
+      for (let i = 0; i < dstAllValues.length; i++) {
+        const k = normalizeKeyPart_(dstAllValues[i][dstOrderKeyCol - 1]);
+        if (k) existingKeyToRow.set(k, i + 2);
       }
     }
 
-    // --- 挿入データ構築 ---
+    // --- 挿入・更新データ構築 ---
     const toInsert = [];
     for (const [rk, group] of orderGroups) {
-      if (existingOrderKeys.has(rk)) continue;
-
-      // チャンネル判定: BASE_注文に存在すればBASE、なければデタウリ
       const isBase = baseOrderKeys.has(rk);
       const channel = isBase ? 'BASE' : 'デタウリ';
 
-      // 手数料計算
       let fee = 0;
       if (isBase) {
         fee = Math.round(group.totalSales * cfg.BASE_FEE_RATE + cfg.BASE_FEE_FIXED);
       } else {
         const rate = cfg.DETAURI_FEE_RATES[group.paymentMethod] || 0;
         fee = Math.round(group.totalSales * rate);
+      }
+
+      const existingRow = existingKeyToRow.get(rk);
+      if (existingRow) {
+        // --- 既存行を更新（チャンネル・伝票番号・手数料が空なら埋める） ---
+        const rowData = dstAllValues[existingRow - 2];
+        if (!String(rowData[dstChannelCol - 1] || '').trim()) {
+          dstSh.getRange(existingRow, dstChannelCol).setValue(channel);
+        }
+        if (dstFeeCol > 0 && !String(rowData[dstFeeCol - 1] || '').trim()) {
+          dstSh.getRange(existingRow, dstFeeCol).setValue(fee);
+        }
+        if (dstTrackingCol > 0 && group.tracking) {
+          const cur = String(rowData[dstTrackingCol - 1] || '').trim();
+          if (!cur) {
+            dstSh.getRange(existingRow, dstTrackingCol).setValue(group.tracking);
+          }
+        }
+        continue;
       }
 
       toInsert.push({
@@ -194,7 +210,6 @@ function syncBaseOrdersToEc() {
         shippingCustomer: group.shippingCustomer || '',
         tracking: group.tracking || ''
       });
-      existingOrderKeys.add(rk);
     }
 
     if (toInsert.length === 0) return;
