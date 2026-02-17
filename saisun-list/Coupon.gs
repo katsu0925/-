@@ -73,7 +73,7 @@ function registerCoupon() {
 /**
  * 登録ダイアログ用: 既存クーポン一覧を取得（複製用）
  */
-function getCouponListForDuplicate_() {
+function getCouponListForDuplicate() {
   var ss = sh_getOrderSs_();
   var sh = ss.getSheetByName(COUPON_SHEET_NAME);
   if (!sh) return [];
@@ -345,7 +345,7 @@ function getCouponDialogHtml_() {
     + '      }'
     + '    })'
     + '    .withFailureHandler(function(){})'
-    + '    .getCouponListForDuplicate_();'
+    + '    .getCouponListForDuplicate();'
     + '}'
     + 'function onDuplicate(){'
     + '  var code=document.getElementById("duplicateFrom").value;'
@@ -440,7 +440,7 @@ function deleteCoupon() {
 /**
  * 削除ダイアログ用: クーポン一覧を取得
  */
-function getDeleteCouponList_() {
+function getDeleteCouponList() {
   var ss = sh_getOrderSs_();
   var sh = ss.getSheetByName(COUPON_SHEET_NAME);
   if (!sh) return [];
@@ -553,7 +553,7 @@ function getDeleteCouponDialogHtml_() {
     + '      }'
     + '    })'
     + '    .withFailureHandler(function(e){showError(e&&e.message?e.message:"一覧の取得に失敗しました");})'
-    + '    .getDeleteCouponList_();'
+    + '    .getDeleteCouponList();'
     + '}'
     + 'function onSelect(){'
     + '  var code=document.getElementById("couponSelect").value;'
