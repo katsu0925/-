@@ -1,6 +1,6 @@
 function app_measureOptLabel_(measureOpt) {
   const v = String(measureOpt || '');
-  return (v === 'without') ? '無し（合計5%OFF）' : '付き';
+  return (v === 'without') ? '無し' : '付き';
 }
 
 function app_buildTemplateText_(receiptNo, form, ids, totalCount, totalYen) {

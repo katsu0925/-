@@ -4,7 +4,7 @@
 // クーポン管理シート列構成:
 // A=クーポンコード, B=割引タイプ(rate/fixed), C=割引値, D=有効期限,
 // E=利用上限, F=利用回数, G=1人1回制限(TRUE/FALSE), H=有効(TRUE/FALSE), I=メモ,
-// J=対象顧客(all/new/repeat), K=有効開始日
+// J=対象顧客(all/new/repeat), K=有効開始日, L=会員割引併用(TRUE/FALSE), M=30点割引併用(TRUE/FALSE)
 
 var COUPON_SHEET_NAME = 'クーポン管理';
 
@@ -19,7 +19,9 @@ var COUPON_COLS = {
   ACTIVE: 7,      // H: 有効
   MEMO: 8,        // I: メモ
   TARGET: 9,      // J: 対象顧客 (all=全員 / new=新規限定 / repeat=リピーター限定)
-  START_DATE: 10  // K: 有効開始日
+  START_DATE: 10, // K: 有効開始日
+  COMBO_MEMBER: 11, // L: 会員割引との併用 (TRUE/FALSE)
+  COMBO_BULK: 12    // M: 30点割引との併用 (TRUE/FALSE)
 };
 
 // クーポン利用履歴シート列構成:
@@ -32,7 +34,7 @@ var COUPON_LOG_SHEET_NAME = 'クーポン利用履歴';
 function sh_ensureCouponSheet_(ss) {
   var sh = ss.getSheetByName(COUPON_SHEET_NAME);
   if (!sh) sh = ss.insertSheet(COUPON_SHEET_NAME);
-  var header = ['クーポンコード', '割引タイプ', '割引値', '有効期限', '利用上限', '利用回数', '1人1回制限', '有効', 'メモ', '対象顧客', '有効開始日'];
+  var header = ['クーポンコード', '割引タイプ', '割引値', '有効期限', '利用上限', '利用回数', '1人1回制限', '有効', 'メモ', '対象顧客', '有効開始日', '会員割引併用', '30点割引併用'];
   var r1 = sh.getRange(1, 1, 1, header.length).getValues()[0];
   var needs = false;
   for (var i = 0; i < header.length; i++) if (String(r1[i] || '') !== header[i]) { needs = true; break; }
@@ -64,7 +66,7 @@ function sh_ensureCouponLogSheet_(ss) {
 function registerCoupon() {
   var html = HtmlService.createHtmlOutput(getCouponDialogHtml_())
     .setWidth(480)
-    .setHeight(620);
+    .setHeight(700);
   SpreadsheetApp.getUi().showModalDialog(html, 'クーポン登録');
 }
 
@@ -79,7 +81,7 @@ function getCouponListForDuplicate_() {
   var lastRow = sh.getLastRow();
   if (lastRow < 2) return [];
 
-  var data = sh.getRange(2, 1, lastRow - 1, 11).getValues();
+  var data = sh.getRange(2, 1, lastRow - 1, 13).getValues();
   var list = [];
   for (var i = 0; i < data.length; i++) {
     var c = String(data[i][COUPON_COLS.CODE] || '').trim();
@@ -113,7 +115,9 @@ function getCouponListForDuplicate_() {
       maxUses: Number(data[i][COUPON_COLS.MAX_USES]) || 0,
       startDate: startDateStr,
       expires: expiresStr,
-      memo: String(data[i][COUPON_COLS.MEMO] || '')
+      memo: String(data[i][COUPON_COLS.MEMO] || ''),
+      comboMember: (data[i][COUPON_COLS.COMBO_MEMBER] === true || String(data[i][COUPON_COLS.COMBO_MEMBER]).toUpperCase() === 'TRUE'),
+      comboBulk: (data[i][COUPON_COLS.COMBO_BULK] === true || String(data[i][COUPON_COLS.COMBO_BULK]).toUpperCase() === 'TRUE')
     });
   }
   return list;
@@ -174,6 +178,9 @@ function registerCouponFromDialog(data) {
 
   var memo = String(data.memo || '').trim();
 
+  var comboMember = data.comboMember === true || String(data.comboMember) === 'true';
+  var comboBulk = data.comboBulk === true || String(data.comboBulk) === 'true';
+
   // 重複チェック
   var ss = sh_getOrderSs_();
   var sh = sh_ensureCouponSheet_(ss);
@@ -189,7 +196,7 @@ function registerCouponFromDialog(data) {
 
   // 書き込み
   var newRow = sh.getLastRow() + 1;
-  sh.getRange(newRow, 1, 1, 11).setValues([[code, type, value, expires, maxUses, 0, oncePerUser, true, memo, target, startDate]]);
+  sh.getRange(newRow, 1, 1, 13).setValues([[code, type, value, expires, maxUses, 0, oncePerUser, true, memo, target, startDate, comboMember, comboBulk]]);
 
   var label = type === 'rate' ? (Math.round(value * 100) + '%OFF')
             : type === 'fixed' ? (value + '円引き')
@@ -297,6 +304,25 @@ function getCouponDialogHtml_() {
     + '  <input id="memo" placeholder="管理用メモ">'
     + '</div></div>'
 
+    + '<div class="row">'
+    + '<div class="col">'
+    + '  <label>会員割引との併用</label>'
+    + '  <select id="comboMember">'
+    + '    <option value="false">不可</option>'
+    + '    <option value="true">可</option>'
+    + '  </select>'
+    + '  <div class="hint">クーポンと会員割引(10%OFF)の併用</div>'
+    + '</div>'
+    + '<div class="col">'
+    + '  <label>30点割引との併用</label>'
+    + '  <select id="comboBulk">'
+    + '    <option value="false">不可</option>'
+    + '    <option value="true">可</option>'
+    + '  </select>'
+    + '  <div class="hint">クーポンと30点以上割引(10%OFF)の併用</div>'
+    + '</div>'
+    + '</div>'
+
     + '<div class="error" id="error"></div>'
     + '<div class="footer">'
     + '  <button class="btn" onclick="google.script.host.close()">キャンセル</button>'
@@ -341,6 +367,8 @@ function getCouponDialogHtml_() {
     + '  document.getElementById("startDate").value=c.startDate||"";'
     + '  document.getElementById("expires").value=c.expires||"";'
     + '  document.getElementById("memo").value=c.memo||"";'
+    + '  document.getElementById("comboMember").value=c.comboMember?"true":"false";'
+    + '  document.getElementById("comboBulk").value=c.comboBulk?"true":"false";'
     + '  document.getElementById("code").focus();'
     + '  document.getElementById("code").select();'
     + '}'
@@ -373,7 +401,9 @@ function getCouponDialogHtml_() {
     + '    maxUses:document.getElementById("maxUses").value,'
     + '    startDate:document.getElementById("startDate").value,'
     + '    expires:document.getElementById("expires").value,'
-    + '    memo:document.getElementById("memo").value'
+    + '    memo:document.getElementById("memo").value,'
+    + '    comboMember:document.getElementById("comboMember").value,'
+    + '    comboBulk:document.getElementById("comboBulk").value'
     + '  };'
     + '  google.script.run'
     + '    .withSuccessHandler(function(r){'
@@ -418,7 +448,7 @@ function getDeleteCouponList_() {
   var lastRow = sh.getLastRow();
   if (lastRow < 2) return [];
 
-  var data = sh.getRange(2, 1, lastRow - 1, 11).getValues();
+  var data = sh.getRange(2, 1, lastRow - 1, 13).getValues();
   var targetLabels = { all: '全員', 'new': '新規限定', repeat: 'リピーター限定' };
   var list = [];
   for (var i = 0; i < data.length; i++) {
@@ -458,7 +488,7 @@ function deleteCouponFromDialog(code) {
   var lastRow = sh.getLastRow();
   if (lastRow < 2) return { ok: false, message: '登録されているクーポンがありません' };
 
-  var data = sh.getRange(2, 1, lastRow - 1, 11).getValues();
+  var data = sh.getRange(2, 1, lastRow - 1, 13).getValues();
   var targetRow = -1;
   for (var j = 0; j < data.length; j++) {
     if (String(data[j][COUPON_COLS.CODE] || '').trim().toUpperCase() === code) {
@@ -592,7 +622,9 @@ function apiValidateCoupon(code, email, productAmount) {
       value: result.value,
       discountAmount: discountAmount,
       freeShipping: result.type === 'shipping_free',
-      label: label
+      label: label,
+      comboMember: result.comboMember || false,
+      comboBulk: result.comboBulk || false
     };
   } catch (e) {
     return { ok: false, message: String(e && e.message ? e.message : e) };
@@ -613,7 +645,7 @@ function validateCoupon_(code, email) {
   var lastRow = sh.getLastRow();
   if (lastRow < 2) return { ok: false, message: '無効なクーポンコードです' };
 
-  var data = sh.getRange(2, 1, lastRow - 1, 11).getValues();
+  var data = sh.getRange(2, 1, lastRow - 1, 13).getValues();
   var coupon = null;
   var couponRow = -1;
 
@@ -697,7 +729,10 @@ function validateCoupon_(code, email) {
     return { ok: false, message: 'クーポン設定にエラーがあります' };
   }
 
-  return { ok: true, type: type, value: value, row: couponRow };
+  var comboMember = (coupon[COUPON_COLS.COMBO_MEMBER] === true || String(coupon[COUPON_COLS.COMBO_MEMBER]).toUpperCase() === 'TRUE');
+  var comboBulk = (coupon[COUPON_COLS.COMBO_BULK] === true || String(coupon[COUPON_COLS.COMBO_BULK]).toUpperCase() === 'TRUE');
+
+  return { ok: true, type: type, value: value, row: couponRow, comboMember: comboMember, comboBulk: comboBulk };
 }
 
 /**

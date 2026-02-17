@@ -1166,7 +1166,7 @@ var state = {
   sessionId: null,
   csrfToken: null,
   dataLoaded: false,
-  appliedCoupon: null  // { code, type, value, discountAmount, label }
+  appliedCoupon: null  // { code, type, value, discountAmount, label, comboMember, comboBulk }
 };
 
 // =====================================================
@@ -1439,7 +1439,11 @@ function calcProductTotal_() {
   var discounted;
   if (state.appliedCoupon && state.appliedCoupon.code && state.appliedCoupon.type !== 'shipping_free') {
     var cd = state.appliedCoupon.discountAmount || 0;
-    discounted = Math.max(0, sum - cd);
+    var afterCoupon = Math.max(0, sum - cd);
+    var comboRate = 0;
+    if (state.appliedCoupon.comboBulk && ids.length >= 30) comboRate += BULK_DISCOUNT_RATE;
+    if (state.appliedCoupon.comboMember && state.customer && MEMBER_DISCOUNT_ENABLED) comboRate += MEMBER_DISCOUNT_RATE;
+    discounted = Math.round(afterCoupon * (1 - comboRate));
   } else {
     var discountRate = 0;
     if (ids.length >= 30) discountRate += BULK_DISCOUNT_RATE;
@@ -3007,12 +3011,21 @@ function updateCartPrice() {
     if (it) sum += Number(it.price || 0);
   }
   var count = ids.length;
-  // 割引を累積（会員10% + 30点以上10% = 最大20%）
-  var discountRate = 0;
-  if (count >= 30) discountRate += BULK_DISCOUNT_RATE;
-  if (state.customer && MEMBER_DISCOUNT_ENABLED) discountRate += MEMBER_DISCOUNT_RATE;
-  if (discountRate > 0) {
-    var discounted = Math.round(sum * (1 - discountRate));
+  var discounted;
+  if (state.appliedCoupon && state.appliedCoupon.code && state.appliedCoupon.type !== 'shipping_free') {
+    var cd = state.appliedCoupon.discountAmount || 0;
+    var afterCoupon = Math.max(0, sum - cd);
+    var comboRate = 0;
+    if (state.appliedCoupon.comboBulk && count >= 30) comboRate += BULK_DISCOUNT_RATE;
+    if (state.appliedCoupon.comboMember && state.customer && MEMBER_DISCOUNT_ENABLED) comboRate += MEMBER_DISCOUNT_RATE;
+    discounted = Math.round(afterCoupon * (1 - comboRate));
+  } else {
+    var discountRate = 0;
+    if (count >= 30) discountRate += BULK_DISCOUNT_RATE;
+    if (state.customer && MEMBER_DISCOUNT_ENABLED) discountRate += MEMBER_DISCOUNT_RATE;
+    discounted = Math.round(sum * (1 - discountRate));
+  }
+  if (discounted < sum) {
     $('cartTotal').innerHTML = '<span class="price-old">' + yen(sum) + '</span> → <span class="price-new">' + yen(discounted) + '</span>';
   } else { $('cartTotal').textContent = yen(sum); }
 }
@@ -3981,10 +3994,14 @@ function updateCartPrices_() {
   var discounted;
   if (state.appliedCoupon && state.appliedCoupon.code) {
     var cd = state.appliedCoupon.discountAmount || 0;
-    discounted = Math.max(0, sum - cd);
+    var afterCoupon = Math.max(0, sum - cd);
     if (state.appliedCoupon.type !== 'shipping_free') {
       discountLabels.push(state.appliedCoupon.label);
     }
+    var comboRate = 0;
+    if (state.appliedCoupon.comboBulk && count >= 30) { comboRate += BULK_DISCOUNT_RATE; discountLabels.push('30点割引10%OFF'); }
+    if (state.appliedCoupon.comboMember && state.customer && MEMBER_DISCOUNT_ENABLED) { comboRate += MEMBER_DISCOUNT_RATE; discountLabels.push('会員10%OFF'); }
+    discounted = Math.round(afterCoupon * (1 - comboRate));
   } else {
     var discountRate = 0;
     if (count >= 30) { discountRate += BULK_DISCOUNT_RATE; discountLabels.push('30点割引10%OFF'); }
@@ -4133,7 +4150,7 @@ function applyCoupon_() {
       state.appliedCoupon = null;
       return;
     }
-    state.appliedCoupon = { code: code.toUpperCase(), type: res.type, value: res.value, discountAmount: res.discountAmount, label: res.label };
+    state.appliedCoupon = { code: code.toUpperCase(), type: res.type, value: res.value, discountAmount: res.discountAmount, label: res.label, comboMember: res.comboMember || false, comboBulk: res.comboBulk || false };
     var discountText = res.type === 'shipping_free' ? '' : '（-' + yen(res.discountAmount) + '）';
     info.innerHTML = '<span style="color:#2e7d32;">&#10003; ' + res.label + discountText + '適用済み</span>';
     $('couponCode').disabled = true;

@@ -366,6 +366,14 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
 
       var cost = toNumber_(listRow[10]) || 0;
       var price = normalizeSellPrice_(om_calcPriceTier_(cost));
+
+      // 状態による価格調整
+      if (condition === '傷や汚れあり') {
+        price = normalizeSellPrice_(Math.round(price * 0.8));
+      } else if (condition === '目立った傷や汚れなし' && damageDetail.trim() !== '') {
+        price = normalizeSellPrice_(Math.round(price * 0.9));
+      }
+
       var priceText = price.toLocaleString('ja-JP') + '円';
 
       exportData.push([false, boxId, targetId, brand, aiTitle, item, size, condition, damageDetail, measurementText, description, priceText]);
