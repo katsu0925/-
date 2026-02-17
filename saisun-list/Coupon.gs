@@ -3,7 +3,8 @@
 // =====================================================
 // クーポン管理シート列構成:
 // A=クーポンコード, B=割引タイプ(rate/fixed), C=割引値, D=有効期限,
-// E=利用上限, F=利用回数, G=1人1回制限(TRUE/FALSE), H=有効(TRUE/FALSE), I=メモ
+// E=利用上限, F=利用回数, G=1人1回制限(TRUE/FALSE), H=有効(TRUE/FALSE), I=メモ,
+// J=対象顧客(all/new/repeat), K=有効開始日
 
 var COUPON_SHEET_NAME = 'クーポン管理';
 
@@ -16,7 +17,9 @@ var COUPON_COLS = {
   USE_COUNT: 5,   // F: 利用回数
   ONCE_PER_USER: 6, // G: 1人1回制限
   ACTIVE: 7,      // H: 有効
-  MEMO: 8         // I: メモ
+  MEMO: 8,        // I: メモ
+  TARGET: 9,      // J: 対象顧客 (all=全員 / new=新規限定 / repeat=リピーター限定)
+  START_DATE: 10  // K: 有効開始日
 };
 
 // クーポン利用履歴シート列構成:
@@ -29,7 +32,7 @@ var COUPON_LOG_SHEET_NAME = 'クーポン利用履歴';
 function sh_ensureCouponSheet_(ss) {
   var sh = ss.getSheetByName(COUPON_SHEET_NAME);
   if (!sh) sh = ss.insertSheet(COUPON_SHEET_NAME);
-  var header = ['クーポンコード', '割引タイプ', '割引値', '有効期限', '利用上限', '利用回数', '1人1回制限', '有効', 'メモ'];
+  var header = ['クーポンコード', '割引タイプ', '割引値', '有効期限', '利用上限', '利用回数', '1人1回制限', '有効', 'メモ', '対象顧客', '有効開始日'];
   var r1 = sh.getRange(1, 1, 1, header.length).getValues()[0];
   var needs = false;
   for (var i = 0; i < header.length; i++) if (String(r1[i] || '') !== header[i]) { needs = true; break; }
@@ -62,7 +65,7 @@ function registerCoupon() {
   var ui = SpreadsheetApp.getUi();
 
   // --- クーポンコード ---
-  var r1 = ui.prompt('クーポン登録 (1/5)', 'クーポンコードを入力してください:', ui.ButtonSet.OK_CANCEL);
+  var r1 = ui.prompt('クーポン登録 (1/7)', 'クーポンコードを入力してください:', ui.ButtonSet.OK_CANCEL);
   if (r1.getSelectedButton() !== ui.Button.OK) return;
   var code = String(r1.getResponseText() || '').trim().toUpperCase();
   if (!code) { ui.alert('クーポンコードが空です。'); return; }
@@ -82,7 +85,7 @@ function registerCoupon() {
   }
 
   // --- 割引タイプ + 割引値 ---
-  var r2 = ui.prompt('クーポン登録 (2/5)',
+  var r2 = ui.prompt('クーポン登録 (2/7)',
     '割引タイプと値を入力してください:\n\n' +
     '書式: タイプ 値\n' +
     '  例: rate 0.10  → 10%OFF\n' +
@@ -97,7 +100,7 @@ function registerCoupon() {
   if (type === 'rate' && value >= 1) { ui.alert('rate の場合は小数で指定してください（例: 0.10 = 10%）。'); return; }
 
   // --- 有効期限 ---
-  var r3 = ui.prompt('クーポン登録 (3/5)',
+  var r3 = ui.prompt('クーポン登録 (3/7)',
     '有効期限を入力してください（空欄=無期限）:\n例: 2026-12-31',
     ui.ButtonSet.OK_CANCEL);
   if (r3.getSelectedButton() !== ui.Button.OK) return;
@@ -110,7 +113,7 @@ function registerCoupon() {
   }
 
   // --- 利用上限 + 1人1回制限 ---
-  var r4 = ui.prompt('クーポン登録 (4/5)',
+  var r4 = ui.prompt('クーポン登録 (4/7)',
     '利用上限と1人1回制限を入力してください:\n\n' +
     '書式: 上限回数 1人1回制限\n' +
     '  例: 0 true   → 無制限・1人1回\n' +
@@ -122,19 +125,47 @@ function registerCoupon() {
   var maxUses = Number(p4[0]) || 0;
   var oncePerUser = String(p4[1] || 'false').toLowerCase() === 'true';
 
-  // --- メモ ---
-  var r5 = ui.prompt('クーポン登録 (5/5)', 'メモ（任意）:', ui.ButtonSet.OK_CANCEL);
+  // --- 対象顧客 ---
+  var r5 = ui.prompt('クーポン登録 (5/7)',
+    '対象顧客を選択してください:\n\n' +
+    '  all    → 全員（デフォルト）\n' +
+    '  new    → 新規限定（注文履歴なし）\n' +
+    '  repeat → リピーター限定（注文履歴あり）\n\n' +
+    '空欄の場合は all として扱います。',
+    ui.ButtonSet.OK_CANCEL);
   if (r5.getSelectedButton() !== ui.Button.OK) return;
-  var memo = String(r5.getResponseText() || '').trim();
+  var targetInput = String(r5.getResponseText() || '').trim().toLowerCase();
+  var target = (targetInput === 'new' || targetInput === 'repeat') ? targetInput : 'all';
+
+  // --- 有効開始日 ---
+  var r6 = ui.prompt('クーポン登録 (6/7)',
+    '有効開始日を入力してください（空欄=即日有効）:\n例: 2026-03-01',
+    ui.ButtonSet.OK_CANCEL);
+  if (r6.getSelectedButton() !== ui.Button.OK) return;
+  var startDateStr = String(r6.getResponseText() || '').trim();
+  var startDate = '';
+  if (startDateStr) {
+    var sd = new Date(startDateStr);
+    if (isNaN(sd.getTime())) { ui.alert('日付の形式が正しくありません。'); return; }
+    startDate = sd;
+  }
+
+  // --- メモ ---
+  var r7 = ui.prompt('クーポン登録 (7/7)', 'メモ（任意）:', ui.ButtonSet.OK_CANCEL);
+  if (r7.getSelectedButton() !== ui.Button.OK) return;
+  var memo = String(r7.getResponseText() || '').trim();
 
   // --- 確認 ---
   var label = type === 'rate' ? (Math.round(value * 100) + '%OFF') : (value + '円引き');
+  var targetLabels = { all: '全員', 'new': '新規限定', repeat: 'リピーター限定' };
   var summary =
     'コード: ' + code + '\n' +
     '割引: ' + label + '\n' +
+    '有効開始日: ' + (startDate ? startDateStr : '即日') + '\n' +
     '有効期限: ' + (expires ? expiresStr : '無期限') + '\n' +
     '利用上限: ' + (maxUses > 0 ? maxUses + '回' : '無制限') + '\n' +
     '1人1回制限: ' + (oncePerUser ? 'あり' : 'なし') + '\n' +
+    '対象顧客: ' + targetLabels[target] + '\n' +
     'メモ: ' + (memo || '(なし)');
 
   var confirm = ui.alert('クーポン登録 確認', summary + '\n\nこの内容で登録しますか？', ui.ButtonSet.YES_NO);
@@ -142,7 +173,7 @@ function registerCoupon() {
 
   // --- 書き込み ---
   var newRow = sh.getLastRow() + 1;
-  sh.getRange(newRow, 1, 1, 9).setValues([[code, type, value, expires, maxUses, 0, oncePerUser, true, memo]]);
+  sh.getRange(newRow, 1, 1, 11).setValues([[code, type, value, expires, maxUses, 0, oncePerUser, true, memo, target, startDate]]);
 
   ui.alert('クーポン「' + code + '」（' + label + '）を登録しました。');
 }
@@ -160,7 +191,8 @@ function deleteCoupon() {
   if (lastRow < 2) { ui.alert('登録されているクーポンがありません。'); return; }
 
   // 一覧表示用データ取得
-  var data = sh.getRange(2, 1, lastRow - 1, 9).getValues();
+  var data = sh.getRange(2, 1, lastRow - 1, 11).getValues();
+  var targetLabels = { all: '全員', 'new': '新規限定', repeat: 'リピーター限定' };
   var listText = '';
   for (var i = 0; i < data.length; i++) {
     var c = String(data[i][COUPON_COLS.CODE] || '').trim();
@@ -170,7 +202,9 @@ function deleteCoupon() {
     var label = t === 'rate' ? (Math.round(Number(v) * 100) + '%OFF') : (v + '円引き');
     var active = (data[i][COUPON_COLS.ACTIVE] === true || String(data[i][COUPON_COLS.ACTIVE]).toUpperCase() === 'TRUE');
     var uses = Number(data[i][COUPON_COLS.USE_COUNT]) || 0;
-    listText += c + ' (' + label + ') [利用:' + uses + '回] ' + (active ? '有効' : '無効') + '\n';
+    var tgt = String(data[i][COUPON_COLS.TARGET] || '').trim().toLowerCase();
+    var tgtLabel = targetLabels[tgt] || '全員';
+    listText += c + ' (' + label + ') [利用:' + uses + '回] [' + tgtLabel + '] ' + (active ? '有効' : '無効') + '\n';
   }
 
   var res = ui.prompt('クーポン削除',
@@ -256,7 +290,7 @@ function validateCoupon_(code, email) {
   var lastRow = sh.getLastRow();
   if (lastRow < 2) return { ok: false, message: '無効なクーポンコードです' };
 
-  var data = sh.getRange(2, 1, lastRow - 1, 9).getValues();
+  var data = sh.getRange(2, 1, lastRow - 1, 11).getValues();
   var coupon = null;
   var couponRow = -1;
 
@@ -274,6 +308,20 @@ function validateCoupon_(code, email) {
   var active = coupon[COUPON_COLS.ACTIVE];
   if (active === false || String(active).toUpperCase() === 'FALSE') {
     return { ok: false, message: 'このクーポンは現在無効です' };
+  }
+
+  // 有効開始日チェック
+  var startDate = coupon[COUPON_COLS.START_DATE];
+  if (startDate) {
+    var sDate = (startDate instanceof Date) ? startDate : new Date(startDate);
+    if (!isNaN(sDate.getTime())) {
+      sDate.setHours(0, 0, 0, 0);
+      var now = new Date();
+      now.setHours(0, 0, 0, 0);
+      if (now < sDate) {
+        return { ok: false, message: 'このクーポンはまだ利用期間前です' };
+      }
+    }
   }
 
   // 有効期限チェック
@@ -300,6 +348,19 @@ function validateCoupon_(code, email) {
   if (oncePerUser === true || String(oncePerUser).toUpperCase() === 'TRUE') {
     if (email && hasUserUsedCoupon_(ss, code, email)) {
       return { ok: false, message: 'このクーポンは既にご利用済みです' };
+    }
+  }
+
+  // 対象顧客チェック（new=新規限定 / repeat=リピーター限定）
+  var target = String(coupon[COUPON_COLS.TARGET] || '').trim().toLowerCase();
+  if (target === 'new' || target === 'repeat') {
+    var orders = email ? getOrderHistory_(email) : [];
+    var hasOrders = orders.length > 0;
+    if (target === 'new' && hasOrders) {
+      return { ok: false, message: 'このクーポンは初回注文のお客様限定です' };
+    }
+    if (target === 'repeat' && !hasOrders) {
+      return { ok: false, message: 'このクーポンはリピーターのお客様限定です' };
     }
   }
 
