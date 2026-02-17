@@ -193,7 +193,8 @@ function syncBaseOrdersToEc() {
       }
 
       const productPrice = group.totalSales;
-      const deposit = paymentTotal - fee;
+      const sales = productPrice + (group.shippingCustomer || 0);
+      const deposit = sales - fee - (group.shippingStore || 0);
 
       const existingRow = existingKeyToRow.get(rk);
       if (existingRow) {
@@ -202,11 +203,14 @@ function syncBaseOrdersToEc() {
         if (!String(rowData[dstChannelCol - 1] || '').trim()) {
           dstSh.getRange(existingRow, dstChannelCol).setValue(channel);
         }
-        if (dstFeeCol > 0 && !String(rowData[dstFeeCol - 1] || '').trim()) {
-          dstSh.getRange(existingRow, dstFeeCol).setValue(fee);
-        }
         if (dstProductPriceCol > 0 && !String(rowData[dstProductPriceCol - 1] || '').trim()) {
           dstSh.getRange(existingRow, dstProductPriceCol).setValue(productPrice);
+        }
+        if (!String(rowData[dstSalesCol - 1] || '').trim()) {
+          dstSh.getRange(existingRow, dstSalesCol).setValue(sales);
+        }
+        if (dstFeeCol > 0 && !String(rowData[dstFeeCol - 1] || '').trim()) {
+          dstSh.getRange(existingRow, dstFeeCol).setValue(fee);
         }
         if (dstDepositCol > 0 && !String(rowData[dstDepositCol - 1] || '').trim()) {
           dstSh.getRange(existingRow, dstDepositCol).setValue(deposit);
@@ -221,7 +225,7 @@ function syncBaseOrdersToEc() {
         orderKey: group.receiptNo,
         soldAt: group.requestAt,
         channel: channel,
-        sales: group.totalSales,
+        sales: sales,
         fee: fee,
         productPrice: productPrice,
         deposit: deposit,
@@ -255,12 +259,12 @@ function syncBaseOrdersToEc() {
     dstSh.getRange(startRow, cols.orderKey, toInsert.length, 1).setValues(toInsert.map(o => [o.orderKey]));
     dstSh.getRange(startRow, cols.soldAt, toInsert.length, 1).setValues(toInsert.map(o => [o.soldAt]));
     dstSh.getRange(startRow, cols.channel, toInsert.length, 1).setValues(toInsert.map(o => [o.channel]));
+    if (cols.productPrice) dstSh.getRange(startRow, cols.productPrice, toInsert.length, 1).setValues(toInsert.map(o => [o.productPrice]));
+    dstSh.getRange(startRow, cols.shippingCustomer, toInsert.length, 1).setValues(toInsert.map(o => [o.shippingCustomer]));
     dstSh.getRange(startRow, cols.sales, toInsert.length, 1).setValues(toInsert.map(o => [o.sales]));
     if (cols.fee) dstSh.getRange(startRow, cols.fee, toInsert.length, 1).setValues(toInsert.map(o => [o.fee]));
-    if (cols.productPrice) dstSh.getRange(startRow, cols.productPrice, toInsert.length, 1).setValues(toInsert.map(o => [o.productPrice]));
-    if (cols.deposit) dstSh.getRange(startRow, cols.deposit, toInsert.length, 1).setValues(toInsert.map(o => [o.deposit]));
     dstSh.getRange(startRow, cols.shippingStore, toInsert.length, 1).setValues(toInsert.map(o => [o.shippingStore]));
-    dstSh.getRange(startRow, cols.shippingCustomer, toInsert.length, 1).setValues(toInsert.map(o => [o.shippingCustomer]));
+    if (cols.deposit) dstSh.getRange(startRow, cols.deposit, toInsert.length, 1).setValues(toInsert.map(o => [o.deposit]));
     if (cols.tracking) dstSh.getRange(startRow, cols.tracking, toInsert.length, 1).setValues(toInsert.map(o => [o.tracking]));
   } finally {
     lock.releaseLock();
