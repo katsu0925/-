@@ -64,8 +64,59 @@ function sh_ensureCouponLogSheet_(ss) {
 function registerCoupon() {
   var html = HtmlService.createHtmlOutput(getCouponDialogHtml_())
     .setWidth(480)
-    .setHeight(580);
+    .setHeight(620);
   SpreadsheetApp.getUi().showModalDialog(html, 'クーポン登録');
+}
+
+/**
+ * 登録ダイアログ用: 既存クーポン一覧を取得（複製用）
+ */
+function getCouponListForDuplicate_() {
+  var ss = sh_getOrderSs_();
+  var sh = ss.getSheetByName(COUPON_SHEET_NAME);
+  if (!sh) return [];
+
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+
+  var data = sh.getRange(2, 1, lastRow - 1, 11).getValues();
+  var list = [];
+  for (var i = 0; i < data.length; i++) {
+    var c = String(data[i][COUPON_COLS.CODE] || '').trim();
+    if (!c) continue;
+    var t = String(data[i][COUPON_COLS.TYPE] || '').trim().toLowerCase();
+    var v = Number(data[i][COUPON_COLS.VALUE]) || 0;
+    var displayValue = (t === 'rate') ? Math.round(v * 100) : v;
+    var label = t === 'rate' ? (displayValue + '%OFF')
+              : t === 'shipping_free' ? '送料無料'
+              : (v + '円引き');
+
+    var expires = data[i][COUPON_COLS.EXPIRES];
+    var expiresStr = '';
+    if (expires instanceof Date && !isNaN(expires.getTime())) {
+      expiresStr = Utilities.formatDate(expires, 'Asia/Tokyo', 'yyyy-MM-dd');
+    }
+
+    var startDate = data[i][COUPON_COLS.START_DATE];
+    var startDateStr = '';
+    if (startDate instanceof Date && !isNaN(startDate.getTime())) {
+      startDateStr = Utilities.formatDate(startDate, 'Asia/Tokyo', 'yyyy-MM-dd');
+    }
+
+    list.push({
+      code: c,
+      type: t,
+      value: displayValue,
+      label: label,
+      target: String(data[i][COUPON_COLS.TARGET] || 'all').trim().toLowerCase(),
+      oncePerUser: String(data[i][COUPON_COLS.ONCE_PER_USER]),
+      maxUses: Number(data[i][COUPON_COLS.MAX_USES]) || 0,
+      startDate: startDateStr,
+      expires: expiresStr,
+      memo: String(data[i][COUPON_COLS.MEMO] || '')
+    });
+  }
+  return list;
 }
 
 /**
@@ -165,7 +216,17 @@ function getCouponDialogHtml_() {
     + '.btn:disabled{opacity:.5;cursor:not-allowed;}'
     + '.error{color:#dc2626;font-size:12px;margin-top:8px;display:none;}'
     + '.footer{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;}'
+    + '.dup-section{background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 12px;margin-bottom:12px;}'
+    + '.dup-section label{color:#0369a1;}'
     + '</style>'
+
+    + '<div class="dup-section">'
+    + '  <label>既存クーポンから複製</label>'
+    + '  <select id="duplicateFrom" onchange="onDuplicate()">'
+    + '    <option value="">-- 新規作成 --</option>'
+    + '  </select>'
+    + '  <div class="hint">選択すると設定値がコピーされます（コードは変更してください）</div>'
+    + '</div>'
 
     + '<div class="row"><div class="col">'
     + '  <label>クーポンコード *</label>'
@@ -243,6 +304,46 @@ function getCouponDialogHtml_() {
     + '</div>'
 
     + '<script>'
+    + 'var dupList=[];'
+    + 'function initDuplicate(){'
+    + '  google.script.run'
+    + '    .withSuccessHandler(function(list){'
+    + '      dupList=list||[];'
+    + '      var sel=document.getElementById("duplicateFrom");'
+    + '      for(var i=0;i<dupList.length;i++){'
+    + '        var c=dupList[i];'
+    + '        var opt=document.createElement("option");'
+    + '        opt.value=c.code;'
+    + '        opt.textContent=c.code+" ("+c.label+")";'
+    + '        sel.appendChild(opt);'
+    + '      }'
+    + '    })'
+    + '    .withFailureHandler(function(){})'
+    + '    .getCouponListForDuplicate_();'
+    + '}'
+    + 'function onDuplicate(){'
+    + '  var code=document.getElementById("duplicateFrom").value;'
+    + '  if(!code)return;'
+    + '  var c=null;'
+    + '  for(var i=0;i<dupList.length;i++){if(dupList[i].code===code){c=dupList[i];break;}}'
+    + '  if(!c)return;'
+    + '  document.getElementById("code").value=c.code+"_COPY";'
+    + '  document.getElementById("type").value=c.type;'
+    + '  onTypeChange();'
+    + '  if(c.type!=="shipping_free")document.getElementById("value").value=c.value;'
+    + '  document.getElementById("target").value=c.target;'
+    + '  document.getElementById("oncePerUser").value=c.oncePerUser.toLowerCase()==="true"?"true":"false";'
+    + '  var maxSel=document.getElementById("maxUses");'
+    + '  var maxVal=String(c.maxUses);'
+    + '  var found=false;'
+    + '  for(var j=0;j<maxSel.options.length;j++){if(maxSel.options[j].value===maxVal){maxSel.value=maxVal;found=true;break;}}'
+    + '  if(!found)maxSel.value="0";'
+    + '  document.getElementById("startDate").value=c.startDate||"";'
+    + '  document.getElementById("expires").value=c.expires||"";'
+    + '  document.getElementById("memo").value=c.memo||"";'
+    + '  document.getElementById("code").focus();'
+    + '  document.getElementById("code").select();'
+    + '}'
     + 'function onTypeChange(){'
     + '  var t=document.getElementById("type").value;'
     + '  var vc=document.getElementById("valueCol");'
@@ -284,11 +385,12 @@ function getCouponDialogHtml_() {
     + '    })'
     + '    .registerCouponFromDialog(data);'
     + '}'
+    + 'initDuplicate();'
     + '</script>';
 }
 
 /**
- * クーポン削除（管理メニューから呼ばれる）
+ * クーポン削除（管理メニューから呼ばれる — HTMLダイアログ版）
  */
 function deleteCoupon() {
   var ui = SpreadsheetApp.getUi();
@@ -299,10 +401,26 @@ function deleteCoupon() {
   var lastRow = sh.getLastRow();
   if (lastRow < 2) { ui.alert('登録されているクーポンがありません。'); return; }
 
-  // 一覧表示用データ取得
+  var html = HtmlService.createHtmlOutput(getDeleteCouponDialogHtml_())
+    .setWidth(480)
+    .setHeight(360);
+  ui.showModalDialog(html, 'クーポン削除');
+}
+
+/**
+ * 削除ダイアログ用: クーポン一覧を取得
+ */
+function getDeleteCouponList_() {
+  var ss = sh_getOrderSs_();
+  var sh = ss.getSheetByName(COUPON_SHEET_NAME);
+  if (!sh) return [];
+
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+
   var data = sh.getRange(2, 1, lastRow - 1, 11).getValues();
   var targetLabels = { all: '全員', 'new': '新規限定', repeat: 'リピーター限定' };
-  var listText = '';
+  var list = [];
   for (var i = 0; i < data.length; i++) {
     var c = String(data[i][COUPON_COLS.CODE] || '').trim();
     if (!c) continue;
@@ -315,45 +433,135 @@ function deleteCoupon() {
     var uses = Number(data[i][COUPON_COLS.USE_COUNT]) || 0;
     var tgt = String(data[i][COUPON_COLS.TARGET] || '').trim().toLowerCase();
     var tgtLabel = targetLabels[tgt] || '全員';
-    listText += c + ' (' + label + ') [利用:' + uses + '回] [' + tgtLabel + '] ' + (active ? '有効' : '無効') + '\n';
+    list.push({
+      code: c,
+      label: label,
+      uses: uses,
+      target: tgtLabel,
+      active: active
+    });
   }
+  return list;
+}
 
-  var res = ui.prompt('クーポン削除',
-    '登録中のクーポン:\n' + listText + '\n削除するクーポンコードを入力してください:',
-    ui.ButtonSet.OK_CANCEL);
-  if (res.getSelectedButton() !== ui.Button.OK) return;
+/**
+ * 削除ダイアログから呼ばれる削除処理
+ */
+function deleteCouponFromDialog(code) {
+  if (!code) return { ok: false, message: 'クーポンコードが選択されていません' };
+  code = String(code).trim().toUpperCase();
 
-  var targetCode = String(res.getResponseText() || '').trim().toUpperCase();
-  if (!targetCode) { ui.alert('クーポンコードが空です。'); return; }
+  var ss = sh_getOrderSs_();
+  var sh = ss.getSheetByName(COUPON_SHEET_NAME);
+  if (!sh) return { ok: false, message: 'クーポン管理シートが見つかりません' };
 
-  // 該当行を検索
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return { ok: false, message: '登録されているクーポンがありません' };
+
+  var data = sh.getRange(2, 1, lastRow - 1, 11).getValues();
   var targetRow = -1;
-  var targetUses = 0;
   for (var j = 0; j < data.length; j++) {
-    if (String(data[j][COUPON_COLS.CODE] || '').trim().toUpperCase() === targetCode) {
+    if (String(data[j][COUPON_COLS.CODE] || '').trim().toUpperCase() === code) {
       targetRow = j + 2;
-      targetUses = Number(data[j][COUPON_COLS.USE_COUNT]) || 0;
       break;
     }
   }
 
-  if (targetRow === -1) {
-    ui.alert('クーポンコード「' + targetCode + '」が見つかりません。');
-    return;
-  }
-
-  var warnText = '';
-  if (targetUses > 0) {
-    warnText = '\n※ このクーポンは ' + targetUses + '回利用されています。';
-  }
-
-  var confirm = ui.alert('クーポン削除 確認',
-    'クーポン「' + targetCode + '」を削除します。' + warnText + '\nよろしいですか？',
-    ui.ButtonSet.YES_NO);
-  if (confirm !== ui.Button.YES) return;
+  if (targetRow === -1) return { ok: false, message: 'クーポンコード「' + code + '」が見つかりません' };
 
   sh.deleteRow(targetRow);
-  ui.alert('クーポン「' + targetCode + '」を削除しました。');
+  return { ok: true, message: 'クーポン「' + code + '」を削除しました' };
+}
+
+/**
+ * クーポン削除ダイアログのHTML
+ */
+function getDeleteCouponDialogHtml_() {
+  return '<style>'
+    + 'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans JP",sans-serif;font-size:13px;margin:0;padding:16px;color:#333;}'
+    + 'label{display:block;font-weight:700;margin-bottom:4px;font-size:12px;color:#555;}'
+    + 'select{width:100%;padding:8px 10px;border:1px solid #d0d5dd;border-radius:8px;font-size:13px;box-sizing:border-box;outline:none;}'
+    + 'select:focus{border-color:#3b82f6;box-shadow:0 0 0 2px rgba(59,130,246,.15);}'
+    + '.info{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 12px;margin-top:12px;font-size:12px;color:#555;line-height:1.6;display:none;}'
+    + '.info .warn{color:#dc2626;font-weight:700;}'
+    + '.btn{padding:8px 18px;border:1px solid #d0d5dd;border-radius:8px;cursor:pointer;font-weight:700;font-size:13px;background:#fff;}'
+    + '.btn.danger{background:#dc2626;color:#fff;border-color:#dc2626;}'
+    + '.btn.danger:hover{background:#b91c1c;}'
+    + '.btn:disabled{opacity:.5;cursor:not-allowed;}'
+    + '.error{color:#dc2626;font-size:12px;margin-top:8px;display:none;}'
+    + '.footer{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;}'
+    + '</style>'
+
+    + '<div>'
+    + '  <label>削除するクーポンを選択 *</label>'
+    + '  <select id="couponSelect" onchange="onSelect()">'
+    + '    <option value="">-- クーポンを選択してください --</option>'
+    + '  </select>'
+    + '</div>'
+
+    + '<div class="info" id="info"></div>'
+
+    + '<div class="error" id="error"></div>'
+    + '<div class="footer">'
+    + '  <button class="btn" onclick="google.script.host.close()">キャンセル</button>'
+    + '  <button class="btn danger" id="deleteBtn" onclick="doDelete()" disabled>削除する</button>'
+    + '</div>'
+
+    + '<script>'
+    + 'var couponList=[];'
+    + 'function init(){'
+    + '  google.script.run'
+    + '    .withSuccessHandler(function(list){'
+    + '      couponList=list||[];'
+    + '      var sel=document.getElementById("couponSelect");'
+    + '      for(var i=0;i<couponList.length;i++){'
+    + '        var c=couponList[i];'
+    + '        var opt=document.createElement("option");'
+    + '        opt.value=c.code;'
+    + '        opt.textContent=c.code+" ("+c.label+") [利用:"+c.uses+"回] ["+c.target+"] "+(c.active?"有効":"無効");'
+    + '        sel.appendChild(opt);'
+    + '      }'
+    + '    })'
+    + '    .withFailureHandler(function(e){showError(e&&e.message?e.message:"一覧の取得に失敗しました");})'
+    + '    .getDeleteCouponList_();'
+    + '}'
+    + 'function onSelect(){'
+    + '  var code=document.getElementById("couponSelect").value;'
+    + '  var info=document.getElementById("info");'
+    + '  var btn=document.getElementById("deleteBtn");'
+    + '  if(!code){info.style.display="none";btn.disabled=true;return;}'
+    + '  var c=null;'
+    + '  for(var i=0;i<couponList.length;i++){if(couponList[i].code===code){c=couponList[i];break;}}'
+    + '  if(!c){info.style.display="none";btn.disabled=true;return;}'
+    + '  var html="コード: <b>"+c.code+"</b><br>"'
+    + '    +"割引: <b>"+c.label+"</b><br>"'
+    + '    +"状態: "+(c.active?"有効":"無効")+"<br>"'
+    + '    +"利用回数: "+c.uses+"回<br>"'
+    + '    +"対象: "+c.target;'
+    + '  if(c.uses>0) html+="<br><span class=\\"warn\\">※ このクーポンは "+c.uses+"回利用されています</span>";'
+    + '  info.innerHTML=html;info.style.display="block";'
+    + '  btn.disabled=false;'
+    + '}'
+    + 'function showError(msg){var e=document.getElementById("error");e.textContent=msg;e.style.display="block";}'
+    + 'function doDelete(){'
+    + '  var code=document.getElementById("couponSelect").value;'
+    + '  if(!code){showError("クーポンを選択してください");return;}'
+    + '  if(!confirm("クーポン「"+code+"」を削除します。\\nよろしいですか？"))return;'
+    + '  document.getElementById("error").style.display="none";'
+    + '  var btn=document.getElementById("deleteBtn");'
+    + '  btn.disabled=true;btn.textContent="削除中...";'
+    + '  google.script.run'
+    + '    .withSuccessHandler(function(r){'
+    + '      if(r&&r.ok){alert(r.message);google.script.host.close();}'
+    + '      else{showError(r&&r.message?r.message:"削除に失敗しました");btn.disabled=false;btn.textContent="削除する";}'
+    + '    })'
+    + '    .withFailureHandler(function(e){'
+    + '      showError(e&&e.message?e.message:"エラーが発生しました");btn.disabled=false;btn.textContent="削除する";'
+    + '    })'
+    + '    .deleteCouponFromDialog(code);'
+    + '}'
+    + 'init();'
+    + '</script>';
 }
 
 // =====================================================
