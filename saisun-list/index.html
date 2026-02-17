@@ -4099,7 +4099,9 @@ function applyCoupon_() {
     renderCartModal_();
     showToast('クーポンを適用しました');
   }).catch(function(e) {
-    info.innerHTML = '<span style="color:#c00;">エラーが発生しました</span>';
+    var msg = (e && e.message) ? e.message : 'エラーが発生しました';
+    info.innerHTML = '<span style="color:#c00;">' + escapeHtml_(msg) + '</span>';
+    state.appliedCoupon = null;
   });
 }
 
