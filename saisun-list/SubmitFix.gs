@@ -73,7 +73,7 @@ function apiSubmitEstimate(userKey, form, ids) {
     var validatedCoupon = null;
 
     if (couponCode) {
-      // クーポン使用時: 他の割引と併用不可
+      // クーポン使用時
       var couponResult = validateCoupon_(couponCode, contact);
       if (!couponResult.ok) return couponResult;
       validatedCoupon = couponResult;
@@ -83,8 +83,20 @@ function apiSubmitEstimate(userKey, form, ids) {
         : couponResult.type === 'shipping_free'
           ? 'クーポン送料無料'
           : ('クーポン' + couponResult.value + '円引き');
+
+      // 併用可能な割引を適用
+      if (validatedCoupon.comboBulk && totalCount >= 30) {
+        discountRate += 0.10;
+      }
+      var memberDiscountStatus = app_getMemberDiscountStatus_();
+      if (validatedCoupon.comboMember && memberDiscountStatus.enabled && contact) {
+        var custForDiscount = findCustomerByEmail_(contact);
+        if (custForDiscount) {
+          discountRate += memberDiscountStatus.rate;
+        }
+      }
     } else {
-      // 通常割引（クーポン未使用時のみ適用）
+      // 通常割引（クーポン未使用時）
 
       // 30点以上割引（10%）
       if (totalCount >= 30) discountRate += 0.10;
@@ -97,14 +109,17 @@ function apiSubmitEstimate(userKey, form, ids) {
           discountRate += memberDiscountStatus.rate;
         }
       }
-
-      if (measureOpt === 'without') discountRate += 0.05;
     }
 
     // ※割引は商品代のみに適用。送料は割引対象外（税込み固定）。
-    var discounted = couponCode
-      ? Math.max(0, sum - couponDiscount)
-      : Math.round(sum * (1 - discountRate));
+    var discounted;
+    if (couponCode) {
+      // クーポン割引を先に適用し、その後に併用割引率を適用
+      var afterCoupon = Math.max(0, sum - couponDiscount);
+      discounted = Math.round(afterCoupon * (1 - discountRate));
+    } else {
+      discounted = Math.round(sum * (1 - discountRate));
+    }
 
     // === 送料計算（ロック不要） ===
     var shippingAmount = Math.max(0, Math.floor(Number(f.shippingAmount || 0)));
@@ -129,12 +144,20 @@ function apiSubmitEstimate(userKey, form, ids) {
     }
 
     // === 割引・送料を備考に追記 ===
-    if (couponCode && validatedCoupon && validatedCoupon.type === 'shipping_free') {
-      var couponNote = '【' + couponLabel + ' コード: ' + couponCode + '】';
-      note = note ? (note + '\n' + couponNote) : couponNote;
-    } else if (couponCode && couponDiscount > 0) {
-      var couponNote = '【' + couponLabel + '（-' + couponDiscount + '円）コード: ' + couponCode + '】';
-      note = note ? (note + '\n' + couponNote) : couponNote;
+    if (couponCode && validatedCoupon) {
+      var discountParts = [];
+      if (validatedCoupon.type === 'shipping_free') {
+        discountParts.push(couponLabel + ' コード: ' + couponCode);
+      } else if (couponDiscount > 0) {
+        discountParts.push(couponLabel + '（-' + couponDiscount + '円）コード: ' + couponCode);
+      }
+      if (discountRate > 0) {
+        discountParts.push('併用割引' + Math.round(discountRate * 100) + '%OFF');
+      }
+      if (discountParts.length > 0) {
+        var couponNote = '【' + discountParts.join(' + ') + '】';
+        note = note ? (note + '\n' + couponNote) : couponNote;
+      }
     }
     if (pointsUsed > 0) {
       if (note) {
