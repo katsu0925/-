@@ -3854,7 +3854,7 @@ function showCartSection_(showCart) {
   if (showCart) {
     if (cartList) cartList.style.display = '';
     if (cartRecommend) cartRecommend.style.display = '';
-    if (cartActions) cartActions.style.display = '';
+    if (cartActions) cartActions.style.display = 'flex';
     if (cartForm) cartForm.style.display = 'none';
     if (title) title.textContent = 'カート';
     // sumBoxを元の位置（cartFormSectionの前）に戻す

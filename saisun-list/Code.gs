@@ -98,6 +98,8 @@ function doPost(e) {
       'apiGetCsrfToken': apiGetCsrfToken,
       // AIチャットボット
       'apiChatbot': apiChatbot,
+      // クーポン検証
+      'apiValidateCoupon': apiValidateCoupon,
       // 管理者用: 既存受付番号に商品選択を紐付け
       'apiAdminLinkOrder': apiAdminLinkOrder
     };
