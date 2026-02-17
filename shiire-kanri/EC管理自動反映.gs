@@ -192,10 +192,7 @@ function syncBaseOrdersToEc() {
           dstSh.getRange(existingRow, dstFeeCol).setValue(fee);
         }
         if (dstTrackingCol > 0 && group.tracking) {
-          const cur = String(rowData[dstTrackingCol - 1] || '').trim();
-          if (!cur) {
-            dstSh.getRange(existingRow, dstTrackingCol).setValue(group.tracking);
-          }
+          dstSh.getRange(existingRow, dstTrackingCol).setValue(group.tracking);
         }
         continue;
       }
