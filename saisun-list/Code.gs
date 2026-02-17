@@ -99,7 +99,9 @@ function doPost(e) {
       // AIチャットボット
       'apiChatbot': apiChatbot,
       // 管理者用: 既存受付番号に商品選択を紐付け
-      'apiAdminLinkOrder': apiAdminLinkOrder
+      'apiAdminLinkOrder': apiAdminLinkOrder,
+      // 管理者用: クーポン登録
+      'apiAdminRegisterCoupon': apiAdminRegisterCoupon
     };
 
     var fn = allowed[action];
