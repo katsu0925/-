@@ -65,6 +65,7 @@ function syncBaseOrdersToEc() {
     const iraiShipStoreCol = findColByName_(iraiHeader, '送料(店負担)');
     const iraiShipCustCol = findColByName_(iraiHeader, '送料(客負担)');
     const iraiPaymentMethodCol = findColByName_(iraiHeader, '決済方法');
+    const iraiTrackingCol = findColByName_(iraiHeader, '伝票番号');
 
     // --- BASE_注文のキーを取得（チャンネル判定用） ---
     const baseOrderKeys = new Set();
@@ -99,9 +100,10 @@ function syncBaseOrdersToEc() {
     const dstSoldAtCol = requireCol_(dstHeader, '販売日', 'EC管理');
     const dstChannelCol = requireCol_(dstHeader, 'チャンネル', 'EC管理');
     const dstSalesCol = requireCol_(dstHeader, '売上', 'EC管理');
-    const dstFeeCol = requireCol_(dstHeader, '手数料', 'EC管理');
+    const dstFeeCol = findColByName_(dstHeader, '手数料');
     const dstShipStoreCol = requireCol_(dstHeader, '店負担送料', 'EC管理');
     const dstShipCustCol = requireCol_(dstHeader, '客負担送料', 'EC管理');
+    const dstTrackingCol = findColByName_(dstHeader, '伝票番号');
 
     // --- 依頼管理データ読み込み ---
     const iraiValues = iraiSh.getRange(2, 1, iraiLastRow - 1, iraiLastCol).getValues();
@@ -130,7 +132,8 @@ function syncBaseOrdersToEc() {
           totalSales: 0,
           shippingStore: (iraiShipStoreCol > 0) ? (Number(row[iraiShipStoreCol - 1]) || 0) : 0,
           shippingCustomer: (iraiShipCustCol > 0) ? (Number(row[iraiShipCustCol - 1]) || 0) : 0,
-          paymentMethod: (iraiPaymentMethodCol > 0) ? String(row[iraiPaymentMethodCol - 1] || '').trim() : ''
+          paymentMethod: (iraiPaymentMethodCol > 0) ? String(row[iraiPaymentMethodCol - 1] || '').trim() : '',
+          tracking: (iraiTrackingCol > 0) ? String(row[iraiTrackingCol - 1] || '').trim() : ''
         });
       }
 
@@ -188,7 +191,8 @@ function syncBaseOrdersToEc() {
         sales: group.totalSales,
         fee: fee,
         shippingStore: group.shippingStore || '',
-        shippingCustomer: group.shippingCustomer || ''
+        shippingCustomer: group.shippingCustomer || '',
+        tracking: group.tracking || ''
       });
       existingOrderKeys.add(rk);
     }
@@ -200,10 +204,11 @@ function syncBaseOrdersToEc() {
       soldAt: dstSoldAtCol,
       channel: dstChannelCol,
       sales: dstSalesCol,
-      fee: dstFeeCol,
       shippingStore: dstShipStoreCol,
       shippingCustomer: dstShipCustCol
     };
+    if (dstFeeCol > 0) cols.fee = dstFeeCol;
+    if (dstTrackingCol > 0) cols.tracking = dstTrackingCol;
 
     const startRow = findAppendRowByActualData_(dstSh, cols);
     const needLastRow = startRow + toInsert.length - 1;
@@ -215,9 +220,10 @@ function syncBaseOrdersToEc() {
     dstSh.getRange(startRow, cols.soldAt, toInsert.length, 1).setValues(toInsert.map(o => [o.soldAt]));
     dstSh.getRange(startRow, cols.channel, toInsert.length, 1).setValues(toInsert.map(o => [o.channel]));
     dstSh.getRange(startRow, cols.sales, toInsert.length, 1).setValues(toInsert.map(o => [o.sales]));
-    dstSh.getRange(startRow, cols.fee, toInsert.length, 1).setValues(toInsert.map(o => [o.fee]));
+    if (cols.fee) dstSh.getRange(startRow, cols.fee, toInsert.length, 1).setValues(toInsert.map(o => [o.fee]));
     dstSh.getRange(startRow, cols.shippingStore, toInsert.length, 1).setValues(toInsert.map(o => [o.shippingStore]));
     dstSh.getRange(startRow, cols.shippingCustomer, toInsert.length, 1).setValues(toInsert.map(o => [o.shippingCustomer]));
+    if (cols.tracking) dstSh.getRange(startRow, cols.tracking, toInsert.length, 1).setValues(toInsert.map(o => [o.tracking]));
   } finally {
     lock.releaseLock();
   }
