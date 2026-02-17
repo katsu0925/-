@@ -368,7 +368,7 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
       var price = normalizeSellPrice_(om_calcPriceTier_(cost));
 
       // 状態による価格調整
-      if (condition === '傷や汚れあり') {
+      if (condition === '傷や汚れあり' || condition === 'やや傷や汚れあり' || condition === '全体的に状態が悪い') {
         price = normalizeSellPrice_(Math.round(price * 0.8));
       } else if (condition === '目立った傷や汚れなし' && damageDetail.trim() !== '') {
         price = normalizeSellPrice_(Math.round(price * 0.9));

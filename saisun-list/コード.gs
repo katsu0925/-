@@ -363,6 +363,18 @@ function syncFull_(productSheet, returnSheet, aiSheet, destSheet) {
     const category = rec.category;
     const color = rec.color;
     const insertedPrice = convertRecoveryK_(rec.cost);
+
+    // 状態による価格調整
+    let adjustedPrice = insertedPrice;
+    if (typeof insertedPrice === 'number' && isFinite(insertedPrice)) {
+      const rawStatus = String(rec.status || '');
+      if (rawStatus === '傷や汚れあり' || rawStatus === 'やや傷や汚れあり' || rawStatus === '全体的に状態が悪い') {
+        adjustedPrice = normalizeSellPrice_(Math.round(insertedPrice * 0.8));
+      } else if (rawStatus === '目立った傷や汚れなし' && rec.measurements[12] && String(rec.measurements[12]).trim() !== '') {
+        adjustedPrice = normalizeSellPrice_(Math.round(insertedPrice * 0.9));
+      }
+    }
+
     const shippingMethod = rec.shipping;
     const keepCheck = keepCheckByKey[keyC] === true;
 
@@ -382,7 +394,7 @@ function syncFull_(productSheet, returnSheet, aiSheet, destSheet) {
       imgFormula = fileId ? buildImageFormula_(fileId) : "";
     }
 
-    out.push([imgFormula, insertedStatus, brand, size, gender, category, color, insertedPrice, keepCheck, keyC]);
+    out.push([imgFormula, insertedStatus, brand, size, gender, category, color, adjustedPrice, keepCheck, keyC]);
     outShipping.push([shippingMethod]);
     // 商品管理の採寸データを優先、なければ既存データ1の値を保持
     const srcMeas = rec.measurements || emptyMeas;
