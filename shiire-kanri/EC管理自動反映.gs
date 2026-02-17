@@ -22,7 +22,9 @@ const IRAI_EC_SYNC = {
     'クレジットカード': 0.0325,  // 3.25%
     'コンビニ払い': 0.0275,     // 2.75%
     '銀行振込': 0.014           // 1.4%
-  }
+  },
+  JIMOTY_FEE_RATE: 0.10,        // 10%
+  JIMOTY_KEYWORD: 'ジモティ'
 };
 
 // =====================================================
@@ -65,6 +67,7 @@ function syncBaseOrdersToEc() {
     const iraiShipStoreCol = findColByName_(iraiHeader, '送料(店負担)');
     const iraiShipCustCol = findColByName_(iraiHeader, '送料(客負担)');
     const iraiPaymentMethodCol = findColByName_(iraiHeader, '決済方法');
+    const iraiContactCol = findColByName_(iraiHeader, '連絡先');
     const iraiTrackingCol = findColByName_(iraiHeader, '伝票番号');
 
     // --- BASE_注文のキーを取得（チャンネル判定用） ---
@@ -133,6 +136,7 @@ function syncBaseOrdersToEc() {
           shippingStore: (iraiShipStoreCol > 0) ? (Number(row[iraiShipStoreCol - 1]) || 0) : 0,
           shippingCustomer: (iraiShipCustCol > 0) ? (Number(row[iraiShipCustCol - 1]) || 0) : 0,
           paymentMethod: (iraiPaymentMethodCol > 0) ? String(row[iraiPaymentMethodCol - 1] || '').trim() : '',
+          contact: (iraiContactCol > 0) ? String(row[iraiContactCol - 1] || '').trim() : '',
           tracking: (iraiTrackingCol > 0) ? String(row[iraiTrackingCol - 1] || '').trim() : ''
         });
       }
@@ -171,12 +175,15 @@ function syncBaseOrdersToEc() {
     const toInsert = [];
     for (const [rk, group] of orderGroups) {
       const isBase = baseOrderKeys.has(rk);
-      const channel = isBase ? 'BASE' : 'デタウリ';
+      const isJimoty = group.contact.indexOf(cfg.JIMOTY_KEYWORD) !== -1;
+      const channel = isJimoty ? 'ジモティ' : isBase ? 'BASE' : 'デタウリ';
 
       // 手数料は顧客支払総額（商品 + 客負担送料）に対して計算
       const paymentTotal = group.totalSales + (group.shippingCustomer || 0);
       let fee = 0;
-      if (isBase) {
+      if (isJimoty) {
+        fee = Math.round(paymentTotal * cfg.JIMOTY_FEE_RATE);
+      } else if (isBase) {
         fee = Math.round(paymentTotal * cfg.BASE_FEE_RATE + cfg.BASE_FEE_FIXED);
       } else {
         const rate = cfg.DETAURI_FEE_RATES[group.paymentMethod] || 0;
