@@ -22,7 +22,9 @@ const IRAI_EC_SYNC = {
     'クレジットカード': 0.0325,  // 3.25%
     'コンビニ払い': 0.0275,     // 2.75%
     '銀行振込': 0.014           // 1.4%
-  }
+  },
+  JIMOTY_FEE_RATE: 0.10,        // 10%
+  JIMOTY_KEYWORD: 'ジモティ'
 };
 
 // =====================================================
@@ -65,6 +67,7 @@ function syncBaseOrdersToEc() {
     const iraiShipStoreCol = findColByName_(iraiHeader, '送料(店負担)');
     const iraiShipCustCol = findColByName_(iraiHeader, '送料(客負担)');
     const iraiPaymentMethodCol = findColByName_(iraiHeader, '決済方法');
+    const iraiContactCol = findColByName_(iraiHeader, '連絡先');
     const iraiTrackingCol = findColByName_(iraiHeader, '伝票番号');
 
     // --- BASE_注文のキーを取得（チャンネル判定用） ---
@@ -133,6 +136,7 @@ function syncBaseOrdersToEc() {
           shippingStore: (iraiShipStoreCol > 0) ? (Number(row[iraiShipStoreCol - 1]) || 0) : 0,
           shippingCustomer: (iraiShipCustCol > 0) ? (Number(row[iraiShipCustCol - 1]) || 0) : 0,
           paymentMethod: (iraiPaymentMethodCol > 0) ? String(row[iraiPaymentMethodCol - 1] || '').trim() : '',
+          contact: (iraiContactCol > 0) ? String(row[iraiContactCol - 1] || '').trim() : '',
           tracking: (iraiTrackingCol > 0) ? String(row[iraiTrackingCol - 1] || '').trim() : ''
         });
       }
@@ -155,33 +159,51 @@ function syncBaseOrdersToEc() {
       }
     }
 
-    // --- 既存注文キーの収集 ---
-    const existingOrderKeys = new Set();
+    // --- 既存注文キーの収集（行番号も保持） ---
+    const existingKeyToRow = new Map();
     const dstLastRow = dstSh.getLastRow();
+    let dstAllValues = [];
     if (dstLastRow >= 2) {
-      const dstKeys2 = dstSh.getRange(2, dstOrderKeyCol, dstLastRow - 1, 1).getValues();
-      for (let i = 0; i < dstKeys2.length; i++) {
-        const k = normalizeKeyPart_(dstKeys2[i][0]);
-        if (k) existingOrderKeys.add(k);
+      dstAllValues = dstSh.getRange(2, 1, dstLastRow - 1, dstLastCol).getValues();
+      for (let i = 0; i < dstAllValues.length; i++) {
+        const k = normalizeKeyPart_(dstAllValues[i][dstOrderKeyCol - 1]);
+        if (k) existingKeyToRow.set(k, i + 2);
       }
     }
 
-    // --- 挿入データ構築 ---
+    // --- 挿入・更新データ構築 ---
     const toInsert = [];
     for (const [rk, group] of orderGroups) {
-      if (existingOrderKeys.has(rk)) continue;
-
-      // チャンネル判定: BASE_注文に存在すればBASE、なければデタウリ
       const isBase = baseOrderKeys.has(rk);
-      const channel = isBase ? 'BASE' : 'デタウリ';
+      const isJimoty = group.contact.indexOf(cfg.JIMOTY_KEYWORD) !== -1;
+      const channel = isJimoty ? 'ジモティ' : isBase ? 'BASE' : 'デタウリ';
 
-      // 手数料計算
+      // 手数料は顧客支払総額（商品 + 客負担送料）に対して計算
+      const paymentTotal = group.totalSales + (group.shippingCustomer || 0);
       let fee = 0;
-      if (isBase) {
-        fee = Math.round(group.totalSales * cfg.BASE_FEE_RATE + cfg.BASE_FEE_FIXED);
+      if (isJimoty) {
+        fee = Math.round(paymentTotal * cfg.JIMOTY_FEE_RATE);
+      } else if (isBase) {
+        fee = Math.round(paymentTotal * cfg.BASE_FEE_RATE + cfg.BASE_FEE_FIXED);
       } else {
         const rate = cfg.DETAURI_FEE_RATES[group.paymentMethod] || 0;
-        fee = Math.round(group.totalSales * rate);
+        fee = Math.round(paymentTotal * rate);
+      }
+
+      const existingRow = existingKeyToRow.get(rk);
+      if (existingRow) {
+        // --- 既存行を更新（チャンネル・伝票番号・手数料が空なら埋める） ---
+        const rowData = dstAllValues[existingRow - 2];
+        if (!String(rowData[dstChannelCol - 1] || '').trim()) {
+          dstSh.getRange(existingRow, dstChannelCol).setValue(channel);
+        }
+        if (dstFeeCol > 0 && !String(rowData[dstFeeCol - 1] || '').trim()) {
+          dstSh.getRange(existingRow, dstFeeCol).setValue(fee);
+        }
+        if (dstTrackingCol > 0 && group.tracking) {
+          dstSh.getRange(existingRow, dstTrackingCol).setValue(group.tracking);
+        }
+        continue;
       }
 
       toInsert.push({
@@ -194,7 +216,6 @@ function syncBaseOrdersToEc() {
         shippingCustomer: group.shippingCustomer || '',
         tracking: group.tracking || ''
       });
-      existingOrderKeys.add(rk);
     }
 
     if (toInsert.length === 0) return;
