@@ -5,13 +5,13 @@ const REWARD_CONFIG = {
   SHEET_REWARD: '報酬管理',
   TZ: 'Asia/Tokyo',
   STATUS_DONE_VALUE: '完了',
-  // REQUEST_SHEET_COLS (Constants.gs) と同期
-  COL_REQUEST_DATETIME: REQUEST_SHEET_COLS.DATETIME,      // B列: 依頼日時
-  COL_CONFIRM_LINK: REQUEST_SHEET_COLS.CONFIRM_LINK,      // I列: 確認リンク
-  COL_COUNT: REQUEST_SHEET_COLS.TOTAL_COUNT,               // K列: 合計点数
-  COL_STATUS: REQUEST_SHEET_COLS.STATUS,                   // V列: ステータス
-  COL_PERSON: REQUEST_SHEET_COLS.STAFF,                    // W列: 担当者
-  COL_REWARD: REQUEST_SHEET_COLS.REWARD                    // AE列: 作業報酬
+  // REQUEST_SHEET_COLS (Constants.gs) と同期 — getter でファイル読込順に依存しない
+  get COL_REQUEST_DATETIME() { return REQUEST_SHEET_COLS.DATETIME; },      // B列: 依頼日時
+  get COL_CONFIRM_LINK()     { return REQUEST_SHEET_COLS.CONFIRM_LINK; },  // I列: 確認リンク
+  get COL_COUNT()            { return REQUEST_SHEET_COLS.TOTAL_COUNT; },   // K列: 合計点数
+  get COL_STATUS()           { return REQUEST_SHEET_COLS.STATUS; },        // V列: ステータス
+  get COL_PERSON()           { return REQUEST_SHEET_COLS.STAFF; },         // W列: 担当者
+  get COL_REWARD()           { return REQUEST_SHEET_COLS.REWARD; }         // AE列: 作業報酬
 };
 
 function rewardUpdateDaily() {
