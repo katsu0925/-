@@ -20,13 +20,13 @@ var KOMOJU_CONFIG = {
   // APIエンドポイント（テストキーを使えば本番URLでもテストモードになる）
   apiUrl: 'https://komoju.com/api/v1',
 
-  // 対応決済方法（現在利用可能なもののみ）
+  // 対応決済方法
   paymentMethods: [
-    'credit_card',      // クレジットカード（Visa/Mastercard）※JCB/AMEX/Diners/Discover(日本)は申請中
+    'credit_card',      // クレジットカード（Visa/Mastercard/JCB/AMEX/Diners/Discover）
     'konbini',          // コンビニ払い
-    'bank_transfer'     // 銀行振込
-    // 'linepay'        // LINE Pay — サービス終了のため削除
-    // 'paypay'         // PayPay — 申請中
+    'bank_transfer',    // 銀行振込
+    'paypay',           // PayPay
+    'pay_easy'          // ペイジー（Pay-easy）
     // 'paidy'          // Paidy（あと払い） — 申請中
     // 'apple_pay'      // Apple Pay — 申請中
   ],
@@ -301,14 +301,13 @@ function handlePaymentSuccess_(data) {
   console.log('Payment method detected: ' + paymentMethodType + ' (for ' + receiptNo + ')');
 
   // 決済方法に応じた入金ステータスを決定
-  // クレジットカードは即時決済完了なので「未対応」（入金済み・処理待ち）
-  // コンビニ払い・銀行振込:
+  // 即時決済（クレジットカード・PayPay）: captured → 「未対応」（入金済み・処理待ち）
+  // 後払い（コンビニ・銀行振込・ペイジー）:
   //   authorized（支払い番号発行済み・未入金）→「入金待ち」
   //   captured（入金完了）→「未対応」
-  // ※PayPay, Paidy, Apple Pay は申請中（承認後に追加）
+  var deferredMethods = { 'konbini': true, 'bank_transfer': true, 'pay_easy': true };
   var paymentStatus = '未対応';
-  if ((paymentMethodType === 'konbini' || paymentMethodType === 'bank_transfer') &&
-      data.type === 'payment.authorized') {
+  if (deferredMethods[paymentMethodType] && data.type === 'payment.authorized') {
     paymentStatus = '入金待ち';
   }
 
@@ -422,7 +421,7 @@ function handlePaymentRefunded_(data) {
 
 /**
  * 決済更新時の処理（payment.updated）
- * コンビニ払い・銀行振込で顧客が実際に入金した際にKOMOJUから送信される。
+ * コンビニ払い・銀行振込・ペイジーで顧客が実際に入金した際にKOMOJUから送信される。
  * 入金完了（captured）を検知して「入金待ち」→「未対応」にステータスを更新する。
  */
 function handlePaymentUpdated_(data) {
@@ -453,8 +452,9 @@ function handlePaymentUpdated_(data) {
 
   var paymentMethodType = extractPaymentMethodType_(apiPayment);
 
-  // コンビニ払い・銀行振込の入金完了を処理
-  if (paymentMethodType === 'konbini' || paymentMethodType === 'bank_transfer') {
+  // 後払い（コンビニ・銀行振込・ペイジー）の入金完了を処理
+  var deferredMethods = { 'konbini': true, 'bank_transfer': true, 'pay_easy': true };
+  if (deferredMethods[paymentMethodType]) {
     // 金額の照合
     if (!verifyPaymentAmount_(receiptNo, apiPayment.amount)) {
       console.error('payment.updated: 金額不一致: receiptNo=' + receiptNo);
@@ -477,7 +477,7 @@ function handlePaymentUpdated_(data) {
     return { ok: true, message: 'Payment confirmed via updated event' };
   }
 
-  // コンビニ・銀行振込以外のupdatedイベントは無視
+  // 後払い以外のupdatedイベントは無視
   console.log('payment.updated: non-deferred payment method (' + paymentMethodType + '), ignoring');
   return { ok: true, message: 'Non-deferred method, ignored' };
 }
@@ -715,6 +715,8 @@ function getPaymentMethodDisplayName_(methodType) {
     'credit_card': 'クレジットカード',
     'konbini': 'コンビニ払い',
     'bank_transfer': '銀行振込',
+    'paypay': 'PayPay',
+    'pay_easy': 'ペイジー',
     'admin': '管理者登録'
   };
   return map[String(methodType || '')] || String(methodType || '');
