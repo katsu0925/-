@@ -8,6 +8,7 @@ const CONFIG = {
   // APP_CONFIG.data.spreadsheetId から取得（一元管理）
   get DEST_SPREADSHEET_ID() { return String(APP_CONFIG.data.spreadsheetId || ''); },
   DEST_SHEET_NAME: "データ1",
+  DEST_SHEET_TANAOROSHI: "返品棚卸し",
 
   DEST_START_ROW: 3,
   DEST_WRITE_START_COL: 2,
@@ -46,8 +47,9 @@ function initializePublicList() {
 
   try {
     setGuardOn_();
-    const { productSheet, returnSheet, aiSheet, destSheet } = openSheets_();
+    const { productSheet, returnSheet, aiSheet, destSS, destSheet } = openSheets_();
     syncFull_(productSheet, returnSheet, aiSheet, destSheet);
+    syncTanaoroshi_(productSheet, returnSheet, destSS);
     const lastRow = Math.max(destSheet.getLastRow(), CONFIG.DEST_START_ROW);
     ensureCheckboxValidation_(destSheet, CONFIG.DEST_START_ROW, Math.max(0, lastRow - CONFIG.DEST_START_ROW + 1));
     PropertiesService.getScriptProperties().setProperty(PROP_KEYS.LAST_OK_AT, new Date().toISOString());
@@ -119,13 +121,15 @@ function syncListingPublic(e) {
 
       const t0 = Date.now();
       app_log_('openSheets_ START');
-      const { productSheet, returnSheet, aiSheet, destSheet } = openSheets_();
+      const { productSheet, returnSheet, aiSheet, destSS, destSheet } = openSheets_();
       app_log_('openSheets_ DONE', { ms: Date.now() - t0 });
 
       const t1 = Date.now();
       app_log_('syncFull_ START');
       syncFull_(productSheet, returnSheet, aiSheet, destSheet);
       app_log_('syncFull_ DONE', { ms: Date.now() - t1 });
+
+      syncTanaoroshi_(productSheet, returnSheet, destSS);
 
       const lastRow = Math.max(destSheet.getLastRow(), CONFIG.DEST_START_ROW);
       ensureCheckboxValidation_(destSheet, CONFIG.DEST_START_ROW, Math.max(0, lastRow - CONFIG.DEST_START_ROW + 1));
@@ -142,13 +146,15 @@ function syncListingPublic(e) {
 
       const t0 = Date.now();
       app_log_('openSheets_ START');
-      const { productSheet, returnSheet, aiSheet, destSheet } = openSheets_();
+      const { productSheet, returnSheet, aiSheet, destSS, destSheet } = openSheets_();
       app_log_('openSheets_ DONE', { ms: Date.now() - t0 });
 
       const t1 = Date.now();
       app_log_('syncFull_ START');
       syncFull_(productSheet, returnSheet, aiSheet, destSheet);
       app_log_('syncFull_ DONE', { ms: Date.now() - t1 });
+
+      syncTanaoroshi_(productSheet, returnSheet, destSS);
 
       const lastRow = Math.max(destSheet.getLastRow(), CONFIG.DEST_START_ROW);
       ensureCheckboxValidation_(destSheet, CONFIG.DEST_START_ROW, Math.max(0, lastRow - CONFIG.DEST_START_ROW + 1));
@@ -165,13 +171,15 @@ function syncListingPublic(e) {
 
       const t0 = Date.now();
       app_log_('openSheets_ START');
-      const { productSheet, returnSheet, aiSheet, destSheet } = openSheets_();
+      const { productSheet, returnSheet, aiSheet, destSS, destSheet } = openSheets_();
       app_log_('openSheets_ DONE', { ms: Date.now() - t0 });
 
       const t1 = Date.now();
       app_log_('syncFull_ START');
       syncFull_(productSheet, returnSheet, aiSheet, destSheet);
       app_log_('syncFull_ DONE', { ms: Date.now() - t1 });
+
+      syncTanaoroshi_(productSheet, returnSheet, destSS);
 
       const lastRow = Math.max(destSheet.getLastRow(), CONFIG.DEST_START_ROW);
       ensureCheckboxValidation_(destSheet, CONFIG.DEST_START_ROW, Math.max(0, lastRow - CONFIG.DEST_START_ROW + 1));
@@ -212,13 +220,15 @@ function syncListingPublicCron() {
 
     const t0 = Date.now();
     app_log_('openSheets_ START');
-    const { productSheet, returnSheet, aiSheet, destSheet } = openSheets_();
+    const { productSheet, returnSheet, aiSheet, destSS, destSheet } = openSheets_();
     app_log_('openSheets_ DONE', { ms: Date.now() - t0 });
 
     const t1 = Date.now();
     app_log_('syncFull_ START');
     syncFull_(productSheet, returnSheet, aiSheet, destSheet);
     app_log_('syncFull_ DONE', { ms: Date.now() - t1 });
+
+    syncTanaoroshi_(productSheet, returnSheet, destSS);
 
     const lastRow = Math.max(destSheet.getLastRow(), CONFIG.DEST_START_ROW);
     const t2 = Date.now();
@@ -672,12 +682,68 @@ function buildAiPathMap_(aiSheet) {
   return map;
 }
 
+/**
+ * syncTanaoroshi_ — 返送管理の管理番号+箱ID → 返品棚卸しシート同期
+ * フィルタ: 商品管理のステータスが「返品済み」のもののみ（売却済み等は除外）
+ */
+function syncTanaoroshi_(productSheet, returnSheet, destSS) {
+  const productMap = getProductMapCached_(productSheet);
+
+  const lastRow = returnSheet.getLastRow();
+  const start = CONFIG.SRC_RETURN_START_ROW;
+  const rows = [];
+
+  if (lastRow >= start) {
+    const n = lastRow - start + 1;
+    const data = returnSheet.getRange(start, 1, n, CONFIG.SRC_RETURN_COL_C).getValues();
+
+    for (let i = 0; i < n; i++) {
+      const boxId = String(data[i][0] ?? '').trim();
+      const cell = String(data[i][2] ?? '').trim();
+      if (!cell) continue;
+
+      const parts = cell.split(/[、,，\n\r\t ]+/);
+      for (let j = 0; j < parts.length; j++) {
+        const key = normalizeKey_(parts[j]);
+        if (!key) continue;
+
+        const rec = productMap[key];
+        if (!rec) continue;
+        if (rec.bizStatus !== '返品済み') continue;
+
+        rows.push([key, boxId]);
+      }
+    }
+  }
+
+  const sheetName = CONFIG.DEST_SHEET_TANAOROSHI;
+  let tSheet = destSS.getSheetByName(sheetName);
+  if (!tSheet) tSheet = destSS.insertSheet(sheetName);
+
+  const headers = ['管理番号', '箱ID'];
+  tSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+
+  const dataStart = 2;
+
+  if (rows.length > 0) {
+    ensureSheetSize_(tSheet, dataStart + rows.length - 1, headers.length);
+    tSheet.getRange(dataStart, 1, rows.length, headers.length).setValues(rows);
+  }
+
+  const lastExisting = tSheet.getLastRow();
+  const clearStart = dataStart + rows.length;
+  if (lastExisting >= clearStart) {
+    tSheet.getRange(clearStart, 1, lastExisting - clearStart + 1, headers.length).clearContent();
+  }
+}
+
 /** 手動テスト用（ロック/ガード無視） — エディタから実行 */
 function syncManualTest() {
   clearProductCache_();
   clearReturnCache_();
-  const { productSheet, returnSheet, aiSheet, destSheet } = openSheets_();
+  const { productSheet, returnSheet, aiSheet, destSS, destSheet } = openSheets_();
   syncFull_(productSheet, returnSheet, aiSheet, destSheet);
+  syncTanaoroshi_(productSheet, returnSheet, destSS);
   console.log('syncManualTest 完了');
 }
 
