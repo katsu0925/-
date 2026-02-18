@@ -947,6 +947,7 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
       totalCount: pendingData.totalCount,
       discounted: pendingData.discounted,
       shippingAmount: pendingData.shippingAmount,
+      storeShipping: pendingData.storeShipping || 0,
       shippingSize: pendingData.shippingSize,
       shippingArea: pendingData.shippingArea,
       shippingPref: pendingData.shippingPref,
