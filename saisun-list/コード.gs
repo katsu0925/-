@@ -236,41 +236,6 @@ function syncListingPublicCron() {
   }
 }
 
-function app_propsSetLargeRaw_(baseKey, str) {
-  const props = PropertiesService.getScriptProperties();
-  const s = str == null ? '' : String(str);
-  const chunkSize = 8000;
-
-  const n = Math.ceil(s.length / chunkSize);
-  props.setProperty(baseKey + ':N', String(n));
-
-  for (let i = 0; i < n; i++) {
-    props.setProperty(baseKey + ':' + i, s.slice(i * chunkSize, (i + 1) * chunkSize));
-  }
-}
-
-function app_propsGetLargeRaw_(baseKey) {
-  const props = PropertiesService.getScriptProperties();
-  const n = Number(props.getProperty(baseKey + ':N') || '0');
-  if (!n) return null;
-
-  const parts = [];
-  for (let i = 0; i < n; i++) {
-    parts.push(props.getProperty(baseKey + ':' + i) || '');
-  }
-  return parts.join('');
-}
-
-function app_propsDeleteLargeRaw_(baseKey) {
-  const props = PropertiesService.getScriptProperties();
-  const n = Number(props.getProperty(baseKey + ':N') || '0');
-
-  for (let i = 0; i < n; i++) {
-    props.deleteProperty(baseKey + ':' + i);
-  }
-  props.deleteProperty(baseKey + ':N');
-}
-
 function app_cachePutLarge_(cache, baseKey, str, seconds) {
   const s = str == null ? '' : String(str);
   const chunkSize = 90000;
@@ -707,12 +672,6 @@ function buildAiPathMap_(aiSheet) {
   return map;
 }
 
-/** Drive権限テスト — エディタから実行して権限を承認する用 */
-function testDrivePermission() {
-  var it = DriveApp.getFoldersByName('_test_permission_check_');
-  console.log('DriveApp OK: フォルダ検索権限あり');
-}
-
 /** 手動テスト用（ロック/ガード無視） — エディタから実行 */
 function syncManualTest() {
   clearProductCache_();
@@ -908,10 +867,6 @@ function saveError_(err) {
 
 function normalizeKey_(v) {
   return String(v ?? "").trim();
-}
-
-function isBlank_(v) {
-  return String(v ?? "").trim() === "";
 }
 
 function convertFreeSizeToF_(v) {
@@ -1158,32 +1113,3 @@ function checkManagement() {
 }
 
 
-function app_debugData1_() {
-  const ssId = String(APP_CONFIG.data.spreadsheetId || '').trim();
-  const shName = String(APP_CONFIG.data.sheetName || '').trim();
-  const headerRow = Number(APP_CONFIG.data.headerRow || 2);
-  const readCols = Number(APP_CONFIG.data.readCols || 11);
-
-  const ss = SpreadsheetApp.openById(ssId);
-  const sh = ss.getSheetByName(shName);
-
-  const lastRow = sh.getLastRow();
-  const lastCol = sh.getLastColumn();
-
-  const startRow = Math.max(headerRow + 1, lastRow - 20);
-  const numRows = Math.max(0, lastRow - startRow + 1);
-  const numCols = Math.min(readCols, Math.max(1, lastCol));
-
-  const tail = numRows > 0 ? sh.getRange(startRow, 1, numRows, numCols).getDisplayValues() : [];
-
-  return {
-    now: new Date().toISOString(),
-    spreadsheetId: ssId,
-    sheetName: shName,
-    headerRow: headerRow,
-    readCols: readCols,
-    lastRow: lastRow,
-    lastCol: lastCol,
-    tail: tail
-  };
-}

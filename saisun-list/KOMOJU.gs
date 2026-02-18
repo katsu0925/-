@@ -1145,21 +1145,6 @@ function testKomojuConnection() {
   }
 }
 
-/**
- * テスト決済セッション作成
- */
-function testCreateSession() {
-  var result = apiCreateKomojuSession('TEST-' + Date.now(), 1000, {
-    email: 'test@example.com',
-    companyName: 'テスト会社'
-  });
-
-  console.log('Result:', result);
-  if (result.ok) {
-    console.log('決済URL:', result.sessionUrl);
-  }
-}
-
 // =====================================================
 // ペンディング注文の定期チェック（Webhookセーフティネット）
 // =====================================================

@@ -439,32 +439,6 @@ function getExportSettings_() {
 }
 
 /**
- * JSONをGoogle Driveに保存
- */
-function saveJsonToDrive_(data, fileName) {
-  var folder = DriveApp.getFolderById(EXPORT_FOLDER_ID);
-  var jsonString = JSON.stringify(data);
-  
-  // 既存ファイルを検索
-  var files = folder.getFilesByName(fileName);
-  
-  if (files.hasNext()) {
-    // 既存ファイルを更新
-    var file = files.next();
-    file.setContent(jsonString);
-    console.log('ファイル更新: ' + fileName);
-  } else {
-    // 新規作成
-    var file = folder.createFile(fileName, jsonString, MimeType.PLAIN_TEXT);
-    // 共有設定（リンクを知っている全員が閲覧可能）
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    console.log('ファイル作成: ' + fileName + ' (ID: ' + file.getId() + ')');
-  }
-  
-  return file;
-}
-
-/**
  * エクスポートされたJSONファイルのURLを取得
  * 初回セットアップ時に実行して、URLをIndex.htmlに設定
  */

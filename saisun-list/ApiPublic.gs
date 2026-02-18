@@ -172,46 +172,7 @@ function apiSyncHolds(userKey, ids) {
   }
 }
 
-function u_withLockRetry_(lock, totalWaitMs, stepMs, fn) {
-  const total = Math.max(0, Number(totalWaitMs || 0));
-  const step = Math.max(10, Number(stepMs || 50));
-  const until = Date.now() + total;
-  while (true) {
-    if (lock.tryLock(step)) break;
-    if (Date.now() >= until) return { ok: false, message: '別の処理が実行中です。少し時間を置いてから再試行してください。' };
-    Utilities.sleep(step);
-  }
-  try {
-    const r = fn();
-    return r;
-  } finally {
-    try { lock.releaseLock(); } catch (e) {}
-  }
-}
-
 // apiSubmitEstimate は SubmitFix.gs に移動しました（高速版）
-
-function app_onEdit(e) {
-  try {
-    if (!e || !e.range) return;
-    const r = e.range;
-    const sh = r.getSheet();
-    const ss = sh.getParent();
-    if (ss.getId() !== app_getOrderSpreadsheetId_()) return;
-    if (sh.getName() !== String(APP_CONFIG.order.requestSheetName || '依頼管理')) return;
-    if (r.getRow() < 2) return;
-
-    const col = r.getColumn();
-    if (col !== 17 && col !== 12) return;  // Q列(17)=入金確認, L列(12)=合計金額
-
-    const rebuilt = od_rebuildOpenStateFromRequestSheet_(ss);
-    st_setOpenState_(ss, rebuilt);
-    od_writeOpenLogSheetFromState_(ss, rebuilt.items || {}, u_nowMs_());
-    st_invalidateStatusCache_(ss);
-  } catch (err) {
-    console.error('app_onEdit error:', err);
-  }
-}
 
 function sh_findNextRowByDisplayKey_(sh, keyCol, headerRows) {
   const hc = Math.max(0, Number(headerRows || 0));

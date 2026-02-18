@@ -16,16 +16,6 @@ function u_formatYen_(n) {
   return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '円';
 }
 
-function u_sanitizeForSheet_(v) {
-  let s = String(v == null ? '' : v);
-  s = s.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-  const t = s.trim();
-  if (!t) return '';
-  const c = t.charAt(0);
-  if (c === '=' || c === '+' || c === '-' || c === '@') return "'" + t;
-  return t;
-}
-
 function u_normalizeId_(v) {
   let s = String(v == null ? '' : v).trim();
   if (!s) return '';

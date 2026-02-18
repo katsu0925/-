@@ -27,17 +27,6 @@ const BASE_CLIENT_SECRET_INPUT = '';
 const BASE_REDIRECT_URI_EXEC = '';
 const BASE_TARGET_SPREADSHEET_ID_INPUT = '';
 
-function baseCanHandleOAuthCallback_(e) {
-  const p = (e && e.parameter) ? e.parameter : {};
-  if (p && (p.code || p.error)) return true;
-  if (p && p.state) return true;
-  return false;
-}
-
-function baseDoGet(e) {
-  return baseHandleOAuthCallback_(e);
-}
-
 function baseSetupDirect() {
   const clientId = String(BASE_CLIENT_ID_INPUT || '').trim();
   const clientSecret = String(BASE_CLIENT_SECRET_INPUT || '').trim();
@@ -289,15 +278,6 @@ function baseGetTokenStatus() {
   };
 }
 
-function baseResetTokens() {
-  const props = PropertiesService.getScriptProperties();
-  props.deleteProperty(BASE_APP.PROP_ACCESS_TOKEN);
-  props.deleteProperty(BASE_APP.PROP_REFRESH_TOKEN);
-  props.deleteProperty(BASE_APP.PROP_EXPIRES_AT);
-  props.deleteProperty(BASE_APP.PROP_LAST_SYNC_AT);
-  return { ok: true };
-}
-
 function baseGetTargetSpreadsheet_() {
   const props = PropertiesService.getScriptProperties();
   const id = String(props.getProperty(BASE_APP.PROP_TARGET_SS_ID) || '').trim();
@@ -310,31 +290,6 @@ function baseSetTargetSpreadsheetId(id) {
   if (!v) throw new Error('IDが空です');
   PropertiesService.getScriptProperties().setProperty(BASE_APP.PROP_TARGET_SS_ID, v);
   return { ok: true, spreadsheetId: v };
-}
-
-function baseDebugFetchOrdersCount(days) {
-  const d = Number(days);
-  const span = (isFinite(d) && d > 0) ? d : 14;
-  const end = new Date();
-  const start = new Date(end.getTime() - span * 24 * 3600 * 1000);
-  const tz = Session.getScriptTimeZone() || 'Asia/Tokyo';
-  const startStr = baseFormatYmdHms_(start, tz);
-  const endStr = baseFormatYmdHms_(end, tz);
-
-  const list = baseApiGet_('/1/orders', {
-    start_ordered: startStr,
-    end_ordered: endStr,
-    limit: '100',
-    offset: '0'
-  });
-
-  const orders = (list && list.orders && Array.isArray(list.orders)) ? list.orders : [];
-  return {
-    ok: true,
-    range: { start: startStr, end: endStr },
-    count: orders.length,
-    firstUniqueKey: orders[0] && orders[0].unique_key ? String(orders[0].unique_key) : ''
-  };
 }
 
 function baseTestOrders() {
@@ -805,18 +760,6 @@ function baseResetAuthAll() {
 function baseReLinkByDialog() {
   baseResetAuthAll();
   baseShowAuthUrl();
-  return { ok: true };
-}
-
-function baseReLinkByLog() {
-  baseResetAuthAll();
-  return basePrintAuthUrl();
-}
-
-function baseEnsureSheetsOnly() {
-  const ss = baseGetTargetSpreadsheet_();
-  baseEnsureOrdersSheet_(ss);
-  baseEnsureItemsSheet_(ss);
   return { ok: true };
 }
 

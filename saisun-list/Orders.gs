@@ -2,29 +2,6 @@
 // st_getSelectedBrandKeys_, st_searchPage_, st_buildDigestMap_
 // は Status.gs で定義済み
 
-function od_headerMap_(sh) {
-  const lastCol = sh.getLastColumn();
-  const r1 = sh.getRange(1, 1, 1, lastCol).getValues()[0];
-  const map = {};
-  for (let i = 0; i < r1.length; i++) {
-    const k = String(r1[i] || '').trim();
-    if (k) map[k] = i + 1;
-  }
-  return map;
-}
-
-function od_toMs_(v) {
-  if (v == null || v === '') return 0;
-  if (v instanceof Date) return v.getTime();
-  const n = Number(v);
-  if (isFinite(n) && n > 0) return Math.floor(n);
-  const s = String(v).trim();
-  if (!s) return 0;
-  const d = new Date(s);
-  if (!isNaN(d.getTime())) return d.getTime();
-  return 0;
-}
-
 /**
  * 確保シートから状態を再構築
  */
@@ -301,26 +278,6 @@ function od_getActualLastRow_(sheet) {
   return 1;
 }
 
-
-/**
- * 依頼シートに新しい行を追加（空行なし）
- */
-function od_appendRequestRow_(sheet, rowData) {
-  const actualLastRow = od_getActualLastRow_(sheet);
-  const newRow = actualLastRow + 1;
-  
-  // 行数が足りなければ追加
-  const maxRow = sheet.getMaxRows();
-  if (newRow > maxRow) {
-    sheet.insertRowsAfter(maxRow, 1);
-  }
-  
-  // データを書き込み
-  const numCols = rowData.length;
-  sheet.getRange(newRow, 1, 1, numCols).setValues([rowData]);
-  
-  return newRow;
-}
 
 /**
  * 依頼中シートの現在の内容からopenStateを再構築

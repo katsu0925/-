@@ -145,29 +145,3 @@ function od_extractManageNos_(text) {
   }
   return out;
 }
-
-function od_compactInProgressSheetOnce_() {
-  const orderSs = sh_getOrderSs_();
-  const sh = od_ensureInProgressSheet_(orderSs);
-  const cols = od_getInProgressCols_(sh);
-
-  const lastRow = sh.getLastRow();
-  const lastCol = sh.getLastColumn();
-  if (lastRow <= 2) return { ok: true, before: Math.max(0, lastRow - 1), after: Math.max(0, lastRow - 1) };
-
-  const data = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
-  const keep = new Map();
-
-  for (let i = 0; i < data.length; i++) {
-    const row = data[i];
-    const k = String(row[cols.manageCol - 1] || '').trim();
-    if (!k) continue;
-    keep.set(k, row);
-  }
-
-  const out = Array.from(keep.values());
-  sh.getRange(2, 1, lastRow - 1, lastCol).clearContent();
-  if (out.length > 0) sh.getRange(2, 1, out.length, lastCol).setValues(out);
-
-  return { ok: true, before: data.length, after: out.length };
-}
