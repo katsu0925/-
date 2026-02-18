@@ -260,8 +260,8 @@ function syncBaseOrdersToIraiKanri() {
       const addr2 = (hasReceiver && rcvAddr2) ? rcvAddr2 : pickFirstNonDateText_(orderRow, addr2CandidateIdxs);
       const address = (pref + addr1 + addr2).trim();
 
-      const rcvTel = (hasReceiver && idxRcvTel_Order !== -1) ? String(orderRow[idxRcvTel_Order] || '').trim() : '';
-      const tel = rcvTel || String(orderRow[idxTel_Order] || '').trim();
+      const rcvTel = (hasReceiver && idxRcvTel_Order !== -1) ? normalizePhone_(orderRow[idxRcvTel_Order]) : '';
+      const tel = rcvTel || normalizePhone_(orderRow[idxTel_Order]);
 
       const subtotal = itemRow[idxSubtotal_Item];
       const qtyRaw = itemRow[idxQty_Item];
@@ -434,6 +434,18 @@ function pickFirstNonDateText_(row, idxs) {
     return s;
   }
   return '';
+}
+
+/**
+ * 電話番号の先頭0補完
+ * Google Sheetsが数値として格納すると先頭0が失われるため復元する
+ * 日本の電話番号は必ず0始まり（固定10桁/携帯11桁）
+ */
+function normalizePhone_(val) {
+  const s = String(val || '').trim();
+  if (!s) return '';
+  if (/^\d{9,10}$/.test(s) && s.charAt(0) !== '0') return '0' + s;
+  return s;
 }
 
 function isDateLike_(v) {
