@@ -487,19 +487,6 @@ function apiAdminLinkOrder(adminKey, receiptNo, userKey, ids) {
 // バックグラウンド書き込み処理（レガシー互換）
 // =====================================================
 
-function scheduleBackgroundProcess_() {
-  var triggers = ScriptApp.getProjectTriggers();
-  for (var i = 0; i < triggers.length; i++) {
-    if (triggers[i].getHandlerFunction() === 'processSubmitQueue') {
-      return;
-    }
-  }
-  ScriptApp.newTrigger('processSubmitQueue')
-    .timeBased()
-    .after(1000)
-    .create();
-}
-
 function processSubmitQueue() {
   var lock = LockService.getScriptLock();
   try {
@@ -683,19 +670,6 @@ function getActualLastRow_(sheet, column) {
 // テスト用リフレッシュ関数
 // =====================================================
 
-function refreshTestSubmission() {
-  var testUserKey = '';
-  var testIds = [];
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var holdCleared = clearHoldSheetForRefresh_(ss, testUserKey, testIds);
-  var statusReset = resetProductStatusForRefresh_(ss, testIds);
-  console.log('='.repeat(50));
-  console.log('リフレッシュ完了');
-  console.log('確保クリア: ' + holdCleared + '件');
-  console.log('ステータスリセット: ' + statusReset + '件');
-  console.log('='.repeat(50));
-}
-
 function refreshLatestSubmission() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName('依頼管理');
@@ -720,43 +694,6 @@ function refreshLatestSubmission() {
   console.log('ステータスリセット: ' + statusReset + '件');
   console.log('依頼管理から削除: 1件');
   console.log('='.repeat(50));
-}
-
-function clearHoldSheetForRefresh_(ss, userKey, ids) {
-  var sheet = ss.getSheetByName('確保');
-  if (!sheet) return 0;
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 2) return 0;
-  var range = sheet.getRange(2, 1, lastRow - 1, 2);
-  var values = range.getValues();
-  var rowsToDelete = [];
-  for (var i = values.length - 1; i >= 0; i--) {
-    var holdUserKey = String(values[i][0] || '').trim();
-    var holdId = String(values[i][1] || '').trim();
-    var matchUser = !userKey || holdUserKey === userKey;
-    var matchId = !ids || ids.length === 0 || ids.indexOf(holdId) !== -1;
-    if (matchUser && matchId) rowsToDelete.push(i + 2);
-  }
-  for (var j = 0; j < rowsToDelete.length; j++) sheet.deleteRow(rowsToDelete[j]);
-  return rowsToDelete.length;
-}
-
-function resetProductStatusForRefresh_(ss, ids) {
-  var sheet = ss.getSheetByName('データ1');
-  if (!sheet) return 0;
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 3) return 0;
-  var range = sheet.getRange(3, 10, lastRow - 2, 2);
-  var values = range.getValues();
-  var count = 0;
-  for (var i = 0; i < values.length; i++) {
-    var status = String(values[i][0] || '');
-    var managedId = String(values[i][1] || '').trim();
-    var isTarget = (status.indexOf('依頼中') !== -1 || status.indexOf('確保中') !== -1);
-    var matchId = !ids || ids.length === 0 || ids.indexOf(managedId) !== -1;
-    if (isTarget && matchId) { sheet.getRange(i + 3, 10).setValue(''); count++; }
-  }
-  return count;
 }
 
 // =====================================================

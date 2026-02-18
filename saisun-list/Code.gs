@@ -265,14 +265,6 @@ function verifyRecaptcha_(token) {
 // 管理者判定（レート制限・reCAPTCHAをスキップ）
 // =====================================================
 
-function isAdminUser_(body) {
-  var adminKey = PropertiesService.getScriptProperties().getProperty('ADMIN_KEY') || '';
-  var sent = String(body.adminKey || '');
-  if (!adminKey) return false;
-  // タイミングセーフな比較を使用
-  return timingSafeEqual_(sent, adminKey);
-}
-
 /**
  * 管理者キーを設定（GASエディタで1回だけ実行）
  * ★ 下の 'my-secret-key-123' を好きなキーに変えてから実行

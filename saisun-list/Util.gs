@@ -298,10 +298,6 @@ function u_expandKeywordNeedles_(keyword, synonymMaps) {
   return list;
 }
 
-function u_expandKeywordNeedlesDynamic_(keyword) {
-  return u_expandKeywordNeedles_(keyword, { aliasToCanon: {}, canonToAliases: {} });
-}
-
 // =====================================================
 // 共通ユーティリティ: ヘッダー列検索
 // =====================================================
@@ -323,16 +319,3 @@ function u_findCol_(headers, names) {
   return -1;
 }
 
-/**
- * ヘッダー行からヘッダーマップを構築（名前 → 0-basedインデックス）
- * @param {Array} headers - ヘッダー行の配列
- * @returns {Object} - { 列名: インデックス } のマップ
- */
-function u_buildHeaderMap_(headers) {
-  var map = {};
-  for (var i = 0; i < headers.length; i++) {
-    var h = String(headers[i] || '').trim();
-    if (h) map[h] = i;
-  }
-  return map;
-}

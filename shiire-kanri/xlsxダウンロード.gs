@@ -80,11 +80,6 @@ function updateRequestSheetLink_(name, receiptNo, url) {
   }
 }
 
-function folderHasFileName_(folder, filename) {
-  const it = folder.getFilesByName(filename);
-  return it.hasNext();
-}
-
 function getSheetById_(ss, gid) {
   const sheets = ss.getSheets();
   for (let i = 0; i < sheets.length; i++) {

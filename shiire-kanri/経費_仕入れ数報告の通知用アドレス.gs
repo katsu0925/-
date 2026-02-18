@@ -11,7 +11,6 @@ const CONFIG_MAILER = {
 };
 
 function handleChange_Mailer(e) { withLock_(30000, function() { processAllPending(); }); }
-function handleEdit_Mailer(e) { handleChange_Mailer(e); }
 
 function processAllPending() {
   const ss = SpreadsheetApp.getActive();
