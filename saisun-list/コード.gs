@@ -114,82 +114,38 @@ function syncListingPublic(e) {
     const sheet = e.range.getSheet();
     const name = sheet.getName();
 
-    if (name === CONFIG.SRC_SHEET_PRODUCT_NAME) {
-      app_log_('PRODUCT edit');
-      clearProductCache_();
-      setGuardOn_();
+    const CLEAR_CACHE_MAP_ = {};
+    CLEAR_CACHE_MAP_[CONFIG.SRC_SHEET_PRODUCT_NAME] = clearProductCache_;
+    CLEAR_CACHE_MAP_[CONFIG.SRC_SHEET_RETURN_NAME] = clearReturnCache_;
+    CLEAR_CACHE_MAP_[CONFIG.SRC_SHEET_AI_NAME] = clearAiPathCache_;
 
-      const t0 = Date.now();
-      app_log_('openSheets_ START');
-      const { productSheet, returnSheet, aiSheet, destSS, destSheet } = openSheets_();
-      app_log_('openSheets_ DONE', { ms: Date.now() - t0 });
-
-      const t1 = Date.now();
-      app_log_('syncFull_ START');
-      syncFull_(productSheet, returnSheet, aiSheet, destSheet);
-      app_log_('syncFull_ DONE', { ms: Date.now() - t1 });
-
-      syncTanaoroshi_(productSheet, returnSheet, destSS);
-
-      const lastRow = Math.max(destSheet.getLastRow(), CONFIG.DEST_START_ROW);
-      ensureCheckboxValidation_(destSheet, CONFIG.DEST_START_ROW, Math.max(0, lastRow - CONFIG.DEST_START_ROW + 1));
-
-      PropertiesService.getScriptProperties().setProperty(PROP_KEYS.LAST_OK_AT, new Date().toISOString());
-      app_log_('PRODUCT END OK', { totalMs: Date.now() - started });
+    const clearFn = CLEAR_CACHE_MAP_[name];
+    if (!clearFn) {
+      app_log_('syncListingPublic SKIP sheetNotTarget', { sheetName: name, totalMs: Date.now() - started });
       return;
     }
 
-    if (name === CONFIG.SRC_SHEET_RETURN_NAME) {
-      app_log_('RETURN edit');
-      clearReturnCache_();
-      setGuardOn_();
+    app_log_(name + ' edit');
+    clearFn();
+    setGuardOn_();
 
-      const t0 = Date.now();
-      app_log_('openSheets_ START');
-      const { productSheet, returnSheet, aiSheet, destSS, destSheet } = openSheets_();
-      app_log_('openSheets_ DONE', { ms: Date.now() - t0 });
+    const t0 = Date.now();
+    app_log_('openSheets_ START');
+    const { productSheet, returnSheet, aiSheet, destSS, destSheet } = openSheets_();
+    app_log_('openSheets_ DONE', { ms: Date.now() - t0 });
 
-      const t1 = Date.now();
-      app_log_('syncFull_ START');
-      syncFull_(productSheet, returnSheet, aiSheet, destSheet);
-      app_log_('syncFull_ DONE', { ms: Date.now() - t1 });
+    const t1 = Date.now();
+    app_log_('syncFull_ START');
+    syncFull_(productSheet, returnSheet, aiSheet, destSheet);
+    app_log_('syncFull_ DONE', { ms: Date.now() - t1 });
 
-      syncTanaoroshi_(productSheet, returnSheet, destSS);
+    syncTanaoroshi_(productSheet, returnSheet, destSS);
 
-      const lastRow = Math.max(destSheet.getLastRow(), CONFIG.DEST_START_ROW);
-      ensureCheckboxValidation_(destSheet, CONFIG.DEST_START_ROW, Math.max(0, lastRow - CONFIG.DEST_START_ROW + 1));
+    const lastRow = Math.max(destSheet.getLastRow(), CONFIG.DEST_START_ROW);
+    ensureCheckboxValidation_(destSheet, CONFIG.DEST_START_ROW, Math.max(0, lastRow - CONFIG.DEST_START_ROW + 1));
 
-      PropertiesService.getScriptProperties().setProperty(PROP_KEYS.LAST_OK_AT, new Date().toISOString());
-      app_log_('RETURN END OK', { totalMs: Date.now() - started });
-      return;
-    }
-
-    if (name === CONFIG.SRC_SHEET_AI_NAME) {
-      app_log_('AI edit');
-      clearAiPathCache_();
-      setGuardOn_();
-
-      const t0 = Date.now();
-      app_log_('openSheets_ START');
-      const { productSheet, returnSheet, aiSheet, destSS, destSheet } = openSheets_();
-      app_log_('openSheets_ DONE', { ms: Date.now() - t0 });
-
-      const t1 = Date.now();
-      app_log_('syncFull_ START');
-      syncFull_(productSheet, returnSheet, aiSheet, destSheet);
-      app_log_('syncFull_ DONE', { ms: Date.now() - t1 });
-
-      syncTanaoroshi_(productSheet, returnSheet, destSS);
-
-      const lastRow = Math.max(destSheet.getLastRow(), CONFIG.DEST_START_ROW);
-      ensureCheckboxValidation_(destSheet, CONFIG.DEST_START_ROW, Math.max(0, lastRow - CONFIG.DEST_START_ROW + 1));
-
-      PropertiesService.getScriptProperties().setProperty(PROP_KEYS.LAST_OK_AT, new Date().toISOString());
-      app_log_('AI END OK', { totalMs: Date.now() - started });
-      return;
-    }
-
-    app_log_('syncListingPublic SKIP sheetNotTarget', { sheetName: name, totalMs: Date.now() - started });
+    PropertiesService.getScriptProperties().setProperty(PROP_KEYS.LAST_OK_AT, new Date().toISOString());
+    app_log_(name + ' END OK', { totalMs: Date.now() - started });
   } catch (err) {
     app_log_('syncListingPublic ERROR', { message: String(err && err.message ? err.message : err), stack: String(err && err.stack ? err.stack : '') });
     saveError_(err);
@@ -584,7 +540,7 @@ function buildReturnSet_(returnSheet) {
     const cell = String(vals[i][0] ?? "").trim();
     if (cell === "") continue;
 
-    const parts = cell.split(/[、,，\n\r\t ]+/);
+    const parts = cell.split(/[,\n\r\t\s、，／\/・|]+/);
     for (let j = 0; j < parts.length; j++) {
       const k = normalizeKey_(parts[j]);
       if (!k) continue;
@@ -722,7 +678,7 @@ function syncTanaoroshi_(productSheet, returnSheet, destSS) {
       const cell = String(data[i][2] ?? '').trim();
       if (!cell) continue;
 
-      const parts = cell.split(/[、,，\n\r\t ]+/);
+      const parts = cell.split(/[,\n\r\t\s、，／\/・|]+/);
       for (let j = 0; j < parts.length; j++) {
         const key = normalizeKey_(parts[j]);
         if (!key) continue;
@@ -994,51 +950,31 @@ function normalizeSellPrice_(p) {
   return base + 100;
 }
 
+const PRICE_TIER_TABLE_ = [
+  [50, 200], [100, 320], [149, 430], [199, 485], [249, 595],
+  [299, 650], [349, 705], [399, 760], [449, 815], [499, 925],
+  [549, 980], [599, 1035], [649, 1090], [699, 1145], [749, 1255],
+  [799, 1310], [849, 1365], [899, 1420], [949, 1475], [999, 1585],
+  [1049, 1640], [1099, 1695], [1149, 1750], [1199, 1805], [1249, 1915],
+  [1299, 1970], [1349, 2025], [1399, 2080], [1449, 2135], [1499, 2245],
+  [1549, 2300], [1599, 2355], [1649, 2410], [1699, 2465]
+];
+
+function calcPriceTier_(n) {
+  if (n < 0) return 0;
+  for (let i = 0; i < PRICE_TIER_TABLE_.length; i++) {
+    if (n <= PRICE_TIER_TABLE_[i][0]) return PRICE_TIER_TABLE_[i][1];
+  }
+  return PRICE_TIER_TABLE_[PRICE_TIER_TABLE_.length - 1][1];
+}
+
 function convertRecoveryK_(v) {
   if (v === null || v === undefined) return "";
   const s = String(v).trim();
   if (s === "") return "";
   const n = Number(s);
   if (!isFinite(n)) return v;
-
-  let p = n;
-
-  if (n >= 0 && n <= 50) p = 200;
-else if (n >= 51 && n <= 100) p = 320;
-else if (n >= 101 && n <= 149) p = 430;
-else if (n >= 150 && n <= 199) p = 485;
-else if (n >= 200 && n <= 249) p = 595;
-else if (n >= 250 && n <= 299) p = 650;
-else if (n >= 300 && n <= 349) p = 705;
-else if (n >= 350 && n <= 399) p = 760;
-else if (n >= 400 && n <= 449) p = 815;
-else if (n >= 450 && n <= 499) p = 925;
-else if (n >= 500 && n <= 549) p = 980;
-else if (n >= 550 && n <= 599) p = 1035;
-else if (n >= 600 && n <= 649) p = 1090;
-else if (n >= 650 && n <= 699) p = 1145;
-else if (n >= 700 && n <= 749) p = 1255;
-else if (n >= 750 && n <= 799) p = 1310;
-else if (n >= 800 && n <= 849) p = 1365;
-else if (n >= 850 && n <= 899) p = 1420;
-else if (n >= 900 && n <= 949) p = 1475;
-else if (n >= 950 && n <= 999) p = 1585;
-else if (n >= 1000 && n <= 1049) p = 1640;
-else if (n >= 1050 && n <= 1099) p = 1695;
-else if (n >= 1100 && n <= 1149) p = 1750;
-else if (n >= 1150 && n <= 1199) p = 1805;
-else if (n >= 1200 && n <= 1249) p = 1915;
-else if (n >= 1250 && n <= 1299) p = 1970;
-else if (n >= 1300 && n <= 1349) p = 2025;
-else if (n >= 1350 && n <= 1399) p = 2080;
-else if (n >= 1400 && n <= 1449) p = 2135;
-else if (n >= 1450 && n <= 1499) p = 2245;
-else if (n >= 1500 && n <= 1549) p = 2300;
-else if (n >= 1550 && n <= 1599) p = 2355;
-else if (n >= 1600 && n <= 1649) p = 2410;
-else if (n >= 1650 && n <= 1699) p = 2465;
-
-  return normalizeSellPrice_(p);
+  return normalizeSellPrice_(calcPriceTier_(n));
 }
 
 function isGuardOn_() {

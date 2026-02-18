@@ -200,23 +200,27 @@ function syncBaseOrdersToEc() {
       if (existingRow) {
         // --- 既存行を更新（空なら埋める、伝票番号は常に上書き） ---
         const rowData = dstAllValues[existingRow - 2];
+        let dirty = false;
         if (!String(rowData[dstChannelCol - 1] || '').trim()) {
-          dstSh.getRange(existingRow, dstChannelCol).setValue(channel);
+          rowData[dstChannelCol - 1] = channel; dirty = true;
         }
         if (dstProductPriceCol > 0 && !String(rowData[dstProductPriceCol - 1] || '').trim()) {
-          dstSh.getRange(existingRow, dstProductPriceCol).setValue(productPrice);
+          rowData[dstProductPriceCol - 1] = productPrice; dirty = true;
         }
         if (!String(rowData[dstSalesCol - 1] || '').trim()) {
-          dstSh.getRange(existingRow, dstSalesCol).setValue(sales);
+          rowData[dstSalesCol - 1] = sales; dirty = true;
         }
         if (dstFeeCol > 0 && !String(rowData[dstFeeCol - 1] || '').trim()) {
-          dstSh.getRange(existingRow, dstFeeCol).setValue(fee);
+          rowData[dstFeeCol - 1] = fee; dirty = true;
         }
         if (dstDepositCol > 0 && !String(rowData[dstDepositCol - 1] || '').trim()) {
-          dstSh.getRange(existingRow, dstDepositCol).setValue(deposit);
+          rowData[dstDepositCol - 1] = deposit; dirty = true;
         }
         if (dstTrackingCol > 0 && group.tracking) {
-          dstSh.getRange(existingRow, dstTrackingCol).setValue(group.tracking);
+          rowData[dstTrackingCol - 1] = group.tracking; dirty = true;
+        }
+        if (dirty) {
+          dstSh.getRange(existingRow, 1, 1, dstLastCol).setValues([rowData]);
         }
         continue;
       }

@@ -31,6 +31,8 @@ function processPendingForSheet(ss, def, recipients) {
   let idIdx = -1;
   if (def.idHeader) { idIdx = headers.indexOf(def.idHeader); }
   const data = sh.getRange(2, 1, lastRow - 1, lastCol).getDisplayValues();
+  const allProps = PropertiesService.getScriptProperties().getProperties();
+  const propsToSet = {};
   data.forEach((row, i) => {
     const rowNumber = i + 2;
     let idValue = "";
@@ -41,7 +43,7 @@ function processPendingForSheet(ss, def, recipients) {
       idValue = firstVal ? "row" + rowNumber + "_" + firstVal : "row" + rowNumber;
     }
     const key = propKey(def.name, idValue);
-    if (PropertiesService.getScriptProperties().getProperty(key)) return;
+    if (allProps[key]) return;
     const payloadPairs = def.fields.map(f => {
       const idx = fieldIdx[f];
       return { label: f, value: idx >= 0 ? String(row[idx]).trim() : "" };
@@ -56,8 +58,15 @@ function processPendingForSheet(ss, def, recipients) {
       try { GmailApp.sendEmail(rcpt, def.subject, body); sentAny = true; } catch (err) {}
       Utilities.sleep(200);
     });
-    if (sentAny) { PropertiesService.getScriptProperties().setProperty(key, "sent"); }
+    if (sentAny) {
+      propsToSet[key] = "sent";
+      allProps[key] = "sent";
+    }
   });
+  const keys = Object.keys(propsToSet);
+  if (keys.length > 0) {
+    PropertiesService.getScriptProperties().setProperties(propsToSet);
+  }
 }
 
 function getRecipients(ss) {

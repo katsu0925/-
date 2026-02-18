@@ -139,30 +139,49 @@ function handleMissingProducts() {
   });
 
   // --- 欠品商品: ステータス→廃棄済み、廃棄日→今日、BO列クリア ---
+  // --- 同じ受付番号の残り商品: 売却済み→ステータスクリア、BO列クリア ---
+  // (再生成で再度売却済みにするので、一旦元に戻す)
   var today = new Date();
+  var receiptNoSet = {};
+  receiptNoList.forEach(function(rn) { receiptNoSet[rn] = true; });
+
+  var statusA1s_discard = [];
+  var dateA1s_discard = [];
+  var boA1s_discard = [];
+  var statusA1s_clear = [];
+  var boA1s_clear = [];
+
+  var statusColLetter = om_colNumToLetter_(mStatusCol);
+  var boColLetter = om_colNumToLetter_(mBoCol);
+  var discardDateColLetter = mDiscardDateCol ? om_colNumToLetter_(mDiscardDateCol) : '';
+
+  // 欠品商品
   targetIds.forEach(function(tid) {
     var row = mIdToRow[tid];
     if (!row) return;
-    mainSheet.getRange(row, mStatusCol).setValue('廃棄済み');
-    if (mDiscardDateCol) mainSheet.getRange(row, mDiscardDateCol).setValue(today);
-    mainSheet.getRange(row, mBoCol).setValue('');
+    statusA1s_discard.push(statusColLetter + row);
+    if (discardDateColLetter) dateA1s_discard.push(discardDateColLetter + row);
+    boA1s_discard.push(boColLetter + row);
   });
 
-  // --- 同じ受付番号の残り商品: 売却済み→ステータスクリア、BO列クリア ---
-  // (再生成で再度売却済みにするので、一旦元に戻す)
-  receiptNoList.forEach(function(receiptNo) {
-    for (var i = 0; i < mIds.length; i++) {
-      var id = String(mIds[i]).trim();
-      if (!id) continue;
-      if (targetSet[id]) continue; // 欠品商品はスキップ（既に廃棄済み処理済み）
-      var boVal = String(mBoVals[i] || '').trim();
-      if (boVal === receiptNo) {
-        var row = i + 2;
-        mainSheet.getRange(row, mStatusCol).setValue('');
-        mainSheet.getRange(row, mBoCol).setValue('');
-      }
+  // 残り商品（同じ受付番号の非欠品商品）
+  for (var i = 0; i < mIds.length; i++) {
+    var id = String(mIds[i]).trim();
+    if (!id || targetSet[id]) continue;
+    var boVal = String(mBoVals[i] || '').trim();
+    if (boVal && receiptNoSet[boVal]) {
+      var row = i + 2;
+      statusA1s_clear.push(statusColLetter + row);
+      boA1s_clear.push(boColLetter + row);
     }
-  });
+  }
+
+  // バッチ更新
+  if (statusA1s_discard.length > 0) mainSheet.getRangeList(statusA1s_discard).setValue('廃棄済み');
+  if (dateA1s_discard.length > 0) mainSheet.getRangeList(dateA1s_discard).setValue(today);
+  if (boA1s_discard.length > 0) mainSheet.getRangeList(boA1s_discard).setValue('');
+  if (statusA1s_clear.length > 0) mainSheet.getRangeList(statusA1s_clear).setValue('');
+  if (boA1s_clear.length > 0) mainSheet.getRangeList(boA1s_clear).setValue('');
 
   // --- 売却履歴から該当受付番号のエントリを削除 ---
   receiptNoList.forEach(function(receiptNo) {
@@ -539,18 +558,23 @@ function om_updateRequestSheetLink_(name, receiptNo, url) {
 
   var dataRows = lastRow - 1;
   if (dataRows < 1) return;
-  var receiptVals = sh.getRange(2, receiptCol, dataRows, 1).getDisplayValues();
-  var nameVals = sh.getRange(2, nameCol, dataRows, 1).getDisplayValues();
+  var minCol = Math.min(receiptCol, nameCol);
+  var maxCol = Math.max(receiptCol, nameCol);
+  var allVals = sh.getRange(2, minCol, dataRows, maxCol - minCol + 1).getDisplayValues();
+  var rOff = receiptCol - minCol;
+  var nOff = nameCol - minCol;
   var targetReceipt = String(receiptNo || '').trim();
   var targetName = String(name || '').trim();
-  var found = false;
+  var matchRows = [];
   for (var i = 0; i < dataRows; i++) {
-    var r = String(receiptVals[i][0] || '').trim();
-    var n = String(nameVals[i][0] || '').trim();
-    if (r === targetReceipt && n === targetName) {
-      sh.getRange(i + 2, linkCol).setValue(url);
-      found = true;
-    }
+    var r = String(allVals[i][rOff] || '').trim();
+    var n = String(allVals[i][nOff] || '').trim();
+    if (r === targetReceipt && n === targetName) matchRows.push(i + 2);
+  }
+  var found = matchRows.length > 0;
+  if (found) {
+    var rangeList = sh.getRangeList(matchRows.map(function(row) { return sh.getRange(row, linkCol).getA1Notation(); }));
+    rangeList.setValue(url);
   }
   if (!found) {
     var newRow = lastRow + 1;
@@ -655,93 +679,19 @@ function om_removeSaleLogByReceipt_(ss, receiptNo) {
 }
 
 function om_calcPriceTier_(n) {
-  var table = [
-    [50, 200], [100, 320], [149, 430], [199, 485], [249, 595],
-    [299, 650], [349, 705], [399, 760], [449, 815], [499, 925],
-    [549, 980], [599, 1035], [649, 1090], [699, 1145], [749, 1255],
-    [799, 1310], [849, 1365], [899, 1420], [949, 1475], [999, 1585],
-    [1049, 1640], [1099, 1695], [1149, 1750], [1199, 1805], [1249, 1915],
-    [1299, 1970], [1349, 2025], [1399, 2080], [1449, 2135], [1499, 2245],
-    [1549, 2300], [1599, 2355], [1649, 2410], [1699, 2465]
-  ];
-  if (n < 0) return 0;
-  for (var i = 0; i < table.length; i++) {
-    if (n <= table[i][0]) return table[i][1];
-  }
-  return table[table.length - 1][1];
+  return calcPriceTier_(n);
 }
 
 // ═══════════════════════════════════════════
 // XLSX用サブ関数
 // ═══════════════════════════════════════════
 
-function om_getSheetByGid_(ss, gid) {
-  var sheets = ss.getSheets();
-  for (var i = 0; i < sheets.length; i++) {
-    if (sheets[i].getSheetId() === gid) return sheets[i];
-  }
-  throw new Error('指定gidのシートが見つかりません: ' + gid);
-}
-
-function om_deleteAllExceptSheet_(ss, keepSheetId) {
-  var sheets = ss.getSheets();
-  for (var i = sheets.length - 1; i >= 0; i--) {
-    var sh = sheets[i];
-    if (sh.getSheetId() !== keepSheetId) {
-      if (ss.getSheets().length > 1) ss.deleteSheet(sh);
-    }
-  }
-}
-
-function om_trimColumnBAfterSecondHyphen_(sheet) {
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 1) return;
-  var rng = sheet.getRange(1, 2, lastRow, 1);
-  var vals = rng.getDisplayValues();
-  for (var i = 0; i < vals.length; i++) {
-    var s = String(vals[i][0] || '');
-    if (!s) { vals[i][0] = ''; continue; }
-    var parts = s.split('-');
-    if (parts.length >= 2) { vals[i][0] = parts[0] + '-' + parts[1]; }
-    else { vals[i][0] = s; }
-  }
-  rng.setValues(vals);
-}
-
-function om_trimToDataBoundsStrict_(sheet) {
-  var rowCand = Math.max(sheet.getLastRow(), 1);
-  var colCand = Math.max(sheet.getLastColumn(), 1);
-  var vals = sheet.getRange(1, 1, rowCand, colCand).getDisplayValues();
-  var lastR = 1;
-  var lastC = 1;
-  for (var r = 0; r < vals.length; r++) {
-    var row = vals[r];
-    for (var c = 0; c < row.length; c++) {
-      if (String(row[c] || '').trim() !== '') {
-        if (r + 1 > lastR) lastR = r + 1;
-        if (c + 1 > lastC) lastC = c + 1;
-      }
-    }
-  }
-  var maxR = sheet.getMaxRows();
-  var maxC = sheet.getMaxColumns();
-  if (maxR > lastR) sheet.deleteRows(lastR + 1, maxR - lastR);
-  if (maxC > lastC) sheet.deleteColumns(lastC + 1, maxC - lastC);
-}
-
-function om_exportAsXlsxBlob_(spreadsheetId, filename) {
-  var url = 'https://docs.google.com/spreadsheets/d/' + spreadsheetId + '/export?format=xlsx';
-  var token = ScriptApp.getOAuthToken();
-  var res = UrlFetchApp.fetch(url, {
-    headers: { Authorization: 'Bearer ' + token },
-    muteHttpExceptions: true
-  });
-  var code = res.getResponseCode();
-  if (code !== 200) {
-    throw new Error('XLSXエクスポートに失敗しました: ' + code + ' / ' + res.getContentText());
-  }
-  return res.getBlob().setName(filename);
-}
+// xlsxダウンロード.gs の共通関数を委譲（重複排除）
+function om_getSheetByGid_(ss, gid) { return getSheetById_(ss, gid); }
+function om_deleteAllExceptSheet_(ss, keepSheetId) { deleteAllExceptSheet_(ss, keepSheetId); }
+function om_trimColumnBAfterSecondHyphen_(sheet) { trimColumnBAfterSecondHyphen_(sheet); }
+function om_trimToDataBoundsStrict_(sheet) { trimToDataBoundsStrict_(sheet); }
+function om_exportAsXlsxBlob_(spreadsheetId, filename) { return exportSpreadsheetAsXlsxBlob_(spreadsheetId, filename); }
 
 // ═══════════════════════════════════════════
 // ユーティリティ（本プロジェクトに無いもの）
