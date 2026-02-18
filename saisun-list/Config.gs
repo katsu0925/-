@@ -377,7 +377,17 @@ function calcStoreShippingByAddress_(prefOrAddress, totalCount) {
   return Math.round(customerShipping / 2);
 }
 
+var BRAND_LIST_CACHE_KEY = 'BRAND_LIST_CACHE';
+var BRAND_LIST_CACHE_TTL = 300; // 5分（秒）
+
 function app_readBrandList_() {
+  // CacheServiceからキャッシュ取得を試みる
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get(BRAND_LIST_CACHE_KEY);
+  if (cached) {
+    try { return JSON.parse(cached); } catch (e) { /* fallthrough */ }
+  }
+
   const ssId = String(APP_CONFIG.data.spreadsheetId || '').trim();
   const shName = String(APP_CONFIG.data.sheetName || '').trim();
   if (!ssId || !shName) return [];
@@ -409,5 +419,12 @@ function app_readBrandList_() {
 
   const out = Object.keys(map).map(k => map[k]);
   out.sort((a, b) => a.localeCompare(b, 'ja'));
+
+  // キャッシュに保存
+  try {
+    cache.put(BRAND_LIST_CACHE_KEY, JSON.stringify(out), BRAND_LIST_CACHE_TTL);
+  } catch (e) {
+    console.log('ブランドリストキャッシュ保存エラー:', e);
+  }
   return out;
 }

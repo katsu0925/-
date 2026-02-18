@@ -198,6 +198,9 @@ function registerCouponFromDialog(data) {
   var newRow = sh.getLastRow() + 1;
   sh.getRange(newRow, 1, 1, 13).setValues([[code, type, value, expires, maxUses, 0, oncePerUser, true, memo, target, startDate, comboMember, comboBulk]]);
 
+  // クーポンキャッシュを無効化（即時反映）
+  try { CacheService.getScriptCache().remove(COUPON_CACHE_KEY); } catch (e) {}
+
   var label = type === 'rate' ? (Math.round(value * 100) + '%OFF')
             : type === 'fixed' ? (value + '円引き')
             : '送料無料';
@@ -500,6 +503,10 @@ function deleteCouponFromDialog(code) {
   if (targetRow === -1) return { ok: false, message: 'クーポンコード「' + code + '」が見つかりません' };
 
   sh.deleteRow(targetRow);
+
+  // クーポンキャッシュを無効化（即時反映）
+  try { CacheService.getScriptCache().remove(COUPON_CACHE_KEY); } catch (e) {}
+
   return { ok: true, message: 'クーポン「' + code + '」を削除しました' };
 }
 
@@ -632,27 +639,80 @@ function apiValidateCoupon(code, email, productAmount) {
 }
 
 /**
+ * クーポンデータをキャッシュ付きで取得（60秒TTL）
+ * シートの全行読み取りを毎回行わず、短期間キャッシュで高速化
+ */
+var COUPON_CACHE_KEY = 'COUPON_DATA_ALL';
+var COUPON_CACHE_TTL = 60; // 秒
+
+function getCouponDataCached_() {
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get(COUPON_CACHE_KEY);
+  if (cached) {
+    try { return JSON.parse(cached); } catch (e) { /* fallthrough */ }
+  }
+
+  var ss = sh_getOrderSs_();
+  var sh = ss.getSheetByName(COUPON_SHEET_NAME);
+  if (!sh) return null;
+
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return null;
+
+  var data = sh.getRange(2, 1, lastRow - 1, 13).getValues();
+  // シリアライズ可能な形式に変換
+  var items = [];
+  for (var i = 0; i < data.length; i++) {
+    var row = data[i];
+    var expires = row[COUPON_COLS.EXPIRES];
+    var expiresStr = '';
+    if (expires instanceof Date && !isNaN(expires.getTime())) {
+      expiresStr = expires.toISOString();
+    }
+    var startDate = row[COUPON_COLS.START_DATE];
+    var startDateStr = '';
+    if (startDate instanceof Date && !isNaN(startDate.getTime())) {
+      startDateStr = startDate.toISOString();
+    }
+    items.push({
+      code: String(row[COUPON_COLS.CODE] || '').trim().toUpperCase(),
+      type: String(row[COUPON_COLS.TYPE] || '').trim().toLowerCase(),
+      value: Number(row[COUPON_COLS.VALUE]) || 0,
+      expires: expiresStr,
+      maxUses: Number(row[COUPON_COLS.MAX_USES]) || 0,
+      useCount: Number(row[COUPON_COLS.USE_COUNT]) || 0,
+      oncePerUser: (row[COUPON_COLS.ONCE_PER_USER] === true || String(row[COUPON_COLS.ONCE_PER_USER]).toUpperCase() === 'TRUE'),
+      active: (row[COUPON_COLS.ACTIVE] === true || String(row[COUPON_COLS.ACTIVE]).toUpperCase() === 'TRUE'),
+      target: String(row[COUPON_COLS.TARGET] || '').trim().toLowerCase(),
+      startDate: startDateStr,
+      comboMember: (row[COUPON_COLS.COMBO_MEMBER] === true || String(row[COUPON_COLS.COMBO_MEMBER]).toUpperCase() === 'TRUE'),
+      comboBulk: (row[COUPON_COLS.COMBO_BULK] === true || String(row[COUPON_COLS.COMBO_BULK]).toUpperCase() === 'TRUE'),
+      rowIndex: i + 2
+    });
+  }
+
+  try {
+    cache.put(COUPON_CACHE_KEY, JSON.stringify(items), COUPON_CACHE_TTL);
+  } catch (e) {
+    console.log('クーポンキャッシュ保存エラー:', e);
+  }
+  return items;
+}
+
+/**
  * クーポンを検証（内部関数）
  */
 function validateCoupon_(code, email) {
   if (!code) return { ok: false, message: 'クーポンコードを入力してください' };
   code = String(code).trim().toUpperCase();
 
-  var ss = sh_getOrderSs_();
-  var sh = ss.getSheetByName(COUPON_SHEET_NAME);
-  if (!sh) return { ok: false, message: '無効なクーポンコードです' };
+  var items = getCouponDataCached_();
+  if (!items || items.length === 0) return { ok: false, message: '無効なクーポンコードです' };
 
-  var lastRow = sh.getLastRow();
-  if (lastRow < 2) return { ok: false, message: '無効なクーポンコードです' };
-
-  var data = sh.getRange(2, 1, lastRow - 1, 13).getValues();
   var coupon = null;
-  var couponRow = -1;
-
-  for (var i = 0; i < data.length; i++) {
-    if (String(data[i][COUPON_COLS.CODE] || '').trim().toUpperCase() === code) {
-      coupon = data[i];
-      couponRow = i + 2;
+  for (var i = 0; i < items.length; i++) {
+    if (items[i].code === code) {
+      coupon = items[i];
       break;
     }
   }
@@ -660,15 +720,13 @@ function validateCoupon_(code, email) {
   if (!coupon) return { ok: false, message: '無効なクーポンコードです' };
 
   // 有効チェック
-  var active = coupon[COUPON_COLS.ACTIVE];
-  if (active === false || String(active).toUpperCase() === 'FALSE') {
+  if (!coupon.active) {
     return { ok: false, message: 'このクーポンは現在無効です' };
   }
 
   // 有効開始日チェック
-  var startDate = coupon[COUPON_COLS.START_DATE];
-  if (startDate) {
-    var sDate = (startDate instanceof Date) ? startDate : new Date(startDate);
+  if (coupon.startDate) {
+    var sDate = new Date(coupon.startDate);
     if (!isNaN(sDate.getTime())) {
       sDate.setHours(0, 0, 0, 0);
       var now = new Date();
@@ -680,9 +738,8 @@ function validateCoupon_(code, email) {
   }
 
   // 有効期限チェック
-  var expires = coupon[COUPON_COLS.EXPIRES];
-  if (expires) {
-    var expDate = (expires instanceof Date) ? expires : new Date(expires);
+  if (coupon.expires) {
+    var expDate = new Date(coupon.expires);
     if (!isNaN(expDate.getTime())) {
       expDate.setHours(23, 59, 59, 999);
       if (new Date() > expDate) {
@@ -692,35 +749,34 @@ function validateCoupon_(code, email) {
   }
 
   // 利用上限チェック
-  var maxUses = Number(coupon[COUPON_COLS.MAX_USES]) || 0;
-  var useCount = Number(coupon[COUPON_COLS.USE_COUNT]) || 0;
-  if (maxUses > 0 && useCount >= maxUses) {
+  if (coupon.maxUses > 0 && coupon.useCount >= coupon.maxUses) {
     return { ok: false, message: 'このクーポンは利用上限に達しました' };
   }
 
   // 1人1回制限チェック
-  var oncePerUser = coupon[COUPON_COLS.ONCE_PER_USER];
-  if (oncePerUser === true || String(oncePerUser).toUpperCase() === 'TRUE') {
-    if (email && hasUserUsedCoupon_(ss, code, email)) {
-      return { ok: false, message: 'このクーポンは既にご利用済みです' };
+  if (coupon.oncePerUser) {
+    if (email) {
+      var ss = sh_getOrderSs_();
+      if (hasUserUsedCoupon_(ss, code, email)) {
+        return { ok: false, message: 'このクーポンは既にご利用済みです' };
+      }
     }
   }
 
   // 対象顧客チェック（new=新規限定 / repeat=リピーター限定）
-  var target = String(coupon[COUPON_COLS.TARGET] || '').trim().toLowerCase();
-  if (target === 'new' || target === 'repeat') {
+  if (coupon.target === 'new' || coupon.target === 'repeat') {
     var orders = email ? getOrderHistory_(email) : [];
     var hasOrders = orders.length > 0;
-    if (target === 'new' && hasOrders) {
+    if (coupon.target === 'new' && hasOrders) {
       return { ok: false, message: 'このクーポンは初回注文のお客様限定です' };
     }
-    if (target === 'repeat' && !hasOrders) {
+    if (coupon.target === 'repeat' && !hasOrders) {
       return { ok: false, message: 'このクーポンはリピーターのお客様限定です' };
     }
   }
 
-  var type = String(coupon[COUPON_COLS.TYPE] || 'rate').trim().toLowerCase();
-  var value = Number(coupon[COUPON_COLS.VALUE]) || 0;
+  var type = coupon.type || 'rate';
+  var value = coupon.value || 0;
 
   if (type !== 'rate' && type !== 'fixed' && type !== 'shipping_free') {
     return { ok: false, message: 'クーポン設定にエラーがあります' };
@@ -729,10 +785,7 @@ function validateCoupon_(code, email) {
     return { ok: false, message: 'クーポン設定にエラーがあります' };
   }
 
-  var comboMember = (coupon[COUPON_COLS.COMBO_MEMBER] === true || String(coupon[COUPON_COLS.COMBO_MEMBER]).toUpperCase() === 'TRUE');
-  var comboBulk = (coupon[COUPON_COLS.COMBO_BULK] === true || String(coupon[COUPON_COLS.COMBO_BULK]).toUpperCase() === 'TRUE');
-
-  return { ok: true, type: type, value: value, row: couponRow, comboMember: comboMember, comboBulk: comboBulk };
+  return { ok: true, type: type, value: value, row: coupon.rowIndex, comboMember: coupon.comboMember, comboBulk: coupon.comboBulk };
 }
 
 /**
@@ -787,6 +840,8 @@ function recordCouponUsage_(code, email, receiptNo) {
         if (String(data[i][COUPON_COLS.CODE] || '').trim().toUpperCase() === String(code).trim().toUpperCase()) {
           var current = Number(data[i][COUPON_COLS.USE_COUNT]) || 0;
           sh.getRange(i + 2, COUPON_COLS.USE_COUNT + 1).setValue(current + 1);
+          // クーポンキャッシュを無効化（利用回数更新を即時反映）
+          try { CacheService.getScriptCache().remove(COUPON_CACHE_KEY); } catch (e2) {}
           break;
         }
       }

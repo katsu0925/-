@@ -20,7 +20,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="デタウリ.Detauri">
-  <script src="https://www.google.com/recaptcha/api.js?render=6LeMeF0sAAAAAK1DLANrMyfuugoe6mdWMQbY2ao1" async defer></script>
+  <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
+  <link rel="preconnect" href="https://script.google.com" crossorigin>
+  <link rel="dns-prefetch" href="https://www.google.com">
   <style>
     html, body { margin:0; padding:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif; color:#111; background:#f6f7f9; -webkit-text-size-adjust:100%; }
     * { box-sizing:border-box; }
@@ -2414,20 +2416,49 @@ if (ADMIN_KEY) {
   try { IS_OWNER = !!localStorage.getItem('_nk_owner_key'); } catch(e) {}
 }
 
+// reCAPTCHAスクリプトを遅延ロード（初回呼出し時にのみ読み込み）
+var _recaptchaLoadPromise = null;
+function loadRecaptchaScript_() {
+  if (_recaptchaLoadPromise) return _recaptchaLoadPromise;
+  if (typeof grecaptcha !== 'undefined') return Promise.resolve();
+  _recaptchaLoadPromise = new Promise(function(resolve) {
+    var s = document.createElement('script');
+    s.src = 'https://www.google.com/recaptcha/api.js?render=' + RECAPTCHA_SITE_KEY;
+    s.async = true;
+    s.defer = true;
+    s.onload = function() {
+      // grecaptcha.readyで初期化完了を待つ
+      if (typeof grecaptcha !== 'undefined' && grecaptcha.ready) {
+        grecaptcha.ready(resolve);
+      } else {
+        resolve();
+      }
+    };
+    s.onerror = function() { resolve(); };
+    document.head.appendChild(s);
+  });
+  return _recaptchaLoadPromise;
+}
+
 function getRecaptchaToken_() {
-  if (typeof grecaptcha === 'undefined' || !RECAPTCHA_SITE_KEY || RECAPTCHA_SITE_KEY.indexOf('RECAPTCHA') !== -1) {
-    console.warn('reCAPTCHA not available: grecaptcha=' + (typeof grecaptcha) + ' siteKey=' + !!RECAPTCHA_SITE_KEY);
+  if (!RECAPTCHA_SITE_KEY || RECAPTCHA_SITE_KEY.indexOf('RECAPTCHA') !== -1) {
     return Promise.resolve('');
   }
-  try {
-    return grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'submit' }).catch(function(e) {
-      console.warn('reCAPTCHA execute failed:', e);
+  return loadRecaptchaScript_().then(function() {
+    if (typeof grecaptcha === 'undefined') {
+      console.warn('reCAPTCHA not available after load');
       return '';
-    });
-  } catch (e) {
-    console.warn('reCAPTCHA execute error:', e);
-    return Promise.resolve('');
-  }
+    }
+    try {
+      return grecaptcha.execute(RECAPTCHA_SITE_KEY, { action: 'submit' }).catch(function(e) {
+        console.warn('reCAPTCHA execute failed:', e);
+        return '';
+      });
+    } catch (e) {
+      console.warn('reCAPTCHA execute error:', e);
+      return '';
+    }
+  });
 }
 
 function runApi(fn, _extra) {
@@ -2555,33 +2586,41 @@ function loadProductData() {
 
 function applyFilters_() {
   var f = state.query.filters;
-  var products = state.allProducts.slice();
+  var products = state.allProducts;
+  var hasFilter = false;
 
   if (f.brand && f.brand.length > 0) {
+    hasFilter = true;
     products = products.filter(function(p) {
       var normalizedBrand = normalizeBrand_(p.brand);
       return f.brand.indexOf(normalizedBrand) !== -1;
     });
   }
   if (f.category && f.category.length > 0) {
+    hasFilter = true;
     products = products.filter(function(p) { return f.category.indexOf(p.category) !== -1; });
   }
   if (f.state && f.state.length > 0) {
+    hasFilter = true;
     products = products.filter(function(p) { return f.state.indexOf(p.state) !== -1; });
   }
   if (f.gender && f.gender.length > 0) {
+    hasFilter = true;
     products = products.filter(function(p) { return f.gender.indexOf(p.gender) !== -1; });
   }
   if (f.size && f.size.length > 0) {
+    hasFilter = true;
     products = products.filter(function(p) { return f.size.indexOf(p.size) !== -1; });
   }
 
-  return products;
+  // フィルタが一つもかかっていない場合は元配列参照を返す（sliceしない）
+  return hasFilter ? products : products.slice();
 }
 
 function applySort_(products) {
   var s = state.query.sort;
-  var sorted = products.slice();
+  // filter結果は既に新配列なので再度sliceは不要
+  var sorted = products;
   
   if (s.key === 'default') return s.dir === 'desc' ? sorted.reverse() : sorted;
   
@@ -2632,7 +2671,13 @@ function filterAndRender(scrollTop) {
 
 function pollStatusNow_() {
   if (state.timers.statusPoll) { clearTimeout(state.timers.statusPoll); state.timers.statusPoll = null; }
-  
+
+  // タブが非表示の場合はポーリングを一時停止
+  if (document.hidden) {
+    state.timers.statusPoll = setTimeout(pollStatusNow_, 30000);
+    return;
+  }
+
   var ids = [];
   var pageItems = getCurrentPageItems_();
   for (var i = 0; i < pageItems.length; i++) {
@@ -2641,9 +2686,9 @@ function pollStatusNow_() {
   for (var j = 0; j < state.cart.ids.length; j++) {
     if (ids.indexOf(state.cart.ids[j]) === -1) ids.push(state.cart.ids[j]);
   }
-  
+
   if (ids.length === 0) return;
-  
+
   runApi('apiGetStatusDigest', state.userKey, ids)
     .then(function(res) {
       if (res && res.ok && res.map) {
@@ -2652,7 +2697,7 @@ function pollStatusNow_() {
       }
     })
     .catch(function(e) { console.log('ステータス取得エラー:', e); });
-  
+
   state.timers.statusPoll = setTimeout(pollStatusNow_, 10000);
 }
 
@@ -3084,10 +3129,7 @@ function openDetailModal(managedId, imageUrl, thumbUrl) {
   var body = document.getElementById('detailModalBody');
   if (!modal || !body) return;
 
-  var item = null;
-  for (var i = 0; i < state.allProducts.length; i++) {
-    if (state.allProducts[i] && state.allProducts[i].managedId === managedId) { item = state.allProducts[i]; break; }
-  }
+  var item = (state.productById && state.productById[managedId]) || null;
   if (!item) item = state.cart.itemsById ? state.cart.itemsById[managedId] : null;
 
   if (item) { renderDetailModalLocal(item, imageUrl, thumbUrl); }
@@ -4348,7 +4390,13 @@ function bindUi_() {
     try { $('brandSearch').focus(); } catch (e) {}
   });
   $('brandCloseBtn').addEventListener('click', function() { closeModal($('brandModal')); });
-  $('brandSearch').addEventListener('input', filterBrandList_);
+  (function() {
+    var brandDebounce;
+    $('brandSearch').addEventListener('input', function() {
+      clearTimeout(brandDebounce);
+      brandDebounce = setTimeout(filterBrandList_, 200);
+    });
+  })();
   $('brandClearBtn').addEventListener('click', function() {
     // チェックボックスをクリア
     var prev = Object.keys(state.brandUi.selected || {});
@@ -4445,9 +4493,15 @@ function bindUi_() {
   if (ADMIN_KEY) {
     $('submitBtn').textContent = '受付番号で紐付け';
   }
-  // 住所入力時に送料をリアルタイム更新
+  // 住所入力時に送料をリアルタイム更新（debounce 300ms）
   if ($('address')) {
-    $('address').addEventListener('input', function() { updateShippingDisplay_(); });
+    (function() {
+      var addrDebounce;
+      $('address').addEventListener('input', function() {
+        clearTimeout(addrDebounce);
+        addrDebounce = setTimeout(updateShippingDisplay_, 300);
+      });
+    })();
   }
   $('doneCloseBtn').addEventListener('click', function() { closeModal($('doneModal')); });
 
@@ -4457,16 +4511,22 @@ function setupScrollTopButton_() {
   var btn = $('toTopBtn');
   if (!btn) return;
   var threshold = 400;
+  var ticking = false;
   var update = function() {
+    ticking = false;
+    var chatOpen = window._chatbotIsOpen;
     var hasModal = !!document.querySelector('.modal.open');
     var sendingOn = $('sendingOverlay') && $('sendingOverlay').classList.contains('on');
-    if (hasModal || sendingOn) { btn.classList.remove('show'); return; }
+    if (chatOpen || hasModal || sendingOn) { btn.classList.remove('show'); return; }
     var y = window.pageYOffset || document.documentElement.scrollTop || 0;
     if (y > threshold) btn.classList.add('show'); else btn.classList.remove('show');
   };
+  var onScroll = function() {
+    if (!ticking) { ticking = true; requestAnimationFrame(update); }
+  };
   btn.addEventListener('click', function() { window.scrollTo({ top: 0, behavior: 'smooth' }); });
-  window.addEventListener('scroll', update, { passive: true });
-  window.addEventListener('resize', update);
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
   update();
 }
 
@@ -4510,9 +4570,6 @@ function boot() {
   state.cart.itemsById = c.itemsById || {};
   updateCartCount();
 
-  // アクセスログ送信
-  logPageView_();
-
   bindUi_();
   setupScrollTopButton_();
   setupDetailModalEvents_();
@@ -4525,9 +4582,6 @@ function boot() {
 
   // セッション検証（ログイン状態復元）
   validateSession_();
-
-  // 全ユーザーにCSRFトークンを発行（非ログインユーザーでも注文送信に必要）
-  fetchCsrfToken_();
 
   var mo = loadMeasureOpt_();
   if (mo) setMeasureOptValue_(mo);
@@ -4544,7 +4598,7 @@ function boot() {
     renderLoadingGrid_();
   }
 
-  // 最新データをバックグラウンドで取得
+  // 最新データをバックグラウンドで取得（最優先）
   loadProductData()
     .then(function(data) {
       // キャッシュと件数が異なる場合のみ再描画
@@ -4553,17 +4607,31 @@ function boot() {
       if (needsRender) {
         console.log('最新データで更新: ' + state.allProducts.length + '件');
       }
+      // 初回データロード完了後に非重要APIを遅延実行
+      // CSRFトークン: 注文送信に必要だが初期描画には不要
+      fetchCsrfToken_();
+      // PVログ: バックグラウンドで十分
+      setTimeout(logPageView_, 2000);
     })
     .catch(function(err) {
       console.error('起動エラー:', err);
       if (!state.dataLoaded) {
         showToast('データの読み込みに失敗しました: ' + (err.message || err));
       }
+      // エラー時でもCSRFトークンとPVログは実行
+      fetchCsrfToken_();
+      setTimeout(logPageView_, 2000);
     });
 }
 
 function applyProductData_(data) {
   state.allProducts = data.products || [];
+  // 商品ハッシュマップを構築（O(1)検索用）
+  state.productById = {};
+  for (var pi = 0; pi < state.allProducts.length; pi++) {
+    var p = state.allProducts[pi];
+    if (p && p.managedId) state.productById[p.managedId] = p;
+  }
   state.options = data.options || {};
   state.settings = normalizeSettings_(data.settings);
 
@@ -4756,18 +4824,10 @@ boot();
   // ── 開閉 ──
   function toggleChat(){
     isOpen = !isOpen;
+    window._chatbotIsOpen = isOpen;
     panel.classList.toggle('open', isOpen);
     fab.classList.toggle('open', isOpen);
     badge.classList.remove('show');
-    if (isOpen) {
-      toTopBtn.classList.remove('show'); // チャット開いたらfixed版を非表示
-    } else {
-      // 閉じたときにスクロール位置に応じて再表示
-      if (typeof setupScrollTopButton_ === 'function') {
-        var y = window.pageYOffset || document.documentElement.scrollTop || 0;
-        if (y > 400) toTopBtn.classList.add('show');
-      }
-    }
     if (isOpen && !greeted) {
       greeted = true;
       appendMessage('bot', GREETING);
@@ -4787,23 +4847,10 @@ boot();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   });
 
-  // チャットが開いているときはfixedのtoTopを非表示にする
-  var origScrollUpdate = null;
-  (function patchScrollBtn(){
-    var origUpdate;
-    var threshold = 400;
-    var btn2 = toTopBtn;
-    var update = function(){
-      if (isOpen) { btn2.classList.remove('show'); return; }
-      var hasModal = !!document.querySelector('.modal.open');
-      var sendingOn = document.getElementById('sendingOverlay') && document.getElementById('sendingOverlay').classList.contains('on');
-      if (hasModal || sendingOn) { btn2.classList.remove('show'); return; }
-      var y = window.pageYOffset || document.documentElement.scrollTop || 0;
-      if (y > threshold) btn2.classList.add('show'); else btn2.classList.remove('show');
-    };
-    window.addEventListener('scroll', update, { passive: true });
-    window.addEventListener('resize', update);
-  })();
+  // チャットボット開閉時にスクロールトップボタンの状態を更新
+  // ※重複するscrollハンドラを廃止し、setupScrollTopButton_()の既存ハンドラに統合
+  // chatbotのisOpen状態はwindow._chatbotIsOpen経由で共有
+  window._chatbotIsOpen = false;
 
   // 初回バッジ表示（3秒後）
   setTimeout(function(){
