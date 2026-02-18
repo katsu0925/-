@@ -251,10 +251,15 @@ function app_cachePutLarge_(cache, baseKey, str, seconds) {
   const chunkSize = 90000;
 
   const n = Math.ceil(s.length / chunkSize);
-  cache.put(baseKey + ':N', String(n), seconds);
-
+  const putObj = {};
+  putObj[baseKey + ':N'] = String(n);
   for (let i = 0; i < n; i++) {
-    cache.put(baseKey + ':' + i, s.slice(i * chunkSize, (i + 1) * chunkSize), seconds);
+    putObj[baseKey + ':' + i] = s.slice(i * chunkSize, (i + 1) * chunkSize);
+  }
+  try {
+    cache.putAll(putObj, seconds);
+  } catch (e) {
+    for (const k in putObj) cache.put(k, putObj[k], seconds);
   }
 }
 
@@ -265,9 +270,13 @@ function app_cacheGetLarge_(cache, baseKey) {
   const n = Number(nStr || '0');
   if (!n) return null;
 
+  const keys = new Array(n);
+  for (let i = 0; i < n; i++) keys[i] = baseKey + ':' + i;
+  const all = cache.getAll(keys);
+
   const parts = [];
   for (let i = 0; i < n; i++) {
-    const p = cache.get(baseKey + ':' + i);
+    const p = all[keys[i]];
     if (p == null) return null;
     parts.push(p);
   }
@@ -278,11 +287,13 @@ function app_cacheDeleteLarge_(cache, baseKey) {
   const nStr = cache.get(baseKey + ':N');
   const n = Number(nStr || '0');
 
-  for (let i = 0; i < n; i++) {
-    cache.remove(baseKey + ':' + i);
+  const keys = [baseKey + ':N', baseKey];
+  for (let i = 0; i < n; i++) keys.push(baseKey + ':' + i);
+  try {
+    cache.removeAll(keys);
+  } catch (e) {
+    for (let i = 0; i < keys.length; i++) cache.remove(keys[i]);
   }
-  cache.remove(baseKey + ':N');
-  cache.remove(baseKey);
 }
 
 /**
@@ -305,16 +316,20 @@ function syncFull_(productSheet, returnSheet, aiSheet, destSheet) {
   const destLastRow = destSheet.getLastRow();
   if (destLastRow >= CONFIG.DEST_START_ROW) {
     const nExist = destLastRow - CONFIG.DEST_START_ROW + 1;
-    const existChecks = destSheet.getRange(CONFIG.DEST_START_ROW, CONFIG.DEST_COL_CHECK, nExist, 1).getValues();
-    const existKeys = destSheet.getRange(CONFIG.DEST_START_ROW, CONFIG.DEST_COL_KEY, nExist, 1).getValues();
-    const existMeas = destSheet.getRange(CONFIG.DEST_START_ROW, MEAS_START_COL, nExist, MEAS_WIDTH).getValues();
+    // B(2)〜X(24) を1回で読み取り
+    const allVals = destSheet.getRange(CONFIG.DEST_START_ROW, IMG_COL, nExist, MEAS_END_COL - IMG_COL + 1).getValues();
     const existImgs = destSheet.getRange(CONFIG.DEST_START_ROW, IMG_COL, nExist, 1).getFormulas();
+    const checkOff = CONFIG.DEST_COL_CHECK - IMG_COL;   // J列のオフセット
+    const keyOff = CONFIG.DEST_COL_KEY - IMG_COL;       // K列のオフセット
+    const measOff = MEAS_START_COL - IMG_COL;            // L列のオフセット
     for (let i = 0; i < nExist; i++) {
-      const k = normalizeKey_(existKeys[i][0]);
+      const row = allVals[i];
+      const k = normalizeKey_(row[keyOff]);
       if (!k) continue;
-      if (existChecks[i][0] === true) keepCheckByKey[k] = true;
-      const hasData = existMeas[i].some(v => v !== '' && v !== null && v !== undefined);
-      if (hasData) measurementsByKey[k] = existMeas[i];
+      if (row[checkOff] === true) keepCheckByKey[k] = true;
+      const meas = row.slice(measOff, measOff + MEAS_WIDTH);
+      const hasData = meas.some(v => v !== '' && v !== null && v !== undefined);
+      if (hasData) measurementsByKey[k] = meas;
       if (existImgs[i][0]) existImgByKey[k] = existImgs[i][0];
     }
   }
@@ -387,18 +402,20 @@ function syncFull_(productSheet, returnSheet, aiSheet, destSheet) {
     ensureSheetSize_(destSheet, targetLast, CONFIG.DEST_COL_SHIPPING);
 
     if (writeCount > 0) {
+      // B(2)〜Y(25) を1回で書き込み
+      const fullWidth = CONFIG.DEST_COL_SHIPPING - CONFIG.DEST_WRITE_START_COL + 1;
+      const measOff = MEAS_START_COL - CONFIG.DEST_WRITE_START_COL;
+      const shipOff = CONFIG.DEST_COL_SHIPPING - CONFIG.DEST_WRITE_START_COL;
+      const combined = new Array(writeCount);
+      for (let i = 0; i < writeCount; i++) {
+        const row = new Array(fullWidth).fill('');
+        for (let c = 0; c < width; c++) row[c] = out[i][c];
+        for (let c = 0; c < MEAS_WIDTH; c++) row[measOff + c] = outMeasurements[i][c];
+        row[shipOff] = outShipping[i][0];
+        combined[i] = row;
+      }
       withRetry_(
-        () => destSheet.getRange(CONFIG.DEST_START_ROW, CONFIG.DEST_WRITE_START_COL, writeCount, width).setValues(out),
-        2,
-        500
-      );
-      withRetry_(
-        () => destSheet.getRange(CONFIG.DEST_START_ROW, CONFIG.DEST_COL_SHIPPING, writeCount, 1).setValues(outShipping),
-        2,
-        500
-      );
-      withRetry_(
-        () => destSheet.getRange(CONFIG.DEST_START_ROW, MEAS_START_COL, writeCount, MEAS_WIDTH).setValues(outMeasurements),
+        () => destSheet.getRange(CONFIG.DEST_START_ROW, CONFIG.DEST_WRITE_START_COL, writeCount, fullWidth).setValues(combined),
         2,
         500
       );
@@ -668,14 +685,17 @@ function buildAiPathMap_(aiSheet) {
   if (lastRow < start) return {};
 
   const n = lastRow - start + 1;
-  const keys = aiSheet.getRange(start, CONFIG.SRC_AI_COL_KEY, n, 1).getValues();
-  const paths = aiSheet.getRange(start, CONFIG.SRC_AI_COL_PATH, n, 1).getValues();
+  const minCol = Math.min(CONFIG.SRC_AI_COL_KEY, CONFIG.SRC_AI_COL_PATH);
+  const maxCol = Math.max(CONFIG.SRC_AI_COL_KEY, CONFIG.SRC_AI_COL_PATH);
+  const data = aiSheet.getRange(start, minCol, n, maxCol - minCol + 1).getValues();
+  const keyOff = CONFIG.SRC_AI_COL_KEY - minCol;
+  const pathOff = CONFIG.SRC_AI_COL_PATH - minCol;
 
   const map = {};
   for (let i = 0; i < n; i++) {
-    const key = normalizeKey_(keys[i][0]);
+    const key = normalizeKey_(data[i][keyOff]);
     if (!key) continue;
-    const p = String(paths[i][0] ?? "").trim();
+    const p = String(data[i][pathOff] ?? "").trim();
     if (!p) continue;
     map[key] = p;
   }
@@ -720,22 +740,21 @@ function syncTanaoroshi_(productSheet, returnSheet, destSS) {
   let tSheet = destSS.getSheetByName(sheetName);
   if (!tSheet) tSheet = destSS.insertSheet(sheetName);
 
-  const headers = ['チェック', '管理番号', '箱ID'];
-  const numCols = headers.length;
-  ensureSheetSize_(tSheet, Math.max(2, 2 + rows.length - 1), 4);
-  tSheet.getRange(1, 1, 1, numCols).setValues([headers]);
+  const numCols = 3;
+  ensureSheetSize_(tSheet, Math.max(4, 2 + rows.length - 1), 4);
 
-  // D1:D4 — 更新日時・点数
-  tSheet.getRange(1, 4).setValue('更新日時');
-  tSheet.getRange(2, 4).setValue(new Date());
-  tSheet.getRange(3, 4).setValue('点数');
-  tSheet.getRange(4, 4).setValue(rows.length);
+  // ヘッダ + D列メタ情報を1回で書き込み
+  tSheet.getRange(1, 1, 4, 4).setValues([
+    ['チェック', '管理番号', '箱ID', '更新日時'],
+    ['', '', '', new Date()],
+    ['', '', '', '点数'],
+    ['', '', '', rows.length]
+  ]);
 
   const dataStart = 2;
 
   if (rows.length > 0) {
     tSheet.getRange(dataStart, 1, rows.length, numCols).setValues(rows);
-    // チェックボックスのバリデーション
     const rule = SpreadsheetApp.newDataValidation().requireCheckbox().build();
     tSheet.getRange(dataStart, 1, rows.length, 1).setDataValidation(rule);
   }
@@ -743,8 +762,9 @@ function syncTanaoroshi_(productSheet, returnSheet, destSS) {
   const lastExisting = tSheet.getLastRow();
   const clearStart = dataStart + rows.length;
   if (lastExisting >= clearStart) {
-    tSheet.getRange(clearStart, 1, lastExisting - clearStart + 1, numCols).clearContent();
-    tSheet.getRange(clearStart, 1, lastExisting - clearStart + 1, 1).clearDataValidations();
+    const clearRange = tSheet.getRange(clearStart, 1, lastExisting - clearStart + 1, numCols);
+    clearRange.clearContent();
+    clearRange.getSheet().getRange(clearStart, 1, lastExisting - clearStart + 1, 1).clearDataValidations();
   }
 }
 
@@ -938,8 +958,10 @@ function withRetry_(fn, retries, sleepMs) {
 
 function saveError_(err) {
   const props = PropertiesService.getScriptProperties();
-  props.setProperty(PROP_KEYS.LAST_ERROR_AT, new Date().toISOString());
-  props.setProperty(PROP_KEYS.LAST_ERROR_MSG, String(err && err.stack ? err.stack : err));
+  const obj = {};
+  obj[PROP_KEYS.LAST_ERROR_AT] = new Date().toISOString();
+  obj[PROP_KEYS.LAST_ERROR_MSG] = String(err && err.stack ? err.stack : err);
+  props.setProperties(obj);
 }
 
 function normalizeKey_(v) {

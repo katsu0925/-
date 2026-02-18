@@ -146,8 +146,14 @@ function processPendingKeywordRows() {
       while (padded.length < CONFIG_AI.MAX_KEYWORDS) padded.push("");
 
       if (kwCols.length > 0) {
-        for (let k = 0; k < kwCols.length; k++) {
-          sh.getRange(rowNo, kwCols[k] + 1).setValue(padded[k] || "");
+        const minC = Math.min.apply(null, kwCols);
+        const maxC = Math.max.apply(null, kwCols);
+        if (maxC - minC === kwCols.length - 1) {
+          sh.getRange(rowNo, minC + 1, 1, kwCols.length).setValues([padded]);
+        } else {
+          for (let k = 0; k < kwCols.length; k++) {
+            sh.getRange(rowNo, kwCols[k] + 1).setValue(padded[k] || "");
+          }
         }
       } else {
         sh.getRange(rowNo, colKwSingle + 1).setValue(padded.filter(Boolean).join(" "));
@@ -155,8 +161,9 @@ function processPendingKeywordRows() {
 
       sh.getRange(rowNo, colFlag + 1).setValue(false);
 
-      clearAttempts_(props, keyHash);
-      clearBackoff_(props, keyHash);
+      const propsToDelete = [attemptsKey_(keyHash), backoffKey_(keyHash)];
+      props.deleteProperty(propsToDelete[0]);
+      props.deleteProperty(propsToDelete[1]);
 
       writeLog_(sh, rowNo, colLog, "OK: " + padded.filter(Boolean).join(" "));
       processed++;

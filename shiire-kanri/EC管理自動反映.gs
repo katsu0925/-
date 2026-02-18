@@ -256,16 +256,26 @@ function syncBaseOrdersToEc() {
       dstSh.insertRowsAfter(dstSh.getMaxRows(), needLastRow - dstSh.getMaxRows());
     }
 
-    dstSh.getRange(startRow, cols.orderKey, toInsert.length, 1).setValues(toInsert.map(o => [o.orderKey]));
-    dstSh.getRange(startRow, cols.soldAt, toInsert.length, 1).setValues(toInsert.map(o => [o.soldAt]));
-    dstSh.getRange(startRow, cols.channel, toInsert.length, 1).setValues(toInsert.map(o => [o.channel]));
-    if (cols.productPrice) dstSh.getRange(startRow, cols.productPrice, toInsert.length, 1).setValues(toInsert.map(o => [o.productPrice]));
-    dstSh.getRange(startRow, cols.shippingCustomer, toInsert.length, 1).setValues(toInsert.map(o => [o.shippingCustomer]));
-    dstSh.getRange(startRow, cols.sales, toInsert.length, 1).setValues(toInsert.map(o => [o.sales]));
-    if (cols.fee) dstSh.getRange(startRow, cols.fee, toInsert.length, 1).setValues(toInsert.map(o => [o.fee]));
-    dstSh.getRange(startRow, cols.shippingStore, toInsert.length, 1).setValues(toInsert.map(o => [o.shippingStore]));
-    if (cols.deposit) dstSh.getRange(startRow, cols.deposit, toInsert.length, 1).setValues(toInsert.map(o => [o.deposit]));
-    if (cols.tracking) dstSh.getRange(startRow, cols.tracking, toInsert.length, 1).setValues(toInsert.map(o => [o.tracking]));
+    // 全列を1回の setValues にまとめる
+    const colKeys = Object.keys(cols);
+    const minCol = Math.min.apply(null, colKeys.map(k => cols[k]));
+    const maxCol = Math.max.apply(null, colKeys.map(k => cols[k]));
+    const width = maxCol - minCol + 1;
+    const batch = toInsert.map(o => {
+      const row = new Array(width).fill('');
+      row[cols.orderKey - minCol] = o.orderKey;
+      row[cols.soldAt - minCol] = o.soldAt;
+      row[cols.channel - minCol] = o.channel;
+      row[cols.sales - minCol] = o.sales;
+      row[cols.shippingStore - minCol] = o.shippingStore;
+      row[cols.shippingCustomer - minCol] = o.shippingCustomer;
+      if (cols.productPrice) row[cols.productPrice - minCol] = o.productPrice;
+      if (cols.fee) row[cols.fee - minCol] = o.fee;
+      if (cols.deposit) row[cols.deposit - minCol] = o.deposit;
+      if (cols.tracking) row[cols.tracking - minCol] = o.tracking;
+      return row;
+    });
+    dstSh.getRange(startRow, minCol, toInsert.length, width).setValues(batch);
   } finally {
     lock.releaseLock();
   }
