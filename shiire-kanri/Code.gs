@@ -19,28 +19,11 @@ function doGet(e) {
   if (lastRow < 2) return HtmlService.createHtmlOutput("<p>「商品管理」にデータがありません。</p>");
 
   const hdr = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  const col = buildHeaderMap_(hdr);
 
-  const idxId = hdr.indexOf("管理番号");
-  const idxBrand = hdr.indexOf("ブランド");
-  const idxSize = hdr.indexOf("メルカリサイズ");
-  const idxColor = hdr.indexOf("カラー");
-  const idxPocket = hdr.indexOf("ポケット詳細");
-  const idxDesign = hdr.indexOf("デザイン特徴");
-  const idxDamage = hdr.indexOf("傷汚れ詳細");
-  const idxChaku = hdr.indexOf("着丈");
-  const idxKata = hdr.indexOf("肩幅");
-  const idxMihaba = hdr.indexOf("身幅");
-  const idxSode = hdr.indexOf("袖丈");
-  const idxYuki = hdr.indexOf("裄丈");
-  const idxSous = hdr.indexOf("総丈");
-  const idxWaist = hdr.indexOf("ウエスト");
-  const idxKao = hdr.indexOf("股上");
-  const idxKasha = hdr.indexOf("股下");
-  const idxWatari = hdr.indexOf("ワタリ");
-  const idxSodeh = hdr.indexOf("裾幅");
-  const idxHip = hdr.indexOf("ヒップ");
+  if (!col['管理番号']) return HtmlService.createHtmlOutput("<p>「商品管理」にヘッダー「管理番号」が見つかりません。</p>");
 
-  if (idxId === -1) return HtmlService.createHtmlOutput("<p>「商品管理」にヘッダー「管理番号」が見つかりません。</p>");
+  const idxId = col['管理番号'] - 1;
 
   if (!id) {
     return HtmlService.createHtmlOutput(buildIdListHtml_(sheet, idxId));
@@ -56,26 +39,31 @@ function doGet(e) {
   const rowNum = found.getRow();
   const row = sheet.getRange(rowNum, 1, 1, lastCol).getValues()[0];
 
+  function val_(name) {
+    var c = col[name];
+    return c ? (row[c - 1] || "") : "";
+  }
+
   const data = {
-    id: row[idxId] || "",
-    brand: idxBrand === -1 ? "" : (row[idxBrand] || ""),
-    size: idxSize === -1 ? "" : (row[idxSize] || ""),
-    color: idxColor === -1 ? "" : (row[idxColor] || ""),
-    pocket: idxPocket === -1 ? "" : (row[idxPocket] || ""),
-    design: idxDesign === -1 ? "" : (row[idxDesign] || ""),
-    damage: idxDamage === -1 ? "" : (row[idxDamage] || ""),
-    chaku: idxChaku === -1 ? "" : (row[idxChaku] || ""),
-    kata: idxKata === -1 ? "" : (row[idxKata] || ""),
-    mihaba: idxMihaba === -1 ? "" : (row[idxMihaba] || ""),
-    sode: idxSode === -1 ? "" : (row[idxSode] || ""),
-    yuki: idxYuki === -1 ? "" : (row[idxYuki] || ""),
-    sous: idxSous === -1 ? "" : (row[idxSous] || ""),
-    waist: idxWaist === -1 ? "" : (row[idxWaist] || ""),
-    kao: idxKao === -1 ? "" : (row[idxKao] || ""),
-    kasha: idxKasha === -1 ? "" : (row[idxKasha] || ""),
-    watari: idxWatari === -1 ? "" : (row[idxWatari] || ""),
-    sodeh: idxSodeh === -1 ? "" : (row[idxSodeh] || ""),
-    hip: idxHip === -1 ? "" : (row[idxHip] || "")
+    id: val_("管理番号"),
+    brand: val_("ブランド"),
+    size: val_("メルカリサイズ"),
+    color: val_("カラー"),
+    pocket: val_("ポケット詳細"),
+    design: val_("デザイン特徴"),
+    damage: val_("傷汚れ詳細"),
+    chaku: val_("着丈"),
+    kata: val_("肩幅"),
+    mihaba: val_("身幅"),
+    sode: val_("袖丈"),
+    yuki: val_("裄丈"),
+    sous: val_("総丈"),
+    waist: val_("ウエスト"),
+    kao: val_("股上"),
+    kasha: val_("股下"),
+    watari: val_("ワタリ"),
+    sodeh: val_("裾幅"),
+    hip: val_("ヒップ")
   };
 
   const kw = getKeywordData_(ss, id);
@@ -155,28 +143,29 @@ function getKeywordData_(ss, id) {
   if (lastRow < 2 || lastCol < 1) return { keywords: [], market: "", reason: "", link: "" };
 
   const kwHdr = kwSheet.getRange(1, 1, 1, lastCol).getValues()[0];
-  const idxKwId = kwHdr.indexOf("管理番号");
-  const idxKwStart = kwHdr.indexOf("キーワード1");
-  if (idxKwId === -1 || idxKwStart === -1) return { keywords: [], market: "", reason: "", link: "" };
+  const kwCol = buildHeaderMap_(kwHdr);
+  if (!kwCol['管理番号'] || !kwCol['キーワード1']) return { keywords: [], market: "", reason: "", link: "" };
 
-  const idRange = kwSheet.getRange(2, idxKwId + 1, lastRow - 1, 1);
+  const idRange = kwSheet.getRange(2, kwCol['管理番号'], lastRow - 1, 1);
   const found = idRange.createTextFinder(String(id)).matchEntireCell(true).findNext();
   if (!found) return { keywords: [], market: "", reason: "", link: "" };
 
   const rowNum = found.getRow();
   const row = kwSheet.getRange(rowNum, 1, 1, lastCol).getValues()[0];
 
-  const marketIdx = kwHdr.indexOf("相場");
-  const reasonIdx = kwHdr.indexOf("理由");
-  const linkIdx = kwHdr.indexOf("リンク");
+  function kwVal_(name) {
+    var c = kwCol[name];
+    return c ? (row[c - 1] || "") : "";
+  }
 
-  const market = marketIdx === -1 ? "" : (row[marketIdx] ? String(row[marketIdx]) + "円" : "");
-  const reason = reasonIdx === -1 ? "" : (row[reasonIdx] || "");
-  const link = linkIdx === -1 ? "" : (row[linkIdx] || "");
+  const market = kwVal_("相場") ? String(kwVal_("相場")) + "円" : "";
+  const reason = kwVal_("理由");
+  const link = kwVal_("リンク");
 
   const keywords = [];
+  const kwStartIdx = kwCol['キーワード1'] - 1;
   for (let i = 0; i < 8; i++) {
-    const v = row[idxKwStart + i];
+    const v = row[kwStartIdx + i];
     if (v) keywords.push(String(v));
   }
 

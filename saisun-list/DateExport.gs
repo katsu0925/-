@@ -258,62 +258,27 @@ function exportProductData_() {
 // =====================================================
 
 /**
- * データをキャッシュに保存（大きなデータは分割）
+ * データをキャッシュに保存（コード.gs の app_cachePutLarge_ を利用）
  */
 function saveToCache_(data) {
   var cache = CacheService.getScriptCache();
   var jsonString = JSON.stringify(data);
-  
-  // 100KB以下なら1つのキーで保存
-  if (jsonString.length < 100000) {
-    cache.put(CACHE_KEY_PREFIX + '0', jsonString, CACHE_DURATION);
-    cache.put(CACHE_KEY_PREFIX + 'COUNT', '1', CACHE_DURATION);
-    console.log('キャッシュ保存: 1チャンク (' + jsonString.length + ' bytes)');
-    return;
-  }
-  
-  // 大きい場合は分割（90KB単位）
-  var chunkSize = 90000;
-  var chunks = [];
-  for (var i = 0; i < jsonString.length; i += chunkSize) {
-    chunks.push(jsonString.substring(i, i + chunkSize));
-  }
-  
-  // 各チャンクを保存
-  for (var j = 0; j < chunks.length; j++) {
-    cache.put(CACHE_KEY_PREFIX + j, chunks[j], CACHE_DURATION);
-  }
-  cache.put(CACHE_KEY_PREFIX + 'COUNT', String(chunks.length), CACHE_DURATION);
-  
-  console.log('キャッシュ保存: ' + chunks.length + 'チャンク (' + jsonString.length + ' bytes)');
+  app_cachePutLarge_(cache, CACHE_KEY_PREFIX, jsonString, CACHE_DURATION);
+  console.log('キャッシュ保存: ' + jsonString.length + ' bytes');
 }
 
 /**
- * キャッシュからデータを取得
+ * キャッシュからデータを取得（コード.gs の app_cacheGetLarge_ を利用）
  */
 function loadFromCache_() {
   var cache = CacheService.getScriptCache();
-  var countStr = cache.get(CACHE_KEY_PREFIX + 'COUNT');
-  
-  if (!countStr) {
+  var json = app_cacheGetLarge_(cache, CACHE_KEY_PREFIX);
+  if (!json) return null;
+  try {
+    return JSON.parse(json);
+  } catch (e) {
     return null;
   }
-  
-  var count = parseInt(countStr, 10);
-  if (count === 1) {
-    var data = cache.get(CACHE_KEY_PREFIX + '0');
-    return data ? JSON.parse(data) : null;
-  }
-  
-  // 分割されたデータを結合
-  var chunks = [];
-  for (var i = 0; i < count; i++) {
-    var chunk = cache.get(CACHE_KEY_PREFIX + i);
-    if (!chunk) return null; // 一部欠けていたらnull
-    chunks.push(chunk);
-  }
-  
-  return JSON.parse(chunks.join(''));
 }
 
 
