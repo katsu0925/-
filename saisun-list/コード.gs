@@ -369,9 +369,9 @@ function syncFull_(productSheet, returnSheet, aiSheet, destSheet) {
     if (typeof insertedPrice === 'number' && isFinite(insertedPrice)) {
       const rawStatus = String(rec.status || '');
       if (rawStatus === '傷や汚れあり' || rawStatus === 'やや傷や汚れあり' || rawStatus === '全体的に状態が悪い') {
-        adjustedPrice = normalizeSellPrice_(Math.round(insertedPrice * 0.8));
+        adjustedPrice = Math.round(insertedPrice * 0.8);
       } else if (rawStatus === '目立った傷や汚れなし' && rec.measurements[12] && String(rec.measurements[12]).trim() !== '') {
-        adjustedPrice = normalizeSellPrice_(Math.round(insertedPrice * 0.9));
+        adjustedPrice = Math.round(insertedPrice * 0.9);
       }
     }
 
