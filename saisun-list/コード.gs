@@ -711,7 +711,7 @@ function syncTanaoroshi_(productSheet, returnSheet, destSS) {
         if (!rec) continue;
         if (rec.bizStatus !== '返品済み') continue;
 
-        rows.push([key, boxId]);
+        rows.push([false, key, boxId]);
       }
     }
   }
@@ -720,20 +720,31 @@ function syncTanaoroshi_(productSheet, returnSheet, destSS) {
   let tSheet = destSS.getSheetByName(sheetName);
   if (!tSheet) tSheet = destSS.insertSheet(sheetName);
 
-  const headers = ['管理番号', '箱ID'];
-  tSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  const headers = ['チェック', '管理番号', '箱ID'];
+  const numCols = headers.length;
+  ensureSheetSize_(tSheet, Math.max(2, 2 + rows.length - 1), 4);
+  tSheet.getRange(1, 1, 1, numCols).setValues([headers]);
+
+  // D1:D4 — 更新日時・点数
+  tSheet.getRange(1, 4).setValue('更新日時');
+  tSheet.getRange(2, 4).setValue(new Date());
+  tSheet.getRange(3, 4).setValue('点数');
+  tSheet.getRange(4, 4).setValue(rows.length);
 
   const dataStart = 2;
 
   if (rows.length > 0) {
-    ensureSheetSize_(tSheet, dataStart + rows.length - 1, headers.length);
-    tSheet.getRange(dataStart, 1, rows.length, headers.length).setValues(rows);
+    tSheet.getRange(dataStart, 1, rows.length, numCols).setValues(rows);
+    // チェックボックスのバリデーション
+    const rule = SpreadsheetApp.newDataValidation().requireCheckbox().build();
+    tSheet.getRange(dataStart, 1, rows.length, 1).setDataValidation(rule);
   }
 
   const lastExisting = tSheet.getLastRow();
   const clearStart = dataStart + rows.length;
   if (lastExisting >= clearStart) {
-    tSheet.getRange(clearStart, 1, lastExisting - clearStart + 1, headers.length).clearContent();
+    tSheet.getRange(clearStart, 1, lastExisting - clearStart + 1, numCols).clearContent();
+    tSheet.getRange(clearStart, 1, lastExisting - clearStart + 1, 1).clearDataValidations();
   }
 }
 
