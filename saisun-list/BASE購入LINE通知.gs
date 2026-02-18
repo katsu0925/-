@@ -10,6 +10,7 @@ function notifyUnsentRequests() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sh = ss.getSheetByName('依頼管理');
   const data = sh.getDataRange().getValues();
+  const sentRows = [];
   for (let i = 1; i < data.length; i++) {
     const flag = data[i][27];  // AB列 (index 27) = 受注通知フラグ
     const isFalse = (flag === false) || (String(flag).toUpperCase() === 'FALSE');
@@ -48,6 +49,12 @@ function notifyUnsentRequests() {
       }
     };
     UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', options);
-    sh.getRange(i + 1, 28).setValue(true);  // AB列 (column 28) = 受注通知フラグ
+    sentRows.push(i + 1);
+  }
+  // バッチでフラグ更新
+  if (sentRows.length > 0) {
+    const ranges = sentRows.map(r => sh.getRange(r, 28));
+    const rangeList = sh.getRangeList(ranges.map(r => r.getA1Notation()));
+    rangeList.setValue(true);
   }
 }

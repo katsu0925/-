@@ -14,15 +14,19 @@ function recalcZaikoNissu() {
     return;
   }
   var rowCount = lastRow - 1;
-  var shuppinValues = sheet.getRange(2, shuppinColIndex + 1, rowCount, 1).getValues();
-  var statusValues = sheet.getRange(2, statusColIndex + 1, rowCount, 1).getValues();
+  var minCol = Math.min(shuppinColIndex, statusColIndex, zaikoColIndex);
+  var maxCol = Math.max(shuppinColIndex, statusColIndex, zaikoColIndex);
+  var allData = sheet.getRange(2, minCol + 1, rowCount, maxCol - minCol + 1).getValues();
+  var shuppinOff = shuppinColIndex - minCol;
+  var statusOff = statusColIndex - minCol;
+  var zaikoOff = zaikoColIndex - minCol;
   var zaikoValues = sheet.getRange(2, zaikoColIndex + 1, rowCount, 1).getValues();
   var endStatuses = ['発送済み', '発送待ち', '売却済み', 'キャンセル', '返品済み', '廃棄済み'];
   var today = new Date();
   today.setHours(0, 0, 0, 0);
   for (var i = 0; i < rowCount; i++) {
-    var rawDate = shuppinValues[i][0];
-    var status = statusValues[i][0];
+    var rawDate = allData[i][shuppinOff];
+    var status = allData[i][statusOff];
     if (!rawDate || endStatuses.indexOf(status) !== -1) { zaikoValues[i][0] = 0; continue; }
     var d;
     if (rawDate instanceof Date) { d = new Date(rawDate); }

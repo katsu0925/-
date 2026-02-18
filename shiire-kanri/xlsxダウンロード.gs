@@ -59,24 +59,29 @@ function updateRequestSheetLink_(name, receiptNo, url) {
   if (nameCol === -1)    throw new Error('ヘッダに「' + HEADER_NAME + '」が見つかりません');
   if (linkCol === -1)    throw new Error('ヘッダに「' + HEADER_LINK + '」が見つかりません');
   const dataRows = lastRow - 1;
-  const receiptVals = sh.getRange(2, receiptCol, dataRows, 1).getDisplayValues();
-  const nameVals    = sh.getRange(2, nameCol, dataRows, 1).getDisplayValues();
+  const minCol = Math.min(receiptCol, nameCol);
+  const maxCol = Math.max(receiptCol, nameCol, linkCol);
+  const allVals = sh.getRange(2, minCol, dataRows, maxCol - minCol + 1).getDisplayValues();
+  const rOff = receiptCol - minCol;
+  const nOff = nameCol - minCol;
   const targetReceipt = String(receiptNo || '').trim();
   const targetName    = String(name || '').trim();
-  let found = false;
+  const matchRows = [];
   for (let i = 0; i < dataRows; i++) {
-    const r = String(receiptVals[i][0] || '').trim();
-    const n = String(nameVals[i][0] || '').trim();
-    if (r === targetReceipt && n === targetName) {
-      sh.getRange(i + 2, linkCol).setValue(url);
-      found = true;
-    }
+    const r = String(allVals[i][rOff] || '').trim();
+    const n = String(allVals[i][nOff] || '').trim();
+    if (r === targetReceipt && n === targetName) matchRows.push(i + 2);
   }
-  if (!found) {
+  if (matchRows.length > 0) {
+    const rangeList = sh.getRangeList(matchRows.map(r => sh.getRange(r, linkCol).getA1Notation()));
+    rangeList.setValue(url);
+  } else {
     const newRow = lastRow + 1;
-    sh.getRange(newRow, receiptCol).setValue(targetReceipt);
-    sh.getRange(newRow, nameCol).setValue(targetName);
-    sh.getRange(newRow, linkCol).setValue(url);
+    const row = new Array(maxCol).fill('');
+    row[receiptCol - 1] = targetReceipt;
+    row[nameCol - 1] = targetName;
+    row[linkCol - 1] = url;
+    sh.getRange(newRow, 1, 1, maxCol).setValues([row]);
   }
 }
 

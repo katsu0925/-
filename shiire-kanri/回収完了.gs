@@ -29,9 +29,12 @@ function stampByThreshold() {
   if (isNaN(tn)) return;
   var threshold = tn / 100;
 
-  var recsDisp = sh.getRange(startRow, percentCol, lastRow - startRow + 1, 1).getDisplayValues();
-  var stamps = sh.getRange(startRow, stampCol, lastRow - startRow + 1, 1).getValues();
+  var nRows = lastRow - startRow + 1;
+  var recsDisp = sh.getRange(startRow, percentCol, nRows, 1).getDisplayValues();
+  var stamps = sh.getRange(startRow, stampCol, nRows, 1).getValues();
 
+  var changed = false;
+  var now = new Date();
   for (var r = 0; r < recsDisp.length; r++) {
     var disp = recsDisp[r][0];
     if (disp === '' || disp == null) continue;
@@ -43,8 +46,12 @@ function stampByThreshold() {
     var v = vn / 100;
 
     if (v >= threshold && !stamps[r][0]) {
-      sh.getRange(startRow + r, stampCol).setValue(new Date());
+      stamps[r][0] = now;
+      changed = true;
     }
+  }
+  if (changed) {
+    sh.getRange(startRow, stampCol, nRows, 1).setValues(stamps);
   }
 }
 
