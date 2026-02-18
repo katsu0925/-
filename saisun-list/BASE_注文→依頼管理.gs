@@ -196,21 +196,26 @@ function syncBaseOrdersToIraiKanri() {
     let shippingStore = 0;
     let shippingCustomer = 0;
 
+    // お届け先の都道府県があればそちらを優先
+    const rcvPrefForShip = (idxRcvPref_Order !== -1) ? String(orderRow[idxRcvPref_Order] || '').trim() : '';
+    const orderPref = rcvPrefForShip || String(orderRow[idxPref_Order] || '').trim();
+    // 注文内の合計点数
+    let orderTotalQty = 0;
+    for (let j = 0; j < itemRows.length; j++) {
+      const qRaw = itemRows[j][idxQty_Item];
+      const q = (qRaw == null || String(qRaw).trim() === '') ? 0 : Number(qRaw);
+      orderTotalQty += q;
+    }
+
     if (baseShippingFee > 0) {
       // BASE側で送料が設定されている → 客負担
       shippingCustomer = baseShippingFee;
+      // 店負担送料も住所から計算（配送原価として記録）
+      if (orderPref && typeof calcStoreShippingByAddress_ === 'function') {
+        shippingStore = calcStoreShippingByAddress_(orderPref, orderTotalQty);
+      }
     } else {
       // 送料0 → 送料表と住所から計算して店負担
-      // お届け先の都道府県があればそちらを優先
-      const rcvPrefForShip = (idxRcvPref_Order !== -1) ? String(orderRow[idxRcvPref_Order] || '').trim() : '';
-      const orderPref = rcvPrefForShip || String(orderRow[idxPref_Order] || '').trim();
-      // 注文内の合計点数（確認リンクがあるものは1として計算）
-      let orderTotalQty = 0;
-      for (let j = 0; j < itemRows.length; j++) {
-        const qRaw = itemRows[j][idxQty_Item];
-        const q = (qRaw == null || String(qRaw).trim() === '') ? 0 : Number(qRaw);
-        orderTotalQty += q;
-      }
       if (orderPref && typeof calcStoreShippingByAddress_ === 'function') {
         shippingStore = calcStoreShippingByAddress_(orderPref, orderTotalQty);
       }
