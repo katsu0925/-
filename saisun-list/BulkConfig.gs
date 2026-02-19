@@ -74,24 +74,26 @@ function bulk_ensureSheet_(ss) {
 /**
  * セットアップ関数（GASエディタから1回実行）
  * まとめ商品スプレッドシートのIDをScriptPropertiesに設定
+ *
+ * 使い方: 下の SPREADSHEET_ID を実際のIDに書き換えてから実行
  */
 function setBulkSpreadsheetId() {
-  var ui = SpreadsheetApp.getUi();
-  var res = ui.prompt(
-    'まとめ商品スプレッドシートID設定',
-    'まとめ商品用スプレッドシートのIDを入力してください:',
-    ui.ButtonSet.OK_CANCEL
-  );
-  if (res.getSelectedButton() !== ui.Button.OK) return;
-  var id = String(res.getResponseText() || '').trim();
-  if (!id) { ui.alert('IDが空です。'); return; }
+  // ★ ここに まとめ商品スプレッドシートの ID を貼り付けてから実行してください
+  var SPREADSHEET_ID = 'ここにスプレッドシートIDを貼り付け';
+
+  var id = String(SPREADSHEET_ID || '').trim();
+  if (!id || id === 'ここにスプレッドシートIDを貼り付け') {
+    console.log('エラー: SPREADSHEET_ID を実際のスプレッドシートIDに書き換えてから実行してください。');
+    return;
+  }
 
   try {
     var ss = SpreadsheetApp.openById(id);
     bulk_ensureSheet_(ss);
     PropertiesService.getScriptProperties().setProperty('BULK_SPREADSHEET_ID', id);
-    ui.alert('設定完了: ' + ss.getName() + '\nシート「' + BULK_CONFIG.sheetName + '」を確認しました。');
+    console.log('設定完了: ' + ss.getName());
+    console.log('シート「' + BULK_CONFIG.sheetName + '」を確認しました。');
   } catch (e) {
-    ui.alert('エラー: ' + (e.message || e));
+    console.log('エラー: ' + (e.message || e));
   }
 }
