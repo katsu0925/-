@@ -297,11 +297,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 // =====================================================
 var BULK_CART_KEY = 'bulk_cart_v1';
 var DETAURI_CART_KEY = 'estimate_cart_v2';
+var SESSION_KEY = 'estimate_session';
 
 var G = {
   products: [],
   cart: {},           // { productId: qty }
   settings: {},
+  customer: null,     // 共有会員情報
   coupon: null,       // { type, value, discountAmount, freeShipping, label }
   shipping: 0,
   shippingSize: '',
@@ -320,6 +322,9 @@ window.addEventListener('DOMContentLoaded', function() {
 
   // 保存済みまとめ商品カートの読み込み
   var savedCart = loadBulkCart();
+
+  // デタウリ会員セッションの読み込み・検証
+  loadSharedSession();
 
   var initDone = false;
   // 30秒後にまだ読み込み中ならタイムアウト表示
@@ -551,6 +556,9 @@ function changeQty(productId, delta) {
 
   updateCart();
   saveBulkCart();
+
+  // クーポン適用中にカートが変わったら再検証
+  revalidateCoupon();
 }
 
 // =====================================================
@@ -610,6 +618,14 @@ function updateCart() {
     discountRows += '<div class="cart-row"><span>30点以上割引 (10%OFF)</span><span>-¥' + numFmt(bulkDisc) + '</span></div>';
   }
 
+  // 会員割引
+  var md = G.settings.memberDiscount;
+  if (G.customer && md && md.enabled && (!G.coupon || G.coupon.comboMember !== false)) {
+    var memberDisc = Math.round(discounted * md.rate);
+    discounted -= memberDisc;
+    discountRows += '<div class="cart-row"><span>会員割引 (' + Math.round(md.rate * 100) + '%OFF)</span><span>-¥' + numFmt(memberDisc) + '</span></div>';
+  }
+
   discounted = Math.max(0, discounted);
 
   // 送料
@@ -629,9 +645,11 @@ function updateCart() {
   // デタウリカートの合算表示
   if (G.detauriCartCount > 0) {
     rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;padding-top:10px;">'
-      + '<span>デタウリ（' + G.detauriCartCount + '点）</span>'
+      + '<span>デタウリ（' + G.detauriCartCount + '点・商品代）</span>'
       + '<span>¥' + numFmt(G.detauriCartTotal) + '</span></div>';
-    rows += '<div class="cart-row total" style="border-top-color:#5B86C5;"><span>両チャネル合計</span><span>¥' + numFmt(total + G.detauriCartTotal) + '</span></div>';
+    rows += '<div class="cart-row" style="font-size:11px;color:#999;border-bottom:none;padding:2px 0;">'
+      + '<span colspan="2">※ 送料は各チャネルで別途計算されます</span></div>';
+    rows += '<div class="cart-row total" style="border-top-color:#5B86C5;"><span>両チャネル合計（税込・送料別）</span><span>¥' + numFmt(total + G.detauriCartTotal) + '</span></div>';
   }
 
   el.innerHTML = '<div class="cart-summary">' + rows + '</div>';
@@ -843,6 +861,106 @@ function submitOrder() {
 // =====================================================
 // ユーティリティ
 // =====================================================
+// =====================================================
+// クーポン再検証（カート変更時）
+// =====================================================
+function revalidateCoupon() {
+  if (!G.coupon) return;
+  var code = document.getElementById('couponInput').value.trim();
+  if (!code) { G.coupon = null; updateCart(); return; }
+
+  var cartKeys = Object.keys(G.cart);
+  if (cartKeys.length === 0) {
+    // カートが空になったらクーポンをクリア
+    G.coupon = null;
+    var resEl = document.getElementById('couponResult');
+    resEl.className = 'coupon-result';
+    resEl.textContent = '';
+    updateCart();
+    return;
+  }
+
+  var email = document.getElementById('contact').value.trim();
+  var subtotal = calcSubtotal();
+
+  google.script.run
+    .withSuccessHandler(function(r) {
+      if (r && r.ok) {
+        G.coupon = r;
+      } else {
+        G.coupon = null;
+        var resEl = document.getElementById('couponResult');
+        resEl.className = 'coupon-result err';
+        resEl.textContent = r && r.message ? r.message : 'カート変更によりクーポンが無効になりました';
+      }
+      updateCart();
+    })
+    .withFailureHandler(function() {
+      // ネットワークエラー時はクーポンを維持
+    })
+    .apiValidateCoupon(code, email, subtotal, 'bulk', cartKeys);
+}
+
+// =====================================================
+// 会員セッション共有
+// =====================================================
+function loadSharedSession() {
+  try {
+    var raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return;
+    var saved = JSON.parse(raw);
+    if (!saved || !saved.sessionId) return;
+
+    // バックエンドでセッション検証
+    google.script.run
+      .withSuccessHandler(function(r) {
+        if (r && r.ok && r.data && r.data.customer) {
+          G.customer = r.data.customer;
+          autoFillCustomerForm();
+          updateMemberUI();
+          updateCart(); // 会員割引を反映
+        }
+      })
+      .withFailureHandler(function() {
+        // 検証失敗時は会員なしで続行
+      })
+      .apiValidateSession('bulk', { sessionId: saved.sessionId });
+  } catch (e) {}
+}
+
+function autoFillCustomerForm() {
+  if (!G.customer) return;
+  var fields = [
+    ['companyName', G.customer.companyName],
+    ['contact', G.customer.email],
+    ['phone', G.customer.phone],
+    ['postal', G.customer.postal],
+    ['address', G.customer.address]
+  ];
+  fields.forEach(function(f) {
+    var el = document.getElementById(f[0]);
+    if (el && !el.value && f[1]) {
+      el.value = f[1];
+    }
+  });
+  // 住所が入力されたら送料を再計算
+  if (G.customer.address) updateCart();
+}
+
+function updateMemberUI() {
+  if (!G.customer) return;
+  var nav = document.querySelector('.header-nav');
+  if (!nav) return;
+  // 既存バッジがあれば削除
+  var old = document.getElementById('memberBadge');
+  if (old) old.remove();
+  var badge = document.createElement('span');
+  badge.id = 'memberBadge';
+  badge.style.cssText = 'font-size:11px;background:rgba(255,215,0,.2);color:#ffd700;padding:4px 10px;border-radius:10px;';
+  badge.textContent = '会員: ' + (G.customer.companyName || G.customer.email);
+  nav.parentNode.insertBefore(badge, nav.nextSibling);
+}
+
 // =====================================================
 // カート永続化 (localStorage)
 // =====================================================
