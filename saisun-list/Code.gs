@@ -25,15 +25,6 @@ function doGet(e) {
       .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
   }
 
-  // まとめ商品 管理画面（?page=bulk-admin）
-  if (String(p.page || '') === 'bulk-admin') {
-    var tBulkAdmin = HtmlService.createTemplateFromFile('BulkAdminModal');
-    tBulkAdmin.appTitle = APP_CONFIG.appTitle;
-    return tBulkAdmin.evaluate()
-      .setTitle(APP_CONFIG.appTitle + ' - まとめ商品管理')
-      .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
-  }
-
   var tplName = (String(p.admin || '') === '1') ? 'Admin' : 'Index';
 
   var t = HtmlService.createTemplateFromFile(tplName);
@@ -122,14 +113,7 @@ function doPost(e) {
       // クーポン検証
       'apiValidateCoupon': apiValidateCoupon,
       // 管理者用: 既存受付番号に商品選択を紐付け
-      'apiAdminLinkOrder': apiAdminLinkOrder,
-      // まとめ商品管理
-      'apiBulkAdminInit': apiBulkAdminInit,
-      'apiBulkAdminNewId': apiBulkAdminNewId,
-      'apiBulkAdminSave': apiBulkAdminSave,
-      'apiBulkAdminDelete': apiBulkAdminDelete,
-      'apiBulkAdminGetOAuthToken': apiBulkAdminGetOAuthToken,
-      'apiBulkAdminGetDriveImageUrl': apiBulkAdminGetDriveImageUrl
+      'apiAdminLinkOrder': apiAdminLinkOrder
     };
 
     var fn = allowed[action];
