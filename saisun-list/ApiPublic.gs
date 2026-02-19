@@ -157,6 +157,8 @@ function apiSyncHolds(userKey, ids) {
       holdState.items = holdItems;
       holdState.updatedAt = now;
       st_setHoldState_(orderSs, holdState);
+      // 追加のキャッシュ無効化（save→invalidateの後、digestビルド前に確実にキャッシュをクリア）
+      try { st_invalidateStatusCache_(orderSs); } catch(e) { console.log('optional: status cache invalidation: ' + (e.message || e)); }
     } finally {
       try { lock.releaseLock(); } catch (e) { console.log('optional: lock release: ' + (e.message || e)); }
     }

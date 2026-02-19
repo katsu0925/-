@@ -111,8 +111,6 @@ function listAllProperties() {
  * 不要な一時プロパティを一括削除
  *
  * 削除対象:
- *   - STATE_HOLDS_V4:*  — 確保状態チャンク（CacheServiceに移行済み、Propertiesに残る古いデータ）
- *   - STATE_OPEN_V4:*   — 依頼中状態チャンク（同上）
  *   - PAYMENT_*         — 完了/期限切れの決済セッション
  *   - PENDING_ORDER_*   — 完了/期限切れのペンディング注文
  *   - PAYMENT_TEST-*    — テスト決済セッション
@@ -128,9 +126,9 @@ function cleanupStaleProperties(dryRun) {
   var keys = Object.keys(all);
 
   // 削除対象のプレフィックス
+  // ★ STATE_HOLDS_V4, STATE_OPEN_V4 は削除禁止！
+  //   PropertiesServiceが一次ストレージ（CacheServiceはキャッシュのみ）
   var stalePrefixes = [
-    'STATE_HOLDS_V4:',
-    'STATE_OPEN_V4:',
     'PAYMENT_',
     'PENDING_ORDER_',
   ];
