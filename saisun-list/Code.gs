@@ -16,6 +16,15 @@ function doGet(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
+  // まとめ商品LP（?page=bulk）
+  if (String(p.page || '') === 'bulk') {
+    var tBulk = HtmlService.createTemplateFromFile('BulkLP');
+    tBulk.appTitle = APP_CONFIG.appTitle;
+    return tBulk.evaluate()
+      .setTitle(APP_CONFIG.appTitle + ' - まとめ商品')
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
+  }
+
   var tplName = (String(p.admin || '') === '1') ? 'Admin' : 'Index';
 
   var t = HtmlService.createTemplateFromFile(tplName);
@@ -96,6 +105,9 @@ function doPost(e) {
       'apiCancelOrder': apiCancelOrder,
       // CSRFトークン発行
       'apiGetCsrfToken': apiGetCsrfToken,
+      // まとめ商品API
+      'apiBulkInit': apiBulkInit,
+      'apiBulkSubmit': apiBulkSubmit,
       // AIチャットボット
       'apiChatbot': apiChatbot,
       // クーポン検証
@@ -178,6 +190,7 @@ function jsonResponse_(data) {
 
 var RATE_LIMITS = {
   'apiSubmitEstimate': { max: 5, windowSec: 3600, label: '決済は1時間に5回まで' },
+  'apiBulkSubmit': { max: 5, windowSec: 3600, label: '決済は1時間に5回まで' },
   'apiSyncHolds':     { max: 30, windowSec: 60,   label: '確保操作は1分に30回まで' },
   'apiLoginCustomer': { max: 5, windowSec: 3600, label: 'ログインは1時間に5回まで' },
   'apiRegisterCustomer': { max: 3, windowSec: 3600, label: '登録は1時間に3回まで' },

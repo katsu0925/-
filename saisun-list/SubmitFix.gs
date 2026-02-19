@@ -546,15 +546,20 @@ function writeSubmitData_(data) {
   var now = data.createdAtMs || u_nowMs_();
 
   // 1. 依頼管理シートに書き込み
-  // 列構成（32列 A-AF）:
+  // 列構成（33列 A-AG）:
   // A=受付番号, B=依頼日時, C=会社名/氏名, D=連絡先, E=郵便番号, F=住所, G=電話番号, H=商品名,
   // I=確認リンク, J=選択リスト, K=合計点数, L=合計金額, M=送料(店負担), N=送料(客負担), O=決済方法, P=決済ID,
   // Q=入金確認, R=ポイント付与済, S=発送ステータス, T=配送業者, U=伝票番号, V=ステータス, W=担当者,
   // X=リスト同梱, Y=xlsx送付, Z=インボイス発行, AA=インボイス状況, AB=受注通知,
-  // AC=発送通知, AD=備考, AE=作業報酬, AF=更新日時
+  // AC=発送通知, AD=備考, AE=作業報酬, AF=更新日時, AG=チャネル
   var reqSh = sh_ensureRequestSheet_(orderSs);
-  var productNames = '選べるxlsx付きパッケージ';
+  var productNames = data.productNames || '選べるxlsx付きパッケージ';
+  var channel = data.channel || 'デタウリ';
   var paymentStatus = data.paymentStatus || '対応済';
+  // まとめ商品の場合、選択リスト/合計点数の扱いが異なる
+  var selectionList = data.selectionList || (data.ids ? data.ids.join('、') : '');
+  var totalCount = data.totalCount || (data.ids ? data.ids.length : 0);
+  var confirmLink = (channel === 'デタウリ') ? createOrderConfirmLink_(data.receiptNo, data) : '';
   var row = [
     data.receiptNo,                              // A: 受付番号
     new Date(now),                               // B: 依頼日時
@@ -564,9 +569,9 @@ function writeSubmitData_(data) {
     data.form.address || '',                     // F: 住所
     data.form.phone || '',                       // G: 電話番号
     productNames,                                // H: 商品名
-    createOrderConfirmLink_(data.receiptNo, data),  // I: 確認リンク（Drive共有URL）
-    data.selectionList || data.ids.join('、'),   // J: 選択リスト
-    data.ids.length,                             // K: 合計点数
+    confirmLink,                                 // I: 確認リンク
+    selectionList,                               // J: 選択リスト
+    totalCount,                                  // K: 合計点数
     data.discounted || 0,                        // L: 合計金額
     data.storeShipping || '',                     // M: 送料(店負担)
     data.shippingAmount || '',                   // N: 送料(客負担)
@@ -587,7 +592,8 @@ function writeSubmitData_(data) {
     '',                                          // AC: 発送通知
     data.form.note || '',                        // AD: 備考
     '',                                          // AE: 作業報酬
-    new Date(now)                                // AF: 更新日時
+    new Date(now),                               // AF: 更新日時
+    channel                                      // AG: チャネル
   ];
   var writeRow = sh_findNextRowByDisplayKey_(reqSh, 1, 1);
   reqSh.getRange(writeRow, 1, 1, row.length).setValues([row]);
@@ -615,9 +621,9 @@ function writeSubmitData_(data) {
     phone: data.form.phone || '',
     note: data.form.note || '',
     measureLabel: data.measureLabel || '',
-    totalCount: data.totalCount || data.ids.length,
+    totalCount: data.totalCount || (data.ids ? data.ids.length : 0),
     discounted: data.discounted || 0,
-    selectionList: data.selectionList || data.ids.join('、'),
+    selectionList: data.selectionList || (data.ids ? data.ids.join('、') : ''),
     itemDetails: data.itemDetails || [],
     writeRow: writeRow,
     createdAtMs: now,
@@ -829,36 +835,40 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
     console.log('Claimed pending order (deleted key): ' + receiptNo);
 
     var pendingData = JSON.parse(pendingDataStr);
-    console.log('Found pending order: ' + receiptNo + ', items: ' + pendingData.ids.length);
+    var isBulk = pendingData.channel === 'まとめ';
+    console.log('Found pending order: ' + receiptNo + (isBulk ? ' (まとめ)' : '') + ', items: ' + (pendingData.ids ? pendingData.ids.length : pendingData.totalCount));
 
     var orderSs = sh_getOrderSs_();
     var now = u_nowMs_();
 
     // 1. holdState → openState に遷移（決済完了で確定）
-    // 1a. holdStateから商品を削除（確保中 解除）
-    var holdState = st_getHoldState_(orderSs) || {};
-    var holdItems = (holdState.items && typeof holdState.items === 'object') ? holdState.items : {};
-    for (var i = 0; i < pendingData.ids.length; i++) {
-      delete holdItems[pendingData.ids[i]];
-    }
-    holdState.items = holdItems;
-    holdState.updatedAt = now;
-    st_setHoldState_(orderSs, holdState);
+    // ※まとめ商品は個品の確保/依頼中管理が不要なのでスキップ
+    if (!isBulk && pendingData.ids && pendingData.ids.length > 0) {
+      // 1a. holdStateから商品を削除（確保中 解除）
+      var holdState = st_getHoldState_(orderSs) || {};
+      var holdItems = (holdState.items && typeof holdState.items === 'object') ? holdState.items : {};
+      for (var i = 0; i < pendingData.ids.length; i++) {
+        delete holdItems[pendingData.ids[i]];
+      }
+      holdState.items = holdItems;
+      holdState.updatedAt = now;
+      st_setHoldState_(orderSs, holdState);
 
-    // 1b. openStateに商品を追加（依頼中として確定）
-    var openState = st_getOpenState_(orderSs) || {};
-    var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
-    for (var i = 0; i < pendingData.ids.length; i++) {
-      openItems[pendingData.ids[i]] = {
-        receiptNo: receiptNo,
-        userKey: pendingData.userKey,
-        status: APP_CONFIG.statuses.open,
-        createdAtMs: now
-      };
+      // 1b. openStateに商品を追加（依頼中として確定）
+      var openState = st_getOpenState_(orderSs) || {};
+      var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
+      for (var i = 0; i < pendingData.ids.length; i++) {
+        openItems[pendingData.ids[i]] = {
+          receiptNo: receiptNo,
+          userKey: pendingData.userKey,
+          status: APP_CONFIG.statuses.open,
+          createdAtMs: now
+        };
+      }
+      openState.items = openItems;
+      openState.updatedAt = now;
+      st_setOpenState_(orderSs, openState);
     }
-    openState.items = openItems;
-    openState.updatedAt = now;
-    st_setOpenState_(orderSs, openState);
 
     // 2. シートレベルの重複チェック（最終安全弁 — ロック・PENDING_ORDER_削除で防げないケース対策）
     var reqSh = sh_ensureRequestSheet_(orderSs);
@@ -877,9 +887,9 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
     var writeData = {
       userKey: pendingData.userKey,
       form: pendingData.form,
-      ids: pendingData.ids,
+      ids: pendingData.ids || [],
       receiptNo: receiptNo,
-      selectionList: pendingData.selectionList,
+      selectionList: pendingData.selectionList || '',
       measureOpt: pendingData.measureOpt,
       totalCount: pendingData.totalCount,
       discounted: pendingData.discounted,
@@ -895,7 +905,9 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
       paymentMethod: paymentMethod || '',
       paymentId: paymentId || '',
       itemDetails: pendingData.itemDetails || [],
-      pointsUsed: pendingData.pointsUsed || 0
+      pointsUsed: pendingData.pointsUsed || 0,
+      channel: pendingData.channel || 'デタウリ',
+      productNames: pendingData.productNames || ''
     };
 
     writeSubmitData_(writeData);
@@ -918,7 +930,7 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
       ok: true,
       message: '注文を確定しました',
       receiptNo: receiptNo,
-      movedCount: pendingData.ids.length
+      movedCount: pendingData.ids ? pendingData.ids.length : (pendingData.totalCount || 0)
     };
 
     } finally {
