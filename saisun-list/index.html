@@ -329,7 +329,7 @@
         </div>
       </div>
       <div style="display:flex; gap:16px; margin-top:8px; flex-wrap:wrap; align-items:center;">
-        <a href="<?= bulkUrl || '#' ?>" id="bulkLink" style="font-size:13px; font-weight:700; color:#ffd700; text-decoration:none; background:rgba(255,215,0,.12); padding:4px 10px; border-radius:8px;">まとめ商品</a>
+        <a href="<?= bulkUrl || '#' ?>" id="bulkLink" onclick="navigateToBulk(event)" style="font-size:13px; font-weight:700; color:#ffd700; text-decoration:none; background:rgba(255,215,0,.12); padding:4px 10px; border-radius:8px;">まとめ商品</a>
         <a href="#" id="openGuideLink" style="font-size:13px; font-weight:600; color:#93c5fd; text-decoration:none;">商品ガイド</a>
         <a href="#" id="openShippingLink" style="font-size:13px; font-weight:600; color:#93c5fd; text-decoration:none;">送料表</a>
         <a href="#" id="openContactLink" style="font-size:13px; font-weight:600; color:#93c5fd; text-decoration:none;">お問い合わせ</a>
@@ -2347,16 +2347,23 @@ function loadCartStorage() {
 }
 
 function saveCartStorage() {
-  try { localStorage.setItem('estimate_cart_v2', JSON.stringify({ ids: state.cart.ids || [], itemsById: state.cart.itemsById || {} })); } catch (e) {}
+  try {
+    var shippingAmount = (state.lastShipping && state.lastShipping.amount !== null) ? state.lastShipping.amount : 0;
+    localStorage.setItem('estimate_cart_v2', JSON.stringify({
+      ids: state.cart.ids || [],
+      itemsById: state.cart.itemsById || {},
+      shipping: shippingAmount
+    }));
+  } catch (e) {}
 }
 
 function loadBulkCartStorage() {
   try {
     var raw = localStorage.getItem('bulk_cart_v1');
-    if (!raw) return { subtotal: 0, totalQty: 0 };
+    if (!raw) return { subtotal: 0, totalQty: 0, shipping: 0 };
     var j = JSON.parse(raw);
-    return { subtotal: Number(j.subtotal || 0), totalQty: Number(j.totalQty || 0) };
-  } catch (e) { return { subtotal: 0, totalQty: 0 }; }
+    return { subtotal: Number(j.subtotal || 0), totalQty: Number(j.totalQty || 0), shipping: Number(j.shipping || 0) };
+  } catch (e) { return { subtotal: 0, totalQty: 0, shipping: 0 }; }
 }
 
 function openModal(modal) {
@@ -3097,14 +3104,16 @@ function updateCartPrice() {
 
   // まとめ商品カートの合算
   var bulk = loadBulkCartStorage();
-  var combinedTotal = (discounted < sum ? discounted : sum) + bulk.subtotal;
+  var bulkTotal = bulk.subtotal + bulk.shipping;
+  var combinedTotal = (discounted < sum ? discounted : sum) + bulkTotal;
 
   if (bulk.subtotal > 0) {
     // まとめ商品カートがある場合は合算を表示
+    var bulkLabel = yen(bulkTotal);
     if (discounted < sum) {
-      $('cartTotal').innerHTML = yen(discounted) + ' <span style="font-size:11px;font-weight:400;color:#ccc;">+ まとめ</span> ' + yen(bulk.subtotal) + ' = <span style="color:#ffd700;">' + yen(combinedTotal) + '</span>';
+      $('cartTotal').innerHTML = yen(discounted) + ' <span style="font-size:11px;font-weight:400;color:#ccc;">+ まとめ</span> ' + bulkLabel + ' = <span style="color:#ffd700;">' + yen(combinedTotal) + '</span>';
     } else {
-      $('cartTotal').innerHTML = yen(sum) + ' <span style="font-size:11px;font-weight:400;color:#ccc;">+ まとめ</span> ' + yen(bulk.subtotal) + ' = <span style="color:#ffd700;">' + yen(combinedTotal) + '</span>';
+      $('cartTotal').innerHTML = yen(sum) + ' <span style="font-size:11px;font-weight:400;color:#ccc;">+ まとめ</span> ' + bulkLabel + ' = <span style="color:#ffd700;">' + yen(combinedTotal) + '</span>';
     }
   } else {
     if (discounted < sum) {
@@ -4055,9 +4064,14 @@ function renderCartModal_() {
   var bulk = loadBulkCartStorage();
   var bulkEl = $('sumBulkCart');
   if (bulk.subtotal > 0) {
-    bulkEl.innerHTML = 'まとめ商品（' + bulk.totalQty + '点・商品代）：' + yen(bulk.subtotal)
-      + '<br><span style="font-size:11px;color:#999;">※ 送料は各チャネルで別途計算されます</span>'
-      + '<br><span style="font-weight:700;font-size:14px;color:#1e293b;">両チャネル合計（税込・送料別）：' + yen((discounted < sum ? discounted : sum) + bulk.subtotal) + '</span>';
+    var detauriFinal = (discounted < sum) ? discounted : sum;
+    var bulkHtml = 'まとめ商品 商品代（' + bulk.totalQty + '点）：' + yen(bulk.subtotal);
+    if (bulk.shipping > 0) {
+      bulkHtml += '<br>まとめ商品 送料：' + yen(bulk.shipping);
+    }
+    var bulkTotal = bulk.subtotal + bulk.shipping;
+    bulkHtml += '<br><span style="font-weight:700;font-size:14px;color:#1e293b;">両チャネル合計（税込）：' + yen(detauriFinal + bulkTotal) + '</span>';
+    bulkEl.innerHTML = bulkHtml;
     bulkEl.style.display = '';
   } else {
     bulkEl.style.display = 'none';
@@ -4109,9 +4123,14 @@ function updateCartPrices_() {
   var bulk = loadBulkCartStorage();
   var bulkEl = $('sumBulkCart');
   if (bulk.subtotal > 0) {
-    bulkEl.innerHTML = 'まとめ商品（' + bulk.totalQty + '点・商品代）：' + yen(bulk.subtotal)
-      + '<br><span style="font-size:11px;color:#999;">※ 送料は各チャネルで別途計算されます</span>'
-      + '<br><span style="font-weight:700;font-size:14px;color:#1e293b;">両チャネル合計（税込・送料別）：' + yen((discounted < sum ? discounted : sum) + bulk.subtotal) + '</span>';
+    var detauriFinal2 = (discounted < sum) ? discounted : sum;
+    var bulkHtml2 = 'まとめ商品 商品代（' + bulk.totalQty + '点）：' + yen(bulk.subtotal);
+    if (bulk.shipping > 0) {
+      bulkHtml2 += '<br>まとめ商品 送料：' + yen(bulk.shipping);
+    }
+    var bulkTotal2 = bulk.subtotal + bulk.shipping;
+    bulkHtml2 += '<br><span style="font-weight:700;font-size:14px;color:#1e293b;">両チャネル合計（税込）：' + yen(detauriFinal2 + bulkTotal2) + '</span>';
+    bulkEl.innerHTML = bulkHtml2;
     bulkEl.style.display = '';
   } else {
     bulkEl.style.display = 'none';
@@ -4619,6 +4638,29 @@ function logPageView_() {
     });
   } catch (e) {
     console.log('PVログ送信失敗:', e);
+  }
+}
+
+// =====================================================
+// まとめ商品ページへの遷移
+// =====================================================
+function navigateToBulk(e) {
+  e.preventDefault();
+  var link = document.getElementById('bulkLink');
+  var url = link ? link.href : '';
+  if (!url || url === '#' || url.endsWith('#')) {
+    // テンプレート変数が空の場合、現在のURLから構築
+    try {
+      google.script.url.getLocation(function(loc) {
+        var base = window.location.href.split('?')[0];
+        window.top.location.href = base + '?page=bulk';
+      });
+    } catch (err) {
+      // フォールバック
+      window.top.location.href = window.location.href.split('?')[0] + '?page=bulk';
+    }
+  } else {
+    window.top.location.href = url;
   }
 }
 

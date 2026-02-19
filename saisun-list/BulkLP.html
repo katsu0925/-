@@ -16,6 +16,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 .header-nav{display:flex;justify-content:center;gap:10px;margin-top:14px}
 .header-nav a{color:#fff;text-decoration:none;font-size:12px;padding:6px 16px;border:1px solid rgba(255,255,255,.3);border-radius:20px;transition:all .2s}
 .header-nav a.active{background:#ffd700;color:#1a1a2e;border-color:#ffd700;font-weight:700}
+.member-badge{display:inline-block;margin-top:10px;font-size:12px;background:rgba(255,215,0,.15);color:#ffd700;padding:5px 14px;border-radius:20px;border:1px solid rgba(255,215,0,.3)}
 
 /* セクション */
 .section{padding:20px}
@@ -255,7 +256,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 
   <div class="form-group">
     <label class="form-label">備考</label>
-    <input class="form-input" type="text" id="note" placeholder="配送希望日時など">
+    <input class="form-input" type="text" id="note" placeholder="備考がありましたらご記入ください">
   </div>
 
   <!-- 決済ボタン -->
@@ -310,7 +311,8 @@ var G = {
   shippingPref: '',
   submitting: false,
   detauriCartTotal: 0,
-  detauriCartCount: 0
+  detauriCartCount: 0,
+  detauriShipping: 0
 };
 
 // =====================================================
@@ -570,10 +572,15 @@ function updateCart() {
   if (keys.length === 0) {
     var emptyHtml = '<div class="cart-empty">商品を選択してください</div>';
     if (G.detauriCartCount > 0) {
-      emptyHtml += '<div class="cart-summary" style="margin-top:10px;">'
-        + '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
-        + '<span>デタウリ（' + G.detauriCartCount + '点）</span>'
-        + '<span>¥' + numFmt(G.detauriCartTotal) + '</span></div></div>';
+      var detRows = '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
+        + '<span>デタウリ 商品代（' + G.detauriCartCount + '点）</span>'
+        + '<span>¥' + numFmt(G.detauriCartTotal) + '</span></div>';
+      if (G.detauriShipping > 0) {
+        detRows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
+          + '<span>デタウリ 送料</span>'
+          + '<span>¥' + numFmt(G.detauriShipping) + '</span></div>';
+      }
+      emptyHtml += '<div class="cart-summary" style="margin-top:10px;">' + detRows + '</div>';
     }
     el.innerHTML = emptyHtml;
     updatePayButton(0);
@@ -645,11 +652,15 @@ function updateCart() {
   // デタウリカートの合算表示
   if (G.detauriCartCount > 0) {
     rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;padding-top:10px;">'
-      + '<span>デタウリ（' + G.detauriCartCount + '点・商品代）</span>'
+      + '<span>デタウリ 商品代（' + G.detauriCartCount + '点）</span>'
       + '<span>¥' + numFmt(G.detauriCartTotal) + '</span></div>';
-    rows += '<div class="cart-row" style="font-size:11px;color:#999;border-bottom:none;padding:2px 0;">'
-      + '<span colspan="2">※ 送料は各チャネルで別途計算されます</span></div>';
-    rows += '<div class="cart-row total" style="border-top-color:#5B86C5;"><span>両チャネル合計（税込・送料別）</span><span>¥' + numFmt(total + G.detauriCartTotal) + '</span></div>';
+    if (G.detauriShipping > 0) {
+      rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
+        + '<span>デタウリ 送料</span>'
+        + '<span>¥' + numFmt(G.detauriShipping) + '</span></div>';
+    }
+    var detauriTotal = G.detauriCartTotal + G.detauriShipping;
+    rows += '<div class="cart-row total" style="border-top-color:#5B86C5;"><span>両チャネル合計（税込）</span><span>¥' + numFmt(total + detauriTotal) + '</span></div>';
   }
 
   el.innerHTML = '<div class="cart-summary">' + rows + '</div>';
@@ -949,16 +960,18 @@ function autoFillCustomerForm() {
 
 function updateMemberUI() {
   if (!G.customer) return;
-  var nav = document.querySelector('.header-nav');
-  if (!nav) return;
+  var header = document.querySelector('.header');
+  if (!header) return;
   // 既存バッジがあれば削除
   var old = document.getElementById('memberBadge');
   if (old) old.remove();
-  var badge = document.createElement('span');
+  var badge = document.createElement('div');
   badge.id = 'memberBadge';
-  badge.style.cssText = 'font-size:11px;background:rgba(255,215,0,.2);color:#ffd700;padding:4px 10px;border-radius:10px;';
-  badge.textContent = '会員: ' + (G.customer.companyName || G.customer.email);
-  nav.parentNode.insertBefore(badge, nav.nextSibling);
+  badge.className = 'member-badge';
+  var md = G.settings.memberDiscount;
+  var discountText = (md && md.enabled) ? ' ・ 会員割引' + Math.round(md.rate * 100) + '%OFF適用中' : '';
+  badge.textContent = '会員ログイン中: ' + (G.customer.companyName || G.customer.email) + discountText;
+  header.appendChild(badge);
 }
 
 // =====================================================
@@ -969,10 +982,12 @@ function saveBulkCart() {
     var subtotal = calcSubtotal();
     var totalQty = 0;
     Object.keys(G.cart).forEach(function(pid) { totalQty += G.cart[pid]; });
+    var shipping = (G.coupon && G.coupon.freeShipping) ? 0 : G.shipping;
     localStorage.setItem(BULK_CART_KEY, JSON.stringify({
       cart: G.cart,
       subtotal: subtotal,
-      totalQty: totalQty
+      totalQty: totalQty,
+      shipping: shipping
     }));
   } catch (e) {}
 }
@@ -1000,6 +1015,7 @@ function loadDetauriCart() {
     }
     G.detauriCartTotal = sum;
     G.detauriCartCount = ids.length;
+    G.detauriShipping = Number(j.shipping || 0);
   } catch (e) {}
 }
 
