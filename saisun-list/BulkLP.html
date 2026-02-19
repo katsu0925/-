@@ -300,6 +300,10 @@ var BULK_CART_KEY = 'bulk_cart_v1';
 var DETAURI_CART_KEY = 'estimate_cart_v2';
 var SESSION_KEY = 'estimate_session';
 
+// 商品データキャッシュ（デタウリと同じパターン）
+var BULK_PRODUCT_CACHE_KEY = 'bulk_product_cache_v1';
+var BULK_PRODUCT_CACHE_TTL = 5 * 60 * 1000; // 5分
+
 // スタンドアロンモード判定（Cloudflare Pages等からの配信時）
 var GAS_API_URL = 'https://script.google.com/macros/s/AKfycbwLN23a03qQSGA91J-82_6HlIx0kA5yUYFRxjfbjFGfnZDqynKnyJhEPsoISSQps3SmXQ/exec';
 var IS_STANDALONE = (typeof google === 'undefined' || !google.script);
@@ -361,22 +365,65 @@ var G = {
 };
 
 // =====================================================
-// 初期化
+// 商品データキャッシュ（localStorage）
+// =====================================================
+function loadBulkProductCache_() {
+  try {
+    var raw = localStorage.getItem(BULK_PRODUCT_CACHE_KEY);
+    if (!raw) return null;
+    var c = JSON.parse(raw);
+    if (!c || !c.ts || !c.data) return null;
+    var fresh = (Date.now() - c.ts < BULK_PRODUCT_CACHE_TTL);
+    return { data: c.data, stale: !fresh };
+  } catch (e) { return null; }
+}
+
+function saveBulkProductCache_(data) {
+  try {
+    localStorage.setItem(BULK_PRODUCT_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: data }));
+  } catch (e) {}
+}
+
+function applyBulkData_(r, savedCart) {
+  G.products = r.products || [];
+  G.settings = r.settings || {};
+  var detauriBase = window.location.origin + window.location.pathname;
+  var dl = document.getElementById('detauriLink');
+  var dbl = document.getElementById('detauriBannerLink');
+  if (dl) dl.href = detauriBase;
+  if (dbl) dbl.href = detauriBase;
+  if (savedCart && Object.keys(savedCart).length > 0) {
+    var validProducts = {};
+    G.products.forEach(function(p) { validProducts[p.productId] = true; });
+    Object.keys(savedCart).forEach(function(pid) {
+      if (validProducts[pid] && !G.cart[pid]) G.cart[pid] = savedCart[pid];
+    });
+  }
+  renderProducts();
+  updateCart();
+}
+
+// =====================================================
+// 初期化（キャッシュ優先 → バックグラウンド更新）
 // =====================================================
 window.addEventListener('DOMContentLoaded', function() {
-  // デタウリカートの読み込み
   loadDetauriCart();
-
-  // 保存済みまとめ商品カートの読み込み
   var savedCart = loadBulkCart();
-
-  // デタウリ会員セッションの読み込み・検証
   loadSharedSession();
 
+  // キャッシュから即時表示
+  var cached = loadBulkProductCache_();
+  var cacheApplied = false;
+  if (cached && cached.data) {
+    console.log('BulkLP: ' + (cached.stale ? '古い' : '') + 'キャッシュから即時表示:', (cached.data.products || []).length + '件');
+    applyBulkData_(cached.data, savedCart);
+    cacheApplied = true;
+  }
+
+  // バックグラウンドで最新データを取得
   var initDone = false;
-  // 30秒後にまだ読み込み中ならタイムアウト表示
   var loadTimer = setTimeout(function() {
-    if (!initDone) {
+    if (!initDone && !cacheApplied) {
       showProductError('読み込みがタイムアウトしました。ページを再読み込みしてください。');
     }
   }, 30000);
@@ -386,36 +433,30 @@ window.addEventListener('DOMContentLoaded', function() {
       initDone = true;
       clearTimeout(loadTimer);
       try {
-        if (!r || !r.ok) { showProductError(r && r.message ? r.message : '読み込みに失敗しました'); return; }
-        G.products = r.products || [];
-        G.settings = r.settings || {};
-        // デタウリリンクを現在のドメインのルートに設定
-        var detauriBase = window.location.origin + window.location.pathname;
-        var dl = document.getElementById('detauriLink');
-        var dbl = document.getElementById('detauriBannerLink');
-        if (dl) dl.href = detauriBase;
-        if (dbl) dbl.href = detauriBase;
-        // 保存済みカートを復元
-        if (savedCart && Object.keys(savedCart).length > 0) {
-          var validProducts = {};
-          G.products.forEach(function(p) { validProducts[p.productId] = true; });
-          Object.keys(savedCart).forEach(function(pid) {
-            if (validProducts[pid]) G.cart[pid] = savedCart[pid];
-          });
+        if (!r || !r.ok) {
+          if (!cacheApplied) showProductError(r && r.message ? r.message : '読み込みに失敗しました');
+          return;
         }
-        renderProducts();
-        updateCart();
+        saveBulkProductCache_(r);
+        var newCount = (r.products || []).length;
+        if (!cacheApplied || newCount !== G.products.length) {
+          console.log('BulkLP: 最新データで更新:', newCount + '件');
+          applyBulkData_(r, savedCart);
+        } else {
+          // settings（会員割引等）だけ静かに更新
+          G.settings = r.settings || {};
+          updateCart();
+        }
       } catch (err) {
-        showProductError('表示エラー: ' + (err.message || err));
+        if (!cacheApplied) showProductError('表示エラー: ' + (err.message || err));
       }
     })
     .catch(function(e) {
       initDone = true;
       clearTimeout(loadTimer);
-      showProductError(e && e.message ? e.message : '接続エラー');
+      if (!cacheApplied) showProductError(e && e.message ? e.message : '接続エラー');
     });
 
-  // 郵便番号→住所自動入力
   document.getElementById('postal').addEventListener('input', onPostalInput);
 });
 
