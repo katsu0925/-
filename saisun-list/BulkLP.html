@@ -111,7 +111,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
   <p>古着卸売 - 業務用アパレル仕入れ</p>
   <nav class="header-nav">
     <a class="active" href="#">まとめ商品</a>
-    <a id="detauriLink" href="#">採寸付き個品（デタウリ）</a>
+    <a id="detauriLink" href="<?= detauriUrl || '#' ?>">採寸付き個品（デタウリ）</a>
   </nav>
 </header>
 
@@ -208,7 +208,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 <div class="detauri-banner">
   <h3>1点ずつ選びたい方はこちら</h3>
   <p>全品採寸データ付き。サイズ・ブランド・状態を確認しながら1点ずつお選びいただけます。</p>
-  <a id="detauriBannerLink" class="cta-btn" href="#">デタウリで商品を見る →</a>
+  <a id="detauriBannerLink" class="cta-btn" href="<?= detauriUrl || '#' ?>">デタウリで商品を見る →</a>
 </div>
 
 <!-- フッター -->
@@ -238,18 +238,36 @@ var G = {
 // 初期化
 // =====================================================
 window.addEventListener('DOMContentLoaded', function() {
+  var initDone = false;
+  // 30秒後にまだ読み込み中ならタイムアウト表示
+  var loadTimer = setTimeout(function() {
+    if (!initDone) {
+      showProductError('読み込みがタイムアウトしました。ページを再読み込みしてください。');
+    }
+  }, 30000);
+
   google.script.run
     .withSuccessHandler(function(r) {
-      if (!r || !r.ok) { showProductError(r && r.message ? r.message : '読み込みに失敗しました'); return; }
-      G.products = r.products || [];
-      G.settings = r.settings || {};
-      if (G.settings.detauriUrl) {
-        document.getElementById('detauriLink').href = G.settings.detauriUrl;
-        document.getElementById('detauriBannerLink').href = G.settings.detauriUrl;
+      initDone = true;
+      clearTimeout(loadTimer);
+      try {
+        if (!r || !r.ok) { showProductError(r && r.message ? r.message : '読み込みに失敗しました'); return; }
+        G.products = r.products || [];
+        G.settings = r.settings || {};
+        if (G.settings.detauriUrl) {
+          var dl = document.getElementById('detauriLink');
+          var dbl = document.getElementById('detauriBannerLink');
+          if (dl) dl.href = G.settings.detauriUrl;
+          if (dbl) dbl.href = G.settings.detauriUrl;
+        }
+        renderProducts();
+      } catch (err) {
+        showProductError('表示エラー: ' + (err.message || err));
       }
-      renderProducts();
     })
     .withFailureHandler(function(e) {
+      initDone = true;
+      clearTimeout(loadTimer);
       showProductError(e && e.message ? e.message : '接続エラー');
     })
     .apiBulkInit();

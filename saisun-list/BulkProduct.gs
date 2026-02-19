@@ -100,8 +100,16 @@ function bulk_clearCache_() {
  */
 function apiBulkInit() {
   try {
+    console.log('apiBulkInit: start');
     var products = bulk_getProducts_();
+    console.log('apiBulkInit: products=' + products.length);
     var memberDiscount = app_getMemberDiscountStatus_();
+
+    var detauriUrl = '';
+    try { detauriUrl = SITE_CONSTANTS.SITE_URL || ''; } catch (e2) { console.log('apiBulkInit: SITE_URL error: ' + e2); }
+    if (!detauriUrl) {
+      try { detauriUrl = ScriptApp.getService().getUrl(); } catch (e3) { console.log('apiBulkInit: ScriptApp URL error: ' + e3); }
+    }
 
     return {
       ok: true,
@@ -112,10 +120,11 @@ function apiBulkInit() {
         shippingAreas: SHIPPING_AREAS,
         shippingRates: SHIPPING_RATES,
         memberDiscount: memberDiscount,
-        detauriUrl: SITE_CONSTANTS.SITE_URL || ''
+        detauriUrl: detauriUrl
       }
     };
   } catch (e) {
+    console.error('apiBulkInit error: ' + (e && e.message ? e.message : e) + '\n' + (e && e.stack ? e.stack : ''));
     return { ok: false, message: (e && e.message) ? e.message : String(e) };
   }
 }
