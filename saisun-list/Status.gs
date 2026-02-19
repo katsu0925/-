@@ -82,8 +82,7 @@ function st_saveLarge_(baseKey, obj) {
 
 function st_getHoldState_(orderSs) {
   const baseKey = st_baseKeyHold_(orderSs);
-  // 他ユーザーの確保を正確に反映するため、常にキャッシュをバイパス
-  const st = st_loadLarge_(baseKey, true);
+  const st = st_loadLarge_(baseKey);
   if (st && st.items) return st;
 
   const rebuilt = od_rebuildHoldStateFromSheet_(orderSs);
@@ -94,9 +93,10 @@ function st_getHoldState_(orderSs) {
 function st_setHoldState_(orderSs, stateObj) {
   const baseKey = st_baseKeyHold_(orderSs);
   const payload = stateObj || { items: {}, updatedAt: u_nowMs_() };
-  // まずキャッシュを無効化してから保存（他ユーザーが古いキャッシュを読まないように）
-  st_invalidateStatusCache_(orderSs);
+  // 先に保存してキャッシュに最新データを入れ、その後キャッシュを無効化
+  // → 次の読み取りは必ずPropertiesServiceから最新データを取得する
   st_saveLarge_(baseKey, payload);
+  st_invalidateStatusCache_(orderSs);
 }
 
 
@@ -131,12 +131,11 @@ function st_cleanupExpiredHolds_(holdItems, nowMs) {
 function st_buildStatusMaps_(orderSs) {
   const now = u_nowMs_();
 
-  // 確保状態はキャッシュをバイパスして常に最新データを取得
-  // （他ユーザーの確保をリアルタイムで反映するため）
-  const holdBaseKey = st_baseKeyHold_(orderSs);
-  const holdState = st_loadLarge_(holdBaseKey, true) || { items: {} };
-  if (!holdState.items) holdState.items = {};
-  const holdItems = holdState.items;
+  // st_getHoldState_ → st_loadLarge_ がキャッシュ読み取り
+  // st_setHoldState_ で save→invalidate しているため、
+  // キャッシュは常に空 → PropertiesServiceから最新を取得
+  const holdState = st_getHoldState_(orderSs);
+  const holdItems = holdState.items || {};
   const holds = {};
 
   for (const id in holdItems) {
