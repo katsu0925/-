@@ -15,18 +15,18 @@ function sh_ensureRequestSheet_(ss) {
   const name = String(APP_CONFIG.order.requestSheetName || '依頼管理');
   let sh = ss.getSheetByName(name);
   if (!sh) sh = ss.insertSheet(name);
-  // 列構成（32列 A-AF）:
+  // 列構成（33列 A-AG）:
   // A=受付番号, B=依頼日時, C=会社名/氏名, D=連絡先, E=郵便番号, F=住所, G=電話番号, H=商品名,
   // I=確認リンク, J=選択リスト, K=合計点数, L=合計金額, M=送料(店負担), N=送料(客負担), O=決済方法, P=決済ID,
   // Q=入金確認, R=ポイント付与済, S=発送ステータス, T=配送業者, U=伝票番号, V=ステータス, W=担当者,
   // X=リスト同梱, Y=xlsx送付, Z=インボイス発行, AA=インボイス状況, AB=受注通知,
-  // AC=発送通知, AD=備考, AE=作業報酬, AF=更新日時
+  // AC=発送通知, AD=備考, AE=作業報酬, AF=更新日時, AG=チャネル
   const header = [
     '受付番号','依頼日時','会社名/氏名','連絡先','郵便番号','住所','電話番号','商品名',
     '確認リンク','選択リスト','合計点数','合計金額','送料(店負担)','送料(客負担)','決済方法','決済ID',
     '入金確認','ポイント付与済','発送ステータス','配送業者','伝票番号','ステータス','担当者',
     'リスト同梱','xlsx送付','インボイス発行','インボイス状況','受注通知',
-    '発送通知','備考','作業報酬','更新日時'
+    '発送通知','備考','作業報酬','更新日時','チャネル'
   ];
   const r1 = sh.getRange(1, 1, 1, header.length).getValues()[0];
   let needs = false;
@@ -80,7 +80,7 @@ function sh_applyRequestStatusDropdown_(ss) {
 
 function sh_ensureAllOnce_(ss) {
   const props = PropertiesService.getScriptProperties();
-  const k = 'SHEETS_READY_V3:' + ss.getId();
+  const k = 'SHEETS_READY_V4:' + ss.getId();
   if (props.getProperty(k) === '1') return;
   sh_ensureRequestSheet_(ss);
   sh_ensureHoldSheet_(ss);
@@ -103,7 +103,7 @@ function updateRequestSheetHeaders() {
   const ss = sh_getOrderSs_();
   // キャッシュをリセットして強制更新
   const props = PropertiesService.getScriptProperties();
-  const k = 'SHEETS_READY_V3:' + ss.getId();
+  const k = 'SHEETS_READY_V4:' + ss.getId();
   props.deleteProperty(k);
 
   sh_ensureRequestSheet_(ss);
@@ -128,7 +128,7 @@ function initializeRequestSheet() {
   const ss = sh_getOrderSs_();
   // キャッシュをリセット
   const props = PropertiesService.getScriptProperties();
-  const k = 'SHEETS_READY_V3:' + ss.getId();
+  const k = 'SHEETS_READY_V4:' + ss.getId();
   props.deleteProperty(k);
 
   sh_ensureRequestSheet_(ss);

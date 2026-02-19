@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title><?= appTitle ?> - まとめ商品</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans-serif;background:#f5f5f5;color:#333;-webkit-font-smoothing:antialiased}
+.container{max-width:540px;margin:0 auto;background:#fff;min-height:100vh}
+
+/* ヘッダー */
+.header{background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:24px 20px 16px;text-align:center}
+.header h1{font-size:20px;letter-spacing:2px;font-weight:700}
+.header p{font-size:12px;color:#aab;margin-top:4px}
+.header-nav{display:flex;justify-content:center;gap:10px;margin-top:14px}
+.header-nav a{color:#fff;text-decoration:none;font-size:12px;padding:6px 16px;border:1px solid rgba(255,255,255,.3);border-radius:20px;transition:all .2s}
+.header-nav a.active{background:#ffd700;color:#1a1a2e;border-color:#ffd700;font-weight:700}
+
+/* セクション */
+.section{padding:20px}
+.section-title{font-size:14px;font-weight:700;color:#1a1a2e;border-left:4px solid #ffd700;padding-left:10px;margin-bottom:14px}
+.divider{height:8px;background:#f5f5f5}
+
+/* 商品カード */
+.product-card{border:1px solid #e8e8e8;border-radius:12px;overflow:hidden;margin-bottom:14px;background:#fff}
+.product-images{position:relative;width:100%;aspect-ratio:16/9;background:#eee;overflow:hidden}
+.product-images img{width:100%;height:100%;object-fit:cover;display:none}
+.product-images img.active{display:block}
+.img-dots{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:6px}
+.img-dot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.5);cursor:pointer}
+.img-dot.active{background:#fff}
+.img-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.3);color:#fff;border:none;width:30px;height:30px;border-radius:50%;font-size:14px;cursor:pointer;display:none}
+.img-nav.prev{left:8px}
+.img-nav.next{right:8px}
+.product-images:hover .img-nav{display:block}
+.no-image{width:100%;aspect-ratio:16/9;background:#e0e0e0;display:flex;align-items:center;justify-content:center;color:#999;font-size:13px}
+.product-body{padding:14px}
+.product-name{font-size:14px;font-weight:700;color:#1a1a2e}
+.product-desc{font-size:12px;color:#888;margin-top:4px;line-height:1.5}
+.product-tag{display:inline-block;font-size:10px;background:#fff3cd;color:#856404;padding:2px 8px;border-radius:10px;margin-top:6px;font-weight:600}
+.product-bottom{display:flex;align-items:center;justify-content:space-between;margin-top:12px}
+.product-price{font-size:20px;font-weight:800;color:#e74c3c}
+.product-price small{font-size:12px;font-weight:400;color:#999}
+.qty-control{display:flex;align-items:center;border:1px solid #ddd;border-radius:8px;overflow:hidden}
+.qty-btn{width:36px;height:36px;border:none;background:#f5f5f5;font-size:18px;cursor:pointer;color:#555;font-weight:700}
+.qty-btn:active{background:#e0e0e0}
+.qty-value{width:40px;height:36px;text-align:center;border:none;border-left:1px solid #ddd;border-right:1px solid #ddd;font-size:15px;font-weight:700;color:#333;background:#fff}
+
+/* カート */
+.cart-summary{background:#f8f9fa;border-radius:12px;padding:14px}
+.cart-row{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid #eee}
+.cart-row:last-child{border-bottom:none}
+.cart-row.total{font-weight:800;font-size:16px;color:#1a1a2e;border-top:2px solid #1a1a2e;margin-top:8px;padding-top:12px}
+.cart-empty{text-align:center;color:#aaa;font-size:13px;padding:20px 0}
+
+/* クーポン */
+.coupon-row{display:flex;gap:8px;margin-bottom:14px}
+.coupon-row input{flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:8px;font-size:13px}
+.coupon-row button{padding:8px 16px;border:1px solid #1a1a2e;border-radius:8px;background:#fff;font-size:12px;font-weight:700;cursor:pointer}
+.coupon-result{font-size:12px;margin-bottom:10px;padding:6px 10px;border-radius:6px;display:none}
+.coupon-result.ok{background:#d4edda;color:#155724;display:block}
+.coupon-result.err{background:#f8d7da;color:#721c24;display:block}
+
+/* フォーム */
+.form-group{margin-bottom:12px}
+.form-label{display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px}
+.form-label .req{color:#e74c3c;font-size:10px;margin-left:4px}
+.form-input{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:#fafafa}
+.form-input:focus{outline:none;border-color:#1a1a2e;background:#fff}
+.form-row{display:flex;gap:10px}
+.form-row .form-group{flex:1}
+.form-note{font-size:11px;color:#999;margin-top:3px}
+
+/* 決済ボタン */
+.pay-button{width:100%;padding:16px;border:none;border-radius:12px;background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;font-size:16px;font-weight:700;cursor:pointer;letter-spacing:1px;margin-top:8px;transition:box-shadow .2s}
+.pay-button:hover{box-shadow:0 4px 20px rgba(26,26,46,.3)}
+.pay-button:disabled{opacity:.5;cursor:not-allowed}
+.pay-methods{display:flex;justify-content:center;gap:10px;margin-top:10px;flex-wrap:wrap}
+.pay-badge{font-size:10px;color:#777;background:#f0f0f0;padding:4px 10px;border-radius:4px;font-weight:600}
+
+/* デタウリ誘導 */
+.detauri-banner{margin:20px;border-radius:12px;background:linear-gradient(135deg,#0f3460,#16213e);color:#fff;padding:20px;text-align:center}
+.detauri-banner h3{font-size:15px;font-weight:700}
+.detauri-banner p{font-size:12px;color:#aab;margin-top:6px;line-height:1.6}
+.detauri-banner .cta-btn{display:inline-block;margin-top:12px;padding:10px 24px;background:#ffd700;color:#1a1a2e;font-weight:700;font-size:13px;border-radius:24px;text-decoration:none}
+
+/* フッター */
+.footer{background:#1a1a2e;color:#888;text-align:center;padding:20px;font-size:11px}
+.footer a{color:#aab;text-decoration:none}
+
+/* ローディング */
+.loading{text-align:center;padding:60px 20px;color:#999}
+.spinner{display:inline-block;width:24px;height:24px;border:3px solid #ddd;border-top-color:#1a1a2e;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:8px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* エラー */
+.error-msg{background:#f8d7da;color:#721c24;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px;display:none}
+
+@media(min-width:560px){body{display:flex;justify-content:center;padding:20px;background:#e0e0e0}.container{border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.15)}}
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- ヘッダー -->
+<header class="header">
+  <h1 id="appTitle"><?= appTitle ?></h1>
+  <p>古着卸売 - 業務用アパレル仕入れ</p>
+  <nav class="header-nav">
+    <a class="active" href="#">まとめ商品</a>
+    <a id="detauriLink" href="#">採寸付き個品（デタウリ）</a>
+  </nav>
+</header>
+
+<!-- 商品一覧 -->
+<section class="section" id="productSection">
+  <div class="section-title">まとめ商品</div>
+  <div id="productList">
+    <div class="loading"><div class="spinner"></div><div>読み込み中...</div></div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- カート -->
+<section class="section">
+  <div class="section-title">ご注文内容</div>
+  <div id="cartSection">
+    <div class="cart-empty">商品を選択してください</div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- クーポン -->
+<section class="section">
+  <div class="section-title">クーポン</div>
+  <div class="coupon-row">
+    <input type="text" id="couponInput" placeholder="クーポンコードを入力" style="text-transform:uppercase">
+    <button onclick="applyCoupon()">適用</button>
+  </div>
+  <div class="coupon-result" id="couponResult"></div>
+</section>
+
+<div class="divider"></div>
+
+<!-- 配送先 -->
+<section class="section">
+  <div class="section-title">配送先情報</div>
+  <div class="error-msg" id="formError"></div>
+
+  <div class="form-group">
+    <label class="form-label">会社名 / 氏名<span class="req">必須</span></label>
+    <input class="form-input" type="text" id="companyName" placeholder="例：山田太郎">
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">メールアドレス<span class="req">必須</span></label>
+    <input class="form-input" type="email" id="contact" placeholder="example@mail.com">
+  </div>
+
+  <div class="form-row">
+    <div class="form-group" style="flex:.4">
+      <label class="form-label">郵便番号<span class="req">必須</span></label>
+      <input class="form-input" type="text" id="postal" placeholder="000-0000" maxlength="8">
+    </div>
+    <div class="form-group" style="flex:.6">
+      <label class="form-label">電話番号<span class="req">必須</span></label>
+      <input class="form-input" type="tel" id="phone" placeholder="090-0000-0000">
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">住所<span class="req">必須</span></label>
+    <input class="form-input" type="text" id="address" placeholder="都道府県・市区町村・番地">
+    <div class="form-note">※ 郵便番号入力で住所が自動入力されます</div>
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">建物名・部屋番号</label>
+    <input class="form-input" type="text" id="building" placeholder="マンション名・号室など">
+  </div>
+
+  <div class="form-group">
+    <label class="form-label">備考</label>
+    <input class="form-input" type="text" id="note" placeholder="配送希望日時など">
+  </div>
+
+  <!-- 決済ボタン -->
+  <button class="pay-button" id="payButton" onclick="submitOrder()" disabled>
+    カートが空です
+  </button>
+
+  <div class="pay-methods">
+    <span class="pay-badge">クレジットカード</span>
+    <span class="pay-badge">コンビニ払い</span>
+    <span class="pay-badge">銀行振込</span>
+    <span class="pay-badge">PayPay</span>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- デタウリ誘導 -->
+<div class="detauri-banner">
+  <h3>1点ずつ選びたい方はこちら</h3>
+  <p>全品採寸データ付き。サイズ・ブランド・状態を確認しながら1点ずつお選びいただけます。</p>
+  <a id="detauriBannerLink" class="cta-btn" href="#">デタウリで商品を見る →</a>
+</div>
+
+<!-- フッター -->
+<footer class="footer">
+  <p>NKonline Apparel / デタウリ.Detauri</p>
+  <p style="margin-top:6px"><a href="#">特定商取引法に基づく表記</a> ｜ <a href="#">お問い合わせ</a></p>
+</footer>
+
+</div>
+
+<script>
+// =====================================================
+// 状態
+// =====================================================
+var G = {
+  products: [],
+  cart: {},           // { productId: qty }
+  settings: {},
+  coupon: null,       // { type, value, discountAmount, freeShipping, label }
+  shipping: 0,
+  shippingSize: '',
+  shippingPref: '',
+  submitting: false
+};
+
+// =====================================================
+// 初期化
+// =====================================================
+window.addEventListener('DOMContentLoaded', function() {
+  google.script.run
+    .withSuccessHandler(function(r) {
+      if (!r || !r.ok) { showProductError(r && r.message ? r.message : '読み込みに失敗しました'); return; }
+      G.products = r.products || [];
+      G.settings = r.settings || {};
+      if (G.settings.detauriUrl) {
+        document.getElementById('detauriLink').href = G.settings.detauriUrl;
+        document.getElementById('detauriBannerLink').href = G.settings.detauriUrl;
+      }
+      renderProducts();
+    })
+    .withFailureHandler(function(e) {
+      showProductError(e && e.message ? e.message : '接続エラー');
+    })
+    .apiBulkInit();
+
+  // 郵便番号→住所自動入力
+  document.getElementById('postal').addEventListener('input', onPostalInput);
+});
+
+// =====================================================
+// 商品一覧レンダリング
+// =====================================================
+function showProductError(msg) {
+  document.getElementById('productList').innerHTML = '<div class="cart-empty">' + escHtml(msg) + '</div>';
+}
+
+function renderProducts() {
+  var el = document.getElementById('productList');
+  if (!G.products.length) { el.innerHTML = '<div class="cart-empty">商品がありません</div>'; return; }
+
+  var html = '';
+  for (var i = 0; i < G.products.length; i++) {
+    var p = G.products[i];
+    html += renderProductCard(p, i);
+  }
+  el.innerHTML = html;
+}
+
+function renderProductCard(p, idx) {
+  var imgHtml = '';
+  if (p.images && p.images.length > 0) {
+    imgHtml += '<div class="product-images" id="imgs_' + idx + '">';
+    for (var i = 0; i < p.images.length; i++) {
+      imgHtml += '<img src="' + escAttr(p.images[i]) + '" alt="' + escAttr(p.name) + '" class="' + (i === 0 ? 'active' : '') + '" data-idx="' + i + '">';
+    }
+    if (p.images.length > 1) {
+      imgHtml += '<button class="img-nav prev" onclick="slideImg(' + idx + ',-1)">&#8249;</button>';
+      imgHtml += '<button class="img-nav next" onclick="slideImg(' + idx + ',1)">&#8250;</button>';
+      imgHtml += '<div class="img-dots">';
+      for (var d = 0; d < p.images.length; d++) {
+        imgHtml += '<div class="img-dot' + (d === 0 ? ' active' : '') + '" onclick="goImg(' + idx + ',' + d + ')"></div>';
+      }
+      imgHtml += '</div>';
+    }
+    imgHtml += '</div>';
+  } else {
+    imgHtml = '<div class="no-image">画像なし</div>';
+  }
+
+  var tagHtml = p.tag ? '<span class="product-tag">' + escHtml(p.tag) + '</span>' : '';
+  var qty = G.cart[p.productId] || 0;
+
+  return '<div class="product-card">'
+    + imgHtml
+    + '<div class="product-body">'
+    + '<div class="product-name">' + escHtml(p.name) + '</div>'
+    + '<div class="product-desc">' + escHtml(p.description) + '</div>'
+    + tagHtml
+    + '<div class="product-bottom">'
+    + '<div class="product-price">¥' + numFmt(p.price) + '<small>' + escHtml(p.unit) + '</small></div>'
+    + '<div class="qty-control">'
+    + '<button class="qty-btn" onclick="changeQty(\'' + escAttr(p.productId) + '\',-1)">−</button>'
+    + '<input class="qty-value" id="qty_' + escAttr(p.productId) + '" value="' + qty + '" readonly>'
+    + '<button class="qty-btn" onclick="changeQty(\'' + escAttr(p.productId) + '\',1)">+</button>'
+    + '</div></div></div></div>';
+}
+
+// =====================================================
+// 画像スライド
+// =====================================================
+function slideImg(idx, dir) {
+  var wrap = document.getElementById('imgs_' + idx);
+  if (!wrap) return;
+  var imgs = wrap.querySelectorAll('img');
+  var cur = 0;
+  for (var i = 0; i < imgs.length; i++) { if (imgs[i].classList.contains('active')) { cur = i; break; } }
+  var next = (cur + dir + imgs.length) % imgs.length;
+  goImg(idx, next);
+}
+
+function goImg(idx, to) {
+  var wrap = document.getElementById('imgs_' + idx);
+  if (!wrap) return;
+  var imgs = wrap.querySelectorAll('img');
+  var dots = wrap.querySelectorAll('.img-dot');
+  for (var i = 0; i < imgs.length; i++) { imgs[i].classList.toggle('active', i === to); }
+  for (var d = 0; d < dots.length; d++) { dots[d].classList.toggle('active', d === to); }
+}
+
+// =====================================================
+// 数量変更
+// =====================================================
+function changeQty(productId, delta) {
+  var p = G.products.find(function(x) { return x.productId === productId; });
+  if (!p) return;
+  var cur = G.cart[productId] || 0;
+  var next = Math.max(0, Math.min(p.maxQty, cur + delta));
+  if (next === 0) { delete G.cart[productId]; }
+  else { G.cart[productId] = next; }
+
+  var input = document.getElementById('qty_' + productId);
+  if (input) input.value = next;
+
+  updateCart();
+}
+
+// =====================================================
+// カート更新
+// =====================================================
+function updateCart() {
+  var el = document.getElementById('cartSection');
+  var keys = Object.keys(G.cart);
+  if (keys.length === 0) {
+    el.innerHTML = '<div class="cart-empty">商品を選択してください</div>';
+    updatePayButton(0);
+    return;
+  }
+
+  var productMap = {};
+  G.products.forEach(function(p) { productMap[p.productId] = p; });
+
+  var subtotal = 0;
+  var totalQty = 0;
+  var rows = '';
+  for (var i = 0; i < keys.length; i++) {
+    var pid = keys[i];
+    var qty = G.cart[pid];
+    var p = productMap[pid];
+    if (!p) continue;
+    var line = p.price * qty;
+    subtotal += line;
+    totalQty += qty;
+    rows += '<div class="cart-row"><span>' + escHtml(p.name) + ' x' + qty + escHtml(p.unit) + '</span><span>¥' + numFmt(line) + '</span></div>';
+  }
+
+  // 割引
+  var discounted = subtotal;
+  var discountRows = '';
+
+  if (G.coupon) {
+    var cd = G.coupon.discountAmount || 0;
+    if (G.coupon.type === 'shipping_free') {
+      discountRows += '<div class="cart-row"><span>' + escHtml(G.coupon.label) + '</span><span>-送料</span></div>';
+    } else if (cd > 0) {
+      discounted -= cd;
+      discountRows += '<div class="cart-row"><span>' + escHtml(G.coupon.label) + '</span><span>-¥' + numFmt(cd) + '</span></div>';
+    }
+  }
+
+  if (totalQty >= 30 && (!G.coupon || G.coupon.comboBulk !== false)) {
+    var bulkDisc = Math.round(discounted * 0.10);
+    discounted -= bulkDisc;
+    discountRows += '<div class="cart-row"><span>30点以上割引 (10%OFF)</span><span>-¥' + numFmt(bulkDisc) + '</span></div>';
+  }
+
+  discounted = Math.max(0, discounted);
+
+  // 送料
+  calcShipping(totalQty);
+  var shipping = (G.coupon && G.coupon.freeShipping) ? 0 : G.shipping;
+
+  if (shipping > 0) {
+    rows += '<div class="cart-row"><span>送料（' + escHtml(G.shippingPref || '未入力') + '）</span><span>¥' + numFmt(shipping) + '</span></div>';
+  } else if (shipping === 0 && G.shippingPref) {
+    rows += '<div class="cart-row"><span>送料</span><span>¥0（無料）</span></div>';
+  }
+
+  var total = discounted + shipping;
+  rows += discountRows;
+  rows += '<div class="cart-row total"><span>合計（税込）</span><span>¥' + numFmt(total) + '</span></div>';
+
+  el.innerHTML = '<div class="cart-summary">' + rows + '</div>';
+  updatePayButton(total);
+}
+
+function updatePayButton(total) {
+  var btn = document.getElementById('payButton');
+  if (total > 0) {
+    btn.disabled = false;
+    btn.textContent = 'お支払いへ進む — ¥' + numFmt(total);
+  } else {
+    btn.disabled = true;
+    btn.textContent = 'カートが空です';
+  }
+}
+
+// =====================================================
+// 送料計算（クライアント側で即時反映）
+// =====================================================
+function calcShipping(totalQty) {
+  var addr = document.getElementById('address').value;
+  if (!addr) { G.shipping = 0; G.shippingPref = ''; G.shippingSize = ''; return; }
+
+  var pref = detectPrefClient(addr);
+  if (!pref) { G.shipping = 0; G.shippingPref = ''; G.shippingSize = ''; return; }
+
+  G.shippingPref = pref;
+
+  var areas = G.settings.shippingAreas || {};
+  var rates = G.settings.shippingRates || {};
+  var area = areas[pref];
+  if (!area || !rates[area]) { G.shipping = 0; return; }
+
+  G.shippingSize = totalQty <= 10 ? 'small' : 'large';
+  var sizeIdx = totalQty <= 10 ? 0 : 1;
+  G.shipping = rates[area][sizeIdx];
+}
+
+function detectPrefClient(text) {
+  var prefs = ['北海道','青森県','岩手県','宮城県','秋田県','山形県','福島県',
+    '茨城県','栃木県','群馬県','埼玉県','千葉県','東京都','神奈川県',
+    '新潟県','富山県','石川県','福井県','山梨県','長野県',
+    '岐阜県','静岡県','愛知県','三重県',
+    '滋賀県','京都府','大阪府','兵庫県','奈良県','和歌山県',
+    '鳥取県','島根県','岡山県','広島県','山口県',
+    '徳島県','香川県','愛媛県','高知県',
+    '福岡県','佐賀県','長崎県','熊本県','大分県','宮崎県','鹿児島県','沖縄県'];
+  for (var i = 0; i < prefs.length; i++) {
+    if (text.indexOf(prefs[i]) === 0) return prefs[i];
+  }
+  for (var j = 0; j < prefs.length; j++) {
+    var sh = prefs[j].replace(/[都府県]$/, '');
+    if (text.indexOf(sh) === 0) return prefs[j];
+  }
+  return null;
+}
+
+// 住所入力で送料リアルタイム更新
+document.addEventListener('input', function(e) {
+  if (e.target.id === 'address') updateCart();
+});
+
+// =====================================================
+// 郵便番号→住所自動入力
+// =====================================================
+var postalTimer = null;
+function onPostalInput() {
+  clearTimeout(postalTimer);
+  var val = this.value.replace(/[^0-9]/g, '');
+  if (val.length === 7) {
+    postalTimer = setTimeout(function() {
+      fetch('https://zipcloud.ibsnet.co.jp/api/search?zipcode=' + val)
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+          if (j.results && j.results[0]) {
+            var r = j.results[0];
+            document.getElementById('address').value = r.address1 + r.address2 + r.address3;
+            updateCart();
+          }
+        })
+        .catch(function() {});
+    }, 300);
+  }
+}
+
+// =====================================================
+// クーポン適用
+// =====================================================
+function applyCoupon() {
+  var code = document.getElementById('couponInput').value.trim();
+  var resEl = document.getElementById('couponResult');
+  if (!code) { resEl.className = 'coupon-result err'; resEl.textContent = 'コードを入力してください'; return; }
+
+  var email = document.getElementById('contact').value.trim();
+  var subtotal = calcSubtotal();
+
+  google.script.run
+    .withSuccessHandler(function(r) {
+      if (r && r.ok) {
+        G.coupon = r;
+        resEl.className = 'coupon-result ok';
+        resEl.textContent = r.label + ' が適用されました';
+        updateCart();
+      } else {
+        G.coupon = null;
+        resEl.className = 'coupon-result err';
+        resEl.textContent = r && r.message ? r.message : 'クーポンが無効です';
+        updateCart();
+      }
+    })
+    .withFailureHandler(function(e) {
+      resEl.className = 'coupon-result err';
+      resEl.textContent = e && e.message ? e.message : 'エラーが発生しました';
+    })
+    .apiValidateCoupon(code, email, subtotal);
+}
+
+function calcSubtotal() {
+  var productMap = {};
+  G.products.forEach(function(p) { productMap[p.productId] = p; });
+  var sum = 0;
+  Object.keys(G.cart).forEach(function(pid) { var p = productMap[pid]; if (p) sum += p.price * G.cart[pid]; });
+  return sum;
+}
+
+// =====================================================
+// 注文送信
+// =====================================================
+function submitOrder() {
+  if (G.submitting) return;
+
+  var errEl = document.getElementById('formError');
+  errEl.style.display = 'none';
+
+  var companyName = document.getElementById('companyName').value.trim();
+  var contact = document.getElementById('contact').value.trim();
+  var postal = document.getElementById('postal').value.trim();
+  var address = document.getElementById('address').value.trim();
+  var building = document.getElementById('building').value.trim();
+  var phone = document.getElementById('phone').value.trim();
+  var note = document.getElementById('note').value.trim();
+
+  if (!companyName || !contact || !postal || !address || !phone) {
+    errEl.textContent = '必須項目を入力してください';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  var fullAddress = address + (building ? ' ' + building : '');
+
+  var items = [];
+  Object.keys(G.cart).forEach(function(pid) {
+    items.push({ productId: pid, qty: G.cart[pid] });
+  });
+  if (items.length === 0) return;
+
+  var totalQty = 0;
+  items.forEach(function(it) { totalQty += it.qty; });
+  var shipping = (G.coupon && G.coupon.freeShipping) ? 0 : G.shipping;
+
+  var form = {
+    companyName: companyName,
+    contact: contact,
+    postal: postal,
+    address: fullAddress,
+    phone: phone,
+    note: note,
+    couponCode: G.coupon ? document.getElementById('couponInput').value.trim() : '',
+    shippingAmount: shipping,
+    shippingSize: G.shippingSize,
+    shippingPref: G.shippingPref
+  };
+
+  G.submitting = true;
+  var btn = document.getElementById('payButton');
+  btn.disabled = true;
+  btn.textContent = '処理中...';
+
+  google.script.run
+    .withSuccessHandler(function(r) {
+      G.submitting = false;
+      if (r && r.ok && r.sessionUrl) {
+        window.top.location.href = r.sessionUrl;
+      } else {
+        btn.disabled = false;
+        updateCart();
+        errEl.textContent = r && r.message ? r.message : '注文に失敗しました';
+        errEl.style.display = 'block';
+      }
+    })
+    .withFailureHandler(function(e) {
+      G.submitting = false;
+      btn.disabled = false;
+      updateCart();
+      errEl.textContent = e && e.message ? e.message : 'エラーが発生しました';
+      errEl.style.display = 'block';
+    })
+    .apiBulkSubmit(form, items);
+}
+
+// =====================================================
+// ユーティリティ
+// =====================================================
+function escHtml(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function escAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;'); }
+function numFmt(n) { return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+</script>
+</body>
+</html>
