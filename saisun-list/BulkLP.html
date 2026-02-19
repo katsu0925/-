@@ -312,7 +312,10 @@ var G = {
   submitting: false,
   detauriCartTotal: 0,
   detauriCartCount: 0,
-  detauriShipping: 0
+  detauriShipping: 0,
+  detauriShippingLabel: '',
+  detauriShippingPref: '',
+  detauriShippingSizeLabel: ''
 };
 
 // =====================================================
@@ -575,15 +578,20 @@ function updateCart() {
       var detRows = '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
         + '<span>デタウリ 商品代（' + G.detauriCartCount + '点）</span>'
         + '<span>¥' + numFmt(G.detauriCartTotal) + '</span></div>';
+      var shippingDesc0 = 'デタウリ 送料';
+      if (G.detauriShippingPref && G.detauriShippingSizeLabel) {
+        shippingDesc0 = 'デタウリ 送料（' + escHtml(G.detauriShippingPref) + '・' + escHtml(G.detauriShippingSizeLabel) + '）';
+      }
       if (G.detauriShipping > 0) {
         detRows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
-          + '<span>デタウリ 送料</span>'
+          + '<span>' + shippingDesc0 + '</span>'
           + '<span>¥' + numFmt(G.detauriShipping) + '</span></div>';
       }
       emptyHtml += '<div class="cart-summary" style="margin-top:10px;">' + detRows + '</div>';
     }
     el.innerHTML = emptyHtml;
-    updatePayButton(0);
+    var emptyGrand = G.detauriCartTotal + G.detauriShipping;
+    updatePayButton(emptyGrand > 0 ? emptyGrand : 0);
     return;
   }
 
@@ -650,21 +658,27 @@ function updateCart() {
   rows += '<div class="cart-row total"><span>まとめ商品 小計</span><span>¥' + numFmt(total) + '</span></div>';
 
   // デタウリカートの合算表示
+  var grandTotal = total;
   if (G.detauriCartCount > 0) {
     rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;padding-top:10px;">'
       + '<span>デタウリ 商品代（' + G.detauriCartCount + '点）</span>'
       + '<span>¥' + numFmt(G.detauriCartTotal) + '</span></div>';
+    var shippingDesc = 'デタウリ 送料';
+    if (G.detauriShippingPref && G.detauriShippingSizeLabel) {
+      shippingDesc = 'デタウリ 送料（' + escHtml(G.detauriShippingPref) + '・' + escHtml(G.detauriShippingSizeLabel) + '）';
+    }
     if (G.detauriShipping > 0) {
       rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
-        + '<span>デタウリ 送料</span>'
+        + '<span>' + shippingDesc + '</span>'
         + '<span>¥' + numFmt(G.detauriShipping) + '</span></div>';
     }
     var detauriTotal = G.detauriCartTotal + G.detauriShipping;
-    rows += '<div class="cart-row total" style="border-top-color:#5B86C5;"><span>両チャネル合計（税込）</span><span>¥' + numFmt(total + detauriTotal) + '</span></div>';
+    grandTotal = total + detauriTotal;
+    rows += '<div class="cart-row total" style="border-top-color:#5B86C5;"><span>両チャネル合計（税込）</span><span>¥' + numFmt(grandTotal) + '</span></div>';
   }
 
   el.innerHTML = '<div class="cart-summary">' + rows + '</div>';
-  updatePayButton(total);
+  updatePayButton(grandTotal);
 }
 
 function updatePayButton(total) {
@@ -1016,6 +1030,9 @@ function loadDetauriCart() {
     G.detauriCartTotal = sum;
     G.detauriCartCount = ids.length;
     G.detauriShipping = Number(j.shipping || 0);
+    G.detauriShippingLabel = j.shippingLabel || '';
+    G.detauriShippingPref = j.shippingPref || '';
+    G.detauriShippingSizeLabel = j.shippingSizeLabel || '';
   } catch (e) {}
 }
 

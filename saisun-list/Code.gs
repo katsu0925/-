@@ -179,6 +179,16 @@ function doPost(e) {
   }
 }
 
+/** クライアントから呼び出し: まとめ商品ページのURLを返す */
+function getBulkPageUrl() {
+  var url = '';
+  try { url = (SITE_CONSTANTS.SITE_URL || '') + '?page=bulk'; } catch (e) {}
+  if (!url || url === '?page=bulk') {
+    try { url = ScriptApp.getService().getUrl() + '?page=bulk'; } catch (e) {}
+  }
+  return url || '';
+}
+
 function jsonResponse_(data) {
   return ContentService.createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON);
