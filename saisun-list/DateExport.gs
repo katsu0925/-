@@ -199,7 +199,7 @@ function exportProductData_() {
         state: String(row[DATA_COLUMNS.state] || '').trim(),
         gender: String(row[DATA_COLUMNS.gender] || '').trim(),
         price: Number(row[DATA_COLUMNS.price] || 0),
-        status: status,
+        status: (statusKind === 'available') ? '在庫あり' : status,
         selectable: (statusKind === 'available'),
         measurements: measurements,
         defectDetail: String(row[DATA_COLUMNS.defectDetail] || '').trim(),

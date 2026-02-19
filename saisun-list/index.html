@@ -2899,7 +2899,7 @@ function setStatusBadge_(el, status) {
   if (k === 'available') el.className = 'badge ok';
   else if (k === 'open') el.className = 'badge lock';
   else if (k === 'hold') el.className = 'badge warn';
-  el.textContent = t || '';
+  el.textContent = t || '在庫あり';
 }
 
 function effectiveStatusFor_(id, selected, itemStatus) {
@@ -2913,7 +2913,7 @@ function effectiveStatusFor_(id, selected, itemStatus) {
     }
     return '確保中';
   }
-  return ds || normalizeStatus_(itemStatus);
+  return ds || normalizeStatus_(itemStatus) || '在庫あり';
 }
 
 function effectiveHeldByOtherFor_(id) {

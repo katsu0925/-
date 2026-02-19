@@ -123,7 +123,7 @@ function onEdit(e) {
       try {
         const nowMs = u_nowMs_();
 
-        const statusCol = 18;
+        const statusCol = (typeof REQUEST_SHEET_COLS !== 'undefined' && REQUEST_SHEET_COLS.STATUS) ? REQUEST_SHEET_COLS.STATUS : 22;
         if (col <= statusCol && statusCol <= colEnd) {
           const start = row;
           const end = row + numRows - 1;
