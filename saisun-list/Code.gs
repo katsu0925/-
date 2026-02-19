@@ -195,7 +195,7 @@ function checkRateLimit_(action, userKey) {
     try {
       var komojuMode = getKomojuMode_();
       if (komojuMode.mode === 'test') return null;
-    } catch (e) {}
+    } catch (e) { console.log('optional: komoju mode check: ' + (e.message || e)); }
   }
 
   var cache = CacheService.getScriptCache();
@@ -295,7 +295,7 @@ function apiLogPV(payload) {
       var activeEmail = String((Session.getActiveUser && Session.getActiveUser().getEmail ? Session.getActiveUser().getEmail() : '') || '').trim().toLowerCase();
       if (activeEmail && activeEmail === ownerEmail) return { ok: true, skipped: true };
     }
-  } catch(e) {}
+  } catch(e) { console.log('optional: owner email check: ' + (e.message || e)); }
 
   // ボット除外（サーバーサイド）
   var ua = String(body.userAgent || '').toLowerCase();
@@ -338,12 +338,14 @@ function ad_cleanAccessLog() {
   if (last < 2) { console.log('データなし'); return; }
   var data = sheet.getRange(2, 1, last - 1, 12).getValues();
 
-  // オーナーのuserKey（Mac Chrome / iPhone Safari / Mac GAS）
-  var ownerKeys = {
-    'u_tgneiv48y4ml4o0t4e': true,
-    'u_gwzmndr3ymaml5an2qq': true,
-    'u_jdgyiye97ommjkccuc5': true
-  };
+  // オーナーのuserKey（Script Propertiesから取得）
+  var ownerKeys = {};
+  try {
+    var ownerKeysRaw = PropertiesService.getScriptProperties().getProperty('OWNER_USER_KEYS') || '';
+    if (ownerKeysRaw) {
+      ownerKeysRaw.split(',').forEach(function(k) { if (k.trim()) ownerKeys[k.trim()] = true; });
+    }
+  } catch (e) { console.log('optional: owner keys read: ' + (e.message || e)); }
 
   var botUaRe = /headlesschrome|google-read-aloud|bot|crawl|spider|slurp/i;
   var botScreens = { '0x0': true, '2000x2000': true, '400x400': true };
@@ -385,9 +387,21 @@ function ad_cleanAccessLog() {
     if (remove) deleteRows.push(i + 2); // 1-indexed, ヘッダー分+1
   }
 
-  // 下から削除（インデックスずれ防止）
-  for (var j = deleteRows.length - 1; j >= 0; j--) {
-    sheet.deleteRow(deleteRows[j]);
+  // バッチ削除: 残す行だけフィルタして一括書き換え（1行ずつdeleteRowするより高速）
+  if (deleteRows.length > 0) {
+    var deleteSet = {};
+    for (var j = 0; j < deleteRows.length; j++) deleteSet[deleteRows[j]] = true;
+    var keepData = [];
+    for (var k = 0; k < data.length; k++) {
+      if (!deleteSet[k + 2]) keepData.push(data[k]);
+    }
+    // データ行をクリアして残す行を書き込み
+    if (data.length > 0) {
+      sheet.getRange(2, 1, data.length, 12).clearContent();
+    }
+    if (keepData.length > 0) {
+      sheet.getRange(2, 1, keepData.length, 12).setValues(keepData);
+    }
   }
 
   console.log('クリーンアップ完了: ' + deleteRows.length + '行削除 / ' + data.length + '行中');

@@ -3,9 +3,9 @@ const APP_CONFIG = {
   appTitle: 'デタウリ.Detauri',
   // 最低購入（注文）点数を 10 に変更
   minOrderCount: 10,
-  notifyEmails: 'nsdktts1030@gmail.com',
+  notifyEmails: (function() { try { return PropertiesService.getScriptProperties().getProperty('NOTIFY_EMAILS') || ''; } catch(e) { return ''; } })(),
   data: {
-    spreadsheetId: '1eDkAMm_QUDFHbSzkL4IMaFeB2YV6_Gw5Dgi-HqIB2Sc',
+    spreadsheetId: (function() { try { return PropertiesService.getScriptProperties().getProperty('DATA_SPREADSHEET_ID') || ''; } catch(e) { return ''; } })(),
     sheetName: 'データ1',
     headerRow: 2,
     readCols: 25  // Y列(発送方法)まで読み込み
@@ -44,7 +44,7 @@ const APP_CONFIG = {
   },
   // ★追加★ 仕入れ管理Ver.2（商品詳細モーダル用）
   detail: {
-    spreadsheetId: '1lp7XngTC0Nnc6SaA_-KlZ0SZVuRiVml6ICZ5L2riQTo',
+    spreadsheetId: (function() { try { return PropertiesService.getScriptProperties().getProperty('DETAIL_SPREADSHEET_ID') || ''; } catch(e) { return ''; } })(),
     sheetName: '商品管理',
     headerRow: 1,
     managedIdCol: 6,  // 管理番号の列位置（1-indexed）

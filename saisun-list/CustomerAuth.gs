@@ -258,35 +258,48 @@ function apiRegisterCustomer(userKey, params) {
     if (!companyName) {
       return { ok: false, message: '会社名/氏名は必須です' };
     }
-    if (findCustomerByEmail_(email)) {
-      return { ok: false, message: 'このメールアドレスは既に登録されています' };
+
+    // 排他制御: メール重複チェック〜appendRowをロックで保護（レースコンディション対策）
+    var lock = LockService.getScriptLock();
+    if (!lock.tryLock(10000)) {
+      return { ok: false, message: '登録処理が混み合っています。しばらくお待ちください。' };
     }
-
-    var passwordHash = createPasswordHash_(password);
-    const sessionId = generateRandomId_(AUTH_CONSTANTS.SESSION_ID_LENGTH);
-    const sessionExpiry = new Date(Date.now() + AUTH_CONSTANTS.SESSION_DURATION_MS);
-    const sheet = getCustomerSheet_();
-    const customerId = 'C' + Date.now().toString(36).toUpperCase();
-    const now = new Date();
-    const phoneForSheet = phone ? ("'" + phone) : '';
-    const postalForSheet = postal ? ("'" + postal) : '';
-
-    sheet.appendRow([
-      customerId, email, passwordHash, companyName, phoneForSheet,
-      postalForSheet, address, newsletter, now, now, sessionId, sessionExpiry, 0
-    ]);
-
-    return {
-      ok: true,
-      data: {
-        sessionId: sessionId,
-        customer: {
-          id: customerId, email: email, companyName: companyName,
-          phone: phone, postal: postal, address: address,
-          newsletter: newsletter, points: 0
-        }
+    try {
+      if (findCustomerByEmail_(email)) {
+        lock.releaseLock();
+        return { ok: false, message: 'このメールアドレスは既に登録されています' };
       }
-    };
+
+      var passwordHash = createPasswordHash_(password);
+      const sessionId = generateRandomId_(AUTH_CONSTANTS.SESSION_ID_LENGTH);
+      const sessionExpiry = new Date(Date.now() + AUTH_CONSTANTS.SESSION_DURATION_MS);
+      const sheet = getCustomerSheet_();
+      const customerId = 'C' + Date.now().toString(36).toUpperCase();
+      const now = new Date();
+      const phoneForSheet = phone ? ("'" + phone) : '';
+      const postalForSheet = postal ? ("'" + postal) : '';
+
+      sheet.appendRow([
+        customerId, email, passwordHash, companyName, phoneForSheet,
+        postalForSheet, address, newsletter, now, now, sessionId, sessionExpiry, 0
+      ]);
+      lock.releaseLock();
+
+      return {
+        ok: true,
+        data: {
+          sessionId: sessionId,
+          customer: {
+            id: customerId, email: email, companyName: companyName,
+            phone: phone, postal: postal, address: address,
+            newsletter: newsletter, points: 0
+          }
+        }
+      };
+    } catch (lockErr) {
+      lock.releaseLock();
+      throw lockErr;
+    }
   } catch (e) {
     return { ok: false, message: '登録に失敗しました: ' + (e.message || e) };
   }
@@ -303,6 +316,15 @@ function apiLoginCustomer(userKey, params) {
     if (!email || !password) {
       return { ok: false, message: 'メールアドレスとパスワードを入力してください' };
     }
+
+    // メールアドレスベースのレート制限（userKey偽装によるバイパス対策）
+    var emailRateKey = 'RL:login_email:' + email;
+    var cache = CacheService.getScriptCache();
+    var emailAttempts = parseInt(cache.get(emailRateKey) || '0', 10);
+    if (emailAttempts >= 10) {
+      return { ok: false, message: 'ログイン試行回数が多すぎます。しばらくお待ちください。' };
+    }
+    cache.put(emailRateKey, String(emailAttempts + 1), 3600);
 
     const customer = findCustomerByEmail_(email);
     if (!customer) {
@@ -581,7 +603,7 @@ function clearTempPassword_(email) {
   ).map(function(b) { return ('0' + (b < 0 ? b + 256 : b).toString(16)).slice(-2); }).join('').substring(0, 16);
   try {
     PropertiesService.getScriptProperties().deleteProperty(key);
-  } catch (e) {}
+  } catch (e) { console.log('optional: clear temp password: ' + (e.message || e)); }
 }
 
 /**

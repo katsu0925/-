@@ -136,8 +136,8 @@ var CUSTOMER_SHEET_COLS = {
  */
 var SITE_CONSTANTS = {
   SITE_NAME: 'デタウリ.Detauri',
-  SITE_URL: 'https://wholesale.nkonline-tool.com/',
-  CONTACT_EMAIL: 'nkonline1030@gmail.com'
+  SITE_URL: (function() { try { return PropertiesService.getScriptProperties().getProperty('SITE_URL') || 'https://wholesale.nkonline-tool.com/'; } catch(e) { return 'https://wholesale.nkonline-tool.com/'; } })(),
+  CONTACT_EMAIL: (function() { try { return PropertiesService.getScriptProperties().getProperty('CONTACT_EMAIL') || ''; } catch(e) { return ''; } })()
 };
 
 /**

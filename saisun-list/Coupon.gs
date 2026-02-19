@@ -199,7 +199,7 @@ function registerCouponFromDialog(data) {
   sh.getRange(newRow, 1, 1, 13).setValues([[code, type, value, expires, maxUses, 0, oncePerUser, true, memo, target, startDate, comboMember, comboBulk]]);
 
   // クーポンキャッシュを無効化（即時反映）
-  try { CacheService.getScriptCache().remove(COUPON_CACHE_KEY); } catch (e) {}
+  try { CacheService.getScriptCache().remove(COUPON_CACHE_KEY); } catch (e) { console.log('optional: coupon cache invalidation: ' + (e.message || e)); }
 
   var label = type === 'rate' ? (Math.round(value * 100) + '%OFF')
             : type === 'fixed' ? (value + '円引き')
@@ -505,7 +505,7 @@ function deleteCouponFromDialog(code) {
   sh.deleteRow(targetRow);
 
   // クーポンキャッシュを無効化（即時反映）
-  try { CacheService.getScriptCache().remove(COUPON_CACHE_KEY); } catch (e) {}
+  try { CacheService.getScriptCache().remove(COUPON_CACHE_KEY); } catch (e) { console.log('optional: coupon cache invalidation: ' + (e.message || e)); }
 
   return { ok: true, message: 'クーポン「' + code + '」を削除しました' };
 }
@@ -841,7 +841,7 @@ function recordCouponUsage_(code, email, receiptNo) {
           var current = Number(data[i][COUPON_COLS.USE_COUNT]) || 0;
           sh.getRange(i + 2, COUPON_COLS.USE_COUNT + 1).setValue(current + 1);
           // クーポンキャッシュを無効化（利用回数更新を即時反映）
-          try { CacheService.getScriptCache().remove(COUPON_CACHE_KEY); } catch (e2) {}
+          try { CacheService.getScriptCache().remove(COUPON_CACHE_KEY); } catch (e2) { console.log('optional: coupon cache invalidation: ' + (e2.message || e2)); }
           break;
         }
       }

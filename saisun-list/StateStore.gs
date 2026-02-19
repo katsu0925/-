@@ -15,7 +15,7 @@ function pr_bumpProductsVersion_() {
 function pr_clearProductsCache_() {
   const cache = CacheService.getScriptCache();
   const ck = 'PRODUCTS_CACHE_V1:' + String(APP_CONFIG.data.spreadsheetId) + ':' + String(APP_CONFIG.data.sheetName) + ':' + String(APP_CONFIG.data.headerRow);
-  try { cache.remove(ck); } catch (e) {}
+  try { cache.remove(ck); } catch (e) { console.log('optional: cache remove: ' + (e.message || e)); }
 }
 
 function pr_readProducts_() {
@@ -28,7 +28,7 @@ function pr_readProducts_() {
       const json = u_ungzipFromB64_(cached);
       const obj = JSON.parse(json);
       if (obj && obj.ver === ver && Array.isArray(obj.items)) return obj.items;
-    } catch (e) {}
+    } catch (e) { console.log('optional: products cache parse: ' + (e.message || e)); }
   }
 
   const ss = sh_getDataSs_();
@@ -41,7 +41,7 @@ function pr_readProducts_() {
   const lastRow = sh.getLastRow();
   if (lastRow < startRow) {
     const empty = [];
-    try { cache.put(ck, u_gzipToB64_(JSON.stringify({ ver: ver, items: empty })), u_toInt_(APP_CONFIG.cache.productsSeconds, 21600)); } catch (e0) {}
+    try { cache.put(ck, u_gzipToB64_(JSON.stringify({ ver: ver, items: empty })), u_toInt_(APP_CONFIG.cache.productsSeconds, 21600)); } catch (e0) { console.log('optional: products cache put: ' + (e0.message || e0)); }
     return empty;
   }
 
@@ -85,7 +85,7 @@ function pr_readProducts_() {
     });
   }
 
-  try { cache.put(ck, u_gzipToB64_(JSON.stringify({ ver: ver, items: list })), u_toInt_(APP_CONFIG.cache.productsSeconds, 21600)); } catch (e1) {}
+  try { cache.put(ck, u_gzipToB64_(JSON.stringify({ ver: ver, items: list })), u_toInt_(APP_CONFIG.cache.productsSeconds, 21600)); } catch (e1) { console.log('optional: products cache put: ' + (e1.message || e1)); }
   return list;
 }
 

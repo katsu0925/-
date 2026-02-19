@@ -122,7 +122,7 @@ function toDate_(v) {
     try {
       const d = new Date(Math.round((n - 25569) * 86400 * 1000));
       if (!isNaN(d.getTime())) return d;
-    } catch (e) {}
+    } catch (e) { console.log('optional: serial date parse: ' + (e.message || e)); }
   }
 
   const d1 = new Date(s);

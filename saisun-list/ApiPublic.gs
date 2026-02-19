@@ -157,9 +157,9 @@ function apiSyncHolds(userKey, ids) {
       holdState.items = holdItems;
       holdState.updatedAt = now;
       st_setHoldState_(orderSs, holdState);
-      try { st_invalidateStatusCache_(orderSs); } catch(e) {}
+      try { st_invalidateStatusCache_(orderSs); } catch(e) { console.log('optional: status cache invalidation: ' + (e.message || e)); }
     } finally {
-      try { lock.releaseLock(); } catch (e) {}
+      try { lock.releaseLock(); } catch (e) { console.log('optional: lock release: ' + (e.message || e)); }
     }
 
     const digest = st_buildDigestMap_(orderSs, uk, wantIds);
@@ -242,11 +242,11 @@ function app_getNotifyToEmails_(orderSs) {
     try {
       const owner = DriveApp.getFileById(orderSs.getId()).getOwner();
       if (owner && owner.getEmail) add(owner.getEmail());
-    } catch (e) {}
+    } catch (e) { console.log('optional: get file owner email: ' + (e.message || e)); }
   }
 
   if (!out.length) {
-    try { add(Session.getEffectiveUser().getEmail()); } catch (e) {}
+    try { add(Session.getEffectiveUser().getEmail()); } catch (e) { console.log('optional: get effective user email: ' + (e.message || e)); }
   }
 
   const uniq = {};
@@ -416,8 +416,8 @@ function apiGetAllDetails(managedIds) {
     // 最大500件に制限（安全のため）
     const ids = managedIds.slice(0, 500);
     
-    // データ1シートから採寸データを取得
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    // データ1シートから採寸データを取得（API文脈ではgetActiveSpreadsheet()はnullのためopenByIdを使用）
+    const ss = SpreadsheetApp.openById(APP_CONFIG.data.spreadsheetId);
     const sheet = ss.getSheetByName('データ1');
     if (!sheet) {
       return { ok: false, message: 'データ1シートが見つかりません' };

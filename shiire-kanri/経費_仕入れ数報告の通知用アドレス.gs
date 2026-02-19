@@ -55,7 +55,7 @@ function processPendingForSheet(ss, def, recipients) {
     const body = lines.join("\n");
     let sentAny = false;
     recipients.forEach(rcpt => {
-      try { GmailApp.sendEmail(rcpt, def.subject, body); sentAny = true; } catch (err) {}
+      try { GmailApp.sendEmail(rcpt, def.subject, body); sentAny = true; } catch (err) { console.error('critical operation failed: send notification email to ' + rcpt + ': ' + (err.message || err)); }
       Utilities.sleep(200);
     });
     if (sentAny) {

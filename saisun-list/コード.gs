@@ -399,7 +399,7 @@ function syncFull_(productSheet, returnSheet, aiSheet, destSheet) {
   try {
     pr_bumpProductsVersion_();
     pr_clearProductsCache_();
-  } catch (e) {}
+  } catch (e) { console.error('critical operation failed: products version bump: ' + (e.message || e)); }
 }
 
 function ensureCheckboxValidation_(destSheet, startRow, numRows) {
@@ -418,7 +418,7 @@ function getProductMapCached_(productSheet) {
   if (cached) {
     try {
       return JSON.parse(cached);
-    } catch (e) {}
+    } catch (e) { console.log('optional: product map cache parse: ' + (e.message || e)); }
   }
 
   const map = buildProductMap_(productSheet);
@@ -429,7 +429,7 @@ function getProductMapCached_(productSheet) {
   } catch (e) {
     try {
       cache.put(baseKey, json, CONFIG.CACHE_TTL_SEC);
-    } catch (e2) {}
+    } catch (e2) { console.log('optional: product map cache put fallback: ' + (e2.message || e2)); }
   }
 
   return map;
@@ -503,7 +503,7 @@ function getReturnSetCached_(returnSheet) {
   if (cached) {
     try {
       return JSON.parse(cached);
-    } catch (e) {}
+    } catch (e) { console.log('optional: return set cache parse: ' + (e.message || e)); }
   }
 
   const setObj = buildReturnSet_(returnSheet);
@@ -514,7 +514,7 @@ function getReturnSetCached_(returnSheet) {
   } catch (e) {
     try {
       cache.put(baseKey, json, CONFIG.CACHE_TTL_SEC);
-    } catch (e2) {}
+    } catch (e2) { console.log('optional: return set cache put fallback: ' + (e2.message || e2)); }
   }
 
   return setObj;
@@ -604,7 +604,7 @@ function getAiPathMapCached_(aiSheet) {
     for (let i = 0; i < buckets; i++) {
       try {
         cache.put(bucketKeys[i], JSON.stringify(parts[i]), CONFIG.CACHE_TTL_SEC);
-      } catch (e2) {}
+      } catch (e2) { console.log('optional: ai path cache put bucket: ' + (e2.message || e2)); }
     }
   }
 
@@ -826,7 +826,7 @@ function publishAiImagesInDest() {
       done[id] = true;
       try {
         DriveApp.getFileById(id).setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-      } catch (e) {}
+      } catch (e) { console.log('optional: set file sharing: ' + (e.message || e)); }
     }
   } catch (err) {
     saveError_(err);
@@ -1143,7 +1143,7 @@ function checkManagement() {
   } finally {
     try {
       if (lock && lock.hasLock()) lock.releaseLock();
-    } catch (e) {}
+    } catch (e) { console.log('optional: lock release: ' + (e.message || e)); }
   }
 }
 

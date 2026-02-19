@@ -529,29 +529,10 @@ function verifyKomojuWebhookSignature_(e, body) {
     }
   }
 
-  // 方式3: 受信データの受付番号がペンディング注文に存在するか検証
-  // （webhookSecret未設定、またはヘッダー取得不可の場合のフォールバック）
-  try {
-    var data = JSON.parse(body);
-    var payment = data.data;
-    if (payment) {
-      var receiptNo = payment.external_order_num ||
-                      (payment.metadata ? payment.metadata.receipt_no : null);
-      if (receiptNo) {
-        var props = PropertiesService.getScriptProperties();
-        var pendingKey = 'PENDING_ORDER_' + receiptNo;
-        var paymentKey = 'PAYMENT_' + receiptNo;
-        if (props.getProperty(pendingKey) || props.getProperty(paymentKey)) {
-          console.log('Webhook認証成功（受付番号照合方式）: ' + receiptNo);
-          return true;
-        }
-      }
-    }
-  } catch (parseErr) {
-    console.error('Webhook body parse error:', parseErr);
-  }
+  // 方式3（受付番号照合）は廃止 — 受付番号が予測可能なため偽造リスクあり
+  // KOMOJU_WEBHOOK_SECRET を必ず設定してください
 
-  console.warn('Webhook認証失敗: 全ての検証方式で不合格');
+  console.warn('Webhook認証失敗: HMAC署名検証に失敗しました。KOMOJU_WEBHOOK_SECRET が正しく設定されているか確認してください。');
   return false;
 }
 
@@ -572,10 +553,11 @@ function getKomojuWebhookSecret_() {
 function timingSafeEqual_(a, b) {
   var strA = String(a || '');
   var strB = String(b || '');
-  if (strA.length !== strB.length) return false;
-  var result = 0;
-  for (var i = 0; i < strA.length; i++) {
-    result |= strA.charCodeAt(i) ^ strB.charCodeAt(i);
+  // 長さが異なる場合もタイミング一定で比較（長さリーク対策）
+  var len = Math.max(strA.length, strB.length);
+  var result = strA.length ^ strB.length;
+  for (var i = 0; i < len; i++) {
+    result |= (strA.charCodeAt(i) || 0) ^ (strB.charCodeAt(i) || 0);
   }
   return result === 0;
 }
@@ -795,7 +777,7 @@ function getReturnUrl_() {
   try {
     var frontendUrl = PropertiesService.getScriptProperties().getProperty('FRONTEND_URL');
     if (frontendUrl) return frontendUrl.replace(/\/+$/, '');
-  } catch (e) {}
+  } catch (e) { console.log('optional: FRONTEND_URL read: ' + (e.message || e)); }
   if (typeof SITE_CONSTANTS !== 'undefined' && SITE_CONSTANTS && SITE_CONSTANTS.SITE_URL) {
     return String(SITE_CONSTANTS.SITE_URL).replace(/\/+$/, '');
   }
@@ -803,7 +785,7 @@ function getReturnUrl_() {
   try {
     var deployUrl = PropertiesService.getScriptProperties().getProperty('DEPLOY_URL');
     if (deployUrl) return deployUrl.replace(/\/+$/, '');
-  } catch (e) {}
+  } catch (e) { console.log('optional: DEPLOY_URL read: ' + (e.message || e)); }
   // 最終フォールバック: ScriptApp.getService().getUrl()
   // ※ エディタ実行時はデプロイIDが異なるため正しくない場合がある
   var gasUrl = ScriptApp.getService().getUrl();
@@ -929,14 +911,8 @@ function setKomojuSecretKey() {
  * KOMOJUダッシュボードのWebhook設定にコピーしてください。
  */
 function setKomojuWebhookSecret() {
-  // ランダムなシークレットキーを生成（32バイト = 64文字の16進数）
-  var rawBytes = [];
-  for (var i = 0; i < 32; i++) {
-    rawBytes.push(Math.floor(Math.random() * 256));
-  }
-  var webhookSecret = rawBytes.map(function(b) {
-    return ('0' + b.toString(16)).slice(-2);
-  }).join('');
+  // 暗号学的に安全なシークレットキーを生成（UUID v4ベース）
+  var webhookSecret = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
 
   PropertiesService.getScriptProperties().setProperty('KOMOJU_WEBHOOK_SECRET', webhookSecret);
 

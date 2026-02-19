@@ -7,7 +7,8 @@ function getLineToId_() {
 
 function notifyUnsentRequests() {
   // 列構成: A=受付番号, B=依頼日時, C=会社名/氏名, H=商品名, AB=受注通知, AD=備考
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  // トリガーからも動作するようID指定で開く（getActiveSpreadsheetはトリガー非対応の場合がある）
+  const ss = SpreadsheetApp.openById(app_getOrderSpreadsheetId_());
   const sh = ss.getSheetByName('依頼管理');
   const data = sh.getDataRange().getValues();
   const sentRows = [];

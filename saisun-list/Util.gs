@@ -51,7 +51,7 @@ function u_normSearch_(s) {
 
 function u_normSearchText_(v) {
   let s = String(v == null ? '' : v);
-  try { s = s.normalize('NFKC'); } catch (e) {}
+  try { s = s.normalize('NFKC'); } catch (e) { console.log('optional: NFKC normalize: ' + (e.message || e)); }
   s = s.toLowerCase();
   s = s.replace(/\u3000/g, ' ');
   s = s.replace(/\s+/g, ' ').trim();
@@ -160,7 +160,7 @@ function u_kanaCandidatesCachedSafe_(text, budget) {
   const arr = u_kanaCandidatesFetch_(t);
   b.fetchCount++;
 
-  try { cache.put(key, JSON.stringify(arr), 21600); } catch (e) {}
+  try { cache.put(key, JSON.stringify(arr), 21600); } catch (e) { console.log('optional: kana candidates cache put: ' + (e.message || e)); }
   return arr;
 }
 
@@ -172,7 +172,7 @@ function st_getSynonymMaps_(products) {
   const cache = CacheService.getScriptCache();
   const cached = cache.get(ck);
   if (cached) {
-    try { return JSON.parse(cached); } catch (e) {}
+    try { return JSON.parse(cached); } catch (e) { console.log('optional: synonym cache parse: ' + (e.message || e)); }
   }
 
   const aliasToCanon = {};
@@ -232,7 +232,7 @@ function st_getSynonymMaps_(products) {
   const out = { aliasToCanon: aliasToCanon, canonToAliases: {} };
   for (const c in canonToAliases) out.canonToAliases[c] = Object.keys(canonToAliases[c]);
 
-  try { cache.put(ck, JSON.stringify(out), 21600); } catch (e) {}
+  try { cache.put(ck, JSON.stringify(out), 21600); } catch (e) { console.log('optional: synonym cache put: ' + (e.message || e)); }
   return out;
 }
 

@@ -179,7 +179,7 @@ function baseRefreshAccessToken_(cfg) {
 
   if (!refresh) {
     const url = basePrintAuthUrl();
-    try { baseShowAuthUrl(); } catch (e) {}
+    try { baseShowAuthUrl(); } catch (e) { console.log('optional: show auth URL: ' + (e.message || e)); }
     throw new Error('refresh_token がありません。次のURLで再認証してください: ' + url);
   }
 
@@ -205,7 +205,7 @@ function baseRefreshAccessToken_(cfg) {
   if (rc < 200 || rc >= 300) {
     const t = String(text || '');
     const authUrl = basePrintAuthUrl();
-    try { baseShowAuthUrl(); } catch (e) {}
+    try { baseShowAuthUrl(); } catch (e) { console.log('optional: show auth URL: ' + (e.message || e)); }
     throw new Error('トークン更新に失敗しました。再認証してください: ' + authUrl + ' / ' + rc + ' ' + t);
   }
 
@@ -433,7 +433,7 @@ function baseSyncOrdersBetween_(startDate, endDate) {
       appendedItems: appendedItems
     };
   } finally {
-    try { lock.releaseLock(); } catch (e) {}
+    try { lock.releaseLock(); } catch (e) { console.log('optional: lock release: ' + (e.message || e)); }
   }
 }
 

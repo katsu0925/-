@@ -164,8 +164,18 @@ function syncBaseOrdersToEc() {
         const k = (dstKeys[i][0] || '').toString().trim();
         if (k && cancelKeys.has(k)) delRows.push(i + 2);
       }
-      for (let i = delRows.length - 1; i >= 0; i--) {
-        dstSh.deleteRow(delRows[i]);
+      // バッチ削除: 残す行だけフィルタして一括書き換え
+      if (delRows.length > 0) {
+        var delSet = new Set(delRows);
+        var dstAllData = dstSh.getRange(2, 1, dstLastRowBeforeDelete - 1, dstSh.getLastColumn()).getValues();
+        var keepData = [];
+        for (var di = 0; di < dstAllData.length; di++) {
+          if (!delSet.has(di + 2)) keepData.push(dstAllData[di]);
+        }
+        dstSh.getRange(2, 1, dstAllData.length, dstAllData[0].length).clearContent();
+        if (keepData.length > 0) {
+          dstSh.getRange(2, 1, keepData.length, keepData[0].length).setValues(keepData);
+        }
       }
     }
 

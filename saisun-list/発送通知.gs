@@ -222,6 +222,6 @@ function safeEvent_(e) {
       o.col = e.range.getColumn();
       o.sheet = e.range.getSheet().getName();
     }
-  } catch (x) {}
+  } catch (x) { console.log('optional: event info extraction: ' + (x.message || x)); }
   return o;
 }
