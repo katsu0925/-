@@ -25,6 +25,71 @@
     .mode-badge.on{background:#d4edda;color:#155724;border:1px solid #28a745;}
     .mode-badge.off{background:#f8d7da;color:#721c24;border:1px solid #dc3545;}
     .discount-info{font-size:12px;color:#666;margin-top:6px;}
+
+    /* まとめ商品管理 */
+    .bulk-header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;}
+    .btn-new{background:#1a73e8;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-weight:900;font-size:13px;cursor:pointer;}
+    .btn-new:hover{background:#1557b0;}
+    .bulk-list{margin-top:12px;display:flex;flex-direction:column;gap:8px;}
+    .bulk-item{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f9fafb;border-radius:10px;border:1px solid #e6e8ee;}
+    .bulk-item:hover{background:#edf2ff;}
+    .bulk-thumb{width:48px;height:48px;border-radius:6px;object-fit:cover;background:#eee;flex-shrink:0;}
+    .bulk-thumb-empty{width:48px;height:48px;border-radius:6px;background:#e0e0e0;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;color:#999;}
+    .bulk-info{flex:1;min-width:0;}
+    .bulk-info .bname{font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .bulk-info .bmeta{font-size:11px;color:#666;margin-top:2px;}
+    .bulk-info .bmeta span{margin-right:8px;}
+    .badge-on{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:#e6f4ea;color:#1e8e3e;}
+    .badge-off{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:700;background:#fce8e6;color:#d93025;}
+    .bulk-actions{display:flex;gap:4px;flex-shrink:0;}
+    .bulk-actions button{padding:6px 12px;border-radius:6px;font-size:11px;font-weight:700;border:none;cursor:pointer;}
+    .bbtn-edit{background:#e8f0fe;color:#1a73e8;}
+    .bbtn-edit:hover{background:#d2e3fc;}
+    .bbtn-del{background:#fce8e6;color:#d93025;}
+    .bbtn-del:hover{background:#f8d7d4;}
+    .bulk-empty{text-align:center;padding:30px;color:#888;font-size:13px;}
+    .bulk-loading{text-align:center;padding:30px;color:#888;}
+
+    /* モーダル */
+    .overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;}
+    .overlay.show{display:block;}
+    .bmodal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;box-shadow:0 8px 30px rgba(0,0,0,.2);z-index:300;width:92vw;max-width:600px;max-height:88vh;flex-direction:column;overflow:hidden;}
+    .bmodal.show{display:flex;}
+    .bmodal-head{padding:14px 18px;border-bottom:1px solid #e6e8ee;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+    .bmodal-head h3{font-size:15px;margin:0;}
+    .bmodal-close{background:none;border:none;font-size:22px;cursor:pointer;color:#666;padding:0 4px;}
+    .bmodal-body{padding:16px 18px;overflow-y:auto;flex:1;}
+    .bmodal-foot{padding:12px 18px;border-top:1px solid #e6e8ee;display:flex;justify-content:flex-end;gap:8px;flex-shrink:0;}
+    .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    .ffield{display:flex;flex-direction:column;gap:3px;}
+    .ffield.full{grid-column:1/-1;}
+    .ffield label{font-size:11px;font-weight:700;color:#555;}
+    .ffield label .req{color:#d93025;}
+    .ffield input,.ffield select,.ffield textarea{border:1px solid #d0d0d0;border-radius:6px;padding:8px 10px;font-size:13px;outline:none;font-family:inherit;}
+    .ffield input:focus,.ffield select:focus,.ffield textarea:focus{border-color:#1a73e8;}
+    .ffield textarea{resize:vertical;min-height:60px;}
+    .id-row{display:flex;gap:6px;align-items:center;}
+    .id-row input{flex:1;background:#f5f5f5;}
+    .btn-regen{border:none;background:#e8f0fe;color:#1a73e8;padding:7px 10px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;white-space:nowrap;}
+    .btn-regen:hover{background:#d2e3fc;}
+    .img-slots{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:6px;}
+    .img-slot{position:relative;aspect-ratio:1;border:2px dashed #ccc;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;background:#fafafa;transition:border-color .2s;}
+    .img-slot:hover{border-color:#1a73e8;}
+    .img-slot.has{border-style:solid;border-color:#1a73e8;}
+    .img-slot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;}
+    .img-slot .snum{position:absolute;top:2px;left:2px;background:rgba(0,0,0,.5);color:#fff;border-radius:50%;width:18px;height:18px;font-size:9px;display:flex;align-items:center;justify-content:center;font-weight:700;}
+    .img-slot .sicon{font-size:18px;color:#bbb;}
+    .img-slot .slabel{font-size:9px;color:#999;margin-top:2px;}
+    .img-slot .sremove{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:12px;cursor:pointer;display:none;align-items:center;justify-content:center;}
+    .img-slot.has .sremove{display:flex;}
+    .btn-save{background:#111;color:#fff;border:none;padding:9px 24px;border-radius:8px;font-size:13px;font-weight:900;cursor:pointer;}
+    .btn-save:disabled{background:#aaa;cursor:not-allowed;}
+    .btn-mcancel{background:#f5f5f5;color:#333;border:1px solid #d0d0d0;padding:9px 16px;border-radius:8px;font-size:13px;cursor:pointer;}
+    .confirm-body{text-align:center;padding:8px 0;}
+    .confirm-body p{font-size:14px;margin-bottom:16px;}
+    .confirm-body .dname{font-weight:900;color:#d93025;}
+    .confirm-btns{display:flex;gap:8px;justify-content:center;}
+    @media(max-width:600px){.fgrid{grid-template-columns:1fr;}.img-slots{grid-template-columns:repeat(3,1fr);}}
   </style>
 </head>
 <body>
@@ -56,9 +121,122 @@
       </div>
       <div class="discount-info" id="discountInfo"></div>
     </div>
+    <!-- まとめ商品管理 -->
+    <div class="card mode-card">
+      <div class="bulk-header">
+        <div class="title">まとめ商品管理</div>
+        <button class="btn-new" id="btnBulkNew" type="button">+ 新規登録</button>
+      </div>
+      <div id="bulkLoading" class="bulk-loading">読込中...</div>
+      <div id="bulkList" class="bulk-list" style="display:none;"></div>
+      <div id="bulkEmpty" class="bulk-empty" style="display:none;">商品がまだ登録されていません。</div>
+    </div>
   </div>
+
+  <!-- オーバーレイ -->
+  <div class="overlay" id="overlay"></div>
+
+  <!-- 商品登録/編集モーダル -->
+  <div class="bmodal" id="productModal">
+    <div class="bmodal-head">
+      <h3 id="pmTitle">商品を登録</h3>
+      <button class="bmodal-close" onclick="BK.closeModal()">&times;</button>
+    </div>
+    <div class="bmodal-body">
+      <div class="fgrid">
+        <div class="ffield">
+          <label>商品ID <span class="req">*</span></label>
+          <div class="id-row">
+            <input type="text" id="fPid" readonly>
+            <button class="btn-regen" id="btnRegen" onclick="BK.regenId()">再生成</button>
+          </div>
+        </div>
+        <div class="ffield">
+          <label>商品名 <span class="req">*</span></label>
+          <input type="text" id="fName" placeholder="例: ノーブランドMIXパック">
+        </div>
+        <div class="ffield">
+          <label>価格（税込） <span class="req">*</span></label>
+          <input type="number" id="fPrice" min="1" placeholder="例: 3000">
+        </div>
+        <div class="ffield">
+          <label>単位</label>
+          <select id="fUnit">
+            <option value="/kg">/kg</option>
+            <option value="/点">/点</option>
+            <option value="/パック">/パック</option>
+            <option value="/セット">/セット</option>
+            <option value="/箱">/箱</option>
+            <option value="">なし</option>
+          </select>
+        </div>
+        <div class="ffield">
+          <label>タグ</label>
+          <select id="fTag">
+            <option value="">なし</option>
+            <option value="人気No.1">人気No.1</option>
+            <option value="高利益率">高利益率</option>
+            <option value="おすすめ">おすすめ</option>
+            <option value="NEW">NEW</option>
+            <option value="期間限定">期間限定</option>
+            <option value="SALE">SALE</option>
+          </select>
+        </div>
+        <div class="ffield">
+          <label>最小注文数</label>
+          <input type="number" id="fMinQty" min="1" value="1">
+        </div>
+        <div class="ffield">
+          <label>最大注文数</label>
+          <input type="number" id="fMaxQty" min="1" value="99">
+        </div>
+        <div class="ffield">
+          <label>表示順（小さい順）</label>
+          <input type="number" id="fSort" min="0" value="999">
+        </div>
+        <div class="ffield">
+          <label>公開ステータス</label>
+          <select id="fActive">
+            <option value="true">公開</option>
+            <option value="false">非公開</option>
+          </select>
+        </div>
+        <div class="ffield full">
+          <label>商品説明</label>
+          <textarea id="fDesc" placeholder="商品の説明文を入力"></textarea>
+        </div>
+        <div class="ffield full">
+          <label>商品画像（最大5枚 / Googleドライブから選択）</label>
+          <div class="img-slots" id="imgSlots"></div>
+        </div>
+      </div>
+    </div>
+    <div class="bmodal-foot">
+      <button class="btn-mcancel" onclick="BK.closeModal()">キャンセル</button>
+      <button class="btn-save" id="btnSave" onclick="BK.save()">登録する</button>
+    </div>
+  </div>
+
+  <!-- 削除確認モーダル -->
+  <div class="bmodal" id="deleteModal">
+    <div class="bmodal-head">
+      <h3>商品を削除</h3>
+      <button class="bmodal-close" onclick="BK.closeDelete()">&times;</button>
+    </div>
+    <div class="bmodal-body">
+      <div class="confirm-body">
+        <p>以下の商品を削除しますか？<br><span class="dname" id="delName"></span></p>
+        <div class="confirm-btns">
+          <button class="btn-mcancel" onclick="BK.closeDelete()">キャンセル</button>
+          <button class="bbtn-del" style="padding:9px 20px;font-size:13px;border-radius:8px;border:none;cursor:pointer;font-weight:700;" onclick="BK.confirmDel()">削除する</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
+<script src="https://apis.google.com/js/api.js"></script>
 <script>
   function $(id){ return document.getElementById(id); }
   function showToast(msg){
@@ -72,6 +250,7 @@
     el.textContent = (el.textContent ? el.textContent + '\n' : '') + String(msg || '');
   }
   function run(fn){
+    var args = Array.prototype.slice.call(arguments, 1);
     return new Promise((resolve, reject)=>{
       let done = false;
       const timer = setTimeout(()=>{
@@ -98,7 +277,7 @@
         })[fn];
 
       if (typeof call !== 'function') { clearTimeout(timer); reject(new Error('関数が見つかりません: ' + fn)); return; }
-      call();
+      call.apply(null, args);
     });
   }
 
@@ -256,7 +435,6 @@
         $('btnToggleMode').disabled = false;
         return;
       }
-      // 最新状態を再取得
       const info = await run('adminGetKomojuMode');
       if (info && info.ok) {
         updateModeBadge(info.mode, info.hasTestKey, info.hasLiveKey);
@@ -269,6 +447,274 @@
       $('btnToggleMode').disabled = false;
     }
   });
+
+  // =====================================================
+  // まとめ商品管理
+  // =====================================================
+  var BK = {
+    products: [],
+    editingId: null,
+    images: ['','','','',''],
+    delId: null,
+    oauthToken: null,
+    pickerSlot: 0,
+
+    // --- 初期読み込み ---
+    async init() {
+      try {
+        const res = await run('adminBulkGetProducts');
+        if (!res || !res.ok) { $('bulkLoading').textContent = '読込失敗'; return; }
+        BK.products = res.products || [];
+        $('bulkLoading').style.display = 'none';
+        BK.renderList();
+      } catch(e) {
+        $('bulkLoading').textContent = 'エラー: ' + (e.message || e);
+      }
+    },
+
+    // --- 一覧描画 ---
+    renderList() {
+      const list = $('bulkList');
+      const empty = $('bulkEmpty');
+      if (BK.products.length === 0) {
+        list.style.display = 'none'; empty.style.display = 'block'; return;
+      }
+      empty.style.display = 'none'; list.style.display = 'flex';
+      let h = '';
+      BK.products.forEach(p => {
+        let thumb = '';
+        for (let j = 0; j < p.images.length; j++) { if (p.images[j]) { thumb = p.images[j]; break; } }
+        const bc = p.active ? 'badge-on' : 'badge-off';
+        const bt = p.active ? '公開' : '非公開';
+        h += '<div class="bulk-item">';
+        h += thumb
+          ? '<img class="bulk-thumb" src="' + esc(thumb) + '" onerror="this.style.display=\'none\'">'
+          : '<div class="bulk-thumb-empty">No Img</div>';
+        h += '<div class="bulk-info"><div class="bname">' + esc(p.name) + '</div>';
+        h += '<div class="bmeta"><span>' + esc(p.productId) + '</span>';
+        h += '<span>' + fmtYen(p.price) + esc(p.unit) + '</span>';
+        if (p.tag) h += '<span style="color:#e67700;">' + esc(p.tag) + '</span>';
+        h += '<span class="' + bc + '">' + bt + '</span></div></div>';
+        h += '<div class="bulk-actions">';
+        h += '<button class="bbtn-edit" onclick="BK.edit(\'' + esc(p.productId) + '\')">編集</button>';
+        h += '<button class="bbtn-del" onclick="BK.openDel(\'' + esc(p.productId) + '\')">削除</button>';
+        h += '</div></div>';
+      });
+      list.innerHTML = h;
+    },
+
+    // --- 新規登録 ---
+    async openNew() {
+      BK.editingId = null;
+      BK.images = ['','','','',''];
+      $('pmTitle').textContent = '商品を登録';
+      $('btnSave').textContent = '登録する';
+      $('btnRegen').style.display = '';
+      $('fPid').value = '';
+      $('fName').value = '';
+      $('fPrice').value = '';
+      $('fUnit').value = '/kg';
+      $('fTag').value = '';
+      $('fMinQty').value = '1';
+      $('fMaxQty').value = '99';
+      $('fSort').value = '999';
+      $('fActive').value = 'true';
+      $('fDesc').value = '';
+      BK.renderSlots();
+      BK.showModal('productModal');
+      try {
+        const res = await run('adminBulkNewId');
+        if (res && res.ok) $('fPid').value = res.id;
+      } catch(e) {}
+    },
+
+    // --- 編集 ---
+    edit(pid) {
+      const p = BK.products.find(x => x.productId === pid);
+      if (!p) return;
+      BK.editingId = pid;
+      BK.images = [];
+      for (let i = 0; i < 5; i++) BK.images[i] = (p.images && p.images[i]) || '';
+      $('pmTitle').textContent = '商品を編集';
+      $('btnSave').textContent = '更新する';
+      $('btnRegen').style.display = 'none';
+      $('fPid').value = p.productId;
+      $('fName').value = p.name;
+      $('fPrice').value = p.price;
+      BK.setSelect('fUnit', p.unit);
+      BK.setSelect('fTag', p.tag);
+      $('fMinQty').value = p.minQty;
+      $('fMaxQty').value = p.maxQty;
+      $('fSort').value = p.sortOrder;
+      $('fActive').value = p.active ? 'true' : 'false';
+      $('fDesc').value = p.description;
+      BK.renderSlots();
+      BK.showModal('productModal');
+    },
+
+    setSelect(id, val) {
+      const sel = $(id);
+      for (let i = 0; i < sel.options.length; i++) {
+        if (sel.options[i].value === val) { sel.selectedIndex = i; return; }
+      }
+      if (val) { const o = document.createElement('option'); o.value = val; o.textContent = val; sel.appendChild(o); sel.value = val; }
+    },
+
+    // --- ID再生成 ---
+    async regenId() {
+      $('btnRegen').disabled = true;
+      try {
+        const res = await run('adminBulkNewId');
+        if (res && res.ok) $('fPid').value = res.id;
+      } catch(e) {}
+      $('btnRegen').disabled = false;
+    },
+
+    // --- 画像スロット ---
+    renderSlots() {
+      let h = '';
+      for (let i = 0; i < 5; i++) {
+        const url = BK.images[i] || '';
+        const cls = url ? ' has' : '';
+        h += '<div class="img-slot' + cls + '" onclick="BK.pickImg(' + i + ')">';
+        h += '<span class="snum">' + (i + 1) + '</span>';
+        if (url) {
+          h += '<img src="' + esc(url) + '" onerror="this.parentElement.classList.remove(\'has\');this.remove();">';
+          h += '<button class="sremove" onclick="event.stopPropagation();BK.removeImg(' + i + ');">&times;</button>';
+        } else {
+          h += '<span class="sicon">+</span><span class="slabel">ドライブ</span>';
+        }
+        h += '</div>';
+      }
+      $('imgSlots').innerHTML = h;
+    },
+
+    // --- Google Drive Picker ---
+    async pickImg(slot) {
+      BK.pickerSlot = slot;
+      if (!BK.oauthToken) {
+        try {
+          const res = await run('adminBulkGetOAuthToken');
+          if (res && res.ok) BK.oauthToken = res.token;
+          else { showToast('トークン取得失敗'); return; }
+        } catch(e) { showToast('認証エラー'); return; }
+      }
+      if (typeof gapi !== 'undefined' && google.picker) {
+        BK.openPicker();
+      } else {
+        gapi.load('picker', { callback: () => BK.openPicker() });
+      }
+    },
+
+    openPicker() {
+      const view = new google.picker.DocsView(google.picker.ViewId.DOCS_IMAGES)
+        .setIncludeFolders(true).setSelectFolderEnabled(false);
+      new google.picker.PickerBuilder()
+        .addView(view)
+        .setOAuthToken(BK.oauthToken)
+        .setCallback(BK.pickerCb)
+        .setTitle('画像を選択（スロット ' + (BK.pickerSlot + 1) + '）')
+        .setLocale('ja')
+        .build()
+        .setVisible(true);
+    },
+
+    async pickerCb(data) {
+      if (data.action !== google.picker.Action.PICKED) return;
+      const fileId = data.docs[0].id;
+      showToast('画像を処理中...');
+      try {
+        const res = await run('adminBulkGetDriveImageUrl', fileId);
+        if (res && res.ok) {
+          BK.images[BK.pickerSlot] = res.url;
+          BK.renderSlots();
+          showToast('画像' + (BK.pickerSlot + 1) + 'を設定');
+        } else {
+          showToast(res && res.message ? res.message : '画像エラー');
+        }
+      } catch(e) { showToast('画像エラー: ' + e.message); }
+    },
+
+    removeImg(i) { BK.images[i] = ''; BK.renderSlots(); },
+
+    // --- 保存 ---
+    async save() {
+      const pid = $('fPid').value.trim();
+      const name = $('fName').value.trim();
+      const price = parseInt($('fPrice').value, 10);
+      if (!pid) { showToast('商品IDが必要です'); return; }
+      if (!name) { showToast('商品名を入力してください'); return; }
+      if (!price || price <= 0) { showToast('価格を正しく入力してください'); return; }
+
+      const product = {
+        productId: pid, name: name, price: price,
+        description: $('fDesc').value.trim(),
+        unit: $('fUnit').value,
+        tag: $('fTag').value,
+        images: BK.images.slice(0, 5),
+        minQty: parseInt($('fMinQty').value, 10) || 1,
+        maxQty: parseInt($('fMaxQty').value, 10) || 99,
+        sortOrder: parseInt($('fSort').value, 10) || 999,
+        active: $('fActive').value === 'true'
+      };
+
+      $('btnSave').disabled = true;
+      $('btnSave').textContent = '保存中...';
+      try {
+        const res = await run('adminBulkSaveProduct', product);
+        if (res && res.ok) {
+          BK.products = res.products || [];
+          BK.renderList();
+          BK.closeModal();
+          showToast(res.message);
+        } else {
+          showToast(res && res.message ? res.message : '保存失敗');
+        }
+      } catch(e) {
+        showToast('エラー: ' + e.message);
+      }
+      $('btnSave').disabled = false;
+      $('btnSave').textContent = BK.editingId ? '更新する' : '登録する';
+    },
+
+    // --- 削除 ---
+    openDel(pid) {
+      const p = BK.products.find(x => x.productId === pid);
+      if (!p) return;
+      BK.delId = pid;
+      $('delName').textContent = p.name + ' (' + pid + ')';
+      BK.showModal('deleteModal');
+    },
+
+    async confirmDel() {
+      if (!BK.delId) return;
+      try {
+        const res = await run('adminBulkDeleteProduct', BK.delId);
+        if (res && res.ok) {
+          BK.products = res.products || [];
+          BK.renderList();
+          BK.closeDelete();
+          showToast(res.message);
+        } else {
+          showToast(res && res.message ? res.message : '削除失敗');
+        }
+      } catch(e) { showToast('エラー: ' + e.message); }
+    },
+
+    // --- モーダル制御 ---
+    showModal(id) { $('overlay').classList.add('show'); $(id).classList.add('show'); },
+    closeModal() { $('productModal').classList.remove('show'); $('overlay').classList.remove('show'); },
+    closeDelete() { BK.delId = null; $('deleteModal').classList.remove('show'); $('overlay').classList.remove('show'); }
+  };
+
+  function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+  function fmtYen(n) { return '\u00a5' + String(Number(n)||0).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+  $('overlay').addEventListener('click', () => { BK.closeModal(); BK.closeDelete(); });
+  $('btnBulkNew').addEventListener('click', () => BK.openNew());
+
+  // まとめ商品 初回読み込み
+  BK.init();
 </script>
 </body>
 </html>
