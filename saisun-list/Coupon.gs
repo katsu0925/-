@@ -348,8 +348,8 @@ function getCouponDialogHtml_() {
     + '  </select>'
     + '  <div class="hint">クーポンが使えるサイト</div>'
     + '</div>'
-    + '<div class="col" id="targetProductsCol" style="display:none;">'
-    + '  <label>対象商品ID</label>'
+    + '<div class="col" id="targetProductsCol">'
+    + '  <label>対象商品ID（まとめ）</label>'
     + '  <input id="targetProducts" placeholder="BLK-XXXX,BLK-YYYY">'
     + '  <div class="hint">空欄＝全まとめ商品、カンマ区切りでID指定</div>'
     + '</div>'
@@ -424,8 +424,8 @@ function getCouponDialogHtml_() {
     + '}'
     + 'function onChannelChange(){'
     + '  var ch=document.getElementById("channel").value;'
-    + '  document.getElementById("targetProductsCol").style.display=(ch==="bulk")?"":"none";'
-    + '  if(ch!=="bulk")document.getElementById("targetProducts").value="";'
+    + '  document.getElementById("targetProductsCol").style.display=(ch==="bulk"||ch==="all")?"":"none";'
+    + '  if(ch==="detauri")document.getElementById("targetProducts").value="";'
     + '}'
     + 'function showError(msg){var e=document.getElementById("error");e.textContent=msg;e.style.display="block";}'
     + 'function submit(){'
@@ -780,8 +780,8 @@ function validateCoupon_(code, email, channel, productIds) {
     }
   }
 
-  // まとめ商品の対象商品IDチェック
-  if (channel === 'bulk' && coupon.targetProducts) {
+  // まとめ商品の対象商品IDチェック（bulk専用 or all の場合、bulkチャンネルからの注文時に照合）
+  if ((couponChannel === 'bulk' || couponChannel === 'all') && channel === 'bulk' && coupon.targetProducts) {
     var allowedIds = coupon.targetProducts.split(',').map(function(s) { return s.trim().toUpperCase(); }).filter(function(s) { return s; });
     if (allowedIds.length > 0 && productIds && productIds.length > 0) {
       var hasMatch = false;
