@@ -315,25 +315,50 @@
 <body>
 <script>
 // クライアントサイドルーター: ?page=bulk の場合、BulkLP.htmlを動的に読み込む
+// 1. localStorageにキャッシュ済みHTML → 即座に表示（GAS API不要）
+// 2. 初回のみGAS APIから取得 → キャッシュに保存
 (function() {
   var params = new URLSearchParams(window.location.search);
   if (params.get('page') !== 'bulk') return;
+
+  var BULK_HTML_KEY = 'bulk_html_cache_v1';
+  var BULK_HTML_TTL = 24 * 60 * 60 * 1000; // 24時間
+  var GAS_URL = 'https://script.google.com/macros/s/AKfycbwLN23a03qQSGA91J-82_6HlIx0kA5yUYFRxjfbjFGfnZDqynKnyJhEPsoISSQps3SmXQ/exec';
 
   // デタウリページの描画を完全に抑制
   var hideStyle = document.createElement('style');
   hideStyle.textContent = 'body > *:not(#__bulkLoader) { display: none !important; }';
   document.head.appendChild(hideStyle);
 
-  var GAS_URL = 'https://script.google.com/macros/s/AKfycbwLN23a03qQSGA91J-82_6HlIx0kA5yUYFRxjfbjFGfnZDqynKnyJhEPsoISSQps3SmXQ/exec';
+  // localStorageキャッシュを確認
+  var cachedHtml = null;
+  try {
+    var raw = localStorage.getItem(BULK_HTML_KEY);
+    if (raw) {
+      var c = JSON.parse(raw);
+      if (c && c.html && c.ts && (Date.now() - c.ts < BULK_HTML_TTL)) {
+        cachedHtml = c.html;
+      }
+    }
+  } catch (e) {}
 
+  if (cachedHtml) {
+    // キャッシュあり → 即座にBulkLPを表示（GAS APIコール不要）
+    window.addEventListener('DOMContentLoaded', function() {
+      document.open();
+      document.write(cachedHtml);
+      document.close();
+    });
+    return;
+  }
+
+  // キャッシュなし → GAS APIからフェッチしてキャッシュに保存
   window.addEventListener('DOMContentLoaded', function() {
-    // ローディング表示
     var loader = document.createElement('div');
     loader.id = '__bulkLoader';
-    loader.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#1a1a2e;color:#fff;"><div style="text-align:center;"><div style="font-size:24px;margin-bottom:12px;">まとめ商品</div><div style="font-size:14px;color:#aaa;">読み込み中...</div></div></div>';
+    loader.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#1a1a2e;color:#fff;"><div style="text-align:center;"><div style="width:28px;height:28px;border:3px solid rgba(255,255,255,.2);border-top-color:#ffd700;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px;"></div><div style="font-size:20px;font-weight:700;margin-bottom:8px;">まとめ商品</div><div style="font-size:13px;color:#aaa;">読み込み中...</div></div></div><style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
     document.body.insertBefore(loader, document.body.firstChild);
 
-    // GAS APIからBulkLP HTMLを取得
     fetch(GAS_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
@@ -346,6 +371,10 @@
     })
     .then(function(data) {
       if (data && data.ok && data.html) {
+        // HTMLをlocalStorageにキャッシュ（次回即時表示のため）
+        try {
+          localStorage.setItem(BULK_HTML_KEY, JSON.stringify({ ts: Date.now(), html: data.html }));
+        } catch (e) {}
         document.open();
         document.write(data.html);
         document.close();
