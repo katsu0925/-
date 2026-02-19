@@ -1,17 +1,16 @@
 function st_baseKeyHold_(orderSs) {
-  const cache = CacheService.getScriptCache();
   return 'STATE_HOLDS_V4:' + orderSs.getId();
 }
 
 function st_baseKeyOpen_(orderSs) {
-  const cache = CacheService.getScriptCache();
   return 'STATE_OPEN_V4:' + orderSs.getId();
 }
 
 function st_loadLarge_(baseKey, skipCache) {
+  const cache = CacheService.getScriptCache();
+  const ck = 'STATECACHE_V1:' + baseKey;
+
   if (!skipCache) {
-    const cache = CacheService.getScriptCache();
-    const ck = 'STATECACHE_V1:' + baseKey;
     const cached = cache.get(ck);
     if (cached) {
       try {
@@ -42,7 +41,9 @@ function st_loadLarge_(baseKey, skipCache) {
   try {
     const obj = JSON.parse(json);
     if (obj) {
-      try { cache.put(ck, u_gzipToB64_(JSON.stringify(obj)), u_toInt_(APP_CONFIG.cache.stateSeconds, 3600)); } catch (e2) { console.log('optional: state cache put: ' + (e2.message || e2)); }
+      if (!skipCache) {
+        try { cache.put(ck, u_gzipToB64_(JSON.stringify(obj)), u_toInt_(APP_CONFIG.cache.stateSeconds, 3600)); } catch (e2) { console.log('optional: state cache put: ' + (e2.message || e2)); }
+      }
       return obj;
     }
   } catch (e3) { console.log('optional: state JSON parse: ' + (e3.message || e3)); }
@@ -81,7 +82,8 @@ function st_saveLarge_(baseKey, obj) {
 
 function st_getHoldState_(orderSs) {
   const baseKey = st_baseKeyHold_(orderSs);
-  const st = st_loadLarge_(baseKey);
+  // 他ユーザーの確保を正確に反映するため、常にキャッシュをバイパス
+  const st = st_loadLarge_(baseKey, true);
   if (st && st.items) return st;
 
   const rebuilt = od_rebuildHoldStateFromSheet_(orderSs);

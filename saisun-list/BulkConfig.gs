@@ -83,8 +83,8 @@ function setBulkSpreadsheetId() {
   var SPREADSHEET_ID = '1yzfn252G3G1yh4SZ7tm73EwrGxZCwxZ-uaHHu_OnoJU';
 
   var id = String(SPREADSHEET_ID || '').trim();
-  if (!id || id === 'ここにスプレッドシートIDを貼り付け') {
-    console.log('エラー: SPREADSHEET_ID を実際のスプレッドシートIDに書き換えてから実行してください。');
+  if (!id) {
+    console.log('エラー: SPREADSHEET_ID が空です。');
     return;
   }
 
