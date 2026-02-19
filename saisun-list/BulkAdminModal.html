@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html><head>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans-serif;font-size:13px;color:#222;padding:16px;overflow-y:auto}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ff{display:flex;flex-direction:column;gap:3px}
+.ff.full{grid-column:1/-1}
+.ff label{font-size:11px;font-weight:700;color:#555}
+.ff label .req{color:#d93025}
+.ff input,.ff select,.ff textarea{border:1px solid #ccc;border-radius:6px;padding:7px 9px;font-size:13px;outline:none;font-family:inherit}
+.ff input:focus,.ff select:focus,.ff textarea:focus{border-color:#1a73e8}
+.ff textarea{resize:vertical;min-height:50px}
+.id-row{display:flex;gap:6px;align-items:center}
+.id-row input{flex:1;background:#f5f5f5}
+.btn-regen{border:none;background:#e8f0fe;color:#1a73e8;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;white-space:nowrap}
+.img-slots{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:4px}
+.img-slot{position:relative;aspect-ratio:1;border:2px dashed #ccc;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;background:#fafafa}
+.img-slot:hover{border-color:#1a73e8}
+.img-slot.has{border-style:solid;border-color:#1a73e8}
+.img-slot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.img-slot .snum{position:absolute;top:2px;left:2px;background:rgba(0,0,0,.5);color:#fff;border-radius:50%;width:16px;height:16px;font-size:8px;display:flex;align-items:center;justify-content:center;font-weight:700}
+.img-slot .sicon{font-size:16px;color:#bbb}
+.img-slot .slabel{font-size:8px;color:#999;margin-top:2px}
+.img-slot .sremove{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;display:none;align-items:center;justify-content:center}
+.img-slot.has .sremove{display:flex}
+.foot{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid #eee}
+.btn-save{background:#1a73e8;color:#fff;border:none;padding:8px 20px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer}
+.btn-save:disabled{background:#aaa;cursor:not-allowed}
+.btn-cancel{background:#f5f5f5;color:#333;border:1px solid #ccc;padding:8px 14px;border-radius:6px;font-size:13px;cursor:pointer}
+.toast{position:fixed;left:50%;bottom:12px;transform:translateX(-50%);background:#333;color:#fff;padding:8px 16px;border-radius:8px;display:none;z-index:99;font-size:12px;font-weight:700}
+.toast.show{display:block}
+</style>
+</head>
+<body>
+<div class="fgrid">
+  <div class="ff">
+    <label>商品ID <span class="req">*</span></label>
+    <div class="id-row">
+      <input type="text" id="fPid" readonly>
+      <button class="btn-regen" id="btnRegen" onclick="regenId()">再生成</button>
+    </div>
+  </div>
+  <div class="ff">
+    <label>商品名 <span class="req">*</span></label>
+    <input type="text" id="fName" placeholder="例: ノーブランドMIXパック">
+  </div>
+  <div class="ff">
+    <label>価格（税込） <span class="req">*</span></label>
+    <input type="number" id="fPrice" min="1" placeholder="例: 3000">
+  </div>
+  <div class="ff">
+    <label>割引率（%）</label>
+    <input type="number" id="fDiscount" min="0" max="100" step="1" value="0" placeholder="例: 10">
+  </div>
+  <div class="ff">
+    <label>単位</label>
+    <select id="fUnit">
+      <option value="/kg">/kg</option>
+      <option value="/点">/点</option>
+      <option value="/パック">/パック</option>
+      <option value="/セット">/セット</option>
+      <option value="/箱">/箱</option>
+      <option value="">なし</option>
+    </select>
+  </div>
+  <div class="ff">
+    <label>タグ</label>
+    <select id="fTag">
+      <option value="">なし</option>
+      <option value="人気No.1">人気No.1</option>
+      <option value="高利益率">高利益率</option>
+      <option value="おすすめ">おすすめ</option>
+      <option value="NEW">NEW</option>
+      <option value="期間限定">期間限定</option>
+      <option value="SALE">SALE</option>
+    </select>
+  </div>
+  <div class="ff">
+    <label>最小注文数</label>
+    <input type="number" id="fMinQty" min="1" value="1">
+  </div>
+  <div class="ff">
+    <label>最大注文数</label>
+    <input type="number" id="fMaxQty" min="1" value="99">
+  </div>
+  <div class="ff">
+    <label>表示順（小さい順）</label>
+    <input type="number" id="fSort" min="0" value="999">
+  </div>
+  <div class="ff">
+    <label>公開ステータス</label>
+    <select id="fActive">
+      <option value="true">公開</option>
+      <option value="false">非公開</option>
+    </select>
+  </div>
+  <div class="ff full">
+    <label>商品説明</label>
+    <textarea id="fDesc" placeholder="商品の説明文を入力"></textarea>
+  </div>
+  <div class="ff full">
+    <label>商品画像（最大5枚 / Googleドライブから選択）</label>
+    <div class="img-slots" id="imgSlots"></div>
+  </div>
+</div>
+<div class="foot">
+  <button class="btn-cancel" onclick="google.script.host.close()">キャンセル</button>
+  <button class="btn-save" id="btnSave" onclick="save()">登録する</button>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="https://apis.google.com/js/api.js"></script>
+<script>
+var images = ['','','','',''];
+var editMode = typeof EDIT_PRODUCT_ID !== 'undefined' && EDIT_PRODUCT_ID;
+var oauthToken = null;
+var pickerSlot = 0;
+
+function $(id){ return document.getElementById(id); }
+function showToast(msg){
+  var t = $('toast'); t.textContent = msg; t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, 2200);
+}
+
+function run(fn) {
+  var args = Array.prototype.slice.call(arguments, 1);
+  return new Promise(function(resolve, reject) {
+    var call = google.script.run
+      .withSuccessHandler(resolve)
+      .withFailureHandler(function(e){ reject(new Error(e && e.message ? e.message : String(e))); })[fn];
+    if (!call) { reject(new Error('関数が見つかりません: ' + fn)); return; }
+    call.apply(null, args);
+  });
+}
+
+function setSelect(id, val) {
+  var sel = $(id);
+  for (var i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].value === val) { sel.selectedIndex = i; return; }
+  }
+  if (val) { var o = document.createElement('option'); o.value = val; o.textContent = val; sel.appendChild(o); sel.value = val; }
+}
+
+// 初期化
+(async function init(){
+  if (editMode) {
+    // 編集モード
+    $('btnRegen').style.display = 'none';
+    $('btnSave').textContent = '更新する';
+    try {
+      var res = await run('adminBulkGetProduct', EDIT_PRODUCT_ID);
+      if (res && res.ok) {
+        var p = res.product;
+        $('fPid').value = p.productId;
+        $('fName').value = p.name;
+        $('fPrice').value = p.price;
+        $('fDiscount').value = Math.round((p.discount || 0) * 100);
+        setSelect('fUnit', p.unit);
+        setSelect('fTag', p.tag);
+        $('fMinQty').value = p.minQty;
+        $('fMaxQty').value = p.maxQty;
+        $('fSort').value = p.sortOrder;
+        $('fActive').value = p.active ? 'true' : 'false';
+        $('fDesc').value = p.description;
+        images = [];
+        for (var i = 0; i < 5; i++) images[i] = (p.images && p.images[i]) || '';
+        renderSlots();
+      }
+    } catch(e) { showToast('読込エラー'); }
+  } else {
+    // 新規モード
+    try {
+      var res = await run('adminBulkNewId');
+      if (res && res.ok) $('fPid').value = res.id;
+    } catch(e) {}
+    renderSlots();
+  }
+})();
+
+function regenId() {
+  $('btnRegen').disabled = true;
+  run('adminBulkNewId').then(function(res){
+    if (res && res.ok) $('fPid').value = res.id;
+  }).catch(function(){}).then(function(){ $('btnRegen').disabled = false; });
+}
+
+// --- 画像スロット ---
+function renderSlots() {
+  var h = '';
+  for (var i = 0; i < 5; i++) {
+    var url = images[i] || '';
+    var cls = url ? ' has' : '';
+    h += '<div class="img-slot' + cls + '" onclick="pickImg(' + i + ')">';
+    h += '<span class="snum">' + (i + 1) + '</span>';
+    if (url) {
+      h += '<img src="' + esc(url) + '">';
+      h += '<button class="sremove" onclick="event.stopPropagation();removeImg(' + i + ');">&times;</button>';
+    } else {
+      h += '<span class="sicon">+</span><span class="slabel">ドライブ</span>';
+    }
+    h += '</div>';
+  }
+  $('imgSlots').innerHTML = h;
+}
+
+function removeImg(i) { images[i] = ''; renderSlots(); }
+
+// --- Google Drive Picker ---
+async function pickImg(slot) {
+  pickerSlot = slot;
+  if (!oauthToken) {
+    try {
+      var res = await run('adminBulkGetOAuthToken');
+      if (res && res.ok) oauthToken = res.token;
+      else { showToast('トークン取得失敗'); return; }
+    } catch(e) { showToast('認証エラー'); return; }
+  }
+  if (typeof gapi !== 'undefined' && google.picker) { openPicker(); }
+  else { gapi.load('picker', { callback: openPicker }); }
+}
+
+function openPicker() {
+  var view = new google.picker.DocsView(google.picker.ViewId.DOCS_IMAGES)
+    .setIncludeFolders(true).setSelectFolderEnabled(false);
+  new google.picker.PickerBuilder()
+    .addView(view)
+    .setOAuthToken(oauthToken)
+    .setCallback(pickerCb)
+    .setTitle('画像を選択（スロット ' + (pickerSlot + 1) + '）')
+    .setLocale('ja')
+    .build()
+    .setVisible(true);
+}
+
+async function pickerCb(data) {
+  if (data.action !== google.picker.Action.PICKED) return;
+  var fileId = data.docs[0].id;
+  showToast('画像を処理中...');
+  try {
+    var res = await run('adminBulkGetDriveImageUrl', fileId);
+    if (res && res.ok) {
+      images[pickerSlot] = res.url;
+      renderSlots();
+      showToast('画像' + (pickerSlot + 1) + 'を設定');
+    } else { showToast(res && res.message ? res.message : '画像エラー'); }
+  } catch(e) { showToast('画像エラー'); }
+}
+
+// --- 保存 ---
+async function save() {
+  var pid = $('fPid').value.trim();
+  var name = $('fName').value.trim();
+  var price = parseInt($('fPrice').value, 10);
+  if (!pid) { showToast('商品IDが必要です'); return; }
+  if (!name) { showToast('商品名を入力してください'); return; }
+  if (!price || price <= 0) { showToast('価格を正しく入力してください'); return; }
+
+  var discountPct = parseInt($('fDiscount').value, 10) || 0;
+  var discount = Math.max(0, Math.min(100, discountPct)) / 100;
+
+  var product = {
+    productId: pid, name: name, price: price,
+    description: $('fDesc').value.trim(),
+    unit: $('fUnit').value,
+    tag: $('fTag').value,
+    images: images.slice(0, 5),
+    minQty: parseInt($('fMinQty').value, 10) || 1,
+    maxQty: parseInt($('fMaxQty').value, 10) || 99,
+    sortOrder: parseInt($('fSort').value, 10) || 999,
+    active: $('fActive').value === 'true',
+    discount: discount
+  };
+
+  $('btnSave').disabled = true;
+  $('btnSave').textContent = '保存中...';
+  try {
+    var res = await run('adminBulkSaveProduct', product);
+    if (res && res.ok) {
+      showToast(res.message);
+      setTimeout(function(){ google.script.host.close(); }, 800);
+    } else {
+      showToast(res && res.message ? res.message : '保存失敗');
+    }
+  } catch(e) { showToast('エラー: ' + e.message); }
+  $('btnSave').disabled = false;
+  $('btnSave').textContent = editMode ? '更新する' : '登録する';
+}
+
+function esc(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+</script>
+</body></html>

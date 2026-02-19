@@ -987,8 +987,8 @@ function setGuardOn_() {
 }
 
 function onOpen(e) {
-  SpreadsheetApp.getUi()
-    .createMenu("管理メニュー")
+  var ui = SpreadsheetApp.getUi();
+  ui.createMenu("管理メニュー")
     .addItem("1. 依頼展開（展開→XLSX→売却 一括処理）", "expandOrder")
     .addItem("2. 欠品処理（返品→再生成 一括処理）", "handleMissingProducts")
     .addSeparator()
@@ -1004,6 +1004,11 @@ function onOpen(e) {
     .addItem("領収書取消（キャンセル/返品）", "processCancelledInvoices")
     .addSeparator()
     .addItem("不要トリガー一括削除", "cleanupObsoleteTriggers")
+    .addToUi();
+
+  ui.createMenu("まとめ商品管理")
+    .addItem("商品を新規登録", "showBulkNewProductModal")
+    .addItem("商品一覧 / 編集 / 削除", "showBulkProductListModal")
     .addToUi();
 }
 
