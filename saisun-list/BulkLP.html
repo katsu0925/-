@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title><?= appTitle ?> - まとめ商品</title>
+<title>デタウリ.Detauri - まとめ商品</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans-serif;background:#f5f5f5;color:#333;-webkit-font-smoothing:antialiased}
@@ -162,11 +162,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 
 <!-- ヘッダー -->
 <header class="header">
-  <h1 id="appTitle"><?= appTitle ?></h1>
+  <h1 id="appTitle">デタウリ.Detauri</h1>
   <p>古着卸売 - 副業物販のための仕入れ</p>
   <nav class="header-nav">
     <a class="active" href="#">まとめ商品</a>
-    <a id="detauriLink" href="<?= detauriUrl || '#' ?>">採寸付き個品（デタウリ）</a>
+    <a id="detauriLink" href="./">採寸付き個品（デタウリ）</a>
   </nav>
 </header>
 
@@ -281,7 +281,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 <div class="detauri-banner">
   <h3>1点ずつ選びたい方はこちら</h3>
   <p>全品採寸データ付き。サイズ・ブランド・状態を確認しながら1点ずつお選びいただけます。</p>
-  <a id="detauriBannerLink" class="cta-btn" href="<?= detauriUrl || '#' ?>">デタウリで商品を見る →</a>
+  <a id="detauriBannerLink" class="cta-btn" href="./">デタウリで商品を見る →</a>
 </div>
 
 <!-- フッター -->
@@ -299,6 +299,48 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 var BULK_CART_KEY = 'bulk_cart_v1';
 var DETAURI_CART_KEY = 'estimate_cart_v2';
 var SESSION_KEY = 'estimate_session';
+
+// スタンドアロンモード判定（Cloudflare Pages等からの配信時）
+var GAS_API_URL = 'https://script.google.com/macros/s/AKfycbwLN23a03qQSGA91J-82_6HlIx0kA5yUYFRxjfbjFGfnZDqynKnyJhEPsoISSQps3SmXQ/exec';
+var IS_STANDALONE = (typeof google === 'undefined' || !google.script);
+
+function runApi(fn) {
+  var args = Array.prototype.slice.call(arguments, 1);
+  if (IS_STANDALONE) {
+    return fetch(GAS_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: fn, args: args }),
+      redirect: 'follow'
+    })
+    .then(function(res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    });
+  }
+  return new Promise(function(resolve, reject) {
+    var done = false;
+    var timer = setTimeout(function() {
+      if (done) return; done = true;
+      reject(new Error('タイムアウト'));
+    }, 30000);
+    try {
+      var runner = google.script.run
+        .withSuccessHandler(function(res) {
+          if (done) return; done = true; clearTimeout(timer);
+          resolve(res);
+        })
+        .withFailureHandler(function(err) {
+          if (done) return; done = true; clearTimeout(timer);
+          reject(err);
+        });
+      runner[fn].apply(runner, args);
+    } catch (e) {
+      if (done) return; done = true; clearTimeout(timer);
+      reject(e);
+    }
+  });
+}
 
 var G = {
   products: [],
@@ -339,20 +381,20 @@ window.addEventListener('DOMContentLoaded', function() {
     }
   }, 30000);
 
-  google.script.run
-    .withSuccessHandler(function(r) {
+  runApi('apiBulkInit')
+    .then(function(r) {
       initDone = true;
       clearTimeout(loadTimer);
       try {
         if (!r || !r.ok) { showProductError(r && r.message ? r.message : '読み込みに失敗しました'); return; }
         G.products = r.products || [];
         G.settings = r.settings || {};
-        if (G.settings.detauriUrl) {
-          var dl = document.getElementById('detauriLink');
-          var dbl = document.getElementById('detauriBannerLink');
-          if (dl) dl.href = G.settings.detauriUrl;
-          if (dbl) dbl.href = G.settings.detauriUrl;
-        }
+        // デタウリリンクを現在のドメインのルートに設定
+        var detauriBase = window.location.origin + window.location.pathname;
+        var dl = document.getElementById('detauriLink');
+        var dbl = document.getElementById('detauriBannerLink');
+        if (dl) dl.href = detauriBase;
+        if (dbl) dbl.href = detauriBase;
         // 保存済みカートを復元
         if (savedCart && Object.keys(savedCart).length > 0) {
           var validProducts = {};
@@ -367,12 +409,11 @@ window.addEventListener('DOMContentLoaded', function() {
         showProductError('表示エラー: ' + (err.message || err));
       }
     })
-    .withFailureHandler(function(e) {
+    .catch(function(e) {
       initDone = true;
       clearTimeout(loadTimer);
       showProductError(e && e.message ? e.message : '接続エラー');
-    })
-    .apiBulkInit();
+    });
 
   // 郵便番号→住所自動入力
   document.getElementById('postal').addEventListener('input', onPostalInput);
@@ -773,8 +814,8 @@ function applyCoupon() {
   var email = document.getElementById('contact').value.trim();
   var subtotal = calcSubtotal();
 
-  google.script.run
-    .withSuccessHandler(function(r) {
+  runApi('apiValidateCoupon', code, email, subtotal, 'bulk', Object.keys(G.cart))
+    .then(function(r) {
       if (r && r.ok) {
         G.coupon = r;
         resEl.className = 'coupon-result ok';
@@ -787,11 +828,10 @@ function applyCoupon() {
         updateCart();
       }
     })
-    .withFailureHandler(function(e) {
+    .catch(function(e) {
       resEl.className = 'coupon-result err';
       resEl.textContent = e && e.message ? e.message : 'エラーが発生しました';
-    })
-    .apiValidateCoupon(code, email, subtotal, 'bulk', Object.keys(G.cart));
+    });
 }
 
 function calcSubtotal() {
@@ -861,11 +901,11 @@ function submitOrder() {
   btn.disabled = true;
   btn.textContent = '処理中...';
 
-  google.script.run
-    .withSuccessHandler(function(r) {
+  runApi('apiBulkSubmit', form, items)
+    .then(function(r) {
       G.submitting = false;
       if (r && r.ok && r.sessionUrl) {
-        window.top.location.href = r.sessionUrl;
+        window.location.href = r.sessionUrl;
       } else {
         btn.disabled = false;
         updateCart();
@@ -873,14 +913,13 @@ function submitOrder() {
         errEl.style.display = 'block';
       }
     })
-    .withFailureHandler(function(e) {
+    .catch(function(e) {
       G.submitting = false;
       btn.disabled = false;
       updateCart();
       errEl.textContent = e && e.message ? e.message : 'エラーが発生しました';
       errEl.style.display = 'block';
-    })
-    .apiBulkSubmit(form, items);
+    });
 }
 
 // =====================================================
@@ -908,8 +947,8 @@ function revalidateCoupon() {
   var email = document.getElementById('contact').value.trim();
   var subtotal = calcSubtotal();
 
-  google.script.run
-    .withSuccessHandler(function(r) {
+  runApi('apiValidateCoupon', code, email, subtotal, 'bulk', cartKeys)
+    .then(function(r) {
       if (r && r.ok) {
         G.coupon = r;
       } else {
@@ -920,10 +959,9 @@ function revalidateCoupon() {
       }
       updateCart();
     })
-    .withFailureHandler(function() {
+    .catch(function() {
       // ネットワークエラー時はクーポンを維持
-    })
-    .apiValidateCoupon(code, email, subtotal, 'bulk', cartKeys);
+    });
 }
 
 // =====================================================
@@ -937,8 +975,8 @@ function loadSharedSession() {
     if (!saved || !saved.sessionId) return;
 
     // バックエンドでセッション検証
-    google.script.run
-      .withSuccessHandler(function(r) {
+    runApi('apiValidateSession', 'bulk', { sessionId: saved.sessionId })
+      .then(function(r) {
         if (r && r.ok && r.data && r.data.customer) {
           G.customer = r.data.customer;
           autoFillCustomerForm();
@@ -946,10 +984,9 @@ function loadSharedSession() {
           updateCart(); // 会員割引を反映
         }
       })
-      .withFailureHandler(function() {
+      .catch(function() {
         // 検証失敗時は会員なしで続行
-      })
-      .apiValidateSession('bulk', { sessionId: saved.sessionId });
+      });
   } catch (e) {}
 }
 

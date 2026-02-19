@@ -329,7 +329,7 @@
         </div>
       </div>
       <div style="display:flex; gap:16px; margin-top:8px; flex-wrap:wrap; align-items:center;">
-        <a href="<?= bulkUrl || '#' ?>" id="bulkLink" target="_top" onclick="navigateToBulk(event)" style="font-size:13px; font-weight:700; color:#ffd700; text-decoration:none; background:rgba(255,215,0,.12); padding:4px 10px; border-radius:8px;">まとめ商品</a>
+        <a href="?page=bulk" id="bulkLink" target="_top" onclick="navigateToBulk(event)" style="font-size:13px; font-weight:700; color:#ffd700; text-decoration:none; background:rgba(255,215,0,.12); padding:4px 10px; border-radius:8px;">まとめ商品</a>
         <a href="#" id="openGuideLink" style="font-size:13px; font-weight:600; color:#93c5fd; text-decoration:none;">商品ガイド</a>
         <a href="#" id="openShippingLink" style="font-size:13px; font-weight:600; color:#93c5fd; text-decoration:none;">送料表</a>
         <a href="#" id="openContactLink" style="font-size:13px; font-weight:600; color:#93c5fd; text-decoration:none;">お問い合わせ</a>
@@ -4653,37 +4653,9 @@ function logPageView_() {
 // =====================================================
 function navigateToBulk(e) {
   e.preventDefault();
-  // google.script.run でサーバー側からURLを取得して遷移（最も確実）
-  try {
-    google.script.run
-      .withSuccessHandler(function(url) {
-        if (url) {
-          window.open(url, '_top');
-        } else {
-          // フォールバック: テンプレート変数から
-          var link = document.getElementById('bulkLink');
-          var href = link ? link.getAttribute('href') : '';
-          if (href && href !== '#') {
-            window.open(href, '_top');
-          }
-        }
-      })
-      .withFailureHandler(function() {
-        var link = document.getElementById('bulkLink');
-        var href = link ? link.getAttribute('href') : '';
-        if (href && href !== '#') {
-          window.open(href, '_top');
-        }
-      })
-      .getBulkPageUrl();
-  } catch (err) {
-    // google.script.run が使えない場合のフォールバック
-    var link = document.getElementById('bulkLink');
-    var href = link ? link.getAttribute('href') : '';
-    if (href && href !== '#') {
-      window.open(href, '_top');
-    }
-  }
+  // 同じドメイン上で ?page=bulk に遷移（standalone / GAS共通）
+  var base = window.location.origin + window.location.pathname;
+  window.location.href = base + '?page=bulk';
 }
 
 // =====================================================
