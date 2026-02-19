@@ -91,7 +91,9 @@ function apiBulkSubmit(form, items) {
     var validatedCoupon = null;
 
     if (couponCode) {
-      var couponResult = validateCoupon_(couponCode, contact);
+      var bulkProductIds = [];
+      for (var ci = 0; ci < orderItems.length; ci++) bulkProductIds.push(orderItems[ci].productId);
+      var couponResult = validateCoupon_(couponCode, contact, 'bulk', bulkProductIds);
       if (!couponResult.ok) return couponResult;
       validatedCoupon = couponResult;
       couponDiscount = calcCouponDiscount_(couponResult.type, couponResult.value, sum);

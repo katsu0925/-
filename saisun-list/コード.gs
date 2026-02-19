@@ -1006,10 +1006,8 @@ function onOpen(e) {
     .addItem("不要トリガー一括削除", "cleanupObsoleteTriggers")
     .addToUi();
 
-  ui.createMenu("まとめ商品管理")
-    .addItem("商品を新規登録", "showBulkNewProductModal")
-    .addItem("商品一覧 / 編集 / 削除", "showBulkProductListModal")
-    .addToUi();
+  // まとめ商品管理メニューは、まとめ商品スプレッドシートのメニューバーに表示
+  // （setupBulkSheetTrigger() で設定済み）
 }
 
 function clearAllChecks() {

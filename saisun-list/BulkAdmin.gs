@@ -1,8 +1,57 @@
 // =====================================================
 // BulkAdmin.gs — まとめ商品 管理（スプレッドシートのモーダルダイアログ）
 // =====================================================
-// onOpen() で追加されたメニューから呼ばれる。
+// まとめ商品スプレッドシートの onOpen トリガーで呼ばれる。
 // SpreadsheetApp.getUi().showModalDialog() でモーダルを表示。
+
+// =============================================================
+// まとめ商品スプレッドシートの onOpen ハンドラ
+// =============================================================
+
+/**
+ * まとめ商品スプレッドシートを開いたとき、管理メニューを追加する
+ * installable trigger で呼ばれる（setupBulkSheetTrigger で登録）
+ */
+function onOpenBulkSheet() {
+  try {
+    var ui = SpreadsheetApp.getUi();
+    ui.createMenu('まとめ商品管理')
+      .addItem('商品を新規登録', 'showBulkNewProductModal')
+      .addItem('商品一覧 / 編集 / 削除', 'showBulkProductListModal')
+      .addToUi();
+  } catch (e) {
+    console.log('onOpenBulkSheet: ' + (e.message || e));
+  }
+}
+
+/**
+ * まとめ商品スプレッドシートに onOpen トリガーを登録するセットアップ関数
+ * GASエディタから1回実行してください
+ */
+function setupBulkSheetTrigger() {
+  var ssId = String(BULK_CONFIG.spreadsheetId || '').trim();
+  if (!ssId) {
+    console.log('エラー: BULK_SPREADSHEET_ID が設定されていません。先に setBulkSpreadsheetId() を実行してください。');
+    return;
+  }
+
+  // 既存の onOpenBulkSheet トリガーを削除
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'onOpenBulkSheet') {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+
+  // 新しいトリガーを登録
+  var ss = SpreadsheetApp.openById(ssId);
+  ScriptApp.newTrigger('onOpenBulkSheet')
+    .forSpreadsheet(ss)
+    .onOpen()
+    .create();
+
+  console.log('まとめ商品スプレッドシートに onOpen トリガーを登録しました: ' + ss.getName());
+}
 
 // =============================================================
 // メニューから呼ばれるモーダル表示関数

@@ -4196,7 +4196,7 @@ function applyCoupon_() {
   var info = $('couponInfo');
   info.innerHTML = '<span style="color:#888;">検証中...</span>';
 
-  runApi('apiValidateCoupon', code, email, sum).then(function(res) {
+  runApi('apiValidateCoupon', code, email, sum, 'detauri').then(function(res) {
     if (!res || !res.ok) {
       info.innerHTML = '<span style="color:#c00;">' + escapeHtml_(res && res.message ? res.message : 'クーポンが無効です') + '</span>';
       state.appliedCoupon = null;

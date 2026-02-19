@@ -80,7 +80,7 @@ function bulk_ensureSheet_(ss) {
  */
 function setBulkSpreadsheetId() {
   // ★ ここに まとめ商品スプレッドシートの ID を貼り付けてから実行してください
-  var SPREADSHEET_ID = 'ここにスプレッドシートIDを貼り付け';
+  var SPREADSHEET_ID = '1yzfn252G3G1yh4SZ7tm73EwrGxZCwxZ-uaHHu_OnoJU';
 
   var id = String(SPREADSHEET_ID || '').trim();
   if (!id || id === 'ここにスプレッドシートIDを貼り付け') {

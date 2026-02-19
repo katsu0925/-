@@ -74,7 +74,7 @@ function apiSubmitEstimate(userKey, form, ids) {
 
     if (couponCode) {
       // クーポン使用時
-      var couponResult = validateCoupon_(couponCode, contact);
+      var couponResult = validateCoupon_(couponCode, contact, 'detauri');
       if (!couponResult.ok) return couponResult;
       validatedCoupon = couponResult;
       couponDiscount = calcCouponDiscount_(couponResult.type, couponResult.value, sum);
