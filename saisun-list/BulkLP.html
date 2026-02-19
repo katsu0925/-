@@ -295,6 +295,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 // =====================================================
 // 状態
 // =====================================================
+var BULK_CART_KEY = 'bulk_cart_v1';
+var DETAURI_CART_KEY = 'estimate_cart_v2';
+
 var G = {
   products: [],
   cart: {},           // { productId: qty }
@@ -303,13 +306,21 @@ var G = {
   shipping: 0,
   shippingSize: '',
   shippingPref: '',
-  submitting: false
+  submitting: false,
+  detauriCartTotal: 0,
+  detauriCartCount: 0
 };
 
 // =====================================================
 // 初期化
 // =====================================================
 window.addEventListener('DOMContentLoaded', function() {
+  // デタウリカートの読み込み
+  loadDetauriCart();
+
+  // 保存済みまとめ商品カートの読み込み
+  var savedCart = loadBulkCart();
+
   var initDone = false;
   // 30秒後にまだ読み込み中ならタイムアウト表示
   var loadTimer = setTimeout(function() {
@@ -332,7 +343,16 @@ window.addEventListener('DOMContentLoaded', function() {
           if (dl) dl.href = G.settings.detauriUrl;
           if (dbl) dbl.href = G.settings.detauriUrl;
         }
+        // 保存済みカートを復元
+        if (savedCart && Object.keys(savedCart).length > 0) {
+          var validProducts = {};
+          G.products.forEach(function(p) { validProducts[p.productId] = true; });
+          Object.keys(savedCart).forEach(function(pid) {
+            if (validProducts[pid]) G.cart[pid] = savedCart[pid];
+          });
+        }
         renderProducts();
+        updateCart();
       } catch (err) {
         showProductError('表示エラー: ' + (err.message || err));
       }
@@ -530,6 +550,7 @@ function changeQty(productId, delta) {
   if (modalInput) modalInput.value = next;
 
   updateCart();
+  saveBulkCart();
 }
 
 // =====================================================
@@ -539,7 +560,14 @@ function updateCart() {
   var el = document.getElementById('cartSection');
   var keys = Object.keys(G.cart);
   if (keys.length === 0) {
-    el.innerHTML = '<div class="cart-empty">商品を選択してください</div>';
+    var emptyHtml = '<div class="cart-empty">商品を選択してください</div>';
+    if (G.detauriCartCount > 0) {
+      emptyHtml += '<div class="cart-summary" style="margin-top:10px;">'
+        + '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
+        + '<span>デタウリ（' + G.detauriCartCount + '点）</span>'
+        + '<span>¥' + numFmt(G.detauriCartTotal) + '</span></div></div>';
+    }
+    el.innerHTML = emptyHtml;
     updatePayButton(0);
     return;
   }
@@ -596,7 +624,15 @@ function updateCart() {
 
   var total = discounted + shipping;
   rows += discountRows;
-  rows += '<div class="cart-row total"><span>合計（税込）</span><span>¥' + numFmt(total) + '</span></div>';
+  rows += '<div class="cart-row total"><span>まとめ商品 小計</span><span>¥' + numFmt(total) + '</span></div>';
+
+  // デタウリカートの合算表示
+  if (G.detauriCartCount > 0) {
+    rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;padding-top:10px;">'
+      + '<span>デタウリ（' + G.detauriCartCount + '点）</span>'
+      + '<span>¥' + numFmt(G.detauriCartTotal) + '</span></div>';
+    rows += '<div class="cart-row total" style="border-top-color:#5B86C5;"><span>両チャネル合計</span><span>¥' + numFmt(total + G.detauriCartTotal) + '</span></div>';
+  }
 
   el.innerHTML = '<div class="cart-summary">' + rows + '</div>';
   updatePayButton(total);
@@ -807,6 +843,48 @@ function submitOrder() {
 // =====================================================
 // ユーティリティ
 // =====================================================
+// =====================================================
+// カート永続化 (localStorage)
+// =====================================================
+function saveBulkCart() {
+  try {
+    var subtotal = calcSubtotal();
+    var totalQty = 0;
+    Object.keys(G.cart).forEach(function(pid) { totalQty += G.cart[pid]; });
+    localStorage.setItem(BULK_CART_KEY, JSON.stringify({
+      cart: G.cart,
+      subtotal: subtotal,
+      totalQty: totalQty
+    }));
+  } catch (e) {}
+}
+
+function loadBulkCart() {
+  try {
+    var raw = localStorage.getItem(BULK_CART_KEY);
+    if (!raw) return {};
+    var j = JSON.parse(raw);
+    return j.cart || {};
+  } catch (e) { return {}; }
+}
+
+function loadDetauriCart() {
+  try {
+    var raw = localStorage.getItem(DETAURI_CART_KEY);
+    if (!raw) return;
+    var j = JSON.parse(raw);
+    var ids = Array.isArray(j.ids) ? j.ids : [];
+    var items = j.itemsById || {};
+    var sum = 0;
+    for (var i = 0; i < ids.length; i++) {
+      var it = items[ids[i]];
+      if (it) sum += Number(it.price || 0);
+    }
+    G.detauriCartTotal = sum;
+    G.detauriCartCount = ids.length;
+  } catch (e) {}
+}
+
 // ESCキーでモーダル閉じる
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') closeModal();
