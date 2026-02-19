@@ -60,20 +60,26 @@ function apiBulkSubmit(form, items) {
       if (qty < p.minQty) return { ok: false, message: p.name + ' は最低' + p.minQty + p.unit + 'から注文可能です' };
       if (qty > p.maxQty) return { ok: false, message: p.name + ' は最大' + p.maxQty + p.unit + 'までです' };
 
-      var lineTotal = p.price * qty;
+      // 個別割引適用
+      var unitPrice = (p.discountedPrice !== undefined) ? p.discountedPrice : p.price;
+      var lineTotal = unitPrice * qty;
       sum += lineTotal;
       totalQty += qty;
 
       orderItems.push({
         productId: pid,
         name: p.name,
-        price: p.price,
+        price: unitPrice,
+        originalPrice: p.price,
+        discountRate: p.discountRate || 0,
         unit: p.unit,
         qty: qty,
         lineTotal: lineTotal
       });
 
-      productNames.push(p.name + ' x' + qty + p.unit);
+      var nameLabel = p.name + ' x' + qty + p.unit;
+      if (p.discountRate > 0) nameLabel += '(' + Math.round(p.discountRate * 100) + '%OFF)';
+      productNames.push(nameLabel);
     }
 
     if (orderItems.length === 0) return { ok: false, message: 'カートが空です' };
@@ -122,10 +128,16 @@ function apiBulkSubmit(form, items) {
       discounted = Math.round(sum * (1 - discountRate));
     }
 
-    // === 送料計算（既存の送料テーブルを再利用） ===
-    var shippingAmount = Math.max(0, Math.floor(Number(f.shippingAmount || 0)));
-    var shippingSize = String(f.shippingSize || '');
+    // === 送料計算（まとめ商品: 常に大サイズ × 数量） ===
     var shippingPref = String(f.shippingPref || '');
+    var shippingSize = 'large';
+    var shippingAmount = 0;
+    if (shippingPref) {
+      var area = SHIPPING_AREAS[shippingPref];
+      if (area && SHIPPING_RATES[area]) {
+        shippingAmount = SHIPPING_RATES[area][1] * totalQty; // [1] = 大
+      }
+    }
 
     // 送料無料クーポン
     if (validatedCoupon && validatedCoupon.type === 'shipping_free') {
@@ -149,7 +161,7 @@ function apiBulkSubmit(form, items) {
       }
     }
     if (shippingAmount > 0) {
-      var shippingLabel = '【送料: ¥' + shippingAmount + '（' + (shippingPref || '') + '・' + (shippingSize === 'small' ? '小' : '大') + '・税込）】';
+      var shippingLabel = '【送料: ¥' + shippingAmount + '（' + (shippingPref || '') + '・大×' + totalQty + '・税込）】';
       note = note ? (note + '\n' + shippingLabel) : shippingLabel;
     }
 

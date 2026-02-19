@@ -61,11 +61,17 @@ function bulk_readProductsFromSheet_() {
       if (url) images.push(url);
     }
 
+    var discount = Number(row[c.discount]) || 0;
+    if (discount < 0 || discount > 1) discount = 0;
+    var basePrice = Number(row[c.price]) || 0;
+
     products.push({
       productId: productId,
       name: String(row[c.name] || '').trim(),
       description: String(row[c.description] || '').trim(),
-      price: Number(row[c.price]) || 0,
+      price: basePrice,
+      discountRate: discount,
+      discountedPrice: discount > 0 ? Math.round(basePrice * (1 - discount)) : basePrice,
       unit: String(row[c.unit] || '').trim(),
       tag: String(row[c.tag] || '').trim(),
       images: images,

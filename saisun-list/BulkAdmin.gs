@@ -1,12 +1,52 @@
 // =====================================================
-// BulkAdmin.gs — まとめ商品 管理（Admin.htmlのモーダルから呼び出し）
+// BulkAdmin.gs — まとめ商品 管理（スプレッドシートのモーダルダイアログ）
 // =====================================================
-// Admin.html の google.script.run から直接呼び出される関数群。
-// 商品一覧取得、新規登録、編集、削除、Google Drive画像選択に対応。
+// onOpen() で追加されたメニューから呼ばれる。
+// SpreadsheetApp.getUi().showModalDialog() でモーダルを表示。
+
+// =============================================================
+// メニューから呼ばれるモーダル表示関数
+// =============================================================
+
+/**
+ * 新規登録モーダルを表示
+ */
+function showBulkNewProductModal() {
+  var html = HtmlService.createHtmlOutputFromFile('BulkAdminModal')
+    .setWidth(620)
+    .setHeight(680);
+  SpreadsheetApp.getUi().showModalDialog(html, 'まとめ商品 — 新規登録');
+}
+
+/**
+ * 商品一覧（編集・削除）モーダルを表示
+ */
+function showBulkProductListModal() {
+  var html = HtmlService.createHtmlOutputFromFile('BulkAdminList')
+    .setWidth(700)
+    .setHeight(600);
+  SpreadsheetApp.getUi().showModalDialog(html, 'まとめ商品 — 一覧 / 編集 / 削除');
+}
+
+/**
+ * 編集モーダルを表示（一覧から呼ばれる）
+ */
+function showBulkEditProductModal(productId) {
+  var t = HtmlService.createTemplate(
+    '<script>var EDIT_PRODUCT_ID = "<?= productId ?>";</script>'
+    + HtmlService.createHtmlOutputFromFile('BulkAdminModal').getContent()
+  );
+  t.productId = productId;
+  var html = t.evaluate().setWidth(620).setHeight(680);
+  SpreadsheetApp.getUi().showModalDialog(html, 'まとめ商品 — 編集');
+}
+
+// =============================================================
+// 内部ヘルパー
+// =============================================================
 
 /**
  * ユニークな商品IDを生成
- * 形式: BLK-XXXXXXXX (8桁英数字)
  */
 function bulkAdmin_generateId_() {
   var chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -44,6 +84,9 @@ function bulkAdmin_getAllProducts_() {
       images.push(String(row[imgIdx] || '').trim());
     }
 
+    var discount = Number(row[c.discount]) || 0;
+    if (discount < 0 || discount > 1) discount = 0;
+
     products.push({
       rowIndex: i + 2,
       productId: productId,
@@ -56,7 +99,8 @@ function bulkAdmin_getAllProducts_() {
       minQty: Number(row[c.minQty]) || 1,
       maxQty: Number(row[c.maxQty]) || 99,
       sortOrder: Number(row[c.sortOrder]) || 999,
-      active: row[c.active] === true || String(row[c.active]).toUpperCase() === 'TRUE'
+      active: row[c.active] === true || String(row[c.active]).toUpperCase() === 'TRUE',
+      discount: discount
     });
   }
 
@@ -65,11 +109,11 @@ function bulkAdmin_getAllProducts_() {
 }
 
 // =============================================================
-// Admin.html から google.script.run で直接呼ばれる関数
+// google.script.run から呼ばれる関数
 // =============================================================
 
 /**
- * 管理画面: まとめ商品一覧 + 新規ID取得
+ * 商品一覧 + 新規ID取得
  */
 function adminBulkGetProducts() {
   return {
@@ -80,15 +124,14 @@ function adminBulkGetProducts() {
 }
 
 /**
- * 管理画面: 新しいユニークID発行
+ * 新しいユニークID発行
  */
 function adminBulkNewId() {
   return { ok: true, id: bulkAdmin_generateId_() };
 }
 
 /**
- * 管理画面: 商品を保存（新規 or 更新）
- * @param {object} product - 商品データ
+ * 商品を保存（新規 or 更新）
  */
 function adminBulkSaveProduct(product) {
   if (!product || !product.productId) {
@@ -110,6 +153,9 @@ function adminBulkSaveProduct(product) {
     images[i] = String(images[i] || '').trim();
   }
 
+  var discount = Number(product.discount) || 0;
+  if (discount < 0 || discount > 1) discount = 0;
+
   var rowData = [];
   rowData[c.productId] = String(product.productId).trim();
   rowData[c.name] = String(product.name).trim();
@@ -126,6 +172,7 @@ function adminBulkSaveProduct(product) {
   rowData[c.maxQty] = Math.max(1, Number(product.maxQty) || 99);
   rowData[c.sortOrder] = Number(product.sortOrder) || 999;
   rowData[c.active] = product.active !== false;
+  rowData[c.discount] = discount;
 
   var lastRow = sh.getLastRow();
   var existingRow = 0;
@@ -155,8 +202,7 @@ function adminBulkSaveProduct(product) {
 }
 
 /**
- * 管理画面: 商品削除
- * @param {string} productId
+ * 商品削除
  */
 function adminBulkDeleteProduct(productId) {
   if (!productId) return { ok: false, message: '商品IDが必要です。' };
@@ -183,7 +229,7 @@ function adminBulkDeleteProduct(productId) {
 }
 
 /**
- * 管理画面: Google Drive OAuth トークン取得（Picker API用）
+ * Google Drive OAuth トークン取得（Picker API用）
  */
 function adminBulkGetOAuthToken() {
   DriveApp.getRootFolder();
@@ -191,8 +237,7 @@ function adminBulkGetOAuthToken() {
 }
 
 /**
- * 管理画面: Drive ファイルIDから画像URLを生成 + 共有設定
- * @param {string} fileId
+ * Drive ファイルIDから画像URLを生成 + 共有設定
  */
 function adminBulkGetDriveImageUrl(fileId) {
   if (!fileId) return { ok: false, message: 'ファイルIDが必要です。' };
@@ -205,4 +250,17 @@ function adminBulkGetDriveImageUrl(fileId) {
   } catch (e) {
     return { ok: false, message: 'ファイルにアクセスできません: ' + (e.message || e) };
   }
+}
+
+/**
+ * 単一商品取得（編集モーダル用）
+ */
+function adminBulkGetProduct(productId) {
+  var all = bulkAdmin_getAllProducts_();
+  for (var i = 0; i < all.length; i++) {
+    if (all[i].productId === productId) {
+      return { ok: true, product: all[i] };
+    }
+  }
+  return { ok: false, message: '商品が見つかりません。' };
 }

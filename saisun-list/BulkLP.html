@@ -42,6 +42,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 .product-bottom{display:flex;align-items:center;justify-content:space-between;margin-top:12px}
 .product-price{font-size:20px;font-weight:800;color:#e74c3c}
 .product-price small{font-size:12px;font-weight:400;color:#999}
+.product-price .original{font-size:13px;font-weight:400;color:#999;text-decoration:line-through;margin-right:6px}
+.product-price .disc-badge{display:inline-block;font-size:10px;background:#e74c3c;color:#fff;padding:2px 6px;border-radius:4px;margin-left:4px;font-weight:700;vertical-align:middle}
 .qty-control{display:flex;align-items:center;border:1px solid #ddd;border-radius:8px;overflow:hidden}
 .qty-btn{width:36px;height:36px;border:none;background:#f5f5f5;font-size:18px;cursor:pointer;color:#555;font-weight:700}
 .qty-btn:active{background:#e0e0e0}
@@ -299,6 +301,15 @@ function renderProductCard(p, idx) {
   var tagHtml = p.tag ? '<span class="product-tag">' + escHtml(p.tag) + '</span>' : '';
   var qty = G.cart[p.productId] || 0;
 
+  var priceHtml = '';
+  if (p.discountRate > 0) {
+    priceHtml = '<span class="original">¥' + numFmt(p.price) + '</span>'
+      + '¥' + numFmt(p.discountedPrice) + '<small>' + escHtml(p.unit) + '</small>'
+      + '<span class="disc-badge">' + Math.round(p.discountRate * 100) + '%OFF</span>';
+  } else {
+    priceHtml = '¥' + numFmt(p.price) + '<small>' + escHtml(p.unit) + '</small>';
+  }
+
   return '<div class="product-card">'
     + imgHtml
     + '<div class="product-body">'
@@ -306,7 +317,7 @@ function renderProductCard(p, idx) {
     + '<div class="product-desc">' + escHtml(p.description) + '</div>'
     + tagHtml
     + '<div class="product-bottom">'
-    + '<div class="product-price">¥' + numFmt(p.price) + '<small>' + escHtml(p.unit) + '</small></div>'
+    + '<div class="product-price">' + priceHtml + '</div>'
     + '<div class="qty-control">'
     + '<button class="qty-btn" onclick="changeQty(\'' + escAttr(p.productId) + '\',-1)">−</button>'
     + '<input class="qty-value" id="qty_' + escAttr(p.productId) + '" value="' + qty + '" readonly>'
@@ -376,7 +387,8 @@ function updateCart() {
     var qty = G.cart[pid];
     var p = productMap[pid];
     if (!p) continue;
-    var line = p.price * qty;
+    var unitPrice = (p.discountedPrice !== undefined) ? p.discountedPrice : p.price;
+    var line = unitPrice * qty;
     subtotal += line;
     totalQty += qty;
     rows += '<div class="cart-row"><span>' + escHtml(p.name) + ' x' + qty + escHtml(p.unit) + '</span><span>¥' + numFmt(line) + '</span></div>';
@@ -409,7 +421,7 @@ function updateCart() {
   var shipping = (G.coupon && G.coupon.freeShipping) ? 0 : G.shipping;
 
   if (shipping > 0) {
-    rows += '<div class="cart-row"><span>送料（' + escHtml(G.shippingPref || '未入力') + '）</span><span>¥' + numFmt(shipping) + '</span></div>';
+    rows += '<div class="cart-row"><span>送料（' + escHtml(G.shippingPref || '未入力') + '・大×' + totalQty + '）</span><span>¥' + numFmt(shipping) + '</span></div>';
   } else if (shipping === 0 && G.shippingPref) {
     rows += '<div class="cart-row"><span>送料</span><span>¥0（無料）</span></div>';
   }
@@ -450,9 +462,10 @@ function calcShipping(totalQty) {
   var area = areas[pref];
   if (!area || !rates[area]) { G.shipping = 0; return; }
 
-  G.shippingSize = totalQty <= 10 ? 'small' : 'large';
-  var sizeIdx = totalQty <= 10 ? 0 : 1;
-  G.shipping = rates[area][sizeIdx];
+  // まとめ商品: 常に大サイズ × 数量
+  G.shippingSize = 'large';
+  var largeRate = rates[area][1]; // [1] = 大
+  G.shipping = largeRate * totalQty;
 }
 
 function detectPrefClient(text) {
@@ -538,7 +551,13 @@ function calcSubtotal() {
   var productMap = {};
   G.products.forEach(function(p) { productMap[p.productId] = p; });
   var sum = 0;
-  Object.keys(G.cart).forEach(function(pid) { var p = productMap[pid]; if (p) sum += p.price * G.cart[pid]; });
+  Object.keys(G.cart).forEach(function(pid) {
+    var p = productMap[pid];
+    if (p) {
+      var unitPrice = (p.discountedPrice !== undefined) ? p.discountedPrice : p.price;
+      sum += unitPrice * G.cart[pid];
+    }
+  });
   return sum;
 }
 
