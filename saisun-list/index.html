@@ -329,7 +329,7 @@
         </div>
       </div>
       <div style="display:flex; gap:16px; margin-top:8px; flex-wrap:wrap; align-items:center;">
-        <a href="<?= bulkUrl || '#' ?>" id="bulkLink" onclick="navigateToBulk(event)" style="font-size:13px; font-weight:700; color:#ffd700; text-decoration:none; background:rgba(255,215,0,.12); padding:4px 10px; border-radius:8px;">まとめ商品</a>
+        <a href="<?= bulkUrl || '#' ?>" id="bulkLink" target="_top" onclick="navigateToBulk(event)" style="font-size:13px; font-weight:700; color:#ffd700; text-decoration:none; background:rgba(255,215,0,.12); padding:4px 10px; border-radius:8px;">まとめ商品</a>
         <a href="#" id="openGuideLink" style="font-size:13px; font-weight:600; color:#93c5fd; text-decoration:none;">商品ガイド</a>
         <a href="#" id="openShippingLink" style="font-size:13px; font-weight:600; color:#93c5fd; text-decoration:none;">送料表</a>
         <a href="#" id="openContactLink" style="font-size:13px; font-weight:600; color:#93c5fd; text-decoration:none;">お問い合わせ</a>
@@ -1433,6 +1433,9 @@ function updateShippingDisplay_() {
   var grandTotal = productTotal + result.amount;
   totalEl.style.display = '';
   totalEl.innerHTML = 'お支払い合計：' + yen(grandTotal);
+
+  // 送料詳細をlocalStorageに保存（まとめ商品ページでの表示用）
+  saveCartStorage();
 }
 
 /** 商品代合計（割引・ポイント適用後） */
@@ -2348,11 +2351,15 @@ function loadCartStorage() {
 
 function saveCartStorage() {
   try {
-    var shippingAmount = (state.lastShipping && state.lastShipping.amount !== null) ? state.lastShipping.amount : 0;
+    var sh = state.lastShipping || {};
+    var shippingAmount = (sh.amount !== undefined && sh.amount !== null) ? sh.amount : 0;
     localStorage.setItem('estimate_cart_v2', JSON.stringify({
       ids: state.cart.ids || [],
       itemsById: state.cart.itemsById || {},
-      shipping: shippingAmount
+      shipping: shippingAmount,
+      shippingLabel: sh.label || '',
+      shippingPref: sh.pref || '',
+      shippingSizeLabel: sh.sizeLabel || ''
     }));
   } catch (e) {}
 }
@@ -4646,21 +4653,36 @@ function logPageView_() {
 // =====================================================
 function navigateToBulk(e) {
   e.preventDefault();
-  var link = document.getElementById('bulkLink');
-  var url = link ? link.href : '';
-  if (!url || url === '#' || url.endsWith('#')) {
-    // テンプレート変数が空の場合、現在のURLから構築
-    try {
-      google.script.url.getLocation(function(loc) {
-        var base = window.location.href.split('?')[0];
-        window.top.location.href = base + '?page=bulk';
-      });
-    } catch (err) {
-      // フォールバック
-      window.top.location.href = window.location.href.split('?')[0] + '?page=bulk';
+  // google.script.run でサーバー側からURLを取得して遷移（最も確実）
+  try {
+    google.script.run
+      .withSuccessHandler(function(url) {
+        if (url) {
+          window.open(url, '_top');
+        } else {
+          // フォールバック: テンプレート変数から
+          var link = document.getElementById('bulkLink');
+          var href = link ? link.getAttribute('href') : '';
+          if (href && href !== '#') {
+            window.open(href, '_top');
+          }
+        }
+      })
+      .withFailureHandler(function() {
+        var link = document.getElementById('bulkLink');
+        var href = link ? link.getAttribute('href') : '';
+        if (href && href !== '#') {
+          window.open(href, '_top');
+        }
+      })
+      .getBulkPageUrl();
+  } catch (err) {
+    // google.script.run が使えない場合のフォールバック
+    var link = document.getElementById('bulkLink');
+    var href = link ? link.getAttribute('href') : '';
+    if (href && href !== '#') {
+      window.open(href, '_top');
     }
-  } else {
-    window.top.location.href = url;
   }
 }
 
