@@ -1,6 +1,8 @@
 // APP_CONFIG.data.spreadsheetId と同じスプレッドシートをログ先に使用
 var LOG_SPREADSHEET_ID = String(APP_CONFIG.data.spreadsheetId || '');
 const LOG_SHEET_NAME = "アクセスログ";
+// グローバルスコープ参照（doPost内で関数を動的に解決するため）
+var _global = this;
 
 function doGet(e) {
   var p = (e && e.parameter) ? e.parameter : {};
@@ -75,50 +77,33 @@ function doPost(e) {
     var args = body.args || [];
     console.log('doPost: action=' + action);
 
-    // 許可されたAPI関数のマップ
-    var allowed = {
-      'apiGetCachedProducts': apiGetCachedProducts,
-      'apiInit': apiInit,
-      'apiSearch': apiSearch,
-      'apiGetStatusDigest': apiGetStatusDigest,
-      'apiSyncHolds': apiSyncHolds,
-      'apiSubmitEstimate': apiSubmitEstimate,
-      'apiGetProductDetail': apiGetProductDetail,
-      'apiGetAllDetails': apiGetAllDetails,
-      'apiRefreshOpenState': apiRefreshOpenState,
-      'apiLogPV': apiLogPV,
-      // お問い合わせ
-      'apiSendContactForm': apiSendContactForm,
-      // 顧客認証API
-      'apiRegisterCustomer': apiRegisterCustomer,
-      'apiLoginCustomer': apiLoginCustomer,
-      'apiValidateSession': apiValidateSession,
-      'apiLogoutCustomer': apiLogoutCustomer,
-      'apiUpdateCustomerProfile': apiUpdateCustomerProfile,
-      'apiRequestPasswordReset': apiRequestPasswordReset,
-      'apiRecoverEmail': apiRecoverEmail,
-      'apiChangePassword': apiChangePassword,
-      'apiGetMyPage': apiGetMyPage,
-      // KOMOJU決済API
-      'apiCreateKomojuSession': apiCreateKomojuSession,
-      'apiCheckPaymentStatus': apiCheckPaymentStatus,
-      'apiCancelOrder': apiCancelOrder,
-      // CSRFトークン発行
-      'apiGetCsrfToken': apiGetCsrfToken,
-      // まとめ商品API
-      'apiBulkInit': apiBulkInit,
-      'apiBulkSubmit': apiBulkSubmit,
-      // AIチャットボット
-      'apiChatbot': apiChatbot,
-      // クーポン検証
-      'apiValidateCoupon': apiValidateCoupon,
-      // 管理者用: 既存受付番号に商品選択を紐付け
-      'apiAdminLinkOrder': apiAdminLinkOrder
-    };
+    // 許可されたAPI関数名のホワイトリスト
+    // ※ 直接参照ではなく文字列で定義し、動的に解決する
+    //   （1つのファイルのロードに失敗しても他のAPIが全滅しない）
+    var allowedNames = [
+      'apiGetCachedProducts', 'apiInit', 'apiSearch',
+      'apiGetStatusDigest', 'apiSyncHolds', 'apiSubmitEstimate',
+      'apiGetProductDetail', 'apiGetAllDetails', 'apiRefreshOpenState', 'apiLogPV',
+      'apiSendContactForm',
+      'apiRegisterCustomer', 'apiLoginCustomer', 'apiValidateSession',
+      'apiLogoutCustomer', 'apiUpdateCustomerProfile',
+      'apiRequestPasswordReset', 'apiRecoverEmail', 'apiChangePassword', 'apiGetMyPage',
+      'apiCreateKomojuSession', 'apiCheckPaymentStatus', 'apiCancelOrder',
+      'apiGetCsrfToken',
+      'apiBulkInit', 'apiBulkSubmit',
+      'apiChatbot', 'apiValidateCoupon', 'apiAdminLinkOrder'
+    ];
+    var allowedSet = {};
+    for (var ai = 0; ai < allowedNames.length; ai++) allowedSet[allowedNames[ai]] = true;
 
-    var fn = allowed[action];
-    if (!fn) {
+    if (!allowedSet[action]) {
       return jsonResponse_({ ok: false, message: '不明なアクション: ' + action });
+    }
+
+    var fn = _global[action];
+    if (typeof fn !== 'function') {
+      console.error('API function not available: ' + action);
+      return jsonResponse_({ ok: false, message: action + ' は現在利用できません。管理者にお問い合わせください。' });
     }
 
     // レート制限チェック（userKeyはargsの第1引数に入っている想定）
