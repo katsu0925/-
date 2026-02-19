@@ -655,6 +655,7 @@ function updateCart() {
   var el = document.getElementById('cartSection');
   var keys = Object.keys(G.cart);
   if (keys.length === 0) {
+    recalcDetauriShipping_(); // デタウリ送料もリアルタイム計算
     var emptyHtml = '<div class="cart-empty">商品を選択してください</div>';
     if (G.detauriCartCount > 0) {
       var detRows = '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
@@ -727,6 +728,7 @@ function updateCart() {
 
   // 送料
   calcShipping(totalQty);
+  recalcDetauriShipping_(); // デタウリ送料もリアルタイム計算
   var shipping = (G.coupon && G.coupon.freeShipping) ? 0 : G.shipping;
 
   if (shipping > 0) {
@@ -795,6 +797,59 @@ function calcShipping(totalQty) {
   G.shippingSize = 'large';
   var largeRate = rates[area][1]; // [1] = 大
   G.shipping = largeRate * totalQty;
+}
+
+// デタウリ送料をリアルタイム計算（まとめ商品ページ上で住所入力時）
+function recalcDetauriShipping_() {
+  if (G.detauriCartCount === 0) return;
+  var addr = document.getElementById('address').value;
+  if (!addr) { G.detauriShipping = 0; G.detauriShippingPref = ''; G.detauriShippingSizeLabel = ''; return; }
+
+  var pref = detectPrefClient(addr);
+  if (!pref) { G.detauriShipping = 0; G.detauriShippingPref = ''; G.detauriShippingSizeLabel = ''; return; }
+
+  var areas = G.settings.shippingAreas || {};
+  var rates = G.settings.shippingRates || {};
+  var area = areas[pref];
+  if (!area || !rates[area]) { G.detauriShipping = 0; return; }
+
+  // estimate_cart_v2 からアイテムの厚み情報を取得
+  try {
+    var raw = localStorage.getItem(DETAURI_CART_KEY);
+    if (!raw) return;
+    var j = JSON.parse(raw);
+    var ids = Array.isArray(j.ids) ? j.ids : [];
+    var items = j.itemsById || {};
+    var thick = 0, thin = 0;
+    for (var i = 0; i < ids.length; i++) {
+      var it = items[ids[i]];
+      if (!it) continue;
+      if (String(it.shippingMethod || '').trim() === 'ゆうパケットポスト') thin++;
+      else thick++;
+    }
+    var total = thick + thin;
+    if (total === 0) return;
+
+    // サイズ判定（デタウリと同じロジック）
+    var size = null, sizeLabel = '';
+    if (thin === 0) {
+      if (total > 20) { G.detauriShipping = 0; G.detauriShippingSizeLabel = '超過'; return; }
+      size = 'large'; sizeLabel = '大';
+    } else if (thick === 0) {
+      if (total > 40) { G.detauriShipping = 0; G.detauriShippingSizeLabel = '超過'; return; }
+      size = total <= 10 ? 'small' : 'large';
+      sizeLabel = total <= 10 ? '小' : '大';
+    } else {
+      if (total > 40) { G.detauriShipping = 0; G.detauriShippingSizeLabel = '超過'; return; }
+      if (thick >= 10) { size = 'large'; sizeLabel = '大'; }
+      else { size = total <= 10 ? 'small' : 'large'; sizeLabel = total <= 10 ? '小' : '大'; }
+    }
+
+    var rateIdx = (size === 'small') ? 0 : 1;
+    G.detauriShipping = rates[area][rateIdx];
+    G.detauriShippingPref = pref;
+    G.detauriShippingSizeLabel = sizeLabel;
+  } catch (e) {}
 }
 
 function detectPrefClient(text) {

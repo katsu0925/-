@@ -1514,6 +1514,20 @@ function updateShippingDisplay_() {
   saveCartStorage();
 }
 
+/** まとめ商品の送料を現在の住所から計算 */
+function calcBulkShipping_(bulkTotalQty) {
+  if (bulkTotalQty === 0) return 0;
+  var addressEl = $('address');
+  var address = addressEl ? addressEl.value.trim() : '';
+  if (!address) return 0;
+  var pref = detectPrefectureFromAddress_(address);
+  if (!pref) return 0;
+  var area = SHIPPING_AREAS[pref];
+  if (!area || !SHIPPING_RATES[area]) return 0;
+  // まとめ商品は常に大サイズ × 数量
+  return SHIPPING_RATES[area][1] * bulkTotalQty;
+}
+
 /** 商品代合計（割引・ポイント適用後） */
 function calcProductTotal_() {
   var ids = state.cart.ids || [];
@@ -3185,9 +3199,10 @@ function updateCartPrice() {
     discounted = Math.round(sum * (1 - discountRate));
   }
 
-  // まとめ商品カートの合算
+  // まとめ商品カートの合算（送料はデタウリ上でリアルタイム計算）
   var bulk = loadBulkCartStorage();
-  var bulkTotal = bulk.subtotal + bulk.shipping;
+  var bulkShipCalc = calcBulkShipping_(bulk.totalQty);
+  var bulkTotal = bulk.subtotal + bulkShipCalc;
   var combinedTotal = (discounted < sum ? discounted : sum) + bulkTotal;
 
   if (bulk.subtotal > 0) {
@@ -4143,16 +4158,17 @@ function renderCartModal_() {
     $('sumPrice').innerHTML = 'デタウリ金額：<span class="price-old">' + yen(sum) + '</span> → <span class="price-new">' + yen(discounted) + '</span>' + discountLabel;
   } else { $('sumPrice').innerHTML = 'デタウリ金額：' + yen(discounted); }
 
-  // まとめ商品カートの表示
+  // まとめ商品カートの表示（送料はデタウリ上でリアルタイム計算）
   var bulk = loadBulkCartStorage();
   var bulkEl = $('sumBulkCart');
   if (bulk.subtotal > 0) {
     var detauriFinal = (discounted < sum) ? discounted : sum;
+    var bulkShip = calcBulkShipping_(bulk.totalQty);
     var bulkHtml = 'まとめ商品 商品代（' + bulk.totalQty + '点）：' + yen(bulk.subtotal);
-    if (bulk.shipping > 0) {
-      bulkHtml += '<br>まとめ商品 送料：' + yen(bulk.shipping);
+    if (bulkShip > 0) {
+      bulkHtml += '<br>まとめ商品 送料（大×' + bulk.totalQty + '）：' + yen(bulkShip);
     }
-    var bulkTotal = bulk.subtotal + bulk.shipping;
+    var bulkTotal = bulk.subtotal + bulkShip;
     bulkHtml += '<br><span style="font-weight:700;font-size:14px;color:#1e293b;">両チャネル合計（税込）：' + yen(detauriFinal + bulkTotal) + '</span>';
     bulkEl.innerHTML = bulkHtml;
     bulkEl.style.display = '';
@@ -4202,16 +4218,17 @@ function updateCartPrices_() {
     $('sumPrice').innerHTML = 'デタウリ金額：<span class="price-old">' + yen(sum) + '</span> → <span class="price-new">' + yen(discounted) + '</span>' + discountLabel;
   } else { $('sumPrice').innerHTML = 'デタウリ金額：' + yen(discounted); }
 
-  // まとめ商品カートの表示
+  // まとめ商品カートの表示（送料はデタウリ上でリアルタイム計算）
   var bulk = loadBulkCartStorage();
   var bulkEl = $('sumBulkCart');
   if (bulk.subtotal > 0) {
     var detauriFinal2 = (discounted < sum) ? discounted : sum;
+    var bulkShip2 = calcBulkShipping_(bulk.totalQty);
     var bulkHtml2 = 'まとめ商品 商品代（' + bulk.totalQty + '点）：' + yen(bulk.subtotal);
-    if (bulk.shipping > 0) {
-      bulkHtml2 += '<br>まとめ商品 送料：' + yen(bulk.shipping);
+    if (bulkShip2 > 0) {
+      bulkHtml2 += '<br>まとめ商品 送料（大×' + bulk.totalQty + '）：' + yen(bulkShip2);
     }
-    var bulkTotal2 = bulk.subtotal + bulk.shipping;
+    var bulkTotal2 = bulk.subtotal + bulkShip2;
     bulkHtml2 += '<br><span style="font-weight:700;font-size:14px;color:#1e293b;">両チャネル合計（税込）：' + yen(detauriFinal2 + bulkTotal2) + '</span>';
     bulkEl.innerHTML = bulkHtml2;
     bulkEl.style.display = '';
