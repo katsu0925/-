@@ -1006,8 +1006,8 @@ function onOpen(e) {
     .addItem("不要トリガー一括削除", "cleanupObsoleteTriggers")
     .addToUi();
 
-  // まとめ商品管理メニューは、まとめ商品スプレッドシートのメニューバーに表示
-  // （setupBulkSheetTrigger() で設定済み）
+  // まとめ商品管理メニューは、まとめ商品スプレッドシートの
+  // コンテナバインドスクリプト（saisun-list-bulk/）で表示
 }
 
 function clearAllChecks() {
