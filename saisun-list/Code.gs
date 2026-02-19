@@ -22,6 +22,13 @@ function doGet(e) {
   if (String(p.page || '') === 'bulk') {
     var tBulk = HtmlService.createTemplateFromFile('BulkLP');
     tBulk.appTitle = APP_CONFIG.appTitle;
+    // デタウリ（個品LP）へのリンクURLをテンプレートに渡す
+    var detauriUrl = '';
+    try { detauriUrl = SITE_CONSTANTS.SITE_URL || ''; } catch (e) {}
+    if (!detauriUrl) {
+      try { detauriUrl = ScriptApp.getService().getUrl(); } catch (e) {}
+    }
+    tBulk.detauriUrl = detauriUrl || '';
     return tBulk.evaluate()
       .setTitle(APP_CONFIG.appTitle + ' - まとめ商品')
       .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
