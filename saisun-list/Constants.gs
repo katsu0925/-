@@ -38,8 +38,8 @@ var AUTH_CONSTANTS = {
 var PAYMENT_CONSTANTS = {
   KOMOJU_API_URL: 'https://komoju.com/api/v1',
   PAYMENT_EXPIRY_SECONDS: 259200,                  // 決済期限（3日 = 72時間）
-  PAYMENT_METHODS: ['credit_card', 'konbini', 'bank_transfer', 'paypay', 'pay_easy']
-  // 申請中: paidy, apple_pay
+  PAYMENT_METHODS: ['credit_card', 'konbini', 'bank_transfer', 'paypay', 'pay_easy', 'apple_pay']
+  // 申請中: paidy
   // LINE Pay: サービス終了のため削除
 };
 

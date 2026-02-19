@@ -1041,7 +1041,7 @@
           <li><strong>コンビニ決済</strong>：220円（税込）の決済手数料がかかります</li>
           <li><strong>銀行振込</strong>：振込手数料はお客様のご負担となります（金額は金融機関により異なります）</li>
           <li><strong>ペイジー</strong>：振込手数料はお客様のご負担となります（金額は金融機関により異なります）</li>
-          <li style="color:#888;">クレジットカード・PayPay：手数料はかかりません</li>
+          <li style="color:#888;">クレジットカード・PayPay・Apple Pay：手数料はかかりません</li>
         </ul>
       </div>
     </div>
@@ -1090,12 +1090,12 @@
         </tr>
         <tr>
           <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">支払方法</th>
-          <td style="padding:12px;border:1px solid #e2e8f0;">クレジットカード（Visa/Mastercard/JCB/AMEX/Diners/Discover）、コンビニ決済、銀行振込、PayPay、ペイジー</td>
+          <td style="padding:12px;border:1px solid #e2e8f0;">クレジットカード（Visa/Mastercard/JCB/AMEX/Diners/Discover）、コンビニ決済、銀行振込、PayPay、ペイジー、Apple Pay</td>
         </tr>
         <tr>
           <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">支払時期</th>
           <td style="padding:12px;border:1px solid #e2e8f0;">
-            クレジットカード・PayPay：ご注文時に決済<br>
+            クレジットカード・PayPay・Apple Pay：ご注文時に決済<br>
             コンビニ決済：ご注文後3日以内にお支払い<br>
             銀行振込・ペイジー：ご注文後3日以内にお振込み
           </td>
@@ -1105,7 +1105,7 @@
           <td style="padding:12px;border:1px solid #e2e8f0;">
             コンビニ決済：<strong>220円（税込）</strong>の決済手数料がかかります（お客様負担）<br>
             銀行振込・ペイジー：<strong>振込手数料</strong>はお客様のご負担となります（金額は金融機関により異なります）<br>
-            <span style="font-size:12px;color:#888;">※クレジットカード・PayPay：手数料はかかりません</span>
+            <span style="font-size:12px;color:#888;">※クレジットカード・PayPay・Apple Pay：手数料はかかりません</span>
           </td>
         </tr>
         <tr>
@@ -1125,7 +1125,8 @@
             当方の都合による返金の場合、ご利用の決済方法に応じて返金処理を行います。<br>
             クレジットカード：カード会社経由での返金<br>
             コンビニ決済・銀行振込・ペイジー：ご指定の銀行口座へ返金<br>
-            PayPay：PayPay残高への返金
+            PayPay：PayPay残高への返金<br>
+            Apple Pay：カード会社経由での返金
           </td>
         </tr>
       </table>
@@ -4787,9 +4788,9 @@ boot();
 
     // --- 決済 ---
     { q: '決済方法は？', category: '決済',
-      a: '【ご利用可能な決済方法】\n・クレジットカード（Visa/Mastercard/JCB/AMEX/Diners/Discover）\n・コンビニ決済（別途手数料220円）\n・銀行振込（振込手数料はお客様負担）\n・PayPay\n・ペイジー（振込手数料はお客様負担）\n\nクレジットカードまたはPayPayが最もスムーズにお手続きいただけます。' },
+      a: '【ご利用可能な決済方法】\n・クレジットカード（Visa/Mastercard/JCB/AMEX/Diners/Discover）\n・Apple Pay\n・コンビニ決済（別途手数料220円）\n・銀行振込（振込手数料はお客様負担）\n・PayPay\n・ペイジー（振込手数料はお客様負担）\n\nクレジットカード・Apple Pay・PayPayが最もスムーズにお手続きいただけます。' },
     { q: 'コンビニ決済の手数料は？', category: '決済',
-      a: 'コンビニ決済をご利用の場合、別途220円の手数料がかかります。\n\n手数料を抑えたい場合は、クレジットカードまたはPayPay決済がおすすめです。' },
+      a: 'コンビニ決済をご利用の場合、別途220円の手数料がかかります。\n\n手数料を抑えたい場合は、クレジットカード・Apple Pay・PayPay決済がおすすめです。' },
     { q: '銀行振込の手数料は？', category: '決済',
       a: '銀行振込をご利用の場合、振込手数料はお客様のご負担となります。\n手数料の金額はご利用の金融機関により異なります。\nペイジーも同様です。' },
 

@@ -335,10 +335,11 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
     exportSheet.getRange('A1').setValue('受付番号');
     exportSheet.getRange('B1').setValue(receiptNo);
     exportSheet.getRange('E1').setValue(customerName);
-    // I1には書き込まない
+    exportSheet.getRange('H1').setValue('合計金額');
 
     var headerRow = ['確認', '箱ID', '管理番号(照合用)', 'ブランド', 'AIタイトル候補', 'アイテム', 'サイズ', '状態', '傷汚れ詳細', '採寸情報', '即出品用説明文（コピペ用）', '金額'];
     var exportData = [headerRow];
+    var totalPrice = 0;
 
     outArr.forEach(function(listRow) {
       var boxId = listRow[1];
@@ -395,11 +396,13 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
       }
 
       var priceText = price.toLocaleString('ja-JP') + '円';
+      totalPrice += price;
 
       exportData.push([false, boxId, targetId, brand, aiTitle, item, size, condition, damageDetail, measurementText, description, priceText]);
     });
 
     exportSheet.getRange(2, 1, exportData.length, exportData[0].length).setValues(exportData);
+    exportSheet.getRange('I1').setValue(totalPrice.toLocaleString('ja-JP') + '円');
     if (exportData.length > 1) {
       exportSheet.getRange(3, 1, exportData.length - 1, 1).insertCheckboxes();
     }
