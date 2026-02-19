@@ -105,7 +105,7 @@ function doPost(e) {
       'apiRequestPasswordReset', 'apiRecoverEmail', 'apiChangePassword', 'apiGetMyPage',
       'apiCreateKomojuSession', 'apiCheckPaymentStatus', 'apiCancelOrder',
       'apiGetCsrfToken',
-      'apiBulkInit', 'apiBulkSubmit',
+      'apiBulkInit', 'apiBulkSubmit', 'apiBulkPage',
       'apiChatbot', 'apiValidateCoupon', 'apiAdminLinkOrder'
     ];
     var allowedSet = {};
@@ -187,6 +187,16 @@ function getBulkPageUrl() {
     try { url = ScriptApp.getService().getUrl() + '?page=bulk'; } catch (e) {}
   }
   return url || '';
+}
+
+/** クライアントサイドルーター用: BulkLP.htmlのHTMLコンテンツを返す */
+function apiBulkPage() {
+  try {
+    var html = HtmlService.createHtmlOutputFromFile('BulkLP').getContent();
+    return { ok: true, html: html };
+  } catch (e) {
+    return { ok: false, message: e.message || String(e) };
+  }
 }
 
 function jsonResponse_(data) {

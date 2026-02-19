@@ -313,6 +313,53 @@
   </style>
 </head>
 <body>
+<script>
+// クライアントサイドルーター: ?page=bulk の場合、BulkLP.htmlを動的に読み込む
+(function() {
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('page') !== 'bulk') return;
+
+  // デタウリページの描画を完全に抑制
+  var hideStyle = document.createElement('style');
+  hideStyle.textContent = 'body > *:not(#__bulkLoader) { display: none !important; }';
+  document.head.appendChild(hideStyle);
+
+  var GAS_URL = 'https://script.google.com/macros/s/AKfycbwLN23a03qQSGA91J-82_6HlIx0kA5yUYFRxjfbjFGfnZDqynKnyJhEPsoISSQps3SmXQ/exec';
+
+  window.addEventListener('DOMContentLoaded', function() {
+    // ローディング表示
+    var loader = document.createElement('div');
+    loader.id = '__bulkLoader';
+    loader.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#1a1a2e;color:#fff;"><div style="text-align:center;"><div style="font-size:24px;margin-bottom:12px;">まとめ商品</div><div style="font-size:14px;color:#aaa;">読み込み中...</div></div></div>';
+    document.body.insertBefore(loader, document.body.firstChild);
+
+    // GAS APIからBulkLP HTMLを取得
+    fetch(GAS_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ action: 'apiBulkPage', args: [] }),
+      redirect: 'follow'
+    })
+    .then(function(res) {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    })
+    .then(function(data) {
+      if (data && data.ok && data.html) {
+        document.open();
+        document.write(data.html);
+        document.close();
+      } else {
+        throw new Error(data && data.message ? data.message : '読み込みに失敗しました');
+      }
+    })
+    .catch(function(err) {
+      var el = document.getElementById('__bulkLoader');
+      if (el) el.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:sans-serif;background:#1a1a2e;color:#ff6b6b;"><div style="text-align:center;"><div style="font-size:18px;margin-bottom:12px;">読み込みエラー</div><div style="font-size:14px;">' + (err.message || 'エラーが発生しました') + '</div><div style="margin-top:20px;"><a href="./" style="color:#93c5fd;font-size:14px;">デタウリに戻る</a></div></div></div>';
+    });
+  });
+})();
+</script>
   <div class="promo-banner" id="promoBanner">
     期間限定：会員登録で全品<strong>10%OFF</strong>（2026年9月末まで・30点割引と併用可）<a href="#" id="promoRegisterLink">今すぐ無料登録 ＞</a>
     <button class="promo-close" id="promoClose" type="button">✕</button>
