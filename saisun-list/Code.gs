@@ -41,6 +41,14 @@ function doGet(e) {
   t.topNotes = (APP_CONFIG.uiText && Array.isArray(APP_CONFIG.uiText.notes)) ? APP_CONFIG.uiText.notes : [];
   t.me = String(p.me || '');
 
+  // まとめ商品LPへのリンクURLをテンプレートに渡す
+  var bulkUrl = '';
+  try { bulkUrl = (SITE_CONSTANTS.SITE_URL || '') + '?page=bulk'; } catch (e) {}
+  if (!bulkUrl || bulkUrl === '?page=bulk') {
+    try { bulkUrl = ScriptApp.getService().getUrl() + '?page=bulk'; } catch (e) {}
+  }
+  t.bulkUrl = bulkUrl || '';
+
   return t.evaluate()
     .setTitle(APP_CONFIG.appTitle)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
