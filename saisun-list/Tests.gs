@@ -8,6 +8,12 @@
  * テストランナー
  */
 function runAllTests() {
+  // 本番環境での実行を防止（結合テストがスプレッドシートに書き込むため）
+  if (ENV_CONFIG.isProduction()) {
+    console.error('テストは本番環境では実行できません。ScriptPropertiesの ENV を "development" または "staging" に設定してください。');
+    return { pass: 0, fail: 0, results: [], error: '本番環境でのテスト実行は禁止されています' };
+  }
+
   var results = [];
   var suites = [
     { name: '認証テスト', fn: testSuite_Auth_ },

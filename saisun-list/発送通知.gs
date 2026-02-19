@@ -159,7 +159,7 @@ function shipMailOnEdit(e) {
         + '──────────────────\n'
         + 'デタウリ.Detauri\n'
         + 'https://wholesale.nkonline-tool.com/\n'
-        + 'お問い合わせ：nkonline1030@gmail.com\n'
+        + 'お問い合わせ：' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
         + '──────────────────\n';
 
       MailApp.sendEmail({ to: contactEmail, subject: custSubject, body: custBody, noReply: true });
@@ -222,6 +222,6 @@ function safeEvent_(e) {
       o.col = e.range.getColumn();
       o.sheet = e.range.getSheet().getName();
     }
-  } catch (x) {}
+  } catch (x) { console.log('optional: event info extraction: ' + (x.message || x)); }
   return o;
 }

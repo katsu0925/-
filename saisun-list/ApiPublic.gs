@@ -157,11 +157,10 @@ function apiSyncHolds(userKey, ids) {
       holdState.items = holdItems;
       holdState.updatedAt = now;
       st_setHoldState_(orderSs, holdState);
+      try { st_invalidateStatusCache_(orderSs); } catch(e) { console.log('optional: status cache invalidation: ' + (e.message || e)); }
     } finally {
-      try { lock.releaseLock(); } catch (e) {}
+      try { lock.releaseLock(); } catch (e) { console.log('optional: lock release: ' + (e.message || e)); }
     }
-
-    try { st_invalidateStatusCache_(orderSs); } catch(e) {}
 
     const digest = st_buildDigestMap_(orderSs, uk, wantIds);
     return { ok: true, digest: digest, failed: failed };
@@ -243,11 +242,11 @@ function app_getNotifyToEmails_(orderSs) {
     try {
       const owner = DriveApp.getFileById(orderSs.getId()).getOwner();
       if (owner && owner.getEmail) add(owner.getEmail());
-    } catch (e) {}
+    } catch (e) { console.log('optional: get file owner email: ' + (e.message || e)); }
   }
 
   if (!out.length) {
-    try { add(Session.getEffectiveUser().getEmail()); } catch (e) {}
+    try { add(Session.getEffectiveUser().getEmail()); } catch (e) { console.log('optional: get effective user email: ' + (e.message || e)); }
   }
 
   const uniq = {};
@@ -394,7 +393,7 @@ function app_sendOrderConfirmToCustomer_(data) {
       + '──────────────────\n'
       + 'デタウリ.Detauri\n'
       + 'https://wholesale.nkonline-tool.com/\n'
-      + 'お問い合わせ：nkonline1030@gmail.com\n'
+      + 'お問い合わせ：' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
       + '──────────────────\n';
 
     MailApp.sendEmail({
@@ -417,8 +416,8 @@ function apiGetAllDetails(managedIds) {
     // 最大500件に制限（安全のため）
     const ids = managedIds.slice(0, 500);
     
-    // データ1シートから採寸データを取得
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    // データ1シートから採寸データを取得（API文脈ではgetActiveSpreadsheet()はnullのためopenByIdを使用）
+    const ss = SpreadsheetApp.openById(APP_CONFIG.data.spreadsheetId);
     const sheet = ss.getSheetByName('データ1');
     if (!sheet) {
       return { ok: false, message: 'データ1シートが見つかりません' };
@@ -516,7 +515,10 @@ function apiSendContactForm(params) {
     var datetime = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
 
     // 1. 管理者宛通知
-    var adminTo = 'nkonline1030@gmail.com,nsdktts1030@gmail.com';
+    var adminTo = (function() {
+      try { return PropertiesService.getScriptProperties().getProperty('CONTACT_ADMIN_EMAILS') || (SITE_CONSTANTS.CONTACT_EMAIL + ',nsdktts1030@gmail.com'); }
+      catch (e) { return SITE_CONSTANTS.CONTACT_EMAIL + ',nsdktts1030@gmail.com'; }
+    })();
     var adminSubject = '【デタウリ.Detauri】お問い合わせ: ' + name;
     var adminBody = 'お問い合わせを受信しました。\n\n'
       + 'お名前: ' + name + '\n'
@@ -550,7 +552,7 @@ function apiSendContactForm(params) {
       + '──────────────────\n'
       + 'デタウリ.Detauri\n'
       + 'https://wholesale.nkonline-tool.com/\n'
-      + 'お問い合わせ：nkonline1030@gmail.com\n'
+      + 'お問い合わせ：' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
       + '──────────────────\n';
 
     MailApp.sendEmail({

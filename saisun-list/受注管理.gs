@@ -6,11 +6,15 @@
 // ステップ2: handleMissingProducts() — 欠品処理（返品+再生成 一括）
 // ═══════════════════════════════════════════
 
-var OM_SHIIRE_SS_ID = '1lp7XngTC0Nnc6SaA_-KlZ0SZVuRiVml6ICZ5L2riQTo';
+function getOmProp_(key, fallback) {
+  try { return PropertiesService.getScriptProperties().getProperty(key) || fallback; }
+  catch (e) { return fallback; }
+}
+var OM_SHIIRE_SS_ID = getOmProp_('OM_SHIIRE_SS_ID', '');
 var OM_DIST_SHEET_GID  = 1614333946;
 var OM_DIST_NAME_CELL  = 'E1';
 var OM_DIST_RECEIPT_CELL = 'B1';
-var OM_XLSX_FOLDER_ID  = '1lq8Xb_dVwz5skrXlGvrS5epTwEc_yEts';
+var OM_XLSX_FOLDER_ID  = getOmProp_('OM_XLSX_FOLDER_ID', '');
 
 // ═══════════════════════════════════════════
 // 1. 依頼展開（全自動: 展開→XLSX生成→確認リンク更新→売却反映→回収完了削除）
@@ -118,25 +122,22 @@ function handleMissingProducts() {
   var countCol = rIdx['合計点数'];
   var linkCol = rIdx['確認リンク'];
 
+  // バッチ更新: 全更新をメモリ上で処理してから一括書き込み
+  var updatedReqData = reqData.map(function(row) { return row.slice(); });
   receiptNoList.forEach(function(receiptNo) {
-    for (var i = 1; i < reqData.length; i++) {
-      if (String(reqData[i][receiptCol] || '').trim() === receiptNo) {
-        // 選択リストから欠品商品を除外
-        var currentList = String(reqData[i][selectionCol] || '');
+    for (var i = 1; i < updatedReqData.length; i++) {
+      if (String(updatedReqData[i][receiptCol] || '').trim() === receiptNo) {
+        var currentList = String(updatedReqData[i][selectionCol] || '');
         var currentIds = currentList.split(/[、,，\s]+/).map(function(s) { return s.trim(); }).filter(function(s) { return s; });
         var newIds = currentIds.filter(function(id) { return !targetSet[id]; });
-        reqSheet.getRange(i + 1, selectionCol + 1).setValue(newIds.join('、'));
-        if (countCol !== undefined) {
-          reqSheet.getRange(i + 1, countCol + 1).setValue(newIds.length);
-        }
-        // 確認リンク削除
-        if (linkCol !== undefined) {
-          reqSheet.getRange(i + 1, linkCol + 1).setValue('');
-        }
+        updatedReqData[i][selectionCol] = newIds.join('、');
+        if (countCol !== undefined) updatedReqData[i][countCol] = newIds.length;
+        if (linkCol !== undefined) updatedReqData[i][linkCol] = '';
         break;
       }
     }
   });
+  reqSheet.getRange(1, 1, updatedReqData.length, updatedReqData[0].length).setValues(updatedReqData);
 
   // --- 欠品商品: ステータス→廃棄済み、廃棄日→今日、BO列クリア ---
   // --- 同じ受付番号の残り商品: 売却済み→ステータスクリア、BO列クリア ---
@@ -447,11 +448,23 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
     om_writeSaleLog_(shiireSs, allSaleLogEntries);
   }
 
-  // --- 後処理: 回収完了から展開した行を削除（下から） ---
-  allRecoveryRows.sort(function(a, b) { return b - a; });
-  allRecoveryRows.forEach(function(r) {
-    recoverySheet.deleteRow(r);
-  });
+  // --- 後処理: 回収完了から展開した行をバッチ削除 ---
+  if (allRecoveryRows.length > 0) {
+    var recLastRow = recoverySheet.getLastRow();
+    if (recLastRow >= 2) {
+      var recData = recoverySheet.getRange(2, 1, recLastRow - 1, recoverySheet.getLastColumn()).getValues();
+      var recDelSet = {};
+      allRecoveryRows.forEach(function(r) { recDelSet[r] = true; });
+      var recKeep = [];
+      for (var ri = 0; ri < recData.length; ri++) {
+        if (!recDelSet[ri + 2]) recKeep.push(recData[ri]);
+      }
+      recoverySheet.getRange(2, 1, recData.length, recData[0].length).clearContent();
+      if (recKeep.length > 0) {
+        recoverySheet.getRange(2, 1, recKeep.length, recKeep[0].length).setValues(recKeep);
+      }
+    }
+  }
 
   SpreadsheetApp.flush();
 
@@ -668,14 +681,17 @@ function om_removeSaleLogByReceipt_(ss, receiptNo) {
   if (lastRow < 2) return;
 
   var data = logSheet.getRange(2, 1, lastRow - 1, 5).getValues();
-  var rowsToDelete = [];
-  for (var i = 0; i < data.length; i++) {
-    if (String(data[i][2] || '').trim() === receiptNo) {
-      rowsToDelete.push(i + 2);
+  // バッチ削除: 残す行だけフィルタして一括書き換え
+  var keepData = data.filter(function(row) {
+    return String(row[2] || '').trim() !== receiptNo;
+  });
+  var deletedCount = data.length - keepData.length;
+  if (deletedCount > 0) {
+    logSheet.getRange(2, 1, data.length, 5).clearContent();
+    if (keepData.length > 0) {
+      logSheet.getRange(2, 1, keepData.length, 5).setValues(keepData);
     }
   }
-  rowsToDelete.sort(function(a, b) { return b - a; });
-  rowsToDelete.forEach(function(r) { logSheet.deleteRow(r); });
 }
 
 function om_calcPriceTier_(n) {

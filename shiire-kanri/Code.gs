@@ -1,8 +1,16 @@
 function doGet(e) {
   const id = (e && e.parameter && e.parameter.id) ? String(e.parameter.id).trim() : "";
 
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  if (!ss) return HtmlService.createHtmlOutput("<p>スプレッドシートに紐づいたGASで実行してください。</p>");
+  // Web App文脈ではgetActiveSpreadsheet()がnullを返す場合があるためScript Propertiesからのフォールバック
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    var ssId = (function() { try { return PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || ''; } catch(e) { return ''; } })();
+    if (ssId) {
+      ss = SpreadsheetApp.openById(ssId);
+    } else {
+      return HtmlService.createHtmlOutput("<p>スプレッドシートに紐づいたGASで実行してください。SPREADSHEET_IDをScript Propertiesに設定するか、コンテナバインドで実行してください。</p>");
+    }
+  }
 
   const master = ss.getSheetByName("マスタ");
   if (!master) return HtmlService.createHtmlOutput("<p>シート「マスタ」が見つかりません。</p>");

@@ -20,7 +20,7 @@ function statusSync_onEdit(e) {
     const row = e.range.getRow();
     const col = e.range.getColumn();
 
-    const statusCol = 18;
+    const statusCol = (typeof REQUEST_SHEET_COLS !== 'undefined') ? REQUEST_SHEET_COLS.STATUS : 22;
     if (row <= 1) return;
     if (col !== statusCol) return;
 
@@ -66,7 +66,7 @@ function statusSync_onEdit(e) {
     st_invalidateStatusCache_(orderSs);
 
   } catch (err) {
-    try { console.error(err && err.message ? err.message : String(err)); } catch (e2) {}
+    try { console.error(err && err.message ? err.message : String(err)); } catch (e2) { console.log('optional: error logging failed: ' + (e2.message || e2)); }
   }
 }
 

@@ -1,10 +1,15 @@
-const SOURCE_SPREADSHEET_ID = '1lp7XngTC0Nnc6SaA_-KlZ0SZVuRiVml6ICZ5L2riQTo';
+function getXlsxProp_(key, fallback) {
+  try { return PropertiesService.getScriptProperties().getProperty(key) || fallback; }
+  catch (e) { return fallback; }
+}
+
+const SOURCE_SPREADSHEET_ID = getXlsxProp_('XLSX_SOURCE_SPREADSHEET_ID', '1lp7XngTC0Nnc6SaA_-KlZ0SZVuRiVml6ICZ5L2riQTo');
 const SOURCE_SHEET_GID = 1614333946;
 const NAME_SHEET_NAME = '配布用リスト';
 const NAME_CELL_A1 = 'E1';
 const RECEIPT_CELL = 'I1';
-const EXPORT_FOLDER_ID = '1lq8Xb_dVwz5skrXlGvrS5epTwEc_yEts';
-const REQUEST_SPREADSHEET_ID = '1eDkAMm_QUDFHbSzkL4IMaFeB2YV6_Gw5Dgi-HqIB2Sc';
+const EXPORT_FOLDER_ID = getXlsxProp_('XLSX_EXPORT_FOLDER_ID', '1lq8Xb_dVwz5skrXlGvrS5epTwEc_yEts');
+const REQUEST_SPREADSHEET_ID = getXlsxProp_('XLSX_REQUEST_SPREADSHEET_ID', '1eDkAMm_QUDFHbSzkL4IMaFeB2YV6_Gw5Dgi-HqIB2Sc');
 const REQUEST_SHEET_NAME = '依頼管理';
 const HEADER_RECEIPT = '受付番号';
 const HEADER_NAME = '会社名/氏名';

@@ -17,7 +17,7 @@ function st_loadLarge_(baseKey) {
       const json = u_ungzipFromB64_(cached);
       const obj = JSON.parse(json);
       if (obj) return obj;
-    } catch (e0) {}
+    } catch (e0) { console.log('optional: state cache parse: ' + (e0.message || e0)); }
   }
 
   const props = PropertiesService.getScriptProperties();
@@ -40,10 +40,10 @@ function st_loadLarge_(baseKey) {
   try {
     const obj = JSON.parse(json);
     if (obj) {
-      try { cache.put(ck, u_gzipToB64_(JSON.stringify(obj)), u_toInt_(APP_CONFIG.cache.stateSeconds, 3600)); } catch (e2) {}
+      try { cache.put(ck, u_gzipToB64_(JSON.stringify(obj)), u_toInt_(APP_CONFIG.cache.stateSeconds, 3600)); } catch (e2) { console.log('optional: state cache put: ' + (e2.message || e2)); }
       return obj;
     }
-  } catch (e3) {}
+  } catch (e3) { console.log('optional: state JSON parse: ' + (e3.message || e3)); }
   return null;
 }
 
@@ -74,7 +74,7 @@ function st_saveLarge_(baseKey, obj) {
 
   const cache = CacheService.getScriptCache();
   const ck = 'STATECACHE_V1:' + baseKey;
-  try { cache.put(ck, u_gzipToB64_(JSON.stringify(obj || {})), u_toInt_(APP_CONFIG.cache.stateSeconds, 3600)); } catch (e0) {}
+  try { cache.put(ck, u_gzipToB64_(JSON.stringify(obj || {})), u_toInt_(APP_CONFIG.cache.stateSeconds, 3600)); } catch (e0) { console.log('optional: state cache put: ' + (e0.message || e0)); }
 }
 
 function st_getHoldState_(orderSs) {
@@ -408,7 +408,7 @@ function st_getOpenSetFast_(orderSs) {
       const json = u_ungzipFromB64_(cached);
       const obj = JSON.parse(json);
       if (obj && typeof obj === 'object') return obj;
-    } catch (e) {}
+    } catch (e) { console.log('optional: open set cache parse: ' + (e.message || e)); }
   }
 
   const openState = st_getOpenState_(orderSs);
@@ -426,7 +426,7 @@ function st_getOpenSetFast_(orderSs) {
   try {
     const ttl = APP_CONFIG.cache && APP_CONFIG.cache.statusSeconds ? APP_CONFIG.cache.statusSeconds : 300;
     cache.put(ck, u_gzipToB64_(JSON.stringify(out)), Math.max(3, u_toInt_(ttl, 10)));
-  } catch (e) {}
+  } catch (e) { console.log('optional: status cache put: ' + (e.message || e)); }
   return out;
 }
 

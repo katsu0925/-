@@ -524,7 +524,7 @@ function processSubmitQueue() {
     }
   } catch (e) {
     console.error('processSubmitQueue error:', e);
-    try { lock.releaseLock(); } catch (x) {}
+    try { lock.releaseLock(); } catch (x) { console.log('optional: lock release: ' + (x.message || x)); }
   } finally {
     cleanupTriggers_('processSubmitQueue');
   }
@@ -1038,7 +1038,7 @@ function apiCancelOrder(receiptNo) {
     }
 
     // 6. 決済セッション情報も削除
-    try { props.deleteProperty('PAYMENT_' + receiptNo); } catch (e) {}
+    try { props.deleteProperty('PAYMENT_' + receiptNo); } catch (e) { console.log('optional: delete payment session: ' + (e.message || e)); }
 
     // 7. キャッシュを無効化
     st_invalidateStatusCache_(orderSs);
