@@ -108,9 +108,14 @@
         <? if (data.market) { ?><div>・相場：<?= data.market ?></div><? } ?>
         <? if (data.reason) { ?><div>・理由：<?= data.reason ?></div><? } ?>
         <? if (data.link) { ?>
-          <div>・リンク：
-            <a href="<?= data.link ?>" target="_blank" rel="noopener noreferrer"><?= data.link ?></a>
-          </div>
+          <? var safeLink = String(data.link || '').trim(); ?>
+          <? if (safeLink && /^https?:\/\//i.test(safeLink)) { ?>
+            <div>・リンク：
+              <a href="<?= safeLink ?>" target="_blank" rel="noopener noreferrer"><?= safeLink ?></a>
+            </div>
+          <? } else if (safeLink) { ?>
+            <div>・リンク：<?= safeLink ?></div>
+          <? } ?>
         <? } ?>
       </div>
     <? } ?>

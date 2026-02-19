@@ -24,7 +24,10 @@
  *    → 「XXXXXXXXXXXXXXXXXX」の部分がフォルダID
  * 3. フォルダを「リンクを知っている全員」に共有設定
  */
-var EXPORT_FOLDER_ID = '1Wxx7J71PImov3MDU-RgCIwTSPHFlu9ot'; // ★★★ ここにフォルダIDを設定 ★★★
+var EXPORT_FOLDER_ID = (function() {
+  try { return PropertiesService.getScriptProperties().getProperty('EXPORT_FOLDER_ID') || '1Wxx7J71PImov3MDU-RgCIwTSPHFlu9ot'; }
+  catch (e) { return '1Wxx7J71PImov3MDU-RgCIwTSPHFlu9ot'; }
+})(); // ScriptProperties 'EXPORT_FOLDER_ID' で変更可能
 
 /**
  * ブランド名の正規化マップ

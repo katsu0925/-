@@ -159,7 +159,7 @@ function shipMailOnEdit(e) {
         + '──────────────────\n'
         + 'デタウリ.Detauri\n'
         + 'https://wholesale.nkonline-tool.com/\n'
-        + 'お問い合わせ：nkonline1030@gmail.com\n'
+        + 'お問い合わせ：' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
         + '──────────────────\n';
 
       MailApp.sendEmail({ to: contactEmail, subject: custSubject, body: custBody, noReply: true });

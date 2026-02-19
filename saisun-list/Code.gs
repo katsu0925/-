@@ -222,8 +222,12 @@ function getRecaptchaSecret_() {
 function verifyRecaptcha_(token) {
   var secret = getRecaptchaSecret_();
   if (!secret) {
-    console.warn('RECAPTCHA_SECRET が未設定です。reCAPTCHA検証をスキップします。');
-    return true;  // 未設定ならスキップ（開発環境対応）
+    if (ENV_CONFIG.isProduction()) {
+      console.error('RECAPTCHA_SECRET が本番環境で未設定です。リクエストを拒否します。');
+      return false;  // 本番環境ではfail-secure
+    }
+    console.warn('RECAPTCHA_SECRET が未設定です。reCAPTCHA検証をスキップします（開発環境）。');
+    return true;  // 開発環境のみスキップ
   }
   if (!token) {
     console.warn('reCAPTCHA token empty — リクエストを拒否します');

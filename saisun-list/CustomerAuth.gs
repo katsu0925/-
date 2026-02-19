@@ -714,15 +714,15 @@ function getOrderHistory_(email) {
     var rowEmail = String(data[i][3] || '').trim().toLowerCase();
     if (rowEmail === normalizedEmail) {
       orders.push({
-        receiptNo: String(data[i][0] || ''),
-        date: data[i][1] ? formatDate_(data[i][1]) : '',
-        products: String(data[i][7] || ''),
-        count: Number(data[i][10]) || 0,
-        total: Number(data[i][11]) || 0,
-        status: String(data[i][15] || ''),
-        shipping: String(data[i][12] || ''),
-        carrier: String(data[i][22] || ''),
-        tracking: String(data[i][23] || '')
+        receiptNo: String(data[i][REQUEST_SHEET_COLS.RECEIPT_NO - 1] || ''),
+        date: data[i][REQUEST_SHEET_COLS.DATETIME - 1] ? formatDate_(data[i][REQUEST_SHEET_COLS.DATETIME - 1]) : '',
+        products: String(data[i][REQUEST_SHEET_COLS.PRODUCT_NAMES - 1] || ''),
+        count: Number(data[i][REQUEST_SHEET_COLS.TOTAL_COUNT - 1]) || 0,
+        total: Number(data[i][REQUEST_SHEET_COLS.TOTAL_AMOUNT - 1]) || 0,
+        status: String(data[i][REQUEST_SHEET_COLS.STATUS - 1] || ''),
+        shipping: String(data[i][REQUEST_SHEET_COLS.SHIP_COST_SHOP - 1] || ''),
+        carrier: String(data[i][REQUEST_SHEET_COLS.CARRIER - 1] || ''),
+        tracking: String(data[i][REQUEST_SHEET_COLS.TRACKING - 1] || '')
       });
     }
   }
@@ -1082,7 +1082,7 @@ function sendInvoiceReceipt_(email, data) {
     + '　登録番号　: ' + data.invoiceNo + '\n'
     + '　所在地　　: 大阪府大東市灰塚4-16-15\n'
     + '　電話番号　: 090-5820-1803\n'
-    + '　メール　　: nkonline1030@gmail.com\n'
+    + '　メール　　: ' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
     + '──────────────────────────\n\n'
     + '※ この領収書は適格請求書（インボイス）として発行しています。\n'
     + '※ 本メールは自動送信です。ご不明な点がございましたらお問い合わせください。\n\n'

@@ -6,11 +6,16 @@
  * - 手数料自動計算: BASE=6.6%+40円、デタウリ=決済方法別レート
  */
 
+function getEcSyncProp_(key, fallback) {
+  try { return PropertiesService.getScriptProperties().getProperty(key) || fallback; }
+  catch (e) { return fallback; }
+}
+
 const IRAI_EC_SYNC = {
-  SRC_SPREADSHEET_ID: '1eDkAMm_QUDFHbSzkL4IMaFeB2YV6_Gw5Dgi-HqIB2Sc',
+  SRC_SPREADSHEET_ID: getEcSyncProp_('EC_SYNC_SRC_SPREADSHEET_ID', '1eDkAMm_QUDFHbSzkL4IMaFeB2YV6_Gw5Dgi-HqIB2Sc'),
   IRAI_SHEET_NAME: '依頼管理',
   BASE_ORDER_SHEET_NAME: 'BASE_注文',
-  DST_SPREADSHEET_ID: '1lp7XngTC0Nnc6SaA_-KlZ0SZVuRiVml6ICZ5L2riQTo',
+  DST_SPREADSHEET_ID: getEcSyncProp_('EC_SYNC_DST_SPREADSHEET_ID', '1lp7XngTC0Nnc6SaA_-KlZ0SZVuRiVml6ICZ5L2riQTo'),
   DST_SHEET_NAME: 'EC管理',
   CANCEL_STATUSES: ['キャンセル', '返品'],
   ALLOW_STATUSES: ['依頼中', '完了'],
@@ -40,7 +45,10 @@ function setupBaseOrderSync() {
 
 function syncBaseOrdersToEc() {
   const lock = LockService.getScriptLock();
-  lock.waitLock(30000);
+  if (!lock.tryLock(30000)) {
+    console.warn('syncBaseOrdersToEc: ロック取得失敗（別プロセス実行中）');
+    return;
+  }
 
   try {
     const cfg = IRAI_EC_SYNC;

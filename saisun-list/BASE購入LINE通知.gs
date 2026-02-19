@@ -48,7 +48,17 @@ function notifyUnsentRequests() {
         Authorization: 'Bearer ' + getLineAccessToken_()
       }
     };
-    UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', options);
+    try {
+      var resp = UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', options);
+      var code = resp.getResponseCode();
+      if (code < 200 || code >= 300) {
+        console.error('LINE通知エラー (受付番号=' + receiptNo + '): HTTP ' + code + ' ' + resp.getContentText());
+        continue;
+      }
+    } catch (lineErr) {
+      console.error('LINE通知送信失敗 (受付番号=' + receiptNo + '): ' + (lineErr.message || lineErr));
+      continue;
+    }
     sentRows.push(i + 1);
   }
   // バッチでフラグ更新

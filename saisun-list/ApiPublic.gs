@@ -157,11 +157,10 @@ function apiSyncHolds(userKey, ids) {
       holdState.items = holdItems;
       holdState.updatedAt = now;
       st_setHoldState_(orderSs, holdState);
+      try { st_invalidateStatusCache_(orderSs); } catch(e) {}
     } finally {
       try { lock.releaseLock(); } catch (e) {}
     }
-
-    try { st_invalidateStatusCache_(orderSs); } catch(e) {}
 
     const digest = st_buildDigestMap_(orderSs, uk, wantIds);
     return { ok: true, digest: digest, failed: failed };
@@ -394,7 +393,7 @@ function app_sendOrderConfirmToCustomer_(data) {
       + '──────────────────\n'
       + 'デタウリ.Detauri\n'
       + 'https://wholesale.nkonline-tool.com/\n'
-      + 'お問い合わせ：nkonline1030@gmail.com\n'
+      + 'お問い合わせ：' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
       + '──────────────────\n';
 
     MailApp.sendEmail({
@@ -516,7 +515,10 @@ function apiSendContactForm(params) {
     var datetime = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
 
     // 1. 管理者宛通知
-    var adminTo = 'nkonline1030@gmail.com,nsdktts1030@gmail.com';
+    var adminTo = (function() {
+      try { return PropertiesService.getScriptProperties().getProperty('CONTACT_ADMIN_EMAILS') || (SITE_CONSTANTS.CONTACT_EMAIL + ',nsdktts1030@gmail.com'); }
+      catch (e) { return SITE_CONSTANTS.CONTACT_EMAIL + ',nsdktts1030@gmail.com'; }
+    })();
     var adminSubject = '【デタウリ.Detauri】お問い合わせ: ' + name;
     var adminBody = 'お問い合わせを受信しました。\n\n'
       + 'お名前: ' + name + '\n'
@@ -550,7 +552,7 @@ function apiSendContactForm(params) {
       + '──────────────────\n'
       + 'デタウリ.Detauri\n'
       + 'https://wholesale.nkonline-tool.com/\n'
-      + 'お問い合わせ：nkonline1030@gmail.com\n'
+      + 'お問い合わせ：' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
       + '──────────────────\n';
 
     MailApp.sendEmail({
