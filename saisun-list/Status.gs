@@ -8,16 +8,18 @@ function st_baseKeyOpen_(orderSs) {
   return 'STATE_OPEN_V4:' + orderSs.getId();
 }
 
-function st_loadLarge_(baseKey) {
-  const cache = CacheService.getScriptCache();
-  const ck = 'STATECACHE_V1:' + baseKey;
-  const cached = cache.get(ck);
-  if (cached) {
-    try {
-      const json = u_ungzipFromB64_(cached);
-      const obj = JSON.parse(json);
-      if (obj) return obj;
-    } catch (e0) { console.log('optional: state cache parse: ' + (e0.message || e0)); }
+function st_loadLarge_(baseKey, skipCache) {
+  if (!skipCache) {
+    const cache = CacheService.getScriptCache();
+    const ck = 'STATECACHE_V1:' + baseKey;
+    const cached = cache.get(ck);
+    if (cached) {
+      try {
+        const json = u_ungzipFromB64_(cached);
+        const obj = JSON.parse(json);
+        if (obj) return obj;
+      } catch (e0) { console.log('optional: state cache parse: ' + (e0.message || e0)); }
+    }
   }
 
   const props = PropertiesService.getScriptProperties();
@@ -90,8 +92,9 @@ function st_getHoldState_(orderSs) {
 function st_setHoldState_(orderSs, stateObj) {
   const baseKey = st_baseKeyHold_(orderSs);
   const payload = stateObj || { items: {}, updatedAt: u_nowMs_() };
-  st_saveLarge_(baseKey, payload);
+  // まずキャッシュを無効化してから保存（他ユーザーが古いキャッシュを読まないように）
   st_invalidateStatusCache_(orderSs);
+  st_saveLarge_(baseKey, payload);
 }
 
 
@@ -125,21 +128,24 @@ function st_cleanupExpiredHolds_(holdItems, nowMs) {
 
 function st_buildStatusMaps_(orderSs) {
   const now = u_nowMs_();
-  
-  // キャッシュを使わず、常に最新のステートを取得
-  const holdState = st_getHoldState_(orderSs);
-  const holdItems = holdState.items || {};
+
+  // 確保状態はキャッシュをバイパスして常に最新データを取得
+  // （他ユーザーの確保をリアルタイムで反映するため）
+  const holdBaseKey = st_baseKeyHold_(orderSs);
+  const holdState = st_loadLarge_(holdBaseKey, true) || { items: {} };
+  if (!holdState.items) holdState.items = {};
+  const holdItems = holdState.items;
   const holds = {};
-  
+
   for (const id in holdItems) {
     const it = holdItems[id];
     if (!it) continue;
     const untilMs = u_toInt_(it.untilMs, 0);
     if (!untilMs || untilMs <= now) continue;
-    holds[id] = { 
-      userKey: String(it.userKey || ''), 
-      untilMs: untilMs, 
-      holdId: String(it.holdId || '') 
+    holds[id] = {
+      userKey: String(it.userKey || ''),
+      untilMs: untilMs,
+      holdId: String(it.holdId || '')
     };
   }
 
@@ -424,8 +430,8 @@ function st_getOpenSetFast_(orderSs) {
   }
 
   try {
-    const ttl = APP_CONFIG.cache && APP_CONFIG.cache.statusSeconds ? APP_CONFIG.cache.statusSeconds : 300;
-    cache.put(ck, u_gzipToB64_(JSON.stringify(out)), Math.max(3, u_toInt_(ttl, 10)));
+    // 他ユーザーの確保/依頼中をリアルタイムで反映するため、キャッシュは短めに設定（30秒）
+    cache.put(ck, u_gzipToB64_(JSON.stringify(out)), 30);
   } catch (e) { console.log('optional: status cache put: ' + (e.message || e)); }
   return out;
 }

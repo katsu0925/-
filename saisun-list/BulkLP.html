@@ -544,7 +544,7 @@ function applyCoupon() {
       resEl.className = 'coupon-result err';
       resEl.textContent = e && e.message ? e.message : 'エラーが発生しました';
     })
-    .apiValidateCoupon(code, email, subtotal);
+    .apiValidateCoupon(code, email, subtotal, 'bulk', Object.keys(G.cart));
 }
 
 function calcSubtotal() {
