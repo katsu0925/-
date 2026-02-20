@@ -10,13 +10,16 @@
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans-serif;background:#f5f5f5;color:#333;-webkit-font-smoothing:antialiased}
 .container{max-width:540px;margin:0 auto;background:#fff;min-height:100vh}
 
-/* ヘッダー */
-.header{background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:24px 20px 16px;text-align:center}
+/* ヘッダー（sticky） */
+.header{background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:18px 20px 12px;text-align:center;position:sticky;top:0;z-index:100}
 .header h1{font-size:20px;letter-spacing:2px;font-weight:700}
 .header p{font-size:12px;color:#aab;margin-top:4px}
-.header-nav{display:flex;justify-content:center;gap:10px;margin-top:14px}
+.header-nav{display:flex;justify-content:center;gap:10px;margin-top:12px}
 .header-nav a{color:#fff;text-decoration:none;font-size:12px;padding:6px 16px;border:1px solid rgba(255,255,255,.3);border-radius:20px;transition:all .2s}
 .header-nav a.active{background:#ffd700;color:#1a1a2e;border-color:#ffd700;font-weight:700}
+.header-links{display:flex;justify-content:center;gap:16px;margin-top:10px}
+.header-links a{color:#93c5fd;text-decoration:none;font-size:12px;font-weight:600;transition:color .2s}
+.header-links a:hover{color:#bfdbfe}
 .member-badge{display:inline-block;margin-top:10px;font-size:12px;background:rgba(255,215,0,.15);color:#ffd700;padding:5px 14px;border-radius:20px;border:1px solid rgba(255,215,0,.3)}
 
 /* セクション */
@@ -255,10 +258,11 @@ body.admin-mode .admin-settings-fab{display:flex;}
 @media(min-width:768px){
   body{background:#e0e0e0}
   .container{max-width:1100px;border-radius:0;box-shadow:none}
-  .header{padding:32px 40px 20px}
+  .header{padding:20px 40px 14px}
   .header h1{font-size:26px}
   .header p{font-size:13px}
   .header-nav a{font-size:13px;padding:8px 20px}
+  .header-links a{font-size:13px}
   .section{padding:28px 40px}
   .product-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
   .product-card{margin-bottom:0}
@@ -302,6 +306,10 @@ body.admin-mode .admin-settings-fab{display:flex;}
     <a class="active" href="#">アソート商品</a>
     <a id="detauriLink" href="./">採寸付き個品（デタウリ）</a>
   </nav>
+  <div class="header-links">
+    <a href="#" id="openBulkGuideLink">商品ガイド</a>
+    <a href="#" id="openBulkShippingLink">送料表</a>
+  </div>
   <!-- 認証エリア -->
   <div class="header-auth" id="headerAuth">
     <button class="auth-btn" id="openAuthBtn" type="button">ログイン / 新規登録</button>
@@ -557,6 +565,207 @@ body.admin-mode .admin-settings-fab{display:flex;}
         <button class="sp-btn primary" id="spBtnToggleDiscount" type="button" disabled>切替</button>
       </div>
       <div class="sp-info" id="spDiscountInfo"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 商品ガイドモーダル -->
+<div class="bulk-overlay" id="bulkGuideOverlay"></div>
+<div class="bulk-modal" id="bulkGuideModal" style="display:none;">
+  <div class="bulk-modal-header">
+    <div class="bulk-modal-title">商品ガイド</div>
+    <button class="bulk-modal-close" id="bulkGuideCloseBtn" type="button">&times;</button>
+  </div>
+  <div class="bulk-modal-body" style="line-height:1.7;">
+    <div style="margin-bottom:20px;">
+      <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">アソート商品について</h3>
+      <ul style="margin:0;padding-left:20px;color:#475569;">
+        <li>アソート商品はカテゴリ・ブランドごとにまとめた古着セットです</li>
+        <li>写真はサンプルイメージです。実物と多少異なる場合があります</li>
+        <li>商品の状態はA〜Cランク中心の混合です</li>
+      </ul>
+    </div>
+    <div style="margin-bottom:20px;">
+      <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">ご注文について</h3>
+      <ul style="margin:0;padding-left:20px;color:#475569;">
+        <li style="margin-bottom:8px;"><strong style="color:#1e293b;">10点から</strong>購入可能です</li>
+        <li style="margin-bottom:8px;">数量を選んでカートに追加してください</li>
+        <li>送料はお届け先に応じて自動計算されます（ダイヤモンド会員は送料無料）</li>
+      </ul>
+    </div>
+    <div style="margin-bottom:20px;">
+      <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">ご注文の流れ</h3>
+      <ol style="margin:0;padding-left:20px;color:#475569;">
+        <li style="margin-bottom:8px;"><strong>商品選択</strong>：数量を決めてカートに追加</li>
+        <li style="margin-bottom:8px;"><strong>お届け先入力</strong>：住所を入力すると送料が自動表示されます</li>
+        <li style="margin-bottom:8px;"><strong>お支払い</strong>：商品代＋送料をオンライン決済<br><span style="font-size:12px;color:#888;">※コンビニ決済は別途手数料220円、銀行振込・ペイジーの振込手数料はお客様負担</span></li>
+        <li><strong>発送</strong>：決済完了後、商品を発送いたします</li>
+      </ol>
+    </div>
+    <div style="margin-bottom:20px;">
+      <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">割引について</h3>
+      <ul style="margin:0;padding-left:20px;color:#475569;">
+        <li style="margin-bottom:8px;"><span style="color:#b8002a;font-weight:700;">30点以上で10%割引</span></li>
+        <li style="margin-bottom:8px;"><strong>会員割引</strong>：会員登録で<span style="color:#b8002a;font-weight:700;">10%OFF</span><span style="color:#666;font-size:13px;">（2026年9月末まで）</span></li>
+        <li><span style="color:#b8002a;font-weight:700;">※ 併用可</span>（30点割引＋会員割引の同時適用OK）</li>
+      </ul>
+    </div>
+    <div>
+      <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">注意事項</h3>
+      <ul style="margin:0;padding-left:20px;color:#475569;">
+        <li>ご注文確定後のキャンセル・変更はできません</li>
+        <li>返品・交換は原則お受けしておりません。万一、商品内容が記載事項と大きく異なる場合は、商品到着後7日以内にご連絡ください</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 送料表モーダル -->
+<div class="bulk-overlay" id="bulkShippingOverlay"></div>
+<div class="bulk-modal" id="bulkShippingModal" style="display:none;width:min(800px,96vw);">
+  <div class="bulk-modal-header">
+    <div class="bulk-modal-title">送料表</div>
+    <button class="bulk-modal-close" id="bulkShippingCloseBtn" type="button">&times;</button>
+  </div>
+  <div class="bulk-modal-body" style="line-height:1.7;">
+    <!-- 西日本 -->
+    <div style="margin-bottom:20px;">
+      <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #f472b6;padding-bottom:8px;">西日本（南九州〜北陸）</h3>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:500px;">
+          <tr style="background:#fce7f3;">
+            <th style="padding:8px;text-align:center;border:1px solid #f9a8d4;width:80px;">宅配便</th>
+            <th style="padding:8px;text-align:center;border:1px solid #f9a8d4;">南九州</th>
+            <th style="padding:8px;text-align:center;border:1px solid #f9a8d4;">北九州</th>
+            <th style="padding:8px;text-align:center;border:1px solid #f9a8d4;">四国</th>
+            <th style="padding:8px;text-align:center;border:1px solid #f9a8d4;">中国</th>
+            <th style="padding:8px;text-align:center;border:1px solid #f9a8d4;">関西</th>
+            <th style="padding:8px;text-align:center;border:1px solid #f9a8d4;">北陸</th>
+          </tr>
+          <tr style="background:#fdf2f8;font-size:10px;color:#6b7280;">
+            <td style="padding:6px;border:1px solid #f9a8d4;text-align:center;">都道府県</td>
+            <td style="padding:6px;border:1px solid #f9a8d4;text-align:center;">鹿児島・熊本・宮崎</td>
+            <td style="padding:6px;border:1px solid #f9a8d4;text-align:center;">福岡・佐賀・大分・長崎</td>
+            <td style="padding:6px;border:1px solid #f9a8d4;text-align:center;">香川・愛媛・高知・徳島</td>
+            <td style="padding:6px;border:1px solid #f9a8d4;text-align:center;">広島・岡山・島根・山口・鳥取</td>
+            <td style="padding:6px;border:1px solid #f9a8d4;text-align:center;">大阪・兵庫・京都・奈良・和歌山・滋賀</td>
+            <td style="padding:6px;border:1px solid #f9a8d4;text-align:center;">石川・福井・富山</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;font-weight:700;background:#fff0f6;">宅配便（小）</td>
+            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,320円</td>
+            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,280円</td>
+            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,180円</td>
+            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,200円</td>
+            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,100円</td>
+            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,160円</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;font-weight:700;background:#fff0f6;">宅配便（大）</td>
+            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,700円</td>
+            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,620円</td>
+            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,440円</td>
+            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,480円</td>
+            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,260円</td>
+            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,420円</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+    <!-- 東日本 -->
+    <div style="margin-bottom:20px;">
+      <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #67e8f9;padding-bottom:8px;">東日本（東海〜北海道）</h3>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:500px;">
+          <tr style="background:#cffafe;">
+            <th style="padding:8px;text-align:center;border:1px solid #a5f3fc;width:80px;">宅配便</th>
+            <th style="padding:8px;text-align:center;border:1px solid #a5f3fc;">東海</th>
+            <th style="padding:8px;text-align:center;border:1px solid #a5f3fc;">信越</th>
+            <th style="padding:8px;text-align:center;border:1px solid #a5f3fc;">関東</th>
+            <th style="padding:8px;text-align:center;border:1px solid #a5f3fc;">南東北</th>
+            <th style="padding:8px;text-align:center;border:1px solid #a5f3fc;">北東北</th>
+            <th style="padding:8px;text-align:center;border:1px solid #a5f3fc;">北海道</th>
+          </tr>
+          <tr style="background:#ecfeff;font-size:10px;color:#6b7280;">
+            <td style="padding:6px;border:1px solid #a5f3fc;text-align:center;">都道府県</td>
+            <td style="padding:6px;border:1px solid #a5f3fc;text-align:center;">愛知・静岡・岐阜・三重</td>
+            <td style="padding:6px;border:1px solid #a5f3fc;text-align:center;">新潟・長野</td>
+            <td style="padding:6px;border:1px solid #a5f3fc;text-align:center;">東京・神奈川・埼玉・千葉・茨城・栃木・群馬・山梨</td>
+            <td style="padding:6px;border:1px solid #a5f3fc;text-align:center;">宮城・福島・山形</td>
+            <td style="padding:6px;border:1px solid #a5f3fc;text-align:center;">岩手・秋田・青森</td>
+            <td style="padding:6px;border:1px solid #a5f3fc;text-align:center;">北海道</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;font-weight:700;background:#f0fdff;">宅配便（小）</td>
+            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,180円</td>
+            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,220円</td>
+            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,300円</td>
+            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,400円</td>
+            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,460円</td>
+            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,640円</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;font-weight:700;background:#f0fdff;">宅配便（大）</td>
+            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,440円</td>
+            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,540円</td>
+            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,680円</td>
+            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,900円</td>
+            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,980円</td>
+            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">2,380円</td>
+          </tr>
+        </table>
+      </div>
+    </div>
+    <!-- 沖縄 -->
+    <div style="margin-bottom:20px;">
+      <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #f59e0b;padding-bottom:8px;">沖縄本島</h3>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:12px;max-width:300px;">
+          <tr style="background:#fef3c7;">
+            <th style="padding:8px;text-align:center;border:1px solid #fcd34d;width:80px;">宅配便</th>
+            <th style="padding:8px;text-align:center;border:1px solid #fcd34d;">沖縄本島</th>
+          </tr>
+          <tr>
+            <td style="padding:8px;border:1px solid #fcd34d;text-align:center;font-weight:700;background:#fffbeb;">宅配便（小）</td>
+            <td style="padding:8px;border:1px solid #fcd34d;text-align:center;">2,500円</td>
+          </tr>
+          <tr>
+            <td style="padding:8px;border:1px solid #fcd34d;text-align:center;font-weight:700;background:#fffbeb;">宅配便（大）</td>
+            <td style="padding:8px;border:1px solid #fcd34d;text-align:center;">3,500円</td>
+          </tr>
+        </table>
+      </div>
+      <p style="margin:8px 0 0;color:#b45309;font-size:12px;">※ 沖縄県の離島（宮古島・石垣島等）は配送対象外です。</p>
+    </div>
+    <!-- サイズ目安 -->
+    <div style="margin-bottom:20px;">
+      <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #10b981;padding-bottom:8px;">サイズの目安</h3>
+      <ul style="margin:0;padding-left:20px;color:#475569;font-size:13px;">
+        <li><strong>宅配便（小）</strong>：10着程度</li>
+        <li><strong>宅配便（大）</strong>：11〜40着程度</li>
+      </ul>
+    </div>
+    <!-- 配送について -->
+    <div style="margin-bottom:20px;">
+      <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #10b981;padding-bottom:8px;">配送について</h3>
+      <ul style="margin:0;padding-left:20px;color:#475569;">
+        <li>上記送料は全て<strong>税込み</strong>です</li>
+        <li>会員割引は商品代のみに適用されます（<strong>送料は割引対象外</strong>）</li>
+        <li>発送はお支払い確認後<strong>2〜5営業日</strong>以内</li>
+        <li>配送業者：佐川急便・ヤマト運輸・郵便局のいずれか（指定不可）</li>
+        <li>日時指定不可</li>
+        <li style="color:#b8002a;"><strong>離島への配送は対象外です</strong></li>
+      </ul>
+    </div>
+    <!-- 決済手数料 -->
+    <div>
+      <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #f59e0b;padding-bottom:8px;">お客様ご負担の決済手数料</h3>
+      <ul style="margin:0;padding-left:20px;color:#475569;">
+        <li><strong>コンビニ決済</strong>：220円（税込）の決済手数料がかかります</li>
+        <li><strong>銀行振込</strong>：振込手数料はお客様のご負担となります（金額は金融機関により異なります）</li>
+        <li><strong>ペイジー</strong>：振込手数料はお客様のご負担となります（金額は金融機関により異なります）</li>
+        <li style="color:#888;">クレジットカード・PayPay・Apple Pay：手数料はかかりません</li>
+      </ul>
     </div>
   </div>
 </div>
@@ -2171,6 +2380,28 @@ function doLogout_() {
     legalLink.addEventListener('click', function(e) { e.preventDefault(); openBulkModal_(legalModal, legalOverlay); });
     legalClose.addEventListener('click', function() { closeBulkModal_(legalModal, legalOverlay); });
     legalOverlay.addEventListener('click', function() { closeBulkModal_(legalModal, legalOverlay); });
+  }
+
+  // 商品ガイドモーダル
+  var bulkGuideLink = document.getElementById('openBulkGuideLink');
+  var bulkGuideModal = document.getElementById('bulkGuideModal');
+  var bulkGuideOverlay = document.getElementById('bulkGuideOverlay');
+  var bulkGuideClose = document.getElementById('bulkGuideCloseBtn');
+  if (bulkGuideLink && bulkGuideModal) {
+    bulkGuideLink.addEventListener('click', function(e) { e.preventDefault(); openBulkModal_(bulkGuideModal, bulkGuideOverlay); });
+    bulkGuideClose.addEventListener('click', function() { closeBulkModal_(bulkGuideModal, bulkGuideOverlay); });
+    bulkGuideOverlay.addEventListener('click', function() { closeBulkModal_(bulkGuideModal, bulkGuideOverlay); });
+  }
+
+  // 送料表モーダル
+  var bulkShippingLink = document.getElementById('openBulkShippingLink');
+  var bulkShippingModal = document.getElementById('bulkShippingModal');
+  var bulkShippingOverlay = document.getElementById('bulkShippingOverlay');
+  var bulkShippingClose = document.getElementById('bulkShippingCloseBtn');
+  if (bulkShippingLink && bulkShippingModal) {
+    bulkShippingLink.addEventListener('click', function(e) { e.preventDefault(); openBulkModal_(bulkShippingModal, bulkShippingOverlay); });
+    bulkShippingClose.addEventListener('click', function() { closeBulkModal_(bulkShippingModal, bulkShippingOverlay); });
+    bulkShippingOverlay.addEventListener('click', function() { closeBulkModal_(bulkShippingModal, bulkShippingOverlay); });
   }
 
   // プライバシーポリシーモーダル
