@@ -10,49 +10,19 @@
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans-serif;background:#f5f5f5;color:#333;-webkit-font-smoothing:antialiased}
 .container{max-width:1100px;margin:0 auto;background:#fff;min-height:100vh}
 
-/* ヘッダー（sticky） */
-.header{background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:18px 20px 12px;text-align:center;position:sticky;top:0;z-index:100;max-width:1100px;margin:0 auto;transition:padding .25s ease}
-.header h1{font-size:20px;letter-spacing:2px;font-weight:700;transition:font-size .25s ease}
-.header p{font-size:12px;color:#aab;margin-top:4px;transition:all .25s ease;max-height:30px;overflow:hidden;opacity:1}
-.header-nav{display:flex;justify-content:center;gap:10px;margin-top:12px;transition:margin .25s ease}
-.header-nav a{color:#fff;text-decoration:none;font-size:12px;padding:6px 16px;border:1px solid rgba(255,255,255,.3);border-radius:20px;transition:all .2s}
+/* === A案 2-Row Header === */
+.header{background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;position:sticky;top:0;z-index:100;max-width:1100px;margin:0 auto}
+.header-row1{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 16px;flex-wrap:nowrap}
+.header-logo{font-size:15px;font-weight:800;white-space:nowrap;margin:0;letter-spacing:1px;color:#fff;flex-shrink:0}
+.header-nav{display:flex;gap:6px;flex-shrink:0}
+.header-nav a{color:#93c5fd;text-decoration:none;font-size:11px;padding:4px 12px;border-radius:20px;border:1px solid rgba(255,255,255,.15);transition:all .2s;white-space:nowrap}
 .header-nav a.active{background:#ffd700;color:#1a1a2e;border-color:#ffd700;font-weight:700}
-.header-links{display:flex;justify-content:center;gap:16px;margin-top:10px;transition:all .25s ease;max-height:40px;overflow:hidden;opacity:1}
-.header-links a{color:#93c5fd;text-decoration:none;font-size:12px;font-weight:600;transition:color .2s}
-.header-links a:hover{color:#bfdbfe}
-.member-badge{display:inline-block;margin-top:10px;font-size:12px;background:rgba(255,215,0,.15);color:#ffd700;padding:5px 14px;border-radius:20px;border:1px solid rgba(255,215,0,.3);transition:all .25s ease;overflow:hidden}
-.header.compact{padding:8px 20px 6px}
-.header.compact h1{font-size:15px;letter-spacing:1px}
-.header.compact p{max-height:0;opacity:0;margin-top:0}
-.header.compact .header-nav{margin-top:6px}
-.header.compact .header-nav a{font-size:11px;padding:4px 12px}
-.header.compact .header-links{max-height:0;opacity:0;margin-top:0}
-.header.compact .header-auth{max-height:0;opacity:0;margin-top:0;overflow:hidden}
-.header.compact .member-badge{max-height:0;opacity:0;margin-top:0;padding:0;border:0}
-
-/*
-=== A案: 2段コンパクトヘッダー（将来利用用メモ） ===
-HTML構造:
-<header class="header-a">
-  <div class="header-a-top">
-    <h1 class="header-a-logo">彩旬リスト アソート</h1>
-    <nav class="header-a-nav">
-      <a href="javascript:void(0)" onclick="switchToDetauri()">デタウリ</a>
-      <a href="javascript:void(0)" onclick="switchToBulk()" class="active">アソート</a>
-    </nav>
-    <div class="header-a-auth" id="authArea"></div>
-  </div>
-</header>
-
-CSS:
-.header-a{background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:10px 20px;position:sticky;top:0;z-index:100}
-.header-a-top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
-.header-a-logo{font-size:16px;font-weight:800;white-space:nowrap;margin:0}
-.header-a-nav{display:flex;gap:8px}
-.header-a-nav a{color:#93c5fd;text-decoration:none;font-size:12px;padding:5px 14px;border-radius:20px;border:1px solid rgba(255,255,255,.15)}
-.header-a-nav a.active{background:rgba(255,255,255,.1);color:#fff}
-.header-a-auth{font-size:12px}
-=== / A案メモ終わり === */
+.header-auth-wrap{display:flex;align-items:center;gap:6px;font-size:12px;flex-shrink:1;min-width:0}
+.header-row2{display:flex;justify-content:center;gap:16px;padding:0 16px 6px;max-height:28px;overflow:hidden;opacity:1;transition:max-height .25s ease,opacity .25s ease,padding .25s ease}
+.header-row2 a{color:#93c5fd;text-decoration:none;font-size:11px;font-weight:600;transition:color .2s;white-space:nowrap}
+.header-row2 a:hover{color:#bfdbfe}
+.header.row2-hidden .header-row2{max-height:0;opacity:0;padding-top:0;padding-bottom:0}
+.member-badge{display:inline-block;font-size:10px;background:rgba(255,215,0,.15);color:#ffd700;padding:3px 10px;border-radius:12px;border:1px solid rgba(255,215,0,.3);white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis}
 
 /* セクション */
 .section{padding:20px}
@@ -183,7 +153,7 @@ CSS:
 .admin-bar span{background:rgba(255,255,255,.2);padding:2px 8px;border-radius:4px;margin-left:8px;font-size:11px;font-weight:400;}
 .admin-bar .admin-exit{background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.5);color:#fff;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;cursor:pointer;margin-left:10px;}
 .admin-bar .admin-exit:hover{background:rgba(255,255,255,.4);}
-body.admin-mode .header{border-top:3px solid #b8002a;}
+body.admin-mode .header{border-top:3px solid #b8002a}
 
 /* プロモバナー */
 .promo-banner{background:linear-gradient(90deg,#b8002a,#e63950);color:#fff;text-align:center;padding:10px 40px 10px 14px;font-size:13px;font-weight:400;position:sticky;top:0;z-index:102;display:none;max-width:1100px;margin:0 auto}
@@ -193,7 +163,7 @@ body.admin-mode .header{border-top:3px solid #b8002a;}
 .promo-banner .promo-close:hover{opacity:1}
 
 /* ヘッダー認証エリア */
-.header-auth{display:flex;justify-content:center;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap;transition:all .25s ease;max-height:60px;overflow:hidden;opacity:1}
+.header-auth{display:flex;align-items:center;gap:6px;font-size:12px}
 .auth-btn{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:20px;padding:6px 16px;cursor:pointer;font-weight:700;font-size:12px;color:#fff;transition:all .2s}
 .auth-btn:hover{background:rgba(255,255,255,.25)}
 .auth-btn.logout{background:transparent;border:none;color:#aab;text-decoration:underline;padding:4px 8px;font-size:11px}
@@ -324,14 +294,11 @@ body.admin-mode .admin-settings-fab{display:flex;}
 @media(min-width:768px){
   body{background:#e0e0e0}
   .container{max-width:1100px;border-radius:0;box-shadow:none}
-  .header{padding:20px 40px 14px}
-  .header h1{font-size:26px}
-  .header p{font-size:13px}
-  .header-nav a{font-size:13px;padding:8px 20px}
-  .header-links a{font-size:13px}
-  .header.compact{padding:8px 40px 6px}
-  .header.compact h1{font-size:17px}
-  .header.compact .header-nav a{font-size:12px;padding:5px 14px}
+  .header-row1{padding:10px 24px}
+  .header-logo{font-size:17px}
+  .header-nav a{font-size:12px;padding:5px 14px}
+  .header-row2{padding:0 24px 8px;gap:20px}
+  .header-row2 a{font-size:12px}
   .section{padding:28px 40px}
   .product-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
   .product-card{margin-bottom:0}
@@ -370,20 +337,22 @@ body.admin-mode .admin-settings-fab{display:flex;}
 
 <!-- ヘッダー -->
 <header class="header">
-  <h1 id="appTitle">デタウリ.Detauri</h1>
-  <p>古着卸売 - 副業物販のための仕入れ</p>
-  <nav class="header-nav">
-    <a id="detauriLink" href="./">採寸付き個品（デタウリ）</a>
-    <a class="active" href="#">アソート商品</a>
-  </nav>
-  <div class="header-links">
+  <div class="header-row1">
+    <h1 class="header-logo" id="appTitle">デタウリ.Detauri</h1>
+    <nav class="header-nav">
+      <a id="detauriLink" href="./">採寸付き個品（デタウリ）</a>
+      <a class="active" href="#">アソート商品</a>
+    </nav>
+    <div class="header-auth-wrap">
+      <div class="header-auth" id="headerAuth">
+        <button class="auth-btn" id="openAuthBtn" type="button">ログイン / 新規登録</button>
+      </div>
+    </div>
+  </div>
+  <div class="header-row2">
     <a href="#" id="openBulkGuideLink">商品ガイド</a>
     <a href="#" id="openBulkShippingLink">アソート送料表</a>
     <a href="#" id="openContactLinkHeader">お問い合わせ</a>
-  </div>
-  <!-- 認証エリア -->
-  <div class="header-auth" id="headerAuth">
-    <button class="auth-btn" id="openAuthBtn" type="button">ログイン / 新規登録</button>
   </div>
 </header>
 
@@ -1217,20 +1186,25 @@ function applyBulkData_(r, savedCart) {
 }
 
 // =====================================================
-// ヘッダー自動縮小（スクロール連動）
+// ヘッダー自動縮小（スクロール方向連動）
 // =====================================================
 (function() {
-  var _compactThreshold = 60;
-  var _isCompact = false;
+  var _lastScrollY = 0;
+  var _row2Hidden = false;
   window.addEventListener('scroll', function() {
     var header = document.querySelector('.header');
     if (!header) return;
-    var shouldCompact = window.scrollY > _compactThreshold;
-    if (shouldCompact !== _isCompact) {
-      _isCompact = shouldCompact;
-      if (shouldCompact) { header.classList.add('compact'); }
-      else { header.classList.remove('compact'); }
+    var currentY = window.scrollY;
+    var delta = currentY - _lastScrollY;
+    if (Math.abs(delta) < 5) { _lastScrollY = currentY; return; }
+    if (currentY <= 0) {
+      if (_row2Hidden) { _row2Hidden = false; header.classList.remove('row2-hidden'); }
+    } else if (delta > 0) {
+      if (!_row2Hidden) { _row2Hidden = true; header.classList.add('row2-hidden'); }
+    } else {
+      if (_row2Hidden) { _row2Hidden = false; header.classList.remove('row2-hidden'); }
     }
+    _lastScrollY = currentY;
   }, { passive: true });
 })();
 
@@ -2045,8 +2019,8 @@ function autoFillCustomerForm() {
 
 function updateMemberUI() {
   if (!G.customer) return;
-  var header = document.querySelector('.header');
-  if (!header) return;
+  var wrap = document.querySelector('.header-auth-wrap');
+  if (!wrap) return;
   // 既存バッジがあれば削除
   var old = document.getElementById('memberBadge');
   if (old) old.remove();
@@ -2056,7 +2030,7 @@ function updateMemberUI() {
   var md = G.settings.memberDiscount;
   var discountText = (md && md.enabled) ? ' ・ 会員割引' + Math.round(md.rate * 100) + '%OFF適用中' : '';
   badge.textContent = '会員ログイン中: ' + (G.customer.companyName || G.customer.email) + discountText;
-  header.appendChild(badge);
+  wrap.appendChild(badge);
 }
 
 // =====================================================
