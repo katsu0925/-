@@ -371,27 +371,7 @@
 <script>
 // ページ遷移フラッシュ防止: 遷移フラグがあればbody背景を暗くしオーバーレイ表示
 (function(){try{if(sessionStorage.getItem('_pageTransition')==='1'){document.body.style.background='#1a1a2e';document.body.classList.add('page-entering');sessionStorage.removeItem('_pageTransition');}}catch(e){}})();
-// クライアントサイドルーター: ?page=bulk の場合、GAS URLから直接iframeで表示
-(function() {
-  var params = new URLSearchParams(window.location.search);
-  if (params.get('page') !== 'bulk') return;
-
-  var GAS_URL = 'https://script.google.com/macros/s/AKfycbwLN23a03qQSGA91J-82_6HlIx0kA5yUYFRxjfbjFGfnZDqynKnyJhEPsoISSQps3SmXQ/exec';
-
-  // デタウリページの描画を完全に抑制 + 背景を暗色化
-  var hideStyle = document.createElement('style');
-  hideStyle.textContent = 'body{background:#1a1a2e !important;} body > *:not(#__bulkLoader) { display: none !important; }';
-  document.head.appendChild(hideStyle);
-
-  // GAS URLから直接iframeで表示（srcベース: google.script.run対応、API確実動作）
-  window.addEventListener('DOMContentLoaded', function() {
-    var f = document.createElement('iframe');
-    f.name = 'bulkOverlay';
-    f.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:9998;background:#f5f5f5;';
-    f.src = GAS_URL + '?page=bulk';
-    document.body.appendChild(f);
-  });
-})();
+// クライアントサイドルーター不要: サーバー側doGetが?page=bulkをBulkLPにルーティング
 </script>
   <div class="admin-bar" id="adminBar">管理者モード<span>受付番号紐付け</span><button class="admin-exit" id="adminExit" type="button">管理者モード解除</button></div>
   <button class="admin-settings-fab" id="adminSettingsFab" type="button" title="管理設定">&#9881;</button>
@@ -1323,9 +1303,6 @@
 // =====================================================
 // 状態管理
 // =====================================================
-
-// iframe overlay検出: 親ページ（BulkLP.html）からiframeとして埋め込まれているか
-var IS_IN_OVERLAY = (window.name === 'detailOverlay');
 
 var state = {
   userKey: '',
@@ -5190,60 +5167,47 @@ function logPageView_() {
 }
 
 // =====================================================
-// アソート商品ページへの遷移（iframe overlay方式 - srcベース）
+// アソート商品ページへの遷移（document.write方式）
 // =====================================================
-var _bulkOverlay = null;   // iframe要素
-var _bulkOverlayReady = false;
+var _cachedBulkHtml = null;
 var _GAS_BASE_URL = 'https://script.google.com/macros/s/AKfycbwLN23a03qQSGA91J-82_6HlIx0kA5yUYFRxjfbjFGfnZDqynKnyJhEPsoISSQps3SmXQ/exec';
 
 function navigateToBulk(e) {
   e.preventDefault();
-
-  // iframe overlay内の場合 → 親に「アソート表示」をpostMessage
-  if (IS_IN_OVERLAY) {
-    window.parent.postMessage({ type: 'navigateToBulk' }, '*');
+  if (!_cachedBulkHtml) {
+    // キャッシュ未完了 → 通常遷移（サーバー側でBulkLP配信）
+    window.location.href = '?page=bulk';
     return;
   }
-
-  // iframe overlayが存在 → CSS display切替のみ（1フレーム以内）
-  if (_bulkOverlay) {
-    _bulkOverlay.style.display = 'block';
-    return;
-  }
-
-  // iframe未作成 → 即座に作成して表示（GAS URLから読み込み）
-  createBulkOverlay_();
-  _bulkOverlay.style.display = 'block';
+  // フェードアウトオーバーレイ → document.write
+  var ov = document.createElement('div');
+  ov.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#1a1a2e;opacity:0;transition:opacity .15s ease';
+  document.body.appendChild(ov);
+  requestAnimationFrame(function() { ov.style.opacity = '1'; });
+  setTimeout(function() {
+    var html = _cachedBulkHtml;
+    // BulkLPはIS_STANDALONEモードでfetch()を使うため、shimは不要
+    // 遷移アニメーション用スタイルのみ注入
+    var s = '<style>html{background:#1a1a2e!important}body{opacity:0;animation:_pi .2s ease .05s forwards}@keyframes _pi{to{opacity:1}}</style>';
+    html = html.replace('<head>', '<head>' + s);
+    document.open();
+    document.write(html);
+    document.close();
+  }, 170);
 }
 
-// iframe overlayを生成（非表示状態で、GAS URLから直接読み込み）
-function createBulkOverlay_() {
-  if (_bulkOverlay) return;
-  var f = document.createElement('iframe');
-  f.name = 'bulkOverlay';
-  f.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:9998;display:none;background:#f5f5f5;';
-  f.src = _GAS_BASE_URL + '?page=bulk';
-  f.addEventListener('load', function() { _bulkOverlayReady = true; });
-  document.body.appendChild(f);
-  _bulkOverlay = f;
-}
-
-// postMessageリスナー: iframe内のBulkLPから「デタウリに戻る」指示を受信
-window.addEventListener('message', function(e) {
-  if (e.data && e.data.type === 'navigateToDetail') {
-    if (_bulkOverlay) {
-      _bulkOverlay.style.display = 'none'; // 即座に非表示 → デタウリが見える
-    }
-  }
-});
-
-// =====================================================
-// バックグラウンドプリフェッチ: アソートページiframeを事前作成
-// =====================================================
+// バックグラウンドプリフェッチ: アソートページHTMLを事前取得
 function prefetchBulkPage_() {
-  if (_bulkOverlay) return;
-  createBulkOverlay_();
-  console.log('プリフェッチ: アソートページiframe作成開始');
+  if (_cachedBulkHtml) return;
+  google.script.run
+    .withSuccessHandler(function(r) {
+      if (r && r.ok && r.html) {
+        _cachedBulkHtml = r.html;
+        console.log('プリフェッチ完了: アソートページHTML');
+      }
+    })
+    .withFailureHandler(function(e) { console.log('プリフェッチ失敗:', e); })
+    .apiBulkPage();
 }
 
 // =====================================================
@@ -5321,8 +5285,7 @@ function boot() {
       // PVログ: バックグラウンドで十分
       setTimeout(logPageView_, 2000);
       // アソートページHTMLをバックグラウンドでプリフェッチ（シームレス切替用）
-      // iframe overlay内の場合はスキップ（親ページが管理）
-      if (!IS_IN_OVERLAY) setTimeout(prefetchBulkPage_, 3000);
+      setTimeout(prefetchBulkPage_, 3000);
     })
     .catch(function(err) {
       console.error('起動エラー:', err);
