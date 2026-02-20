@@ -294,6 +294,16 @@ body.admin-mode .admin-settings-fab{display:flex;}
 .chatbot-quick-category:first-child{margin-top:0;}
 .chatbot-contact-link{display:inline-flex;align-items:center;gap:4px;margin-top:10px;padding:8px 16px;border-radius:10px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;text-decoration:none;}
 .chatbot-contact-link:hover{background:#fee2e2;border-color:#f87171;}
+.chatbot-contact-form{background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:12px;margin-top:6px;}
+.chatbot-contact-form label{display:block;font-size:11px;font-weight:600;color:#555;margin-bottom:3px;margin-top:8px;}
+.chatbot-contact-form label:first-child{margin-top:0;}
+.chatbot-contact-form input,.chatbot-contact-form textarea{width:100%;padding:8px 10px;border:1px solid #d9deea;border-radius:8px;font-size:13px;font-family:inherit;box-sizing:border-box;}
+.chatbot-contact-form textarea{resize:none;min-height:60px;}
+.chatbot-contact-form input:focus,.chatbot-contact-form textarea:focus{border-color:#1e293b;outline:none;}
+.chatbot-contact-btn{display:inline-block;margin-top:10px;padding:8px 18px;border:none;border-radius:8px;background:#1e293b;color:#fff;font-size:13px;font-weight:700;cursor:pointer;}
+.chatbot-contact-btn:disabled{opacity:.5;cursor:not-allowed;}
+.chatbot-staff-btn{display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:7px 14px;border:1px solid #1e293b;border-radius:8px;background:#fff;color:#1e293b;font-size:12px;font-weight:600;cursor:pointer;}
+.chatbot-staff-btn:hover{background:#f1f5f9;}
 @media(max-width:480px){.chatbot-panel{bottom:0;right:0;left:0;width:100%;max-width:100%;height:100%;max-height:100%;border-radius:0;}.chatbot-fab{bottom:72px;right:12px;width:50px;height:50px;}.chatbot-fab svg{width:24px;height:24px;}}
 
 /* PC レスポンシブ */
@@ -3271,7 +3281,85 @@ function renderOrderHistory_(orders) {
     note.textContent = '他にもご質問がありましたら、カテゴリをお選びいただくか、自由に入力してください。';
     messagesEl.appendChild(note);
     showCategoryButtons();
+    appendStaffContactButton();
     scrollToElement(answerEl);
+  }
+
+  function appendStaffContactButton(){
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'padding:0 2px;margin-top:4px;text-align:center;';
+    var btn = document.createElement('button');
+    btn.className = 'chatbot-staff-btn';
+    btn.type = 'button';
+    btn.textContent = '\u2709 スタッフに問い合わせる';
+    btn.addEventListener('click', function(){ showContactForm_(); });
+    wrap.appendChild(btn);
+    messagesEl.appendChild(wrap);
+  }
+
+  function showContactForm_(){
+    appendMessage('user', 'スタッフに問い合わせる');
+    var cust = (typeof G !== 'undefined' && G && G.customer) ? G.customer : null;
+    var prefillName = (cust && cust.companyName) || '';
+    var prefillEmail = (cust && cust.email) || '';
+    var lastUserMsg = '';
+    for (var i = chatHistory.length - 1; i >= 0; i--) {
+      if (chatHistory[i].role === 'user' && chatHistory[i].content !== 'スタッフに問い合わせる') {
+        lastUserMsg = chatHistory[i].content; break;
+      }
+    }
+    var formDiv = document.createElement('div');
+    formDiv.className = 'chatbot-msg bot';
+    formDiv.innerHTML =
+      '<div style="margin-bottom:6px;font-weight:600;">スタッフへのお問い合わせ</div>' +
+      '<div style="font-size:12px;color:#64748b;margin-bottom:8px;">内容を入力して送信してください。2営業日以内にメールでご返信いたします。</div>' +
+      '<div class="chatbot-contact-form">' +
+      '<label>お名前 *</label><input type="text" id="chatContactName" value="' + escAttr(prefillName) + '" placeholder="会社名/氏名">' +
+      '<label>メールアドレス *</label><input type="email" id="chatContactEmail" value="' + escAttr(prefillEmail) + '" placeholder="返信先メールアドレス">' +
+      '<label>お問い合わせ内容 *</label><textarea id="chatContactMsg" placeholder="お問い合わせ内容をご記入ください">' + escHtml(lastUserMsg) + '</textarea>' +
+      '<button class="chatbot-contact-btn" id="chatContactSubmit" type="button">送信</button>' +
+      '</div>';
+    messagesEl.appendChild(formDiv);
+    scrollToBottom();
+    var nameEl = document.getElementById('chatContactName');
+    if (nameEl && !prefillName) nameEl.focus();
+    document.getElementById('chatContactSubmit').addEventListener('click', submitChatContact_);
+  }
+  window.showChatContactForm_ = showContactForm_;
+
+  function submitChatContact_(){
+    var nameEl = document.getElementById('chatContactName');
+    var emailEl = document.getElementById('chatContactEmail');
+    var msgEl = document.getElementById('chatContactMsg');
+    var btn = document.getElementById('chatContactSubmit');
+    if (!nameEl || !emailEl || !msgEl || !btn) return;
+    var name = (nameEl.value || '').trim();
+    var email = (emailEl.value || '').trim();
+    var message = (msgEl.value || '').trim();
+    if (!name || !email || !message) {
+      appendMessage('bot', '全ての項目を入力してください。');
+      scrollToBottom();
+      return;
+    }
+    btn.disabled = true;
+    btn.textContent = '送信中...';
+    runApi('apiSendContactForm', { name: name, email: email, message: message, page: 'アソート' })
+      .then(function(res){
+        if (res && res.ok) {
+          appendMessage('bot', 'お問い合わせを送信しました。2営業日以内にご返信いたします。\n引き続きご質問がありましたらお気軽にどうぞ。');
+          showCategoryButtons();
+          appendStaffContactButton();
+        } else {
+          appendMessage('bot', (res && res.message) || '送信に失敗しました。お手数ですがもう一度お試しください。');
+          btn.disabled = false;
+          btn.textContent = '送信';
+        }
+      })
+      .catch(function(){
+        appendMessage('bot', '送信に失敗しました。お手数ですがもう一度お試しください。');
+        btn.disabled = false;
+        btn.textContent = '送信';
+      });
   }
 
   function appendMessage(role, text){
@@ -3285,7 +3373,7 @@ function renderOrderHistory_(orders) {
       var span = document.createElement('span');
       span.textContent = text;
       var safe = span.innerHTML;
-      safe = safe.replace(/✉\s*お問い合わせ/g, '<a href="#" style="color:#3b82f6;text-decoration:underline;cursor:pointer;" onclick="event.preventDefault();if(typeof closeChatbot===\'function\')closeChatbot();var cl=document.getElementById(\'openContactLink\');if(cl)cl.click();return false;">✉ お問い合わせ</a>');
+      safe = safe.replace(/✉\s*お問い合わせ/g, '<a href="#" style="color:#3b82f6;text-decoration:underline;cursor:pointer;" onclick="event.preventDefault();if(typeof showChatContactForm_===\'function\')showChatContactForm_();return false;">✉ お問い合わせ</a>');
       div.innerHTML = safe;
     } else {
       div.textContent = text;
