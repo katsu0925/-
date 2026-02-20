@@ -5173,12 +5173,11 @@ var _cachedBulkHtml = null;
 var _GAS_BASE_URL = 'https://script.google.com/macros/s/AKfycbwLN23a03qQSGA91J-82_6HlIx0kA5yUYFRxjfbjFGfnZDqynKnyJhEPsoISSQps3SmXQ/exec';
 
 function navigateToBulk(e) {
-  e.preventDefault();
   if (!_cachedBulkHtml) {
-    // キャッシュ未完了 → 通常遷移（サーバー側でBulkLP配信）
-    window.location.href = '?page=bulk';
+    // キャッシュ未完了 → デフォルトのリンク動作に任せる（target="_top"で通常遷移）
     return;
   }
+  e.preventDefault();
   // フェードアウトオーバーレイ → document.write
   var ov = document.createElement('div');
   ov.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#1a1a2e;opacity:0;transition:opacity .15s ease';
