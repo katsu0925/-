@@ -11,16 +11,48 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 .container{max-width:1100px;margin:0 auto;background:#fff;min-height:100vh}
 
 /* ヘッダー（sticky） */
-.header{background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:18px 20px 12px;text-align:center;position:sticky;top:0;z-index:100;max-width:1100px;margin:0 auto}
-.header h1{font-size:20px;letter-spacing:2px;font-weight:700}
-.header p{font-size:12px;color:#aab;margin-top:4px}
-.header-nav{display:flex;justify-content:center;gap:10px;margin-top:12px}
+.header{background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:18px 20px 12px;text-align:center;position:sticky;top:0;z-index:100;max-width:1100px;margin:0 auto;transition:padding .25s ease}
+.header h1{font-size:20px;letter-spacing:2px;font-weight:700;transition:font-size .25s ease}
+.header p{font-size:12px;color:#aab;margin-top:4px;transition:all .25s ease;max-height:30px;overflow:hidden;opacity:1}
+.header-nav{display:flex;justify-content:center;gap:10px;margin-top:12px;transition:margin .25s ease}
 .header-nav a{color:#fff;text-decoration:none;font-size:12px;padding:6px 16px;border:1px solid rgba(255,255,255,.3);border-radius:20px;transition:all .2s}
 .header-nav a.active{background:#ffd700;color:#1a1a2e;border-color:#ffd700;font-weight:700}
-.header-links{display:flex;justify-content:center;gap:16px;margin-top:10px}
+.header-links{display:flex;justify-content:center;gap:16px;margin-top:10px;transition:all .25s ease;max-height:40px;overflow:hidden;opacity:1}
 .header-links a{color:#93c5fd;text-decoration:none;font-size:12px;font-weight:600;transition:color .2s}
 .header-links a:hover{color:#bfdbfe}
-.member-badge{display:inline-block;margin-top:10px;font-size:12px;background:rgba(255,215,0,.15);color:#ffd700;padding:5px 14px;border-radius:20px;border:1px solid rgba(255,215,0,.3)}
+.member-badge{display:inline-block;margin-top:10px;font-size:12px;background:rgba(255,215,0,.15);color:#ffd700;padding:5px 14px;border-radius:20px;border:1px solid rgba(255,215,0,.3);transition:all .25s ease;overflow:hidden}
+.header.compact{padding:8px 20px 6px}
+.header.compact h1{font-size:15px;letter-spacing:1px}
+.header.compact p{max-height:0;opacity:0;margin-top:0}
+.header.compact .header-nav{margin-top:6px}
+.header.compact .header-nav a{font-size:11px;padding:4px 12px}
+.header.compact .header-links{max-height:0;opacity:0;margin-top:0}
+.header.compact .header-auth{max-height:0;opacity:0;margin-top:0;overflow:hidden}
+.header.compact .member-badge{max-height:0;opacity:0;margin-top:0;padding:0;border:0}
+
+/*
+=== A案: 2段コンパクトヘッダー（将来利用用メモ） ===
+HTML構造:
+<header class="header-a">
+  <div class="header-a-top">
+    <h1 class="header-a-logo">彩旬リスト アソート</h1>
+    <nav class="header-a-nav">
+      <a href="javascript:void(0)" onclick="switchToDetauri()">デタウリ</a>
+      <a href="javascript:void(0)" onclick="switchToBulk()" class="active">アソート</a>
+    </nav>
+    <div class="header-a-auth" id="authArea"></div>
+  </div>
+</header>
+
+CSS:
+.header-a{background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:10px 20px;position:sticky;top:0;z-index:100}
+.header-a-top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.header-a-logo{font-size:16px;font-weight:800;white-space:nowrap;margin:0}
+.header-a-nav{display:flex;gap:8px}
+.header-a-nav a{color:#93c5fd;text-decoration:none;font-size:12px;padding:5px 14px;border-radius:20px;border:1px solid rgba(255,255,255,.15)}
+.header-a-nav a.active{background:rgba(255,255,255,.1);color:#fff}
+.header-a-auth{font-size:12px}
+=== / A案メモ終わり === */
 
 /* セクション */
 .section{padding:20px}
@@ -67,9 +99,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 /* 商品詳細モーダル */
 .modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);z-index:1000;justify-content:center;align-items:center;padding:20px}
 .modal-overlay.active{display:flex}
-.modal-content{background:#fff;border-radius:16px;max-width:600px;width:100%;max-height:90vh;overflow-y:auto;position:relative}
-.modal-close{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;border:none;background:rgba(0,0,0,.5);color:#fff;font-size:20px;cursor:pointer;z-index:1;display:flex;align-items:center;justify-content:center;line-height:1}
+.modal-content{background:#fff;border-radius:16px;max-width:600px;width:100%;max-height:90vh;overflow:hidden;position:relative;display:flex;flex-direction:column}
+.modal-close{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;border:none;background:rgba(0,0,0,.5);color:#fff;font-size:20px;cursor:pointer;z-index:3;display:flex;align-items:center;justify-content:center;line-height:1}
 .modal-close:hover{background:rgba(0,0,0,.7)}
+.modal-fixed-top{flex-shrink:0}
 .modal-images{position:relative;width:100%;aspect-ratio:4/3;background:#eee;overflow:hidden}
 .modal-images img{width:100%;height:100%;object-fit:contain;display:none;background:#f0f0f0}
 .modal-images img.active{display:block}
@@ -79,12 +112,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 .modal-thumbs{display:flex;gap:8px;padding:12px 16px;overflow-x:auto}
 .modal-thumbs img{width:64px;height:64px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid transparent;flex-shrink:0;transition:border-color .2s}
 .modal-thumbs img.active{border-color:#1a1a2e}
+.modal-scroll{flex:1;overflow-y:auto;min-height:0}
 .modal-body{padding:20px}
 .modal-body .product-name{font-size:18px;margin-bottom:8px}
 .modal-body .product-desc{display:block;font-size:13px;color:#666;line-height:1.7;margin-bottom:12px;white-space:pre-wrap}
 .modal-body .product-tag{margin-bottom:12px}
-.modal-body .product-bottom{margin-top:16px}
-.modal-body .product-price{font-size:24px}
+.modal-fixed-bottom{flex-shrink:0;padding:0 20px 20px;border-top:1px solid #eee;background:#fff}
+.modal-fixed-bottom .product-bottom{display:flex;align-items:center;justify-content:space-between;padding-top:14px}
+.modal-fixed-bottom .product-price{font-size:24px}
 
 /* カート */
 .cart-summary{background:#f8f9fa;border-radius:12px;padding:14px}
@@ -158,7 +193,7 @@ body.admin-mode .header{border-top:3px solid #b8002a;}
 .promo-banner .promo-close:hover{opacity:1}
 
 /* ヘッダー認証エリア */
-.header-auth{display:flex;justify-content:center;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap}
+.header-auth{display:flex;justify-content:center;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap;transition:all .25s ease;max-height:60px;overflow:hidden;opacity:1}
 .auth-btn{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:20px;padding:6px 16px;cursor:pointer;font-weight:700;font-size:12px;color:#fff;transition:all .2s}
 .auth-btn:hover{background:rgba(255,255,255,.25)}
 .auth-btn.logout{background:transparent;border:none;color:#aab;text-decoration:underline;padding:4px 8px;font-size:11px}
@@ -294,6 +329,9 @@ body.admin-mode .admin-settings-fab{display:flex;}
   .header p{font-size:13px}
   .header-nav a{font-size:13px;padding:8px 20px}
   .header-links a{font-size:13px}
+  .header.compact{padding:8px 40px 6px}
+  .header.compact h1{font-size:17px}
+  .header.compact .header-nav a{font-size:12px;padding:5px 14px}
   .section{padding:28px 40px}
   .product-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
   .product-card{margin-bottom:0}
@@ -460,9 +498,14 @@ body.admin-mode .admin-settings-fab{display:flex;}
 <div class="modal-overlay" id="productModal" onclick="closeModalOverlay(event)">
   <div class="modal-content">
     <button class="modal-close" onclick="closeModal()">&times;</button>
-    <div class="modal-images" id="modalImages"></div>
-    <div class="modal-thumbs" id="modalThumbs"></div>
-    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-fixed-top">
+      <div class="modal-images" id="modalImages"></div>
+      <div class="modal-thumbs" id="modalThumbs"></div>
+    </div>
+    <div class="modal-scroll">
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+    <div class="modal-fixed-bottom" id="modalBottom"></div>
   </div>
 </div>
 
@@ -1174,6 +1217,24 @@ function applyBulkData_(r, savedCart) {
 }
 
 // =====================================================
+// ヘッダー自動縮小（スクロール連動）
+// =====================================================
+(function() {
+  var _compactThreshold = 60;
+  var _isCompact = false;
+  window.addEventListener('scroll', function() {
+    var header = document.querySelector('.header');
+    if (!header) return;
+    var shouldCompact = window.scrollY > _compactThreshold;
+    if (shouldCompact !== _isCompact) {
+      _isCompact = shouldCompact;
+      if (shouldCompact) { header.classList.add('compact'); }
+      else { header.classList.remove('compact'); }
+    }
+  }, { passive: true });
+})();
+
+// =====================================================
 // 初期化（キャッシュ優先 → バックグラウンド更新）
 // =====================================================
 window.addEventListener('DOMContentLoaded', function() {
@@ -1317,8 +1378,18 @@ function openProductModal(idx) {
   thumbsEl.innerHTML = thumbHtml;
   thumbsEl.style.display = (p.images && p.images.length > 1) ? 'flex' : 'none';
 
-  // 本文
+  // 本文（スクロール領域: タイトル + 説明 + タグ）
   var tagHtml = p.tag ? '<span class="product-tag">' + escHtml(p.tag) + '</span>' : '';
+  var isSoldOut = p.soldOut === true;
+  var soldOutLabel = isSoldOut ? '<div style="text-align:center;padding:10px 0;font-size:16px;font-weight:900;color:#d93025;letter-spacing:2px">SOLD OUT</div>' : '';
+  bodyEl.innerHTML =
+    '<div class="product-name">' + escHtml(p.name) + '</div>'
+    + (p.description ? '<div class="product-desc">' + escHtml(p.description) + '</div>' : '')
+    + tagHtml
+    + soldOutLabel;
+
+  // 固定下部: 価格 + 数量コントロール
+  var bottomEl = document.getElementById('modalBottom');
   var priceHtml = '';
   if (p.discountRate > 0) {
     priceHtml = '<span class="original">¥' + numFmt(p.price) + '</span>'
@@ -1327,17 +1398,10 @@ function openProductModal(idx) {
   } else {
     priceHtml = '¥' + numFmt(p.price) + '<small>' + escHtml(p.unit) + '</small>';
   }
-
-  var isSoldOut = p.soldOut === true;
   var qty = isSoldOut ? 0 : (G.cart[p.productId] || 0);
   var qtyClass = 'qty-control' + (isSoldOut ? '" style="opacity:.3;pointer-events:none' : '');
-  var soldOutLabel = isSoldOut ? '<div style="text-align:center;padding:10px 0;font-size:16px;font-weight:900;color:#d93025;letter-spacing:2px">SOLD OUT</div>' : '';
-  bodyEl.innerHTML =
-    '<div class="product-name">' + escHtml(p.name) + '</div>'
-    + (p.description ? '<div class="product-desc">' + escHtml(p.description) + '</div>' : '')
-    + tagHtml
-    + soldOutLabel
-    + '<div class="product-bottom">'
+  bottomEl.innerHTML =
+    '<div class="product-bottom">'
     + '<div class="product-price">' + priceHtml + '</div>'
     + '<div class="' + qtyClass + '">'
     + '<button class="qty-btn" onclick="changeQty(\'' + escAttr(p.productId) + '\',-1)">−</button>'
