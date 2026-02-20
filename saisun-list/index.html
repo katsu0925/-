@@ -25,10 +25,10 @@
   <link rel="preconnect" href="https://script.google.com" crossorigin>
   <link rel="dns-prefetch" href="https://www.google.com">
   <style>
-    html, body { margin:0; padding:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif; color:#111; background:#f6f7f9; -webkit-text-size-adjust:100%; }
+    html, body { margin:0; padding:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif; color:#111; background:#f5f5f5; -webkit-text-size-adjust:100%; }
     * { box-sizing:border-box; }
     input, select, textarea, button { font-size:16px; }
-    .promo-banner{background:linear-gradient(90deg,#b8002a,#e63950);color:#fff;text-align:center;padding:10px 40px 10px 14px;font-size:13px;font-weight:700;position:relative;z-index:21;display:none;}
+    .promo-banner{background:linear-gradient(90deg,#b8002a,#e63950);color:#fff;text-align:center;padding:10px 40px 10px 14px;font-size:13px;font-weight:700;position:sticky;top:0;z-index:102;display:none;max-width:1100px;margin:0 auto;}
     .promo-banner a{color:#fff;text-decoration:underline;margin-left:8px;font-weight:900;}
     .promo-banner a:hover{color:#ffd700;}
     .promo-banner .promo-close{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;opacity:0.8;}
@@ -69,13 +69,14 @@
     .admin-bar .admin-exit:hover{background:rgba(255,255,255,.4);}
     body.admin-mode .topbar{border-top:3px solid #b8002a;}
     @media(min-width:768px){
+      body{background:#e0e0e0;}
       .topbar{padding:20px 40px 14px;}
       .topbar h1{font-size:26px;}
       .topbar .subtitle{font-size:13px;}
       .header-nav a{font-size:13px;padding:8px 20px;}
       .header-links a{font-size:13px;}
     }
-    .wrap{max-width:1100px;margin:0 auto;padding:12px 14px 90px;}
+    .wrap{max-width:1100px;margin:0 auto;padding:12px 14px 90px;background:#fff;}
     .title{font-weight:900;font-size:18px;color:#f1f5f9;}
     .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
     .field{min-width:170px;flex:1 1 170px;}
@@ -1914,6 +1915,7 @@ function updateAuthUi_() {
     } else {
       banner.style.display = 'block';
     }
+    adjustTopbarForBanner_();
   }
 
   if (state.customer) {
@@ -2556,6 +2558,7 @@ function setupAuthUi_() {
       var b = $('promoBanner');
       if (b) b.style.display = 'none';
       try { sessionStorage.setItem('promoBannerDismissed', '1'); } catch (e) {}
+      adjustTopbarForBanner_();
     });
   }
 
@@ -5370,6 +5373,20 @@ function prefetchBulkPage_() {
 }
 
 // =====================================================
+// プロモバナー sticky 連動: topbar の top 位置を動的調整
+// =====================================================
+function adjustTopbarForBanner_() {
+  var banner = document.getElementById('promoBanner');
+  var topbar = document.querySelector('.topbar');
+  if (!topbar) return;
+  if (banner && banner.style.display !== 'none') {
+    topbar.style.top = banner.offsetHeight + 'px';
+  } else {
+    topbar.style.top = '0';
+  }
+}
+
+// =====================================================
 // 起動
 // =====================================================
 
@@ -5383,6 +5400,7 @@ function boot() {
   bindUi_();
   setupScrollTopButton_();
   setupDetailModalEvents_();
+  window.addEventListener('resize', adjustTopbarForBanner_);
   setupAuthUi_();
   updateAuthUi_();  // 初回表示（プロモバナー等）
   setupMultiSelectFilters();
