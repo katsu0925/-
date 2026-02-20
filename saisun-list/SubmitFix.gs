@@ -89,7 +89,7 @@ function apiSubmitEstimate(userKey, form, ids) {
         discountRate += 0.10;
       }
       var memberDiscountStatus = app_getMemberDiscountStatus_();
-      if (validatedCoupon.comboMember && memberDiscountStatus.enabled && contact) {
+      if (validatedCoupon.comboMember && memberDiscountStatus.enabled && contact && typeof findCustomerByEmail_ === 'function') {
         var custForDiscount = findCustomerByEmail_(contact);
         if (custForDiscount) {
           discountRate += memberDiscountStatus.rate;
@@ -103,7 +103,7 @@ function apiSubmitEstimate(userKey, form, ids) {
 
       // 会員割引（ログイン会員のみ、enabled時のみ）
       var memberDiscountStatus = app_getMemberDiscountStatus_();
-      if (memberDiscountStatus.enabled && contact) {
+      if (memberDiscountStatus.enabled && contact && typeof findCustomerByEmail_ === 'function') {
         var custForDiscount = findCustomerByEmail_(contact);
         if (custForDiscount) {
           discountRate += memberDiscountStatus.rate;
@@ -135,7 +135,7 @@ function apiSubmitEstimate(userKey, form, ids) {
     // === ポイント利用額の事前計算（ロック不要） ===
     var pointsUsed = 0;
     var custForPoints = null;
-    if (usePoints > 0 && contact) {
+    if (usePoints > 0 && contact && typeof findCustomerByEmail_ === 'function') {
       custForPoints = findCustomerByEmail_(contact);
       if (custForPoints && custForPoints.points >= usePoints) {
         pointsUsed = Math.min(usePoints, discounted); // 合計金額を超えない
