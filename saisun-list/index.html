@@ -371,7 +371,7 @@
 <script>
 // ページ遷移フラッシュ防止: 遷移フラグがあればbody背景を暗くしオーバーレイ表示
 (function(){try{if(sessionStorage.getItem('_pageTransition')==='1'){document.body.style.background='#1a1a2e';document.body.classList.add('page-entering');sessionStorage.removeItem('_pageTransition');}}catch(e){}})();
-// クライアントサイドルーター不要: サーバー側doGetが?page=bulkをBulkLPにルーティング
+// クライアントサイドルーター: スタンドアロンモードでは boot() 内で ?page=bulk を検知しBulkLP HTMLをfetchする
 </script>
   <div class="admin-bar" id="adminBar">管理者モード<span>受付番号紐付け</span><button class="admin-exit" id="adminExit" type="button">管理者モード解除</button></div>
   <button class="admin-settings-fab" id="adminSettingsFab" type="button" title="管理設定">&#9881;</button>
@@ -5171,14 +5171,8 @@ function logPageView_() {
 // =====================================================
 var _cachedBulkHtml = null;
 
-function navigateToBulk(e) {
-  e.preventDefault();
-  if (!_cachedBulkHtml) {
-    // キャッシュ未完了 → 通常遷移（サーバー側でBulkLP配信）
-    window.location.href = '?page=bulk';
-    return;
-  }
-  // フェードアウトオーバーレイ → document.write
+// document.writeでBulkLP HTMLを描画する共通関数
+function doWriteBulk_() {
   var ov = document.createElement('div');
   ov.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#1a1a2e;opacity:0;transition:opacity .15s ease';
   document.body.appendChild(ov);
@@ -5195,18 +5189,41 @@ function navigateToBulk(e) {
   }, 170);
 }
 
+function navigateToBulk(e) {
+  e.preventDefault();
+  if (!_cachedBulkHtml) {
+    if (IS_STANDALONE) {
+      // スタンドアロン: オンデマンドでBulkLP HTMLを取得してdocument.write
+      showToast('アソート商品を読み込み中...');
+      runApi('apiBulkPage').then(function(r) {
+        if (r && r.ok && r.html) {
+          _cachedBulkHtml = r.html;
+          doWriteBulk_();
+        }
+      }).catch(function() {
+        // fetch失敗 → GAS直URLにフォールバック
+        window.location.href = GAS_API_URL + '?page=bulk';
+      });
+      return;
+    }
+    // GAS iframe: サーバー側ルーティングに任せる
+    window.location.href = '?page=bulk';
+    return;
+  }
+  doWriteBulk_();
+}
+
 // バックグラウンドプリフェッチ: アソートページHTMLを事前取得
 function prefetchBulkPage_() {
   if (_cachedBulkHtml) return;
-  google.script.run
-    .withSuccessHandler(function(r) {
+  runApi('apiBulkPage')
+    .then(function(r) {
       if (r && r.ok && r.html) {
         _cachedBulkHtml = r.html;
         console.log('プリフェッチ完了: アソートページHTML');
       }
     })
-    .withFailureHandler(function(e) { console.log('プリフェッチ失敗:', e); })
-    .apiBulkPage();
+    .catch(function(e) { console.log('プリフェッチ失敗:', e); });
 }
 
 // =====================================================
@@ -5228,6 +5245,23 @@ function adjustTopbarForBanner_() {
 // =====================================================
 
 function boot() {
+  // クライアントサイドルーター: スタンドアロンモードで?page=bulkにアクセスされた場合
+  // Cloudflare Pagesはindex.htmlを返すため、ここでBulkLP HTMLをfetchしてdocument.writeする
+  if (IS_STANDALONE && new URLSearchParams(window.location.search).get('page') === 'bulk') {
+    document.body.style.background = '#1a1a2e';
+    runApi('apiBulkPage').then(function(r) {
+      if (r && r.ok && r.html) {
+        document.open();
+        document.write(r.html);
+        document.close();
+      }
+    }).catch(function() {
+      // 失敗時はGAS直URLにフォールバック
+      window.location.href = GAS_API_URL + '?page=bulk';
+    });
+    return; // 通常の初期化をスキップ
+  }
+
   state.userKey = loadUserKey();
   var c = loadCartStorage();
   state.cart.ids = c.ids || [];
