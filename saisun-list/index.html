@@ -381,9 +381,9 @@
   var BULK_HTML_TTL = 24 * 60 * 60 * 1000; // 24時間
   var GAS_URL = 'https://script.google.com/macros/s/AKfycbwLN23a03qQSGA91J-82_6HlIx0kA5yUYFRxjfbjFGfnZDqynKnyJhEPsoISSQps3SmXQ/exec';
 
-  // デタウリページの描画を完全に抑制
+  // デタウリページの描画を完全に抑制 + 背景を暗色化
   var hideStyle = document.createElement('style');
-  hideStyle.textContent = 'body > *:not(#__bulkLoader) { display: none !important; }';
+  hideStyle.textContent = 'body{background:#1a1a2e !important;} body > *:not(#__bulkLoader) { display: none !important; }';
   document.head.appendChild(hideStyle);
 
   // localStorageキャッシュを確認
@@ -399,12 +399,10 @@
   } catch (e) {}
 
   if (cachedHtml) {
-    // キャッシュあり → 即座にBulkLPを表示（GAS APIコール不要）
-    window.addEventListener('DOMContentLoaded', function() {
-      document.open();
-      document.write(cachedHtml);
-      document.close();
-    });
+    // キャッシュあり → index.htmlのDOM解析を待たず即座にBulkLPを表示
+    document.open();
+    document.write(cachedHtml);
+    document.close();
     return;
   }
 
@@ -497,7 +495,7 @@
     </nav>
     <div class="header-links">
       <a href="#" id="openGuideLink">商品ガイド</a>
-      <a href="#" id="openShippingLink">送料表</a>
+      <a href="#" id="openShippingLink">デタウリ送料表</a>
       <a href="#" id="openContactLink">お問い合わせ</a>
     </div>
     <div class="authArea" id="authArea">
@@ -1068,7 +1066,7 @@
   <!-- 送料表モーダル -->
   <div class="modal" id="shippingModal" aria-hidden="true" style="width:min(800px,96vw);">
     <div class="modalHeader">
-      <div class="modalTitle">🚚 送料表</div>
+      <div class="modalTitle">🚚 デタウリ送料表</div>
       <button class="modalClose" id="shippingCloseBtn" aria-label="close">×</button>
     </div>
     <div class="modalBody" style="line-height:1.7;">
@@ -5244,13 +5242,23 @@ function navigateToBulk(e) {
   var base = window.location.origin + window.location.pathname;
   var url = base + '?page=bulk';
   try { sessionStorage.setItem('_pageTransition', '1'); } catch(e) {}
-  var overlay = document.getElementById('pageTransition');
-  if (overlay) {
-    overlay.querySelector('.pt-sub').textContent = 'アソート商品を読み込み中...';
-    overlay.classList.add('active');
-    setTimeout(function() { window.location.href = url; }, 200);
-  } else {
+  // キャッシュ済みなら即時遷移（ルーターがDOM解析前に即表示する）
+  var hasBulkCache = false;
+  try {
+    var raw = localStorage.getItem('bulk_html_cache_v7');
+    if (raw) { var c = JSON.parse(raw); hasBulkCache = !!(c && c.html && c.ts && (Date.now() - c.ts < 86400000)); }
+  } catch(ex) {}
+  if (hasBulkCache) {
     window.location.href = url;
+  } else {
+    var overlay = document.getElementById('pageTransition');
+    if (overlay) {
+      overlay.querySelector('.pt-sub').textContent = 'アソート商品を読み込み中...';
+      overlay.classList.add('active');
+      setTimeout(function() { window.location.href = url; }, 150);
+    } else {
+      window.location.href = url;
+    }
   }
 }
 
