@@ -328,7 +328,7 @@
   var params = new URLSearchParams(window.location.search);
   if (params.get('page') !== 'bulk') return;
 
-  var BULK_HTML_KEY = 'bulk_html_cache_v5';
+  var BULK_HTML_KEY = 'bulk_html_cache_v6';
   var BULK_HTML_TTL = 24 * 60 * 60 * 1000; // 24時間
   var GAS_URL = 'https://script.google.com/macros/s/AKfycbwLN23a03qQSGA91J-82_6HlIx0kA5yUYFRxjfbjFGfnZDqynKnyJhEPsoISSQps3SmXQ/exec';
 
@@ -4349,6 +4349,14 @@ function readForm_() {
     f.shippingArea = shipping.area || '';
     f.shippingPref = shipping.pref || '';
   }
+  // アソート商品カートの金額を合算（両チャネル合算決済）
+  var bulk = loadBulkCartStorage();
+  if (bulk.subtotal > 0) {
+    var bulkShip = calcBulkShipping_(bulk.totalQty);
+    f.bulkProductAmount = bulk.subtotal;
+    f.bulkShipping = bulkShip;
+    f.bulkItemCount = bulk.totalQty;
+  }
   return f;
 }
 
@@ -4551,14 +4559,27 @@ function handlePaymentReturn_() {
   }
 
   if (status === 'complete') {
-    // 決済完了
+    // 決済確認中の表示
     $('doneReceipt').textContent = receipt;
-    if ($('doneModalTitle')) $('doneModalTitle').textContent = '注文完了';
-    if ($('doneMessage')) $('doneMessage').textContent = 'お支払いが完了しました。注文確認メールをお送りしましたのでご確認ください。商品の発送準備を進めてまいります。';
+    if ($('doneModalTitle')) $('doneModalTitle').textContent = '決済確認中...';
+    if ($('doneMessage')) $('doneMessage').textContent = 'お支払いの確認をしています。しばらくお待ちください...';
     openModal($('doneModal'));
-    // Webhookが未処理の場合のフォールバック: ステータスチェック経由で注文確定を試行
-    runApi('apiCheckPaymentStatus', receipt).catch(function(e) {
+    // 決済ステータスを確認してから完了表示
+    runApi('apiCheckPaymentStatus', receipt).then(function(res) {
+      if (res && res.ok && (res.status === 'paid' || res.status === 'authorized')) {
+        if ($('doneModalTitle')) $('doneModalTitle').textContent = '注文完了';
+        if ($('doneMessage')) $('doneMessage').textContent = 'お支払いが完了しました。注文確認メールをお送りしましたのでご確認ください。商品の発送準備を進めてまいります。';
+      } else if (res && res.ok && res.status === 'pending') {
+        if ($('doneModalTitle')) $('doneModalTitle').textContent = '入金待ち';
+        if ($('doneMessage')) $('doneMessage').textContent = 'ご注文を受け付けました。コンビニ決済・銀行振込をご選択の場合、入金確認後に注文が確定されます。';
+      } else {
+        if ($('doneModalTitle')) $('doneModalTitle').textContent = '決済確認中';
+        if ($('doneMessage')) $('doneMessage').textContent = 'お支払いの確認に時間がかかっています。注文が確定されましたらメールでお知らせいたします。受付番号を控えておいてください。';
+      }
+    }).catch(function(e) {
       console.log('Payment status check on return:', e);
+      if ($('doneModalTitle')) $('doneModalTitle').textContent = '決済確認中';
+      if ($('doneMessage')) $('doneMessage').textContent = 'お支払いの確認に時間がかかっています。注文が確定されましたらメールでお知らせいたします。受付番号を控えておいてください。';
     });
   } else if (status === 'cancel') {
     // 決済キャンセル

@@ -167,7 +167,18 @@ function apiBulkSubmit(form, items) {
       note = note ? (note + '\n' + shippingLabel) : shippingLabel;
     }
 
-    var totalWithShipping = discounted + shippingAmount;
+    // === デタウリカートの金額を合算（両チャネル合算決済） ===
+    var detauriProductAmount = Math.max(0, Math.floor(Number(f.detauriProductAmount || 0)));
+    var detauriShippingAmount = Math.max(0, Math.floor(Number(f.detauriShipping || 0)));
+    var detauriItemCount = Math.max(0, Math.floor(Number(f.detauriItemCount || 0)));
+    var detauriTotal = detauriProductAmount + detauriShippingAmount;
+
+    var totalWithShipping = discounted + shippingAmount + detauriTotal;
+
+    if (detauriTotal > 0) {
+      var detauriNote = '【デタウリ合算: 商品代¥' + detauriProductAmount + '（' + detauriItemCount + '点）+ 送料¥' + detauriShippingAmount + '】';
+      note = note ? (note + '\n' + detauriNote) : detauriNote;
+    }
 
     // === 受付番号生成 ===
     var receiptNo = u_makeReceiptNo_();
@@ -201,19 +212,22 @@ function apiBulkSubmit(form, items) {
       createdAtMs: u_nowMs_(),
       couponCode: couponCode || '',
       couponDiscount: couponDiscount || 0,
-      couponLabel: couponLabel || ''
+      couponLabel: couponLabel || '',
+      detauriProductAmount: detauriProductAmount,
+      detauriShipping: detauriShippingAmount,
+      detauriItemCount: detauriItemCount
     };
 
     var props = PropertiesService.getScriptProperties();
     props.setProperty('PENDING_ORDER_' + receiptNo, JSON.stringify(pendingData));
-    console.log('まとめ商品ペンディング注文を保存: ' + receiptNo);
+    console.log('アソート商品ペンディング注文を保存: ' + receiptNo + ' (デタウリ合算: ¥' + detauriTotal + ')');
 
     // === KOMOJU決済セッション作成 ===
     var komojuResult = apiCreateKomojuSession(receiptNo, totalWithShipping, {
       email: contact,
       companyName: companyName,
-      productAmount: discounted,
-      shippingAmount: shippingAmount,
+      productAmount: discounted + detauriProductAmount,
+      shippingAmount: shippingAmount + detauriShippingAmount,
       shippingSize: shippingSize
     });
 
