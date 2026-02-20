@@ -1086,8 +1086,31 @@ function applyBulkData_(r, savedCart) {
   var dbl = document.getElementById('detauriBannerLink');
   if (dl) dl.href = detauriBase;
   if (dbl) dbl.href = detauriBase;
-  // ページ遷移アニメーション
-  function navigateWithTransition_(url, label) {
+  // シームレスページ切替: キャッシュ済みならSPA方式、なければ従来遷移
+  function navigateToDetail_(url, label) {
+    var cachedHtml = null;
+    var DETAIL_HTML_KEY = 'detail_html_cache_v1';
+    var DETAIL_HTML_TTL = 24 * 60 * 60 * 1000;
+    try {
+      var raw = localStorage.getItem(DETAIL_HTML_KEY);
+      if (raw) {
+        var c = JSON.parse(raw);
+        if (c && c.html && c.ts && (Date.now() - c.ts < DETAIL_HTML_TTL)) {
+          cachedHtml = c.html;
+        }
+      }
+    } catch(ex) {}
+
+    if (cachedHtml) {
+      // 白フラッシュ防止: <html>タグに背景色を注入してからdocument.write()
+      var safeHtml = cachedHtml.replace(/<html([^>]*)>/, '<html$1 style="background:#1a1a2e">');
+      document.open();
+      document.write(safeHtml);
+      document.close();
+      return;
+    }
+
+    // キャッシュなし → 従来のオーバーレイ遷移
     try { sessionStorage.setItem('_pageTransition', '1'); } catch(e) {}
     var overlay = document.getElementById('pageTransition');
     if (overlay) {
@@ -1098,8 +1121,8 @@ function applyBulkData_(r, savedCart) {
       window.location.href = url;
     }
   }
-  if (dl) dl.addEventListener('click', function(e) { e.preventDefault(); navigateWithTransition_(dl.href, '採寸付き個品を読み込み中...'); });
-  if (dbl) dbl.addEventListener('click', function(e) { e.preventDefault(); navigateWithTransition_(dbl.href, '採寸付き個品を読み込み中...'); });
+  if (dl) dl.addEventListener('click', function(e) { e.preventDefault(); navigateToDetail_(dl.href, '採寸付き個品を読み込み中...'); });
+  if (dbl) dbl.addEventListener('click', function(e) { e.preventDefault(); navigateToDetail_(dbl.href, '採寸付き個品を読み込み中...'); });
   if (savedCart && Object.keys(savedCart).length > 0) {
     var validProducts = {};
     G.products.forEach(function(p) { validProducts[p.productId] = true; });
@@ -1171,6 +1194,31 @@ window.addEventListener('DOMContentLoaded', function() {
     });
 
   document.getElementById('postal').addEventListener('input', onPostalInput);
+
+  // デタウリページHTMLをバックグラウンドでプリフェッチ（シームレス切替用）
+  setTimeout(function() {
+    var DETAIL_HTML_KEY = 'detail_html_cache_v1';
+    var DETAIL_HTML_TTL = 24 * 60 * 60 * 1000;
+    try {
+      var raw = localStorage.getItem(DETAIL_HTML_KEY);
+      if (raw) {
+        var c = JSON.parse(raw);
+        if (c && c.html && c.ts && (Date.now() - c.ts < DETAIL_HTML_TTL)) {
+          return; // キャッシュ有効 → プリフェッチ不要
+        }
+      }
+    } catch(e) {}
+    runApi('apiDetailPage')
+      .then(function(data) {
+        if (data && data.ok && data.html) {
+          try {
+            localStorage.setItem(DETAIL_HTML_KEY, JSON.stringify({ ts: Date.now(), html: data.html }));
+            console.log('プリフェッチ完了: デタウリページHTML');
+          } catch(e) {}
+        }
+      })
+      .catch(function() {}); // プリフェッチ失敗は無視
+  }, 3000);
 });
 
 // =====================================================

@@ -401,9 +401,11 @@
   if (cachedHtml) {
     // キャッシュあり → DOMContentLoaded後に即座にBulkLPを表示
     // （hideStyleで背景は暗色、コンテンツは非表示のため白フラッシュなし）
+    // 追加保護: <html>タグにも背景色を注入
+    var safeHtml = cachedHtml.replace(/<html([^>]*)>/, '<html$1 style="background:#1a1a2e">');
     window.addEventListener('DOMContentLoaded', function() {
       document.open();
-      document.write(cachedHtml);
+      document.write(safeHtml);
       document.close();
     });
     return;
@@ -5255,9 +5257,10 @@ function navigateToBulk(e) {
   } catch(ex) {}
 
   if (cachedHtml) {
-    // ページ遷移なし → イベントハンドラ内のdocument.write()で即座にBulkLP表示
+    // 白フラッシュ防止: <html>タグに背景色を注入してからdocument.write()
+    var safeHtml = cachedHtml.replace(/<html([^>]*)>/, '<html$1 style="background:#1a1a2e">');
     document.open();
-    document.write(cachedHtml);
+    document.write(safeHtml);
     document.close();
     return;
   }
@@ -5274,6 +5277,40 @@ function navigateToBulk(e) {
   } else {
     window.location.href = url;
   }
+}
+
+// =====================================================
+// バックグラウンドプリフェッチ: アソートページHTMLを事前取得
+// =====================================================
+function prefetchBulkPage_() {
+  var BULK_HTML_KEY = 'bulk_html_cache_v7';
+  var BULK_HTML_TTL = 24 * 60 * 60 * 1000;
+  try {
+    var raw = localStorage.getItem(BULK_HTML_KEY);
+    if (raw) {
+      var c = JSON.parse(raw);
+      if (c && c.html && c.ts && (Date.now() - c.ts < BULK_HTML_TTL)) {
+        return; // キャッシュ有効 → プリフェッチ不要
+      }
+    }
+  } catch(e) {}
+  var GAS_URL = 'https://script.google.com/macros/s/AKfycbwLN23a03qQSGA91J-82_6HlIx0kA5yUYFRxjfbjFGfnZDqynKnyJhEPsoISSQps3SmXQ/exec';
+  fetch(GAS_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ action: 'apiBulkPage', args: [] }),
+    redirect: 'follow'
+  })
+  .then(function(res) { return res.ok ? res.json() : null; })
+  .then(function(data) {
+    if (data && data.ok && data.html) {
+      try {
+        localStorage.setItem(BULK_HTML_KEY, JSON.stringify({ ts: Date.now(), html: data.html }));
+        console.log('プリフェッチ完了: アソートページHTML');
+      } catch(e) {}
+    }
+  })
+  .catch(function() {}); // プリフェッチ失敗は無視
 }
 
 // =====================================================
@@ -5335,6 +5372,8 @@ function boot() {
       fetchCsrfToken_();
       // PVログ: バックグラウンドで十分
       setTimeout(logPageView_, 2000);
+      // アソートページHTMLをバックグラウンドでプリフェッチ（シームレス切替用）
+      setTimeout(prefetchBulkPage_, 3000);
     })
     .catch(function(err) {
       console.error('起動エラー:', err);
