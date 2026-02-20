@@ -126,6 +126,45 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 /* エラー */
 .error-msg{background:#f8d7da;color:#721c24;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px;display:none}
 
+/* プロモバナー */
+.promo-banner{background:linear-gradient(90deg,#b8002a,#e63950);color:#fff;text-align:center;padding:10px 40px 10px 14px;font-size:13px;font-weight:700;position:relative;z-index:21;display:none}
+.promo-banner a{color:#fff;text-decoration:underline;margin-left:8px;font-weight:900}
+.promo-banner a:hover{color:#ffd700}
+.promo-banner .promo-close{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;opacity:.8}
+.promo-banner .promo-close:hover{opacity:1}
+
+/* ヘッダー認証エリア */
+.header-auth{display:flex;justify-content:center;gap:8px;margin-top:10px;align-items:center;flex-wrap:wrap}
+.auth-btn{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:20px;padding:6px 16px;cursor:pointer;font-weight:700;font-size:12px;color:#fff;transition:all .2s}
+.auth-btn:hover{background:rgba(255,255,255,.25)}
+.auth-btn.logout{background:transparent;border:none;color:#aab;text-decoration:underline;padding:4px 8px;font-size:11px}
+.auth-user{display:flex;align-items:center;gap:6px;font-size:12px;color:#fff}
+.auth-user-name{font-weight:700;max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.auth-discount{background:#e74c3c;color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700}
+
+/* 認証モーダル */
+.auth-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);z-index:1001;justify-content:center;align-items:center;padding:20px}
+.auth-overlay.active{display:flex}
+.auth-modal{background:#fff;border-radius:16px;max-width:440px;width:100%;max-height:90vh;overflow-y:auto;position:relative}
+.auth-modal-header{padding:16px 20px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between}
+.auth-modal-title{font-size:16px;font-weight:700;color:#1a1a2e}
+.auth-modal-close{background:none;border:none;font-size:22px;cursor:pointer;padding:4px 8px;color:#999;line-height:1}
+.auth-modal-body{padding:20px}
+.auth-field{margin-bottom:12px}
+.auth-field label{display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px}
+.auth-field input{width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;background:#fafafa}
+.auth-field input:focus{outline:none;border-color:#1a1a2e;background:#fff}
+.auth-submit{width:100%;padding:14px;border:none;border-radius:10px;background:#1a1a2e;color:#fff;font-size:15px;font-weight:700;cursor:pointer;margin-top:8px}
+.auth-submit:hover{background:#16213e}
+.auth-submit:disabled{opacity:.5;cursor:not-allowed}
+.auth-switch{text-align:center;margin-top:14px;font-size:13px;color:#666}
+.auth-switch a{color:#1a1a2e;font-weight:700;text-decoration:none}
+.auth-error{background:#f8d7da;color:#721c24;padding:8px 12px;border-radius:6px;font-size:12px;margin-bottom:10px;display:none}
+.pw-wrap{position:relative;display:flex;align-items:center}
+.pw-wrap input{flex:1;padding-right:38px}
+.pw-toggle{position:absolute;right:6px;background:none;border:none;cursor:pointer;font-size:16px;padding:4px;opacity:.5;line-height:1}
+.pw-toggle:hover{opacity:.8}
+
 /* PC レスポンシブ */
 @media(min-width:768px){
   body{background:#e0e0e0}
@@ -158,6 +197,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 </style>
 </head>
 <body>
+<!-- プロモバナー -->
+<div class="promo-banner" id="promoBanner">
+  期間限定：会員登録で全品<strong>10%OFF</strong>（2026年9月末まで・30点割引と併用可）<a href="#" id="promoRegisterLink">今すぐ無料登録 ＞</a>
+  <button class="promo-close" id="promoClose" type="button">✕</button>
+</div>
+
 <div class="container">
 
 <!-- ヘッダー -->
@@ -168,7 +213,108 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
     <a class="active" href="#">まとめ商品</a>
     <a id="detauriLink" href="./">採寸付き個品（デタウリ）</a>
   </nav>
+  <!-- 認証エリア -->
+  <div class="header-auth" id="headerAuth">
+    <button class="auth-btn" id="openAuthBtn" type="button">ログイン / 新規登録</button>
+  </div>
 </header>
+
+<!-- 認証モーダル -->
+<div class="auth-overlay" id="authOverlay">
+  <div class="auth-modal">
+    <div class="auth-modal-header">
+      <div class="auth-modal-title" id="authModalTitle">ログイン</div>
+      <button class="auth-modal-close" id="authCloseBtn" type="button">&times;</button>
+    </div>
+    <div class="auth-modal-body">
+      <div class="auth-error" id="authError"></div>
+      <!-- ログインフォーム -->
+      <div id="loginForm">
+        <div class="auth-field">
+          <label>メールアドレス</label>
+          <input id="loginEmail" type="email" autocomplete="email">
+        </div>
+        <div class="auth-field">
+          <label>パスワード</label>
+          <div class="pw-wrap"><input id="loginPassword" type="password" autocomplete="current-password"><button type="button" class="pw-toggle" onclick="togglePw(this)">&#x1F441;</button></div>
+        </div>
+        <div class="auth-field" style="margin-top:-4px;">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:400;font-size:13px;">
+            <input type="checkbox" id="rememberMe" style="width:16px;height:16px;">
+            ログイン状態を保持する（30日間）
+          </label>
+        </div>
+        <button class="auth-submit" id="loginBtn" type="button">ログイン</button>
+        <div class="auth-switch">アカウントをお持ちでない方は <a href="#" id="showRegisterLink">新規登録</a></div>
+        <div style="text-align:center;margin-top:8px;font-size:12px;color:#888;">
+          <a href="#" id="showForgotPwLink" style="color:#666;">パスワードを忘れた方</a>
+          <span style="margin:0 6px;">|</span>
+          <a href="#" id="showForgotEmailLink" style="color:#666;">メールアドレスを忘れた方</a>
+        </div>
+      </div>
+      <!-- パスワードリセットフォーム -->
+      <div id="forgotPwForm" style="display:none;">
+        <p style="font-size:13px;color:#555;margin:0 0 14px;">登録済みのメールアドレスを入力してください。仮パスワードをメールでお送りします。</p>
+        <div class="auth-field">
+          <label>メールアドレス</label>
+          <input id="resetEmail" type="email" autocomplete="email">
+        </div>
+        <button class="auth-submit" id="resetPwBtn" type="button">仮パスワードを送信</button>
+        <div class="auth-switch"><a href="#" id="backToLoginFromReset">ログインに戻る</a></div>
+      </div>
+      <!-- メールアドレス確認フォーム -->
+      <div id="forgotEmailForm" style="display:none;">
+        <p style="font-size:13px;color:#555;margin:0 0 14px;">ご登録時の会社名/氏名と電話番号を入力してください。登録メールアドレスのヒントを表示します。</p>
+        <div class="auth-field">
+          <label>会社名/氏名</label>
+          <input id="recoverCompanyName" type="text">
+        </div>
+        <div class="auth-field">
+          <label>電話番号</label>
+          <input id="recoverPhone" type="tel" inputmode="numeric">
+        </div>
+        <div id="recoverEmailResult" style="display:none;margin:12px 0;padding:12px;background:#f0f7ff;border-radius:6px;font-size:14px;text-align:center;"></div>
+        <button class="auth-submit" id="recoverEmailBtn" type="button">メールアドレスを確認</button>
+        <div class="auth-switch"><a href="#" id="backToLoginFromRecover">ログインに戻る</a></div>
+      </div>
+      <!-- 登録フォーム -->
+      <div id="registerForm" style="display:none;">
+        <div class="auth-field">
+          <label>メールアドレス *</label>
+          <input id="regEmail" type="email" autocomplete="email">
+        </div>
+        <div class="auth-field">
+          <label>パスワード（6文字以上） *</label>
+          <div class="pw-wrap"><input id="regPassword" type="password" autocomplete="new-password"><button type="button" class="pw-toggle" onclick="togglePw(this)">&#x1F441;</button></div>
+        </div>
+        <div class="auth-field">
+          <label>会社名/氏名 *</label>
+          <input id="regCompanyName" type="text" autocomplete="name">
+        </div>
+        <div class="auth-field">
+          <label>電話番号</label>
+          <input id="regPhone" type="tel" inputmode="numeric">
+        </div>
+        <div class="auth-field">
+          <label>郵便番号</label>
+          <input id="regPostal" type="text" inputmode="numeric" placeholder="0000000">
+        </div>
+        <div class="auth-field">
+          <label>住所</label>
+          <input id="regAddress" type="text" autocomplete="street-address">
+        </div>
+        <div class="auth-field">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400;">
+            <input type="checkbox" id="regNewsletter" checked style="width:18px;height:18px;">
+            <span>お得な情報をメールで受け取る</span>
+          </label>
+        </div>
+        <button class="auth-submit" id="registerBtn" type="button">登録する</button>
+        <div class="auth-switch">既にアカウントをお持ちの方は <a href="#" id="showLoginLink">ログイン</a></div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <!-- 商品一覧 -->
 <section class="section" id="productSection">
@@ -803,7 +949,7 @@ function calcShipping(totalQty) {
 function recalcDetauriShipping_() {
   if (G.detauriCartCount === 0) return;
   var addr = document.getElementById('address').value;
-  if (!addr) { G.detauriShipping = 0; G.detauriShippingPref = ''; G.detauriShippingSizeLabel = ''; return; }
+  if (!addr) return; // 住所未入力時はloadDetauriCart()で読み込んだ値を維持
 
   var pref = detectPrefClient(addr);
   if (!pref) { G.detauriShipping = 0; G.detauriShippingPref = ''; G.detauriShippingSizeLabel = ''; return; }
@@ -1076,7 +1222,7 @@ function loadSharedSession() {
         if (r && r.ok && r.data && r.data.customer) {
           G.customer = r.data.customer;
           autoFillCustomerForm();
-          updateMemberUI();
+          updateAuthUi_();
           updateCart(); // 会員割引を反映
         }
       })
@@ -1177,6 +1323,344 @@ document.addEventListener('keydown', function(e) {
 function escHtml(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 function escAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;'); }
 function numFmt(n) { return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+// =====================================================
+// 住所共有（localStorage経由で両ページ間で共有）
+// =====================================================
+var SHARED_ADDRESS_KEY = 'shared_address_v1';
+
+function saveSharedAddress_() {
+  try {
+    var data = {
+      companyName: (document.getElementById('companyName').value || '').trim(),
+      contact: (document.getElementById('contact').value || '').trim(),
+      postal: (document.getElementById('postal').value || '').trim(),
+      address: (document.getElementById('address').value || '').trim(),
+      building: (document.getElementById('building').value || '').trim(),
+      phone: (document.getElementById('phone').value || '').trim(),
+      ts: Date.now()
+    };
+    localStorage.setItem(SHARED_ADDRESS_KEY, JSON.stringify(data));
+  } catch (e) {}
+}
+
+function loadSharedAddress_() {
+  try {
+    var raw = localStorage.getItem(SHARED_ADDRESS_KEY);
+    if (!raw) return;
+    var data = JSON.parse(raw);
+    if (!data || !data.ts) return;
+    // フォームの空フィールドのみ埋める
+    var fields = ['companyName', 'contact', 'postal', 'address', 'building', 'phone'];
+    for (var i = 0; i < fields.length; i++) {
+      var el = document.getElementById(fields[i]);
+      if (el && !el.value && data[fields[i]]) {
+        el.value = data[fields[i]];
+      }
+    }
+    // 住所が入力されたら送料を再計算
+    if (data.address) updateCart();
+  } catch (e) {}
+}
+
+// フォームフィールドの入力時に共有住所を保存
+(function() {
+  var fields = ['companyName', 'contact', 'postal', 'address', 'building', 'phone'];
+  for (var i = 0; i < fields.length; i++) {
+    var el = document.getElementById(fields[i]);
+    if (el) {
+      el.addEventListener('input', saveSharedAddress_);
+    }
+  }
+})();
+
+// =====================================================
+// 認証UI
+// =====================================================
+function togglePw(btn) {
+  var input = btn.previousElementSibling;
+  if (input.type === 'password') { input.type = 'text'; btn.textContent = '\u{1F441}\u{FE0F}\u200D\u{1F5E8}\u{FE0F}'; }
+  else { input.type = 'password'; btn.textContent = '\u{1F441}'; }
+}
+
+function openAuthModal_(mode) {
+  var overlay = document.getElementById('authOverlay');
+  if (!overlay) return;
+  document.getElementById('loginForm').style.display = 'none';
+  document.getElementById('registerForm').style.display = 'none';
+  document.getElementById('forgotPwForm').style.display = 'none';
+  document.getElementById('forgotEmailForm').style.display = 'none';
+  var errEl = document.getElementById('authError');
+  if (errEl) errEl.style.display = 'none';
+  var recoverResult = document.getElementById('recoverEmailResult');
+  if (recoverResult) recoverResult.style.display = 'none';
+
+  if (mode === 'register') {
+    document.getElementById('authModalTitle').textContent = '新規登録';
+    document.getElementById('registerForm').style.display = '';
+  } else if (mode === 'forgotPassword') {
+    document.getElementById('authModalTitle').textContent = 'パスワードをお忘れの方';
+    document.getElementById('forgotPwForm').style.display = '';
+  } else if (mode === 'forgotEmail') {
+    document.getElementById('authModalTitle').textContent = 'メールアドレスをお忘れの方';
+    document.getElementById('forgotEmailForm').style.display = '';
+  } else {
+    document.getElementById('authModalTitle').textContent = 'ログイン';
+    document.getElementById('loginForm').style.display = '';
+  }
+  overlay.classList.add('active');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeAuthModal_() {
+  var overlay = document.getElementById('authOverlay');
+  if (overlay) overlay.classList.remove('active');
+  document.body.style.overflow = '';
+}
+
+function showAuthError_(msg) {
+  var el = document.getElementById('authError');
+  if (el) { el.textContent = msg; el.style.display = 'block'; }
+}
+
+function updateAuthUi_() {
+  var area = document.getElementById('headerAuth');
+  if (!area) return;
+
+  // プロモバナーの表示制御
+  var banner = document.getElementById('promoBanner');
+  if (banner) {
+    var dismissed = false;
+    try { dismissed = sessionStorage.getItem('promoBannerDismissed') === '1'; } catch (e) {}
+    var md = G.settings.memberDiscount;
+    if (G.customer || dismissed || !(md && md.enabled)) {
+      banner.style.display = 'none';
+    } else {
+      banner.style.display = 'block';
+    }
+  }
+
+  if (G.customer) {
+    var md = G.settings.memberDiscount;
+    var discountHtml = (md && md.enabled) ? '<span class="auth-discount">' + Math.round(md.rate * 100) + '%OFF</span>' : '';
+    area.innerHTML =
+      '<div class="auth-user">' +
+        '<span class="auth-user-name">' + escHtml(G.customer.companyName || G.customer.email) + '</span>' +
+        discountHtml +
+      '</div>' +
+      '<button class="auth-btn logout" id="logoutBtn" type="button">ログアウト</button>';
+    var logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+      logoutBtn.addEventListener('click', function() { doLogout_(); });
+    }
+    // memberBadgeも更新
+    updateMemberUI();
+  } else {
+    area.innerHTML = '<button class="auth-btn" id="openAuthBtn" type="button">ログイン / 新規登録</button>';
+    var openBtn = document.getElementById('openAuthBtn');
+    if (openBtn) {
+      openBtn.addEventListener('click', function() { openAuthModal_('login'); });
+    }
+    // memberBadgeがあれば削除
+    var old = document.getElementById('memberBadge');
+    if (old) old.remove();
+  }
+}
+
+function doLogin_() {
+  var email = (document.getElementById('loginEmail').value || '').trim();
+  var password = document.getElementById('loginPassword').value || '';
+  var rememberMe = document.getElementById('rememberMe') ? document.getElementById('rememberMe').checked : false;
+
+  if (!email || !password) { showAuthError_('メールアドレスとパスワードを入力してください'); return; }
+
+  var btn = document.getElementById('loginBtn');
+  btn.disabled = true; btn.textContent = 'ログイン中...';
+
+  runApi('apiLoginCustomer', 'bulk', { email: email, password: password, rememberMe: rememberMe })
+    .then(function(res) {
+      btn.disabled = false; btn.textContent = 'ログイン';
+      if (res.ok && res.data) {
+        G.customer = res.data.customer;
+        try {
+          localStorage.setItem(SESSION_KEY, JSON.stringify({ sessionId: res.data.sessionId, customer: res.data.customer }));
+        } catch (e) {}
+        updateAuthUi_();
+        closeAuthModal_();
+        autoFillCustomerForm();
+        updateCart();
+      } else {
+        showAuthError_(res.message || 'ログインに失敗しました');
+      }
+    })
+    .catch(function(e) {
+      btn.disabled = false; btn.textContent = 'ログイン';
+      showAuthError_('ログインに失敗しました');
+    });
+}
+
+function doRegister_() {
+  var email = (document.getElementById('regEmail').value || '').trim();
+  var password = document.getElementById('regPassword').value || '';
+  var companyName = (document.getElementById('regCompanyName').value || '').trim();
+  var phone = (document.getElementById('regPhone').value || '').trim();
+  var postal = (document.getElementById('regPostal').value || '').trim();
+  var address = (document.getElementById('regAddress').value || '').trim();
+  var newsletter = document.getElementById('regNewsletter').checked;
+
+  if (!email || !email.includes('@')) { showAuthError_('有効なメールアドレスを入力してください'); return; }
+  if (!password || password.length < 6) { showAuthError_('パスワードは6文字以上で入力してください'); return; }
+  if (!companyName) { showAuthError_('会社名/氏名は必須です'); return; }
+
+  var btn = document.getElementById('registerBtn');
+  btn.disabled = true; btn.textContent = '登録中...';
+
+  runApi('apiRegisterCustomer', 'bulk', {
+    email: email, password: password, companyName: companyName,
+    phone: phone, postal: postal, address: address, newsletter: newsletter
+  })
+    .then(function(res) {
+      btn.disabled = false; btn.textContent = '登録する';
+      if (res.ok && res.data) {
+        G.customer = res.data.customer;
+        try {
+          localStorage.setItem(SESSION_KEY, JSON.stringify({ sessionId: res.data.sessionId, customer: res.data.customer }));
+        } catch (e) {}
+        updateAuthUi_();
+        closeAuthModal_();
+        autoFillCustomerForm();
+        updateCart();
+        var md = G.settings.memberDiscount;
+        alert((md && md.enabled) ? '登録が完了しました！' + Math.round(md.rate * 100) + '%割引が適用されます' : '登録が完了しました！');
+      } else {
+        showAuthError_(res.message || '登録に失敗しました');
+      }
+    })
+    .catch(function(e) {
+      btn.disabled = false; btn.textContent = '登録する';
+      showAuthError_('登録に失敗しました');
+    });
+}
+
+function doLogout_() {
+  var saved = null;
+  try {
+    var raw = localStorage.getItem(SESSION_KEY);
+    if (raw) saved = JSON.parse(raw);
+  } catch (e) {}
+
+  G.customer = null;
+  try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+  updateAuthUi_();
+  updateCart();
+
+  if (saved && saved.sessionId) {
+    runApi('apiLogoutCustomer', 'bulk', { sessionId: saved.sessionId }).catch(function() {});
+  }
+}
+
+// =====================================================
+// 認証UIイベント設定
+// =====================================================
+(function() {
+  // モーダル開閉
+  var openBtn = document.getElementById('openAuthBtn');
+  if (openBtn) openBtn.addEventListener('click', function() { openAuthModal_('login'); });
+
+  var closeBtn = document.getElementById('authCloseBtn');
+  if (closeBtn) closeBtn.addEventListener('click', closeAuthModal_);
+
+  // オーバーレイクリックで閉じる
+  var overlay = document.getElementById('authOverlay');
+  if (overlay) overlay.addEventListener('click', function(e) { if (e.target === overlay) closeAuthModal_(); });
+
+  // ログイン/登録ボタン
+  var loginBtn = document.getElementById('loginBtn');
+  if (loginBtn) loginBtn.addEventListener('click', doLogin_);
+
+  var registerBtn = document.getElementById('registerBtn');
+  if (registerBtn) registerBtn.addEventListener('click', doRegister_);
+
+  // フォーム切り替え
+  var showReg = document.getElementById('showRegisterLink');
+  if (showReg) showReg.addEventListener('click', function(e) { e.preventDefault(); openAuthModal_('register'); });
+
+  var showLogin = document.getElementById('showLoginLink');
+  if (showLogin) showLogin.addEventListener('click', function(e) { e.preventDefault(); openAuthModal_('login'); });
+
+  var showForgotPw = document.getElementById('showForgotPwLink');
+  if (showForgotPw) showForgotPw.addEventListener('click', function(e) { e.preventDefault(); openAuthModal_('forgotPassword'); });
+
+  var showForgotEmail = document.getElementById('showForgotEmailLink');
+  if (showForgotEmail) showForgotEmail.addEventListener('click', function(e) { e.preventDefault(); openAuthModal_('forgotEmail'); });
+
+  // パスワードリセット
+  var resetPwBtn = document.getElementById('resetPwBtn');
+  if (resetPwBtn) {
+    resetPwBtn.addEventListener('click', function() {
+      var email = (document.getElementById('resetEmail').value || '').trim();
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showAuthError_('有効なメールアドレスを入力してください'); return; }
+      resetPwBtn.disabled = true; resetPwBtn.textContent = '送信中...';
+      runApi('apiRequestPasswordReset', 'bulk', { email: email })
+        .then(function(res) {
+          if (res && res.ok) { alert(res.message || '仮パスワードを送信しました'); document.getElementById('resetEmail').value = ''; setTimeout(function() { openAuthModal_('login'); }, 500); }
+          else { showAuthError_((res && res.message) || '送信に失敗しました'); }
+        })
+        .catch(function() { showAuthError_('送信に失敗しました'); })
+        .finally(function() { resetPwBtn.disabled = false; resetPwBtn.textContent = '仮パスワードを送信'; });
+    });
+  }
+
+  var backFromReset = document.getElementById('backToLoginFromReset');
+  if (backFromReset) backFromReset.addEventListener('click', function(e) { e.preventDefault(); openAuthModal_('login'); });
+
+  // メールアドレス確認
+  var recoverBtn = document.getElementById('recoverEmailBtn');
+  if (recoverBtn) {
+    recoverBtn.addEventListener('click', function() {
+      var cn = (document.getElementById('recoverCompanyName').value || '').trim();
+      var ph = (document.getElementById('recoverPhone').value || '').trim();
+      if (!cn) { showAuthError_('会社名/氏名を入力してください'); return; }
+      if (!ph) { showAuthError_('電話番号を入力してください'); return; }
+      recoverBtn.disabled = true; recoverBtn.textContent = '確認中...';
+      var resultDiv = document.getElementById('recoverEmailResult');
+      resultDiv.style.display = 'none';
+      runApi('apiRecoverEmail', 'bulk', { companyName: cn, phone: ph })
+        .then(function(res) {
+          if (res && res.ok && res.data && res.data.maskedEmail) {
+            resultDiv.innerHTML = 'ご登録のメールアドレス:<br><strong style="font-size:16px;">' + escHtml(res.data.maskedEmail) + '</strong>';
+            resultDiv.style.display = 'block';
+          } else { showAuthError_((res && res.message) || '一致する情報が見つかりませんでした'); }
+        })
+        .catch(function() { showAuthError_('確認に失敗しました'); })
+        .finally(function() { recoverBtn.disabled = false; recoverBtn.textContent = 'メールアドレスを確認'; });
+    });
+  }
+
+  var backFromRecover = document.getElementById('backToLoginFromRecover');
+  if (backFromRecover) backFromRecover.addEventListener('click', function(e) { e.preventDefault(); openAuthModal_('login'); });
+
+  // プロモバナー
+  var promoClose = document.getElementById('promoClose');
+  if (promoClose) {
+    promoClose.addEventListener('click', function() {
+      var b = document.getElementById('promoBanner');
+      if (b) b.style.display = 'none';
+      try { sessionStorage.setItem('promoBannerDismissed', '1'); } catch (e) {}
+    });
+  }
+  var promoLink = document.getElementById('promoRegisterLink');
+  if (promoLink) {
+    promoLink.addEventListener('click', function(e) { e.preventDefault(); openAuthModal_('register'); });
+  }
+
+  // 共有住所を読み込み（セッション読み込み後に実行）
+  setTimeout(function() {
+    loadSharedAddress_();
+    updateAuthUi_();
+  }, 100);
+})();
+
 </script>
 </body>
 </html>
