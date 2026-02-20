@@ -18,7 +18,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans
 .img-slots{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:4px}
 .img-slot{position:relative;aspect-ratio:1;border:2px dashed #ccc;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;background:#fafafa}
 .img-slot:hover{border-color:#1a73e8}
-.img-slot.has{border-style:solid;border-color:#1a73e8}
+.img-slot.has{border-style:solid;border-color:#1a73e8;cursor:grab}
+.img-slot.has:active{cursor:grabbing}
+.img-slot.dragging{opacity:.35;border-color:#999}
+.img-slot.drag-over{border-color:#34a853;background:#e8f5e9;transform:scale(1.05);transition:transform .1s}
 .img-slot.uploading{border-color:#fbbc04;background:#fffde7}
 .img-slot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
 .img-slot .snum{position:absolute;top:2px;left:2px;background:rgba(0,0,0,.5);color:#fff;border-radius:50%;width:16px;height:16px;font-size:8px;display:flex;align-items:center;justify-content:center;font-weight:700;z-index:1}
@@ -192,7 +195,8 @@ function renderSlots() {
   for (var i = 0; i < 5; i++) {
     var url = images[i] || '';
     var cls = url ? ' has' : '';
-    h += '<div class="img-slot' + cls + '" onclick="pickImg(' + i + ')">';
+    var drag = url ? ' draggable="true"' : '';
+    h += '<div class="img-slot' + cls + '"' + drag + ' data-idx="' + i + '" onclick="pickImg(' + i + ')">';
     h += '<span class="snum">' + (i + 1) + '</span>';
     if (url) {
       h += '<img src="' + esc(url) + '">';
@@ -203,9 +207,71 @@ function renderSlots() {
     h += '</div>';
   }
   $('imgSlots').innerHTML = h;
+  initDragDrop_();
 }
 
 function removeImg(i) { images[i] = ''; renderSlots(); }
+
+// --- 画像ドラッグ&ドロップ並び替え ---
+var _dragIdx = null;
+
+function initDragDrop_() {
+  var slots = $('imgSlots').querySelectorAll('.img-slot');
+  for (var i = 0; i < slots.length; i++) {
+    slots[i].addEventListener('dragstart', onDragStart_);
+    slots[i].addEventListener('dragover', onDragOver_);
+    slots[i].addEventListener('dragenter', onDragEnter_);
+    slots[i].addEventListener('dragleave', onDragLeave_);
+    slots[i].addEventListener('drop', onDrop_);
+    slots[i].addEventListener('dragend', onDragEnd_);
+  }
+}
+
+function onDragStart_(e) {
+  _dragIdx = parseInt(this.dataset.idx);
+  this.classList.add('dragging');
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', String(_dragIdx));
+}
+
+function onDragOver_(e) {
+  e.preventDefault();
+  e.dataTransfer.dropEffect = 'move';
+}
+
+function onDragEnter_(e) {
+  e.preventDefault();
+  var idx = parseInt(this.dataset.idx);
+  if (_dragIdx !== null && _dragIdx !== idx) this.classList.add('drag-over');
+}
+
+function onDragLeave_(e) {
+  this.classList.remove('drag-over');
+}
+
+function onDrop_(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  var toIdx = parseInt(this.dataset.idx);
+  if (_dragIdx !== null && _dragIdx !== toIdx) {
+    var tmp = images[_dragIdx];
+    images[_dragIdx] = images[toIdx];
+    images[toIdx] = tmp;
+    renderSlots();
+    showToast('画像' + (_dragIdx + 1) + ' ↔ ' + (toIdx + 1) + ' を入替');
+  }
+  clearDragStates_();
+}
+
+function onDragEnd_() {
+  clearDragStates_();
+}
+
+function clearDragStates_() {
+  _dragIdx = null;
+  var slots = $('imgSlots').querySelectorAll('.img-slot');
+  for (var i = 0; i < slots.length; i++) slots[i].classList.remove('dragging', 'drag-over');
+}
 
 // --- ローカルファイルアップロード ---
 function pickImg(slot) {
