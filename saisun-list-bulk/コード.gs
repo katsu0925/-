@@ -123,7 +123,12 @@ function getAllProducts_() {
 
     var images = [];
     for (var imgIdx = COLS.image1; imgIdx <= COLS.image5; imgIdx++) {
-      images.push(String(row[imgIdx] || '').trim());
+      var imgUrl = String(row[imgIdx] || '').trim();
+      if (imgUrl && imgUrl.indexOf('drive.google.com') !== -1) {
+        var m = imgUrl.match(/[?&]id=([^&]+)/);
+        if (m) imgUrl = 'https://lh3.googleusercontent.com/d/' + m[1];
+      }
+      images.push(imgUrl);
     }
 
     var discount = Number(row[COLS.discount]) || 0;
@@ -310,7 +315,7 @@ function adminBulkUploadImage(base64Data, mimeType, fileName) {
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
     var fileId = file.getId();
-    var url = 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(fileId) + '&sz=w1000';
+    var url = 'https://lh3.googleusercontent.com/d/' + fileId;
 
     return { ok: true, url: url, fileId: fileId };
   } catch (e) {
