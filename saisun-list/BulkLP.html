@@ -374,9 +374,9 @@ body.admin-mode .header{border-top:3px solid #b8002a;}
 </div>
 <div>
 
-<!-- 配送先 -->
+<!-- お届先情報 -->
 <div>
-  <div class="section-title">配送先情報</div>
+  <div class="section-title">お届先情報</div>
   <div class="error-msg" id="formError"></div>
 
   <div class="form-group">
@@ -1425,6 +1425,22 @@ function loadSharedAddress_() {
     }
   }
 })();
+
+// 他タブでの住所変更をリアルタイム反映
+window.addEventListener('storage', function(e) {
+  if (e.key === SHARED_ADDRESS_KEY && e.newValue) {
+    try {
+      var data = JSON.parse(e.newValue);
+      if (!data || !data.ts) return;
+      var fields = ['companyName', 'contact', 'postal', 'address', 'building', 'phone', 'note'];
+      for (var i = 0; i < fields.length; i++) {
+        var el = document.getElementById(fields[i]);
+        if (el && data[fields[i]] !== undefined) el.value = data[fields[i]];
+      }
+      if (data.address) updateCart();
+    } catch (e) {}
+  }
+});
 
 // =====================================================
 // 認証UI

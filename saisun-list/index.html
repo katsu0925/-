@@ -577,7 +577,7 @@
       <!-- お届け先情報（初期非表示、「購入手続きへ」で表示） -->
       <div id="cartFormSection" style="display:none;">
         <div style="border-top:1px solid #e0e0e0;margin:16px 0 12px;"></div>
-        <div style="font-weight:700;font-size:15px;margin-bottom:10px;">お届け先情報</div>
+        <div style="font-weight:700;font-size:15px;margin-bottom:10px;">お届先情報</div>
         <div class="formGrid">
           <div class="formField">
             <label>会社名/氏名 *</label>
@@ -1739,9 +1739,21 @@ function renderSummary_() {
       + '<span>アソート商品 商品代（' + bulk.totalQty + '点）</span>'
       + '<span>¥' + numFmt_(bulk.subtotal) + '</span></div>';
     if (bulkShip > 0) {
+      var bulkShipPref = detectPrefectureFromAddress_($('address') ? $('address').value.trim() : '');
+      var bulkShipDesc = 'アソート商品 送料';
+      if (bulkShipPref) bulkShipDesc += '（' + escapeHtml_(bulkShipPref) + '・大×' + bulk.totalQty + '）';
       rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
-        + '<span>アソート商品送料（大×' + bulk.totalQty + '）</span>'
+        + '<span>' + bulkShipDesc + '</span>'
         + '<span>¥' + numFmt_(bulkShip) + '</span></div>';
+    } else {
+      var addrVal = $('address') ? $('address').value.trim() : '';
+      if (addrVal) {
+        rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
+          + '<span>アソート商品 送料</span><span>¥0（無料）</span></div>';
+      } else {
+        rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
+          + '<span>アソート商品 送料</span><span style="font-size:11px;color:#888;">住所入力で計算</span></div>';
+      }
     }
     var bulkTotal = bulk.subtotal + bulkShip;
     rows += '<div class="cart-row" style="color:#5B86C5;font-size:13px;font-weight:700;border-top:1px solid #c8d8f0;margin-top:4px;padding-top:8px;">'
@@ -2705,6 +2717,22 @@ function loadSharedAddress_() {
   } catch (e) {}
 }
 
+// 他タブでの住所変更をリアルタイム反映
+window.addEventListener('storage', function(e) {
+  if (e.key === SHARED_ADDRESS_KEY && e.newValue) {
+    try {
+      var data = JSON.parse(e.newValue);
+      if (!data || !data.ts) return;
+      var fields = ['companyName', 'contact', 'postal', 'address', 'phone', 'note'];
+      for (var i = 0; i < fields.length; i++) {
+        var el = $(fields[i]);
+        if (el && data[fields[i]] !== undefined) el.value = data[fields[i]];
+      }
+      updateShippingDisplay_();
+    } catch (err) {}
+  }
+});
+
 function openModal(modal) {
   $('overlay').classList.add('open'); modal.classList.add('open');
   // モーダル表示中はチャットボットFABとスクロールトップボタンを非表示
@@ -3060,6 +3088,30 @@ function pollStatusNow_() {
     .then(function(res) {
       if (res && res.ok && res.map) {
         state.cart.digest = res.map;
+
+        // 確保タイムアウト: カート内アイテムの確保が切れたら自動解除
+        var expired = [];
+        for (var ci = 0; ci < state.cart.ids.length; ci++) {
+          var cid = state.cart.ids[ci];
+          var d = res.map[cid];
+          // サーバーが「在庫あり」を返す = 確保が切れている
+          if (d && d.status && statusKind_(normalizeStatus_(d.status)) === 'available') {
+            expired.push(cid);
+          }
+        }
+        if (expired.length > 0) {
+          for (var ei = 0; ei < expired.length; ei++) {
+            var eid = expired[ei];
+            var idx = state.cart.ids.indexOf(eid);
+            if (idx !== -1) state.cart.ids.splice(idx, 1);
+            delete state.cart.itemsById[eid];
+            delete state.cart.digest[eid];
+          }
+          state.lastShipping = null;
+          saveCartStorage(); updateCartCount(); updateShippingDisplay_();
+          showToast('確保期限が切れた商品（' + expired.length + '点）をカートから除外しました');
+        }
+
         for (var id in state.ui.cardEls) updateCardUi_(id);
       }
     })
