@@ -133,8 +133,10 @@
     .authDiscount{background:#b8002a;color:#fff;font-size:11px;padding:2px 6px;border-radius:4px;font-weight:900;}
     .authPoints{background:#e65100;color:#fff;font-size:11px;padding:2px 6px;border-radius:4px;font-weight:900;}
     .authBtn.mypage{background:#475569;font-size:12px;padding:4px 10px;}
-    .sumBox{margin-top:10px;display:flex;flex-direction:column;gap:6px;align-items:flex-end;}
-    .sumLine{font-weight:900;}
+    .cart-summary{background:#f8f9fa;border-radius:12px;padding:14px;margin-top:10px;}
+    .cart-row{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid #eee;}
+    .cart-row:last-child{border-bottom:none;}
+    .cart-row.total{font-weight:800;font-size:16px;color:#1a1a2e;border-top:2px solid #1a1a2e;margin-top:8px;padding-top:12px;border-bottom:none;}
     .hint{font-size:12px;color:#666;line-height:1.45;}
     .formGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
     @media (max-width:700px){.formGrid{grid-template-columns:1fr;}}
@@ -321,7 +323,7 @@
   var params = new URLSearchParams(window.location.search);
   if (params.get('page') !== 'bulk') return;
 
-  var BULK_HTML_KEY = 'bulk_html_cache_v3';
+  var BULK_HTML_KEY = 'bulk_html_cache_v4';
   var BULK_HTML_TTL = 24 * 60 * 60 * 1000; // 24時間
   var GAS_URL = 'https://script.google.com/macros/s/AKfycbwLN23a03qQSGA91J-82_6HlIx0kA5yUYFRxjfbjFGfnZDqynKnyJhEPsoISSQps3SmXQ/exec';
 
@@ -356,7 +358,7 @@
   window.addEventListener('DOMContentLoaded', function() {
     var loader = document.createElement('div');
     loader.id = '__bulkLoader';
-    loader.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#1a1a2e;color:#fff;"><div style="text-align:center;"><div style="width:28px;height:28px;border:3px solid rgba(255,255,255,.2);border-top-color:#ffd700;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px;"></div><div style="font-size:20px;font-weight:700;margin-bottom:8px;">まとめ商品</div><div style="font-size:13px;color:#aaa;">読み込み中...</div></div></div><style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
+    loader.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#1a1a2e;color:#fff;"><div style="text-align:center;"><div style="width:28px;height:28px;border:3px solid rgba(255,255,255,.2);border-top-color:#ffd700;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px;"></div><div style="font-size:20px;font-weight:700;margin-bottom:8px;">アソート商品</div><div style="font-size:13px;color:#aaa;">読み込み中...</div></div></div><style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
     document.body.insertBefore(loader, document.body.firstChild);
 
     fetch(GAS_URL, {
@@ -405,7 +407,7 @@
         </div>
       </div>
       <div style="display:flex; gap:16px; margin-top:8px; flex-wrap:wrap; align-items:center;">
-        <a href="?page=bulk" id="bulkLink" target="_top" onclick="navigateToBulk(event)" style="font-size:13px; font-weight:700; color:#ffd700; text-decoration:none; background:rgba(255,215,0,.12); padding:4px 10px; border-radius:8px;">まとめ商品</a>
+        <a href="?page=bulk" id="bulkLink" target="_top" onclick="navigateToBulk(event)" style="font-size:13px; font-weight:700; color:#ffd700; text-decoration:none; background:rgba(255,215,0,.12); padding:4px 10px; border-radius:8px;">アソート商品</a>
         <a href="#" id="openGuideLink" style="font-size:13px; font-weight:600; color:#93c5fd; text-decoration:none;">商品ガイド</a>
         <a href="#" id="openShippingLink" style="font-size:13px; font-weight:600; color:#93c5fd; text-decoration:none;">送料表</a>
         <a href="#" id="openContactLink" style="font-size:13px; font-weight:600; color:#93c5fd; text-decoration:none;">お問い合わせ</a>
@@ -494,16 +496,12 @@
         <div class="recommendTitle">おすすめ商品</div>
         <div class="recommendList" id="cartRecommendList"></div>
       </div>
-      <div class="sumBox" id="cartSumBox">
-        <div class="sumLine" id="sumCount"></div>
-        <div class="sumLine" id="sumPrice"></div>
-        <div class="sumLine" id="sumBulkCart" style="display:none;font-size:12px;color:#5B86C5;padding-top:6px;"></div>
-        <div class="sumLine" id="sumShipping" style="display:none;font-size:13px;color:#475569;"></div>
-        <div class="sumLine" id="sumTotal" style="display:none;font-weight:700;font-size:15px;"></div>
-        <div id="shippingNote" style="display:none;font-size:11px;color:#888;text-align:right;width:100%;">※送料は税込み・会員割引対象外です</div>
-        <div id="paymentFeeNote" style="display:none;font-size:11px;color:#888;text-align:right;width:100%;line-height:1.5;">※コンビニ決済は別途手数料220円（税込）がかかります<br>※銀行振込・ペイジーの振込手数料はお客様負担です</div>
+      <div id="cartSumBox">
+        <div class="cart-summary" id="cartSummaryRows"></div>
+        <div id="shippingNote" style="display:none;font-size:11px;color:#888;text-align:right;width:100%;margin-top:6px;">※送料は税込み・会員割引対象外です</div>
+        <div id="paymentFeeNote" style="display:none;font-size:11px;color:#888;text-align:right;width:100%;line-height:1.5;margin-top:2px;">※コンビニ決済は別途手数料220円（税込）がかかります<br>※銀行振込・ペイジーの振込手数料はお客様負担です</div>
         <div id="remoteIslandWarning" style="display:none;font-size:13px;color:#b8002a;text-align:right;width:100%;font-weight:600;"></div>
-        <div id="cartActions" style="display:flex; gap:10px; align-items:center; justify-content:flex-end; flex-wrap:wrap; width:100%;">
+        <div id="cartActions" style="display:flex; gap:10px; align-items:center; justify-content:flex-end; flex-wrap:wrap; width:100%; margin-top:10px;">
           <button class="btn" id="clearCartBtn" style="min-width:160px;" type="button">カートを空にする</button>
           <button class="btn primary" id="goFormBtn" style="min-width:220px;" type="button">購入手続きへ</button>
         </div>
@@ -1271,6 +1269,7 @@ function yen(n) {
   var x = Math.round(Number(n || 0));
   return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + '円';
 }
+function numFmt_(n) { return String(Math.round(Number(n || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
 
 // ブランド名を正規化（大文字小文字・スペース統一）
 function normalizeBrand_(name) {
@@ -1496,72 +1495,12 @@ function calculateShipping_() {
 }
 
 /** 送料表示を更新 */
+/** 送料表示を更新（renderSummary_に委譲） */
 function updateShippingDisplay_() {
-  var shipEl = $('sumShipping');
-  var totalEl = $('sumTotal');
-  var noteEl = $('shippingNote');
-  var warnEl = $('remoteIslandWarning');
-  var feeNoteEl = $('paymentFeeNote');
-  if (!shipEl) return;
-
-  var result = calculateShipping_();
-  state.lastShipping = result; // 送信時に参照
-
-  if (result.isRemoteIsland) {
-    shipEl.style.display = 'none';
-    totalEl.style.display = 'none';
-    noteEl.style.display = 'none';
-    if (feeNoteEl) feeNoteEl.style.display = 'none';
-    warnEl.style.display = '';
-    warnEl.textContent = '離島への配送は対象外です。恐れ入りますがご注文いただけません。';
-    return;
-  }
-
-  warnEl.style.display = 'none';
-
-  if (result.amount === null && !result.label) {
-    shipEl.style.display = 'none';
-    totalEl.style.display = 'none';
-    noteEl.style.display = 'none';
-    if (feeNoteEl) feeNoteEl.style.display = 'none';
-    return;
-  }
-
-  if (result.amount === null) {
-    shipEl.style.display = '';
-    shipEl.innerHTML = 'デタウリ 送料：' + result.label;
-    totalEl.style.display = 'none';
-    noteEl.style.display = '';
-    if (feeNoteEl) feeNoteEl.style.display = '';
-    return;
-  }
-
-  // 送料計算成功
-  shipEl.style.display = '';
-  noteEl.style.display = '';
-  if (feeNoteEl) feeNoteEl.style.display = '';
-  shipEl.innerHTML = 'デタウリ 送料：' + result.label;
-
-  // 商品合計を計算（割引後）
-  var productTotal = calcProductTotal_();
-  var grandTotal = productTotal + result.amount;
-
-  // まとめ商品カートも合算
-  var bulk = loadBulkCartStorage();
-  if (bulk.subtotal > 0) {
-    var bulkShip = calcBulkShipping_(bulk.totalQty);
-    grandTotal += bulk.subtotal + bulkShip;
-    shipEl.innerHTML += '<br><span style="font-size:12px;color:#5B86C5;">まとめ送料（大×' + bulk.totalQty + '）：' + yen(bulkShip) + '</span>';
-  }
-
-  totalEl.style.display = '';
-  totalEl.innerHTML = 'お支払い合計：' + yen(grandTotal);
-
-  // 送料詳細をlocalStorageに保存（まとめ商品ページでの表示用）
-  saveCartStorage();
+  renderSummary_();
 }
 
-/** まとめ商品の送料を現在の住所から計算 */
+/** アソート商品の送料を現在の住所から計算 */
 function calcBulkShipping_(bulkTotalQty) {
   if (bulkTotalQty === 0) return 0;
   var addressEl = $('address');
@@ -1571,7 +1510,7 @@ function calcBulkShipping_(bulkTotalQty) {
   if (!pref) return 0;
   var area = SHIPPING_AREAS[pref];
   if (!area || !SHIPPING_RATES[area]) return 0;
-  // まとめ商品は常に大サイズ × 数量
+  // アソート商品は常に大サイズ × 数量
   return SHIPPING_RATES[area][1] * bulkTotalQty;
 }
 
@@ -1605,6 +1544,161 @@ function calcProductTotal_() {
     discounted -= pts;
   }
   return discounted;
+}
+
+/** カート金額サマリーを統一フォーマットで描画（アソート商品と同じcart-row形式） */
+function renderSummary_() {
+  var el = $('cartSummaryRows');
+  var noteEl = $('shippingNote');
+  var feeNoteEl = $('paymentFeeNote');
+  var warnEl = $('remoteIslandWarning');
+  var goFormBtn = $('goFormBtn');
+  if (!el) return;
+
+  var ids = state.cart.ids || [];
+  var sum = 0;
+  for (var i = 0; i < ids.length; i++) {
+    var it = state.cart.itemsById[ids[i]];
+    if (it) sum += Number(it.price || 0);
+  }
+  var count = ids.length;
+
+  // 割引計算
+  var discountLabels = [];
+  var discounted;
+  if (state.appliedCoupon && state.appliedCoupon.code) {
+    var cd = state.appliedCoupon.discountAmount || 0;
+    discounted = Math.max(0, sum - cd);
+    if (state.appliedCoupon.type !== 'shipping_free') {
+      discountLabels.push(escapeHtml_(state.appliedCoupon.label));
+    }
+    var comboRate = 0;
+    if (state.appliedCoupon.comboBulk && count >= 30) { comboRate += BULK_DISCOUNT_RATE; discountLabels.push('30点割引10%OFF'); }
+    if (state.appliedCoupon.comboMember && state.customer && MEMBER_DISCOUNT_ENABLED) { comboRate += MEMBER_DISCOUNT_RATE; discountLabels.push('会員10%OFF'); }
+    discounted = Math.round(discounted * (1 - comboRate));
+  } else {
+    var discountRate = 0;
+    if (count >= 30) { discountRate += BULK_DISCOUNT_RATE; discountLabels.push('30点割引10%OFF'); }
+    if (state.customer && MEMBER_DISCOUNT_ENABLED) { discountRate += MEMBER_DISCOUNT_RATE; discountLabels.push('会員10%OFF'); }
+    discounted = Math.round(sum * (1 - discountRate));
+  }
+
+  // ポイント利用
+  var pts = parseInt(($('usePoints') ? $('usePoints').value : '0'), 10) || 0;
+  var pointsApplied = 0;
+  if (pts > 0 && state.customer) {
+    var maxPts = state.customer.points || 0;
+    pts = Math.min(pts, maxPts, discounted);
+    pointsApplied = pts;
+  }
+  var afterPoints = discounted - pointsApplied;
+
+  // 送料計算
+  var shippingResult = calculateShipping_();
+  state.lastShipping = shippingResult;
+
+  // 離島チェック
+  if (shippingResult.isRemoteIsland) {
+    el.innerHTML = '';
+    noteEl.style.display = 'none';
+    if (feeNoteEl) feeNoteEl.style.display = 'none';
+    warnEl.style.display = '';
+    warnEl.textContent = '離島への配送は対象外です。恐れ入りますがご注文いただけません。';
+    if (goFormBtn) goFormBtn.disabled = true;
+    return;
+  }
+  warnEl.style.display = 'none';
+
+  var rows = '';
+  var shippingAmount = 0;
+  var hasShippingInfo = false;
+
+  if (count > 0) {
+    // デタウリ 商品代
+    rows += '<div class="cart-row"><span>デタウリ 商品代（' + count + '点）</span><span>¥' + numFmt_(sum) + '</span></div>';
+
+    // 割引行
+    if (discounted < sum) {
+      var totalDisc = sum - discounted;
+      rows += '<div class="cart-row"><span>' + discountLabels.join('＋') + '</span><span>-¥' + numFmt_(totalDisc) + '</span></div>';
+    }
+
+    // ポイント利用行
+    if (pointsApplied > 0) {
+      rows += '<div class="cart-row"><span>ポイント利用</span><span>-¥' + numFmt_(pointsApplied) + '</span></div>';
+    }
+
+    // デタウリ 送料
+    if (shippingResult.amount !== null) {
+      shippingAmount = shippingResult.amount;
+      hasShippingInfo = true;
+      if (shippingResult.amount === 0) {
+        var freeReason = '';
+        if (shippingResult.label && shippingResult.label.indexOf('ダイヤモンド') >= 0) freeReason = 'ダイヤモンド会員特典';
+        else if (shippingResult.label && shippingResult.label.indexOf('クーポン') >= 0) freeReason = 'クーポン適用';
+        rows += '<div class="cart-row"><span>デタウリ 送料</span><span>¥0' + (freeReason ? '（' + freeReason + '）' : '（無料）') + '</span></div>';
+      } else {
+        var shipDesc = 'デタウリ 送料';
+        if (shippingResult.pref && shippingResult.sizeLabel) {
+          shipDesc += '（' + escapeHtml_(shippingResult.pref) + '・' + escapeHtml_(shippingResult.sizeLabel) + '）';
+        }
+        rows += '<div class="cart-row"><span>' + shipDesc + '</span><span>¥' + numFmt_(shippingResult.amount) + '</span></div>';
+      }
+    } else if (shippingResult.label) {
+      hasShippingInfo = true;
+      rows += '<div class="cart-row"><span>デタウリ 送料</span><span style="font-size:11px;color:#888;">' + escapeHtml_(shippingResult.label) + '</span></div>';
+    }
+
+    // デタウリ 小計
+    var detauriTotal = afterPoints + shippingAmount;
+    rows += '<div class="cart-row total"><span>デタウリ 小計</span><span>¥' + numFmt_(detauriTotal) + '</span></div>';
+  }
+
+  // note表示制御
+  if (hasShippingInfo) {
+    noteEl.style.display = '';
+    if (feeNoteEl) feeNoteEl.style.display = '';
+  } else {
+    noteEl.style.display = 'none';
+    if (feeNoteEl) feeNoteEl.style.display = 'none';
+  }
+
+  // アソート商品カート
+  var bulk = loadBulkCartStorage();
+  if (bulk.subtotal > 0) {
+    var bulkShip = calcBulkShipping_(bulk.totalQty);
+    rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;padding-top:10px;">'
+      + '<span>アソート商品 商品代（' + bulk.totalQty + '点）</span>'
+      + '<span>¥' + numFmt_(bulk.subtotal) + '</span></div>';
+    if (bulkShip > 0) {
+      rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
+        + '<span>アソート商品送料（大×' + bulk.totalQty + '）</span>'
+        + '<span>¥' + numFmt_(bulkShip) + '</span></div>';
+    }
+    var bulkTotal = bulk.subtotal + bulkShip;
+    rows += '<div class="cart-row" style="color:#5B86C5;font-size:13px;font-weight:700;border-top:1px solid #c8d8f0;margin-top:4px;padding-top:8px;">'
+      + '<span>アソート商品 小計</span>'
+      + '<span>¥' + numFmt_(bulkTotal) + '</span></div>';
+    var detauriFull = afterPoints + shippingAmount;
+    var grandTotal = detauriFull + bulkTotal;
+    rows += '<div class="cart-row total" style="border-top-color:#5B86C5;"><span>両チャネル合計（税込）</span><span>¥' + numFmt_(grandTotal) + '</span></div>';
+  }
+
+  el.innerHTML = rows;
+  if (goFormBtn) goFormBtn.disabled = (count === 0);
+
+  // ポイント情報更新
+  var info = $('pointDiscountInfo');
+  if (info) {
+    if (pointsApplied > 0) {
+      info.innerHTML = '<span style="color:#2e7d32;">&#10003; ' + pointsApplied + 'ポイント適用済み（-' + yen(pointsApplied) + '）</span>';
+    } else {
+      info.textContent = '';
+    }
+  }
+
+  // 送料詳細をlocalStorageに保存（アソート商品ページでの表示用）
+  saveCartStorage();
 }
 
 function loadSession_() {
@@ -3279,19 +3373,19 @@ function updateCartPrice() {
     discounted = Math.round(sum * (1 - discountRate));
   }
 
-  // まとめ商品カートの合算（送料はデタウリ上でリアルタイム計算）
+  // アソート商品カートの合算（送料はデタウリ上でリアルタイム計算）
   var bulk = loadBulkCartStorage();
   var bulkShipCalc = calcBulkShipping_(bulk.totalQty);
   var bulkTotal = bulk.subtotal + bulkShipCalc;
   var combinedTotal = (discounted < sum ? discounted : sum) + bulkTotal;
 
   if (bulk.subtotal > 0) {
-    // まとめ商品カートがある場合は合算を表示
+    // アソート商品カートがある場合は合算を表示
     var bulkLabel = yen(bulkTotal);
     if (discounted < sum) {
-      $('cartTotal').innerHTML = yen(discounted) + ' <span style="font-size:11px;font-weight:400;color:#ccc;">+ まとめ</span> ' + bulkLabel + ' = <span style="color:#ffd700;">' + yen(combinedTotal) + '</span>';
+      $('cartTotal').innerHTML = yen(discounted) + ' <span style="font-size:11px;font-weight:400;color:#ccc;">+ アソート</span> ' + bulkLabel + ' = <span style="color:#ffd700;">' + yen(combinedTotal) + '</span>';
     } else {
-      $('cartTotal').innerHTML = yen(sum) + ' <span style="font-size:11px;font-weight:400;color:#ccc;">+ まとめ</span> ' + bulkLabel + ' = <span style="color:#ffd700;">' + yen(combinedTotal) + '</span>';
+      $('cartTotal').innerHTML = yen(sum) + ' <span style="font-size:11px;font-weight:400;color:#ccc;">+ アソート</span> ' + bulkLabel + ' = <span style="color:#ffd700;">' + yen(combinedTotal) + '</span>';
     }
   } else {
     if (discounted < sum) {
@@ -4211,112 +4305,21 @@ function renderCartModal_() {
         saveCartStorage(); updateCartCount(); updateCardUi_(idRef);
         runApi('apiSyncHolds', state.userKey, state.cart.ids.slice()).catch(function() {});
         renderCartModal_();
-        updateShippingDisplay_();
       });
     })(id);
     row.appendChild(info); row.appendChild(btn); listEl.appendChild(row);
-    sum += Number(it.price || 0);
   }
-  
-  var count = ids.length;
-  $('sumCount').textContent = '合計点数：' + count + '点';
-  // 割引計算（クーポン使用時は他の割引と併用不可）
-  var discountRate = 0;
-  var discountLabels = [];
-  var discounted;
-  if (state.appliedCoupon && state.appliedCoupon.code) {
-    var cd = state.appliedCoupon.discountAmount || 0;
-    discounted = Math.max(0, sum - cd);
-    discountLabels.push(escapeHtml_(state.appliedCoupon.label));
-  } else {
-    if (count >= 30) { discountRate += BULK_DISCOUNT_RATE; discountLabels.push('30点割引10%OFF'); }
-    if (state.customer && MEMBER_DISCOUNT_ENABLED) { discountRate += MEMBER_DISCOUNT_RATE; discountLabels.push('会員10%OFF'); }
-    discounted = Math.round(sum * (1 - discountRate));
-  }
-  var discountLabel = discountLabels.length > 0 ? '（' + discountLabels.join('＋') + '）' : '';
-  if (discounted < sum) {
-    $('sumPrice').innerHTML = 'デタウリ金額：<span class="price-old">' + yen(sum) + '</span> → <span class="price-new">' + yen(discounted) + '</span>' + discountLabel;
-  } else { $('sumPrice').innerHTML = 'デタウリ金額：' + yen(discounted); }
-
-  // まとめ商品カートの表示（送料はデタウリ上でリアルタイム計算）
-  var bulk = loadBulkCartStorage();
-  var bulkEl = $('sumBulkCart');
-  if (bulk.subtotal > 0) {
-    var detauriFinal = (discounted < sum) ? discounted : sum;
-    var bulkShip = calcBulkShipping_(bulk.totalQty);
-    var bulkHtml = 'まとめ商品 商品代（' + bulk.totalQty + '点）：' + yen(bulk.subtotal);
-    if (bulkShip > 0) {
-      bulkHtml += '<br>まとめ商品 送料（大×' + bulk.totalQty + '）：' + yen(bulkShip);
-    }
-    var bulkTotal = bulk.subtotal + bulkShip;
-    bulkHtml += '<br><span style="font-weight:700;font-size:14px;color:#1e293b;">両チャネル合計（税込）：' + yen(detauriFinal + bulkTotal) + '</span>';
-    bulkEl.innerHTML = bulkHtml;
-    bulkEl.style.display = '';
-  } else {
-    bulkEl.style.display = 'none';
-  }
-
-  $('goFormBtn').disabled = (count === 0);
 
   // おすすめ商品を表示
   renderRecommendations_('cartRecommendList', 'cartRecommend', 6);
 
-  // カート変更時に送料を再計算
-  updateShippingDisplay_();
+  // 統一フォーマットで金額サマリーを描画
+  renderSummary_();
 }
 
 /** 合計金額・送料表示だけを再計算（画面遷移なし） */
 function updateCartPrices_() {
-  var ids = state.cart.ids || [];
-  var sum = 0;
-  for (var i = 0; i < ids.length; i++) {
-    var it = state.cart.itemsById[ids[i]];
-    if (it) sum += Number(it.price || 0);
-  }
-  var count = ids.length;
-  $('sumCount').textContent = '合計点数：' + count + '点';
-  var discountLabels = [];
-  var discounted;
-  if (state.appliedCoupon && state.appliedCoupon.code) {
-    var cd = state.appliedCoupon.discountAmount || 0;
-    var afterCoupon = Math.max(0, sum - cd);
-    if (state.appliedCoupon.type !== 'shipping_free') {
-      discountLabels.push(escapeHtml_(state.appliedCoupon.label));
-    }
-    var comboRate = 0;
-    if (state.appliedCoupon.comboBulk && count >= 30) { comboRate += BULK_DISCOUNT_RATE; discountLabels.push('30点割引10%OFF'); }
-    if (state.appliedCoupon.comboMember && state.customer && MEMBER_DISCOUNT_ENABLED) { comboRate += MEMBER_DISCOUNT_RATE; discountLabels.push('会員10%OFF'); }
-    discounted = Math.round(afterCoupon * (1 - comboRate));
-  } else {
-    var discountRate = 0;
-    if (count >= 30) { discountRate += BULK_DISCOUNT_RATE; discountLabels.push('30点割引10%OFF'); }
-    if (state.customer && MEMBER_DISCOUNT_ENABLED) { discountRate += MEMBER_DISCOUNT_RATE; discountLabels.push('会員10%OFF'); }
-    discounted = Math.round(sum * (1 - discountRate));
-  }
-  var discountLabel = discountLabels.length > 0 ? '（' + discountLabels.join('＋') + '）' : '';
-  if (discounted < sum) {
-    $('sumPrice').innerHTML = 'デタウリ金額：<span class="price-old">' + yen(sum) + '</span> → <span class="price-new">' + yen(discounted) + '</span>' + discountLabel;
-  } else { $('sumPrice').innerHTML = 'デタウリ金額：' + yen(discounted); }
-
-  // まとめ商品カートの表示（送料はデタウリ上でリアルタイム計算）
-  var bulk = loadBulkCartStorage();
-  var bulkEl = $('sumBulkCart');
-  if (bulk.subtotal > 0) {
-    var detauriFinal2 = (discounted < sum) ? discounted : sum;
-    var bulkShip2 = calcBulkShipping_(bulk.totalQty);
-    var bulkHtml2 = 'まとめ商品 商品代（' + bulk.totalQty + '点）：' + yen(bulk.subtotal);
-    if (bulkShip2 > 0) {
-      bulkHtml2 += '<br>まとめ商品 送料（大×' + bulk.totalQty + '）：' + yen(bulkShip2);
-    }
-    var bulkTotal2 = bulk.subtotal + bulkShip2;
-    bulkHtml2 += '<br><span style="font-weight:700;font-size:14px;color:#1e293b;">両チャネル合計（税込）：' + yen(detauriFinal2 + bulkTotal2) + '</span>';
-    bulkEl.innerHTML = bulkHtml2;
-    bulkEl.style.display = '';
-  } else {
-    bulkEl.style.display = 'none';
-  }
-
-  updateShippingDisplay_();
+  renderSummary_();
 }
 
 function readForm_() {
@@ -4376,60 +4379,8 @@ function applyPointDiscount_() {
   var max = (state.customer && state.customer.points) ? state.customer.points : 0;
   if (pts > max) { pts = max; $('usePoints').value = max; }
   if (pts < 0) { pts = 0; $('usePoints').value = 0; }
-
-  // カート合計を再計算
-  var sum = 0;
-  var ids = state.cart.ids || [];
-  for (var i = 0; i < ids.length; i++) {
-    var it = state.cart.itemsById[ids[i]];
-    if (it) sum += Number(it.price || 0);
-  }
-
-  var discountRate = 0;
-  var discountLabels = [];
-  var discounted;
-  if (state.appliedCoupon && state.appliedCoupon.code) {
-    var cd = state.appliedCoupon.discountAmount || 0;
-    discounted = Math.max(0, sum - cd);
-    discountLabels.push(escapeHtml_(state.appliedCoupon.label));
-  } else {
-    if (ids.length >= 30) { discountRate += BULK_DISCOUNT_RATE; discountLabels.push('30点割引10%OFF'); }
-    if (state.customer && MEMBER_DISCOUNT_ENABLED) { discountRate += MEMBER_DISCOUNT_RATE; discountLabels.push('会員10%OFF'); }
-    discounted = Math.round(sum * (1 - discountRate));
-  }
-
-  var pointsApplied = Math.min(pts, discounted);
-  var finalPrice = discounted - pointsApplied;
-  var discountLabel = discountLabels.length > 0 ? '（' + discountLabels.join('＋') + '）' : '';
-
-  var priceHtml = '';
-  if (pointsApplied > 0) {
-    if (discounted < sum) {
-      priceHtml = '合計金額：<span class="price-old">' + yen(sum) + '</span> → <span class="price-new">' + yen(finalPrice) + '</span>' + discountLabel;
-    } else {
-      priceHtml = '合計金額：<span class="price-old">' + yen(discounted) + '</span> → <span class="price-new">' + yen(finalPrice) + '</span>';
-    }
-    priceHtml += '<div style="font-size:12px;color:#b8002a;margin-top:2px;">（ポイント利用: -' + yen(pointsApplied) + '）</div>';
-  } else {
-    if (discounted < sum) {
-      priceHtml = '合計金額：<span class="price-old">' + yen(sum) + '</span> → <span class="price-new">' + yen(discounted) + '</span>' + discountLabel;
-    } else {
-      priceHtml = '合計金額：' + yen(discounted);
-    }
-  }
-  $('sumPrice').innerHTML = priceHtml;
-
-  var info = $('pointDiscountInfo');
-  if (info) {
-    if (pointsApplied > 0) {
-      info.innerHTML = '<span style="color:#2e7d32;">&#10003; ' + pointsApplied + 'ポイント適用済み（-' + yen(pointsApplied) + '）</span>';
-    } else {
-      info.textContent = '';
-    }
-  }
-  if (pointsApplied > 0) showToast('ポイント割引を適用しました');
-  // ポイント適用後に送料込み合計も更新
-  updateShippingDisplay_();
+  if (pts > 0) showToast('ポイント割引を適用しました');
+  renderSummary_();
 }
 
 // === クーポン機能 ===
@@ -4829,7 +4780,7 @@ function logPageView_() {
 }
 
 // =====================================================
-// まとめ商品ページへの遷移
+// アソート商品ページへの遷移
 // =====================================================
 function navigateToBulk(e) {
   e.preventDefault();

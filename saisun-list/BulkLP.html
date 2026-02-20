@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>デタウリ.Detauri - まとめ商品</title>
+<title>デタウリ.Detauri - アソート商品</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans-serif;background:#f5f5f5;color:#333;-webkit-font-smoothing:antialiased}
@@ -210,7 +210,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
   <h1 id="appTitle">デタウリ.Detauri</h1>
   <p>古着卸売 - 副業物販のための仕入れ</p>
   <nav class="header-nav">
-    <a class="active" href="#">まとめ商品</a>
+    <a class="active" href="#">アソート商品</a>
     <a id="detauriLink" href="./">採寸付き個品（デタウリ）</a>
   </nav>
   <!-- 認証エリア -->
@@ -318,7 +318,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 
 <!-- 商品一覧 -->
 <section class="section" id="productSection">
-  <div class="section-title">まとめ商品</div>
+  <div class="section-title">アソート商品</div>
   <div class="product-grid" id="productList">
     <div class="loading"><div class="spinner"></div><div>読み込み中...</div></div>
   </div>
@@ -889,7 +889,7 @@ function updateCart() {
 
   var total = discounted + shipping;
   rows += discountRows;
-  rows += '<div class="cart-row total"><span>まとめ商品 小計</span><span>¥' + numFmt(total) + '</span></div>';
+  rows += '<div class="cart-row total"><span>アソート商品 小計</span><span>¥' + numFmt(total) + '</span></div>';
 
   // デタウリカートの合算表示
   var grandTotal = total;
@@ -946,7 +946,7 @@ function calcShipping(totalQty) {
   var area = areas[pref];
   if (!area || !rates[area]) { G.shipping = 0; return; }
 
-  // まとめ商品: 常に大サイズ × 数量
+  // アソート商品: 常に大サイズ × 数量
   G.shippingSize = 'large';
   var largeRate = rates[area][1]; // [1] = 大
   G.shipping = largeRate * totalQty;
@@ -974,7 +974,7 @@ function calculateMultiShipment_(thick, thin, rates) {
   return { amount: totalAmount, sizeLabel: parts.join('、'), largeCnt: largeCnt, smallCnt: smallCnt };
 }
 
-// デタウリ送料をリアルタイム計算（まとめ商品ページ上で住所入力時）
+// デタウリ送料をリアルタイム計算（アソート商品ページ上で住所入力時）
 function recalcDetauriShipping_() {
   if (G.detauriCartCount === 0) return;
   var addr = document.getElementById('address').value;
