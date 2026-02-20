@@ -1368,6 +1368,7 @@ var state = {
   cart: { ids: [], itemsById: {}, digest: {} },
   ui: { cardEls: {} },
   timers: { statusPoll: null },
+  _holdSyncing: false,
   brandUi: { all: [], selected: {}, cbByName: {}, built: false },
   // 顧客認証
   customer: null,  // { id, email, companyName, phone, postal, address, newsletter }
@@ -3208,13 +3209,23 @@ function pollStatusNow_() {
   runApi('apiGetStatusDigest', state.userKey, ids)
     .then(function(res) {
       if (res && res.ok && res.map) {
-        state.cart.digest = res.map;
+        // マージ: 楽観的更新(_optimistic)をサーバー応答で上書きしないよう保護
+        var merged = {};
+        for (var mk in res.map) merged[mk] = res.map[mk];
+        for (var ok in state.cart.digest) {
+          if (state.cart.digest[ok] && state.cart.digest[ok]._optimistic && !merged[ok]) {
+            merged[ok] = state.cart.digest[ok];
+          }
+        }
+        state.cart.digest = merged;
 
         // 確保タイムアウト: カート内アイテムの確保が切れたら自動解除
         var expired = [];
         for (var ci = 0; ci < state.cart.ids.length; ci++) {
           var cid = state.cart.ids[ci];
-          var d = res.map[cid];
+          // 楽観的更新中のアイテムは期限切れ判定をスキップ
+          if (state.cart.digest[cid] && state.cart.digest[cid]._optimistic) continue;
+          var d = merged[cid];
           // サーバーが「在庫あり」を返す = 確保が切れている
           if (d && d.status && statusKind_(normalizeStatus_(d.status)) === 'available') {
             expired.push(cid);
@@ -3648,8 +3659,13 @@ function toggleCartOptimistic_(id) {
 
   // 確保ステータスの楽観的更新（API応答を待たず即時反映）
   if (adding) {
-    // 追加時: heldByOther をクリアして自分の確保として扱う
-    if (state.cart.digest[id]) { state.cart.digest[id].heldByOther = false; }
+    // 追加時: digest エントリを作成/更新して自分の確保として扱う
+    if (!state.cart.digest[id]) {
+      state.cart.digest[id] = { status: '確保中', heldByOther: false, _optimistic: true };
+    } else {
+      state.cart.digest[id].heldByOther = false;
+      state.cart.digest[id]._optimistic = true;
+    }
   } else {
     // 削除時: digest をクリアして元のステータス（在庫あり）に即時戻す
     delete state.cart.digest[id];
@@ -3663,6 +3679,10 @@ function toggleCartOptimistic_(id) {
   state._holdSyncing = true;
   runApi('apiSyncHolds', state.userKey, state.cart.ids.slice())
     .then(function(res) {
+      // 同期成功: 楽観的フラグをクリア（サーバーに確保が反映された）
+      for (var ck in state.cart.digest) {
+        if (state.cart.digest[ck]) delete state.cart.digest[ck]._optimistic;
+      }
       if (res && res.failed && res.failed.length) {
         for (var i = 0; i < res.failed.length; i++) {
           var fid = res.failed[i].id;

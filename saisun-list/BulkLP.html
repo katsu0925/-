@@ -208,6 +208,10 @@ body.admin-mode .admin-settings-fab{display:flex;}
 .bulk-modal-close{background:none;border:none;font-size:22px;cursor:pointer;padding:4px 8px;color:#999;line-height:1;}
 .bulk-modal-body{padding:18px;}
 
+/* スクロールトップボタン */
+.toTop{position:fixed;right:14px;bottom:144px;width:46px;height:46px;border-radius:999px;border:1px solid #d9deea;background:#fff;display:none;align-items:center;justify-content:center;font-weight:900;z-index:70;box-shadow:0 6px 18px rgba(0,0,0,.12);transition:all .3s ease;}
+.toTop.show{display:flex;}
+
 /* チャットボット */
 .chatbot-fab{position:fixed;bottom:80px;right:16px;z-index:9999;width:56px;height:56px;border-radius:50%;background:#1e293b;color:#fff;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;transition:transform .2s,background .2s;}
 .chatbot-fab:hover{transform:scale(1.08);background:#334155;}
@@ -689,7 +693,20 @@ var BULK_PRODUCT_CACHE_TTL = 5 * 60 * 1000; // 5分
 var GAS_API_URL = 'https://script.google.com/macros/s/AKfycbwLN23a03qQSGA91J-82_6HlIx0kA5yUYFRxjfbjFGfnZDqynKnyJhEPsoISSQps3SmXQ/exec';
 var IS_STANDALONE = (typeof google === 'undefined' || !google.script);
 
-var ADMIN_KEY = ''; try { ADMIN_KEY = localStorage.getItem('_nk_owner_key') || ''; } catch(e) {}
+// Admin Key: URLから取得後、localStorageに保存してURLから除去
+var ADMIN_KEY = (function() {
+  var urlKey = (new URLSearchParams(window.location.search)).get('admin') || '';
+  if (urlKey) {
+    try { localStorage.setItem('_nk_owner_key', urlKey); } catch(e) {}
+    try {
+      var cleanUrl = new URL(window.location.href);
+      cleanUrl.searchParams.delete('admin');
+      window.history.replaceState({}, '', cleanUrl.toString());
+    } catch(e) {}
+    return urlKey;
+  }
+  try { return localStorage.getItem('_nk_owner_key') || ''; } catch(e) { return ''; }
+})();
 
 function runApi(fn) {
   var args = Array.prototype.slice.call(arguments, 1);
@@ -927,12 +944,14 @@ function openProductModal(idx) {
 
   modal.classList.add('active');
   document.body.style.overflow = 'hidden';
+  if (typeof hideFabsForModal_ === 'function') hideFabsForModal_();
 }
 
 function closeModal() {
   var modal = document.getElementById('productModal');
   modal.classList.remove('active');
   document.body.style.overflow = '';
+  if (typeof showFabsAfterModal_ === 'function') showFabsAfterModal_();
   // モーダル内の数量変更をリスト側にも反映
   G.products.forEach(function(p) {
     var qty = G.cart[p.productId] || 0;
@@ -2139,10 +2158,19 @@ function doLogout_() {
   var legalModal = document.getElementById('legalModal');
   var legalOverlay = document.getElementById('legalOverlay');
   var legalClose = document.getElementById('legalCloseBtn');
+  function openBulkModal_(modal, overlay) {
+    modal.style.display = 'block'; overlay.classList.add('active');
+    if (typeof hideFabsForModal_ === 'function') hideFabsForModal_();
+  }
+  function closeBulkModal_(modal, overlay) {
+    modal.style.display = 'none'; overlay.classList.remove('active');
+    if (typeof showFabsAfterModal_ === 'function') showFabsAfterModal_();
+  }
+
   if (legalLink && legalModal) {
-    legalLink.addEventListener('click', function(e) { e.preventDefault(); legalModal.style.display = 'block'; legalOverlay.classList.add('active'); });
-    legalClose.addEventListener('click', function() { legalModal.style.display = 'none'; legalOverlay.classList.remove('active'); });
-    legalOverlay.addEventListener('click', function() { legalModal.style.display = 'none'; legalOverlay.classList.remove('active'); });
+    legalLink.addEventListener('click', function(e) { e.preventDefault(); openBulkModal_(legalModal, legalOverlay); });
+    legalClose.addEventListener('click', function() { closeBulkModal_(legalModal, legalOverlay); });
+    legalOverlay.addEventListener('click', function() { closeBulkModal_(legalModal, legalOverlay); });
   }
 
   // プライバシーポリシーモーダル
@@ -2151,9 +2179,9 @@ function doLogout_() {
   var privacyOverlay = document.getElementById('privacyOverlay');
   var privacyClose = document.getElementById('privacyCloseBtn');
   if (privacyLink && privacyModal) {
-    privacyLink.addEventListener('click', function(e) { e.preventDefault(); privacyModal.style.display = 'block'; privacyOverlay.classList.add('active'); });
-    privacyClose.addEventListener('click', function() { privacyModal.style.display = 'none'; privacyOverlay.classList.remove('active'); });
-    privacyOverlay.addEventListener('click', function() { privacyModal.style.display = 'none'; privacyOverlay.classList.remove('active'); });
+    privacyLink.addEventListener('click', function(e) { e.preventDefault(); openBulkModal_(privacyModal, privacyOverlay); });
+    privacyClose.addEventListener('click', function() { closeBulkModal_(privacyModal, privacyOverlay); });
+    privacyOverlay.addEventListener('click', function() { closeBulkModal_(privacyModal, privacyOverlay); });
   }
 
   // お問い合わせモーダル
@@ -2162,9 +2190,9 @@ function doLogout_() {
   var contactOverlay = document.getElementById('contactOverlay');
   var contactClose = document.getElementById('contactCloseBtn');
   if (contactLink && contactModal) {
-    contactLink.addEventListener('click', function(e) { e.preventDefault(); contactModal.style.display = 'block'; contactOverlay.classList.add('active'); });
-    contactClose.addEventListener('click', function() { contactModal.style.display = 'none'; contactOverlay.classList.remove('active'); });
-    contactOverlay.addEventListener('click', function() { contactModal.style.display = 'none'; contactOverlay.classList.remove('active'); });
+    contactLink.addEventListener('click', function(e) { e.preventDefault(); openBulkModal_(contactModal, contactOverlay); });
+    contactClose.addEventListener('click', function() { closeBulkModal_(contactModal, contactOverlay); });
+    contactOverlay.addEventListener('click', function() { closeBulkModal_(contactModal, contactOverlay); });
   }
 
   // お問い合わせ送信
@@ -2195,6 +2223,9 @@ function doLogout_() {
 })();
 
 </script>
+
+<!-- スクロールトップボタン -->
+<button class="toTop" id="toTopBtn" type="button" aria-label="ページ上部へ">↑</button>
 
 <!-- === AI Chatbot Widget === -->
 <button class="chatbot-fab" id="chatbotFab" type="button" aria-label="チャットで質問する">
@@ -2235,8 +2266,10 @@ function doLogout_() {
   window.closeChatbot = function(){
     if (!isOpen) return;
     isOpen = false;
+    window._chatbotIsOpen = false;
     panel.classList.remove('open');
     fab.classList.remove('open');
+    updateToTopBtn_();
   };
 
   var FAQ = [
@@ -2306,6 +2339,7 @@ function doLogout_() {
 
   fab.addEventListener('click', function() {
     isOpen = !isOpen;
+    window._chatbotIsOpen = isOpen;
     if (isOpen) {
       panel.classList.add('open');
       fab.classList.add('open');
@@ -2316,6 +2350,7 @@ function doLogout_() {
       panel.classList.remove('open');
       fab.classList.remove('open');
     }
+    updateToTopBtn_();
   });
 
   closeBtn.addEventListener('click', function() { window.closeChatbot(); });
@@ -2375,6 +2410,49 @@ function doLogout_() {
   });
 
   setTimeout(function() { badge.classList.add('show'); }, 3000);
+})();
+
+// スクロールトップボタン & モーダル時チャットボット非表示
+(function() {
+  var topBtn = document.getElementById('toTopBtn');
+  var chatFab = document.getElementById('chatbotFab');
+  var threshold = 400;
+  var ticking = false;
+
+  window.updateToTopBtn_ = function() {
+    var chatOpen = window._chatbotIsOpen;
+    var hasModal = document.querySelector('.bulk-modal[style*="display: block"]') ||
+                   document.querySelector('.bulk-modal[style*="display:block"]') ||
+                   (document.getElementById('productModal') && document.getElementById('productModal').classList.contains('active'));
+    if (chatOpen || hasModal) {
+      if (topBtn) topBtn.classList.remove('show');
+      return;
+    }
+    var y = window.pageYOffset || document.documentElement.scrollTop || 0;
+    if (y > threshold) { if (topBtn) topBtn.classList.add('show'); }
+    else { if (topBtn) topBtn.classList.remove('show'); }
+  };
+
+  window.hideFabsForModal_ = function() {
+    if (chatFab) chatFab.style.display = 'none';
+    if (topBtn) topBtn.classList.remove('show');
+  };
+
+  window.showFabsAfterModal_ = function() {
+    if (chatFab) chatFab.style.display = '';
+    updateToTopBtn_();
+  };
+
+  if (topBtn) {
+    topBtn.addEventListener('click', function() { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  }
+
+  var onScroll = function() {
+    if (!ticking) { ticking = true; requestAnimationFrame(function() { ticking = false; updateToTopBtn_(); }); }
+  };
+  window.addEventListener('scroll', onScroll, { passive: true });
+  window.addEventListener('resize', onScroll);
+  updateToTopBtn_();
 })();
 </script>
 </body>
