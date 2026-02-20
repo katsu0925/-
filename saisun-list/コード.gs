@@ -1,3 +1,4 @@
+// コード.gs
 const CONFIG = {
   // APP_CONFIG.detail.spreadsheetId から取得（一元管理）
   get SRC_SPREADSHEET_ID() { return String((APP_CONFIG.detail && APP_CONFIG.detail.spreadsheetId) || ''); },

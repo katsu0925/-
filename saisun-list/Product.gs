@@ -1,4 +1,4 @@
-
+// Product.gs
 function sh_getProductSs_() {
   return SpreadsheetApp.getActiveSpreadsheet();
 }

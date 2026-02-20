@@ -1,3 +1,4 @@
+<!-- Admin.html -->
 <!DOCTYPE html>
 <html>
 <head>
@@ -60,6 +61,19 @@
   <div class="toast" id="toast"></div>
 
 <script>
+  // 管理者キーをlocalStorageに保存（通常ページでも管理者バー表示用）
+  (function() {
+    try {
+      var urlKey = (new URLSearchParams(window.location.search)).get('admin') || '';
+      if (urlKey) {
+        localStorage.setItem('_nk_owner_key', urlKey);
+        var cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('admin');
+        window.history.replaceState({}, '', cleanUrl.toString());
+      }
+    } catch(e) {}
+  })();
+
   function $(id){ return document.getElementById(id); }
   function showToast(msg){
     const t = $('toast');
