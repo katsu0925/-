@@ -421,7 +421,7 @@
     <p class="subtitle">古着卸売 - 副業物販のための仕入れ</p>
     <nav class="header-nav">
       <a class="active" href="#">採寸付き個品（デタウリ）</a>
-      <a href="<?= bulkUrl ?>" id="bulkLink" target="_top" onclick="navigateToBulk(event)">アソート商品</a>
+      <a href="?page=bulk" id="bulkLink" target="_top" onclick="navigateToBulk(event)">アソート商品</a>
     </nav>
     <div class="header-links">
       <a href="#" id="openGuideLink">商品ガイド</a>
@@ -5170,13 +5170,13 @@ function logPageView_() {
 // アソート商品ページへの遷移（document.write方式）
 // =====================================================
 var _cachedBulkHtml = null;
-var _BULK_URL = '<?= bulkUrl ?>';
 
 function navigateToBulk(e) {
   e.preventDefault();
   if (!_cachedBulkHtml) {
-    // キャッシュ未完了 → SITE_URLでトップフレームを遷移
-    window.top.location.href = _BULK_URL;
+    // キャッシュ未完了 → 現在のURLベースで通常遷移
+    var base = window.location.origin + window.location.pathname;
+    window.top.location.href = base + '?page=bulk';
     return;
   }
   // フェードアウトオーバーレイ → document.write
