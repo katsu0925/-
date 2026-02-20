@@ -321,7 +321,7 @@
   var params = new URLSearchParams(window.location.search);
   if (params.get('page') !== 'bulk') return;
 
-  var BULK_HTML_KEY = 'bulk_html_cache_v1';
+  var BULK_HTML_KEY = 'bulk_html_cache_v2';
   var BULK_HTML_TTL = 24 * 60 * 60 * 1000; // 24時間
   var GAS_URL = 'https://script.google.com/macros/s/AKfycbwLN23a03qQSGA91J-82_6HlIx0kA5yUYFRxjfbjFGfnZDqynKnyJhEPsoISSQps3SmXQ/exec';
 
@@ -1507,6 +1507,15 @@ function updateShippingDisplay_() {
   // 商品合計を計算（割引後）
   var productTotal = calcProductTotal_();
   var grandTotal = productTotal + result.amount;
+
+  // まとめ商品カートも合算
+  var bulk = loadBulkCartStorage();
+  if (bulk.subtotal > 0) {
+    var bulkShip = calcBulkShipping_(bulk.totalQty);
+    grandTotal += bulk.subtotal + bulkShip;
+    shipEl.innerHTML += '<br><span style="font-size:12px;color:#5B86C5;">まとめ送料（大×' + bulk.totalQty + '）：' + yen(bulkShip) + '</span>';
+  }
+
   totalEl.style.display = '';
   totalEl.innerHTML = 'お支払い合計：' + yen(grandTotal);
 
@@ -2461,6 +2470,36 @@ function loadBulkCartStorage() {
     var j = JSON.parse(raw);
     return { subtotal: Number(j.subtotal || 0), totalQty: Number(j.totalQty || 0), shipping: Number(j.shipping || 0) };
   } catch (e) { return { subtotal: 0, totalQty: 0, shipping: 0 }; }
+}
+
+// 住所共有（localStorage経由で両ページ間で共有）
+var SHARED_ADDRESS_KEY = 'shared_address_v1';
+function saveSharedAddress_() {
+  try {
+    var data = {
+      companyName: ($('companyName') ? $('companyName').value : '').trim(),
+      contact: ($('contact') ? $('contact').value : '').trim(),
+      postal: ($('postal') ? $('postal').value : '').trim(),
+      address: ($('address') ? $('address').value : '').trim(),
+      phone: ($('phone') ? $('phone').value : '').trim(),
+      note: ($('note') ? $('note').value : '').trim(),
+      ts: Date.now()
+    };
+    localStorage.setItem(SHARED_ADDRESS_KEY, JSON.stringify(data));
+  } catch (e) {}
+}
+function loadSharedAddress_() {
+  try {
+    var raw = localStorage.getItem(SHARED_ADDRESS_KEY);
+    if (!raw) return;
+    var data = JSON.parse(raw);
+    if (!data || !data.ts) return;
+    var fields = ['companyName', 'contact', 'postal', 'address', 'phone', 'note'];
+    for (var i = 0; i < fields.length; i++) {
+      var el = $(fields[i]);
+      if (el && !el.value && data[fields[i]]) el.value = data[fields[i]];
+    }
+  } catch (e) {}
 }
 
 function openModal(modal) {
@@ -4656,6 +4695,8 @@ function bindUi_() {
       showToast(min + '点以上で購入可能です（現在' + count + '点）');
       return;
     }
+    // 共有住所を読み込み（BulkLPで入力された住所を復元）
+    loadSharedAddress_();
     // ログインユーザーの情報を自動入力
     if (state.customer) {
       if (state.customer.companyName && !$('companyName').value) $('companyName').value = state.customer.companyName;
@@ -4675,16 +4716,21 @@ function bindUi_() {
   if (ADMIN_KEY) {
     $('submitBtn').textContent = '受付番号で紐付け';
   }
-  // 住所入力時に送料をリアルタイム更新（debounce 300ms）
+  // 住所入力時に送料をリアルタイム更新 + 共有住所保存（debounce 300ms）
   if ($('address')) {
     (function() {
       var addrDebounce;
       $('address').addEventListener('input', function() {
         clearTimeout(addrDebounce);
-        addrDebounce = setTimeout(updateShippingDisplay_, 300);
+        addrDebounce = setTimeout(function() { updateShippingDisplay_(); saveSharedAddress_(); }, 300);
       });
     })();
   }
+  // 他のフォームフィールドでも共有住所を保存
+  ['companyName','contact','postal','phone','note'].forEach(function(fid) {
+    var el = $(fid);
+    if (el) el.addEventListener('input', saveSharedAddress_);
+  });
   $('doneCloseBtn').addEventListener('click', function() { closeModal($('doneModal')); });
 
 }
