@@ -15,7 +15,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans
 .id-row{display:flex;gap:6px;align-items:center}
 .id-row input{flex:1;background:#f5f5f5}
 .btn-regen{border:none;background:#e8f0fe;color:#1a73e8;padding:6px 10px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;white-space:nowrap}
-.img-slots{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:4px}
+.img-slots{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:4px;padding:6px;border-radius:8px;transition:background .15s,outline-color .15s}
+.img-slots.drag-over{background:#e8f0fe;outline:2px dashed #1a73e8;outline-offset:-2px}
 .img-slot{position:relative;aspect-ratio:1;border:2px dashed #ccc;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;background:#fafafa}
 .img-slot:hover{border-color:#1a73e8}
 .img-slot.has{border-style:solid;border-color:#1a73e8}
@@ -88,7 +89,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans
   </div>
   <div class="ff">
     <label>表示順（小さい順）</label>
-    <input type="number" id="fSort" min="0" value="999">
+    <select id="fSort"><option value="999">読込中...</option></select>
   </div>
   <div class="ff">
     <label>公開ステータス</label>
@@ -102,9 +103,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans
     <textarea id="fDesc" placeholder="商品の説明文を入力"></textarea>
   </div>
   <div class="ff full">
-    <label>商品画像（最大5枚 / ローカルファイルから選択）</label>
+    <label>商品画像（最大5枚 / クリックまたはドラッグ＆ドロップ / 20MBまで）</label>
     <div class="img-slots" id="imgSlots"></div>
-    <input type="file" id="fileInput" accept="image/*" style="display:none">
+    <input type="file" id="fileInput" accept="image/*" multiple style="display:none">
   </div>
 </div>
 <div class="foot">
@@ -117,12 +118,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans
 var images = ['','','','',''];
 var editMode = typeof EDIT_PRODUCT_ID !== 'undefined' && EDIT_PRODUCT_ID;
 var pickerSlot = 0;
+var allProducts = [];
+var MAX_FILE_SIZE = 20 * 1024 * 1024;
 
 function $(id){ return document.getElementById(id); }
 function showToast(msg){
   var t = $('toast'); t.textContent = msg; t.classList.add('show');
   setTimeout(function(){ t.classList.remove('show'); }, 2200);
 }
+function truncate(s, n){ return s.length > n ? s.substring(0, n) + '\u2026' : s; }
 
 function run(fn) {
   var args = Array.prototype.slice.call(arguments, 1);
@@ -143,38 +147,89 @@ function setSelect(id, val) {
   if (val) { var o = document.createElement('option'); o.value = val; o.textContent = val; sel.appendChild(o); sel.value = val; }
 }
 
-// 初期化
-(async function init(){
-  if (editMode) {
-    $('btnRegen').style.display = 'none';
-    $('btnSave').textContent = '更新する';
-    try {
-      var res = await run('adminBulkGetProduct', EDIT_PRODUCT_ID);
-      if (res && res.ok) {
-        var p = res.product;
-        $('fPid').value = p.productId;
-        $('fName').value = p.name;
-        $('fPrice').value = p.price;
-        $('fDiscount').value = Math.round((p.discount || 0) * 100);
-        setSelect('fUnit', p.unit);
-        setSelect('fTag', p.tag);
-        $('fMinQty').value = p.minQty;
-        $('fMaxQty').value = p.maxQty;
-        $('fSort').value = p.sortOrder;
-        $('fActive').value = p.active ? 'true' : 'false';
-        $('fDesc').value = p.description;
-        images = [];
-        for (var i = 0; i < 5; i++) images[i] = (p.images && p.images[i]) || '';
-        renderSlots();
-      }
-    } catch(e) { showToast('読込エラー'); }
-  } else {
-    try {
-      var res = await run('adminBulkNewId');
-      if (res && res.ok) $('fPid').value = res.id;
-    } catch(e) {}
-    renderSlots();
+// ========== 表示順ドロップダウン ==========
+function buildSortOptions(selectedValue) {
+  var sel = $('fSort');
+  sel.innerHTML = '';
+  var editPid = editMode ? ($('fPid').value || (typeof EDIT_PRODUCT_ID !== 'undefined' ? EDIT_PRODUCT_ID : '')) : '';
+  var usedMap = {};
+  for (var i = 0; i < allProducts.length; i++) {
+    var p = allProducts[i];
+    if (p.productId === editPid) continue;
+    usedMap[p.sortOrder] = p.name;
   }
+
+  var values = [];
+  for (var n = 1; n <= 30; n++) values.push(n);
+  for (var key in usedMap) {
+    var n = Number(key);
+    if (n > 30 && n !== 999) values.push(n);
+  }
+  values.sort(function(a,b){ return a - b; });
+  values.push(999);
+
+  var firstAvailable = null;
+  for (var vi = 0; vi < values.length; vi++) {
+    var n = values[vi];
+    var opt = document.createElement('option');
+    opt.value = n;
+    if (usedMap[n]) {
+      var label = n === 999 ? '999 - 末尾' : String(n);
+      opt.textContent = label + ' \uff08\u4f7f\u7528\u4e2d: ' + truncate(usedMap[n], 12) + '\uff09';
+      opt.disabled = true;
+      opt.style.color = '#aaa';
+    } else {
+      opt.textContent = n === 999 ? '999 - 末尾' : String(n);
+      if (firstAvailable === null) firstAvailable = n;
+    }
+    sel.appendChild(opt);
+  }
+
+  if (selectedValue !== undefined && selectedValue !== null) {
+    sel.value = selectedValue;
+  } else if (firstAvailable !== null) {
+    sel.value = firstAvailable;
+  }
+}
+
+// ========== 初期化 ==========
+(async function init(){
+  try {
+    var res = await run('adminBulkGetProducts');
+    if (!res || !res.ok) { showToast('読込エラー'); return; }
+    allProducts = res.products || [];
+
+    if (editMode) {
+      $('btnRegen').style.display = 'none';
+      $('btnSave').textContent = '更新する';
+      var found = null;
+      for (var i = 0; i < allProducts.length; i++) {
+        if (allProducts[i].productId === EDIT_PRODUCT_ID) { found = allProducts[i]; break; }
+      }
+      if (found) {
+        $('fPid').value = found.productId;
+        $('fName').value = found.name;
+        $('fPrice').value = found.price;
+        $('fDiscount').value = Math.round((found.discount || 0) * 100);
+        setSelect('fUnit', found.unit);
+        setSelect('fTag', found.tag);
+        $('fMinQty').value = found.minQty;
+        $('fMaxQty').value = found.maxQty;
+        $('fActive').value = found.active ? 'true' : 'false';
+        $('fDesc').value = found.description;
+        images = [];
+        for (var i = 0; i < 5; i++) images[i] = (found.images && found.images[i]) || '';
+        buildSortOptions(found.sortOrder);
+      } else {
+        buildSortOptions();
+      }
+    } else {
+      $('fPid').value = res.newId || '';
+      buildSortOptions();
+    }
+    renderSlots();
+    initDragDrop();
+  } catch(e) { showToast('読込エラー: ' + e.message); }
 })();
 
 function regenId() {
@@ -184,7 +239,7 @@ function regenId() {
   }).catch(function(){}).then(function(){ $('btnRegen').disabled = false; });
 }
 
-// --- 画像スロット ---
+// ========== 画像スロット ==========
 function renderSlots() {
   var h = '';
   for (var i = 0; i < 5; i++) {
@@ -205,7 +260,7 @@ function renderSlots() {
 
 function removeImg(i) { images[i] = ''; renderSlots(); }
 
-// --- ローカルファイルアップロード ---
+// ========== ファイルアップロード ==========
 function pickImg(slot) {
   pickerSlot = slot;
   var fileInput = $('fileInput');
@@ -213,55 +268,115 @@ function pickImg(slot) {
   fileInput.click();
 }
 
-$('fileInput').addEventListener('change', function(e) {
-  var file = e.target.files[0];
-  if (!file) return;
-
-  if (file.size > 5 * 1024 * 1024) {
-    showToast('画像は5MB以下にしてください');
+function uploadFileToSlot(file, slotIndex) {
+  if (file.size > MAX_FILE_SIZE) {
+    showToast(file.name + ': 20MB超のためスキップ');
     return;
   }
-
   if (!file.type.startsWith('image/')) {
-    showToast('画像ファイルを選択してください');
+    showToast(file.name + ': 画像ファイルではありません');
     return;
   }
-
-  showToast('画像をアップロード中...');
 
   var slots = document.querySelectorAll('.img-slot');
-  if (slots[pickerSlot]) slots[pickerSlot].classList.add('uploading');
+  if (slots[slotIndex]) slots[slotIndex].classList.add('uploading');
+  showToast('画像' + (slotIndex + 1) + 'をアップロード中...');
 
   var reader = new FileReader();
   reader.onload = function(ev) {
     var base64 = ev.target.result.split(',')[1];
-    var mimeType = file.type;
-    var fileName = file.name || ('image_' + (pickerSlot + 1) + '.jpg');
-
-    run('adminBulkUploadImage', base64, mimeType, fileName)
+    run('adminBulkUploadImage', base64, file.type, file.name || ('image_' + (slotIndex + 1) + '.jpg'))
       .then(function(res) {
         if (res && res.ok && res.url) {
-          images[pickerSlot] = res.url;
+          images[slotIndex] = res.url;
           renderSlots();
-          showToast('画像' + (pickerSlot + 1) + 'を設定');
+          showToast('画像' + (slotIndex + 1) + 'を設定');
         } else {
-          showToast(res && res.message ? res.message : '画像アップロードに失敗しました');
-          if (slots[pickerSlot]) slots[pickerSlot].classList.remove('uploading');
+          showToast(res && res.message ? res.message : '画像アップロード失敗');
+          var s2 = document.querySelectorAll('.img-slot');
+          if (s2[slotIndex]) s2[slotIndex].classList.remove('uploading');
         }
       })
       .catch(function(err) {
-        showToast('画像アップロードエラー: ' + err.message);
-        if (slots[pickerSlot]) slots[pickerSlot].classList.remove('uploading');
+        showToast('エラー: ' + err.message);
+        var s2 = document.querySelectorAll('.img-slot');
+        if (s2[slotIndex]) s2[slotIndex].classList.remove('uploading');
       });
   };
   reader.onerror = function() {
-    showToast('ファイルの読み込みに失敗しました');
-    if (slots[pickerSlot]) slots[pickerSlot].classList.remove('uploading');
+    showToast(file.name + ': 読み込み失敗');
+    var s2 = document.querySelectorAll('.img-slot');
+    if (s2[slotIndex]) s2[slotIndex].classList.remove('uploading');
   };
   reader.readAsDataURL(file);
+}
+
+$('fileInput').addEventListener('change', function(e) {
+  var files = Array.from(e.target.files);
+  if (!files || files.length === 0) return;
+
+  if (files.length === 1) {
+    uploadFileToSlot(files[0], pickerSlot);
+  } else {
+    // 最初のファイル → クリックしたスロット、残り → 空きスロットへ
+    uploadFileToSlot(files[0], pickerSlot);
+    var rest = files.slice(1);
+    var emptySlots = [];
+    for (var i = 0; i < 5; i++) {
+      if (i !== pickerSlot && !images[i]) emptySlots.push(i);
+    }
+    for (var i = 0; i < Math.min(rest.length, emptySlots.length); i++) {
+      uploadFileToSlot(rest[i], emptySlots[i]);
+    }
+    if (rest.length > emptySlots.length) {
+      showToast('空きスロットが足りません（一部スキップ）');
+    }
+  }
 });
 
-// --- 保存 ---
+// ========== ドラッグ＆ドロップ ==========
+function initDragDrop() {
+  var slotsEl = $('imgSlots');
+  var dragCounter = 0;
+
+  slotsEl.addEventListener('dragenter', function(e) {
+    e.preventDefault(); e.stopPropagation();
+    dragCounter++;
+    slotsEl.classList.add('drag-over');
+  });
+  slotsEl.addEventListener('dragleave', function(e) {
+    e.preventDefault(); e.stopPropagation();
+    dragCounter--;
+    if (dragCounter <= 0) { dragCounter = 0; slotsEl.classList.remove('drag-over'); }
+  });
+  slotsEl.addEventListener('dragover', function(e) {
+    e.preventDefault(); e.stopPropagation();
+  });
+  slotsEl.addEventListener('drop', function(e) {
+    e.preventDefault(); e.stopPropagation();
+    dragCounter = 0;
+    slotsEl.classList.remove('drag-over');
+
+    var files = Array.from(e.dataTransfer.files).filter(function(f) { return f.type.startsWith('image/'); });
+    if (files.length === 0) { showToast('画像ファイルをドロップしてください'); return; }
+
+    var emptySlots = [];
+    for (var i = 0; i < 5; i++) {
+      if (!images[i]) emptySlots.push(i);
+    }
+    if (emptySlots.length === 0) { showToast('空きスロットがありません'); return; }
+
+    var count = Math.min(files.length, emptySlots.length);
+    for (var i = 0; i < count; i++) {
+      uploadFileToSlot(files[i], emptySlots[i]);
+    }
+    if (files.length > emptySlots.length) {
+      showToast('空きスロットが足りません（一部スキップ）');
+    }
+  });
+}
+
+// ========== 保存 ==========
 async function save() {
   var pid = $('fPid').value.trim();
   var name = $('fName').value.trim();
