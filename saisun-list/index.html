@@ -2771,7 +2771,7 @@ function clearDetauriCartOnly_() {
 function clearBulkCartOnly_() {
   if (!confirm('アソートカートを空にしますか？')) return;
   try { localStorage.removeItem('bulk_cart_v1'); } catch (e) {}
-  renderSummary_();
+  updateCartCount(); renderCartModal_();
   showToast('アソートカートを空にしました');
 }
 
