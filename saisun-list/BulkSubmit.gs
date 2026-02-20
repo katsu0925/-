@@ -108,7 +108,7 @@ function apiBulkSubmit(form, items) {
         discountRate += 0.10;
       }
       var memberStatus = app_getMemberDiscountStatus_();
-      if (validatedCoupon.comboMember && memberStatus.enabled && contact) {
+      if (validatedCoupon.comboMember && memberStatus.enabled && contact && typeof findCustomerByEmail_ === 'function') {
         var cust = findCustomerByEmail_(contact);
         if (cust) discountRate += memberStatus.rate;
       }
@@ -116,7 +116,7 @@ function apiBulkSubmit(form, items) {
       // 通常割引
       if (totalQty >= 30) discountRate += 0.10;
       var memberStatus = app_getMemberDiscountStatus_();
-      if (memberStatus.enabled && contact) {
+      if (memberStatus.enabled && contact && typeof findCustomerByEmail_ === 'function') {
         var cust = findCustomerByEmail_(contact);
         if (cust) discountRate += memberStatus.rate;
       }
