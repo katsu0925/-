@@ -703,15 +703,76 @@ function om_calcPriceTier_(n) {
 }
 
 // ═══════════════════════════════════════════
-// XLSX用サブ関数
+// XLSX用サブ関数（shiire-kanri/xlsxダウンロード.gs 由来）
 // ═══════════════════════════════════════════
 
-// xlsxダウンロード.gs の共通関数を委譲（重複排除）
-function om_getSheetByGid_(ss, gid) { return getSheetById_(ss, gid); }
-function om_deleteAllExceptSheet_(ss, keepSheetId) { deleteAllExceptSheet_(ss, keepSheetId); }
-function om_trimColumnBAfterSecondHyphen_(sheet) { trimColumnBAfterSecondHyphen_(sheet); }
-function om_trimToDataBoundsStrict_(sheet) { trimToDataBoundsStrict_(sheet); }
-function om_exportAsXlsxBlob_(spreadsheetId, filename) { return exportSpreadsheetAsXlsxBlob_(spreadsheetId, filename); }
+function om_getSheetByGid_(ss, gid) {
+  var sheets = ss.getSheets();
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].getSheetId() === gid) return sheets[i];
+  }
+  throw new Error('指定gidのシートが見つかりません: ' + gid);
+}
+
+function om_deleteAllExceptSheet_(ss, keepSheetId) {
+  var sheets = ss.getSheets();
+  for (var i = sheets.length - 1; i >= 0; i--) {
+    var sh = sheets[i];
+    if (sh.getSheetId() !== keepSheetId) {
+      if (ss.getSheets().length > 1) ss.deleteSheet(sh);
+    }
+  }
+}
+
+function om_trimColumnBAfterSecondHyphen_(sheet) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 1) return;
+  var rng = sheet.getRange(1, 2, lastRow, 1);
+  var vals = rng.getDisplayValues();
+  for (var i = 0; i < vals.length; i++) {
+    var s = String(vals[i][0] || '');
+    if (!s) { vals[i][0] = ''; continue; }
+    var parts = s.split('-');
+    if (parts.length >= 2) { vals[i][0] = parts[0] + '-' + parts[1]; }
+    else { vals[i][0] = s; }
+  }
+  rng.setValues(vals);
+}
+
+function om_trimToDataBoundsStrict_(sheet) {
+  var rowCand = Math.max(sheet.getLastRow(), 1);
+  var colCand = Math.max(sheet.getLastColumn(), 1);
+  var vals = sheet.getRange(1, 1, rowCand, colCand).getDisplayValues();
+  var lastR = 1;
+  var lastC = 1;
+  for (var r = 0; r < vals.length; r++) {
+    var row = vals[r];
+    for (var c = 0; c < row.length; c++) {
+      if (String(row[c] || '').trim() !== '') {
+        if (r + 1 > lastR) lastR = r + 1;
+        if (c + 1 > lastC) lastC = c + 1;
+      }
+    }
+  }
+  var maxR = sheet.getMaxRows();
+  var maxC = sheet.getMaxColumns();
+  if (maxR > lastR) sheet.deleteRows(lastR + 1, maxR - lastR);
+  if (maxC > lastC) sheet.deleteColumns(lastC + 1, maxC - lastC);
+}
+
+function om_exportAsXlsxBlob_(spreadsheetId, filename) {
+  var url = 'https://docs.google.com/spreadsheets/d/' + spreadsheetId + '/export?format=xlsx';
+  var token = ScriptApp.getOAuthToken();
+  var res = UrlFetchApp.fetch(url, {
+    headers: { Authorization: 'Bearer ' + token },
+    muteHttpExceptions: true
+  });
+  var code = res.getResponseCode();
+  if (code !== 200) {
+    throw new Error('XLSXエクスポートに失敗しました: ' + code + ' / ' + res.getContentText());
+  }
+  return res.getBlob().setName(filename);
+}
 
 // ═══════════════════════════════════════════
 // ユーティリティ（本プロジェクトに無いもの）
