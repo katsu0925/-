@@ -570,7 +570,7 @@ function writeSubmitData_(data) {
   var productNames = data.productNames || '選べるxlsx付きパッケージ';
   var channel = data.channel || 'デタウリ';
   var paymentStatus = data.paymentStatus || '対応済';
-  // まとめ商品の場合、選択リスト/合計点数の扱いが異なる
+  // アソート商品の場合、選択リスト/合計点数の扱いが異なる
   var selectionList = data.selectionList || (data.ids ? data.ids.join('、') : '');
   var totalCount = data.totalCount || (data.ids ? data.ids.length : 0);
   var confirmLink = (channel === 'デタウリ') ? createOrderConfirmLink_(data.receiptNo, data) : '';
@@ -849,14 +849,14 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
     console.log('Claimed pending order (deleted key): ' + receiptNo);
 
     var pendingData = JSON.parse(pendingDataStr);
-    var isBulk = pendingData.channel === 'まとめ';
-    console.log('Found pending order: ' + receiptNo + (isBulk ? ' (まとめ)' : '') + ', items: ' + (pendingData.ids ? pendingData.ids.length : pendingData.totalCount));
+    var isBulk = pendingData.channel === 'アソート' || pendingData.channel === 'まとめ';
+    console.log('Found pending order: ' + receiptNo + (isBulk ? ' (アソート)' : '') + ', items: ' + (pendingData.ids ? pendingData.ids.length : pendingData.totalCount));
 
     var orderSs = sh_getOrderSs_();
     var now = u_nowMs_();
 
     // 1. holdState → openState に遷移（決済完了で確定）
-    // ※まとめ商品は個品の確保/依頼中管理が不要なのでスキップ
+    // ※アソート商品は個品の確保/依頼中管理が不要なのでスキップ
     if (!isBulk && pendingData.ids && pendingData.ids.length > 0) {
       // 1a. holdStateから商品を削除（確保中 解除）
       var holdState = st_getHoldState_(orderSs) || {};

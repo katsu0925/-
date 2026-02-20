@@ -110,7 +110,7 @@ var REQUEST_SHEET_COLS = {
   NOTE: 30,             // AD: 備考
   REWARD: 31,           // AE: 作業報酬
   UPDATED_AT: 32,       // AF: 更新日時
-  CHANNEL: 33           // AG: チャネル（デタウリ/まとめ）
+  CHANNEL: 33           // AG: チャネル（デタウリ/アソート）
 };
 
 /**

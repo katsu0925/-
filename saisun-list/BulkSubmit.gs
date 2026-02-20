@@ -1,14 +1,14 @@
 // =====================================================
-// BulkSubmit.gs — まとめ商品の注文送信・KOMOJU決済連携
+// BulkSubmit.gs — アソート商品の注文送信・KOMOJU決済連携
 // =====================================================
 //
 // フロー:
 // 1. apiBulkSubmit() — バリデーション・価格計算・KOMOJU決済セッション作成
 // 2. KOMOJU Webhook → confirmPaymentAndCreateOrder() → bulk_writeOrder_()
-// 3. 依頼管理シートにチャネル「まとめ」として書き込み
+// 3. 依頼管理シートにチャネル「アソート」として書き込み
 
 /**
- * まとめ商品の注文送信API
+ * アソート商品の注文送信API
  * @param {object} form - 注文フォーム { companyName, contact, postal, address, phone, note, couponCode }
  * @param {object[]} items - 注文商品 [{ productId, qty }]
  * @returns {object} { ok, receiptNo, sessionUrl, totalAmount, shippingAmount }
@@ -130,7 +130,7 @@ function apiBulkSubmit(form, items) {
       discounted = Math.round(sum * (1 - discountRate));
     }
 
-    // === 送料計算（まとめ商品: 常に大サイズ × 数量） ===
+    // === 送料計算（アソート商品: 常に大サイズ × 数量） ===
     var shippingPref = String(f.shippingPref || '');
     var shippingSize = 'large';
     var shippingAmount = 0;
@@ -240,7 +240,7 @@ function apiBulkSubmit(form, items) {
       };
     }
 
-    console.log('まとめ商品KOMOJU決済セッション作成: ' + receiptNo + ' → ' + komojuResult.sessionUrl);
+    console.log('アソート商品KOMOJU決済セッション作成: ' + receiptNo + ' → ' + komojuResult.sessionUrl);
 
     return {
       ok: true,
