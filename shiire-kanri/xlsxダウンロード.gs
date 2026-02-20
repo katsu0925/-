@@ -1,3 +1,4 @@
+// xlsxダウンロード.gs
 function getXlsxProp_(key, fallback) {
   try { return PropertiesService.getScriptProperties().getProperty(key) || fallback; }
   catch (e) { return fallback; }

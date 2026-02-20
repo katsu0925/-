@@ -1,3 +1,4 @@
+// 欠番確認.gs
 function 出力_欠番確認() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var src = ss.getSheetByName("商品管理");

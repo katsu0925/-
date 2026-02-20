@@ -1,3 +1,4 @@
+<!-- BulkAdminModal.html -->
 <!DOCTYPE html>
 <html><head>
 <style>
@@ -18,11 +19,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans
 .img-slot{position:relative;aspect-ratio:1;border:2px dashed #ccc;border-radius:6px;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;overflow:hidden;background:#fafafa}
 .img-slot:hover{border-color:#1a73e8}
 .img-slot.has{border-style:solid;border-color:#1a73e8}
+.img-slot.uploading{border-color:#fbbc04;background:#fffde7}
 .img-slot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-.img-slot .snum{position:absolute;top:2px;left:2px;background:rgba(0,0,0,.5);color:#fff;border-radius:50%;width:16px;height:16px;font-size:8px;display:flex;align-items:center;justify-content:center;font-weight:700}
+.img-slot .snum{position:absolute;top:2px;left:2px;background:rgba(0,0,0,.5);color:#fff;border-radius:50%;width:16px;height:16px;font-size:8px;display:flex;align-items:center;justify-content:center;font-weight:700;z-index:1}
 .img-slot .sicon{font-size:16px;color:#bbb}
 .img-slot .slabel{font-size:8px;color:#999;margin-top:2px}
-.img-slot .sremove{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;display:none;align-items:center;justify-content:center}
+.img-slot .sremove{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.6);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;display:none;align-items:center;justify-content:center;z-index:1}
 .img-slot.has .sremove{display:flex}
 .foot{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid #eee}
 .btn-save{background:#1a73e8;color:#fff;border:none;padding:8px 20px;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer}
@@ -100,8 +102,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans
     <textarea id="fDesc" placeholder="商品の説明文を入力"></textarea>
   </div>
   <div class="ff full">
-    <label>商品画像（最大5枚 / Googleドライブから選択）</label>
+    <label>商品画像（最大5枚 / ローカルファイルから選択）</label>
     <div class="img-slots" id="imgSlots"></div>
+    <input type="file" id="fileInput" accept="image/*" style="display:none">
   </div>
 </div>
 <div class="foot">
@@ -110,11 +113,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans
 </div>
 <div class="toast" id="toast"></div>
 
-<script src="https://apis.google.com/js/api.js"></script>
 <script>
 var images = ['','','','',''];
 var editMode = typeof EDIT_PRODUCT_ID !== 'undefined' && EDIT_PRODUCT_ID;
-var oauthToken = null;
 var pickerSlot = 0;
 
 function $(id){ return document.getElementById(id); }
@@ -183,6 +184,7 @@ function regenId() {
   }).catch(function(){}).then(function(){ $('btnRegen').disabled = false; });
 }
 
+// --- 画像スロット ---
 function renderSlots() {
   var h = '';
   for (var i = 0; i < 5; i++) {
@@ -194,7 +196,7 @@ function renderSlots() {
       h += '<img src="' + esc(url) + '">';
       h += '<button class="sremove" onclick="event.stopPropagation();removeImg(' + i + ');">&times;</button>';
     } else {
-      h += '<span class="sicon">+</span><span class="slabel">ドライブ</span>';
+      h += '<span class="sicon">+</span><span class="slabel">ファイル選択</span>';
     }
     h += '</div>';
   }
@@ -203,46 +205,63 @@ function renderSlots() {
 
 function removeImg(i) { images[i] = ''; renderSlots(); }
 
-async function pickImg(slot) {
+// --- ローカルファイルアップロード ---
+function pickImg(slot) {
   pickerSlot = slot;
-  if (!oauthToken) {
-    try {
-      var res = await run('adminBulkGetOAuthToken');
-      if (res && res.ok) oauthToken = res.token;
-      else { showToast('トークン取得失敗'); return; }
-    } catch(e) { showToast('認証エラー'); return; }
+  var fileInput = $('fileInput');
+  fileInput.value = '';
+  fileInput.click();
+}
+
+$('fileInput').addEventListener('change', function(e) {
+  var file = e.target.files[0];
+  if (!file) return;
+
+  if (file.size > 5 * 1024 * 1024) {
+    showToast('画像は5MB以下にしてください');
+    return;
   }
-  if (typeof gapi !== 'undefined' && google.picker) { openPicker(); }
-  else { gapi.load('picker', { callback: openPicker }); }
-}
 
-function openPicker() {
-  var view = new google.picker.DocsView(google.picker.ViewId.DOCS_IMAGES)
-    .setIncludeFolders(true).setSelectFolderEnabled(false);
-  new google.picker.PickerBuilder()
-    .addView(view)
-    .setOAuthToken(oauthToken)
-    .setCallback(pickerCb)
-    .setTitle('画像を選択（スロット ' + (pickerSlot + 1) + '）')
-    .setLocale('ja')
-    .build()
-    .setVisible(true);
-}
+  if (!file.type.startsWith('image/')) {
+    showToast('画像ファイルを選択してください');
+    return;
+  }
 
-async function pickerCb(data) {
-  if (data.action !== google.picker.Action.PICKED) return;
-  var fileId = data.docs[0].id;
-  showToast('画像を処理中...');
-  try {
-    var res = await run('adminBulkGetDriveImageUrl', fileId);
-    if (res && res.ok) {
-      images[pickerSlot] = res.url;
-      renderSlots();
-      showToast('画像' + (pickerSlot + 1) + 'を設定');
-    } else { showToast(res && res.message ? res.message : '画像エラー'); }
-  } catch(e) { showToast('画像エラー'); }
-}
+  showToast('画像をアップロード中...');
 
+  var slots = document.querySelectorAll('.img-slot');
+  if (slots[pickerSlot]) slots[pickerSlot].classList.add('uploading');
+
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    var base64 = ev.target.result.split(',')[1];
+    var mimeType = file.type;
+    var fileName = file.name || ('image_' + (pickerSlot + 1) + '.jpg');
+
+    run('adminBulkUploadImage', base64, mimeType, fileName)
+      .then(function(res) {
+        if (res && res.ok && res.url) {
+          images[pickerSlot] = res.url;
+          renderSlots();
+          showToast('画像' + (pickerSlot + 1) + 'を設定');
+        } else {
+          showToast(res && res.message ? res.message : '画像アップロードに失敗しました');
+          if (slots[pickerSlot]) slots[pickerSlot].classList.remove('uploading');
+        }
+      })
+      .catch(function(err) {
+        showToast('画像アップロードエラー: ' + err.message);
+        if (slots[pickerSlot]) slots[pickerSlot].classList.remove('uploading');
+      });
+  };
+  reader.onerror = function() {
+    showToast('ファイルの読み込みに失敗しました');
+    if (slots[pickerSlot]) slots[pickerSlot].classList.remove('uploading');
+  };
+  reader.readAsDataURL(file);
+});
+
+// --- 保存 ---
 async function save() {
   var pid = $('fPid').value.trim();
   var name = $('fName').value.trim();

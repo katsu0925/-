@@ -1,14 +1,15 @@
+// コード.gs
 // =====================================================
-// まとめ商品管理 — コンテナバインドスクリプト
+// アソート商品管理 — コンテナバインドスクリプト
 // =====================================================
-// このスクリプトは「まとめ商品」スプレッドシートにバインドして使用。
+// このスクリプトは「アソート商品」スプレッドシートにバインドして使用。
 // スプレッドシートを開くと管理メニューが表示される。
 
 // =============================================================
 // シート設定
 // =============================================================
 
-var SHEET_NAME = 'まとめ商品';
+var SHEET_NAME = 'アソート商品';
 
 var SHEET_HEADER = [
   '商品ID', '商品名', '説明', '価格', '単位',
@@ -41,7 +42,7 @@ var COLS = {
 
 function onOpen() {
   SpreadsheetApp.getUi()
-    .createMenu('まとめ商品管理')
+    .createMenu('アソート商品管理')
     .addItem('商品を新規登録', 'showNewProductModal')
     .addItem('商品一覧 / 編集 / 削除', 'showProductListModal')
     .addToUi();
@@ -55,14 +56,14 @@ function showNewProductModal() {
   var html = HtmlService.createHtmlOutputFromFile('BulkAdminModal')
     .setWidth(620)
     .setHeight(680);
-  SpreadsheetApp.getUi().showModalDialog(html, 'まとめ商品 — 新規登録');
+  SpreadsheetApp.getUi().showModalDialog(html, 'アソート商品 — 新規登録');
 }
 
 function showProductListModal() {
   var html = HtmlService.createHtmlOutputFromFile('BulkAdminList')
     .setWidth(700)
     .setHeight(600);
-  SpreadsheetApp.getUi().showModalDialog(html, 'まとめ商品 — 一覧 / 編集 / 削除');
+  SpreadsheetApp.getUi().showModalDialog(html, 'アソート商品 — 一覧 / 編集 / 削除');
 }
 
 function showEditProductModal(productId) {
@@ -72,7 +73,7 @@ function showEditProductModal(productId) {
   );
   t.productId = productId;
   var html = t.evaluate().setWidth(620).setHeight(680);
-  SpreadsheetApp.getUi().showModalDialog(html, 'まとめ商品 — 編集');
+  SpreadsheetApp.getUi().showModalDialog(html, 'アソート商品 — 編集');
 }
 
 // =============================================================
@@ -251,24 +252,6 @@ function adminBulkDeleteProduct(productId) {
   return { ok: false, message: '商品が見つかりません。' };
 }
 
-function adminBulkGetOAuthToken() {
-  DriveApp.getRootFolder();
-  return { ok: true, token: ScriptApp.getOAuthToken() };
-}
-
-function adminBulkGetDriveImageUrl(fileId) {
-  if (!fileId) return { ok: false, message: 'ファイルIDが必要です。' };
-
-  try {
-    var file = DriveApp.getFileById(fileId);
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    var url = 'https://lh3.googleusercontent.com/d/' + fileId;
-    return { ok: true, url: url, name: file.getName() };
-  } catch (e) {
-    return { ok: false, message: 'ファイルにアクセスできません: ' + (e.message || e) };
-  }
-}
-
 function adminBulkGetProduct(productId) {
   var all = getAllProducts_();
   for (var i = 0; i < all.length; i++) {
@@ -277,4 +260,56 @@ function adminBulkGetProduct(productId) {
     }
   }
   return { ok: false, message: '商品が見つかりません。' };
+}
+
+/**
+ * ローカルファイルからアップロードされた画像をGoogleドライブに保存
+ * @param {string} base64Data - 画像のBase64エンコードデータ
+ * @param {string} mimeType - MIMEタイプ（例: image/jpeg）
+ * @param {string} fileName - ファイル名
+ * @returns {object} { ok, url, fileId }
+ */
+function adminBulkUploadImage(base64Data, mimeType, fileName) {
+  try {
+    if (!base64Data) return { ok: false, message: '画像データがありません' };
+
+    var blob = Utilities.newBlob(Utilities.base64Decode(base64Data), mimeType || 'image/jpeg', fileName || 'product_image.jpg');
+
+    // アソート商品画像用フォルダを取得または作成
+    var folderId = '';
+    try {
+      folderId = PropertiesService.getScriptProperties().getProperty('BULK_IMAGE_FOLDER_ID') || '';
+    } catch (e) {}
+
+    var file;
+    if (folderId) {
+      try {
+        var folder = DriveApp.getFolderById(folderId);
+        file = folder.createFile(blob);
+      } catch (e) {
+        file = DriveApp.createFile(blob);
+      }
+    } else {
+      var folders = DriveApp.getFoldersByName('アソート商品画像');
+      var folder;
+      if (folders.hasNext()) {
+        folder = folders.next();
+      } else {
+        folder = DriveApp.createFolder('アソート商品画像');
+      }
+      file = folder.createFile(blob);
+      try {
+        PropertiesService.getScriptProperties().setProperty('BULK_IMAGE_FOLDER_ID', folder.getId());
+      } catch (e) {}
+    }
+
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+    var fileId = file.getId();
+    var url = 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(fileId) + '&sz=w1000';
+
+    return { ok: true, url: url, fileId: fileId };
+  } catch (e) {
+    return { ok: false, message: (e && e.message) ? e.message : String(e) };
+  }
 }

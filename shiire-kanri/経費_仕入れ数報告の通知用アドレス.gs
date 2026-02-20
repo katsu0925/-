@@ -1,3 +1,4 @@
+// 経費_仕入れ数報告の通知用アドレス.gs
 const CONFIG_MAILER = {
   SETTINGS_SHEET: "設定",
   RECIPIENT_COL: "K",

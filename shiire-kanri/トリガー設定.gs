@@ -1,3 +1,4 @@
+// トリガー設定.gs
 function FULL_RESTORE_ALL() {
   var triggers = ScriptApp.getProjectTriggers();
   triggers.forEach(function(t) { ScriptApp.deleteTrigger(t); });

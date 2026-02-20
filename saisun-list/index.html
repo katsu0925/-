@@ -152,6 +152,30 @@
     .formActions{display:flex;gap:10px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap;}
     .toast{position:fixed;left:50%;bottom:82px;transform:translateX(-50%);background:#111;color:#fff;padding:10px 12px;border-radius:12px;display:none;z-index:60;font-weight:900;max-width:92vw;}
     .toast.show{display:block;}
+    .admin-settings-fab{position:fixed;left:16px;bottom:16px;z-index:25;width:48px;height:48px;border-radius:50%;background:#b8002a;color:#fff;border:none;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.3);font-size:22px;transition:transform .2s;}
+    .admin-settings-fab:hover{transform:scale(1.1);}
+    body.admin-mode .admin-settings-fab{display:flex;}
+    .settings-panel{position:fixed;left:16px;bottom:76px;z-index:55;width:min(380px,90vw);background:#fff;border-radius:14px;border:1px solid #e6e8ee;box-shadow:0 10px 30px rgba(0,0,0,.25);display:none;overflow:hidden;}
+    .settings-panel.open{display:block;}
+    .settings-panel .sp-header{padding:12px 14px;border-bottom:1px solid #e6e8ee;display:flex;align-items:center;justify-content:space-between;background:#f8f9fa;}
+    .settings-panel .sp-title{font-weight:900;font-size:15px;}
+    .settings-panel .sp-close{background:transparent;border:none;font-size:20px;cursor:pointer;padding:4px 8px;line-height:1;}
+    .settings-panel .sp-body{padding:12px 14px;overflow:auto;max-height:60vh;}
+    .settings-panel .sp-section{margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid #f0f0f0;}
+    .settings-panel .sp-section:last-child{margin-bottom:0;padding-bottom:0;border-bottom:none;}
+    .settings-panel .sp-section-title{font-weight:900;font-size:13px;margin-bottom:8px;color:#333;}
+    .settings-panel .sp-btn-row{display:flex;gap:8px;flex-wrap:wrap;}
+    .settings-panel .sp-btn{padding:8px 10px;border:1px solid #d9deea;border-radius:8px;background:#fff;cursor:pointer;font-weight:700;font-size:12px;}
+    .settings-panel .sp-btn.primary{background:#111;color:#fff;border-color:#111;}
+    .settings-panel .sp-btn:disabled{opacity:.5;cursor:not-allowed;}
+    .settings-panel .sp-mode-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+    .settings-panel .sp-badge{display:inline-block;padding:3px 8px;border-radius:6px;font-weight:900;font-size:12px;}
+    .settings-panel .sp-badge.test{background:#fff3cd;color:#856404;border:1px solid #ffc107;}
+    .settings-panel .sp-badge.live{background:#d4edda;color:#155724;border:1px solid #28a745;}
+    .settings-panel .sp-badge.on{background:#d4edda;color:#155724;border:1px solid #28a745;}
+    .settings-panel .sp-badge.off{background:#f8d7da;color:#721c24;border:1px solid #dc3545;}
+    .settings-panel .sp-info{font-size:11px;color:#666;margin-top:4px;}
+    .settings-panel .sp-log{font-size:11px;color:#333;white-space:pre-wrap;line-height:1.4;margin-top:8px;max-height:80px;overflow:auto;background:#f8f9fa;border-radius:6px;padding:6px 8px;display:none;}
     .measureWrap{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
     .measureBtn{display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid #d9deea;border-radius:10px;background:#fff;cursor:pointer;font-weight:900;}
     .measureBtn input{margin:0;}
@@ -398,6 +422,43 @@
 })();
 </script>
   <div class="admin-bar" id="adminBar">管理者モード<span>受付番号紐付け</span><button class="admin-exit" id="adminExit" type="button">管理者モード解除</button></div>
+  <button class="admin-settings-fab" id="adminSettingsFab" type="button" title="管理設定">&#9881;</button>
+  <div class="settings-panel" id="settingsPanel">
+    <div class="sp-header">
+      <div class="sp-title">管理設定</div>
+      <button class="sp-close" id="settingsClose" type="button">&times;</button>
+    </div>
+    <div class="sp-body">
+      <div class="sp-section">
+        <div class="sp-section-title">管理</div>
+        <div class="sp-btn-row">
+          <button class="sp-btn primary" id="spBtnCompact" type="button">期限切れ確保の整理</button>
+          <button class="sp-btn" id="spBtnRebuild" type="button">状態の再構築</button>
+        </div>
+        <div class="sp-btn-row" style="margin-top:6px;">
+          <button class="sp-btn" id="spBtnClearCache" type="button">商品キャッシュ削除</button>
+          <button class="sp-btn" id="spBtnApplyDv" type="button">ステータスのプルダウン適用</button>
+        </div>
+        <div class="sp-log" id="spLog"></div>
+      </div>
+      <div class="sp-section">
+        <div class="sp-section-title">KOMOJU 決済モード</div>
+        <div class="sp-mode-row">
+          <span class="sp-badge" id="spModeBadge">読込中...</span>
+          <button class="sp-btn primary" id="spBtnToggleMode" type="button" disabled>切替</button>
+        </div>
+        <div class="sp-info" id="spModeKeys"></div>
+      </div>
+      <div class="sp-section">
+        <div class="sp-section-title">会員割引</div>
+        <div class="sp-mode-row">
+          <span class="sp-badge" id="spDiscountBadge">読込中...</span>
+          <button class="sp-btn primary" id="spBtnToggleDiscount" type="button" disabled>切替</button>
+        </div>
+        <div class="sp-info" id="spDiscountInfo"></div>
+      </div>
+    </div>
+  </div>
   <div class="promo-banner" id="promoBanner">
     期間限定：会員登録で全品<strong>10%OFF</strong>（2026年9月末まで・30点割引と併用可）<a href="#" id="promoRegisterLink">今すぐ無料登録 ＞</a>
     <button class="promo-close" id="promoClose" type="button">✕</button>
@@ -4747,6 +4808,111 @@ function bindUi_() {
         }
       });
     }
+    // --- 管理設定パネル ---
+    (function() {
+      var fab = $('adminSettingsFab');
+      var panel = $('settingsPanel');
+      var closeBtn = $('settingsClose');
+      if (!fab || !panel) return;
+
+      fab.addEventListener('click', function() {
+        var isOpen = panel.classList.contains('open');
+        if (isOpen) { panel.classList.remove('open'); return; }
+        panel.classList.add('open');
+        spLoadKomoju();
+        spLoadDiscount();
+      });
+      if (closeBtn) closeBtn.addEventListener('click', function() { panel.classList.remove('open'); });
+
+      // ログ
+      function spLog(msg) {
+        var el = $('spLog');
+        if (!el) return;
+        el.style.display = 'block';
+        el.textContent = (el.textContent ? el.textContent + '\n' : '') + msg;
+        el.scrollTop = el.scrollHeight;
+      }
+
+      // 管理ボタン
+      function spRunAdmin(fn, label) {
+        spLog('実行: ' + label);
+        runApi(fn).then(function(res) {
+          if (res && res.ok) { showToast(label + ' 完了'); spLog('完了'); }
+          else { showToast(res && res.message ? res.message : label + ' 失敗'); spLog('失敗'); }
+        }).catch(function(e) { showToast(e.message || label + ' 失敗'); spLog('失敗: ' + (e.message || '')); });
+      }
+      $('spBtnCompact').addEventListener('click', function() { spRunAdmin('adminCompactHolds', '期限切れ確保の整理'); });
+      $('spBtnRebuild').addEventListener('click', function() { spRunAdmin('adminRebuildStates', '状態の再構築'); });
+      $('spBtnClearCache').addEventListener('click', function() { spRunAdmin('adminClearProductsCache', '商品キャッシュ削除'); });
+      $('spBtnApplyDv').addEventListener('click', function() { spRunAdmin('adminApplyStatusDropdown', 'ステータスのプルダウン適用'); });
+
+      // KOMOJU 決済モード
+      function spUpdateMode(mode, hasTestKey, hasLiveKey) {
+        var badge = $('spModeBadge');
+        var btn = $('spBtnToggleMode');
+        var keys = $('spModeKeys');
+        if (!badge || !btn) return;
+        badge.textContent = (mode === 'live') ? '本番' : 'テスト';
+        badge.className = 'sp-badge ' + (mode === 'live' ? 'live' : 'test');
+        btn.disabled = false;
+        btn.textContent = (mode === 'live') ? 'テストに切替' : '本番に切替';
+        if (keys) keys.textContent = 'テストキー: ' + (hasTestKey ? '設定済' : '未設定') + ' ／ 本番キー: ' + (hasLiveKey ? '設定済' : '未設定');
+      }
+      function spLoadKomoju() {
+        runApi('adminGetKomojuMode').then(function(res) {
+          if (res && res.ok) spUpdateMode(res.mode, res.hasTestKey, res.hasLiveKey);
+          else $('spModeBadge').textContent = '取得失敗';
+        }).catch(function() { $('spModeBadge').textContent = 'エラー'; });
+      }
+      $('spBtnToggleMode').addEventListener('click', function() {
+        var badge = $('spModeBadge');
+        var target = (badge.textContent === '本番') ? 'テスト' : '本番';
+        if (!confirm('決済モードを「' + target + '」に切り替えますか？')) return;
+        $('spBtnToggleMode').disabled = true;
+        spLog('実行: 決済モード切替 → ' + target);
+        runApi('adminToggleKomojuMode').then(function(res) {
+          if (!res || !res.ok) { showToast(res && res.message ? res.message : '切替失敗'); spLog('失敗'); $('spBtnToggleMode').disabled = false; return; }
+          return runApi('adminGetKomojuMode');
+        }).then(function(info) {
+          if (info && info.ok) spUpdateMode(info.mode, info.hasTestKey, info.hasLiveKey);
+          showToast('切替完了'); spLog('切替完了');
+        }).catch(function(e) { showToast(e.message || '切替失敗'); spLog('失敗: ' + (e.message || '')); $('spBtnToggleMode').disabled = false; });
+      });
+
+      // 会員割引
+      function spUpdateDiscount(enabled, rate, endDate, reason) {
+        var badge = $('spDiscountBadge');
+        var btn = $('spBtnToggleDiscount');
+        var info = $('spDiscountInfo');
+        if (!badge || !btn) return;
+        badge.textContent = enabled ? 'ON' : 'OFF';
+        badge.className = 'sp-badge ' + (enabled ? 'on' : 'off');
+        btn.disabled = false;
+        btn.textContent = enabled ? 'OFFにする' : 'ONにする';
+        var t = '割引率: ' + Math.round((rate || 0) * 100) + '% ／ 期限: ' + (endDate || '未設定');
+        if (reason === 'expired') t += '（期限切れ）';
+        if (info) info.textContent = t;
+      }
+      function spLoadDiscount() {
+        runApi('adminGetMemberDiscountStatus').then(function(res) {
+          if (res && res.ok) spUpdateDiscount(res.enabled, res.rate, res.endDate, res.reason);
+          else $('spDiscountBadge').textContent = '取得失敗';
+        }).catch(function() { $('spDiscountBadge').textContent = 'エラー'; });
+      }
+      $('spBtnToggleDiscount').addEventListener('click', function() {
+        var badge = $('spDiscountBadge');
+        var target = (badge.textContent === 'ON') ? 'OFF' : 'ON';
+        if (!confirm('会員割引を「' + target + '」に切り替えますか？')) return;
+        $('spBtnToggleDiscount').disabled = true;
+        spLog('実行: 会員割引切替 → ' + target);
+        runApi('adminToggleMemberDiscount').then(function(res) {
+          if (!res || !res.ok) { showToast(res && res.message ? res.message : '切替失敗'); spLog('失敗'); $('spBtnToggleDiscount').disabled = false; return; }
+          spUpdateDiscount(res.enabled, res.rate, res.endDate, res.reason);
+          showToast(res.message || '切替完了'); spLog(res.message || '切替完了');
+          $('spBtnToggleDiscount').disabled = false;
+        }).catch(function(e) { showToast(e.message || '切替失敗'); spLog('失敗: ' + (e.message || '')); $('spBtnToggleDiscount').disabled = false; });
+      });
+    })();
   }
   // 住所入力時に送料をリアルタイム更新 + 共有住所保存（debounce 300ms）
   if ($('address')) {

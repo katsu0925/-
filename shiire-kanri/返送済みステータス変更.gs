@@ -1,3 +1,4 @@
+// 返送済みステータス変更.gs
 const RETURN_STATUS_SYNC_CONFIG = {
   PRODUCT_SHEET_NAME: "商品管理",
   RETURN_SHEET_NAME: "返送管理",

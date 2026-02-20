@@ -1,3 +1,4 @@
+// 棚卸し.gs
 const SHEET_PURCHASE = '仕入れ管理';
 const SHEET_STOCK = '棚卸明細';
 const SHEET_PRODUCT = '商品管理';

@@ -1,3 +1,4 @@
+// Code.gs
 function doGet(e) {
   const id = (e && e.parameter && e.parameter.id) ? String(e.parameter.id).trim() : "";
 
