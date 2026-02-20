@@ -3209,22 +3209,35 @@ function pollStatusNow_() {
   runApi('apiGetStatusDigest', state.userKey, ids)
     .then(function(res) {
       if (res && res.ok && res.map) {
-        // マージ: 楽観的更新(_optimistic)をサーバー応答で上書きしないよう保護
+        // マージ: 楽観的・サーバー確認済みエントリを保護
+        var now = Date.now();
         var merged = {};
         for (var mk in res.map) merged[mk] = res.map[mk];
         for (var ok in state.cart.digest) {
-          if (state.cart.digest[ok] && state.cart.digest[ok]._optimistic && !merged[ok]) {
-            merged[ok] = state.cart.digest[ok];
+          var existing = state.cart.digest[ok];
+          if (!existing) continue;
+          // 楽観的エントリでサーバー未返却 → 保護
+          if (existing._optimistic && !merged[ok]) { merged[ok] = existing; continue; }
+          // サーバー確認済み(15秒以内) → サーバー確認データを優先
+          if (existing._confirmedAt && (now - existing._confirmedAt < 15000) && !merged[ok]) {
+            merged[ok] = existing;
+          } else if (existing._confirmedAt && (now - existing._confirmedAt < 15000) && merged[ok]) {
+            // ポーリング結果より確認済みデータを優先
+            merged[ok] = existing;
           }
         }
         state.cart.digest = merged;
 
         // 確保タイムアウト: カート内アイテムの確保が切れたら自動解除
         var expired = [];
+        var GRACE_MS = 15000; // 15秒のグレース期間
         for (var ci = 0; ci < state.cart.ids.length; ci++) {
           var cid = state.cart.ids[ci];
-          // 楽観的更新中のアイテムは期限切れ判定をスキップ
-          if (state.cart.digest[cid] && state.cart.digest[cid]._optimistic) continue;
+          var dd = state.cart.digest[cid];
+          // 楽観的更新中 → スキップ
+          if (dd && dd._optimistic) continue;
+          // サーバー確認済み15秒以内 → スキップ（PropertiesService伝播待ち）
+          if (dd && dd._confirmedAt && (now - dd._confirmedAt < GRACE_MS)) continue;
           var d = merged[cid];
           // サーバーが「在庫あり」を返す = 確保が切れている
           if (d && d.status && statusKind_(normalizeStatus_(d.status)) === 'available') {
@@ -3679,10 +3692,28 @@ function toggleCartOptimistic_(id) {
   state._holdSyncing = true;
   runApi('apiSyncHolds', state.userKey, state.cart.ids.slice())
     .then(function(res) {
-      // 同期成功: 楽観的フラグをクリア（サーバーに確保が反映された）
-      for (var ck in state.cart.digest) {
-        if (state.cart.digest[ck]) delete state.cart.digest[ck]._optimistic;
+      if (res && res.ok) {
+        // 同期成功: サーバー確認済みdigestで上書き（最も信頼できるデータ）
+        var now = Date.now();
+        if (res.digest) {
+          for (var dk in res.digest) {
+            res.digest[dk]._confirmedAt = now;
+            state.cart.digest[dk] = res.digest[dk];
+          }
+        }
+        // 成功時のみ _optimistic をクリア
+        for (var ck in state.cart.digest) {
+          if (state.cart.digest[ck]) delete state.cart.digest[ck]._optimistic;
+        }
+        // digestにないカートアイテムにも _confirmedAt を付与（サーバーが省略した場合の保護）
+        for (var ci2 = 0; ci2 < state.cart.ids.length; ci2++) {
+          var cid2 = state.cart.ids[ci2];
+          if (state.cart.digest[cid2] && !state.cart.digest[cid2]._confirmedAt) {
+            state.cart.digest[cid2]._confirmedAt = now;
+          }
+        }
       }
+      // res.ok が false の場合は _optimistic を維持（次のポーリングから保護）
       if (res && res.failed && res.failed.length) {
         for (var i = 0; i < res.failed.length; i++) {
           var fid = res.failed[i].id;
@@ -3692,7 +3723,7 @@ function toggleCartOptimistic_(id) {
           updateCardUi_(fid);
         }
         updateCartCount(); saveCartStorage();
-        updateShippingDisplay_(); // 失敗アイテム除外後も送料再計算
+        updateShippingDisplay_();
         var reasons = res.failed.map(function(f) { return f.reason; }).filter(function(v, i, a) { return a.indexOf(v) === i; });
         showToast(reasons.join('・') + 'の商品があります');
       }
