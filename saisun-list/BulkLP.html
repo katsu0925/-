@@ -8,7 +8,7 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans-serif;background:#f5f5f5;color:#333;-webkit-font-smoothing:antialiased}
-.container{max-width:540px;margin:0 auto;background:#fff;min-height:100vh}
+.container{max-width:1100px;margin:0 auto;background:#fff;min-height:100vh}
 
 /* ヘッダー（sticky） */
 .header{background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:18px 20px 12px;text-align:center;position:sticky;top:0;z-index:100}
@@ -28,7 +28,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 .divider{height:8px;background:#f5f5f5}
 
 /* 商品グリッド */
-.product-grid{display:flex;flex-direction:column;gap:14px}
+.product-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
 
 /* 商品カード */
 .product-card{border:1px solid #e8e8e8;border-radius:12px;overflow:hidden;background:#fff;transition:box-shadow .2s}
@@ -327,6 +327,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
   <div class="header-links">
     <a href="#" id="openBulkGuideLink">商品ガイド</a>
     <a href="#" id="openBulkShippingLink">アソート送料表</a>
+    <a href="#" id="openContactLinkHeader">お問い合わせ</a>
   </div>
   <!-- 認証エリア -->
   <div class="header-auth" id="headerAuth">
@@ -2780,13 +2781,16 @@ function renderOrderHistory_(orders) {
 
   // お問い合わせモーダル
   var contactLink = document.getElementById('openContactLink');
+  var contactLinkHeader = document.getElementById('openContactLinkHeader');
   var contactModal = document.getElementById('contactModal');
   var contactOverlay = document.getElementById('contactOverlay');
   var contactClose = document.getElementById('contactCloseBtn');
-  if (contactLink && contactModal) {
-    contactLink.addEventListener('click', function(e) { e.preventDefault(); openBulkModal_(contactModal, contactOverlay); });
-    contactClose.addEventListener('click', function() { closeBulkModal_(contactModal, contactOverlay); });
-    contactOverlay.addEventListener('click', function() { closeBulkModal_(contactModal, contactOverlay); });
+  if (contactModal) {
+    var openContact = function(e) { e.preventDefault(); openBulkModal_(contactModal, contactOverlay); };
+    if (contactLink) contactLink.addEventListener('click', openContact);
+    if (contactLinkHeader) contactLinkHeader.addEventListener('click', openContact);
+    if (contactClose) contactClose.addEventListener('click', function() { closeBulkModal_(contactModal, contactOverlay); });
+    if (contactOverlay) contactOverlay.addEventListener('click', function() { closeBulkModal_(contactModal, contactOverlay); });
   }
 
   // お問い合わせ送信
