@@ -54,15 +54,48 @@
     .pw-toggle{position:absolute;right:6px;background:none;border:none;cursor:pointer;font-size:16px;padding:4px;opacity:0.5;line-height:1;}
     .pw-toggle:hover{opacity:0.8;}
     .pw-toggle.active{opacity:1;}
-    .topbar{position:sticky;top:0;z-index:100;background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:18px 20px 12px;text-align:center;max-width:1100px;margin:0 auto;}
-    .topbar h1{font-size:20px;letter-spacing:2px;font-weight:700;margin:0;color:#fff;}
-    .topbar .subtitle{font-size:12px;color:#aab;margin-top:4px;}
-    .header-nav{display:flex;justify-content:center;gap:10px;margin-top:12px;}
+    .topbar{position:sticky;top:0;z-index:100;background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:18px 20px 12px;text-align:center;max-width:1100px;margin:0 auto;transition:padding .25s ease;}
+    .topbar h1{font-size:20px;letter-spacing:2px;font-weight:700;margin:0;color:#fff;transition:font-size .25s ease;}
+    .topbar .subtitle{font-size:12px;color:#aab;margin-top:4px;transition:all .25s ease;max-height:30px;overflow:hidden;opacity:1;}
+    .header-nav{display:flex;justify-content:center;gap:10px;margin-top:12px;transition:margin .25s ease;}
     .header-nav a{color:#fff;text-decoration:none;font-size:12px;padding:6px 16px;border:1px solid rgba(255,255,255,.3);border-radius:20px;transition:all .2s;}
     .header-nav a.active{background:#ffd700;color:#1a1a2e;border-color:#ffd700;font-weight:700;}
-    .header-links{display:flex;justify-content:center;gap:16px;margin-top:10px;}
+    .header-links{display:flex;justify-content:center;gap:16px;margin-top:10px;transition:all .25s ease;max-height:40px;overflow:hidden;opacity:1;}
     .header-links a{color:#93c5fd;text-decoration:none;font-size:12px;font-weight:600;transition:color .2s;}
     .header-links a:hover{color:#bfdbfe;}
+    .topbar.compact{padding:8px 20px 6px;}
+    .topbar.compact h1{font-size:15px;letter-spacing:1px;}
+    .topbar.compact .subtitle{max-height:0;opacity:0;margin-top:0;}
+    .topbar.compact .header-nav{margin-top:6px;}
+    .topbar.compact .header-nav a{font-size:11px;padding:4px 12px;}
+    .topbar.compact .header-links{max-height:0;opacity:0;margin-top:0;}
+    .topbar.compact .authArea{max-height:0;opacity:0;margin-top:0;overflow:hidden;}
+    .topbar.compact #totalCountBadge{display:none!important;}
+
+    /*
+    === A案: 2段コンパクトヘッダー（将来利用用メモ） ===
+    HTML構造:
+    <div class="topbar-a">
+      <div class="topbar-a-top">
+        <h1 class="topbar-a-logo">彩旬リスト</h1>
+        <nav class="topbar-a-nav">
+          <a href="javascript:void(0)" onclick="switchToDetauri()" class="active">デタウリ</a>
+          <a href="javascript:void(0)" onclick="switchToBulk()">アソート</a>
+        </nav>
+        <div class="topbar-a-auth" id="authArea"></div>
+      </div>
+    </div>
+
+    CSS:
+    .topbar-a{background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:10px 20px;position:sticky;top:0;z-index:100}
+    .topbar-a-top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+    .topbar-a-logo{font-size:16px;font-weight:800;white-space:nowrap;margin:0}
+    .topbar-a-nav{display:flex;gap:8px}
+    .topbar-a-nav a{color:#93c5fd;text-decoration:none;font-size:12px;padding:5px 14px;border-radius:20px;border:1px solid rgba(255,255,255,.15)}
+    .topbar-a-nav a.active{background:rgba(255,255,255,.1);color:#fff}
+    .topbar-a-auth{font-size:12px}
+    === / A案メモ終わり === */
+
     .admin-bar{background:#b8002a;color:#fff;text-align:center;padding:6px 14px;font-size:12px;font-weight:700;letter-spacing:1px;display:none;position:sticky;top:0;z-index:101;}
     .admin-bar span{background:rgba(255,255,255,.2);padding:2px 8px;border-radius:4px;margin-left:8px;font-size:11px;font-weight:400;}
     .admin-bar .admin-exit{background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.5);color:#fff;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;cursor:pointer;margin-left:10px;}
@@ -75,6 +108,9 @@
       .topbar .subtitle{font-size:13px;}
       .header-nav a{font-size:13px;padding:8px 20px;}
       .header-links a{font-size:13px;}
+      .topbar.compact{padding:8px 40px 6px;}
+      .topbar.compact h1{font-size:17px;}
+      .topbar.compact .header-nav a{font-size:12px;padding:5px 14px;}
     }
     .wrap{max-width:1100px;margin:0 auto;padding:12px 14px 90px;background:#fff;}
     .title{font-weight:900;font-size:18px;color:#f1f5f9;}
@@ -146,7 +182,7 @@
     .mainRecommendList{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;}
     .mainRecommendList .recommendCard{width:120px;}
     .mainRecommendList .recommendCard img{width:120px;height:120px;}
-    .authArea{display:flex;align-items:center;justify-content:center;gap:10px;font-size:13px;margin-top:10px;}
+    .authArea{display:flex;align-items:center;justify-content:center;gap:10px;font-size:13px;margin-top:10px;transition:all .25s ease;max-height:60px;overflow:hidden;opacity:1;}
     .authBtn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);border-radius:20px;padding:6px 16px;cursor:pointer;font-weight:700;font-size:12px;color:#fff;transition:all .2s;}
     .authBtn:hover{background:rgba(255,255,255,.2);}
     .authBtn.logout{background:transparent;border:1px solid rgba(255,255,255,.2);color:#94a3b8;text-decoration:none;padding:4px 12px;border-radius:20px;font-size:11px;}
@@ -5243,6 +5279,24 @@ function prefetchBulkPage_() {
     })
     .catch(function(e) { console.log('プリフェッチ失敗:', e); });
 }
+
+// =====================================================
+// ヘッダー自動縮小（スクロール連動）
+// =====================================================
+(function() {
+  var _compactThreshold = 60;
+  var _isCompact = false;
+  window.addEventListener('scroll', function() {
+    var topbar = document.querySelector('.topbar');
+    if (!topbar) return;
+    var shouldCompact = window.scrollY > _compactThreshold;
+    if (shouldCompact !== _isCompact) {
+      _isCompact = shouldCompact;
+      if (shouldCompact) { topbar.classList.add('compact'); }
+      else { topbar.classList.remove('compact'); }
+    }
+  }, { passive: true });
+})();
 
 // =====================================================
 // プロモバナー sticky 連動: topbar の top 位置を動的調整
