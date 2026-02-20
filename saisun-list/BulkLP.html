@@ -816,6 +816,10 @@ function updateCart() {
           + '<span>' + shippingDesc0 + '</span>'
           + '<span>¥' + numFmt(G.detauriShipping) + '</span></div>';
       }
+      var detauriSub0 = G.detauriCartTotal + G.detauriShipping;
+      detRows += '<div class="cart-row" style="color:#5B86C5;font-size:13px;font-weight:700;border-top:1px solid #c8d8f0;margin-top:4px;padding-top:8px;">'
+        + '<span>デタウリ 小計</span>'
+        + '<span>¥' + numFmt(detauriSub0) + '</span></div>';
       emptyHtml += '<div class="cart-summary" style="margin-top:10px;">' + detRows + '</div>';
     }
     el.innerHTML = emptyHtml;
@@ -903,6 +907,9 @@ function updateCart() {
         + '<span>¥' + numFmt(G.detauriShipping) + '</span></div>';
     }
     var detauriTotal = G.detauriCartTotal + G.detauriShipping;
+    rows += '<div class="cart-row" style="color:#5B86C5;font-size:13px;font-weight:700;border-top:1px solid #c8d8f0;margin-top:4px;padding-top:8px;">'
+      + '<span>デタウリ 小計</span>'
+      + '<span>¥' + numFmt(detauriTotal) + '</span></div>';
     grandTotal = total + detauriTotal;
     rows += '<div class="cart-row total" style="border-top-color:#5B86C5;"><span>両チャネル合計（税込）</span><span>¥' + numFmt(grandTotal) + '</span></div>';
   }
@@ -945,6 +952,28 @@ function calcShipping(totalQty) {
   G.shipping = largeRate * totalQty;
 }
 
+// 複数口送料計算（上限超過時に分割）
+function calculateMultiShipment_(thick, thin, rates) {
+  var smallRate = rates[0], largeRate = rates[1];
+  var totalAmount = 0, largeCnt = 0, smallCnt = 0;
+  if (thick > 0) {
+    var n = Math.ceil(thick / 20);
+    largeCnt += n;
+    totalAmount += n * largeRate;
+  }
+  var rem = thin;
+  while (rem > 0) {
+    var batch = Math.min(rem, 40);
+    if (batch <= 10) { smallCnt++; totalAmount += smallRate; }
+    else { largeCnt++; totalAmount += largeRate; }
+    rem -= batch;
+  }
+  var parts = [];
+  if (largeCnt > 0) parts.push('大×' + largeCnt);
+  if (smallCnt > 0) parts.push('小×' + smallCnt);
+  return { amount: totalAmount, sizeLabel: parts.join('、'), largeCnt: largeCnt, smallCnt: smallCnt };
+}
+
 // デタウリ送料をリアルタイム計算（まとめ商品ページ上で住所入力時）
 function recalcDetauriShipping_() {
   if (G.detauriCartCount === 0) return;
@@ -977,18 +1006,25 @@ function recalcDetauriShipping_() {
     if (total === 0) return;
 
     // サイズ判定（デタウリと同じロジック）
-    var size = null, sizeLabel = '';
+    var size = null, sizeLabel = '', overLimit = false;
     if (thin === 0) {
-      if (total > 20) { G.detauriShipping = 0; G.detauriShippingSizeLabel = '超過'; return; }
-      size = 'large'; sizeLabel = '大';
+      if (total > 20) overLimit = true;
+      else { size = 'large'; sizeLabel = '大'; }
     } else if (thick === 0) {
-      if (total > 40) { G.detauriShipping = 0; G.detauriShippingSizeLabel = '超過'; return; }
-      size = total <= 10 ? 'small' : 'large';
-      sizeLabel = total <= 10 ? '小' : '大';
-    } else {
-      if (total > 40) { G.detauriShipping = 0; G.detauriShippingSizeLabel = '超過'; return; }
-      if (thick >= 10) { size = 'large'; sizeLabel = '大'; }
+      if (total > 40) overLimit = true;
       else { size = total <= 10 ? 'small' : 'large'; sizeLabel = total <= 10 ? '小' : '大'; }
+    } else {
+      if (total > 40) overLimit = true;
+      else if (thick >= 10) { size = 'large'; sizeLabel = '大'; }
+      else { size = total <= 10 ? 'small' : 'large'; sizeLabel = total <= 10 ? '小' : '大'; }
+    }
+
+    if (overLimit) {
+      var multi = calculateMultiShipment_(thick, thin, [rates[area][0], rates[area][1]]);
+      G.detauriShipping = multi.amount;
+      G.detauriShippingPref = pref;
+      G.detauriShippingSizeLabel = multi.sizeLabel;
+      return;
     }
 
     var rateIdx = (size === 'small') ? 0 : 1;
@@ -1338,6 +1374,7 @@ function saveSharedAddress_() {
       address: (document.getElementById('address').value || '').trim(),
       building: (document.getElementById('building').value || '').trim(),
       phone: (document.getElementById('phone').value || '').trim(),
+      note: (document.getElementById('note').value || '').trim(),
       ts: Date.now()
     };
     localStorage.setItem(SHARED_ADDRESS_KEY, JSON.stringify(data));
@@ -1350,22 +1387,18 @@ function loadSharedAddress_() {
     if (!raw) return;
     var data = JSON.parse(raw);
     if (!data || !data.ts) return;
-    // フォームの空フィールドのみ埋める
-    var fields = ['companyName', 'contact', 'postal', 'address', 'building', 'phone'];
+    var fields = ['companyName', 'contact', 'postal', 'address', 'building', 'phone', 'note'];
     for (var i = 0; i < fields.length; i++) {
       var el = document.getElementById(fields[i]);
-      if (el && !el.value && data[fields[i]]) {
-        el.value = data[fields[i]];
-      }
+      if (el && data[fields[i]]) el.value = data[fields[i]];
     }
-    // 住所が入力されたら送料を再計算
     if (data.address) updateCart();
   } catch (e) {}
 }
 
 // フォームフィールドの入力時に共有住所を保存
 (function() {
-  var fields = ['companyName', 'contact', 'postal', 'address', 'building', 'phone'];
+  var fields = ['companyName', 'contact', 'postal', 'address', 'building', 'phone', 'note'];
   for (var i = 0; i < fields.length; i++) {
     var el = document.getElementById(fields[i]);
     if (el) {
