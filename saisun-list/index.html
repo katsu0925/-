@@ -321,7 +321,7 @@
   var params = new URLSearchParams(window.location.search);
   if (params.get('page') !== 'bulk') return;
 
-  var BULK_HTML_KEY = 'bulk_html_cache_v2';
+  var BULK_HTML_KEY = 'bulk_html_cache_v3';
   var BULK_HTML_TTL = 24 * 60 * 60 * 1000; // 24時間
   var GAS_URL = 'https://script.google.com/macros/s/AKfycbwLN23a03qQSGA91J-82_6HlIx0kA5yUYFRxjfbjFGfnZDqynKnyJhEPsoISSQps3SmXQ/exec';
 
@@ -521,17 +521,21 @@
             <label>メールアドレス *</label>
             <input id="contact" type="email" autocomplete="email" placeholder="example@example.com">
           </div>
-          <div class="formField">
-            <label>郵便番号 *</label>
-            <input id="postal" type="text" inputmode="numeric" autocomplete="postal-code" placeholder="0000000">
+          <div class="formField" style="grid-column:1/-1;">
+            <div style="display:flex;gap:10px;">
+              <div style="flex:.4;">
+                <label>郵便番号 *</label>
+                <input id="postal" type="text" inputmode="numeric" autocomplete="postal-code" placeholder="0000000" style="width:100%;padding:6px 10px;border:1px solid #e0e0e0;border-radius:8px;font-size:14px;">
+              </div>
+              <div style="flex:.6;">
+                <label>電話番号 *</label>
+                <input id="phone" type="tel" inputmode="numeric" placeholder="00000000000" autocomplete="tel" style="width:100%;padding:6px 10px;border:1px solid #e0e0e0;border-radius:8px;font-size:14px;">
+              </div>
+            </div>
           </div>
           <div class="formField">
             <label>住所 *</label>
             <input id="address" type="text" autocomplete="street-address">
-          </div>
-          <div class="formField">
-            <label>電話番号 *</label>
-            <input id="phone" type="tel" inputmode="numeric" placeholder="00000000000" autocomplete="tel">
           </div>
           <div class="formField">
             <label>備考</label>
@@ -1399,6 +1403,30 @@ function calcShippingSize_(thick, thin) {
   return total <= 10 ? { size: 'small', label: '小' } : { size: 'large', label: '大' };
 }
 
+/** 複数口送料計算（上限超過時に分割） */
+function calculateMultiShipment_(thick, thin, rates) {
+  var smallRate = rates[0], largeRate = rates[1];
+  var totalAmount = 0, largeCnt = 0, smallCnt = 0;
+  // 厚手: 1口最大20点、常に大サイズ
+  if (thick > 0) {
+    var n = Math.ceil(thick / 20);
+    largeCnt += n;
+    totalAmount += n * largeRate;
+  }
+  // 薄手: 1口最大40点、10点以下→小、11点以上→大
+  var rem = thin;
+  while (rem > 0) {
+    var batch = Math.min(rem, 40);
+    if (batch <= 10) { smallCnt++; totalAmount += smallRate; }
+    else { largeCnt++; totalAmount += largeRate; }
+    rem -= batch;
+  }
+  var parts = [];
+  if (largeCnt > 0) parts.push('大×' + largeCnt);
+  if (smallCnt > 0) parts.push('小×' + smallCnt);
+  return { amount: totalAmount, sizeLabel: parts.join('、'), largeCnt: largeCnt, smallCnt: smallCnt };
+}
+
 /** 送料計算メイン */
 function calculateShipping_() {
   var ids = state.cart.ids || [];
@@ -1440,7 +1468,17 @@ function calculateShipping_() {
   var sizeResult = calcShippingSize_(t.thick, t.thin);
 
   if (!sizeResult.size) {
-    return { amount: null, label: '点数が多いため送料は別途ご案内します', canAutoPayment: false };
+    // 上限超過: 複数口に分割して計算
+    var multi = calculateMultiShipment_(t.thick, t.thin, SHIPPING_RATES[area]);
+    return {
+      amount: multi.amount,
+      label: yen(multi.amount) + '（' + pref + '・' + multi.sizeLabel + '・税込）',
+      canAutoPayment: true,
+      size: 'multi',
+      sizeLabel: multi.sizeLabel,
+      area: area,
+      pref: pref
+    };
   }
 
   var rateIdx = (sizeResult.size === 'small') ? 0 : 1;
@@ -1491,7 +1529,7 @@ function updateShippingDisplay_() {
 
   if (result.amount === null) {
     shipEl.style.display = '';
-    shipEl.innerHTML = '送料：' + result.label;
+    shipEl.innerHTML = 'デタウリ 送料：' + result.label;
     totalEl.style.display = 'none';
     noteEl.style.display = '';
     if (feeNoteEl) feeNoteEl.style.display = '';
@@ -1502,7 +1540,7 @@ function updateShippingDisplay_() {
   shipEl.style.display = '';
   noteEl.style.display = '';
   if (feeNoteEl) feeNoteEl.style.display = '';
-  shipEl.innerHTML = '送料：' + result.label;
+  shipEl.innerHTML = 'デタウリ 送料：' + result.label;
 
   // 商品合計を計算（割引後）
   var productTotal = calcProductTotal_();
@@ -2476,11 +2514,14 @@ function loadBulkCartStorage() {
 var SHARED_ADDRESS_KEY = 'shared_address_v1';
 function saveSharedAddress_() {
   try {
+    var prev = {};
+    try { prev = JSON.parse(localStorage.getItem(SHARED_ADDRESS_KEY)) || {}; } catch(e2){}
     var data = {
       companyName: ($('companyName') ? $('companyName').value : '').trim(),
       contact: ($('contact') ? $('contact').value : '').trim(),
       postal: ($('postal') ? $('postal').value : '').trim(),
       address: ($('address') ? $('address').value : '').trim(),
+      building: prev.building || '',
       phone: ($('phone') ? $('phone').value : '').trim(),
       note: ($('note') ? $('note').value : '').trim(),
       ts: Date.now()
@@ -2497,7 +2538,7 @@ function loadSharedAddress_() {
     var fields = ['companyName', 'contact', 'postal', 'address', 'phone', 'note'];
     for (var i = 0; i < fields.length; i++) {
       var el = $(fields[i]);
-      if (el && !el.value && data[fields[i]]) el.value = data[fields[i]];
+      if (el && data[fields[i]]) el.value = data[fields[i]];
     }
   } catch (e) {}
 }
