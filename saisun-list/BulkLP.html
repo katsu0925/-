@@ -978,6 +978,9 @@ var BULK_CART_KEY = 'bulk_cart_v1';
 var DETAURI_CART_KEY = 'estimate_cart_v2';
 var SESSION_KEY = 'estimate_session';
 
+// iframe overlay検出: 親ページ（index.html）からiframeとして埋め込まれているか
+var IS_IN_OVERLAY = (window.name === 'bulkOverlay');
+
 // 商品データキャッシュ（デタウリと同じパターン）
 var BULK_PRODUCT_CACHE_KEY = 'bulk_product_cache_v1';
 var BULK_PRODUCT_CACHE_TTL = 5 * 60 * 1000; // 5分
@@ -985,6 +988,10 @@ var BULK_PRODUCT_CACHE_TTL = 5 * 60 * 1000; // 5分
 // スタンドアロンモード判定（Cloudflare Pages等からの配信時）
 var GAS_API_URL = 'https://script.google.com/macros/s/AKfycbwLN23a03qQSGA91J-82_6HlIx0kA5yUYFRxjfbjFGfnZDqynKnyJhEPsoISSQps3SmXQ/exec';
 var IS_STANDALONE = (typeof google === 'undefined' || !google.script);
+
+// デタウリiframe overlay（BulkLPが親ページの場合のみ使用）
+var _detailOverlay = null;
+var _detailOverlayReady = false;
 
 // Admin Key: URLから取得後、localStorageに保存してURLから除去
 var ADMIN_KEY = (function() {
@@ -1086,8 +1093,25 @@ function applyBulkData_(r, savedCart) {
   var dbl = document.getElementById('detauriBannerLink');
   if (dl) dl.href = detauriBase;
   if (dbl) dbl.href = detauriBase;
-  // シームレスページ切替: キャッシュ済みならSPA方式、なければ従来遷移
+  // シームレスページ切替（iframe overlay方式）
   function navigateToDetail_(url, label) {
+    // iframe overlay内の場合 → 親に「デタウリ表示」をpostMessage
+    if (IS_IN_OVERLAY) {
+      window.parent.postMessage({ type: 'navigateToDetail' }, '*');
+      return;
+    }
+
+    // 親ページとして動作中 → デタウリiframe overlayを表示
+    if (_detailOverlay && _detailOverlayReady) {
+      _detailOverlay.style.display = 'block';
+      return;
+    }
+    if (_detailOverlay) {
+      _detailOverlay.style.display = 'block';
+      return;
+    }
+
+    // iframe未作成 → キャッシュから即座に作成して表示
     var cachedHtml = null;
     var DETAIL_HTML_KEY = 'detail_html_cache_v1';
     var DETAIL_HTML_TTL = 24 * 60 * 60 * 1000;
@@ -1102,15 +1126,12 @@ function applyBulkData_(r, savedCart) {
     } catch(ex) {}
 
     if (cachedHtml) {
-      // 白フラッシュ防止: <html>タグに背景色を注入してからdocument.write()
-      var safeHtml = cachedHtml.replace(/<html([^>]*)>/, '<html$1 style="background:#1a1a2e">');
-      document.open();
-      document.write(safeHtml);
-      document.close();
+      createDetailOverlay_(cachedHtml);
+      _detailOverlay.style.display = 'block';
       return;
     }
 
-    // キャッシュなし → 従来のオーバーレイ遷移
+    // キャッシュなし → 従来のオーバーレイ遷移（フォールバック）
     try { sessionStorage.setItem('_pageTransition', '1'); } catch(e) {}
     var overlay = document.getElementById('pageTransition');
     if (overlay) {
@@ -1195,31 +1216,69 @@ window.addEventListener('DOMContentLoaded', function() {
 
   document.getElementById('postal').addEventListener('input', onPostalInput);
 
-  // デタウリページHTMLをバックグラウンドでプリフェッチ（シームレス切替用）
-  setTimeout(function() {
-    var DETAIL_HTML_KEY = 'detail_html_cache_v1';
-    var DETAIL_HTML_TTL = 24 * 60 * 60 * 1000;
-    try {
-      var raw = localStorage.getItem(DETAIL_HTML_KEY);
-      if (raw) {
-        var c = JSON.parse(raw);
-        if (c && c.html && c.ts && (Date.now() - c.ts < DETAIL_HTML_TTL)) {
-          return; // キャッシュ有効 → プリフェッチ不要
-        }
+  // iframe overlay内の場合はプリフェッチ不要（親ページが管理）
+  if (IS_IN_OVERLAY) return;
+
+  // === 以下はBulkLPが親ページとして動作する場合のみ ===
+
+  // postMessageリスナー: iframe内のデタウリから「アソートに戻る」指示を受信
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'navigateToBulk') {
+      if (_detailOverlay) {
+        _detailOverlay.style.display = 'none'; // 即座に非表示 → アソートが見える
       }
-    } catch(e) {}
-    runApi('apiDetailPage')
-      .then(function(data) {
-        if (data && data.ok && data.html) {
-          try {
-            localStorage.setItem(DETAIL_HTML_KEY, JSON.stringify({ ts: Date.now(), html: data.html }));
-            console.log('プリフェッチ完了: デタウリページHTML');
-          } catch(e) {}
-        }
-      })
-      .catch(function() {}); // プリフェッチ失敗は無視
-  }, 3000);
+    }
+  });
+
+  // デタウリページHTMLをバックグラウンドでプリフェッチ → iframe overlay作成
+  setTimeout(function() { prefetchDetailPage_(); }, 3000);
 });
+
+// =====================================================
+// デタウリiframe overlay（BulkLPが親ページの場合のみ）
+// =====================================================
+function createDetailOverlay_(html) {
+  if (_detailOverlay) return;
+  var f = document.createElement('iframe');
+  f.name = 'detailOverlay';
+  f.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:9998;display:none;background:#f5f5f5;';
+  f.srcdoc = html;
+  f.addEventListener('load', function() { _detailOverlayReady = true; });
+  document.body.appendChild(f);
+  _detailOverlay = f;
+}
+
+function prefetchDetailPage_() {
+  if (_detailOverlay) return;
+  var DETAIL_HTML_KEY = 'detail_html_cache_v1';
+  var DETAIL_HTML_TTL = 24 * 60 * 60 * 1000;
+  var cachedHtml = null;
+  try {
+    var raw = localStorage.getItem(DETAIL_HTML_KEY);
+    if (raw) {
+      var c = JSON.parse(raw);
+      if (c && c.html && c.ts && (Date.now() - c.ts < DETAIL_HTML_TTL)) {
+        cachedHtml = c.html;
+      }
+    }
+  } catch(e) {}
+  if (cachedHtml) {
+    createDetailOverlay_(cachedHtml);
+    return;
+  }
+  // キャッシュなし → APIから取得してキャッシュ → iframe作成
+  runApi('apiDetailPage')
+    .then(function(data) {
+      if (data && data.ok && data.html) {
+        try {
+          localStorage.setItem(DETAIL_HTML_KEY, JSON.stringify({ ts: Date.now(), html: data.html }));
+        } catch(e) {}
+        createDetailOverlay_(data.html);
+        console.log('プリフェッチ完了: デタウリページiframe作成');
+      }
+    })
+    .catch(function() {});
+}
 
 // =====================================================
 // 商品一覧レンダリング
