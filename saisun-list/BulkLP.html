@@ -1116,8 +1116,9 @@ function applyBulkData_(r, savedCart) {
   // デタウリリンクのhref/targetを設定（GAS URLで通常遷移可能にする）
   var dl = document.getElementById('detauriLink');
   var dbl = document.getElementById('detauriBannerLink');
-  if (dl) { dl.href = GAS_API_URL; dl.target = '_top'; }
-  if (dbl) { dbl.href = GAS_API_URL; dbl.target = '_top'; }
+  var _detauriUrl = '<?= detauriUrl ?>' || GAS_API_URL;
+  if (dl) { dl.href = _detauriUrl; dl.target = '_top'; }
+  if (dbl) { dbl.href = _detauriUrl; dbl.target = '_top'; }
   // シームレスページ切替（document.write方式）
   function navigateToDetail_() {
     if (!_cachedDetailHtml) return false; // キャッシュ未完了 → デフォルト遷移に任せる
