@@ -1,6 +1,7 @@
 // Code.gs
 // APP_CONFIG.data.spreadsheetId と同じスプレッドシートをログ先に使用
-var LOG_SPREADSHEET_ID = String(APP_CONFIG.data.spreadsheetId || '');
+// ※ getterで遅延評価し、ファイル読み込み順に依存しないようにする
+var _logConfig = { get id() { return String(APP_CONFIG.data.spreadsheetId || ''); } };
 const LOG_SHEET_NAME = "アクセスログ";
 // グローバルスコープ参照（doPost内で関数を動的に解決するため）
 var _global = this;
@@ -365,7 +366,7 @@ function apiLogPV(payload) {
  * ★ GASエディタから1回だけ実行してください
  */
 function ad_cleanAccessLog() {
-  var ss = SpreadsheetApp.openById(String(LOG_SPREADSHEET_ID).trim());
+  var ss = SpreadsheetApp.openById(String(_logConfig.id).trim());
   var sheet = ss.getSheetByName(LOG_SHEET_NAME);
   if (!sheet) { console.log('アクセスログシートが見つかりません'); return; }
   var last = sheet.getLastRow();
@@ -446,7 +447,7 @@ function appendLogRow_(row) {
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
-    const ss = SpreadsheetApp.openById(String(LOG_SPREADSHEET_ID).trim());
+    const ss = SpreadsheetApp.openById(String(_logConfig.id).trim());
     let sheet = ss.getSheetByName(LOG_SHEET_NAME);
     if (!sheet) {
       sheet = ss.insertSheet(LOG_SHEET_NAME);
