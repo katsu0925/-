@@ -18,6 +18,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans
 .badge-on{display:inline-block;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;background:#e6f4ea;color:#1e8e3e}
 .badge-off{display:inline-block;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;background:#fce8e6;color:#d93025}
 .badge-disc{display:inline-block;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;background:#fff3cd;color:#856404}
+.badge-stock{display:inline-block;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;background:#e8f0fe;color:#1a73e8}
+.badge-stock-zero{display:inline-block;padding:1px 5px;border-radius:3px;font-size:9px;font-weight:700;background:#fce8e6;color:#d93025}
 .actions{display:flex;gap:4px;flex-shrink:0}
 .actions button{padding:5px 10px;border-radius:5px;font-size:10px;font-weight:700;border:none;cursor:pointer}
 .btn-edit{background:#e8f0fe;color:#1a73e8}
@@ -70,6 +72,9 @@ function renderList() {
     h += '<span>' + fmtYen(p.price) + esc(p.unit) + '</span>';
     if (p.discount > 0) h += '<span class="badge-disc">' + Math.round(p.discount * 100) + '%OFF</span>';
     if (p.tag) h += '<span style="color:#e67700">' + esc(p.tag) + '</span>';
+    var stockLabel = (p.stock === -1 || p.stock === undefined || p.stock === null) ? '\u5728\u5eab:\u221e' : '\u5728\u5eab:' + p.stock;
+    var stockClass = (p.stock === 0) ? 'badge-stock-zero' : 'badge-stock';
+    h += '<span class="' + stockClass + '">' + stockLabel + '</span>';
     h += '<span class="' + bc + '">' + bt + '</span></div></div>';
     h += '<div class="actions">';
     h += '<button class="btn-edit" onclick="editProduct(\'' + esc(p.productId) + '\')">編集</button>';
