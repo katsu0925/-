@@ -28,7 +28,7 @@
     html, body { margin:0; padding:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans JP","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif; color:#111; background:#f5f5f5; -webkit-text-size-adjust:100%; }
     * { box-sizing:border-box; }
     input, select, textarea, button { font-size:16px; }
-    .promo-banner{background:linear-gradient(90deg,#b8002a,#e63950);color:#fff;text-align:center;padding:10px 40px 10px 14px;font-size:13px;font-weight:700;position:sticky;top:0;z-index:102;display:none;max-width:1100px;margin:0 auto;}
+    .promo-banner{background:linear-gradient(90deg,#b8002a,#e63950);color:#fff;text-align:center;padding:10px 40px 10px 14px;font-size:13px;font-weight:400;position:sticky;top:0;z-index:102;display:none;max-width:1100px;margin:0 auto;}
     .promo-banner a{color:#fff;text-decoration:underline;margin-left:8px;font-weight:900;}
     .promo-banner a:hover{color:#ffd700;}
     .promo-banner .promo-close{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;opacity:0.8;}
@@ -371,15 +371,11 @@
 <script>
 // ページ遷移フラッシュ防止: 遷移フラグがあればbody背景を暗くしオーバーレイ表示
 (function(){try{if(sessionStorage.getItem('_pageTransition')==='1'){document.body.style.background='#1a1a2e';document.body.classList.add('page-entering');sessionStorage.removeItem('_pageTransition');}}catch(e){}})();
-// クライアントサイドルーター: ?page=bulk の場合、BulkLP.htmlを動的に読み込む
-// 1. localStorageにキャッシュ済みHTML → 即座に表示（GAS API不要）
-// 2. 初回のみGAS APIから取得 → キャッシュに保存
+// クライアントサイドルーター: ?page=bulk の場合、GAS URLから直接iframeで表示
 (function() {
   var params = new URLSearchParams(window.location.search);
   if (params.get('page') !== 'bulk') return;
 
-  var BULK_HTML_KEY = 'bulk_html_cache_v7';
-  var BULK_HTML_TTL = 24 * 60 * 60 * 1000; // 24時間
   var GAS_URL = 'https://script.google.com/macros/s/AKfycbwLN23a03qQSGA91J-82_6HlIx0kA5yUYFRxjfbjFGfnZDqynKnyJhEPsoISSQps3SmXQ/exec';
 
   // デタウリページの描画を完全に抑制 + 背景を暗色化
@@ -387,64 +383,13 @@
   hideStyle.textContent = 'body{background:#1a1a2e !important;} body > *:not(#__bulkLoader) { display: none !important; }';
   document.head.appendChild(hideStyle);
 
-  // localStorageキャッシュを確認
-  var cachedHtml = null;
-  try {
-    var raw = localStorage.getItem(BULK_HTML_KEY);
-    if (raw) {
-      var c = JSON.parse(raw);
-      if (c && c.html && c.ts && (Date.now() - c.ts < BULK_HTML_TTL)) {
-        cachedHtml = c.html;
-      }
-    }
-  } catch (e) {}
-
-  // iframe overlay方式: 全画面iframeでBulkLPを表示（document.write不使用、フラッシュゼロ）
-  function showBulkInIframe_(html) {
+  // GAS URLから直接iframeで表示（srcベース: google.script.run対応、API確実動作）
+  window.addEventListener('DOMContentLoaded', function() {
     var f = document.createElement('iframe');
     f.name = 'bulkOverlay';
     f.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:9998;background:#f5f5f5;';
-    f.srcdoc = html;
+    f.src = GAS_URL + '?page=bulk';
     document.body.appendChild(f);
-  }
-
-  if (cachedHtml) {
-    // キャッシュあり → DOMContentLoaded後にiframe overlay即表示
-    window.addEventListener('DOMContentLoaded', function() { showBulkInIframe_(cachedHtml); });
-    return;
-  }
-
-  // キャッシュなし → GAS APIからフェッチしてキャッシュに保存
-  window.addEventListener('DOMContentLoaded', function() {
-    var loader = document.createElement('div');
-    loader.id = '__bulkLoader';
-    loader.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#1a1a2e;color:#fff;"><div style="text-align:center;"><div style="width:28px;height:28px;border:3px solid rgba(255,255,255,.2);border-top-color:#ffd700;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 14px;"></div><div style="font-size:20px;font-weight:700;margin-bottom:8px;">アソート商品</div><div style="font-size:13px;color:#aaa;">読み込み中...</div></div></div><style>@keyframes spin{to{transform:rotate(360deg)}}</style>';
-    document.body.insertBefore(loader, document.body.firstChild);
-
-    fetch(GAS_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'apiBulkPage', args: [] }),
-      redirect: 'follow'
-    })
-    .then(function(res) {
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      return res.json();
-    })
-    .then(function(data) {
-      if (data && data.ok && data.html) {
-        try {
-          localStorage.setItem(BULK_HTML_KEY, JSON.stringify({ ts: Date.now(), html: data.html }));
-        } catch (e) {}
-        showBulkInIframe_(data.html);
-      } else {
-        throw new Error(data && data.message ? data.message : '読み込みに失敗しました');
-      }
-    })
-    .catch(function(err) {
-      var el = document.getElementById('__bulkLoader');
-      if (el) el.innerHTML = '<div style="display:flex;justify-content:center;align-items:center;min-height:100vh;font-family:sans-serif;background:#1a1a2e;color:#ff6b6b;"><div style="text-align:center;"><div style="font-size:18px;margin-bottom:12px;">読み込みエラー</div><div style="font-size:14px;">' + (err.message || 'エラーが発生しました') + '</div><div style="margin-top:20px;"><a href="./" style="color:#93c5fd;font-size:14px;">デタウリに戻る</a></div></div></div>';
-    });
   });
 })();
 </script>
@@ -5245,10 +5190,11 @@ function logPageView_() {
 }
 
 // =====================================================
-// アソート商品ページへの遷移（iframe overlay方式）
+// アソート商品ページへの遷移（iframe overlay方式 - srcベース）
 // =====================================================
 var _bulkOverlay = null;   // iframe要素
 var _bulkOverlayReady = false;
+var _GAS_BASE_URL = 'https://script.google.com/macros/s/AKfycbwLN23a03qQSGA91J-82_6HlIx0kA5yUYFRxjfbjFGfnZDqynKnyJhEPsoISSQps3SmXQ/exec';
 
 function navigateToBulk(e) {
   e.preventDefault();
@@ -5259,57 +5205,24 @@ function navigateToBulk(e) {
     return;
   }
 
-  // iframe overlayが準備済み → CSS display切替のみ（1フレーム以内）
-  if (_bulkOverlay && _bulkOverlayReady) {
-    _bulkOverlay.style.display = 'block';
-    return;
-  }
-
-  // iframeはあるがまだロード中 → そのまま表示（ロード中の状態が見えるが、遷移よりはマシ）
+  // iframe overlayが存在 → CSS display切替のみ（1フレーム以内）
   if (_bulkOverlay) {
     _bulkOverlay.style.display = 'block';
     return;
   }
 
-  // iframe未作成 → キャッシュから即座に作成して表示
-  var cachedHtml = null;
-  try {
-    var raw = localStorage.getItem('bulk_html_cache_v7');
-    if (raw) {
-      var c = JSON.parse(raw);
-      if (c && c.html && c.ts && (Date.now() - c.ts < 86400000)) {
-        cachedHtml = c.html;
-      }
-    }
-  } catch(ex) {}
-
-  if (cachedHtml) {
-    createBulkOverlay_(cachedHtml);
-    _bulkOverlay.style.display = 'block';
-    return;
-  }
-
-  // キャッシュなし → 従来遷移（フォールバック）
-  var base = window.location.origin + window.location.pathname;
-  var url = base + '?page=bulk';
-  try { sessionStorage.setItem('_pageTransition', '1'); } catch(e) {}
-  var overlay = document.getElementById('pageTransition');
-  if (overlay) {
-    overlay.querySelector('.pt-sub').textContent = 'アソート商品を読み込み中...';
-    overlay.classList.add('active');
-    setTimeout(function() { window.location.href = url; }, 150);
-  } else {
-    window.location.href = url;
-  }
+  // iframe未作成 → 即座に作成して表示（GAS URLから読み込み）
+  createBulkOverlay_();
+  _bulkOverlay.style.display = 'block';
 }
 
-// iframe overlayを生成（非表示状態で）
-function createBulkOverlay_(html) {
+// iframe overlayを生成（非表示状態で、GAS URLから直接読み込み）
+function createBulkOverlay_() {
   if (_bulkOverlay) return;
   var f = document.createElement('iframe');
   f.name = 'bulkOverlay';
   f.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;border:none;z-index:9998;display:none;background:#f5f5f5;';
-  f.srcdoc = html;
+  f.src = _GAS_BASE_URL + '?page=bulk';
   f.addEventListener('load', function() { _bulkOverlayReady = true; });
   document.body.appendChild(f);
   _bulkOverlay = f;
@@ -5325,51 +5238,12 @@ window.addEventListener('message', function(e) {
 });
 
 // =====================================================
-// バックグラウンドプリフェッチ: アソートページHTML取得 → iframe overlay作成
+// バックグラウンドプリフェッチ: アソートページiframeを事前作成
 // =====================================================
 function prefetchBulkPage_() {
-  // 既にiframeが作成済みならスキップ
   if (_bulkOverlay) return;
-
-  var BULK_HTML_KEY = 'bulk_html_cache_v7';
-  var BULK_HTML_TTL = 24 * 60 * 60 * 1000;
-
-  // キャッシュ確認 → あればiframe作成
-  var cachedHtml = null;
-  try {
-    var raw = localStorage.getItem(BULK_HTML_KEY);
-    if (raw) {
-      var c = JSON.parse(raw);
-      if (c && c.html && c.ts && (Date.now() - c.ts < BULK_HTML_TTL)) {
-        cachedHtml = c.html;
-      }
-    }
-  } catch(e) {}
-
-  if (cachedHtml) {
-    createBulkOverlay_(cachedHtml);
-    return;
-  }
-
-  // キャッシュなし → APIから取得してキャッシュ → iframe作成
-  var GAS_URL = 'https://script.google.com/macros/s/AKfycbwLN23a03qQSGA91J-82_6HlIx0kA5yUYFRxjfbjFGfnZDqynKnyJhEPsoISSQps3SmXQ/exec';
-  fetch(GAS_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify({ action: 'apiBulkPage', args: [] }),
-    redirect: 'follow'
-  })
-  .then(function(res) { return res.ok ? res.json() : null; })
-  .then(function(data) {
-    if (data && data.ok && data.html) {
-      try {
-        localStorage.setItem(BULK_HTML_KEY, JSON.stringify({ ts: Date.now(), html: data.html }));
-      } catch(e) {}
-      createBulkOverlay_(data.html);
-      console.log('プリフェッチ完了: アソートページiframe作成');
-    }
-  })
-  .catch(function() {});
+  createBulkOverlay_();
+  console.log('プリフェッチ: アソートページiframe作成開始');
 }
 
 // =====================================================
