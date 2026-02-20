@@ -77,13 +77,18 @@ function apiChatbot(userKey, params) {
 
     messages.push({ role: 'user', content: userMessage });
 
-    // OpenAI API呼び出し
-    var reply = chatbot_callOpenAI_(apiKey, messages);
-    return { ok: true, reply: reply };
+    // OpenAI API呼び出し（失敗時はルールベースにフォールバック）
+    try {
+      var reply = chatbot_callOpenAI_(apiKey, messages);
+      return { ok: true, reply: reply };
+    } catch (aiErr) {
+      console.error('OpenAI API失敗、ルールベースにフォールバック:', aiErr);
+      return { ok: true, reply: chatbot_fallbackReply_(userMessage) };
+    }
 
   } catch (e) {
     console.error('apiChatbot error:', e);
-    return { ok: false, message: '申し訳ございません。一時的にエラーが発生しました。しばらくしてから再度お試しください。' };
+    return { ok: true, reply: chatbot_fallbackReply_(String((params && params.message) || '')) };
   }
 }
 
@@ -348,16 +353,18 @@ function chatbot_fallbackReply_(message) {
     }
   }
 
-  // どのルールにもマッチしない場合
-  return 'お問い合わせありがとうございます。\n\n' +
-    'よくあるご質問：\n' +
-    '・「注文方法」 → 注文の流れ\n' +
-    '・「送料」 → 送料の目安\n' +
-    '・「決済方法」 → 支払い方法\n' +
-    '・「割引」 → 現在のキャンペーン\n' +
-    '・「会員ランク」 → ポイント制度\n' +
-    '・「採寸データ」 → サイズ情報\n\n' +
-    '上記のキーワードでお試しいただくか、解決しない場合はページ上部の「✉ お問い合わせ」からお気軽にご連絡ください。';
+  // どのルールにもマッチしない場合 — 入力テキストに応じて簡易応答
+  return 'ご質問ありがとうございます。\n\n' +
+    '申し訳ございませんが、ご質問の内容を正確に把握できませんでした。\n' +
+    '以下のカテゴリからお選びいただくか、キーワードで再度お試しください。\n\n' +
+    '📦 注文方法・カートの使い方\n' +
+    '🚚 送料・配送・発送日数\n' +
+    '💳 決済方法（カード・コンビニ等）\n' +
+    '🏷️ 割引・クーポン・セール\n' +
+    '👤 会員ランク・ポイント\n' +
+    '📏 採寸データ・サイズ情報\n' +
+    '🔍 商品の探し方・フィルタ\n\n' +
+    '解決しない場合はページ上部の ✉ お問い合わせ からスタッフにご連絡ください。';
 }
 
 /**

@@ -5739,8 +5739,10 @@ boot();
       })
       .catch(function(err){
         removeTyping(typingEl);
-        var fallback = '通信エラーが発生しました。\n\nお手数ですが ✉ お問い合わせ よりご連絡ください。';
-        appendMessage('bot', fallback);
+        var fallback = '一時的に接続できませんでした。\n\nお手数ですが、もう一度お試しいただくか、✉ お問い合わせ よりスタッフにご連絡ください。';
+        var ansDiv = appendMessageAndReturn('bot', fallback);
+        chatHistory.push({ role: 'assistant', content: fallback });
+        showAfterAnswer(ansDiv);
       })
       .finally(function(){
         isSending = false;
@@ -5774,7 +5776,7 @@ boot();
 
   // AI回答が「わからない」系かチェック
   function isUnanswerable(reply){
-    var markers = ['わかりません', 'お答えできません', '情報がありません', '対応できません', 'お問い合わせください'];
+    var markers = ['わかりません', 'お答えできません', '情報がありません', '対応できません'];
     var r = reply.toLowerCase();
     return markers.some(function(m){ return r.indexOf(m) !== -1; });
   }
