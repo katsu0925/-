@@ -1116,7 +1116,7 @@ function applyBulkData_(r, savedCart) {
   // デタウリリンクのhref/targetを設定（GAS URLで通常遷移可能にする）
   var dl = document.getElementById('detauriLink');
   var dbl = document.getElementById('detauriBannerLink');
-  var _detauriUrl = '<?= detauriUrl ?>' || GAS_API_URL;
+  var _detauriUrl = window.location.origin + window.location.pathname;
   if (dl) { dl.href = _detauriUrl; dl.target = '_top'; }
   if (dbl) { dbl.href = _detauriUrl; dbl.target = '_top'; }
   // シームレスページ切替（document.write方式）
