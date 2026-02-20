@@ -1,3 +1,4 @@
+// メニュー.gs
 var AI_SHEET_NAME = 'AIキーワード抽出';
 
 var COLUMN_NAMES = {

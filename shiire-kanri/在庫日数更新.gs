@@ -1,3 +1,4 @@
+// 在庫日数更新.gs
 function recalcZaikoNissu() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName('商品管理');

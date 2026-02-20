@@ -1,3 +1,4 @@
+// 回収完了.gs
 function stampByThreshold() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName('在庫分析');

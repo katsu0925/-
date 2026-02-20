@@ -1,3 +1,4 @@
+// キーワードAPI.gs
 const CONFIG_AI = {
   SHEET_AI: "AIキーワード抽出",
   HEADER_ROW: 1,
