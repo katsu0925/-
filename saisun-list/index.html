@@ -399,10 +399,13 @@
   } catch (e) {}
 
   if (cachedHtml) {
-    // キャッシュあり → index.htmlのDOM解析を待たず即座にBulkLPを表示
-    document.open();
-    document.write(cachedHtml);
-    document.close();
+    // キャッシュあり → DOMContentLoaded後に即座にBulkLPを表示
+    // （hideStyleで背景は暗色、コンテンツは非表示のため白フラッシュなし）
+    window.addEventListener('DOMContentLoaded', function() {
+      document.open();
+      document.write(cachedHtml);
+      document.close();
+    });
     return;
   }
 
@@ -5242,23 +5245,13 @@ function navigateToBulk(e) {
   var base = window.location.origin + window.location.pathname;
   var url = base + '?page=bulk';
   try { sessionStorage.setItem('_pageTransition', '1'); } catch(e) {}
-  // キャッシュ済みなら即時遷移（ルーターがDOM解析前に即表示する）
-  var hasBulkCache = false;
-  try {
-    var raw = localStorage.getItem('bulk_html_cache_v7');
-    if (raw) { var c = JSON.parse(raw); hasBulkCache = !!(c && c.html && c.ts && (Date.now() - c.ts < 86400000)); }
-  } catch(ex) {}
-  if (hasBulkCache) {
-    window.location.href = url;
+  var overlay = document.getElementById('pageTransition');
+  if (overlay) {
+    overlay.querySelector('.pt-sub').textContent = 'アソート商品を読み込み中...';
+    overlay.classList.add('active');
+    setTimeout(function() { window.location.href = url; }, 150);
   } else {
-    var overlay = document.getElementById('pageTransition');
-    if (overlay) {
-      overlay.querySelector('.pt-sub').textContent = 'アソート商品を読み込み中...';
-      overlay.classList.add('active');
-      setTimeout(function() { window.location.href = url; }, 150);
-    } else {
-      window.location.href = url;
-    }
+    window.location.href = url;
   }
 }
 
