@@ -107,7 +107,7 @@ function doPost(e) {
       'apiRequestPasswordReset', 'apiRecoverEmail', 'apiChangePassword', 'apiGetMyPage',
       'apiCreateKomojuSession', 'apiCheckPaymentStatus', 'apiCancelOrder',
       'apiGetCsrfToken',
-      'apiBulkInit', 'apiBulkSubmit', 'apiBulkPage',
+      'apiBulkInit', 'apiBulkSubmit', 'apiBulkPage', 'apiDetailPage',
       'apiChatbot', 'apiValidateCoupon', 'apiAdminLinkOrder',
       // 管理者専用API（adminKey認証必須）
       'adminGetKomojuMode', 'adminToggleKomojuMode',
@@ -205,6 +205,16 @@ function getBulkPageUrl() {
 function apiBulkPage() {
   try {
     var html = HtmlService.createHtmlOutputFromFile('BulkLP').getContent();
+    return { ok: true, html: html };
+  } catch (e) {
+    return { ok: false, message: e.message || String(e) };
+  }
+}
+
+/** クライアントサイドルーター用: index.html（デタウリ）のHTMLコンテンツを返す */
+function apiDetailPage() {
+  try {
+    var html = HtmlService.createHtmlOutputFromFile('index').getContent();
     return { ok: true, html: html };
   } catch (e) {
     return { ok: false, message: e.message || String(e) };
