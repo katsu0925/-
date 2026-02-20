@@ -569,8 +569,8 @@
         <div id="shippingNote" style="display:none;font-size:11px;color:#888;text-align:right;width:100%;margin-top:6px;">※送料は税込み・会員割引対象外です</div>
         <div id="paymentFeeNote" style="display:none;font-size:11px;color:#888;text-align:right;width:100%;line-height:1.5;margin-top:2px;">※コンビニ決済は別途手数料220円（税込）がかかります<br>※銀行振込・ペイジーの振込手数料はお客様負担です</div>
         <div id="remoteIslandWarning" style="display:none;font-size:13px;color:#b8002a;text-align:right;width:100%;font-weight:600;"></div>
-        <div id="cartActions" style="display:flex; gap:10px; align-items:center; justify-content:flex-end; flex-wrap:wrap; width:100%; margin-top:10px;">
-          <button class="btn" id="clearCartBtn" style="min-width:160px;" type="button">カートを空にする</button>
+        <div id="cartActions" style="display:flex; gap:8px; align-items:center; justify-content:flex-end; flex-wrap:wrap; width:100%; margin-top:10px;">
+          <div id="cartClearBtns" style="display:flex;gap:6px;flex-wrap:wrap;margin-right:auto;"></div>
           <button class="btn primary" id="goFormBtn" style="min-width:220px;" type="button">購入手続きへ</button>
         </div>
       </div>
@@ -1285,11 +1285,68 @@
   <div style="max-width:900px; margin:0 auto; text-align:center;">
     <div style="display:flex; justify-content:center; gap:24px; flex-wrap:wrap; margin-bottom:16px;">
       <a href="#" id="openLegalLink" style="color:#cbd5e1; text-decoration:none;">特定商取引法に基づく表記</a>
-      <a href="https://nkonline.buyshop.jp/privacy" target="_blank" rel="noopener noreferrer" style="color:#cbd5e1; text-decoration:none;">プライバシーポリシー</a>
+      <a href="#" id="openPrivacyLink" style="color:#cbd5e1; text-decoration:none;">プライバシーポリシー</a>
     </div>
     <div style="color:#64748b;">&copy; 2025-2026 デタウリ.Detauri</div>
   </div>
 </footer>
+
+<!-- プライバシーポリシーモーダル -->
+<div class="modal" id="privacyModal" aria-hidden="true" style="width:min(700px,94vw);">
+  <div class="modalHeader">
+    <div class="modalTitle">プライバシーポリシー</div>
+    <button class="modalClose" id="privacyCloseBtn" aria-label="close">×</button>
+  </div>
+  <div class="modalBody" style="line-height:1.8;font-size:14px;">
+    <h3 style="font-size:16px;font-weight:700;margin:0 0 12px;">個人情報の取り扱いについて</h3>
+    <p>デタウリ.Detauri（以下「当サービス」）は、お客様の個人情報の保護に細心の注意を払い、以下の方針に基づき適切に取り扱います。</p>
+
+    <h4 style="font-size:14px;font-weight:700;margin:20px 0 8px;">1. 収集する情報</h4>
+    <p>当サービスでは、ご注文・会員登録・お問い合わせの際に以下の情報を収集します。</p>
+    <ul style="margin:8px 0;padding-left:24px;">
+      <li>氏名・会社名</li>
+      <li>メールアドレス</li>
+      <li>電話番号</li>
+      <li>郵便番号・住所</li>
+      <li>ご注文内容・決済情報（決済処理はKOMOJU社が行います）</li>
+    </ul>
+
+    <h4 style="font-size:14px;font-weight:700;margin:20px 0 8px;">2. 利用目的</h4>
+    <ul style="margin:8px 0;padding-left:24px;">
+      <li>ご注文の処理・商品の発送</li>
+      <li>お問い合わせへの回答</li>
+      <li>サービス改善・新商品のご案内（メルマガ登録者のみ）</li>
+      <li>不正利用の防止</li>
+    </ul>
+
+    <h4 style="font-size:14px;font-weight:700;margin:20px 0 8px;">3. 第三者への提供</h4>
+    <p>お客様の個人情報は、以下の場合を除き第三者に提供いたしません。</p>
+    <ul style="margin:8px 0;padding-left:24px;">
+      <li>商品配送のために配送業者に必要な情報を提供する場合</li>
+      <li>決済処理のためにKOMOJU社に必要な情報を提供する場合</li>
+      <li>法令に基づく場合</li>
+    </ul>
+
+    <h4 style="font-size:14px;font-weight:700;margin:20px 0 8px;">4. 個人情報の管理</h4>
+    <p>お客様の個人情報は、不正アクセス・紛失・破壊・改ざん・漏洩等を防止するため、適切なセキュリティ対策を講じて管理いたします。パスワードは暗号化して保存しており、当サービスのスタッフが閲覧することはできません。</p>
+
+    <h4 style="font-size:14px;font-weight:700;margin:20px 0 8px;">5. Cookieおよびローカルストレージ</h4>
+    <p>当サービスでは、カート情報の保持・ログイン状態の維持・サービス改善のためにCookieおよびローカルストレージを使用しています。ブラウザの設定により無効化できますが、一部の機能が制限される場合があります。</p>
+
+    <h4 style="font-size:14px;font-weight:700;margin:20px 0 8px;">6. お問い合わせ・開示請求</h4>
+    <p>個人情報の開示・訂正・削除等のご請求は、下記までご連絡ください。</p>
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px 16px;margin:8px 0;">
+      <strong>デタウリ.Detauri</strong><br>
+      メール：nkonline1030@gmail.com<br>
+      電話：090-5820-1803（平日 10:00〜18:00）
+    </div>
+
+    <h4 style="font-size:14px;font-weight:700;margin:20px 0 8px;">7. 改定</h4>
+    <p>本ポリシーは、法令の変更やサービス内容の変更に伴い、予告なく改定する場合があります。改定後のポリシーは当サービス上に掲載した時点で効力を生じます。</p>
+
+    <p style="margin-top:20px;color:#64748b;font-size:12px;">最終更新日：2026年2月20日</p>
+  </div>
+</div>
 
 <script>
 // =====================================================
@@ -1779,6 +1836,7 @@ function renderSummary_() {
 
   // 送料詳細をlocalStorageに保存（アソート商品ページでの表示用）
   saveCartStorage();
+  updateCartClearBtns_();
 }
 
 function loadSession_() {
@@ -2268,6 +2326,21 @@ function setupAuthUi_() {
     });
   }
 
+  // プライバシーポリシーモーダル
+  var openPrivacyLink = $('openPrivacyLink');
+  if (openPrivacyLink) {
+    openPrivacyLink.addEventListener('click', function(e) {
+      e.preventDefault();
+      openModal($('privacyModal'));
+    });
+  }
+  var privacyCloseBtn = $('privacyCloseBtn');
+  if (privacyCloseBtn) {
+    privacyCloseBtn.addEventListener('click', function() {
+      closeModal($('privacyModal'));
+    });
+  }
+
   // お問い合わせモーダル
   var openContactLink = $('openContactLink');
   if (openContactLink) {
@@ -2684,6 +2757,48 @@ function loadBulkCartStorage() {
   } catch (e) { return { subtotal: 0, totalQty: 0, shipping: 0 }; }
 }
 
+// =====================================================
+// カートクリア（3ボタン）
+// =====================================================
+function clearDetauriCartOnly_() {
+  if (!confirm('デタウリカートを空にしますか？')) return;
+  state.cart.ids = []; state.cart.itemsById = {}; state.cart.digest = {}; state.lastShipping = null;
+  saveCartStorage(); updateCartCount(); renderCartModal_(); updateShippingDisplay_(); filterAndRender(false);
+  runApi('apiSyncHolds', state.userKey, []).catch(function() {});
+  showToast('デタウリカートを空にしました');
+}
+
+function clearBulkCartOnly_() {
+  if (!confirm('アソートカートを空にしますか？')) return;
+  try { localStorage.removeItem('bulk_cart_v1'); } catch (e) {}
+  renderSummary_();
+  showToast('アソートカートを空にしました');
+}
+
+function clearAllCarts_() {
+  if (!confirm('すべてのカートを空にしますか？')) return;
+  state.cart.ids = []; state.cart.itemsById = {}; state.cart.digest = {}; state.lastShipping = null;
+  saveCartStorage(); updateCartCount(); updateShippingDisplay_(); filterAndRender(false);
+  runApi('apiSyncHolds', state.userKey, []).catch(function() {});
+  try { localStorage.removeItem('bulk_cart_v1'); } catch (e) {}
+  renderCartModal_();
+  showToast('すべてのカートを空にしました');
+}
+
+function updateCartClearBtns_() {
+  var wrap = $('cartClearBtns');
+  if (!wrap) return;
+  var hasDetauri = (state.cart.ids || []).length > 0;
+  var bulk = loadBulkCartStorage();
+  var hasBulk = bulk.subtotal > 0;
+  if (!hasDetauri && !hasBulk) { wrap.innerHTML = ''; return; }
+  var btns = '';
+  if (hasDetauri) btns += '<button class="btn" type="button" onclick="clearDetauriCartOnly_()" style="font-size:11px;padding:6px 10px;min-width:auto;">デタウリ空</button>';
+  if (hasBulk) btns += '<button class="btn" type="button" onclick="clearBulkCartOnly_()" style="font-size:11px;padding:6px 10px;min-width:auto;">アソート空</button>';
+  if (hasDetauri && hasBulk) btns += '<button class="btn" type="button" onclick="clearAllCarts_()" style="font-size:11px;padding:6px 10px;min-width:auto;color:#b8002a;border-color:#b8002a;">すべて空</button>';
+  wrap.innerHTML = btns;
+}
+
 // 住所共有（localStorage経由で両ページ間で共有）
 var SHARED_ADDRESS_KEY = 'shared_address_v1';
 function saveSharedAddress_() {
@@ -3066,6 +3181,12 @@ function filterAndRender(scrollTop) {
 
 function pollStatusNow_() {
   if (state.timers.statusPoll) { clearTimeout(state.timers.statusPoll); state.timers.statusPoll = null; }
+
+  // 確保同期中はポーリングをスキップ（apiSyncHolds完了後に再呼び出しされる）
+  if (state._holdSyncing) {
+    state.timers.statusPoll = setTimeout(pollStatusNow_, 3000);
+    return;
+  }
 
   // タブが非表示の場合はポーリングを一時停止
   if (document.hidden) {
@@ -3538,6 +3659,8 @@ function toggleCartOptimistic_(id) {
   saveCartStorage(); updateCartCount(); updateCardUi_(id);
   updateShippingDisplay_(); // 送料を即時再計算
 
+  // 確保同期中はステータスポーリングを抑止（レースコンディション防止）
+  state._holdSyncing = true;
   runApi('apiSyncHolds', state.userKey, state.cart.ids.slice())
     .then(function(res) {
       if (res && res.failed && res.failed.length) {
@@ -3554,9 +3677,11 @@ function toggleCartOptimistic_(id) {
         showToast(reasons.join('・') + 'の商品があります');
       }
     })
-    .catch(function(e) { console.log('同期エラー:', e); });
-
-  pollStatusNow_();
+    .catch(function(e) { console.log('同期エラー:', e); })
+    .finally(function() {
+      state._holdSyncing = false;
+      pollStatusNow_(); // 同期完了後にポーリング再開
+    });
 }
 
 // =====================================================
@@ -4811,12 +4936,7 @@ function bindUi_() {
   });
   
   $('openCartBtn').addEventListener('click', function() { renderCartModal_(); openModal($('cartModal')); });
-  $('clearCartBtn').addEventListener('click', function() {
-    state.cart.ids = []; state.cart.itemsById = {}; state.cart.digest = {}; state.lastShipping = null;
-    saveCartStorage(); updateCartCount(); renderCartModal_(); updateShippingDisplay_(); filterAndRender(false);
-    runApi('apiSyncHolds', state.userKey, []).catch(function() {});
-    showToast('カートを空にしました');
-  });
+  // カートクリアボタンはrenderSummary_()内で動的生成
   $('cartCloseBtn').addEventListener('click', function() {
     showCartSection_(true); // カートビューに戻してから閉じる
     closeModal($('cartModal'));
