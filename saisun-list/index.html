@@ -3216,13 +3216,11 @@ function pollStatusNow_() {
         for (var ok in state.cart.digest) {
           var existing = state.cart.digest[ok];
           if (!existing) continue;
-          // 楽観的エントリでサーバー未返却 → 保護
-          if (existing._optimistic && !merged[ok]) { merged[ok] = existing; continue; }
+          // 楽観的エントリ → サーバー応答に関わらず常に保護
+          // （ポーリングはカート追加前に送信されており、サーバー応答は古い状態を反映するため）
+          if (existing._optimistic) { merged[ok] = existing; continue; }
           // サーバー確認済み(15秒以内) → サーバー確認データを優先
-          if (existing._confirmedAt && (now - existing._confirmedAt < 15000) && !merged[ok]) {
-            merged[ok] = existing;
-          } else if (existing._confirmedAt && (now - existing._confirmedAt < 15000) && merged[ok]) {
-            // ポーリング結果より確認済みデータを優先
+          if (existing._confirmedAt && (now - existing._confirmedAt < 15000)) {
             merged[ok] = existing;
           }
         }
