@@ -218,9 +218,13 @@ function adminBulkSaveProduct(product) {
   }
 
   if (existingRow > 0) {
+    var prevHeight = sh.getRowHeight(existingRow);
     sh.getRange(existingRow, 1, 1, SHEET_HEADER.length).setValues([rowData]);
+    sh.setRowHeight(existingRow, prevHeight);
   } else {
+    var refHeight = lastRow >= 2 ? sh.getRowHeight(2) : 21;
     sh.appendRow(rowData);
+    sh.setRowHeight(sh.getLastRow(), refHeight);
   }
 
   return {
