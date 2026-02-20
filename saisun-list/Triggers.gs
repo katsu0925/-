@@ -75,6 +75,17 @@ function tr_setupTriggersOnce_() {
   }
   if (!hasDaily) ScriptApp.newTrigger('od_compactHolds_').timeBased().everyDays(1).atHour(4).create();
 
+  // 顧客ポイント付与トリガー（毎日5時に自動実行）
+  var hasPointsTrigger = false;
+  var t3 = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < t3.length; i++) {
+    if (t3[i].getHandlerFunction && t3[i].getHandlerFunction() === 'processCustomerPointsAuto_') {
+      hasPointsTrigger = true;
+      break;
+    }
+  }
+  if (!hasPointsTrigger) ScriptApp.newTrigger('processCustomerPointsAuto_').timeBased().everyDays(1).atHour(5).create();
+
   return { ok: true };
 }
 

@@ -197,6 +197,12 @@ function apiBulkSubmit(form, items) {
     };
 
     // === ペンディング注文データを保存 ===
+    // selectionList: アソート商品名×数量のリスト（依頼管理J列用）
+    var selectionParts = [];
+    for (var si = 0; si < orderItems.length; si++) {
+      selectionParts.push(orderItems[si].name + ' x' + orderItems[si].qty);
+    }
+
     var pendingData = {
       channel: BULK_CONFIG.channel,
       form: validatedForm,
@@ -209,6 +215,7 @@ function apiBulkSubmit(form, items) {
       storeShipping: calcStoreShippingByAddress_(shippingPref, totalQty) || 0,
       shippingSize: shippingSize,
       shippingPref: shippingPref,
+      selectionList: selectionParts.join('、'),
       productNames: productNames.join('、'),
       createdAtMs: u_nowMs_(),
       couponCode: couponCode || '',

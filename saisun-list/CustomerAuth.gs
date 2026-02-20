@@ -934,9 +934,57 @@ function processCustomerPoints() {
   }
 
   if (awarded > 0) {
-    SpreadsheetApp.getUi().alert('ポイント付与完了: ' + awarded + '件（ランクに応じた付与率で付与）');
+    try { SpreadsheetApp.getUi().alert('ポイント付与完了: ' + awarded + '件（ランクに応じた付与率で付与）'); } catch (e) { /* トリガー実行時はUI非対応 */ }
   } else {
-    SpreadsheetApp.getUi().alert('ポイント付与対象の注文はありませんでした');
+    try { SpreadsheetApp.getUi().alert('ポイント付与対象の注文はありませんでした'); } catch (e) { /* トリガー実行時はUI非対応 */ }
+  }
+  console.log('processCustomerPoints: ' + awarded + '件付与');
+}
+
+/**
+ * 時間ベーストリガーから呼ばれるポイント付与関数
+ * SpreadsheetApp.getUi()がないコンテキストでも安全に動作する
+ */
+function processCustomerPointsAuto_() {
+  try {
+    var ss = sh_getOrderSs_();
+    var reqSheet = ss.getSheetByName('依頼管理');
+    var custSheet = getCustomerSheet_();
+    if (!reqSheet || !custSheet) { console.log('processCustomerPointsAuto_: シートが見つかりません'); return; }
+
+    var reqData = reqSheet.getDataRange().getValues();
+    var custData = custSheet.getDataRange().getValues();
+
+    var custMap = {};
+    for (var i = 1; i < custData.length; i++) {
+      var email = String(custData[i][1] || '').trim().toLowerCase();
+      if (email) custMap[email] = { row: i + 1, points: Number(custData[i][12]) || 0 };
+    }
+
+    var awarded = 0;
+    for (var i = 1; i < reqData.length; i++) {
+      var status = String(reqData[i][21] || '');
+      var pointFlag = String(reqData[i][17] || '');
+      var email = String(reqData[i][3] || '').trim().toLowerCase();
+      var total = Number(reqData[i][11]) || 0;
+
+      if (status === '完了' && pointFlag !== 'PT' && email && total > 0) {
+        if (custMap[email]) {
+          var rankInfo = calculateCustomerRank_(email);
+          var pointRate = rankInfo.pointRate || 0.01;
+          var points = Math.floor(total * pointRate);
+          if (points > 0) {
+            custMap[email].points += points;
+            custSheet.getRange(custMap[email].row, 13).setValue(custMap[email].points);
+            reqSheet.getRange(i + 1, 18).setValue('PT');
+            awarded++;
+          }
+        }
+      }
+    }
+    console.log('processCustomerPointsAuto_: ' + awarded + '件付与');
+  } catch (e) {
+    console.error('processCustomerPointsAuto_ error:', e);
   }
 }
 
