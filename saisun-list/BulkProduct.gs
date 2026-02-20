@@ -58,8 +58,12 @@ function bulk_readProductsFromSheet_() {
     // 画像URL（最大5枚、空でないものだけ収集）
     var images = [];
     for (var imgIdx = c.image1; imgIdx <= c.image5; imgIdx++) {
-      var url = String(row[imgIdx] || '').trim();
-      if (url) images.push(url);
+      var imgUrl = String(row[imgIdx] || '').trim();
+      if (imgUrl && imgUrl.indexOf('drive.google.com') !== -1) {
+        var m = imgUrl.match(/[?&]id=([^&]+)/);
+        if (m) imgUrl = 'https://lh3.googleusercontent.com/d/' + m[1];
+      }
+      if (imgUrl) images.push(imgUrl);
     }
 
     var discount = Number(row[c.discount]) || 0;
@@ -144,7 +148,7 @@ function adminBulkUploadImage(base64Data, mimeType, fileName) {
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
 
     var fileId = file.getId();
-    var url = 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(fileId) + '&sz=w1000';
+    var url = 'https://lh3.googleusercontent.com/d/' + fileId;
 
     console.log('アソート商品画像アップロード: ' + fileName + ' → ' + fileId);
 
