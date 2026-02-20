@@ -1,10 +1,10 @@
 // =====================================================
-// BulkConfig.gs — まとめ商品スプレッドシート設定
+// BulkConfig.gs — アソート商品スプレッドシート設定
 // =====================================================
-// まとめ商品は個品（デタウリ）とは別のスプレッドシートで管理。
+// アソート商品は個品（デタウリ）とは別のスプレッドシートで管理。
 // ScriptProperty 'BULK_SPREADSHEET_ID' にスプレッドシートIDを設定する。
 //
-// まとめ商品シート列構成:
+// アソート商品シート列構成:
 // A=商品ID, B=商品名, C=説明, D=価格, E=単位,
 // F=タグ, G=画像URL1, H=画像URL2, I=画像URL3, J=画像URL4, K=画像URL5,
 // L=最小注文数, M=最大注文数, N=表示順, O=公開, P=割引率
@@ -14,7 +14,7 @@ var BULK_CONFIG = {
     try { return PropertiesService.getScriptProperties().getProperty('BULK_SPREADSHEET_ID') || ''; }
     catch (e) { return ''; }
   })(),
-  sheetName: 'まとめ商品',
+  sheetName: 'アソート商品',
   headerRow: 1,
   cols: {
     productId: 0,     // A: 商品ID（例: BULK001）
@@ -38,11 +38,11 @@ var BULK_CONFIG = {
     key: 'BULK_PRODUCTS',
     ttl: 300           // 5分
   },
-  channel: 'まとめ'     // 依頼管理のチャネル列に入る値
+  channel: 'アソート'     // 依頼管理のチャネル列に入る値
 };
 
 /**
- * まとめ商品シートのヘッダー定義
+ * アソート商品シートのヘッダー定義
  */
 var BULK_SHEET_HEADER = [
   '商品ID', '商品名', '説明', '価格', '単位',
@@ -51,7 +51,7 @@ var BULK_SHEET_HEADER = [
 ];
 
 /**
- * まとめ商品スプレッドシートを取得
+ * アソート商品スプレッドシートを取得
  */
 function bulk_getSs_() {
   var ssId = String(BULK_CONFIG.spreadsheetId || '').trim();
@@ -60,7 +60,7 @@ function bulk_getSs_() {
 }
 
 /**
- * まとめ商品シートを取得（なければ作成 + ヘッダー設定）
+ * アソート商品シートを取得（なければ作成 + ヘッダー設定）
  */
 function bulk_ensureSheet_(ss) {
   var sh = ss.getSheetByName(BULK_CONFIG.sheetName);
@@ -74,12 +74,12 @@ function bulk_ensureSheet_(ss) {
 
 /**
  * セットアップ関数（GASエディタから1回実行）
- * まとめ商品スプレッドシートのIDをScriptPropertiesに設定
+ * アソート商品スプレッドシートのIDをScriptPropertiesに設定
  *
  * 使い方: 下の SPREADSHEET_ID を実際のIDに書き換えてから実行
  */
 function setBulkSpreadsheetId() {
-  // ★ ここに まとめ商品スプレッドシートの ID を貼り付けてから実行してください
+  // ★ ここに アソート商品スプレッドシートの ID を貼り付けてから実行してください
   var SPREADSHEET_ID = '1yzfn252G3G1yh4SZ7tm73EwrGxZCwxZ-uaHHu_OnoJU';
 
   var id = String(SPREADSHEET_ID || '').trim();

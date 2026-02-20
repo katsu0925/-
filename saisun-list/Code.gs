@@ -18,7 +18,7 @@ function doGet(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
-  // まとめ商品LP（?page=bulk）
+  // アソート商品LP（?page=bulk）
   if (String(p.page || '') === 'bulk') {
     var tBulk = HtmlService.createTemplateFromFile('BulkLP');
     tBulk.appTitle = APP_CONFIG.appTitle;
@@ -30,7 +30,7 @@ function doGet(e) {
     }
     tBulk.detauriUrl = detauriUrl || '';
     return tBulk.evaluate()
-      .setTitle(APP_CONFIG.appTitle + ' - まとめ商品')
+      .setTitle(APP_CONFIG.appTitle + ' - アソート商品')
       .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
   }
 
@@ -41,7 +41,7 @@ function doGet(e) {
   t.topNotes = (APP_CONFIG.uiText && Array.isArray(APP_CONFIG.uiText.notes)) ? APP_CONFIG.uiText.notes : [];
   t.me = String(p.me || '');
 
-  // まとめ商品LPへのリンクURLをテンプレートに渡す
+  // アソート商品LPへのリンクURLをテンプレートに渡す
   var bulkUrl = '';
   try { bulkUrl = (SITE_CONSTANTS.SITE_URL || '') + '?page=bulk'; } catch (e) {}
   if (!bulkUrl || bulkUrl === '?page=bulk') {
@@ -179,7 +179,7 @@ function doPost(e) {
   }
 }
 
-/** クライアントから呼び出し: まとめ商品ページのURLを返す */
+/** クライアントから呼び出し: アソート商品ページのURLを返す */
 function getBulkPageUrl() {
   var url = '';
   try { url = (SITE_CONSTANTS.SITE_URL || '') + '?page=bulk'; } catch (e) {}

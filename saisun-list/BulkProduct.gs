@@ -1,9 +1,9 @@
 // =====================================================
-// BulkProduct.gs — まとめ商品データ読み込み（画像5枚対応）
+// BulkProduct.gs — アソート商品データ読み込み（画像5枚対応）
 // =====================================================
 
 /**
- * まとめ商品一覧を取得（キャッシュ付き）
+ * アソート商品一覧を取得（キャッシュ付き）
  * @returns {object[]} 商品リスト
  */
 function bulk_getProducts_() {
@@ -18,14 +18,14 @@ function bulk_getProducts_() {
   try {
     cache.put(BULK_CONFIG.cache.key, JSON.stringify(products), BULK_CONFIG.cache.ttl);
   } catch (e) {
-    console.log('まとめ商品キャッシュ保存エラー:', e);
+    console.log('アソート商品キャッシュ保存エラー:', e);
   }
 
   return products;
 }
 
 /**
- * スプレッドシートからまとめ商品データを読み込み
+ * スプレッドシートからアソート商品データを読み込み
  * @returns {object[]} 公開中・表示順ソート済みの商品リスト
  */
 function bulk_readProductsFromSheet_() {
@@ -33,7 +33,7 @@ function bulk_readProductsFromSheet_() {
   if (!ssId) return [];
 
   var ss;
-  try { ss = SpreadsheetApp.openById(ssId); } catch (e) { console.error('まとめ商品SS open error:', e); return []; }
+  try { ss = SpreadsheetApp.openById(ssId); } catch (e) { console.error('アソート商品SS open error:', e); return []; }
   var sh = ss.getSheetByName(BULK_CONFIG.sheetName);
   if (!sh) return [];
 
@@ -88,14 +88,74 @@ function bulk_readProductsFromSheet_() {
 }
 
 /**
- * まとめ商品キャッシュを無効化
+ * アソート商品キャッシュを無効化
  */
 function bulk_clearCache_() {
   try { CacheService.getScriptCache().remove(BULK_CONFIG.cache.key); } catch (e) {}
 }
 
 /**
- * まとめ商品の初期化API（フロントエンドから呼ばれる）
+ * ローカルファイルからアップロードされた画像をGoogleドライブに保存
+ * BulkAdminModal.htmlから呼ばれる
+ * @param {string} base64Data - 画像のBase64エンコードデータ
+ * @param {string} mimeType - MIMEタイプ（例: image/jpeg）
+ * @param {string} fileName - ファイル名
+ * @returns {object} { ok, url, fileId }
+ */
+function adminBulkUploadImage(base64Data, mimeType, fileName) {
+  try {
+    if (!base64Data) return { ok: false, message: '画像データがありません' };
+
+    var blob = Utilities.newBlob(Utilities.base64Decode(base64Data), mimeType || 'image/jpeg', fileName || 'product_image.jpg');
+
+    // アソート商品画像用フォルダを取得または作成
+    var folderId = '';
+    try {
+      folderId = PropertiesService.getScriptProperties().getProperty('BULK_IMAGE_FOLDER_ID') || '';
+    } catch (e) {}
+
+    var file;
+    if (folderId) {
+      try {
+        var folder = DriveApp.getFolderById(folderId);
+        file = folder.createFile(blob);
+      } catch (e) {
+        // フォルダが見つからない場合はルートに保存
+        file = DriveApp.createFile(blob);
+      }
+    } else {
+      // フォルダ未設定の場合は「アソート商品画像」フォルダを作成
+      var folders = DriveApp.getFoldersByName('アソート商品画像');
+      var folder;
+      if (folders.hasNext()) {
+        folder = folders.next();
+      } else {
+        folder = DriveApp.createFolder('アソート商品画像');
+      }
+      file = folder.createFile(blob);
+      // フォルダIDを保存して次回から使用
+      try {
+        PropertiesService.getScriptProperties().setProperty('BULK_IMAGE_FOLDER_ID', folder.getId());
+      } catch (e) {}
+    }
+
+    // 公開アクセスを設定
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+    var fileId = file.getId();
+    var url = 'https://drive.google.com/thumbnail?id=' + encodeURIComponent(fileId) + '&sz=w1000';
+
+    console.log('アソート商品画像アップロード: ' + fileName + ' → ' + fileId);
+
+    return { ok: true, url: url, fileId: fileId };
+  } catch (e) {
+    console.error('adminBulkUploadImage error:', e);
+    return { ok: false, message: (e && e.message) ? e.message : String(e) };
+  }
+}
+
+/**
+ * アソート商品の初期化API（フロントエンドから呼ばれる）
  * @returns {object} { ok, products, settings }
  */
 function apiBulkInit() {

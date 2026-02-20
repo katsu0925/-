@@ -1006,7 +1006,7 @@ function onOpen(e) {
     .addItem("不要トリガー一括削除", "cleanupObsoleteTriggers")
     .addToUi();
 
-  // まとめ商品管理メニューは、まとめ商品スプレッドシートの
+  // アソート商品管理メニューは、アソート商品スプレッドシートの
   // コンテナバインドスクリプト（saisun-list-bulk/）で表示
 }
 

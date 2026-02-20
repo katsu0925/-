@@ -126,6 +126,13 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 /* エラー */
 .error-msg{background:#f8d7da;color:#721c24;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:12px;display:none}
 
+/* 管理者バー */
+.admin-bar{background:#b8002a;color:#fff;text-align:center;padding:6px 14px;font-size:12px;font-weight:700;letter-spacing:1px;display:none;position:sticky;top:0;z-index:22;}
+.admin-bar span{background:rgba(255,255,255,.2);padding:2px 8px;border-radius:4px;margin-left:8px;font-size:11px;font-weight:400;}
+.admin-bar .admin-exit{background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.5);color:#fff;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;cursor:pointer;margin-left:10px;}
+.admin-bar .admin-exit:hover{background:rgba(255,255,255,.4);}
+body.admin-mode .header{border-top:3px solid #b8002a;}
+
 /* プロモバナー */
 .promo-banner{background:linear-gradient(90deg,#b8002a,#e63950);color:#fff;text-align:center;padding:10px 40px 10px 14px;font-size:13px;font-weight:700;position:relative;z-index:21;display:none}
 .promo-banner a{color:#fff;text-decoration:underline;margin-left:8px;font-weight:900}
@@ -197,6 +204,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 </style>
 </head>
 <body>
+<!-- 管理者バー -->
+<div class="admin-bar" id="adminBar">管理者モード<span>アソート商品</span><button class="admin-exit" id="adminExit" type="button">管理者モード解除</button></div>
+
 <!-- プロモバナー -->
 <div class="promo-banner" id="promoBanner">
   期間限定：会員登録で全品<strong>10%OFF</strong>（2026年9月末まで・30点割引と併用可）<a href="#" id="promoRegisterLink">今すぐ無料登録 ＞</a>
@@ -1700,6 +1710,24 @@ function doLogout_() {
     loadSharedAddress_();
     updateAuthUi_();
   }, 100);
+
+  // 管理者モード: localStorageからキーを読み取り
+  var ADMIN_KEY = '';
+  try { ADMIN_KEY = localStorage.getItem('_nk_owner_key') || ''; } catch(e) {}
+  if (ADMIN_KEY) {
+    document.body.classList.add('admin-mode');
+    var adminBar = document.getElementById('adminBar');
+    if (adminBar) adminBar.style.display = 'block';
+    var adminExit = document.getElementById('adminExit');
+    if (adminExit) {
+      adminExit.addEventListener('click', function() {
+        if (confirm('管理者モードを解除しますか？\n再度アクセスするには ?admin=xxx のURLが必要です。')) {
+          try { localStorage.removeItem('_nk_owner_key'); } catch(e) {}
+          location.reload();
+        }
+      });
+    }
+  }
 })();
 
 </script>

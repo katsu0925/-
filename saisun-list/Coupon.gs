@@ -5,7 +5,7 @@
 // A=クーポンコード, B=割引タイプ(rate/fixed), C=割引値, D=有効期限,
 // E=利用上限, F=利用回数, G=1人1回制限(TRUE/FALSE), H=有効(TRUE/FALSE), I=メモ,
 // J=対象顧客(all/new/repeat), K=有効開始日, L=会員割引併用(TRUE/FALSE), M=30点割引併用(TRUE/FALSE),
-// N=適用チャネル(all/detauri/bulk), O=対象商品ID(まとめ商品用、カンマ区切り)
+// N=適用チャネル(all/detauri/bulk), O=対象商品ID(アソート商品用、カンマ区切り)
 
 var COUPON_SHEET_NAME = 'クーポン管理';
 
@@ -23,8 +23,8 @@ var COUPON_COLS = {
   START_DATE: 10, // K: 有効開始日
   COMBO_MEMBER: 11, // L: 会員割引との併用 (TRUE/FALSE)
   COMBO_BULK: 12,   // M: 30点割引との併用 (TRUE/FALSE)
-  CHANNEL: 13,      // N: 適用チャネル (all=全て / detauri=デタウリのみ / bulk=まとめ商品のみ)
-  TARGET_PRODUCTS: 14 // O: 対象商品ID (まとめ商品用、カンマ区切り。空=全商品)
+  CHANNEL: 13,      // N: 適用チャネル (all=全て / detauri=デタウリのみ / bulk=アソート商品のみ)
+  TARGET_PRODUCTS: 14 // O: 対象商品ID (アソート商品用、カンマ区切り。空=全商品)
 };
 
 var COUPON_COL_COUNT = 15;
@@ -342,16 +342,16 @@ function getCouponDialogHtml_() {
     + '<div class="col">'
     + '  <label>適用チャネル</label>'
     + '  <select id="channel" onchange="onChannelChange()">'
-    + '    <option value="all">全て（デタウリ＋まとめ）</option>'
+    + '    <option value="all">全て（デタウリ＋アソート）</option>'
     + '    <option value="detauri">デタウリのみ</option>'
-    + '    <option value="bulk">まとめ商品のみ</option>'
+    + '    <option value="bulk">アソート商品のみ</option>'
     + '  </select>'
     + '  <div class="hint">クーポンが使えるサイト</div>'
     + '</div>'
     + '<div class="col" id="targetProductsCol">'
-    + '  <label>対象商品ID（まとめ）</label>'
+    + '  <label>対象商品ID（アソート）</label>'
     + '  <input id="targetProducts" placeholder="BLK-XXXX,BLK-YYYY">'
-    + '  <div class="hint">空欄＝全まとめ商品、カンマ区切りでID指定</div>'
+    + '  <div class="hint">空欄＝全アソート商品、カンマ区切りでID指定</div>'
     + '</div>'
     + '</div>'
 
@@ -650,7 +650,7 @@ function getDeleteCouponDialogHtml_() {
  * @param {string} email - 利用者のメールアドレス
  * @param {number} productAmount - 商品代金（割引前）
  * @param {string} [channel] - 注文チャネル ('detauri' | 'bulk')
- * @param {string[]} [productIds] - まとめ商品の場合、カート内の商品IDリスト
+ * @param {string[]} [productIds] - アソート商品の場合、カート内の商品IDリスト
  * @returns {object} { ok, type, value, discountAmount, message }
  */
 function apiValidateCoupon(code, email, productAmount, channel, productIds) {
@@ -747,7 +747,7 @@ function getCouponDataCached_() {
  * @param {string} code - クーポンコード
  * @param {string} email - 利用者のメールアドレス
  * @param {string} [channel] - 注文チャネル ('detauri' | 'bulk')。省略時はチャネルチェックをスキップ
- * @param {string[]} [productIds] - まとめ商品の場合、カート内の商品IDリスト
+ * @param {string[]} [productIds] - アソート商品の場合、カート内の商品IDリスト
  */
 function validateCoupon_(code, email, channel, productIds) {
   if (!code) return { ok: false, message: 'クーポンコードを入力してください' };
@@ -775,12 +775,12 @@ function validateCoupon_(code, email, channel, productIds) {
   var couponChannel = coupon.channel || 'all';
   if (channel && couponChannel !== 'all') {
     if (couponChannel !== channel) {
-      var channelLabel = couponChannel === 'detauri' ? 'デタウリ' : 'まとめ商品';
+      var channelLabel = couponChannel === 'detauri' ? 'デタウリ' : 'アソート商品';
       return { ok: false, message: 'このクーポンは' + channelLabel + '専用です' };
     }
   }
 
-  // まとめ商品の対象商品IDチェック（bulk専用 or all の場合、bulkチャンネルからの注文時に照合）
+  // アソート商品の対象商品IDチェック（bulk専用 or all の場合、bulkチャンネルからの注文時に照合）
   if ((couponChannel === 'bulk' || couponChannel === 'all') && channel === 'bulk' && coupon.targetProducts) {
     var allowedIds = coupon.targetProducts.split(',').map(function(s) { return s.trim().toUpperCase(); }).filter(function(s) { return s; });
     if (allowedIds.length > 0 && productIds && productIds.length > 0) {

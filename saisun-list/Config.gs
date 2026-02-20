@@ -103,7 +103,7 @@ const APP_CONFIG = {
     note: 29,              // AD列: 備考
     reward: 30,            // AE列: 作業報酬
     updatedAt: 31,         // AF列: 更新日時
-    channel: 32            // AG列: チャネル（デタウリ/まとめ）
+    channel: 32            // AG列: チャネル（デタウリ/アソート）
   },
   statuses: {
     open: '依頼中',
