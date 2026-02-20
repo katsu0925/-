@@ -54,18 +54,19 @@
     .pw-toggle{position:absolute;right:6px;background:none;border:none;cursor:pointer;font-size:16px;padding:4px;opacity:0.5;line-height:1;}
     .pw-toggle:hover{opacity:0.8;}
     .pw-toggle.active{opacity:1;}
-    /* === A案 2-Row Header === */
+    /* === A案 3-Row Header === */
     .topbar{background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;position:sticky;top:0;z-index:100;max-width:1100px;margin:0 auto;}
     .topbar-row1{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 16px;flex-wrap:nowrap;}
     .topbar-logo{font-size:15px;font-weight:800;white-space:nowrap;margin:0;letter-spacing:1px;color:#fff;flex-shrink:0;}
     .topbar-nav{display:flex;gap:6px;flex-shrink:0;}
     .topbar-nav a{color:#93c5fd;text-decoration:none;font-size:11px;padding:4px 12px;border-radius:20px;border:1px solid rgba(255,255,255,.15);transition:all .2s;white-space:nowrap;}
     .topbar-nav a.active{background:#ffd700;color:#1a1a2e;border-color:#ffd700;font-weight:700;}
-    .topbar-auth{display:flex;align-items:center;gap:6px;font-size:12px;flex-shrink:1;min-width:0;}
-    .topbar-row2{display:flex;justify-content:center;gap:16px;padding:0 16px 6px;max-height:28px;overflow:hidden;opacity:1;transition:max-height .25s ease,opacity .25s ease,padding .25s ease;}
-    .topbar-row2 a{color:#93c5fd;text-decoration:none;font-size:11px;font-weight:600;transition:color .2s;white-space:nowrap;}
-    .topbar-row2 a:hover{color:#bfdbfe;}
-    .topbar.row2-hidden .topbar-row2{max-height:0;opacity:0;padding-top:0;padding-bottom:0;}
+    .topbar-auth{display:none;align-items:center;gap:6px;font-size:12px;flex-shrink:1;min-width:0;}
+    .topbar-row2{display:flex;justify-content:center;align-items:center;gap:8px;padding:2px 16px 4px;}
+    .topbar-row3{display:flex;justify-content:center;gap:16px;padding:0 16px 6px;max-height:28px;overflow:hidden;opacity:1;transition:max-height .25s ease,opacity .25s ease,padding .25s ease;}
+    .topbar-row3 a{color:#93c5fd;text-decoration:none;font-size:11px;font-weight:600;transition:color .2s;white-space:nowrap;}
+    .topbar-row3 a:hover{color:#bfdbfe;}
+    .topbar.row2-hidden .topbar-row3{max-height:0;opacity:0;padding-top:0;padding-bottom:0;}
     body.admin-mode .topbar{border-top:3px solid #b8002a;}
     .admin-bar{background:#b8002a;color:#fff;text-align:center;padding:6px 14px;font-size:12px;font-weight:700;letter-spacing:1px;display:none;position:sticky;top:0;z-index:101;}
     .admin-bar span{background:rgba(255,255,255,.2);padding:2px 8px;border-radius:4px;margin-left:8px;font-size:11px;font-weight:400;}
@@ -76,8 +77,10 @@
       .topbar-row1{padding:10px 24px;}
       .topbar-logo{font-size:17px;}
       .topbar-nav a{font-size:12px;padding:5px 14px;}
-      .topbar-row2{padding:0 24px 8px;gap:20px;}
-      .topbar-row2 a{font-size:12px;}
+      .topbar-auth{display:flex;}
+      .topbar-row2{display:none;}
+      .topbar-row3{padding:0 24px 8px;gap:20px;}
+      .topbar-row3 a{font-size:12px;}
     }
     .wrap{max-width:1100px;margin:0 auto;padding:12px 14px 90px;background:#fff;}
     .title{font-weight:900;font-size:18px;color:#f1f5f9;}
@@ -158,6 +161,7 @@
     .authDiscount{background:#b8002a;color:#fff;font-size:11px;padding:2px 6px;border-radius:4px;font-weight:900;}
     .authPoints{background:#e65100;color:#fff;font-size:11px;padding:2px 6px;border-radius:4px;font-weight:900;}
     .authBtn.mypage{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);font-size:11px;padding:4px 12px;border-radius:20px;}
+    .cart-header-btn{position:relative;padding:4px 10px!important;font-size:16px!important;background:rgba(255,255,255,.12)!important;border:1px solid rgba(255,255,255,.3)!important;border-radius:20px!important;cursor:pointer;color:#fff;line-height:1;}
     .footer{background:#1a1a2e;color:#888;text-align:center;padding:20px;font-size:11px;margin-top:40px;}
     .footer a{color:#aab;text-decoration:none;}
     #pageTransition{position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,#1a1a2e,#16213e);z-index:9999;display:flex;justify-content:center;align-items:center;opacity:0;pointer-events:none;transition:opacity .25s ease;}
@@ -434,6 +438,12 @@
       </div>
     </div>
     <div class="topbar-row2">
+      <div class="authArea" id="authAreaMob">
+        <button class="authBtn" id="openAuthBtnMob" type="button">ログイン / 新規登録</button>
+      </div>
+      <div class="badge ok" id="totalCountBadgeMob" style="display:none;"></div>
+    </div>
+    <div class="topbar-row3">
       <a href="#" id="openGuideLink">商品ガイド</a>
       <a href="#" id="openShippingLink">デタウリ送料表</a>
       <a href="#" id="openContactLink">お問い合わせ</a>
@@ -1846,6 +1856,8 @@ function updateAuthUi_() {
     adjustTopbarForBanner_();
   }
 
+  var cartBtnHtml = '<button class="authBtn cart-header-btn" id="headerCartBtn" type="button" title="カート">&#x1F6D2;</button>';
+
   if (state.customer) {
     var discountLabel = MEMBER_DISCOUNT_ENABLED ? '<span class="authDiscount">10%OFF</span>' : '';
     var pointsLabel = (state.customer.points > 0) ? '<span class="authPoints">' + state.customer.points + 'pt</span>' : '';
@@ -1854,7 +1866,7 @@ function updateAuthUi_() {
     if (state.customer.rank && state.customer.rank.name) {
       rankLabel = '<span style="background:' + safeColor_(state.customer.rank.color) + ';color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700;">' + escapeHtml_(state.customer.rank.name) + '</span>';
     }
-    area.innerHTML = '<div class="authUser">' +
+    area.innerHTML = cartBtnHtml + '<div class="authUser">' +
       '<span class="authUserName">' + escapeHtml_(state.customer.companyName || state.customer.email) + '</span>' +
       rankLabel + discountLabel + pointsLabel +
       '</div>' +
@@ -1870,12 +1882,50 @@ function updateAuthUi_() {
       logoutBtn.addEventListener('click', function() { doLogout_(); });
     }
   } else {
-    area.innerHTML = '<button class="authBtn" id="openAuthBtn" type="button">ログイン / 新規登録</button>';
+    area.innerHTML = cartBtnHtml + '<button class="authBtn" id="openAuthBtn" type="button">ログイン / 新規登録</button>';
     var openAuthBtn = $('openAuthBtn');
     if (openAuthBtn) {
       openAuthBtn.addEventListener('click', function() {
         openAuthModal_('login');
       });
+    }
+  }
+
+  // カートボタンのイベント
+  var headerCart = $('headerCartBtn');
+  if (headerCart) {
+    headerCart.addEventListener('click', function() {
+      var cb = $('openCartBtn');
+      if (cb) cb.click();
+    });
+  }
+
+  // モバイル認証エリアにミラーコピー
+  var mobArea = $('authAreaMob');
+  if (mobArea) {
+    mobArea.innerHTML = area.innerHTML;
+    var mobCart = mobArea.querySelector('#headerCartBtn');
+    if (mobCart) {
+      mobCart.id = 'headerCartBtnMob';
+      mobCart.addEventListener('click', function() {
+        var cb = $('openCartBtn');
+        if (cb) cb.click();
+      });
+    }
+    var mobMyPage = mobArea.querySelector('#openMyPageBtn');
+    if (mobMyPage) {
+      mobMyPage.id = 'openMyPageBtnMob';
+      mobMyPage.addEventListener('click', function() { openMyPage_(); });
+    }
+    var mobLogout = mobArea.querySelector('#logoutBtn');
+    if (mobLogout) {
+      mobLogout.id = 'logoutBtnMob';
+      mobLogout.addEventListener('click', function() { doLogout_(); });
+    }
+    var mobAuth = mobArea.querySelector('#openAuthBtn');
+    if (mobAuth) {
+      mobAuth.id = 'openAuthBtnMob';
+      mobAuth.addEventListener('click', function() { openAuthModal_('login'); });
     }
   }
 }
