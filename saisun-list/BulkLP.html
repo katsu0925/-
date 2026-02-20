@@ -8,7 +8,7 @@
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans-serif;background:#f5f5f5;color:#333;-webkit-font-smoothing:antialiased}
-.container{max-width:540px;margin:0 auto;background:#fff;min-height:100vh}
+.container{max-width:1100px;margin:0 auto;background:#fff;min-height:100vh}
 
 /* ヘッダー（sticky） */
 .header{background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:18px 20px 12px;text-align:center;position:sticky;top:0;z-index:100}
@@ -28,7 +28,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 .divider{height:8px;background:#f5f5f5}
 
 /* 商品グリッド */
-.product-grid{display:flex;flex-direction:column;gap:14px}
+.product-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
 
 /* 商品カード */
 .product-card{border:1px solid #e8e8e8;border-radius:12px;overflow:hidden;background:#fff;transition:box-shadow .2s}
@@ -152,6 +152,24 @@ body.admin-mode .header{border-top:3px solid #b8002a;}
 .auth-user{display:flex;align-items:center;gap:6px;font-size:12px;color:#fff}
 .auth-user-name{font-weight:700;max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .auth-discount{background:#e74c3c;color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700}
+.auth-points{background:#e65100;color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700}
+.auth-btn.mypage{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);font-size:11px;padding:4px 12px;border-radius:20px}
+.mypage-tabs{display:flex;gap:0;border-bottom:2px solid #e0e0e0;margin-bottom:16px}
+.mypage-tab{background:none;border:none;padding:10px 18px;font-size:14px;font-weight:600;color:#888;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .2s,border-color .2s}
+.mypage-tab:hover{color:#333}
+.mypage-tab.active{color:#b8002a;border-bottom-color:#b8002a}
+.mypage-content{min-height:120px}
+.mp-order-card{border:1px solid #e8e8e8;border-radius:8px;padding:14px;margin-bottom:10px;background:#fafafa}
+.mp-order-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px}
+.mp-order-no{font-weight:700;font-size:14px;color:#333}
+.mp-order-date{font-size:12px;color:#999}
+.mp-order-status{font-size:12px;padding:2px 8px;border-radius:10px;font-weight:600}
+.mp-order-status.done{background:#e8f5e9;color:#2e7d32}
+.mp-order-status.pending{background:#fff3e0;color:#e65100}
+.mp-order-status.active{background:#e3f2fd;color:#1565c0}
+.mp-order-products{font-size:12px;color:#666;line-height:1.5;margin-bottom:6px}
+.mp-order-footer{display:flex;justify-content:space-between;font-size:13px;flex-wrap:wrap;gap:4px}
+.mp-order-total{font-weight:700;color:#333}
 
 /* 認証モーダル */
 .auth-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);z-index:1001;justify-content:center;align-items:center;padding:20px}
@@ -308,7 +326,8 @@ body.admin-mode .admin-settings-fab{display:flex;}
   </nav>
   <div class="header-links">
     <a href="#" id="openBulkGuideLink">商品ガイド</a>
-    <a href="#" id="openBulkShippingLink">送料表</a>
+    <a href="#" id="openBulkShippingLink">アソート送料表</a>
+    <a href="#" id="openContactLinkHeader">お問い合わせ</a>
   </div>
   <!-- 認証エリア -->
   <div class="header-auth" id="headerAuth">
@@ -582,13 +601,11 @@ body.admin-mode .admin-settings-fab{display:flex;}
       <ul style="margin:0;padding-left:20px;color:#475569;">
         <li>アソート商品はカテゴリ・ブランドごとにまとめた古着セットです</li>
         <li>写真はサンプルイメージです。実物と多少異なる場合があります</li>
-        <li>商品の状態はA〜Cランク中心の混合です</li>
       </ul>
     </div>
     <div style="margin-bottom:20px;">
       <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">ご注文について</h3>
       <ul style="margin:0;padding-left:20px;color:#475569;">
-        <li style="margin-bottom:8px;"><strong style="color:#1e293b;">10点から</strong>購入可能です</li>
         <li style="margin-bottom:8px;">数量を選んでカートに追加してください</li>
         <li>送料はお届け先に応じて自動計算されます（ダイヤモンド会員は送料無料）</li>
       </ul>
@@ -605,9 +622,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
     <div style="margin-bottom:20px;">
       <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">割引について</h3>
       <ul style="margin:0;padding-left:20px;color:#475569;">
-        <li style="margin-bottom:8px;"><span style="color:#b8002a;font-weight:700;">30点以上で10%割引</span></li>
-        <li style="margin-bottom:8px;"><strong>会員割引</strong>：会員登録で<span style="color:#b8002a;font-weight:700;">10%OFF</span><span style="color:#666;font-size:13px;">（2026年9月末まで）</span></li>
-        <li><span style="color:#b8002a;font-weight:700;">※ 併用可</span>（30点割引＋会員割引の同時適用OK）</li>
+        <li><strong>会員割引</strong>：会員登録で<span style="color:#b8002a;font-weight:700;">10%OFF</span><span style="color:#666;font-size:13px;">（2026年9月末まで）</span></li>
       </ul>
     </div>
     <div>
@@ -620,11 +635,11 @@ body.admin-mode .admin-settings-fab{display:flex;}
   </div>
 </div>
 
-<!-- 送料表モーダル -->
+<!-- アソート送料表モーダル -->
 <div class="bulk-overlay" id="bulkShippingOverlay"></div>
 <div class="bulk-modal" id="bulkShippingModal" style="display:none;width:min(800px,96vw);">
   <div class="bulk-modal-header">
-    <div class="bulk-modal-title">送料表</div>
+    <div class="bulk-modal-title">アソート送料表</div>
     <button class="bulk-modal-close" id="bulkShippingCloseBtn" type="button">&times;</button>
   </div>
   <div class="bulk-modal-body" style="line-height:1.7;">
@@ -650,15 +665,6 @@ body.admin-mode .admin-settings-fab{display:flex;}
             <td style="padding:6px;border:1px solid #f9a8d4;text-align:center;">広島・岡山・島根・山口・鳥取</td>
             <td style="padding:6px;border:1px solid #f9a8d4;text-align:center;">大阪・兵庫・京都・奈良・和歌山・滋賀</td>
             <td style="padding:6px;border:1px solid #f9a8d4;text-align:center;">石川・福井・富山</td>
-          </tr>
-          <tr>
-            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;font-weight:700;background:#fff0f6;">宅配便（小）</td>
-            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,320円</td>
-            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,280円</td>
-            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,180円</td>
-            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,200円</td>
-            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,100円</td>
-            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,160円</td>
           </tr>
           <tr>
             <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;font-weight:700;background:#fff0f6;">宅配便（大）</td>
@@ -696,15 +702,6 @@ body.admin-mode .admin-settings-fab{display:flex;}
             <td style="padding:6px;border:1px solid #a5f3fc;text-align:center;">北海道</td>
           </tr>
           <tr>
-            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;font-weight:700;background:#f0fdff;">宅配便（小）</td>
-            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,180円</td>
-            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,220円</td>
-            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,300円</td>
-            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,400円</td>
-            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,460円</td>
-            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,640円</td>
-          </tr>
-          <tr>
             <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;font-weight:700;background:#f0fdff;">宅配便（大）</td>
             <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,440円</td>
             <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,540円</td>
@@ -726,10 +723,6 @@ body.admin-mode .admin-settings-fab{display:flex;}
             <th style="padding:8px;text-align:center;border:1px solid #fcd34d;">沖縄本島</th>
           </tr>
           <tr>
-            <td style="padding:8px;border:1px solid #fcd34d;text-align:center;font-weight:700;background:#fffbeb;">宅配便（小）</td>
-            <td style="padding:8px;border:1px solid #fcd34d;text-align:center;">2,500円</td>
-          </tr>
-          <tr>
             <td style="padding:8px;border:1px solid #fcd34d;text-align:center;font-weight:700;background:#fffbeb;">宅配便（大）</td>
             <td style="padding:8px;border:1px solid #fcd34d;text-align:center;">3,500円</td>
           </tr>
@@ -741,8 +734,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
     <div style="margin-bottom:20px;">
       <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #10b981;padding-bottom:8px;">サイズの目安</h3>
       <ul style="margin:0;padding-left:20px;color:#475569;font-size:13px;">
-        <li><strong>宅配便（小）</strong>：10着程度</li>
-        <li><strong>宅配便（大）</strong>：11〜40着程度</li>
+        <li><strong>宅配便（大）</strong>：1〜40着程度</li>
       </ul>
     </div>
     <!-- 配送について -->
@@ -816,6 +808,87 @@ body.admin-mode .admin-settings-fab{display:flex;}
   </div>
 </div>
 
+<!-- マイページモーダル -->
+<div class="bulk-overlay" id="myPageOverlay"></div>
+<div class="bulk-modal" id="myPageModal" style="display:none;width:min(600px,96vw);">
+  <div class="bulk-modal-header">
+    <div class="bulk-modal-title">マイページ</div>
+    <button class="bulk-modal-close" id="myPageCloseBtn" type="button">&times;</button>
+  </div>
+  <div class="bulk-modal-body">
+    <div class="mypage-tabs">
+      <button class="mypage-tab active" data-tab="profile" type="button">プロフィール</button>
+      <button class="mypage-tab" data-tab="orders" type="button">注文履歴</button>
+      <button class="mypage-tab" data-tab="points" type="button">ポイント</button>
+    </div>
+    <!-- プロフィールタブ -->
+    <div class="mypage-content" id="mypageProfile">
+      <div style="display:grid;grid-template-columns:1fr;gap:10px;">
+        <div><label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px;">メールアドレス</label><input id="mpEmail" type="email" readonly style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:14px;background:#f5f5f5;"></div>
+        <div><label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px;">会社名/氏名 *</label><input id="mpCompanyName" type="text" readonly style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:14px;background:#f5f5f5;"></div>
+        <div><label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px;">電話番号</label><input id="mpPhone" type="tel" inputmode="numeric" readonly style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:14px;background:#f5f5f5;"></div>
+        <div><label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px;">郵便番号</label><input id="mpPostal" type="text" inputmode="numeric" readonly style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:14px;background:#f5f5f5;"></div>
+        <div><label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px;">住所</label><input id="mpAddress" type="text" readonly style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:14px;background:#f5f5f5;"></div>
+        <div><label style="font-size:12px;color:#999;">登録日: <span id="mpRegisteredAt">-</span></label></div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;">
+        <button id="mpEditBtn" type="button" style="padding:8px 16px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;">編集</button>
+        <button id="mpSaveBtn" type="button" style="display:none;padding:8px 16px;border:none;border-radius:8px;background:#1a1a2e;color:#fff;cursor:pointer;font-size:13px;font-weight:600;">変更を保存</button>
+        <button id="mpCancelEditBtn" type="button" style="display:none;padding:8px 16px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;">キャンセル</button>
+        <button id="mpTogglePasswordBtn" type="button" style="padding:8px 16px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;">パスワード変更</button>
+      </div>
+      <div id="mpPasswordSection" style="display:none;margin-top:14px;padding:14px;background:#f9f9f9;border-radius:8px;">
+        <div style="display:grid;grid-template-columns:1fr;gap:10px;">
+          <div><label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px;">現在のパスワード *</label><input id="mpCurPass" type="password" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:14px;"></div>
+          <div><label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px;">新しいパスワード（6文字以上） *</label><input id="mpNewPass" type="password" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:14px;"></div>
+          <div><label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px;">新しいパスワード（確認） *</label><input id="mpNewPassConfirm" type="password" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:14px;"></div>
+        </div>
+        <button id="mpChangePassBtn" type="button" style="margin-top:10px;padding:8px 16px;border:none;border-radius:8px;background:#1a1a2e;color:#fff;cursor:pointer;font-size:13px;font-weight:600;">パスワードを変更</button>
+      </div>
+    </div>
+    <!-- 注文履歴タブ -->
+    <div class="mypage-content" id="mypageOrders" style="display:none;">
+      <div id="mpOrderList" style="font-size:13px;color:#666;">読み込み中...</div>
+    </div>
+    <!-- ポイント・統計タブ -->
+    <div class="mypage-content" id="mypagePoints" style="display:none;">
+      <div id="mpRankCard" style="background:linear-gradient(135deg,#1e293b,#334155);border-radius:12px;padding:20px;color:#fff;margin-bottom:16px;position:relative;overflow:hidden;">
+        <div style="font-size:11px;opacity:0.7;">現在のランク</div>
+        <div id="mpRankName" style="font-size:28px;font-weight:900;margin:4px 0;">-</div>
+        <div id="mpRankPointRate" style="font-size:13px;opacity:0.9;">ポイント還元率: -</div>
+        <div id="mpRankBenefits" style="font-size:12px;opacity:0.8;margin-top:4px;"></div>
+        <div id="mpRankProgress" style="margin-top:12px;"></div>
+      </div>
+      <div style="text-align:center;padding:16px 0;">
+        <div style="font-size:13px;color:#888;">ポイント残高</div>
+        <div id="mpPointBalance" style="font-size:40px;font-weight:bold;color:#b8002a;margin:8px 0;">0</div>
+        <div style="font-size:12px;color:#aaa;">1ポイント = 1円としてご利用いただけます</div>
+      </div>
+      <div style="border-top:1px solid #eee;padding-top:16px;margin-top:8px;">
+        <div style="font-size:14px;font-weight:600;color:#333;margin-bottom:12px;">ご利用状況</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div style="background:#f8fafc;border-radius:8px;padding:14px;text-align:center;">
+            <div style="font-size:11px;color:#888;">累計注文回数</div>
+            <div id="mpTotalOrders" style="font-size:22px;font-weight:bold;color:#1e293b;margin-top:4px;">-</div>
+          </div>
+          <div style="background:#f8fafc;border-radius:8px;padding:14px;text-align:center;">
+            <div style="font-size:11px;color:#888;">年間購入金額</div>
+            <div id="mpTotalSpent" style="font-size:22px;font-weight:bold;color:#1e293b;margin-top:4px;">-</div>
+          </div>
+          <div style="background:#f8fafc;border-radius:8px;padding:14px;text-align:center;">
+            <div style="font-size:11px;color:#888;">累計購入点数</div>
+            <div id="mpTotalItems" style="font-size:22px;font-weight:bold;color:#1e293b;margin-top:4px;">-</div>
+          </div>
+          <div style="background:#f8fafc;border-radius:8px;padding:14px;text-align:center;">
+            <div style="font-size:11px;color:#888;">会員ランク</div>
+            <div id="mpMemberRank" style="font-size:22px;font-weight:bold;color:#1e293b;margin-top:4px;">-</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- プライバシーポリシーモーダル -->
 <div class="bulk-overlay" id="privacyOverlay"></div>
 <div class="bulk-modal" id="privacyModal" style="display:none;">
@@ -882,6 +955,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
     <a href="#" id="openContactLink">お問い合わせ</a> ｜
     <a href="#" id="openPrivacyLink">プライバシーポリシー</a>
   </p>
+  <p style="margin-top:8px;color:#64748b;">&copy; 2025-2026 デタウリ.Detauri</p>
 </footer>
 
 </div>
@@ -959,6 +1033,7 @@ var G = {
   products: [],
   cart: {},           // { productId: qty }
   settings: {},
+  sessionId: null,    // 会員セッションID
   customer: null,     // 共有会員情報
   coupon: null,       // { type, value, discountAmount, freeShipping, label }
   shipping: 0,
@@ -1727,18 +1802,34 @@ function loadSharedSession() {
     var saved = JSON.parse(raw);
     if (!saved || !saved.sessionId) return;
 
+    // 即時反映: localStorageのデータで先にUI更新
+    if (saved.customer) {
+      G.sessionId = saved.sessionId;
+      G.customer = saved.customer;
+      autoFillCustomerForm();
+      updateAuthUi_();
+      updateCart();
+    }
+
     // バックエンドでセッション検証
     runApi('apiValidateSession', 'bulk', { sessionId: saved.sessionId })
       .then(function(r) {
         if (r && r.ok && r.data && r.data.customer) {
+          G.sessionId = saved.sessionId;
           G.customer = r.data.customer;
           autoFillCustomerForm();
           updateAuthUi_();
-          updateCart(); // 会員割引を反映
+          updateCart();
+        } else {
+          // セッション無効 → ログアウト
+          G.sessionId = null;
+          G.customer = null;
+          updateAuthUi_();
+          updateCart();
         }
       })
       .catch(function() {
-        // 検証失敗時は会員なしで続行
+        // 検証失敗時はlocalStorageのデータを維持
       });
   } catch (e) {}
 }
@@ -2025,12 +2116,22 @@ function updateAuthUi_() {
   if (G.customer) {
     var md = G.settings.memberDiscount;
     var discountHtml = (md && md.enabled) ? '<span class="auth-discount">' + Math.round(md.rate * 100) + '%OFF</span>' : '';
+    var pointsHtml = (G.customer.points > 0) ? '<span class="auth-points">' + G.customer.points + 'pt</span>' : '';
+    var rankHtml = '';
+    if (G.customer.rank && G.customer.rank.name) {
+      rankHtml = '<span style="background:' + safeColor_(G.customer.rank.color) + ';color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700;">' + escHtml(G.customer.rank.name) + '</span>';
+    }
     area.innerHTML =
       '<div class="auth-user">' +
         '<span class="auth-user-name">' + escHtml(G.customer.companyName || G.customer.email) + '</span>' +
-        discountHtml +
+        rankHtml + discountHtml + pointsHtml +
       '</div>' +
+      '<button class="auth-btn mypage" id="openMyPageBtn" type="button">マイページ</button>' +
       '<button class="auth-btn logout" id="logoutBtn" type="button">ログアウト</button>';
+    var openMyPageBtn = document.getElementById('openMyPageBtn');
+    if (openMyPageBtn) {
+      openMyPageBtn.addEventListener('click', function() { openMyPage_(); });
+    }
     var logoutBtn = document.getElementById('logoutBtn');
     if (logoutBtn) {
       logoutBtn.addEventListener('click', function() { doLogout_(); });
@@ -2063,6 +2164,7 @@ function doLogin_() {
     .then(function(res) {
       btn.disabled = false; btn.textContent = 'ログイン';
       if (res.ok && res.data) {
+        G.sessionId = res.data.sessionId;
         G.customer = res.data.customer;
         try {
           localStorage.setItem(SESSION_KEY, JSON.stringify({ sessionId: res.data.sessionId, customer: res.data.customer }));
@@ -2104,6 +2206,7 @@ function doRegister_() {
     .then(function(res) {
       btn.disabled = false; btn.textContent = '登録する';
       if (res.ok && res.data) {
+        G.sessionId = res.data.sessionId;
         G.customer = res.data.customer;
         try {
           localStorage.setItem(SESSION_KEY, JSON.stringify({ sessionId: res.data.sessionId, customer: res.data.customer }));
@@ -2131,6 +2234,7 @@ function doLogout_() {
     if (raw) saved = JSON.parse(raw);
   } catch (e) {}
 
+  G.sessionId = null;
   G.customer = null;
   try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
   updateAuthUi_();
@@ -2139,6 +2243,147 @@ function doLogout_() {
   if (saved && saved.sessionId) {
     runApi('apiLogoutCustomer', 'bulk', { sessionId: saved.sessionId }).catch(function() {});
   }
+}
+
+// =====================================================
+// マイページ
+// =====================================================
+function safeColor_(c) { return /^#[0-9a-fA-F]{3,8}$/.test(c) ? c : '#64748b'; }
+function showToast(msg) {
+  var el = document.createElement('div');
+  el.textContent = msg;
+  el.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#333;color:#fff;padding:10px 20px;border-radius:8px;font-size:13px;z-index:9999;opacity:0;transition:opacity .3s;';
+  document.body.appendChild(el);
+  requestAnimationFrame(function() { el.style.opacity = '1'; });
+  setTimeout(function() { el.style.opacity = '0'; setTimeout(function() { el.remove(); }, 300); }, 2500);
+}
+
+function openMyPage_() {
+  var modal = document.getElementById('myPageModal');
+  var overlay = document.getElementById('myPageOverlay');
+  if (!modal) return;
+
+  // ローカルデータで即時表示
+  if (G.customer) {
+    document.getElementById('mpEmail').value = G.customer.email || '';
+    document.getElementById('mpCompanyName').value = G.customer.companyName || '';
+    document.getElementById('mpPhone').value = String(G.customer.phone || '').replace(/^'/, '');
+    document.getElementById('mpPostal').value = String(G.customer.postal || '').replace(/^'/, '');
+    document.getElementById('mpAddress').value = G.customer.address || '';
+    document.getElementById('mpPointBalance').textContent = String(G.customer.points || 0);
+  }
+
+  openBulkModal_(modal, overlay);
+  loadMyPage_();
+}
+
+function loadMyPage_() {
+  if (!G.sessionId) return;
+  var orderList = document.getElementById('mpOrderList');
+  if (orderList) orderList.innerHTML = '<div style="text-align:center;padding:20px;color:#999;">読み込み中...</div>';
+
+  runApi('apiGetMyPage', 'bulk', { sessionId: G.sessionId })
+    .then(function(res) {
+      if (!res || !res.ok || !res.data) {
+        showToast((res && res.message) || 'マイページの読み込みに失敗しました');
+        return;
+      }
+      var d = res.data;
+      // プロフィール
+      document.getElementById('mpEmail').value = d.profile.email || '';
+      document.getElementById('mpCompanyName').value = d.profile.companyName || '';
+      document.getElementById('mpPhone').value = d.profile.phone || '';
+      document.getElementById('mpPostal').value = d.profile.postal || '';
+      document.getElementById('mpAddress').value = d.profile.address || '';
+      document.getElementById('mpRegisteredAt').textContent = d.profile.registeredAt || '-';
+      // ポイント
+      document.getElementById('mpPointBalance').textContent = String(d.points || 0);
+      if (G.customer) G.customer.points = d.points || 0;
+      updateAuthUi_();
+      // 統計データ
+      if (d.stats) {
+        document.getElementById('mpTotalOrders').textContent = String(d.stats.totalOrders || 0) + '回';
+        document.getElementById('mpTotalItems').textContent = String(d.stats.totalItems || 0) + '点';
+      }
+      // ランク情報
+      if (d.rank) {
+        var r = d.rank;
+        document.getElementById('mpTotalSpent').textContent = '¥' + numFmt(r.annualSpent || 0);
+        document.getElementById('mpMemberRank').innerHTML = '<span style="color:' + safeColor_(r.color) + ';">' + escHtml(r.name || 'レギュラー') + '</span>';
+        var rankCard = document.getElementById('mpRankCard');
+        if (rankCard) {
+          var gradients = {
+            'DIAMOND': 'linear-gradient(135deg,#006064,#00838f)',
+            'GOLD': 'linear-gradient(135deg,#78350f,#b45309)',
+            'SILVER': 'linear-gradient(135deg,#475569,#64748b)',
+            'REGULAR': 'linear-gradient(135deg,#1e293b,#334155)'
+          };
+          rankCard.style.background = gradients[r.rank] || gradients['REGULAR'];
+        }
+        document.getElementById('mpRankName').textContent = r.name || 'レギュラー';
+        document.getElementById('mpRankPointRate').textContent = 'ポイント還元率: ' + Math.round((r.pointRate || 0.01) * 100) + '%';
+        var benefits = [];
+        if (r.freeShipping) benefits.push('送料無料');
+        document.getElementById('mpRankBenefits').textContent = benefits.length > 0 ? '特典: ' + benefits.join('、') : '';
+        var progressEl = document.getElementById('mpRankProgress');
+        if (progressEl && r.nextRank && r.nextThreshold > 0) {
+          var pct = Math.min(100, Math.round((r.annualSpent / r.nextThreshold) * 100));
+          progressEl.innerHTML = '<div style="font-size:11px;opacity:0.8;margin-bottom:4px;">次のランク（' + escHtml(r.nextRank) + '）まであと ¥' + numFmt(r.remaining || 0) + '</div>'
+            + '<div style="background:rgba(255,255,255,0.2);border-radius:4px;height:6px;overflow:hidden;"><div style="background:#fff;height:100%;border-radius:4px;width:' + pct + '%;transition:width .5s;"></div></div>'
+            + '<div style="font-size:10px;opacity:0.6;margin-top:2px;text-align:right;">¥' + numFmt(r.annualSpent) + ' / ¥' + numFmt(r.nextThreshold) + '</div>';
+        } else if (progressEl) {
+          progressEl.innerHTML = '<div style="font-size:11px;opacity:0.8;">最高ランクに到達しています</div>';
+        }
+        if (G.customer) G.customer.rank = r;
+        updateAuthUi_();
+      } else if (d.stats) {
+        document.getElementById('mpTotalSpent').textContent = '¥' + numFmt(d.stats.totalSpent || 0);
+        var rank = getMemberRank_(d.stats.totalSpent || 0);
+        document.getElementById('mpMemberRank').innerHTML = '<span style="color:' + safeColor_(rank.color) + ';">' + escHtml(rank.name) + '</span>';
+      }
+      // 注文履歴
+      renderOrderHistory_(d.orders || []);
+    })
+    .catch(function() { showToast('マイページの読み込みに失敗しました'); });
+}
+
+function getMemberRank_(totalSpent) {
+  if (totalSpent >= 500000) return { name: 'ダイヤモンド', color: '#00bcd4', pointRate: 5, freeShipping: true };
+  if (totalSpent >= 200000) return { name: 'ゴールド', color: '#f59e0b', pointRate: 5, freeShipping: false };
+  if (totalSpent >= 50000) return { name: 'シルバー', color: '#94a3b8', pointRate: 3, freeShipping: false };
+  return { name: 'レギュラー', color: '#64748b', pointRate: 1, freeShipping: false };
+}
+
+function renderOrderHistory_(orders) {
+  var el = document.getElementById('mpOrderList');
+  if (!el) return;
+  if (!orders || orders.length === 0) {
+    el.innerHTML = '<div style="text-align:center;padding:30px;color:#999;">注文履歴はまだありません</div>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < orders.length; i++) {
+    var o = orders[i];
+    var statusClass = (o.status === '完了') ? 'done' : (o.status === '依頼中') ? 'active' : 'pending';
+    var trackHtml = '';
+    if (o.carrier && o.tracking) {
+      trackHtml = '<div style="font-size:11px;color:#888;margin-top:4px;">配送: ' + escHtml(o.carrier) + ' ' + escHtml(o.tracking) + '</div>';
+    }
+    html += '<div class="mp-order-card">'
+      + '<div class="mp-order-header">'
+      + '<span class="mp-order-no">' + escHtml(o.receiptNo) + '</span>'
+      + '<span class="mp-order-date">' + escHtml(o.date) + '</span>'
+      + '<span class="mp-order-status ' + statusClass + '">' + escHtml(o.status) + '</span>'
+      + '</div>'
+      + '<div class="mp-order-products">' + escHtml(o.products) + '</div>'
+      + '<div class="mp-order-footer">'
+      + '<span>' + o.count + '点</span>'
+      + '<span class="mp-order-total">¥' + numFmt(o.total) + '</span>'
+      + '</div>'
+      + trackHtml
+      + '</div>';
+  }
+  el.innerHTML = html;
 }
 
 // =====================================================
@@ -2221,6 +2466,125 @@ function doLogout_() {
 
   var backFromRecover = document.getElementById('backToLoginFromRecover');
   if (backFromRecover) backFromRecover.addEventListener('click', function(e) { e.preventDefault(); openAuthModal_('login'); });
+
+  // マイページモーダル
+  var myPageCloseBtn = document.getElementById('myPageCloseBtn');
+  if (myPageCloseBtn) myPageCloseBtn.addEventListener('click', function() { closeBulkModal_(document.getElementById('myPageModal'), document.getElementById('myPageOverlay')); });
+  var myPageOverlay = document.getElementById('myPageOverlay');
+  if (myPageOverlay) myPageOverlay.addEventListener('click', function() { closeBulkModal_(document.getElementById('myPageModal'), document.getElementById('myPageOverlay')); });
+
+  // タブ切り替え
+  var mpTabs = document.querySelectorAll('.mypage-tab');
+  mpTabs.forEach(function(tab) {
+    tab.addEventListener('click', function() {
+      mpTabs.forEach(function(t) { t.classList.remove('active'); });
+      tab.classList.add('active');
+      var target = tab.getAttribute('data-tab');
+      document.getElementById('mypageProfile').style.display = (target === 'profile') ? '' : 'none';
+      document.getElementById('mypageOrders').style.display = (target === 'orders') ? '' : 'none';
+      document.getElementById('mypagePoints').style.display = (target === 'points') ? '' : 'none';
+    });
+  });
+
+  // プロフィール編集
+  var mpEditBtn = document.getElementById('mpEditBtn');
+  var mpProfileFields = ['mpCompanyName', 'mpPhone', 'mpPostal', 'mpAddress'];
+  function setProfileEditable_(editable) {
+    for (var fi = 0; fi < mpProfileFields.length; fi++) {
+      var inp = document.getElementById(mpProfileFields[fi]);
+      if (inp) { inp.readOnly = !editable; inp.style.background = editable ? '#fff' : '#f5f5f5'; }
+    }
+    var eb = document.getElementById('mpEditBtn'); if (eb) eb.style.display = editable ? 'none' : '';
+    var sb = document.getElementById('mpSaveBtn'); if (sb) sb.style.display = editable ? '' : 'none';
+    var cb = document.getElementById('mpCancelEditBtn'); if (cb) cb.style.display = editable ? '' : 'none';
+  }
+  if (mpEditBtn) {
+    mpEditBtn.addEventListener('click', function() {
+      mpEditBtn._backup = {};
+      for (var fi = 0; fi < mpProfileFields.length; fi++) {
+        mpEditBtn._backup[mpProfileFields[fi]] = document.getElementById(mpProfileFields[fi]).value;
+      }
+      setProfileEditable_(true);
+    });
+  }
+  var mpCancelEditBtn = document.getElementById('mpCancelEditBtn');
+  if (mpCancelEditBtn) {
+    mpCancelEditBtn.addEventListener('click', function() {
+      if (mpEditBtn && mpEditBtn._backup) {
+        for (var fi = 0; fi < mpProfileFields.length; fi++) {
+          document.getElementById(mpProfileFields[fi]).value = mpEditBtn._backup[mpProfileFields[fi]] || '';
+        }
+      }
+      setProfileEditable_(false);
+    });
+  }
+  var mpSaveBtn = document.getElementById('mpSaveBtn');
+  if (mpSaveBtn) {
+    mpSaveBtn.addEventListener('click', function() {
+      var pw = prompt('本人確認のため現在のパスワードを入力してください');
+      if (!pw) return;
+      mpSaveBtn.disabled = true; mpSaveBtn.textContent = '保存中...';
+      runApi('apiUpdateCustomerProfile', 'bulk', {
+        sessionId: G.sessionId,
+        currentPassword: pw,
+        companyName: document.getElementById('mpCompanyName').value,
+        phone: document.getElementById('mpPhone').value,
+        postal: document.getElementById('mpPostal').value,
+        address: document.getElementById('mpAddress').value
+      }).then(function(res) {
+        if (res && res.ok) {
+          showToast(res.message || '更新しました');
+          if (G.customer) {
+            G.customer.companyName = document.getElementById('mpCompanyName').value;
+            G.customer.phone = document.getElementById('mpPhone').value;
+            G.customer.postal = document.getElementById('mpPostal').value;
+            G.customer.address = document.getElementById('mpAddress').value;
+            try { localStorage.setItem(SESSION_KEY, JSON.stringify({ sessionId: G.sessionId, customer: G.customer })); } catch (e) {}
+            updateAuthUi_();
+          }
+          setProfileEditable_(false);
+        } else {
+          showToast((res && res.message) || '更新に失敗しました');
+        }
+      }).catch(function() { showToast('更新に失敗しました'); })
+        .finally(function() { mpSaveBtn.disabled = false; mpSaveBtn.textContent = '変更を保存'; });
+    });
+  }
+  var mpTogglePasswordBtn = document.getElementById('mpTogglePasswordBtn');
+  if (mpTogglePasswordBtn) {
+    mpTogglePasswordBtn.addEventListener('click', function() {
+      var section = document.getElementById('mpPasswordSection');
+      section.style.display = section.style.display === 'none' ? '' : 'none';
+    });
+  }
+  var mpChangePassBtn = document.getElementById('mpChangePassBtn');
+  if (mpChangePassBtn) {
+    mpChangePassBtn.addEventListener('click', function() {
+      var cur = document.getElementById('mpCurPass').value;
+      var np = document.getElementById('mpNewPass').value;
+      var npc = document.getElementById('mpNewPassConfirm').value;
+      if (!cur) { showToast('現在のパスワードを入力してください'); return; }
+      if (!np || np.length < 6) { showToast('新しいパスワードは6文字以上で入力してください'); return; }
+      if (np !== npc) { showToast('新しいパスワードが一致しません'); return; }
+      mpChangePassBtn.disabled = true; mpChangePassBtn.textContent = '変更中...';
+      runApi('apiChangePassword', 'bulk', {
+        sessionId: G.sessionId,
+        currentPassword: cur,
+        newPassword: np
+      }).then(function(res) {
+        if (res && res.ok) {
+          showToast(res.message || 'パスワードを変更しました');
+          document.getElementById('mpCurPass').value = '';
+          document.getElementById('mpNewPass').value = '';
+          document.getElementById('mpNewPassConfirm').value = '';
+          document.getElementById('mpPasswordSection').style.display = 'none';
+        } else {
+          showToast((res && res.message) || 'パスワード変更に失敗しました');
+        }
+      }).catch(function() { showToast('パスワード変更に失敗しました'); })
+        .finally(function() { mpChangePassBtn.disabled = false; mpChangePassBtn.textContent = 'パスワードを変更'; });
+    });
+  }
 
   // プロモバナー
   var promoClose = document.getElementById('promoClose');
@@ -2417,13 +2781,16 @@ function doLogout_() {
 
   // お問い合わせモーダル
   var contactLink = document.getElementById('openContactLink');
+  var contactLinkHeader = document.getElementById('openContactLinkHeader');
   var contactModal = document.getElementById('contactModal');
   var contactOverlay = document.getElementById('contactOverlay');
   var contactClose = document.getElementById('contactCloseBtn');
-  if (contactLink && contactModal) {
-    contactLink.addEventListener('click', function(e) { e.preventDefault(); openBulkModal_(contactModal, contactOverlay); });
-    contactClose.addEventListener('click', function() { closeBulkModal_(contactModal, contactOverlay); });
-    contactOverlay.addEventListener('click', function() { closeBulkModal_(contactModal, contactOverlay); });
+  if (contactModal) {
+    var openContact = function(e) { e.preventDefault(); openBulkModal_(contactModal, contactOverlay); };
+    if (contactLink) contactLink.addEventListener('click', openContact);
+    if (contactLinkHeader) contactLinkHeader.addEventListener('click', openContact);
+    if (contactClose) contactClose.addEventListener('click', function() { closeBulkModal_(contactModal, contactOverlay); });
+    if (contactOverlay) contactOverlay.addEventListener('click', function() { closeBulkModal_(contactModal, contactOverlay); });
   }
 
   // お問い合わせ送信

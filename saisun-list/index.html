@@ -154,6 +154,8 @@
     .authDiscount{background:#b8002a;color:#fff;font-size:11px;padding:2px 6px;border-radius:4px;font-weight:900;}
     .authPoints{background:#e65100;color:#fff;font-size:11px;padding:2px 6px;border-radius:4px;font-weight:900;}
     .authBtn.mypage{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);font-size:11px;padding:4px 12px;border-radius:20px;}
+    .footer{background:#1a1a2e;color:#888;text-align:center;padding:20px;font-size:11px;margin-top:40px;}
+    .footer a{color:#aab;text-decoration:none;}
     .cart-summary{background:#f8f9fa;border-radius:12px;padding:14px;margin-top:10px;}
     .cart-row{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid #eee;}
     .cart-row:last-child{border-bottom:none;}
@@ -1294,14 +1296,14 @@
     </div>
   </div>
 
-<footer style="background:#1e293b; color:#94a3b8; padding:32px 16px; margin-top:40px; font-size:13px;">
-  <div style="max-width:900px; margin:0 auto; text-align:center;">
-    <div style="display:flex; justify-content:center; gap:24px; flex-wrap:wrap; margin-bottom:16px;">
-      <a href="#" id="openLegalLink" style="color:#cbd5e1; text-decoration:none;">特定商取引法に基づく表記</a>
-      <a href="#" id="openPrivacyLink" style="color:#cbd5e1; text-decoration:none;">プライバシーポリシー</a>
-    </div>
-    <div style="color:#64748b;">&copy; 2025-2026 デタウリ.Detauri</div>
-  </div>
+<footer class="footer">
+  <p>NKonline Apparel / デタウリ.Detauri</p>
+  <p style="margin-top:6px;">
+    <a href="#" id="openLegalLink">特定商取引法に基づく表記</a> ｜
+    <a href="#" id="openContactLink2">お問い合わせ</a> ｜
+    <a href="#" id="openPrivacyLink">プライバシーポリシー</a>
+  </p>
+  <p style="margin-top:8px;color:#64748b;">&copy; 2025-2026 デタウリ.Detauri</p>
 </footer>
 
 <!-- プライバシーポリシーモーダル -->
@@ -2228,6 +2230,14 @@ function validateSession_() {
   var saved = loadSession_();
   if (!saved || !saved.sessionId) return;
 
+  // 即時反映: localStorageのデータで先にUI更新
+  if (saved.customer) {
+    state.sessionId = saved.sessionId;
+    state.customer = saved.customer;
+    updateAuthUi_();
+    updateCartPrice();
+  }
+
   runApi('apiValidateSession', state.userKey, { sessionId: saved.sessionId })
     .then(function(res) {
       if (res.ok && res.data && res.data.customer) {
@@ -2238,13 +2248,12 @@ function validateSession_() {
         updateCartPrice();
       } else {
         clearSession_();
+        updateAuthUi_();
+        updateCartPrice();
       }
     })
     .catch(function() {
-      // ネットワークエラー時は保存されたデータを一旦使用
-      state.sessionId = saved.sessionId;
-      state.customer = saved.customer;
-      updateAuthUi_();
+      // ネットワークエラー時は保存されたデータを維持（既に設定済み）
     });
 }
 
@@ -2357,17 +2366,17 @@ function setupAuthUi_() {
 
   // お問い合わせモーダル
   var openContactLink = $('openContactLink');
-  if (openContactLink) {
-    openContactLink.addEventListener('click', function(e) {
-      e.preventDefault();
-      // ログイン中なら名前・メールを自動入力
-      if (state.customer) {
-        $('contactName').value = state.customer.companyName || '';
-        $('contactEmail').value = state.customer.email || '';
-      }
-      openModal($('contactModal'));
-    });
+  var openContactLink2 = $('openContactLink2');
+  function handleContactOpen_(e) {
+    e.preventDefault();
+    if (state.customer) {
+      $('contactName').value = state.customer.companyName || '';
+      $('contactEmail').value = state.customer.email || '';
+    }
+    openModal($('contactModal'));
   }
+  if (openContactLink) openContactLink.addEventListener('click', handleContactOpen_);
+  if (openContactLink2) openContactLink2.addEventListener('click', handleContactOpen_);
   var contactCloseBtn = $('contactCloseBtn');
   if (contactCloseBtn) {
     contactCloseBtn.addEventListener('click', function() {
