@@ -1161,6 +1161,11 @@ function submitOrder() {
   items.forEach(function(it) { totalQty += it.qty; });
   var shipping = (G.coupon && G.coupon.freeShipping) ? 0 : G.shipping;
 
+  // デタウリカートの金額も含める（両チャネル合算決済）
+  var detauriProductAmount = G.detauriCartTotal || 0;
+  var detauriShippingAmount = G.detauriShipping || 0;
+  var detauriItemCount = G.detauriCartCount || 0;
+
   var form = {
     companyName: companyName,
     contact: contact,
@@ -1171,7 +1176,10 @@ function submitOrder() {
     couponCode: G.coupon ? document.getElementById('couponInput').value.trim() : '',
     shippingAmount: shipping,
     shippingSize: G.shippingSize,
-    shippingPref: G.shippingPref
+    shippingPref: G.shippingPref,
+    detauriProductAmount: detauriProductAmount,
+    detauriShipping: detauriShippingAmount,
+    detauriItemCount: detauriItemCount
   };
 
   G.submitting = true;

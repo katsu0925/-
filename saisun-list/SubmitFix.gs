@@ -171,8 +171,19 @@ function apiSubmitEstimate(userKey, form, ids) {
       note = note ? (note + '\n' + shippingLabel) : shippingLabel;
     }
 
+    // === アソートカートの金額を合算（両チャネル合算決済） ===
+    var bulkProductAmount = Math.max(0, Math.floor(Number(f.bulkProductAmount || 0)));
+    var bulkShippingAmount = Math.max(0, Math.floor(Number(f.bulkShipping || 0)));
+    var bulkItemCount = Math.max(0, Math.floor(Number(f.bulkItemCount || 0)));
+    var bulkTotal = bulkProductAmount + bulkShippingAmount;
+
     // 送料込みの合計金額
-    var totalWithShipping = discounted + shippingAmount;
+    var totalWithShipping = discounted + shippingAmount + bulkTotal;
+
+    if (bulkTotal > 0) {
+      var bulkNote = '【アソート合算: 商品代¥' + bulkProductAmount + '（' + bulkItemCount + '点）+ 送料¥' + bulkShippingAmount + '】';
+      note = note ? (note + '\n' + bulkNote) : bulkNote;
+    }
 
     // === 受付番号生成 ===
     var receiptNo = u_makeReceiptNo_();
@@ -293,7 +304,10 @@ function apiSubmitEstimate(userKey, form, ids) {
       pointsUsed: pointsUsed,
       couponCode: couponCode || '',
       couponDiscount: couponDiscount || 0,
-      couponLabel: couponLabel || ''
+      couponLabel: couponLabel || '',
+      bulkProductAmount: bulkProductAmount,
+      bulkShipping: bulkShippingAmount,
+      bulkItemCount: bulkItemCount
     };
 
     var props = PropertiesService.getScriptProperties();
@@ -304,8 +318,8 @@ function apiSubmitEstimate(userKey, form, ids) {
     var komojuResult = apiCreateKomojuSession(receiptNo, totalWithShipping, {
       email: contact,
       companyName: companyName,
-      productAmount: discounted,
-      shippingAmount: shippingAmount,
+      productAmount: discounted + bulkProductAmount,
+      shippingAmount: shippingAmount + bulkShippingAmount,
       shippingSize: shippingSize
     });
 
