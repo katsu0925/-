@@ -5174,9 +5174,8 @@ var _cachedBulkHtml = null;
 function navigateToBulk(e) {
   e.preventDefault();
   if (!_cachedBulkHtml) {
-    // キャッシュ未完了 → 現在のURLベースで通常遷移
-    var base = window.location.origin + window.location.pathname;
-    window.top.location.href = base + '?page=bulk';
+    // キャッシュ未完了 → 通常遷移（サーバー側でBulkLP配信）
+    window.location.href = '?page=bulk';
     return;
   }
   // フェードアウトオーバーレイ → document.write
