@@ -54,6 +54,11 @@
     .pw-toggle:hover{opacity:0.8;}
     .pw-toggle.active{opacity:1;}
     .topbar{position:sticky;top:0;z-index:20;background:#1e293b;border-bottom:1px solid #334155;padding:12px 14px;}
+    .admin-bar{background:#b8002a;color:#fff;text-align:center;padding:6px 14px;font-size:12px;font-weight:700;letter-spacing:1px;display:none;position:sticky;top:0;z-index:21;}
+    .admin-bar span{background:rgba(255,255,255,.2);padding:2px 8px;border-radius:4px;margin-left:8px;font-size:11px;font-weight:400;}
+    .admin-bar .admin-exit{background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.5);color:#fff;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;cursor:pointer;margin-left:10px;}
+    .admin-bar .admin-exit:hover{background:rgba(255,255,255,.4);}
+    body.admin-mode .topbar{border-top:3px solid #b8002a;}
     .wrap{margin:0 auto;padding:12px 14px 90px;}
         .title{font-weight:900;font-size:18px;color:#f1f5f9;}
     .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
@@ -323,7 +328,7 @@
   var params = new URLSearchParams(window.location.search);
   if (params.get('page') !== 'bulk') return;
 
-  var BULK_HTML_KEY = 'bulk_html_cache_v4';
+  var BULK_HTML_KEY = 'bulk_html_cache_v5';
   var BULK_HTML_TTL = 24 * 60 * 60 * 1000; // 24時間
   var GAS_URL = 'https://script.google.com/macros/s/AKfycbwLN23a03qQSGA91J-82_6HlIx0kA5yUYFRxjfbjFGfnZDqynKnyJhEPsoISSQps3SmXQ/exec';
 
@@ -391,6 +396,7 @@
   });
 })();
 </script>
+  <div class="admin-bar" id="adminBar">管理者モード<span>受付番号紐付け</span><button class="admin-exit" id="adminExit" type="button">管理者モード解除</button></div>
   <div class="promo-banner" id="promoBanner">
     期間限定：会員登録で全品<strong>10%OFF</strong>（2026年9月末まで・30点割引と併用可）<a href="#" id="promoRegisterLink">今すぐ無料登録 ＞</a>
     <button class="promo-close" id="promoClose" type="button">✕</button>
@@ -4704,9 +4710,21 @@ function bindUi_() {
   });
   $('formBackBtn').addEventListener('click', function() { showCartSection_(true); });
   $('submitBtn').addEventListener('click', submitNow_);
-  // 管理者モード: ボタンテキストを変更
+  // 管理者モード: UI変更
   if (ADMIN_KEY) {
     $('submitBtn').textContent = '受付番号で紐付け';
+    document.body.classList.add('admin-mode');
+    var adminBar = $('adminBar');
+    if (adminBar) adminBar.style.display = '';
+    var adminExit = $('adminExit');
+    if (adminExit) {
+      adminExit.addEventListener('click', function() {
+        if (confirm('管理者モードを解除しますか？\n再度アクセスするには ?admin=xxx のURLが必要です。')) {
+          try { localStorage.removeItem('_nk_owner_key'); } catch(e) {}
+          location.reload();
+        }
+      });
+    }
   }
   // 住所入力時に送料をリアルタイム更新 + 共有住所保存（debounce 300ms）
   if ($('address')) {
