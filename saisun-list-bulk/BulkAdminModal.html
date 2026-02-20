@@ -91,6 +91,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans JP",sans
     <input type="number" id="fMaxQty" min="1" value="99">
   </div>
   <div class="ff">
+    <label>在庫数（-1 = 無制限）</label>
+    <input type="number" id="fStock" min="-1" value="-1">
+  </div>
+  <div class="ff">
     <label>表示順（小さい順）</label>
     <select id="fSort"><option value="999">読込中...</option></select>
   </div>
@@ -218,6 +222,7 @@ function buildSortOptions(selectedValue) {
         setSelect('fTag', found.tag);
         $('fMinQty').value = found.minQty;
         $('fMaxQty').value = found.maxQty;
+        $('fStock').value = (found.stock !== undefined && found.stock !== null) ? found.stock : -1;
         $('fActive').value = found.active ? 'true' : 'false';
         $('fDesc').value = found.description;
         images = [];
@@ -449,6 +454,9 @@ async function save() {
   var discountPct = parseInt($('fDiscount').value, 10) || 0;
   var discount = Math.max(0, Math.min(100, discountPct)) / 100;
 
+  var stockVal = parseInt($('fStock').value, 10);
+  if (isNaN(stockVal)) stockVal = -1;
+
   var product = {
     productId: pid, name: name, price: price,
     description: $('fDesc').value.trim(),
@@ -459,7 +467,8 @@ async function save() {
     maxQty: parseInt($('fMaxQty').value, 10) || 99,
     sortOrder: parseInt($('fSort').value, 10) || 999,
     active: $('fActive').value === 'true',
-    discount: discount
+    discount: discount,
+    stock: stockVal
   };
 
   $('btnSave').disabled = true;

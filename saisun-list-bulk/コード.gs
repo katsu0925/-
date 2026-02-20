@@ -14,7 +14,7 @@ var SHEET_NAME = 'アソート商品';
 var SHEET_HEADER = [
   '商品ID', '商品名', '説明', '価格', '単位',
   'タグ', '画像URL1', '画像URL2', '画像URL3', '画像URL4', '画像URL5',
-  '最小注文数', '最大注文数', '表示順', '公開', '割引率'
+  '最小注文数', '最大注文数', '表示順', '公開', '割引率', '在庫数'
 ];
 
 var COLS = {
@@ -33,7 +33,8 @@ var COLS = {
   maxQty: 12,
   sortOrder: 13,
   active: 14,
-  discount: 15
+  discount: 15,
+  stock: 16
 };
 
 // =============================================================
@@ -134,6 +135,10 @@ function getAllProducts_() {
     var discount = Number(row[COLS.discount]) || 0;
     if (discount < 0 || discount > 1) discount = 0;
 
+    var stockRaw = row[COLS.stock];
+    var stock = (stockRaw === '' || stockRaw === null || stockRaw === undefined) ? -1 : Number(stockRaw);
+    if (isNaN(stock)) stock = -1;
+
     products.push({
       rowIndex: i + 2,
       productId: productId,
@@ -147,7 +152,8 @@ function getAllProducts_() {
       maxQty: Number(row[COLS.maxQty]) || 99,
       sortOrder: Number(row[COLS.sortOrder]) || 999,
       active: row[COLS.active] === true || String(row[COLS.active]).toUpperCase() === 'TRUE',
-      discount: discount
+      discount: discount,
+      stock: stock
     });
   }
 
@@ -192,6 +198,12 @@ function adminBulkSaveProduct(product) {
   var discount = Number(product.discount) || 0;
   if (discount < 0 || discount > 1) discount = 0;
 
+  var stockVal = (product.stock === '' || product.stock === null || product.stock === undefined) ? -1 : Number(product.stock);
+  if (isNaN(stockVal)) stockVal = -1;
+
+  var isActive = product.active !== false;
+  if (stockVal === 0) isActive = false;
+
   var rowData = [];
   rowData[COLS.productId] = String(product.productId).trim();
   rowData[COLS.name] = String(product.name).trim();
@@ -207,8 +219,9 @@ function adminBulkSaveProduct(product) {
   rowData[COLS.minQty] = Math.max(1, Number(product.minQty) || 1);
   rowData[COLS.maxQty] = Math.max(1, Number(product.maxQty) || 99);
   rowData[COLS.sortOrder] = Number(product.sortOrder) || 999;
-  rowData[COLS.active] = product.active !== false;
+  rowData[COLS.active] = isActive;
   rowData[COLS.discount] = discount;
+  rowData[COLS.stock] = stockVal;
 
   var lastRow = sh.getLastRow();
   var existingRow = 0;

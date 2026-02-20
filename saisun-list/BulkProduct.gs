@@ -48,12 +48,16 @@ function bulk_readProductsFromSheet_() {
   for (var i = 0; i < data.length; i++) {
     var row = data[i];
 
-    // 公開チェック
-    var active = row[c.active];
-    if (active !== true && String(active).toUpperCase() !== 'TRUE') continue;
-
     var productId = String(row[c.productId] || '').trim();
     if (!productId) continue;
+
+    // 公開・在庫チェック → soldOut フラグ
+    var active = row[c.active];
+    var isActive = (active === true || String(active).toUpperCase() === 'TRUE');
+    var stockRaw = row[c.stock];
+    var stock = (stockRaw === '' || stockRaw === null || stockRaw === undefined) ? -1 : Number(stockRaw);
+    if (isNaN(stock)) stock = -1;
+    var soldOut = (!isActive || stock === 0);
 
     // 画像URL（最大5枚、空でないものだけ収集）
     var images = [];
@@ -82,7 +86,9 @@ function bulk_readProductsFromSheet_() {
       images: images,
       minQty: Math.max(1, Number(row[c.minQty]) || 1),
       maxQty: Math.max(1, Number(row[c.maxQty]) || 99),
-      sortOrder: Number(row[c.sortOrder]) || 999
+      sortOrder: Number(row[c.sortOrder]) || 999,
+      stock: stock,
+      soldOut: soldOut
     });
   }
 

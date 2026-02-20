@@ -33,7 +33,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 /* 商品カード */
 .product-card{border:1px solid #e8e8e8;border-radius:12px;overflow:hidden;background:#fff;transition:box-shadow .2s}
 .product-card:hover{box-shadow:0 4px 16px rgba(0,0,0,.08)}
-.product-images{position:relative;width:100%;aspect-ratio:16/9;background:#eee;overflow:hidden;cursor:pointer}
+.product-images{position:relative;width:100%;aspect-ratio:1/1;background:#eee;overflow:hidden;cursor:pointer}
 .product-images img{width:100%;height:100%;object-fit:cover;display:none}
 .product-images img.active{display:block}
 .img-dots{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:6px}
@@ -43,7 +43,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 .img-nav.prev{left:8px}
 .img-nav.next{right:8px}
 .product-images:hover .img-nav{display:block}
-.no-image{width:100%;aspect-ratio:16/9;background:#e0e0e0;display:flex;align-items:center;justify-content:center;color:#999;font-size:13px;cursor:pointer}
+.no-image{width:100%;aspect-ratio:1/1;background:#e0e0e0;display:flex;align-items:center;justify-content:center;color:#999;font-size:13px;cursor:pointer}
 .product-body{padding:14px}
 .product-name{font-size:14px;font-weight:700;color:#1a1a2e}
 .product-desc{font-size:12px;color:#888;margin-top:4px;line-height:1.5;display:none}
@@ -57,6 +57,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 .qty-btn{width:36px;height:36px;border:none;background:#f5f5f5;font-size:18px;cursor:pointer;color:#555;font-weight:700}
 .qty-btn:active{background:#e0e0e0}
 .qty-value{width:40px;height:36px;text-align:center;border:none;border-left:1px solid #ddd;border-right:1px solid #ddd;font-size:15px;font-weight:700;color:#333;background:#fff}
+
+/* SOLD OUT */
+.product-card.sold-out{opacity:.7;position:relative}
+.sold-out-overlay{position:absolute;top:0;left:0;width:100%;height:100%;display:flex;align-items:center;justify-content:center;z-index:2;pointer-events:none}
+.sold-out-badge{background:rgba(0,0,0,.6);color:#fff;font-size:20px;font-weight:900;padding:10px 24px;border-radius:8px;letter-spacing:2px}
+.sold-out .qty-control{opacity:.3;pointer-events:none}
 
 /* 商品詳細モーダル */
 .modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);z-index:1000;justify-content:center;align-items:center;padding:20px}
@@ -1322,14 +1328,18 @@ function openProductModal(idx) {
     priceHtml = '¥' + numFmt(p.price) + '<small>' + escHtml(p.unit) + '</small>';
   }
 
-  var qty = G.cart[p.productId] || 0;
+  var isSoldOut = p.soldOut === true;
+  var qty = isSoldOut ? 0 : (G.cart[p.productId] || 0);
+  var qtyClass = 'qty-control' + (isSoldOut ? '" style="opacity:.3;pointer-events:none' : '');
+  var soldOutLabel = isSoldOut ? '<div style="text-align:center;padding:10px 0;font-size:16px;font-weight:900;color:#d93025;letter-spacing:2px">SOLD OUT</div>' : '';
   bodyEl.innerHTML =
     '<div class="product-name">' + escHtml(p.name) + '</div>'
     + (p.description ? '<div class="product-desc">' + escHtml(p.description) + '</div>' : '')
     + tagHtml
+    + soldOutLabel
     + '<div class="product-bottom">'
     + '<div class="product-price">' + priceHtml + '</div>'
-    + '<div class="qty-control">'
+    + '<div class="' + qtyClass + '">'
     + '<button class="qty-btn" onclick="changeQty(\'' + escAttr(p.productId) + '\',-1)">−</button>'
     + '<input class="qty-value" id="modal_qty_' + escAttr(p.productId) + '" value="' + qty + '" readonly>'
     + '<button class="qty-btn" onclick="changeQty(\'' + escAttr(p.productId) + '\',1)">+</button>'
@@ -1378,6 +1388,9 @@ function goModalImg(to) {
 }
 
 function renderProductCard(p, idx) {
+  var isSoldOut = p.soldOut === true;
+  var cardClass = 'product-card' + (isSoldOut ? ' sold-out' : '');
+
   var imgHtml = '';
   if (p.images && p.images.length > 0) {
     imgHtml += '<div class="product-images" id="imgs_' + idx + '" onclick="openProductModal(' + idx + ')">';
@@ -1394,8 +1407,10 @@ function renderProductCard(p, idx) {
     imgHtml = '<div class="no-image" onclick="openProductModal(' + idx + ')">画像なし</div>';
   }
 
+  var soldOutHtml = isSoldOut ? '<div class="sold-out-overlay"><span class="sold-out-badge">SOLD OUT</span></div>' : '';
+
   var tagHtml = p.tag ? '<span class="product-tag">' + escHtml(p.tag) + '</span>' : '';
-  var qty = G.cart[p.productId] || 0;
+  var qty = isSoldOut ? 0 : (G.cart[p.productId] || 0);
 
   var priceHtml = '';
   if (p.discountRate > 0) {
@@ -1406,8 +1421,9 @@ function renderProductCard(p, idx) {
     priceHtml = '¥' + numFmt(p.price) + '<small>' + escHtml(p.unit) + '</small>';
   }
 
-  return '<div class="product-card">'
+  return '<div class="' + cardClass + '">'
     + imgHtml
+    + soldOutHtml
     + '<div class="product-body">'
     + '<div class="product-name">' + escHtml(p.name) + '</div>'
     + tagHtml
@@ -1426,6 +1442,7 @@ function renderProductCard(p, idx) {
 function changeQty(productId, delta) {
   var p = G.products.find(function(x) { return x.productId === productId; });
   if (!p) return;
+  if (p.soldOut) return;
   var cur = G.cart[productId] || 0;
   var next = Math.max(0, Math.min(p.maxQty, cur + delta));
   if (next === 0) { delete G.cart[productId]; }

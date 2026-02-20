@@ -8,7 +8,7 @@
 // アソート商品シート列構成:
 // A=商品ID, B=商品名, C=説明, D=価格, E=単位,
 // F=タグ, G=画像URL1, H=画像URL2, I=画像URL3, J=画像URL4, K=画像URL5,
-// L=最小注文数, M=最大注文数, N=表示順, O=公開, P=割引率
+// L=最小注文数, M=最大注文数, N=表示順, O=公開, P=割引率, Q=在庫数
 
 var BULK_CONFIG = {
   spreadsheetId: (function() {
@@ -33,7 +33,8 @@ var BULK_CONFIG = {
     maxQty: 12,       // M: 最大注文数（デフォルト99）
     sortOrder: 13,    // N: 表示順
     active: 14,       // O: 公開（TRUE/FALSE）
-    discount: 15      // P: 割引率（0〜1 例: 0.1 = 10%OFF）
+    discount: 15,     // P: 割引率（0〜1 例: 0.1 = 10%OFF）
+    stock: 16         // Q: 在庫数（-1 = 無制限）
   },
   cache: {
     key: 'BULK_PRODUCTS',
@@ -48,7 +49,7 @@ var BULK_CONFIG = {
 var BULK_SHEET_HEADER = [
   '商品ID', '商品名', '説明', '価格', '単位',
   'タグ', '画像URL1', '画像URL2', '画像URL3', '画像URL4', '画像URL5',
-  '最小注文数', '最大注文数', '表示順', '公開', '割引率'
+  '最小注文数', '最大注文数', '表示順', '公開', '割引率', '在庫数'
 ];
 
 /**

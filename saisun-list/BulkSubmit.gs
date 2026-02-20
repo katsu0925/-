@@ -57,9 +57,11 @@ function apiBulkSubmit(form, items) {
 
       var p = productMap[pid];
       if (!p) return { ok: false, message: '商品が見つかりません: ' + pid };
+      if (p.soldOut) return { ok: false, message: p.name + ' は売り切れです' };
 
       if (qty < p.minQty) return { ok: false, message: p.name + ' は最低' + p.minQty + p.unit + 'から注文可能です' };
       if (qty > p.maxQty) return { ok: false, message: p.name + ' は最大' + p.maxQty + p.unit + 'までです' };
+      if (p.stock !== -1 && p.stock < qty) return { ok: false, message: p.name + ' の在庫が不足しています（残り' + p.stock + '）' };
 
       // 個別割引適用
       var unitPrice = (p.discountedPrice !== undefined) ? p.discountedPrice : p.price;
@@ -250,6 +252,13 @@ function apiBulkSubmit(form, items) {
 
     console.log('アソート商品KOMOJU決済セッション作成: ' + receiptNo + ' → ' + komojuResult.sessionUrl);
 
+    // === 在庫減算 ===
+    try {
+      bulk_deductStock_(orderItems);
+    } catch (stockErr) {
+      console.error('在庫減算エラー（注文は継続）:', stockErr);
+    }
+
     return {
       ok: true,
       receiptNo: receiptNo,
@@ -262,4 +271,42 @@ function apiBulkSubmit(form, items) {
     console.error('apiBulkSubmit error:', e);
     return { ok: false, message: (e && e.message) ? e.message : String(e) };
   }
+}
+
+/**
+ * 在庫減算（注文確定後に呼ばれる）
+ * @param {object[]} orderItems - [{ productId, qty }]
+ */
+function bulk_deductStock_(orderItems) {
+  var ss = bulk_getSs_();
+  var sh = bulk_ensureSheet_(ss);
+  var c = BULK_CONFIG.cols;
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return;
+
+  var data = sh.getRange(2, 1, lastRow - 1, BULK_SHEET_HEADER.length).getValues();
+  var itemMap = {};
+  for (var i = 0; i < orderItems.length; i++) {
+    itemMap[orderItems[i].productId] = orderItems[i].qty;
+  }
+
+  for (var r = 0; r < data.length; r++) {
+    var pid = String(data[r][c.productId] || '').trim();
+    if (!pid || !itemMap[pid]) continue;
+
+    var stockRaw = data[r][c.stock];
+    var stock = (stockRaw === '' || stockRaw === null || stockRaw === undefined) ? -1 : Number(stockRaw);
+    if (isNaN(stock)) stock = -1;
+    if (stock === -1) continue;
+
+    var newStock = Math.max(0, stock - itemMap[pid]);
+    var rowNum = r + 2;
+    sh.getRange(rowNum, c.stock + 1).setValue(newStock);
+
+    if (newStock === 0) {
+      sh.getRange(rowNum, c.active + 1).setValue(false);
+    }
+  }
+
+  bulk_clearCache_();
 }
