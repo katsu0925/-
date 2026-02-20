@@ -1119,24 +1119,16 @@ function applyBulkData_(r, savedCart) {
   var _detauriUrl = window.location.origin + window.location.pathname;
   if (dl) { dl.href = _detauriUrl; dl.target = '_top'; }
   if (dbl) { dbl.href = _detauriUrl; dbl.target = '_top'; }
-  // シームレスページ切替（document.write方式）
+  // シームレスページ切替（document.write方式・即時切替: 0.1秒以内）
   function navigateToDetail_() {
     if (!_cachedDetailHtml) return false; // キャッシュ未完了 → デフォルト遷移に任せる
-    // フェードアウトオーバーレイ → document.write
-    var ov = document.createElement('div');
-    ov.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#1a1a2e;opacity:0;transition:opacity .15s ease';
-    document.body.appendChild(ov);
-    requestAnimationFrame(function() { ov.style.opacity = '1'; });
-    setTimeout(function() {
-      var html = _cachedDetailHtml;
-      // 遷移アニメーション + google.script.run shim注入
-      var s = '<style>html{background:#1a1a2e!important}body{opacity:0;animation:_pi .2s ease .05s forwards}@keyframes _pi{to{opacity:1}}</style>';
-      s += _buildGasShim(GAS_API_URL);
-      html = html.replace('<head>', '<head>' + s);
-      document.open();
-      document.write(html);
-      document.close();
-    }, 170);
+    var html = _cachedDetailHtml;
+    // google.script.run shim注入
+    var s = _buildGasShim(GAS_API_URL);
+    html = html.replace('<head>', '<head>' + s);
+    document.open();
+    document.write(html);
+    document.close();
     return true;
   }
   if (dl) dl.addEventListener('click', function(e) { if (navigateToDetail_()) e.preventDefault(); });

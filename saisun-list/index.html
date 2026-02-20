@@ -115,9 +115,9 @@
     .stickyInner{width:100%;max-width:1200px;display:flex;justify-content:center;align-items:center;gap:10px;}
     .cartBtn{width:100%;max-width:520px;height:46px;border-radius:14px;border:1px solid #4a76b5;background:#5B86C5;color:#fff;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;margin:0 auto;}
     .countPill{min-width:28px;height:28px;border-radius:999px;background:#fff;color:#2B3A5C;display:flex;align-items:center;justify-content:center;font-weight:900;padding:0 10px;}
-    .overlay{position:fixed;inset:0;display:none;background:rgba(0,0,0,.55);z-index:40;}
+    .overlay{position:fixed;inset:0;display:none;background:rgba(0,0,0,.55);z-index:1000;}
     .overlay.open{display:block;}
-    .modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(860px,94vw);max-height:86vh;background:#fff;border-radius:14px;border:1px solid #e6e8ee;z-index:50;display:none;overflow:hidden;}
+    .modal{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(860px,94vw);max-height:86vh;background:#fff;border-radius:14px;border:1px solid #e6e8ee;z-index:1010;display:none;overflow:hidden;}
     .modal.open{display:block;}
     .modalHeader{padding:14px 16px;border-bottom:1px solid #e6e8ee;display:flex;align-items:center;justify-content:space-between;gap:10px;}
     .modalTitle{font-weight:900;}
@@ -173,12 +173,12 @@
     .formField input,.formField select,.formField textarea{width:100%;padding:10px 12px;border:1px solid #d9deea;border-radius:10px;background:#fff;outline:none;}
     .formField textarea{min-height:90px;resize:vertical;}
     .formActions{display:flex;gap:10px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap;}
-    .toast{position:fixed;left:50%;bottom:82px;transform:translateX(-50%);background:#111;color:#fff;padding:10px 12px;border-radius:12px;display:none;z-index:60;font-weight:900;max-width:92vw;}
+    .toast{position:fixed;left:50%;bottom:82px;transform:translateX(-50%);background:#111;color:#fff;padding:10px 12px;border-radius:12px;display:none;z-index:1020;font-weight:900;max-width:92vw;}
     .toast.show{display:block;}
     .admin-settings-fab{position:fixed;left:16px;bottom:76px;z-index:31;width:48px;height:48px;border-radius:50%;background:#b8002a;color:#fff;border:none;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.3);font-size:22px;transition:transform .2s;}
     .admin-settings-fab:hover{transform:scale(1.1);}
     body.admin-mode .admin-settings-fab{display:flex;}
-    .settings-panel{position:fixed;left:16px;bottom:136px;z-index:55;width:min(380px,90vw);background:#fff;border-radius:14px;border:1px solid #e6e8ee;box-shadow:0 10px 30px rgba(0,0,0,.25);display:none;overflow:hidden;}
+    .settings-panel{position:fixed;left:16px;bottom:136px;z-index:200;width:min(380px,90vw);background:#fff;border-radius:14px;border:1px solid #e6e8ee;box-shadow:0 10px 30px rgba(0,0,0,.25);display:none;overflow:hidden;}
     .settings-panel.open{display:block;}
     .settings-panel .sp-header{padding:12px 14px;border-bottom:1px solid #e6e8ee;display:flex;align-items:center;justify-content:space-between;background:#f8f9fa;}
     .settings-panel .sp-title{font-weight:900;font-size:15px;}
@@ -202,7 +202,7 @@
     .measureWrap{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
     .measureBtn{display:inline-flex;align-items:center;gap:8px;padding:10px 12px;border:1px solid #d9deea;border-radius:10px;background:#fff;cursor:pointer;font-weight:900;}
     .measureBtn input{margin:0;}
-    .sendingOverlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:80;}
+    .sendingOverlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;z-index:1030;}
     .sendingOverlay.on{display:flex;}
     .sendingBox{background:#fff;border:1px solid #e6e8ee;border-radius:14px;padding:16px 18px;display:flex;align-items:center;gap:12px;box-shadow:0 10px 30px rgba(0,0,0,.25);}
     .sendingSpinner{width:26px;height:26px;border-radius:999px;border:3px solid rgba(0,0,0,.15);border-top-color:#111;animation:sendingSpin 0.9s linear infinite;}
@@ -231,7 +231,7 @@
     .brandItem .brand-check::after{content:'✓';color:#fff;font-size:13px;font-weight:700;opacity:0;transition:opacity .15s;}
     .brandItem.selected .brand-check::after{opacity:1;}
     .brandName{font-weight:600;line-height:1.3;word-break:break-word;color:#334155;}
-    .toTop{position:fixed;right:14px;bottom:144px;width:46px;height:46px;border-radius:999px;border:1px solid #d9deea;background:#fff;display:none;align-items:center;justify-content:center;font-weight:900;z-index:70;box-shadow:0 6px 18px rgba(0,0,0,.12);transition:all .3s ease;}
+    .toTop{position:fixed;right:14px;bottom:144px;width:46px;height:46px;border-radius:999px;border:1px solid #d9deea;background:#fff;display:none;align-items:center;justify-content:center;font-weight:900;z-index:150;box-shadow:0 6px 18px rgba(0,0,0,.12);transition:all .3s ease;}
     .toTop.show{display:flex;}
     .toTop.chatbot-open{right:auto;left:auto;bottom:auto;position:static;}
     .price-old { text-decoration: line-through; color:#999; }
@@ -3179,8 +3179,8 @@ function pollStatusNow_() {
           // 楽観的エントリ → サーバー応答に関わらず常に保護
           // （ポーリングはカート追加前に送信されており、サーバー応答は古い状態を反映するため）
           if (existing._optimistic) { merged[ok] = existing; continue; }
-          // サーバー確認済み(15秒以内) → サーバー確認データを優先
-          if (existing._confirmedAt && (now - existing._confirmedAt < 15000)) {
+          // サーバー確認済み(60秒以内) → サーバー確認データを優先
+          if (existing._confirmedAt && (now - existing._confirmedAt < 60000)) {
             merged[ok] = existing;
           }
         }
@@ -3188,7 +3188,7 @@ function pollStatusNow_() {
 
         // 確保タイムアウト: カート内アイテムの確保が切れたら自動解除
         var expired = [];
-        var GRACE_MS = 15000; // 15秒のグレース期間
+        var GRACE_MS = 60000; // 60秒のグレース期間（サーバー側キャッシュ伝播を十分に待つ）
         for (var ci = 0; ci < state.cart.ids.length; ci++) {
           var cid = state.cart.ids[ci];
           var dd = state.cart.digest[cid];
@@ -5171,22 +5171,13 @@ function logPageView_() {
 // =====================================================
 var _cachedBulkHtml = null;
 
-// document.writeでBulkLP HTMLを描画する共通関数
+// document.writeでBulkLP HTMLを描画する共通関数（即時切替: 0.1秒以内）
 function doWriteBulk_() {
-  var ov = document.createElement('div');
-  ov.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;z-index:99999;background:#1a1a2e;opacity:0;transition:opacity .15s ease';
-  document.body.appendChild(ov);
-  requestAnimationFrame(function() { ov.style.opacity = '1'; });
-  setTimeout(function() {
-    var html = _cachedBulkHtml;
-    // BulkLPはIS_STANDALONEモードでfetch()を使うため、shimは不要
-    // 遷移アニメーション用スタイルのみ注入
-    var s = '<style>html{background:#1a1a2e!important}body{opacity:0;animation:_pi .2s ease .05s forwards}@keyframes _pi{to{opacity:1}}</style>';
-    html = html.replace('<head>', '<head>' + s);
-    document.open();
-    document.write(html);
-    document.close();
-  }, 170);
+  var html = _cachedBulkHtml;
+  // BulkLPはIS_STANDALONEモードでfetch()を使うため、shimは不要
+  document.open();
+  document.write(html);
+  document.close();
 }
 
 function navigateToBulk(e) {
