@@ -10,18 +10,19 @@
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans-serif;background:#f5f5f5;color:#333;-webkit-font-smoothing:antialiased}
 .container{max-width:1100px;margin:0 auto;background:#fff;min-height:100vh}
 
-/* === A案 2-Row Header === */
+/* === A案 3-Row Header === */
 .header{background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;position:sticky;top:0;z-index:100;max-width:1100px;margin:0 auto}
 .header-row1{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 16px;flex-wrap:nowrap}
 .header-logo{font-size:15px;font-weight:800;white-space:nowrap;margin:0;letter-spacing:1px;color:#fff;flex-shrink:0}
 .header-nav{display:flex;gap:6px;flex-shrink:0}
 .header-nav a{color:#93c5fd;text-decoration:none;font-size:11px;padding:4px 12px;border-radius:20px;border:1px solid rgba(255,255,255,.15);transition:all .2s;white-space:nowrap}
 .header-nav a.active{background:#ffd700;color:#1a1a2e;border-color:#ffd700;font-weight:700}
-.header-auth-wrap{display:flex;align-items:center;gap:6px;font-size:12px;flex-shrink:1;min-width:0}
-.header-row2{display:flex;justify-content:center;gap:16px;padding:0 16px 6px;max-height:28px;overflow:hidden;opacity:1;transition:max-height .25s ease,opacity .25s ease,padding .25s ease}
-.header-row2 a{color:#93c5fd;text-decoration:none;font-size:11px;font-weight:600;transition:color .2s;white-space:nowrap}
-.header-row2 a:hover{color:#bfdbfe}
-.header.row2-hidden .header-row2{max-height:0;opacity:0;padding-top:0;padding-bottom:0}
+.header-auth-wrap{display:none;align-items:center;gap:6px;font-size:12px;flex-shrink:1;min-width:0}
+.header-row2{display:flex;justify-content:center;align-items:center;gap:8px;padding:2px 16px 4px}
+.header-row3{display:flex;justify-content:center;gap:16px;padding:0 16px 6px;max-height:28px;overflow:hidden;opacity:1;transition:max-height .25s ease,opacity .25s ease,padding .25s ease}
+.header-row3 a{color:#93c5fd;text-decoration:none;font-size:11px;font-weight:600;transition:color .2s;white-space:nowrap}
+.header-row3 a:hover{color:#bfdbfe}
+.header.row2-hidden .header-row3{max-height:0;opacity:0;padding-top:0;padding-bottom:0}
 .member-badge{display:inline-block;font-size:10px;background:rgba(255,215,0,.15);color:#ffd700;padding:3px 10px;border-radius:12px;border:1px solid rgba(255,215,0,.3);white-space:nowrap;max-width:180px;overflow:hidden;text-overflow:ellipsis}
 
 /* セクション */
@@ -50,7 +51,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 .product-name{font-size:14px;font-weight:700;color:#1a1a2e}
 .product-desc{font-size:12px;color:#888;margin-top:4px;line-height:1.5;display:none}
 .product-tag{display:inline-block;font-size:10px;background:#fff3cd;color:#856404;padding:2px 8px;border-radius:10px;margin-top:6px;font-weight:600}
-.product-bottom{display:flex;align-items:center;justify-content:space-between;margin-top:12px}
+.product-bottom{display:flex;align-items:center;justify-content:space-between;margin-top:12px;gap:8px}
+.product-price-area{display:flex;flex-direction:column;gap:2px;min-width:0}
 .product-price{font-size:20px;font-weight:800;color:#e74c3c}
 .product-price small{font-size:12px;font-weight:400;color:#999}
 .product-price .original{font-size:13px;font-weight:400;color:#999;text-decoration:line-through;margin-right:6px}
@@ -82,6 +84,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 .modal-thumbs{display:flex;gap:8px;padding:12px 16px;overflow-x:auto}
 .modal-thumbs img{width:64px;height:64px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid transparent;flex-shrink:0;transition:border-color .2s}
 .modal-thumbs img.active{border-color:#1a1a2e}
+.modal-right{display:flex;flex-direction:column;flex:1;overflow:hidden;min-height:0}
 .modal-scroll{flex:1;overflow-y:auto;min-height:0}
 .modal-body{padding:20px}
 .modal-body .product-name{font-size:18px;margin-bottom:8px}
@@ -172,6 +175,7 @@ body.admin-mode .header{border-top:3px solid #b8002a}
 .auth-discount{background:#e74c3c;color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700}
 .auth-points{background:#e65100;color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700}
 .auth-btn.mypage{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);font-size:11px;padding:4px 12px;border-radius:20px}
+.cart-header-btn{position:relative;padding:4px 10px!important;font-size:16px!important;background:rgba(255,255,255,.12)!important;border:1px solid rgba(255,255,255,.3)!important;border-radius:20px!important;cursor:pointer;color:#fff;line-height:1}
 .mypage-tabs{display:flex;gap:0;border-bottom:2px solid #e0e0e0;margin-bottom:16px}
 .mypage-tab{background:none;border:none;padding:10px 18px;font-size:14px;font-weight:600;color:#888;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .2s,border-color .2s}
 .mypage-tab:hover{color:#333}
@@ -262,6 +266,8 @@ body.admin-mode .admin-settings-fab{display:flex;}
 .chatbot-panel.open{display:flex;}
 .chatbot-header{background:#1e293b;color:#fff;padding:14px 16px;font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px;flex-shrink:0;}
 .chatbot-header-actions{display:flex;align-items:center;gap:6px;margin-left:auto;}
+.chatbot-header-toTop{width:30px;height:30px;border-radius:50%;border:1.5px solid rgba(255,255,255,.35);background:transparent;color:#fff;font-weight:900;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;}
+.chatbot-header-toTop:hover{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.6);}
 .chatbot-close-btn{width:30px;height:30px;border-radius:50%;border:1.5px solid rgba(255,255,255,.35);background:transparent;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;line-height:1;}
 .chatbot-close-btn:hover{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.6);}
 .chatbot-header svg{width:20px;height:20px;fill:#fff;flex-shrink:0;}
@@ -297,8 +303,10 @@ body.admin-mode .admin-settings-fab{display:flex;}
   .header-row1{padding:10px 24px}
   .header-logo{font-size:17px}
   .header-nav a{font-size:12px;padding:5px 14px}
-  .header-row2{padding:0 24px 8px;gap:20px}
-  .header-row2 a{font-size:12px}
+  .header-auth-wrap{display:flex}
+  .header-row2{display:none}
+  .header-row3{padding:0 24px 8px;gap:20px}
+  .header-row3 a{font-size:12px}
   .section{padding:28px 40px}
   .product-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
   .product-card{margin-bottom:0}
@@ -311,7 +319,13 @@ body.admin-mode .admin-settings-fab{display:flex;}
   .pc-two-col{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start}
   .cart-summary{padding:18px}
   .detauri-banner{margin:28px 40px}
-  .modal-content{max-width:700px}
+  .modal-content{max-width:900px;flex-direction:row;max-height:80vh}
+  .modal-fixed-top{width:50%;flex-shrink:0;display:flex;flex-direction:column}
+  .modal-images{aspect-ratio:1/1}
+  .modal-right{width:50%;display:flex;flex-direction:column;overflow:hidden}
+  .modal-scroll{flex:1;overflow-y:auto}
+  .modal-fixed-bottom{flex-shrink:0}
+  .modal-close{top:8px;right:8px}
 }
 
 @media(min-width:560px) and (max-width:767px){
@@ -319,6 +333,17 @@ body.admin-mode .admin-settings-fab{display:flex;}
   .container{border-radius:20px;overflow:hidden;box-shadow:0 8px 40px rgba(0,0,0,.15)}
   .product-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
   .product-card{margin-bottom:0}
+}
+
+@media(max-width:559px){
+  .product-grid{grid-template-columns:repeat(2,1fr);gap:10px}
+  .product-body{padding:10px}
+  .product-name{font-size:12px}
+  .product-price{font-size:16px}
+  .product-price small{font-size:10px}
+  .product-price .original{font-size:11px}
+  .qty-btn{width:30px;height:30px;font-size:14px}
+  .qty-value{width:32px;height:30px;font-size:12px}
 }
 </style>
 </head>
@@ -350,6 +375,11 @@ body.admin-mode .admin-settings-fab{display:flex;}
     </div>
   </div>
   <div class="header-row2">
+    <div class="header-auth" id="headerAuthMob">
+      <button class="auth-btn" id="openAuthBtnMob" type="button">ログイン / 新規登録</button>
+    </div>
+  </div>
+  <div class="header-row3">
     <a href="#" id="openBulkGuideLink">商品ガイド</a>
     <a href="#" id="openBulkShippingLink">アソート送料表</a>
     <a href="#" id="openContactLinkHeader">お問い合わせ</a>
@@ -471,10 +501,12 @@ body.admin-mode .admin-settings-fab{display:flex;}
       <div class="modal-images" id="modalImages"></div>
       <div class="modal-thumbs" id="modalThumbs"></div>
     </div>
-    <div class="modal-scroll">
-      <div class="modal-body" id="modalBody"></div>
+    <div class="modal-right">
+      <div class="modal-scroll">
+        <div class="modal-body" id="modalBody"></div>
+      </div>
+      <div class="modal-fixed-bottom" id="modalBottom"></div>
     </div>
-    <div class="modal-fixed-bottom" id="modalBottom"></div>
   </div>
 </div>
 
@@ -1209,12 +1241,27 @@ function applyBulkData_(r, savedCart) {
 })();
 
 // =====================================================
+// プロモバナー sticky 連動: header の top 位置を動的調整
+// =====================================================
+function adjustHeaderForBanner_() {
+  var banner = document.getElementById('promoBanner');
+  var header = document.querySelector('.header');
+  if (!header) return;
+  if (banner && banner.style.display !== 'none') {
+    header.style.top = banner.offsetHeight + 'px';
+  } else {
+    header.style.top = '0';
+  }
+}
+
+// =====================================================
 // 初期化（キャッシュ優先 → バックグラウンド更新）
 // =====================================================
 window.addEventListener('DOMContentLoaded', function() {
   loadDetauriCart();
   var savedCart = loadBulkCart();
   loadSharedSession();
+  window.addEventListener('resize', adjustHeaderForBanner_);
 
   // キャッシュから即時表示
   var cached = loadBulkProductCache_();
@@ -1352,14 +1399,13 @@ function openProductModal(idx) {
   thumbsEl.innerHTML = thumbHtml;
   thumbsEl.style.display = (p.images && p.images.length > 1) ? 'flex' : 'none';
 
-  // 本文（スクロール領域: タイトル + 説明 + タグ）
+  // 本文（スクロール領域: タイトル + 説明）
   var tagHtml = p.tag ? '<span class="product-tag">' + escHtml(p.tag) + '</span>' : '';
   var isSoldOut = p.soldOut === true;
   var soldOutLabel = isSoldOut ? '<div style="text-align:center;padding:10px 0;font-size:16px;font-weight:900;color:#d93025;letter-spacing:2px">SOLD OUT</div>' : '';
   bodyEl.innerHTML =
     '<div class="product-name">' + escHtml(p.name) + '</div>'
     + (p.description ? '<div class="product-desc">' + escHtml(p.description) + '</div>' : '')
-    + tagHtml
     + soldOutLabel;
 
   // 固定下部: 価格 + 数量コントロール
@@ -1376,7 +1422,7 @@ function openProductModal(idx) {
   var qtyClass = 'qty-control' + (isSoldOut ? '" style="opacity:.3;pointer-events:none' : '');
   bottomEl.innerHTML =
     '<div class="product-bottom">'
-    + '<div class="product-price">' + priceHtml + '</div>'
+    + '<div class="product-price-area">' + tagHtml + '<div class="product-price">' + priceHtml + '</div></div>'
     + '<div class="' + qtyClass + '">'
     + '<button class="qty-btn" onclick="changeQty(\'' + escAttr(p.productId) + '\',-1)">−</button>'
     + '<input class="qty-value" id="modal_qty_' + escAttr(p.productId) + '" value="' + qty + '" readonly>'
@@ -1464,9 +1510,8 @@ function renderProductCard(p, idx) {
     + soldOutHtml
     + '<div class="product-body">'
     + '<div class="product-name">' + escHtml(p.name) + '</div>'
-    + tagHtml
     + '<div class="product-bottom">'
-    + '<div class="product-price">' + priceHtml + '</div>'
+    + '<div class="product-price-area">' + tagHtml + '<div class="product-price">' + priceHtml + '</div></div>'
     + '<div class="qty-control">'
     + '<button class="qty-btn" onclick="changeQty(\'' + escAttr(p.productId) + '\',-1)">−</button>'
     + '<input class="qty-value" id="qty_' + escAttr(p.productId) + '" value="' + qty + '" readonly>'
@@ -2275,7 +2320,10 @@ function updateAuthUi_() {
     } else {
       banner.style.display = 'block';
     }
+    adjustHeaderForBanner_();
   }
+
+  var cartBtnHtml = '<button class="auth-btn cart-header-btn" id="headerCartBtn" type="button" title="カート">&#x1F6D2;</button>';
 
   if (G.customer) {
     var md = G.settings.memberDiscount;
@@ -2285,7 +2333,7 @@ function updateAuthUi_() {
     if (G.customer.rank && G.customer.rank.name) {
       rankHtml = '<span style="background:' + safeColor_(G.customer.rank.color) + ';color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700;">' + escHtml(G.customer.rank.name) + '</span>';
     }
-    area.innerHTML =
+    area.innerHTML = cartBtnHtml +
       '<div class="auth-user">' +
         '<span class="auth-user-name">' + escHtml(G.customer.companyName || G.customer.email) + '</span>' +
         rankHtml + discountHtml + pointsHtml +
@@ -2303,7 +2351,7 @@ function updateAuthUi_() {
     // memberBadgeも更新
     updateMemberUI();
   } else {
-    area.innerHTML = '<button class="auth-btn" id="openAuthBtn" type="button">ログイン / 新規登録</button>';
+    area.innerHTML = cartBtnHtml + '<button class="auth-btn" id="openAuthBtn" type="button">ログイン / 新規登録</button>';
     var openBtn = document.getElementById('openAuthBtn');
     if (openBtn) {
       openBtn.addEventListener('click', function() { openAuthModal_('login'); });
@@ -2311,6 +2359,44 @@ function updateAuthUi_() {
     // memberBadgeがあれば削除
     var old = document.getElementById('memberBadge');
     if (old) old.remove();
+  }
+
+  // カートボタンのイベント
+  var headerCart = document.getElementById('headerCartBtn');
+  if (headerCart) {
+    headerCart.addEventListener('click', function() {
+      var cs = document.getElementById('cartSection');
+      if (cs) cs.scrollIntoView({ behavior: 'smooth' });
+    });
+  }
+
+  // モバイル認証エリアにミラーコピー
+  var mobArea = document.getElementById('headerAuthMob');
+  if (mobArea) {
+    mobArea.innerHTML = area.innerHTML;
+    var mobCart = mobArea.querySelector('#headerCartBtn');
+    if (mobCart) {
+      mobCart.id = 'headerCartBtnMob';
+      mobCart.addEventListener('click', function() {
+        var cs = document.getElementById('cartSection');
+        if (cs) cs.scrollIntoView({ behavior: 'smooth' });
+      });
+    }
+    var mobMyPage = mobArea.querySelector('#openMyPageBtn');
+    if (mobMyPage) {
+      mobMyPage.id = 'openMyPageBtnMob';
+      mobMyPage.addEventListener('click', function() { openMyPage_(); });
+    }
+    var mobLogout = mobArea.querySelector('#logoutBtn');
+    if (mobLogout) {
+      mobLogout.id = 'logoutBtnMob';
+      mobLogout.addEventListener('click', function() { doLogout_(); });
+    }
+    var mobAuth = mobArea.querySelector('#openAuthBtn');
+    if (mobAuth) {
+      mobAuth.id = 'openAuthBtnMob';
+      mobAuth.addEventListener('click', function() { openAuthModal_('login'); });
+    }
   }
 }
 
@@ -3001,7 +3087,8 @@ function renderOrderHistory_(orders) {
     <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
     AIアシスタント
     <span class="chatbot-header-actions">
-      <button class="chatbot-close-btn" id="chatbotCloseBtn" type="button" aria-label="閉じる">×</button>
+      <button class="chatbot-header-toTop" id="chatbotHeaderToTop" type="button" aria-label="ページ上部へ" title="ページ上部へ">↑</button>
+      <button class="chatbot-close-btn" id="chatbotCloseBtn" type="button" aria-label="閉じる" title="閉じる">×</button>
     </span>
   </div>
   <div class="chatbot-messages" id="chatbotMessages"></div>
@@ -3020,6 +3107,7 @@ function renderOrderHistory_(orders) {
   var sendBtn = document.getElementById('chatbotSend');
   var badge = document.getElementById('chatbotBadge');
   var closeBtn = document.getElementById('chatbotCloseBtn');
+  var headerToTop = document.getElementById('chatbotHeaderToTop');
   var isOpen = false;
   var chatHistory = [];
   var isSending = false;
@@ -3035,133 +3123,301 @@ function renderOrderHistory_(orders) {
   };
 
   var FAQ = [
-    { q: '注文方法を教えて', category: '注文・購入', a: '【ご注文方法】\n1. 商品を選んで数量を指定\n2. お届け先を入力\n3. 送料が自動計算されます\n4. お支払い方法を選んで注文確定' },
-    { q: '最低注文数は？', category: '注文・購入', a: 'アソート商品は各商品ごとに最低注文数が設定されています。商品カードに表示されている数量からご注文いただけます。' },
-    { q: '送料はいくら？', category: '送料・配送', a: '送料はお届け先の地域と荷物のサイズによって異なります。住所を入力すると自動計算されます。' },
-    { q: '配送にかかる日数は？', category: '送料・配送', a: '決済完了後、通常2〜5営業日で発送いたします。' },
-    { q: '決済方法は？', category: '決済', a: '【ご利用可能な決済方法】\n・クレジットカード\n・Apple Pay\n・コンビニ決済（別途手数料220円）\n・銀行振込（振込手数料はお客様負担）\n・PayPay\n・ペイジー' },
-    { q: '割引はある？', category: '割引', a: '【割引制度】\n1. 会員登録割引：10%OFF（2026年9月末まで）\n2. クーポンコードによる割引\n\n詳しくはスタッフまでお問い合わせください。' },
-    { q: '会員登録の方法は？', category: '会員', a: '画面上部の「ログイン / 新規登録」ボタンからお手続きいただけます。登録は無料です。' },
-    { q: '返品・交換はできる？', category: 'その他', a: '原則として返品・交換はお受けしておりません。万一、商品内容が記載事項と大きく異なる場合は、商品到着後7日以内にご連絡ください。' },
-    { q: 'デタウリとの違いは？', category: 'その他', a: '【アソートとデタウリの違い】\n・アソート：まとめ買い向け。数量指定で注文。\n・デタウリ：1点ずつ選ぶ個品販売。採寸データ付き。\n\n画面上部のナビから切り替えできます。' }
+    // --- 注文・購入 ---
+    { q: '注文方法を教えて', category: '注文・購入',
+      a: '【ご注文方法】\n1. 商品を選んで数量を指定\n2. お届け先を入力\n3. 送料が自動計算されます\n4. お支払い方法を選んで注文確定\n\n詳しくは画面上部の「商品ガイド」もご覧ください。' },
+    { q: '最低注文数は？', category: '注文・購入',
+      a: 'アソート商品は各商品ごとに最低注文数が設定されています。商品カードに表示されている数量からご注文いただけます。' },
+    { q: '注文後のキャンセルはできる？', category: '注文・購入',
+      a: 'ご注文確定後のキャンセル・変更はお受けしておりません。\nご注文前に商品内容をよくご確認ください。\n\n万一、商品内容が記載事項と大きく異なる場合は、商品到着後7日以内にご連絡ください。' },
+    { q: 'デタウリとの違いは？', category: '注文・購入',
+      a: '【アソートとデタウリの違い】\n・アソート：まとめ買い向け。数量指定で注文。\n・デタウリ：1点ずつ選ぶ個品販売。採寸データ付き。\n\n画面上部のナビから切り替えできます。' },
+
+    // --- 送料・配送 ---
+    { q: '送料はいくら？', category: '送料・配送',
+      a: '【送料について】\n送料はお届け先の地域と荷物のサイズによって異なります。\n住所を入力すると自動計算されます。\n\n詳しくは画面上部の「アソート送料表」ボタンからご確認ください。' },
+    { q: '配送にかかる日数は？', category: '送料・配送',
+      a: '決済完了後、通常2〜5営業日で発送いたします。\nお届けまでの日数は地域により異なりますが、発送から1〜3日程度です。\n\n※繁忙期や天候・災害等により遅延する場合がございます。' },
+    { q: '送料無料になる条件は？', category: '送料・配送',
+      a: 'ダイヤモンド会員のお客様は送料無料です！\n\nダイヤモンド会員になるには、累計購入額30万円以上が条件となります。\n詳しくは「会員ランクについて」をご確認ください。' },
+
+    // --- 決済 ---
+    { q: '決済方法は？', category: '決済',
+      a: '【ご利用可能な決済方法】\n・クレジットカード（Visa/Mastercard/JCB/AMEX/Diners/Discover）\n・Apple Pay\n・コンビニ決済（別途手数料220円）\n・銀行振込（振込手数料はお客様負担）\n・PayPay\n・ペイジー（振込手数料はお客様負担）\n\nクレジットカード・Apple Pay・PayPayが最もスムーズにお手続きいただけます。' },
+    { q: 'コンビニ決済の手数料は？', category: '決済',
+      a: 'コンビニ決済をご利用の場合、別途220円の手数料がかかります。\n\n手数料を抑えたい場合は、クレジットカード・Apple Pay・PayPay決済がおすすめです。' },
+    { q: '銀行振込の手数料は？', category: '決済',
+      a: '銀行振込をご利用の場合、振込手数料はお客様のご負担となります。\n手数料の金額はご利用の金融機関により異なります。\nペイジーも同様です。' },
+
+    // --- 割引・セール ---
+    { q: '割引はある？', category: '割引・セール',
+      a: '【現在の割引制度】\n\n1. 会員登録割引：10%OFF（2026年9月末まで）\n2. クーポンコードによる割引\n\n詳しくはスタッフまでお問い合わせください。' },
+    { q: '会員割引の期間は？', category: '割引・セール',
+      a: '会員登録で全品10%OFFの特典は2026年9月末までの期間限定です。\n\n・無料登録するだけで適用\n・期間中はいつでもご利用いただけます\n\nお早めの登録がおすすめです！' },
+
+    // --- 会員 ---
+    { q: '会員登録の方法は？', category: '会員',
+      a: '【会員登録の方法】\n画面上部の「ログイン / 新規登録」ボタンからお手続きいただけます。\n\n・メールアドレスとパスワードの設定だけで完了\n・登録は無料です\n・登録直後から会員割引（10%OFF）が適用されます' },
+    { q: '会員ランクについて', category: '会員',
+      a: '【会員ランク制度】\n\n・レギュラー：初回登録時（10%OFF特典）\n・シルバー：累計5万円以上\n・ゴールド：累計15万円以上\n・ダイヤモンド：累計30万円以上（送料無料！）\n\nランクが上がるほど特典が充実します。' },
+    { q: 'ダイヤモンド会員の特典は？', category: '会員',
+      a: '【ダイヤモンド会員特典】\n・送料無料（国内全域）\n・優先在庫確保\n\n条件：累計購入額30万円以上\nたくさんご利用いただくほどお得になります！' },
+
+    // --- 返品・サポート ---
+    { q: '返品・交換はできる？', category: '返品・サポート',
+      a: '返品・交換は原則お受けしておりません。\n\nただし、商品内容が記載事項と大きく異なる場合は、商品到着後7日以内にご連絡ください。\n\n✉ お問い合わせ よりご連絡いただけます。' },
+    { q: 'お問い合わせしたい', category: '返品・サポート',
+      a: 'お問い合わせは以下の方法で承っております：\n\n✉ お問い合わせ フォームからご連絡ください。\n\n営業時間内にご返信いたします。\nお気軽にどうぞ！' },
+    { q: '営業時間は？', category: '返品・サポート',
+      a: '営業時間：平日 10:00〜18:00\n（土日祝はお休みです）\n\n営業時間外のお問い合わせは翌営業日にご返信いたします。' }
   ];
 
-  function addMsg(text, role) {
-    var el = document.createElement('div');
-    el.className = 'chatbot-msg ' + role;
-    el.textContent = text;
-    messagesEl.appendChild(el);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-    chatHistory.push({ role: role, text: text });
-  }
+  var GREETING = 'こんにちは！アソート商品についてご質問があればお気軽にどうぞ。\nご質問のカテゴリをお選びいただくか、下の入力欄から自由にご質問ください。';
 
-  function showQuickReplies() {
-    var cats = {};
-    FAQ.forEach(function(f) { if (!cats[f.category]) cats[f.category] = []; cats[f.category].push(f); });
-    var wrap = document.createElement('div');
-    Object.keys(cats).forEach(function(cat) {
-      var catLabel = document.createElement('div');
-      catLabel.className = 'chatbot-quick-category';
-      catLabel.textContent = cat;
-      wrap.appendChild(catLabel);
-      cats[cat].forEach(function(f) {
-        var btn = document.createElement('button');
-        btn.className = 'chatbot-quick-btn';
-        btn.textContent = f.q;
-        btn.addEventListener('click', function() {
-          wrap.remove();
-          addMsg(f.q, 'user');
-          setTimeout(function() { addMsg(f.a, 'bot'); showQuickReplies(); }, 300);
-        });
-        wrap.appendChild(btn);
-      });
-    });
-    var contactBtn = document.createElement('a');
-    contactBtn.className = 'chatbot-contact-link';
-    contactBtn.textContent = 'お問い合わせフォーム';
-    contactBtn.href = '#';
-    contactBtn.addEventListener('click', function(e) {
-      e.preventDefault();
-      window.closeChatbot();
-      var cl = document.getElementById('openContactLink');
-      if (cl) cl.click();
-    });
-    wrap.appendChild(contactBtn);
-    messagesEl.appendChild(wrap);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
-  }
-
-  function greet() {
-    if (greeted) return;
-    greeted = true;
-    addMsg('こんにちは！アソート商品についてご質問があればお気軽にどうぞ。\n下のボタンからよくある質問を選ぶか、自由に入力してください。', 'bot');
-    showQuickReplies();
-    badge.classList.add('show');
-  }
-
-  fab.addEventListener('click', function() {
+  function toggleChat(){
     isOpen = !isOpen;
     window._chatbotIsOpen = isOpen;
+    panel.classList.toggle('open', isOpen);
+    fab.classList.toggle('open', isOpen);
+    badge.classList.remove('show');
+    if (isOpen && !greeted) {
+      greeted = true;
+      appendMessage('bot', GREETING);
+      showCategoryButtons();
+    }
     if (isOpen) {
-      panel.classList.add('open');
-      fab.classList.add('open');
-      badge.classList.remove('show');
-      if (!greeted) greet();
-      setTimeout(function() { input.focus(); }, 200);
-    } else {
-      panel.classList.remove('open');
-      fab.classList.remove('open');
+      setTimeout(function(){ input.focus(); }, 200);
+      scrollToBottom();
     }
     updateToTopBtn_();
-  });
+  }
 
-  closeBtn.addEventListener('click', function() { window.closeChatbot(); });
-
-  function sendMessage() {
-    var text = (input.value || '').trim();
-    if (!text || isSending) return;
-    input.value = '';
-    addMsg(text, 'user');
-    isSending = true;
-    sendBtn.disabled = true;
-
-    // FAQ match
-    var lower = text.toLowerCase();
-    var matched = null;
-    FAQ.forEach(function(f) {
-      if (!matched && (lower.indexOf(f.q.substring(0, 4)) !== -1 || f.q.indexOf(text.substring(0, 4)) !== -1)) matched = f;
+  function showCategoryButtons(){
+    var categories = [];
+    var seen = {};
+    FAQ.forEach(function(item){
+      if (!seen[item.category]) { seen[item.category] = true; categories.push(item.category); }
     });
+    var wrap = document.createElement('div');
+    wrap.className = 'chatbot-quick-replies';
+    wrap.style.cssText = 'margin-top:6px;';
+    categories.forEach(function(cat){
+      var b = document.createElement('button');
+      b.className = 'chatbot-quick-btn';
+      b.textContent = cat;
+      b.type = 'button';
+      b.addEventListener('click', function(){
+        showQuestionsForCategory(cat);
+      });
+      wrap.appendChild(b);
+    });
+    messagesEl.appendChild(wrap);
+    scrollToBottom();
+  }
 
-    if (matched) {
-      setTimeout(function() {
-        addMsg(matched.a, 'bot');
-        showQuickReplies();
-        isSending = false;
-        sendBtn.disabled = false;
-      }, 400);
+  function showQuestionsForCategory(cat){
+    appendMessage('user', cat);
+    var items = FAQ.filter(function(f){ return f.category === cat; });
+    var botMsg = document.createElement('div');
+    botMsg.className = 'chatbot-msg bot';
+    botMsg.style.cssText = 'padding-bottom:6px;';
+    botMsg.textContent = '「' + cat + '」に関するご質問をお選びください。';
+    messagesEl.appendChild(botMsg);
+
+    var wrap = document.createElement('div');
+    wrap.className = 'chatbot-quick-replies';
+    wrap.style.cssText = 'padding:0 2px;margin-top:4px;';
+    items.forEach(function(item){
+      var b = document.createElement('button');
+      b.className = 'chatbot-quick-btn';
+      b.textContent = item.q;
+      b.type = 'button';
+      b.addEventListener('click', function(){
+        handleQuickReply(item);
+      });
+      wrap.appendChild(b);
+    });
+    var back = document.createElement('button');
+    back.className = 'chatbot-quick-btn';
+    back.style.cssText = 'border-color:#94a3b8;color:#64748b;';
+    back.textContent = '\u2190 カテゴリに戻る';
+    back.type = 'button';
+    back.addEventListener('click', function(){
+      appendMessage('user', 'カテゴリに戻る');
+      var note = document.createElement('div');
+      note.className = 'chatbot-msg bot';
+      note.textContent = 'カテゴリをお選びください。';
+      messagesEl.appendChild(note);
+      showCategoryButtons();
+    });
+    wrap.appendChild(back);
+    messagesEl.appendChild(wrap);
+    scrollToBottom();
+  }
+
+  function handleQuickReply(item){
+    appendMessage('user', item.q);
+    chatHistory.push({ role: 'user', content: item.q });
+    var answerDiv = appendMessageAndReturn('bot', item.a);
+    chatHistory.push({ role: 'assistant', content: item.a });
+    showAfterAnswer(answerDiv);
+  }
+
+  function showAfterAnswer(answerEl){
+    var note = document.createElement('div');
+    note.className = 'chatbot-msg bot';
+    note.textContent = '他にもご質問がありましたら、カテゴリをお選びいただくか、自由に入力してください。';
+    messagesEl.appendChild(note);
+    showCategoryButtons();
+    scrollToElement(answerEl);
+  }
+
+  function appendMessage(role, text){
+    appendMessageAndReturn(role, text);
+  }
+
+  function appendMessageAndReturn(role, text){
+    var div = document.createElement('div');
+    div.className = 'chatbot-msg ' + role;
+    if (role === 'bot') {
+      var span = document.createElement('span');
+      span.textContent = text;
+      var safe = span.innerHTML;
+      safe = safe.replace(/✉\s*お問い合わせ/g, '<a href="#" style="color:#3b82f6;text-decoration:underline;cursor:pointer;" onclick="event.preventDefault();if(typeof closeChatbot===\'function\')closeChatbot();var cl=document.getElementById(\'openContactLink\');if(cl)cl.click();return false;">✉ お問い合わせ</a>');
+      div.innerHTML = safe;
+    } else {
+      div.textContent = text;
+    }
+    messagesEl.appendChild(div);
+    scrollToBottom();
+    return div;
+  }
+
+  function showTyping(){
+    var div = document.createElement('div');
+    div.className = 'chatbot-msg typing';
+    div.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
+    messagesEl.appendChild(div);
+    scrollToBottom();
+    return div;
+  }
+
+  function removeTyping(el){
+    if (el && el.parentNode) el.parentNode.removeChild(el);
+  }
+
+  function scrollToBottom(){
+    requestAnimationFrame(function(){
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    });
+  }
+
+  function scrollToElement(el){
+    if (!el) return;
+    requestAnimationFrame(function(){
+      var containerTop = messagesEl.getBoundingClientRect().top;
+      var elTop = el.getBoundingClientRect().top;
+      var offset = elTop - containerTop;
+      messagesEl.scrollTop = messagesEl.scrollTop + offset - 8;
+    });
+  }
+
+  function getKeywords(q){
+    var words = q.replace(/[\s　?？!！。、.,を・はのにてでがもとへ]/g, ' ').split(/\s+/).filter(function(w){ return w.length >= 2; });
+    return words.map(function(w){ return w.toLowerCase(); });
+  }
+
+  function matchFaq(text){
+    var t = text.toLowerCase().replace(/[\s　?？!！。、.,]/g, '');
+    var best = null;
+    var bestScore = 0;
+    FAQ.forEach(function(item){
+      var score = 0;
+      var keywords = getKeywords(item.q);
+      keywords.forEach(function(kw){
+        if (t.indexOf(kw) !== -1) score += kw.length;
+      });
+      if (score > bestScore) { bestScore = score; best = item; }
+    });
+    return bestScore >= 2 ? best : null;
+  }
+
+  function isUnanswerable(reply){
+    var markers = ['わかりません', 'お答えできません', '情報がありません', '対応できません'];
+    var r = reply.toLowerCase();
+    return markers.some(function(m){ return r.indexOf(m) !== -1; });
+  }
+
+  function getUserKey_(){
+    if (typeof bulkState_ !== 'undefined' && bulkState_ && bulkState_.userKey) return bulkState_.userKey;
+    try {
+      var k = localStorage.getItem('detauri_userKey');
+      if (k) return k;
+    } catch(e){}
+    return 'chatbot_anon_' + Math.random().toString(36).slice(2, 10);
+  }
+
+  function sendMessage(){
+    if (isSending) return;
+    var text = (input.value || '').trim();
+    if (!text) return;
+    if (text.length > 500) {
+      appendMessage('bot', 'メッセージは500文字以内でお願いします。');
       return;
     }
 
-    // API chatbot call
-    var typing = document.createElement('div');
-    typing.className = 'chatbot-msg typing';
-    typing.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
-    messagesEl.appendChild(typing);
-    messagesEl.scrollTop = messagesEl.scrollHeight;
+    appendMessage('user', text);
+    chatHistory.push({ role: 'user', content: text });
+    input.value = '';
+    input.style.height = 'auto';
 
-    runApi('apiChatbot', text, chatHistory.slice(-10))
-      .then(function(res) {
-        typing.remove();
-        addMsg((res && res.reply) || 'すみません、回答を取得できませんでした。', 'bot');
-        showQuickReplies();
+    var matched = matchFaq(text);
+    if (matched) {
+      var ansDiv = appendMessageAndReturn('bot', matched.a);
+      chatHistory.push({ role: 'assistant', content: matched.a });
+      showAfterAnswer(ansDiv);
+      return;
+    }
+
+    isSending = true;
+    sendBtn.disabled = true;
+    var typingEl = showTyping();
+
+    runApi('apiChatbot', getUserKey_(), { message: text, history: chatHistory.slice(-6) })
+      .then(function(res){
+        removeTyping(typingEl);
+        var reply = (res && res.reply) ? res.reply : '';
+        var ansDiv;
+        if (!reply || isUnanswerable(reply)) {
+          var fallback = '申し訳ございません。お探しの情報が見つかりませんでした。\n\n詳しくは ✉ お問い合わせ よりスタッフにお問い合わせください。\n担当者が直接ご対応いたします。';
+          ansDiv = appendMessageAndReturn('bot', fallback);
+          chatHistory.push({ role: 'assistant', content: fallback });
+        } else {
+          ansDiv = appendMessageAndReturn('bot', reply);
+          chatHistory.push({ role: 'assistant', content: reply });
+        }
+        if (chatHistory.length > 20) chatHistory = chatHistory.slice(-12);
+        showAfterAnswer(ansDiv);
       })
-      .catch(function() {
-        typing.remove();
-        addMsg('通信エラーが発生しました。もう一度お試しください。', 'bot');
+      .catch(function(){
+        removeTyping(typingEl);
+        var fallback = '一時的に接続できませんでした。\n\nお手数ですが、もう一度お試しいただくか、✉ お問い合わせ よりスタッフにご連絡ください。';
+        var ansDiv = appendMessageAndReturn('bot', fallback);
+        chatHistory.push({ role: 'assistant', content: fallback });
+        showAfterAnswer(ansDiv);
       })
-      .finally(function() { isSending = false; sendBtn.disabled = false; });
+      .finally(function(){
+        isSending = false;
+        sendBtn.disabled = false;
+        input.focus();
+      });
   }
 
+  fab.addEventListener('click', toggleChat);
+  closeBtn.addEventListener('click', function() { window.closeChatbot(); });
+  if (headerToTop) {
+    headerToTop.addEventListener('click', function() { window.scrollTo({ top: 0, behavior: 'smooth' }); });
+  }
   sendBtn.addEventListener('click', sendMessage);
   input.addEventListener('keydown', function(e) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
