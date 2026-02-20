@@ -5242,6 +5242,27 @@ function logPageView_() {
 // =====================================================
 function navigateToBulk(e) {
   e.preventDefault();
+  // キャッシュ済みならページ遷移せず即時切替（SPA方式）
+  var cachedHtml = null;
+  try {
+    var raw = localStorage.getItem('bulk_html_cache_v7');
+    if (raw) {
+      var c = JSON.parse(raw);
+      if (c && c.html && c.ts && (Date.now() - c.ts < 86400000)) {
+        cachedHtml = c.html;
+      }
+    }
+  } catch(ex) {}
+
+  if (cachedHtml) {
+    // ページ遷移なし → イベントハンドラ内のdocument.write()で即座にBulkLP表示
+    document.open();
+    document.write(cachedHtml);
+    document.close();
+    return;
+  }
+
+  // キャッシュなし → 通常遷移（オーバーレイ表示）
   var base = window.location.origin + window.location.pathname;
   var url = base + '?page=bulk';
   try { sessionStorage.setItem('_pageTransition', '1'); } catch(e) {}
