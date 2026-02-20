@@ -978,8 +978,26 @@ var BULK_CART_KEY = 'bulk_cart_v1';
 var DETAURI_CART_KEY = 'estimate_cart_v2';
 var SESSION_KEY = 'estimate_session';
 
-// ページ遷移用: デタウリページHTMLキャッシュ
+// ページ遷移用: デタウリページHTMLキャッシュ（localStorage永続化）
 var _cachedDetailHtml = null;
+var DETAIL_HTML_CACHE_KEY = 'page_html_detail_v1';
+var PAGE_HTML_CACHE_TTL = 10 * 60 * 1000; // 10分
+
+function loadDetailHtmlCache_() {
+  try {
+    var raw = localStorage.getItem(DETAIL_HTML_CACHE_KEY);
+    if (!raw) return null;
+    var c = JSON.parse(raw);
+    if (!c || !c.ts || !c.html) return null;
+    return { html: c.html, stale: (Date.now() - c.ts >= PAGE_HTML_CACHE_TTL) };
+  } catch (e) { return null; }
+}
+
+function saveDetailHtmlCache_(html) {
+  try {
+    localStorage.setItem(DETAIL_HTML_CACHE_KEY, JSON.stringify({ ts: Date.now(), html: html }));
+  } catch (e) {}
+}
 
 // 商品データキャッシュ（デタウリと同じパターン）
 var BULK_PRODUCT_CACHE_KEY = 'bulk_product_cache_v1';
@@ -1121,6 +1139,11 @@ function applyBulkData_(r, savedCart) {
   if (dbl) { dbl.href = _detauriUrl; dbl.target = '_top'; }
   // シームレスページ切替（document.write方式・即時切替: 0.1秒以内）
   function navigateToDetail_() {
+    if (!_cachedDetailHtml) {
+      // メモリにない場合、localStorageを確認
+      var cached = loadDetailHtmlCache_();
+      if (cached && cached.html) _cachedDetailHtml = cached.html;
+    }
     if (!_cachedDetailHtml) return false; // キャッシュ未完了 → デフォルト遷移に任せる
     var html = _cachedDetailHtml;
     // google.script.run shim注入
@@ -1214,10 +1237,16 @@ window.addEventListener('DOMContentLoaded', function() {
 // =====================================================
 function prefetchDetailPage_() {
   if (_cachedDetailHtml) return;
+  var cached = loadDetailHtmlCache_();
+  if (cached && cached.html) {
+    _cachedDetailHtml = cached.html;
+    if (!cached.stale) return;
+  }
   runApi('apiDetailPage')
     .then(function(r) {
       if (r && r.ok && r.html) {
         _cachedDetailHtml = r.html;
+        saveDetailHtmlCache_(r.html);
         console.log('プリフェッチ完了: デタウリページHTML');
       }
     })

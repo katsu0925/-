@@ -5170,6 +5170,24 @@ function logPageView_() {
 // アソート商品ページへの遷移（document.write方式）
 // =====================================================
 var _cachedBulkHtml = null;
+var BULK_HTML_CACHE_KEY = 'page_html_bulk_v1';
+var PAGE_HTML_CACHE_TTL = 10 * 60 * 1000; // 10分
+
+function loadBulkHtmlCache_() {
+  try {
+    var raw = localStorage.getItem(BULK_HTML_CACHE_KEY);
+    if (!raw) return null;
+    var c = JSON.parse(raw);
+    if (!c || !c.ts || !c.html) return null;
+    return { html: c.html, stale: (Date.now() - c.ts >= PAGE_HTML_CACHE_TTL) };
+  } catch (e) { return null; }
+}
+
+function saveBulkHtmlCache_(html) {
+  try {
+    localStorage.setItem(BULK_HTML_CACHE_KEY, JSON.stringify({ ts: Date.now(), html: html }));
+  } catch (e) {}
+}
 
 // document.writeでBulkLP HTMLを描画する共通関数（即時切替: 0.1秒以内）
 function doWriteBulk_() {
@@ -5183,34 +5201,43 @@ function doWriteBulk_() {
 function navigateToBulk(e) {
   e.preventDefault();
   if (!_cachedBulkHtml) {
-    if (IS_STANDALONE) {
-      // スタンドアロン: オンデマンドでBulkLP HTMLを取得してdocument.write
-      showToast('アソート商品を読み込み中...');
-      runApi('apiBulkPage').then(function(r) {
-        if (r && r.ok && r.html) {
-          _cachedBulkHtml = r.html;
-          doWriteBulk_();
-        }
-      }).catch(function() {
-        // fetch失敗 → GAS直URLにフォールバック
-        window.location.href = GAS_API_URL + '?page=bulk';
-      });
-      return;
-    }
-    // GAS iframe: サーバー側ルーティングに任せる
-    window.location.href = '?page=bulk';
+    // メモリにない場合、localStorageを確認
+    var cached = loadBulkHtmlCache_();
+    if (cached && cached.html) _cachedBulkHtml = cached.html;
+  }
+  if (_cachedBulkHtml) { doWriteBulk_(); return; }
+  if (IS_STANDALONE) {
+    // スタンドアロン: オンデマンドでBulkLP HTMLを取得してdocument.write
+    showToast('アソート商品を読み込み中...');
+    runApi('apiBulkPage').then(function(r) {
+      if (r && r.ok && r.html) {
+        _cachedBulkHtml = r.html;
+        saveBulkHtmlCache_(r.html);
+        doWriteBulk_();
+      }
+    }).catch(function() {
+      // fetch失敗 → GAS直URLにフォールバック
+      window.location.href = GAS_API_URL + '?page=bulk';
+    });
     return;
   }
-  doWriteBulk_();
+  // GAS iframe: サーバー側ルーティングに任せる
+  window.location.href = '?page=bulk';
 }
 
-// バックグラウンドプリフェッチ: アソートページHTMLを事前取得
+// バックグラウンドプリフェッチ: アソートページHTMLを事前取得（localStorage永続化）
 function prefetchBulkPage_() {
   if (_cachedBulkHtml) return;
+  var cached = loadBulkHtmlCache_();
+  if (cached && cached.html) {
+    _cachedBulkHtml = cached.html;
+    if (!cached.stale) return;
+  }
   runApi('apiBulkPage')
     .then(function(r) {
       if (r && r.ok && r.html) {
         _cachedBulkHtml = r.html;
+        saveBulkHtmlCache_(r.html);
         console.log('プリフェッチ完了: アソートページHTML');
       }
     })
@@ -5240,8 +5267,15 @@ function boot() {
   // Cloudflare Pagesはindex.htmlを返すため、ここでBulkLP HTMLをfetchしてdocument.writeする
   if (IS_STANDALONE && new URLSearchParams(window.location.search).get('page') === 'bulk') {
     document.body.style.background = '#1a1a2e';
+    // localStorageキャッシュから即時表示を試みる
+    var bulkCache = loadBulkHtmlCache_();
+    if (bulkCache && bulkCache.html) {
+      document.open(); document.write(bulkCache.html); document.close();
+      return;
+    }
     runApi('apiBulkPage').then(function(r) {
       if (r && r.ok && r.html) {
+        saveBulkHtmlCache_(r.html);
         document.open();
         document.write(r.html);
         document.close();
