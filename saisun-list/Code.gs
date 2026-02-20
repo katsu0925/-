@@ -108,7 +108,12 @@ function doPost(e) {
       'apiCreateKomojuSession', 'apiCheckPaymentStatus', 'apiCancelOrder',
       'apiGetCsrfToken',
       'apiBulkInit', 'apiBulkSubmit', 'apiBulkPage',
-      'apiChatbot', 'apiValidateCoupon', 'apiAdminLinkOrder'
+      'apiChatbot', 'apiValidateCoupon', 'apiAdminLinkOrder',
+      // 管理者専用API（adminKey認証必須）
+      'adminGetKomojuMode', 'adminToggleKomojuMode',
+      'adminGetMemberDiscountStatus', 'adminToggleMemberDiscount',
+      'adminRebuildStates', 'adminApplyStatusDropdown',
+      'adminClearProductsCache', 'adminCompactHolds'
     ];
     var allowedSet = {};
     for (var ai = 0; ai < allowedNames.length; ai++) allowedSet[allowedNames[ai]] = true;
@@ -134,6 +139,11 @@ function doPost(e) {
     console.log('doPost: isAdmin=' + isAdmin + ', action=' + action +
       ', ADMIN_KEY=' + (storedAdminKey ? 'set' : 'empty') +
       ', ACCESS_KEY=' + (storedAccessKey ? 'set' : 'empty'));
+
+    // admin関数は管理者のみ呼び出し可能
+    if (action.indexOf('admin') === 0 && !isAdmin) {
+      return jsonResponse_({ ok: false, message: '権限がありません' });
+    }
 
     if (!isAdmin) {
       var rateErr = checkRateLimit_(action, userKey);

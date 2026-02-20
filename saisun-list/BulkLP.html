@@ -173,6 +173,80 @@ body.admin-mode .header{border-top:3px solid #b8002a;}
 .pw-toggle{position:absolute;right:6px;background:none;border:none;cursor:pointer;font-size:16px;padding:4px;opacity:.5;line-height:1}
 .pw-toggle:hover{opacity:.8}
 
+/* 管理設定FAB */
+.admin-settings-fab{position:fixed;left:16px;bottom:76px;z-index:31;width:48px;height:48px;border-radius:50%;background:#b8002a;color:#fff;border:none;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.3);font-size:22px;transition:transform .2s;}
+.admin-settings-fab:hover{transform:scale(1.1);}
+body.admin-mode .admin-settings-fab{display:flex;}
+.settings-panel{position:fixed;left:16px;bottom:136px;z-index:55;width:min(380px,90vw);background:#fff;border-radius:14px;border:1px solid #e6e8ee;box-shadow:0 10px 30px rgba(0,0,0,.25);display:none;overflow:hidden;}
+.settings-panel.open{display:block;}
+.settings-panel .sp-header{padding:12px 14px;border-bottom:1px solid #e6e8ee;display:flex;align-items:center;justify-content:space-between;background:#f8f9fa;}
+.settings-panel .sp-title{font-weight:900;font-size:15px;}
+.settings-panel .sp-close{background:transparent;border:none;font-size:20px;cursor:pointer;padding:4px 8px;line-height:1;}
+.settings-panel .sp-body{padding:12px 14px;overflow:auto;max-height:60vh;}
+.settings-panel .sp-section{margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid #f0f0f0;}
+.settings-panel .sp-section:last-child{margin-bottom:0;padding-bottom:0;border-bottom:none;}
+.settings-panel .sp-section-title{font-weight:900;font-size:13px;margin-bottom:8px;color:#333;}
+.settings-panel .sp-btn-row{display:flex;gap:8px;flex-wrap:wrap;}
+.settings-panel .sp-btn{padding:8px 10px;border:1px solid #d9deea;border-radius:8px;background:#fff;cursor:pointer;font-weight:700;font-size:12px;}
+.settings-panel .sp-btn.primary{background:#111;color:#fff;border-color:#111;}
+.settings-panel .sp-btn:disabled{opacity:.5;cursor:not-allowed;}
+.settings-panel .sp-mode-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+.settings-panel .sp-badge{display:inline-block;padding:3px 8px;border-radius:6px;font-weight:900;font-size:12px;}
+.settings-panel .sp-badge.test{background:#fff3cd;color:#856404;border:1px solid #ffc107;}
+.settings-panel .sp-badge.live{background:#d4edda;color:#155724;border:1px solid #28a745;}
+.settings-panel .sp-badge.on{background:#d4edda;color:#155724;border:1px solid #28a745;}
+.settings-panel .sp-badge.off{background:#f8d7da;color:#721c24;border:1px solid #dc3545;}
+.settings-panel .sp-info{font-size:11px;color:#666;margin-top:4px;}
+.settings-panel .sp-log{font-size:11px;color:#333;white-space:pre-wrap;line-height:1.4;margin-top:8px;max-height:80px;overflow:auto;background:#f8f9fa;border-radius:6px;padding:6px 8px;display:none;}
+
+/* モーダル（特商法・お問い合わせ） */
+.bulk-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:500;}
+.bulk-overlay.active{display:block;}
+.bulk-modal{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:16px;width:min(700px,94vw);max-height:85vh;overflow-y:auto;z-index:501;box-shadow:0 12px 40px rgba(0,0,0,.2);}
+.bulk-modal-header{padding:14px 18px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1;border-radius:16px 16px 0 0;}
+.bulk-modal-title{font-size:16px;font-weight:700;color:#1a1a2e;}
+.bulk-modal-close{background:none;border:none;font-size:22px;cursor:pointer;padding:4px 8px;color:#999;line-height:1;}
+.bulk-modal-body{padding:18px;}
+
+/* チャットボット */
+.chatbot-fab{position:fixed;bottom:80px;right:16px;z-index:9999;width:56px;height:56px;border-radius:50%;background:#1e293b;color:#fff;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;transition:transform .2s,background .2s;}
+.chatbot-fab:hover{transform:scale(1.08);background:#334155;}
+.chatbot-fab svg{width:28px;height:28px;fill:#fff;}
+.chatbot-fab .chatbot-fab-close{display:none;}
+.chatbot-badge{position:absolute;top:-2px;right:-2px;width:18px;height:18px;border-radius:50%;background:#ef4444;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0;transition:opacity .2s;}
+.chatbot-badge.show{opacity:1;}
+.chatbot-panel{position:fixed;bottom:148px;right:16px;z-index:9998;width:360px;max-width:calc(100vw - 32px);height:480px;max-height:calc(100vh - 200px);background:#fff;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.18);display:none;flex-direction:column;overflow:hidden;border:1px solid #e6e8ee;}
+.chatbot-panel.open{display:flex;}
+.chatbot-header{background:#1e293b;color:#fff;padding:14px 16px;font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.chatbot-header-actions{display:flex;align-items:center;gap:6px;margin-left:auto;}
+.chatbot-close-btn{width:30px;height:30px;border-radius:50%;border:1.5px solid rgba(255,255,255,.35);background:transparent;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;line-height:1;}
+.chatbot-close-btn:hover{background:rgba(255,255,255,.15);border-color:rgba(255,255,255,.6);}
+.chatbot-header svg{width:20px;height:20px;fill:#fff;flex-shrink:0;}
+.chatbot-messages{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:10px;scroll-behavior:smooth;}
+.chatbot-msg{max-width:85%;padding:10px 14px;border-radius:14px;font-size:13px;line-height:1.55;word-break:break-word;white-space:pre-wrap;}
+.chatbot-msg.bot{align-self:flex-start;background:#f1f5f9;color:#1e293b;border-bottom-left-radius:4px;}
+.chatbot-msg.user{align-self:flex-end;background:#1e293b;color:#fff;border-bottom-right-radius:4px;}
+.chatbot-msg.typing{align-self:flex-start;background:#f1f5f9;padding:10px 18px;}
+.chatbot-msg.typing .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#94a3b8;margin:0 2px;animation:chatDot 1.4s infinite both;}
+.chatbot-msg.typing .dot:nth-child(2){animation-delay:.2s;}
+.chatbot-msg.typing .dot:nth-child(3){animation-delay:.4s;}
+@keyframes chatDot{0%,80%,100%{opacity:.3;transform:scale(.8);}40%{opacity:1;transform:scale(1);}}
+.chatbot-input-area{display:flex;gap:8px;padding:10px 12px;border-top:1px solid #e6e8ee;background:#fafbfc;flex-shrink:0;}
+.chatbot-input-area textarea{flex:1;border:1px solid #d9deea;border-radius:10px;padding:9px 12px;font-size:13px;resize:none;outline:none;font-family:inherit;min-height:38px;max-height:80px;line-height:1.4;}
+.chatbot-input-area textarea:focus{border-color:#1e293b;}
+.chatbot-send-btn{width:38px;height:38px;border-radius:10px;border:none;background:#1e293b;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s;}
+.chatbot-send-btn:hover{background:#334155;}
+.chatbot-send-btn:disabled{opacity:.4;cursor:not-allowed;}
+.chatbot-send-btn svg{width:18px;height:18px;fill:#fff;}
+.chatbot-quick-replies{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+.chatbot-quick-btn{display:inline-block;padding:7px 13px;border-radius:18px;border:1.5px solid #e2e8f0;background:#fff;color:#334155;font-size:12px;cursor:pointer;transition:all .15s;white-space:nowrap;font-weight:500;}
+.chatbot-quick-btn:hover{background:#eff6ff;border-color:#93c5fd;color:#2563eb;}
+.chatbot-quick-category{font-size:11px;color:#64748b;font-weight:600;margin-top:8px;margin-bottom:2px;padding-left:2px;}
+.chatbot-quick-category:first-child{margin-top:0;}
+.chatbot-contact-link{display:inline-flex;align-items:center;gap:4px;margin-top:10px;padding:8px 16px;border-radius:10px;background:#fef2f2;border:1px solid #fecaca;color:#dc2626;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;text-decoration:none;}
+.chatbot-contact-link:hover{background:#fee2e2;border-color:#f87171;}
+@media(max-width:480px){.chatbot-panel{bottom:0;right:0;left:0;width:100%;max-width:100%;height:100%;max-height:100%;border-radius:0;}.chatbot-fab{bottom:72px;right:12px;width:50px;height:50px;}.chatbot-fab svg{width:24px;height:24px;}}
+
 /* PC レスポンシブ */
 @media(min-width:768px){
   body{background:#e0e0e0}
@@ -441,10 +515,99 @@ body.admin-mode .header{border-top:3px solid #b8002a;}
   <a id="detauriBannerLink" class="cta-btn" href="./">デタウリで商品を見る →</a>
 </div>
 
+<!-- 管理設定FAB + パネル -->
+<button class="admin-settings-fab" id="adminSettingsFab" type="button" title="管理設定">&#9881;</button>
+<div class="settings-panel" id="settingsPanel">
+  <div class="sp-header">
+    <div class="sp-title">管理設定</div>
+    <button class="sp-close" id="settingsClose" type="button">&times;</button>
+  </div>
+  <div class="sp-body">
+    <div class="sp-section">
+      <div class="sp-section-title">管理</div>
+      <div class="sp-btn-row">
+        <button class="sp-btn primary" id="spBtnCompact" type="button">期限切れ確保の整理</button>
+        <button class="sp-btn" id="spBtnRebuild" type="button">状態の再構築</button>
+      </div>
+      <div class="sp-btn-row" style="margin-top:6px;">
+        <button class="sp-btn" id="spBtnClearCache" type="button">商品キャッシュ削除</button>
+        <button class="sp-btn" id="spBtnApplyDv" type="button">ステータスのプルダウン適用</button>
+      </div>
+      <div class="sp-log" id="spLog"></div>
+    </div>
+    <div class="sp-section">
+      <div class="sp-section-title">KOMOJU 決済モード</div>
+      <div class="sp-mode-row">
+        <span class="sp-badge" id="spModeBadge">読込中...</span>
+        <button class="sp-btn primary" id="spBtnToggleMode" type="button" disabled>切替</button>
+      </div>
+      <div class="sp-info" id="spModeKeys"></div>
+    </div>
+    <div class="sp-section">
+      <div class="sp-section-title">会員割引</div>
+      <div class="sp-mode-row">
+        <span class="sp-badge" id="spDiscountBadge">読込中...</span>
+        <button class="sp-btn primary" id="spBtnToggleDiscount" type="button" disabled>切替</button>
+      </div>
+      <div class="sp-info" id="spDiscountInfo"></div>
+    </div>
+  </div>
+</div>
+
+<!-- 特定商取引法モーダル -->
+<div class="bulk-overlay" id="legalOverlay"></div>
+<div class="bulk-modal" id="legalModal" style="display:none;">
+  <div class="bulk-modal-header">
+    <div class="bulk-modal-title">特定商取引法に基づく表記</div>
+    <button class="bulk-modal-close" id="legalCloseBtn" type="button">&times;</button>
+  </div>
+  <div class="bulk-modal-body" style="line-height:1.7;">
+    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;width:140px;vertical-align:top;">販売業者</th><td style="padding:12px;border:1px solid #e2e8f0;">西出克利</td></tr>
+      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">運営統括責任者</th><td style="padding:12px;border:1px solid #e2e8f0;">西出克利</td></tr>
+      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">所在地</th><td style="padding:12px;border:1px solid #e2e8f0;">大阪府大東市灰塚4-16-15</td></tr>
+      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">電話番号</th><td style="padding:12px;border:1px solid #e2e8f0;">090-5820-1803</td></tr>
+      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">メールアドレス</th><td style="padding:12px;border:1px solid #e2e8f0;">nkonline1030@gmail.com</td></tr>
+      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">営業時間</th><td style="padding:12px;border:1px solid #e2e8f0;">平日 10:00〜18:00<br><span style="font-size:12px;color:#888;">※土日祝は発送・事務処理休み（メッセージ返信は対応可）</span></td></tr>
+      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">販売価格</th><td style="padding:12px;border:1px solid #e2e8f0;">各商品ページに表示された価格（税込）</td></tr>
+      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">送料</th><td style="padding:12px;border:1px solid #e2e8f0;">地域・サイズにより異なります。</td></tr>
+      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">支払方法</th><td style="padding:12px;border:1px solid #e2e8f0;">クレジットカード（Visa/Mastercard/JCB/AMEX/Diners/Discover）、コンビニ決済、銀行振込、PayPay、ペイジー、Apple Pay</td></tr>
+      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">支払時期</th><td style="padding:12px;border:1px solid #e2e8f0;">クレジットカード・PayPay・Apple Pay：ご注文時に決済<br>コンビニ決済：ご注文後3日以内にお支払い<br>銀行振込・ペイジー：ご注文後3日以内にお振込み</td></tr>
+      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">お客様負担の手数料</th><td style="padding:12px;border:1px solid #e2e8f0;">コンビニ決済：<strong>220円（税込）</strong><br>銀行振込・ペイジー：<strong>振込手数料</strong>はお客様負担<br><span style="font-size:12px;color:#888;">※クレジットカード・PayPay・Apple Pay：手数料なし</span></td></tr>
+      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">商品引渡し時期</th><td style="padding:12px;border:1px solid #e2e8f0;">ご入金確認後、2〜5営業日以内に発送</td></tr>
+      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">返品・交換</th><td style="padding:12px;border:1px solid #e2e8f0;">原則として返品・交換はお受けしておりません。<br>万一、商品内容が記載事項と大きく異なる場合は、商品到着後7日以内にご連絡ください。</td></tr>
+      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">返金について</th><td style="padding:12px;border:1px solid #e2e8f0;">当方の都合による返金の場合、ご利用の決済方法に応じて返金処理を行います。</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- お問い合わせモーダル -->
+<div class="bulk-overlay" id="contactOverlay"></div>
+<div class="bulk-modal" id="contactModal" style="display:none;width:min(500px,94vw);">
+  <div class="bulk-modal-header">
+    <div class="bulk-modal-title">お問い合わせ</div>
+    <button class="bulk-modal-close" id="contactCloseBtn" type="button">&times;</button>
+  </div>
+  <div class="bulk-modal-body">
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#475569;line-height:1.6;">
+      <strong>営業時間</strong>：平日 10:00〜18:00（土日祝は発送・事務処理休み）<br>
+      メッセージへの返信は土日祝も対応しております。2営業日以内にご返信いたします。
+    </div>
+    <div style="margin-bottom:12px;"><label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px;">お名前 *</label><input type="text" id="contactName" placeholder="会社名/氏名" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;"></div>
+    <div style="margin-bottom:12px;"><label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px;">メールアドレス *</label><input type="email" id="contactEmail" placeholder="返信先メールアドレス" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;"></div>
+    <div style="margin-bottom:12px;"><label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px;">お問い合わせ内容 *</label><textarea id="contactMessage" rows="6" placeholder="お問い合わせ内容をご記入ください" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;resize:vertical;"></textarea></div>
+    <div style="text-align:right;"><button id="contactSubmitBtn" type="button" style="padding:10px 24px;border:none;border-radius:10px;background:#1a1a2e;color:#fff;font-size:14px;font-weight:700;cursor:pointer;">送信</button></div>
+  </div>
+</div>
+
 <!-- フッター -->
 <footer class="footer">
   <p>NKonline Apparel / デタウリ.Detauri</p>
-  <p style="margin-top:6px"><a href="#">特定商取引法に基づく表記</a> ｜ <a href="#">お問い合わせ</a></p>
+  <p style="margin-top:6px">
+    <a href="#" id="openLegalLink">特定商取引法に基づく表記</a> ｜
+    <a href="#" id="openContactLink">お問い合わせ</a> ｜
+    <a href="https://nkonline.buyshop.jp/privacy" target="_blank" rel="noopener noreferrer">プライバシーポリシー</a>
+  </p>
 </footer>
 
 </div>
@@ -465,13 +628,15 @@ var BULK_PRODUCT_CACHE_TTL = 5 * 60 * 1000; // 5分
 var GAS_API_URL = 'https://script.google.com/macros/s/AKfycbwLN23a03qQSGA91J-82_6HlIx0kA5yUYFRxjfbjFGfnZDqynKnyJhEPsoISSQps3SmXQ/exec';
 var IS_STANDALONE = (typeof google === 'undefined' || !google.script);
 
+var ADMIN_KEY = ''; try { ADMIN_KEY = localStorage.getItem('_nk_owner_key') || ''; } catch(e) {}
+
 function runApi(fn) {
   var args = Array.prototype.slice.call(arguments, 1);
   if (IS_STANDALONE) {
     return fetch(GAS_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: fn, args: args }),
+      body: JSON.stringify({ action: fn, args: args, adminKey: (typeof ADMIN_KEY !== 'undefined' ? ADMIN_KEY : '') }),
       redirect: 'follow'
     })
     .then(function(res) {
@@ -1728,9 +1893,7 @@ function doLogout_() {
     updateAuthUi_();
   }, 100);
 
-  // 管理者モード: localStorageからキーを読み取り
-  var ADMIN_KEY = '';
-  try { ADMIN_KEY = localStorage.getItem('_nk_owner_key') || ''; } catch(e) {}
+  // 管理者モード: グローバル ADMIN_KEY を参照
   if (ADMIN_KEY) {
     document.body.classList.add('admin-mode');
     var adminBar = document.getElementById('adminBar');
@@ -1744,9 +1907,343 @@ function doLogout_() {
         }
       });
     }
+
+    // --- 管理設定パネル ---
+    (function() {
+      var fab = document.getElementById('adminSettingsFab');
+      var panel = document.getElementById('settingsPanel');
+      var closeBtn = document.getElementById('settingsClose');
+      if (!fab || !panel) return;
+
+      function showToast(msg) { alert(msg); }
+
+      fab.addEventListener('click', function() {
+        var isOpen = panel.classList.contains('open');
+        if (isOpen) { panel.classList.remove('open'); return; }
+        panel.classList.add('open');
+        spLoadKomoju();
+        spLoadDiscount();
+      });
+      if (closeBtn) closeBtn.addEventListener('click', function() { panel.classList.remove('open'); });
+
+      function spLog(msg) {
+        var el = document.getElementById('spLog');
+        if (!el) return;
+        el.style.display = 'block';
+        el.textContent = (el.textContent ? el.textContent + '\n' : '') + msg;
+        el.scrollTop = el.scrollHeight;
+      }
+
+      function spRunAdmin(fn, label) {
+        spLog('実行: ' + label);
+        runApi(fn).then(function(res) {
+          if (res && res.ok) { showToast(label + ' 完了'); spLog('完了'); }
+          else { showToast(res && res.message ? res.message : label + ' 失敗'); spLog('失敗'); }
+        }).catch(function(e) { showToast(e.message || label + ' 失敗'); spLog('失敗: ' + (e.message || '')); });
+      }
+      document.getElementById('spBtnCompact').addEventListener('click', function() { spRunAdmin('adminCompactHolds', '期限切れ確保の整理'); });
+      document.getElementById('spBtnRebuild').addEventListener('click', function() { spRunAdmin('adminRebuildStates', '状態の再構築'); });
+      document.getElementById('spBtnClearCache').addEventListener('click', function() { spRunAdmin('adminClearProductsCache', '商品キャッシュ削除'); });
+      document.getElementById('spBtnApplyDv').addEventListener('click', function() { spRunAdmin('adminApplyStatusDropdown', 'ステータスのプルダウン適用'); });
+
+      // KOMOJU
+      function spUpdateMode(mode, hasTestKey, hasLiveKey) {
+        var badge = document.getElementById('spModeBadge');
+        var btn = document.getElementById('spBtnToggleMode');
+        var keys = document.getElementById('spModeKeys');
+        if (!badge || !btn) return;
+        badge.textContent = (mode === 'live') ? '本番' : 'テスト';
+        badge.className = 'sp-badge ' + (mode === 'live' ? 'live' : 'test');
+        btn.disabled = false;
+        btn.textContent = (mode === 'live') ? 'テストに切替' : '本番に切替';
+        if (keys) keys.textContent = 'テストキー: ' + (hasTestKey ? '設定済' : '未設定') + ' ／ 本番キー: ' + (hasLiveKey ? '設定済' : '未設定');
+      }
+      function spLoadKomoju() {
+        runApi('adminGetKomojuMode').then(function(res) {
+          if (res && res.ok) spUpdateMode(res.mode, res.hasTestKey, res.hasLiveKey);
+          else document.getElementById('spModeBadge').textContent = '取得失敗';
+        }).catch(function() { document.getElementById('spModeBadge').textContent = 'エラー'; });
+      }
+      document.getElementById('spBtnToggleMode').addEventListener('click', function() {
+        var badge = document.getElementById('spModeBadge');
+        var target = (badge.textContent === '本番') ? 'テスト' : '本番';
+        if (!confirm('決済モードを「' + target + '」に切り替えますか？')) return;
+        document.getElementById('spBtnToggleMode').disabled = true;
+        runApi('adminToggleKomojuMode').then(function(res) {
+          if (!res || !res.ok) { showToast(res && res.message ? res.message : '切替失敗'); document.getElementById('spBtnToggleMode').disabled = false; return; }
+          return runApi('adminGetKomojuMode');
+        }).then(function(info) {
+          if (info && info.ok) spUpdateMode(info.mode, info.hasTestKey, info.hasLiveKey);
+          showToast('切替完了');
+        }).catch(function(e) { showToast(e.message || '切替失敗'); document.getElementById('spBtnToggleMode').disabled = false; });
+      });
+
+      // 会員割引
+      function spUpdateDiscount(enabled, rate, endDate, reason) {
+        var badge = document.getElementById('spDiscountBadge');
+        var btn = document.getElementById('spBtnToggleDiscount');
+        var info = document.getElementById('spDiscountInfo');
+        if (!badge || !btn) return;
+        badge.textContent = enabled ? 'ON' : 'OFF';
+        badge.className = 'sp-badge ' + (enabled ? 'on' : 'off');
+        btn.disabled = false;
+        btn.textContent = enabled ? 'OFFにする' : 'ONにする';
+        var t = '割引率: ' + Math.round((rate || 0) * 100) + '% ／ 期限: ' + (endDate || '未設定');
+        if (reason === 'expired') t += '（期限切れ）';
+        if (info) info.textContent = t;
+      }
+      function spLoadDiscount() {
+        runApi('adminGetMemberDiscountStatus').then(function(res) {
+          if (res && res.ok) spUpdateDiscount(res.enabled, res.rate, res.endDate, res.reason);
+          else document.getElementById('spDiscountBadge').textContent = '取得失敗';
+        }).catch(function() { document.getElementById('spDiscountBadge').textContent = 'エラー'; });
+      }
+      document.getElementById('spBtnToggleDiscount').addEventListener('click', function() {
+        var badge = document.getElementById('spDiscountBadge');
+        var target = (badge.textContent === 'ON') ? 'OFF' : 'ON';
+        if (!confirm('会員割引を「' + target + '」に切り替えますか？')) return;
+        document.getElementById('spBtnToggleDiscount').disabled = true;
+        runApi('adminToggleMemberDiscount').then(function(res) {
+          if (!res || !res.ok) { showToast(res && res.message ? res.message : '切替失敗'); document.getElementById('spBtnToggleDiscount').disabled = false; return; }
+          spUpdateDiscount(res.enabled, res.rate, res.endDate, res.reason);
+          showToast(res.message || '切替完了');
+          document.getElementById('spBtnToggleDiscount').disabled = false;
+        }).catch(function(e) { showToast(e.message || '切替失敗'); document.getElementById('spBtnToggleDiscount').disabled = false; });
+      });
+    })();
+  }
+
+  // 特商法モーダル
+  var legalLink = document.getElementById('openLegalLink');
+  var legalModal = document.getElementById('legalModal');
+  var legalOverlay = document.getElementById('legalOverlay');
+  var legalClose = document.getElementById('legalCloseBtn');
+  if (legalLink && legalModal) {
+    legalLink.addEventListener('click', function(e) { e.preventDefault(); legalModal.style.display = 'block'; legalOverlay.classList.add('active'); });
+    legalClose.addEventListener('click', function() { legalModal.style.display = 'none'; legalOverlay.classList.remove('active'); });
+    legalOverlay.addEventListener('click', function() { legalModal.style.display = 'none'; legalOverlay.classList.remove('active'); });
+  }
+
+  // お問い合わせモーダル
+  var contactLink = document.getElementById('openContactLink');
+  var contactModal = document.getElementById('contactModal');
+  var contactOverlay = document.getElementById('contactOverlay');
+  var contactClose = document.getElementById('contactCloseBtn');
+  if (contactLink && contactModal) {
+    contactLink.addEventListener('click', function(e) { e.preventDefault(); contactModal.style.display = 'block'; contactOverlay.classList.add('active'); });
+    contactClose.addEventListener('click', function() { contactModal.style.display = 'none'; contactOverlay.classList.remove('active'); });
+    contactOverlay.addEventListener('click', function() { contactModal.style.display = 'none'; contactOverlay.classList.remove('active'); });
+  }
+
+  // お問い合わせ送信
+  var contactSubmit = document.getElementById('contactSubmitBtn');
+  if (contactSubmit) {
+    contactSubmit.addEventListener('click', function() {
+      var name = (document.getElementById('contactName').value || '').trim();
+      var email = (document.getElementById('contactEmail').value || '').trim();
+      var message = (document.getElementById('contactMessage').value || '').trim();
+      if (!name || !email || !message) { alert('全ての項目を入力してください'); return; }
+      contactSubmit.disabled = true;
+      contactSubmit.textContent = '送信中...';
+      runApi('apiSendContactForm', { name: name, email: email, message: message, page: 'アソート' })
+        .then(function(res) {
+          if (res && res.ok) {
+            alert('お問い合わせを送信しました');
+            document.getElementById('contactName').value = '';
+            document.getElementById('contactEmail').value = '';
+            document.getElementById('contactMessage').value = '';
+            contactModal.style.display = 'none';
+            contactOverlay.classList.remove('active');
+          } else { alert((res && res.message) || '送信に失敗しました'); }
+        })
+        .catch(function(e) { alert(e.message || '送信に失敗しました'); })
+        .finally(function() { contactSubmit.disabled = false; contactSubmit.textContent = '送信'; });
+    });
   }
 })();
 
+</script>
+
+<!-- === AI Chatbot Widget === -->
+<button class="chatbot-fab" id="chatbotFab" type="button" aria-label="チャットで質問する">
+  <span class="chatbot-fab-icon"><svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.2L4 17.2V4h16v12z"/><circle cx="8" cy="10" r="1.2"/><circle cx="12" cy="10" r="1.2"/><circle cx="16" cy="10" r="1.2"/></svg></span>
+  <span class="chatbot-fab-close"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></span>
+  <span class="chatbot-badge" id="chatbotBadge">1</span>
+</button>
+
+<div class="chatbot-panel" id="chatbotPanel">
+  <div class="chatbot-header">
+    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z"/></svg>
+    AIアシスタント
+    <span class="chatbot-header-actions">
+      <button class="chatbot-close-btn" id="chatbotCloseBtn" type="button" aria-label="閉じる">×</button>
+    </span>
+  </div>
+  <div class="chatbot-messages" id="chatbotMessages"></div>
+  <div class="chatbot-input-area">
+    <textarea id="chatbotInput" placeholder="質問を入力してください..." rows="1"></textarea>
+    <button class="chatbot-send-btn" id="chatbotSend" type="button" aria-label="送信"><svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg></button>
+  </div>
+</div>
+
+<script>
+(function(){
+  var fab = document.getElementById('chatbotFab');
+  var panel = document.getElementById('chatbotPanel');
+  var messagesEl = document.getElementById('chatbotMessages');
+  var input = document.getElementById('chatbotInput');
+  var sendBtn = document.getElementById('chatbotSend');
+  var badge = document.getElementById('chatbotBadge');
+  var closeBtn = document.getElementById('chatbotCloseBtn');
+  var isOpen = false;
+  var chatHistory = [];
+  var isSending = false;
+  var greeted = false;
+
+  window.closeChatbot = function(){
+    if (!isOpen) return;
+    isOpen = false;
+    panel.classList.remove('open');
+    fab.classList.remove('open');
+  };
+
+  var FAQ = [
+    { q: '注文方法を教えて', category: '注文・購入', a: '【ご注文方法】\n1. 商品を選んで数量を指定\n2. お届け先を入力\n3. 送料が自動計算されます\n4. お支払い方法を選んで注文確定' },
+    { q: '最低注文数は？', category: '注文・購入', a: 'アソート商品は各商品ごとに最低注文数が設定されています。商品カードに表示されている数量からご注文いただけます。' },
+    { q: '送料はいくら？', category: '送料・配送', a: '送料はお届け先の地域と荷物のサイズによって異なります。住所を入力すると自動計算されます。' },
+    { q: '配送にかかる日数は？', category: '送料・配送', a: '決済完了後、通常2〜5営業日で発送いたします。' },
+    { q: '決済方法は？', category: '決済', a: '【ご利用可能な決済方法】\n・クレジットカード\n・Apple Pay\n・コンビニ決済（別途手数料220円）\n・銀行振込（振込手数料はお客様負担）\n・PayPay\n・ペイジー' },
+    { q: '割引はある？', category: '割引', a: '【割引制度】\n1. 会員登録割引：10%OFF（2026年9月末まで）\n2. クーポンコードによる割引\n\n詳しくはスタッフまでお問い合わせください。' },
+    { q: '会員登録の方法は？', category: '会員', a: '画面上部の「ログイン / 新規登録」ボタンからお手続きいただけます。登録は無料です。' },
+    { q: '返品・交換はできる？', category: 'その他', a: '原則として返品・交換はお受けしておりません。万一、商品内容が記載事項と大きく異なる場合は、商品到着後7日以内にご連絡ください。' },
+    { q: 'デタウリとの違いは？', category: 'その他', a: '【アソートとデタウリの違い】\n・アソート：まとめ買い向け。数量指定で注文。\n・デタウリ：1点ずつ選ぶ個品販売。採寸データ付き。\n\n画面上部のナビから切り替えできます。' }
+  ];
+
+  function addMsg(text, role) {
+    var el = document.createElement('div');
+    el.className = 'chatbot-msg ' + role;
+    el.textContent = text;
+    messagesEl.appendChild(el);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    chatHistory.push({ role: role, text: text });
+  }
+
+  function showQuickReplies() {
+    var cats = {};
+    FAQ.forEach(function(f) { if (!cats[f.category]) cats[f.category] = []; cats[f.category].push(f); });
+    var wrap = document.createElement('div');
+    Object.keys(cats).forEach(function(cat) {
+      var catLabel = document.createElement('div');
+      catLabel.className = 'chatbot-quick-category';
+      catLabel.textContent = cat;
+      wrap.appendChild(catLabel);
+      cats[cat].forEach(function(f) {
+        var btn = document.createElement('button');
+        btn.className = 'chatbot-quick-btn';
+        btn.textContent = f.q;
+        btn.addEventListener('click', function() {
+          wrap.remove();
+          addMsg(f.q, 'user');
+          setTimeout(function() { addMsg(f.a, 'bot'); showQuickReplies(); }, 300);
+        });
+        wrap.appendChild(btn);
+      });
+    });
+    var contactBtn = document.createElement('a');
+    contactBtn.className = 'chatbot-contact-link';
+    contactBtn.textContent = 'お問い合わせフォーム';
+    contactBtn.href = '#';
+    contactBtn.addEventListener('click', function(e) {
+      e.preventDefault();
+      window.closeChatbot();
+      var cl = document.getElementById('openContactLink');
+      if (cl) cl.click();
+    });
+    wrap.appendChild(contactBtn);
+    messagesEl.appendChild(wrap);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function greet() {
+    if (greeted) return;
+    greeted = true;
+    addMsg('こんにちは！アソート商品についてご質問があればお気軽にどうぞ。\n下のボタンからよくある質問を選ぶか、自由に入力してください。', 'bot');
+    showQuickReplies();
+    badge.classList.add('show');
+  }
+
+  fab.addEventListener('click', function() {
+    isOpen = !isOpen;
+    if (isOpen) {
+      panel.classList.add('open');
+      fab.classList.add('open');
+      badge.classList.remove('show');
+      if (!greeted) greet();
+      setTimeout(function() { input.focus(); }, 200);
+    } else {
+      panel.classList.remove('open');
+      fab.classList.remove('open');
+    }
+  });
+
+  closeBtn.addEventListener('click', function() { window.closeChatbot(); });
+
+  function sendMessage() {
+    var text = (input.value || '').trim();
+    if (!text || isSending) return;
+    input.value = '';
+    addMsg(text, 'user');
+    isSending = true;
+    sendBtn.disabled = true;
+
+    // FAQ match
+    var lower = text.toLowerCase();
+    var matched = null;
+    FAQ.forEach(function(f) {
+      if (!matched && (lower.indexOf(f.q.substring(0, 4)) !== -1 || f.q.indexOf(text.substring(0, 4)) !== -1)) matched = f;
+    });
+
+    if (matched) {
+      setTimeout(function() {
+        addMsg(matched.a, 'bot');
+        showQuickReplies();
+        isSending = false;
+        sendBtn.disabled = false;
+      }, 400);
+      return;
+    }
+
+    // API chatbot call
+    var typing = document.createElement('div');
+    typing.className = 'chatbot-msg typing';
+    typing.innerHTML = '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
+    messagesEl.appendChild(typing);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+
+    runApi('apiChatbot', text, chatHistory.slice(-10))
+      .then(function(res) {
+        typing.remove();
+        addMsg((res && res.reply) || 'すみません、回答を取得できませんでした。', 'bot');
+        showQuickReplies();
+      })
+      .catch(function() {
+        typing.remove();
+        addMsg('通信エラーが発生しました。もう一度お試しください。', 'bot');
+      })
+      .finally(function() { isSending = false; sendBtn.disabled = false; });
+  }
+
+  sendBtn.addEventListener('click', sendMessage);
+  input.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+  input.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 80) + 'px';
+  });
+
+  setTimeout(function() { badge.classList.add('show'); }, 3000);
+})();
 </script>
 </body>
 </html>
