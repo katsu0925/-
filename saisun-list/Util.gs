@@ -1,3 +1,4 @@
+// Util.gs
 function app_measureOptLabel_(measureOpt) {
   const v = String(measureOpt || '');
   return (v === 'without') ? '無し' : '付き';

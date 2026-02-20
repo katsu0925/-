@@ -1,3 +1,4 @@
+// BASE_注文→依頼管理.gs
 function syncBaseOrdersToIraiKanri() {
   // XLSX商品（選べるパッケージのアソート商品）も依頼管理に反映する（選択リストは管理者が後から紐付け）
   const ORDER_STATUS_COL_1BASED = 7;

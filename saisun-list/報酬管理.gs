@@ -1,3 +1,4 @@
+// 報酬管理.gs
 const REWARD_CONFIG = {
   // APP_CONFIG.data.spreadsheetId から取得（一元管理）
   get SPREADSHEET_ID() { return String(APP_CONFIG.data.spreadsheetId || ''); },

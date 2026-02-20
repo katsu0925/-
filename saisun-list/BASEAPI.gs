@@ -1,3 +1,4 @@
+// BASEAPI.gs
 const BASE_APP = {
   API_BASE: 'https://api.thebase.in',
   AUTH_PATH: '/1/oauth/authorize',

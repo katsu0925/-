@@ -1,3 +1,4 @@
+// Triggers.gs
 function ad_initAdminOwnerAndKeyOnce() {
   const email = String((Session.getEffectiveUser && Session.getEffectiveUser().getEmail ? Session.getEffectiveUser().getEmail() : '') || '').trim() ||
                 String((Session.getActiveUser && Session.getActiveUser().getEmail ? Session.getActiveUser().getEmail() : '') || '').trim();

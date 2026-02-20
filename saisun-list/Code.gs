@@ -1,3 +1,4 @@
+// Code.gs
 // APP_CONFIG.data.spreadsheetId と同じスプレッドシートをログ先に使用
 var LOG_SPREADSHEET_ID = String(APP_CONFIG.data.spreadsheetId || '');
 const LOG_SHEET_NAME = "アクセスログ";

@@ -1,3 +1,4 @@
+// Config.gs
 // === Config.gs 全体抜粋 ===
 const APP_CONFIG = {
   appTitle: 'デタウリ.Detauri',

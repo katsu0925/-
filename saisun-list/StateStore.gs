@@ -1,3 +1,4 @@
+// StateStore.gs
 function pr_productsVersionKey_() {
   return 'PRODUCTS_VERSION_V1:' + String(APP_CONFIG.data.spreadsheetId);
 }

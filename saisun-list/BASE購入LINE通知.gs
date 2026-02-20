@@ -1,3 +1,4 @@
+// BASE購入LINE通知.gs
 function getLineAccessToken_() {
   return PropertiesService.getScriptProperties().getProperty('LINE_ACCESS_TOKEN') || '';
 }

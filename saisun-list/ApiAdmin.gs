@@ -1,3 +1,4 @@
+// ApiAdmin.gs
 function apiAdminRebuildStates(adminKey) {
   try {
     ad_requireAdmin_(adminKey);

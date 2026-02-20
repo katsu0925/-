@@ -1,3 +1,4 @@
+// Orders.gs
 // st_invalidateStatusCache_, st_getOpenSetFast_, st_buildNeedles_,
 // st_getSelectedBrandKeys_, st_searchPage_, st_buildDigestMap_
 // は Status.gs で定義済み

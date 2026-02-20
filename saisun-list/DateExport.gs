@@ -1,5 +1,6 @@
+// DateExport.gs
 /**
- * DataExport.gs
+ * DateExport.gs
  * 
  * スプレッドシートのデータをJSONファイルとしてGoogle Driveに保存
  * 5分ごとにトリガーで自動実行
