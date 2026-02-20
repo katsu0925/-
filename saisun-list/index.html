@@ -54,14 +54,29 @@
     .pw-toggle{position:absolute;right:6px;background:none;border:none;cursor:pointer;font-size:16px;padding:4px;opacity:0.5;line-height:1;}
     .pw-toggle:hover{opacity:0.8;}
     .pw-toggle.active{opacity:1;}
-    .topbar{position:sticky;top:0;z-index:20;background:#1e293b;border-bottom:1px solid #334155;padding:12px 14px;}
+    .topbar{position:sticky;top:0;z-index:20;background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:18px 20px 12px;text-align:center;}
+    .topbar h1{font-size:20px;letter-spacing:2px;font-weight:700;margin:0;color:#fff;}
+    .topbar .subtitle{font-size:12px;color:#aab;margin-top:4px;}
+    .header-nav{display:flex;justify-content:center;gap:10px;margin-top:12px;}
+    .header-nav a{color:#fff;text-decoration:none;font-size:12px;padding:6px 16px;border:1px solid rgba(255,255,255,.3);border-radius:20px;transition:all .2s;}
+    .header-nav a.active{background:#ffd700;color:#1a1a2e;border-color:#ffd700;font-weight:700;}
+    .header-links{display:flex;justify-content:center;gap:16px;margin-top:10px;}
+    .header-links a{color:#93c5fd;text-decoration:none;font-size:12px;font-weight:600;transition:color .2s;}
+    .header-links a:hover{color:#bfdbfe;}
     .admin-bar{background:#b8002a;color:#fff;text-align:center;padding:6px 14px;font-size:12px;font-weight:700;letter-spacing:1px;display:none;position:sticky;top:0;z-index:21;}
     .admin-bar span{background:rgba(255,255,255,.2);padding:2px 8px;border-radius:4px;margin-left:8px;font-size:11px;font-weight:400;}
     .admin-bar .admin-exit{background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.5);color:#fff;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:700;cursor:pointer;margin-left:10px;}
     .admin-bar .admin-exit:hover{background:rgba(255,255,255,.4);}
     body.admin-mode .topbar{border-top:3px solid #b8002a;}
-    .wrap{margin:0 auto;padding:12px 14px 90px;}
-        .title{font-weight:900;font-size:18px;color:#f1f5f9;}
+    @media(min-width:768px){
+      .topbar{padding:20px 40px 14px;}
+      .topbar h1{font-size:26px;}
+      .topbar .subtitle{font-size:13px;}
+      .header-nav a{font-size:13px;padding:8px 20px;}
+      .header-links a{font-size:13px;}
+    }
+    .wrap{max-width:1100px;margin:0 auto;padding:12px 14px 90px;}
+    .title{font-weight:900;font-size:18px;color:#f1f5f9;}
     .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
     .field{min-width:170px;flex:1 1 170px;}
     .field.big{min-width:240px;flex:2 1 240px;}
@@ -130,15 +145,15 @@
     .mainRecommendList{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;}
     .mainRecommendList .recommendCard{width:120px;}
     .mainRecommendList .recommendCard img{width:120px;height:120px;}
-    .authArea{display:flex;align-items:center;gap:10px;font-size:13px;}
-    .authBtn{background:#334155;border:1px solid #475569;border-radius:8px;padding:8px 14px;cursor:pointer;font-weight:900;font-size:13px;color:#f1f5f9;}
-    .authBtn:hover{background:#475569;}
-    .authBtn.logout{background:transparent;border:none;color:#94a3b8;text-decoration:underline;padding:4px 8px;}
+    .authArea{display:flex;align-items:center;justify-content:center;gap:10px;font-size:13px;margin-top:10px;}
+    .authBtn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);border-radius:20px;padding:6px 16px;cursor:pointer;font-weight:700;font-size:12px;color:#fff;transition:all .2s;}
+    .authBtn:hover{background:rgba(255,255,255,.2);}
+    .authBtn.logout{background:transparent;border:1px solid rgba(255,255,255,.2);color:#94a3b8;text-decoration:none;padding:4px 12px;border-radius:20px;font-size:11px;}
     .authUser{display:flex;align-items:center;gap:8px;}
     .authUserName{font-weight:900;color:#f1f5f9;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .authDiscount{background:#b8002a;color:#fff;font-size:11px;padding:2px 6px;border-radius:4px;font-weight:900;}
     .authPoints{background:#e65100;color:#fff;font-size:11px;padding:2px 6px;border-radius:4px;font-weight:900;}
-    .authBtn.mypage{background:#475569;font-size:12px;padding:4px 10px;}
+    .authBtn.mypage{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);font-size:11px;padding:4px 12px;border-radius:20px;}
     .cart-summary{background:#f8f9fa;border-radius:12px;padding:14px;margin-top:10px;}
     .cart-row{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid #eee;}
     .cart-row:last-child{border-bottom:none;}
@@ -464,23 +479,21 @@
     <button class="promo-close" id="promoClose" type="button">✕</button>
   </div>
   <div class="topbar">
-    <div class="wrap" style="padding:0 14px;">
-      <div style="display:flex; justify-content:space-between; gap:10px; align-items:center; flex-wrap:wrap;">
-        <div style="display:flex; align-items:flex-end; gap:10px;">
-          <div class="title" id="appTitle">デタウリ.Detauri</div>
-          <div class="badge ok" id="totalCountBadge"></div>
-        </div>
-        <div class="authArea" id="authArea">
-          <button class="authBtn" id="openAuthBtn" type="button">ログイン/新規登録</button>
-        </div>
-      </div>
-      <div style="display:flex; gap:16px; margin-top:8px; flex-wrap:wrap; align-items:center;">
-        <a href="?page=bulk" id="bulkLink" target="_top" onclick="navigateToBulk(event)" style="font-size:13px; font-weight:700; color:#ffd700; text-decoration:none; background:rgba(255,215,0,.12); padding:4px 10px; border-radius:8px;">アソート商品</a>
-        <a href="#" id="openGuideLink" style="font-size:13px; font-weight:600; color:#93c5fd; text-decoration:none;">商品ガイド</a>
-        <a href="#" id="openShippingLink" style="font-size:13px; font-weight:600; color:#93c5fd; text-decoration:none;">送料表</a>
-        <a href="#" id="openContactLink" style="font-size:13px; font-weight:600; color:#93c5fd; text-decoration:none;">お問い合わせ</a>
-      </div>
+    <h1 id="appTitle">デタウリ.Detauri</h1>
+    <p class="subtitle">古着卸売 - 副業物販のための仕入れ</p>
+    <nav class="header-nav">
+      <a class="active" href="#">採寸付き個品（デタウリ）</a>
+      <a href="?page=bulk" id="bulkLink" target="_top" onclick="navigateToBulk(event)">アソート商品</a>
+    </nav>
+    <div class="header-links">
+      <a href="#" id="openGuideLink">商品ガイド</a>
+      <a href="#" id="openShippingLink">送料表</a>
+      <a href="#" id="openContactLink">お問い合わせ</a>
     </div>
+    <div class="authArea" id="authArea">
+      <button class="authBtn" id="openAuthBtn" type="button">ログイン / 新規登録</button>
+    </div>
+    <div class="badge ok" id="totalCountBadge" style="display:inline-block;margin-top:8px;"></div>
   </div>
 
   <div class="wrap">
