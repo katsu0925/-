@@ -54,7 +54,7 @@
     .pw-toggle{position:absolute;right:6px;background:none;border:none;cursor:pointer;font-size:16px;padding:4px;opacity:0.5;line-height:1;}
     .pw-toggle:hover{opacity:0.8;}
     .pw-toggle.active{opacity:1;}
-    .topbar{position:sticky;top:0;z-index:100;background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:18px 20px 12px;text-align:center;}
+    .topbar{position:sticky;top:0;z-index:100;background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:18px 20px 12px;text-align:center;max-width:1100px;margin:0 auto;}
     .topbar h1{font-size:20px;letter-spacing:2px;font-weight:700;margin:0;color:#fff;}
     .topbar .subtitle{font-size:12px;color:#aab;margin-top:4px;}
     .header-nav{display:flex;justify-content:center;gap:10px;margin-top:12px;}
@@ -156,6 +156,11 @@
     .authBtn.mypage{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);font-size:11px;padding:4px 12px;border-radius:20px;}
     .footer{background:#1a1a2e;color:#888;text-align:center;padding:20px;font-size:11px;margin-top:40px;}
     .footer a{color:#aab;text-decoration:none;}
+    #pageTransition{position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,#1a1a2e,#16213e);z-index:9999;display:flex;justify-content:center;align-items:center;opacity:0;pointer-events:none;transition:opacity .25s ease;}
+    #pageTransition.active,body.page-entering #pageTransition{opacity:1;pointer-events:all;}
+    #pageTransition .pt-content{text-align:center;color:#fff;}
+    #pageTransition .pt-title{font-size:20px;font-weight:700;letter-spacing:2px;}
+    #pageTransition .pt-sub{font-size:12px;color:#aab;margin-top:6px;}
     .cart-summary{background:#f8f9fa;border-radius:12px;padding:14px;margin-top:10px;}
     .cart-row{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid #eee;}
     .cart-row:last-child{border-bottom:none;}
@@ -363,6 +368,8 @@
 </head>
 <body>
 <script>
+// ページ遷移フラッシュ防止: 遷移フラグがあればbody背景を暗くしオーバーレイ表示
+(function(){try{if(sessionStorage.getItem('_pageTransition')==='1'){document.body.style.background='#1a1a2e';document.body.classList.add('page-entering');sessionStorage.removeItem('_pageTransition');}}catch(e){}})();
 // クライアントサイドルーター: ?page=bulk の場合、BulkLP.htmlを動的に読み込む
 // 1. localStorageにキャッシュ済みHTML → 即座に表示（GAS API不要）
 // 2. 初回のみGAS APIから取得 → キャッシュに保存
@@ -476,6 +483,7 @@
       </div>
     </div>
   </div>
+  <div id="pageTransition"><div class="pt-content"><div class="pt-title">デタウリ.Detauri</div><div class="pt-sub">読み込み中...</div></div></div>
   <div class="promo-banner" id="promoBanner">
     期間限定：会員登録で全品<strong>10%OFF</strong>（2026年9月末まで・30点割引と併用可）<a href="#" id="promoRegisterLink">今すぐ無料登録 ＞</a>
     <button class="promo-close" id="promoClose" type="button">✕</button>
@@ -5233,9 +5241,17 @@ function logPageView_() {
 // =====================================================
 function navigateToBulk(e) {
   e.preventDefault();
-  // 同じドメイン上で ?page=bulk に遷移（standalone / GAS共通）
   var base = window.location.origin + window.location.pathname;
-  window.location.href = base + '?page=bulk';
+  var url = base + '?page=bulk';
+  try { sessionStorage.setItem('_pageTransition', '1'); } catch(e) {}
+  var overlay = document.getElementById('pageTransition');
+  if (overlay) {
+    overlay.querySelector('.pt-sub').textContent = 'アソート商品を読み込み中...';
+    overlay.classList.add('active');
+    setTimeout(function() { window.location.href = url; }, 200);
+  } else {
+    window.location.href = url;
+  }
 }
 
 // =====================================================
@@ -5276,6 +5292,12 @@ function boot() {
   } else {
     renderLoadingGrid_();
   }
+
+  // ページ遷移オーバーレイのフェードアウト
+  document.body.classList.remove('page-entering');
+  document.body.style.background = '';
+  var pt = document.getElementById('pageTransition');
+  if (pt) { pt.classList.remove('active'); }
 
   // 最新データをバックグラウンドで取得（最優先）
   loadProductData()
