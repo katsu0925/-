@@ -55,6 +55,23 @@ function runAllTests() {
   return { pass: totalPass, fail: totalFail, results: results };
 }
 
+/**
+ * テスト実行前にENVを "development" に設定するヘルパー。
+ * GASエディタから setEnvDevelopment() → runAllTests() の順で実行してください。
+ */
+function setEnvDevelopment() {
+  PropertiesService.getScriptProperties().setProperty('ENV', 'development');
+  console.log('ENV を "development" に設定しました。runAllTests() を実行してください。');
+}
+
+/**
+ * テスト完了後にENVを "production" に戻すヘルパー。
+ */
+function setEnvProduction() {
+  PropertiesService.getScriptProperties().setProperty('ENV', 'production');
+  console.log('ENV を "production" に戻しました。');
+}
+
 // =====================================================
 // テストヘルパー
 // =====================================================
