@@ -56,9 +56,11 @@
     .pw-toggle.active{opacity:1;}
     /* === A案 4-Row Header (Mobile) / 3-Row Header (Desktop) === */
     .topbar{background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;position:sticky;top:0;z-index:100;max-width:1100px;margin:0 auto;}
-    .topbar-row1{display:flex;align-items:center;justify-content:center;gap:4px 12px;padding:6px 16px;flex-wrap:wrap;}
+    .topbar-row1{display:flex;align-items:center;justify-content:center;gap:4px 12px;padding:6px 16px;flex-wrap:wrap;position:relative;}
     .topbar-logo{font-size:15px;font-weight:800;white-space:nowrap;margin:0;letter-spacing:1px;color:#fff;flex-shrink:0;width:100%;text-align:center;max-height:30px;overflow:hidden;opacity:1;transition:max-height .25s ease,opacity .25s ease;}
     .topbar.row2-hidden .topbar-logo{max-height:0;opacity:0;}
+    .topbar-mob-count{display:inline-block;position:absolute;right:16px;top:6px;font-size:10px;padding:2px 8px;}
+    .topbar.row2-hidden .topbar-mob-count{display:none;}
     .topbar-nav{display:flex;gap:6px;flex-shrink:0;}
     .topbar-nav a{color:#93c5fd;text-decoration:none;font-size:11px;padding:4px 12px;border-radius:20px;border:1px solid rgba(255,255,255,.15);transition:all .2s;white-space:nowrap;}
     .topbar-nav a.active{background:#ffd700;color:#1a1a2e;border-color:#ffd700;font-weight:700;}
@@ -75,7 +77,8 @@
     .admin-bar .admin-exit:hover{background:rgba(255,255,255,.4);}
     @media(min-width:768px){
       body{background:#e0e0e0;}
-      .topbar-row1{display:grid;grid-template-columns:1fr auto 1fr;padding:10px 24px;gap:12px;align-items:center;}
+      .topbar-row1{display:grid;grid-template-columns:1fr auto 1fr;padding:10px 24px;gap:12px;align-items:center;position:static;}
+      .topbar-mob-count{display:none !important;}
       .topbar-logo{font-size:17px;width:auto;text-align:left;max-height:none;overflow:visible;transition:none;opacity:1;justify-self:start;}
       .topbar.row2-hidden .topbar-logo{max-height:none;opacity:1;}
       .topbar-nav{justify-self:center;}
@@ -242,19 +245,12 @@
     .brandItem .brand-check::after{content:'✓';color:#fff;font-size:13px;font-weight:700;opacity:0;transition:opacity .15s;}
     .brandItem.selected .brand-check::after{opacity:1;}
     .brandName{font-weight:600;line-height:1.3;word-break:break-word;color:#334155;}
-    .toTop{position:fixed;right:14px;bottom:16px;width:46px;height:46px;border-radius:999px;border:1px solid #d9deea;background:#fff;display:none;align-items:center;justify-content:center;font-weight:900;z-index:150;box-shadow:0 6px 18px rgba(0,0,0,.12);transition:bottom .3s ease,opacity .3s ease;}
+    .toTop{position:fixed;right:14px;bottom:140px;width:46px;height:46px;border-radius:999px;border:1px solid #d9deea;background:#fff;display:none;align-items:center;justify-content:center;font-weight:900;z-index:150;box-shadow:0 6px 18px rgba(0,0,0,.12);transition:bottom .3s ease,opacity .3s ease;}
     .toTop.show{display:flex;}
     .toTop.chatbot-open{right:auto;left:auto;bottom:auto;position:static;}
-    /* FABスクロール連動: デフォルトは非表示（下に隠す） */
-    .stickyBar{transition:transform .3s ease;transform:translateY(200px);}
-    .chatbot-fab{transition:transform .3s ease,background .2s;transform:translateY(200px);}
+    /* お役立ちFABのみスクロール連動（カート・チャットボットは常時表示） */
     .article-fab{transition:transform .3s ease,box-shadow .2s;transform:translateY(200px);}
-    /* 上スクロール時: FABを表示 */
-    body.fabs-visible .stickyBar{transform:translateY(0);}
-    body.fabs-visible .chatbot-fab{transform:translateY(0);}
     body.fabs-visible .article-fab{transform:translateY(0);}
-    /* スクロールボタンの位置: FAB表示時は上に押し上げ */
-    body.fabs-visible .toTop.show{bottom:140px;}
     .price-old { text-decoration: line-through; color:#999; }
     .price-new { color:#b8002a; font-weight:700; }
     /* フィルタ・ソート — フラットツールバー */
@@ -450,6 +446,7 @@
   <div class="topbar">
     <div class="topbar-row1">
       <h1 class="topbar-logo" id="appTitle">デタウリ.Detauri</h1>
+      <span class="topbar-mob-count badge ok" id="totalCountBadgeMobLogo"></span>
       <nav class="topbar-nav">
         <a class="active" href="#">採寸付き個品（デタウリ）</a>
         <a href="?page=bulk" id="bulkLink" target="_top" onclick="navigateToBulk(event)">アソート商品</a>
@@ -3358,6 +3355,8 @@ function getCurrentPageItems_() {
 function updateTotalCountBadge_(total) {
   var el = $('totalCountBadge');
   if (el) el.textContent = total ? ('商品点数：' + total + '点') : '';
+  var mobEl = $('totalCountBadgeMobLogo');
+  if (mobEl) { mobEl.textContent = total ? (total + '点') : ''; mobEl.style.display = total ? '' : 'none'; }
 }
 
 function renderLoadingGrid_() {
@@ -5293,7 +5292,7 @@ function logPageView_() {
 // アソート商品ページへの遷移（document.write方式）
 // =====================================================
 var _cachedBulkHtml = null;
-var BULK_HTML_CACHE_KEY = 'page_html_bulk_v4';
+var BULK_HTML_CACHE_KEY = 'page_html_bulk_v5';
 var PAGE_HTML_CACHE_TTL = 10 * 60 * 1000; // 10分
 
 function loadBulkHtmlCache_() {
@@ -6245,7 +6244,12 @@ body.admin-mode .article-panel{bottom:186px;}
   function showDetailView(){listView.style.display='none';detailView.classList.add('active');}
   function fetchArticles(){if(!articlesLoaded){loadingEl.style.display='block';emptyEl.style.display='none';listEl.innerHTML='';}articleFetch('apiGetArticles').then(function(r){loadingEl.style.display='none';articlesLoaded=true;if(!r||!r.ok||!r.articles||r.articles.length===0){if(!articlesData.length)emptyEl.style.display='block';return;}articlesData=r.articles;saveArticlesCache_(r.articles);renderList(articlesData);updateBadge();}).catch(function(){loadingEl.style.display='none';if(!articlesData.length){emptyEl.textContent='記事の読み込みに失敗しました。';emptyEl.style.display='block';}});}
   function renderList(articles){listEl.innerHTML='';if(!articles.length){emptyEl.style.display='block';return;}emptyEl.style.display='none';for(var i=0;i<articles.length;i++){var a=articles[i];var li=document.createElement('li');li.className='article-list-item';li.setAttribute('data-article-id',a.id);li.innerHTML='<div class="article-item-header"><span class="article-item-emoji">'+esc(a.emoji)+'</span><span class="article-item-title">'+esc(a.title)+'</span></div><div class="article-item-meta"><span class="article-item-date">'+esc(fmtDate(a.publishDate))+'</span><span class="article-item-category">'+esc(a.category)+'</span></div><div class="article-item-summary">'+esc(a.summary)+'</div>';li.addEventListener('click',(function(id){return function(){loadDetail(id);};})(a.id));listEl.appendChild(li);}}
-  function loadDetail(id){showDetailView();if(detailCache[id]){renderDetail(detailCache[id]);return;}detailHeader.innerHTML='';detailContent.innerHTML='<div class="article-loading"><div class="article-loading-spinner"></div><div>記事を読み込み中...</div></div>';articleFetch('apiGetArticleContent',id).then(function(r){if(!r||!r.ok||!r.article){detailContent.innerHTML='<div class="article-empty">記事の読み込みに失敗しました。</div>';return;}detailCache[id]=r.article;renderDetail(r.article);}).catch(function(){detailContent.innerHTML='<div class="article-empty">記事の読み込みに失敗しました。</div>';});}
+  var LS_CONTENT='detauri_article_contents';
+  function loadContentCache_(){try{var r=localStorage.getItem(LS_CONTENT);return r?JSON.parse(r):{};}catch(e){return {};}}
+  function saveContentCache_(){try{localStorage.setItem(LS_CONTENT,JSON.stringify(detailCache));}catch(e){}}
+  // ページ起動時にlocalStorageから記事本文キャッシュを復元
+  try{var _cc=loadContentCache_();if(_cc){for(var _k in _cc)if(_cc.hasOwnProperty(_k))detailCache[_k]=_cc[_k];}}catch(e){}
+  function loadDetail(id){showDetailView();if(detailCache[id]){renderDetail(detailCache[id]);return;}detailHeader.innerHTML='';detailContent.innerHTML='<div class="article-loading"><div class="article-loading-spinner"></div><div>記事を読み込み中...</div></div>';articleFetch('apiGetArticleContent',id).then(function(r){if(!r||!r.ok||!r.article){detailContent.innerHTML='<div class="article-empty">記事の読み込みに失敗しました。</div>';return;}detailCache[id]=r.article;saveContentCache_();renderDetail(r.article);}).catch(function(){detailContent.innerHTML='<div class="article-empty">記事の読み込みに失敗しました。</div>';});}
   function renderDetail(a){var th='';if(a.tags){var ta=a.tags.split(','),p=[];for(var i=0;i<ta.length;i++){var t=ta[i].trim();if(t)p.push('#'+esc(t));}th='<span class="article-detail-tags">'+p.join(' ')+'</span>';}detailHeader.innerHTML='<div class="article-detail-title">'+esc(a.emoji)+' '+esc(a.title)+'</div><div class="article-detail-meta"><span class="article-detail-date">'+esc(fmtDate(a.publishDate))+'</span><span class="article-detail-category">'+esc(a.category)+'</span>'+th+'</div>';detailContent.innerHTML=san(a.content);}
   function esc(t){var d=document.createElement('div');d.appendChild(document.createTextNode(t||''));return d.innerHTML;}
   function san(h){var s=String(h||'');s=s.replace(/<script[\s\S]*?<\/script>/gi,'');s=s.replace(/<style[\s\S]*?<\/style>/gi,'');s=s.replace(/<iframe[\s\S]*?<\/iframe>/gi,'');s=s.replace(/<object[\s\S]*?<\/object>/gi,'');s=s.replace(/<embed[\s\S]*?>/gi,'');s=s.replace(/<link[\s\S]*?>/gi,'');s=s.replace(/\son\w+\s*=\s*"[^"]*"/gi,'');s=s.replace(/\son\w+\s*=\s*'[^']*'/gi,'');s=s.replace(/\son\w+\s*=[^\s>]*/gi,'');s=s.replace(/javascript\s*:/gi,'');return s;}
