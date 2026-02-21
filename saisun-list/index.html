@@ -5305,7 +5305,7 @@ function logPageView_() {
 // アソート商品ページへの遷移（document.write方式）
 // =====================================================
 var _cachedBulkHtml = null;
-var BULK_HTML_CACHE_KEY = 'page_html_bulk_v7';
+var BULK_HTML_CACHE_KEY = 'page_html_bulk_v8';
 var PAGE_HTML_CACHE_TTL = 10 * 60 * 1000; // 10分
 
 function loadBulkHtmlCache_() {
@@ -6131,7 +6131,7 @@ s0.parentNode.insertBefore(s1,s0);
 })();
 </script>
 <!--End of Tawk.to Script-->
-<!-- === 物販お役立ち情報 === -->
+<!-- === 副業物販お役立ち情報 === -->
 <style>
 .article-fab{position:fixed;left:16px;bottom:76px;z-index:90;display:flex;align-items:center;gap:6px;padding:8px 12px;border-radius:999px;background:rgba(30,41,59,.75);color:#fff;border:none;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.15);font-weight:600;font-size:12px;font-family:inherit;line-height:1.2;white-space:nowrap;transition:transform .2s,box-shadow .2s;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
 .article-fab:hover{transform:scale(1.05);box-shadow:0 4px 12px rgba(0,0,0,.2);}
@@ -6209,13 +6209,13 @@ body.admin-mode .article-panel{bottom:186px;}
   body.admin-mode .article-panel{top:0;bottom:0;width:calc(50vw - 550px);max-width:320px;min-width:200px;}
 }
 </style>
-<button class="article-fab" id="articleFab" type="button" aria-label="物販お役立ち情報">
+<button class="article-fab" id="articleFab" type="button" aria-label="副業物販お役立ち情報">
   <span class="article-fab-emoji">💡</span>
   <span class="article-fab-badge" id="articleBadge"></span>
 </button>
 <div class="article-panel" id="articlePanel">
   <div class="article-panel-header">
-    <span class="article-panel-title">💡 物販お役立ち情報</span>
+    <span class="article-panel-title">💡 副業物販お役立ち情報</span>
     <button class="article-panel-close" id="articlePanelClose" type="button" aria-label="閉じる">&times;</button>
   </div>
   <div class="article-search" id="articleSearch">
@@ -6250,21 +6250,21 @@ body.admin-mode .article-panel{bottom:186px;}
   function saveArticlesCache_(articles){try{localStorage.setItem(LS_ARTICLES,JSON.stringify({ts:Date.now(),articles:articles}));}catch(e){}}
   function positionSidebar(){if(!panel||!isDesktop)return;var wrap=document.querySelector('.wrap');if(!wrap)return;var wl=wrap.getBoundingClientRect().left;var w=Math.min(320,Math.max(200,wl));panel.style.left=(wl-w)+'px';panel.style.width=w+'px';panel.style.maxWidth=w+'px';panel.style.right='auto';}
   // localStorageから即座に記事を復元（ページ遷移後も即表示）
-  var _cached=loadArticlesCache_();if(_cached){articlesData=_cached;articlesLoaded=true;renderList(articlesData);loadingEl.style.display='none';updateBadge();setTimeout(prefetchAllContents,3000);}
+  var _cached=loadArticlesCache_();if(_cached){articlesData=_cached;articlesLoaded=true;renderList(articlesData);loadingEl.style.display='none';updateBadge();if(isDesktop)setTimeout(prefetchAllContents,3000);}
   if(isDesktop){positionSidebar();window.addEventListener('resize',positionSidebar);}
   // 記事API: fetchを優先し、失敗時はrunApiにフォールバック（document.write遷移後も安定動作）
   var _articleApiUrl=(typeof GAS_API_URL!=='undefined')?GAS_API_URL:'https://script.google.com/macros/s/AKfycbwLN23a03qQSGA91J-82_6HlIx0kA5yUYFRxjfbjFGfnZDqynKnyJhEPsoISSQps3SmXQ/exec';
   function articleFetch(action,arg){var body={action:action,args:arg?[arg]:[]};return fetch(_articleApiUrl,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(body),redirect:'follow'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).catch(function(e){if(typeof runApi==='function')return runApi(action,arg);throw e;});}
   function fmtDate(s){if(!s)return '';var str=String(s);if(/^\d{4}\/\d{2}\/\d{2}\(.\)$/.test(str))return str;var d=new Date(str);if(isNaN(d.getTime()))return str;var dd=['日','月','火','水','木','金','土'];return d.getFullYear()+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0')+'('+dd[d.getDay()]+')';}
   function updateBadge(){if(!badge)return;try{var lr=localStorage.getItem(LS_LAST_READ)||'';if(!lr||!articlesData.length){badge.style.display='none';return;}var u=0;for(var i=0;i<articlesData.length;i++){var pd=String(articlesData[i].publishDate||'').replace(/\(.\)/,'').replace(/\//g,'-');if(pd>lr)u++;}if(u>0){badge.textContent=u>9?'9+':String(u);badge.style.display='flex';}else{badge.style.display='none';}}catch(e){badge.style.display='none';}}
-  if(isDesktop){fetchArticles();}else{if(fab)fab.addEventListener('click',function(){if(isOpen)closePanel();else openPanel();});if(closeBtn)closeBtn.addEventListener('click',function(){closePanel();});setTimeout(function(){if(!articlesLoaded){articleFetch('apiGetArticles').then(function(r){if(r&&r.ok&&r.articles){articlesData=r.articles;articlesLoaded=true;updateBadge();setTimeout(prefetchAllContents,2000);}}).catch(function(){});}},3000);}
+  if(isDesktop){fetchArticles();}else{if(fab)fab.addEventListener('click',function(){if(isOpen)closePanel();else openPanel();});if(closeBtn)closeBtn.addEventListener('click',function(){closePanel();});setTimeout(function(){if(!articlesLoaded){articleFetch('apiGetArticles').then(function(r){if(r&&r.ok&&r.articles){articlesData=r.articles;articlesLoaded=true;saveArticlesCache_(r.articles);renderList(articlesData);loadingEl.style.display='none';updateBadge();}}).catch(function(){});}},3000);}
   detailBack.addEventListener('click',function(){showListView();});
   if(searchInput)searchInput.addEventListener('input',function(){var q=this.value.toLowerCase().trim();if(!q){renderList(articlesData);return;}var f=[];for(var i=0;i<articlesData.length;i++){var a=articlesData[i];if((a.title||'').toLowerCase().indexOf(q)!==-1||(a.summary||'').toLowerCase().indexOf(q)!==-1||(a.category||'').toLowerCase().indexOf(q)!==-1)f.push(a);}renderList(f);showListView();});
-  function openPanel(){isOpen=true;panel.classList.add('open');if(!articlesLoaded)fetchArticles();try{var n=new Date();localStorage.setItem(LS_LAST_READ,n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'));}catch(e){}if(badge)badge.style.display='none';showListView();}
+  function openPanel(){isOpen=true;panel.classList.add('open');if(!articlesLoaded){fetchArticles();}else{loadingEl.style.display='none';if(articlesData.length>0){renderList(articlesData);}else{emptyEl.style.display='block';}}try{var n=new Date();localStorage.setItem(LS_LAST_READ,n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'));}catch(e){}if(badge)badge.style.display='none';showListView();}
   function closePanel(){isOpen=false;panel.classList.remove('open');}
   function showListView(){listView.style.display='block';detailView.classList.remove('active');}
   function showDetailView(){listView.style.display='none';detailView.classList.add('active');}
-  function fetchArticles(){if(!articlesLoaded){loadingEl.style.display='block';emptyEl.style.display='none';listEl.innerHTML='';}articleFetch('apiGetArticles').then(function(r){loadingEl.style.display='none';articlesLoaded=true;if(!r||!r.ok||!r.articles||r.articles.length===0){if(!articlesData.length)emptyEl.style.display='block';return;}articlesData=r.articles;saveArticlesCache_(r.articles);renderList(articlesData);updateBadge();setTimeout(prefetchAllContents,2000);}).catch(function(){loadingEl.style.display='none';if(!articlesData.length){emptyEl.textContent='記事の読み込みに失敗しました。';emptyEl.style.display='block';}});}
+  function fetchArticles(){if(!articlesLoaded){loadingEl.style.display='block';emptyEl.style.display='none';listEl.innerHTML='';}articleFetch('apiGetArticles').then(function(r){loadingEl.style.display='none';articlesLoaded=true;if(!r||!r.ok||!r.articles||r.articles.length===0){if(!articlesData.length)emptyEl.style.display='block';return;}articlesData=r.articles;saveArticlesCache_(r.articles);renderList(articlesData);updateBadge();if(isDesktop)setTimeout(prefetchAllContents,2000);}).catch(function(){loadingEl.style.display='none';if(!articlesData.length){emptyEl.textContent='記事の読み込みに失敗しました。';emptyEl.style.display='block';}});}
   function renderList(articles){listEl.innerHTML='';if(!articles.length){emptyEl.style.display='block';return;}emptyEl.style.display='none';for(var i=0;i<articles.length;i++){var a=articles[i];var li=document.createElement('li');li.className='article-list-item';li.setAttribute('data-article-id',a.id);li.innerHTML='<div class="article-item-header"><span class="article-item-emoji">'+esc(a.emoji)+'</span><span class="article-item-title">'+esc(a.title)+'</span></div><div class="article-item-meta"><span class="article-item-date">'+esc(fmtDate(a.publishDate))+'</span><span class="article-item-category">'+esc(a.category)+'</span></div><div class="article-item-summary">'+esc(a.summary)+'</div>';li.addEventListener('click',(function(id){return function(){loadDetail(id);};})(a.id));listEl.appendChild(li);}}
   var LS_CONTENT='detauri_article_contents';
   function loadContentCache_(){try{var r=localStorage.getItem(LS_CONTENT);return r?JSON.parse(r):{};}catch(e){return {};}}
