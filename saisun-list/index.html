@@ -3791,6 +3791,7 @@ function toggleCartOptimistic_(id) {
   state.lastShipping = null; // カート変更時に送料キャッシュを無効化
   saveCartStorage(); updateCartCount(); updateCardUi_(id);
   updateShippingDisplay_(); // 送料を即時再計算
+  revalidateCoupon_(); // クーポン再検証
 
   // 確保同期中はステータスポーリングを抑止（レースコンディション防止）
   state._holdSyncing = true;
@@ -4811,6 +4812,7 @@ function applyCoupon_() {
     if (!res || !res.ok) {
       info.innerHTML = '<span style="color:#c00;">' + escapeHtml_(res && res.message ? res.message : 'クーポンが無効です') + '</span>';
       state.appliedCoupon = null;
+      $('couponCode').value = '';
       return;
     }
     state.appliedCoupon = { code: code.toUpperCase(), type: res.type, value: res.value, discountAmount: res.discountAmount, label: res.label, comboMember: res.comboMember || false, comboBulk: res.comboBulk || false };
@@ -4838,6 +4840,53 @@ function removeCoupon_() {
   $('couponInfo').innerHTML = '';
   updateCartPrices_();
   showToast('クーポンを解除しました');
+}
+
+// カート変更時にクーポンを再検証（適用中のみ）
+function revalidateCoupon_() {
+  if (!state.appliedCoupon) return;
+  var code = state.appliedCoupon.code;
+  if (!code) { resetCouponUi_(); return; }
+
+  var ids = state.cart.ids || [];
+  if (ids.length === 0) {
+    // カートが空になったらクーポンをクリア
+    resetCouponUi_();
+    return;
+  }
+
+  var sum = 0;
+  for (var i = 0; i < ids.length; i++) {
+    var it = state.cart.itemsById[ids[i]];
+    if (it) sum += Number(it.price || 0);
+  }
+  var email = ($('contact').value || '').trim();
+
+  runApi('apiValidateCoupon', code, email, sum, 'detauri').then(function(res) {
+    if (!res || !res.ok) {
+      // クーポンが無効になった → UIリセット
+      resetCouponUi_();
+      showToast('カート変更によりクーポンが無効になりました');
+      return;
+    }
+    // 有効 → 割引額を更新
+    state.appliedCoupon = { code: code, type: res.type, value: res.value, discountAmount: res.discountAmount, label: res.label, comboMember: res.comboMember || false, comboBulk: res.comboBulk || false };
+    var discountText = res.type === 'shipping_free' ? '' : '（-' + yen(res.discountAmount) + '）';
+    $('couponInfo').innerHTML = '<span style="color:#2e7d32;">&#10003; ' + escapeHtml_(res.label) + discountText + '適用済み</span>';
+    updateCartPrices_();
+  }).catch(function() {
+    // ネットワークエラー時はクーポンを維持
+  });
+}
+
+function resetCouponUi_() {
+  state.appliedCoupon = null;
+  $('couponCode').value = '';
+  $('couponCode').disabled = false;
+  $('applyCouponBtn').style.display = '';
+  $('removeCouponBtn').style.display = 'none';
+  $('couponInfo').innerHTML = '';
+  updateCartPrices_();
 }
 
 function validateForm_(f) {
@@ -5318,7 +5367,7 @@ function logPageView_() {
 // アソート商品ページへの遷移（document.write方式）
 // =====================================================
 var _cachedBulkHtml = null;
-var BULK_HTML_CACHE_KEY = 'page_html_bulk_v11';
+var BULK_HTML_CACHE_KEY = 'page_html_bulk_v12';
 var PAGE_HTML_CACHE_TTL = 10 * 60 * 1000; // 10分
 
 function loadBulkHtmlCache_() {

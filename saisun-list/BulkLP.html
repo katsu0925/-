@@ -1078,7 +1078,7 @@ var SESSION_KEY = 'estimate_session';
 
 // ページ遷移用: デタウリページHTMLキャッシュ（localStorage永続化）
 var _cachedDetailHtml = null;
-var DETAIL_HTML_CACHE_KEY = 'page_html_detail_v11';
+var DETAIL_HTML_CACHE_KEY = 'page_html_detail_v12';
 var PAGE_HTML_CACHE_TTL = 10 * 60 * 1000; // 10分
 
 function loadDetailHtmlCache_() {
@@ -1914,6 +1914,8 @@ function applyCoupon() {
         G.coupon = null;
         resEl.className = 'coupon-result err';
         resEl.textContent = r && r.message ? r.message : 'クーポンが無効です';
+        // 入力欄はクリアせず、エラーメッセージを表示して再入力可能にする
+        document.getElementById('couponInput').value = '';
         updateCart();
       }
     })
@@ -2028,15 +2030,12 @@ function submitOrder() {
 function revalidateCoupon() {
   if (!G.coupon) return;
   var code = document.getElementById('couponInput').value.trim();
-  if (!code) { G.coupon = null; updateCart(); return; }
+  if (!code) { resetCouponUi_(); updateCart(); return; }
 
   var cartKeys = Object.keys(G.cart);
   if (cartKeys.length === 0) {
     // カートが空になったらクーポンをクリア
-    G.coupon = null;
-    var resEl = document.getElementById('couponResult');
-    resEl.className = 'coupon-result';
-    resEl.textContent = '';
+    resetCouponUi_();
     updateCart();
     return;
   }
@@ -2048,17 +2047,25 @@ function revalidateCoupon() {
     .then(function(r) {
       if (r && r.ok) {
         G.coupon = r;
-      } else {
-        G.coupon = null;
         var resEl = document.getElementById('couponResult');
-        resEl.className = 'coupon-result err';
-        resEl.textContent = r && r.message ? r.message : 'カート変更によりクーポンが無効になりました';
+        resEl.className = 'coupon-result ok';
+        resEl.textContent = r.label + ' が適用されました';
+      } else {
+        resetCouponUi_();
       }
       updateCart();
     })
     .catch(function() {
       // ネットワークエラー時はクーポンを維持
     });
+}
+
+function resetCouponUi_() {
+  G.coupon = null;
+  var input = document.getElementById('couponInput');
+  if (input) { input.value = ''; }
+  var resEl = document.getElementById('couponResult');
+  if (resEl) { resEl.className = 'coupon-result'; resEl.textContent = ''; }
 }
 
 // =====================================================
@@ -2192,12 +2199,9 @@ function loadDetauriCart() {
 function clearBulkCartOnly() {
   if (!confirm('アソートカートを空にしますか？')) return;
   G.cart = {};
-  G.coupon = null;
+  resetCouponUi_();
   saveBulkCart();
   updateCart();
-  revalidateCoupon();
-  var cr = document.getElementById('couponResult');
-  if (cr) { cr.className = 'coupon-result'; cr.textContent = ''; }
 }
 
 function clearDetauriCartOnly() {
@@ -2215,7 +2219,7 @@ function clearDetauriCartOnly() {
 function clearAllCarts() {
   if (!confirm('すべてのカートを空にしますか？')) return;
   G.cart = {};
-  G.coupon = null;
+  resetCouponUi_();
   saveBulkCart();
   try { localStorage.removeItem(DETAURI_CART_KEY); } catch (e) {}
   G.detauriCartTotal = 0;
@@ -2226,8 +2230,6 @@ function clearAllCarts() {
   G.detauriShippingSizeLabel = '';
   updateCart();
   renderProducts();
-  var cr = document.getElementById('couponResult');
-  if (cr) { cr.className = 'coupon-result'; cr.textContent = ''; }
 }
 
 function updateCartClearBtns_() {
