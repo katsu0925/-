@@ -85,8 +85,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 .modal-thumbs img{width:64px;height:64px;object-fit:cover;border-radius:8px;cursor:pointer;border:2px solid transparent;flex-shrink:0;transition:border-color .2s}
 .modal-thumbs img.active{border-color:#1a1a2e}
 .modal-right{display:flex;flex-direction:column;flex:1;overflow:hidden;min-height:0}
+.modal-title-bar{flex-shrink:0;padding:16px 20px 0;background:#fff}
+.modal-title-bar .product-name{font-size:18px;margin:0}
+.modal-title-bar .modal-stock{font-size:12px;color:#888;margin-top:6px}
 .modal-scroll{flex:1;overflow-y:auto;min-height:0}
-.modal-body{padding:20px}
+.modal-body{padding:12px 20px 20px}
 .modal-body .product-name{font-size:18px;margin-bottom:8px}
 .modal-body .product-desc{display:block;font-size:13px;color:#666;line-height:1.7;margin-bottom:12px;white-space:pre-wrap}
 .modal-body .product-tag{margin-bottom:12px}
@@ -514,6 +517,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
       <div class="modal-thumbs" id="modalThumbs"></div>
     </div>
     <div class="modal-right">
+      <div class="modal-title-bar" id="modalTitleBar"></div>
       <div class="modal-scroll">
         <div class="modal-body" id="modalBody"></div>
       </div>
@@ -1425,14 +1429,24 @@ function openProductModal(idx) {
   thumbsEl.innerHTML = thumbHtml;
   thumbsEl.style.display = (p.images && p.images.length > 1) ? 'flex' : 'none';
 
-  // 本文（スクロール領域: タイトル + 説明）
-  var tagHtml = p.tag ? '<span class="product-tag">' + escHtml(p.tag) + '</span>' : '';
+  // タイトルバー（固定領域: 商品名 + 在庫数）
   var isSoldOut = p.soldOut === true;
-  var soldOutLabel = isSoldOut ? '<div style="text-align:center;padding:10px 0;font-size:16px;font-weight:900;color:#d93025;letter-spacing:2px">SOLD OUT</div>' : '';
-  bodyEl.innerHTML =
+  var titleBarEl = document.getElementById('modalTitleBar');
+  var stockHtml = '';
+  if (isSoldOut) {
+    stockHtml = '<div class="modal-stock" style="color:#d93025;font-weight:700">SOLD OUT</div>';
+  } else if (p.stock !== -1) {
+    var effectiveMax = Math.min(p.maxQty, p.stock);
+    stockHtml = '<div class="modal-stock">在庫: ' + p.stock + '点（最大' + effectiveMax + p.unit + '注文可）</div>';
+  }
+  titleBarEl.innerHTML =
     '<div class="product-name">' + escHtml(p.name) + '</div>'
-    + (p.description ? '<div class="product-desc">' + escHtml(p.description) + '</div>' : '')
-    + soldOutLabel;
+    + stockHtml;
+
+  // 本文（スクロール領域: 説明文のみ）
+  var tagHtml = p.tag ? '<span class="product-tag">' + escHtml(p.tag) + '</span>' : '';
+  bodyEl.innerHTML =
+    (p.description ? '<div class="product-desc">' + escHtml(p.description) + '</div>' : '');
 
   // 固定下部: 価格 + 数量コントロール
   var bottomEl = document.getElementById('modalBottom');
@@ -1553,7 +1567,9 @@ function changeQty(productId, delta) {
   if (!p) return;
   if (p.soldOut) return;
   var cur = G.cart[productId] || 0;
-  var next = Math.max(0, Math.min(p.maxQty, cur + delta));
+  var limit = p.maxQty;
+  if (p.stock !== -1 && p.stock < limit) limit = p.stock;
+  var next = Math.max(0, Math.min(limit, cur + delta));
   if (next === 0) { delete G.cart[productId]; }
   else { G.cart[productId] = next; }
 
