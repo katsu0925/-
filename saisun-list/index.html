@@ -4805,10 +4805,11 @@ function applyCoupon_() {
   }
 
   var email = ($('contact').value || '').trim();
+  var companyName = ($('companyName').value || '').trim();
   var info = $('couponInfo');
   info.innerHTML = '<span style="color:#888;">検証中...</span>';
 
-  runApi('apiValidateCoupon', code, email, sum, 'detauri').then(function(res) {
+  runApi('apiValidateCoupon', code, email, sum, 'detauri', null, companyName).then(function(res) {
     if (!res || !res.ok) {
       info.innerHTML = '<span style="color:#c00;">' + escapeHtml_(res && res.message ? res.message : 'クーポンが無効です') + '</span>';
       state.appliedCoupon = null;
@@ -4861,8 +4862,9 @@ function revalidateCoupon_() {
     if (it) sum += Number(it.price || 0);
   }
   var email = ($('contact').value || '').trim();
+  var companyName = ($('companyName').value || '').trim();
 
-  runApi('apiValidateCoupon', code, email, sum, 'detauri').then(function(res) {
+  runApi('apiValidateCoupon', code, email, sum, 'detauri', null, companyName).then(function(res) {
     if (!res || !res.ok) {
       // クーポンが無効になった → UIリセット
       resetCouponUi_();
