@@ -1663,7 +1663,9 @@ function updateCart() {
   if (G.coupon) {
     var cd = G.coupon.discountAmount || 0;
     if (G.coupon.type === 'shipping_free') {
-      discountRows += '<div class="cart-row"><span>' + escHtml(G.coupon.label) + '</span><span>-送料</span></div>';
+      var _partialFree = G.coupon.shippingExcludeProducts && calcExcludedQty_() > 0;
+      var _shLabel = _partialFree ? '-送料（一部商品除外）' : '-送料';
+      discountRows += '<div class="cart-row"><span>' + escHtml(G.coupon.label) + '</span><span>' + _shLabel + '</span></div>';
     } else if (cd > 0) {
       discounted -= cd;
       discountRows += '<div class="cart-row"><span>' + escHtml(G.coupon.label) + '</span><span>-¥' + numFmt(cd) + '</span></div>';
@@ -1689,10 +1691,15 @@ function updateCart() {
   // 送料
   calcShipping(totalQty);
   recalcDetauriShipping_(); // デタウリ送料もリアルタイム計算
-  var shipping = (G.coupon && G.coupon.freeShipping) ? 0 : G.shipping;
+  var shipping = calcEffectiveShipping_();
 
   if (shipping > 0) {
-    rows += '<div class="cart-row"><span>送料（' + escHtml(G.shippingPref || '未入力') + '・大×' + totalQty + '）</span><span>¥' + numFmt(shipping) + '</span></div>';
+    var shippingQtyLabel = totalQty;
+    if (G.coupon && G.coupon.freeShipping && G.coupon.shippingExcludeProducts) {
+      var _exQty = calcExcludedQty_();
+      if (_exQty > 0) shippingQtyLabel = _exQty;
+    }
+    rows += '<div class="cart-row"><span>送料（' + escHtml(G.shippingPref || '未入力') + '・大×' + shippingQtyLabel + '）</span><span>¥' + numFmt(shipping) + '</span></div>';
   } else if (shipping === 0 && G.shippingPref) {
     rows += '<div class="cart-row"><span>送料</span><span>¥0（無料）</span></div>';
   }
@@ -1761,6 +1768,33 @@ function calcShipping(totalQty) {
   G.shippingSize = 'large';
   var largeRate = rates[area][1]; // [1] = 大
   G.shipping = largeRate * totalQty;
+}
+
+// 送料除外商品の数量を計算
+function calcExcludedQty_() {
+  if (!G.coupon || !G.coupon.shippingExcludeProducts) return 0;
+  var excludeIds = G.coupon.shippingExcludeProducts.split(',').map(function(s) { return s.trim().toUpperCase(); }).filter(function(s) { return s; });
+  if (excludeIds.length === 0) return 0;
+  var qty = 0;
+  Object.keys(G.cart).forEach(function(pid) {
+    if (excludeIds.indexOf(pid.toUpperCase()) >= 0) qty += G.cart[pid];
+  });
+  return qty;
+}
+
+// 送料無料クーポン適用時の実効送料を計算（送料除外商品は個別計算）
+function calcEffectiveShipping_() {
+  if (G.coupon && G.coupon.freeShipping) {
+    var excludedQty = calcExcludedQty_();
+    if (excludedQty > 0 && G.shippingPref) {
+      var areas = G.settings.shippingAreas || {};
+      var rates = G.settings.shippingRates || {};
+      var area = areas[G.shippingPref];
+      return (area && rates[area]) ? rates[area][1] * excludedQty : 0;
+    }
+    return 0;
+  }
+  return G.shipping;
 }
 
 // 複数口送料計算（上限超過時に分割）
@@ -1901,9 +1935,10 @@ function applyCoupon() {
   if (!code) { resEl.className = 'coupon-result err'; resEl.textContent = 'コードを入力してください'; return; }
 
   var email = document.getElementById('contact').value.trim();
+  var companyName = document.getElementById('companyName').value.trim();
   var subtotal = calcSubtotal();
 
-  runApi('apiValidateCoupon', code, email, subtotal, 'bulk', Object.keys(G.cart))
+  runApi('apiValidateCoupon', code, email, subtotal, 'bulk', Object.keys(G.cart), companyName)
     .then(function(r) {
       if (r && r.ok) {
         G.coupon = r;
@@ -1972,7 +2007,7 @@ function submitOrder() {
 
   var totalQty = 0;
   items.forEach(function(it) { totalQty += it.qty; });
-  var shipping = (G.coupon && G.coupon.freeShipping) ? 0 : G.shipping;
+  var shipping = calcEffectiveShipping_();
 
   // デタウリカートの金額も含める（両チャネル合算決済）
   var detauriProductAmount = G.detauriCartTotal || 0;
@@ -2041,9 +2076,10 @@ function revalidateCoupon() {
   }
 
   var email = document.getElementById('contact').value.trim();
+  var companyName = document.getElementById('companyName').value.trim();
   var subtotal = calcSubtotal();
 
-  runApi('apiValidateCoupon', code, email, subtotal, 'bulk', cartKeys)
+  runApi('apiValidateCoupon', code, email, subtotal, 'bulk', cartKeys, companyName)
     .then(function(r) {
       if (r && r.ok) {
         G.coupon = r;
@@ -2153,7 +2189,7 @@ function saveBulkCart() {
     var subtotal = calcSubtotal();
     var totalQty = 0;
     Object.keys(G.cart).forEach(function(pid) { totalQty += G.cart[pid]; });
-    var shipping = (G.coupon && G.coupon.freeShipping) ? 0 : G.shipping;
+    var shipping = calcEffectiveShipping_();
     localStorage.setItem(BULK_CART_KEY, JSON.stringify({
       cart: G.cart,
       subtotal: subtotal,

@@ -6,7 +6,8 @@
 // A=クーポンコード, B=割引タイプ(rate/fixed), C=割引値, D=有効期限,
 // E=利用上限, F=利用回数, G=1人1回制限(TRUE/FALSE), H=有効(TRUE/FALSE), I=メモ,
 // J=対象顧客(all/new/repeat), K=有効開始日, L=会員割引併用(TRUE/FALSE), M=30点割引併用(TRUE/FALSE),
-// N=適用チャネル(all/detauri/bulk), O=対象商品ID(アソート商品用、カンマ区切り)
+// N=適用チャネル(all/detauri/bulk), O=対象商品ID(アソート商品用、カンマ区切り),
+// P=送料除外商品ID(カンマ区切り), Q=限定顧客名, R=限定顧客メール
 
 var COUPON_SHEET_NAME = 'クーポン管理';
 
@@ -25,10 +26,13 @@ var COUPON_COLS = {
   COMBO_MEMBER: 11, // L: 会員割引との併用 (TRUE/FALSE)
   COMBO_BULK: 12,   // M: 30点割引との併用 (TRUE/FALSE)
   CHANNEL: 13,      // N: 適用チャネル (all=全て / detauri=デタウリのみ / bulk=アソート商品のみ)
-  TARGET_PRODUCTS: 14 // O: 対象商品ID (アソート商品用、カンマ区切り。空=全商品)
+  TARGET_PRODUCTS: 14, // O: 対象商品ID (アソート商品用、カンマ区切り。空=全商品)
+  SHIPPING_EXCLUDE_PRODUCTS: 15, // P: 送料除外商品ID（送料無料クーポン時、ここに指定された商品は送料無料対象外）
+  TARGET_CUSTOMER_NAME: 16,      // Q: 限定顧客名（名前+メール一致で判定）
+  TARGET_CUSTOMER_EMAIL: 17      // R: 限定顧客メール
 };
 
-var COUPON_COL_COUNT = 15;
+var COUPON_COL_COUNT = 18;
 
 // クーポン利用履歴シート列構成:
 // A=クーポンコード, B=メールアドレス, C=受付番号, D=利用日時
@@ -40,7 +44,7 @@ var COUPON_LOG_SHEET_NAME = 'クーポン利用履歴';
 function sh_ensureCouponSheet_(ss) {
   var sh = ss.getSheetByName(COUPON_SHEET_NAME);
   if (!sh) sh = ss.insertSheet(COUPON_SHEET_NAME);
-  var header = ['クーポンコード', '割引タイプ', '割引値', '有効期限', '利用上限', '利用回数', '1人1回制限', '有効', 'メモ', '対象顧客', '有効開始日', '会員割引併用', '30点割引併用', '適用チャネル', '対象商品ID'];
+  var header = ['クーポンコード', '割引タイプ', '割引値', '有効期限', '利用上限', '利用回数', '1人1回制限', '有効', 'メモ', '対象顧客', '有効開始日', '会員割引併用', '30点割引併用', '適用チャネル', '対象商品ID', '送料除外商品ID', '限定顧客名', '限定顧客メール'];
   var r1 = sh.getRange(1, 1, 1, header.length).getValues()[0];
   var needs = false;
   for (var i = 0; i < header.length; i++) if (String(r1[i] || '') !== header[i]) { needs = true; break; }
@@ -125,7 +129,10 @@ function getCouponListForDuplicate() {
       comboMember: (data[i][COUPON_COLS.COMBO_MEMBER] === true || String(data[i][COUPON_COLS.COMBO_MEMBER]).toUpperCase() === 'TRUE'),
       comboBulk: (data[i][COUPON_COLS.COMBO_BULK] === true || String(data[i][COUPON_COLS.COMBO_BULK]).toUpperCase() === 'TRUE'),
       channel: String(data[i][COUPON_COLS.CHANNEL] || 'all').trim().toLowerCase(),
-      targetProducts: String(data[i][COUPON_COLS.TARGET_PRODUCTS] || '').trim()
+      targetProducts: String(data[i][COUPON_COLS.TARGET_PRODUCTS] || '').trim(),
+      shippingExcludeProducts: String(data[i][COUPON_COLS.SHIPPING_EXCLUDE_PRODUCTS] || '').trim(),
+      targetCustomerName: String(data[i][COUPON_COLS.TARGET_CUSTOMER_NAME] || '').trim(),
+      targetCustomerEmail: String(data[i][COUPON_COLS.TARGET_CUSTOMER_EMAIL] || '').trim()
     });
   }
   return list;
@@ -193,6 +200,14 @@ function registerCouponFromDialog(data) {
   var channel = (channelInput === 'detauri' || channelInput === 'bulk') ? channelInput : 'all';
 
   var targetProducts = String(data.targetProducts || '').trim();
+  var shippingExcludeProducts = String(data.shippingExcludeProducts || '').trim();
+  var targetCustomerName = String(data.targetCustomerName || '').trim();
+  var targetCustomerEmail = String(data.targetCustomerEmail || '').trim().toLowerCase();
+
+  // 限定顧客: 名前とメールは両方指定が必要
+  if ((targetCustomerName && !targetCustomerEmail) || (!targetCustomerName && targetCustomerEmail)) {
+    return { ok: false, message: '限定顧客は氏名とメールアドレスの両方を入力してください' };
+  }
 
   // 重複チェック
   var ss = sh_getOrderSs_();
@@ -209,7 +224,7 @@ function registerCouponFromDialog(data) {
 
   // 書き込み
   var newRow = sh.getLastRow() + 1;
-  sh.getRange(newRow, 1, 1, COUPON_COL_COUNT).setValues([[code, type, value, expires, maxUses, 0, oncePerUser, true, memo, target, startDate, comboMember, comboBulk, channel, targetProducts]]);
+  sh.getRange(newRow, 1, 1, COUPON_COL_COUNT).setValues([[code, type, value, expires, maxUses, 0, oncePerUser, true, memo, target, startDate, comboMember, comboBulk, channel, targetProducts, shippingExcludeProducts, targetCustomerName, targetCustomerEmail]]);
 
   // クーポンキャッシュを無効化（即時反映）
   try { CacheService.getScriptCache().remove(COUPON_CACHE_KEY); } catch (e) { console.log('optional: coupon cache invalidation: ' + (e.message || e)); }
@@ -356,6 +371,27 @@ function getCouponDialogHtml_() {
     + '</div>'
     + '</div>'
 
+    + '<div class="row" id="shippingExcludeRow">'
+    + '<div class="col">'
+    + '  <label>送料除外商品ID</label>'
+    + '  <input id="shippingExcludeProducts" placeholder="BLK-XXXX,BLK-YYYY">'
+    + '  <div class="hint">送料無料クーポンでも送料が発生する商品ID（カンマ区切り）</div>'
+    + '</div>'
+    + '</div>'
+
+    + '<div style="background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:10px 12px;margin-bottom:12px;">'
+    + '  <label style="color:#e65100;">限定顧客（任意）</label>'
+    + '  <div class="row" style="margin-bottom:0;">'
+    + '  <div class="col">'
+    + '    <input id="targetCustomerName" placeholder="氏名（例: 山田太郎）">'
+    + '  </div>'
+    + '  <div class="col">'
+    + '    <input id="targetCustomerEmail" placeholder="メールアドレス">'
+    + '  </div>'
+    + '  </div>'
+    + '  <div class="hint">両方入力すると、名前+メールが一致する顧客のみ利用可能</div>'
+    + '</div>'
+
     + '<div class="error" id="error"></div>'
     + '<div class="footer">'
     + '  <button class="btn" onclick="google.script.host.close()">キャンセル</button>'
@@ -405,14 +441,20 @@ function getCouponDialogHtml_() {
     + '  document.getElementById("channel").value=c.channel||"all";'
     + '  onChannelChange();'
     + '  document.getElementById("targetProducts").value=c.targetProducts||"";'
+    + '  document.getElementById("shippingExcludeProducts").value=c.shippingExcludeProducts||"";'
+    + '  document.getElementById("targetCustomerName").value=c.targetCustomerName||"";'
+    + '  document.getElementById("targetCustomerEmail").value=c.targetCustomerEmail||"";'
+    + '  onTypeChange();'
     + '  document.getElementById("code").focus();'
     + '  document.getElementById("code").select();'
     + '}'
     + 'function onTypeChange(){'
     + '  var t=document.getElementById("type").value;'
     + '  var vc=document.getElementById("valueCol");'
-    + '  if(t==="shipping_free"){vc.style.display="none";return;}'
+    + '  var seRow=document.getElementById("shippingExcludeRow");'
+    + '  if(t==="shipping_free"){vc.style.display="none";if(seRow)seRow.style.display="";return;}'
     + '  vc.style.display="";'
+    + '  if(seRow)seRow.style.display="none";'
     + '  if(t==="rate"){'
     + '    document.getElementById("valueLabel").textContent="割引率 *";'
     + '    document.getElementById("value").placeholder="10";'
@@ -446,7 +488,10 @@ function getCouponDialogHtml_() {
     + '    comboMember:document.getElementById("comboMember").value,'
     + '    comboBulk:document.getElementById("comboBulk").value,'
     + '    channel:document.getElementById("channel").value,'
-    + '    targetProducts:document.getElementById("targetProducts").value'
+    + '    targetProducts:document.getElementById("targetProducts").value,'
+    + '    shippingExcludeProducts:document.getElementById("shippingExcludeProducts").value,'
+    + '    targetCustomerName:document.getElementById("targetCustomerName").value,'
+    + '    targetCustomerEmail:document.getElementById("targetCustomerEmail").value'
     + '  };'
     + '  google.script.run'
     + '    .withSuccessHandler(function(r){'
@@ -459,6 +504,7 @@ function getCouponDialogHtml_() {
     + '    .registerCouponFromDialog(data);'
     + '}'
     + 'initDuplicate();'
+    + 'onTypeChange();'
     + '</script>';
 }
 
@@ -652,11 +698,12 @@ function getDeleteCouponDialogHtml_() {
  * @param {number} productAmount - 商品代金（割引前）
  * @param {string} [channel] - 注文チャネル ('detauri' | 'bulk')
  * @param {string[]} [productIds] - アソート商品の場合、カート内の商品IDリスト
+ * @param {string} [customerName] - 顧客名（限定顧客クーポンの判定用）
  * @returns {object} { ok, type, value, discountAmount, message }
  */
-function apiValidateCoupon(code, email, productAmount, channel, productIds) {
+function apiValidateCoupon(code, email, productAmount, channel, productIds, customerName) {
   try {
-    var result = validateCoupon_(code, email, channel, productIds);
+    var result = validateCoupon_(code, email, channel, productIds, customerName);
     if (!result.ok) return result;
 
     var discountAmount = calcCouponDiscount_(result.type, result.value, productAmount);
@@ -673,7 +720,8 @@ function apiValidateCoupon(code, email, productAmount, channel, productIds) {
       freeShipping: result.type === 'shipping_free',
       label: label,
       comboMember: result.comboMember || false,
-      comboBulk: result.comboBulk || false
+      comboBulk: result.comboBulk || false,
+      shippingExcludeProducts: result.shippingExcludeProducts || ''
     };
   } catch (e) {
     return { ok: false, message: String(e && e.message ? e.message : e) };
@@ -731,6 +779,9 @@ function getCouponDataCached_() {
       comboBulk: (row[COUPON_COLS.COMBO_BULK] === true || String(row[COUPON_COLS.COMBO_BULK]).toUpperCase() === 'TRUE'),
       channel: String(row[COUPON_COLS.CHANNEL] || 'all').trim().toLowerCase(),
       targetProducts: String(row[COUPON_COLS.TARGET_PRODUCTS] || '').trim(),
+      shippingExcludeProducts: String(row[COUPON_COLS.SHIPPING_EXCLUDE_PRODUCTS] || '').trim(),
+      targetCustomerName: String(row[COUPON_COLS.TARGET_CUSTOMER_NAME] || '').trim(),
+      targetCustomerEmail: String(row[COUPON_COLS.TARGET_CUSTOMER_EMAIL] || '').trim(),
       rowIndex: i + 2
     });
   }
@@ -749,8 +800,9 @@ function getCouponDataCached_() {
  * @param {string} email - 利用者のメールアドレス
  * @param {string} [channel] - 注文チャネル ('detauri' | 'bulk')。省略時はチャネルチェックをスキップ
  * @param {string[]} [productIds] - アソート商品の場合、カート内の商品IDリスト
+ * @param {string} [customerName] - 顧客名（限定顧客クーポンの判定用）
  */
-function validateCoupon_(code, email, channel, productIds) {
+function validateCoupon_(code, email, channel, productIds, customerName) {
   if (!code) return { ok: false, message: 'クーポンコードを入力してください' };
   code = String(code).trim().toUpperCase();
 
@@ -770,6 +822,17 @@ function validateCoupon_(code, email, channel, productIds) {
   // 有効チェック
   if (!coupon.active) {
     return { ok: false, message: 'このクーポンは現在無効です' };
+  }
+
+  // 限定顧客チェック（名前+メールアドレス一致で判定）
+  if (coupon.targetCustomerName && coupon.targetCustomerEmail) {
+    var tName = coupon.targetCustomerName.trim();
+    var tEmail = coupon.targetCustomerEmail.trim().toLowerCase();
+    var iName = String(customerName || '').trim();
+    var iEmail = String(email || '').trim().toLowerCase();
+    if (iName !== tName || iEmail !== tEmail) {
+      return { ok: false, message: 'このクーポンはご利用いただけません' };
+    }
   }
 
   // 適用チャネルチェック
@@ -860,7 +923,7 @@ function validateCoupon_(code, email, channel, productIds) {
     return { ok: false, message: 'クーポン設定にエラーがあります' };
   }
 
-  return { ok: true, type: type, value: value, row: coupon.rowIndex, comboMember: coupon.comboMember, comboBulk: coupon.comboBulk };
+  return { ok: true, type: type, value: value, row: coupon.rowIndex, comboMember: coupon.comboMember, comboBulk: coupon.comboBulk, shippingExcludeProducts: coupon.shippingExcludeProducts || '' };
 }
 
 /**

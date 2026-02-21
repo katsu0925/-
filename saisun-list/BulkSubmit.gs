@@ -96,7 +96,7 @@ function apiBulkSubmit(form, items) {
     if (couponCode) {
       var bulkProductIds = [];
       for (var ci = 0; ci < orderItems.length; ci++) bulkProductIds.push(orderItems[ci].productId);
-      var couponResult = validateCoupon_(couponCode, contact, 'bulk', bulkProductIds);
+      var couponResult = validateCoupon_(couponCode, contact, 'bulk', bulkProductIds, companyName);
       if (!couponResult.ok) return couponResult;
       validatedCoupon = couponResult;
       couponDiscount = calcCouponDiscount_(couponResult.type, couponResult.value, sum);
@@ -137,16 +137,34 @@ function apiBulkSubmit(form, items) {
     var shippingPref = String(f.shippingPref || '');
     var shippingSize = 'large';
     var shippingAmount = 0;
+    var shippingArea = '';
+    var shippingExcludedQty = 0;
     if (shippingPref) {
-      var area = SHIPPING_AREAS[shippingPref];
-      if (area && SHIPPING_RATES[area]) {
-        shippingAmount = SHIPPING_RATES[area][1] * totalQty; // [1] = 大
+      shippingArea = SHIPPING_AREAS[shippingPref] || '';
+      if (shippingArea && SHIPPING_RATES[shippingArea]) {
+        shippingAmount = SHIPPING_RATES[shippingArea][1] * totalQty; // [1] = 大
       }
     }
 
-    // 送料無料クーポン
+    // 送料無料クーポン（送料除外商品は個別計算）
     if (validatedCoupon && validatedCoupon.type === 'shipping_free') {
-      shippingAmount = 0;
+      var excludeStr = validatedCoupon.shippingExcludeProducts || '';
+      if (excludeStr) {
+        var excludeIds = excludeStr.split(',').map(function(s) { return s.trim().toUpperCase(); }).filter(function(s) { return s; });
+        if (excludeIds.length > 0) {
+          for (var ei = 0; ei < orderItems.length; ei++) {
+            var ePid = String(orderItems[ei].productId || '').toUpperCase();
+            for (var ex = 0; ex < excludeIds.length; ex++) {
+              if (ePid === excludeIds[ex]) { shippingExcludedQty += orderItems[ei].qty; break; }
+            }
+          }
+        }
+      }
+      if (shippingExcludedQty > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
+        shippingAmount = SHIPPING_RATES[shippingArea][1] * shippingExcludedQty;
+      } else {
+        shippingAmount = 0;
+      }
     }
 
     // === 備考に割引・送料を追記 ===
@@ -166,7 +184,10 @@ function apiBulkSubmit(form, items) {
       }
     }
     if (shippingAmount > 0) {
-      var shippingLabel = '【送料: ¥' + shippingAmount + '（' + (shippingPref || '') + '・大×' + totalQty + '・税込）】';
+      var shippingQtyLabel = shippingExcludedQty > 0 ? shippingExcludedQty : totalQty;
+      var shippingLabel = '【送料: ¥' + shippingAmount + '（' + (shippingPref || '') + '・大×' + shippingQtyLabel + '・税込';
+      if (shippingExcludedQty > 0) shippingLabel += '・送料除外商品分';
+      shippingLabel += '）】';
       note = note ? (note + '\n' + shippingLabel) : shippingLabel;
     }
 
