@@ -144,6 +144,11 @@ function onEdit(e) {
         }
 
         shippingStatusAutoComplete_(e);
+
+        // 発送済みメール通知（独立トリガーが発火しない場合の保険）
+        try { shipMailOnEdit(e); } catch (shipErr) {
+          console.error('shipMailOnEdit error in onEdit:', shipErr);
+        }
         return;
 
       } finally {

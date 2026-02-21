@@ -3625,6 +3625,161 @@ s0.parentNode.insertBefore(s1,s0);
 })();
 </script>
 <!--End of Tawk.to Script-->
-<?!= include_('ArticlePopup') ?>
+<!-- === 物販お役立ち情報ポップアップ === -->
+<style>
+.article-fab{
+  position:fixed;left:16px;bottom:76px;z-index:90;
+  display:flex;align-items:center;gap:6px;
+  padding:10px 14px;border-radius:999px;
+  background:linear-gradient(135deg,#f59e0b,#d97706);
+  color:#fff;border:none;cursor:pointer;
+  box-shadow:0 4px 16px rgba(217,119,6,.35);
+  font-weight:900;font-size:13px;font-family:inherit;
+  line-height:1.2;white-space:nowrap;
+  transition:transform .2s,box-shadow .2s;
+}
+.article-fab:hover{transform:scale(1.05);box-shadow:0 6px 20px rgba(217,119,6,.45);}
+.article-fab .article-fab-emoji{font-size:18px;}
+.article-fab .article-fab-badge{
+  position:absolute;top:-4px;right:-4px;
+  min-width:18px;height:18px;border-radius:9px;
+  background:#ef4444;color:#fff;font-size:10px;font-weight:900;
+  display:none;align-items:center;justify-content:center;
+  padding:0 4px;line-height:18px;
+}
+.article-fab.dismissed{display:none;}
+.article-panel{
+  position:fixed;left:16px;bottom:126px;z-index:91;
+  width:360px;max-width:calc(100vw - 32px);
+  height:480px;max-height:calc(100vh - 120px);
+  background:#fff;border-radius:16px;
+  box-shadow:0 8px 32px rgba(0,0,0,.18);
+  display:none;flex-direction:column;overflow:hidden;
+  border:1px solid #e6e8ee;
+}
+.article-panel.open{display:flex;}
+.article-panel-header{
+  padding:12px 14px;
+  background:linear-gradient(135deg,#f59e0b,#d97706);
+  color:#fff;display:flex;align-items:center;
+  justify-content:space-between;flex-shrink:0;
+}
+.article-panel-title{font-weight:900;font-size:15px;display:flex;align-items:center;gap:6px;}
+.article-panel-close{
+  background:rgba(255,255,255,.2);border:none;color:#fff;
+  width:30px;height:30px;border-radius:50%;font-size:18px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:background .15s;
+}
+.article-panel-close:hover{background:rgba(255,255,255,.35);}
+.article-panel-body{flex:1;overflow-y:auto;padding:0;-webkit-overflow-scrolling:touch;}
+.article-list{list-style:none;margin:0;padding:0;}
+.article-list-item{padding:12px 14px;border-bottom:1px solid #f0f0f0;cursor:pointer;transition:background .15s;}
+.article-list-item:hover{background:#fef3c7;}
+.article-list-item:last-child{border-bottom:none;}
+.article-item-header{display:flex;align-items:flex-start;gap:8px;margin-bottom:4px;}
+.article-item-emoji{font-size:22px;flex-shrink:0;line-height:1;}
+.article-item-title{font-weight:900;font-size:14px;color:#1a1a2e;line-height:1.4;}
+.article-item-meta{display:flex;align-items:center;gap:8px;margin-top:4px;padding-left:30px;}
+.article-item-date{font-size:11px;color:#888;}
+.article-item-category{font-size:10px;padding:2px 6px;border-radius:4px;background:#fef3c7;color:#92400e;font-weight:700;}
+.article-item-summary{font-size:12px;color:#666;margin-top:4px;padding-left:30px;line-height:1.5;}
+.article-detail{display:none;padding:0;}
+.article-detail.active{display:block;}
+.article-detail-back{
+  display:flex;align-items:center;gap:4px;
+  padding:10px 14px;border-bottom:1px solid #f0f0f0;
+  cursor:pointer;font-size:13px;font-weight:700;color:#d97706;
+  background:transparent;border-top:none;border-left:none;border-right:none;
+  width:100%;text-align:left;transition:background .15s;font-family:inherit;
+}
+.article-detail-back:hover{background:#fef9ee;}
+.article-detail-header{padding:14px;border-bottom:1px solid #f0f0f0;}
+.article-detail-title{font-weight:900;font-size:16px;color:#1a1a2e;line-height:1.4;margin-bottom:8px;}
+.article-detail-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.article-detail-date{font-size:12px;color:#888;}
+.article-detail-category{font-size:11px;padding:2px 8px;border-radius:4px;background:#fef3c7;color:#92400e;font-weight:700;}
+.article-detail-tags{font-size:11px;color:#888;}
+.article-detail-content{padding:14px;font-size:14px;line-height:1.8;color:#333;}
+.article-detail-content h3{font-size:15px;font-weight:900;margin:16px 0 8px;color:#1a1a2e;}
+.article-detail-content p{margin:0 0 12px;}
+.article-detail-content ul{margin:0 0 12px;padding-left:20px;}
+.article-detail-content li{margin-bottom:4px;}
+.article-detail-content strong{color:#1a1a2e;}
+.article-loading{text-align:center;padding:40px 14px;color:#888;font-size:13px;}
+.article-loading-spinner{
+  display:inline-block;width:24px;height:24px;
+  border:3px solid #f0f0f0;border-top-color:#d97706;
+  border-radius:50%;animation:articleSpin .8s linear infinite;
+  margin-bottom:8px;
+}
+@keyframes articleSpin{to{transform:rotate(360deg);}}
+.article-empty{text-align:center;padding:40px 14px;color:#888;font-size:13px;}
+@media(max-width:480px){
+  .article-panel{bottom:0;left:0;right:0;width:100%;max-width:100%;height:100%;max-height:100%;border-radius:0;}
+  .article-fab{bottom:16px;left:12px;padding:8px 12px;font-size:12px;}
+}
+body.admin-mode .article-fab{bottom:136px;}
+body.admin-mode .article-panel{bottom:186px;}
+@media(max-width:480px){
+  body.admin-mode .article-fab{bottom:136px;}
+  body.admin-mode .article-panel{bottom:0;height:100%;max-height:100%;}
+}
+</style>
+<button class="article-fab" id="articleFab" type="button" aria-label="物販お役立ち情報">
+  <span class="article-fab-emoji">💡</span>
+  <span>物販お役立ち情報</span>
+  <span class="article-fab-badge" id="articleBadge"></span>
+</button>
+<div class="article-panel" id="articlePanel">
+  <div class="article-panel-header">
+    <span class="article-panel-title">💡 物販お役立ち情報</span>
+    <button class="article-panel-close" id="articlePanelClose" type="button" aria-label="閉じる">&times;</button>
+  </div>
+  <div class="article-panel-body" id="articlePanelBody">
+    <div id="articleListView">
+      <div class="article-loading" id="articleLoading">
+        <div class="article-loading-spinner"></div>
+        <div>記事を読み込み中...</div>
+      </div>
+      <ul class="article-list" id="articleList"></ul>
+      <div class="article-empty" id="articleEmpty" style="display:none;">
+        まだ記事がありません。<br>毎日新しい記事が追加されます。
+      </div>
+    </div>
+    <div class="article-detail" id="articleDetailView">
+      <button class="article-detail-back" id="articleDetailBack" type="button">← 記事一覧に戻る</button>
+      <div class="article-detail-header" id="articleDetailHeader"></div>
+      <div class="article-detail-content" id="articleDetailContent"></div>
+    </div>
+  </div>
+</div>
+<script>
+(function(){
+  var fab=document.getElementById('articleFab'),panel=document.getElementById('articlePanel'),
+      closeBtn=document.getElementById('articlePanelClose'),badge=document.getElementById('articleBadge'),
+      listView=document.getElementById('articleListView'),detailView=document.getElementById('articleDetailView'),
+      listEl=document.getElementById('articleList'),loadingEl=document.getElementById('articleLoading'),
+      emptyEl=document.getElementById('articleEmpty'),detailBack=document.getElementById('articleDetailBack'),
+      detailHeader=document.getElementById('articleDetailHeader'),detailContent=document.getElementById('articleDetailContent');
+  if(!fab||!panel)return;
+  var isOpen=false,articlesLoaded=false,articlesData=[],detailCache={},LS_LAST_READ='detauri_article_last_read_date';
+  function updateBadge(){try{var lr=localStorage.getItem(LS_LAST_READ)||'';if(!lr||!articlesData.length){badge.style.display='none';return;}var u=0;for(var i=0;i<articlesData.length;i++){if(articlesData[i].publishDate>lr)u++;}if(u>0){badge.textContent=u>9?'9+':String(u);badge.style.display='flex';}else{badge.style.display='none';}}catch(e){badge.style.display='none';}}
+  fab.addEventListener('click',function(){if(isOpen){closePanel();}else{openPanel();}});
+  closeBtn.addEventListener('click',function(){closePanel();});
+  detailBack.addEventListener('click',function(){showListView();});
+  function openPanel(){isOpen=true;panel.classList.add('open');if(!articlesLoaded)fetchArticles();try{var n=new Date();localStorage.setItem(LS_LAST_READ,n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'));}catch(e){}badge.style.display='none';showListView();}
+  function closePanel(){isOpen=false;panel.classList.remove('open');}
+  function showListView(){listView.style.display='block';detailView.classList.remove('active');}
+  function showDetailView(){listView.style.display='none';detailView.classList.add('active');}
+  function fetchArticles(){loadingEl.style.display='block';emptyEl.style.display='none';listEl.innerHTML='';runApi('apiGetArticles').then(function(res){loadingEl.style.display='none';articlesLoaded=true;if(!res||!res.ok||!res.articles||res.articles.length===0){emptyEl.style.display='block';return;}articlesData=res.articles;renderList(articlesData);updateBadge();}).catch(function(){loadingEl.style.display='none';emptyEl.textContent='記事の読み込みに失敗しました。';emptyEl.style.display='block';});}
+  function renderList(articles){listEl.innerHTML='';for(var i=0;i<articles.length;i++){var a=articles[i];var li=document.createElement('li');li.className='article-list-item';li.setAttribute('data-article-id',a.id);li.innerHTML='<div class="article-item-header"><span class="article-item-emoji">'+escHtml(a.emoji)+'</span><span class="article-item-title">'+escHtml(a.title)+'</span></div><div class="article-item-meta"><span class="article-item-date">'+escHtml(a.publishDate)+'</span><span class="article-item-category">'+escHtml(a.category)+'</span></div><div class="article-item-summary">'+escHtml(a.summary)+'</div>';li.addEventListener('click',(function(aid){return function(){loadArticleDetail(aid);};})(a.id));listEl.appendChild(li);}}
+  function loadArticleDetail(aid){showDetailView();if(detailCache[aid]){renderDetail(detailCache[aid]);return;}detailHeader.innerHTML='';detailContent.innerHTML='<div class="article-loading"><div class="article-loading-spinner"></div><div>記事を読み込み中...</div></div>';runApi('apiGetArticleContent',aid).then(function(res){if(!res||!res.ok||!res.article){detailContent.innerHTML='<div class="article-empty">記事の読み込みに失敗しました。</div>';return;}detailCache[aid]=res.article;renderDetail(res.article);}).catch(function(){detailContent.innerHTML='<div class="article-empty">記事の読み込みに失敗しました。</div>';});}
+  function renderDetail(a){var th='';if(a.tags){var ta=a.tags.split(','),p=[];for(var i=0;i<ta.length;i++){var t=ta[i].trim();if(t)p.push('#'+escHtml(t));}th='<span class="article-detail-tags">'+p.join(' ')+'</span>';}detailHeader.innerHTML='<div class="article-detail-title">'+escHtml(a.emoji)+' '+escHtml(a.title)+'</div><div class="article-detail-meta"><span class="article-detail-date">'+escHtml(a.publishDate)+'</span><span class="article-detail-category">'+escHtml(a.category)+'</span>'+th+'</div>';detailContent.innerHTML=sanitizeHtml(a.content);}
+  function escHtml(t){var d=document.createElement('div');d.appendChild(document.createTextNode(t||''));return d.innerHTML;}
+  function sanitizeHtml(h){var s=String(h||'');s=s.replace(/<script[\s\S]*?<\/script>/gi,'');s=s.replace(/<style[\s\S]*?<\/style>/gi,'');s=s.replace(/<iframe[\s\S]*?<\/iframe>/gi,'');s=s.replace(/<object[\s\S]*?<\/object>/gi,'');s=s.replace(/<embed[\s\S]*?>/gi,'');s=s.replace(/<link[\s\S]*?>/gi,'');s=s.replace(/\son\w+\s*=\s*"[^"]*"/gi,'');s=s.replace(/\son\w+\s*=\s*'[^']*'/gi,'');s=s.replace(/\son\w+\s*=[^\s>]*/gi,'');s=s.replace(/javascript\s*:/gi,'');return s;}
+  setTimeout(function(){if(!articlesLoaded){runApi('apiGetArticles').then(function(res){if(res&&res.ok&&res.articles){articlesData=res.articles;articlesLoaded=true;updateBadge();}}).catch(function(){});}},3000);
+})();
+</script>
 </body>
 </html>
