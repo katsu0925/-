@@ -3696,9 +3696,12 @@ body.admin-mode .article-panel{bottom:186px;}
   body.admin-mode .article-fab{bottom:136px;}
   body.admin-mode .article-panel.open{bottom:0;height:100%;max-height:100%;}
 }
+/* --- PCメインコンテンツ横配置 --- */
 @media(min-width:1440px){
   .article-fab{display:none !important;}
-  .article-panel{display:flex !important;position:fixed;left:0;top:0;bottom:0;width:calc(50vw - 550px);max-width:320px;min-width:200px;height:100vh;max-height:100vh;border-radius:0;box-shadow:1px 0 0 rgba(230,232,238,.5);border:none;background:rgba(250,250,250,.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);z-index:50;right:auto;}
+  .page-layout{display:flex;justify-content:center;max-width:1420px;margin:0 auto;align-items:flex-start;}
+  .page-layout .container{flex:1;max-width:1100px;margin:0;}
+  .page-layout .article-panel{display:flex !important;position:sticky;top:0;width:300px;min-width:200px;max-width:320px;height:auto;max-height:100vh;overflow-y:auto;flex-shrink:0;flex-direction:column;border-radius:0;box-shadow:1px 0 0 rgba(230,232,238,.5);border:none;background:rgba(250,250,250,.98);z-index:50;left:auto;bottom:auto;right:auto;}
   .article-panel-header{padding:10px 14px;}
   .article-panel-close{display:none;}
   .article-search{display:block;}
@@ -3708,7 +3711,6 @@ body.admin-mode .article-panel{bottom:186px;}
   .article-item-emoji{font-size:16px;}
   .article-item-title{font-size:13px;}
   .article-item-meta{padding-left:24px;margin-top:2px;}
-  body.admin-mode .article-panel{top:0;bottom:0;width:calc(50vw - 550px);max-width:320px;min-width:200px;}
 }
 </style>
 <button class="article-fab" id="articleFab" type="button" aria-label="物販お役立ち情報">
@@ -3749,20 +3751,23 @@ body.admin-mode .article-panel{bottom:186px;}
   if(!panel)return;
   var isDesktop=window.matchMedia('(min-width:1440px)').matches;
   var isOpen=false,articlesLoaded=false,articlesData=[],detailCache={},LS_LAST_READ='detauri_article_last_read_date';
-  function positionSidebar(){if(!panel||!isDesktop)return;var wrap=document.querySelector('.container');if(!wrap)return;var wl=wrap.getBoundingClientRect().left;var w=Math.min(320,Math.max(200,wl));panel.style.left=(wl-w)+'px';panel.style.width=w+'px';panel.style.maxWidth=w+'px';panel.style.right='auto';}
-  if(isDesktop){positionSidebar();window.addEventListener('resize',positionSidebar);}
+  // PCではメインコンテンツ横にflexレイアウトで配置
+  if(isDesktop){var wrap=document.querySelector('.container');if(wrap){var layout=document.createElement('div');layout.className='page-layout';wrap.parentNode.insertBefore(layout,wrap);layout.appendChild(panel);layout.appendChild(wrap);}}
+  // 記事API専用fetch（document.write遷移後もgoogle.script.runに依存せず安定動作）
+  var _articleApiUrl=(typeof GAS_API_URL!=='undefined')?GAS_API_URL:'https://script.google.com/macros/s/AKfycbwLN23a03qQSGA91J-82_6HlIx0kA5yUYFRxjfbjFGfnZDqynKnyJhEPsoISSQps3SmXQ/exec';
+  function articleFetch(action,arg){var body={action:action,args:arg?[arg]:[]};return fetch(_articleApiUrl,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(body),redirect:'follow'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();});}
   function fmtDate(s){if(!s)return '';var str=String(s);if(/^\d{4}\/\d{2}\/\d{2}\(.\)$/.test(str))return str;var d=new Date(str);if(isNaN(d.getTime()))return str;var dd=['日','月','火','水','木','金','土'];return d.getFullYear()+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0')+'('+dd[d.getDay()]+')';}
   function updateBadge(){if(!badge)return;try{var lr=localStorage.getItem(LS_LAST_READ)||'';if(!lr||!articlesData.length){badge.style.display='none';return;}var u=0;for(var i=0;i<articlesData.length;i++){var pd=String(articlesData[i].publishDate||'').replace(/\(.\)/,'').replace(/\//g,'-');if(pd>lr)u++;}if(u>0){badge.textContent=u>9?'9+':String(u);badge.style.display='flex';}else{badge.style.display='none';}}catch(e){badge.style.display='none';}}
-  if(isDesktop){fetchArticles();}else{if(fab)fab.addEventListener('click',function(){if(isOpen)closePanel();else openPanel();});if(closeBtn)closeBtn.addEventListener('click',function(){closePanel();});setTimeout(function(){if(!articlesLoaded){runApi('apiGetArticles').then(function(r){if(r&&r.ok&&r.articles){articlesData=r.articles;articlesLoaded=true;updateBadge();}}).catch(function(){});}},3000);}
+  if(isDesktop){fetchArticles();}else{if(fab)fab.addEventListener('click',function(){if(isOpen)closePanel();else openPanel();});if(closeBtn)closeBtn.addEventListener('click',function(){closePanel();});setTimeout(function(){if(!articlesLoaded){articleFetch('apiGetArticles').then(function(r){if(r&&r.ok&&r.articles){articlesData=r.articles;articlesLoaded=true;updateBadge();}}).catch(function(){});}},3000);}
   detailBack.addEventListener('click',function(){showListView();});
   if(searchInput)searchInput.addEventListener('input',function(){var q=this.value.toLowerCase().trim();if(!q){renderList(articlesData);return;}var f=[];for(var i=0;i<articlesData.length;i++){var a=articlesData[i];if((a.title||'').toLowerCase().indexOf(q)!==-1||(a.summary||'').toLowerCase().indexOf(q)!==-1||(a.category||'').toLowerCase().indexOf(q)!==-1)f.push(a);}renderList(f);showListView();});
   function openPanel(){isOpen=true;panel.classList.add('open');if(!articlesLoaded){fetchArticles();}else{loadingEl.style.display='none';if(articlesData.length>0){renderList(articlesData);}else{emptyEl.style.display='block';}}try{var n=new Date();localStorage.setItem(LS_LAST_READ,n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'));}catch(e){}if(badge)badge.style.display='none';showListView();}
   function closePanel(){isOpen=false;panel.classList.remove('open');}
   function showListView(){listView.style.display='block';detailView.classList.remove('active');}
   function showDetailView(){listView.style.display='none';detailView.classList.add('active');}
-  function fetchArticles(){loadingEl.style.display='block';emptyEl.style.display='none';listEl.innerHTML='';runApi('apiGetArticles').then(function(r){loadingEl.style.display='none';articlesLoaded=true;if(!r||!r.ok||!r.articles||r.articles.length===0){emptyEl.style.display='block';return;}articlesData=r.articles;renderList(articlesData);updateBadge();}).catch(function(){loadingEl.style.display='none';emptyEl.textContent='記事の読み込みに失敗しました。';emptyEl.style.display='block';});}
+  function fetchArticles(){loadingEl.style.display='block';emptyEl.style.display='none';listEl.innerHTML='';articleFetch('apiGetArticles').then(function(r){loadingEl.style.display='none';articlesLoaded=true;if(!r||!r.ok||!r.articles||r.articles.length===0){emptyEl.style.display='block';return;}articlesData=r.articles;renderList(articlesData);updateBadge();}).catch(function(){loadingEl.style.display='none';emptyEl.textContent='記事の読み込みに失敗しました。';emptyEl.style.display='block';});}
   function renderList(articles){listEl.innerHTML='';if(!articles.length){emptyEl.style.display='block';return;}emptyEl.style.display='none';for(var i=0;i<articles.length;i++){var a=articles[i];var li=document.createElement('li');li.className='article-list-item';li.setAttribute('data-article-id',a.id);li.innerHTML='<div class="article-item-header"><span class="article-item-emoji">'+esc(a.emoji)+'</span><span class="article-item-title">'+esc(a.title)+'</span></div><div class="article-item-meta"><span class="article-item-date">'+esc(fmtDate(a.publishDate))+'</span><span class="article-item-category">'+esc(a.category)+'</span></div><div class="article-item-summary">'+esc(a.summary)+'</div>';li.addEventListener('click',(function(id){return function(){loadDetail(id);};})(a.id));listEl.appendChild(li);}}
-  function loadDetail(id){showDetailView();if(detailCache[id]){renderDetail(detailCache[id]);return;}detailHeader.innerHTML='';detailContent.innerHTML='<div class="article-loading"><div class="article-loading-spinner"></div><div>記事を読み込み中...</div></div>';runApi('apiGetArticleContent',id).then(function(r){if(!r||!r.ok||!r.article){detailContent.innerHTML='<div class="article-empty">記事の読み込みに失敗しました。</div>';return;}detailCache[id]=r.article;renderDetail(r.article);}).catch(function(){detailContent.innerHTML='<div class="article-empty">記事の読み込みに失敗しました。</div>';});}
+  function loadDetail(id){showDetailView();if(detailCache[id]){renderDetail(detailCache[id]);return;}detailHeader.innerHTML='';detailContent.innerHTML='<div class="article-loading"><div class="article-loading-spinner"></div><div>記事を読み込み中...</div></div>';articleFetch('apiGetArticleContent',id).then(function(r){if(!r||!r.ok||!r.article){detailContent.innerHTML='<div class="article-empty">記事の読み込みに失敗しました。</div>';return;}detailCache[id]=r.article;renderDetail(r.article);}).catch(function(){detailContent.innerHTML='<div class="article-empty">記事の読み込みに失敗しました。</div>';});}
   function renderDetail(a){var th='';if(a.tags){var ta=a.tags.split(','),p=[];for(var i=0;i<ta.length;i++){var t=ta[i].trim();if(t)p.push('#'+esc(t));}th='<span class="article-detail-tags">'+p.join(' ')+'</span>';}detailHeader.innerHTML='<div class="article-detail-title">'+esc(a.emoji)+' '+esc(a.title)+'</div><div class="article-detail-meta"><span class="article-detail-date">'+esc(fmtDate(a.publishDate))+'</span><span class="article-detail-category">'+esc(a.category)+'</span>'+th+'</div>';detailContent.innerHTML=san(a.content);}
   function esc(t){var d=document.createElement('div');d.appendChild(document.createTextNode(t||''));return d.innerHTML;}
   function san(h){var s=String(h||'');s=s.replace(/<script[\s\S]*?<\/script>/gi,'');s=s.replace(/<style[\s\S]*?<\/style>/gi,'');s=s.replace(/<iframe[\s\S]*?<\/iframe>/gi,'');s=s.replace(/<object[\s\S]*?<\/object>/gi,'');s=s.replace(/<embed[\s\S]*?>/gi,'');s=s.replace(/<link[\s\S]*?>/gi,'');s=s.replace(/\son\w+\s*=\s*"[^"]*"/gi,'');s=s.replace(/\son\w+\s*=\s*'[^']*'/gi,'');s=s.replace(/\son\w+\s*=[^\s>]*/gi,'');s=s.replace(/javascript\s*:/gi,'');return s;}
