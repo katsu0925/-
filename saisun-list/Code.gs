@@ -343,27 +343,53 @@ function apiLogPV(payload) {
   const noLog = String(body.noLog || '') === '1';
   if (noLog) return { ok: true, skipped: true };
 
-  // オーナーのアクセスはログしない（OWNER_USER_KEYS で判定 — 全モード対応）
+  var props = PropertiesService.getScriptProperties();
+
+  // オーナー判定用メールアドレス（ADMIN_OWNER_EMAIL）
+  var ownerEmail = '';
   try {
-    var ownerKeysRaw = PropertiesService.getScriptProperties().getProperty('OWNER_USER_KEYS') || '';
-    if (ownerKeysRaw) {
+    ownerEmail = String(props.getProperty(APP_CONFIG.admin.ownerEmailProp) || '').trim().toLowerCase();
+  } catch(e) {}
+
+  // (1) ログイン中のメールアドレスでオーナー判定（全URL・全端末対応）
+  var reqEmail = String(body.email || '').trim().toLowerCase();
+  if (ownerEmail && reqEmail && reqEmail === ownerEmail) {
+    // ついでにこの端末のuserKeyをOWNER_USER_KEYSに自動追加
+    try {
       var reqUserKey = String(body.userKey || '').trim();
       if (reqUserKey) {
+        var keysRaw = props.getProperty('OWNER_USER_KEYS') || '';
+        var keysArr = keysRaw ? keysRaw.split(',').map(function(k) { return k.trim(); }).filter(Boolean) : [];
+        if (keysArr.indexOf(reqUserKey) === -1) {
+          keysArr.push(reqUserKey);
+          props.setProperty('OWNER_USER_KEYS', keysArr.join(','));
+          console.log('OWNER_USER_KEYS に自動追加: ' + reqUserKey);
+        }
+      }
+    } catch(e) { console.log('optional: auto-add owner key: ' + (e.message || e)); }
+    return { ok: true, skipped: true };
+  }
+
+  // (2) OWNER_USER_KEYS でuserKey判定
+  try {
+    var ownerKeysRaw = props.getProperty('OWNER_USER_KEYS') || '';
+    if (ownerKeysRaw) {
+      var reqUk = String(body.userKey || '').trim();
+      if (reqUk) {
         var ownerKeys = {};
         ownerKeysRaw.split(',').forEach(function(k) { if (k.trim()) ownerKeys[k.trim()] = true; });
-        if (ownerKeys[reqUserKey]) return { ok: true, skipped: true };
+        if (ownerKeys[reqUk]) return { ok: true, skipped: true };
       }
     }
   } catch(e) { console.log('optional: owner userKey check: ' + (e.message || e)); }
 
-  // GASモード: オーナーのアクセスはログしない（メールアドレスで判定）
+  // (3) GASモード: Session.getActiveUser() でオーナー判定
   try {
-    var ownerEmail = String(PropertiesService.getScriptProperties().getProperty(APP_CONFIG.admin.ownerEmailProp) || '').trim().toLowerCase();
     if (ownerEmail) {
       var activeEmail = String((Session.getActiveUser && Session.getActiveUser().getEmail ? Session.getActiveUser().getEmail() : '') || '').trim().toLowerCase();
       if (activeEmail && activeEmail === ownerEmail) return { ok: true, skipped: true };
     }
-  } catch(e) { console.log('optional: owner email check: ' + (e.message || e)); }
+  } catch(e) { console.log('optional: GAS owner email check: ' + (e.message || e)); }
 
   // ボット除外（サーバーサイド）
   var ua = String(body.userAgent || '').toLowerCase();
@@ -386,7 +412,7 @@ function apiLogPV(payload) {
     body.userAgent ? String(body.userAgent) : "",
     body.language ? String(body.language) : "",
     body.screen ? String(body.screen) : "",
-    "",
+    reqEmail,
     ""
   ];
 
@@ -396,7 +422,14 @@ function apiLogPV(payload) {
 
 /**
  * 既存アクセスログからオーナー＆ボットの行を一括削除
- * ★ GASエディタから1回だけ実行してください
+ *
+ * 削除対象:
+ *   - OWNER_USER_KEYS に一致する userKey
+ *   - ADMIN_OWNER_EMAIL に一致するメールアドレス（11列目）
+ *   - GAS deployment URL 経由のアクセス（6列目 url に script.google.com を含む）
+ *   - ボット / クローラー / スクレーパー
+ *
+ * ★ GASエディタから実行してください（何度でも実行可能）
  */
 function ad_cleanAccessLog() {
   var ss = SpreadsheetApp.openById(String(_logConfig.id).trim());
@@ -406,30 +439,51 @@ function ad_cleanAccessLog() {
   if (last < 2) { console.log('データなし'); return; }
   var data = sheet.getRange(2, 1, last - 1, 12).getValues();
 
+  var props = PropertiesService.getScriptProperties();
+
   // オーナーのuserKey（Script Propertiesから取得）
   var ownerKeys = {};
   try {
-    var ownerKeysRaw = PropertiesService.getScriptProperties().getProperty('OWNER_USER_KEYS') || '';
+    var ownerKeysRaw = props.getProperty('OWNER_USER_KEYS') || '';
     if (ownerKeysRaw) {
       ownerKeysRaw.split(',').forEach(function(k) { if (k.trim()) ownerKeys[k.trim()] = true; });
     }
   } catch (e) { console.log('optional: owner keys read: ' + (e.message || e)); }
+
+  // オーナーのメールアドレス
+  var ownerEmail = '';
+  try {
+    ownerEmail = String(props.getProperty(APP_CONFIG.admin.ownerEmailProp) || '').trim().toLowerCase();
+  } catch (e) {}
 
   var botUaRe = /headlesschrome|google-read-aloud|bot|crawl|spider|slurp/i;
   var botScreens = { '0x0': true, '2000x2000': true, '400x400': true };
   var suspectLangs = { 'en-US@posix': true, 'es-ES': true, 'it-IT': true };
 
   var deleteRows = [];
+  var ownerKeysCandidates = {};
   for (var i = 0; i < data.length; i++) {
     var userKey = String(data[i][4] || '');
+    var url     = String(data[i][5] || '');
     var ua      = String(data[i][7] || '');
     var lang    = String(data[i][8] || '');
     var scr     = String(data[i][9] || '');
+    var email   = String(data[i][10] || '').trim().toLowerCase();
 
     var remove = false;
 
     // オーナーのuserKey
     if (ownerKeys[userKey]) remove = true;
+
+    // オーナーのメールアドレス（11列目にメールが記録されている場合）
+    if (ownerEmail && email && email === ownerEmail) {
+      remove = true;
+      // このuserKeyもオーナーのものとして記録
+      if (userKey) ownerKeysCandidates[userKey] = true;
+    }
+
+    // GAS deployment URL 経由のアクセス（管理者アクセス）
+    if (url.indexOf('script.google.com/macros/') !== -1) remove = true;
 
     // ボットUA
     if (botUaRe.test(ua)) remove = true;
@@ -455,6 +509,20 @@ function ad_cleanAccessLog() {
     if (remove) deleteRows.push(i + 2); // 1-indexed, ヘッダー分+1
   }
 
+  // 新たに発見したオーナーのuserKeyをOWNER_USER_KEYSに自動追加
+  var newKeysAdded = [];
+  for (var nk in ownerKeysCandidates) {
+    if (!ownerKeys[nk]) {
+      ownerKeys[nk] = true;
+      newKeysAdded.push(nk);
+    }
+  }
+  if (newKeysAdded.length > 0) {
+    var allKeys = Object.keys(ownerKeys).filter(Boolean).join(',');
+    props.setProperty('OWNER_USER_KEYS', allKeys);
+    console.log('OWNER_USER_KEYS に自動追加: ' + newKeysAdded.join(', '));
+  }
+
   // バッチ削除: 残す行だけフィルタして一括書き換え（1行ずつdeleteRowするより高速）
   if (deleteRows.length > 0) {
     var deleteSet = {};
@@ -473,7 +541,8 @@ function ad_cleanAccessLog() {
   }
 
   console.log('クリーンアップ完了: ' + deleteRows.length + '行削除 / ' + data.length + '行中');
-  return { ok: true, deleted: deleteRows.length, total: data.length };
+  if (newKeysAdded.length > 0) console.log('新規オーナーキー: ' + newKeysAdded.length + '件追加');
+  return { ok: true, deleted: deleteRows.length, total: data.length, newOwnerKeys: newKeysAdded };
 }
 
 function appendLogRow_(row) {
@@ -495,7 +564,7 @@ function appendLogRow_(row) {
         "userAgent",
         "language",
         "screen",
-        "queryParams",
+        "email",
         "raw"
       ]]);
       sheet.setFrozenRows(1);
