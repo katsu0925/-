@@ -117,7 +117,7 @@
     .pager{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:16px 0 0;}
     .pageBtn{min-width:36px;padding:8px 10px;border:1px solid #d9deea;background:#fff;border-radius:10px;cursor:pointer;font-weight:900;}
     .pageBtn.active{background:#111;color:#fff;border-color:#111;}
-    .stickyBar{position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(246,247,249,.9);backdrop-filter:blur(8px);border-top:1px solid #e6e8ee;padding:10px 14px;display:flex;justify-content:center;}
+    .stickyBar{position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(246,247,249,.9);backdrop-filter:blur(8px);border-top:1px solid #e6e8ee;padding:10px 14px;display:flex;justify-content:center;max-width:1100px;margin:0 auto;}
     .stickyInner{width:100%;max-width:1100px;display:flex;justify-content:center;align-items:center;gap:10px;}
     .cartBtn{width:100%;max-width:520px;height:46px;border-radius:14px;border:1px solid #4a76b5;background:#5B86C5;color:#fff;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;margin:0 auto;}
     .countPill{min-width:28px;height:28px;border-radius:999px;background:#fff;color:#2B3A5C;display:flex;align-items:center;justify-content:center;font-weight:900;padding:0 10px;}
@@ -162,7 +162,7 @@
     .authPoints{background:#e65100;color:#fff;font-size:11px;padding:2px 6px;border-radius:4px;font-weight:900;}
     .authBtn.mypage{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);font-size:11px;padding:4px 12px;border-radius:20px;}
     .cart-header-btn{position:relative;padding:4px 10px!important;font-size:16px!important;background:rgba(255,255,255,.12)!important;border:1px solid rgba(255,255,255,.3)!important;border-radius:20px!important;cursor:pointer;color:#fff;line-height:1;}
-    .footer{background:#1a1a2e;color:#888;text-align:center;padding:20px 20px 80px;font-size:11px;margin-top:40px;}
+    .footer{background:#1a1a2e;color:#888;text-align:center;padding:20px 20px 80px;font-size:11px;margin-top:40px;max-width:1100px;margin-left:auto;margin-right:auto;}
     .footer a{color:#aab;text-decoration:none;}
     #pageTransition{position:fixed;top:0;left:0;width:100%;height:100%;background:linear-gradient(135deg,#1a1a2e,#16213e);z-index:9999;display:flex;justify-content:center;align-items:center;opacity:0;pointer-events:none;transition:opacity .25s ease;}
     #pageTransition.active,body.page-entering #pageTransition{opacity:1;pointer-events:all;}
@@ -6147,7 +6147,7 @@ body.admin-mode .article-panel{bottom:186px;}
 /* --- PC左サイドバー --- */
 @media(min-width:1440px){
   .article-fab{display:none !important;}
-  .article-panel{display:flex !important;position:fixed;right:calc(50vw + 550px);top:0;bottom:0;width:calc(50vw - 550px);max-width:320px;min-width:200px;height:100vh;max-height:100vh;border-radius:0;box-shadow:none;border:none;border-right:1px solid #e6e8ee;background:#fafafa;z-index:50;left:auto;}
+  .article-panel{display:flex !important;position:fixed;left:0;top:0;bottom:0;width:calc(50vw - 550px);max-width:320px;min-width:200px;height:100vh;max-height:100vh;border-radius:0;box-shadow:1px 0 0 #e6e8ee;border:none;background:#fafafa;z-index:50;right:auto;}
   .article-panel-header{padding:10px 14px;}
   .article-panel-close{display:none;}
   .article-search{display:block;}
@@ -6198,6 +6198,8 @@ body.admin-mode .article-panel{bottom:186px;}
   if(!panel)return;
   var isDesktop=window.matchMedia('(min-width:1440px)').matches;
   var isOpen=false,articlesLoaded=false,articlesData=[],detailCache={},LS_LAST_READ='detauri_article_last_read_date';
+  function positionSidebar(){if(!panel||!isDesktop)return;var wrap=document.querySelector('.wrap');if(!wrap)return;var wl=wrap.getBoundingClientRect().left;var w=Math.min(320,Math.max(200,wl));panel.style.left=(wl-w)+'px';panel.style.width=w+'px';panel.style.maxWidth=w+'px';panel.style.right='auto';}
+  if(isDesktop){positionSidebar();window.addEventListener('resize',positionSidebar);}
   function fmtDate(s){if(!s)return '';var str=String(s);if(/^\d{4}\/\d{2}\/\d{2}\(.\)$/.test(str))return str;var d=new Date(str);if(isNaN(d.getTime()))return str;var dd=['日','月','火','水','木','金','土'];return d.getFullYear()+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+String(d.getDate()).padStart(2,'0')+'('+dd[d.getDay()]+')';}
   function updateBadge(){if(!badge)return;try{var lr=localStorage.getItem(LS_LAST_READ)||'';if(!lr||!articlesData.length){badge.style.display='none';return;}var u=0;for(var i=0;i<articlesData.length;i++){var pd=String(articlesData[i].publishDate||'').replace(/\(.\)/,'').replace(/\//g,'-');if(pd>lr)u++;}if(u>0){badge.textContent=u>9?'9+':String(u);badge.style.display='flex';}else{badge.style.display='none';}}catch(e){badge.style.display='none';}}
   if(isDesktop){fetchArticles();}else{if(fab)fab.addEventListener('click',function(){if(isOpen)closePanel();else openPanel();});if(closeBtn)closeBtn.addEventListener('click',function(){closePanel();});setTimeout(function(){if(!articlesLoaded){runApi('apiGetArticles').then(function(r){if(r&&r.ok&&r.articles){articlesData=r.articles;articlesLoaded=true;updateBadge();}}).catch(function(){});}},3000);}
