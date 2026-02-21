@@ -27,12 +27,13 @@ var ARTICLE_COLS = {
   TAGS: 5,
   PUBLISH_DATE: 6,
   EMOJI: 7,
-  STATUS: 8
+  STATUS: 8,
+  IMAGE_URL: 9
 };
 
 var ARTICLE_HEADERS = [
   '記事ID', 'タイトル', '要約', '本文', 'カテゴリ',
-  'タグ', '公開日', '絵文字', 'ステータス'
+  'タグ', '公開日', '絵文字', 'ステータス', 'ヘッダ画像URL'
 ];
 
 // =====================================================
@@ -194,7 +195,8 @@ function art_generateArticle_(pastTitles) {
     '  "content": "本文（HTML形式、600〜1000字、<h3><p><ul><li><strong><em>タグを使用）",',
     '  "category": "カテゴリ（メルカリ/ラクマ/Yahoo!フリマ/Amazon/eBay/中国輸入/せどり/副業全般/アパレル/ツール活用 のいずれか）",',
     '  "tags": "タグ（カンマ区切り、3〜5個）",',
-    '  "emoji": "記事を表す絵文字（1つ）"',
+    '  "emoji": "記事を表す絵文字（1つ）",',
+    '  "imageQuery": "記事テーマに合うストックフォト検索用の英語キーワード（1〜3語、例: fashion wholesale, ecommerce shipping, vintage clothing）"',
     '}',
     '',
     '【執筆ルール】',
@@ -264,6 +266,33 @@ function art_generateArticle_(pastTitles) {
 }
 
 // =====================================================
+// Pexels API — ヘッダ画像取得（無料・200リクエスト/時間）
+// Script Properties に PEXELS_API_KEY を設定すると有効化
+// =====================================================
+
+function art_fetchHeaderImage_(query) {
+  var apiKey = PropertiesService.getScriptProperties().getProperty('PEXELS_API_KEY') || '';
+  if (!apiKey || !query) return '';
+  try {
+    var url = 'https://api.pexels.com/v1/search?query=' + encodeURIComponent(query) +
+              '&per_page=5&orientation=landscape&size=medium';
+    var res = UrlFetchApp.fetch(url, {
+      headers: { 'Authorization': apiKey },
+      muteHttpExceptions: true
+    });
+    if (res.getResponseCode() !== 200) return '';
+    var data = JSON.parse(res.getContentText());
+    if (!data.photos || !data.photos.length) return '';
+    var idx = Math.floor(Math.random() * Math.min(5, data.photos.length));
+    var photo = data.photos[idx];
+    return photo.src.landscape || photo.src.large || photo.src.medium || '';
+  } catch (e) {
+    console.log('Pexels image fetch skipped: ' + (e.message || e));
+    return '';
+  }
+}
+
+// =====================================================
 // 日次記事生成（トリガーから呼び出し）
 // =====================================================
 
@@ -302,6 +331,8 @@ function generateDailyArticle() {
       console.log('記事上限到達: 最古の記事を削除しました（現在: ' + articleCount + '件）');
     }
 
+    var imageUrl = art_fetchHeaderImage_(article.imageQuery || '');
+
     var row = [
       id,
       article.title || '',
@@ -311,7 +342,8 @@ function generateDailyArticle() {
       article.tags || '',
       publishDate,
       article.emoji || '📝',
-      'published'
+      'published',
+      imageUrl
     ];
 
     sheet.appendRow(row);
@@ -355,13 +387,15 @@ function apiGetArticles() {
       var status = String(data[i][ARTICLE_COLS.STATUS] || '').trim();
       if (status !== 'published') continue;
 
+      var imgUrl = (data[i].length > ARTICLE_COLS.IMAGE_URL) ? String(data[i][ARTICLE_COLS.IMAGE_URL] || '').trim() : '';
       articles.push({
         id: String(data[i][ARTICLE_COLS.ID] || '').trim(),
         title: String(data[i][ARTICLE_COLS.TITLE] || '').trim(),
         summary: String(data[i][ARTICLE_COLS.SUMMARY] || '').trim(),
         category: String(data[i][ARTICLE_COLS.CATEGORY] || '').trim(),
         publishDate: art_formatDate_(data[i][ARTICLE_COLS.PUBLISH_DATE]),
-        emoji: String(data[i][ARTICLE_COLS.EMOJI] || '📝').trim()
+        emoji: String(data[i][ARTICLE_COLS.EMOJI] || '📝').trim(),
+        imageUrl: imgUrl
       });
 
       if (articles.length >= ARTICLE_CONFIG.MAX_ARTICLES_DISPLAY) break;
@@ -407,6 +441,7 @@ function apiGetArticleContent(articleId) {
     var status = String(rowData[ARTICLE_COLS.STATUS] || '').trim();
     if (status !== 'published') return { ok: false, message: '記事は非公開です' };
 
+    var artImgUrl = (rowData.length > ARTICLE_COLS.IMAGE_URL) ? String(rowData[ARTICLE_COLS.IMAGE_URL] || '').trim() : '';
     var article = {
       id: String(rowData[ARTICLE_COLS.ID] || '').trim(),
       title: String(rowData[ARTICLE_COLS.TITLE] || '').trim(),
@@ -414,7 +449,8 @@ function apiGetArticleContent(articleId) {
       category: String(rowData[ARTICLE_COLS.CATEGORY] || '').trim(),
       tags: String(rowData[ARTICLE_COLS.TAGS] || '').trim(),
       publishDate: art_formatDate_(rowData[ARTICLE_COLS.PUBLISH_DATE]),
-      emoji: String(rowData[ARTICLE_COLS.EMOJI] || '📝').trim()
+      emoji: String(rowData[ARTICLE_COLS.EMOJI] || '📝').trim(),
+      imageUrl: artImgUrl
     };
 
     var result = { ok: true, article: article };
