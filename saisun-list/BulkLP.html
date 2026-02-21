@@ -18,6 +18,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 .header-nav a{color:#93c5fd;text-decoration:none;font-size:11px;padding:4px 12px;border-radius:20px;border:1px solid rgba(255,255,255,.15);transition:all .2s;white-space:nowrap}
 .header-nav a.active{background:#ffd700;color:#1a1a2e;border-color:#ffd700;font-weight:700}
 .header-auth-wrap{display:none;align-items:center;gap:6px;font-size:12px;flex-shrink:1;min-width:0}
+.header-cart-mob{display:flex;align-items:center;flex-shrink:0}
 .header-row2{display:flex;justify-content:center;align-items:center;gap:8px;padding:2px 16px 4px}
 .header-row3{display:flex;justify-content:center;gap:16px;padding:0 16px 6px;max-height:28px;overflow:hidden;opacity:1;transition:max-height .25s ease,opacity .25s ease,padding .25s ease}
 .header-row3 a{color:#93c5fd;text-decoration:none;font-size:11px;font-weight:600;transition:color .2s;white-space:nowrap}
@@ -28,7 +29,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 /* セクション */
 .section{padding:20px}
 .section-title{font-size:14px;font-weight:700;color:#1a1a2e;border-left:4px solid #ffd700;padding-left:10px;margin-bottom:14px}
-.divider{height:8px;background:#f5f5f5}
+.divider{height:1px;background:#eee;margin:0 20px}
 
 /* 商品グリッド */
 .product-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}
@@ -259,13 +260,13 @@ body.admin-mode .admin-settings-fab{display:flex;}
 .toTop.show{display:flex;}
 
 /* チャットボット */
-.chatbot-fab{position:fixed;bottom:80px;right:16px;z-index:9999;width:56px;height:56px;border-radius:50%;background:#1e293b;color:#fff;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;transition:transform .2s,background .2s;}
+.chatbot-fab{position:fixed;bottom:16px;right:16px;z-index:9999;width:48px;height:48px;border-radius:50%;background:#1e293b;color:#fff;border:none;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center;transition:transform .2s,background .2s;}
 .chatbot-fab:hover{transform:scale(1.08);background:#334155;}
-.chatbot-fab svg{width:28px;height:28px;fill:#fff;}
+.chatbot-fab:hover::after{content:'AI\30C1\30E3\30C3\30C8\30DC\30C3\30C8';position:absolute;bottom:calc(100% + 8px);right:0;background:rgba(30,41,59,.9);color:#fff;font-size:11px;padding:5px 10px;border-radius:6px;white-space:nowrap;pointer-events:none;}
+.chatbot-fab svg{width:24px;height:24px;fill:#fff;}
 .chatbot-fab .chatbot-fab-close{display:none;}
-.chatbot-badge{position:absolute;top:-2px;right:-2px;width:18px;height:18px;border-radius:50%;background:#ef4444;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;pointer-events:none;opacity:0;transition:opacity .2s;}
-.chatbot-badge.show{opacity:1;}
-.chatbot-panel{position:fixed;bottom:148px;right:16px;z-index:9998;width:360px;max-width:calc(100vw - 32px);height:480px;max-height:calc(100vh - 200px);background:#fff;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.18);display:none;flex-direction:column;overflow:hidden;border:1px solid #e6e8ee;}
+.chatbot-badge{display:none!important;}
+.chatbot-panel{position:fixed;bottom:76px;right:16px;z-index:9998;width:360px;max-width:calc(100vw - 32px);height:480px;max-height:calc(100vh - 200px);background:#fff;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.18);display:none;flex-direction:column;overflow:hidden;border:1px solid #e6e8ee;}
 .chatbot-panel.open{display:flex;}
 .chatbot-header{background:#1e293b;color:#fff;padding:14px 16px;font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px;flex-shrink:0;}
 .chatbot-header-actions{display:flex;align-items:center;gap:6px;margin-left:auto;}
@@ -307,7 +308,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
 .chatbot-contact-btn:disabled{opacity:.5;cursor:not-allowed;}
 .chatbot-staff-btn{display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:7px 14px;border:1px solid #1e293b;border-radius:8px;background:#fff;color:#1e293b;font-size:12px;font-weight:600;cursor:pointer;}
 .chatbot-staff-btn:hover{background:#f1f5f9;}
-@media(max-width:480px){.chatbot-panel{bottom:0;right:0;left:0;width:100%;max-width:100%;height:100%;max-height:100%;border-radius:0;}.chatbot-fab{bottom:72px;right:12px;width:50px;height:50px;}.chatbot-fab svg{width:24px;height:24px;}}
+@media(max-width:480px){.chatbot-panel{bottom:0;right:0;left:0;width:100%;max-width:100%;height:100%;max-height:100%;border-radius:0;}.chatbot-fab{bottom:12px;right:12px;width:44px;height:44px;}.chatbot-fab svg{width:22px;height:22px;}.chatbot-fab:hover::after{display:none;}}
 
 /* PC レスポンシブ */
 @media(min-width:768px){
@@ -317,6 +318,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
   .header-logo{font-size:17px}
   .header-nav a{font-size:12px;padding:5px 14px}
   .header-auth-wrap{display:flex}
+  .header-cart-mob{display:none}
   .header-row2{display:none}
   .header-row3{padding:0 24px 8px;gap:20px}
   .header-row3 a{font-size:12px}
@@ -383,6 +385,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
       <a id="detauriLink" href="./">採寸付き個品（デタウリ）</a>
       <a class="active" href="#">アソート商品</a>
     </nav>
+    <div class="header-cart-mob" id="headerCartMob"></div>
     <div class="header-auth-wrap">
       <div class="header-auth" id="headerAuth">
         <button class="auth-btn" id="openAuthBtn" type="button">ログイン / 新規登録</button>
@@ -862,6 +865,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">注文のキャンセル</th><td style="padding:12px;border:1px solid #e2e8f0;">発送準備前のご注文に限り、キャンセルを承ります。<br>発送準備開始後のキャンセルはお受けできませんので、あらかじめご了承ください。<br><span style="font-size:12px;color:#888;">※キャンセルご希望の場合は、お早めにメールまたはお電話にてご連絡ください。</span></td></tr>
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">返品・交換</th><td style="padding:12px;border:1px solid #e2e8f0;"><strong>【お客様都合の場合】</strong><br>中古衣類という商品の性質上、お客様都合による返品・交換は原則としてお受けしておりません。<br><br><strong>【当方に起因する場合】</strong><br>商品内容が記載事項と大きく異なる場合、または配送中の破損・汚損があった場合は、商品到着後7日以内にメールまたはお電話にてご連絡ください。状況を確認のうえ、返品・交換または返金にて対応いたします。<br><span style="font-size:12px;color:#888;">※7日を過ぎた場合は対応いたしかねますのでご了承ください。</span></td></tr>
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">返金について</th><td style="padding:12px;border:1px solid #e2e8f0;">当方の都合による返金の場合、ご利用の決済方法に応じて返金処理を行います。<br>クレジットカード・Apple Pay：カード会社経由での返金<br>コンビニ決済・銀行振込・ペイジー：ご指定の銀行口座へ返金<br>PayPay：PayPay残高への返金<br><span style="font-size:12px;color:#888;">※返金処理には決済方法により1〜4週間程度かかる場合があります。</span></td></tr>
+      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">古物商許可</th><td style="padding:12px;border:1px solid #e2e8f0;">大阪府公安委員会 第62228R076481号</td></tr>
     </table>
   </div>
 </div>
@@ -2412,18 +2416,28 @@ function updateAuthUi_() {
     });
   }
 
-  // モバイル認証エリアにミラーコピー
-  var mobArea = document.getElementById('headerAuthMob');
-  if (mobArea) {
-    mobArea.innerHTML = area.innerHTML;
-    var mobCart = mobArea.querySelector('#headerCartBtn');
-    if (mobCart) {
-      mobCart.id = 'headerCartBtnMob';
-      mobCart.addEventListener('click', function() {
+  // モバイルヘッダー: カートボタンをheader-row1に配置
+  var mobCartArea = document.getElementById('headerCartMob');
+  if (mobCartArea) {
+    mobCartArea.innerHTML = '<button class="auth-btn cart-header-btn" id="headerCartBtnMob" type="button" title="カート">&#x1F6D2;</button>';
+    var mobCartBtn = document.getElementById('headerCartBtnMob');
+    if (mobCartBtn) {
+      mobCartBtn.addEventListener('click', function() {
         var cs = document.getElementById('cartSection');
         if (cs) cs.scrollIntoView({ behavior: 'smooth' });
       });
     }
+  }
+
+  // モバイル認証エリアにミラーコピー（カートボタンなし）
+  var mobArea = document.getElementById('headerAuthMob');
+  if (mobArea) {
+    // カートボタンを除外したHTMLをコピー
+    var tempDiv = document.createElement('div');
+    tempDiv.innerHTML = area.innerHTML;
+    var cartInMob = tempDiv.querySelector('.cart-header-btn');
+    if (cartInMob) cartInMob.remove();
+    mobArea.innerHTML = tempDiv.innerHTML;
     var mobMyPage = mobArea.querySelector('#openMyPageBtn');
     if (mobMyPage) {
       mobMyPage.id = 'openMyPageBtnMob';
@@ -3118,10 +3132,9 @@ function renderOrderHistory_(orders) {
 <button class="toTop" id="toTopBtn" type="button" aria-label="ページ上部へ">↑</button>
 
 <!-- === AI Chatbot Widget === -->
-<button class="chatbot-fab" id="chatbotFab" type="button" aria-label="チャットで質問する">
+<button class="chatbot-fab" id="chatbotFab" type="button" aria-label="AIチャットボット" title="AIチャットボット">
   <span class="chatbot-fab-icon"><svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H5.2L4 17.2V4h16v12z"/><circle cx="8" cy="10" r="1.2"/><circle cx="12" cy="10" r="1.2"/><circle cx="16" cy="10" r="1.2"/></svg></span>
   <span class="chatbot-fab-close"><svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg></span>
-  <span class="chatbot-badge" id="chatbotBadge">1</span>
 </button>
 
 <div class="chatbot-panel" id="chatbotPanel">
@@ -3221,7 +3234,7 @@ function renderOrderHistory_(orders) {
     window._chatbotIsOpen = isOpen;
     panel.classList.toggle('open', isOpen);
     fab.classList.toggle('open', isOpen);
-    badge.classList.remove('show');
+    if (badge) badge.classList.remove('show');
     if (isOpen && !greeted) {
       greeted = true;
       appendMessage('bot', GREETING);
@@ -3556,7 +3569,7 @@ function renderOrderHistory_(orders) {
     this.style.height = Math.min(this.scrollHeight, 80) + 'px';
   });
 
-  setTimeout(function() { badge.classList.add('show'); }, 3000);
+  if (badge) setTimeout(function() { badge.classList.add('show'); }, 3000);
 })();
 
 // スクロールトップボタン & モーダル時チャットボット非表示
@@ -3627,13 +3640,13 @@ s0.parentNode.insertBefore(s1,s0);
 <!--End of Tawk.to Script-->
 <!-- === 物販お役立ち情報 === -->
 <style>
-.article-fab{position:fixed;left:16px;bottom:76px;z-index:90;display:flex;align-items:center;gap:6px;padding:10px 14px;border-radius:999px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;border:none;cursor:pointer;box-shadow:0 4px 16px rgba(217,119,6,.35);font-weight:900;font-size:13px;font-family:inherit;line-height:1.2;white-space:nowrap;transition:transform .2s,box-shadow .2s;}
-.article-fab:hover{transform:scale(1.05);box-shadow:0 6px 20px rgba(217,119,6,.45);}
-.article-fab .article-fab-emoji{font-size:18px;}
-.article-fab .article-fab-badge{position:absolute;top:-4px;right:-4px;min-width:18px;height:18px;border-radius:9px;background:#ef4444;color:#fff;font-size:10px;font-weight:900;display:none;align-items:center;justify-content:center;padding:0 4px;line-height:18px;}
-.article-panel{position:fixed;left:16px;bottom:126px;z-index:91;width:360px;max-width:calc(100vw - 32px);height:480px;max-height:calc(100vh - 120px);background:#fff;border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.18);display:none;flex-direction:column;overflow:hidden;border:1px solid #e6e8ee;}
+.article-fab{position:fixed;left:16px;bottom:16px;z-index:90;display:flex;align-items:center;gap:6px;padding:8px 12px;border-radius:999px;background:rgba(30,41,59,.75);color:#fff;border:none;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.15);font-weight:600;font-size:12px;font-family:inherit;line-height:1.2;white-space:nowrap;transition:transform .2s,box-shadow .2s;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
+.article-fab:hover{transform:scale(1.05);box-shadow:0 4px 12px rgba(0,0,0,.2);}
+.article-fab .article-fab-emoji{font-size:16px;}
+.article-fab .article-fab-badge{display:none!important;}
+.article-panel{position:fixed;left:16px;bottom:60px;z-index:91;width:360px;max-width:calc(100vw - 32px);height:480px;max-height:calc(100vh - 120px);background:rgba(255,255,255,.95);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-radius:16px;box-shadow:0 8px 32px rgba(0,0,0,.18);display:none;flex-direction:column;overflow:hidden;border:1px solid rgba(230,232,238,.6);}
 .article-panel.open{display:flex;}
-.article-panel-header{padding:12px 14px;background:linear-gradient(135deg,#f59e0b,#d97706);color:#fff;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+.article-panel-header{padding:12px 14px;background:rgba(30,41,59,.9);color:#fff;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
 .article-panel-title{font-weight:900;font-size:15px;display:flex;align-items:center;gap:6px;}
 .article-panel-close{background:rgba(255,255,255,.2);border:none;color:#fff;width:30px;height:30px;border-radius:50%;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;}
 .article-panel-close:hover{background:rgba(255,255,255,.35);}
@@ -3644,7 +3657,7 @@ s0.parentNode.insertBefore(s1,s0);
 .article-panel-body{flex:1;overflow-y:auto;padding:0;-webkit-overflow-scrolling:touch;}
 .article-list{list-style:none;margin:0;padding:0;}
 .article-list-item{padding:12px 14px;border-bottom:1px solid #f0f0f0;cursor:pointer;transition:background .15s;}
-.article-list-item:hover{background:#fef3c7;}
+.article-list-item:hover{background:rgba(241,245,249,.6);}
 .article-list-item:last-child{border-bottom:none;}
 .article-item-header{display:flex;align-items:flex-start;gap:8px;margin-bottom:4px;}
 .article-item-emoji{font-size:22px;flex-shrink:0;line-height:1;}
@@ -3675,7 +3688,7 @@ s0.parentNode.insertBefore(s1,s0);
 .article-empty{text-align:center;padding:40px 14px;color:#888;font-size:13px;}
 @media(max-width:480px){
   .article-panel.open{bottom:0;left:0;right:0;width:100%;max-width:100%;height:100%;max-height:100%;border-radius:0;}
-  .article-fab{left:12px;padding:8px 12px;font-size:12px;}
+  .article-fab{left:12px;bottom:12px;padding:7px 10px;font-size:11px;}
 }
 body.admin-mode .article-fab{bottom:136px;}
 body.admin-mode .article-panel{bottom:186px;}
@@ -3743,7 +3756,7 @@ body.admin-mode .article-panel{bottom:186px;}
   if(isDesktop){fetchArticles();}else{if(fab)fab.addEventListener('click',function(){if(isOpen)closePanel();else openPanel();});if(closeBtn)closeBtn.addEventListener('click',function(){closePanel();});setTimeout(function(){if(!articlesLoaded){runApi('apiGetArticles').then(function(r){if(r&&r.ok&&r.articles){articlesData=r.articles;articlesLoaded=true;updateBadge();}}).catch(function(){});}},3000);}
   detailBack.addEventListener('click',function(){showListView();});
   if(searchInput)searchInput.addEventListener('input',function(){var q=this.value.toLowerCase().trim();if(!q){renderList(articlesData);return;}var f=[];for(var i=0;i<articlesData.length;i++){var a=articlesData[i];if((a.title||'').toLowerCase().indexOf(q)!==-1||(a.summary||'').toLowerCase().indexOf(q)!==-1||(a.category||'').toLowerCase().indexOf(q)!==-1)f.push(a);}renderList(f);showListView();});
-  function openPanel(){isOpen=true;panel.classList.add('open');if(!articlesLoaded)fetchArticles();try{var n=new Date();localStorage.setItem(LS_LAST_READ,n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'));}catch(e){}if(badge)badge.style.display='none';showListView();}
+  function openPanel(){isOpen=true;panel.classList.add('open');if(!articlesLoaded){fetchArticles();}else{loadingEl.style.display='none';if(articlesData.length>0){renderList(articlesData);}else{emptyEl.style.display='block';}}try{var n=new Date();localStorage.setItem(LS_LAST_READ,n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'));}catch(e){}if(badge)badge.style.display='none';showListView();}
   function closePanel(){isOpen=false;panel.classList.remove('open');}
   function showListView(){listView.style.display='block';detailView.classList.remove('active');}
   function showDetailView(){listView.style.display='none';detailView.classList.add('active');}
