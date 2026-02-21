@@ -81,7 +81,7 @@ function art_generateId_() {
 // OpenAI API連携 — 記事生成
 // =====================================================
 
-function art_generateArticle_() {
+function art_generateArticle_(pastTitles) {
   var apiKey = PropertiesService.getScriptProperties().getProperty('OPENAI_API_KEY') || '';
   if (!apiKey) throw new Error('OPENAI_API_KEY が未設定です');
 
@@ -121,6 +121,17 @@ function art_generateArticle_() {
   var topicIndex = dayOfYear % topics.length;
   var todayTopic = topics[topicIndex];
 
+  // 過去記事の重複回避指示を構築
+  var dedupeInstruction = '';
+  if (pastTitles && pastTitles.length > 0) {
+    // 直近30件のタイトルをプロンプトに含める
+    var recentTitles = pastTitles.slice(0, 30);
+    dedupeInstruction = '\n\n【重要：重複回避】\n' +
+      '以下は過去に生成済みの記事タイトルです。これらと同じ内容・切り口・アドバイスは避け、' +
+      '必ず新しい視点・具体例・テクニックで執筆してください。\n' +
+      recentTitles.map(function(t, i) { return (i + 1) + '. ' + t; }).join('\n');
+  }
+
   var systemPrompt = [
     'あなたは物販・フリマアプリの専門ライターです。',
     '副業で物販を行っている人向けに、実践的で最新のノウハウ記事を執筆してください。',
@@ -143,7 +154,7 @@ function art_generateArticle_() {
     '・初心者にもわかりやすく、かつ中級者にも有用な情報を含める',
     '・HTMLのcontent内では<script>タグや<style>タグは使わない',
     '・content内の文字列はHTMLエンティティで適切にエスケープする'
-  ].join('\n');
+  ].join('\n') + dedupeInstruction;
 
   var userPrompt = '今日のテーマ: 「' + todayTopic + '」について、今すぐ使える実践的なtipsを記事にしてください。';
 
@@ -199,11 +210,32 @@ function generateDailyArticle() {
   }
 
   try {
-    var article = art_generateArticle_();
     var sheet = art_getSheet_();
+    var lastRow = sheet.getLastRow();
+
+    // 過去記事のタイトルを取得（重複回避用）
+    var pastTitles = [];
+    if (lastRow >= 2) {
+      var titleData = sheet.getRange(2, ARTICLE_COLS.TITLE + 1, lastRow - 1, 1).getValues();
+      for (var i = titleData.length - 1; i >= 0; i--) {
+        var t = String(titleData[i][0] || '').trim();
+        if (t) pastTitles.push(t);
+      }
+    }
+
+    var article = art_generateArticle_(pastTitles);
     var id = art_generateId_();
     var tz = Session.getScriptTimeZone() || 'Asia/Tokyo';
     var publishDate = Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd');
+
+    // 記事数が100以上の場合、最も古い記事を削除
+    var MAX_ARTICLES = 100;
+    var articleCount = lastRow - 1; // ヘッダー行を除く
+    if (articleCount >= MAX_ARTICLES) {
+      // 最も古い記事（2行目）を削除
+      sheet.deleteRow(2);
+      console.log('記事上限到達: 最古の記事を削除しました（現在: ' + articleCount + '件）');
+    }
 
     var row = [
       id,
