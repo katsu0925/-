@@ -3685,7 +3685,7 @@ body.admin-mode .article-panel{bottom:186px;}
 }
 @media(min-width:1440px){
   .article-fab{display:none !important;}
-  .article-panel{display:flex !important;position:fixed;left:0;top:0;bottom:0;width:280px;height:100vh;max-height:100vh;border-radius:0;box-shadow:none;border:none;border-right:1px solid #e6e8ee;background:#fafafa;z-index:50;}
+  .article-panel{display:flex !important;position:fixed;right:calc(50vw + 550px);top:0;bottom:0;width:calc(50vw - 550px);max-width:320px;min-width:200px;height:100vh;max-height:100vh;border-radius:0;box-shadow:none;border:none;border-right:1px solid #e6e8ee;background:#fafafa;z-index:50;left:auto;}
   .article-panel-header{padding:10px 14px;}
   .article-panel-close{display:none;}
   .article-search{display:block;}
@@ -3695,7 +3695,7 @@ body.admin-mode .article-panel{bottom:186px;}
   .article-item-emoji{font-size:16px;}
   .article-item-title{font-size:13px;}
   .article-item-meta{padding-left:24px;margin-top:2px;}
-  body.admin-mode .article-panel{top:0;bottom:0;left:0;width:280px;height:100vh;}
+  body.admin-mode .article-panel{top:0;bottom:0;width:calc(50vw - 550px);max-width:320px;min-width:200px;}
 }
 </style>
 <button class="article-fab" id="articleFab" type="button" aria-label="物販お役立ち情報">
