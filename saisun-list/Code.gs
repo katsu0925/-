@@ -343,6 +343,19 @@ function apiLogPV(payload) {
   const noLog = String(body.noLog || '') === '1';
   if (noLog) return { ok: true, skipped: true };
 
+  // オーナーのアクセスはログしない（OWNER_USER_KEYS で判定 — 全モード対応）
+  try {
+    var ownerKeysRaw = PropertiesService.getScriptProperties().getProperty('OWNER_USER_KEYS') || '';
+    if (ownerKeysRaw) {
+      var reqUserKey = String(body.userKey || '').trim();
+      if (reqUserKey) {
+        var ownerKeys = {};
+        ownerKeysRaw.split(',').forEach(function(k) { if (k.trim()) ownerKeys[k.trim()] = true; });
+        if (ownerKeys[reqUserKey]) return { ok: true, skipped: true };
+      }
+    }
+  } catch(e) { console.log('optional: owner userKey check: ' + (e.message || e)); }
+
   // GASモード: オーナーのアクセスはログしない（メールアドレスで判定）
   try {
     var ownerEmail = String(PropertiesService.getScriptProperties().getProperty(APP_CONFIG.admin.ownerEmailProp) || '').trim().toLowerCase();
