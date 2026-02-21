@@ -2014,6 +2014,10 @@ function doLogin_() {
         state.sessionId = res.data.sessionId;
         state.customer = res.data.customer;
         saveSession_(res.data.sessionId, res.data.customer);
+        // サーバーからisOwnerフラグが返った場合、ローカルに保存（PVログ除外用）
+        if (res.data.isOwner) {
+          try { localStorage.setItem('_nk_owner_flag', '1'); } catch(e) {}
+        }
         fetchCsrfToken_();
         updateAuthUi_();
         closeModal($('authModal'));
@@ -2255,7 +2259,10 @@ function doLogout_() {
 
 function validateSession_() {
   var saved = loadSession_();
-  if (!saved || !saved.sessionId) return;
+  if (!saved || !saved.sessionId) {
+    state._sessionValidated = true;
+    return Promise.resolve();
+  }
 
   // 即時反映: localStorageのデータで先にUI更新
   if (saved.customer) {
@@ -2265,22 +2272,30 @@ function validateSession_() {
     updateCartPrice();
   }
 
-  runApi('apiValidateSession', state.userKey, { sessionId: saved.sessionId })
+  return runApi('apiValidateSession', state.userKey, { sessionId: saved.sessionId })
     .then(function(res) {
       if (res.ok && res.data && res.data.customer) {
         state.sessionId = saved.sessionId;
         state.customer = res.data.customer;
+        // サーバーからisOwnerフラグが返った場合、ローカルに保存
+        if (res.data.isOwner) {
+          try { localStorage.setItem('_nk_owner_flag', '1'); } catch(e) {}
+        }
         fetchCsrfToken_();
         updateAuthUi_();
         updateCartPrice();
       } else {
         clearSession_();
+        try { localStorage.removeItem('_nk_owner_flag'); } catch(e) {}
         updateAuthUi_();
         updateCartPrice();
       }
     })
     .catch(function() {
       // ネットワークエラー時は保存されたデータを維持（既に設定済み）
+    })
+    .then(function() {
+      state._sessionValidated = true;
     });
 }
 
@@ -2975,7 +2990,7 @@ var ADMIN_KEY = (function() {
   }
   try { return localStorage.getItem('_nk_owner_key') || ''; } catch(e) { return ''; }
 })();
-var IS_OWNER = !!ADMIN_KEY;
+var IS_OWNER = !!ADMIN_KEY || (function() { try { return localStorage.getItem('_nk_owner_flag') === '1'; } catch(e) { return false; } })();
 
 // reCAPTCHAスクリプトを遅延ロード（初回呼出し時にのみ読み込み）
 var _recaptchaLoadPromise = null;
@@ -5232,7 +5247,9 @@ function setupScrollTopButton_() {
 // =====================================================
 
 function logPageView_() {
-  if (IS_OWNER) return;  // オーナーのアクセスはログしない
+  // オーナー判定: ADMIN_KEY or _nk_owner_flag（ログイン時にサーバーから付与）
+  var isOwnerNow = IS_OWNER || (function() { try { return localStorage.getItem('_nk_owner_flag') === '1'; } catch(e) { return false; } })();
+  if (isOwnerNow) return;
   // ボット・クローラー除外
   var ua = navigator.userAgent || '';
   if (/HeadlessChrome|Google-Read-Aloud|bot|crawl|spider|slurp/i.test(ua)) return;
@@ -5418,8 +5435,8 @@ function boot() {
   // KOMOJU決済からの戻りを処理
   handlePaymentReturn_();
 
-  // セッション検証（ログイン状態復元）
-  validateSession_();
+  // セッション検証（ログイン状態復元） — Promiseを保持してPVログ遅延に使用
+  state._sessionPromise = validateSession_();
 
   var mo = loadMeasureOpt_();
   if (mo) setMeasureOptValue_(mo);
@@ -5454,8 +5471,9 @@ function boot() {
       // 初回データロード完了後に非重要APIを遅延実行
       // CSRFトークン: 注文送信に必要だが初期描画には不要
       fetchCsrfToken_();
-      // PVログ: バックグラウンドで十分
-      setTimeout(logPageView_, 2000);
+      // PVログ: セッション検証完了後に実行（オーナー判定の精度を確保）
+      var sp = state._sessionPromise || Promise.resolve();
+      sp.then(function() { setTimeout(logPageView_, 500); });
       // アソートページHTMLをバックグラウンドでプリフェッチ（シームレス切替用）
       setTimeout(prefetchBulkPage_, 3000);
     })
@@ -5466,7 +5484,8 @@ function boot() {
       }
       // エラー時でもCSRFトークンとPVログは実行
       fetchCsrfToken_();
-      setTimeout(logPageView_, 2000);
+      var sp2 = state._sessionPromise || Promise.resolve();
+      sp2.then(function() { setTimeout(logPageView_, 500); });
     });
 }
 

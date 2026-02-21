@@ -359,17 +359,24 @@ function apiLoginCustomer(userKey, params) {
     const sheet = getCustomerSheet_();
     sheet.getRange(customer.row, 10, 1, 3).setValues([[now, sessionId, sessionExpiry]]);
 
-    return {
-      ok: true,
-      data: {
-        sessionId: sessionId,
-        customer: {
-          id: customer.id, email: customer.email, companyName: customer.companyName,
-          phone: customer.phone, postal: customer.postal, address: customer.address,
-          newsletter: customer.newsletter, points: customer.points
-        }
+    // オーナー判定（PVログ除外用フラグ）
+    var isOwner = false;
+    try {
+      var ownerEmail = String(PropertiesService.getScriptProperties().getProperty(APP_CONFIG.admin.ownerEmailProp) || '').trim().toLowerCase();
+      if (ownerEmail && email === ownerEmail) isOwner = true;
+    } catch(e) {}
+
+    var responseData = {
+      sessionId: sessionId,
+      customer: {
+        id: customer.id, email: customer.email, companyName: customer.companyName,
+        phone: customer.phone, postal: customer.postal, address: customer.address,
+        newsletter: customer.newsletter, points: customer.points
       }
     };
+    if (isOwner) responseData.isOwner = true;
+
+    return { ok: true, data: responseData };
   } catch (e) {
     return { ok: false, message: 'ログインに失敗しました: ' + (e.message || e) };
   }
@@ -390,16 +397,24 @@ function apiValidateSession(userKey, params) {
       return { ok: false, message: 'セッションが無効または期限切れです' };
     }
 
-    return {
-      ok: true,
-      data: {
-        customer: {
-          id: customer.id, email: customer.email, companyName: customer.companyName,
-          phone: customer.phone, postal: customer.postal, address: customer.address,
-          newsletter: customer.newsletter, points: customer.points
-        }
+    // オーナー判定（PVログ除外用フラグ）
+    var isOwner = false;
+    try {
+      var ownerEmail = String(PropertiesService.getScriptProperties().getProperty(APP_CONFIG.admin.ownerEmailProp) || '').trim().toLowerCase();
+      var custEmail = String(customer.email || '').trim().toLowerCase();
+      if (ownerEmail && custEmail && custEmail === ownerEmail) isOwner = true;
+    } catch(e) {}
+
+    var responseData = {
+      customer: {
+        id: customer.id, email: customer.email, companyName: customer.companyName,
+        phone: customer.phone, postal: customer.postal, address: customer.address,
+        newsletter: customer.newsletter, points: customer.points
       }
     };
+    if (isOwner) responseData.isOwner = true;
+
+    return { ok: true, data: responseData };
   } catch (e) {
     return { ok: false, message: 'セッション検証に失敗しました' };
   }
