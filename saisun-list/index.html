@@ -259,6 +259,8 @@
       body.mob-fabs-hidden .stickyBar{transform:translateY(200px);}
       body.mob-fabs-hidden .chatbot-fab{transform:translateY(200px);}
       body.mob-fabs-hidden .toTop{bottom:16px;}
+      /* 最下部: カートのみ非表示（特商法リンク対策） */
+      body.mob-at-bottom .stickyBar{transform:translateY(200px);}
     }
     /* 480px以下: チャットボット・toTopを同サイズ・同位置に揃える */
     @media(max-width:480px){
@@ -983,7 +985,7 @@
       <div class="guide-section">
         <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">デタウリ（採寸付き個品）とは</h3>
         <ul style="margin:0;padding-left:20px;color:#475569;">
-          <li>副業・物販向けの<strong>B2B古着卸売りプラットフォーム</strong>です</li>
+          <li>副業物販向けの<strong>古着卸売りプラットフォーム</strong>です</li>
           <li>すべての商品に<strong>採寸データ</strong>が付いており、フリマアプリ出品にそのまま活用できます</li>
           <li>写真はサンプルイメージです。実物と多少異なる場合があります</li>
           <li>状態ランクは目視による判定となります</li>
@@ -5316,7 +5318,7 @@ function logPageView_() {
 // アソート商品ページへの遷移（document.write方式）
 // =====================================================
 var _cachedBulkHtml = null;
-var BULK_HTML_CACHE_KEY = 'page_html_bulk_v10';
+var BULK_HTML_CACHE_KEY = 'page_html_bulk_v11';
 var PAGE_HTML_CACHE_TTL = 10 * 60 * 1000; // 10分
 
 function loadBulkHtmlCache_() {
@@ -5401,12 +5403,19 @@ function prefetchBulkPage_() {
   var _row2Hidden = false;
   var _fabsVisible = false;
   var _mobFabsHidden = false;
+  var _mobAtBottom = false;
   var _isMobile = window.matchMedia('(max-width:767px)').matches;
   window.addEventListener('scroll', function() {
     var topbar = document.querySelector('.topbar');
     if (!topbar) return;
     var currentY = window.scrollY;
     var delta = currentY - _lastScrollY;
+    // モバイル: ページ最下部でカートバーのみ非表示（特商法リンク対策）
+    if (_isMobile) {
+      var atBottom = (currentY + window.innerHeight) >= (document.documentElement.scrollHeight - 60);
+      if (atBottom && !_mobAtBottom) { _mobAtBottom = true; document.body.classList.add('mob-at-bottom'); }
+      else if (!atBottom && _mobAtBottom) { _mobAtBottom = false; document.body.classList.remove('mob-at-bottom'); }
+    }
     if (Math.abs(delta) < 5) { _lastScrollY = currentY; return; }
     // チャットボットやパネルが開いている間はFABを隠さない
     var keepFabs = !!(window._chatbotIsOpen);
@@ -5741,7 +5750,7 @@ boot();
       a: '営業時間：平日 10:00〜18:00\n（土日祝はお休みです）\n\n営業時間外のお問い合わせは翌営業日にご返信いたします。' }
   ];
 
-  var GREETING = 'こんにちは！デタウリ.Detauriへようこそ。\n副業・物販向けの古着卸売りプラットフォームです。\nご質問のカテゴリをお選びいただくか、下の入力欄から自由にご質問ください。';
+  var GREETING = 'こんにちは！デタウリ.Detauriへようこそ。\n副業物販向けの古着卸売りプラットフォームです。\nご質問のカテゴリをお選びいただくか、下の入力欄から自由にご質問ください。';
 
   // ── 開閉 ──
   function toggleChat(){

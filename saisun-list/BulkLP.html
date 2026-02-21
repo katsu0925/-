@@ -559,6 +559,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
     <button onclick="applyCoupon()">適用</button>
   </div>
   <div class="coupon-result" id="couponResult"></div>
+  <p style="font-size:12px;margin:6px 0 0;color:#c00;font-weight:700;">2月末まで「FREE_SHIPPING_20260228」を入力で送料無料<br><span style="font-size:11px;color:#888;font-weight:400;">※価格破壊商品は対象外です</span></p>
 </div>
 
 </div>
@@ -681,7 +682,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
     <div style="margin-bottom:20px;">
       <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">アソート商品とは</h3>
       <ul style="margin:0;padding-left:20px;color:#475569;">
-        <li>副業・物販向けの<strong>B2B古着卸売りプラットフォーム</strong>のまとめ買い専用ページです</li>
+        <li>副業物販向けの<strong>古着卸売りプラットフォーム</strong>のまとめ買い専用ページです</li>
         <li>カテゴリ・ブランドごとにまとめた<strong>古着セット</strong>を数量指定でご注文いただけます</li>
         <li>写真はサンプルイメージです。実物と多少異なる場合があります</li>
         <li>1点ずつ選びたい方は<strong>デタウリ（採寸付き個品）</strong>ページもあります（ヘッダーの「デタウリ」から切替）</li>
@@ -1077,7 +1078,7 @@ var SESSION_KEY = 'estimate_session';
 
 // ページ遷移用: デタウリページHTMLキャッシュ（localStorage永続化）
 var _cachedDetailHtml = null;
-var DETAIL_HTML_CACHE_KEY = 'page_html_detail_v10';
+var DETAIL_HTML_CACHE_KEY = 'page_html_detail_v11';
 var PAGE_HTML_CACHE_TTL = 10 * 60 * 1000; // 10分
 
 function loadDetailHtmlCache_() {
@@ -3244,7 +3245,7 @@ function renderOrderHistory_(orders) {
       a: '営業時間：平日 10:00〜18:00\n（土日祝はお休みです）\n\n営業時間外のお問い合わせは翌営業日にご返信いたします。' }
   ];
 
-  var GREETING = 'こんにちは！アソート商品ページへようこそ。\n副業・物販向けの古着まとめ買い専用ページです。\nご質問のカテゴリをお選びいただくか、下の入力欄から自由にご質問ください。';
+  var GREETING = 'こんにちは！アソート商品ページへようこそ。\n副業物販向けの古着まとめ買い専用ページです。\nご質問のカテゴリをお選びいただくか、下の入力欄から自由にご質問ください。';
 
   function toggleChat(){
     isOpen = !isOpen;
