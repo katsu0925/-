@@ -1067,7 +1067,7 @@ var SESSION_KEY = 'estimate_session';
 
 // ページ遷移用: デタウリページHTMLキャッシュ（localStorage永続化）
 var _cachedDetailHtml = null;
-var DETAIL_HTML_CACHE_KEY = 'page_html_detail_v6';
+var DETAIL_HTML_CACHE_KEY = 'page_html_detail_v7';
 var PAGE_HTML_CACHE_TTL = 10 * 60 * 1000; // 10分
 
 function loadDetailHtmlCache_() {
@@ -3674,6 +3674,7 @@ s0.parentNode.insertBefore(s1,s0);
 .article-detail-back{display:flex;align-items:center;gap:4px;padding:10px 14px;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:13px;font-weight:700;color:#64748b;background:transparent;border-top:none;border-left:none;border-right:none;width:100%;text-align:left;transition:background .15s;font-family:inherit;}
 .article-detail-back:hover{background:#f8fafc;}
 .article-detail-header{padding:14px;border-bottom:1px solid #f0f0f0;}
+.article-detail-hero{width:100%;max-height:200px;object-fit:cover;border-radius:8px;margin-bottom:10px;display:block;}
 .article-detail-title{font-weight:900;font-size:16px;color:#1a1a2e;line-height:1.4;margin-bottom:8px;}
 .article-detail-meta{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
 .article-detail-date{font-size:12px;color:#888;}
@@ -3782,7 +3783,7 @@ body.admin-mode .article-panel{bottom:186px;}
   var _prefetchRunning=false;
   function prefetchAllContents(){if(_prefetchRunning||!articlesData.length)return;_prefetchRunning=true;var ids=[];for(var i=0;i<articlesData.length;i++){var aid=articlesData[i].id;if(!detailCache[aid])ids.push(aid);}if(!ids.length){_prefetchRunning=false;return;}var idx=0;function next(){if(idx>=ids.length){_prefetchRunning=false;return;}var id=ids[idx++];articleFetch('apiGetArticleContent',id).then(function(r){if(r&&r.ok&&r.article){detailCache[id]=r.article;saveContentCache_();}setTimeout(next,800);}).catch(function(){setTimeout(next,1200);});}next();}
   function loadDetail(id){showDetailView();if(detailCache[id]){renderDetail(detailCache[id]);return;}detailHeader.innerHTML='';detailContent.innerHTML='<div class="article-loading"><div class="article-loading-spinner"></div><div>記事を読み込み中...</div></div>';articleFetch('apiGetArticleContent',id).then(function(r){if(!r||!r.ok||!r.article){detailContent.innerHTML='<div class="article-empty">記事の読み込みに失敗しました。</div>';return;}detailCache[id]=r.article;saveContentCache_();renderDetail(r.article);}).catch(function(){detailContent.innerHTML='<div class="article-empty">記事の読み込みに失敗しました。</div>';});}
-  function renderDetail(a){var th='';if(a.tags){var ta=a.tags.split(','),p=[];for(var i=0;i<ta.length;i++){var t=ta[i].trim();if(t)p.push('#'+esc(t));}th='<span class="article-detail-tags">'+p.join(' ')+'</span>';}detailHeader.innerHTML='<div class="article-detail-title">'+esc(a.emoji)+' '+esc(a.title)+'</div><div class="article-detail-meta"><span class="article-detail-date">'+esc(fmtDate(a.publishDate))+'</span><span class="article-detail-category">'+esc(a.category)+'</span>'+th+'</div>';detailContent.innerHTML=san(a.content);}
+  function renderDetail(a){var th='';if(a.tags){var ta=a.tags.split(','),p=[];for(var i=0;i<ta.length;i++){var t=ta[i].trim();if(t)p.push('#'+esc(t));}th='<span class="article-detail-tags">'+p.join(' ')+'</span>';}var hero=a.imageUrl?'<img class="article-detail-hero" src="'+esc(a.imageUrl)+'" alt="" loading="lazy">':'';detailHeader.innerHTML=hero+'<div class="article-detail-title">'+esc(a.emoji)+' '+esc(a.title)+'</div><div class="article-detail-meta"><span class="article-detail-date">'+esc(fmtDate(a.publishDate))+'</span><span class="article-detail-category">'+esc(a.category)+'</span>'+th+'</div>';detailContent.innerHTML=san(a.content);}
   function esc(t){var d=document.createElement('div');d.appendChild(document.createTextNode(t||''));return d.innerHTML;}
   function san(h){var s=String(h||'');s=s.replace(/<script[\s\S]*?<\/script>/gi,'');s=s.replace(/<style[\s\S]*?<\/style>/gi,'');s=s.replace(/<iframe[\s\S]*?<\/iframe>/gi,'');s=s.replace(/<object[\s\S]*?<\/object>/gi,'');s=s.replace(/<embed[\s\S]*?>/gi,'');s=s.replace(/<link[\s\S]*?>/gi,'');s=s.replace(/\son\w+\s*=\s*"[^"]*"/gi,'');s=s.replace(/\son\w+\s*=\s*'[^']*'/gi,'');s=s.replace(/\son\w+\s*=[^\s>]*/gi,'');s=s.replace(/javascript\s*:/gi,'');return s;}
 })();
