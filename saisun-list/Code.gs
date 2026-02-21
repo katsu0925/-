@@ -109,6 +109,8 @@ function doPost(e) {
       'apiGetCsrfToken',
       'apiBulkInit', 'apiBulkSubmit', 'apiBulkPage', 'apiDetailPage',
       'apiChatbot', 'apiValidateCoupon', 'apiAdminLinkOrder',
+      // 記事API
+      'apiGetArticles', 'apiGetArticleContent',
       // 管理者専用API（adminKey認証必須）
       'adminGetKomojuMode', 'adminToggleKomojuMode',
       'adminGetMemberDiscountStatus', 'adminToggleMemberDiscount',
@@ -238,7 +240,9 @@ var RATE_LIMITS = {
   'apiRegisterCustomer': { max: 3, windowSec: 3600, label: '登録は1時間に3回まで' },
   'apiSendContactForm': { max: 3, windowSec: 3600, label: 'お問い合わせは1時間に3回まで' },
   'apiRequestPasswordReset': { max: 3, windowSec: 3600, label: 'パスワードリセットは1時間に3回まで' },
-  'apiRecoverEmail': { max: 5, windowSec: 3600, label: 'メールアドレス確認は1時間に5回まで' }
+  'apiRecoverEmail': { max: 5, windowSec: 3600, label: 'メールアドレス確認は1時間に5回まで' },
+  'apiGetArticles':       { max: 20, windowSec: 60, label: '記事一覧は1分に20回まで' },
+  'apiGetArticleContent': { max: 30, windowSec: 60, label: '記事閲覧は1分に30回まで' }
 };
 
 function checkRateLimit_(action, userKey) {
@@ -612,4 +616,12 @@ function verifyCsrfToken_(userKey, token) {
   var stored = cache.get(key);
   if (!stored) return false;
   return timingSafeEqual_(stored, token);
+}
+
+// =====================================================
+// HTMLテンプレートインクルード
+// =====================================================
+
+function include_(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
