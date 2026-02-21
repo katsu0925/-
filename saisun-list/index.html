@@ -5246,7 +5246,8 @@ function logPageView_() {
       referrer: document.referrer || '',
       userAgent: navigator.userAgent || '',
       language: navigator.language || '',
-      screen: (screen.width || 0) + 'x' + (screen.height || 0)
+      screen: (screen.width || 0) + 'x' + (screen.height || 0),
+      email: (state.customer && state.customer.email) ? state.customer.email : ''
     };
     runApi('apiLogPV', payload).catch(function(e) {
       console.log('PVログエラー:', e);
