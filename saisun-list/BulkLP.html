@@ -315,8 +315,8 @@ body.admin-mode .admin-settings-fab{display:flex;}
 @media(min-width:768px){
   body{background:#e0e0e0}
   .container{max-width:1100px;border-radius:0;box-shadow:none}
-  .header-row1{display:grid;grid-template-columns:auto 1fr auto;padding:10px 24px;gap:12px}
-  .header-logo{font-size:17px;width:auto;text-align:left;max-height:none;overflow:visible;transition:none;opacity:1}
+  .header-row1{display:grid;grid-template-columns:1fr auto 1fr;padding:10px 24px;gap:12px;align-items:center}
+  .header-logo{font-size:17px;width:auto;text-align:left;max-height:none;overflow:visible;transition:none;opacity:1;justify-self:start}
   .header.row2-hidden .header-logo{max-height:none;opacity:1}
   .header-nav{justify-self:center}
   .header-nav a{font-size:12px;padding:5px 14px}
@@ -1067,7 +1067,7 @@ var SESSION_KEY = 'estimate_session';
 
 // ページ遷移用: デタウリページHTMLキャッシュ（localStorage永続化）
 var _cachedDetailHtml = null;
-var DETAIL_HTML_CACHE_KEY = 'page_html_detail_v2';
+var DETAIL_HTML_CACHE_KEY = 'page_html_detail_v3';
 var PAGE_HTML_CACHE_TTL = 10 * 60 * 1000; // 10分
 
 function loadDetailHtmlCache_() {
@@ -3690,7 +3690,7 @@ s0.parentNode.insertBefore(s1,s0);
 @keyframes articleSpin{to{transform:rotate(360deg);}}
 .article-empty{text-align:center;padding:40px 14px;color:#888;font-size:13px;}
 @media(max-width:480px){
-  .article-panel.open{bottom:0;left:0;right:0;width:100%;max-width:100%;height:100%;max-height:100%;border-radius:0;}
+  .article-panel.open{bottom:0;left:0;right:0;width:100%;max-width:100%;height:100%;max-height:100%;border-radius:0;z-index:110;}
   .article-fab{left:12px;bottom:12px;padding:7px 10px;font-size:11px;}
 }
 body.admin-mode .article-fab{bottom:136px;}
