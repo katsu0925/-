@@ -39,6 +39,24 @@ var ARTICLE_HEADERS = [
 // シートアクセス
 // =====================================================
 
+function art_formatDate_(val) {
+  if (!val) return '';
+  var tz = Session.getScriptTimeZone() || 'Asia/Tokyo';
+  var d;
+  if (val instanceof Date) {
+    d = val;
+  } else {
+    var s = String(val).trim();
+    if (!s) return '';
+    d = new Date(s);
+    if (isNaN(d.getTime())) return s;
+  }
+  var base = Utilities.formatDate(d, tz, 'yyyy/MM/dd');
+  var dayEn = Utilities.formatDate(d, tz, 'E');
+  var map = { Sun:'日', Mon:'月', Tue:'火', Wed:'水', Thu:'木', Fri:'金', Sat:'土' };
+  return base + '(' + (map[dayEn] || dayEn) + ')';
+}
+
 function art_getSheet_() {
   var ssId = String(APP_CONFIG.data.spreadsheetId || '').trim();
   if (!ssId) throw new Error('DATA_SPREADSHEET_ID が未設定です');
@@ -245,7 +263,7 @@ function apiGetArticles() {
         title: String(data[i][ARTICLE_COLS.TITLE] || '').trim(),
         summary: String(data[i][ARTICLE_COLS.SUMMARY] || '').trim(),
         category: String(data[i][ARTICLE_COLS.CATEGORY] || '').trim(),
-        publishDate: String(data[i][ARTICLE_COLS.PUBLISH_DATE] || '').trim(),
+        publishDate: art_formatDate_(data[i][ARTICLE_COLS.PUBLISH_DATE]),
         emoji: String(data[i][ARTICLE_COLS.EMOJI] || '📝').trim()
       });
 
@@ -298,7 +316,7 @@ function apiGetArticleContent(articleId) {
       content: String(rowData[ARTICLE_COLS.CONTENT] || '').trim(),
       category: String(rowData[ARTICLE_COLS.CATEGORY] || '').trim(),
       tags: String(rowData[ARTICLE_COLS.TAGS] || '').trim(),
-      publishDate: String(rowData[ARTICLE_COLS.PUBLISH_DATE] || '').trim(),
+      publishDate: art_formatDate_(rowData[ARTICLE_COLS.PUBLISH_DATE]),
       emoji: String(rowData[ARTICLE_COLS.EMOJI] || '📝').trim()
     };
 
