@@ -679,10 +679,12 @@ body.admin-mode .admin-settings-fab{display:flex;}
   </div>
   <div class="bulk-modal-body" style="line-height:1.7;">
     <div style="margin-bottom:20px;">
-      <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">アソート商品について</h3>
+      <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">アソート商品とは</h3>
       <ul style="margin:0;padding-left:20px;color:#475569;">
-        <li>アソート商品はカテゴリ・ブランドごとにまとめた古着セットです</li>
+        <li>副業・物販向けの<strong>B2B古着卸売りプラットフォーム</strong>のまとめ買い専用ページです</li>
+        <li>カテゴリ・ブランドごとにまとめた<strong>古着セット</strong>を数量指定でご注文いただけます</li>
         <li>写真はサンプルイメージです。実物と多少異なる場合があります</li>
+        <li>1点ずつ選びたい方は<strong>デタウリ（採寸付き個品）</strong>ページもあります（ヘッダーの「デタウリ」から切替）</li>
       </ul>
     </div>
     <div style="margin-bottom:20px;">
@@ -698,13 +700,21 @@ body.admin-mode .admin-settings-fab{display:flex;}
         <li style="margin-bottom:8px;"><strong>商品選択</strong>：数量を決めてカートに追加</li>
         <li style="margin-bottom:8px;"><strong>お届け先入力</strong>：住所を入力すると送料が自動表示されます</li>
         <li style="margin-bottom:8px;"><strong>お支払い</strong>：商品代＋送料をオンライン決済<br><span style="font-size:12px;color:#888;">※コンビニ決済は別途手数料220円、銀行振込・ペイジーの振込手数料はお客様負担</span></li>
-        <li><strong>発送</strong>：決済完了後、商品を発送いたします</li>
+        <li><strong>発送</strong>：決済完了後、通常2〜5営業日で発送いたします</li>
       </ol>
     </div>
     <div style="margin-bottom:20px;">
       <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">割引について</h3>
       <ul style="margin:0;padding-left:20px;color:#475569;">
-        <li><strong>会員割引</strong>：会員登録で<span style="color:#b8002a;font-weight:700;">10%OFF</span><span style="color:#666;font-size:13px;">（2026年9月末まで）</span></li>
+        <li><strong>会員割引</strong>：無料会員登録で<span style="color:#b8002a;font-weight:700;">10%OFF</span><span style="color:#666;font-size:13px;">（2026年9月末まで）</span></li>
+      </ul>
+    </div>
+    <div style="margin-bottom:20px;">
+      <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">便利な機能</h3>
+      <ul style="margin:0;padding-left:20px;color:#475569;">
+        <li style="margin-bottom:8px;"><strong>💡 副業物販お役立ち情報</strong>：画面左下のボタンから、物販ノウハウ記事を毎日配信中</li>
+        <li style="margin-bottom:8px;"><strong>🤖 AIチャットボット</strong>：ご不明点はチャットボットに質問できます</li>
+        <li><strong>アソート送料表</strong>：ヘッダーから送料の詳細を確認できます</li>
       </ul>
     </div>
     <div>
@@ -1067,7 +1077,7 @@ var SESSION_KEY = 'estimate_session';
 
 // ページ遷移用: デタウリページHTMLキャッシュ（localStorage永続化）
 var _cachedDetailHtml = null;
-var DETAIL_HTML_CACHE_KEY = 'page_html_detail_v9';
+var DETAIL_HTML_CACHE_KEY = 'page_html_detail_v10';
 var PAGE_HTML_CACHE_TTL = 10 * 60 * 1000; // 10分
 
 function loadDetailHtmlCache_() {
@@ -3183,17 +3193,17 @@ function renderOrderHistory_(orders) {
   var FAQ = [
     // --- 注文・購入 ---
     { q: '注文方法を教えて', category: '注文・購入',
-      a: '【ご注文方法】\n1. 商品を選んで数量を指定\n2. お届け先を入力\n3. 送料が自動計算されます\n4. お支払い方法を選んで注文確定\n\n詳しくは画面上部の「商品ガイド」もご覧ください。' },
+      a: '【ご注文方法】\n1. 商品を選んで数量を指定\n2. カートに追加\n3. お届け先を入力すると送料が自動計算されます\n4. お支払い方法を選んで注文確定\n\n詳しくは画面上部の「商品ガイド」もご覧ください。' },
     { q: '最低注文数は？', category: '注文・購入',
       a: 'アソート商品は各商品ごとに最低注文数が設定されています。商品カードに表示されている数量からご注文いただけます。' },
     { q: '注文後のキャンセルはできる？', category: '注文・購入',
       a: 'ご注文確定後のキャンセル・変更はお受けしておりません。\nご注文前に商品内容をよくご確認ください。\n\n万一、商品内容が記載事項と大きく異なる場合は、商品到着後7日以内にご連絡ください。' },
-    { q: 'デタウリとの違いは？', category: '注文・購入',
-      a: '【アソートとデタウリの違い】\n・アソート：まとめ買い向け。数量指定で注文。\n・デタウリ：1点ずつ選ぶ個品販売。採寸データ付き。\n\n画面上部のナビから切り替えできます。' },
+    { q: 'デタウリ（個品）ページとは？', category: '注文・購入',
+      a: '【デタウリ（採寸付き個品）ページ】\n1点ずつ商品を選べる個品販売ページです。\n\n・すべての商品に採寸データが付いています\n・ブランド・カテゴリ・価格帯・状態ランクで絞り込み可能\n・ヘッダーの「デタウリ」ボタンから切り替えできます\n\nまとめ買いならアソート、1点ずつ選ぶならデタウリがおすすめです！' },
 
     // --- 送料・配送 ---
     { q: '送料はいくら？', category: '送料・配送',
-      a: '【送料について】\n送料はお届け先の地域と荷物のサイズによって異なります。\n住所を入力すると自動計算されます。\n\n詳しくは画面上部の「アソート送料表」ボタンからご確認ください。' },
+      a: '【送料について】\n送料はお届け先の地域と荷物のサイズによって異なります。\n住所を入力すると自動計算されます。\n\n・ダイヤモンド会員は送料無料！\n\n詳しくはヘッダーの「アソート送料表」からご確認ください。' },
     { q: '配送にかかる日数は？', category: '送料・配送',
       a: '決済完了後、通常2〜5営業日で発送いたします。\nお届けまでの日数は地域により異なりますが、発送から1〜3日程度です。\n\n※繁忙期や天候・災害等により遅延する場合がございます。' },
     { q: '送料無料になる条件は？', category: '送料・配送',
@@ -3221,6 +3231,10 @@ function renderOrderHistory_(orders) {
     { q: 'ダイヤモンド会員の特典は？', category: '会員',
       a: '【ダイヤモンド会員特典】\n・送料無料（国内全域）\n・優先在庫確保\n\n条件：累計購入額30万円以上\nたくさんご利用いただくほどお得になります！' },
 
+    // --- 機能・その他 ---
+    { q: '副業物販お役立ち情報って何？', category: '機能・その他',
+      a: '【副業物販お役立ち情報】\n画面左下のボタンから、物販に役立つノウハウ記事を読むことができます。\n\n・毎日新しい記事を配信中\n・フリマアプリでの売り方や仕入れのコツなど\n・副業物販を始める方に役立つ情報が満載です' },
+
     // --- 返品・サポート ---
     { q: '返品・交換はできる？', category: '返品・サポート',
       a: '返品・交換は原則お受けしておりません。\n\nただし、商品内容が記載事項と大きく異なる場合は、商品到着後7日以内にご連絡ください。\n\n✉ お問い合わせ よりご連絡いただけます。' },
@@ -3230,7 +3244,7 @@ function renderOrderHistory_(orders) {
       a: '営業時間：平日 10:00〜18:00\n（土日祝はお休みです）\n\n営業時間外のお問い合わせは翌営業日にご返信いたします。' }
   ];
 
-  var GREETING = 'こんにちは！アソート商品についてご質問があればお気軽にどうぞ。\nご質問のカテゴリをお選びいただくか、下の入力欄から自由にご質問ください。';
+  var GREETING = 'こんにちは！アソート商品ページへようこそ。\n副業・物販向けの古着まとめ買い専用ページです。\nご質問のカテゴリをお選びいただくか、下の入力欄から自由にご質問ください。';
 
   function toggleChat(){
     isOpen = !isOpen;
