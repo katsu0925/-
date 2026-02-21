@@ -118,7 +118,7 @@
     .pageBtn{min-width:36px;padding:8px 10px;border:1px solid #d9deea;background:#fff;border-radius:10px;cursor:pointer;font-weight:900;}
     .pageBtn.active{background:#111;color:#fff;border-color:#111;}
     .stickyBar{position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(246,247,249,.9);backdrop-filter:blur(8px);border-top:1px solid #e6e8ee;padding:10px 14px;display:flex;justify-content:center;}
-    .stickyInner{width:100%;max-width:1200px;display:flex;justify-content:center;align-items:center;gap:10px;}
+    .stickyInner{width:100%;max-width:1100px;display:flex;justify-content:center;align-items:center;gap:10px;}
     .cartBtn{width:100%;max-width:520px;height:46px;border-radius:14px;border:1px solid #4a76b5;background:#5B86C5;color:#fff;font-weight:900;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px;margin:0 auto;}
     .countPill{min-width:28px;height:28px;border-radius:999px;background:#fff;color:#2B3A5C;display:flex;align-items:center;justify-content:center;font-weight:900;padding:0 10px;}
     .overlay{position:fixed;inset:0;display:none;background:rgba(0,0,0,.55);z-index:1000;}
@@ -6147,7 +6147,7 @@ body.admin-mode .article-panel{bottom:186px;}
 /* --- PC左サイドバー --- */
 @media(min-width:1440px){
   .article-fab{display:none !important;}
-  .article-panel{display:flex !important;position:fixed;left:0;top:0;bottom:0;width:280px;height:100vh;max-height:100vh;border-radius:0;box-shadow:none;border:none;border-right:1px solid #e6e8ee;background:#fafafa;z-index:50;}
+  .article-panel{display:flex !important;position:fixed;right:calc(50vw + 550px);top:0;bottom:0;width:calc(50vw - 550px);max-width:320px;min-width:200px;height:100vh;max-height:100vh;border-radius:0;box-shadow:none;border:none;border-right:1px solid #e6e8ee;background:#fafafa;z-index:50;left:auto;}
   .article-panel-header{padding:10px 14px;}
   .article-panel-close{display:none;}
   .article-search{display:block;}
@@ -6157,7 +6157,7 @@ body.admin-mode .article-panel{bottom:186px;}
   .article-item-emoji{font-size:16px;}
   .article-item-title{font-size:13px;}
   .article-item-meta{padding-left:24px;margin-top:2px;}
-  body.admin-mode .article-panel{top:0;bottom:0;left:0;width:280px;height:100vh;}
+  body.admin-mode .article-panel{top:0;bottom:0;width:calc(50vw - 550px);max-width:320px;min-width:200px;}
 }
 </style>
 <button class="article-fab" id="articleFab" type="button" aria-label="物販お役立ち情報">
