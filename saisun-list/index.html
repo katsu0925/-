@@ -2286,7 +2286,7 @@ function validateSession_() {
         updateCartPrice();
       } else {
         clearSession_();
-        try { localStorage.removeItem('_nk_owner_flag'); } catch(e) {}
+        // _nk_owner_flag はオーナー永続識別子のため削除しない
         updateAuthUi_();
         updateCartPrice();
       }
