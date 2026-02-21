@@ -484,3 +484,14 @@ function setupArticleTrigger() {
   console.log('記事生成の日次トリガーを設定しました（毎日6:00 JST）');
   return { ok: true, message: 'トリガー設定完了' };
 }
+
+// =====================================================
+// Pexels APIキー設定ヘルパー（GASエディタから1回実行）
+// 実行後は削除してもOK
+// =====================================================
+
+function setPexelsApiKey() {
+  var key = 'ここにPexels APIキーを貼り付け';
+  PropertiesService.getScriptProperties().setProperty('PEXELS_API_KEY', key);
+  console.log('PEXELS_API_KEY を設定しました');
+}
