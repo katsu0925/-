@@ -183,6 +183,17 @@
     .hint{font-size:12px;color:#666;line-height:1.45;}
     .formGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
     @media (max-width:700px){.formGrid{grid-template-columns:1fr;}}
+    /* 注文フォームPC 2カラムレイアウト（注文内容 | 届先住所） */
+    .cart-form-sum-heading{display:none;font-weight:700;font-size:15px;margin-bottom:10px;}
+    .cart-form-mode .cart-form-sep{display:none;}
+    .modalBody.cart-form-mode{display:flex;flex-direction:column;}
+    .modalBody.cart-form-mode #cartFormSection{order:1;}
+    .modalBody.cart-form-mode #cartSumBox{order:2;border-top:1px solid #e0e0e0;padding-top:12px;margin-top:8px;}
+    @media(min-width:640px){
+      .modalBody.cart-form-mode{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;}
+      .modalBody.cart-form-mode #cartFormSection,.modalBody.cart-form-mode #cartSumBox{order:unset;border-top:none;padding-top:0;margin-top:0;}
+      .cart-form-mode .cart-form-sum-heading{display:block;}
+    }
     .formField label{font-size:12px;color:#555;font-weight:900;display:block;margin-bottom:6px;}
     .formField input,.formField select,.formField textarea{width:100%;padding:10px 12px;border:1px solid #d9deea;border-radius:10px;background:#fff;outline:none;}
     .formField textarea{min-height:90px;resize:vertical;}
@@ -566,6 +577,7 @@
         <div class="recommendList" id="cartRecommendList"></div>
       </div>
       <div id="cartSumBox">
+        <div class="cart-form-sum-heading">ご注文内容</div>
         <div class="cart-summary" id="cartSummaryRows"></div>
         <div id="shippingNote" style="display:none;font-size:11px;color:#888;text-align:right;width:100%;margin-top:6px;">※送料は税込み・会員割引対象外です</div>
         <div id="paymentFeeNote" style="display:none;font-size:11px;color:#888;text-align:right;width:100%;line-height:1.5;margin-top:2px;">※コンビニ決済は別途手数料220円（税込）がかかります<br>※銀行振込・ペイジーの振込手数料はお客様負担です</div>
@@ -577,7 +589,7 @@
       </div>
       <!-- お届け先情報（初期非表示、「購入手続きへ」で表示） -->
       <div id="cartFormSection" style="display:none;">
-        <div style="border-top:1px solid #e0e0e0;margin:16px 0 12px;"></div>
+        <div class="cart-form-sep" style="border-top:1px solid #e0e0e0;margin:16px 0 12px;"></div>
         <div style="font-weight:700;font-size:15px;margin-bottom:10px;">お届先情報</div>
         <div class="formGrid">
           <div class="formField">
@@ -4661,14 +4673,16 @@ function showCartSection_(showCart) {
   var cartForm = $('cartFormSection');
   var title = $('cartModalTitle');
   var sumBox = $('cartSumBox');
+  var modalBody = document.querySelector('#cartModal .modalBody');
   if (showCart) {
     if (cartList) cartList.style.display = '';
     if (cartRecommend) cartRecommend.style.display = '';
     if (cartActions) cartActions.style.display = 'flex';
     if (cartForm) cartForm.style.display = 'none';
     if (title) title.textContent = 'カート';
-    // sumBoxを元の位置（cartFormSectionの前）に戻す
-    if (sumBox && cartForm) {
+    if (modalBody) modalBody.classList.remove('cart-form-mode');
+    // sumBoxがcartFormSection内に移動されていた場合は元に戻す
+    if (sumBox && cartForm && sumBox.parentNode === cartForm) {
       cartForm.parentNode.insertBefore(sumBox, cartForm);
     }
   } else {
@@ -4677,11 +4691,11 @@ function showCartSection_(showCart) {
     if (cartActions) cartActions.style.display = 'none';
     if (cartForm) cartForm.style.display = '';
     if (title) title.textContent = 'ご注文内容の確認';
-    // sumBoxをフォーム内のformActionsの直前に移動（カートと同じ下部位置）
-    if (sumBox && cartForm) {
-      var formActs = cartForm.querySelector('.formActions');
-      if (formActs) cartForm.insertBefore(sumBox, formActs);
-      else cartForm.appendChild(sumBox);
+    // PC 2カラムレイアウト: CSSで制御（DOM移動なし）
+    if (modalBody) modalBody.classList.add('cart-form-mode');
+    // sumBoxがcartFormSection内に誤って入っていた場合は元の位置に戻す
+    if (sumBox && cartForm && sumBox.parentNode === cartForm) {
+      cartForm.parentNode.insertBefore(sumBox, cartForm);
     }
   }
 }
