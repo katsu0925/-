@@ -1677,7 +1677,7 @@ function updateCart() {
     totalQty += qty;
     rows += '<div class="cart-row">'
       + '<button class="cart-delbtn" onclick="changeQty(\'' + escAttr(pid) + '\',-999)" aria-label="削除"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg></button>'
-      + '<span class="cart-row-name">' + escHtml(p.name) + '</span>'
+      + '<span class="cart-row-name" onclick="openProductModalById_(\'' + escAttr(pid) + '\')" style="cursor:pointer;">' + escHtml(p.name) + '</span>'
       + '<span class="cart-row-ctrl">'
       + '<button class="cart-cqbtn" onclick="changeQty(\'' + escAttr(pid) + '\',-1)">−</button>'
       + '<span class="cart-row-qty">×' + qty + '</span>'
@@ -1784,13 +1784,26 @@ function updatePayButton(total) {
   var stickyBar = document.getElementById('bulkStickyPay');
   var stickyTotal = document.getElementById('bulkStickyPayTotal');
   var stickyBtn = document.getElementById('bulkStickyPayBtn');
+  var stickyLabel = document.getElementById('bulkStickyPayLabel');
+  var assortCount = Object.keys(G.cart).length;
+  var detauriCount = G.detauriCartCount || 0;
   if (total > 0) {
     btn.disabled = false;
     btn.textContent = 'お支払いへ進む — ¥' + numFmt(total);
-    if (stickyBar) stickyBar.classList.add('active');
-    if (stickyTotal) stickyTotal.textContent = '¥' + numFmt(total);
-    if (stickyBtn) stickyBtn.disabled = false;
-    document.body.classList.add('has-bulk-cart');
+    if (stickyBar && assortCount > 0) {
+      stickyBar.classList.add('active');
+      if (stickyTotal) stickyTotal.textContent = '¥' + numFmt(total);
+      if (stickyBtn) stickyBtn.disabled = false;
+      if (stickyLabel) {
+        stickyLabel.textContent = detauriCount > 0
+          ? 'アソート' + assortCount + '種 + デタウリ' + detauriCount + '点'
+          : 'アソート' + assortCount + '種';
+      }
+      document.body.classList.add('has-bulk-cart');
+    } else if (stickyBar) {
+      stickyBar.classList.remove('active');
+      document.body.classList.remove('has-bulk-cart');
+    }
   } else {
     btn.disabled = true;
     btn.textContent = 'カートが空です';
@@ -2040,6 +2053,15 @@ function calcSubtotal() {
 }
 
 // =====================================================
+// 商品モーダルをproductIdで開く（カート内商品クリック用）
+// =====================================================
+function openProductModalById_(productId) {
+  for (var i = 0; i < G.products.length; i++) {
+    if (G.products[i].productId === productId) { openProductModal(i); return; }
+  }
+}
+
+// =====================================================
 // 注文送信
 // =====================================================
 function submitOrder() {
@@ -2059,6 +2081,7 @@ function submitOrder() {
   if (!companyName || !contact || !postal || !address || !phone) {
     errEl.textContent = '必須項目を入力してください';
     errEl.style.display = 'block';
+    errEl.scrollIntoView({behavior: 'smooth', block: 'center'});
     return;
   }
 
@@ -2068,7 +2091,12 @@ function submitOrder() {
   Object.keys(G.cart).forEach(function(pid) {
     items.push({ productId: pid, qty: G.cart[pid] });
   });
-  if (items.length === 0) return;
+  if (items.length === 0) {
+    errEl.textContent = 'アソート商品をカートに追加してください';
+    errEl.style.display = 'block';
+    errEl.scrollIntoView({behavior: 'smooth', block: 'center'});
+    return;
+  }
 
   var totalQty = 0;
   items.forEach(function(it) { totalQty += it.qty; });
@@ -3873,6 +3901,7 @@ body.admin-mode .article-panel{bottom:186px;}
 #bulkStickyPayBtn{flex-shrink:0;background:linear-gradient(135deg,#e53e3e,#c53030);color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:14px;font-weight:800;cursor:pointer;white-space:nowrap;box-shadow:0 2px 8px rgba(220,38,38,.4)}
 #bulkStickyPayBtn:disabled{background:#555;box-shadow:none;cursor:not-allowed}
 @media(max-width:767px){body.has-bulk-cart{padding-bottom:68px}}
+@media(max-width:767px){body.has-bulk-cart .chatbot-fab{bottom:84px}body.has-bulk-cart .chatbot-panel{bottom:160px}}
 @media(min-width:768px){
   #bulkStickyPay{display:none!important}
   .pc-two-col>div:first-child{position:sticky;top:60px;max-height:80vh;overflow-y:auto}
@@ -3952,7 +3981,7 @@ body.admin-mode .article-panel{bottom:186px;}
 </script>
 <!-- モバイル固定決済バー -->
 <div id="bulkStickyPay">
-  <div id="bulkStickyPayInfo"><small>お支払い合計</small><strong id="bulkStickyPayTotal">¥0</strong></div>
+  <div id="bulkStickyPayInfo"><small id="bulkStickyPayLabel">アソート</small><strong id="bulkStickyPayTotal">¥0</strong></div>
   <button id="bulkStickyPayBtn" onclick="submitOrder()" disabled>お支払いへ →</button>
 </div>
 </body>
