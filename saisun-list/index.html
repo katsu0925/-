@@ -3333,7 +3333,7 @@ function pollStatusNow_() {
     if (ids.indexOf(state.cart.ids[j]) === -1) ids.push(state.cart.ids[j]);
   }
 
-  if (ids.length === 0) return;
+  if (ids.length === 0) { state.timers.statusPoll = setTimeout(pollStatusNow_, 10000); return; }
 
   runApi('apiGetStatusDigest', state.userKey, ids)
     .then(function(res) {
@@ -3849,7 +3849,8 @@ function toggleCartOptimistic_(id) {
           var fid = res.failed[i].id;
           var j = state.cart.ids.indexOf(fid);
           if (j !== -1) state.cart.ids.splice(j, 1);
-          delete state.cart.digest[fid];
+          var failReason = res.failed[i].reason || '確保中';
+          state.cart.digest[fid] = { status: failReason, heldByOther: true };
           updateCardUi_(fid);
         }
         updateCartCount(); saveCartStorage();
@@ -4689,16 +4690,28 @@ function showCartSection_(showCart) {
 function startHoldTimers_() {
   if (state.timers.holdCountdown) clearInterval(state.timers.holdCountdown);
   state.timers.holdCountdown = setInterval(function() {
-    var els = document.querySelectorAll('#cartList .hold-timer[data-until]');
-    if (!els || !els.length) { clearInterval(state.timers.holdCountdown); state.timers.holdCountdown = null; return; }
+    var rows = document.querySelectorAll('#cartList .cartRow[data-item-id]');
+    if (!rows || !rows.length) { clearInterval(state.timers.holdCountdown); state.timers.holdCountdown = null; return; }
     var now = Date.now();
-    for (var i = 0; i < els.length; i++) {
-      var el = els[i];
-      var until = parseInt(el.getAttribute('data-until'), 10);
-      var rem = Math.max(0, until - now);
+    for (var i = 0; i < rows.length; i++) {
+      var rowEl = rows[i];
+      var itemId = rowEl.getAttribute('data-item-id');
+      var d = state.cart.digest ? state.cart.digest[itemId] : null;
+      var leftEl = rowEl.querySelector('.cartLeft');
+      var timerEl = rowEl.querySelector('.hold-timer');
+      if (!d || !d.untilMs || d.untilMs <= now) {
+        if (timerEl) timerEl.parentNode.removeChild(timerEl);
+        continue;
+      }
+      if (!timerEl) {
+        timerEl = document.createElement('span');
+        timerEl.className = 'hold-timer';
+        if (leftEl) leftEl.appendChild(timerEl);
+      }
+      var rem = Math.max(0, d.untilMs - now);
       var secs = Math.floor(rem / 1000), mins = Math.floor(secs / 60); secs = secs % 60;
-      if (rem <= 0) { el.textContent = '期限切れ'; el.className = 'hold-timer expiring'; }
-      else { el.textContent = '残り ' + mins + '分' + (secs < 10 ? '0' : '') + secs + '秒'; el.className = rem < 180000 ? 'hold-timer expiring' : 'hold-timer'; }
+      timerEl.textContent = '残り ' + mins + '分' + (secs < 10 ? '0' : '') + secs + '秒';
+      timerEl.className = rem < 180000 ? 'hold-timer expiring' : 'hold-timer';
     }
   }, 1000);
 }
@@ -4713,7 +4726,7 @@ function renderCartModal_() {
     var id = ids[i];
     var it = state.cart.itemsById[id];
     if (!it) continue;
-    var row = document.createElement('div'); row.className = 'cartRow';
+    var row = document.createElement('div'); row.className = 'cartRow'; row.setAttribute('data-item-id', id);
 
     // 画像とテキストを囲むコンテナ
     var info = document.createElement('div'); info.className = 'cartInfo';
@@ -4734,16 +4747,6 @@ function renderCartModal_() {
     var sub = document.createElement('div'); sub.className = 'cartSub';
     sub.textContent = [it.category, it.color, it.gender, it.size].filter(Boolean).join(' / ') + ' / ' + yen(it.price);
     left.appendChild(name); left.appendChild(sub);
-    var disp = state.cart.digest[id];
-    if (disp && disp.untilMs && disp.untilMs > Date.now()) {
-      var timer = document.createElement('span');
-      timer.className = 'hold-timer';
-      timer.setAttribute('data-until', String(disp.untilMs));
-      var rem0 = Math.max(0, disp.untilMs - Date.now()), s0 = Math.floor(rem0/1000), m0 = Math.floor(s0/60); s0 = s0 % 60;
-      timer.textContent = '残り ' + m0 + '分' + (s0 < 10 ? '0' : '') + s0 + '秒';
-      if (rem0 < 180000) timer.className = 'hold-timer expiring';
-      left.appendChild(timer);
-    }
     info.appendChild(img); info.appendChild(left);
 
     var btn = document.createElement('button'); btn.className = 'dangerBtn'; btn.type = 'button'; btn.textContent = '削除';
