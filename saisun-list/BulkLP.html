@@ -1263,6 +1263,11 @@ function applyBulkData_(r, savedCart) {
   }
   if (dl) dl.addEventListener('click', function(e) { e.preventDefault(); navigateToDetail_(); });
   if (dbl) dbl.addEventListener('click', function(e) { e.preventDefault(); navigateToDetail_(); });
+  // デタウリ商品をクリックした時にデタウリページで詳細を開く
+  window.openDetauriDetail_ = function(managedId) {
+    try { sessionStorage.setItem('_detOpenDetail', managedId); } catch (e) {}
+    navigateToDetail_();
+  };
   if (savedCart && Object.keys(savedCart).length > 0) {
     var validProducts = {};
     G.products.forEach(function(p) { validProducts[p.productId] = true; });
@@ -1272,6 +1277,17 @@ function applyBulkData_(r, savedCart) {
   }
   renderProducts();
   updateCart();
+  // デタウリページから「アソート商品の詳細を開く」リクエストを処理
+  var _pendingBulkDetail = null;
+  try { _pendingBulkDetail = sessionStorage.getItem('_bulkOpenDetail'); if (_pendingBulkDetail) sessionStorage.removeItem('_bulkOpenDetail'); } catch (e) {}
+  if (_pendingBulkDetail) {
+    var _pbd = _pendingBulkDetail;
+    setTimeout(function() {
+      for (var i = 0; i < G.products.length; i++) {
+        if (G.products[i].productId === _pbd) { openProductModal(i); break; }
+      }
+    }, 400);
+  }
 }
 
 // =====================================================
@@ -1631,7 +1647,7 @@ function updateCart() {
         var _dname0 = (_dit0.noLabel ? _dit0.noLabel : _did0) + (_dit0.brand ? ' ' + _dit0.brand : '');
         detRows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
           + '<button class="cart-delbtn" onclick="deleteDetauriItem_(\'' + escAttr(_did0) + '\')" aria-label="削除" style="color:#5B86C5;border-color:#5B86C5;">' + _dDelSvg + '</button>'
-          + '<span class="cart-row-name">' + escHtml(_dname0) + '</span>'
+          + '<span class="cart-row-name" onclick="openDetauriDetail_(\'' + escAttr(_did0) + '\')" style="cursor:pointer;">' + escHtml(_dname0) + '</span>'
           + '<span class="cart-row-price">¥' + numFmt(Number(_dit0.price || 0)) + '</span>'
           + '</div>';
       }
@@ -1750,7 +1766,7 @@ function updateCart() {
       var _dnameF = (_dittF.noLabel ? _dittF.noLabel : _diidF) + (_dittF.brand ? ' ' + _dittF.brand : '');
       rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;' + (_dii === 0 ? 'padding-top:10px;' : '') + '">'
         + '<button class="cart-delbtn" onclick="deleteDetauriItem_(\'' + escAttr(_diidF) + '\')" aria-label="削除" style="color:#5B86C5;border-color:#5B86C5;">' + _dDelSvgF + '</button>'
-        + '<span class="cart-row-name">' + escHtml(_dnameF) + '</span>'
+        + '<span class="cart-row-name" onclick="openDetauriDetail_(\'' + escAttr(_diidF) + '\')" style="cursor:pointer;">' + escHtml(_dnameF) + '</span>'
         + '<span class="cart-row-price">¥' + numFmt(Number(_dittF.price || 0)) + '</span>'
         + '</div>';
     }
@@ -3901,7 +3917,7 @@ body.admin-mode .article-panel{bottom:186px;}
 #bulkStickyPayBtn{flex-shrink:0;background:linear-gradient(135deg,#e53e3e,#c53030);color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:14px;font-weight:800;cursor:pointer;white-space:nowrap;box-shadow:0 2px 8px rgba(220,38,38,.4)}
 #bulkStickyPayBtn:disabled{background:#555;box-shadow:none;cursor:not-allowed}
 @media(max-width:767px){body.has-bulk-cart{padding-bottom:68px}}
-@media(max-width:767px){body.has-bulk-cart .chatbot-fab{bottom:84px}body.has-bulk-cart .chatbot-panel{bottom:160px}}
+@media(max-width:767px){body.has-bulk-cart .chatbot-fab{bottom:84px}body.has-bulk-cart .chatbot-panel{bottom:160px}body.has-bulk-cart .toTop{bottom:140px}}
 @media(min-width:768px){
   #bulkStickyPay{display:none!important}
   .pc-two-col>div:first-child{position:sticky;top:60px;max-height:80vh;overflow-y:auto}
