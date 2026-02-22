@@ -1259,7 +1259,7 @@ function applyBulkData_(r, savedCart) {
     // google.script.run shim注入
     var s = _buildGasShim(GAS_API_URL);
     html = html.replace('<head>', '<head>' + s);
-    sessionStorage.setItem('_pageTransition', '1');
+    try { sessionStorage.setItem('_pageTransition', '1'); } catch (e) {}
     document.open();
     document.write(html);
     document.close();
