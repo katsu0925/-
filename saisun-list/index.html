@@ -146,11 +146,6 @@
     .dangerBtn{border:1px solid #ff4d4f;color:#ff4d4f;background:#fff;border-radius:8px;padding:8px 10px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;}
     .hold-timer{display:inline-block;font-size:11px;color:#d97706;background:#fef3c7;border:1px solid #fcd34d;border-radius:4px;padding:2px 6px;margin-top:3px;font-weight:600;}
     .hold-timer.expiring{color:#dc2626;background:#fef2f2;border-color:#fca5a5;}
-    .card-hold-area{display:flex;flex-direction:column;align-items:stretch;gap:4px;width:100%;}
-    .card-hold-timer{display:block;width:100%;text-align:center;font-size:12px;font-weight:700;color:#d97706;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;padding:5px 8px;box-sizing:border-box;}
-    .card-hold-timer.expiring{color:#dc2626;background:#fef2f2;border-color:#fca5a5;}
-    .card-release-btn{font-size:12px;color:#555;background:#fff;border:1px solid #ddd;border-radius:6px;cursor:pointer;padding:5px 8px;width:100%;}
-    .card-release-btn:hover{background:#f5f5f5;}
     .recommendSection{margin-top:16px;padding-top:16px;}
     .recommendTitle{font-weight:900;font-size:14px;color:#333;margin-bottom:10px;}
     .recommendList{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;}
@@ -3636,20 +3631,7 @@ function updateCardUi_(id) {
   if (!it) return;
   var r = computeDisabledForCard_(it, id);
   if (rec.bStatus) setStatusBadge_(rec.bStatus, r.effectiveStatus);
-  var d = state.cart.digest ? state.cart.digest[id] : null;
-  var untilMs = d ? (d.untilMs || 0) : 0;
-  if (rec.holdArea && rec.btn) {
-    if (r.selected && untilMs > Date.now()) {
-      rec.btn.style.display = 'none';
-      rec.holdArea.style.display = '';
-    } else {
-      rec.btn.style.display = '';
-      rec.holdArea.style.display = 'none';
-      applyBtnUi_(rec.btn, it, id);
-    }
-  } else {
-    if (rec.btn) applyBtnUi_(rec.btn, it, id);
-  }
+  if (rec.btn) applyBtnUi_(rec.btn, it, id);
 }
 
 function upsertCartItem_(it) {
@@ -3726,15 +3708,9 @@ function renderGrid_(items) {
     var btn = document.createElement('button'); btn.type = 'button'; applyBtnUi_(btn, it, id);
     (function(itemRef, idRef) { btn.addEventListener('click', function() { if (computeDisabledForCard_(itemRef, idRef).disabled) return; toggleCartOptimistic_(idRef); }); })(it, id);
 
-    var holdArea = document.createElement('div'); holdArea.className = 'card-hold-area'; holdArea.style.display = 'none';
-    var timerEl = document.createElement('span'); timerEl.className = 'card-hold-timer';
-    var releaseBtn = document.createElement('button'); releaseBtn.type = 'button'; releaseBtn.className = 'card-release-btn'; releaseBtn.textContent = '解除する';
-    (function(idRef) { releaseBtn.addEventListener('click', function() { toggleCartOptimistic_(idRef); }); })(id);
-    holdArea.appendChild(timerEl); holdArea.appendChild(releaseBtn);
-
-    var actions = document.createElement('div'); actions.className = 'actions'; actions.appendChild(btn); actions.appendChild(holdArea); body.appendChild(actions);
+    var actions = document.createElement('div'); actions.className = 'actions'; actions.appendChild(btn); body.appendChild(actions);
     card.appendChild(body); frag.appendChild(card);
-    state.ui.cardEls[id] = { bStatus: bStatus, btn: btn, item: it, img: imgEl, holdArea: holdArea, timerEl: timerEl };
+    state.ui.cardEls[id] = { bStatus: bStatus, btn: btn, item: it, img: imgEl };
   }
   
   g.appendChild(frag);
@@ -4723,10 +4699,10 @@ function showCartSection_(showCart) {
 function startHoldTimers_() {
   if (state.timers.holdCountdown) clearInterval(state.timers.holdCountdown);
   state.timers.holdCountdown = setInterval(function() {
-    var now = Date.now();
-    // カートモーダル内のタイマー
     var rows = document.querySelectorAll('#cartList .cartRow[data-item-id]');
-    for (var i = 0; rows && i < rows.length; i++) {
+    if (!rows || !rows.length) { clearInterval(state.timers.holdCountdown); state.timers.holdCountdown = null; return; }
+    var now = Date.now();
+    for (var i = 0; i < rows.length; i++) {
       var rowEl = rows[i];
       var itemId = rowEl.getAttribute('data-item-id');
       var d = state.cart.digest ? state.cart.digest[itemId] : null;
@@ -4745,27 +4721,6 @@ function startHoldTimers_() {
       var secs = Math.floor(rem / 1000), mins = Math.floor(secs / 60); secs = secs % 60;
       timerEl.textContent = '残り ' + mins + '分' + (secs < 10 ? '0' : '') + secs + '秒';
       timerEl.className = rem < 180000 ? 'hold-timer expiring' : 'hold-timer';
-    }
-    // 商品カード上のタイマー
-    if (state.ui && state.ui.cardEls) {
-      for (var cardId in state.ui.cardEls) {
-        var rec = state.ui.cardEls[cardId];
-        if (!rec || !rec.timerEl || !rec.holdArea || !rec.btn) continue;
-        var d2 = state.cart.digest ? state.cart.digest[cardId] : null;
-        var untilMs = d2 ? (d2.untilMs || 0) : 0;
-        var selected = state.cart.ids && state.cart.ids.indexOf(cardId) !== -1;
-        if (selected && untilMs > now) {
-          rec.btn.style.display = 'none';
-          rec.holdArea.style.display = '';
-          var rem2 = Math.max(0, untilMs - now);
-          var secs2 = Math.floor(rem2 / 1000), mins2 = Math.floor(secs2 / 60); secs2 = secs2 % 60;
-          rec.timerEl.textContent = '残り ' + mins2 + '分' + (secs2 < 10 ? '0' : '') + secs2 + '秒';
-          rec.timerEl.className = rem2 < 180000 ? 'card-hold-timer expiring' : 'card-hold-timer';
-        } else {
-          rec.btn.style.display = '';
-          rec.holdArea.style.display = 'none';
-        }
-      }
     }
   }, 1000);
 }
@@ -5661,7 +5616,6 @@ function boot() {
   updateCartCount();
 
   bindUi_();
-  startHoldTimers_(); // 確保タイマー起動（商品カード上の残り時間表示）
   setupScrollTopButton_();
   setupDetailModalEvents_();
   window.addEventListener('resize', adjustTopbarForBanner_);
