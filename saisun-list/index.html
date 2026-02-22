@@ -1447,7 +1447,7 @@ var state = {
   },
   cart: { ids: [], itemsById: {}, digest: {} },
   ui: { cardEls: {} },
-  timers: { statusPoll: null },
+  timers: { statusPoll: null, holdCountdown: null, holdRefresh: null },
   _holdSyncing: false,
   _pendingHoldSync: false, // 連続操作時の再同期フラグ
   brandUi: { all: [], selected: {}, cbByName: {}, built: false },
@@ -3441,7 +3441,7 @@ function pollStatusNow_() {
 
         // 確保タイムアウト: カート内アイテムの確保が切れたら自動解除
         var expired = [];
-        var GRACE_MS = 20000; // 20秒のグレース期間（GAS PropertiesService伝播待ち）
+        var GRACE_MS = 45000; // 45秒のグレース期間（GAS PropertiesService伝播待ち）
         for (var ci = 0; ci < state.cart.ids.length; ci++) {
           var cid = state.cart.ids[ci];
           var dd = state.cart.digest[cid];
@@ -4754,40 +4754,67 @@ function getRecommendedProducts_(maxCount, excludeIds) {
 var _rcDragMoved = false; // ドラッグ中にカードクリックを抑止するフラグ
 
 function addRcDragScroll_(track) {
+  // CSS animationをJS駆動に置き換え（iOS SafariでgetComputedStyle中に位置が0を返す問題を回避）
+  track.style.animation = 'none';
+
+  var half = 0;       // スクロール折り返し幅（px）
+  var pos = 0;        // 現在スクロール位置（0..half）
+  var animating = false;
+  var rafId = null;
+  var lastTs = null;
+  var hovering = false;
   var dragging = false;
-  var startX = 0, startTx = 0;
+  var startX = 0, startPos = 0;
   var resumeTimer = null;
 
-  function getTx(el) {
-    var t = window.getComputedStyle(el).transform;
-    if (!t || t === 'none') return 0;
-    // matrix3d形式（モバイルGPU加速）に対応
-    var m3 = t.match(/matrix3d\(([^)]+)\)/);
-    if (m3) { var v3 = m3[1].split(','); return parseFloat(v3[12]) || 0; }
-    var m = t.match(/matrix\(([^)]+)\)/);
-    if (!m) return 0;
-    var v = m[1].split(',');
-    return parseFloat(v[4]) || 0;
+  function updateHalf() {
+    var sw = track.scrollWidth;
+    if (sw > 0) half = sw / 2;
   }
 
-  function resumeFrom(pos, half, duration) {
-    track.style.animationDelay = '-' + (pos / half * duration) + 's';
-    requestAnimationFrame(function() {
-      track.style.animation = '';
-      track.style.transform = '';
-    });
+  function getSpeedPxPerMs() {
+    var dur = parseFloat(track.style.getPropertyValue('--rc-dur') || '20') * 1000;
+    return (half > 0 && dur > 0) ? half / dur : 0;
+  }
+
+  function tick(ts) {
+    if (!lastTs) lastTs = ts;
+    var dt = Math.min(ts - lastTs, 100); // タブ切替などの大ジャンプを防ぐ
+    lastTs = ts;
+    if (half <= 0) updateHalf();
+    if (half > 0) {
+      pos = (pos + getSpeedPxPerMs() * dt) % half;
+      track.style.transform = 'translateX(' + (-pos) + 'px)';
+    }
+    if (animating) rafId = requestAnimationFrame(tick);
+  }
+
+  function startAnim() {
+    if (animating || dragging || hovering) return;
+    animating = true;
+    lastTs = null;
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function stopAnim() {
+    animating = false;
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    lastTs = null;
+  }
+
+  // デスクトップのみホバー一時停止（@media hover:hover 相当）
+  if (window.matchMedia && window.matchMedia('(hover:hover)').matches) {
+    track.addEventListener('mouseenter', function() { hovering = true; stopAnim(); });
+    track.addEventListener('mouseleave', function() { hovering = false; if (!dragging) startAnim(); });
   }
 
   function start(x) {
     clearTimeout(resumeTimer);
+    stopAnim();
     dragging = true;
     _rcDragMoved = false;
     startX = x;
-    var curTx = getTx(track);
-    track.style.animation = 'none';
-    track.style.transform = 'translateX(' + curTx + 'px)';
-    track.getBoundingClientRect();
-    startTx = curTx;
+    startPos = pos; // 現在位置を直接参照（getComputedStyle不要）
     track.classList.add('rc-dragging');
   }
 
@@ -4795,7 +4822,10 @@ function addRcDragScroll_(track) {
     if (!dragging) return;
     var dx = x - startX;
     if (Math.abs(dx) > 5) _rcDragMoved = true;
-    track.style.transform = 'translateX(' + (startTx + dx) + 'px)';
+    if (half <= 0) return;
+    var newPos = ((startPos - dx) % half + half) % half;
+    pos = newPos;
+    track.style.transform = 'translateX(' + (-pos) + 'px)';
   }
 
   function end() {
@@ -4803,24 +4833,19 @@ function addRcDragScroll_(track) {
     dragging = false;
     var wasDragged = _rcDragMoved;
     track.classList.remove('rc-dragging');
-    var curX = getTx(track);
-    var half = (track.scrollWidth > 0 ? track.scrollWidth : track.offsetWidth) / 2;
-    if (half <= 0) { track.style.animation = ''; track.style.transform = ''; return; }
-    var pos = (((-curX) % half) + half) % half;
-    var duration = parseFloat(track.style.getPropertyValue('--rc-dur') || '20');
-    // 現在位置で固定（止めたところで止まる）
-    track.style.animation = 'none';
-    track.style.transform = 'translateX(' + (-pos) + 'px)';
-    track.getBoundingClientRect();
-    // ドラッグは1秒後、タップは0.5秒後に自動でスクロール再開
-    resumeTimer = setTimeout(function() {
-      resumeFrom(pos, half, duration);
-    }, wasDragged ? 1000 : 500);
+    // ドラッグ1秒後、タップ0.5秒後に自動再開
+    resumeTimer = setTimeout(startAnim, wasDragged ? 1000 : 500);
     setTimeout(function() { _rcDragMoved = false; }, 80);
   }
 
+  // レイアウト確定後にアニメーション開始
+  requestAnimationFrame(function() {
+    updateHalf();
+    startAnim();
+  });
+
   track.addEventListener('mousedown', function(e) { start(e.clientX); e.preventDefault(); });
-  window.addEventListener('mousemove', function(e) { move(e.clientX); });
+  window.addEventListener('mousemove', function(e) { if (dragging) move(e.clientX); });
   window.addEventListener('mouseup', end);
   track.addEventListener('touchstart', function(e) { start(e.touches[0].clientX); }, { passive: true });
   track.addEventListener('touchmove', function(e) {
@@ -4994,6 +5019,15 @@ function startHoldTimers_() {
     var cartBtnEl = document.querySelector('.cartBtn');
     if (cartBtnEl) { if (hasExpiring) cartBtnEl.classList.add('urgency'); else cartBtnEl.classList.remove('urgency'); }
   }, 1000);
+
+  // 定期確保更新（10分ごと）: 15分で期限切れになる前に確保を更新する
+  if (!state.timers.holdRefresh) {
+    state.timers.holdRefresh = setInterval(function() {
+      if ((state.cart.ids || []).length > 0) {
+        syncHoldsQueued_();
+      }
+    }, 10 * 60 * 1000); // 10分
+  }
 }
 
 function renderCartModal_() {
@@ -6739,6 +6773,8 @@ function closeBulkQv_() {
   if (overlay) overlay.classList.remove('active');
   if (modal) modal.style.display = 'none';
 }
+// detStickyBar はこのscriptより前にDOMが確定するため、ここで再描画して初期値を正しく表示する
+updateCartCount();
 </script>
 </body>
 </html>
