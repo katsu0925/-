@@ -409,6 +409,13 @@
     .chatbot-staff-btn{display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:7px 14px;border:1px solid #1e293b;border-radius:8px;background:#fff;color:#1e293b;font-size:12px;font-weight:600;cursor:pointer;}
     .chatbot-staff-btn:hover{background:#f1f5f9;}
     @media(max-width:480px){.chatbot-panel{bottom:0;right:0;left:0;width:100%;max-width:100%;height:100%;max-height:100%;border-radius:0;}.chatbot-fab{bottom:72px;right:12px;width:44px;height:44px;}.chatbot-fab svg{width:22px;height:22px;}.chatbot-fab:hover::after{display:none;}}
+    /* ====== 確保タイマーバッジ（カード上） ====== */
+    .card-hold-badge{position:absolute;top:5px;left:5px;z-index:5;font-size:10px;font-weight:700;color:#d97706;background:#fef3c7;border:1px solid #fcd34d;border-radius:4px;padding:2px 5px;pointer-events:none;line-height:1.3;white-space:nowrap}
+    .card-hold-badge.expiring{color:#dc2626;background:#fef2f2;border-color:#fca5a5;animation:holdBadgePulse .8s ease-in-out infinite}
+    @keyframes holdBadgePulse{0%,100%{opacity:1}50%{opacity:.5}}
+    /* ====== FAB期限切れ緊急表示 ====== */
+    @keyframes cartUrgencyPulse{0%,100%{box-shadow:0 4px 16px rgba(220,38,38,.4)}50%{box-shadow:0 4px 28px rgba(220,38,38,.8)}}
+    .cartBtn.urgency{background:#dc2626!important;animation:cartUrgencyPulse 1s ease-in-out infinite}
   </style>
 </head>
 <body>
@@ -3762,8 +3769,9 @@ function renderGrid_(items) {
     (function(itemRef, idRef) { btn.addEventListener('click', function() { if (computeDisabledForCard_(itemRef, idRef).disabled) return; toggleCartOptimistic_(idRef); }); })(it, id);
 
     var actions = document.createElement('div'); actions.className = 'actions'; actions.appendChild(btn); body.appendChild(actions);
+    card.style.position = 'relative';
     card.appendChild(body); frag.appendChild(card);
-    state.ui.cardEls[id] = { bStatus: bStatus, btn: btn, item: it, img: imgEl };
+    state.ui.cardEls[id] = { bStatus: bStatus, btn: btn, item: it, img: imgEl, card: card };
   }
   
   g.appendChild(frag);
@@ -4778,9 +4786,13 @@ function showCartSection_(showCart) {
 function startHoldTimers_() {
   if (state.timers.holdCountdown) clearInterval(state.timers.holdCountdown);
   state.timers.holdCountdown = setInterval(function() {
-    var rows = document.querySelectorAll('#cartList .cartRow[data-item-id]');
-    if (!rows || !rows.length) { clearInterval(state.timers.holdCountdown); state.timers.holdCountdown = null; return; }
+    var cartIds = state.cart.ids || [];
+    // カートが空になったらインターバル停止
+    if (!cartIds.length) { clearInterval(state.timers.holdCountdown); state.timers.holdCountdown = null; return; }
     var now = Date.now();
+
+    // ① カートモーダル内タイマー更新（モーダルが開いている時のみDOM操作）
+    var rows = document.querySelectorAll('#cartList .cartRow[data-item-id]');
     for (var i = 0; i < rows.length; i++) {
       var rowEl = rows[i];
       var itemId = rowEl.getAttribute('data-item-id');
@@ -4791,16 +4803,36 @@ function startHoldTimers_() {
         if (timerEl) timerEl.parentNode.removeChild(timerEl);
         continue;
       }
-      if (!timerEl) {
-        timerEl = document.createElement('span');
-        timerEl.className = 'hold-timer';
-        if (leftEl) leftEl.appendChild(timerEl);
-      }
+      if (!timerEl) { timerEl = document.createElement('span'); timerEl.className = 'hold-timer'; if (leftEl) leftEl.appendChild(timerEl); }
       var rem = Math.max(0, d.untilMs - now);
       var secs = Math.floor(rem / 1000), mins = Math.floor(secs / 60); secs = secs % 60;
       timerEl.textContent = '残り ' + mins + '分' + (secs < 10 ? '0' : '') + secs + '秒';
       timerEl.className = rem < 180000 ? 'hold-timer expiring' : 'hold-timer';
     }
+
+    // ② カードバッジ更新 & FAB緊急表示（cartIdsを直接ループ：軽量）
+    var hasExpiring = false;
+    for (var ci = 0; ci < cartIds.length; ci++) {
+      var cid = cartIds[ci];
+      var dc = state.cart.digest ? state.cart.digest[cid] : null;
+      var recC = state.ui.cardEls ? state.ui.cardEls[cid] : null;
+      if (!recC || !recC.card) continue;
+      var badgeEl = recC.card.querySelector('.card-hold-badge');
+      if (!dc || !dc.untilMs || dc.untilMs <= now) {
+        if (badgeEl) badgeEl.parentNode.removeChild(badgeEl);
+        continue;
+      }
+      var remC = Math.max(0, dc.untilMs - now);
+      if (remC < 180000) hasExpiring = true;
+      if (!badgeEl) { badgeEl = document.createElement('span'); badgeEl.className = 'card-hold-badge'; recC.card.appendChild(badgeEl); }
+      var secsC = Math.floor(remC / 1000), minsC = Math.floor(secsC / 60); secsC = secsC % 60;
+      badgeEl.textContent = '残' + minsC + ':' + (secsC < 10 ? '0' : '') + secsC;
+      badgeEl.className = remC < 180000 ? 'card-hold-badge expiring' : 'card-hold-badge';
+    }
+
+    // ③ FABの緊急表示（残り3分未満で赤くパルス）
+    var cartBtnEl = document.querySelector('.cartBtn');
+    if (cartBtnEl) { if (hasExpiring) cartBtnEl.classList.add('urgency'); else cartBtnEl.classList.remove('urgency'); }
   }, 1000);
 }
 
