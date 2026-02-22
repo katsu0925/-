@@ -162,8 +162,9 @@
     .mainRecommendList .recommendCard{width:120px;}
     .mainRecommendList .recommendCard img{width:120px;height:120px;}
     @keyframes rcScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
-    .rcTrack{display:flex;will-change:transform;animation:rcScroll var(--rc-dur,20s) linear infinite}
+    .rcTrack{display:flex;will-change:transform;animation:rcScroll var(--rc-dur,20s) linear infinite;cursor:grab;user-select:none;-webkit-user-select:none}
     .rcTrack:hover{animation-play-state:paused}
+    .rcTrack.rc-dragging{cursor:grabbing;animation-play-state:paused}
     /* デタウリ モバイル固定決済バー */
     #detStickyBar{display:none;position:fixed;bottom:0;left:0;right:0;z-index:150;background:linear-gradient(135deg,#1a1a2e,#16213e);padding:10px 16px;box-shadow:0 -3px 14px rgba(0,0,0,.45);align-items:center;justify-content:space-between;gap:12px}
     #detStickyBar.active{display:flex}
@@ -1871,9 +1872,9 @@ function renderSummary_() {
         var _uP = item.unitPrice || 0;
         var _mQ = item.maxQty || 99;
         var _pid = escapeHtml_(item.id);
-        rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;' + (idx === 0 ? 'padding-top:10px;' : '') + '">'
+        rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;gap:5px;' + (idx === 0 ? 'padding-top:10px;' : '') + '">'
           + '<button onclick="changeBulkQty_(\'' + _pid + '\',-999,' + _uP + ',' + _mQ + ')" aria-label="削除" style="flex-shrink:0;background:transparent;border:1px solid #5B86C5;border-radius:3px;cursor:pointer;padding:2px 4px;color:#5B86C5;line-height:1;">' + _bDelSvg + '</button>'
-          + '<span onclick="navigateToBulkWithDetail_(\'' + _pid + '\')" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;">' + escapeHtml_(item.name) + '</span>'
+          + '<span onclick="navigateToBulkWithDetail_(\'' + _pid + '\')" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;padding:0 2px;">' + escapeHtml_(item.name) + '</span>'
           + '<button onclick="changeBulkQty_(\'' + _pid + '\',-1,' + _uP + ',' + _mQ + ')" style="flex-shrink:0;background:#5B86C5;color:#fff;border:none;border-radius:3px;width:20px;height:20px;cursor:pointer;font-size:14px;line-height:1;padding:0;">−</button>'
           + '<span style="flex-shrink:0;min-width:22px;text-align:center;">×' + item.qty + '</span>'
           + '<button onclick="changeBulkQty_(\'' + _pid + '\',1,' + _uP + ',' + _mQ + ')" style="flex-shrink:0;background:#5B86C5;color:#fff;border:none;border-radius:3px;width:20px;height:20px;cursor:pointer;font-size:14px;line-height:1;padding:0;">+</button>'
@@ -1913,7 +1914,7 @@ function renderSummary_() {
         + '<span>アソート商品 送料</span><span style="font-size:11px;color:#888;">住所入力で計算</span></div>';
     }
     var bulkTotal = bulk.subtotal + bulkShip;
-    rows += '<div class="cart-row" style="color:#5B86C5;font-size:13px;font-weight:700;border-top:1px solid #c8d8f0;margin-top:4px;padding-top:8px;">'
+    rows += '<div class="cart-row" style="color:#5B86C5;font-size:16px;font-weight:800;border-top:2px solid #5B86C5;margin-top:8px;padding-top:12px;border-bottom:none;">'
       + '<span>アソート商品 小計</span>'
       + '<span>¥' + numFmt_(bulkTotal) + '</span></div>';
     var detauriFull = afterPoints + shippingAmount;
@@ -3425,7 +3426,7 @@ function pollStatusNow_() {
 
         // 確保タイムアウト: カート内アイテムの確保が切れたら自動解除
         var expired = [];
-        var GRACE_MS = 15000; // 15秒のグレース期間
+        var GRACE_MS = 60000; // 60秒のグレース期間（GAS PropertiesService伝播待ち）
         for (var ci = 0; ci < state.cart.ids.length; ci++) {
           var cid = state.cart.ids[ci];
           var dd = state.cart.digest[cid];
@@ -3967,12 +3968,8 @@ function runHoldSync_() {
           }
         }
       } else {
-        // 同期失敗: _optimistic をクリアしてポーリングに委ねる
-        for (var fk in state.cart.digest) {
-          if (state.cart.digest[fk] && state.cart.digest[fk]._optimistic) {
-            delete state.cart.digest[fk]._optimistic;
-          }
-        }
+        // 同期失敗: _optimistic をキープし、ポーリングでアイテムが即座に削除されないようにする
+        // 次のsyncHoldsQueued_呼び出しで再試行される
         for (var uid in state.ui.cardEls) updateCardUi_(uid);
       }
       if (res && res.failed && res.failed.length) {
@@ -3992,12 +3989,8 @@ function runHoldSync_() {
     })
     .catch(function(e) {
       console.log('同期エラー:', e);
-      // ネットワークエラー時も _optimistic をクリアして確保状態を正確に反映
-      for (var fk2 in state.cart.digest) {
-        if (state.cart.digest[fk2] && state.cart.digest[fk2]._optimistic) {
-          delete state.cart.digest[fk2]._optimistic;
-        }
-      }
+      // ネットワークエラー: _optimistic をキープしてカート内アイテムを保護
+      // ポーリングで即座に削除されないようにする（再試行は次のsyncHoldsQueued_で行われる）
     })
     .finally(function() {
       state._holdSyncing = false;
@@ -4737,6 +4730,69 @@ function getRecommendedProducts_(maxCount, excludeIds) {
   return result;
 }
 
+var _rcDragMoved = false; // ドラッグ中にカードクリックを抑止するフラグ
+
+function addRcDragScroll_(track) {
+  var dragging = false;
+  var startX = 0, startTx = 0;
+
+  function getTx(el) {
+    var t = window.getComputedStyle(el).transform;
+    if (!t || t === 'none') return 0;
+    var m = t.match(/matrix\(([^)]+)\)/);
+    if (!m) return 0;
+    var v = m[1].split(',');
+    return parseFloat(v[4]) || 0;
+  }
+
+  function start(x) {
+    dragging = true;
+    _rcDragMoved = false;
+    startX = x;
+    startTx = getTx(track);
+    track.style.transform = 'translateX(' + startTx + 'px)';
+    track.style.animation = 'none';
+    track.classList.add('rc-dragging');
+  }
+
+  function move(x) {
+    if (!dragging) return;
+    var dx = x - startX;
+    if (Math.abs(dx) > 5) _rcDragMoved = true;
+    track.style.transform = 'translateX(' + (startTx + dx) + 'px)';
+  }
+
+  function end() {
+    if (!dragging) return;
+    dragging = false;
+    track.classList.remove('rc-dragging');
+    var curX = getTx(track);
+    var half = track.offsetWidth / 2;
+    if (half <= 0) { track.style.animation = ''; track.style.transform = ''; return; }
+    // 現在位置からアニメーションを再開するためanimation-delayを計算
+    var pos = (((-curX) % half) + half) % half;
+    var duration = parseFloat(track.style.getPropertyValue('--rc-dur') || '20');
+    track.style.animationDelay = '-' + (pos / half * duration) + 's';
+    track.style.animation = '';
+    track.style.transform = '';
+    setTimeout(function() { _rcDragMoved = false; }, 80);
+  }
+
+  track.addEventListener('mousedown', function(e) { start(e.clientX); e.preventDefault(); });
+  window.addEventListener('mousemove', function(e) { move(e.clientX); });
+  window.addEventListener('mouseup', end);
+  track.addEventListener('touchstart', function(e) { start(e.touches[0].clientX); }, { passive: true });
+  track.addEventListener('touchmove', function(e) {
+    if (dragging && _rcDragMoved) e.preventDefault();
+    move(e.touches[0].clientX);
+  }, { passive: false });
+  track.addEventListener('touchend', end);
+  // ドラッグ後のカードクリックをキャプチャフェーズで抑止
+  track.addEventListener('click', function(e) {
+    if (_rcDragMoved) { e.stopPropagation(); e.preventDefault(); }
+  }, true);
+}
+
 function renderRecommendations_(containerId, sectionId, maxCount, isMainScreen) {
   var container = $(containerId);
   var section = $(sectionId);
@@ -4800,6 +4856,7 @@ function renderRecommendations_(containerId, sectionId, maxCount, isMainScreen) 
   }
 
   container.appendChild(track);
+  addRcDragScroll_(track);
 }
 
 function renderMainRecommendations_() {
