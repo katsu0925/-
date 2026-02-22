@@ -845,10 +845,9 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
       return { ok: true, message: '入金ステータスを更新しました（ペンディングデータなし）' };
     }
 
-    // === ペンディングデータを即座に削除（他のプロセスが同じ注文を処理しないように） ===
-    props.deleteProperty(pendingKey);
-    console.log('Claimed pending order (deleted key): ' + receiptNo);
-
+    // ペンディングデータをパース（削除はシート書き込み成功後に行う）
+    // ※削除を先に行うと、書き込み前に例外が起きた場合にデータが消失するため後回しにする
+    // ※シートレベルの重複チェック（下記）が二重書き込みを防ぐ最終安全弁として機能する
     var pendingData = JSON.parse(pendingDataStr);
     var isBulk = pendingData.channel === 'アソート' || pendingData.channel === 'まとめ';
     console.log('Found pending order: ' + receiptNo + (isBulk ? ' (アソート)' : '') + ', items: ' + (pendingData.ids ? pendingData.ids.length : pendingData.totalCount));
@@ -927,6 +926,10 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
 
     writeSubmitData_(writeData);
     console.log('Order written to sheet: ' + receiptNo);
+
+    // シート書き込み成功後にペンディングキーを削除（書き込み前に削除すると例外時にデータ消失するため）
+    props.deleteProperty(pendingKey);
+    console.log('Deleted pending key after successful write: ' + receiptNo);
 
     // 3.5. クーポン利用を記録
     if (pendingData.couponCode) {

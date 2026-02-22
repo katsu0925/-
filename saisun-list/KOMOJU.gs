@@ -606,6 +606,8 @@ function fetchPaymentFromApi_(paymentId) {
  * @returns {boolean} - 金額が一致すればtrue
  */
 function verifyPaymentAmount_(receiptNo, apiAmount) {
+  var amountChecked = false;  // 実際に金額照合が行われたかのフラグ
+
   // PAYMENT_ セッションの金額と照合
   var saved = getPaymentSession_(receiptNo);
   if (saved && saved.amount) {
@@ -613,6 +615,7 @@ function verifyPaymentAmount_(receiptNo, apiAmount) {
       console.error('金額不一致（PAYMENT_セッション）: 期待=' + saved.amount + ', 実際=' + apiAmount + ', 受付番号=' + receiptNo);
       return false;
     }
+    amountChecked = true;
   }
 
   // PENDING_ORDER_ の金額とも照合
@@ -626,10 +629,17 @@ function verifyPaymentAmount_(receiptNo, apiAmount) {
           console.error('金額不一致（PENDING_ORDER）: 期待=' + pending.discounted + ', 実際=' + apiAmount + ', 受付番号=' + receiptNo);
           return false;
         }
+        amountChecked = true;
       }
     }
   } catch (e) {
     console.warn('verifyPaymentAmount_: ペンディング注文の金額照合スキップ:', e);
+  }
+
+  // 照合データが一切なかった場合は警告ログを出力（改ざんリスクの見逃しを防ぐ）
+  if (!amountChecked) {
+    console.warn('verifyPaymentAmount_: 金額照合データなし（PAYMENT_/PENDING_ORDER_ともに未取得）' +
+                 ' receiptNo=' + receiptNo + ', apiAmount=' + apiAmount);
   }
 
   return true;
@@ -652,7 +662,8 @@ function komojuRequest_(method, endpoint, data, secretKey) {
       'Content-Type': 'application/json',
       'Accept': 'application/json'
     },
-    muteHttpExceptions: true
+    muteHttpExceptions: true,
+    deadline: 10  // 10秒でタイムアウト（GAS UrlFetchApp の deadline パラメータ）
   };
 
   if (data && (method === 'POST' || method === 'PUT' || method === 'PATCH')) {
