@@ -172,7 +172,14 @@
     #detStickyBarLabel{display:block;font-size:10px;color:#93c5fd;font-weight:400}
     #detStickyBarTotal{font-size:16px;font-weight:800;color:#fff}
     #detStickyBarBtn{flex-shrink:0;background:linear-gradient(135deg,#5B86C5,#3b6fb5);color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:14px;font-weight:800;cursor:pointer;white-space:nowrap;box-shadow:0 2px 8px rgba(91,134,197,.4)}
-    @media(max-width:767px){body.has-det-cart{padding-bottom:68px}body.has-det-cart .stickyBar{display:none}}
+    #bulkQvOverlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:500;}
+    #bulkQvOverlay.active{display:block;}
+    #bulkQvModal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:16px;width:min(480px,94vw);max-height:85vh;overflow-y:auto;z-index:501;box-shadow:0 12px 40px rgba(0,0,0,.2);}
+    #bulkQvModal .qv-header{padding:14px 18px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1;border-radius:16px 16px 0 0;}
+    #bulkQvModal .qv-title{font-size:16px;font-weight:700;color:#1a1a2e;}
+    #bulkQvModal .qv-close{background:none;border:none;font-size:22px;cursor:pointer;padding:4px 8px;color:#999;line-height:1;}
+    #bulkQvModal .qv-body{padding:18px;}
+    @media(max-width:767px){body.has-det-cart{padding-bottom:68px}.stickyBar{display:none!important}}
     @media(min-width:768px){#detStickyBar{display:none!important}}
     .authArea{display:flex;align-items:center;gap:6px;font-size:12px;}
     .authBtn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);border-radius:20px;padding:6px 16px;cursor:pointer;font-weight:700;font-size:12px;color:#fff;transition:all .2s;}
@@ -1874,7 +1881,7 @@ function renderSummary_() {
         var _pid = escapeHtml_(item.id);
         rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;gap:5px;' + (idx === 0 ? 'padding-top:10px;' : '') + '">'
           + '<button onclick="changeBulkQty_(\'' + _pid + '\',-999,' + _uP + ',' + _mQ + ')" aria-label="削除" style="flex-shrink:0;background:transparent;border:1px solid #5B86C5;border-radius:3px;cursor:pointer;padding:2px 4px;color:#5B86C5;line-height:1;">' + _bDelSvg + '</button>'
-          + '<span onclick="navigateToBulkWithDetail_(\'' + _pid + '\')" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;padding:0 2px;">' + escapeHtml_(item.name) + '</span>'
+          + '<span onclick="openBulkItemModal_(\'' + _pid + '\')" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;padding:0 2px;">' + escapeHtml_(item.name) + '</span>'
           + '<button onclick="changeBulkQty_(\'' + _pid + '\',-1,' + _uP + ',' + _mQ + ')" style="flex-shrink:0;background:#5B86C5;color:#fff;border:none;border-radius:3px;width:20px;height:20px;cursor:pointer;font-size:14px;line-height:1;padding:0;">−</button>'
           + '<span style="flex-shrink:0;min-width:22px;text-align:center;">×' + item.qty + '</span>'
           + '<button onclick="changeBulkQty_(\'' + _pid + '\',1,' + _uP + ',' + _mQ + ')" style="flex-shrink:0;background:#5B86C5;color:#fff;border:none;border-radius:3px;width:20px;height:20px;cursor:pointer;font-size:14px;line-height:1;padding:0;">+</button>'
@@ -4897,6 +4904,8 @@ function showCartSection_(showCart) {
       if (formActs) cartForm.insertBefore(sumBox, formActs);
       else cartForm.appendChild(sumBox);
     }
+    var _mb = document.querySelector('#cartModal .modalBody');
+    if (_mb) _mb.scrollTop = 0;
   }
 }
 
@@ -6651,5 +6660,51 @@ body.admin-mode .article-panel{bottom:186px;}
   <div id="detStickyBarInfo"><small id="detStickyBarLabel">デタウリ</small><strong id="detStickyBarTotal">¥0</strong></div>
   <button id="detStickyBarBtn" type="button" onclick="loadSharedAddress_(); renderCartModal_(); openModal($('cartModal'));">カートを確認 →</button>
 </div>
+<!-- アソート商品クイックビューモーダル -->
+<div id="bulkQvOverlay" onclick="closeBulkQv_()"></div>
+<div id="bulkQvModal">
+  <div class="qv-header">
+    <div class="qv-title" id="bulkQvTitle">商品詳細</div>
+    <button class="qv-close" type="button" onclick="closeBulkQv_()">&times;</button>
+  </div>
+  <div class="qv-body" id="bulkQvBody"></div>
+</div>
+<script>
+function openBulkItemModal_(productId) {
+  var bulk = loadBulkCartStorage();
+  var found = null;
+  if (bulk.items) {
+    for (var i = 0; i < bulk.items.length; i++) {
+      if (bulk.items[i].id === productId) { found = bulk.items[i]; break; }
+    }
+  }
+  if (!found) return;
+  var name = escapeHtml_(found.name || productId);
+  var price = Number(found.unitPrice || 0);
+  var qty = Number(found.qty || 1);
+  var bodyHtml = '<h3 style="font-size:17px;font-weight:800;margin:0 0 8px;color:#1a1a2e;">' + name + '</h3>'
+    + '<div style="font-size:22px;font-weight:800;color:#b8002a;margin-bottom:14px;">¥' + numFmt_(price) + '</div>'
+    + '<div style="font-size:13px;color:#555;margin-bottom:4px;">カート数量: ' + qty + '点</div>'
+    + '<div style="margin-top:18px;text-align:center;">'
+    + '<button onclick="closeBulkQv_();try{sessionStorage.setItem(\'_bulkOpenDetail\',\'' + productId.replace(/'/g, "\\'") + '\');sessionStorage.setItem(\'_pageTransition\',\'1\');}catch(e){}window.location.href=IS_STANDALONE?\'BulkLP.html\':\'?page=bulk\';" style="background:linear-gradient(135deg,#5B86C5,#3b6fb5);color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:14px;font-weight:800;cursor:pointer;">アソートページで詳細を見る →</button>'
+    + '</div>';
+  var titleEl = document.getElementById('bulkQvTitle');
+  var bodyEl = document.getElementById('bulkQvBody');
+  var overlay = document.getElementById('bulkQvOverlay');
+  var modal = document.getElementById('bulkQvModal');
+  if (!bodyEl || !modal) return;
+  if (titleEl) titleEl.textContent = found.name || productId;
+  bodyEl.innerHTML = bodyHtml;
+  overlay.classList.add('active');
+  modal.style.display = 'block';
+  modal.scrollTop = 0;
+}
+function closeBulkQv_() {
+  var overlay = document.getElementById('bulkQvOverlay');
+  var modal = document.getElementById('bulkQvModal');
+  if (overlay) overlay.classList.remove('active');
+  if (modal) modal.style.display = 'none';
+}
+</script>
 </body>
 </html>
