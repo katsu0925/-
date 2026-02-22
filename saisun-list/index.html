@@ -1846,11 +1846,22 @@ function renderSummary_() {
   var bulk = loadBulkCartStorage();
   if (bulk.subtotal > 0) {
     // 個別商品を表示（items配列がある場合）
+    var _bDelSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>';
     if (bulk.items && bulk.items.length > 0) {
       bulk.items.forEach(function(item, idx) {
+        var _uP = item.unitPrice || 0;
+        var _mQ = item.maxQty || 99;
+        var _pid = escapeHtml_(item.id);
         rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;' + (idx === 0 ? 'padding-top:10px;' : '') + '">'
-          + '<span>' + escapeHtml_(item.name) + '</span>'
-          + '<span>×' + item.qty + '</span></div>';
+          + '<button onclick="changeBulkQty_(\'' + _pid + '\',-999,' + _uP + ',' + _mQ + ')" aria-label="削除" style="background:transparent;border:1px solid #5B86C5;border-radius:3px;cursor:pointer;padding:2px 4px;color:#5B86C5;line-height:1;flex-shrink:0;">' + _bDelSvg + '</button>'
+          + '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml_(item.name) + '</span>'
+          + '<span style="display:flex;align-items:center;gap:2px;flex-shrink:0;">'
+          + '<button onclick="changeBulkQty_(\'' + _pid + '\',-1,' + _uP + ',' + _mQ + ')" style="background:#5B86C5;color:#fff;border:none;border-radius:3px;width:20px;height:20px;cursor:pointer;font-size:14px;line-height:1;padding:0;">−</button>'
+          + '<span style="min-width:24px;text-align:center;">×' + item.qty + '</span>'
+          + '<button onclick="changeBulkQty_(\'' + _pid + '\',1,' + _uP + ',' + _mQ + ')" style="background:#5B86C5;color:#fff;border:none;border-radius:3px;width:20px;height:20px;cursor:pointer;font-size:14px;line-height:1;padding:0;">+</button>'
+          + '</span>'
+          + '<span style="white-space:nowrap;">¥' + numFmt_(_uP * item.qty) + '</span>'
+          + '</div>';
       });
       rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
         + '<span>アソート商品 商品代</span>'
@@ -2894,6 +2905,42 @@ function loadBulkCartStorage() {
 }
 
 // =====================================================
+// アソートカート数量変更（デタウリページからの操作）
+// =====================================================
+function changeBulkQty_(productId, delta, unitPrice, maxQty) {
+  try {
+    var raw = localStorage.getItem('bulk_cart_v1');
+    if (!raw) return;
+    var j = JSON.parse(raw);
+    var cart = j.cart || {};
+    var cur = cart[productId] || 0;
+    var limit = maxQty || 99;
+    var next = (delta === -999) ? 0 : Math.max(0, Math.min(limit, cur + delta));
+    if (next === 0) { delete cart[productId]; }
+    else { cart[productId] = next; }
+    var newItems = [];
+    var newSubtotal = 0;
+    var newTotalQty = 0;
+    (j.items || []).forEach(function(item) {
+      var itemQty = (item.id === productId) ? next : item.qty;
+      if (itemQty <= 0) return;
+      var iPrice = item.unitPrice || (item.id === productId ? unitPrice : 0);
+      newItems.push({ id: item.id, name: item.name, qty: itemQty, unitPrice: iPrice, maxQty: item.maxQty || (item.id === productId ? maxQty : 99) });
+      newSubtotal += iPrice * itemQty;
+      newTotalQty += itemQty;
+    });
+    j.cart = cart;
+    j.items = newItems;
+    j.subtotal = newSubtotal;
+    j.totalQty = newTotalQty;
+    if (newTotalQty === 0) j.shipping = 0;
+    localStorage.setItem('bulk_cart_v1', JSON.stringify(j));
+    renderSummary_();
+    updateCartCount();
+  } catch (e) {}
+}
+
+// =====================================================
 // カートクリア（3ボタン）
 // =====================================================
 function clearDetauriCartOnly_() {
@@ -2968,7 +3015,7 @@ function loadSharedAddress_() {
   } catch (e) {}
 }
 
-// 他タブでの住所変更をリアルタイム反映
+// 他タブでの住所変更・アソートカート変更をリアルタイム反映
 window.addEventListener('storage', function(e) {
   if (e.key === SHARED_ADDRESS_KEY && e.newValue) {
     try {
@@ -2981,6 +3028,10 @@ window.addEventListener('storage', function(e) {
       }
       updateShippingDisplay_();
     } catch (err) {}
+  }
+  if (e.key === 'bulk_cart_v1') {
+    renderSummary_();
+    updateCartCount();
   }
 });
 

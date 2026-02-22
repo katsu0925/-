@@ -1218,7 +1218,8 @@ var G = {
   detauriShipping: 0,
   detauriShippingLabel: '',
   detauriShippingPref: '',
-  detauriShippingSizeLabel: ''
+  detauriShippingSizeLabel: '',
+  detauriItems: []
 };
 
 // =====================================================
@@ -1632,7 +1633,20 @@ function updateCart() {
     recalcDetauriShipping_(); // デタウリ送料もリアルタイム計算
     var emptyHtml = '<div class="cart-empty">商品を選択してください</div>';
     if (G.detauriCartCount > 0) {
-      var detRows = '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
+      var detRows = '';
+      var _detItems = G.detauriItems || [];
+      var _dDelSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>';
+      for (var _di0 = 0; _di0 < _detItems.length; _di0++) {
+        var _dit0 = _detItems[_di0].item;
+        var _did0 = _detItems[_di0].id;
+        var _dname0 = (_dit0.noLabel ? _dit0.noLabel : _did0) + (_dit0.brand ? ' ' + _dit0.brand : '');
+        detRows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
+          + '<button class="cart-delbtn" onclick="deleteDetauriItem_(\'' + escAttr(_did0) + '\')" aria-label="削除" style="color:#5B86C5;border-color:#5B86C5;">' + _dDelSvg + '</button>'
+          + '<span class="cart-row-name">' + escHtml(_dname0) + '</span>'
+          + '<span class="cart-row-price">¥' + numFmt(Number(_dit0.price || 0)) + '</span>'
+          + '</div>';
+      }
+      detRows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
         + '<span>デタウリ 商品代（' + G.detauriCartCount + '点）</span>'
         + '<span>¥' + numFmt(G.detauriCartTotal) + '</span></div>';
       var shippingDesc0 = 'デタウリ 送料';
@@ -1739,7 +1753,19 @@ function updateCart() {
   // デタウリカートの合算表示
   var grandTotal = total;
   if (G.detauriCartCount > 0) {
-    rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;padding-top:10px;">'
+    var _dItemsFull = G.detauriItems || [];
+    var _dDelSvgF = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>';
+    for (var _dii = 0; _dii < _dItemsFull.length; _dii++) {
+      var _dittF = _dItemsFull[_dii].item;
+      var _diidF = _dItemsFull[_dii].id;
+      var _dnameF = (_dittF.noLabel ? _dittF.noLabel : _diidF) + (_dittF.brand ? ' ' + _dittF.brand : '');
+      rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;' + (_dii === 0 ? 'padding-top:10px;' : '') + '">'
+        + '<button class="cart-delbtn" onclick="deleteDetauriItem_(\'' + escAttr(_diidF) + '\')" aria-label="削除" style="color:#5B86C5;border-color:#5B86C5;">' + _dDelSvgF + '</button>'
+        + '<span class="cart-row-name">' + escHtml(_dnameF) + '</span>'
+        + '<span class="cart-row-price">¥' + numFmt(Number(_dittF.price || 0)) + '</span>'
+        + '</div>';
+    }
+    rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
       + '<span>デタウリ 商品代（' + G.detauriCartCount + '点）</span>'
       + '<span>¥' + numFmt(G.detauriCartTotal) + '</span></div>';
     var shippingDesc = 'デタウリ 送料';
@@ -2231,7 +2257,9 @@ function saveBulkCart() {
     var shipping = calcEffectiveShipping_();
     var items = Object.keys(G.cart).map(function(pid) {
       var p = G.products.find(function(x) { return x.productId === pid; });
-      return { id: pid, name: p ? p.name : pid, qty: G.cart[pid] };
+      var uPrice = p ? ((p.discountedPrice !== undefined) ? p.discountedPrice : p.price) : 0;
+      var stockLimit = p ? (p.stock !== -1 && p.stock < p.maxQty ? p.stock : p.maxQty) : 1;
+      return { id: pid, name: p ? p.name : pid, qty: G.cart[pid], unitPrice: uPrice, maxQty: stockLimit };
     });
     localStorage.setItem(BULK_CART_KEY, JSON.stringify({
       cart: G.cart,
@@ -2255,13 +2283,14 @@ function loadBulkCart() {
 function loadDetauriCart() {
   try {
     var raw = localStorage.getItem(DETAURI_CART_KEY);
-    if (!raw) return;
+    if (!raw) { G.detauriItems = []; return; }
     var j = JSON.parse(raw);
     var ids = Array.isArray(j.ids) ? j.ids : [];
-    var items = j.itemsById || {};
+    var itemsById = j.itemsById || {};
+    G.detauriItems = ids.map(function(id) { return { id: id, item: itemsById[id] || {} }; });
     var sum = 0;
     for (var i = 0; i < ids.length; i++) {
-      var it = items[ids[i]];
+      var it = itemsById[ids[i]];
       if (it) sum += Number(it.price || 0);
     }
     G.detauriCartTotal = sum;
@@ -2270,6 +2299,23 @@ function loadDetauriCart() {
     G.detauriShippingLabel = j.shippingLabel || '';
     G.detauriShippingPref = j.shippingPref || '';
     G.detauriShippingSizeLabel = j.shippingSizeLabel || '';
+  } catch (e) { G.detauriItems = []; }
+}
+
+// =====================================================
+// デタウリカートアイテム削除（アソートページからの操作）
+// =====================================================
+function deleteDetauriItem_(id) {
+  try {
+    var raw = localStorage.getItem(DETAURI_CART_KEY);
+    if (!raw) return;
+    var j = JSON.parse(raw);
+    var idx = (j.ids || []).indexOf(id);
+    if (idx !== -1) j.ids.splice(idx, 1);
+    if (j.itemsById) delete j.itemsById[id];
+    localStorage.setItem(DETAURI_CART_KEY, JSON.stringify(j));
+    loadDetauriCart();
+    updateCart();
   } catch (e) {}
 }
 
@@ -2382,7 +2428,7 @@ function loadSharedAddress_() {
   }
 })();
 
-// 他タブでの住所変更をリアルタイム反映
+// 他タブでの住所変更・デタウリカート変更をリアルタイム反映
 window.addEventListener('storage', function(e) {
   if (e.key === SHARED_ADDRESS_KEY && e.newValue) {
     try {
@@ -2395,6 +2441,10 @@ window.addEventListener('storage', function(e) {
       }
       if (data.address) updateCart();
     } catch (e) {}
+  }
+  if (e.key === DETAURI_CART_KEY) {
+    loadDetauriCart();
+    updateCart();
   }
 });
 
