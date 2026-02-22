@@ -143,7 +143,7 @@
     .cartLeft{display:flex;flex-direction:column;gap:3px;min-width:0;}
     .cartName{font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:560px;display:flex;gap:8px;flex-wrap:wrap;align-items:baseline;}
     .cartSub{font-size:12px;color:#666;}
-    .dangerBtn{border:1px solid #ff4d4f;color:#ff4d4f;background:#fff;border-radius:8px;padding:8px 10px;cursor:pointer;font-weight:900;}
+    .dangerBtn{border:1px solid #ff4d4f;color:#ff4d4f;background:#fff;border-radius:8px;padding:8px 10px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;}
     .hold-timer{display:inline-block;font-size:11px;color:#d97706;background:#fef3c7;border:1px solid #fcd34d;border-radius:4px;padding:2px 6px;margin-top:3px;font-weight:600;}
     .hold-timer.expiring{color:#dc2626;background:#fef2f2;border-color:#fca5a5;}
     .recommendSection{margin-top:16px;padding-top:16px;}
@@ -4749,7 +4749,7 @@ function renderCartModal_() {
     left.appendChild(name); left.appendChild(sub);
     info.appendChild(img); info.appendChild(left);
 
-    var btn = document.createElement('button'); btn.className = 'dangerBtn'; btn.type = 'button'; btn.textContent = '削除';
+    var btn = document.createElement('button'); btn.className = 'dangerBtn'; btn.type = 'button'; btn.setAttribute('aria-label', '削除'); btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>';
     (function(idRef) {
       btn.addEventListener('click', function() {
         var idx = state.cart.ids.indexOf(idRef);
