@@ -179,7 +179,7 @@
     #bulkQvModal .qv-title{font-size:16px;font-weight:700;color:#1a1a2e;}
     #bulkQvModal .qv-close{background:none;border:none;font-size:22px;cursor:pointer;padding:4px 8px;color:#999;line-height:1;}
     #bulkQvModal .qv-body{padding:18px;}
-    @media(max-width:767px){body.has-det-cart{padding-bottom:68px}.stickyBar{display:none!important}}
+    @media(max-width:767px){body{padding-bottom:68px}.stickyBar{display:none!important}#detStickyBar{display:flex!important}}
     @media(min-width:768px){#detStickyBar{display:none!important}}
     .authArea{display:flex;align-items:center;gap:6px;font-size:12px;}
     .authBtn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);border-radius:20px;padding:6px 16px;cursor:pointer;font-weight:700;font-size:12px;color:#fff;transition:all .2s;}
@@ -1872,6 +1872,10 @@ function renderSummary_() {
   // アソート商品カート
   var bulk = loadBulkCartStorage();
   if (bulk.subtotal > 0) {
+    // アソートセクション区切り
+    rows += '<div style="margin:14px -2px 6px;padding:7px 10px;background:linear-gradient(135deg,rgba(91,134,197,.12),rgba(59,111,181,.08));border-radius:6px;border-left:3px solid #5B86C5;display:flex;align-items:center;">'
+      + '<span style="font-size:11px;font-weight:800;color:#3b6fb5;letter-spacing:0.3px;">■ アソート商品</span>'
+      + '</div>';
     // 個別商品を表示（items配列がある場合）
     var _bDelSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>';
     if (bulk.items && bulk.items.length > 0) {
@@ -1879,7 +1883,7 @@ function renderSummary_() {
         var _uP = item.unitPrice || 0;
         var _mQ = item.maxQty || 99;
         var _pid = escapeHtml_(item.id);
-        rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;gap:5px;' + (idx === 0 ? 'padding-top:10px;' : '') + '">'
+        rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;gap:5px;">'
           + '<button onclick="changeBulkQty_(\'' + _pid + '\',-999,' + _uP + ',' + _mQ + ')" aria-label="削除" style="flex-shrink:0;background:transparent;border:1px solid #5B86C5;border-radius:3px;cursor:pointer;padding:2px 4px;color:#5B86C5;line-height:1;">' + _bDelSvg + '</button>'
           + '<span onclick="openBulkItemModal_(\'' + _pid + '\')" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;padding:0 2px;">' + escapeHtml_(item.name) + '</span>'
           + '<button onclick="changeBulkQty_(\'' + _pid + '\',-1,' + _uP + ',' + _mQ + ')" style="flex-shrink:0;background:#5B86C5;color:#fff;border:none;border-radius:3px;width:20px;height:20px;cursor:pointer;font-size:14px;line-height:1;padding:0;">−</button>'
@@ -1892,7 +1896,7 @@ function renderSummary_() {
         + '<span>アソート商品 商品代</span>'
         + '<span>¥' + numFmt_(bulk.subtotal) + '</span></div>';
     } else {
-      rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;padding-top:10px;">'
+      rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
         + '<span>アソート商品 商品代（' + bulk.totalQty + '点）</span>'
         + '<span>¥' + numFmt_(bulk.subtotal) + '</span></div>';
     }
@@ -1926,7 +1930,10 @@ function renderSummary_() {
       + '<span>¥' + numFmt_(bulkTotal) + '</span></div>';
     var detauriFull = afterPoints + shippingAmount;
     var grandTotal = detauriFull + bulkTotal;
-    rows += '<div class="cart-row total" style="border-top-color:#5B86C5;"><span>両チャネル合計（税込）</span><span>¥' + numFmt_(grandTotal) + '</span></div>';
+    rows += '<div style="display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;font-size:17px;font-weight:900;padding:14px 12px;border-radius:10px;margin-top:14px;box-shadow:0 3px 12px rgba(0,0,0,.18);">'
+      + '<span>両チャネル合計（税込）</span>'
+      + '<span style="color:#fbbf24;">¥' + numFmt_(grandTotal) + '</span>'
+      + '</div>';
   }
 
   el.innerHTML = rows;
@@ -3433,15 +3440,20 @@ function pollStatusNow_() {
 
         // 確保タイムアウト: カート内アイテムの確保が切れたら自動解除
         var expired = [];
-        var GRACE_MS = 60000; // 60秒のグレース期間（GAS PropertiesService伝播待ち）
+        var GRACE_MS = 20000; // 20秒のグレース期間（GAS PropertiesService伝播待ち）
         for (var ci = 0; ci < state.cart.ids.length; ci++) {
           var cid = state.cart.ids[ci];
           var dd = state.cart.digest[cid];
+          var d = merged[cid];
+          // 他ユーザーが確保中 → _optimisticに関わらず即時除外（バッティング防止）
+          if (d && d.heldByOther) {
+            expired.push(cid);
+            continue;
+          }
           // 楽観的更新中 → スキップ
           if (dd && dd._optimistic) continue;
-          // サーバー確認済み15秒以内 → スキップ（PropertiesService伝播待ち）
+          // サーバー確認済み20秒以内 → スキップ（PropertiesService伝播待ち）
           if (dd && dd._confirmedAt && (now - dd._confirmedAt < GRACE_MS)) continue;
-          var d = merged[cid];
           // サーバーが「在庫あり」を返す = 確保が切れている
           if (d && d.status && statusKind_(normalizeStatus_(d.status)) === 'available') {
             expired.push(cid);
@@ -3457,7 +3469,7 @@ function pollStatusNow_() {
           }
           state.lastShipping = null;
           saveCartStorage(); updateCartCount(); updateShippingDisplay_();
-          showToast('確保期限が切れた商品（' + expired.length + '点）をカートから除外しました');
+          showToast('他のユーザーが確保中または期限切れの商品（' + expired.length + '点）をカートから除外しました');
         }
 
         for (var id in state.ui.cardEls) updateCardUi_(id);
@@ -3830,9 +3842,12 @@ function updateDetStickyBar_() {
   var detCount = (state.cart.ids || []).length;
   var bulk = loadBulkCartStorage();
   var assortQty = bulk.totalQty || 0;
+  // 常にバーを表示（カートが空でも）
+  bar.classList.add('active');
+  document.body.classList.add('has-det-cart');
   if (detCount === 0 && assortQty === 0) {
-    bar.classList.remove('active');
-    document.body.classList.remove('has-det-cart');
+    if (totalEl) totalEl.textContent = '¥0';
+    if (labelEl) labelEl.textContent = 'カートは空です';
     return;
   }
   // 合計金額を計算（割引適用）
@@ -3847,8 +3862,6 @@ function updateDetStickyBar_() {
   if (state.customer && MEMBER_DISCOUNT_ENABLED) discountRate += MEMBER_DISCOUNT_RATE;
   var detDiscounted = Math.round(detSum * (1 - discountRate));
   var total = detDiscounted + (bulk.subtotal || 0);
-  bar.classList.add('active');
-  document.body.classList.add('has-det-cart');
   if (totalEl) totalEl.textContent = '¥' + numFmt_(total);
   if (labelEl) {
     if (detCount > 0 && assortQty > 0) {
@@ -4776,13 +4789,18 @@ function addRcDragScroll_(track) {
     var curX = getTx(track);
     var half = track.offsetWidth / 2;
     if (half <= 0) { track.style.animation = ''; track.style.transform = ''; return; }
-    // 現在位置からアニメーションを再開するためanimation-delayを計算
     var pos = (((-curX) % half) + half) % half;
     var duration = parseFloat(track.style.getPropertyValue('--rc-dur') || '20');
+    // 現在位置で止めてリフロー強制（モバイル含む全環境でアニメーション再開を確実に）
+    track.style.animation = 'none';
+    track.style.transform = 'translateX(' + (-pos) + 'px)';
+    track.getBoundingClientRect(); // リフロー強制
     track.style.animationDelay = '-' + (pos / half * duration) + 's';
-    track.style.animation = '';
-    track.style.transform = '';
-    setTimeout(function() { _rcDragMoved = false; }, 80);
+    requestAnimationFrame(function() {
+      track.style.animation = '';
+      track.style.transform = '';
+      setTimeout(function() { _rcDragMoved = false; }, 80);
+    });
   }
 
   track.addEventListener('mousedown', function(e) { start(e.clientX); e.preventDefault(); });
@@ -4867,7 +4885,7 @@ function renderRecommendations_(containerId, sectionId, maxCount, isMainScreen) 
 }
 
 function renderMainRecommendations_() {
-  renderRecommendations_('mainRecommendList', 'mainRecommend', 8, true);
+  renderRecommendations_('mainRecommendList', 'mainRecommend', 20, true);
 }
 
 // =====================================================
@@ -5011,7 +5029,7 @@ function renderCartModal_() {
   }
 
   // おすすめ商品を表示
-  renderRecommendations_('cartRecommendList', 'cartRecommend', 6);
+  renderRecommendations_('cartRecommendList', 'cartRecommend', 20);
 
   // 統一フォーマットで金額サマリーを描画
   startHoldTimers_();
@@ -6556,7 +6574,7 @@ s0.parentNode.insertBefore(s1,s0);
 /* --- モバイル --- */
 @media(max-width:480px){
   .article-panel.open{bottom:0;left:0;right:0;width:100%;max-width:100%;height:100%;max-height:100%;border-radius:0;z-index:110;}
-  .article-fab{left:12px;bottom:16px;padding:7px 10px;font-size:11px;}
+  .article-fab{left:12px;bottom:80px;padding:7px 10px;font-size:11px;}
 }
 body.admin-mode .article-fab{bottom:136px;}
 body.admin-mode .article-panel{bottom:186px;}

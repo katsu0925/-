@@ -92,9 +92,9 @@ function apiSyncHolds(userKey, ids) {
     const now = u_nowMs_();
     const wantIds = u_unique_(u_normalizeIds_(ids || []));
 
-    // 短時間ロックで並行制御（最大3秒待機）
+    // ロックで並行制御（最大10秒待機: 同時アクセス時のバッティングを確実に防ぐ）
     var lock = LockService.getScriptLock();
-    if (!lock.tryLock(3000)) {
+    if (!lock.tryLock(10000)) {
       return { ok: false, message: '現在混雑しています。少し時間を置いて再度お試しください。' };
     }
 
