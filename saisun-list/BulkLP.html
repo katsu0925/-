@@ -113,6 +113,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 .coupon-result{font-size:12px;margin-bottom:10px;padding:6px 10px;border-radius:6px;display:none}
 .coupon-result.ok{background:#d4edda;color:#155724;display:block}
 .coupon-result.err{background:#f8d7da;color:#721c24;display:block}
+.coupon-result.loading{background:#fff3cd;color:#856404;display:block}
+.coupon-row button:disabled{opacity:0.6;cursor:not-allowed}
 
 /* フォーム */
 .form-group{margin-bottom:12px}
@@ -556,7 +558,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
   <div class="section-title">クーポン</div>
   <div class="coupon-row">
     <input type="text" id="couponInput" placeholder="クーポンコードを入力" style="text-transform:uppercase">
-    <button onclick="applyCoupon()">適用</button>
+    <button id="couponBtn" onclick="applyCoupon()">適用</button>
   </div>
   <div class="coupon-result" id="couponResult"></div>
   <p style="font-size:12px;margin:6px 0 0;color:#c00;font-weight:700;">2月末まで「FREE_SHIPPING_20260228」を入力で送料無料<br><span style="font-size:11px;color:#888;font-weight:400;">※価格破壊商品は対象外です</span></p>
@@ -1939,6 +1941,15 @@ function applyCoupon() {
   var resEl = document.getElementById('couponResult');
   if (!code) { resEl.className = 'coupon-result err'; resEl.textContent = 'コードを入力してください'; return; }
 
+  var btn = document.getElementById('couponBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '確認中...'; }
+  resEl.className = 'coupon-result loading';
+  resEl.textContent = 'クーポンコードを確認中...';
+
+  function restoreBtn_() {
+    if (btn) { btn.disabled = false; btn.textContent = '適用'; }
+  }
+
   var email = document.getElementById('contact').value.trim();
   var companyName = document.getElementById('companyName').value.trim();
   var subtotal = calcSubtotal();
@@ -1958,10 +1969,12 @@ function applyCoupon() {
         document.getElementById('couponInput').value = '';
         updateCart();
       }
+      restoreBtn_();
     })
     .catch(function(e) {
       resEl.className = 'coupon-result err';
       resEl.textContent = e && e.message ? e.message : 'エラーが発生しました';
+      restoreBtn_();
     });
 }
 

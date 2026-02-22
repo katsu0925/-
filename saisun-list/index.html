@@ -4802,6 +4802,9 @@ function applyCoupon_() {
   var code = ($('couponCode').value || '').trim();
   if (!code) { showToast('クーポンコードを入力してください'); return; }
 
+  var btn = $('applyCouponBtn');
+  if (btn) { btn.disabled = true; btn.textContent = '確認中...'; }
+
   var sum = 0;
   var ids = state.cart.ids || [];
   for (var i = 0; i < ids.length; i++) {
@@ -4812,13 +4815,18 @@ function applyCoupon_() {
   var email = ($('contact').value || '').trim();
   var companyName = ($('companyName').value || '').trim();
   var info = $('couponInfo');
-  info.innerHTML = '<span style="color:#888;">検証中...</span>';
+  info.innerHTML = '<span style="color:#888;">確認中...</span>';
+
+  function restoreBtn_() {
+    if (btn) { btn.disabled = false; btn.textContent = '適用'; }
+  }
 
   runApi('apiValidateCoupon', code, email, sum, 'detauri', null, companyName).then(function(res) {
     if (!res || !res.ok) {
       info.innerHTML = '<span style="color:#c00;">' + escapeHtml_(res && res.message ? res.message : 'クーポンが無効です') + '</span>';
       state.appliedCoupon = null;
       $('couponCode').value = '';
+      restoreBtn_();
       return;
     }
     state.appliedCoupon = { code: code.toUpperCase(), type: res.type, value: res.value, discountAmount: res.discountAmount, label: res.label, comboMember: res.comboMember || false, comboBulk: res.comboBulk || false };
@@ -4834,6 +4842,7 @@ function applyCoupon_() {
     var msg = (e && e.message) ? e.message : 'エラーが発生しました';
     info.innerHTML = '<span style="color:#c00;">' + escapeHtml_(msg) + '</span>';
     state.appliedCoupon = null;
+    restoreBtn_();
   });
 }
 
