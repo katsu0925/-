@@ -5213,7 +5213,7 @@ function bindUi_() {
     filterAndRender(true);
   });
   
-  $('openCartBtn').addEventListener('click', function() { renderCartModal_(); openModal($('cartModal')); });
+  $('openCartBtn').addEventListener('click', function() { loadSharedAddress_(); renderCartModal_(); openModal($('cartModal')); });
   // カートクリアボタンはrenderSummary_()内で動的生成
   $('cartCloseBtn').addEventListener('click', function() {
     showCartSection_(true); // カートビューに戻してから閉じる
@@ -5614,6 +5614,9 @@ function boot() {
   state.cart.ids = c.ids || [];
   state.cart.itemsById = c.itemsById || {};
   updateCartCount();
+
+  // 共有住所を早期読み込み（カートの送料表示に使用）
+  setTimeout(loadSharedAddress_, 100);
 
   bindUi_();
   setupScrollTopButton_();
