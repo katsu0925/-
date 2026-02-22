@@ -163,7 +163,7 @@
     .mainRecommendList .recommendCard img{width:120px;height:120px;}
     @keyframes rcScroll{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
     .rcTrack{display:flex;will-change:transform;animation:rcScroll var(--rc-dur,20s) linear infinite;cursor:grab;user-select:none;-webkit-user-select:none}
-    .rcTrack:hover{animation-play-state:paused}
+    @media(hover:hover){.rcTrack:hover{animation-play-state:paused}}
     .rcTrack.rc-dragging{cursor:grabbing;animation-play-state:paused}
     /* デタウリ モバイル固定決済バー */
     #detStickyBar{display:none;position:fixed;bottom:0;left:0;right:0;z-index:150;background:linear-gradient(135deg,#1a1a2e,#16213e);padding:10px 16px;box-shadow:0 -3px 14px rgba(0,0,0,.45);align-items:center;justify-content:space-between;gap:12px}
@@ -172,9 +172,9 @@
     #detStickyBarLabel{display:block;font-size:10px;color:#93c5fd;font-weight:400}
     #detStickyBarTotal{font-size:16px;font-weight:800;color:#fff}
     #detStickyBarBtn{flex-shrink:0;background:linear-gradient(135deg,#5B86C5,#3b6fb5);color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:14px;font-weight:800;cursor:pointer;white-space:nowrap;box-shadow:0 2px 8px rgba(91,134,197,.4)}
-    #bulkQvOverlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:500;}
+    #bulkQvOverlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:1050;}
     #bulkQvOverlay.active{display:block;}
-    #bulkQvModal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:16px;width:min(480px,94vw);max-height:85vh;overflow-y:auto;z-index:501;box-shadow:0 12px 40px rgba(0,0,0,.2);}
+    #bulkQvModal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:16px;width:min(480px,94vw);max-height:85vh;overflow-y:auto;z-index:1060;box-shadow:0 12px 40px rgba(0,0,0,.2);}
     #bulkQvModal .qv-header{padding:14px 18px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff;z-index:1;border-radius:16px 16px 0 0;}
     #bulkQvModal .qv-title{font-size:16px;font-weight:700;color:#1a1a2e;}
     #bulkQvModal .qv-close{background:none;border:none;font-size:22px;cursor:pointer;padding:4px 8px;color:#999;line-height:1;}
@@ -358,6 +358,7 @@
     @media (max-width: 700px) {
       .detail-zoom-wrap { cursor: pointer; }
       .detail-zoom-lens, .detail-zoom-result { display: none !important; }
+      .detail-zoom-hint { display: none !important; }
       .detail-zoom-hint-mobile { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,.55); color: #fff; font-size: 11px; padding: 3px 10px; border-radius: 12px; pointer-events: none; z-index: 3; white-space: nowrap; }
     }
     @media (min-width: 701px) {
@@ -4755,23 +4756,38 @@ var _rcDragMoved = false; // ドラッグ中にカードクリックを抑止す
 function addRcDragScroll_(track) {
   var dragging = false;
   var startX = 0, startTx = 0;
+  var resumeTimer = null;
 
   function getTx(el) {
     var t = window.getComputedStyle(el).transform;
     if (!t || t === 'none') return 0;
+    // matrix3d形式（モバイルGPU加速）に対応
+    var m3 = t.match(/matrix3d\(([^)]+)\)/);
+    if (m3) { var v3 = m3[1].split(','); return parseFloat(v3[12]) || 0; }
     var m = t.match(/matrix\(([^)]+)\)/);
     if (!m) return 0;
     var v = m[1].split(',');
     return parseFloat(v[4]) || 0;
   }
 
+  function resumeFrom(pos, half, duration) {
+    track.style.animationDelay = '-' + (pos / half * duration) + 's';
+    requestAnimationFrame(function() {
+      track.style.animation = '';
+      track.style.transform = '';
+    });
+  }
+
   function start(x) {
+    clearTimeout(resumeTimer);
     dragging = true;
     _rcDragMoved = false;
     startX = x;
-    startTx = getTx(track);
-    track.style.transform = 'translateX(' + startTx + 'px)';
+    var curTx = getTx(track);
     track.style.animation = 'none';
+    track.style.transform = 'translateX(' + curTx + 'px)';
+    track.getBoundingClientRect();
+    startTx = curTx;
     track.classList.add('rc-dragging');
   }
 
@@ -4785,22 +4801,22 @@ function addRcDragScroll_(track) {
   function end() {
     if (!dragging) return;
     dragging = false;
+    var wasDragged = _rcDragMoved;
     track.classList.remove('rc-dragging');
     var curX = getTx(track);
-    var half = track.offsetWidth / 2;
+    var half = (track.scrollWidth > 0 ? track.scrollWidth : track.offsetWidth) / 2;
     if (half <= 0) { track.style.animation = ''; track.style.transform = ''; return; }
     var pos = (((-curX) % half) + half) % half;
     var duration = parseFloat(track.style.getPropertyValue('--rc-dur') || '20');
-    // 現在位置で止めてリフロー強制（モバイル含む全環境でアニメーション再開を確実に）
+    // 現在位置で固定（止めたところで止まる）
     track.style.animation = 'none';
     track.style.transform = 'translateX(' + (-pos) + 'px)';
-    track.getBoundingClientRect(); // リフロー強制
-    track.style.animationDelay = '-' + (pos / half * duration) + 's';
-    requestAnimationFrame(function() {
-      track.style.animation = '';
-      track.style.transform = '';
-      setTimeout(function() { _rcDragMoved = false; }, 80);
-    });
+    track.getBoundingClientRect();
+    // ドラッグは1秒後、タップは0.5秒後に自動でスクロール再開
+    resumeTimer = setTimeout(function() {
+      resumeFrom(pos, half, duration);
+    }, wasDragged ? 1000 : 500);
+    setTimeout(function() { _rcDragMoved = false; }, 80);
   }
 
   track.addEventListener('mousedown', function(e) { start(e.clientX); e.preventDefault(); });
@@ -4928,7 +4944,7 @@ function showCartSection_(showCart) {
 }
 
 function startHoldTimers_() {
-  if (state.timers.holdCountdown) clearInterval(state.timers.holdCountdown);
+  if (state.timers.holdCountdown) return; // 既に動作中→再起動せずタイマー維持
   state.timers.holdCountdown = setInterval(function() {
     var cartIds = state.cart.ids || [];
     // カートが空になったらインターバル停止
