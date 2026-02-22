@@ -1416,6 +1416,7 @@ var state = {
   ui: { cardEls: {} },
   timers: { statusPoll: null },
   _holdSyncing: false,
+  _pendingHoldSync: false, // 連続操作時の再同期フラグ
   brandUi: { all: [], selected: {}, cbByName: {}, built: false },
   // 顧客認証
   customer: null,  // { id, email, companyName, phone, postal, address, newsletter }
@@ -3312,12 +3313,6 @@ function filterAndRender(scrollTop) {
 function pollStatusNow_() {
   if (state.timers.statusPoll) { clearTimeout(state.timers.statusPoll); state.timers.statusPoll = null; }
 
-  // 確保同期中はポーリングをスキップ（apiSyncHolds完了後に再呼び出しされる）
-  if (state._holdSyncing) {
-    state.timers.statusPoll = setTimeout(pollStatusNow_, 3000);
-    return;
-  }
-
   // タブが非表示の場合はポーリングを一時停止
   if (document.hidden) {
     state.timers.statusPoll = setTimeout(pollStatusNow_, 30000);
@@ -3333,7 +3328,7 @@ function pollStatusNow_() {
     if (ids.indexOf(state.cart.ids[j]) === -1) ids.push(state.cart.ids[j]);
   }
 
-  if (ids.length === 0) { state.timers.statusPoll = setTimeout(pollStatusNow_, 10000); return; }
+  if (ids.length === 0) { state.timers.statusPoll = setTimeout(pollStatusNow_, 5000); return; }
 
   runApi('apiGetStatusDigest', state.userKey, ids)
     .then(function(res) {
@@ -3348,8 +3343,8 @@ function pollStatusNow_() {
           // 楽観的エントリ → サーバー応答に関わらず常に保護
           // （ポーリングはカート追加前に送信されており、サーバー応答は古い状態を反映するため）
           if (existing._optimistic) { merged[ok] = existing; continue; }
-          // サーバー確認済み(60秒以内) → サーバー確認データを優先
-          if (existing._confirmedAt && (now - existing._confirmedAt < 60000)) {
+          // サーバー確認済み(15秒以内) → サーバー確認データを優先
+          if (existing._confirmedAt && (now - existing._confirmedAt < 15000)) {
             merged[ok] = existing;
           }
         }
@@ -3357,7 +3352,7 @@ function pollStatusNow_() {
 
         // 確保タイムアウト: カート内アイテムの確保が切れたら自動解除
         var expired = [];
-        var GRACE_MS = 60000; // 60秒のグレース期間（サーバー側キャッシュ伝播を十分に待つ）
+        var GRACE_MS = 15000; // 15秒のグレース期間
         for (var ci = 0; ci < state.cart.ids.length; ci++) {
           var cid = state.cart.ids[ci];
           var dd = state.cart.digest[cid];
@@ -3389,7 +3384,7 @@ function pollStatusNow_() {
     })
     .catch(function(e) { console.log('ステータス取得エラー:', e); });
 
-  state.timers.statusPoll = setTimeout(pollStatusNow_, 10000);
+  state.timers.statusPoll = setTimeout(pollStatusNow_, 5000);
 }
 
 function getCurrentPageItems_() {
@@ -3818,12 +3813,29 @@ function toggleCartOptimistic_(id) {
   updateShippingDisplay_(); // 送料を即時再計算
   revalidateCoupon_(); // クーポン再検証
 
-  // 確保同期中はステータスポーリングを抑止（レースコンディション防止）
+  // 連続操作対応: 同期中なら完了後に再実行するフラグをセット
+  syncHoldsQueued_();
+}
+
+// 確保同期をキューイング（連続クリック/タップ対策）
+// 同期中の場合はフラグのみ立て、現在の同期完了後に最新カート状態で再実行する
+function syncHoldsQueued_() {
+  if (state._holdSyncing) {
+    state._pendingHoldSync = true;
+    return;
+  }
+  runHoldSync_();
+}
+
+// 確保同期の実行本体
+function runHoldSync_() {
   state._holdSyncing = true;
+  state._pendingHoldSync = false;
+
   runApi('apiSyncHolds', state.userKey, state.cart.ids.slice())
     .then(function(res) {
       if (res && res.ok) {
-        // 同期成功: サーバー確認済みdigestで上書き（最も信頼できるデータ）
+        // 同期成功: サーバー確認済みdigestで上書き
         var now = Date.now();
         if (res.digest) {
           for (var dk in res.digest) {
@@ -3831,21 +3843,17 @@ function toggleCartOptimistic_(id) {
             state.cart.digest[dk] = res.digest[dk];
           }
         }
-        // 成功時のみ _optimistic をクリア
         for (var ck in state.cart.digest) {
           if (state.cart.digest[ck]) delete state.cart.digest[ck]._optimistic;
         }
-        // digestにないカートアイテムにも _confirmedAt を付与（サーバーが省略した場合の保護）
         for (var ci2 = 0; ci2 < state.cart.ids.length; ci2++) {
           var cid2 = state.cart.ids[ci2];
           if (state.cart.digest[cid2] && !state.cart.digest[cid2]._confirmedAt) {
             state.cart.digest[cid2]._confirmedAt = now;
           }
         }
-      }
-      if (!res || !res.ok) {
-        // 同期失敗時: _optimistic をクリアしてポーリングがサーバーの正確な状態を反映できるようにする
-        // （_optimistic のまま放置するとポーリングが永続的に上書きを拒否し、他ユーザーの確保が見えなくなる）
+      } else {
+        // 同期失敗: _optimistic をクリアしてポーリングに委ねる
         for (var fk in state.cart.digest) {
           if (state.cart.digest[fk] && state.cart.digest[fk]._optimistic) {
             delete state.cart.digest[fk]._optimistic;
@@ -3868,10 +3876,23 @@ function toggleCartOptimistic_(id) {
         showToast(reasons.join('・') + 'の商品があります');
       }
     })
-    .catch(function(e) { console.log('同期エラー:', e); })
+    .catch(function(e) {
+      console.log('同期エラー:', e);
+      // ネットワークエラー時も _optimistic をクリアして確保状態を正確に反映
+      for (var fk2 in state.cart.digest) {
+        if (state.cart.digest[fk2] && state.cart.digest[fk2]._optimistic) {
+          delete state.cart.digest[fk2]._optimistic;
+        }
+      }
+    })
     .finally(function() {
       state._holdSyncing = false;
-      pollStatusNow_(); // 同期完了後にポーリング再開
+      if (state._pendingHoldSync) {
+        // 連続操作があった場合: 最新のカート状態で再同期
+        runHoldSync_();
+      } else {
+        pollStatusNow_();
+      }
     });
 }
 
