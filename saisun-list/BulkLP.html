@@ -106,7 +106,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 .cart-row-ctrl{display:inline-flex;align-items:center;gap:3px;flex-shrink:0;width:76px;justify-content:center}
 .cart-row-qty{font-size:12px;min-width:26px;text-align:center}
 .cart-cqbtn{padding:2px 7px;font-size:13px;border:1px solid #bbb;border-radius:5px;background:#fff;cursor:pointer;line-height:1.4}
-.cart-delbtn{flex-shrink:0;width:24px;margin-left:14px;padding:2px 4px;font-size:11px;border:1px solid #e88;border-radius:5px;background:#fff;color:#c33;cursor:pointer;line-height:1.4;text-align:center}
+.cart-delbtn{flex-shrink:0;width:24px;margin-left:8px;padding:2px 4px;font-size:11px;border:1px solid #e88;border-radius:5px;background:#fff;color:#c33;cursor:pointer;line-height:1.4;text-align:center}
 .cart-row-price{flex-shrink:0;min-width:62px;text-align:right;margin-left:6px}
 .cart-row:last-child{border-bottom:none}
 .cart-row.total{font-weight:800;font-size:16px;color:#1a1a2e;border-top:2px solid #1a1a2e;margin-top:8px;padding-top:12px}
@@ -342,7 +342,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
   .product-price small{font-size:11px}
   .qty-btn{width:32px;height:32px;font-size:16px}
   .qty-value{width:36px;height:32px;font-size:14px}
-  .pc-two-col{display:grid;grid-template-columns:1fr 1fr;gap:32px;align-items:start}
+  .pc-two-col{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px;align-items:start}
   .cart-summary{padding:18px}
   .detauri-banner{margin:28px 40px}
   .modal-content{max-width:900px;flex-direction:row;max-height:80vh}
@@ -1674,8 +1674,8 @@ function updateCart() {
       + '<span class="cart-row-qty">×' + qty + '</span>'
       + '<button class="cart-cqbtn" onclick="changeQty(\'' + escAttr(pid) + '\',1)">+</button>'
       + '</span>'
-      + '<button class="cart-delbtn" onclick="changeQty(\'' + escAttr(pid) + '\',-999)">✕</button>'
       + '<span class="cart-row-price">¥' + numFmt(line) + '</span>'
+      + '<button class="cart-delbtn" onclick="changeQty(\'' + escAttr(pid) + '\',-999)">✕</button>'
       + '</div>';
   }
 
