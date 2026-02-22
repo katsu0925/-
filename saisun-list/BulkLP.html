@@ -376,7 +376,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
 </style>
 </head>
 <body>
-<script>(function(){try{if(sessionStorage.getItem('_pageTransition')==='1'){document.body.style.background='#1a1a2e';document.body.classList.add('page-entering');sessionStorage.removeItem('_pageTransition');}}catch(e){}})()</script>
+<script>(function(){try{if(sessionStorage.getItem('_pageTransition')==='1'){document.body.style.background='#1a1a2e';document.body.classList.add('page-entering');sessionStorage.removeItem('_pageTransition');}}catch(e){}try{if((typeof google==='undefined'||!google.script)&&window.location.pathname.indexOf('BulkLP')!==-1){history.replaceState(null,'','/?page=bulk');}}catch(e){}})()</script>
 <!-- 管理者バー -->
 <div class="admin-bar" id="adminBar">管理者モード<span>アソート商品</span><button class="admin-exit" id="adminExit" type="button">管理者モード解除</button></div>
 
@@ -1256,24 +1256,13 @@ function applyBulkData_(r, savedCart) {
   if (dbl) { dbl.href = _detauriUrl; dbl.target = '_top'; }
   // シームレスページ切替（document.write方式・即時切替: 0.1秒以内）
   function navigateToDetail_() {
-    if (!_cachedDetailHtml) {
-      // メモリにない場合、localStorageを確認
-      var cached = loadDetailHtmlCache_();
-      if (cached && cached.html) _cachedDetailHtml = cached.html;
-    }
-    if (!_cachedDetailHtml) return false; // キャッシュ未完了 → デフォルト遷移に任せる
-    var html = _cachedDetailHtml;
-    // google.script.run shim注入
-    var s = _buildGasShim(GAS_API_URL);
-    html = html.replace('<head>', '<head>' + s);
+    // document.writeは旧DOMが残るブラウザがあるため、直接ナビゲートに変更
     try { sessionStorage.setItem('_pageTransition', '1'); } catch (e) {}
-    document.open();
-    document.write(html);
-    document.close();
+    window.location.href = _detauriUrl;
     return true;
   }
-  if (dl) dl.addEventListener('click', function(e) { if (navigateToDetail_()) e.preventDefault(); });
-  if (dbl) dbl.addEventListener('click', function(e) { if (navigateToDetail_()) e.preventDefault(); });
+  if (dl) dl.addEventListener('click', function(e) { e.preventDefault(); navigateToDetail_(); });
+  if (dbl) dbl.addEventListener('click', function(e) { e.preventDefault(); navigateToDetail_(); });
   if (savedCart && Object.keys(savedCart).length > 0) {
     var validProducts = {};
     G.products.forEach(function(p) { validProducts[p.productId] = true; });

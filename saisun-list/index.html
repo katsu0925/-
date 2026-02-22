@@ -1852,15 +1852,17 @@ function renderSummary_() {
         var _uP = item.unitPrice || 0;
         var _mQ = item.maxQty || 99;
         var _pid = escapeHtml_(item.id);
-        rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;' + (idx === 0 ? 'padding-top:10px;' : '') + '">'
-          + '<button onclick="changeBulkQty_(\'' + _pid + '\',-999,' + _uP + ',' + _mQ + ')" aria-label="削除" style="background:transparent;border:1px solid #5B86C5;border-radius:3px;cursor:pointer;padding:2px 4px;color:#5B86C5;line-height:1;flex-shrink:0;">' + _bDelSvg + '</button>'
+        rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:2px;' + (idx === 0 ? 'padding-top:10px;' : '') + '">'
+          + '<div style="display:flex;align-items:center;gap:4px;">'
+          + '<button onclick="changeBulkQty_(\'' + _pid + '\',-999,' + _uP + ',' + _mQ + ')" aria-label="削除" style="flex-shrink:0;background:transparent;border:1px solid #5B86C5;border-radius:3px;cursor:pointer;padding:2px 4px;color:#5B86C5;line-height:1;">' + _bDelSvg + '</button>'
           + '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml_(item.name) + '</span>'
-          + '<span style="display:flex;align-items:center;gap:2px;flex-shrink:0;">'
+          + '</div>'
+          + '<div style="display:flex;justify-content:flex-end;align-items:center;gap:4px;padding-left:22px;">'
           + '<button onclick="changeBulkQty_(\'' + _pid + '\',-1,' + _uP + ',' + _mQ + ')" style="background:#5B86C5;color:#fff;border:none;border-radius:3px;width:20px;height:20px;cursor:pointer;font-size:14px;line-height:1;padding:0;">−</button>'
-          + '<span style="min-width:24px;text-align:center;">×' + item.qty + '</span>'
+          + '<span style="min-width:26px;text-align:center;">×' + item.qty + '</span>'
           + '<button onclick="changeBulkQty_(\'' + _pid + '\',1,' + _uP + ',' + _mQ + ')" style="background:#5B86C5;color:#fff;border:none;border-radius:3px;width:20px;height:20px;cursor:pointer;font-size:14px;line-height:1;padding:0;">+</button>'
-          + '</span>'
-          + '<span style="white-space:nowrap;">¥' + numFmt_(_uP * item.qty) + '</span>'
+          + '<span style="min-width:56px;text-align:right;">¥' + numFmt_(_uP * item.qty) + '</span>'
+          + '</div>'
           + '</div>';
       });
       rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
