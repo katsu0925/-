@@ -1837,26 +1837,44 @@ function renderSummary_() {
   // アソート商品カート
   var bulk = loadBulkCartStorage();
   if (bulk.subtotal > 0) {
-    var bulkShip = calcBulkShipping_(bulk.totalQty);
-    rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;padding-top:10px;">'
-      + '<span>アソート商品 商品代（' + bulk.totalQty + '点）</span>'
-      + '<span>¥' + numFmt_(bulk.subtotal) + '</span></div>';
+    // 個別商品を表示（items配列がある場合）
+    if (bulk.items && bulk.items.length > 0) {
+      bulk.items.forEach(function(item, idx) {
+        rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;' + (idx === 0 ? 'padding-top:10px;' : '') + '">'
+          + '<span>' + escapeHtml_(item.name) + '</span>'
+          + '<span>×' + item.qty + '</span></div>';
+      });
+      rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
+        + '<span>アソート商品 商品代</span>'
+        + '<span>¥' + numFmt_(bulk.subtotal) + '</span></div>';
+    } else {
+      rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;padding-top:10px;">'
+        + '<span>アソート商品 商品代（' + bulk.totalQty + '点）</span>'
+        + '<span>¥' + numFmt_(bulk.subtotal) + '</span></div>';
+    }
+    // アソートページで計算済みの送料をそのまま使用
+    var bulkShip = bulk.shipping;
+    // アドレス取得（デタウリDOM → 共有localStorage の順でフォールバック）
+    var bulkAddrVal = $('address') ? $('address').value.trim() : '';
+    if (!bulkAddrVal) {
+      try {
+        var _sharedAddr = JSON.parse(localStorage.getItem(SHARED_ADDRESS_KEY) || '{}');
+        bulkAddrVal = _sharedAddr.address || '';
+      } catch (e) {}
+    }
     if (bulkShip > 0) {
-      var bulkShipPref = detectPrefectureFromAddress_($('address') ? $('address').value.trim() : '');
+      var bulkShipPref = detectPrefectureFromAddress_(bulkAddrVal);
       var bulkShipDesc = 'アソート商品 送料';
       if (bulkShipPref) bulkShipDesc += '（' + escapeHtml_(bulkShipPref) + '・大×' + bulk.totalQty + '）';
       rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
         + '<span>' + bulkShipDesc + '</span>'
         + '<span>¥' + numFmt_(bulkShip) + '</span></div>';
+    } else if (bulkAddrVal) {
+      rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
+        + '<span>アソート商品 送料</span><span>¥0（無料）</span></div>';
     } else {
-      var addrVal = $('address') ? $('address').value.trim() : '';
-      if (addrVal) {
-        rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
-          + '<span>アソート商品 送料</span><span>¥0（無料）</span></div>';
-      } else {
-        rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
-          + '<span>アソート商品 送料</span><span style="font-size:11px;color:#888;">住所入力で計算</span></div>';
-      }
+      rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
+        + '<span>アソート商品 送料</span><span style="font-size:11px;color:#888;">住所入力で計算</span></div>';
     }
     var bulkTotal = bulk.subtotal + bulkShip;
     rows += '<div class="cart-row" style="color:#5B86C5;font-size:13px;font-weight:700;border-top:1px solid #c8d8f0;margin-top:4px;padding-top:8px;">'
@@ -2861,10 +2879,10 @@ function saveCartStorage() {
 function loadBulkCartStorage() {
   try {
     var raw = localStorage.getItem('bulk_cart_v1');
-    if (!raw) return { subtotal: 0, totalQty: 0, shipping: 0 };
+    if (!raw) return { subtotal: 0, totalQty: 0, shipping: 0, items: [] };
     var j = JSON.parse(raw);
-    return { subtotal: Number(j.subtotal || 0), totalQty: Number(j.totalQty || 0), shipping: Number(j.shipping || 0) };
-  } catch (e) { return { subtotal: 0, totalQty: 0, shipping: 0 }; }
+    return { subtotal: Number(j.subtotal || 0), totalQty: Number(j.totalQty || 0), shipping: Number(j.shipping || 0), items: j.items || [] };
+  } catch (e) { return { subtotal: 0, totalQty: 0, shipping: 0, items: [] }; }
 }
 
 // =====================================================
@@ -5383,7 +5401,7 @@ function logPageView_() {
 // アソート商品ページへの遷移（document.write方式）
 // =====================================================
 var _cachedBulkHtml = null;
-var BULK_HTML_CACHE_KEY = 'page_html_bulk_v13';
+var BULK_HTML_CACHE_KEY = 'page_html_bulk_v14';
 var PAGE_HTML_CACHE_TTL = 10 * 60 * 1000; // 10分
 
 function loadBulkHtmlCache_() {
@@ -5406,6 +5424,7 @@ function saveBulkHtmlCache_(html) {
 function doWriteBulk_() {
   var html = _cachedBulkHtml;
   // BulkLPはIS_STANDALONEモードでfetch()を使うため、shimは不要
+  sessionStorage.setItem('_pageTransition', '1');
   document.open();
   document.write(html);
   document.close();
@@ -5607,7 +5626,7 @@ function boot() {
       var sp = state._sessionPromise || Promise.resolve();
       sp.then(function() { setTimeout(logPageView_, 500); });
       // アソートページHTMLをバックグラウンドでプリフェッチ（シームレス切替用）
-      setTimeout(prefetchBulkPage_, 3000);
+      setTimeout(prefetchBulkPage_, 1000);
     })
     .catch(function(err) {
       console.error('起動エラー:', err);

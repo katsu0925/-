@@ -101,7 +101,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 
 /* カート */
 .cart-summary{background:#f8f9fa;border-radius:12px;padding:14px}
-.cart-row{display:flex;justify-content:space-between;font-size:13px;padding:6px 0;border-bottom:1px solid #eee}
+.cart-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:6px 0;border-bottom:1px solid #eee}
+.cart-row-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cart-row-ctrl{display:inline-flex;align-items:center;gap:4px;margin:0 8px;flex-shrink:0}
+.cart-row-qty{font-size:12px;min-width:28px;text-align:center}
+.cart-cqbtn{padding:2px 7px;font-size:13px;border:1px solid #bbb;border-radius:5px;background:#fff;cursor:pointer;line-height:1.4}
+.cart-delbtn{padding:2px 6px;font-size:11px;border:1px solid #e88;border-radius:5px;background:#fff;color:#c33;cursor:pointer;line-height:1.4}
 .cart-row:last-child{border-bottom:none}
 .cart-row.total{font-weight:800;font-size:16px;color:#1a1a2e;border-top:2px solid #1a1a2e;margin-top:8px;padding-top:12px}
 .cart-empty{text-align:center;color:#aaa;font-size:13px;padding:20px 0}
@@ -1085,7 +1090,7 @@ var SESSION_KEY = 'estimate_session';
 
 // ページ遷移用: デタウリページHTMLキャッシュ（localStorage永続化）
 var _cachedDetailHtml = null;
-var DETAIL_HTML_CACHE_KEY = 'page_html_detail_v12';
+var DETAIL_HTML_CACHE_KEY = 'page_html_detail_v13';
 var PAGE_HTML_CACHE_TTL = 10 * 60 * 1000; // 10分
 
 function loadDetailHtmlCache_() {
@@ -1254,6 +1259,7 @@ function applyBulkData_(r, savedCart) {
     // google.script.run shim注入
     var s = _buildGasShim(GAS_API_URL);
     html = html.replace('<head>', '<head>' + s);
+    sessionStorage.setItem('_pageTransition', '1');
     document.open();
     document.write(html);
     document.close();
@@ -1372,7 +1378,7 @@ window.addEventListener('DOMContentLoaded', function() {
   document.getElementById('postal').addEventListener('input', onPostalInput);
 
   // デタウリページHTMLをバックグラウンドでプリフェッチ（シームレス切替用）
-  setTimeout(function() { prefetchDetailPage_(); }, 3000);
+  setTimeout(function() { prefetchDetailPage_(); }, 1000);
 });
 
 // =====================================================
@@ -1660,7 +1666,16 @@ function updateCart() {
     var line = unitPrice * qty;
     subtotal += line;
     totalQty += qty;
-    rows += '<div class="cart-row"><span>' + escHtml(p.name) + ' x' + qty + escHtml(p.unit) + '</span><span>¥' + numFmt(line) + '</span></div>';
+    rows += '<div class="cart-row">'
+      + '<span class="cart-row-name">' + escHtml(p.name) + '</span>'
+      + '<span class="cart-row-ctrl">'
+      + '<button class="cart-cqbtn" onclick="changeQty(\'' + escAttr(pid) + '\',-1)">−</button>'
+      + '<span class="cart-row-qty">×' + qty + '</span>'
+      + '<button class="cart-cqbtn" onclick="changeQty(\'' + escAttr(pid) + '\',1)">+</button>'
+      + '<button class="cart-delbtn" onclick="changeQty(\'' + escAttr(pid) + '\',-999)">✕</button>'
+      + '</span>'
+      + '<span>¥' + numFmt(line) + '</span>'
+      + '</div>';
   }
 
   // 割引
@@ -1943,8 +1958,8 @@ function applyCoupon() {
 
   var btn = document.getElementById('couponBtn');
   if (btn) { btn.disabled = true; btn.textContent = '確認中...'; }
-  resEl.className = 'coupon-result loading';
-  resEl.textContent = 'クーポンコードを確認中...';
+  resEl.className = 'coupon-result';
+  resEl.textContent = '';
 
   function restoreBtn_() {
     if (btn) { btn.disabled = false; btn.textContent = '適用'; }
@@ -2208,11 +2223,16 @@ function saveBulkCart() {
     var totalQty = 0;
     Object.keys(G.cart).forEach(function(pid) { totalQty += G.cart[pid]; });
     var shipping = calcEffectiveShipping_();
+    var items = Object.keys(G.cart).map(function(pid) {
+      var p = G.products.find(function(x) { return x.productId === pid; });
+      return { id: pid, name: p ? p.name : pid, qty: G.cart[pid] };
+    });
     localStorage.setItem(BULK_CART_KEY, JSON.stringify({
       cart: G.cart,
       subtotal: subtotal,
       totalQty: totalQty,
-      shipping: shipping
+      shipping: shipping,
+      items: items
     }));
   } catch (e) {}
 }
