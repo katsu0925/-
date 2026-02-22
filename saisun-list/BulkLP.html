@@ -1247,7 +1247,10 @@ function applyBulkData_(r, savedCart) {
   // デタウリリンクのhref/targetを設定（GAS URLで通常遷移可能にする）
   var dl = document.getElementById('detauriLink');
   var dbl = document.getElementById('detauriBannerLink');
-  var _detauriUrl = window.location.origin + window.location.pathname;
+  // /BulkLP.html からアクセスされた場合はパスを除いたルートをデタウリリンクに使用
+  var _basePath = window.location.pathname.replace(/\/BulkLP\.html$/, '') || '/';
+  if (!_basePath.endsWith('/')) _basePath += '/';
+  var _detauriUrl = window.location.origin + _basePath;
   if (dl) { dl.href = _detauriUrl; dl.target = '_top'; }
   if (dbl) { dbl.href = _detauriUrl; dbl.target = '_top'; }
   // シームレスページ切替（document.write方式・即時切替: 0.1秒以内）

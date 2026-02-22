@@ -5498,25 +5498,10 @@ function doWriteBulk_() {
 
 function navigateToBulk(e) {
   e.preventDefault();
-  if (!_cachedBulkHtml) {
-    // メモリにない場合、localStorageを確認
-    var cached = loadBulkHtmlCache_();
-    if (cached && cached.html) _cachedBulkHtml = cached.html;
-  }
-  if (_cachedBulkHtml) { doWriteBulk_(); return; }
   if (IS_STANDALONE) {
-    // スタンドアロン: オンデマンドでBulkLP HTMLを取得してdocument.write
-    showToast('アソート商品を読み込み中...');
-    runApi('apiBulkPage').then(function(r) {
-      if (r && r.ok && r.html) {
-        _cachedBulkHtml = r.html;
-        saveBulkHtmlCache_(r.html);
-        doWriteBulk_();
-      }
-    }).catch(function() {
-      // fetch失敗 → GAS直URLにフォールバック
-      window.location.href = GAS_API_URL + '?page=bulk';
-    });
+    // スタンドアロン: BulkLP.htmlへ直接ナビゲート（document.writeは旧DOMが残るブラウザがあるため非推奨）
+    try { sessionStorage.setItem('_pageTransition', '1'); } catch (ex) {}
+    window.location.href = 'BulkLP.html';
     return;
   }
   // GAS iframe: サーバー側ルーティングに任せる
@@ -5612,27 +5597,10 @@ function adjustTopbarForBanner_() {
 
 function boot() {
   // クライアントサイドルーター: スタンドアロンモードで?page=bulkにアクセスされた場合
-  // Cloudflare Pagesはindex.htmlを返すため、ここでBulkLP HTMLをfetchしてdocument.writeする
+  // document.writeによる差し替えはブラウザによって旧DOMが残るためBulkLP.htmlへ直接リダイレクト
   if (IS_STANDALONE && new URLSearchParams(window.location.search).get('page') === 'bulk') {
-    document.body.style.background = '#1a1a2e';
-    // localStorageキャッシュから即時表示を試みる
-    var bulkCache = loadBulkHtmlCache_();
-    if (bulkCache && bulkCache.html) {
-      document.open(); document.write(bulkCache.html); document.close();
-      return;
-    }
-    runApi('apiBulkPage').then(function(r) {
-      if (r && r.ok && r.html) {
-        saveBulkHtmlCache_(r.html);
-        document.open();
-        document.write(r.html);
-        document.close();
-      }
-    }).catch(function() {
-      // 失敗時はGAS直URLにフォールバック
-      window.location.href = GAS_API_URL + '?page=bulk';
-    });
-    return; // 通常の初期化をスキップ
+    window.location.replace('BulkLP.html');
+    return;
   }
 
   state.userKey = loadUserKey();
