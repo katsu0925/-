@@ -75,8 +75,8 @@ function sh_ensureCouponLogSheet_(ss) {
  */
 function registerCoupon() {
   var html = HtmlService.createHtmlOutput(getCouponDialogHtml_())
-    .setWidth(480)
-    .setHeight(700);
+    .setWidth(520)
+    .setHeight(800);
   SpreadsheetApp.getUi().showModalDialog(html, 'クーポン登録');
 }
 
@@ -237,6 +237,31 @@ function registerCouponFromDialog(data) {
 }
 
 /**
+ * クーポンダイアログ用: アソート商品一覧を取得
+ */
+function getBulkProductsForCouponDialog() {
+  try {
+    var ssId = PropertiesService.getScriptProperties().getProperty('BULK_SPREADSHEET_ID') || '';
+    if (!ssId) return [];
+    var ss = SpreadsheetApp.openById(ssId);
+    var sh = ss.getSheetByName('アソート商品');
+    if (!sh) return [];
+    var lastRow = sh.getLastRow();
+    if (lastRow < 2) return [];
+    var data = sh.getRange(2, 1, lastRow - 1, 2).getValues();
+    var result = [];
+    for (var i = 0; i < data.length; i++) {
+      var id = String(data[i][0] || '').trim();
+      var name = String(data[i][1] || '').trim();
+      if (id) result.push({ id: id, name: name });
+    }
+    return result;
+  } catch (e) {
+    return [];
+  }
+}
+
+/**
  * クーポン登録ダイアログのHTML
  */
 function getCouponDialogHtml_() {
@@ -256,6 +281,11 @@ function getCouponDialogHtml_() {
     + '.footer{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;}'
     + '.dup-section{background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 12px;margin-bottom:12px;}'
     + '.dup-section label{color:#0369a1;}'
+    + '.chk-list{max-height:130px;overflow-y:auto;border:1px solid #d0d5dd;border-radius:8px;padding:6px 8px;background:#fff;margin-top:4px;}'
+    + '.chk-item{display:flex;align-items:center;gap:6px;padding:3px 0;cursor:pointer;}'
+    + '.chk-item input[type=checkbox]{width:auto!important;padding:0!important;margin:0;cursor:pointer;flex-shrink:0;}'
+    + '.chk-item span{font-size:12px;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}'
+    + '.chk-msg{color:#aaa;font-size:12px;padding:4px;}'
     + '</style>'
 
     + '<div class="dup-section">'
@@ -366,16 +396,18 @@ function getCouponDialogHtml_() {
     + '</div>'
     + '<div class="col" id="targetProductsCol">'
     + '  <label>対象商品ID（アソート）</label>'
-    + '  <input id="targetProducts" placeholder="BLK-XXXX,BLK-YYYY">'
-    + '  <div class="hint">空欄＝全アソート商品、カンマ区切りでID指定</div>'
+    + '  <input type="hidden" id="targetProducts">'
+    + '  <div class="chk-list" id="tpList"><div class="chk-msg">読込中...</div></div>'
+    + '  <div class="hint">チェックなし＝全アソート商品が対象</div>'
     + '</div>'
     + '</div>'
 
     + '<div class="row" id="shippingExcludeRow">'
     + '<div class="col">'
     + '  <label>送料除外商品ID</label>'
-    + '  <input id="shippingExcludeProducts" placeholder="BLK-XXXX,BLK-YYYY">'
-    + '  <div class="hint">送料無料クーポンでも送料が発生する商品ID（カンマ区切り）</div>'
+    + '  <input type="hidden" id="shippingExcludeProducts">'
+    + '  <div class="chk-list" id="seList"><div class="chk-msg">読込中...</div></div>'
+    + '  <div class="hint">チェックした商品は送料無料の対象外になります（チェックなし＝全商品送料無料）</div>'
     + '</div>'
     + '</div>'
 
@@ -400,6 +432,40 @@ function getCouponDialogHtml_() {
 
     + '<script>'
     + 'var dupList=[];'
+    + 'var bulkProducts=[];'
+    + 'function initBulkProducts(){'
+    + '  google.script.run'
+    + '    .withSuccessHandler(function(products){'
+    + '      bulkProducts=products||[];'
+    + '      buildChkList("tpList","targetProducts","");'
+    + '      buildChkList("seList","shippingExcludeProducts","");'
+    + '    })'
+    + '    .withFailureHandler(function(){'
+    + '      var m=\'<div class="chk-msg">商品の読み込みに失敗しました</div>\';'
+    + '      document.getElementById("tpList").innerHTML=m;'
+    + '      document.getElementById("seList").innerHTML=m;'
+    + '    })'
+    + '    .getBulkProductsForCouponDialog();'
+    + '}'
+    + 'function buildChkList(listId,hiddenId,selectedStr){'
+    + '  var list=document.getElementById(listId);'
+    + '  var sel=selectedStr?selectedStr.split(",").map(function(s){return s.trim();}):[];'
+    + '  if(!bulkProducts.length){list.innerHTML=\'<div class="chk-msg">商品データがありません</div>\';return;}'
+    + '  var h="";'
+    + '  for(var i=0;i<bulkProducts.length;i++){'
+    + '    var p=bulkProducts[i];'
+    + '    var chk=sel.indexOf(p.id)>=0?" checked":"";'
+    + '    h+=\'<label class="chk-item"><input type="checkbox" value="\'+p.id+\'"\'+chk+\' onchange="syncHidden(\\"\'+listId+\'\\",\\"\'+hiddenId+\'\\")">\''
+    + '      +\'<span>\'+p.id+(p.name?" — "+p.name:"")+\'</span></label>\';'
+    + '  }'
+    + '  list.innerHTML=h;'
+    + '  syncHidden(listId,hiddenId);'
+    + '}'
+    + 'function syncHidden(listId,hiddenId){'
+    + '  var cbs=document.getElementById(listId).querySelectorAll("input[type=checkbox]:checked");'
+    + '  var ids=[];for(var i=0;i<cbs.length;i++)ids.push(cbs[i].value);'
+    + '  document.getElementById(hiddenId).value=ids.join(",");'
+    + '}'
     + 'function initDuplicate(){'
     + '  google.script.run'
     + '    .withSuccessHandler(function(list){'
@@ -440,8 +506,8 @@ function getCouponDialogHtml_() {
     + '  document.getElementById("comboBulk").value=c.comboBulk?"true":"false";'
     + '  document.getElementById("channel").value=c.channel||"all";'
     + '  onChannelChange();'
-    + '  document.getElementById("targetProducts").value=c.targetProducts||"";'
-    + '  document.getElementById("shippingExcludeProducts").value=c.shippingExcludeProducts||"";'
+    + '  buildChkList("tpList","targetProducts",c.targetProducts||"");'
+    + '  buildChkList("seList","shippingExcludeProducts",c.shippingExcludeProducts||"");'
     + '  document.getElementById("targetCustomerName").value=c.targetCustomerName||"";'
     + '  document.getElementById("targetCustomerEmail").value=c.targetCustomerEmail||"";'
     + '  onTypeChange();'
@@ -504,6 +570,7 @@ function getCouponDialogHtml_() {
     + '    .registerCouponFromDialog(data);'
     + '}'
     + 'initDuplicate();'
+    + 'initBulkProducts();'
     + 'onTypeChange();'
     + '</script>';
 }
