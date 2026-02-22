@@ -144,6 +144,8 @@
     .cartName{font-weight:900;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:560px;display:flex;gap:8px;flex-wrap:wrap;align-items:baseline;}
     .cartSub{font-size:12px;color:#666;}
     .dangerBtn{border:1px solid #ff4d4f;color:#ff4d4f;background:#fff;border-radius:8px;padding:8px 10px;cursor:pointer;font-weight:900;}
+    .hold-timer{display:inline-block;font-size:11px;color:#d97706;background:#fef3c7;border:1px solid #fcd34d;border-radius:4px;padding:2px 6px;margin-top:3px;font-weight:600;}
+    .hold-timer.expiring{color:#dc2626;background:#fef2f2;border-color:#fca5a5;}
     .recommendSection{margin-top:16px;padding-top:16px;}
     .recommendTitle{font-weight:900;font-size:14px;color:#333;margin-bottom:10px;}
     .recommendList{display:flex;gap:10px;overflow-x:auto;padding-bottom:8px;}
@@ -4684,6 +4686,23 @@ function showCartSection_(showCart) {
   }
 }
 
+function startHoldTimers_() {
+  if (state.timers.holdCountdown) clearInterval(state.timers.holdCountdown);
+  state.timers.holdCountdown = setInterval(function() {
+    var els = document.querySelectorAll('#cartList .hold-timer[data-until]');
+    if (!els || !els.length) { clearInterval(state.timers.holdCountdown); state.timers.holdCountdown = null; return; }
+    var now = Date.now();
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      var until = parseInt(el.getAttribute('data-until'), 10);
+      var rem = Math.max(0, until - now);
+      var secs = Math.floor(rem / 1000), mins = Math.floor(secs / 60); secs = secs % 60;
+      if (rem <= 0) { el.textContent = '期限切れ'; el.className = 'hold-timer expiring'; }
+      else { el.textContent = '残り ' + mins + '分' + (secs < 10 ? '0' : '') + secs + '秒'; el.className = rem < 180000 ? 'hold-timer expiring' : 'hold-timer'; }
+    }
+  }, 1000);
+}
+
 function renderCartModal_() {
   showCartSection_(true); // カート一覧ビューで表示
   var listEl = $('cartList'); listEl.innerHTML = '';
@@ -4715,6 +4734,16 @@ function renderCartModal_() {
     var sub = document.createElement('div'); sub.className = 'cartSub';
     sub.textContent = [it.category, it.color, it.gender, it.size].filter(Boolean).join(' / ') + ' / ' + yen(it.price);
     left.appendChild(name); left.appendChild(sub);
+    var disp = state.cart.digest[id];
+    if (disp && disp.untilMs && disp.untilMs > Date.now()) {
+      var timer = document.createElement('span');
+      timer.className = 'hold-timer';
+      timer.setAttribute('data-until', String(disp.untilMs));
+      var rem0 = Math.max(0, disp.untilMs - Date.now()), s0 = Math.floor(rem0/1000), m0 = Math.floor(s0/60); s0 = s0 % 60;
+      timer.textContent = '残り ' + m0 + '分' + (s0 < 10 ? '0' : '') + s0 + '秒';
+      if (rem0 < 180000) timer.className = 'hold-timer expiring';
+      left.appendChild(timer);
+    }
     info.appendChild(img); info.appendChild(left);
 
     var btn = document.createElement('button'); btn.className = 'dangerBtn'; btn.type = 'button'; btn.textContent = '削除';
@@ -4736,6 +4765,7 @@ function renderCartModal_() {
   renderRecommendations_('cartRecommendList', 'cartRecommend', 6);
 
   // 統一フォーマットで金額サマリーを描画
+  startHoldTimers_();
   renderSummary_();
 }
 
@@ -5399,7 +5429,7 @@ function logPageView_() {
 // アソート商品ページへの遷移（document.write方式）
 // =====================================================
 var _cachedBulkHtml = null;
-var BULK_HTML_CACHE_KEY = 'page_html_bulk_v14';
+var BULK_HTML_CACHE_KEY = 'page_html_bulk_v15';
 var PAGE_HTML_CACHE_TTL = 10 * 60 * 1000; // 10分
 
 function loadBulkHtmlCache_() {
