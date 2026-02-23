@@ -1696,7 +1696,7 @@ function updateCart() {
           + '<span>¥' + numFmt(G.detauriShipping) + '</span></div>';
       }
       var detauriSub0 = G.detauriCartTotal + G.detauriShipping;
-      detRows += '<div class="cart-row" style="color:#5B86C5;font-size:13px;font-weight:700;border-top:1px solid #c8d8f0;margin-top:4px;padding-top:8px;">'
+      detRows += '<div class="cart-row" style="color:#5B86C5;font-size:16px;font-weight:800;border-top:2px solid #5B86C5;margin-top:8px;padding-top:12px;border-bottom:none;">'
         + '<span>デタウリ 小計</span>'
         + '<span>¥' + numFmt(detauriSub0) + '</span></div>';
       emptyHtml += '<div class="cart-summary" style="margin-top:10px;">' + detRows + '</div>';
@@ -1851,12 +1851,12 @@ function updateCart() {
         + '<span>' + shippingDesc + '</span><span>¥0（無料）</span></div>';
     }
     var detauriTotal = _eDetauriProd + _eDetauriShip;
-    rows += '<div class="cart-row" style="color:#5B86C5;font-size:13px;font-weight:700;border-top:1px solid #c8d8f0;margin-top:4px;padding-top:8px;">'
+    rows += '<div class="cart-row" style="color:#5B86C5;font-size:16px;font-weight:800;border-top:2px solid #5B86C5;margin-top:8px;padding-top:12px;border-bottom:none;">'
       + '<span>デタウリ 小計</span>'
       + '<span>¥' + numFmt(detauriTotal) + '</span></div>';
     grandTotal = total + detauriTotal;
     rows += _ptRow; // ポイント利用合計（両チャネル合計の直前）
-    rows += '<div class="cart-row total" style="border-top-color:#5B86C5;"><span>両チャネル合計（税込）</span><span>¥' + numFmt(grandTotal) + '</span></div>';
+    rows += '<div style="display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;font-size:17px;font-weight:900;padding:14px 12px;border-radius:10px;margin-top:14px;box-shadow:0 3px 12px rgba(0,0,0,.18);"><span>両チャネル合計（税込）</span><span style="color:#fbbf24;">¥' + numFmt(grandTotal) + '</span></div>';
   } else {
     rows += _ptRow; // ポイント利用合計（アソート小計の直前）
     rows += '<div class="cart-row total"><span>アソート商品 小計</span><span>¥' + numFmt(total) + '</span></div>';
