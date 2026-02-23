@@ -128,19 +128,6 @@ function apiBulkSubmit(form, items) {
       discounted = Math.round(sum * (1 - discountRate));
     }
 
-    // === ポイント使用（1pt = 1円） ===
-    var pointsUsed = Math.max(0, Math.floor(Number(f.pointsUsed || 0)));
-    var pointsDiscount = 0;
-    if (pointsUsed > 0 && contact && typeof findCustomerByEmail_ === 'function') {
-      var custPt = findCustomerByEmail_(contact);
-      var availablePoints = custPt ? (Number(custPt.points) || 0) : 0;
-      if (availablePoints < pointsUsed) {
-        return { ok: false, message: 'ポイント残高が不足しています（残高: ' + availablePoints + 'pt）' };
-      }
-      pointsDiscount = pointsUsed;
-      discounted = Math.max(0, discounted - pointsDiscount);
-    }
-
     // === 送料計算（アソート商品: 常に大サイズ × 数量） ===
     var shippingPref = String(f.shippingPref || '');
     var shippingSize = 'large';
@@ -175,6 +162,23 @@ function apiBulkSubmit(form, items) {
       }
     }
 
+    // === ポイント使用（1pt = 1円）— 送料確定後に適用 ===
+    var pointsUsed = Math.max(0, Math.floor(Number(f.pointsUsed || 0)));
+    var pointsDiscount = 0;
+    if (pointsUsed > 0 && contact && typeof findCustomerByEmail_ === 'function') {
+      var custPt = findCustomerByEmail_(contact);
+      var availablePoints = custPt ? (Number(custPt.points) || 0) : 0;
+      if (availablePoints < pointsUsed) {
+        return { ok: false, message: 'ポイント残高が不足しています（残高: ' + availablePoints + 'pt）' };
+      }
+      pointsUsed = Math.min(pointsUsed, discounted + shippingAmount);
+      var ptOnProduct = Math.min(pointsUsed, discounted);
+      var ptOnShipping = pointsUsed - ptOnProduct;
+      discounted = Math.max(0, discounted - ptOnProduct);
+      shippingAmount = Math.max(0, shippingAmount - ptOnShipping);
+      pointsDiscount = pointsUsed;
+    }
+
     // === 備考に割引・送料を追記 ===
     if (couponCode && validatedCoupon) {
       var discountParts = [];
@@ -207,6 +211,13 @@ function apiBulkSubmit(form, items) {
     var detauriProductAmount = Math.max(0, Math.floor(Number(f.detauriProductAmount || 0)));
     var detauriShippingAmount = Math.max(0, Math.floor(Number(f.detauriShipping || 0)));
     var detauriItemCount = Math.max(0, Math.floor(Number(f.detauriItemCount || 0)));
+
+    // デタウリ最低数量チェック（1点以上の場合は10点以上必要）
+    var DETAURI_MIN_QTY = 10;
+    if (detauriItemCount > 0 && detauriItemCount < DETAURI_MIN_QTY) {
+      return { ok: false, message: 'デタウリ商品は' + DETAURI_MIN_QTY + '点以上で購入可能です（現在' + detauriItemCount + '点）' };
+    }
+
     var detauriTotal = detauriProductAmount + detauriShippingAmount;
 
     var totalWithShipping = discounted + shippingAmount + detauriTotal;

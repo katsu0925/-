@@ -143,8 +143,11 @@ function apiSubmitEstimate(userKey, form, ids) {
     if (usePoints > 0 && contact && typeof findCustomerByEmail_ === 'function') {
       custForPoints = findCustomerByEmail_(contact);
       if (custForPoints && custForPoints.points >= usePoints) {
-        pointsUsed = Math.min(usePoints, discounted); // 合計金額を超えない
-        discounted = discounted - pointsUsed;
+        pointsUsed = Math.min(usePoints, discounted + shippingAmount);
+        var pointsOnProduct = Math.min(pointsUsed, discounted);
+        var pointsOnShipping = pointsUsed - pointsOnProduct;
+        discounted = discounted - pointsOnProduct;
+        shippingAmount = Math.max(0, shippingAmount - pointsOnShipping);
       }
     }
 

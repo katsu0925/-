@@ -1751,19 +1751,24 @@ function updateCart() {
     discountRows += '<div class="cart-row"><span>会員割引 (' + Math.round(md.rate * 100) + '%OFF)</span><span>-¥' + numFmt(memberDisc) + '</span></div>';
   }
 
-  // ポイント利用
-  if (G.customer && G.pointsUsed > 0) {
-    var ptDisc = Math.min(G.pointsUsed, discounted);
-    discounted = Math.max(0, discounted - ptDisc);
-    discountRows += '<div class="cart-row" style="color:#b8002a;"><span>ポイント利用 (' + G.pointsUsed + 'pt)</span><span>-¥' + numFmt(ptDisc) + '</span></div>';
-  }
-
   discounted = Math.max(0, discounted);
 
   // 送料
   calcShipping(totalQty);
   recalcDetauriShipping_(); // デタウリ送料もリアルタイム計算
   var shipping = calcEffectiveShipping_();
+
+  // ポイント利用（送料確定後に計算）
+  var ptDisc = 0;
+  if (G.customer && G.pointsUsed > 0) {
+    var ptCap = Math.min(G.pointsUsed, discounted + shipping);
+    var ptOnProduct = Math.min(ptCap, discounted);
+    var ptOnShipping = ptCap - ptOnProduct;
+    discounted = Math.max(0, discounted - ptOnProduct);
+    shipping   = Math.max(0, shipping - ptOnShipping);
+    ptDisc = ptCap;
+    discountRows += '<div class="cart-row" style="color:#b8002a;"><span>ポイント利用 (' + G.pointsUsed + 'pt)</span><span>-¥' + numFmt(ptDisc) + '</span></div>';
+  }
 
   if (shipping > 0) {
     var shippingQtyLabel = totalQty;
@@ -2185,6 +2190,15 @@ function submitOrder() {
   var detauriProductAmount = G.detauriCartTotal || 0;
   var detauriShippingAmount = G.detauriShipping || 0;
   var detauriItemCount = G.detauriCartCount || 0;
+
+  // デタウリ最低数量チェック（1点以上の場合は10点以上必要）
+  var minDetauriQty = (G.settings && G.settings.minOrderCount) ? Number(G.settings.minOrderCount) : 10;
+  if (detauriItemCount > 0 && detauriItemCount < minDetauriQty) {
+    errEl.textContent = 'デタウリ商品は' + minDetauriQty + '点以上で購入可能です（現在' + detauriItemCount + '点）。点数を満たすか、デタウリ商品を全て削除してください。';
+    errEl.style.display = 'block';
+    errEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    return;
+  }
 
   var form = {
     companyName: companyName,

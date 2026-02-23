@@ -1855,16 +1855,6 @@ function renderSummary_() {
     discounted = Math.round(sum * (1 - discountRate));
   }
 
-  // ポイント利用
-  var pts = parseInt(($('usePoints') ? $('usePoints').value : '0'), 10) || 0;
-  var pointsApplied = 0;
-  if (pts > 0 && state.customer) {
-    var maxPts = state.customer.points || 0;
-    pts = Math.min(pts, maxPts, discounted);
-    pointsApplied = pts;
-  }
-  var afterPoints = discounted - pointsApplied;
-
   // 送料計算
   var shippingResult = calculateShipping_();
   state.lastShipping = shippingResult;
@@ -1881,9 +1871,26 @@ function renderSummary_() {
   }
   warnEl.style.display = 'none';
 
-  var rows = '';
-  var shippingAmount = 0;
+  // 送料を先に確定してからポイント計算
+  var shippingAmount = (shippingResult.amount !== null) ? shippingResult.amount : 0;
   var hasShippingInfo = false;
+
+  // ポイント利用（送料確定後に計算）
+  var pts = parseInt(($('usePoints') ? $('usePoints').value : '0'), 10) || 0;
+  var pointsApplied = 0;
+  var effectiveDiscounted = discounted;
+  var effectiveShipping = shippingAmount;
+  if (pts > 0 && state.customer) {
+    var maxPts = state.customer.points || 0;
+    pts = Math.min(pts, maxPts, discounted + shippingAmount);
+    pointsApplied = pts;
+    var pointsOnProduct = Math.min(pointsApplied, discounted);
+    var pointsOnShipping = pointsApplied - pointsOnProduct;
+    effectiveDiscounted = discounted - pointsOnProduct;
+    effectiveShipping = Math.max(0, shippingAmount - pointsOnShipping);
+  }
+
+  var rows = '';
 
   if (count > 0) {
     // デタウリ 商品代
@@ -1902,7 +1909,6 @@ function renderSummary_() {
 
     // デタウリ 送料
     if (shippingResult.amount !== null) {
-      shippingAmount = shippingResult.amount;
       hasShippingInfo = true;
       if (shippingResult.amount === 0) {
         var freeReason = '';
@@ -1914,7 +1920,7 @@ function renderSummary_() {
         if (shippingResult.pref && shippingResult.sizeLabel) {
           shipDesc += '（' + escapeHtml_(shippingResult.pref) + '・' + escapeHtml_(shippingResult.sizeLabel) + '）';
         }
-        rows += '<div class="cart-row"><span>' + shipDesc + '</span><span>¥' + numFmt_(shippingResult.amount) + '</span></div>';
+        rows += '<div class="cart-row"><span>' + shipDesc + '</span><span>¥' + numFmt_(effectiveShipping) + '</span></div>';
       }
     } else if (shippingResult.label) {
       hasShippingInfo = true;
@@ -1922,7 +1928,7 @@ function renderSummary_() {
     }
 
     // デタウリ 小計
-    var detauriTotal = afterPoints + shippingAmount;
+    var detauriTotal = effectiveDiscounted + effectiveShipping;
     rows += '<div class="cart-row total"><span>デタウリ 小計</span><span>¥' + numFmt_(detauriTotal) + '</span></div>';
   }
 
