@@ -18,7 +18,7 @@ const IRAI_EC_SYNC = {
   BASE_ORDER_SHEET_NAME: 'BASE_注文',
   DST_SPREADSHEET_ID: getEcSyncProp_('EC_SYNC_DST_SPREADSHEET_ID', '1lp7XngTC0Nnc6SaA_-KlZ0SZVuRiVml6ICZ5L2riQTo'),
   DST_SHEET_NAME: 'EC管理',
-  CANCEL_STATUSES: ['キャンセル', '返品'],
+  CANCEL_STATUSES: ['キャンセル', '返品', '返却'],
   ALLOW_STATUSES: ['依頼中', '完了'],
 
   // 手数料レート
