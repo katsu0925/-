@@ -77,8 +77,8 @@
     .admin-bar .admin-exit:hover{background:rgba(255,255,255,.4);}
     @media(min-width:768px){
       body{background:#e0e0e0;}
-      /* ウィンドウ幅に連続追従: 768px以上で最大1100pxまで滑らかに拡大 */
-      .wrap,.topbar,.footer,.promo-banner{max-width:min(calc(100vw - 40px),1100px);}
+      /* ウィンドウ幅に連続追従: 768px以上でウィンドウ幅に合わせて最大1700pxまで拡大 */
+      .wrap,.topbar,.footer,.promo-banner{max-width:min(calc(100vw - 40px),1700px);}
       .topbar-row1{display:grid;grid-template-columns:1fr auto 1fr;padding:10px 24px;gap:12px;align-items:center;position:static;}
       .topbar-mob-count{display:none !important;}
       .topbar-logo{font-size:17px;width:auto;text-align:left;max-height:none;overflow:visible;transition:none;opacity:1;justify-self:start;}
@@ -6646,26 +6646,6 @@ body.admin-mode .article-panel{bottom:186px;}
   body.admin-mode .article-fab{bottom:136px;}
   body.admin-mode .article-panel.open{bottom:0;height:100%;max-height:100%;}
 }
-/* --- PC左サイドバー（透過） --- */
-@media(min-width:1440px){
-  .article-fab{display:none !important;}
-  /* ウィンドウ幅に連続追従: 340px余白を保ちつつ最大1700px */
-  .topbar,.wrap,.footer,.promo-banner{max-width:min(calc(100vw - 340px),1700px);}
-  /* サイドバー: コンテンツの左端にぴったり合わせる */
-  .article-panel{display:flex !important;position:fixed;left:0;top:0;bottom:0;width:max(170px,calc((100vw - 1700px) / 2));max-width:400px;min-width:0;height:100vh;max-height:100vh;border-radius:0;box-shadow:none;border:none;background:transparent;z-index:50;right:auto;}
-  .article-panel-header{padding:10px 14px;background:transparent;}
-  .article-panel-title{color:#1e293b;}
-  .article-panel-close{display:none;}
-  .article-search{display:block;}
-  .article-search-input{background:rgba(255,255,255,.6);}
-  .article-item-summary{display:none;}
-  .article-item-header{margin-bottom:0;}
-  .article-list-item{padding:10px 12px;}
-  .article-item-emoji{font-size:16px;}
-  .article-item-title{font-size:13px;}
-  .article-item-meta{padding-left:24px;margin-top:2px;}
-  body.admin-mode .article-panel{top:0;bottom:0;width:max(170px,calc((100vw - 1700px) / 2));max-width:400px;min-width:0;}
-}
 </style>
 <button class="article-fab" id="articleFab" type="button" aria-label="副業物販お役立ち情報">
   <span class="article-fab-emoji">💡</span>
@@ -6702,14 +6682,12 @@ body.admin-mode .article-panel{bottom:186px;}
       emptyEl=document.getElementById('articleEmpty'),detailBack=document.getElementById('articleDetailBack'),
       detailHeader=document.getElementById('articleDetailHeader'),detailContent=document.getElementById('articleDetailContent');
   if(!panel)return;
-  var isDesktop=window.matchMedia('(min-width:1440px)').matches;
+  var isDesktop=false;
   var isOpen=false,articlesLoaded=false,articlesData=[],detailCache={},LS_LAST_READ='detauri_article_last_read_date',LS_ARTICLES='detauri_articles_data';
   function loadArticlesCache_(){try{var raw=localStorage.getItem(LS_ARTICLES);if(!raw)return null;var c=JSON.parse(raw);if(c&&c.articles&&c.articles.length)return c.articles;return null;}catch(e){return null;}}
   function saveArticlesCache_(articles){try{localStorage.setItem(LS_ARTICLES,JSON.stringify({ts:Date.now(),articles:articles}));}catch(e){}}
-  function positionSidebar(){if(!panel||!isDesktop)return;var wrap=document.querySelector('.wrap');if(!wrap)return;var wl=wrap.getBoundingClientRect().left;var w=Math.min(320,Math.max(200,wl));panel.style.left=(wl-w)+'px';panel.style.width=w+'px';panel.style.maxWidth=w+'px';panel.style.right='auto';}
   // localStorageから即座に記事を復元（ページ遷移後も即表示）
-  var _cached=loadArticlesCache_();if(_cached){articlesData=_cached;articlesLoaded=true;renderList(articlesData);loadingEl.style.display='none';updateBadge();preloadImages_();if(isDesktop)setTimeout(prefetchAllContents,3000);}
-  if(isDesktop){positionSidebar();window.addEventListener('resize',positionSidebar);}
+  var _cached=loadArticlesCache_();if(_cached){articlesData=_cached;articlesLoaded=true;renderList(articlesData);loadingEl.style.display='none';updateBadge();preloadImages_();}
   // 記事API: fetchを優先し、失敗時はrunApiにフォールバック（document.write遷移後も安定動作）
   var _articleApiUrl=(typeof GAS_API_URL!=='undefined')?GAS_API_URL:'https://script.google.com/macros/s/AKfycbwLN23a03qQSGA91J-82_6HlIx0kA5yUYFRxjfbjFGfnZDqynKnyJhEPsoISSQps3SmXQ/exec';
   function articleFetch(action,arg){var body={action:action,args:arg?[arg]:[]};return fetch(_articleApiUrl,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(body),redirect:'follow'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).catch(function(e){if(typeof runApi==='function')return runApi(action,arg);throw e;});}
