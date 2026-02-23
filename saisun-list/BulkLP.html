@@ -102,12 +102,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 /* カート */
 .cart-summary{background:#f8f9fa;border-radius:12px;padding:14px}
 .cart-row{display:flex;justify-content:space-between;align-items:center;font-size:13px;padding:6px 0;border-bottom:1px solid #eee}
+.cart-row.cart-item{align-items:flex-start;gap:8px;padding:10px 0}
+.cart-item-img{width:48px;height:48px;object-fit:cover;border-radius:4px;flex-shrink:0;background:#f0f2f7;cursor:pointer}
+.cart-item-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.cart-item-name{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;cursor:pointer}
+.cart-item-sub{font-size:11px;color:#888;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cart-item-foot{display:flex;align-items:center;gap:4px;margin-top:2px}
 .cart-row-name{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding-right:4px}
 .cart-row-ctrl{display:inline-flex;align-items:center;gap:3px;flex-shrink:0;width:76px;justify-content:center}
 .cart-row-qty{font-size:12px;min-width:26px;text-align:center}
 .cart-cqbtn{padding:2px 7px;font-size:13px;border:1px solid #bbb;border-radius:5px;background:#fff;cursor:pointer;line-height:1.4}
-.cart-delbtn{flex-shrink:0;width:26px;height:26px;margin-right:6px;padding:0;border:1px solid #e88;border-radius:5px;background:#fff;color:#c33;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+.cart-delbtn{flex-shrink:0;width:26px;height:26px;margin-left:4px;padding:0;border:1px solid #e88;border-radius:5px;background:#fff;color:#c33;cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
 .cart-row-price{flex-shrink:0;min-width:62px;text-align:right;margin-left:6px}
+.cart-item-price{flex:1;text-align:right;font-weight:700;font-size:13px}
 .cart-row:last-child{border-bottom:none}
 .cart-row.total{font-weight:800;font-size:16px;color:#1a1a2e;border-top:2px solid #1a1a2e;margin-top:8px;padding-top:12px}
 .cart-empty{text-align:center;color:#aaa;font-size:13px;padding:20px 0}
@@ -1716,15 +1723,24 @@ function updateCart() {
     var line = unitPrice * qty;
     subtotal += line;
     totalQty += qty;
-    rows += '<div class="cart-row">'
-      + '<button class="cart-delbtn" onclick="changeQty(\'' + escAttr(pid) + '\',-999)" aria-label="削除"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg></button>'
-      + '<span class="cart-row-name" onclick="openProductModalById_(\'' + escAttr(pid) + '\')" style="cursor:pointer;">' + escHtml(p.name) + '</span>'
-      + '<span class="cart-row-ctrl">'
+    var _img = (p.images && p.images.length > 0) ? p.images[0] : '';
+    var _attrs = [p.category, p.color, p.gender, p.size].filter(Boolean).join(' / ');
+    var _subLine = (_attrs ? _attrs + ' / ' : '') + '¥' + numFmt(unitPrice);
+    var _delSvg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>';
+    rows += '<div class="cart-row cart-item">'
+      + (_img ? '<img class="cart-item-img" src="' + escAttr(_img) + '" onclick="openProductModalById_(\'' + escAttr(pid) + '\')">'
+               : '<div class="cart-item-img" style="display:flex;align-items:center;justify-content:center;color:#ccc;font-size:9px;" onclick="openProductModalById_(\'' + escAttr(pid) + '\')">NO IMG</div>')
+      + '<div class="cart-item-info">'
+      + '<span class="cart-item-name" onclick="openProductModalById_(\'' + escAttr(pid) + '\')">' + escHtml(p.name) + '</span>'
+      + '<span class="cart-item-sub">' + escHtml(_subLine) + '</span>'
+      + '<div class="cart-item-foot">'
       + '<button class="cart-cqbtn" onclick="changeQty(\'' + escAttr(pid) + '\',-1)">−</button>'
       + '<span class="cart-row-qty">×' + qty + '</span>'
       + '<button class="cart-cqbtn" onclick="changeQty(\'' + escAttr(pid) + '\',1)">+</button>'
-      + '</span>'
-      + '<span class="cart-row-price">¥' + numFmt(line) + '</span>'
+      + '<span class="cart-item-price">¥' + numFmt(line) + '</span>'
+      + '</div>'
+      + '</div>'
+      + '<button class="cart-delbtn" onclick="changeQty(\'' + escAttr(pid) + '\',-999)" aria-label="削除">' + _delSvg + '</button>'
       + '</div>';
   }
 
@@ -1786,8 +1802,8 @@ function updateCart() {
     _eDetauriProd = Math.max(0, _eDetauriProd - ptOnDetauriProd);
     _eDetauriShip = Math.max(0, _eDetauriShip - ptOnDetauriShip);
     ptDisc = ptCap;
-    discountRows += '<div class="cart-row" style="color:#b8002a;"><span>ポイント利用 (' + G.pointsUsed + 'pt)</span><span>-¥' + numFmt(ptDisc) + '</span></div>';
   }
+  var _ptRow = ptDisc > 0 ? '<div class="cart-row" style="color:#b8002a;font-weight:700;"><span>ポイント利用合計 (' + G.pointsUsed + 'pt)</span><span>-¥' + numFmt(ptDisc) + '</span></div>' : '';
 
   if (shipping > 0) {
     var shippingQtyLabel = totalQty;
@@ -1802,11 +1818,11 @@ function updateCart() {
 
   var total = discounted + shipping;
   rows += discountRows;
-  rows += '<div class="cart-row total"><span>アソート商品 小計</span><span>¥' + numFmt(total) + '</span></div>';
 
   // デタウリカートの合算表示
   var grandTotal = total;
   if (G.detauriCartCount > 0) {
+    rows += '<div class="cart-row total"><span>アソート商品 小計</span><span>¥' + numFmt(total) + '</span></div>';
     var _dItemsFull = G.detauriItems || [];
     var _dDelSvgF = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>';
     for (var _dii = 0; _dii < _dItemsFull.length; _dii++) {
@@ -1839,7 +1855,11 @@ function updateCart() {
       + '<span>デタウリ 小計</span>'
       + '<span>¥' + numFmt(detauriTotal) + '</span></div>';
     grandTotal = total + detauriTotal;
+    rows += _ptRow; // ポイント利用合計（両チャネル合計の直前）
     rows += '<div class="cart-row total" style="border-top-color:#5B86C5;"><span>両チャネル合計（税込）</span><span>¥' + numFmt(grandTotal) + '</span></div>';
+  } else {
+    rows += _ptRow; // ポイント利用合計（アソート小計の直前）
+    rows += '<div class="cart-row total"><span>アソート商品 小計</span><span>¥' + numFmt(total) + '</span></div>';
   }
 
   el.innerHTML = '<div class="cart-summary">' + rows + '</div>';
@@ -2863,72 +2883,73 @@ function openMyPage_() {
   loadMyPage_();
 }
 
+var _MP_CACHE_KEY = 'myPageCache';
+var _MP_CACHE_TTL = 3 * 60 * 1000; // 3分
+
+function _applyMpData_(d) {
+  var ge = function(id) { return document.getElementById(id); };
+  ge('mpEmail').value = d.profile.email || '';
+  ge('mpCompanyName').value = d.profile.companyName || '';
+  ge('mpPhone').value = d.profile.phone || '';
+  ge('mpPostal').value = d.profile.postal || '';
+  ge('mpAddress').value = d.profile.address || '';
+  ge('mpRegisteredAt').textContent = d.profile.registeredAt || '-';
+  ge('mpPointBalance').textContent = String(d.points || 0);
+  if (G.customer) G.customer.points = d.points || 0;
+  updateAuthUi_();
+  if (d.stats) {
+    ge('mpTotalOrders').textContent = String(d.stats.totalOrders || 0) + '回';
+    ge('mpTotalItems').textContent = String(d.stats.totalItems || 0) + '点';
+  }
+  if (d.rank) {
+    var r = d.rank;
+    ge('mpTotalSpent').textContent = '¥' + numFmt(r.annualSpent || 0);
+    ge('mpMemberRank').innerHTML = '<span style="color:' + safeColor_(r.color) + ';">' + escHtml(r.name || 'レギュラー') + '</span>';
+    var rankCard = ge('mpRankCard');
+    if (rankCard) {
+      var gradients = { 'DIAMOND': 'linear-gradient(135deg,#006064,#00838f)', 'GOLD': 'linear-gradient(135deg,#78350f,#b45309)', 'SILVER': 'linear-gradient(135deg,#475569,#64748b)', 'REGULAR': 'linear-gradient(135deg,#1e293b,#334155)' };
+      rankCard.style.background = gradients[r.rank] || gradients['REGULAR'];
+    }
+    ge('mpRankName').textContent = r.name || 'レギュラー';
+    ge('mpRankPointRate').textContent = 'ポイント還元率: ' + Math.round((r.pointRate || 0.01) * 100) + '%';
+    var benefits = [];
+    if (r.freeShipping) benefits.push('送料無料');
+    ge('mpRankBenefits').textContent = benefits.length > 0 ? '特典: ' + benefits.join('、') : '';
+    var progressEl = ge('mpRankProgress');
+    if (progressEl && r.nextRank && r.nextThreshold > 0) {
+      var pct = Math.min(100, Math.round((r.annualSpent / r.nextThreshold) * 100));
+      progressEl.innerHTML = '<div style="font-size:11px;opacity:0.8;margin-bottom:4px;">次のランク（' + escHtml(r.nextRank) + '）まであと ¥' + numFmt(r.remaining || 0) + '</div>'
+        + '<div style="background:rgba(255,255,255,0.2);border-radius:4px;height:6px;overflow:hidden;"><div style="background:#fff;height:100%;border-radius:4px;width:' + pct + '%;transition:width .5s;"></div></div>'
+        + '<div style="font-size:10px;opacity:0.6;margin-top:2px;text-align:right;">¥' + numFmt(r.annualSpent) + ' / ¥' + numFmt(r.nextThreshold) + '</div>';
+    } else if (progressEl) {
+      progressEl.innerHTML = '<div style="font-size:11px;opacity:0.8;">最高ランクに到達しています</div>';
+    }
+    if (G.customer) G.customer.rank = r;
+    updateAuthUi_();
+  } else if (d.stats) {
+    ge('mpTotalSpent').textContent = '¥' + numFmt(d.stats.totalSpent || 0);
+    var rank = getMemberRank_(d.stats.totalSpent || 0);
+    ge('mpMemberRank').innerHTML = '<span style="color:' + safeColor_(rank.color) + ';">' + escHtml(rank.name) + '</span>';
+  }
+  renderOrderHistory_(d.orders || []);
+}
+
 function loadMyPage_() {
   if (!G.sessionId) return;
+  // キャッシュチェック（ページをまたいでも保持）
+  try {
+    var _c = JSON.parse(localStorage.getItem(_MP_CACHE_KEY) || 'null');
+    if (_c && _c.sid === G.sessionId && (Date.now() - _c.ts) < _MP_CACHE_TTL) {
+      _applyMpData_(_c.d); return;
+    }
+  } catch(e) {}
   var orderList = document.getElementById('mpOrderList');
   if (orderList) orderList.innerHTML = '<div style="text-align:center;padding:20px;color:#999;">読み込み中...</div>';
-
   runApi('apiGetMyPage', 'bulk', { sessionId: G.sessionId })
     .then(function(res) {
-      if (!res || !res.ok || !res.data) {
-        showToast((res && res.message) || 'マイページの読み込みに失敗しました');
-        return;
-      }
-      var d = res.data;
-      // プロフィール
-      document.getElementById('mpEmail').value = d.profile.email || '';
-      document.getElementById('mpCompanyName').value = d.profile.companyName || '';
-      document.getElementById('mpPhone').value = d.profile.phone || '';
-      document.getElementById('mpPostal').value = d.profile.postal || '';
-      document.getElementById('mpAddress').value = d.profile.address || '';
-      document.getElementById('mpRegisteredAt').textContent = d.profile.registeredAt || '-';
-      // ポイント
-      document.getElementById('mpPointBalance').textContent = String(d.points || 0);
-      if (G.customer) G.customer.points = d.points || 0;
-      updateAuthUi_();
-      // 統計データ
-      if (d.stats) {
-        document.getElementById('mpTotalOrders').textContent = String(d.stats.totalOrders || 0) + '回';
-        document.getElementById('mpTotalItems').textContent = String(d.stats.totalItems || 0) + '点';
-      }
-      // ランク情報
-      if (d.rank) {
-        var r = d.rank;
-        document.getElementById('mpTotalSpent').textContent = '¥' + numFmt(r.annualSpent || 0);
-        document.getElementById('mpMemberRank').innerHTML = '<span style="color:' + safeColor_(r.color) + ';">' + escHtml(r.name || 'レギュラー') + '</span>';
-        var rankCard = document.getElementById('mpRankCard');
-        if (rankCard) {
-          var gradients = {
-            'DIAMOND': 'linear-gradient(135deg,#006064,#00838f)',
-            'GOLD': 'linear-gradient(135deg,#78350f,#b45309)',
-            'SILVER': 'linear-gradient(135deg,#475569,#64748b)',
-            'REGULAR': 'linear-gradient(135deg,#1e293b,#334155)'
-          };
-          rankCard.style.background = gradients[r.rank] || gradients['REGULAR'];
-        }
-        document.getElementById('mpRankName').textContent = r.name || 'レギュラー';
-        document.getElementById('mpRankPointRate').textContent = 'ポイント還元率: ' + Math.round((r.pointRate || 0.01) * 100) + '%';
-        var benefits = [];
-        if (r.freeShipping) benefits.push('送料無料');
-        document.getElementById('mpRankBenefits').textContent = benefits.length > 0 ? '特典: ' + benefits.join('、') : '';
-        var progressEl = document.getElementById('mpRankProgress');
-        if (progressEl && r.nextRank && r.nextThreshold > 0) {
-          var pct = Math.min(100, Math.round((r.annualSpent / r.nextThreshold) * 100));
-          progressEl.innerHTML = '<div style="font-size:11px;opacity:0.8;margin-bottom:4px;">次のランク（' + escHtml(r.nextRank) + '）まであと ¥' + numFmt(r.remaining || 0) + '</div>'
-            + '<div style="background:rgba(255,255,255,0.2);border-radius:4px;height:6px;overflow:hidden;"><div style="background:#fff;height:100%;border-radius:4px;width:' + pct + '%;transition:width .5s;"></div></div>'
-            + '<div style="font-size:10px;opacity:0.6;margin-top:2px;text-align:right;">¥' + numFmt(r.annualSpent) + ' / ¥' + numFmt(r.nextThreshold) + '</div>';
-        } else if (progressEl) {
-          progressEl.innerHTML = '<div style="font-size:11px;opacity:0.8;">最高ランクに到達しています</div>';
-        }
-        if (G.customer) G.customer.rank = r;
-        updateAuthUi_();
-      } else if (d.stats) {
-        document.getElementById('mpTotalSpent').textContent = '¥' + numFmt(d.stats.totalSpent || 0);
-        var rank = getMemberRank_(d.stats.totalSpent || 0);
-        document.getElementById('mpMemberRank').innerHTML = '<span style="color:' + safeColor_(rank.color) + ';">' + escHtml(rank.name) + '</span>';
-      }
-      // 注文履歴
-      renderOrderHistory_(d.orders || []);
+      if (!res || !res.ok || !res.data) { showToast((res && res.message) || 'マイページの読み込みに失敗しました'); return; }
+      try { localStorage.setItem(_MP_CACHE_KEY, JSON.stringify({ sid: G.sessionId, d: res.data, ts: Date.now() })); } catch(e) {}
+      _applyMpData_(res.data);
     })
     .catch(function() { showToast('マイページの読み込みに失敗しました'); });
 }
@@ -3128,6 +3149,7 @@ function renderOrderHistory_(orders) {
             try { localStorage.setItem(SESSION_KEY, JSON.stringify({ sessionId: G.sessionId, customer: G.customer })); } catch (e) {}
             updateAuthUi_();
           }
+          try { localStorage.removeItem(_MP_CACHE_KEY); } catch(e) {}
           setProfileEditable_(false);
         } else {
           showToast((res && res.message) || '更新に失敗しました');

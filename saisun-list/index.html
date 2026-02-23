@@ -1930,11 +1930,6 @@ function renderSummary_() {
       rows += '<div class="cart-row"><span>' + discountLabels.join('＋') + '</span><span>-¥' + numFmt_(totalDisc) + '</span></div>';
     }
 
-    // ポイント利用行
-    if (pointsApplied > 0) {
-      rows += '<div class="cart-row"><span>ポイント利用</span><span>-¥' + numFmt_(pointsApplied) + '</span></div>';
-    }
-
     // デタウリ 送料
     if (shippingResult.amount !== null) {
       hasShippingInfo = true;
@@ -1955,6 +1950,10 @@ function renderSummary_() {
       rows += '<div class="cart-row"><span>デタウリ 送料</span><span style="font-size:11px;color:#888;">' + escapeHtml_(shippingResult.label) + '</span></div>';
     }
 
+    // ポイント利用行（アソートなし時はデタウリ小計の直前）
+    if (pointsApplied > 0 && !(_bulkDataRS.subtotal > 0)) {
+      rows += '<div class="cart-row" style="font-weight:700;color:#b8002a;"><span>ポイント利用合計 (' + pointsApplied + 'pt)</span><span>-¥' + numFmt_(pointsApplied) + '</span></div>';
+    }
     // デタウリ 小計
     var detauriTotal = effectiveDiscounted + effectiveShipping;
     rows += '<div class="cart-row total"><span>デタウリ 小計</span><span>¥' + numFmt_(detauriTotal) + '</span></div>';
@@ -2027,6 +2026,9 @@ function renderSummary_() {
       + '<span>アソート商品 小計</span>'
       + '<span>¥' + numFmt_(bulkTotal) + '</span></div>';
     var grandTotal = effectiveDiscounted + effectiveShipping + bulkTotal;
+    if (pointsApplied > 0) {
+      rows += '<div class="cart-row" style="font-weight:700;color:#b8002a;"><span>ポイント利用合計 (' + pointsApplied + 'pt)</span><span>-¥' + numFmt_(pointsApplied) + '</span></div>';
+    }
     rows += '<div style="display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;font-size:17px;font-weight:900;padding:14px 12px;border-radius:10px;margin-top:14px;box-shadow:0 3px 12px rgba(0,0,0,.18);">'
       + '<span>両チャネル合計（税込）</span>'
       + '<span style="color:#fbbf24;">¥' + numFmt_(grandTotal) + '</span>'
@@ -2325,95 +2327,76 @@ function openMyPage_() {
   loadMyPage_();
 }
 
+var _MP_CACHE_KEY = 'myPageCache';
+var _MP_CACHE_TTL = 3 * 60 * 1000; // 3分
+
+function _applyMpData_(d) {
+  $('mpEmail').value = d.profile.email || '';
+  $('mpCompanyName').value = d.profile.companyName || '';
+  $('mpPhone').value = d.profile.phone || '';
+  $('mpPostal').value = d.profile.postal || '';
+  $('mpAddress').value = d.profile.address || '';
+  $('mpRegisteredAt').textContent = d.profile.registeredAt || '-';
+  $('mpPointBalance').textContent = String(d.points || 0);
+  if (state.customer) state.customer.points = d.points || 0;
+  updateAuthUi_();
+  if (d.stats) {
+    $('mpTotalOrders').textContent = String(d.stats.totalOrders || 0) + '回';
+    $('mpTotalItems').textContent = String(d.stats.totalItems || 0) + '点';
+  }
+  if (d.rank) {
+    var r = d.rank;
+    $('mpTotalSpent').textContent = yen(r.annualSpent || 0);
+    $('mpMemberRank').innerHTML = '<span style="color:' + safeColor_(r.color) + ';">' + escapeHtml_(r.name || 'レギュラー') + '</span>';
+    var rankCard = $('mpRankCard');
+    if (rankCard) {
+      var gradients = { 'DIAMOND': 'linear-gradient(135deg,#006064,#00838f)', 'GOLD': 'linear-gradient(135deg,#78350f,#b45309)', 'SILVER': 'linear-gradient(135deg,#475569,#64748b)', 'REGULAR': 'linear-gradient(135deg,#1e293b,#334155)' };
+      rankCard.style.background = gradients[r.rank] || gradients['REGULAR'];
+    }
+    $('mpRankName').textContent = r.name || 'レギュラー';
+    $('mpRankPointRate').textContent = 'ポイント還元率: ' + Math.round((r.pointRate || 0.01) * 100) + '%';
+    var benefits = [];
+    if (r.freeShipping) benefits.push('送料無料');
+    $('mpRankBenefits').textContent = benefits.length > 0 ? '特典: ' + benefits.join('、') : '';
+    var progressEl = $('mpRankProgress');
+    if (progressEl && r.nextRank && r.nextThreshold > 0) {
+      var pct = Math.min(100, Math.round((r.annualSpent / r.nextThreshold) * 100));
+      progressEl.innerHTML = '<div style="font-size:11px;opacity:0.8;margin-bottom:4px;">次のランク（' + escapeHtml_(r.nextRank) + '）まであと ' + yen(r.remaining || 0) + '</div>'
+        + '<div style="background:rgba(255,255,255,0.2);border-radius:4px;height:6px;overflow:hidden;"><div style="background:#fff;height:100%;border-radius:4px;width:' + pct + '%;transition:width .5s;"></div></div>'
+        + '<div style="font-size:10px;opacity:0.6;margin-top:2px;text-align:right;">' + yen(r.annualSpent) + ' / ' + yen(r.nextThreshold) + '</div>';
+    } else if (progressEl) {
+      progressEl.innerHTML = '<div style="font-size:11px;opacity:0.8;">最高ランクに到達しています</div>';
+    }
+    if (r.graceInfo && !r.graceInfo.restored && r.graceInfo.prevRank) {
+      var gn = $('mpRankProgress');
+      if (gn) gn.innerHTML += '<div style="margin-top:8px;padding:8px;background:rgba(255,255,255,0.15);border-radius:6px;font-size:11px;">前年の' + (r.graceInfo.prevRank === 'DIAMOND' ? 'ダイヤモンド' : 'ゴールド') + 'ランクが更新切れです。1ヶ月以内にあと' + yen(r.graceInfo.needed || 0) + '購入でランク復活できます。</div>';
+    }
+    if (state.customer) state.customer.rank = r;
+    updateAuthUi_();
+  } else if (d.stats) {
+    $('mpTotalSpent').textContent = yen(d.stats.totalSpent || 0);
+    var rank = getMemberRank_(d.stats.totalSpent || 0);
+    $('mpMemberRank').innerHTML = '<span style="color:' + safeColor_(rank.color) + ';">' + escapeHtml_(rank.name) + '</span>';
+  }
+  renderOrderHistory_(d.orders || []);
+}
+
 function loadMyPage_() {
   if (!state.sessionId) return;
+  // キャッシュチェック（ページをまたいでも保持）
+  try {
+    var _c = JSON.parse(localStorage.getItem(_MP_CACHE_KEY) || 'null');
+    if (_c && _c.sid === state.sessionId && (Date.now() - _c.ts) < _MP_CACHE_TTL) {
+      _applyMpData_(_c.d); return;
+    }
+  } catch(e) {}
   var orderList = $('mpOrderList');
   if (orderList) orderList.innerHTML = '<div style="text-align:center;padding:20px;color:#999;">読み込み中...</div>';
-
   runApi('apiGetMyPage', state.userKey || '', { sessionId: state.sessionId })
     .then(function(res) {
-      if (!res || !res.ok || !res.data) {
-        showToast((res && res.message) || 'マイページの読み込みに失敗しました');
-        return;
-      }
-      var d = res.data;
-      // プロフィール
-      $('mpEmail').value = d.profile.email || '';
-      $('mpCompanyName').value = d.profile.companyName || '';
-      $('mpPhone').value = d.profile.phone || '';
-      $('mpPostal').value = d.profile.postal || '';
-      $('mpAddress').value = d.profile.address || '';
-      $('mpRegisteredAt').textContent = d.profile.registeredAt || '-';
-      // ポイント
-      $('mpPointBalance').textContent = String(d.points || 0);
-      if (state.customer) state.customer.points = d.points || 0;
-      updateAuthUi_();
-      // 統計データ
-      if (d.stats) {
-        $('mpTotalOrders').textContent = String(d.stats.totalOrders || 0) + '回';
-        $('mpTotalItems').textContent = String(d.stats.totalItems || 0) + '点';
-      }
-      // ランク情報（APIから取得）
-      if (d.rank) {
-        var r = d.rank;
-        $('mpTotalSpent').textContent = yen(r.annualSpent || 0);
-        $('mpMemberRank').innerHTML = '<span style="color:' + safeColor_(r.color) + ';">' + escapeHtml_(r.name || 'レギュラー') + '</span>';
-
-        // ランクカード更新
-        var rankCard = $('mpRankCard');
-        if (rankCard) {
-          var gradients = {
-            'DIAMOND': 'linear-gradient(135deg,#006064,#00838f)',
-            'GOLD': 'linear-gradient(135deg,#78350f,#b45309)',
-            'SILVER': 'linear-gradient(135deg,#475569,#64748b)',
-            'REGULAR': 'linear-gradient(135deg,#1e293b,#334155)'
-          };
-          rankCard.style.background = gradients[r.rank] || gradients['REGULAR'];
-        }
-        $('mpRankName').textContent = r.name || 'レギュラー';
-        $('mpRankPointRate').textContent = 'ポイント還元率: ' + Math.round((r.pointRate || 0.01) * 100) + '%';
-        var benefits = [];
-        if (r.freeShipping) benefits.push('送料無料');
-        $('mpRankBenefits').textContent = benefits.length > 0 ? '特典: ' + benefits.join('、') : '';
-
-        // 進捗バー
-        var progressEl = $('mpRankProgress');
-        if (progressEl && r.nextRank && r.nextThreshold > 0) {
-          var pct = Math.min(100, Math.round((r.annualSpent / r.nextThreshold) * 100));
-          progressEl.innerHTML = '<div style="font-size:11px;opacity:0.8;margin-bottom:4px;">'
-            + '次のランク（' + escapeHtml_(r.nextRank) + '）まであと ' + yen(r.remaining || 0)
-            + '</div>'
-            + '<div style="background:rgba(255,255,255,0.2);border-radius:4px;height:6px;overflow:hidden;">'
-            + '<div style="background:#fff;height:100%;border-radius:4px;width:' + pct + '%;transition:width .5s;"></div>'
-            + '</div>'
-            + '<div style="font-size:10px;opacity:0.6;margin-top:2px;text-align:right;">' + yen(r.annualSpent) + ' / ' + yen(r.nextThreshold) + '</div>';
-        } else if (progressEl) {
-          progressEl.innerHTML = '<div style="font-size:11px;opacity:0.8;">最高ランクに到達しています</div>';
-        }
-
-        // 救済措置の通知
-        if (r.graceInfo && !r.graceInfo.restored && r.graceInfo.prevRank) {
-          var graceNotice = $('mpRankProgress');
-          if (graceNotice) {
-            graceNotice.innerHTML += '<div style="margin-top:8px;padding:8px;background:rgba(255,255,255,0.15);border-radius:6px;font-size:11px;">'
-              + '前年の' + (r.graceInfo.prevRank === 'DIAMOND' ? 'ダイヤモンド' : 'ゴールド') + 'ランクが更新切れです。'
-              + '1ヶ月以内にあと' + yen(r.graceInfo.needed || 0) + '購入でランク復活できます。'
-              + '</div>';
-          }
-        }
-
-        // state.customerにランク情報を保存（ヘッダー表示用）
-        if (state.customer) {
-          state.customer.rank = r;
-        }
-        updateAuthUi_();
-      } else if (d.stats) {
-        $('mpTotalSpent').textContent = yen(d.stats.totalSpent || 0);
-        var rank = getMemberRank_(d.stats.totalSpent || 0);
-        $('mpMemberRank').innerHTML = '<span style="color:' + safeColor_(rank.color) + ';">' + escapeHtml_(rank.name) + '</span>';
-      }
-      // 注文履歴
-      renderOrderHistory_(d.orders || []);
+      if (!res || !res.ok || !res.data) { showToast((res && res.message) || 'マイページの読み込みに失敗しました'); return; }
+      try { localStorage.setItem(_MP_CACHE_KEY, JSON.stringify({ sid: state.sessionId, d: res.data, ts: Date.now() })); } catch(e) {}
+      _applyMpData_(res.data);
     })
     .catch(function() { showToast('マイページの読み込みに失敗しました'); });
 }
@@ -2936,6 +2919,7 @@ function setupAuthUi_() {
             saveSession_(state.sessionId, state.customer);
             updateAuthUi_();
           }
+          try { localStorage.removeItem(_MP_CACHE_KEY); } catch(e) {}
           setProfileEditable_(false);
         } else {
           showToast((res && res.message) || '更新に失敗しました');
@@ -3593,7 +3577,7 @@ function getCurrentPageItems_() {
 
 function updateTotalCountBadge_(total) {
   var el = $('totalCountBadgeMobLogo');
-  if (el) { el.textContent = total ? (total + '点') : ''; el.style.display = total ? '' : 'none'; }
+  if (el) { el.textContent = total ? ('カート ' + total + '点') : ''; el.style.display = total ? '' : 'none'; }
 }
 
 function renderLoadingGrid_() {
