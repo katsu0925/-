@@ -6649,6 +6649,16 @@ body.admin-mode .article-panel{bottom:186px;}
   .article-item-meta{padding-left:24px;margin-top:2px;}
   body.admin-mode .article-panel{top:0;bottom:0;width:calc(50vw - 550px);max-width:320px;min-width:200px;}
 }
+/* 1700px以上: コンテンツ幅を拡大してモニターを有効活用 */
+@media(min-width:1700px){
+  .topbar,.wrap,.footer,.promo-banner{max-width:1300px;}
+  .article-panel,body.admin-mode .article-panel{width:calc(50vw - 650px);min-width:0;}
+}
+/* 1920px以上: さらに拡大 */
+@media(min-width:1920px){
+  .topbar,.wrap,.footer,.promo-banner{max-width:1500px;}
+  .article-panel,body.admin-mode .article-panel{width:calc(50vw - 750px);min-width:0;}
+}
 </style>
 <button class="article-fab" id="articleFab" type="button" aria-label="副業物販お役立ち情報">
   <span class="article-fab-emoji">💡</span>
@@ -6750,12 +6760,36 @@ function openBulkItemModal_(productId) {
   var name = escapeHtml_(found.name || productId);
   var price = Number(found.unitPrice || 0);
   var qty = Number(found.qty || 1);
-  var bodyHtml = '<h3 style="font-size:17px;font-weight:800;margin:0 0 8px;color:#1a1a2e;">' + name + '</h3>'
-    + '<div style="font-size:22px;font-weight:800;color:#b8002a;margin-bottom:14px;">¥' + numFmt_(price) + '</div>'
-    + '<div style="font-size:13px;color:#555;margin-bottom:4px;">カート数量: ' + qty + '点</div>'
-    + '<div style="margin-top:18px;text-align:center;">'
-    + '<button onclick="closeBulkQv_();try{sessionStorage.setItem(\'_bulkOpenDetail\',\'' + productId.replace(/'/g, "\\'") + '\');sessionStorage.setItem(\'_pageTransition\',\'1\');}catch(e){}window.location.href=IS_STANDALONE?\'BulkLP.html\':\'?page=bulk\';" style="background:linear-gradient(135deg,#5B86C5,#3b6fb5);color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:14px;font-weight:800;cursor:pointer;">アソートページで詳細を見る →</button>'
+
+  // 画像（imageUrlが保存されていれば表示）
+  var imgHtml = '';
+  if (found.imageUrl) {
+    imgHtml = '<img src="' + escapeHtml_(found.imageUrl) + '" alt="" referrerpolicy="no-referrer" '
+      + 'style="width:100%;max-height:260px;object-fit:contain;border-radius:8px;margin-bottom:14px;display:block;" '
+      + 'onerror="this.style.display=\'none\'">';
+  }
+
+  // タグ
+  var tagHtml = found.tag ? '<span style="display:inline-block;background:#fff3cd;color:#856404;border:1px solid #ffc107;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;margin-bottom:10px;">' + escapeHtml_(found.tag) + '</span>' : '';
+
+  // 説明文
+  var descHtml = found.description ? '<div style="font-size:13px;color:#555;line-height:1.6;margin-top:10px;padding:10px;background:#f8f9fa;border-radius:8px;">' + escapeHtml_(found.description) + '</div>' : '';
+
+  // アソートページへのボタン（productIdをエンコード）
+  var pidSafe = productId.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+  var goBtn = '<div style="margin-top:18px;text-align:center;">'
+    + '<button onclick="closeBulkQv_();try{sessionStorage.setItem(\'_bulkOpenDetail\',\'' + pidSafe + '\');sessionStorage.setItem(\'_pageTransition\',\'1\');}catch(e){}window.location.href=IS_STANDALONE?\'BulkLP.html\':\'?page=bulk\';" '
+    + 'style="background:linear-gradient(135deg,#5B86C5,#3b6fb5);color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:14px;font-weight:800;cursor:pointer;">アソートページで詳細を見る →</button>'
     + '</div>';
+
+  var bodyHtml = imgHtml
+    + tagHtml
+    + '<h3 style="font-size:17px;font-weight:800;margin:0 0 8px;color:#1a1a2e;">' + name + '</h3>'
+    + '<div style="font-size:22px;font-weight:800;color:#b8002a;margin-bottom:10px;">¥' + numFmt_(price) + '</div>'
+    + '<div style="font-size:13px;color:#555;margin-bottom:4px;">カート数量: ' + qty + '点</div>'
+    + descHtml
+    + goBtn;
+
   var titleEl = document.getElementById('bulkQvTitle');
   var bodyEl = document.getElementById('bulkQvBody');
   var overlay = document.getElementById('bulkQvOverlay');
