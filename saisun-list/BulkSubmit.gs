@@ -106,22 +106,13 @@ function apiBulkSubmit(form, items) {
           ? 'クーポン送料無料'
           : ('クーポン' + couponResult.value + '円引き');
 
-      // 併用可能な割引（段階的数量割引）
-      if (validatedCoupon.comboBulk) {
-        if (totalQty >= 100) discountRate += 0.20;
-        else if (totalQty >= 50) discountRate += 0.15;
-        else if (totalQty >= 30) discountRate += 0.10;
-      }
       var memberStatus = app_getMemberDiscountStatus_();
       if (validatedCoupon.comboMember && memberStatus.enabled && contact && typeof findCustomerByEmail_ === 'function') {
         var cust = findCustomerByEmail_(contact);
         if (cust) discountRate += memberStatus.rate;
       }
     } else {
-      // 通常割引（段階的数量割引）
-      if (totalQty >= 100) discountRate += 0.20;
-      else if (totalQty >= 50) discountRate += 0.15;
-      else if (totalQty >= 30) discountRate += 0.10;
+      // 通常割引
       var memberStatus = app_getMemberDiscountStatus_();
       if (memberStatus.enabled && contact && typeof findCustomerByEmail_ === 'function') {
         var cust = findCustomerByEmail_(contact);
