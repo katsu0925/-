@@ -182,12 +182,13 @@ body.admin-mode .header{border-top:3px solid #b8002a}
 .header-auth{display:flex;align-items:center;gap:6px;font-size:12px}
 .auth-btn{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);border-radius:20px;padding:6px 16px;cursor:pointer;font-weight:700;font-size:12px;color:#fff;transition:all .2s}
 .auth-btn:hover{background:rgba(255,255,255,.25)}
-.auth-btn.logout{background:transparent;border:none;color:#aab;text-decoration:underline;padding:4px 8px;font-size:11px}
+.auth-btn.logout{background:transparent;border:1px solid rgba(255,255,255,.2);color:#aab;padding:4px 8px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;line-height:1}
+.auth-btn.icon-btn{padding:5px 8px;min-width:30px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;line-height:1}
 .auth-user{display:flex;align-items:center;gap:6px;font-size:12px;color:#fff}
 .auth-user-name{font-weight:700;max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .auth-discount{background:#e74c3c;color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700}
 .auth-points{background:#e65100;color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700}
-.auth-btn.mypage{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);font-size:11px;padding:4px 12px;border-radius:20px}
+.auth-btn.mypage{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);font-size:11px;padding:4px 8px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;line-height:1}
 .cart-header-btn{position:relative;padding:4px 10px!important;font-size:16px!important;background:rgba(255,255,255,.12)!important;border:1px solid rgba(255,255,255,.3)!important;border-radius:20px!important;cursor:pointer;color:#fff;line-height:1}
 .mypage-tabs{display:flex;gap:0;border-bottom:2px solid #e0e0e0;margin-bottom:16px}
 .mypage-tab{background:none;border:none;padding:10px 18px;font-size:14px;font-weight:600;color:#888;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .2s,border-color .2s}
@@ -405,13 +406,13 @@ body.admin-mode .admin-settings-fab{display:flex;}
     <div class="header-cart-mob" id="headerCartMob"></div>
     <div class="header-auth-wrap">
       <div class="header-auth" id="headerAuth">
-        <button class="auth-btn" id="openAuthBtn" type="button">ログイン / 新規登録</button>
+        <button class="auth-btn icon-btn" id="openAuthBtn" type="button" title="ログイン / 新規登録"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg></button>
       </div>
     </div>
   </div>
   <div class="header-row2">
     <div class="header-auth" id="headerAuthMob">
-      <button class="auth-btn" id="openAuthBtnMob" type="button">ログイン / 新規登録</button>
+      <button class="auth-btn icon-btn" id="openAuthBtnMob" type="button" title="ログイン / 新規登録"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg></button>
     </div>
   </div>
   <div class="header-row3">
@@ -935,7 +936,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
 
 <!-- マイページモーダル -->
 <div class="bulk-overlay" id="myPageOverlay"></div>
-<div class="bulk-modal" id="myPageModal" style="display:none;width:min(600px,96vw);">
+<div class="bulk-modal" id="myPageModal" style="display:none;width:min(620px,96vw);">
   <div class="bulk-modal-header">
     <div class="bulk-modal-title">マイページ</div>
     <button class="bulk-modal-close" id="myPageCloseBtn" type="button">&times;</button>
@@ -1731,15 +1732,27 @@ function updateCart() {
   var discounted = subtotal;
   var discountRows = '';
 
+  // デタウリカート合算extra（クーポン・ポイント計算に使用）
+  var _eDetauriProd = G.detauriCartTotal  || 0;
+  var _eDetauriShip = G.detauriShipping   || 0;
+
   if (G.coupon) {
-    var cd = G.coupon.discountAmount || 0;
     if (G.coupon.type === 'shipping_free') {
       var _partialFree = G.coupon.shippingExcludeProducts && calcExcludedQty_() > 0;
       var _shLabel = _partialFree ? '-送料（一部商品除外）' : '-送料';
       discountRows += '<div class="cart-row"><span>' + escHtml(G.coupon.label) + '</span><span>' + _shLabel + '</span></div>';
-    } else if (cd > 0) {
-      discounted -= cd;
-      discountRows += '<div class="cart-row"><span>' + escHtml(G.coupon.label) + '</span><span>-¥' + numFmt(cd) + '</span></div>';
+      _eDetauriShip = 0; // 送料無料クーポン：デタウリ送料も無料
+    } else {
+      // 両チャネル合算で割引額を計算し、アソート→デタウリの順に配分
+      var _combinedProdB = subtotal + _eDetauriProd;
+      var _cdTotalB = G.coupon.type === 'rate'
+        ? Math.round(_combinedProdB * (G.coupon.value || 0))
+        : Math.min(Number(G.coupon.value || G.coupon.discountAmount || 0), _combinedProdB);
+      var _cdOnAssort  = Math.min(_cdTotalB, discounted);
+      var _cdOnDetauri = _cdTotalB - _cdOnAssort;
+      if (_cdOnAssort > 0) discounted -= _cdOnAssort;
+      _eDetauriProd = Math.max(0, _eDetauriProd - _cdOnDetauri);
+      if (_cdTotalB > 0) discountRows += '<div class="cart-row"><span>' + escHtml(G.coupon.label) + '</span><span>-¥' + numFmt(_cdTotalB) + '</span></div>';
     }
   }
 
@@ -1758,14 +1771,20 @@ function updateCart() {
   recalcDetauriShipping_(); // デタウリ送料もリアルタイム計算
   var shipping = calcEffectiveShipping_();
 
-  // ポイント利用（送料確定後に計算）
+  // ポイント利用（送料確定後・両チャネル合算で計算）
   var ptDisc = 0;
   if (G.customer && G.pointsUsed > 0) {
-    var ptCap = Math.min(G.pointsUsed, discounted + shipping);
-    var ptOnProduct = Math.min(ptCap, discounted);
-    var ptOnShipping = ptCap - ptOnProduct;
-    discounted = Math.max(0, discounted - ptOnProduct);
-    shipping   = Math.max(0, shipping - ptOnShipping);
+    var _ptCombB = discounted + shipping + _eDetauriProd + _eDetauriShip;
+    var ptCap = Math.min(G.pointsUsed, _ptCombB);
+    var _ptRemB = ptCap;
+    var ptOnProduct     = Math.min(_ptRemB, discounted);    _ptRemB -= ptOnProduct;
+    var ptOnShipping    = Math.min(_ptRemB, shipping);      _ptRemB -= ptOnShipping;
+    var ptOnDetauriProd = Math.min(_ptRemB, _eDetauriProd); _ptRemB -= ptOnDetauriProd;
+    var ptOnDetauriShip = Math.min(_ptRemB, _eDetauriShip);
+    discounted    = Math.max(0, discounted - ptOnProduct);
+    shipping      = Math.max(0, shipping - ptOnShipping);
+    _eDetauriProd = Math.max(0, _eDetauriProd - ptOnDetauriProd);
+    _eDetauriShip = Math.max(0, _eDetauriShip - ptOnDetauriShip);
     ptDisc = ptCap;
     discountRows += '<div class="cart-row" style="color:#b8002a;"><span>ポイント利用 (' + G.pointsUsed + 'pt)</span><span>-¥' + numFmt(ptDisc) + '</span></div>';
   }
@@ -1802,17 +1821,20 @@ function updateCart() {
     }
     rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
       + '<span>デタウリ 商品代（' + G.detauriCartCount + '点）</span>'
-      + '<span>¥' + numFmt(G.detauriCartTotal) + '</span></div>';
+      + '<span>¥' + numFmt(_eDetauriProd) + '</span></div>';
     var shippingDesc = 'デタウリ 送料';
     if (G.detauriShippingPref && G.detauriShippingSizeLabel) {
       shippingDesc = 'デタウリ 送料（' + escHtml(G.detauriShippingPref) + '・' + escHtml(G.detauriShippingSizeLabel) + '）';
     }
-    if (G.detauriShipping > 0) {
+    if (_eDetauriShip > 0) {
       rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
         + '<span>' + shippingDesc + '</span>'
-        + '<span>¥' + numFmt(G.detauriShipping) + '</span></div>';
+        + '<span>¥' + numFmt(_eDetauriShip) + '</span></div>';
+    } else if (G.detauriShipping >= 0 && G.detauriCartCount > 0) {
+      rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
+        + '<span>' + shippingDesc + '</span><span>¥0（無料）</span></div>';
     }
-    var detauriTotal = G.detauriCartTotal + G.detauriShipping;
+    var detauriTotal = _eDetauriProd + _eDetauriShip;
     rows += '<div class="cart-row" style="color:#5B86C5;font-size:13px;font-weight:700;border-top:1px solid #c8d8f0;margin-top:4px;padding-top:8px;">'
       + '<span>デタウリ 小計</span>'
       + '<span>¥' + numFmt(detauriTotal) + '</span></div>';
@@ -2352,23 +2374,6 @@ function autoFillCustomerForm() {
   if (G.customer.address) updateCart();
 }
 
-function updateMemberUI() {
-  if (!G.customer) return;
-  var wrap = document.querySelector('.header-auth-wrap');
-  if (!wrap) return;
-  // 既存バッジがあれば削除
-  var old = document.getElementById('memberBadge');
-  if (old) old.remove();
-  var badge = document.createElement('div');
-  badge.id = 'memberBadge';
-  badge.className = 'member-badge';
-  var md = G.settings.memberDiscount;
-  var discountText = (md && md.enabled) ? ' ・ 会員割引' + Math.round(md.rate * 100) + '%OFF適用中' : '';
-  var pointsText = (G.customer.points > 0) ? ' ・ ' + G.customer.points + 'pt所持' : '';
-  badge.textContent = '会員ログイン中: ' + (G.customer.companyName || G.customer.email) + discountText + pointsText;
-  wrap.appendChild(badge);
-}
-
 // =====================================================
 // カート永続化 (localStorage)
 // =====================================================
@@ -2658,8 +2663,8 @@ function updateAuthUi_() {
         '<span class="auth-user-name">' + escHtml(G.customer.companyName || G.customer.email) + '</span>' +
         rankHtml + discountHtml + pointsHtml +
       '</div>' +
-      '<button class="auth-btn mypage" id="openMyPageBtn" type="button">マイページ</button>' +
-      '<button class="auth-btn logout" id="logoutBtn" type="button">ログアウト</button>';
+      '<button class="auth-btn mypage icon-btn" id="openMyPageBtn" type="button" title="マイページ"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></button>' +
+      '<button class="auth-btn logout icon-btn" id="logoutBtn" type="button" title="ログアウト"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>';
     var openMyPageBtn = document.getElementById('openMyPageBtn');
     if (openMyPageBtn) {
       openMyPageBtn.addEventListener('click', function() { openMyPage_(); });
@@ -2668,10 +2673,8 @@ function updateAuthUi_() {
     if (logoutBtn) {
       logoutBtn.addEventListener('click', function() { doLogout_(); });
     }
-    // memberBadgeも更新
-    updateMemberUI();
   } else {
-    area.innerHTML = cartBtnHtml + '<button class="auth-btn" id="openAuthBtn" type="button">ログイン / 新規登録</button>';
+    area.innerHTML = cartBtnHtml + '<button class="auth-btn icon-btn" id="openAuthBtn" type="button" title="ログイン / 新規登録"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg></button>';
     var openBtn = document.getElementById('openAuthBtn');
     if (openBtn) {
       openBtn.addEventListener('click', function() { openAuthModal_('login'); });

@@ -57,10 +57,10 @@
     /* === A案 4-Row Header (Mobile) / 3-Row Header (Desktop) === */
     .topbar{background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;position:sticky;top:0;z-index:100;max-width:1100px;margin:0 auto;}
     .topbar-row1{display:flex;align-items:center;justify-content:center;gap:4px 12px;padding:6px 16px;flex-wrap:wrap;position:relative;}
-    .topbar-logo{font-size:15px;font-weight:800;white-space:nowrap;margin:0;letter-spacing:1px;color:#fff;flex-shrink:0;width:100%;text-align:center;max-height:30px;overflow:hidden;opacity:1;transition:max-height .25s ease,opacity .25s ease;}
-    .topbar.row2-hidden .topbar-logo{max-height:0;opacity:0;}
-    .topbar-mob-count{display:inline-block;position:absolute;right:16px;top:6px;font-size:10px;padding:2px 8px;}
-    .topbar.row2-hidden .topbar-mob-count{display:none;}
+    .topbar-logo-wrap{display:flex;align-items:center;gap:6px;justify-content:center;width:100%;max-height:40px;overflow:hidden;opacity:1;transition:max-height .25s ease,opacity .25s ease;}
+    .topbar.row2-hidden .topbar-logo-wrap{max-height:0;opacity:0;}
+    .topbar-logo{font-size:15px;font-weight:800;white-space:nowrap;margin:0;letter-spacing:1px;color:#fff;flex-shrink:0;}
+    .topbar-mob-count{font-size:10px;padding:2px 8px;flex-shrink:0;}
     .topbar-nav{display:flex;gap:6px;flex-shrink:0;}
     .topbar-nav a{color:#93c5fd;text-decoration:none;font-size:11px;padding:4px 12px;border-radius:20px;border:1px solid rgba(255,255,255,.15);transition:all .2s;white-space:nowrap;}
     .topbar-nav a.active{background:#ffd700;color:#1a1a2e;border-color:#ffd700;font-weight:700;}
@@ -80,9 +80,9 @@
       /* ウィンドウ幅に連続追従: 768px以上でウィンドウ幅に合わせて最大1700pxまで拡大 */
       .wrap,.topbar,.footer,.promo-banner{max-width:min(calc(100vw - 40px),1700px);}
       .topbar-row1{display:grid;grid-template-columns:1fr auto 1fr;padding:10px 24px;gap:12px;align-items:center;position:static;}
-      .topbar-mob-count{display:none !important;}
-      .topbar-logo{font-size:17px;width:auto;text-align:left;max-height:none;overflow:visible;transition:none;opacity:1;justify-self:start;}
-      .topbar.row2-hidden .topbar-logo{max-height:none;opacity:1;}
+      .topbar-logo-wrap{width:auto;justify-self:start;justify-content:flex-start;max-height:none;overflow:visible;opacity:1;transition:none;}
+      .topbar.row2-hidden .topbar-logo-wrap{max-height:none;overflow:visible;opacity:1;}
+      .topbar-logo{font-size:17px;}
       .topbar-nav{justify-self:center;}
       .topbar-nav a{font-size:12px;padding:5px 14px;}
       .topbar-auth{display:flex;justify-self:end;}
@@ -198,12 +198,14 @@
     .authArea{display:flex;align-items:center;gap:6px;font-size:12px;}
     .authBtn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);border-radius:20px;padding:6px 16px;cursor:pointer;font-weight:700;font-size:12px;color:#fff;transition:all .2s;}
     .authBtn:hover{background:rgba(255,255,255,.2);}
-    .authBtn.logout{background:transparent;border:1px solid rgba(255,255,255,.2);color:#94a3b8;text-decoration:none;padding:4px 12px;border-radius:20px;font-size:11px;}
+    .authBtn.logout{background:transparent;border:1px solid rgba(255,255,255,.2);color:#94a3b8;text-decoration:none;padding:4px 8px;border-radius:20px;font-size:11px;}
+    .authBtn.icon-btn{padding:5px 8px;min-width:30px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;line-height:1;}
     .authUser{display:flex;align-items:center;gap:8px;}
     .authUserName{font-weight:900;color:#f1f5f9;max-width:150px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
     .authDiscount{background:#b8002a;color:#fff;font-size:11px;padding:2px 6px;border-radius:4px;font-weight:900;}
     .authPoints{background:#e65100;color:#fff;font-size:11px;padding:2px 6px;border-radius:4px;font-weight:900;}
-    .authBtn.mypage{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);font-size:11px;padding:4px 12px;border-radius:20px;}
+    .authBtn.mypage{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);font-size:11px;padding:4px 8px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;line-height:1;}
+    #myPageModal{width:min(620px,96vw)!important;}
     .cart-header-btn{position:relative;padding:4px 10px!important;font-size:16px!important;background:rgba(255,255,255,.12)!important;border:1px solid rgba(255,255,255,.3)!important;border-radius:20px!important;cursor:pointer;color:#fff;line-height:1;}
     .footer{background:#1a1a2e;color:#888;text-align:center;padding:20px 20px 40px;font-size:11px;margin-top:40px;max-width:1100px;margin-left:auto;margin-right:auto;}
     .footer a{color:#aab;text-decoration:none;}
@@ -504,24 +506,24 @@
   </div>
   <div class="topbar">
     <div class="topbar-row1">
-      <h1 class="topbar-logo" id="appTitle">デタウリ.Detauri</h1>
-      <span class="topbar-mob-count badge ok" id="totalCountBadgeMobLogo"></span>
+      <div class="topbar-logo-wrap">
+        <h1 class="topbar-logo" id="appTitle">デタウリ.Detauri</h1>
+        <span class="topbar-mob-count badge ok" id="totalCountBadgeMobLogo" style="display:none;"></span>
+      </div>
       <nav class="topbar-nav">
         <a class="active" href="#">採寸付き個品（デタウリ）</a>
         <a href="?page=bulk" id="bulkLink" target="_top" onclick="navigateToBulk(event)">アソート商品</a>
       </nav>
       <div class="topbar-auth">
         <div class="authArea" id="authArea">
-          <button class="authBtn" id="openAuthBtn" type="button">ログイン / 新規登録</button>
+          <button class="authBtn icon-btn" id="openAuthBtn" type="button" title="ログイン / 新規登録"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg></button>
         </div>
-        <div class="badge ok" id="totalCountBadge" style="display:inline-block;"></div>
       </div>
     </div>
     <div class="topbar-row2">
       <div class="authArea" id="authAreaMob">
-        <button class="authBtn" id="openAuthBtnMob" type="button">ログイン / 新規登録</button>
+        <button class="authBtn icon-btn" id="openAuthBtnMob" type="button" title="ログイン / 新規登録"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg></button>
       </div>
-      <div class="badge ok" id="totalCountBadgeMob" style="display:none;"></div>
     </div>
     <div class="topbar-row3">
       <a href="#" id="openGuideLink">商品ガイド</a>
@@ -1833,13 +1835,28 @@ function renderSummary_() {
   }
   var count = ids.length;
 
-  // 割引計算
+  // アソートカートデータを先読みして合算計算に使用
+  var _bulkDataRS = loadBulkCartStorage();
+  var effectiveBulkProduct = _bulkDataRS.subtotal || 0;
+  var effectiveBulkShip    = _bulkDataRS.shipping  || 0;
+
+  // 割引計算（両チャネル合算でクーポン適用）
   var discountLabels = [];
   var discounted;
   if (state.appliedCoupon && state.appliedCoupon.code) {
-    var cd = state.appliedCoupon.discountAmount || 0;
-    discounted = Math.max(0, sum - cd);
-    if (state.appliedCoupon.type !== 'shipping_free') {
+    if (state.appliedCoupon.type === 'shipping_free') {
+      discounted = sum;
+      effectiveBulkShip = 0; // 送料無料クーポン：アソート送料も無料
+    } else {
+      // 両チャネル合算で割引額を計算し、デタウリ→アソートの順に配分
+      var _combinedProd = sum + effectiveBulkProduct;
+      var _cdTotal = state.appliedCoupon.type === 'rate'
+        ? Math.round(_combinedProd * (state.appliedCoupon.value || 0))
+        : Math.min(Number(state.appliedCoupon.value || 0), _combinedProd);
+      var _cdOnDetauri = Math.min(_cdTotal, sum);
+      var _cdOnBulk    = _cdTotal - _cdOnDetauri;
+      discounted = Math.max(0, sum - _cdOnDetauri);
+      effectiveBulkProduct = Math.max(0, effectiveBulkProduct - _cdOnBulk);
       discountLabels.push(escapeHtml_(state.appliedCoupon.label));
     }
     var comboRate = 0;
@@ -1875,19 +1892,30 @@ function renderSummary_() {
   var shippingAmount = (shippingResult.amount !== null) ? shippingResult.amount : 0;
   var hasShippingInfo = false;
 
-  // ポイント利用（送料確定後に計算）
+  // shipping_free クーポン：アソート送料も無料（送料確定後に反映）
+  if (state.appliedCoupon && state.appliedCoupon.type === 'shipping_free') {
+    effectiveBulkShip = 0;
+  }
+
+  // ポイント利用（送料確定後・両チャネル合算で計算）
   var pts = parseInt(($('usePoints') ? $('usePoints').value : '0'), 10) || 0;
   var pointsApplied = 0;
   var effectiveDiscounted = discounted;
   var effectiveShipping = shippingAmount;
   if (pts > 0 && state.customer) {
     var maxPts = state.customer.points || 0;
-    pts = Math.min(pts, maxPts, discounted + shippingAmount);
+    var _ptCombined = discounted + shippingAmount + effectiveBulkProduct + effectiveBulkShip;
+    pts = Math.min(pts, maxPts, _ptCombined);
     pointsApplied = pts;
-    var pointsOnProduct = Math.min(pointsApplied, discounted);
-    var pointsOnShipping = pointsApplied - pointsOnProduct;
-    effectiveDiscounted = discounted - pointsOnProduct;
-    effectiveShipping = Math.max(0, shippingAmount - pointsOnShipping);
+    var _ptRem = pointsApplied;
+    var _ptOnDP = Math.min(_ptRem, discounted);        _ptRem -= _ptOnDP;
+    var _ptOnDS = Math.min(_ptRem, shippingAmount);    _ptRem -= _ptOnDS;
+    var _ptOnBP = Math.min(_ptRem, effectiveBulkProduct); _ptRem -= _ptOnBP;
+    var _ptOnBS = Math.min(_ptRem, effectiveBulkShip);
+    effectiveDiscounted  = discounted - _ptOnDP;
+    effectiveShipping    = Math.max(0, shippingAmount - _ptOnDS);
+    effectiveBulkProduct = Math.max(0, effectiveBulkProduct - _ptOnBP);
+    effectiveBulkShip    = Math.max(0, effectiveBulkShip - _ptOnBS);
   }
 
   var rows = '';
@@ -1941,8 +1969,8 @@ function renderSummary_() {
     if (feeNoteEl) feeNoteEl.style.display = 'none';
   }
 
-  // アソート商品カート
-  var bulk = loadBulkCartStorage();
+  // アソート商品カート（effectiveBulkProduct/effectiveBulkShip を使用）
+  var bulk = _bulkDataRS; // 上で先読み済み
   if (bulk.subtotal > 0) {
     // アソートセクション区切り
     rows += '<div style="margin:14px -2px 6px;padding:7px 10px;background:linear-gradient(135deg,rgba(91,134,197,.12),rgba(59,111,181,.08));border-radius:6px;border-left:3px solid #5B86C5;display:flex;align-items:center;">'
@@ -1966,14 +1994,12 @@ function renderSummary_() {
       });
       rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
         + '<span>アソート商品 商品代</span>'
-        + '<span>¥' + numFmt_(bulk.subtotal) + '</span></div>';
+        + '<span>¥' + numFmt_(effectiveBulkProduct) + '</span></div>';
     } else {
       rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
         + '<span>アソート商品 商品代（' + bulk.totalQty + '点）</span>'
-        + '<span>¥' + numFmt_(bulk.subtotal) + '</span></div>';
+        + '<span>¥' + numFmt_(effectiveBulkProduct) + '</span></div>';
     }
-    // アソートページで計算済みの送料をそのまま使用
-    var bulkShip = bulk.shipping;
     // アドレス取得（デタウリDOM → 共有localStorage の順でフォールバック）
     var bulkAddrVal = $('address') ? $('address').value.trim() : '';
     if (!bulkAddrVal) {
@@ -1982,26 +2008,25 @@ function renderSummary_() {
         bulkAddrVal = _sharedAddr.address || '';
       } catch (e) {}
     }
-    if (bulkShip > 0) {
+    if (effectiveBulkShip > 0) {
       var bulkShipPref = detectPrefectureFromAddress_(bulkAddrVal);
       var bulkShipDesc = 'アソート商品 送料';
       if (bulkShipPref) bulkShipDesc += '（' + escapeHtml_(bulkShipPref) + '・大×' + bulk.totalQty + '）';
       rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
         + '<span>' + bulkShipDesc + '</span>'
-        + '<span>¥' + numFmt_(bulkShip) + '</span></div>';
-    } else if (bulkAddrVal) {
+        + '<span>¥' + numFmt_(effectiveBulkShip) + '</span></div>';
+    } else if (bulkAddrVal || bulk.shipping >= 0) {
       rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
         + '<span>アソート商品 送料</span><span>¥0（無料）</span></div>';
     } else {
       rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
         + '<span>アソート商品 送料</span><span style="font-size:11px;color:#888;">住所入力で計算</span></div>';
     }
-    var bulkTotal = bulk.subtotal + bulkShip;
+    var bulkTotal = effectiveBulkProduct + effectiveBulkShip;
     rows += '<div class="cart-row" style="color:#5B86C5;font-size:16px;font-weight:800;border-top:2px solid #5B86C5;margin-top:8px;padding-top:12px;border-bottom:none;">'
       + '<span>アソート商品 小計</span>'
       + '<span>¥' + numFmt_(bulkTotal) + '</span></div>';
-    var detauriFull = afterPoints + shippingAmount;
-    var grandTotal = detauriFull + bulkTotal;
+    var grandTotal = effectiveDiscounted + effectiveShipping + bulkTotal;
     rows += '<div style="display:flex;justify-content:space-between;align-items:center;background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;font-size:17px;font-weight:900;padding:14px 12px;border-radius:10px;margin-top:14px;box-shadow:0 3px 12px rgba(0,0,0,.18);">'
       + '<span>両チャネル合計（税込）</span>'
       + '<span style="color:#fbbf24;">¥' + numFmt_(grandTotal) + '</span>'
@@ -2092,8 +2117,8 @@ function updateAuthUi_() {
       '<span class="authUserName">' + escapeHtml_(state.customer.companyName || state.customer.email) + '</span>' +
       rankLabel + discountLabel + pointsLabel +
       '</div>' +
-      '<button class="authBtn mypage" id="openMyPageBtn" type="button">マイページ</button>' +
-      '<button class="authBtn logout" id="logoutBtn" type="button">ログアウト</button>';
+      '<button class="authBtn mypage icon-btn" id="openMyPageBtn" type="button" title="マイページ"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></button>' +
+      '<button class="authBtn logout icon-btn" id="logoutBtn" type="button" title="ログアウト"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></button>';
 
     var openMyPageBtn = $('openMyPageBtn');
     if (openMyPageBtn) {
@@ -2104,7 +2129,7 @@ function updateAuthUi_() {
       logoutBtn.addEventListener('click', function() { doLogout_(); });
     }
   } else {
-    area.innerHTML = cartBtnHtml + '<button class="authBtn" id="openAuthBtn" type="button">ログイン / 新規登録</button>';
+    area.innerHTML = cartBtnHtml + '<button class="authBtn icon-btn" id="openAuthBtn" type="button" title="ログイン / 新規登録"><svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg></button>';
     var openAuthBtn = $('openAuthBtn');
     if (openAuthBtn) {
       openAuthBtn.addEventListener('click', function() {
@@ -3567,10 +3592,8 @@ function getCurrentPageItems_() {
 // =====================================================
 
 function updateTotalCountBadge_(total) {
-  var el = $('totalCountBadge');
-  if (el) el.textContent = total ? ('商品点数：' + total + '点') : '';
-  var mobEl = $('totalCountBadgeMobLogo');
-  if (mobEl) { mobEl.textContent = total ? (total + '点') : ''; mobEl.style.display = total ? '' : 'none'; }
+  var el = $('totalCountBadgeMobLogo');
+  if (el) { el.textContent = total ? (total + '点') : ''; el.style.display = total ? '' : 'none'; }
 }
 
 function renderLoadingGrid_() {
