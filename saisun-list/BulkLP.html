@@ -3904,6 +3904,35 @@ body.admin-mode .article-panel{bottom:186px;}
   body.admin-mode .article-fab{bottom:136px;}
   body.admin-mode .article-panel.open{bottom:0;height:100%;max-height:100%;}
 }
+/* --- PC サイドバー（1100px以上で自動表示） --- */
+@media(min-width:1100px){
+  .article-fab{display:none !important;}
+  .article-panel{
+    display:flex !important;
+    position:fixed;left:0;top:0;bottom:0;right:auto;
+    width:200px;height:100vh;max-height:100vh;
+    border-radius:0;border:none;border-right:1px solid #dde1ea;
+    background:#f4f6fb;box-shadow:none;z-index:50;
+  }
+  .article-panel-header{padding:10px 12px;background:rgba(26,26,46,.92);}
+  .article-panel-title{font-size:13px;gap:4px;}
+  .article-panel-close{display:none;}
+  .article-search{display:block;}
+  .article-search-input{background:rgba(255,255,255,.9);}
+  .article-item-summary{display:none;}
+  .article-item-header{margin-bottom:0;}
+  .article-item-title{font-size:12px;line-height:1.4;}
+  .article-list-item{padding:9px 10px;}
+  body.admin-mode .article-panel{top:0;}
+  /* コンテンツをサイドバー右へシフト */
+  .header,.promo-banner{
+    margin-left:200px;margin-right:0;max-width:calc(100vw - 200px);
+  }
+  .container,.footer{
+    margin-left:200px;margin-right:auto;
+    max-width:min(calc(100vw - 220px),1700px);
+  }
+}
 /* ====== モバイル固定決済バー ====== */
 #bulkStickyPay{display:none;position:fixed;bottom:0;left:0;right:0;z-index:150;background:linear-gradient(135deg,#1a1a2e,#16213e);padding:10px 16px;box-shadow:0 -3px 14px rgba(0,0,0,.45);align-items:center;justify-content:space-between;gap:12px}
 #bulkStickyPay.active{display:flex}
@@ -3954,7 +3983,7 @@ body.admin-mode .article-panel{bottom:186px;}
       emptyEl=document.getElementById('articleEmpty'),detailBack=document.getElementById('articleDetailBack'),
       detailHeader=document.getElementById('articleDetailHeader'),detailContent=document.getElementById('articleDetailContent');
   if(!panel)return;
-  var isDesktop=false;
+  var isDesktop=window.matchMedia('(min-width:1100px)').matches;
   var isOpen=false,articlesLoaded=false,articlesData=[],detailCache={},LS_LAST_READ='detauri_article_last_read_date',LS_ARTICLES='detauri_articles_data';
   function loadArticlesCache_(){try{var raw=localStorage.getItem(LS_ARTICLES);if(!raw)return null;var c=JSON.parse(raw);if(c&&c.articles&&c.articles.length)return c.articles;return null;}catch(e){return null;}}
   function saveArticlesCache_(articles){try{localStorage.setItem(LS_ARTICLES,JSON.stringify({ts:Date.now(),articles:articles}));}catch(e){}}
