@@ -388,7 +388,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
 
 <!-- プロモバナー -->
 <div class="promo-banner" id="promoBanner">
-  期間限定：会員登録で全品<strong>10%OFF</strong>（2026年9月末まで・30点割引と併用可）<a href="#" id="promoRegisterLink">今すぐ無料登録 ＞</a>
+  期間限定：会員登録で全品<strong>10%OFF</strong>（2026年9月末まで・数量割引と併用可）<a href="#" id="promoRegisterLink">今すぐ無料登録 ＞</a>
   <button class="promo-close" id="promoClose" type="button">✕</button>
 </div>
 
@@ -561,6 +561,13 @@ body.admin-mode .admin-settings-fab{display:flex;}
   <div id="cartSection">
     <div class="cart-empty">商品を選択してください</div>
   </div>
+  <!-- 割引進捗バー -->
+  <div id="discountProgressWrap" style="display:none;margin-top:10px;padding:10px 12px;background:#fef2f2;border-radius:8px;border:1px solid #fecaca;">
+    <div class="dp-bar-wrap" style="height:6px;background:#fde8ea;border-radius:3px;overflow:hidden;margin-bottom:6px;">
+      <div class="dp-bar" style="height:100%;width:0%;border-radius:3px;transition:width .3s;"></div>
+    </div>
+    <div class="dp-msg" style="font-size:12px;color:#555;text-align:center;"></div>
+  </div>
 </div>
 
 <div style="height:20px"></div>
@@ -574,6 +581,20 @@ body.admin-mode .admin-settings-fab{display:flex;}
   </div>
   <div class="coupon-result" id="couponResult"></div>
   <p style="font-size:12px;margin:6px 0 0;color:#c00;font-weight:700;">2月末まで「FREE_SHIPPING_20260228」を入力で送料無料<br><span style="font-size:11px;color:#888;font-weight:400;">※価格破壊商品は対象外です</span></p>
+</div>
+
+<!-- ポイント利用（ログイン中かつポイントあり時のみ表示） -->
+<div id="pointsSection" style="display:none;margin-top:16px;">
+  <div class="section-title" style="display:flex;align-items:center;gap:8px;">
+    ポイント利用
+    <span style="font-size:12px;font-weight:400;color:#888;">残高: <span id="pointsBalance">0</span>pt</span>
+  </div>
+  <div class="coupon-row">
+    <input type="number" id="pointsInput" min="0" placeholder="使用するポイント数を入力" style="width:100%;">
+    <button id="pointsApplyBtn" onclick="applyPoints()">適用</button>
+  </div>
+  <div class="coupon-result" id="pointsResult"></div>
+  <p style="font-size:12px;margin:6px 0 0;color:#888;">1ポイント = 1円として割引に使用できます</p>
 </div>
 
 </div>
@@ -693,6 +714,25 @@ body.admin-mode .admin-settings-fab{display:flex;}
     <button class="bulk-modal-close" id="bulkGuideCloseBtn" type="button">&times;</button>
   </div>
   <div class="bulk-modal-body" style="line-height:1.7;">
+    <!-- お得情報ハイライト -->
+    <div style="background:linear-gradient(135deg,#b8002a,#7f0019);border-radius:10px;padding:14px 16px;margin-bottom:20px;color:#fff;">
+      <div style="font-size:13px;font-weight:700;margin-bottom:10px;">まとめて注文するほどお得！</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <div style="background:rgba(255,255,255,.15);border-radius:8px;padding:8px 12px;text-align:center;flex:1;min-width:70px;">
+          <div style="font-size:11px;opacity:.85;">30点〜</div>
+          <div style="font-size:18px;font-weight:900;">10%OFF</div>
+        </div>
+        <div style="background:rgba(255,255,255,.2);border-radius:8px;padding:8px 12px;text-align:center;flex:1;min-width:70px;">
+          <div style="font-size:11px;opacity:.85;">50点〜</div>
+          <div style="font-size:18px;font-weight:900;">15%OFF</div>
+        </div>
+        <div style="background:rgba(255,255,255,.25);border-radius:8px;padding:8px 12px;text-align:center;flex:1;min-width:70px;">
+          <div style="font-size:11px;opacity:.85;">100点〜</div>
+          <div style="font-size:18px;font-weight:900;">20%OFF</div>
+        </div>
+      </div>
+      <div style="font-size:11px;margin-top:8px;opacity:.85;">＋ 会員登録で追加10%OFF（数量割引と併用可）</div>
+    </div>
     <div style="margin-bottom:20px;">
       <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">アソート商品とは</h3>
       <ul style="margin:0;padding-left:20px;color:#475569;">
@@ -721,7 +761,13 @@ body.admin-mode .admin-settings-fab{display:flex;}
     <div style="margin-bottom:20px;">
       <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">割引について</h3>
       <ul style="margin:0;padding-left:20px;color:#475569;">
-        <li><strong>会員割引</strong>：無料会員登録で<span style="color:#b8002a;font-weight:700;">10%OFF</span><span style="color:#666;font-size:13px;">（2026年9月末まで）</span></li>
+        <li style="margin-bottom:8px;"><strong>数量割引</strong>（併用可）：
+          <span style="color:#b8002a;font-weight:700;">30点以上 10%OFF</span> ／
+          <span style="color:#b8002a;font-weight:700;">50点以上 15%OFF</span> ／
+          <span style="color:#b8002a;font-weight:700;">100点以上 20%OFF</span>
+        </li>
+        <li style="margin-bottom:8px;"><strong>会員割引</strong>（数量割引と併用可）：無料会員登録で<span style="color:#b8002a;font-weight:700;">10%OFF</span><span style="color:#666;font-size:13px;">（2026年9月末まで）</span></li>
+        <li><strong>ポイント利用</strong>：購入ごとに貯まるポイントを1pt=1円として割引に使用できます</li>
       </ul>
     </div>
     <div style="margin-bottom:20px;">
@@ -1215,6 +1261,7 @@ var G = {
   sessionId: null,    // 会員セッションID
   customer: null,     // 共有会員情報
   coupon: null,       // { type, value, discountAmount, freeShipping, label }
+  pointsUsed: 0,      // 使用するポイント数
   shipping: 0,
   shippingSize: '',
   shippingPref: '',
@@ -1727,10 +1774,17 @@ function updateCart() {
     }
   }
 
-  if (totalQty >= 30 && (!G.coupon || G.coupon.comboBulk !== false)) {
-    var bulkDisc = Math.round(discounted * 0.10);
-    discounted -= bulkDisc;
-    discountRows += '<div class="cart-row"><span>30点以上割引 (10%OFF)</span><span>-¥' + numFmt(bulkDisc) + '</span></div>';
+  // 段階的数量割引
+  if (!G.coupon || G.coupon.comboBulk !== false) {
+    var bulkRate = 0, bulkLabel = '';
+    if (totalQty >= 100) { bulkRate = 0.20; bulkLabel = '数量割引 100点以上 (20%OFF)'; }
+    else if (totalQty >= 50) { bulkRate = 0.15; bulkLabel = '数量割引 50点以上 (15%OFF)'; }
+    else if (totalQty >= 30) { bulkRate = 0.10; bulkLabel = '数量割引 30点以上 (10%OFF)'; }
+    if (bulkRate > 0) {
+      var bulkDisc = Math.round(discounted * bulkRate);
+      discounted -= bulkDisc;
+      discountRows += '<div class="cart-row"><span>' + bulkLabel + '</span><span>-¥' + numFmt(bulkDisc) + '</span></div>';
+    }
   }
 
   // 会員割引
@@ -1739,6 +1793,13 @@ function updateCart() {
     var memberDisc = Math.round(discounted * md.rate);
     discounted -= memberDisc;
     discountRows += '<div class="cart-row"><span>会員割引 (' + Math.round(md.rate * 100) + '%OFF)</span><span>-¥' + numFmt(memberDisc) + '</span></div>';
+  }
+
+  // ポイント利用
+  if (G.customer && G.pointsUsed > 0) {
+    var ptDisc = Math.min(G.pointsUsed, discounted);
+    discounted = Math.max(0, discounted - ptDisc);
+    discountRows += '<div class="cart-row" style="color:#b8002a;"><span>ポイント利用 (' + G.pointsUsed + 'pt)</span><span>-¥' + numFmt(ptDisc) + '</span></div>';
   }
 
   discounted = Math.max(0, discounted);
@@ -1801,6 +1862,78 @@ function updateCart() {
   el.innerHTML = '<div class="cart-summary">' + rows + '</div>';
   updatePayButton(grandTotal);
   updateCartClearBtns_();
+  updateDiscountProgress_(totalQty);
+  updatePointsSection_();
+}
+
+// 段階的割引の進捗バー更新
+function updateDiscountProgress_(totalQty) {
+  var el = document.getElementById('discountProgressWrap');
+  if (!el) return;
+  var tiers = [
+    { min: 0,   next: 30,  nextRate: 10,  curRate: 0 },
+    { min: 30,  next: 50,  nextRate: 15,  curRate: 10 },
+    { min: 50,  next: 100, nextRate: 20,  curRate: 15 },
+    { min: 100, next: null, nextRate: null, curRate: 20 }
+  ];
+  var tier = tiers[0];
+  for (var i = tiers.length - 1; i >= 0; i--) {
+    if (totalQty >= tiers[i].min) { tier = tiers[i]; break; }
+  }
+  if (totalQty === 0) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  var html = '';
+  if (tier.next === null) {
+    html = '<div class="dp-bar-wrap"><div class="dp-bar" style="width:100%;background:#16a34a;"></div></div>'
+      + '<div class="dp-msg" style="color:#16a34a;">最大割引 20%OFF 適用中！</div>';
+  } else {
+    var remain = tier.next - totalQty;
+    var pct = Math.round((totalQty - tier.min) / (tier.next - tier.min) * 100);
+    var barColor = tier.curRate > 0 ? '#b8002a' : '#888';
+    html = '<div class="dp-bar-wrap"><div class="dp-bar" style="width:' + pct + '%;background:' + barColor + ';"></div></div>'
+      + '<div class="dp-msg">'
+      + (tier.curRate > 0 ? '<span style="color:' + barColor + ';font-weight:700;">' + tier.curRate + '%OFF適用中</span> ／ ' : '')
+      + 'あと<strong>' + remain + '点</strong>で<strong>' + tier.nextRate + '%OFF</strong>'
+      + '</div>';
+  }
+  el.innerHTML = html;
+}
+
+// ポイント利用セクションの表示/更新
+function updatePointsSection_() {
+  var sec = document.getElementById('pointsSection');
+  if (!sec) return;
+  var pts = G.customer ? (Number(G.customer.points) || 0) : 0;
+  if (!G.customer || pts <= 0) {
+    sec.style.display = 'none';
+    return;
+  }
+  sec.style.display = '';
+  var bal = document.getElementById('pointsBalance');
+  if (bal) bal.textContent = pts;
+}
+
+// ポイント適用ボタン
+function applyPoints() {
+  var inp = document.getElementById('pointsInput');
+  var res = document.getElementById('pointsResult');
+  if (!inp || !res) return;
+  var pts = G.customer ? (Number(G.customer.points) || 0) : 0;
+  var val = Math.max(0, Math.floor(Number(inp.value) || 0));
+  if (val > pts) {
+    res.className = 'coupon-result err';
+    res.textContent = 'ポイント残高が不足しています（残高: ' + pts + 'pt）';
+    return;
+  }
+  G.pointsUsed = val;
+  if (val > 0) {
+    res.className = 'coupon-result ok';
+    res.textContent = val + 'pt（¥' + numFmt(val) + '相当）を利用します';
+  } else {
+    res.className = 'coupon-result';
+    res.textContent = '';
+  }
+  updateCart();
 }
 
 function updatePayButton(total) {
@@ -2139,6 +2272,7 @@ function submitOrder() {
     phone: phone,
     note: note,
     couponCode: G.coupon ? document.getElementById('couponInput').value.trim() : '',
+    pointsUsed: G.pointsUsed || 0,
     shippingAmount: shipping,
     shippingSize: G.shippingSize,
     shippingPref: G.shippingPref,
@@ -2294,7 +2428,8 @@ function updateMemberUI() {
   badge.className = 'member-badge';
   var md = G.settings.memberDiscount;
   var discountText = (md && md.enabled) ? ' ・ 会員割引' + Math.round(md.rate * 100) + '%OFF適用中' : '';
-  badge.textContent = '会員ログイン中: ' + (G.customer.companyName || G.customer.email) + discountText;
+  var pointsText = (G.customer.points > 0) ? ' ・ ' + G.customer.points + 'pt所持' : '';
+  badge.textContent = '会員ログイン中: ' + (G.customer.companyName || G.customer.email) + discountText + pointsText;
   wrap.appendChild(badge);
 }
 
@@ -2745,6 +2880,7 @@ function doLogout_() {
 
   G.sessionId = null;
   G.customer = null;
+  G.pointsUsed = 0;
   try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
   updateAuthUi_();
   updateCart();
@@ -3409,9 +3545,11 @@ function renderOrderHistory_(orders) {
 
     // --- 割引・セール ---
     { q: '割引はある？', category: '割引・セール',
-      a: '【現在の割引制度】\n\n1. 会員登録割引：10%OFF（2026年9月末まで）\n2. クーポンコードによる割引\n\n詳しくはスタッフまでお問い合わせください。' },
+      a: '【現在の割引制度】\n\n1. 数量割引（誰でも適用・他と併用可）\n   ・30点以上：10%OFF\n   ・50点以上：15%OFF\n   ・100点以上：20%OFF\n\n2. 会員割引：無料登録で10%OFF（2026年9月末まで）\n   ※数量割引と併用できます！\n\n3. ポイント利用：購入ごとに貯まるポイントを1pt=1円で使用可能\n\n4. クーポンコードによる割引\n\n数量を増やすほどお得になります！' },
     { q: '会員割引の期間は？', category: '割引・セール',
-      a: '会員登録で全品10%OFFの特典は2026年9月末までの期間限定です。\n\n・無料登録するだけで適用\n・期間中はいつでもご利用いただけます\n\nお早めの登録がおすすめです！' },
+      a: '会員登録で全品10%OFFの特典は2026年9月末までの期間限定です。\n\n・無料登録するだけで適用\n・期間中はいつでもご利用いただけます\n・数量割引（30点〜）と併用できます！\n\nお早めの登録がおすすめです！' },
+    { q: '数量割引について教えて', category: '割引・セール',
+      a: '【段階的数量割引】\n注文点数に応じて割引率が上がります！\n\n・30点以上：10%OFF\n・50点以上：15%OFF\n・100点以上：20%OFF\n\n会員割引（10%OFF）と併用できるので、\n会員登録済みで100点以上注文すると最大30%OFF相当になります！\n\nカートに商品を追加すると進捗バーが表示されます。' },
 
     // --- 会員 ---
     { q: '会員登録の方法は？', category: '会員',
@@ -3420,6 +3558,8 @@ function renderOrderHistory_(orders) {
       a: '【会員ランク制度】\n\n・レギュラー：初回登録時（10%OFF特典）\n・シルバー：累計5万円以上\n・ゴールド：累計15万円以上\n・ダイヤモンド：累計30万円以上（送料無料！）\n\nランクが上がるほど特典が充実します。' },
     { q: 'ダイヤモンド会員の特典は？', category: '会員',
       a: '【ダイヤモンド会員特典】\n・送料無料（国内全域）\n・優先在庫確保\n\n条件：累計購入額30万円以上\nたくさんご利用いただくほどお得になります！' },
+    { q: 'ポイントの使い方は？', category: '会員',
+      a: '【ポイント利用方法】\n購入ごとにポイントが付与されます（レギュラー1%、シルバー3%、ゴールド5%）。\n\n使い方：\n1. 会員ログイン後、カート画面に「ポイント利用」セクションが表示されます\n2. 使用するポイント数を入力して「適用」ボタンを押す\n3. 1pt = 1円として割引されます\n\nマイページの「ポイント」タブで残高を確認できます。' },
 
     // --- 機能・その他 ---
     { q: '副業物販お役立ち情報って何？', category: '機能・その他',

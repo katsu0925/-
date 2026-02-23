@@ -106,9 +106,11 @@ function apiBulkSubmit(form, items) {
           ? 'クーポン送料無料'
           : ('クーポン' + couponResult.value + '円引き');
 
-      // 併用可能な割引
-      if (validatedCoupon.comboBulk && totalQty >= 30) {
-        discountRate += 0.10;
+      // 併用可能な割引（段階的数量割引）
+      if (validatedCoupon.comboBulk) {
+        if (totalQty >= 100) discountRate += 0.20;
+        else if (totalQty >= 50) discountRate += 0.15;
+        else if (totalQty >= 30) discountRate += 0.10;
       }
       var memberStatus = app_getMemberDiscountStatus_();
       if (validatedCoupon.comboMember && memberStatus.enabled && contact && typeof findCustomerByEmail_ === 'function') {
@@ -116,8 +118,10 @@ function apiBulkSubmit(form, items) {
         if (cust) discountRate += memberStatus.rate;
       }
     } else {
-      // 通常割引
-      if (totalQty >= 30) discountRate += 0.10;
+      // 通常割引（段階的数量割引）
+      if (totalQty >= 100) discountRate += 0.20;
+      else if (totalQty >= 50) discountRate += 0.15;
+      else if (totalQty >= 30) discountRate += 0.10;
       var memberStatus = app_getMemberDiscountStatus_();
       if (memberStatus.enabled && contact && typeof findCustomerByEmail_ === 'function') {
         var cust = findCustomerByEmail_(contact);
@@ -131,6 +135,19 @@ function apiBulkSubmit(form, items) {
       discounted = Math.round(afterCoupon * (1 - discountRate));
     } else {
       discounted = Math.round(sum * (1 - discountRate));
+    }
+
+    // === ポイント使用（1pt = 1円） ===
+    var pointsUsed = Math.max(0, Math.floor(Number(f.pointsUsed || 0)));
+    var pointsDiscount = 0;
+    if (pointsUsed > 0 && contact && typeof findCustomerByEmail_ === 'function') {
+      var custPt = findCustomerByEmail_(contact);
+      var availablePoints = custPt ? (Number(custPt.points) || 0) : 0;
+      if (availablePoints < pointsUsed) {
+        return { ok: false, message: 'ポイント残高が不足しています（残高: ' + availablePoints + 'pt）' };
+      }
+      pointsDiscount = pointsUsed;
+      discounted = Math.max(0, discounted - pointsDiscount);
     }
 
     // === 送料計算（アソート商品: 常に大サイズ × 数量） ===
@@ -182,6 +199,10 @@ function apiBulkSubmit(form, items) {
         var couponNote = '【' + discountParts.join(' + ') + '】';
         note = note ? (note + '\n' + couponNote) : couponNote;
       }
+    }
+    if (pointsDiscount > 0) {
+      var ptNote = '【ポイント利用: ' + pointsUsed + 'pt（-¥' + pointsDiscount + '）】';
+      note = note ? (note + '\n' + ptNote) : ptNote;
     }
     if (shippingAmount > 0) {
       var shippingQtyLabel = shippingExcludedQty > 0 ? shippingExcludedQty : totalQty;
@@ -244,6 +265,8 @@ function apiBulkSubmit(form, items) {
       couponCode: couponCode || '',
       couponDiscount: couponDiscount || 0,
       couponLabel: couponLabel || '',
+      pointsUsed: pointsUsed || 0,
+      pointsDiscount: pointsDiscount || 0,
       detauriProductAmount: detauriProductAmount,
       detauriShipping: detauriShippingAmount,
       detauriItemCount: detauriItemCount

@@ -941,6 +941,19 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
       }
     }
 
+    // 3.6. アソート注文のポイント控除（決済完了後に実施）
+    if (isBulk && pendingData.pointsUsed > 0) {
+      var ptEmail = pendingData.form && pendingData.form.contact;
+      if (ptEmail) {
+        try {
+          deductPoints_(ptEmail, pendingData.pointsUsed);
+          console.log('アソートポイント控除: ' + pendingData.pointsUsed + 'pt / ' + ptEmail);
+        } catch (ptErr) {
+          console.error('アソートポイント控除エラー:', ptErr);
+        }
+      }
+    }
+
     // 4. キャッシュを無効化
     st_invalidateStatusCache_(orderSs);
 
