@@ -360,15 +360,10 @@ body.admin-mode .admin-settings-fab{display:flex;}
   .product-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
   .product-card{margin-bottom:0}
 }
-/* 1700px以上: コンテンツ幅を拡大してモニターを有効活用 */
-@media(min-width:1700px){
-  .container,.header,.footer,.promo-banner{max-width:1300px;}
-  .product-grid{grid-template-columns:repeat(4,1fr);}
-}
-/* 1920px以上: さらに拡大 */
-@media(min-width:1920px){
-  .container,.header,.footer,.promo-banner{max-width:1500px;}
-  .product-grid{grid-template-columns:repeat(5,1fr);}
+/* ウィンドウ幅に連続追従: 1440px以上でコンテンツが滑らかに拡大（最大1700px） */
+@media(min-width:1440px){
+  .container,.header,.footer,.promo-banner{max-width:min(calc(100vw - 100px),1700px);}
+  .product-grid{grid-template-columns:repeat(auto-fill,minmax(220px,1fr));}
 }
 
 @media(max-width:559px){
@@ -2315,6 +2310,7 @@ function saveBulkCart() {
       var stockLimit = p ? (p.stock !== -1 && p.stock < p.maxQty ? p.stock : p.maxQty) : 1;
       return { id: pid, name: p ? p.name : pid, qty: G.cart[pid], unitPrice: uPrice, maxQty: stockLimit,
         imageUrl: p && p.images && p.images.length > 0 ? p.images[0] : '',
+        images: p ? (p.images || []) : [],
         description: p ? (p.description || '') : '',
         tag: p ? (p.tag || '') : ''
       };
