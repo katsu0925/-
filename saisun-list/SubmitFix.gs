@@ -85,9 +85,11 @@ function apiSubmitEstimate(userKey, form, ids) {
           ? 'クーポン送料無料'
           : ('クーポン' + couponResult.value + '円引き');
 
-      // 併用可能な割引を適用
-      if (validatedCoupon.comboBulk && totalCount >= 30) {
-        discountRate += 0.10;
+      // 併用可能な割引を適用（段階的数量割引）
+      if (validatedCoupon.comboBulk) {
+        if (totalCount >= 100) discountRate += 0.20;
+        else if (totalCount >= 50) discountRate += 0.15;
+        else if (totalCount >= 30) discountRate += 0.10;
       }
       var memberDiscountStatus = app_getMemberDiscountStatus_();
       if (validatedCoupon.comboMember && memberDiscountStatus.enabled && contact && typeof findCustomerByEmail_ === 'function') {
@@ -99,8 +101,10 @@ function apiSubmitEstimate(userKey, form, ids) {
     } else {
       // 通常割引（クーポン未使用時）
 
-      // 30点以上割引（10%）
-      if (totalCount >= 30) discountRate += 0.10;
+      // 段階的数量割引
+      if (totalCount >= 100) discountRate += 0.20;
+      else if (totalCount >= 50) discountRate += 0.15;
+      else if (totalCount >= 30) discountRate += 0.10;
 
       // 会員割引（ログイン会員のみ、enabled時のみ）
       var memberDiscountStatus = app_getMemberDiscountStatus_();

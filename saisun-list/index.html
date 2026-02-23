@@ -499,7 +499,7 @@
   </div>
   <div id="pageTransition"><div class="pt-content"><div class="pt-title">デタウリ.Detauri</div><div class="pt-sub">読み込み中...</div></div></div>
   <div class="promo-banner" id="promoBanner">
-    期間限定：会員登録で全品<strong>10%OFF</strong>（2026年9月末まで・30点割引と併用可）<a href="#" id="promoRegisterLink">今すぐ無料登録 ＞</a>
+    期間限定：会員登録で全品<strong>10%OFF</strong>（2026年9月末まで・数量割引と併用可）<a href="#" id="promoRegisterLink">今すぐ無料登録 ＞</a>
     <button class="promo-close" id="promoClose" type="button">✕</button>
   </div>
   <div class="topbar">
@@ -610,6 +610,7 @@
         <div class="recommendList" id="cartRecommendList"></div>
       </div>
       <div id="cartSumBox">
+        <div id="detDiscountProgress" style="display:none;padding:8px 10px;background:#fef2f2;border-radius:8px;margin-bottom:8px;border:1px solid #fecaca;"></div>
         <div class="cart-summary" id="cartSummaryRows"></div>
         <div id="shippingNote" style="display:none;font-size:11px;color:#888;text-align:right;width:100%;margin-top:6px;">※送料は税込み・会員割引対象外です</div>
         <div id="paymentFeeNote" style="display:none;font-size:11px;color:#888;text-align:right;width:100%;line-height:1.5;margin-top:2px;">※コンビニ決済は別途手数料220円（税込）がかかります<br>※銀行振込・ペイジーの振込手数料はお客様負担です</div>
@@ -1073,9 +1074,13 @@
       <div class="guide-section" style="margin-top:20px;">
         <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">割引について</h3>
         <ul style="margin:0;padding-left:20px;color:#475569;">
-          <li style="margin-bottom:8px;"><span style="color:#b8002a;font-weight:700;">30点以上で10%割引</span></li>
+          <li style="margin-bottom:8px;"><strong>数量割引</strong>（どなたでも適用）：<br>
+            <span style="color:#b8002a;font-weight:700;">30点以上 10%OFF</span> ／
+            <span style="color:#b8002a;font-weight:700;">50点以上 15%OFF</span> ／
+            <span style="color:#b8002a;font-weight:700;">100点以上 20%OFF</span>
+          </li>
           <li style="margin-bottom:8px;" id="guideMemberDiscount"><strong>会員割引</strong>：無料会員登録で<span style="color:#b8002a;font-weight:700;">10%OFF</span><span style="color:#666;font-size:13px;">（2026年9月末まで）</span></li>
-          <li id="guideCombineDiscount"><span style="color:#b8002a;font-weight:700;">※ 併用可</span>（30点割引＋会員割引の同時適用で最大約20%OFF）</li>
+          <li id="guideCombineDiscount"><span style="color:#b8002a;font-weight:700;">※ 併用可</span>（数量割引＋会員割引の同時適用で最大30%OFF）</li>
         </ul>
       </div>
 
@@ -1518,7 +1523,19 @@ var SESSION_KEY = 'estimate_session';
 var MEMBER_DISCOUNT_RATE = 0.10;  // 会員割引（APIから更新される）
 var MEMBER_DISCOUNT_ENABLED = true; // 会員割引ON/OFF（APIから更新される）
 var MEMBER_DISCOUNT_END_DATE = '2026-09-30'; // 期限（APIから更新される）
-var BULK_DISCOUNT_RATE = 0.10;    // 30点以上割引10%
+// 段階的数量割引（デタウリ）
+function bulkDiscountRate_(count) {
+  if (count >= 100) return 0.20;
+  if (count >= 50)  return 0.15;
+  if (count >= 30)  return 0.10;
+  return 0;
+}
+function bulkDiscountLabel_(count) {
+  if (count >= 100) return '100点割引20%OFF';
+  if (count >= 50)  return '50点割引15%OFF';
+  if (count >= 30)  return '30点割引10%OFF';
+  return '';
+}
 
 // =====================================================
 // 送料計算（フロントエンド）
@@ -1716,6 +1733,38 @@ function calculateShipping_() {
 }
 
 /** 送料表示を更新 */
+/** デタウリ数量割引の進捗バーを更新 */
+function updateBulkDiscountProgress_(count) {
+  var el = $('detDiscountProgress');
+  if (!el) return;
+  if (count === 0) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  var tiers = [
+    { min: 0,   next: 30,  nextRate: 10,  curRate: 0 },
+    { min: 30,  next: 50,  nextRate: 15,  curRate: 10 },
+    { min: 50,  next: 100, nextRate: 20,  curRate: 15 },
+    { min: 100, next: null, nextRate: null, curRate: 20 }
+  ];
+  var tier = tiers[0];
+  for (var i = tiers.length - 1; i >= 0; i--) {
+    if (count >= tiers[i].min) { tier = tiers[i]; break; }
+  }
+  var html = '';
+  if (tier.next === null) {
+    html = '<div style="height:5px;background:#e5e7eb;border-radius:3px;overflow:hidden;margin-bottom:5px;"><div style="width:100%;height:100%;background:#16a34a;border-radius:3px;"></div></div>'
+      + '<div style="font-size:11px;color:#16a34a;text-align:center;font-weight:700;">最大割引 20%OFF 適用中！</div>';
+  } else {
+    var pct = Math.max(0, Math.min(100, Math.round((count - tier.min) / (tier.next - tier.min) * 100)));
+    var barColor = tier.curRate > 0 ? '#b8002a' : '#9ca3af';
+    html = '<div style="height:5px;background:#e5e7eb;border-radius:3px;overflow:hidden;margin-bottom:5px;"><div style="width:' + pct + '%;height:100%;background:' + barColor + ';border-radius:3px;transition:width .3s;"></div></div>'
+      + '<div style="font-size:11px;color:#555;text-align:center;">'
+      + (tier.curRate > 0 ? '<span style="color:' + barColor + ';font-weight:700;">' + tier.curRate + '%OFF適用中</span> ／ ' : '')
+      + 'あと<strong>' + (tier.next - count) + '点</strong>で<strong>' + tier.nextRate + '%OFF</strong>'
+      + '</div>';
+  }
+  el.innerHTML = html;
+}
+
 /** 送料表示を更新（renderSummary_に委譲） */
 function updateShippingDisplay_() {
   renderSummary_();
@@ -1748,12 +1797,12 @@ function calcProductTotal_() {
     var cd = state.appliedCoupon.discountAmount || 0;
     var afterCoupon = Math.max(0, sum - cd);
     var comboRate = 0;
-    if (state.appliedCoupon.comboBulk && ids.length >= 30) comboRate += BULK_DISCOUNT_RATE;
+    if (state.appliedCoupon.comboBulk) comboRate += bulkDiscountRate_(ids.length);
     if (state.appliedCoupon.comboMember && state.customer && MEMBER_DISCOUNT_ENABLED) comboRate += MEMBER_DISCOUNT_RATE;
     discounted = Math.round(afterCoupon * (1 - comboRate));
   } else {
     var discountRate = 0;
-    if (ids.length >= 30) discountRate += BULK_DISCOUNT_RATE;
+    discountRate += bulkDiscountRate_(ids.length);
     if (state.customer && MEMBER_DISCOUNT_ENABLED) discountRate += MEMBER_DISCOUNT_RATE;
     discounted = Math.round(sum * (1 - discountRate));
   }
@@ -1794,12 +1843,14 @@ function renderSummary_() {
       discountLabels.push(escapeHtml_(state.appliedCoupon.label));
     }
     var comboRate = 0;
-    if (state.appliedCoupon.comboBulk && count >= 30) { comboRate += BULK_DISCOUNT_RATE; discountLabels.push('30点割引10%OFF'); }
+    var _bulkRateC = bulkDiscountRate_(count);
+    if (state.appliedCoupon.comboBulk && _bulkRateC > 0) { comboRate += _bulkRateC; discountLabels.push(bulkDiscountLabel_(count)); }
     if (state.appliedCoupon.comboMember && state.customer && MEMBER_DISCOUNT_ENABLED) { comboRate += MEMBER_DISCOUNT_RATE; discountLabels.push('会員10%OFF'); }
     discounted = Math.round(discounted * (1 - comboRate));
   } else {
     var discountRate = 0;
-    if (count >= 30) { discountRate += BULK_DISCOUNT_RATE; discountLabels.push('30点割引10%OFF'); }
+    var _bulkRate = bulkDiscountRate_(count);
+    if (_bulkRate > 0) { discountRate += _bulkRate; discountLabels.push(bulkDiscountLabel_(count)); }
     if (state.customer && MEMBER_DISCOUNT_ENABLED) { discountRate += MEMBER_DISCOUNT_RATE; discountLabels.push('会員10%OFF'); }
     discounted = Math.round(sum * (1 - discountRate));
   }
@@ -1953,6 +2004,9 @@ function renderSummary_() {
 
   el.innerHTML = rows;
   if (goFormBtn) goFormBtn.disabled = (count === 0);
+
+  // 数量割引進捗バー更新
+  updateBulkDiscountProgress_(count);
 
   // ポイント情報更新
   var info = $('pointDiscountInfo');
@@ -3872,8 +3926,7 @@ function updateDetStickyBar_() {
     var it = state.cart.itemsById[ids[i]];
     if (it) detSum += Number(it.price || 0);
   }
-  var discountRate = 0;
-  if (ids.length >= 30) discountRate += BULK_DISCOUNT_RATE;
+  var discountRate = bulkDiscountRate_(ids.length);
   if (state.customer && MEMBER_DISCOUNT_ENABLED) discountRate += MEMBER_DISCOUNT_RATE;
   var detDiscounted = Math.round(detSum * (1 - discountRate));
   var total = detDiscounted + (bulk.subtotal || 0);
@@ -3902,12 +3955,11 @@ function updateCartPrice() {
     var cd = state.appliedCoupon.discountAmount || 0;
     var afterCoupon = Math.max(0, sum - cd);
     var comboRate = 0;
-    if (state.appliedCoupon.comboBulk && count >= 30) comboRate += BULK_DISCOUNT_RATE;
+    if (state.appliedCoupon.comboBulk) comboRate += bulkDiscountRate_(count);
     if (state.appliedCoupon.comboMember && state.customer && MEMBER_DISCOUNT_ENABLED) comboRate += MEMBER_DISCOUNT_RATE;
     discounted = Math.round(afterCoupon * (1 - comboRate));
   } else {
-    var discountRate = 0;
-    if (count >= 30) discountRate += BULK_DISCOUNT_RATE;
+    var discountRate = bulkDiscountRate_(count);
     if (state.customer && MEMBER_DISCOUNT_ENABLED) discountRate += MEMBER_DISCOUNT_RATE;
     discounted = Math.round(sum * (1 - discountRate));
   }
