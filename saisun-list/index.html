@@ -77,6 +77,8 @@
     .admin-bar .admin-exit:hover{background:rgba(255,255,255,.4);}
     @media(min-width:768px){
       body{background:#e0e0e0;}
+      /* ウィンドウ幅に連続追従: 768px以上で最大1100pxまで滑らかに拡大 */
+      .wrap,.topbar,.footer,.promo-banner{max-width:min(calc(100vw - 40px),1100px);}
       .topbar-row1{display:grid;grid-template-columns:1fr auto 1fr;padding:10px 24px;gap:12px;align-items:center;position:static;}
       .topbar-mob-count{display:none !important;}
       .topbar-logo{font-size:17px;width:auto;text-align:left;max-height:none;overflow:visible;transition:none;opacity:1;justify-self:start;}
@@ -6784,6 +6786,26 @@ function openBulkItemModal_(productId) {
   // 画像（imagesが配列で保存されていればカルーセル、imageUrlのみならシングル）
   var images = (found.images && found.images.length > 0) ? found.images
               : (found.imageUrl ? [found.imageUrl] : []);
+  var _desc = found.description || '';
+  var _tag = found.tag || '';
+  // imagesが空/1枚の場合 → bulk_product_cache_v1（BulkLPが保存したキャッシュ）から補完
+  if (images.length <= 1) {
+    try {
+      var _cRaw = localStorage.getItem('bulk_product_cache_v1');
+      if (_cRaw) {
+        var _cData = JSON.parse(_cRaw);
+        var _cProds = (_cData && _cData.data && _cData.data.products) ? _cData.data.products : [];
+        for (var _ci = 0; _ci < _cProds.length; _ci++) {
+          if (_cProds[_ci].productId === productId) {
+            if (_cProds[_ci].images && _cProds[_ci].images.length > 0) images = _cProds[_ci].images;
+            if (!_desc) _desc = _cProds[_ci].description || '';
+            if (!_tag) _tag = _cProds[_ci].tag || '';
+            break;
+          }
+        }
+      }
+    } catch (e) {}
+  }
   var imgHtml = '';
   if (images.length === 1) {
     imgHtml = '<img src="' + escapeHtml_(images[0]) + '" alt="" referrerpolicy="no-referrer" '
@@ -6804,12 +6826,12 @@ function openBulkItemModal_(productId) {
     imgHtml += '</div>';
   }
 
-  // タグ
-  var tagHtml = found.tag ? '<span style="display:inline-block;background:#fff3cd;color:#856404;border:1px solid #ffc107;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;margin-bottom:10px;">' + escapeHtml_(found.tag) + '</span>' : '';
+  // タグ（found.tag または bulk_product_cache_v1 から補完した _tag を使用）
+  var tagHtml = _tag ? '<span style="display:inline-block;background:#fff3cd;color:#856404;border:1px solid #ffc107;border-radius:4px;padding:2px 8px;font-size:11px;font-weight:700;margin-bottom:10px;">' + escapeHtml_(_tag) + '</span>' : '';
 
-  // 説明文（アソートページと同様にwhite-space:pre-wrapで改行・空白を保持）
-  var descHtml = found.description
-    ? '<div style="font-size:13px;color:#666;line-height:1.7;margin-top:10px;margin-bottom:12px;white-space:pre-wrap;">' + escapeHtml_(found.description) + '</div>'
+  // 説明文（found.description または bulk_product_cache_v1 から補完した _desc を使用）
+  var descHtml = _desc
+    ? '<div style="font-size:13px;color:#666;line-height:1.7;margin-top:10px;margin-bottom:12px;white-space:pre-wrap;">' + escapeHtml_(_desc) + '</div>'
     : '';
 
   // アソートページへのボタン
