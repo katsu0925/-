@@ -237,6 +237,11 @@ function syncBaseOrdersToEc() {
         fee = Math.round(paymentTotal * rate);
       }
 
+      // 店負担送料が0の場合、客負担送料 ÷ 2 で補完
+      if (!group.shippingStore && group.shippingCustomer) {
+        group.shippingStore = Math.round(group.shippingCustomer / 2);
+      }
+
       const productPrice = group.totalSales;
       const sales = productPrice + (group.shippingCustomer || 0);
       const deposit = sales - fee - (group.shippingStore || 0);
