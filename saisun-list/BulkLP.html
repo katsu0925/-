@@ -2854,7 +2854,9 @@ function openMyPage_() {
     document.getElementById('mpPointBalance').textContent = String(G.customer.points || 0);
   }
 
-  openBulkModal_(modal, overlay);
+  modal.style.display = 'block';
+  if (overlay) overlay.classList.add('active');
+  if (typeof hideFabsForModal_ === 'function') hideFabsForModal_();
   loadMyPage_();
 }
 
