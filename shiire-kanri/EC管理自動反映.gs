@@ -81,6 +81,8 @@ function syncBaseOrdersToEc() {
     const iraiPaymentMethodCol = findColByName_(iraiHeader, '決済方法');
     const iraiContactCol = findColByName_(iraiHeader, '連絡先');
     const iraiTrackingCol = findColByName_(iraiHeader, '伝票番号');
+    const iraiConfirmLinkCol = findColByName_(iraiHeader, '確認リンク');
+    const iraiTotalCountCol = findColByName_(iraiHeader, '合計点数');
 
     // --- BASE_注文のキーを取得（チャンネル判定用） ---
     const baseOrderKeys = new Set();
@@ -121,6 +123,7 @@ function syncBaseOrdersToEc() {
     const dstShipStoreCol = requireCol_(dstHeader, '店負担送料', 'EC管理');
     const dstShipCustCol = requireCol_(dstHeader, '客負担送料', 'EC管理');
     const dstTrackingCol = findColByName_(dstHeader, '伝票番号');
+    const dstTotalCountCol = findColByName_(dstHeader, '総量');
 
     // --- 依頼管理データ読み込み ---
     const iraiValues = iraiSh.getRange(2, 1, iraiLastRow - 1, iraiLastCol).getValues();
@@ -147,8 +150,9 @@ function syncBaseOrdersToEc() {
           receiptNo: receiptNo,
           requestAt: row[iraiRequestAtCol - 1],
           totalSales: 0,
-          shippingStore: (iraiShipStoreCol > 0) ? (Number(row[iraiShipStoreCol - 1]) || 0) : 0,
-          shippingCustomer: (iraiShipCustCol > 0) ? (Number(row[iraiShipCustCol - 1]) || 0) : 0,
+          shippingStore: 0,
+          shippingCustomer: 0,
+          totalCount: 0,
           paymentMethod: (iraiPaymentMethodCol > 0) ? String(row[iraiPaymentMethodCol - 1] || '').trim() : '',
           contact: (iraiContactCol > 0) ? String(row[iraiContactCol - 1] || '').trim() : '',
           tracking: (iraiTrackingCol > 0) ? String(row[iraiTrackingCol - 1] || '').trim() : ''
@@ -157,6 +161,25 @@ function syncBaseOrdersToEc() {
 
       const group = orderGroups.get(rk);
       group.totalSales += Number(row[iraiTotalAmountCol - 1]) || 0;
+
+      // 送料: 最初に見つかった非ゼロ値を採用（全行から走査）
+      if (group.shippingStore === 0 && iraiShipStoreCol > 0) {
+        const ss = Number(row[iraiShipStoreCol - 1]) || 0;
+        if (ss !== 0) group.shippingStore = ss;
+      }
+      if (group.shippingCustomer === 0 && iraiShipCustCol > 0) {
+        const sc = Number(row[iraiShipCustCol - 1]) || 0;
+        if (sc !== 0) group.shippingCustomer = sc;
+      }
+
+      // 点数ルール: I列（確認リンク）あり → 1点、I列なし → K列（合計点数）をそのまま使用
+      const hasConfirmLink = iraiConfirmLinkCol > 0 && String(row[iraiConfirmLinkCol - 1] || '').trim() !== '';
+      if (hasConfirmLink) {
+        group.totalCount += 1;
+      } else if (iraiTotalCountCol > 0) {
+        const kVal = Number(row[iraiTotalCountCol - 1]) || 0;
+        if (kVal > 0) group.totalCount = kVal;
+      }
     }
 
     // --- キャンセル注文をEC管理から削除 ---
@@ -241,6 +264,9 @@ function syncBaseOrdersToEc() {
         if (dstTrackingCol > 0 && group.tracking) {
           rowData[dstTrackingCol - 1] = group.tracking; dirty = true;
         }
+        if (dstTotalCountCol > 0 && group.totalCount > 0 && !String(rowData[dstTotalCountCol - 1] || '').trim()) {
+          rowData[dstTotalCountCol - 1] = group.totalCount; dirty = true;
+        }
         if (dirty) {
           dstSh.getRange(existingRow, 1, 1, dstLastCol).setValues([rowData]);
         }
@@ -257,7 +283,8 @@ function syncBaseOrdersToEc() {
         deposit: deposit,
         shippingStore: group.shippingStore || '',
         shippingCustomer: group.shippingCustomer || '',
-        tracking: group.tracking || ''
+        tracking: group.tracking || '',
+        totalCount: group.totalCount || ''
       });
     }
 
@@ -275,6 +302,7 @@ function syncBaseOrdersToEc() {
     if (dstProductPriceCol > 0) cols.productPrice = dstProductPriceCol;
     if (dstDepositCol > 0) cols.deposit = dstDepositCol;
     if (dstTrackingCol > 0) cols.tracking = dstTrackingCol;
+    if (dstTotalCountCol > 0) cols.totalCount = dstTotalCountCol;
 
     const startRow = findAppendRowByActualData_(dstSh, cols);
     const needLastRow = startRow + toInsert.length - 1;
@@ -299,6 +327,7 @@ function syncBaseOrdersToEc() {
       if (cols.fee) row[cols.fee - minCol] = o.fee;
       if (cols.deposit) row[cols.deposit - minCol] = o.deposit;
       if (cols.tracking) row[cols.tracking - minCol] = o.tracking;
+      if (cols.totalCount) row[cols.totalCount - minCol] = o.totalCount;
       return row;
     });
     dstSh.getRange(startRow, minCol, toInsert.length, width).setValues(batch);
