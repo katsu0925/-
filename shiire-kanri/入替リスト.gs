@@ -234,17 +234,26 @@ function sendSwapEmail_(email, accountName, prevStart, prevCount, items, pdfBlob
 function getExcludedWorkers_(ss) {
   var excluded = {};
 
-  // 1. 作業者マスター: 有効フラグFALSEの作業者を除外
+  // 作業者マスター: 「入替除外」列がTRUEの作業者を除外
   var sh = ss.getSheetByName(SWAP_CONFIG.WORKER_SHEET_NAME);
   if (sh) {
     var lastRow = sh.getLastRow();
-    if (lastRow >= 2) {
-      var names = sh.getRange(2, 2, lastRow - 1, 1).getDisplayValues();
-      var flags = sh.getRange(2, 15, lastRow - 1, 1).getDisplayValues();
-      for (var i = 0; i < names.length; i++) {
-        var name = normalizeText_(names[i][0]);
-        var flag = String(flags[i][0]).trim().toUpperCase();
-        if (name && flag === 'FALSE') excluded[name] = true;
+    var lastCol = sh.getLastColumn();
+    if (lastRow >= 2 && lastCol > 0) {
+      var header = sh.getRange(1, 1, 1, lastCol).getDisplayValues()[0];
+      var nameCol = findColByName_(header, '名前');
+      if (nameCol < 0) nameCol = 2; // フォールバック: B列
+      var exCol = findColByName_(header, '入替除外');
+      if (exCol > 0) {
+        var names = sh.getRange(2, nameCol, lastRow - 1, 1).getDisplayValues();
+        var flags = sh.getRange(2, exCol, lastRow - 1, 1).getDisplayValues();
+        for (var i = 0; i < names.length; i++) {
+          var name = normalizeText_(names[i][0]);
+          var flag = String(flags[i][0]).trim().toUpperCase();
+          if (name && flag === 'TRUE') excluded[name] = true;
+        }
+      } else {
+        console.log('入替リスト: 作業者マスターに「入替除外」列がありません（除外なしで続行）');
       }
     }
   } else {
