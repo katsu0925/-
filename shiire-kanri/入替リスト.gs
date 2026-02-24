@@ -2,7 +2,7 @@
 /**
  * 入替リスト.gs — 商品入替リスト自動生成・メール送信
  *
- * 月末にアカウント別で前月出品数と同数の古い在庫をリスト化し、
+ * 月末にアカウント別で前月販売数と同数の古い在庫をリスト化し、
  * PDFメールで各運用者に送信する。
  * ※ ステータス変更は返送済みステータス変更.gsが自動処理するため本ファイルでは行わない
  */
@@ -36,7 +36,7 @@ function generateSwapLists() {
 
   const header = sheet.getRange(1, 1, 1, lastCol).getDisplayValues()[0];
   const hMap = buildHeaderMap_(header);
-  ['管理番号', '出品日', 'ステータス', '使用アカウント', '納品場所'].forEach(function(name) {
+  ['管理番号', '出品日', '販売日', 'ステータス', '使用アカウント', '納品場所'].forEach(function(name) {
     if (!hMap[name]) throw new Error('ヘッダ「' + name + '」が見つかりません');
   });
 
@@ -75,29 +75,44 @@ function generateSwapLists() {
   });
 
   var summary = results.map(function(r) {
-    return r.account + ': 前月出品 ' + r.prevMonthCount + '件 → 返送対象 ' + r.items.length + '件' +
+    return r.account + ': 前月販売 ' + r.prevMonthCount + '件 → 返送対象 ' + r.items.length + '件' +
       (r.emailSent ? ' → ' + r.email + ' に送信済み' : r.email ? ' → メール送信失敗' : ' (メール未設定)');
   }).join('\n');
   console.log('入替リスト生成完了\n' + summary);
 }
 
 /**
- * アカウント別に前月出品数をカウントし、古い順に同数の入替対象を抽出
+ * アカウント別に前月販売数をカウントし、出品中の古い順に同数の入替対象を抽出
  */
 function buildSwapList_(data, hMap, accountName, prevMonthStart, prevMonthEnd, excludedNames) {
   var colId = hMap['管理番号'] - 1;
   var colDate = hMap['出品日'] - 1;
+  var colSaleDate = hMap['販売日'] - 1;
   var colStatus = hMap['ステータス'] - 1;
   var colAccount = hMap['使用アカウント'] - 1;
   var colLocation = hMap['納品場所'] - 1;
   var activeNorm = normalizeText_(SWAP_CONFIG.STATUS_ACTIVE);
+  var soldNorm = normalizeText_('売却済み');
 
   var activeRows = [];
-  var prevMonthCount = 0;
+  var prevMonthSalesCount = 0;
 
   for (var r = 0; r < data.length; r++) {
     if (normalizeText_(data[r][colAccount]) !== accountName) continue;
-    if (normalizeText_(data[r][colStatus]) !== activeNorm) continue;
+
+    var status = normalizeText_(data[r][colStatus]);
+
+    // 売却済み かつ 販売日が前月 → 販売数カウント
+    if (status === soldNorm) {
+      var saleDate = parseSwapDate_(data[r][colSaleDate]);
+      if (saleDate && saleDate >= prevMonthStart && saleDate <= prevMonthEnd) {
+        prevMonthSalesCount++;
+      }
+      continue;
+    }
+
+    // 出品中 → 返送候補プールに追加
+    if (status !== activeNorm) continue;
 
     // 納品場所が除外対象の作業者なら入替対象から除外
     var location = normalizeText_(data[r][colLocation]);
@@ -106,14 +121,10 @@ function buildSwapList_(data, hMap, accountName, prevMonthStart, prevMonthEnd, e
     var listDate = parseSwapDate_(data[r][colDate]);
     var id = normalizeText_(data[r][colId]);
 
-    if (listDate && listDate >= prevMonthStart && listDate <= prevMonthEnd) {
-      prevMonthCount++;
-    }
-
     activeRows.push({ id: id, date: listDate, dateStr: data[r][colDate] });
   }
 
-  if (prevMonthCount === 0) {
+  if (prevMonthSalesCount === 0) {
     return { account: accountName, prevMonthCount: 0, items: [], email: null, emailSent: false };
   }
 
@@ -124,8 +135,8 @@ function buildSwapList_(data, hMap, accountName, prevMonthStart, prevMonthEnd, e
     return a.date.getTime() - b.date.getTime();
   });
 
-  var swapItems = activeRows.slice(0, prevMonthCount);
-  return { account: accountName, prevMonthCount: prevMonthCount, items: swapItems, email: null, emailSent: false };
+  var swapItems = activeRows.slice(0, prevMonthSalesCount);
+  return { account: accountName, prevMonthCount: prevMonthSalesCount, items: swapItems, email: null, emailSent: false };
 }
 
 // ═══════════════════════════════════════════
@@ -136,7 +147,7 @@ function generateSwapPdf_(accountName, prevStart, prevEnd, prevCount, items) {
   var title = '入替リスト — ' + accountName;
   var year = prevStart.getFullYear();
   var month = prevStart.getMonth() + 1;
-  var periodStr = year + '年' + month + '月出品分（' +
+  var periodStr = year + '年' + month + '月販売分（' +
     formatSwapDate_(prevStart) + '〜' + formatSwapDate_(prevEnd) + '）';
 
   var dateRange = '';
@@ -153,7 +164,7 @@ function generateSwapPdf_(accountName, prevStart, prevEnd, prevCount, items) {
     // ヘッダー情報
     sh.getRange('A1').setValue(title).setFontSize(14).setFontWeight('bold');
     sh.getRange('A2').setValue('集計期間: ' + periodStr);
-    sh.getRange('A3').setValue('前月出品数: ' + prevCount + '件');
+    sh.getRange('A3').setValue('前月販売数: ' + prevCount + '件');
     sh.getRange('A4').setValue('返送対象: ' + items.length + '件' + (dateRange ? '（' + dateRange + '）' : ''));
 
     // テーブルヘッダー（6行目）
@@ -216,7 +227,7 @@ function sendSwapEmail_(email, accountName, prevStart, prevCount, items, pdfBlob
   }
 
   var body = accountName + ' の入替リストです。\n\n' +
-    '前月出品数: ' + prevCount + '件\n' +
+    '前月販売数: ' + prevCount + '件\n' +
     '返送対象: ' + items.length + '件' + dateRange + '\n\n' +
     '詳細はPDFをご確認ください。';
 
