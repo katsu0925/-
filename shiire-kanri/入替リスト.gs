@@ -9,6 +9,7 @@
 
 const SWAP_CONFIG = {
   PRODUCT_SHEET_NAME: '商品管理',
+  WORKER_SHEET_NAME: '作業者マスター',
   HEADER_ROWS: 1,
   ACCOUNTS: [
     { name: '古着屋本舗', emailProp: 'SWAP_EMAIL_FURUGIYAHONPO' },
@@ -35,12 +36,15 @@ function generateSwapLists() {
 
   const header = sheet.getRange(1, 1, 1, lastCol).getDisplayValues()[0];
   const hMap = buildHeaderMap_(header);
-  ['管理番号', '出品日', 'ステータス', '使用アカウント'].forEach(function(name) {
+  ['管理番号', '出品日', 'ステータス', '使用アカウント', '納品場所'].forEach(function(name) {
     if (!hMap[name]) throw new Error('ヘッダ「' + name + '」が見つかりません');
   });
 
   const numRows = lastRow - SWAP_CONFIG.HEADER_ROWS;
   const data = sheet.getRange(SWAP_CONFIG.HEADER_ROWS + 1, 1, numRows, lastCol).getDisplayValues();
+
+  // 作業者マスターから除外対象の納品場所を取得
+  var excludedNames = getExcludedWorkers_(ss);
 
   const now = new Date();
   const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -50,7 +54,7 @@ function generateSwapLists() {
   const results = [];
 
   SWAP_CONFIG.ACCOUNTS.forEach(function(acct) {
-    var result = buildSwapList_(data, hMap, acct.name, prevMonthStart, prevMonthEnd);
+    var result = buildSwapList_(data, hMap, acct.name, prevMonthStart, prevMonthEnd, excludedNames);
 
     if (result.items.length > 0) {
       var pdfBlob = generateSwapPdf_(acct.name, prevMonthStart, prevMonthEnd, result.prevMonthCount, result.items);
@@ -80,11 +84,12 @@ function generateSwapLists() {
 /**
  * アカウント別に前月出品数をカウントし、古い順に同数の入替対象を抽出
  */
-function buildSwapList_(data, hMap, accountName, prevMonthStart, prevMonthEnd) {
+function buildSwapList_(data, hMap, accountName, prevMonthStart, prevMonthEnd, excludedNames) {
   var colId = hMap['管理番号'] - 1;
   var colDate = hMap['出品日'] - 1;
   var colStatus = hMap['ステータス'] - 1;
   var colAccount = hMap['使用アカウント'] - 1;
+  var colLocation = hMap['納品場所'] - 1;
   var activeNorm = normalizeText_(SWAP_CONFIG.STATUS_ACTIVE);
 
   var activeRows = [];
@@ -93,6 +98,10 @@ function buildSwapList_(data, hMap, accountName, prevMonthStart, prevMonthEnd) {
   for (var r = 0; r < data.length; r++) {
     if (normalizeText_(data[r][colAccount]) !== accountName) continue;
     if (normalizeText_(data[r][colStatus]) !== activeNorm) continue;
+
+    // 納品場所が除外対象の作業者なら入替対象から除外
+    var location = normalizeText_(data[r][colLocation]);
+    if (location && excludedNames[location]) continue;
 
     var listDate = parseSwapDate_(data[r][colDate]);
     var id = normalizeText_(data[r][colId]);
@@ -217,6 +226,34 @@ function sendSwapEmail_(email, accountName, prevStart, prevCount, items, pdfBlob
 // ═══════════════════════════════════════════
 //  ユーティリティ
 // ═══════════════════════════════════════════
+
+/**
+ * 作業者マスターのB列(名前)・O列(有効フラグ)を読み、
+ * 有効フラグがFALSEの作業者名をセットで返す
+ */
+function getExcludedWorkers_(ss) {
+  var excluded = {};
+  var sh = ss.getSheetByName(SWAP_CONFIG.WORKER_SHEET_NAME);
+  if (!sh) {
+    console.log('入替リスト: 作業者マスターシートが見つかりません（除外なしで続行）');
+    return excluded;
+  }
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return excluded;
+  // B列=名前, O列=有効フラグ
+  var names = sh.getRange(2, 2, lastRow - 1, 1).getDisplayValues();
+  var flags = sh.getRange(2, 15, lastRow - 1, 1).getDisplayValues();
+  for (var i = 0; i < names.length; i++) {
+    var name = normalizeText_(names[i][0]);
+    var flag = String(flags[i][0]).trim().toUpperCase();
+    if (name && flag === 'FALSE') {
+      excluded[name] = true;
+    }
+  }
+  var count = Object.keys(excluded).length;
+  if (count > 0) console.log('入替リスト: 除外作業者 ' + count + '名: ' + Object.keys(excluded).join(', '));
+  return excluded;
+}
 
 function parseSwapDate_(str) {
   if (!str) return null;
