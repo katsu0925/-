@@ -334,6 +334,33 @@ function baseEditItem_(itemId, params) {
 }
 
 /**
+ * BASE商品を新規登録
+ * @returns {string} 作成された商品ID
+ */
+function baseAddItem_(params) {
+  var url = BASE_APP.API_BASE + '/1/items/add';
+  var token = baseGetAccessToken_();
+
+  var resp = UrlFetchApp.fetch(url, {
+    method: 'post',
+    headers: { Authorization: 'Bearer ' + token },
+    contentType: 'application/x-www-form-urlencoded',
+    payload: baseToFormEncoded_(params),
+    muteHttpExceptions: true
+  });
+
+  var rc = resp.getResponseCode();
+  var text = resp.getContentText();
+  if (rc < 200 || rc >= 300) {
+    throw new Error('BASE商品登録失敗 rc=' + rc + ' ' + text);
+  }
+
+  var result = text ? JSON.parse(text) : {};
+  var item = result.item || result;
+  return String(item.item_id || '');
+}
+
+/**
  * アソート商品の変更をBASEに同期（差分のみ）
  * 5分ごとのトリガーで自動実行される
  */
@@ -356,13 +383,15 @@ function baseSyncProductsToBase() {
 
   var current = {};
   var updated = 0;
+  var created = 0;
   var skipped = 0;
+  var sheetChanged = false;
 
   for (var r = 0; r < data.length; r++) {
     var baseItemId = String(data[r][c.baseItemId] || '').trim();
-    if (!baseItemId) { skipped++; continue; }
-
     var name = String(data[r][c.name] || '').trim();
+    if (!name) { skipped++; continue; }
+
     var description = String(data[r][c.description] || '').trim();
     var price = Number(data[r][c.price]) || 0;
     var active = data[r][c.active];
@@ -370,6 +399,37 @@ function baseSyncProductsToBase() {
     var stockRaw = data[r][c.stock];
     var stock = (stockRaw === '' || stockRaw === null || stockRaw === undefined) ? -1 : Number(stockRaw);
     if (isNaN(stock)) stock = -1;
+    var baseStock = stock === -1 ? 999 : Math.max(0, stock);
+
+    // BASE商品IDが未設定 → 新規登録
+    if (!baseItemId) {
+      if (!isActive) { skipped++; continue; } // 非公開は登録しない
+      if (price <= 0) { skipped++; continue; } // 価格0は登録しない
+
+      try {
+        var newId = baseAddItem_({
+          title: name,
+          detail: description,
+          price: String(price),
+          stock: String(baseStock),
+          visible: isActive ? '1' : '0',
+          identifier: String(data[r][c.productId] || '').trim()
+        });
+
+        if (newId) {
+          data[r][c.baseItemId] = newId;
+          baseItemId = newId;
+          sheetChanged = true;
+          created++;
+          console.log('BASE新規登録: ' + name + ' → ID:' + newId);
+        }
+      } catch (e) {
+        console.error('BASE新規登録エラー: ' + name + ' - ' + (e.message || e));
+      }
+
+      Utilities.sleep(300);
+      if (!baseItemId) continue;
+    }
 
     // 現在の状態をハッシュ化して比較
     var hash = name + '|' + description + '|' + price + '|' + isActive + '|' + stock;
@@ -378,16 +438,14 @@ function baseSyncProductsToBase() {
     if (prev[baseItemId] === hash) { skipped++; continue; }
 
     // 差分あり → BASEに反映
-    var params = {
-      title: name,
-      detail: description,
-      price: String(price),
-      stock: String(stock === -1 ? 999 : Math.max(0, stock)),
-      visible: isActive ? '1' : '0'
-    };
-
     try {
-      baseEditItem_(baseItemId, params);
+      baseEditItem_(baseItemId, {
+        title: name,
+        detail: description,
+        price: String(price),
+        stock: String(baseStock),
+        visible: isActive ? '1' : '0'
+      });
       updated++;
       console.log('BASE同期: ' + name + ' (変更あり)');
     } catch (e) {
@@ -397,11 +455,16 @@ function baseSyncProductsToBase() {
     Utilities.sleep(300);
   }
 
+  // R列にBASE商品IDが書き込まれた場合、シートに反映
+  if (sheetChanged) {
+    sh.getRange(2, 1, data.length, BULK_SHEET_HEADER.length).setValues(data);
+  }
+
   // スナップショット保存
   props.setProperty('BASE_SYNC_SNAPSHOT', JSON.stringify(current));
 
-  if (updated > 0) {
-    console.log('BASE商品同期完了: 更新' + updated + '件 / スキップ' + skipped + '件');
+  if (updated > 0 || created > 0) {
+    console.log('BASE商品同期完了: 新規' + created + '件 / 更新' + updated + '件 / スキップ' + skipped + '件');
   }
 }
 
