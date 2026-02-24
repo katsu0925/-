@@ -5850,38 +5850,6 @@ function setupScrollTopButton_() {
 }
 
 // =====================================================
-// アクセスログ（PV記録）
-// =====================================================
-
-function logPageView_() {
-  // オーナー判定: ADMIN_KEY or _nk_owner_flag（ログイン時にサーバーから付与）
-  var isOwnerNow = IS_OWNER || (function() { try { return localStorage.getItem('_nk_owner_flag') === '1'; } catch(e) { return false; } })();
-  if (isOwnerNow) return;
-  // ボット・クローラー除外
-  var ua = navigator.userAgent || '';
-  if (/HeadlessChrome|Google-Read-Aloud|bot|crawl|spider|slurp/i.test(ua)) return;
-  var sw = screen.width || 0, sh = screen.height || 0;
-  if ((sw === 0 && sh === 0) || (sw >= 2000 && sh >= 2000) || (sw === 400 && sh === 400)) return;
-  try {
-    var payload = {
-      page: 'Index',
-      userKey: state.userKey || '',
-      url: window.location.href || '',
-      referrer: document.referrer || '',
-      userAgent: navigator.userAgent || '',
-      language: navigator.language || '',
-      screen: (screen.width || 0) + 'x' + (screen.height || 0),
-      email: (state.customer && state.customer.email) ? state.customer.email : ''
-    };
-    runApi('apiLogPV', payload).catch(function(e) {
-      console.log('PVログエラー:', e);
-    });
-  } catch (e) {
-    console.log('PVログ送信失敗:', e);
-  }
-}
-
-// =====================================================
 // アソート商品ページへの遷移（document.write方式）
 // =====================================================
 var _cachedBulkHtml = null;
@@ -6084,9 +6052,6 @@ function boot() {
       // 初回データロード完了後に非重要APIを遅延実行
       // CSRFトークン: 注文送信に必要だが初期描画には不要
       fetchCsrfToken_();
-      // PVログ: セッション検証完了後に実行（オーナー判定の精度を確保）
-      var sp = state._sessionPromise || Promise.resolve();
-      sp.then(function() { setTimeout(logPageView_, 500); });
       // アソートページHTMLをバックグラウンドでプリフェッチ（シームレス切替用）
       setTimeout(prefetchBulkPage_, 1000);
     })
@@ -6095,10 +6060,8 @@ function boot() {
       if (!state.dataLoaded) {
         showToast('データの読み込みに失敗しました: ' + (err.message || err));
       }
-      // エラー時でもCSRFトークンとPVログは実行
+      // エラー時でもCSRFトークンは実行
       fetchCsrfToken_();
-      var sp2 = state._sessionPromise || Promise.resolve();
-      sp2.then(function() { setTimeout(logPageView_, 500); });
     });
 }
 
