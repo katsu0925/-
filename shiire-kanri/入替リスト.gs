@@ -233,23 +233,35 @@ function sendSwapEmail_(email, accountName, prevStart, prevCount, items, pdfBlob
  */
 function getExcludedWorkers_(ss) {
   var excluded = {};
+
+  // 1. 作業者マスター: 有効フラグFALSEの作業者を除外
   var sh = ss.getSheetByName(SWAP_CONFIG.WORKER_SHEET_NAME);
-  if (!sh) {
-    console.log('入替リスト: 作業者マスターシートが見つかりません（除外なしで続行）');
-    return excluded;
-  }
-  var lastRow = sh.getLastRow();
-  if (lastRow < 2) return excluded;
-  // B列=名前, O列=有効フラグ
-  var names = sh.getRange(2, 2, lastRow - 1, 1).getDisplayValues();
-  var flags = sh.getRange(2, 15, lastRow - 1, 1).getDisplayValues();
-  for (var i = 0; i < names.length; i++) {
-    var name = normalizeText_(names[i][0]);
-    var flag = String(flags[i][0]).trim().toUpperCase();
-    if (name && flag === 'FALSE') {
-      excluded[name] = true;
+  if (sh) {
+    var lastRow = sh.getLastRow();
+    if (lastRow >= 2) {
+      var names = sh.getRange(2, 2, lastRow - 1, 1).getDisplayValues();
+      var flags = sh.getRange(2, 15, lastRow - 1, 1).getDisplayValues();
+      for (var i = 0; i < names.length; i++) {
+        var name = normalizeText_(names[i][0]);
+        var flag = String(flags[i][0]).trim().toUpperCase();
+        if (name && flag === 'FALSE') excluded[name] = true;
+      }
     }
+  } else {
+    console.log('入替リスト: 作業者マスターシートが見つかりません（除外なしで続行）');
   }
+
+  // 2. スクリプトプロパティ SWAP_EXCLUDE_NAMES で追加除外（カンマ区切り）
+  try {
+    var extra = PropertiesService.getScriptProperties().getProperty('SWAP_EXCLUDE_NAMES') || '';
+    if (extra) {
+      extra.split(',').forEach(function(n) {
+        var name = normalizeText_(n);
+        if (name) excluded[name] = true;
+      });
+    }
+  } catch (e) {}
+
   var count = Object.keys(excluded).length;
   if (count > 0) console.log('入替リスト: 除外作業者 ' + count + '名: ' + Object.keys(excluded).join(', '));
   return excluded;
