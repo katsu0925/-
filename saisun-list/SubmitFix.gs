@@ -66,6 +66,11 @@ function apiSubmitEstimate(userKey, form, ids) {
       sum += Number(p.price || 0);
     }
 
+    // === アソートカート合算データを先読み ===
+    var bulkProductAmount = Math.max(0, Math.floor(Number(f.bulkProductAmount || 0)));
+    var bulkShippingAmount = Math.max(0, Math.floor(Number(f.bulkShipping || 0)));
+    var bulkItemCount = Math.max(0, Math.floor(Number(f.bulkItemCount || 0)));
+
     // === 価格計算（ロック不要の演算） ===
     var totalCount = list.length;
     var discountRate = 0;
@@ -78,7 +83,7 @@ function apiSubmitEstimate(userKey, form, ids) {
       var couponResult = validateCoupon_(couponCode, contact, 'detauri', null, companyName);
       if (!couponResult.ok) return couponResult;
       validatedCoupon = couponResult;
-      couponDiscount = calcCouponDiscount_(couponResult.type, couponResult.value, sum);
+      couponDiscount = calcCouponDiscount_(couponResult.type, couponResult.value, sum + bulkProductAmount);
       couponLabel = couponResult.type === 'rate'
         ? ('クーポン' + Math.round(couponResult.value * 100) + '%OFF')
         : couponResult.type === 'shipping_free'
@@ -119,9 +124,12 @@ function apiSubmitEstimate(userKey, form, ids) {
     // ※割引は商品代のみに適用。送料は割引対象外（税込み固定）。
     var discounted;
     if (couponCode) {
-      // クーポン割引を先に適用し、その後に併用割引率を適用
-      var afterCoupon = Math.max(0, sum - couponDiscount);
+      // クーポン割引を両チャネルに配分（デタウリ優先）
+      var _cdOnDetauri = Math.min(couponDiscount, sum);
+      var _cdOnBulk = couponDiscount - _cdOnDetauri;
+      var afterCoupon = Math.max(0, sum - _cdOnDetauri);
       discounted = Math.round(afterCoupon * (1 - discountRate));
+      bulkProductAmount = Math.max(0, bulkProductAmount - _cdOnBulk);
     } else {
       discounted = Math.round(sum * (1 - discountRate));
     }
@@ -132,9 +140,10 @@ function apiSubmitEstimate(userKey, form, ids) {
     var shippingArea = String(f.shippingArea || '');
     var shippingPref = String(f.shippingPref || '');
 
-    // 送料無料クーポン適用
+    // 送料無料クーポン適用（両チャネル）
     if (validatedCoupon && validatedCoupon.type === 'shipping_free') {
       shippingAmount = 0;
+      bulkShippingAmount = 0;
     }
 
     // === ポイント利用額の事前計算（ロック不要） ===
@@ -143,11 +152,16 @@ function apiSubmitEstimate(userKey, form, ids) {
     if (usePoints > 0 && contact && typeof findCustomerByEmail_ === 'function') {
       custForPoints = findCustomerByEmail_(contact);
       if (custForPoints && custForPoints.points >= usePoints) {
-        pointsUsed = Math.min(usePoints, discounted + shippingAmount);
-        var pointsOnProduct = Math.min(pointsUsed, discounted);
-        var pointsOnShipping = pointsUsed - pointsOnProduct;
-        discounted = discounted - pointsOnProduct;
+        pointsUsed = Math.min(usePoints, discounted + shippingAmount + bulkProductAmount + bulkShippingAmount);
+        var _ptRem = pointsUsed;
+        var pointsOnProduct = Math.min(_ptRem, discounted); _ptRem -= pointsOnProduct;
+        var pointsOnShipping = Math.min(_ptRem, shippingAmount); _ptRem -= pointsOnShipping;
+        var pointsOnBulkProd = Math.min(_ptRem, bulkProductAmount); _ptRem -= pointsOnBulkProd;
+        var pointsOnBulkShip = Math.min(_ptRem, bulkShippingAmount);
+        discounted -= pointsOnProduct;
         shippingAmount = Math.max(0, shippingAmount - pointsOnShipping);
+        bulkProductAmount = Math.max(0, bulkProductAmount - pointsOnBulkProd);
+        bulkShippingAmount = Math.max(0, bulkShippingAmount - pointsOnBulkShip);
       }
     }
 
@@ -180,9 +194,6 @@ function apiSubmitEstimate(userKey, form, ids) {
     }
 
     // === アソートカートの金額を合算（両チャネル合算決済） ===
-    var bulkProductAmount = Math.max(0, Math.floor(Number(f.bulkProductAmount || 0)));
-    var bulkShippingAmount = Math.max(0, Math.floor(Number(f.bulkShipping || 0)));
-    var bulkItemCount = Math.max(0, Math.floor(Number(f.bulkItemCount || 0)));
     var bulkTotal = bulkProductAmount + bulkShippingAmount;
 
     // 送料込みの合計金額

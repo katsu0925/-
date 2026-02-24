@@ -87,6 +87,16 @@ function apiBulkSubmit(form, items) {
 
     if (orderItems.length === 0) return { ok: false, message: 'カートが空です' };
 
+    // === デタウリカート合算データを先読み ===
+    var detauriProductAmount = Math.max(0, Math.floor(Number(f.detauriProductAmount || 0)));
+    var detauriShippingAmount = Math.max(0, Math.floor(Number(f.detauriShipping || 0)));
+    var detauriItemCount = Math.max(0, Math.floor(Number(f.detauriItemCount || 0)));
+    // デタウリ最低数量チェック（1点以上の場合は10点以上必要）
+    var DETAURI_MIN_QTY = 10;
+    if (detauriItemCount > 0 && detauriItemCount < DETAURI_MIN_QTY) {
+      return { ok: false, message: 'デタウリ商品は' + DETAURI_MIN_QTY + '点以上で購入可能です（現在' + detauriItemCount + '点）' };
+    }
+
     // === 割引計算（既存のクーポン・会員割引を再利用） ===
     var discountRate = 0;
     var couponDiscount = 0;
@@ -99,7 +109,7 @@ function apiBulkSubmit(form, items) {
       var couponResult = validateCoupon_(couponCode, contact, 'bulk', bulkProductIds, companyName);
       if (!couponResult.ok) return couponResult;
       validatedCoupon = couponResult;
-      couponDiscount = calcCouponDiscount_(couponResult.type, couponResult.value, sum);
+      couponDiscount = calcCouponDiscount_(couponResult.type, couponResult.value, sum + detauriProductAmount);
       couponLabel = couponResult.type === 'rate'
         ? ('クーポン' + Math.round(couponResult.value * 100) + '%OFF')
         : couponResult.type === 'shipping_free'
@@ -122,8 +132,12 @@ function apiBulkSubmit(form, items) {
 
     var discounted;
     if (couponCode) {
-      var afterCoupon = Math.max(0, sum - couponDiscount);
+      // クーポン割引を両チャネルに配分（アソート優先）
+      var _cdOnAssort = Math.min(couponDiscount, sum);
+      var _cdOnDetauri = couponDiscount - _cdOnAssort;
+      var afterCoupon = Math.max(0, sum - _cdOnAssort);
       discounted = Math.round(afterCoupon * (1 - discountRate));
+      detauriProductAmount = Math.max(0, detauriProductAmount - _cdOnDetauri);
     } else {
       discounted = Math.round(sum * (1 - discountRate));
     }
@@ -159,6 +173,7 @@ function apiBulkSubmit(form, items) {
         shippingAmount = SHIPPING_RATES[shippingArea][1] * shippingExcludedQty;
       } else {
         shippingAmount = 0;
+        detauriShippingAmount = 0; // 送料無料クーポン：デタウリ送料も無料に
       }
     }
 
@@ -171,11 +186,16 @@ function apiBulkSubmit(form, items) {
       if (availablePoints < pointsUsed) {
         return { ok: false, message: 'ポイント残高が不足しています（残高: ' + availablePoints + 'pt）' };
       }
-      pointsUsed = Math.min(pointsUsed, discounted + shippingAmount);
-      var ptOnProduct = Math.min(pointsUsed, discounted);
-      var ptOnShipping = pointsUsed - ptOnProduct;
+      pointsUsed = Math.min(pointsUsed, discounted + shippingAmount + detauriProductAmount + detauriShippingAmount);
+      var _ptRem = pointsUsed;
+      var ptOnProduct = Math.min(_ptRem, discounted); _ptRem -= ptOnProduct;
+      var ptOnShipping = Math.min(_ptRem, shippingAmount); _ptRem -= ptOnShipping;
+      var ptOnDetauriProd = Math.min(_ptRem, detauriProductAmount); _ptRem -= ptOnDetauriProd;
+      var ptOnDetauriShip = Math.min(_ptRem, detauriShippingAmount);
       discounted = Math.max(0, discounted - ptOnProduct);
       shippingAmount = Math.max(0, shippingAmount - ptOnShipping);
+      detauriProductAmount = Math.max(0, detauriProductAmount - ptOnDetauriProd);
+      detauriShippingAmount = Math.max(0, detauriShippingAmount - ptOnDetauriShip);
       pointsDiscount = pointsUsed;
     }
 
@@ -208,16 +228,6 @@ function apiBulkSubmit(form, items) {
     }
 
     // === デタウリカートの金額を合算（両チャネル合算決済） ===
-    var detauriProductAmount = Math.max(0, Math.floor(Number(f.detauriProductAmount || 0)));
-    var detauriShippingAmount = Math.max(0, Math.floor(Number(f.detauriShipping || 0)));
-    var detauriItemCount = Math.max(0, Math.floor(Number(f.detauriItemCount || 0)));
-
-    // デタウリ最低数量チェック（1点以上の場合は10点以上必要）
-    var DETAURI_MIN_QTY = 10;
-    if (detauriItemCount > 0 && detauriItemCount < DETAURI_MIN_QTY) {
-      return { ok: false, message: 'デタウリ商品は' + DETAURI_MIN_QTY + '点以上で購入可能です（現在' + detauriItemCount + '点）' };
-    }
-
     var detauriTotal = detauriProductAmount + detauriShippingAmount;
 
     var totalWithShipping = discounted + shippingAmount + detauriTotal;

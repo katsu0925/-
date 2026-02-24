@@ -5,6 +5,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <title>デタウリ.Detauri - アソート商品</title>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-NYPY0S7Q6S"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-NYPY0S7Q6S');
+</script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans-serif;background:#f5f5f5;color:#333;-webkit-font-smoothing:antialiased}
@@ -1114,6 +1122,28 @@ body.admin-mode .admin-settings-fab{display:flex;}
 
 <script>
 // =====================================================
+// GA4 イベントトラッキング
+// =====================================================
+function trackEvent_(name, params) {
+  try { if (typeof gtag === 'function') gtag('event', name, params || {}); } catch(e) {}
+}
+function trackEcommerce_(name, items, value, extra) {
+  var p = { items: items, currency: 'JPY' };
+  if (value != null) p.value = value;
+  if (extra) { for (var k in extra) p[k] = extra[k]; }
+  trackEvent_(name, p);
+}
+function buildGaBulkItem_(product, qty) {
+  return {
+    item_id: product.productId || '',
+    item_name: product.name || '',
+    item_category: 'assort',
+    price: Number(product.price || 0),
+    quantity: qty || 1
+  };
+}
+
+// =====================================================
 // 状態
 // =====================================================
 var BULK_CART_KEY = 'bulk_cart_v1';
@@ -1366,6 +1396,7 @@ window.addEventListener('DOMContentLoaded', function() {
   loadDetauriCart();
   var savedCart = loadBulkCart();
   loadSharedSession();
+  trackEvent_('page_loaded', { page_type: 'assort' });
   window.addEventListener('resize', adjustHeaderForBanner_);
 
   // キャッシュから即時表示
@@ -1471,6 +1502,7 @@ function renderProducts() {
 function openProductModal(idx) {
   var p = G.products[idx];
   if (!p) return;
+  trackEcommerce_('view_item', [buildGaBulkItem_(p, G.cart[p.productId] || 0)], Number(p.price || 0));
 
   var modal = document.getElementById('productModal');
   var imagesEl = document.getElementById('modalImages');
@@ -1647,6 +1679,9 @@ function changeQty(productId, delta) {
   var next = Math.max(0, Math.min(limit, cur + delta));
   if (next === 0) { delete G.cart[productId]; }
   else { G.cart[productId] = next; }
+
+  if (next > cur) trackEcommerce_('add_to_cart', [buildGaBulkItem_(p, delta)], Number(p.price || 0) * delta);
+  else if (next === 0 && cur > 0) trackEcommerce_('remove_from_cart', [buildGaBulkItem_(p, cur)], Number(p.price || 0) * cur);
 
   var input = document.getElementById('qty_' + productId);
   if (input) input.value = next;
@@ -2144,6 +2179,7 @@ function applyCoupon() {
     .then(function(r) {
       if (r && r.ok) {
         G.coupon = r;
+        trackEvent_('apply_coupon', { coupon_code: code.toUpperCase(), discount_type: r.type || '', page_type: 'assort' });
         resEl.className = 'coupon-result ok';
         resEl.textContent = r.label + ' が適用されました';
         updateCart();
@@ -2260,6 +2296,10 @@ function submitOrder() {
   };
 
   G.submitting = true;
+  var _chkItems = [], _chkVal = 0;
+  items.forEach(function(it) { var _p = G.products.find(function(x){return x.productId===it.productId;}); if (_p) { _chkItems.push(buildGaBulkItem_(_p, it.qty)); _chkVal += Number(_p.price||0)*it.qty; }});
+  trackEcommerce_('begin_checkout', _chkItems, _chkVal, { item_count: totalQty, page_type: 'assort' });
+
   var btn = document.getElementById('payButton');
   btn.disabled = true;
   btn.textContent = '処理中...';
@@ -2268,6 +2308,7 @@ function submitOrder() {
     .then(function(r) {
       G.submitting = false;
       if (r && r.ok && r.sessionUrl) {
+        trackEvent_('redirect_to_payment', { payment_gateway: 'komoju', page_type: 'assort' });
         window.location.href = r.sessionUrl;
       } else {
         btn.disabled = false;
@@ -2463,6 +2504,8 @@ function deleteDetauriItem_(id) {
     var raw = localStorage.getItem(DETAURI_CART_KEY);
     if (!raw) return;
     var j = JSON.parse(raw);
+    var _rmIt = j.itemsById ? j.itemsById[id] : null;
+    if (_rmIt) trackEcommerce_('remove_from_cart', [{ item_id: id, item_name: _rmIt.noLabel || id, item_category: 'detauri', price: Number(_rmIt.price || 0) }], Number(_rmIt.price || 0));
     var idx = (j.ids || []).indexOf(id);
     if (idx !== -1) j.ids.splice(idx, 1);
     if (j.itemsById) delete j.itemsById[id];
@@ -2774,6 +2817,7 @@ function doLogin_() {
         } catch (e) {}
         updateAuthUi_();
         closeAuthModal_();
+        trackEvent_('login', { method: 'email', page_type: 'assort' });
         autoFillCustomerForm();
         updateCart();
       } else {
@@ -2816,6 +2860,7 @@ function doRegister_() {
         } catch (e) {}
         updateAuthUi_();
         closeAuthModal_();
+        trackEvent_('sign_up', { method: 'email', page_type: 'assort' });
         autoFillCustomerForm();
         updateCart();
         var md = G.settings.memberDiscount;
@@ -2842,6 +2887,7 @@ function doLogout_() {
   G.pointsUsed = 0;
   try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
   updateAuthUi_();
+  trackEvent_('logout', { page_type: 'assort' });
   updateCart();
 
   if (saved && saved.sessionId) {
