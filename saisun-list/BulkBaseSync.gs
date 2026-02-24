@@ -446,11 +446,12 @@ function baseSyncProductsToBase() {
         title: name,
         detail: description,
         price: String(price),
-        stock: String(baseStock),
         visible: isActive ? '1' : '0'
       });
+      // 在庫は edit_stock エンドポイントで別途更新
+      baseUpdateStock_(baseItemId, baseStock);
       updated++;
-      console.log('BASE同期: ' + name + ' (変更あり)');
+      console.log('BASE同期: ' + name + ' (変更あり, 在庫:' + baseStock + ')');
     } catch (e) {
       console.error('BASE同期エラー: ' + name + ' - ' + (e.message || e));
     }
