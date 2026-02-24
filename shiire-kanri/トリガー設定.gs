@@ -27,5 +27,5 @@ function FULL_RESTORE_ALL() {
   // 毎日 5時 (不要プロパティ自動クリーンアップ)
   ScriptApp.newTrigger('cleanupStaleProps').timeBased().everyDays(1).atHour(5).inTimezone('GMT+9').create();
 
-  Browser.msgBox('全てのトリガー（ご提示分＋ログ分析分）を復旧しました。');
+  console.log('全てのトリガーを復旧しました。');
 }
