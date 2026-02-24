@@ -182,6 +182,9 @@ function splitMoveIds_(text) {
 
 var INDEX_SHEET_NAME = '管理番号インデックス';
 
+/** 手動実行用: 管理番号インデックスを再構築 */
+function syncProductIndex() { syncProductIndex_(); }
+
 /**
  * 商品管理から管理番号・納品場所を抽出し、管理番号の自然順でソートしたインデックスシートを再構築
  * onChange および handleChange_Inventory と同じタイミングで呼ばれる
