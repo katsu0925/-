@@ -3,7 +3,7 @@ const BASE_APP = {
   API_BASE: 'https://api.thebase.in',
   AUTH_PATH: '/1/oauth/authorize',
   TOKEN_PATH: '/1/oauth/token',
-  SCOPE: 'read_users read_orders',
+  SCOPE: 'read_users read_orders read_items write_items',
   PROP_CLIENT_ID: 'BASE_CLIENT_ID',
   PROP_CLIENT_SECRET: 'BASE_CLIENT_SECRET',
   PROP_ACCESS_TOKEN: 'BASE_ACCESS_TOKEN',
@@ -313,6 +313,13 @@ function baseSyncOrdersNow() {
     syncBaseOrdersToIraiKanri();
   } catch (e) {
     console.error('syncBaseOrdersToIraiKanri error:', e);
+  }
+
+  // BASE注文 → アソート在庫減算
+  try {
+    baseSyncStockFromOrders_();
+  } catch (e) {
+    console.error('baseSyncStockFromOrders_ error:', e);
   }
 
   return result;

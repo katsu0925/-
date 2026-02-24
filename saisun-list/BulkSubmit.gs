@@ -308,9 +308,12 @@ function apiBulkSubmit(form, items) {
 
     console.log('アソート商品KOMOJU決済セッション作成: ' + receiptNo + ' → ' + komojuResult.sessionUrl);
 
-    // === 在庫減算 ===
+    // === 在庫減算 + BASE在庫同期 ===
     try {
       bulk_deductStock_(orderItems);
+      for (var si = 0; si < orderItems.length; si++) {
+        try { baseSyncSingleStock_(orderItems[si].productId); } catch (be) { console.error('BASE在庫同期エラー:', be); }
+      }
     } catch (stockErr) {
       console.error('在庫減算エラー（注文は継続）:', stockErr);
     }
