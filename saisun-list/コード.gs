@@ -22,7 +22,7 @@ const CONFIG = {
   DEST_COL_SHIPPING: 25,
 
   SRC_RETURN_START_ROW: 2,
-  SRC_RETURN_COL_C: 3,
+  SRC_RETURN_COL_C: 4,
 
   SRC_AI_START_ROW: 2,
   SRC_AI_COL_KEY: 2,
@@ -676,7 +676,7 @@ function syncTanaoroshi_(productSheet, returnSheet, destSS) {
 
     for (let i = 0; i < n; i++) {
       const boxId = String(data[i][0] ?? '').trim();
-      const cell = String(data[i][2] ?? '').trim();
+      const cell = String(data[i][3] ?? '').trim();
       if (!cell) continue;
 
       const parts = cell.split(/[,\n\r\t\s、，／\/・|]+/);
