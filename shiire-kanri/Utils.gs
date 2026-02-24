@@ -135,11 +135,8 @@ function cleanupStaleProps() {
       return;
     }
 
-    // mail_sent__*: 全て削除（送信済みフラグは蓄積不要）
-    if (k.indexOf('mail_sent__') === 0) {
-      toDelete.push(k);
-      return;
-    }
+    // mail_sent__*: 重複送信防止フラグのため削除しない
+    if (k.indexOf('mail_sent__') === 0) return;
   });
 
   if (toDelete.length > 0) {

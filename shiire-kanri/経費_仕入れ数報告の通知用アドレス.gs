@@ -82,3 +82,41 @@ function getRecipients(ss) {
 
 function propKey(sheetName, id) { return "mail_sent__" + sheetName + "__" + id; }
 function resetMailSent(sheetName, id) { PropertiesService.getScriptProperties().deleteProperty(propKey(sheetName, id)); }
+
+/**
+ * 全既存行を「送信済み」としてマーク（メール再送を止める修復用）
+ * GASエディタから手動実行してください
+ */
+function markAllRowsAsSent() {
+  var ss = SpreadsheetApp.getActive();
+  var props = PropertiesService.getScriptProperties();
+  var count = 0;
+  CONFIG_MAILER.SHEETS.forEach(function(def) {
+    var sh = ss.getSheetByName(def.name);
+    if (!sh) return;
+    var lastRow = sh.getLastRow();
+    var lastCol = sh.getLastColumn();
+    if (lastRow < 2) return;
+    var headers = sh.getRange(1, 1, 1, lastCol).getDisplayValues()[0].map(function(v) { return String(v).trim(); });
+    var fieldIdx = {};
+    def.fields.forEach(function(f) { fieldIdx[f] = headers.indexOf(f); });
+    var idIdx = def.idHeader ? headers.indexOf(def.idHeader) : -1;
+    var data = sh.getRange(2, 1, lastRow - 1, lastCol).getDisplayValues();
+    var batch = {};
+    data.forEach(function(row, i) {
+      var rowNumber = i + 2;
+      var idValue = '';
+      if (idIdx >= 0) idValue = String(row[idIdx]).trim();
+      if (!idValue) {
+        var firstIdx = def.fields.map(function(f) { return fieldIdx[f]; }).find(function(idx) { return idx >= 0; });
+        var firstVal = firstIdx >= 0 ? String(row[firstIdx]).trim() : '';
+        idValue = firstVal ? 'row' + rowNumber + '_' + firstVal : 'row' + rowNumber;
+      }
+      var key = propKey(def.name, idValue);
+      batch[key] = 'sent';
+      count++;
+    });
+    props.setProperties(batch);
+  });
+  console.log('全行送信済みマーク完了: ' + count + '件');
+}
