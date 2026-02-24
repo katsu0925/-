@@ -3,7 +3,7 @@
 // 返送管理シート構成:
 //   A列: 箱ID
 //   B列: 報告者
-//   C列: 発送先
+//   C列: 移動先
 //   D列: 管理番号（複数: カンマ/改行/スペース区切り）
 //   E列: 着数
 //   F列: 備考
@@ -68,7 +68,7 @@ function updateReturnStatusNowInner_() {
       statusVals[r][0] = RETURN_STATUS_SYNC_CONFIG.RETURNED_STATUS_TEXT;
       statusChanged = true;
     }
-    // 納品場所更新（発送先が入力されている場合のみ）
+    // 納品場所更新（移動先が入力されている場合のみ）
     if (dest && normalizeText_(locVals[r][0]) !== normalizeText_(dest)) {
       locVals[r][0] = dest;
       locChanged = true;
