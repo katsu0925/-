@@ -121,7 +121,7 @@ function buildSwapList_(data, hMap, accountName, prevMonthStart, prevMonthEnd, e
     var listDate = parseSwapDate_(data[r][colDate]);
     var id = normalizeText_(data[r][colId]);
 
-    activeRows.push({ id: id, date: listDate, dateStr: data[r][colDate] });
+    activeRows.push({ id: id, date: listDate, dateStr: data[r][colDate], location: location });
   }
 
   if (prevMonthSalesCount === 0) {
@@ -169,7 +169,7 @@ function generateSwapPdf_(accountName, prevStart, prevEnd, prevCount, items) {
 
     // テーブルヘッダー（6行目）
     var tableHeaderRow = 6;
-    var tableHeaders = ['No.', '管理番号', '使用アカウント', '出品日'];
+    var tableHeaders = ['No.', '管理番号', '納品場所', '使用アカウント', '出品日'];
     sh.getRange(tableHeaderRow, 1, 1, tableHeaders.length).setValues([tableHeaders])
       .setFontWeight('bold')
       .setBackground('#f0f0f0');
@@ -177,7 +177,7 @@ function generateSwapPdf_(accountName, prevStart, prevEnd, prevCount, items) {
     // テーブルデータ
     if (items.length > 0) {
       var tableData = items.map(function(item, i) {
-        return [i + 1, item.id, accountName, item.dateStr];
+        return [i + 1, item.id, item.location || '', accountName, item.dateStr];
       });
       sh.getRange(tableHeaderRow + 1, 1, tableData.length, tableHeaders.length).setValues(tableData);
     }
@@ -185,8 +185,9 @@ function generateSwapPdf_(accountName, prevStart, prevEnd, prevCount, items) {
     // 列幅調整
     sh.setColumnWidth(1, 50);
     sh.setColumnWidth(2, 120);
-    sh.setColumnWidth(3, 200);
-    sh.setColumnWidth(4, 100);
+    sh.setColumnWidth(3, 100);
+    sh.setColumnWidth(4, 200);
+    sh.setColumnWidth(5, 100);
 
     SpreadsheetApp.flush();
 
