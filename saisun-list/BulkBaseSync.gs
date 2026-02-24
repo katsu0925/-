@@ -1,9 +1,9 @@
 // BulkBaseSync.gs
 // =====================================================
-// BASE ↔ アソート商品 在庫同期
+// BASE ↔ アソート商品 在庫・商品情報同期
 // =====================================================
 // 前提: BASE APIスコープに read_items, write_items が必要
-//       baseReLinkByDialog() で再認証すること
+//       BASEAPI.gs の basePrintAuthUrl() で再認証すること
 
 /**
  * BASE商品一覧を取得（全件ページング対応）
@@ -306,4 +306,117 @@ function baseSyncStockFromOrders_() {
   } catch (e) {
     console.error('baseSyncStockFromOrders_ error: ' + (e.message || e));
   }
+}
+
+// =====================================================
+// アソート商品 → BASE 商品情報同期（定期実行）
+// =====================================================
+
+/**
+ * BASE商品を編集（タイトル・説明・価格・在庫・公開状態）
+ */
+function baseEditItem_(itemId, params) {
+  var url = BASE_APP.API_BASE + '/1/items/edit/' + encodeURIComponent(String(itemId));
+  var token = baseGetAccessToken_();
+
+  var resp = UrlFetchApp.fetch(url, {
+    method: 'put',
+    headers: { Authorization: 'Bearer ' + token },
+    contentType: 'application/x-www-form-urlencoded',
+    payload: baseToFormEncoded_(params),
+    muteHttpExceptions: true
+  });
+
+  var rc = resp.getResponseCode();
+  if (rc < 200 || rc >= 300) {
+    throw new Error('BASE商品編集失敗 item=' + itemId + ' rc=' + rc + ' ' + resp.getContentText());
+  }
+}
+
+/**
+ * アソート商品の変更をBASEに同期（差分のみ）
+ * 5分ごとのトリガーで自動実行される
+ */
+function baseSyncProductsToBase() {
+  var ss = bulk_getSs_();
+  var sh = ss.getSheetByName(BULK_CONFIG.sheetName);
+  if (!sh) return;
+
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return;
+
+  var c = BULK_CONFIG.cols;
+  var data = sh.getRange(2, 1, lastRow - 1, BULK_SHEET_HEADER.length).getValues();
+
+  // 前回のスナップショットを取得
+  var props = PropertiesService.getScriptProperties();
+  var prevJson = props.getProperty('BASE_SYNC_SNAPSHOT') || '{}';
+  var prev;
+  try { prev = JSON.parse(prevJson); } catch (e) { prev = {}; }
+
+  var current = {};
+  var updated = 0;
+  var skipped = 0;
+
+  for (var r = 0; r < data.length; r++) {
+    var baseItemId = String(data[r][c.baseItemId] || '').trim();
+    if (!baseItemId) { skipped++; continue; }
+
+    var name = String(data[r][c.name] || '').trim();
+    var description = String(data[r][c.description] || '').trim();
+    var price = Number(data[r][c.price]) || 0;
+    var active = data[r][c.active];
+    var isActive = (active === true || String(active).toUpperCase() === 'TRUE');
+    var stockRaw = data[r][c.stock];
+    var stock = (stockRaw === '' || stockRaw === null || stockRaw === undefined) ? -1 : Number(stockRaw);
+    if (isNaN(stock)) stock = -1;
+
+    // 現在の状態をハッシュ化して比較
+    var hash = name + '|' + description + '|' + price + '|' + isActive + '|' + stock;
+    current[baseItemId] = hash;
+
+    if (prev[baseItemId] === hash) { skipped++; continue; }
+
+    // 差分あり → BASEに反映
+    var params = {
+      title: name,
+      detail: description,
+      price: String(price),
+      stock: String(stock === -1 ? 999 : Math.max(0, stock)),
+      visible: isActive ? '1' : '0'
+    };
+
+    try {
+      baseEditItem_(baseItemId, params);
+      updated++;
+      console.log('BASE同期: ' + name + ' (変更あり)');
+    } catch (e) {
+      console.error('BASE同期エラー: ' + name + ' - ' + (e.message || e));
+    }
+
+    Utilities.sleep(300);
+  }
+
+  // スナップショット保存
+  props.setProperty('BASE_SYNC_SNAPSHOT', JSON.stringify(current));
+
+  if (updated > 0) {
+    console.log('BASE商品同期完了: 更新' + updated + '件 / スキップ' + skipped + '件');
+  }
+}
+
+/**
+ * BASE商品同期トリガーを設定（5分ごと）
+ * GASエディタから1回実行する
+ */
+function baseInstallProductSync() {
+  var fn = 'baseSyncProductsToBase';
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === fn) {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  ScriptApp.newTrigger(fn).timeBased().everyMinutes(5).create();
+  console.log('BASE商品同期トリガーを設定しました（5分ごと）');
 }
