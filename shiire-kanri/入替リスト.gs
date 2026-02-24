@@ -1,9 +1,10 @@
 // 入替リスト.gs
 /**
- * 入替リスト.gs — 商品入替リスト自動生成・メール送信・ステータス一括変更
+ * 入替リスト.gs — 商品入替リスト自動生成・メール送信
  *
  * 月末にアカウント別で前月出品数と同数の古い在庫をリスト化し、
- * PDFメールで各運用者に送信する。確認後にステータスを一括変更。
+ * PDFメールで各運用者に送信する。
+ * ※ ステータス変更は返送済みステータス変更.gsが自動処理するため本ファイルでは行わない
  */
 
 const SWAP_CONFIG = {
@@ -13,8 +14,7 @@ const SWAP_CONFIG = {
     { name: '古着屋本舗', emailProp: 'SWAP_EMAIL_FURUGIYAHONPO' },
     { name: 'ほしいが見つかる古着屋さん', emailProp: 'SWAP_EMAIL_HOSHIIGA' }
   ],
-  STATUS_ACTIVE: '出品中',
-  STATUS_RETURNED: '返品済み'
+  STATUS_ACTIVE: '出品中'
 };
 
 // ═══════════════════════════════════════════
@@ -212,92 +212,6 @@ function sendSwapEmail_(email, accountName, prevStart, prevCount, items, pdfBlob
     '詳細はPDFをご確認ください。';
 
   GmailApp.sendEmail(email, subject, body, { attachments: [pdfBlob] });
-}
-
-// ═══════════════════════════════════════════
-//  返品ステータス一括変更
-// ═══════════════════════════════════════════
-
-function applySwapStatus() {
-  var ui = SpreadsheetApp.getUi();
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(SWAP_CONFIG.PRODUCT_SHEET_NAME);
-  if (!sheet) throw new Error('商品管理シートが見つかりません');
-
-  var lastRow = sheet.getLastRow();
-  var lastCol = sheet.getLastColumn();
-  if (lastRow <= SWAP_CONFIG.HEADER_ROWS || lastCol <= 0) {
-    ui.alert('商品データがありません');
-    return;
-  }
-
-  var header = sheet.getRange(1, 1, 1, lastCol).getDisplayValues()[0];
-  var hMap = buildHeaderMap_(header);
-  ['管理番号', '出品日', 'ステータス', '使用アカウント'].forEach(function(name) {
-    if (!hMap[name]) throw new Error('ヘッダ「' + name + '」が見つかりません');
-  });
-
-  var numRows = lastRow - SWAP_CONFIG.HEADER_ROWS;
-  var data = sheet.getRange(SWAP_CONFIG.HEADER_ROWS + 1, 1, numRows, lastCol).getDisplayValues();
-
-  var now = new Date();
-  var prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  var prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
-
-  var allSwapIds = new Set();
-  var summaryLines = [];
-
-  SWAP_CONFIG.ACCOUNTS.forEach(function(acct) {
-    var result = buildSwapList_(data, hMap, acct.name, prevMonthStart, prevMonthEnd);
-    if (result.items.length === 0) {
-      summaryLines.push(acct.name + ': 対象なし');
-      return;
-    }
-    result.items.forEach(function(item) { allSwapIds.add(item.id); });
-    summaryLines.push(acct.name + ': ' + result.items.length + '件');
-  });
-
-  if (allSwapIds.size === 0) {
-    ui.alert('ステータス変更対象がありません');
-    return;
-  }
-
-  var confirm = ui.alert(
-    'ステータス一括変更',
-    '以下の商品のステータスを「出品中」→「返品済み」に変更します。\n\n' +
-    summaryLines.join('\n') + '\n\n合計: ' + allSwapIds.size + '件\n\n実行しますか？',
-    ui.ButtonSet.YES_NO
-  );
-  if (confirm !== ui.Button.YES) return;
-
-  withLock_(25000, function() {
-    applySwapStatusInner_(sheet, hMap, allSwapIds);
-  });
-
-  ui.alert('ステータス変更完了\n\n' + allSwapIds.size + '件を「返品済み」に変更しました');
-}
-
-function applySwapStatusInner_(sheet, hMap, targetIds) {
-  var lastRow = sheet.getLastRow();
-  var numRows = lastRow - SWAP_CONFIG.HEADER_ROWS;
-  var colId = hMap['管理番号'];
-  var colStatus = hMap['ステータス'];
-
-  var idRange = sheet.getRange(SWAP_CONFIG.HEADER_ROWS + 1, colId, numRows, 1);
-  var statusRange = sheet.getRange(SWAP_CONFIG.HEADER_ROWS + 1, colStatus, numRows, 1);
-  var idVals = idRange.getDisplayValues();
-  var statusVals = statusRange.getValues();
-  var activeNorm = normalizeText_(SWAP_CONFIG.STATUS_ACTIVE);
-
-  var changed = false;
-  for (var r = 0; r < numRows; r++) {
-    var id = normalizeText_(idVals[r][0]);
-    if (!id || !targetIds.has(id)) continue;
-    if (normalizeText_(statusVals[r][0]) !== activeNorm) continue;
-    statusVals[r][0] = SWAP_CONFIG.STATUS_RETURNED;
-    changed = true;
-  }
-  if (changed) statusRange.setValues(statusVals);
 }
 
 // ═══════════════════════════════════════════

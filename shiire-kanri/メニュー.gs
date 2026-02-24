@@ -22,8 +22,7 @@ function onOpen() {
     .addItem('最新月の理論を前月実地で再計算', 'recalcCurrentTheoryFromPrev');
 
   var swapMenu = ui.createMenu('入替リスト')
-    .addItem('入替リスト生成＆メール送信', 'generateSwapLists')
-    .addItem('返品ステータス一括変更', 'applySwapStatus');
+    .addItem('入替リスト生成＆メール送信', 'generateSwapLists');
 
   ui.createMenu('管理メニュー')
     .addSubMenu(invMenu)
