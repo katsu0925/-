@@ -12,9 +12,10 @@ function FULL_RESTORE_ALL() {
   ScriptApp.newTrigger('cleanupOldAITaskImages').timeBased().everyHours(1).inTimezone('GMT+9').create();
   // 1時間ごと (画像監視)
   ScriptApp.newTrigger('monitorAndDeleteUnusedImages').timeBased().everyHours(1).inTimezone('GMT+9').create();
-  // 変更時 (メーラー・在庫連携)
+  // 変更時 (メーラー・在庫連携・移動報告)
   ScriptApp.newTrigger('handleChange_Mailer').forSpreadsheet(ss).onChange().create();
   ScriptApp.newTrigger('handleChange_Inventory').forSpreadsheet(ss).onChange().create();
+  ScriptApp.newTrigger('handleChange_Move').forSpreadsheet(ss).onChange().create();
   // 1分ごと (AIキーワード抽出)
   ScriptApp.newTrigger('processPendingKeywordRows').timeBased().everyMinutes(1).create();
   // 1時間ごと (分析)
