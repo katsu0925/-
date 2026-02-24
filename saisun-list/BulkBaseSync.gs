@@ -36,10 +36,11 @@ function baseListAllItems_() {
  * @param {number} [variationId] - バリエーションID（あれば）
  */
 function baseUpdateStock_(itemId, stock, variationId) {
-  var url = BASE_APP.API_BASE + '/1/items/edit_stock/' + encodeURIComponent(String(itemId));
+  var url = BASE_APP.API_BASE + '/1/items/edit_stock';
   var token = baseGetAccessToken_();
 
   var payload = {
+    item_id: String(itemId),
     stock: String(Math.max(0, stock)),
     stock_edited: '1'
   };
@@ -48,7 +49,7 @@ function baseUpdateStock_(itemId, stock, variationId) {
   }
 
   var resp = UrlFetchApp.fetch(url, {
-    method: 'put',
+    method: 'post',
     headers: { Authorization: 'Bearer ' + token },
     contentType: 'application/x-www-form-urlencoded',
     payload: baseToFormEncoded_(payload),
@@ -316,11 +317,13 @@ function baseSyncStockFromOrders_() {
  * BASE商品を編集（タイトル・説明・価格・在庫・公開状態）
  */
 function baseEditItem_(itemId, params) {
-  var url = BASE_APP.API_BASE + '/1/items/edit/' + encodeURIComponent(String(itemId));
+  var url = BASE_APP.API_BASE + '/1/items/edit';
   var token = baseGetAccessToken_();
 
+  params.item_id = String(itemId);
+
   var resp = UrlFetchApp.fetch(url, {
-    method: 'put',
+    method: 'post',
     headers: { Authorization: 'Bearer ' + token },
     contentType: 'application/x-www-form-urlencoded',
     payload: baseToFormEncoded_(params),
