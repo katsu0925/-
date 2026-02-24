@@ -228,20 +228,21 @@ function syncProductIndex_() {
   var indexSheet = ss.getSheetByName(INDEX_SHEET_NAME);
   if (!indexSheet) {
     indexSheet = ss.insertSheet(INDEX_SHEET_NAME);
-    indexSheet.getRange(1, 1, 1, 2).setValues([['管理番号', '納品場所']])
+    indexSheet.getRange(1, 1, 1, 3).setValues([['連番', '管理番号', '納品場所']])
       .setFontWeight('bold').setBackground('#f0f0f0');
     indexSheet.setFrozenRows(1);
   }
 
   // データ領域クリア＆書き込み
   var idxLastRow = indexSheet.getLastRow();
+  var idxLastCol = Math.max(indexSheet.getLastColumn(), 3);
   if (idxLastRow > 1) {
-    indexSheet.getRange(2, 1, idxLastRow - 1, 2).clearContent();
+    indexSheet.getRange(2, 1, idxLastRow - 1, idxLastCol).clearContent();
   }
 
   if (items.length > 0) {
-    var out = items.map(function(item) { return [item.id, item.location]; });
-    indexSheet.getRange(2, 1, out.length, 2).setValues(out);
+    var out = items.map(function(item, i) { return [i + 1, item.id, item.location]; });
+    indexSheet.getRange(2, 1, out.length, 3).setValues(out);
   }
 }
 
