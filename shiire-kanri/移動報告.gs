@@ -139,10 +139,10 @@ function assignMoveIds_(moveSheet, data) {
     }
   }
 
-  // MV-で始まらない行に採番（AppSheetの自動キーを上書き）
+  // IDが空の行に採番
   for (var j = 0; j < data.length; j++) {
     var existingId = String(data[j][0] || '').trim();
-    if (existingId.indexOf('MV-') !== 0) {
+    if (!existingId) {
       maxSeq++;
       var newId = prefix + padSeq_(maxSeq);
       moveSheet.getRange(j + 2, MOVE_CONFIG.COLS.ID).setValue(newId);
