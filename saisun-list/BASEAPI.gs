@@ -765,6 +765,12 @@ function baseResetAuthAll() {
   return { ok: true };
 }
 
+function baseFixRedirectUri() {
+  var deployUrl = 'https://script.google.com/macros/s/AKfycbzWcsi_QteRBwc2U88urRQvWG1FsrKUoFSd_r3uPmPasJnm0jfKe02IbmzlkK7Sb1x_Jg/exec';
+  PropertiesService.getScriptProperties().setProperty(BASE_APP.PROP_REDIRECT_URI, deployUrl);
+  Logger.log('redirect_uri 更新完了: ' + deployUrl);
+}
+
 function baseReLinkByDialog() {
   baseResetAuthAll();
   baseShowAuthUrl();
