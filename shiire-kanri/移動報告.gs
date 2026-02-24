@@ -22,7 +22,10 @@ var MOVE_CONFIG = {
 // ═══════════════════════════════════════════
 
 function handleChange_Move(e) {
-  withLock_(25000, function() { processPendingMoves_(); });
+  withLock_(25000, function() {
+    processPendingMoves_();
+    syncProductIndex_();
+  });
 }
 
 // ═══════════════════════════════════════════
@@ -171,6 +174,83 @@ function splitMoveIds_(text) {
     if (id) out.push(id);
   }
   return out;
+}
+
+// ═══════════════════════════════════════════
+//  管理番号インデックス（ソート済み同期）
+// ═══════════════════════════════════════════
+
+var INDEX_SHEET_NAME = '管理番号インデックス';
+
+/**
+ * 商品管理から管理番号・納品場所を抽出し、管理番号の自然順でソートしたインデックスシートを再構築
+ * onChange および handleChange_Inventory と同じタイミングで呼ばれる
+ */
+function syncProductIndex_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var productSheet = ss.getSheetByName(MOVE_CONFIG.PRODUCT_SHEET_NAME);
+  if (!productSheet) return;
+
+  var pLastRow = productSheet.getLastRow();
+  var pLastCol = productSheet.getLastColumn();
+  if (pLastRow < 2 || pLastCol < 1) return;
+
+  var pHeader = productSheet.getRange(1, 1, 1, pLastCol).getDisplayValues()[0];
+  var colId = findColByName_(pHeader, '管理番号');
+  var colLocation = findColByName_(pHeader, '納品場所');
+  if (colId < 0 || colLocation < 0) return;
+
+  var numRows = pLastRow - 1;
+  var idVals = productSheet.getRange(2, colId, numRows, 1).getDisplayValues();
+  var locVals = productSheet.getRange(2, colLocation, numRows, 1).getDisplayValues();
+
+  // 管理番号・納品場所ペアを収集（空行スキップ）
+  var items = [];
+  for (var i = 0; i < numRows; i++) {
+    var id = String(idVals[i][0] || '').trim();
+    if (!id) continue;
+    items.push({ id: id, location: String(locVals[i][0] || '').trim() });
+  }
+
+  // 自然順ソート（プレフィックス文字→数値部分）
+  items.sort(function(a, b) {
+    var pa = parseIdParts_(a.id);
+    var pb = parseIdParts_(b.id);
+    if (pa.prefix < pb.prefix) return -1;
+    if (pa.prefix > pb.prefix) return 1;
+    return pa.num - pb.num;
+  });
+
+  // インデックスシートに書き込み
+  var indexSheet = ss.getSheetByName(INDEX_SHEET_NAME);
+  if (!indexSheet) {
+    indexSheet = ss.insertSheet(INDEX_SHEET_NAME);
+    indexSheet.getRange(1, 1, 1, 2).setValues([['管理番号', '納品場所']])
+      .setFontWeight('bold').setBackground('#f0f0f0');
+    indexSheet.setFrozenRows(1);
+  }
+
+  // データ領域クリア＆書き込み
+  var idxLastRow = indexSheet.getLastRow();
+  if (idxLastRow > 1) {
+    indexSheet.getRange(2, 1, idxLastRow - 1, 2).clearContent();
+  }
+
+  if (items.length > 0) {
+    var out = items.map(function(item) { return [item.id, item.location]; });
+    indexSheet.getRange(2, 1, out.length, 2).setValues(out);
+  }
+}
+
+/**
+ * 管理番号をプレフィックス（文字部分）と数値部分に分解
+ * 例: "zA1" → { prefix: "zA", num: 1 }
+ *      "zB1201" → { prefix: "zB", num: 1201 }
+ */
+function parseIdParts_(id) {
+  var m = String(id).match(/^([A-Za-z]+)(\d+)$/);
+  if (m) return { prefix: m[1].toUpperCase(), num: parseInt(m[2], 10) };
+  return { prefix: String(id).toUpperCase(), num: 0 };
 }
 
 // ═══════════════════════════════════════════

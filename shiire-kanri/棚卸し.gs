@@ -12,6 +12,7 @@ function handleChange_Inventory(e){
     PropertiesService.getScriptProperties().setProperty(BUSY_KEY,'1');
     syncCurrentMonthIds();
     recomputeComputedColumns();
+    syncProductIndex_();
   }catch(err){
     log_('handleChange_Inventory ERR: '+err);
   }finally{
