@@ -251,17 +251,6 @@ function getExcludedWorkers_(ss) {
     console.log('入替リスト: 作業者マスターシートが見つかりません（除外なしで続行）');
   }
 
-  // 2. スクリプトプロパティ SWAP_EXCLUDE_NAMES で追加除外（カンマ区切り）
-  try {
-    var extra = PropertiesService.getScriptProperties().getProperty('SWAP_EXCLUDE_NAMES') || '';
-    if (extra) {
-      extra.split(',').forEach(function(n) {
-        var name = normalizeText_(n);
-        if (name) excluded[name] = true;
-      });
-    }
-  } catch (e) {}
-
   var count = Object.keys(excluded).length;
   if (count > 0) console.log('入替リスト: 除外作業者 ' + count + '名: ' + Object.keys(excluded).join(', '));
   return excluded;
