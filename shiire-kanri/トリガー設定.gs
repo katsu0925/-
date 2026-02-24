@@ -24,6 +24,8 @@ function FULL_RESTORE_ALL() {
   ScriptApp.newTrigger('出力_欠番確認').timeBased().everyDays(1).atHour(3).inTimezone('GMT+9').create();
   // 毎日 4時 (在庫日数計算)
   ScriptApp.newTrigger('recalcZaikoNissu').timeBased().everyDays(1).atHour(4).inTimezone('GMT+9').create();
+  // 毎日 5時 (不要プロパティ自動クリーンアップ)
+  ScriptApp.newTrigger('cleanupStaleProps').timeBased().everyDays(1).atHour(5).inTimezone('GMT+9').create();
 
   Browser.msgBox('全てのトリガー（ご提示分＋ログ分析分）を復旧しました。');
 }

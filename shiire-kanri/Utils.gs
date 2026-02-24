@@ -97,3 +97,54 @@ function replaceTrigger_(fnName, builderFn) {
   });
   builderFn(ScriptApp.newTrigger(fnName));
 }
+
+// ═══════════════════════════════════════════
+//  プロパティ自動クリーンアップ
+// ═══════════════════════════════════════════
+
+/** 保持するプロパティキー（これ以外のパターンマッチは削除対象） */
+var KEEP_PROPS_ = [
+  'OPENAI_API_KEY', 'SPREADSHEET_ID', 'IMAGE_FOLDER_ID', 'INV_BUSY',
+  'SWAP_EMAIL_FURUGIYAHONPO', 'SWAP_EMAIL_HOSHIIGA',
+  'EC_SYNC_SRC_SPREADSHEET_ID', 'EC_SYNC_DST_SPREADSHEET_ID',
+  'XLSX_SOURCE_SPREADSHEET_ID', 'XLSX_REQUEST_SPREADSHEET_ID',
+  'OWNER_USER_KEYS'
+];
+
+/**
+ * 不要プロパティを一括削除（手動実行 or トリガー）
+ * - CALLS_YYYYMMDD: 今日以外を削除
+ * - mail_sent__*: 7日以上前のものを削除
+ */
+function cleanupStaleProps() {
+  var props = PropertiesService.getScriptProperties();
+  var all = props.getProperties();
+  var keys = Object.keys(all);
+  var today = todayKey_();
+  var keepSet = {};
+  KEEP_PROPS_.forEach(function(k) { keepSet[k] = true; });
+
+  var toDelete = [];
+  keys.forEach(function(k) {
+    // 保持リストに一致 → スキップ
+    if (keepSet[k]) return;
+
+    // CALLS_YYYYMMDD: 今日のみ残す
+    if (k.indexOf('CALLS_') === 0) {
+      if (k !== 'CALLS_' + today) toDelete.push(k);
+      return;
+    }
+
+    // mail_sent__*: 全て削除（送信済みフラグは蓄積不要）
+    if (k.indexOf('mail_sent__') === 0) {
+      toDelete.push(k);
+      return;
+    }
+  });
+
+  if (toDelete.length > 0) {
+    toDelete.forEach(function(k) { props.deleteProperty(k); });
+  }
+  console.log('プロパティクリーンアップ: ' + toDelete.length + '件削除 / ' + keys.length + '件中');
+  return { deleted: toDelete.length, total: keys.length };
+}
