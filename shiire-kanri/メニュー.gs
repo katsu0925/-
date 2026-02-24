@@ -21,13 +21,8 @@ function onOpen() {
     .addItem('今月に新規IDを同期', 'syncCurrentMonthIds')
     .addItem('最新月の理論を前月実地で再計算', 'recalcCurrentTheoryFromPrev');
 
-  var swapMenu = ui.createMenu('入替リスト')
-    .addItem('入替リスト生成＆メール送信', 'generateSwapLists');
-
   ui.createMenu('管理メニュー')
     .addSubMenu(invMenu)
-    .addSeparator()
-    .addSubMenu(swapMenu)
     .addSeparator()
     .addItem('不要トリガー一括削除', 'cleanupObsoleteTriggers')
     .addSeparator()

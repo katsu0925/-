@@ -29,7 +29,7 @@ function generateSwapLists() {
   const lastRow = sheet.getLastRow();
   const lastCol = sheet.getLastColumn();
   if (lastRow <= SWAP_CONFIG.HEADER_ROWS || lastCol <= 0) {
-    SpreadsheetApp.getUi().alert('商品データがありません');
+    console.log('入替リスト: 商品データがありません');
     return;
   }
 
@@ -74,7 +74,7 @@ function generateSwapLists() {
     return r.account + ': 前月出品 ' + r.prevMonthCount + '件 → 返送対象 ' + r.items.length + '件' +
       (r.emailSent ? ' → ' + r.email + ' に送信済み' : r.email ? ' → メール送信失敗' : ' (メール未設定)');
   }).join('\n');
-  SpreadsheetApp.getUi().alert('入替リスト生成完了\n\n' + summary);
+  console.log('入替リスト生成完了\n' + summary);
 }
 
 /**
