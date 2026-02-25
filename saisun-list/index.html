@@ -3248,6 +3248,9 @@ function saveMeasureOpt_() {}
 
 // ★ スタンドアロン（Cloudflare Pages等）で使う場合はここにGAS Web App URLを設定
 var GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzWcsi_QteRBwc2U88urRQvWG1FsrKUoFSd_r3uPmPasJnm0jfKe02IbmzlkK7Sb1x_Jg/exec';
+// Cloudflare Workers エッジキャッシュプロキシ（高速化用）
+var WORKER_API_URL = 'https://detauri-gas-proxy.nsdktts1030.workers.dev';
+var _workerFailed = false; // Worker障害時にGAS直接に切り替えるフラグ
 
 var IS_STANDALONE = (typeof google === 'undefined' || !google.script);
 
@@ -3328,10 +3331,13 @@ function runApi(fn, _extra) {
     if ('recaptchaToken' in extra) payload.recaptchaToken = extra.recaptchaToken;
     if (ADMIN_KEY) payload.adminKey = ADMIN_KEY;
     if (state.csrfToken) payload.csrfToken = state.csrfToken;
-    return fetch(GAS_API_URL, {
+    var bodyStr = JSON.stringify(payload);
+    // Worker優先、障害時はGAS直接にフォールバック
+    var apiUrl = (!_workerFailed && WORKER_API_URL) ? WORKER_API_URL : GAS_API_URL;
+    return fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify(payload),
+      body: bodyStr,
       redirect: 'follow'
     })
     .then(function(res) {
@@ -3341,6 +3347,28 @@ function runApi(fn, _extra) {
     .then(function(data) {
       if (data && data.ok === false) throw new Error(data.message || 'APIエラー');
       return data;
+    })
+    .catch(function(err) {
+      // Worker経由で失敗した場合、GAS直接にフォールバック
+      if (apiUrl !== GAS_API_URL) {
+        console.warn('Worker障害、GAS直接に切替:', err.message);
+        _workerFailed = true;
+        return fetch(GAS_API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: bodyStr,
+          redirect: 'follow'
+        })
+        .then(function(res) {
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          return res.json();
+        })
+        .then(function(data) {
+          if (data && data.ok === false) throw new Error(data.message || 'APIエラー');
+          return data;
+        });
+      }
+      throw err;
     });
   }
 

@@ -1,0 +1,8 @@
+name = "detauri-gas-proxy"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+# 本番デプロイ後にここにカスタムドメインを設定可能
+# routes = [
+#   { pattern = "api.detauri.com/*", zone_name = "detauri.com" }
+# ]

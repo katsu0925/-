@@ -1177,6 +1177,9 @@ var BULK_PRODUCT_CACHE_TTL = 5 * 60 * 1000; // 5分
 
 // スタンドアロンモード判定（Cloudflare Pages等からの配信時）
 var GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzWcsi_QteRBwc2U88urRQvWG1FsrKUoFSd_r3uPmPasJnm0jfKe02IbmzlkK7Sb1x_Jg/exec';
+// Cloudflare Workers エッジキャッシュプロキシ（高速化用）
+var WORKER_API_URL = 'https://detauri-gas-proxy.nsdktts1030.workers.dev';
+var _workerFailed = false;
 var IS_STANDALONE = (typeof google === 'undefined' || !google.script);
 
 // google.script.run shim生成（document.write後のデタウリページ用）
@@ -1226,15 +1229,34 @@ var ADMIN_KEY = (function() {
 function runApi(fn) {
   var args = Array.prototype.slice.call(arguments, 1);
   if (IS_STANDALONE) {
-    return fetch(GAS_API_URL, {
+    var bodyStr = JSON.stringify({ action: fn, args: args, adminKey: (typeof ADMIN_KEY !== 'undefined' ? ADMIN_KEY : '') });
+    var apiUrl = (!_workerFailed && WORKER_API_URL) ? WORKER_API_URL : GAS_API_URL;
+    return fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: fn, args: args, adminKey: (typeof ADMIN_KEY !== 'undefined' ? ADMIN_KEY : '') }),
+      body: bodyStr,
       redirect: 'follow'
     })
     .then(function(res) {
       if (!res.ok) throw new Error('HTTP ' + res.status);
       return res.json();
+    })
+    .catch(function(err) {
+      if (apiUrl !== GAS_API_URL) {
+        console.warn('Worker障害、GAS直接に切替:', err.message);
+        _workerFailed = true;
+        return fetch(GAS_API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: bodyStr,
+          redirect: 'follow'
+        })
+        .then(function(res) {
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          return res.json();
+        });
+      }
+      throw err;
     });
   }
   return new Promise(function(resolve, reject) {
