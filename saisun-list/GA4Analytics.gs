@@ -138,11 +138,29 @@ function ga4Source_(ss, s, e) {
     [{ metric: { metricName: 'sessions' }, desc: true }]
   );
 
-  var H = ['ソース', 'メディア', 'キャンペーン', 'ユーザー', 'セッション', 'PV'];
+  var mediumLabels = {
+    'organic': '自然検索', 'cpc': '有料検索(CPC)', 'referral': '参照元サイト',
+    '(none)': '(なし/直接)', 'email': 'メール', 'social': 'ソーシャル',
+    'display': 'ディスプレイ広告', 'affiliate': 'アフィリエイト',
+    'video': '動画広告', 'paid_social': '有料ソーシャル',
+    'paid_search': '有料検索', 'push': 'プッシュ通知',
+    'sms': 'SMS', 'audio': '音声広告'
+  };
+  var sourceLabels = {
+    '(direct)': '(直接アクセス)', '(not set)': '(未設定)',
+    'google': 'Google', 'yahoo': 'Yahoo', 'bing': 'Bing'
+  };
+
+  var H = ['流入元', 'メディア', 'キャンペーン', 'ユーザー', 'セッション', 'PV'];
   var rows = (rpt.rows || []).map(function(r) {
     var d = r.dimensionValues, m = r.metricValues;
+    var src = d[0].value || '(direct)';
+    var med = d[1].value || '(none)';
+    var camp = d[2].value || '(not set)';
     return [
-      d[0].value || '(direct)', d[1].value || '(none)', d[2].value || '(not set)',
+      sourceLabels[src] || src,
+      mediumLabels[med] || med,
+      camp === '(not set)' ? '(未設定)' : camp,
       +m[0].value, +m[1].value, +m[2].value
     ];
   });
@@ -222,13 +240,20 @@ function ga4Event_(ss, s, e) {
     'view_mypage': 'マイページ表示', 'apply_coupon': 'クーポン適用',
     'first_visit': '初回訪問', 'session_start': 'セッション開始',
     'user_engagement': 'エンゲージメント', 'scroll': 'スクロール',
-    'click': 'クリック', 'file_download': 'ファイルDL'
+    'click': 'クリック', 'file_download': 'ファイルDL',
+    'form_start': 'フォーム開始', 'form_submit': 'フォーム送信',
+    'video_start': '動画再生開始', 'video_progress': '動画再生中',
+    'video_complete': '動画再生完了', 'purchase': '購入完了',
+    'search': '検索', 'share': '共有', 'select_content': 'コンテンツ選択',
+    'select_item': '商品選択', 'select_promotion': 'プロモーション選択',
+    'view_promotion': 'プロモーション表示', 'view_search_results': '検索結果表示',
+    'generate_lead': 'リード獲得', 'exception': 'エラー発生'
   };
 
-  var H = ['イベント名', '回数', '説明'];
+  var H = ['イベント名', '回数', '元の名称'];
   var rows = (rpt.rows || []).map(function(r) {
     var n = r.dimensionValues[0].value, c = +r.metricValues[0].value;
-    return [n, c, labels[n] || ''];
+    return [labels[n] || n, c, labels[n] ? n : ''];
   });
 
   var sh = ga4Reset_(ss, GA4_SN_.event);
@@ -253,10 +278,10 @@ function ga4Event_(ss, s, e) {
   sh.setFrozenRows(2);
 
   // ECイベント行を緑ハイライト
-  var ecList = ['view_item', 'view_item_list', 'add_to_cart', 'remove_from_cart',
-                'view_cart', 'begin_checkout', 'redirect_to_payment'];
+  var ecLabels = ['商品詳細表示', '商品一覧表示', 'カート追加', 'カートから削除',
+                  'カート表示', '注文開始', '決済ページ遷移'];
   rows.forEach(function(r, i) {
-    if (ecList.indexOf(r[0]) >= 0) sh.getRange(i + 3, 1, 1, H.length).setBackground(GA4C_.ec);
+    if (ecLabels.indexOf(r[0]) >= 0) sh.getRange(i + 3, 1, 1, H.length).setBackground(GA4C_.ec);
   });
 
   sh.setColumnWidth(1, 210); sh.setColumnWidth(2, 110); sh.setColumnWidth(3, 200);
@@ -271,8 +296,11 @@ function ga4Event_(ss, s, e) {
   }
 
   // ============ ファネル分析セクション ============
+  // 元の英語名→回数マッピング（ファネル参照用）
   var eventMap = {};
-  rows.forEach(function(r) { eventMap[r[0]] = r[1]; });
+  (rpt.rows || []).forEach(function(r) {
+    eventMap[r.dimensionValues[0].value] = +r.metricValues[0].value;
+  });
 
   var fR = tR + 2;   // ファネル開始行
   sh.getRange(fR, 1).setValue('コンバージョンファネル')
@@ -305,7 +333,7 @@ function ga4Event_(ss, s, e) {
     var row       = fR + 2 + i;
 
     sh.getRange(row, 1, 1, 5).setValues([[
-      step.label, step.ev, count,
+      step.label, labels[step.ev] || step.ev, count,
       i === 0 ? '-' : (stepRate * 100).toFixed(1) + '%',
       i === 0 ? '100%' : (allRate * 100).toFixed(1) + '%'
     ]]);
