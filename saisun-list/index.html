@@ -175,12 +175,11 @@
     .rcTrack{display:flex;will-change:transform;animation:rcScroll var(--rc-dur,20s) linear infinite;cursor:grab;user-select:none;-webkit-user-select:none}
     @media(hover:hover){.rcTrack:hover{animation-play-state:paused}}
     .rcTrack.rc-dragging{cursor:grabbing;animation-play-state:paused}
-    .mainRecommendSection.rc-stuck{background:linear-gradient(135deg,#1a1a2e,#16213e);border-radius:0;margin:0 -14px;padding:6px 14px;margin-bottom:0;}
+    .mainRecommendSection.rc-stuck{padding:8px 14px;margin-bottom:0;}
     .mainRecommendSection.rc-stuck .mainRecommendTitle{display:none;}
     .mainRecommendSection.rc-stuck .mainRecommendList{padding-bottom:2px;}
-    .mainRecommendSection.rc-stuck .recommendCard{border-color:rgba(255,255,255,.15);transition:width .25s;}
+    .mainRecommendSection.rc-stuck .recommendCard{transition:width .25s;}
     .mainRecommendSection.rc-stuck .recommendCard img{transition:width .25s,height .25s;}
-    .mainRecommendSection.rc-stuck .rcInfo{color:#cbd5e1;}.mainRecommendSection.rc-stuck .rcBrand{color:#fff;}.mainRecommendSection.rc-stuck .rcPrice{color:#ffd700;}
     @media(max-width:767px){.mainRecommendSection.rc-stuck{padding:4px 10px;}.mainRecommendSection.rc-stuck .recommendCard{width:60px;}.mainRecommendSection.rc-stuck .recommendCard img{width:60px;height:60px;}.mainRecommendSection.rc-stuck .rcInfo{padding:3px;font-size:9px;}}
     /* デタウリ モバイル固定決済バー */
     #detStickyBar{display:none;position:fixed;bottom:0;left:0;right:0;z-index:150;background:linear-gradient(135deg,#1a1a2e,#16213e);padding:10px 16px;box-shadow:0 -3px 14px rgba(0,0,0,.45);align-items:center;justify-content:space-between;gap:12px}
