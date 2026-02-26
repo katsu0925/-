@@ -364,7 +364,7 @@ function adminTestEmails() {
         sections: [
           { title: 'ご注文内容', rows: [{ label: '受付番号', value: receiptNo }, { label: '商品', value: selectionList }, { label: '合計金額', value: Number(totalAmount).toLocaleString() + '円' }] },
           { title: '商品はいかがでしたか？', text: '商品の品質やお取引について、ご意見・ご感想を\nお聞かせいただけると大変嬉しく思います。' },
-          { title: '次回のお買い物もお待ちしております', items: ['毎日新しい商品が入荷しています', '10点以上で5%OFF〜最大20%OFF', '会員様はポイントが貯まります（ランクに応じて1〜5%）'] }
+          { title: '次回のお買い物もお待ちしております', items: ['10点以上で5%OFF〜最大20%OFF', '会員様はポイントが貯まります（ランクに応じて1〜5%）'] }
         ],
         cta: { text: '新着商品をチェック', url: SITE_CONSTANTS.SITE_URL },
         notes: ['このメールは自動送信です。']
