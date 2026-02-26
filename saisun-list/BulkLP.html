@@ -1122,7 +1122,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
         <div style="display:flex;align-items:center;justify-content:space-between;">
           <span style="font-size:13px;font-weight:600;color:#333;">メールマガジン</span>
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-            <input type="checkbox" id="mpNewsletterToggle" disabled style="width:18px;height:18px;">
+            <input type="checkbox" id="mpNewsletterToggle" style="width:18px;height:18px;">
             <span style="font-size:12px;color:#666;" id="mpNewsletterLabel">受信する</span>
           </label>
         </div>
@@ -1154,7 +1154,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
         <div style="font-size:13px;color:#888;">ポイント残高</div>
         <div id="mpPointBalance" style="font-size:40px;font-weight:bold;color:#b8002a;margin:8px 0;">0</div>
         <div style="font-size:12px;color:#aaa;">1ポイント = 1円としてご利用いただけます</div>
-        <div id="mpPointExpiry" style="display:none;font-size:12px;color:#e67700;margin-top:6px;"></div>
+        <div id="mpPointExpiry" style="display:none;margin-top:10px;padding:8px 14px;background:#fff3e0;border:1px solid #ffe0b2;border-radius:8px;font-size:13px;font-weight:600;color:#e65100;text-align:center;"></div>
       </div>
       <div style="border-top:1px solid #eee;padding-top:16px;margin-top:8px;">
         <div style="font-size:14px;font-weight:600;color:#333;margin-bottom:12px;">ご利用状況</div>
@@ -2600,6 +2600,22 @@ function setupBulkNewsletterToggle_() {
   toggle.addEventListener('change', function() {
     var label = document.getElementById('mpNewsletterLabel');
     if (label) label.textContent = toggle.checked ? '受信する' : '停止中';
+    if (!G.sessionId) return;
+    toggle.disabled = true;
+    runApi('apiUpdateNewsletter', 'bulk', { sessionId: G.sessionId, newsletter: toggle.checked })
+      .then(function(r) {
+        if (r && r.ok) {
+          showToast(toggle.checked ? 'メルマガを受信に設定しました' : 'メルマガを停止しました');
+          try { localStorage.removeItem(_MP_CACHE_KEY); } catch(e) {}
+        } else {
+          toggle.checked = !toggle.checked;
+          if (label) label.textContent = toggle.checked ? '受信する' : '停止中';
+          showToast((r && r.message) || '変更に失敗しました');
+        }
+      }).catch(function() {
+        toggle.checked = !toggle.checked;
+        if (label) label.textContent = toggle.checked ? '受信する' : '停止中';
+      }).finally(function() { toggle.disabled = false; });
   });
 }
 
@@ -3496,9 +3512,7 @@ function renderOrderHistory_(orders) {
     var eb = document.getElementById('mpEditBtn'); if (eb) eb.style.display = editable ? 'none' : '';
     var sb = document.getElementById('mpSaveBtn'); if (sb) sb.style.display = editable ? '' : 'none';
     var cb = document.getElementById('mpCancelEditBtn'); if (cb) cb.style.display = editable ? '' : 'none';
-    // メルマガトグルも編集モードに連動
-    var nlToggle = document.getElementById('mpNewsletterToggle');
-    if (nlToggle) nlToggle.disabled = !editable;
+    // メルマガトグルは編集モード不要（独立即時反映）
   }
   if (mpEditBtn) {
     mpEditBtn.addEventListener('click', function() {
@@ -3523,19 +3537,22 @@ function renderOrderHistory_(orders) {
   var mpSaveBtn = document.getElementById('mpSaveBtn');
   if (mpSaveBtn) {
     mpSaveBtn.addEventListener('click', function() {
+      var payload = { sessionId: G.sessionId };
+      var backup = mpEditBtn._backup || {};
+      if (document.getElementById('mpCompanyName').value !== (backup['mpCompanyName'] || '')) payload.companyName = document.getElementById('mpCompanyName').value;
+      if (document.getElementById('mpPhone').value !== (backup['mpPhone'] || '')) payload.phone = document.getElementById('mpPhone').value;
+      if (document.getElementById('mpPostal').value !== (backup['mpPostal'] || '')) payload.postal = document.getElementById('mpPostal').value;
+      if (document.getElementById('mpAddress').value !== (backup['mpAddress'] || '')) payload.address = document.getElementById('mpAddress').value;
+      if (!payload.companyName && !payload.phone && !payload.postal && !payload.address) {
+        showToast('変更する項目がありません');
+        setProfileEditable_(false);
+        return;
+      }
       var pw = prompt('本人確認のため現在のパスワードを入力してください');
       if (!pw) return;
+      payload.currentPassword = pw;
       mpSaveBtn.disabled = true; mpSaveBtn.textContent = '保存中...';
-      var nlToggle = document.getElementById('mpNewsletterToggle');
-      runApi('apiUpdateCustomerProfile', 'bulk', {
-        sessionId: G.sessionId,
-        currentPassword: pw,
-        companyName: document.getElementById('mpCompanyName').value,
-        phone: document.getElementById('mpPhone').value,
-        postal: document.getElementById('mpPostal').value,
-        address: document.getElementById('mpAddress').value,
-        newsletter: nlToggle ? nlToggle.checked : undefined
-      }).then(function(res) {
+      runApi('apiUpdateCustomerProfile', 'bulk', payload).then(function(res) {
         if (res && res.ok) {
           showToast(res.message || '更新しました');
           if (G.customer) {

@@ -491,6 +491,24 @@ function apiUpdateCustomerProfile(userKey, params) {
 }
 
 /**
+ * メルマガ設定変更API（パスワード不要・即時反映）
+ */
+function apiUpdateNewsletter(userKey, params) {
+  try {
+    var sessionId = String(params.sessionId || '');
+    if (!sessionId) return { ok: false, message: 'ログインが必要です' };
+    var customer = findCustomerBySession_(sessionId);
+    if (!customer) return { ok: false, message: 'セッションが無効です' };
+    var nlVal = (params.newsletter === true || params.newsletter === 'true');
+    getCustomerSheet_().getRange(customer.row, CUSTOMER_SHEET_COLS.NEWSLETTER + 1).setValue(nlVal);
+    try { localStorage.removeItem(_MP_CACHE_KEY); } catch(e) {}
+    return { ok: true, newsletter: nlVal };
+  } catch (e) {
+    return { ok: false, message: '更新に失敗しました' };
+  }
+}
+
+/**
  * パスワード変更API
  */
 function apiChangePassword(userKey, params) {

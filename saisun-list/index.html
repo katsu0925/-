@@ -1026,7 +1026,7 @@
           <div style="display:flex;align-items:center;justify-content:space-between;">
             <span style="font-size:13px;font-weight:600;color:#333;">メールマガジン</span>
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-              <input type="checkbox" id="mpNewsletterToggle" disabled style="width:18px;height:18px;">
+              <input type="checkbox" id="mpNewsletterToggle" style="width:18px;height:18px;">
               <span style="font-size:12px;color:#666;" id="mpNewsletterLabel">受信する</span>
             </label>
           </div>
@@ -1062,7 +1062,7 @@
           <div style="font-size:13px;color:#888;">ポイント残高</div>
           <div id="mpPointBalance" style="font-size:40px;font-weight:bold;color:#b8002a;margin:8px 0;">0</div>
           <div style="font-size:12px;color:#aaa;">1ポイント = 1円としてご利用いただけます</div>
-          <div id="mpPointExpiry" style="font-size:12px;color:#e65100;margin-top:6px;display:none;"></div>
+          <div id="mpPointExpiry" style="display:none;margin-top:10px;padding:8px 14px;background:#fff3e0;border:1px solid #ffe0b2;border-radius:8px;font-size:13px;font-weight:600;color:#e65100;text-align:center;"></div>
         </div>
         <div style="border-top:1px solid #eee;padding-top:16px;margin-top:8px;">
           <div style="font-size:14px;font-weight:600;color:#333;margin-bottom:12px;">ご利用状況</div>
@@ -3148,9 +3148,7 @@ function setupAuthUi_() {
     if ($('mpEditBtn')) $('mpEditBtn').style.display = editable ? 'none' : '';
     if ($('mpSaveBtn')) $('mpSaveBtn').style.display = editable ? '' : 'none';
     if ($('mpCancelEditBtn')) $('mpCancelEditBtn').style.display = editable ? '' : 'none';
-    // メルマガトグルも編集モードに連動
-    var nlToggle = $('mpNewsletterToggle');
-    if (nlToggle) nlToggle.disabled = !editable;
+    // メルマガトグルは編集モード不要（独立即時反映）
   }
   if (mpEditBtn) {
     mpEditBtn.addEventListener('click', function() {
@@ -3178,20 +3176,24 @@ function setupAuthUi_() {
   var mpSaveBtn = $('mpSaveBtn');
   if (mpSaveBtn) {
     mpSaveBtn.addEventListener('click', function() {
+      // 変更されたフィールドのみ送信
+      var payload = { sessionId: state.sessionId };
+      var backup = mpEditBtn._backup || {};
+      if ($('mpCompanyName').value !== (backup['mpCompanyName'] || '')) payload.companyName = $('mpCompanyName').value;
+      if ($('mpPhone').value !== (backup['mpPhone'] || '')) payload.phone = $('mpPhone').value;
+      if ($('mpPostal').value !== (backup['mpPostal'] || '')) payload.postal = $('mpPostal').value;
+      if ($('mpAddress').value !== (backup['mpAddress'] || '')) payload.address = $('mpAddress').value;
+      if (!payload.companyName && !payload.phone && !payload.postal && !payload.address) {
+        showToast('変更する項目がありません');
+        setProfileEditable_(false);
+        return;
+      }
       var pw = prompt('本人確認のため現在のパスワードを入力してください');
       if (!pw) return;
+      payload.currentPassword = pw;
       mpSaveBtn.disabled = true;
       mpSaveBtn.textContent = '保存中...';
-      var nlToggle = $('mpNewsletterToggle');
-      runApi('apiUpdateCustomerProfile', state.userKey || '', {
-        sessionId: state.sessionId,
-        currentPassword: pw,
-        companyName: $('mpCompanyName').value,
-        phone: $('mpPhone').value,
-        postal: $('mpPostal').value,
-        address: $('mpAddress').value,
-        newsletter: nlToggle ? nlToggle.checked : undefined
-      }).then(function(res) {
+      runApi('apiUpdateCustomerProfile', state.userKey || '', payload).then(function(res) {
         if (res && res.ok) {
           showToast(res.message || '更新しました');
           if (state.customer) {
@@ -6466,13 +6468,29 @@ function loadReferralCode_() {
     }).catch(function() {});
 }
 
-// Phase 3-2: メルマガトグルのラベル更新
+// Phase 3-2: メルマガ即時トグル
 function setupNewsletterToggle_() {
   var toggle = $('mpNewsletterToggle');
   if (!toggle) return;
   toggle.addEventListener('change', function() {
     var label = $('mpNewsletterLabel');
     if (label) label.textContent = toggle.checked ? '受信する' : '停止中';
+    if (!state.sessionId) return;
+    toggle.disabled = true;
+    runApi('apiUpdateNewsletter', state.userKey || '', { sessionId: state.sessionId, newsletter: toggle.checked })
+      .then(function(r) {
+        if (r && r.ok) {
+          showToast(toggle.checked ? 'メルマガを受信に設定しました' : 'メルマガを停止しました');
+          try { localStorage.removeItem(_MP_CACHE_KEY); } catch(e) {}
+        } else {
+          toggle.checked = !toggle.checked;
+          if (label) label.textContent = toggle.checked ? '受信する' : '停止中';
+          showToast((r && r.message) || '変更に失敗しました');
+        }
+      }).catch(function() {
+        toggle.checked = !toggle.checked;
+        if (label) label.textContent = toggle.checked ? '受信する' : '停止中';
+      }).finally(function() { toggle.disabled = false; });
   });
 }
 

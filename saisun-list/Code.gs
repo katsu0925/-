@@ -99,7 +99,7 @@ function doPost(e) {
       'apiGetProductDetail', 'apiGetAllDetails', 'apiRefreshOpenState',
       'apiSendContactForm',
       'apiRegisterCustomer', 'apiLoginCustomer', 'apiValidateSession',
-      'apiLogoutCustomer', 'apiUpdateCustomerProfile',
+      'apiLogoutCustomer', 'apiUpdateCustomerProfile', 'apiUpdateNewsletter',
       'apiRequestPasswordReset', 'apiRecoverEmail', 'apiChangePassword', 'apiGetMyPage',
       'apiCreateKomojuSession', 'apiCheckPaymentStatus', 'apiCancelOrder',
       'apiGetCsrfToken',
