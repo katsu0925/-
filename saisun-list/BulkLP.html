@@ -3382,7 +3382,7 @@ function loadMyPage_() {
       try { localStorage.setItem(_MP_CACHE_KEY, JSON.stringify({ sid: G.sessionId, d: res.data, ts: Date.now() })); } catch(e) {}
       _applyMpData_(res.data);
     })
-    .catch(function() { if (!cacheUsed) showToast('マイページの読み込みに失敗しました'); });
+    .catch(function(err) { if (!cacheUsed) showToast((err && err.message) || 'マイページの読み込みに失敗しました'); });
 }
 
 function getMemberRank_(totalSpent) {
