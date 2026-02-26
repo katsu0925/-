@@ -14,8 +14,7 @@ var ARTICLE_CONFIG = {
   MAX_ARTICLES_DISPLAY: 20,
   MODEL: 'gpt-5-mini',
   ENDPOINT: 'https://api.openai.com/v1/chat/completions',
-  MAX_TOKENS: 2000,
-  TEMPERATURE: 0.8
+  MAX_COMPLETION_TOKENS: 2000
 };
 
 var ARTICLE_COLS = {
@@ -231,8 +230,7 @@ function art_generateArticle_(pastTitles) {
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt }
     ],
-    max_tokens: ARTICLE_CONFIG.MAX_TOKENS,
-    temperature: ARTICLE_CONFIG.TEMPERATURE,
+    max_completion_tokens: ARTICLE_CONFIG.MAX_COMPLETION_TOKENS,
     response_format: { type: 'json_object' }
   };
 

@@ -28,8 +28,7 @@ function removeChatbotApiKey() {
 var CHATBOT_CONFIG = {
   MODEL: 'gpt-5-mini',
   ENDPOINT: 'https://api.openai.com/v1/chat/completions',
-  MAX_TOKENS: 500,
-  TEMPERATURE: 0.7,
+  MAX_COMPLETION_TOKENS: 500,
   RATE_LIMIT_MAX: 10,
   RATE_LIMIT_WINDOW_SEC: 300,  // 5分間に10回まで
   MAX_HISTORY: 6  // 直近6メッセージ（3往復）をコンテキストに含める
@@ -154,6 +153,11 @@ function chatbot_buildSystemPrompt_() {
     '・離島は配送対象外の場合があります',
     '・ダイヤモンド会員は送料無料',
     '',
+    '【新商品の入荷について】',
+    '・新商品は不定期で追加されます（週に数回程度）',
+    '・新着商品はサイトのトップページに表示され、並び替えで「新着順」を選ぶと確認できます',
+    '・具体的な入荷日時の事前告知は行っておりません',
+    '',
     '【会員ランク制度】',
     '・レギュラー：ポイント1%',
     '・シルバー（年間5万円以上）：ポイント3%',
@@ -178,8 +182,7 @@ function chatbot_callOpenAI_(apiKey, messages) {
   var payload = {
     model: CHATBOT_CONFIG.MODEL,
     messages: messages,
-    max_tokens: CHATBOT_CONFIG.MAX_TOKENS,
-    temperature: CHATBOT_CONFIG.TEMPERATURE
+    max_completion_tokens: CHATBOT_CONFIG.MAX_COMPLETION_TOKENS
   };
 
   var res = UrlFetchApp.fetch(CHATBOT_CONFIG.ENDPOINT, {
@@ -308,8 +311,14 @@ function chatbot_fallbackReply_(message) {
      '注文確定後のキャンセル・変更はできません。\n' +
      '商品に問題があった場合は、お問い合わせフォームまたはメール（nkonline1030@gmail.com）までご連絡ください。'],
 
+    // --- 新商品・入荷 ---
+    [['新しい', '新着', '入荷', '新商品', '追加', '入って'],
+     '新商品は不定期で追加しています（週に数回程度）。\n\n' +
+     'サイトの並び替えで「新着順」を選ぶと、最近追加された商品を確認できます。\n' +
+     '具体的な入荷日時の事前告知は行っておりませんが、こまめにチェックしていただくと新しい商品に出会えます。'],
+
     // --- 確保・在庫 ---
-    [['確保', '在庫', '売り切れ', '品切れ', '入荷', 'なくな'],
+    [['確保', '在庫', '売り切れ', '品切れ', 'なくな'],
      'カートに入れた商品は15分間確保されます。\n' +
      '15分を過ぎると確保が解除され、他の方が購入できるようになります。\n\n' +
      '在庫は先着順です。お目当ての商品が見つかったらお早めにお手続きください。'],
