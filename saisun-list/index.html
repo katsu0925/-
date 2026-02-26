@@ -41,11 +41,11 @@
     .promo-banner a:hover{color:#ffd700;}
     .promo-banner .promo-close{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:#fff;font-size:18px;cursor:pointer;padding:4px 8px;opacity:0.8;}
     .promo-banner .promo-close:hover{opacity:1;}
-    .mypage-tabs{display:flex;gap:0;border-bottom:2px solid #e0e0e0;margin-bottom:16px;}
+    .mypage-tabs{display:flex;gap:0;border-bottom:2px solid #e0e0e0;margin-bottom:0;position:sticky;top:0;background:#fff;z-index:2;}
     .mypage-tab{background:none;border:none;padding:10px 18px;font-size:14px;font-weight:600;color:#888;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .2s,border-color .2s;}
     .mypage-tab:hover{color:#333;}
     .mypage-tab.active{color:#b8002a;border-bottom-color:#b8002a;}
-    .mypage-content{min-height:120px;}
+    .mypage-content{min-height:calc(86vh - 140px);padding-top:16px;}
     .mp-order-card{border:1px solid #e8e8e8;border-radius:8px;padding:14px;margin-bottom:10px;background:#fafafa;}
     .mp-order-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px;}
     .mp-order-no{font-weight:700;font-size:14px;color:#333;}
@@ -2586,7 +2586,7 @@ function openMyPage_() {
 }
 
 var _MP_CACHE_KEY = 'myPageCache';
-var _MP_CACHE_TTL = 3 * 60 * 1000; // 3分
+var _MP_CACHE_TTL = 10 * 60 * 1000; // 10分
 
 function _applyMpData_(d) {
   $('mpEmail').value = d.profile.email || '';
@@ -2655,22 +2655,27 @@ function _applyMpData_(d) {
 
 function loadMyPage_() {
   if (!state.sessionId) return;
-  // キャッシュチェック（ページをまたいでも保持）
+  // stale-while-revalidate: キャッシュがあれば即表示 + バックグラウンド更新
+  var cacheUsed = false;
   try {
     var _c = JSON.parse(localStorage.getItem(_MP_CACHE_KEY) || 'null');
-    if (_c && _c.sid === state.sessionId && (Date.now() - _c.ts) < _MP_CACHE_TTL) {
-      _applyMpData_(_c.d); return;
+    if (_c && _c.sid === state.sessionId && _c.d) {
+      _applyMpData_(_c.d);
+      cacheUsed = true;
+      if ((Date.now() - _c.ts) < _MP_CACHE_TTL) return; // 新鮮なキャッシュ → API不要
     }
   } catch(e) {}
-  var orderList = $('mpOrderList');
-  if (orderList) orderList.innerHTML = '<div style="text-align:center;padding:20px;color:#999;">読み込み中...</div>';
+  if (!cacheUsed) {
+    var orderList = $('mpOrderList');
+    if (orderList) orderList.innerHTML = '<div style="text-align:center;padding:20px;color:#999;">読み込み中...</div>';
+  }
   runApi('apiGetMyPage', state.userKey || '', { sessionId: state.sessionId })
     .then(function(res) {
-      if (!res || !res.ok || !res.data) { showToast((res && res.message) || 'マイページの読み込みに失敗しました'); return; }
+      if (!res || !res.ok || !res.data) { if (!cacheUsed) showToast((res && res.message) || 'マイページの読み込みに失敗しました'); return; }
       try { localStorage.setItem(_MP_CACHE_KEY, JSON.stringify({ sid: state.sessionId, d: res.data, ts: Date.now() })); } catch(e) {}
       _applyMpData_(res.data);
     })
-    .catch(function() { showToast('マイページの読み込みに失敗しました'); });
+    .catch(function() { if (!cacheUsed) showToast('マイページの読み込みに失敗しました'); });
 }
 
 function getMemberRank_(totalSpent) {
@@ -3177,13 +3182,15 @@ function setupAuthUi_() {
       if (!pw) return;
       mpSaveBtn.disabled = true;
       mpSaveBtn.textContent = '保存中...';
+      var nlToggle = $('mpNewsletterToggle');
       runApi('apiUpdateCustomerProfile', state.userKey || '', {
         sessionId: state.sessionId,
         currentPassword: pw,
         companyName: $('mpCompanyName').value,
         phone: $('mpPhone').value,
         postal: $('mpPostal').value,
-        address: $('mpAddress').value
+        address: $('mpAddress').value,
+        newsletter: nlToggle ? nlToggle.checked : undefined
       }).then(function(res) {
         if (res && res.ok) {
           showToast(res.message || '更新しました');
@@ -6459,24 +6466,13 @@ function loadReferralCode_() {
     }).catch(function() {});
 }
 
-// Phase 3-2: メルマガ配信停止トグル
+// Phase 3-2: メルマガトグルのラベル更新
 function setupNewsletterToggle_() {
   var toggle = $('mpNewsletterToggle');
   if (!toggle) return;
   toggle.addEventListener('change', function() {
     var label = $('mpNewsletterLabel');
-    if (toggle.checked) {
-      if (label) label.textContent = '受信する';
-    } else {
-      if (!state.sessionId) return;
-      runApi('apiUnsubscribeNewsletter', state.userKey, { sessionId: state.sessionId })
-        .then(function(r) {
-          if (r && r.ok) {
-            showToast('メールマガジンの配信を停止しました');
-            if (label) label.textContent = '停止中';
-          }
-        }).catch(function() {});
-    }
+    if (label) label.textContent = toggle.checked ? '受信する' : '停止中';
   });
 }
 

@@ -220,11 +220,13 @@ function findCustomerBySession_(sessionId) {
           row: i + 1,
           id: data[i][0],
           email: data[i][1],
+          passwordHash: data[i][2],
           companyName: data[i][3],
           phone: data[i][4],
           postal: data[i][5],
           address: data[i][6],
           newsletter: data[i][7],
+          registeredAt: data[i][8],
           points: Number(data[i][12]) || 0
         };
       }
@@ -436,15 +438,12 @@ function apiUpdateCustomerProfile(userKey, params) {
     var customer = findCustomerBySession_(sessionId);
     if (!customer) return { ok: false, message: 'セッションが無効または期限切れです。再ログインしてください' };
 
-    var fullCustomer = findCustomerByEmail_(customer.email);
-    if (!fullCustomer) return { ok: false, message: '顧客情報が見つかりません' };
-
-    if (!verifyPassword_(currentPassword, fullCustomer.passwordHash)) {
+    if (!verifyPassword_(currentPassword, customer.passwordHash)) {
       return { ok: false, message: 'パスワードが正しくありません' };
     }
 
     var sheet = getCustomerSheet_();
-    var row = fullCustomer.row;
+    var row = customer.row;
     var updated = [];
 
     if (params.companyName !== undefined) {
@@ -468,10 +467,15 @@ function apiUpdateCustomerProfile(userKey, params) {
       sheet.getRange(row, 7).setValue(address);
       updated.push('住所');
     }
+    if (params.newsletter !== undefined) {
+      var nlVal = (params.newsletter === true || params.newsletter === 'true');
+      sheet.getRange(row, CUSTOMER_SHEET_COLS.NEWSLETTER + 1).setValue(nlVal);
+      updated.push('メルマガ');
+    }
     if (params.email !== undefined) {
       var newEmail = String(params.email || '').trim().toLowerCase();
       if (!newEmail || !newEmail.includes('@')) return { ok: false, message: '有効なメールアドレスを入力してください' };
-      if (newEmail !== fullCustomer.email) {
+      if (newEmail !== customer.email) {
         if (findCustomerByEmail_(newEmail)) return { ok: false, message: 'このメールアドレスは既に使用されています' };
         sheet.getRange(row, 2).setValue(newEmail);
         updated.push('メールアドレス');
@@ -680,12 +684,13 @@ function apiGetMyPage(userKey, params) {
     var sessionId = String(params.sessionId || '');
     if (!sessionId) return { ok: false, message: 'ログインが必要です' };
 
+    // findCustomerBySession_ で顧客シート全読み → そのデータを再利用
     var customer = findCustomerBySession_(sessionId);
     if (!customer) return { ok: false, message: 'セッションが無効です。再ログインしてください' };
 
-    var fullCustomer = findCustomerByEmail_(customer.email);
+    // customer にはすでに row, points, email 等が含まれるため findCustomerByEmail_ は不要
     var orders = getOrderHistory_(customer.email);
-    var points = fullCustomer ? fullCustomer.points : 0;
+    var points = customer.points || 0;
 
     // 統計データ計算
     var totalOrders = orders.length;
@@ -696,29 +701,30 @@ function apiGetMyPage(userKey, params) {
       totalItems += Number(orders[i].count) || 0;
     }
 
-    // ランク情報取得
-    var rankInfo = calculateCustomerRank_(customer.email);
+    // ランク情報取得（orders を再利用して2回目のシート読み込みを回避）
+    var rankInfo = calculateCustomerRankFromOrders_(orders);
 
-    // ポイント有効期限計算
+    // ポイント有効期限計算（customer.row を使ってシート再読み込みを回避）
     var pointsExpiryDate = '';
-    if (fullCustomer && points > 0) {
+    if (customer.row && points > 0) {
       try {
         var sheet = getCustomerSheet_();
-        var updatedAtVal = sheet.getRange(fullCustomer.row, CUSTOMER_SHEET_COLS.POINTS_UPDATED_AT + 1).getValue();
+        var updatedAtVal = sheet.getRange(customer.row, CUSTOMER_SHEET_COLS.POINTS_UPDATED_AT + 1).getValue();
         if (updatedAtVal) {
           var expiryDate = new Date(updatedAtVal);
           expiryDate.setMonth(expiryDate.getMonth() + 6);
           pointsExpiryDate = Utilities.formatDate(expiryDate, 'Asia/Tokyo', 'yyyy/MM/dd');
         } else {
-          // N列が空の既存顧客 → 今から6ヶ月後をデフォルト有効期限とし、N列にも記録
           var now = new Date();
-          sheet.getRange(fullCustomer.row, CUSTOMER_SHEET_COLS.POINTS_UPDATED_AT + 1).setValue(now);
+          sheet.getRange(customer.row, CUSTOMER_SHEET_COLS.POINTS_UPDATED_AT + 1).setValue(now);
           var defaultExpiry = new Date(now);
           defaultExpiry.setMonth(defaultExpiry.getMonth() + 6);
           pointsExpiryDate = Utilities.formatDate(defaultExpiry, 'Asia/Tokyo', 'yyyy/MM/dd');
         }
       } catch(e) {}
     }
+
+    var registeredAt = customer.registeredAt ? formatDate_(customer.registeredAt) : '';
 
     return {
       ok: true,
@@ -731,7 +737,7 @@ function apiGetMyPage(userKey, params) {
           postal: String(customer.postal || '').replace(/^'/, ''),
           address: customer.address,
           newsletter: customer.newsletter,
-          registeredAt: fullCustomer ? formatDate_(fullCustomer.registeredAt) : ''
+          registeredAt: registeredAt
         },
         orders: orders,
         points: points,
@@ -822,7 +828,13 @@ var RANK_TIERS = {
  * @return {object} { rank, name, pointRate, freeShipping, color, annualSpent, nextRank, nextThreshold, graceInfo }
  */
 function calculateCustomerRank_(email) {
-  var orders = getOrderHistory_(email);
+  return calculateCustomerRankFromOrders_(getOrderHistory_(email));
+}
+
+/**
+ * 注文データからランクを判定（シート再読み込みなし）
+ */
+function calculateCustomerRankFromOrders_(orders) {
   var now = new Date();
 
   var spendData = calcSpendByPeriod_(orders, now);

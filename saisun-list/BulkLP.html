@@ -205,11 +205,11 @@ body.admin-mode .header{border-top:3px solid #b8002a}
 .auth-points{background:#e65100;color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700}
 .auth-btn.mypage{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.3);font-size:11px;padding:4px 8px;border-radius:12px;display:inline-flex;align-items:center;justify-content:center;line-height:1}
 .cart-header-btn{position:relative;padding:4px 10px!important;font-size:16px!important;background:rgba(255,255,255,.12)!important;border:1px solid rgba(255,255,255,.3)!important;border-radius:20px!important;cursor:pointer;color:#fff;line-height:1}
-.mypage-tabs{display:flex;gap:0;border-bottom:2px solid #e0e0e0;margin-bottom:16px}
+.mypage-tabs{display:flex;gap:0;border-bottom:2px solid #e0e0e0;margin-bottom:0;position:sticky;top:0;background:#fff;z-index:2}
 .mypage-tab{background:none;border:none;padding:10px 18px;font-size:14px;font-weight:600;color:#888;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;transition:color .2s,border-color .2s}
 .mypage-tab:hover{color:#333}
 .mypage-tab.active{color:#b8002a;border-bottom-color:#b8002a}
-.mypage-content{min-height:120px}
+.mypage-content{min-height:calc(85vh - 140px);padding-top:16px}
 .mp-order-card{border:1px solid #e8e8e8;border-radius:8px;padding:14px;margin-bottom:10px;background:#fafafa}
 .mp-order-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;flex-wrap:wrap;gap:6px}
 .mp-order-no{font-weight:700;font-size:14px;color:#333}
@@ -1095,12 +1095,12 @@ body.admin-mode .admin-settings-fab{display:flex;}
     <div class="bulk-modal-title">マイページ</div>
     <button class="bulk-modal-close" id="myPageCloseBtn" type="button">&times;</button>
   </div>
+  <div class="mypage-tabs" style="position:sticky;top:52px;padding:0 18px;">
+    <button class="mypage-tab active" data-tab="profile" type="button">プロフィール</button>
+    <button class="mypage-tab" data-tab="orders" type="button">注文履歴</button>
+    <button class="mypage-tab" data-tab="points" type="button">ポイント</button>
+  </div>
   <div class="bulk-modal-body">
-    <div class="mypage-tabs">
-      <button class="mypage-tab active" data-tab="profile" type="button">プロフィール</button>
-      <button class="mypage-tab" data-tab="orders" type="button">注文履歴</button>
-      <button class="mypage-tab" data-tab="points" type="button">ポイント</button>
-    </div>
     <!-- プロフィールタブ -->
     <div class="mypage-content" id="mypageProfile">
       <div style="display:grid;grid-template-columns:1fr;gap:10px;">
@@ -2599,18 +2599,7 @@ function setupBulkNewsletterToggle_() {
   if (!toggle) return;
   toggle.addEventListener('change', function() {
     var label = document.getElementById('mpNewsletterLabel');
-    if (toggle.checked) {
-      if (label) label.textContent = '受信する';
-    } else {
-      if (!G.sessionId) return;
-      runApi('apiUnsubscribeNewsletter', G.customer ? G.customer.email : '', { sessionId: G.sessionId })
-        .then(function(r) {
-          if (r && r.ok) {
-            showToast('メールマガジンの配信を停止しました');
-            if (label) label.textContent = '停止中';
-          }
-        }).catch(function() {});
-    }
+    if (label) label.textContent = toggle.checked ? '受信する' : '停止中';
   });
 }
 
@@ -3268,7 +3257,7 @@ function openMyPage_() {
 }
 
 var _MP_CACHE_KEY = 'myPageCache';
-var _MP_CACHE_TTL = 3 * 60 * 1000; // 3分
+var _MP_CACHE_TTL = 10 * 60 * 1000; // 10分
 
 function _applyMpData_(d) {
   var ge = function(id) { return document.getElementById(id); };
@@ -3334,22 +3323,27 @@ function _applyMpData_(d) {
 
 function loadMyPage_() {
   if (!G.sessionId) return;
-  // キャッシュチェック（ページをまたいでも保持）
+  // stale-while-revalidate: キャッシュがあれば即表示 + バックグラウンド更新
+  var cacheUsed = false;
   try {
     var _c = JSON.parse(localStorage.getItem(_MP_CACHE_KEY) || 'null');
-    if (_c && _c.sid === G.sessionId && (Date.now() - _c.ts) < _MP_CACHE_TTL) {
-      _applyMpData_(_c.d); return;
+    if (_c && _c.sid === G.sessionId && _c.d) {
+      _applyMpData_(_c.d);
+      cacheUsed = true;
+      if ((Date.now() - _c.ts) < _MP_CACHE_TTL) return; // 新鮮なキャッシュ → API不要
     }
   } catch(e) {}
-  var orderList = document.getElementById('mpOrderList');
-  if (orderList) orderList.innerHTML = '<div style="text-align:center;padding:20px;color:#999;">読み込み中...</div>';
+  if (!cacheUsed) {
+    var orderList = document.getElementById('mpOrderList');
+    if (orderList) orderList.innerHTML = '<div style="text-align:center;padding:20px;color:#999;">読み込み中...</div>';
+  }
   runApi('apiGetMyPage', 'bulk', { sessionId: G.sessionId })
     .then(function(res) {
-      if (!res || !res.ok || !res.data) { showToast((res && res.message) || 'マイページの読み込みに失敗しました'); return; }
+      if (!res || !res.ok || !res.data) { if (!cacheUsed) showToast((res && res.message) || 'マイページの読み込みに失敗しました'); return; }
       try { localStorage.setItem(_MP_CACHE_KEY, JSON.stringify({ sid: G.sessionId, d: res.data, ts: Date.now() })); } catch(e) {}
       _applyMpData_(res.data);
     })
-    .catch(function() { showToast('マイページの読み込みに失敗しました'); });
+    .catch(function() { if (!cacheUsed) showToast('マイページの読み込みに失敗しました'); });
 }
 
 function getMemberRank_(totalSpent) {
@@ -3532,13 +3526,15 @@ function renderOrderHistory_(orders) {
       var pw = prompt('本人確認のため現在のパスワードを入力してください');
       if (!pw) return;
       mpSaveBtn.disabled = true; mpSaveBtn.textContent = '保存中...';
+      var nlToggle = document.getElementById('mpNewsletterToggle');
       runApi('apiUpdateCustomerProfile', 'bulk', {
         sessionId: G.sessionId,
         currentPassword: pw,
         companyName: document.getElementById('mpCompanyName').value,
         phone: document.getElementById('mpPhone').value,
         postal: document.getElementById('mpPostal').value,
-        address: document.getElementById('mpAddress').value
+        address: document.getElementById('mpAddress').value,
+        newsletter: nlToggle ? nlToggle.checked : undefined
       }).then(function(res) {
         if (res && res.ok) {
           showToast(res.message || '更新しました');
