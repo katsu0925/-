@@ -117,8 +117,25 @@ function shipMailOnEdit(e) {
       '受付番号「' + receiptNo + '」が発送されました。\n\n' +
       'お客様名：' + customer + '\n';
 
+    var adminHtmlBody = buildHtmlEmail_({
+      lead: '受付番号「' + receiptNo + '」が発送されました。',
+      sections: [
+        {
+          title: '発送情報',
+          rows: [
+            { label: 'お客様名', value: customer }
+          ]
+        }
+      ]
+    });
+
     Logger.log('sending admin mail to=' + SHIPMAIL_CONFIG.TO_EMAIL + ' subject=' + adminSubject);
-    MailApp.sendEmail(SHIPMAIL_CONFIG.TO_EMAIL, adminSubject, adminBody);
+    MailApp.sendEmail({
+      to: SHIPMAIL_CONFIG.TO_EMAIL,
+      subject: adminSubject,
+      body: adminBody,
+      htmlBody: adminHtmlBody
+    });
     Logger.log('admin mail sent');
 
     // --- 顧客宛発送通知メール（Drive共有リンク付き） ---
@@ -163,7 +180,42 @@ function shipMailOnEdit(e) {
         + 'お問い合わせ：' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
         + '──────────────────\n';
 
-      MailApp.sendEmail({ to: contactEmail, subject: custSubject, body: custBody, noReply: true });
+      // HTML版を構築
+      var shipRows = [
+        { label: '受付番号', value: receiptNo },
+        { label: '合計点数', value: totalCount + '点' },
+        { label: '合計金額', value: Number(totalAmount).toLocaleString() + '円（税込）' }
+      ];
+      if (carrier) shipRows.push({ label: '配送業者', value: carrier });
+      if (trackingNo) shipRows.push({ label: '伝票番号', value: trackingNo });
+
+      var shipHtmlSections = [{ title: '発送内容', rows: shipRows }];
+
+      if (selectionList) {
+        shipHtmlSections.push({ title: '選択商品', text: selectionList });
+      }
+
+      if (confirmLink) {
+        shipHtmlSections.push({
+          title: 'ご注文明細（Google Drive）',
+          text: '以下のリンクからご注文内容をご確認いただけます。'
+        });
+      }
+
+      var shipCta = confirmLink ? { text: 'ご注文明細を確認', url: confirmLink } : null;
+
+      var custHtmlBody = buildHtmlEmail_({
+        greeting: customer + ' 様',
+        lead: 'デタウリ.Detauri をご利用いただきありがとうございます。\n下記の内容で商品を発送いたしました。',
+        sections: shipHtmlSections,
+        cta: shipCta,
+        notes: [
+          '商品到着まで今しばらくお待ちください。',
+          '到着後、内容にご不明点がございましたらお気軽にお問い合わせください。'
+        ]
+      });
+
+      MailApp.sendEmail({ to: contactEmail, subject: custSubject, body: custBody, htmlBody: custHtmlBody, noReply: true });
       Logger.log('customer mail sent to=' + contactEmail);
 
       // Phase 4-2: LINE発送通知

@@ -121,7 +121,30 @@ function sendPaymentReminderEmail_(email, companyName, receiptNo, totalAmount, p
     + 'お問い合わせ：' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
     + '──────────────────\n';
 
-  MailApp.sendEmail({ to: email, subject: subject, body: body, noReply: true });
+  var reminderHtmlBody = buildHtmlEmail_({
+    greeting: companyName + ' 様',
+    lead: 'デタウリ.Detauri をご利用いただきありがとうございます。\n\n下記のご注文について、まだお支払いが確認できておりません。\n' + urgency,
+    sections: [
+      {
+        title: 'ご注文情報',
+        rows: [
+          { label: '受付番号', value: receiptNo },
+          { label: '合計金額', value: Number(totalAmount).toLocaleString() + '円（税込・送料込）' },
+          { label: '決済方法', value: paymentMethod },
+          { label: 'お支払い期限', value: deadlineStr }
+        ]
+      },
+      {
+        title: '',
+        text: '期限を過ぎますと、ご注文は自動的にキャンセルとなり、\n確保中の商品は解放されますのでご注意ください。\n\nお支払い済みの場合は、反映までにお時間がかかる場合がございます。\nこのメールは行き違いでお届けしている可能性がございますので、何卒ご了承ください。'
+      }
+    ],
+    notes: [
+      'このメールは自動送信です。'
+    ]
+  });
+
+  MailApp.sendEmail({ to: email, subject: subject, body: body, htmlBody: reminderHtmlBody, noReply: true });
 }
 
 // =====================================================

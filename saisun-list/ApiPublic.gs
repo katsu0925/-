@@ -229,10 +229,70 @@ function app_sendOrderNotifyMail_(orderSs, receiptNo, info) {
     const subject = 'デタウリ.Detauri 注文確定（決済完了）';
     const body = app_buildOrderNotifyBody_(orderSs, receiptNo, info);
 
+    // HTML版を構築
+    var htmlSections = [];
+    var orderRows = [
+      { label: '受付番号', value: String(receiptNo || '') },
+      { label: '注文日時', value: String(createdAt) }
+    ];
+    if (info && info.paymentMethod) orderRows.push({ label: '決済方法', value: String(info.paymentMethod || '') });
+    if (info && info.paymentId) orderRows.push({ label: '決済ID', value: String(info.paymentId || '') });
+    if (info && info.paymentStatus) orderRows.push({ label: '入金ステータス', value: String(info.paymentStatus || '') });
+    if (info && info.userKey) orderRows.push({ label: 'userKey', value: String(info.userKey || '') });
+    htmlSections.push({ title: '注文情報', rows: orderRows });
+
+    var custRows = [];
+    if (info && info.companyName) custRows.push({ label: '会社名/氏名', value: String(info.companyName || '') });
+    if (info && info.contact) custRows.push({ label: 'メールアドレス', value: String(info.contact || '') });
+    if (info && info.postal) custRows.push({ label: '郵便番号', value: String(info.postal || '') });
+    if (info && info.address) custRows.push({ label: '住所', value: String(info.address || '') });
+    if (info && info.phone) custRows.push({ label: '電話番号', value: String(info.phone || '') });
+    if (custRows.length) htmlSections.push({ title: '顧客情報', rows: custRows });
+
+    if (info && info.note) {
+      htmlSections.push({ title: '備考', text: String(info.note || '') });
+    }
+
+    var summaryRows = [];
+    if (info && typeof info.totalCount !== 'undefined') summaryRows.push({ label: '点数', value: String(info.totalCount) });
+    if (info && typeof info.discounted !== 'undefined') summaryRows.push({ label: '注文金額（税込・送料込）', value: String(info.discounted) + '円' });
+    if (info && info.measureLabel) summaryRows.push({ label: '採寸', value: String(info.measureLabel || '') });
+    if (summaryRows.length) htmlSections.push({ title: '金額', rows: summaryRows });
+
+    if (info && info.itemDetails && info.itemDetails.length > 0) {
+      var itemLines = [];
+      for (var hi = 0; hi < info.itemDetails.length; hi++) {
+        var h_item = info.itemDetails[hi];
+        var hLabel = h_item.noLabel || h_item.managedId || '';
+        var hParts = [];
+        if (h_item.brand) hParts.push(h_item.brand);
+        if (h_item.category) hParts.push(h_item.category);
+        if (h_item.size) hParts.push(h_item.size);
+        if (h_item.color) hParts.push(h_item.color);
+        itemLines.push(hLabel + '  ' + hParts.join(' / ') + '  ' + Number(h_item.price || 0).toLocaleString() + '円');
+      }
+      htmlSections.push({ title: '選択商品', items: itemLines });
+    } else if (info && info.selectionList) {
+      htmlSections.push({ title: '選択ID', text: String(info.selectionList || '') });
+    }
+
+    if (ssUrl) {
+      htmlSections.push({ title: 'スプレッドシート', text: ssUrl });
+    }
+    if (info && typeof info.writeRow !== 'undefined') {
+      htmlSections.push({ title: '書込行', text: String(info.writeRow) });
+    }
+
+    var htmlBody = buildHtmlEmail_({
+      lead: '【決済完了】新しい注文が確定しました。',
+      sections: htmlSections
+    });
+
     MailApp.sendEmail({
       to: toList.join(','),
       subject: subject,
-      body: body
+      body: body,
+      htmlBody: htmlBody
     });
   } catch (e) {
     console.error('app_sendOrderNotifyMail_ error:', e);
@@ -455,10 +515,86 @@ function app_sendOrderConfirmToCustomer_(data) {
       + 'お問い合わせ：' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
       + '──────────────────\n';
 
+    // HTML版を構築
+    var htmlSections = [];
+
+    if (isDeferredPayment) {
+      htmlSections.push({
+        title: 'お支払い期限',
+        rows: [
+          { label: 'お支払い期限', value: deadlineStr + '（ご注文から3日以内）' },
+          { label: '決済方法', value: paymentMethodLabel }
+        ]
+      });
+    }
+
+    var orderRows = [
+      { label: '受付番号', value: String(data.receiptNo) },
+      { label: '注文日時', value: datetime },
+      { label: '会社名/氏名', value: companyName },
+      { label: '合計点数', value: totalCount + '点' },
+      { label: '合計金額', value: Number(discounted).toLocaleString() + '円（税込・送料込）' }
+    ];
+    if (shippingAmount > 0) {
+      orderRows.push({ label: 'うち送料', value: Number(shippingAmount).toLocaleString() + '円' });
+    }
+    if (paymentMethodLabel) {
+      orderRows.push({ label: '決済方法', value: paymentMethodLabel });
+    }
+    if (note) {
+      orderRows.push({ label: '備考', value: note });
+    }
+    htmlSections.push({ title: 'ご注文内容', rows: orderRows });
+
+    if (data.itemDetails && data.itemDetails.length > 0) {
+      var hItemLines = [];
+      for (var hi2 = 0; hi2 < data.itemDetails.length; hi2++) {
+        var h2_item = data.itemDetails[hi2];
+        var h2Label = h2_item.noLabel || h2_item.managedId || '';
+        var h2Parts = [];
+        if (h2_item.brand) h2Parts.push(h2_item.brand);
+        if (h2_item.category) h2Parts.push(h2_item.category);
+        if (h2_item.size) h2Parts.push(h2_item.size);
+        if (h2_item.color) h2Parts.push(h2_item.color);
+        hItemLines.push(h2Label + '  ' + h2Parts.join(' / ') + '  ' + Number(h2_item.price || 0).toLocaleString() + '円');
+      }
+      htmlSections.push({ title: '選択商品', items: hItemLines });
+    } else if (selectionList) {
+      htmlSections.push({ title: '選択商品', text: selectionList });
+    }
+
+    var htmlLead = isDeferredPayment
+      ? 'デタウリ.Detauri をご利用いただきありがとうございます。\n以下の内容でご注文を受け付けました。'
+      : 'デタウリ.Detauri をご利用いただきありがとうございます。\nお支払いを確認しました。以下の内容でご注文が確定しました。';
+
+    var htmlNotes = ['このメールは自動送信です。'];
+    if (isDeferredPayment) {
+      htmlNotes.push('期限を過ぎますとご注文は自動キャンセルとなり、確保中の商品は解放されますのでご注意ください。');
+      htmlNotes.push('入金確認後に注文確定メールをお送りいたします。');
+      htmlSections.push({
+        title: '',
+        text: '上記のお支払い期限までにお支払いをお願いいたします。\n入金確認後、商品の発送準備を進めてまいります。'
+      });
+    } else {
+      htmlNotes.push('ご注文確定後のキャンセル・変更はできません。');
+      htmlSections.push({
+        title: '',
+        text: '商品の発送準備を進めてまいります。\n発送が完了しましたら、追跡番号とともにメールでお知らせいたします。'
+      });
+    }
+
+    var custHtmlBody = buildHtmlEmail_({
+      greeting: companyName + ' 様',
+      lead: htmlLead,
+      sections: htmlSections,
+      notes: htmlNotes
+    });
+
     MailApp.sendEmail({
       to: email,
       subject: subject,
       body: body,
+      htmlBody: custHtmlBody,
       noReply: true
     });
   } catch (e) {
@@ -586,11 +722,30 @@ function apiSendContactForm(params) {
       + '\n--- お問い合わせ内容 ---\n'
       + message + '\n';
 
+    var adminHtmlBody = buildHtmlEmail_({
+      lead: 'お問い合わせを受信しました。',
+      sections: [
+        {
+          title: 'お問い合わせ情報',
+          rows: [
+            { label: 'お名前', value: name },
+            { label: 'メールアドレス', value: email },
+            { label: '日時', value: datetime }
+          ]
+        },
+        {
+          title: 'お問い合わせ内容',
+          text: message
+        }
+      ]
+    });
+
     MailApp.sendEmail({
       to: adminTo,
       replyTo: email,
       subject: adminSubject,
-      body: adminBody
+      body: adminBody,
+      htmlBody: adminHtmlBody
     });
 
     // 2. 顧客宛確認メール
@@ -614,10 +769,34 @@ function apiSendContactForm(params) {
       + 'お問い合わせ：' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
       + '──────────────────\n';
 
+    var custHtmlBody2 = buildHtmlEmail_({
+      greeting: name + ' 様',
+      lead: 'お問い合わせいただきありがとうございます。\n以下の内容で受け付けました。2営業日以内にご連絡いたします。',
+      sections: [
+        {
+          title: 'お問い合わせ内容',
+          rows: [
+            { label: 'お名前', value: name },
+            { label: 'メールアドレス', value: email },
+            { label: '日時', value: datetime }
+          ]
+        },
+        {
+          title: '',
+          text: message
+        }
+      ],
+      notes: [
+        'このメールは自動送信です。',
+        'このメールへの返信はお控えください。'
+      ]
+    });
+
     MailApp.sendEmail({
       to: email,
       subject: custSubject,
       body: custBody,
+      htmlBody: custHtmlBody2,
       noReply: true
     });
 
