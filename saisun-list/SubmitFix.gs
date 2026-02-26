@@ -72,10 +72,33 @@ function apiSubmitEstimate(userKey, form, ids) {
       sum += Number(p.price || 0);
     }
 
-    // === アソートカート合算データを先読み ===
-    var bulkProductAmount = Math.max(0, Math.floor(Number(f.bulkProductAmount || 0)));
-    var bulkShippingAmount = Math.max(0, Math.floor(Number(f.bulkShipping || 0)));
-    var bulkItemCount = Math.max(0, Math.floor(Number(f.bulkItemCount || 0)));
+    // === アソートカート金額をサーバー側で再計算（改ざん防止） ===
+    var bulkProductAmount = 0;
+    var bulkShippingAmount = 0;
+    var bulkItemCount = 0;
+    if (hasBulkItems) {
+      var bulkProducts = bulk_getProducts_();
+      var bulkProductMap = {};
+      for (var bi = 0; bi < bulkProducts.length; bi++) {
+        bulkProductMap[bulkProducts[bi].productId] = bulkProducts[bi];
+      }
+      for (var bj = 0; bj < f.bulkItems.length; bj++) {
+        var bItem = f.bulkItems[bj];
+        var bPid = String(bItem.productId || '').trim();
+        var bQty = Math.max(0, Math.floor(Number(bItem.qty) || 0));
+        if (!bPid || bQty <= 0) continue;
+        var bp = bulkProductMap[bPid];
+        if (!bp) return { ok: false, message: 'アソート商品が見つかりません: ' + bPid };
+        if (bp.soldOut) return { ok: false, message: bp.name + ' は売り切れです' };
+        if (bQty < bp.minQty) return { ok: false, message: bp.name + ' は最低' + bp.minQty + bp.unit + 'から注文可能です' };
+        if (bQty > bp.maxQty) return { ok: false, message: bp.name + ' は最大' + bp.maxQty + bp.unit + 'までです' };
+        if (bp.stock !== -1 && bp.stock < bQty) return { ok: false, message: bp.name + ' の在庫が不足しています（残り' + bp.stock + '）' };
+        var bUnitPrice = (bp.discountedPrice !== undefined) ? bp.discountedPrice : bp.price;
+        bulkProductAmount += bUnitPrice * bQty;
+        bulkItemCount += bQty;
+      }
+    }
+    var rawBulkProductAmount = bulkProductAmount; // 送料無料判定用（クーポン適用前）
 
     // === 価格計算（ロック不要の演算） ===
     var totalCount = list.length;
@@ -142,11 +165,26 @@ function apiSubmitEstimate(userKey, form, ids) {
       discounted = Math.round(sum * (1 - discountRate));
     }
 
-    // === 送料計算（ロック不要） ===
-    var shippingAmount = Math.max(0, Math.floor(Number(f.shippingAmount || 0)));
-    var shippingSize = String(f.shippingSize || '');
-    var shippingArea = String(f.shippingArea || '');
-    var shippingPref = String(f.shippingPref || '');
+    // === 送料計算（サーバー側で再計算 — 改ざん防止） ===
+    var shippingPref = detectPrefecture_(address) || '';
+    var shippingArea = shippingPref ? (SHIPPING_AREAS[shippingPref] || '') : '';
+    var shippingSize = (list.length <= 10) ? 'small' : 'large';
+    var shippingAmount = 0;
+
+    if (list.length > 0 || hasBulkItems) {
+      if (isRemoteIsland_(address)) {
+        return { ok: false, message: '離島への配送は現在対応しておりません。' };
+      }
+      if (!shippingPref) {
+        return { ok: false, message: '住所から都道府県を判別できません。住所を確認してください。' };
+      }
+    }
+    if (list.length > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
+      shippingAmount = SHIPPING_RATES[shippingArea][(list.length <= 10) ? 0 : 1];
+    }
+    if (bulkItemCount > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
+      bulkShippingAmount = SHIPPING_RATES[shippingArea][1] * bulkItemCount;
+    }
 
     // 送料無料クーポン適用（両チャネル）
     if (validatedCoupon && validatedCoupon.type === 'shipping_free') {
@@ -154,8 +192,8 @@ function apiSubmitEstimate(userKey, form, ids) {
       bulkShippingAmount = 0;
     }
 
-    // 商品合計1万円以上で送料無料（割引前の商品価格で判定）
-    if (sum + bulkProductAmount >= 10000) {
+    // 商品合計1万円以上で送料無料（クーポン適用前の商品価格で判定）
+    if (sum + rawBulkProductAmount >= 10000) {
       shippingAmount = 0;
       bulkShippingAmount = 0;
     }
