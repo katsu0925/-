@@ -4,8 +4,8 @@
 // ポイントに6ヶ月の有効期限を設けて利用促進
 // =====================================================
 
-var POINT_EXPIRY_MONTHS = 6;
-var POINT_EXPIRY_WARN_DAYS = 7; // 失効1週間前にリマインド
+var POINT_EXPIRY_MONTHS = 12;
+var POINT_EXPIRY_WARN_DAYS = 30; // 失効30日前にリマインド
 
 /**
  * ポイント有効期限チェック 定期実行（毎日6時）
