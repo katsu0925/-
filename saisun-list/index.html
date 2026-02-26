@@ -2022,9 +2022,11 @@ function updateBulkDiscountProgress_(count) {
       + (_nextSaved > 0 ? '<span style="font-size:10px;color:#888;">（約' + numFmt_(_nextSaved) + '円お得）</span>' : '')
       + '</div>';
   }
-  // 送料無料ラインの案内
-  if (_cartSum > 0 && _cartSum < 10000) {
-    var _needForFreeShip = 10000 - _cartSum;
+  // 送料無料ラインの案内（デタウリ+アソート合算）
+  var _bulkSub = (loadBulkCartStorage().subtotal || 0);
+  var _combinedSum = _cartSum + _bulkSub;
+  if (_combinedSum > 0 && _combinedSum < 10000) {
+    var _needForFreeShip = 10000 - _combinedSum;
     html += '<div style="font-size:11px;color:#3b82f6;text-align:center;margin-top:4px;font-weight:600;">あと¥' + numFmt_(_needForFreeShip) + 'で送料無料！</div>';
   }
   el.innerHTML = html;
