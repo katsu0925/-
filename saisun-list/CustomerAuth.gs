@@ -729,13 +729,13 @@ function apiGetMyPage(userKey, params) {
         var updatedAtVal = sheet.getRange(customer.row, CUSTOMER_SHEET_COLS.POINTS_UPDATED_AT + 1).getValue();
         if (updatedAtVal) {
           var expiryDate = new Date(updatedAtVal);
-          expiryDate.setMonth(expiryDate.getMonth() + 6);
+          expiryDate.setMonth(expiryDate.getMonth() + POINT_EXPIRY_MONTHS);
           pointsExpiryDate = Utilities.formatDate(expiryDate, 'Asia/Tokyo', 'yyyy/MM/dd');
         } else {
           var now = new Date();
           sheet.getRange(customer.row, CUSTOMER_SHEET_COLS.POINTS_UPDATED_AT + 1).setValue(now);
           var defaultExpiry = new Date(now);
-          defaultExpiry.setMonth(defaultExpiry.getMonth() + 6);
+          defaultExpiry.setMonth(defaultExpiry.getMonth() + POINT_EXPIRY_MONTHS);
           pointsExpiryDate = Utilities.formatDate(defaultExpiry, 'Asia/Tokyo', 'yyyy/MM/dd');
         }
       } catch(e) {}
