@@ -2612,26 +2612,27 @@ function setupBulkNewsletterToggle_() {
   if (!toggle) return;
   toggle.addEventListener('change', function() {
     var label = document.getElementById('mpNewsletterLabel');
-    if (label) label.textContent = toggle.checked ? '受信する' : '停止中';
+    var newVal = toggle.checked;
+    if (label) label.textContent = newVal ? '受信する' : '停止中';
     if (!G.sessionId) return;
-    window._nlRecentlyChanged = true;
     toggle.disabled = true;
-    runApi('apiUpdateNewsletter', 'bulk', { sessionId: G.sessionId, newsletter: toggle.checked })
+    runApi('apiUpdateNewsletter', 'bulk', { sessionId: G.sessionId, newsletter: newVal })
       .then(function(r) {
         if (r && r.ok) {
-          showToast(toggle.checked ? 'メルマガを受信に設定しました' : 'メルマガを停止しました');
-          try { localStorage.removeItem(_MP_CACHE_KEY); } catch(e) {}
-          setTimeout(function() { window._nlRecentlyChanged = false; }, 10000);
+          showToast(newVal ? 'メルマガを受信に設定しました' : 'メルマガを停止しました');
+          // キャッシュ内のnewsletter値も更新（stale-while-revalidateで上書きされないように）
+          try {
+            var c = JSON.parse(localStorage.getItem(_MP_CACHE_KEY) || 'null');
+            if (c && c.d && c.d.profile) { c.d.profile.newsletter = newVal; localStorage.setItem(_MP_CACHE_KEY, JSON.stringify(c)); }
+          } catch(e) {}
         } else {
-          window._nlRecentlyChanged = false;
-          toggle.checked = !toggle.checked;
-          if (label) label.textContent = toggle.checked ? '受信する' : '停止中';
+          toggle.checked = !newVal;
+          if (label) label.textContent = !newVal ? '停止中' : '受信する';
           showToast((r && r.message) || '変更に失敗しました');
         }
       }).catch(function() {
-        window._nlRecentlyChanged = false;
-        toggle.checked = !toggle.checked;
-        if (label) label.textContent = toggle.checked ? '受信する' : '停止中';
+        toggle.checked = !newVal;
+        if (label) label.textContent = !newVal ? '停止中' : '受信する';
       }).finally(function() { toggle.disabled = false; });
   });
 }
@@ -3337,10 +3338,10 @@ function _applyMpData_(d) {
     var rank = getMemberRank_(d.stats.totalSpent || 0);
     ge('mpMemberRank').innerHTML = '<span style="color:' + safeColor_(rank.color) + ';">' + escHtml(rank.name) + '</span>';
   }
-  // Phase 3-7: メルマガ設定反映（最近ユーザーが変更した場合はスキップ）
+  // Phase 3-7: メルマガ設定反映
   var nlToggle = document.getElementById('mpNewsletterToggle');
   var nlLabel = document.getElementById('mpNewsletterLabel');
-  if (nlToggle && !window._nlRecentlyChanged) {
+  if (nlToggle) {
     nlToggle.checked = d.profile.newsletter !== false && d.profile.newsletter !== 'false';
     if (nlLabel) nlLabel.textContent = nlToggle.checked ? '受信する' : '停止中';
   }
