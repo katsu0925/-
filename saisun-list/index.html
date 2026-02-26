@@ -493,6 +493,9 @@
           <button class="sp-btn" id="spBtnClearCache" type="button">商品キャッシュ削除</button>
           <button class="sp-btn" id="spBtnApplyDv" type="button">ステータスのプルダウン適用</button>
         </div>
+        <div class="sp-btn-row" style="margin-top:6px;">
+          <button class="sp-btn" id="spBtnTestEmails" type="button">メール一括テスト送信</button>
+        </div>
         <div class="sp-log" id="spLog"></div>
       </div>
       <div class="sp-section">
@@ -5621,8 +5624,10 @@ function handlePaymentReturn_() {
         if ($('doneModalTitle')) $('doneModalTitle').textContent = '注文完了';
         if ($('doneMessage')) $('doneMessage').textContent = 'お支払いが完了しました。注文確認メールをお送りしましたのでご確認ください。商品の発送準備を進めてまいります。';
       } else if (res && res.ok && res.status === 'pending') {
-        if ($('doneModalTitle')) $('doneModalTitle').textContent = '入金待ち';
-        if ($('doneMessage')) $('doneMessage').textContent = 'ご注文を受け付けました。コンビニ決済・銀行振込をご選択の場合、入金確認後に注文が確定されます。';
+        if ($('doneModalTitle')) $('doneModalTitle').textContent = 'ご注文受付（入金待ち）';
+        var deadlineDate = new Date(); deadlineDate.setDate(deadlineDate.getDate() + 3);
+        var dlStr = (deadlineDate.getMonth() + 1) + '月' + deadlineDate.getDate() + '日';
+        if ($('doneMessage')) $('doneMessage').textContent = 'ご注文を受け付けました。お支払い期限は' + dlStr + '（3日以内）です。期限内にお支払いをお願いいたします。入金確認後、注文確定メールをお送りいたします。期限を過ぎるとご注文は自動キャンセルとなります。';
       } else {
         if ($('doneModalTitle')) $('doneModalTitle').textContent = '決済確認中';
         if ($('doneMessage')) $('doneMessage').textContent = 'お支払いの確認に時間がかかっています。注文が確定されましたらメールでお知らせいたします。受付番号を控えておいてください。';
@@ -5834,6 +5839,7 @@ function bindUi_() {
       $('spBtnRebuild').addEventListener('click', function() { spRunAdmin('adminRebuildStates', '状態の再構築'); });
       $('spBtnClearCache').addEventListener('click', function() { spRunAdmin('adminClearProductsCache', '商品キャッシュ削除'); });
       $('spBtnApplyDv').addEventListener('click', function() { spRunAdmin('adminApplyStatusDropdown', 'ステータスのプルダウン適用'); });
+      $('spBtnTestEmails').addEventListener('click', function() { spRunAdmin('adminTestEmails', 'メール一括テスト送信'); });
 
       // KOMOJU 決済モード
       function spUpdateMode(mode, hasTestKey, hasLiveKey) {

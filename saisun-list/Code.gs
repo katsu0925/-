@@ -111,7 +111,8 @@ function doPost(e) {
       'adminGetKomojuMode', 'adminToggleKomojuMode',
       'adminGetMemberDiscountStatus', 'adminToggleMemberDiscount',
       'adminRebuildStates', 'adminApplyStatusDropdown',
-      'adminClearProductsCache', 'adminCompactHolds'
+      'adminClearProductsCache', 'adminCompactHolds',
+      'adminTestEmails'
     ];
     var allowedSet = {};
     for (var ai = 0; ai < allowedNames.length; ai++) allowedSet[allowedNames[ai]] = true;

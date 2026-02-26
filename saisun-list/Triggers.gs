@@ -86,6 +86,17 @@ function tr_setupTriggersOnce_() {
   }
   if (!hasPointsTrigger) ScriptApp.newTrigger('processCustomerPointsAuto_').timeBased().everyDays(1).atHour(5).create();
 
+  // 入金リマインダートリガー（毎日9時に実行）
+  var hasReminderTrigger = false;
+  var t4 = ScriptApp.getProjectTriggers();
+  for (var j = 0; j < t4.length; j++) {
+    if (t4[j].getHandlerFunction && t4[j].getHandlerFunction() === 'sendPaymentReminders') {
+      hasReminderTrigger = true;
+      break;
+    }
+  }
+  if (!hasReminderTrigger) ScriptApp.newTrigger('sendPaymentReminders').timeBased().everyDays(1).atHour(9).create();
+
   return { ok: true };
 }
 

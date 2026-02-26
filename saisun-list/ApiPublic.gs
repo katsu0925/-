@@ -346,11 +346,39 @@ function app_sendOrderConfirmToCustomer_(data) {
       default: paymentMethodLabel = paymentMethod || ''; break;
     }
 
-    var subject = '【デタウリ.Detauri】ご注文ありがとうございます（受付番号：' + data.receiptNo + '）';
-    var body = companyName + ' 様\n\n'
-      + 'デタウリ.Detauri をご利用いただきありがとうございます。\n'
-      + 'お支払いを確認しました。以下の内容でご注文が確定しました。\n\n'
-      + '━━━━━━━━━━━━━━━━━━━━\n'
+    // 後払い（コンビニ・銀行振込・ペイジー）かどうかを判定
+    var isDeferredPayment = (paymentMethod === 'konbini' || paymentMethod === 'bank_transfer' || paymentMethod === 'pay_easy');
+    var paymentStatusText = data.paymentStatus || '';
+    if (paymentStatusText === '入金待ち') isDeferredPayment = true;
+
+    // 期限日を計算（注文日+3日）
+    var deadlineDate = new Date(data.createdAtMs || Date.now());
+    deadlineDate.setDate(deadlineDate.getDate() + 3);
+    var deadlineStr = Utilities.formatDate(deadlineDate, 'Asia/Tokyo', 'yyyy年MM月dd日');
+
+    var subject, body;
+    if (isDeferredPayment) {
+      subject = '【デタウリ.Detauri】ご注文を受け付けました（受付番号：' + data.receiptNo + '）';
+      body = companyName + ' 様\n\n'
+        + 'デタウリ.Detauri をご利用いただきありがとうございます。\n'
+        + '以下の内容でご注文を受け付けました。\n\n'
+        + '━━━━━━━━━━━━━━━━━━━━\n'
+        + '■ お支払い期限\n'
+        + '━━━━━━━━━━━━━━━━━━━━\n'
+        + 'お支払い期限：' + deadlineStr + '（ご注文から3日以内）\n'
+        + '決済方法：' + paymentMethodLabel + '\n\n'
+        + '※ 期限を過ぎますとご注文は自動キャンセルとなり、\n'
+        + '  確保中の商品は解放されますのでご注意ください。\n'
+        + '※ 入金確認後に注文確定メールをお送りいたします。\n'
+        + '━━━━━━━━━━━━━━━━━━━━\n\n';
+    } else {
+      subject = '【デタウリ.Detauri】ご注文ありがとうございます（受付番号：' + data.receiptNo + '）';
+      body = companyName + ' 様\n\n'
+        + 'デタウリ.Detauri をご利用いただきありがとうございます。\n'
+        + 'お支払いを確認しました。以下の内容でご注文が確定しました。\n\n';
+    }
+
+    body += '━━━━━━━━━━━━━━━━━━━━\n'
       + '■ ご注文内容\n'
       + '━━━━━━━━━━━━━━━━━━━━\n'
       + '受付番号：' + data.receiptNo + '\n'
@@ -387,12 +415,20 @@ function app_sendOrderConfirmToCustomer_(data) {
     } else {
       body += selectionList + '\n';
     }
-    body += '━━━━━━━━━━━━━━━━━━━━\n\n'
-      + '商品の発送準備を進めてまいります。\n'
-      + '発送が完了しましたら、追跡番号とともにメールでお知らせいたします。\n\n'
-      + '※ このメールは自動送信です。\n'
-      + '※ ご注文確定後のキャンセル・変更はできません。\n\n'
-      + '──────────────────\n'
+
+    if (isDeferredPayment) {
+      body += '━━━━━━━━━━━━━━━━━━━━\n\n'
+        + '上記のお支払い期限までにお支払いをお願いいたします。\n'
+        + '入金確認後、商品の発送準備を進めてまいります。\n\n';
+    } else {
+      body += '━━━━━━━━━━━━━━━━━━━━\n\n'
+        + '商品の発送準備を進めてまいります。\n'
+        + '発送が完了しましたら、追跡番号とともにメールでお知らせいたします。\n\n';
+    }
+
+    body += '※ このメールは自動送信です。\n'
+      + (isDeferredPayment ? '' : '※ ご注文確定後のキャンセル・変更はできません。\n')
+      + '\n──────────────────\n'
       + 'デタウリ.Detauri\n'
       + 'https://wholesale.nkonline-tool.com/\n'
       + 'お問い合わせ：' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
