@@ -95,6 +95,7 @@ function apiSubmitEstimate(userKey, form, ids) {
         if (totalCount >= 100) discountRate += 0.20;
         else if (totalCount >= 50) discountRate += 0.15;
         else if (totalCount >= 30) discountRate += 0.10;
+        else if (totalCount >= 10) discountRate += 0.05;
       }
       var memberDiscountStatus = app_getMemberDiscountStatus_();
       if (validatedCoupon.comboMember && memberDiscountStatus.enabled && contact && typeof findCustomerByEmail_ === 'function') {
@@ -110,6 +111,7 @@ function apiSubmitEstimate(userKey, form, ids) {
       if (totalCount >= 100) discountRate += 0.20;
       else if (totalCount >= 50) discountRate += 0.15;
       else if (totalCount >= 30) discountRate += 0.10;
+      else if (totalCount >= 10) discountRate += 0.05;
 
       // 会員割引（ログイン会員のみ、enabled時のみ）
       var memberDiscountStatus = app_getMemberDiscountStatus_();
@@ -142,6 +144,12 @@ function apiSubmitEstimate(userKey, form, ids) {
 
     // 送料無料クーポン適用（両チャネル）
     if (validatedCoupon && validatedCoupon.type === 'shipping_free') {
+      shippingAmount = 0;
+      bulkShippingAmount = 0;
+    }
+
+    // 商品合計1万円以上で送料無料（割引前の商品価格で判定）
+    if (sum + bulkProductAmount >= 10000) {
       shippingAmount = 0;
       bulkShippingAmount = 0;
     }

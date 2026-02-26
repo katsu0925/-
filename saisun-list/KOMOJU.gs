@@ -28,8 +28,8 @@ var KOMOJU_CONFIG = {
     'bank_transfer',    // 銀行振込
     'paypay',           // PayPay
     'pay_easy',         // ペイジー（Pay-easy）
-    'apple_pay'         // Apple Pay
-    // 'paidy'          // Paidy（あと払い） — 申請中
+    'apple_pay',        // Apple Pay
+    'paidy'             // Paidy（あと払い）
   ],
 
   // 通貨
@@ -306,7 +306,7 @@ function handlePaymentSuccess_(data) {
   // 後払い（コンビニ・銀行振込・ペイジー）:
   //   authorized（支払い番号発行済み・未入金）→「入金待ち」
   //   captured（入金完了）→「未対応」
-  var deferredMethods = { 'konbini': true, 'bank_transfer': true, 'pay_easy': true };
+  var deferredMethods = { 'konbini': true, 'bank_transfer': true, 'pay_easy': true, 'paidy': true };
   var paymentStatus = '未対応';
   if (deferredMethods[paymentMethodType] && data.type === 'payment.authorized') {
     paymentStatus = '入金待ち';
@@ -454,7 +454,7 @@ function handlePaymentUpdated_(data) {
   var paymentMethodType = extractPaymentMethodType_(apiPayment);
 
   // 後払い（コンビニ・銀行振込・ペイジー）の入金完了を処理
-  var deferredMethods = { 'konbini': true, 'bank_transfer': true, 'pay_easy': true };
+  var deferredMethods = { 'konbini': true, 'bank_transfer': true, 'pay_easy': true, 'paidy': true };
   if (deferredMethods[paymentMethodType]) {
     // 金額の照合
     if (!verifyPaymentAmount_(receiptNo, apiPayment.amount)) {
@@ -712,6 +712,7 @@ function getPaymentMethodDisplayName_(methodType) {
     'paypay': 'PayPay',
     'pay_easy': 'ペイジー',
     'apple_pay': 'Apple Pay',
+    'paidy': 'Paidy（あと払い）',
     'admin': '管理者登録'
   };
   return map[String(methodType || '')] || String(methodType || '');

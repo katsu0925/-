@@ -280,9 +280,10 @@ function apiRegisterCustomer(userKey, params) {
       const phoneForSheet = phone ? ("'" + phone) : '';
       const postalForSheet = postal ? ("'" + postal) : '';
 
+      var initialPoints = 500; // 初回登録ボーナス
       sheet.appendRow([
         customerId, email, passwordHash, companyName, phoneForSheet,
-        postalForSheet, address, newsletter, now, now, sessionId, sessionExpiry, 0
+        postalForSheet, address, newsletter, now, now, sessionId, sessionExpiry, initialPoints
       ]);
       lock.releaseLock();
 
@@ -293,8 +294,9 @@ function apiRegisterCustomer(userKey, params) {
           customer: {
             id: customerId, email: email, companyName: companyName,
             phone: phone, postal: postal, address: address,
-            newsletter: newsletter, points: 0
-          }
+            newsletter: newsletter, points: initialPoints
+          },
+          welcomeBonus: initialPoints
         }
       };
     } catch (lockErr) {

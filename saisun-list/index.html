@@ -518,7 +518,7 @@
   </div>
   <div id="pageTransition"><div class="pt-content"><div class="pt-title">デタウリ.Detauri</div><div class="pt-sub">読み込み中...</div></div></div>
   <div class="promo-banner" id="promoBanner">
-    期間限定：会員登録で全品<strong>10%OFF</strong>（2026年9月末まで・数量割引と併用可）<a href="#" id="promoRegisterLink">今すぐ無料登録 ＞</a>
+    期間限定：会員登録で全品<strong>10%OFF</strong>＋初回<strong>500ポイント</strong>プレゼント！さらに<strong>1万円以上で送料無料</strong><a href="#" id="promoRegisterLink">今すぐ無料登録 ＞</a>
     <button class="promo-close" id="promoClose" type="button">✕</button>
   </div>
   <div class="topbar">
@@ -632,7 +632,7 @@
         <div id="detDiscountProgress" style="display:none;padding:8px 10px;background:#fef2f2;border-radius:8px;margin-bottom:8px;border:1px solid #fecaca;"></div>
         <div class="cart-summary" id="cartSummaryRows"></div>
         <div id="shippingNote" style="display:none;font-size:11px;color:#888;text-align:right;width:100%;margin-top:6px;">※送料は税込み・会員割引対象外です</div>
-        <div id="paymentFeeNote" style="display:none;font-size:11px;color:#888;text-align:right;width:100%;line-height:1.5;margin-top:2px;">※コンビニ決済は別途手数料220円（税込）がかかります<br>※銀行振込・ペイジーの振込手数料はお客様負担です</div>
+        <div id="paymentFeeNote" style="display:none;font-size:11px;color:#888;text-align:right;width:100%;line-height:1.5;margin-top:2px;">※コンビニ決済は別途手数料220円（税込）がかかります<br>※銀行振込・ペイジーの振込手数料はお客様負担です<br>※Paidy（あと払い）は翌月10日までにお支払い</div>
         <div id="remoteIslandWarning" style="display:none;font-size:13px;color:#b8002a;text-align:right;width:100%;font-weight:600;"></div>
         <div id="cartActions" style="display:flex; gap:8px; align-items:center; justify-content:flex-end; flex-wrap:wrap; width:100%; margin-top:10px;">
           <div id="cartClearBtns" style="display:flex;gap:6px;flex-wrap:wrap;margin-right:auto;"></div>
@@ -642,7 +642,10 @@
       <!-- お届け先情報（初期非表示、「購入手続きへ」で表示） -->
       <div id="cartFormSection" style="display:none;">
         <div style="border-top:1px solid #e0e0e0;margin:16px 0 12px;"></div>
-        <div style="font-weight:700;font-size:15px;margin-bottom:10px;">お届先情報</div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <span style="font-weight:700;font-size:15px;">お届先情報</span>
+          <button type="button" id="btnPrevAddress" style="display:none;font-size:11px;padding:4px 10px;background:#f0f9ff;color:#3b82f6;border:1px solid #93c5fd;border-radius:6px;cursor:pointer;font-weight:600;" onclick="loadPrevAddress_()">前回と同じ届け先を使う</button>
+        </div>
         <div class="formGrid">
           <div class="formField">
             <label>会社名/氏名 *</label>
@@ -1085,7 +1088,7 @@
         <ol style="margin:0;padding-left:20px;color:#475569;">
           <li style="margin-bottom:8px;"><strong>商品選択</strong>：お好みの商品をカートに追加（10点以上）</li>
           <li style="margin-bottom:8px;"><strong>お届け先入力</strong>：住所を入力すると送料が自動表示されます</li>
-          <li style="margin-bottom:8px;"><strong>お支払い</strong>：商品代＋送料をオンライン決済<br><span style="font-size:12px;color:#888;">※コンビニ決済は別途手数料220円、銀行振込・ペイジーの振込手数料はお客様負担</span></li>
+          <li style="margin-bottom:8px;"><strong>お支払い</strong>：商品代＋送料をオンライン決済（1万円以上で送料無料）<br><span style="font-size:12px;color:#888;">※コンビニ決済は別途手数料220円、銀行振込・ペイジーの振込手数料はお客様負担</span></li>
           <li><strong>発送</strong>：決済完了後、通常2〜5営業日で発送いたします</li>
         </ol>
       </div>
@@ -1314,18 +1317,19 @@
         </tr>
         <tr>
           <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">送料</th>
-          <td style="padding:12px;border:1px solid #e2e8f0;">地域・サイズにより異なります。詳細は<a href="#" id="legalShippingLink" style="color:#3b82f6;">送料表</a>をご確認ください。</td>
+          <td style="padding:12px;border:1px solid #e2e8f0;">地域・サイズにより異なります。<strong>商品合計1万円以上で送料無料。</strong>詳細は<a href="#" id="legalShippingLink" style="color:#3b82f6;">送料表</a>をご確認ください。</td>
         </tr>
         <tr>
           <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">支払方法</th>
-          <td style="padding:12px;border:1px solid #e2e8f0;">クレジットカード（Visa/Mastercard/JCB/AMEX/Diners/Discover）、コンビニ決済、銀行振込、PayPay、ペイジー、Apple Pay</td>
+          <td style="padding:12px;border:1px solid #e2e8f0;">クレジットカード（Visa/Mastercard/JCB/AMEX/Diners/Discover）、コンビニ決済、銀行振込、PayPay、ペイジー、Apple Pay、Paidy（あと払い）</td>
         </tr>
         <tr>
           <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">支払時期</th>
           <td style="padding:12px;border:1px solid #e2e8f0;">
             クレジットカード・PayPay・Apple Pay：ご注文時に決済<br>
             コンビニ決済：ご注文後3日以内にお支払い<br>
-            銀行振込・ペイジー：ご注文後3日以内にお振込み
+            銀行振込・ペイジー：ご注文後3日以内にお振込み<br>
+            Paidy（あと払い）：翌月10日までにお支払い
           </td>
         </tr>
         <tr>
@@ -1333,6 +1337,7 @@
           <td style="padding:12px;border:1px solid #e2e8f0;">
             コンビニ決済：<strong>220円（税込）</strong>の決済手数料がかかります（お客様負担）<br>
             銀行振込・ペイジー：<strong>振込手数料</strong>はお客様のご負担となります（金額は金融機関により異なります）<br>
+            Paidy（あと払い）：手数料はかかりません（コンビニ/銀行振込払いの場合は356円(税込)）<br>
             <span style="font-size:12px;color:#888;">※クレジットカード・PayPay・Apple Pay：手数料はかかりません</span>
           </td>
         </tr>
@@ -1351,11 +1356,15 @@
         <tr>
           <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">返品・交換</th>
           <td style="padding:12px;border:1px solid #e2e8f0;">
+            <div style="background:#f0fdf4;border:1px solid #86efac;border-radius:6px;padding:8px 10px;margin-bottom:8px;font-size:12px;color:#166534;">
+              <strong>安心保証：</strong>商品説明と著しく異なる場合は返品・返金対応いたします。
+            </div>
             <strong>【お客様都合の場合】</strong><br>
             中古衣類という商品の性質上、お客様都合による返品・交換は原則としてお受けしておりません。<br><br>
             <strong>【当方に起因する場合】</strong><br>
-            商品内容が記載事項と大きく異なる場合、または配送中の破損・汚損があった場合は、商品到着後7日以内にメールまたはお電話にてご連絡ください。状況を確認のうえ、返品・交換または返金にて対応いたします。<br>
-            <span style="font-size:12px;color:#888;">※7日を過ぎた場合は対応いたしかねますのでご了承ください。</span>
+            商品内容が記載事項と大きく異なる場合、または配送中の破損・汚損があった場合は、商品到着後<strong>7日以内</strong>にメールまたはお電話にてご連絡ください。状況を確認のうえ、返品・交換または返金にて対応いたします。<br>
+            <span style="font-size:12px;color:#888;">※7日を過ぎた場合は対応いたしかねますのでご了承ください。</span><br>
+            <span style="font-size:12px;color:#888;">※採寸データ・状態ランク・傷汚れ詳細を事前にご確認のうえ、ご購入ください。</span>
           </td>
         </tr>
         <tr>
@@ -1365,6 +1374,7 @@
             クレジットカード・Apple Pay：カード会社経由での返金<br>
             コンビニ決済・銀行振込・ペイジー：ご指定の銀行口座へ返金<br>
             PayPay：PayPay残高への返金<br>
+            Paidy：Paidy経由での返金<br>
             <span style="font-size:12px;color:#888;">※返金処理には決済方法により1〜4週間程度かかる場合があります。</span>
           </td>
         </tr>
@@ -1570,12 +1580,14 @@ function bulkDiscountRate_(count) {
   if (count >= 100) return 0.20;
   if (count >= 50)  return 0.15;
   if (count >= 30)  return 0.10;
+  if (count >= 10)  return 0.05;
   return 0;
 }
 function bulkDiscountLabel_(count) {
   if (count >= 100) return '100点割引20%OFF';
   if (count >= 50)  return '50点割引15%OFF';
   if (count >= 30)  return '30点割引10%OFF';
+  if (count >= 10)  return '10点割引5%OFF';
   return '';
 }
 
@@ -1721,6 +1733,16 @@ function calculateShipping_() {
     return { amount: 0, label: '送料無料（クーポン適用）', canAutoPayment: true };
   }
 
+  // 商品合計1万円以上で送料無料（送料除く商品価格のみで判定）
+  var _freeShipSum = 0;
+  for (var fi = 0; fi < ids.length; fi++) {
+    var fit = state.cart.itemsById[ids[fi]];
+    if (fit) _freeShipSum += Number(fit.price || 0);
+  }
+  if (_freeShipSum >= 10000) {
+    return { amount: 0, label: '送料無料（商品合計1万円以上）', canAutoPayment: true };
+  }
+
   var addressEl = $('address');
   var address = addressEl ? addressEl.value.trim() : '';
   if (!address) return { amount: null, label: '住所を入力すると送料が表示されます', canAutoPayment: false };
@@ -1782,7 +1804,8 @@ function updateBulkDiscountProgress_(count) {
   if (count === 0) { el.style.display = 'none'; return; }
   el.style.display = '';
   var tiers = [
-    { min: 0,   next: 30,  nextRate: 10,  curRate: 0 },
+    { min: 0,   next: 10,  nextRate: 5,   curRate: 0 },
+    { min: 10,  next: 30,  nextRate: 10,  curRate: 5 },
     { min: 30,  next: 50,  nextRate: 15,  curRate: 10 },
     { min: 50,  next: 100, nextRate: 20,  curRate: 15 },
     { min: 100, next: null, nextRate: null, curRate: 20 }
@@ -1791,18 +1814,33 @@ function updateBulkDiscountProgress_(count) {
   for (var i = tiers.length - 1; i >= 0; i--) {
     if (count >= tiers[i].min) { tier = tiers[i]; break; }
   }
+  // カート内商品の合計金額を取得して節約額を算出
+  var _cartSum = 0;
+  var _cids = state.cart.ids || [];
+  for (var ci = 0; ci < _cids.length; ci++) {
+    var _cit = state.cart.itemsById[_cids[ci]];
+    if (_cit) _cartSum += Number(_cit.price || 0);
+  }
   var html = '';
   if (tier.next === null) {
-    html = '<div style="height:5px;background:#e5e7eb;border-radius:3px;overflow:hidden;margin-bottom:5px;"><div style="width:100%;height:100%;background:#16a34a;border-radius:3px;"></div></div>'
-      + '<div style="font-size:11px;color:#16a34a;text-align:center;font-weight:700;">最大割引 20%OFF 適用中！</div>';
+    var _saved = Math.round(_cartSum * tier.curRate / 100);
+    html = '<div style="height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden;margin-bottom:5px;"><div style="width:100%;height:100%;background:#16a34a;border-radius:3px;"></div></div>'
+      + '<div style="font-size:11px;color:#16a34a;text-align:center;font-weight:700;">最大割引 20%OFF 適用中！（約' + numFmt_(_saved) + '円お得）</div>';
   } else {
     var pct = Math.max(0, Math.min(100, Math.round((count - tier.min) / (tier.next - tier.min) * 100)));
-    var barColor = tier.curRate > 0 ? '#b8002a' : '#9ca3af';
-    html = '<div style="height:5px;background:#e5e7eb;border-radius:3px;overflow:hidden;margin-bottom:5px;"><div style="width:' + pct + '%;height:100%;background:' + barColor + ';border-radius:3px;transition:width .3s;"></div></div>'
-      + '<div style="font-size:11px;color:#555;text-align:center;">'
+    var barColor = tier.curRate > 0 ? '#b8002a' : '#f59e0b';
+    var _nextSaved = Math.round(_cartSum * tier.nextRate / 100);
+    html = '<div style="height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden;margin-bottom:5px;"><div style="width:' + pct + '%;height:100%;background:' + barColor + ';border-radius:3px;transition:width .3s;"></div></div>'
+      + '<div style="font-size:12px;color:#333;text-align:center;line-height:1.5;">'
       + (tier.curRate > 0 ? '<span style="color:' + barColor + ';font-weight:700;">' + tier.curRate + '%OFF適用中</span> ／ ' : '')
-      + 'あと<strong>' + (tier.next - count) + '点</strong>で<strong>' + tier.nextRate + '%OFF</strong>'
+      + 'あと<strong style="color:#b8002a;font-size:14px;">' + (tier.next - count) + '点</strong>追加で<strong style="color:#b8002a;">' + tier.nextRate + '%OFF</strong>'
+      + (_nextSaved > 0 ? '<span style="font-size:10px;color:#888;">（約' + numFmt_(_nextSaved) + '円お得）</span>' : '')
       + '</div>';
+  }
+  // 送料無料ラインの案内
+  if (_cartSum > 0 && _cartSum < 10000) {
+    var _needForFreeShip = 10000 - _cartSum;
+    html += '<div style="font-size:11px;color:#3b82f6;text-align:center;margin-top:4px;font-weight:600;">あと¥' + numFmt_(_needForFreeShip) + 'で送料無料！</div>';
   }
   el.innerHTML = html;
 }
@@ -2076,7 +2114,10 @@ function renderSummary_() {
   }
 
   el.innerHTML = rows;
-  if (goFormBtn) goFormBtn.disabled = (count === 0);
+  var _bkChk = loadBulkCartStorage();
+  var _hBk = _bkChk && _bkChk.subtotal > 0;
+  var _minForBtn = _hBk ? 1 : 5;
+  if (goFormBtn) goFormBtn.disabled = (count < _minForBtn && !_hBk);
 
   // 数量割引進捗バー更新
   updateBulkDiscountProgress_(count);
@@ -2334,7 +2375,8 @@ function doRegister_() {
         updateAuthUi_();
         closeModal($('authModal'));
         trackEvent_('sign_up', { method: 'email', page_type: 'detauri' });
-        showToast(MEMBER_DISCOUNT_ENABLED ? '登録が完了しました！10%割引が適用されます' : '登録が完了しました！');
+        var _bonusMsg = res.data.welcomeBonus ? '＋' + res.data.welcomeBonus + 'ポイントプレゼント！' : '';
+        showToast(MEMBER_DISCOUNT_ENABLED ? '登録が完了しました！10%割引が適用されます' + _bonusMsg : '登録が完了しました！' + _bonusMsg);
         updateCartPrice();
         if ($('cartModal').classList.contains('open')) renderCartModal_();
       } else {
@@ -3173,6 +3215,29 @@ function loadSharedAddress_() {
       if (el && data[fields[i]]) el.value = data[fields[i]];
     }
   } catch (e) {}
+}
+function loadPrevAddress_() {
+  loadSharedAddress_();
+  if (state.customer) {
+    if (state.customer.companyName) $('companyName').value = state.customer.companyName;
+    if (state.customer.email) $('contact').value = state.customer.email;
+    if (state.customer.phone) $('phone').value = state.customer.phone;
+    if (state.customer.postal) $('postal').value = state.customer.postal;
+    if (state.customer.address) $('address').value = state.customer.address;
+  }
+  updateShippingDisplay_();
+  showToast('前回の届け先情報を入力しました');
+}
+function showPrevAddressBtn_() {
+  var btn = $('btnPrevAddress');
+  if (!btn) return;
+  var hasSaved = false;
+  try {
+    var raw = localStorage.getItem(SHARED_ADDRESS_KEY);
+    if (raw) { var d = JSON.parse(raw); if (d && d.address) hasSaved = true; }
+  } catch(e) {}
+  if (!hasSaved && state.customer && state.customer.address) hasSaved = true;
+  btn.style.display = hasSaved ? '' : 'none';
 }
 
 // 他タブでの住所変更・アソートカート変更をリアルタイム反映
@@ -5764,10 +5829,12 @@ function bindUi_() {
     closeModal($('cartModal'));
   });
   $('goFormBtn').addEventListener('click', function() {
-    var min = (state.settings && state.settings.minOrderCount) ? Number(state.settings.minOrderCount) : 10;
     var count = (state.cart.ids || []).length;
+    var _bulkCheck = loadBulkCartStorage();
+    var _hasBulk = _bulkCheck && _bulkCheck.subtotal > 0;
+    var min = _hasBulk ? 1 : 5;
     if (count < min) {
-      showToast(min + '点以上で購入可能です（現在' + count + '点）');
+      showToast(_hasBulk ? 'デタウリ商品を1点以上選択してください（現在' + count + '点）' : '5点以上で購入可能です（現在' + count + '点）');
       return;
     }
     // 共有住所を読み込み（BulkLPで入力された住所を復元）
@@ -5780,6 +5847,7 @@ function bindUi_() {
       if (state.customer.postal && !$('postal').value) $('postal').value = state.customer.postal;
       if (state.customer.address && !$('address').value) $('address').value = state.customer.address;
     }
+    showPrevAddressBtn_();
     showPointSection_();
     showCartSection_(false); // フォーム表示に切り替え
     // フォーム表示時に住所があれば送料を計算
@@ -6381,11 +6449,11 @@ boot();
     { q: '配送にかかる日数は？', category: '送料・配送',
       a: '決済完了後、通常2〜5営業日で発送いたします。\nお届けまでの日数は地域により異なりますが、発送から1〜3日程度です。\n\n※繁忙期や天候・災害等により遅延する場合がございます。' },
     { q: '送料無料になる条件は？', category: '送料・配送',
-      a: 'ダイヤモンド会員のお客様は送料無料です！\n\nダイヤモンド会員になるには、累計購入額30万円以上が条件となります。\n詳しくは「会員ランクについて」をご確認ください。' },
+      a: '送料無料になる条件は以下の通りです。\n\n1. 商品合計1万円以上で送料無料！\n2. ダイヤモンド会員は常に送料無料\n\n1万円以上のお買い物で自動的に送料が無料になります。' },
 
     // --- 決済 ---
     { q: '決済方法は？', category: '決済',
-      a: '【ご利用可能な決済方法】\n・クレジットカード（Visa/Mastercard/JCB/AMEX/Diners/Discover）\n・Apple Pay\n・コンビニ決済（別途手数料220円）\n・銀行振込（振込手数料はお客様負担）\n・PayPay\n・ペイジー（振込手数料はお客様負担）\n\nクレジットカード・Apple Pay・PayPayが最もスムーズにお手続きいただけます。' },
+      a: '【ご利用可能な決済方法】\n・クレジットカード（Visa/Mastercard/JCB/AMEX/Diners/Discover）\n・Apple Pay\n・コンビニ決済（別途手数料220円）\n・銀行振込（振込手数料はお客様負担）\n・PayPay\n・ペイジー（振込手数料はお客様負担）\n・Paidy（あと払い・翌月10日まで）\n\nクレジットカード・Apple Pay・PayPayが最もスムーズにお手続きいただけます。' },
     { q: 'コンビニ決済の手数料は？', category: '決済',
       a: 'コンビニ決済をご利用の場合、別途220円の手数料がかかります。\n\n手数料を抑えたい場合は、クレジットカード・Apple Pay・PayPay決済がおすすめです。' },
     { q: '銀行振込の手数料は？', category: '決済',
@@ -6393,9 +6461,9 @@ boot();
 
     // --- 割引・セール ---
     { q: '割引はある？', category: '割引・セール',
-      a: '【現在の割引制度】\n\n1. 30点以上まとめ買い割引：10%OFF\n2. 会員登録割引：10%OFF（2026年9月末まで）\n3. 上記は併用可能！最大約20%OFF\n\nたくさん買うほどお得です！' },
+      a: '【現在の割引制度】\n\n1. 10点以上で5%OFF / 30点10%OFF / 50点15%OFF / 100点20%OFF\n2. 会員登録割引：10%OFF（2026年9月末まで）\n3. 商品合計1万円以上で送料無料！\n4. 上記は全て併用可能！最大約30%OFF\n\nたくさん買うほどお得です！' },
     { q: '30点割引の詳細は？', category: '割引・セール',
-      a: '30点以上をまとめてご注文いただくと、商品代金が10%OFFになります。\n\n・30点以上であれば何点でも10%OFF\n・会員割引との併用OK\n・割引はカート内で自動計算されます' },
+      a: 'まとめ買い割引は以下の通りです。\n\n・10点以上：5%OFF\n・30点以上：10%OFF\n・50点以上：15%OFF\n・100点以上：20%OFF\n\n会員割引（10%OFF）との併用もOK！割引はカート内で自動計算されます。' },
     { q: '会員割引の期間は？', category: '割引・セール',
       a: '会員登録で全品10%OFFの特典は2026年9月末までの期間限定です。\n\n・無料登録するだけで適用\n・30点まとめ買い割引と併用可能\n・期間中はいつでもご利用いただけます\n\nお早めの登録がおすすめです！' },
 

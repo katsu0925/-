@@ -916,10 +916,10 @@ body.admin-mode .admin-settings-fab{display:flex;}
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">メールアドレス</th><td style="padding:12px;border:1px solid #e2e8f0;">nkonline1030@gmail.com</td></tr>
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">営業時間</th><td style="padding:12px;border:1px solid #e2e8f0;">平日 10:00〜18:00<br><span style="font-size:12px;color:#888;">※土日祝は発送・事務処理休み（メッセージ返信は対応可）</span></td></tr>
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">販売価格</th><td style="padding:12px;border:1px solid #e2e8f0;">各商品ページに表示された価格（税込）</td></tr>
-      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">送料</th><td style="padding:12px;border:1px solid #e2e8f0;">地域・サイズにより異なります。</td></tr>
-      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">支払方法</th><td style="padding:12px;border:1px solid #e2e8f0;">クレジットカード（Visa/Mastercard/JCB/AMEX/Diners/Discover）、コンビニ決済、銀行振込、PayPay、ペイジー、Apple Pay</td></tr>
+      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">送料</th><td style="padding:12px;border:1px solid #e2e8f0;">地域・サイズにより異なります。<strong>商品合計1万円以上で送料無料。</strong></td></tr>
+      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">支払方法</th><td style="padding:12px;border:1px solid #e2e8f0;">クレジットカード（Visa/Mastercard/JCB/AMEX/Diners/Discover）、コンビニ決済、銀行振込、PayPay、ペイジー、Apple Pay、Paidy（あと払い）</td></tr>
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">支払時期</th><td style="padding:12px;border:1px solid #e2e8f0;">クレジットカード・PayPay・Apple Pay：ご注文時に決済<br>コンビニ決済：ご注文後3日以内にお支払い<br>銀行振込・ペイジー：ご注文後3日以内にお振込み</td></tr>
-      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">お客様負担の手数料</th><td style="padding:12px;border:1px solid #e2e8f0;">コンビニ決済：<strong>220円（税込）</strong><br>銀行振込・ペイジー：<strong>振込手数料</strong>はお客様負担<br><span style="font-size:12px;color:#888;">※クレジットカード・PayPay・Apple Pay：手数料なし</span></td></tr>
+      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">お客様負担の手数料</th><td style="padding:12px;border:1px solid #e2e8f0;">コンビニ決済：<strong>220円（税込）</strong><br>銀行振込・ペイジー：<strong>振込手数料</strong>はお客様負担<br>Paidy（あと払い）：翌月10日までにお支払い<br><span style="font-size:12px;color:#888;">※クレジットカード・PayPay・Apple Pay：手数料なし</span></td></tr>
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">商品引渡し時期</th><td style="padding:12px;border:1px solid #e2e8f0;">ご入金確認後、2〜5営業日以内に発送</td></tr>
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">注文のキャンセル</th><td style="padding:12px;border:1px solid #e2e8f0;">発送準備前のご注文に限り、キャンセルを承ります。<br>発送準備開始後のキャンセルはお受けできませんので、あらかじめご了承ください。<br><span style="font-size:12px;color:#888;">※キャンセルご希望の場合は、お早めにメールまたはお電話にてご連絡ください。</span></td></tr>
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">返品・交換</th><td style="padding:12px;border:1px solid #e2e8f0;"><strong>【お客様都合の場合】</strong><br>中古衣類という商品の性質上、お客様都合による返品・交換は原則としてお受けしておりません。<br><br><strong>【当方に起因する場合】</strong><br>商品内容が記載事項と大きく異なる場合、または配送中の破損・汚損があった場合は、商品到着後7日以内にメールまたはお電話にてご連絡ください。状況を確認のうえ、返品・交換または返金にて対応いたします。<br><span style="font-size:12px;color:#888;">※7日を過ぎた場合は対応いたしかねますのでご了承ください。</span></td></tr>
@@ -1842,6 +1842,11 @@ function updateCart() {
   // 送料
   calcShipping(totalQty);
   recalcDetauriShipping_(); // デタウリ送料もリアルタイム計算
+  // 商品合計1万円以上で送料無料（割引前の商品価格で判定）
+  if (subtotal + (G.detauriCartTotal || 0) >= 10000) {
+    G.shipping = 0;
+    _eDetauriShip = 0;
+  }
   var shipping = calcEffectiveShipping_();
 
   // ポイント利用（送料確定後・両チャネル合算で計算）
@@ -2291,8 +2296,9 @@ function submitOrder() {
   var detauriShippingAmount = G.detauriShipping || 0;
   var detauriItemCount = G.detauriCartCount || 0;
 
-  // デタウリ最低数量チェック（1点以上の場合は10点以上必要）
-  var minDetauriQty = (G.settings && G.settings.minOrderCount) ? Number(G.settings.minOrderCount) : 10;
+  // デタウリ最低数量チェック（アソートありなら1点〜、なしなら5点〜）
+  var hasAssortItems = G.cartItems && G.cartItems.length > 0;
+  var minDetauriQty = hasAssortItems ? 1 : 5;
   if (detauriItemCount > 0 && detauriItemCount < minDetauriQty) {
     errEl.textContent = 'デタウリ商品は' + minDetauriQty + '点以上で購入可能です（現在' + detauriItemCount + '点）。点数を満たすか、デタウリ商品を全て削除してください。';
     errEl.style.display = 'block';
@@ -3568,7 +3574,7 @@ function renderOrderHistory_(orders) {
 
     // --- 決済 ---
     { q: '決済方法は？', category: '決済',
-      a: '【ご利用可能な決済方法】\n・クレジットカード（Visa/Mastercard/JCB/AMEX/Diners/Discover）\n・Apple Pay\n・コンビニ決済（別途手数料220円）\n・銀行振込（振込手数料はお客様負担）\n・PayPay\n・ペイジー（振込手数料はお客様負担）\n\nクレジットカード・Apple Pay・PayPayが最もスムーズにお手続きいただけます。' },
+      a: '【ご利用可能な決済方法】\n・クレジットカード（Visa/Mastercard/JCB/AMEX/Diners/Discover）\n・Apple Pay\n・コンビニ決済（別途手数料220円）\n・銀行振込（振込手数料はお客様負担）\n・PayPay\n・ペイジー（振込手数料はお客様負担）\n・Paidy（あと払い・翌月10日まで）\n\nクレジットカード・Apple Pay・PayPayが最もスムーズにお手続きいただけます。' },
     { q: 'コンビニ決済の手数料は？', category: '決済',
       a: 'コンビニ決済をご利用の場合、別途220円の手数料がかかります。\n\n手数料を抑えたい場合は、クレジットカード・Apple Pay・PayPay決済がおすすめです。' },
     { q: '銀行振込の手数料は？', category: '決済',
