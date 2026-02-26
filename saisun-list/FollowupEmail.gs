@@ -31,9 +31,8 @@ function followupEmailCron_() {
       var receiptNo = String(data[i][REQUEST_SHEET_COLS.RECEIPT_NO - 1] || '');
       if (!receiptNo) continue;
 
-      // 送信済みチェック（CacheService、TTL 30日）
-      var sentKey = 'FOLLOWUP_SENT:' + receiptNo;
-      if (cache.get(sentKey)) continue;
+      // 送信済みチェック（CacheService + ScriptProperties併用）
+      if (isFollowupSent_(receiptNo)) continue;
 
       // 注文日から7日経過しているかチェック
       var orderDate = data[i][REQUEST_SHEET_COLS.DATETIME - 1];

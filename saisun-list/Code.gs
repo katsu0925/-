@@ -170,7 +170,8 @@ function doPost(e) {
       // CSRF検証（状態変更を伴うAPIに適用）
       var csrfProtectedActions = [
         'apiSubmitEstimate', 'apiUpdateCustomerProfile', 'apiChangePassword',
-        'apiCreateKomojuSession', 'apiCancelOrder'
+        'apiCreateKomojuSession', 'apiCancelOrder',
+        'apiSubmitReview', 'apiApplyReferralCode', 'apiLineLinkAccount'
       ];
       if (csrfProtectedActions.indexOf(action) !== -1) {
         var csrfToken = String(body.csrfToken || '');
@@ -242,7 +243,11 @@ var RATE_LIMITS = {
   'apiRequestPasswordReset': { max: 3, windowSec: 3600, label: 'パスワードリセットは1時間に3回まで' },
   'apiRecoverEmail': { max: 5, windowSec: 3600, label: 'メールアドレス確認は1時間に5回まで' },
   'apiGetArticles':       { max: 20, windowSec: 60, label: '記事一覧は1分に20回まで' },
-  'apiGetArticleContent': { max: 30, windowSec: 60, label: '記事閲覧は1分に30回まで' }
+  'apiGetArticleContent': { max: 30, windowSec: 60, label: '記事閲覧は1分に30回まで' },
+  'apiSubmitReview':      { max: 3, windowSec: 3600, label: 'レビュー投稿は1時間に3回まで' },
+  'apiApplyReferralCode': { max: 5, windowSec: 3600, label: '紹介コード適用は1時間に5回まで' },
+  'apiGetReferralCode':   { max: 10, windowSec: 60, label: '紹介コード取得は1分に10回まで' },
+  'apiTrackABTestEvent':  { max: 30, windowSec: 60, label: 'ABテストイベントは1分に30回まで' }
 };
 
 function checkRateLimit_(action, userKey) {

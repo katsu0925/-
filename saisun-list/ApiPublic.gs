@@ -104,6 +104,7 @@ function apiSyncHolds(userKey, ids, sessionId) {
           if (cust) {
             isMember = true;
             CacheService.getScriptCache().put('sess_' + sid, '1', 300); // 5分キャッシュ
+            try { cacheCartUserEmail_(uk, cust.email); } catch(e2) {}
           }
         }
       } catch(e) {}

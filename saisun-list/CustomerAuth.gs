@@ -699,9 +699,24 @@ function apiGetMyPage(userKey, params) {
     // ランク情報取得
     var rankInfo = calculateCustomerRank_(customer.email);
 
+    // ポイント有効期限計算
+    var pointsExpiryDate = '';
+    if (fullCustomer && points > 0) {
+      try {
+        var sheet = getCustomerSheet_();
+        var updatedAtVal = sheet.getRange(fullCustomer.row, CUSTOMER_SHEET_COLS.POINTS_UPDATED_AT + 1).getValue();
+        if (updatedAtVal) {
+          var expiryDate = new Date(updatedAtVal);
+          expiryDate.setMonth(expiryDate.getMonth() + 6);
+          pointsExpiryDate = Utilities.formatDate(expiryDate, 'Asia/Tokyo', 'yyyy/MM/dd');
+        }
+      } catch(e) {}
+    }
+
     return {
       ok: true,
       data: {
+        pointsExpiryDate: pointsExpiryDate,
         profile: {
           email: customer.email,
           companyName: customer.companyName,
@@ -942,6 +957,7 @@ function processCustomerPoints() {
         if (points > 0) {
           custMap[email].points += points;
           custSheet.getRange(custMap[email].row, 13).setValue(custMap[email].points);
+          try { updatePointsTimestamp_(custMap[email].row); } catch(e2) {}
           // R列にポイント付与済みマーク
           reqSheet.getRange(i + 1, 18).setValue('PT');
           awarded++;
@@ -1015,6 +1031,7 @@ function deductPoints_(email, points) {
   if (!customer || customer.points < points) return false;
   var sheet = getCustomerSheet_();
   sheet.getRange(customer.row, 13).setValue(customer.points - points);
+  try { updatePointsTimestamp_(customer.row); } catch(e) {}
   return true;
 }
 

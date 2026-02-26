@@ -165,6 +165,15 @@ function shipMailOnEdit(e) {
 
       MailApp.sendEmail({ to: contactEmail, subject: custSubject, body: custBody, noReply: true });
       Logger.log('customer mail sent to=' + contactEmail);
+
+      // Phase 4-2: LINE発送通知
+      try {
+        lineNotifyShipping_(contactEmail, {
+          receiptNo: receiptNo,
+          carrier: carrier,
+          trackingNumber: trackingNo
+        });
+      } catch(e) { Logger.log('optional: lineNotifyShipping_: ' + (e.message || e)); }
     }
 
     flagCell.setValue(new Date());

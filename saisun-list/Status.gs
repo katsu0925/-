@@ -131,6 +131,15 @@ function st_cleanupExpiredHolds_(holdItems, nowMs) {
     if (!it) { del.push(id); continue; }
     if (u_toInt_(it.untilMs, 0) <= nowMs) del.push(id);
   }
+  // Phase 3-1: カゴ落ち通知（期限切れ確保のユーザーに通知）
+  var notifiedKeys = {};
+  for (var ni = 0; ni < del.length; ni++) {
+    var delItem = holdItems[del[ni]];
+    if (delItem && delItem.userKey && !notifiedKeys[delItem.userKey]) {
+      notifiedKeys[delItem.userKey] = true;
+      try { notifyCartAbandoned_(delItem.userKey); } catch(e) {}
+    }
+  }
   for (let i = 0; i < del.length; i++) delete holdItems[del[i]];
 }
 

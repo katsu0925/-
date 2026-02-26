@@ -420,6 +420,102 @@ body.admin-mode .admin-settings-fab{display:flex;}
 .cross-sell-bar .cs-text{font-weight:600}
 .cross-sell-bar .cs-arrow{font-size:18px;font-weight:700}
 </style>
+  <!-- Phase 4-3: SEO 構造化データ (JSON-LD) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    "name": "デタウリ.Detauri - アソート商品",
+    "url": "https://wholesale.nkonline-tool.com/?page=bulk",
+    "description": "古着アソートセット - 10点から購入可能・重量ベースのお得なセット商品",
+    "isPartOf": {
+      "@type": "WebSite",
+      "name": "デタウリ.Detauri",
+      "url": "https://wholesale.nkonline-tool.com/"
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "デタウリ.Detauri",
+    "url": "https://wholesale.nkonline-tool.com/",
+    "logo": "https://wholesale.nkonline-tool.com/public/logo-192.png",
+    "contactPoint": {
+      "@type": "ContactPoint",
+      "telephone": "+81-90-5820-1803",
+      "contactType": "customer service",
+      "availableLanguage": "Japanese"
+    },
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "朱雀宝蔵町44番地 協栄ビル2階 京都朱雀スタジオAW-209",
+      "addressLocality": "京都市下京区",
+      "addressRegion": "京都府",
+      "postalCode": "600-8846",
+      "addressCountry": "JP"
+    }
+  }
+  </script>
+  <!-- Phase 4-4: Google Ads コンバージョントラッキング -->
+  <script>
+  (function(){
+    window._detauriAdsConfig = null;
+    window._loadGoogleAdsTag = function(conversionId) {
+      if (!conversionId || document.getElementById('gtag-ads')) return;
+      var s = document.createElement('script');
+      s.id = 'gtag-ads';
+      s.async = true;
+      s.src = 'https://www.googletagmanager.com/gtag/js?id=' + conversionId;
+      document.head.appendChild(s);
+      gtag('config', conversionId);
+    };
+    window._trackGoogleAdsConversion = function(value, currency) {
+      if (!window._detauriAdsConfig || !window._detauriAdsConfig.conversionId) return;
+      gtag('event', 'conversion', {
+        send_to: window._detauriAdsConfig.conversionId + '/' + window._detauriAdsConfig.conversionLabel,
+        value: value || 0,
+        currency: currency || 'JPY'
+      });
+    };
+  })();
+  </script>
+  <!-- Phase 4-5: Meta Pixel -->
+  <script>
+  (function(){
+    window._detauriMetaPixelId = null;
+    window._loadMetaPixel = function(pixelId) {
+      if (!pixelId || window.fbq) return;
+      window._detauriMetaPixelId = pixelId;
+      !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+      n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}
+      (window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+      fbq('init', pixelId);
+      fbq('track', 'PageView');
+    };
+    window._trackMetaPurchase = function(value, currency, contentIds) {
+      if (!window.fbq || !window._detauriMetaPixelId) return;
+      fbq('track', 'Purchase', {
+        value: value || 0,
+        currency: currency || 'JPY',
+        content_ids: contentIds || [],
+        content_type: 'product'
+      });
+    };
+    window._trackMetaAddToCart = function(value, contentId) {
+      if (!window.fbq || !window._detauriMetaPixelId) return;
+      fbq('track', 'AddToCart', {
+        value: value || 0,
+        currency: 'JPY',
+        content_ids: [contentId],
+        content_type: 'product'
+      });
+    };
+  })();
+  </script>
 </head>
 <body>
 <script>(function(){try{if(sessionStorage.getItem('_pageTransition')==='1'){document.body.style.background='#1a1a2e';document.body.classList.add('page-entering');sessionStorage.removeItem('_pageTransition');}}catch(e){}try{if((typeof google==='undefined'||!google.script)&&window.location.pathname.indexOf('BulkLP')!==-1){history.replaceState(null,'','/');}}catch(e){}})()</script>
@@ -1515,6 +1611,9 @@ window.addEventListener('DOMContentLoaded', function() {
 
   // デタウリページHTMLをバックグラウンドでプリフェッチ（シームレス切替用）
   setTimeout(function() { prefetchDetailPage_(); }, 1000);
+
+  // Phase 4-4/4-5: 広告トラッキング設定ロード
+  loadBulkAdsTrackingConfig_();
 });
 
 // =====================================================
@@ -1750,8 +1849,12 @@ function changeQty(productId, delta) {
   if (next === 0) { delete G.cart[productId]; }
   else { G.cart[productId] = next; }
 
-  if (next > cur) trackEcommerce_('add_to_cart', [buildGaBulkItem_(p, delta)], Number(p.price || 0) * delta);
-  else if (next === 0 && cur > 0) trackEcommerce_('remove_from_cart', [buildGaBulkItem_(p, cur)], Number(p.price || 0) * cur);
+  if (next > cur) {
+    trackEcommerce_('add_to_cart', [buildGaBulkItem_(p, delta)], Number(p.price || 0) * delta);
+    try { _trackMetaAddToCart(Number(p.price || 0) * delta, productId); } catch(e) {}
+  } else if (next === 0 && cur > 0) {
+    trackEcommerce_('remove_from_cart', [buildGaBulkItem_(p, cur)], Number(p.price || 0) * cur);
+  }
 
   var input = document.getElementById('qty_' + productId);
   if (input) input.value = next;
@@ -2385,6 +2488,11 @@ function submitOrder() {
       G.submitting = false;
       if (r && r.ok && r.sessionUrl) {
         trackEvent_('redirect_to_payment', { payment_gateway: 'komoju', page_type: 'assort' });
+        // Phase 4-4/4-5: 広告コンバージョントラッキング
+        var _convVal = _chkVal + (G.detauriCartTotal || 0);
+        try { _trackGoogleAdsConversion(_convVal, 'JPY'); } catch(e) {}
+        var _contentIds = items.map(function(it) { return it.productId; });
+        try { _trackMetaPurchase(_convVal, 'JPY', _contentIds); } catch(e) {}
         window.location.href = r.sessionUrl;
       } else {
         btn.disabled = false;
@@ -2400,6 +2508,23 @@ function submitOrder() {
       errEl.textContent = e && e.message ? e.message : 'エラーが発生しました';
       errEl.style.display = 'block';
     });
+}
+
+// =====================================================
+// Phase 4-4/4-5: 広告トラッキング設定ロード
+// =====================================================
+function loadBulkAdsTrackingConfig_() {
+  runApi('apiGetAdsConfig').then(function(r) {
+    if (r && r.ok && r.data && r.data.conversionId) {
+      window._detauriAdsConfig = r.data;
+      try { _loadGoogleAdsTag(r.data.conversionId); } catch(e) {}
+    }
+  }).catch(function() {});
+  runApi('apiGetMetaConfig').then(function(r) {
+    if (r && r.ok && r.data && r.data.pixelId) {
+      try { _loadMetaPixel(r.data.pixelId); } catch(e) {}
+    }
+  }).catch(function() {});
 }
 
 // =====================================================

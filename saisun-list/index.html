@@ -534,6 +534,7 @@
       "streetAddress": "朱雀宝蔵町44番地 協栄ビル2階 京都朱雀スタジオAW-209",
       "addressLocality": "京都市下京区",
       "addressRegion": "京都府",
+      "postalCode": "600-8846",
       "addressCountry": "JP"
     }
   }
@@ -957,6 +958,10 @@
               <span>お得な情報をメールで受け取る</span>
             </label>
           </div>
+          <div class="formField" id="regReferralField" style="grid-column:1/-1;display:none;">
+            <label>紹介コード（お持ちの方）</label>
+            <input id="regReferralCode" placeholder="REF-XXXXXXXX">
+          </div>
         </div>
         <div class="formActions" style="flex-direction:column;align-items:stretch;margin-top:14px;">
           <button class="btn primary" id="registerBtn" type="button">登録する</button>
@@ -1016,6 +1021,23 @@
           <button class="btn" id="mpCancelEditBtn" type="button" style="display:none;">キャンセル</button>
           <button class="btn" id="mpTogglePasswordBtn" type="button">パスワード変更</button>
         </div>
+        <!-- Phase 3-2: メルマガ配信設定 -->
+        <div style="margin-top:14px;padding:14px;background:#f8fafc;border-radius:8px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:13px;font-weight:600;color:#333;">メールマガジン</span>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+              <input type="checkbox" id="mpNewsletterToggle" style="width:18px;height:18px;">
+              <span style="font-size:12px;color:#666;" id="mpNewsletterLabel">受信する</span>
+            </label>
+          </div>
+        </div>
+        <!-- Phase 4-2: LINE連携 -->
+        <div id="mpLineSection" style="margin-top:10px;padding:14px;background:#f8fafc;border-radius:8px;display:none;">
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:13px;font-weight:600;color:#333;">LINE連携</span>
+            <span id="mpLineStatus" style="font-size:12px;color:#888;">未連携</span>
+          </div>
+        </div>
         <div id="mpPasswordSection" style="display:none;margin-top:14px;padding:14px;background:#f9f9f9;border-radius:8px;">
           <div class="formGrid" style="grid-template-columns:1fr;">
             <div class="formField"><label>現在のパスワード *</label><div class="pw-wrap"><input id="mpCurPass" type="password"><button type="button" class="pw-toggle" data-target="mpCurPass">&#x1F441;</button></div></div>
@@ -1046,6 +1068,7 @@
           <div style="font-size:13px;color:#888;">ポイント残高</div>
           <div id="mpPointBalance" style="font-size:40px;font-weight:bold;color:#b8002a;margin:8px 0;">0</div>
           <div style="font-size:12px;color:#aaa;">1ポイント = 1円としてご利用いただけます</div>
+          <div id="mpPointExpiry" style="font-size:12px;color:#e65100;margin-top:6px;display:none;"></div>
         </div>
         <div style="border-top:1px solid #eee;padding-top:16px;margin-top:8px;">
           <div style="font-size:14px;font-weight:600;color:#333;margin-bottom:12px;">ご利用状況</div>
@@ -1108,6 +1131,18 @@
             <div>* ランクは過去12ヶ月の購入金額で判定されます（年間更新）</div>
             <div>* ポイントは1pt = 1円として次回以降のお買い物にご利用いただけます</div>
             <div>* ダイヤモンド・ゴールド会員は更新切れ後1ヶ月以内に5万円以上購入でランク復活</div>
+            <div>* ポイントの有効期限は最終更新日から6ヶ月です</div>
+          </div>
+        </div>
+        <!-- Phase 3-6: 紹介プログラム -->
+        <div style="border-top:1px solid #eee;padding-top:16px;margin-top:16px;">
+          <div style="font-size:14px;font-weight:600;color:#333;margin-bottom:8px;">紹介プログラム</div>
+          <div style="font-size:12px;color:#666;margin-bottom:10px;">お友達を紹介すると、あなたに500pt・お友達に300ptプレゼント！</div>
+          <div id="mpReferralSection" style="display:none;">
+            <div style="display:flex;gap:8px;align-items:center;">
+              <input id="mpReferralUrl" type="text" readonly style="flex:1;font-size:12px;padding:8px;border:1px solid #ddd;border-radius:6px;background:#f5f5f5;">
+              <button class="btn" id="mpCopyReferralBtn" type="button" style="white-space:nowrap;font-size:12px;">コピー</button>
+            </div>
           </div>
         </div>
       </div>
@@ -2519,6 +2554,8 @@ function doRegister_() {
         trackEvent_('sign_up', { method: 'email', page_type: 'detauri' });
         var _bonusMsg = res.data.welcomeBonus ? '＋' + res.data.welcomeBonus + 'ポイントプレゼント！' : '';
         showToast(MEMBER_DISCOUNT_ENABLED ? '登録が完了しました！10%割引が適用されます' + _bonusMsg : '登録が完了しました！' + _bonusMsg);
+        // Phase 3-6: 紹介コード適用
+        applyReferralAfterRegister_();
         updateCartPrice();
         if ($('cartModal').classList.contains('open')) renderCartModal_();
       } else {
@@ -2605,6 +2642,20 @@ function _applyMpData_(d) {
     var rank = getMemberRank_(d.stats.totalSpent || 0);
     $('mpMemberRank').innerHTML = '<span style="color:' + safeColor_(rank.color) + ';">' + escapeHtml_(rank.name) + '</span>';
   }
+  // Phase 3-2: メルマガ設定反映
+  var nlToggle = $('mpNewsletterToggle');
+  var nlLabel = $('mpNewsletterLabel');
+  if (nlToggle) {
+    nlToggle.checked = d.profile.newsletter !== false && d.profile.newsletter !== 'false';
+    if (nlLabel) nlLabel.textContent = nlToggle.checked ? '受信する' : '停止中';
+  }
+  // Phase 3-4: ポイント有効期限表示
+  if (d.pointsExpiryDate) {
+    var exEl = $('mpPointExpiry');
+    if (exEl) { exEl.textContent = 'ポイント有効期限: ' + d.pointsExpiryDate; exEl.style.display = ''; }
+  }
+  // Phase 3-6: 紹介コード
+  loadReferralCode_();
   renderOrderHistory_(d.orders || []);
 }
 
@@ -4485,7 +4536,11 @@ function renderDetailModalLocal(item, imageUrl, thumbUrl) {
     basicInfoHtml + defectHtml + measurementsHtml + noInfo + '</div>' +
     '<div class="detail-modal-footer"><button class="detail-add-btn" ' + btnDisabled + ' onclick="addToCartFromModal(\'' + safeManagedId + '\')">' + btnText + '</button></div>' +
     (typeof buildShareButtons_ === 'function' ? buildShareButtons_(window.location.origin + window.location.pathname + '#item=' + safeManagedId, safeBrand + ' ¥' + numFmt_(item.price || 0) + ' | デタウリ.Detauri') : '') +
-    (typeof buildRecoHtml_ === 'function' ? buildRecoHtml_(item, state.products || []) : '');
+    (typeof buildRecoHtml_ === 'function' ? buildRecoHtml_(item, state.products || []) : '') +
+    (typeof buildReviewSection_ === 'function' ? buildReviewSection_(item) : '');
+
+  // Phase 4-1: レビューを非同期ロード
+  setTimeout(function() { try { loadReviews_(safeManagedId); } catch(e) {} }, 100);
 
   // Swap to full-res image when loaded (if different from thumbnail)
   if (safeImageUrl && safeImageUrl !== safeThumbUrl) {
@@ -4691,7 +4746,10 @@ function addToCartFromModal(managedId) {
   var idx = state.cart.ids.indexOf(managedId);
   if (idx === -1) {
     var _gaItem = state.productById ? state.productById[managedId] : null;
-    if (_gaItem) trackEcommerce_('add_to_cart', [buildGaItem_(_gaItem)], Number(_gaItem.price || 0));
+    if (_gaItem) {
+      trackEcommerce_('add_to_cart', [buildGaItem_(_gaItem)], Number(_gaItem.price || 0));
+      try { _trackMetaAddToCart(Number(_gaItem.price || 0), managedId); } catch(e) {}
+    }
     toggleCartOptimistic_(managedId);
   }
   closeDetailModal();
@@ -5837,6 +5895,10 @@ function handlePaymentReturn_() {
       if (res && res.ok && (res.status === 'paid' || res.status === 'authorized')) {
         if ($('doneModalTitle')) $('doneModalTitle').textContent = '注文完了';
         if ($('doneMessage')) $('doneMessage').textContent = 'お支払いが完了しました。注文確認メールをお送りしましたのでご確認ください。商品の発送準備を進めてまいります。';
+        // Phase 4-4: Google Ads コンバージョン
+        try { _trackGoogleAdsConversion(res.totalAmount || 0, 'JPY'); } catch(e) {}
+        // Phase 4-5: Meta Pixel 購入イベント
+        try { _trackMetaPurchase(res.totalAmount || 0, 'JPY', []); } catch(e) {}
       } else if (res && res.ok && res.status === 'pending') {
         if ($('doneModalTitle')) $('doneModalTitle').textContent = 'ご注文受付（入金待ち）';
         var deadlineDate = new Date(); deadlineDate.setDate(deadlineDate.getDate() + 3);
@@ -6351,6 +6413,154 @@ function adjustTopbarForBanner_() {
 }
 
 // =====================================================
+// Phase 3-4: 追加機能統合
+// =====================================================
+
+// Phase 4-4/4-5: 広告トラッキング設定ロード
+function loadAdsTrackingConfig_() {
+  runApi('apiGetAdsConfig').then(function(r) {
+    if (r && r.ok && r.data && r.data.conversionId) {
+      window._detauriAdsConfig = r.data;
+      try { _loadGoogleAdsTag(r.data.conversionId); } catch(e) {}
+    }
+  }).catch(function() {});
+  runApi('apiGetMetaConfig').then(function(r) {
+    if (r && r.ok && r.data && r.data.pixelId) {
+      try { _loadMetaPixel(r.data.pixelId); } catch(e) {}
+    }
+  }).catch(function() {});
+}
+
+// Phase 3-6: 登録後に紹介コード適用
+function applyReferralAfterRegister_() {
+  var ref = '';
+  try { ref = sessionStorage.getItem('_referralCode') || ''; } catch(e) {}
+  if (!ref || !state.sessionId) return;
+  runApi('apiApplyReferralCode', state.userKey, { sessionId: state.sessionId, referralCode: ref })
+    .then(function(r) {
+      if (r && r.ok) {
+        showToast('紹介コードが適用されました！300ポイント付与されました');
+        try { sessionStorage.removeItem('_referralCode'); } catch(e) {}
+      }
+    }).catch(function() {});
+}
+
+// Phase 3-6: マイページで紹介コード取得
+function loadReferralCode_() {
+  if (!state.sessionId) return;
+  var section = $('mpReferralSection');
+  if (!section) return;
+  runApi('apiGetReferralCode', state.userKey, { sessionId: state.sessionId })
+    .then(function(r) {
+      if (r && r.ok && r.data) {
+        section.style.display = '';
+        var urlInput = $('mpReferralUrl');
+        if (urlInput) urlInput.value = r.data.referralUrl || '';
+      }
+    }).catch(function() {});
+}
+
+// Phase 3-2: メルマガ配信停止トグル
+function setupNewsletterToggle_() {
+  var toggle = $('mpNewsletterToggle');
+  if (!toggle) return;
+  toggle.addEventListener('change', function() {
+    var label = $('mpNewsletterLabel');
+    if (toggle.checked) {
+      if (label) label.textContent = '受信する';
+    } else {
+      if (!state.sessionId) return;
+      runApi('apiUnsubscribeNewsletter', state.userKey, { sessionId: state.sessionId })
+        .then(function(r) {
+          if (r && r.ok) {
+            showToast('メールマガジンの配信を停止しました');
+            if (label) label.textContent = '停止中';
+          }
+        }).catch(function() {});
+    }
+  });
+}
+
+// Phase 3-6: 紹介コードコピー
+function setupReferralCopy_() {
+  var btn = $('mpCopyReferralBtn');
+  if (!btn) return;
+  btn.addEventListener('click', function() {
+    var input = $('mpReferralUrl');
+    if (input && input.value) {
+      try {
+        navigator.clipboard.writeText(input.value);
+        showToast('紹介URLをコピーしました');
+      } catch(e) {
+        input.select();
+        document.execCommand('copy');
+        showToast('紹介URLをコピーしました');
+      }
+    }
+  });
+}
+
+// Phase 4-1: レビューセクション構築
+function buildReviewSection_(item) {
+  if (!item || !item.managedId) return '';
+  return '<div class="detail-review-section" style="padding:16px;border-top:1px solid #eee;margin-top:12px;">'
+    + '<div style="font-size:14px;font-weight:600;color:#333;margin-bottom:10px;">レビュー</div>'
+    + '<div id="reviewList_' + item.managedId + '" style="font-size:12px;color:#888;">読み込み中...</div>'
+    + '<div id="reviewForm_' + item.managedId + '" style="display:none;margin-top:12px;border-top:1px solid #f0f0f0;padding-top:12px;">'
+    + '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">レビューを投稿</div>'
+    + '<div style="margin-bottom:8px;"><label style="font-size:12px;">評価: </label>'
+    + '<select id="reviewRating_' + item.managedId + '" style="font-size:14px;padding:4px;"><option value="5">★★★★★</option><option value="4">★★★★</option><option value="3">★★★</option><option value="2">★★</option><option value="1">★</option></select></div>'
+    + '<textarea id="reviewComment_' + item.managedId + '" rows="3" style="width:100%;font-size:13px;padding:8px;border:1px solid #ddd;border-radius:6px;" placeholder="商品の感想をお書きください"></textarea>'
+    + '<button class="btn primary" style="margin-top:8px;font-size:12px;" onclick="submitReview_(\'' + item.managedId + '\')">投稿する</button>'
+    + '</div></div>';
+}
+
+function loadReviews_(managedId) {
+  runApi('apiGetReviews', state.userKey, { managedId: managedId })
+    .then(function(r) {
+      var el = document.getElementById('reviewList_' + managedId);
+      if (!el) return;
+      if (r && r.ok && r.data && r.data.reviews && r.data.reviews.length > 0) {
+        var html = '';
+        for (var i = 0; i < r.data.reviews.length; i++) {
+          var rv = r.data.reviews[i];
+          html += '<div style="padding:8px 0;border-bottom:1px solid #f5f5f5;">'
+            + '<div style="color:#f59e0b;">' + '★'.repeat(rv.rating) + '<span style="color:#ddd;">' + '★'.repeat(5 - rv.rating) + '</span></div>'
+            + '<div style="font-size:12px;color:#333;margin-top:4px;">' + (rv.comment || '').replace(/</g, '&lt;') + '</div>'
+            + '<div style="font-size:10px;color:#aaa;margin-top:2px;">' + (rv.date || '') + '</div>'
+            + '</div>';
+        }
+        el.innerHTML = html;
+      } else {
+        el.innerHTML = '<div style="color:#aaa;font-size:12px;">まだレビューはありません</div>';
+      }
+      // ログイン中の場合レビューフォーム表示
+      var form = document.getElementById('reviewForm_' + managedId);
+      if (form && state.sessionId) form.style.display = '';
+    }).catch(function() {
+      var el = document.getElementById('reviewList_' + managedId);
+      if (el) el.innerHTML = '<div style="color:#aaa;font-size:12px;">レビューを読み込めませんでした</div>';
+    });
+}
+
+function submitReview_(managedId) {
+  if (!state.sessionId) { showToast('レビュー投稿にはログインが必要です'); return; }
+  var rating = Number(document.getElementById('reviewRating_' + managedId).value) || 5;
+  var comment = (document.getElementById('reviewComment_' + managedId).value || '').trim();
+  if (!comment) { showToast('コメントを入力してください'); return; }
+  runApi('apiSubmitReview', state.userKey, { sessionId: state.sessionId, managedId: managedId, rating: rating, comment: comment })
+    .then(function(r) {
+      if (r && r.ok) {
+        showToast('レビューを投稿しました（承認後に公開されます）');
+        document.getElementById('reviewComment_' + managedId).value = '';
+        loadReviews_(managedId);
+      } else {
+        showToast((r && r.message) || 'レビュー投稿に失敗しました');
+      }
+    }).catch(function(e) { showToast(e.message || 'レビュー投稿に失敗しました'); });
+}
+
+// =====================================================
 // 起動
 // =====================================================
 
@@ -6376,8 +6586,30 @@ function boot() {
   setupDetailModalEvents_();
   window.addEventListener('resize', adjustTopbarForBanner_);
   setupAuthUi_();
+  setupNewsletterToggle_();
+  setupReferralCopy_();
   updateAuthUi_();  // 初回表示（プロモバナー等）
   setupMultiSelectFilters();
+
+  // Phase 3-6: 紹介コードパラメータを保存
+  var _refParam = new URLSearchParams(window.location.search).get('ref');
+  if (_refParam) {
+    try { sessionStorage.setItem('_referralCode', _refParam); } catch(e) {}
+    var refField = $('regReferralField');
+    var refInput = $('regReferralCode');
+    if (refField) refField.style.display = '';
+    if (refInput) refInput.value = _refParam;
+  } else {
+    try {
+      var savedRef = sessionStorage.getItem('_referralCode');
+      if (savedRef) {
+        var refField = $('regReferralField');
+        var refInput = $('regReferralCode');
+        if (refField) refField.style.display = '';
+        if (refInput) refInput.value = savedRef;
+      }
+    } catch(e) {}
+  }
 
   // KOMOJU決済からの戻りを処理
   handlePaymentReturn_();
@@ -6421,6 +6653,8 @@ function boot() {
       // 初回データロード完了後に非重要APIを遅延実行
       // CSRFトークン: 注文送信に必要だが初期描画には不要
       fetchCsrfToken_();
+      // Phase 4-4/4-5: 広告トラッキング設定をバックグラウンドロード
+      loadAdsTrackingConfig_();
       // アソートページHTMLをバックグラウンドでプリフェッチ（シームレス切替用）
       setTimeout(prefetchBulkPage_, 1000);
     })
