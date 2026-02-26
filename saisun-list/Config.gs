@@ -25,6 +25,7 @@ const APP_CONFIG = {
   },
   holds: {
     minutes: 15,
+    memberMinutes: 30,
     syncHoldSheet: true
   },
   admin: {

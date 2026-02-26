@@ -81,13 +81,33 @@ function apiGetStatusDigest(userKey, ids) {
  * @param {Array} ids - 確保したい商品ID配列
  * @return {object} { ok, digest, failed }
  */
-function apiSyncHolds(userKey, ids) {
+function apiSyncHolds(userKey, ids, sessionId) {
   try {
     const uk = String(userKey || '').trim();
     if (!uk) return { ok: false, message: 'userKeyが不正です' };
 
     const orderSs = sh_getOrderSs_();
     sh_ensureAllOnce_(orderSs);
+
+    // 会員判定: sessionIdが有効なら会員（確保時間30分）
+    var isMember = false;
+    if (sessionId) {
+      try {
+        var sid = String(sessionId).trim();
+        // CacheServiceで軽量セッション検証（apiValidateSession時にキャッシュ済み）
+        var cached = CacheService.getScriptCache().get('sess_' + sid);
+        if (cached) {
+          isMember = true;
+        } else {
+          // キャッシュミス: シート検索（重いが確保同期は30秒間隔なので許容）
+          var cust = findCustomerBySession_(sid);
+          if (cust) {
+            isMember = true;
+            CacheService.getScriptCache().put('sess_' + sid, '1', 300); // 5分キャッシュ
+          }
+        }
+      } catch(e) {}
+    }
 
     const now = u_nowMs_();
     const wantIds = u_unique_(u_normalizeIds_(ids || []));
@@ -123,7 +143,7 @@ function apiSyncHolds(userKey, ids) {
       }
 
       var failed = [];
-      var untilMsNew = now + app_holdMs_();
+      var untilMsNew = now + app_holdMs_(isMember);
 
       for (let i = 0; i < wantIds.length; i++) {
         const id = wantIds[i];
@@ -165,7 +185,7 @@ function apiSyncHolds(userKey, ids) {
     }
 
     const digest = st_buildDigestMap_(orderSs, uk, wantIds);
-    return { ok: true, digest: digest, failed: failed };
+    return { ok: true, digest: digest, failed: failed, holdMinutes: isMember ? (APP_CONFIG.holds.memberMinutes || 30) : (APP_CONFIG.holds.minutes || 15) };
 
   } catch (e) {
     console.error('apiSyncHolds error:', e);

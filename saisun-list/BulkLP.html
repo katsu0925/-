@@ -395,6 +395,30 @@ body.admin-mode .admin-settings-fab{display:flex;}
   .qty-btn{width:30px;height:30px;font-size:14px}
   .qty-value{width:32px;height:30px;font-size:12px}
 }
+/* ====== Exit Intent Popup ====== */
+.exit-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);z-index:99999;align-items:center;justify-content:center}
+.exit-overlay.show{display:flex}
+.exit-popup{background:#fff;border-radius:16px;max-width:420px;width:92%;padding:32px 24px;text-align:center;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.exit-popup h2{margin:0 0 8px;font-size:22px;color:#1e293b}
+.exit-popup p{margin:0 0 20px;color:#475569;font-size:14px;line-height:1.6}
+.exit-popup .exit-cta{display:inline-block;padding:14px 32px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer}
+.exit-popup .exit-cta:hover{background:#b91c1c}
+.exit-popup .exit-close{position:absolute;top:12px;right:16px;background:none;border:none;font-size:24px;color:#94a3b8;cursor:pointer}
+.exit-popup .exit-sub{margin-top:12px;font-size:12px;color:#94a3b8;cursor:pointer}
+/* ====== SNSシェアボタン ====== */
+.share-btns{display:flex;gap:8px;margin-top:12px;justify-content:center}
+.share-btn{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;color:#fff;cursor:pointer;border:none}
+.share-btn.x-btn{background:#000}.share-btn.line-btn{background:#06c755}.share-btn.copy-btn{background:#64748b}
+.share-btn:hover{opacity:.85}
+/* ====== 実績バッジ ====== */
+.stats-banner{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;padding:10px 16px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;margin:12px 0;font-size:13px;color:#0369a1}
+.stats-banner .stat-item{display:flex;align-items:center;gap:4px}
+.stats-banner .stat-num{font-weight:800;font-size:16px;color:#0c4a6e}
+/* ====== クロスセルバナー ====== */
+.cross-sell-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:linear-gradient(135deg,#ede9fe,#f5f3ff);border:1px solid #8b5cf6;border-radius:10px;margin:8px 0;font-size:13px;color:#5b21b6;cursor:pointer}
+.cross-sell-bar:hover{background:linear-gradient(135deg,#ddd6fe,#ede9fe)}
+.cross-sell-bar .cs-text{font-weight:600}
+.cross-sell-bar .cs-arrow{font-size:18px;font-weight:700}
 </style>
 </head>
 <body>
@@ -534,6 +558,18 @@ body.admin-mode .admin-settings-fab{display:flex;}
       </div>
     </div>
   </div>
+</div>
+
+<!-- 実績バナー -->
+<div class="stats-banner" id="statsBanner">
+  <div class="stat-item"><span class="stat-num">5,000</span>点以上の販売実績</div>
+  <div class="stat-item"><span class="stat-num">200</span>社以上のご利用</div>
+  <div class="stat-item">リピート率 <span class="stat-num">78</span>%</div>
+</div>
+<!-- クロスセルバナー -->
+<div class="cross-sell-bar" id="crossSellDetauri" onclick="location.href='./'">
+  <span class="cs-text">1点ずつ選ぶなら<strong>デタウリ（採寸付き個品）</strong>がおすすめ！</span>
+  <span class="cs-arrow">→</span>
 </div>
 
 <!-- 商品一覧 -->
@@ -1577,8 +1613,17 @@ function openProductModal(idx) {
 
   // 本文（スクロール領域: 説明文のみ）
   var tagHtml = p.tag ? '<span class="product-tag">' + escHtml(p.tag) + '</span>' : '';
+  var shareUrl = window.location.origin + window.location.pathname;
+  var shareText = escHtml(p.name) + ' | デタウリ.Detauri アソート商品';
+  var encUrl = encodeURIComponent(shareUrl);
+  var encText = encodeURIComponent(p.name + ' | デタウリ.Detauri');
+  var shareHtml = '<div class="share-btns" style="margin-top:16px;">' +
+    '<a class="share-btn x-btn" href="https://x.com/intent/tweet?text=' + encText + '&url=' + encUrl + '" target="_blank" rel="noopener">𝕏 シェア</a>' +
+    '<a class="share-btn line-btn" href="https://social-plugins.line.me/lineit/share?url=' + encUrl + '" target="_blank" rel="noopener">LINE</a>' +
+    '<button class="share-btn copy-btn" onclick="copyShareUrl_(\'' + shareUrl.replace(/'/g, "\\'") + '\')">URLコピー</button>' +
+    '</div>';
   bodyEl.innerHTML =
-    (p.description ? '<div class="product-desc">' + escHtml(p.description) + '</div>' : '');
+    (p.description ? '<div class="product-desc">' + escHtml(p.description) + '</div>' : '') + shareHtml;
 
   // 固定下部: 価格 + 数量コントロール
   var bottomEl = document.getElementById('modalBottom');
@@ -4257,6 +4302,52 @@ function closeDetauriQv_() {
   if (overlay) overlay.classList.remove('active');
   if (modal) modal.style.display = 'none';
 }
+
+// ====== SNSシェア ======
+function copyShareUrl_(url) {
+  navigator.clipboard.writeText(url).then(function() { showToast('URLをコピーしました'); }).catch(function() {
+    var ta = document.createElement('textarea'); ta.value = url; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); showToast('URLをコピーしました');
+  });
+}
+
+// ====== Exit Intent Popup ======
+(function() {
+  var shown = false;
+  var EXIT_KEY = 'exitPopupShown_bulk_v1';
+  function showExitPopup() {
+    if (shown) return;
+    if (sessionStorage.getItem(EXIT_KEY)) return;
+    if (!G.cart || Object.keys(G.cart).length === 0) return;
+    shown = true;
+    sessionStorage.setItem(EXIT_KEY, '1');
+    var overlay = document.getElementById('exitOverlay');
+    if (overlay) overlay.classList.add('show');
+  }
+  document.addEventListener('mouseout', function(e) {
+    if (e.clientY < 5 && e.relatedTarget == null) showExitPopup();
+  });
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'hidden') showExitPopup();
+  });
+  document.getElementById('exitClose').onclick = function() { document.getElementById('exitOverlay').classList.remove('show'); };
+  document.getElementById('exitDismiss').onclick = function() { document.getElementById('exitOverlay').classList.remove('show'); };
+  document.getElementById('exitCta').onclick = function() {
+    document.getElementById('exitOverlay').classList.remove('show');
+    document.querySelector('.cart-section').scrollIntoView({ behavior: 'smooth' });
+  };
+})();
 </script>
+
+<!-- Exit Intent Popup -->
+<div class="exit-overlay" id="exitOverlay">
+  <div class="exit-popup">
+    <button class="exit-close" id="exitClose" type="button">×</button>
+    <h2>カートに商品があります！</h2>
+    <p>このままページを離れると、カートの内容が失われる場合があります。</p>
+    <button class="exit-cta" id="exitCta" type="button">カートを確認する</button>
+    <div class="exit-sub" id="exitDismiss">閉じる</div>
+  </div>
+</div>
+
 </body>
 </html>

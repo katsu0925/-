@@ -221,6 +221,7 @@ function exportProductData_() {
     // ソート選択肢
     var sortOptions = [
       { key: 'default', label: '標準' },
+      { key: 'popular', label: '人気順' },
       { key: 'price', label: '価格' },
       { key: 'brand', label: 'ブランド' },
       { key: 'category', label: 'カテゴリ' }

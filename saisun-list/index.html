@@ -467,6 +467,39 @@
     /* ====== FAB期限切れ緊急表示 ====== */
     @keyframes cartUrgencyPulse{0%,100%{box-shadow:0 4px 16px rgba(220,38,38,.4)}50%{box-shadow:0 4px 28px rgba(220,38,38,.8)}}
     .cartBtn.urgency{background:#dc2626!important;animation:cartUrgencyPulse 1s ease-in-out infinite}
+    /* ====== Exit Intent Popup ====== */
+    .exit-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);z-index:99999;align-items:center;justify-content:center}
+    .exit-overlay.show{display:flex}
+    .exit-popup{background:#fff;border-radius:16px;max-width:420px;width:92%;padding:32px 24px;text-align:center;position:relative;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+    .exit-popup h2{margin:0 0 8px;font-size:22px;color:#1e293b}
+    .exit-popup p{margin:0 0 20px;color:#475569;font-size:14px;line-height:1.6}
+    .exit-popup .exit-cta{display:inline-block;padding:14px 32px;background:#dc2626;color:#fff;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;text-decoration:none}
+    .exit-popup .exit-cta:hover{background:#b91c1c}
+    .exit-popup .exit-close{position:absolute;top:12px;right:16px;background:none;border:none;font-size:24px;color:#94a3b8;cursor:pointer}
+    .exit-popup .exit-sub{margin-top:12px;font-size:12px;color:#94a3b8;cursor:pointer}
+    /* ====== SNSシェアボタン ====== */
+    .share-btns{display:flex;gap:8px;margin-top:12px;justify-content:center}
+    .share-btn{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;color:#fff;cursor:pointer;border:none}
+    .share-btn.x-btn{background:#000}.share-btn.line-btn{background:#06c755}.share-btn.copy-btn{background:#64748b}
+    .share-btn:hover{opacity:.85}
+    /* ====== 実績バッジ ====== */
+    .stats-banner{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;padding:10px 16px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;margin:12px 16px;font-size:13px;color:#0369a1}
+    .stats-banner .stat-item{display:flex;align-items:center;gap:4px}
+    .stats-banner .stat-num{font-weight:800;font-size:16px;color:#0c4a6e}
+    /* ====== 類似商品レコメンド ====== */
+    .reco-section{margin-top:16px;padding-top:16px;border-top:1px solid #e2e8f0}
+    .reco-section h4{margin:0 0 10px;font-size:14px;color:#1e293b;font-weight:700}
+    .reco-grid{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+    .reco-card{flex:0 0 120px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;cursor:pointer;transition:box-shadow .2s}
+    .reco-card:hover{box-shadow:0 2px 8px rgba(0,0,0,.12)}
+    .reco-card img{width:100%;height:120px;object-fit:cover}
+    .reco-card .reco-info{padding:6px;font-size:11px}
+    .reco-card .reco-price{font-weight:700;color:#dc2626}
+    /* ====== クロスセルバナー ====== */
+    .cross-sell-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 16px;background:linear-gradient(135deg,#fef3c7,#fff7ed);border:1px solid #f59e0b;border-radius:10px;margin:8px 16px;font-size:13px;color:#92400e;cursor:pointer}
+    .cross-sell-bar:hover{background:linear-gradient(135deg,#fde68a,#fed7aa)}
+    .cross-sell-bar .cs-text{font-weight:600}
+    .cross-sell-bar .cs-arrow{font-size:18px;font-weight:700}
   </style>
 </head>
 <body>
@@ -550,6 +583,17 @@
   </div>
 
   <div class="wrap">
+    <!-- 実績バナー -->
+    <div class="stats-banner" id="statsBanner" style="display:none;">
+      <div class="stat-item"><span class="stat-num" id="statItems">-</span>点以上の販売実績</div>
+      <div class="stat-item"><span class="stat-num" id="statMembers">-</span>社以上のご利用</div>
+      <div class="stat-item">リピート率 <span class="stat-num" id="statRepeat">-</span>%</div>
+    </div>
+    <!-- クロスセルバナー -->
+    <div class="cross-sell-bar" id="crossSellBar" onclick="navigateToBulk(event)" style="display:none;">
+      <span class="cs-text">まとめ買いなら<strong>アソート商品</strong>がお得！数量指定でかんたん注文</span>
+      <span class="cs-arrow">→</span>
+    </div>
     <div class="filter-sort-section">
       <div class="multiSelectField">
         <button class="multiSelectBtn" id="brandBtn" type="button"><span id="brandBtnText">ブランド</span> <span class="filterCount" id="brandBtnSub"></span><span class="chevron">▾</span></button>
@@ -3150,7 +3194,7 @@ function clearDetauriCartOnly_() {
   if (!confirm('デタウリカートを空にしますか？')) return;
   state.cart.ids = []; state.cart.itemsById = {}; state.cart.digest = {}; state.lastShipping = null;
   saveCartStorage(); updateCartCount(); renderCartModal_(); updateShippingDisplay_(); filterAndRender(false);
-  runApi('apiSyncHolds', state.userKey, []).catch(function() {});
+  runApi('apiSyncHolds', state.userKey, [], state.sessionId || null).catch(function() {});
   showToast('デタウリカートを空にしました');
 }
 
@@ -3165,7 +3209,7 @@ function clearAllCarts_() {
   if (!confirm('すべてのカートを空にしますか？')) return;
   state.cart.ids = []; state.cart.itemsById = {}; state.cart.digest = {}; state.lastShipping = null;
   saveCartStorage(); updateCartCount(); updateShippingDisplay_(); filterAndRender(false);
-  runApi('apiSyncHolds', state.userKey, []).catch(function() {});
+  runApi('apiSyncHolds', state.userKey, [], state.sessionId || null).catch(function() {});
   try { localStorage.removeItem('bulk_cart_v1'); } catch (e) {}
   renderCartModal_();
   showToast('すべてのカートを空にしました');
@@ -3581,6 +3625,10 @@ function applySort_(products) {
       case 'price': va = Number(a.price) || 0; vb = Number(b.price) || 0; break;
       case 'brand': va = String(a.brand || ''); vb = String(b.brand || ''); break;
       case 'category': va = String(a.category || ''); vb = String(b.category || ''); break;
+      case 'popular':
+        var views = {};
+        try { views = JSON.parse(localStorage.getItem(VIEW_COUNT_KEY) || '{}'); } catch(e) {}
+        va = views[a.managedId] || 0; vb = views[b.managedId] || 0; break;
       default: return 0;
     }
     if (typeof va === 'string') {
@@ -4192,7 +4240,7 @@ function runHoldSync_() {
   state._holdSyncing = true;
   state._pendingHoldSync = false;
 
-  runApi('apiSyncHolds', state.userKey, state.cart.ids.slice())
+  runApi('apiSyncHolds', state.userKey, state.cart.ids.slice(), state.sessionId || null)
     .then(function(res) {
       if (res && res.ok) {
         // 同期成功: サーバー確認済みdigestで上書き
@@ -4262,6 +4310,7 @@ function openDetailModal(managedId, imageUrl, thumbUrl) {
 
   if (item) {
     trackEcommerce_('view_item', [buildGaItem_(item)], Number(item.price || 0));
+    if (typeof trackView_ === 'function') trackView_(managedId);
     renderDetailModalLocal(item, imageUrl, thumbUrl);
   }
   else { body.innerHTML = '<div class="detail-loading">商品情報が見つかりません</div>'; }
@@ -4337,7 +4386,9 @@ function renderDetailModalLocal(item, imageUrl, thumbUrl) {
     '<div class="detail-zoom-result" id="detailZoomResult"></div>' +
     '<div class="detail-modal-content"><div class="detail-modal-title">' + safeBrand + ' - ' + safeManagedId + '</div>' +
     basicInfoHtml + defectHtml + measurementsHtml + noInfo + '</div>' +
-    '<div class="detail-modal-footer"><button class="detail-add-btn" ' + btnDisabled + ' onclick="addToCartFromModal(\'' + safeManagedId + '\')">' + btnText + '</button></div>';
+    '<div class="detail-modal-footer"><button class="detail-add-btn" ' + btnDisabled + ' onclick="addToCartFromModal(\'' + safeManagedId + '\')">' + btnText + '</button></div>' +
+    (typeof buildShareButtons_ === 'function' ? buildShareButtons_(window.location.origin + window.location.pathname + '#item=' + safeManagedId, safeBrand + ' ¥' + numFmt_(item.price || 0) + ' | デタウリ.Detauri') : '') +
+    (typeof buildRecoHtml_ === 'function' ? buildRecoHtml_(item, state.products || []) : '');
 
   // Swap to full-res image when loaded (if different from thumbnail)
   if (safeImageUrl && safeImageUrl !== safeThumbUrl) {
@@ -5305,7 +5356,7 @@ function renderCartModal_() {
         delete state.cart.itemsById[idRef];
         delete state.cart.digest[idRef]; // 確保ステータスを即時クリア
         saveCartStorage(); updateCartCount(); updateCardUi_(idRef);
-        runApi('apiSyncHolds', state.userKey, state.cart.ids.slice()).catch(function() {});
+        runApi('apiSyncHolds', state.userKey, state.cart.ids.slice(), state.sessionId || null).catch(function() {});
         renderCartModal_();
       });
     })(id);
@@ -7158,6 +7209,138 @@ function closeBulkQv_() {
 }
 // detStickyBar はこのscriptより前にDOMが確定するため、ここで再描画して初期値を正しく表示する
 updateCartCount();
+
+// ====== 2-1: Exit Intent Popup ======
+(function() {
+  var shown = false;
+  var EXIT_KEY = 'exitPopupShown_v1';
+  function showExitPopup() {
+    if (shown) return;
+    if (sessionStorage.getItem(EXIT_KEY)) return;
+    var ids = state.cart.ids || [];
+    if (!ids.length) return;
+    shown = true;
+    sessionStorage.setItem(EXIT_KEY, '1');
+    var overlay = document.getElementById('exitOverlay');
+    if (overlay) overlay.classList.add('show');
+  }
+  // デスクトップ: マウスが画面上端に移動
+  document.addEventListener('mouseout', function(e) {
+    if (e.clientY < 5 && e.relatedTarget == null) showExitPopup();
+  });
+  // モバイル: 戻るジェスチャー/ページ非表示
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'hidden') showExitPopup();
+  });
+  document.getElementById('exitClose').onclick = function() { document.getElementById('exitOverlay').classList.remove('show'); };
+  document.getElementById('exitDismiss').onclick = function() { document.getElementById('exitOverlay').classList.remove('show'); };
+  document.getElementById('exitCta').onclick = function() {
+    document.getElementById('exitOverlay').classList.remove('show');
+    document.getElementById('openCartBtn').click();
+  };
+})();
+
+// ====== 2-5: SNSシェア ======
+function buildShareButtons_(url, text) {
+  var enc = encodeURIComponent;
+  return '<div class="share-btns">' +
+    '<a class="share-btn x-btn" href="https://x.com/intent/tweet?text=' + enc(text) + '&url=' + enc(url) + '" target="_blank" rel="noopener">𝕏 シェア</a>' +
+    '<a class="share-btn line-btn" href="https://social-plugins.line.me/lineit/share?url=' + enc(url) + '" target="_blank" rel="noopener">LINE</a>' +
+    '<button class="share-btn copy-btn" onclick="copyShareUrl_(\'' + url.replace(/'/g, "\\'") + '\')">URLコピー</button>' +
+    '</div>';
+}
+function copyShareUrl_(url) {
+  navigator.clipboard.writeText(url).then(function() { showToast('URLをコピーしました'); }).catch(function() {
+    var ta = document.createElement('textarea'); ta.value = url; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); showToast('URLをコピーしました');
+  });
+}
+
+// ====== 2-6: 実績バナー表示 ======
+(function() {
+  var sb = document.getElementById('statsBanner');
+  if (!sb) return;
+  // 固定実績値（定期更新推奨）
+  document.getElementById('statItems').textContent = '5,000';
+  document.getElementById('statMembers').textContent = '200';
+  document.getElementById('statRepeat').textContent = '78';
+  sb.style.display = 'flex';
+})();
+
+// ====== 2-4: クロスセルバナー表示 ======
+(function() {
+  var csb = document.getElementById('crossSellBar');
+  if (csb && !state.sessionId) {
+    // 未ログインユーザーには常に表示、ログインユーザーにはアソートカートが空の時のみ
+    csb.style.display = 'flex';
+  } else if (csb) {
+    try {
+      var bk = JSON.parse(localStorage.getItem('bulk_cart_v1') || '{}');
+      if (!bk.subtotal || bk.subtotal === 0) csb.style.display = 'flex';
+    } catch(e) { csb.style.display = 'flex'; }
+  }
+})();
+
+// ====== 2-3: 類似商品レコメンド（商品詳細ポップアップ内） ======
+function buildRecoHtml_(product, allProducts) {
+  if (!product || !allProducts || allProducts.length < 5) return '';
+  var candidates = [];
+  for (var i = 0; i < allProducts.length; i++) {
+    var p = allProducts[i];
+    if (p.managedId === product.managedId) continue;
+    if (state.cart.ids.indexOf(p.managedId) >= 0) continue;
+    // 同じカテゴリまたは同じブランドの商品を候補に
+    var score = 0;
+    if (p.category && p.category === product.category) score += 2;
+    if (p.brand && p.brand === product.brand) score += 3;
+    if (p.gender && p.gender === product.gender) score += 1;
+    if (score > 0) candidates.push({ p: p, score: score });
+  }
+  candidates.sort(function(a, b) { return b.score - a.score; });
+  var top = candidates.slice(0, 5);
+  if (!top.length) return '';
+  var html = '<div class="reco-section"><h4>この商品に似た商品</h4><div class="reco-grid">';
+  for (var j = 0; j < top.length; j++) {
+    var r = top[j].p;
+    var img = r.imageUrl || '';
+    var price = numFmt_(r.price || 0);
+    html += '<div class="reco-card" onclick="openDetailFromReco_(\'' + r.managedId + '\')">' +
+      (img ? '<img src="' + img + '" alt="" loading="lazy">' : '<div style="height:120px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:11px;">No Image</div>') +
+      '<div class="reco-info"><div class="reco-price">¥' + price + '</div><div style="color:#64748b;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + (r.brand || '') + '</div></div></div>';
+  }
+  html += '</div></div>';
+  return html;
+}
+function openDetailFromReco_(managedId) {
+  // 詳細モーダルを閉じてから新しい商品の詳細を開く
+  var closeBtn = document.querySelector('#detailModal .modalClose');
+  if (closeBtn) closeBtn.click();
+  setTimeout(function() {
+    var el = state.ui.cardEls ? state.ui.cardEls[managedId] : null;
+    if (el && el.card) el.card.click();
+  }, 200);
+}
+
+// ====== 2-7: 閲覧数トラッキング（人気順ソート用） ======
+var VIEW_COUNT_KEY = 'detauri_views_v1';
+function trackView_(managedId) {
+  try {
+    var views = JSON.parse(localStorage.getItem(VIEW_COUNT_KEY) || '{}');
+    views[managedId] = (views[managedId] || 0) + 1;
+    localStorage.setItem(VIEW_COUNT_KEY, JSON.stringify(views));
+  } catch(e) {}
+}
 </script>
+
+<!-- Exit Intent Popup -->
+<div class="exit-overlay" id="exitOverlay">
+  <div class="exit-popup">
+    <button class="exit-close" id="exitClose" type="button">×</button>
+    <h2>ちょっと待ってください！</h2>
+    <p id="exitMsg">カートに商品が入っています。<br>確保時間内にご注文いただくと、在庫を確実に確保できます。</p>
+    <button class="exit-cta" id="exitCta" type="button">カートを確認する</button>
+    <div class="exit-sub" id="exitDismiss">閉じる</div>
+  </div>
+</div>
+
 </body>
 </html>

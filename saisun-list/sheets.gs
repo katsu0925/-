@@ -35,9 +35,11 @@ function u_normalizeIds_(ids) {
   return result;
 }
 
-function app_holdMs_() {
-  const min = (APP_CONFIG && APP_CONFIG.holds && APP_CONFIG.holds.minutes) 
-    ? Number(APP_CONFIG.holds.minutes) : 15;
+function app_holdMs_(isMember) {
+  var key = isMember ? 'memberMinutes' : 'minutes';
+  var fallback = isMember ? 30 : 15;
+  var min = (APP_CONFIG && APP_CONFIG.holds && APP_CONFIG.holds[key])
+    ? Number(APP_CONFIG.holds[key]) : fallback;
   return min * 60 * 1000;
 }
 
