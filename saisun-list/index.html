@@ -7574,12 +7574,19 @@ updateCartCount();
   document.addEventListener('visibilitychange', function() {
     if (document.visibilityState === 'hidden') showExitPopup();
   });
-  document.getElementById('exitClose').onclick = function() { document.getElementById('exitOverlay').classList.remove('show'); };
-  document.getElementById('exitDismiss').onclick = function() { document.getElementById('exitOverlay').classList.remove('show'); };
-  document.getElementById('exitCta').onclick = function() {
-    document.getElementById('exitOverlay').classList.remove('show');
-    document.getElementById('openCartBtn').click();
-  };
+  // onclick はDOMContentLoadedで遅延バインド（HTML要素が後に配置されているため）
+  document.addEventListener('DOMContentLoaded', function() {
+    var _exitClose = document.getElementById('exitClose');
+    var _exitDismiss = document.getElementById('exitDismiss');
+    var _exitCta = document.getElementById('exitCta');
+    if (_exitClose) _exitClose.onclick = function() { document.getElementById('exitOverlay').classList.remove('show'); };
+    if (_exitDismiss) _exitDismiss.onclick = function() { document.getElementById('exitOverlay').classList.remove('show'); };
+    if (_exitCta) _exitCta.onclick = function() {
+      document.getElementById('exitOverlay').classList.remove('show');
+      var cartBtn = document.getElementById('openCartBtn');
+      if (cartBtn) cartBtn.click();
+    };
+  });
 })();
 
 // ====== 2-5: SNSシェア ======
