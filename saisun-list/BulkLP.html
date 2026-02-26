@@ -661,10 +661,10 @@ body.admin-mode .admin-settings-fab{display:flex;}
 </div>
 
 <!-- 実績バナー -->
-<div class="stats-banner" id="statsBanner">
-  <div class="stat-item"><span class="stat-num">5,000</span>点以上の販売実績</div>
-  <div class="stat-item"><span class="stat-num">200</span>社以上のご利用</div>
-  <div class="stat-item">リピート率 <span class="stat-num">78</span>%</div>
+<div class="stats-banner" id="statsBanner" style="display:none;">
+  <div class="stat-item"><span class="stat-num" id="statItems">-</span>点以上の販売実績</div>
+  <div class="stat-item"><span class="stat-num" id="statMembers">-</span>社以上のご利用</div>
+  <div class="stat-item">リピート率 <span class="stat-num" id="statRepeat">-</span>%</div>
 </div>
 <!-- クロスセルバナー -->
 <div class="cross-sell-bar" id="crossSellDetauri" onclick="location.href='./'">
@@ -1484,9 +1484,24 @@ function saveBulkProductCache_(data) {
   } catch (e) {}
 }
 
+function applyBulkStatsData_(stats) {
+  if (!stats) return;
+  var sb = document.getElementById('statsBanner');
+  if (!sb) return;
+  var si = document.getElementById('statItems');
+  var sm = document.getElementById('statMembers');
+  var sr = document.getElementById('statRepeat');
+  if (si && stats.totalSold > 0) si.textContent = Number(stats.totalSold).toLocaleString();
+  if (sm && stats.totalCustomers > 0) sm.textContent = Number(stats.totalCustomers).toLocaleString();
+  if (sr && stats.repeatRate > 0) sr.textContent = String(stats.repeatRate);
+  if (stats.totalSold > 0 || stats.totalCustomers > 0) sb.style.display = 'flex';
+}
+
 function applyBulkData_(r, savedCart) {
   G.products = r.products || [];
   G.settings = r.settings || {};
+  // 実績バナー更新
+  if (r.stats) applyBulkStatsData_(r.stats);
   // デタウリリンクのhref/targetを設定（GAS URLで通常遷移可能にする）
   var dl = document.getElementById('detauriLink');
   var dbl = document.getElementById('detauriBannerLink');
@@ -1589,11 +1604,16 @@ window.addEventListener('DOMContentLoaded', function() {
     applyBulkData_(cached.data, savedCart);
     cacheApplied = true;
   }
-  // ページ遷移オーバーレイのフェードアウト
-  document.body.classList.remove('page-entering');
-  document.body.style.background = '';
-  var pt = document.getElementById('pageTransition');
-  if (pt) pt.classList.remove('active');
+  // ページ遷移オーバーレイのフェードアウト（キャッシュがあれば即時、なければデータ取得後）
+  function dismissBulkTransition_() {
+    document.body.classList.remove('page-entering');
+    document.body.style.background = '';
+    var pt = document.getElementById('pageTransition');
+    if (pt) pt.classList.remove('active');
+  }
+  if (cacheApplied) {
+    dismissBulkTransition_();
+  }
 
   // バックグラウンドで最新データを取得
   var initDone = false;
@@ -1607,6 +1627,7 @@ window.addEventListener('DOMContentLoaded', function() {
     .then(function(r) {
       initDone = true;
       clearTimeout(loadTimer);
+      if (!cacheApplied) dismissBulkTransition_();
       try {
         if (!r || !r.ok) {
           if (!cacheApplied) showProductError(r && r.message ? r.message : '読み込みに失敗しました');
@@ -1620,6 +1641,7 @@ window.addEventListener('DOMContentLoaded', function() {
         } else {
           // settings（会員割引等）だけ静かに更新
           G.settings = r.settings || {};
+          if (r.stats) applyBulkStatsData_(r.stats);
           updateCart();
         }
       } catch (err) {
@@ -1629,6 +1651,7 @@ window.addEventListener('DOMContentLoaded', function() {
     .catch(function(e) {
       initDone = true;
       clearTimeout(loadTimer);
+      if (!cacheApplied) dismissBulkTransition_();
       if (!cacheApplied) showProductError(e && e.message ? e.message : '接続エラー');
     });
 

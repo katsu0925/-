@@ -105,7 +105,8 @@ function tr_setupTriggersOnce_() {
     { fn: 'newsletterSendCron_', type: 'daily', hour: 9 },
     { fn: 'pointExpiryCron_', type: 'daily', hour: 6 },
     { fn: 'rfmAnalysisCron_', type: 'weekly', hour: 7 },
-    { fn: 'productAnalyticsCron_', type: 'daily', hour: 7 }
+    { fn: 'productAnalyticsCron_', type: 'daily', hour: 7 },
+    { fn: 'st_calculateAndCacheStats_', type: 'hours', interval: 1 }
   ];
 
   var allTriggers = ScriptApp.getProjectTriggers();
@@ -120,6 +121,8 @@ function tr_setupTriggersOnce_() {
     if (existingFns[pt.fn]) continue;
     if (pt.type === 'minutes') {
       ScriptApp.newTrigger(pt.fn).timeBased().everyMinutes(pt.interval).create();
+    } else if (pt.type === 'hours') {
+      ScriptApp.newTrigger(pt.fn).timeBased().everyHours(pt.interval).create();
     } else if (pt.type === 'daily') {
       ScriptApp.newTrigger(pt.fn).timeBased().everyDays(1).atHour(pt.hour).create();
     } else if (pt.type === 'weekly') {

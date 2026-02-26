@@ -182,6 +182,10 @@ function apiBulkInit() {
       try { detauriUrl = ScriptApp.getService().getUrl(); } catch (e3) { console.log('apiBulkInit: ScriptApp URL error: ' + e3); }
     }
 
+    // 実績統計をキャッシュから付加
+    var siteStats = null;
+    try { siteStats = st_getStatsCache_(); } catch (e4) {}
+
     return {
       ok: true,
       products: products,
@@ -192,7 +196,8 @@ function apiBulkInit() {
         shippingRates: SHIPPING_RATES,
         memberDiscount: memberDiscount,
         detauriUrl: detauriUrl
-      }
+      },
+      stats: siteStats
     };
   } catch (e) {
     console.error('apiBulkInit error: ' + (e && e.message ? e.message : e) + '\n' + (e && e.stack ? e.stack : ''));

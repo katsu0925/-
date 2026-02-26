@@ -6634,15 +6634,22 @@ function boot() {
     renderLoadingGrid_();
   }
 
-  // ページ遷移オーバーレイのフェードアウト
-  document.body.classList.remove('page-entering');
-  document.body.style.background = '';
-  var pt = document.getElementById('pageTransition');
-  if (pt) { pt.classList.remove('active'); }
+  // ページ遷移オーバーレイのフェードアウト（キャッシュがあれば即時、なければデータ取得後）
+  var _cacheAvailable = !!cached;
+  function dismissTransitionOverlay_() {
+    document.body.classList.remove('page-entering');
+    document.body.style.background = '';
+    var pt = document.getElementById('pageTransition');
+    if (pt) { pt.classList.remove('active'); }
+  }
+  if (_cacheAvailable) {
+    dismissTransitionOverlay_();
+  }
 
   // 最新データをバックグラウンドで取得（最優先）
   loadProductData()
     .then(function(data) {
+      if (!_cacheAvailable) dismissTransitionOverlay_();
       // キャッシュと件数が異なる場合のみ再描画
       var needsRender = !state.dataLoaded || state.allProducts.length !== (data.products || []).length;
       applyProductData_(data);
@@ -6658,6 +6665,7 @@ function boot() {
       setTimeout(prefetchBulkPage_, 1000);
     })
     .catch(function(err) {
+      if (!_cacheAvailable) dismissTransitionOverlay_();
       console.error('起動エラー:', err);
       if (!state.dataLoaded) {
         showToast('データの読み込みに失敗しました: ' + (err.message || err));
@@ -6667,8 +6675,23 @@ function boot() {
     });
 }
 
+function applyStatsData_(stats) {
+  if (!stats) return;
+  var sb = document.getElementById('statsBanner');
+  if (!sb) return;
+  var si = document.getElementById('statItems');
+  var sm = document.getElementById('statMembers');
+  var sr = document.getElementById('statRepeat');
+  if (si && stats.totalSold > 0) si.textContent = Number(stats.totalSold).toLocaleString();
+  if (sm && stats.totalCustomers > 0) sm.textContent = Number(stats.totalCustomers).toLocaleString();
+  if (sr && stats.repeatRate > 0) sr.textContent = String(stats.repeatRate);
+  if (stats.totalSold > 0 || stats.totalCustomers > 0) sb.style.display = 'flex';
+}
+
 function applyProductData_(data) {
   state.allProducts = data.products || [];
+  // 実績バナー更新
+  if (data.stats) applyStatsData_(data.stats);
   // 商品ハッシュマップを構築（O(1)検索用）
   state.productById = {};
   for (var pi = 0; pi < state.allProducts.length; pi++) {
@@ -7593,15 +7616,7 @@ function copyShareUrl_(url) {
 }
 
 // ====== 2-6: 実績バナー表示 ======
-(function() {
-  var sb = document.getElementById('statsBanner');
-  if (!sb) return;
-  // 固定実績値（定期更新推奨）
-  document.getElementById('statItems').textContent = '5,000';
-  document.getElementById('statMembers').textContent = '200';
-  document.getElementById('statRepeat').textContent = '78';
-  sb.style.display = 'flex';
-})();
+// 実績バナーはAPIデータ受信後に applyStatsData_ で表示
 
 // ====== 2-4: クロスセルバナー表示 ======
 (function() {

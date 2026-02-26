@@ -325,6 +325,8 @@ function apiGetCachedProducts() {
           data.settings.topNotes = data.settings.notes;
         }
       }
+      // 実績統計をキャッシュから付加
+      try { data.stats = st_getStatsCache_(); } catch (e2) {}
       return { ok: true, data: data };
     }
 
