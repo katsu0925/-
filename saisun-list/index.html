@@ -188,6 +188,17 @@
     #detStickyBarLabel{display:block;font-size:10px;color:#93c5fd;font-weight:400}
     #detStickyBarTotal{font-size:16px;font-weight:800;color:#fff}
     #detStickyBarBtn{flex-shrink:0;background:linear-gradient(135deg,#5B86C5,#3b6fb5);color:#fff;border:none;border-radius:10px;padding:11px 20px;font-size:14px;font-weight:800;cursor:pointer;white-space:nowrap;box-shadow:0 2px 8px rgba(91,134,197,.4)}
+    #detStickyShipHint{font-size:9px;color:#93c5fd;margin-top:2px;white-space:nowrap}
+    #detStickyShipHint .ship-free{color:#4ade80;font-weight:700}
+    /* 確保トースト */
+    #cartAddToast{display:none;position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:200;background:#1a1a2e;color:#fff;border-radius:12px;padding:12px 18px;box-shadow:0 6px 24px rgba(0,0,0,.4);font-size:13px;font-weight:600;align-items:center;gap:10px;animation:toastSlideUp .3s ease-out}
+    #cartAddToast.show{display:flex}
+    #cartAddToast .toast-cta{background:#5B86C5;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}
+    @keyframes toastSlideUp{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+    /* 送料無料プログレス（カートモーダル内） */
+    .ship-progress-wrap{margin:8px 0 4px;font-size:12px;color:#555}
+    .ship-progress-bar{height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden;margin-top:4px}
+    .ship-progress-fill{height:100%;background:linear-gradient(90deg,#3b82f6,#10b981);border-radius:3px;transition:width .4s ease}
     #bulkQvOverlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:1050;}
     #bulkQvOverlay.active{display:block;}
     #bulkQvModal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:16px;width:min(480px,94vw);max-height:85vh;overflow-y:auto;z-index:1060;box-shadow:0 12px 40px rgba(0,0,0,.2);}
@@ -2171,6 +2182,18 @@ function renderSummary_() {
   }
 
   var rows = '';
+
+  // 送料無料プログレスバー（商品合計1万円以上で送料無料）
+  var _freeThreshold = 10000;
+  var _combinedProduct = discounted + effectiveBulkProduct;
+  if (_combinedProduct > 0 && _combinedProduct < _freeThreshold) {
+    var _remaining = _freeThreshold - _combinedProduct;
+    var _pct = Math.min(100, Math.round((_combinedProduct / _freeThreshold) * 100));
+    rows += '<div class="ship-progress-wrap">あと<strong>¥' + numFmt_(_remaining) + '</strong>で送料無料！'
+      + '<div class="ship-progress-bar"><div class="ship-progress-fill" style="width:' + _pct + '%"></div></div></div>';
+  } else if (_combinedProduct >= _freeThreshold) {
+    rows += '<div class="ship-progress-wrap" style="color:#059669;font-weight:700;">送料無料の条件を満たしています</div>';
+  }
 
   if (count > 0) {
     // デタウリ 商品代
@@ -4303,6 +4326,18 @@ function updateDetStickyBar_() {
       labelEl.textContent = 'アソート' + assortQty + '点';
     }
   }
+  // 送料無料ヒント
+  var shipHint = document.getElementById('detStickyShipHint');
+  if (shipHint) {
+    var FREE_SHIP_THRESHOLD = 10000;
+    if (total >= FREE_SHIP_THRESHOLD) {
+      shipHint.innerHTML = '<span class="ship-free">送料無料!</span>';
+    } else if (total > 0) {
+      shipHint.textContent = 'あと¥' + numFmt_(FREE_SHIP_THRESHOLD - total) + 'で送料無料';
+    } else {
+      shipHint.textContent = '';
+    }
+  }
 }
 
 function updateCartPrice() {
@@ -4348,6 +4383,20 @@ function updateCartPrice() {
   }
 }
 
+var _cartAddToastTimer = null;
+function showCartAddToast_() {
+  var t = document.getElementById('cartAddToast');
+  if (!t) return;
+  t.classList.add('show');
+  clearTimeout(_cartAddToastTimer);
+  _cartAddToastTimer = setTimeout(function() { t.classList.remove('show'); }, 3500);
+}
+function hideCartAddToast_() {
+  var t = document.getElementById('cartAddToast');
+  if (t) t.classList.remove('show');
+  clearTimeout(_cartAddToastTimer);
+}
+
 function toggleCartOptimistic_(id) {
   var idx = state.cart.ids.indexOf(id);
   var adding = (idx === -1);
@@ -4377,6 +4426,7 @@ function toggleCartOptimistic_(id) {
   saveCartStorage(); updateCartCount(); updateCardUi_(id);
   updateShippingDisplay_(); // 送料を即時再計算
   revalidateCoupon_(); // クーポン再検証
+  if (adding) showCartAddToast_();
 
   // 連続操作対応: 同期中なら完了後に再実行するフラグをセット
   syncHoldsQueued_();
@@ -7472,9 +7522,11 @@ body.admin-mode .article-panel{bottom:186px;}
 </script>
 <!-- デタウリ モバイル固定決済バー -->
 <div id="detStickyBar">
-  <div id="detStickyBarInfo"><small id="detStickyBarLabel">デタウリ</small><strong id="detStickyBarTotal">¥0</strong></div>
+  <div id="detStickyBarInfo"><small id="detStickyBarLabel">デタウリ</small><strong id="detStickyBarTotal">¥0</strong><div id="detStickyShipHint"></div></div>
   <button id="detStickyBarBtn" type="button" onclick="loadSharedAddress_(); renderCartModal_(); openModal($('cartModal'));">カートを確認 →</button>
 </div>
+<!-- 確保トースト -->
+<div id="cartAddToast"><span id="cartAddToastText">確保しました</span><button class="toast-cta" type="button" onclick="hideCartAddToast_();loadSharedAddress_();renderCartModal_();openModal($('cartModal'));">カートを見る →</button></div>
 <!-- アソート商品クイックビューモーダル -->
 <div id="bulkQvOverlay" onclick="closeBulkQv_()"></div>
 <div id="bulkQvModal">
