@@ -2637,10 +2637,10 @@ function _applyMpData_(d) {
     var rank = getMemberRank_(d.stats.totalSpent || 0);
     $('mpMemberRank').innerHTML = '<span style="color:' + safeColor_(rank.color) + ';">' + escapeHtml_(rank.name) + '</span>';
   }
-  // Phase 3-2: メルマガ設定反映
+  // Phase 3-2: メルマガ設定反映（ユーザー操作済みなら上書きしない）
   var nlToggle = $('mpNewsletterToggle');
   var nlLabel = $('mpNewsletterLabel');
-  if (nlToggle) {
+  if (nlToggle && !nlToggle._userChanged) {
     nlToggle.checked = d.profile.newsletter !== false && d.profile.newsletter !== 'false';
     if (nlLabel) nlLabel.textContent = nlToggle.checked ? '受信する' : '停止中';
   }
@@ -6478,24 +6478,27 @@ function setupNewsletterToggle_() {
     var newVal = toggle.checked;
     if (label) label.textContent = newVal ? '受信する' : '停止中';
     if (!state.sessionId) return;
+    toggle._userChanged = true;
     toggle.disabled = true;
     runApi('apiUpdateNewsletter', state.userKey || '', { sessionId: state.sessionId, newsletter: newVal })
       .then(function(r) {
         if (r && r.ok) {
           showToast(newVal ? 'メルマガを受信に設定しました' : 'メルマガを停止しました');
-          // キャッシュ内のnewsletter値も更新（stale-while-revalidateで上書きされないように）
           try {
             var c = JSON.parse(localStorage.getItem(_MP_CACHE_KEY) || 'null');
             if (c && c.d && c.d.profile) { c.d.profile.newsletter = newVal; localStorage.setItem(_MP_CACHE_KEY, JSON.stringify(c)); }
           } catch(e) {}
         } else {
+          toggle._userChanged = false;
           toggle.checked = !newVal;
           if (label) label.textContent = !newVal ? '停止中' : '受信する';
           showToast((r && r.message) || '変更に失敗しました');
         }
       }).catch(function() {
+        toggle._userChanged = false;
         toggle.checked = !newVal;
         if (label) label.textContent = !newVal ? '停止中' : '受信する';
+        showToast('メルマガ設定の変更に失敗しました');
       }).finally(function() { toggle.disabled = false; });
   });
 }
