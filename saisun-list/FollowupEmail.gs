@@ -89,6 +89,7 @@ function followupEmailCron_() {
         MailApp.sendEmail({ to: email, subject: subject, body: body, noReply: true });
 
         // 送信済みフラグ（30日、CacheService最大は21600秒=6時間なのでScriptPropertiesも併用）
+        var sentKey = 'FOLLOWUP_SENT:' + receiptNo;
         cache.put(sentKey, '1', 21600);
         // ScriptPropertiesにも保存（長期保持用）
         try {

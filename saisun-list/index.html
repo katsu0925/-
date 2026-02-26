@@ -2654,6 +2654,17 @@ function _applyMpData_(d) {
     var exEl = $('mpPointExpiry');
     if (exEl) { exEl.textContent = 'ポイント有効期限: ' + d.pointsExpiryDate; exEl.style.display = ''; }
   }
+  // Phase 4-2: LINE連携状態
+  var lineEl = $('mpLineSection');
+  if (lineEl) {
+    lineEl.style.display = '';
+    var lineSt = $('mpLineStatus');
+    if (d.lineLinked) {
+      if (lineSt) { lineSt.textContent = '連携済み'; lineSt.style.color = '#16a34a'; }
+    } else {
+      if (lineSt) { lineSt.textContent = '未連携'; lineSt.style.color = '#888'; }
+    }
+  }
   // Phase 3-6: 紹介コード
   loadReferralCode_();
   renderOrderHistory_(d.orders || []);

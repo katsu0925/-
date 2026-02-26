@@ -649,6 +649,10 @@ body.admin-mode .admin-settings-fab{display:flex;}
             <span>お得な情報をメールで受け取る</span>
           </label>
         </div>
+        <div class="auth-field" id="regReferralField" style="display:none;">
+          <label>紹介コード（お持ちの方）</label>
+          <input id="regReferralCode" type="text" placeholder="REF-XXXXXX">
+        </div>
         <button class="auth-submit" id="registerBtn" type="button">登録する</button>
         <div class="auth-switch">既にアカウントをお持ちの方は <a href="#" id="showLoginLink">ログイン</a></div>
       </div>
@@ -1113,6 +1117,23 @@ body.admin-mode .admin-settings-fab{display:flex;}
         <button id="mpCancelEditBtn" type="button" style="display:none;padding:8px 16px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;">キャンセル</button>
         <button id="mpTogglePasswordBtn" type="button" style="padding:8px 16px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-weight:600;">パスワード変更</button>
       </div>
+      <!-- Phase 3-7: ニュースレター -->
+      <div style="margin-top:10px;padding:14px;background:#f8fafc;border-radius:8px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <span style="font-size:13px;font-weight:600;color:#333;">メールマガジン</span>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="checkbox" id="mpNewsletterToggle" style="width:18px;height:18px;">
+            <span style="font-size:12px;color:#666;" id="mpNewsletterLabel">受信する</span>
+          </label>
+        </div>
+      </div>
+      <!-- Phase 4-2: LINE連携 -->
+      <div id="mpLineSection" style="margin-top:10px;padding:14px;background:#f8fafc;border-radius:8px;display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <span style="font-size:13px;font-weight:600;color:#333;">LINE連携</span>
+          <span id="mpLineStatus" style="font-size:12px;color:#888;">未連携</span>
+        </div>
+      </div>
       <div id="mpPasswordSection" style="display:none;margin-top:14px;padding:14px;background:#f9f9f9;border-radius:8px;">
         <div style="display:grid;grid-template-columns:1fr;gap:10px;">
           <div><label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px;">現在のパスワード *</label><input id="mpCurPass" type="password" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:14px;"></div>
@@ -1139,6 +1160,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
         <div style="font-size:13px;color:#888;">ポイント残高</div>
         <div id="mpPointBalance" style="font-size:40px;font-weight:bold;color:#b8002a;margin:8px 0;">0</div>
         <div style="font-size:12px;color:#aaa;">1ポイント = 1円としてご利用いただけます</div>
+        <div id="mpPointExpiry" style="display:none;font-size:12px;color:#e67700;margin-top:6px;"></div>
       </div>
       <div style="border-top:1px solid #eee;padding-top:16px;margin-top:8px;">
         <div style="font-size:14px;font-weight:600;color:#333;margin-bottom:12px;">ご利用状況</div>
@@ -1159,6 +1181,15 @@ body.admin-mode .admin-settings-fab{display:flex;}
             <div style="font-size:11px;color:#888;">会員ランク</div>
             <div id="mpMemberRank" style="font-size:22px;font-weight:bold;color:#1e293b;margin-top:4px;">-</div>
           </div>
+        </div>
+      </div>
+      <!-- Phase 3-6: 紹介プログラム -->
+      <div id="mpReferralSection" style="display:none;border-top:1px solid #eee;padding-top:16px;margin-top:16px;">
+        <div style="font-size:14px;font-weight:600;color:#333;margin-bottom:8px;">紹介プログラム</div>
+        <div style="font-size:12px;color:#666;margin-bottom:8px;">お知り合いを紹介して、お互いに300ポイントをゲット！</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input id="mpReferralUrl" type="text" readonly style="flex:1;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#f5f5f5;">
+          <button id="mpCopyReferralBtn" type="button" style="padding:8px 14px;border:none;border-radius:6px;background:#1a1a2e;color:#fff;cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap;">コピー</button>
         </div>
       </div>
     </div>
@@ -1614,6 +1645,22 @@ window.addEventListener('DOMContentLoaded', function() {
 
   // Phase 4-4/4-5: 広告トラッキング設定ロード
   loadBulkAdsTrackingConfig_();
+
+  // Phase 3-7/3-6: ニュースレター・紹介プログラム
+  setupBulkNewsletterToggle_();
+  setupBulkReferralCopy_();
+
+  // Phase 3-6: ?ref= パラメータ処理
+  try {
+    var _refParam = new URLSearchParams(window.location.search).get('ref');
+    if (_refParam) {
+      sessionStorage.setItem('_referralCode', _refParam);
+      var refField = document.getElementById('regReferralField');
+      var refInput = document.getElementById('regReferralCode');
+      if (refField) refField.style.display = '';
+      if (refInput) refInput.value = _refParam;
+    }
+  } catch(e) {}
 });
 
 // =====================================================
@@ -2528,6 +2575,76 @@ function loadBulkAdsTrackingConfig_() {
 }
 
 // =====================================================
+// Phase 3-7: ニュースレタートグル
+// =====================================================
+function setupBulkNewsletterToggle_() {
+  var toggle = document.getElementById('mpNewsletterToggle');
+  if (!toggle) return;
+  toggle.addEventListener('change', function() {
+    var label = document.getElementById('mpNewsletterLabel');
+    if (toggle.checked) {
+      if (label) label.textContent = '受信する';
+    } else {
+      if (!G.sessionId) return;
+      runApi('apiUnsubscribeNewsletter', G.customer ? G.customer.email : '', { sessionId: G.sessionId })
+        .then(function(r) {
+          if (r && r.ok) {
+            showToast('メールマガジンの配信を停止しました');
+            if (label) label.textContent = '停止中';
+          }
+        }).catch(function() {});
+    }
+  });
+}
+
+// =====================================================
+// Phase 3-6: 紹介コード取得・コピー
+// =====================================================
+function loadBulkReferralCode_() {
+  if (!G.sessionId) return;
+  runApi('apiGetReferralCode', G.customer ? G.customer.email : '', { sessionId: G.sessionId })
+    .then(function(r) {
+      if (r && r.ok && r.data && r.data.referralUrl) {
+        var sec = document.getElementById('mpReferralSection');
+        var inp = document.getElementById('mpReferralUrl');
+        if (sec) sec.style.display = '';
+        if (inp) inp.value = r.data.referralUrl;
+      }
+    }).catch(function() {});
+}
+
+function applyBulkReferralAfterRegister_() {
+  var ref = '';
+  try { ref = sessionStorage.getItem('_referralCode') || ''; } catch(e) {}
+  if (!ref || !G.sessionId) return;
+  runApi('apiApplyReferralCode', G.customer ? G.customer.email : '', { sessionId: G.sessionId, referralCode: ref })
+    .then(function(r) {
+      if (r && r.ok) {
+        showToast('紹介コードが適用されました！300ポイント付与されました');
+        try { sessionStorage.removeItem('_referralCode'); } catch(e) {}
+      }
+    }).catch(function() {});
+}
+
+function setupBulkReferralCopy_() {
+  var btn = document.getElementById('mpCopyReferralBtn');
+  if (!btn) return;
+  btn.addEventListener('click', function() {
+    var inp = document.getElementById('mpReferralUrl');
+    if (!inp || !inp.value) return;
+    try {
+      navigator.clipboard.writeText(inp.value).then(function() {
+        showToast('紹介URLをコピーしました');
+      });
+    } catch(e) {
+      inp.select();
+      document.execCommand('copy');
+      showToast('紹介URLをコピーしました');
+    }
+  });
+}
+
+// =====================================================
 // ユーティリティ
 // =====================================================
 // =====================================================
@@ -3064,6 +3181,8 @@ function doRegister_() {
         trackEvent_('sign_up', { method: 'email', page_type: 'assort' });
         autoFillCustomerForm();
         updateCart();
+        // Phase 3-6: 紹介コード適用
+        applyBulkReferralAfterRegister_();
         var md = G.settings.memberDiscount;
         var bonusMsg = (res.welcomeBonus > 0) ? '＋' + res.welcomeBonus + 'ポイントプレゼント！' : '';
         alert((md && md.enabled) ? '登録が完了しました！' + Math.round(md.rate * 100) + '%割引が適用されます' + bonusMsg : '登録が完了しました！' + bonusMsg);
@@ -3179,6 +3298,31 @@ function _applyMpData_(d) {
     var rank = getMemberRank_(d.stats.totalSpent || 0);
     ge('mpMemberRank').innerHTML = '<span style="color:' + safeColor_(rank.color) + ';">' + escHtml(rank.name) + '</span>';
   }
+  // Phase 3-7: メルマガ設定反映
+  var nlToggle = document.getElementById('mpNewsletterToggle');
+  var nlLabel = document.getElementById('mpNewsletterLabel');
+  if (nlToggle) {
+    nlToggle.checked = d.profile.newsletter !== false && d.profile.newsletter !== 'false';
+    if (nlLabel) nlLabel.textContent = nlToggle.checked ? '受信する' : '停止中';
+  }
+  // Phase 3-3: ポイント有効期限表示
+  if (d.pointsExpiryDate) {
+    var exEl = document.getElementById('mpPointExpiry');
+    if (exEl) { exEl.textContent = 'ポイント有効期限: ' + d.pointsExpiryDate; exEl.style.display = ''; }
+  }
+  // Phase 4-2: LINE連携状態
+  var lineEl = document.getElementById('mpLineSection');
+  if (lineEl) {
+    lineEl.style.display = '';
+    var lineSt = document.getElementById('mpLineStatus');
+    if (d.lineLinked) {
+      if (lineSt) { lineSt.textContent = '連携済み'; lineSt.style.color = '#16a34a'; }
+    } else {
+      if (lineSt) { lineSt.textContent = '未連携'; lineSt.style.color = '#888'; }
+    }
+  }
+  // Phase 3-6: 紹介コード
+  loadBulkReferralCode_();
   renderOrderHistory_(d.orders || []);
 }
 
