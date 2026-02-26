@@ -26,10 +26,16 @@ function apiSubmitEstimate(userKey, form, ids) {
     var uk = String(userKey || '').trim();
     if (!uk) return { ok: false, message: 'userKeyが不正です' };
 
-    var list = u_unique_(u_normalizeIds_(ids || []));
-    if (!list.length) return { ok: false, message: 'カートが空です' };
-
     var f = form || {};
+    var list = u_unique_(u_normalizeIds_(ids || []));
+    var hasBulkItems = f.bulkItems && f.bulkItems.length > 0;
+    if (!list.length && !hasBulkItems) return { ok: false, message: 'カートが空です' };
+
+    // デタウリ最低注文数チェック（アソート併用時は1点〜、デタウリのみは5点〜）
+    var minDetauri = hasBulkItems ? 1 : 5;
+    if (list.length > 0 && list.length < minDetauri) {
+      return { ok: false, message: 'デタウリ商品は' + minDetauri + '点以上で購入可能です（現在' + list.length + '点）' };
+    }
     var companyName = String(f.companyName || '').trim();
     var contact = String(f.contact || '').trim();
     var contactMethod = String(f.contactMethod || '').trim();

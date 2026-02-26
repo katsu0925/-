@@ -404,7 +404,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
 
 <!-- プロモバナー -->
 <div class="promo-banner" id="promoBanner">
-  期間限定：会員登録で全品<strong>10%OFF</strong>（2026年9月末まで）<a href="#" id="promoRegisterLink">今すぐ無料登録 ＞</a>
+  期間限定：会員登録で全品<strong>10%OFF</strong>＋初回<strong>500ポイント</strong>プレゼント！さらに<strong>1万円以上で送料無料</strong> <a href="#" id="promoRegisterLink">今すぐ無料登録 ＞</a>
   <button class="promo-close" id="promoClose" type="button">✕</button>
 </div>
 
@@ -661,6 +661,8 @@ body.admin-mode .admin-settings-fab{display:flex;}
     <span class="pay-badge">コンビニ払い</span>
     <span class="pay-badge">銀行振込</span>
     <span class="pay-badge">PayPay</span>
+    <span class="pay-badge">Apple Pay</span>
+    <span class="pay-badge">Paidy</span>
   </div>
 </div>
 
@@ -736,7 +738,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
       <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">ご注文について</h3>
       <ul style="margin:0;padding-left:20px;color:#475569;">
         <li style="margin-bottom:8px;">数量を選んでカートに追加してください</li>
-        <li>送料はお届け先に応じて自動計算されます（ダイヤモンド会員は送料無料）</li>
+        <li>送料はお届け先に応じて自動計算されます（商品合計1万円以上またはダイヤモンド会員で送料無料）</li>
       </ul>
     </div>
     <div style="margin-bottom:20px;">
@@ -751,7 +753,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
     <div style="margin-bottom:20px;">
       <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">割引について</h3>
       <ul style="margin:0;padding-left:20px;color:#475569;">
-        <li style="margin-bottom:8px;"><strong>会員割引</strong>：無料会員登録で<span style="color:#b8002a;font-weight:700;">10%OFF</span><span style="color:#666;font-size:13px;">（2026年9月末まで）</span></li>
+        <li style="margin-bottom:8px;"><strong>会員割引</strong>：無料会員登録で<span style="color:#b8002a;font-weight:700;">10%OFF</span>＋初回<span style="color:#b8002a;font-weight:700;">500ポイント</span>プレゼント<span style="color:#666;font-size:13px;">（2026年9月末まで）</span></li>
         <li><strong>ポイント利用</strong>：購入ごとに貯まるポイントを1pt=1円として割引に使用できます</li>
       </ul>
     </div>
@@ -894,7 +896,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
         <li><strong>コンビニ決済</strong>：220円（税込）の決済手数料がかかります</li>
         <li><strong>銀行振込</strong>：振込手数料はお客様のご負担となります（金額は金融機関により異なります）</li>
         <li><strong>ペイジー</strong>：振込手数料はお客様のご負担となります（金額は金融機関により異なります）</li>
-        <li><strong>Paidy（あと払い）</strong>：口座振替・銀行振込は手数料無料、コンビニ払いは390円（税込）</li>
+        <li><strong>Paidy（あと払い）</strong>：手数料はかかりません（コンビニ/銀行振込払いの場合は356円(税込)）</li>
         <li style="color:#888;">クレジットカード・PayPay・Apple Pay：手数料はかかりません</li>
       </ul>
     </div>
@@ -919,12 +921,12 @@ body.admin-mode .admin-settings-fab{display:flex;}
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">販売価格</th><td style="padding:12px;border:1px solid #e2e8f0;">各商品ページに表示された価格（税込）</td></tr>
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">送料</th><td style="padding:12px;border:1px solid #e2e8f0;">地域・サイズにより異なります。<strong>商品合計1万円以上で送料無料。</strong></td></tr>
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">支払方法</th><td style="padding:12px;border:1px solid #e2e8f0;">クレジットカード（Visa/Mastercard/JCB/AMEX/Diners/Discover）、コンビニ決済、銀行振込、PayPay、ペイジー、Apple Pay、Paidy（あと払い）</td></tr>
-      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">支払時期</th><td style="padding:12px;border:1px solid #e2e8f0;">クレジットカード・PayPay・Apple Pay：ご注文時に決済<br>コンビニ決済：ご注文後3日以内にお支払い<br>銀行振込・ペイジー：ご注文後3日以内にお振込み</td></tr>
-      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">お客様負担の手数料</th><td style="padding:12px;border:1px solid #e2e8f0;">コンビニ決済：<strong>220円（税込）</strong><br>銀行振込・ペイジー：<strong>振込手数料</strong>はお客様負担<br>Paidy（あと払い）：翌月10日までにお支払い<br><span style="font-size:12px;color:#888;">※クレジットカード・PayPay・Apple Pay：手数料なし</span></td></tr>
+      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">支払時期</th><td style="padding:12px;border:1px solid #e2e8f0;">クレジットカード・PayPay・Apple Pay：ご注文時に決済<br>コンビニ決済：ご注文後3日以内にお支払い<br>銀行振込・ペイジー：ご注文後3日以内にお振込み<br>Paidy（あと払い）：翌月10日までにお支払い</td></tr>
+      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">お客様負担の手数料</th><td style="padding:12px;border:1px solid #e2e8f0;">コンビニ決済：<strong>220円（税込）</strong><br>銀行振込・ペイジー：<strong>振込手数料</strong>はお客様負担<br>Paidy（あと払い）：手数料はかかりません（コンビニ/銀行振込払いの場合は356円(税込)）<br><span style="font-size:12px;color:#888;">※クレジットカード・PayPay・Apple Pay：手数料なし</span></td></tr>
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">商品引渡し時期</th><td style="padding:12px;border:1px solid #e2e8f0;">ご入金確認後、2〜5営業日以内に発送</td></tr>
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">注文のキャンセル</th><td style="padding:12px;border:1px solid #e2e8f0;">発送準備前のご注文に限り、キャンセルを承ります。<br>発送準備開始後のキャンセルはお受けできませんので、あらかじめご了承ください。<br><span style="font-size:12px;color:#888;">※キャンセルご希望の場合は、お早めにメールまたはお電話にてご連絡ください。</span></td></tr>
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">返品・交換</th><td style="padding:12px;border:1px solid #e2e8f0;"><strong>【お客様都合の場合】</strong><br>中古衣類という商品の性質上、お客様都合による返品・交換は原則としてお受けしておりません。<br><br><strong>【当方に起因する場合】</strong><br>商品内容が記載事項と大きく異なる場合、または配送中の破損・汚損があった場合は、商品到着後7日以内にメールまたはお電話にてご連絡ください。状況を確認のうえ、返品・交換または返金にて対応いたします。<br><span style="font-size:12px;color:#888;">※7日を過ぎた場合は対応いたしかねますのでご了承ください。</span></td></tr>
-      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">返金について</th><td style="padding:12px;border:1px solid #e2e8f0;">当方の都合による返金の場合、ご利用の決済方法に応じて返金処理を行います。<br>クレジットカード・Apple Pay：カード会社経由での返金<br>コンビニ決済・銀行振込・ペイジー：ご指定の銀行口座へ返金<br>PayPay：PayPay残高への返金<br><span style="font-size:12px;color:#888;">※返金処理には決済方法により1〜4週間程度かかる場合があります。</span></td></tr>
+      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">返金について</th><td style="padding:12px;border:1px solid #e2e8f0;">当方の都合による返金の場合、ご利用の決済方法に応じて返金処理を行います。<br>クレジットカード・Apple Pay：カード会社経由での返金<br>コンビニ決済・銀行振込・ペイジー：ご指定の銀行口座へ返金<br>PayPay：PayPay残高への返金<br>Paidy：Paidy経由での返金<br><span style="font-size:12px;color:#888;">※返金処理には決済方法により1〜4週間程度かかる場合があります。</span></td></tr>
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">古物商許可</th><td style="padding:12px;border:1px solid #e2e8f0;">大阪府公安委員会 第62228R076481号</td></tr>
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">インボイス登録番号</th><td style="padding:12px;border:1px solid #e2e8f0;">T9810785107076</td></tr>
     </table>
@@ -2298,7 +2300,7 @@ function submitOrder() {
   var detauriItemCount = G.detauriCartCount || 0;
 
   // デタウリ最低数量チェック（アソートありなら1点〜、なしなら5点〜）
-  var hasAssortItems = G.cartItems && G.cartItems.length > 0;
+  var hasAssortItems = G.cart && Object.keys(G.cart).length > 0;
   var minDetauriQty = hasAssortItems ? 1 : 5;
   if (detauriItemCount > 0 && detauriItemCount < minDetauriQty) {
     errEl.textContent = 'デタウリ商品は' + minDetauriQty + '点以上で購入可能です（現在' + detauriItemCount + '点）。点数を満たすか、デタウリ商品を全て削除してください。';
@@ -2893,7 +2895,8 @@ function doRegister_() {
         autoFillCustomerForm();
         updateCart();
         var md = G.settings.memberDiscount;
-        alert((md && md.enabled) ? '登録が完了しました！' + Math.round(md.rate * 100) + '%割引が適用されます' : '登録が完了しました！');
+        var bonusMsg = (res.welcomeBonus > 0) ? '＋' + res.welcomeBonus + 'ポイントプレゼント！' : '';
+        alert((md && md.enabled) ? '登録が完了しました！' + Math.round(md.rate * 100) + '%割引が適用されます' + bonusMsg : '登録が完了しました！' + bonusMsg);
       } else {
         showAuthError_(res.message || '登録に失敗しました');
       }
@@ -3567,7 +3570,7 @@ function renderOrderHistory_(orders) {
 
     // --- 送料・配送 ---
     { q: '送料はいくら？', category: '送料・配送',
-      a: '【送料について】\n送料はお届け先の地域と荷物のサイズによって異なります。\n住所を入力すると自動計算されます。\n\n・ダイヤモンド会員は送料無料！\n\n詳しくはヘッダーの「アソート送料表」からご確認ください。' },
+      a: '【送料について】\n送料はお届け先の地域と荷物のサイズによって異なります。\n住所を入力すると自動計算されます。\n\n・商品合計1万円以上で送料無料！\n・ダイヤモンド会員は常に送料無料！\n\n詳しくはヘッダーの「アソート送料表」からご確認ください。' },
     { q: '配送にかかる日数は？', category: '送料・配送',
       a: '決済完了後、通常2〜5営業日で発送いたします。\nお届けまでの日数は地域により異なりますが、発送から1〜3日程度です。\n\n※繁忙期や天候・災害等により遅延する場合がございます。' },
     { q: '送料無料になる条件は？', category: '送料・配送',
@@ -3583,13 +3586,13 @@ function renderOrderHistory_(orders) {
 
     // --- 割引・セール ---
     { q: '割引はある？', category: '割引・セール',
-      a: '【現在の割引制度】\n\n1. 会員割引：無料登録で10%OFF（2026年9月末まで）\n\n2. ポイント利用：購入ごとに貯まるポイントを1pt=1円で使用可能\n\n3. クーポンコードによる割引\n\n詳しくはスタッフまでお問い合わせください。' },
+      a: '【現在の割引制度】\n\n1. 会員割引：無料登録で10%OFF（2026年9月末まで）＋初回500ポイント\n\n2. デタウリ数量割引：10点5%OFF / 30点10%OFF / 50点15%OFF / 100点20%OFF\n\n3. ポイント利用：購入ごとに貯まるポイントを1pt=1円で使用可能\n\n4. クーポンコードによる割引\n\n5. 商品合計1万円以上で送料無料！\n\n会員割引と数量割引は併用可能です！' },
     { q: '会員割引の期間は？', category: '割引・セール',
       a: '会員登録で全品10%OFFの特典は2026年9月末までの期間限定です。\n\n・無料登録するだけで適用\n・期間中はいつでもご利用いただけます\n\nお早めの登録がおすすめです！' },
 
     // --- 会員 ---
     { q: '会員登録の方法は？', category: '会員',
-      a: '【会員登録の方法】\n画面上部の「ログイン / 新規登録」ボタンからお手続きいただけます。\n\n・メールアドレスとパスワードの設定だけで完了\n・登録は無料です\n・登録直後から会員割引（10%OFF）が適用されます' },
+      a: '【会員登録の方法】\n画面上部の「ログイン / 新規登録」ボタンからお手続きいただけます。\n\n・メールアドレスとパスワードの設定だけで完了\n・登録は無料です\n・登録直後から会員割引（10%OFF）が適用されます\n・初回登録で500ポイントプレゼント！' },
     { q: '会員ランクについて', category: '会員',
       a: '【会員ランク制度】\n\n・レギュラー：初回登録時（10%OFF特典）\n・シルバー：累計5万円以上\n・ゴールド：累計15万円以上\n・ダイヤモンド：累計30万円以上（送料無料！）\n\nランクが上がるほど特典が充実します。' },
     { q: 'ダイヤモンド会員の特典は？', category: '会員',
