@@ -6494,11 +6494,11 @@ function setupNewsletterToggle_() {
           if (label) label.textContent = !newVal ? '停止中' : '受信する';
           showToast((r && r.message) || '変更に失敗しました');
         }
-      }).catch(function() {
+      }).catch(function(err) {
         toggle._userChanged = false;
         toggle.checked = !newVal;
         if (label) label.textContent = !newVal ? '停止中' : '受信する';
-        showToast('メルマガ設定の変更に失敗しました');
+        showToast((err && err.message) || 'メルマガ設定の変更に失敗しました');
       }).finally(function() { toggle.disabled = false; });
   });
 }
