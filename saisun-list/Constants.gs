@@ -129,7 +129,9 @@ var CUSTOMER_SHEET_COLS = {
   LAST_LOGIN: 9,      // J: 最終ログイン
   SESSION_ID: 10,     // K: セッションID
   SESSION_EXPIRY: 11, // L: セッション有効期限
-  POINTS: 12          // M: ポイント残高
+  POINTS: 12,         // M: ポイント残高
+  POINTS_UPDATED_AT: 13, // N: ポイント更新日
+  LINE_USER_ID: 14    // O: LINE UserID
 };
 
 /**

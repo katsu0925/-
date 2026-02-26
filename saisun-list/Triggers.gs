@@ -97,6 +97,36 @@ function tr_setupTriggersOnce_() {
   }
   if (!hasReminderTrigger) ScriptApp.newTrigger('sendPaymentReminders').timeBased().everyDays(1).atHour(9).create();
 
+  // Phase 3-4 トリガー登録
+  var phase34Triggers = [
+    { fn: 'abandonedCartCron_', type: 'minutes', interval: 15 },
+    { fn: 'newArrivalNotifyCron_', type: 'daily', hour: 10 },
+    { fn: 'followupEmailCron_', type: 'daily', hour: 11 },
+    { fn: 'newsletterSendCron_', type: 'daily', hour: 9 },
+    { fn: 'pointExpiryCron_', type: 'daily', hour: 6 },
+    { fn: 'rfmAnalysisCron_', type: 'weekly', hour: 7 },
+    { fn: 'productAnalyticsCron_', type: 'daily', hour: 7 }
+  ];
+
+  var allTriggers = ScriptApp.getProjectTriggers();
+  var existingFns = {};
+  for (var ti = 0; ti < allTriggers.length; ti++) {
+    var tfn = allTriggers[ti].getHandlerFunction ? allTriggers[ti].getHandlerFunction() : '';
+    if (tfn) existingFns[tfn] = true;
+  }
+
+  for (var pi = 0; pi < phase34Triggers.length; pi++) {
+    var pt = phase34Triggers[pi];
+    if (existingFns[pt.fn]) continue;
+    if (pt.type === 'minutes') {
+      ScriptApp.newTrigger(pt.fn).timeBased().everyMinutes(pt.interval).create();
+    } else if (pt.type === 'daily') {
+      ScriptApp.newTrigger(pt.fn).timeBased().everyDays(1).atHour(pt.hour).create();
+    } else if (pt.type === 'weekly') {
+      ScriptApp.newTrigger(pt.fn).timeBased().onWeekDay(ScriptApp.WeekDay.MONDAY).atHour(pt.hour).create();
+    }
+  }
+
   return { ok: true };
 }
 

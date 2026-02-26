@@ -107,12 +107,20 @@ function doPost(e) {
       'apiChatbot', 'apiValidateCoupon', 'apiAdminLinkOrder',
       // 記事API
       'apiGetArticles', 'apiGetArticleContent',
+      // Phase 3: リテンション/LTV向上
+      'apiUnsubscribeNewsletter', 'apiGetReferralCode', 'apiApplyReferralCode',
+      // Phase 4: インフラ/アナリティクス
+      'apiSubmitReview', 'apiGetReviews',
+      'apiGetAdsConfig', 'apiGetMetaConfig', 'apiGetSitemap',
+      'apiLineLinkAccount', 'apiGetABTestVariant', 'apiTrackABTestEvent',
       // 管理者専用API（adminKey認証必須）
       'adminGetKomojuMode', 'adminToggleKomojuMode',
       'adminGetMemberDiscountStatus', 'adminToggleMemberDiscount',
       'adminRebuildStates', 'adminApplyStatusDropdown',
       'adminClearProductsCache', 'adminCompactHolds',
-      'adminTestEmails'
+      'adminTestEmails',
+      'adminApproveReview', 'adminGetRFMSummary',
+      'adminGetProductAnalytics', 'adminGetABTestResults'
     ];
     var allowedSet = {};
     for (var ai = 0; ai < allowedNames.length; ai++) allowedSet[allowedNames[ai]] = true;

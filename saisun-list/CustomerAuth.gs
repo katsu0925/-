@@ -14,7 +14,7 @@ function getCustomerSheet_() {
     sheet.appendRow([
       'ID', 'メールアドレス', 'パスワードハッシュ', '会社名/氏名', '電話番号',
       '郵便番号', '住所', 'メルマガ', '登録日時', '最終ログイン', 'セッションID', 'セッション有効期限',
-      'ポイント残高'
+      'ポイント残高', 'ポイント更新日', 'LINE_USER_ID'
     ]);
     sheet.setFrozenRows(1);
   }
@@ -283,7 +283,7 @@ function apiRegisterCustomer(userKey, params) {
       var initialPoints = 500; // 初回登録ボーナス
       sheet.appendRow([
         customerId, email, passwordHash, companyName, phoneForSheet,
-        postalForSheet, address, newsletter, now, now, sessionId, sessionExpiry, initialPoints
+        postalForSheet, address, newsletter, now, now, sessionId, sessionExpiry, initialPoints, now, ''
       ]);
       lock.releaseLock();
 
@@ -993,6 +993,7 @@ function processCustomerPointsAuto_() {
           if (points > 0) {
             custMap[email].points += points;
             custSheet.getRange(custMap[email].row, 13).setValue(custMap[email].points);
+            try { updatePointsTimestamp_(custMap[email].row); } catch(e2) {}
             reqSheet.getRange(i + 1, 18).setValue('PT');
             awarded++;
           }
@@ -1027,6 +1028,7 @@ function addPoints_(email, points) {
   var sheet = getCustomerSheet_();
   var currentPoints = Number(customer.points || 0);
   sheet.getRange(customer.row, 13).setValue(currentPoints + points);
+  try { updatePointsTimestamp_(customer.row); } catch(e) {}
   return true;
 }
 

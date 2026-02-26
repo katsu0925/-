@@ -501,6 +501,102 @@
     .cross-sell-bar .cs-text{font-weight:600}
     .cross-sell-bar .cs-arrow{font-size:18px;font-weight:700}
   </style>
+  <!-- Phase 4-3: SEO 構造化データ (JSON-LD) -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "デタウリ.Detauri",
+    "url": "https://wholesale.nkonline-tool.com/",
+    "description": "採寸データ付き古着卸 - 5点から購入可能・会員登録で10%OFF＋500ポイント・1万円以上送料無料",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": "https://wholesale.nkonline-tool.com/?q={search_term_string}",
+      "query-input": "required name=search_term_string"
+    }
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "デタウリ.Detauri",
+    "url": "https://wholesale.nkonline-tool.com/",
+    "logo": "https://wholesale.nkonline-tool.com/public/logo-192.png",
+    "contactPoint": {
+      "@type": "ContactPoint",
+      "telephone": "+81-90-5820-1803",
+      "contactType": "customer service",
+      "availableLanguage": "Japanese"
+    },
+    "address": {
+      "@type": "PostalAddress",
+      "streetAddress": "朱雀宝蔵町44番地 協栄ビル2階 京都朱雀スタジオAW-209",
+      "addressLocality": "京都市下京区",
+      "addressRegion": "京都府",
+      "addressCountry": "JP"
+    }
+  }
+  </script>
+  <!-- Phase 4-4: Google Ads コンバージョントラッキング（設定はScriptPropertiesから動的取得） -->
+  <script>
+  (function(){
+    // Google Ads conversion tag を動的ロード
+    window._detauriAdsConfig = null;
+    window._loadGoogleAdsTag = function(conversionId) {
+      if (!conversionId || document.getElementById('gtag-ads')) return;
+      var s = document.createElement('script');
+      s.id = 'gtag-ads';
+      s.async = true;
+      s.src = 'https://www.googletagmanager.com/gtag/js?id=' + conversionId;
+      document.head.appendChild(s);
+      gtag('config', conversionId);
+    };
+    window._trackGoogleAdsConversion = function(value, currency) {
+      if (!window._detauriAdsConfig || !window._detauriAdsConfig.conversionId) return;
+      gtag('event', 'conversion', {
+        send_to: window._detauriAdsConfig.conversionId + '/' + window._detauriAdsConfig.conversionLabel,
+        value: value || 0,
+        currency: currency || 'JPY'
+      });
+    };
+  })();
+  </script>
+  <!-- Phase 4-5: Meta Pixel（設定はScriptPropertiesから動的取得） -->
+  <script>
+  (function(){
+    window._detauriMetaPixelId = null;
+    window._loadMetaPixel = function(pixelId) {
+      if (!pixelId || window.fbq) return;
+      window._detauriMetaPixelId = pixelId;
+      !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+      n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}
+      (window,document,'script','https://connect.facebook.net/en_US/fbevents.js');
+      fbq('init', pixelId);
+      fbq('track', 'PageView');
+    };
+    window._trackMetaPurchase = function(value, currency, contentIds) {
+      if (!window.fbq || !window._detauriMetaPixelId) return;
+      fbq('track', 'Purchase', {
+        value: value || 0,
+        currency: currency || 'JPY',
+        content_ids: contentIds || [],
+        content_type: 'product'
+      });
+    };
+    window._trackMetaAddToCart = function(value, contentId) {
+      if (!window.fbq || !window._detauriMetaPixelId) return;
+      fbq('track', 'AddToCart', {
+        value: value || 0,
+        currency: 'JPY',
+        content_ids: [contentId],
+        content_type: 'product'
+      });
+    };
+  })();
+  </script>
 </head>
 <body>
 <script>
