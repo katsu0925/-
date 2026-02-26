@@ -250,7 +250,7 @@
     .formField input,.formField select,.formField textarea{width:100%;padding:10px 12px;border:1px solid #d9deea;border-radius:10px;background:#fff;outline:none;}
     .formField textarea{min-height:90px;resize:vertical;}
     .formActions{display:flex;gap:10px;justify-content:flex-end;margin-top:12px;flex-wrap:wrap;}
-    .toast{position:fixed;left:50%;bottom:82px;transform:translateX(-50%);background:#111;color:#fff;padding:10px 12px;border-radius:12px;display:none;z-index:1020;font-weight:900;max-width:92vw;}
+    .toast{position:fixed;left:50%;bottom:82px;transform:translateX(-50%);background:#111;color:#fff;padding:10px 12px;border-radius:12px;display:none;z-index:10010;font-weight:900;max-width:92vw;}
     .toast.show{display:block;}
     .admin-settings-fab{position:fixed;left:16px;bottom:76px;z-index:100;width:48px;height:48px;border-radius:50%;background:#b8002a;color:#fff;border:none;cursor:pointer;display:none;align-items:center;justify-content:center;box-shadow:0 4px 12px rgba(0,0,0,.3);font-size:22px;transition:transform .2s;}
     .admin-settings-fab:hover{transform:scale(1.1);}
@@ -491,7 +491,7 @@
     /* ====== SNSシェアボタン ====== */
     .share-btns{display:flex;gap:8px;margin-top:12px;justify-content:center}
     .share-btn{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;color:#fff;cursor:pointer;border:none}
-    .share-btn.x-btn{background:#000}.share-btn.line-btn{background:#06c755}.share-btn.copy-btn{background:#64748b}
+    .share-btn.x-btn{background:#000}.share-btn.line-btn{background:#06c755}.share-btn.ig-btn{background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)}.share-btn.copy-btn{background:#64748b}
     .share-btn:hover{opacity:.85}
     /* ====== 実績バッジ ====== */
     .stats-banner{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;padding:10px 16px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;margin:12px 16px;font-size:13px;color:#0369a1}
@@ -4593,11 +4593,7 @@ function renderDetailModalLocal(item, imageUrl, thumbUrl) {
     basicInfoHtml + defectHtml + measurementsHtml + noInfo + '</div>' +
     '<div class="detail-modal-footer"><button class="detail-add-btn" ' + btnDisabled + ' onclick="addToCartFromModal(\'' + safeManagedId + '\')">' + btnText + '</button></div>' +
     (typeof buildShareButtons_ === 'function' ? buildShareButtons_(window.location.origin + window.location.pathname + '#item=' + safeManagedId, safeBrand + ' ¥' + numFmt_(item.price || 0) + ' | デタウリ.Detauri') : '') +
-    (typeof buildRecoHtml_ === 'function' ? buildRecoHtml_(item, state.products || []) : '') +
-    (typeof buildReviewSection_ === 'function' ? buildReviewSection_(item) : '');
-
-  // Phase 4-1: レビューを非同期ロード
-  setTimeout(function() { try { loadReviews_(safeManagedId); } catch(e) {} }, 100);
+    (typeof buildRecoHtml_ === 'function' ? buildRecoHtml_(item, state.products || []) : '');
 
   // Swap to full-res image when loaded (if different from thumbnail)
   if (safeImageUrl && safeImageUrl !== safeThumbUrl) {
@@ -6572,65 +6568,6 @@ function setupReferralCopy_() {
   });
 }
 
-// Phase 4-1: レビューセクション構築
-function buildReviewSection_(item) {
-  if (!item || !item.managedId) return '';
-  return '<div class="detail-review-section" style="padding:16px;border-top:1px solid #eee;margin-top:12px;">'
-    + '<div style="font-size:14px;font-weight:600;color:#333;margin-bottom:10px;">レビュー</div>'
-    + '<div id="reviewList_' + item.managedId + '" style="font-size:12px;color:#888;">読み込み中...</div>'
-    + '<div id="reviewForm_' + item.managedId + '" style="display:none;margin-top:12px;border-top:1px solid #f0f0f0;padding-top:12px;">'
-    + '<div style="font-size:13px;font-weight:600;margin-bottom:8px;">レビューを投稿</div>'
-    + '<div style="margin-bottom:8px;"><label style="font-size:12px;">評価: </label>'
-    + '<select id="reviewRating_' + item.managedId + '" style="font-size:14px;padding:4px;"><option value="5">★★★★★</option><option value="4">★★★★</option><option value="3">★★★</option><option value="2">★★</option><option value="1">★</option></select></div>'
-    + '<textarea id="reviewComment_' + item.managedId + '" rows="3" style="width:100%;font-size:13px;padding:8px;border:1px solid #ddd;border-radius:6px;" placeholder="商品の感想をお書きください"></textarea>'
-    + '<button class="btn primary" style="margin-top:8px;font-size:12px;" onclick="submitReview_(\'' + item.managedId + '\')">投稿する</button>'
-    + '</div></div>';
-}
-
-function loadReviews_(managedId) {
-  runApi('apiGetReviews', state.userKey, { managedId: managedId })
-    .then(function(r) {
-      var el = document.getElementById('reviewList_' + managedId);
-      if (!el) return;
-      if (r && r.ok && r.data && r.data.reviews && r.data.reviews.length > 0) {
-        var html = '';
-        for (var i = 0; i < r.data.reviews.length; i++) {
-          var rv = r.data.reviews[i];
-          html += '<div style="padding:8px 0;border-bottom:1px solid #f5f5f5;">'
-            + '<div style="color:#f59e0b;">' + '★'.repeat(rv.rating) + '<span style="color:#ddd;">' + '★'.repeat(5 - rv.rating) + '</span></div>'
-            + '<div style="font-size:12px;color:#333;margin-top:4px;">' + (rv.comment || '').replace(/</g, '&lt;') + '</div>'
-            + '<div style="font-size:10px;color:#aaa;margin-top:2px;">' + (rv.date || '') + '</div>'
-            + '</div>';
-        }
-        el.innerHTML = html;
-      } else {
-        el.innerHTML = '<div style="color:#aaa;font-size:12px;">まだレビューはありません</div>';
-      }
-      // ログイン中の場合レビューフォーム表示
-      var form = document.getElementById('reviewForm_' + managedId);
-      if (form && state.sessionId) form.style.display = '';
-    }).catch(function() {
-      var el = document.getElementById('reviewList_' + managedId);
-      if (el) el.innerHTML = '<div style="color:#aaa;font-size:12px;">レビューを読み込めませんでした</div>';
-    });
-}
-
-function submitReview_(managedId) {
-  if (!state.sessionId) { showToast('レビュー投稿にはログインが必要です'); return; }
-  var rating = Number(document.getElementById('reviewRating_' + managedId).value) || 5;
-  var comment = (document.getElementById('reviewComment_' + managedId).value || '').trim();
-  if (!comment) { showToast('コメントを入力してください'); return; }
-  runApi('apiSubmitReview', state.userKey, { sessionId: state.sessionId, managedId: managedId, rating: rating, comment: comment })
-    .then(function(r) {
-      if (r && r.ok) {
-        showToast('レビューを投稿しました（承認後に公開されます）');
-        document.getElementById('reviewComment_' + managedId).value = '';
-        loadReviews_(managedId);
-      } else {
-        showToast((r && r.message) || 'レビュー投稿に失敗しました');
-      }
-    }).catch(function(e) { showToast(e.message || 'レビュー投稿に失敗しました'); });
-}
 
 // =====================================================
 // 起動
@@ -7700,8 +7637,17 @@ function buildShareButtons_(url, text) {
   return '<div class="share-btns">' +
     '<a class="share-btn x-btn" href="https://x.com/intent/tweet?text=' + enc(text) + '&url=' + enc(url) + '" target="_blank" rel="noopener">𝕏 シェア</a>' +
     '<a class="share-btn line-btn" href="https://social-plugins.line.me/lineit/share?url=' + enc(url) + '" target="_blank" rel="noopener">LINE</a>' +
+    '<button class="share-btn ig-btn" onclick="shareInstagram_(\'' + url.replace(/'/g, "\\'") + '\', \'' + text.replace(/'/g, "\\'") + '\')">Instagram</button>' +
     '<button class="share-btn copy-btn" onclick="copyShareUrl_(\'' + url.replace(/'/g, "\\'") + '\')">URLコピー</button>' +
     '</div>';
+}
+function shareInstagram_(url, text) {
+  if (navigator.share) {
+    navigator.share({ title: text, url: url }).catch(function() {});
+  } else {
+    copyShareUrl_(url);
+    showToast('URLをコピーしました — Instagramストーリーズに貼り付けてシェアできます');
+  }
 }
 function copyShareUrl_(url) {
   navigator.clipboard.writeText(url).then(function() { showToast('URLをコピーしました'); }).catch(function() {
