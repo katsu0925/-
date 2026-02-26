@@ -408,7 +408,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
 /* ====== SNSシェアボタン ====== */
 .share-btns{display:flex;gap:8px;margin-top:12px;justify-content:center}
 .share-btn{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border-radius:6px;font-size:12px;font-weight:600;text-decoration:none;color:#fff;cursor:pointer;border:none}
-.share-btn.x-btn{background:#000}.share-btn.line-btn{background:#06c755}.share-btn.copy-btn{background:#64748b}
+.share-btn.x-btn{background:#000}.share-btn.line-btn{background:#06c755}.share-btn.ig-btn{background:linear-gradient(45deg,#f09433,#e6683c,#dc2743,#cc2366,#bc1888)}.share-btn.copy-btn{background:#64748b}
 .share-btn:hover{opacity:.85}
 /* ====== 実績バッジ ====== */
 .stats-banner{display:flex;gap:16px;justify-content:center;flex-wrap:wrap;padding:10px 16px;background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;margin:12px 0;font-size:13px;color:#0369a1}
@@ -1798,6 +1798,7 @@ function openProductModal(idx) {
   var shareHtml = '<div class="share-btns" style="margin-top:16px;">' +
     '<a class="share-btn x-btn" href="https://x.com/intent/tweet?text=' + encText + '&url=' + encUrl + '" target="_blank" rel="noopener">𝕏 シェア</a>' +
     '<a class="share-btn line-btn" href="https://social-plugins.line.me/lineit/share?url=' + encUrl + '" target="_blank" rel="noopener">LINE</a>' +
+    '<button class="share-btn ig-btn" onclick="shareInstagram_(\'' + shareUrl.replace(/'/g, "\\'") + '\', \'' + shareText.replace(/'/g, "\\'") + '\')">Instagram</button>' +
     '<button class="share-btn copy-btn" onclick="copyShareUrl_(\'' + shareUrl.replace(/'/g, "\\'") + '\')">URLコピー</button>' +
     '</div>';
   bodyEl.innerHTML =
@@ -4662,6 +4663,14 @@ function closeDetauriQv_() {
 }
 
 // ====== SNSシェア ======
+function shareInstagram_(url, text) {
+  if (navigator.share) {
+    navigator.share({ title: text, url: url }).catch(function() {});
+  } else {
+    copyShareUrl_(url);
+    showToast('URLをコピーしました — Instagramストーリーズに貼り付けてシェアできます');
+  }
+}
 function copyShareUrl_(url) {
   navigator.clipboard.writeText(url).then(function() { showToast('URLをコピーしました'); }).catch(function() {
     var ta = document.createElement('textarea'); ta.value = url; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); showToast('URLをコピーしました');
