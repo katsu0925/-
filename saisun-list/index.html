@@ -6505,14 +6505,16 @@ function loadReferralCode_() {
   if (!state.sessionId) return;
   var section = $('mpReferralSection');
   if (!section) return;
+  section.style.display = '';
   runApi('apiGetReferralCode', state.userKey, { sessionId: state.sessionId })
     .then(function(r) {
       if (r && r.ok && r.data) {
-        section.style.display = '';
         var urlInput = $('mpReferralUrl');
         if (urlInput) urlInput.value = r.data.referralUrl || '';
+      } else {
+        console.log('apiGetReferralCode response:', JSON.stringify(r));
       }
-    }).catch(function() {});
+    }).catch(function(e) { console.error('apiGetReferralCode error:', e); });
 }
 
 // Phase 3-2: メルマガ即時トグル
