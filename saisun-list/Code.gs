@@ -20,6 +20,21 @@ function doGet(e) {
   if (String(p.page || '') === 'bulk') {
     var tBulk = HtmlService.createTemplateFromFile('BulkLP');
     tBulk.appTitle = APP_CONFIG.appTitle;
+    // アソート商品データをHTMLに埋め込み
+    tBulk.initialBulkData = '';
+    try {
+      var bulkProducts = bulk_getProducts_();
+      var bulkMd = app_getMemberDiscountStatus_();
+      var bulkStats = null;
+      try { bulkStats = st_getStatsCache_(); } catch (e2) {}
+      var bulkInitData = {
+        ok: true,
+        products: bulkProducts,
+        settings: { appTitle: APP_CONFIG.appTitle, channel: BULK_CONFIG.channel, shippingAreas: SHIPPING_AREAS, shippingRates: SHIPPING_RATES, memberDiscount: bulkMd },
+        stats: bulkStats
+      };
+      tBulk.initialBulkData = JSON.stringify(bulkInitData);
+    } catch (e) { console.log('doGet bulk: embed error:', e); }
     // デタウリ（個品LP）へのリンクURLをテンプレートに渡す
     var detauriUrl = '';
     try { detauriUrl = SITE_CONSTANTS.SITE_URL || ''; } catch (e) {}
@@ -38,6 +53,21 @@ function doGet(e) {
   t.appTitle = APP_CONFIG.appTitle;
   t.topNotes = (APP_CONFIG.uiText && Array.isArray(APP_CONFIG.uiText.notes)) ? APP_CONFIG.uiText.notes : [];
   t.me = String(p.me || '');
+
+  // 商品データをHTMLに埋め込み（初回表示の高速化）
+  t.initialProductData = '';
+  try {
+    var prodData = loadFromCache_();
+    if (prodData) {
+      if (typeof app_getMemberDiscountStatus_ === 'function') {
+        var md = app_getMemberDiscountStatus_();
+        if (!prodData.settings) prodData.settings = {};
+        prodData.settings.memberDiscount = md;
+      }
+      try { prodData.stats = st_getStatsCache_(); } catch (e2) {}
+      t.initialProductData = JSON.stringify(prodData);
+    }
+  } catch (e) { console.log('doGet: product embed error:', e); }
 
   // アソート商品LPへのリンクURLをテンプレートに渡す
   var bulkUrl = '';

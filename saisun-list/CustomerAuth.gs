@@ -501,7 +501,6 @@ function apiUpdateNewsletter(userKey, params) {
     if (!customer) return { ok: false, message: 'セッションが無効です' };
     var nlVal = (params.newsletter === true || params.newsletter === 'true');
     getCustomerSheet_().getRange(customer.row, CUSTOMER_SHEET_COLS.NEWSLETTER + 1).setValue(nlVal);
-    try { localStorage.removeItem(_MP_CACHE_KEY); } catch(e) {}
     return { ok: true, newsletter: nlVal };
   } catch (e) {
     return { ok: false, message: '更新に失敗しました' };

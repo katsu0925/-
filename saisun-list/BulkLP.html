@@ -518,6 +518,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
   </script>
 </head>
 <body>
+<script type="application/json" id="__initial_bulk__"><?!= initialBulkData || '' ?></script>
 <script>(function(){try{if(sessionStorage.getItem('_pageTransition')==='1'){document.body.style.background='#1a1a2e';document.body.classList.add('page-entering');sessionStorage.removeItem('_pageTransition');}}catch(e){}try{if((typeof google==='undefined'||!google.script)&&window.location.pathname.indexOf('BulkLP')!==-1){history.replaceState(null,'','/');}}catch(e){}})()</script>
 <!-- 管理者バー -->
 <div class="admin-bar" id="adminBar">管理者モード<span>アソート商品</span><button class="admin-exit" id="adminExit" type="button">管理者モード解除</button></div>
@@ -1586,8 +1587,11 @@ function adjustHeaderForBanner_() {
   }
 }
 
+// サーバー埋め込みアソート商品データ（doGet時にCacheServiceから読み込み済み）
+(function(){try{var el=document.getElementById('__initial_bulk__');if(el&&el.textContent){window.__INITIAL_BULK_DATA__=JSON.parse(el.textContent);}}catch(e){}})();
+
 // =====================================================
-// 初期化（キャッシュ優先 → バックグラウンド更新）
+// 初期化（サーバー埋め込み優先 → キャッシュ → バックグラウンド更新）
 // =====================================================
 window.addEventListener('DOMContentLoaded', function() {
   loadDetauriCart();
@@ -1596,13 +1600,22 @@ window.addEventListener('DOMContentLoaded', function() {
   trackEvent_('page_loaded', { page_type: 'assort' });
   window.addEventListener('resize', adjustHeaderForBanner_);
 
-  // キャッシュから即時表示
-  var cached = loadBulkProductCache_();
+  // サーバー埋め込みデータ → localStorageキャッシュ の優先順で即時表示
+  var cached = null;
   var cacheApplied = false;
-  if (cached && cached.data) {
-    console.log('BulkLP: ' + (cached.stale ? '古い' : '') + 'キャッシュから即時表示:', (cached.data.products || []).length + '件');
-    applyBulkData_(cached.data, savedCart);
+  var _serverBulk = window.__INITIAL_BULK_DATA__ || null;
+  if (_serverBulk && _serverBulk.products) {
+    console.log('BulkLP: サーバー埋め込みデータから即時表示:', _serverBulk.products.length + '件');
+    applyBulkData_(_serverBulk, savedCart);
+    saveBulkProductCache_(_serverBulk);
     cacheApplied = true;
+  } else {
+    cached = loadBulkProductCache_();
+    if (cached && cached.data) {
+      console.log('BulkLP: ' + (cached.stale ? '古い' : '') + 'キャッシュから即時表示:', (cached.data.products || []).length + '件');
+      applyBulkData_(cached.data, savedCart);
+      cacheApplied = true;
+    }
   }
   // ページ遷移オーバーレイのフェードアウト（キャッシュがあれば即時、なければデータ取得後）
   function dismissBulkTransition_() {
@@ -2601,6 +2614,7 @@ function setupBulkNewsletterToggle_() {
     var label = document.getElementById('mpNewsletterLabel');
     if (label) label.textContent = toggle.checked ? '受信する' : '停止中';
     if (!G.sessionId) return;
+    window._nlRecentlyChanged = true;
     toggle.disabled = true;
     runApi('apiUpdateNewsletter', 'bulk', { sessionId: G.sessionId, newsletter: toggle.checked })
       .then(function(r) {
@@ -3320,10 +3334,10 @@ function _applyMpData_(d) {
     var rank = getMemberRank_(d.stats.totalSpent || 0);
     ge('mpMemberRank').innerHTML = '<span style="color:' + safeColor_(rank.color) + ';">' + escHtml(rank.name) + '</span>';
   }
-  // Phase 3-7: メルマガ設定反映
+  // Phase 3-7: メルマガ設定反映（最近ユーザーが変更した場合はスキップ）
   var nlToggle = document.getElementById('mpNewsletterToggle');
   var nlLabel = document.getElementById('mpNewsletterLabel');
-  if (nlToggle) {
+  if (nlToggle && !window._nlRecentlyChanged) {
     nlToggle.checked = d.profile.newsletter !== false && d.profile.newsletter !== 'false';
     if (nlLabel) nlLabel.textContent = nlToggle.checked ? '受信する' : '停止中';
   }
@@ -4390,7 +4404,7 @@ s0.parentNode.insertBefore(s1,s0);
 .article-item-summary{font-size:12px;color:#666;margin-top:4px;padding-left:30px;line-height:1.5;}
 .article-detail{display:none;padding:0;}
 .article-detail.active{display:block;}
-.article-detail-back{display:flex;align-items:center;gap:4px;padding:10px 14px;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:13px;font-weight:700;color:#64748b;background:transparent;border-top:none;border-left:none;border-right:none;width:100%;text-align:left;transition:background .15s;font-family:inherit;}
+.article-detail-back{display:flex;align-items:center;gap:4px;padding:10px 14px;border-bottom:1px solid #f0f0f0;cursor:pointer;font-size:13px;font-weight:700;color:#64748b;background:#fff;border-top:none;border-left:none;border-right:none;width:100%;text-align:left;transition:background .15s;font-family:inherit;position:sticky;top:0;z-index:1;}
 .article-detail-back:hover{background:#f8fafc;}
 .article-detail-header{padding:14px;border-bottom:1px solid #f0f0f0;}
 .article-detail-hero{width:100%;max-height:200px;object-fit:cover;border-radius:8px;margin-bottom:10px;display:block;}

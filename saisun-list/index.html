@@ -600,6 +600,7 @@
   </script>
 </head>
 <body>
+<script type="application/json" id="__initial_products__"><?!= initialProductData || '' ?></script>
 <script>
 // ページ遷移フラッシュ防止: 遷移フラグがあればbody背景を暗くしオーバーレイ表示
 (function(){try{if(sessionStorage.getItem('_pageTransition')==='1'){document.body.style.background='#1a1a2e';document.body.classList.add('page-entering');sessionStorage.removeItem('_pageTransition');}}catch(e){}})();
@@ -2636,10 +2637,10 @@ function _applyMpData_(d) {
     var rank = getMemberRank_(d.stats.totalSpent || 0);
     $('mpMemberRank').innerHTML = '<span style="color:' + safeColor_(rank.color) + ';">' + escapeHtml_(rank.name) + '</span>';
   }
-  // Phase 3-2: メルマガ設定反映
+  // Phase 3-2: メルマガ設定反映（最近ユーザーが変更した場合はスキップ）
   var nlToggle = $('mpNewsletterToggle');
   var nlLabel = $('mpNewsletterLabel');
-  if (nlToggle) {
+  if (nlToggle && !window._nlRecentlyChanged) {
     nlToggle.checked = d.profile.newsletter !== false && d.profile.newsletter !== 'false';
     if (nlLabel) nlLabel.textContent = nlToggle.checked ? '受信する' : '停止中';
   }
@@ -6476,6 +6477,7 @@ function setupNewsletterToggle_() {
     var label = $('mpNewsletterLabel');
     if (label) label.textContent = toggle.checked ? '受信する' : '停止中';
     if (!state.sessionId) return;
+    window._nlRecentlyChanged = true;
     toggle.disabled = true;
     runApi('apiUpdateNewsletter', state.userKey || '', { sessionId: state.sessionId, newsletter: toggle.checked })
       .then(function(r) {
@@ -6636,16 +6638,25 @@ function boot() {
   var mo = loadMeasureOpt_();
   if (mo) setMeasureOptValue_(mo);
   
-  // キャッシュがあれば即座に表示
-  var cached = loadProductCache_();
-  if (cached && !cached.stale && cached.products) {
-    console.log('キャッシュから即時表示:', cached.products.length + '件');
-    applyProductData_(cached);
-  } else if (cached && cached.stale && cached.data && cached.data.products) {
-    console.log('古いキャッシュから即時表示:', cached.data.products.length + '件');
-    applyProductData_(cached.data);
+  // サーバー埋め込みデータ → localStorageキャッシュ → ローディング の優先順で即時表示
+  var cached = null;
+  var _serverData = window.__INITIAL_PRODUCT_DATA__ || null;
+  if (_serverData && _serverData.products) {
+    console.log('サーバー埋め込みデータから即時表示:', _serverData.products.length + '件');
+    applyProductData_(_serverData);
+    saveProductCache_(_serverData);
+    cached = _serverData;
   } else {
-    renderLoadingGrid_();
+    cached = loadProductCache_();
+    if (cached && !cached.stale && cached.products) {
+      console.log('キャッシュから即時表示:', cached.products.length + '件');
+      applyProductData_(cached);
+    } else if (cached && cached.stale && cached.data && cached.data.products) {
+      console.log('古いキャッシュから即時表示:', cached.data.products.length + '件');
+      applyProductData_(cached.data);
+    } else {
+      renderLoadingGrid_();
+    }
   }
 
   // ページ遷移オーバーレイのフェードアウト（キャッシュがあれば即時、なければデータ取得後）
@@ -6796,6 +6807,8 @@ window.addEventListener('unhandledrejection', function(ev) {
   try { showToast(msg); } catch (e) {}
 });
 
+// サーバー埋め込み商品データ（doGet時にCacheServiceから読み込み済み）
+(function(){try{var el=document.getElementById('__initial_products__');if(el&&el.textContent){window.__INITIAL_PRODUCT_DATA__=JSON.parse(el.textContent);}}catch(e){}})();
 boot();
 </script>
 
