@@ -27,7 +27,7 @@ from openai import OpenAI
 from prompt import SYSTEM_PROMPT, TITLE_SHORTEN_PROMPT, build_user_message
 
 # ─── 設定 ───────────────────────────────────────────────
-MODEL = "gpt-5-mini"
+MODEL = "gpt-4o-mini"
 MAX_TOKENS = 2048
 TEMPERATURE = 0.4
 RETRY_MAX = 3
@@ -118,7 +118,8 @@ def call_api(user_message, retry=0):
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_message},
             ],
-            max_completion_tokens=MAX_TOKENS,
+            max_tokens=MAX_TOKENS,
+            temperature=TEMPERATURE,
             response_format={"type": "json_object"},
         )
         content = res.choices[0].message.content
@@ -156,7 +157,8 @@ def shorten_title(title):
             messages=[
                 {"role": "user", "content": TITLE_SHORTEN_PROMPT.format(title=title)},
             ],
-            max_completion_tokens=100,
+            max_tokens=100,
+            temperature=0.2,
         )
         shortened = res.choices[0].message.content.strip()
         # 引用符があれば除去

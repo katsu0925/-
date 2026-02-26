@@ -33,7 +33,7 @@ def extract_text(pdf_path, max_pages=3):
         return f"[TEXT_EXTRACTION_FAILED: {e}]"
 
 def ask_gpt(text, filename):
-    """GPT-5-miniに請求情報を抽出させる"""
+    """GPT-4o-miniに請求情報を抽出させる"""
     prompt = f"""以下はPDF請求書/領収書から抽出したテキストです。以下を正確に読み取ってください。
 
 1. vendor: 請求元（発行者）の会社名またはサービス名（短く簡潔に。個人名はそのまま）
@@ -58,7 +58,7 @@ def ask_gpt(text, filename):
 
     try:
         res = client.chat.completions.create(
-            model="gpt-5-mini",
+            model="gpt-4o-mini",
             messages=[{"role": "user", "content": prompt}],
             temperature=0,
             max_tokens=200,

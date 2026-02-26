@@ -12,9 +12,10 @@ var ARTICLE_CONFIG = {
   CONTENT_CACHE_PREFIX: 'ARTICLE_CONTENT:',
   CONTENT_CACHE_TTL: 86400,
   MAX_ARTICLES_DISPLAY: 20,
-  MODEL: 'gpt-5-mini',
+  MODEL: 'gpt-4o-mini',
   ENDPOINT: 'https://api.openai.com/v1/chat/completions',
-  MAX_COMPLETION_TOKENS: 2000
+  MAX_TOKENS: 2000,
+  TEMPERATURE: 0.8
 };
 
 var ARTICLE_COLS = {
@@ -230,7 +231,8 @@ function art_generateArticle_(pastTitles) {
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt }
     ],
-    max_completion_tokens: ARTICLE_CONFIG.MAX_COMPLETION_TOKENS,
+    max_tokens: ARTICLE_CONFIG.MAX_TOKENS,
+    temperature: ARTICLE_CONFIG.TEMPERATURE,
     response_format: { type: 'json_object' }
   };
 

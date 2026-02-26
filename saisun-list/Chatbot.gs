@@ -26,9 +26,10 @@ function removeChatbotApiKey() {
 }
 
 var CHATBOT_CONFIG = {
-  MODEL: 'gpt-5-mini',
+  MODEL: 'gpt-4o-mini',
   ENDPOINT: 'https://api.openai.com/v1/chat/completions',
-  MAX_COMPLETION_TOKENS: 500,
+  MAX_TOKENS: 500,
+  TEMPERATURE: 0.7,
   RATE_LIMIT_MAX: 10,
   RATE_LIMIT_WINDOW_SEC: 300,  // 5分間に10回まで
   MAX_HISTORY: 6  // 直近6メッセージ（3往復）をコンテキストに含める
@@ -182,7 +183,8 @@ function chatbot_callOpenAI_(apiKey, messages) {
   var payload = {
     model: CHATBOT_CONFIG.MODEL,
     messages: messages,
-    max_completion_tokens: CHATBOT_CONFIG.MAX_COMPLETION_TOKENS
+    max_tokens: CHATBOT_CONFIG.MAX_TOKENS,
+    temperature: CHATBOT_CONFIG.TEMPERATURE
   };
 
   var res = UrlFetchApp.fetch(CHATBOT_CONFIG.ENDPOINT, {
