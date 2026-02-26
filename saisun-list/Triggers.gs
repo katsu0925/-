@@ -111,6 +111,11 @@ function tr_setupTriggersOnce_() {
 
   // Phase 3-4 トリガー登録
   var phase34Triggers = [
+    // 商品データ同期
+    { fn: 'exportProductData_', type: 'minutes', interval: 5 },
+    { fn: 'syncListingPublicCron', type: 'minutes', interval: 1 },
+    { fn: 'baseSyncOrdersNow', type: 'minutes', interval: 5 },
+    // Phase 3-4
     { fn: 'abandonedCartCron_', type: 'minutes', interval: 15 },
     { fn: 'newArrivalNotifyCron_', type: 'daily', hour: 10 },
     { fn: 'followupEmailCron_', type: 'daily', hour: 11 },

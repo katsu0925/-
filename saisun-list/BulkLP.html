@@ -2621,12 +2621,15 @@ function setupBulkNewsletterToggle_() {
         if (r && r.ok) {
           showToast(toggle.checked ? 'メルマガを受信に設定しました' : 'メルマガを停止しました');
           try { localStorage.removeItem(_MP_CACHE_KEY); } catch(e) {}
+          setTimeout(function() { window._nlRecentlyChanged = false; }, 10000);
         } else {
+          window._nlRecentlyChanged = false;
           toggle.checked = !toggle.checked;
           if (label) label.textContent = toggle.checked ? '受信する' : '停止中';
           showToast((r && r.message) || '変更に失敗しました');
         }
       }).catch(function() {
+        window._nlRecentlyChanged = false;
         toggle.checked = !toggle.checked;
         if (label) label.textContent = toggle.checked ? '受信する' : '停止中';
       }).finally(function() { toggle.disabled = false; });

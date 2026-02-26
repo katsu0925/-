@@ -158,3 +158,27 @@ function updatePointsTimestamp_(row) {
     console.log('optional: updatePointsTimestamp_: ' + (e.message || e));
   }
 }
+
+/**
+ * GASエディタから手動実行: 既存顧客のPOINTS_UPDATED_AT列を一括設定
+ * ポイント残高 > 0 かつ POINTS_UPDATED_AT が空の顧客に現在日時を設定
+ */
+function backfillPointsUpdatedAt() {
+  var sheet = getCustomerSheet_();
+  var data = sheet.getDataRange().getValues();
+  var colPts = CUSTOMER_SHEET_COLS.POINTS;           // 12 (M列)
+  var colUpd = CUSTOMER_SHEET_COLS.POINTS_UPDATED_AT; // 13 (N列)
+  var now = new Date();
+  var count = 0;
+
+  for (var i = 1; i < data.length; i++) {
+    var points = Number(data[i][colPts]) || 0;
+    var updatedAt = data[i][colUpd];
+    if (points > 0 && !updatedAt) {
+      sheet.getRange(i + 1, colUpd + 1).setValue(now);
+      count++;
+    }
+  }
+  console.log('backfillPointsUpdatedAt: ' + count + '件にポイント更新日を設定');
+  return { ok: true, updated: count };
+}
