@@ -4329,12 +4329,19 @@ function copyShareUrl_(url) {
   document.addEventListener('visibilitychange', function() {
     if (document.visibilityState === 'hidden') showExitPopup();
   });
-  document.getElementById('exitClose').onclick = function() { document.getElementById('exitOverlay').classList.remove('show'); };
-  document.getElementById('exitDismiss').onclick = function() { document.getElementById('exitOverlay').classList.remove('show'); };
-  document.getElementById('exitCta').onclick = function() {
-    document.getElementById('exitOverlay').classList.remove('show');
-    document.querySelector('.cart-section').scrollIntoView({ behavior: 'smooth' });
-  };
+  // onclick はDOMContentLoadedで遅延バインド（HTML要素が後に配置されているため）
+  document.addEventListener('DOMContentLoaded', function() {
+    var closeBtn = document.getElementById('exitClose');
+    var dismissBtn = document.getElementById('exitDismiss');
+    var ctaBtn = document.getElementById('exitCta');
+    if (closeBtn) closeBtn.onclick = function() { document.getElementById('exitOverlay').classList.remove('show'); };
+    if (dismissBtn) dismissBtn.onclick = function() { document.getElementById('exitOverlay').classList.remove('show'); };
+    if (ctaBtn) ctaBtn.onclick = function() {
+      document.getElementById('exitOverlay').classList.remove('show');
+      var cartEl = document.getElementById('cartSection');
+      if (cartEl) cartEl.scrollIntoView({ behavior: 'smooth' });
+    };
+  });
 })();
 </script>
 

@@ -5680,7 +5680,7 @@ function submitNow_() {
       if (csrfRes && csrfRes.ok && csrfRes.csrfToken) state.csrfToken = csrfRes.csrfToken;
     }).catch(function() {}),
     getRecaptchaToken_().catch(function() { return ''; }),
-    runApi('apiSyncHolds', state.userKey, ids)
+    runApi('apiSyncHolds', state.userKey, ids, state.sessionId || null)
   ])
     .then(function(results) {
       var recaptchaToken = results[1] || '';
