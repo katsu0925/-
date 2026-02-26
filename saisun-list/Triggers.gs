@@ -43,6 +43,13 @@ function ad_requireAdmin_(adminKey) {
 // トリガー設定・onEditハンドラ（旧WebApp.gs）
 // =====================================================
 
+/**
+ * GASエディタから手動実行する用のトリガー設定関数
+ */
+function setupTriggers() {
+  return tr_setupTriggersOnce_();
+}
+
 function tr_setupTriggersOnce_() {
   const orderSs = sh_getOrderSs_();
   const dataSs = sh_getDataSs_();
