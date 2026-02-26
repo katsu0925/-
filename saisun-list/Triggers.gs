@@ -44,9 +44,14 @@ function ad_requireAdmin_(adminKey) {
 // =====================================================
 
 /**
- * GASエディタから手動実行する用のトリガー設定関数
+ * GASエディタから手動実行：全トリガーを削除して再構築
  */
 function setupTriggers() {
+  var triggers = ScriptApp.getProjectTriggers();
+  console.log('既存トリガー ' + triggers.length + '件を全削除');
+  for (var i = 0; i < triggers.length; i++) {
+    ScriptApp.deleteTrigger(triggers[i]);
+  }
   return tr_setupTriggersOnce_();
 }
 

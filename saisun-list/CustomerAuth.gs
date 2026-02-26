@@ -709,6 +709,13 @@ function apiGetMyPage(userKey, params) {
           var expiryDate = new Date(updatedAtVal);
           expiryDate.setMonth(expiryDate.getMonth() + 6);
           pointsExpiryDate = Utilities.formatDate(expiryDate, 'Asia/Tokyo', 'yyyy/MM/dd');
+        } else {
+          // N列が空の既存顧客 → 今から6ヶ月後をデフォルト有効期限とし、N列にも記録
+          var now = new Date();
+          sheet.getRange(fullCustomer.row, CUSTOMER_SHEET_COLS.POINTS_UPDATED_AT + 1).setValue(now);
+          var defaultExpiry = new Date(now);
+          defaultExpiry.setMonth(defaultExpiry.getMonth() + 6);
+          pointsExpiryDate = Utilities.formatDate(defaultExpiry, 'Asia/Tokyo', 'yyyy/MM/dd');
         }
       } catch(e) {}
     }
