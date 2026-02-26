@@ -2249,7 +2249,7 @@ function updatePayButton(total) {
       var _shipHintB = document.getElementById('bulkStickyShipHint');
       if (_shipHintB) {
         var _prodTotalB = (G.detauriCartTotal || 0);
-        for (var _sk in G.cart) { var _sp = G.products.find(function(x){return x.productId===_sk;}); if (_sp) _prodTotalB += (_sp.discountedPrice !== undefined ? _sp.discountedPrice : _sp.price) * G.cart[_sk]; }
+        for (var _sk in G.cart) { var _sp = G.products.find(function(x){return x.productId===_sk;}); if (_sp) _prodTotalB += _sp.price * G.cart[_sk]; }
         if (_prodTotalB >= 10000) _shipHintB.innerHTML = '<span style="color:#4ade80;font-weight:700;">送料無料!</span>';
         else if (_prodTotalB > 0) _shipHintB.textContent = 'あと¥' + numFmt(10000 - _prodTotalB) + 'で送料無料';
         else _shipHintB.textContent = '';

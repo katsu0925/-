@@ -2183,9 +2183,9 @@ function renderSummary_() {
 
   var rows = '';
 
-  // 送料無料プログレスバー（商品合計1万円以上で送料無料）
+  // 送料無料プログレスバー（商品合計1万円以上で送料無料、割引前の商品価格で判定）
   var _freeThreshold = 10000;
-  var _combinedProduct = discounted + effectiveBulkProduct;
+  var _combinedProduct = sum + (_bulkDataRS.subtotal || 0);
   if (_combinedProduct > 0 && _combinedProduct < _freeThreshold) {
     var _remaining = _freeThreshold - _combinedProduct;
     var _pct = Math.min(100, Math.round((_combinedProduct / _freeThreshold) * 100));
@@ -4326,14 +4326,15 @@ function updateDetStickyBar_() {
       labelEl.textContent = 'アソート' + assortQty + '点';
     }
   }
-  // 送料無料ヒント
+  // 送料無料ヒント（割引前の商品価格で判定）
   var shipHint = document.getElementById('detStickyShipHint');
   if (shipHint) {
     var FREE_SHIP_THRESHOLD = 10000;
-    if (total >= FREE_SHIP_THRESHOLD) {
+    var rawTotal = detSum + (bulk.subtotal || 0);
+    if (rawTotal >= FREE_SHIP_THRESHOLD) {
       shipHint.innerHTML = '<span class="ship-free">送料無料!</span>';
-    } else if (total > 0) {
-      shipHint.textContent = 'あと¥' + numFmt_(FREE_SHIP_THRESHOLD - total) + 'で送料無料';
+    } else if (rawTotal > 0) {
+      shipHint.textContent = 'あと¥' + numFmt_(FREE_SHIP_THRESHOLD - rawTotal) + 'で送料無料';
     } else {
       shipHint.textContent = '';
     }
