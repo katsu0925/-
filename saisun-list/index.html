@@ -4463,6 +4463,8 @@ function runHoldSync_() {
             state.cart.digest[cid2]._confirmedAt = now;
           }
         }
+        // digest取得後すぐにタイマー開始（カートモーダルを開かなくてもカードバッジを表示）
+        startHoldTimers_();
       } else {
         // 同期失敗: _optimistic をキープし、ポーリングでアイテムが即座に削除されないようにする
         // 次のsyncHoldsQueued_呼び出しで再試行される
@@ -6647,6 +6649,11 @@ function boot() {
   state.cart.ids = c.ids || [];
   state.cart.itemsById = c.itemsById || {};
   updateCartCount();
+
+  // カートにアイテムがあれば即座に確保同期→タイマー開始
+  if (state.cart.ids.length > 0) {
+    syncHoldsQueued_();
+  }
 
   // 共有住所を早期読み込み（カートの送料表示に使用）
   setTimeout(loadSharedAddress_, 100);
