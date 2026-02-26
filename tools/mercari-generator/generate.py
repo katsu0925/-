@@ -27,7 +27,7 @@ from openai import OpenAI
 from prompt import SYSTEM_PROMPT, TITLE_SHORTEN_PROMPT, build_user_message
 
 # ─── 設定 ───────────────────────────────────────────────
-MODEL = "gpt-4o-mini"
+MODEL = "gpt-4.1-mini"
 MAX_TOKENS = 2048
 TEMPERATURE = 0.4
 RETRY_MAX = 3
