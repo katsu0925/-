@@ -80,23 +80,23 @@ function tr_setupTriggersOnce_() {
   let hasDaily = false;
   for (let i = 0; i < t2.length; i++) {
     const t = t2[i];
-    if (t.getHandlerFunction && t.getHandlerFunction() === 'od_compactHolds_') {
+    if (t.getHandlerFunction && (t.getHandlerFunction() === 'cronCompactHolds' || t.getHandlerFunction() === 'od_compactHolds_')) {
       hasDaily = true;
       break;
     }
   }
-  if (!hasDaily) ScriptApp.newTrigger('od_compactHolds_').timeBased().everyDays(1).atHour(4).create();
+  if (!hasDaily) ScriptApp.newTrigger('cronCompactHolds').timeBased().everyDays(1).atHour(4).create();
 
   // 顧客ポイント付与トリガー（毎日5時に自動実行）
   var hasPointsTrigger = false;
   var t3 = ScriptApp.getProjectTriggers();
   for (var i = 0; i < t3.length; i++) {
-    if (t3[i].getHandlerFunction && t3[i].getHandlerFunction() === 'processCustomerPointsAuto_') {
+    if (t3[i].getHandlerFunction && (t3[i].getHandlerFunction() === 'cronProcessPoints' || t3[i].getHandlerFunction() === 'processCustomerPointsAuto_')) {
       hasPointsTrigger = true;
       break;
     }
   }
-  if (!hasPointsTrigger) ScriptApp.newTrigger('processCustomerPointsAuto_').timeBased().everyDays(1).atHour(5).create();
+  if (!hasPointsTrigger) ScriptApp.newTrigger('cronProcessPoints').timeBased().everyDays(1).atHour(5).create();
 
   // 入金リマインダートリガー（毎日9時に実行）
   var hasReminderTrigger = false;
@@ -112,25 +112,42 @@ function tr_setupTriggersOnce_() {
   // Phase 3-4 トリガー登録
   var phase34Triggers = [
     // 商品データ同期
-    { fn: 'exportProductData_', type: 'minutes', interval: 5 },
+    { fn: 'cronExportProducts', type: 'minutes', interval: 5 },
     { fn: 'syncListingPublicCron', type: 'minutes', interval: 1 },
     { fn: 'baseSyncOrdersNow', type: 'minutes', interval: 5 },
     // Phase 3-4
-    { fn: 'abandonedCartCron_', type: 'minutes', interval: 15 },
-    { fn: 'newArrivalNotifyCron_', type: 'daily', hour: 10 },
-    { fn: 'followupEmailCron_', type: 'daily', hour: 11 },
-    { fn: 'newsletterSendCron_', type: 'daily', hour: 9 },
-    { fn: 'pointExpiryCron_', type: 'daily', hour: 6 },
-    { fn: 'rfmAnalysisCron_', type: 'weekly', hour: 7 },
-    { fn: 'productAnalyticsCron_', type: 'daily', hour: 7 },
-    { fn: 'st_calculateAndCacheStats_', type: 'hours', interval: 1 }
+    { fn: 'cronAbandonedCart', type: 'minutes', interval: 15 },
+    { fn: 'cronNewArrival', type: 'daily', hour: 10 },
+    { fn: 'cronFollowupEmail', type: 'daily', hour: 11 },
+    { fn: 'cronNewsletter', type: 'daily', hour: 9 },
+    { fn: 'cronPointExpiry', type: 'daily', hour: 6 },
+    { fn: 'cronRfmAnalysis', type: 'weekly', hour: 7 },
+    { fn: 'cronProductAnalytics', type: 'daily', hour: 7 },
+    { fn: 'cronStatsCache', type: 'hours', interval: 1 }
   ];
+
+  // 旧プライベート名→新公開名のマッピング（旧トリガーが残っている場合も重複登録しない）
+  var oldToNew = {
+    'exportProductData_': 'cronExportProducts',
+    'abandonedCartCron_': 'cronAbandonedCart',
+    'newArrivalNotifyCron_': 'cronNewArrival',
+    'followupEmailCron_': 'cronFollowupEmail',
+    'newsletterSendCron_': 'cronNewsletter',
+    'pointExpiryCron_': 'cronPointExpiry',
+    'rfmAnalysisCron_': 'cronRfmAnalysis',
+    'productAnalyticsCron_': 'cronProductAnalytics',
+    'st_calculateAndCacheStats_': 'cronStatsCache'
+  };
 
   var allTriggers = ScriptApp.getProjectTriggers();
   var existingFns = {};
   for (var ti = 0; ti < allTriggers.length; ti++) {
     var tfn = allTriggers[ti].getHandlerFunction ? allTriggers[ti].getHandlerFunction() : '';
-    if (tfn) existingFns[tfn] = true;
+    if (tfn) {
+      existingFns[tfn] = true;
+      // 旧名トリガーがあれば新名も登録済みとみなす
+      if (oldToNew[tfn]) existingFns[oldToNew[tfn]] = true;
+    }
   }
 
   for (var pi = 0; pi < phase34Triggers.length; pi++) {
@@ -149,6 +166,21 @@ function tr_setupTriggersOnce_() {
 
   return { ok: true };
 }
+
+// =====================================================
+// トリガー用公開ラッパー（プライベート関数はトリガーから呼べないため）
+// =====================================================
+function cronCompactHolds() { od_compactHolds_(); }
+function cronProcessPoints() { processCustomerPointsAuto_(); }
+function cronExportProducts() { exportProductData_(); }
+function cronAbandonedCart() { abandonedCartCron_(); }
+function cronNewArrival() { newArrivalNotifyCron_(); }
+function cronFollowupEmail() { followupEmailCron_(); }
+function cronNewsletter() { newsletterSendCron_(); }
+function cronPointExpiry() { pointExpiryCron_(); }
+function cronRfmAnalysis() { rfmAnalysisCron_(); }
+function cronProductAnalytics() { productAnalyticsCron_(); }
+function cronStatsCache() { st_calculateAndCacheStats_(); }
 
 function onEdit(e) {
   try {
