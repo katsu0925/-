@@ -118,13 +118,19 @@ def call_api(user_message, retry=0):
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_message},
             ],
-            max_tokens=MAX_TOKENS,
-            temperature=TEMPERATURE,
+            max_completion_tokens=MAX_TOKENS,
             response_format={"type": "json_object"},
         )
-        content = res.choices[0].message.content.strip()
+        content = res.choices[0].message.content
+        if not content:
+            raise ValueError("Empty response from API")
+        content = content.strip()
+        # ```json ... ``` フェンスを除去
+        if content.startswith("```"):
+            content = re.sub(r'^```(?:json)?\s*', '', content)
+            content = re.sub(r'\s*```$', '', content)
         return json.loads(content)
-    except json.JSONDecodeError as e:
+    except (json.JSONDecodeError, ValueError) as e:
         if retry < RETRY_MAX:
             wait = 2 ** retry
             print(f"    JSON解析失敗、{wait}秒後にリトライ ({retry + 1}/{RETRY_MAX})")
@@ -150,8 +156,7 @@ def shorten_title(title):
             messages=[
                 {"role": "user", "content": TITLE_SHORTEN_PROMPT.format(title=title)},
             ],
-            max_tokens=100,
-            temperature=0.2,
+            max_completion_tokens=100,
         )
         shortened = res.choices[0].message.content.strip()
         # 引用符があれば除去
