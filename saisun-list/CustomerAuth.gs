@@ -585,7 +585,25 @@ function apiRequestPasswordReset(userKey, params) {
       + 'お問い合わせ: ' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
       + '──────────────────\n';
 
-    MailApp.sendEmail({ to: email, subject: subject, body: body, noReply: true });
+    MailApp.sendEmail({
+      to: email, subject: subject, body: body, noReply: true,
+      htmlBody: buildHtmlEmail_({
+        greeting: customer.companyName + ' 様',
+        lead: 'パスワードリセットのリクエストを受け付けました。\n以下の仮パスワードでログインしてください。',
+        sections: [{
+          title: '仮パスワード情報',
+          rows: [
+            { label: '仮パスワード', value: tempPassword },
+            { label: '有効期限', value: expiryMinutes + '分' }
+          ]
+        }],
+        cta: { text: 'ログインはこちら', url: SITE_CONSTANTS.SITE_URL },
+        notes: [
+          '有効期限を過ぎると仮パスワードは無効になります。\nログイン後、マイページからパスワードの変更をお勧めします。',
+          'このメールに心当たりがない場合は、無視してください。'
+        ]
+      })
+    });
 
     return { ok: true, message: '登録されているメールアドレスの場合、仮パスワードを送信しました' };
   } catch (e) {
@@ -1232,7 +1250,46 @@ function sendInvoiceReceipt_(email, data) {
     + 'デタウリ.Detauri\n'
     + 'https://wholesale.nkonline-tool.com\n';
 
-  MailApp.sendEmail({ to: email, subject: subject, body: body, noReply: true });
+  MailApp.sendEmail({
+    to: email, subject: subject, body: body, noReply: true,
+    htmlBody: buildHtmlEmail_({
+      greeting: data.companyName + ' 様',
+      lead: '下記の通り領収いたしました。',
+      sections: [
+        {
+          title: '領　収　書',
+          rows: [
+            { label: '受付番号', value: data.receiptNo },
+            { label: '注文日', value: data.orderDate },
+            { label: '発行日', value: today }
+          ]
+        },
+        {
+          title: 'ご請求内容',
+          rows: [
+            { label: '税抜金額', value: formatYen_(taxExcluded) },
+            { label: '消費税(10%)', value: formatYen_(taxAmount) },
+            { label: '合計金額(税込)', value: formatYen_(data.totalAmount) }
+          ],
+          text: data.note ? '【備考】\n' + data.note : undefined
+        },
+        {
+          title: '発行者情報',
+          rows: [
+            { label: '事業者名', value: 'デタウリ.Detauri' },
+            { label: '登録番号', value: data.invoiceNo },
+            { label: '所在地', value: '京都府京都市下京区朱雀宝蔵町44番地 協栄ビル2階 京都朱雀スタジオAW-209' },
+            { label: '電話番号', value: '090-5820-1803' },
+            { label: 'メール', value: SITE_CONSTANTS.CONTACT_EMAIL }
+          ]
+        }
+      ],
+      notes: [
+        'この領収書は適格請求書（インボイス）として発行しています。',
+        '本メールは自動送信です。ご不明な点がございましたらお問い合わせください。'
+      ]
+    })
+  });
 }
 
 /**
@@ -1261,7 +1318,37 @@ function sendCancelReceipt_(email, data) {
     + 'デタウリ.Detauri\n'
     + 'https://wholesale.nkonline-tool.com\n';
 
-  MailApp.sendEmail({ to: email, subject: subject, body: body, noReply: true });
+  MailApp.sendEmail({
+    to: email, subject: subject, body: body, noReply: true,
+    htmlBody: buildHtmlEmail_({
+      greeting: data.companyName + ' 様',
+      lead: '下記の注文について' + data.cancelType + 'に伴い、領収書を取り消しいたします。',
+      sections: [
+        {
+          title: '取消内容',
+          rows: [
+            { label: '受付番号', value: data.receiptNo },
+            { label: '注文日', value: data.orderDate },
+            { label: '取消日', value: today },
+            { label: '取消理由', value: data.cancelType },
+            { label: '取消金額', value: formatYen_(data.totalAmount) }
+          ]
+        },
+        {
+          title: '発行者情報',
+          rows: [
+            { label: '事業者名', value: 'デタウリ.Detauri' },
+            { label: '登録番号', value: data.invoiceNo },
+            { label: '所在地', value: '京都府京都市下京区朱雀宝蔵町44番地 協栄ビル2階 京都朱雀スタジオAW-209' }
+          ]
+        }
+      ],
+      notes: [
+        '先にお送りした領収書は無効となります。',
+        '返金処理は別途ご案内いたします。'
+      ]
+    })
+  });
 }
 
 /**

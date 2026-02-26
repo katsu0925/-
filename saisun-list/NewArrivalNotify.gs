@@ -116,7 +116,32 @@ function newArrivalNotifyCron_() {
           + 'お問い合わせ: ' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
           + '──────────────────\n';
 
-        MailApp.sendEmail({ to: email, subject: subject, body: body, noReply: true });
+        var sampleItems = [];
+        for (var si = 0; si < sampleProducts.length; si++) {
+          var sp = sampleProducts[si];
+          sampleItems.push(sp.brand ? (sp.brand + ' ' + sp.name) : sp.name);
+        }
+        if (newProducts.length > 5) {
+          sampleItems.push('...他 ' + (newProducts.length - 5) + '点');
+        }
+
+        MailApp.sendEmail({
+          to: email, subject: subject, body: body, noReply: true,
+          htmlBody: buildHtmlEmail_({
+            greeting: companyName + ' 様',
+            lead: 'デタウリ.Detauri に新しい商品が入荷しました！',
+            sections: [{
+              title: '新着商品 ' + newProducts.length + '点',
+              items: sampleItems
+            }],
+            cta: { text: '新着商品をチェック', url: SITE_CONSTANTS.SITE_URL },
+            notes: [
+              '人気商品は早い者勝ちです。\n会員様は確保時間が30分に延長されますので、ログインしてからお買い物をお楽しみください。',
+              'このメールはメルマガ配信にご登録いただいた方にお送りしています。'
+            ],
+            unsubscribe: SITE_CONSTANTS.SITE_URL + '?action=unsubscribe&email=' + encodeURIComponent(email)
+          })
+        });
         sent++;
       } catch (mailErr) {
         console.error('newArrivalNotifyCron_ mail error: ' + email, mailErr);

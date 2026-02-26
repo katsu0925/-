@@ -86,7 +86,37 @@ function followupEmailCron_() {
           + 'お問い合わせ: ' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
           + '──────────────────\n';
 
-        MailApp.sendEmail({ to: email, subject: subject, body: body, noReply: true });
+        MailApp.sendEmail({
+          to: email, subject: subject, body: body, noReply: true,
+          htmlBody: buildHtmlEmail_({
+            greeting: companyName + ' 様',
+            lead: '先日はデタウリ.Detauri をご利用いただき、誠にありがとうございました。\n商品はお手元に届きましたでしょうか？',
+            sections: [
+              {
+                title: 'ご注文内容',
+                rows: [
+                  { label: '受付番号', value: receiptNo },
+                  { label: '商品', value: productNames },
+                  { label: '合計金額', value: Number(totalAmount).toLocaleString() + '円' }
+                ]
+              },
+              {
+                title: '商品はいかがでしたか？',
+                text: '商品の品質やお取引について、ご意見・ご感想を\nお聞かせいただけると大変嬉しく思います。\nいただいたフィードバックは、今後のサービス向上に活かしてまいります。'
+              },
+              {
+                title: '次回のお買い物もお待ちしております',
+                items: [
+                  '毎日新しい商品が入荷しています',
+                  '10点以上で5%OFF〜最大20%OFF',
+                  '会員様はポイントが貯まります（ランクに応じて1〜5%）'
+                ]
+              }
+            ],
+            cta: { text: '新着商品をチェック', url: SITE_CONSTANTS.SITE_URL },
+            notes: ['このメールは自動送信です。']
+          })
+        });
 
         // 送信済みフラグ（30日、CacheService最大は21600秒=6時間なのでScriptPropertiesも併用）
         var sentKey = 'FOLLOWUP_SENT:' + receiptNo;

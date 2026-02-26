@@ -112,7 +112,26 @@ function sendPointExpiryReminderEmail_(email, companyName, points, expiryDateStr
       + 'お問い合わせ: ' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
       + '──────────────────\n';
 
-    MailApp.sendEmail({ to: email, subject: subject, body: body, noReply: true });
+    MailApp.sendEmail({
+      to: email, subject: subject, body: body, noReply: true,
+      htmlBody: buildHtmlEmail_({
+        greeting: companyName + ' 様',
+        lead: 'デタウリ.Detauri をご利用いただきありがとうございます。\n\nお持ちのポイントがまもなく失効いたします。\nぜひお早めにご利用ください。',
+        sections: [{
+          title: 'ポイント情報',
+          rows: [
+            { label: 'ポイント残高', value: points + 'ポイント' },
+            { label: '失効日', value: expiryDateStr }
+          ],
+          text: 'ポイントは次回のお買い物で1ポイント=1円としてご利用いただけます。'
+        }],
+        cta: { text: 'お買い物はこちら', url: SITE_CONSTANTS.SITE_URL },
+        notes: [
+          'ポイントは最終ポイント変動日から6ヶ月で失効します。',
+          '新たにお買い物をされると有効期限が延長されます。'
+        ]
+      })
+    });
   } catch (e) {
     console.error('sendPointExpiryReminderEmail_ error:', e);
   }
@@ -140,7 +159,21 @@ function sendPointExpiredEmail_(email, companyName, expiredPoints) {
       + 'お問い合わせ: ' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
       + '──────────────────\n';
 
-    MailApp.sendEmail({ to: email, subject: subject, body: body, noReply: true });
+    MailApp.sendEmail({
+      to: email, subject: subject, body: body, noReply: true,
+      htmlBody: buildHtmlEmail_({
+        greeting: companyName + ' 様',
+        lead: 'デタウリ.Detauri をご利用いただきありがとうございます。\n\n有効期限切れにより、以下のポイントが失効いたしました。',
+        sections: [{
+          title: '失効ポイント',
+          rows: [
+            { label: '失効ポイント', value: expiredPoints + 'ポイント' }
+          ],
+          text: '今後もお買い物でポイントが貯まります。\nぜひまたご利用ください。'
+        }],
+        cta: { text: 'お買い物はこちら', url: SITE_CONSTANTS.SITE_URL }
+      })
+    });
   } catch (e) {
     console.error('sendPointExpiredEmail_ error:', e);
   }

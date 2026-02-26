@@ -71,7 +71,14 @@ function newsletterSendCron_() {
             + '※ メルマガ配信停止: '
             + SITE_CONSTANTS.SITE_URL + '?action=unsubscribe&email=' + encodeURIComponent(recip.email) + '\n';
 
-          MailApp.sendEmail({ to: recip.email, subject: subject, body: body, noReply: true });
+          MailApp.sendEmail({
+            to: recip.email, subject: subject, body: body, noReply: true,
+            htmlBody: buildHtmlEmail_({
+              greeting: recip.companyName + ' 様',
+              lead: bodyText,
+              unsubscribe: SITE_CONSTANTS.SITE_URL + '?action=unsubscribe&email=' + encodeURIComponent(recip.email)
+            })
+          });
           sent++;
         } catch (mailErr) {
           console.error('newsletterSendCron_ mail error: ' + recip.email, mailErr);

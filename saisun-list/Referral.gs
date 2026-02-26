@@ -228,5 +228,20 @@ function sendReferralNotifyEmail_(email, companyName, refereeEmail, points) {
     + 'お問い合わせ: ' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
     + '──────────────────\n';
 
-  MailApp.sendEmail({ to: email, subject: subject, body: body, noReply: true });
+  MailApp.sendEmail({
+    to: email, subject: subject, body: body, noReply: true,
+    htmlBody: buildHtmlEmail_({
+      greeting: companyName + ' 様',
+      lead: 'デタウリ.Detauri をご利用いただきありがとうございます。\n\nあなたの紹介で新しい会員が登録されました！',
+      sections: [{
+        title: '紹介ポイント付与',
+        rows: [
+          { label: '紹介ポイント', value: '+' + points + 'ポイント' },
+          { label: '紹介先', value: maskedEmail }
+        ],
+        text: '付与されたポイントは次回のお買い物でご利用いただけます。\nこれからもお友達やお仲間へのご紹介をお待ちしております。'
+      }],
+      cta: { text: 'お買い物はこちら', url: SITE_CONSTANTS.SITE_URL }
+    })
+  });
 }
