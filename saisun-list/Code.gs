@@ -140,7 +140,6 @@ function doPost(e) {
       // Phase 3: リテンション/LTV向上
       'apiUnsubscribeNewsletter', 'apiGetReferralCode', 'apiApplyReferralCode',
       // Phase 4: インフラ/アナリティクス
-      'apiSubmitReview', 'apiGetReviews',
       'apiGetAdsConfig', 'apiGetMetaConfig', 'apiGetSitemap',
       'apiLineLinkAccount', 'apiGetABTestVariant', 'apiTrackABTestEvent',
       // 管理者専用API（adminKey認証必須）
@@ -149,7 +148,7 @@ function doPost(e) {
       'adminRebuildStates', 'adminApplyStatusDropdown',
       'adminClearProductsCache', 'adminCompactHolds',
       'adminTestEmails',
-      'adminApproveReview', 'adminGetRFMSummary',
+      'adminGetRFMSummary',
       'adminGetProductAnalytics', 'adminGetABTestResults'
     ];
     var allowedSet = {};
@@ -201,7 +200,7 @@ function doPost(e) {
       var csrfProtectedActions = [
         'apiSubmitEstimate', 'apiUpdateCustomerProfile', 'apiChangePassword',
         'apiCreateKomojuSession', 'apiCancelOrder',
-        'apiSubmitReview', 'apiApplyReferralCode', 'apiLineLinkAccount'
+        'apiApplyReferralCode', 'apiLineLinkAccount'
       ];
       if (csrfProtectedActions.indexOf(action) !== -1) {
         var csrfToken = String(body.csrfToken || '');
@@ -274,7 +273,6 @@ var RATE_LIMITS = {
   'apiRecoverEmail': { max: 5, windowSec: 3600, label: 'メールアドレス確認は1時間に5回まで' },
   'apiGetArticles':       { max: 20, windowSec: 60, label: '記事一覧は1分に20回まで' },
   'apiGetArticleContent': { max: 30, windowSec: 60, label: '記事閲覧は1分に30回まで' },
-  'apiSubmitReview':      { max: 3, windowSec: 3600, label: 'レビュー投稿は1時間に3回まで' },
   'apiApplyReferralCode': { max: 5, windowSec: 3600, label: '紹介コード適用は1時間に5回まで' },
   'apiGetReferralCode':   { max: 10, windowSec: 60, label: '紹介コード取得は1分に10回まで' },
   'apiTrackABTestEvent':  { max: 30, windowSec: 60, label: 'ABテストイベントは1分に30回まで' }
