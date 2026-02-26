@@ -713,20 +713,10 @@ function apiGetMyPage(userKey, params) {
       } catch(e) {}
     }
 
-    // LINE連携状態
-    var lineUserId = '';
-    if (fullCustomer) {
-      try {
-        var sheet = getCustomerSheet_();
-        lineUserId = String(sheet.getRange(fullCustomer.row, CUSTOMER_SHEET_COLS.LINE_USER_ID + 1).getValue() || '').trim();
-      } catch(e) {}
-    }
-
     return {
       ok: true,
       data: {
         pointsExpiryDate: pointsExpiryDate,
-        lineLinked: !!lineUserId,
         profile: {
           email: customer.email,
           companyName: customer.companyName,

@@ -1122,18 +1122,12 @@ body.admin-mode .admin-settings-fab{display:flex;}
         <div style="display:flex;align-items:center;justify-content:space-between;">
           <span style="font-size:13px;font-weight:600;color:#333;">メールマガジン</span>
           <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-            <input type="checkbox" id="mpNewsletterToggle" style="width:18px;height:18px;">
+            <input type="checkbox" id="mpNewsletterToggle" disabled style="width:18px;height:18px;">
             <span style="font-size:12px;color:#666;" id="mpNewsletterLabel">受信する</span>
           </label>
         </div>
       </div>
-      <!-- Phase 4-2: LINE連携 -->
-      <div id="mpLineSection" style="margin-top:10px;padding:14px;background:#f8fafc;border-radius:8px;display:none;">
-        <div style="display:flex;align-items:center;justify-content:space-between;">
-          <span style="font-size:13px;font-weight:600;color:#333;">LINE連携</span>
-          <span id="mpLineStatus" style="font-size:12px;color:#888;">未連携</span>
-        </div>
-      </div>
+      <!-- Phase 4-2: LINE連携（LINE OAuth実装後に有効化） -->
       <div id="mpPasswordSection" style="display:none;margin-top:14px;padding:14px;background:#f9f9f9;border-radius:8px;">
         <div style="display:grid;grid-template-columns:1fr;gap:10px;">
           <div><label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px;">現在のパスワード *</label><input id="mpCurPass" type="password" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:14px;"></div>
@@ -3310,17 +3304,6 @@ function _applyMpData_(d) {
     var exEl = document.getElementById('mpPointExpiry');
     if (exEl) { exEl.textContent = 'ポイント有効期限: ' + d.pointsExpiryDate; exEl.style.display = ''; }
   }
-  // Phase 4-2: LINE連携状態
-  var lineEl = document.getElementById('mpLineSection');
-  if (lineEl) {
-    lineEl.style.display = '';
-    var lineSt = document.getElementById('mpLineStatus');
-    if (d.lineLinked) {
-      if (lineSt) { lineSt.textContent = '連携済み'; lineSt.style.color = '#16a34a'; }
-    } else {
-      if (lineSt) { lineSt.textContent = '未連携'; lineSt.style.color = '#888'; }
-    }
-  }
   // Phase 3-6: 紹介コード
   loadBulkReferralCode_();
   renderOrderHistory_(d.orders || []);
@@ -3496,6 +3479,9 @@ function renderOrderHistory_(orders) {
     var eb = document.getElementById('mpEditBtn'); if (eb) eb.style.display = editable ? 'none' : '';
     var sb = document.getElementById('mpSaveBtn'); if (sb) sb.style.display = editable ? '' : 'none';
     var cb = document.getElementById('mpCancelEditBtn'); if (cb) cb.style.display = editable ? '' : 'none';
+    // メルマガトグルも編集モードに連動
+    var nlToggle = document.getElementById('mpNewsletterToggle');
+    if (nlToggle) nlToggle.disabled = !editable;
   }
   if (mpEditBtn) {
     mpEditBtn.addEventListener('click', function() {

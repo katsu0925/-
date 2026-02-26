@@ -1026,18 +1026,12 @@
           <div style="display:flex;align-items:center;justify-content:space-between;">
             <span style="font-size:13px;font-weight:600;color:#333;">メールマガジン</span>
             <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
-              <input type="checkbox" id="mpNewsletterToggle" style="width:18px;height:18px;">
+              <input type="checkbox" id="mpNewsletterToggle" disabled style="width:18px;height:18px;">
               <span style="font-size:12px;color:#666;" id="mpNewsletterLabel">受信する</span>
             </label>
           </div>
         </div>
-        <!-- Phase 4-2: LINE連携 -->
-        <div id="mpLineSection" style="margin-top:10px;padding:14px;background:#f8fafc;border-radius:8px;display:none;">
-          <div style="display:flex;align-items:center;justify-content:space-between;">
-            <span style="font-size:13px;font-weight:600;color:#333;">LINE連携</span>
-            <span id="mpLineStatus" style="font-size:12px;color:#888;">未連携</span>
-          </div>
-        </div>
+        <!-- Phase 4-2: LINE連携（LINE OAuth実装後に有効化） -->
         <div id="mpPasswordSection" style="display:none;margin-top:14px;padding:14px;background:#f9f9f9;border-radius:8px;">
           <div class="formGrid" style="grid-template-columns:1fr;">
             <div class="formField"><label>現在のパスワード *</label><div class="pw-wrap"><input id="mpCurPass" type="password"><button type="button" class="pw-toggle" data-target="mpCurPass">&#x1F441;</button></div></div>
@@ -2654,17 +2648,6 @@ function _applyMpData_(d) {
     var exEl = $('mpPointExpiry');
     if (exEl) { exEl.textContent = 'ポイント有効期限: ' + d.pointsExpiryDate; exEl.style.display = ''; }
   }
-  // Phase 4-2: LINE連携状態
-  var lineEl = $('mpLineSection');
-  if (lineEl) {
-    lineEl.style.display = '';
-    var lineSt = $('mpLineStatus');
-    if (d.lineLinked) {
-      if (lineSt) { lineSt.textContent = '連携済み'; lineSt.style.color = '#16a34a'; }
-    } else {
-      if (lineSt) { lineSt.textContent = '未連携'; lineSt.style.color = '#888'; }
-    }
-  }
   // Phase 3-6: 紹介コード
   loadReferralCode_();
   renderOrderHistory_(d.orders || []);
@@ -3160,6 +3143,9 @@ function setupAuthUi_() {
     if ($('mpEditBtn')) $('mpEditBtn').style.display = editable ? 'none' : '';
     if ($('mpSaveBtn')) $('mpSaveBtn').style.display = editable ? '' : 'none';
     if ($('mpCancelEditBtn')) $('mpCancelEditBtn').style.display = editable ? '' : 'none';
+    // メルマガトグルも編集モードに連動
+    var nlToggle = $('mpNewsletterToggle');
+    if (nlToggle) nlToggle.disabled = !editable;
   }
   if (mpEditBtn) {
     mpEditBtn.addEventListener('click', function() {
@@ -6054,9 +6040,11 @@ function bindUi_() {
     var count = (state.cart.ids || []).length;
     var _bulkCheck = loadBulkCartStorage();
     var _hasBulk = _bulkCheck && _bulkCheck.subtotal > 0;
-    var min = _hasBulk ? 1 : 5;
-    if (count < min) {
-      showToast(_hasBulk ? 'デタウリ商品を1点以上選択してください（現在' + count + '点）' : '5点以上で購入可能です（現在' + count + '点）');
+    // アソート商品ありなら最低0点（デタウリなしでもOK）、なしなら最低5点
+    if (_hasBulk) {
+      // アソート商品があるのでデタウリ0点でも購入可能
+    } else if (count < 5) {
+      showToast('5点以上で購入可能です（現在' + count + '点）');
       return;
     }
     // 共有住所を読み込み（BulkLPで入力された住所を復元）
