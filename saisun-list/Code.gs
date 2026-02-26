@@ -142,6 +142,8 @@ function doPost(e) {
       // Phase 4: インフラ/アナリティクス
       'apiGetAdsConfig', 'apiGetMetaConfig', 'apiGetSitemap',
       'apiLineLinkAccount', 'apiGetABTestVariant', 'apiTrackABTestEvent',
+      // カゴ落ち登録
+      'apiBulkRegisterCartAbandon',
       // 管理者専用API（adminKey認証必須）
       'adminGetKomojuMode', 'adminToggleKomojuMode',
       'adminGetMemberDiscountStatus', 'adminToggleMemberDiscount',
@@ -275,7 +277,8 @@ var RATE_LIMITS = {
   'apiGetArticleContent': { max: 30, windowSec: 60, label: '記事閲覧は1分に30回まで' },
   'apiApplyReferralCode': { max: 5, windowSec: 3600, label: '紹介コード適用は1時間に5回まで' },
   'apiGetReferralCode':   { max: 10, windowSec: 60, label: '紹介コード取得は1分に10回まで' },
-  'apiTrackABTestEvent':  { max: 30, windowSec: 60, label: 'ABテストイベントは1分に30回まで' }
+  'apiTrackABTestEvent':  { max: 30, windowSec: 60, label: 'ABテストイベントは1分に30回まで' },
+  'apiBulkRegisterCartAbandon': { max: 10, windowSec: 3600, label: 'カート登録は1時間に10回まで' }
 };
 
 function checkRateLimit_(action, userKey) {

@@ -1958,6 +1958,11 @@ function changeQty(productId, delta) {
   updateCart();
   saveBulkCart();
 
+  // アソートカゴ落ち候補登録（ログイン中かつカートに商品がある場合）
+  if (G.sessionId && Object.keys(G.cart).length > 0) {
+    runApi('apiBulkRegisterCartAbandon', getUserKey_(), { sessionId: G.sessionId }).catch(function() {});
+  }
+
   // クーポン適用中にカートが変わったら再検証
   revalidateCoupon();
 

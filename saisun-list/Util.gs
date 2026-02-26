@@ -320,3 +320,88 @@ function u_findCol_(headers, names) {
   return -1;
 }
 
+// =====================================================
+// HTML メールテンプレートビルダー
+// =====================================================
+
+/**
+ * HTMLメールを構築
+ * @param {object} opts
+ * @param {string} opts.greeting - 挨拶（例: "○○ 様"）
+ * @param {string} opts.lead - リード文（HTML可、\nは<br>変換）
+ * @param {Array} opts.sections - [{title, rows:[{label,value}], text, items:[string]}]
+ * @param {object} opts.cta - {text, url}
+ * @param {Array<string>} opts.notes - 注意書き
+ * @param {string} opts.unsubscribe - 配信停止URL
+ * @returns {string} HTML文字列
+ */
+function buildHtmlEmail_(opts) {
+  var sn = 'デタウリ.Detauri';
+  var su = 'https://wholesale.nkonline-tool.com/';
+  var ce = '';
+  try { sn = SITE_CONSTANTS.SITE_NAME || sn; } catch(e){}
+  try { su = SITE_CONSTANTS.SITE_URL || su; } catch(e){}
+  try { ce = SITE_CONSTANTS.CONTACT_EMAIL || ce; } catch(e){}
+  var e_ = function(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+  var nl2br = function(s){ return e_(s).replace(/\n/g,'<br>'); };
+
+  var h = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>'
+    + '<body style="margin:0;padding:0;background:#f4f4f7;font-family:\'Helvetica Neue\',Arial,\'Hiragino Kaku Gothic ProN\',Meiryo,sans-serif;-webkit-text-size-adjust:100%;">'
+    + '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f4f4f7;"><tr><td align="center" style="padding:24px 8px;">'
+    + '<table width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:12px;overflow:hidden;">'
+    + '<tr><td style="background:linear-gradient(135deg,#1a1a2e,#16213e);padding:20px 24px;text-align:center;">'
+    + '<span style="color:#ffffff;font-size:18px;font-weight:700;letter-spacing:1px;">' + e_(sn) + '</span></td></tr>'
+    + '<tr><td style="padding:28px 24px 20px;">';
+
+  if (opts.greeting) h += '<p style="font-size:15px;color:#333;margin:0 0 16px;line-height:1.7;">' + e_(opts.greeting) + '</p>';
+  if (opts.lead) h += '<p style="font-size:14px;color:#444;margin:0 0 20px;line-height:1.7;">' + nl2br(opts.lead) + '</p>';
+
+  if (opts.sections) {
+    for (var i = 0; i < opts.sections.length; i++) {
+      var s = opts.sections[i];
+      h += '<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f8f9fb;border-radius:8px;margin:12px 0;border-left:4px solid #1a1a2e;">';
+      if (s.title) h += '<tr><td style="padding:12px 16px 4px;font-size:13px;font-weight:700;color:#1a1a2e;">' + e_(s.title) + '</td></tr>';
+      if (s.rows) {
+        for (var r = 0; r < s.rows.length; r++) {
+          h += '<tr><td style="padding:3px 16px;font-size:13px;line-height:1.6;color:#444;">'
+            + '<span style="color:#888;">' + e_(s.rows[r].label) + '：</span>' + e_(s.rows[r].value) + '</td></tr>';
+        }
+        h += '<tr><td style="padding:0 0 8px;"></td></tr>';
+      }
+      if (s.text) h += '<tr><td style="padding:4px 16px 12px;font-size:13px;line-height:1.7;color:#444;">' + nl2br(s.text) + '</td></tr>';
+      if (s.items) {
+        for (var it = 0; it < s.items.length; it++) {
+          h += '<tr><td style="padding:2px 16px;font-size:12px;color:#555;line-height:1.5;">' + e_(s.items[it]) + '</td></tr>';
+        }
+        h += '<tr><td style="padding:0 0 8px;"></td></tr>';
+      }
+      h += '</table>';
+    }
+  }
+
+  if (opts.cta) {
+    h += '<div style="text-align:center;margin:24px 0;">'
+      + '<a href="' + opts.cta.url + '" style="display:inline-block;background:#e53e3e;color:#ffffff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:700;">'
+      + e_(opts.cta.text) + '</a></div>';
+  }
+
+  if (opts.notes) {
+    h += '<div style="margin:20px 0 0;padding:12px 0;border-top:1px solid #eee;">';
+    for (var n = 0; n < opts.notes.length; n++) {
+      h += '<p style="font-size:11px;color:#999;margin:2px 0;line-height:1.5;">' + e_(opts.notes[n]) + '</p>';
+    }
+    h += '</div>';
+  }
+
+  h += '</td></tr>'
+    + '<tr><td style="padding:16px 24px;text-align:center;background:#fafafa;border-top:1px solid #eee;">'
+    + '<p style="font-size:11px;color:#999;margin:0;line-height:1.6;">'
+    + e_(sn) + '<br><a href="' + su + '" style="color:#1a73e8;text-decoration:none;">' + su + '</a><br>'
+    + 'お問い合わせ: ' + e_(ce) + '</p>';
+  if (opts.unsubscribe) {
+    h += '<p style="font-size:10px;color:#bbb;margin:8px 0 0;"><a href="' + opts.unsubscribe + '" style="color:#bbb;">メルマガ配信停止</a></p>';
+  }
+  h += '</td></tr></table></td></tr></table></body></html>';
+  return h;
+}
+
