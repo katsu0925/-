@@ -342,8 +342,9 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
     // --- Phase 2: 配布用リスト生成 + OpenAI API でタイトル・説明文自動生成 + XLSX出力 ---
     var maxRows = exportSheet.getMaxRows();
     var maxCols = exportSheet.getMaxColumns();
+    // 全行クリア（Row 1のメタ情報残骸も含めて）
+    exportSheet.getRange(1, 1, maxRows, maxCols).clearContent();
     if (maxRows >= 2) {
-      exportSheet.getRange(2, 1, maxRows - 1, maxCols).clearContent();
       exportSheet.getRange(2, 1, maxRows - 1, 1).removeCheckboxes();
     }
     exportSheet.getRange('A1').setValue('受付番号');
@@ -451,7 +452,7 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
     SpreadsheetApp.flush();
 
     // XLSX出力 + 確認リンク更新
-    var xlsxResult = om_exportDistributionXlsx_();
+    var xlsxResult = om_exportDistributionXlsx_(customerName, receiptNo);
     if (!xlsxResult || !xlsxResult.ok) {
       results.push({ receiptNo: receiptNo, ok: false, message: 'XLSX生成エラー: ' + (xlsxResult ? xlsxResult.message : '不明') });
       continue;
@@ -553,16 +554,14 @@ function cleanupObsoleteTriggers() {
 // XLSX出力
 // ═══════════════════════════════════════════
 
-function om_exportDistributionXlsx_() {
+function om_exportDistributionXlsx_(customerName, receiptNo) {
   var shiireSs = SpreadsheetApp.openById(OM_SHIIRE_SS_ID);
-  var nameSheet = shiireSs.getSheetByName('配布用リスト');
-  if (!nameSheet) return { ok: false, message: '配布用リスト が見つかりません' };
 
-  var rawName = String(nameSheet.getRange(OM_DIST_NAME_CELL).getDisplayValue() || '').trim();
-  if (!rawName) return { ok: false, message: '配布用リスト!' + OM_DIST_NAME_CELL + ' が空です' };
+  var rawName = String(customerName || '').trim();
+  if (!rawName) return { ok: false, message: 'customerName が空です' };
 
-  var receiptNo = String(nameSheet.getRange(OM_DIST_RECEIPT_CELL).getDisplayValue() || '').trim();
-  if (!receiptNo) return { ok: false, message: '配布用リスト!B1（受付番号）が空です' };
+  receiptNo = String(receiptNo || '').trim();
+  if (!receiptNo) return { ok: false, message: 'receiptNo が空です' };
 
   var baseName = rawName + '様';
   var exportFileName = baseName + '_' + receiptNo + '.xlsx';
