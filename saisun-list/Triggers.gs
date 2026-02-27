@@ -102,11 +102,9 @@ function tr_setupTriggersOnce_() {
     { fn: 'cronProcessPoints', type: 'daily', hour: 5 },
     // 毎日6時
     { fn: 'cronPointExpiry', type: 'daily', hour: 6 },
-    { fn: 'generateDailyArticle', type: 'daily', hour: 6 },
-    { fn: 'ga4SyncAll', type: 'daily', hour: 6 },
-    { fn: 'rewardUpdateDaily', type: 'daily', hour: 6 },
+    // generateDailyArticle, ga4SyncAll, rewardUpdateDaily → saisun-list-bulk に移動
     // 毎日7時
-    { fn: 'cronProductAnalytics', type: 'daily', hour: 7 },
+    // cronProductAnalytics → saisun-list-bulk に移動
     // 毎日9時
     { fn: 'sendPaymentReminders', type: 'daily', hour: 9 },
     { fn: 'cronNewsletter', type: 'daily', hour: 9 },
@@ -114,8 +112,7 @@ function tr_setupTriggersOnce_() {
     { fn: 'cronNewArrival', type: 'daily', hour: 10 },
     // 毎日11時
     { fn: 'cronFollowupEmail', type: 'daily', hour: 11 },
-    // 毎週月曜7時
-    { fn: 'cronRfmAnalysis', type: 'weekly', hour: 7 }
+    // cronRfmAnalysis → saisun-list-bulk に移動
   ];
 
   for (var i = 0; i < timeBasedTriggers.length; i++) {
@@ -147,9 +144,10 @@ function cronNewArrival() { newArrivalNotifyCron_(); }
 function cronFollowupEmail() { followupEmailCron_(); }
 function cronNewsletter() { newsletterSendCron_(); }
 function cronPointExpiry() { pointExpiryCron_(); }
-function cronRfmAnalysis() { rfmAnalysisCron_(); }
-function cronProductAnalytics() { productAnalyticsCron_(); }
+// cronRfmAnalysis, cronProductAnalytics → saisun-list-bulk に移動
 function cronStatsCache() { st_calculateAndCacheStats_(); }
+
+
 
 function onEdit(e) {
   try {
