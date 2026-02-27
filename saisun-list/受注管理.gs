@@ -288,7 +288,19 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
       continue;
     }
 
-    var customerName = String(reqRow[rIdx['会社名/氏名']] || '').trim();
+    var customerName = '';
+    var nameKeys = ['会社名/氏名', '会社名／氏名', '会社名', '氏名', 'お名前'];
+    for (var nk = 0; nk < nameKeys.length; nk++) {
+      if (rIdx[nameKeys[nk]] !== undefined) {
+        customerName = String(reqRow[rIdx[nameKeys[nk]]] || '').trim();
+        if (customerName) break;
+      }
+    }
+    if (!customerName) {
+      console.log('expandOrder: customerName空 receiptNo=' + receiptNo +
+        ' rIdxKeys=' + JSON.stringify(Object.keys(rIdx)) +
+        ' reqRow[0..5]=' + JSON.stringify(reqRow.slice(0, 6)));
+    }
 
     // --- Phase 1: 回収完了に展開 ---
     var outArr = [];
@@ -298,7 +310,7 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
 
       outArr.push([
         '',
-        boxMap[mgmtId] || '',
+        boxMap[mgmtId] || (mIdx['箱ID'] !== undefined ? String(row[mIdx['箱ID']] || '') : ''),
         mgmtId,
         row[mIdx['ブランド']] || '',
         row[mIdx['メルカリサイズ']] || '',
@@ -337,7 +349,7 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
     exportSheet.getRange('A1').setValue('受付番号');
     exportSheet.getRange('B1').setValue(receiptNo);
     exportSheet.getRange('F1').setValue(customerName);
-    exportSheet.getRange('I1').setValue('合計金額');
+    exportSheet.getRange('L1').setValue('合計金額');
 
     // 新列構成: タイトル・説明文を前方に配置
     var headerRow = ['確認', 'メルカリ用タイトル', '即出品用説明文（コピペ用）', '箱ID', '管理番号(照合用)', 'ブランド', 'AIキーワード', 'アイテム', 'サイズ', '状態', '傷汚れ詳細', '採寸情報', '金額'];
@@ -354,6 +366,11 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
 
       var row = mData.find(function(r) { return String(r[mIdx['管理番号']] || '').trim() === targetId; });
       if (!row) return;
+
+      // 箱IDフォールバック: 返送管理→商品管理
+      if (!boxId && mIdx['箱ID'] !== undefined) {
+        boxId = String(row[mIdx['箱ID']] || '');
+      }
 
       var condition = row[mIdx['状態']] || '目立った傷や汚れなし';
       var damageDetail = row[mIdx['傷汚れ詳細']] || '';
@@ -423,10 +440,13 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
     }
 
     exportSheet.getRange(2, 1, exportData.length, exportData[0].length).setValues(exportData);
-    exportSheet.getRange('J1').setValue(totalPrice.toLocaleString('ja-JP') + '円');
+    exportSheet.getRange('M1').setValue(totalPrice.toLocaleString('ja-JP') + '円');
     if (exportData.length > 1) {
       exportSheet.getRange(3, 1, exportData.length - 1, 1).insertCheckboxes();
     }
+
+    // 行の高さをデフォルト（21px）にリセット
+    exportSheet.setRowHeightsForced(1, exportData.length + 1, 21);
 
     SpreadsheetApp.flush();
 
@@ -539,7 +559,7 @@ function om_exportDistributionXlsx_() {
   if (!nameSheet) return { ok: false, message: '配布用リスト が見つかりません' };
 
   var rawName = String(nameSheet.getRange(OM_DIST_NAME_CELL).getDisplayValue() || '').trim();
-  if (!rawName) return { ok: false, message: '配布用リスト!E1 が空です' };
+  if (!rawName) return { ok: false, message: '配布用リスト!' + OM_DIST_NAME_CELL + ' が空です' };
 
   var receiptNo = String(nameSheet.getRange(OM_DIST_RECEIPT_CELL).getDisplayValue() || '').trim();
   if (!receiptNo) return { ok: false, message: '配布用リスト!B1（受付番号）が空です' };
@@ -661,7 +681,7 @@ function om_buildBoxMap_(returnSheet) {
   for (var i = 1; i < rData.length; i++) {
     var row = rData[i];
     var boxId = row[0];
-    var mgmtIdsStr = String(row[2]);
+    var mgmtIdsStr = String(row[3]);
     if (mgmtIdsStr) {
       var ids = mgmtIdsStr.split(/[、,]/);
       ids.forEach(function(id) {
@@ -747,7 +767,7 @@ function om_deleteAllExceptSheet_(ss, keepSheetId) {
 function om_trimColumnBAfterSecondHyphen_(sheet) {
   var lastRow = sheet.getLastRow();
   if (lastRow < 1) return;
-  var rng = sheet.getRange(1, 2, lastRow, 1);
+  var rng = sheet.getRange(1, 5, lastRow, 1);
   var vals = rng.getDisplayValues();
   for (var i = 0; i < vals.length; i++) {
     var s = String(vals[i][0] || '');

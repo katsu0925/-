@@ -21,9 +21,9 @@ function exportDistributionList() {
   const nameSheet = srcSs.getSheetByName(NAME_SHEET_NAME);
   if (!nameSheet) throw new Error('配布用リスト が見つかりません');
   const rawName = String(nameSheet.getRange(NAME_CELL_A1).getDisplayValue() || '').trim();
-  if (!rawName) throw new Error('配布用リスト!E1 が空です');
+  if (!rawName) throw new Error('配布用リスト!' + NAME_CELL_A1 + ' が空です');
   const receiptNo = String(nameSheet.getRange(RECEIPT_CELL).getDisplayValue() || '').trim();
-  if (!receiptNo) throw new Error('配布用リスト!I1（受付番号）が空です');
+  if (!receiptNo) throw new Error('配布用リスト!' + RECEIPT_CELL + '（受付番号）が空です');
   const baseName = rawName + '様';
   const exportFileName = baseName + '.xlsx';
   const folder = DriveApp.getFolderById(EXPORT_FOLDER_ID);
@@ -112,7 +112,7 @@ function deleteAllExceptSheet_(ss, keepSheetId) {
 function trimColumnBAfterSecondHyphen_(sheet) {
   const lastRow = sheet.getLastRow();
   if (lastRow < 1) return;
-  const rng = sheet.getRange(1, 2, lastRow, 1);
+  const rng = sheet.getRange(1, 5, lastRow, 1);
   const vals = rng.getDisplayValues();
   for (let i = 0; i < vals.length; i++) {
     const s = String(vals[i][0] || '');
