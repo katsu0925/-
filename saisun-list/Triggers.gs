@@ -90,6 +90,8 @@ function tr_setupTriggersOnce_() {
     { fn: 'syncListingPublicCron', type: 'minutes', interval: 1 },
     // 5分ごと（ディスパッチャー: 4関数を1トリガーに統合）
     { fn: 'cronEvery5min', type: 'minutes', interval: 5 },
+    // 5分ごと（I列空 & J列あり → 自動展開）
+    { fn: 'cronAutoExpandOrders', type: 'minutes', interval: 5 },
     // 15分ごと
     { fn: 'cronAbandonedCart', type: 'minutes', interval: 15 },
     // 1時間ごと

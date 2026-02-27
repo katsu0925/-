@@ -37,6 +37,52 @@ function expandOrder() {
 }
 
 // ═══════════════════════════════════════════
+// 1b. 自動展開（I列=確認リンクが空 & J列=選択リストあり → 自動でパイプライン実行）
+// ═══════════════════════════════════════════
+
+function cronAutoExpandOrders() {
+  var orderSsId = app_getOrderSpreadsheetId_();
+  var ss = SpreadsheetApp.openById(orderSsId);
+  var reqSheet = ss.getSheetByName('依頼管理');
+  if (!reqSheet) return;
+
+  var lastRow = reqSheet.getLastRow();
+  if (lastRow < 2) return;
+
+  var confirmCol = REQUEST_SHEET_COLS.CONFIRM_LINK;     // I列: 9
+  var selectionCol = REQUEST_SHEET_COLS.SELECTION_LIST;  // J列: 10
+  var statusCol = REQUEST_SHEET_COLS.STATUS;             // V列: 22
+  var receiptCol = REQUEST_SHEET_COLS.RECEIPT_NO;        // A列: 1
+  var readCols = Math.max(confirmCol, selectionCol, statusCol);
+  var data = reqSheet.getRange(2, 1, lastRow - 1, readCols).getValues();
+
+  var receiptNos = [];
+  for (var i = 0; i < data.length; i++) {
+    var row = data[i];
+    var receiptNo = String(row[receiptCol - 1] || '').trim();
+    if (!receiptNo) continue;
+    var selectionList = String(row[selectionCol - 1] || '').trim();
+    if (!selectionList) continue;                       // J列が空 → 未紐付け
+    var confirmLink = String(row[confirmCol - 1] || '').trim();
+    if (confirmLink) continue;                          // I列にリンクあり → 処理済み
+    var status = String(row[statusCol - 1] || '').trim();
+    if (status === '完了' || status === 'キャンセル') continue;
+    receiptNos.push(receiptNo);
+  }
+
+  if (receiptNos.length === 0) return;
+
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(10000)) { console.log('cronAutoExpandOrders: ロック取得失敗'); return; }
+  try {
+    console.log('cronAutoExpandOrders: ' + receiptNos.length + '件を自動展開: ' + receiptNos.join(', '));
+    om_executeFullPipeline_(receiptNos, '自動展開', { silent: true, orderSsId: orderSsId });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// ═══════════════════════════════════════════
 // 2. 欠品処理（返品ステータス変更→選択リスト更新→確認リンク削除→自動再生成）
 // ═══════════════════════════════════════════
 
@@ -204,18 +250,23 @@ function handleMissingProducts() {
 // expandOrder と handleMissingProducts の両方から呼ばれる共通処理
 // ═══════════════════════════════════════════
 
-function om_executeFullPipeline_(receiptNos, callerLabel) {
-  var activeSs = SpreadsheetApp.getActiveSpreadsheet();
-  var ui = SpreadsheetApp.getUi();
+function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
+  var silent = opts && opts.silent;
+  var orderSsId = (opts && opts.orderSsId) || '';
+  var activeSs = orderSsId ? SpreadsheetApp.openById(orderSsId) : SpreadsheetApp.getActiveSpreadsheet();
+  if (!orderSsId) orderSsId = activeSs.getId();
+  var ui = null;
+  if (!silent) { try { ui = SpreadsheetApp.getUi(); } catch (e) { /* cron */ } }
 
-  activeSs.toast(callerLabel + ': 処理を開始します（' + receiptNos.length + '件）...', '処理中', 60);
+  if (ui) activeSs.toast(callerLabel + ': 処理を開始します（' + receiptNos.length + '件）...', '処理中', 60);
+  else console.log(callerLabel + ': 処理を開始します（' + receiptNos.length + '件）');
 
   // --- 共通データ読み込み ---
   var reqSheet = activeSs.getSheetByName('依頼管理');
-  if (!reqSheet) { ui.alert('依頼管理シートが見つかりません。'); return; }
+  if (!reqSheet) { if (ui) ui.alert('依頼管理シートが見つかりません。'); else console.error('依頼管理シートが見つかりません'); return; }
 
   var reqLastRow = reqSheet.getLastRow();
-  if (reqLastRow < 2) { ui.alert('依頼管理にデータがありません。'); return; }
+  if (reqLastRow < 2) { if (ui) ui.alert('依頼管理にデータがありません。'); else console.error('依頼管理にデータがありません'); return; }
 
   var reqData = reqSheet.getRange(1, 1, reqLastRow, reqSheet.getLastColumn()).getValues();
   var reqHeaders = reqData.shift();
@@ -225,7 +276,8 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
   var receiptCol = rIdx['受付番号'];
   var selectionCol = rIdx['選択リスト'];
   if (receiptCol === undefined || selectionCol === undefined) {
-    ui.alert('依頼管理シートに「受付番号」または「選択リスト」列が見つかりません。');
+    if (ui) ui.alert('依頼管理シートに「受付番号」または「選択リスト」列が見つかりません。');
+    else console.error('依頼管理シートに「受付番号」または「選択リスト」列が見つかりません');
     return;
   }
 
@@ -253,7 +305,8 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
   var statusCol = colMap['ステータス'];
   var idCol = colMap['管理番号'];
   if (!statusCol || !idCol) {
-    ui.alert('商品管理にステータス列または管理番号列が見つかりません。');
+    if (ui) ui.alert('商品管理にステータス列または管理番号列が見つかりません。');
+    else console.error('商品管理にステータス列または管理番号列が見つかりません');
     return;
   }
   var mainLastRow = mainSheet.getLastRow();
@@ -272,7 +325,8 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
   for (var g = 0; g < receiptNos.length; g++) {
     var receiptNo = receiptNos[g];
 
-    activeSs.toast(callerLabel + ': ' + receiptNo + ' を処理中（' + (g + 1) + '/' + receiptNos.length + '）...', '処理中', 60);
+    if (ui) activeSs.toast(callerLabel + ': ' + receiptNo + ' を処理中（' + (g + 1) + '/' + receiptNos.length + '）...', '処理中', 60);
+    else console.log(callerLabel + ': ' + receiptNo + ' を処理中（' + (g + 1) + '/' + receiptNos.length + '）');
 
     // 依頼管理から該当行を検索
     var reqRow = reqData.find(function(r) { return String(r[receiptCol] || '').trim() === receiptNo; });
@@ -455,7 +509,7 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
     SpreadsheetApp.flush();
 
     // XLSX出力 + 確認リンク更新
-    var xlsxResult = om_exportDistributionXlsx_(customerName, receiptNo);
+    var xlsxResult = om_exportDistributionXlsx_(customerName, receiptNo, orderSsId);
     if (!xlsxResult || !xlsxResult.ok) {
       results.push({ receiptNo: receiptNo, ok: false, message: 'XLSX生成エラー: ' + (xlsxResult ? xlsxResult.message : '不明') });
       continue;
@@ -527,9 +581,11 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
   });
 
   if (msg) {
-    ui.alert(callerLabel + ' 結果', msg, ui.ButtonSet.OK);
+    if (ui) ui.alert(callerLabel + ' 結果', msg, ui.ButtonSet.OK);
+    else console.log(callerLabel + ' 結果:\n' + msg);
   } else {
-    activeSs.toast('処理対象がありませんでした', '完了', 5);
+    if (ui) activeSs.toast('処理対象がありませんでした', '完了', 5);
+    else console.log('処理対象がありませんでした');
   }
 }
 
@@ -557,7 +613,7 @@ function cleanupObsoleteTriggers() {
 // XLSX出力
 // ═══════════════════════════════════════════
 
-function om_exportDistributionXlsx_(customerName, receiptNo) {
+function om_exportDistributionXlsx_(customerName, receiptNo, optOrderSsId) {
   var shiireSs = SpreadsheetApp.openById(OM_SHIIRE_SS_ID);
 
   var rawName = String(customerName || '').trim();
@@ -596,14 +652,14 @@ function om_exportDistributionXlsx_(customerName, receiptNo) {
   var url = outFile.getUrl();
 
   // 依頼管理のリンク更新（本SSから直接取得）
-  om_updateRequestSheetLink_(rawName, receiptNo, url);
+  om_updateRequestSheetLink_(rawName, receiptNo, url, optOrderSsId);
 
   DriveApp.getFileById(tmpId).setTrashed(true);
   return { ok: true, url: url, fileName: exportFileName };
 }
 
-function om_updateRequestSheetLink_(name, receiptNo, url) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+function om_updateRequestSheetLink_(name, receiptNo, url, optOrderSsId) {
+  var ss = optOrderSsId ? SpreadsheetApp.openById(optOrderSsId) : SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName('依頼管理');
   if (!sh) return;
 
