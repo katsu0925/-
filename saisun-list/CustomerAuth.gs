@@ -1083,7 +1083,7 @@ function deductPoints_(email, points) {
   var customer = findCustomerByEmail_(email);
   if (!customer || customer.points < points) return false;
   var sheet = getCustomerSheet_();
-  sheet.getRange(customer.row, 13).setValue(customer.points - points);
+  sheet.getRange(customer.row, CUSTOMER_SHEET_COLS.POINTS + 1).setValue(customer.points - points);
   try { updatePointsTimestamp_(customer.row); } catch(e) {}
   return true;
 }
@@ -1097,7 +1097,7 @@ function addPoints_(email, points) {
   if (!customer) return false;
   var sheet = getCustomerSheet_();
   var currentPoints = Number(customer.points || 0);
-  sheet.getRange(customer.row, 13).setValue(currentPoints + points);
+  sheet.getRange(customer.row, CUSTOMER_SHEET_COLS.POINTS + 1).setValue(currentPoints + points);
   try { updatePointsTimestamp_(customer.row); } catch(e) {}
   return true;
 }

@@ -105,65 +105,8 @@ function bulk_clearCache_() {
   try { CacheService.getScriptCache().remove(BULK_CONFIG.cache.key); } catch (e) {}
 }
 
-/**
- * ローカルファイルからアップロードされた画像をGoogleドライブに保存
- * BulkAdminModal.htmlから呼ばれる
- * @param {string} base64Data - 画像のBase64エンコードデータ
- * @param {string} mimeType - MIMEタイプ（例: image/jpeg）
- * @param {string} fileName - ファイル名
- * @returns {object} { ok, url, fileId }
- */
-function adminBulkUploadImage(base64Data, mimeType, fileName) {
-  try {
-    if (!base64Data) return { ok: false, message: '画像データがありません' };
-
-    var blob = Utilities.newBlob(Utilities.base64Decode(base64Data), mimeType || 'image/jpeg', fileName || 'product_image.jpg');
-
-    // アソート商品画像用フォルダを取得または作成
-    var folderId = '';
-    try {
-      folderId = PropertiesService.getScriptProperties().getProperty('BULK_IMAGE_FOLDER_ID') || '';
-    } catch (e) {}
-
-    var file;
-    if (folderId) {
-      try {
-        var folder = DriveApp.getFolderById(folderId);
-        file = folder.createFile(blob);
-      } catch (e) {
-        // フォルダが見つからない場合はルートに保存
-        file = DriveApp.createFile(blob);
-      }
-    } else {
-      // フォルダ未設定の場合は「アソート商品画像」フォルダを作成
-      var folders = DriveApp.getFoldersByName('アソート商品画像');
-      var folder;
-      if (folders.hasNext()) {
-        folder = folders.next();
-      } else {
-        folder = DriveApp.createFolder('アソート商品画像');
-      }
-      file = folder.createFile(blob);
-      // フォルダIDを保存して次回から使用
-      try {
-        PropertiesService.getScriptProperties().setProperty('BULK_IMAGE_FOLDER_ID', folder.getId());
-      } catch (e) {}
-    }
-
-    // 公開アクセスを設定
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-
-    var fileId = file.getId();
-    var url = 'https://lh3.googleusercontent.com/d/' + fileId;
-
-    console.log('アソート商品画像アップロード: ' + fileName + ' → ' + fileId);
-
-    return { ok: true, url: url, fileId: fileId };
-  } catch (e) {
-    console.error('adminBulkUploadImage error:', e);
-    return { ok: false, message: (e && e.message) ? e.message : String(e) };
-  }
-}
+// adminBulkUploadImage は削除済み — saisun-list-bulk/コード.gs:294 に一本化
+// BulkAdminModal.html は saisun-list-bulk にのみ存在
 
 /**
  * アソート商品の初期化API（フロントエンドから呼ばれる）

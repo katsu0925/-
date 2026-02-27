@@ -15,6 +15,7 @@ const REWARD_CONFIG = {
   get COL_REWARD()           { return REQUEST_SHEET_COLS.REWARD; }         // AE列: 作業報酬
 };
 
+// cron は saisun-list-bulk/CronReward.gs で実行。この関数は手動実行用に残す
 function rewardUpdateDaily() {
   const ss = SpreadsheetApp.openById(REWARD_CONFIG.SPREADSHEET_ID);
   const shReq = ss.getSheetByName(REWARD_CONFIG.SHEET_REQUEST);
@@ -69,19 +70,8 @@ function rewardUpdateDaily() {
   writeRewardOutput_(shOut, rows, updatedAt);
 }
 
-function installDailyRewardTrigger() {
-  removeRewardTriggers_();
-  ScriptApp.newTrigger('rewardUpdateDaily').timeBased().everyDays(1).atHour(6).create();
-}
-
-function removeRewardTriggers_() {
-  const triggers = ScriptApp.getProjectTriggers();
-  for (const t of triggers) {
-    if (t.getHandlerFunction && t.getHandlerFunction() === 'rewardUpdateDaily') {
-      ScriptApp.deleteTrigger(t);
-    }
-  }
-}
+// installDailyRewardTrigger / removeRewardTriggers_ は削除済み
+// トリガーは saisun-list-bulk/CronConfig.gs で一元管理
 
 function writeRewardOutput_(shOut, rows, updatedAtText) {
   shOut.getRange('A2:D').clearContent();

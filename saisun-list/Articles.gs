@@ -293,7 +293,8 @@ function art_fetchHeaderImage_(query) {
 }
 
 // =====================================================
-// 日次記事生成（トリガーから呼び出し）
+// 日次記事生成（cron は saisun-list-bulk/CronArticles.gs で実行）
+// この関数はGASエディタから手動実行用に残す
 // =====================================================
 
 function generateDailyArticle() {
@@ -462,28 +463,7 @@ function apiGetArticleContent(articleId) {
   }
 }
 
-// =====================================================
-// トリガー設定（GASエディタから1回実行）
-// =====================================================
-
-function setupArticleTrigger() {
-  var triggers = ScriptApp.getProjectTriggers();
-  for (var i = 0; i < triggers.length; i++) {
-    if (triggers[i].getHandlerFunction() === 'generateDailyArticle') {
-      console.log('記事生成トリガーは既に設定済みです');
-      return { ok: true, message: '既に設定済み' };
-    }
-  }
-
-  ScriptApp.newTrigger('generateDailyArticle')
-    .timeBased()
-    .everyDays(1)
-    .atHour(6)
-    .create();
-
-  console.log('記事生成の日次トリガーを設定しました（毎日6:00 JST）');
-  return { ok: true, message: 'トリガー設定完了' };
-}
+// setupArticleTrigger() は削除済み — トリガーは saisun-list-bulk/CronConfig.gs で一元管理
 
 // =====================================================
 // Pexels APIキー設定ヘルパー（GASエディタから1回実行）
