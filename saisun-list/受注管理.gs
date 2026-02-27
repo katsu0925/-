@@ -350,7 +350,7 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
     exportSheet.getRange('A1').setValue('受付番号');
     exportSheet.getRange('B1').setValue(receiptNo);
     exportSheet.getRange('F1').setValue(customerName);
-    exportSheet.getRange('L1').setValue('合計金額');
+    exportSheet.getRange('I1').setValue('合計金額');
 
     // 新列構成: タイトル・説明文を前方に配置
     var headerRow = ['確認', 'メルカリ用タイトル', '即出品用説明文（コピペ用）', '箱ID', '管理番号(照合用)', 'ブランド', 'AIキーワード', 'アイテム', 'サイズ', '状態', '傷汚れ詳細', '採寸情報', '金額'];
@@ -441,7 +441,7 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
     }
 
     exportSheet.getRange(2, 1, exportData.length, exportData[0].length).setValues(exportData);
-    exportSheet.getRange('M1').setValue(totalPrice.toLocaleString('ja-JP') + '円');
+    exportSheet.getRange('J1').setValue(totalPrice.toLocaleString('ja-JP') + '円');
     if (exportData.length > 1) {
       exportSheet.getRange(3, 1, exportData.length - 1, 1).insertCheckboxes();
     }
