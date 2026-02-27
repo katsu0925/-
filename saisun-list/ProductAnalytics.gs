@@ -57,7 +57,7 @@ function productAnalyticsCron_() {
             var hName = String(dHeaders[h] || '').trim();
             if (hName === '管理番号') dMidCol = h;
             else if (hName === 'ブランド') dBrandCol = h;
-            else if (hName === 'カテゴリ') dCatCol = h;
+            else if (hName === 'カテゴリ3') dCatCol = h;
           }
           if (dMidCol >= 0) {
             var dLastRow = detailSheet.getLastRow();
