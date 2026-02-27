@@ -4,8 +4,9 @@
 // =====================================================
 // 【セットアップ】
 // 1. ScriptProperties に DATA_SPREADSHEET_ID を設定
-// 2. ScriptProperties に OPENAI_API_KEY を設定（記事生成用）
-// 3. ScriptProperties に PEXELS_API_KEY を設定（記事画像用、任意）
+// 2. ScriptProperties に DETAIL_SPREADSHEET_ID を設定（商品分析の売却済み商品補完用）
+// 3. ScriptProperties に OPENAI_API_KEY を設定（記事生成用）
+// 4. ScriptProperties に PEXELS_API_KEY を設定（記事画像用、任意）
 // 4. GASエディタ → サービス(+) → 「Google Analytics Data API」追加（GA4用）
 // 5. setupCronTriggers() を実行
 

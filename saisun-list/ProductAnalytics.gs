@@ -43,6 +43,43 @@ function productAnalyticsCron_() {
       console.log('optional: product info load: ' + (e.message || e));
     }
 
+    // フォールバック: 仕入れ管理Ver.2（商品管理シート）から売却済み商品のブランド・カテゴリを補完
+    try {
+      var detailSsId = String((APP_CONFIG.detail && APP_CONFIG.detail.spreadsheetId) || '');
+      if (detailSsId) {
+        var detailSs = SpreadsheetApp.openById(detailSsId);
+        var detailSheet = detailSs.getSheetByName(String((APP_CONFIG.detail && APP_CONFIG.detail.sheetName) || '商品管理'));
+        if (detailSheet) {
+          var dHeaderRow = Number((APP_CONFIG.detail && APP_CONFIG.detail.headerRow) || 1);
+          var dHeaders = detailSheet.getRange(dHeaderRow, 1, 1, detailSheet.getLastColumn()).getValues()[0];
+          var dMidCol = -1, dBrandCol = -1, dCatCol = -1;
+          for (var h = 0; h < dHeaders.length; h++) {
+            var hName = String(dHeaders[h] || '').trim();
+            if (hName === '管理番号') dMidCol = h;
+            else if (hName === 'ブランド') dBrandCol = h;
+            else if (hName === 'カテゴリ') dCatCol = h;
+          }
+          if (dMidCol >= 0) {
+            var dLastRow = detailSheet.getLastRow();
+            if (dLastRow > dHeaderRow) {
+              var dMaxCol = Math.max(dMidCol, dBrandCol, dCatCol) + 1;
+              var dData = detailSheet.getRange(dHeaderRow + 1, 1, dLastRow - dHeaderRow, dMaxCol).getValues();
+              for (var d = 0; d < dData.length; d++) {
+                var dId = String(dData[d][dMidCol] || '').trim();
+                if (!dId || productInfo[dId]) continue;
+                productInfo[dId] = {
+                  brand: dBrandCol >= 0 ? String(dData[d][dBrandCol] || '').trim() : '',
+                  category: dCatCol >= 0 ? String(dData[d][dCatCol] || '').trim() : ''
+                };
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.log('optional: detail product info load: ' + (e.message || e));
+    }
+
     // 依頼管理シートから商品別集計
     var productMap = {};
     for (var i = 1; i < reqData.length; i++) {
