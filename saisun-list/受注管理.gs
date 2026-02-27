@@ -851,39 +851,51 @@ var OM_CONDITION_WORD_MAP = {
 };
 
 /**
- * タイトルをGASロジックで組み立て（36〜40文字に確実に収める）
- * 優先順: 状態ワード → ブランド名 → AIキーワード → アイテム名 → サイズ
+ * メルカリで売れるタイトルをGASロジックで組み立て（40文字以内）
+ *
+ * 優先順: 状態ワード → ブランド名 → AIキーワード(画像特徴) → アイテム名(補完) → サイズ
+ * - AIキーワードは画像から抽出した具体的特徴（ブランド名・色・サイズは含まれない）
+ * - アイテム名(カテゴリ2)は「トップス」等の汎用分類なので、AIキーワードが具体的なら補完程度
+ * - 長いキーワードが入らなくても短い後続キーワードは入れる（break→continue）
  */
 function om_buildTitle_(pr) {
-  var parts = [];
+  var TITLE_MAX = 40;
+
+  // キーワードリストを優先順で構築
+  var keywords = [];
 
   // 1. 状態ワード
   var condWord = OM_CONDITION_WORD_MAP[pr.condition] || '';
-  if (condWord) parts.push(condWord);
+  if (condWord) keywords.push(condWord);
 
   // 2. ブランド名
-  if (pr.brand) parts.push(pr.brand);
+  var brand = String(pr.brand || '').trim();
+  if (brand) keywords.push(brand);
 
-  // 3. AIキーワード（スペース区切りで分割、個別に追加）
-  var kwParts = [];
+  // 3. AIキーワード（画像ベースの具体的デザイン特徴）
+  var brandLower = brand.toLowerCase();
   if (pr.aiKeywords) {
-    kwParts = String(pr.aiKeywords).split(/[\s　,、]+/).filter(function(s) { return s.trim(); });
+    String(pr.aiKeywords).split(/[\s　,、]+/).forEach(function(s) {
+      var t = s.trim();
+      if (t && t.toLowerCase() !== brandLower) keywords.push(t);
+    });
   }
 
-  // 4. アイテム名
-  var itemName = pr.item || '';
+  // 4. アイテム名（カテゴリ2 — AIキーワードが少ない場合の補完）
+  var itemName = String(pr.item || '').trim();
+  if (itemName) keywords.push(itemName);
 
-  // 5. サイズ
-  var sizeStr = pr.size || '';
+  // 5. サイズ（最後）
+  var sizeStr = String(pr.size || '').trim();
+  if (sizeStr) keywords.push(sizeStr);
 
-  // AIキーワードを先に追加し、その後アイテム名、最後にサイズ
-  var remaining = kwParts.concat(itemName ? [itemName] : []).concat(sizeStr ? [sizeStr] : []);
-
-  var TITLE_MAX = 40;
-  for (var i = 0; i < remaining.length; i++) {
-    var candidate = parts.concat([remaining[i]]).join(' ');
-    if (candidate.length > TITLE_MAX) break;
-    parts.push(remaining[i]);
+  // 先頭から順に足して40文字以内に収める
+  // 入らないキーワードはスキップして次を試す（短いサイズ等を確実に入れる）
+  var parts = [];
+  for (var i = 0; i < keywords.length; i++) {
+    var test = parts.length > 0 ? parts.join(' ') + ' ' + keywords[i] : keywords[i];
+    if (test.length > TITLE_MAX) continue;
+    parts.push(keywords[i]);
   }
 
   return parts.join(' ');
