@@ -57,7 +57,8 @@ function setupCronTriggers() {
   // ga4SyncAll → saisun-list に戻したためこのプロジェクトでは登録しない
   var targetFns = [
     'cronProductAnalytics', 'cronRfmAnalysis',
-    'rewardUpdateDaily', 'generateDailyArticle'
+    'rewardUpdateDaily', 'generateDailyArticle',
+    'cronDaily6'
   ];
 
   // 対象トリガーのみ削除（既存のonOpenトリガー等は残す）
@@ -69,9 +70,8 @@ function setupCronTriggers() {
     }
   }
 
-  // 毎日6時
-  ScriptApp.newTrigger('generateDailyArticle').timeBased().everyDays(1).atHour(6).create();
-  ScriptApp.newTrigger('rewardUpdateDaily').timeBased().everyDays(1).atHour(6).create();
+  // 毎日6時（ディスパッチャー: 記事生成 + 報酬計算）
+  ScriptApp.newTrigger('cronDaily6').timeBased().everyDays(1).atHour(6).create();
   // 毎日7時
   ScriptApp.newTrigger('cronProductAnalytics').timeBased().everyDays(1).atHour(7).create();
   // 毎週月曜7時
@@ -80,4 +80,12 @@ function setupCronTriggers() {
   var total = ScriptApp.getProjectTriggers().length;
   console.log('cronトリガー設定完了: ' + total + '件');
   return { ok: true, count: total };
+}
+
+/** 毎日6時: 記事生成 + 報酬計算 */
+function cronDaily6() {
+  var fns = [generateDailyArticle, rewardUpdateDaily];
+  for (var i = 0; i < fns.length; i++) {
+    try { fns[i](); } catch (e) { console.error('cronDaily6 [' + fns[i].name + ']:', e); }
+  }
 }

@@ -88,33 +88,26 @@ function tr_setupTriggersOnce_() {
   var timeBasedTriggers = [
     // 毎分
     { fn: 'syncListingPublicCron', type: 'minutes', interval: 1 },
-    // 5分ごと（ディスパッチャー: 4関数を1トリガーに統合）
+    // 5分ごと（ディスパッチャー: 5関数を1トリガーに統合）
     { fn: 'cronEvery5min', type: 'minutes', interval: 5 },
-    // 5分ごと（I列空 & J列あり → 自動展開）
-    { fn: 'cronAutoExpandOrders', type: 'minutes', interval: 5 },
-    // 15分ごと
-    { fn: 'cronAbandonedCart', type: 'minutes', interval: 15 },
+    // 30分ごと
+    { fn: 'cronAbandonedCart', type: 'minutes', interval: 30 },
     // 1時間ごと
     { fn: 'cronStatsCache', type: 'hours', interval: 1 },
-    // 毎日4時
-    { fn: 'cronCompactHolds', type: 'daily', hour: 4 },
-    // 毎日5時
-    { fn: 'cronProcessPoints', type: 'daily', hour: 5 },
-    // 毎日6時
-    { fn: 'cronPointExpiry', type: 'daily', hour: 6 },
-    // 毎日7時（インボイス領収書送付 + キャンセル取消）
+    // 毎日4時（ディスパッチャー: 確保クリーンアップ + ポイント処理 + ポイント失効）
+    { fn: 'cronDaily4To6', type: 'daily', hour: 4 },
+    // 毎日7時（ディスパッチャー: インボイス領収書送付 + キャンセル取消）
     { fn: 'cronDaily7', type: 'daily', hour: 7 },
     // 毎日8時（GA4同期 — saisun-list-bulkから戻し）
     { fn: 'ga4SyncAll', type: 'daily', hour: 8 },
     // generateDailyArticle, rewardUpdateDaily → saisun-list-bulk に移動
-    // cronProductAnalytics → saisun-list-bulk に移動
+    // cronProductAnalytics, cronRfmAnalysis → saisun-list-bulk に移動
     // 毎日9時（ディスパッチャー: 2関数を1トリガーに統合）
     { fn: 'cronDaily9', type: 'daily', hour: 9 },
     // 毎日10時
     { fn: 'cronNewArrival', type: 'daily', hour: 10 },
     // 毎日11時
     { fn: 'cronFollowupEmail', type: 'daily', hour: 11 },
-    // cronRfmAnalysis → saisun-list-bulk に移動
   ];
 
   for (var i = 0; i < timeBasedTriggers.length; i++) {
@@ -155,11 +148,19 @@ function cronCancelledInvoices() { processCancelledInvoices(); }
 // ディスパッチャー（同一間隔のトリガーを統合してトリガー数を節約）
 // =====================================================
 
-/** 5分ごと: 4関数を1トリガーで実行 */
+/** 5分ごと: 5関数を1トリガーで実行 */
 function cronEvery5min() {
-  var fns = [cronExportProducts, baseSyncOrdersNow, baseSyncProductsToBase, notifyUnsentRequests];
+  var fns = [cronExportProducts, baseSyncOrdersNow, baseSyncProductsToBase, notifyUnsentRequests, cronAutoExpandOrders];
   for (var i = 0; i < fns.length; i++) {
     try { fns[i](); } catch (e) { console.error('cronEvery5min [' + fns[i].name + ']:', e); }
+  }
+}
+
+/** 毎日4時: 確保クリーンアップ + ポイント処理 + ポイント失効 */
+function cronDaily4To6() {
+  var fns = [cronCompactHolds, cronProcessPoints, cronPointExpiry];
+  for (var i = 0; i < fns.length; i++) {
+    try { fns[i](); } catch (e) { console.error('cronDaily4To6 [' + fns[i].name + ']:', e); }
   }
 }
 
