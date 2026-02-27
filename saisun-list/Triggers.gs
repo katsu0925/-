@@ -104,7 +104,9 @@ function tr_setupTriggersOnce_() {
     { fn: 'cronPointExpiry', type: 'daily', hour: 6 },
     // 毎日7時（インボイス領収書送付 + キャンセル取消）
     { fn: 'cronDaily7', type: 'daily', hour: 7 },
-    // generateDailyArticle, ga4SyncAll, rewardUpdateDaily → saisun-list-bulk に移動
+    // 毎日8時（GA4同期 — saisun-list-bulkから戻し）
+    { fn: 'ga4SyncAll', type: 'daily', hour: 8 },
+    // generateDailyArticle, rewardUpdateDaily → saisun-list-bulk に移動
     // cronProductAnalytics → saisun-list-bulk に移動
     // 毎日9時（ディスパッチャー: 2関数を1トリガーに統合）
     { fn: 'cronDaily9', type: 'daily', hour: 9 },
