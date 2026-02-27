@@ -92,6 +92,8 @@ function tr_setupTriggersOnce_() {
     { fn: 'cronExportProducts', type: 'minutes', interval: 5 },
     { fn: 'baseSyncOrdersNow', type: 'minutes', interval: 5 },
     { fn: 'baseSyncProductsToBase', type: 'minutes', interval: 5 },
+    // 5分ごと（受注LINE通知）
+    { fn: 'notifyUnsentRequests', type: 'minutes', interval: 5 },
     // 15分ごと
     { fn: 'cronAbandonedCart', type: 'minutes', interval: 15 },
     // 1時間ごと
