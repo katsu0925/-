@@ -88,12 +88,8 @@ function tr_setupTriggersOnce_() {
   var timeBasedTriggers = [
     // 毎分
     { fn: 'syncListingPublicCron', type: 'minutes', interval: 1 },
-    // 5分ごと
-    { fn: 'cronExportProducts', type: 'minutes', interval: 5 },
-    { fn: 'baseSyncOrdersNow', type: 'minutes', interval: 5 },
-    { fn: 'baseSyncProductsToBase', type: 'minutes', interval: 5 },
-    // 5分ごと（受注LINE通知）
-    { fn: 'notifyUnsentRequests', type: 'minutes', interval: 5 },
+    // 5分ごと（ディスパッチャー: 4関数を1トリガーに統合）
+    { fn: 'cronEvery5min', type: 'minutes', interval: 5 },
     // 15分ごと
     { fn: 'cronAbandonedCart', type: 'minutes', interval: 15 },
     // 1時間ごと
@@ -105,11 +101,9 @@ function tr_setupTriggersOnce_() {
     // 毎日6時
     { fn: 'cronPointExpiry', type: 'daily', hour: 6 },
     // generateDailyArticle, ga4SyncAll, rewardUpdateDaily → saisun-list-bulk に移動
-    // 毎日7時
     // cronProductAnalytics → saisun-list-bulk に移動
-    // 毎日9時
-    { fn: 'sendPaymentReminders', type: 'daily', hour: 9 },
-    { fn: 'cronNewsletter', type: 'daily', hour: 9 },
+    // 毎日9時（ディスパッチャー: 2関数を1トリガーに統合）
+    { fn: 'cronDaily9', type: 'daily', hour: 9 },
     // 毎日10時
     { fn: 'cronNewArrival', type: 'daily', hour: 10 },
     // 毎日11時
@@ -148,6 +142,26 @@ function cronNewsletter() { newsletterSendCron_(); }
 function cronPointExpiry() { pointExpiryCron_(); }
 // cronRfmAnalysis, cronProductAnalytics → saisun-list-bulk に移動
 function cronStatsCache() { st_calculateAndCacheStats_(); }
+
+// =====================================================
+// ディスパッチャー（同一間隔のトリガーを統合してトリガー数を節約）
+// =====================================================
+
+/** 5分ごと: 4関数を1トリガーで実行 */
+function cronEvery5min() {
+  var fns = [cronExportProducts, baseSyncOrdersNow, baseSyncProductsToBase, notifyUnsentRequests];
+  for (var i = 0; i < fns.length; i++) {
+    try { fns[i](); } catch (e) { console.error('cronEvery5min [' + fns[i].name + ']:', e); }
+  }
+}
+
+/** 毎日9時: 2関数を1トリガーで実行 */
+function cronDaily9() {
+  var fns = [sendPaymentReminders, cronNewsletter];
+  for (var i = 0; i < fns.length; i++) {
+    try { fns[i](); } catch (e) { console.error('cronDaily9 [' + fns[i].name + ']:', e); }
+  }
+}
 
 
 
