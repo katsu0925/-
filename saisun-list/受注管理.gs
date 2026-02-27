@@ -13,8 +13,9 @@ function getOmProp_(key, fallback) {
 }
 var OM_SHIIRE_SS_ID = getOmProp_('OM_SHIIRE_SS_ID', '');
 var OM_DIST_SHEET_GID  = 1614333946;
-var OM_DIST_NAME_CELL  = 'E1';
+var OM_DIST_NAME_CELL  = 'F1';
 var OM_DIST_RECEIPT_CELL = 'B1';
+var OM_MERCARI_MODEL = 'gpt-4o-mini';
 var OM_XLSX_FOLDER_ID  = getOmProp_('OM_XLSX_FOLDER_ID', '');
 
 // ═══════════════════════════════════════════
@@ -326,7 +327,7 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
       allRecoveryRows.push(recoveryStartRow + ri);
     }
 
-    // --- Phase 2: 配布用リスト生成 + XLSX出力 ---
+    // --- Phase 2: 配布用リスト生成 + OpenAI API でタイトル・説明文自動生成 + XLSX出力 ---
     var maxRows = exportSheet.getMaxRows();
     var maxCols = exportSheet.getMaxColumns();
     if (maxRows >= 2) {
@@ -335,17 +336,20 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
     }
     exportSheet.getRange('A1').setValue('受付番号');
     exportSheet.getRange('B1').setValue(receiptNo);
-    exportSheet.getRange('E1').setValue(customerName);
-    exportSheet.getRange('H1').setValue('合計金額');
+    exportSheet.getRange('F1').setValue(customerName);
+    exportSheet.getRange('I1').setValue('合計金額');
 
-    var headerRow = ['確認', '箱ID', '管理番号(照合用)', 'ブランド', 'AIタイトル候補', 'アイテム', 'サイズ', '状態', '傷汚れ詳細', '採寸情報', '即出品用説明文（コピペ用）', '金額'];
+    // 新列構成: タイトル・説明文を前方に配置
+    var headerRow = ['確認', 'メルカリ用タイトル', '即出品用説明文（コピペ用）', '箱ID', '管理番号(照合用)', 'ブランド', 'AIキーワード', 'アイテム', 'サイズ', '状態', '傷汚れ詳細', '採寸情報', '金額'];
     var exportData = [headerRow];
     var totalPrice = 0;
 
+    // 各商品のデータを収集
+    var productRows = [];
     outArr.forEach(function(listRow) {
       var boxId = listRow[1];
       var targetId = String(listRow[2] || '').trim();
-      var aiTitle = listRow[7];
+      var aiKeywords = listRow[7];
       if (!targetId) return;
 
       var row = mData.find(function(r) { return String(r[mIdx['管理番号']] || '').trim() === targetId; });
@@ -356,7 +360,7 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
       var brand = row[mIdx['ブランド']] || '';
       var size = row[mIdx['メルカリサイズ']] || '';
       var item = row[mIdx['カテゴリ2']] || '古着';
-      if (!aiTitle) aiTitle = '';
+      if (!aiKeywords) aiKeywords = '';
 
       var length = row[mIdx['着丈']] || '-';
       var width = row[mIdx['身幅']] || '-';
@@ -375,17 +379,6 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
       }
       measurementText = measurementText.trim();
 
-      var description =
-        '【管理番号】\n' +
-        '【ブランド】' + brand + '\n' +
-        '【サイズ】' + size + '\n' +
-        '【状態】' + condition + '\n';
-      if (damageDetail !== '') {
-        description += '【状態詳細】\n' + damageDetail + '\n';
-      }
-      description += '【実寸(cm)】\n' + measurementText + '\n' +
-        '\n※素人採寸のため多少の誤差はご了承ください。';
-
       var cost = toNumber_(listRow[10]) || 0;
       var price = normalizeSellPrice_(om_calcPriceTier_(cost));
 
@@ -399,11 +392,38 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
       var priceText = price.toLocaleString('ja-JP') + '円';
       totalPrice += price;
 
-      exportData.push([false, boxId, targetId, brand, aiTitle, item, size, condition, damageDetail, measurementText, description, priceText]);
+      productRows.push({
+        boxId: boxId, targetId: targetId, brand: brand, aiKeywords: aiKeywords,
+        item: item, size: size, condition: condition, damageDetail: damageDetail,
+        measurementText: measurementText, priceText: priceText
+      });
     });
 
+    // OpenAI API でメルカリ用タイトル・説明文を一括生成
+    var aiResults = om_generateMercariTexts_(productRows);
+
+    for (var pi = 0; pi < productRows.length; pi++) {
+      var pr = productRows[pi];
+      var ai = aiResults[pi] || {};
+      exportData.push([
+        false,
+        ai.title || '',
+        ai.description || '',
+        pr.boxId,
+        pr.targetId,
+        pr.brand,
+        pr.aiKeywords,
+        pr.item,
+        pr.size,
+        pr.condition,
+        pr.damageDetail,
+        pr.measurementText,
+        pr.priceText
+      ]);
+    }
+
     exportSheet.getRange(2, 1, exportData.length, exportData[0].length).setValues(exportData);
-    exportSheet.getRange('I1').setValue(totalPrice.toLocaleString('ja-JP') + '円');
+    exportSheet.getRange('J1').setValue(totalPrice.toLocaleString('ja-JP') + '円');
     if (exportData.length > 1) {
       exportSheet.getRange(3, 1, exportData.length - 1, 1).insertCheckboxes();
     }
@@ -795,4 +815,127 @@ function om_colNumToLetter_(col) {
     n = Math.floor((n - 1) / 26);
   }
   return s;
+}
+
+// ═══════════════════════════════════════════
+// メルカリ用タイトル・説明文 OpenAI API 自動生成
+// ═══════════════════════════════════════════
+
+var OM_MERCARI_SYSTEM_PROMPT = 'あなたはメルカリでの古着販売に特化した、プロの出品テキストライターです。\n'
+  + '購入者が検索で見つけやすく、商品の魅力が伝わり、購入意欲を高めるタイトルと説明文を作成してください。\n'
+  + 'ショップのような丁寧で信頼感のあるトーンで書いてください。\n\n'
+  + '【ルール】\n\n'
+  + '■ タイトル（title）\n'
+  + '- 必ず40文字以内（メルカリの文字数制限）\n'
+  + '- 先頭にブランド名を入れる\n'
+  + '- 検索されやすいキーワードを含める（アイテム名、特徴、季節感など）\n'
+  + '- 記号は最小限（絵文字は使わない）\n'
+  + '- 例：「URBAN RESEARCH リネン混オープンカラーシャツ M」\n\n'
+  + '■ 商品説明文（description）\n'
+  + '- 丁寧語（です・ます調）で統一する\n'
+  + '- 嘘や誇張は絶対にしない\n'
+  + '- わからない情報は無理に書かず省略する\n'
+  + '- 説明文の先頭に管理番号は入れない\n\n'
+  + '■ 説明文フォーマット（この構成を厳守すること）：\n\n'
+  + 'ご覧いただきありがとうございます。\n\n'
+  + '━━━━━━━━━━━━━━━━━━━━\n\n'
+  + '■ ブランド\n{ブランド名}（読み仮名がわかれば記載）\n{ブランドの特徴を2〜3行で紹介}\n\n'
+  + '■ アイテム\n{アイテムの正式名称・デザイン特徴}\n{AIキーワードのデザイン情報を活用して具体的に説明。2〜3行}\n\n'
+  + '■ こんな方におすすめ\n・{ターゲット層やニーズに合わせた提案を3つ}\n\n'
+  + '■ 着こなしのヒント\n{2〜3パターンの着こなし提案。季節感も意識する}\n\n'
+  + '■ サイズ\n表記：{サイズ表記}\n【実寸（平置き・cm）】\n{採寸情報をそのまま記載}\n\n'
+  + '■ 状態\n{状態ランク}\n{傷汚れ詳細があれば記載。なければ「目立つダメージはございません。」}\n\n'
+  + '━━━━━━━━━━━━━━━━━━━━\n\n'
+  + '・古着のため、多少の使用感はご了承ください\n'
+  + '・平置き採寸のため、若干の誤差が生じる場合がございます\n'
+  + '・ご不明点はお気軽にコメントください\n\n'
+  + '{ハッシュタグを8〜10個。ブランド名・アイテム名・特徴・「古着」等を含め、#付きで半角スペース区切り}\n\n'
+  + '■ 出力形式\n必ず以下のJSON形式のみで返答してください：\n{"title": "タイトル", "description": "説明文"}';
+
+/**
+ * 商品データ配列からメルカリ用タイトル・説明文を一括生成
+ * @param {Array} productRows - [{brand, aiKeywords, item, size, condition, damageDetail, measurementText, priceText}]
+ * @return {Array} [{title, description}]
+ */
+function om_generateMercariTexts_(productRows) {
+  var apiKey = '';
+  try { apiKey = PropertiesService.getScriptProperties().getProperty('OPENAI_API_KEY') || ''; } catch (e) {}
+  if (!apiKey) {
+    console.log('OPENAI_API_KEY未設定: テンプレート説明文で代替');
+    return productRows.map(function(pr) { return om_fallbackText_(pr); });
+  }
+
+  var results = [];
+  for (var i = 0; i < productRows.length; i++) {
+    var pr = productRows[i];
+    try {
+      var userMsg = '以下の商品データからメルカリ用のタイトルと商品説明文を生成してください。\n\n'
+        + 'ブランド: ' + (pr.brand || '（なし）') + '\n'
+        + 'AIキーワード（デザイン情報）: ' + (pr.aiKeywords || '（なし）') + '\n'
+        + 'アイテム: ' + (pr.item || '（なし）') + '\n'
+        + 'サイズ: ' + (pr.size || '（なし）') + '\n'
+        + '状態: ' + (pr.condition || '（なし）') + '\n'
+        + '傷汚れ詳細: ' + (pr.damageDetail || '（なし）') + '\n'
+        + '採寸情報: ' + (pr.measurementText || '（なし）') + '\n'
+        + '販売価格: ' + (pr.priceText || '（なし）');
+
+      var payload = {
+        model: OM_MERCARI_MODEL,
+        messages: [
+          { role: 'system', content: OM_MERCARI_SYSTEM_PROMPT },
+          { role: 'user', content: userMsg }
+        ],
+        max_tokens: 2048,
+        temperature: 0.4,
+        response_format: { type: 'json_object' }
+      };
+
+      var resp = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'post',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+        payload: JSON.stringify(payload),
+        muteHttpExceptions: true
+      });
+
+      var code = resp.getResponseCode();
+      if (code < 200 || code >= 300) {
+        console.error('OpenAI API error (商品 ' + pr.targetId + '): HTTP ' + code);
+        results.push(om_fallbackText_(pr));
+        continue;
+      }
+
+      var body = JSON.parse(resp.getContentText());
+      var content = (body.choices && body.choices[0] && body.choices[0].message && body.choices[0].message.content) || '';
+      content = content.trim().replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+      var parsed = JSON.parse(content);
+
+      var title = String(parsed.title || '').trim();
+      if (title.length > 40) title = title.substring(0, 40);
+      var description = String(parsed.description || '').replace(/\\n/g, '\n');
+
+      results.push({ title: title, description: description });
+      console.log('メルカリテキスト生成OK: ' + pr.targetId + ' → ' + title);
+    } catch (e) {
+      console.error('メルカリテキスト生成エラー (商品 ' + pr.targetId + '): ' + (e.message || e));
+      results.push(om_fallbackText_(pr));
+    }
+  }
+  return results;
+}
+
+/**
+ * API失敗時のフォールバック（従来のテンプレート形式）
+ */
+function om_fallbackText_(pr) {
+  var title = (pr.brand || '') + ' ' + (pr.item || '古着') + ' ' + (pr.size || '');
+  if (title.length > 40) title = title.substring(0, 40);
+
+  var desc = '【ブランド】' + (pr.brand || '') + '\n'
+    + '【サイズ】' + (pr.size || '') + '\n'
+    + '【状態】' + (pr.condition || '') + '\n';
+  if (pr.damageDetail) desc += '【状態詳細】\n' + pr.damageDetail + '\n';
+  desc += '【実寸(cm)】\n' + (pr.measurementText || '') + '\n'
+    + '\n※素人採寸のため多少の誤差はご了承ください。';
+
+  return { title: title.trim(), description: desc };
 }

@@ -34,19 +34,20 @@ RETRY_MAX = 3
 SLEEP_SEC = 1.0
 TITLE_MAX_LEN = 40
 
-# 列マッピング（1-indexed、仕様書準拠）
+# 列マッピング（1-indexed、新構成）
 COL_CONFIRM = 1       # A: 確認
-COL_BOX_ID = 2        # B: 箱ID
-COL_MANAGE_NO = 3     # C: 管理番号
-COL_BRAND = 4         # D: ブランド
-COL_AI_TITLE = 5      # E: AIタイトル候補 → 生成タイトルで上書き
-COL_ITEM = 6          # F: アイテム
-COL_SIZE = 7          # G: サイズ
-COL_CONDITION = 8     # H: 状態
-COL_DAMAGE = 9        # I: 傷汚れ詳細
-COL_MEASUREMENTS = 10 # J: 採寸情報
-COL_DESCRIPTION = 11  # K: 即出品用説明文 → 生成説明文で上書き
-COL_PRICE = 12        # L: 金額
+COL_AI_TITLE = 2      # B: メルカリ用タイトル → 生成タイトルで上書き
+COL_DESCRIPTION = 3   # C: 即出品用説明文 → 生成説明文で上書き
+COL_BOX_ID = 4        # D: 箱ID
+COL_MANAGE_NO = 5     # E: 管理番号
+COL_BRAND = 6         # F: ブランド
+COL_AI_KEYWORDS = 7   # G: AIキーワード
+COL_ITEM = 8          # H: アイテム
+COL_SIZE = 9          # I: サイズ
+COL_CONDITION = 10    # J: 状態
+COL_DAMAGE = 11       # K: 傷汚れ詳細
+COL_MEASUREMENTS = 12 # L: 採寸情報
+COL_PRICE = 13        # M: 金額
 
 # ヘッダー行の設定
 HEADER_ROW = 2         # 2行目が列ヘッダー
@@ -82,7 +83,7 @@ def read_row_data(ws, row):
     return {
         "manage_no": cell_str(ws, row, COL_MANAGE_NO),
         "brand": cell_str(ws, row, COL_BRAND),
-        "ai_keywords": cell_str(ws, row, COL_AI_TITLE),
+        "ai_keywords": cell_str(ws, row, COL_AI_KEYWORDS),
         "item": cell_str(ws, row, COL_ITEM),
         "size": cell_str(ws, row, COL_SIZE),
         "condition": cell_str(ws, row, COL_CONDITION),
