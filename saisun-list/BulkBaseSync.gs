@@ -62,9 +62,96 @@ function baseUpdateStock_(itemId, stock, variationId) {
   }
 }
 
+// =====================================================
+// BASE 画像同期
+// =====================================================
+
+/**
+ * BASE商品に画像をアップロード（既存画像を上書き）
+ * @param {string} itemId - BASE商品ID
+ * @param {number} imageNo - 画像番号（1-5）
+ * @param {string} imageUrl - 画像URL
+ * @returns {boolean} 成功したか
+ */
+function baseAddImage_(itemId, imageNo, imageUrl) {
+  if (!imageUrl) return false;
+  try {
+    var imgResp = UrlFetchApp.fetch(imageUrl, { muteHttpExceptions: true, followRedirects: true });
+    if (imgResp.getResponseCode() !== 200) {
+      console.log('画像取得失敗 (rc=' + imgResp.getResponseCode() + '): ' + imageUrl);
+      return false;
+    }
+    var blob = imgResp.getBlob().setName('image_' + imageNo + '.jpg');
+    var token = baseGetAccessToken_();
+
+    var resp = UrlFetchApp.fetch(BASE_APP.API_BASE + '/1/items/add_image', {
+      method: 'post',
+      headers: { Authorization: 'Bearer ' + token },
+      payload: { item_id: String(itemId), image_no: String(imageNo), image: blob },
+      muteHttpExceptions: true
+    });
+
+    var rc = resp.getResponseCode();
+    if (rc < 200 || rc >= 300) {
+      console.error('BASE画像追加失敗 item=' + itemId + ' no=' + imageNo + ' rc=' + rc);
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error('baseAddImage_ error: ' + (e.message || e));
+    return false;
+  }
+}
+
+/**
+ * BASE商品の画像を削除
+ * @param {string} itemId - BASE商品ID
+ * @param {number} imageNo - 画像番号（1-5）
+ */
+function baseDeleteImage_(itemId, imageNo) {
+  try {
+    var token = baseGetAccessToken_();
+    var resp = UrlFetchApp.fetch(BASE_APP.API_BASE + '/1/items/delete_image', {
+      method: 'post',
+      headers: { Authorization: 'Bearer ' + token },
+      contentType: 'application/x-www-form-urlencoded',
+      payload: baseToFormEncoded_({ item_id: String(itemId), image_no: String(imageNo) }),
+      muteHttpExceptions: true
+    });
+    return resp.getResponseCode() >= 200 && resp.getResponseCode() < 300;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * アソート商品の画像（最大5枚）をBASEに同期
+ * 既存画像を削除してから新しい画像をアップロード
+ * @param {string} itemId - BASE商品ID
+ * @param {string[]} imageUrls - 画像URL配列（最大5要素）
+ * @returns {number} アップロード成功数
+ */
+function baseSyncImages_(itemId, imageUrls) {
+  // 既存画像を削除（エラーは無視）
+  for (var i = 1; i <= 5; i++) {
+    baseDeleteImage_(itemId, i);
+    Utilities.sleep(200);
+  }
+  // 新しい画像をアップロード
+  var uploaded = 0;
+  for (var j = 0; j < imageUrls.length && j < 5; j++) {
+    if (!imageUrls[j]) continue;
+    if (baseAddImage_(itemId, j + 1, imageUrls[j])) {
+      uploaded++;
+    }
+    Utilities.sleep(300);
+  }
+  return uploaded;
+}
+
 /**
  * BASE商品とアソート商品を商品名で自動マッチし、R列にBASE商品IDを書き込む
- * GASエディタから手動実行する
+ * GASエディタから手動実行する（初回紐付け用）
  */
 function baseMatchBulkProducts() {
   var baseItems = baseListAllItems_();
@@ -246,10 +333,11 @@ function baseSyncStockFromOrders_() {
     var itemHeader = shItem.getRange(1, 1, 1, shItem.getLastColumn()).getValues()[0];
     var itemMap = buildHeaderMap_(itemHeader);
 
-    var idxName = findAnyCol_(itemMap, ['商品名']);
+    var idxBaseItemId = findAnyCol_(itemMap, ['商品ID']);
     var idxQty = findAnyCol_(itemMap, ['数量']);
     var idxStatus = findAnyCol_(itemMap, ['ステータス']);
-    if (idxName === -1 || idxQty === -1) return;
+    var idxName = findAnyCol_(itemMap, ['商品名']);
+    if (idxBaseItemId === -1 || idxQty === -1) return;
 
     var items = shItem.getRange(2, 1, itemLastRow - 1, shItem.getLastColumn()).getValues();
 
@@ -264,11 +352,11 @@ function baseSyncStockFromOrders_() {
     var c = BULK_CONFIG.cols;
     var bulkData = bulkSh.getRange(2, 1, bulkLastRow - 1, BULK_SHEET_HEADER.length).getValues();
 
-    // アソート商品名→行インデックスマップ
-    var nameToRow = {};
+    // BASE商品ID（R列）→ 行インデックスマップ
+    var baseIdToRow = {};
     for (var r = 0; r < bulkData.length; r++) {
-      var name = String(bulkData[r][c.name] || '').trim();
-      if (name) nameToRow[name] = r;
+      var bid = String(bulkData[r][c.baseItemId] || '').trim();
+      if (bid) baseIdToRow[bid] = r;
     }
 
     // 処理済みチェック用のプロパティ
@@ -278,14 +366,14 @@ function baseSyncStockFromOrders_() {
 
     var changed = false;
     for (var i = lastProcessedRow; i < items.length; i++) {
-      var itemName = String(items[i][idxName] || '').trim();
+      var orderBaseId = String(items[i][idxBaseItemId] || '').trim();
       var qty = Number(items[i][idxQty]) || 0;
       var status = (idxStatus !== -1) ? String(items[i][idxStatus] || '').trim() : '';
 
       if (status === 'キャンセル') continue;
-      if (!itemName || qty <= 0) continue;
+      if (!orderBaseId || qty <= 0) continue;
 
-      var bulkRow = nameToRow[itemName];
+      var bulkRow = baseIdToRow[orderBaseId];
       if (bulkRow === undefined) continue;
 
       var currentStock = bulkData[bulkRow][c.stock];
@@ -295,7 +383,8 @@ function baseSyncStockFromOrders_() {
       var newStock = Math.max(0, currentStock - qty);
       bulkData[bulkRow][c.stock] = newStock;
       changed = true;
-      console.log('BASE注文在庫減: ' + itemName + ' ' + currentStock + ' → ' + newStock);
+      var itemLabel = (idxName !== -1) ? String(items[i][idxName] || '').trim() : orderBaseId;
+      console.log('BASE注文在庫減: ' + itemLabel + ' (ID:' + orderBaseId + ') ' + currentStock + ' → ' + newStock);
     }
 
     if (changed) {
@@ -404,6 +493,15 @@ function baseSyncProductsToBase() {
     if (isNaN(stock)) stock = -1;
     var baseStock = stock === -1 ? 999 : Math.max(0, stock);
 
+    // 画像URL取得（G-K列）
+    var imageUrls = [
+      String(data[r][c.image1] || '').trim(),
+      String(data[r][c.image2] || '').trim(),
+      String(data[r][c.image3] || '').trim(),
+      String(data[r][c.image4] || '').trim(),
+      String(data[r][c.image5] || '').trim()
+    ];
+
     // BASE商品IDが未設定 → 新規登録
     if (!baseItemId) {
       if (!isActive) { skipped++; continue; } // 非公開は登録しない
@@ -425,22 +523,36 @@ function baseSyncProductsToBase() {
           sheetChanged = true;
           created++;
           console.log('BASE新規登録: ' + name + ' → ID:' + newId);
+
+          // 新規登録後に画像をアップロード
+          var hasNewImages = imageUrls.some(function(u) { return !!u; });
+          if (hasNewImages) {
+            try {
+              var imgCount = baseSyncImages_(newId, imageUrls);
+              console.log('BASE画像アップロード: ' + name + ' (' + imgCount + '枚)');
+            } catch (imgE) {
+              console.error('BASE画像エラー: ' + name + ' - ' + (imgE.message || imgE));
+            }
+          }
+
+          // スナップショット登録して次の商品へ
+          current[newId] = name + '|' + description + '|' + price + '|' + isActive + '|' + stock + '|' + imageUrls.join(',');
         }
       } catch (e) {
         console.error('BASE新規登録エラー: ' + name + ' - ' + (e.message || e));
       }
 
       Utilities.sleep(300);
-      if (!baseItemId) continue;
+      continue;
     }
 
-    // 現在の状態をハッシュ化して比較
-    var hash = name + '|' + description + '|' + price + '|' + isActive + '|' + stock;
+    // 現在の状態をハッシュ化して比較（画像URLも含む）
+    var hash = name + '|' + description + '|' + price + '|' + isActive + '|' + stock + '|' + imageUrls.join(',');
     current[baseItemId] = hash;
 
     if (prev[baseItemId] === hash) { skipped++; continue; }
 
-    // 差分あり → BASEに反映
+    // 差分あり → BASEに反映（商品情報 + 在庫）
     try {
       baseEditItem_(baseItemId, {
         title: name,
@@ -448,12 +560,28 @@ function baseSyncProductsToBase() {
         price: String(price),
         visible: isActive ? '1' : '0'
       });
-      // 在庫は edit_stock エンドポイントで別途更新
       baseUpdateStock_(baseItemId, baseStock);
       updated++;
       console.log('BASE同期: ' + name + ' (変更あり, 在庫:' + baseStock + ')');
     } catch (e) {
       console.error('BASE同期エラー: ' + name + ' - ' + (e.message || e));
+    }
+
+    // 画像の差分チェック — 画像部分が変わった場合のみ画像同期
+    var prevHash = prev[baseItemId] || '';
+    var prevParts = prevHash.split('|');
+    var prevImgPart = prevParts.length >= 6 ? prevParts.slice(5).join('|') : '';
+    var curImgPart = imageUrls.join(',');
+    if (prevImgPart !== curImgPart) {
+      var hasImages = imageUrls.some(function(u) { return !!u; });
+      if (hasImages) {
+        try {
+          var imgUpdated = baseSyncImages_(baseItemId, imageUrls);
+          console.log('BASE画像更新: ' + name + ' (' + imgUpdated + '枚)');
+        } catch (imgE) {
+          console.error('BASE画像更新エラー: ' + name + ' - ' + (imgE.message || imgE));
+        }
+      }
     }
 
     Utilities.sleep(300);
