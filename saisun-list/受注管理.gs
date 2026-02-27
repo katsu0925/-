@@ -853,52 +853,64 @@ var OM_CONDITION_WORD_MAP = {
 /**
  * メルカリで売れるタイトルをGASロジックで組み立て（40文字以内）
  *
- * 優先順: 状態ワード → ブランド名 → AIキーワード(画像特徴) → アイテム名(補完) → サイズ
- * - AIキーワードは画像から抽出した具体的特徴（ブランド名・色・サイズは含まれない）
- * - アイテム名(カテゴリ2)は「トップス」等の汎用分類なので、AIキーワードが具体的なら補完程度
- * - 長いキーワードが入らなくても短い後続キーワードは入れる（break→continue）
+ * 構造: [状態ワード] [ブランド] [AIキーワード連結+アイテム名] [サイズ]
+ * - メジャーセグメント間のみスペース、日本語キーワード同士はスペースなしで連結
+ *   → 文字数を最大活用（スペース区切りだと6〜7文字無駄になる）
+ * - 収まらない場合: アイテム名除外 → AIキーワード末尾から削減 → フォールバック
  */
 function om_buildTitle_(pr) {
   var TITLE_MAX = 40;
 
-  // キーワードリストを優先順で構築
-  var keywords = [];
-
-  // 1. 状態ワード
   var condWord = OM_CONDITION_WORD_MAP[pr.condition] || '';
-  if (condWord) keywords.push(condWord);
-
-  // 2. ブランド名
   var brand = String(pr.brand || '').trim();
-  if (brand) keywords.push(brand);
-
-  // 3. AIキーワード（画像ベースの具体的デザイン特徴）
   var brandLower = brand.toLowerCase();
+
+  var aiWords = [];
   if (pr.aiKeywords) {
     String(pr.aiKeywords).split(/[\s　,、]+/).forEach(function(s) {
       var t = s.trim();
-      if (t && t.toLowerCase() !== brandLower) keywords.push(t);
+      if (t && t.toLowerCase() !== brandLower) aiWords.push(t);
     });
   }
 
-  // 4. アイテム名（カテゴリ2 — AIキーワードが少ない場合の補完）
   var itemName = String(pr.item || '').trim();
-  if (itemName) keywords.push(itemName);
-
-  // 5. サイズ（最後）
   var sizeStr = String(pr.size || '').trim();
-  if (sizeStr) keywords.push(sizeStr);
 
-  // 先頭から順に足して40文字以内に収める
-  // 入らないキーワードはスキップして次を試す（短いサイズ等を確実に入れる）
-  var parts = [];
-  for (var i = 0; i < keywords.length; i++) {
-    var test = parts.length > 0 ? parts.join(' ') + ' ' + keywords[i] : keywords[i];
-    if (test.length > TITLE_MAX) continue;
-    parts.push(keywords[i]);
+  // セグメント組み立て: AIキーワードはスペースなし連結で文字数最大化
+  function build(words, includeItem) {
+    var segs = [];
+    if (condWord) segs.push(condWord);
+    if (brand) segs.push(brand);
+    var phrase = words.join('');
+    if (includeItem && itemName) phrase += itemName;
+    if (phrase) segs.push(phrase);
+    if (sizeStr) segs.push(sizeStr);
+    return segs.join(' ');
   }
 
-  return parts.join(' ');
+  // Step 1: 全入り（AIキーワード+アイテム名）
+  var title = build(aiWords, true);
+  if (title.length <= TITLE_MAX) return title;
+
+  // Step 2: アイテム名を除外（「トップス」等の汎用カテゴリは検索価値が低い）
+  title = build(aiWords, false);
+  if (title.length <= TITLE_MAX) return title;
+
+  // Step 3: AIキーワードを末尾から削って収める
+  var words = aiWords.slice();
+  while (words.length > 0) {
+    words.pop();
+    title = build(words, false);
+    if (title.length <= TITLE_MAX) return title;
+  }
+
+  // Step 4: フォールバック（AIキーワードなし）
+  var segs = [];
+  if (condWord) segs.push(condWord);
+  if (brand) segs.push(brand);
+  if (itemName) segs.push(itemName);
+  if (sizeStr) segs.push(sizeStr);
+  return segs.join(' ').substring(0, TITLE_MAX);
 }
 
 var OM_MERCARI_SYSTEM_PROMPT = 'あなたはメルカリでの古着販売に特化した、プロの出品テキストライターです。\n'
