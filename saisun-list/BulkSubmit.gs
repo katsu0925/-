@@ -369,3 +369,70 @@ function bulk_deductStock_(orderItems) {
 
   bulk_clearCache_();
 }
+
+/**
+ * キャンセル時に在庫を復帰（+ BASE在庫も同期）
+ * @param {string} selectionList - 選択リスト文字列（J列）
+ * @param {number} totalCount - 合計点数（K列）
+ */
+function bulk_restoreStock_(selectionList, totalCount) {
+  try {
+    var ss = bulk_getSs_();
+    var sh = ss.getSheetByName(BULK_CONFIG.sheetName);
+    if (!sh) return;
+
+    var c = BULK_CONFIG.cols;
+    var lastRow = sh.getLastRow();
+    if (lastRow < 2) return;
+
+    var data = sh.getRange(2, 1, lastRow - 1, BULK_SHEET_HEADER.length).getValues();
+
+    // 選択リストから商品名→数量を解析
+    // 形式例: "商品A × 2\n商品B × 1"
+    var itemQtyMap = {};
+    var lines = String(selectionList || '').split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      var match = line.match(/^(.+?)\s*[×x]\s*(\d+)/i);
+      if (match) {
+        itemQtyMap[match[1].trim()] = Number(match[2]) || 1;
+      }
+    }
+
+    if (Object.keys(itemQtyMap).length === 0) return;
+
+    var changed = false;
+    for (var r = 0; r < data.length; r++) {
+      var name = String(data[r][c.name] || '').trim();
+      if (!name || !itemQtyMap[name]) continue;
+
+      var stockRaw = data[r][c.stock];
+      var stock = (stockRaw === '' || stockRaw === null || stockRaw === undefined) ? -1 : Number(stockRaw);
+      if (isNaN(stock)) stock = -1;
+      if (stock === -1) continue; // 無制限はスキップ
+
+      var newStock = stock + itemQtyMap[name];
+      var rowNum = r + 2;
+      sh.getRange(rowNum, c.stock + 1).setValue(newStock);
+
+      // 在庫が復活したら公開に戻す
+      if (stock === 0 && newStock > 0) {
+        sh.getRange(rowNum, c.active + 1).setValue(true);
+      }
+
+      changed = true;
+      console.log('在庫復帰: ' + name + ' ' + stock + ' → ' + newStock);
+
+      // BASE在庫も同期
+      var pid = String(data[r][c.productId] || '').trim();
+      if (pid) {
+        try { baseSyncSingleStock_(pid); } catch (e) { console.error('BASE在庫復帰同期エラー:', e); }
+      }
+    }
+
+    if (changed) bulk_clearCache_();
+  } catch (e) {
+    console.error('bulk_restoreStock_ error:', e);
+  }
+}

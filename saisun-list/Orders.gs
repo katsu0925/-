@@ -147,8 +147,10 @@ function od_writeOpenLogSheetFromState_(orderSs, openItems, nowMs) {
 function od_handleRequestSheetStatusEdits_(orderSs, requestSheet, startRow, endRow, nowMs) {
   const numRows = Math.max(0, endRow - startRow + 1);
   if (numRows === 0) return;
-  
-  const values = requestSheet.getRange(startRow, 1, numRows, 32).getValues();
+
+  // AG列(チャネル)まで読み取る
+  var readCols = Math.max(33, REQUEST_SHEET_COLS.CHANNEL || 33);
+  const values = requestSheet.getRange(startRow, 1, numRows, readCols).getValues();
 
   var rc = APP_CONFIG.requestCols || {};
   for (let i = 0; i < values.length; i++) {
@@ -158,6 +160,20 @@ function od_handleRequestSheetStatusEdits_(orderSs, requestSheet, startRow, endR
     const status = String(row[rc.status || 21] || '').trim();
 
     if (!receiptNo) continue;
+
+    // キャンセル時にアソート在庫を復帰
+    if (status === 'キャンセル') {
+      var channel = String(row[(REQUEST_SHEET_COLS.CHANNEL || 33) - 1] || '').trim();
+      var totalCount = Number(row[(REQUEST_SHEET_COLS.TOTAL_COUNT || 11) - 1] || 0);
+      if (channel === 'アソート' && selectionList) {
+        try {
+          bulk_restoreStock_(selectionList, totalCount);
+          console.log('キャンセル在庫復帰: ' + receiptNo + ' (' + channel + ')');
+        } catch (restoreErr) {
+          console.error('キャンセル在庫復帰エラー: ' + receiptNo, restoreErr);
+        }
+      }
+    }
 
     od_syncOpenStateForReceipt_(orderSs, receiptNo, selectionList, status, nowMs);
   }

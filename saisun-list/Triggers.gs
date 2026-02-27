@@ -123,7 +123,9 @@ function tr_setupTriggersOnce_() {
     { fn: 'cronPointExpiry', type: 'daily', hour: 6 },
     { fn: 'cronRfmAnalysis', type: 'weekly', hour: 7 },
     { fn: 'cronProductAnalytics', type: 'daily', hour: 7 },
-    { fn: 'cronStatsCache', type: 'hours', interval: 1 }
+    { fn: 'cronStatsCache', type: 'hours', interval: 1 },
+    // BASE連携
+    { fn: 'baseSyncProductsToBase', type: 'minutes', interval: 5 }
   ];
 
   // 旧プライベート名→新公開名のマッピング（旧トリガーが残っている場合も重複登録しない）
