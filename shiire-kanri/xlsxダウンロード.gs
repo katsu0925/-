@@ -7,7 +7,7 @@ function getXlsxProp_(key, fallback) {
 const SOURCE_SPREADSHEET_ID = getXlsxProp_('XLSX_SOURCE_SPREADSHEET_ID', '1lp7XngTC0Nnc6SaA_-KlZ0SZVuRiVml6ICZ5L2riQTo');
 const SOURCE_SHEET_GID = 1614333946;
 const NAME_SHEET_NAME = '配布用リスト';
-const NAME_CELL_A1 = 'F1';
+const NAME_CELL_A1 = 'E1';
 const RECEIPT_CELL = 'B1';
 const EXPORT_FOLDER_ID = getXlsxProp_('XLSX_EXPORT_FOLDER_ID', '1lq8Xb_dVwz5skrXlGvrS5epTwEc_yEts');
 const REQUEST_SPREADSHEET_ID = getXlsxProp_('XLSX_REQUEST_SPREADSHEET_ID', '1eDkAMm_QUDFHbSzkL4IMaFeB2YV6_Gw5Dgi-HqIB2Sc');

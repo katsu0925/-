@@ -13,7 +13,7 @@ function getOmProp_(key, fallback) {
 }
 var OM_SHIIRE_SS_ID = getOmProp_('OM_SHIIRE_SS_ID', '');
 var OM_DIST_SHEET_GID  = 1614333946;
-var OM_DIST_NAME_CELL  = 'F1';
+var OM_DIST_NAME_CELL  = 'E1';
 var OM_DIST_RECEIPT_CELL = 'B1';
 var OM_MERCARI_MODEL = 'gpt-4o-mini';
 var OM_XLSX_FOLDER_ID  = getOmProp_('OM_XLSX_FOLDER_ID', '');
@@ -342,19 +342,16 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
     // --- Phase 2: 配布用リスト生成 + OpenAI API でタイトル・説明文自動生成 + XLSX出力 ---
     var maxRows = exportSheet.getMaxRows();
     var maxCols = exportSheet.getMaxColumns();
-    // 全行クリア（Row 1のメタ情報残骸も含めて）
-    exportSheet.getRange(1, 1, maxRows, maxCols).clearContent();
-    if (maxRows >= 2) {
-      exportSheet.getRange(2, 1, maxRows - 1, 1).removeCheckboxes();
+    // データ行のみクリア（Row 1固定ラベル・Row 2ヘッダーは触らない）
+    if (maxRows >= 3) {
+      exportSheet.getRange(3, 1, maxRows - 2, maxCols).clearContent();
+      exportSheet.getRange(3, 1, maxRows - 2, 1).removeCheckboxes();
     }
-    exportSheet.getRange('A1').setValue('受付番号');
+    // Row 1: 値セルのみ書き込み（A1,D1,G1,H1 は固定ラベルなので触らない）
     exportSheet.getRange('B1').setValue(receiptNo);
-    exportSheet.getRange('F1').setValue(customerName);
-    exportSheet.getRange('I1').setValue('合計金額');
+    exportSheet.getRange('E1').setValue(customerName);
 
-    // 新列構成: タイトル・説明文を前方に配置
-    var headerRow = ['確認', 'メルカリ用タイトル', '即出品用説明文（コピペ用）', '箱ID', '管理番号(照合用)', 'ブランド', 'AIキーワード', 'アイテム', 'サイズ', '状態', '傷汚れ詳細', '採寸情報', '金額'];
-    var exportData = [headerRow];
+    var exportData = [];
     var totalPrice = 0;
 
     // 各商品のデータを収集
@@ -372,6 +369,10 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
       if (!boxId && mIdx['箱ID'] !== undefined) {
         boxId = String(row[mIdx['箱ID']] || '');
       }
+      // 箱ID: 2つ目のハイフン以降（名前部分）を除外
+      boxId = String(boxId || '');
+      var boxParts = boxId.split('-');
+      if (boxParts.length > 2) boxId = boxParts[0] + '-' + boxParts[1];
 
       var condition = row[mIdx['状態']] || '目立った傷や汚れなし';
       var damageDetail = row[mIdx['傷汚れ詳細']] || '';
@@ -440,14 +441,13 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
       ]);
     }
 
-    exportSheet.getRange(2, 1, exportData.length, exportData[0].length).setValues(exportData);
-    exportSheet.getRange('J1').setValue(totalPrice.toLocaleString('ja-JP') + '円');
-    if (exportData.length > 1) {
-      exportSheet.getRange(3, 1, exportData.length - 1, 1).insertCheckboxes();
+    if (exportData.length > 0) {
+      exportSheet.getRange(3, 1, exportData.length, 13).setValues(exportData);
+      exportSheet.getRange(3, 1, exportData.length, 1).insertCheckboxes();
+      // データ行の高さをデフォルト（21px）にリセット（Row 1-2は触らない）
+      exportSheet.setRowHeightsForced(3, exportData.length, 21);
     }
-
-    // 行の高さをデフォルト（21px）にリセット
-    exportSheet.setRowHeightsForced(1, exportData.length + 1, 21);
+    exportSheet.getRange('I1').setValue(totalPrice.toLocaleString('ja-JP') + '円');
 
     SpreadsheetApp.flush();
 
@@ -884,62 +884,71 @@ function om_generateMercariTexts_(productRows) {
     return productRows.map(function(pr) { return om_fallbackText_(pr); });
   }
 
-  var results = [];
+  // 全商品を1回のAPI呼び出しでバッチ生成（逐次→一括で大幅短縮）
+  var userMsg = '以下の' + productRows.length + '件の商品データそれぞれについて、メルカリ用のタイトルと商品説明文を生成してください。\n'
+    + '結果は {"items": [{...}, {...}]} の形式で、入力順と同じ順序で返してください。\n\n';
+
   for (var i = 0; i < productRows.length; i++) {
     var pr = productRows[i];
-    try {
-      var userMsg = '以下の商品データからメルカリ用のタイトルと商品説明文を生成してください。\n\n'
-        + 'ブランド: ' + (pr.brand || '（なし）') + '\n'
-        + 'AIキーワード（デザイン情報）: ' + (pr.aiKeywords || '（なし）') + '\n'
-        + 'アイテム: ' + (pr.item || '（なし）') + '\n'
-        + 'サイズ: ' + (pr.size || '（なし）') + '\n'
-        + '状態: ' + (pr.condition || '（なし）') + '\n'
-        + '傷汚れ詳細: ' + (pr.damageDetail || '（なし）') + '\n'
-        + '採寸情報: ' + (pr.measurementText || '（なし）') + '\n'
-        + '販売価格: ' + (pr.priceText || '（なし）');
-
-      var payload = {
-        model: OM_MERCARI_MODEL,
-        messages: [
-          { role: 'system', content: OM_MERCARI_SYSTEM_PROMPT },
-          { role: 'user', content: userMsg }
-        ],
-        max_tokens: 2048,
-        temperature: 0.4,
-        response_format: { type: 'json_object' }
-      };
-
-      var resp = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'post',
-        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-        payload: JSON.stringify(payload),
-        muteHttpExceptions: true
-      });
-
-      var code = resp.getResponseCode();
-      if (code < 200 || code >= 300) {
-        console.error('OpenAI API error (商品 ' + pr.targetId + '): HTTP ' + code);
-        results.push(om_fallbackText_(pr));
-        continue;
-      }
-
-      var body = JSON.parse(resp.getContentText());
-      var content = (body.choices && body.choices[0] && body.choices[0].message && body.choices[0].message.content) || '';
-      content = content.trim().replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
-      var parsed = JSON.parse(content);
-
-      var title = String(parsed.title || '').trim();
-      if (title.length > 40) title = title.substring(0, 40);
-      var description = String(parsed.description || '').replace(/\\n/g, '\n');
-
-      results.push({ title: title, description: description });
-      console.log('メルカリテキスト生成OK: ' + pr.targetId + ' → ' + title);
-    } catch (e) {
-      console.error('メルカリテキスト生成エラー (商品 ' + pr.targetId + '): ' + (e.message || e));
-      results.push(om_fallbackText_(pr));
-    }
+    userMsg += '--- 商品' + (i + 1) + ' ---\n'
+      + 'ブランド: ' + (pr.brand || '（なし）') + '\n'
+      + 'AIキーワード（デザイン情報）: ' + (pr.aiKeywords || '（なし）') + '\n'
+      + 'アイテム: ' + (pr.item || '（なし）') + '\n'
+      + 'サイズ: ' + (pr.size || '（なし）') + '\n'
+      + '状態: ' + (pr.condition || '（なし）') + '\n'
+      + '傷汚れ詳細: ' + (pr.damageDetail || '（なし）') + '\n'
+      + '採寸情報: ' + (pr.measurementText || '（なし）') + '\n'
+      + '販売価格: ' + (pr.priceText || '（なし）') + '\n\n';
   }
-  return results;
+
+  try {
+    var payload = {
+      model: OM_MERCARI_MODEL,
+      messages: [
+        { role: 'system', content: OM_MERCARI_SYSTEM_PROMPT },
+        { role: 'user', content: userMsg }
+      ],
+      max_tokens: Math.min(productRows.length * 512, 16384),
+      temperature: 0.4,
+      response_format: { type: 'json_object' }
+    };
+
+    var resp = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'post',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+
+    var code = resp.getResponseCode();
+    if (code < 200 || code >= 300) {
+      console.error('OpenAI API batch error: HTTP ' + code + ' ' + resp.getContentText().substring(0, 200));
+      return productRows.map(function(pr) { return om_fallbackText_(pr); });
+    }
+
+    var body = JSON.parse(resp.getContentText());
+    var content = (body.choices && body.choices[0] && body.choices[0].message && body.choices[0].message.content) || '';
+    content = content.trim().replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+    var parsed = JSON.parse(content);
+
+    var items = parsed.items || [];
+    var results = [];
+    for (var j = 0; j < productRows.length; j++) {
+      var item = items[j];
+      if (item && item.title && item.description) {
+        var title = String(item.title).trim();
+        if (title.length > 40) title = title.substring(0, 40);
+        results.push({ title: title, description: String(item.description).replace(/\\n/g, '\n') });
+      } else {
+        results.push(om_fallbackText_(productRows[j]));
+      }
+    }
+    console.log('メルカリテキスト一括生成OK: ' + results.length + '件');
+    return results;
+  } catch (e) {
+    console.error('メルカリテキスト一括生成エラー: ' + (e.message || e));
+    return productRows.map(function(pr) { return om_fallbackText_(pr); });
+  }
 }
 
 /**
