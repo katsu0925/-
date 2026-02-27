@@ -54,21 +54,22 @@ var CUSTOMER_SHEET_COLS = {
 // =====================================================
 
 function setupCronTriggers() {
+  // ga4SyncAll → saisun-list に戻したためこのプロジェクトでは登録しない
   var targetFns = [
-    'cronProductAnalytics', 'cronRfmAnalysis', 'ga4SyncAll',
+    'cronProductAnalytics', 'cronRfmAnalysis',
     'rewardUpdateDaily', 'generateDailyArticle'
   ];
 
   // 対象トリガーのみ削除（既存のonOpenトリガー等は残す）
   var triggers = ScriptApp.getProjectTriggers();
   for (var i = 0; i < triggers.length; i++) {
-    if (targetFns.indexOf(triggers[i].getHandlerFunction()) !== -1) {
+    if (targetFns.indexOf(triggers[i].getHandlerFunction()) !== -1 ||
+        triggers[i].getHandlerFunction() === 'ga4SyncAll') {
       ScriptApp.deleteTrigger(triggers[i]);
     }
   }
 
   // 毎日6時
-  ScriptApp.newTrigger('ga4SyncAll').timeBased().everyDays(1).atHour(6).create();
   ScriptApp.newTrigger('generateDailyArticle').timeBased().everyDays(1).atHour(6).create();
   ScriptApp.newTrigger('rewardUpdateDaily').timeBased().everyDays(1).atHour(6).create();
   // 毎日7時

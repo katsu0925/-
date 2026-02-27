@@ -991,16 +991,16 @@ function processCustomerPoints() {
   // 顧客メール→行番号マップ
   var custMap = {};
   for (var i = 1; i < custData.length; i++) {
-    var email = String(custData[i][1] || '').trim().toLowerCase();
-    if (email) custMap[email] = { row: i + 1, points: Number(custData[i][12]) || 0 };
+    var email = String(custData[i][CUSTOMER_SHEET_COLS.EMAIL] || '').trim().toLowerCase();
+    if (email) custMap[email] = { row: i + 1, points: Number(custData[i][CUSTOMER_SHEET_COLS.POINTS]) || 0 };
   }
 
   var awarded = 0;
   for (var i = 1; i < reqData.length; i++) {
-    var status = String(reqData[i][21] || '');       // V列: ステータス
-    var pointFlag = String(reqData[i][17] || '');     // R列: ポイント付与済
-    var email = String(reqData[i][3] || '').trim().toLowerCase(); // D列: 連絡先
-    var total = Number(reqData[i][11]) || 0;         // L列: 合計金額
+    var status = String(reqData[i][REQUEST_SHEET_COLS.STATUS - 1] || '');
+    var pointFlag = String(reqData[i][REQUEST_SHEET_COLS.POINTS_AWARDED - 1] || '');
+    var email = String(reqData[i][REQUEST_SHEET_COLS.CONTACT - 1] || '').trim().toLowerCase();
+    var total = Number(reqData[i][REQUEST_SHEET_COLS.TOTAL_AMOUNT - 1]) || 0;
 
     if (status === '完了' && pointFlag !== 'PT' && email && total > 0) {
       if (custMap[email]) {
@@ -1010,10 +1010,9 @@ function processCustomerPoints() {
         var points = Math.floor(total * pointRate);
         if (points > 0) {
           custMap[email].points += points;
-          custSheet.getRange(custMap[email].row, 13).setValue(custMap[email].points);
+          custSheet.getRange(custMap[email].row, CUSTOMER_SHEET_COLS.POINTS + 1).setValue(custMap[email].points);
           try { updatePointsTimestamp_(custMap[email].row); } catch(e2) {}
-          // R列にポイント付与済みマーク
-          reqSheet.getRange(i + 1, 18).setValue('PT');
+          reqSheet.getRange(i + 1, REQUEST_SHEET_COLS.POINTS_AWARDED).setValue('PT');
           awarded++;
         }
       }
@@ -1044,16 +1043,16 @@ function processCustomerPointsAuto_() {
 
     var custMap = {};
     for (var i = 1; i < custData.length; i++) {
-      var email = String(custData[i][1] || '').trim().toLowerCase();
-      if (email) custMap[email] = { row: i + 1, points: Number(custData[i][12]) || 0 };
+      var email = String(custData[i][CUSTOMER_SHEET_COLS.EMAIL] || '').trim().toLowerCase();
+      if (email) custMap[email] = { row: i + 1, points: Number(custData[i][CUSTOMER_SHEET_COLS.POINTS]) || 0 };
     }
 
     var awarded = 0;
     for (var i = 1; i < reqData.length; i++) {
-      var status = String(reqData[i][21] || '');
-      var pointFlag = String(reqData[i][17] || '');
-      var email = String(reqData[i][3] || '').trim().toLowerCase();
-      var total = Number(reqData[i][11]) || 0;
+      var status = String(reqData[i][REQUEST_SHEET_COLS.STATUS - 1] || '');
+      var pointFlag = String(reqData[i][REQUEST_SHEET_COLS.POINTS_AWARDED - 1] || '');
+      var email = String(reqData[i][REQUEST_SHEET_COLS.CONTACT - 1] || '').trim().toLowerCase();
+      var total = Number(reqData[i][REQUEST_SHEET_COLS.TOTAL_AMOUNT - 1]) || 0;
 
       if (status === '完了' && pointFlag !== 'PT' && email && total > 0) {
         if (custMap[email]) {
@@ -1062,9 +1061,9 @@ function processCustomerPointsAuto_() {
           var points = Math.floor(total * pointRate);
           if (points > 0) {
             custMap[email].points += points;
-            custSheet.getRange(custMap[email].row, 13).setValue(custMap[email].points);
+            custSheet.getRange(custMap[email].row, CUSTOMER_SHEET_COLS.POINTS + 1).setValue(custMap[email].points);
             try { updatePointsTimestamp_(custMap[email].row); } catch(e2) {}
-            reqSheet.getRange(i + 1, 18).setValue('PT');
+            reqSheet.getRange(i + 1, REQUEST_SHEET_COLS.POINTS_AWARDED).setValue('PT');
             awarded++;
           }
         }
@@ -1122,17 +1121,17 @@ function processInvoiceReceipts() {
 
   var sent = 0;
   for (var i = 1; i < data.length; i++) {
-    var status = String(data[i][21] || '');         // V列: ステータス
-    var invoiceFlag = String(data[i][25] || '');   // Z列: インボイス発行
-    var sentFlag = String(data[i][26] || '');       // AA列: インボイス状況
-    var email = String(data[i][3] || '').trim();   // D列: 連絡先
-    var companyName = String(data[i][2] || '');     // C列: 会社名
+    var status = String(data[i][REQUEST_SHEET_COLS.STATUS - 1] || '');
+    var invoiceFlag = String(data[i][REQUEST_SHEET_COLS.INVOICE_REQ - 1] || '');
+    var sentFlag = String(data[i][REQUEST_SHEET_COLS.INVOICE_SENT - 1] || '');
+    var email = String(data[i][REQUEST_SHEET_COLS.CONTACT - 1] || '').trim();
+    var companyName = String(data[i][REQUEST_SHEET_COLS.COMPANY_NAME - 1] || '');
 
     if (status === '完了' && invoiceFlag === '希望' && !sentFlag && email) {
-      var receiptNo = String(data[i][0] || '');
-      var orderDate = data[i][1] ? formatDate_(data[i][1]) : '';
-      var totalAmount = Number(data[i][11]) || 0;
-      var note = String(data[i][29] || '');         // AD列: 備考
+      var receiptNo = String(data[i][REQUEST_SHEET_COLS.RECEIPT_NO - 1] || '');
+      var orderDate = data[i][REQUEST_SHEET_COLS.DATETIME - 1] ? formatDate_(data[i][REQUEST_SHEET_COLS.DATETIME - 1]) : '';
+      var totalAmount = Number(data[i][REQUEST_SHEET_COLS.TOTAL_AMOUNT - 1]) || 0;
+      var note = String(data[i][REQUEST_SHEET_COLS.NOTE - 1] || '');
 
       try {
         sendInvoiceReceipt_(email, {
@@ -1143,7 +1142,7 @@ function processInvoiceReceipts() {
           note: note,
           invoiceNo: invoiceNo
         });
-        reqSheet.getRange(i + 1, 27).setValue('送付済');  // AA列: インボイス状況
+        reqSheet.getRange(i + 1, REQUEST_SHEET_COLS.INVOICE_SENT).setValue('送付済');
         sent++;
       } catch (e) {
         console.error('領収書送付エラー: ' + receiptNo, e);
@@ -1174,15 +1173,15 @@ function processCancelledInvoices() {
 
   var sent = 0;
   for (var i = 1; i < data.length; i++) {
-    var status = String(data[i][21] || '');          // V列: ステータス
-    var sentFlag = String(data[i][26] || '');        // AA列: インボイス状況
-    var email = String(data[i][3] || '').trim();     // D列: 連絡先
+    var status = String(data[i][REQUEST_SHEET_COLS.STATUS - 1] || '');
+    var sentFlag = String(data[i][REQUEST_SHEET_COLS.INVOICE_SENT - 1] || '');
+    var email = String(data[i][REQUEST_SHEET_COLS.CONTACT - 1] || '').trim();
 
     if ((status === 'キャンセル' || status === '返品') && sentFlag === '送付済' && email) {
-      var receiptNo = String(data[i][0] || '');
-      var companyName = String(data[i][2] || '');
-      var orderDate = data[i][1] ? formatDate_(data[i][1]) : '';
-      var totalAmount = Number(data[i][11]) || 0;
+      var receiptNo = String(data[i][REQUEST_SHEET_COLS.RECEIPT_NO - 1] || '');
+      var companyName = String(data[i][REQUEST_SHEET_COLS.COMPANY_NAME - 1] || '');
+      var orderDate = data[i][REQUEST_SHEET_COLS.DATETIME - 1] ? formatDate_(data[i][REQUEST_SHEET_COLS.DATETIME - 1]) : '';
+      var totalAmount = Number(data[i][REQUEST_SHEET_COLS.TOTAL_AMOUNT - 1]) || 0;
 
       try {
         sendCancelReceipt_(email, {
@@ -1193,7 +1192,7 @@ function processCancelledInvoices() {
           invoiceNo: invoiceNo,
           cancelType: status
         });
-        reqSheet.getRange(i + 1, 27).setValue('取消送付済');  // AA列: インボイス状況
+        reqSheet.getRange(i + 1, REQUEST_SHEET_COLS.INVOICE_SENT).setValue('取消送付済');
         sent++;
       } catch (e) {
         console.error('取消通知エラー: ' + receiptNo, e);
