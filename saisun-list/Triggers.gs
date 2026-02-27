@@ -102,6 +102,8 @@ function tr_setupTriggersOnce_() {
     { fn: 'cronProcessPoints', type: 'daily', hour: 5 },
     // 毎日6時
     { fn: 'cronPointExpiry', type: 'daily', hour: 6 },
+    // 毎日7時（インボイス領収書送付 + キャンセル取消）
+    { fn: 'cronDaily7', type: 'daily', hour: 7 },
     // generateDailyArticle, ga4SyncAll, rewardUpdateDaily → saisun-list-bulk に移動
     // cronProductAnalytics → saisun-list-bulk に移動
     // 毎日9時（ディスパッチャー: 2関数を1トリガーに統合）
@@ -144,6 +146,8 @@ function cronNewsletter() { newsletterSendCron_(); }
 function cronPointExpiry() { pointExpiryCron_(); }
 // cronRfmAnalysis, cronProductAnalytics → saisun-list-bulk に移動
 function cronStatsCache() { st_calculateAndCacheStats_(); }
+function cronInvoiceReceipts() { processInvoiceReceipts(); }
+function cronCancelledInvoices() { processCancelledInvoices(); }
 
 // =====================================================
 // ディスパッチャー（同一間隔のトリガーを統合してトリガー数を節約）
@@ -154,6 +158,14 @@ function cronEvery5min() {
   var fns = [cronExportProducts, baseSyncOrdersNow, baseSyncProductsToBase, notifyUnsentRequests];
   for (var i = 0; i < fns.length; i++) {
     try { fns[i](); } catch (e) { console.error('cronEvery5min [' + fns[i].name + ']:', e); }
+  }
+}
+
+/** 毎日7時: インボイス領収書送付 + キャンセル取消 */
+function cronDaily7() {
+  var fns = [cronInvoiceReceipts, cronCancelledInvoices];
+  for (var i = 0; i < fns.length; i++) {
+    try { fns[i](); } catch (e) { console.error('cronDaily7 [' + fns[i].name + ']:', e); }
   }
 }
 

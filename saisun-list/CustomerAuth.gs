@@ -1151,10 +1151,11 @@ function processInvoiceReceipts() {
     }
   }
 
+  console.log('processInvoiceReceipts: ' + sent + '件送付');
   if (sent > 0) {
-    SpreadsheetApp.getUi().alert('領収書送付完了: ' + sent + '件');
+    try { SpreadsheetApp.getUi().alert('領収書送付完了: ' + sent + '件'); } catch (e) { /* cron */ }
   } else {
-    SpreadsheetApp.getUi().alert('送付対象の注文はありませんでした');
+    try { SpreadsheetApp.getUi().alert('送付対象の注文はありませんでした'); } catch (e) { /* cron */ }
   }
 }
 
@@ -1200,10 +1201,11 @@ function processCancelledInvoices() {
     }
   }
 
+  console.log('processCancelledInvoices: ' + sent + '件送付');
   if (sent > 0) {
-    SpreadsheetApp.getUi().alert('取消通知送付完了: ' + sent + '件');
+    try { SpreadsheetApp.getUi().alert('取消通知送付完了: ' + sent + '件'); } catch (e) { /* cron */ }
   } else {
-    SpreadsheetApp.getUi().alert('取消対象の注文はありませんでした');
+    try { SpreadsheetApp.getUi().alert('取消対象の注文はありませんでした'); } catch (e) { /* cron */ }
   }
 }
 
