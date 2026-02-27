@@ -56,105 +56,70 @@ function setupTriggers() {
 }
 
 function tr_setupTriggersOnce_() {
-  const orderSs = sh_getOrderSs_();
-  const dataSs = sh_getDataSs_();
-  const targets = {};
-  targets[orderSs.getId()] = true;
-  targets[dataSs.getId()] = true;
+  // =====================================================
+  // 1. onEditトリガー（スプレッドシート別）
+  // =====================================================
+  var orderSs = sh_getOrderSs_();
+  var dataSs = sh_getDataSs_();
 
-  const triggers = ScriptApp.getProjectTriggers();
-  const has = {};
-  for (let i = 0; i < triggers.length; i++) {
-    const t = triggers[i];
-    const fn = t.getHandlerFunction ? t.getHandlerFunction() : '';
-    const sid = t.getTriggerSourceId ? t.getTriggerSourceId() : '';
-    if (fn === 'onEdit' && sid) has[sid] = true;
-  }
+  // メインonEdit（注文SS + データSS）
+  ScriptApp.newTrigger('onEdit').forSpreadsheet(orderSs).onEdit().create();
+  ScriptApp.newTrigger('onEdit').forSpreadsheet(dataSs).onEdit().create();
 
-  for (const sid in targets) {
-    if (has[sid]) continue;
-    ScriptApp.newTrigger('onEdit').forSpreadsheet(SpreadsheetApp.openById(sid)).onEdit().create();
-  }
+  // 発送通知onEdit（注文SS = SHIPMAIL_CONFIG.SPREADSHEET_ID）
+  ScriptApp.newTrigger('shipMailOnEdit').forSpreadsheet(orderSs).onEdit().create();
 
-  const t2 = ScriptApp.getProjectTriggers();
-  let hasDaily = false;
-  for (let i = 0; i < t2.length; i++) {
-    const t = t2[i];
-    if (t.getHandlerFunction && (t.getHandlerFunction() === 'cronCompactHolds' || t.getHandlerFunction() === 'od_compactHolds_')) {
-      hasDaily = true;
-      break;
+  // ステータス同期onEdit（注文SS）
+  ScriptApp.newTrigger('statusSync_onEdit').forSpreadsheet(orderSs).onEdit().create();
+
+  // 仕入れ→データ1同期onEdit + onFormSubmit
+  try {
+    var srcSsId = String((APP_CONFIG.detail && APP_CONFIG.detail.spreadsheetId) || '');
+    if (srcSsId) {
+      var srcSs = SpreadsheetApp.openById(srcSsId);
+      ScriptApp.newTrigger('syncListingPublic').forSpreadsheet(srcSs).onEdit().create();
+      ScriptApp.newTrigger('syncListingPublic').forSpreadsheet(srcSs).onFormSubmit().create();
     }
-  }
-  if (!hasDaily) ScriptApp.newTrigger('cronCompactHolds').timeBased().everyDays(1).atHour(4).create();
+  } catch (e) { console.log('syncListingPublicトリガー設定スキップ: ' + (e.message || e)); }
 
-  // 顧客ポイント付与トリガー（毎日5時に自動実行）
-  var hasPointsTrigger = false;
-  var t3 = ScriptApp.getProjectTriggers();
-  for (var i = 0; i < t3.length; i++) {
-    if (t3[i].getHandlerFunction && (t3[i].getHandlerFunction() === 'cronProcessPoints' || t3[i].getHandlerFunction() === 'processCustomerPointsAuto_')) {
-      hasPointsTrigger = true;
-      break;
-    }
-  }
-  if (!hasPointsTrigger) ScriptApp.newTrigger('cronProcessPoints').timeBased().everyDays(1).atHour(5).create();
-
-  // 入金リマインダートリガー（毎日9時に実行）
-  var hasReminderTrigger = false;
-  var t4 = ScriptApp.getProjectTriggers();
-  for (var j = 0; j < t4.length; j++) {
-    if (t4[j].getHandlerFunction && t4[j].getHandlerFunction() === 'sendPaymentReminders') {
-      hasReminderTrigger = true;
-      break;
-    }
-  }
-  if (!hasReminderTrigger) ScriptApp.newTrigger('sendPaymentReminders').timeBased().everyDays(1).atHour(9).create();
-
-  // Phase 3-4 トリガー登録
-  var phase34Triggers = [
-    // 商品データ同期
-    { fn: 'cronExportProducts', type: 'minutes', interval: 5 },
+  // =====================================================
+  // 2. timeBasedトリガー（全て一元管理）
+  // =====================================================
+  var timeBasedTriggers = [
+    // 毎分
     { fn: 'syncListingPublicCron', type: 'minutes', interval: 1 },
+    // 5分ごと
+    { fn: 'cronExportProducts', type: 'minutes', interval: 5 },
     { fn: 'baseSyncOrdersNow', type: 'minutes', interval: 5 },
-    // Phase 3-4
+    { fn: 'baseSyncProductsToBase', type: 'minutes', interval: 5 },
+    // 15分ごと
     { fn: 'cronAbandonedCart', type: 'minutes', interval: 15 },
-    { fn: 'cronNewArrival', type: 'daily', hour: 10 },
-    { fn: 'cronFollowupEmail', type: 'daily', hour: 11 },
-    { fn: 'cronNewsletter', type: 'daily', hour: 9 },
-    { fn: 'cronPointExpiry', type: 'daily', hour: 6 },
-    { fn: 'cronRfmAnalysis', type: 'weekly', hour: 7 },
-    { fn: 'cronProductAnalytics', type: 'daily', hour: 7 },
+    // 1時間ごと
     { fn: 'cronStatsCache', type: 'hours', interval: 1 },
-    // BASE連携
-    { fn: 'baseSyncProductsToBase', type: 'minutes', interval: 5 }
+    // 毎日4時
+    { fn: 'cronCompactHolds', type: 'daily', hour: 4 },
+    // 毎日5時
+    { fn: 'cronProcessPoints', type: 'daily', hour: 5 },
+    // 毎日6時
+    { fn: 'cronPointExpiry', type: 'daily', hour: 6 },
+    { fn: 'generateDailyArticle', type: 'daily', hour: 6 },
+    { fn: 'ga4SyncAll', type: 'daily', hour: 6 },
+    { fn: 'rewardUpdateDaily', type: 'daily', hour: 6 },
+    // 毎日7時
+    { fn: 'cronProductAnalytics', type: 'daily', hour: 7 },
+    // 毎日9時
+    { fn: 'sendPaymentReminders', type: 'daily', hour: 9 },
+    { fn: 'cronNewsletter', type: 'daily', hour: 9 },
+    // 毎日10時
+    { fn: 'cronNewArrival', type: 'daily', hour: 10 },
+    // 毎日11時
+    { fn: 'cronFollowupEmail', type: 'daily', hour: 11 },
+    // 毎週月曜7時
+    { fn: 'cronRfmAnalysis', type: 'weekly', hour: 7 }
   ];
 
-  // 旧プライベート名→新公開名のマッピング（旧トリガーが残っている場合も重複登録しない）
-  var oldToNew = {
-    'exportProductData_': 'cronExportProducts',
-    'abandonedCartCron_': 'cronAbandonedCart',
-    'newArrivalNotifyCron_': 'cronNewArrival',
-    'followupEmailCron_': 'cronFollowupEmail',
-    'newsletterSendCron_': 'cronNewsletter',
-    'pointExpiryCron_': 'cronPointExpiry',
-    'rfmAnalysisCron_': 'cronRfmAnalysis',
-    'productAnalyticsCron_': 'cronProductAnalytics',
-    'st_calculateAndCacheStats_': 'cronStatsCache'
-  };
-
-  var allTriggers = ScriptApp.getProjectTriggers();
-  var existingFns = {};
-  for (var ti = 0; ti < allTriggers.length; ti++) {
-    var tfn = allTriggers[ti].getHandlerFunction ? allTriggers[ti].getHandlerFunction() : '';
-    if (tfn) {
-      existingFns[tfn] = true;
-      // 旧名トリガーがあれば新名も登録済みとみなす
-      if (oldToNew[tfn]) existingFns[oldToNew[tfn]] = true;
-    }
-  }
-
-  for (var pi = 0; pi < phase34Triggers.length; pi++) {
-    var pt = phase34Triggers[pi];
-    if (existingFns[pt.fn]) continue;
+  for (var i = 0; i < timeBasedTriggers.length; i++) {
+    var pt = timeBasedTriggers[i];
     if (pt.type === 'minutes') {
       ScriptApp.newTrigger(pt.fn).timeBased().everyMinutes(pt.interval).create();
     } else if (pt.type === 'hours') {
@@ -166,7 +131,9 @@ function tr_setupTriggersOnce_() {
     }
   }
 
-  return { ok: true };
+  var total = ScriptApp.getProjectTriggers().length;
+  console.log('トリガー設定完了: ' + total + '件');
+  return { ok: true, count: total };
 }
 
 // =====================================================
