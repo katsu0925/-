@@ -418,7 +418,7 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
       });
     });
 
-    // OpenAI API でメルカリ用タイトル・説明文を一括生成
+    // タイトル: GASロジック組み立て / 説明文: OpenAI API生成
     var aiResults = om_generateMercariTexts_(productRows);
 
     for (var pi = 0; pi < productRows.length; pi++) {
@@ -840,25 +840,67 @@ function om_colNumToLetter_(col) {
 // メルカリ用タイトル・説明文 OpenAI API 自動生成
 // ═══════════════════════════════════════════
 
+// 状態→タイトル用ワードのマッピング
+var OM_CONDITION_WORD_MAP = {
+  '新品、未使用': '新品未使用',
+  '未使用に近い': '未使用に近い',
+  '目立った傷や汚れなし': '美品',
+  'やや傷や汚れあり': '',
+  '傷や汚れあり': '',
+  '全体的に状態が悪い': ''
+};
+
+/**
+ * タイトルをGASロジックで組み立て（36〜40文字に確実に収める）
+ * 優先順: 状態ワード → ブランド名 → AIキーワード → アイテム名 → サイズ
+ */
+function om_buildTitle_(pr) {
+  var parts = [];
+
+  // 1. 状態ワード
+  var condWord = OM_CONDITION_WORD_MAP[pr.condition] || '';
+  if (condWord) parts.push(condWord);
+
+  // 2. ブランド名
+  if (pr.brand) parts.push(pr.brand);
+
+  // 3. AIキーワード（スペース区切りで分割、個別に追加）
+  var kwParts = [];
+  if (pr.aiKeywords) {
+    kwParts = String(pr.aiKeywords).split(/[\s　,、]+/).filter(function(s) { return s.trim(); });
+  }
+
+  // 4. アイテム名
+  var itemName = pr.item || '';
+
+  // 5. サイズ
+  var sizeStr = pr.size || '';
+
+  // AIキーワードを先に追加し、その後アイテム名、最後にサイズ
+  var remaining = kwParts.concat(itemName ? [itemName] : []).concat(sizeStr ? [sizeStr] : []);
+
+  var TITLE_MAX = 40;
+  for (var i = 0; i < remaining.length; i++) {
+    var candidate = parts.concat([remaining[i]]).join(' ');
+    if (candidate.length > TITLE_MAX) break;
+    parts.push(remaining[i]);
+  }
+
+  return parts.join(' ');
+}
+
 var OM_MERCARI_SYSTEM_PROMPT = 'あなたはメルカリでの古着販売に特化した、プロの出品テキストライターです。\n'
-  + '購入者が検索で見つけやすく、商品の魅力が伝わり、購入意欲を高めるタイトルと説明文を作成してください。\n'
+  + '商品の魅力が伝わり、購入意欲を高める説明文を作成してください。\n'
   + 'ショップのような丁寧で信頼感のあるトーンで書いてください。\n\n'
-  + '【ルール】\n\n'
-  + '■ タイトル（title）\n'
-  + '- 必ず40文字以内（メルカリの文字数制限）\n'
-  + '- 先頭にブランド名を入れる\n'
-  + '- 検索されやすいキーワードを含める（アイテム名、特徴、季節感など）\n'
-  + '- 記号は最小限（絵文字は使わない）\n'
-  + '- 例：「URBAN RESEARCH リネン混オープンカラーシャツ M」\n\n'
-  + '■ 商品説明文（description）\n'
+  + '【ルール】\n'
   + '- 丁寧語（です・ます調）で統一する\n'
   + '- 嘘や誇張は絶対にしない\n'
-  + '- わからない情報は無理に書かず省略する\n'
+  + '- わからない情報（カラー・素材など）は無理に書かず省略する\n'
   + '- 説明文の先頭に管理番号は入れない\n\n'
   + '■ 説明文フォーマット（この構成を厳守すること）：\n\n'
   + 'ご覧いただきありがとうございます。\n\n'
   + '━━━━━━━━━━━━━━━━━━━━\n\n'
-  + '■ ブランド\n{ブランド名}（読み仮名がわかれば記載）\n{ブランドの特徴を2〜3行で紹介}\n\n'
+  + '■ ブランド\n{ブランド名}（読み仮名がわかれば記載）\n{ブランドの特徴を2〜3行で紹介。有名ブランドは正確に、マイナーブランドは無理に書かない}\n\n'
   + '■ アイテム\n{アイテムの正式名称・デザイン特徴}\n{AIキーワードのデザイン情報を活用して具体的に説明。2〜3行}\n\n'
   + '■ こんな方におすすめ\n・{ターゲット層やニーズに合わせた提案を3つ}\n\n'
   + '■ 着こなしのヒント\n{2〜3パターンの着こなし提案。季節感も意識する}\n\n'
@@ -869,7 +911,7 @@ var OM_MERCARI_SYSTEM_PROMPT = 'あなたはメルカリでの古着販売に特
   + '・平置き採寸のため、若干の誤差が生じる場合がございます\n'
   + '・ご不明点はお気軽にコメントください\n\n'
   + '{ハッシュタグを8〜10個。ブランド名・アイテム名・特徴・「古着」等を含め、#付きで半角スペース区切り}\n\n'
-  + '■ 出力形式\n必ず以下のJSON形式のみで返答してください：\n{"title": "タイトル", "description": "説明文"}';
+  + '■ 出力形式\n必ず以下のJSON形式のみで返答してください：\n{"description": "説明文"}';
 
 /**
  * 商品データ配列からメルカリ用タイトル・説明文を一括生成
@@ -877,16 +919,32 @@ var OM_MERCARI_SYSTEM_PROMPT = 'あなたはメルカリでの古着販売に特
  * @return {Array} [{title, description}]
  */
 function om_generateMercariTexts_(productRows) {
+  // タイトルはGASロジックで組み立て（API不要、即時、確実に36-40文字）
+  var titles = productRows.map(function(pr) { return om_buildTitle_(pr); });
+
+  // 説明文はOpenAI APIで生成
+  var descriptions = om_generateDescriptions_(productRows);
+
+  var results = [];
+  for (var i = 0; i < productRows.length; i++) {
+    results.push({ title: titles[i], description: descriptions[i] });
+  }
+  return results;
+}
+
+/**
+ * 説明文のみをOpenAI APIで一括生成
+ */
+function om_generateDescriptions_(productRows) {
   var apiKey = '';
   try { apiKey = PropertiesService.getScriptProperties().getProperty('OPENAI_API_KEY') || ''; } catch (e) {}
   if (!apiKey) {
     console.log('OPENAI_API_KEY未設定: テンプレート説明文で代替');
-    return productRows.map(function(pr) { return om_fallbackText_(pr); });
+    return productRows.map(function(pr) { return om_fallbackDescription_(pr); });
   }
 
-  // 全商品を1回のAPI呼び出しでバッチ生成（逐次→一括で大幅短縮）
-  var userMsg = '以下の' + productRows.length + '件の商品データそれぞれについて、メルカリ用のタイトルと商品説明文を生成してください。\n'
-    + '結果は {"items": [{...}, {...}]} の形式で、入力順と同じ順序で返してください。\n\n';
+  var userMsg = '以下の' + productRows.length + '件の商品データそれぞれについて、メルカリ用の商品説明文を生成してください。\n'
+    + '結果は {"items": [{"description": "..."}, ...]} の形式で、入力順と同じ順序で返してください。\n\n';
 
   for (var i = 0; i < productRows.length; i++) {
     var pr = productRows[i];
@@ -922,8 +980,8 @@ function om_generateMercariTexts_(productRows) {
 
     var code = resp.getResponseCode();
     if (code < 200 || code >= 300) {
-      console.error('OpenAI API batch error: HTTP ' + code + ' ' + resp.getContentText().substring(0, 200));
-      return productRows.map(function(pr) { return om_fallbackText_(pr); });
+      console.error('OpenAI API error: HTTP ' + code + ' ' + resp.getContentText().substring(0, 200));
+      return productRows.map(function(pr) { return om_fallbackDescription_(pr); });
     }
 
     var body = JSON.parse(resp.getContentText());
@@ -935,35 +993,39 @@ function om_generateMercariTexts_(productRows) {
     var results = [];
     for (var j = 0; j < productRows.length; j++) {
       var item = items[j];
-      if (item && item.title && item.description) {
-        var title = String(item.title).trim();
-        if (title.length > 40) title = title.substring(0, 40);
-        results.push({ title: title, description: String(item.description).replace(/\\n/g, '\n') });
+      if (item && item.description) {
+        results.push(String(item.description).replace(/\\n/g, '\n'));
       } else {
-        results.push(om_fallbackText_(productRows[j]));
+        results.push(om_fallbackDescription_(productRows[j]));
       }
     }
-    console.log('メルカリテキスト一括生成OK: ' + results.length + '件');
+    console.log('メルカリ説明文一括生成OK: ' + results.length + '件');
     return results;
   } catch (e) {
-    console.error('メルカリテキスト一括生成エラー: ' + (e.message || e));
-    return productRows.map(function(pr) { return om_fallbackText_(pr); });
+    console.error('メルカリ説明文一括生成エラー: ' + (e.message || e));
+    return productRows.map(function(pr) { return om_fallbackDescription_(pr); });
   }
 }
 
 /**
  * API失敗時のフォールバック（従来のテンプレート形式）
  */
-function om_fallbackText_(pr) {
-  var title = (pr.brand || '') + ' ' + (pr.item || '古着') + ' ' + (pr.size || '');
-  if (title.length > 40) title = title.substring(0, 40);
-
-  var desc = '【ブランド】' + (pr.brand || '') + '\n'
-    + '【サイズ】' + (pr.size || '') + '\n'
-    + '【状態】' + (pr.condition || '') + '\n';
-  if (pr.damageDetail) desc += '【状態詳細】\n' + pr.damageDetail + '\n';
-  desc += '【実寸(cm)】\n' + (pr.measurementText || '') + '\n'
-    + '\n※素人採寸のため多少の誤差はご了承ください。';
-
-  return { title: title.trim(), description: desc };
+/**
+ * API失敗時のフォールバック説明文（テンプレート形式）
+ */
+function om_fallbackDescription_(pr) {
+  var desc = 'ご覧いただきありがとうございます。\n\n'
+    + '━━━━━━━━━━━━━━━━━━━━\n\n'
+    + '■ ブランド\n' + (pr.brand || '') + '\n\n'
+    + '■ アイテム\n' + (pr.item || '古着') + '\n';
+  if (pr.aiKeywords) desc += pr.aiKeywords + '\n';
+  desc += '\n■ サイズ\n表記：' + (pr.size || '') + '\n【実寸（平置き・cm）】\n' + (pr.measurementText || '') + '\n\n'
+    + '■ 状態\n' + (pr.condition || '') + '\n';
+  if (pr.damageDetail) desc += pr.damageDetail + '\n';
+  else desc += '目立つダメージはございません。\n';
+  desc += '\n━━━━━━━━━━━━━━━━━━━━\n\n'
+    + '・古着のため、多少の使用感はご了承ください\n'
+    + '・平置き採寸のため、若干の誤差が生じる場合がございます\n'
+    + '・ご不明点はお気軽にコメントください';
+  return desc;
 }
