@@ -411,10 +411,12 @@ function om_executeFullPipeline_(receiptNos, callerLabel) {
       var priceText = price.toLocaleString('ja-JP') + '円';
       totalPrice += price;
 
+      var color = String(row[mIdx['カラー']] || '').trim();
+
       productRows.push({
         boxId: boxId, targetId: targetId, brand: brand, aiKeywords: aiKeywords,
         item: item, size: size, condition: condition, damageDetail: damageDetail,
-        measurementText: measurementText, priceText: priceText
+        measurementText: measurementText, priceText: priceText, color: color
       });
     });
 
@@ -850,65 +852,135 @@ var OM_CONDITION_WORD_MAP = {
   '全体的に状態が悪い': ''
 };
 
+// 英語ブランド名→カタカナ読みマッピング（メルカリ検索流入を増やすため）
+// スマホユーザーの大半はカタカナで検索する（「NIKE」より「ナイキ」）
+var OM_BRAND_KATAKANA_MAP = {
+  'NIKE': 'ナイキ', 'adidas': 'アディダス', 'PUMA': 'プーマ',
+  'UNIQLO': 'ユニクロ', 'GU': 'ジーユー', 'ZARA': 'ザラ',
+  'H&M': 'エイチアンドエム', 'GAP': 'ギャップ',
+  'RALPH LAUREN': 'ラルフローレン', 'Polo Ralph Lauren': 'ポロラルフローレン',
+  'GUCCI': 'グッチ', 'PRADA': 'プラダ', 'LOUIS VUITTON': 'ルイヴィトン',
+  'BURBERRY': 'バーバリー', 'COACH': 'コーチ', 'FENDI': 'フェンディ',
+  'HERMES': 'エルメス', 'CHANEL': 'シャネル', 'DIOR': 'ディオール',
+  'BALENCIAGA': 'バレンシアガ', 'CELINE': 'セリーヌ',
+  'Saint Laurent': 'サンローラン', 'VALENTINO': 'ヴァレンティノ',
+  'VERSACE': 'ヴェルサーチ', 'GIVENCHY': 'ジバンシィ',
+  'LOEWE': 'ロエベ', 'BOTTEGA VENETA': 'ボッテガヴェネタ',
+  'Maison Margiela': 'メゾンマルジェラ', 'MARNI': 'マルニ',
+  'Vivienne Westwood': 'ヴィヴィアンウエストウッド',
+  'THE NORTH FACE': 'ノースフェイス', 'Patagonia': 'パタゴニア',
+  'Columbia': 'コロンビア', 'ARC\'TERYX': 'アークテリクス',
+  'MONCLER': 'モンクレール', 'Canada Goose': 'カナダグース',
+  'BEAMS': 'ビームス', 'UNITED ARROWS': 'ユナイテッドアローズ',
+  'SHIPS': 'シップス', 'JOURNAL STANDARD': 'ジャーナルスタンダード',
+  'URBAN RESEARCH': 'アーバンリサーチ', 'nano・universe': 'ナノユニバース',
+  'TOMORROWLAND': 'トゥモローランド', 'EDIFICE': 'エディフィス',
+  'ADAM ET ROPE': 'アダムエロペ',
+  'Champion': 'チャンピオン', 'Levi\'s': 'リーバイス', 'Lee': 'リー',
+  'Wrangler': 'ラングラー', 'Carhartt': 'カーハート',
+  'STUSSY': 'ステューシー', 'Supreme': 'シュプリーム',
+  'A BATHING APE': 'アベイシングエイプ',
+  'NEW BALANCE': 'ニューバランス', 'CONVERSE': 'コンバース',
+  'VANS': 'バンズ', 'Dr.Martens': 'ドクターマーチン',
+  'TOMMY HILFIGER': 'トミーヒルフィガー', 'Calvin Klein': 'カルバンクライン',
+  'DIESEL': 'ディーゼル', 'DOLCE&GABBANA': 'ドルチェアンドガッバーナ',
+  'ARMANI': 'アルマーニ', 'Paul Smith': 'ポールスミス',
+  'Vivienne Westwood': 'ヴィヴィアンウエストウッド'
+};
+
+/**
+ * ブランド英語名からカタカナ読みを返す（なければ空文字）
+ */
+function om_getBrandKatakana_(brand) {
+  if (!brand) return '';
+  // 完全一致
+  if (OM_BRAND_KATAKANA_MAP[brand]) return OM_BRAND_KATAKANA_MAP[brand];
+  // 大文字小文字無視で検索
+  var lower = brand.toLowerCase().replace(/\s+/g, '');
+  for (var key in OM_BRAND_KATAKANA_MAP) {
+    if (key.toLowerCase().replace(/\s+/g, '') === lower) return OM_BRAND_KATAKANA_MAP[key];
+  }
+  return '';
+}
+
 /**
  * メルカリで売れるタイトルをGASロジックで組み立て（40文字以内）
  *
- * 構造: [状態ワード] [ブランド] [AIキーワード連結+アイテム名] [サイズ]
- * - メジャーセグメント間のみスペース、日本語キーワード同士はスペースなしで連結
- *   → 文字数を最大活用（スペース区切りだと6〜7文字無駄になる）
- * - 収まらない場合: アイテム名除外 → AIキーワード末尾から削減 → フォールバック
+ * 構造: [状態] [ブランド(カタカナ)] [アイテム名] [AIキーワード] [カラー] [サイズ]
+ * - 全キーワードはスペース区切り（視認性＋検索精度のため）
+ * - ブランドはカタカナ優先（スマホ検索の主流）、余れば英語も追加
+ * - 段階的削減: 全入り → AIキーワード末尾削減 → アイテム名除外 → 最小構成
  */
 function om_buildTitle_(pr) {
   var TITLE_MAX = 40;
 
+  // 各素材を準備
   var condWord = OM_CONDITION_WORD_MAP[pr.condition] || '';
   var brand = String(pr.brand || '').trim();
-  var brandLower = brand.toLowerCase();
+  var brandKana = om_getBrandKatakana_(brand);
+  var color = String(pr.color || '').trim();
+  var itemName = String(pr.item || '').trim();
+  var sizeStr = String(pr.size || '').trim();
 
+  // AIキーワード（ブランド名と重複するものを除外）
+  var brandLower = brand.toLowerCase();
+  var brandKanaLower = brandKana.toLowerCase();
   var aiWords = [];
   if (pr.aiKeywords) {
     String(pr.aiKeywords).split(/[\s　,、]+/).forEach(function(s) {
       var t = s.trim();
-      if (t && t.toLowerCase() !== brandLower) aiWords.push(t);
+      if (!t) return;
+      var tl = t.toLowerCase();
+      if (tl !== brandLower && tl !== brandKanaLower) aiWords.push(t);
     });
   }
 
-  var itemName = String(pr.item || '').trim();
-  var sizeStr = String(pr.size || '').trim();
+  // ブランド表記を決定: カタカナ優先、短ければ英語も併記
+  var brandStr = '';
+  if (brandKana && brand) {
+    var both = brand + ' ' + brandKana; // "NIKE ナイキ"
+    brandStr = both.length <= 16 ? both : brandKana; // 16文字超なら カタカナのみ
+  } else {
+    brandStr = brandKana || brand;
+  }
 
-  // セグメント組み立て: AIキーワードはスペースなし連結で文字数最大化
-  function build(words, includeItem) {
+  // タイトル組み立て関数
+  function build(opts) {
     var segs = [];
-    if (condWord) segs.push(condWord);
-    if (brand) segs.push(brand);
-    var phrase = words.join('');
-    if (includeItem && itemName) phrase += itemName;
-    if (phrase) segs.push(phrase);
-    if (sizeStr) segs.push(sizeStr);
+    if (opts.cond && condWord) segs.push(condWord);
+    if (brandStr) segs.push(brandStr);
+    if (opts.item && itemName) segs.push(itemName);
+    if (opts.aiWords) {
+      for (var i = 0; i < opts.aiWords.length; i++) segs.push(opts.aiWords[i]);
+    }
+    if (opts.color && color) segs.push(color);
+    if (opts.size && sizeStr) segs.push(sizeStr);
     return segs.join(' ');
   }
 
-  // Step 1: 全入り（AIキーワード+アイテム名）
-  var title = build(aiWords, true);
+  // Step 1: 全入り
+  var title = build({ cond: true, item: true, aiWords: aiWords, color: true, size: true });
   if (title.length <= TITLE_MAX) return title;
 
-  // Step 2: アイテム名を除外（「トップス」等の汎用カテゴリは検索価値が低い）
-  title = build(aiWords, false);
-  if (title.length <= TITLE_MAX) return title;
-
-  // Step 3: AIキーワードを末尾から削って収める
+  // Step 2: AIキーワードを末尾から1つずつ削る
   var words = aiWords.slice();
   while (words.length > 0) {
     words.pop();
-    title = build(words, false);
+    title = build({ cond: true, item: true, aiWords: words, color: true, size: true });
     if (title.length <= TITLE_MAX) return title;
   }
 
-  // Step 4: フォールバック（AIキーワードなし）
+  // Step 3: アイテム名（汎用カテゴリ）を除外
+  title = build({ cond: true, item: false, aiWords: [], color: true, size: true });
+  if (title.length <= TITLE_MAX) return title;
+
+  // Step 4: 状態ワードを除外
+  title = build({ cond: false, item: false, aiWords: [], color: true, size: true });
+  if (title.length <= TITLE_MAX) return title;
+
+  // Step 5: 最小構成（ブランド+サイズ）
   var segs = [];
-  if (condWord) segs.push(condWord);
-  if (brand) segs.push(brand);
-  if (itemName) segs.push(itemName);
+  if (brandStr) segs.push(brandStr);
   if (sizeStr) segs.push(sizeStr);
   return segs.join(' ').substring(0, TITLE_MAX);
 }
@@ -976,6 +1048,7 @@ function om_generateDescriptions_(productRows) {
       + 'ブランド: ' + (pr.brand || '（なし）') + '\n'
       + 'AIキーワード（デザイン情報）: ' + (pr.aiKeywords || '（なし）') + '\n'
       + 'アイテム: ' + (pr.item || '（なし）') + '\n'
+      + 'カラー: ' + (pr.color || '（なし）') + '\n'
       + 'サイズ: ' + (pr.size || '（なし）') + '\n'
       + '状態: ' + (pr.condition || '（なし）') + '\n'
       + '傷汚れ詳細: ' + (pr.damageDetail || '（なし）') + '\n'
@@ -1038,11 +1111,14 @@ function om_generateDescriptions_(productRows) {
  * API失敗時のフォールバック説明文（テンプレート形式）
  */
 function om_fallbackDescription_(pr) {
+  var brandKana = om_getBrandKatakana_(pr.brand);
+  var brandDisplay = brandKana ? (pr.brand || '') + '（' + brandKana + '）' : (pr.brand || '');
   var desc = 'ご覧いただきありがとうございます。\n\n'
     + '━━━━━━━━━━━━━━━━━━━━\n\n'
-    + '■ ブランド\n' + (pr.brand || '') + '\n\n'
+    + '■ ブランド\n' + brandDisplay + '\n\n'
     + '■ アイテム\n' + (pr.item || '古着') + '\n';
   if (pr.aiKeywords) desc += pr.aiKeywords + '\n';
+  if (pr.color) desc += '\n■ カラー\n' + pr.color + '\n';
   desc += '\n■ サイズ\n表記：' + (pr.size || '') + '\n【実寸（平置き・cm）】\n' + (pr.measurementText || '') + '\n\n'
     + '■ 状態\n' + (pr.condition || '') + '\n';
   if (pr.damageDetail) desc += pr.damageDetail + '\n';
