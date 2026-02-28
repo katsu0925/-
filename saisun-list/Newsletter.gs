@@ -133,28 +133,74 @@ function saveNewsletter_(title, bodyText, schedule) {
  * @return {{title: string, body: string}}
  */
 function generateNewsletterContent_(templateType) {
-  var products = pr_readProducts_();
-  var available = [];
-  for (var i = 0; i < products.length; i++) {
-    if (products[i].qty > 0) available.push(products[i]);
-  }
-
   var now = new Date();
   var month = now.getMonth() + 1;
   var dateStr = Utilities.formatDate(now, 'Asia/Tokyo', 'M/d');
+
+  // セール・季節は商品データ不要 → 即座に返す
+  if (templateType === 'sale') return generateNlSaleTemplate_(dateStr);
+  if (templateType === 'seasonal') return generateNlSeasonalTemplate_(month);
+
+  // 商品データが必要なテンプレートのみ読み込み
+  var available = getNlAvailableProducts_();
 
   switch (templateType) {
     case 'new_arrivals':
       return generateNlNewArrivals_(available);
     case 'weekly_summary':
       return generateNlWeeklySummary_(available);
-    case 'sale':
-      return generateNlSaleTemplate_(dateStr);
-    case 'seasonal':
-      return generateNlSeasonalTemplate_(month);
     default:
       return { title: '', body: '' };
   }
+}
+
+/**
+ * ニュースレター用: 在庫ありの商品を軽量に取得
+ * pr_readProducts_()のキャッシュがあればそれを使い、なければシートから直接最低限の列だけ読む
+ */
+function getNlAvailableProducts_() {
+  // まずキャッシュから試みる（高速）
+  try {
+    var cache = CacheService.getScriptCache();
+    var ck = 'PRODUCTS_CACHE_V1:' + String(APP_CONFIG.data.spreadsheetId) + ':' + String(APP_CONFIG.data.sheetName) + ':' + String(APP_CONFIG.data.headerRow);
+    var cached = cache.get(ck);
+    if (cached) {
+      var json = u_ungzipFromB64_(cached);
+      var obj = JSON.parse(json);
+      if (obj && Array.isArray(obj.items)) {
+        var result = [];
+        for (var i = 0; i < obj.items.length; i++) {
+          if (obj.items[i].qty > 0) result.push(obj.items[i]);
+        }
+        return result;
+      }
+    }
+  } catch (e) { /* キャッシュ失敗 → シートから直接読む */ }
+
+  // キャッシュなし → シートから必要な列だけ読む（A=noLabel, D=brand, E=size, G=category, I=price, J=qty, K=managedId）
+  var ss = sh_getDataSs_();
+  var sh = ss.getSheetByName(APP_CONFIG.data.sheetName);
+  if (!sh) return [];
+  var headerRow = u_toInt_(APP_CONFIG.data.headerRow, 0);
+  var startRow = headerRow + 1;
+  var lastRow = sh.getLastRow();
+  if (lastRow < startRow) return [];
+
+  var numRows = lastRow - startRow + 1;
+  var values = sh.getRange(startRow, 1, numRows, 11).getValues(); // A〜K列のみ
+  var available = [];
+  for (var r = 0; r < values.length; r++) {
+    var row = values[r];
+    var qty = Number(row[9]) || 0;
+    if (qty <= 0) continue;
+    available.push({
+      brand: String(row[3] || '').trim(),
+      size: String(row[4] || '').trim(),
+      category: String(row[6] || '').trim(),
+      price: Number(row[8]) || 0
+    });
+  }
+  return available;
 }
 
 /**
