@@ -478,6 +478,13 @@ function newsletterSendCron_() {
       }
       sheet.getRange(sheetRow, 6).setValue(now); // F列: 最終配信日
 
+      // 自動配信ログに記録
+      try {
+        var logSs = sh_getOrderSs_();
+        var logTarget = target !== '全員' ? '（対象: ' + target + '）' : '';
+        appendDeliveryLog_(logSs, 'ニュースレター', '', '', '「' + title + '」→ ' + sent + '件送信' + logTarget + '（' + frequency + '）', sent > 0 ? '送信完了' : '対象者なし');
+      } catch (logErr) { console.log('optional: newsletter log: ' + (logErr.message || logErr)); }
+
       totalSent += sent;
       console.log('newsletterSendCron_: "' + title + '" を ' + sent + '件送信（頻度: ' + frequency + '）');
     }
@@ -549,6 +556,41 @@ function apiUnsubscribeNewsletter(userKey, params) {
   } catch (e) {
     console.error('apiUnsubscribeNewsletter error:', e);
     return { ok: false, message: 'メルマガ解除に失敗しました' };
+  }
+}
+
+// =====================================================
+// 自動配信ログ
+// ニュースレター・休眠クーポン等の自動配信を記録
+// =====================================================
+
+var DELIVERY_LOG_SHEET_NAME = '自動配信ログ';
+var DELIVERY_LOG_COLS = 6; // A:日時, B:種別, C:メール, D:会社名, E:内容, F:ステータス
+
+/**
+ * 自動配信ログシートを取得（なければ作成）
+ */
+function ensureDeliveryLogSheet_(ss) {
+  var sh = ss.getSheetByName(DELIVERY_LOG_SHEET_NAME);
+  if (sh) return sh;
+  sh = ss.insertSheet(DELIVERY_LOG_SHEET_NAME);
+  sh.appendRow(['日時', '種別', 'メール', '会社名', '内容', 'ステータス']);
+  sh.setFrozenRows(1);
+  sh.getRange(1, 1, 1, DELIVERY_LOG_COLS).setBackground('#1565c0').setFontColor('#fff').setFontWeight('bold');
+  sh.setColumnWidth(1, 150);
+  sh.setColumnWidth(5, 300);
+  return sh;
+}
+
+/**
+ * 自動配信ログに1行追記
+ */
+function appendDeliveryLog_(ss, type, email, companyName, content, status) {
+  try {
+    var sh = ensureDeliveryLogSheet_(ss);
+    sh.appendRow([new Date(), type, email || '', companyName || '', content || '', status || '']);
+  } catch (e) {
+    console.log('optional: appendDeliveryLog_: ' + (e.message || e));
   }
 }
 
@@ -721,9 +763,11 @@ function dormantCouponCron_() {
         });
 
         props.setProperty('DORMANT_SENT:' + tierToSend.key + ':' + emailLower, String(Date.now()));
+        appendDeliveryLog_(ss, '休眠クーポン(' + tierToSend.label + ')', email, companyName, tierToSend.code + ' / 10%OFF', '送信完了');
         sent++;
         console.log('dormantCouponCron_: ' + tierToSend.key + ' 送信 ' + email);
       } catch (mailErr) {
+        appendDeliveryLog_(ss, '休眠クーポン(' + tierToSend.label + ')', email, companyName, tierToSend.code, '送信失敗: ' + (mailErr.message || mailErr));
         console.error('dormantCouponCron_ mail error: ' + email, mailErr);
       }
     }
