@@ -118,6 +118,11 @@ function ga4Daily_(ss, s, e) {
       .setOption('titleTextStyle', { fontSize: 13, bold: true })
       .setOption('width', 680).setOption('height', 370)
       .setOption('legend', { position: 'top' })
+      .setOption('series', {
+        0: { labelInLegend: 'ユーザー' },
+        1: { labelInLegend: 'セッション' },
+        2: { labelInLegend: 'PV' }
+      })
       .setOption('hAxis', { slantedText: true, slantedTextAngle: 45 })
       .setOption('vAxis', { minValue: 0 })
       .setOption('areaOpacity', 0.12)
