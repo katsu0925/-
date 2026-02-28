@@ -736,8 +736,10 @@ function dormantCouponCron_() {
       var ts = Number(allProps[key]);
       if (ts && ts < cutoff) keysToDelete.push(key);
     }
+    for (var d = 0; d < keysToDelete.length; d++) {
+      try { props.deleteProperty(keysToDelete[d]); } catch (e2) {}
+    }
     if (keysToDelete.length) {
-      props.deleteProperties(keysToDelete);
       console.log('dormantCouponCron_: 古いフラグ ' + keysToDelete.length + '件を削除');
     }
 
