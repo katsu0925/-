@@ -1013,21 +1013,35 @@ function onOpen(e) {
   // コンテナバインドスクリプト（saisun-list-bulk/）で表示
 }
 
-/** 運用マニュアル（Google Doc）を新しいタブで開く */
+/** 運用マニュアルを新しいタブで開く */
 function openManualDoc() {
-  var url = PropertiesService.getScriptProperties().getProperty('MANUAL_DOC_URL') || '';
-  if (!url) {
-    SpreadsheetApp.getUi().alert(
-      '運用マニュアルが未設定です。\n\n' +
-      'Google ドキュメントでマニュアルを作成し、\n' +
-      'スクリプトプロパティ「MANUAL_DOC_URL」にURLを設定してください。'
-    );
+  // MANUAL_DOC_URL が設定されていればそちらを優先（Google Doc等）
+  var customUrl = PropertiesService.getScriptProperties().getProperty('MANUAL_DOC_URL') || '';
+  if (customUrl) {
+    var h = HtmlService.createHtmlOutput(
+      '<script>window.open("' + customUrl + '", "_blank"); google.script.host.close();</script>'
+    ).setWidth(1).setHeight(1);
+    SpreadsheetApp.getUi().showModelessDialog(h, 'マニュアルを開いています...');
     return;
   }
+  // GitHub上のマニュアルを選択して開く
+  var base = 'https://github.com/katsu0925/-/blob/main/docs/';
   var html = HtmlService.createHtmlOutput(
-    '<script>window.open("' + url + '", "_blank"); google.script.host.close();</script>'
-  ).setWidth(1).setHeight(1);
-  SpreadsheetApp.getUi().showModelessDialog(html, 'マニュアルを開いています...');
+    '<style>' +
+      'body{font-family:sans-serif;padding:12px;margin:0}' +
+      'a{display:block;padding:10px 14px;margin:6px 0;border-radius:6px;' +
+        'text-decoration:none;color:#1a73e8;border:1px solid #dadce0;font-size:14px}' +
+      'a:hover{background:#f0f4ff}' +
+      '.desc{color:#5f6368;font-size:12px;margin-top:2px}' +
+    '</style>' +
+    '<a href="' + base + '%E9%81%8B%E7%94%A8%E3%83%9E%E3%83%8B%E3%83%A5%E3%82%A2%E3%83%AB.md" target="_blank">' +
+      '運用マニュアル<div class="desc">全機能リファレンス（管理者向け）</div></a>' +
+    '<a href="' + base + '%E3%82%B9%E3%82%BF%E3%83%83%E3%83%95%E7%94%A8%E3%83%9E%E3%83%8B%E3%83%A5%E3%82%A2%E3%83%AB.md" target="_blank">' +
+      'スタッフ用マニュアル<div class="desc">受注〜発送の手順書</div></a>' +
+    '<a href="' + base + '%E3%83%A1%E3%83%B3%E3%83%86%E3%83%8A%E3%83%B3%E3%82%B9%E3%83%9E%E3%83%8B%E3%83%A5%E3%82%A2%E3%83%AB.md" target="_blank">' +
+      'メンテナンスマニュアル<div class="desc">システム保守リファレンス</div></a>'
+  ).setWidth(320).setHeight(220);
+  SpreadsheetApp.getUi().showModelessDialog(html, '運用マニュアル');
 }
 
 function clearAllChecks() {
