@@ -28,13 +28,22 @@ var ARTICLE_COLS = {
   PUBLISH_DATE: 6,
   EMOJI: 7,
   STATUS: 8,
-  IMAGE_URL: 9
+  IMAGE_URL: 9,
+  MAJOR_CATEGORY: 10
 };
 
 var ARTICLE_HEADERS = [
   '記事ID', 'タイトル', '要約', '本文', 'カテゴリ',
-  'タグ', '公開日', '絵文字', 'ステータス', 'ヘッダ画像URL'
+  'タグ', '公開日', '絵文字', 'ステータス', 'ヘッダ画像URL', '大カテゴリ'
 ];
+
+var MAJOR_CATEGORY_MAP = {
+  'メルカリ': '売り方ガイド', 'ラクマ': '売り方ガイド',
+  'Yahoo!フリマ': '売り方ガイド', 'Amazon': '売り方ガイド', 'eBay': '売り方ガイド',
+  '中国輸入': '仕入れノウハウ', 'せどり': '仕入れノウハウ', 'アパレル': '仕入れノウハウ',
+  '副業全般': '副業の始め方', 'ツール活用': '副業の始め方'
+};
+var MAJOR_CATEGORIES = ['売り方ガイド', '仕入れノウハウ', '副業の始め方', 'トレンド情報'];
 
 // =====================================================
 // シートアクセス
@@ -334,17 +343,20 @@ function generateDailyArticle() {
 
     var imageUrl = art_fetchHeaderImage_(article.imageQuery || '');
 
+    var artCategory = article.category || '総合';
+    var artMajorCat = MAJOR_CATEGORY_MAP[artCategory] || '副業の始め方';
     var row = [
       id,
       article.title || '',
       article.summary || '',
       article.content || '',
-      article.category || '総合',
+      artCategory,
       article.tags || '',
       publishDate,
       article.emoji || '📝',
       'published',
-      imageUrl
+      imageUrl,
+      artMajorCat
     ];
 
     sheet.appendRow(row);
@@ -389,11 +401,15 @@ function apiGetArticles() {
       if (status !== 'published') continue;
 
       var imgUrl = (data[i].length > ARTICLE_COLS.IMAGE_URL) ? String(data[i][ARTICLE_COLS.IMAGE_URL] || '').trim() : '';
+      var mc = (data[i].length > ARTICLE_COLS.MAJOR_CATEGORY) ? String(data[i][ARTICLE_COLS.MAJOR_CATEGORY] || '').trim() : '';
+      var cat = String(data[i][ARTICLE_COLS.CATEGORY] || '').trim();
+      if (!mc) mc = MAJOR_CATEGORY_MAP[cat] || '副業の始め方';
       articles.push({
         id: String(data[i][ARTICLE_COLS.ID] || '').trim(),
         title: String(data[i][ARTICLE_COLS.TITLE] || '').trim(),
         summary: String(data[i][ARTICLE_COLS.SUMMARY] || '').trim(),
-        category: String(data[i][ARTICLE_COLS.CATEGORY] || '').trim(),
+        category: cat,
+        majorCategory: mc,
         publishDate: art_formatDate_(data[i][ARTICLE_COLS.PUBLISH_DATE]),
         emoji: String(data[i][ARTICLE_COLS.EMOJI] || '📝').trim(),
         imageUrl: imgUrl
@@ -443,11 +459,15 @@ function apiGetArticleContent(articleId) {
     if (status !== 'published') return { ok: false, message: '記事は非公開です' };
 
     var artImgUrl = (rowData.length > ARTICLE_COLS.IMAGE_URL) ? String(rowData[ARTICLE_COLS.IMAGE_URL] || '').trim() : '';
+    var artMc = (rowData.length > ARTICLE_COLS.MAJOR_CATEGORY) ? String(rowData[ARTICLE_COLS.MAJOR_CATEGORY] || '').trim() : '';
+    var artCat = String(rowData[ARTICLE_COLS.CATEGORY] || '').trim();
+    if (!artMc) artMc = MAJOR_CATEGORY_MAP[artCat] || '副業の始め方';
     var article = {
       id: String(rowData[ARTICLE_COLS.ID] || '').trim(),
       title: String(rowData[ARTICLE_COLS.TITLE] || '').trim(),
       content: String(rowData[ARTICLE_COLS.CONTENT] || '').trim(),
-      category: String(rowData[ARTICLE_COLS.CATEGORY] || '').trim(),
+      category: artCat,
+      majorCategory: artMc,
       tags: String(rowData[ARTICLE_COLS.TAGS] || '').trim(),
       publishDate: art_formatDate_(rowData[ARTICLE_COLS.PUBLISH_DATE]),
       emoji: String(rowData[ARTICLE_COLS.EMOJI] || '📝').trim(),

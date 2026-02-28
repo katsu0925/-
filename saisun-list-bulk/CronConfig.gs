@@ -57,7 +57,7 @@ function setupCronTriggers() {
   // ga4SyncAll → saisun-list に戻したためこのプロジェクトでは登録しない
   var targetFns = [
     'cronProductAnalytics', 'cronRfmAnalysis',
-    'rewardUpdateDaily', 'generateDailyArticle',
+    'rewardUpdateDaily', 'generateDailyArticle', 'generateScheduledArticle',
     'cronDaily6'
   ];
 
@@ -82,9 +82,9 @@ function setupCronTriggers() {
   return { ok: true, count: total };
 }
 
-/** 毎日6時: 記事生成 + 報酬計算 */
+/** 毎日6時: 記事生成（月水金日のみ） + 古記事クリーンアップ + 報酬計算 */
 function cronDaily6() {
-  var fns = [generateDailyArticle, rewardUpdateDaily];
+  var fns = [generateScheduledArticle, cron_art_cleanupOldArticles_, rewardUpdateDaily];
   for (var i = 0; i < fns.length; i++) {
     try { fns[i](); } catch (e) { console.error('cronDaily6 [' + fns[i].name + ']:', e); }
   }
