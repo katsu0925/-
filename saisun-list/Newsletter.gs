@@ -66,7 +66,7 @@ function registerNewsletter() {
     '<textarea id="body" placeholder="テンプレートを選択するか、直接入力してください&#10;&#10;改行はそのまま反映されます"></textarea>' +
     '<label>配信日時</label>' +
     '<input type="datetime-local" id="schedule">' +
-    '<div class="info">空欄の場合、次の毎日9時の自動配信で送信されます</div>' +
+    '<div class="info">空欄の場合、次の朝9時に自動配信されます</div>' +
     '<div class="info" style="margin-top:8px">配信対象: <b>' + recipients.length + '人</b>（メルマガ登録済み会員）</div>' +
     '<div class="actions">' +
       '<button class="btn-cancel" onclick="google.script.host.close()">キャンセル</button>' +
@@ -124,7 +124,7 @@ function saveNewsletter_(title, bodyText, schedule) {
   var sheet = getNewsletterSheet_();
   sheet.appendRow([title, bodyText, schedule || '', '']);
   var recipients = getNewsletterRecipients_();
-  return '登録完了（配信対象: ' + recipients.length + '人、配信予定: ' + (schedule || '次の9時に自動配信') + '）';
+  return '登録完了（配信対象: ' + recipients.length + '人、配信予定: ' + (schedule || '次の朝9時に自動配信') + '）';
 }
 
 /**
