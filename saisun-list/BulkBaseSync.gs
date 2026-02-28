@@ -404,6 +404,7 @@ function baseSyncStockFromOrders_() {
 
 /**
  * BASE商品を編集（タイトル・説明・価格・在庫・公開状態）
+ * バリエーション商品はpriceを受け付けないため、400エラー時にprice抜きでリトライ
  */
 function baseEditItem_(itemId, params) {
   var url = BASE_APP.API_BASE + '/1/items/edit';
@@ -420,6 +421,27 @@ function baseEditItem_(itemId, params) {
   });
 
   var rc = resp.getResponseCode();
+  if (rc === 400 && params.price) {
+    // バリエーション商品はprice編集不可 → price抜きでリトライ
+    console.log('BASE編集400エラー: price抜きでリトライ item=' + itemId);
+    var retryParams = {};
+    for (var k in params) {
+      if (k !== 'price') retryParams[k] = params[k];
+    }
+    var resp2 = UrlFetchApp.fetch(url, {
+      method: 'post',
+      headers: { Authorization: 'Bearer ' + token },
+      contentType: 'application/x-www-form-urlencoded',
+      payload: baseToFormEncoded_(retryParams),
+      muteHttpExceptions: true
+    });
+    var rc2 = resp2.getResponseCode();
+    if (rc2 < 200 || rc2 >= 300) {
+      throw new Error('BASE商品編集失敗(リトライ) item=' + itemId + ' rc=' + rc2 + ' ' + resp2.getContentText());
+    }
+    return;
+  }
+
   if (rc < 200 || rc >= 300) {
     throw new Error('BASE商品編集失敗 item=' + itemId + ' rc=' + rc + ' ' + resp.getContentText());
   }
