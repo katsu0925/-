@@ -534,8 +534,13 @@ function baseSyncProductsToBase() {
   var c = BULK_CONFIG.cols;
   var data = sh.getRange(2, 1, lastRow - 1, BULK_SHEET_HEADER.length).getValues();
 
-  // 前回のスナップショットを取得
+  // 前回のスナップショットを取得（画像同期修正v2: 旧スナップショットをリセット）
   var props = PropertiesService.getScriptProperties();
+  if (props.getProperty('BASE_SYNC_V') !== '2') {
+    props.deleteProperty('BASE_SYNC_SNAPSHOT');
+    props.setProperty('BASE_SYNC_V', '2');
+    console.log('BASE同期: スナップショットをリセット（画像同期v2）');
+  }
   var prevJson = props.getProperty('BASE_SYNC_SNAPSHOT') || '{}';
   var prev;
   try { prev = JSON.parse(prevJson); } catch (e) { prev = {}; }
