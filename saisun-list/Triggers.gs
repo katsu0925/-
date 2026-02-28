@@ -98,8 +98,8 @@ function tr_setupTriggersOnce_() {
     { fn: 'cronDaily4To6', type: 'daily', hour: 4 },
     // 毎日7時（ディスパッチャー: インボイス領収書送付 + キャンセル取消 + BASEトークンチェック）
     { fn: 'cronDaily7', type: 'daily', hour: 7 },
-    // 毎日8時（GA4同期 — saisun-list-bulkから戻し）
-    { fn: 'ga4SyncAll', type: 'daily', hour: 8 },
+    // 毎日8時（ディスパッチャー: GA4同期 + 月次在庫サマリーメール）
+    { fn: 'cronDaily8', type: 'daily', hour: 8 },
     // generateDailyArticle, rewardUpdateDaily → saisun-list-bulk に移動
     // cronProductAnalytics, cronRfmAnalysis → saisun-list-bulk に移動
     // 毎日9時（ディスパッチャー: 2関数を1トリガーに統合）
@@ -230,6 +230,11 @@ function cronBaseTokenCheck() {
   } catch (e) {
     console.error('BASEトークン警告メール送信失敗:', e);
   }
+}
+
+/** 毎日8時: GA4同期 + 月次在庫サマリーメール(1日のみ) */
+function cronDaily8() {
+  runWithErrorNotify_('cronDaily8', [ga4SyncAll, sendMonthlyStockSummary]);
 }
 
 /** 毎日9時: 4関数を1トリガーで実行 */
