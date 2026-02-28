@@ -24,40 +24,82 @@ function getNewsletterSheet_() {
 // =====================================================
 
 /**
- * メニューから実行: ニュースレター登録ダイアログ
+ * メニューから実行: ニュースレター登録ダイアログ（HTML版）
  */
 function registerNewsletter() {
-  var ui = SpreadsheetApp.getUi();
-
-  var titleResp = ui.prompt('ニュースレター登録 (1/3)', 'タイトルを入力してください:', ui.ButtonSet.OK_CANCEL);
-  if (titleResp.getSelectedButton() !== ui.Button.OK) return;
-  var title = String(titleResp.getResponseText() || '').trim();
-  if (!title) { ui.alert('タイトルが空です'); return; }
-
-  var bodyResp = ui.prompt('ニュースレター登録 (2/3)', '本文を入力してください:\n（改行は \\n で入力）', ui.ButtonSet.OK_CANCEL);
-  if (bodyResp.getSelectedButton() !== ui.Button.OK) return;
-  var bodyText = String(bodyResp.getResponseText() || '').trim().replace(/\\n/g, '\n');
-  if (!bodyText) { ui.alert('本文が空です'); return; }
-
-  var schedResp = ui.prompt(
-    'ニュースレター登録 (3/3)',
-    '配信日時を入力してください（例: 2026-03-01 09:00）\n空欄 = 次の9時に即配信',
-    ui.ButtonSet.OK_CANCEL
-  );
-  if (schedResp.getSelectedButton() !== ui.Button.OK) return;
-  var schedText = String(schedResp.getResponseText() || '').trim();
-
-  var sheet = getNewsletterSheet_();
-  sheet.appendRow([title, bodyText, schedText || '', '']);
-
   var recipients = getNewsletterRecipients_();
-  ui.alert(
-    '登録完了\n\n' +
-    'タイトル: ' + title + '\n' +
-    '配信予定: ' + (schedText || '次の9時に自動配信') + '\n' +
-    '配信対象: ' + recipients.length + '人（メルマガ登録済み会員）\n\n' +
-    'テスト送信したい場合は「ニュースレター テスト送信」メニューを使ってください。'
-  );
+  var html = HtmlService.createHtmlOutput(
+    '<style>' +
+      '*{box-sizing:border-box;margin:0;padding:0}' +
+      'body{font-family:-apple-system,sans-serif;padding:16px;color:#333}' +
+      'label{display:block;font-weight:600;margin:12px 0 4px;font-size:13px}' +
+      'label:first-child{margin-top:0}' +
+      'input[type=text],input[type=datetime-local],textarea{' +
+        'width:100%;padding:8px 10px;border:1px solid #ccc;border-radius:4px;font-size:14px;font-family:inherit}' +
+      'textarea{height:160px;resize:vertical;line-height:1.6}' +
+      'input:focus,textarea:focus{outline:none;border-color:#1a73e8;box-shadow:0 0 0 2px rgba(26,115,232,.2)}' +
+      '.info{color:#5f6368;font-size:12px;margin-top:4px}' +
+      '.actions{margin-top:16px;display:flex;gap:8px;justify-content:flex-end}' +
+      'button{padding:8px 20px;border-radius:4px;font-size:14px;cursor:pointer;border:none}' +
+      '.btn-primary{background:#1a73e8;color:#fff}' +
+      '.btn-primary:hover{background:#1557b0}' +
+      '.btn-cancel{background:#f1f3f4;color:#333}' +
+      '.btn-cancel:hover{background:#e0e0e0}' +
+      '.result{margin-top:12px;padding:10px;border-radius:4px;font-size:13px;display:none}' +
+      '.result.ok{display:block;background:#e6f4ea;color:#1e7e34}' +
+      '.result.ng{display:block;background:#fce8e6;color:#c5221f}' +
+    '</style>' +
+    '<label>タイトル</label>' +
+    '<input type="text" id="title" placeholder="例: 夏のセール開催のお知らせ">' +
+    '<label>本文</label>' +
+    '<textarea id="body" placeholder="お客様にお届けする内容を入力してください&#10;&#10;改行はそのまま反映されます"></textarea>' +
+    '<label>配信日時</label>' +
+    '<input type="datetime-local" id="schedule">' +
+    '<div class="info">空欄の場合、次の毎日9時の自動配信で送信されます</div>' +
+    '<div class="info" style="margin-top:8px">配信対象: <b>' + recipients.length + '人</b>（メルマガ登録済み会員）</div>' +
+    '<div class="actions">' +
+      '<button class="btn-cancel" onclick="google.script.host.close()">キャンセル</button>' +
+      '<button class="btn-primary" id="submitBtn" onclick="submit()">登録</button>' +
+    '</div>' +
+    '<div class="result" id="result"></div>' +
+    '<script>' +
+      'function submit(){' +
+        'var t=document.getElementById("title").value.trim();' +
+        'var b=document.getElementById("body").value.trim();' +
+        'var s=document.getElementById("schedule").value||"";' +
+        'if(!t){alert("タイトルを入力してください");return}' +
+        'if(!b){alert("本文を入力してください");return}' +
+        'document.getElementById("submitBtn").disabled=true;' +
+        'document.getElementById("submitBtn").textContent="登録中...";' +
+        'google.script.run' +
+          '.withSuccessHandler(function(r){' +
+            'var el=document.getElementById("result");' +
+            'el.className="result ok";' +
+            'el.textContent=r;' +
+            'setTimeout(function(){google.script.host.close()},2000)' +
+          '})' +
+          '.withFailureHandler(function(e){' +
+            'var el=document.getElementById("result");' +
+            'el.className="result ng";' +
+            'el.textContent="エラー: "+e.message;' +
+            'document.getElementById("submitBtn").disabled=false;' +
+            'document.getElementById("submitBtn").textContent="登録"' +
+          '})' +
+          '.saveNewsletter_(t,b,s)' +
+      '}' +
+    '</script>'
+  ).setWidth(480).setHeight(480);
+  SpreadsheetApp.getUi().showModalDialog(html, 'ニュースレター登録');
+}
+
+/**
+ * HTMLダイアログから呼ばれるサーバー関数
+ */
+function saveNewsletter_(title, bodyText, schedule) {
+  var sheet = getNewsletterSheet_();
+  sheet.appendRow([title, bodyText, schedule || '', '']);
+  var recipients = getNewsletterRecipients_();
+  return '登録完了（配信対象: ' + recipients.length + '人、配信予定: ' + (schedule || '次の9時に自動配信') + '）';
 }
 
 /**
