@@ -630,6 +630,19 @@ function dormantCouponCron_() {
     var ss = sh_getOrderSs_();
     var sent = 0;
 
+    // 一括取得でAPI呼び出しを最小化
+    var allProps = props.getProperties();
+
+    // クーポン利用履歴を一括読み込み → Setで高速判定
+    var usedSet = {};
+    var logSh = ss.getSheetByName(COUPON_LOG_SHEET_NAME);
+    if (logSh && logSh.getLastRow() >= 2) {
+      var logData = logSh.getRange(2, 1, logSh.getLastRow() - 1, 2).getValues();
+      for (var l = 0; l < logData.length; l++) {
+        usedSet[String(logData[l][0] || '').trim().toUpperCase() + ':' + String(logData[l][1] || '').trim().toLowerCase()] = true;
+      }
+    }
+
     for (var i = 1; i < custData.length; i++) {
       var newsletter = custData[i][CUSTOMER_SHEET_COLS.NEWSLETTER];
       if (newsletter !== true && newsletter !== 'true' && newsletter !== 'TRUE') continue;
@@ -647,12 +660,12 @@ function dormantCouponCron_() {
 
       // 最上位の未送信ティアを探す（1Y > 6M > 2M）
       var tierToSend = null;
+      var emailLower = email.toLowerCase();
       for (var t = 0; t < DORMANT_TIERS.length; t++) {
         var tier = DORMANT_TIERS[t];
         if (daysSince < tier.days) continue;
-        var sentKey = 'DORMANT_SENT:' + tier.key + ':' + email;
-        if (props.getProperty(sentKey)) continue;
-        if (hasUserUsedCoupon_(ss, tier.code, email)) continue;
+        if (allProps['DORMANT_SENT:' + tier.key + ':' + emailLower]) continue;
+        if (usedSet[tier.code + ':' + emailLower]) continue;
         tierToSend = tier;
         break;
       }
@@ -707,12 +720,25 @@ function dormantCouponCron_() {
           })
         });
 
-        props.setProperty('DORMANT_SENT:' + tierToSend.key + ':' + email, String(Date.now()));
+        props.setProperty('DORMANT_SENT:' + tierToSend.key + ':' + emailLower, String(Date.now()));
         sent++;
         console.log('dormantCouponCron_: ' + tierToSend.key + ' 送信 ' + email);
       } catch (mailErr) {
         console.error('dormantCouponCron_ mail error: ' + email, mailErr);
       }
+    }
+
+    // 古い送信済みフラグをクリーンアップ（2年以上前のものを削除）
+    var cutoff = Date.now() - (730 * 24 * 60 * 60 * 1000);
+    var keysToDelete = [];
+    for (var key in allProps) {
+      if (key.indexOf('DORMANT_SENT:') !== 0) continue;
+      var ts = Number(allProps[key]);
+      if (ts && ts < cutoff) keysToDelete.push(key);
+    }
+    if (keysToDelete.length) {
+      props.deleteProperties(keysToDelete);
+      console.log('dormantCouponCron_: 古いフラグ ' + keysToDelete.length + '件を削除');
     }
 
     console.log('dormantCouponCron_: 完了 送信=' + sent + '件');
