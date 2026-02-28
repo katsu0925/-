@@ -18,8 +18,41 @@ const SHIPMAIL_CONFIG = {
   COL_CARRIER_W: 20,       // T列: 配送業者
   COL_TRACKING_X: 21,      // U列: 伝票番号
   FLAG_COL: 29,            // AC列: 発送通知
-  COL_PAYMENT_ID_AF: 16   // P列: 決済ID（KOMOJUのみ）
+  COL_PAYMENT_ID_AF: 16,  // P列: 決済ID（KOMOJUのみ）
+  COL_TRACKING_URL: 34    // AH列: 追跡URL
 };
+
+/**
+ * 配送業者名と伝票番号から追跡URLを生成
+ * @param {string} carrier - 配送業者名
+ * @param {string} trackingNo - 伝票番号
+ * @return {string} 追跡URL（対応業者がない場合は空文字）
+ */
+function buildTrackingUrl_(carrier, trackingNo) {
+  if (!carrier || !trackingNo) return '';
+  var c = carrier.toLowerCase();
+  // クロネコヤマト / ヤマト運輸
+  if (c.indexOf('ヤマト') !== -1 || c.indexOf('yamato') !== -1 || c.indexOf('クロネコ') !== -1 || c.indexOf('kuroneko') !== -1) {
+    return 'https://toi.kuronekoyamato.co.jp/cgi-bin/tneko?number=' + encodeURIComponent(trackingNo);
+  }
+  // 佐川急便
+  if (c.indexOf('佐川') !== -1 || c.indexOf('sagawa') !== -1) {
+    return 'https://k2k.sagawa-exp.co.jp/p/web/okurijosearch.do?okurijoNo=' + encodeURIComponent(trackingNo);
+  }
+  // 日本郵便 / ゆうパック / ゆうパケット
+  if (c.indexOf('郵便') !== -1 || c.indexOf('ゆうパック') !== -1 || c.indexOf('ゆうパケット') !== -1 || c.indexOf('japan post') !== -1) {
+    return 'https://trackings.post.japanpost.jp/services/srv/search/?requestNo1=' + encodeURIComponent(trackingNo) + '&search.x=1';
+  }
+  // 西濃運輸
+  if (c.indexOf('西濃') !== -1 || c.indexOf('seino') !== -1) {
+    return 'https://track.seino.co.jp/cgi-bin/gnpquery.pgm?GNPNO1=' + encodeURIComponent(trackingNo);
+  }
+  // 福山通運
+  if (c.indexOf('福山') !== -1 || c.indexOf('fukuyama') !== -1) {
+    return 'https://corp.fukutsu.co.jp/situation/tracking_no_hunt/' + encodeURIComponent(trackingNo);
+  }
+  return '';
+}
 
 function shipMailOnEdit(e) {
   try {
@@ -107,9 +140,16 @@ function shipMailOnEdit(e) {
     const totalAmount = rowVals[SHIPMAIL_CONFIG.COL_AMOUNT_L - 1] || 0;
     const carrier = String(rowVals[SHIPMAIL_CONFIG.COL_CARRIER_W - 1] || '').trim();
     const trackingNo = String(rowVals[SHIPMAIL_CONFIG.COL_TRACKING_X - 1] || '').trim();
+    const trackingUrl = buildTrackingUrl_(carrier, trackingNo);
 
     Logger.log('receiptNo=' + receiptNo);
     Logger.log('customer=' + customer);
+    Logger.log('trackingUrl=' + trackingUrl);
+
+    // AH列に追跡URLを書き込み
+    if (trackingUrl) {
+      sh.getRange(row, SHIPMAIL_CONFIG.COL_TRACKING_URL).setValue(trackingUrl);
+    }
 
     // --- 管理者宛通知メール ---
     const adminSubject = '発送通知: 受付番号 ' + receiptNo;
@@ -157,6 +197,11 @@ function shipMailOnEdit(e) {
       if (trackingNo) {
         custBody += '伝票番号：' + trackingNo + '\n';
       }
+      if (trackingUrl) {
+        custBody += '\n■ 配送状況の確認\n'
+          + '下記URLから配送状況をご確認いただけます。\n'
+          + trackingUrl + '\n';
+      }
 
       // 選択商品リスト
       if (selectionList) {
@@ -187,9 +232,18 @@ function shipMailOnEdit(e) {
         { label: '合計金額', value: Number(totalAmount).toLocaleString() + '円（税込）' }
       ];
       if (carrier) shipRows.push({ label: '配送業者', value: carrier });
-      if (trackingNo) shipRows.push({ label: '伝票番号', value: trackingNo });
+      if (trackingNo) shipRows.push({ label: '伝票番号', value: trackingUrl
+        ? '<a href="' + trackingUrl + '" style="color:#1a73e8">' + trackingNo + '</a>'
+        : trackingNo });
 
       var shipHtmlSections = [{ title: '発送内容', rows: shipRows }];
+
+      if (trackingUrl) {
+        shipHtmlSections.push({
+          title: '配送状況の確認',
+          text: '下記のリンクから配送状況をご確認いただけます。'
+        });
+      }
 
       if (selectionList) {
         shipHtmlSections.push({ title: '選択商品', text: selectionList });
@@ -202,7 +256,9 @@ function shipMailOnEdit(e) {
         });
       }
 
-      var shipCta = confirmLink ? { text: 'ご注文明細を確認', url: confirmLink } : null;
+      var shipCta = trackingUrl
+        ? { text: '配送状況を確認', url: trackingUrl }
+        : (confirmLink ? { text: 'ご注文明細を確認', url: confirmLink } : null);
 
       var custHtmlBody = buildHtmlEmail_({
         greeting: customer + ' 様',
@@ -223,7 +279,8 @@ function shipMailOnEdit(e) {
         lineNotifyShipping_(contactEmail, {
           receiptNo: receiptNo,
           carrier: carrier,
-          trackingNumber: trackingNo
+          trackingNumber: trackingNo,
+          trackingUrl: trackingUrl
         });
       } catch(e) { Logger.log('optional: lineNotifyShipping_: ' + (e.message || e)); }
     }
