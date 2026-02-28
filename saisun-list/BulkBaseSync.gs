@@ -73,40 +73,53 @@ function baseUpdateStock_(itemId, stock, variationId) {
  * @param {string} imageUrl - 画像URL
  * @returns {boolean} 成功したか
  */
-function baseAddImage_(itemId, imageNo, imageUrl) {
-  if (!imageUrl) return false;
-  try {
-    var imgResp = UrlFetchApp.fetch(imageUrl, { muteHttpExceptions: true, followRedirects: true });
-    if (imgResp.getResponseCode() !== 200) {
-      console.log('画像取得失敗 (rc=' + imgResp.getResponseCode() + '): ' + imageUrl);
-      return false;
-    }
-    var blob = imgResp.getBlob().setName('image_' + imageNo + '.jpg');
-    var token = baseGetAccessToken_();
+/**
+ * アソート商品の画像（最大5枚）をBASEに同期
+ * /1/items/add_image に image_url パラメータでURL直接登録
+ * @param {string} itemId - BASE商品ID
+ * @param {string[]} imageUrls - 画像URL配列（最大5要素）
+ * @returns {number} 登録成功数
+ */
+function baseSyncImages_(itemId, imageUrls) {
+  var token = baseGetAccessToken_();
+  var uploaded = 0;
 
-    var resp = UrlFetchApp.fetch(BASE_APP.API_BASE + '/1/items/add_image', {
-      method: 'post',
-      headers: { Authorization: 'Bearer ' + token },
-      payload: { item_id: String(itemId), image_no: String(imageNo), image: blob },
-      muteHttpExceptions: true
-    });
+  for (var i = 0; i < 5; i++) {
+    var url = (i < imageUrls.length) ? imageUrls[i] : '';
 
-    var rc = resp.getResponseCode();
-    if (rc < 200 || rc >= 300) {
-      console.error('BASE画像追加失敗 item=' + itemId + ' no=' + imageNo + ' rc=' + rc);
-      return false;
+    if (url) {
+      // image_url パラメータでURL直接登録
+      try {
+        var resp = UrlFetchApp.fetch(BASE_APP.API_BASE + '/1/items/add_image', {
+          method: 'post',
+          headers: { Authorization: 'Bearer ' + token },
+          contentType: 'application/x-www-form-urlencoded',
+          payload: baseToFormEncoded_({ item_id: String(itemId), image_no: String(i + 1), image_url: url }),
+          muteHttpExceptions: true
+        });
+        var rc = resp.getResponseCode();
+        if (rc >= 200 && rc < 300) {
+          uploaded++;
+        } else {
+          console.error('BASE画像登録失敗 img' + (i + 1) + ' rc=' + rc + ' ' + resp.getContentText());
+        }
+      } catch (e) {
+        console.error('BASE画像登録エラー img' + (i + 1) + ': ' + (e.message || e));
+      }
+    } else {
+      // 画像URLが空 → 既存画像を削除（エラーは無視）
+      baseDeleteImage_(itemId, i + 1);
     }
-    return true;
-  } catch (e) {
-    console.error('baseAddImage_ error: ' + (e.message || e));
-    return false;
+
+    Utilities.sleep(300);
   }
+
+  if (uploaded > 0) console.log('BASE画像同期: item=' + itemId + ' ' + uploaded + '枚登録');
+  return uploaded;
 }
 
 /**
  * BASE商品の画像を削除
- * @param {string} itemId - BASE商品ID
- * @param {number} imageNo - 画像番号（1-5）
  */
 function baseDeleteImage_(itemId, imageNo) {
   try {
@@ -125,28 +138,55 @@ function baseDeleteImage_(itemId, imageNo) {
 }
 
 /**
- * アソート商品の画像（最大5枚）をBASEに同期
- * 既存画像を削除してから新しい画像をアップロード
- * @param {string} itemId - BASE商品ID
- * @param {string[]} imageUrls - 画像URL配列（最大5要素）
- * @returns {number} アップロード成功数
+ * 画像同期テスト — GASエディタから手動実行
+ * アソート商品の最初の1件で全画像を同期してBASE側を確認
  */
-function baseSyncImages_(itemId, imageUrls) {
-  // 既存画像を削除（エラーは無視）
-  for (var i = 1; i <= 5; i++) {
-    baseDeleteImage_(itemId, i);
-    Utilities.sleep(200);
+function baseTestImageSync() {
+  var ss = bulk_getSs_();
+  var sh = ss.getSheetByName(BULK_CONFIG.sheetName);
+  if (!sh) throw new Error('アソート商品シートが見つかりません');
+
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) throw new Error('商品がありません');
+
+  var c = BULK_CONFIG.cols;
+  var data = sh.getRange(2, 1, lastRow - 1, BULK_SHEET_HEADER.length).getValues();
+
+  for (var r = 0; r < data.length; r++) {
+    var baseItemId = String(data[r][c.baseItemId] || '').trim();
+    var img1 = String(data[r][c.image1] || '').trim();
+    if (!baseItemId || !img1) continue;
+
+    var name = String(data[r][c.name] || '').trim();
+    var imageUrls = [
+      img1,
+      String(data[r][c.image2] || '').trim(),
+      String(data[r][c.image3] || '').trim(),
+      String(data[r][c.image4] || '').trim(),
+      String(data[r][c.image5] || '').trim()
+    ];
+
+    console.log('=== テスト: ' + name + ' (ID: ' + baseItemId + ') ===');
+    console.log('画像URL: ' + JSON.stringify(imageUrls));
+
+    var count = baseSyncImages_(baseItemId, imageUrls);
+    console.log('結果: ' + count + '枚登録');
+
+    Utilities.sleep(2000);
+
+    // BASE側確認
+    try {
+      var detail = baseApiGet_('/1/items/detail/' + baseItemId, null);
+      var item = detail.item || detail;
+      console.log('--- BASE側の画像状態 ---');
+      for (var i = 1; i <= 5; i++) {
+        console.log('img' + i + '_origin: ' + (item['img' + i + '_origin'] || '(なし)'));
+      }
+    } catch (e) { console.error('詳細取得失敗: ' + e); }
+
+    return;
   }
-  // 新しい画像をアップロード
-  var uploaded = 0;
-  for (var j = 0; j < imageUrls.length && j < 5; j++) {
-    if (!imageUrls[j]) continue;
-    if (baseAddImage_(itemId, j + 1, imageUrls[j])) {
-      uploaded++;
-    }
-    Utilities.sleep(300);
-  }
-  return uploaded;
+  console.log('テスト対象なし');
 }
 
 /**
