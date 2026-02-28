@@ -223,3 +223,83 @@ function cleanupDryRun() {
 function cleanupExecute() {
   return cleanupStaleProperties(false);
 }
+
+// =====================================================
+// シートヘッダー保護（スタッフの誤操作防止）
+// =====================================================
+
+/**
+ * 主要シートのヘッダー行（1行目）を保護する
+ * GASエディタから1回実行する
+ *
+ * 保護対象:
+ *   - 依頼管理シート（注文SS）
+ *   - データ1シート（商品SS）
+ *   - 顧客管理シート（注文SS）
+ *
+ * オーナーのメールアドレス（ADMIN_OWNER_EMAIL）は編集可能のまま残す
+ */
+function setupHeaderProtection() {
+  var props = PropertiesService.getScriptProperties();
+  var ownerEmail = String(props.getProperty('ADMIN_OWNER_EMAIL') || '').trim();
+
+  var targets = [];
+
+  // 注文SS（依頼管理・顧客管理）
+  try {
+    var orderSs = sh_getOrderSs_();
+    var reqSheet = orderSs.getSheetByName(String(APP_CONFIG.order.requestSheetName || '依頼管理'));
+    if (reqSheet) targets.push({ sheet: reqSheet, name: '依頼管理' });
+    var custSheet = orderSs.getSheetByName('顧客管理');
+    if (custSheet) targets.push({ sheet: custSheet, name: '顧客管理' });
+  } catch (e) { console.error('注文SSオープンエラー:', e); }
+
+  // データSS（データ1）
+  try {
+    var dataSs = sh_getDataSs_();
+    var dataSheet = dataSs.getSheetByName(String(APP_CONFIG.data.sheetName || 'データ1'));
+    if (dataSheet) targets.push({ sheet: dataSheet, name: 'データ1' });
+  } catch (e) { console.error('データSSオープンエラー:', e); }
+
+  var protected_ = 0;
+  for (var i = 0; i < targets.length; i++) {
+    var t = targets[i];
+    try {
+      // 既存の1行目保護があれば削除
+      var existingProtections = t.sheet.getProtections(SpreadsheetApp.ProtectionType.RANGE);
+      for (var j = 0; j < existingProtections.length; j++) {
+        if (existingProtections[j].getDescription() === 'ヘッダー行保護') {
+          existingProtections[j].remove();
+        }
+      }
+
+      // 1行目を保護
+      var protection = t.sheet.getRange(1, 1, 1, t.sheet.getMaxColumns()).protect();
+      protection.setDescription('ヘッダー行保護');
+      protection.setWarningOnly(false);
+
+      // オーナーのみ編集可能
+      if (ownerEmail) {
+        protection.addEditor(ownerEmail);
+        // オーナー以外を削除
+        var editors = protection.getEditors();
+        for (var k = 0; k < editors.length; k++) {
+          if (editors[k].getEmail() !== ownerEmail) {
+            protection.removeEditor(editors[k]);
+          }
+        }
+      } else {
+        // オーナー未設定の場合は警告表示のみ
+        protection.setWarningOnly(true);
+      }
+
+      protected_++;
+      console.log('ヘッダー保護設定: ' + t.name);
+    } catch (e) {
+      console.error('ヘッダー保護エラー(' + t.name + '):', e);
+    }
+  }
+
+  console.log('ヘッダー保護完了: ' + protected_ + '/' + targets.length + 'シート');
+  return { ok: true, protected: protected_, total: targets.length };
+}

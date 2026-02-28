@@ -88,15 +88,15 @@ function tr_setupTriggersOnce_() {
   var timeBasedTriggers = [
     // 毎分
     { fn: 'syncListingPublicCron', type: 'minutes', interval: 1 },
-    // 5分ごと（ディスパッチャー: 5関数を1トリガーに統合）
+    // 5分ごと（ディスパッチャー: 6関数を1トリガーに統合）
     { fn: 'cronEvery5min', type: 'minutes', interval: 5 },
     // 30分ごと
     { fn: 'cronAbandonedCart', type: 'minutes', interval: 30 },
     // 1時間ごと
     { fn: 'cronStatsCache', type: 'hours', interval: 1 },
-    // 毎日4時（ディスパッチャー: 確保クリーンアップ + ポイント処理 + ポイント失効）
+    // 毎日4時（ディスパッチャー: 確保クリーンアップ + ポイント処理 + ポイント失効 + プロパティ掃除）
     { fn: 'cronDaily4To6', type: 'daily', hour: 4 },
-    // 毎日7時（ディスパッチャー: インボイス領収書送付 + キャンセル取消）
+    // 毎日7時（ディスパッチャー: インボイス領収書送付 + キャンセル取消 + BASEトークンチェック）
     { fn: 'cronDaily7', type: 'daily', hour: 7 },
     // 毎日8時（GA4同期 — saisun-list-bulkから戻し）
     { fn: 'ga4SyncAll', type: 'daily', hour: 8 },
@@ -148,27 +148,63 @@ function cronCancelledInvoices() { processCancelledInvoices(); }
 // ディスパッチャー（同一間隔のトリガーを統合してトリガー数を節約）
 // =====================================================
 
-/** 5分ごと: 5関数を1トリガーで実行 */
+/** 5分ごと: 6関数を1トリガーで実行 */
 function cronEvery5min() {
-  var fns = [cronExportProducts, baseSyncOrdersNow, baseSyncProductsToBase, notifyUnsentRequests, cronAutoExpandOrders];
+  var fns = [cronExportProducts, baseSyncOrdersNow, baseSyncProductsToBase, notifyUnsentRequests, cronAutoExpandOrders, checkPendingOrders];
   for (var i = 0; i < fns.length; i++) {
     try { fns[i](); } catch (e) { console.error('cronEvery5min [' + fns[i].name + ']:', e); }
   }
 }
 
-/** 毎日4時: 確保クリーンアップ + ポイント処理 + ポイント失効 */
+/** 毎日4時: 確保クリーンアップ + ポイント処理 + ポイント失効 + プロパティ掃除 */
 function cronDaily4To6() {
-  var fns = [cronCompactHolds, cronProcessPoints, cronPointExpiry];
+  var fns = [cronCompactHolds, cronProcessPoints, cronPointExpiry, cleanupExecute];
   for (var i = 0; i < fns.length; i++) {
     try { fns[i](); } catch (e) { console.error('cronDaily4To6 [' + fns[i].name + ']:', e); }
   }
 }
 
-/** 毎日7時: インボイス領収書送付 + キャンセル取消 */
+/** 毎日7時: インボイス領収書送付 + キャンセル取消 + BASEトークン期限チェック */
 function cronDaily7() {
-  var fns = [cronInvoiceReceipts, cronCancelledInvoices];
+  var fns = [cronInvoiceReceipts, cronCancelledInvoices, cronBaseTokenCheck];
   for (var i = 0; i < fns.length; i++) {
     try { fns[i](); } catch (e) { console.error('cronDaily7 [' + fns[i].name + ']:', e); }
+  }
+}
+
+/** BASEトークンの残り有効期限を確認し、24時間以内なら管理者にメール通知 */
+function cronBaseTokenCheck() {
+  var props = PropertiesService.getScriptProperties();
+  var exp = Number(props.getProperty(BASE_APP.PROP_EXPIRES_AT) || '0');
+  if (!exp) return; // BASE未設定
+
+  var remainMs = exp - Date.now();
+  var remainHours = Math.floor(remainMs / (60 * 60 * 1000));
+
+  if (remainMs > 24 * 60 * 60 * 1000) return; // 24時間以上あれば問題なし
+
+  var adminEmail = String(props.getProperty('ADMIN_OWNER_EMAIL') || APP_CONFIG.notifyEmails || '').split(',')[0].trim();
+  if (!adminEmail) return;
+
+  var subject, body;
+  if (remainMs <= 0) {
+    subject = '【要対応】BASE APIトークンが期限切れです';
+    body = 'BASE APIのアクセストークンが期限切れです。\n' +
+           'BASE連携（商品同期・注文同期）が停止しています。\n\n' +
+           '対応: GASエディタで baseShowAuthUrl() を実行し、BASE再認証を行ってください。';
+  } else {
+    subject = '【注意】BASE APIトークンの期限が残り' + remainHours + '時間です';
+    body = 'BASE APIのアクセストークンの有効期限が近づいています。\n' +
+           '残り約' + remainHours + '時間で期限切れになります。\n\n' +
+           '通常は自動リフレッシュされますが、リフレッシュトークンも期限切れの場合は\n' +
+           'GASエディタで baseShowAuthUrl() を実行し、BASE再認証を行ってください。';
+  }
+
+  try {
+    MailApp.sendEmail(adminEmail, subject, body);
+    console.log('BASEトークン期限警告メール送信: 残り' + remainHours + '時間');
+  } catch (e) {
+    console.error('BASEトークン警告メール送信失敗:', e);
   }
 }
 
