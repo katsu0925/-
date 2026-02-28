@@ -7446,6 +7446,8 @@ body.admin-mode .article-panel{bottom:186px;}
   if(!panel)return;
   var isDesktop=window.matchMedia('(min-width:1100px)').matches;
   var isOpen=false,articlesLoaded=false,articlesData=[],detailCache={},LS_LAST_READ='detauri_article_last_read_date',LS_ARTICLES='detauri_articles_data',LS_TAB='detauri_article_tab';
+  var _mcMap={'メルカリ':'売り方ガイド','ラクマ':'売り方ガイド','Yahoo!フリマ':'売り方ガイド','Amazon':'売り方ガイド','eBay':'売り方ガイド','中国輸入':'仕入れノウハウ','せどり':'仕入れノウハウ','アパレル':'仕入れノウハウ','副業全般':'副業の始め方','ツール活用':'副業の始め方'};
+  function resolveMc_(a){return a.majorCategory||_mcMap[a.category]||'副業の始め方';}
   var activeTab='';try{activeTab=localStorage.getItem(LS_TAB)||'';}catch(e){}
   var tabsEl=document.getElementById('articleTabs');
   if(tabsEl){var _tabs=tabsEl.querySelectorAll('.article-tab');for(var ti=0;ti<_tabs.length;ti++){if(_tabs[ti].getAttribute('data-cat')===activeTab){_tabs[ti].classList.add('active');}else{_tabs[ti].classList.remove('active');}(function(btn){btn.addEventListener('click',function(){activeTab=btn.getAttribute('data-cat');try{localStorage.setItem(LS_TAB,activeTab);}catch(e){}for(var j=0;j<_tabs.length;j++){_tabs[j].classList.toggle('active',_tabs[j]===btn);}applyFilters_();showListView();});}(_tabs[ti]));}}
@@ -7460,8 +7462,6 @@ body.admin-mode .article-panel{bottom:186px;}
   function updateBadge(){if(!badge)return;try{var lr=localStorage.getItem(LS_LAST_READ)||'';if(!lr||!articlesData.length){badge.style.display='none';return;}var u=0;for(var i=0;i<articlesData.length;i++){var pd=String(articlesData[i].publishDate||'').replace(/\(.\)/,'').replace(/\//g,'-');if(pd>lr)u++;}if(u>0){badge.textContent=u>9?'9+':String(u);badge.style.display='flex';}else{badge.style.display='none';}}catch(e){badge.style.display='none';}}
   if(isDesktop){fetchArticles();}else{if(fab)fab.addEventListener('click',function(){if(isOpen)closePanel();else openPanel();});if(closeBtn)closeBtn.addEventListener('click',function(){closePanel();});setTimeout(function(){if(!articlesLoaded){articleFetch('apiGetArticles').then(function(r){if(r&&r.ok&&r.articles){articlesData=r.articles;articlesLoaded=true;saveArticlesCache_(r.articles);applyFilters_();loadingEl.style.display='none';updateBadge();preloadImages_();}}).catch(function(){});}},3000);}
   detailBack.addEventListener('click',function(){showListView();});
-  var _mcMap={'メルカリ':'売り方ガイド','ラクマ':'売り方ガイド','Yahoo!フリマ':'売り方ガイド','Amazon':'売り方ガイド','eBay':'売り方ガイド','中国輸入':'仕入れノウハウ','せどり':'仕入れノウハウ','アパレル':'仕入れノウハウ','副業全般':'副業の始め方','ツール活用':'副業の始め方'};
-  function resolveMc_(a){return a.majorCategory||_mcMap[a.category]||'副業の始め方';}
   function applyFilters_(){var q=searchInput?searchInput.value.toLowerCase().trim():'';var f=[];for(var i=0;i<articlesData.length;i++){var a=articlesData[i];var mc=resolveMc_(a);if(activeTab&&mc!==activeTab)continue;if(q&&(a.title||'').toLowerCase().indexOf(q)===-1&&(a.summary||'').toLowerCase().indexOf(q)===-1&&(a.category||'').toLowerCase().indexOf(q)===-1)continue;f.push(a);}renderList(f);}
   if(searchInput)searchInput.addEventListener('input',function(){applyFilters_();showListView();});
   function openPanel(){isOpen=true;panel.classList.add('open');if(!articlesLoaded){fetchArticles();}else{loadingEl.style.display='none';if(articlesData.length>0){applyFilters_();}else{emptyEl.style.display='block';}}setTimeout(prefetchAllContents,2000);try{var n=new Date();localStorage.setItem(LS_LAST_READ,n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')+'-'+String(n.getDate()).padStart(2,'0'));}catch(e){}if(badge)badge.style.display='none';showListView();}
