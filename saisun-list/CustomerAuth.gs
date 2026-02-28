@@ -859,16 +859,31 @@ function updatePurchaseCount_(email) {
   var normalizedEmail = String(email).trim().toLowerCase();
 
   var ss = sh_getOrderSs_();
-  var reqSheet = ss.getSheetByName('依頼管理');
-  if (!reqSheet) return;
-
-  var data = reqSheet.getDataRange().getValues();
   var count = 0;
-  for (var i = 1; i < data.length; i++) {
-    var rowEmail = String(data[i][REQUEST_SHEET_COLS.CONTACT - 1] || '').trim().toLowerCase();
-    var status = String(data[i][REQUEST_SHEET_COLS.STATUS - 1] || '').trim();
-    if (rowEmail === normalizedEmail && status === '完了') {
-      count++;
+
+  // 依頼管理シートからカウント
+  var reqSheet = ss.getSheetByName('依頼管理');
+  if (reqSheet) {
+    var data = reqSheet.getDataRange().getValues();
+    for (var i = 1; i < data.length; i++) {
+      var rowEmail = String(data[i][REQUEST_SHEET_COLS.CONTACT - 1] || '').trim().toLowerCase();
+      var status = String(data[i][REQUEST_SHEET_COLS.STATUS - 1] || '').trim();
+      if (rowEmail === normalizedEmail && status === '完了') {
+        count++;
+      }
+    }
+  }
+
+  // アーカイブシートからもカウント
+  var arcSheet = ss.getSheetByName('依頼管理_アーカイブ');
+  if (arcSheet && arcSheet.getLastRow() >= 2) {
+    var arcData = arcSheet.getDataRange().getValues();
+    for (var a = 1; a < arcData.length; a++) {
+      var arcEmail = String(arcData[a][REQUEST_SHEET_COLS.CONTACT - 1] || '').trim().toLowerCase();
+      var arcStatus = String(arcData[a][REQUEST_SHEET_COLS.STATUS - 1] || '').trim();
+      if (arcEmail === normalizedEmail && arcStatus === '完了') {
+        count++;
+      }
     }
   }
 
@@ -899,18 +914,21 @@ function backfillPurchaseCount() {
     custSheet.getRange(1, col).setValue('購入回数');
   }
 
-  // 依頼管理シートから完了注文を一括取得
+  // 依頼管理シート + アーカイブシートから完了注文を一括取得
   var ss = sh_getOrderSs_();
-  var reqSheet = ss.getSheetByName('依頼管理');
-  if (!reqSheet) return;
-
-  var reqData = reqSheet.getDataRange().getValues();
   var countMap = {};
-  for (var i = 1; i < reqData.length; i++) {
-    var email = String(reqData[i][REQUEST_SHEET_COLS.CONTACT - 1] || '').trim().toLowerCase();
-    var status = String(reqData[i][REQUEST_SHEET_COLS.STATUS - 1] || '').trim();
-    if (email && status === '完了') {
-      countMap[email] = (countMap[email] || 0) + 1;
+
+  var sheetNames = ['依頼管理', '依頼管理_アーカイブ'];
+  for (var s = 0; s < sheetNames.length; s++) {
+    var sheet = ss.getSheetByName(sheetNames[s]);
+    if (!sheet || sheet.getLastRow() < 2) continue;
+    var sheetData = sheet.getDataRange().getValues();
+    for (var i = 1; i < sheetData.length; i++) {
+      var email = String(sheetData[i][REQUEST_SHEET_COLS.CONTACT - 1] || '').trim().toLowerCase();
+      var status = String(sheetData[i][REQUEST_SHEET_COLS.STATUS - 1] || '').trim();
+      if (email && status === '完了') {
+        countMap[email] = (countMap[email] || 0) + 1;
+      }
     }
   }
 

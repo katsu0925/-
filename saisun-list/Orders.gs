@@ -332,3 +332,82 @@ function od_rebuildOpenStateFromOpenLogSheet_(orderSs) {
   console.log('依頼中シートからopenState再構築: ' + Object.keys(items).length + '件');
   return openState;
 }
+
+/**
+ * 完了・キャンセル・返品済みの古い注文を「依頼管理_アーカイブ」に移動
+ * 条件: V列(ステータス)が完了/キャンセル/返品 かつ AF列(更新日時)が90日以上前
+ * 行2はARRAYFORMULA保護のため絶対に削除しない
+ */
+function od_archiveCompletedOrders_() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(60000)) {
+    console.log('アーカイブ: ロック取得失敗');
+    return;
+  }
+
+  try {
+    var ss = sh_getOrderSs_();
+    var reqSheet = ss.getSheetByName(String(APP_CONFIG.order.requestSheetName || '依頼管理'));
+    if (!reqSheet) return;
+
+    var arcSheet = sh_ensureArchiveSheet_(ss);
+
+    var lastRow = reqSheet.getLastRow();
+    if (lastRow < 3) return; // ヘッダー + 行2(ARRAYFORMULA) のみ
+
+    // 全データ取得（getValuesでARRAYFORMULAの計算結果が値で返る）
+    var numCols = 33; // A-AG
+    var data = reqSheet.getRange(2, 1, lastRow - 1, numCols).getValues();
+
+    var now = new Date();
+    var threshold = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    var closedStatuses = { '完了': true, 'キャンセル': true, '返品': true };
+
+    // アーカイブ対象行を特定（dataの0-indexed → シートの行2+i）
+    var targetRows = []; // { sheetRow: number, rowData: array }
+    for (var i = 0; i < data.length; i++) {
+      var sheetRow = i + 2; // シート上の行番号
+      if (sheetRow === 2) continue; // 行2はARRAYFORMULA保護
+
+      var status = String(data[i][REQUEST_SHEET_COLS.STATUS - 1] || '').trim();
+      if (!closedStatuses[status]) continue;
+
+      var updatedAt = data[i][REQUEST_SHEET_COLS.UPDATED_AT - 1];
+      if (!(updatedAt instanceof Date)) continue;
+      if (updatedAt >= threshold) continue;
+
+      // 受付番号が空の行はスキップ
+      if (!data[i][0]) continue;
+
+      targetRows.push({ sheetRow: sheetRow, rowData: data[i] });
+    }
+
+    if (targetRows.length === 0) {
+      console.log('アーカイブ対象: 0件');
+      return;
+    }
+
+    // 一度に最大200行まで（GAS 6分制限対策）
+    var maxRows = 200;
+    if (targetRows.length > maxRows) {
+      targetRows = targetRows.slice(0, maxRows);
+    }
+
+    // アーカイブシートに一括追記
+    var appendData = [];
+    for (var j = 0; j < targetRows.length; j++) {
+      appendData.push(targetRows[j].rowData);
+    }
+    var arcLastRow = arcSheet.getLastRow();
+    arcSheet.getRange(arcLastRow + 1, 1, appendData.length, numCols).setValues(appendData);
+
+    // 依頼管理シートから対象行を削除（下→上の順で行番号がずれないようにする）
+    for (var k = targetRows.length - 1; k >= 0; k--) {
+      reqSheet.deleteRow(targetRows[k].sheetRow);
+    }
+
+    console.log('アーカイブ完了: ' + targetRows.length + '件を移動');
+  } finally {
+    lock.releaseLock();
+  }
+}

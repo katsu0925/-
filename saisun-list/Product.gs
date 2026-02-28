@@ -47,6 +47,24 @@ function sh_ensureHoldSheet_(ss) {
   return sh;
 }
 
+function sh_ensureArchiveSheet_(ss) {
+  const name = '依頼管理_アーカイブ';
+  let sh = ss.getSheetByName(name);
+  if (!sh) sh = ss.insertSheet(name);
+  const header = [
+    '受付番号','依頼日時','会社名/氏名','連絡先','郵便番号','住所','電話番号','商品名',
+    '確認リンク','選択リスト','合計点数','合計金額','送料(店負担)','送料(客負担)','決済方法','決済ID',
+    '入金確認','ポイント付与済','発送ステータス','配送業者','伝票番号','ステータス','担当者',
+    'リスト同梱','xlsx送付','インボイス発行','インボイス状況','受注通知',
+    '発送通知','備考','作業報酬','更新日時','チャネル'
+  ];
+  const r1 = sh.getRange(1, 1, 1, header.length).getValues()[0];
+  let needs = false;
+  for (let i = 0; i < header.length; i++) if (String(r1[i] || '') !== header[i]) { needs = true; break; }
+  if (needs) sh.getRange(1, 1, 1, header.length).setValues([header]);
+  return sh;
+}
+
 function sh_ensureOpenLogSheet_(ss) {
   const name = String(APP_CONFIG.order.openLogSheetName || '依頼中');
   let sh = ss.getSheetByName(name);
