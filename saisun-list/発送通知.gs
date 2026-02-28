@@ -300,6 +300,61 @@ function shipMailOnEdit(e) {
   }
 }
 
+/**
+ * メニューから実行: 選択行（または受付番号指定）の追跡URLをAH列に生成
+ * メール送信はしない
+ */
+function generateTrackingUrls() {
+  var ui = SpreadsheetApp.getUi();
+  var ss = SpreadsheetApp.openById(SHIPMAIL_CONFIG.SPREADSHEET_ID);
+  var sh = ss.getSheetByName(SHIPMAIL_CONFIG.SHEET_NAME);
+  if (!sh) { ui.alert('依頼管理シートが見つかりません'); return; }
+
+  var resp = ui.prompt(
+    '追跡URL生成',
+    '受付番号を入力してください（カンマ区切りで複数可）\n空欄で実行すると、T列・U列が入力済み＆AH列が空の全行を対象にします。',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (resp.getSelectedButton() !== ui.Button.OK) return;
+
+  var input = String(resp.getResponseText() || '').trim();
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) { ui.alert('データがありません'); return; }
+
+  var data = sh.getRange(2, 1, lastRow - 1, SHIPMAIL_CONFIG.COL_TRACKING_URL).getValues();
+  var count = 0;
+
+  var targetNos = {};
+  if (input) {
+    var parts = input.split(/[,、\s]+/);
+    for (var p = 0; p < parts.length; p++) {
+      var v = parts[p].trim();
+      if (v) targetNos[v] = true;
+    }
+  }
+
+  for (var i = 0; i < data.length; i++) {
+    var row = data[i];
+    var receiptNo = String(row[SHIPMAIL_CONFIG.COL_RECEIPT_NO - 1] || '').trim();
+    var carrier = String(row[SHIPMAIL_CONFIG.COL_CARRIER_W - 1] || '').trim();
+    var trackingNo = String(row[SHIPMAIL_CONFIG.COL_TRACKING_X - 1] || '').trim();
+    var existingUrl = String(row[SHIPMAIL_CONFIG.COL_TRACKING_URL - 1] || '').trim();
+
+    // 受付番号指定がある場合はそれだけ対象
+    if (input && !targetNos[receiptNo]) continue;
+    // 指定なしの場合: T列+U列あり & AH列が空のみ
+    if (!input && (existingUrl || !carrier || !trackingNo)) continue;
+
+    var url = buildTrackingUrl_(carrier, trackingNo);
+    if (url) {
+      sh.getRange(i + 2, SHIPMAIL_CONFIG.COL_TRACKING_URL).setValue(url);
+      count++;
+    }
+  }
+
+  ui.alert('追跡URL生成完了: ' + count + '件');
+}
+
 function installShipMailTrigger() {
   const ss = SpreadsheetApp.openById(SHIPMAIL_CONFIG.SPREADSHEET_ID);
 
