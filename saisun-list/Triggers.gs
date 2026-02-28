@@ -145,31 +145,53 @@ function cronInvoiceReceipts() { processInvoiceReceipts(); }
 function cronCancelledInvoices() { processCancelledInvoices(); }
 
 // =====================================================
+// ディスパッチャー共通（エラー時LINE通知付き）
+// =====================================================
+
+/** ディスパッチャー共通: 関数リストを順次実行し、エラーがあればLINE通知 */
+function runWithErrorNotify_(dispatcherName, fns) {
+  var errors = [];
+  for (var i = 0; i < fns.length; i++) {
+    try { fns[i](); } catch (e) {
+      console.error(dispatcherName + ' [' + fns[i].name + ']:', e);
+      errors.push(fns[i].name + ': ' + (e && e.message ? e.message : String(e)));
+    }
+  }
+  if (errors.length > 0) {
+    try {
+      var token = getLineAccessToken_();
+      var toId = getLineToId_();
+      if (token && toId) {
+        var msg = '【エラー通知】' + dispatcherName + '\n' + errors.join('\n');
+        if (msg.length > 500) msg = msg.substring(0, 497) + '...';
+        UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
+          method: 'post', contentType: 'application/json',
+          headers: { Authorization: 'Bearer ' + token },
+          payload: JSON.stringify({ to: toId, messages: [{ type: 'text', text: msg }] }),
+          muteHttpExceptions: true
+        });
+      }
+    } catch (lineErr) { console.error('エラーLINE通知失敗:', lineErr); }
+  }
+}
+
+// =====================================================
 // ディスパッチャー（同一間隔のトリガーを統合してトリガー数を節約）
 // =====================================================
 
 /** 5分ごと: 6関数を1トリガーで実行 */
 function cronEvery5min() {
-  var fns = [cronExportProducts, baseSyncOrdersNow, baseSyncProductsToBase, notifyUnsentRequests, cronAutoExpandOrders, checkPendingOrders];
-  for (var i = 0; i < fns.length; i++) {
-    try { fns[i](); } catch (e) { console.error('cronEvery5min [' + fns[i].name + ']:', e); }
-  }
+  runWithErrorNotify_('cronEvery5min', [cronExportProducts, baseSyncOrdersNow, baseSyncProductsToBase, notifyUnsentRequests, cronAutoExpandOrders, checkPendingOrders]);
 }
 
 /** 毎日4時: 確保クリーンアップ + ポイント処理 + ポイント失効 + プロパティ掃除 */
 function cronDaily4To6() {
-  var fns = [cronCompactHolds, cronProcessPoints, cronPointExpiry, cleanupExecute];
-  for (var i = 0; i < fns.length; i++) {
-    try { fns[i](); } catch (e) { console.error('cronDaily4To6 [' + fns[i].name + ']:', e); }
-  }
+  runWithErrorNotify_('cronDaily4To6', [cronCompactHolds, cronProcessPoints, cronPointExpiry, cleanupExecute]);
 }
 
 /** 毎日7時: インボイス領収書送付 + キャンセル取消 + BASEトークン期限チェック */
 function cronDaily7() {
-  var fns = [cronInvoiceReceipts, cronCancelledInvoices, cronBaseTokenCheck];
-  for (var i = 0; i < fns.length; i++) {
-    try { fns[i](); } catch (e) { console.error('cronDaily7 [' + fns[i].name + ']:', e); }
-  }
+  runWithErrorNotify_('cronDaily7', [cronInvoiceReceipts, cronCancelledInvoices, cronBaseTokenCheck]);
 }
 
 /** BASEトークンの残り有効期限を確認し、24時間以内なら管理者にメール通知 */
@@ -208,11 +230,86 @@ function cronBaseTokenCheck() {
   }
 }
 
-/** 毎日9時: 2関数を1トリガーで実行 */
+/** 毎日9時: 3関数を1トリガーで実行 */
 function cronDaily9() {
-  var fns = [sendPaymentReminders, cronNewsletter];
-  for (var i = 0; i < fns.length; i++) {
-    try { fns[i](); } catch (e) { console.error('cronDaily9 [' + fns[i].name + ']:', e); }
+  runWithErrorNotify_('cronDaily9', [sendPaymentReminders, cronNewsletter, cronDailySummary]);
+}
+
+// =====================================================
+// 毎朝の業務サマリーLINE通知
+// =====================================================
+
+/** 依頼管理シートの状態を集計してLINE通知 */
+function cronDailySummary() {
+  var ss = SpreadsheetApp.openById(app_getOrderSpreadsheetId_());
+  var sh = ss.getSheetByName(String(APP_CONFIG.order.requestSheetName || '依頼管理'));
+  if (!sh) return;
+
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return;
+
+  var data = sh.getRange(2, 1, lastRow - 1, 33).getValues();
+
+  var pendingPayment = 0; // 入金待ち
+  var pendingShip = 0;    // 発送待ち
+  var newToday = 0;       // 本日新規
+
+  var today = new Date();
+  var todayStr = Utilities.formatDate(today, 'Asia/Tokyo', 'yyyy/MM/dd');
+
+  for (var i = 0; i < data.length; i++) {
+    var status = String(data[i][21] || '').trim(); // V列: ステータス
+    if (status === '完了' || status === 'キャンセル' || status === '返品') continue;
+    if (!data[i][0]) continue; // 受付番号が空ならスキップ
+
+    var payment = String(data[i][16] || '').trim(); // Q列: 入金確認
+    var shipStatus = String(data[i][18] || '').trim(); // S列: 発送ステータス
+
+    // 入金待ち: 入金確認が空
+    if (!payment || payment === 'FALSE' || payment === 'false') {
+      pendingPayment++;
+    }
+    // 発送待ち: 入金済み & 未発送
+    else if (shipStatus !== '発送済み') {
+      pendingShip++;
+    }
+
+    // 本日の新規注文
+    var dateVal = data[i][1]; // B列: 依頼日時
+    if (dateVal instanceof Date) {
+      var dateStr = Utilities.formatDate(dateVal, 'Asia/Tokyo', 'yyyy/MM/dd');
+      if (dateStr === todayStr) newToday++;
+    }
+  }
+
+  // 全て0件なら通知しない
+  if (pendingPayment === 0 && pendingShip === 0 && newToday === 0) return;
+
+  var message = '【朝の業務サマリー】\n' +
+    '入金待ち: ' + pendingPayment + '件\n' +
+    '発送待ち: ' + pendingShip + '件\n' +
+    '本日の新規注文: ' + newToday + '件';
+
+  var token = getLineAccessToken_();
+  var toId = getLineToId_();
+  if (!token || !toId) {
+    // LINE未設定ならメールで送信
+    var adminEmail = String(PropertiesService.getScriptProperties().getProperty('ADMIN_OWNER_EMAIL') || APP_CONFIG.notifyEmails || '').split(',')[0].trim();
+    if (adminEmail) {
+      try { MailApp.sendEmail(adminEmail, '【デタウリ】朝の業務サマリー', message); } catch (e) {}
+    }
+    return;
+  }
+
+  try {
+    UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
+      method: 'post', contentType: 'application/json',
+      headers: { Authorization: 'Bearer ' + token },
+      payload: JSON.stringify({ to: toId, messages: [{ type: 'text', text: message }] }),
+      muteHttpExceptions: true
+    });
+  } catch (e) {
+    console.error('業務サマリーLINE通知失敗:', e);
   }
 }
 

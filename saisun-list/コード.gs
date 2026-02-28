@@ -1005,10 +1005,29 @@ function onOpen(e) {
     .addItem("領収書取消（キャンセル/返品）", "processCancelledInvoices")
     .addSeparator()
     .addItem("不要トリガー一括削除", "cleanupObsoleteTriggers")
+    .addSeparator()
+    .addItem("運用マニュアルを開く", "openManualDoc")
     .addToUi();
 
   // アソート商品管理メニューは、アソート商品スプレッドシートの
   // コンテナバインドスクリプト（saisun-list-bulk/）で表示
+}
+
+/** 運用マニュアル（Google Doc）を新しいタブで開く */
+function openManualDoc() {
+  var url = PropertiesService.getScriptProperties().getProperty('MANUAL_DOC_URL') || '';
+  if (!url) {
+    SpreadsheetApp.getUi().alert(
+      '運用マニュアルが未設定です。\n\n' +
+      'Google ドキュメントでマニュアルを作成し、\n' +
+      'スクリプトプロパティ「MANUAL_DOC_URL」にURLを設定してください。'
+    );
+    return;
+  }
+  var html = HtmlService.createHtmlOutput(
+    '<script>window.open("' + url + '", "_blank"); google.script.host.close();</script>'
+  ).setWidth(1).setHeight(1);
+  SpreadsheetApp.getUi().showModelessDialog(html, 'マニュアルを開いています...');
 }
 
 function clearAllChecks() {
