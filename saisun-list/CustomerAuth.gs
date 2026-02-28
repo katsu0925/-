@@ -887,11 +887,15 @@ function updatePurchaseCount_(email) {
  */
 function backfillPurchaseCount() {
   var custSheet = getCustomerSheet_();
-  var col = CUSTOMER_SHEET_COLS.PURCHASE_COUNT + 1; // P列（1-indexed）
 
-  // P列ヘッダーが「購入回数」でなければ設定
-  var currentHeader = String(custSheet.getRange(1, col).getValue() || '').trim();
-  if (currentHeader !== '購入回数') {
+  // ヘッダー行から「購入回数」列を探す。なければ末尾に追加
+  var headers = custSheet.getRange(1, 1, 1, custSheet.getLastColumn()).getValues()[0];
+  var col = -1;
+  for (var h = 0; h < headers.length; h++) {
+    if (String(headers[h]).trim() === '購入回数') { col = h + 1; break; }
+  }
+  if (col === -1) {
+    col = custSheet.getLastColumn() + 1;
     custSheet.getRange(1, col).setValue('購入回数');
   }
 
