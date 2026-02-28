@@ -21,6 +21,8 @@ function FULL_RESTORE_ALL() {
   ScriptApp.newTrigger('recalcZaikoNissu').timeBased().everyDays(1).atHour(4).inTimezone('GMT+9').create();
   // 毎日 5時 (不要プロパティ自動クリーンアップ)
   ScriptApp.newTrigger('cleanupStaleProps').timeBased().everyDays(1).atHour(5).inTimezone('GMT+9').create();
+  // 5分ごと (EC管理自動反映: 依頼管理→EC管理シート同期)
+  ScriptApp.newTrigger('syncBaseOrdersToEc').timeBased().everyMinutes(5).create();
 
   console.log('全てのトリガーを復旧しました。');
 }
