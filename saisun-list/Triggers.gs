@@ -231,7 +231,7 @@ function cronBaseTokenCheck() {
   }
 }
 
-/** 毎日9時: 3関数を1トリガーで実行 */
+/** 毎日9時: 4関数を1トリガーで実行 */
 function cronDaily9() {
   runWithErrorNotify_('cronDaily9', [sendPaymentReminders, cronNewsletter, cronDormantCoupon, cronDailySummary]);
 }
