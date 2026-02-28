@@ -7,15 +7,24 @@ const LOG_ENABLED = true;
 const BUSY_KEY = 'INV_BUSY';
 
 function handleChange_Inventory(e){
-  if(PropertiesService.getScriptProperties().getProperty(BUSY_KEY)==='1') return;
+  const props = PropertiesService.getScriptProperties();
+  if(props.getProperty(BUSY_KEY)==='1'){
+    const busyAt = props.getProperty(BUSY_KEY + '_AT');
+    if(!busyAt || (Date.now() - Number(busyAt)) <= 5 * 60 * 1000) return;
+    props.deleteProperty(BUSY_KEY);
+    props.deleteProperty(BUSY_KEY + '_AT');
+    log_('handleChange_Inventory: BUSY_KEY stale, cleared');
+  }
   try{
-    PropertiesService.getScriptProperties().setProperty(BUSY_KEY,'1');
+    props.setProperty(BUSY_KEY,'1');
+    props.setProperty(BUSY_KEY + '_AT', String(Date.now()));
     syncCurrentMonthIds();
     recomputeComputedColumns();
   }catch(err){
     log_('handleChange_Inventory ERR: '+err);
   }finally{
-    PropertiesService.getScriptProperties().deleteProperty(BUSY_KEY);
+    props.deleteProperty(BUSY_KEY);
+    props.deleteProperty(BUSY_KEY + '_AT');
   }
 }
 
@@ -59,8 +68,20 @@ function startNewMonthFromISO(iso){
 }
 
 function startNewMonthInternal(newDate){
-  if(PropertiesService.getScriptProperties().getProperty(BUSY_KEY)==='1') return;
-  PropertiesService.getScriptProperties().setProperty(BUSY_KEY,'1');
+  const props = PropertiesService.getScriptProperties();
+  if(props.getProperty(BUSY_KEY)==='1'){
+    // 5分以上前にセットされたBUSY_KEYはスタックとみなしてクリア
+    const busyAt = props.getProperty(BUSY_KEY + '_AT');
+    if(busyAt && (Date.now() - Number(busyAt)) > 5 * 60 * 1000){
+      props.deleteProperty(BUSY_KEY);
+      props.deleteProperty(BUSY_KEY + '_AT');
+      log_('startNewMonth: BUSY_KEY stale, cleared');
+    } else {
+      throw new Error('別の処理が実行中です。しばらく待ってから再度お試しください。');
+    }
+  }
+  props.setProperty(BUSY_KEY,'1');
+  props.setProperty(BUSY_KEY + '_AT', String(Date.now()));
 
   const ss=SpreadsheetApp.getActive();
   const shStock=ss.getSheetByName(SHEET_STOCK);
@@ -102,7 +123,7 @@ function startNewMonthInternal(newDate){
       const theory = prevActuals.has(id) ? prevActuals.get(id) : calcTheory(id,pMap,outflowMap);
       rows.push([newDate,id,Number(theory)||0,'','','','']);
     }
-    if(rows.length===0){ log_('startNewMonth: rows=0'); return; }
+    if(rows.length===0){ log_('startNewMonth: rows=0'); throw new Error('仕入れ管理シートに対象データがありません'); }
 
     const startRow = findFirstEmptyRowAtoG(shStock,3);
     ensureRows_(shStock, startRow + rows.length - 1);
@@ -129,20 +150,29 @@ function startNewMonthInternal(newDate){
     log_('startNewMonth ERR: '+err);
     throw err;
   }finally{
-    PropertiesService.getScriptProperties().deleteProperty(BUSY_KEY);
+    PropertiesService.getScriptProperties().deleteProperty(BUSY_KEY); PropertiesService.getScriptProperties().deleteProperty(BUSY_KEY + '_AT');
   }
 }
 
 function syncCurrentMonthIds(){
-  if(PropertiesService.getScriptProperties().getProperty(BUSY_KEY)==='1') return;
-  PropertiesService.getScriptProperties().setProperty(BUSY_KEY,'1');
+  const props = PropertiesService.getScriptProperties();
+  if(props.getProperty(BUSY_KEY)==='1'){
+    const busyAt = props.getProperty(BUSY_KEY + '_AT');
+    if(busyAt && (Date.now() - Number(busyAt)) > 5 * 60 * 1000){
+      props.deleteProperty(BUSY_KEY);
+      props.deleteProperty(BUSY_KEY + '_AT');
+      log_('syncCurrentMonthIds: BUSY_KEY stale, cleared');
+    } else { return; }
+  }
+  props.setProperty(BUSY_KEY,'1');
+  props.setProperty(BUSY_KEY + '_AT', String(Date.now()));
 
   const ss=SpreadsheetApp.getActive();
   const shStock=ss.getSheetByName(SHEET_STOCK);
-  if(!shStock){ PropertiesService.getScriptProperties().deleteProperty(BUSY_KEY); return; }
+  if(!shStock){ PropertiesService.getScriptProperties().deleteProperty(BUSY_KEY); PropertiesService.getScriptProperties().deleteProperty(BUSY_KEY + '_AT'); return; }
 
   const lastDate=getLatestStockDate();
-  if(!lastDate){ PropertiesService.getScriptProperties().deleteProperty(BUSY_KEY); return; }
+  if(!lastDate){ PropertiesService.getScriptProperties().deleteProperty(BUSY_KEY); PropertiesService.getScriptProperties().deleteProperty(BUSY_KEY + '_AT'); return; }
 
   try{
     const pm=getPurchaseMap();
@@ -194,23 +224,32 @@ function syncCurrentMonthIds(){
     log_('syncCurrentMonthIds ERR: '+err);
     throw err;
   }finally{
-    PropertiesService.getScriptProperties().deleteProperty(BUSY_KEY);
+    PropertiesService.getScriptProperties().deleteProperty(BUSY_KEY); PropertiesService.getScriptProperties().deleteProperty(BUSY_KEY + '_AT');
   }
 }
 
 function recalcCurrentTheoryFromPrev(){
-  if(PropertiesService.getScriptProperties().getProperty(BUSY_KEY)==='1') return;
-  PropertiesService.getScriptProperties().setProperty(BUSY_KEY,'1');
+  const props = PropertiesService.getScriptProperties();
+  if(props.getProperty(BUSY_KEY)==='1'){
+    const busyAt = props.getProperty(BUSY_KEY + '_AT');
+    if(busyAt && (Date.now() - Number(busyAt)) > 5 * 60 * 1000){
+      props.deleteProperty(BUSY_KEY);
+      props.deleteProperty(BUSY_KEY + '_AT');
+      log_('recalcCurrentTheoryFromPrev: BUSY_KEY stale, cleared');
+    } else { return; }
+  }
+  props.setProperty(BUSY_KEY,'1');
+  props.setProperty(BUSY_KEY + '_AT', String(Date.now()));
 
   const ss=SpreadsheetApp.getActive();
   const shStock=ss.getSheetByName(SHEET_STOCK);
-  if(!shStock){ PropertiesService.getScriptProperties().deleteProperty(BUSY_KEY); return; }
+  if(!shStock){ PropertiesService.getScriptProperties().deleteProperty(BUSY_KEY); PropertiesService.getScriptProperties().deleteProperty(BUSY_KEY + '_AT'); return; }
 
   const lastDate=getLatestStockDate();
-  if(!lastDate){ PropertiesService.getScriptProperties().deleteProperty(BUSY_KEY); return; }
+  if(!lastDate){ PropertiesService.getScriptProperties().deleteProperty(BUSY_KEY); PropertiesService.getScriptProperties().deleteProperty(BUSY_KEY + '_AT'); return; }
 
   const prevDate=getPrevMonthDate(lastDate);
-  if(!prevDate){ PropertiesService.getScriptProperties().deleteProperty(BUSY_KEY); return; }
+  if(!prevDate){ PropertiesService.getScriptProperties().deleteProperty(BUSY_KEY); PropertiesService.getScriptProperties().deleteProperty(BUSY_KEY + '_AT'); return; }
 
   try{
     const curBlock=getBlockRowsByDate(lastDate);
@@ -253,7 +292,7 @@ function recalcCurrentTheoryFromPrev(){
     log_('recalcCurrentTheoryFromPrev ERR: '+err);
     throw err;
   }finally{
-    PropertiesService.getScriptProperties().deleteProperty(BUSY_KEY);
+    PropertiesService.getScriptProperties().deleteProperty(BUSY_KEY); PropertiesService.getScriptProperties().deleteProperty(BUSY_KEY + '_AT');
   }
 }
 
