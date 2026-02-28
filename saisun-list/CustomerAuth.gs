@@ -889,8 +889,11 @@ function backfillPurchaseCount() {
   var custSheet = getCustomerSheet_();
   var col = CUSTOMER_SHEET_COLS.PURCHASE_COUNT + 1; // P列（1-indexed）
 
-  // ヘッダーを固定位置に設定（冪等）
-  custSheet.getRange(1, col).setValue('購入回数');
+  // P列ヘッダーが「購入回数」でなければ設定
+  var currentHeader = String(custSheet.getRange(1, col).getValue() || '').trim();
+  if (currentHeader !== '購入回数') {
+    custSheet.getRange(1, col).setValue('購入回数');
+  }
 
   // 依頼管理シートから完了注文を一括取得
   var ss = sh_getOrderSs_();
