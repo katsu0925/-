@@ -206,7 +206,7 @@ function ss_buildEmailBody_(summary, companyName, email) {
     });
   }
 
-  var unsubUrl = buildUnsubscribeUrl_(email);
+  var unsubUrl = nl_buildUnsubscribeUrl_(email);
 
   var html = buildHtmlEmail_({
     greeting: companyName + ' 様',

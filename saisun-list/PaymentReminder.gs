@@ -404,7 +404,7 @@ function adminTestEmails() {
         sections: [{ title: '新着商品 5点', items: sampleItems }],
         cta: { text: '新着商品をチェック', url: SITE_CONSTANTS.SITE_URL },
         notes: ['人気商品は早い者勝ちです。\n会員様は確保時間が30分に延長されますので、ログインしてからお買い物をお楽しみください。', 'このメールはメルマガ配信にご登録いただいた方にお送りしています。'],
-        unsubscribe: buildUnsubscribeUrl_('test')
+        unsubscribe: nl_buildUnsubscribeUrl_('test')
       })
     });
     sentCount++;
@@ -419,7 +419,7 @@ function adminTestEmails() {
       htmlBody: buildHtmlEmail_({
         greeting: companyName + ' 様',
         lead: '春の新作入荷フェアを開催中です！\n期間限定で人気ブランドの新作が続々入荷しています。\n\nぜひこの機会にチェックしてください。',
-        unsubscribe: buildUnsubscribeUrl_('test')
+        unsubscribe: nl_buildUnsubscribeUrl_('test')
       })
     });
     sentCount++;
@@ -477,7 +477,7 @@ function adminTestEmails() {
         }],
         cta: { text: 'お買い物はこちら', url: SITE_CONSTANTS.SITE_URL },
         notes: ['お1人様1回限りのクーポンです。', '他のクーポンとの併用はできません。'],
-        unsubscribe: buildUnsubscribeUrl_('test')
+        unsubscribe: nl_buildUnsubscribeUrl_('test')
       })
     });
     sentCount++;

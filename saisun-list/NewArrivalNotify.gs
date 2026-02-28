@@ -109,7 +109,7 @@ function newArrivalNotifyCron_() {
           + '会員様は確保時間が30分に延長されますので、\n'
           + 'ログインしてからお買い物をお楽しみください。\n\n'
           + '※ このメールはメルマガ配信にご登録いただいた方にお送りしています。\n'
-          + '※ 配信停止: ' + buildUnsubscribeUrl_(email) + '\n\n'
+          + '※ 配信停止: ' + nl_buildUnsubscribeUrl_(email) + '\n\n'
           + '──────────────────\n'
           + SITE_CONSTANTS.SITE_NAME + '\n'
           + SITE_CONSTANTS.SITE_URL + '\n'
@@ -139,7 +139,7 @@ function newArrivalNotifyCron_() {
               '人気商品は早い者勝ちです。\n会員様は確保時間が30分に延長されますので、ログインしてからお買い物をお楽しみください。',
               'このメールはメルマガ配信にご登録いただいた方にお送りしています。'
             ],
-            unsubscribe: buildUnsubscribeUrl_(email)
+            unsubscribe: nl_buildUnsubscribeUrl_(email)
           })
         });
         sent++;

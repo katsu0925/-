@@ -6573,6 +6573,53 @@ function setupReferralCopy_() {
 
 
 // =====================================================
+// メルマガ配信停止
+// =====================================================
+
+function showUnsubscribePage_(email) {
+  var siteUrl = window.location.origin + window.location.pathname;
+  document.title = 'デタウリ.Detauri - メルマガ配信停止';
+  document.body.innerHTML =
+    '<div style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;background:#f5f5f5;color:#333;min-height:100vh">' +
+    '<div style="background:#1a1a2e;color:#fff;padding:24px;text-align:center"><h1 style="margin:0;font-size:20px;font-weight:600">デタウリ.Detauri</h1></div>' +
+    '<div style="max-width:560px;margin:0 auto;padding:32px 20px">' +
+    '<div id="unsub-card" style="background:#fff;border-radius:12px;padding:32px 24px;box-shadow:0 2px 8px rgba(0,0,0,0.08)">' +
+      '<h2 style="margin:0 0 8px;font-size:18px;text-align:center">メルマガ配信停止のご確認</h2>' +
+      '<p style="text-align:center;color:#666;font-size:14px;margin-bottom:24px;word-break:break-all">' + escapeHtml_(email) + '</p>' +
+      '<div style="background:#f8f9fa;border-radius:8px;padding:20px;margin-bottom:28px">' +
+        '<h3 style="margin:0 0 12px;font-size:15px;color:#1a1a2e">配信を停止すると、以下の情報が届かなくなります</h3>' +
+        '<ul style="margin:0;padding:0 0 0 20px">' +
+          '<li style="margin-bottom:8px;font-size:14px;line-height:1.6;color:#555"><strong>新着商品の入荷情報</strong> — 人気ブランドの入荷をいち早くお届け</li>' +
+          '<li style="margin-bottom:8px;font-size:14px;line-height:1.6;color:#555"><strong>会員限定クーポン・セール情報</strong> — メルマガ読者だけの特別割引</li>' +
+          '<li style="margin-bottom:8px;font-size:14px;line-height:1.6;color:#555"><strong>在庫サマリー</strong> — ブランド別の在庫状況を毎月お届け</li>' +
+        '</ul>' +
+      '</div>' +
+      '<div style="display:flex;flex-direction:column;gap:12px" id="unsub-buttons">' +
+        '<a href="' + escapeHtml_(siteUrl) + '" style="display:block;text-align:center;padding:14px 24px;border-radius:8px;text-decoration:none;font-size:15px;font-weight:600;background:#1a1a2e;color:#fff">メルマガを続ける</a>' +
+        '<button onclick="executeUnsubscribe_(\'' + escapeHtml_(email.replace(/'/g, '')) + '\')" style="display:block;width:100%;text-align:center;padding:14px 24px;border-radius:8px;font-size:15px;font-weight:600;background:#fff;color:#e53e3e;border:2px solid #e53e3e;cursor:pointer">配信を停止する</button>' +
+      '</div>' +
+    '</div></div></div>';
+}
+
+function executeUnsubscribe_(email) {
+  var btn = document.querySelector('#unsub-buttons button');
+  if (btn) { btn.disabled = true; btn.textContent = '処理中...'; }
+  runApi('apiUnsubscribeNewsletter', '', { email: email })
+    .then(function() { showUnsubscribeDone_(); })
+    .catch(function() { showUnsubscribeDone_(); }); // エラーでも同じ表示（情報漏えい防止）
+}
+
+function showUnsubscribeDone_() {
+  var siteUrl = window.location.origin + window.location.pathname;
+  var card = document.getElementById('unsub-card');
+  if (!card) return;
+  card.innerHTML =
+    '<h2 style="margin:0 0 12px;font-size:18px;text-align:center">配信停止が完了しました</h2>' +
+    '<p style="color:#666;font-size:14px;line-height:1.6;margin:0 0 24px;text-align:center">メルマガの配信を停止しました。<br>再度ご希望の際は、マイページから設定を変更できます。</p>' +
+    '<div style="text-align:center"><a href="' + escapeHtml_(siteUrl) + '" style="display:inline-block;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:15px;font-weight:600;background:#1a1a2e;color:#fff">サイトに戻る</a></div>';
+}
+
+// =====================================================
 // 起動
 // =====================================================
 
@@ -6581,6 +6628,13 @@ function boot() {
   // document.writeによる差し替えはブラウザによって旧DOMが残るためBulkLP.htmlへ直接リダイレクト
   if (IS_STANDALONE && new URLSearchParams(window.location.search).get('page') === 'bulk') {
     window.location.replace('BulkLP.html');
+    return;
+  }
+
+  // メルマガ配信停止ページ
+  var _unsubParams = new URLSearchParams(window.location.search);
+  if (_unsubParams.get('action') === 'unsubscribe' && _unsubParams.get('email')) {
+    showUnsubscribePage_(_unsubParams.get('email'));
     return;
   }
 

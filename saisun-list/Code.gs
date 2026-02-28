@@ -9,11 +9,6 @@ function doGet(e) {
     return baseHandleOAuthCallback_(e);
   }
 
-  // メルマガ配信停止ページ
-  if (p.action === 'unsubscribe' && p.email) {
-    return handleUnsubscribePage_(p);
-  }
-
   // KOMOJU Webhook処理
   if (p.action === 'komoju_webhook') {
     var result = handleKomojuWebhook(e);

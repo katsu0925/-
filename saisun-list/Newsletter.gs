@@ -454,14 +454,14 @@ function newsletterSendCron_() {
             + 'お問い合わせ: ' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
             + '──────────────────\n\n'
             + '※ メルマガ配信停止: '
-            + buildUnsubscribeUrl_(recip.email) + '\n';
+            + nl_buildUnsubscribeUrl_(recip.email) + '\n';
 
           MailApp.sendEmail({
             to: recip.email, subject: subject, body: body, noReply: true,
             htmlBody: buildHtmlEmail_({
               greeting: recip.companyName + ' 様',
               lead: bodyText,
-              unsubscribe: buildUnsubscribeUrl_(recip.email)
+              unsubscribe: nl_buildUnsubscribeUrl_(recip.email)
             })
           });
           sent++;
@@ -738,7 +738,7 @@ function dormantCouponCron_() {
           + 'お問い合わせ: ' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
           + '──────────────────\n\n'
           + '※ メルマガ配信停止: '
-          + buildUnsubscribeUrl_(email) + '\n';
+          + nl_buildUnsubscribeUrl_(email) + '\n';
 
         MailApp.sendEmail({
           to: email, subject: subject, body: body, noReply: true,
@@ -758,7 +758,7 @@ function dormantCouponCron_() {
               'お1人様1回限りのクーポンです。',
               '他のクーポンとの併用はできません。'
             ],
-            unsubscribe: buildUnsubscribeUrl_(email)
+            unsubscribe: nl_buildUnsubscribeUrl_(email)
           })
         });
 
@@ -793,110 +793,7 @@ function dormantCouponCron_() {
   }
 }
 
-// =====================================================
-// メルマガ配信停止ページ
-// =====================================================
-
-/**
- * メルマガ配信停止の確認ページ / 解除実行ページを返す
- * @param {object} params - { email, confirm }
- * @return {HtmlOutput}
- */
-function handleUnsubscribePage_(params) {
-  var email = String(params.email || '').trim().toLowerCase();
-  var confirm = String(params.confirm || '');
-  var siteUrl = SITE_CONSTANTS.SITE_URL || 'https://wholesale.nkonline-tool.com/';
-  var siteName = SITE_CONSTANTS.SITE_NAME || 'デタウリ.Detauri';
-
-  // confirm=1 の場合: 解除実行
-  if (confirm === '1') {
-    apiUnsubscribeNewsletter(null, { email: email });
-    return HtmlService.createHtmlOutput(buildUnsubscribeDoneHtml_(email, siteUrl, siteName))
-      .setTitle(siteName + ' - 配信停止完了')
-      .addMetaTag('viewport', 'width=device-width, initial-scale=1');
-  }
-
-  // 確認ページ
-  var confirmUrl = ScriptApp.getService().getUrl() + '?action=unsubscribe&email=' + encodeURIComponent(email) + '&confirm=1';
-  return HtmlService.createHtmlOutput(buildUnsubscribeConfirmHtml_(email, confirmUrl, siteUrl, siteName))
-    .setTitle(siteName + ' - メルマガ配信停止')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
-}
-
-/** GAS Web App URL を返す（unsubscribeリンク等、doGetルーティングが必要な場面で使用） */
-function getWebAppUrl_() {
-  return ScriptApp.getService().getUrl();
-}
-
-/** メルマガ配信停止URLを組み立てる */
-function buildUnsubscribeUrl_(email) {
-  return getWebAppUrl_() + '?action=unsubscribe&email=' + encodeURIComponent(email);
-}
-
-function escapeHtml_(s) {
-  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
-/**
- * 確認ページHTML
- */
-function buildUnsubscribeConfirmHtml_(email, confirmUrl, siteUrl, siteName) {
-  return '<!DOCTYPE html><html><head><meta charset="utf-8">'
-    + '<style>'
-    + 'body{margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f5f5f5;color:#333;}'
-    + '.header{background:#1a1a2e;color:#fff;padding:24px;text-align:center;}'
-    + '.header h1{margin:0;font-size:20px;font-weight:600;}'
-    + '.container{max-width:560px;margin:0 auto;padding:32px 20px;}'
-    + '.card{background:#fff;border-radius:12px;padding:32px 24px;box-shadow:0 2px 8px rgba(0,0,0,0.08);}'
-    + '.card h2{margin:0 0 8px;font-size:18px;text-align:center;}'
-    + '.card .email-display{text-align:center;color:#666;font-size:14px;margin-bottom:24px;word-break:break-all;}'
-    + '.merit-section{background:#f8f9fa;border-radius:8px;padding:20px;margin-bottom:28px;}'
-    + '.merit-section h3{margin:0 0 12px;font-size:15px;color:#1a1a2e;}'
-    + '.merit-section ul{margin:0;padding:0 0 0 20px;}'
-    + '.merit-section li{margin-bottom:8px;font-size:14px;line-height:1.6;color:#555;}'
-    + '.btn-group{display:flex;flex-direction:column;gap:12px;}'
-    + '.btn{display:block;text-align:center;padding:14px 24px;border-radius:8px;text-decoration:none;font-size:15px;font-weight:600;}'
-    + '.btn-keep{background:#1a1a2e;color:#fff;}'
-    + '.btn-unsub{background:#fff;color:#e53e3e;border:2px solid #e53e3e;}'
-    + '@media(min-width:480px){.btn-group{flex-direction:row;justify-content:center;}.btn{flex:0 1 auto;min-width:200px;}}'
-    + '</style></head><body>'
-    + '<div class="header"><h1>' + escapeHtml_(siteName) + '</h1></div>'
-    + '<div class="container"><div class="card">'
-    + '<h2>メルマガ配信停止のご確認</h2>'
-    + '<p class="email-display">' + escapeHtml_(email) + '</p>'
-    + '<div class="merit-section">'
-    + '<h3>配信を停止すると、以下の情報が届かなくなります</h3>'
-    + '<ul>'
-    + '<li><strong>新着商品の入荷情報</strong> — 人気ブランドの入荷をいち早くお届け</li>'
-    + '<li><strong>会員限定クーポン・セール情報</strong> — メルマガ読者だけの特別割引</li>'
-    + '<li><strong>在庫サマリー</strong> — ブランド別の在庫状況を毎月お届け</li>'
-    + '</ul></div>'
-    + '<div class="btn-group">'
-    + '<a href="' + escapeHtml_(siteUrl) + '" class="btn btn-keep">メルマガを続ける</a>'
-    + '<a href="' + escapeHtml_(confirmUrl) + '" class="btn btn-unsub">配信を停止する</a>'
-    + '</div>'
-    + '</div></div></body></html>';
-}
-
-/**
- * 解除完了ページHTML
- */
-function buildUnsubscribeDoneHtml_(email, siteUrl, siteName) {
-  return '<!DOCTYPE html><html><head><meta charset="utf-8">'
-    + '<style>'
-    + 'body{margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f5f5f5;color:#333;}'
-    + '.header{background:#1a1a2e;color:#fff;padding:24px;text-align:center;}'
-    + '.header h1{margin:0;font-size:20px;font-weight:600;}'
-    + '.container{max-width:560px;margin:0 auto;padding:32px 20px;}'
-    + '.card{background:#fff;border-radius:12px;padding:32px 24px;box-shadow:0 2px 8px rgba(0,0,0,0.08);text-align:center;}'
-    + '.card h2{margin:0 0 12px;font-size:18px;}'
-    + '.card p{color:#666;font-size:14px;line-height:1.6;margin:0 0 24px;}'
-    + '.btn{display:inline-block;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:15px;font-weight:600;background:#1a1a2e;color:#fff;}'
-    + '</style></head><body>'
-    + '<div class="header"><h1>' + escapeHtml_(siteName) + '</h1></div>'
-    + '<div class="container"><div class="card">'
-    + '<h2>配信停止が完了しました</h2>'
-    + '<p>メルマガの配信を停止しました。<br>再度ご希望の際は、マイページから設定を変更できます。</p>'
-    + '<a href="' + escapeHtml_(siteUrl) + '" class="btn">サイトに戻る</a>'
-    + '</div></div></body></html>';
+/** メルマガ配信停止URLを組み立てる（フロントエンド側で処理） */
+function nl_buildUnsubscribeUrl_(email) {
+  return SITE_CONSTANTS.SITE_URL + '?action=unsubscribe&email=' + encodeURIComponent(email);
 }
