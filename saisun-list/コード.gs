@@ -1004,6 +1004,9 @@ function onOpen(e) {
     .addItem("領収書送付（完了済み・希望者）", "processInvoiceReceipts")
     .addItem("領収書取消（キャンセル/返品）", "processCancelledInvoices")
     .addSeparator()
+    .addItem("ニュースレター登録", "registerNewsletter")
+    .addItem("ニュースレター テスト送信", "testNewsletterSend")
+    .addSeparator()
     .addItem("運用マニュアルを開く", "openManualDoc")
     .addToUi();
 

@@ -19,6 +19,116 @@ function getNewsletterSheet_() {
   return sheet;
 }
 
+// =====================================================
+// メニューから実行
+// =====================================================
+
+/**
+ * メニューから実行: ニュースレター登録ダイアログ
+ */
+function registerNewsletter() {
+  var ui = SpreadsheetApp.getUi();
+
+  var titleResp = ui.prompt('ニュースレター登録 (1/3)', 'タイトルを入力してください:', ui.ButtonSet.OK_CANCEL);
+  if (titleResp.getSelectedButton() !== ui.Button.OK) return;
+  var title = String(titleResp.getResponseText() || '').trim();
+  if (!title) { ui.alert('タイトルが空です'); return; }
+
+  var bodyResp = ui.prompt('ニュースレター登録 (2/3)', '本文を入力してください:\n（改行は \\n で入力）', ui.ButtonSet.OK_CANCEL);
+  if (bodyResp.getSelectedButton() !== ui.Button.OK) return;
+  var bodyText = String(bodyResp.getResponseText() || '').trim().replace(/\\n/g, '\n');
+  if (!bodyText) { ui.alert('本文が空です'); return; }
+
+  var schedResp = ui.prompt(
+    'ニュースレター登録 (3/3)',
+    '配信日時を入力してください（例: 2026-03-01 09:00）\n空欄 = 次の9時に即配信',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (schedResp.getSelectedButton() !== ui.Button.OK) return;
+  var schedText = String(schedResp.getResponseText() || '').trim();
+
+  var sheet = getNewsletterSheet_();
+  sheet.appendRow([title, bodyText, schedText || '', '']);
+
+  var recipients = getNewsletterRecipients_();
+  ui.alert(
+    '登録完了\n\n' +
+    'タイトル: ' + title + '\n' +
+    '配信予定: ' + (schedText || '次の9時に自動配信') + '\n' +
+    '配信対象: ' + recipients.length + '人（メルマガ登録済み会員）\n\n' +
+    'テスト送信したい場合は「ニュースレター テスト送信」メニューを使ってください。'
+  );
+}
+
+/**
+ * メニューから実行: 管理者宛にテスト送信
+ * ニュースレターシートの最新の未配信行を管理者にだけ送信する
+ */
+function testNewsletterSend() {
+  var ui = SpreadsheetApp.getUi();
+  var sheet = getNewsletterSheet_();
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) { ui.alert('ニュースレターが登録されていません'); return; }
+
+  // 最新の未配信行を探す
+  var data = sheet.getDataRange().getValues();
+  var targetRow = -1;
+  var title = '', bodyText = '';
+  for (var i = data.length - 1; i >= 1; i--) {
+    if (String(data[i][3] || '').trim() !== '配信済み' && String(data[i][0] || '').trim()) {
+      targetRow = i;
+      title = String(data[i][0] || '').trim();
+      bodyText = String(data[i][1] || '').trim();
+      break;
+    }
+  }
+  if (targetRow === -1) { ui.alert('未配信のニュースレターがありません'); return; }
+
+  var adminEmail = String(PropertiesService.getScriptProperties().getProperty('ADMIN_OWNER_EMAIL') || '').trim();
+  if (!adminEmail) { ui.alert('ADMIN_OWNER_EMAIL が未設定です'); return; }
+
+  // メール残量を表示
+  var remaining = MailApp.getRemainingDailyQuota();
+
+  var subject = '【テスト】【デタウリ.Detauri】' + title;
+  var body = '（管理者テスト送信）\n\n'
+    + adminEmail + ' 様\n\n'
+    + bodyText + '\n\n'
+    + '──────────────────\n'
+    + SITE_CONSTANTS.SITE_NAME + '\n'
+    + SITE_CONSTANTS.SITE_URL + '\n'
+    + 'お問い合わせ: ' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
+    + '──────────────────\n\n'
+    + '※ メルマガ配信停止: （テストのためリンク省略）\n';
+
+  try {
+    MailApp.sendEmail({
+      to: adminEmail, subject: subject, body: body, noReply: true,
+      htmlBody: buildHtmlEmail_({
+        greeting: '（管理者テスト送信）',
+        lead: bodyText
+      })
+    });
+
+    var recipients = getNewsletterRecipients_();
+    ui.alert(
+      'テスト送信完了\n\n' +
+      '送信先: ' + adminEmail + '\n' +
+      'タイトル: ' + title + '\n\n' +
+      '--- メール送信状況 ---\n' +
+      '本日の残り送信枠: ' + remaining + '通\n' +
+      '配信対象の会員数: ' + recipients.length + '人\n' +
+      (recipients.length > remaining ? '⚠ 会員数が残り枠を超えています！配信を分割してください。' : '配信可能です。')
+    );
+  } catch (e) {
+    ui.alert('テスト送信失敗\n\n' + (e.message || e));
+  }
+}
+
+// =====================================================
+// 自動配信（毎日9時）
+// =====================================================
+
 /**
  * ニュースレター配信 定期実行（毎日9時）
  * 「未配信」かつ配信日時が過去のものを配信
