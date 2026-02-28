@@ -444,6 +444,22 @@ function baseSyncStockFromOrders_() {
 }
 
 // =====================================================
+// ハッシュユーティリティ（スナップショット容量節約用）
+// =====================================================
+
+/** MD5ハッシュ先頭8文字（衝突リスク許容、1商品17文字で9KB制限を回避） */
+function baseMd5Short_(str) {
+  var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, str, Utilities.Charset.UTF_8);
+  var hex = '';
+  for (var i = 0; i < 4; i++) {
+    var b = digest[i];
+    if (b < 0) b += 256;
+    hex += (b < 16 ? '0' : '') + b.toString(16);
+  }
+  return hex;
+}
+
+// =====================================================
 // アソート商品 → BASE 商品情報同期（定期実行）
 // =====================================================
 
@@ -534,12 +550,12 @@ function baseSyncProductsToBase() {
   var c = BULK_CONFIG.cols;
   var data = sh.getRange(2, 1, lastRow - 1, BULK_SHEET_HEADER.length).getValues();
 
-  // 前回のスナップショットを取得（画像同期修正v2: 旧スナップショットをリセット）
+  // 前回のスナップショットを取得（v3: MD5ハッシュ方式で容量削減）
   var props = PropertiesService.getScriptProperties();
-  if (props.getProperty('BASE_SYNC_V') !== '2') {
+  if (props.getProperty('BASE_SYNC_V') !== '3') {
     props.deleteProperty('BASE_SYNC_SNAPSHOT');
-    props.setProperty('BASE_SYNC_V', '2');
-    console.log('BASE同期: スナップショットをリセット（画像同期v2）');
+    props.setProperty('BASE_SYNC_V', '3');
+    console.log('BASE同期: スナップショットをリセット（v3 MD5ハッシュ化）');
   }
   var prevJson = props.getProperty('BASE_SYNC_SNAPSHOT') || '{}';
   var prev;
@@ -607,8 +623,8 @@ function baseSyncProductsToBase() {
             }
           }
 
-          // スナップショット登録して次の商品へ
-          current[newId] = name + '|' + description + '|' + price + '|' + isActive + '|' + stock + '|' + imageUrls.join(',');
+          // スナップショット登録して次の商品へ（MD5ハッシュで容量節約）
+          current[newId] = baseMd5Short_(name + '|' + description + '|' + price + '|' + isActive + '|' + stock) + '|' + baseMd5Short_(imageUrls.join(','));
         }
       } catch (e) {
         console.error('BASE新規登録エラー: ' + name + ' - ' + (e.message || e));
@@ -618,33 +634,38 @@ function baseSyncProductsToBase() {
       continue;
     }
 
-    // 現在の状態をハッシュ化して比較（画像URLも含む）
-    var hash = name + '|' + description + '|' + price + '|' + isActive + '|' + stock + '|' + imageUrls.join(',');
+    // MD5ハッシュで差分比較（データ部分|画像部分、各8文字）
+    var dataHash = baseMd5Short_(name + '|' + description + '|' + price + '|' + isActive + '|' + stock);
+    var imgHash = baseMd5Short_(imageUrls.join(','));
+    var hash = dataHash + '|' + imgHash;
     current[baseItemId] = hash;
 
     if (prev[baseItemId] === hash) { skipped++; continue; }
 
-    // 差分あり → BASEに反映（商品情報 + 在庫）
-    try {
-      baseEditItem_(baseItemId, {
-        title: name,
-        detail: description,
-        price: String(price),
-        visible: isActive ? '1' : '0'
-      });
-      baseUpdateStock_(baseItemId, baseStock);
-      updated++;
-      console.log('BASE同期: ' + name + ' (変更あり, 在庫:' + baseStock + ')');
-    } catch (e) {
-      console.error('BASE同期エラー: ' + name + ' - ' + (e.message || e));
+    // データ部分の差分チェック
+    var prevHash = prev[baseItemId] || '';
+    var prevDataHash = prevHash.split('|')[0] || '';
+    var prevImgHash = prevHash.split('|')[1] || '';
+
+    // データ変更あり → BASEに反映（商品情報 + 在庫）
+    if (prevDataHash !== dataHash) {
+      try {
+        baseEditItem_(baseItemId, {
+          title: name,
+          detail: description,
+          price: String(price),
+          visible: isActive ? '1' : '0'
+        });
+        baseUpdateStock_(baseItemId, baseStock);
+        updated++;
+        console.log('BASE同期: ' + name + ' (変更あり, 在庫:' + baseStock + ')');
+      } catch (e) {
+        console.error('BASE同期エラー: ' + name + ' - ' + (e.message || e));
+      }
     }
 
-    // 画像の差分チェック — 画像部分が変わった場合のみ画像同期
-    var prevHash = prev[baseItemId] || '';
-    var prevParts = prevHash.split('|');
-    var prevImgPart = prevParts.length >= 6 ? prevParts.slice(5).join('|') : '';
-    var curImgPart = imageUrls.join(',');
-    if (prevImgPart !== curImgPart) {
+    // 画像変更あり → 画像同期
+    if (prevImgHash !== imgHash) {
       var hasImages = imageUrls.some(function(u) { return !!u; });
       if (hasImages) {
         try {

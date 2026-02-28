@@ -135,6 +135,16 @@ function cleanupStaleProps() {
       return;
     }
 
+    // ATTEMPTS_*: 全て削除（リトライ回数は一時的なもの）
+    if (k.indexOf('ATTEMPTS_') === 0) { toDelete.push(k); return; }
+
+    // BACKOFF_UNTIL_*: 期限切れのものを削除
+    if (k.indexOf('BACKOFF_UNTIL_') === 0) {
+      var until = Number(all[k]) || 0;
+      if (until < Date.now()) toDelete.push(k);
+      return;
+    }
+
     // mail_sent__*: 重複送信防止フラグのため削除しない
     if (k.indexOf('mail_sent__') === 0) return;
   });
