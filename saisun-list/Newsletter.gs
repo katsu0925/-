@@ -12,22 +12,23 @@ var NEWSLETTER_AI_CONFIG = {
 };
 
 /**
- * ニュースレターシートを取得（なければ作成、6列ヘッダー）
+ * ニュースレターシートを取得（なければ作成、7列ヘッダー）
  */
 function getNewsletterSheet_() {
   var ss = sh_getOrderSs_();
   var sheet = ss.getSheetByName('ニュースレター');
   if (!sheet) {
     sheet = ss.insertSheet('ニュースレター');
-    sheet.appendRow(['タイトル', '本文', '配信日時', 'ステータス', '頻度', '最終配信日']);
+    sheet.appendRow(['タイトル', '本文', '配信日時', 'ステータス', '頻度', '最終配信日', '対象']);
     sheet.setFrozenRows(1);
-    sheet.getRange(1, 1, 1, 6).setBackground('#1565c0').setFontColor('#fff').setFontWeight('bold');
+    sheet.getRange(1, 1, 1, 7).setBackground('#1565c0').setFontColor('#fff').setFontWeight('bold');
     return sheet;
   }
-  // 既存シートの後方互換: E・F列ヘッダーがなければ追加
+  // 既存シートの後方互換: E・F・G列ヘッダーがなければ追加
   var lastCol = sheet.getLastColumn();
   if (lastCol < 5) sheet.getRange(1, 5).setValue('頻度');
   if (lastCol < 6) sheet.getRange(1, 6).setValue('最終配信日');
+  if (lastCol < 7) sheet.getRange(1, 7).setValue('対象');
   return sheet;
 }
 
@@ -94,6 +95,12 @@ function registerNewsletter() {
     '<label>配信日時</label>' +
     '<input type="datetime-local" id="schedule">' +
     '<div class="info">空欄の場合、次の朝9時に自動配信されます</div>' +
+    '<label>配信対象</label>' +
+    '<select id="target">' +
+      '<option value="全員">全員</option>' +
+      '<option value="リピーター">リピーター（購入2回以上）</option>' +
+      '<option value="新規">新規（購入0〜1回）</option>' +
+    '</select>' +
     '<label>配信頻度</label>' +
     '<select id="freq">' +
       '<option value="一度">一度（通常配信）</option>' +
@@ -145,6 +152,7 @@ function registerNewsletter() {
         'var t=document.getElementById("title").value.trim();' +
         'var b=document.getElementById("body").value.trim();' +
         'var s=document.getElementById("schedule").value||"";' +
+        'var tg=document.getElementById("target").value;' +
         'var f=document.getElementById("freq").value;' +
         'if(!t){alert("タイトルを入力してください");return}' +
         'if(!b){alert("本文を入力してください");return}' +
@@ -164,7 +172,7 @@ function registerNewsletter() {
             'document.getElementById("submitBtn").disabled=false;' +
             'document.getElementById("submitBtn").textContent="登録"' +
           '})' +
-          '.saveNewsletter(t,b,s,f)' +
+          '.saveNewsletter(t,b,s,tg,f)' +
       '}' +
     '</script>'
   ).setWidth(520).setHeight(700);
@@ -174,20 +182,21 @@ function registerNewsletter() {
 /**
  * 保存 公開ラッパー（google.script.runから呼ぶため _ なし）
  */
-function saveNewsletter(title, bodyText, schedule, frequency) {
-  return saveNewsletter_(title, bodyText, schedule, frequency);
+function saveNewsletter(title, bodyText, schedule, target, frequency) {
+  return saveNewsletter_(title, bodyText, schedule, target, frequency);
 }
 
 /**
  * HTMLダイアログから呼ばれるサーバー関数
  */
-function saveNewsletter_(title, bodyText, schedule, frequency) {
+function saveNewsletter_(title, bodyText, schedule, target, frequency) {
   var sheet = getNewsletterSheet_();
   var freq = frequency || '一度';
-  sheet.appendRow([title, bodyText, schedule || '', '', freq, '']);
-  var recipients = getNewsletterRecipients_();
+  var tgt = target || '全員';
+  sheet.appendRow([title, bodyText, schedule || '', '', freq, '', tgt]);
+  var recipients = getNewsletterRecipients_(tgt);
   var freqLabel = freq === '一度' ? '' : '（' + freq + '配信）';
-  return '登録完了' + freqLabel + '（配信対象: ' + recipients.length + '人、配信予定: ' + (schedule || '次の朝9時に自動配信') + '）';
+  return '登録完了' + freqLabel + '（配信対象: ' + tgt + ' ' + recipients.length + '人、配信予定: ' + (schedule || '次の朝9時に自動配信') + '）';
 }
 
 /**
@@ -426,8 +435,11 @@ function newsletterSendCron_() {
 
       if (!shouldSend) continue;
 
-      // メルマガ登録済み会員にメール送信
-      var recipients = getNewsletterRecipients_();
+      // G列: 配信対象（後方互換: 空なら全員）
+      var target = String(data[i][6] || '全員').trim();
+
+      // メルマガ登録済み会員にメール送信（対象フィルタ適用）
+      var recipients = getNewsletterRecipients_(target);
       var sent = 0;
 
       for (var r = 0; r < recipients.length; r++) {
@@ -477,10 +489,12 @@ function newsletterSendCron_() {
 }
 
 /**
- * メルマガ登録済み会員一覧を取得
+ * メルマガ登録済み会員一覧を取得（対象フィルタ対応）
+ * @param {string} [target] - '全員'(default) / 'リピーター'(購入2回以上) / '新規'(購入0〜1回)
  * @return {Array<{email: string, companyName: string}>}
  */
-function getNewsletterRecipients_() {
+function getNewsletterRecipients_(target) {
+  var tgt = String(target || '全員').trim();
   var custSheet = getCustomerSheet_();
   var custData = custSheet.getDataRange().getValues();
   var recipients = [];
@@ -491,6 +505,13 @@ function getNewsletterRecipients_() {
 
     var email = String(custData[i][CUSTOMER_SHEET_COLS.EMAIL] || '').trim();
     if (!email || email.indexOf('@') === -1) continue;
+
+    // 対象フィルタ: 購入回数(P列)で絞り込み
+    if (tgt !== '全員') {
+      var purchaseCount = Number(custData[i][CUSTOMER_SHEET_COLS.PURCHASE_COUNT] || 0);
+      if (tgt === 'リピーター' && purchaseCount < 2) continue;
+      if (tgt === '新規' && purchaseCount >= 2) continue;
+    }
 
     recipients.push({
       email: email,
