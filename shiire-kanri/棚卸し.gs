@@ -72,7 +72,8 @@ function startNewMonthInternal(newDate){
   if(props.getProperty(BUSY_KEY)==='1'){
     // 5分以上前にセットされたBUSY_KEYはスタックとみなしてクリア
     const busyAt = props.getProperty(BUSY_KEY + '_AT');
-    if(busyAt && (Date.now() - Number(busyAt)) > 5 * 60 * 1000){
+    if(!busyAt || (Date.now() - Number(busyAt)) > 5 * 60 * 1000){
+      // _ATなし(旧形式)または5分以上経過 → スタックとみなしクリア
       props.deleteProperty(BUSY_KEY);
       props.deleteProperty(BUSY_KEY + '_AT');
       log_('startNewMonth: BUSY_KEY stale, cleared');
