@@ -87,6 +87,10 @@ function baseSyncImages_(itemId, imageUrls) {
   for (var i = 0; i < 5; i++) {
     var url = (i < imageUrls.length) ? imageUrls[i] : '';
 
+    // 既存画像を先に削除（add_imageは上書きしないため）
+    baseDeleteImage_(itemId, i + 1);
+    Utilities.sleep(200);
+
     if (url) {
       // Google Drive画像はBASEサイズ制限対策: 最大1600px + JPEG変換(-rj)
       if (url.indexOf('lh3.googleusercontent.com/d/') !== -1 && url.indexOf('=') === -1) {
@@ -110,9 +114,6 @@ function baseSyncImages_(itemId, imageUrls) {
       } catch (e) {
         console.error('BASE画像登録エラー img' + (i + 1) + ': ' + (e.message || e));
       }
-    } else {
-      // 画像URLが空 → 既存画像を削除（エラーは無視）
-      baseDeleteImage_(itemId, i + 1);
     }
 
     Utilities.sleep(300);
