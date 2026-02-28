@@ -551,3 +551,172 @@ function apiUnsubscribeNewsletter(userKey, params) {
     return { ok: false, message: 'メルマガ解除に失敗しました' };
   }
 }
+
+// =====================================================
+// 休眠顧客クーポン自動送信
+// 最終ログインから一定期間経過した顧客に10%OFFクーポンを送信
+// =====================================================
+
+var DORMANT_TIERS = [
+  { key: '1Y', days: 365, label: '1年',   code: 'COMEBACK1Y' },
+  { key: '6M', days: 180, label: '半年',  code: 'COMEBACK6M' },
+  { key: '2M', days: 60,  label: '2ヶ月', code: 'COMEBACK2M' }
+];
+
+/**
+ * 休眠顧客用クーポンをクーポン管理シートに自動作成（3段階: 2ヶ月/半年/1年）
+ * 既に存在するコードはスキップ。GASエディタから手動実行 or cronから自動実行。
+ */
+function setupDormantCoupons() {
+  var ss = sh_getOrderSs_();
+  var sh = sh_ensureCouponSheet_(ss);
+  var lastRow = sh.getLastRow();
+
+  var existingCodes = {};
+  if (lastRow >= 2) {
+    var codes = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (var i = 0; i < codes.length; i++) {
+      existingCodes[String(codes[i][0] || '').trim().toUpperCase()] = true;
+    }
+  }
+
+  var created = [];
+  for (var t = 0; t < DORMANT_TIERS.length; t++) {
+    var tier = DORMANT_TIERS[t];
+    if (existingCodes[tier.code]) continue;
+
+    var newRow = sh.getLastRow() + 1;
+    sh.getRange(newRow, 1, 1, COUPON_COL_COUNT).setValues([[
+      tier.code,   // A: コード
+      'rate',      // B: 割引タイプ
+      0.10,        // C: 割引値 (10%)
+      '',          // D: 有効期限（無期限）
+      0,           // E: 利用上限（無制限）
+      0,           // F: 利用回数
+      true,        // G: 1人1回制限
+      true,        // H: 有効
+      '休眠顧客復帰用（' + tier.label + '未ログイン）自動送信', // I: メモ
+      'all',       // J: 対象顧客
+      '',          // K: 有効開始日
+      false,       // L: 会員割引併用
+      false,       // M: 30点割引併用
+      'all',       // N: 適用チャネル
+      '',          // O: 対象商品ID
+      '',          // P: 送料除外商品ID
+      '',          // Q: 限定顧客名
+      ''           // R: 限定顧客メール
+    ]]);
+    created.push(tier.code);
+  }
+
+  try { CacheService.getScriptCache().remove(COUPON_CACHE_KEY); } catch (e) {}
+  if (created.length) console.log('setupDormantCoupons: 作成完了 ' + created.join(', '));
+  return { ok: true, created: created };
+}
+
+/**
+ * 休眠顧客クーポンメール送信（毎日9時にcronで実行）
+ * 2ヶ月→半年→1年の段階で、未送信の最上位ティアのクーポンを1通送信
+ */
+function dormantCouponCron_() {
+  try {
+    console.log('dormantCouponCron_: 開始');
+    setupDormantCoupons();
+
+    var custSheet = getCustomerSheet_();
+    var custData = custSheet.getDataRange().getValues();
+    var now = new Date();
+    var props = PropertiesService.getScriptProperties();
+    var ss = sh_getOrderSs_();
+    var sent = 0;
+
+    for (var i = 1; i < custData.length; i++) {
+      var newsletter = custData[i][CUSTOMER_SHEET_COLS.NEWSLETTER];
+      if (newsletter !== true && newsletter !== 'true' && newsletter !== 'TRUE') continue;
+
+      var email = String(custData[i][CUSTOMER_SHEET_COLS.EMAIL] || '').trim();
+      if (!email || email.indexOf('@') === -1) continue;
+
+      var lastLogin = custData[i][CUSTOMER_SHEET_COLS.LAST_LOGIN];
+      if (!lastLogin) continue;
+
+      var lastLoginDate = lastLogin instanceof Date ? lastLogin : new Date(lastLogin);
+      if (isNaN(lastLoginDate.getTime())) continue;
+
+      var daysSince = Math.floor((now.getTime() - lastLoginDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      // 最上位の未送信ティアを探す（1Y > 6M > 2M）
+      var tierToSend = null;
+      for (var t = 0; t < DORMANT_TIERS.length; t++) {
+        var tier = DORMANT_TIERS[t];
+        if (daysSince < tier.days) continue;
+        var sentKey = 'DORMANT_SENT:' + tier.key + ':' + email;
+        if (props.getProperty(sentKey)) continue;
+        if (hasUserUsedCoupon_(ss, tier.code, email)) continue;
+        tierToSend = tier;
+        break;
+      }
+
+      if (!tierToSend) continue;
+
+      var companyName = String(custData[i][CUSTOMER_SHEET_COLS.COMPANY_NAME] || '');
+
+      try {
+        var subject = '【デタウリ.Detauri】' + companyName + '様へ 10%OFFクーポンをお届けします';
+        var body = companyName + ' 様\n\n'
+          + 'デタウリ.Detauri をご利用いただきありがとうございます。\n\n'
+          + 'ご無沙汰しております。\n'
+          + '最近サイトにお越しいただけていないようですので、\n'
+          + '感謝の気持ちを込めて10%OFFクーポンをお届けします。\n\n'
+          + '━━━━━━━━━━━━━━━━━━━━\n'
+          + '■ クーポンコード: ' + tierToSend.code + '\n'
+          + '■ 割引: 全品10%OFF\n'
+          + '■ 注文時にクーポンコードを入力してください\n'
+          + '━━━━━━━━━━━━━━━━━━━━\n\n'
+          + '▼ お買い物はこちら\n'
+          + SITE_CONSTANTS.SITE_URL + '\n\n'
+          + '※ お1人様1回限りのクーポンです。\n'
+          + '※ 他のクーポンとの併用はできません。\n\n'
+          + '──────────────────\n'
+          + SITE_CONSTANTS.SITE_NAME + '\n'
+          + SITE_CONSTANTS.SITE_URL + '\n'
+          + 'お問い合わせ: ' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
+          + '──────────────────\n\n'
+          + '※ メルマガ配信停止: '
+          + SITE_CONSTANTS.SITE_URL + '?action=unsubscribe&email=' + encodeURIComponent(email) + '\n';
+
+        MailApp.sendEmail({
+          to: email, subject: subject, body: body, noReply: true,
+          htmlBody: buildHtmlEmail_({
+            greeting: companyName + ' 様',
+            lead: 'ご無沙汰しております。\n最近サイトにお越しいただけていないようですので、\n感謝の気持ちを込めて10%OFFクーポンをお届けします。',
+            sections: [{
+              title: 'クーポン情報',
+              rows: [
+                { label: 'クーポンコード', value: tierToSend.code },
+                { label: '割引', value: '全品10%OFF' }
+              ],
+              text: '注文時にクーポンコードを入力してください。'
+            }],
+            cta: { text: 'お買い物はこちら', url: SITE_CONSTANTS.SITE_URL },
+            notes: [
+              'お1人様1回限りのクーポンです。',
+              '他のクーポンとの併用はできません。'
+            ],
+            unsubscribe: SITE_CONSTANTS.SITE_URL + '?action=unsubscribe&email=' + encodeURIComponent(email)
+          })
+        });
+
+        props.setProperty('DORMANT_SENT:' + tierToSend.key + ':' + email, String(Date.now()));
+        sent++;
+        console.log('dormantCouponCron_: ' + tierToSend.key + ' 送信 ' + email);
+      } catch (mailErr) {
+        console.error('dormantCouponCron_ mail error: ' + email, mailErr);
+      }
+    }
+
+    console.log('dormantCouponCron_: 完了 送信=' + sent + '件');
+  } catch (e) {
+    console.error('dormantCouponCron_ error:', e);
+  }
+}

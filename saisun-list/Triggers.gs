@@ -138,6 +138,7 @@ function cronAbandonedCart() { abandonedCartCron_(); }
 function cronNewArrival() { newArrivalNotifyCron_(); }
 function cronFollowupEmail() { followupEmailCron_(); }
 function cronNewsletter() { newsletterSendCron_(); }
+function cronDormantCoupon() { dormantCouponCron_(); }
 function cronPointExpiry() { pointExpiryCron_(); }
 // cronRfmAnalysis, cronProductAnalytics → saisun-list-bulk に移動
 function cronStatsCache() { st_calculateAndCacheStats_(); }
@@ -232,7 +233,7 @@ function cronBaseTokenCheck() {
 
 /** 毎日9時: 3関数を1トリガーで実行 */
 function cronDaily9() {
-  runWithErrorNotify_('cronDaily9', [sendPaymentReminders, cronNewsletter, cronDailySummary]);
+  runWithErrorNotify_('cronDaily9', [sendPaymentReminders, cronNewsletter, cronDormantCoupon, cronDailySummary]);
 }
 
 // =====================================================

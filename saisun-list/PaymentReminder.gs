@@ -458,12 +458,37 @@ function adminTestEmails() {
     sentCount++;
   } catch (e) { errors.push('20.カゴ落ち(アソート): ' + e.message); }
 
+  // === 21. 休眠顧客クーポン ===
+  try {
+    MailApp.sendEmail({
+      to: adminEmail, noReply: true,
+      subject: '【デタウリ.Detauri】' + companyName + '様へ 10%OFFクーポンをお届けします',
+      body: companyName + ' 様\n\nご無沙汰しております。\n感謝の気持ちを込めて10%OFFクーポンをお届けします。\n\nクーポンコード: COMEBACK2M\n割引: 全品10%OFF\n',
+      htmlBody: buildHtmlEmail_({
+        greeting: companyName + ' 様',
+        lead: 'ご無沙汰しております。\n最近サイトにお越しいただけていないようですので、\n感謝の気持ちを込めて10%OFFクーポンをお届けします。',
+        sections: [{
+          title: 'クーポン情報',
+          rows: [
+            { label: 'クーポンコード', value: 'COMEBACK2M' },
+            { label: '割引', value: '全品10%OFF' }
+          ],
+          text: '注文時にクーポンコードを入力してください。'
+        }],
+        cta: { text: 'お買い物はこちら', url: SITE_CONSTANTS.SITE_URL },
+        notes: ['お1人様1回限りのクーポンです。', '他のクーポンとの併用はできません。'],
+        unsubscribe: SITE_CONSTANTS.SITE_URL + '?action=unsubscribe&email=test'
+      })
+    });
+    sentCount++;
+  } catch (e) { errors.push('21.休眠クーポン: ' + e.message); }
+
   var result = {
     ok: true,
     message: sentCount + '通のテストメールを ' + adminEmail + ' に送信しました',
     sentTo: adminEmail,
     sentCount: sentCount,
-    totalTypes: 20
+    totalTypes: 21
   };
   if (errors.length) {
     result.errors = errors;
