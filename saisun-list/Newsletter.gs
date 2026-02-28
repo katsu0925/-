@@ -7,7 +7,7 @@
 var NEWSLETTER_AI_CONFIG = {
   MODEL: 'gpt-4o-mini',
   ENDPOINT: 'https://api.openai.com/v1/chat/completions',
-  MAX_TOKENS: 1500,
+  MAX_TOKENS: 600,
   TEMPERATURE: 0.7
 };
 
@@ -139,7 +139,7 @@ function registerNewsletter() {
             'btn.disabled=false;' +
             'document.getElementById("aiStatus").innerHTML="<span class=\\"err\\">エラー: "+e.message+"</span>";' +
           '})' +
-          '.generateNewsletterAI_(theme);' +
+          '.generateNewsletterAI(theme);' +
       '}' +
       'function submit(){' +
         'var t=document.getElementById("title").value.trim();' +
@@ -164,7 +164,7 @@ function registerNewsletter() {
             'document.getElementById("submitBtn").disabled=false;' +
             'document.getElementById("submitBtn").textContent="登録"' +
           '})' +
-          '.saveNewsletter_(t,b,s,f)' +
+          '.saveNewsletter(t,b,s,f)' +
       '}' +
     '</script>'
   ).setWidth(520).setHeight(700);
@@ -172,11 +172,14 @@ function registerNewsletter() {
 }
 
 /**
+ * 保存 公開ラッパー（google.script.runから呼ぶため _ なし）
+ */
+function saveNewsletter(title, bodyText, schedule, frequency) {
+  return saveNewsletter_(title, bodyText, schedule, frequency);
+}
+
+/**
  * HTMLダイアログから呼ばれるサーバー関数
- * @param {string} title - タイトル
- * @param {string} bodyText - 本文
- * @param {string} schedule - 配信日時（空可）
- * @param {string} frequency - 頻度（一度/毎週/毎月）
  */
 function saveNewsletter_(title, bodyText, schedule, frequency) {
   var sheet = getNewsletterSheet_();
@@ -227,6 +230,13 @@ function nlSeasonalBody_() {
 // =====================================================
 
 /**
+ * AI生成 公開ラッパー（google.script.runから呼ぶため _ なし）
+ */
+function generateNewsletterAI(theme) {
+  return generateNewsletterAI_(theme);
+}
+
+/**
  * AIでニュースレターのタイトルと本文を生成
  * @param {string} theme - テーマ（例: 春のセール、新着ブランド紹介）
  * @return {object} {ok, title, body} or {ok:false, message}
@@ -236,13 +246,7 @@ function generateNewsletterAI_(theme) {
     var apiKey = PropertiesService.getScriptProperties().getProperty('OPENAI_API_KEY');
     if (!apiKey) return { ok: false, message: 'OPENAI_API_KEYが設定されていません' };
 
-    var systemPrompt = 'あなたはB2B卸売ECサイト「デタウリ.Detauri」のメールマガジン担当です。\n'
-      + '業種: ブランドアパレル（中古衣料）の卸売\n'
-      + 'ターゲット: 副業で古着販売をする個人事業主\n'
-      + 'サイトURL: https://wholesale.nkonline-tool.com/\n'
-      + 'トーン: 丁寧だが親しみやすいB2Bスタイル。絵文字は使わない。\n'
-      + '出力形式: JSON {"title":"件名（【デタウリ】で始める）","body":"本文（改行は\\nで表現）"}\n'
-      + '本文は200〜400文字程度で、最後にサイトURLと署名を含めてください。';
+    var systemPrompt = 'デタウリ.Detauri（中古ブランドアパレル卸売EC）のメルマガ作成。対象:古着販売の個人事業主。丁寧なB2Bトーン、絵文字不可。JSON出力: {"title":"【デタウリ】で始まる件名","body":"本文(改行は\\n)"}。200〜300文字、末尾にURL https://wholesale.nkonline-tool.com/ を含める。';
 
     var response = UrlFetchApp.fetch(NEWSLETTER_AI_CONFIG.ENDPOINT, {
       method: 'post',
