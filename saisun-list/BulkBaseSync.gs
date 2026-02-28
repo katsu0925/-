@@ -581,6 +581,15 @@ function baseSyncProductsToBase() {
     if (isNaN(stock)) stock = -1;
     var baseStock = stock === -1 ? 999 : Math.max(0, stock);
 
+    // 在庫数に応じて公開フラグを自動更新（在庫あり→公開、在庫0→非公開）
+    var shouldBeActive = (stock !== 0);
+    if (isActive !== shouldBeActive) {
+      data[r][c.active] = shouldBeActive;
+      isActive = shouldBeActive;
+      sheetChanged = true;
+      console.log('公開自動更新: ' + name + ' → ' + (shouldBeActive ? 'TRUE' : 'FALSE') + '（在庫: ' + stock + '）');
+    }
+
     // 画像URL取得（G-K列）
     var imageUrls = [
       String(data[r][c.image1] || '').trim(),
