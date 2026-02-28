@@ -887,12 +887,10 @@ function updatePurchaseCount_(email) {
  */
 function backfillPurchaseCount() {
   var custSheet = getCustomerSheet_();
-  var custData = custSheet.getDataRange().getValues();
+  var col = CUSTOMER_SHEET_COLS.PURCHASE_COUNT + 1; // P列（1-indexed）
 
-  // P列ヘッダーがなければ追加
-  if (custData.length > 0 && (custData[0].length < CUSTOMER_SHEET_COLS.PURCHASE_COUNT + 1 || !custData[0][CUSTOMER_SHEET_COLS.PURCHASE_COUNT])) {
-    custSheet.getRange(1, CUSTOMER_SHEET_COLS.PURCHASE_COUNT + 1).setValue('購入回数');
-  }
+  // ヘッダーを固定位置に設定（冪等）
+  custSheet.getRange(1, col).setValue('購入回数');
 
   // 依頼管理シートから完了注文を一括取得
   var ss = sh_getOrderSs_();
@@ -910,10 +908,11 @@ function backfillPurchaseCount() {
   }
 
   // 顧客管理シートのP列に一括書き込み
+  var custData = custSheet.getDataRange().getValues();
   for (var j = 1; j < custData.length; j++) {
     var custEmail = String(custData[j][CUSTOMER_SHEET_COLS.EMAIL] || '').trim().toLowerCase();
     var purchaseCount = countMap[custEmail] || 0;
-    custSheet.getRange(j + 1, CUSTOMER_SHEET_COLS.PURCHASE_COUNT + 1).setValue(purchaseCount);
+    custSheet.getRange(j + 1, col).setValue(purchaseCount);
   }
 
   Logger.log('backfillPurchaseCount 完了: ' + (custData.length - 1) + '件の顧客を処理');
