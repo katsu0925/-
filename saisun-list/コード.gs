@@ -548,9 +548,15 @@ function buildReturnSet_(returnSheet) {
     const cell = String(vals[i][0] ?? "").trim();
     if (cell === "") continue;
 
-    // G列の日付を取得（Date型 or null）
+    // G列の日付を取得（Date型、テキスト日付文字列の両方を受け付ける）
     const rawDate = dateVals[i][0];
-    const dateVal = (rawDate instanceof Date && !isNaN(rawDate.getTime())) ? rawDate : null;
+    let dateVal = null;
+    if (rawDate instanceof Date && !isNaN(rawDate.getTime())) {
+      dateVal = rawDate;
+    } else if (rawDate) {
+      const parsed = new Date(rawDate);
+      if (!isNaN(parsed.getTime())) dateVal = parsed;
+    }
 
     const parts = cell.split(/[,\n\r\t\s、，／\/・|]+/);
     for (let j = 0; j < parts.length; j++) {
@@ -1029,7 +1035,8 @@ function applyAgingDiscount_(price, returnEntry) {
   }
 
   if (rate === 1) return price; // 値下げなし
-  return normalizeSellPrice_(Math.round(price * rate));
+  // 値下げは切り捨て（normalizeSellPrice_は切り上げのため使わない）
+  return Math.floor(Math.round(price * rate) / 50) * 50;
 }
 
 function isGuardOn_() {
