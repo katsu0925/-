@@ -106,6 +106,13 @@ function cron_art_getSheet_() {
     sheet = ss.insertSheet(ARTICLE_CONFIG.SHEET_NAME);
     sheet.getRange(1, 1, 1, ARTICLE_HEADERS.length).setValues([ARTICLE_HEADERS]);
     sheet.setFrozenRows(1);
+  } else {
+    var lastCol = sheet.getLastColumn();
+    if (lastCol < ARTICLE_HEADERS.length) {
+      for (var c = lastCol; c < ARTICLE_HEADERS.length; c++) {
+        sheet.getRange(1, c + 1).setValue(ARTICLE_HEADERS[c]);
+      }
+    }
   }
   return sheet;
 }
