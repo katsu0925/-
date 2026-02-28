@@ -88,6 +88,10 @@ function baseSyncImages_(itemId, imageUrls) {
     var url = (i < imageUrls.length) ? imageUrls[i] : '';
 
     if (url) {
+      // Google Drive画像はBASEサイズ制限対策: 最大1600px + JPEG変換(-rj)
+      if (url.indexOf('lh3.googleusercontent.com/d/') !== -1 && url.indexOf('=') === -1) {
+        url = url + '=s1600-rj';
+      }
       // image_url パラメータでURL直接登録
       try {
         var resp = UrlFetchApp.fetch(BASE_APP.API_BASE + '/1/items/add_image', {
