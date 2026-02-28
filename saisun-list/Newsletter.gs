@@ -454,14 +454,14 @@ function newsletterSendCron_() {
             + 'お問い合わせ: ' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
             + '──────────────────\n\n'
             + '※ メルマガ配信停止: '
-            + SITE_CONSTANTS.SITE_URL + '?action=unsubscribe&email=' + encodeURIComponent(recip.email) + '\n';
+            + buildUnsubscribeUrl_(recip.email) + '\n';
 
           MailApp.sendEmail({
             to: recip.email, subject: subject, body: body, noReply: true,
             htmlBody: buildHtmlEmail_({
               greeting: recip.companyName + ' 様',
               lead: bodyText,
-              unsubscribe: SITE_CONSTANTS.SITE_URL + '?action=unsubscribe&email=' + encodeURIComponent(recip.email)
+              unsubscribe: buildUnsubscribeUrl_(recip.email)
             })
           });
           sent++;
@@ -738,7 +738,7 @@ function dormantCouponCron_() {
           + 'お問い合わせ: ' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
           + '──────────────────\n\n'
           + '※ メルマガ配信停止: '
-          + SITE_CONSTANTS.SITE_URL + '?action=unsubscribe&email=' + encodeURIComponent(email) + '\n';
+          + buildUnsubscribeUrl_(email) + '\n';
 
         MailApp.sendEmail({
           to: email, subject: subject, body: body, noReply: true,
@@ -758,7 +758,7 @@ function dormantCouponCron_() {
               'お1人様1回限りのクーポンです。',
               '他のクーポンとの併用はできません。'
             ],
-            unsubscribe: SITE_CONSTANTS.SITE_URL + '?action=unsubscribe&email=' + encodeURIComponent(email)
+            unsubscribe: buildUnsubscribeUrl_(email)
           })
         });
 
@@ -821,6 +821,16 @@ function handleUnsubscribePage_(params) {
   return HtmlService.createHtmlOutput(buildUnsubscribeConfirmHtml_(email, confirmUrl, siteUrl, siteName))
     .setTitle(siteName + ' - メルマガ配信停止')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+/** GAS Web App URL を返す（unsubscribeリンク等、doGetルーティングが必要な場面で使用） */
+function getWebAppUrl_() {
+  return ScriptApp.getService().getUrl();
+}
+
+/** メルマガ配信停止URLを組み立てる */
+function buildUnsubscribeUrl_(email) {
+  return getWebAppUrl_() + '?action=unsubscribe&email=' + encodeURIComponent(email);
 }
 
 function escapeHtml_(s) {
