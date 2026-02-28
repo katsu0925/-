@@ -1,21 +1,33 @@
 // Newsletter.gs
 // =====================================================
-// ニュースレター配信システム (Phase 3-2)
-// 管理者が定期的にメール配信
+// ニュースレター配信システム
+// 定期配信（一度/毎週/毎月）+ AI本文生成 + メルマガ解除
 // =====================================================
 
+var NEWSLETTER_AI_CONFIG = {
+  MODEL: 'gpt-4o-mini',
+  ENDPOINT: 'https://api.openai.com/v1/chat/completions',
+  MAX_TOKENS: 1500,
+  TEMPERATURE: 0.7
+};
+
 /**
- * ニュースレターシートを取得（なければ作成）
+ * ニュースレターシートを取得（なければ作成、6列ヘッダー）
  */
 function getNewsletterSheet_() {
   var ss = sh_getOrderSs_();
   var sheet = ss.getSheetByName('ニュースレター');
   if (!sheet) {
     sheet = ss.insertSheet('ニュースレター');
-    sheet.appendRow(['タイトル', '本文', '配信日時', 'ステータス']);
+    sheet.appendRow(['タイトル', '本文', '配信日時', 'ステータス', '頻度', '最終配信日']);
     sheet.setFrozenRows(1);
-    sheet.getRange(1, 1, 1, 4).setBackground('#1565c0').setFontColor('#fff').setFontWeight('bold');
+    sheet.getRange(1, 1, 1, 6).setBackground('#1565c0').setFontColor('#fff').setFontWeight('bold');
+    return sheet;
   }
+  // 既存シートの後方互換: E・F列ヘッダーがなければ追加
+  var lastCol = sheet.getLastColumn();
+  if (lastCol < 5) sheet.getRange(1, 5).setValue('頻度');
+  if (lastCol < 6) sheet.getRange(1, 6).setValue('最終配信日');
   return sheet;
 }
 
@@ -41,7 +53,6 @@ function registerNewsletter() {
       '.tpl-row{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}' +
       '.tpl-btn{padding:6px 12px;border-radius:16px;font-size:12px;cursor:pointer;border:1px solid #dadce0;background:#fff;color:#1a73e8;white-space:nowrap}' +
       '.tpl-btn:hover{background:#e8f0fe}' +
-      '.tpl-btn.loading{opacity:.5;pointer-events:none}' +
       '.info{color:#5f6368;font-size:12px;margin-top:4px}' +
       '.actions{margin-top:14px;display:flex;gap:8px;justify-content:flex-end}' +
       'button{padding:8px 20px;border-radius:4px;font-size:14px;cursor:pointer;border:none}' +
@@ -49,6 +60,14 @@ function registerNewsletter() {
       '.btn-primary:hover{background:#1557b0}' +
       '.btn-cancel{background:#f1f3f4;color:#333}' +
       '.btn-cancel:hover{background:#e0e0e0}' +
+      '.btn-ai{background:#7c3aed;color:#fff;padding:8px 16px;border-radius:4px;font-size:13px;white-space:nowrap}' +
+      '.btn-ai:hover{background:#6d28d9}' +
+      '.btn-ai:disabled{opacity:.5;cursor:not-allowed}' +
+      '.ai-section{background:#f5f3ff;border:1px solid #ddd6fe;border-radius:6px;padding:12px;margin-bottom:12px}' +
+      '.ai-row{display:flex;gap:6px;align-items:flex-end}' +
+      '.ai-row input{flex:1}' +
+      '#aiStatus{font-size:12px;color:#6b7280;margin-top:4px}' +
+      '#aiStatus .ok{color:#16a34a}#aiStatus .err{color:#dc2626}' +
       '.result{margin-top:12px;padding:10px;border-radius:4px;font-size:13px;display:none}' +
       '.result.ok{display:block;background:#e6f4ea;color:#1e7e34}' +
       '.result.ng{display:block;background:#fce8e6;color:#c5221f}' +
@@ -60,13 +79,27 @@ function registerNewsletter() {
       '<span class="tpl-btn" onclick="genTpl(this,\'sale\')">セール告知</span>' +
       '<span class="tpl-btn" onclick="genTpl(this,\'seasonal\')">季節の挨拶</span>' +
     '</div>' +
+    '<div class="ai-section">' +
+      '<label style="margin-top:0">AI生成</label>' +
+      '<div class="ai-row">' +
+        '<input type="text" id="aiTheme" placeholder="テーマ例: 春のセール、新着ブランド紹介">' +
+        '<button class="btn-ai" id="aiBtn" onclick="generateAI()">AI生成</button>' +
+      '</div>' +
+      '<div id="aiStatus"></div>' +
+    '</div>' +
     '<label>タイトル</label>' +
     '<input type="text" id="title" placeholder="例: 夏のセール開催のお知らせ">' +
     '<label>本文</label>' +
-    '<textarea id="body" placeholder="テンプレートを選択するか、直接入力してください&#10;&#10;改行はそのまま反映されます"></textarea>' +
+    '<textarea id="body" placeholder="テンプレートを選択するか、AI生成 or 直接入力&#10;&#10;改行はそのまま反映されます"></textarea>' +
     '<label>配信日時</label>' +
     '<input type="datetime-local" id="schedule">' +
     '<div class="info">空欄の場合、次の朝9時に自動配信されます</div>' +
+    '<label>配信頻度</label>' +
+    '<select id="freq">' +
+      '<option value="一度">一度（通常配信）</option>' +
+      '<option value="毎週">毎週</option>' +
+      '<option value="毎月">毎月</option>' +
+    '</select>' +
     '<div class="info" style="margin-top:8px">配信対象: <b>' + recipients.length + '人</b>（メルマガ登録済み会員）</div>' +
     '<div class="actions">' +
       '<button class="btn-cancel" onclick="google.script.host.close()">キャンセル</button>' +
@@ -85,10 +118,34 @@ function registerNewsletter() {
         'document.getElementById("title").value=t.title;' +
         'document.getElementById("body").value=t.body;' +
       '}' +
+      'function generateAI(){' +
+        'var theme=document.getElementById("aiTheme").value.trim();' +
+        'if(!theme){document.getElementById("aiStatus").innerHTML="<span class=\\"err\\">テーマを入力してください</span>";return}' +
+        'var btn=document.getElementById("aiBtn");' +
+        'btn.disabled=true;' +
+        'document.getElementById("aiStatus").textContent="生成中です（10〜15秒）...";' +
+        'google.script.run' +
+          '.withSuccessHandler(function(r){' +
+            'btn.disabled=false;' +
+            'if(r&&r.ok){' +
+              'document.getElementById("title").value=r.title;' +
+              'document.getElementById("body").value=r.body;' +
+              'document.getElementById("aiStatus").innerHTML="<span class=\\"ok\\">生成完了</span>";' +
+            '}else{' +
+              'document.getElementById("aiStatus").innerHTML="<span class=\\"err\\">"+(r&&r.message||"生成に失敗しました")+"</span>";' +
+            '}' +
+          '})' +
+          '.withFailureHandler(function(e){' +
+            'btn.disabled=false;' +
+            'document.getElementById("aiStatus").innerHTML="<span class=\\"err\\">エラー: "+e.message+"</span>";' +
+          '})' +
+          '.generateNewsletterAI_(theme);' +
+      '}' +
       'function submit(){' +
         'var t=document.getElementById("title").value.trim();' +
         'var b=document.getElementById("body").value.trim();' +
         'var s=document.getElementById("schedule").value||"";' +
+        'var f=document.getElementById("freq").value;' +
         'if(!t){alert("タイトルを入力してください");return}' +
         'if(!b){alert("本文を入力してください");return}' +
         'document.getElementById("submitBtn").disabled=true;' +
@@ -107,21 +164,27 @@ function registerNewsletter() {
             'document.getElementById("submitBtn").disabled=false;' +
             'document.getElementById("submitBtn").textContent="登録"' +
           '})' +
-          '.saveNewsletter_(t,b,s)' +
+          '.saveNewsletter_(t,b,s,f)' +
       '}' +
     '</script>'
-  ).setWidth(500).setHeight(540);
+  ).setWidth(520).setHeight(700);
   SpreadsheetApp.getUi().showModalDialog(html, 'ニュースレター登録');
 }
 
 /**
  * HTMLダイアログから呼ばれるサーバー関数
+ * @param {string} title - タイトル
+ * @param {string} bodyText - 本文
+ * @param {string} schedule - 配信日時（空可）
+ * @param {string} frequency - 頻度（一度/毎週/毎月）
  */
-function saveNewsletter_(title, bodyText, schedule) {
+function saveNewsletter_(title, bodyText, schedule, frequency) {
   var sheet = getNewsletterSheet_();
-  sheet.appendRow([title, bodyText, schedule || '', '']);
+  var freq = frequency || '一度';
+  sheet.appendRow([title, bodyText, schedule || '', '', freq, '']);
   var recipients = getNewsletterRecipients_();
-  return '登録完了（配信対象: ' + recipients.length + '人、配信予定: ' + (schedule || '次の朝9時に自動配信') + '）';
+  var freqLabel = freq === '一度' ? '' : '（' + freq + '配信）';
+  return '登録完了' + freqLabel + '（配信対象: ' + recipients.length + '人、配信予定: ' + (schedule || '次の朝9時に自動配信') + '）';
 }
 
 /**
@@ -157,6 +220,63 @@ function nlSeasonalBody_() {
     + '新商品も随時入荷中ですので、ぜひサイトをご確認ください。\\n\\n'
     + 'ご不明な点がございましたら、お気軽にお問い合わせください。\\n\\n'
     + SITE_CONSTANTS.SITE_URL;
+}
+
+// =====================================================
+// AI生成（GPT-4o-mini）
+// =====================================================
+
+/**
+ * AIでニュースレターのタイトルと本文を生成
+ * @param {string} theme - テーマ（例: 春のセール、新着ブランド紹介）
+ * @return {object} {ok, title, body} or {ok:false, message}
+ */
+function generateNewsletterAI_(theme) {
+  try {
+    var apiKey = PropertiesService.getScriptProperties().getProperty('OPENAI_API_KEY');
+    if (!apiKey) return { ok: false, message: 'OPENAI_API_KEYが設定されていません' };
+
+    var systemPrompt = 'あなたはB2B卸売ECサイト「デタウリ.Detauri」のメールマガジン担当です。\n'
+      + '業種: ブランドアパレル（中古衣料）の卸売\n'
+      + 'ターゲット: 副業で古着販売をする個人事業主\n'
+      + 'サイトURL: https://wholesale.nkonline-tool.com/\n'
+      + 'トーン: 丁寧だが親しみやすいB2Bスタイル。絵文字は使わない。\n'
+      + '出力形式: JSON {"title":"件名（【デタウリ】で始める）","body":"本文（改行は\\nで表現）"}\n'
+      + '本文は200〜400文字程度で、最後にサイトURLと署名を含めてください。';
+
+    var response = UrlFetchApp.fetch(NEWSLETTER_AI_CONFIG.ENDPOINT, {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { 'Authorization': 'Bearer ' + apiKey },
+      payload: JSON.stringify({
+        model: NEWSLETTER_AI_CONFIG.MODEL,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: 'テーマ: ' + String(theme) }
+        ],
+        max_tokens: NEWSLETTER_AI_CONFIG.MAX_TOKENS,
+        temperature: NEWSLETTER_AI_CONFIG.TEMPERATURE,
+        response_format: { type: 'json_object' }
+      }),
+      muteHttpExceptions: true
+    });
+
+    var code = response.getResponseCode();
+    if (code !== 200) {
+      console.error('OpenAI API error: ' + code + ' ' + response.getContentText());
+      return { ok: false, message: 'AI APIエラー（' + code + '）' };
+    }
+
+    var json = JSON.parse(response.getContentText());
+    var content = json.choices && json.choices[0] && json.choices[0].message && json.choices[0].message.content;
+    if (!content) return { ok: false, message: 'AI応答が空です' };
+
+    var result = JSON.parse(content);
+    return { ok: true, title: result.title || '', body: result.body || '' };
+  } catch (e) {
+    console.error('generateNewsletterAI_ error:', e);
+    return { ok: false, message: '生成に失敗しました: ' + e.message };
+  }
 }
 
 /**
@@ -225,12 +345,14 @@ function testNewsletterSend() {
 }
 
 // =====================================================
-// 自動配信（毎日9時）
+// 自動配信（毎日9時）— 定期配信対応
 // =====================================================
 
 /**
  * ニュースレター配信 定期実行（毎日9時）
- * 「未配信」かつ配信日時が過去のものを配信
+ * - 「配信待ち」→ 配信日時が過去なら送信
+ * - 「配信中」→ 頻度に応じて再配信（毎週: 7日経過 / 毎月: 月が変わった）
+ * - 「停止」「配信済み」→ スキップ
  */
 function newsletterSendCron_() {
   try {
@@ -252,15 +374,53 @@ function newsletterSendCron_() {
       var bodyText = String(data[i][1] || '').trim();
       var scheduledAt = data[i][2];
       var status = String(data[i][3] || '').trim();
+      var frequency = String(data[i][4] || '一度').trim(); // E列: 頻度（後方互換）
+      var lastSent = data[i][5]; // F列: 最終配信日
 
       if (!title || !bodyText) continue;
-      if (status === '配信済み') continue;
+      if (status === '停止' || status === '配信済み') continue;
+      if (status !== '' && status !== '配信待ち' && status !== '配信中') continue;
 
-      // 配信日時チェック
-      if (scheduledAt) {
-        var schedDate = new Date(scheduledAt);
-        if (schedDate > now) continue; // まだ配信時刻になっていない
+      var shouldSend = false;
+      var sheetRow = i + 1;
+
+      if (frequency === '一度' || !frequency) {
+        // 通常配信: 配信日時チェック
+        if (status === '配信済み') continue;
+        if (scheduledAt) {
+          var schedDate = new Date(scheduledAt);
+          if (schedDate > now) continue;
+        }
+        shouldSend = true;
+      } else if (frequency === '毎週') {
+        // 最終配信日から7日以上経過していれば送信
+        if (!lastSent || !(lastSent instanceof Date)) {
+          // 初回: 配信日時チェック
+          if (scheduledAt) {
+            var schedDate2 = new Date(scheduledAt);
+            if (schedDate2 > now) continue;
+          }
+          shouldSend = true;
+        } else {
+          var diffDays = (now.getTime() - new Date(lastSent).getTime()) / (1000 * 60 * 60 * 24);
+          shouldSend = (diffDays >= 7);
+        }
+      } else if (frequency === '毎月') {
+        // 月が変わっていれば送信
+        if (!lastSent || !(lastSent instanceof Date)) {
+          if (scheduledAt) {
+            var schedDate3 = new Date(scheduledAt);
+            if (schedDate3 > now) continue;
+          }
+          shouldSend = true;
+        } else {
+          var lastDate = new Date(lastSent);
+          shouldSend = (now.getFullYear() > lastDate.getFullYear() ||
+                        now.getMonth() > lastDate.getMonth());
+        }
       }
+
+      if (!shouldSend) continue;
 
       // メルマガ登録済み会員にメール送信
       var recipients = getNewsletterRecipients_();
@@ -294,10 +454,16 @@ function newsletterSendCron_() {
         }
       }
 
-      // ステータスを「配信済み」に変更
-      sheet.getRange(i + 1, 4).setValue('配信済み');
+      // ステータスと最終配信日を更新
+      if (frequency === '一度' || !frequency) {
+        sheet.getRange(sheetRow, 4).setValue('配信済み');
+      } else {
+        sheet.getRange(sheetRow, 4).setValue('配信中');
+      }
+      sheet.getRange(sheetRow, 6).setValue(now); // F列: 最終配信日
+
       totalSent += sent;
-      console.log('newsletterSendCron_: "' + title + '" を ' + sent + '件送信');
+      console.log('newsletterSendCron_: "' + title + '" を ' + sent + '件送信（頻度: ' + frequency + '）');
     }
 
     console.log('newsletterSendCron_: 完了 合計送信=' + totalSent + '件');

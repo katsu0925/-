@@ -293,6 +293,11 @@ function shipMailOnEdit(e) {
     sh.getRange(row, SHIPMAIL_CONFIG.COL_STATUS_P).setValue('完了');
     Logger.log('status set to 完了 at col=' + SHIPMAIL_CONFIG.COL_STATUS_P);
 
+    // 顧客の購入回数を更新
+    try { updatePurchaseCount_(contactEmail); } catch (pcErr) {
+      Logger.log('updatePurchaseCount_ error: ' + (pcErr && pcErr.stack ? pcErr.stack : String(pcErr)));
+    }
+
     Logger.log('--- shipMailOnEdit END (success) ---');
   } catch (err) {
     Logger.log('ERROR: ' + (err && err.stack ? err.stack : String(err)));

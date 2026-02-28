@@ -14,7 +14,7 @@ function getCustomerSheet_() {
     sheet.appendRow([
       'ID', 'メールアドレス', 'パスワードハッシュ', '会社名/氏名', '電話番号',
       '郵便番号', '住所', 'メルマガ', '登録日時', '最終ログイン', 'セッションID', 'セッション有効期限',
-      'ポイント残高', 'ポイント更新日', 'LINE_USER_ID'
+      'ポイント残高', 'ポイント更新日', 'LINE_USER_ID', '購入回数'
     ]);
     sheet.setFrozenRows(1);
   }
@@ -844,6 +844,79 @@ function formatDate_(d) {
   } catch (e) {
     return String(d);
   }
+}
+
+// =====================================================
+// 購入回数管理
+// =====================================================
+
+/**
+ * 顧客の購入回数を更新（依頼管理シートでステータス=完了の注文を集計）
+ * @param {string} email - 顧客メールアドレス
+ */
+function updatePurchaseCount_(email) {
+  if (!email) return;
+  var normalizedEmail = String(email).trim().toLowerCase();
+
+  var ss = sh_getOrderSs_();
+  var reqSheet = ss.getSheetByName('依頼管理');
+  if (!reqSheet) return;
+
+  var data = reqSheet.getDataRange().getValues();
+  var count = 0;
+  for (var i = 1; i < data.length; i++) {
+    var rowEmail = String(data[i][REQUEST_SHEET_COLS.CONTACT - 1] || '').trim().toLowerCase();
+    var status = String(data[i][REQUEST_SHEET_COLS.STATUS - 1] || '').trim();
+    if (rowEmail === normalizedEmail && status === '完了') {
+      count++;
+    }
+  }
+
+  var custSheet = getCustomerSheet_();
+  var custData = custSheet.getDataRange().getValues();
+  for (var j = 1; j < custData.length; j++) {
+    if (String(custData[j][CUSTOMER_SHEET_COLS.EMAIL] || '').trim().toLowerCase() === normalizedEmail) {
+      custSheet.getRange(j + 1, CUSTOMER_SHEET_COLS.PURCHASE_COUNT + 1).setValue(count);
+      return;
+    }
+  }
+}
+
+/**
+ * 全顧客の購入回数を一括算出（GASエディタから1回実行）
+ */
+function backfillPurchaseCount() {
+  var custSheet = getCustomerSheet_();
+  var custData = custSheet.getDataRange().getValues();
+
+  // P列ヘッダーがなければ追加
+  if (custData.length > 0 && (custData[0].length < CUSTOMER_SHEET_COLS.PURCHASE_COUNT + 1 || !custData[0][CUSTOMER_SHEET_COLS.PURCHASE_COUNT])) {
+    custSheet.getRange(1, CUSTOMER_SHEET_COLS.PURCHASE_COUNT + 1).setValue('購入回数');
+  }
+
+  // 依頼管理シートから完了注文を一括取得
+  var ss = sh_getOrderSs_();
+  var reqSheet = ss.getSheetByName('依頼管理');
+  if (!reqSheet) return;
+
+  var reqData = reqSheet.getDataRange().getValues();
+  var countMap = {};
+  for (var i = 1; i < reqData.length; i++) {
+    var email = String(reqData[i][REQUEST_SHEET_COLS.CONTACT - 1] || '').trim().toLowerCase();
+    var status = String(reqData[i][REQUEST_SHEET_COLS.STATUS - 1] || '').trim();
+    if (email && status === '完了') {
+      countMap[email] = (countMap[email] || 0) + 1;
+    }
+  }
+
+  // 顧客管理シートのP列に一括書き込み
+  for (var j = 1; j < custData.length; j++) {
+    var custEmail = String(custData[j][CUSTOMER_SHEET_COLS.EMAIL] || '').trim().toLowerCase();
+    var purchaseCount = countMap[custEmail] || 0;
+    custSheet.getRange(j + 1, CUSTOMER_SHEET_COLS.PURCHASE_COUNT + 1).setValue(purchaseCount);
+  }
+
+  Logger.log('backfillPurchaseCount 完了: ' + (custData.length - 1) + '件の顧客を処理');
 }
 
 // =====================================================

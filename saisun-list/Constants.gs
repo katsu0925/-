@@ -132,7 +132,8 @@ var CUSTOMER_SHEET_COLS = {
   SESSION_EXPIRY: 11, // L: セッション有効期限
   POINTS: 12,         // M: ポイント残高
   POINTS_UPDATED_AT: 13, // N: ポイント更新日
-  LINE_USER_ID: 14    // O: LINE UserID
+  LINE_USER_ID: 14,     // O: LINE UserID
+  PURCHASE_COUNT: 15    // P: 購入回数
 };
 
 /**
