@@ -33,7 +33,7 @@ function notifyUnsentRequests() {
       '受付番号: ' + receiptNo + '\n' +
       '依頼日時: ' + dateStr + '\n' +
       '会社名: ' + companyName + '\n' +
-      '商品名: ' + productName + '\n' +
+      '商品名:\n' + productName + '\n' +
       '備考: ' + note;
     const payload = JSON.stringify({
       to: getLineToId_(),

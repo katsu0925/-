@@ -272,7 +272,7 @@ function apiBulkSubmit(form, items) {
       shippingSize: shippingSize,
       shippingPref: shippingPref,
       selectionList: selectionParts.join('、'),
-      productNames: productNames.join('、'),
+      productNames: productNames.join('\n'),
       createdAtMs: u_nowMs_(),
       couponCode: couponCode || '',
       couponDiscount: couponDiscount || 0,

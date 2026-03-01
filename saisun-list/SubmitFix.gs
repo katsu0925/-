@@ -639,6 +639,13 @@ function writeSubmitData_(data) {
   // AC=発送通知, AD=備考, AE=作業報酬, AF=更新日時, AG=チャネル
   var reqSh = sh_ensureRequestSheet_(orderSs);
   var productNames = data.productNames || '選べるxlsx付きパッケージ';
+  if (productNames.indexOf('\n') !== -1) {
+    productNames = productNames.split('\n').map(function(s) { return '・' + s; }).join('\n');
+  } else if (productNames.indexOf('、') !== -1) {
+    productNames = productNames.split('、').map(function(s) { return '・' + s.trim(); }).join('\n');
+  } else {
+    productNames = '・' + productNames;
+  }
   var channel = data.channel || 'デタウリ';
   var paymentStatus = data.paymentStatus || '対応済';
   // アソート商品の場合、選択リスト/合計点数の扱いが異なる
