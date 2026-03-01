@@ -3023,12 +3023,12 @@ function setupAuthUi_() {
             $('contactMessage').value = '';
             modalContactFiles_ = [];
             var p = $('modalContactPreviews'); if (p) p.innerHTML = '';
-            showToast('お問い合わせを送信しました');
+            alert('お問い合わせを送信しました');
           } else {
-            showToast((res && res.message) || '送信に失敗しました');
+            alert((res && res.message) || '送信に失敗しました');
           }
         })
-        .catch(function(e) { showToast(e.message || '送信に失敗しました'); })
+        .catch(function(e) { alert(e.message || '送信に失敗しました'); })
         .finally(function() { contactSubmitBtn.disabled = false; contactSubmitBtn.textContent = '送信'; });
     });
   }
