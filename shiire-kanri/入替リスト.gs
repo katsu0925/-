@@ -304,6 +304,21 @@ function formatSwapDate_(d) {
 }
 
 // ═══════════════════════════════════════════
+//  管理者メール設定
+// ═══════════════════════════════════════════
+
+function setAdminEmail() {
+  var ui = SpreadsheetApp.getUi();
+  var current = PropertiesService.getScriptProperties().getProperty('ADMIN_OWNER_EMAIL') || '(未設定)';
+  var res = ui.prompt('管理者メール設定', '現在: ' + current + '\n\n新しいメールアドレスを入力:', ui.ButtonSet.OK_CANCEL);
+  if (res.getSelectedButton() !== ui.Button.OK) return;
+  var email = res.getResponseText().trim();
+  if (!email) return;
+  PropertiesService.getScriptProperties().setProperty('ADMIN_OWNER_EMAIL', email);
+  ui.alert('設定完了', 'ADMIN_OWNER_EMAIL を「' + email + '」に設定しました。', ui.ButtonSet.OK);
+}
+
+// ═══════════════════════════════════════════
 //  トリガー設定（毎月28日 9時）
 // ═══════════════════════════════════════════
 
