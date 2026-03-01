@@ -68,6 +68,15 @@ function generateSwapLists() {
           console.error('メール送信失敗 (' + acct.name + '): ' + e.message);
         }
       }
+      // 管理者にも同じPDFを送信
+      var adminEmail = props.getProperty('ADMIN_OWNER_EMAIL');
+      if (adminEmail && adminEmail !== email) {
+        try {
+          sendSwapEmail_(adminEmail, acct.name, prevMonthStart, result.prevMonthCount, result.items, pdfBlob);
+        } catch (e) {
+          console.error('管理者メール送信失敗 (' + acct.name + '): ' + e.message);
+        }
+      }
       result.email = email;
       result.emailSent = emailSent;
     }
