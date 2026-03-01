@@ -1203,6 +1203,10 @@
         <label>お問い合わせ内容 *</label>
         <textarea id="contactMessage" rows="6" placeholder="お問い合わせ内容をご記入ください"></textarea>
       </div>
+      <div class="chatbot-contact-files">
+        <label>📎 画像を添付（最大3枚）<input type="file" id="modalContactFiles" accept="image/*" multiple></label>
+        <div class="chatbot-contact-previews" id="modalContactPreviews"></div>
+      </div>
       <div style="text-align:right; margin-top:12px;">
         <button class="btn primary" id="contactSubmitBtn" type="button">送信</button>
       </div>
@@ -2803,6 +2807,69 @@ function validateSession_() {
     });
 }
 
+// 画像リサイズ＆base64変換（お問い合わせ共通）
+function resizeAndEncode_(file) {
+  return new Promise(function(resolve) {
+    var reader = new FileReader();
+    reader.onload = function() {
+      var img = new Image();
+      img.onload = function() {
+        var MAX = 1200;
+        var w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+          else { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        var cvs = document.createElement('canvas');
+        cvs.width = w; cvs.height = h;
+        cvs.getContext('2d').drawImage(img, 0, 0, w, h);
+        var dataUrl = cvs.toDataURL('image/jpeg', 0.8);
+        resolve({ name: file.name.replace(/\.[^.]+$/, '.jpg'), type: 'image/jpeg', data: dataUrl.split(',')[1] });
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// お問い合わせモーダル — 画像添付
+var modalContactFiles_ = [];
+(function() {
+  var fileInput = $('modalContactFiles');
+  var previews = $('modalContactPreviews');
+  if (!fileInput) return;
+  fileInput.addEventListener('change', function() {
+    var files = Array.prototype.slice.call(fileInput.files);
+    files.forEach(function(f) {
+      if (modalContactFiles_.length >= 3) return;
+      if (!f.type.startsWith('image/')) return;
+      modalContactFiles_.push(f);
+    });
+    if (modalContactFiles_.length > 3) modalContactFiles_ = modalContactFiles_.slice(0, 3);
+    fileInput.value = '';
+    renderModalPreviews_();
+  });
+  function renderModalPreviews_() {
+    previews.innerHTML = '';
+    modalContactFiles_.forEach(function(f, idx) {
+      var wrap = document.createElement('div');
+      wrap.className = 'chatbot-contact-prev';
+      var img = document.createElement('img');
+      img.src = URL.createObjectURL(f);
+      var rm = document.createElement('button');
+      rm.textContent = '×';
+      rm.setAttribute('data-idx', idx);
+      rm.addEventListener('click', function() {
+        modalContactFiles_.splice(parseInt(this.getAttribute('data-idx'), 10), 1);
+        renderModalPreviews_();
+      });
+      wrap.appendChild(img);
+      wrap.appendChild(rm);
+      previews.appendChild(wrap);
+    });
+  }
+})();
+
 function setupAuthUi_() {
   // ログインボタン
   var openAuthBtn = $('openAuthBtn');
@@ -2940,13 +3007,20 @@ function setupAuthUi_() {
       if (!message) { showToast('お問い合わせ内容を入力してください'); return; }
       contactSubmitBtn.disabled = true;
       contactSubmitBtn.textContent = '送信中...';
-      runApi('apiSendContactForm', { name: name, email: email, message: message })
+      var files = modalContactFiles_.slice();
+      Promise.all(files.map(function(f) { return resizeAndEncode_(f); })).then(function(images) {
+        var params = { name: name, email: email, message: message };
+        if (images.length > 0) params.images = images;
+        return runApi('apiSendContactForm', params);
+      })
         .then(function(res) {
           if (res && res.ok) {
             closeModal($('contactModal'));
             $('contactName').value = '';
             $('contactEmail').value = '';
             $('contactMessage').value = '';
+            modalContactFiles_ = [];
+            var p = $('modalContactPreviews'); if (p) p.innerHTML = '';
             showToast('お問い合わせを送信しました');
           } else {
             showToast((res && res.message) || '送信に失敗しました');
@@ -7208,30 +7282,6 @@ boot();
     }
   }
   window.showChatContactForm_ = showContactForm_;
-
-  function resizeAndEncode_(file) {
-    return new Promise(function(resolve) {
-      var reader = new FileReader();
-      reader.onload = function() {
-        var img = new Image();
-        img.onload = function() {
-          var MAX = 1200;
-          var w = img.width, h = img.height;
-          if (w > MAX || h > MAX) {
-            if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
-            else { w = Math.round(w * MAX / h); h = MAX; }
-          }
-          var cvs = document.createElement('canvas');
-          cvs.width = w; cvs.height = h;
-          cvs.getContext('2d').drawImage(img, 0, 0, w, h);
-          var dataUrl = cvs.toDataURL('image/jpeg', 0.8);
-          resolve({ name: file.name.replace(/\.[^.]+$/, '.jpg'), type: 'image/jpeg', data: dataUrl.split(',')[1] });
-        };
-        img.src = reader.result;
-      };
-      reader.readAsDataURL(file);
-    });
-  }
 
   function submitChatContact_(){
     var nameEl = document.getElementById('chatContactName');

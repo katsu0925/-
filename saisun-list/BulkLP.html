@@ -1095,6 +1095,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
     <div style="margin-bottom:12px;"><label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px;">お名前 *</label><input type="text" id="contactName" placeholder="会社名/氏名" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;"></div>
     <div style="margin-bottom:12px;"><label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px;">メールアドレス *</label><input type="email" id="contactEmail" placeholder="返信先メールアドレス" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;"></div>
     <div style="margin-bottom:12px;"><label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px;">お問い合わせ内容 *</label><textarea id="contactMessage" rows="6" placeholder="お問い合わせ内容をご記入ください" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;resize:vertical;"></textarea></div>
+    <div class="chatbot-contact-files"><label>📎 画像を添付（最大3枚）<input type="file" id="modalContactFiles" accept="image/*" multiple></label><div class="chatbot-contact-previews" id="modalContactPreviews"></div></div>
     <div style="text-align:right;"><button id="contactSubmitBtn" type="button" style="padding:10px 24px;border:none;border-radius:10px;background:#1a1a2e;color:#fff;font-size:14px;font-weight:700;cursor:pointer;">送信</button></div>
   </div>
 </div>
@@ -3475,6 +3476,69 @@ function renderOrderHistory_(orders) {
   el.innerHTML = html;
 }
 
+// 画像リサイズ＆base64変換（お問い合わせ共通）
+function resizeAndEncode_(file) {
+  return new Promise(function(resolve) {
+    var reader = new FileReader();
+    reader.onload = function() {
+      var img = new Image();
+      img.onload = function() {
+        var MAX = 1200;
+        var w = img.width, h = img.height;
+        if (w > MAX || h > MAX) {
+          if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+          else { w = Math.round(w * MAX / h); h = MAX; }
+        }
+        var cvs = document.createElement('canvas');
+        cvs.width = w; cvs.height = h;
+        cvs.getContext('2d').drawImage(img, 0, 0, w, h);
+        var dataUrl = cvs.toDataURL('image/jpeg', 0.8);
+        resolve({ name: file.name.replace(/\.[^.]+$/, '.jpg'), type: 'image/jpeg', data: dataUrl.split(',')[1] });
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+// お問い合わせモーダル — 画像添付
+var modalContactFiles_ = [];
+(function() {
+  var fileInput = document.getElementById('modalContactFiles');
+  var previews = document.getElementById('modalContactPreviews');
+  if (!fileInput) return;
+  fileInput.addEventListener('change', function() {
+    var files = Array.prototype.slice.call(fileInput.files);
+    files.forEach(function(f) {
+      if (modalContactFiles_.length >= 3) return;
+      if (!f.type.startsWith('image/')) return;
+      modalContactFiles_.push(f);
+    });
+    if (modalContactFiles_.length > 3) modalContactFiles_ = modalContactFiles_.slice(0, 3);
+    fileInput.value = '';
+    renderModalPreviews_();
+  });
+  function renderModalPreviews_() {
+    previews.innerHTML = '';
+    modalContactFiles_.forEach(function(f, idx) {
+      var wrap = document.createElement('div');
+      wrap.className = 'chatbot-contact-prev';
+      var img = document.createElement('img');
+      img.src = URL.createObjectURL(f);
+      var rm = document.createElement('button');
+      rm.textContent = '×';
+      rm.setAttribute('data-idx', idx);
+      rm.addEventListener('click', function() {
+        modalContactFiles_.splice(parseInt(this.getAttribute('data-idx'), 10), 1);
+        renderModalPreviews_();
+      });
+      wrap.appendChild(img);
+      wrap.appendChild(rm);
+      previews.appendChild(wrap);
+    });
+  }
+})();
+
 // =====================================================
 // 認証UIイベント設定
 // =====================================================
@@ -3899,13 +3963,20 @@ function renderOrderHistory_(orders) {
       if (!name || !email || !message) { alert('全ての項目を入力してください'); return; }
       contactSubmit.disabled = true;
       contactSubmit.textContent = '送信中...';
-      runApi('apiSendContactForm', { name: name, email: email, message: message, page: 'アソート' })
+      var files = modalContactFiles_.slice();
+      Promise.all(files.map(function(f) { return resizeAndEncode_(f); })).then(function(images) {
+        var params = { name: name, email: email, message: message, page: 'アソート' };
+        if (images.length > 0) params.images = images;
+        return runApi('apiSendContactForm', params);
+      })
         .then(function(res) {
           if (res && res.ok) {
             alert('お問い合わせを送信しました');
             document.getElementById('contactName').value = '';
             document.getElementById('contactEmail').value = '';
             document.getElementById('contactMessage').value = '';
+            modalContactFiles_ = [];
+            var p = document.getElementById('modalContactPreviews'); if (p) p.innerHTML = '';
             contactModal.style.display = 'none';
             contactOverlay.classList.remove('active');
           } else { alert((res && res.message) || '送信に失敗しました'); }
@@ -4221,30 +4292,6 @@ function renderOrderHistory_(orders) {
     }
   }
   window.showChatContactForm_ = showContactForm_;
-
-  function resizeAndEncode_(file) {
-    return new Promise(function(resolve) {
-      var reader = new FileReader();
-      reader.onload = function() {
-        var img = new Image();
-        img.onload = function() {
-          var MAX = 1200;
-          var w = img.width, h = img.height;
-          if (w > MAX || h > MAX) {
-            if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
-            else { w = Math.round(w * MAX / h); h = MAX; }
-          }
-          var cvs = document.createElement('canvas');
-          cvs.width = w; cvs.height = h;
-          cvs.getContext('2d').drawImage(img, 0, 0, w, h);
-          var dataUrl = cvs.toDataURL('image/jpeg', 0.8);
-          resolve({ name: file.name.replace(/\.[^.]+$/, '.jpg'), type: 'image/jpeg', data: dataUrl.split(',')[1] });
-        };
-        img.src = reader.result;
-      };
-      reader.readAsDataURL(file);
-    });
-  }
 
   function submitChatContact_(){
     var nameEl = document.getElementById('chatContactName');
