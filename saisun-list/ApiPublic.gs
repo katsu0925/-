@@ -810,12 +810,15 @@ function apiSendContactForm(params) {
       noReply: true
     });
 
-    // 3. 管理者用の返信下書きを作成（ヘッダ・フッタ付き）
+    // 3. 管理者用の返信テンプレートメールを送信
+    //    GmailApp.createDraft() は ANYONE_ANONYMOUS Web App では動作しないため、
+    //    MailApp.sendEmail() で管理者宛に返信テンプレートを送信する方式に変更
     var draftOk = false;
     var draftError = '';
     try {
-      var draftSubject = 'Re: ' + adminSubject;
-      var draftBody = name + ' 様\n\n'
+      var replySubject = '【返信テンプレート】' + name + ' 様へのご返信';
+      var replyBody = '━━━ 以下をコピーして ' + email + ' 宛に返信してください ━━━\n\n'
+        + name + ' 様\n\n'
         + 'お問い合わせいただきありがとうございます。\n'
         + 'デタウリ.Detauriでございます。\n\n'
         + '\n\n'
@@ -824,20 +827,51 @@ function apiSendContactForm(params) {
         + 'https://wholesale.nkonline-tool.com/\n'
         + 'お問い合わせ：' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
         + '──────────────────\n\n'
-        + '> お問い合わせ内容（' + datetime + '）\n'
-        + '> お名前: ' + name + '\n'
-        + '> メールアドレス: ' + email + '\n'
-        + '>\n'
-        + message.split('\n').map(function(l) { return '> ' + l; }).join('\n') + '\n';
-      if (attachments.length > 0) {
-        GmailApp.createDraft(email, draftSubject, draftBody, { attachments: attachments });
-      } else {
-        GmailApp.createDraft(email, draftSubject, draftBody);
-      }
+        + '━━━ 元のお問い合わせ内容（' + datetime + '）━━━\n'
+        + 'お名前: ' + name + '\n'
+        + 'メールアドレス: ' + email + '\n\n'
+        + message + '\n';
+
+      var replyHtmlBody = buildHtmlEmail_({
+        lead: '以下をコピーして <strong>' + email + '</strong> 宛に返信してください。',
+        sections: [
+          {
+            title: '返信テンプレート',
+            text: name + ' 様\n\n'
+              + 'お問い合わせいただきありがとうございます。\n'
+              + 'デタウリ.Detauriでございます。\n\n'
+              + '（ここに返信内容を入力）'
+          },
+          {
+            title: '元のお問い合わせ内容（' + datetime + '）',
+            rows: [
+              { label: 'お名前', value: name },
+              { label: 'メールアドレス', value: email }
+            ]
+          },
+          {
+            title: '',
+            text: message
+          }
+        ],
+        notes: [
+          '署名: デタウリ.Detauri / ' + SITE_CONSTANTS.CONTACT_EMAIL
+        ]
+      });
+
+      var replyMailOpts = {
+        to: adminTo,
+        replyTo: email,
+        subject: replySubject,
+        body: replyBody,
+        htmlBody: replyHtmlBody
+      };
+      if (attachments.length > 0) replyMailOpts.attachments = attachments;
+      MailApp.sendEmail(replyMailOpts);
       draftOk = true;
     } catch (draftErr) {
       draftError = draftErr.message || String(draftErr);
-      console.error('返信下書き作成失敗（メール送信は成功）: ' + draftError + ' / stack: ' + (draftErr.stack || ''));
+      console.error('返信テンプレート送信失敗（通知メール送信は成功）: ' + draftError + ' / stack: ' + (draftErr.stack || ''));
     }
 
     return { ok: true, draftCreated: draftOk, draftError: draftError || undefined };
