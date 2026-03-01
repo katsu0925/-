@@ -729,7 +729,17 @@ function apiSendContactForm(params) {
       + '日時: ' + datetime + '\n'
       + (attachments.length > 0 ? '添付画像: ' + attachments.length + '枚\n' : '')
       + '\n--- お問い合わせ内容 ---\n'
-      + message + '\n';
+      + message + '\n'
+      + '\n━━━ 返信テンプレート ━━━\n\n'
+      + name + ' 様\n\n'
+      + 'お問い合わせいただきありがとうございます。\n'
+      + 'デタウリ.Detauriでございます。\n\n'
+      + '\n\n'
+      + '──────────────────\n'
+      + 'デタウリ.Detauri\n'
+      + 'https://wholesale.nkonline-tool.com/\n'
+      + 'お問い合わせ：' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
+      + '──────────────────\n';
 
     var adminHtmlBody = buildHtmlEmail_({
       lead: 'お問い合わせを受信しました。<br>このメールに返信すると <strong>' + email + '</strong> 宛に送信されます。',
@@ -745,6 +755,17 @@ function apiSendContactForm(params) {
         {
           title: 'お問い合わせ内容',
           text: message
+        },
+        {
+          title: '返信テンプレート（コピーしてご利用ください）',
+          text: name + ' 様\n\n'
+            + 'お問い合わせいただきありがとうございます。\n'
+            + 'デタウリ.Detauriでございます。\n\n'
+            + '\n\n'
+            + '──────────────────\n'
+            + 'デタウリ.Detauri\n'
+            + 'https://wholesale.nkonline-tool.com/\n'
+            + 'お問い合わせ：' + SITE_CONSTANTS.CONTACT_EMAIL
         }
       ]
     });
