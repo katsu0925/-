@@ -827,11 +827,13 @@ function apiSendContactForm(params) {
         + '> メールアドレス: ' + email + '\n'
         + '>\n'
         + message.split('\n').map(function(l) { return '> ' + l; }).join('\n') + '\n';
-      var draftOpts = {};
-      if (attachments.length > 0) draftOpts.attachments = attachments;
-      GmailApp.createDraft(email, draftSubject, draftBody, draftOpts);
+      if (attachments.length > 0) {
+        GmailApp.createDraft(email, draftSubject, draftBody, { attachments: attachments });
+      } else {
+        GmailApp.createDraft(email, draftSubject, draftBody);
+      }
     } catch (draftErr) {
-      console.warn('返信下書き作成失敗（メール送信は成功）:', draftErr);
+      console.error('返信下書き作成失敗（メール送信は成功）: ' + (draftErr.message || String(draftErr)) + ' / stack: ' + (draftErr.stack || ''));
     }
 
     return { ok: true };
