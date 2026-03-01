@@ -7,7 +7,8 @@
 /**
  * 「月次在庫推移」シートを更新する
  * A〜Q列: 既存の在庫推移（期首在庫、仕入、売上、利益、在庫回転率など）
- * R〜T列: EC管理データ（EC商品代金合計、EC手数料合計、EC入金額合計）
+ * ヘッダー行(2行目)を読み取り、EC管理データ（商品代金、手数料、入金額）を
+ * 該当ヘッダーの列に書き込む
  *
  * EC管理シート列: A=番号, B=注文キー, C=チャンネル, D=販売日, E=商品代金,
  *   F=客負担送料, G=売上, H=手数料, I=店負担送料, J=入金額, K=伝票番号, L=メモ
@@ -27,6 +28,24 @@ function updateMonthlyInventoryTrend() {
   if (!sheetShiire)     throw new Error('仕入れ管理シートが見つかりません');
   if (!sheetShohin)     throw new Error('商品管理シートが見つかりません');
 
+  // --- 月次在庫推移のヘッダー行(2行目)を読み取り、EC列の位置を特定 ---
+  var mainLastCol = sheetMain.getLastColumn();
+  var mainHeaders = mainLastCol >= 1
+    ? sheetMain.getRange(2, 1, 1, mainLastCol).getValues()[0].map(function(v) { return String(v || '').trim(); })
+    : [];
+
+  // EC管理の集計値を書き込む列を特定（ヘッダー名で検索、1-indexed）
+  var EC_COL_MAP = {
+    productPrice: findHeaderCol_(mainHeaders, '商品代金'),
+    fee:          findHeaderCol_(mainHeaders, '手数料'),
+    deposit:      findHeaderCol_(mainHeaders, '入金額')
+  };
+
+  var hasEcCols = EC_COL_MAP.productPrice > 0 || EC_COL_MAP.fee > 0 || EC_COL_MAP.deposit > 0;
+  if (hasEcCols) {
+    Logger.log('EC列検出: 商品代金=' + EC_COL_MAP.productPrice + ', 手数料=' + EC_COL_MAP.fee + ', 入金額=' + EC_COL_MAP.deposit);
+  }
+
   // --- 参照データ読み込み ---
   // 期末棚卸サマリー: A列(年月), B列(期首在庫金額)
   var tanaData  = sheetTanaoroshi.getRange('A2:B').getValues();
@@ -43,17 +62,17 @@ function updateMonthlyInventoryTrend() {
   // --- EC管理データ読み込み ---
   // D列(販売日), E列(商品代金), H列(手数料), J列(入金額)
   var ecData = { dateYM: [], productPrice: [], fee: [], deposit: [] };
-  if (sheetEc) {
+  if (sheetEc && hasEcCols) {
     var ecLastRow = sheetEc.getLastRow();
     if (ecLastRow >= 2) {
       var ecDates        = sheetEc.getRange('D2:D' + ecLastRow).getValues().flat();
       var ecProductPrice = sheetEc.getRange('E2:E' + ecLastRow).getValues().flat();
       var ecFee          = sheetEc.getRange('H2:H' + ecLastRow).getValues().flat();
       var ecDeposit      = sheetEc.getRange('J2:J' + ecLastRow).getValues().flat();
-      ecData.dateYM      = ecDates.map(function(v) { return toYM_(v); });
+      ecData.dateYM       = ecDates.map(function(v) { return toYM_(v); });
       ecData.productPrice = ecProductPrice;
-      ecData.fee         = ecFee;
-      ecData.deposit     = ecDeposit;
+      ecData.fee          = ecFee;
+      ecData.deposit      = ecDeposit;
     }
   }
 
@@ -83,6 +102,7 @@ function updateMonthlyInventoryTrend() {
   // 計算結果を98行分
   var maxRows = Math.min(yearMonthList.length, 98);
   var result = [];
+  var ecResults = []; // EC列用（行ごとに {productPrice, fee, deposit}）
 
   for (var r = 0; r < maxRows; r++) {
     var ym = yearMonthList[r];
@@ -161,33 +181,59 @@ function updateMonthlyInventoryTrend() {
     // --- Q列: 消費税(仕入) = ROUND(F * 0.1) ---
     var colQ = Math.round(colF * 0.1);
 
-    // --- R列: EC商品代金合計 = SUMIF(EC管理 販売日, 年月, 商品代金) ---
-    var colR = 0;
-    for (var e1 = 0; e1 < ecData.dateYM.length; e1++) {
-      if (ecData.dateYM[e1] === ymStr) colR += (Number(ecData.productPrice[e1]) || 0);
-    }
+    result.push([ym, colB, colC, colD, colE, colF, colG, colH, colI, colJ, colK, colL, colM, colN, colO, colP, colQ]);
 
-    // --- S列: EC手数料合計 = SUMIF(EC管理 販売日, 年月, 手数料) ---
-    var colS = 0;
-    for (var e2 = 0; e2 < ecData.dateYM.length; e2++) {
-      if (ecData.dateYM[e2] === ymStr) colS += (Number(ecData.fee[e2]) || 0);
+    // --- EC管理の月別集計 ---
+    if (hasEcCols) {
+      var ecPP = 0, ecFee = 0, ecDep = 0;
+      for (var e1 = 0; e1 < ecData.dateYM.length; e1++) {
+        if (ecData.dateYM[e1] === ymStr) {
+          ecPP  += (Number(ecData.productPrice[e1]) || 0);
+          ecFee += (Number(ecData.fee[e1]) || 0);
+          ecDep += (Number(ecData.deposit[e1]) || 0);
+        }
+      }
+      ecResults.push({ productPrice: ecPP, fee: ecFee, deposit: ecDep });
     }
-
-    // --- T列: EC入金額合計 = SUMIF(EC管理 販売日, 年月, 入金額) ---
-    var colT = 0;
-    for (var e3 = 0; e3 < ecData.dateYM.length; e3++) {
-      if (ecData.dateYM[e3] === ymStr) colT += (Number(ecData.deposit[e3]) || 0);
-    }
-
-    result.push([ym, colB, colC, colD, colE, colF, colG, colH, colI, colJ, colK, colL, colM, colN, colO, colP, colQ, colR, colS, colT]);
   }
 
-  // --- 結果をシートに書き込み (A〜T = 20列) ---
+  // --- A〜Q列(17列)を書き込み ---
   if (result.length > 0) {
-    sheetMain.getRange(3, 1, result.length, 20).setValues(result);
+    sheetMain.getRange(3, 1, result.length, 17).setValues(result);
   }
 
-  Logger.log('月次在庫推移を更新しました: ' + result.length + '行 (EC管理含む)');
+  // --- EC列をヘッダー位置に書き込み ---
+  if (hasEcCols && ecResults.length > 0) {
+    var ecColNums = [EC_COL_MAP.productPrice, EC_COL_MAP.fee, EC_COL_MAP.deposit];
+    var ecKeys    = ['productPrice', 'fee', 'deposit'];
+
+    for (var ci = 0; ci < ecColNums.length; ci++) {
+      var colNum = ecColNums[ci];
+      if (colNum <= 0) continue;
+
+      var colData = [];
+      for (var ri = 0; ri < ecResults.length; ri++) {
+        colData.push([ecResults[ri][ecKeys[ci]]]);
+      }
+      sheetMain.getRange(3, colNum, colData.length, 1).setValues(colData);
+    }
+  }
+
+  Logger.log('月次在庫推移を更新しました: ' + result.length + '行' + (hasEcCols ? ' (EC管理含む)' : ''));
+}
+
+/**
+ * ヘッダー配列からカラム名を検索して1-indexedの列番号を返す
+ * 見つからなければ0を返す
+ * @param {string[]} headers
+ * @param {string} name
+ * @returns {number}
+ */
+function findHeaderCol_(headers, name) {
+  for (var i = 0; i < headers.length; i++) {
+    if (headers[i] === name) return i + 1;
+  }
+  return 0;
 }
 
 // =====================================================
