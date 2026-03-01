@@ -800,6 +800,23 @@ function apiSendContactForm(params) {
       noReply: true
     });
 
+    // 3. 管理者用の返信下書きを作成（ヘッダ・フッタ付き）
+    try {
+      var draftSubject = 'Re: ' + adminSubject;
+      var draftBody = name + ' 様\n\n'
+        + 'お問い合わせいただきありがとうございます。\n'
+        + 'デタウリ.Detauriでございます。\n\n'
+        + '\n\n'
+        + '──────────────────\n'
+        + 'デタウリ.Detauri\n'
+        + 'https://wholesale.nkonline-tool.com/\n'
+        + 'お問い合わせ：' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
+        + '──────────────────\n';
+      GmailApp.createDraft(email, draftSubject, draftBody);
+    } catch (draftErr) {
+      console.warn('返信下書き作成失敗（メール送信は成功）:', draftErr);
+    }
+
     return { ok: true };
   } catch (e) {
     console.error('apiSendContactForm error:', e);
