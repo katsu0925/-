@@ -861,10 +861,10 @@ function apiSendContactForm(params) {
 
       var replyMailOpts = {
         to: adminTo,
-        replyTo: email,
         subject: replySubject,
         body: replyBody,
-        htmlBody: replyHtmlBody
+        htmlBody: replyHtmlBody,
+        noReply: true
       };
       if (attachments.length > 0) replyMailOpts.attachments = attachments;
       MailApp.sendEmail(replyMailOpts);
