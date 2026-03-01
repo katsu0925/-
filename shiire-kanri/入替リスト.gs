@@ -307,15 +307,26 @@ function formatSwapDate_(d) {
 //  管理者メール設定
 // ═══════════════════════════════════════════
 
-function setAdminEmail() {
+function setSwapEmails() {
   var ui = SpreadsheetApp.getUi();
-  var current = PropertiesService.getScriptProperties().getProperty('ADMIN_OWNER_EMAIL') || '(未設定)';
-  var res = ui.prompt('管理者メール設定', '現在: ' + current + '\n\n新しいメールアドレスを入力:', ui.ButtonSet.OK_CANCEL);
-  if (res.getSelectedButton() !== ui.Button.OK) return;
-  var email = res.getResponseText().trim();
-  if (!email) return;
-  PropertiesService.getScriptProperties().setProperty('ADMIN_OWNER_EMAIL', email);
-  ui.alert('設定完了', 'ADMIN_OWNER_EMAIL を「' + email + '」に設定しました。', ui.ButtonSet.OK);
+  var props = PropertiesService.getScriptProperties();
+  var keys = [
+    { key: 'ADMIN_OWNER_EMAIL', label: '管理者' },
+    { key: 'SWAP_EMAIL_FURUGIYAHONPO', label: '古着屋本舗' },
+    { key: 'SWAP_EMAIL_HOSHIIGA', label: 'ほしいが見つかる古着屋さん' }
+  ];
+  for (var i = 0; i < keys.length; i++) {
+    var current = props.getProperty(keys[i].key) || '(未設定)';
+    var res = ui.prompt(keys[i].label + ' メール設定', '現在: ' + current + '\n\n新しいメールアドレスを入力\n（変更しない場合は空欄でOK）:', ui.ButtonSet.OK_CANCEL);
+    if (res.getSelectedButton() !== ui.Button.OK) return;
+    var email = res.getResponseText().trim();
+    if (email) {
+      props.setProperty(keys[i].key, email);
+    }
+  }
+  ui.alert('設定完了', '管理者: ' + (props.getProperty('ADMIN_OWNER_EMAIL') || '未設定') + '\n' +
+    '古着屋本舗: ' + (props.getProperty('SWAP_EMAIL_FURUGIYAHONPO') || '未設定') + '\n' +
+    'ほしいが見つかる古着屋さん: ' + (props.getProperty('SWAP_EMAIL_HOSHIIGA') || '未設定'), ui.ButtonSet.OK);
 }
 
 // ═══════════════════════════════════════════
