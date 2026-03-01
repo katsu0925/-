@@ -811,7 +811,12 @@ function apiSendContactForm(params) {
         + 'デタウリ.Detauri\n'
         + 'https://wholesale.nkonline-tool.com/\n'
         + 'お問い合わせ：' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
-        + '──────────────────\n';
+        + '──────────────────\n\n'
+        + '> お問い合わせ内容（' + datetime + '）\n'
+        + '> お名前: ' + name + '\n'
+        + '> メールアドレス: ' + email + '\n'
+        + '>\n'
+        + message.split('\n').map(function(l) { return '> ' + l; }).join('\n') + '\n';
       GmailApp.createDraft(email, draftSubject, draftBody);
     } catch (draftErr) {
       console.warn('返信下書き作成失敗（メール送信は成功）:', draftErr);
