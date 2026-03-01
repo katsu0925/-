@@ -811,6 +811,8 @@ function apiSendContactForm(params) {
     });
 
     // 3. 管理者用の返信下書きを作成（ヘッダ・フッタ付き）
+    var draftOk = false;
+    var draftError = '';
     try {
       var draftSubject = 'Re: ' + adminSubject;
       var draftBody = name + ' 様\n\n'
@@ -832,11 +834,13 @@ function apiSendContactForm(params) {
       } else {
         GmailApp.createDraft(email, draftSubject, draftBody);
       }
+      draftOk = true;
     } catch (draftErr) {
-      console.error('返信下書き作成失敗（メール送信は成功）: ' + (draftErr.message || String(draftErr)) + ' / stack: ' + (draftErr.stack || ''));
+      draftError = draftErr.message || String(draftErr);
+      console.error('返信下書き作成失敗（メール送信は成功）: ' + draftError + ' / stack: ' + (draftErr.stack || ''));
     }
 
-    return { ok: true };
+    return { ok: true, draftCreated: draftOk, draftError: draftError || undefined };
   } catch (e) {
     console.error('apiSendContactForm error:', e);
     return { ok: false, message: '送信に失敗しました: ' + (e.message || String(e)) };

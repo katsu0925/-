@@ -315,13 +315,15 @@
     /* お役立ちFABはスクロール連動（PC・モバイル共通） */
     .article-fab{transition:transform .3s ease,box-shadow .2s;transform:translateY(200px);}
     body.fabs-visible .article-fab{transform:translateY(0);}
-    /* モバイルのみ: カート・チャットボットもスクロール連動（PCは常時表示） */
+    /* モバイルのみ: カート・チャットボット・お役立ちFABもスクロール連動（PCは常時表示） */
     @media(max-width:767px){
       .stickyBar{transition:transform .3s ease;}
       .chatbot-fab{transition:transform .3s ease,background .2s;}
+      .article-fab{transform:translateY(0);}
       .toTop{right:16px;}
       body.mob-fabs-hidden .stickyBar{transform:translateY(200px);}
       body.mob-fabs-hidden .chatbot-fab{transform:translateY(200px);}
+      body.mob-fabs-hidden .article-fab{transform:translateY(200px);}
       body.mob-fabs-hidden .toTop{bottom:16px;}
       /* 最下部: カートのみ非表示（特商法リンク対策） */
       body.mob-at-bottom .stickyBar{transform:translateY(200px);}

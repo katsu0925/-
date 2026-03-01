@@ -342,6 +342,13 @@ body.admin-mode .admin-settings-fab{display:flex;}
 .chatbot-staff-btn{display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:7px 14px;border:1px solid #1e293b;border-radius:8px;background:#fff;color:#1e293b;font-size:12px;font-weight:600;cursor:pointer;}
 .chatbot-staff-btn:hover{background:#f1f5f9;}
 @media(max-width:480px){.chatbot-panel{bottom:0;right:0;left:0;width:100%;max-width:100%;height:100%;max-height:100%;border-radius:0;}.chatbot-fab{bottom:12px;right:12px;width:44px;height:44px;}.chatbot-fab svg{width:22px;height:22px;}.chatbot-fab:hover::after{display:none;}}
+/* モバイルのみ: チャットボット・お役立ちFABをスクロール連動 */
+@media(max-width:767px){
+  .chatbot-fab{transition:transform .3s ease,background .2s;}
+  .article-fab{transform:translateY(0);}
+  body.mob-fabs-hidden .chatbot-fab{transform:translateY(200px);}
+  body.mob-fabs-hidden .article-fab{transform:translateY(200px);}
+}
 
 /* PC レスポンシブ */
 @media(min-width:768px){
@@ -1567,18 +1574,24 @@ function applyBulkData_(r, savedCart) {
 (function() {
   var _lastScrollY = 0;
   var _row2Hidden = false;
+  var _mobFabsHidden = false;
+  var _isMobile = window.innerWidth < 768;
   window.addEventListener('scroll', function() {
     var header = document.querySelector('.header');
     if (!header) return;
     var currentY = window.scrollY;
     var delta = currentY - _lastScrollY;
     if (Math.abs(delta) < 5) { _lastScrollY = currentY; return; }
+    var keepFabs = !!(window._chatbotIsOpen);
     if (currentY <= 0) {
       if (_row2Hidden) { _row2Hidden = false; header.classList.remove('row2-hidden'); }
+      if (_isMobile && _mobFabsHidden) { _mobFabsHidden = false; document.body.classList.remove('mob-fabs-hidden'); }
     } else if (delta > 0) {
       if (!_row2Hidden) { _row2Hidden = true; header.classList.add('row2-hidden'); }
+      if (_isMobile && !_mobFabsHidden && !keepFabs) { _mobFabsHidden = true; document.body.classList.add('mob-fabs-hidden'); }
     } else {
       if (_row2Hidden) { _row2Hidden = false; header.classList.remove('row2-hidden'); }
+      if (_isMobile && _mobFabsHidden) { _mobFabsHidden = false; document.body.classList.remove('mob-fabs-hidden'); }
     }
     _lastScrollY = currentY;
   }, { passive: true });
