@@ -24,6 +24,8 @@ function onOpen() {
   ui.createMenu('管理メニュー')
     .addSubMenu(invMenu)
     .addSeparator()
+    .addItem('月次在庫推移を更新', 'updateMonthlyInventoryTrend')
+    .addSeparator()
     .addItem('不要トリガー一括削除', 'cleanupObsoleteTriggers')
     .addSeparator()
     .addItem('列診断', 'debugCheckColumns')
