@@ -716,13 +716,14 @@ function apiSendContactForm(params) {
       return Utilities.newBlob(bytes, img.type || 'image/jpeg', img.name || 'image.jpg');
     });
 
-    // 1. 管理者宛通知
+    // 1. 管理者宛通知（返信ボタンでお客様に直接返信可能）
     var adminTo = (function() {
       try { return PropertiesService.getScriptProperties().getProperty('CONTACT_ADMIN_EMAILS') || (SITE_CONSTANTS.CONTACT_EMAIL + ',nsdktts1030@gmail.com'); }
       catch (e) { return SITE_CONSTANTS.CONTACT_EMAIL + ',nsdktts1030@gmail.com'; }
     })();
     var adminSubject = '【デタウリ.Detauri】お問い合わせ: ' + name;
-    var adminBody = 'お問い合わせを受信しました。\n\n'
+    var adminBody = 'お問い合わせを受信しました。\n'
+      + 'このメールに返信すると ' + email + ' 宛に送信されます。\n\n'
       + 'お名前: ' + name + '\n'
       + 'メールアドレス: ' + email + '\n'
       + '日時: ' + datetime + '\n'
@@ -731,7 +732,7 @@ function apiSendContactForm(params) {
       + message + '\n';
 
     var adminHtmlBody = buildHtmlEmail_({
-      lead: 'お問い合わせを受信しました。',
+      lead: 'お問い合わせを受信しました。<br>このメールに返信すると <strong>' + email + '</strong> 宛に送信されます。',
       sections: [
         {
           title: 'お問い合わせ情報',
@@ -810,71 +811,7 @@ function apiSendContactForm(params) {
       noReply: true
     });
 
-    // 3. 管理者用の返信テンプレートメールを送信
-    //    GmailApp.createDraft() は ANYONE_ANONYMOUS Web App では動作しないため、
-    //    MailApp.sendEmail() で管理者宛に返信テンプレートを送信する方式に変更
-    var draftOk = false;
-    var draftError = '';
-    try {
-      var replySubject = '【返信テンプレート】' + name + ' 様へのご返信';
-      var replyBody = '━━━ 以下をコピーして ' + email + ' 宛に返信してください ━━━\n\n'
-        + name + ' 様\n\n'
-        + 'お問い合わせいただきありがとうございます。\n'
-        + 'デタウリ.Detauriでございます。\n\n'
-        + '\n\n'
-        + '──────────────────\n'
-        + 'デタウリ.Detauri\n'
-        + 'https://wholesale.nkonline-tool.com/\n'
-        + 'お問い合わせ：' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
-        + '──────────────────\n\n'
-        + '━━━ 元のお問い合わせ内容（' + datetime + '）━━━\n'
-        + 'お名前: ' + name + '\n'
-        + 'メールアドレス: ' + email + '\n\n'
-        + message + '\n';
-
-      var replyHtmlBody = buildHtmlEmail_({
-        lead: '以下をコピーして <strong>' + email + '</strong> 宛に返信してください。',
-        sections: [
-          {
-            title: '返信テンプレート',
-            text: name + ' 様\n\n'
-              + 'お問い合わせいただきありがとうございます。\n'
-              + 'デタウリ.Detauriでございます。\n\n'
-              + '（ここに返信内容を入力）'
-          },
-          {
-            title: '元のお問い合わせ内容（' + datetime + '）',
-            rows: [
-              { label: 'お名前', value: name },
-              { label: 'メールアドレス', value: email }
-            ]
-          },
-          {
-            title: '',
-            text: message
-          }
-        ],
-        notes: [
-          '署名: デタウリ.Detauri / ' + SITE_CONSTANTS.CONTACT_EMAIL
-        ]
-      });
-
-      var replyMailOpts = {
-        to: adminTo,
-        subject: replySubject,
-        body: replyBody,
-        htmlBody: replyHtmlBody,
-        noReply: true
-      };
-      if (attachments.length > 0) replyMailOpts.attachments = attachments;
-      MailApp.sendEmail(replyMailOpts);
-      draftOk = true;
-    } catch (draftErr) {
-      draftError = draftErr.message || String(draftErr);
-      console.error('返信テンプレート送信失敗（通知メール送信は成功）: ' + draftError + ' / stack: ' + (draftErr.stack || ''));
-    }
-
-    return { ok: true, draftCreated: draftOk, draftError: draftError || undefined };
+    return { ok: true };
   } catch (e) {
     console.error('apiSendContactForm error:', e);
     return { ok: false, message: '送信に失敗しました: ' + (e.message || String(e)) };
