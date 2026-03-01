@@ -709,6 +709,13 @@ function apiSendContactForm(params) {
 
     var datetime = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
 
+    // 画像添付処理（最大3枚）
+    var images = (params.images || []).slice(0, 3);
+    var attachments = images.map(function(img) {
+      var bytes = Utilities.base64Decode(img.data);
+      return Utilities.newBlob(bytes, img.type || 'image/jpeg', img.name || 'image.jpg');
+    });
+
     // 1. 管理者宛通知
     var adminTo = (function() {
       try { return PropertiesService.getScriptProperties().getProperty('CONTACT_ADMIN_EMAILS') || (SITE_CONSTANTS.CONTACT_EMAIL + ',nsdktts1030@gmail.com'); }
@@ -719,6 +726,7 @@ function apiSendContactForm(params) {
       + 'お名前: ' + name + '\n'
       + 'メールアドレス: ' + email + '\n'
       + '日時: ' + datetime + '\n'
+      + (attachments.length > 0 ? '添付画像: ' + attachments.length + '枚\n' : '')
       + '\n--- お問い合わせ内容 ---\n'
       + message + '\n';
 
@@ -731,7 +739,7 @@ function apiSendContactForm(params) {
             { label: 'お名前', value: name },
             { label: 'メールアドレス', value: email },
             { label: '日時', value: datetime }
-          ]
+          ].concat(attachments.length > 0 ? [{ label: '添付画像', value: attachments.length + '枚' }] : [])
         },
         {
           title: 'お問い合わせ内容',
@@ -740,13 +748,15 @@ function apiSendContactForm(params) {
       ]
     });
 
-    MailApp.sendEmail({
+    var adminMailOpts = {
       to: adminTo,
       replyTo: email,
       subject: adminSubject,
       body: adminBody,
       htmlBody: adminHtmlBody
-    });
+    };
+    if (attachments.length > 0) adminMailOpts.attachments = attachments;
+    MailApp.sendEmail(adminMailOpts);
 
     // 2. 顧客宛確認メール
     var custSubject = '【デタウリ.Detauri】お問い合わせを受け付けました';
@@ -817,7 +827,9 @@ function apiSendContactForm(params) {
         + '> メールアドレス: ' + email + '\n'
         + '>\n'
         + message.split('\n').map(function(l) { return '> ' + l; }).join('\n') + '\n';
-      GmailApp.createDraft(email, draftSubject, draftBody);
+      var draftOpts = {};
+      if (attachments.length > 0) draftOpts.attachments = attachments;
+      GmailApp.createDraft(email, draftSubject, draftBody, draftOpts);
     } catch (draftErr) {
       console.warn('返信下書き作成失敗（メール送信は成功）:', draftErr);
     }

@@ -469,6 +469,14 @@
     .chatbot-contact-form input:focus,.chatbot-contact-form textarea:focus{border-color:#1e293b;outline:none;}
     .chatbot-contact-btn{display:inline-block;margin-top:10px;padding:8px 18px;border:none;border-radius:8px;background:#1e293b;color:#fff;font-size:13px;font-weight:700;cursor:pointer;}
     .chatbot-contact-btn:disabled{opacity:.5;cursor:not-allowed;}
+    .chatbot-contact-files{margin-top:8px;}
+    .chatbot-contact-files>label{display:inline-flex;align-items:center;gap:4px;padding:6px 12px;border:1px dashed #cbd5e1;border-radius:8px;background:#fff;color:#64748b;font-size:12px;cursor:pointer;}
+    .chatbot-contact-files>label:hover{border-color:#94a3b8;color:#334155;}
+    .chatbot-contact-files input[type=file]{display:none;}
+    .chatbot-contact-previews{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+    .chatbot-contact-prev{position:relative;width:60px;height:60px;border-radius:6px;overflow:hidden;border:1px solid #e2e8f0;}
+    .chatbot-contact-prev img{width:100%;height:100%;object-fit:cover;}
+    .chatbot-contact-prev button{position:absolute;top:-2px;right:-2px;width:18px;height:18px;background:#ef4444;color:#fff;border:none;border-radius:50%;font-size:11px;line-height:18px;text-align:center;cursor:pointer;padding:0;}
     .chatbot-staff-btn{display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:7px 14px;border:1px solid #1e293b;border-radius:8px;background:#fff;color:#1e293b;font-size:12px;font-weight:600;cursor:pointer;}
     .chatbot-staff-btn:hover{background:#f1f5f9;}
     @media(max-width:480px){.chatbot-panel{bottom:0;right:0;left:0;width:100%;max-width:100%;height:100%;max-height:100%;border-radius:0;}.chatbot-fab{bottom:72px;right:12px;width:44px;height:44px;}.chatbot-fab svg{width:22px;height:22px;}.chatbot-fab:hover::after{display:none;}}
@@ -7144,6 +7152,10 @@ boot();
       '<label>お名前 *</label><input type="text" id="chatContactName" value="' + escapeHtml_(prefillName) + '" placeholder="会社名/氏名">' +
       '<label>メールアドレス *</label><input type="email" id="chatContactEmail" value="' + escapeHtml_(prefillEmail) + '" placeholder="返信先メールアドレス">' +
       '<label>お問い合わせ内容 *</label><textarea id="chatContactMsg" placeholder="お問い合わせ内容をご記入ください">' + escapeHtml_(lastUserMsg) + '</textarea>' +
+      '<div class="chatbot-contact-files">' +
+        '<label>\uD83D\uDCCE 画像を添付（最大3枚）<input type="file" id="chatContactFiles" accept="image/*" multiple></label>' +
+        '<div class="chatbot-contact-previews" id="chatContactPreviews"></div>' +
+      '</div>' +
       '<button class="chatbot-contact-btn" id="chatContactSubmit" type="button">送信</button>' +
       '</div>';
     messagesEl.appendChild(formDiv);
@@ -7151,8 +7163,75 @@ boot();
     var nameEl = document.getElementById('chatContactName');
     if (nameEl && !prefillName) nameEl.focus();
     document.getElementById('chatContactSubmit').addEventListener('click', submitChatContact_);
+    // ── 画像添付イベント ──
+    var chatFileInput = document.getElementById('chatContactFiles');
+    var chatPreviews = document.getElementById('chatContactPreviews');
+    window._chatContactSelectedFiles = [];
+    if (chatFileInput) {
+      chatFileInput.addEventListener('change', function() {
+        var files = Array.prototype.slice.call(chatFileInput.files);
+        var sel = window._chatContactSelectedFiles;
+        files.forEach(function(f) {
+          if (sel.length >= 3) return;
+          if (!f.type.startsWith('image/')) return;
+          sel.push(f);
+        });
+        if (sel.length > 3) {
+          window._chatContactSelectedFiles = sel.slice(0, 3);
+          appendMessage('bot', '画像は最大3枚までです。');
+          scrollToBottom();
+        }
+        chatFileInput.value = '';
+        renderContactPreviews_();
+      });
+    }
+    function renderContactPreviews_() {
+      if (!chatPreviews) return;
+      chatPreviews.innerHTML = '';
+      window._chatContactSelectedFiles.forEach(function(f, idx) {
+        var wrap = document.createElement('div');
+        wrap.className = 'chatbot-contact-prev';
+        var img = document.createElement('img');
+        img.src = URL.createObjectURL(f);
+        var rm = document.createElement('button');
+        rm.textContent = '×';
+        rm.setAttribute('data-idx', idx);
+        rm.addEventListener('click', function() {
+          var i = parseInt(this.getAttribute('data-idx'), 10);
+          window._chatContactSelectedFiles.splice(i, 1);
+          renderContactPreviews_();
+        });
+        wrap.appendChild(img);
+        wrap.appendChild(rm);
+        chatPreviews.appendChild(wrap);
+      });
+    }
   }
   window.showChatContactForm_ = showContactForm_;
+
+  function resizeAndEncode_(file) {
+    return new Promise(function(resolve) {
+      var reader = new FileReader();
+      reader.onload = function() {
+        var img = new Image();
+        img.onload = function() {
+          var MAX = 1200;
+          var w = img.width, h = img.height;
+          if (w > MAX || h > MAX) {
+            if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+            else { w = Math.round(w * MAX / h); h = MAX; }
+          }
+          var cvs = document.createElement('canvas');
+          cvs.width = w; cvs.height = h;
+          cvs.getContext('2d').drawImage(img, 0, 0, w, h);
+          var dataUrl = cvs.toDataURL('image/jpeg', 0.8);
+          resolve({ name: file.name.replace(/\.[^.]+$/, '.jpg'), type: 'image/jpeg', data: dataUrl.split(',')[1] });
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
 
   function submitChatContact_(){
     var nameEl = document.getElementById('chatContactName');
@@ -7170,12 +7249,19 @@ boot();
     }
     btn.disabled = true;
     btn.textContent = '送信中...';
-    runApi('apiSendContactForm', { name: name, email: email, message: message, page: 'デタウリ' })
+    var files = window._chatContactSelectedFiles || [];
+    var imagePromises = files.map(function(f) { return resizeAndEncode_(f); });
+    Promise.all(imagePromises).then(function(images) {
+      var params = { name: name, email: email, message: message, page: 'デタウリ' };
+      if (images.length > 0) params.images = images;
+      return runApi('apiSendContactForm', params);
+    })
       .then(function(res){
         if (res && res.ok) {
           appendMessage('bot', 'お問い合わせを送信しました。2営業日以内にご返信いたします。\n引き続きご質問がありましたらお気軽にどうぞ。');
           showCategoryButtons();
           appendStaffContactButton();
+          window._chatContactSelectedFiles = [];
         } else {
           appendMessage('bot', (res && res.message) || '送信に失敗しました。お手数ですがもう一度お試しください。');
           btn.disabled = false;
