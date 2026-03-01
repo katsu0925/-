@@ -10,13 +10,13 @@
  *
  * データソース:
  *   商品管理 — AP列(販売日), AU列(売上額), AO列(原価額)
- *   EC管理   — D列(販売日), G列(売上), J列(入金額)
+ *   EC管理   — D列(販売日), G列(売上)
  *   売却履歴 — A列(売却日), E列(仕入れ値)
  *
  * 合算ルール:
  *   H列(当月売上額)  = 商品管理売上 + EC管理売上(G列)
  *   I列(当月原価額)  = 商品管理原価 + 売却履歴仕入れ値(E列)
- *   J列(売上総利益)  = H - I + EC管理入金額(J列)
+ *   J列(売上総利益)  = H - I
  */
 function updateMonthlyInventoryTrend() {
   var ss = SpreadsheetApp.openById('1lp7XngTC0Nnc6SaA_-KlZ0SZVuRiVml6ICZ5L2riQTo');
@@ -48,14 +48,13 @@ function updateMonthlyInventoryTrend() {
   var shohinAO  = sheetShohin.getRange('AO2:AO').getValues().flat();
 
   // --- EC管理データ読み込み ---
-  // D列(販売日), G列(売上), J列(入金額)
-  var ecDateYM = [], ecSales = [], ecDeposit = [];
+  // D列(販売日), G列(売上)
+  var ecDateYM = [], ecSales = [];
   if (sheetEc) {
     var ecLastRow = sheetEc.getLastRow();
     if (ecLastRow >= 2) {
       ecDateYM  = sheetEc.getRange('D2:D' + ecLastRow).getValues().flat().map(function(v) { return toYM_(v); });
       ecSales   = sheetEc.getRange('G2:G' + ecLastRow).getValues().flat();
-      ecDeposit = sheetEc.getRange('J2:J' + ecLastRow).getValues().flat();
     }
   }
 
@@ -153,12 +152,8 @@ function updateMonthlyInventoryTrend() {
       if (baikyDateYM[b1] === ymStr) colI += (Number(baikyCost[b1]) || 0);
     }
 
-    // --- J列: 売上総利益 = H - I + EC管理入金額 ---
-    var ecDep = 0;
-    for (var e2 = 0; e2 < ecDateYM.length; e2++) {
-      if (ecDateYM[e2] === ymStr) ecDep += (Number(ecDeposit[e2]) || 0);
-    }
-    var colJ = colH - colI + ecDep;
+    // --- J列: 売上総利益 = H - I ---
+    var colJ = colH - colI;
 
     // --- K列: 売上総利益率 = J / H ---
     var colK = (colH !== 0) ? colJ / colH : 0;
