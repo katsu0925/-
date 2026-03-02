@@ -2310,14 +2310,14 @@ function updatePayButton(total) {
   if (total > 0) {
     btn.disabled = false;
     btn.textContent = 'お支払いへ進む — ¥' + numFmt(total);
-    if (stickyBar && assortCount > 0) {
+    if (stickyBar) {
       stickyBar.classList.add('active');
       if (stickyTotal) stickyTotal.textContent = '¥' + numFmt(total);
       if (stickyBtn) stickyBtn.disabled = false;
       if (stickyLabel) {
-        stickyLabel.textContent = detauriCount > 0
-          ? 'アソート' + assortCount + '種 + デタウリ' + detauriCount + '点'
-          : 'アソート' + assortCount + '種';
+        if (assortCount > 0 && detauriCount > 0) stickyLabel.textContent = 'アソート' + assortCount + '種 + デタウリ' + detauriCount + '点';
+        else if (assortCount > 0) stickyLabel.textContent = 'アソート' + assortCount + '種';
+        else stickyLabel.textContent = 'デタウリ' + detauriCount + '点';
       }
       var _shipHintB = document.getElementById('bulkStickyShipHint');
       if (_shipHintB) {
@@ -2328,9 +2328,6 @@ function updatePayButton(total) {
         else _shipHintB.textContent = '';
       }
       document.body.classList.add('has-bulk-cart');
-    } else if (stickyBar) {
-      stickyBar.classList.remove('active');
-      document.body.classList.remove('has-bulk-cart');
     }
   } else {
     btn.disabled = true;
