@@ -196,6 +196,12 @@ function apiBulkSubmit(form, items) {
       }
     }
 
+    // 商品合計1万円以上で送料無料（クーポン適用前の商品価格で判定）
+    if (sum + detauriProductAmount >= 10000) {
+      shippingAmount = 0;
+      detauriShippingAmount = 0;
+    }
+
     // === ポイント使用（1pt = 1円）— 送料確定後に適用 ===
     var pointsUsed = Math.max(0, Math.floor(Number(f.pointsUsed || 0)));
     var pointsDiscount = 0;
