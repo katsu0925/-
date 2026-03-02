@@ -3582,7 +3582,7 @@ function openMyPage_() {
 }
 
 var _MP_CACHE_KEY = 'myPageCache';
-var _MP_CACHE_TTL = 10 * 60 * 1000; // 10分
+var _MP_CACHE_TTL = 0; // 常にAPIから最新を取得
 
 function _applyMpData_(d) {
   var ge = function(id) { return document.getElementById(id); };
@@ -3642,6 +3642,7 @@ function _applyMpData_(d) {
     if (exEl) { exEl.textContent = 'ポイント有効期限: ' + d.pointsExpiryDate; exEl.style.display = ''; }
   }
   // 初回全品半額バッジ + グローバル保存
+  console.log('[FHP] API response firstHalfPrice:', JSON.stringify(d.firstHalfPrice));
   G.firstHalfPrice = d.firstHalfPrice || null;
   var fhpBadge = document.getElementById('firstHalfPriceBadge');
   if (fhpBadge) {

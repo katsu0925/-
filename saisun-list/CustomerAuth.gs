@@ -806,6 +806,13 @@ function apiGetMyPage(userKey, params) {
     if (!customer) return { ok: false, message: 'セッションが無効です。再ログインしてください' };
 
     // customer にはすでに row, points, email 等が含まれるため findCustomerByEmail_ は不要
+    // purchaseCount をシートから直接読み込み（キャッシュに古いデータがある場合の対策）
+    if (customer.purchaseCount === undefined || customer.purchaseCount === null) {
+      try {
+        var _pcSheet = getCustomerSheet_();
+        customer.purchaseCount = Number(_pcSheet.getRange(customer.row, CUSTOMER_SHEET_COLS.PURCHASE_COUNT + 1).getValue()) || 0;
+      } catch(e) { customer.purchaseCount = 0; }
+    }
     var orders = getOrderHistory_(customer.email);
     var points = customer.points || 0;
 
@@ -865,7 +872,10 @@ function apiGetMyPage(userKey, params) {
         },
         firstHalfPrice: (function() {
           var fhp = app_getFirstHalfPriceStatus_();
-          return { eligible: fhp.enabled && (customer.purchaseCount || 0) === 0, rate: fhp.rate };
+          var pc = customer.purchaseCount;
+          var eligible = fhp.enabled && (pc || 0) === 0;
+          console.log('FHP debug: enabled=' + fhp.enabled + ' reason=' + fhp.reason + ' purchaseCount=' + pc + ' eligible=' + eligible);
+          return { eligible: eligible, rate: fhp.rate, _debug: { enabled: fhp.enabled, reason: fhp.reason, purchaseCount: pc } };
         })(),
         rank: {
           name: rankInfo.name,
