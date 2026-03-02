@@ -2184,6 +2184,14 @@ function renderSummary_() {
     discounted = Math.round(sum * (1 - discountRate));
   }
 
+  // 会員割引をアソート商品にも適用（チャネル設定のない割引は両チャネルに適用）
+  if (effectiveBulkProduct > 0 && state.customer && MEMBER_DISCOUNT_ENABLED) {
+    var _acRS = state.appliedCoupon;
+    if (!_acRS || !_acRS.code || _acRS.type === 'shipping_free' || _acRS.comboMember !== false) {
+      effectiveBulkProduct = Math.round(effectiveBulkProduct * (1 - MEMBER_DISCOUNT_RATE));
+    }
+  }
+
   // 送料計算
   var shippingResult = calculateShipping_();
   state.lastShipping = shippingResult;
