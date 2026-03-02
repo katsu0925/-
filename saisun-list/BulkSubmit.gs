@@ -91,10 +91,9 @@ function apiBulkSubmit(form, items) {
     var detauriProductAmount = Math.max(0, Math.floor(Number(f.detauriProductAmount || 0)));
     var detauriShippingAmount = Math.max(0, Math.floor(Number(f.detauriShipping || 0)));
     var detauriItemCount = Math.max(0, Math.floor(Number(f.detauriItemCount || 0)));
-    // デタウリ最低数量チェック（1点以上の場合は10点以上必要）
-    var DETAURI_MIN_QTY = 10;
-    if (detauriItemCount > 0 && detauriItemCount < DETAURI_MIN_QTY) {
-      return { ok: false, message: 'デタウリ商品は' + DETAURI_MIN_QTY + '点以上で購入可能です（現在' + detauriItemCount + '点）' };
+    // デタウリ最低数量チェック（アソートありなら制限なし、なしなら10点以上必要）
+    if (orderItems.length === 0 && detauriItemCount > 0 && detauriItemCount < 10) {
+      return { ok: false, message: 'デタウリ商品は10点以上で購入可能です（現在' + detauriItemCount + '点）' };
     }
 
     // === 割引計算（既存のクーポン・会員割引を再利用） ===
