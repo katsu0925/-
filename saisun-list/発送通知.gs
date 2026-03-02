@@ -238,10 +238,6 @@ function shipMailOnEdit(e) {
 
       var shipHtmlSections = [{ title: '発送内容', rows: shipRows }];
 
-      if (selectionList) {
-        shipHtmlSections.push({ title: '選択商品', text: selectionList });
-      }
-
       if (confirmLink) {
         shipHtmlSections.push({
           title: 'ご注文明細（Google Drive）',
