@@ -2305,7 +2305,7 @@ function updatePayButton(total) {
   var detauriCount = G.detauriCartCount || 0;
   if (total > 0) {
     btn.disabled = false;
-    btn.textContent = 'お支払いへ進む — ¥' + numFmt(total);
+    btn.textContent = 'お支払いへ進む';
     if (stickyBar && assortCount > 0) {
       stickyBar.classList.add('active');
       if (stickyTotal) stickyTotal.textContent = '¥' + numFmt(total);
@@ -2468,6 +2468,16 @@ function recalcDetauriShipping_() {
     G.detauriShippingPref = pref;
     G.detauriShippingSizeLabel = sizeLabel;
   } catch (e) {}
+
+  // 商品合計（アソート+デタウリ）1万円以上で送料無料
+  var _assortSub = 0;
+  Object.keys(G.cart).forEach(function(pid) {
+    var _p = G.products.find(function(x){return x.productId===pid;});
+    if (_p) _assortSub += Number(_p.price||0) * G.cart[pid];
+  });
+  if (_assortSub + (G.detauriCartTotal || 0) >= 10000) {
+    G.detauriShipping = 0;
+  }
 }
 
 function detectPrefClient(text) {
@@ -2631,6 +2641,14 @@ function submitOrder() {
   var detauriProductAmount = G.detauriCartTotal || 0;
   var detauriShippingAmount = G.detauriShipping || 0;
   var detauriItemCount = G.detauriCartCount || 0;
+
+  // 商品合計（アソート+デタウリ）1万円以上で送料無料
+  var _submitProdTotal = 0;
+  items.forEach(function(it) { var _p = G.products.find(function(x){return x.productId===it.productId;}); if (_p) _submitProdTotal += Number(_p.price||0)*it.qty; });
+  _submitProdTotal += detauriProductAmount;
+  if (_submitProdTotal >= 10000) {
+    detauriShippingAmount = 0;
+  }
 
   // デタウリ最低数量チェック（アソートありなら1点〜、なしなら5点〜）
   var hasAssortItems = G.cart && Object.keys(G.cart).length > 0;
@@ -4946,7 +4964,7 @@ body.admin-mode .article-panel{bottom:186px;}
 <!-- モバイル固定決済バー -->
 <div id="bulkStickyPay">
   <div id="bulkStickyPayInfo"><small id="bulkStickyPayLabel">アソート</small><strong id="bulkStickyPayTotal">¥0</strong><div id="bulkStickyShipHint" style="font-size:9px;color:#93c5fd;margin-top:2px;white-space:nowrap;"></div></div>
-  <button id="bulkStickyPayBtn" onclick="submitOrder()" disabled>お支払いへ →</button>
+  <button id="bulkStickyPayBtn" onclick="submitOrder()" disabled>注文内容確認</button>
 </div>
 <!-- 確保トースト -->
 <div id="bulkCartAddToast"><span>カートに追加しました</span><button class="toast-cta" type="button" onclick="hideBulkCartAddToast_();document.getElementById('cartSection').scrollIntoView({behavior:'smooth'});">カートを見る →</button></div>

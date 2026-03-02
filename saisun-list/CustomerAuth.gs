@@ -175,13 +175,27 @@ function generateRandomId_(length) {
  * メールアドレスで顧客を検索
  */
 function findCustomerByEmail_(email) {
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+  if (!normalizedEmail) return null;
+
+  // CacheService で高速検索（シート読み込みを回避）
+  var cacheKey = 'CUSTOMER:' + normalizedEmail;
+  var cache = CacheService.getScriptCache();
+  try {
+    var cached = cache.get(cacheKey);
+    if (cached) {
+      var c = JSON.parse(cached);
+      if (c && c.email) return c;
+      cache.remove(cacheKey);
+    }
+  } catch (e) {}
+
   const sheet = getCustomerSheet_();
   const data = sheet.getDataRange().getValues();
-  const normalizedEmail = String(email || '').trim().toLowerCase();
 
   for (let i = 1; i < data.length; i++) {
     if (String(data[i][1] || '').trim().toLowerCase() === normalizedEmail) {
-      return {
+      var result = {
         row: i + 1,
         id: data[i][0],
         email: data[i][1],
@@ -198,6 +212,9 @@ function findCustomerByEmail_(email) {
         points: Number(data[i][12]) || 0,
         purchaseCount: Number(data[i][14]) || 0
       };
+      // キャッシュに保存（最大6時間）
+      try { cache.put(cacheKey, JSON.stringify(result), 21600); } catch (e) {}
+      return result;
     }
   }
   return null;
@@ -387,12 +404,27 @@ function apiLoginCustomer(userKey, params) {
       if (ownerEmail && email === ownerEmail) isOwner = true;
     } catch(e) {}
 
+    // 顧客キャッシュを更新（ログイン時のセッション情報を反映）
+    // 仮パスワード昇格時はシート上のハッシュが更新されるため、最新値を取得
+    var _latestHash = customer.passwordHash;
+    try { _latestHash = String(sheet.getRange(customer.row, 3).getValue()); } catch (e) {}
+    try {
+      CacheService.getScriptCache().put('CUSTOMER:' + email, JSON.stringify({
+        row: customer.row, id: customer.id, email: customer.email,
+        passwordHash: _latestHash, companyName: customer.companyName,
+        phone: customer.phone, postal: customer.postal, address: customer.address,
+        newsletter: customer.newsletter, registeredAt: customer.registeredAt,
+        lastLogin: String(now), sessionId: sessionId, sessionExpiry: String(sessionExpiry),
+        points: customer.points, purchaseCount: customer.purchaseCount
+      }), 21600);
+    } catch (e) {}
+
     // セッションをキャッシュ（以降のAPI呼び出しを高速化）
     try {
       var sessionCache = CacheService.getScriptCache();
       sessionCache.put('SESSION:' + sessionId, JSON.stringify({
         row: customer.row, id: customer.id, email: customer.email,
-        passwordHash: customer.passwordHash, companyName: customer.companyName,
+        passwordHash: _latestHash, companyName: customer.companyName,
         phone: customer.phone, postal: customer.postal, address: customer.address,
         newsletter: customer.newsletter, registeredAt: customer.registeredAt,
         points: customer.points, expiry: String(sessionExpiry)
@@ -1510,13 +1542,21 @@ function apiLogoutCustomer(userKey, params) {
     const sessionId = String(params.sessionId || '');
     if (!sessionId) return { ok: true };
 
-    // セッションキャッシュをクリア
-    try { CacheService.getScriptCache().remove('SESSION:' + sessionId); } catch (e) {}
+    // セッションキャッシュ + 顧客キャッシュをクリア
+    try {
+      var _cache = CacheService.getScriptCache();
+      _cache.remove('SESSION:' + sessionId);
+    } catch (e) {}
 
     const sheet = getCustomerSheet_();
     const data = sheet.getDataRange().getValues();
     for (let i = 1; i < data.length; i++) {
       if (data[i][10] === sessionId) {
+        // 顧客メールキャッシュもクリア
+        try {
+          var _email = String(data[i][1] || '').trim().toLowerCase();
+          if (_email) CacheService.getScriptCache().remove('CUSTOMER:' + _email);
+        } catch (e) {}
         sheet.getRange(i + 1, 11).setValue('');
         sheet.getRange(i + 1, 12).setValue('');
         break;

@@ -303,7 +303,7 @@ function apiSubmitEstimate(userKey, form, ids) {
 
     // === 確保チェック＆状態更新（ロック付き — 最小スコープ） ===
     var lock = LockService.getScriptLock();
-    if (!lock.tryLock(30000)) {
+    if (!lock.tryLock(120000)) {
       return { ok: false, message: '現在混雑しています。少し時間を置いて再度お試しください。' };
     }
 
@@ -507,7 +507,7 @@ function apiAdminLinkOrder(adminKey, receiptNo, userKey, ids) {
 
     // === 確保チェック＆状態更新（ロック付き） ===
     var lock = LockService.getScriptLock();
-    if (!lock.tryLock(30000)) {
+    if (!lock.tryLock(120000)) {
       return { ok: false, message: '現在混雑しています。少し時間を置いて再度お試しください。' };
     }
 
