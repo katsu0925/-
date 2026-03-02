@@ -238,13 +238,6 @@ function shipMailOnEdit(e) {
 
       var shipHtmlSections = [{ title: '発送内容', rows: shipRows }];
 
-      if (trackingUrl) {
-        shipHtmlSections.push({
-          title: '配送状況の確認',
-          text: '下記のリンクから配送状況をご確認いただけます。'
-        });
-      }
-
       if (selectionList) {
         shipHtmlSections.push({ title: '選択商品', text: selectionList });
       }
