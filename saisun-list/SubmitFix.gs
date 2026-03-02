@@ -103,6 +103,7 @@ function apiSubmitEstimate(userKey, form, ids) {
     // === 価格計算（ロック不要の演算） ===
     var totalCount = list.length;
     var discountRate = 0;
+    var memberDiscountRate = 0; // 会員割引のみ（両チャネル適用用に分離追跡）
     var couponDiscount = 0;
     var couponLabel = '';
     var validatedCoupon = null;
@@ -142,6 +143,7 @@ function apiSubmitEstimate(userKey, form, ids) {
         var custForDiscount = findCustomerByEmail_(contact);
         if (custForDiscount) {
           discountRate += memberDiscountStatus.rate;
+          memberDiscountRate = memberDiscountStatus.rate;
         }
       }
     } else if (!firstHalfPriceApplied) {
@@ -159,6 +161,7 @@ function apiSubmitEstimate(userKey, form, ids) {
         var custForDiscount = findCustomerByEmail_(contact);
         if (custForDiscount) {
           discountRate += memberDiscountStatus.rate;
+          memberDiscountRate = memberDiscountStatus.rate;
         }
       }
     }
@@ -183,6 +186,12 @@ function apiSubmitEstimate(userKey, form, ids) {
       bulkProductAmount = Math.max(0, bulkProductAmount - _cdOnBulk);
     } else {
       discounted = Math.round(sum * (1 - discountRate));
+    }
+
+    // 会員割引をアソート商品にも適用（チャネル設定のない割引は両チャネルに適用）
+    // ※数量割引はデタウリ固有のため、会員割引のみ分離して適用
+    if (!firstHalfPriceApplied && memberDiscountRate > 0 && bulkProductAmount > 0) {
+      bulkProductAmount = Math.round(bulkProductAmount * (1 - memberDiscountRate));
     }
 
     // === 送料計算（サーバー側で再計算 — 改ざん防止） ===

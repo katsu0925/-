@@ -4511,7 +4511,17 @@ function updateCartPrice() {
   // アソート商品カートの合算（送料はデタウリ上でリアルタイム計算）
   var bulk = loadBulkCartStorage();
   var bulkShipCalc = calcBulkShipping_(bulk.totalQty);
-  var bulkTotal = bulk.subtotal + bulkShipCalc;
+  // チャネル設定のない割引（会員割引）はアソート商品にも適用
+  // ただしクーポンが comboMember:false の場合は会員割引を適用しない
+  var _bulkMemberRate = 0;
+  if (state.customer && MEMBER_DISCOUNT_ENABLED) {
+    var _ac = state.appliedCoupon;
+    if (!_ac || !_ac.code || _ac.type === 'shipping_free' || _ac.comboMember !== false) {
+      _bulkMemberRate = MEMBER_DISCOUNT_RATE;
+    }
+  }
+  var _bulkDiscounted = (_bulkMemberRate > 0 && bulk.subtotal > 0) ? Math.round(bulk.subtotal * (1 - _bulkMemberRate)) : bulk.subtotal;
+  var bulkTotal = _bulkDiscounted + bulkShipCalc;
   var combinedTotal = (discounted < sum ? discounted : sum) + bulkTotal;
 
   if (bulk.subtotal > 0) {
@@ -5762,6 +5772,12 @@ function readForm_() {
     f.bulkProductAmount = bulk.subtotal;
     f.bulkShipping = bulkShip;
     f.bulkItemCount = bulk.totalQty;
+    // アソート商品リストをサーバーへ送信（サーバー側で再計算＆購入制限判定に必要）
+    if (bulk.items && bulk.items.length > 0) {
+      f.bulkItems = bulk.items.map(function(item) {
+        return { productId: item.id, qty: item.qty };
+      });
+    }
   }
   return f;
 }

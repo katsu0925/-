@@ -91,9 +91,9 @@ function apiBulkSubmit(form, items) {
     var detauriProductAmount = Math.max(0, Math.floor(Number(f.detauriProductAmount || 0)));
     var detauriShippingAmount = Math.max(0, Math.floor(Number(f.detauriShipping || 0)));
     var detauriItemCount = Math.max(0, Math.floor(Number(f.detauriItemCount || 0)));
-    // デタウリ最低数量チェック（アソートありなら制限なし、なしなら10点以上必要）
-    if (orderItems.length === 0 && detauriItemCount > 0 && detauriItemCount < 10) {
-      return { ok: false, message: 'デタウリ商品は10点以上で購入可能です（現在' + detauriItemCount + '点）' };
+    // デタウリ最低数量チェック（アソートありなら制限なし、なしなら5点以上必要）
+    if (orderItems.length === 0 && detauriItemCount > 0 && detauriItemCount < 5) {
+      return { ok: false, message: 'デタウリ商品は5点以上で購入可能です（現在' + detauriItemCount + '点）' };
     }
 
     // === 割引計算（既存のクーポン・会員割引を再利用） ===
@@ -162,6 +162,11 @@ function apiBulkSubmit(form, items) {
       detauriProductAmount = Math.max(0, detauriProductAmount - _cdOnDetauri);
     } else {
       discounted = Math.round(sum * (1 - discountRate));
+    }
+
+    // 会員割引をデタウリ商品にも適用（チャネル設定のない割引は両チャネルに適用）
+    if (!firstHalfPriceApplied && discountRate > 0 && detauriProductAmount > 0) {
+      detauriProductAmount = Math.round(detauriProductAmount * (1 - discountRate));
     }
 
     // === 送料計算（アソート商品: 常に大サイズ × 数量） ===

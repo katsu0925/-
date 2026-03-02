@@ -2163,11 +2163,14 @@ function updateCart() {
     }
   }
 
-  // 会員割引
+  // 会員割引（チャネル設定のない割引は両チャネルに適用）
   var md = G.settings.memberDiscount;
   if (G.customer && md && md.enabled && (!G.coupon || G.coupon.comboMember !== false)) {
-    var memberDisc = Math.round(discounted * md.rate);
-    discounted -= memberDisc;
+    var _prevDisc = discounted;
+    var _prevDetProd = _eDetauriProd;
+    discounted = Math.round(discounted * (1 - md.rate));
+    _eDetauriProd = Math.round(_eDetauriProd * (1 - md.rate));
+    var memberDisc = (_prevDisc - discounted) + (_prevDetProd - _eDetauriProd);
     discountRows += '<div class="cart-row"><span>会員割引 (' + Math.round(md.rate * 100) + '%OFF)</span><span>-¥' + numFmt(memberDisc) + '</span></div>';
   }
 
