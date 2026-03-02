@@ -891,14 +891,17 @@ function validateCoupon_(code, email, channel, productIds, customerName) {
     return { ok: false, message: 'このクーポンは現在無効です' };
   }
 
-  // 限定顧客チェック（名前+メールアドレス一致で判定）
-  if (coupon.targetCustomerName && coupon.targetCustomerEmail) {
-    var tName = coupon.targetCustomerName.trim();
-    var tEmail = coupon.targetCustomerEmail.trim().toLowerCase();
+  // 限定顧客チェック（名前またはメールアドレスで判定）
+  if (coupon.targetCustomerName || coupon.targetCustomerEmail) {
     var iName = String(customerName || '').trim();
     var iEmail = String(email || '').trim().toLowerCase();
-    if (iName !== tName || iEmail !== tEmail) {
-      return { ok: false, message: 'このクーポンはご利用いただけません' };
+    if (coupon.targetCustomerName) {
+      var tName = coupon.targetCustomerName.trim();
+      if (iName !== tName) return { ok: false, message: 'このクーポンはご利用いただけません' };
+    }
+    if (coupon.targetCustomerEmail) {
+      var tEmail = coupon.targetCustomerEmail.trim().toLowerCase();
+      if (iEmail !== tEmail) return { ok: false, message: 'このクーポンはご利用いただけません' };
     }
   }
 

@@ -142,6 +142,8 @@ function doPost(e) {
       // Phase 4: インフラ/アナリティクス
       'apiGetAdsConfig', 'apiGetMetaConfig', 'apiGetSitemap',
       'apiLineLinkAccount', 'apiGetABTestVariant', 'apiTrackABTestEvent',
+      // SNSシェアキャンペーン
+      'apiSubmitSnsShare', 'apiGetSnsShareStatus',
       // カゴ落ち登録
       'apiBulkRegisterCartAbandon',
       // 管理者専用API（adminKey認証必須）
@@ -202,7 +204,8 @@ function doPost(e) {
       var csrfProtectedActions = [
         'apiSubmitEstimate', 'apiUpdateCustomerProfile', 'apiChangePassword',
         'apiCreateKomojuSession', 'apiCancelOrder',
-        'apiApplyReferralCode', 'apiLineLinkAccount'
+        'apiApplyReferralCode', 'apiLineLinkAccount',
+        'apiSubmitSnsShare'
       ];
       if (csrfProtectedActions.indexOf(action) !== -1) {
         var csrfToken = String(body.csrfToken || '');
@@ -278,7 +281,9 @@ var RATE_LIMITS = {
   'apiApplyReferralCode': { max: 5, windowSec: 3600, label: '紹介コード適用は1時間に5回まで' },
   'apiGetReferralCode':   { max: 10, windowSec: 60, label: '紹介コード取得は1分に10回まで' },
   'apiTrackABTestEvent':  { max: 30, windowSec: 60, label: 'ABテストイベントは1分に30回まで' },
-  'apiBulkRegisterCartAbandon': { max: 10, windowSec: 3600, label: 'カート登録は1時間に10回まで' }
+  'apiBulkRegisterCartAbandon': { max: 10, windowSec: 3600, label: 'カート登録は1時間に10回まで' },
+  'apiSubmitSnsShare': { max: 3, windowSec: 3600, label: 'SNSシェア申請は1時間に3回まで' },
+  'apiGetSnsShareStatus': { max: 10, windowSec: 60, label: 'SNSシェア状況確認は1分に10回まで' }
 };
 
 function checkRateLimit_(action, userKey) {

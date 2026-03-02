@@ -106,8 +106,19 @@ function apiSubmitEstimate(userKey, form, ids) {
     var couponDiscount = 0;
     var couponLabel = '';
     var validatedCoupon = null;
+    var firstHalfPriceApplied = false;
 
-    if (couponCode) {
+    // 初回全品半額キャンペーンチェック（他の割引と併用不可）
+    var fhpStatus = app_getFirstHalfPriceStatus_();
+    if (fhpStatus.enabled && contact && typeof findCustomerByEmail_ === 'function') {
+      var custForFhp = findCustomerByEmail_(contact);
+      if (custForFhp && custForFhp.purchaseCount === 0) {
+        firstHalfPriceApplied = true;
+        couponCode = ''; // 他の割引を無効化
+      }
+    }
+
+    if (!firstHalfPriceApplied && couponCode) {
       // クーポン使用時
       var couponResult = validateCoupon_(couponCode, contact, 'detauri', null, companyName);
       if (!couponResult.ok) return couponResult;
@@ -133,7 +144,7 @@ function apiSubmitEstimate(userKey, form, ids) {
           discountRate += memberDiscountStatus.rate;
         }
       }
-    } else {
+    } else if (!firstHalfPriceApplied) {
       // 通常割引（クーポン未使用時）
 
       // 段階的数量割引
@@ -154,7 +165,16 @@ function apiSubmitEstimate(userKey, form, ids) {
 
     // ※割引は商品代のみに適用。送料は割引対象外（税込み固定）。
     var discounted;
-    if (couponCode) {
+    if (firstHalfPriceApplied) {
+      // 初回半額: 商品代金のみ50%OFF（送料は対象外）
+      var productTotal = sum + bulkProductAmount;
+      var halfOff = Math.round(productTotal * fhpStatus.rate);
+      var _fhpOnDetauri = Math.min(halfOff, sum);
+      var _fhpOnBulk = halfOff - _fhpOnDetauri;
+      discounted = sum - _fhpOnDetauri;
+      bulkProductAmount = Math.max(0, bulkProductAmount - _fhpOnBulk);
+      couponLabel = '初回全品半額キャンペーン（' + Math.round(fhpStatus.rate * 100) + '%OFF）';
+    } else if (couponCode) {
       // クーポン割引を両チャネルに配分（デタウリ優先）
       var _cdOnDetauri = Math.min(couponDiscount, sum);
       var _cdOnBulk = couponDiscount - _cdOnDetauri;
@@ -218,7 +238,10 @@ function apiSubmitEstimate(userKey, form, ids) {
     }
 
     // === 割引・送料を備考に追記 ===
-    if (couponCode && validatedCoupon) {
+    if (firstHalfPriceApplied) {
+      var fhpNote = '【' + couponLabel + '】';
+      note = note ? (note + '\n' + fhpNote) : fhpNote;
+    } else if (couponCode && validatedCoupon) {
       var discountParts = [];
       if (validatedCoupon.type === 'shipping_free') {
         discountParts.push(couponLabel + ' コード: ' + couponCode);

@@ -195,7 +195,8 @@ function findCustomerByEmail_(email) {
         lastLogin: data[i][9],
         sessionId: data[i][10],
         sessionExpiry: data[i][11],
-        points: Number(data[i][12]) || 0
+        points: Number(data[i][12]) || 0,
+        purchaseCount: Number(data[i][15]) || 0
       };
     }
   }
@@ -781,6 +782,10 @@ function apiGetMyPage(userKey, params) {
           totalSpent: totalSpent,
           totalItems: totalItems
         },
+        firstHalfPrice: (function() {
+          var fhp = app_getFirstHalfPriceStatus_();
+          return { eligible: fhp.enabled && totalOrders === 0, rate: fhp.rate };
+        })(),
         rank: {
           name: rankInfo.name,
           rank: rankInfo.rank,

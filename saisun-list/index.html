@@ -795,6 +795,10 @@
         <div class="recommendList" id="cartRecommendList"></div>
       </div>
       <div id="cartSumBox">
+        <div id="firstHalfPriceBadge" style="display:none;padding:10px 12px;background:linear-gradient(135deg,#fff7ed,#ffedd5);border-radius:8px;margin-bottom:8px;border:1px solid #fdba74;text-align:center;">
+          <span style="font-size:14px;font-weight:700;color:#c2410c;">初回全品半額キャンペーン対象！</span>
+          <div style="font-size:11px;color:#9a3412;margin-top:4px;">商品代金が50%OFFで購入できます（送料は通常料金）</div>
+        </div>
         <div id="detDiscountProgress" style="display:none;padding:8px 10px;background:#fef2f2;border-radius:8px;margin-bottom:8px;border:1px solid #fecaca;"></div>
         <div class="cart-summary" id="cartSummaryRows"></div>
         <div id="shippingNote" style="display:none;font-size:11px;color:#888;text-align:right;width:100%;margin-top:6px;">※送料は税込み・会員割引対象外です</div>
@@ -1151,6 +1155,39 @@
             <div>* ポイントは1pt = 1円として次回以降のお買い物にご利用いただけます</div>
             <div>* ダイヤモンド・ゴールド会員は更新切れ後1ヶ月以内に5万円以上購入でランク復活</div>
             <div>* ポイントの有効期限は最終更新日から6ヶ月です</div>
+          </div>
+        </div>
+        <!-- SNSシェアキャンペーン -->
+        <div id="mpSnsShareSection" style="display:none;border-top:1px solid #eee;padding-top:16px;margin-top:16px;">
+          <div style="font-size:14px;font-weight:600;color:#333;margin-bottom:8px;">SNSシェアキャンペーン</div>
+          <div style="font-size:12px;color:#666;margin-bottom:10px;">デタウリをSNSでシェアして、次回使える¥1,000クーポンをゲット！</div>
+          <div id="mpSnsNotApplied">
+            <div style="font-size:12px;color:#555;margin-bottom:8px;">X・Instagram・TikTok等でデタウリをシェアし、スクリーンショットをアップロードしてください。</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <label style="flex:1;min-width:200px;padding:10px;border:2px dashed #ddd;border-radius:8px;text-align:center;cursor:pointer;font-size:12px;color:#888;">
+                <input type="file" id="mpSnsScreenshot" accept="image/*" style="display:none;">
+                <span id="mpSnsFileName">画像を選択（5MB以下）</span>
+              </label>
+              <button class="btn primary" id="mpSnsSubmitBtn" type="button" style="white-space:nowrap;font-size:12px;" disabled>申請する</button>
+            </div>
+            <div id="mpSnsPreview" style="display:none;margin-top:8px;text-align:center;">
+              <img id="mpSnsPreviewImg" style="max-width:200px;max-height:150px;border-radius:6px;border:1px solid #ddd;">
+            </div>
+          </div>
+          <div id="mpSnsPending" style="display:none;">
+            <div style="padding:12px;background:#f0f9ff;border-radius:8px;border:1px solid #bae6fd;font-size:13px;color:#0369a1;">
+              スクリーンショットを確認中です。承認後にクーポンコードをメールでお送りします。
+            </div>
+          </div>
+          <div id="mpSnsApproved" style="display:none;">
+            <div style="padding:12px;background:#f0fdf4;border-radius:8px;border:1px solid #bbf7d0;">
+              <div style="font-size:13px;color:#15803d;font-weight:600;margin-bottom:4px;">クーポンが発行されました！</div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <input id="mpSnsCouponCode" type="text" readonly style="flex:1;font-size:14px;font-weight:600;padding:8px;border:1px solid #ddd;border-radius:6px;background:#f5f5f5;letter-spacing:1px;">
+                <button class="btn" id="mpSnsCopyBtn" type="button" style="white-space:nowrap;font-size:12px;">コピー</button>
+              </div>
+              <div style="font-size:11px;color:#666;margin-top:6px;">注文時にクーポンコード欄に入力してご利用ください（¥1,000以下の商品で1点無料）</div>
+            </div>
           </div>
         </div>
         <!-- Phase 3-6: 紹介プログラム -->
@@ -2703,6 +2740,13 @@ function _applyMpData_(d) {
     var exEl = $('mpPointExpiry');
     if (exEl) { exEl.textContent = 'ポイント有効期限: ' + d.pointsExpiryDate; exEl.style.display = ''; }
   }
+  // 初回全品半額バッジ
+  var fhpBadge = $('firstHalfPriceBadge');
+  if (fhpBadge) {
+    fhpBadge.style.display = (d.firstHalfPrice && d.firstHalfPrice.eligible) ? '' : 'none';
+  }
+  // SNSシェアキャンペーン
+  loadSnsShareStatus_();
   // Phase 3-6: 紹介コード
   loadReferralCode_();
   renderOrderHistory_(d.orders || []);
@@ -6604,6 +6648,97 @@ function applyReferralAfterRegister_() {
     }).catch(function() {});
 }
 
+// SNSシェアキャンペーン: ステータス取得・UI更新
+function loadSnsShareStatus_() {
+  var section = $('mpSnsShareSection');
+  if (!section) return;
+  if (!state.sessionId) { section.style.display = 'none'; return; }
+  section.style.display = '';
+  runApi('apiGetSnsShareStatus', state.userKey, { sessionId: state.sessionId })
+    .then(function(r) {
+      if (!r || !r.ok) return;
+      if (!r.campaignEnabled) { section.style.display = 'none'; return; }
+      var notApplied = $('mpSnsNotApplied');
+      var pending = $('mpSnsPending');
+      var approved = $('mpSnsApproved');
+      if (notApplied) notApplied.style.display = 'none';
+      if (pending) pending.style.display = 'none';
+      if (approved) approved.style.display = 'none';
+      if (r.status === 'approved') {
+        if (approved) approved.style.display = '';
+        var codeEl = $('mpSnsCouponCode');
+        if (codeEl) codeEl.value = r.couponCode || '';
+      } else if (r.status === 'pending') {
+        if (pending) pending.style.display = '';
+      } else {
+        if (notApplied) notApplied.style.display = '';
+      }
+    }).catch(function(e) { console.error('loadSnsShareStatus_ error:', e); });
+}
+
+// SNSシェア: スクリーンショットアップロード・申請
+function setupSnsShare_() {
+  var fileInput = $('mpSnsScreenshot');
+  var submitBtn = $('mpSnsSubmitBtn');
+  var fileNameEl = $('mpSnsFileName');
+  var previewEl = $('mpSnsPreview');
+  var previewImg = $('mpSnsPreviewImg');
+  if (!fileInput || !submitBtn) return;
+
+  var selectedFile = null;
+  fileInput.addEventListener('change', function() {
+    var f = fileInput.files[0];
+    if (!f) { selectedFile = null; submitBtn.disabled = true; return; }
+    if (f.size > 5 * 1024 * 1024) { showToast('画像は5MB以下にしてください'); fileInput.value = ''; selectedFile = null; submitBtn.disabled = true; return; }
+    selectedFile = f;
+    if (fileNameEl) fileNameEl.textContent = f.name;
+    submitBtn.disabled = false;
+    if (previewEl && previewImg) {
+      var reader = new FileReader();
+      reader.onload = function() { previewImg.src = reader.result; previewEl.style.display = ''; };
+      reader.readAsDataURL(f);
+    }
+  });
+
+  submitBtn.addEventListener('click', function() {
+    if (!selectedFile || !state.sessionId) return;
+    submitBtn.disabled = true;
+    submitBtn.textContent = '送信中...';
+    resizeAndEncode_(selectedFile).then(function(encoded) {
+      return runApi('apiSubmitSnsShare', state.userKey, {
+        sessionId: state.sessionId,
+        image: encoded
+      });
+    }).then(function(r) {
+      if (r && r.ok) {
+        showToast(r.message || '申請しました');
+        loadSnsShareStatus_();
+      } else {
+        showToast(r.message || 'エラーが発生しました');
+        submitBtn.disabled = false;
+      }
+      submitBtn.textContent = '申請する';
+    }).catch(function(e) {
+      console.error('SNS share submit error:', e);
+      showToast('送信に失敗しました');
+      submitBtn.disabled = false;
+      submitBtn.textContent = '申請する';
+    });
+  });
+
+  // クーポンコードコピーボタン
+  var copyBtn = $('mpSnsCopyBtn');
+  if (copyBtn) {
+    copyBtn.addEventListener('click', function() {
+      var input = $('mpSnsCouponCode');
+      if (input && input.value) {
+        try { navigator.clipboard.writeText(input.value); showToast('クーポンコードをコピーしました'); }
+        catch(e) { input.select(); document.execCommand('copy'); showToast('クーポンコードをコピーしました'); }
+      }
+    });
+  }
+}
+
 // Phase 3-6: マイページで紹介コード取得
 function loadReferralCode_() {
   if (!state.sessionId) return;
@@ -6762,6 +6897,7 @@ function boot() {
   setupAuthUi_();
   setupNewsletterToggle_();
   setupReferralCopy_();
+  setupSnsShare_();
   updateAuthUi_();  // 初回表示（プロモバナー等）
   setupMultiSelectFilters();
 

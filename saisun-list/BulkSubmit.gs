@@ -102,8 +102,19 @@ function apiBulkSubmit(form, items) {
     var couponDiscount = 0;
     var couponLabel = '';
     var validatedCoupon = null;
+    var firstHalfPriceApplied = false;
 
-    if (couponCode) {
+    // 初回全品半額キャンペーンチェック（他の割引と併用不可）
+    var fhpStatus = app_getFirstHalfPriceStatus_();
+    if (fhpStatus.enabled && contact && typeof findCustomerByEmail_ === 'function') {
+      var custForFhp = findCustomerByEmail_(contact);
+      if (custForFhp && custForFhp.purchaseCount === 0) {
+        firstHalfPriceApplied = true;
+        couponCode = ''; // 他の割引を無効化
+      }
+    }
+
+    if (!firstHalfPriceApplied && couponCode) {
       var bulkProductIds = [];
       for (var ci = 0; ci < orderItems.length; ci++) bulkProductIds.push(orderItems[ci].productId);
       var couponResult = validateCoupon_(couponCode, contact, 'bulk', bulkProductIds, companyName);
@@ -121,7 +132,7 @@ function apiBulkSubmit(form, items) {
         var cust = findCustomerByEmail_(contact);
         if (cust) discountRate += memberStatus.rate;
       }
-    } else {
+    } else if (!firstHalfPriceApplied) {
       // 通常割引
       var memberStatus = app_getMemberDiscountStatus_();
       if (memberStatus.enabled && contact && typeof findCustomerByEmail_ === 'function') {
@@ -131,7 +142,16 @@ function apiBulkSubmit(form, items) {
     }
 
     var discounted;
-    if (couponCode) {
+    if (firstHalfPriceApplied) {
+      // 初回半額: 商品代金のみ50%OFF（送料は対象外）
+      var productTotal = sum + detauriProductAmount;
+      var halfOff = Math.round(productTotal * fhpStatus.rate);
+      var _fhpOnAssort = Math.min(halfOff, sum);
+      var _fhpOnDetauri = halfOff - _fhpOnAssort;
+      discounted = sum - _fhpOnAssort;
+      detauriProductAmount = Math.max(0, detauriProductAmount - _fhpOnDetauri);
+      couponLabel = '初回全品半額キャンペーン（' + Math.round(fhpStatus.rate * 100) + '%OFF）';
+    } else if (couponCode) {
       // クーポン割引を両チャネルに配分（アソート優先）
       var _cdOnAssort = Math.min(couponDiscount, sum);
       var _cdOnDetauri = couponDiscount - _cdOnAssort;
@@ -200,7 +220,10 @@ function apiBulkSubmit(form, items) {
     }
 
     // === 備考に割引・送料を追記 ===
-    if (couponCode && validatedCoupon) {
+    if (firstHalfPriceApplied) {
+      var fhpNote = '【' + couponLabel + '】';
+      note = note ? (note + '\n' + fhpNote) : fhpNote;
+    } else if (couponCode && validatedCoupon) {
       var discountParts = [];
       if (validatedCoupon.type === 'shipping_free') {
         discountParts.push(couponLabel + ' コード: ' + couponCode);

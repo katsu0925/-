@@ -388,6 +388,22 @@ function onEdit(e) {
         lock.releaseLock();
       }
     }
+    // SNSシェア管理シートのF列（ステータス）変更を検知
+    if (ssId === orderId && sheet.getName() === 'SNSシェア管理') {
+      const r = e.range;
+      const row = r.getRow();
+      const col = r.getColumn();
+      if (row >= 2 && col === 6) { // F列 = ステータス
+        var newValue = String(r.getValue());
+        if (newValue === '承認') {
+          approveSnsShare_(sheet, row);
+        } else if (newValue === '却下') {
+          rejectSnsShare_(sheet, row);
+        }
+      }
+      return;
+    }
+
     // 依頼中シートの編集・行削除を検知してopenStateを再構築
     const openLogSheetName = String(APP_CONFIG.order.openLogSheetName || '依頼中');
     if (ssId === orderId && sheet.getName() === openLogSheetName) {

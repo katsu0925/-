@@ -246,6 +246,68 @@ function setMemberDiscountEndDate() {
   ui.alert('会員割引の期限を ' + dateStr + ' に設定しました。');
 }
 
+// =====================================================
+// 初回全品半額キャンペーン
+// =====================================================
+var FIRST_HALF_PRICE_DEFAULTS = {
+  rate: 0.50,
+  endDate: '2026-12-31'
+};
+
+function app_getFirstHalfPriceStatus_() {
+  var props = PropertiesService.getScriptProperties();
+  var endDate = props.getProperty('FIRST_HALF_PRICE_END_DATE') || FIRST_HALF_PRICE_DEFAULTS.endDate;
+  var rate = Number(props.getProperty('FIRST_HALF_PRICE_RATE') || FIRST_HALF_PRICE_DEFAULTS.rate);
+  var manualFlag = props.getProperty('FIRST_HALF_PRICE_ENABLED');
+  if (manualFlag === 'false') {
+    return { enabled: false, rate: 0, endDate: endDate, reason: 'manual_off' };
+  }
+  var now = new Date();
+  var end = new Date(endDate + 'T23:59:59+09:00');
+  if (now > end) {
+    return { enabled: false, rate: 0, endDate: endDate, reason: 'expired' };
+  }
+  return { enabled: true, rate: rate, endDate: endDate, reason: 'active' };
+}
+
+function toggleFirstHalfPrice() {
+  var props = PropertiesService.getScriptProperties();
+  var current = props.getProperty('FIRST_HALF_PRICE_ENABLED');
+  var newVal = (current === 'false') ? 'true' : 'false';
+  props.setProperty('FIRST_HALF_PRICE_ENABLED', newVal);
+  var status = app_getFirstHalfPriceStatus_();
+  var ui = SpreadsheetApp.getUi();
+  ui.alert(status.enabled
+    ? '初回全品半額キャンペーンをONにしました（期限: ' + status.endDate + '）'
+    : '初回全品半額キャンペーンをOFFにしました');
+}
+
+// =====================================================
+// SNSシェアキャンペーン
+// =====================================================
+function app_getSnsShareCampaignStatus_() {
+  var props = PropertiesService.getScriptProperties();
+  var manualFlag = props.getProperty('SNS_SHARE_CAMPAIGN_ENABLED');
+  if (manualFlag === 'false') return { enabled: false };
+  var endDate = props.getProperty('SNS_SHARE_CAMPAIGN_END_DATE') || '2026-12-31';
+  var now = new Date();
+  var end = new Date(endDate + 'T23:59:59+09:00');
+  if (now > end) return { enabled: false, reason: 'expired' };
+  return { enabled: true, endDate: endDate };
+}
+
+function toggleSnsShareCampaign() {
+  var props = PropertiesService.getScriptProperties();
+  var current = props.getProperty('SNS_SHARE_CAMPAIGN_ENABLED');
+  var newVal = (current === 'false') ? 'true' : 'false';
+  props.setProperty('SNS_SHARE_CAMPAIGN_ENABLED', newVal);
+  var status = app_getSnsShareCampaignStatus_();
+  var ui = SpreadsheetApp.getUi();
+  ui.alert(status.enabled
+    ? 'SNSシェアキャンペーンをONにしました'
+    : 'SNSシェアキャンペーンをOFFにしました');
+}
+
 function st_normBrandDisplay_(v) {
   const s = String(v == null ? '' : v).normalize('NFKC');
   return s.replace(/[　\s]+/g, ' ').trim();
