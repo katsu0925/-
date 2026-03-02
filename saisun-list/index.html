@@ -2163,10 +2163,8 @@ function renderSummary_() {
   // 初回全品半額キャンペーン（他の割引と併用不可）
   if (state.firstHalfPrice && state.firstHalfPrice.eligible && state.customer) {
     _fhpApplied = true;
-    var _fhpProductTotal = sum + effectiveBulkProduct;
-    var _fhpOff = Math.round(_fhpProductTotal * state.firstHalfPrice.rate);
-    var _fhpOnDetauri = Math.min(_fhpOff, sum);
-    var _fhpOnBulk = _fhpOff - _fhpOnDetauri;
+    var _fhpOnDetauri = Math.round(sum * state.firstHalfPrice.rate);
+    var _fhpOnBulk = Math.round(effectiveBulkProduct * state.firstHalfPrice.rate);
     discounted = sum - _fhpOnDetauri;
     _fhpDetauriDisc = _fhpOnDetauri;
     _fhpBulkDisc = _fhpOnBulk;
@@ -4533,10 +4531,8 @@ function updateDetStickyBar_() {
   var detDiscounted, total;
   // 初回全品半額（他の割引と併用不可）
   if (state.firstHalfPrice && state.firstHalfPrice.eligible && state.customer) {
-    var _fhpTotal = detSum + assortSub;
-    var _fhpOff = Math.round(_fhpTotal * state.firstHalfPrice.rate);
-    var _fhpOnDet = Math.min(_fhpOff, detSum);
-    var _fhpOnBulk = _fhpOff - _fhpOnDet;
+    var _fhpOnDet = Math.round(detSum * state.firstHalfPrice.rate);
+    var _fhpOnBulk = Math.round(assortSub * state.firstHalfPrice.rate);
     detDiscounted = detSum - _fhpOnDet;
     assortSub = Math.max(0, assortSub - _fhpOnBulk);
     total = detDiscounted + assortSub;
@@ -4591,10 +4587,8 @@ function updateCartPrice() {
 
   // 初回全品半額（他の割引と併用不可）
   if (state.firstHalfPrice && state.firstHalfPrice.eligible && state.customer) {
-    var _fhpProdTotal = sum + (bulk.subtotal || 0);
-    var _fhpOff = Math.round(_fhpProdTotal * state.firstHalfPrice.rate);
-    var _fhpOnDet = Math.min(_fhpOff, sum);
-    var _fhpOnBulk = _fhpOff - _fhpOnDet;
+    var _fhpOnDet = Math.round(sum * state.firstHalfPrice.rate);
+    var _fhpOnBulk = Math.round((bulk.subtotal || 0) * state.firstHalfPrice.rate);
     discounted = sum - _fhpOnDet;
     _bulkDiscounted = Math.max(0, (bulk.subtotal || 0) - _fhpOnBulk);
   } else {

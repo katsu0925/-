@@ -2149,10 +2149,8 @@ function updateCart() {
   var _fhpApplied = false;
   if (G.firstHalfPrice && G.firstHalfPrice.eligible && G.customer) {
     _fhpApplied = true;
-    var _fhpProductTotal = subtotal + _eDetauriProd;
-    var _fhpOff = Math.round(_fhpProductTotal * G.firstHalfPrice.rate);
-    var _fhpOnAssort = Math.min(_fhpOff, discounted);
-    var _fhpOnDetauri = _fhpOff - _fhpOnAssort;
+    var _fhpOnAssort = Math.round(subtotal * G.firstHalfPrice.rate);
+    var _fhpOnDetauri = Math.round(_eDetauriProd * G.firstHalfPrice.rate);
     discounted -= _fhpOnAssort;
     _eDetauriProd = Math.max(0, _eDetauriProd - _fhpOnDetauri);
     var _fhpPct = Math.round(G.firstHalfPrice.rate * 100) + '%OFF';
