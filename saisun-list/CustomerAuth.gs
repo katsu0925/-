@@ -554,6 +554,13 @@ function apiUpdateCustomerProfile(userKey, params) {
 
     if (updated.length === 0) return { ok: false, message: '変更する項目がありません' };
 
+    // プロフィール変更後にCUSTOMER/SESSIONキャッシュを無効化
+    try {
+      var _c = CacheService.getScriptCache();
+      _c.remove('CUSTOMER:' + customer.email.toLowerCase());
+      _c.remove('SESSION:' + sessionId);
+    } catch (e) {}
+
     return { ok: true, message: updated.join('、') + ' を更新しました' };
   } catch (e) {
     return { ok: false, message: '更新に失敗しました' };
@@ -602,6 +609,9 @@ function apiChangePassword(userKey, params) {
 
     var newHash = createPasswordHash_(newPassword);
     getCustomerSheet_().getRange(fullCustomer.row, 3).setValue(newHash);
+
+    // パスワード変更後にCUSTOMERキャッシュを無効化（古いpasswordHash防止）
+    try { CacheService.getScriptCache().remove('CUSTOMER:' + customer.email.toLowerCase()); } catch (e) {}
 
     return { ok: true, message: 'パスワードを変更しました' };
   } catch (e) {
@@ -1256,6 +1266,8 @@ function deductPoints_(email, points) {
   var sheet = getCustomerSheet_();
   sheet.getRange(customer.row, CUSTOMER_SHEET_COLS.POINTS + 1).setValue(customer.points - points);
   try { updatePointsTimestamp_(customer.row); } catch(e) {}
+  // ポイント変更後にCUSTOMERキャッシュを無効化
+  try { CacheService.getScriptCache().remove('CUSTOMER:' + String(email).trim().toLowerCase()); } catch (e) {}
   return true;
 }
 
@@ -1270,6 +1282,8 @@ function addPoints_(email, points) {
   var currentPoints = Number(customer.points || 0);
   sheet.getRange(customer.row, CUSTOMER_SHEET_COLS.POINTS + 1).setValue(currentPoints + points);
   try { updatePointsTimestamp_(customer.row); } catch(e) {}
+  // ポイント変更後にCUSTOMERキャッシュを無効化
+  try { CacheService.getScriptCache().remove('CUSTOMER:' + String(email).trim().toLowerCase()); } catch (e) {}
   return true;
 }
 
