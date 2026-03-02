@@ -271,7 +271,7 @@ var RATE_LIMITS = {
   'apiSubmitEstimate': { max: 5, windowSec: 3600, label: '決済は1時間に5回まで' },
   'apiBulkSubmit': { max: 5, windowSec: 3600, label: '決済は1時間に5回まで' },
   'apiSyncHolds':     { max: 30, windowSec: 60,   label: '確保操作は1分に30回まで' },
-  'apiLoginCustomer': { max: 5, windowSec: 3600, label: 'ログインは1時間に5回まで' },
+  'apiLoginCustomer': { max: 30, windowSec: 3600, label: 'ログインは1時間に30回まで' },
   'apiRegisterCustomer': { max: 20, windowSec: 3600, label: '登録は1時間に20回まで' },
   'apiSendContactForm': { max: 3, windowSec: 3600, label: 'お問い合わせは1時間に3回まで' },
   'apiRequestPasswordReset': { max: 3, windowSec: 3600, label: 'パスワードリセットは1時間に3回まで' },

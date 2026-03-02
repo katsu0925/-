@@ -386,7 +386,7 @@ function apiLoginCustomer(userKey, params) {
     var emailRateKey = 'RL:login_email:' + email;
     var cache = CacheService.getScriptCache();
     var emailAttempts = parseInt(cache.get(emailRateKey) || '0', 10);
-    if (emailAttempts >= 10) {
+    if (emailAttempts >= 30) {
       return { ok: false, message: 'ログイン試行回数が多すぎます。しばらくお待ちください。' };
     }
     cache.put(emailRateKey, String(emailAttempts + 1), 3600);
