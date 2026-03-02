@@ -299,7 +299,7 @@ function apiRegisterCustomer(userKey, params) {
 
     // 排他制御: メール重複チェック〜appendRowをロックで保護（レースコンディション対策）
     var lock = LockService.getScriptLock();
-    if (!lock.tryLock(10000)) {
+    if (!lock.tryLock(60000)) {
       return { ok: false, message: '登録処理が混み合っています。しばらくお待ちください。' };
     }
     try {
