@@ -2142,6 +2142,7 @@ function updateCart() {
 
   // デタウリカート合算extra（クーポン・ポイント計算に使用）
   var _eDetauriProd = G.detauriCartTotal  || 0;
+  var _rawDetauriProd = _eDetauriProd; // 割引前の原価（表示用）
   var _eDetauriShip = G.detauriShipping   || 0;
 
   // 初回全品半額キャンペーン（他の割引と併用不可）
@@ -2258,7 +2259,7 @@ function updateCart() {
     }
     rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
       + '<span>デタウリ 商品代（' + G.detauriCartCount + '点）</span>'
-      + '<span>¥' + numFmt(_eDetauriProd) + '</span></div>';
+      + '<span>¥' + numFmt(_rawDetauriProd) + '</span></div>';
     rows += _detauriMemberDiscRow;
     var shippingDesc = 'デタウリ 送料';
     if (G.detauriShippingPref && G.detauriShippingSizeLabel) {
