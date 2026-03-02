@@ -232,7 +232,7 @@ function shipMailOnEdit(e) {
         { label: '合計金額', value: Number(totalAmount).toLocaleString() + '円（税込）' }
       ];
       if (carrier) shipRows.push({ label: '配送業者', value: carrier });
-      if (trackingNo) shipRows.push({ label: '伝票番号', value: trackingUrl
+      if (trackingNo) shipRows.push({ label: '伝票番号', html: !!trackingUrl, value: trackingUrl
         ? '<a href="' + trackingUrl + '" style="color:#1a73e8">' + trackingNo + '</a>'
         : trackingNo });
 
@@ -252,7 +252,8 @@ function shipMailOnEdit(e) {
       if (confirmLink) {
         shipHtmlSections.push({
           title: 'ご注文明細（Google Drive）',
-          text: '以下のリンクからご注文内容をご確認いただけます。'
+          text: '以下のリンクからご注文内容をご確認いただけます。',
+          link: { url: confirmLink, text: 'ご注文明細を開く' }
         });
       }
 

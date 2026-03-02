@@ -364,11 +364,12 @@ function buildHtmlEmail_(opts) {
       if (s.rows) {
         for (var r = 0; r < s.rows.length; r++) {
           h += '<tr><td style="padding:3px 16px;font-size:13px;line-height:1.6;color:#444;">'
-            + '<span style="color:#888;">' + e_(s.rows[r].label) + '：</span>' + e_(s.rows[r].value) + '</td></tr>';
+            + '<span style="color:#888;">' + e_(s.rows[r].label) + '：</span>' + (s.rows[r].html ? s.rows[r].value : e_(s.rows[r].value)) + '</td></tr>';
         }
         h += '<tr><td style="padding:0 0 8px;"></td></tr>';
       }
       if (s.text) h += '<tr><td style="padding:4px 16px 12px;font-size:13px;line-height:1.7;color:#444;">' + nl2br(s.text) + '</td></tr>';
+      if (s.link) h += '<tr><td style="padding:4px 16px 12px;"><a href="' + s.link.url + '" style="font-size:13px;color:#1a73e8;text-decoration:none;">' + e_(s.link.text || s.link.url) + '</a></td></tr>';
       if (s.items) {
         for (var it = 0; it < s.items.length; it++) {
           h += '<tr><td style="padding:2px 16px;font-size:12px;color:#555;line-height:1.5;">' + e_(s.items[it]) + '</td></tr>';
