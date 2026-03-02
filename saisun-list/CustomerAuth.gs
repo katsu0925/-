@@ -303,6 +303,8 @@ function apiRegisterCustomer(userKey, params) {
       return { ok: false, message: '登録処理が混み合っています。しばらくお待ちください。' };
     }
     try {
+      // 古いキャッシュが残っている場合に備え、重複チェック前にクリア（シートから直接読み込ませる）
+      try { CacheService.getScriptCache().remove('CUSTOMER:' + email); } catch(e) {}
       if (findCustomerByEmail_(email)) {
         lock.releaseLock();
         return { ok: false, message: 'このメールアドレスは既に登録されています' };
