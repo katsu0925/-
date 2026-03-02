@@ -2138,12 +2138,28 @@ function updateCart() {
   // 割引
   var discounted = subtotal;
   var discountRows = '';
+  var _detauriMemberDiscRow = '';
 
   // デタウリカート合算extra（クーポン・ポイント計算に使用）
   var _eDetauriProd = G.detauriCartTotal  || 0;
   var _eDetauriShip = G.detauriShipping   || 0;
 
-  if (G.coupon) {
+  // 初回全品半額キャンペーン（他の割引と併用不可）
+  var _fhpApplied = false;
+  if (G.firstHalfPrice && G.firstHalfPrice.eligible && G.customer) {
+    _fhpApplied = true;
+    var _fhpProductTotal = subtotal + _eDetauriProd;
+    var _fhpOff = Math.round(_fhpProductTotal * G.firstHalfPrice.rate);
+    var _fhpOnAssort = Math.min(_fhpOff, discounted);
+    var _fhpOnDetauri = _fhpOff - _fhpOnAssort;
+    discounted -= _fhpOnAssort;
+    _eDetauriProd = Math.max(0, _eDetauriProd - _fhpOnDetauri);
+    var _fhpPct = Math.round(G.firstHalfPrice.rate * 100) + '%OFF';
+    if (_fhpOnAssort > 0) discountRows += '<div class="cart-row" style="color:#c2410c;font-weight:700;"><span>初回全品半額（' + _fhpPct + '）</span><span>-¥' + numFmt(_fhpOnAssort) + '</span></div>';
+    if (_fhpOnDetauri > 0) _detauriMemberDiscRow = '<div class="cart-row" style="color:#c2410c;font-size:12px;border-bottom:none;font-weight:700;"><span>初回全品半額（' + _fhpPct + '）</span><span>-¥' + numFmt(_fhpOnDetauri) + '</span></div>';
+  }
+
+  if (!_fhpApplied && G.coupon) {
     if (G.coupon.type === 'shipping_free') {
       var _partialFree = G.coupon.shippingExcludeProducts && calcExcludedQty_() > 0;
       var _shLabel = _partialFree ? '-送料（一部商品除外）' : '-送料';
@@ -2163,19 +2179,20 @@ function updateCart() {
     }
   }
 
-  // 会員割引（チャネル設定のない割引は両チャネルに適用）
-  var _detauriMemberDiscRow = '';
-  var md = G.settings.memberDiscount;
-  if (G.customer && md && md.enabled && (!G.coupon || G.coupon.comboMember !== false)) {
-    var _prevDisc = discounted;
-    var _prevDetProd = _eDetauriProd;
-    discounted = Math.round(discounted * (1 - md.rate));
-    _eDetauriProd = Math.round(_eDetauriProd * (1 - md.rate));
-    var _mdAssort = _prevDisc - discounted;
-    var _mdDetauri = _prevDetProd - _eDetauriProd;
-    var _mdPct = Math.round(md.rate * 100) + '%OFF';
-    if (_mdAssort > 0) discountRows += '<div class="cart-row"><span>会員割引 (' + _mdPct + ')</span><span>-¥' + numFmt(_mdAssort) + '</span></div>';
-    if (_mdDetauri > 0) _detauriMemberDiscRow = '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;"><span>会員割引 (' + _mdPct + ')</span><span>-¥' + numFmt(_mdDetauri) + '</span></div>';
+  // 会員割引（チャネル設定のない割引は両チャネルに適用）— 初回半額とは併用不可
+  if (!_fhpApplied) {
+    var md = G.settings.memberDiscount;
+    if (G.customer && md && md.enabled && (!G.coupon || G.coupon.comboMember !== false)) {
+      var _prevDisc = discounted;
+      var _prevDetProd = _eDetauriProd;
+      discounted = Math.round(discounted * (1 - md.rate));
+      _eDetauriProd = Math.round(_eDetauriProd * (1 - md.rate));
+      var _mdAssort = _prevDisc - discounted;
+      var _mdDetauri = _prevDetProd - _eDetauriProd;
+      var _mdPct = Math.round(md.rate * 100) + '%OFF';
+      if (_mdAssort > 0) discountRows += '<div class="cart-row"><span>会員割引 (' + _mdPct + ')</span><span>-¥' + numFmt(_mdAssort) + '</span></div>';
+      if (_mdDetauri > 0) _detauriMemberDiscRow = '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;"><span>会員割引 (' + _mdPct + ')</span><span>-¥' + numFmt(_mdDetauri) + '</span></div>';
+    }
   }
 
   discounted = Math.max(0, discounted);
@@ -3623,11 +3640,13 @@ function _applyMpData_(d) {
     var exEl = document.getElementById('mpPointExpiry');
     if (exEl) { exEl.textContent = 'ポイント有効期限: ' + d.pointsExpiryDate; exEl.style.display = ''; }
   }
-  // 初回全品半額バッジ
+  // 初回全品半額バッジ + グローバル保存
+  G.firstHalfPrice = d.firstHalfPrice || null;
   var fhpBadge = document.getElementById('firstHalfPriceBadge');
   if (fhpBadge) {
     fhpBadge.style.display = (d.firstHalfPrice && d.firstHalfPrice.eligible) ? '' : 'none';
   }
+  updateCart(); // 初回半額がカート表示に反映されるよう再計算
   // SNSシェアキャンペーン
   loadSnsShareStatus_();
   // Phase 3-6: 紹介コード
