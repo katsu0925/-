@@ -2365,11 +2365,11 @@ function renderSummary_() {
       });
       rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
         + '<span>アソート商品 商品代</span>'
-        + '<span>¥' + numFmt_(effectiveBulkProduct) + '</span></div>';
+        + '<span>¥' + numFmt_(bulk.subtotal) + '</span></div>';
     } else {
       rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
         + '<span>アソート商品 商品代（' + bulk.totalQty + '点）</span>'
-        + '<span>¥' + numFmt_(effectiveBulkProduct) + '</span></div>';
+        + '<span>¥' + numFmt_(bulk.subtotal) + '</span></div>';
     }
     if (_fhpApplied && _fhpBulkDisc > 0) {
       var _fhpPctBulk = Math.round(state.firstHalfPrice.rate * 100) + '%OFF';
