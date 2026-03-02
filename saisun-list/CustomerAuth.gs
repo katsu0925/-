@@ -210,7 +210,7 @@ function findCustomerByEmail_(email) {
         sessionId: data[i][10],
         sessionExpiry: data[i][11],
         points: Number(data[i][12]) || 0,
-        purchaseCount: Number(data[i][14]) || 0
+        purchaseCount: Number(data[i][CUSTOMER_SHEET_COLS.PURCHASE_COUNT]) || 0
       };
       // キャッシュに保存（最大6時間）
       try { cache.put(cacheKey, JSON.stringify(result), 21600); } catch (e) {}
@@ -258,7 +258,7 @@ function findCustomerBySession_(sessionId) {
           newsletter: data[i][7],
           registeredAt: data[i][8],
           points: Number(data[i][12]) || 0,
-          purchaseCount: Number(data[i][14]) || 0,
+          purchaseCount: Number(data[i][CUSTOMER_SHEET_COLS.PURCHASE_COUNT]) || 0,
           expiry: String(expiry)
         };
         // キャッシュに保存（最大6時間）
@@ -428,7 +428,8 @@ function apiLoginCustomer(userKey, params) {
         passwordHash: _latestHash, companyName: customer.companyName,
         phone: customer.phone, postal: customer.postal, address: customer.address,
         newsletter: customer.newsletter, registeredAt: customer.registeredAt,
-        points: customer.points, expiry: String(sessionExpiry)
+        points: customer.points, purchaseCount: customer.purchaseCount,
+        expiry: String(sessionExpiry)
       }), 21600);
     } catch (e) {}
 
