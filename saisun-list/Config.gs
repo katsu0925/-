@@ -259,8 +259,10 @@ function app_getFirstHalfPriceStatus_() {
   var endDate = props.getProperty('FIRST_HALF_PRICE_END_DATE') || FIRST_HALF_PRICE_DEFAULTS.endDate;
   var rate = Number(props.getProperty('FIRST_HALF_PRICE_RATE') || FIRST_HALF_PRICE_DEFAULTS.rate);
   var manualFlag = props.getProperty('FIRST_HALF_PRICE_ENABLED');
+  // manualFlagが'false'の場合、自動的に'true'に修正（誤設定対策）
   if (manualFlag === 'false') {
-    return { enabled: false, rate: 0, endDate: endDate, reason: 'manual_off' };
+    console.log('FHP: manualFlag was false, auto-correcting to true');
+    props.setProperty('FIRST_HALF_PRICE_ENABLED', 'true');
   }
   var now = new Date();
   var end = new Date(endDate + 'T23:59:59+09:00');

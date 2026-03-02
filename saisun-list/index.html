@@ -2906,6 +2906,13 @@ function validateSession_() {
   if (saved.customer) {
     state.sessionId = saved.sessionId;
     state.customer = saved.customer;
+    // myPageCacheからfirstHalfPriceを即時復元
+    try {
+      var _mpC = JSON.parse(localStorage.getItem('myPageCache') || 'null');
+      if (_mpC && _mpC.sid === saved.sessionId && _mpC.d && _mpC.d.firstHalfPrice) {
+        state.firstHalfPrice = _mpC.d.firstHalfPrice;
+      }
+    } catch(e) {}
     updateAuthUi_();
     updateCartPrice();
   }
@@ -2922,6 +2929,8 @@ function validateSession_() {
         fetchCsrfToken_();
         updateAuthUi_();
         updateCartPrice();
+        // 初回半額・ランク等を取得（マイページ開かなくてもカートに反映）
+        loadMyPage_();
       } else {
         clearSession_();
         // _nk_owner_flag はオーナー永続識別子のため削除しない
