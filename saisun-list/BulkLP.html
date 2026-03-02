@@ -2164,6 +2164,7 @@ function updateCart() {
   }
 
   // 会員割引（チャネル設定のない割引は両チャネルに適用）
+  var _detauriMemberDiscRow = '';
   var md = G.settings.memberDiscount;
   if (G.customer && md && md.enabled && (!G.coupon || G.coupon.comboMember !== false)) {
     var _prevDisc = discounted;
@@ -2174,7 +2175,7 @@ function updateCart() {
     var _mdDetauri = _prevDetProd - _eDetauriProd;
     var _mdPct = Math.round(md.rate * 100) + '%OFF';
     if (_mdAssort > 0) discountRows += '<div class="cart-row"><span>会員割引 (' + _mdPct + ')</span><span>-¥' + numFmt(_mdAssort) + '</span></div>';
-    if (_mdDetauri > 0) discountRows += '<div class="cart-row" style="color:#5B86C5;"><span>会員割引 デタウリ (' + _mdPct + ')</span><span>-¥' + numFmt(_mdDetauri) + '</span></div>';
+    if (_mdDetauri > 0) _detauriMemberDiscRow = '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;"><span>会員割引 デタウリ (' + _mdPct + ')</span><span>-¥' + numFmt(_mdDetauri) + '</span></div>';
   }
 
   discounted = Math.max(0, discounted);
@@ -2241,6 +2242,7 @@ function updateCart() {
     rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
       + '<span>デタウリ 商品代（' + G.detauriCartCount + '点）</span>'
       + '<span>¥' + numFmt(_eDetauriProd) + '</span></div>';
+    rows += _detauriMemberDiscRow;
     var shippingDesc = 'デタウリ 送料';
     if (G.detauriShippingPref && G.detauriShippingSizeLabel) {
       shippingDesc = 'デタウリ 送料（' + escHtml(G.detauriShippingPref) + '・' + escHtml(G.detauriShippingSizeLabel) + '）';

@@ -2185,10 +2185,13 @@ function renderSummary_() {
   }
 
   // 会員割引をアソート商品にも適用（チャネル設定のない割引は両チャネルに適用）
+  var _bulkMemberDiscAmt = 0;
   if (effectiveBulkProduct > 0 && state.customer && MEMBER_DISCOUNT_ENABLED) {
     var _acRS = state.appliedCoupon;
     if (!_acRS || !_acRS.code || _acRS.type === 'shipping_free' || _acRS.comboMember !== false) {
+      var _prevBulkProd = effectiveBulkProduct;
       effectiveBulkProduct = Math.round(effectiveBulkProduct * (1 - MEMBER_DISCOUNT_RATE));
+      _bulkMemberDiscAmt = _prevBulkProd - effectiveBulkProduct;
     }
   }
 
@@ -2330,6 +2333,12 @@ function renderSummary_() {
       rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
         + '<span>アソート商品 商品代（' + bulk.totalQty + '点）</span>'
         + '<span>¥' + numFmt_(effectiveBulkProduct) + '</span></div>';
+    }
+    if (_bulkMemberDiscAmt > 0) {
+      var _mdPctRS = Math.round(MEMBER_DISCOUNT_RATE * 100) + '%OFF';
+      rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
+        + '<span>会員割引 アソート (' + _mdPctRS + ')</span>'
+        + '<span>-¥' + numFmt_(_bulkMemberDiscAmt) + '</span></div>';
     }
     // アドレス取得（デタウリDOM → 共有localStorage の順でフォールバック）
     var bulkAddrVal = $('address') ? $('address').value.trim() : '';
@@ -4468,7 +4477,11 @@ function updateDetStickyBar_() {
   var discountRate = bulkDiscountRate_(ids.length);
   if (state.customer && MEMBER_DISCOUNT_ENABLED) discountRate += MEMBER_DISCOUNT_RATE;
   var detDiscounted = Math.round(detSum * (1 - discountRate));
-  var total = detDiscounted + (bulk.subtotal || 0);
+  var assortSub = bulk.subtotal || 0;
+  if (assortSub > 0 && state.customer && MEMBER_DISCOUNT_ENABLED) {
+    assortSub = Math.round(assortSub * (1 - MEMBER_DISCOUNT_RATE));
+  }
+  var total = detDiscounted + assortSub;
   if (totalEl) totalEl.textContent = '¥' + numFmt_(total);
   if (labelEl) {
     if (detCount > 0 && assortQty > 0) {
