@@ -2561,8 +2561,24 @@ function doRegister_() {
     return;
   }
 
-  setSending_(true, '登録中...');
+  // --- 楽観的UI: API応答前に即座に登録完了表示 ---
+  var tempCustomer = {
+    email: email, companyName: companyName, phone: phone,
+    postal: postal, address: address, newsletter: newsletter, points: 500
+  };
+  var tempSessionId = 'tmp_' + Math.random().toString(36).slice(2);
 
+  state.sessionId = tempSessionId;
+  state.customer = tempCustomer;
+  saveSession_(tempSessionId, tempCustomer);
+  updateAuthUi_();
+  closeModal($('authModal'));
+  showToast(MEMBER_DISCOUNT_ENABLED ? '登録が完了しました！10%割引が適用されます' : '登録が完了しました！');
+  trackEvent_('sign_up', { method: 'email', page_type: 'detauri' });
+  updateCartPrice();
+  if ($('cartModal').classList.contains('open')) renderCartModal_();
+
+  // バックグラウンドでAPI実行
   runApi('apiRegisterCustomer', state.userKey, {
     email: email,
     password: password,
@@ -2573,28 +2589,31 @@ function doRegister_() {
     newsletter: newsletter
   })
     .then(function(res) {
-      setSending_(false);
       if (res.ok && res.data) {
         state.sessionId = res.data.sessionId;
         state.customer = res.data.customer;
         saveSession_(res.data.sessionId, res.data.customer);
         fetchCsrfToken_();
         updateAuthUi_();
-        closeModal($('authModal'));
-        trackEvent_('sign_up', { method: 'email', page_type: 'detauri' });
-        var _bonusMsg = res.data.welcomeBonus ? '＋' + res.data.welcomeBonus + 'ポイントプレゼント！' : '';
-        showToast(MEMBER_DISCOUNT_ENABLED ? '登録が完了しました！10%割引が適用されます' + _bonusMsg : '登録が完了しました！' + _bonusMsg);
-        // Phase 3-6: 紹介コード適用
         applyReferralAfterRegister_();
         updateCartPrice();
         if ($('cartModal').classList.contains('open')) renderCartModal_();
       } else {
-        showToast(res.message || '登録に失敗しました');
+        // ロールバック
+        clearSession_();
+        updateAuthUi_();
+        updateCartPrice();
+        if ($('cartModal').classList.contains('open')) renderCartModal_();
+        showToast(res.message || '登録に失敗しました。再度お試しください');
       }
     })
     .catch(function(e) {
-      setSending_(false);
-      showToast(e.message || '登録に失敗しました');
+      // ロールバック
+      clearSession_();
+      updateAuthUi_();
+      updateCartPrice();
+      if ($('cartModal').classList.contains('open')) renderCartModal_();
+      showToast(e.message || '登録に失敗しました。再度お試しください');
     });
 }
 

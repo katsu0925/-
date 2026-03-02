@@ -3271,15 +3271,32 @@ function doRegister_() {
   if (!password || password.length < 6) { showAuthError_('パスワードは6文字以上で入力してください'); return; }
   if (!companyName) { showAuthError_('会社名/氏名は必須です'); return; }
 
-  var btn = document.getElementById('registerBtn');
-  btn.disabled = true; btn.textContent = '登録中...';
+  // --- 楽観的UI: API応答前に即座に登録完了表示 ---
+  var tempCustomer = {
+    email: email, companyName: companyName, phone: phone,
+    postal: postal, address: address, newsletter: newsletter, points: 500
+  };
+  var tempSessionId = 'tmp_' + Math.random().toString(36).slice(2);
 
+  G.sessionId = tempSessionId;
+  G.customer = tempCustomer;
+  try {
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ sessionId: tempSessionId, customer: tempCustomer }));
+  } catch (e) {}
+  updateAuthUi_();
+  closeAuthModal_();
+  var md = G.settings.memberDiscount;
+  showToast((md && md.enabled) ? '登録が完了しました！' + Math.round(md.rate * 100) + '%割引が適用されます' : '登録が完了しました！');
+  trackEvent_('sign_up', { method: 'email', page_type: 'assort' });
+  autoFillCustomerForm();
+  updateCart();
+
+  // バックグラウンドでAPI実行
   runApi('apiRegisterCustomer', 'bulk', {
     email: email, password: password, companyName: companyName,
     phone: phone, postal: postal, address: address, newsletter: newsletter
   })
     .then(function(res) {
-      btn.disabled = false; btn.textContent = '登録する';
       if (res.ok && res.data) {
         G.sessionId = res.data.sessionId;
         G.customer = res.data.customer;
@@ -3287,22 +3304,29 @@ function doRegister_() {
           localStorage.setItem(SESSION_KEY, JSON.stringify({ sessionId: res.data.sessionId, customer: res.data.customer }));
         } catch (e) {}
         updateAuthUi_();
-        closeAuthModal_();
-        trackEvent_('sign_up', { method: 'email', page_type: 'assort' });
+        applyBulkReferralAfterRegister_();
         autoFillCustomerForm();
         updateCart();
-        // Phase 3-6: 紹介コード適用
-        applyBulkReferralAfterRegister_();
-        var md = G.settings.memberDiscount;
-        var bonusMsg = (res.welcomeBonus > 0) ? '＋' + res.welcomeBonus + 'ポイントプレゼント！' : '';
-        alert((md && md.enabled) ? '登録が完了しました！' + Math.round(md.rate * 100) + '%割引が適用されます' + bonusMsg : '登録が完了しました！' + bonusMsg);
       } else {
-        showAuthError_(res.message || '登録に失敗しました');
+        // ロールバック
+        G.sessionId = null;
+        G.customer = null;
+        G.pointsUsed = 0;
+        try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+        updateAuthUi_();
+        updateCart();
+        showToast(res.message || '登録に失敗しました。再度お試しください');
       }
     })
     .catch(function(e) {
-      btn.disabled = false; btn.textContent = '登録する';
-      showAuthError_(e.message || '登録に失敗しました');
+      // ロールバック
+      G.sessionId = null;
+      G.customer = null;
+      G.pointsUsed = 0;
+      try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+      updateAuthUi_();
+      updateCart();
+      showToast(e.message || '登録に失敗しました。再度お試しください');
     });
 }
 
