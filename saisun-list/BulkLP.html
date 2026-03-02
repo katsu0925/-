@@ -152,6 +152,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 .pay-button{width:100%;padding:16px;border:none;border-radius:12px;background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;font-size:16px;font-weight:700;cursor:pointer;letter-spacing:1px;margin-top:8px;transition:box-shadow .2s}
 .pay-button:hover{box-shadow:0 4px 20px rgba(26,26,46,.3)}
 .pay-button:disabled{opacity:.5;cursor:not-allowed}
+.pay-button--loading{opacity:.7;pointer-events:none}
+.pay-btn-spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:payBtnSpin .6s linear infinite;vertical-align:middle;margin-right:6px}
+@keyframes payBtnSpin{to{transform:rotate(360deg)}}
 .pay-methods{display:flex;justify-content:center;gap:10px;margin-top:10px;flex-wrap:wrap}
 .pay-badge{font-size:10px;color:#777;background:#f0f0f0;padding:4px 10px;border-radius:4px;font-weight:600}
 
@@ -2688,8 +2691,10 @@ function submitOrder() {
   trackEcommerce_('begin_checkout', _chkItems, _chkVal, { item_count: totalQty, page_type: 'assort' });
 
   var btn = document.getElementById('payButton');
+  var _prevBtnText = btn.textContent;
   btn.disabled = true;
-  btn.textContent = '処理中...';
+  btn.innerHTML = '<span class="pay-btn-spinner"></span> 処理中...';
+  btn.classList.add('pay-button--loading');
 
   runApi('apiBulkSubmit', form, items)
     .then(function(r) {
@@ -2704,6 +2709,8 @@ function submitOrder() {
         window.location.href = r.sessionUrl;
       } else {
         btn.disabled = false;
+        btn.classList.remove('pay-button--loading');
+        btn.innerHTML = '';
         updateCart();
         errEl.textContent = r && r.message ? r.message : '注文に失敗しました';
         errEl.style.display = 'block';
@@ -2712,6 +2719,8 @@ function submitOrder() {
     .catch(function(e) {
       G.submitting = false;
       btn.disabled = false;
+      btn.classList.remove('pay-button--loading');
+      btn.innerHTML = '';
       updateCart();
       errEl.textContent = e && e.message ? e.message : 'エラーが発生しました';
       errEl.style.display = 'block';
@@ -4969,7 +4978,7 @@ body.admin-mode .article-panel{bottom:186px;}
 <!-- モバイル固定決済バー -->
 <div id="bulkStickyPay">
   <div id="bulkStickyPayInfo"><small id="bulkStickyPayLabel">アソート</small><strong id="bulkStickyPayTotal">¥0</strong><div id="bulkStickyShipHint" style="font-size:9px;color:#93c5fd;margin-top:2px;white-space:nowrap;"></div></div>
-  <button id="bulkStickyPayBtn" onclick="submitOrder()" disabled>お支払いへ →</button>
+  <button id="bulkStickyPayBtn" onclick="document.getElementById('cartSection').scrollIntoView({behavior:'smooth'});" disabled>カートを確認する</button>
 </div>
 <!-- 確保トースト -->
 <div id="bulkCartAddToast"><span>カートに追加しました</span><button class="toast-cta" type="button" onclick="hideBulkCartAddToast_();document.getElementById('cartSection').scrollIntoView({behavior:'smooth'});">カートを見る →</button></div>

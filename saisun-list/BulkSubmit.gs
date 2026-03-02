@@ -140,6 +140,9 @@ function apiBulkSubmit(form, items) {
       }
     }
 
+    // 送料無料判定用に割引適用前の商品金額を保持
+    var originalDetauriProductAmount = detauriProductAmount;
+
     var discounted;
     if (firstHalfPriceApplied) {
       // 初回半額: 商品代金のみ50%OFF（送料は対象外）
@@ -196,8 +199,8 @@ function apiBulkSubmit(form, items) {
       }
     }
 
-    // 商品合計1万円以上で送料無料（クーポン適用前の商品価格で判定）
-    if (sum + detauriProductAmount >= 10000) {
+    // 商品合計1万円以上で送料無料（クーポン・割引適用前の商品価格で判定）
+    if (sum + originalDetauriProductAmount >= 10000) {
       shippingAmount = 0;
       detauriShippingAmount = 0;
     }
