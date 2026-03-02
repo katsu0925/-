@@ -185,7 +185,7 @@ function findCustomerByEmail_(email) {
     var cached = cache.get(cacheKey);
     if (cached) {
       var c = JSON.parse(cached);
-      if (c && c.email) return c;
+      if (c && c.email && String(c.email).trim().toLowerCase() === normalizedEmail) return c;
       cache.remove(cacheKey);
     }
   } catch (e) {}
@@ -320,9 +320,32 @@ function apiRegisterCustomer(userKey, params) {
       var initialPoints = 500; // 初回登録ボーナス
       sheet.appendRow([
         customerId, email, passwordHash, companyName, phoneForSheet,
-        postalForSheet, address, newsletter, now, now, sessionId, sessionExpiry, initialPoints, now, ''
+        postalForSheet, address, newsletter, now, now, sessionId, sessionExpiry, initialPoints, now, 0
       ]);
       lock.releaseLock();
+
+      // 新規登録データでキャッシュを更新（古いキャッシュが残っている場合の対策）
+      var newRow = sheet.getLastRow();
+      try {
+        CacheService.getScriptCache().put('CUSTOMER:' + email, JSON.stringify({
+          row: newRow, id: customerId, email: email,
+          passwordHash: passwordHash, companyName: companyName,
+          phone: phone, postal: postal, address: address,
+          newsletter: newsletter, registeredAt: String(now),
+          lastLogin: String(now), sessionId: sessionId, sessionExpiry: String(sessionExpiry),
+          points: initialPoints, purchaseCount: 0
+        }), 21600);
+      } catch(e) {}
+      try {
+        CacheService.getScriptCache().put('SESSION:' + sessionId, JSON.stringify({
+          row: newRow, id: customerId, email: email,
+          passwordHash: passwordHash, companyName: companyName,
+          phone: phone, postal: postal, address: address,
+          newsletter: newsletter, registeredAt: String(now),
+          points: initialPoints, purchaseCount: 0,
+          expiry: String(sessionExpiry)
+        }), 21600);
+      } catch(e) {}
 
       return {
         ok: true,
