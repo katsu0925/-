@@ -264,15 +264,6 @@ function shipMailOnEdit(e) {
       MailApp.sendEmail({ to: contactEmail, subject: custSubject, body: custBody, htmlBody: custHtmlBody, noReply: true, bcc: SHIPMAIL_CONFIG.TO_EMAIL });
       Logger.log('customer mail sent to=' + contactEmail);
 
-      // Phase 4-2: LINE発送通知
-      try {
-        lineNotifyShipping_(contactEmail, {
-          receiptNo: receiptNo,
-          carrier: carrier,
-          trackingNumber: trackingNo,
-          trackingUrl: trackingUrl
-        });
-      } catch(e) { Logger.log('optional: lineNotifyShipping_: ' + (e.message || e)); }
     }
 
     flagCell.setValue(new Date());

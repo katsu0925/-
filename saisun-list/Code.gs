@@ -141,7 +141,7 @@ function doPost(e) {
       'apiUnsubscribeNewsletter', 'apiGetReferralCode', 'apiApplyReferralCode',
       // Phase 4: インフラ/アナリティクス
       'apiGetAdsConfig', 'apiGetMetaConfig', 'apiGetSitemap',
-      'apiLineLinkAccount', 'apiGetABTestVariant', 'apiTrackABTestEvent',
+      'apiGetABTestVariant', 'apiTrackABTestEvent',
       // SNSシェアキャンペーン
       'apiSubmitSnsShare', 'apiGetSnsShareStatus',
       // カゴ落ち登録
@@ -204,7 +204,7 @@ function doPost(e) {
       var csrfProtectedActions = [
         'apiSubmitEstimate', 'apiUpdateCustomerProfile', 'apiChangePassword',
         'apiCreateKomojuSession', 'apiCancelOrder',
-        'apiApplyReferralCode', 'apiLineLinkAccount',
+        'apiApplyReferralCode',
         'apiSubmitSnsShare'
       ];
       if (csrfProtectedActions.indexOf(action) !== -1) {

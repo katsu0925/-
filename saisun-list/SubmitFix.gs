@@ -761,19 +761,6 @@ function writeSubmitData_(data) {
   // 4. 顧客宛注文確認メール（決済完了通知）
   app_sendOrderConfirmToCustomer_(data);
 
-  // 5. LINE通知（注文確定）
-  try {
-    var custEmail = (data.form && data.form.contact) || '';
-    if (custEmail) {
-      lineNotifyOrder_(custEmail, {
-        receiptNo: data.receiptNo,
-        companyName: (data.form && data.form.companyName) || '',
-        totalCount: data.totalCount || (data.ids ? data.ids.length : 0),
-        totalAmount: data.discounted || 0,
-        paymentMethod: data.paymentMethod || ''
-      });
-    }
-  } catch(e) { console.log('optional: lineNotifyOrder_: ' + (e.message || e)); }
 }
 
 /**
