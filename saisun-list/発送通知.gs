@@ -271,7 +271,7 @@ function shipMailOnEdit(e) {
         ]
       });
 
-      MailApp.sendEmail({ to: contactEmail, subject: custSubject, body: custBody, htmlBody: custHtmlBody, noReply: true });
+      MailApp.sendEmail({ to: contactEmail, subject: custSubject, body: custBody, htmlBody: custHtmlBody, noReply: true, bcc: SHIPMAIL_CONFIG.TO_EMAIL });
       Logger.log('customer mail sent to=' + contactEmail);
 
       // Phase 4-2: LINE発送通知
@@ -292,6 +292,10 @@ function shipMailOnEdit(e) {
     // P列(ステータス)を自動で「完了」に更新
     sh.getRange(row, SHIPMAIL_CONFIG.COL_STATUS_P).setValue('完了');
     Logger.log('status set to 完了 at col=' + SHIPMAIL_CONFIG.COL_STATUS_P);
+
+    // Q列(入金確認)を自動で「対応済」に更新（P列=決済IDありの注文のみ到達するため無条件でOK）
+    sh.getRange(row, 17).setValue('対応済');
+    Logger.log('入金確認 set to 対応済 at col=17');
 
     // 顧客の購入回数を更新
     try { updatePurchaseCount_(contactEmail); } catch (pcErr) {
