@@ -2067,6 +2067,9 @@ function updateCart() {
         detRows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
           + '<span>' + shippingDesc0 + '</span>'
           + '<span>¥' + numFmt(G.detauriShipping) + '</span></div>';
+      } else if (G.detauriShipping === 0 && G.detauriCartCount > 0 && G.detauriShippingPref) {
+        detRows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
+          + '<span>' + shippingDesc0 + '</span><span>¥0（無料）</span></div>';
       }
       var detauriSub0 = G.detauriCartTotal + G.detauriShipping;
       detRows += '<div class="cart-row" style="color:#5B86C5;font-size:16px;font-weight:800;border-top:2px solid #5B86C5;margin-top:8px;padding-top:12px;border-bottom:none;">'
@@ -2173,6 +2176,7 @@ function updateCart() {
   // 商品合計1万円以上で送料無料（割引前の商品価格で判定）
   if (subtotal + (G.detauriCartTotal || 0) >= 10000) {
     G.shipping = 0;
+    G.detauriShipping = 0;
     _eDetauriShip = 0;
   }
   var shipping = calcEffectiveShipping_();
@@ -2305,7 +2309,7 @@ function updatePayButton(total) {
   var detauriCount = G.detauriCartCount || 0;
   if (total > 0) {
     btn.disabled = false;
-    btn.textContent = 'お支払いへ進む';
+    btn.textContent = 'お支払いへ進む — ¥' + numFmt(total);
     if (stickyBar && assortCount > 0) {
       stickyBar.classList.add('active');
       if (stickyTotal) stickyTotal.textContent = '¥' + numFmt(total);
@@ -2460,6 +2464,10 @@ function recalcDetauriShipping_() {
       G.detauriShipping = multi.amount;
       G.detauriShippingPref = pref;
       G.detauriShippingSizeLabel = multi.sizeLabel;
+      // 1万円以上で送料無料（overLimitでもreturn前にチェック）
+      var _oaSub = 0;
+      Object.keys(G.cart).forEach(function(k) { var _op = G.products.find(function(x){return x.productId===k;}); if (_op) _oaSub += Number(_op.price||0)*G.cart[k]; });
+      if (_oaSub + (G.detauriCartTotal || 0) >= 10000) G.detauriShipping = 0;
       return;
     }
 
@@ -4964,7 +4972,7 @@ body.admin-mode .article-panel{bottom:186px;}
 <!-- モバイル固定決済バー -->
 <div id="bulkStickyPay">
   <div id="bulkStickyPayInfo"><small id="bulkStickyPayLabel">アソート</small><strong id="bulkStickyPayTotal">¥0</strong><div id="bulkStickyShipHint" style="font-size:9px;color:#93c5fd;margin-top:2px;white-space:nowrap;"></div></div>
-  <button id="bulkStickyPayBtn" onclick="submitOrder()" disabled>注文内容確認</button>
+  <button id="bulkStickyPayBtn" onclick="submitOrder()" disabled>お支払いへ →</button>
 </div>
 <!-- 確保トースト -->
 <div id="bulkCartAddToast"><span>カートに追加しました</span><button class="toast-cta" type="button" onclick="hideBulkCartAddToast_();document.getElementById('cartSection').scrollIntoView({behavior:'smooth'});">カートを見る →</button></div>

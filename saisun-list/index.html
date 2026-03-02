@@ -1970,12 +1970,14 @@ function calculateShipping_() {
     return { amount: 0, label: '送料無料（クーポン適用）', canAutoPayment: true };
   }
 
-  // 商品合計1万円以上で送料無料（送料除く商品価格のみで判定）
+  // 商品合計1万円以上で送料無料（アソート+デタウリ合算で判定）
   var _freeShipSum = 0;
   for (var fi = 0; fi < ids.length; fi++) {
     var fit = state.cart.itemsById[ids[fi]];
     if (fit) _freeShipSum += Number(fit.price || 0);
   }
+  var _bulkForShip = loadBulkCartStorage();
+  _freeShipSum += Number((_bulkForShip && _bulkForShip.subtotal) || 0);
   if (_freeShipSum >= 10000) {
     return { amount: 0, label: '送料無料（商品合計1万円以上）', canAutoPayment: true };
   }
