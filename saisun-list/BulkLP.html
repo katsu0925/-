@@ -2170,8 +2170,11 @@ function updateCart() {
     var _prevDetProd = _eDetauriProd;
     discounted = Math.round(discounted * (1 - md.rate));
     _eDetauriProd = Math.round(_eDetauriProd * (1 - md.rate));
-    var memberDisc = (_prevDisc - discounted) + (_prevDetProd - _eDetauriProd);
-    discountRows += '<div class="cart-row"><span>会員割引 (' + Math.round(md.rate * 100) + '%OFF)</span><span>-¥' + numFmt(memberDisc) + '</span></div>';
+    var _mdAssort = _prevDisc - discounted;
+    var _mdDetauri = _prevDetProd - _eDetauriProd;
+    var _mdPct = Math.round(md.rate * 100) + '%OFF';
+    if (_mdAssort > 0) discountRows += '<div class="cart-row"><span>会員割引 (' + _mdPct + ')</span><span>-¥' + numFmt(_mdAssort) + '</span></div>';
+    if (_mdDetauri > 0) discountRows += '<div class="cart-row" style="color:#5B86C5;"><span>会員割引 デタウリ (' + _mdPct + ')</span><span>-¥' + numFmt(_mdDetauri) + '</span></div>';
   }
 
   discounted = Math.max(0, discounted);
