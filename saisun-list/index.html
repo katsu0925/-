@@ -2924,10 +2924,17 @@ function validateSession_() {
         if (res.data.isOwner) {
           try { localStorage.setItem('_nk_owner_flag', '1'); } catch(e) {}
         }
+        // apiValidateSessionから初回半額を即時適用（loadMyPage_を待たない）
+        if (res.data.firstHalfPrice) {
+          state.firstHalfPrice = res.data.firstHalfPrice;
+          var _fhpBadge = $('firstHalfPriceBadge');
+          if (_fhpBadge) _fhpBadge.style.display = res.data.firstHalfPrice.eligible ? '' : 'none';
+        }
         fetchCsrfToken_();
         updateAuthUi_();
         updateCartPrice();
-        // 初回半額・ランク等を取得（マイページ開かなくてもカートに反映）
+        renderSummary_();  // 詳細カート表示を即時更新（FHP割引行を反映）
+        // バックグラウンドでmyPage読み込み（ランク・注文履歴等）
         loadMyPage_();
       } else {
         clearSession_();
@@ -6101,7 +6108,8 @@ function submitNow_() {
   var _chkIds = state.cart.ids || [], _chkItems = [], _chkVal = 0;
   for (var _i = 0; _i < _chkIds.length; _i++) { var _it = state.cart.itemsById[_chkIds[_i]]; if (_it) { _chkItems.push(buildGaItem_(_it, _i)); _chkVal += Number(_it.price || 0); } }
   trackEcommerce_('begin_checkout', _chkItems, _chkVal, { item_count: _chkIds.length });
-  if ((state.cart.ids || []).length === 0) { showToast('カートが空です'); submitting_ = false; return; }
+  var _bulkChk = loadBulkCartStorage();
+  if ((state.cart.ids || []).length === 0 && (!_bulkChk || _bulkChk.totalQty === 0)) { showToast('カートが空です'); submitting_ = false; return; }
   var ids = (state.cart.ids || []).slice();
 
   // === 管理者モード: バリデーション不要で受付番号に紐付け ===
