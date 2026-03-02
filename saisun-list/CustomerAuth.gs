@@ -196,7 +196,7 @@ function findCustomerByEmail_(email) {
         sessionId: data[i][10],
         sessionExpiry: data[i][11],
         points: Number(data[i][12]) || 0,
-        purchaseCount: Number(data[i][15]) || 0
+        purchaseCount: Number(data[i][14]) || 0
       };
     }
   }
