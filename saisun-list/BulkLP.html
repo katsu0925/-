@@ -3302,7 +3302,7 @@ function doRegister_() {
     })
     .catch(function(e) {
       btn.disabled = false; btn.textContent = '登録する';
-      showAuthError_('登録に失敗しました');
+      showAuthError_(e.message || '登録に失敗しました');
     });
 }
 

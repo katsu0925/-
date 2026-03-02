@@ -2594,7 +2594,7 @@ function doRegister_() {
     })
     .catch(function(e) {
       setSending_(false);
-      showToast('登録に失敗しました');
+      showToast(e.message || '登録に失敗しました');
     });
 }
 
