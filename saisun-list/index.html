@@ -2155,6 +2155,7 @@ function renderSummary_() {
   // 割引計算（両チャネル合算でクーポン適用）
   var discountLabels = [];
   var discounted;
+  var _detMemberDiscAmt = 0;
   if (state.appliedCoupon && state.appliedCoupon.code) {
     if (state.appliedCoupon.type === 'shipping_free') {
       discounted = sum;
@@ -2174,14 +2175,21 @@ function renderSummary_() {
     var comboRate = 0;
     var _bulkRateC = bulkDiscountRate_(count);
     if (state.appliedCoupon.comboBulk && _bulkRateC > 0) { comboRate += _bulkRateC; discountLabels.push(bulkDiscountLabel_(count)); }
-    if (state.appliedCoupon.comboMember && state.customer && MEMBER_DISCOUNT_ENABLED) { comboRate += MEMBER_DISCOUNT_RATE; discountLabels.push('会員10%OFF'); }
     discounted = Math.round(discounted * (1 - comboRate));
+    if (state.appliedCoupon.comboMember && state.customer && MEMBER_DISCOUNT_ENABLED) {
+      var _prevDetC = discounted;
+      discounted = Math.round(discounted * (1 - MEMBER_DISCOUNT_RATE));
+      _detMemberDiscAmt = _prevDetC - discounted;
+    }
   } else {
-    var discountRate = 0;
     var _bulkRate = bulkDiscountRate_(count);
-    if (_bulkRate > 0) { discountRate += _bulkRate; discountLabels.push(bulkDiscountLabel_(count)); }
-    if (state.customer && MEMBER_DISCOUNT_ENABLED) { discountRate += MEMBER_DISCOUNT_RATE; discountLabels.push('会員10%OFF'); }
-    discounted = Math.round(sum * (1 - discountRate));
+    if (_bulkRate > 0) { discountLabels.push(bulkDiscountLabel_(count)); }
+    discounted = _bulkRate > 0 ? Math.round(sum * (1 - _bulkRate)) : sum;
+    if (state.customer && MEMBER_DISCOUNT_ENABLED) {
+      var _prevDetN = discounted;
+      discounted = Math.round(discounted * (1 - MEMBER_DISCOUNT_RATE));
+      _detMemberDiscAmt = _prevDetN - discounted;
+    }
   }
 
   // 会員割引をアソート商品にも適用（チャネル設定のない割引は両チャネルに適用）
@@ -2259,10 +2267,15 @@ function renderSummary_() {
     // デタウリ 商品代
     rows += '<div class="cart-row"><span>デタウリ 商品代（' + count + '点）</span><span>¥' + numFmt_(sum) + '</span></div>';
 
-    // 割引行
-    if (discounted < sum) {
-      var totalDisc = sum - discounted;
-      rows += '<div class="cart-row"><span>' + discountLabels.join('＋') + '</span><span>-¥' + numFmt_(totalDisc) + '</span></div>';
+    // 割引行（数量割引・クーポン）
+    var _nonMemberDisc = sum - discounted - _detMemberDiscAmt;
+    if (_nonMemberDisc > 0 && discountLabels.length > 0) {
+      rows += '<div class="cart-row"><span>' + discountLabels.join('＋') + '</span><span>-¥' + numFmt_(_nonMemberDisc) + '</span></div>';
+    }
+    // 会員割引（デタウリ）
+    if (_detMemberDiscAmt > 0) {
+      var _mdPctDet = Math.round(MEMBER_DISCOUNT_RATE * 100) + '%OFF';
+      rows += '<div class="cart-row"><span>会員割引 (' + _mdPctDet + ')</span><span>-¥' + numFmt_(_detMemberDiscAmt) + '</span></div>';
     }
 
     // デタウリ 送料
@@ -2337,7 +2350,7 @@ function renderSummary_() {
     if (_bulkMemberDiscAmt > 0) {
       var _mdPctRS = Math.round(MEMBER_DISCOUNT_RATE * 100) + '%OFF';
       rows += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;">'
-        + '<span>会員割引 アソート (' + _mdPctRS + ')</span>'
+        + '<span>会員割引 (' + _mdPctRS + ')</span>'
         + '<span>-¥' + numFmt_(_bulkMemberDiscAmt) + '</span></div>';
     }
     // アドレス取得（デタウリDOM → 共有localStorage の順でフォールバック）
