@@ -111,7 +111,9 @@ function verifyPassword_(password, storedHash) {
     var parts = rest.split(':');
     var salt = parts[0];
     var hash = parts.slice(1).join(':');
-    return timingSafeEqual_(hashPasswordV2_(password, salt), hash);
+    // 現行反復回数で検証、不一致なら旧10000回でも試行
+    return timingSafeEqual_(hashPasswordV2_(password, salt), hash)
+        || timingSafeEqual_(hashWithIterations_(password, salt, 10000), hash);
   }
   // tmp形式（仮パスワード用軽量ハッシュ）
   if (storedHash.indexOf('tmp:') === 0) {
@@ -140,7 +142,19 @@ function verifyAndMigratePassword_(password, storedHash, customerRow) {
     var parts = rest.split(':');
     var salt = parts[0];
     var hash = parts.slice(1).join(':');
-    return timingSafeEqual_(hashPasswordV2_(password, salt), hash);
+    // 現行反復回数(1000)で検証
+    if (timingSafeEqual_(hashPasswordV2_(password, salt), hash)) {
+      return true;
+    }
+    // 旧反復回数(10000)で検証 → 一致したら現行回数で再ハッシュして移行
+    if (timingSafeEqual_(hashWithIterations_(password, salt, 10000), hash)) {
+      if (customerRow) {
+        var newHash = createPasswordHash_(password);
+        getCustomerSheet_().getRange(customerRow, 3).setValue(newHash);
+      }
+      return true;
+    }
+    return false;
   }
   // v1 / legacy - 検証後にv2へ自動移行
   var parts = storedHash.split(':');
@@ -506,6 +520,17 @@ function apiValidateSession(userKey, params) {
       if (ownerEmail && custEmail && custEmail === ownerEmail) isOwner = true;
     } catch(e) {}
 
+    // 初回全品半額キャンペーン判定（loadMyPage_を待たずに即時反映）
+    var fhpData = null;
+    try {
+      var fhp = app_getFirstHalfPriceStatus_();
+      var pc = customer.purchaseCount;
+      if (pc === undefined || pc === null) {
+        try { pc = Number(getCustomerSheet_().getRange(customer.row, CUSTOMER_SHEET_COLS.PURCHASE_COUNT + 1).getValue()) || 0; } catch(e) { pc = 0; }
+      }
+      fhpData = { eligible: fhp.enabled && (pc || 0) === 0, rate: fhp.rate };
+    } catch(e) {}
+
     var responseData = {
       customer: {
         id: customer.id, email: customer.email, companyName: customer.companyName,
@@ -514,6 +539,7 @@ function apiValidateSession(userKey, params) {
       }
     };
     if (isOwner) responseData.isOwner = true;
+    if (fhpData) responseData.firstHalfPrice = fhpData;
 
     return { ok: true, data: responseData };
   } catch (e) {
