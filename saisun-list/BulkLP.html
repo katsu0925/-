@@ -2341,7 +2341,7 @@ function updatePayButton(total) {
 
   if (total > 0) {
     btn.disabled = false;
-    btn.textContent = 'お支払いへ進む — ¥' + numFmt(total);
+    btn.textContent = 'お支払いへ進む';
     if (stickyTotal) stickyTotal.textContent = '¥' + numFmt(total);
     if (stickyLabel) {
       if (assortCount > 0 && detauriCount > 0) stickyLabel.textContent = 'アソート' + assortCount + '種 + デタウリ' + detauriCount + '点';
@@ -2679,6 +2679,7 @@ function submitOrder() {
   items.forEach(function(it) { var _p = G.products.find(function(x){return x.productId===it.productId;}); if (_p) _submitProdTotal += Number(_p.price||0)*it.qty; });
   _submitProdTotal += detauriProductAmount;
   if (_submitProdTotal >= 10000) {
+    shipping = 0;
     detauriShippingAmount = 0;
   }
 
@@ -3012,6 +3013,15 @@ function loadSharedSession() {
       G.customer = saved.customer;
       autoFillCustomerForm();
       updateAuthUi_();
+      // myPageCacheからfirstHalfPriceを即時復元
+      try {
+        var _mpC = JSON.parse(localStorage.getItem(_MP_CACHE_KEY) || 'null');
+        console.log('[FHP] cache restore: key=' + _MP_CACHE_KEY + ' cache=' + (_mpC ? 'found' : 'null') + ' sidMatch=' + (_mpC && _mpC.sid === saved.sessionId) + ' hasFHP=' + (_mpC && _mpC.d && !!_mpC.d.firstHalfPrice));
+        if (_mpC && _mpC.sid === saved.sessionId && _mpC.d && _mpC.d.firstHalfPrice) {
+          G.firstHalfPrice = _mpC.d.firstHalfPrice;
+          console.log('[FHP] restored from cache: eligible=' + G.firstHalfPrice.eligible);
+        }
+      } catch(e) { console.warn('[FHP] cache restore error:', e); }
       updateCart();
     }
 
@@ -3021,9 +3031,17 @@ function loadSharedSession() {
         if (r && r.ok && r.data && r.data.customer) {
           G.sessionId = saved.sessionId;
           G.customer = r.data.customer;
+          // apiValidateSessionから初回半額を即時適用（loadMyPage_を待たない）
+          if (r.data.firstHalfPrice) {
+            G.firstHalfPrice = r.data.firstHalfPrice;
+            var _fhpBadge = document.getElementById('firstHalfPriceBadge');
+            if (_fhpBadge) _fhpBadge.style.display = r.data.firstHalfPrice.eligible ? '' : 'none';
+          }
           autoFillCustomerForm();
           updateAuthUi_();
           updateCart();
+          // バックグラウンドでmyPage読み込み（ランク・注文履歴等）
+          loadMyPage_();
         } else {
           // セッション無効 → ログアウト
           G.sessionId = null;
@@ -3443,6 +3461,7 @@ function doLogin_() {
         trackEvent_('login', { method: 'email', page_type: 'assort' });
         autoFillCustomerForm();
         updateCart();
+        loadMyPage_(); // firstHalfPrice取得
       } else {
         showAuthError_(res.message || 'ログインに失敗しました');
       }
@@ -3502,6 +3521,7 @@ function doRegister_() {
         applyBulkReferralAfterRegister_();
         autoFillCustomerForm();
         updateCart();
+        loadMyPage_(); // firstHalfPrice取得
       } else {
         // ロールバック
         G.sessionId = null;
@@ -3583,7 +3603,17 @@ var _MP_CACHE_KEY = 'myPageCache';
 var _MP_CACHE_TTL = 0; // 常にAPIから最新を取得
 
 function _applyMpData_(d) {
+  // 初回全品半額を最優先でセット（DOM操作エラーで到達不能にしない）
+  console.log('[FHP] API response firstHalfPrice:', JSON.stringify(d.firstHalfPrice));
+  G.firstHalfPrice = d.firstHalfPrice || null;
+  var fhpBadge = document.getElementById('firstHalfPriceBadge');
+  if (fhpBadge) {
+    fhpBadge.style.display = (d.firstHalfPrice && d.firstHalfPrice.eligible) ? '' : 'none';
+  }
+  updateCart();
+
   var ge = function(id) { return document.getElementById(id); };
+  try {
   ge('mpEmail').value = d.profile.email || '';
   ge('mpCompanyName').value = d.profile.companyName || '';
   ge('mpPhone').value = d.profile.phone || '';
@@ -3639,19 +3669,12 @@ function _applyMpData_(d) {
     var exEl = document.getElementById('mpPointExpiry');
     if (exEl) { exEl.textContent = 'ポイント有効期限: ' + d.pointsExpiryDate; exEl.style.display = ''; }
   }
-  // 初回全品半額バッジ + グローバル保存
-  console.log('[FHP] API response firstHalfPrice:', JSON.stringify(d.firstHalfPrice));
-  G.firstHalfPrice = d.firstHalfPrice || null;
-  var fhpBadge = document.getElementById('firstHalfPriceBadge');
-  if (fhpBadge) {
-    fhpBadge.style.display = (d.firstHalfPrice && d.firstHalfPrice.eligible) ? '' : 'none';
-  }
-  updateCart(); // 初回半額がカート表示に反映されるよう再計算
+  } catch(e) { console.warn('_applyMpData_ DOM error:', e); }
+  // （初回全品半額は関数冒頭で先行セット済み）
   // SNSシェアキャンペーン
-  loadSnsShareStatus_();
-  // Phase 3-6: 紹介コード
-  loadBulkReferralCode_();
-  renderOrderHistory_(d.orders || []);
+  try { loadSnsShareStatus_(); } catch(e) {}
+  try { loadBulkReferralCode_(); } catch(e) {}
+  try { renderOrderHistory_(d.orders || []); } catch(e) {}
 }
 
 function loadMyPage_() {
@@ -5004,7 +5027,7 @@ body.admin-mode .article-panel{bottom:186px;}
 <!-- モバイル固定決済バー -->
 <div id="bulkStickyPay">
   <div id="bulkStickyPayInfo"><small id="bulkStickyPayLabel">アソート</small><strong id="bulkStickyPayTotal">¥0</strong><div id="bulkStickyShipHint" style="font-size:9px;color:#93c5fd;margin-top:2px;white-space:nowrap;"></div></div>
-  <button id="bulkStickyPayBtn" onclick="document.getElementById('cartSection').scrollIntoView({behavior:'smooth'});">カートを確認する</button>
+  <button id="bulkStickyPayBtn" onclick="document.getElementById('cartSection').scrollIntoView({behavior:'smooth'});">注文内容確認</button>
 </div>
 <!-- 確保トースト -->
 <div id="bulkCartAddToast"><span>カートに追加しました</span><button class="toast-cta" type="button" onclick="hideBulkCartAddToast_();document.getElementById('cartSection').scrollIntoView({behavior:'smooth'});">カートを見る →</button></div>

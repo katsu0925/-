@@ -169,11 +169,9 @@ function apiSubmitEstimate(userKey, form, ids) {
     // ※割引は商品代のみに適用。送料は割引対象外（税込み固定）。
     var discounted;
     if (firstHalfPriceApplied) {
-      // 初回半額: 商品代金のみ50%OFF（送料は対象外）
-      var productTotal = sum + bulkProductAmount;
-      var halfOff = Math.round(productTotal * fhpStatus.rate);
-      var _fhpOnDetauri = Math.min(halfOff, sum);
-      var _fhpOnBulk = halfOff - _fhpOnDetauri;
+      // 初回半額: 各チャネル個別に50%OFF（送料は対象外）
+      var _fhpOnDetauri = Math.round(sum * fhpStatus.rate);
+      var _fhpOnBulk = Math.round(bulkProductAmount * fhpStatus.rate);
       discounted = sum - _fhpOnDetauri;
       bulkProductAmount = Math.max(0, bulkProductAmount - _fhpOnBulk);
       couponLabel = '初回全品半額キャンペーン（' + Math.round(fhpStatus.rate * 100) + '%OFF）';
@@ -937,7 +935,7 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
 
     // === ロックを取得して二重登録を防止 ===
     var lock = LockService.getScriptLock();
-    if (!lock.tryLock(30000)) {
+    if (!lock.tryLock(120000)) {
       console.warn('confirmPaymentAndCreateOrder: ロック取得失敗: ' + receiptNo);
       return { ok: false, message: '処理中です。しばらくお待ちください。' };
     }
