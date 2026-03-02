@@ -209,6 +209,18 @@ function findCustomerByEmail_(email) {
 function findCustomerBySession_(sessionId) {
   if (!sessionId) return null;
 
+  // CacheService で高速検索（シート読み込みを回避）
+  var cacheKey = 'SESSION:' + sessionId;
+  var cache = CacheService.getScriptCache();
+  try {
+    var cached = cache.get(cacheKey);
+    if (cached) {
+      var c = JSON.parse(cached);
+      if (c && c.expiry && new Date(c.expiry) > new Date()) return c;
+      cache.remove(cacheKey);
+    }
+  } catch (e) {}
+
   const sheet = getCustomerSheet_();
   const data = sheet.getDataRange().getValues();
   const now = new Date();
@@ -217,7 +229,7 @@ function findCustomerBySession_(sessionId) {
     if (data[i][10] === sessionId) {
       const expiry = data[i][11];
       if (expiry && new Date(expiry) > now) {
-        return {
+        var result = {
           row: i + 1,
           id: data[i][0],
           email: data[i][1],
@@ -228,8 +240,12 @@ function findCustomerBySession_(sessionId) {
           address: data[i][6],
           newsletter: data[i][7],
           registeredAt: data[i][8],
-          points: Number(data[i][12]) || 0
+          points: Number(data[i][12]) || 0,
+          expiry: String(expiry)
         };
+        // キャッシュに保存（最大6時間）
+        try { cache.put(cacheKey, JSON.stringify(result), 21600); } catch (e) {}
+        return result;
       }
     }
   }
@@ -371,8 +387,29 @@ function apiLoginCustomer(userKey, params) {
       if (ownerEmail && email === ownerEmail) isOwner = true;
     } catch(e) {}
 
+    // セッションをキャッシュ（以降のAPI呼び出しを高速化）
+    try {
+      var sessionCache = CacheService.getScriptCache();
+      sessionCache.put('SESSION:' + sessionId, JSON.stringify({
+        row: customer.row, id: customer.id, email: customer.email,
+        passwordHash: customer.passwordHash, companyName: customer.companyName,
+        phone: customer.phone, postal: customer.postal, address: customer.address,
+        newsletter: customer.newsletter, registeredAt: customer.registeredAt,
+        points: customer.points, expiry: String(sessionExpiry)
+      }), 21600);
+    } catch (e) {}
+
+    // CSRFトークンを同時生成（フロント側で別APIコール不要に）
+    var csrfToken = '';
+    try {
+      csrfToken = generateRandomId_(AUTH_CONSTANTS.CSRF_TOKEN_LENGTH);
+      var csrfCache = CacheService.getScriptCache();
+      csrfCache.put('CSRF:' + userKey, csrfToken, AUTH_CONSTANTS.CSRF_TOKEN_EXPIRY_SEC);
+    } catch (e) {}
+
     var responseData = {
       sessionId: sessionId,
+      csrfToken: csrfToken,
       customer: {
         id: customer.id, email: customer.email, companyName: customer.companyName,
         phone: customer.phone, postal: customer.postal, address: customer.address,
@@ -1472,6 +1509,9 @@ function apiLogoutCustomer(userKey, params) {
   try {
     const sessionId = String(params.sessionId || '');
     if (!sessionId) return { ok: true };
+
+    // セッションキャッシュをクリア
+    try { CacheService.getScriptCache().remove('SESSION:' + sessionId); } catch (e) {}
 
     const sheet = getCustomerSheet_();
     const data = sheet.getDataRange().getValues();
