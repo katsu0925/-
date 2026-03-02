@@ -258,6 +258,7 @@ function findCustomerBySession_(sessionId) {
           newsletter: data[i][7],
           registeredAt: data[i][8],
           points: Number(data[i][12]) || 0,
+          purchaseCount: Number(data[i][14]) || 0,
           expiry: String(expiry)
         };
         // キャッシュに保存（最大6時間）
@@ -863,7 +864,7 @@ function apiGetMyPage(userKey, params) {
         },
         firstHalfPrice: (function() {
           var fhp = app_getFirstHalfPriceStatus_();
-          return { eligible: fhp.enabled && totalOrders === 0, rate: fhp.rate };
+          return { eligible: fhp.enabled && (customer.purchaseCount || 0) === 0, rate: fhp.rate };
         })(),
         rank: {
           name: rankInfo.name,
