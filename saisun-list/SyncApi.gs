@@ -123,117 +123,16 @@ function verifySyncSecret_(secret) {
 // =====================================================
 
 function exportProducts_() {
-  var ssId = String(APP_CONFIG.data.spreadsheetId || '').trim();
-  if (!ssId) return [];
-
-  var ss = SpreadsheetApp.openById(ssId);
-  var sh = ss.getSheetByName(APP_CONFIG.data.sheetName);
-  if (!sh) return [];
-
-  var lastRow = sh.getLastRow();
-  var headerRow = APP_CONFIG.data.headerRow || 2;
-  if (lastRow <= headerRow) return [];
-
-  // 全列読み込み（採寸データまで含む）
-  var readCols = Math.max(APP_CONFIG.data.readCols || 25, 32);
-  var data = sh.getRange(headerRow + 1, 1, lastRow - headerRow, readCols).getValues();
-
-  var products = [];
-  for (var i = 0; i < data.length; i++) {
-    var row = data[i];
-    var managedId = u_normalizeId_(String(row[10] || '').trim());
-    if (!managedId) continue;
-
-    var qty = Number(row[9]) || 0;
-    if (qty <= 0) continue;
-
-    products.push({
-      managedId: managedId,
-      noLabel: String(row[0] || ''),
-      imageUrl: String(row[1] || ''),
-      state: String(row[2] || ''),
-      brand: String(row[3] || ''),
-      size: String(row[4] || ''),
-      gender: String(row[5] || ''),
-      category: String(row[6] || ''),
-      color: String(row[7] || ''),
-      price: Number(row[8]) || 0,
-      qty: qty,
-      defectDetail: String(row[16] || ''),
-      shippingMethod: String(row[24] || ''),
-      // 採寸データ（Config.gs の detail.columns と対応）
-      measureLength: row[11] ? Number(row[11]) : null,
-      measureShoulder: row[12] ? Number(row[12]) : null,
-      measureBust: row[13] ? Number(row[13]) : null,
-      measureSleeve: row[14] ? Number(row[14]) : null,
-      measureYuki: row[15] ? Number(row[15]) : null,
-      measureTotalLength: null, // 仕入れ管理Ver.2から取得
-      measureWaist: null,
-      measureRise: null,
-      measureInseam: null,
-      measureThigh: null,
-      measureHemWidth: null,
-      measureHip: null
-    });
-  }
-
-  // 仕入れ管理Ver.2から追加の採寸データを取得
+  // pr_readProducts_() を直接使う（GASの既存ロジックと完全一致）
   try {
-    var detailSsId = String((APP_CONFIG.detail && APP_CONFIG.detail.spreadsheetId) || '').trim();
-    if (detailSsId) {
-      var detailSs = SpreadsheetApp.openById(detailSsId);
-      var detailSh = detailSs.getSheetByName(APP_CONFIG.detail.sheetName || '商品管理');
-      if (detailSh) {
-        var detailData = detailSh.getDataRange().getValues();
-        var dc = APP_CONFIG.detail.columns;
-        var detailMap = {};
-        for (var d = 1; d < detailData.length; d++) {
-          var dr = detailData[d];
-          var mid = u_normalizeId_(String(dr[dc.managedId - 1] || '').trim());
-          if (!mid) continue;
-          detailMap[mid] = {
-            defectDetail: String(dr[dc.defectDetail - 1] || ''),
-            measureLength: dr[dc.length - 1] ? Number(dr[dc.length - 1]) : null,
-            measureShoulder: dr[dc.shoulder - 1] ? Number(dr[dc.shoulder - 1]) : null,
-            measureBust: dr[dc.bust - 1] ? Number(dr[dc.bust - 1]) : null,
-            measureSleeve: dr[dc.sleeve - 1] ? Number(dr[dc.sleeve - 1]) : null,
-            measureYuki: dr[dc.yuki - 1] ? Number(dr[dc.yuki - 1]) : null,
-            measureTotalLength: dr[dc.totalLength - 1] ? Number(dr[dc.totalLength - 1]) : null,
-            measureWaist: dr[dc.waist - 1] ? Number(dr[dc.waist - 1]) : null,
-            measureRise: dr[dc.rise - 1] ? Number(dr[dc.rise - 1]) : null,
-            measureInseam: dr[dc.inseam - 1] ? Number(dr[dc.inseam - 1]) : null,
-            measureThigh: dr[dc.thigh - 1] ? Number(dr[dc.thigh - 1]) : null,
-            measureHemWidth: dr[dc.hemWidth - 1] ? Number(dr[dc.hemWidth - 1]) : null,
-            measureHip: dr[dc.hip - 1] ? Number(dr[dc.hip - 1]) : null
-          };
-        }
-
-        // 商品データに採寸詳細をマージ
-        for (var p = 0; p < products.length; p++) {
-          var detail = detailMap[products[p].managedId];
-          if (detail) {
-            if (detail.defectDetail) products[p].defectDetail = detail.defectDetail;
-            if (detail.measureLength != null) products[p].measureLength = detail.measureLength;
-            if (detail.measureShoulder != null) products[p].measureShoulder = detail.measureShoulder;
-            if (detail.measureBust != null) products[p].measureBust = detail.measureBust;
-            if (detail.measureSleeve != null) products[p].measureSleeve = detail.measureSleeve;
-            if (detail.measureYuki != null) products[p].measureYuki = detail.measureYuki;
-            if (detail.measureTotalLength != null) products[p].measureTotalLength = detail.measureTotalLength;
-            if (detail.measureWaist != null) products[p].measureWaist = detail.measureWaist;
-            if (detail.measureRise != null) products[p].measureRise = detail.measureRise;
-            if (detail.measureInseam != null) products[p].measureInseam = detail.measureInseam;
-            if (detail.measureThigh != null) products[p].measureThigh = detail.measureThigh;
-            if (detail.measureHemWidth != null) products[p].measureHemWidth = detail.measureHemWidth;
-            if (detail.measureHip != null) products[p].measureHip = detail.measureHip;
-          }
-        }
-      }
-    }
-  } catch (detailErr) {
-    console.log('exportProducts_: detail merge error:', detailErr);
+    var products = pr_readProducts_();
+    if (!products || !products.length) return [];
+    // D1向けにそのまま返す（managedId, noLabel, imageUrl, state, brand, size, gender, category, color, price, qty, defectDetail, shippingMethod）
+    return products;
+  } catch (e) {
+    console.error('exportProducts_ error:', e);
+    return [];
   }
-
-  return products;
 }
 
 function exportBulkProducts_() {

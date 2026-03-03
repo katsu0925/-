@@ -104,6 +104,16 @@ function listAllProperties() {
   });
 }
 
+/**
+ * SYNC_SECRET を Script Properties に設定（D1同期用）
+ * GASエディタから1回実行してください
+ */
+function setupSyncSecret() {
+  var secret = '456995e18a339839a099f3fbbee42741902ab8f8bfd7f6a1ade750bbd2554278';
+  PropertiesService.getScriptProperties().setProperty('SYNC_SECRET', secret);
+  console.log('SYNC_SECRET を設定しました');
+}
+
 // =====================================================
 // クリーンアップ関数
 // =====================================================

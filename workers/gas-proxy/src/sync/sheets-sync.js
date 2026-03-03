@@ -223,7 +223,7 @@ async function syncBulkProducts(db, rows) {
       p.minQty || 1, p.maxQty || 99, p.sortOrder || 999,
       p.stock ?? -1, p.soldOut ? 1 : 0,
       p.discountRate || 0, p.discountedPrice || 0,
-      p.active ? 1 : 0, new Date().toISOString()
+      p.soldOut ? 0 : 1, new Date().toISOString()
     )
   );
 

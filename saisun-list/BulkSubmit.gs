@@ -145,11 +145,9 @@ function apiBulkSubmit(form, items) {
 
     var discounted;
     if (firstHalfPriceApplied) {
-      // 初回半額: 商品代金のみ50%OFF（送料は対象外）
-      var productTotal = sum + detauriProductAmount;
-      var halfOff = Math.round(productTotal * fhpStatus.rate);
-      var _fhpOnAssort = Math.min(halfOff, sum);
-      var _fhpOnDetauri = halfOff - _fhpOnAssort;
+      // 初回半額: 各チャネル個別に50%OFF（送料は対象外）
+      var _fhpOnAssort = Math.round(sum * fhpStatus.rate);
+      var _fhpOnDetauri = Math.round(detauriProductAmount * fhpStatus.rate);
       discounted = sum - _fhpOnAssort;
       detauriProductAmount = Math.max(0, detauriProductAmount - _fhpOnDetauri);
       couponLabel = '初回全品半額キャンペーン（' + Math.round(fhpStatus.rate * 100) + '%OFF）';

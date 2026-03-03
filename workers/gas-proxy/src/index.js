@@ -77,6 +77,11 @@ export default {
       return corsOptions();
     }
 
+    // キャッシュ手動パージ（ヘルスチェックより先に判定）
+    if (url.searchParams.get('purge') === '1') {
+      return await purgeAllCaches(env);
+    }
+
     // ヘルスチェック
     if (request.method === 'GET' && url.pathname === '/') {
       return jsonOk({
@@ -84,11 +89,6 @@ export default {
         workerHandled: Object.keys(WORKER_HANDLED),
         version: '2.0.0',
       });
-    }
-
-    // キャッシュ手動パージ
-    if (url.searchParams.get('purge') === '1') {
-      return await purgeAllCaches(env);
     }
 
     // POST以外は拒否

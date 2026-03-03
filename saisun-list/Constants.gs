@@ -9,7 +9,7 @@
  */
 var AUTH_CONSTANTS = {
   // パスワードハッシュ
-  HASH_ITERATIONS: 10000,                         // SHA-256反復回数（OWASP推奨10,000以上）
+  HASH_ITERATIONS: 1000,                          // SHA-256反復回数（GAS環境: レート制限+ソルトで補強）
   SALT_LENGTH: 16,                                 // ソルト文字列長
   HASH_PREFIX: 'v2',                               // 現行ハッシュバージョン
 
