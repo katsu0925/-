@@ -25,6 +25,12 @@ export async function syncHolds(args, env) {
     return jsonError('userKey is required');
   }
   if (!Array.isArray(ids) || ids.length === 0) {
+    // カートが空 → 自分の確保を全解放（pending_payment以外）
+    if (userKey) {
+      await env.DB.prepare(
+        'DELETE FROM holds WHERE user_key = ? AND pending_payment = 0'
+      ).bind(userKey).run();
+    }
     return jsonOk({ digest: {}, failed: [], holdMinutes: HOLD_MINUTES_DEFAULT });
   }
 
