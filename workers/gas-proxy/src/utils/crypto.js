@@ -10,12 +10,10 @@
  */
 
 /**
- * SHA-256 ハッシュを1回計算し、hexを返す
+ * SHA-256 ハッシュ（バイト配列入力 → ArrayBuffer出力）
  */
-async function sha256hex(input) {
-  const encoded = new TextEncoder().encode(input);
-  const hashBuf = await crypto.subtle.digest('SHA-256', encoded);
-  return bufToHex(hashBuf);
+async function sha256bytes(input) {
+  return crypto.subtle.digest('SHA-256', input);
 }
 
 /**
@@ -28,29 +26,48 @@ function bufToHex(buf) {
 }
 
 /**
- * v2 パスワードハッシュ生成（GAS互換: SHA-256 × 1000回）
+ * GAS互換: Utilities.computeDigest(algo, string) のエンコーディング
+ * GASのデフォルトはUS_ASCII: 非ASCII文字は 0x3F ('?') に置換される
+ */
+function gasStringToBytes(str) {
+  const bytes = new Uint8Array(str.length);
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i);
+    bytes[i] = code > 127 ? 0x3F : code;
+  }
+  return bytes;
+}
+
+/**
+ * v2 パスワードハッシュ生成（GAS hashPasswordV2_ 完全互換）
  *
- * GASのhashPasswordV2_は以下の動作:
- *   hash = password + salt
- *   1000回: hash = Utilities.computeDigest(SHA_256, hash)  // バイト配列 → hex 変換せずバイト列を直接渡す
- * 最終結果をhex文字列化
- *
- * しかしGASのUtilities.computeDigest(SHA_256, string)はstringをUTF-8でエンコードする。
- * 中間ステップでバイト配列を再度computeDigestに渡す場合、
- * GASはバイト配列をtoString()でカンマ区切り文字列に変換してから処理する。
- *
- * → 正確な互換性のため、各イテレーションでhex文字列を入力として使用する方式を採用。
- * テストベクター比較で検証が必要。
+ * GASのアルゴリズム (CustomerAuth.gs:33-46):
+ *   1. input = password + ':' + salt
+ *   2. hash = SHA-256(US_ASCII(input))  → バイト配列(32bytes)
+ *      ※ GASのcomputeDigest(algo, string)はUS_ASCIIエンコード（非ASCII→0x3F '?'）
+ *   3. saltHash = SHA-256(Blob(salt).getBytes()) → バイト配列(32bytes)
+ *      ※ Blob.getBytes()はUTF-8だがsaltはASCII hexなので同一
+ *   4. 999回: hash = SHA-256(hash.concat(saltHash))  → バイト配列結合(64bytes)→SHA-256
+ *   5. 最終バイト配列をhex変換
  */
 export async function hashPasswordV2(password, salt) {
-  // GAS互換: 初回入力 = password + salt
-  let hash = password + salt;
+  // Step 1-2: 初回ハッシュ = SHA-256(US_ASCII(password + ':' + salt))
+  const input = gasStringToBytes(password + ':' + salt);
+  let hash = new Uint8Array(await sha256bytes(input));
 
-  for (let i = 0; i < 1000; i++) {
-    hash = await sha256hex(hash);
+  // Step 3: saltHash = SHA-256(salt) — saltはASCIIなのでどのエンコーディングでも同一
+  const saltHash = new Uint8Array(await sha256bytes(gasStringToBytes(salt)));
+
+  // Step 4: 999回反復 hash = SHA-256(hash + saltHash)
+  for (let i = 1; i < 1000; i++) {
+    const combined = new Uint8Array(hash.length + saltHash.length);
+    combined.set(hash, 0);
+    combined.set(saltHash, hash.length);
+    hash = new Uint8Array(await sha256bytes(combined));
   }
 
-  return hash;
+  // Step 5: hex変換
+  return bufToHex(hash.buffer);
 }
 
 /**

@@ -9,15 +9,19 @@ import { jsonOk, jsonError } from '../utils/response.js';
  * apiValidateCoupon — クーポン検証
  *
  * GAS validateCoupon_ と同じ検証ロジックを再現。
+ * フロントエンドからの呼び出し形式:
+ *   runApi('apiValidateCoupon', code, email, productAmount, channel, productIds, customerName)
+ * → args = [code, email, productAmount, channel, productIds, customerName]
  *
- * @param {Array} args - [code, email, channel, productIds?, customerName?]
+ * GAS関数シグネチャ: apiValidateCoupon(code, email, productAmount, channel, productIds, customerName)
  */
 export async function validateCoupon(args, env) {
   const code = String(args[0] || '').trim().toUpperCase();
   const email = String(args[1] || '').trim().toLowerCase();
-  const channel = String(args[2] || 'all').trim();
-  const productIds = args[3] || [];
-  const customerName = String(args[4] || '').trim();
+  // args[2] = productAmount (Workers側では不使用)
+  const channel = String(args[3] || 'all').trim();
+  const productIds = args[4] || [];
+  const customerName = String(args[5] || '').trim();
 
   if (!code) {
     return jsonOk({ ok: false, message: 'クーポンコードを入力してください。' });

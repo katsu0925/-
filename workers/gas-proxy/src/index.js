@@ -31,19 +31,19 @@ const WORKER_HANDLED = {
   apiBulkInit:          (args, env) => products.bulkInit(args, env),
   apiGetCsrfToken:      (args, env) => session.getCsrfToken(args, env),
 
-  // Phase 2: 認証（コメント解除で有効化）
-  // apiValidateSession:  (args, env) => session.validateSession(args, env),
-  // apiLoginCustomer:    (args, env) => auth.login(args, env),
-  // apiRegisterCustomer: (args, env) => auth.register(args, env),
-  // apiLogoutCustomer:   (args, env) => auth.logout(args, env),
+  // Phase 2: 認証
+  apiValidateSession:  (args, env) => session.validateSession(args, env),
+  apiLoginCustomer:    (args, env) => auth.login(args, env),
+  apiRegisterCustomer: (args, env) => auth.register(args, env),
+  apiLogoutCustomer:   (args, env) => auth.logout(args, env),
 
   // Phase 3: ステータス + 確保 + クーポン
-  // apiGetStatusDigest:  (args, env) => status.getStatusDigest(args, env),
-  // apiSyncHolds:        (args, env) => holds.syncHolds(args, env),
-  // apiValidateCoupon:   (args, env) => coupon.validateCoupon(args, env),
+  apiGetStatusDigest:  (args, env) => status.getStatusDigest(args, env),
+  apiSyncHolds:        (args, env) => holds.syncHolds(args, env),
+  apiValidateCoupon:   (args, env) => coupon.validateCoupon(args, env),
 
   // Phase 4: マイページ
-  // apiGetMyPage:        (args, env) => mypage.getMyPage(args, env),
+  apiGetMyPage:        (args, env) => mypage.getMyPage(args, env),
 
   // Phase 5: 注文送信（ハイブリッド: バリデーション→Workers, 確保→GAS）
   // apiSubmitEstimate:   (args, env, bodyText) => submit.submitEstimate(args, env, bodyText),

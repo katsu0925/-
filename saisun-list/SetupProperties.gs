@@ -114,6 +114,65 @@ function setupSyncSecret() {
   console.log('SYNC_SECRET を設定しました');
 }
 
+/**
+ * パスワードハッシュのテストベクター生成（Workers互換性検証用）
+ * GASエディタから実行し、ログ出力の値をWorkersの出力と比較する
+ */
+function testHashVector() {
+  var testCases = [
+    { password: 'test123', salt: 'abcdef1234567890' },
+    { password: 'パスワード', salt: '0123456789abcdef' },
+    { password: 'hello@world.com', salt: 'deadbeef12345678' },
+  ];
+  for (var i = 0; i < testCases.length; i++) {
+    var tc = testCases[i];
+    var hash = hashPasswordV2_(tc.password, tc.salt);
+    console.log('Test ' + (i+1) + ': password="' + tc.password + '" salt="' + tc.salt + '"');
+    console.log('  → v2:' + tc.salt + ':' + hash);
+  }
+
+  // 診断: エンコーディング特定
+  console.log('');
+  console.log('=== 診断: エンコーディング特定 ===');
+  var input = 'パスワード:0123456789abcdef';
+
+  // デフォルト
+  var h1 = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, input);
+  console.log('Default hash:  ' + bytesToHex_(h1));
+
+  // UTF-8 明示
+  var h2 = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, input, Utilities.Charset.UTF_8);
+  console.log('UTF-8 hash:    ' + bytesToHex_(h2));
+
+  // UTF-8バイト列からハッシュ
+  var utf8Bytes = Utilities.newBlob(input).getBytes();
+  var h3 = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, utf8Bytes);
+  console.log('UTF-8 bytes→hash: ' + bytesToHex_(h3));
+
+  // 単一文字「パ」のバイト表現調査
+  console.log('');
+  console.log('=== 単一文字「パ」のバイト表現 ===');
+  var singleChar = 'パ';
+
+  // デフォルトハッシュ
+  var hs = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, singleChar);
+  console.log('Default SHA-256(パ): ' + bytesToHex_(hs));
+
+  // UTF-8バイト
+  var utf8B = Utilities.newBlob(singleChar).getBytes();
+  console.log('UTF-8 bytes(パ): ' + JSON.stringify(utf8B) + ' (len=' + utf8B.length + ')');
+
+  // US-ASCII
+  var h4 = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, singleChar, Utilities.Charset.US_ASCII);
+  console.log('US_ASCII SHA-256(パ): ' + bytesToHex_(h4));
+}
+
+function bytesToHex_(bytes) {
+  return bytes.map(function(b) {
+    return ('0' + (b < 0 ? b + 256 : b).toString(16)).slice(-2);
+  }).join('');
+}
+
 // =====================================================
 // クリーンアップ関数
 // =====================================================
