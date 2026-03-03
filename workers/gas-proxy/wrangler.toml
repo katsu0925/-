@@ -1,15 +1,35 @@
 # =====================================================
 # 本番環境（デフォルト）— wholesale.nkonline-tool.com
-# ※ wrangler deploy で本番に反映。現在は既存の worker.js のまま。
+# ※ wrangler deploy で本番に反映
+# ロールバック: main = "worker.js" に戻して wrangler deploy
 # =====================================================
 name = "detauri-gas-proxy"
-main = "worker.js"
+main = "src/index.js"
 compatibility_date = "2024-01-01"
 
 # 本番カスタムドメイン（既存設定）
 # routes = [
 #   { pattern = "wholesale.nkonline-tool.com/*", zone_name = "nkonline-tool.com" }
 # ]
+
+# Cron Trigger: 5分ごとにD1 ⇔ Sheets同期
+[triggers]
+crons = ["*/5 * * * *"]
+
+# D1 Database（本番用）
+[[d1_databases]]
+binding = "DB"
+database_name = "detauri-db"
+database_id = "a6dd2463-5b9a-4a64-b31e-644c454a1503"
+
+# KV Namespaces（本番用）
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "5a5de61cf63343228daa74cb34957f50"
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "9a4f7973bc644ab086397fd71564985f"
 
 # =====================================================
 # 開発環境 — wrangler deploy --env dev / wrangler dev --env dev
