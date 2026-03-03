@@ -1,33 +1,45 @@
+# =====================================================
+# 本番環境（デフォルト）— wholesale.nkonline-tool.com
+# ※ wrangler deploy で本番に反映。現在は既存の worker.js のまま。
+# =====================================================
 name = "detauri-gas-proxy"
-main = "src/index.js"
+main = "worker.js"
 compatibility_date = "2024-01-01"
 
+# 本番カスタムドメイン（既存設定）
+# routes = [
+#   { pattern = "wholesale.nkonline-tool.com/*", zone_name = "nkonline-tool.com" }
+# ]
+
+# =====================================================
+# 開発環境 — wrangler deploy --env dev / wrangler dev --env dev
+# ※ 本番には一切干渉しない独立環境
+# =====================================================
+[env.dev]
+name = "detauri-gas-proxy-dev"
+main = "src/index.js"
+
 # Cron Trigger: 5分ごとにD1 ⇔ Sheets同期
-[triggers]
+[env.dev.triggers]
 crons = ["*/5 * * * *"]
 
-# D1 Database
-[[d1_databases]]
+# D1 Database（開発用）
+[[env.dev.d1_databases]]
 binding = "DB"
-database_name = "detauri-db"
-database_id = "" # wrangler d1 create detauri-db の出力で埋める
+database_name = "detauri-db-dev"
+database_id = "536476ea-e2f3-47bd-bc55-6d030b4e4add"
 
-# KV Namespaces
-[[kv_namespaces]]
+# KV Namespaces（開発用）
+[[env.dev.kv_namespaces]]
 binding = "SESSIONS"
-id = "" # wrangler kv namespace create SESSIONS の出力で埋める
+id = "e9350025a350473f9ffaf94752c9fe5d"
 
-[[kv_namespaces]]
+[[env.dev.kv_namespaces]]
 binding = "CACHE"
-id = "" # wrangler kv namespace create CACHE の出力で埋める
+id = "9dff0a74c58d4773a1150cdecbbfc641"
 
-# Secrets (wrangler secret put で設定)
-# - ADMIN_KEY
-# - RECAPTCHA_SECRET
+# Secrets (wrangler secret put --env dev で設定)
 # - GAS_API_URL (GAS Web App URL)
 # - SYNC_SECRET (GAS同期用シークレット)
-
-# 本番デプロイ後にカスタムドメインを設定可能
-# routes = [
-#   { pattern = "api.detauri.com/*", zone_name = "detauri.com" }
-# ]
+# - ADMIN_KEY
+# - RECAPTCHA_SECRET
