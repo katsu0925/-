@@ -3,7 +3,7 @@
  *
  * Phase 1: apiGetCachedProducts, apiBulkInit
  */
-import { jsonOk, jsonError } from '../utils/response.js';
+import { jsonOk, jsonError, jsonRaw } from '../utils/response.js';
 
 const PRODUCTS_CACHE_KEY = 'products:detauri';
 const BULK_CACHE_KEY = 'products:bulk';
@@ -14,43 +14,39 @@ const CACHE_TTL = 300; // 5分
 /**
  * apiGetCachedProducts — デタウリ商品一覧
  *
- * 1. KV CACHEからキャッシュ取得を試行
- * 2. キャッシュミス → D1から読み取り → KVにキャッシュ
+ * KVキャッシュ → D1フォールバック
+ * レスポンス形式: { ok: true, data: { products, totalCount, options, settings, stats } }
+ * KVには data 部分のみ保存（HTML埋め込みにも使用）
  */
 export async function getCachedProducts(args, env) {
   const cache = env.CACHE;
 
-  // KVキャッシュ確認
-  const cached = await cache.get(PRODUCTS_CACHE_KEY, 'json');
-  if (cached) {
-    return jsonOk(cached, { 'X-Cache': 'HIT' });
+  // KVキャッシュ確認（GAS互換形式: { products, totalCount, options, settings, stats }）
+  const cachedJson = await cache.get(PRODUCTS_CACHE_KEY);
+  if (cachedJson) {
+    // { ok: true, data: ... } でラップして返す
+    return jsonRaw(`{"ok":true,"data":${cachedJson}}`, { 'X-Cache': 'HIT' });
   }
 
   // D1から商品データ読み取り
   const products = await readProductsFromD1(env.DB);
-
-  // フィルタオプション構築
   const options = buildFilterOptions(products);
-
-  // 設定データ取得
   const settings = await getPublicSettings(env);
-
-  // 統計データ取得
   const stats = await getStatsCache(env);
 
-  const result = {
-    items: products,
+  const data = {
+    products,
+    totalCount: products.length,
     options,
     settings,
     stats,
   };
 
-  // KVにキャッシュ保存（バックグラウンド）
-  await cache.put(PRODUCTS_CACHE_KEY, JSON.stringify(result), {
-    expirationTtl: CACHE_TTL,
-  });
+  // KVにキャッシュ保存（data部分のみ）
+  const dataJson = JSON.stringify(data);
+  await cache.put(PRODUCTS_CACHE_KEY, dataJson, { expirationTtl: CACHE_TTL });
 
-  return jsonOk(result, { 'X-Cache': 'MISS' });
+  return jsonRaw(`{"ok":true,"data":${dataJson}}`, { 'X-Cache': 'MISS' });
 }
 
 /**

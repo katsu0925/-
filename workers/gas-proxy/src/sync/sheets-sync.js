@@ -66,8 +66,8 @@ export async function scheduledSync(env) {
     // 3. 同期メタデータ更新
     await updateSyncMeta(env.DB, exportData);
 
-    // 4. KVキャッシュ無効化（同期後に最新データを使用させる）
-    await invalidateCaches(env.CACHE);
+    // 4. KVキャッシュをプリウォーム（D1→KVに最新データ書き込み）
+    await prewarmCaches(env);
 
     // 5. D1 → Sheets 方向の同期（顧客の新規登録等）
     if (exportData.needsImport) {
@@ -356,14 +356,112 @@ async function updateSyncMeta(db, exportData) {
   `).bind(now, totalRows).run();
 }
 
-async function invalidateCaches(cache) {
-  const keys = [
-    'products:detauri',
-    'products:bulk',
-    'settings:public',
-    'stats:banner',
-  ];
-  for (const key of keys) {
-    await cache.delete(key);
+/**
+ * KVキャッシュをプリウォーム
+ * 同期後にD1から最新データを読み取り、KVに書き込む。
+ * ユーザーリクエスト時は常にKV HITになり、初回アクセスも高速。
+ */
+async function prewarmCaches(env) {
+  const CACHE_TTL = 600; // 10分（Cronは5分間隔なので余裕を持たせる）
+
+  try {
+    // 商品データをプリウォーム
+    const { results: products } = await env.DB.prepare(`
+      SELECT managed_id, no_label, image_url, state, brand, size,
+             gender, category, color, price, qty, defect_detail, shipping_method
+      FROM products ORDER BY no_label ASC
+    `).all();
+
+    const items = products.map(row => ({
+      managedId: row.managed_id, noLabel: row.no_label, imageUrl: row.image_url,
+      state: row.state, brand: row.brand, size: row.size, gender: row.gender,
+      category: row.category, color: row.color, price: row.price, qty: row.qty,
+      defectDetail: row.defect_detail, shippingMethod: row.shipping_method,
+    }));
+
+    // フィルタオプション構築
+    const sets = { category: new Set(), state: new Set(), gender: new Set(), size: new Set() };
+    for (const p of items) {
+      if (p.category) sets.category.add(p.category);
+      if (p.state) sets.state.add(p.state);
+      if (p.gender) sets.gender.add(p.gender);
+      if (p.size) sets.size.add(p.size);
+    }
+    const sortArr = (s) => [...s].sort((a, b) => a.localeCompare(b, 'ja'));
+    const options = {
+      status: ['在庫あり', '依頼中', '確保中'],
+      category: sortArr(sets.category), state: sortArr(sets.state),
+      gender: sortArr(sets.gender), size: sortArr(sets.size),
+      sort: [
+        { key: 'default', label: 'No（番号順）' }, { key: 'price', label: '価格' },
+        { key: 'brand', label: 'ブランド' }, { key: 'size', label: 'サイズ' },
+      ],
+    };
+
+    // 設定データ
+    const memberRow = await env.DB.prepare("SELECT value FROM settings WHERE key = 'MEMBER_DISCOUNT_STATUS'").first();
+    let memberDiscount = { enabled: true, rate: 0.10, endDate: '2026-09-30', reason: 'active' };
+    if (memberRow) { try { memberDiscount = JSON.parse(memberRow.value); } catch (e) { /* fallthrough */ } }
+
+    const settings = {
+      appTitle: 'デタウリ.Detauri', minOrderCount: 5, memberDiscount,
+      notes: [
+        '<a href="https://drive.google.com/file/d/18X6qgQPWkaOXTg4YxELtru-4oBJxn7mn/view?usp=sharing" target="_blank" rel="noopener noreferrer">商品ページガイド</a>',
+        '5点から購入可能です。合計金額は商品代のみ <a href="https://drive.google.com/file/d/1g7UYUBw3-Y6M5HkSv3mfMe5jEjs795E3/view?usp=sharing" target="_blank" rel="noopener noreferrer">（送料別）</a>。送料は住所入力後に自動計算されます。',
+        'カートに入れた商品は15分間確保されます（会員は30分間）。在庫は先着順のためお早めにお手続きください。',
+        '決済方法：クレジットカード／コンビニ払い／銀行振込／PayPay／ペイジー／Apple Pay／Paidy',
+      ],
+    };
+    const discountNote = memberDiscount.enabled
+      ? '<span style="color:#b8002a;">10点以上で5％割引〜最大20％OFF ／ 会員登録で10％OFF（' + memberDiscount.endDate + 'まで・併用可）</span>'
+      : '<span style="color:#b8002a;">30点以上で10％割引</span>';
+    settings.notes.push(discountNote);
+
+    // 統計データ
+    const statsRow = await env.DB.prepare("SELECT data FROM stats_cache WHERE key = 'banner'").first();
+    const stats = statsRow ? JSON.parse(statsRow.data) : null;
+
+    // KVに書き込み（GAS互換形式: products キーで保存）
+    const productData = { products: items, totalCount: items.length, options, settings, stats };
+    await env.CACHE.put('products:detauri', JSON.stringify(productData), { expirationTtl: CACHE_TTL });
+    await env.CACHE.put('settings:public', JSON.stringify(settings), { expirationTtl: CACHE_TTL });
+    if (stats) await env.CACHE.put('stats:banner', JSON.stringify(stats), { expirationTtl: CACHE_TTL });
+
+    // Bulk商品をプリウォーム
+    const { results: bulkRows } = await env.DB.prepare(`
+      SELECT product_id, name, description, price, unit, tag, images,
+             min_qty, max_qty, sort_order, stock, sold_out, discount_rate, discounted_price
+      FROM bulk_products WHERE active = 1 ORDER BY sort_order ASC
+    `).all();
+
+    const bulkProducts = bulkRows.map(row => ({
+      productId: row.product_id, name: row.name, description: row.description,
+      price: row.price, unit: row.unit, tag: row.tag,
+      images: JSON.parse(row.images || '[]'), minQty: row.min_qty, maxQty: row.max_qty,
+      sortOrder: row.sort_order, stock: row.stock, soldOut: row.sold_out === 1,
+      discountRate: row.discount_rate, discountedPrice: row.discounted_price,
+    }));
+
+    const shippingRow = await env.DB.prepare("SELECT value FROM settings WHERE key = 'SHIPPING_CONFIG'").first();
+    const shippingData = shippingRow ? JSON.parse(shippingRow.value) : null;
+    const siteUrlRow = await env.DB.prepare("SELECT value FROM settings WHERE key = 'SITE_URL'").first();
+
+    const bulkResult = {
+      products: bulkProducts,
+      settings: {
+        appTitle: 'デタウリ.Detauri', channel: 'アソート',
+        shippingAreas: shippingData?.areas || null, shippingRates: shippingData?.rates || null,
+        memberDiscount, detauriUrl: siteUrlRow?.value || '',
+      },
+      stats,
+    };
+    await env.CACHE.put('products:bulk', JSON.stringify(bulkResult), { expirationTtl: CACHE_TTL });
+
+    console.log(`[sync] KV prewarm complete: ${items.length} products, ${bulkProducts.length} bulk`);
+  } catch (e) {
+    console.error('[sync] Prewarm error:', e.message);
+    // プリウォーム失敗時はキャッシュを削除（次のリクエストでD1から再構築）
+    const keys = ['products:detauri', 'products:bulk', 'settings:public', 'stats:banner'];
+    for (const key of keys) { await env.CACHE.delete(key); }
   }
 }

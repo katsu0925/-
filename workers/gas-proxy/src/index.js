@@ -82,13 +82,19 @@ export default {
       return await purgeAllCaches(env);
     }
 
-    // ヘルスチェック
-    if (request.method === 'GET' && url.pathname === '/') {
-      return jsonOk({
-        status: 'running',
-        workerHandled: Object.keys(WORKER_HANDLED),
-        version: '2.0.0',
-      });
+    // GET リクエスト処理
+    if (request.method === 'GET') {
+      // ヘルスチェック（workers.devドメインの場合）
+      if (!isCustomDomain(url)) {
+        return jsonOk({
+          status: 'running',
+          workerHandled: Object.keys(WORKER_HANDLED),
+          version: '2.1.0',
+        });
+      }
+
+      // カスタムドメイン: Pages HTMLに商品データを埋め込んで返す
+      return await serveHtmlWithData(request, env, url);
     }
 
     // POST以外は拒否
@@ -180,6 +186,57 @@ async function checkRateLimit(env, action, userKey, config) {
     expirationTtl: config.windowSec,
   });
   return false;
+}
+
+// ─── カスタムドメイン判定 ───
+
+const PAGES_ORIGIN = 'https://wholesale-eco.pages.dev';
+const CUSTOM_DOMAINS = ['wholesale.nkonline-tool.com'];
+
+function isCustomDomain(url) {
+  return CUSTOM_DOMAINS.includes(url.hostname);
+}
+
+/**
+ * Pages HTMLを取得し、KVの商品データを埋め込んで返す
+ * - ルート(/) → HTMLRewriterで商品データ注入
+ * - その他のパス → Pagesにパススルー
+ */
+async function serveHtmlWithData(request, env, url) {
+  // Pages origin URLを構築
+  const pagesUrl = PAGES_ORIGIN + url.pathname + url.search;
+
+  // Pagesから静的ファイルを取得
+  const pagesResp = await fetch(pagesUrl, {
+    headers: {
+      'Accept': request.headers.get('Accept') || '*/*',
+      'Accept-Encoding': request.headers.get('Accept-Encoding') || '',
+    },
+  });
+
+  // HTML以外（CSS, JS, images等）はそのまま返す
+  const contentType = pagesResp.headers.get('Content-Type') || '';
+  if (!contentType.includes('text/html')) {
+    return pagesResp;
+  }
+
+  // KVから商品データを取得（プリウォーム済みなので即座に返る）
+  const productsJson = await env.CACHE.get('products:detauri');
+
+  if (!productsJson) {
+    // KVにデータが無い場合はそのまま返す（JSが通常APIフォールバック）
+    return pagesResp;
+  }
+
+  // HTMLRewriterで商品データを埋め込む
+  return new HTMLRewriter()
+    .on('script#__initial_products__', {
+      element(element) {
+        // GASテンプレートタグを商品JSONデータに置換
+        element.setInnerContent(productsJson, { html: false });
+      },
+    })
+    .transform(pagesResp);
 }
 
 async function purgeAllCaches(env) {

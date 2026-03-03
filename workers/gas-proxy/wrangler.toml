@@ -7,10 +7,12 @@ name = "detauri-gas-proxy"
 main = "src/index.js"
 compatibility_date = "2024-01-01"
 
-# 本番カスタムドメイン（既存設定）
+# 本番カスタムドメイン — ゾーン未追加のためルートは無効
+# nkonline-tool.comをCloudflare DNS（フルセットアップ）にした後、有効化可能:
 # routes = [
 #   { pattern = "wholesale.nkonline-tool.com/*", zone_name = "nkonline-tool.com" }
 # ]
+workers_dev = true
 
 # Cron Trigger: 5分ごとにD1 ⇔ Sheets同期
 [triggers]
