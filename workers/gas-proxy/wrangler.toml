@@ -1,8 +1,33 @@
 name = "detauri-gas-proxy"
-main = "worker.js"
+main = "src/index.js"
 compatibility_date = "2024-01-01"
 
-# 本番デプロイ後にここにカスタムドメインを設定可能
+# Cron Trigger: 5分ごとにD1 ⇔ Sheets同期
+[triggers]
+crons = ["*/5 * * * *"]
+
+# D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "detauri-db"
+database_id = "" # wrangler d1 create detauri-db の出力で埋める
+
+# KV Namespaces
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "" # wrangler kv namespace create SESSIONS の出力で埋める
+
+[[kv_namespaces]]
+binding = "CACHE"
+id = "" # wrangler kv namespace create CACHE の出力で埋める
+
+# Secrets (wrangler secret put で設定)
+# - ADMIN_KEY
+# - RECAPTCHA_SECRET
+# - GAS_API_URL (GAS Web App URL)
+# - SYNC_SECRET (GAS同期用シークレット)
+
+# 本番デプロイ後にカスタムドメインを設定可能
 # routes = [
 #   { pattern = "api.detauri.com/*", zone_name = "detauri.com" }
 # ]

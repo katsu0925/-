@@ -146,6 +146,8 @@ function doPost(e) {
       'apiSubmitSnsShare', 'apiGetSnsShareStatus',
       // カゴ落ち登録
       'apiBulkRegisterCartAbandon',
+      // D1同期API（Workers Cron Trigger から呼び出し）
+      'apiSyncExportData', 'apiSyncImportData',
       // 管理者専用API（adminKey認証必須）
       'adminGetKomojuMode', 'adminToggleKomojuMode',
       'adminGetMemberDiscountStatus', 'adminToggleMemberDiscount',
