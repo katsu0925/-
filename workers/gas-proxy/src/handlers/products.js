@@ -24,12 +24,15 @@ export async function getCachedProducts(args, env) {
   // KVキャッシュ確認（GAS互換形式: { products, totalCount, options, settings, stats }）
   const cachedJson = await cache.get(PRODUCTS_CACHE_KEY);
   if (cachedJson) {
-    // { ok: true, data: ... } でラップして返す
     return jsonRaw(`{"ok":true,"data":${cachedJson}}`, { 'X-Cache': 'HIT' });
   }
 
   // D1から商品データ読み取り
   const products = await readProductsFromD1(env.DB);
+
+  // holds + open_items からステータスを算出して各商品に付与
+  await applyProductStatuses(env.DB, products);
+
   const options = buildFilterOptions(products);
   const settings = await getPublicSettings(env);
   const stats = await getStatsCache(env);
@@ -42,7 +45,6 @@ export async function getCachedProducts(args, env) {
     stats,
   };
 
-  // KVにキャッシュ保存（data部分のみ）
   const dataJson = JSON.stringify(data);
   await cache.put(PRODUCTS_CACHE_KEY, dataJson, { expirationTtl: CACHE_TTL });
 
@@ -121,10 +123,42 @@ async function readProductsFromD1(db) {
     category: row.category,
     color: row.color,
     price: row.price,
-    qty: row.qty,
     defectDetail: row.defect_detail,
     shippingMethod: row.shipping_method,
+    // status, selectable は applyProductStatuses() で後から付与
+    status: '在庫あり',
+    selectable: true,
   }));
+}
+
+/**
+ * holds + open_items を参照して各商品の status / selectable を設定
+ */
+async function applyProductStatuses(db, products) {
+  const now = Date.now();
+
+  // 有効な確保を一括取得
+  const { results: holds } = await db.prepare(
+    'SELECT managed_id FROM holds WHERE until_ms > ?'
+  ).bind(now).all();
+  const heldSet = new Set(holds.map(h => h.managed_id));
+
+  // 依頼中を一括取得
+  const { results: openItems } = await db.prepare(
+    'SELECT managed_id FROM open_items'
+  ).all();
+  const openSet = new Set(openItems.map(o => o.managed_id));
+
+  for (const p of products) {
+    if (openSet.has(p.managedId)) {
+      p.status = '依頼中';
+      p.selectable = false;
+    } else if (heldSet.has(p.managedId)) {
+      p.status = '確保中';
+      p.selectable = false;
+    }
+    // デフォルト: '在庫あり', selectable: true（readProductsFromD1で設定済み）
+  }
 }
 
 async function readBulkProductsFromD1(db) {

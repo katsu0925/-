@@ -375,9 +375,21 @@ async function prewarmCaches(env) {
     const items = products.map(row => ({
       managedId: row.managed_id, noLabel: row.no_label, imageUrl: row.image_url,
       state: row.state, brand: row.brand, size: row.size, gender: row.gender,
-      category: row.category, color: row.color, price: row.price, qty: row.qty,
+      category: row.category, color: row.color, price: row.price,
       defectDetail: row.defect_detail, shippingMethod: row.shipping_method,
+      status: '在庫あり', selectable: true,
     }));
+
+    // holds + open_items からステータスを算出
+    const now = Date.now();
+    const { results: holds } = await env.DB.prepare('SELECT managed_id FROM holds WHERE until_ms > ?').bind(now).all();
+    const heldSet = new Set(holds.map(h => h.managed_id));
+    const { results: openItems } = await env.DB.prepare('SELECT managed_id FROM open_items').all();
+    const openSet = new Set(openItems.map(o => o.managed_id));
+    for (const p of items) {
+      if (openSet.has(p.managedId)) { p.status = '依頼中'; p.selectable = false; }
+      else if (heldSet.has(p.managedId)) { p.status = '確保中'; p.selectable = false; }
+    }
 
     // フィルタオプション構築
     const sets = { category: new Set(), state: new Set(), gender: new Set(), size: new Set() };
