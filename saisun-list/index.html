@@ -4094,6 +4094,9 @@ function filterAndRender(scrollTop) {
 function pollStatusNow_() {
   if (state.timers.statusPoll) { clearTimeout(state.timers.statusPoll); state.timers.statusPoll = null; }
 
+  // 確保同期中はポーリングをスキップ（同期完了後にfinallyから呼ばれる）
+  if (state._holdSyncing) return;
+
   // タブが非表示の場合はポーリングを一時停止
   if (document.hidden) {
     state.timers.statusPoll = setTimeout(pollStatusNow_, 30000);
@@ -7025,6 +7028,11 @@ function boot() {
   var c = loadCartStorage();
   state.cart.ids = c.ids || [];
   state.cart.itemsById = c.itemsById || {};
+  // ページロード時: 全カートアイテムに_optimisticを設定（sync完了まで保護）
+  // digestはlocalStorageに保存されないため、ポーリングが先に走ると「在庫あり」で削除されてしまう
+  for (var pi = 0; pi < state.cart.ids.length; pi++) {
+    state.cart.digest[state.cart.ids[pi]] = { status: '確保中', heldByOther: false, _optimistic: true };
+  }
   updateCartCount();
 
   // カートにアイテムがあれば即座に確保同期→タイマー開始
