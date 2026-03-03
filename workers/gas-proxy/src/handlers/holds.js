@@ -66,7 +66,7 @@ export async function syncHolds(args, env) {
     ).bind(managedId).first();
 
     if (openCheck) {
-      failed.push(managedId);
+      failed.push({ id: managedId, reason: '依頼中' });
       digest[managedId] = { status: '依頼中', heldByOther: false, untilMs: 0 };
       continue;
     }
@@ -77,7 +77,7 @@ export async function syncHolds(args, env) {
     ).bind(managedId, userKey, now).first();
 
     if (otherHold) {
-      failed.push(managedId);
+      failed.push({ id: managedId, reason: '確保中' });
       digest[managedId] = { status: '確保中', heldByOther: true, untilMs: 0 };
       continue;
     }

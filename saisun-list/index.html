@@ -4127,6 +4127,9 @@ function pollStatusNow_() {
           // サーバー確認済み(15秒以内) → サーバー確認データを優先
           if (existing._confirmedAt && (now - existing._confirmedAt < 15000)) {
             merged[ok] = existing;
+          } else if (existing._confirmedAt && merged[ok]) {
+            // 15秒〜45秒: ポーリングデータを使うが、_confirmedAtを保持してグレース期間を有効化
+            merged[ok]._confirmedAt = existing._confirmedAt;
           }
         }
         state.cart.digest = merged;
@@ -4730,8 +4733,12 @@ function runHoldSync_() {
             state.cart.digest[dk] = res.digest[dk];
           }
         }
-        for (var ck in state.cart.digest) {
-          if (state.cart.digest[ck]) delete state.cart.digest[ck]._optimistic;
+        // res.digestに含まれるアイテムのみ_optimisticを削除
+        // （同期リクエスト後に追加されたアイテムの_optimisticは保護する）
+        if (res.digest) {
+          for (var dk2 in res.digest) {
+            if (state.cart.digest[dk2]) delete state.cart.digest[dk2]._optimistic;
+          }
         }
         for (var ci2 = 0; ci2 < state.cart.ids.length; ci2++) {
           var cid2 = state.cart.ids[ci2];
