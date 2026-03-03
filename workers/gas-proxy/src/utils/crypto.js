@@ -50,24 +50,30 @@ function gasStringToBytes(str) {
  *   4. 999回: hash = SHA-256(hash.concat(saltHash))  → バイト配列結合(64bytes)→SHA-256
  *   5. 最終バイト配列をhex変換
  */
-export async function hashPasswordV2(password, salt) {
+export async function hashWithIterations(password, salt, iterations) {
   // Step 1-2: 初回ハッシュ = SHA-256(US_ASCII(password + ':' + salt))
   const input = gasStringToBytes(password + ':' + salt);
   let hash = new Uint8Array(await sha256bytes(input));
 
-  // Step 3: saltHash = SHA-256(salt) — saltはASCIIなのでどのエンコーディングでも同一
-  const saltHash = new Uint8Array(await sha256bytes(gasStringToBytes(salt)));
+  if (iterations > 1) {
+    // Step 3: saltHash = SHA-256(salt) — saltはASCIIなのでどのエンコーディングでも同一
+    const saltHash = new Uint8Array(await sha256bytes(gasStringToBytes(salt)));
 
-  // Step 4: 999回反復 hash = SHA-256(hash + saltHash)
-  for (let i = 1; i < 1000; i++) {
-    const combined = new Uint8Array(hash.length + saltHash.length);
-    combined.set(hash, 0);
-    combined.set(saltHash, hash.length);
-    hash = new Uint8Array(await sha256bytes(combined));
+    // Step 4: (iterations-1)回反復 hash = SHA-256(hash + saltHash)
+    for (let i = 1; i < iterations; i++) {
+      const combined = new Uint8Array(hash.length + saltHash.length);
+      combined.set(hash, 0);
+      combined.set(saltHash, hash.length);
+      hash = new Uint8Array(await sha256bytes(combined));
+    }
   }
 
   // Step 5: hex変換
   return bufToHex(hash.buffer);
+}
+
+export async function hashPasswordV2(password, salt) {
+  return hashWithIterations(password, salt, 1000);
 }
 
 /**
@@ -80,24 +86,43 @@ export async function createPasswordHash(password) {
 }
 
 /**
- * パスワード検証（v2形式のみ。v1/legacyはGASフォールバック）
+ * パスワード検証（v2形式: 1000回 + 旧10000回フォールバック、v1/legacy/tmpはGASへ）
+ *
+ * GASの verifyPassword_ (CustomerAuth.gs:108-133) と同じロジック:
+ *   v2: → 1000回で検証、不一致なら旧10000回でも試行
+ *   tmp: → GASフォールバック
+ *   v1/legacy → GASフォールバック
  */
 export async function verifyPasswordV2(password, storedHash) {
-  if (!storedHash || !storedHash.startsWith('v2:')) {
+  if (!storedHash) {
     return { match: false, needsGasFallback: true };
   }
 
-  const parts = storedHash.split(':');
-  if (parts.length !== 3) {
+  if (storedHash.startsWith('v2:')) {
+    const parts = storedHash.split(':');
+    if (parts.length !== 3) {
+      return { match: false, needsGasFallback: false };
+    }
+
+    const [, salt, expectedHash] = parts;
+
+    // 現行1000回で検証
+    const computed1000 = await hashWithIterations(password, salt, 1000);
+    if (timingSafeEqual(computed1000, expectedHash)) {
+      return { match: true, needsGasFallback: false };
+    }
+
+    // 旧10000回でも試行（HASH_ITERATIONS変更前のハッシュ対応）
+    const computed10000 = await hashWithIterations(password, salt, 10000);
+    if (timingSafeEqual(computed10000, expectedHash)) {
+      return { match: true, needsGasFallback: false };
+    }
+
     return { match: false, needsGasFallback: false };
   }
 
-  const [, salt, expectedHash] = parts;
-  const computed = await hashPasswordV2(password, salt);
-
-  // タイミングセーフ比較
-  const match = timingSafeEqual(computed, expectedHash);
-  return { match, needsGasFallback: false };
+  // tmp/v1/legacy形式 → GASにフォールバック
+  return { match: false, needsGasFallback: true };
 }
 
 /**

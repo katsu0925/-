@@ -46,7 +46,7 @@ const WORKER_HANDLED = {
   apiGetMyPage:        (args, env) => mypage.getMyPage(args, env),
 
   // Phase 5: 注文送信（ハイブリッド: バリデーション→Workers, 確保→GAS）
-  // apiSubmitEstimate:   (args, env, bodyText) => submit.submitEstimate(args, env, bodyText),
+  apiSubmitEstimate:   (args, env, bodyText) => submit.submitEstimate(args, env, bodyText),
 };
 
 // CSRFが必要なaction（Phase 2以降で有効化）
