@@ -40,19 +40,44 @@ export async function getMyPage(args, env) {
     return jsonError('顧客情報が見つかりません。');
   }
 
-  return jsonOk({
-    customer: {
-      id: customer.id,
+  // firstHalfPrice判定
+  let firstHalfPrice = { eligible: false, rate: 0.5 };
+  const fhpRow = await env.DB.prepare(
+    'SELECT value FROM settings WHERE key = ?'
+  ).bind('FIRST_HALF_PRICE_STATUS').first();
+  if (fhpRow) {
+    try {
+      const fhp = JSON.parse(fhpRow.value);
+      firstHalfPrice = {
+        eligible: !!(fhp.enabled && customer.purchase_count === 0),
+        rate: fhp.rate || 0.5,
+      };
+    } catch (e) { /* ignore */ }
+  }
+
+  // ランク判定
+  const totalSpent = customer.total_spent || 0;
+  let rank;
+  if (totalSpent >= 500000) rank = { name: 'ダイヤモンド', color: '#00bcd4', pointRate: 5, freeShipping: true };
+  else if (totalSpent >= 200000) rank = { name: 'ゴールド', color: '#f59e0b', pointRate: 5, freeShipping: false };
+  else if (totalSpent >= 50000) rank = { name: 'シルバー', color: '#94a3b8', pointRate: 3, freeShipping: false };
+  else rank = { name: 'レギュラー', color: '#64748b', pointRate: 1, freeShipping: false };
+
+  return jsonOk({ data: {
+    profile: {
       email: customer.email,
       companyName: customer.company_name,
       phone: customer.phone,
       postal: customer.postal,
       address: customer.address,
       newsletter: customer.newsletter === 1,
-      points: customer.points,
-      pointsUpdatedAt: customer.points_updated_at,
-      purchaseCount: customer.purchase_count,
-      createdAt: customer.created_at,
+      registeredAt: customer.created_at,
     },
-  });
+    points: customer.points,
+    pointsExpiryDate: null,
+    orders: [],
+    stats: { totalOrders: customer.purchase_count || 0, totalSpent, totalItems: 0 },
+    firstHalfPrice,
+    rank,
+  }});
 }

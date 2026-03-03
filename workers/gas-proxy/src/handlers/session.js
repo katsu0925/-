@@ -105,14 +105,14 @@ export async function validateSession(args, env) {
   if (fhpStatus) {
     try {
       const fhp = JSON.parse(fhpStatus.value);
-      if (fhp.enabled && customer.purchase_count === 0) {
-        firstHalfPrice = fhp;
-      }
+      firstHalfPrice = {
+        eligible: !!(fhp.enabled && customer.purchase_count === 0),
+        rate: fhp.rate || 0.5,
+      };
     } catch (e) { /* ignore */ }
   }
 
-  return jsonOk({
-    valid: true,
+  return jsonOk({ data: {
     customer: {
       id: customer.id,
       email: customer.email,
@@ -126,5 +126,5 @@ export async function validateSession(args, env) {
     },
     isOwner: isOwner || false,
     firstHalfPrice,
-  });
+  }});
 }

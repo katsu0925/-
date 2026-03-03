@@ -2619,6 +2619,12 @@ function doLogin_() {
           try { localStorage.setItem('_nk_owner_flag', '1'); } catch(e) {}
         }
         if (res.data.csrfToken) { state.csrfToken = res.data.csrfToken; } else { fetchCsrfToken_(); }
+        // 初回全品半額キャンペーン即時反映
+        if (res.data.firstHalfPrice) {
+          state.firstHalfPrice = res.data.firstHalfPrice;
+          var _fhpBadge = $('firstHalfPriceBadge');
+          if (_fhpBadge) _fhpBadge.style.display = res.data.firstHalfPrice.eligible ? '' : 'none';
+        }
         updateAuthUi_();
         closeModal($('authModal'));
         showToast('ログインしました');
@@ -2626,6 +2632,8 @@ function doLogin_() {
         // 割引を反映
         updateCartPrice();
         if ($('cartModal').classList.contains('open')) renderCartModal_();
+        // マイページデータ読み込み（ランク・注文履歴・FHP等）
+        loadMyPage_();
       } else {
         showToast(res.message || 'ログインに失敗しました');
       }
@@ -2691,10 +2699,17 @@ function doRegister_() {
         state.customer = res.data.customer;
         saveSession_(res.data.sessionId, res.data.customer);
         fetchCsrfToken_();
+        // 初回全品半額キャンペーン即時反映
+        if (res.data.firstHalfPrice) {
+          state.firstHalfPrice = res.data.firstHalfPrice;
+          var _fhpBadge = $('firstHalfPriceBadge');
+          if (_fhpBadge) _fhpBadge.style.display = res.data.firstHalfPrice.eligible ? '' : 'none';
+        }
         updateAuthUi_();
         applyReferralAfterRegister_();
         updateCartPrice();
         if ($('cartModal').classList.contains('open')) renderCartModal_();
+        loadMyPage_();
       } else {
         // ロールバック
         clearSession_();

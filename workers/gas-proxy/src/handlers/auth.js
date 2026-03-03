@@ -91,19 +91,22 @@ export async function login(args, env) {
 
   // firstHalfPrice判定
   let firstHalfPrice = null;
-  if (customer.purchase_count === 0) {
-    const fhp = await env.DB.prepare(
+  {
+    const fhpRow = await env.DB.prepare(
       'SELECT value FROM settings WHERE key = ?'
     ).bind('FIRST_HALF_PRICE_STATUS').first();
-    if (fhp) {
+    if (fhpRow) {
       try {
-        const parsed = JSON.parse(fhp.value);
-        if (parsed.enabled) firstHalfPrice = parsed;
+        const parsed = JSON.parse(fhpRow.value);
+        firstHalfPrice = {
+          eligible: !!(parsed.enabled && customer.purchase_count === 0),
+          rate: parsed.rate || 0.5,
+        };
       } catch (e) { /* ignore */ }
     }
   }
 
-  return jsonOk({
+  return jsonOk({ data: {
     sessionId,
     csrfToken,
     customer: {
@@ -119,7 +122,7 @@ export async function login(args, env) {
     },
     isOwner: isOwner || false,
     firstHalfPrice,
-  });
+  }});
 }
 
 /**
@@ -197,7 +200,7 @@ export async function register(args, env) {
   const csrfToken = generateCsrfToken();
   await env.SESSIONS.put(`csrf:${userKey}`, csrfToken, { expirationTtl: 3600 });
 
-  return jsonOk({
+  return jsonOk({ data: {
     sessionId,
     csrfToken,
     customer: {
@@ -212,7 +215,7 @@ export async function register(args, env) {
       purchaseCount: 0,
     },
     welcomeBonus: initialPoints,
-  });
+  }});
 }
 
 /**
