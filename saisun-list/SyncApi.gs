@@ -338,7 +338,7 @@ function importCustomers_(customers) {
     newRow[c.PHONE] = cust.phone ? "'" + cust.phone : '';
     newRow[c.POSTAL] = cust.postal ? "'" + cust.postal : '';
     newRow[c.ADDRESS] = cust.address || '';
-    newRow[c.NEWSLETTER] = cust.newsletter || false;
+    newRow[c.NEWSLETTER] = cust.newsletter === 1 || cust.newsletter === true;
     newRow[c.CREATED_AT] = cust.createdAt ? new Date(cust.createdAt) : new Date();
     newRow[c.LAST_LOGIN] = cust.lastLogin ? new Date(cust.lastLogin) : '';
     newRow[c.SESSION_ID] = '';  // セッションはKVで管理

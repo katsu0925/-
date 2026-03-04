@@ -1446,11 +1446,20 @@ var ADMIN_KEY = (function() {
   try { return localStorage.getItem('_nk_owner_key') || ''; } catch(e) { return ''; }
 })();
 
+// D1依存APIはGASフォールバック禁止（GASとD1のデシンク防止）
+var _workerOnlyActions = {
+  'apiValidateCoupon': true, 'apiSubmitEstimate': true, 'apiBulkSubmit': true,
+  'apiGetMyPage': true, 'apiGetReferralCode': true,
+  'apiLoginCustomer': true, 'apiRegisterCustomer': true, 'apiLogoutCustomer': true,
+  'apiValidateSession': true, 'apiGetCsrfToken': true
+};
+
 function runApi(fn) {
   var args = Array.prototype.slice.call(arguments, 1);
   if (IS_STANDALONE) {
     var bodyStr = JSON.stringify({ action: fn, args: args, adminKey: (typeof ADMIN_KEY !== 'undefined' ? ADMIN_KEY : '') });
-    var apiUrl = (!_workerFailed && WORKER_API_URL) ? WORKER_API_URL : GAS_API_URL;
+    var isWorkerOnly = !!_workerOnlyActions[fn];
+    var apiUrl = (!_workerFailed && WORKER_API_URL) || isWorkerOnly ? WORKER_API_URL : GAS_API_URL;
     return fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'text/plain' },
@@ -1462,9 +1471,10 @@ function runApi(fn) {
       return res.json();
     })
     .catch(function(err) {
-      if (apiUrl !== GAS_API_URL) {
-        console.warn('Worker障害、GAS直接に切替:', err.message);
+      if (apiUrl !== GAS_API_URL && !isWorkerOnly) {
+        console.warn('Worker障害、GAS直接に切替（30秒後にWorker再試行）:', err.message);
         _workerFailed = true;
+        setTimeout(function() { _workerFailed = false; }, 30000);
         return fetch(GAS_API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain' },
@@ -2103,8 +2113,8 @@ function updateCart() {
         }
       }
       if (_dDiscRow0) detRows += _dDiscRow0;
-      // 商品合計1万円以上で送料無料（割引前の商品価格で判定）
-      if (G.detauriCartTotal >= 10000) { _dShip0 = 0; }
+      // 商品合計1万円以上で送料無料（割引後の商品価格で判定）
+      if (_dProd0 >= 10000) { _dShip0 = 0; }
       var detauriSub0 = _dProd0 + _dShip0;
       detRows += '<div class="cart-row" style="color:#5B86C5;font-size:16px;font-weight:800;border-top:2px solid #5B86C5;margin-top:8px;padding-top:12px;border-bottom:none;">'
         + '<span>デタウリ 小計</span>'
@@ -2241,8 +2251,8 @@ function updateCart() {
   // 送料
   calcShipping(totalQty);
   recalcDetauriShipping_(); // デタウリ送料もリアルタイム計算
-  // 商品合計1万円以上で送料無料（割引前の商品価格で判定）
-  if (subtotal + (G.detauriCartTotal || 0) >= 10000) {
+  // 商品合計1万円以上で送料無料（割引後の商品価格で判定）
+  if (discounted + _eDetauriProd >= 10000) {
     G.shipping = 0;
     G.detauriShipping = 0;
     _eDetauriShip = 0;

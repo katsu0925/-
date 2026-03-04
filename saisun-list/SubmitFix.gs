@@ -219,8 +219,8 @@ function apiSubmitEstimate(userKey, form, ids) {
       bulkShippingAmount = 0;
     }
 
-    // 商品合計1万円以上で送料無料（クーポン適用前の商品価格で判定）
-    if (sum + rawBulkProductAmount >= 10000) {
+    // 商品合計1万円以上で送料無料（割引後の商品価格で判定）
+    if (discounted + bulkProductAmount >= 10000) {
       shippingAmount = 0;
       bulkShippingAmount = 0;
     }
@@ -1296,6 +1296,7 @@ function apiCancelOrder(receiptNo) {
     return { ok: false, message: (e && e.message) ? e.message : String(e) };
   }
 }
+
 
 // =====================================================
 // 注文確認用 Google Drive 共有リンク生成

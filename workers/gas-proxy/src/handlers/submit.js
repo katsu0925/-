@@ -372,8 +372,8 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     bulkShippingAmount = 0;
   }
 
-  // 商品合計1万円以上で送料無料（クーポン適用前の商品価格で判定）
-  if (sum + rawBulkProductAmount >= 10000) {
+  // 商品合計1万円以上で送料無料（割引後の商品価格で判定）
+  if (discounted + bulkProductAmount >= 10000) {
     shippingAmount = 0;
     bulkShippingAmount = 0;
   }
@@ -576,12 +576,14 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     bulkItemCount,
   };
 
-  // ─── 非同期: GASにペンディング注文保存 + KVバックアップ ───
+  // ─── GASにペンディング注文保存（同期 — webhook前に確実に保存） ───
+  await savePendingToGas(pendingData, env);
+
+  // KVバックアップは非同期
   if (ctx && ctx.waitUntil) {
-    ctx.waitUntil(savePendingToBackends(pendingData, env));
+    ctx.waitUntil(saveBackupToKV(pendingData, env));
   } else {
-    // ctxがない場合（テスト等）は同期実行
-    savePendingToBackends(pendingData, env).catch(e => console.error('savePending error:', e));
+    saveBackupToKV(pendingData, env).catch(e => console.error('KV backup error:', e));
   }
 
   return jsonOk({
@@ -592,26 +594,16 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   });
 }
 
-// ─── 非同期バックグラウンド処理 ───
+// ─── バックグラウンド処理 ───
 
-async function savePendingToBackends(pendingData, env) {
-  const promises = [];
-
-  // 1. GASにペンディング注文を保存
-  promises.push(savePendingToGas(pendingData, env));
-
-  // 2. KVにバックアップ保存
+async function saveBackupToKV(pendingData, env) {
   if (env.CACHE) {
-    promises.push(
-      env.CACHE.put(
-        'PENDING_ORDER_' + pendingData.receiptNo,
-        JSON.stringify(pendingData),
-        { expirationTtl: 86400 * 7 } // 7日間
-      )
+    await env.CACHE.put(
+      'PENDING_ORDER_' + pendingData.receiptNo,
+      JSON.stringify(pendingData),
+      { expirationTtl: 86400 * 7 } // 7日間
     );
   }
-
-  await Promise.allSettled(promises);
 }
 
 async function savePendingToGas(pendingData, env) {
