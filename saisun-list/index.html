@@ -4599,10 +4599,18 @@ function updateCartCount() {
 }
 
 function updateDetStickyBar_() {
-  var bar = document.getElementById('detStickyBar');
-  if (!bar) return;
   var v = state._stickyVals;
   if (!v) return;
+  // デスクトップ版バー（.stickyBar 内の #cartTotal）— 送料込み合計を表示
+  var ct = document.getElementById('cartTotal');
+  if (ct) {
+    var _hintTxt = v.hint && !v.hintIsHtml ? ' ' + v.hint : '';
+    if (v.hintIsHtml && v.hint) _hintTxt = ' <span style="font-size:10px;font-weight:400;">' + v.hint + '</span>';
+    ct.innerHTML = '<span style="font-weight:900;">¥' + numFmt_(v.total) + '</span>' + _hintTxt;
+  }
+  // モバイル版バー（#detStickyBar）
+  var bar = document.getElementById('detStickyBar');
+  if (!bar) return;
   bar.classList.add('active');
   document.body.classList.add('has-det-cart');
   var te = document.getElementById('detStickyBarTotal');
