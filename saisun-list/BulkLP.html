@@ -2164,9 +2164,10 @@ function updateCart() {
       + '</div>';
   }
 
-  // 送料無料プログレスバー
+  // 送料無料プログレスバー（割引後の商品価格で判定）
   var _freeThreshold = 10000;
-  var _combinedProdForShip = subtotal + (G.detauriCartTotal || 0);
+  var _combinedProdForShip = (typeof G._discountedBulkTotal === 'number' ? G._discountedBulkTotal : subtotal)
+    + (typeof G._discountedDetauriTotal === 'number' ? G._discountedDetauriTotal : (G.detauriCartTotal || 0));
   if (_combinedProdForShip > 0 && _combinedProdForShip < _freeThreshold) {
     var _shipRemaining = _freeThreshold - _combinedProdForShip;
     var _shipPct = Math.min(100, Math.round((_combinedProdForShip / _freeThreshold) * 100));
@@ -2247,6 +2248,10 @@ function updateCart() {
   }
 
   discounted = Math.max(0, discounted);
+
+  // 割引後の商品合計を保存（他の関数での送料無料判定用）
+  G._discountedBulkTotal = discounted;
+  G._discountedDetauriTotal = _eDetauriProd;
 
   // 送料
   calcShipping(totalQty);
@@ -2402,8 +2407,9 @@ function updatePayButton(total) {
     }
     var _shipHintB = document.getElementById('bulkStickyShipHint');
     if (_shipHintB) {
-      var _prodTotalB = (G.detauriCartTotal || 0);
-      for (var _sk in G.cart) { var _sp = G.products.find(function(x){return x.productId===_sk;}); if (_sp) _prodTotalB += _sp.price * G.cart[_sk]; }
+      var _prodTotalB = (typeof G._discountedDetauriTotal === 'number' ? G._discountedDetauriTotal : (G.detauriCartTotal || 0))
+        + (typeof G._discountedBulkTotal === 'number' ? G._discountedBulkTotal : 0);
+      if (_prodTotalB <= 0) { for (var _sk in G.cart) { var _sp = G.products.find(function(x){return x.productId===_sk;}); if (_sp) _prodTotalB += _sp.price * G.cart[_sk]; } _prodTotalB += (G.detauriCartTotal || 0); }
       if (_prodTotalB >= 10000) _shipHintB.innerHTML = '<span style="color:#4ade80;font-weight:700;">送料無料!</span>';
       else if (_prodTotalB > 0) _shipHintB.textContent = 'あと¥' + numFmt(10000 - _prodTotalB) + 'で送料無料';
       else _shipHintB.textContent = '';
@@ -2540,10 +2546,11 @@ function recalcDetauriShipping_() {
       G.detauriShipping = multi.amount;
       G.detauriShippingPref = pref;
       G.detauriShippingSizeLabel = multi.sizeLabel;
-      // 1万円以上で送料無料（overLimitでもreturn前にチェック）
-      var _oaSub = 0;
-      Object.keys(G.cart).forEach(function(k) { var _op = G.products.find(function(x){return x.productId===k;}); if (_op) _oaSub += Number(_op.price||0)*G.cart[k]; });
-      if (_oaSub + (G.detauriCartTotal || 0) >= 10000) G.detauriShipping = 0;
+      // 1万円以上で送料無料（割引後の商品価格で判定）
+      var _oaSub = typeof G._discountedBulkTotal === 'number' ? G._discountedBulkTotal : 0;
+      if (_oaSub <= 0) Object.keys(G.cart).forEach(function(k) { var _op = G.products.find(function(x){return x.productId===k;}); if (_op) _oaSub += Number(_op.price||0)*G.cart[k]; });
+      var _oaDet = typeof G._discountedDetauriTotal === 'number' ? G._discountedDetauriTotal : (G.detauriCartTotal || 0);
+      if (_oaSub + _oaDet >= 10000) G.detauriShipping = 0;
       return;
     }
 
@@ -2553,13 +2560,11 @@ function recalcDetauriShipping_() {
     G.detauriShippingSizeLabel = sizeLabel;
   } catch (e) {}
 
-  // 商品合計（アソート+デタウリ）1万円以上で送料無料
-  var _assortSub = 0;
-  Object.keys(G.cart).forEach(function(pid) {
-    var _p = G.products.find(function(x){return x.productId===pid;});
-    if (_p) _assortSub += Number(_p.price||0) * G.cart[pid];
-  });
-  if (_assortSub + (G.detauriCartTotal || 0) >= 10000) {
+  // 商品合計（アソート+デタウリ）1万円以上で送料無料（割引後の商品価格で判定）
+  var _assortSub = typeof G._discountedBulkTotal === 'number' ? G._discountedBulkTotal : 0;
+  if (_assortSub <= 0) Object.keys(G.cart).forEach(function(pid) { var _p = G.products.find(function(x){return x.productId===pid;}); if (_p) _assortSub += Number(_p.price||0)*G.cart[pid]; });
+  var _assortDet = typeof G._discountedDetauriTotal === 'number' ? G._discountedDetauriTotal : (G.detauriCartTotal || 0);
+  if (_assortSub + _assortDet >= 10000) {
     G.detauriShipping = 0;
   }
 }
@@ -2726,10 +2731,10 @@ function submitOrder() {
   var detauriShippingAmount = G.detauriShipping || 0;
   var detauriItemCount = G.detauriCartCount || 0;
 
-  // 商品合計（アソート+デタウリ）1万円以上で送料無料
-  var _submitProdTotal = 0;
-  items.forEach(function(it) { var _p = G.products.find(function(x){return x.productId===it.productId;}); if (_p) _submitProdTotal += Number(_p.price||0)*it.qty; });
-  _submitProdTotal += detauriProductAmount;
+  // 商品合計（アソート+デタウリ）1万円以上で送料無料（割引後の商品価格で判定）
+  var _submitProdTotal = typeof G._discountedBulkTotal === 'number' ? G._discountedBulkTotal : 0;
+  if (_submitProdTotal <= 0) items.forEach(function(it) { var _p = G.products.find(function(x){return x.productId===it.productId;}); if (_p) _submitProdTotal += Number(_p.price||0)*it.qty; });
+  _submitProdTotal += (typeof G._discountedDetauriTotal === 'number' ? G._discountedDetauriTotal : detauriProductAmount);
   if (_submitProdTotal >= 10000) {
     shipping = 0;
     detauriShippingAmount = 0;
