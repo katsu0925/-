@@ -4188,8 +4188,8 @@ function pollStatusNow_() {
             delete state.cart.itemsById[eid];
             delete state.cart.digest[eid];
           }
-          state.lastShipping = null;
           saveCartStorage(); updateCartCount(); updateShippingDisplay_();
+          updateDetStickyBar_(); // 送料計算後にスティッキーバー再更新
           showToast('他のユーザーが確保中または期限切れの商品（' + expired.length + '点）をカートから除外しました');
         }
 
@@ -4768,9 +4768,9 @@ function toggleCartOptimistic_(id) {
     delete state.cart.digest[id];
   }
 
-  state.lastShipping = null; // カート変更時に送料キャッシュを無効化
   saveCartStorage(); updateCartCount(); updateCardUi_(id);
-  updateShippingDisplay_(); // 送料を即時再計算
+  updateShippingDisplay_(); // 送料を即時再計算（renderSummary_→state.lastShipping更新→saveCartStorage）
+  updateDetStickyBar_(); // 送料計算後にスティッキーバーを再更新
   revalidateCoupon_(); // クーポン再検証
   if (adding) showCartAddToast_();
 
