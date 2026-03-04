@@ -2642,8 +2642,10 @@ function doLogin_() {
         closeModal($('authModal'));
         showToast('ログインしました');
         trackEvent_('login', { method: 'email', page_type: 'detauri' });
-        // 割引を反映
+        // 割引・送料を反映
         updateCartPrice();
+        renderSummary_();
+        updateDetStickyBar_();
         if ($('cartModal').classList.contains('open')) renderCartModal_();
         // マイページデータ読み込み（ランク・注文履歴・FHP等）
         loadMyPage_();
@@ -2864,6 +2866,9 @@ function loadMyPage_() {
       if (!res || !res.ok || !res.data) { if (!cacheUsed) showToast((res && res.message) || 'マイページの読み込みに失敗しました'); return; }
       try { localStorage.setItem(_MP_CACHE_KEY, JSON.stringify({ sid: state.sessionId, d: res.data, ts: Date.now() })); } catch(e) {}
       _applyMpData_(res.data);
+      // ランク情報（ダイヤモンド送料無料等）反映後にスティッキーバー再更新
+      renderSummary_();
+      updateDetStickyBar_();
     })
     .catch(function(err) { if (!cacheUsed) showToast((err && err.message) || 'マイページの読み込みに失敗しました'); });
 }
@@ -2962,6 +2967,10 @@ function validateSession_() {
         updateAuthUi_();
         updateCartPrice();
         renderSummary_();  // 詳細カート表示を即時更新（FHP割引行を反映）
+        // detStickyBarがまだDOMにない場合、遅延リトライ（DOM構築後に確実に反映）
+        if (!document.getElementById('detStickyBar')) {
+          setTimeout(function() { updateDetStickyBar_(); }, 500);
+        }
         // バックグラウンドでmyPage読み込み（ランク・注文履歴等）
         loadMyPage_();
       } else {
@@ -2973,6 +2982,11 @@ function validateSession_() {
     })
     .catch(function() {
       // ネットワークエラー時は保存されたデータを維持（既に設定済み）
+      // 保存済みセッションデータでスティッキーバーを更新
+      if (state.customer) {
+        renderSummary_();
+        setTimeout(function() { updateDetStickyBar_(); }, 500);
+      }
     })
     .then(function() {
       state._sessionValidated = true;
@@ -3567,7 +3581,8 @@ function loadCartStorage() {
 function saveCartStorage() {
   try {
     var sh = state.lastShipping || {};
-    var shippingAmount = (sh.amount !== undefined && sh.amount !== null) ? sh.amount : 0;
+    // null=未計算、0=送料無料、正数=送料額（区別して保存）
+    var shippingAmount = (sh.amount !== undefined) ? sh.amount : null;
     localStorage.setItem('estimate_cart_v2', JSON.stringify({
       ids: state.cart.ids || [],
       itemsById: state.cart.itemsById || {},
@@ -7098,8 +7113,8 @@ function boot() {
   var c = loadCartStorage();
   state.cart.ids = c.ids || [];
   state.cart.itemsById = c.itemsById || {};
-  // 保存済み送料を復元（スティッキーバーの初回表示用）
-  if (c.shipping !== undefined && c.shipping !== null && c.shipping > 0) {
+  // 保存済み送料を復元（スティッキーバーの初回表示用、送料0=無料もOK）
+  if (c.shipping !== undefined && c.shipping !== null) {
     state.lastShipping = { amount: c.shipping, label: c.shippingLabel || '', pref: c.shippingPref || '', sizeLabel: c.shippingSizeLabel || '' };
   }
   // ページロード時: 全カートアイテムに_optimisticを設定（sync完了まで保護）
@@ -8193,6 +8208,19 @@ function closeBulkQv_() {
 }
 // detStickyBar はこのscriptより前にDOMが確定するため、ここで再描画して初期値を正しく表示する
 updateCartCount();
+// セッション検証完了後にスティッキーバーの送料を確実に反映（非同期APIの完了を待つ）
+if (state._sessionPromise) {
+  state._sessionPromise.then(function() {
+    // セッション検証完了 → state.customer が確定しているので送料を再計算して反映
+    if (state.customer && (state.cart.ids || []).length > 0) {
+      var _freshShip = calculateShipping_();
+      if (_freshShip && _freshShip.amount !== null) {
+        state.lastShipping = _freshShip;
+      }
+      updateDetStickyBar_();
+    }
+  });
+}
 
 // ====== 2-1: Exit Intent Popup ======
 (function() {
