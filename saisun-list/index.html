@@ -2447,25 +2447,55 @@ function renderSummary_() {
     }
   }
 
-  // スティッキーバー用データ保存（renderSummary_の計算結果をそのまま反映）
-  var _sGrand = effectiveDiscounted + effectiveShipping;
-  var _sShipTotal = effectiveShipping;
-  if (_bulkDataRS.subtotal > 0) {
-    _sGrand += effectiveBulkProduct + effectiveBulkShip;
-    _sShipTotal += effectiveBulkShip;
-  }
-  state._stickyCache = {
-    grandTotal: _sGrand,
-    shipAmount: shippingResult.amount,
-    shipTotal: _sShipTotal,
-    detCount: count,
-    assortQty: _bulkDataRS.totalQty || 0
-  };
-
   // 送料詳細をlocalStorageに保存（アソート商品ページでの表示用）
   saveCartStorage();
   updateCartClearBtns_();
-  updateDetStickyBar_();
+
+  // スティッキーバー直接更新（カートに表示中の小計/合計をそのまま反映）
+  var _sBar = document.getElementById('detStickyBar');
+  if (_sBar) {
+    _sBar.classList.add('active');
+    document.body.classList.add('has-det-cart');
+    var _sTotalEl = document.getElementById('detStickyBarTotal');
+    var _sLabelEl = document.getElementById('detStickyBarLabel');
+    var _sHintEl = document.getElementById('detStickyShipHint');
+    var _bulkQ = _bulkDataRS.totalQty || 0;
+    // 合計: 両チャネルあれば両チャネル合計、なければデタウリ小計
+    var _sTotal = 0;
+    var _sShipTotal = effectiveShipping;
+    if (_bulkDataRS.subtotal > 0) {
+      var _bulkT = effectiveBulkProduct + effectiveBulkShip;
+      _sTotal = effectiveDiscounted + effectiveShipping + _bulkT;
+      _sShipTotal += effectiveBulkShip;
+    } else {
+      _sTotal = effectiveDiscounted + effectiveShipping;
+    }
+    if (_sTotalEl) _sTotalEl.textContent = '¥' + numFmt_(_sTotal);
+    // ラベル
+    if (_sLabelEl) {
+      if (count > 0 && _bulkQ > 0) {
+        _sLabelEl.textContent = 'デタウリ' + count + '点 + アソート' + _bulkQ + '点';
+      } else if (count > 0) {
+        _sLabelEl.textContent = 'デタウリ' + count + '点';
+      } else if (_bulkQ > 0) {
+        _sLabelEl.textContent = 'アソート' + _bulkQ + '点';
+      } else {
+        _sLabelEl.textContent = 'カートは空です';
+      }
+    }
+    // 送料ヒント
+    if (_sHintEl) {
+      if (_sShipTotal > 0) {
+        _sHintEl.textContent = '(送料 ¥' + numFmt_(_sShipTotal) + ' 込)';
+      } else if (shippingResult.amount === 0) {
+        _sHintEl.innerHTML = '<span class="ship-free">送料無料!</span>';
+      } else if (count > 0 || _bulkQ > 0) {
+        _sHintEl.textContent = '(送料別)';
+      } else {
+        _sHintEl.textContent = '';
+      }
+    }
+  }
 }
 
 function loadSession_() {
@@ -4586,57 +4616,12 @@ function updateCartCount() {
 }
 
 function updateDetStickyBar_() {
+  // renderSummary_()が直接DOMを更新するため、この関数はフォールバック専用
+  // renderSummary_()がまだ実行されていない場合にのみ動作
   var bar = document.getElementById('detStickyBar');
-  var labelEl = document.getElementById('detStickyBarLabel');
-  var totalEl = document.getElementById('detStickyBarTotal');
   if (!bar) return;
-  var detCount = (state.cart.ids || []).length;
-  var bulk = loadBulkCartStorage();
-  var assortQty = bulk.totalQty || 0;
   bar.classList.add('active');
   document.body.classList.add('has-det-cart');
-  if (detCount === 0 && assortQty === 0) {
-    if (totalEl) totalEl.textContent = '¥0';
-    if (labelEl) labelEl.textContent = 'カートは空です';
-    var h0 = document.getElementById('detStickyShipHint');
-    if (h0) h0.textContent = '';
-    return;
-  }
-  // renderSummary_()が計算済みのデータをそのまま反映（両チャネル合計と同じ値）
-  var c = state._stickyCache;
-  if (c) {
-    if (totalEl) totalEl.textContent = '¥' + numFmt_(c.grandTotal);
-    var shipHint = document.getElementById('detStickyShipHint');
-    if (shipHint) {
-      if (c.shipTotal > 0) {
-        shipHint.textContent = '(送料 ¥' + numFmt_(c.shipTotal) + ' 込)';
-      } else if (c.shipAmount === 0) {
-        shipHint.innerHTML = '<span class="ship-free">送料無料!</span>';
-      } else {
-        shipHint.textContent = '(送料別)';
-      }
-    }
-  } else {
-    // renderSummary_()未実行: 商品代のみ表示
-    var ids = state.cart.ids || [];
-    var sum = 0;
-    for (var i = 0; i < ids.length; i++) {
-      var it = state.cart.itemsById[ids[i]];
-      if (it) sum += Number(it.price || 0);
-    }
-    if (totalEl) totalEl.textContent = '¥' + numFmt_(sum + (bulk.subtotal || 0));
-    var shipHint2 = document.getElementById('detStickyShipHint');
-    if (shipHint2) shipHint2.textContent = '(送料別)';
-  }
-  if (labelEl) {
-    if (detCount > 0 && assortQty > 0) {
-      labelEl.textContent = 'デタウリ' + detCount + '点 + アソート' + assortQty + '点';
-    } else if (detCount > 0) {
-      labelEl.textContent = 'デタウリ' + detCount + '点';
-    } else {
-      labelEl.textContent = 'アソート' + assortQty + '点';
-    }
-  }
 }
 
 function updateCartPrice() {
