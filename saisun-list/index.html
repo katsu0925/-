@@ -4587,7 +4587,17 @@ function updateDetStickyBar_() {
     }
     total = detDiscounted + assortSub;
   }
-  if (totalEl) totalEl.textContent = '¥' + numFmt_(total);
+  // 送料を合計に加算
+  var _stickyShip = state.lastShipping;
+  if (!_stickyShip) _stickyShip = calculateShipping_();
+  var _stickyShipAmt = (_stickyShip && _stickyShip.amount !== null && _stickyShip.amount !== undefined) ? _stickyShip.amount : 0;
+  // 送料無料クーポン適用
+  if (state.appliedCoupon && state.appliedCoupon.type === 'shipping_free') _stickyShipAmt = 0;
+  var _stickyBulkShip = bulk.shipping || 0;
+  if (state.appliedCoupon && state.appliedCoupon.type === 'shipping_free') _stickyBulkShip = 0;
+  var grandTotal = total + _stickyShipAmt + _stickyBulkShip;
+
+  if (totalEl) totalEl.textContent = '¥' + numFmt_(grandTotal);
   if (labelEl) {
     if (detCount > 0 && assortQty > 0) {
       labelEl.textContent = 'デタウリ' + detCount + '点 + アソート' + assortQty + '点';
@@ -4597,15 +4607,16 @@ function updateDetStickyBar_() {
       labelEl.textContent = 'アソート' + assortQty + '点';
     }
   }
-  // 送料無料ヒント（割引前の商品価格で判定）
+  // 送料ヒント
   var shipHint = document.getElementById('detStickyShipHint');
   if (shipHint) {
-    var FREE_SHIP_THRESHOLD = 10000;
-    var rawTotal = detSum + (bulk.subtotal || 0);
-    if (rawTotal >= FREE_SHIP_THRESHOLD) {
+    var _totalShipAmt = _stickyShipAmt + _stickyBulkShip;
+    if (_totalShipAmt > 0) {
+      shipHint.textContent = '(送料 ¥' + numFmt_(_totalShipAmt) + ' 込)';
+    } else if (_stickyShip && _stickyShip.amount === 0) {
       shipHint.innerHTML = '<span class="ship-free">送料無料!</span>';
-    } else if (rawTotal > 0) {
-      shipHint.textContent = 'あと¥' + numFmt_(FREE_SHIP_THRESHOLD - rawTotal) + 'で送料無料';
+    } else if (detSum + (bulk.subtotal || 0) > 0 && (!_stickyShip || _stickyShip.amount === null)) {
+      shipHint.textContent = '(送料別)';
     } else {
       shipHint.textContent = '';
     }
