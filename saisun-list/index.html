@@ -6864,7 +6864,7 @@ function loadSnsShareStatus_() {
   var xLink = $('mpShareX');
   if (xLink) xLink.href = 'https://twitter.com/intent/tweet?text=' + encodeURIComponent(shareText + '\n' + shareUrl);
   var lineLink = $('mpShareLINE');
-  if (lineLink) lineLink.href = 'https://social-plugins.line.me/lineit/share?url=' + encodeURIComponent(shareUrl) + '&text=' + encodeURIComponent(shareText);
+  if (lineLink) lineLink.href = 'https://line.me/R/share?text=' + encodeURIComponent(shareText + '\n' + shareUrl);
 }
 
 // SNSシェア: スクリーンショットアップロード・申請
