@@ -2119,15 +2119,17 @@ function calcProductTotal_() {
   if (state.appliedCoupon && state.appliedCoupon.code && state.appliedCoupon.type !== 'shipping_free') {
     var cd = state.appliedCoupon.discountAmount || 0;
     var afterCoupon = Math.max(0, sum - cd);
-    var comboRate = 0;
-    if (state.appliedCoupon.comboBulk) comboRate += bulkDiscountRate_(ids.length);
-    if (state.appliedCoupon.comboMember && state.customer && MEMBER_DISCOUNT_ENABLED) comboRate += MEMBER_DISCOUNT_RATE;
-    discounted = Math.round(afterCoupon * (1 - comboRate));
+    var _bulkRateT = bulkDiscountRate_(ids.length);
+    discounted = state.appliedCoupon.comboBulk && _bulkRateT > 0 ? Math.round(afterCoupon * (1 - _bulkRateT)) : afterCoupon;
+    if (state.appliedCoupon.comboMember && state.customer && MEMBER_DISCOUNT_ENABLED) {
+      discounted = Math.round(discounted * (1 - MEMBER_DISCOUNT_RATE));
+    }
   } else {
-    var discountRate = 0;
-    discountRate += bulkDiscountRate_(ids.length);
-    if (state.customer && MEMBER_DISCOUNT_ENABLED) discountRate += MEMBER_DISCOUNT_RATE;
-    discounted = Math.round(sum * (1 - discountRate));
+    var _bulkRateT2 = bulkDiscountRate_(ids.length);
+    discounted = _bulkRateT2 > 0 ? Math.round(sum * (1 - _bulkRateT2)) : sum;
+    if (state.customer && MEMBER_DISCOUNT_ENABLED) {
+      discounted = Math.round(discounted * (1 - MEMBER_DISCOUNT_RATE));
+    }
   }
   // ポイント適用
   var pts = parseInt(($('usePoints') ? $('usePoints').value : 0), 10) || 0;
@@ -4574,9 +4576,12 @@ function updateDetStickyBar_() {
     assortSub = Math.max(0, assortSub - _fhpOnBulk);
     total = detDiscounted + assortSub;
   } else {
-    var discountRate = bulkDiscountRate_(ids.length);
-    if (state.customer && MEMBER_DISCOUNT_ENABLED) discountRate += MEMBER_DISCOUNT_RATE;
-    detDiscounted = Math.round(detSum * (1 - discountRate));
+    // renderSummary_()と同じ順次適用方式（数量割引→会員割引）
+    var _bulkRateS = bulkDiscountRate_(ids.length);
+    detDiscounted = _bulkRateS > 0 ? Math.round(detSum * (1 - _bulkRateS)) : detSum;
+    if (state.customer && MEMBER_DISCOUNT_ENABLED) {
+      detDiscounted = Math.round(detDiscounted * (1 - MEMBER_DISCOUNT_RATE));
+    }
     if (assortSub > 0 && state.customer && MEMBER_DISCOUNT_ENABLED) {
       assortSub = Math.round(assortSub * (1 - MEMBER_DISCOUNT_RATE));
     }
@@ -4632,14 +4637,19 @@ function updateCartPrice() {
     if (state.appliedCoupon && state.appliedCoupon.code && state.appliedCoupon.type !== 'shipping_free') {
       var cd = state.appliedCoupon.discountAmount || 0;
       var afterCoupon = Math.max(0, sum - cd);
-      var comboRate = 0;
-      if (state.appliedCoupon.comboBulk) comboRate += bulkDiscountRate_(count);
-      if (state.appliedCoupon.comboMember && state.customer && MEMBER_DISCOUNT_ENABLED) comboRate += MEMBER_DISCOUNT_RATE;
-      discounted = Math.round(afterCoupon * (1 - comboRate));
+      // renderSummary_()と同じ順次適用方式
+      var _bulkRateCP = bulkDiscountRate_(count);
+      discounted = state.appliedCoupon.comboBulk && _bulkRateCP > 0 ? Math.round(afterCoupon * (1 - _bulkRateCP)) : afterCoupon;
+      if (state.appliedCoupon.comboMember && state.customer && MEMBER_DISCOUNT_ENABLED) {
+        discounted = Math.round(discounted * (1 - MEMBER_DISCOUNT_RATE));
+      }
     } else {
-      var discountRate = bulkDiscountRate_(count);
-      if (state.customer && MEMBER_DISCOUNT_ENABLED) discountRate += MEMBER_DISCOUNT_RATE;
-      discounted = Math.round(sum * (1 - discountRate));
+      // renderSummary_()と同じ順次適用方式（数量割引→会員割引）
+      var _bulkRateP = bulkDiscountRate_(count);
+      discounted = _bulkRateP > 0 ? Math.round(sum * (1 - _bulkRateP)) : sum;
+      if (state.customer && MEMBER_DISCOUNT_ENABLED) {
+        discounted = Math.round(discounted * (1 - MEMBER_DISCOUNT_RATE));
+      }
     }
     // チャネル設定のない割引（会員割引）はアソート商品にも適用
     var _bulkMemberRate = 0;
