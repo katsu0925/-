@@ -138,11 +138,11 @@ function apiSubmitEstimate(userKey, form, ids) {
         else if (totalCount >= 30) discountRate += 0.10;
         else if (totalCount >= 10) discountRate += 0.05;
       }
+      // 併用会員割引（数量割引とは別に順次適用するためdiscountRateには加算しない）
       var memberDiscountStatus = app_getMemberDiscountStatus_();
       if (validatedCoupon.comboMember && memberDiscountStatus.enabled && contact && typeof findCustomerByEmail_ === 'function') {
         var custForDiscount = findCustomerByEmail_(contact);
         if (custForDiscount) {
-          discountRate += memberDiscountStatus.rate;
           memberDiscountRate = memberDiscountStatus.rate;
         }
       }
@@ -155,18 +155,18 @@ function apiSubmitEstimate(userKey, form, ids) {
       else if (totalCount >= 30) discountRate += 0.10;
       else if (totalCount >= 10) discountRate += 0.05;
 
-      // 会員割引（ログイン会員のみ、enabled時のみ）
+      // 会員割引（順次適用のためdiscountRateには加算しない）
       var memberDiscountStatus = app_getMemberDiscountStatus_();
       if (memberDiscountStatus.enabled && contact && typeof findCustomerByEmail_ === 'function') {
         var custForDiscount = findCustomerByEmail_(contact);
         if (custForDiscount) {
-          discountRate += memberDiscountStatus.rate;
           memberDiscountRate = memberDiscountStatus.rate;
         }
       }
     }
 
     // ※割引は商品代のみに適用。送料は割引対象外（税込み固定）。
+    // フロントエンドと同じ順次適用方式: クーポン/数量割引 → 会員割引の順
     var discounted;
     if (firstHalfPriceApplied) {
       // 初回半額: 各チャネル個別に50%OFF（送料は対象外）
@@ -180,10 +180,19 @@ function apiSubmitEstimate(userKey, form, ids) {
       var _cdOnDetauri = Math.min(couponDiscount, sum);
       var _cdOnBulk = couponDiscount - _cdOnDetauri;
       var afterCoupon = Math.max(0, sum - _cdOnDetauri);
-      discounted = Math.round(afterCoupon * (1 - discountRate));
       bulkProductAmount = Math.max(0, bulkProductAmount - _cdOnBulk);
+      // 併用数量割引
+      discounted = discountRate > 0 ? Math.round(afterCoupon * (1 - discountRate)) : afterCoupon;
+      // 併用会員割引（数量割引適用後にさらに適用）
+      if (validatedCoupon && validatedCoupon.comboMember && memberDiscountRate > 0) {
+        discounted = Math.round(discounted * (1 - memberDiscountRate));
+      }
     } else {
-      discounted = Math.round(sum * (1 - discountRate));
+      // 数量割引 → 会員割引（順次適用）
+      discounted = discountRate > 0 ? Math.round(sum * (1 - discountRate)) : sum;
+      if (memberDiscountRate > 0) {
+        discounted = Math.round(discounted * (1 - memberDiscountRate));
+      }
     }
 
     // 会員割引をアソート商品にも適用（チャネル設定のない割引は両チャネルに適用）
@@ -256,7 +265,10 @@ function apiSubmitEstimate(userKey, form, ids) {
         discountParts.push(couponLabel + '（-' + couponDiscount + '円）コード: ' + couponCode);
       }
       if (discountRate > 0) {
-        discountParts.push('併用割引' + Math.round(discountRate * 100) + '%OFF');
+        discountParts.push('併用数量割引' + Math.round(discountRate * 100) + '%OFF');
+      }
+      if (validatedCoupon && validatedCoupon.comboMember && memberDiscountRate > 0) {
+        discountParts.push('併用会員割引' + Math.round(memberDiscountRate * 100) + '%OFF');
       }
       if (discountParts.length > 0) {
         var couponNote = '【' + discountParts.join(' + ') + '】';

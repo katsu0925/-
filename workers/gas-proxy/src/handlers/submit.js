@@ -305,7 +305,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
         ? 'クーポン送料無料'
         : ('クーポン' + validatedCoupon.value + '円引き');
 
-    // 併用可能な割引
+    // 併用可能な割引（数量割引のみdiscountRateに加算、会員割引は順次適用で別途処理）
     if (validatedCoupon.comboBulk) {
       if (totalCount >= 100) discountRate += 0.20;
       else if (totalCount >= 50) discountRate += 0.15;
@@ -313,7 +313,6 @@ export async function submitEstimate(args, env, bodyText, ctx) {
       else if (totalCount >= 10) discountRate += 0.05;
     }
     if (validatedCoupon.comboMember && memberDiscountStatus.enabled && customerRow) {
-      discountRate += memberDiscountStatus.rate;
       memberDiscountRate = memberDiscountStatus.rate;
     }
   } else if (!firstHalfPriceApplied) {
@@ -326,12 +325,11 @@ export async function submitEstimate(args, env, bodyText, ctx) {
 
     // 会員割引
     if (memberDiscountStatus.enabled && customerRow) {
-      discountRate += memberDiscountStatus.rate;
       memberDiscountRate = memberDiscountStatus.rate;
     }
   }
 
-  // 割引適用
+  // 割引適用（フロントエンドと同じ順次適用方式: 数量割引→会員割引の順）
   let discounted;
   if (firstHalfPriceApplied) {
     const fhpOnDetauri = Math.round(sum * fhpStatus.rate);
@@ -340,16 +338,26 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     bulkProductAmount = Math.max(0, bulkProductAmount - fhpOnBulk);
     couponLabel = '初回全品半額キャンペーン（' + Math.round(fhpStatus.rate * 100) + '%OFF）';
   } else if (activeCouponCode) {
+    // クーポン適用 → 併用数量割引 → 併用会員割引（順次適用）
     const cdOnDetauri = Math.min(couponDiscount, sum);
     const cdOnBulk = couponDiscount - cdOnDetauri;
-    const afterCoupon = Math.max(0, sum - cdOnDetauri);
-    discounted = Math.round(afterCoupon * (1 - discountRate));
+    let afterCoupon = Math.max(0, sum - cdOnDetauri);
     bulkProductAmount = Math.max(0, bulkProductAmount - cdOnBulk);
+    // 併用数量割引
+    discounted = discountRate > 0 ? Math.round(afterCoupon * (1 - discountRate)) : afterCoupon;
+    // 併用会員割引（数量割引適用後にさらに適用）
+    if (validatedCoupon && validatedCoupon.comboMember && memberDiscountRate > 0) {
+      discounted = Math.round(discounted * (1 - memberDiscountRate));
+    }
   } else {
-    discounted = Math.round(sum * (1 - discountRate));
+    // 数量割引 → 会員割引（順次適用）
+    discounted = discountRate > 0 ? Math.round(sum * (1 - discountRate)) : sum;
+    if (memberDiscountRate > 0) {
+      discounted = Math.round(discounted * (1 - memberDiscountRate));
+    }
   }
 
-  // 会員割引をアソート商品にも適用
+  // 会員割引をアソート商品にも適用（初回半額とは併用不可）
   if (!firstHalfPriceApplied && memberDiscountRate > 0 && bulkProductAmount > 0) {
     bulkProductAmount = Math.round(bulkProductAmount * (1 - memberDiscountRate));
   }
@@ -405,7 +413,10 @@ export async function submitEstimate(args, env, bodyText, ctx) {
       discountParts.push(couponLabel + '（-' + couponDiscount + '円）コード: ' + activeCouponCode);
     }
     if (discountRate > 0) {
-      discountParts.push('併用割引' + Math.round(discountRate * 100) + '%OFF');
+      discountParts.push('併用数量割引' + Math.round(discountRate * 100) + '%OFF');
+    }
+    if (validatedCoupon && validatedCoupon.comboMember && memberDiscountRate > 0) {
+      discountParts.push('併用会員割引' + Math.round(memberDiscountRate * 100) + '%OFF');
     }
     if (discountParts.length > 0) {
       const couponNote = '【' + discountParts.join(' + ') + '】';
