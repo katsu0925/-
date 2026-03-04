@@ -1984,6 +1984,11 @@ function calculateShipping_() {
 
   var addressEl = $('address');
   var address = addressEl ? addressEl.value.trim() : '';
+  // 住所フィールドが空でも会員の登録住所があれば使用（フィールドにも反映）
+  if (!address && state.customer && state.customer.address) {
+    address = state.customer.address.trim();
+    if (address && addressEl) addressEl.value = address;
+  }
   if (!address) return { amount: null, label: '住所を入力すると送料が表示されます', canAutoPayment: false };
 
   // 離島チェック
@@ -2089,6 +2094,10 @@ function calcBulkShipping_(bulkTotalQty) {
   if (bulkTotalQty === 0) return 0;
   var addressEl = $('address');
   var address = addressEl ? addressEl.value.trim() : '';
+  if (!address && state.customer && state.customer.address) {
+    address = state.customer.address.trim();
+    if (address && addressEl) addressEl.value = address;
+  }
   if (!address) return 0;
   var pref = detectPrefectureFromAddress_(address);
   if (!pref) return 0;
