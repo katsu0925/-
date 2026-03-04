@@ -2451,51 +2451,34 @@ function renderSummary_() {
   saveCartStorage();
   updateCartClearBtns_();
 
-  // スティッキーバー直接更新（カートに表示中の小計/合計をそのまま反映）
-  var _sBar = document.getElementById('detStickyBar');
-  if (_sBar) {
-    _sBar.classList.add('active');
-    document.body.classList.add('has-det-cart');
-    var _sTotalEl = document.getElementById('detStickyBarTotal');
-    var _sLabelEl = document.getElementById('detStickyBarLabel');
-    var _sHintEl = document.getElementById('detStickyShipHint');
-    var _bulkQ = _bulkDataRS.totalQty || 0;
-    // 合計: 両チャネルあれば両チャネル合計、なければデタウリ小計
-    var _sTotal = 0;
-    var _sShipTotal = effectiveShipping;
-    if (_bulkDataRS.subtotal > 0) {
-      var _bulkT = effectiveBulkProduct + effectiveBulkShip;
-      _sTotal = effectiveDiscounted + effectiveShipping + _bulkT;
-      _sShipTotal += effectiveBulkShip;
-    } else {
-      _sTotal = effectiveDiscounted + effectiveShipping;
-    }
-    if (_sTotalEl) _sTotalEl.textContent = '¥' + numFmt_(_sTotal);
-    // ラベル
-    if (_sLabelEl) {
-      if (count > 0 && _bulkQ > 0) {
-        _sLabelEl.textContent = 'デタウリ' + count + '点 + アソート' + _bulkQ + '点';
-      } else if (count > 0) {
-        _sLabelEl.textContent = 'デタウリ' + count + '点';
-      } else if (_bulkQ > 0) {
-        _sLabelEl.textContent = 'アソート' + _bulkQ + '点';
-      } else {
-        _sLabelEl.textContent = 'カートは空です';
-      }
-    }
-    // 送料ヒント
-    if (_sHintEl) {
-      if (_sShipTotal > 0) {
-        _sHintEl.textContent = '(送料 ¥' + numFmt_(_sShipTotal) + ' 込)';
-      } else if (shippingResult.amount === 0) {
-        _sHintEl.innerHTML = '<span class="ship-free">送料無料!</span>';
-      } else if (count > 0 || _bulkQ > 0) {
-        _sHintEl.textContent = '(送料別)';
-      } else {
-        _sHintEl.textContent = '';
-      }
-    }
+  // スティッキーバー値を計算してstateに保存（DOM存在有無に関係なく常に実行）
+  var _bulkQ = _bulkDataRS.totalQty || 0;
+  var _sTotal = 0;
+  var _sShipTotal = effectiveShipping;
+  if (_bulkDataRS.subtotal > 0) {
+    _sTotal = effectiveDiscounted + effectiveShipping + effectiveBulkProduct + effectiveBulkShip;
+    _sShipTotal += effectiveBulkShip;
+  } else {
+    _sTotal = effectiveDiscounted + effectiveShipping;
   }
+  var _sLabel = '';
+  if (count > 0 && _bulkQ > 0) _sLabel = 'デタウリ' + count + '点 + アソート' + _bulkQ + '点';
+  else if (count > 0) _sLabel = 'デタウリ' + count + '点';
+  else if (_bulkQ > 0) _sLabel = 'アソート' + _bulkQ + '点';
+  else _sLabel = 'カートは空です';
+  var _sHint = '';
+  var _sHintIsHtml = false;
+  if (_sShipTotal > 0) {
+    _sHint = '(送料 ¥' + numFmt_(_sShipTotal) + ' 込)';
+  } else if (shippingResult.amount === 0) {
+    _sHint = '<span class="ship-free">送料無料!</span>';
+    _sHintIsHtml = true;
+  } else if (count > 0 || _bulkQ > 0) {
+    _sHint = '(送料別)';
+  }
+  state._stickyVals = { total: _sTotal, label: _sLabel, hint: _sHint, hintIsHtml: _sHintIsHtml };
+  // DOMが存在すれば即時更新
+  updateDetStickyBar_();
 }
 
 function loadSession_() {
@@ -4616,12 +4599,21 @@ function updateCartCount() {
 }
 
 function updateDetStickyBar_() {
-  // renderSummary_()が直接DOMを更新するため、この関数はフォールバック専用
-  // renderSummary_()がまだ実行されていない場合にのみ動作
   var bar = document.getElementById('detStickyBar');
   if (!bar) return;
+  var v = state._stickyVals;
+  if (!v) return;
   bar.classList.add('active');
   document.body.classList.add('has-det-cart');
+  var te = document.getElementById('detStickyBarTotal');
+  var le = document.getElementById('detStickyBarLabel');
+  var he = document.getElementById('detStickyShipHint');
+  if (te) te.textContent = '¥' + numFmt_(v.total);
+  if (le) le.textContent = v.label;
+  if (he) {
+    if (v.hintIsHtml) he.innerHTML = v.hint;
+    else he.textContent = v.hint;
+  }
 }
 
 function updateCartPrice() {
@@ -8152,12 +8144,17 @@ function closeBulkQv_() {
 }
 // detStickyBar はこのscriptより前にDOMが確定するため、ここで再描画して初期値を正しく表示する
 updateCartCount();
-// セッション検証完了後にrenderSummary_()→_stickyCacheを確実に反映
+// フォールバック: renderSummary_()がDOMを更新できなかった場合の保険
+updateDetStickyBar_();
+// セッション検証完了後に再計算（住所・割引等が確定する）
 if (state._sessionPromise) {
   state._sessionPromise.then(function() {
     renderSummary_();
+    updateDetStickyBar_();
   });
 }
+// 最終フォールバック: 1秒後にもう一度反映（非同期処理の取りこぼし対策）
+setTimeout(function() { updateDetStickyBar_(); }, 1000);
 
 // ====== 2-1: Exit Intent Popup ======
 (function() {
