@@ -4587,14 +4587,41 @@ function updateDetStickyBar_() {
     assortSub = Math.max(0, assortSub - _fhpOnBulk);
     total = detDiscounted + assortSub;
   } else {
-    // renderSummary_()と同じ順次適用方式（数量割引→会員割引）
-    var _bulkRateS = bulkDiscountRate_(ids.length);
-    detDiscounted = _bulkRateS > 0 ? Math.round(detSum * (1 - _bulkRateS)) : detSum;
-    if (state.customer && MEMBER_DISCOUNT_ENABLED) {
-      detDiscounted = Math.round(detDiscounted * (1 - MEMBER_DISCOUNT_RATE));
-    }
-    if (assortSub > 0 && state.customer && MEMBER_DISCOUNT_ENABLED) {
-      assortSub = Math.round(assortSub * (1 - MEMBER_DISCOUNT_RATE));
+    // renderSummary_()と同じ割引ロジック
+    detDiscounted = detSum;
+    if (state.appliedCoupon && state.appliedCoupon.code) {
+      if (state.appliedCoupon.type !== 'shipping_free') {
+        var _combinedS = detSum + assortSub;
+        var _cdTotalS = state.appliedCoupon.type === 'rate'
+          ? Math.round(_combinedS * (state.appliedCoupon.value || 0))
+          : Math.min(Number(state.appliedCoupon.value || 0), _combinedS);
+        var _cdOnDetS = Math.min(_cdTotalS, detSum);
+        var _cdOnBulkS = _cdTotalS - _cdOnDetS;
+        detDiscounted = Math.max(0, detSum - _cdOnDetS);
+        assortSub = Math.max(0, assortSub - _cdOnBulkS);
+      }
+      var _comboRate = 0;
+      var _bulkRateC = bulkDiscountRate_(ids.length);
+      if (state.appliedCoupon.comboBulk && _bulkRateC > 0) _comboRate += _bulkRateC;
+      detDiscounted = Math.round(detDiscounted * (1 - _comboRate));
+      if (state.appliedCoupon.comboMember && state.customer && MEMBER_DISCOUNT_ENABLED) {
+        detDiscounted = Math.round(detDiscounted * (1 - MEMBER_DISCOUNT_RATE));
+      }
+      if (assortSub > 0 && state.customer && MEMBER_DISCOUNT_ENABLED) {
+        if (state.appliedCoupon.type === 'shipping_free' || state.appliedCoupon.comboMember !== false) {
+          assortSub = Math.round(assortSub * (1 - MEMBER_DISCOUNT_RATE));
+        }
+      }
+    } else {
+      // クーポンなし: 数量割引→会員割引
+      var _bulkRateS = bulkDiscountRate_(ids.length);
+      detDiscounted = _bulkRateS > 0 ? Math.round(detSum * (1 - _bulkRateS)) : detSum;
+      if (state.customer && MEMBER_DISCOUNT_ENABLED) {
+        detDiscounted = Math.round(detDiscounted * (1 - MEMBER_DISCOUNT_RATE));
+      }
+      if (assortSub > 0 && state.customer && MEMBER_DISCOUNT_ENABLED) {
+        assortSub = Math.round(assortSub * (1 - MEMBER_DISCOUNT_RATE));
+      }
     }
     total = detDiscounted + assortSub;
   }

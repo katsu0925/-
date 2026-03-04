@@ -2086,8 +2086,15 @@ function updateCart() {
         _dProd0 = Math.max(0, _dProd0 - _dFhpAmt0);
         if (_dFhpAmt0 > 0) _dDiscRow0 += '<div class="cart-row" style="color:#c2410c;font-size:12px;border-bottom:none;font-weight:700;"><span>初回全品半額（' + Math.round(G.firstHalfPrice.rate * 100) + '%OFF）</span><span>-¥' + numFmt(_dFhpAmt0) + '</span></div>';
       }
-      // 会員割引（初回半額と併用不可）
       if (!_dFhp0) {
+        // 数量割引
+        var _dBulkRate0 = bulkDiscountRate_(G.detauriCartCount);
+        if (_dBulkRate0 > 0) {
+          var _dBulkAmt0 = _dProd0 - Math.round(_dProd0 * (1 - _dBulkRate0));
+          _dProd0 = Math.round(_dProd0 * (1 - _dBulkRate0));
+          if (_dBulkAmt0 > 0) _dDiscRow0 += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;"><span>' + bulkDiscountLabel_(G.detauriCartCount) + '</span><span>-¥' + numFmt(_dBulkAmt0) + '</span></div>';
+        }
+        // 会員割引（初回半額と併用不可）
         var _dMd0 = G.settings.memberDiscount;
         if (G.customer && _dMd0 && _dMd0.enabled && (!G.coupon || G.coupon.comboMember !== false)) {
           var _dMdAmt0 = Math.round(_dProd0 * _dMd0.rate);
@@ -2202,6 +2209,17 @@ function updateCart() {
     }
   }
 
+  // 数量割引（デタウリのみ）— 初回半額とは併用不可
+  if (!_fhpApplied) {
+    var _dBulkRateC = bulkDiscountRate_(G.detauriCartCount);
+    if (_dBulkRateC > 0 && (!G.coupon || G.coupon.comboBulk !== false)) {
+      var _prevDetBulk = _eDetauriProd;
+      _eDetauriProd = Math.round(_eDetauriProd * (1 - _dBulkRateC));
+      var _dBulkDiscC = _prevDetBulk - _eDetauriProd;
+      if (_dBulkDiscC > 0) _detauriMemberDiscRow += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;"><span>' + bulkDiscountLabel_(G.detauriCartCount) + '</span><span>-¥' + numFmt(_dBulkDiscC) + '</span></div>';
+    }
+  }
+
   // 会員割引（チャネル設定のない割引は両チャネルに適用）— 初回半額とは併用不可
   if (!_fhpApplied) {
     var md = G.settings.memberDiscount;
@@ -2214,7 +2232,7 @@ function updateCart() {
       var _mdDetauri = _prevDetProd - _eDetauriProd;
       var _mdPct = Math.round(md.rate * 100) + '%OFF';
       if (_mdAssort > 0) discountRows += '<div class="cart-row"><span>会員割引 (' + _mdPct + ')</span><span>-¥' + numFmt(_mdAssort) + '</span></div>';
-      if (_mdDetauri > 0) _detauriMemberDiscRow = '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;"><span>会員割引 (' + _mdPct + ')</span><span>-¥' + numFmt(_mdDetauri) + '</span></div>';
+      if (_mdDetauri > 0) _detauriMemberDiscRow += '<div class="cart-row" style="color:#5B86C5;font-size:12px;border-bottom:none;"><span>会員割引 (' + _mdPct + ')</span><span>-¥' + numFmt(_mdDetauri) + '</span></div>';
     }
   }
 
@@ -3240,6 +3258,22 @@ document.addEventListener('keydown', function(e) {
 function escHtml(s) { var d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
 function escAttr(s) { return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;'); }
 function numFmt(n) { return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+// デタウリ数量割引（index.htmlと同一ロジック）
+function bulkDiscountRate_(count) {
+  if (count >= 100) return 0.20;
+  if (count >= 50)  return 0.15;
+  if (count >= 30)  return 0.10;
+  if (count >= 10)  return 0.05;
+  return 0;
+}
+function bulkDiscountLabel_(count) {
+  if (count >= 100) return '100点割引20%OFF';
+  if (count >= 50)  return '50点割引15%OFF';
+  if (count >= 30)  return '30点割引10%OFF';
+  if (count >= 10)  return '10点割引5%OFF';
+  return '';
+}
 
 // =====================================================
 // 住所共有（localStorage経由で両ページ間で共有）
