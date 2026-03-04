@@ -4582,7 +4582,7 @@ function updateCartCount() {
   var totalCount = detauriCount + bulk.totalQty;
   $('cartCount').textContent = String(totalCount);
   updateCartPrice();
-  updateDetStickyBar_();
+  renderSummary_();
 }
 
 function updateDetStickyBar_() {
