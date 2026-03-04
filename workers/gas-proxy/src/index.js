@@ -176,16 +176,21 @@ function extractUserKey(request, args) {
 }
 
 async function checkRateLimit(env, action, userKey, config) {
-  const key = `rl:${action}:${userKey}`;
-  const count = parseInt(await env.SESSIONS.get(key) || '0', 10);
+  try {
+    const key = `rl:${action}:${userKey}`;
+    const count = parseInt(await env.SESSIONS.get(key) || '0', 10);
 
-  if (count >= config.max) {
-    return true; // rate limited
+    if (count >= config.max) {
+      return true; // rate limited
+    }
+
+    await env.SESSIONS.put(key, String(count + 1), {
+      expirationTtl: config.windowSec,
+    });
+  } catch (e) {
+    // KV制限超過時はレート制限をスキップしてリクエストを通す
+    console.warn('Rate limit check failed (skipping):', e.message);
   }
-
-  await env.SESSIONS.put(key, String(count + 1), {
-    expirationTtl: config.windowSec,
-  });
   return false;
 }
 
