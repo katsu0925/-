@@ -2450,6 +2450,8 @@ function renderSummary_() {
   // 送料詳細をlocalStorageに保存（アソート商品ページでの表示用）
   saveCartStorage();
   updateCartClearBtns_();
+  // 送料再計算後にスティッキーバーを同期（セッション復元後等）
+  updateDetStickyBar_();
 }
 
 function loadSession_() {
