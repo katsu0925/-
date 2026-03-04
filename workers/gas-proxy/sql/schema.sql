@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS holds (
   hold_id TEXT NOT NULL,
   until_ms INTEGER NOT NULL,              -- 確保期限 (epoch ms)
   pending_payment INTEGER NOT NULL DEFAULT 0, -- 支払い待ちフラグ
+  receipt_no TEXT NOT NULL DEFAULT '',     -- 決済待ち受付番号
   created_at TEXT NOT NULL,
   PRIMARY KEY (managed_id, user_key)
 );

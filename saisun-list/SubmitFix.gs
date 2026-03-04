@@ -451,6 +451,88 @@ function apiSubmitEstimate(userKey, form, ids) {
 }
 
 // =====================================================
+// _internalSavePendingOrder — Workers内部API
+// Workers側でKOMOJUセッション作成後、GASにペンディング注文データを非同期保存
+// =====================================================
+
+/**
+ * Workers → GAS 内部通信用（ADMIN_KEY認証済み）
+ * - PENDING_ORDER_をPropertiesServiceに保存（webhookハンドラ互換性）
+ * - holdStateをPropertiesServiceに更新（pendingPayment=true, until_ms延長）
+ * - ポイントをSheetsから差し引き
+ *
+ * @param {object} pendingData - Workers側で構築したペンディング注文データ
+ * @returns {object} { ok, message }
+ */
+function _internalSavePendingOrder(pendingData) {
+  try {
+    if (!pendingData || !pendingData.receiptNo) {
+      return { ok: false, message: 'pendingDataが不正です' };
+    }
+
+    var receiptNo = pendingData.receiptNo;
+    var ids = pendingData.ids || [];
+    var uk = pendingData.userKey || '';
+    var contact = (pendingData.form && pendingData.form.contact) || '';
+    var pointsUsed = pendingData.pointsUsed || 0;
+
+    console.log('_internalSavePendingOrder: receipt=' + receiptNo + ', ids=' + ids.length + ', points=' + pointsUsed);
+
+    // 1. PENDING_ORDER_をPropertiesServiceに保存（webhook互換）
+    var props = PropertiesService.getScriptProperties();
+    props.setProperty('PENDING_ORDER_' + receiptNo, JSON.stringify(pendingData));
+
+    // 2. holdState更新（GAS側のPropertiesServiceベースの状態管理と同期）
+    if (ids.length > 0) {
+      var orderSs = sh_getOrderSs_();
+      sh_ensureAllOnce_(orderSs);
+
+      var lock = LockService.getScriptLock();
+      if (lock.tryLock(30000)) {
+        try {
+          var now = u_nowMs_();
+          var holdState = st_getHoldState_(orderSs) || {};
+          var holdItems = (holdState.items && typeof holdState.items === 'object') ? holdState.items : {};
+
+          var paymentHoldMs = PAYMENT_CONSTANTS.PAYMENT_EXPIRY_SECONDS * 1000;
+          for (var i = 0; i < ids.length; i++) {
+            holdItems[ids[i]] = {
+              holdId: uk + ':' + String(now),
+              userKey: uk,
+              untilMs: now + paymentHoldMs,
+              createdAtMs: now,
+              pendingPayment: true,
+              receiptNo: receiptNo
+            };
+          }
+          holdState.items = holdItems;
+          holdState.updatedAt = now;
+          st_setHoldState_(orderSs, holdState);
+          st_invalidateStatusCache_(orderSs);
+        } finally {
+          lock.releaseLock();
+        }
+      } else {
+        console.warn('_internalSavePendingOrder: holdState lock timeout (non-fatal)');
+      }
+    }
+
+    // 3. ポイント差し引き
+    if (pointsUsed > 0 && contact) {
+      deductPoints_(contact, pointsUsed);
+      console.log('_internalSavePendingOrder: deducted ' + pointsUsed + ' points from ' + contact);
+    }
+
+    console.log('_internalSavePendingOrder: saved PENDING_ORDER_' + receiptNo);
+    return { ok: true, message: 'ペンディング注文を保存しました: ' + receiptNo };
+
+  } catch (e) {
+    console.error('_internalSavePendingOrder error:', e);
+    return { ok: false, message: (e && e.message) ? e.message : String(e) };
+  }
+}
+
+// =====================================================
 // apiAdminLinkOrder — 管理者用: 既存受付番号に商品選択を紐付け
 // =====================================================
 

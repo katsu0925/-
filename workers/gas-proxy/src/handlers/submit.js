@@ -1,15 +1,16 @@
 /**
- * 注文送信API（Phase 5）
+ * 注文送信API（Phase 5 → KOMOJU移行版）
  *
- * apiSubmitEstimate — 前半（バリデーション・金額計算・送料計算・FHP判定）をWorkersで実行
- * 検証通過後、注文データをGASにプロキシ（Sheets書き込み + Drive + メール送信）
+ * submitEstimate — バリデーション・価格計算・holds更新・KOMOJU決済セッション作成をすべてWorkersで実行
+ * GASへはctx.waitUntilでペンディング注文データを非同期保存（webhook互換性のため）
  *
- * apiBulkSubmit — 同様のハイブリッド構成
+ * ロールバック: submitEstimate末尾を `return await proxyToGasForSubmit(bodyText, env);` に戻すだけ
  */
 import { jsonOk, jsonError, corsResponse } from '../utils/response.js';
 
-// 送料テーブル（同期時にD1 settingsから読み込み、フォールバック用にハードコード）
-const DEFAULT_SHIPPING_AREAS = {
+// ─── 送料テーブル ───
+
+const SHIPPING_AREAS = {
   '北海道': 'hokkaido',
   '青森県': 'kita_tohoku', '岩手県': 'kita_tohoku', '秋田県': 'kita_tohoku',
   '宮城県': 'minami_tohoku', '福島県': 'minami_tohoku', '山形県': 'minami_tohoku',
@@ -28,7 +29,7 @@ const DEFAULT_SHIPPING_AREAS = {
   '沖縄県': 'okinawa',
 };
 
-const DEFAULT_SHIPPING_RATES = {
+const SHIPPING_RATES = {
   minami_kyushu: [1320, 1700], kita_kyushu: [1280, 1620],
   shikoku: [1180, 1440], chugoku: [1200, 1480],
   kansai: [1100, 1260], hokuriku: [1160, 1420],
@@ -60,13 +61,28 @@ const PREFECTURES = [
   '福岡県','佐賀県','長崎県','熊本県','大分県','宮崎県','鹿児島県','沖縄県',
 ];
 
+// KOMOJU決済設定
+const KOMOJU_API_URL = 'https://komoju.com/api/v1';
+const KOMOJU_CURRENCY = 'JPY';
+const KOMOJU_PAYMENT_METHODS = [
+  'credit_card', 'konbini', 'bank_transfer', 'paypay', 'pay_easy', 'apple_pay', 'paidy',
+];
+const PAYMENT_EXPIRY_SECONDS = 259200; // 3日間
+
+// ─── メインハンドラ ───
+
 /**
- * apiSubmitEstimate — 注文前半バリデーション
+ * submitEstimate — 注文処理をWorkersで完結
  *
- * バリデーション・金額計算をWorkersで高速実行し、
- * 検証通過後はGASにプロキシして確保・KOMOJU決済・シート書き込みを実行。
+ * 1. フォームバリデーション
+ * 2. D1からデータ取得（products, bulk_products, customers, settings, coupons）
+ * 3. 価格計算（割引・クーポン・FHP・ポイント・送料）
+ * 4. D1 holds更新（pending_payment=1, until_ms延長, receipt_no設定）
+ * 5. KOMOJU APIセッション作成
+ * 6. フロントエンドにsessionUrl返却
+ * + ctx.waitUntil: GASにペンディング注文保存
  */
-export async function submitEstimate(args, env, bodyText) {
+export async function submitEstimate(args, env, bodyText, ctx) {
   const userKey = String(args[0] || '').trim();
   const form = args[1] || {};
   const ids = args[2] || [];
@@ -87,9 +103,15 @@ export async function submitEstimate(args, env, bodyText) {
   // フォームバリデーション
   const companyName = String(form.companyName || '').trim();
   const contact = String(form.contact || '').trim();
+  const contactMethod = String(form.contactMethod || '').trim();
+  const delivery = String(form.delivery || '').trim();
   const postal = String(form.postal || '').trim();
   const address = String(form.address || '').trim();
   const phone = String(form.phone || '').trim();
+  let note = String(form.note || '').trim();
+  const measureOpt = String(form.measureOpt || '').trim();
+  const couponCode = String(form.couponCode || '').trim().toUpperCase();
+  const usePoints = Math.max(0, Math.floor(Number(form.usePoints) || 0));
 
   if (!companyName) return jsonError('会社名/氏名は必須です');
   if (!contact) return jsonError('メールアドレスは必須です');
@@ -109,12 +131,28 @@ export async function submitEstimate(args, env, bodyText) {
     return jsonError('住所から都道府県を判別できません。住所を確認してください。');
   }
 
-  // D1から商品データ検証
+  // reCAPTCHA検証
+  let parsedBody;
+  try { parsedBody = JSON.parse(bodyText); } catch (e) { parsedBody = {}; }
+  const recaptchaToken = parsedBody.recaptchaToken || '';
+  if (recaptchaToken && env.RECAPTCHA_SECRET) {
+    const verified = await verifyRecaptcha(recaptchaToken, env.RECAPTCHA_SECRET);
+    if (!verified) {
+      return jsonError('bot判定されました。ブラウザを再読み込みして再度お試しください。');
+    }
+  }
+
+  // ─── D1からデータ取得 ───
+
+  // 商品データ検証 + 合計計算
+  let productResults = [];
+  let sum = 0;
   if (ids.length > 0) {
     const placeholders = ids.map(() => '?').join(',');
     const { results } = await env.DB.prepare(
-      `SELECT managed_id, price FROM products WHERE managed_id IN (${placeholders})`
+      `SELECT managed_id, price, no_label, brand, category, size, color FROM products WHERE managed_id IN (${placeholders})`
     ).bind(...ids).all();
+    productResults = results;
 
     const foundIds = new Set(results.map(r => r.managed_id));
     const missing = ids.filter(id => !foundIds.has(id));
@@ -122,8 +160,6 @@ export async function submitEstimate(args, env, bodyText) {
       return jsonError('商品が見つかりません: ' + missing.join('、'));
     }
 
-    // 商品合計計算
-    let sum = 0;
     for (const r of results) sum += r.price;
 
     // 確保チェック（他ユーザーに確保されていないか）
@@ -150,21 +186,457 @@ export async function submitEstimate(args, env, bodyText) {
     }
   }
 
-  // reCAPTCHA検証（Workers側で実行）
-  // bodyTextをパースしてrecaptchaTokenを取得
-  let parsedBody;
-  try { parsedBody = JSON.parse(bodyText); } catch (e) { parsedBody = {}; }
-  const recaptchaToken = parsedBody.recaptchaToken || '';
+  // ─── アソートカート金額をサーバー側で再計算 ───
+  let bulkProductAmount = 0;
+  let bulkShippingAmount = 0;
+  let bulkItemCount = 0;
+  if (hasBulkItems) {
+    // D1からアソート商品取得
+    const { results: bulkProducts } = await env.DB.prepare(
+      'SELECT product_id, name, price, discounted_price, min_qty, max_qty, stock, sold_out, unit FROM bulk_products WHERE active = 1'
+    ).all();
+    const bulkMap = {};
+    for (const bp of bulkProducts) bulkMap[bp.product_id] = bp;
 
-  if (recaptchaToken && env.RECAPTCHA_SECRET) {
-    const verified = await verifyRecaptcha(recaptchaToken, env.RECAPTCHA_SECRET);
-    if (!verified) {
-      return jsonError('bot判定されました。ブラウザを再読み込みして再度お試しください。');
+    for (const bItem of form.bulkItems) {
+      const bPid = String(bItem.productId || '').trim();
+      const bQty = Math.max(0, Math.floor(Number(bItem.qty) || 0));
+      if (!bPid || bQty <= 0) continue;
+      const bp = bulkMap[bPid];
+      if (!bp) return jsonError('アソート商品が見つかりません: ' + bPid);
+      if (bp.sold_out) return jsonError(bp.name + ' は売り切れです');
+      if (bQty < bp.min_qty) return jsonError(bp.name + ' は最低' + bp.min_qty + bp.unit + 'から注文可能です');
+      if (bQty > bp.max_qty) return jsonError(bp.name + ' は最大' + bp.max_qty + bp.unit + 'までです');
+      if (bp.stock !== -1 && bp.stock < bQty) return jsonError(bp.name + ' の在庫が不足しています（残り' + bp.stock + '）');
+      const bUnitPrice = (bp.discounted_price !== undefined && bp.discounted_price > 0) ? bp.discounted_price : bp.price;
+      bulkProductAmount += bUnitPrice * bQty;
+      bulkItemCount += bQty;
+    }
+  }
+  const rawBulkProductAmount = bulkProductAmount; // 送料無料判定用（クーポン適用前）
+
+  // ─── 設定・顧客データ取得 ───
+  const emailLower = contact.toLowerCase();
+
+  // 並列で取得
+  const [memberDiscountRow, fhpRow, customerRow] = await Promise.all([
+    env.DB.prepare("SELECT value FROM settings WHERE key = 'MEMBER_DISCOUNT_STATUS'").first(),
+    env.DB.prepare("SELECT value FROM settings WHERE key = 'FIRST_HALF_PRICE_STATUS'").first(),
+    env.DB.prepare('SELECT points, purchase_count FROM customers WHERE email = ?').bind(emailLower).first(),
+  ]);
+
+  let memberDiscountStatus = { enabled: true, rate: 0.10, endDate: '2026-09-30', reason: 'active' };
+  if (memberDiscountRow) { try { memberDiscountStatus = JSON.parse(memberDiscountRow.value); } catch (e) { /* fallthrough */ } }
+
+  let fhpStatus = { enabled: false, rate: 0.50 };
+  if (fhpRow) { try { fhpStatus = JSON.parse(fhpRow.value); } catch (e) { /* fallthrough */ } }
+
+  const customerPoints = customerRow ? customerRow.points : 0;
+  const purchaseCount = customerRow ? customerRow.purchase_count : 0;
+
+  // ─── 価格計算 ───
+  const totalCount = ids.length;
+  let discountRate = 0;
+  let memberDiscountRate = 0;
+  let couponDiscount = 0;
+  let couponLabel = '';
+  let validatedCoupon = null;
+  let firstHalfPriceApplied = false;
+  let activeCouponCode = couponCode;
+
+  // 初回全品半額キャンペーンチェック（他の割引と併用不可）
+  if (fhpStatus.enabled && customerRow && purchaseCount === 0) {
+    firstHalfPriceApplied = true;
+    activeCouponCode = ''; // 他の割引を無効化
+  }
+
+  if (!firstHalfPriceApplied && activeCouponCode) {
+    // クーポン検証（D1）
+    const coupon = await env.DB.prepare('SELECT * FROM coupons WHERE code = ?').bind(activeCouponCode).first();
+    if (!coupon || !coupon.active) return jsonError('無効なクーポンコードです。');
+
+    // 限定顧客チェック
+    if (coupon.target_customer_email && coupon.target_customer_email !== emailLower) {
+      return jsonError('このクーポンはご利用いただけません。');
+    }
+    if (coupon.target_customer_name && coupon.target_customer_name !== companyName) {
+      return jsonError('このクーポンはご利用いただけません。');
+    }
+    // チャネルチェック
+    if (coupon.channel !== 'all' && coupon.channel !== 'detauri') {
+      return jsonError('このクーポンは対象外のチャネルです。');
+    }
+    // 開始日・有効期限チェック
+    const now = new Date();
+    if (coupon.start_date && now < new Date(coupon.start_date)) {
+      return jsonError('このクーポンはまだ有効期間前です。');
+    }
+    if (coupon.expires_at && now > new Date(coupon.expires_at)) {
+      return jsonError('このクーポンは有効期限切れです。');
+    }
+    // 利用回数上限
+    if (coupon.max_uses > 0 && coupon.use_count >= coupon.max_uses) {
+      return jsonError('このクーポンは利用上限に達しています。');
+    }
+    // 1回限り/ユーザー
+    if (coupon.once_per_user && emailLower) {
+      const used = await env.DB.prepare(
+        'SELECT id FROM coupon_usage WHERE code = ? AND email = ? LIMIT 1'
+      ).bind(activeCouponCode, emailLower).first();
+      if (used) return jsonError('このクーポンは既にご利用済みです。');
+    }
+    // ターゲット顧客チェック（new/repeat）
+    if (coupon.target !== 'all') {
+      if (coupon.target === 'new' && purchaseCount > 0) return jsonError('このクーポンは新規のお客様限定です。');
+      if (coupon.target === 'repeat' && purchaseCount === 0) return jsonError('このクーポンはリピーターのお客様限定です。');
+    }
+
+    validatedCoupon = {
+      type: coupon.type,
+      value: coupon.value,
+      comboMember: coupon.combo_member === 1,
+      comboBulk: coupon.combo_bulk === 1,
+    };
+
+    couponDiscount = calcCouponDiscount(validatedCoupon.type, validatedCoupon.value, sum + bulkProductAmount);
+    couponLabel = validatedCoupon.type === 'rate'
+      ? ('クーポン' + Math.round(validatedCoupon.value * 100) + '%OFF')
+      : validatedCoupon.type === 'shipping_free'
+        ? 'クーポン送料無料'
+        : ('クーポン' + validatedCoupon.value + '円引き');
+
+    // 併用可能な割引
+    if (validatedCoupon.comboBulk) {
+      if (totalCount >= 100) discountRate += 0.20;
+      else if (totalCount >= 50) discountRate += 0.15;
+      else if (totalCount >= 30) discountRate += 0.10;
+      else if (totalCount >= 10) discountRate += 0.05;
+    }
+    if (validatedCoupon.comboMember && memberDiscountStatus.enabled && customerRow) {
+      discountRate += memberDiscountStatus.rate;
+      memberDiscountRate = memberDiscountStatus.rate;
+    }
+  } else if (!firstHalfPriceApplied) {
+    // 通常割引（クーポン未使用時）
+    // 段階的数量割引
+    if (totalCount >= 100) discountRate += 0.20;
+    else if (totalCount >= 50) discountRate += 0.15;
+    else if (totalCount >= 30) discountRate += 0.10;
+    else if (totalCount >= 10) discountRate += 0.05;
+
+    // 会員割引
+    if (memberDiscountStatus.enabled && customerRow) {
+      discountRate += memberDiscountStatus.rate;
+      memberDiscountRate = memberDiscountStatus.rate;
     }
   }
 
-  // 検証通過 → GASにプロキシ（確保・決済セッション作成・シート書き込み）
-  return await proxyToGasForSubmit(bodyText, env);
+  // 割引適用
+  let discounted;
+  if (firstHalfPriceApplied) {
+    const fhpOnDetauri = Math.round(sum * fhpStatus.rate);
+    const fhpOnBulk = Math.round(bulkProductAmount * fhpStatus.rate);
+    discounted = sum - fhpOnDetauri;
+    bulkProductAmount = Math.max(0, bulkProductAmount - fhpOnBulk);
+    couponLabel = '初回全品半額キャンペーン（' + Math.round(fhpStatus.rate * 100) + '%OFF）';
+  } else if (activeCouponCode) {
+    const cdOnDetauri = Math.min(couponDiscount, sum);
+    const cdOnBulk = couponDiscount - cdOnDetauri;
+    const afterCoupon = Math.max(0, sum - cdOnDetauri);
+    discounted = Math.round(afterCoupon * (1 - discountRate));
+    bulkProductAmount = Math.max(0, bulkProductAmount - cdOnBulk);
+  } else {
+    discounted = Math.round(sum * (1 - discountRate));
+  }
+
+  // 会員割引をアソート商品にも適用
+  if (!firstHalfPriceApplied && memberDiscountRate > 0 && bulkProductAmount > 0) {
+    bulkProductAmount = Math.round(bulkProductAmount * (1 - memberDiscountRate));
+  }
+
+  // ─── 送料計算 ───
+  const shippingArea = SHIPPING_AREAS[pref] || '';
+  const shippingSize = (ids.length <= 10) ? 'small' : 'large';
+  let shippingAmount = 0;
+
+  if (ids.length > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
+    shippingAmount = SHIPPING_RATES[shippingArea][(ids.length <= 10) ? 0 : 1];
+  }
+  if (bulkItemCount > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
+    bulkShippingAmount = SHIPPING_RATES[shippingArea][1] * bulkItemCount;
+  }
+
+  // 送料無料クーポン適用
+  if (validatedCoupon && validatedCoupon.type === 'shipping_free') {
+    shippingAmount = 0;
+    bulkShippingAmount = 0;
+  }
+
+  // 商品合計1万円以上で送料無料（クーポン適用前の商品価格で判定）
+  if (sum + rawBulkProductAmount >= 10000) {
+    shippingAmount = 0;
+    bulkShippingAmount = 0;
+  }
+
+  // ─── ポイント利用 ───
+  let pointsUsed = 0;
+  if (usePoints > 0 && customerRow && customerPoints >= usePoints) {
+    pointsUsed = Math.min(usePoints, discounted + shippingAmount + bulkProductAmount + bulkShippingAmount);
+    let ptRem = pointsUsed;
+    const pointsOnProduct = Math.min(ptRem, discounted); ptRem -= pointsOnProduct;
+    const pointsOnShipping = Math.min(ptRem, shippingAmount); ptRem -= pointsOnShipping;
+    const pointsOnBulkProd = Math.min(ptRem, bulkProductAmount); ptRem -= pointsOnBulkProd;
+    const pointsOnBulkShip = Math.min(ptRem, bulkShippingAmount);
+    discounted -= pointsOnProduct;
+    shippingAmount = Math.max(0, shippingAmount - pointsOnShipping);
+    bulkProductAmount = Math.max(0, bulkProductAmount - pointsOnBulkProd);
+    bulkShippingAmount = Math.max(0, bulkShippingAmount - pointsOnBulkShip);
+  }
+
+  // ─── 備考追記 ───
+  if (firstHalfPriceApplied) {
+    const fhpNote = '【' + couponLabel + '】';
+    note = note ? (note + '\n' + fhpNote) : fhpNote;
+  } else if (activeCouponCode && validatedCoupon) {
+    const discountParts = [];
+    if (validatedCoupon.type === 'shipping_free') {
+      discountParts.push(couponLabel + ' コード: ' + activeCouponCode);
+    } else if (couponDiscount > 0) {
+      discountParts.push(couponLabel + '（-' + couponDiscount + '円）コード: ' + activeCouponCode);
+    }
+    if (discountRate > 0) {
+      discountParts.push('併用割引' + Math.round(discountRate * 100) + '%OFF');
+    }
+    if (discountParts.length > 0) {
+      const couponNote = '【' + discountParts.join(' + ') + '】';
+      note = note ? (note + '\n' + couponNote) : couponNote;
+    }
+  }
+  if (pointsUsed > 0) {
+    const ptNote = '【ポイント利用: ' + pointsUsed + 'pt（-' + pointsUsed + '円）】';
+    note = note ? (note + '\n' + ptNote) : ptNote;
+  }
+  if (shippingAmount > 0) {
+    const shipNote = '【送料: ¥' + shippingAmount.toLocaleString() + '（' + (pref || '') + '・' + (shippingSize === 'small' ? '小' : '大') + '・税込）】';
+    note = note ? (note + '\n' + shipNote) : shipNote;
+  }
+
+  // ─── 合計金額 ───
+  const bulkTotal = bulkProductAmount + bulkShippingAmount;
+  const totalWithShipping = discounted + shippingAmount + bulkTotal;
+
+  if (bulkTotal > 0) {
+    const bulkNote = '【アソート合算: 商品代¥' + bulkProductAmount + '（' + bulkItemCount + '点）+ 送料¥' + bulkShippingAmount + '】';
+    note = note ? (note + '\n' + bulkNote) : bulkNote;
+  }
+
+  if (totalWithShipping <= 0) {
+    return jsonError('合計金額が0円以下です。');
+  }
+
+  // ─── 受付番号生成 ───
+  const receiptNo = makeReceiptNo();
+  const sortedIds = [...ids].sort((a, b) => a.localeCompare(b, 'ja'));
+  const selectionList = sortedIds.join('、');
+  const measureLabel = measureOpt === 'yes' ? '希望する' : '希望しない';
+  const invoiceReceipt = (form.invoiceReceipt === true || form.invoiceReceipt === 'true');
+
+  const validatedForm = {
+    companyName, contact, contactMethod, delivery,
+    postal, address, phone, note, measureOpt, invoiceReceipt,
+  };
+
+  // templateText構築（GAS互換）
+  const templateLines = [
+    '受付番号：' + receiptNo,
+    '会社名/氏名：' + companyName,
+    'メールアドレス：' + contact,
+  ];
+  if (postal) templateLines.push('郵便番号：' + postal);
+  if (address) templateLines.push('住所：' + address);
+  if (phone) templateLines.push('電話番号：' + phone);
+  templateLines.push('採寸データ：' + measureLabel);
+  if (note) templateLines.push('備考：' + note);
+  templateLines.push('合計点数：' + (totalCount + bulkItemCount) + '点');
+  templateLines.push('合計金額：¥' + totalWithShipping.toLocaleString());
+  const templateText = templateLines.join('\n');
+
+  // 商品詳細リスト（メール・シート用）
+  const itemDetails = productResults.map(pd => ({
+    managedId: pd.managed_id,
+    noLabel: pd.no_label || '',
+    brand: pd.brand || '',
+    category: pd.category || '',
+    size: pd.size || '',
+    color: pd.color || '',
+    price: pd.price || 0,
+  }));
+
+  // ─── D1 holds更新（pending_payment=1, until_ms延長） ───
+  const now = Date.now();
+  const paymentHoldMs = PAYMENT_EXPIRY_SECONDS * 1000;
+  const holdUntilMs = now + paymentHoldMs;
+
+  if (ids.length > 0) {
+    const stmts = [];
+    for (const managedId of ids) {
+      stmts.push(
+        env.DB.prepare(`
+          INSERT INTO holds (managed_id, user_key, hold_id, until_ms, pending_payment, receipt_no, created_at)
+          VALUES (?, ?, ?, ?, 1, ?, ?)
+          ON CONFLICT (managed_id, user_key) DO UPDATE SET
+            hold_id = excluded.hold_id,
+            until_ms = excluded.until_ms,
+            pending_payment = 1,
+            receipt_no = excluded.receipt_no,
+            created_at = excluded.created_at
+        `).bind(managedId, userKey, userKey + ':' + now, holdUntilMs, receiptNo, new Date().toISOString())
+      );
+    }
+    await env.DB.batch(stmts);
+  }
+
+  // ─── KOMOJU決済セッション作成 ───
+  const frontendUrl = (env.FRONTEND_URL || 'https://wholesale.nkonline-tool.com').replace(/\/+$/, '');
+  const returnUrl = frontendUrl + '?receipt=' + encodeURIComponent(receiptNo) + '&status=complete';
+  const cancelUrl = frontendUrl + '?receipt=' + encodeURIComponent(receiptNo) + '&status=cancel';
+
+  const sessionData = {
+    amount: Math.round(totalWithShipping),
+    currency: KOMOJU_CURRENCY,
+    external_order_num: receiptNo,
+    return_url: returnUrl,
+    cancel_url: cancelUrl,
+    payment_types: KOMOJU_PAYMENT_METHODS,
+    metadata: {
+      receipt_no: String(receiptNo),
+      company_name: String(companyName),
+      email: String(contact),
+      product_amount: String(discounted + bulkProductAmount),
+      shipping_amount: String(shippingAmount + bulkShippingAmount),
+      shipping_size: String(shippingSize),
+    },
+  };
+  if (contact) {
+    sessionData.customer = { email: contact };
+  }
+
+  const komojuResp = await fetch(KOMOJU_API_URL + '/sessions', {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Basic ' + btoa(env.KOMOJU_SECRET_KEY + ':'),
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+    },
+    body: JSON.stringify(sessionData),
+  });
+
+  const komojuResult = await komojuResp.json();
+
+  if (komojuResult.error || !komojuResult.session_url) {
+    // KOMOJU失敗 → holdsを元に戻す
+    console.error('KOMOJU session creation failed:', JSON.stringify(komojuResult));
+    if (ids.length > 0) {
+      const placeholders = ids.map(() => '?').join(',');
+      await env.DB.prepare(
+        `UPDATE holds SET pending_payment = 0, receipt_no = '' WHERE managed_id IN (${placeholders}) AND user_key = ? AND receipt_no = ?`
+      ).bind(...ids, userKey, receiptNo).run();
+    }
+    return jsonError('決済セッションの作成に失敗しました。' + (komojuResult.error ? komojuResult.error.message || '' : ''));
+  }
+
+  // ─── ペンディング注文データ（GAS webhook互換） ───
+  const storeShipping = (shippingArea && SHIPPING_RATES[shippingArea])
+    ? Math.round(SHIPPING_RATES[shippingArea][(ids.length <= 10) ? 0 : 1] / 2)
+    : 0;
+
+  const pendingData = {
+    userKey,
+    form: validatedForm,
+    ids,
+    receiptNo,
+    selectionList,
+    measureOpt,
+    totalCount,
+    discounted,
+    shippingAmount,
+    storeShipping,
+    shippingSize,
+    shippingArea,
+    shippingPref: pref,
+    createdAtMs: now,
+    templateText,
+    itemDetails,
+    pointsUsed,
+    couponCode: activeCouponCode || '',
+    couponDiscount: couponDiscount || 0,
+    couponLabel: couponLabel || '',
+    bulkProductAmount,
+    bulkShipping: bulkShippingAmount,
+    bulkItemCount,
+  };
+
+  // ─── 非同期: GASにペンディング注文保存 + KVバックアップ ───
+  if (ctx && ctx.waitUntil) {
+    ctx.waitUntil(savePendingToBackends(pendingData, env));
+  } else {
+    // ctxがない場合（テスト等）は同期実行
+    savePendingToBackends(pendingData, env).catch(e => console.error('savePending error:', e));
+  }
+
+  return jsonOk({
+    receiptNo,
+    sessionUrl: komojuResult.session_url,
+    totalAmount: totalWithShipping,
+    shippingAmount,
+  });
+}
+
+// ─── 非同期バックグラウンド処理 ───
+
+async function savePendingToBackends(pendingData, env) {
+  const promises = [];
+
+  // 1. GASにペンディング注文を保存
+  promises.push(savePendingToGas(pendingData, env));
+
+  // 2. KVにバックアップ保存
+  if (env.CACHE) {
+    promises.push(
+      env.CACHE.put(
+        'PENDING_ORDER_' + pendingData.receiptNo,
+        JSON.stringify(pendingData),
+        { expirationTtl: 86400 * 7 } // 7日間
+      )
+    );
+  }
+
+  await Promise.allSettled(promises);
+}
+
+async function savePendingToGas(pendingData, env) {
+  const gasUrl = env.GAS_API_URL;
+  if (!gasUrl) {
+    console.error('GAS_API_URL not configured, skipping pending save');
+    return;
+  }
+
+  try {
+    const resp = await fetch(gasUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        action: '_internalSavePendingOrder',
+        adminKey: env.ADMIN_KEY || '',
+        args: [pendingData],
+      }),
+      redirect: 'follow',
+    });
+    const text = await resp.text();
+    console.log('GAS savePending response:', text.substring(0, 200));
+  } catch (e) {
+    console.error('GAS savePending error:', e.message);
+  }
 }
 
 // ─── ヘルパー ───
@@ -179,7 +651,6 @@ function detectPrefecture(address) {
   for (const pref of PREFECTURES) {
     if (text.startsWith(pref)) return pref;
   }
-  // 略称チェック（東京、大阪 等）
   for (const pref of PREFECTURES) {
     const short = pref.replace(/[都府県]$/, '');
     if (text.startsWith(short)) return pref;
@@ -193,10 +664,31 @@ async function verifyRecaptcha(token, secret) {
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: `secret=${encodeURIComponent(secret)}&response=${encodeURIComponent(token)}`,
   });
-
   const result = await resp.json();
   return result.success && (result.score || 0) >= 0.3;
 }
+
+function calcCouponDiscount(type, value, productAmount) {
+  if (type === 'shipping_free') return 0;
+  if (type === 'rate') return Math.round(productAmount * value);
+  return Math.min(value, productAmount); // fixed
+}
+
+function makeReceiptNo() {
+  // YYYYMMDDHHmmss-NNN (JST)
+  const now = new Date();
+  const jst = new Date(now.getTime() + 9 * 60 * 60 * 1000);
+  const y = jst.getUTCFullYear();
+  const mo = String(jst.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(jst.getUTCDate()).padStart(2, '0');
+  const h = String(jst.getUTCHours()).padStart(2, '0');
+  const mi = String(jst.getUTCMinutes()).padStart(2, '0');
+  const s = String(jst.getUTCSeconds()).padStart(2, '0');
+  const rnd = Math.floor(Math.random() * 900 + 100);
+  return `${y}${mo}${d}${h}${mi}${s}-${rnd}`;
+}
+
+// ─── レガシー互換: GASプロキシフォールバック（ロールバック用） ───
 
 async function proxyToGasForSubmit(bodyText, env) {
   const gasUrl = env.GAS_API_URL;

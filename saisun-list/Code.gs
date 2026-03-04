@@ -120,6 +120,18 @@ function doPost(e) {
     var args = body.args || [];
     console.log('doPost: action=' + action);
 
+    // Workers内部API: _internalSavePendingOrder（ADMIN_KEY認証）
+    if (action === '_internalSavePendingOrder') {
+      var adminKeyFromBody = String(body.adminKey || '');
+      var props = PropertiesService.getScriptProperties();
+      var storedAdminKey = props.getProperty('ADMIN_KEY') || '';
+      if (!storedAdminKey || !timingSafeEqual_(adminKeyFromBody, storedAdminKey)) {
+        return jsonResponse_({ ok: false, message: '権限がありません' });
+      }
+      var result = _internalSavePendingOrder(args[0]);
+      return jsonResponse_(result);
+    }
+
     // 許可されたAPI関数名のホワイトリスト
     // ※ 直接参照ではなく文字列で定義し、動的に解決する
     //   （1つのファイルのロードに失敗しても他のAPIが全滅しない）

@@ -45,8 +45,8 @@ const WORKER_HANDLED = {
   // Phase 4: マイページ
   apiGetMyPage:        (args, env) => mypage.getMyPage(args, env),
 
-  // Phase 5: 注文送信（ハイブリッド: バリデーション→Workers, 確保→GAS）
-  apiSubmitEstimate:   (args, env, bodyText) => submit.submitEstimate(args, env, bodyText),
+  // Phase 5: 注文送信（KOMOJU決済セッション作成をWorkersで完結）
+  apiSubmitEstimate:   (args, env, bodyText, ctx) => submit.submitEstimate(args, env, bodyText, ctx),
 };
 
 // CSRFが必要なaction（Phase 2以降で有効化）
@@ -141,8 +141,8 @@ export default {
         }
       }
 
-      // ハンドラー実行（bodyTextは一部ハンドラーでGASプロキシ用に必要）
-      const result = await handler(args, env, bodyText);
+      // ハンドラー実行（bodyTextとctxは一部ハンドラーで必要）
+      const result = await handler(args, env, bodyText, ctx);
 
       // null返却 = GASフォールバック（パスワードv1/legacy等）
       if (result === null) {
