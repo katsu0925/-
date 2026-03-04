@@ -2447,10 +2447,24 @@ function renderSummary_() {
     }
   }
 
+  // スティッキーバー用データ保存（renderSummary_の計算結果をそのまま反映）
+  var _sGrand = effectiveDiscounted + effectiveShipping;
+  var _sShipTotal = effectiveShipping;
+  if (_bulkDataRS.subtotal > 0) {
+    _sGrand += effectiveBulkProduct + effectiveBulkShip;
+    _sShipTotal += effectiveBulkShip;
+  }
+  state._stickyCache = {
+    grandTotal: _sGrand,
+    shipAmount: shippingResult.amount,
+    shipTotal: _sShipTotal,
+    detCount: count,
+    assortQty: _bulkDataRS.totalQty || 0
+  };
+
   // 送料詳細をlocalStorageに保存（アソート商品ページでの表示用）
   saveCartStorage();
   updateCartClearBtns_();
-  // 送料再計算後にスティッキーバーを同期（セッション復元後等）
   updateDetStickyBar_();
 }
 
@@ -4579,82 +4593,41 @@ function updateDetStickyBar_() {
   var detCount = (state.cart.ids || []).length;
   var bulk = loadBulkCartStorage();
   var assortQty = bulk.totalQty || 0;
-  // 常にバーを表示（カートが空でも）
   bar.classList.add('active');
   document.body.classList.add('has-det-cart');
   if (detCount === 0 && assortQty === 0) {
     if (totalEl) totalEl.textContent = '¥0';
     if (labelEl) labelEl.textContent = 'カートは空です';
+    var h0 = document.getElementById('detStickyShipHint');
+    if (h0) h0.textContent = '';
     return;
   }
-  // 合計金額を計算（割引適用）
-  var ids = state.cart.ids || [];
-  var detSum = 0;
-  for (var i = 0; i < ids.length; i++) {
-    var it = state.cart.itemsById[ids[i]];
-    if (it) detSum += Number(it.price || 0);
-  }
-  var assortSub = bulk.subtotal || 0;
-  var detDiscounted, total;
-  // 初回全品半額（他の割引と併用不可）
-  if (state.firstHalfPrice && state.firstHalfPrice.eligible && state.customer) {
-    var _fhpOnDet = Math.round(detSum * state.firstHalfPrice.rate);
-    var _fhpOnBulk = Math.round(assortSub * state.firstHalfPrice.rate);
-    detDiscounted = detSum - _fhpOnDet;
-    assortSub = Math.max(0, assortSub - _fhpOnBulk);
-    total = detDiscounted + assortSub;
-  } else {
-    // renderSummary_()と同じ割引ロジック
-    detDiscounted = detSum;
-    if (state.appliedCoupon && state.appliedCoupon.code) {
-      if (state.appliedCoupon.type !== 'shipping_free') {
-        var _combinedS = detSum + assortSub;
-        var _cdTotalS = state.appliedCoupon.type === 'rate'
-          ? Math.round(_combinedS * (state.appliedCoupon.value || 0))
-          : Math.min(Number(state.appliedCoupon.value || 0), _combinedS);
-        var _cdOnDetS = Math.min(_cdTotalS, detSum);
-        var _cdOnBulkS = _cdTotalS - _cdOnDetS;
-        detDiscounted = Math.max(0, detSum - _cdOnDetS);
-        assortSub = Math.max(0, assortSub - _cdOnBulkS);
-      }
-      var _comboRate = 0;
-      var _bulkRateC = bulkDiscountRate_(ids.length);
-      if (state.appliedCoupon.comboBulk && _bulkRateC > 0) _comboRate += _bulkRateC;
-      detDiscounted = Math.round(detDiscounted * (1 - _comboRate));
-      if (state.appliedCoupon.comboMember && state.customer && MEMBER_DISCOUNT_ENABLED) {
-        detDiscounted = Math.round(detDiscounted * (1 - MEMBER_DISCOUNT_RATE));
-      }
-      if (assortSub > 0 && state.customer && MEMBER_DISCOUNT_ENABLED) {
-        if (state.appliedCoupon.type === 'shipping_free' || state.appliedCoupon.comboMember !== false) {
-          assortSub = Math.round(assortSub * (1 - MEMBER_DISCOUNT_RATE));
-        }
-      }
-    } else {
-      // クーポンなし: 数量割引→会員割引
-      var _bulkRateS = bulkDiscountRate_(ids.length);
-      detDiscounted = _bulkRateS > 0 ? Math.round(detSum * (1 - _bulkRateS)) : detSum;
-      if (state.customer && MEMBER_DISCOUNT_ENABLED) {
-        detDiscounted = Math.round(detDiscounted * (1 - MEMBER_DISCOUNT_RATE));
-      }
-      if (assortSub > 0 && state.customer && MEMBER_DISCOUNT_ENABLED) {
-        assortSub = Math.round(assortSub * (1 - MEMBER_DISCOUNT_RATE));
+  // renderSummary_()が計算済みのデータをそのまま反映（両チャネル合計と同じ値）
+  var c = state._stickyCache;
+  if (c) {
+    if (totalEl) totalEl.textContent = '¥' + numFmt_(c.grandTotal);
+    var shipHint = document.getElementById('detStickyShipHint');
+    if (shipHint) {
+      if (c.shipTotal > 0) {
+        shipHint.textContent = '(送料 ¥' + numFmt_(c.shipTotal) + ' 込)';
+      } else if (c.shipAmount === 0) {
+        shipHint.innerHTML = '<span class="ship-free">送料無料!</span>';
+      } else {
+        shipHint.textContent = '(送料別)';
       }
     }
-    total = detDiscounted + assortSub;
+  } else {
+    // renderSummary_()未実行: 商品代のみ表示
+    var ids = state.cart.ids || [];
+    var sum = 0;
+    for (var i = 0; i < ids.length; i++) {
+      var it = state.cart.itemsById[ids[i]];
+      if (it) sum += Number(it.price || 0);
+    }
+    if (totalEl) totalEl.textContent = '¥' + numFmt_(sum + (bulk.subtotal || 0));
+    var shipHint2 = document.getElementById('detStickyShipHint');
+    if (shipHint2) shipHint2.textContent = '(送料別)';
   }
-  // 送料を合計に加算（常に最新のcalculateShipping_()を優先、住所がない場合のみstate.lastShippingにフォールバック）
-  var _stickyShip = calculateShipping_();
-  if (_stickyShip.amount === null && state.lastShipping && state.lastShipping.amount !== null) {
-    _stickyShip = state.lastShipping;
-  }
-  var _stickyShipAmt = (_stickyShip && _stickyShip.amount !== null && _stickyShip.amount !== undefined) ? _stickyShip.amount : 0;
-  // 送料無料クーポン適用
-  if (state.appliedCoupon && state.appliedCoupon.type === 'shipping_free') _stickyShipAmt = 0;
-  var _stickyBulkShip = bulk.shipping || 0;
-  if (state.appliedCoupon && state.appliedCoupon.type === 'shipping_free') _stickyBulkShip = 0;
-  var grandTotal = total + _stickyShipAmt + _stickyBulkShip;
-
-  if (totalEl) totalEl.textContent = '¥' + numFmt_(grandTotal);
   if (labelEl) {
     if (detCount > 0 && assortQty > 0) {
       labelEl.textContent = 'デタウリ' + detCount + '点 + アソート' + assortQty + '点';
@@ -4662,20 +4635,6 @@ function updateDetStickyBar_() {
       labelEl.textContent = 'デタウリ' + detCount + '点';
     } else {
       labelEl.textContent = 'アソート' + assortQty + '点';
-    }
-  }
-  // 送料ヒント
-  var shipHint = document.getElementById('detStickyShipHint');
-  if (shipHint) {
-    var _totalShipAmt = _stickyShipAmt + _stickyBulkShip;
-    if (_totalShipAmt > 0) {
-      shipHint.textContent = '(送料 ¥' + numFmt_(_totalShipAmt) + ' 込)';
-    } else if (_stickyShip && _stickyShip.amount === 0) {
-      shipHint.innerHTML = '<span class="ship-free">送料無料!</span>';
-    } else if (detSum + (bulk.subtotal || 0) > 0 && (!_stickyShip || _stickyShip.amount === null)) {
-      shipHint.textContent = '(送料別)';
-    } else {
-      shipHint.textContent = '';
     }
   }
 }
@@ -8208,11 +8167,10 @@ function closeBulkQv_() {
 }
 // detStickyBar はこのscriptより前にDOMが確定するため、ここで再描画して初期値を正しく表示する
 updateCartCount();
-// セッション検証完了後にスティッキーバーの送料を確実に反映（非同期APIの完了を待つ）
-// updateDetStickyBar_()は毎回calculateShipping_()を呼ぶので、state.customer確定後に再実行するだけでOK
+// セッション検証完了後にrenderSummary_()→_stickyCacheを確実に反映
 if (state._sessionPromise) {
   state._sessionPromise.then(function() {
-    updateDetStickyBar_();
+    renderSummary_();
   });
 }
 
