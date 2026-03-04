@@ -3923,12 +3923,11 @@ function getRecaptchaToken_() {
   });
 }
 
-// D1依存APIはGASフォールバック禁止（GASのPropertiesService確保とD1確保がデシンクする）
+// D1確保依存APIはGASフォールバック禁止（GASのPropertiesService確保とD1確保がデシンクする）
+// 認証系APIはGASフォールバックを許可（v1/legacyパスワード対応・D1同期遅延対応）
 var _workerOnlyActions = {
   'apiSyncHolds': true, 'apiGetStatusDigest': true, 'apiValidateCoupon': true,
-  'apiSubmitEstimate': true, 'apiGetMyPage': true, 'apiGetReferralCode': true,
-  'apiLoginCustomer': true, 'apiRegisterCustomer': true, 'apiLogoutCustomer': true,
-  'apiValidateSession': true, 'apiGetCsrfToken': true
+  'apiSubmitEstimate': true
 };
 
 function runApi(fn, _extra) {

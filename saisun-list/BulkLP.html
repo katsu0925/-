@@ -1446,12 +1446,10 @@ var ADMIN_KEY = (function() {
   try { return localStorage.getItem('_nk_owner_key') || ''; } catch(e) { return ''; }
 })();
 
-// D1依存APIはGASフォールバック禁止（GASとD1のデシンク防止）
+// D1確保依存APIはGASフォールバック禁止（GASとD1のデシンク防止）
+// 認証系APIはGASフォールバックを許可（v1/legacyパスワード対応）
 var _workerOnlyActions = {
-  'apiValidateCoupon': true, 'apiSubmitEstimate': true, 'apiBulkSubmit': true,
-  'apiGetMyPage': true, 'apiGetReferralCode': true,
-  'apiLoginCustomer': true, 'apiRegisterCustomer': true, 'apiLogoutCustomer': true,
-  'apiValidateSession': true, 'apiGetCsrfToken': true
+  'apiValidateCoupon': true, 'apiSubmitEstimate': true, 'apiBulkSubmit': true
 };
 
 function runApi(fn) {
