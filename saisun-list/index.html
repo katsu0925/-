@@ -4155,15 +4155,15 @@ function pollStatusNow_() {
           var cid = state.cart.ids[ci];
           var dd = state.cart.digest[cid];
           var d = merged[cid];
-          // 他ユーザーが確保中 → _optimisticに関わらず即時除外（バッティング防止）
+          // 楽観的更新中 → スキップ（syncHoldsの確認待ち）
+          if (dd && dd._optimistic) continue;
+          // サーバー確認済みGRACE_MS以内 → スキップ（syncHolds直後のpollは古い状態を返す可能性がある）
+          if (dd && dd._confirmedAt && (now - dd._confirmedAt < GRACE_MS)) continue;
+          // 他ユーザーが確保中 → 除外（バッティング防止）
           if (d && d.heldByOther) {
             expired.push(cid);
             continue;
           }
-          // 楽観的更新中 → スキップ
-          if (dd && dd._optimistic) continue;
-          // サーバー確認済み20秒以内 → スキップ（PropertiesService伝播待ち）
-          if (dd && dd._confirmedAt && (now - dd._confirmedAt < GRACE_MS)) continue;
           // サーバーが「在庫あり」を返す = 確保が切れている
           if (d && d.status && statusKind_(normalizeStatus_(d.status)) === 'available') {
             expired.push(cid);

@@ -11,6 +11,8 @@ function FULL_RESTORE_ALL() {
   ScriptApp.newTrigger('handleChange_Inventory').forSpreadsheet(ss).onChange().create();
   ScriptApp.newTrigger('handleChange_Move').forSpreadsheet(ss).onChange().create();
   ScriptApp.newTrigger('handleChange_Return').forSpreadsheet(ss).onChange().create();
+  // 変更時 (仕入れ数報告→仕入れ管理マージ)
+  ScriptApp.newTrigger('handleChange_ShiireSync').forSpreadsheet(ss).onChange().create();
   // 1分ごと (AIキーワード抽出)
   ScriptApp.newTrigger('processPendingKeywordRows').timeBased().everyMinutes(1).create();
   // 1時間ごと (分析)

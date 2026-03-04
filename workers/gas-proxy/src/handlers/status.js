@@ -43,14 +43,18 @@ export async function getStatusDigest(args, env) {
     .bind(...ids)
     .all();
 
-  // holdsマップ構築
+  // holdsマップ構築（自分のholdを優先）
   const holdMap = {};
   for (const h of holdsResult.results) {
-    holdMap[h.managed_id] = {
-      userKey: h.user_key,
-      untilMs: h.until_ms,
-      holdId: h.hold_id,
-    };
+    const existing = holdMap[h.managed_id];
+    // 自分のholdがあれば常に優先（他ユーザーのholdで上書きしない）
+    if (!existing || h.user_key === userKey) {
+      holdMap[h.managed_id] = {
+        userKey: h.user_key,
+        untilMs: h.until_ms,
+        holdId: h.hold_id,
+      };
+    }
   }
 
   // openSetマップ構築
