@@ -169,14 +169,14 @@ function shipMailOnEdit(e) {
       ]
     });
 
-    Logger.log('sending admin mail to=' + SHIPMAIL_CONFIG.TO_EMAIL + ' subject=' + adminSubject);
-    MailApp.sendEmail({
-      to: SHIPMAIL_CONFIG.TO_EMAIL,
-      subject: adminSubject,
-      body: adminBody,
-      htmlBody: adminHtmlBody
-    });
-    Logger.log('admin mail sent');
+    // 管理者宛メールは顧客宛と重複するため停止（2026-03-04）
+    // MailApp.sendEmail({
+    //   to: SHIPMAIL_CONFIG.TO_EMAIL,
+    //   subject: adminSubject,
+    //   body: adminBody,
+    //   htmlBody: adminHtmlBody
+    // });
+    Logger.log('admin mail skipped (disabled)');
 
     // --- 顧客宛発送通知メール（Drive共有リンク付き） ---
     if (contactEmail && contactEmail.indexOf('@') !== -1) {
