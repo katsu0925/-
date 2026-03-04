@@ -3551,7 +3551,14 @@ function loadCartStorage() {
     var raw = localStorage.getItem('estimate_cart_v2');
     if (!raw) return { ids: [], itemsById: {} };
     var j = JSON.parse(raw);
-    return { ids: Array.isArray(j.ids) ? j.ids : [], itemsById: j.itemsById || {} };
+    return {
+      ids: Array.isArray(j.ids) ? j.ids : [],
+      itemsById: j.itemsById || {},
+      shipping: j.shipping,
+      shippingLabel: j.shippingLabel || '',
+      shippingPref: j.shippingPref || '',
+      shippingSizeLabel: j.shippingSizeLabel || ''
+    };
   } catch (e) { return { ids: [], itemsById: {} }; }
 }
 
@@ -3791,7 +3798,8 @@ function saveMeasureOpt_() {}
 var GAS_API_URL = 'https://script.google.com/macros/s/AKfycbzWcsi_QteRBwc2U88urRQvWG1FsrKUoFSd_r3uPmPasJnm0jfKe02IbmzlkK7Sb1x_Jg/exec';
 // Cloudflare Workers エッジキャッシュプロキシ（高速化用）
 var WORKER_API_URL = 'https://detauri-gas-proxy.nsdktts1030.workers.dev';
-var _workerFailed = false; // Worker障害時にGAS直接に切り替えるフラグ
+var _workerFailed = false; // Worker障害時にGAS直接に切り替えるフラグ（30秒で自動リセット）
+var _workerFailedTimer = null;
 
 var IS_STANDALONE = (typeof google === 'undefined' || !google.script);
 
@@ -3892,8 +3900,11 @@ function runApi(fn, _extra) {
     .catch(function(err) {
       // Worker経由で失敗した場合、GAS直接にフォールバック
       if (apiUrl !== GAS_API_URL) {
-        console.warn('Worker障害、GAS直接に切替:', err.message);
+        console.warn('Worker障害、GAS直接に切替（30秒後にWorker再試行）:', err.message);
         _workerFailed = true;
+        if (!_workerFailedTimer) {
+          _workerFailedTimer = setTimeout(function() { _workerFailed = false; _workerFailedTimer = null; }, 30000);
+        }
         return fetch(GAS_API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain' },
@@ -7058,6 +7069,10 @@ function boot() {
   var c = loadCartStorage();
   state.cart.ids = c.ids || [];
   state.cart.itemsById = c.itemsById || {};
+  // 保存済み送料を復元（スティッキーバーの初回表示用）
+  if (c.shipping !== undefined && c.shipping !== null && c.shipping > 0) {
+    state.lastShipping = { amount: c.shipping, label: c.shippingLabel || '', pref: c.shippingPref || '', sizeLabel: c.shippingSizeLabel || '' };
+  }
   // ページロード時: 全カートアイテムに_optimisticを設定（sync完了まで保護）
   // digestはlocalStorageに保存されないため、ポーリングが先に走ると「在庫あり」で削除されてしまう
   for (var pi = 0; pi < state.cart.ids.length; pi++) {
