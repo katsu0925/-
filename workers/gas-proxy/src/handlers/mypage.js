@@ -81,3 +81,33 @@ export async function getMyPage(args, env) {
     rank,
   }});
 }
+
+/**
+ * apiGetReferralCode — 紹介コード取得
+ *
+ * @param {Array} args - [userKey, { sessionId }]
+ */
+export async function getReferralCode(args, env) {
+  const params = args[1] || args[0] || {};
+  const { sessionId } = params;
+
+  if (!sessionId) {
+    return jsonOk({ ok: false, message: 'ログインが必要です' });
+  }
+
+  const session = await env.SESSIONS.get(`session:${sessionId}`, 'json');
+  if (!session || !session.customerId) {
+    return jsonOk({ ok: false, message: 'セッションが無効です。再ログインしてください' });
+  }
+
+  const referralCode = 'REF-' + session.customerId;
+  const siteUrl = (env.FRONTEND_URL || 'https://wholesale.nkonline-tool.com').replace(/\/+$/, '');
+  const referralUrl = siteUrl + '?ref=' + encodeURIComponent(referralCode);
+
+  return jsonOk({
+    data: {
+      referralCode,
+      referralUrl,
+    },
+  });
+}

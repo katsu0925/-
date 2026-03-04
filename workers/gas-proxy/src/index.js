@@ -44,6 +44,7 @@ const WORKER_HANDLED = {
 
   // Phase 4: マイページ
   apiGetMyPage:        (args, env) => mypage.getMyPage(args, env),
+  apiGetReferralCode:  (args, env) => mypage.getReferralCode(args, env),
 
   // Phase 5: 注文送信（KOMOJU決済セッション作成をWorkersで完結）
   apiSubmitEstimate:   (args, env, bodyText, ctx) => submit.submitEstimate(args, env, bodyText, ctx),
