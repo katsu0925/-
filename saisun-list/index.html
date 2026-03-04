@@ -4642,9 +4642,11 @@ function updateDetStickyBar_() {
     }
     total = detDiscounted + assortSub;
   }
-  // 送料を合計に加算
-  var _stickyShip = state.lastShipping;
-  if (!_stickyShip) _stickyShip = calculateShipping_();
+  // 送料を合計に加算（常に最新のcalculateShipping_()を優先、住所がない場合のみstate.lastShippingにフォールバック）
+  var _stickyShip = calculateShipping_();
+  if (_stickyShip.amount === null && state.lastShipping && state.lastShipping.amount !== null) {
+    _stickyShip = state.lastShipping;
+  }
   var _stickyShipAmt = (_stickyShip && _stickyShip.amount !== null && _stickyShip.amount !== undefined) ? _stickyShip.amount : 0;
   // 送料無料クーポン適用
   if (state.appliedCoupon && state.appliedCoupon.type === 'shipping_free') _stickyShipAmt = 0;
@@ -7113,10 +7115,8 @@ function boot() {
   var c = loadCartStorage();
   state.cart.ids = c.ids || [];
   state.cart.itemsById = c.itemsById || {};
-  // 保存済み送料を復元（スティッキーバーの初回表示用、送料0=無料もOK）
-  if (c.shipping !== undefined && c.shipping !== null) {
-    state.lastShipping = { amount: c.shipping, label: c.shippingLabel || '', pref: c.shippingPref || '', sizeLabel: c.shippingSizeLabel || '' };
-  }
+  // 送料はcalculateShipping_()で毎回再計算するためlocalStorageからは復元しない
+  // （旧コードがnull→0に変換して保存していたため、古いデータで誤表示を防ぐ）
   // ページロード時: 全カートアイテムに_optimisticを設定（sync完了まで保護）
   // digestはlocalStorageに保存されないため、ポーリングが先に走ると「在庫あり」で削除されてしまう
   for (var pi = 0; pi < state.cart.ids.length; pi++) {
@@ -8209,16 +8209,10 @@ function closeBulkQv_() {
 // detStickyBar はこのscriptより前にDOMが確定するため、ここで再描画して初期値を正しく表示する
 updateCartCount();
 // セッション検証完了後にスティッキーバーの送料を確実に反映（非同期APIの完了を待つ）
+// updateDetStickyBar_()は毎回calculateShipping_()を呼ぶので、state.customer確定後に再実行するだけでOK
 if (state._sessionPromise) {
   state._sessionPromise.then(function() {
-    // セッション検証完了 → state.customer が確定しているので送料を再計算して反映
-    if (state.customer && (state.cart.ids || []).length > 0) {
-      var _freshShip = calculateShipping_();
-      if (_freshShip && _freshShip.amount !== null) {
-        state.lastShipping = _freshShip;
-      }
-      updateDetStickyBar_();
-    }
+    updateDetStickyBar_();
   });
 }
 
