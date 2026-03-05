@@ -624,9 +624,11 @@ function verifyPaymentAmount_(receiptNo, apiAmount) {
     var pendingStr = props.getProperty('PENDING_ORDER_' + receiptNo);
     if (pendingStr) {
       var pending = JSON.parse(pendingStr);
-      if (pending.discounted) {
-        if (Math.round(Number(pending.discounted)) !== Math.round(Number(apiAmount))) {
-          console.error('金額不一致（PENDING_ORDER）: 期待=' + pending.discounted + ', 実際=' + apiAmount + ', 受付番号=' + receiptNo);
+      // totalAmount = 送料込み合計（discounted は商品のみなので比較対象にならない）
+      var expectedTotal = pending.totalAmount;
+      if (expectedTotal !== undefined && expectedTotal !== null) {
+        if (Math.round(Number(expectedTotal)) !== Math.round(Number(apiAmount))) {
+          console.error('金額不一致（PENDING_ORDER）: 期待=' + expectedTotal + ', 実際=' + apiAmount + ', 受付番号=' + receiptNo);
           return false;
         }
         amountChecked = true;

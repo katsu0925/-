@@ -182,7 +182,8 @@ function apiSubmitEstimate(userKey, form, ids) {
     // === 送料計算（サーバー側で再計算 — 改ざん防止） ===
     var shippingPref = detectPrefecture_(address) || '';
     var shippingArea = shippingPref ? (SHIPPING_AREAS[shippingPref] || '') : '';
-    var shippingSize = (list.length <= 10) ? 'small' : 'large';
+    var shippingSize = 'large';
+    var shippingSizeLabel = '大';
     var shippingAmount = 0;
 
     if (list.length > 0 || hasBulkItems) {
@@ -193,23 +194,70 @@ function apiSubmitEstimate(userKey, form, ids) {
         return { ok: false, message: '住所から都道府県を判別できません。住所を確認してください。' };
       }
     }
-    if (list.length > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
-      shippingAmount = SHIPPING_RATES[shippingArea][(list.length <= 10) ? 0 : 1];
-    }
-    if (bulkItemCount > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
-      bulkShippingAmount = SHIPPING_RATES[shippingArea][1] * bulkItemCount;
+
+    // ダイヤモンド会員送料無料チェック
+    var diamondFree = false;
+    if (contact) {
+      try {
+        var rankInfo = calculateCustomerRank_(contact);
+        diamondFree = rankInfo && rankInfo.freeShipping === true;
+      } catch (e) { console.error('ランク取得エラー:', e); }
     }
 
-    // 送料無料クーポン適用（両チャネル）
-    if (validatedCoupon && validatedCoupon.type === 'shipping_free') {
-      shippingAmount = 0;
-      bulkShippingAmount = 0;
-    }
+    var shippingFreeCoupon = validatedCoupon && validatedCoupon.type === 'shipping_free';
+    var thresholdFree = (discounted + bulkProductAmount) >= 10000;
 
-    // 商品合計1万円以上で送料無料（割引後の商品価格で判定）
-    if (discounted + bulkProductAmount >= 10000) {
+    // 送料無料判定（CartCalcと同じ優先順序: ダイヤモンド > クーポン > 1万円以上 > 計算値）
+    if (diamondFree) {
       shippingAmount = 0;
       bulkShippingAmount = 0;
+    } else if (shippingFreeCoupon) {
+      // デタウリ送料: クーポンで無料（CartCalc line 234と一致）
+      shippingAmount = 0;
+      // アソート送料: 送料除外商品は除外分のみ有料（CartCalc lines 262-268と一致）
+      var excludeStr = validatedCoupon.shippingExcludeProducts || '';
+      if (excludeStr && hasBulkItems && shippingArea && SHIPPING_RATES[shippingArea]) {
+        var excludeIds = excludeStr.split(',').map(function(s) { return s.trim().toUpperCase(); }).filter(function(s) { return s; });
+        var excludedBulkQty = 0;
+        for (var bei = 0; bei < f.bulkItems.length; bei++) {
+          var bePid = String(f.bulkItems[bei].productId || '').trim().toUpperCase();
+          var beQty = Math.max(0, Math.floor(Number(f.bulkItems[bei].qty) || 0));
+          for (var bex = 0; bex < excludeIds.length; bex++) {
+            if (bePid === excludeIds[bex]) { excludedBulkQty += beQty; break; }
+          }
+        }
+        bulkShippingAmount = (excludedBulkQty > 0) ? SHIPPING_RATES[shippingArea][1] * excludedBulkQty : 0;
+      } else {
+        bulkShippingAmount = 0;
+      }
+    } else if (thresholdFree) {
+      shippingAmount = 0;
+      bulkShippingAmount = 0;
+    } else {
+      if (list.length > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
+        // 厚み分類→サイズ判定→料金計算（CartCalcと同一ロジック）
+        var thick = 0, thin = 0;
+        for (var si = 0; si < list.length; si++) {
+          var sp = productMap[list[si]];
+          if (sp && String(sp.shippingMethod || '').trim() === 'ゆうパケットポスト') thin++;
+          else thick++;
+        }
+        var sz = calcShippingSize_sf_(thick, thin);
+        if (!sz.size) {
+          // 上限超過: 複数口計算
+          var multi = calcMultiShipment_sf_(thick, thin, SHIPPING_RATES[shippingArea]);
+          shippingAmount = multi.amount;
+          shippingSize = 'multi';
+          shippingSizeLabel = multi.sizeLabel;
+        } else {
+          shippingSize = sz.size;
+          shippingSizeLabel = (sz.size === 'small') ? '小' : '大';
+          shippingAmount = SHIPPING_RATES[shippingArea][(sz.size === 'small') ? 0 : 1];
+        }
+      }
+      if (bulkItemCount > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
+        bulkShippingAmount = SHIPPING_RATES[shippingArea][1] * bulkItemCount;
+      }
     }
 
     // === ポイント利用額の事前計算（ロック不要） ===
@@ -261,7 +309,7 @@ function apiSubmitEstimate(userKey, form, ids) {
       }
     }
     if (shippingAmount > 0) {
-      var shippingLabel = '【送料: ¥' + shippingAmount.toLocaleString() + '（' + (shippingPref || '') + '・' + (shippingSize === 'small' ? '小' : '大') + '・税込）】';
+      var shippingLabel = '【送料: ¥' + shippingAmount.toLocaleString() + '（' + (shippingPref || '') + '・' + shippingSizeLabel + '・税込）】';
       note = note ? (note + '\n' + shippingLabel) : shippingLabel;
     }
 
@@ -398,7 +446,8 @@ function apiSubmitEstimate(userKey, form, ids) {
       couponLabel: couponLabel || '',
       bulkProductAmount: bulkProductAmount,
       bulkShipping: bulkShippingAmount,
-      bulkItemCount: bulkItemCount
+      bulkItemCount: bulkItemCount,
+      totalAmount: totalWithShipping
     };
 
     var props = PropertiesService.getScriptProperties();
@@ -1539,4 +1588,57 @@ function selectProductsForPremiumAssort_(targetAmount, minCount, maxCount, order
   }
 
   return { ids: selected.map(function(s) { return s.id; }), total: total, seasonRatio: seasonRatio };
+}
+
+// =====================================================
+// 送料サイズ判定ヘルパー（CartCalc.html と同一ロジック）
+// =====================================================
+
+/**
+ * 厚み分類からサイズを判定
+ * @param {number} thick - 厚手商品数（非ゆうパケット）
+ * @param {number} thin - 薄手商品数（ゆうパケットポスト）
+ * @return {{ size: string|null }} size='small'|'large'|null(上限超過)
+ */
+function calcShippingSize_sf_(thick, thin) {
+  var total = thick + thin;
+  if (thin === 0) {
+    if (total > 20) return { size: null };
+    return { size: 'large' };
+  }
+  if (thick === 0) {
+    if (total > 40) return { size: null };
+    return total <= 10 ? { size: 'small' } : { size: 'large' };
+  }
+  if (total > 40) return { size: null };
+  if (thick >= 10) return { size: 'large' };
+  return total <= 10 ? { size: 'small' } : { size: 'large' };
+}
+
+/**
+ * 上限超過時の複数口送料計算
+ * @param {number} thick - 厚手商品数
+ * @param {number} thin - 薄手商品数
+ * @param {Array} rates - [小サイズ料金, 大サイズ料金]
+ * @return {{ amount: number, sizeLabel: string }}
+ */
+function calcMultiShipment_sf_(thick, thin, rates) {
+  var smallRate = rates[0], largeRate = rates[1];
+  var totalAmount = 0, largeCnt = 0, smallCnt = 0;
+  if (thick > 0) {
+    var n = Math.ceil(thick / 20);
+    largeCnt += n;
+    totalAmount += n * largeRate;
+  }
+  var rem = thin;
+  while (rem > 0) {
+    var batch = Math.min(rem, 40);
+    if (batch <= 10) { smallCnt++; totalAmount += smallRate; }
+    else { largeCnt++; totalAmount += largeRate; }
+    rem -= batch;
+  }
+  var parts = [];
+  if (largeCnt > 0) parts.push('大×' + largeCnt);
+  if (smallCnt > 0) parts.push('小×' + smallCnt);
+  return { amount: totalAmount, sizeLabel: parts.join('、') };
 }

@@ -179,45 +179,52 @@ function apiBulkSubmit(form, items) {
       }
     }
 
-    // === 送料計算（アソート商品: 常に大サイズ × 数量） ===
+    // === 送料計算（CartCalcと同じ優先順序: ダイヤモンド > クーポン > 1万円以上 > 計算値） ===
     var shippingPref = String(f.shippingPref || '');
     var shippingSize = 'large';
     var shippingAmount = 0;
     var shippingArea = '';
-    var shippingExcludedQty = 0;
+
+    // ダイヤモンド会員送料無料チェック
+    var diamondFree = false;
+    if (contact) {
+      try {
+        var rankInfo = calculateCustomerRank_(contact);
+        diamondFree = rankInfo && rankInfo.freeShipping === true;
+      } catch (e) { console.error('ランク取得エラー:', e); }
+    }
+
+    var shippingFreeCoupon = validatedCoupon && validatedCoupon.type === 'shipping_free';
+    var thresholdFree = (discounted + detauriProductAmount) >= 10000;
+
     if (shippingPref) {
       shippingArea = SHIPPING_AREAS[shippingPref] || '';
       if (shippingArea && SHIPPING_RATES[shippingArea]) {
-        shippingAmount = SHIPPING_RATES[shippingArea][1] * totalQty; // [1] = 大
-      }
-    }
-
-    // 送料無料クーポン（送料除外商品は個別計算）
-    if (validatedCoupon && validatedCoupon.type === 'shipping_free') {
-      var excludeStr = validatedCoupon.shippingExcludeProducts || '';
-      if (excludeStr) {
-        var excludeIds = excludeStr.split(',').map(function(s) { return s.trim().toUpperCase(); }).filter(function(s) { return s; });
-        if (excludeIds.length > 0) {
-          for (var ei = 0; ei < orderItems.length; ei++) {
-            var ePid = String(orderItems[ei].productId || '').toUpperCase();
-            for (var ex = 0; ex < excludeIds.length; ex++) {
-              if (ePid === excludeIds[ex]) { shippingExcludedQty += orderItems[ei].qty; break; }
+        if (diamondFree) {
+          shippingAmount = 0;
+          detauriShippingAmount = 0;
+        } else if (shippingFreeCoupon) {
+          // 送料無料クーポン（送料除外商品は除外分のみ有料）
+          var shippingExcludedQty = 0;
+          var excludeStr = validatedCoupon.shippingExcludeProducts || '';
+          if (excludeStr) {
+            var excludeIds = excludeStr.split(',').map(function(s) { return s.trim().toUpperCase(); }).filter(function(s) { return s; });
+            for (var ei = 0; ei < orderItems.length; ei++) {
+              var ePid = String(orderItems[ei].productId || '').toUpperCase();
+              for (var ex = 0; ex < excludeIds.length; ex++) {
+                if (ePid === excludeIds[ex]) { shippingExcludedQty += orderItems[ei].qty; break; }
+              }
             }
           }
+          shippingAmount = (shippingExcludedQty > 0) ? SHIPPING_RATES[shippingArea][1] * shippingExcludedQty : 0;
+          detauriShippingAmount = 0;
+        } else if (thresholdFree) {
+          shippingAmount = 0;
+          detauriShippingAmount = 0;
+        } else {
+          shippingAmount = SHIPPING_RATES[shippingArea][1] * totalQty;
         }
       }
-      if (shippingExcludedQty > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
-        shippingAmount = SHIPPING_RATES[shippingArea][1] * shippingExcludedQty;
-      } else {
-        shippingAmount = 0;
-        detauriShippingAmount = 0; // 送料無料クーポン：デタウリ送料も無料に
-      }
-    }
-
-    // 商品合計1万円以上で送料無料（割引後の商品価格で判定 — CartCalcと同一基準）
-    if (discounted + detauriProductAmount >= 10000) {
-      shippingAmount = 0;
-      detauriShippingAmount = 0;
     }
 
     // === ポイント使用（1pt = 1円）— 送料確定後に適用 ===
@@ -322,7 +329,8 @@ function apiBulkSubmit(form, items) {
       detauriProductAmount: detauriProductAmount,
       detauriShipping: detauriShippingAmount,
       detauriItemCount: detauriItemCount,
-      detauriIds: Array.isArray(f.detauriIds) ? f.detauriIds : []
+      detauriIds: Array.isArray(f.detauriIds) ? f.detauriIds : [],
+      totalAmount: totalWithShipping
     };
 
     var props = PropertiesService.getScriptProperties();
