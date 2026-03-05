@@ -255,7 +255,9 @@ function getBulkPageUrl() {
 /** クライアントサイドルーター用: BulkLP.htmlのHTMLコンテンツを返す */
 function apiBulkPage() {
   try {
-    var html = HtmlService.createHtmlOutputFromFile('BulkLP').getContent();
+    var t = HtmlService.createTemplateFromFile('BulkLP');
+    t.initialBulkData = '';
+    var html = t.evaluate().getContent();
     return { ok: true, html: html };
   } catch (e) {
     return { ok: false, message: e.message || String(e) };
@@ -265,7 +267,9 @@ function apiBulkPage() {
 /** クライアントサイドルーター用: index.html（デタウリ）のHTMLコンテンツを返す */
 function apiDetailPage() {
   try {
-    var html = HtmlService.createHtmlOutputFromFile('index').getContent();
+    var t = HtmlService.createTemplateFromFile('index');
+    t.initialProductData = '';
+    var html = t.evaluate().getContent();
     return { ok: true, html: html };
   } catch (e) {
     return { ok: false, message: e.message || String(e) };
