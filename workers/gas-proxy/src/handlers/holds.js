@@ -25,10 +25,10 @@ export async function syncHolds(args, env) {
     return jsonError('userKey is required');
   }
   if (!Array.isArray(ids) || ids.length === 0) {
-    // カートが空 → 自分の確保を全解放（pending_payment以外）
+    // カートが空 → 自分の確保を全解放
     if (userKey) {
       await env.DB.prepare(
-        'DELETE FROM holds WHERE user_key = ? AND pending_payment = 0'
+        'DELETE FROM holds WHERE user_key = ?'
       ).bind(userKey).run();
     }
     return jsonOk({ digest: {}, failed: [], holdMinutes: HOLD_MINUTES_DEFAULT });
@@ -83,6 +83,9 @@ export async function syncHolds(args, env) {
     }
 
     // 自分の確保をUPSERT
+    // pending_payment=0 にリセット: syncHoldsが呼ばれる＝ユーザーが商品ページを閲覧中
+    // （KOMOJU決済ページではsyncHoldsは呼ばれない）
+    // 決済放棄後にpending_paymentが残り続けるバグを防止
     stmts.push(
       env.DB.prepare(`
         INSERT INTO holds (managed_id, user_key, hold_id, until_ms, pending_payment, created_at)
@@ -90,6 +93,7 @@ export async function syncHolds(args, env) {
         ON CONFLICT (managed_id, user_key) DO UPDATE SET
           hold_id = excluded.hold_id,
           until_ms = excluded.until_ms,
+          pending_payment = 0,
           created_at = excluded.created_at
       `).bind(managedId, userKey, holdId, untilMs, new Date().toISOString())
     );
@@ -98,11 +102,12 @@ export async function syncHolds(args, env) {
   }
 
   // 自分の確保のうち、今回のリストに含まれないものを解放
+  // pending_paymentの有無に関わらず削除（カートから外した＝不要な確保）
   if (ids.length > 0) {
     const placeholders = ids.map(() => '?').join(',');
     stmts.push(
       env.DB.prepare(
-        `DELETE FROM holds WHERE user_key = ? AND managed_id NOT IN (${placeholders}) AND pending_payment = 0`
+        `DELETE FROM holds WHERE user_key = ? AND managed_id NOT IN (${placeholders})`
       ).bind(userKey, ...ids)
     );
   }
