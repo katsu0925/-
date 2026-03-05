@@ -72,6 +72,13 @@ function cronAutoExpandOrders() {
 
   if (receiptNos.length === 0) return;
 
+  // タイムアウト防止: 1回のcronで最大3件まで処理（残りは次回cronで）
+  var MAX_PER_CRON = 3;
+  if (receiptNos.length > MAX_PER_CRON) {
+    console.log('cronAutoExpandOrders: ' + receiptNos.length + '件中' + MAX_PER_CRON + '件を処理（残りは次回）');
+    receiptNos = receiptNos.slice(0, MAX_PER_CRON);
+  }
+
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(10000)) { console.log('cronAutoExpandOrders: ロック取得失敗'); return; }
   try {
@@ -288,6 +295,14 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
   var mIdx = {};
   mHeaders.forEach(function(h, i) { mIdx[String(h || '').trim()] = i; });
 
+  // 管理番号→行データのハッシュマップ（O(1)検索用）
+  var mDataMap = {};
+  var idColIdx = mIdx['管理番号'];
+  for (var mi = 0; mi < mData.length; mi++) {
+    var mk = String(mData[mi][idColIdx] || '').trim();
+    if (mk) mDataMap[mk] = mData[mi];
+  }
+
   var aiSheet = shiireSs.getSheetByName('AIキーワード抽出');
   var aiMap = om_buildAiMap_(aiSheet);
 
@@ -298,24 +313,26 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
   var exportSheet = shiireSs.getSheetByName('配布用リスト');
   if (!exportSheet) exportSheet = shiireSs.insertSheet('配布用リスト');
 
-  // 商品管理の行マップ（売却反映用）
-  var mainHeaderRow = mainSheet.getRange(1, 1, 1, mainSheet.getLastColumn()).getValues()[0];
-  var colMap = {};
-  mainHeaderRow.forEach(function(name, i) { if (name) colMap[String(name).trim()] = i + 1; });
-  var statusCol = colMap['ステータス'];
-  var idCol = colMap['管理番号'];
+  // 商品管理の行マップ（売却反映用）— mHeaders/mIdxを再利用して二重読み込みを排除
+  var statusCol = mIdx['ステータス'] !== undefined ? mIdx['ステータス'] + 1 : 0;
+  var idCol = idColIdx !== undefined ? idColIdx + 1 : 0;
   if (!statusCol || !idCol) {
     if (ui) ui.alert('商品管理にステータス列または管理番号列が見つかりません。');
     else console.error('商品管理にステータス列または管理番号列が見つかりません');
     return;
   }
-  var mainLastRow = mainSheet.getLastRow();
-  var mainIds = mainLastRow >= 2 ? mainSheet.getRange(2, idCol, mainLastRow - 1, 1).getValues().flat() : [];
   var idToRowMap = {};
-  mainIds.forEach(function(id, index) {
-    var k = String(id).trim();
-    if (k !== '') idToRowMap[k] = index + 2;
-  });
+  for (var ir = 0; ir < mData.length; ir++) {
+    var ik = String(mData[ir][idColIdx] || '').trim();
+    if (ik) idToRowMap[ik] = ir + 2;
+  }
+
+  // 依頼管理の受付番号→行データのハッシュマップ
+  var reqDataMap = {};
+  for (var rdi = 0; rdi < reqData.length; rdi++) {
+    var rk = String(reqData[rdi][receiptCol] || '').trim();
+    if (rk) reqDataMap[rk] = reqData[rdi];
+  }
 
   var results = [];
   var allSaleLogEntries = [];
@@ -329,7 +346,7 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
     else console.log(callerLabel + ': ' + receiptNo + ' を処理中（' + (g + 1) + '/' + receiptNos.length + '）');
 
     // 依頼管理から該当行を検索
-    var reqRow = reqData.find(function(r) { return String(r[receiptCol] || '').trim() === receiptNo; });
+    var reqRow = reqDataMap[receiptNo];
     if (!reqRow) {
       results.push({ receiptNo: receiptNo, ok: false, message: '依頼管理に見つかりません' });
       continue;
@@ -359,7 +376,7 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
     // --- Phase 1: 回収完了に展開 ---
     var outArr = [];
     ids.forEach(function(mgmtId) {
-      var row = mData.find(function(r) { return String(r[mIdx['管理番号']] || '').trim() === mgmtId; });
+      var row = mDataMap[mgmtId];
       if (!row) return;
 
       outArr.push([
@@ -416,7 +433,7 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
       var aiKeywords = listRow[7];
       if (!targetId) return;
 
-      var row = mData.find(function(r) { return String(r[mIdx['管理番号']] || '').trim() === targetId; });
+      var row = mDataMap[targetId];
       if (!row) return;
 
       // 箱IDフォールバック: 返送管理→商品管理
@@ -517,18 +534,26 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
 
     // --- Phase 3: 売却反映（商品管理ステータス→売却済み、BO列→受付番号） ---
     var statusA1s = [];
+    var boA1s = [];
     var statusColLetter = om_colNumToLetter_(statusCol);
     var boColLetter = om_colNumToLetter_(67);
+
+    // outArr の管理番号→行マップ（O(1)検索用）
+    var outArrMap = {};
+    for (var oi = 0; oi < outArr.length; oi++) {
+      var oKey = String(outArr[oi][2] || '').trim();
+      if (oKey) outArrMap[oKey] = outArr[oi];
+    }
 
     ids.forEach(function(mgmtId) {
       var tgtRow = idToRowMap[mgmtId];
       if (!tgtRow) return;
 
       statusA1s.push(statusColLetter + tgtRow);
-      mainSheet.getRange(boColLetter + tgtRow).setValue(receiptNo);
+      boA1s.push(boColLetter + tgtRow);
 
       // 売却履歴用
-      var listRow = outArr.find(function(r) { return String(r[2] || '').trim() === mgmtId; });
+      var listRow = outArrMap[mgmtId];
       allSaleLogEntries.push({
         date: new Date(),
         managedId: mgmtId,
@@ -540,6 +565,9 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
 
     if (statusA1s.length > 0) {
       mainSheet.getRangeList(statusA1s).setValue('売却済み');
+    }
+    if (boA1s.length > 0) {
+      mainSheet.getRangeList(boA1s).setValue(receiptNo);
     }
 
     results.push({ receiptNo: receiptNo, ok: true, fileName: xlsxResult.fileName });
@@ -1142,7 +1170,7 @@ function om_generateMercariTexts_(productRows) {
 }
 
 /**
- * 説明文のみをOpenAI APIで一括生成
+ * 説明文のみをOpenAI APIで一括生成（10件ずつバッチ分割）
  */
 function om_generateDescriptions_(productRows) {
   var apiKey = '';
@@ -1152,11 +1180,25 @@ function om_generateDescriptions_(productRows) {
     return productRows.map(function(pr) { return om_fallbackDescription_(pr); });
   }
 
-  var userMsg = '以下の' + productRows.length + '件の商品データそれぞれについて、メルカリ用の商品説明文を生成してください。\n'
+  var BATCH_SIZE = 10;
+  var allResults = [];
+
+  for (var batchStart = 0; batchStart < productRows.length; batchStart += BATCH_SIZE) {
+    var batch = productRows.slice(batchStart, batchStart + BATCH_SIZE);
+    var batchResults = om_generateDescriptionsBatch_(batch, apiKey);
+    allResults = allResults.concat(batchResults);
+  }
+
+  console.log('メルカリ説明文生成完了: ' + allResults.length + '件（' + Math.ceil(productRows.length / BATCH_SIZE) + 'バッチ）');
+  return allResults;
+}
+
+function om_generateDescriptionsBatch_(batch, apiKey) {
+  var userMsg = '以下の' + batch.length + '件の商品データそれぞれについて、メルカリ用の商品説明文を生成してください。\n'
     + '結果は {"items": [{"description": "..."}, ...]} の形式で、入力順と同じ順序で返してください。\n\n';
 
-  for (var i = 0; i < productRows.length; i++) {
-    var pr = productRows[i];
+  for (var i = 0; i < batch.length; i++) {
+    var pr = batch[i];
     userMsg += '--- 商品' + (i + 1) + ' ---\n'
       + 'ブランド: ' + (pr.brand || '（なし）') + '\n'
       + 'AIキーワード（デザイン情報）: ' + (pr.aiKeywords || '（なし）') + '\n'
@@ -1176,7 +1218,7 @@ function om_generateDescriptions_(productRows) {
         { role: 'system', content: OM_MERCARI_SYSTEM_PROMPT },
         { role: 'user', content: userMsg }
       ],
-      max_tokens: Math.min(productRows.length * 512, 16384),
+      max_tokens: Math.min(batch.length * 512, 16384),
       temperature: 0.4,
       response_format: { type: 'json_object' }
     };
@@ -1191,7 +1233,7 @@ function om_generateDescriptions_(productRows) {
     var code = resp.getResponseCode();
     if (code < 200 || code >= 300) {
       console.error('OpenAI API error: HTTP ' + code + ' ' + resp.getContentText().substring(0, 200));
-      return productRows.map(function(pr) { return om_fallbackDescription_(pr); });
+      return batch.map(function(pr) { return om_fallbackDescription_(pr); });
     }
 
     var body = JSON.parse(resp.getContentText());
@@ -1201,19 +1243,18 @@ function om_generateDescriptions_(productRows) {
 
     var items = parsed.items || [];
     var results = [];
-    for (var j = 0; j < productRows.length; j++) {
+    for (var j = 0; j < batch.length; j++) {
       var item = items[j];
       if (item && item.description) {
         results.push(String(item.description).replace(/\\n/g, '\n'));
       } else {
-        results.push(om_fallbackDescription_(productRows[j]));
+        results.push(om_fallbackDescription_(batch[j]));
       }
     }
-    console.log('メルカリ説明文一括生成OK: ' + results.length + '件');
     return results;
   } catch (e) {
-    console.error('メルカリ説明文一括生成エラー: ' + (e.message || e));
-    return productRows.map(function(pr) { return om_fallbackDescription_(pr); });
+    console.error('メルカリ説明文バッチ生成エラー: ' + (e.message || e));
+    return batch.map(function(pr) { return om_fallbackDescription_(pr); });
   }
 }
 
