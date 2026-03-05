@@ -774,7 +774,7 @@ function writeSubmitData_(data) {
   var paymentStatus = data.paymentStatus || '対応済';
   // アソート商品の場合、選択リスト/合計点数の扱いが異なる
   var selectionList = data.selectionList || (data.ids ? data.ids.join('、') : '');
-  var totalCount = data.totalCount || (data.ids ? data.ids.length : 0);
+  var totalCount = data._sheetTotalCount || data.totalCount || (data.ids ? data.ids.length : 0);
   var confirmLink = (channel === 'デタウリ' || data._hasManagedIds) ? createOrderConfirmLink_(data.receiptNo, data) : '';
   var row = [
     data.receiptNo,                              // A: 受付番号
@@ -1076,6 +1076,8 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
     }
 
     if (allIds.length > 0) {
+      // K列用: アソート数量はそのまま、デタウリ合算は1として加算
+      pendingData._sheetTotalCount = (pendingData.totalCount || 0) + (detauriIds.length > 0 ? 1 : 0);
       pendingData.ids = allIds;
       pendingData.selectionList = u_sortManagedIds_(allIds).join('、');
       pendingData.totalCount = allIds.length;
@@ -1149,7 +1151,8 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
       pointsUsed: pendingData.pointsUsed || 0,
       channel: pendingData.channel || 'デタウリ',
       productNames: pendingData.productNames || '',
-      _hasManagedIds: pendingData._hasManagedIds || false
+      _hasManagedIds: pendingData._hasManagedIds || false,
+      _sheetTotalCount: pendingData._sheetTotalCount || 0
     };
 
     writeSubmitData_(writeData);
