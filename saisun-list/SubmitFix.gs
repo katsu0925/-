@@ -775,7 +775,7 @@ function writeSubmitData_(data) {
   // アソート商品の場合、選択リスト/合計点数の扱いが異なる
   var selectionList = data.selectionList || (data.ids ? data.ids.join('、') : '');
   var totalCount = data.totalCount || (data.ids ? data.ids.length : 0);
-  var confirmLink = (channel === 'デタウリ') ? createOrderConfirmLink_(data.receiptNo, data) : '';
+  var confirmLink = (channel === 'デタウリ' || data._hasManagedIds) ? createOrderConfirmLink_(data.receiptNo, data) : '';
   var row = [
     data.receiptNo,                              // A: 受付番号
     new Date(now),                               // B: 依頼日時
@@ -1057,9 +1057,34 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
     var orderSs = sh_getOrderSs_();
     var now = u_nowMs_();
 
+    // --- プレミアムアソート自動選定 + デタウリ合算ID統合 ---
+    var detauriIds = pendingData.detauriIds || [];
+    var premiumSpec = isBulk ? detectPremiumAssort_(pendingData.orderItems) : null;
+    var allIds = [];
+
+    if (premiumSpec) {
+      var selection = selectProductsForPremiumAssort_(
+        premiumSpec.targetAmount, premiumSpec.minCount, premiumSpec.maxCount, orderSs, detauriIds
+      );
+      allIds = allIds.concat(selection.ids);
+      console.log('プレミアムアソート自動選定: target=¥' + premiumSpec.targetAmount
+        + ' selected=¥' + selection.total + ' items=' + selection.ids.length);
+    }
+
+    if (detauriIds.length > 0) {
+      allIds = allIds.concat(detauriIds);
+    }
+
+    if (allIds.length > 0) {
+      pendingData.ids = allIds;
+      pendingData.selectionList = u_sortManagedIds_(allIds).join('、');
+      pendingData.totalCount = allIds.length;
+      pendingData._hasManagedIds = true;
+    }
+
     // 1. holdState → openState に遷移（決済完了で確定）
-    // ※アソート商品は個品の確保/依頼中管理が不要なのでスキップ
-    if (!isBulk && pendingData.ids && pendingData.ids.length > 0) {
+    // ※アソート商品は個品の確保/依頼中管理が不要なのでスキップ（プレミアムアソート・デタウリ合算は除く）
+    if ((!isBulk || pendingData._hasManagedIds) && pendingData.ids && pendingData.ids.length > 0) {
       // 1a. holdStateから商品を削除（確保中 解除）
       var holdState = st_getHoldState_(orderSs) || {};
       var holdItems = (holdState.items && typeof holdState.items === 'object') ? holdState.items : {};
@@ -1123,7 +1148,8 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
       itemDetails: pendingData.itemDetails || [],
       pointsUsed: pendingData.pointsUsed || 0,
       channel: pendingData.channel || 'デタウリ',
-      productNames: pendingData.productNames || ''
+      productNames: pendingData.productNames || '',
+      _hasManagedIds: pendingData._hasManagedIds || false
     };
 
     writeSubmitData_(writeData);
@@ -1382,4 +1408,154 @@ function createOrderConfirmLink_(receiptNo, data) {
     console.error('createOrderConfirmLink_ error:', e);
     return '';
   }
+}
+
+// =====================================================
+// プレミアムアソート自動選定
+// =====================================================
+
+var PREMIUM_ASSORT_MAP_ = [
+  { keyword: 'プレミアムアソート小ロット', target: 5600, min: 10 },
+  { keyword: 'プレミアムアソート中ロット', target: 13500, min: 20 },
+  { keyword: 'プレミアムアソート大ロット', target: 26700, min: 30 }
+];
+var PREMIUM_ASSORT_MAX_ = 50;
+
+function classifyProductSeason_(product) {
+  if (String(product.category || '') === 'ジャケット・アウター') return 'aw';
+  if (String(product.shippingMethod || '').trim() === 'ゆうパケットポスト') return 'ss';
+  return 'aw';
+}
+
+function getSeasonRatio_() {
+  var month = new Date().getMonth() + 1;
+  if (month >= 3 && month <= 9) return { primary: 'ss', ratio: 0.9 };
+  return { primary: 'aw', ratio: 0.9 };
+}
+
+function detectPremiumAssort_(orderItems) {
+  if (!orderItems || !Array.isArray(orderItems)) return null;
+  var totalTarget = 0, totalMin = 0;
+  for (var i = 0; i < orderItems.length; i++) {
+    var name = String(orderItems[i].name || '');
+    var qty = Math.max(1, Number(orderItems[i].qty) || 1);
+    for (var j = 0; j < PREMIUM_ASSORT_MAP_.length; j++) {
+      if (name.indexOf(PREMIUM_ASSORT_MAP_[j].keyword) !== -1) {
+        totalTarget += PREMIUM_ASSORT_MAP_[j].target * qty;
+        totalMin += PREMIUM_ASSORT_MAP_[j].min * qty;
+        break;
+      }
+    }
+  }
+  if (totalTarget <= 0) return null;
+  return {
+    targetAmount: totalTarget,
+    minCount: Math.min(totalMin, PREMIUM_ASSORT_MAX_),
+    maxCount: PREMIUM_ASSORT_MAX_
+  };
+}
+
+function selectProductsForPremiumAssort_(targetAmount, minCount, maxCount, orderSs, excludeIds) {
+  var products = pr_readProducts_();
+  var holdState = st_getHoldState_(orderSs) || {};
+  var holdItems = (holdState.items && typeof holdState.items === 'object') ? holdState.items : {};
+  var openState = st_getOpenState_(orderSs) || {};
+  var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
+  var excludeSet = {};
+  if (excludeIds) for (var e = 0; e < excludeIds.length; e++) excludeSet[excludeIds[e]] = true;
+
+  var ssPool = [], awPool = [];
+  for (var i = 0; i < products.length; i++) {
+    var p = products[i];
+    if (!p.managedId || !p.price || p.price <= 0) continue;
+    if (p.state && p.state !== '') continue;
+    if (holdItems[p.managedId] || openItems[p.managedId]) continue;
+    if (excludeSet[p.managedId]) continue;
+    var item = { id: p.managedId, price: p.price };
+    if (classifyProductSeason_(p) === 'ss') ssPool.push(item);
+    else awPool.push(item);
+  }
+
+  function shuffle(arr) {
+    for (var i = arr.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+    }
+  }
+  shuffle(ssPool);
+  shuffle(awPool);
+
+  var season = getSeasonRatio_();
+  var primaryPool = (season.primary === 'ss') ? ssPool : awPool;
+  var secondaryPool = (season.primary === 'ss') ? awPool : ssPool;
+  var secondaryTarget = Math.max(1, Math.floor(minCount * (1 - season.ratio)));
+  var primaryTarget = minCount - secondaryTarget;
+
+  var selected = [];
+  var total = 0;
+  var pIdx = 0, sIdx = 0;
+
+  // 1st: secondary pool (少数派の季節)
+  while (selected.length < secondaryTarget && sIdx < secondaryPool.length) {
+    selected.push(secondaryPool[sIdx]); total += secondaryPool[sIdx].price; sIdx++;
+  }
+  // 2nd: primary pool (多数派の季節)
+  while (selected.length < minCount && pIdx < primaryPool.length) {
+    selected.push(primaryPool[pIdx]); total += primaryPool[pIdx].price; pIdx++;
+  }
+  // 3rd: 最低点数未達→残りプールから補充（季節フォールバック）
+  while (selected.length < minCount && sIdx < secondaryPool.length) {
+    selected.push(secondaryPool[sIdx]); total += secondaryPool[sIdx].price; sIdx++;
+  }
+  // 4th: 金額不足→maxCountまで追加（primary優先）
+  while (total < targetAmount && selected.length < maxCount) {
+    if (pIdx < primaryPool.length) {
+      selected.push(primaryPool[pIdx]); total += primaryPool[pIdx].price; pIdx++;
+    } else if (sIdx < secondaryPool.length) {
+      selected.push(secondaryPool[sIdx]); total += secondaryPool[sIdx].price; sIdx++;
+    } else break;
+  }
+  // 5th: maxCount到達でも金額不足→安い商品を高い商品に交換
+  if (total < targetAmount) {
+    selected.sort(function(a, b) { return a.price - b.price; });
+    var unused = [];
+    for (var ui = pIdx; ui < primaryPool.length; ui++) unused.push(primaryPool[ui]);
+    for (var ui2 = sIdx; ui2 < secondaryPool.length; ui2++) unused.push(secondaryPool[ui2]);
+    unused.sort(function(a, b) { return b.price - a.price; });
+    for (var u = 0; u < unused.length && total < targetAmount; u++) {
+      if (unused[u].price > selected[0].price) {
+        total = total - selected[0].price + unused[u].price;
+        selected[0] = unused[u];
+        selected.sort(function(a, b) { return a.price - b.price; });
+      }
+    }
+  }
+
+  // 季節割合チェック
+  var primarySet = {};
+  for (var pi = 0; pi < primaryPool.length; pi++) primarySet[primaryPool[pi].id] = true;
+  var primaryCount = 0;
+  for (var si = 0; si < selected.length; si++) {
+    if (primarySet[selected[si].id]) primaryCount++;
+  }
+  var seasonRatio = selected.length > 0 ? primaryCount / selected.length : 0;
+
+  if (total < targetAmount) {
+    console.warn('プレミアムアソート: 在庫不足 target=' + targetAmount + ' selected=' + total);
+  }
+  if (seasonRatio < 0.4) {
+    console.warn('プレミアムアソート: オンシーズン割合が低い: ' + Math.round(seasonRatio * 100) + '%');
+    try {
+      MailApp.sendEmail(
+        APP_CONFIG.admin.ownerEmail,
+        '⚠ プレミアムアソート: オンシーズン在庫不足',
+        'オンシーズン商品の割合が' + Math.round(seasonRatio * 100) + '%（目標90%）に低下しています。\n'
+        + '選定点数: ' + selected.length + '点\n'
+        + 'オンシーズン: ' + primaryCount + '点\n'
+        + '在庫補充を検討してください。'
+      );
+    } catch (mailErr) { console.error('季節警告メール送信エラー:', mailErr); }
+  }
+
+  return { ids: selected.map(function(s) { return s.id; }), total: total, seasonRatio: seasonRatio };
 }

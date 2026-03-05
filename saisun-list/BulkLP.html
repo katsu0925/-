@@ -2624,7 +2624,8 @@ function submitOrder() {
     shippingPref: G.shippingPref,
     detauriProductAmount: detauriProductAmount,
     detauriShipping: detauriShippingAmount,
-    detauriItemCount: detauriItemCount
+    detauriItemCount: detauriItemCount,
+    detauriIds: (G.detauriItems || []).map(function(d) { return d.id; })
   };
 
   G.submitting = true;
