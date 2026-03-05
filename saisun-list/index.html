@@ -624,6 +624,7 @@
 <body>
 <script type="application/json" id="__initial_products__"><?!= initialProductData || '' ?></script>
 <?!= include_('CartCalc') ?>
+<script>if(typeof CartCalc==='undefined'){document.write('<scr'+'ipt src="CartCalc.js"></scr'+'ipt>');}</script>
 <script>
 // ページ遷移フラッシュ防止: 遷移フラグがあればbody背景を暗くしオーバーレイ表示
 (function(){try{if(sessionStorage.getItem('_pageTransition')==='1'){document.body.style.background='#1a1a2e';document.body.classList.add('page-entering');sessionStorage.removeItem('_pageTransition');}}catch(e){}})();
