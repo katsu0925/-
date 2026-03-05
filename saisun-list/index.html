@@ -2101,6 +2101,8 @@ function updateShippingDisplay_() {
 /** アソート商品の送料を現在の住所から計算 */
 function calcBulkShipping_(bulkTotalQty) {
   if (bulkTotalQty === 0) return 0;
+  // ダイヤモンド会員 → 送料無料
+  if (state.customer && state.customer.rank && state.customer.rank.freeShipping) return 0;
   var addressEl = $('address');
   var address = addressEl ? addressEl.value.trim() : '';
   if (!address && state.customer && state.customer.address) {
@@ -2170,7 +2172,7 @@ function renderSummary_() {
   // アソートカートデータを先読みして合算計算に使用
   var _bulkDataRS = loadBulkCartStorage();
   var effectiveBulkProduct = _bulkDataRS.subtotal || 0;
-  var effectiveBulkShip    = _bulkDataRS.shipping  || 0;
+  var effectiveBulkShip    = calcBulkShipping_(_bulkDataRS.totalQty);
 
   // 割引計算（両チャネル合算でクーポン適用）
   var discountLabels = [];
@@ -2268,7 +2270,7 @@ function renderSummary_() {
     effectiveBulkShip = 0;
   }
 
-  // ポイント利用（送料確定後・両チャネル合算で計算）
+  // ポイント利用（合計から一括控除）
   var pts = parseInt(($('usePoints') ? $('usePoints').value : '0'), 10) || 0;
   var pointsApplied = 0;
   var effectiveDiscounted = discounted;
@@ -2276,17 +2278,7 @@ function renderSummary_() {
   if (pts > 0 && state.customer) {
     var maxPts = state.customer.points || 0;
     var _ptCombined = discounted + shippingAmount + effectiveBulkProduct + effectiveBulkShip;
-    pts = Math.min(pts, maxPts, _ptCombined);
-    pointsApplied = pts;
-    var _ptRem = pointsApplied;
-    var _ptOnDP = Math.min(_ptRem, discounted);        _ptRem -= _ptOnDP;
-    var _ptOnDS = Math.min(_ptRem, shippingAmount);    _ptRem -= _ptOnDS;
-    var _ptOnBP = Math.min(_ptRem, effectiveBulkProduct); _ptRem -= _ptOnBP;
-    var _ptOnBS = Math.min(_ptRem, effectiveBulkShip);
-    effectiveDiscounted  = discounted - _ptOnDP;
-    effectiveShipping    = Math.max(0, shippingAmount - _ptOnDS);
-    effectiveBulkProduct = Math.max(0, effectiveBulkProduct - _ptOnBP);
-    effectiveBulkShip    = Math.max(0, effectiveBulkShip - _ptOnBS);
+    pointsApplied = Math.min(pts, maxPts, _ptCombined);
   }
 
   var rows = '';
@@ -2349,7 +2341,8 @@ function renderSummary_() {
     }
     // デタウリ 小計
     var detauriTotal = effectiveDiscounted + effectiveShipping;
-    rows += '<div class="cart-row total"><span>デタウリ 小計</span><span>¥' + numFmt_(detauriTotal) + '</span></div>';
+    var _detauriDisplay = (_bulkDataRS.subtotal > 0) ? detauriTotal : Math.max(0, detauriTotal - pointsApplied);
+    rows += '<div class="cart-row total"><span>デタウリ 小計</span><span>¥' + numFmt_(_detauriDisplay) + '</span></div>';
   }
 
   // note表示制御
@@ -2430,7 +2423,7 @@ function renderSummary_() {
     rows += '<div class="cart-row" style="color:#5B86C5;font-size:16px;font-weight:800;border-top:2px solid #5B86C5;margin-top:8px;padding-top:12px;border-bottom:none;">'
       + '<span>アソート商品 小計</span>'
       + '<span>¥' + numFmt_(bulkTotal) + '</span></div>';
-    var grandTotal = effectiveDiscounted + effectiveShipping + bulkTotal;
+    var grandTotal = effectiveDiscounted + effectiveShipping + bulkTotal - pointsApplied;
     if (pointsApplied > 0) {
       rows += '<div class="cart-row" style="font-weight:700;color:#b8002a;"><span>ポイント利用合計 (' + pointsApplied + 'pt)</span><span>-¥' + numFmt_(pointsApplied) + '</span></div>';
     }
@@ -2473,6 +2466,7 @@ function renderSummary_() {
   } else {
     _sTotal = effectiveDiscounted + effectiveShipping;
   }
+  _sTotal -= pointsApplied;
   var _sLabel = '';
   if (count > 0 && _bulkQ > 0) _sLabel = 'デタウリ' + count + '点 + アソート' + _bulkQ + '点';
   else if (count > 0) _sLabel = 'デタウリ' + count + '点';
@@ -6260,9 +6254,7 @@ function submitNow_() {
       if (!res || !res.ok) throw new Error(res && res.message ? res.message : '注文送信に失敗しました');
       var sessionUrl = res.sessionUrl || '';
       if (!sessionUrl) throw new Error('決済URLの取得に失敗しました');
-      // カートクリア（決済完了後にページに戻ってくるので先にクリア）
-      state.cart.ids = []; state.cart.itemsById = {}; state.cart.digest = {}; state.lastShipping = null;
-      saveCartStorage(); updateCartCount();
+      // カートは決済完了時にクリア（handlePaymentReturn_で処理）
       // KOMOJU決済ページへリダイレクト
       trackEvent_('redirect_to_payment', { payment_gateway: 'komoju', page_type: 'detauri' });
       setSending_(true, '決済ページへ移動中...');
@@ -6291,6 +6283,12 @@ function handlePaymentReturn_() {
   }
 
   if (status === 'complete') {
+    // 決済完了 → カートクリア
+    state.cart.ids = []; state.cart.itemsById = {}; state.cart.digest = {}; state.lastShipping = null;
+    saveCartStorage(); updateCartCount();
+    // BulkLPカートもクリア（両チャネル合算注文の場合）
+    try { localStorage.removeItem('bulk_cart_v1'); } catch (e) {}
+    try { localStorage.removeItem('estimate_cart_v2'); } catch (e) {}
     // 決済確認中の表示
     $('doneReceipt').textContent = receipt;
     if ($('doneModalTitle')) $('doneModalTitle').textContent = '決済確認中...';
