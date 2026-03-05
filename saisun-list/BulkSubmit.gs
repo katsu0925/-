@@ -140,8 +140,23 @@ function apiBulkSubmit(form, items) {
       }
     }
 
-    // 送料無料判定用に割引適用前の商品金額を保持
-    var originalDetauriProductAmount = detauriProductAmount;
+    // デタウリ数量割引（CartCalcと同じロジック — FHP時・comboBulk=false時は除外）
+    if (!firstHalfPriceApplied && detauriItemCount >= 10 && detauriProductAmount > 0) {
+      var _applyBulkDisc = !validatedCoupon || validatedCoupon.comboBulk !== false;
+      if (_applyBulkDisc) {
+        var detauriBulkRate = 0;
+        if (detauriItemCount >= 100) detauriBulkRate = 0.20;
+        else if (detauriItemCount >= 50) detauriBulkRate = 0.15;
+        else if (detauriItemCount >= 30) detauriBulkRate = 0.10;
+        else detauriBulkRate = 0.05;
+        var detauriBulkDisc = Math.round(detauriProductAmount * detauriBulkRate);
+        detauriProductAmount = Math.max(0, detauriProductAmount - detauriBulkDisc);
+        if (detauriBulkDisc > 0) {
+          var bulkDiscLabel = '【デタウリ数量割引: ' + detauriItemCount + '点 ' + Math.round(detauriBulkRate * 100) + '%OFF（-¥' + detauriBulkDisc + '）】';
+          note = note ? (note + '\n' + bulkDiscLabel) : bulkDiscLabel;
+        }
+      }
+    }
 
     var discounted;
     if (firstHalfPriceApplied) {
@@ -202,8 +217,8 @@ function apiBulkSubmit(form, items) {
       }
     }
 
-    // 商品合計1万円以上で送料無料（クーポン・割引適用前の商品価格で判定）
-    if (sum + originalDetauriProductAmount >= 10000) {
+    // 商品合計1万円以上で送料無料（割引後の商品価格で判定 — CartCalcと同一基準）
+    if (discounted + detauriProductAmount >= 10000) {
       shippingAmount = 0;
       detauriShippingAmount = 0;
     }
