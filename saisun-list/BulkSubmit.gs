@@ -96,7 +96,7 @@ function apiBulkSubmit(form, items) {
       return { ok: false, message: 'デタウリ商品は5点以上で購入可能です（現在' + detauriItemCount + '点）' };
     }
 
-    // === 割引計算（既存のクーポン・会員割引を再利用） ===
+    // === 割引計算（CartCalcと同じ順序: FHP → 数量割引 → 会員割引 → クーポン） ===
     var discountRate = 0;
     var couponDiscount = 0;
     var couponLabel = '';
@@ -113,34 +113,33 @@ function apiBulkSubmit(form, items) {
       }
     }
 
+    // クーポン検証（割引額はまだ計算しない — 会員割引適用後に計算）
     if (!firstHalfPriceApplied && couponCode) {
       var bulkProductIds = [];
       for (var ci = 0; ci < orderItems.length; ci++) bulkProductIds.push(orderItems[ci].productId);
       var couponResult = validateCoupon_(couponCode, contact, 'bulk', bulkProductIds, companyName);
       if (!couponResult.ok) return couponResult;
       validatedCoupon = couponResult;
-      couponDiscount = calcCouponDiscount_(couponResult.type, couponResult.value, sum + detauriProductAmount);
       couponLabel = couponResult.type === 'rate'
         ? ('クーポン' + Math.round(couponResult.value * 100) + '%OFF')
         : couponResult.type === 'shipping_free'
           ? 'クーポン送料無料'
           : ('クーポン' + couponResult.value + '円引き');
+    }
 
-      var memberStatus = app_getMemberDiscountStatus_();
-      if (validatedCoupon.comboMember && memberStatus.enabled && contact && typeof findCustomerByEmail_ === 'function') {
-        var cust = findCustomerByEmail_(contact);
-        if (cust) discountRate += memberStatus.rate;
-      }
-    } else if (!firstHalfPriceApplied) {
-      // 通常割引
-      var memberStatus = app_getMemberDiscountStatus_();
-      if (memberStatus.enabled && contact && typeof findCustomerByEmail_ === 'function') {
-        var cust = findCustomerByEmail_(contact);
-        if (cust) discountRate += memberStatus.rate;
+    // 会員割引レート取得（CartCalc step 3b — comboMember !== false なら適用）
+    if (!firstHalfPriceApplied) {
+      var _comboMemberOk = !validatedCoupon || validatedCoupon.comboMember !== false;
+      if (_comboMemberOk) {
+        var memberStatus = app_getMemberDiscountStatus_();
+        if (memberStatus.enabled && contact && typeof findCustomerByEmail_ === 'function') {
+          var cust = findCustomerByEmail_(contact);
+          if (cust) discountRate = memberStatus.rate;
+        }
       }
     }
 
-    // デタウリ数量割引（CartCalcと同じロジック — FHP時・comboBulk=false時は除外）
+    // デタウリ数量割引（CartCalc step 3a — FHP時・comboBulk=false時は除外）
     if (!firstHalfPriceApplied && detauriItemCount >= 10 && detauriProductAmount > 0) {
       var _applyBulkDisc = !validatedCoupon || validatedCoupon.comboBulk !== false;
       if (_applyBulkDisc) {
@@ -158,6 +157,7 @@ function apiBulkSubmit(form, items) {
       }
     }
 
+    // === 割引適用（CartCalc step順: FHP → 数量割引(上) → 会員割引 → クーポン） ===
     var discounted;
     if (firstHalfPriceApplied) {
       // 初回半額: 各チャネル個別に50%OFF（送料は対象外）
@@ -166,20 +166,17 @@ function apiBulkSubmit(form, items) {
       discounted = sum - _fhpOnAssort;
       detauriProductAmount = Math.max(0, detauriProductAmount - _fhpOnDetauri);
       couponLabel = '初回全品半額キャンペーン（' + Math.round(fhpStatus.rate * 100) + '%OFF）';
-    } else if (couponCode) {
-      // クーポン割引を両チャネルに配分（アソート優先）
-      var _cdOnAssort = Math.min(couponDiscount, sum);
-      var _cdOnDetauri = couponDiscount - _cdOnAssort;
-      var afterCoupon = Math.max(0, sum - _cdOnAssort);
-      discounted = Math.round(afterCoupon * (1 - discountRate));
-      detauriProductAmount = Math.max(0, detauriProductAmount - _cdOnDetauri);
     } else {
+      // 会員割引を両チャネルに適用（CartCalc step 3b）
       discounted = Math.round(sum * (1 - discountRate));
-    }
-
-    // 会員割引をデタウリ商品にも適用（チャネル設定のない割引は両チャネルに適用）
-    if (!firstHalfPriceApplied && discountRate > 0 && detauriProductAmount > 0) {
-      detauriProductAmount = Math.round(detauriProductAmount * (1 - discountRate));
+      if (discountRate > 0 && detauriProductAmount > 0) {
+        detauriProductAmount = Math.round(detauriProductAmount * (1 - discountRate));
+      }
+      // クーポン控除: 会員割引適用後の合算額に対して計算（CartCalc step 6）
+      if (validatedCoupon && validatedCoupon.type !== 'shipping_free') {
+        var combinedDiscounted = discounted + detauriProductAmount;
+        couponDiscount = calcCouponDiscount_(validatedCoupon.type, validatedCoupon.value, combinedDiscounted);
+      }
     }
 
     // === 送料計算（アソート商品: 常に大サイズ × 数量） ===
@@ -232,7 +229,7 @@ function apiBulkSubmit(form, items) {
       if (availablePoints < pointsUsed) {
         return { ok: false, message: 'ポイント残高が不足しています（残高: ' + availablePoints + 'pt）' };
       }
-      pointsUsed = Math.min(pointsUsed, discounted + shippingAmount + detauriProductAmount + detauriShippingAmount);
+      pointsUsed = Math.min(pointsUsed, discounted + shippingAmount + detauriProductAmount + detauriShippingAmount - couponDiscount);
       var _ptRem = pointsUsed;
       var ptOnProduct = Math.min(_ptRem, discounted); _ptRem -= ptOnProduct;
       var ptOnShipping = Math.min(_ptRem, shippingAmount); _ptRem -= ptOnShipping;
@@ -257,7 +254,7 @@ function apiBulkSubmit(form, items) {
         discountParts.push(couponLabel + '（-' + couponDiscount + '円）コード: ' + couponCode);
       }
       if (discountRate > 0) {
-        discountParts.push('併用割引' + Math.round(discountRate * 100) + '%OFF');
+        discountParts.push('併用会員割引' + Math.round(discountRate * 100) + '%OFF');
       }
       if (discountParts.length > 0) {
         var couponNote = '【' + discountParts.join(' + ') + '】';
@@ -279,7 +276,7 @@ function apiBulkSubmit(form, items) {
     // === デタウリカートの金額を合算（両チャネル合算決済） ===
     var detauriTotal = detauriProductAmount + detauriShippingAmount;
 
-    var totalWithShipping = discounted + shippingAmount + detauriTotal;
+    var totalWithShipping = discounted + shippingAmount + detauriTotal - couponDiscount;
 
     if (detauriTotal > 0) {
       var detauriNote = '【デタウリ合算: 商品代¥' + detauriProductAmount + '（' + detauriItemCount + '点）+ 送料¥' + detauriShippingAmount + '】';
