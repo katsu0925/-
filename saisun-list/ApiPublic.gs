@@ -230,6 +230,8 @@ function app_sendOrderNotifyMail_(orderSs, receiptNo, info) {
     var body = app_buildOrderNotifyBody_(orderSs, receiptNo, info);
 
     // HTML版を構築
+    var createdAt = info && info.createdAtMs ? new Date(info.createdAtMs) : new Date();
+    var ssUrl = orderSs && orderSs.getUrl ? orderSs.getUrl() : '';
     var htmlSections = [];
     var orderRows = [
       { label: '受付番号', value: String(receiptNo || '') },

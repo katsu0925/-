@@ -266,7 +266,7 @@ function apiSubmitEstimate(userKey, form, ids) {
     if (usePoints > 0 && contact && typeof findCustomerByEmail_ === 'function') {
       custForPoints = findCustomerByEmail_(contact);
       if (custForPoints && custForPoints.points >= usePoints) {
-        pointsUsed = Math.min(usePoints, discounted + shippingAmount + bulkProductAmount + bulkShippingAmount - couponDiscount);
+        pointsUsed = Math.min(usePoints, Math.max(0, discounted + shippingAmount + bulkProductAmount + bulkShippingAmount - couponDiscount));
         var _ptRem = pointsUsed;
         var pointsOnProduct = Math.min(_ptRem, discounted); _ptRem -= pointsOnProduct;
         var pointsOnShipping = Math.min(_ptRem, shippingAmount); _ptRem -= pointsOnShipping;

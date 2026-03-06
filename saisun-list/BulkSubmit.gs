@@ -236,7 +236,7 @@ function apiBulkSubmit(form, items) {
       if (availablePoints < pointsUsed) {
         return { ok: false, message: 'ポイント残高が不足しています（残高: ' + availablePoints + 'pt）' };
       }
-      pointsUsed = Math.min(pointsUsed, discounted + shippingAmount + detauriProductAmount + detauriShippingAmount - couponDiscount);
+      pointsUsed = Math.min(pointsUsed, Math.max(0, discounted + shippingAmount + detauriProductAmount + detauriShippingAmount - couponDiscount));
       var _ptRem = pointsUsed;
       var ptOnProduct = Math.min(_ptRem, discounted); _ptRem -= ptOnProduct;
       var ptOnShipping = Math.min(_ptRem, shippingAmount); _ptRem -= ptOnShipping;
