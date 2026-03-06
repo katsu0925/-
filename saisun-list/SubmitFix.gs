@@ -433,7 +433,7 @@ function apiSubmitEstimate(userKey, form, ids) {
       totalCount: totalCount,
       discounted: discounted,
       shippingAmount: shippingAmount,
-      storeShipping: calcStoreShippingByAddress_(shippingPref, totalCount) || 0,
+      storeShipping: Math.round((shippingAmount + bulkShippingAmount) / 2) || 0,
       shippingSize: shippingSize,
       shippingArea: shippingArea,
       shippingPref: shippingPref,

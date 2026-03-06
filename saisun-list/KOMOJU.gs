@@ -1269,3 +1269,114 @@ function setupPendingOrderTrigger() {
     .create();
   console.log('checkPendingOrders トリガーを設定しました（5分間隔）');
 }
+
+/**
+ * KOMOJU支払い復旧: PENDING_ORDER消失時に依頼管理シートへ手動登録
+ * GASエディタから実行
+ */
+function recoverKomojuPayment() {
+  var paymentId = '97fnf45edtlsp0i3ve9ni4ydj';
+
+  // 1. KOMOJUから支払い情報を取得
+  var payment = fetchPaymentFromApi_(paymentId);
+  if (!payment) { console.log('KOMOJU APIから取得できません'); return; }
+  if (payment.status !== 'captured' && payment.status !== 'authorized') {
+    console.log('支払いが完了していません: ' + payment.status);
+    return;
+  }
+
+  var meta = payment.metadata || {};
+  var receiptNo = payment.external_order_num || meta.receipt_no || '';
+  if (!receiptNo) { console.log('受付番号が取得できません'); return; }
+
+  // 2. 依頼管理に既にあるか確認
+  var orderSs = sh_getOrderSs_();
+  var reqSh = orderSs.getSheetByName('依頼管理');
+  if (!reqSh) { console.log('依頼管理シートなし'); return; }
+  var lastRow = reqSh.getLastRow();
+  if (lastRow >= 2) {
+    var existing = reqSh.getRange(2, 1, lastRow - 1, 1).getDisplayValues();
+    for (var i = 0; i < existing.length; i++) {
+      if (String(existing[i][0]).trim() === receiptNo) {
+        console.log('既に依頼管理シートの行' + (i + 2) + 'に存在します。中止。');
+        return;
+      }
+    }
+  }
+
+  // 3. 顧客管理シートからメールで住所等を取得
+  var email = String(meta.email || '').trim().toLowerCase();
+  var custInfo = { postal: '', address: '', phone: '' };
+  if (email) {
+    try {
+      var custSs = SpreadsheetApp.openById(app_getOrderSpreadsheetId_());
+      var custSh = custSs.getSheetByName('顧客管理');
+      if (custSh) {
+        var custLast = custSh.getLastRow();
+        if (custLast >= 2) {
+          var custData = custSh.getRange(2, 1, custLast - 1, 8).getValues();
+          for (var c = 0; c < custData.length; c++) {
+            if (String(custData[c][CUSTOMER_SHEET_COLS.EMAIL] || '').trim().toLowerCase() === email) {
+              custInfo.postal = String(custData[c][CUSTOMER_SHEET_COLS.POSTAL] || '');
+              custInfo.address = String(custData[c][CUSTOMER_SHEET_COLS.ADDRESS] || '');
+              custInfo.phone = String(custData[c][CUSTOMER_SHEET_COLS.PHONE] || '');
+              console.log('顧客情報発見: ' + custInfo.address);
+              break;
+            }
+          }
+        }
+      }
+    } catch (e) { console.error('顧客情報取得エラー:', e); }
+  }
+
+  // 4. 依頼管理シートに書き込み
+  var productAmount = +meta.product_amount || 0;
+  var shippingAmount = +meta.shipping_amount || 0;
+  var now = new Date();
+  var row = [
+    receiptNo,                                   // A: 受付番号
+    now,                                         // B: 依頼日時
+    meta.company_name || '',                     // C: 会社名/氏名
+    meta.email || '',                            // D: 連絡先
+    custInfo.postal,                             // E: 郵便番号
+    custInfo.address,                            // F: 住所
+    custInfo.phone,                              // G: 電話番号
+    '※KOMOJU復旧（商品情報なし）',                 // H: 商品名
+    '',                                          // I: 確認リンク
+    '',                                          // J: 選択リスト
+    '',                                          // K: 合計点数
+    productAmount,                               // L: 合計金額（商品代のみ）
+    '',                                          // M: 送料(店負担)
+    shippingAmount,                              // N: 送料(客負担)
+    'PayPay',                                    // O: 決済方法
+    paymentId,                                   // P: 決済ID
+    '未対応',                                     // Q: 入金確認（captured=入金済み）
+    '',                                          // R: ポイント付与済
+    '未着手',                                     // S: 発送ステータス
+    '',                                          // T: 配送業者
+    '',                                          // U: 伝票番号
+    '依頼中',                                     // V: ステータス
+    '',                                          // W: 担当者
+    '未',                                         // X: リスト同梱
+    '未',                                         // Y: xlsx送付
+    '',                                          // Z: インボイス発行
+    '',                                          // AA: インボイス状況
+    false,                                       // AB: 受注通知
+    '',                                          // AC: 発送通知
+    'KOMOJU復旧: PayPay ¥' + payment.amount + ' captured',  // AD: 備考
+    '',                                          // AE: 作業報酬
+    now,                                         // AF: 更新日時
+    'デタウリ'                                    // AG: チャネル
+  ];
+
+  var writeRow = lastRow + 1;
+  reqSh.getRange(writeRow, 1, 1, row.length).setValues([row]);
+
+  console.log('=== 復旧完了 ===');
+  console.log('受付番号: ' + receiptNo);
+  console.log('行: ' + writeRow);
+  console.log('金額: ¥' + payment.amount + '（商品¥' + productAmount + ' + 送料¥' + shippingAmount + '）');
+  console.log('顧客: ' + meta.company_name + ' / ' + meta.email);
+  console.log('');
+  console.log('※H列（商品名）とJ列（選択リスト）、K列（点数）は手動で確認・入力してください');
+}
