@@ -309,6 +309,26 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
   var returnSheet = shiireSs.getSheetByName('返送管理');
   var boxMap = om_buildBoxMap_(returnSheet);
 
+  // データ1から管理番号→販売価格マップを構築（在庫経過割引済みの正価格）
+  var data1PriceMap = {};
+  try {
+    var dataSs = SpreadsheetApp.openById(String(APP_CONFIG.data.spreadsheetId || ''));
+    var data1Sheet = dataSs.getSheetByName('データ1');
+    if (data1Sheet) {
+      var d1Last = data1Sheet.getLastRow();
+      if (d1Last >= 3) {
+        var d1Keys = data1Sheet.getRange(3, 11, d1Last - 2, 1).getValues();   // K列=管理番号
+        var d1Prices = data1Sheet.getRange(3, 9, d1Last - 2, 1).getValues();  // I列=価格
+        for (var di = 0; di < d1Keys.length; di++) {
+          var dk = String(d1Keys[di][0] || '').trim();
+          if (dk) data1PriceMap[dk] = d1Prices[di][0];
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('データ1価格読取失敗（仕入値から再計算にフォールバック）:', e.message || e);
+  }
+
   var recoverySheet = shiireSs.getSheetByName('回収完了');
   var exportSheet = shiireSs.getSheetByName('配布用リスト');
   if (!exportSheet) exportSheet = shiireSs.insertSheet('配布用リスト');
@@ -470,14 +490,20 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
       }
       measurementText = measurementText.trim();
 
-      var cost = toNumber_(listRow[10]) || 0;
-      var price = normalizeSellPrice_(om_calcPriceTier_(cost));
-
-      // 状態による価格調整
-      if (condition === '傷や汚れあり' || condition === 'やや傷や汚れあり' || condition === '全体的に状態が悪い') {
-        price = Math.round(price * 0.8);
-      } else if (condition === '目立った傷や汚れなし' && damageDetail.trim() !== '') {
-        price = Math.round(price * 0.9);
+      // データ1の価格を使用（在庫経過割引・状態割引が反映済み）
+      // データ1に無い場合は仕入値から再計算（フォールバック）
+      var price;
+      var d1Price = data1PriceMap[targetId];
+      if (typeof d1Price === 'number' && isFinite(d1Price) && d1Price > 0) {
+        price = d1Price;
+      } else {
+        var cost = toNumber_(listRow[10]) || 0;
+        price = normalizeSellPrice_(om_calcPriceTier_(cost));
+        if (condition === '傷や汚れあり' || condition === 'やや傷や汚れあり' || condition === '全体的に状態が悪い') {
+          price = Math.round(price * 0.8);
+        } else if (condition === '目立った傷や汚れなし' && damageDetail.trim() !== '') {
+          price = Math.round(price * 0.9);
+        }
       }
 
       var priceText = price.toLocaleString('ja-JP') + '円';
