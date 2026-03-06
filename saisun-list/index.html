@@ -1259,6 +1259,18 @@
   </div>
 
   <div class="toast" id="toast"></div>
+  <div class="modal" id="alertModal" aria-hidden="true" style="width:min(420px,90vw);">
+    <div class="modalHeader">
+      <div class="modalTitle" id="alertModalTitle">お知らせ</div>
+      <button class="modalClose" id="alertModalClose" aria-label="close">×</button>
+    </div>
+    <div class="modalBody" style="padding:20px 16px;">
+      <p id="alertModalMessage" style="margin:0 0 18px;line-height:1.7;color:#333;white-space:pre-wrap;"></p>
+      <div style="text-align:right;">
+        <button class="btn primary" id="alertModalOk" type="button" style="min-width:80px;">OK</button>
+      </div>
+    </div>
+  </div>
   <div id="sendingOverlay" class="sendingOverlay" aria-hidden="true">
     <div class="sendingBox" role="status" aria-live="polite">
       <div class="sendingSpinner"></div>
@@ -1808,6 +1820,18 @@ function showToast(msg) {
   t.textContent = String(msg || '');
   t.classList.add('show');
   setTimeout(function() { t.classList.remove('show'); }, 2600);
+}
+
+function showAlertModal(msg, title) {
+  var modal = $('alertModal');
+  $('alertModalTitle').textContent = title || 'お知らせ';
+  $('alertModalMessage').textContent = String(msg || '');
+  openModal(modal);
+  var okBtn = $('alertModalOk');
+  var closeBtn = $('alertModalClose');
+  function close() { closeModal(modal); okBtn.removeEventListener('click', close); closeBtn.removeEventListener('click', close); }
+  okBtn.addEventListener('click', close);
+  closeBtn.addEventListener('click', close);
 }
 
 // =====================================================
@@ -2999,12 +3023,12 @@ function setupAuthUi_() {
             $('contactMessage').value = '';
             modalContactFiles_ = [];
             var p = $('modalContactPreviews'); if (p) p.innerHTML = '';
-            alert('お問い合わせを送信しました');
+            showAlertModal('お問い合わせを送信しました');
           } else {
-            alert((res && res.message) || '送信に失敗しました');
+            showAlertModal((res && res.message) || '送信に失敗しました', 'エラー');
           }
         })
-        .catch(function(e) { alert(e.message || '送信に失敗しました'); })
+        .catch(function(e) { showAlertModal(e.message || '送信に失敗しました', 'エラー'); })
         .finally(function() { contactSubmitBtn.disabled = false; contactSubmitBtn.textContent = '送信'; });
     });
   }

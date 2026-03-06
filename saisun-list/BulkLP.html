@@ -879,6 +879,21 @@ body.admin-mode .admin-settings-fab{display:flex;}
   </div>
 </div>
 
+<!-- アラートモーダル -->
+<div class="bulk-overlay" id="bulkAlertOverlay"></div>
+<div class="bulk-modal" id="bulkAlertModal" style="display:none;width:min(420px,90vw);">
+  <div class="bulk-modal-header">
+    <div class="bulk-modal-title" id="bulkAlertTitle">お知らせ</div>
+    <button class="bulk-modal-close" id="bulkAlertClose" type="button">&times;</button>
+  </div>
+  <div class="bulk-modal-body" style="padding:20px 18px;">
+    <p id="bulkAlertMessage" style="margin:0 0 18px;line-height:1.7;color:#333;white-space:pre-wrap;"></p>
+    <div style="text-align:right;">
+      <button id="bulkAlertOk" type="button" style="min-width:80px;padding:10px 20px;border-radius:8px;font-weight:700;cursor:pointer;background:#1a1a2e;color:#fff;border:none;font-size:14px;">OK</button>
+    </div>
+  </div>
+</div>
+
 <!-- 商品ガイドモーダル -->
 <div class="bulk-overlay" id="bulkGuideOverlay"></div>
 <div class="bulk-modal" id="bulkGuideModal" style="display:none;">
@@ -3769,7 +3784,7 @@ var modalContactFiles_ = [];
       resetPwBtn.disabled = true; resetPwBtn.textContent = '送信中...';
       runApi('apiRequestPasswordReset', 'bulk', { email: email })
         .then(function(res) {
-          if (res && res.ok) { alert(res.message || '仮パスワードを送信しました'); document.getElementById('resetEmail').value = ''; setTimeout(function() { openAuthModal_('login'); }, 500); }
+          if (res && res.ok) { showAlertModal(res.message || '仮パスワードを送信しました'); document.getElementById('resetEmail').value = ''; setTimeout(function() { openAuthModal_('login'); }, 500); }
           else { showAuthError_((res && res.message) || '送信に失敗しました'); }
         })
         .catch(function() { showAuthError_('送信に失敗しました'); })
@@ -3974,7 +3989,7 @@ var modalContactFiles_ = [];
       var closeBtn = document.getElementById('settingsClose');
       if (!fab || !panel) return;
 
-      function showToast(msg) { alert(msg); }
+      function showToast(msg) { showAlertModal(msg); }
 
       fab.addEventListener('click', function() {
         var isOpen = panel.classList.contains('open');
@@ -4086,6 +4101,20 @@ var modalContactFiles_ = [];
     if (typeof showFabsAfterModal_ === 'function') showFabsAfterModal_();
   }
 
+  var _alertModal = document.getElementById('bulkAlertModal');
+  var _alertOverlay = document.getElementById('bulkAlertOverlay');
+  var _alertOk = document.getElementById('bulkAlertOk');
+  var _alertClose = document.getElementById('bulkAlertClose');
+  function showAlertModal(msg, title) {
+    document.getElementById('bulkAlertTitle').textContent = title || 'お知らせ';
+    document.getElementById('bulkAlertMessage').textContent = String(msg || '');
+    openBulkModal_(_alertModal, _alertOverlay);
+    function close() { closeBulkModal_(_alertModal, _alertOverlay); _alertOk.removeEventListener('click', close); _alertClose.removeEventListener('click', close); _alertOverlay.removeEventListener('click', close); }
+    _alertOk.addEventListener('click', close);
+    _alertClose.addEventListener('click', close);
+    _alertOverlay.addEventListener('click', close);
+  }
+
   if (legalLink && legalModal) {
     legalLink.addEventListener('click', function(e) { e.preventDefault(); openBulkModal_(legalModal, legalOverlay); });
     legalClose.addEventListener('click', function() { closeBulkModal_(legalModal, legalOverlay); });
@@ -4146,7 +4175,7 @@ var modalContactFiles_ = [];
       var name = (document.getElementById('contactName').value || '').trim();
       var email = (document.getElementById('contactEmail').value || '').trim();
       var message = (document.getElementById('contactMessage').value || '').trim();
-      if (!name || !email || !message) { alert('全ての項目を入力してください'); return; }
+      if (!name || !email || !message) { showAlertModal('全ての項目を入力してください', 'エラー'); return; }
       contactSubmit.disabled = true;
       contactSubmit.textContent = '送信中...';
       var files = modalContactFiles_.slice();
@@ -4157,7 +4186,7 @@ var modalContactFiles_ = [];
       })
         .then(function(res) {
           if (res && res.ok) {
-            alert('お問い合わせを送信しました');
+            showAlertModal('お問い合わせを送信しました');
             document.getElementById('contactName').value = '';
             document.getElementById('contactEmail').value = '';
             document.getElementById('contactMessage').value = '';
@@ -4165,9 +4194,9 @@ var modalContactFiles_ = [];
             var p = document.getElementById('modalContactPreviews'); if (p) p.innerHTML = '';
             contactModal.style.display = 'none';
             contactOverlay.classList.remove('active');
-          } else { alert((res && res.message) || '送信に失敗しました'); }
+          } else { showAlertModal((res && res.message) || '送信に失敗しました', 'エラー'); }
         })
-        .catch(function(e) { alert(e.message || '送信に失敗しました'); })
+        .catch(function(e) { showAlertModal(e.message || '送信に失敗しました', 'エラー'); })
         .finally(function() { contactSubmit.disabled = false; contactSubmit.textContent = '送信'; });
     });
   }
