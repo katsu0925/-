@@ -26,7 +26,7 @@ function removeChatbotApiKey() {
 }
 
 var CHATBOT_CONFIG = {
-  MODEL: 'gpt-4.1-mini',
+  MODEL: 'gpt-5-mini',
   ENDPOINT: 'https://api.openai.com/v1/chat/completions',
   MAX_TOKENS: 500,
   TEMPERATURE: 0.7,

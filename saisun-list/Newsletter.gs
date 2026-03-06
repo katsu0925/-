@@ -5,7 +5,7 @@
 // =====================================================
 
 var NEWSLETTER_AI_CONFIG = {
-  MODEL: 'gpt-4o-mini',
+  MODEL: 'gpt-5-mini',
   ENDPOINT: 'https://api.openai.com/v1/chat/completions',
   MAX_TOKENS: 600,
   TEMPERATURE: 0.7

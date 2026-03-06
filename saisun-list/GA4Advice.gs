@@ -561,7 +561,7 @@ function ga4advice_callAI_(messages) {
   if (!apiKey) throw new Error('OPENAI_API_KEY が未設定');
 
   var payload = {
-    model: 'gpt-4.1-mini',
+    model: 'gpt-5-mini',
     messages: messages,
     max_tokens: 1000,
     temperature: 0.5

@@ -15,7 +15,7 @@ var OM_SHIIRE_SS_ID = getOmProp_('OM_SHIIRE_SS_ID', '');
 var OM_DIST_SHEET_GID  = 1614333946;
 var OM_DIST_NAME_CELL  = 'E1';
 var OM_DIST_RECEIPT_CELL = 'B1';
-var OM_MERCARI_MODEL = 'gpt-4o-mini';
+var OM_MERCARI_MODEL = 'gpt-5-mini';
 var OM_XLSX_FOLDER_ID  = getOmProp_('OM_XLSX_FOLDER_ID', '');
 
 // ═══════════════════════════════════════════
