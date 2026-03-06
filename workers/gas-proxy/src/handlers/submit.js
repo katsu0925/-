@@ -150,7 +150,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   if (ids.length > 0) {
     const placeholders = ids.map(() => '?').join(',');
     const { results } = await env.DB.prepare(
-      `SELECT managed_id, price, no_label, brand, category, size, color FROM products WHERE managed_id IN (${placeholders})`
+      `SELECT managed_id, price, no_label, brand, category, size, color, shipping_method FROM products WHERE managed_id IN (${placeholders})`
     ).bind(...ids).all();
     productResults = results;
 
@@ -222,7 +222,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   const [memberDiscountRow, fhpRow, customerRow] = await Promise.all([
     env.DB.prepare("SELECT value FROM settings WHERE key = 'MEMBER_DISCOUNT_STATUS'").first(),
     env.DB.prepare("SELECT value FROM settings WHERE key = 'FIRST_HALF_PRICE_STATUS'").first(),
-    env.DB.prepare('SELECT points, purchase_count FROM customers WHERE email = ?').bind(emailLower).first(),
+    env.DB.prepare('SELECT points, purchase_count, total_spent FROM customers WHERE email = ?').bind(emailLower).first(),
   ]);
 
   let memberDiscountStatus = { enabled: true, rate: 0.10, endDate: '2026-09-30', reason: 'active' };
@@ -301,7 +301,6 @@ export async function submitEstimate(args, env, bodyText, ctx) {
       comboBulk: coupon.combo_bulk === 1,
     };
 
-    couponDiscount = calcCouponDiscount(validatedCoupon.type, validatedCoupon.value, sum + bulkProductAmount);
     couponLabel = validatedCoupon.type === 'rate'
       ? ('クーポン' + Math.round(validatedCoupon.value * 100) + '%OFF')
       : validatedCoupon.type === 'shipping_free'
@@ -332,7 +331,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     }
   }
 
-  // 割引適用（フロントエンドと同じ順次適用方式: 数量割引→会員割引の順）
+  // 割引適用（GAS SubmitFix.gs と同一順序: 数量割引 → 会員割引 → クーポン）
   let discounted;
   if (firstHalfPriceApplied) {
     const fhpOnDetauri = Math.round(sum * fhpStatus.rate);
@@ -340,59 +339,70 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     discounted = sum - fhpOnDetauri;
     bulkProductAmount = Math.max(0, bulkProductAmount - fhpOnBulk);
     couponLabel = '初回全品半額キャンペーン（' + Math.round(fhpStatus.rate * 100) + '%OFF）';
-  } else if (activeCouponCode) {
-    // クーポン適用 → 併用数量割引 → 併用会員割引（順次適用）
-    const cdOnDetauri = Math.min(couponDiscount, sum);
-    const cdOnBulk = couponDiscount - cdOnDetauri;
-    let afterCoupon = Math.max(0, sum - cdOnDetauri);
-    bulkProductAmount = Math.max(0, bulkProductAmount - cdOnBulk);
-    // 併用数量割引
-    discounted = discountRate > 0 ? Math.round(afterCoupon * (1 - discountRate)) : afterCoupon;
-    // 併用会員割引（数量割引適用後にさらに適用）
-    if (validatedCoupon && validatedCoupon.comboMember && memberDiscountRate > 0) {
-      discounted = Math.round(discounted * (1 - memberDiscountRate));
-    }
   } else {
-    // 数量割引 → 会員割引（順次適用）
+    // 数量割引（デタウリのみ）
     discounted = discountRate > 0 ? Math.round(sum * (1 - discountRate)) : sum;
+    // 会員割引を両チャネルに適用
     if (memberDiscountRate > 0) {
       discounted = Math.round(discounted * (1 - memberDiscountRate));
+      if (bulkProductAmount > 0) {
+        bulkProductAmount = Math.round(bulkProductAmount * (1 - memberDiscountRate));
+      }
     }
-  }
-
-  // 会員割引をアソート商品にも適用（初回半額とは併用不可）
-  if (!firstHalfPriceApplied && memberDiscountRate > 0 && bulkProductAmount > 0) {
-    bulkProductAmount = Math.round(bulkProductAmount * (1 - memberDiscountRate));
+    // クーポン控除: 割引適用後の合算額に対して計算（GAS SubmitFix.gs L178-182 と同一）
+    if (validatedCoupon && validatedCoupon.type !== 'shipping_free') {
+      couponDiscount = calcCouponDiscount(validatedCoupon.type, validatedCoupon.value, discounted + bulkProductAmount);
+    }
   }
 
   // ─── 送料計算 ───
   const shippingArea = SHIPPING_AREAS[pref] || '';
-  const shippingSize = (ids.length <= 10) ? 'small' : 'large';
+  let shippingSize = 'large';
+  let shippingSizeLabel = '大';
   let shippingAmount = 0;
 
-  if (ids.length > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
-    shippingAmount = SHIPPING_RATES[shippingArea][(ids.length <= 10) ? 0 : 1];
-  }
-  if (bulkItemCount > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
-    bulkShippingAmount = SHIPPING_RATES[shippingArea][1] * bulkItemCount;
-  }
+  // ダイヤモンド会員送料無料チェック（mypage.js と同じランク判定テーブル）
+  const totalSpent = customerRow ? (customerRow.total_spent || 0) : 0;
+  const diamondFree = totalSpent >= 500000;
 
-  // 送料無料クーポン適用
-  if (validatedCoupon && validatedCoupon.type === 'shipping_free') {
+  const shippingFreeCoupon = validatedCoupon && validatedCoupon.type === 'shipping_free';
+  const thresholdFree = (discounted + bulkProductAmount) >= 10000;
+
+  if (diamondFree) {
     shippingAmount = 0;
     bulkShippingAmount = 0;
-  }
-
-  // 商品合計1万円以上で送料無料（割引後の商品価格で判定）
-  if (discounted + bulkProductAmount >= 10000) {
+  } else if (shippingFreeCoupon) {
     shippingAmount = 0;
     bulkShippingAmount = 0;
+  } else if (thresholdFree) {
+    shippingAmount = 0;
+    bulkShippingAmount = 0;
+  } else {
+    // 厚み分類 → サイズ判定 → 料金計算（CartCalc.html L32-77 と同一ロジック）
+    if (ids.length > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
+      const { thick, thin } = classifyThickness(productResults);
+      const sz = calcShippingSize(thick, thin);
+      if (!sz.size) {
+        // 上限超過: 複数口計算
+        const multi = calcMultiShipment(thick, thin, SHIPPING_RATES[shippingArea]);
+        shippingAmount = multi.amount;
+        shippingSize = 'multi';
+        shippingSizeLabel = multi.sizeLabel;
+      } else {
+        shippingSize = sz.size;
+        shippingSizeLabel = sz.size === 'small' ? '小' : '大';
+        shippingAmount = SHIPPING_RATES[shippingArea][sz.size === 'small' ? 0 : 1];
+      }
+    }
+    if (bulkItemCount > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
+      bulkShippingAmount = SHIPPING_RATES[shippingArea][1] * bulkItemCount;
+    }
   }
 
   // ─── ポイント利用 ───
   let pointsUsed = 0;
   if (usePoints > 0 && customerRow && customerPoints >= usePoints) {
-    pointsUsed = Math.min(usePoints, discounted + shippingAmount + bulkProductAmount + bulkShippingAmount);
+    pointsUsed = Math.min(usePoints, Math.max(0, discounted + shippingAmount + bulkProductAmount + bulkShippingAmount - couponDiscount));
     let ptRem = pointsUsed;
     const pointsOnProduct = Math.min(ptRem, discounted); ptRem -= pointsOnProduct;
     const pointsOnShipping = Math.min(ptRem, shippingAmount); ptRem -= pointsOnShipping;
@@ -431,13 +441,13 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     note = note ? (note + '\n' + ptNote) : ptNote;
   }
   if (shippingAmount > 0) {
-    const shipNote = '【送料: ¥' + shippingAmount.toLocaleString() + '（' + (pref || '') + '・' + (shippingSize === 'small' ? '小' : '大') + '・税込）】';
+    const shipNote = '【送料: ¥' + shippingAmount.toLocaleString() + '（' + (pref || '') + '・' + shippingSizeLabel + '・税込）】';
     note = note ? (note + '\n' + shipNote) : shipNote;
   }
 
   // ─── 合計金額 ───
   const bulkTotal = bulkProductAmount + bulkShippingAmount;
-  const totalWithShipping = discounted + shippingAmount + bulkTotal;
+  const totalWithShipping = discounted + shippingAmount + bulkTotal - couponDiscount;
 
   if (bulkTotal > 0) {
     const bulkNote = '【アソート合算: 商品代¥' + bulkProductAmount + '（' + bulkItemCount + '点）+ 送料¥' + bulkShippingAmount + '】';
@@ -561,7 +571,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
 
   // ─── ペンディング注文データ（GAS webhook互換） ───
   const storeShipping = (shippingArea && SHIPPING_RATES[shippingArea])
-    ? Math.round(SHIPPING_RATES[shippingArea][(ids.length <= 10) ? 0 : 1] / 2)
+    ? Math.round(SHIPPING_RATES[shippingArea][shippingSize === 'small' ? 0 : 1] / 2)
     : 0;
 
   const pendingData = {
@@ -678,6 +688,53 @@ function calcCouponDiscount(type, value, productAmount) {
   if (type === 'shipping_free') return 0;
   if (type === 'rate') return Math.round(productAmount * value);
   return Math.min(value, productAmount); // fixed
+}
+
+// ─── 送料ヘルパー（CartCalc.html L32-77 / SubmitFix.gs L1606-1647 からポート） ───
+
+function classifyThickness(results) {
+  let thick = 0, thin = 0;
+  for (const r of results) {
+    if (String(r.shipping_method || '').trim() === 'ゆうパケットポスト') thin++;
+    else thick++;
+  }
+  return { thick, thin, total: thick + thin };
+}
+
+function calcShippingSize(thick, thin) {
+  const total = thick + thin;
+  if (thin === 0) {
+    if (total > 20) return { size: null };
+    return { size: 'large' };
+  }
+  if (thick === 0) {
+    if (total > 40) return { size: null };
+    return total <= 10 ? { size: 'small' } : { size: 'large' };
+  }
+  if (total > 40) return { size: null };
+  if (thick >= 10) return { size: 'large' };
+  return total <= 10 ? { size: 'small' } : { size: 'large' };
+}
+
+function calcMultiShipment(thick, thin, rates) {
+  const smallRate = rates[0], largeRate = rates[1];
+  let totalAmount = 0, largeCnt = 0, smallCnt = 0;
+  if (thick > 0) {
+    const n = Math.ceil(thick / 20);
+    largeCnt += n;
+    totalAmount += n * largeRate;
+  }
+  let rem = thin;
+  while (rem > 0) {
+    const batch = Math.min(rem, 40);
+    if (batch <= 10) { smallCnt++; totalAmount += smallRate; }
+    else { largeCnt++; totalAmount += largeRate; }
+    rem -= batch;
+  }
+  const parts = [];
+  if (largeCnt > 0) parts.push('大×' + largeCnt);
+  if (smallCnt > 0) parts.push('小×' + smallCnt);
+  return { amount: totalAmount, sizeLabel: parts.join('、') };
 }
 
 function makeReceiptNo() {

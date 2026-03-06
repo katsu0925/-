@@ -240,12 +240,13 @@ async function syncCustomers(db, rows) {
       INSERT INTO customers
         (id, email, password_hash, company_name, phone, postal, address,
          newsletter, created_at, last_login, points, points_updated_at,
-         purchase_count, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         purchase_count, total_spent, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT (email) DO UPDATE SET
         points = CASE WHEN excluded.points != customers.points THEN excluded.points ELSE customers.points END,
         points_updated_at = CASE WHEN excluded.points != customers.points THEN excluded.points_updated_at ELSE customers.points_updated_at END,
-        purchase_count = CASE WHEN excluded.purchase_count > customers.purchase_count THEN excluded.purchase_count ELSE customers.purchase_count END,
+        purchase_count = excluded.purchase_count,
+        total_spent = excluded.total_spent,
         updated_at = excluded.updated_at
     `).bind(
       c.id, c.email, c.passwordHash || '', c.companyName || '',
@@ -253,6 +254,7 @@ async function syncCustomers(db, rows) {
       c.newsletter ? 1 : 0, c.createdAt || new Date().toISOString(),
       c.lastLogin || '', c.points || 0,
       c.pointsUpdatedAt || '', c.purchaseCount || 0,
+      c.annualSpent || 0,
       new Date().toISOString()
     )
   );

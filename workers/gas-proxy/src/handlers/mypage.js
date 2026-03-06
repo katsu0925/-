@@ -32,7 +32,7 @@ export async function getMyPage(args, env) {
   // D1から顧客情報取得
   const customer = await env.DB.prepare(`
     SELECT id, email, company_name, phone, postal, address,
-           newsletter, points, points_updated_at, purchase_count, created_at
+           newsletter, points, points_updated_at, purchase_count, total_spent, created_at
     FROM customers WHERE id = ?
   `).bind(session.customerId).first();
 

@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS customers (
   points INTEGER NOT NULL DEFAULT 0,    -- ポイント残高
   points_updated_at TEXT,               -- ISO8601
   purchase_count INTEGER NOT NULL DEFAULT 0,
+  total_spent INTEGER NOT NULL DEFAULT 0, -- 年間購入金額（ランク判定用）
   line_user_id TEXT,                     -- LINE UserID
   updated_at TEXT NOT NULL               -- 同期用タイムスタンプ
 );

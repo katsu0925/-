@@ -155,6 +155,9 @@ function exportCustomers_() {
   var lastRow = sh.getLastRow();
   if (lastRow < 2) return [];
 
+  // 年間購入金額を集計（依頼管理シートから — calcSpendByPeriod_ と同じロジック）
+  var spentMap = calcAnnualSpentMap_(ss);
+
   var data = sh.getRange(2, 1, lastRow - 1, 16).getValues();
   var c = CUSTOMER_SHEET_COLS;
   var customers = [];
@@ -177,11 +180,65 @@ function exportCustomers_() {
       lastLogin: row[c.LAST_LOGIN] ? new Date(row[c.LAST_LOGIN]).toISOString() : '',
       points: Number(row[c.POINTS]) || 0,
       pointsUpdatedAt: row[c.POINTS_UPDATED_AT] ? new Date(row[c.POINTS_UPDATED_AT]).toISOString() : '',
-      purchaseCount: Number(row[c.PURCHASE_COUNT]) || 0
+      purchaseCount: Number(row[c.PURCHASE_COUNT]) || 0,
+      annualSpent: spentMap[email] || 0
     });
   }
 
   return customers;
+}
+
+/**
+ * 依頼管理シートから顧客ごとの年間購入金額を集計
+ * calcSpendByPeriod_ と同一ロジック: status='完了' && 過去1年の total を合算
+ * @param {Spreadsheet} ss
+ * @return {Object.<string, number>} email → annualSpent
+ */
+function calcAnnualSpentMap_(ss) {
+  var orderSheet = ss.getSheetByName('依頼管理');
+  if (!orderSheet) return {};
+
+  var lastRow = orderSheet.getLastRow();
+  if (lastRow < 2) return {};
+
+  // A=受付番号(0), D=メール(3), L=合計金額(11), P=ステータス(15)
+  var data = orderSheet.getRange(2, 1, lastRow - 1, 16).getValues();
+  var now = new Date();
+  var oneYearAgo = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+  var map = {};
+
+  for (var i = 0; i < data.length; i++) {
+    var status = String(data[i][15] || '').trim();
+    if (status !== '完了') continue;
+
+    var receiptNo = String(data[i][0] || '').trim();
+    var orderDate = parseReceiptDate_(receiptNo);
+    if (!orderDate || orderDate < oneYearAgo) continue;
+
+    var email = String(data[i][3] || '').trim().toLowerCase();
+    if (!email) continue;
+
+    var total = Number(data[i][11]) || 0;
+    map[email] = (map[email] || 0) + total;
+  }
+
+  return map;
+}
+
+/**
+ * 受付番号から日時を解析（JST）
+ * Format: YYYYMMDDHHmmss-NNN
+ */
+function parseReceiptDate_(receiptNo) {
+  if (!receiptNo || receiptNo.length < 14) return null;
+  var y  = parseInt(receiptNo.substring(0, 4), 10);
+  var mo = parseInt(receiptNo.substring(4, 6), 10) - 1;
+  var d  = parseInt(receiptNo.substring(6, 8), 10);
+  var h  = parseInt(receiptNo.substring(8, 10), 10);
+  var mi = parseInt(receiptNo.substring(10, 12), 10);
+  var s  = parseInt(receiptNo.substring(12, 14), 10);
+  if (isNaN(y) || isNaN(mo) || isNaN(d)) return null;
+  return new Date(y, mo, d, h || 0, mi || 0, s || 0);
 }
 
 function exportOpenItems_() {
