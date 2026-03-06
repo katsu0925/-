@@ -6964,6 +6964,15 @@ function applyProductData_(data) {
     var p = state.allProducts[pi];
     if (p && p.managedId) state.productById[p.managedId] = p;
   }
+  // カートアイテムの価格を最新データで同期（カートと決済の金額ズレ防止）
+  var _cids = state.cart.ids || [];
+  for (var ci = 0; ci < _cids.length; ci++) {
+    var _cp = state.productById[_cids[ci]];
+    if (_cp && state.cart.itemsById[_cids[ci]]) {
+      state.cart.itemsById[_cids[ci]].price = Number(_cp.price || 0);
+      state.cart.itemsById[_cids[ci]].shippingMethod = _cp.shippingMethod || '';
+    }
+  }
   state.options = data.options || {};
   state.settings = normalizeSettings_(data.settings);
 
