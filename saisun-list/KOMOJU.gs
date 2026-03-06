@@ -45,20 +45,20 @@ var KOMOJU_CONFIG = {
 
 /**
  * KOMOJU決済セッションを作成
- * @param {string} receiptNo - 受付番号
+ * @param {string} paymentKey - 決済トークン（UUID）または受付番号（後方互換）
  * @param {number} amount - 金額
  * @param {object} customerInfo - 顧客情報
  * @returns {object} - { ok, sessionUrl, sessionId, message }
  */
-function apiCreateKomojuSession(receiptNo, amount, customerInfo) {
+function apiCreateKomojuSession(paymentKey, amount, customerInfo) {
   try {
     var secretKey = getKomojuSecretKey_();
     if (!secretKey) {
       return { ok: false, message: 'KOMOJU APIキーが設定されていません' };
     }
 
-    if (!receiptNo) {
-      return { ok: false, message: '受付番号が必要です' };
+    if (!paymentKey) {
+      return { ok: false, message: '決済キーが必要です' };
     }
 
     if (!amount || amount <= 0) {
@@ -72,12 +72,12 @@ function apiCreateKomojuSession(receiptNo, amount, customerInfo) {
     var sessionData = {
       amount: Math.round(amount),
       currency: KOMOJU_CONFIG.currency,
-      external_order_num: receiptNo,
-      return_url: getReturnUrl_() + '?receipt=' + encodeURIComponent(receiptNo) + '&status=complete',
-      cancel_url: getReturnUrl_() + '?receipt=' + encodeURIComponent(receiptNo) + '&status=cancel',
+      external_order_num: paymentKey,
+      return_url: getReturnUrl_() + '?token=' + encodeURIComponent(paymentKey) + '&status=complete',
+      cancel_url: getReturnUrl_() + '?token=' + encodeURIComponent(paymentKey) + '&status=cancel',
       payment_types: KOMOJU_CONFIG.paymentMethods,
       metadata: {
-        receipt_no: String(receiptNo),
+        payment_token: String(paymentKey),
         company_name: String(info.companyName || ''),
         email: String(email),
         product_amount: String(info.productAmount || 0),
@@ -99,7 +99,7 @@ function apiCreateKomojuSession(receiptNo, amount, customerInfo) {
     }
 
     // 決済情報を保存
-    savePaymentSession_(receiptNo, {
+    savePaymentSession_(paymentKey, {
       sessionId: response.id,
       amount: amount,
       status: 'pending',
@@ -121,17 +121,17 @@ function apiCreateKomojuSession(receiptNo, amount, customerInfo) {
 
 /**
  * 決済状態を確認
- * @param {string} receiptNo - 受付番号
- * @returns {object} - { ok, status, paymentDetails }
+ * @param {string} pendingKey - 決済トークン（UUID）または受付番号（後方互換）
+ * @returns {object} - { ok, status, paymentDetails, receiptNo }
  */
-function apiCheckPaymentStatus(receiptNo) {
+function apiCheckPaymentStatus(pendingKey) {
   try {
     var secretKey = getKomojuSecretKey_();
     if (!secretKey) {
       return { ok: false, message: 'KOMOJU APIキーが設定されていません' };
     }
 
-    var saved = getPaymentSession_(receiptNo);
+    var saved = getPaymentSession_(pendingKey);
     if (!saved || !saved.sessionId) {
       return { ok: false, message: '決済セッションが見つかりません' };
     }
@@ -152,29 +152,34 @@ function apiCheckPaymentStatus(receiptNo) {
       saved.paymentId = response.payment.id;
       saved.paymentMethod = extractPaymentMethodType_(response.payment);
     }
-    savePaymentSession_(receiptNo, saved);
+    savePaymentSession_(pendingKey, saved);
 
     // Webhookが未処理の場合のフォールバック:
     // 決済が完了(captured/authorized)しているのにペンディング注文が残っている場合、
     // ここで注文確定処理を実行する
     if ((status === 'paid' || status === 'authorized') && response.payment) {
       var props = PropertiesService.getScriptProperties();
-      var pendingKey = 'PENDING_ORDER_' + receiptNo;
-      if (props.getProperty(pendingKey)) {
-        console.log('Webhookが未処理のため、ステータスチェック経由で注文を確定: ' + receiptNo);
+      var fallbackKey = 'PENDING_ORDER_' + pendingKey;
+      if (props.getProperty(fallbackKey)) {
+        console.log('Webhookが未処理のため、ステータスチェック経由で注文を確定: ' + pendingKey);
         var paymentMethodType = extractPaymentMethodType_(response.payment);
         var paymentStatus = '未対応';
         if (paymentMethodType === 'konbini' || paymentMethodType === 'bank_transfer') {
           paymentStatus = '入金待ち';
         }
         var confirmResult = confirmPaymentAndCreateOrder(
-          receiptNo,
+          pendingKey,
           paymentStatus,
           paymentMethodType,
           response.payment.id || ''
         );
         if (confirmResult && confirmResult.ok) {
-          console.log('フォールバック注文確定成功: ' + receiptNo);
+          console.log('フォールバック注文確定成功: ' + pendingKey);
+          // 確定後のreceiptNoをsavedにも保存
+          if (confirmResult.receiptNo) {
+            saved.receiptNo = confirmResult.receiptNo;
+            savePaymentSession_(pendingKey, saved);
+          }
         } else {
           console.error('フォールバック注文確定失敗:', confirmResult);
         }
@@ -187,7 +192,8 @@ function apiCheckPaymentStatus(receiptNo) {
       komojuStatus: response.status,
       paymentMethod: response.payment ? extractPaymentMethodType_(response.payment) : null,
       paidAt: response.payment ? response.payment.created_at : null,
-      totalAmount: saved.amount || 0
+      totalAmount: saved.amount || 0,
+      receiptNo: saved.receiptNo || null
     };
 
   } catch (e) {
@@ -259,38 +265,39 @@ function handleKomojuWebhook(e) {
  */
 function handlePaymentSuccess_(data) {
   var webhookPayment = data.data;
-  var receiptNo = webhookPayment.external_order_num ||
-                  (webhookPayment.metadata ? webhookPayment.metadata.receipt_no : null);
+  // 新フロー: metadata.payment_token、旧フロー: metadata.receipt_no にフォールバック
+  var paymentToken = webhookPayment.external_order_num ||
+                  (webhookPayment.metadata ? (webhookPayment.metadata.payment_token || webhookPayment.metadata.receipt_no) : null);
 
-  if (!receiptNo) {
-    console.error('Receipt number not found in webhook data');
-    return { ok: false, message: 'Receipt number not found' };
+  if (!paymentToken) {
+    console.error('Payment token not found in webhook data');
+    return { ok: false, message: 'Payment token not found' };
   }
 
   // === KOMOJU APIで決済状態を裏取り ===
   var apiPayment = fetchPaymentFromApi_(webhookPayment.id);
   if (!apiPayment) {
-    console.error('KOMOJU API verification failed for: ' + receiptNo + ' (paymentId=' + webhookPayment.id + ')');
+    console.error('KOMOJU API verification failed for: ' + paymentToken + ' (paymentId=' + webhookPayment.id + ')');
     return { ok: false, message: 'API verification failed' };
   }
 
   // APIから取得したステータスが本当に成功しているか確認
   var apiStatus = mapKomojuStatus_(apiPayment.status);
   if (apiStatus !== 'paid' && apiStatus !== 'authorized') {
-    console.error('API検証: 決済ステータスが成功ではない: status=' + apiPayment.status + ', receiptNo=' + receiptNo);
+    console.error('API検証: 決済ステータスが成功ではない: status=' + apiPayment.status + ', token=' + paymentToken);
     return { ok: false, message: 'Payment not confirmed by API (status=' + apiPayment.status + ')' };
   }
 
   // 金額の照合
-  if (!verifyPaymentAmount_(receiptNo, apiPayment.amount)) {
-    console.error('API検証: 金額不一致のため処理を中止: receiptNo=' + receiptNo);
+  if (!verifyPaymentAmount_(paymentToken, apiPayment.amount)) {
+    console.error('API検証: 金額不一致のため処理を中止: token=' + paymentToken);
     return { ok: false, message: 'Amount mismatch' };
   }
 
   // === 検証済みのAPIデータで決済情報を更新 ===
   var payment = apiPayment;  // 以降はAPI検証済みデータを使用
   var paymentMethodType = extractPaymentMethodType_(payment);
-  var saved = getPaymentSession_(receiptNo) || {};
+  var saved = getPaymentSession_(paymentToken) || {};
   saved.status = 'paid';
   saved.komojuStatus = payment.status;
   saved.paymentId = payment.id;
@@ -298,15 +305,11 @@ function handlePaymentSuccess_(data) {
   saved.paidAt = new Date().toISOString();
   saved.amount = payment.amount;
   saved.verifiedViaApi = true;
-  savePaymentSession_(receiptNo, saved);
+  savePaymentSession_(paymentToken, saved);
 
-  console.log('Payment method detected: ' + paymentMethodType + ' (for ' + receiptNo + ')');
+  console.log('Payment method detected: ' + paymentMethodType + ' (for ' + paymentToken + ')');
 
   // 決済方法に応じた入金ステータスを決定
-  // 即時決済（クレジットカード・PayPay）: captured → 「未対応」（入金済み・処理待ち）
-  // 後払い（コンビニ・銀行振込・ペイジー）:
-  //   authorized（支払い番号発行済み・未入金）→「入金待ち」
-  //   captured（入金完了）→「未対応」
   var deferredMethods = { 'konbini': true, 'bank_transfer': true, 'pay_easy': true, 'paidy': true };
   var paymentStatus = '未対応';
   if (deferredMethods[paymentMethodType] && data.type === 'payment.authorized') {
@@ -315,7 +318,7 @@ function handlePaymentSuccess_(data) {
 
   // 注文を確定（シート書き込み・注文確認メール送信）
   var confirmResult = confirmPaymentAndCreateOrder(
-    receiptNo,
+    paymentToken,
     paymentStatus,
     paymentMethodType,
     payment.id || ''
@@ -323,10 +326,18 @@ function handlePaymentSuccess_(data) {
   if (!confirmResult.ok) {
     console.error('Failed to confirm order:', confirmResult.message);
     // 既にシートに書き込まれている可能性があるため、ステータスのみ更新を試みる
-    updateOrderPaymentStatus_(receiptNo, 'paid', paymentMethodType);
+    // confirmResult.receiptNoがあればそれを使用、なければpaymentTokenで旧互換
+    var statusReceiptNo = (confirmResult && confirmResult.receiptNo) ? confirmResult.receiptNo : paymentToken;
+    updateOrderPaymentStatus_(statusReceiptNo, 'paid', paymentMethodType);
+  } else {
+    // 確定成功時: receiptNoをPAYMENT_セッションに保存
+    if (confirmResult.receiptNo) {
+      saved.receiptNo = confirmResult.receiptNo;
+      savePaymentSession_(paymentToken, saved);
+    }
   }
 
-  console.log('Payment success processed (API verified) for:', receiptNo);
+  console.log('Payment success processed (API verified) for:', paymentToken);
   return { ok: true, message: 'Payment processed' };
 }
 
@@ -336,11 +347,11 @@ function handlePaymentSuccess_(data) {
  */
 function handlePaymentFailed_(data) {
   var webhookPayment = data.data;
-  var receiptNo = webhookPayment.external_order_num ||
-                  (webhookPayment.metadata ? webhookPayment.metadata.receipt_no : null);
+  var paymentToken = webhookPayment.external_order_num ||
+                  (webhookPayment.metadata ? (webhookPayment.metadata.payment_token || webhookPayment.metadata.receipt_no) : null);
 
-  if (!receiptNo) {
-    return { ok: false, message: 'Receipt number not found' };
+  if (!paymentToken) {
+    return { ok: false, message: 'Payment token not found' };
   }
 
   // === KOMOJU APIで決済状態を裏取り ===
@@ -350,32 +361,31 @@ function handlePaymentFailed_(data) {
   if (apiPayment) {
     var apiStatus = mapKomojuStatus_(apiPayment.status);
     if (apiStatus === 'paid' || apiStatus === 'authorized') {
-      // APIでは決済成功しているのに失敗Webhookが来た → 偽のWebhookの可能性
-      console.error('API検証: Webhookは失敗だがAPIでは決済成功 → 処理を中止: receiptNo=' + receiptNo);
+      console.error('API検証: Webhookは失敗だがAPIでは決済成功 → 処理を中止: token=' + paymentToken);
       return { ok: false, message: 'API shows payment succeeded, ignoring failure webhook' };
     }
-    console.log('決済失敗をAPI検証で確認: receiptNo=' + receiptNo + ', status=' + apiPayment.status);
+    console.log('決済失敗をAPI検証で確認: token=' + paymentToken + ', status=' + apiPayment.status);
   } else {
-    console.warn('API検証失敗、Webhookデータで処理を続行（安全側）: receiptNo=' + receiptNo);
+    console.warn('API検証失敗、Webhookデータで処理を続行（安全側）: token=' + paymentToken);
   }
 
-  var saved = getPaymentSession_(receiptNo) || {};
+  var saved = getPaymentSession_(paymentToken) || {};
   saved.status = 'failed';
   saved.komojuStatus = payment.status;
   saved.failedAt = new Date().toISOString();
   saved.failReason = payment.payment_details ? payment.payment_details.failure_reason : null;
   saved.verifiedViaApi = !!apiPayment;
-  savePaymentSession_(receiptNo, saved);
+  savePaymentSession_(paymentToken, saved);
 
   // 決済失敗 → 注文をキャンセルして商品を解放
-  var cancelResult = apiCancelOrder(receiptNo);
+  var cancelResult = apiCancelOrder(paymentToken);
   if (cancelResult && cancelResult.ok) {
-    console.log('Order cancelled due to payment failure:', receiptNo);
+    console.log('Order cancelled due to payment failure:', paymentToken);
   } else {
-    console.error('Failed to cancel order after payment failure:', receiptNo);
+    console.error('Failed to cancel order after payment failure:', paymentToken);
   }
 
-  console.log('Payment failed (API verified) for:', receiptNo);
+  console.log('Payment failed (API verified) for:', paymentToken);
   return { ok: true, message: 'Payment failure processed' };
 }
 
@@ -385,39 +395,40 @@ function handlePaymentFailed_(data) {
  */
 function handlePaymentRefunded_(data) {
   var webhookPayment = data.data;
-  var receiptNo = webhookPayment.external_order_num ||
-                  (webhookPayment.metadata ? webhookPayment.metadata.receipt_no : null);
+  var paymentToken = webhookPayment.external_order_num ||
+                  (webhookPayment.metadata ? (webhookPayment.metadata.payment_token || webhookPayment.metadata.receipt_no) : null);
 
-  if (!receiptNo) {
-    return { ok: false, message: 'Receipt number not found' };
+  if (!paymentToken) {
+    return { ok: false, message: 'Payment token not found' };
   }
 
   // === KOMOJU APIで決済状態を裏取り ===
   var apiPayment = fetchPaymentFromApi_(webhookPayment.id);
   if (!apiPayment) {
-    console.error('KOMOJU API verification failed for refund: ' + receiptNo + ' (paymentId=' + webhookPayment.id + ')');
+    console.error('KOMOJU API verification failed for refund: ' + paymentToken + ' (paymentId=' + webhookPayment.id + ')');
     return { ok: false, message: 'API verification failed for refund' };
   }
 
   // APIから取得したステータスが本当に返金されているか確認
   var apiStatus = mapKomojuStatus_(apiPayment.status);
   if (apiStatus !== 'refunded') {
-    console.error('API検証: 返金ステータスではない: status=' + apiPayment.status + ', receiptNo=' + receiptNo);
+    console.error('API検証: 返金ステータスではない: status=' + apiPayment.status + ', token=' + paymentToken);
     return { ok: false, message: 'Refund not confirmed by API (status=' + apiPayment.status + ')' };
   }
 
   var payment = apiPayment;
-  var saved = getPaymentSession_(receiptNo) || {};
+  var saved = getPaymentSession_(paymentToken) || {};
   saved.status = 'refunded';
   saved.komojuStatus = payment.status;
   saved.refundedAt = new Date().toISOString();
   saved.verifiedViaApi = true;
-  savePaymentSession_(receiptNo, saved);
+  savePaymentSession_(paymentToken, saved);
 
-  // 依頼管理シートのステータスを更新
-  updateOrderPaymentStatus_(receiptNo, 'refunded', null);
+  // 依頼管理シートのステータスを更新（PAYMENT_セッションからreceiptNoを取得）
+  var sheetReceiptNo = saved.receiptNo || paymentToken;
+  updateOrderPaymentStatus_(sheetReceiptNo, 'refunded', null);
 
-  console.log('Payment refunded (API verified) for:', receiptNo);
+  console.log('Payment refunded (API verified) for:', paymentToken);
   return { ok: true, message: 'Refund processed' };
 }
 
@@ -428,23 +439,23 @@ function handlePaymentRefunded_(data) {
  */
 function handlePaymentUpdated_(data) {
   var webhookPayment = data.data;
-  var receiptNo = webhookPayment.external_order_num ||
-                  (webhookPayment.metadata ? webhookPayment.metadata.receipt_no : null);
+  var paymentToken = webhookPayment.external_order_num ||
+                  (webhookPayment.metadata ? (webhookPayment.metadata.payment_token || webhookPayment.metadata.receipt_no) : null);
 
-  if (!receiptNo) {
-    console.log('payment.updated: receipt number not found, ignoring');
-    return { ok: true, message: 'No receipt number, ignored' };
+  if (!paymentToken) {
+    console.log('payment.updated: payment token not found, ignoring');
+    return { ok: true, message: 'No payment token, ignored' };
   }
 
   // === KOMOJU APIで決済状態を裏取り ===
   var apiPayment = fetchPaymentFromApi_(webhookPayment.id);
   if (!apiPayment) {
-    console.error('payment.updated: API verification failed for ' + receiptNo);
+    console.error('payment.updated: API verification failed for ' + paymentToken);
     return { ok: false, message: 'API verification failed' };
   }
 
   var apiStatus = mapKomojuStatus_(apiPayment.status);
-  console.log('payment.updated: receiptNo=' + receiptNo + ', apiStatus=' + apiPayment.status + ' → ' + apiStatus);
+  console.log('payment.updated: token=' + paymentToken + ', apiStatus=' + apiPayment.status + ' → ' + apiStatus);
 
   // captured（入金完了）でない場合は無視
   if (apiStatus !== 'paid') {
@@ -458,24 +469,26 @@ function handlePaymentUpdated_(data) {
   var deferredMethods = { 'konbini': true, 'bank_transfer': true, 'pay_easy': true, 'paidy': true };
   if (deferredMethods[paymentMethodType]) {
     // 金額の照合
-    if (!verifyPaymentAmount_(receiptNo, apiPayment.amount)) {
-      console.error('payment.updated: 金額不一致: receiptNo=' + receiptNo);
+    if (!verifyPaymentAmount_(paymentToken, apiPayment.amount)) {
+      console.error('payment.updated: 金額不一致: token=' + paymentToken);
       return { ok: false, message: 'Amount mismatch' };
     }
 
     // 決済セッション情報を更新
-    var saved = getPaymentSession_(receiptNo) || {};
+    var saved = getPaymentSession_(paymentToken) || {};
     saved.status = 'paid';
     saved.komojuStatus = apiPayment.status;
     saved.paymentId = apiPayment.id;
     saved.paymentMethod = paymentMethodType;
     saved.paidAt = new Date().toISOString();
     saved.verifiedViaApi = true;
-    savePaymentSession_(receiptNo, saved);
+    savePaymentSession_(paymentToken, saved);
 
     // 依頼管理シートの入金ステータスを「入金待ち」→「未対応」に更新
-    updateOrderPaymentStatus_(receiptNo, 'paid', paymentMethodType);
-    console.log('payment.updated: 入金確認完了 (' + paymentMethodType + '): ' + receiptNo);
+    // PAYMENT_セッションからreceiptNoを取得
+    var sheetReceiptNo = saved.receiptNo || paymentToken;
+    updateOrderPaymentStatus_(sheetReceiptNo, 'paid', paymentMethodType);
+    console.log('payment.updated: 入金確認完了 (' + paymentMethodType + '): ' + paymentToken);
     return { ok: true, message: 'Payment confirmed via updated event' };
   }
 
@@ -602,18 +615,18 @@ function fetchPaymentFromApi_(paymentId) {
  * Webhookの金額とペンディング注文の期待金額を照合する。
  * 金額の不一致は改ざんの可能性があるため、不一致時はfalseを返す。
  *
- * @param {string} receiptNo - 受付番号
+ * @param {string} pendingKey - 決済トークンまたは受付番号
  * @param {number} apiAmount - KOMOJU APIから取得した実際の決済金額
  * @returns {boolean} - 金額が一致すればtrue
  */
-function verifyPaymentAmount_(receiptNo, apiAmount) {
+function verifyPaymentAmount_(pendingKey, apiAmount) {
   var amountChecked = false;  // 実際に金額照合が行われたかのフラグ
 
   // PAYMENT_ セッションの金額と照合
-  var saved = getPaymentSession_(receiptNo);
+  var saved = getPaymentSession_(pendingKey);
   if (saved && saved.amount) {
     if (Math.round(Number(saved.amount)) !== Math.round(Number(apiAmount))) {
-      console.error('金額不一致（PAYMENT_セッション）: 期待=' + saved.amount + ', 実際=' + apiAmount + ', 受付番号=' + receiptNo);
+      console.error('金額不一致（PAYMENT_セッション）: 期待=' + saved.amount + ', 実際=' + apiAmount + ', key=' + pendingKey);
       return false;
     }
     amountChecked = true;
@@ -622,14 +635,14 @@ function verifyPaymentAmount_(receiptNo, apiAmount) {
   // PENDING_ORDER_ の金額とも照合
   try {
     var props = PropertiesService.getScriptProperties();
-    var pendingStr = props.getProperty('PENDING_ORDER_' + receiptNo);
+    var pendingStr = props.getProperty('PENDING_ORDER_' + pendingKey);
     if (pendingStr) {
       var pending = JSON.parse(pendingStr);
       // totalAmount = 送料込み合計（discounted は商品のみなので比較対象にならない）
       var expectedTotal = pending.totalAmount;
       if (expectedTotal !== undefined && expectedTotal !== null) {
         if (Math.round(Number(expectedTotal)) !== Math.round(Number(apiAmount))) {
-          console.error('金額不一致（PENDING_ORDER）: 期待=' + expectedTotal + ', 実際=' + apiAmount + ', 受付番号=' + receiptNo);
+          console.error('金額不一致（PENDING_ORDER）: 期待=' + expectedTotal + ', 実際=' + apiAmount + ', key=' + pendingKey);
           return false;
         }
         amountChecked = true;
@@ -642,7 +655,7 @@ function verifyPaymentAmount_(receiptNo, apiAmount) {
   // 照合データが一切なかった場合は警告ログを出力（改ざんリスクの見逃しを防ぐ）
   if (!amountChecked) {
     console.warn('verifyPaymentAmount_: 金額照合データなし（PAYMENT_/PENDING_ORDER_ともに未取得）' +
-                 ' receiptNo=' + receiptNo + ', apiAmount=' + apiAmount);
+                 ' key=' + pendingKey + ', apiAmount=' + apiAmount);
   }
 
   return true;

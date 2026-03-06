@@ -508,21 +508,22 @@ function apiSubmitEstimate(userKey, form, ids) {
  */
 function _internalSavePendingOrder(pendingData) {
   try {
-    if (!pendingData || !pendingData.receiptNo) {
+    // paymentToken（新フロー）またはreceiptNo（旧フロー）でキー決定
+    var pendingKey = (pendingData && (pendingData.paymentToken || pendingData.receiptNo)) || '';
+    if (!pendingData || !pendingKey) {
       return { ok: false, message: 'pendingDataが不正です' };
     }
 
-    var receiptNo = pendingData.receiptNo;
     var ids = pendingData.ids || [];
     var uk = pendingData.userKey || '';
     var contact = (pendingData.form && pendingData.form.contact) || '';
     var pointsUsed = pendingData.pointsUsed || 0;
 
-    console.log('_internalSavePendingOrder: receipt=' + receiptNo + ', ids=' + ids.length + ', points=' + pointsUsed);
+    console.log('_internalSavePendingOrder: key=' + pendingKey + ', ids=' + ids.length + ', points=' + pointsUsed);
 
     // 1. PENDING_ORDER_をPropertiesServiceに保存（webhook互換）
     var props = PropertiesService.getScriptProperties();
-    props.setProperty('PENDING_ORDER_' + receiptNo, JSON.stringify(pendingData));
+    props.setProperty('PENDING_ORDER_' + pendingKey, JSON.stringify(pendingData));
 
     // 2. holdState更新（GAS側のPropertiesServiceベースの状態管理と同期）
     if (ids.length > 0) {
@@ -544,7 +545,7 @@ function _internalSavePendingOrder(pendingData) {
               untilMs: now + paymentHoldMs,
               createdAtMs: now,
               pendingPayment: true,
-              receiptNo: receiptNo
+              receiptNo: pendingKey
             };
           }
           holdState.items = holdItems;
@@ -565,8 +566,8 @@ function _internalSavePendingOrder(pendingData) {
       console.log('_internalSavePendingOrder: deducted ' + pointsUsed + ' points from ' + contact);
     }
 
-    console.log('_internalSavePendingOrder: saved PENDING_ORDER_' + receiptNo);
-    return { ok: true, message: 'ペンディング注文を保存しました: ' + receiptNo };
+    console.log('_internalSavePendingOrder: saved PENDING_ORDER_' + pendingKey);
+    return { ok: true, message: 'ペンディング注文を保存しました: ' + pendingKey };
 
   } catch (e) {
     console.error('_internalSavePendingOrder error:', e);
@@ -1051,38 +1052,46 @@ function getProductNamesFromIds_(ids) {
  * @param {string} paymentId - KOMOJU決済ID
  * @returns {object} - { ok, message }
  */
-function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, paymentId) {
+function confirmPaymentAndCreateOrder(paymentToken, paymentStatus, paymentMethod, paymentId) {
   try {
-    if (!receiptNo) {
-      return { ok: false, message: '受付番号が必要です' };
+    if (!paymentToken) {
+      return { ok: false, message: '決済トークンが必要です' };
     }
 
     // === ロックを取得して二重登録を防止 ===
     var lock = LockService.getScriptLock();
     if (!lock.tryLock(120000)) {
-      console.warn('confirmPaymentAndCreateOrder: ロック取得失敗: ' + receiptNo);
+      console.warn('confirmPaymentAndCreateOrder: ロック取得失敗: ' + paymentToken);
       return { ok: false, message: '処理中です。しばらくお待ちください。' };
     }
 
     try {
 
     var props = PropertiesService.getScriptProperties();
-    var pendingKey = 'PENDING_ORDER_' + receiptNo;
+    var pendingKey = 'PENDING_ORDER_' + paymentToken;
     var pendingDataStr = props.getProperty(pendingKey);
 
     if (!pendingDataStr) {
-      console.log('PENDING_ORDER not found: ' + receiptNo);
+      console.log('PENDING_ORDER not found: ' + paymentToken);
       // ペンディングがない場合は既にシートに書き込み済みの可能性 → ステータスのみ更新
-      updateOrderPaymentStatus_(receiptNo, 'paid', paymentMethod);
+      updateOrderPaymentStatus_(paymentToken, 'paid', paymentMethod);
       return { ok: true, message: '入金ステータスを更新しました（ペンディングデータなし）' };
     }
 
     // ペンディングデータをパース（削除はシート書き込み成功後に行う）
-    // ※削除を先に行うと、書き込み前に例外が起きた場合にデータが消失するため後回しにする
-    // ※シートレベルの重複チェック（下記）が二重書き込みを防ぐ最終安全弁として機能する
     var pendingData = JSON.parse(pendingDataStr);
     var isBulk = pendingData.channel === 'アソート' || pendingData.channel === 'まとめ';
-    console.log('Found pending order: ' + receiptNo + (isBulk ? ' (アソート)' : '') + ', items: ' + (pendingData.ids ? pendingData.ids.length : pendingData.totalCount));
+    console.log('Found pending order: ' + paymentToken + (isBulk ? ' (アソート)' : '') + ', items: ' + (pendingData.ids ? pendingData.ids.length : pendingData.totalCount));
+
+    // === 受付番号の決定: UUID（新フロー）なら新規生成、旧形式ならそのまま ===
+    var receiptNo;
+    if (paymentToken.length === 36 && paymentToken.indexOf('-') > 4) {
+      receiptNo = u_makeReceiptNo_();  // 新フロー: 決済確認後に正式な受付番号を生成
+    } else {
+      receiptNo = paymentToken;  // 旧フロー: 受付番号がそのまま使われている（後方互換）
+    }
+    pendingData.receiptNo = receiptNo;
+    console.log('受付番号決定: token=' + paymentToken + ' → receiptNo=' + receiptNo);
 
     var orderSs = sh_getOrderSs_();
     var now = u_nowMs_();
@@ -1156,7 +1165,13 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
       }
     }
 
-    // 3. 決済情報を付与してシート書き込み + メール送信
+    // 3. templateTextの先頭に受付番号を挿入（新フローでは決済前に受付番号がない）
+    var templateText = pendingData.templateText || '';
+    if (templateText.indexOf('受付番号：') === -1) {
+      templateText = '受付番号：' + receiptNo + '\n' + templateText;
+    }
+
+    // 決済情報を付与してシート書き込み + メール送信
     var writeData = {
       userKey: pendingData.userKey,
       form: pendingData.form,
@@ -1172,7 +1187,7 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
       shippingArea: pendingData.shippingArea,
       shippingPref: pendingData.shippingPref,
       createdAtMs: now,
-      templateText: pendingData.templateText,
+      templateText: templateText,
       measureLabel: app_measureOptLabel_(pendingData.measureOpt),
       paymentStatus: paymentStatus || '未対応',
       paymentMethod: paymentMethod || '',
@@ -1201,7 +1216,7 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
 
     // シート書き込み成功後にペンディングキーを削除（書き込み前に削除すると例外時にデータ消失するため）
     props.deleteProperty(pendingKey);
-    console.log('Deleted pending key after successful write: ' + receiptNo);
+    console.log('Deleted pending key after successful write: ' + paymentToken + ' → ' + receiptNo);
 
     // 3.5. クーポン利用を記録
     if (pendingData.couponCode) {
@@ -1233,6 +1248,7 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
       ok: true,
       message: '注文を確定しました',
       receiptNo: receiptNo,
+      paymentToken: paymentToken,
       movedCount: pendingData.ids ? pendingData.ids.length : (pendingData.totalCount || 0)
     };
 
@@ -1256,7 +1272,7 @@ function confirmPaymentAndCreateOrder(receiptNo, paymentStatus, paymentMethod, p
  * - hold状態からも念のため解除
  * - ペンディング注文データを削除
  * - ポイントが使用されていた場合は返還
- * @param {string} receiptNo - 受付番号
+ * @param {string} receiptNo - 受付番号または決済トークン
  * @returns {object} - { ok, message }
  */
 function apiCancelOrder(receiptNo) {

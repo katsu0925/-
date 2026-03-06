@@ -5994,9 +5994,9 @@ function submitNow_() {
 
 function handlePaymentReturn_() {
   var params = new URLSearchParams(window.location.search);
-  var receipt = params.get('receipt');
+  var token = params.get('token') || params.get('receipt');  // 新フロー: ?token=, 旧フロー: ?receipt=
   var status = params.get('status');
-  if (!receipt || !status) return;
+  if (!token || !status) return;
 
   // URLからクエリパラメータを削除（履歴を汚さない）
   if (window.history && window.history.replaceState) {
@@ -6007,13 +6007,15 @@ function handlePaymentReturn_() {
   if (status === 'complete') {
     // KOMOJUの「戻る」ボタンでもstatus=completeで戻る場合があるため、
     // 実際の決済ステータスをAPIで確認してからカートクリア・表示を決定する
-    $('doneReceipt').textContent = receipt;
+    $('doneReceipt').textContent = '確認中...';
     if ($('doneModalTitle')) $('doneModalTitle').textContent = '確認中...';
     if ($('doneMessage')) $('doneMessage').textContent = '';
     openModal($('doneModal'));
-    runApi('apiCheckPaymentStatus', receipt).then(function(res) {
+    runApi('apiCheckPaymentStatus', token).then(function(res) {
       if (res && res.ok && (res.status === 'paid' || res.status === 'authorized')) {
         // 決済が実際に完了/承認済み → カートクリア
+        // 受付番号を表示（決済確認後に発行された正式な受付番号）
+        $('doneReceipt').textContent = res.receiptNo || token;
         state.cart.ids = []; state.cart.itemsById = {}; state.cart.digest = {}; state.lastShipping = null;
         saveCartStorage(); updateCartCount();
         try { localStorage.removeItem('bulk_cart_v1'); } catch (e) {}

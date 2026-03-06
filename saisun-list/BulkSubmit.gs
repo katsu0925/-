@@ -290,8 +290,8 @@ function apiBulkSubmit(form, items) {
       note = note ? (note + '\n' + detauriNote) : detauriNote;
     }
 
-    // === 受付番号生成 ===
-    var receiptNo = u_makeReceiptNo_();
+    // === 決済トークン生成（受付番号は決済確認後にGAS側で発行） ===
+    var paymentToken = Utilities.getUuid();
 
     var validatedForm = {
       companyName: companyName,
@@ -310,7 +310,7 @@ function apiBulkSubmit(form, items) {
       channel: BULK_CONFIG.channel,
       form: validatedForm,
       orderItems: orderItems,
-      receiptNo: receiptNo,
+      paymentToken: paymentToken,
       totalCount: totalQty,
       productAmount: sum,
       discounted: discounted,
@@ -334,11 +334,11 @@ function apiBulkSubmit(form, items) {
     };
 
     var props = PropertiesService.getScriptProperties();
-    props.setProperty('PENDING_ORDER_' + receiptNo, JSON.stringify(pendingData));
-    console.log('アソート商品ペンディング注文を保存: ' + receiptNo + ' (デタウリ合算: ¥' + detauriTotal + ')');
+    props.setProperty('PENDING_ORDER_' + paymentToken, JSON.stringify(pendingData));
+    console.log('アソート商品ペンディング注文を保存: ' + paymentToken + ' (デタウリ合算: ¥' + detauriTotal + ')');
 
     // === KOMOJU決済セッション作成 ===
-    var komojuResult = apiCreateKomojuSession(receiptNo, totalWithShipping, {
+    var komojuResult = apiCreateKomojuSession(paymentToken, totalWithShipping, {
       email: contact,
       companyName: companyName,
       productAmount: discounted + detauriProductAmount,
@@ -348,14 +348,14 @@ function apiBulkSubmit(form, items) {
 
     if (!komojuResult || !komojuResult.ok) {
       console.error('KOMOJU session creation failed for bulk:', komojuResult);
-      props.deleteProperty('PENDING_ORDER_' + receiptNo);
+      props.deleteProperty('PENDING_ORDER_' + paymentToken);
       return {
         ok: false,
         message: '決済セッションの作成に失敗しました。' + (komojuResult && komojuResult.message ? komojuResult.message : '')
       };
     }
 
-    console.log('アソート商品KOMOJU決済セッション作成: ' + receiptNo + ' → ' + komojuResult.sessionUrl);
+    console.log('アソート商品KOMOJU決済セッション作成: ' + paymentToken + ' → ' + komojuResult.sessionUrl);
 
     // === 在庫減算 + BASE在庫同期 ===
     try {
@@ -369,7 +369,7 @@ function apiBulkSubmit(form, items) {
 
     return {
       ok: true,
-      receiptNo: receiptNo,
+      paymentToken: paymentToken,
       sessionUrl: komojuResult.sessionUrl,
       totalAmount: totalWithShipping,
       shippingAmount: shippingAmount

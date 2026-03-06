@@ -458,8 +458,8 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     return jsonError('合計金額が0円以下です。');
   }
 
-  // ─── 受付番号生成 ───
-  const receiptNo = makeReceiptNo();
+  // ─── 決済トークン生成（受付番号は決済確認後にGAS側で発行） ───
+  const paymentToken = crypto.randomUUID();
   const sortedIds = [...ids].sort((a, b) => a.localeCompare(b, 'ja'));
   const selectionList = sortedIds.join('、');
   const measureLabel = measureOpt === 'yes' ? '希望する' : '希望しない';
@@ -470,9 +470,8 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     postal, address, phone, note, measureOpt, invoiceReceipt,
   };
 
-  // templateText構築（GAS互換）
+  // templateText構築（GAS互換 — 受付番号は決済確認後に差し込み）
   const templateLines = [
-    '受付番号：' + receiptNo,
     '会社名/氏名：' + companyName,
     'メールアドレス：' + contact,
   ];
@@ -514,7 +513,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
             pending_payment = 1,
             receipt_no = excluded.receipt_no,
             created_at = excluded.created_at
-        `).bind(managedId, userKey, userKey + ':' + now, holdUntilMs, receiptNo, new Date().toISOString())
+        `).bind(managedId, userKey, userKey + ':' + now, holdUntilMs, paymentToken, new Date().toISOString())
       );
     }
     await env.DB.batch(stmts);
@@ -522,18 +521,18 @@ export async function submitEstimate(args, env, bodyText, ctx) {
 
   // ─── KOMOJU決済セッション作成 ───
   const frontendUrl = (env.FRONTEND_URL || 'https://wholesale.nkonline-tool.com').replace(/\/+$/, '');
-  const returnUrl = frontendUrl + '?receipt=' + encodeURIComponent(receiptNo) + '&status=complete';
-  const cancelUrl = frontendUrl + '?receipt=' + encodeURIComponent(receiptNo) + '&status=cancel';
+  const returnUrl = frontendUrl + '?token=' + encodeURIComponent(paymentToken) + '&status=complete';
+  const cancelUrl = frontendUrl + '?token=' + encodeURIComponent(paymentToken) + '&status=cancel';
 
   const sessionData = {
     amount: Math.round(totalWithShipping),
     currency: KOMOJU_CURRENCY,
-    external_order_num: receiptNo,
+    external_order_num: paymentToken,
     return_url: returnUrl,
     cancel_url: cancelUrl,
     payment_types: KOMOJU_PAYMENT_METHODS,
     metadata: {
-      receipt_no: String(receiptNo),
+      payment_token: String(paymentToken),
       company_name: String(companyName),
       email: String(contact),
       product_amount: String(discounted + bulkProductAmount),
@@ -564,7 +563,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
       const placeholders = ids.map(() => '?').join(',');
       await env.DB.prepare(
         `UPDATE holds SET pending_payment = 0, receipt_no = '' WHERE managed_id IN (${placeholders}) AND user_key = ? AND receipt_no = ?`
-      ).bind(...ids, userKey, receiptNo).run();
+      ).bind(...ids, userKey, paymentToken).run();
     }
     return jsonError('決済セッションの作成に失敗しました。' + (komojuResult.error ? komojuResult.error.message || '' : ''));
   }
@@ -578,7 +577,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     userKey,
     form: validatedForm,
     ids,
-    receiptNo,
+    paymentToken,
     selectionList,
     measureOpt,
     totalCount,
@@ -598,6 +597,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     bulkProductAmount,
     bulkShipping: bulkShippingAmount,
     bulkItemCount,
+    totalAmount: totalWithShipping,
   };
 
   // ─── GASにペンディング注文保存（同期 — webhook前に確実に保存） ───
@@ -611,7 +611,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   }
 
   return jsonOk({
-    receiptNo,
+    paymentToken,
     sessionUrl: komojuResult.session_url,
     totalAmount: totalWithShipping,
     shippingAmount,
@@ -622,8 +622,9 @@ export async function submitEstimate(args, env, bodyText, ctx) {
 
 async function saveBackupToKV(pendingData, env) {
   if (env.CACHE) {
+    var pendingKey = pendingData.paymentToken || pendingData.receiptNo;
     await env.CACHE.put(
-      'PENDING_ORDER_' + pendingData.receiptNo,
+      'PENDING_ORDER_' + pendingKey,
       JSON.stringify(pendingData),
       { expirationTtl: 86400 * 7 } // 7日間
     );
