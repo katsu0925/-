@@ -186,7 +186,8 @@ function apiCheckPaymentStatus(receiptNo) {
       status: status,
       komojuStatus: response.status,
       paymentMethod: response.payment ? extractPaymentMethodType_(response.payment) : null,
-      paidAt: response.payment ? response.payment.created_at : null
+      paidAt: response.payment ? response.payment.created_at : null,
+      totalAmount: saved.amount || 0
     };
 
   } catch (e) {

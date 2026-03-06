@@ -6005,48 +6005,45 @@ function handlePaymentReturn_() {
   }
 
   if (status === 'complete') {
-    // 決済完了 → カートクリア
-    state.cart.ids = []; state.cart.itemsById = {}; state.cart.digest = {}; state.lastShipping = null;
-    saveCartStorage(); updateCartCount();
-    // BulkLPカートもクリア（両チャネル合算注文の場合）
-    try { localStorage.removeItem('bulk_cart_v1'); } catch (e) {}
-    try { localStorage.removeItem('estimate_cart_v2'); } catch (e) {}
-    // 決済確認中の表示
+    // KOMOJUの「戻る」ボタンでもstatus=completeで戻る場合があるため、
+    // 実際の決済ステータスをAPIで確認してからカートクリア・表示を決定する
     $('doneReceipt').textContent = receipt;
-    if ($('doneModalTitle')) $('doneModalTitle').textContent = '決済確認中...';
-    if ($('doneMessage')) $('doneMessage').textContent = 'お支払いの確認をしています。しばらくお待ちください...';
+    if ($('doneModalTitle')) $('doneModalTitle').textContent = '確認中...';
+    if ($('doneMessage')) $('doneMessage').textContent = '';
     openModal($('doneModal'));
-    // 決済ステータスを確認してから完了表示
     runApi('apiCheckPaymentStatus', receipt).then(function(res) {
       if (res && res.ok && (res.status === 'paid' || res.status === 'authorized')) {
-        if ($('doneModalTitle')) $('doneModalTitle').textContent = '注文完了';
-        if ($('doneMessage')) $('doneMessage').textContent = 'お支払いが完了しました。注文確認メールをお送りしましたのでご確認ください。商品の発送準備を進めてまいります。';
+        // 決済が実際に完了/承認済み → カートクリア
+        state.cart.ids = []; state.cart.itemsById = {}; state.cart.digest = {}; state.lastShipping = null;
+        saveCartStorage(); updateCartCount();
+        try { localStorage.removeItem('bulk_cart_v1'); } catch (e) {}
+        try { localStorage.removeItem('estimate_cart_v2'); } catch (e) {}
+        var pm = res.paymentMethod || '';
+        if (pm === 'konbini' || pm === 'bank_transfer') {
+          if ($('doneModalTitle')) $('doneModalTitle').textContent = 'ご注文受付（入金待ち）';
+          var deadlineDate = new Date(); deadlineDate.setDate(deadlineDate.getDate() + 3);
+          var dlStr = (deadlineDate.getMonth() + 1) + '月' + deadlineDate.getDate() + '日';
+          if ($('doneMessage')) $('doneMessage').textContent = 'ご注文を受け付けました。お支払い期限は' + dlStr + '（3日以内）です。期限内にお支払いをお願いいたします。入金確認後、注文確定メールをお送りいたします。期限を過ぎるとご注文は自動キャンセルとなります。';
+        } else {
+          if ($('doneModalTitle')) $('doneModalTitle').textContent = '注文完了';
+          if ($('doneMessage')) $('doneMessage').textContent = 'お支払いが完了しました。注文確認メールをお送りしましたのでご確認ください。商品の発送準備を進めてまいります。';
+        }
         // Phase 4-4: Google Ads コンバージョン
         try { _trackGoogleAdsConversion(res.totalAmount || 0, 'JPY'); } catch(e) {}
         // Phase 4-5: Meta Pixel 購入イベント
         try { _trackMetaPurchase(res.totalAmount || 0, 'JPY', []); } catch(e) {}
-      } else if (res && res.ok && res.status === 'pending') {
-        if ($('doneModalTitle')) $('doneModalTitle').textContent = 'ご注文受付（入金待ち）';
-        var deadlineDate = new Date(); deadlineDate.setDate(deadlineDate.getDate() + 3);
-        var dlStr = (deadlineDate.getMonth() + 1) + '月' + deadlineDate.getDate() + '日';
-        if ($('doneMessage')) $('doneMessage').textContent = 'ご注文を受け付けました。お支払い期限は' + dlStr + '（3日以内）です。期限内にお支払いをお願いいたします。入金確認後、注文確定メールをお送りいたします。期限を過ぎるとご注文は自動キャンセルとなります。';
       } else {
-        if ($('doneModalTitle')) $('doneModalTitle').textContent = '決済確認中';
-        if ($('doneMessage')) $('doneMessage').textContent = 'お支払いの確認に時間がかかっています。注文が確定されましたらメールでお知らせいたします。受付番号を控えておいてください。';
+        // 決済が完了していない（未決済/キャンセル/期限切れ等）→ カート維持、モーダル閉じる
+        closeModal($('doneModal'));
       }
     }).catch(function(e) {
       console.log('Payment status check on return:', e);
-      if ($('doneModalTitle')) $('doneModalTitle').textContent = '決済確認中';
-      if ($('doneMessage')) $('doneMessage').textContent = 'お支払いの確認に時間がかかっています。注文が確定されましたらメールでお知らせいたします。受付番号を控えておいてください。';
+      // エラー時もカート維持、モーダル閉じる
+      closeModal($('doneModal'));
     });
   } else if (status === 'cancel') {
-    // 決済キャンセル
-    $('doneReceipt').textContent = receipt;
-    if ($('doneModalTitle')) $('doneModalTitle').textContent = '決済キャンセル';
-    if ($('doneMessage')) $('doneMessage').textContent = '決済がキャンセルされました。商品は自動的に解放されます。再度ご注文いただく場合はカートから商品を選択してください。';
-    openModal($('doneModal'));
-    // キャンセル処理をバックエンドに通知
-    runApi('apiCancelOrder', receipt).catch(function() {});
+    // 決済キャンセル — カートと確保はそのまま維持（確保期限まで有効）
+    // ユーザーはカートから再度決済に進める
   }
 }
 

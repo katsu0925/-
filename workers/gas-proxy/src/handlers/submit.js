@@ -244,8 +244,11 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   let firstHalfPriceApplied = false;
   let activeCouponCode = couponCode;
 
-  // 初回全品半額キャンペーンチェック（他の割引と併用不可）
-  if (fhpStatus.enabled && customerRow && purchaseCount === 0) {
+  // ログイン状態チェック（フロントエンドと一致させるため）
+  const isLoggedIn = !!form.loggedIn;
+
+  // 初回全品半額キャンペーンチェック（他の割引と併用不可、ログイン必須）
+  if (fhpStatus.enabled && isLoggedIn && customerRow && purchaseCount === 0) {
     firstHalfPriceApplied = true;
     activeCouponCode = ''; // 他の割引を無効化
   }
@@ -312,7 +315,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
       else if (totalCount >= 30) discountRate += 0.10;
       else if (totalCount >= 10) discountRate += 0.05;
     }
-    if (validatedCoupon.comboMember && memberDiscountStatus.enabled && customerRow) {
+    if (validatedCoupon.comboMember && memberDiscountStatus.enabled && isLoggedIn && customerRow) {
       memberDiscountRate = memberDiscountStatus.rate;
     }
   } else if (!firstHalfPriceApplied) {
@@ -323,8 +326,8 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     else if (totalCount >= 30) discountRate += 0.10;
     else if (totalCount >= 10) discountRate += 0.05;
 
-    // 会員割引
-    if (memberDiscountStatus.enabled && customerRow) {
+    // 会員割引（ログイン必須）
+    if (memberDiscountStatus.enabled && isLoggedIn && customerRow) {
       memberDiscountRate = memberDiscountStatus.rate;
     }
   }
