@@ -1,7 +1,9 @@
 // Util.gs
 function app_measureOptLabel_(measureOpt) {
   const v = String(measureOpt || '');
-  return (v === 'without') ? '無し' : '付き';
+  if (v === 'without') return '無し';
+  if (v === 'with') return '付き';
+  return '';
 }
 
 function app_buildTemplateText_(receiptNo, form, ids, totalCount, totalYen) {

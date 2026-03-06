@@ -235,7 +235,7 @@ function app_sendOrderNotifyMail_(orderSs, receiptNo, info) {
     var htmlSections = [];
     var orderRows = [
       { label: '受付番号', value: String(receiptNo || '') },
-      { label: '注文日時', value: String(createdAt) }
+      { label: '注文日時', value: Utilities.formatDate(createdAt, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm') }
     ];
     if (info && info.paymentMethod) orderRows.push({ label: '決済方法', value: String(info.paymentMethod || '') });
     if (info && info.paymentId) orderRows.push({ label: '決済ID', value: String(info.paymentId || '') });
@@ -244,11 +244,7 @@ function app_sendOrderNotifyMail_(orderSs, receiptNo, info) {
     htmlSections.push({ title: '注文情報', rows: orderRows });
 
     var custRows = [];
-    if (info && info.companyName) custRows.push({ label: '会社名/氏名', value: String(info.companyName || '') });
-    if (info && info.contact) custRows.push({ label: 'メールアドレス', value: String(info.contact || '') });
-    if (info && info.postal) custRows.push({ label: '郵便番号', value: String(info.postal || '') });
-    if (info && info.address) custRows.push({ label: '住所', value: String(info.address || '') });
-    if (info && info.phone) custRows.push({ label: '電話番号', value: String(info.phone || '') });
+    if (info && info.companyName) custRows.push({ label: '氏名', value: String(info.companyName || '') });
     if (custRows.length) htmlSections.push({ title: '顧客情報', rows: custRows });
 
     if (info && info.note) {
@@ -258,7 +254,7 @@ function app_sendOrderNotifyMail_(orderSs, receiptNo, info) {
     var summaryRows = [];
     if (info && typeof info.totalCount !== 'undefined') summaryRows.push({ label: '点数', value: String(info.totalCount) });
     if (info && typeof info.discounted !== 'undefined') summaryRows.push({ label: '注文金額（税込・送料込）', value: String(info.discounted) + '円' });
-    if (info && info.measureLabel) summaryRows.push({ label: '採寸', value: String(info.measureLabel || '') });
+    if (info && info.measureLabel && info.measureLabel !== '付き') summaryRows.push({ label: '採寸', value: String(info.measureLabel) });
     if (summaryRows.length) htmlSections.push({ title: '金額', rows: summaryRows });
 
     if (info && info.itemDetails && info.itemDetails.length > 0) {
@@ -353,17 +349,13 @@ function app_buildOrderNotifyBody_(orderSs, receiptNo, info) {
   lines.push('【決済完了】新しい注文が確定しました。');
   lines.push('');
   lines.push('受付番号: ' + String(receiptNo || ''));
-  lines.push('注文日時: ' + createdAt);
+  lines.push('注文日時: ' + Utilities.formatDate(createdAt, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm'));
   if (info && info.paymentMethod) lines.push('決済方法: ' + String(info.paymentMethod || ''));
   if (info && info.paymentId) lines.push('決済ID: ' + String(info.paymentId || ''));
   if (info && info.paymentStatus) lines.push('入金ステータス: ' + String(info.paymentStatus || ''));
   if (info && info.userKey) lines.push('userKey: ' + String(info.userKey || ''));
   lines.push('');
-  if (info && info.companyName) lines.push('会社名/氏名: ' + String(info.companyName || ''));
-  if (info && info.contact) lines.push('メールアドレス: ' + String(info.contact || ''));
-  if (info && info.postal) lines.push('郵便番号: ' + String(info.postal || ''));
-  if (info && info.address) lines.push('住所: ' + String(info.address || ''));
-  if (info && info.phone) lines.push('電話番号: ' + String(info.phone || ''));
+  if (info && info.companyName) lines.push('氏名: ' + String(info.companyName || ''));
   if (info && info.note) {
     lines.push('');
     lines.push('備考:');
@@ -372,7 +364,7 @@ function app_buildOrderNotifyBody_(orderSs, receiptNo, info) {
   lines.push('');
   if (info && typeof info.totalCount !== 'undefined') lines.push('点数: ' + String(info.totalCount));
   if (info && typeof info.discounted !== 'undefined') lines.push('注文金額（税込・送料込）: ' + String(info.discounted) + '円');
-  if (info && info.measureLabel) lines.push('採寸: ' + String(info.measureLabel || ''));
+  if (info && info.measureLabel && info.measureLabel !== '付き') lines.push('採寸: ' + String(info.measureLabel));
   if (info && info.itemDetails && info.itemDetails.length > 0) {
     lines.push('');
     lines.push('選択商品:');

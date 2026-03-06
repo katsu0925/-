@@ -345,7 +345,7 @@ function testSuite_Order_() {
       fn: function() {
         assertEqual_(app_measureOptLabel_('with'), '付き', 'with → 付き');
         assertEqual_(app_measureOptLabel_('without'), '無し', 'without → 無し');
-        assertEqual_(app_measureOptLabel_(''), '付き', 'empty → 付き (default)');
+        assertEqual_(app_measureOptLabel_(''), '', 'empty → 空文字');
       }
     },
     {
