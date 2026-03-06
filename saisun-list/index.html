@@ -6035,7 +6035,12 @@ function handlePaymentReturn_() {
         // Phase 4-5: Meta Pixel 購入イベント
         try { _trackMetaPurchase(res.totalAmount || 0, 'JPY', []); } catch(e) {}
       } else {
-        // 決済が完了していない（未決済/キャンセル/期限切れ等）→ カート維持、モーダル閉じる
+        // 決済が完了していない（未決済/キャンセル/期限切れ等）→ pending_paymentフラグ解除、カート維持
+        if (token) {
+          runApi('apiCancelPendingPayment', token).catch(function(e) {
+            console.log('Cancel pending payment (non-fatal):', e);
+          });
+        }
         closeModal($('doneModal'));
       }
     }).catch(function(e) {
@@ -6044,8 +6049,13 @@ function handlePaymentReturn_() {
       closeModal($('doneModal'));
     });
   } else if (status === 'cancel') {
-    // 決済キャンセル — カートと確保はそのまま維持（確保期限まで有効）
-    // ユーザーはカートから再度決済に進める
+    // 決済キャンセル → pending_paymentフラグを解除して通常確保に戻す
+    // カートはそのまま維持（ユーザーは再度決済に進める）
+    if (token) {
+      runApi('apiCancelPendingPayment', token).catch(function(e) {
+        console.log('Cancel pending payment (non-fatal):', e);
+      });
+    }
   }
 }
 

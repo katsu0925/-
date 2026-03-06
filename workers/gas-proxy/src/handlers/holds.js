@@ -92,8 +92,8 @@ export async function syncHolds(args, env) {
         VALUES (?, ?, ?, ?, 0, ?)
         ON CONFLICT (managed_id, user_key) DO UPDATE SET
           hold_id = excluded.hold_id,
-          until_ms = excluded.until_ms,
-          pending_payment = 0,
+          until_ms = CASE WHEN holds.pending_payment = 1 THEN holds.until_ms ELSE excluded.until_ms END,
+          pending_payment = holds.pending_payment,
           created_at = excluded.created_at
       `).bind(managedId, userKey, holdId, untilMs, new Date().toISOString())
     );
@@ -118,4 +118,52 @@ export async function syncHolds(args, env) {
   }
 
   return jsonOk({ digest, failed, holdMinutes });
+}
+
+/**
+ * cancelPendingPayment — 決済キャンセル時にpending_paymentフラグを解除
+ *
+ * @param {Array} args - [paymentToken]
+ * @returns {object} { ok, released, affected }
+ */
+export async function cancelPendingPayment(args, env) {
+  const paymentToken = args[0] || '';
+  if (!paymentToken) return jsonError('paymentToken required');
+
+  // KOMOJU APIでステータス確認（偽cancelを防止）
+  // 成功ステータス(captured/authorized)なら解放しない
+  const komojuKey = env.KOMOJU_SECRET_KEY;
+  if (komojuKey) {
+    try {
+      const resp = await fetch(
+        'https://komoju.com/api/v1/sessions?external_order_num=' + encodeURIComponent(paymentToken),
+        {
+          headers: {
+            'Authorization': 'Basic ' + btoa(komojuKey + ':'),
+            'Accept': 'application/json',
+          },
+        }
+      );
+      const data = await resp.json();
+      if (data.resource_data && data.resource_data.length > 0) {
+        const session = data.resource_data[0];
+        if (session.payment && ['captured', 'authorized'].includes(session.payment.status)) {
+          return jsonOk({ released: false, reason: 'payment_already_confirmed' });
+        }
+      }
+    } catch (e) {
+      console.error('KOMOJU check failed (proceeding with cancel):', e);
+    }
+  }
+
+  // pending_paymentを0にリセットし、until_msを通常確保時間（15分）に戻す
+  const now = Date.now();
+  const normalHoldMs = HOLD_MINUTES_DEFAULT * 60 * 1000;
+  const result = await env.DB.prepare(`
+    UPDATE holds
+    SET pending_payment = 0, receipt_no = '', until_ms = ?
+    WHERE receipt_no = ? AND pending_payment = 1
+  `).bind(now + normalHoldMs, paymentToken).run();
+
+  return jsonOk({ released: true, affected: result.changes || 0 });
 }

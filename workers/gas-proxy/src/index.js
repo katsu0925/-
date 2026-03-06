@@ -40,6 +40,7 @@ const WORKER_HANDLED = {
   // Phase 3: ステータス + 確保 + クーポン
   apiGetStatusDigest:  (args, env) => status.getStatusDigest(args, env),
   apiSyncHolds:        (args, env) => holds.syncHolds(args, env),
+  apiCancelPendingPayment: (args, env) => holds.cancelPendingPayment(args, env),
   apiValidateCoupon:   (args, env) => coupon.validateCoupon(args, env),
 
   // Phase 4: マイページ

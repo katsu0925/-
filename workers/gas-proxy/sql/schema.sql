@@ -96,6 +96,7 @@ CREATE TABLE IF NOT EXISTS holds (
 
 CREATE INDEX IF NOT EXISTS idx_holds_until ON holds(until_ms);
 CREATE INDEX IF NOT EXISTS idx_holds_user ON holds(user_key);
+CREATE INDEX IF NOT EXISTS idx_holds_receipt_no ON holds(receipt_no);
 
 -- 依頼中テーブル（依頼中シートと対応）
 CREATE TABLE IF NOT EXISTS open_items (
