@@ -108,8 +108,10 @@ function apiSubmitEstimate(userKey, form, ids) {
     var firstHalfPriceApplied = false;
 
     // 初回全品半額キャンペーンチェック（他の割引と併用不可）
+    // ログイン必須（フロントエンドと一致させるため）
+    var isLoggedIn = !!f.loggedIn;
     var fhpStatus = app_getFirstHalfPriceStatus_();
-    if (fhpStatus.enabled && contact && typeof findCustomerByEmail_ === 'function') {
+    if (fhpStatus.enabled && isLoggedIn && contact && typeof findCustomerByEmail_ === 'function') {
       var custForFhp = findCustomerByEmail_(contact);
       if (custForFhp && custForFhp.purchaseCount === 0) {
         firstHalfPriceApplied = true;
@@ -141,7 +143,8 @@ function apiSubmitEstimate(userKey, form, ids) {
     }
 
     // 会員割引レート取得（CartCalc step 3b — comboMember !== false なら適用）
-    if (!firstHalfPriceApplied) {
+    // ログイン必須（フロントエンドと一致させるため）
+    if (!firstHalfPriceApplied && isLoggedIn) {
       var _comboMemberOk = !validatedCoupon || validatedCoupon.comboMember !== false;
       if (_comboMemberOk) {
         var memberDiscountStatus = app_getMemberDiscountStatus_();
@@ -197,7 +200,7 @@ function apiSubmitEstimate(userKey, form, ids) {
 
     // ダイヤモンド会員送料無料チェック
     var diamondFree = false;
-    if (contact) {
+    if (isLoggedIn && contact) {
       try {
         var rankInfo = calculateCustomerRank_(contact);
         diamondFree = rankInfo && rankInfo.freeShipping === true;

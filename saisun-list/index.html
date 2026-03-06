@@ -5646,7 +5646,8 @@ function readForm_() {
   var f = {
     companyName: $('companyName').value || '', contact: $('contact').value || '',
     postal: $('postal').value || '', address: $('address').value || '',
-    phone: $('phone').value || '', note: $('note').value || '', measureOpt: getMeasureOptValue_()
+    phone: $('phone').value || '', note: $('note').value || '', measureOpt: getMeasureOptValue_(),
+    loggedIn: !!state.customer
   };
   // ポイント利用
   var pts = parseInt($('usePoints').value, 10) || 0;
