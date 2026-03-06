@@ -8,17 +8,17 @@
  */
 function apiInit(userKey, params) {
   try {
-    const uk = String(userKey || '').trim();
+    var uk = String(userKey || '').trim();
     if (!uk) return { ok: false, message: 'userKeyが不正です' };
 
-    const orderSs = sh_getOrderSs_();
+    var orderSs = sh_getOrderSs_();
     sh_ensureAllOnce_(orderSs);
 
-    const products = pr_readProducts_();
-    const options = pr_buildFilterOptions_(products);
+    var products = pr_readProducts_();
+    var options = pr_buildFilterOptions_(products);
     options.brand = app_readBrandList_();
 
-    const page = st_searchPage_(uk, params);
+    var page = st_searchPage_(uk, params);
 
     return {
       ok: true,
@@ -39,9 +39,9 @@ function apiInit(userKey, params) {
  */
 function apiSearch(userKey, params) {
   try {
-    const uk = String(userKey || '').trim();
+    var uk = String(userKey || '').trim();
     if (!uk) return { ok: false, message: 'userKeyが不正です' };
-    const page = st_searchPage_(uk, params);
+    var page = st_searchPage_(uk, params);
     if (page && typeof page === 'object' && !('ok' in page)) page.ok = true;
     return page;
   } catch (e) {
@@ -57,14 +57,14 @@ function apiSearch(userKey, params) {
  */
 function apiGetStatusDigest(userKey, ids) {
   try {
-    const uk = String(userKey || '').trim();
+    var uk = String(userKey || '').trim();
     if (!uk) return { ok: false, message: 'userKeyが不正です' };
 
-    const orderSs = sh_getOrderSs_();
+    var orderSs = sh_getOrderSs_();
     sh_ensureAllOnce_(orderSs);
 
-    const list = u_unique_(u_normalizeIds_(ids || []));
-    const map = st_buildDigestMap_(orderSs, uk, list);
+    var list = u_unique_(u_normalizeIds_(ids || []));
+    var map = st_buildDigestMap_(orderSs, uk, list);
 
     return { ok: true, map: map };
   } catch (e) {
@@ -83,10 +83,10 @@ function apiGetStatusDigest(userKey, ids) {
  */
 function apiSyncHolds(userKey, ids, sessionId) {
   try {
-    const uk = String(userKey || '').trim();
+    var uk = String(userKey || '').trim();
     if (!uk) return { ok: false, message: 'userKeyが不正です' };
 
-    const orderSs = sh_getOrderSs_();
+    var orderSs = sh_getOrderSs_();
     sh_ensureAllOnce_(orderSs);
 
     // 会員判定: sessionIdが有効なら会員（確保時間30分）
@@ -110,8 +110,8 @@ function apiSyncHolds(userKey, ids, sessionId) {
       } catch(e) {}
     }
 
-    const now = u_nowMs_();
-    const wantIds = u_unique_(u_normalizeIds_(ids || []));
+    var now = u_nowMs_();
+    var wantIds = u_unique_(u_normalizeIds_(ids || []));
 
     // ロックで並行制御（最大10秒待機: 同時アクセス時のバッティングを確実に防ぐ）
     var lock = LockService.getScriptLock();
@@ -128,36 +128,36 @@ function apiSyncHolds(userKey, ids, sessionId) {
       var openSet = st_getOpenSetFast_(orderSs) || {};
 
       var want = {};
-      for (let i = 0; i < wantIds.length; i++) want[wantIds[i]] = true;
+      for (var i = 0; i < wantIds.length; i++) want[wantIds[i]] = true;
 
       var toRemove = [];
-      for (const id in holdItems) {
-        const it = holdItems[id];
+      for (var id in holdItems) {
+        var it = holdItems[id];
         if (!it) continue;
         if (String(it.userKey || '') === uk && !want[id]) {
           if (it.pendingPayment) continue;  // 決済待ちの確保は解放しない
           toRemove.push(id);
         }
       }
-      for (let i = 0; i < toRemove.length; i++) {
+      for (var i = 0; i < toRemove.length; i++) {
         delete holdItems[toRemove[i]];
       }
 
       var failed = [];
       var untilMsNew = now + app_holdMs_(isMember);
 
-      for (let i = 0; i < wantIds.length; i++) {
-        const id = wantIds[i];
+      for (var i = 0; i < wantIds.length; i++) {
+        var id = wantIds[i];
 
         if (openSet[id]) {
-          const cur0 = holdItems[id];
+          var cur0 = holdItems[id];
           if (cur0 && String(cur0.userKey || '') === uk) delete holdItems[id];
           failed.push({ id: id, reason: '依頼中' });
           continue;
         }
 
-        const cur = holdItems[id];
-        const curUntil = cur ? u_toInt_(cur.untilMs, 0) : 0;
+        var cur = holdItems[id];
+        var curUntil = cur ? u_toInt_(cur.untilMs, 0) : 0;
 
         if (cur && curUntil > now) {
           if (String(cur.userKey || '') !== uk) {
@@ -185,7 +185,7 @@ function apiSyncHolds(userKey, ids, sessionId) {
       try { lock.releaseLock(); } catch (e) { console.log('optional: lock release: ' + (e.message || e)); }
     }
 
-    const digest = st_buildDigestMap_(orderSs, uk, wantIds);
+    var digest = st_buildDigestMap_(orderSs, uk, wantIds);
     return { ok: true, digest: digest, failed: failed, holdMinutes: isMember ? (APP_CONFIG.holds.memberMinutes || 30) : (APP_CONFIG.holds.minutes || 15) };
 
   } catch (e) {
@@ -197,17 +197,17 @@ function apiSyncHolds(userKey, ids, sessionId) {
 // apiSubmitEstimate は SubmitFix.gs に移動しました（高速版）
 
 function sh_findNextRowByDisplayKey_(sh, keyCol, headerRows) {
-  const hc = Math.max(0, Number(headerRows || 0));
-  const col = Math.max(1, Number(keyCol || 1));
-  const last = Math.max(hc, sh.getLastRow());
+  var hc = Math.max(0, Number(headerRows || 0));
+  var col = Math.max(1, Number(keyCol || 1));
+  var last = Math.max(hc, sh.getLastRow());
   if (last <= hc) return hc + 1;
 
-  const block = 2000;
-  for (let end = last; end > hc; end -= block) {
-    const start = Math.max(hc + 1, end - block + 1);
-    const h = end - start + 1;
-    const vals = sh.getRange(start, col, h, 1).getDisplayValues();
-    for (let i = vals.length - 1; i >= 0; i--) {
+  var block = 2000;
+  for (var end = last; end > hc; end -= block) {
+    var start = Math.max(hc + 1, end - block + 1);
+    var h = end - start + 1;
+    var vals = sh.getRange(start, col, h, 1).getDisplayValues();
+    for (var i = vals.length - 1; i >= 0; i--) {
       if (String(vals[i][0] || '').trim() !== '') {
         return start + i + 1;
       }
@@ -223,11 +223,11 @@ function forceRefreshProducts() {
 
 function app_sendOrderNotifyMail_(orderSs, receiptNo, info) {
   try {
-    const toList = app_getNotifyToEmails_(orderSs);
+    var toList = app_getNotifyToEmails_(orderSs);
     if (!toList.length) return;
 
-    const subject = 'デタウリ.Detauri 注文確定（決済完了）';
-    const body = app_buildOrderNotifyBody_(orderSs, receiptNo, info);
+    var subject = 'デタウリ.Detauri 注文確定（決済完了）';
+    var body = app_buildOrderNotifyBody_(orderSs, receiptNo, info);
 
     // HTML版を構築
     var htmlSections = [];
@@ -300,30 +300,30 @@ function app_sendOrderNotifyMail_(orderSs, receiptNo, info) {
 }
 
 function app_getNotifyToEmails_(orderSs) {
-  const out = [];
-  const add = (v) => {
-    const s = String(v || '').trim();
+  var out = [];
+  var add = function(v) {
+    var s = String(v || '').trim();
     if (!s) return;
     if (s.indexOf(',') !== -1) {
-      s.split(',').forEach(x => add(x));
+      s.split(',').forEach(function(x) { add(x); });
       return;
     }
     if (s.indexOf(' ') !== -1) {
-      s.split(/\s+/).forEach(x => add(x));
+      s.split(/\s+/).forEach(function(x) { add(x); });
       return;
     }
     if (s.indexOf('@') === -1) return;
     out.push(s);
   };
 
-  const cfg = (typeof APP_CONFIG === 'object' && APP_CONFIG) ? APP_CONFIG : {};
-  const v = cfg.notifyEmails || cfg.notifyEmailTo || cfg.notifyTo;
-  if (Array.isArray(v)) v.forEach(x => add(x));
+  var cfg = (typeof APP_CONFIG === 'object' && APP_CONFIG) ? APP_CONFIG : {};
+  var v = cfg.notifyEmails || cfg.notifyEmailTo || cfg.notifyTo;
+  if (Array.isArray(v)) v.forEach(function(x) { add(x); });
   else add(v);
 
   if (!out.length && orderSs && orderSs.getId) {
     try {
-      const owner = DriveApp.getFileById(orderSs.getId()).getOwner();
+      var owner = DriveApp.getFileById(orderSs.getId()).getOwner();
       if (owner && owner.getEmail) add(owner.getEmail());
     } catch (e) { console.log('optional: get file owner email: ' + (e.message || e)); }
   }
@@ -332,10 +332,10 @@ function app_getNotifyToEmails_(orderSs) {
     try { add(Session.getEffectiveUser().getEmail()); } catch (e) { console.log('optional: get effective user email: ' + (e.message || e)); }
   }
 
-  const uniq = {};
-  const res = [];
-  for (let i = 0; i < out.length; i++) {
-    const k = String(out[i] || '').trim().toLowerCase();
+  var uniq = {};
+  var res = [];
+  for (var i = 0; i < out.length; i++) {
+    var k = String(out[i] || '').trim().toLowerCase();
     if (!k || uniq[k]) continue;
     uniq[k] = true;
     res.push(out[i]);
@@ -344,9 +344,9 @@ function app_getNotifyToEmails_(orderSs) {
 }
 
 function app_buildOrderNotifyBody_(orderSs, receiptNo, info) {
-  const ssUrl = orderSs && orderSs.getUrl ? orderSs.getUrl() : '';
-  const createdAt = info && info.createdAtMs ? new Date(info.createdAtMs) : new Date();
-  const lines = [];
+  var ssUrl = orderSs && orderSs.getUrl ? orderSs.getUrl() : '';
+  var createdAt = info && info.createdAtMs ? new Date(info.createdAtMs) : new Date();
+  var lines = [];
 
   lines.push('【決済完了】新しい注文が確定しました。');
   lines.push('');
@@ -609,16 +609,16 @@ function apiGetAllDetails(managedIds) {
     }
     
     // 最大500件に制限（安全のため）
-    const ids = managedIds.slice(0, 500);
+    var ids = managedIds.slice(0, 500);
     
     // データ1シートから採寸データを取得（API文脈ではgetActiveSpreadsheet()はnullのためopenByIdを使用）
-    const ss = SpreadsheetApp.openById(APP_CONFIG.data.spreadsheetId);
-    const sheet = ss.getSheetByName('データ1');
+    var ss = SpreadsheetApp.openById(APP_CONFIG.data.spreadsheetId);
+    var sheet = ss.getSheetByName('データ1');
     if (!sheet) {
       return { ok: false, message: 'データ1シートが見つかりません' };
     }
     
-    const lastRow = sheet.getLastRow();
+    var lastRow = sheet.getLastRow();
     if (lastRow < 2) {
       return { ok: true, details: {} };
     }
@@ -627,28 +627,29 @@ function apiGetAllDetails(managedIds) {
     // K列: 管理ID
     // L〜W列: 採寸データ12項目（着丈, 肩幅, 身幅, 袖丈, 桁丈, 総丈, ウエスト, 股上, 股下, ワタリ, 裾幅, ヒップ）
     // X列: 傷汚れ詳細
-    const range = sheet.getRange(2, 11, lastRow - 1, 14); // K〜X列（11〜24列）
-    const values = range.getValues();
+    var range = sheet.getRange(2, 11, lastRow - 1, 14); // K〜X列（11〜24列）
+    var values = range.getValues();
     
     // IDでフィルタリングしてマップ作成
-    const idSet = new Set(ids.map(id => String(id).trim()));
-    const details = {};
+    var idSet = {};
+    for (var _si = 0; _si < ids.length; _si++) { idSet[String(ids[_si]).trim()] = true; }
+    var details = {};
     
     // 採寸項目のラベル（L〜W列の順序）
-    const measureLabels = ['着丈', '肩幅', '身幅', '袖丈', '桁丈', '総丈', 'ウエスト', '股上', '股下', 'ワタリ', '裾幅', 'ヒップ'];
+    var measureLabels = ['着丈', '肩幅', '身幅', '袖丈', '桁丈', '総丈', 'ウエスト', '股上', '股下', 'ワタリ', '裾幅', 'ヒップ'];
     
-    for (let i = 0; i < values.length; i++) {
-      const row = values[i];
-      const managedId = String(row[0] || '').trim(); // K列（index 0）
+    for (var i = 0; i < values.length; i++) {
+      var row = values[i];
+      var managedId = String(row[0] || '').trim(); // K列（index 0）
       
-      if (!managedId || !idSet.has(managedId)) continue;
+      if (!managedId || !idSet[managedId]) continue;
       
       // 採寸データを構築（L〜W列、index 1〜12）
-      const measurements = {};
-      for (let j = 0; j < measureLabels.length; j++) {
-        const val = row[j + 1]; // L列から開始（index 1）
+      var measurements = {};
+      for (var j = 0; j < measureLabels.length; j++) {
+        var val = row[j + 1]; // L列から開始（index 1）
         if (val !== '' && val !== null && val !== undefined) {
-          const numVal = Number(val);
+          var numVal = Number(val);
           if (!isNaN(numVal) && numVal > 0) {
             measurements[measureLabels[j]] = numVal;
           }
@@ -656,7 +657,7 @@ function apiGetAllDetails(managedIds) {
       }
       
       // 傷汚れ詳細（X列、index 13）
-      const defectDetail = String(row[13] || '').trim();
+      var defectDetail = String(row[13] || '').trim();
       
       details[managedId] = {
         measurements: measurements,
@@ -678,12 +679,12 @@ function apiGetAllDetails(managedIds) {
 
 function apiGetProductDetail(params) {
   try {
-    const managedId = params && params.managedId ? String(params.managedId).trim() : '';
+    var managedId = params && params.managedId ? String(params.managedId).trim() : '';
     if (!managedId) {
       return { ok: false, message: '管理番号が指定されていません' };
     }
     
-    const detail = pr_getProductDetail_(managedId);
+    var detail = pr_getProductDetail_(managedId);
     if (!detail) {
       return { ok: false, message: '商品が見つかりません: ' + managedId };
     }
