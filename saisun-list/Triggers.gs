@@ -196,37 +196,33 @@ function cronDaily7() {
   runWithErrorNotify_('cronDaily7', [cronInvoiceReceipts, cronCancelledInvoices, cronBaseTokenCheck]);
 }
 
-/** BASEトークンの残り有効期限を確認し、24時間以内なら管理者にメール通知 */
+/** BASEトークンのリフレッシュを試み、失敗した場合のみ管理者にメール通知 */
 function cronBaseTokenCheck() {
   var props = PropertiesService.getScriptProperties();
-  var exp = Number(props.getProperty(BASE_APP.PROP_EXPIRES_AT) || '0');
-  if (!exp) return; // BASE未設定
+  var access = String(props.getProperty(BASE_APP.PROP_ACCESS_TOKEN) || '').trim();
+  if (!access) return; // BASE未設定
 
-  var remainMs = exp - Date.now();
-  var remainHours = Math.floor(remainMs / (60 * 60 * 1000));
+  // 自動リフレッシュを試みる（baseGetAccessToken_が期限切れなら自動更新）
+  try {
+    baseGetAccessToken_();
+    // リフレッシュ成功 → 通知不要（アクセストークンは短命だが自動更新で正常運用）
+    return;
+  } catch (e) {
+    console.error('cronBaseTokenCheck: トークンリフレッシュ失敗:', e);
+  }
 
-  if (remainMs > 24 * 60 * 60 * 1000) return; // 24時間以上あれば問題なし
-
+  // リフレッシュ失敗 → 再認証が必要
   var adminEmail = String(props.getProperty('ADMIN_OWNER_EMAIL') || APP_CONFIG.notifyEmails || '').split(',')[0].trim();
   if (!adminEmail) return;
 
-  var subject, body;
-  if (remainMs <= 0) {
-    subject = '【要対応】BASE APIトークンが期限切れです';
-    body = 'BASE APIのアクセストークンが期限切れです。\n' +
-           'BASE連携（商品同期・注文同期）が停止しています。\n\n' +
-           '対応: GASエディタで baseShowAuthUrl() を実行し、BASE再認証を行ってください。';
-  } else {
-    subject = '【注意】BASE APIトークンの期限が残り' + remainHours + '時間です';
-    body = 'BASE APIのアクセストークンの有効期限が近づいています。\n' +
-           '残り約' + remainHours + '時間で期限切れになります。\n\n' +
-           '通常は自動リフレッシュされますが、リフレッシュトークンも期限切れの場合は\n' +
-           'GASエディタで baseShowAuthUrl() を実行し、BASE再認証を行ってください。';
-  }
+  var subject = '【要対応】BASE APIトークンの自動更新に失敗しました';
+  var body = 'BASE APIのアクセストークンの自動リフレッシュに失敗しました。\n' +
+             'リフレッシュトークンが期限切れの可能性があります。\n\n' +
+             '対応: GASエディタで baseShowAuthUrl() を実行し、BASE再認証を行ってください。';
 
   try {
     MailApp.sendEmail(adminEmail, subject, body);
-    console.log('BASEトークン期限警告メール送信: 残り' + remainHours + '時間');
+    console.log('BASEトークン再認証必要メール送信');
   } catch (e) {
     console.error('BASEトークン警告メール送信失敗:', e);
   }
@@ -239,7 +235,7 @@ function cronDaily8() {
 
 /** 毎日9時: 4関数を1トリガーで実行 */
 function cronDaily9() {
-  runWithErrorNotify_('cronDaily9', [sendPaymentReminders, cronNewsletter, cronDormantCoupon, cronDailySummary]);
+  runWithErrorNotify_('cronDaily9', [sendPaymentReminders, cronNewsletter, cronDormantCoupon, cronDailySummary, ga4advice_cron]);
 }
 
 // =====================================================
