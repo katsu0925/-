@@ -15,6 +15,51 @@ function listAllProperties() {
 }
 
 /**
+ * Workers連携に必要なプロパティを確認・設定
+ * GASエディタから1回実行してください
+ *
+ * 設定する値:
+ *   ADMIN_KEY         = "nkonline"（Workers ADMIN_KEY と一致させる）
+ *   WORKERS_API_URL   = Workers.dev URL
+ */
+function setupWorkersIntegration() {
+  var props = PropertiesService.getScriptProperties();
+
+  // 現在の値を確認
+  var currentAdminKey = props.getProperty('ADMIN_KEY') || '';
+  var currentWorkersUrl = props.getProperty('WORKERS_API_URL') || '';
+
+  console.log('=== Workers連携設定 ===');
+  console.log('現在の ADMIN_KEY: ' + (currentAdminKey ? '"' + currentAdminKey.substring(0, 3) + '***" (' + currentAdminKey.length + '文字)' : '未設定'));
+  console.log('現在の WORKERS_API_URL: ' + (currentWorkersUrl || '未設定'));
+
+  // Workers ADMIN_KEYと一致させる
+  var targetAdminKey = 'nkonline';
+  var targetWorkersUrl = 'https://detauri-gas-proxy.nsdktts1030.workers.dev';
+
+  if (currentAdminKey !== targetAdminKey) {
+    props.setProperty('ADMIN_KEY', targetAdminKey);
+    console.log('ADMIN_KEY を更新しました: "' + targetAdminKey + '"');
+  } else {
+    console.log('ADMIN_KEY は正しく設定済み');
+  }
+
+  if (currentWorkersUrl !== targetWorkersUrl) {
+    props.setProperty('WORKERS_API_URL', targetWorkersUrl);
+    console.log('WORKERS_API_URL を更新しました: "' + targetWorkersUrl + '"');
+  } else {
+    console.log('WORKERS_API_URL は正しく設定済み');
+  }
+
+  // 検証
+  var verify = props.getProperties();
+  console.log('');
+  console.log('=== 設定確認 ===');
+  console.log('ADMIN_KEY: ' + (verify['ADMIN_KEY'] === targetAdminKey ? '✓ OK' : '✗ MISMATCH'));
+  console.log('WORKERS_API_URL: ' + (verify['WORKERS_API_URL'] === targetWorkersUrl ? '✓ OK' : '✗ MISMATCH'));
+}
+
+/**
  * SYNC_SECRET を Script Properties に設定（D1同期用）
  * GASエディタから1回実行してください
  */
