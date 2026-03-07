@@ -1303,6 +1303,19 @@
       </div>
     </div>
   </div>
+  <div class="modal" id="confirmModal" aria-hidden="true" style="width:min(420px,90vw);">
+    <div class="modalHeader">
+      <div class="modalTitle" id="confirmModalTitle">確認</div>
+      <button class="modalClose" id="confirmModalClose" aria-label="close">×</button>
+    </div>
+    <div class="modalBody" style="padding:20px 16px;">
+      <p id="confirmModalMessage" style="margin:0 0 18px;line-height:1.7;color:#333;white-space:pre-wrap;"></p>
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <button class="btn" id="confirmModalCancel" type="button" style="min-width:80px;">キャンセル</button>
+        <button class="btn primary" id="confirmModalOk" type="button" style="min-width:80px;">OK</button>
+      </div>
+    </div>
+  </div>
   <div id="sendingOverlay" class="sendingOverlay" aria-hidden="true">
     <div class="sendingBox" role="status" aria-live="polite">
       <div class="sendingSpinner"></div>
@@ -1865,6 +1878,22 @@ function showAlertModal(msg, title) {
   function close() { closeModal(modal); okBtn.removeEventListener('click', close); closeBtn.removeEventListener('click', close); }
   okBtn.addEventListener('click', close);
   closeBtn.addEventListener('click', close);
+}
+
+function showConfirmModal(msg, onOk, title) {
+  var modal = $('confirmModal');
+  $('confirmModalTitle').textContent = title || '確認';
+  $('confirmModalMessage').textContent = String(msg || '');
+  openModal(modal);
+  var okBtn = $('confirmModalOk');
+  var cancelBtn = $('confirmModalCancel');
+  var closeBtn = $('confirmModalClose');
+  function cleanup() { closeModal(modal); okBtn.removeEventListener('click', onConfirm); cancelBtn.removeEventListener('click', onCancel); closeBtn.removeEventListener('click', onCancel); }
+  function onConfirm() { cleanup(); if (onOk) onOk(); }
+  function onCancel() { cleanup(); }
+  okBtn.addEventListener('click', onConfirm);
+  cancelBtn.addEventListener('click', onCancel);
+  closeBtn.addEventListener('click', onCancel);
 }
 
 // =====================================================
@@ -3581,28 +3610,31 @@ function changeBulkQty_(productId, delta, unitPrice, maxQty) {
 // カートクリア（3ボタン）
 // =====================================================
 function clearDetauriCartOnly_() {
-  if (!confirm('デタウリカートを空にしますか？')) return;
-  state.cart.ids = []; state.cart.itemsById = {}; state.cart.digest = {}; state.lastShipping = null;
-  saveCartStorage(); updateCartCount(); renderCartModal_(); updateShippingDisplay_(); filterAndRender(false);
-  runApi('apiSyncHolds', state.userKey, [], state.sessionId || null).catch(function() {});
-  showToast('デタウリカートを空にしました');
+  showConfirmModal('デタウリカートを空にしますか？', function() {
+    state.cart.ids = []; state.cart.itemsById = {}; state.cart.digest = {}; state.lastShipping = null;
+    saveCartStorage(); updateCartCount(); renderCartModal_(); updateShippingDisplay_(); filterAndRender(false);
+    runApi('apiSyncHolds', state.userKey, [], state.sessionId || null).catch(function() {});
+    showToast('デタウリカートを空にしました');
+  });
 }
 
 function clearBulkCartOnly_() {
-  if (!confirm('アソートカートを空にしますか？')) return;
-  try { localStorage.removeItem('bulk_cart_v1'); } catch (e) {}
-  updateCartCount(); renderCartModal_();
-  showToast('アソートカートを空にしました');
+  showConfirmModal('アソートカートを空にしますか？', function() {
+    try { localStorage.removeItem('bulk_cart_v1'); } catch (e) {}
+    updateCartCount(); renderCartModal_();
+    showToast('アソートカートを空にしました');
+  });
 }
 
 function clearAllCarts_() {
-  if (!confirm('すべてのカートを空にしますか？')) return;
-  state.cart.ids = []; state.cart.itemsById = {}; state.cart.digest = {}; state.lastShipping = null;
-  saveCartStorage(); updateCartCount(); updateShippingDisplay_(); filterAndRender(false);
-  runApi('apiSyncHolds', state.userKey, [], state.sessionId || null).catch(function() {});
-  try { localStorage.removeItem('bulk_cart_v1'); } catch (e) {}
-  renderCartModal_();
-  showToast('すべてのカートを空にしました');
+  showConfirmModal('すべてのカートを空にしますか？', function() {
+    state.cart.ids = []; state.cart.itemsById = {}; state.cart.digest = {}; state.lastShipping = null;
+    saveCartStorage(); updateCartCount(); updateShippingDisplay_(); filterAndRender(false);
+    runApi('apiSyncHolds', state.userKey, [], state.sessionId || null).catch(function() {});
+    try { localStorage.removeItem('bulk_cart_v1'); } catch (e) {}
+    renderCartModal_();
+    showToast('すべてのカートを空にしました');
+  });
 }
 
 function updateCartClearBtns_() {
@@ -6358,10 +6390,10 @@ function bindUi_() {
     var adminExit = $('adminExit');
     if (adminExit) {
       adminExit.addEventListener('click', function() {
-        if (confirm('管理者モードを解除しますか？\n再度アクセスするには ?admin=xxx のURLが必要です。')) {
+        showConfirmModal('管理者モードを解除しますか？\n再度アクセスするには ?admin=xxx のURLが必要です。', function() {
           try { localStorage.removeItem('_nk_owner_key'); } catch(e) {}
           location.reload();
-        }
+        });
       });
     }
     // --- 管理設定パネル ---
@@ -6424,16 +6456,17 @@ function bindUi_() {
       $('spBtnToggleMode').addEventListener('click', function() {
         var badge = $('spModeBadge');
         var target = (badge.textContent === '本番') ? 'テスト' : '本番';
-        if (!confirm('決済モードを「' + target + '」に切り替えますか？')) return;
-        $('spBtnToggleMode').disabled = true;
-        spLog('実行: 決済モード切替 → ' + target);
-        runApi('adminToggleKomojuMode').then(function(res) {
-          if (!res || !res.ok) { showToast(res && res.message ? res.message : '切替失敗'); spLog('失敗'); $('spBtnToggleMode').disabled = false; return; }
-          return runApi('adminGetKomojuMode');
-        }).then(function(info) {
-          if (info && info.ok) spUpdateMode(info.mode, info.hasTestKey, info.hasLiveKey);
-          showToast('切替完了'); spLog('切替完了');
-        }).catch(function(e) { showToast(e.message || '切替失敗'); spLog('失敗: ' + (e.message || '')); $('spBtnToggleMode').disabled = false; });
+        showConfirmModal('決済モードを「' + target + '」に切り替えますか？', function() {
+          $('spBtnToggleMode').disabled = true;
+          spLog('実行: 決済モード切替 → ' + target);
+          runApi('adminToggleKomojuMode').then(function(res) {
+            if (!res || !res.ok) { showToast(res && res.message ? res.message : '切替失敗'); spLog('失敗'); $('spBtnToggleMode').disabled = false; return; }
+            return runApi('adminGetKomojuMode');
+          }).then(function(info) {
+            if (info && info.ok) spUpdateMode(info.mode, info.hasTestKey, info.hasLiveKey);
+            showToast('切替完了'); spLog('切替完了');
+          }).catch(function(e) { showToast(e.message || '切替失敗'); spLog('失敗: ' + (e.message || '')); $('spBtnToggleMode').disabled = false; });
+        });
       });
 
       // 会員割引
@@ -6459,15 +6492,16 @@ function bindUi_() {
       $('spBtnToggleDiscount').addEventListener('click', function() {
         var badge = $('spDiscountBadge');
         var target = (badge.textContent === 'ON') ? 'OFF' : 'ON';
-        if (!confirm('会員割引を「' + target + '」に切り替えますか？')) return;
-        $('spBtnToggleDiscount').disabled = true;
-        spLog('実行: 会員割引切替 → ' + target);
-        runApi('adminToggleMemberDiscount').then(function(res) {
-          if (!res || !res.ok) { showToast(res && res.message ? res.message : '切替失敗'); spLog('失敗'); $('spBtnToggleDiscount').disabled = false; return; }
-          spUpdateDiscount(res.enabled, res.rate, res.endDate, res.reason);
-          showToast(res.message || '切替完了'); spLog(res.message || '切替完了');
-          $('spBtnToggleDiscount').disabled = false;
-        }).catch(function(e) { showToast(e.message || '切替失敗'); spLog('失敗: ' + (e.message || '')); $('spBtnToggleDiscount').disabled = false; });
+        showConfirmModal('会員割引を「' + target + '」に切り替えますか？', function() {
+          $('spBtnToggleDiscount').disabled = true;
+          spLog('実行: 会員割引切替 → ' + target);
+          runApi('adminToggleMemberDiscount').then(function(res) {
+            if (!res || !res.ok) { showToast(res && res.message ? res.message : '切替失敗'); spLog('失敗'); $('spBtnToggleDiscount').disabled = false; return; }
+            spUpdateDiscount(res.enabled, res.rate, res.endDate, res.reason);
+            showToast(res.message || '切替完了'); spLog(res.message || '切替完了');
+            $('spBtnToggleDiscount').disabled = false;
+          }).catch(function(e) { showToast(e.message || '切替失敗'); spLog('失敗: ' + (e.message || '')); $('spBtnToggleDiscount').disabled = false; });
+        });
       });
     })();
   }

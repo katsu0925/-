@@ -60,6 +60,22 @@
   </div>
   <div class="toast" id="toast"></div>
 
+  <!-- 確認モーダル -->
+  <div id="confirmOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:100;"></div>
+  <div id="confirmModal" style="display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;width:min(380px,90vw);z-index:101;box-shadow:0 8px 30px rgba(0,0,0,.2);">
+    <div style="padding:14px 16px;border-bottom:1px solid #e6e8ee;display:flex;justify-content:space-between;align-items:center;">
+      <div style="font-weight:900;" id="confirmTitle">確認</div>
+      <button id="confirmClose" style="border:none;background:none;font-size:20px;cursor:pointer;padding:0;line-height:1;">&times;</button>
+    </div>
+    <div style="padding:16px;">
+      <p id="confirmMessage" style="margin:0 0 16px;line-height:1.7;color:#333;white-space:pre-wrap;"></p>
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <button id="confirmCancel" type="button">キャンセル</button>
+        <button class="primary" id="confirmOk" type="button">OK</button>
+      </div>
+    </div>
+  </div>
+
 <script>
   // 管理者キーをlocalStorageに保存（通常ページでも管理者バー表示用）
   (function() {
@@ -75,6 +91,20 @@
   })();
 
   function $(id){ return document.getElementById(id); }
+  function showConfirmModal(msg, onOk, title) {
+    var modal = $('confirmModal'), overlay = $('confirmOverlay');
+    $('confirmTitle').textContent = title || '確認';
+    $('confirmMessage').textContent = String(msg || '');
+    modal.style.display = 'block'; overlay.style.display = 'block';
+    var okBtn = $('confirmOk'), cancelBtn = $('confirmCancel'), closeBtn = $('confirmClose');
+    function cleanup() { modal.style.display = 'none'; overlay.style.display = 'none'; okBtn.removeEventListener('click', onConfirm); cancelBtn.removeEventListener('click', onCancel); closeBtn.removeEventListener('click', onCancel); overlay.removeEventListener('click', onCancel); }
+    function onConfirm() { cleanup(); if (onOk) onOk(); }
+    function onCancel() { cleanup(); }
+    okBtn.addEventListener('click', onConfirm);
+    cancelBtn.addEventListener('click', onCancel);
+    closeBtn.addEventListener('click', onCancel);
+    overlay.addEventListener('click', onCancel);
+  }
   function showToast(msg){
     const t = $('toast');
     t.textContent = String(msg || '');
@@ -227,61 +257,61 @@
     }
   })();
 
-  $('btnToggleDiscount').addEventListener('click', async ()=>{
+  $('btnToggleDiscount').addEventListener('click', ()=>{
     const badge = $('discountBadge');
     const current = badge.textContent;
     const target = (current === 'ON') ? 'OFF' : 'ON';
-    if (!confirm('会員割引を「' + target + '」に切り替えますか？')) return;
-
-    $('btnToggleDiscount').disabled = true;
-    try {
-      log('実行: 会員割引切替 → ' + target);
-      const res = await run('adminToggleMemberDiscount');
-      if (!res || !res.ok) {
-        showToast(res && res.message ? res.message : '切替失敗');
-        log('失敗: ' + (res && res.message ? res.message : ''));
+    showConfirmModal('会員割引を「' + target + '」に切り替えますか？', async ()=>{
+      $('btnToggleDiscount').disabled = true;
+      try {
+        log('実行: 会員割引切替 → ' + target);
+        const res = await run('adminToggleMemberDiscount');
+        if (!res || !res.ok) {
+          showToast(res && res.message ? res.message : '切替失敗');
+          log('失敗: ' + (res && res.message ? res.message : ''));
+          $('btnToggleDiscount').disabled = false;
+          return;
+        }
+        updateDiscountBadge(res.enabled, res.rate, res.endDate, res.reason);
+        showToast(res.message || '切替完了');
+        log(res.message || '切替完了');
         $('btnToggleDiscount').disabled = false;
-        return;
+      } catch(e) {
+        showToast(e.message || '切替失敗');
+        log('失敗: ' + (e.message || ''));
+        $('btnToggleDiscount').disabled = false;
       }
-      updateDiscountBadge(res.enabled, res.rate, res.endDate, res.reason);
-      showToast(res.message || '切替完了');
-      log(res.message || '切替完了');
-      $('btnToggleDiscount').disabled = false;
-    } catch(e) {
-      showToast(e.message || '切替失敗');
-      log('失敗: ' + (e.message || ''));
-      $('btnToggleDiscount').disabled = false;
-    }
+    });
   });
 
-  $('btnToggleMode').addEventListener('click', async ()=>{
+  $('btnToggleMode').addEventListener('click', ()=>{
     const badge = $('modeBadge');
     const currentMode = badge.textContent;
     const targetMode = (currentMode === '本番') ? 'テスト' : '本番';
-    if (!confirm('決済モードを「' + targetMode + '」に切り替えますか？')) return;
-
-    $('btnToggleMode').disabled = true;
-    try {
-      log('実行: 決済モード切替 → ' + targetMode);
-      const res = await run('adminToggleKomojuMode');
-      if (!res || !res.ok) {
-        showToast(res && res.message ? res.message : '切替失敗');
-        log('失敗: ' + (res && res.message ? res.message : ''));
+    showConfirmModal('決済モードを「' + targetMode + '」に切り替えますか？', async ()=>{
+      $('btnToggleMode').disabled = true;
+      try {
+        log('実行: 決済モード切替 → ' + targetMode);
+        const res = await run('adminToggleKomojuMode');
+        if (!res || !res.ok) {
+          showToast(res && res.message ? res.message : '切替失敗');
+          log('失敗: ' + (res && res.message ? res.message : ''));
+          $('btnToggleMode').disabled = false;
+          return;
+        }
+        // 最新状態を再取得
+        const info = await run('adminGetKomojuMode');
+        if (info && info.ok) {
+          updateModeBadge(info.mode, info.hasTestKey, info.hasLiveKey);
+        }
+        showToast(res.message || '切替完了');
+        log(res.message || '切替完了');
+      } catch(e) {
+        showToast(e.message || '切替失敗');
+        log('失敗: ' + (e.message || ''));
         $('btnToggleMode').disabled = false;
-        return;
       }
-      // 最新状態を再取得
-      const info = await run('adminGetKomojuMode');
-      if (info && info.ok) {
-        updateModeBadge(info.mode, info.hasTestKey, info.hasLiveKey);
-      }
-      showToast(res.message || '切替完了');
-      log(res.message || '切替完了');
-    } catch(e) {
-      showToast(e.message || '切替失敗');
-      log('失敗: ' + (e.message || ''));
-      $('btnToggleMode').disabled = false;
-    }
+    });
   });
 </script>
 </body>
