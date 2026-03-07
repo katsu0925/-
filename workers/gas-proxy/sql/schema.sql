@@ -169,6 +169,13 @@ CREATE TABLE IF NOT EXISTS pending_orders (
 );
 CREATE INDEX IF NOT EXISTS idx_pending_orders_created ON pending_orders(created_at);
 
+-- セッションID→決済トークン逆引きテーブル（Webhook paymentToken解決用）
+CREATE TABLE IF NOT EXISTS session_token_map (
+  session_id TEXT PRIMARY KEY,
+  payment_token TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+
 -- 同期メタデータ
 CREATE TABLE IF NOT EXISTS sync_meta (
   source TEXT PRIMARY KEY,                 -- 'products', 'customers', 'coupons', etc.

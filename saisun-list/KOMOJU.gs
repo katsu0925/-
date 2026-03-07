@@ -265,12 +265,10 @@ function handleKomojuWebhook(e) {
  */
 function handlePaymentSuccess_(data) {
   var webhookPayment = data.data;
-  // 新フロー: metadata.payment_token、旧フロー: metadata.receipt_no にフォールバック
-  var paymentToken = webhookPayment.external_order_num ||
-                  (webhookPayment.metadata ? (webhookPayment.metadata.payment_token || webhookPayment.metadata.receipt_no) : null);
+  var paymentToken = resolvePaymentToken_(webhookPayment);
 
   if (!paymentToken) {
-    console.error('Payment token not found in webhook data');
+    console.error('Payment token not found in webhook data (5-level fallback exhausted)');
     return { ok: false, message: 'Payment token not found' };
   }
 
@@ -347,11 +345,10 @@ function handlePaymentSuccess_(data) {
  */
 function handlePaymentFailed_(data) {
   var webhookPayment = data.data;
-  var paymentToken = webhookPayment.external_order_num ||
-                  (webhookPayment.metadata ? (webhookPayment.metadata.payment_token || webhookPayment.metadata.receipt_no) : null);
+  var paymentToken = resolvePaymentToken_(webhookPayment);
 
   if (!paymentToken) {
-    return { ok: false, message: 'Payment token not found' };
+    return { ok: false, message: 'Payment token not found (5-level fallback exhausted)' };
   }
 
   // === KOMOJU APIで決済状態を裏取り ===
@@ -395,11 +392,10 @@ function handlePaymentFailed_(data) {
  */
 function handlePaymentRefunded_(data) {
   var webhookPayment = data.data;
-  var paymentToken = webhookPayment.external_order_num ||
-                  (webhookPayment.metadata ? (webhookPayment.metadata.payment_token || webhookPayment.metadata.receipt_no) : null);
+  var paymentToken = resolvePaymentToken_(webhookPayment);
 
   if (!paymentToken) {
-    return { ok: false, message: 'Payment token not found' };
+    return { ok: false, message: 'Payment token not found (5-level fallback exhausted)' };
   }
 
   // === KOMOJU APIで決済状態を裏取り ===
@@ -439,11 +435,10 @@ function handlePaymentRefunded_(data) {
  */
 function handlePaymentUpdated_(data) {
   var webhookPayment = data.data;
-  var paymentToken = webhookPayment.external_order_num ||
-                  (webhookPayment.metadata ? (webhookPayment.metadata.payment_token || webhookPayment.metadata.receipt_no) : null);
+  var paymentToken = resolvePaymentToken_(webhookPayment);
 
   if (!paymentToken) {
-    console.log('payment.updated: payment token not found, ignoring');
+    console.log('payment.updated: payment token not found (5-level fallback exhausted), ignoring');
     return { ok: true, message: 'No payment token, ignored' };
   }
 
@@ -694,6 +689,162 @@ function komojuRequest_(method, endpoint, data, secretKey) {
   } catch (e) {
     console.error('Failed to parse KOMOJU response:', responseText);
     return { error: { message: 'Invalid response from KOMOJU' } };
+  }
+}
+
+// =====================================================
+// paymentToken 5段フォールバック解決
+// =====================================================
+
+/**
+ * Webhookの決済オブジェクトからpaymentTokenを5段フォールバックで解決する。
+ *
+ * Level 1: external_order_num（通常はここで解決）
+ * Level 2: metadata.payment_token（メタデータから）
+ * Level 3: metadata.receipt_no（旧フロー互換）
+ * Level 4: KOMOJU Sessions API GET /sessions/{session_id}（セッションの元metadata）
+ * Level 5: D1逆引き session_token_map（Workers API経由）
+ *
+ * @param {object} webhookPayment - Webhookのdata.data（決済オブジェクト）
+ * @returns {string|null} - paymentToken。解決できなければnull
+ */
+function resolvePaymentToken_(webhookPayment) {
+  if (!webhookPayment) return null;
+
+  // Level 1: external_order_num
+  if (webhookPayment.external_order_num) {
+    console.log('resolvePaymentToken_: Level 1 (external_order_num) → ' + webhookPayment.external_order_num);
+    return webhookPayment.external_order_num;
+  }
+
+  // Level 2: metadata.payment_token
+  if (webhookPayment.metadata && webhookPayment.metadata.payment_token) {
+    console.log('resolvePaymentToken_: Level 2 (metadata.payment_token) → ' + webhookPayment.metadata.payment_token);
+    return webhookPayment.metadata.payment_token;
+  }
+
+  // Level 3: metadata.receipt_no（旧フロー互換）
+  if (webhookPayment.metadata && webhookPayment.metadata.receipt_no) {
+    console.log('resolvePaymentToken_: Level 3 (metadata.receipt_no) → ' + webhookPayment.metadata.receipt_no);
+    return webhookPayment.metadata.receipt_no;
+  }
+
+  // Level 4: KOMOJU Sessions API
+  // 決済オブジェクトからsession_idを取得してセッション情報を参照
+  var sessionId = webhookPayment.session || null;
+  if (!sessionId && webhookPayment.id) {
+    // session_idが直接ない場合、KOMOJU Payments APIから取得済みの情報を確認
+    var apiPayment = fetchPaymentFromApi_(webhookPayment.id);
+    if (apiPayment) {
+      sessionId = apiPayment.session || null;
+      // APIから取得した決済オブジェクト自体にexternal_order_numがある場合もチェック
+      if (apiPayment.external_order_num) {
+        console.log('resolvePaymentToken_: Level 4a (API payment.external_order_num) → ' + apiPayment.external_order_num);
+        return apiPayment.external_order_num;
+      }
+      if (apiPayment.metadata && apiPayment.metadata.payment_token) {
+        console.log('resolvePaymentToken_: Level 4b (API payment.metadata.payment_token) → ' + apiPayment.metadata.payment_token);
+        return apiPayment.metadata.payment_token;
+      }
+    }
+  }
+
+  if (sessionId) {
+    var session = fetchSessionFromApi_(sessionId);
+    if (session) {
+      // セッションのexternal_order_numやmetadataを確認
+      if (session.external_order_num) {
+        console.log('resolvePaymentToken_: Level 4c (session.external_order_num) → ' + session.external_order_num);
+        return session.external_order_num;
+      }
+      if (session.metadata && session.metadata.payment_token) {
+        console.log('resolvePaymentToken_: Level 4d (session.metadata.payment_token) → ' + session.metadata.payment_token);
+        return session.metadata.payment_token;
+      }
+    }
+
+    // Level 5: D1逆引き session_token_map
+    var d1Token = lookupTokenFromD1_(sessionId);
+    if (d1Token) {
+      console.log('resolvePaymentToken_: Level 5 (D1 session_token_map) → ' + d1Token);
+      return d1Token;
+    }
+  }
+
+  console.error('resolvePaymentToken_: 全5レベルで解決不能。paymentId=' + (webhookPayment.id || 'unknown') + ', sessionId=' + (sessionId || 'unknown'));
+  return null;
+}
+
+/**
+ * KOMOJU Sessions APIでセッション情報を取得
+ * @param {string} sessionId - KOMOJUのセッションID
+ * @returns {object|null} - セッション情報。取得失敗時はnull
+ */
+function fetchSessionFromApi_(sessionId) {
+  if (!sessionId) return null;
+
+  var secretKey = getKomojuSecretKey_();
+  if (!secretKey) {
+    console.error('fetchSessionFromApi_: APIキー未設定');
+    return null;
+  }
+
+  var response = komojuRequest_('GET', '/sessions/' + sessionId, null, secretKey);
+  if (response.error) {
+    console.error('fetchSessionFromApi_: KOMOJU API error:', response.error.message || JSON.stringify(response.error));
+    return null;
+  }
+
+  if (!response.id) {
+    console.error('fetchSessionFromApi_: 不正なレスポンス');
+    return null;
+  }
+
+  return response;
+}
+
+/**
+ * Workers API経由でD1のsession_token_mapからpaymentTokenを逆引き
+ * @param {string} sessionId - KOMOJUのセッションID
+ * @returns {string|null} - paymentToken。見つからない場合はnull
+ */
+function lookupTokenFromD1_(sessionId) {
+  if (!sessionId) return null;
+
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var workersUrl = props.getProperty('WORKERS_API_URL');
+    var adminKey = props.getProperty('ADMIN_KEY');
+    if (!workersUrl || !adminKey) {
+      console.warn('lookupTokenFromD1_: WORKERS_API_URL or ADMIN_KEY not set');
+      return null;
+    }
+
+    var resp = UrlFetchApp.fetch(workersUrl, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify({
+        action: 'apiLookupBySession',
+        adminKey: adminKey,
+        args: [sessionId]
+      }),
+      muteHttpExceptions: true
+    });
+
+    var code = resp.getResponseCode();
+    if (code !== 200) {
+      console.error('lookupTokenFromD1_: HTTP ' + code);
+      return null;
+    }
+
+    var result = JSON.parse(resp.getContentText());
+    if (result && result.ok && result.found && result.paymentToken) {
+      return result.paymentToken;
+    }
+    return null;
+  } catch (e) {
+    console.error('lookupTokenFromD1_ error:', e);
+    return null;
   }
 }
 

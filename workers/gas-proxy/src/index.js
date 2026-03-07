@@ -53,6 +53,9 @@ const WORKER_HANDLED = {
   // D1ペンディング注文API（GASフォールバック用）
   apiGetPendingOrder:     (args, env, bodyText) => submit.getPendingOrder(args, env, bodyText),
   apiMarkPendingConsumed: (args, env, bodyText) => submit.markPendingConsumed(args, env, bodyText),
+
+  // D1 session_token_map逆引き（Webhook paymentToken解決フォールバック用）
+  apiLookupBySession:     (args, env, bodyText) => submit.lookupBySession(args, env, bodyText),
 };
 
 // CSRFが必要なaction（Phase 2以降で有効化）

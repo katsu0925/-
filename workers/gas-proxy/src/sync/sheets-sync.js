@@ -77,6 +77,9 @@ export async function scheduledSync(env) {
     // 6. pending_orders クリーンアップ
     await cleanupPendingOrders(env.DB);
 
+    // 7. session_token_map クリーンアップ（30日以上経過したレコードを削除）
+    await cleanupSessionTokenMap(env.DB);
+
     console.log('[sync] Sync completed successfully');
   } catch (e) {
     console.error('[sync] Sync error:', e.message, e.stack);
@@ -108,6 +111,22 @@ async function cleanupPendingOrders(db) {
     }
   } catch (e) {
     console.error('[sync] pending_orders cleanup error:', e.message);
+  }
+}
+
+// ─── session_token_map クリーンアップ ───
+
+async function cleanupSessionTokenMap(db) {
+  try {
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { meta } = await db.prepare(
+      'DELETE FROM session_token_map WHERE created_at < ?'
+    ).bind(thirtyDaysAgo).run();
+    if (meta.changes > 0) {
+      console.log(`[sync] session_token_map cleanup: deleted ${meta.changes} rows (>30 days)`);
+    }
+  } catch (e) {
+    console.error('[sync] session_token_map cleanup error:', e.message);
   }
 }
 

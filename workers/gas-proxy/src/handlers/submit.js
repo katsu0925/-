@@ -556,6 +556,17 @@ export async function submitEstimate(args, env, bodyText, ctx) {
 
   const komojuResult = await komojuResp.json();
 
+  // session_id → paymentToken マッピング保存（Webhook paymentToken解決フォールバック用）
+  if (komojuResult.id) {
+    try {
+      await env.DB.prepare(
+        'INSERT INTO session_token_map (session_id, payment_token, created_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING'
+      ).bind(komojuResult.id, paymentToken, new Date().toISOString()).run();
+    } catch (mapErr) {
+      console.error('session_token_map save error (non-fatal):', mapErr.message);
+    }
+  }
+
   if (komojuResult.error || !komojuResult.session_url) {
     // KOMOJU失敗 → holdsを元に戻す
     console.error('KOMOJU session creation failed:', JSON.stringify(komojuResult));
@@ -830,6 +841,35 @@ export async function getPendingOrder(args, env, bodyText) {
     });
   } catch (e) {
     console.error('getPendingOrder error:', e.message);
+    return jsonError('D1 query error: ' + e.message, 500);
+  }
+}
+
+/**
+ * D1のsession_token_mapからsession_id→paymentTokenを逆引き（ADMIN_KEY認証）
+ */
+export async function lookupBySession(args, env, bodyText) {
+  let parsed;
+  try { parsed = JSON.parse(bodyText); } catch (e) { parsed = {}; }
+  if (!parsed.adminKey || parsed.adminKey !== env.ADMIN_KEY) {
+    return jsonError('Unauthorized', 403);
+  }
+
+  const sessionId = String(args[0] || '').trim();
+  if (!sessionId) return jsonError('session_id is required');
+
+  try {
+    const row = await env.DB.prepare(
+      'SELECT payment_token FROM session_token_map WHERE session_id = ?'
+    ).bind(sessionId).first();
+
+    if (!row) {
+      return jsonOk({ ok: true, found: false });
+    }
+
+    return jsonOk({ ok: true, found: true, paymentToken: row.payment_token });
+  } catch (e) {
+    console.error('lookupBySession error:', e.message);
     return jsonError('D1 query error: ' + e.message, 500);
   }
 }
