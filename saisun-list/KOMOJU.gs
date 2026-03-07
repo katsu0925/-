@@ -132,8 +132,25 @@ function apiCheckPaymentStatus(pendingKey) {
     }
 
     var saved = getPaymentSession_(pendingKey);
+
+    // Workers版submitEstimateではPAYMENT_セッションがGASに保存されないため、
+    // D1 session_token_mapから逆引きしてセッション情報を復元する
     if (!saved || !saved.sessionId) {
-      return { ok: false, message: '決済セッションが見つかりません' };
+      console.log('apiCheckPaymentStatus: PAYMENT_セッション未保存、D1逆引きを試行: ' + pendingKey);
+      var recoveredSessionId = lookupSessionByToken_(pendingKey);
+      if (recoveredSessionId) {
+        saved = {
+          sessionId: recoveredSessionId,
+          status: 'pending',
+          createdAt: new Date().toISOString()
+        };
+        // 復元したセッション情報を保存（次回以降のフォールバック不要化）
+        savePaymentSession_(pendingKey, saved);
+        console.log('apiCheckPaymentStatus: D1逆引き成功、sessionId=' + recoveredSessionId);
+      } else {
+        console.error('apiCheckPaymentStatus: D1逆引きも失敗: ' + pendingKey);
+        return { ok: false, message: '決済セッションが見つかりません' };
+      }
     }
 
     var response = komojuRequest_('GET', '/sessions/' + saved.sessionId, null, secretKey);
@@ -848,6 +865,52 @@ function lookupTokenFromD1_(sessionId) {
     return null;
   } catch (e) {
     console.error('lookupTokenFromD1_ error:', e);
+    return null;
+  }
+}
+
+/**
+ * Workers API経由でD1のsession_token_mapからpaymentToken→sessionIdを逆引き
+ * Workers版submitEstimateで作成されたKOMOJUセッションのIDを取得するために使用
+ * @param {string} paymentToken - 決済トークン（UUID）
+ * @returns {string|null} - sessionId。見つからない場合はnull
+ */
+function lookupSessionByToken_(paymentToken) {
+  if (!paymentToken) return null;
+
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var workersUrl = props.getProperty('WORKERS_API_URL');
+    var adminKey = props.getProperty('ADMIN_KEY');
+    if (!workersUrl || !adminKey) {
+      console.warn('lookupSessionByToken_: WORKERS_API_URL or ADMIN_KEY not set');
+      return null;
+    }
+
+    var resp = UrlFetchApp.fetch(workersUrl, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify({
+        action: 'apiLookupSessionByToken',
+        adminKey: adminKey,
+        args: [paymentToken]
+      }),
+      muteHttpExceptions: true
+    });
+
+    var code = resp.getResponseCode();
+    if (code !== 200) {
+      console.error('lookupSessionByToken_: HTTP ' + code);
+      return null;
+    }
+
+    var result = JSON.parse(resp.getContentText());
+    if (result && result.ok && result.found && result.sessionId) {
+      return result.sessionId;
+    }
+    return null;
+  } catch (e) {
+    console.error('lookupSessionByToken_ error:', e);
     return null;
   }
 }
@@ -1604,7 +1667,7 @@ function setupPendingOrderTrigger() {
  * GASエディタから実行
  */
 function recoverKomojuPayment() {
-  var paymentId = 'a6c1u89brkta7o5okxbzzd9qe';
+  var paymentId = '12r1rrkxu3zrvtyp4maq1frjv';
 
   // 1. KOMOJUから支払い情報を取得
   var payment = fetchPaymentFromApi_(paymentId);
@@ -1620,6 +1683,28 @@ function recoverKomojuPayment() {
   var meta = payment.metadata || {};
   console.log('metadata: ' + JSON.stringify(meta));
   console.log('external_order_num: ' + (payment.external_order_num || '(empty)'));
+  var paymentToken = resolvePaymentToken_(payment);
+  console.log('resolvePaymentToken_: ' + (paymentToken || '(null)'));
+
+  // === 高優先度: paymentTokenが見つかればconfirmPaymentAndCreateOrderで完全復旧を試みる ===
+  if (paymentToken) {
+    var paymentMethodType = extractPaymentMethodType_(payment);
+    var deferredMethods = { 'konbini': true, 'bank_transfer': true, 'pay_easy': true, 'paidy': true };
+    var paymentStatus = '未対応';
+    if (deferredMethods[paymentMethodType] && payment.status !== 'captured') {
+      paymentStatus = '入金待ち';
+    }
+    console.log('confirmPaymentAndCreateOrderを試行: token=' + paymentToken + ', status=' + paymentStatus);
+    var confirmResult = confirmPaymentAndCreateOrder(paymentToken, paymentStatus, paymentMethodType, paymentId);
+    if (confirmResult && confirmResult.ok) {
+      console.log('=== 完全復旧成功 ===');
+      console.log('受付番号: ' + (confirmResult.receiptNo || paymentToken));
+      console.log('メッセージ: ' + confirmResult.message);
+      return;
+    }
+    console.log('confirmPaymentAndCreateOrder失敗: ' + (confirmResult ? confirmResult.message : 'null') + ' → ミニマル復旧にフォールバック');
+  }
+
   var receiptNo = payment.external_order_num || meta.receipt_no || meta.payment_token || '';
   if (!receiptNo) {
     // どこにも受付番号がない場合は新規生成

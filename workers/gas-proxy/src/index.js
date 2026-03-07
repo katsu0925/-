@@ -56,6 +56,7 @@ const WORKER_HANDLED = {
 
   // D1 session_token_map逆引き（Webhook paymentToken解決フォールバック用）
   apiLookupBySession:     (args, env, bodyText) => submit.lookupBySession(args, env, bodyText),
+  apiLookupSessionByToken:(args, env, bodyText) => submit.lookupSessionByToken(args, env, bodyText),
 };
 
 // CSRFが必要なaction（Phase 2以降で有効化）

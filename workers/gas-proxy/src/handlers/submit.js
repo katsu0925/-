@@ -609,6 +609,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     bulkShipping: bulkShippingAmount,
     bulkItemCount,
     totalAmount: totalWithShipping,
+    komojuSessionId: komojuResult.id || '',
   };
 
   // ─── D1バックアップ保存（PropertiesService欠損時のフォールバック用） ───
@@ -870,6 +871,36 @@ export async function lookupBySession(args, env, bodyText) {
     return jsonOk({ ok: true, found: true, paymentToken: row.payment_token });
   } catch (e) {
     console.error('lookupBySession error:', e.message);
+    return jsonError('D1 query error: ' + e.message, 500);
+  }
+}
+
+/**
+ * D1のsession_token_mapからpaymentToken→sessionIdを逆引き（ADMIN_KEY認証）
+ * Workers版submitEstimateで作成されたKOMOJUセッションIDをGAS側から取得するために使用
+ */
+export async function lookupSessionByToken(args, env, bodyText) {
+  let parsed;
+  try { parsed = JSON.parse(bodyText); } catch (e) { parsed = {}; }
+  if (!parsed.adminKey || parsed.adminKey !== env.ADMIN_KEY) {
+    return jsonError('Unauthorized', 403);
+  }
+
+  const paymentToken = String(args[0] || '').trim();
+  if (!paymentToken) return jsonError('paymentToken is required');
+
+  try {
+    const row = await env.DB.prepare(
+      'SELECT session_id FROM session_token_map WHERE payment_token = ?'
+    ).bind(paymentToken).first();
+
+    if (!row) {
+      return jsonOk({ ok: true, found: false });
+    }
+
+    return jsonOk({ ok: true, found: true, sessionId: row.session_id });
+  } catch (e) {
+    console.error('lookupSessionByToken error:', e.message);
     return jsonError('D1 query error: ' + e.message, 500);
   }
 }
