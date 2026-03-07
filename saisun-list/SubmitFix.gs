@@ -568,12 +568,20 @@ function _internalSavePendingOrder(pendingData) {
 
     // 4. PAYMENT_セッション保存（Workers版submitEstimate用: apiCheckPaymentStatusで必要）
     if (pendingData.komojuSessionId) {
-      savePaymentSession_(pendingKey, {
+      var paymentSessionData = {
         sessionId: pendingData.komojuSessionId,
         amount: pendingData.totalAmount || 0,
         status: 'pending',
         createdAt: new Date().toISOString()
-      });
+      };
+      savePaymentSession_(pendingKey, paymentSessionData);
+      // 書き込み検証: PropertiesServiceへの保存を確認
+      var verify = getPaymentSession_(pendingKey);
+      if (!verify || !verify.sessionId) {
+        console.warn('_internalSavePendingOrder: PAYMENT_保存検証失敗、リトライ');
+        Utilities.sleep(300);
+        savePaymentSession_(pendingKey, paymentSessionData);
+      }
       console.log('_internalSavePendingOrder: saved PAYMENT_' + pendingKey + ' (sessionId=' + pendingData.komojuSessionId + ')');
     }
 

@@ -302,10 +302,19 @@ function baseTestOrders() {
 function baseSyncOrdersNow() {
   const last = baseGetLastSyncAt_();
   var result;
-  if (!last) {
-    result = baseSyncOrdersSinceDays(BASE_APP.SYNC_DEFAULT_DAYS);
-  } else {
-    result = baseSyncOrdersBetween_(new Date(last.getTime() - BASE_APP.SYNC_BUFFER_DAYS * 24 * 3600 * 1000), new Date());
+  try {
+    if (!last) {
+      result = baseSyncOrdersSinceDays(BASE_APP.SYNC_DEFAULT_DAYS);
+    } else {
+      result = baseSyncOrdersBetween_(new Date(last.getTime() - BASE_APP.SYNC_BUFFER_DAYS * 24 * 3600 * 1000), new Date());
+    }
+  } catch (e) {
+    // 帯域制限エラーは次回実行に回す（LINE通知しない）
+    if (String(e.message || '').indexOf('Bandwidth quota') !== -1) {
+      console.warn('baseSyncOrdersNow: 帯域制限に到達、次回に継続');
+      return { ok: false, reason: 'bandwidth_quota' };
+    }
+    throw e;
   }
 
   // BASE_注文 → 依頼管理 自動反映
@@ -359,11 +368,16 @@ function baseSyncOrdersBetween_(startDate, endDate) {
     const orderIndex = baseBuildOrderIndexMap_(ordersSh);
     const itemIndex = baseBuildItemIndexMap_(itemsSh);
 
+    // 既存注文のステータスを取得（確定済みはAPI呼び出しをスキップ）
+    const orderStatusMap = baseBuildOrderStatusMap_(ordersSh);
+    const TERMINAL_STATUSES = { '対応済': true, 'キャンセル': true };
+
     let offset = 0;
     let totalUpsertOrders = 0;
     let totalUpsertItems = 0;
     let appendedOrders = 0;
     let appendedItems = 0;
+    let skippedTerminal = 0;
 
     const startTime = Date.now();
     const maxMs = 5 * 60 * 1000 - 15000;
@@ -371,12 +385,21 @@ function baseSyncOrdersBetween_(startDate, endDate) {
     while (true) {
       if (Date.now() - startTime > maxMs) break;
 
-      const list = baseApiGet_('/1/orders', {
-        start_ordered: startStr,
-        end_ordered: endStr,
-        limit: String(BASE_APP.LIST_LIMIT),
-        offset: String(offset)
-      });
+      let list;
+      try {
+        list = baseApiGet_('/1/orders', {
+          start_ordered: startStr,
+          end_ordered: endStr,
+          limit: String(BASE_APP.LIST_LIMIT),
+          offset: String(offset)
+        });
+      } catch (e) {
+        if (String(e.message || '').indexOf('Bandwidth quota') !== -1) {
+          console.warn('BASE同期: 帯域制限に到達、次回に継続');
+          break;
+        }
+        throw e;
+      }
 
       const orders = (list && list.orders && Array.isArray(list.orders)) ? list.orders : [];
       if (orders.length === 0) break;
@@ -387,7 +410,23 @@ function baseSyncOrdersBetween_(startDate, endDate) {
         const uk = orders[i] && orders[i].unique_key ? String(orders[i].unique_key) : '';
         if (!uk) continue;
 
-        const detail = baseApiGet_('/1/orders/detail/' + encodeURIComponent(uk), null);
+        // 既にシートにあり、確定済みステータスの注文はAPI呼び出しをスキップ
+        const existingStatus = orderStatusMap[uk];
+        if (existingStatus && TERMINAL_STATUSES[existingStatus]) {
+          skippedTerminal++;
+          continue;
+        }
+
+        let detail;
+        try {
+          detail = baseApiGet_('/1/orders/detail/' + encodeURIComponent(uk), null);
+        } catch (e) {
+          if (String(e.message || '').indexOf('Bandwidth quota') !== -1) {
+            console.warn('BASE同期: 帯域制限に到達、次回に継続');
+            break;
+          }
+          throw e;
+        }
         const order = detail && detail.order ? detail.order : null;
         if (!order) continue;
 
@@ -427,6 +466,8 @@ function baseSyncOrdersBetween_(startDate, endDate) {
       offset += orders.length;
       if (orders.length < BASE_APP.LIST_LIMIT) break;
     }
+
+    if (skippedTerminal > 0) console.log('BASE同期: 確定済み注文スキップ ' + skippedTerminal + '件');
 
     baseEnsurePlainTextColumns_(ordersSh, ['電話番号', '住所2']);
 
@@ -571,6 +612,22 @@ function baseBuildOrderIndexMap_(sheet) {
   for (let i = 0; i < values.length; i++) {
     const k = values[i][0];
     if (k != null && String(k).trim()) map[String(k).trim()] = i + 2;
+  }
+  return map;
+}
+
+function baseBuildOrderStatusMap_(sheet) {
+  const lastRow = sheet.getLastRow();
+  const map = {};
+  if (lastRow < 2) return map;
+  // A列=注文キー, G列(7)=注文ステータス
+  const values = sheet.getRange(2, 1, lastRow - 1, 7).getValues();
+  for (let i = 0; i < values.length; i++) {
+    const k = values[i][0];
+    const status = values[i][6]; // G列
+    if (k != null && String(k).trim()) {
+      map[String(k).trim()] = String(status || '').trim();
+    }
   }
   return map;
 }

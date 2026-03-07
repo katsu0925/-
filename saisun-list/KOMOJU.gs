@@ -133,8 +133,13 @@ function apiCheckPaymentStatus(pendingKey) {
 
     var saved = getPaymentSession_(pendingKey);
 
-    // Workers版submitEstimateではPAYMENT_セッションがGASに保存されないため、
-    // D1 session_token_mapから逆引きしてセッション情報を復元する
+    // PropertiesServiceの一時的な不整合に備え、未取得時はリトライ
+    if (!saved || !saved.sessionId) {
+      Utilities.sleep(500);
+      saved = getPaymentSession_(pendingKey);
+    }
+
+    // それでもPAYMENT_セッションが見つからない場合、D1逆引きで復元
     if (!saved || !saved.sessionId) {
       console.log('apiCheckPaymentStatus: PAYMENT_セッション未保存、D1逆引きを試行: ' + pendingKey);
       var recoveredSessionId = lookupSessionByToken_(pendingKey);
@@ -144,7 +149,6 @@ function apiCheckPaymentStatus(pendingKey) {
           status: 'pending',
           createdAt: new Date().toISOString()
         };
-        // 復元したセッション情報を保存（次回以降のフォールバック不要化）
         savePaymentSession_(pendingKey, saved);
         console.log('apiCheckPaymentStatus: D1逆引き成功、sessionId=' + recoveredSessionId);
       } else {
@@ -1667,148 +1671,112 @@ function setupPendingOrderTrigger() {
  * GASエディタから実行
  */
 function recoverKomojuPayment() {
-  var paymentId = '12r1rrkxu3zrvtyp4maq1frjv';
+  // === 復旧対象 ===
+  var targets = [
+    { paymentId: '12r1rrkxu3zrvtyp4maq1frjv', deleteReceiptNo: '20260307191211-994' },
+    { paymentId: '84egj84yy6obfgvbubnaq48km', deleteReceiptNo: '20260306150832-592' },
+  ];
 
-  // 1. KOMOJUから支払い情報を取得
-  var payment = fetchPaymentFromApi_(paymentId);
-  if (!payment) { console.log('KOMOJU APIから取得できません'); return; }
-  // コンビニ未入金(authorized/pending)も復旧対象にする
-  var allowedStatuses = ['captured', 'authorized', 'pending'];
-  if (allowedStatuses.indexOf(payment.status) === -1) {
-    console.log('対象外のステータスです: ' + payment.status);
-    return;
-  }
-  console.log('KOMOJU status: ' + payment.status + ', amount: ¥' + payment.amount);
-
-  var meta = payment.metadata || {};
-  console.log('metadata: ' + JSON.stringify(meta));
-  console.log('external_order_num: ' + (payment.external_order_num || '(empty)'));
-  var paymentToken = resolvePaymentToken_(payment);
-  console.log('resolvePaymentToken_: ' + (paymentToken || '(null)'));
-
-  // === 高優先度: paymentTokenが見つかればconfirmPaymentAndCreateOrderで完全復旧を試みる ===
-  if (paymentToken) {
-    var paymentMethodType = extractPaymentMethodType_(payment);
-    var deferredMethods = { 'konbini': true, 'bank_transfer': true, 'pay_easy': true, 'paidy': true };
-    var paymentStatus = '未対応';
-    if (deferredMethods[paymentMethodType] && payment.status !== 'captured') {
-      paymentStatus = '入金待ち';
-    }
-    console.log('confirmPaymentAndCreateOrderを試行: token=' + paymentToken + ', status=' + paymentStatus);
-    var confirmResult = confirmPaymentAndCreateOrder(paymentToken, paymentStatus, paymentMethodType, paymentId);
-    if (confirmResult && confirmResult.ok) {
-      console.log('=== 完全復旧成功 ===');
-      console.log('受付番号: ' + (confirmResult.receiptNo || paymentToken));
-      console.log('メッセージ: ' + confirmResult.message);
-      return;
-    }
-    console.log('confirmPaymentAndCreateOrder失敗: ' + (confirmResult ? confirmResult.message : 'null') + ' → ミニマル復旧にフォールバック');
-  }
-
-  var receiptNo = payment.external_order_num || meta.receipt_no || meta.payment_token || '';
-  if (!receiptNo) {
-    // どこにも受付番号がない場合は新規生成
-    receiptNo = u_makeReceiptNo_();
-    console.log('受付番号を新規生成: ' + receiptNo);
-  } else {
-    // UUIDの場合は正式な受付番号に変換
-    if (receiptNo.length === 36 && receiptNo.indexOf('-') > 4) {
-      var originalToken = receiptNo;
-      receiptNo = u_makeReceiptNo_();
-      console.log('UUIDトークン → 受付番号変換: ' + originalToken + ' → ' + receiptNo);
-    }
-  }
-
-  // 2. 依頼管理に既にあるか確認
   var orderSs = sh_getOrderSs_();
   var reqSh = orderSs.getSheetByName('依頼管理');
   if (!reqSh) { console.log('依頼管理シートなし'); return; }
-  var lastRow = reqSh.getLastRow();
-  if (lastRow >= 2) {
-    var existing = reqSh.getRange(2, 1, lastRow - 1, 1).getDisplayValues();
-    for (var i = 0; i < existing.length; i++) {
-      if (String(existing[i][0]).trim() === receiptNo) {
-        console.log('既に依頼管理シートの行' + (i + 2) + 'に存在します。中止。');
-        return;
-      }
-    }
-  }
 
-  // 3. 顧客管理シートからメールで住所等を取得
-  var email = String(meta.email || '').trim().toLowerCase();
-  var custInfo = { postal: '', address: '', phone: '' };
-  if (email) {
-    try {
-      var custSs = SpreadsheetApp.openById(app_getOrderSpreadsheetId_());
-      var custSh = custSs.getSheetByName('顧客管理');
-      if (custSh) {
-        var custLast = custSh.getLastRow();
-        if (custLast >= 2) {
-          var custData = custSh.getRange(2, 1, custLast - 1, 8).getValues();
-          for (var c = 0; c < custData.length; c++) {
-            if (String(custData[c][CUSTOMER_SHEET_COLS.EMAIL] || '').trim().toLowerCase() === email) {
-              custInfo.postal = String(custData[c][CUSTOMER_SHEET_COLS.POSTAL] || '');
-              custInfo.address = String(custData[c][CUSTOMER_SHEET_COLS.ADDRESS] || '');
-              custInfo.phone = String(custData[c][CUSTOMER_SHEET_COLS.PHONE] || '');
-              console.log('顧客情報発見: ' + custInfo.address);
-              break;
-            }
+  for (var t = 0; t < targets.length; t++) {
+    var target = targets[t];
+    console.log('');
+    console.log('========== 復旧開始: ' + target.paymentId + ' ==========');
+
+    // 0. 既存のミニマル行を削除
+    if (target.deleteReceiptNo) {
+      var lastRow = reqSh.getLastRow();
+      if (lastRow >= 2) {
+        var receipts = reqSh.getRange(2, 1, lastRow - 1, 1).getDisplayValues();
+        for (var d = receipts.length - 1; d >= 0; d--) {
+          if (String(receipts[d][0]).trim() === target.deleteReceiptNo) {
+            reqSh.deleteRow(d + 2);
+            console.log('ミニマル行を削除: 行' + (d + 2) + ' 受付番号=' + target.deleteReceiptNo);
+            break;
           }
         }
       }
-    } catch (e) { console.error('顧客情報取得エラー:', e); }
+    }
+
+    // 1. KOMOJU APIから決済情報取得
+    var payment = fetchPaymentFromApi_(target.paymentId);
+    if (!payment) { console.log('KOMOJU APIから取得できません: ' + target.paymentId); continue; }
+    console.log('KOMOJU status: ' + payment.status + ', amount: ¥' + payment.amount);
+    var meta = payment.metadata || {};
+    console.log('metadata: ' + JSON.stringify(meta));
+
+    // 2. paymentToken解決
+    var paymentToken = resolvePaymentToken_(payment);
+    console.log('paymentToken: ' + (paymentToken || '(null)'));
+
+    // 3. confirmPaymentAndCreateOrderで完全復旧を試みる（D1からデータ取得）
+    if (paymentToken) {
+      var paymentMethodType = extractPaymentMethodType_(payment);
+      var deferredMethods = { 'konbini': true, 'bank_transfer': true, 'pay_easy': true, 'paidy': true };
+      var paymentStatus = '未対応';
+      if (deferredMethods[paymentMethodType] && payment.status !== 'captured') {
+        paymentStatus = '入金待ち';
+      }
+      console.log('confirmPaymentAndCreateOrder試行: token=' + paymentToken + ', method=' + paymentMethodType);
+      var confirmResult = confirmPaymentAndCreateOrder(paymentToken, paymentStatus, paymentMethodType, target.paymentId);
+      if (confirmResult && confirmResult.ok) {
+        console.log('=== 完全復旧成功 === 受付番号: ' + (confirmResult.receiptNo || paymentToken));
+        continue;
+      }
+      console.log('confirmPaymentAndCreateOrder失敗: ' + (confirmResult ? confirmResult.message : 'null'));
+    }
+
+    // 4. フォールバック: メタデータからミニマル復旧
+    console.log('ミニマル復旧にフォールバック');
+    var receiptNo = u_makeReceiptNo_();
+    var email = String(meta.email || '').trim().toLowerCase();
+    var custInfo = { postal: '', address: '', phone: '' };
+    if (email) {
+      try {
+        var custSh = orderSs.getSheetByName('顧客管理');
+        if (custSh) {
+          var custLast = custSh.getLastRow();
+          if (custLast >= 2) {
+            var custData = custSh.getRange(2, 1, custLast - 1, 8).getValues();
+            for (var c = 0; c < custData.length; c++) {
+              if (String(custData[c][CUSTOMER_SHEET_COLS.EMAIL] || '').trim().toLowerCase() === email) {
+                custInfo.postal = String(custData[c][CUSTOMER_SHEET_COLS.POSTAL] || '');
+                custInfo.address = String(custData[c][CUSTOMER_SHEET_COLS.ADDRESS] || '');
+                custInfo.phone = String(custData[c][CUSTOMER_SHEET_COLS.PHONE] || '');
+                break;
+              }
+            }
+          }
+        }
+      } catch (e) { console.error('顧客情報取得エラー:', e); }
+    }
+
+    var productAmount = +meta.product_amount || 0;
+    var shippingAmount = +meta.shipping_amount || 0;
+    var now = new Date();
+    var lastRow2 = reqSh.getLastRow();
+    var row = [
+      receiptNo, now, meta.company_name || '', meta.email || '',
+      custInfo.postal, custInfo.address, custInfo.phone,
+      '※KOMOJU復旧（商品情報なし）', '', '', '',
+      productAmount, '', shippingAmount,
+      getPaymentMethodDisplayName_(payment.payment_details ? payment.payment_details.type : ''),
+      target.paymentId,
+      payment.status === 'captured' ? '未対応' : '入金待ち',
+      '', '未着手', '', '', '依頼中', '', '未', '未', '', '',
+      false, '',
+      'KOMOJU復旧: ' + payment.status + ' ¥' + payment.amount,
+      '', now, 'デタウリ'
+    ];
+    reqSh.getRange(lastRow2 + 1, 1, 1, row.length).setValues([row]);
+    console.log('=== ミニマル復旧完了 === 受付番号: ' + receiptNo + ' ※商品情報は手動入力必要');
   }
 
-  // 4. 依頼管理シートに書き込み
-  var productAmount = +meta.product_amount || 0;
-  var shippingAmount = +meta.shipping_amount || 0;
-  var now = new Date();
-  var row = [
-    receiptNo,                                   // A: 受付番号
-    now,                                         // B: 依頼日時
-    meta.company_name || '',                     // C: 会社名/氏名
-    meta.email || '',                            // D: 連絡先
-    custInfo.postal,                             // E: 郵便番号
-    custInfo.address,                            // F: 住所
-    custInfo.phone,                              // G: 電話番号
-    '※KOMOJU復旧（商品情報なし）',                 // H: 商品名
-    '',                                          // I: 確認リンク
-    '',                                          // J: 選択リスト
-    '',                                          // K: 合計点数
-    productAmount,                               // L: 合計金額（商品代のみ）
-    '',                                          // M: 送料(店負担)
-    shippingAmount,                              // N: 送料(客負担)
-    getPaymentMethodDisplayName_(payment.payment_details ? payment.payment_details.type : ''), // O: 決済方法
-    paymentId,                                   // P: 決済ID
-    payment.status === 'captured' ? '未対応' : '入金待ち', // Q: 入金確認
-    '',                                          // R: ポイント付与済
-    '未着手',                                     // S: 発送ステータス
-    '',                                          // T: 配送業者
-    '',                                          // U: 伝票番号
-    '依頼中',                                     // V: ステータス
-    '',                                          // W: 担当者
-    '未',                                         // X: リスト同梱
-    '未',                                         // Y: xlsx送付
-    '',                                          // Z: インボイス発行
-    '',                                          // AA: インボイス状況
-    false,                                       // AB: 受注通知
-    '',                                          // AC: 発送通知
-    'KOMOJU復旧: ' + payment.status + ' ¥' + payment.amount, // AD: 備考
-    '',                                          // AE: 作業報酬
-    now,                                         // AF: 更新日時
-    'デタウリ'                                    // AG: チャネル
-  ];
-
-  var writeRow = lastRow + 1;
-  reqSh.getRange(writeRow, 1, 1, row.length).setValues([row]);
-
-  console.log('=== 復旧完了 ===');
-  console.log('受付番号: ' + receiptNo);
-  console.log('行: ' + writeRow);
-  console.log('金額: ¥' + payment.amount + '（商品¥' + productAmount + ' + 送料¥' + shippingAmount + '）');
-  console.log('顧客: ' + meta.company_name + ' / ' + meta.email);
   console.log('');
-  console.log('※H列（商品名）とJ列（選択リスト）、K列（点数）は手動で確認・入力してください');
+  console.log('========== 全件処理完了 ==========');
 }
 
 /**
