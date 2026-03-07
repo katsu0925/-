@@ -574,6 +574,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
     <a href="#" id="openBulkGuideLink">商品ガイド</a>
     <a href="#" id="openBulkShippingLink">アソート送料表</a>
     <a href="#" id="openContactLinkHeader">お問い合わせ</a>
+    <a href="#" id="openBugReportLink">バグ報告</a>
   </div>
 </header>
 
@@ -1146,6 +1147,25 @@ body.admin-mode .admin-settings-fab{display:flex;}
   </div>
 </div>
 
+<!-- バグ報告モーダル -->
+<div class="bulk-overlay" id="bugReportOverlay"></div>
+<div class="bulk-modal" id="bugReportModal" style="display:none;width:min(500px,94vw);">
+  <div class="bulk-modal-header">
+    <div class="bulk-modal-title">バグ報告</div>
+    <button class="bulk-modal-close" id="bugReportCloseBtn" type="button">&times;</button>
+  </div>
+  <div class="bulk-modal-body">
+    <div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#92400e;line-height:1.6;">
+      商品データの間違い・表示の不具合・動作の問題などをお知らせください。
+    </div>
+    <div style="margin-bottom:12px;"><label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px;">お名前 *</label><input type="text" id="bugReportName" placeholder="会社名/氏名" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;"></div>
+    <div style="margin-bottom:12px;"><label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px;">メールアドレス *</label><input type="email" id="bugReportEmail" placeholder="返信先メールアドレス" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;"></div>
+    <div style="margin-bottom:12px;"><label style="display:block;font-size:12px;font-weight:600;color:#555;margin-bottom:4px;">報告内容 *</label><textarea id="bugReportMessage" rows="6" placeholder="どの商品・どの画面で、どのような問題がありましたか？" style="width:100%;padding:10px 12px;border:1px solid #ddd;border-radius:8px;font-size:14px;resize:vertical;"></textarea></div>
+    <div class="chatbot-contact-files"><label>📎 画像を添付（最大3枚）<input type="file" id="bugReportFiles" accept="image/*" multiple></label><div class="chatbot-contact-previews" id="bugReportPreviews"></div></div>
+    <div style="text-align:right;"><button id="bugReportSubmitBtn" type="button" style="padding:10px 24px;border:none;border-radius:10px;background:#1a1a2e;color:#fff;font-size:14px;font-weight:700;cursor:pointer;">送信</button></div>
+  </div>
+</div>
+
 <!-- マイページモーダル -->
 <div class="bulk-overlay" id="myPageOverlay"></div>
 <div class="bulk-modal" id="myPageModal" style="display:none;width:min(620px,96vw);">
@@ -1358,6 +1378,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
   <p style="margin-top:6px">
     <a href="#" id="openLegalLink">特定商取引法に基づく表記</a> ｜
     <a href="#" id="openContactLink">お問い合わせ</a> ｜
+    <a href="#" id="openBugReportLink2">バグ報告</a> ｜
     <a href="#" id="openPrivacyLink">プライバシーポリシー</a>
   </p>
   <p style="margin-top:8px;color:#64748b;">&copy; 2025-2026 デタウリ.Detauri</p>
@@ -4245,6 +4266,99 @@ var modalContactFiles_ = [];
         })
         .catch(function(e) { showAlertModal(e.message || '送信に失敗しました', 'エラー'); })
         .finally(function() { contactSubmit.disabled = false; contactSubmit.textContent = '送信'; });
+    });
+  }
+
+  // バグ報告モーダル
+  var bugReportFiles_ = [];
+  (function() {
+    var fileInput = document.getElementById('bugReportFiles');
+    var previews = document.getElementById('bugReportPreviews');
+    if (!fileInput) return;
+    fileInput.addEventListener('change', function() {
+      var files = Array.prototype.slice.call(fileInput.files);
+      files.forEach(function(f) {
+        if (bugReportFiles_.length >= 3) return;
+        if (!f.type.startsWith('image/')) return;
+        bugReportFiles_.push(f);
+      });
+      if (bugReportFiles_.length > 3) bugReportFiles_ = bugReportFiles_.slice(0, 3);
+      fileInput.value = '';
+      renderBugPreviews_();
+    });
+    function renderBugPreviews_() {
+      previews.innerHTML = '';
+      bugReportFiles_.forEach(function(f, idx) {
+        var wrap = document.createElement('div');
+        wrap.className = 'chatbot-contact-prev';
+        var img = document.createElement('img');
+        img.src = URL.createObjectURL(f);
+        var rm = document.createElement('button');
+        rm.textContent = '×';
+        rm.setAttribute('data-idx', idx);
+        rm.addEventListener('click', function() {
+          bugReportFiles_.splice(parseInt(this.getAttribute('data-idx'), 10), 1);
+          renderBugPreviews_();
+        });
+        wrap.appendChild(img);
+        wrap.appendChild(rm);
+        previews.appendChild(wrap);
+      });
+    }
+  })();
+
+  var bugReportModal = document.getElementById('bugReportModal');
+  var bugReportOverlay = document.getElementById('bugReportOverlay');
+  var bugReportClose = document.getElementById('bugReportCloseBtn');
+  if (bugReportModal) {
+    var openBugReport = function(e) {
+      e.preventDefault();
+      if (G.customer) {
+        document.getElementById('bugReportName').value = G.customer.companyName || '';
+        document.getElementById('bugReportEmail').value = G.customer.email || '';
+      }
+      openBulkModal_(bugReportModal, bugReportOverlay);
+    };
+    var bugReportLink = document.getElementById('openBugReportLink');
+    var bugReportLink2 = document.getElementById('openBugReportLink2');
+    if (bugReportLink) bugReportLink.addEventListener('click', openBugReport);
+    if (bugReportLink2) bugReportLink2.addEventListener('click', openBugReport);
+    if (bugReportClose) bugReportClose.addEventListener('click', function() { closeBulkModal_(bugReportModal, bugReportOverlay); });
+    if (bugReportOverlay) bugReportOverlay.addEventListener('click', function() { closeBulkModal_(bugReportModal, bugReportOverlay); });
+  }
+
+  // バグ報告送信
+  var bugReportSubmit = document.getElementById('bugReportSubmitBtn');
+  if (bugReportSubmit) {
+    bugReportSubmit.addEventListener('click', function() {
+      var name = (document.getElementById('bugReportName').value || '').trim();
+      var email = (document.getElementById('bugReportEmail').value || '').trim();
+      var message = (document.getElementById('bugReportMessage').value || '').trim();
+      if (!name) { showAlertModal('お名前を入力してください', 'エラー'); return; }
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showAlertModal('有効なメールアドレスを入力してください', 'エラー'); return; }
+      if (!message) { showAlertModal('報告内容を入力してください', 'エラー'); return; }
+      bugReportSubmit.disabled = true;
+      bugReportSubmit.textContent = '送信中...';
+      var files = bugReportFiles_.slice();
+      Promise.all(files.map(function(f) { return resizeAndEncode_(f); })).then(function(images) {
+        var params = { name: name, email: email, message: '【バグ報告】' + message, page: 'アソート' };
+        if (images.length > 0) params.images = images;
+        return runApi('apiSendContactForm', params);
+      })
+        .then(function(res) {
+          if (res && res.ok) {
+            showAlertModal('バグ報告を送信しました。ご報告ありがとうございます。');
+            document.getElementById('bugReportName').value = '';
+            document.getElementById('bugReportEmail').value = '';
+            document.getElementById('bugReportMessage').value = '';
+            bugReportFiles_ = [];
+            var p = document.getElementById('bugReportPreviews'); if (p) p.innerHTML = '';
+            bugReportModal.style.display = 'none';
+            bugReportOverlay.classList.remove('active');
+          } else { showAlertModal((res && res.message) || '送信に失敗しました', 'エラー'); }
+        })
+        .catch(function(e) { showAlertModal(e.message || '送信に失敗しました', 'エラー'); })
+        .finally(function() { bugReportSubmit.disabled = false; bugReportSubmit.textContent = '送信'; });
     });
   }
 })();
