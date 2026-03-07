@@ -44,7 +44,10 @@ function setupRequiredProperties() {
     'OWNER_USER_KEYS': 'u_tgneiv48y4ml4o0t4e,u_gwzmndr3ymaml5an2qq,u_jdgyiye97ommjkccuc5',
 
     // DateExport.gs: エクスポート先フォルダID（既にフォールバック付きだが明示的に設定）
-    'EXPORT_FOLDER_ID': '1Wxx7J71PImov3MDU-RgCIwTSPHFlu9ot'
+    'EXPORT_FOLDER_ID': '1Wxx7J71PImov3MDU-RgCIwTSPHFlu9ot',
+
+    // SubmitFix.gs: Workers API URL（D1バックアップフォールバック用）
+    'WORKERS_API_URL': 'https://detauri-gas-proxy.nsdktts1030.workers.dev'
   };
 
   var setKeys = [];
