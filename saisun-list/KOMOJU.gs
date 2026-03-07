@@ -1134,6 +1134,49 @@ function sendPaymentConfirmedEmail_(receiptNo, paymentMethodType) {
   }
 }
 
+/**
+ * テスト用: パラメータ直接指定で入金確認メールを送信
+ */
+function sendPaymentConfirmedEmail_test_(email, companyName, receiptNo, totalCount, totalAmount, paymentMethodType) {
+  var paymentMethodLabel = getPaymentMethodDisplayName_(paymentMethodType);
+  var confirmedAt = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy年MM月dd日 HH:mm');
+
+  var subject = '【デタウリ.Detauri】入金を確認しました（受付番号：' + receiptNo + '）';
+  var body = companyName + ' 様\n\n'
+    + 'デタウリ.Detauri をご利用いただきありがとうございます。\n'
+    + 'お客様のご入金を確認いたしました。ご注文が確定しましたのでお知らせいたします。\n\n'
+    + '受付番号：' + receiptNo + '\n'
+    + '入金確認日時：' + confirmedAt + '\n'
+    + '合計点数：' + totalCount + '点\n'
+    + '合計金額：' + Number(totalAmount).toLocaleString() + '円（税込）\n'
+    + '決済方法：' + paymentMethodLabel + '\n';
+
+  var htmlBody = buildHtmlEmail_({
+    greeting: companyName + ' 様',
+    lead: 'デタウリ.Detauri をご利用いただきありがとうございます。\nお客様のご入金を確認いたしました。ご注文が確定しましたのでお知らせいたします。',
+    sections: [
+      {
+        title: 'ご注文内容',
+        rows: [
+          { label: '受付番号', value: String(receiptNo) },
+          { label: '入金確認日時', value: confirmedAt },
+          { label: '会社名/氏名', value: companyName },
+          { label: '合計点数', value: totalCount + '点' },
+          { label: '合計金額', value: Number(totalAmount).toLocaleString() + '円（税込）' },
+          { label: '決済方法', value: paymentMethodLabel }
+        ]
+      },
+      {
+        title: '',
+        text: '商品の発送準備を進めてまいります。\n発送が完了しましたら、追跡番号とともにメールでお知らせいたします。'
+      }
+    ],
+    notes: ['このメールは自動送信です。', 'ご注文確定後のキャンセル・変更はできません。']
+  });
+
+  MailApp.sendEmail({ to: email, subject: subject, body: body, htmlBody: htmlBody, noReply: true });
+}
+
 function updateOrderPaymentStatus_(receiptNo, paymentStatus, paymentMethod) {
   try {
     var orderSs = sh_getOrderSs_();

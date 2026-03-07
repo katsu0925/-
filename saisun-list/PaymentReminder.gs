@@ -211,7 +211,13 @@ function adminTestEmails() {
     sentCount++;
   } catch (e) { errors.push('2.注文確認(後払い): ' + e.message); }
 
-  // === 3. 管理者向け注文通知メール ===
+  // === 3. 顧客向け入金確認メール（後払い入金完了） ===
+  try {
+    sendPaymentConfirmedEmail_test_(adminEmail, companyName, receiptNo + '-P', totalCount, totalAmount, 'konbini');
+    sentCount++;
+  } catch (e) { errors.push('3.入金確認(後払い): ' + e.message); }
+
+  // === 4. 管理者向け注文通知メール ===
   try {
     app_sendOrderNotifyMail_(orderSs, receiptNo, {
       companyName: companyName, contact: adminEmail, postal: postal, address: address, phone: phone,
@@ -219,23 +225,23 @@ function adminTestEmails() {
       createdAtMs: Date.now(), paymentMethod: paymentMethod, paymentStatus: '未対応'
     });
     sentCount++;
-  } catch (e) { errors.push('3.管理者注文通知: ' + e.message); }
+  } catch (e) { errors.push('4.管理者注文通知: ' + e.message); }
 
-  // === 4. 入金リマインド（前日） ===
+  // === 5. 入金リマインド（前日） ===
   try {
     var deadlineEve = new Date();
     deadlineEve.setDate(deadlineEve.getDate() + 1);
     sendPaymentReminderEmail_(adminEmail, companyName, receiptNo, totalAmount, paymentMethod, deadlineEve, 'eve');
     sentCount++;
-  } catch (e) { errors.push('4.入金リマインド(前日): ' + e.message); }
+  } catch (e) { errors.push('5.入金リマインド(前日): ' + e.message); }
 
-  // === 5. 入金リマインド（当日） ===
+  // === 6. 入金リマインド（当日） ===
   try {
     sendPaymentReminderEmail_(adminEmail, companyName, receiptNo, totalAmount, paymentMethod, new Date(), 'day');
     sentCount++;
-  } catch (e) { errors.push('5.入金リマインド(当日): ' + e.message); }
+  } catch (e) { errors.push('6.入金リマインド(当日): ' + e.message); }
 
-  // === 6. 発送通知（顧客向け） ===
+  // === 7. 発送通知（顧客向け） ===
   try {
     var shipCustSubject = '【デタウリ.Detauri】商品を発送しました（受付番号：' + receiptNo + '）';
     var shipCustBody = companyName + ' 様\n\nデタウリ.Detauri をご利用いただきありがとうございます。\n下記の内容で商品を発送いたしました。\n\n受付番号：' + receiptNo + '\n合計点数：' + totalCount + '点\n合計金額：' + Number(totalAmount).toLocaleString() + '円（税込）\n配送業者：ヤマト運輸\n伝票番号：1234-5678-9012\n';
@@ -260,9 +266,9 @@ function adminTestEmails() {
       })
     });
     sentCount++;
-  } catch (e) { errors.push('6.発送通知(顧客): ' + e.message); }
+  } catch (e) { errors.push('7.発送通知(顧客): ' + e.message); }
 
-  // === 7. 発送通知（管理者向け） ===
+  // === 8. 発送通知（管理者向け） ===
   try {
     var shipAdminSubject = '発送通知: 受付番号 ' + receiptNo;
     MailApp.sendEmail({
@@ -274,9 +280,9 @@ function adminTestEmails() {
       })
     });
     sentCount++;
-  } catch (e) { errors.push('7.発送通知(管理者): ' + e.message); }
+  } catch (e) { errors.push('8.発送通知(管理者): ' + e.message); }
 
-  // === 8. パスワードリセット ===
+  // === 9. パスワードリセット ===
   try {
     var tempPw = 'TeSt1234AbCd';
     MailApp.sendEmail({
@@ -292,9 +298,9 @@ function adminTestEmails() {
       })
     });
     sentCount++;
-  } catch (e) { errors.push('8.パスワードリセット: ' + e.message); }
+  } catch (e) { errors.push('9.パスワードリセット: ' + e.message); }
 
-  // === 9. 領収書（インボイス） ===
+  // === 10. 領収書（インボイス） ===
   try {
     sendInvoiceReceipt_(adminEmail, {
       companyName: companyName, receiptNo: receiptNo,
@@ -302,9 +308,9 @@ function adminTestEmails() {
       invoiceNo: 'T1234567890123', note: ''
     });
     sentCount++;
-  } catch (e) { errors.push('9.領収書: ' + e.message); }
+  } catch (e) { errors.push('10.領収書: ' + e.message); }
 
-  // === 10. 取消領収書 ===
+  // === 11. 取消領収書 ===
   try {
     sendCancelReceipt_(adminEmail, {
       companyName: companyName, receiptNo: receiptNo,
@@ -312,9 +318,9 @@ function adminTestEmails() {
       invoiceNo: 'T1234567890123', cancelType: 'キャンセル'
     });
     sentCount++;
-  } catch (e) { errors.push('10.取消領収書: ' + e.message); }
+  } catch (e) { errors.push('11.取消領収書: ' + e.message); }
 
-  // === 11. お問い合わせ（管理者向け） ===
+  // === 12. お問い合わせ（管理者向け） ===
   try {
     var datetime = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
     MailApp.sendEmail({
@@ -330,9 +336,9 @@ function adminTestEmails() {
       })
     });
     sentCount++;
-  } catch (e) { errors.push('11.お問い合わせ(管理者): ' + e.message); }
+  } catch (e) { errors.push('12.お問い合わせ(管理者): ' + e.message); }
 
-  // === 12. お問い合わせ（顧客向け自動返信） ===
+  // === 13. お問い合わせ（顧客向け自動返信） ===
   try {
     var datetime2 = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
     MailApp.sendEmail({
@@ -350,9 +356,9 @@ function adminTestEmails() {
       })
     });
     sentCount++;
-  } catch (e) { errors.push('12.お問い合わせ(顧客): ' + e.message); }
+  } catch (e) { errors.push('13.お問い合わせ(顧客): ' + e.message); }
 
-  // === 13. フォローアップメール ===
+  // === 14. フォローアップメール ===
   try {
     MailApp.sendEmail({
       to: adminEmail, noReply: true,
@@ -371,27 +377,27 @@ function adminTestEmails() {
       })
     });
     sentCount++;
-  } catch (e) { errors.push('13.フォローアップ: ' + e.message); }
+  } catch (e) { errors.push('14.フォローアップ: ' + e.message); }
 
-  // === 14. ポイント失効リマインド ===
+  // === 15. ポイント失効リマインド ===
   try {
     sendPointExpiryReminderEmail_(adminEmail, companyName, 1500, '2026年3月31日');
     sentCount++;
-  } catch (e) { errors.push('14.ポイント失効リマインド: ' + e.message); }
+  } catch (e) { errors.push('15.ポイント失効リマインド: ' + e.message); }
 
-  // === 15. ポイント失効通知 ===
+  // === 16. ポイント失効通知 ===
   try {
     sendPointExpiredEmail_(adminEmail, companyName, 1500);
     sentCount++;
-  } catch (e) { errors.push('15.ポイント失効通知: ' + e.message); }
+  } catch (e) { errors.push('16.ポイント失効通知: ' + e.message); }
 
-  // === 16. 紹介ポイント付与通知 ===
+  // === 17. 紹介ポイント付与通知 ===
   try {
     sendReferralNotifyEmail_(adminEmail, companyName, 'test@example.com', REFERRAL_POINTS_REFERRER);
     sentCount++;
-  } catch (e) { errors.push('16.紹介ポイント: ' + e.message); }
+  } catch (e) { errors.push('17.紹介ポイント: ' + e.message); }
 
-  // === 17. 新着商品通知 ===
+  // === 18. 新着商品通知 ===
   try {
     var sampleItems = ['CHANEL サンプルバッグ', 'LOUIS VUITTON テスト財布', 'GUCCI テストスカーフ', 'PRADA テストポーチ', 'HERMES テストベルト'];
     MailApp.sendEmail({
@@ -408,9 +414,9 @@ function adminTestEmails() {
       })
     });
     sentCount++;
-  } catch (e) { errors.push('17.新着商品通知: ' + e.message); }
+  } catch (e) { errors.push('18.新着商品通知: ' + e.message); }
 
-  // === 18. ニュースレター ===
+  // === 19. ニュースレター ===
   try {
     MailApp.sendEmail({
       to: adminEmail, noReply: true,
@@ -423,9 +429,9 @@ function adminTestEmails() {
       })
     });
     sentCount++;
-  } catch (e) { errors.push('18.ニュースレター: ' + e.message); }
+  } catch (e) { errors.push('19.ニュースレター: ' + e.message); }
 
-  // === 19. カゴ落ち（デタウリ） ===
+  // === 20. カゴ落ち（デタウリ） ===
   try {
     MailApp.sendEmail({
       to: adminEmail, noReply: true,
@@ -439,9 +445,9 @@ function adminTestEmails() {
       })
     });
     sentCount++;
-  } catch (e) { errors.push('19.カゴ落ち(デタウリ): ' + e.message); }
+  } catch (e) { errors.push('20.カゴ落ち(デタウリ): ' + e.message); }
 
-  // === 20. カゴ落ち（アソート） ===
+  // === 21. カゴ落ち（アソート） ===
   try {
     var bulkPageUrl = SITE_CONSTANTS.SITE_URL + (SITE_CONSTANTS.SITE_URL.indexOf('?') === -1 ? '?page=bulk' : '&page=bulk');
     MailApp.sendEmail({
@@ -456,9 +462,9 @@ function adminTestEmails() {
       })
     });
     sentCount++;
-  } catch (e) { errors.push('20.カゴ落ち(アソート): ' + e.message); }
+  } catch (e) { errors.push('21.カゴ落ち(アソート): ' + e.message); }
 
-  // === 21. 休眠顧客クーポン ===
+  // === 22. 休眠顧客クーポン ===
   try {
     MailApp.sendEmail({
       to: adminEmail, noReply: true,
@@ -481,14 +487,14 @@ function adminTestEmails() {
       })
     });
     sentCount++;
-  } catch (e) { errors.push('21.休眠クーポン: ' + e.message); }
+  } catch (e) { errors.push('22.休眠クーポン: ' + e.message); }
 
   var result = {
     ok: true,
     message: sentCount + '通のテストメールを ' + adminEmail + ' に送信しました',
     sentTo: adminEmail,
     sentCount: sentCount,
-    totalTypes: 21
+    totalTypes: 22
   };
   if (errors.length) {
     result.errors = errors;
