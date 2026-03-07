@@ -369,7 +369,7 @@
     .detail-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); z-index: 9999; justify-content: center; align-items: center; }
     .detail-modal-overlay.active { display: flex; }
     .detail-modal { background: white; border-radius: 12px; max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto; position: relative; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
-    .detail-modal-close { position: absolute; top: 12px; right: 12px; background: #f3f4f6; border: none; width: 36px; height: 36px; border-radius: 50%; font-size: 20px; cursor: pointer; z-index: 10; }
+    .detail-modal-close { position: sticky; top: 12px; float: right; margin-right: 12px; background: #f3f4f6; border: none; width: 36px; height: 36px; border-radius: 50%; font-size: 20px; cursor: pointer; z-index: 10; }
     .detail-modal-image { width: 100%; max-height: 300px; object-fit: contain; background: #f9fafb; border-radius: 12px 12px 0 0; }
     .detail-modal-content { padding: 20px; }
     .detail-modal-title { font-size: 18px; font-weight: 700; margin-bottom: 16px; color: #111827; }
@@ -4096,7 +4096,10 @@ function filterAndRender(scrollTop) {
   var start = (page - 1) * pageSize;
   var pageItems = filtered.slice(start, start + pageSize);
   
-  updateTotalCountBadge_(filtered.length);
+  // フィルターなし時はシートB1の掲載中件数、フィルターあり時はフィルター後件数
+  var displayCount = (filtered.length === state.allProducts.length && state.sheetTotalCount)
+    ? state.sheetTotalCount : filtered.length;
+  updateTotalCountBadge_(displayCount);
   renderGrid_(pageItems);
   renderPager_(totalPages, page);
   
@@ -7146,6 +7149,8 @@ function applyStatsData_(stats) {
 
 function applyProductData_(data) {
   state.allProducts = data.products || [];
+  // シートB1の掲載中件数を保存
+  if (data.sheetTotalCount != null) state.sheetTotalCount = data.sheetTotalCount;
   // 実績バナー更新
   if (data.stats) applyStatsData_(data.stats);
   // 商品ハッシュマップを構築（O(1)検索用）
@@ -7927,6 +7932,7 @@ body.admin-mode .article-panel{bottom:186px;}
     </div>
   </div>
 </div>
+<script type="application/json" id="__initial_articles__"><?!= initialArticleData || '' ?></script>
 <script>
 (function(){
   var fab=document.getElementById('articleFab'),panel=document.getElementById('articlePanel'),
@@ -7946,8 +7952,10 @@ body.admin-mode .article-panel{bottom:186px;}
   if(tabsEl){var _tabs=tabsEl.querySelectorAll('.article-tab');for(var ti=0;ti<_tabs.length;ti++){if(_tabs[ti].getAttribute('data-cat')===activeTab){_tabs[ti].classList.add('active');}else{_tabs[ti].classList.remove('active');}(function(btn){btn.addEventListener('click',function(){activeTab=btn.getAttribute('data-cat');try{localStorage.setItem(LS_TAB,activeTab);}catch(e){}for(var j=0;j<_tabs.length;j++){_tabs[j].classList.toggle('active',_tabs[j]===btn);}applyFilters_();showListView();});}(_tabs[ti]));}}
   function loadArticlesCache_(){try{var raw=localStorage.getItem(LS_ARTICLES);if(!raw)return null;var c=JSON.parse(raw);if(c&&c.articles&&c.articles.length)return c.articles;return null;}catch(e){return null;}}
   function saveArticlesCache_(articles){try{localStorage.setItem(LS_ARTICLES,JSON.stringify({ts:Date.now(),articles:articles}));}catch(e){}}
+  // サーバー埋め込みデータがあれば即座に復元（API呼び出し不要）
+  try{var iae=document.getElementById('__initial_articles__');if(iae&&iae.textContent){var iad=JSON.parse(iae.textContent);if(iad&&iad.ok&&iad.articles&&iad.articles.length>0){articlesData=iad.articles;articlesLoaded=true;if(iad.contents){for(var ck in iad.contents){if(iad.contents.hasOwnProperty(ck))detailCache[ck]=iad.contents[ck];}try{localStorage.setItem('detauri_article_contents',JSON.stringify(detailCache));}catch(e2){}}saveArticlesCache_(iad.articles);applyFilters_();loadingEl.style.display='none';updateBadge();preloadImages_();}}}catch(e){}
   // localStorageから即座に記事を復元（ページ遷移後も即表示）
-  var _cached=loadArticlesCache_();if(_cached){articlesData=_cached;articlesLoaded=true;applyFilters_();loadingEl.style.display='none';updateBadge();preloadImages_();}
+  if(!articlesLoaded){var _cached=loadArticlesCache_();if(_cached){articlesData=_cached;articlesLoaded=true;applyFilters_();loadingEl.style.display='none';updateBadge();preloadImages_();}}
   // 記事API: fetchを優先し、失敗時はrunApiにフォールバック（document.write遷移後も安定動作）
   var _articleApiUrl=(typeof GAS_API_URL!=='undefined')?GAS_API_URL:'https://script.google.com/macros/s/AKfycbwLN23a03qQSGA91J-82_6HlIx0kA5yUYFRxjfbjFGfnZDqynKnyJhEPsoISSQps3SmXQ/exec';
   function articleFetch(action,arg){var body={action:action,args:arg?[arg]:[]};return fetch(_articleApiUrl,{method:'POST',headers:{'Content-Type':'text/plain'},body:JSON.stringify(body),redirect:'follow'}).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();}).catch(function(e){if(typeof runApi==='function')return runApi(action,arg);throw e;});}
@@ -7955,7 +7963,7 @@ body.admin-mode .article-panel{bottom:186px;}
   function updateBadge(){if(!badge)return;try{var lr=localStorage.getItem(LS_LAST_READ)||'';if(!lr||!articlesData.length){badge.style.display='none';return;}var u=0;for(var i=0;i<articlesData.length;i++){var pd=String(articlesData[i].publishDate||'').replace(/\(.\)/,'').replace(/\//g,'-');if(pd>lr)u++;}if(u>0){badge.textContent=u>9?'9+':String(u);badge.style.display='flex';}else{badge.style.display='none';}}catch(e){badge.style.display='none';}}
   function isArticleCacheStale_(){try{var raw=localStorage.getItem(LS_ARTICLES);if(!raw)return true;var c=JSON.parse(raw);if(!c||!c.ts)return true;return(Date.now()-c.ts)>3600000;}catch(e){return true;}}
   function refreshArticlesBg_(){articleFetch('apiGetArticles').then(function(r){if(r&&r.ok&&r.articles){articlesData=r.articles;articlesLoaded=true;saveArticlesCache_(r.articles);applyFilters_();loadingEl.style.display='none';updateBadge();preloadImages_();}}).catch(function(){});}
-  if(isDesktop){fetchArticles();}else{if(fab)fab.addEventListener('click',function(){if(isOpen)closePanel();else openPanel();});if(closeBtn)closeBtn.addEventListener('click',function(){closePanel();});if(!articlesLoaded){refreshArticlesBg_();}else if(isArticleCacheStale_()){refreshArticlesBg_();}}
+  if(isDesktop){if(!articlesLoaded)fetchArticles();else if(isArticleCacheStale_())refreshArticlesBg_();}else{if(fab)fab.addEventListener('click',function(){if(isOpen)closePanel();else openPanel();});if(closeBtn)closeBtn.addEventListener('click',function(){closePanel();});if(!articlesLoaded){refreshArticlesBg_();}else if(isArticleCacheStale_()){refreshArticlesBg_();}}
   detailBack.addEventListener('click',function(){showListView();});
   function applyFilters_(){var q=searchInput?searchInput.value.toLowerCase().trim():'';var f=[];for(var i=0;i<articlesData.length;i++){var a=articlesData[i];var mc=resolveMc_(a);if(activeTab&&mc!==activeTab)continue;if(q&&(a.title||'').toLowerCase().indexOf(q)===-1&&(a.summary||'').toLowerCase().indexOf(q)===-1&&(a.category||'').toLowerCase().indexOf(q)===-1)continue;f.push(a);}renderList(f);}
   if(searchInput)searchInput.addEventListener('input',function(){applyFilters_();showListView();});

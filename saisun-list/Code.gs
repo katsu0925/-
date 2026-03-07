@@ -77,6 +77,29 @@ function doGet(e) {
   }
   t.bulkUrl = bulkUrl || '';
 
+  // お役立ち記事データをサーバー埋め込み（API呼び出し待ちなし）
+  try {
+    var artResult = apiGetArticles();
+    if (artResult && artResult.ok && artResult.articles && artResult.articles.length > 0) {
+      var contents = {};
+      for (var ai = 0; ai < artResult.articles.length; ai++) {
+        var artId = artResult.articles[ai].id;
+        if (artId) {
+          var artContent = apiGetArticleContent(artId);
+          if (artContent && artContent.ok && artContent.article) {
+            contents[artId] = artContent.article;
+          }
+        }
+      }
+      t.initialArticleData = JSON.stringify({ ok: true, articles: artResult.articles, contents: contents });
+    } else {
+      t.initialArticleData = '';
+    }
+  } catch (e) {
+    console.error('記事埋め込みエラー:', e);
+    t.initialArticleData = '';
+  }
+
   return t.evaluate()
     .setTitle(APP_CONFIG.appTitle)
     .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');

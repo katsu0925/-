@@ -230,10 +230,15 @@ function exportProductData_() {
     // 設定を取得
     var settings = getExportSettings_();
     
+    // B1セルの掲載中件数を取得
+    var sheetTotalCount = 0;
+    try { sheetTotalCount = Number(sheet.getRange('B1').getValue()) || 0; } catch (e) {}
+
     // エクスポートデータ構築
     var exportData = {
       generatedAt: new Date().toISOString(),
       totalCount: products.length,
+      sheetTotalCount: sheetTotalCount,
       products: products,
       options: {
         brand: Object.keys(brands).sort(),
