@@ -1303,8 +1303,21 @@ function recoverKomojuPayment() {
   console.log('KOMOJU status: ' + payment.status + ', amount: ¥' + payment.amount);
 
   var meta = payment.metadata || {};
-  var receiptNo = payment.external_order_num || meta.receipt_no || '';
-  if (!receiptNo) { console.log('受付番号が取得できません'); return; }
+  console.log('metadata: ' + JSON.stringify(meta));
+  console.log('external_order_num: ' + (payment.external_order_num || '(empty)'));
+  var receiptNo = payment.external_order_num || meta.receipt_no || meta.payment_token || '';
+  if (!receiptNo) {
+    // どこにも受付番号がない場合は新規生成
+    receiptNo = u_makeReceiptNo_();
+    console.log('受付番号を新規生成: ' + receiptNo);
+  } else {
+    // UUIDの場合は正式な受付番号に変換
+    if (receiptNo.length === 36 && receiptNo.indexOf('-') > 4) {
+      var originalToken = receiptNo;
+      receiptNo = u_makeReceiptNo_();
+      console.log('UUIDトークン → 受付番号変換: ' + originalToken + ' → ' + receiptNo);
+    }
+  }
 
   // 2. 依頼管理に既にあるか確認
   var orderSs = sh_getOrderSs_();
