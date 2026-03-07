@@ -701,6 +701,7 @@
       <a href="#" id="openGuideLink">商品ガイド</a>
       <a href="#" id="openShippingLink">デタウリ送料表</a>
       <a href="#" id="openContactLink">お問い合わせ</a>
+      <a href="#" id="openBugReportLink">バグ報告</a>
     </div>
   </div>
 
@@ -1258,6 +1259,37 @@
     </div>
   </div>
 
+  <div class="modal" id="bugReportModal" aria-hidden="true" style="width:min(500px,94vw);">
+    <div class="modalHeader">
+      <div class="modalTitle">バグ報告</div>
+      <button class="modalClose" id="bugReportCloseBtn" aria-label="close">×</button>
+    </div>
+    <div class="modalBody">
+      <div style="background:#fef3c7;border:1px solid #fbbf24;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#92400e;line-height:1.6;">
+        商品データの間違い・表示の不具合・動作の問題などをお知らせください。
+      </div>
+      <div class="formField">
+        <label>お名前 *</label>
+        <input type="text" id="bugReportName" placeholder="会社名/氏名">
+      </div>
+      <div class="formField">
+        <label>メールアドレス *</label>
+        <input type="email" id="bugReportEmail" placeholder="返信先メールアドレス">
+      </div>
+      <div class="formField">
+        <label>報告内容 *</label>
+        <textarea id="bugReportMessage" rows="6" placeholder="どの商品・どの画面で、どのような問題がありましたか？"></textarea>
+      </div>
+      <div class="chatbot-contact-files">
+        <label>📎 画像を添付（最大3枚）<input type="file" id="bugReportFiles" accept="image/*" multiple></label>
+        <div class="chatbot-contact-previews" id="bugReportPreviews"></div>
+      </div>
+      <div style="text-align:right; margin-top:12px;">
+        <button class="btn primary" id="bugReportSubmitBtn" type="button">送信</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
   <div class="modal" id="alertModal" aria-hidden="true" style="width:min(420px,90vw);">
     <div class="modalHeader">
@@ -1650,6 +1682,7 @@
   <p style="margin-top:6px;">
     <a href="#" id="openLegalLink">特定商取引法に基づく表記</a> ｜
     <a href="#" id="openContactLink2">お問い合わせ</a> ｜
+    <a href="#" id="openBugReportLink2">バグ報告</a> ｜
     <a href="#" id="openPrivacyLink">プライバシーポリシー</a>
   </p>
   <p style="margin-top:8px;color:#64748b;">&copy; 2025-2026 デタウリ.Detauri</p>
@@ -3033,6 +3066,95 @@ function setupAuthUi_() {
     });
   }
 
+  // バグ報告モーダル
+  var bugReportFiles_ = [];
+  (function() {
+    var fileInput = $('bugReportFiles');
+    var previews = $('bugReportPreviews');
+    if (!fileInput) return;
+    fileInput.addEventListener('change', function() {
+      var files = Array.prototype.slice.call(fileInput.files);
+      files.forEach(function(f) {
+        if (bugReportFiles_.length >= 3) return;
+        if (!f.type.startsWith('image/')) return;
+        bugReportFiles_.push(f);
+      });
+      if (bugReportFiles_.length > 3) bugReportFiles_ = bugReportFiles_.slice(0, 3);
+      fileInput.value = '';
+      renderBugPreviews_();
+    });
+    function renderBugPreviews_() {
+      previews.innerHTML = '';
+      bugReportFiles_.forEach(function(f, idx) {
+        var wrap = document.createElement('div');
+        wrap.className = 'chatbot-contact-prev';
+        var img = document.createElement('img');
+        img.src = URL.createObjectURL(f);
+        var rm = document.createElement('button');
+        rm.textContent = '×';
+        rm.setAttribute('data-idx', idx);
+        rm.addEventListener('click', function() {
+          bugReportFiles_.splice(parseInt(this.getAttribute('data-idx'), 10), 1);
+          renderBugPreviews_();
+        });
+        wrap.appendChild(img);
+        wrap.appendChild(rm);
+        previews.appendChild(wrap);
+      });
+    }
+  })();
+  var openBugReportLink = $('openBugReportLink');
+  var openBugReportLink2 = $('openBugReportLink2');
+  function handleBugReportOpen_(e) {
+    e.preventDefault();
+    if (state.customer) {
+      $('bugReportName').value = state.customer.companyName || '';
+      $('bugReportEmail').value = state.customer.email || '';
+    }
+    openModal($('bugReportModal'));
+  }
+  if (openBugReportLink) openBugReportLink.addEventListener('click', handleBugReportOpen_);
+  if (openBugReportLink2) openBugReportLink2.addEventListener('click', handleBugReportOpen_);
+  var bugReportCloseBtn = $('bugReportCloseBtn');
+  if (bugReportCloseBtn) {
+    bugReportCloseBtn.addEventListener('click', function() {
+      closeModal($('bugReportModal'));
+    });
+  }
+  var bugReportSubmitBtn = $('bugReportSubmitBtn');
+  if (bugReportSubmitBtn) {
+    bugReportSubmitBtn.addEventListener('click', function() {
+      var name = ($('bugReportName').value || '').trim();
+      var email = ($('bugReportEmail').value || '').trim();
+      var message = ($('bugReportMessage').value || '').trim();
+      if (!name) { showToast('お名前を入力してください'); return; }
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showToast('有効なメールアドレスを入力してください'); return; }
+      if (!message) { showToast('報告内容を入力してください'); return; }
+      bugReportSubmitBtn.disabled = true;
+      bugReportSubmitBtn.textContent = '送信中...';
+      var files = bugReportFiles_.slice();
+      Promise.all(files.map(function(f) { return resizeAndEncode_(f); })).then(function(images) {
+        var params = { name: name, email: email, message: '【バグ報告】' + message };
+        if (images.length > 0) params.images = images;
+        return runApi('apiSendContactForm', params);
+      })
+        .then(function(res) {
+          if (res && res.ok) {
+            closeModal($('bugReportModal'));
+            $('bugReportName').value = '';
+            $('bugReportEmail').value = '';
+            $('bugReportMessage').value = '';
+            bugReportFiles_ = [];
+            var p = $('bugReportPreviews'); if (p) p.innerHTML = '';
+            showAlertModal('バグ報告を送信しました。ご報告ありがとうございます。');
+          } else {
+            showAlertModal((res && res.message) || '送信に失敗しました', 'エラー');
+          }
+        })
+        .catch(function(e) { showAlertModal(e.message || '送信に失敗しました', 'エラー'); })
+        .finally(function() { bugReportSubmitBtn.disabled = false; bugReportSubmitBtn.textContent = '送信'; });
+    });
+  }
 
   // ログインボタン
   var loginBtn = $('loginBtn');
