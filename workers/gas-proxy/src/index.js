@@ -49,6 +49,10 @@ const WORKER_HANDLED = {
 
   // Phase 5: 注文送信（KOMOJU決済セッション作成をWorkersで完結）
   apiSubmitEstimate:   (args, env, bodyText, ctx) => submit.submitEstimate(args, env, bodyText, ctx),
+
+  // D1ペンディング注文API（GASフォールバック用）
+  apiGetPendingOrder:     (args, env, bodyText) => submit.getPendingOrder(args, env, bodyText),
+  apiMarkPendingConsumed: (args, env, bodyText) => submit.markPendingConsumed(args, env, bodyText),
 };
 
 // CSRFが必要なaction（Phase 2以降で有効化）

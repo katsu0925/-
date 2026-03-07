@@ -1072,10 +1072,27 @@ function confirmPaymentAndCreateOrder(paymentToken, paymentStatus, paymentMethod
     var pendingDataStr = props.getProperty(pendingKey);
 
     if (!pendingDataStr) {
-      console.log('PENDING_ORDER not found: ' + paymentToken);
-      // ペンディングがない場合は既にシートに書き込み済みの可能性 → ステータスのみ更新
-      updateOrderPaymentStatus_(paymentToken, 'paid', paymentMethod);
-      return { ok: true, message: '入金ステータスを更新しました（ペンディングデータなし）' };
+      console.log('PENDING_ORDER not found in PropertiesService: ' + paymentToken + ' → D1バックアップを確認');
+
+      // === フォールバック2: D1バックアップから取得 ===
+      var d1Result = fetchPendingFromD1_(paymentToken);
+      if (d1Result && d1Result.found) {
+        if (d1Result.consumed === 1) {
+          // D1で見つかりconsumed=1 → 既にシート書き込み済み → ステータスのみ更新
+          console.log('D1 pending found but already consumed: ' + paymentToken);
+          updateOrderPaymentStatus_(paymentToken, 'paid', paymentMethod);
+          return { ok: true, message: '入金ステータスを更新しました（D1 consumed済み）' };
+        }
+        // D1で見つかりconsumed=0 → PropertiesServiceに復元して通常フロー継続
+        console.log('D1 backup found, restoring to PropertiesService: ' + paymentToken);
+        pendingDataStr = d1Result.data;
+        props.setProperty(pendingKey, pendingDataStr);
+      } else {
+        // === フォールバック3: KOMOJUメタデータから「要確認」行を作成 ===
+        console.warn('D1 backup not found either: ' + paymentToken + ' → KOMOJUメタデータから要確認行を作成');
+        var minimalResult = createMinimalOrderRow_(paymentToken, paymentStatus, paymentMethod, paymentId);
+        return minimalResult;
+      }
     }
 
     // ペンディングデータをパース（削除はシート書き込み成功後に行う）
@@ -1217,6 +1234,13 @@ function confirmPaymentAndCreateOrder(paymentToken, paymentStatus, paymentMethod
     // シート書き込み成功後にペンディングキーを削除（書き込み前に削除すると例外時にデータ消失するため）
     props.deleteProperty(pendingKey);
     console.log('Deleted pending key after successful write: ' + paymentToken + ' → ' + receiptNo);
+
+    // D1バックアップのconsumedフラグを立てる（非致命的）
+    try {
+      markD1PendingConsumed_(paymentToken);
+    } catch (d1MarkErr) {
+      console.error('markD1PendingConsumed_ error (non-fatal):', d1MarkErr);
+    }
 
     // 3.5. クーポン利用を記録
     if (pendingData.couponCode) {
@@ -1660,4 +1684,176 @@ function calcMultiShipment_sf_(thick, thin, rates) {
   if (largeCnt > 0) parts.push('大×' + largeCnt);
   if (smallCnt > 0) parts.push('小×' + smallCnt);
   return { amount: totalAmount, sizeLabel: parts.join('、') };
+}
+
+// =====================================================
+// D1バックアップ ヘルパー（決済→依頼管理反映の確実化）
+// =====================================================
+
+/**
+ * Workers API経由でD1のpending_ordersからデータを取得
+ * @param {string} paymentToken - 決済トークン
+ * @returns {object|null} - { found, data, consumed } or null on error
+ */
+function fetchPendingFromD1_(paymentToken) {
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var workersUrl = props.getProperty('WORKERS_API_URL');
+    var adminKey = props.getProperty('ADMIN_KEY');
+    if (!workersUrl || !adminKey) {
+      console.warn('fetchPendingFromD1_: WORKERS_API_URL or ADMIN_KEY not set');
+      return null;
+    }
+
+    var resp = UrlFetchApp.fetch(workersUrl, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify({
+        action: 'apiGetPendingOrder',
+        adminKey: adminKey,
+        args: [paymentToken]
+      }),
+      muteHttpExceptions: true
+    });
+
+    var code = resp.getResponseCode();
+    if (code !== 200) {
+      console.error('fetchPendingFromD1_: HTTP ' + code + ': ' + resp.getContentText().substring(0, 200));
+      return null;
+    }
+
+    var result = JSON.parse(resp.getContentText());
+    if (!result || !result.ok) {
+      console.error('fetchPendingFromD1_: API error: ' + JSON.stringify(result).substring(0, 200));
+      return null;
+    }
+
+    return {
+      found: result.found === true,
+      data: result.data || null,
+      consumed: result.consumed || 0
+    };
+  } catch (e) {
+    console.error('fetchPendingFromD1_ error:', e);
+    return null;
+  }
+}
+
+/**
+ * Workers API経由でD1のpending_ordersのconsumedフラグを立てる
+ * @param {string} paymentToken - 決済トークン
+ */
+function markD1PendingConsumed_(paymentToken) {
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var workersUrl = props.getProperty('WORKERS_API_URL');
+    var adminKey = props.getProperty('ADMIN_KEY');
+    if (!workersUrl || !adminKey) return;
+
+    UrlFetchApp.fetch(workersUrl, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify({
+        action: 'apiMarkPendingConsumed',
+        adminKey: adminKey,
+        args: [paymentToken]
+      }),
+      muteHttpExceptions: true
+    });
+    console.log('D1 pending marked consumed: ' + paymentToken);
+  } catch (e) {
+    console.error('markD1PendingConsumed_ error:', e);
+  }
+}
+
+/**
+ * KOMOJUメタデータから最低限の「要確認」行を依頼管理に作成
+ * PropertiesServiceにもD1にもデータがない場合の最終フォールバック
+ * @param {string} paymentToken - 決済トークン
+ * @param {string} paymentStatus - 入金ステータス
+ * @param {string} paymentMethod - 決済方法
+ * @param {string} paymentId - KOMOJU決済ID
+ * @returns {object} - { ok, message }
+ */
+function createMinimalOrderRow_(paymentToken, paymentStatus, paymentMethod, paymentId) {
+  try {
+    // KOMOJUから決済情報を取得
+    var komojuData = null;
+    if (paymentId) {
+      komojuData = fetchPaymentFromApi_(paymentId);
+    }
+
+    var receiptNo = u_makeReceiptNo_();
+    var email = '';
+    var companyName = '【要確認】';
+    var totalAmount = 0;
+    var phone = '';
+    var postal = '';
+    var address = '';
+
+    if (komojuData) {
+      totalAmount = komojuData.amount || 0;
+      if (komojuData.customer) {
+        email = komojuData.customer.email || '';
+      }
+      if (komojuData.metadata) {
+        companyName = komojuData.metadata.company_name || '【要確認】';
+        email = email || komojuData.metadata.email || '';
+      }
+    }
+
+    // 依頼管理シートに最低限の行を書き込み
+    var orderSs = sh_getOrderSs_();
+    var reqSh = sh_ensureRequestSheet_(orderSs);
+    var now = new Date();
+    var noteText = '【自動復旧】決済データから作成（要確認）\n'
+      + 'paymentToken: ' + paymentToken + '\n'
+      + 'paymentId: ' + (paymentId || 'N/A') + '\n'
+      + '決済方法: ' + (paymentMethod || 'N/A');
+
+    // 依頼管理の列: A=受付番号, B=日時, C=会社名, D=メール, E=電話, F=郵便番号, G=住所,
+    //   H=商品名, I=確認リンク, J=採寸, K=商品リスト, L=合計金額, M=発送ステータス,
+    //   N=備考, O=決済方法, P=ステータス, Q=入金確認, R=入金ステータス
+    var row = [
+      receiptNo,                                         // A: 受付番号
+      Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss'), // B: 日時
+      companyName,                                       // C: 会社名
+      email,                                             // D: メール
+      phone,                                             // E: 電話
+      postal,                                            // F: 郵便番号
+      address,                                           // G: 住所
+      '【要確認】商品情報なし',                            // H: 商品名
+      '',                                                // I: 確認リンク
+      '',                                                // J: 採寸
+      '',                                                // K: 商品リスト
+      totalAmount,                                       // L: 合計金額
+      '',                                                // M: 発送ステータス
+      noteText                                           // N: 備考
+    ];
+
+    reqSh.appendRow(row);
+
+    // 入金確認列（Q列=17）と決済方法列（O列=15）を更新
+    var lastRow = reqSh.getLastRow();
+    if (paymentStatus === 'paid') {
+      reqSh.getRange(lastRow, 17).setValue('未対応');
+    } else {
+      reqSh.getRange(lastRow, 17).setValue('入金待ち');
+    }
+    if (paymentMethod) {
+      reqSh.getRange(lastRow, 15).setValue(getPaymentMethodDisplayName_(paymentMethod));
+    }
+
+    console.log('Created minimal order row: ' + receiptNo + ' (paymentToken=' + paymentToken + ')');
+
+    return {
+      ok: true,
+      message: '要確認行を作成しました（ペンディングデータ復旧不可）',
+      receiptNo: receiptNo,
+      paymentToken: paymentToken
+    };
+  } catch (e) {
+    console.error('createMinimalOrderRow_ error:', e);
+    return { ok: false, message: '要確認行の作成に失敗: ' + (e.message || String(e)) };
+  }
 }

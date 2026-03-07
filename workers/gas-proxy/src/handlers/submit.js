@@ -600,6 +600,17 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     totalAmount: totalWithShipping,
   };
 
+  // ─── D1バックアップ保存（PropertiesService欠損時のフォールバック用） ───
+  try {
+    await env.DB.prepare(`
+      INSERT INTO pending_orders (payment_token, data, created_at, consumed)
+      VALUES (?, ?, ?, 0)
+      ON CONFLICT (payment_token) DO UPDATE SET data = excluded.data, created_at = excluded.created_at, consumed = 0
+    `).bind(paymentToken, JSON.stringify(pendingData), new Date().toISOString()).run();
+  } catch (d1Err) {
+    console.error('D1 pending_orders save error (non-fatal):', d1Err.message);
+  }
+
   // ─── GASにペンディング注文保存（同期 — webhook前に確実に保存） ───
   await savePendingToGas(pendingData, env);
 
@@ -635,7 +646,7 @@ async function savePendingToGas(pendingData, env) {
   const gasUrl = env.GAS_API_URL;
   if (!gasUrl) {
     console.error('GAS_API_URL not configured, skipping pending save');
-    return;
+    return false;
   }
 
   try {
@@ -651,8 +662,16 @@ async function savePendingToGas(pendingData, env) {
     });
     const text = await resp.text();
     console.log('GAS savePending response:', text.substring(0, 200));
+    try {
+      const result = JSON.parse(text);
+      return result && result.ok === true;
+    } catch (e) {
+      // GASのレスポンスがJSONでない場合（リダイレクト等）
+      return resp.ok;
+    }
   } catch (e) {
-    console.error('GAS savePending error:', e.message);
+    console.error('GAS savePending error (D1 backup exists):', e.message);
+    return false;
   }
 }
 
@@ -775,4 +794,67 @@ async function proxyToGasForSubmit(bodyText, env) {
       'X-Source': 'gas-proxy-validated',
     },
   }));
+}
+
+// ─── D1ペンディング注文API（GASからのフォールバック取得用） ───
+
+/**
+ * D1からペンディング注文を取得（ADMIN_KEY認証）
+ */
+export async function getPendingOrder(args, env, bodyText) {
+  let parsed;
+  try { parsed = JSON.parse(bodyText); } catch (e) { parsed = {}; }
+  if (!parsed.adminKey || parsed.adminKey !== env.ADMIN_KEY) {
+    return jsonError('Unauthorized', 403);
+  }
+
+  const paymentToken = String(args[0] || '').trim();
+  if (!paymentToken) return jsonError('paymentToken is required');
+
+  try {
+    const row = await env.DB.prepare(
+      'SELECT payment_token, data, created_at, consumed FROM pending_orders WHERE payment_token = ?'
+    ).bind(paymentToken).first();
+
+    if (!row) {
+      return jsonOk({ ok: true, found: false });
+    }
+
+    return jsonOk({
+      ok: true,
+      found: true,
+      paymentToken: row.payment_token,
+      data: row.data,
+      createdAt: row.created_at,
+      consumed: row.consumed,
+    });
+  } catch (e) {
+    console.error('getPendingOrder error:', e.message);
+    return jsonError('D1 query error: ' + e.message, 500);
+  }
+}
+
+/**
+ * D1のペンディング注文をconsumed=1にマーク（ADMIN_KEY認証）
+ */
+export async function markPendingConsumed(args, env, bodyText) {
+  let parsed;
+  try { parsed = JSON.parse(bodyText); } catch (e) { parsed = {}; }
+  if (!parsed.adminKey || parsed.adminKey !== env.ADMIN_KEY) {
+    return jsonError('Unauthorized', 403);
+  }
+
+  const paymentToken = String(args[0] || '').trim();
+  if (!paymentToken) return jsonError('paymentToken is required');
+
+  try {
+    await env.DB.prepare(
+      'UPDATE pending_orders SET consumed = 1 WHERE payment_token = ?'
+    ).bind(paymentToken).run();
+
+    return jsonOk({ ok: true, message: 'Marked as consumed' });
+  } catch (e) {
+    console.error('markPendingConsumed error:', e.message);
+    return jsonError('D1 update error: ' + e.message, 500);
+  }
 }

@@ -160,6 +160,15 @@ CREATE TABLE IF NOT EXISTS stats_cache (
   updated_at TEXT NOT NULL
 );
 
+-- ペンディング注文バックアップ（PropertiesService欠損時のフォールバック）
+CREATE TABLE IF NOT EXISTS pending_orders (
+  payment_token TEXT PRIMARY KEY,
+  data TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  consumed INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_pending_orders_created ON pending_orders(created_at);
+
 -- 同期メタデータ
 CREATE TABLE IF NOT EXISTS sync_meta (
   source TEXT PRIMARY KEY,                 -- 'products', 'customers', 'coupons', etc.

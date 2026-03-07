@@ -74,9 +74,40 @@ export async function scheduledSync(env) {
       await pushImportData(env);
     }
 
+    // 6. pending_orders クリーンアップ
+    await cleanupPendingOrders(env.DB);
+
     console.log('[sync] Sync completed successfully');
   } catch (e) {
     console.error('[sync] Sync error:', e.message, e.stack);
+  }
+}
+
+// ─── pending_orders クリーンアップ ───
+
+async function cleanupPendingOrders(db) {
+  try {
+    const now = new Date();
+
+    // consumed=1 かつ7日以上経過 → DELETE
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { meta: delMeta } = await db.prepare(
+      'DELETE FROM pending_orders WHERE consumed = 1 AND created_at < ?'
+    ).bind(sevenDaysAgo).run();
+    if (delMeta.changes > 0) {
+      console.log(`[sync] pending_orders cleanup: deleted ${delMeta.changes} consumed rows (>7 days)`);
+    }
+
+    // consumed=0 かつ14日以上経過 → WARNING（削除はしない）
+    const fourteenDaysAgo = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000).toISOString();
+    const { results: staleRows } = await db.prepare(
+      'SELECT payment_token, created_at FROM pending_orders WHERE consumed = 0 AND created_at < ?'
+    ).bind(fourteenDaysAgo).all();
+    for (const row of staleRows) {
+      console.warn(`[sync] WARNING: unconsumed pending_order >14 days: token=${row.payment_token}, created=${row.created_at}`);
+    }
+  } catch (e) {
+    console.error('[sync] pending_orders cleanup error:', e.message);
   }
 }
 
