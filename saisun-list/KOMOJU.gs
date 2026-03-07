@@ -1289,15 +1289,18 @@ function setupPendingOrderTrigger() {
  * GASエディタから実行
  */
 function recoverKomojuPayment() {
-  var paymentId = '97fnf45edtlsp0i3ve9ni4ydj';
+  var paymentId = 'a6c1u89brkta7o5okxbzzd9qe';
 
   // 1. KOMOJUから支払い情報を取得
   var payment = fetchPaymentFromApi_(paymentId);
   if (!payment) { console.log('KOMOJU APIから取得できません'); return; }
-  if (payment.status !== 'captured' && payment.status !== 'authorized') {
-    console.log('支払いが完了していません: ' + payment.status);
+  // コンビニ未入金(authorized/pending)も復旧対象にする
+  var allowedStatuses = ['captured', 'authorized', 'pending'];
+  if (allowedStatuses.indexOf(payment.status) === -1) {
+    console.log('対象外のステータスです: ' + payment.status);
     return;
   }
+  console.log('KOMOJU status: ' + payment.status + ', amount: ¥' + payment.amount);
 
   var meta = payment.metadata || {};
   var receiptNo = payment.external_order_num || meta.receipt_no || '';
@@ -1362,9 +1365,9 @@ function recoverKomojuPayment() {
     productAmount,                               // L: 合計金額（商品代のみ）
     '',                                          // M: 送料(店負担)
     shippingAmount,                              // N: 送料(客負担)
-    'PayPay',                                    // O: 決済方法
+    getPaymentMethodDisplayName_(payment.payment_details ? payment.payment_details.type : ''), // O: 決済方法
     paymentId,                                   // P: 決済ID
-    '未対応',                                     // Q: 入金確認（captured=入金済み）
+    payment.status === 'captured' ? '未対応' : '入金待ち', // Q: 入金確認
     '',                                          // R: ポイント付与済
     '未着手',                                     // S: 発送ステータス
     '',                                          // T: 配送業者
@@ -1377,7 +1380,7 @@ function recoverKomojuPayment() {
     '',                                          // AA: インボイス状況
     false,                                       // AB: 受注通知
     '',                                          // AC: 発送通知
-    'KOMOJU復旧: PayPay ¥' + payment.amount + ' captured',  // AD: 備考
+    'KOMOJU復旧: ' + payment.status + ' ¥' + payment.amount, // AD: 備考
     '',                                          // AE: 作業報酬
     now,                                         // AF: 更新日時
     'デタウリ'                                    // AG: チャネル
@@ -1393,4 +1396,184 @@ function recoverKomojuPayment() {
   console.log('顧客: ' + meta.company_name + ' / ' + meta.email);
   console.log('');
   console.log('※H列（商品名）とJ列（選択リスト）、K列（点数）は手動で確認・入力してください');
+}
+
+/**
+ * KOMOJUセッションIDからペンディングデータを探して商品情報を復旧
+ * GASエディタから実行: findAndRestorePendingOrder()
+ */
+function findAndRestorePendingOrder() {
+  var komojuId = '84egj84yy6obfgvbubnaq48km';
+  var secretKey = getKomojuSecretKey_();
+
+  // 1. まずpayment IDとして取得を試みる
+  var resp = komojuRequest_('GET', '/payments/' + komojuId, null, secretKey);
+  if (!resp || resp.error) {
+    console.log('payment取得失敗、sessionとして試行...');
+    resp = komojuRequest_('GET', '/sessions/' + komojuId, null, secretKey);
+    if (!resp || resp.error) {
+      console.log('session取得も失敗:', JSON.stringify(resp));
+      // 3. PropertiesServiceを直接検索
+      console.log('PropertiesServiceを直接検索します...');
+      var props = PropertiesService.getScriptProperties();
+      var allProps = props.getProperties();
+      var found = false;
+      for (var key in allProps) {
+        if (key.indexOf('PENDING_ORDER_') === 0 || key.indexOf('PAYMENT_') === 0) {
+          var val = allProps[key];
+          if (val.indexOf(komojuId) !== -1) {
+            console.log('Found in ' + key + ':', val.substring(0, 500));
+            found = true;
+          }
+        }
+      }
+      if (!found) console.log('PropertiesServiceにも見つかりません');
+      return;
+    }
+  }
+
+  console.log('取得成功 - status:', resp.status);
+  console.log('external_order_num:', resp.external_order_num);
+  console.log('metadata:', JSON.stringify(resp.metadata || {}));
+
+  var paymentToken = resp.external_order_num
+    || (resp.metadata ? (resp.metadata.payment_token || resp.metadata.receipt_no) : null);
+  if (!paymentToken) { console.log('paymentToken not found'); return; }
+  console.log('paymentToken:', paymentToken);
+
+  // 2. PENDING_ORDER_ を探す
+  var props = PropertiesService.getScriptProperties();
+  var pendingStr = props.getProperty('PENDING_ORDER_' + paymentToken);
+  if (!pendingStr) {
+    console.log('PENDING_ORDER not found for: ' + paymentToken);
+    console.log('KVバックアップも期限切れの可能性。手動で商品情報を入力してください。');
+    return;
+  }
+
+  var pending = JSON.parse(pendingStr);
+  console.log('=== PENDING ORDER FOUND ===');
+  console.log('ids:', JSON.stringify(pending.ids || []));
+  console.log('selectionList:', pending.selectionList || '');
+  console.log('totalCount:', pending.totalCount || 0);
+
+  // 3. 依頼管理シートで受付番号を探してH列・J列・K列を更新
+  var receiptNo = paymentToken;
+  // PAYMENT_セッションにreceiptNoがあればそちらを使用
+  var paymentStr = props.getProperty('PAYMENT_' + paymentToken);
+  if (paymentStr) {
+    var paymentData = JSON.parse(paymentStr);
+    if (paymentData.receiptNo) receiptNo = paymentData.receiptNo;
+  }
+  console.log('受付番号:', receiptNo);
+
+  var orderSs = sh_getOrderSs_();
+  var reqSh = orderSs.getSheetByName('依頼管理');
+  if (!reqSh) { console.log('依頼管理シートなし'); return; }
+
+  var lastRow = reqSh.getLastRow();
+  if (lastRow < 2) { console.log('依頼管理にデータなし'); return; }
+
+  var receipts = reqSh.getRange(2, 1, lastRow - 1, 1).getDisplayValues();
+  var targetRow = -1;
+  for (var i = 0; i < receipts.length; i++) {
+    if (String(receipts[i][0]).trim() === receiptNo) {
+      targetRow = i + 2;
+      break;
+    }
+  }
+  if (targetRow === -1) {
+    console.log('受付番号 ' + receiptNo + ' が依頼管理に見つかりません');
+    return;
+  }
+
+  // 商品名を構築
+  var productName = '';
+  var itemDetails = pending.itemDetails || [];
+  if (itemDetails.length > 0) {
+    productName = itemDetails.map(function(item) {
+      return (item.brand || '') + ' ' + (item.category || '') + ' ' + (item.managedId || '');
+    }).join('\n');
+  } else if (pending.templateText) {
+    productName = pending.templateText;
+  } else {
+    productName = (pending.ids || []).join('、');
+  }
+
+  var selectionList = pending.selectionList || (pending.ids || []).join('、');
+  var totalCount = pending.totalCount || (pending.ids || []).length;
+  var remarks = pending.form ? (pending.form.remarks || pending.form.memo || '') : '';
+
+  // H列=商品名(8), J列=選択リスト(10), K列=合計点数(11)
+  reqSh.getRange(targetRow, 8).setValue(productName);   // H列
+  reqSh.getRange(targetRow, 10).setValue(selectionList); // J列
+  reqSh.getRange(targetRow, 11).setValue(totalCount);    // K列
+  if (remarks) {
+    var currentAD = reqSh.getRange(targetRow, 30).getValue();
+    reqSh.getRange(targetRow, 30).setValue(String(currentAD || '') + '\n備考: ' + remarks); // AD列
+  }
+
+  console.log('=== 復旧完了 ===');
+  console.log('行:', targetRow);
+  console.log('商品名:', productName.substring(0, 100));
+  console.log('選択リスト:', selectionList.substring(0, 100));
+  console.log('点数:', totalCount);
+  if (remarks) console.log('備考:', remarks);
+}
+
+/**
+ * 受付番号に関連するPropertiesServiceのデータを全てダンプ
+ * GASエディタから実行: dumpOrderData()
+ */
+function dumpOrderData() {
+  var receiptNo = '20260306150832-592';
+  var props = PropertiesService.getScriptProperties();
+
+  // 1. PAYMENT_ セッション
+  var paymentStr = props.getProperty('PAYMENT_' + receiptNo);
+  console.log('=== PAYMENT_' + receiptNo + ' ===');
+  console.log(paymentStr || '(not found)');
+
+  // 2. PENDING_ORDER_
+  var pendingStr = props.getProperty('PENDING_ORDER_' + receiptNo);
+  console.log('=== PENDING_ORDER_' + receiptNo + ' ===');
+  console.log(pendingStr || '(not found)');
+
+  // 3. holdState から当時のデータを探す
+  var orderSs = sh_getOrderSs_();
+  var holdState = st_getHoldState_(orderSs) || {};
+  var holdItems = holdState.items || {};
+  console.log('=== holdState内の該当データ ===');
+  var foundHold = false;
+  for (var id in holdItems) {
+    if (holdItems[id].receiptNo === receiptNo) {
+      console.log(id + ':', JSON.stringify(holdItems[id]));
+      foundHold = true;
+    }
+  }
+  if (!foundHold) console.log('(holdStateに該当なし)');
+
+  // 4. openState（依頼中）から探す
+  var openState = st_getOpenState_(orderSs) || {};
+  var openItems = openState.items || {};
+  console.log('=== openState内の該当データ ===');
+  var foundOpen = false;
+  for (var oid in openItems) {
+    if (openItems[oid].receiptNo === receiptNo) {
+      console.log(oid + ':', JSON.stringify(openItems[oid]));
+      foundOpen = true;
+    }
+  }
+  if (!foundOpen) console.log('(openStateに該当なし)');
+
+  // 5. PropertiesService全体から受付番号を含むキーを検索
+  console.log('=== Properties全検索 ===');
+  var all = props.getProperties();
+  var count = 0;
+  for (var key in all) {
+    if (all[key].indexOf(receiptNo) !== -1) {
+      console.log(key + ':', all[key].substring(0, 500));
+      count++;
+    }
+  }
+  if (count === 0) console.log('(受付番号を含むプロパティなし)');
 }
