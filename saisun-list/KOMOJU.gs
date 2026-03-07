@@ -483,6 +483,10 @@ function handlePaymentUpdated_(data) {
     // PAYMENT_セッションからreceiptNoを取得
     var sheetReceiptNo = saved.receiptNo || paymentToken;
     updateOrderPaymentStatus_(sheetReceiptNo, 'paid', paymentMethodType);
+
+    // 入金確認メールを顧客に送信
+    sendPaymentConfirmedEmail_(sheetReceiptNo, paymentMethodType);
+
     console.log('payment.updated: 入金確認完了 (' + paymentMethodType + '): ' + paymentToken);
     return { ok: true, message: 'Payment confirmed via updated event' };
   }
@@ -1013,6 +1017,123 @@ function getPaymentSession_(receiptNo) {
  * - AA列にFALSEをセット（入金完了時のみ）
  * - AE列に決済方法の日本語表示名をセット
  */
+/**
+ * 後払い入金確認メールを顧客に送信
+ * コンビニ・銀行振込・ペイジー・Paidyで実際に入金された際に呼ばれる
+ * @param {string} receiptNo - 受付番号
+ * @param {string} paymentMethodType - 決済方法タイプ
+ */
+function sendPaymentConfirmedEmail_(receiptNo, paymentMethodType) {
+  try {
+    var orderSs = sh_getOrderSs_();
+    var sheet = orderSs.getSheetByName('依頼管理');
+    if (!sheet) return;
+
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return;
+
+    // 受付番号で行を検索（A列）
+    var allReceipts = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    var targetRow = -1;
+    for (var i = 0; i < allReceipts.length; i++) {
+      if (String(allReceipts[i][0]) === String(receiptNo)) {
+        targetRow = i + 2;
+        break;
+      }
+    }
+    if (targetRow === -1) {
+      console.warn('sendPaymentConfirmedEmail_: 受付番号が見つからない: ' + receiptNo);
+      return;
+    }
+
+    // 依頼管理シートから必要な列を取得
+    // A=受付番号, C=会社名, D=メール, K=合計点数, L=合計金額, N=送料(客負担), O=決済方法
+    var rowData = sheet.getRange(targetRow, 1, 1, 15).getValues()[0];
+    var companyName = String(rowData[2] || '').trim();
+    var email = String(rowData[3] || '').trim();
+    var totalCount = rowData[10] || 0;
+    var totalAmount = rowData[11] || 0;
+    var shippingAmount = rowData[13] || 0;
+
+    if (!email || email.indexOf('@') === -1) {
+      console.warn('sendPaymentConfirmedEmail_: メールアドレスなし: ' + receiptNo);
+      return;
+    }
+
+    var paymentMethodLabel = getPaymentMethodDisplayName_(paymentMethodType);
+    var confirmedAt = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy年MM月dd日 HH:mm');
+
+    // テキスト版
+    var subject = '【デタウリ.Detauri】入金を確認しました（受付番号：' + receiptNo + '）';
+    var body = companyName + ' 様\n\n'
+      + 'デタウリ.Detauri をご利用いただきありがとうございます。\n'
+      + 'お客様のご入金を確認いたしました。ご注文が確定しましたのでお知らせいたします。\n\n'
+      + '━━━━━━━━━━━━━━━━━━━━\n'
+      + '■ ご注文内容\n'
+      + '━━━━━━━━━━━━━━━━━━━━\n'
+      + '受付番号：' + receiptNo + '\n'
+      + '入金確認日時：' + confirmedAt + '\n'
+      + '会社名/氏名：' + companyName + '\n'
+      + '合計点数：' + totalCount + '点\n'
+      + '合計金額：' + Number(totalAmount).toLocaleString() + '円（税込）\n';
+
+    if (shippingAmount > 0) {
+      body += '（うち送料：' + Number(shippingAmount).toLocaleString() + '円）\n';
+    }
+    body += '決済方法：' + paymentMethodLabel + '\n';
+
+    body += '━━━━━━━━━━━━━━━━━━━━\n\n'
+      + '商品の発送準備を進めてまいります。\n'
+      + '発送が完了しましたら、追跡番号とともにメールでお知らせいたします。\n\n'
+      + '※ このメールは自動送信です。\n'
+      + '※ ご注文確定後のキャンセル・変更はできません。\n'
+      + '\n──────────────────\n'
+      + 'デタウリ.Detauri\n'
+      + 'https://wholesale.nkonline-tool.com/\n'
+      + 'お問い合わせ：' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
+      + '──────────────────\n';
+
+    // HTML版
+    var htmlBody = buildHtmlEmail_({
+      greeting: companyName + ' 様',
+      lead: 'デタウリ.Detauri をご利用いただきありがとうございます。\nお客様のご入金を確認いたしました。ご注文が確定しましたのでお知らせいたします。',
+      sections: [
+        {
+          title: 'ご注文内容',
+          rows: [
+            { label: '受付番号', value: String(receiptNo) },
+            { label: '入金確認日時', value: confirmedAt },
+            { label: '会社名/氏名', value: companyName },
+            { label: '合計点数', value: totalCount + '点' },
+            { label: '合計金額', value: Number(totalAmount).toLocaleString() + '円（税込）' },
+            { label: '決済方法', value: paymentMethodLabel }
+          ]
+        },
+        {
+          title: '',
+          text: '商品の発送準備を進めてまいります。\n発送が完了しましたら、追跡番号とともにメールでお知らせいたします。'
+        }
+      ],
+      notes: [
+        'このメールは自動送信です。',
+        'ご注文確定後のキャンセル・変更はできません。'
+      ]
+    });
+
+    MailApp.sendEmail({
+      to: email,
+      subject: subject,
+      body: body,
+      htmlBody: htmlBody,
+      noReply: true
+    });
+
+    console.log('入金確認メール送信完了: ' + receiptNo + ' → ' + email);
+  } catch (e) {
+    console.error('sendPaymentConfirmedEmail_ error:', e);
+  }
+}
+
 function updateOrderPaymentStatus_(receiptNo, paymentStatus, paymentMethod) {
   try {
     var orderSs = sh_getOrderSs_();
