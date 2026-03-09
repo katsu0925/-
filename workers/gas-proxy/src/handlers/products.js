@@ -107,28 +107,49 @@ export async function bulkInit(args, env) {
 async function readProductsFromD1(db) {
   const { results } = await db.prepare(`
     SELECT managed_id, no_label, image_url, state, brand, size,
-           gender, category, color, price, qty, defect_detail, shipping_method
+           gender, category, color, price, qty, defect_detail, shipping_method,
+           measure_length, measure_shoulder, measure_bust, measure_sleeve,
+           measure_yuki, measure_total_length, measure_waist, measure_rise,
+           measure_inseam, measure_thigh, measure_hem_width, measure_hip
     FROM products
-    ORDER BY no_label ASC
+    ORDER BY CAST(no_label AS INTEGER) ASC, no_label ASC
   `).all();
 
-  return results.map(row => ({
-    managedId: row.managed_id,
-    noLabel: row.no_label,
-    imageUrl: row.image_url,
-    state: row.state,
-    brand: row.brand,
-    size: row.size,
-    gender: row.gender,
-    category: row.category,
-    color: row.color,
-    price: row.price,
-    defectDetail: row.defect_detail,
-    shippingMethod: row.shipping_method,
-    // status, selectable は applyProductStatuses() で後から付与
-    status: '在庫あり',
-    selectable: true,
-  }));
+  return results.map(row => {
+    const measurements = buildMeasurements(row);
+    return {
+      managedId: row.managed_id,
+      noLabel: row.no_label,
+      imageUrl: row.image_url,
+      state: row.state,
+      brand: row.brand,
+      size: row.size,
+      gender: row.gender,
+      category: row.category,
+      color: row.color,
+      price: row.price,
+      defectDetail: row.defect_detail,
+      shippingMethod: row.shipping_method,
+      measurements,
+      // status, selectable は applyProductStatuses() で後から付与
+      status: '在庫あり',
+      selectable: true,
+    };
+  });
+}
+
+function buildMeasurements(row) {
+  const map = {
+    '着丈': row.measure_length, '肩幅': row.measure_shoulder, '身幅': row.measure_bust,
+    '袖丈': row.measure_sleeve, '桁丈': row.measure_yuki, '総丈': row.measure_total_length,
+    'ウエスト': row.measure_waist, '股上': row.measure_rise, '股下': row.measure_inseam,
+    'ワタリ': row.measure_thigh, '裾幅': row.measure_hem_width, 'ヒップ': row.measure_hip,
+  };
+  const result = {};
+  for (const [label, val] of Object.entries(map)) {
+    if (val != null) result[label] = val;
+  }
+  return result;
 }
 
 /**
@@ -195,6 +216,7 @@ function buildFilterOptions(products) {
     state: new Set(),
     gender: new Set(),
     size: new Set(),
+    brand: new Set(),
   };
 
   for (const p of products) {
@@ -202,6 +224,7 @@ function buildFilterOptions(products) {
     if (p.state) sets.state.add(p.state);
     if (p.gender) sets.gender.add(p.gender);
     if (p.size) sets.size.add(p.size);
+    if (p.brand) sets.brand.add(p.brand);
   }
 
   const sortArr = (s) => [...s].sort((a, b) => a.localeCompare(b, 'ja'));
@@ -212,6 +235,7 @@ function buildFilterOptions(products) {
     state: sortArr(sets.state),
     gender: sortArr(sets.gender),
     size: sortArr(sets.size),
+    brand: sortArr(sets.brand),
     sort: [
       { key: 'default', label: 'No（番号順）' },
       { key: 'price', label: '価格' },

@@ -413,6 +413,20 @@ async function updateSyncMeta(db, exportData) {
  * 同期後にD1から最新データを読み取り、KVに書き込む。
  * ユーザーリクエスト時は常にKV HITになり、初回アクセスも高速。
  */
+function buildMeasurementsObj(row) {
+  const map = {
+    '着丈': row.measure_length, '肩幅': row.measure_shoulder, '身幅': row.measure_bust,
+    '袖丈': row.measure_sleeve, '桁丈': row.measure_yuki, '総丈': row.measure_total_length,
+    'ウエスト': row.measure_waist, '股上': row.measure_rise, '股下': row.measure_inseam,
+    'ワタリ': row.measure_thigh, '裾幅': row.measure_hem_width, 'ヒップ': row.measure_hip,
+  };
+  const result = {};
+  for (const [label, val] of Object.entries(map)) {
+    if (val != null) result[label] = val;
+  }
+  return result;
+}
+
 async function prewarmCaches(env) {
   const CACHE_TTL = 600; // 10分（Cronは5分間隔なので余裕を持たせる）
 
@@ -420,8 +434,11 @@ async function prewarmCaches(env) {
     // 商品データをプリウォーム
     const { results: products } = await env.DB.prepare(`
       SELECT managed_id, no_label, image_url, state, brand, size,
-             gender, category, color, price, qty, defect_detail, shipping_method
-      FROM products ORDER BY no_label ASC
+             gender, category, color, price, qty, defect_detail, shipping_method,
+             measure_length, measure_shoulder, measure_bust, measure_sleeve,
+             measure_yuki, measure_total_length, measure_waist, measure_rise,
+             measure_inseam, measure_thigh, measure_hem_width, measure_hip
+      FROM products ORDER BY CAST(no_label AS INTEGER) ASC, no_label ASC
     `).all();
 
     const items = products.map(row => ({
@@ -429,6 +446,7 @@ async function prewarmCaches(env) {
       state: row.state, brand: row.brand, size: row.size, gender: row.gender,
       category: row.category, color: row.color, price: row.price,
       defectDetail: row.defect_detail, shippingMethod: row.shipping_method,
+      measurements: buildMeasurementsObj(row),
       status: '在庫あり', selectable: true,
     }));
 
@@ -444,18 +462,20 @@ async function prewarmCaches(env) {
     }
 
     // フィルタオプション構築
-    const sets = { category: new Set(), state: new Set(), gender: new Set(), size: new Set() };
+    const sets = { category: new Set(), state: new Set(), gender: new Set(), size: new Set(), brand: new Set() };
     for (const p of items) {
       if (p.category) sets.category.add(p.category);
       if (p.state) sets.state.add(p.state);
       if (p.gender) sets.gender.add(p.gender);
       if (p.size) sets.size.add(p.size);
+      if (p.brand) sets.brand.add(p.brand);
     }
     const sortArr = (s) => [...s].sort((a, b) => a.localeCompare(b, 'ja'));
     const options = {
       status: ['在庫あり', '依頼中', '確保中'],
       category: sortArr(sets.category), state: sortArr(sets.state),
       gender: sortArr(sets.gender), size: sortArr(sets.size),
+      brand: sortArr(sets.brand),
       sort: [
         { key: 'default', label: 'No（番号順）' }, { key: 'price', label: '価格' },
         { key: 'brand', label: 'ブランド' }, { key: 'size', label: 'サイズ' },

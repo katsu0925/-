@@ -47,7 +47,7 @@ function pr_readProducts_() {
   }
 
   const numRows = lastRow - startRow + 1;
-  const values = sh.getRange(startRow, 1, numRows, u_toInt_(APP_CONFIG.data.readCols, 11)).getValues();
+  const values = sh.getRange(startRow, 1, numRows, u_toInt_(APP_CONFIG.data.readCols, 25)).getValues();
 
   const list = [];
   for (let i = 0; i < values.length; i++) {
@@ -63,9 +63,22 @@ function pr_readProducts_() {
     const price = u_toNumber_(row[8]);
     const qty = u_toNumber_(row[9]);
     const managedId = u_normalizeId_(row[10]);
-    // 傷汚れ詳細 (17列目 = index 16)
-    const defectDetail = row.length > 16 ? String(row[16] || '').trim() : '';
-    // 発送方法 (25列目 = index 24, Y列)
+    // 採寸データ (L〜W列 = index 11〜22)
+    const measureLength = row.length > 11 ? u_toNumber_(row[11]) : null;
+    const measureShoulder = row.length > 12 ? u_toNumber_(row[12]) : null;
+    const measureBust = row.length > 13 ? u_toNumber_(row[13]) : null;
+    const measureSleeve = row.length > 14 ? u_toNumber_(row[14]) : null;
+    const measureYuki = row.length > 15 ? u_toNumber_(row[15]) : null;
+    const measureTotalLength = row.length > 16 ? u_toNumber_(row[16]) : null;
+    const measureWaist = row.length > 17 ? u_toNumber_(row[17]) : null;
+    const measureRise = row.length > 18 ? u_toNumber_(row[18]) : null;
+    const measureInseam = row.length > 19 ? u_toNumber_(row[19]) : null;
+    const measureThigh = row.length > 20 ? u_toNumber_(row[20]) : null;
+    const measureHemWidth = row.length > 21 ? u_toNumber_(row[21]) : null;
+    const measureHip = row.length > 22 ? u_toNumber_(row[22]) : null;
+    // 傷汚れ詳細 (X列 = index 23)
+    const defectDetail = row.length > 23 ? String(row[23] || '').trim() : '';
+    // 発送方法 (Y列 = index 24)
     const shippingMethod = row.length > 24 ? String(row[24] || '').trim() : '';
     if (!managedId) continue;
 
@@ -81,6 +94,18 @@ function pr_readProducts_() {
       color: color,
       price: price,
       qty: qty,
+      measureLength: measureLength || null,
+      measureShoulder: measureShoulder || null,
+      measureBust: measureBust || null,
+      measureSleeve: measureSleeve || null,
+      measureYuki: measureYuki || null,
+      measureTotalLength: measureTotalLength || null,
+      measureWaist: measureWaist || null,
+      measureRise: measureRise || null,
+      measureInseam: measureInseam || null,
+      measureThigh: measureThigh || null,
+      measureHemWidth: measureHemWidth || null,
+      measureHip: measureHip || null,
       defectDetail: defectDetail,
       shippingMethod: shippingMethod
     });
@@ -95,12 +120,14 @@ function pr_buildFilterOptions_(products) {
   const setSize = {};
   const setGender = {};
   const setCategory = {};
+  const setBrand = {};
   for (let i = 0; i < products.length; i++) {
     const p = products[i];
     if (p.state) setState[p.state] = true;
     if (p.size) setSize[p.size] = true;
     if (p.gender) setGender[p.gender] = true;
     if (p.category) setCategory[p.category] = true;
+    if (p.brand) setBrand[p.brand] = true;
   }
   const keysSorted = (obj) => Object.keys(obj || {}).sort((a, b) => String(a).localeCompare(String(b), 'ja'));
   return {
@@ -109,6 +136,7 @@ function pr_buildFilterOptions_(products) {
     state: keysSorted(setState),
     gender: keysSorted(setGender),
     size: keysSorted(setSize),
+    brand: keysSorted(setBrand),
     // 管理番号ソートは削除
     sort: [
       { key: 'default', label: 'No（番号順）' },
@@ -117,5 +145,15 @@ function pr_buildFilterOptions_(products) {
       { key: 'size', label: 'サイズ' }
     ]
   };
+}
+
+/**
+ * 商品キャッシュを強制クリア（GASエディタから実行）
+ * コード変更後にD1同期データを更新したい場合に使用
+ */
+function refreshProductsCache() {
+  pr_bumpProductsVersion_();
+  pr_clearProductsCache_();
+  console.log('商品キャッシュをクリアしました。次回のWorkers同期で最新データが反映されます。');
 }
 
