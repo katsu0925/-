@@ -34,7 +34,7 @@ function apiSyncExportData(params) {
       result.products = exportProducts_();
       // データ1シートB1の掲載中件数
       try {
-        var data1Sh = SpreadsheetApp.openById(APP_CONFIG.spreadsheetId).getSheetByName(APP_CONFIG.data.sheetName);
+        var data1Sh = SpreadsheetApp.openById(APP_CONFIG.data.spreadsheetId).getSheetByName(APP_CONFIG.data.sheetName);
         result.sheetTotalCount = Number(data1Sh.getRange('B1').getValue()) || 0;
       } catch (e) { result.sheetTotalCount = 0; }
     }
