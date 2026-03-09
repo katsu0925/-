@@ -1157,6 +1157,9 @@ function confirmPaymentAndCreateOrder(paymentToken, paymentStatus, paymentMethod
       pendingData.selectionList = u_sortManagedIds_(allIds).join('、');
       pendingData.totalCount = allIds.length;
       pendingData._hasManagedIds = true;
+    } else if (!isBulk && pendingData.ids && pendingData.ids.length > 0) {
+      // デタウリ単体注文: 管理番号が何点あってもK列は1
+      pendingData._sheetTotalCount = 1;
     }
 
     // 1. holdState → openState に遷移（決済完了で確定）
