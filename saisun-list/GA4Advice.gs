@@ -563,8 +563,7 @@ function ga4advice_callAI_(messages) {
   var payload = {
     model: 'gpt-5-mini',
     messages: messages,
-    max_completion_tokens: 1000,
-    temperature: 0.5
+    max_completion_tokens: 1000
   };
 
   var res = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', {
