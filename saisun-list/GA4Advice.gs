@@ -563,7 +563,7 @@ function ga4advice_callAI_(messages) {
   var payload = {
     model: 'gpt-5-mini',
     messages: messages,
-    max_completion_tokens: 1000
+    max_completion_tokens: 16000
   };
 
   var res = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', {
@@ -582,25 +582,13 @@ function ga4advice_callAI_(messages) {
   }
 
   var json = JSON.parse(body);
-  console.log('ga4advice OpenAI response keys: ' + Object.keys(json).join(', '));
-
-  // gpt-5系: output[].content[].text / 従来: choices[].message.content
-  if (json.output && Array.isArray(json.output)) {
-    for (var oi = 0; oi < json.output.length; oi++) {
-      var item = json.output[oi];
-      if (item.type === 'message' && item.content) {
-        for (var ci = 0; ci < item.content.length; ci++) {
-          if (item.content[ci].type === 'output_text' && item.content[ci].text) {
-            return String(item.content[ci].text).trim();
-          }
-        }
-      }
-    }
-  }
   if (json.choices && json.choices[0] && json.choices[0].message) {
-    return String(json.choices[0].message.content || '').trim();
+    var msg = json.choices[0].message;
+    if (msg.refusal) {
+      throw new Error('AI refusal: ' + msg.refusal);
+    }
+    return String(msg.content || '').trim();
   }
-  console.error('ga4advice: 応答パース失敗: ' + body.substring(0, 500));
   throw new Error('OpenAI応答が不正です');
 }
 
