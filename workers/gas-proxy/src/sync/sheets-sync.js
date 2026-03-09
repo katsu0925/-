@@ -63,10 +63,15 @@ export async function scheduledSync(env) {
       console.log('[sync] Stats synced');
     }
 
-    // 3. 同期メタデータ更新
+    // 3. sheetTotalCount（データ1 B1の掲載中件数）をKVに保存
+    if (exportData.sheetTotalCount != null) {
+      await env.CACHE.put('sheetTotalCount', String(exportData.sheetTotalCount));
+    }
+
+    // 4. 同期メタデータ更新
     await updateSyncMeta(env.DB, exportData);
 
-    // 4. KVキャッシュをプリウォーム（D1→KVに最新データ書き込み）
+    // 5. KVキャッシュをプリウォーム（D1→KVに最新データ書き込み）
     await prewarmCaches(env);
 
     // 5. D1 → Sheets 方向の同期（顧客の新規登録等）
@@ -505,8 +510,12 @@ async function prewarmCaches(env) {
     const statsRow = await env.DB.prepare("SELECT data FROM stats_cache WHERE key = 'banner'").first();
     const stats = statsRow ? JSON.parse(statsRow.data) : null;
 
+    // sheetTotalCount（データ1 B1の掲載中件数）をKVから取得
+    const sheetTotalCountStr = await env.CACHE.get('sheetTotalCount');
+    const sheetTotalCount = sheetTotalCountStr ? Number(sheetTotalCountStr) : 0;
+
     // KVに書き込み（GAS互換形式: products キーで保存）
-    const productData = { products: items, totalCount: items.length, options, settings, stats };
+    const productData = { products: items, totalCount: items.length, sheetTotalCount, options, settings, stats };
     await env.CACHE.put('products:detauri', JSON.stringify(productData), { expirationTtl: CACHE_TTL });
     await env.CACHE.put('settings:public', JSON.stringify(settings), { expirationTtl: CACHE_TTL });
     if (stats) await env.CACHE.put('stats:banner', JSON.stringify(stats), { expirationTtl: CACHE_TTL });

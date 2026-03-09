@@ -32,6 +32,11 @@ function apiSyncExportData(params) {
     // 商品データ（データ1シート）
     if (tables.indexOf('products') !== -1) {
       result.products = exportProducts_();
+      // データ1シートB1の掲載中件数
+      try {
+        var data1Sh = SpreadsheetApp.openById(APP_CONFIG.spreadsheetId).getSheetByName(APP_CONFIG.data.sheetName);
+        result.sheetTotalCount = Number(data1Sh.getRange('B1').getValue()) || 0;
+      } catch (e) { result.sheetTotalCount = 0; }
     }
 
     // アソート商品データ

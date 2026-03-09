@@ -37,9 +37,13 @@ export async function getCachedProducts(args, env) {
   const settings = await getPublicSettings(env);
   const stats = await getStatsCache(env);
 
+  const sheetTotalCountStr = await env.CACHE.get('sheetTotalCount');
+  const sheetTotalCount = sheetTotalCountStr ? Number(sheetTotalCountStr) : 0;
+
   const data = {
     products,
     totalCount: products.length,
+    sheetTotalCount,
     options,
     settings,
     stats,
