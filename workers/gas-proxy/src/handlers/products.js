@@ -42,7 +42,6 @@ export async function getCachedProducts(args, env) {
 
   const data = {
     products,
-    totalCount: products.length,
     sheetTotalCount,
     options,
     settings,

@@ -515,7 +515,7 @@ async function prewarmCaches(env) {
     const sheetTotalCount = sheetTotalCountStr ? Number(sheetTotalCountStr) : 0;
 
     // KVに書き込み（GAS互換形式: products キーで保存）
-    const productData = { products: items, totalCount: items.length, sheetTotalCount, options, settings, stats };
+    const productData = { products: items, sheetTotalCount, options, settings, stats };
     await env.CACHE.put('products:detauri', JSON.stringify(productData), { expirationTtl: CACHE_TTL });
     await env.CACHE.put('settings:public', JSON.stringify(settings), { expirationTtl: CACHE_TTL });
     if (stats) await env.CACHE.put('stats:banner', JSON.stringify(stats), { expirationTtl: CACHE_TTL });
