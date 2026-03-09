@@ -117,7 +117,7 @@ function ga4advice_extractDailyMetrics_(ss) {
 
   var last = all[all.length - 1];
   var yesterday = {
-    date: String(last[0] || '-'),
+    date: (last[0] instanceof Date) ? Utilities.formatDate(last[0], 'Asia/Tokyo', 'yyyy-MM-dd') : String(last[0] || '-'),
     users: +last[1] || 0,
     newUsers: +last[2] || 0,
     sessions: +last[3] || 0,
@@ -582,10 +582,26 @@ function ga4advice_callAI_(messages) {
   }
 
   var json = JSON.parse(body);
-  if (!json.choices || !json.choices[0] || !json.choices[0].message) {
-    throw new Error('OpenAI応答が不正です');
+  console.log('ga4advice OpenAI response keys: ' + Object.keys(json).join(', '));
+
+  // gpt-5系: output[].content[].text / 従来: choices[].message.content
+  if (json.output && Array.isArray(json.output)) {
+    for (var oi = 0; oi < json.output.length; oi++) {
+      var item = json.output[oi];
+      if (item.type === 'message' && item.content) {
+        for (var ci = 0; ci < item.content.length; ci++) {
+          if (item.content[ci].type === 'output_text' && item.content[ci].text) {
+            return String(item.content[ci].text).trim();
+          }
+        }
+      }
+    }
   }
-  return String(json.choices[0].message.content || '').trim();
+  if (json.choices && json.choices[0] && json.choices[0].message) {
+    return String(json.choices[0].message.content || '').trim();
+  }
+  console.error('ga4advice: 応答パース失敗: ' + body.substring(0, 500));
+  throw new Error('OpenAI応答が不正です');
 }
 
 // =====================================================
