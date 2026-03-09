@@ -1244,8 +1244,7 @@ function om_generateDescriptionsBatch_(batch, apiKey) {
         { role: 'system', content: OM_MERCARI_SYSTEM_PROMPT },
         { role: 'user', content: userMsg }
       ],
-      max_tokens: Math.min(batch.length * 512, 16384),
-      temperature: 0.4,
+      max_completion_tokens: 16000,
       response_format: { type: 'json_object' }
     };
 

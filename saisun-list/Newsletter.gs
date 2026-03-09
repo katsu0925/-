@@ -7,8 +7,7 @@
 var NEWSLETTER_AI_CONFIG = {
   MODEL: 'gpt-5-mini',
   ENDPOINT: 'https://api.openai.com/v1/chat/completions',
-  MAX_TOKENS: 600,
-  TEMPERATURE: 0.7
+  MAX_COMPLETION_TOKENS: 8000
 };
 
 /**
@@ -267,8 +266,7 @@ function generateNewsletterAI_(theme) {
           { role: 'system', content: systemPrompt },
           { role: 'user', content: 'テーマ: ' + String(theme) }
         ],
-        max_tokens: NEWSLETTER_AI_CONFIG.MAX_TOKENS,
-        temperature: NEWSLETTER_AI_CONFIG.TEMPERATURE,
+        max_completion_tokens: NEWSLETTER_AI_CONFIG.MAX_COMPLETION_TOKENS,
         response_format: { type: 'json_object' }
       }),
       muteHttpExceptions: true
