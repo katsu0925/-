@@ -79,12 +79,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 .sold-out-badge{background:rgba(0,0,0,.6);color:#fff;font-size:20px;font-weight:900;padding:10px 24px;border-radius:8px;letter-spacing:2px}
 .sold-out .qty-control{opacity:.3;pointer-events:none}
 
-/* 商品詳細モーダル */
-.modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);z-index:1000;justify-content:center;align-items:center;padding:20px}
+/* 商品詳細モーダル — スマホ: ボトムシート / PC: 中央モーダル */
+.modal-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);z-index:1000;justify-content:flex-end;align-items:stretch;padding:0}
 .modal-overlay.active{display:flex}
-.modal-content{background:#fff;border-radius:16px;max-width:600px;width:100%;max-height:90vh;overflow:hidden;position:relative;display:flex;flex-direction:column}
+.modal-content{background:#fff;border-radius:20px 20px 0 0;width:100%;max-height:60vh;overflow:hidden;position:relative;display:flex;flex-direction:column;transition:max-height .3s cubic-bezier(.4,0,.2,1)}
+.modal-content.expanded{max-height:95vh}
+.modal-drag-handle{flex-shrink:0;display:flex;justify-content:center;padding:10px 0 4px;cursor:grab}
+.modal-drag-handle span{width:36px;height:4px;border-radius:2px;background:#ccc}
 .modal-close{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;border:none;background:rgba(0,0,0,.5);color:#fff;font-size:20px;cursor:pointer;z-index:3;display:flex;align-items:center;justify-content:center;line-height:1}
 .modal-close:hover{background:rgba(0,0,0,.7)}
+.modal-sheet-scroll{flex:1;overflow-y:auto;min-height:0;-webkit-overflow-scrolling:touch}
 .modal-fixed-top{flex-shrink:0}
 .modal-images{position:relative;width:100%;aspect-ratio:4/3;background:#eee;overflow:hidden}
 .modal-images img{width:100%;height:100%;object-fit:contain;display:none;background:#f0f0f0}
@@ -103,6 +107,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 .modal-body{padding:12px 20px 20px}
 .modal-body .product-name{font-size:18px;margin-bottom:8px}
 .modal-body .product-desc{display:block;font-size:13px;color:#666;line-height:1.7;margin-bottom:12px;white-space:pre-wrap}
+.modal-body .product-desc.collapsed{max-height:4.2em;overflow:hidden;position:relative}
+.modal-body .product-desc.collapsed::after{content:'';position:absolute;bottom:0;left:0;width:100%;height:1.5em;background:linear-gradient(transparent,#fff)}
+.desc-toggle{display:none;font-size:12px;color:#1a73e8;cursor:pointer;margin-bottom:12px;font-weight:600}
+.desc-toggle.visible{display:block}
 .modal-body .product-tag{margin-bottom:12px}
 .modal-fixed-bottom{flex-shrink:0;padding:0 20px 20px;border-top:1px solid #eee;background:#fff}
 .modal-fixed-bottom .product-bottom{display:flex;align-items:center;justify-content:space-between;padding-top:14px}
@@ -382,13 +390,20 @@ body.admin-mode .admin-settings-fab{display:flex;}
   .pc-two-col{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px;align-items:start}
   .cart-summary{padding:18px}
   .detauri-banner{margin:28px 40px}
-  .modal-content{max-width:900px;flex-direction:row;max-height:80vh}
+  .modal-overlay{justify-content:center;align-items:center;padding:20px}
+  .modal-content{max-width:900px;flex-direction:row;max-height:80vh;border-radius:16px}
+  .modal-content.expanded{max-height:80vh}
+  .modal-drag-handle{display:none}
+  .modal-sheet-scroll{overflow:visible;flex:none;display:contents}
   .modal-fixed-top{width:50%;flex-shrink:0;display:flex;flex-direction:column}
   .modal-images{aspect-ratio:1/1}
   .modal-right{width:50%;display:flex;flex-direction:column;overflow:hidden}
   .modal-scroll{flex:1;overflow-y:auto}
   .modal-fixed-bottom{flex-shrink:0}
   .modal-close{top:8px;right:8px}
+  .modal-body .product-desc.collapsed{max-height:none;overflow:visible}
+  .modal-body .product-desc.collapsed::after{display:none}
+  .desc-toggle{display:none!important}
 }
 
 @media(min-width:560px) and (max-width:767px){
@@ -705,18 +720,21 @@ body.admin-mode .admin-settings-fab{display:flex;}
 
 <!-- 商品詳細モーダル -->
 <div class="modal-overlay" id="productModal" onclick="closeModalOverlay(event)">
-  <div class="modal-content">
+  <div class="modal-content" id="modalContent">
+    <div class="modal-drag-handle" id="modalDragHandle"><span></span></div>
     <button class="modal-close" onclick="closeModal()">&times;</button>
-    <div class="modal-fixed-top">
-      <div class="modal-images" id="modalImages"></div>
-      <div class="modal-thumbs" id="modalThumbs"></div>
-    </div>
-    <div class="modal-right">
-      <div class="modal-title-bar" id="modalTitleBar"></div>
-      <div class="modal-scroll">
-        <div class="modal-body" id="modalBody"></div>
+    <div class="modal-sheet-scroll" id="modalSheetScroll">
+      <div class="modal-fixed-top">
+        <div class="modal-images" id="modalImages"></div>
+        <div class="modal-thumbs" id="modalThumbs"></div>
       </div>
-      <div class="modal-fixed-bottom" id="modalBottom"></div>
+      <div class="modal-right">
+        <div class="modal-title-bar" id="modalTitleBar"></div>
+        <div class="modal-scroll">
+          <div class="modal-body" id="modalBody"></div>
+        </div>
+        <div class="modal-fixed-bottom" id="modalBottom"></div>
+      </div>
     </div>
   </div>
 </div>
@@ -1928,7 +1946,18 @@ function openProductModal(idx) {
     '<button class="share-btn copy-btn" onclick="copyShareUrl_(\'' + shareUrl.replace(/'/g, "\\'") + '\')">URLコピー</button>' +
     '</div>';
   bodyEl.innerHTML =
-    (p.description ? '<div class="product-desc">' + escHtml(p.description) + '</div>' : '') + shareHtml;
+    (p.description ? '<div class="product-desc collapsed" id="modalDesc">' + escHtml(p.description) + '</div>'
+    + '<div class="desc-toggle" id="descToggle" onclick="toggleDesc_()">もっと見る ▼</div>' : '') + shareHtml;
+  // 説明文が3行以下なら「もっと見る」不要
+  requestAnimationFrame(function() {
+    var descEl = document.getElementById('modalDesc');
+    var toggleEl = document.getElementById('descToggle');
+    if (descEl && toggleEl) {
+      if (descEl.scrollHeight > descEl.clientHeight + 2) {
+        toggleEl.classList.add('visible');
+      }
+    }
+  });
 
   // 固定下部: 価格 + 数量コントロール
   var bottomEl = document.getElementById('modalBottom');
@@ -1951,6 +1980,11 @@ function openProductModal(idx) {
     + '<button class="qty-btn" onclick="changeQty(\'' + escAttr(p.productId) + '\',1)">+</button>'
     + '</div></div>';
 
+  var content = document.getElementById('modalContent');
+  content.classList.remove('expanded');
+  content.style.maxHeight = '';
+  var sheetScroll = document.getElementById('modalSheetScroll');
+  if (sheetScroll) sheetScroll.scrollTop = 0;
   modal.classList.add('active');
   document.body.style.overflow = 'hidden';
   if (typeof hideFabsForModal_ === 'function') hideFabsForModal_();
@@ -1958,10 +1992,11 @@ function openProductModal(idx) {
 
 function closeModal() {
   var modal = document.getElementById('productModal');
+  var content = document.getElementById('modalContent');
   modal.classList.remove('active');
+  content.classList.remove('expanded');
   document.body.style.overflow = '';
   if (typeof showFabsAfterModal_ === 'function') showFabsAfterModal_();
-  // モーダル内の数量変更をリスト側にも反映
   G.products.forEach(function(p) {
     var qty = G.cart[p.productId] || 0;
     var input = document.getElementById('qty_' + p.productId);
@@ -1972,6 +2007,72 @@ function closeModal() {
 function closeModalOverlay(e) {
   if (e.target === e.currentTarget) closeModal();
 }
+
+function toggleDesc_() {
+  var descEl = document.getElementById('modalDesc');
+  var toggleEl = document.getElementById('descToggle');
+  if (!descEl || !toggleEl) return;
+  var collapsed = descEl.classList.contains('collapsed');
+  if (collapsed) {
+    descEl.classList.remove('collapsed');
+    toggleEl.textContent = '閉じる ▲';
+  } else {
+    descEl.classList.add('collapsed');
+    toggleEl.textContent = 'もっと見る ▼';
+  }
+}
+
+// ボトムシート ドラッグ操作
+(function() {
+  var startY = 0, startH = 0, dragging = false;
+  var handle = null, content = null;
+
+  function onStart(e) {
+    handle = document.getElementById('modalDragHandle');
+    content = document.getElementById('modalContent');
+    if (!handle || !content) return;
+    dragging = true;
+    startY = (e.touches ? e.touches[0].clientY : e.clientY);
+    startH = content.getBoundingClientRect().height;
+    content.style.transition = 'none';
+    e.preventDefault();
+  }
+  function onMove(e) {
+    if (!dragging) return;
+    var y = (e.touches ? e.touches[0].clientY : e.clientY);
+    var diff = startY - y;
+    var vh = window.innerHeight;
+    var newH = Math.max(vh * 0.3, Math.min(vh * 0.95, startH + diff));
+    content.style.maxHeight = newH + 'px';
+  }
+  function onEnd() {
+    if (!dragging) return;
+    dragging = false;
+    content.style.transition = '';
+    var vh = window.innerHeight;
+    var curH = content.getBoundingClientRect().height;
+    if (curH < vh * 0.35) {
+      closeModal();
+    } else if (curH > vh * 0.7) {
+      content.classList.add('expanded');
+      content.style.maxHeight = '';
+    } else {
+      content.classList.remove('expanded');
+      content.style.maxHeight = '';
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    var h = document.getElementById('modalDragHandle');
+    if (!h) return;
+    h.addEventListener('touchstart', onStart, { passive: false });
+    h.addEventListener('mousedown', onStart);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('touchend', onEnd);
+    document.addEventListener('mouseup', onEnd);
+  });
+})();
 
 function slideModalImg(dir) {
   var wrap = document.getElementById('modalImages');
