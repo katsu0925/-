@@ -563,7 +563,7 @@ function ga4advice_callAI_(messages) {
   var payload = {
     model: 'gpt-5-mini',
     messages: messages,
-    max_tokens: 1000,
+    max_completion_tokens: 1000,
     temperature: 0.5
   };
 
