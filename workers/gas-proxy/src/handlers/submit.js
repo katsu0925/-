@@ -190,6 +190,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   let bulkProductAmount = 0;
   let bulkShippingAmount = 0;
   let bulkItemCount = 0;
+  let orderItems = [];
   if (hasBulkItems) {
     // D1からアソート商品取得
     const { results: bulkProducts } = await env.DB.prepare(
@@ -211,6 +212,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
       const bUnitPrice = (bp.discounted_price !== undefined && bp.discounted_price > 0) ? bp.discounted_price : bp.price;
       bulkProductAmount += bUnitPrice * bQty;
       bulkItemCount += bQty;
+      orderItems.push({ name: bp.name, qty: bQty });
     }
   }
   const rawBulkProductAmount = bulkProductAmount; // 送料無料判定用（クーポン適用前）
@@ -584,6 +586,9 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     ? Math.round(SHIPPING_RATES[shippingArea][shippingSize === 'small' ? 0 : 1] / 2)
     : 0;
 
+  // channel判定（GAS側プレミアムアソート自動選定用）
+  const channel = hasBulkItems ? (ids.length > 0 ? 'まとめ' : 'アソート') : 'デタウリ';
+
   const pendingData = {
     userKey,
     form: validatedForm,
@@ -610,6 +615,8 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     bulkItemCount,
     totalAmount: totalWithShipping,
     komojuSessionId: komojuResult.id || '',
+    channel,
+    orderItems,
   };
 
   // ─── D1バックアップ保存（PropertiesService欠損時のフォールバック用） ───
