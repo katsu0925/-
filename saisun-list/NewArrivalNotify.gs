@@ -126,7 +126,7 @@ function newArrivalNotifyCron_() {
         }
 
         MailApp.sendEmail({
-          to: email, subject: subject, body: body, noReply: true,
+          to: email, subject: subject, body: body, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
           htmlBody: buildHtmlEmail_({
             greeting: companyName + ' 様',
             lead: 'デタウリ.Detauri に新しい商品が入荷しました！',

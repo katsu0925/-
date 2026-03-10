@@ -53,7 +53,7 @@ function abandonedCartCron_() {
             + '──────────────────\n';
 
           MailApp.sendEmail({
-            to: email, subject: subject, body: body, noReply: true,
+            to: email, subject: subject, body: body, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
             htmlBody: buildHtmlEmail_({
               greeting: customer.companyName + ' 様',
               lead: 'デタウリ.Detauri をご利用いただきありがとうございます。\n\nカートに入れていた商品の確保期限が終了しました。\n人気商品は在庫が限られておりますので、お早めにご注文ください。',
@@ -114,7 +114,7 @@ function abandonedCartCron_() {
             + '──────────────────\n';
 
           MailApp.sendEmail({
-            to: bEmail, subject: bSubject, body: bBody, noReply: true,
+            to: bEmail, subject: bSubject, body: bBody, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
             htmlBody: buildHtmlEmail_({
               greeting: bCustomer.companyName + ' 様',
               lead: 'デタウリ.Detauri をご利用いただきありがとうございます。\n\nアソートカートに商品が残っています。\n人気商品は在庫が限られておりますので、お早めにご注文ください。',

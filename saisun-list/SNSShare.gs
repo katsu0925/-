@@ -290,7 +290,8 @@ function rejectSnsShare_(sheet, row) {
     to: email,
     subject: '【デタウリ】SNSシェアキャンペーン申請について',
     body: 'SNSシェアキャンペーンの申請について確認の結果、今回は承認に至りませんでした。マイページから再度お申し込みください。',
-    htmlBody: html
+    htmlBody: html,
+    replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL
   });
 }
 
@@ -324,6 +325,7 @@ function sendSnsShareCouponEmail_(email, customerName, couponCode, expiresStr) {
     to: email,
     subject: '【デタウリ】SNSシェアクーポンが届きました！',
     body: 'SNSシェアキャンペーンのクーポンが発行されました。コード: ' + couponCode + '（有効期限: ' + expiresStr + '）',
-    htmlBody: html
+    htmlBody: html,
+    replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL
   });
 }

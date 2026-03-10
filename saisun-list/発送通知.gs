@@ -261,7 +261,7 @@ function shipMailOnEdit(e) {
         ]
       });
 
-      MailApp.sendEmail({ to: contactEmail, subject: custSubject, body: custBody, htmlBody: custHtmlBody, noReply: true, bcc: SHIPMAIL_CONFIG.TO_EMAIL });
+      MailApp.sendEmail({ to: contactEmail, subject: custSubject, body: custBody, htmlBody: custHtmlBody, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL, bcc: SHIPMAIL_CONFIG.TO_EMAIL });
       Logger.log('customer mail sent to=' + contactEmail);
 
     }

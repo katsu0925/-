@@ -286,18 +286,20 @@ function apiSubmitEstimate(userKey, form, ids) {
     if (firstHalfPriceApplied) {
       var fhpNote = '【' + couponLabel + '】';
       note = note ? (note + '\n' + fhpNote) : fhpNote;
-    } else if (couponCode && validatedCoupon) {
+    } else {
       var discountParts = [];
-      if (validatedCoupon.type === 'shipping_free') {
-        discountParts.push(couponLabel + ' コード: ' + couponCode);
-      } else if (couponDiscount > 0) {
-        discountParts.push(couponLabel + '（-' + couponDiscount + '円）コード: ' + couponCode);
+      if (couponCode && validatedCoupon) {
+        if (validatedCoupon.type === 'shipping_free') {
+          discountParts.push(couponLabel + ' コード: ' + couponCode);
+        } else if (couponDiscount > 0) {
+          discountParts.push(couponLabel + '（-' + couponDiscount + '円）コード: ' + couponCode);
+        }
       }
       if (discountRate > 0) {
-        discountParts.push('併用数量割引' + Math.round(discountRate * 100) + '%OFF');
+        discountParts.push('数量割引' + Math.round(discountRate * 100) + '%OFF');
       }
       if (memberDiscountRate > 0) {
-        discountParts.push('併用会員割引' + Math.round(memberDiscountRate * 100) + '%OFF');
+        discountParts.push('会員割引' + Math.round(memberDiscountRate * 100) + '%OFF');
       }
       if (discountParts.length > 0) {
         var couponNote = '【' + discountParts.join(' + ') + '】';
@@ -1287,7 +1289,18 @@ function confirmPaymentAndCreateOrder(paymentToken, paymentStatus, paymentMethod
       }
     }
 
-    // 4. キャッシュを無効化
+    // 4. プレミアムアソート → 依頼展開を自動実行
+    if (premiumSpec && pendingData.ids && pendingData.ids.length > 0) {
+      try {
+        var _orderSsId = app_getOrderSpreadsheetId_();
+        om_executeFullPipeline_([receiptNo], 'プレミアムアソート自動展開', { silent: true, orderSsId: _orderSsId });
+        console.log('プレミアムアソート自動展開完了: ' + receiptNo);
+      } catch (expandErr) {
+        console.error('プレミアムアソート自動展開エラー（非致命的）:', expandErr);
+      }
+    }
+
+    // 5. キャッシュを無効化
     st_invalidateStatusCache_(orderSs);
 
     return {
@@ -1560,16 +1573,19 @@ function selectProductsForPremiumAssort_(targetAmount, minCount, maxCount, order
   if (excludeIds) for (var e = 0; e < excludeIds.length; e++) excludeSet[excludeIds[e]] = true;
 
   var ssPool = [], awPool = [];
+  var _skipNoId = 0, _skipState = 0, _skipHold = 0, _skipOpen = 0, _skipExclude = 0;
   for (var i = 0; i < products.length; i++) {
     var p = products[i];
-    if (!p.managedId || !p.price || p.price <= 0) continue;
-    if (p.state && p.state !== '') continue;
-    if (holdItems[p.managedId] || openItems[p.managedId]) continue;
-    if (excludeSet[p.managedId]) continue;
+    if (!p.managedId || !p.price || p.price <= 0) { _skipNoId++; continue; }
+    if (holdItems[p.managedId]) { _skipHold++; continue; }
+    if (openItems[p.managedId]) { _skipOpen++; continue; }
+    if (excludeSet[p.managedId]) { _skipExclude++; continue; }
     var item = { id: p.managedId, price: p.price };
     if (classifyProductSeason_(p) === 'ss') ssPool.push(item);
     else awPool.push(item);
   }
+  console.log('プレミアムアソート選定プール: 全商品=' + products.length + ' ssPool=' + ssPool.length + ' awPool=' + awPool.length
+    + ' skipNoId=' + _skipNoId + ' skipState=' + _skipState + ' skipHold=' + _skipHold + ' skipOpen=' + _skipOpen + ' skipExclude=' + _skipExclude);
 
   function shuffle(arr) {
     for (var i = arr.length - 1; i > 0; i--) {
@@ -1641,14 +1657,15 @@ function selectProductsForPremiumAssort_(targetAmount, minCount, maxCount, order
   if (seasonRatio < 0.4) {
     console.warn('プレミアムアソート: オンシーズン割合が低い: ' + Math.round(seasonRatio * 100) + '%');
     try {
-      MailApp.sendEmail(
-        APP_CONFIG.admin.ownerEmail,
-        '⚠ プレミアムアソート: オンシーズン在庫不足',
-        'オンシーズン商品の割合が' + Math.round(seasonRatio * 100) + '%（目標90%）に低下しています。\n'
-        + '選定点数: ' + selected.length + '点\n'
-        + 'オンシーズン: ' + primaryCount + '点\n'
-        + '在庫補充を検討してください。'
-      );
+      MailApp.sendEmail({
+        to: APP_CONFIG.admin.ownerEmail,
+        subject: '⚠ プレミアムアソート: オンシーズン在庫不足',
+        body: 'オンシーズン商品の割合が' + Math.round(seasonRatio * 100) + '%（目標90%）に低下しています。\n'
+          + '選定点数: ' + selected.length + '点\n'
+          + 'オンシーズン: ' + primaryCount + '点\n'
+          + '在庫補充を検討してください。',
+        replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL
+      });
     } catch (mailErr) { console.error('季節警告メール送信エラー:', mailErr); }
   }
 

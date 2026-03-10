@@ -455,7 +455,7 @@ function newsletterSendCron_() {
             + nl_buildUnsubscribeUrl_(recip.email) + '\n';
 
           MailApp.sendEmail({
-            to: recip.email, subject: subject, body: body, noReply: true,
+            to: recip.email, subject: subject, body: body, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
             htmlBody: buildHtmlEmail_({
               greeting: recip.companyName + ' 様',
               lead: bodyText,
@@ -739,7 +739,7 @@ function dormantCouponCron_() {
           + nl_buildUnsubscribeUrl_(email) + '\n';
 
         MailApp.sendEmail({
-          to: email, subject: subject, body: body, noReply: true,
+          to: email, subject: subject, body: body, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
           htmlBody: buildHtmlEmail_({
             greeting: companyName + ' 様',
             lead: 'ご無沙汰しております。\n最近サイトにお越しいただけていないようですので、\n感謝の気持ちを込めて10%OFFクーポンをお届けします。',

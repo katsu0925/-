@@ -86,7 +86,7 @@ function followupEmailCron_() {
           + '──────────────────\n';
 
         MailApp.sendEmail({
-          to: email, subject: subject, body: body, noReply: true,
+          to: email, subject: subject, body: body, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
           htmlBody: buildHtmlEmail_({
             greeting: companyName + ' 様',
             lead: '先日はデタウリ.Detauri をご利用いただき、誠にありがとうございました。\n商品はお手元に届きましたでしょうか？',

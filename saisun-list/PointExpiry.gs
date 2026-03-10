@@ -113,7 +113,7 @@ function sendPointExpiryReminderEmail_(email, companyName, points, expiryDateStr
       + '──────────────────\n';
 
     MailApp.sendEmail({
-      to: email, subject: subject, body: body, noReply: true,
+      to: email, subject: subject, body: body, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
       htmlBody: buildHtmlEmail_({
         greeting: companyName + ' 様',
         lead: 'デタウリ.Detauri をご利用いただきありがとうございます。\n\nお持ちのポイントがまもなく失効いたします。\nぜひお早めにご利用ください。',
@@ -160,7 +160,7 @@ function sendPointExpiredEmail_(email, companyName, expiredPoints) {
       + '──────────────────\n';
 
     MailApp.sendEmail({
-      to: email, subject: subject, body: body, noReply: true,
+      to: email, subject: subject, body: body, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
       htmlBody: buildHtmlEmail_({
         greeting: companyName + ' 様',
         lead: 'デタウリ.Detauri をご利用いただきありがとうございます。\n\n有効期限切れにより、以下のポイントが失効いたしました。',

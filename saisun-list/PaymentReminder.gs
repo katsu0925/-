@@ -144,7 +144,7 @@ function sendPaymentReminderEmail_(email, companyName, receiptNo, totalAmount, p
     ]
   });
 
-  MailApp.sendEmail({ to: email, subject: subject, body: body, htmlBody: reminderHtmlBody, noReply: true });
+  MailApp.sendEmail({ to: email, subject: subject, body: body, htmlBody: reminderHtmlBody, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL });
 }
 
 // =====================================================

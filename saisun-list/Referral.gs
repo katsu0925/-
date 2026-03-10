@@ -229,7 +229,7 @@ function sendReferralNotifyEmail_(email, companyName, refereeEmail, points) {
     + '──────────────────\n';
 
   MailApp.sendEmail({
-    to: email, subject: subject, body: body, noReply: true,
+    to: email, subject: subject, body: body, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
     htmlBody: buildHtmlEmail_({
       greeting: companyName + ' 様',
       lead: 'デタウリ.Detauri をご利用いただきありがとうございます。\n\nあなたの紹介で新しい会員が登録されました！',

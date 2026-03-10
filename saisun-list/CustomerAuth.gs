@@ -719,7 +719,7 @@ function apiRequestPasswordReset(userKey, params) {
       + '──────────────────\n';
 
     MailApp.sendEmail({
-      to: email, subject: subject, body: body, noReply: true,
+      to: email, subject: subject, body: body, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
       htmlBody: buildHtmlEmail_({
         greeting: customer.companyName + ' 様',
         lead: 'パスワードリセットのリクエストを受け付けました。\n以下の仮パスワードでログインしてください。',
@@ -1519,7 +1519,7 @@ function sendInvoiceReceipt_(email, data) {
     + 'https://wholesale.nkonline-tool.com\n';
 
   MailApp.sendEmail({
-    to: email, subject: subject, body: body, noReply: true,
+    to: email, subject: subject, body: body, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
     htmlBody: buildHtmlEmail_({
       greeting: data.companyName + ' 様',
       lead: '下記の通り領収いたしました。',
@@ -1587,7 +1587,7 @@ function sendCancelReceipt_(email, data) {
     + 'https://wholesale.nkonline-tool.com\n';
 
   MailApp.sendEmail({
-    to: email, subject: subject, body: body, noReply: true,
+    to: email, subject: subject, body: body, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
     htmlBody: buildHtmlEmail_({
       greeting: data.companyName + ' 様',
       lead: '下記の注文について' + data.cancelType + 'に伴い、領収書を取り消しいたします。',

@@ -589,7 +589,7 @@ function app_sendOrderConfirmToCustomer_(data) {
       subject: subject,
       body: body,
       htmlBody: custHtmlBody,
-      noReply: true
+      replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL
     });
   } catch (e) {
     console.error('app_sendOrderConfirmToCustomer_ error:', e);
@@ -824,7 +824,7 @@ function apiSendContactForm(params) {
       subject: custSubject,
       body: custBody,
       htmlBody: custHtmlBody2,
-      noReply: true
+      replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL
     });
 
     return { ok: true };
