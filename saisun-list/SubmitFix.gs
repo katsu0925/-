@@ -1655,6 +1655,71 @@ function selectProductsForPremiumAssort_(targetAmount, minCount, maxCount, order
   return { ids: selected.map(function(s) { return s.id; }), total: total, seasonRatio: seasonRatio };
 }
 
+/**
+ * 手動でプレミアムアソート自動選定を実行（GASエディタから実行）
+ * 受付番号を指定して、J列(選択リスト)・K列(合計点数)を更新する
+ *
+ * 使い方: GASエディタで受付番号を書き換えて実行
+ */
+function manualPremiumAssortSelect() {
+  var receiptNo = '20260309133737-178'; // ← ここに受付番号を入力
+
+  var orderSs = sh_getOrderSs_();
+  var reqSh = sh_ensureRequestSheet_(orderSs);
+  var lastRow = reqSh.getLastRow();
+  if (lastRow < 2) { console.log('依頼管理が空です'); return; }
+
+  // 受付番号でA列を検索
+  var targetRow = -1;
+  var data = reqSh.getRange(2, 1, lastRow - 1, 1).getValues();
+  for (var i = 0; i < data.length; i++) {
+    if (String(data[i][0]).trim() === receiptNo) { targetRow = i + 2; break; }
+  }
+  if (targetRow < 0) { console.log('受付番号が見つかりません: ' + receiptNo); return; }
+
+  // H列(8)から商品名を取得してプレミアムアソート検出
+  var productName = String(reqSh.getRange(targetRow, 8).getValue() || '');
+  var orderItems = [{ name: productName, qty: 1 }];
+  var premiumSpec = detectPremiumAssort_(orderItems);
+  if (!premiumSpec) { console.log('プレミアムアソート商品が検出されませんでした: ' + productName); return; }
+
+  console.log('検出: target=¥' + premiumSpec.targetAmount + ' min=' + premiumSpec.minCount + ' max=' + premiumSpec.maxCount);
+
+  // 既存のJ列IDを除外対象にする
+  var existingJ = String(reqSh.getRange(targetRow, 10).getValue() || '').trim();
+  var excludeIds = existingJ ? existingJ.split(/[、,]/).map(function(s) { return s.trim(); }).filter(Boolean) : [];
+
+  // 自動選定実行
+  var selection = selectProductsForPremiumAssort_(
+    premiumSpec.targetAmount, premiumSpec.minCount, premiumSpec.maxCount, orderSs, excludeIds
+  );
+
+  if (!selection.ids || selection.ids.length === 0) {
+    console.log('在庫不足で商品を選定できませんでした');
+    return;
+  }
+
+  var allIds = excludeIds.concat(selection.ids);
+  var selectionList = u_sortManagedIds_(allIds).join('、');
+
+  // J列・K列・AF列を更新
+  reqSh.getRange(targetRow, 10).setValue(selectionList);
+  reqSh.getRange(targetRow, 11).setValue(1); // K列: アソートは1
+  reqSh.getRange(targetRow, 32).setValue(new Date());
+
+  // openStateに追加
+  var openState = st_getOpenState_(orderSs) || {};
+  var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
+  for (var i = 0; i < selection.ids.length; i++) {
+    openItems[selection.ids[i]] = { receiptNo: receiptNo, at: Date.now() };
+  }
+  openState.items = openItems;
+  st_setOpenState_(orderSs, openState);
+  st_invalidateStatusCache_(orderSs);
+
+  console.log('完了: ' + receiptNo + ' → ' + selection.ids.length + '点選定, 合計¥' + selection.total + ', J列=' + selectionList);
+}
+
 // =====================================================
 // 送料サイズ判定ヘルパー（CartCalc.html と同一ロジック）
 // =====================================================
