@@ -286,12 +286,11 @@ function rejectSnsShare_(sheet, row) {
     notes: ['ご不明な点がございましたらお気軽にお問い合わせください。']
   });
 
-  MailApp.sendEmail({
-    to: email,
-    subject: '【デタウリ】SNSシェアキャンペーン申請について',
-    body: 'SNSシェアキャンペーンの申請について確認の結果、今回は承認に至りませんでした。マイページから再度お申し込みください。',
-    htmlBody: html,
-    replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL
+  GmailApp.sendEmail(email, '【デタウリ】SNSシェアキャンペーン申請について',
+    'SNSシェアキャンペーンの申請について確認の結果、今回は承認に至りませんでした。マイページから再度お申し込みください。', {
+    from: SITE_CONSTANTS.CUSTOMER_EMAIL,
+    replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
+    htmlBody: html
   });
 }
 
@@ -321,11 +320,10 @@ function sendSnsShareCouponEmail_(email, customerName, couponCode, expiresStr) {
     ]
   });
 
-  MailApp.sendEmail({
-    to: email,
-    subject: '【デタウリ】SNSシェアクーポンが届きました！',
-    body: 'SNSシェアキャンペーンのクーポンが発行されました。コード: ' + couponCode + '（有効期限: ' + expiresStr + '）',
-    htmlBody: html,
-    replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL
+  GmailApp.sendEmail(email, '【デタウリ】SNSシェアクーポンが届きました！',
+    'SNSシェアキャンペーンのクーポンが発行されました。コード: ' + couponCode + '（有効期限: ' + expiresStr + '）', {
+    from: SITE_CONSTANTS.CUSTOMER_EMAIL,
+    replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
+    htmlBody: html
   });
 }

@@ -1187,12 +1187,10 @@ function sendPaymentConfirmedEmail_(receiptNo, paymentMethodType) {
       ]
     });
 
-    MailApp.sendEmail({
-      to: email,
-      subject: subject,
-      body: body,
-      htmlBody: htmlBody,
-      replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL
+    GmailApp.sendEmail(email, subject, body, {
+      from: SITE_CONSTANTS.CUSTOMER_EMAIL,
+      replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
+      htmlBody: htmlBody
     });
 
     console.log('入金確認メール送信完了: ' + receiptNo + ' → ' + email);
@@ -1241,7 +1239,7 @@ function sendPaymentConfirmedEmail_test_(email, companyName, receiptNo, totalCou
     notes: ['このメールは自動送信です。', 'ご注文確定後のキャンセル・変更はできません。']
   });
 
-  MailApp.sendEmail({ to: email, subject: subject, body: body, htmlBody: htmlBody, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL });
+  GmailApp.sendEmail(email, subject, body, { from: SITE_CONSTANTS.CUSTOMER_EMAIL, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL, htmlBody: htmlBody });
 }
 
 function updateOrderPaymentStatus_(receiptNo, paymentStatus, paymentMethod) {

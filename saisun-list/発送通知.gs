@@ -261,7 +261,7 @@ function shipMailOnEdit(e) {
         ]
       });
 
-      MailApp.sendEmail({ to: contactEmail, subject: custSubject, body: custBody, htmlBody: custHtmlBody, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL, bcc: SHIPMAIL_CONFIG.TO_EMAIL });
+      GmailApp.sendEmail(contactEmail, custSubject, custBody, { from: SITE_CONSTANTS.CUSTOMER_EMAIL, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL, htmlBody: custHtmlBody, bcc: SHIPMAIL_CONFIG.TO_EMAIL });
       Logger.log('customer mail sent to=' + contactEmail);
 
     }

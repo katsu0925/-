@@ -125,8 +125,8 @@ function newArrivalNotifyCron_() {
           sampleItems.push('...他 ' + (newProducts.length - 5) + '点');
         }
 
-        MailApp.sendEmail({
-          to: email, subject: subject, body: body, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
+        GmailApp.sendEmail(email, subject, body, {
+          from: SITE_CONSTANTS.CUSTOMER_EMAIL, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
           htmlBody: buildHtmlEmail_({
             greeting: companyName + ' 様',
             lead: 'デタウリ.Detauri に新しい商品が入荷しました！',

@@ -228,8 +228,8 @@ function sendReferralNotifyEmail_(email, companyName, refereeEmail, points) {
     + 'お問い合わせ: ' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
     + '──────────────────\n';
 
-  MailApp.sendEmail({
-    to: email, subject: subject, body: body, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
+  GmailApp.sendEmail(email, subject, body, {
+    from: SITE_CONSTANTS.CUSTOMER_EMAIL, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
     htmlBody: buildHtmlEmail_({
       greeting: companyName + ' 様',
       lead: 'デタウリ.Detauri をご利用いただきありがとうございます。\n\nあなたの紹介で新しい会員が登録されました！',

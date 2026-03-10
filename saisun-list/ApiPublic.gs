@@ -584,12 +584,10 @@ function app_sendOrderConfirmToCustomer_(data) {
       notes: htmlNotes
     });
 
-    MailApp.sendEmail({
-      to: email,
-      subject: subject,
-      body: body,
-      htmlBody: custHtmlBody,
-      replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL
+    GmailApp.sendEmail(email, subject, body, {
+      from: SITE_CONSTANTS.CUSTOMER_EMAIL,
+      replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
+      htmlBody: custHtmlBody
     });
   } catch (e) {
     console.error('app_sendOrderConfirmToCustomer_ error:', e);
@@ -819,12 +817,10 @@ function apiSendContactForm(params) {
       ]
     });
 
-    MailApp.sendEmail({
-      to: email,
-      subject: custSubject,
-      body: custBody,
-      htmlBody: custHtmlBody2,
-      replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL
+    GmailApp.sendEmail(email, custSubject, custBody, {
+      from: SITE_CONSTANTS.CUSTOMER_EMAIL,
+      replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
+      htmlBody: custHtmlBody2
     });
 
     return { ok: true };
