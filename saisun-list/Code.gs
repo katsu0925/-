@@ -47,7 +47,7 @@ function doGet(e) {
       .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no');
   }
 
-  var tplName = (String(p.admin || '') === 'nkonline') ? 'Admin' : 'Index';
+  var tplName = (String(p.admin || '') === 'nkonline') ? 'Admin' : 'index';
 
   var t = HtmlService.createTemplateFromFile(tplName);
   t.appTitle = APP_CONFIG.appTitle;
