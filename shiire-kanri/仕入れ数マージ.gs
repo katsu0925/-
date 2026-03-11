@@ -43,7 +43,50 @@ function handleChange_ShiireSync(e) {
   withLock_(25000, function() {
     syncKanriToReport_();
     mergeReportToKanri_();
+    recalcUnitCost_();
   });
+}
+
+// ═══════════════════════════════════════════
+//  原価再計算（金額・送料・商品点数の変更時）
+//  H列 = Math.round((D列 + E列) / F列)
+// ═══════════════════════════════════════════
+
+function recalcUnitCost_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var kanriSheet = ss.getSheetByName(SHIIRE_MERGE_CONFIG.KANRI_SHEET_NAME);
+  if (!kanriSheet) return;
+
+  var knr = SHIIRE_MERGE_CONFIG.KNR;
+  var lastRow = kanriSheet.getLastRow();
+  if (lastRow < 2) return;
+
+  var numRows = lastRow - 1;
+  var amounts  = kanriSheet.getRange(2, knr.AMOUNT,    numRows, 1).getValues();
+  var shipping = kanriSheet.getRange(2, knr.SHIPPING,  numRows, 1).getValues();
+  var counts   = kanriSheet.getRange(2, knr.ITEM_COUNT, numRows, 1).getValues();
+  var costs    = kanriSheet.getRange(2, knr.UNIT_COST,  numRows, 1).getValues();
+
+  var dirty = false;
+  for (var i = 0; i < numRows; i++) {
+    var count = Number(counts[i][0]) || 0;
+    if (count <= 0) continue;
+
+    var amt = Number(amounts[i][0]) || 0;
+    var shp = Number(shipping[i][0]) || 0;
+    var expected = Math.round((amt + shp) / count);
+    var current  = Number(costs[i][0]) || 0;
+
+    if (current !== expected) {
+      costs[i][0] = expected;
+      dirty = true;
+    }
+  }
+
+  if (dirty) {
+    kanriSheet.getRange(2, knr.UNIT_COST, numRows, 1).setValues(costs);
+    console.log('原価再計算: 更新しました');
+  }
 }
 
 // ═══════════════════════════════════════════
