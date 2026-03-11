@@ -606,18 +606,27 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
 
   // --- 後処理: 回収完了から展開した行をバッチ削除 ---
   if (allRecoveryRows.length > 0) {
+    SpreadsheetApp.flush(); // 書き込みを確定してからgetLastRowを呼ぶ
     var recLastRow = recoverySheet.getLastRow();
-    if (recLastRow >= 2) {
-      var recData = recoverySheet.getRange(2, 1, recLastRow - 1, recoverySheet.getLastColumn()).getValues();
-      var recDelSet = {};
-      allRecoveryRows.forEach(function(r) { recDelSet[r] = true; });
-      var recKeep = [];
-      for (var ri = 0; ri < recData.length; ri++) {
-        if (!recDelSet[ri + 2]) recKeep.push(recData[ri]);
-      }
-      recoverySheet.getRange(2, 1, recData.length, recData[0].length).clearContent();
-      if (recKeep.length > 0) {
-        recoverySheet.getRange(2, 1, recKeep.length, recKeep[0].length).setValues(recKeep);
+    console.log('回収完了削除: allRecoveryRows=' + JSON.stringify(allRecoveryRows) + ' recLastRow=' + recLastRow);
+    if (recLastRow >= 7) {
+      // 行7以降のデータ行のみ対象（行1-6はヘッダー領域）
+      var recLastCol = recoverySheet.getLastColumn();
+      if (recLastCol > 0) {
+        var recData = recoverySheet.getRange(7, 1, recLastRow - 6, recLastCol).getValues();
+        var recDelSet = {};
+        allRecoveryRows.forEach(function(r) { recDelSet[r] = true; });
+        var recKeep = [];
+        for (var ri = 0; ri < recData.length; ri++) {
+          var sheetRow = ri + 7; // 実際のシート行番号
+          if (!recDelSet[sheetRow]) recKeep.push(recData[ri]);
+        }
+        console.log('回収完了削除: データ行数=' + recData.length + ' 削除対象=' + allRecoveryRows.length + ' 残す行数=' + recKeep.length);
+        // 行7以降を全クリア
+        recoverySheet.getRange(7, 1, recData.length, recLastCol).clearContent();
+        if (recKeep.length > 0) {
+          recoverySheet.getRange(7, 1, recKeep.length, recKeep[0].length).setValues(recKeep);
+        }
       }
     }
   }
