@@ -184,9 +184,14 @@ function apiCheckPaymentStatus(pendingKey) {
       if (props.getProperty(fallbackKey)) {
         console.log('Webhookが未処理のため、ステータスチェック経由で注文を確定: ' + pendingKey);
         var paymentMethodType = extractPaymentMethodType_(response.payment);
-        var paymentStatus = '未対応';
-        if (paymentMethodType === 'konbini' || paymentMethodType === 'bank_transfer') {
+        var deferredFb = { 'konbini': true, 'bank_transfer': true, 'pay_easy': true };
+        var paymentStatus;
+        if (status === 'paid') {
+          paymentStatus = '対応済';
+        } else if (deferredFb[paymentMethodType] && status === 'authorized') {
           paymentStatus = '入金待ち';
+        } else {
+          paymentStatus = '未対応';
         }
         var confirmResult = confirmPaymentAndCreateOrder(
           pendingKey,
@@ -329,10 +334,15 @@ function handlePaymentSuccess_(data) {
   console.log('Payment method detected: ' + paymentMethodType + ' (for ' + paymentToken + ')');
 
   // 決済方法に応じた入金ステータスを決定
-  var deferredMethods = { 'konbini': true, 'bank_transfer': true, 'pay_easy': true, 'paidy': true };
-  var paymentStatus = '未対応';
-  if (deferredMethods[paymentMethodType] && data.type === 'payment.authorized') {
+  // captured = 入金済み → 対応済、authorized = 承認済み（未入金）→ 入金待ち
+  var deferredMethods = { 'konbini': true, 'bank_transfer': true, 'pay_easy': true };
+  var paymentStatus;
+  if (data.type === 'payment.captured') {
+    paymentStatus = '対応済';
+  } else if (deferredMethods[paymentMethodType] && data.type === 'payment.authorized') {
     paymentStatus = '入金待ち';
+  } else {
+    paymentStatus = '未対応';
   }
 
   // 注文を確定（シート書き込み・注文確認メール送信）

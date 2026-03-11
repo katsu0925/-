@@ -1153,3 +1153,13 @@ function testSuite_CsrfEnv_() {
     }
   ]);
 }
+
+function testSendFrom() {                                                                            
+    GmailApp.sendEmail(                                     
+      'nkonline1030@gmail.com',
+      'テスト: FROM確認',
+      'このメールがnkonline1030@gmail.comから届いていれば設定OK',
+      { from: 'nkonline1030@gmail.com' }
+    );
+    console.log('送信成功');
+  }

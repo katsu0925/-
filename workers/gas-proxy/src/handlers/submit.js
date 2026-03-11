@@ -420,18 +420,20 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   if (firstHalfPriceApplied) {
     const fhpNote = '【' + couponLabel + '】';
     note = note ? (note + '\n' + fhpNote) : fhpNote;
-  } else if (activeCouponCode && validatedCoupon) {
+  } else {
     const discountParts = [];
-    if (validatedCoupon.type === 'shipping_free') {
-      discountParts.push(couponLabel + ' コード: ' + activeCouponCode);
-    } else if (couponDiscount > 0) {
-      discountParts.push(couponLabel + '（-' + couponDiscount + '円）コード: ' + activeCouponCode);
+    if (activeCouponCode && validatedCoupon) {
+      if (validatedCoupon.type === 'shipping_free') {
+        discountParts.push(couponLabel + ' コード: ' + activeCouponCode);
+      } else if (couponDiscount > 0) {
+        discountParts.push(couponLabel + '（-' + couponDiscount + '円）コード: ' + activeCouponCode);
+      }
     }
     if (discountRate > 0) {
-      discountParts.push('併用数量割引' + Math.round(discountRate * 100) + '%OFF');
+      discountParts.push('数量割引' + Math.round(discountRate * 100) + '%OFF');
     }
-    if (validatedCoupon && validatedCoupon.comboMember && memberDiscountRate > 0) {
-      discountParts.push('併用会員割引' + Math.round(memberDiscountRate * 100) + '%OFF');
+    if (memberDiscountRate > 0) {
+      discountParts.push('会員割引' + Math.round(memberDiscountRate * 100) + '%OFF');
     }
     if (discountParts.length > 0) {
       const couponNote = '【' + discountParts.join(' + ') + '】';
