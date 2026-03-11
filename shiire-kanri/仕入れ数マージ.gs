@@ -74,7 +74,7 @@ function syncKanriToReport_() {
     var synced = String(kanriData[i][knr.SYNCED - 1] || '').trim().toUpperCase();
     if (synced === 'TRUE') continue;
 
-    var id = String(kanriData[i][knr.ID - 1] || '').trim();
+    var id = normalizeText_(kanriData[i][knr.ID - 1]);
     if (!id) continue;
 
     var purchaseDate = kanriData[i][knr.PURCHASE_DATE - 1];
@@ -96,9 +96,9 @@ function syncKanriToReport_() {
   var existingIds = new Set();
   var reportLastRow = reportSheet.getLastRow();
   if (reportLastRow >= 2) {
-    var reportIds = reportSheet.getRange(2, rpt.ID, reportLastRow - 1, 1).getDisplayValues();
+    var reportIds = reportSheet.getRange(2, rpt.ID, reportLastRow - 1, 1).getValues();
     for (var r = 0; r < reportIds.length; r++) {
-      var rid = String(reportIds[r][0] || '').trim();
+      var rid = normalizeText_(reportIds[r][0]);
       if (rid) existingIds.add(rid);
     }
   }
@@ -179,7 +179,7 @@ function mergeReportToKanri_() {
   if (kanriLastRow < 2) return;
 
   var kanriNumRows = kanriLastRow - 1;
-  var kanriIds = kanriSheet.getRange(2, knr.ID, kanriNumRows, 1).getDisplayValues();
+  var kanriIds = kanriSheet.getRange(2, knr.ID, kanriNumRows, 1).getValues();
   var kanriCounts = kanriSheet.getRange(2, knr.ITEM_COUNT, kanriNumRows, 1).getValues();
   var kanriAmounts = kanriSheet.getRange(2, knr.AMOUNT, kanriNumRows, 1).getValues();
   var kanriShipping = kanriSheet.getRange(2, knr.SHIPPING, kanriNumRows, 1).getValues();
