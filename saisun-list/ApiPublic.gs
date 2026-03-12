@@ -594,6 +594,107 @@ function app_sendOrderConfirmToCustomer_(data) {
   }
 }
 
+/**
+ * 注文確認メール調査＆再送
+ * GASエディタから実行: debugOrderEmail('20260311201234-707')
+ * resend=true で再送信
+ */
+function debugOrderEmail(receiptNo, resend) {
+  if (!receiptNo) { console.error('受付番号を指定してください'); return; }
+  console.log('=== debugOrderEmail: ' + receiptNo + ' ===');
+
+  var orderSs = sh_getOrderSs_();
+  var reqSheet = orderSs.getSheetByName('依頼管理');
+  if (!reqSheet) { console.error('依頼管理シートなし'); return; }
+
+  var data = reqSheet.getDataRange().getValues();
+  var targetRow = null;
+  var targetIdx = -1;
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][REQUEST_SHEET_COLS.RECEIPT_NO - 1] || '').trim() === receiptNo) {
+      targetRow = data[i];
+      targetIdx = i + 1;
+      break;
+    }
+  }
+  if (!targetRow) { console.error('受付番号が見つかりません: ' + receiptNo); return; }
+
+  var email = String(targetRow[REQUEST_SHEET_COLS.CONTACT - 1] || '').trim();
+  var companyName = String(targetRow[REQUEST_SHEET_COLS.COMPANY_NAME - 1] || '').trim();
+  var status = String(targetRow[REQUEST_SHEET_COLS.STATUS - 1] || '').trim();
+  var paymentMethod = String(targetRow[REQUEST_SHEET_COLS.PAYMENT_METHOD - 1] || '').trim();
+  var paymentId = String(targetRow[REQUEST_SHEET_COLS.PAYMENT_ID - 1] || '').trim();
+  var payment = String(targetRow[REQUEST_SHEET_COLS.PAYMENT - 1] || '').trim();
+  var notifyFlag = targetRow[REQUEST_SHEET_COLS.NOTIFY_FLAG - 1];
+  var totalCount = Number(targetRow[REQUEST_SHEET_COLS.TOTAL_COUNT - 1]) || 0;
+  var totalAmount = Number(targetRow[REQUEST_SHEET_COLS.TOTAL_AMOUNT - 1]) || 0;
+  var selectionList = String(targetRow[REQUEST_SHEET_COLS.SELECTION_LIST - 1] || '').trim();
+  var datetime = targetRow[REQUEST_SHEET_COLS.DATETIME - 1];
+
+  console.log('行: ' + targetIdx);
+  console.log('メール: "' + email + '"');
+  console.log('会社名: ' + companyName);
+  console.log('ステータス: ' + status);
+  console.log('決済方法: ' + paymentMethod);
+  console.log('決済ID: ' + paymentId);
+  console.log('入金確認: ' + payment);
+  console.log('受注通知フラグ(AB列): ' + notifyFlag);
+  console.log('点数: ' + totalCount + ' / 金額: ' + totalAmount);
+  console.log('選択リスト: ' + selectionList);
+  console.log('注文日時: ' + datetime);
+
+  // メールアドレス診断
+  if (!email) {
+    console.log('⚠ メールアドレスが空 → メール送信されていません');
+  } else if (email.indexOf('@') === -1) {
+    console.log('⚠ メールアドレスに@がない → メール送信されていません');
+  } else {
+    console.log('メールアドレス形式: OK');
+  }
+
+  // GmailApp送信済みフォルダで確認
+  try {
+    var threads = GmailApp.search('from:nkonline1030@gmail.com to:' + email + ' subject:' + receiptNo, 0, 5);
+    console.log('Gmail送信済み検索結果: ' + threads.length + '件');
+    for (var t = 0; t < threads.length; t++) {
+      var msgs = threads[t].getMessages();
+      for (var m = 0; m < msgs.length; m++) {
+        console.log('  [' + msgs[m].getDate().toLocaleString('ja-JP') + '] ' + msgs[m].getSubject());
+      }
+    }
+    if (threads.length === 0) {
+      console.log('⚠ 送信履歴なし — メールが送信されていない可能性が高い');
+    }
+  } catch (e) {
+    console.log('Gmail検索エラー: ' + (e.message || e));
+  }
+
+  // 再送
+  if (resend && email && email.indexOf('@') >= 0) {
+    console.log('--- メール再送実行 ---');
+    var resendData = {
+      receiptNo: receiptNo,
+      form: {
+        contact: email,
+        companyName: companyName,
+        postal: String(targetRow[REQUEST_SHEET_COLS.POSTAL - 1] || ''),
+        address: String(targetRow[REQUEST_SHEET_COLS.ADDRESS - 1] || ''),
+        phone: String(targetRow[REQUEST_SHEET_COLS.PHONE - 1] || ''),
+        note: String(targetRow[REQUEST_SHEET_COLS.NOTE - 1] || '')
+      },
+      totalCount: totalCount,
+      discounted: totalAmount,
+      selectionList: selectionList,
+      createdAtMs: datetime instanceof Date ? datetime.getTime() : Date.now(),
+      paymentMethod: paymentMethod,
+      paymentId: paymentId,
+      paymentStatus: payment || '対応済'
+    };
+    app_sendOrderConfirmToCustomer_(resendData);
+    console.log('✅ 再送完了: ' + email);
+  }
+}
+
 function apiGetAllDetails(managedIds) {
   try {
     if (!Array.isArray(managedIds) || managedIds.length === 0) {
