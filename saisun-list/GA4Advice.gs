@@ -115,6 +115,18 @@ function ga4advice_extractDailyMetrics_(ss) {
 
   var all = sh.getRange(2, 1, numData, 7).getValues();
 
+  // 今日の不完全データ（朝6時更新時点）を除外
+  // GA4日別サマリーの最終行が今日の日付の場合、まだ1日分のデータが揃っていないため除く
+  var todayStr = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+  var lastRow = all[all.length - 1];
+  var lastDateStr = (lastRow[0] instanceof Date)
+    ? Utilities.formatDate(lastRow[0], 'Asia/Tokyo', 'yyyy-MM-dd')
+    : String(lastRow[0] || '');
+  if (lastDateStr === todayStr) {
+    all = all.slice(0, all.length - 1);
+  }
+  if (all.length === 0) return defaults;
+
   var last = all[all.length - 1];
   var yesterday = {
     date: (last[0] instanceof Date) ? Utilities.formatDate(last[0], 'Asia/Tokyo', 'yyyy-MM-dd') : String(last[0] || '-'),
