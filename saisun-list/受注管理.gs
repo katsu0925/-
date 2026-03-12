@@ -15,7 +15,7 @@ var OM_SHIIRE_SS_ID = getOmProp_('OM_SHIIRE_SS_ID', '');
 var OM_DIST_SHEET_GID  = 1614333946;
 var OM_DIST_NAME_CELL  = 'E1';
 var OM_DIST_RECEIPT_CELL = 'B1';
-var OM_MERCARI_MODEL = 'gpt-5-mini';
+var OM_MERCARI_MODEL = 'gpt-4o-mini';
 var OM_XLSX_FOLDER_ID  = getOmProp_('OM_XLSX_FOLDER_ID', '');
 
 // ═══════════════════════════════════════════
@@ -386,6 +386,20 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
   var allSaleLogEntries = [];
   var allRecoveryRows = []; // { sheetRow, receiptNo } 回収完了から削除する行
 
+  // バッチ用: 売却反映を全受付番号分まとめて最後に実行
+  var allStatusA1s = [];
+  var allBoA1s = {};  // boA1 → receiptNo（受付番号ごとに異なる値をセット）
+  var statusColLetter = om_colNumToLetter_(statusCol);
+  var boColLetter = om_colNumToLetter_(67);
+
+  // XLSX用temp SSを事前に1回だけ作成（ループ内で使い回す）
+  var srcSheet = om_getSheetByGid_(shiireSs, OM_DIST_SHEET_GID);
+  var tmpSs = SpreadsheetApp.create('tmp_dist_' + Date.now());
+  var tmpSsId = tmpSs.getId();
+  var copiedSheet = srcSheet.copyTo(tmpSs);
+  copiedSheet.setName(srcSheet.getName());
+  om_deleteAllExceptSheet_(tmpSs, copiedSheet.getSheetId());
+
   // --- 受付番号ごとにループ処理 ---
   for (var g = 0; g < receiptNos.length; g++) {
     var receiptNo = receiptNos[g];
@@ -589,21 +603,16 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
     }
     exportSheet.getRange('I1').setValue(totalPrice.toLocaleString('ja-JP') + '円');
 
-    SpreadsheetApp.flush();
+    // flush不要: XLSX生成前にexportSheetに書き込み済み
 
-    // XLSX出力 + 確認リンク更新
-    var xlsxResult = om_exportDistributionXlsx_(customerName, receiptNo, orderSsId);
+    // XLSX出力 + 確認リンク更新（事前作成のtemp SSを使い回す）
+    var xlsxResult = om_exportDistributionXlsx_fast_(customerName, receiptNo, orderSsId, exportSheet, tmpSsId, copiedSheet);
     if (!xlsxResult || !xlsxResult.ok) {
       results.push({ receiptNo: receiptNo, ok: false, message: 'XLSX生成エラー: ' + (xlsxResult ? xlsxResult.message : '不明') });
       continue;
     }
 
-    // --- Phase 3: 売却反映（商品管理ステータス→売却済み、BO列→受付番号） ---
-    var statusA1s = [];
-    var boA1s = [];
-    var statusColLetter = om_colNumToLetter_(statusCol);
-    var boColLetter = om_colNumToLetter_(67);
-
+    // --- Phase 3: 売却反映データを蓄積（バッチ実行はループ後） ---
     // outArr の管理番号→行マップ（O(1)検索用）
     var outArrMap = {};
     for (var oi = 0; oi < outArr.length; oi++) {
@@ -612,19 +621,17 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
     }
 
     ids.forEach(function(mgmtId) {
-      // 重複行対応: 同じ管理番号の全行を売却済みに更新
       var allRows = idToAllRows[mgmtId] || [];
       if (allRows.length === 0) return;
 
       for (var ri = 0; ri < allRows.length; ri++) {
-        statusA1s.push(statusColLetter + allRows[ri]);
-        boA1s.push(boColLetter + allRows[ri]);
+        allStatusA1s.push(statusColLetter + allRows[ri]);
+        allBoA1s[boColLetter + allRows[ri]] = receiptNo;
       }
       if (allRows.length > 1) {
         console.log('重複行検出: ' + mgmtId + ' → ' + allRows.length + '行を売却済みに更新');
       }
 
-      // 売却履歴用
       var listRow = outArrMap[mgmtId];
       allSaleLogEntries.push({
         date: new Date(),
@@ -635,18 +642,29 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
       });
     });
 
-    if (statusA1s.length > 0) {
-      mainSheet.getRangeList(statusA1s).setValue('売却済み');
-    }
-    if (boA1s.length > 0) {
-      mainSheet.getRangeList(boA1s).setValue(receiptNo);
-    }
-
-    // 売却反映後、商品管理キャッシュを即座に無効化（重複販売防止）
-    clearProductCache_();
-
     results.push({ receiptNo: receiptNo, ok: true, fileName: xlsxResult.fileName });
   }
+
+  // --- 後処理: 売却反映バッチ実行（全受付番号分まとめて） ---
+  if (allStatusA1s.length > 0) {
+    mainSheet.getRangeList(allStatusA1s).setValue('売却済み');
+  }
+  // BO列: 受付番号ごとに値が異なるのでグループ化して実行
+  var boByReceipt = {};
+  Object.keys(allBoA1s).forEach(function(a1) {
+    var rn = allBoA1s[a1];
+    if (!boByReceipt[rn]) boByReceipt[rn] = [];
+    boByReceipt[rn].push(a1);
+  });
+  Object.keys(boByReceipt).forEach(function(rn) {
+    mainSheet.getRangeList(boByReceipt[rn]).setValue(rn);
+  });
+
+  // 売却反映後、商品管理キャッシュを無効化（1回だけ）
+  clearProductCache_();
+
+  // temp SS削除
+  try { DriveApp.getFileById(tmpSsId).setTrashed(true); } catch (e) {}
 
   // --- 後処理: 売却履歴ログ書き込み ---
   if (allSaleLogEntries.length > 0) {
@@ -722,7 +740,63 @@ function cleanupObsoleteTriggers() {
 }
 
 // ═══════════════════════════════════════════
-// XLSX出力
+// XLSX出力（高速版: 事前作成のtemp SSを使い回す）
+// ═══════════════════════════════════════════
+
+function om_exportDistributionXlsx_fast_(customerName, receiptNo, optOrderSsId, exportSheet, tmpSsId, copiedSheet) {
+  var rawName = String(customerName || '').trim();
+  if (!rawName) return { ok: false, message: 'customerName が空です' };
+
+  receiptNo = String(receiptNo || '').trim();
+  if (!receiptNo) return { ok: false, message: 'receiptNo が空です' };
+
+  var baseName = rawName + '様';
+  var exportFileName = baseName + '_' + receiptNo + '.xlsx';
+  var folder = DriveApp.getFolderById(OM_XLSX_FOLDER_ID);
+
+  // 同名ファイル・旧形式（受付番号なし）を削除
+  var oldFileName = baseName + '.xlsx';
+  [exportFileName, oldFileName].forEach(function(fname) {
+    var existing = folder.getFilesByName(fname);
+    while (existing.hasNext()) {
+      existing.next().setTrashed(true);
+    }
+  });
+
+  // exportSheetの書き込みを確定してからデータ取得
+  SpreadsheetApp.flush();
+  // exportSheet（配布用リスト）のデータをtemp SSのcopiedSheetにコピー
+  var srcData = exportSheet.getDataRange();
+  var srcVals = srcData.getValues();
+  var srcRows = srcVals.length;
+  var srcCols = srcVals[0].length;
+
+  // copiedSheetをクリアしてデータを書き込み
+  var copiedMaxR = copiedSheet.getMaxRows();
+  var copiedMaxC = copiedSheet.getMaxColumns();
+  if (copiedMaxR > 1) copiedSheet.getRange(1, 1, copiedMaxR, copiedMaxC).clearContent();
+  // 行数が足りなければ追加
+  if (copiedMaxR < srcRows) copiedSheet.insertRowsAfter(copiedMaxR, srcRows - copiedMaxR);
+  if (copiedMaxC < srcCols) copiedSheet.insertColumnsAfter(copiedMaxC, srcCols - copiedMaxC);
+  copiedSheet.getRange(1, 1, srcRows, srcCols).setValues(srcVals);
+
+  om_trimColumnBAfterSecondHyphen_(copiedSheet);
+  om_trimToDataBoundsStrict_(copiedSheet);
+  SpreadsheetApp.flush();
+
+  var xlsxBlob = om_exportAsXlsxBlob_(tmpSsId, exportFileName);
+  var outFile = folder.createFile(xlsxBlob);
+  outFile.setName(exportFileName);
+  outFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  var url = outFile.getUrl();
+
+  om_updateRequestSheetLink_(rawName, receiptNo, url, optOrderSsId);
+
+  return { ok: true, url: url, fileName: exportFileName };
+}
+
+// ═══════════════════════════════════════════
+// XLSX出力（レガシー版: handleMissingProducts等から呼ばれる互換用）
 // ═══════════════════════════════════════════
 
 function om_exportDistributionXlsx_(customerName, receiptNo, optOrderSsId) {
@@ -1264,7 +1338,7 @@ function om_generateDescriptions_(productRows) {
     return productRows.map(function(pr) { return om_fallbackDescription_(pr); });
   }
 
-  var BATCH_SIZE = 10;
+  var BATCH_SIZE = 30;  // gpt-4o-miniは高速なので大きめバッチでAPI往復回数を削減
   var allResults = [];
 
   for (var batchStart = 0; batchStart < productRows.length; batchStart += BATCH_SIZE) {
