@@ -63,6 +63,100 @@ function initializePublicList() {
   }
 }
 
+/**
+ * デバッグ: 特定管理番号がsyncFull_の各段階でどう扱われるか調査
+ * GASエディタから実行: debugProductSync('zB1012')
+ */
+function debugProductSync(targetId) {
+  if (!targetId) targetId = 'zB1012';
+  var key = normalizeKey_(targetId);
+  console.log('=== debugProductSync: ' + key + ' ===');
+
+  // キャッシュクリアして最新データで調査
+  clearProductCache_();
+
+  var sheets = openSheets_();
+  var productSheet = sheets.productSheet;
+
+  // 商品管理のヘッダーを全出力して「ステータス」列の位置を特定
+  var lastCol = productSheet.getLastColumn();
+  var headers = productSheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var statusCols = [];
+  for (var h = 0; h < headers.length; h++) {
+    var hName = String(headers[h] || '').trim();
+    if (hName.indexOf('ステータス') >= 0 || hName.indexOf('状態') >= 0 || hName.indexOf('状況') >= 0) {
+      statusCols.push({ col: h + 1, letter: om_colNumToLetter_(h + 1), header: hName });
+    }
+  }
+  console.log('ステータス/状態/状況 関連列: ' + JSON.stringify(statusCols));
+
+  // 管理番号列を特定
+  var idx = {};
+  headers.forEach(function(hh, i) { idx[String(hh || '').trim()] = i; });
+  var midCol = idx['管理番号'];
+  console.log('管理番号列: ' + (midCol !== undefined ? (midCol + 1) + '列目 (' + om_colNumToLetter_(midCol + 1) + ')' : 'なし'));
+  console.log('ステータス列(buildProductMap_が使う): ' + (idx['ステータス'] !== undefined ? (idx['ステータス'] + 1) + '列目 (' + om_colNumToLetter_(idx['ステータス'] + 1) + ')' : 'なし'));
+
+  // 対象行を直接シートから読み取り（重複チェック: 全行走査）
+  var startRow = CONFIG.SRC_PRODUCT_START_ROW;
+  var nRows = productSheet.getLastRow() - startRow + 1;
+  var matchCount = 0;
+  if (midCol !== undefined && nRows > 0) {
+    var allData = productSheet.getRange(startRow, 1, nRows, lastCol).getValues();
+    for (var r = 0; r < allData.length; r++) {
+      if (normalizeKey_(allData[r][midCol]) === key) {
+        matchCount++;
+        var brandVal = idx['ブランド'] !== undefined ? String(allData[r][idx['ブランド']] || '') : '?';
+        console.log('★ 一致 #' + matchCount + ' 行' + (startRow + r) + ' ブランド="' + brandVal + '"');
+        for (var s = 0; s < statusCols.length; s++) {
+          var sc = statusCols[s];
+          console.log('  ' + sc.letter + '列 "' + sc.header + '": "' + String(allData[r][sc.col - 1] || '') + '"');
+        }
+      }
+    }
+    if (matchCount > 1) {
+      console.log('⚠⚠⚠ 重複検出: "' + key + '" が商品管理に ' + matchCount + ' 行存在！buildProductMap_は最後の行を使用するため、売却済みの行が無視されています');
+    } else if (matchCount === 0) {
+      console.log('商品管理にヒットなし');
+    }
+  }
+
+  var productMap = buildProductMap_(productSheet);
+  var returnSet = buildReturnSet_(sheets.returnSheet);
+
+  var rec = productMap[key];
+  if (!rec) {
+    console.log('productMap に存在しません: ' + key);
+  } else {
+    console.log('productMap結果:');
+    console.log('  bizStatus: "' + rec.bizStatus + '"');
+    console.log('  status: "' + rec.status + '"');
+    console.log('  brand: "' + rec.brand + '"');
+  }
+
+  var inReturn = returnSet[key];
+  console.log('返送管理に存在: ' + (inReturn ? 'YES (' + inReturn + ')' : 'NO'));
+
+  if (rec && inReturn) {
+    var wouldInclude = (rec.bizStatus === '返品済み');
+    console.log('syncFull_でデータ1に含まれるか: ' + (wouldInclude ? '★YES（問題！）' : 'NO（正常除外）'));
+  }
+
+  // データ1にいるか確認
+  var destSheet = sheets.destSheet;
+  var destLastRow = destSheet.getLastRow();
+  if (destLastRow >= CONFIG.DEST_START_ROW) {
+    var kCol = CONFIG.DEST_COL_KEY;
+    var kData = destSheet.getRange(CONFIG.DEST_START_ROW, kCol, destLastRow - CONFIG.DEST_START_ROW + 1, 1).getValues();
+    for (var i = 0; i < kData.length; i++) {
+      if (normalizeKey_(kData[i][0]) === key) {
+        console.log('データ1に存在: 行' + (CONFIG.DEST_START_ROW + i));
+        break;
+      }
+    }
+  }
+}
+
 function app_log_(label, data) {
   const ts = new Date().toISOString();
   let line = '[' + ts + '] ' + String(label || '');
@@ -466,9 +560,13 @@ function buildProductMap_(productSheet) {
     const key = normalizeKey_(idx['管理番号'] !== undefined ? r[idx['管理番号']] : '');
     if (!key) continue;
 
+    // 重複管理番号: 「売却済み」は最優先で保持（上書きさせない）
+    var newBizStatus = idx['ステータス'] !== undefined ? (r[idx['ステータス']] || '') : '';
+    if (map[key] && map[key].bizStatus === '売却済み') continue;
+
     map[key] = {
       status: idx['状態'] !== undefined ? (r[idx['状態']] || '') : '',
-      bizStatus: idx['ステータス'] !== undefined ? (r[idx['ステータス']] || '') : '',
+      bizStatus: newBizStatus,
       brand: idx['ブランド'] !== undefined ? (r[idx['ブランド']] || '') : '',
       size: idx['メルカリサイズ'] !== undefined ? (r[idx['メルカリサイズ']] || '') : '',
       gender: idx['性別'] !== undefined ? (r[idx['性別']] || '') : '',

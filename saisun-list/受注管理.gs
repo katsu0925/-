@@ -341,10 +341,15 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
     else console.error('商品管理にステータス列または管理番号列が見つかりません');
     return;
   }
-  var idToRowMap = {};
+  // 管理番号→行番号マップ（重複行対応: 全行を配列で保持）
+  var idToRowMap = {};   // 互換用: 最初の行を返す
+  var idToAllRows = {};  // 重複対応: 全行の配列
   for (var ir = 0; ir < mData.length; ir++) {
     var ik = String(mData[ir][idColIdx] || '').trim();
-    if (ik) idToRowMap[ik] = ir + 2;
+    if (!ik) continue;
+    if (!idToRowMap[ik]) idToRowMap[ik] = ir + 2;
+    if (!idToAllRows[ik]) idToAllRows[ik] = [];
+    idToAllRows[ik].push(ir + 2);
   }
 
   // 依頼管理の受付番号→行データのハッシュマップ
@@ -572,11 +577,17 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
     }
 
     ids.forEach(function(mgmtId) {
-      var tgtRow = idToRowMap[mgmtId];
-      if (!tgtRow) return;
+      // 重複行対応: 同じ管理番号の全行を売却済みに更新
+      var allRows = idToAllRows[mgmtId] || [];
+      if (allRows.length === 0) return;
 
-      statusA1s.push(statusColLetter + tgtRow);
-      boA1s.push(boColLetter + tgtRow);
+      for (var ri = 0; ri < allRows.length; ri++) {
+        statusA1s.push(statusColLetter + allRows[ri]);
+        boA1s.push(boColLetter + allRows[ri]);
+      }
+      if (allRows.length > 1) {
+        console.log('重複行検出: ' + mgmtId + ' → ' + allRows.length + '行を売却済みに更新');
+      }
 
       // 売却履歴用
       var listRow = outArrMap[mgmtId];
