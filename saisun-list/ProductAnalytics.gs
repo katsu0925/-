@@ -26,14 +26,22 @@ function productAnalyticsCron_() {
         var headerRow = Number(APP_CONFIG.data.headerRow || 2);
         var lastRow = dataSheet.getLastRow();
         if (lastRow > headerRow) {
-          var pData = dataSheet.getRange(headerRow + 1, 1, lastRow - headerRow, 11).getValues();
+          var pLastCol = dataSheet.getLastColumn();
+          var pHeaders = dataSheet.getRange(headerRow, 1, 1, pLastCol).getValues()[0];
+          var pMidCol = u_findCol_(pHeaders, ['管理番号']);
+          var pBrandCol = u_findCol_(pHeaders, ['ブランド']);
+          var pCatCol = u_findCol_(pHeaders, ['カテゴリ']);
+          var pPriceCol = u_findCol_(pHeaders, ['価格']);
+          var pNoCol = 0; // A列: No（フォールバック）
+          var pData = dataSheet.getRange(headerRow + 1, 1, lastRow - headerRow, pLastCol).getValues();
           for (var p = 0; p < pData.length; p++) {
-            var mid = String(pData[p][10] || '').trim(); // K列: 管理番号
-            if (!mid) mid = String(pData[p][0] || '').trim(); // A列: No
+            var mid = (pMidCol >= 0) ? String(pData[p][pMidCol] || '').trim() : '';
+            if (!mid) mid = String(pData[p][pNoCol] || '').trim();
             if (mid) {
               productInfo[mid] = {
-                brand: String(pData[p][3] || '').trim(),
-                category: String(pData[p][4] || '').trim()
+                brand: (pBrandCol >= 0) ? String(pData[p][pBrandCol] || '').trim() : '',
+                category: (pCatCol >= 0) ? String(pData[p][pCatCol] || '').trim() : '',
+                price: (pPriceCol >= 0) ? (Number(pData[p][pPriceCol]) || 0) : 0
               };
             }
           }
@@ -52,25 +60,33 @@ function productAnalyticsCron_() {
         if (detailSheet) {
           var dHeaderRow = Number((APP_CONFIG.detail && APP_CONFIG.detail.headerRow) || 1);
           var dHeaders = detailSheet.getRange(dHeaderRow, 1, 1, detailSheet.getLastColumn()).getValues()[0];
-          var dMidCol = -1, dBrandCol = -1, dCatCol = -1;
+          var dMidCol = -1, dBrandCol = -1, dCatCol = -1, dPriceCol = -1;
           for (var h = 0; h < dHeaders.length; h++) {
             var hName = String(dHeaders[h] || '').trim();
             if (hName === '管理番号') dMidCol = h;
             else if (hName === 'ブランド') dBrandCol = h;
             else if (hName === 'カテゴリ3') dCatCol = h;
+            else if (hName === '価格' || hName === '販売価格') dPriceCol = h;
           }
           if (dMidCol >= 0) {
             var dLastRow = detailSheet.getLastRow();
             if (dLastRow > dHeaderRow) {
-              var dMaxCol = Math.max(dMidCol, dBrandCol, dCatCol) + 1;
+              var dMaxCol = Math.max(dMidCol, dBrandCol, dCatCol, dPriceCol) + 1;
               var dData = detailSheet.getRange(dHeaderRow + 1, 1, dLastRow - dHeaderRow, dMaxCol).getValues();
               for (var d = 0; d < dData.length; d++) {
                 var dId = String(dData[d][dMidCol] || '').trim();
-                if (!dId || productInfo[dId]) continue;
-                productInfo[dId] = {
-                  brand: dBrandCol >= 0 ? String(dData[d][dBrandCol] || '').trim() : '',
-                  category: dCatCol >= 0 ? String(dData[d][dCatCol] || '').trim() : ''
-                };
+                if (!dId) continue;
+                // 既存エントリがあっても価格が0なら仕入れ管理の価格で補完
+                var existing = productInfo[dId];
+                if (!existing) {
+                  productInfo[dId] = {
+                    brand: dBrandCol >= 0 ? String(dData[d][dBrandCol] || '').trim() : '',
+                    category: dCatCol >= 0 ? String(dData[d][dCatCol] || '').trim() : '',
+                    price: dPriceCol >= 0 ? (Number(dData[d][dPriceCol]) || 0) : 0
+                  };
+                } else if (!existing.price && dPriceCol >= 0) {
+                  existing.price = Number(dData[d][dPriceCol]) || 0;
+                }
               }
             }
           }
@@ -93,7 +109,8 @@ function productAnalyticsCron_() {
 
       // 選択リストからIDを分解
       var ids = selectionList.split(/[,、\s]+/).map(function(s) { return s.trim(); }).filter(Boolean);
-      var pricePerItem = totalCount > 0 ? Math.round(totalAmount / totalCount) : 0;
+      // 均等割りはフォールバック用（商品マスタに価格がない場合のみ使用）
+      var fallbackPrice = totalCount > 0 ? Math.round(totalAmount / totalCount) : 0;
 
       for (var j = 0; j < ids.length; j++) {
         var id = ids[j];
@@ -101,7 +118,9 @@ function productAnalyticsCron_() {
           productMap[id] = { orders: 0, total: 0, lastDate: null };
         }
         productMap[id].orders++;
-        productMap[id].total += pricePerItem;
+        // 商品マスタの実際の価格を優先、なければ均等割りでフォールバック
+        var itemPrice = (productInfo[id] && productInfo[id].price) ? productInfo[id].price : fallbackPrice;
+        productMap[id].total += itemPrice;
         if (orderDate) {
           var d = new Date(orderDate);
           if (!productMap[id].lastDate || d > productMap[id].lastDate) productMap[id].lastDate = d;
