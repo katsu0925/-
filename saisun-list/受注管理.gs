@@ -400,6 +400,13 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
       continue;
     }
 
+    // AI列: 注文時価格JSON（メールと一致する価格）
+    var orderPriceMap = {};
+    try {
+      var priceJson = String(reqRow[REQUEST_SHEET_COLS.ITEM_PRICES - 1] || '');
+      if (priceJson) orderPriceMap = JSON.parse(priceJson);
+    } catch (e) { /* AI列が空または不正な場合はフォールバック */ }
+
     var selectionStr = String(reqRow[selectionCol] || '');
     var ids = selectionStr.split(/[、,，\s]+/).map(function(s) { return s.trim(); }).filter(function(s) { return s; });
     if (ids.length === 0) {
@@ -518,12 +525,13 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
       }
       measurementText = measurementText.trim();
 
-      // データ1の価格を使用（在庫経過割引・状態割引が反映済み）
-      // データ1に無い場合は仕入値から再計算（フォールバック: 状態割引+在庫経過割引を適用）
+      // 注文時価格（AI列）→ データ1価格 → 仕入値再計算の優先順で取得
       var price;
-      var d1Price = data1PriceMap[targetId];
-      if (typeof d1Price === 'number' && isFinite(d1Price) && d1Price > 0) {
-        price = d1Price;
+      var orderPrice = orderPriceMap[targetId];
+      if (typeof orderPrice === 'number' && isFinite(orderPrice) && orderPrice > 0) {
+        price = orderPrice;
+      } else if (typeof (data1PriceMap[targetId]) === 'number' && isFinite(data1PriceMap[targetId]) && data1PriceMap[targetId] > 0) {
+        price = data1PriceMap[targetId];
       } else {
         var cost = toNumber_(listRow[10]) || 0;
         price = normalizeSellPrice_(om_calcPriceTier_(cost));

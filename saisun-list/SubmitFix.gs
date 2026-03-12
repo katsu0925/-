@@ -861,7 +861,15 @@ function writeSubmitData_(data) {
     data.form.note || '',                        // AD: 備考
     '',                                          // AE: 作業報酬
     new Date(now),                               // AF: 更新日時
-    channel                                      // AG: チャネル
+    channel,                                     // AG: チャネル
+    '',                                          // AH: 追跡URL
+    (function() {                                // AI: 商品単価JSON（注文時価格）
+      var pm = {};
+      (data.itemDetails || []).forEach(function(it) {
+        if (it.managedId) pm[it.managedId] = it.price || 0;
+      });
+      return JSON.stringify(pm);
+    })()
   ];
   var writeRow = sh_findNextRowByDisplayKey_(reqSh, 1, 1);
   reqSh.getRange(writeRow, 1, 1, row.length).setValues([row]);

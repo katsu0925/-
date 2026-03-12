@@ -107,9 +107,16 @@ function productAnalyticsCron_() {
       var totalCount = Number(reqData[i][REQUEST_SHEET_COLS.TOTAL_COUNT - 1]) || 0;
       var orderDate = reqData[i][REQUEST_SHEET_COLS.DATETIME - 1];
 
+      // AI列: 注文時価格JSON
+      var orderPrices = {};
+      try {
+        var pJson = String(reqData[i][REQUEST_SHEET_COLS.ITEM_PRICES - 1] || '');
+        if (pJson) orderPrices = JSON.parse(pJson);
+      } catch (e) { /* フォールバック */ }
+
       // 選択リストからIDを分解
       var ids = selectionList.split(/[,、\s]+/).map(function(s) { return s.trim(); }).filter(Boolean);
-      // 均等割りはフォールバック用（商品マスタに価格がない場合のみ使用）
+      // 均等割りはフォールバック用（注文時価格も商品マスタ価格もない場合のみ使用）
       var fallbackPrice = totalCount > 0 ? Math.round(totalAmount / totalCount) : 0;
 
       for (var j = 0; j < ids.length; j++) {
@@ -118,8 +125,9 @@ function productAnalyticsCron_() {
           productMap[id] = { orders: 0, total: 0, lastDate: null };
         }
         productMap[id].orders++;
-        // 商品マスタの実際の価格を優先、なければ均等割りでフォールバック
-        var itemPrice = (productInfo[id] && productInfo[id].price) ? productInfo[id].price : fallbackPrice;
+        // 注文時価格（AI列）→ 商品マスタ価格 → 均等割りの優先順
+        var itemPrice = (typeof orderPrices[id] === 'number' && orderPrices[id] > 0) ? orderPrices[id]
+          : (productInfo[id] && productInfo[id].price) ? productInfo[id].price : fallbackPrice;
         productMap[id].total += itemPrice;
         if (orderDate) {
           var d = new Date(orderDate);
