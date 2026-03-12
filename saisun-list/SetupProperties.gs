@@ -249,53 +249,6 @@ function cleanupExecute() {
 }
 
 // =====================================================
-// Meta広告CSVフォルダセットアップ
-// =====================================================
-
-/**
- * Meta広告CSV取込用のGoogleドライブフォルダを作成し、
- * Script Properties に META_CSV_FOLDER_ID を自動設定する
- *
- * GASエディタから1回実行してください
- */
-function setupMetaCsvFolder() {
-  var props = PropertiesService.getScriptProperties();
-  var existingId = props.getProperty('META_CSV_FOLDER_ID');
-
-  // 既に設定済みならフォルダの存在確認だけ
-  if (existingId) {
-    try {
-      var existing = DriveApp.getFolderById(existingId);
-      console.log('META_CSV_FOLDER_ID は設定済み: ' + existingId);
-      console.log('フォルダ名: ' + existing.getName());
-      console.log('URL: ' + existing.getUrl());
-      return { ok: true, folderId: existingId, url: existing.getUrl() };
-    } catch (e) {
-      console.log('既存フォルダID が無効です。新規作成します。');
-    }
-  }
-
-  // フォルダ作成
-  var folder = DriveApp.createFolder('Meta広告CSV');
-  var folderId = folder.getId();
-  props.setProperty('META_CSV_FOLDER_ID', folderId);
-
-  console.log('===== Meta広告CSV フォルダセットアップ完了 =====');
-  console.log('フォルダ名: Meta広告CSV');
-  console.log('フォルダID: ' + folderId);
-  console.log('URL: ' + folder.getUrl());
-  console.log('');
-  console.log('META_CSV_FOLDER_ID を Script Properties に設定しました');
-  console.log('');
-  console.log('【使い方】');
-  console.log('1. Meta広告マネージャでCSVエクスポート');
-  console.log('2. 上記フォルダにCSVをアップロード');
-  console.log('3. testImportMetaAdsCsv() で手動取込、または毎日8時に自動取込');
-
-  return { ok: true, folderId: folderId, url: folder.getUrl() };
-}
-
-// =====================================================
 // シートヘッダー保護（スタッフの誤操作防止）
 // =====================================================
 
