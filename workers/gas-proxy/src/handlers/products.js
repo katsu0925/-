@@ -24,7 +24,8 @@ export async function getCachedProducts(args, env) {
   // KVキャッシュ確認（GAS互換形式: { products, totalCount, options, settings, stats }）
   const cachedJson = await cache.get(PRODUCTS_CACHE_KEY);
   if (cachedJson) {
-    return jsonRaw(`{"ok":true,"data":${cachedJson}}`, { 'X-Cache': 'HIT' });
+    const ver = await cache.get('products:version') || '';
+    return jsonRaw(`{"ok":true,"dataVersion":"${ver}","data":${cachedJson}}`, { 'X-Cache': 'HIT' });
   }
 
   // D1から商品データ読み取り
@@ -51,7 +52,13 @@ export async function getCachedProducts(args, env) {
   const dataJson = JSON.stringify(data);
   await cache.put(PRODUCTS_CACHE_KEY, dataJson, { expirationTtl: CACHE_TTL });
 
-  return jsonRaw(`{"ok":true,"data":${dataJson}}`, { 'X-Cache': 'MISS' });
+  // ハッシュも生成して返す
+  const encoder = new TextEncoder();
+  const hashBuf = await crypto.subtle.digest('SHA-256', encoder.encode(dataJson));
+  const ver = [...new Uint8Array(hashBuf)].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 12);
+  await cache.put('products:version', ver);
+
+  return jsonRaw(`{"ok":true,"dataVersion":"${ver}","data":${dataJson}}`, { 'X-Cache': 'MISS' });
 }
 
 /**
@@ -63,6 +70,8 @@ export async function bulkInit(args, env) {
   // KVキャッシュ確認
   const cached = await cache.get(BULK_CACHE_KEY, 'json');
   if (cached) {
+    const bulkVer = await cache.get('products:bulk:version') || '';
+    cached.dataVersion = bulkVer;
     return jsonOk(cached, { 'X-Cache': 'HIT' });
   }
 
@@ -98,11 +107,29 @@ export async function bulkInit(args, env) {
   const siteUrl = await getSetting(env.DB, 'SITE_URL');
   if (siteUrl) result.settings.detauriUrl = siteUrl;
 
-  await cache.put(BULK_CACHE_KEY, JSON.stringify(result), {
+  const bulkJson = JSON.stringify(result);
+  await cache.put(BULK_CACHE_KEY, bulkJson, {
     expirationTtl: CACHE_TTL,
   });
 
+  // バルク用バージョンハッシュ
+  const encoder = new TextEncoder();
+  const bulkHashBuf = await crypto.subtle.digest('SHA-256', encoder.encode(bulkJson));
+  const bulkVer = [...new Uint8Array(bulkHashBuf)].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 12);
+  await cache.put('products:bulk:version', bulkVer);
+  result.dataVersion = bulkVer;
+
   return jsonOk(result, { 'X-Cache': 'MISS' });
+}
+
+/**
+ * apiGetProductsVersion — バージョンハッシュのみ返す軽量API
+ * クライアント側のlocalStorageキャッシュ検証用
+ */
+export async function getProductsVersion(args, env) {
+  const detauri = await env.CACHE.get('products:version') || '';
+  const bulk = await env.CACHE.get('products:bulk:version') || '';
+  return jsonOk({ detauri, bulk });
 }
 
 // ─── D1読み取りヘルパー ───

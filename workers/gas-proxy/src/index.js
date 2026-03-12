@@ -29,6 +29,7 @@ const WORKER_HANDLED = {
   // Phase 1: 読み取りAPI
   apiGetCachedProducts: (args, env) => products.getCachedProducts(args, env),
   apiBulkInit:          (args, env) => products.bulkInit(args, env),
+  apiGetProductsVersion:(args, env) => products.getProductsVersion(args, env),
   apiGetCsrfToken:      (args, env) => session.getCsrfToken(args, env),
 
   // Phase 2: 認証
@@ -260,6 +261,8 @@ async function purgeAllCaches(env) {
     'products:bulk',
     'settings:public',
     'stats:banner',
+    'products:version',
+    'products:bulk:version',
   ];
 
   for (const key of keys) {

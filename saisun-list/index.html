@@ -3960,9 +3960,9 @@ function runApi(fn, _extra) {
 var PRODUCT_CACHE_KEY = 'estimate_products_cache';
 var PRODUCT_CACHE_TTL = 5 * 60 * 1000; // 5分
 
-function saveProductCache_(data) {
+function saveProductCache_(data, version) {
   try {
-    var cache = { ts: Date.now(), data: data };
+    var cache = { ts: Date.now(), data: data, v: version || (data && data.dataVersion) || '' };
     localStorage.setItem(PRODUCT_CACHE_KEY, JSON.stringify(cache));
   } catch (e) { console.warn('キャッシュ保存失敗:', e); }
 }
@@ -3980,12 +3980,13 @@ function loadProductCache_() {
   } catch (e) { return null; }
 }
 
+
 function loadProductData() {
   if (IS_STANDALONE) {
     return runApi('apiGetCachedProducts').then(function(res) {
       if (res && res.ok && res.data) {
         console.log('データ読み込み完了:', res.data.totalCount + '件');
-        saveProductCache_(res.data);
+        saveProductCache_(res.data, res.dataVersion || '');
         return res.data;
       }
       throw new Error(res && res.message ? res.message : 'データ取得に失敗');
@@ -7105,24 +7106,41 @@ function boot() {
     dismissTransitionOverlay_();
   }
 
-  // 最新データをバックグラウンドで取得（最優先）
-  loadProductData()
-    .then(function(data) {
+  // 最新データをバックグラウンドで取得
+  // キャッシュがある場合はバージョンチェックで差分があるときだけフルデータ取得
+  var _fullFetch = function() {
+    return loadProductData().then(function(data) {
       if (!_cacheAvailable) dismissTransitionOverlay_();
-      // キャッシュと件数が異なる場合のみ再描画
       var needsRender = !state.dataLoaded || state.allProducts.length !== (data.products || []).length;
       applyProductData_(data);
-      if (needsRender) {
-        console.log('最新データで更新: ' + state.allProducts.length + '件');
-      }
-      // 初回データロード完了後に非重要APIを遅延実行
-      // CSRFトークン: 注文送信に必要だが初期描画には不要
-      fetchCsrfToken_();
-      // Phase 4-4/4-5: 広告トラッキング設定をバックグラウンドロード
-      loadAdsTrackingConfig_();
-      // アソートページHTMLをバックグラウンドでプリフェッチ（シームレス切替用）
-      setTimeout(prefetchBulkPage_, 1000);
-    })
+      if (needsRender) console.log('最新データで更新: ' + state.allProducts.length + '件');
+    });
+  };
+  var _postLoad = function() {
+    fetchCsrfToken_();
+    loadAdsTrackingConfig_();
+    setTimeout(prefetchBulkPage_, 1000);
+  };
+
+  (_cacheAvailable && IS_STANDALONE ? (function() {
+    // キャッシュ表示済み → 軽量バージョンチェックで差分判定
+    return runApi('apiGetProductsVersion').then(function(res) {
+      if (!_cacheAvailable) dismissTransitionOverlay_();
+      if (!res || !res.ok) return _fullFetch(); // バージョンAPI失敗時はフルフェッチ
+      var serverVer = res.detauri || '';
+      try {
+        var raw = localStorage.getItem(PRODUCT_CACHE_KEY);
+        var localVer = raw ? JSON.parse(raw).v || '' : '';
+        if (localVer && serverVer && localVer === serverVer) {
+          console.log('商品データ最新（バージョン一致:', serverVer + '）');
+          return; // キャッシュ有効、フルフェッチ不要
+        }
+      } catch (e) {}
+      console.log('商品データ更新検出 → フルデータ再取得');
+      return _fullFetch();
+    }).catch(function() { return _fullFetch(); });
+  })() : _fullFetch())
+    .then(_postLoad)
     .catch(function(err) {
       if (!_cacheAvailable) dismissTransitionOverlay_();
       console.error('起動エラー:', err);

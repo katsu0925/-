@@ -1620,7 +1620,7 @@ function loadBulkProductCache_() {
 
 function saveBulkProductCache_(data) {
   try {
-    localStorage.setItem(BULK_PRODUCT_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: data }));
+    localStorage.setItem(BULK_PRODUCT_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: data, v: (data && data.dataVersion) || '' }));
   } catch (e) {}
 }
 
@@ -1773,7 +1773,7 @@ window.addEventListener('DOMContentLoaded', function() {
     dismissBulkTransition_();
   }
 
-  // バックグラウンドで最新データを取得
+  // バックグラウンドで最新データを取得（バージョンチェック付き）
   var initDone = false;
   var loadTimer = setTimeout(function() {
     if (!initDone && !cacheApplied) {
@@ -1781,8 +1781,8 @@ window.addEventListener('DOMContentLoaded', function() {
     }
   }, 30000);
 
-  runApi('apiBulkInit')
-    .then(function(r) {
+  var _bulkFullFetch = function() {
+    return runApi('apiBulkInit').then(function(r) {
       initDone = true;
       clearTimeout(loadTimer);
       if (!cacheApplied) dismissBulkTransition_();
@@ -1797,7 +1797,6 @@ window.addEventListener('DOMContentLoaded', function() {
           console.log('BulkLP: 最新データで更新:', newCount + '件');
           applyBulkData_(r, savedCart);
         } else {
-          // settings（会員割引等）だけ静かに更新
           G.settings = r.settings || {};
           if (r.stats) applyBulkStatsData_(r.stats);
           updateCart();
@@ -1812,6 +1811,30 @@ window.addEventListener('DOMContentLoaded', function() {
       if (!cacheApplied) dismissBulkTransition_();
       if (!cacheApplied) showProductError(e && e.message ? e.message : '接続エラー');
     });
+  };
+
+  // キャッシュ表示済みならバージョンチェック → 差分時のみフルフェッチ
+  if (cacheApplied && IS_STANDALONE) {
+    runApi('apiGetProductsVersion').then(function(res) {
+      if (!res || !res.ok) return _bulkFullFetch();
+      var serverVer = res.bulk || '';
+      if (!serverVer) return _bulkFullFetch();
+      try {
+        var raw = localStorage.getItem(BULK_PRODUCT_CACHE_KEY);
+        var localVer = raw ? JSON.parse(raw).v || '' : '';
+        if (localVer && localVer === serverVer) {
+          initDone = true;
+          clearTimeout(loadTimer);
+          console.log('BulkLP: 商品データ最新（バージョン一致:', serverVer + '）');
+          return;
+        }
+      } catch (e) {}
+      console.log('BulkLP: 商品データ更新検出 → フルデータ再取得');
+      return _bulkFullFetch();
+    }).catch(function() { _bulkFullFetch(); });
+  } else {
+    _bulkFullFetch();
+  }
 
   document.getElementById('postal').addEventListener('input', onPostalInput);
 

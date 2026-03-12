@@ -550,7 +550,17 @@ async function prewarmCaches(env) {
     };
     await env.CACHE.put('products:bulk', JSON.stringify(bulkResult), { expirationTtl: CACHE_TTL });
 
-    console.log(`[sync] KV prewarm complete: ${items.length} products, ${bulkProducts.length} bulk`);
+    // バージョンハッシュ生成（クライアント側キャッシュ検証用）
+    const encoder = new TextEncoder();
+    const productHashBuf = await crypto.subtle.digest('SHA-256', encoder.encode(JSON.stringify(productData)));
+    const productVersion = [...new Uint8Array(productHashBuf)].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 12);
+    await env.CACHE.put('products:version', productVersion);
+
+    const bulkHashBuf = await crypto.subtle.digest('SHA-256', encoder.encode(JSON.stringify(bulkResult)));
+    const bulkVersion = [...new Uint8Array(bulkHashBuf)].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 12);
+    await env.CACHE.put('products:bulk:version', bulkVersion);
+
+    console.log(`[sync] KV prewarm complete: ${items.length} products, ${bulkProducts.length} bulk, v=${productVersion}/${bulkVersion}`);
   } catch (e) {
     console.error('[sync] Prewarm error:', e.message);
     // プリウォーム失敗時はキャッシュを削除（次のリクエストでD1から再構築）
