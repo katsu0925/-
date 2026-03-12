@@ -190,38 +190,65 @@ function cron_art_getTrendData_() {
 // OpenAI API連携 — 通常記事生成
 // =====================================================
 
-function cron_art_generateArticle_(pastTitles, majorCategory) {
+function cron_art_generateArticle_(pastTitles, majorCategory, pastCategories) {
   var apiKey = PropertiesService.getScriptProperties().getProperty('OPENAI_API_KEY') || '';
   if (!apiKey) throw new Error('OPENAI_API_KEY が未設定です');
 
   var topics = TOPICS_BY_CATEGORY[majorCategory] || TOPICS_BY_CATEGORY['副業の始め方'];
 
+  // --- 堅固な重複回避トピック選択 ---
   var dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
   var baseIndex = dayOfYear % topics.length;
-  var todayTopic = topics[baseIndex];
-  if (pastTitles && pastTitles.length > 0) {
-    var pastStr = pastTitles.join(' ').toLowerCase();
-    for (var ti = 0; ti < topics.length; ti++) {
-      var candidate = topics[(baseIndex + ti) % topics.length];
-      var keywords = candidate.split(/[・：\s]/);
-      var overlap = false;
-      for (var ki = 0; ki < keywords.length; ki++) {
-        if (keywords[ki].length >= 4 && pastStr.indexOf(keywords[ki].toLowerCase()) !== -1) {
-          overlap = true; break;
-        }
-      }
-      if (!overlap) { todayTopic = candidate; break; }
+  var todayTopic = null;
+
+  // 直近7記事のカテゴリを抽出（カテゴリクールダウン用）
+  var recentCats = {};
+  if (pastCategories) {
+    var catSlice = pastCategories.slice(0, 7);
+    for (var ci = 0; ci < catSlice.length; ci++) {
+      var c = catSlice[ci].category;
+      if (c) recentCats[c] = true;
     }
   }
 
+  for (var ti = 0; ti < topics.length; ti++) {
+    var candidate = topics[(baseIndex + ti) % topics.length];
+
+    // チェック1: トライグラム類似度（過去タイトルとの内容重複）
+    var tooSimilar = false;
+    if (pastTitles && pastTitles.length > 0) {
+      for (var pi = 0; pi < pastTitles.length; pi++) {
+        if (cron_art_trigramSimilarity_(candidate, pastTitles[pi]) > 0.18) {
+          tooSimilar = true;
+          break;
+        }
+      }
+    }
+    if (tooSimilar) continue;
+
+    // チェック2: カテゴリクールダウン（直近7記事に同カテゴリがあればスキップ）
+    var topicCat = cron_art_guessCategory_(candidate);
+    if (topicCat && recentCats[topicCat]) continue;
+
+    todayTopic = candidate;
+    break;
+  }
+  // 全トピックが重複した場合はランダム選択（フォールバック）
+  if (!todayTopic) {
+    todayTopic = topics[Math.floor(Math.random() * topics.length)];
+    console.log('記事生成: 全トピック重複のためランダム選択: ' + todayTopic);
+  }
+
+  // --- 強化された重複回避プロンプト ---
   var dedupeInstruction = '';
   if (pastTitles && pastTitles.length > 0) {
     var recentTitles = pastTitles.slice(0, 50);
-    dedupeInstruction = '\n\n【最重要：重複回避ルール】\n' +
-      '以下は過去に生成済みの記事タイトルです。これらの記事と内容・切り口・結論・' +
-      '具体的なアドバイスが被ることは絶対に避けてください。\n' +
-      '同じプラットフォームのTipsでも、全く異なる角度（裏技、最新変更、数字を使った具体例、' +
-      '失敗事例、業界の最新ニュース等）から書いてください。\n' +
+    dedupeInstruction = '\n\n【最重要：重複回避ルール — 違反は絶対に許容しない】\n' +
+      '以下は過去に生成済みの記事タイトルです。\n' +
+      '■ これらの記事と「テーマ」「主要キーワード」「扱うプラットフォーム/サイト名」「結論」が1つでも被る記事は生成禁止\n' +
+      '■ 「5選→7選」「最新版→2026年版」のような数字/年号の差し替えだけの焼き直しも禁止\n' +
+      '■ 同じプラットフォーム（例: 中国輸入、メルカリ等）を扱う場合は、過去記事と完全に異なる切り口（例: 仕入れ→販売戦略、初心者向け→上級者向け）でなければならない\n' +
+      '■ 過去記事で既出の具体的サイト名・ツール名・テクニック名は再度メインテーマにしない\n\n' +
       recentTitles.map(function(t, i) { return (i + 1) + '. ' + t; }).join('\n');
   }
 
@@ -286,8 +313,11 @@ function cron_art_generateTrendArticle_(pastTitles, trendData) {
   var dedupeInstruction = '';
   if (pastTitles && pastTitles.length > 0) {
     var recentTitles = pastTitles.slice(0, 50);
-    dedupeInstruction = '\n\n【最重要：重複回避ルール】\n' +
-      '以下は過去に生成済みの記事タイトルです。これらとは完全に異なる切り口で書いてください。\n' +
+    dedupeInstruction = '\n\n【最重要：重複回避ルール — 違反は絶対に許容しない】\n' +
+      '以下は過去に生成済みの記事タイトルです。\n' +
+      '■ これらの記事と「テーマ」「主要キーワード」「扱うブランド・カテゴリ」が被る記事は生成禁止\n' +
+      '■ 前回と同じブランドやカテゴリをメインに据えた記事は書かない。異なるブランド・カテゴリを軸にすること\n' +
+      '■ 「今週のトレンド」系の記事が過去にある場合、同じデータの焼き直しは禁止\n\n' +
       recentTitles.map(function(t, i) { return (i + 1) + '. ' + t; }).join('\n');
   }
 
@@ -442,11 +472,16 @@ function generateScheduledArticle() {
     var lastRow = sheet.getLastRow();
 
     var pastTitles = [];
+    var pastCategories = [];
     if (lastRow >= 2) {
-      var titleData = sheet.getRange(2, ARTICLE_COLS.TITLE + 1, lastRow - 1, 1).getValues();
-      for (var i = titleData.length - 1; i >= 0; i--) {
-        var t = String(titleData[i][0] || '').trim();
+      var cols = sheet.getRange(2, 1, lastRow - 1, ARTICLE_COLS.MAJOR_CATEGORY + 1).getValues();
+      for (var i = cols.length - 1; i >= 0; i--) {
+        var t = String(cols[i][ARTICLE_COLS.TITLE] || '').trim();
         if (t) pastTitles.push(t);
+        pastCategories.push({
+          category: String(cols[i][ARTICLE_COLS.CATEGORY] || ''),
+          majorCategory: String(cols[i][ARTICLE_COLS.MAJOR_CATEGORY] || '')
+        });
       }
     }
 
@@ -455,7 +490,7 @@ function generateScheduledArticle() {
       var trendData = cron_art_getTrendData_();
       article = cron_art_generateTrendArticle_(pastTitles, trendData);
     } else {
-      article = cron_art_generateArticle_(pastTitles, majorCategory);
+      article = cron_art_generateArticle_(pastTitles, majorCategory, pastCategories);
     }
 
     var id = cron_art_generateId_();
@@ -525,4 +560,59 @@ function cron_art_cleanupOldArticles_() {
 
 function generateDailyArticle() {
   return generateScheduledArticle();
+}
+
+// =====================================================
+// 重複回避ヘルパー: トライグラム類似度
+// =====================================================
+
+/**
+ * 2つのテキストのトライグラム（3文字部分文字列）Jaccard類似度を計算
+ * 0.0（完全不一致）〜1.0（完全一致）
+ */
+function cron_art_trigramSimilarity_(text1, text2) {
+  var g1 = cron_art_getNgrams_(text1, 3);
+  var g2 = cron_art_getNgrams_(text2, 3);
+  var keys1 = Object.keys(g1);
+  var keys2 = Object.keys(g2);
+  if (keys1.length === 0 || keys2.length === 0) return 0;
+
+  var intersection = 0;
+  for (var i = 0; i < keys1.length; i++) {
+    if (g2[keys1[i]]) intersection++;
+  }
+
+  // 和集合 = |A| + |B| - |A∩B|
+  var union = keys1.length + keys2.length - intersection;
+  return union > 0 ? intersection / union : 0;
+}
+
+function cron_art_getNgrams_(text, n) {
+  // 記号・数字・スペースを除去し、ひらがな・カタカナ・漢字・英字のみ残す
+  var clean = text.toLowerCase().replace(/[\s・：！？、。（）「」\d\-\/\+%＋％×→←↑↓…〜~,;\[\]{}()#@&*_=<>'"]/g, '');
+  var ngrams = {};
+  for (var i = 0; i <= clean.length - n; i++) {
+    ngrams[clean.substring(i, i + n)] = true;
+  }
+  return ngrams;
+}
+
+/**
+ * トピック文からカテゴリ（例: 中国輸入, メルカリ, eBay等）を推定
+ */
+function cron_art_guessCategory_(topic) {
+  var map = {
+    'メルカリ': 'メルカリ', 'ラクマ': 'ラクマ', 'Yahoo': 'Yahoo!フリマ',
+    'ヤフオク': 'Yahoo!フリマ', 'Amazon': 'Amazon', 'eBay': 'eBay',
+    'Shopify': '副業全般', '中国輸入': '中国輸入', 'アリババ': '中国輸入',
+    '1688': '中国輸入', 'セカンドストリート': 'アパレル', 'ブックオフ': 'アパレル',
+    'フィギュア': 'アパレル', 'おもちゃ': 'アパレル', 'ハンドメイド': '副業全般',
+    '古着': 'アパレル', 'アパレル': 'アパレル', 'せどり': 'せどり',
+    '確定申告': '副業全般', '法人化': '副業全般', '外注': '副業全般'
+  };
+  var keys = Object.keys(map);
+  for (var i = 0; i < keys.length; i++) {
+    if (topic.indexOf(keys[i]) !== -1) return map[keys[i]];
+  }
+  return null;
 }

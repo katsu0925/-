@@ -161,35 +161,41 @@ function art_generateArticle_(pastTitles) {
     'LINEやInstagramを使ったリピーター獲得の仕組み化'
   ];
 
-  // ランダムにトピックを選択（日付ベース + 過去トピックとの重複回避）
+  // --- 堅固な重複回避トピック選択 ---
   var dayOfYear = Math.floor((new Date() - new Date(new Date().getFullYear(), 0, 0)) / (1000 * 60 * 60 * 24));
   var baseIndex = dayOfYear % topics.length;
-  // 過去記事のタイトルと類似しないトピックを選ぶ
-  var todayTopic = topics[baseIndex];
-  if (pastTitles && pastTitles.length > 0) {
-    var pastStr = pastTitles.join(' ').toLowerCase();
-    for (var ti = 0; ti < topics.length; ti++) {
-      var candidate = topics[(baseIndex + ti) % topics.length];
-      var keywords = candidate.split(/[・：\s]/);
-      var overlap = false;
-      for (var ki = 0; ki < keywords.length; ki++) {
-        if (keywords[ki].length >= 4 && pastStr.indexOf(keywords[ki].toLowerCase()) !== -1) {
-          overlap = true; break;
+  var todayTopic = null;
+
+  for (var ti = 0; ti < topics.length; ti++) {
+    var candidate = topics[(baseIndex + ti) % topics.length];
+    // トライグラム類似度チェック（過去タイトルとの内容重複）
+    var tooSimilar = false;
+    if (pastTitles && pastTitles.length > 0) {
+      for (var pi = 0; pi < pastTitles.length; pi++) {
+        if (art_trigramSimilarity_(candidate, pastTitles[pi]) > 0.18) {
+          tooSimilar = true;
+          break;
         }
       }
-      if (!overlap) { todayTopic = candidate; break; }
     }
+    if (!tooSimilar) { todayTopic = candidate; break; }
+  }
+  // 全トピック重複時はランダム選択（フォールバック）
+  if (!todayTopic) {
+    todayTopic = topics[Math.floor(Math.random() * topics.length)];
+    console.log('記事生成: 全トピック重複のためランダム選択: ' + todayTopic);
   }
 
-  // 過去記事の重複回避指示を構築（全件のタイトル+要約を含める）
+  // --- 強化された重複回避プロンプト ---
   var dedupeInstruction = '';
   if (pastTitles && pastTitles.length > 0) {
     var recentTitles = pastTitles.slice(0, 50);
-    dedupeInstruction = '\n\n【最重要：重複回避ルール】\n' +
-      '以下は過去に生成済みの記事タイトルです。これらの記事と内容・切り口・結論・' +
-      '具体的なアドバイスが被ることは絶対に避けてください。\n' +
-      '同じプラットフォームのTipsでも、全く異なる角度（裏技、最新変更、数字を使った具体例、' +
-      '失敗事例、業界の最新ニュース等）から書いてください。\n' +
+    dedupeInstruction = '\n\n【最重要：重複回避ルール — 違反は絶対に許容しない】\n' +
+      '以下は過去に生成済みの記事タイトルです。\n' +
+      '■ これらの記事と「テーマ」「主要キーワード」「扱うプラットフォーム/サイト名」「結論」が1つでも被る記事は生成禁止\n' +
+      '■ 「5選→7選」「最新版→2026年版」のような数字/年号の差し替えだけの焼き直しも禁止\n' +
+      '■ 同じプラットフォーム（例: 中国輸入、メルカリ等）を扱う場合は、過去記事と完全に異なる切り口でなければならない\n' +
+      '■ 過去記事で既出の具体的サイト名・ツール名・テクニック名は再度メインテーマにしない\n\n' +
       recentTitles.map(function(t, i) { return (i + 1) + '. ' + t; }).join('\n');
   }
 
@@ -377,6 +383,33 @@ function generateDailyArticle() {
   } finally {
     lock.releaseLock();
   }
+}
+
+// =====================================================
+// 重複回避ヘルパー: トライグラム類似度
+// =====================================================
+
+function art_trigramSimilarity_(text1, text2) {
+  var g1 = art_getNgrams_(text1, 3);
+  var g2 = art_getNgrams_(text2, 3);
+  var keys1 = Object.keys(g1);
+  var keys2 = Object.keys(g2);
+  if (keys1.length === 0 || keys2.length === 0) return 0;
+  var intersection = 0;
+  for (var i = 0; i < keys1.length; i++) {
+    if (g2[keys1[i]]) intersection++;
+  }
+  var union = keys1.length + keys2.length - intersection;
+  return union > 0 ? intersection / union : 0;
+}
+
+function art_getNgrams_(text, n) {
+  var clean = text.toLowerCase().replace(/[\s・：！？、。（）「」\d\-\/\+%＋％×→←↑↓…〜~,;\[\]{}()#@&*_=<>'"]/g, '');
+  var ngrams = {};
+  for (var i = 0; i <= clean.length - n; i++) {
+    ngrams[clean.substring(i, i + n)] = true;
+  }
+  return ngrams;
 }
 
 // =====================================================
