@@ -397,7 +397,14 @@ function syncFull_(productSheet, returnSheet, aiSheet, destSheet) {
     if (!returnSet[keyC]) continue;
 
     const rec = productMap[keyC];
-    if (rec.bizStatus !== '返品済み') continue;
+    if (rec.bizStatus !== '返品済み') {
+      if (rec.bizStatus === '売却済み' || rec.bizStatus === '廃棄済み') {
+        // 正常除外（ログ不要）
+      } else if (rec.bizStatus) {
+        console.log('syncFull_: 除外 ' + keyC + ' bizStatus="' + rec.bizStatus + '"');
+      }
+      continue;
+    }
     const insertedStatus = convertCondition(rec.status);
     const brand = rec.brand;
     const size = convertFreeSizeToF_(rec.size);

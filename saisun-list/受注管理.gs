@@ -131,9 +131,13 @@ function handleMissingProducts() {
   var mIds = mainSheet.getRange(2, mIdCol, mLastRow - 1, 1).getValues().flat();
   var mBoVals = mainSheet.getRange(2, mBoCol, mLastRow - 1, 1).getValues().flat();
   var mIdToRow = {};
+  var mIdToAllRows = {};  // 重複行対応
   mIds.forEach(function(id, idx) {
     var k = String(id).trim();
-    if (k) mIdToRow[k] = idx + 2;
+    if (!k) return;
+    if (!mIdToRow[k]) mIdToRow[k] = idx + 2;
+    if (!mIdToAllRows[k]) mIdToAllRows[k] = [];
+    mIdToAllRows[k].push(idx + 2);
   });
 
   // 欠品商品の受付番号を収集
@@ -211,13 +215,14 @@ function handleMissingProducts() {
   var boColLetter = om_colNumToLetter_(mBoCol);
   var discardDateColLetter = mDiscardDateCol ? om_colNumToLetter_(mDiscardDateCol) : '';
 
-  // 欠品商品
+  // 欠品商品（重複行対応: 全行を廃棄済みに）
   targetIds.forEach(function(tid) {
-    var row = mIdToRow[tid];
-    if (!row) return;
-    statusA1s_discard.push(statusColLetter + row);
-    if (discardDateColLetter) dateA1s_discard.push(discardDateColLetter + row);
-    boA1s_discard.push(boColLetter + row);
+    var rows = mIdToAllRows[tid] || [];
+    rows.forEach(function(row) {
+      statusA1s_discard.push(statusColLetter + row);
+      if (discardDateColLetter) dateA1s_discard.push(discardDateColLetter + row);
+      boA1s_discard.push(boColLetter + row);
+    });
   });
 
   // 残り商品（同じ受付番号の非欠品商品）
