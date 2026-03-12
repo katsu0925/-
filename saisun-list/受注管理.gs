@@ -314,6 +314,24 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
   var returnSheet = shiireSs.getSheetByName('返送管理');
   var boxMap = om_buildBoxMap_(returnSheet);
 
+  // 返送管理から管理番号→G列日付マップを構築（在庫経過割引用フォールバック）
+  var returnSetMap = {};
+  if (returnSheet) {
+    var rRetData = returnSheet.getDataRange().getValues();
+    for (var ri = 1; ri < rRetData.length; ri++) {
+      var rIdsStr = String(rRetData[ri][3] || ''); // D列: 管理番号リスト
+      var rDate = rRetData[ri][6]; // G列: 日付
+      if (!rIdsStr || !rDate) continue;
+      var rDateVal = (rDate instanceof Date) ? rDate : new Date(rDate);
+      if (isNaN(rDateVal.getTime())) continue;
+      var rIds = rIdsStr.split(/[,\n\r\t\s、，／\/・|]+/);
+      for (var rj = 0; rj < rIds.length; rj++) {
+        var rk = String(rIds[rj]).trim();
+        if (rk) returnSetMap[rk] = rDateVal;
+      }
+    }
+  }
+
   // データ1から管理番号→販売価格マップを構築（在庫経過割引済みの正価格）
   var data1PriceMap = {};
   try {
@@ -501,7 +519,7 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
       measurementText = measurementText.trim();
 
       // データ1の価格を使用（在庫経過割引・状態割引が反映済み）
-      // データ1に無い場合は仕入値から再計算（フォールバック）
+      // データ1に無い場合は仕入値から再計算（フォールバック: 状態割引+在庫経過割引を適用）
       var price;
       var d1Price = data1PriceMap[targetId];
       if (typeof d1Price === 'number' && isFinite(d1Price) && d1Price > 0) {
@@ -514,6 +532,10 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
         } else if (condition === '目立った傷や汚れなし' && damageDetail.trim() !== '') {
           price = Math.round(price * 0.9);
         }
+        // 在庫経過割引（syncFull_と同じロジック）
+        var returnDate = returnSetMap[targetId];
+        price = applyAgingDiscount_(price, returnDate);
+        console.log('XLSX価格フォールバック: ' + targetId + ' 仕入値=' + cost + ' → ' + price + '円 (経過割引適用)');
       }
 
       var priceText = price.toLocaleString('ja-JP') + '円';
