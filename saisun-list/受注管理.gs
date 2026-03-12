@@ -596,6 +596,9 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
       mainSheet.getRangeList(boA1s).setValue(receiptNo);
     }
 
+    // 売却反映後、商品管理キャッシュを即座に無効化（重複販売防止）
+    clearProductCache_();
+
     results.push({ receiptNo: receiptNo, ok: true, fileName: xlsxResult.fileName });
   }
 
@@ -1403,4 +1406,115 @@ function testBuildTitle() {
   console.log('\n=== 統計 ===');
   console.log('AIキーワードあり: ' + aiSamples.length + '件 / なし: ' + noAiSamples.length + '件 テスト');
   console.log('テスト完了: ' + tested + '件');
+}
+
+// ═══════════════════════════════════════════
+// 重複販売チェック: 売却済み商品がデータ1に残っていないか照合
+// GASエディタから手動実行
+// ═══════════════════════════════════════════
+
+/**
+ * 売却済み管理番号とデータ1のK列を照合し、重複をログ出力＋メール通知
+ */
+function checkDuplicateSales() {
+  var shiireSsId = String((APP_CONFIG.detail && APP_CONFIG.detail.spreadsheetId) || '');
+  if (!shiireSsId) { console.error('DETAIL_SPREADSHEET_ID 未設定'); return; }
+
+  var shiireSs = SpreadsheetApp.openById(shiireSsId);
+  var mainSheet = shiireSs.getSheetByName(String((APP_CONFIG.detail && APP_CONFIG.detail.sheetName) || '商品管理'));
+  if (!mainSheet) { console.error('商品管理シートなし'); return; }
+
+  // 商品管理から売却済みの管理番号を収集
+  var mHeaders = mainSheet.getRange(1, 1, 1, mainSheet.getLastColumn()).getValues()[0];
+  var mIdx = {};
+  mHeaders.forEach(function(h, i) { mIdx[String(h || '').trim()] = i; });
+  var mIdCol = mIdx['管理番号'];
+  var mStatusCol = mIdx['ステータス'];
+  if (mIdCol === undefined || mStatusCol === undefined) { console.error('管理番号/ステータス列なし'); return; }
+
+  var mData = mainSheet.getRange(2, 1, mainSheet.getLastRow() - 1, mainSheet.getLastColumn()).getValues();
+  var soldSet = {};
+  for (var i = 0; i < mData.length; i++) {
+    var st = String(mData[i][mStatusCol] || '').trim();
+    if (st === '売却済み') {
+      var mid = String(mData[i][mIdCol] || '').trim();
+      if (mid) soldSet[mid] = true;
+    }
+  }
+  console.log('売却済み商品数: ' + Object.keys(soldSet).length);
+
+  // 依頼管理の完了注文の選択リスト(J列)からも売却済みIDを収集
+  var orderSs = sh_getOrderSs_();
+  var reqSheet = orderSs.getSheetByName('依頼管理');
+  if (reqSheet) {
+    var reqData = reqSheet.getDataRange().getValues();
+    for (var r = 1; r < reqData.length; r++) {
+      var status = String(reqData[r][REQUEST_SHEET_COLS.STATUS - 1] || '');
+      if (status !== '完了') continue;
+      var selList = String(reqData[r][REQUEST_SHEET_COLS.SELECTION_LIST - 1] || '');
+      var ids = selList.split(/[,、\s]+/).map(function(s) { return s.trim(); }).filter(Boolean);
+      for (var j = 0; j < ids.length; j++) {
+        soldSet[ids[j]] = true;
+      }
+    }
+  }
+  console.log('売却済み+完了注文 合計管理番号数: ' + Object.keys(soldSet).length);
+
+  // データ1のK列（管理番号）を読み取り
+  var dataSsId = String(APP_CONFIG.data.spreadsheetId || '').trim();
+  if (!dataSsId) { console.error('DATA_SPREADSHEET_ID 未設定'); return; }
+  var dataSs = SpreadsheetApp.openById(dataSsId);
+  var dataSheet = dataSs.getSheetByName(APP_CONFIG.data.sheetName);
+  if (!dataSheet) { console.error('データ1シートなし'); return; }
+
+  var headerRow = Number(APP_CONFIG.data.headerRow || 2);
+  var dLastRow = dataSheet.getLastRow();
+  if (dLastRow <= headerRow) { console.log('データ1にデータなし'); return; }
+
+  var dHeaders = dataSheet.getRange(headerRow, 1, 1, dataSheet.getLastColumn()).getValues()[0];
+  var dKeyCol = u_findCol_(dHeaders, ['管理番号']);
+  if (dKeyCol < 0) { console.error('データ1に管理番号列なし'); return; }
+
+  var dData = dataSheet.getRange(headerRow + 1, 1, dLastRow - headerRow, dataSheet.getLastColumn()).getValues();
+  var duplicates = [];
+  for (var d = 0; d < dData.length; d++) {
+    var dId = String(dData[d][dKeyCol] || '').trim();
+    if (dId && soldSet[dId]) {
+      duplicates.push(dId);
+    }
+  }
+
+  console.log('=== 重複チェック結果 ===');
+  console.log('データ1の商品数: ' + dData.length);
+  if (duplicates.length === 0) {
+    console.log('★ 重複なし — 問題ありません');
+    return;
+  }
+
+  console.log('⚠ 重複検出: ' + duplicates.length + '件');
+  for (var k = 0; k < duplicates.length; k++) {
+    console.log('  - ' + duplicates[k]);
+  }
+
+  // 管理者にメール通知
+  try {
+    var email = PropertiesService.getScriptProperties().getProperty('ADMIN_OWNER_EMAIL');
+    if (email) {
+      var body = '【緊急】売却済み商品がデータ1に残っています（重複販売リスク）\n\n' +
+        '該当管理番号 (' + duplicates.length + '件):\n' +
+        duplicates.map(function(id) { return '  - ' + id; }).join('\n') +
+        '\n\n即座にデータ1から手動削除するか、syncListingPublicCron の実行を確認してください。';
+      MailApp.sendEmail({
+        to: email,
+        subject: '【デタウリ緊急】重複販売リスク: 売却済み ' + duplicates.length + '件がデータ1に残存',
+        body: body,
+        noReply: true
+      });
+      console.log('管理者メール送信完了: ' + email);
+    }
+  } catch (e) {
+    console.error('メール送信エラー: ' + (e.message || e));
+  }
+
+  return duplicates;
 }
