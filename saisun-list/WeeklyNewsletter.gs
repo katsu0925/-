@@ -110,6 +110,29 @@ function wn_formatPrice_(price) {
 function wn_sendSoldReport_() {
   console.log('wn_sendSoldReport_: 開始');
 
+  // データ1シートから管理番号→商品情報マップを構築
+  var dataSs = SpreadsheetApp.openById(String(APP_CONFIG.data.spreadsheetId).trim());
+  var dataSheet = dataSs.getSheetByName(APP_CONFIG.data.sheetName);
+  var stockCount = 0;
+  var productMap = {}; // 管理番号 → {brand, category, price}
+  if (dataSheet) {
+    var headerRow = Number(APP_CONFIG.data.headerRow || 2);
+    var dataLastRow = dataSheet.getLastRow();
+    stockCount = Math.max(0, dataLastRow - headerRow);
+    if (dataLastRow > headerRow) {
+      var dataValues = dataSheet.getRange(headerRow + 1, 1, dataLastRow - headerRow, 11).getValues();
+      for (var d = 0; d < dataValues.length; d++) {
+        var mid = String(dataValues[d][10] || '').trim(); // K列: 管理番号
+        if (!mid) continue;
+        productMap[mid] = {
+          brand: String(dataValues[d][3] || '').trim(),    // D列
+          category: String(dataValues[d][6] || '').trim(), // G列
+          price: Number(dataValues[d][8] || 0)             // I列
+        };
+      }
+    }
+  }
+
   // 依頼管理シートから直近の売約データを取得
   var ss = SpreadsheetApp.openById(app_getOrderSpreadsheetId_());
   var sh = ss.getSheetByName(String(APP_CONFIG.order.requestSheetName || '依頼管理'));
@@ -118,7 +141,7 @@ function wn_sendSoldReport_() {
   var lastRow = sh.getLastRow();
   if (lastRow < 2) { console.log('wn_sendSoldReport_: データなし'); return; }
 
-  var data = sh.getRange(2, 1, lastRow - 1, 33).getValues();
+  var data = sh.getRange(2, 1, lastRow - 1, 35).getValues(); // AI列(35)まで取得
 
   // 直近7日の売約を集計
   var now = new Date();
@@ -134,29 +157,46 @@ function wn_sendSoldReport_() {
     var status = String(data[i][21] || '').trim(); // V列
     if (status === 'キャンセル' || status === '返品') continue;
 
-    var productName = String(data[i][7] || '').trim(); // H列: 商品名
-    var amount = Number(data[i][11] || 0);              // L列: 合計金額
-    if (!productName) continue;
+    var selectionList = String(data[i][9] || '').trim(); // J列: 選択リスト
+    if (!selectionList) continue;
 
-    soldItems.push({ name: productName, amount: amount, date: dateVal });
+    var managedIds = u_parseSelectionList_(selectionList);
+    if (managedIds.length === 0) continue;
 
-    // ブランドを商品名の先頭から推定
-    var brand = productName.split(/[\s\/,]/)[0] || '';
-    if (brand) brandCount[brand] = (brandCount[brand] || 0) + 1;
+    // AI列: 商品単価JSON（データ1から消えた商品のフォールバック用）
+    var unitPriceMap = {};
+    try {
+      var aiVal = data[i][34]; // AI列(idx 34)
+      if (aiVal) unitPriceMap = JSON.parse(String(aiVal));
+    } catch (e) { /* パースエラーは無視 */ }
+
+    for (var j = 0; j < managedIds.length; j++) {
+      var mid = managedIds[j];
+      var info = productMap[mid];
+      if (info) {
+        soldItems.push({
+          name: info.brand + ' / ' + info.category,
+          amount: info.price,
+          brand: info.brand,
+          date: dateVal
+        });
+        if (info.brand) brandCount[info.brand] = (brandCount[info.brand] || 0) + 1;
+      } else {
+        // データ1から削除済み → AI列の単価JSONでフォールバック
+        var fbPrice = Number(unitPriceMap[mid] || 0);
+        soldItems.push({
+          name: mid,
+          amount: fbPrice,
+          brand: '',
+          date: dateVal
+        });
+      }
+    }
   }
 
   if (soldItems.length === 0) {
     console.log('wn_sendSoldReport_: 直近7日の売約なし → スキップ');
     return;
-  }
-
-  // 残在庫数を取得
-  var dataSs = SpreadsheetApp.openById(String(APP_CONFIG.data.spreadsheetId).trim());
-  var dataSheet = dataSs.getSheetByName(APP_CONFIG.data.sheetName);
-  var stockCount = 0;
-  if (dataSheet) {
-    var headerRow = Number(APP_CONFIG.data.headerRow || 2);
-    stockCount = Math.max(0, dataSheet.getLastRow() - headerRow);
   }
 
   // 人気ブランドTOP3
