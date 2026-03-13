@@ -522,22 +522,18 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
       var cat3 = String(row[mIdx['カテゴリ3']] || '').trim();
       if (!aiKeywords) aiKeywords = '';
 
-      var length = row[mIdx['着丈']] || '-';
-      var width = row[mIdx['身幅']] || '-';
-      var shoulder = row[mIdx['肩幅']] || '-';
-      var sleeve = row[mIdx['袖丈']] || '-';
-      var waist = row[mIdx['ウエスト']];
-      var rise = row[mIdx['股上']];
-      var inseam = row[mIdx['股下']];
-
-      var measurementText = '';
-      if (length != '-' || width != '-') {
-        measurementText += '着丈: ' + length + ' / 身幅: ' + width + ' / 肩幅: ' + shoulder + ' / 袖丈: ' + sleeve + '\n';
-      }
-      if (waist) {
-        measurementText += 'ウエスト: ' + waist + ' / 股上: ' + rise + ' / 股下: ' + inseam;
-      }
-      measurementText = measurementText.trim();
+      var MEASURE_FIELDS = [
+        '着丈', '肩幅', '身幅', '袖丈', '裄丈', '総丈',
+        'ウエスト', '股上', '股下', 'ワタリ', '裾幅', 'ヒップ'
+      ];
+      var measureParts = [];
+      MEASURE_FIELDS.forEach(function(name) {
+        var val = mIdx[name] !== undefined ? row[mIdx[name]] : undefined;
+        if (val !== undefined && val !== null && String(val).trim() !== '') {
+          measureParts.push(name + ': ' + val);
+        }
+      });
+      var measurementText = measureParts.join(' / ');
 
       // 注文時価格（AI列）→ データ1価格 → 仕入値再計算の優先順で取得
       var price;
