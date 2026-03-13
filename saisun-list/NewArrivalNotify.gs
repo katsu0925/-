@@ -168,6 +168,8 @@ function newArrivalNotifyCron_() {
             unsubscribe: nl_buildUnsubscribeUrl_(recip.email)
           })
         });
+        // 週3メルマガとの同日重複防止フラグ
+        if (typeof wn_markSent_ === 'function') wn_markSent_(recip.email);
         sent++;
       } catch (mailErr) {
         console.error('newArrivalNotifyCron_ mail error: ' + recip.email, mailErr);

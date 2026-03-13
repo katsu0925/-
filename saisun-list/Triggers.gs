@@ -106,6 +106,8 @@ function tr_setupTriggersOnce_() {
     { fn: 'cronDaily9', type: 'daily', hour: 9 },
     // 毎日10時
     { fn: 'cronNewArrival', type: 'daily', hour: 10 },
+    // 毎日10:30（週3メルマガ: 火木土のみ配信、他曜日はスキップ）
+    { fn: 'cronWeeklyNewsletter', type: 'daily', hour: 10 },
     // 毎日11時
     { fn: 'cronFollowupEmail', type: 'daily', hour: 11 },
   ];
@@ -136,6 +138,7 @@ function cronProcessPoints() { processCustomerPointsAuto_(); }
 function cronExportProducts() { exportProductData_(); }
 function cronAbandonedCart() { abandonedCartCron_(); }
 function cronNewArrival() { newArrivalNotifyCron_(); }
+function cronWeeklyNewsletter() { weeklyNewsletterCron_(); }
 function cronFollowupEmail() { followupEmailCron_(); }
 function cronNewsletter() { newsletterSendCron_(); }
 function cronDormantCoupon() { dormantCouponCron_(); }
