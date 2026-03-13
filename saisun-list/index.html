@@ -25,6 +25,23 @@
   <link rel="preconnect" href="https://lh3.googleusercontent.com" crossorigin>
   <link rel="preconnect" href="https://script.google.com" crossorigin>
   <link rel="dns-prefetch" href="https://www.google.com">
+  <!-- Meta Pixel Code -->
+  <script>
+  !function(f,b,e,v,n,t,s)
+  {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+  n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+  if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+  n.queue=[];t=b.createElement(e);t.async=!0;
+  t.src=v;s=b.getElementsByTagName(e)[0];
+  s.parentNode.insertBefore(t,s)}(window, document,'script',
+  'https://connect.facebook.net/en_US/fbevents.js');
+  fbq('init', '2122295911954697');
+  fbq('track', 'PageView');
+  </script>
+  <noscript><img height="1" width="1" style="display:none"
+  src="https://www.facebook.com/tr?id=2122295911954697&ev=PageView&noscript=1"
+  /></noscript>
+  <!-- End Meta Pixel Code -->
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-NYPY0S7Q6S"></script>
   <script>
@@ -2592,6 +2609,8 @@ function doRegister_() {
         state.customer = res.data.customer;
         saveSession_(res.data.sessionId, res.data.customer);
         fetchCsrfToken_();
+        // Meta Pixel: 会員登録完了イベント
+        if (typeof fbq === 'function') fbq('track', 'CompleteRegistration', { content_name: 'wholesale_member', status: true });
         // 初回全品半額キャンペーン即時反映
         if (res.data.firstHalfPrice) {
           state.firstHalfPrice = res.data.firstHalfPrice;
