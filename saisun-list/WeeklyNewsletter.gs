@@ -178,17 +178,19 @@ function wn_sendSoldReport_() {
           name: info.brand + ' / ' + info.category,
           amount: info.price,
           brand: info.brand,
-          date: dateVal
+          date: dateVal,
+          resolved: true
         });
         if (info.brand) brandCount[info.brand] = (brandCount[info.brand] || 0) + 1;
       } else {
-        // データ1から削除済み → AI列の単価JSONでフォールバック
+        // データ1から削除済み → 件数カウントのみ（管理番号は顧客に見せない）
         var fbPrice = Number(unitPriceMap[mid] || 0);
         soldItems.push({
-          name: mid,
+          name: '',
           amount: fbPrice,
           brand: '',
-          date: dateVal
+          date: dateVal,
+          resolved: false
         });
       }
     }
@@ -207,17 +209,19 @@ function wn_sendSoldReport_() {
   var campaign = wn_campaignName_('weekly_sold');
   var siteUrl = wn_buildUtmUrl_(SITE_CONSTANTS.SITE_URL, campaign);
 
-  // メール内容構築
+  // メール内容構築（データ1で解決できた商品のみ表示）
   var sampleItems = [];
-  var recent = soldItems.slice(-5).reverse();
+  var resolvedItems = soldItems.filter(function(it) { return it.resolved; });
+  var recent = resolvedItems.slice(-5).reverse();
   for (var s = 0; s < recent.length; s++) {
     var item = recent[s];
     var label = item.name;
     if (item.amount > 0) label += '  ' + wn_formatPrice_(item.amount);
     sampleItems.push(label);
   }
-  if (soldItems.length > 5) {
-    sampleItems.push('...他 ' + (soldItems.length - 5) + '件');
+  var remaining = soldItems.length - recent.length;
+  if (remaining > 0) {
+    sampleItems.push('...他 ' + remaining + '件');
   }
 
   var brandText = brandRanking.length > 0
