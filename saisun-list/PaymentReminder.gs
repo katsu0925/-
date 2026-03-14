@@ -219,11 +219,20 @@ function cancelExpiredPayments() {
         }
       }
 
-      // 3. シートのステータスを更新
+      // 3. 商品管理シートの差し戻し（売却済み→返品済み、BO列の受付番号クリア）
+      if (selectionList) {
+        try {
+          restoreProductStatusForCancel_(selectionList, receiptNo);
+        } catch (restoreErr) {
+          console.error('商品管理差し戻しエラー: ' + receiptNo, restoreErr);
+        }
+      }
+
+      // 4. シートのステータスを更新
       reqSh.getRange(sheetRow, REQUEST_SHEET_COLS.PAYMENT).setValue('対応済');        // Q列: 入金確認（プルダウン制約: 入金待ち/未対応/対応済）
       reqSh.getRange(sheetRow, REQUEST_SHEET_COLS.STATUS).setValue('キャンセル');     // V列: ステータス
 
-      // 4. 顧客にキャンセルメール送信
+      // 5. 顧客にキャンセルメール送信
       if (email && email.indexOf('@') !== -1) {
         sendPaymentExpiredCancelEmail_(email, companyName, receiptNo, totalAmount, paymentMethod);
       }
@@ -237,6 +246,90 @@ function cancelExpiredPayments() {
 
   if (cancelledCount > 0) {
     console.log('入金期限切れ自動キャンセル完了: ' + cancelledCount + '件');
+  }
+}
+
+/**
+ * 商品管理シートの差し戻し: 売却済み→返品済み、BO列（受付番号）クリア
+ * @param {string} selectionList - 選択リスト（管理番号カンマ区切り）
+ * @param {string} receiptNo - 受付番号
+ */
+function restoreProductStatusForCancel_(selectionList, receiptNo) {
+  var shiireSsId = getOmProp_('OM_SHIIRE_SS_ID', '');
+  if (!shiireSsId) {
+    console.warn('OM_SHIIRE_SS_ID 未設定、商品管理差し戻しスキップ');
+    return;
+  }
+
+  var shiireSs = SpreadsheetApp.openById(shiireSsId);
+  var mainSheet = shiireSs.getSheetByName('商品管理');
+  if (!mainSheet) {
+    console.warn('商品管理シートが見つかりません');
+    return;
+  }
+
+  var managedIds = u_parseSelectionList_(selectionList);
+  if (managedIds.length === 0) return;
+
+  var idSet = {};
+  for (var i = 0; i < managedIds.length; i++) {
+    idSet[managedIds[i]] = true;
+  }
+
+  // ヘッダーから列位置を特定
+  var headers = mainSheet.getRange(1, 1, 1, mainSheet.getLastColumn()).getValues()[0];
+  var colMap = {};
+  headers.forEach(function(h, i) { if (h) colMap[String(h).trim()] = i; });
+
+  var idColIdx = colMap['管理番号'];
+  var statusColIdx = colMap['ステータス'];
+  var boCol = 67 - 1; // BO列（0-indexed = 66）
+
+  if (idColIdx === undefined || statusColIdx === undefined) {
+    console.warn('商品管理に管理番号列またはステータス列が見つかりません');
+    return;
+  }
+
+  var lastRow = mainSheet.getLastRow();
+  if (lastRow < 2) return;
+
+  var allData = mainSheet.getRange(2, 1, lastRow - 1, Math.max(statusColIdx + 1, boCol + 1, idColIdx + 1)).getValues();
+
+  var statusA1s = [];
+  var boA1s = [];
+  var statusColLetter = String.fromCharCode(65 + (statusColIdx % 26));
+  if (statusColIdx >= 26) statusColLetter = String.fromCharCode(64 + Math.floor(statusColIdx / 26)) + statusColLetter;
+
+  for (var r = 0; r < allData.length; r++) {
+    var mgmtId = String(allData[r][idColIdx] || '').trim();
+    if (!idSet[mgmtId]) continue;
+
+    var currentStatus = String(allData[r][statusColIdx] || '').trim();
+    var currentBo = String(allData[r][boCol] || '').trim();
+    var sheetRow = r + 2;
+
+    // 売却済みの商品のみ差し戻し（受付番号が一致するか、または売却済みであれば対象）
+    if (currentStatus === '売却済み' && (currentBo === receiptNo || currentBo === '')) {
+      statusA1s.push(sheetRow);
+      if (currentBo) boA1s.push(sheetRow);
+    }
+  }
+
+  // バッチ更新: ステータス→返品済み
+  if (statusA1s.length > 0) {
+    var statusRanges = statusA1s.map(function(row) { return statusColLetter + row; });
+    mainSheet.getRangeList(statusRanges).setValue('返品済み');
+  }
+
+  // バッチ更新: BO列クリア
+  if (boA1s.length > 0) {
+    var boRanges = boA1s.map(function(row) { return 'BO' + row; });
+    mainSheet.getRangeList(boRanges).setValue('');
+  }
+
+  var totalRestored = statusA1s.length;
+  if (totalRestored > 0) {
+    console.log('商品管理差し戻し完了: ' + receiptNo + ' → ' + totalRestored + '件を返品済みに変更');
   }
 }
 
