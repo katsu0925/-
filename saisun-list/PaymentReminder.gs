@@ -220,7 +220,7 @@ function cancelExpiredPayments() {
       }
 
       // 3. シートのステータスを更新
-      reqSh.getRange(sheetRow, REQUEST_SHEET_COLS.PAYMENT).setValue('キャンセル');    // Q列: 入金確認
+      reqSh.getRange(sheetRow, REQUEST_SHEET_COLS.PAYMENT).setValue('対応済');        // Q列: 入金確認（プルダウン制約: 入金待ち/未対応/対応済）
       reqSh.getRange(sheetRow, REQUEST_SHEET_COLS.STATUS).setValue('キャンセル');     // V列: ステータス
 
       // 4. 顧客にキャンセルメール送信
