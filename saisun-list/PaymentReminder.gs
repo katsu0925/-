@@ -148,6 +148,154 @@ function sendPaymentReminderEmail_(email, companyName, receiptNo, totalAmount, p
 }
 
 // =====================================================
+// 入金期限切れ自動キャンセル
+// 入金期限+1日を過ぎた「入金待ち」注文を自動キャンセルし、顧客にメール通知
+// =====================================================
+
+var CANCEL_GRACE_DAYS = 1; // 期限後の猶予日数
+
+/**
+ * 入金期限切れ注文を自動キャンセル（cronDaily9から実行）
+ */
+function cancelExpiredPayments() {
+  var orderSs = sh_getOrderSs_();
+  var reqSh = orderSs.getSheetByName(APP_CONFIG.order.requestSheetName || '依頼管理');
+  if (!reqSh) return;
+
+  var lastRow = reqSh.getLastRow();
+  if (lastRow < 2) return;
+
+  var data = reqSh.getRange(2, 1, lastRow - 1, REQUEST_SHEET_COLS.CHANNEL || 33).getValues();
+  var today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  var cancelledCount = 0;
+
+  for (var i = 0; i < data.length; i++) {
+    var row = data[i];
+    var paymentStatus = String(row[REQUEST_SHEET_COLS.PAYMENT - 1] || '').trim();
+
+    // 入金待ちの注文のみ対象
+    if (paymentStatus !== '入金待ち') continue;
+
+    var receiptNo = String(row[REQUEST_SHEET_COLS.RECEIPT_NO - 1] || '').trim();
+    var orderDate = row[REQUEST_SHEET_COLS.DATETIME - 1];
+    var email = String(row[REQUEST_SHEET_COLS.CONTACT - 1] || '').trim();
+    var companyName = String(row[REQUEST_SHEET_COLS.COMPANY_NAME - 1] || '').trim();
+    var totalAmount = Number(row[REQUEST_SHEET_COLS.TOTAL_AMOUNT - 1] || 0);
+    var paymentMethod = String(row[REQUEST_SHEET_COLS.PAYMENT_METHOD - 1] || '').trim();
+    var selectionList = String(row[REQUEST_SHEET_COLS.SELECTION_LIST - 1] || '');
+    var totalCount = Number(row[REQUEST_SHEET_COLS.TOTAL_COUNT - 1] || 0);
+    var channel = String(row[REQUEST_SHEET_COLS.CHANNEL - 1] || '').trim();
+
+    if (!receiptNo) continue;
+
+    // 注文日時からDateオブジェクトを作成
+    var orderDateObj = orderDate instanceof Date ? orderDate : new Date(orderDate);
+    if (isNaN(orderDateObj.getTime())) continue;
+
+    // キャンセル判定日 = 注文日 + 入金期限日数 + 猶予日数
+    var cancelDate = new Date(orderDateObj);
+    cancelDate.setDate(cancelDate.getDate() + PAYMENT_DEADLINE_DAYS + CANCEL_GRACE_DAYS);
+    cancelDate.setHours(0, 0, 0, 0);
+
+    // 今日がキャンセル判定日を過ぎていなければスキップ
+    if (today < cancelDate) continue;
+
+    // --- キャンセル処理 ---
+    var sheetRow = i + 2;
+
+    try {
+      // 1. 在庫戻し（apiCancelOrderでopen/hold解除 + ポイント返還）
+      apiCancelOrder(receiptNo);
+
+      // 2. アソート在庫復帰
+      if (channel === 'アソート' && selectionList) {
+        try {
+          bulk_restoreStock_(selectionList, totalCount);
+          console.log('期限切れキャンセル在庫復帰: ' + receiptNo + ' (アソート)');
+        } catch (restoreErr) {
+          console.error('期限切れキャンセル在庫復帰エラー: ' + receiptNo, restoreErr);
+        }
+      }
+
+      // 3. シートのステータスを更新
+      reqSh.getRange(sheetRow, REQUEST_SHEET_COLS.PAYMENT).setValue('キャンセル');    // Q列: 入金確認
+      reqSh.getRange(sheetRow, REQUEST_SHEET_COLS.STATUS).setValue('キャンセル');     // V列: ステータス
+
+      // 4. 顧客にキャンセルメール送信
+      if (email && email.indexOf('@') !== -1) {
+        sendPaymentExpiredCancelEmail_(email, companyName, receiptNo, totalAmount, paymentMethod);
+      }
+
+      cancelledCount++;
+      console.log('入金期限切れ自動キャンセル: ' + receiptNo + ' → ' + email);
+    } catch (e) {
+      console.error('自動キャンセルエラー: ' + receiptNo, e);
+    }
+  }
+
+  if (cancelledCount > 0) {
+    console.log('入金期限切れ自動キャンセル完了: ' + cancelledCount + '件');
+  }
+}
+
+/**
+ * 入金期限切れキャンセルメールを送信
+ */
+function sendPaymentExpiredCancelEmail_(email, companyName, receiptNo, totalAmount, paymentMethod) {
+  var subject = '【デタウリ.Detauri】ご注文がキャンセルされました（受付番号：' + receiptNo + '）';
+
+  var body = companyName + ' 様\n\n'
+    + 'デタウリ.Detauri をご利用いただきありがとうございます。\n'
+    + '下記のご注文につきまして、お支払い期限内にご入金が確認できなかったため、\n'
+    + '自動キャンセルとさせていただきました。\n\n'
+    + '━━━━━━━━━━━━━━━━━━━━\n'
+    + '■ キャンセル対象\n'
+    + '━━━━━━━━━━━━━━━━━━━━\n'
+    + '受付番号：' + receiptNo + '\n'
+    + '合計金額：' + Number(totalAmount).toLocaleString() + '円（税込）\n'
+    + '決済方法：' + paymentMethod + '\n'
+    + '━━━━━━━━━━━━━━━━━━━━\n\n'
+    + '再度ご注文をご希望の場合は、改めてサイトよりお手続きください。\n\n'
+    + '※ このメールは自動送信です。\n'
+    + '\n──────────────────\n'
+    + 'デタウリ.Detauri\n'
+    + 'https://wholesale.nkonline-tool.com/\n'
+    + 'お問い合わせ：' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
+    + '──────────────────\n';
+
+  var htmlBody = buildHtmlEmail_({
+    greeting: companyName + ' 様',
+    lead: 'デタウリ.Detauri をご利用いただきありがとうございます。\n下記のご注文につきまして、お支払い期限内にご入金が確認できなかったため、自動キャンセルとさせていただきました。',
+    sections: [
+      {
+        title: 'キャンセル対象',
+        rows: [
+          { label: '受付番号', value: String(receiptNo) },
+          { label: '合計金額', value: Number(totalAmount).toLocaleString() + '円（税込）' },
+          { label: '決済方法', value: paymentMethod }
+        ]
+      },
+      {
+        title: '',
+        text: '再度ご注文をご希望の場合は、改めてサイトよりお手続きください。'
+      }
+    ],
+    cta: { text: 'サイトへ', url: SITE_CONSTANTS.SITE_URL },
+    notes: ['このメールは自動送信です。']
+  });
+
+  GmailApp.sendEmail(email, subject, body, {
+    from: SITE_CONSTANTS.CUSTOMER_EMAIL,
+    replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
+    htmlBody: htmlBody
+  });
+
+  console.log('期限切れキャンセルメール送信: ' + receiptNo + ' → ' + email);
+}
+
+// =====================================================
 // メール一括テスト（管理者向け）
 // 顧客向けメールと管理者向けメールを管理者アドレスに一括送信
 // =====================================================
@@ -501,4 +649,113 @@ function adminTestEmails() {
     result.message += '（エラー: ' + errors.length + '件）';
   }
   return result;
+}
+
+/**
+ * 受付番号を指定して注文状態とメール送信状況を調査する
+ * GASエディタから手動実行 → ログで結果を確認
+ */
+function debugOrderEmailStatus() {
+  var TARGET_RECEIPT = '20260310100156-993';
+
+  var orderSs = sh_getOrderSs_();
+  var reqSh = orderSs.getSheetByName(APP_CONFIG.order.requestSheetName || '依頼管理');
+  if (!reqSh) { console.log('依頼管理シートが見つかりません'); return; }
+
+  var lastRow = reqSh.getLastRow();
+  if (lastRow < 2) { console.log('データなし'); return; }
+
+  var data = reqSh.getRange(2, 1, lastRow - 1, REQUEST_SHEET_COLS.ITEM_PRICES || 35).getValues();
+  var found = false;
+
+  for (var i = 0; i < data.length; i++) {
+    var row = data[i];
+    var receiptNo = String(row[REQUEST_SHEET_COLS.RECEIPT_NO - 1] || '').trim();
+    if (receiptNo !== TARGET_RECEIPT) continue;
+
+    found = true;
+    var orderDate = row[REQUEST_SHEET_COLS.DATETIME - 1];
+    var email = String(row[REQUEST_SHEET_COLS.CONTACT - 1] || '').trim();
+    var companyName = String(row[REQUEST_SHEET_COLS.COMPANY_NAME - 1] || '').trim();
+    var totalAmount = row[REQUEST_SHEET_COLS.TOTAL_AMOUNT - 1];
+    var paymentMethod = String(row[REQUEST_SHEET_COLS.PAYMENT_METHOD - 1] || '').trim();
+    var paymentStatus = String(row[REQUEST_SHEET_COLS.PAYMENT - 1] || '').trim();
+    var shipStatus = String(row[REQUEST_SHEET_COLS.SHIP_STATUS - 1] || '').trim();
+    var status = String(row[REQUEST_SHEET_COLS.STATUS - 1] || '').trim();
+    var paymentId = String(row[REQUEST_SHEET_COLS.PAYMENT_ID - 1] || '').trim();
+
+    console.log('========== 注文情報 ==========');
+    console.log('受付番号: ' + receiptNo);
+    console.log('注文日時: ' + orderDate);
+    console.log('会社名: ' + companyName);
+    console.log('メール: ' + email);
+    console.log('合計金額: ' + totalAmount);
+    console.log('決済方法: ' + paymentMethod);
+    console.log('決済ID: ' + paymentId);
+    console.log('入金確認(Q列): ' + paymentStatus);
+    console.log('発送ステータス(S列): ' + shipStatus);
+    console.log('ステータス(V列): ' + status);
+
+    // メール送信判定
+    console.log('========== メール送信状況（推定） ==========');
+
+    // 1. 注文受付メール
+    console.log('1. 注文受付メール: ✅ 送信済み（注文データが存在するため）');
+
+    // 2. 入金確認メール
+    var deferredMethods = { 'konbini': true, 'bank_transfer': true, 'pay_easy': true, 'paidy': true, 'コンビニ払い': true, '銀行振込': true, 'ペイジー': true };
+    if (deferredMethods[paymentMethod]) {
+      if (paymentStatus === '入金待ち') {
+        console.log('2. 入金確認メール: ❌ 未送信（まだ入金待ち）');
+      } else {
+        console.log('2. 入金確認メール: ✅ 送信済み（入金待ち → ' + (paymentStatus || '空欄') + ' に更新済み）');
+      }
+
+      // 3. リマインドメール
+      var orderDateObj = orderDate instanceof Date ? orderDate : new Date(orderDate);
+      var deadline = new Date(orderDateObj);
+      deadline.setDate(deadline.getDate() + PAYMENT_DEADLINE_DAYS);
+      var now = new Date();
+      var dayBefore = new Date(deadline);
+      dayBefore.setDate(dayBefore.getDate() - 1);
+
+      console.log('3. 入金期限: ' + Utilities.formatDate(deadline, 'Asia/Tokyo', 'yyyy-MM-dd'));
+      console.log('   リマインド（前日 ' + Utilities.formatDate(dayBefore, 'Asia/Tokyo', 'yyyy-MM-dd') + '）: ' + (now >= dayBefore ? (paymentStatus === '入金待ち' ? '✅ 送信済み（期限前日到達＆入金待ち状態）' : '⚠️ 入金済みのため不要だった可能性') : '⏳ まだ期限前日に達していない'));
+      console.log('   リマインド（当日 ' + Utilities.formatDate(deadline, 'Asia/Tokyo', 'yyyy-MM-dd') + '）: ' + (now >= deadline ? (paymentStatus === '入金待ち' ? '✅ 送信済み（期限当日到達＆入金待ち状態）' : '⚠️ 入金済みのため不要だった可能性') : '⏳ まだ期限当日に達していない'));
+    } else {
+      console.log('2. 入金確認メール: 対象外（即時決済: ' + paymentMethod + '）');
+      console.log('3. リマインドメール: 対象外（即時決済）');
+    }
+
+    // 4. 発送通知
+    if (shipStatus === '発送済み' || shipStatus === '発送済') {
+      console.log('4. 発送通知メール: ✅ 送信済み');
+    } else {
+      console.log('4. 発送通知メール: ⏳ 未発送');
+    }
+
+    // Gmailで確認
+    console.log('========== Gmail確認 ==========');
+    try {
+      var threads = GmailApp.search('to:' + email + ' subject:' + receiptNo, 0, 10);
+      if (threads.length === 0) {
+        console.log('Gmailに該当メールなし（別アカウントから送信された可能性）');
+      } else {
+        for (var t = 0; t < threads.length; t++) {
+          var msgs = threads[t].getMessages();
+          for (var m = 0; m < msgs.length; m++) {
+            console.log('  [' + Utilities.formatDate(msgs[m].getDate(), 'Asia/Tokyo', 'yyyy-MM-dd HH:mm') + '] ' + msgs[m].getSubject());
+          }
+        }
+      }
+    } catch (e) {
+      console.log('Gmail検索エラー: ' + e.message);
+    }
+
+    break;
+  }
+
+  if (!found) {
+    console.log('受付番号 ' + TARGET_RECEIPT + ' が見つかりませんでした');
+  }
 }

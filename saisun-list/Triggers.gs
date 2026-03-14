@@ -238,7 +238,7 @@ function cronDaily8() {
 
 /** 毎日9時: 4関数を1トリガーで実行 */
 function cronDaily9() {
-  runWithErrorNotify_('cronDaily9', [sendPaymentReminders, cronNewsletter, cronDormantCoupon, cronDailySummary, ga4advice_cron]);
+  runWithErrorNotify_('cronDaily9', [sendPaymentReminders, cancelExpiredPayments, cronNewsletter, cronDormantCoupon, cronDailySummary, ga4advice_cron]);
 }
 
 // =====================================================
