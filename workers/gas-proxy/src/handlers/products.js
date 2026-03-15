@@ -34,6 +34,9 @@ export async function getCachedProducts(args, env) {
   // holds + open_items からステータスを算出して各商品に付与
   await applyProductStatuses(env.DB, products);
 
+  // R2画像をマージ
+  await mergeR2Images(env.CACHE, products);
+
   const options = buildFilterOptions(products);
   const settings = await getPublicSettings(env);
   const stats = await getStatsCache(env);
@@ -210,6 +213,38 @@ async function applyProductStatuses(db, products) {
       p.selectable = false;
     }
     // デフォルト: '在庫あり', selectable: true（readProductsFromD1で設定済み）
+  }
+}
+
+/**
+ * KVのproduct-images:{managedId}からR2画像URLを各商品にマージ
+ */
+async function mergeR2Images(cache, products) {
+  const imgIndexJson = await cache.get('product-images:index');
+  if (!imgIndexJson) return;
+
+  const imgIndex = JSON.parse(imgIndexJson);
+  if (imgIndex.length === 0) return;
+
+  const imgMap = {};
+  const batchSize = 50;
+  for (let i = 0; i < imgIndex.length; i += batchSize) {
+    const batch = imgIndex.slice(i, i + batchSize);
+    const results = await Promise.all(
+      batch.map(async (mid) => {
+        const json = await cache.get(`product-images:${mid}`);
+        return { mid, urls: json ? JSON.parse(json) : null };
+      })
+    );
+    for (const { mid, urls } of results) {
+      if (urls && urls.length > 0) imgMap[mid] = urls;
+    }
+  }
+
+  for (const p of products) {
+    if (imgMap[p.managedId]) {
+      p.images = imgMap[p.managedId];
+    }
   }
 }
 

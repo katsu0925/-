@@ -181,6 +181,9 @@ async function handleImageUpload(request, env) {
   // 商品一覧インデックスに追加
   await addToIndex(env, managedId);
 
+  // 商品キャッシュ無効化（フロントに即反映）
+  await invalidateProductCache(env);
+
   return jsonOk({ managedId, urls, count: urls.length });
 }
 
@@ -221,6 +224,8 @@ async function handleReplace(request, env) {
       cacheControl: 'public, max-age=31536000, immutable',
     },
   });
+
+  await invalidateProductCache(env);
 
   return jsonOk({ managedId, url: `/images/products/${managedId}/1.jpg` });
 }
@@ -328,6 +333,8 @@ async function handleDelete(request, env) {
   await env.CACHE.delete(`product-images:${managedId}`);
   await removeFromIndex(env, managedId);
 
+  await invalidateProductCache(env);
+
   return jsonOk({ managedId, deleted: urls.length });
 }
 
@@ -368,10 +375,20 @@ async function handleDeleteSingle(request, env) {
     await env.CACHE.put(`product-images:${managedId}`, JSON.stringify(urls));
   }
 
+  await invalidateProductCache(env);
+
   return jsonOk({ managedId, imageIndex, remaining: urls.length });
 }
 
 // ─── ヘルパー ───
+
+/**
+ * 商品キャッシュを無効化（次のAPIリクエストでD1+R2画像から再構築される）
+ */
+async function invalidateProductCache(env) {
+  await env.CACHE.delete('products:detauri');
+  await env.CACHE.delete('products:version');
+}
 
 async function addToIndex(env, managedId) {
   const indexJson = await env.CACHE.get('product-images:index');
