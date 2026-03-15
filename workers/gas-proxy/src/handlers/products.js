@@ -226,6 +226,7 @@ async function mergeR2Images(cache, products) {
   const imgIndex = JSON.parse(imgIndexJson);
   if (imgIndex.length === 0) return;
 
+  // KVキーは正規化済み(大文字)なのでそのまま使う
   const imgMap = {};
   const batchSize = 50;
   for (let i = 0; i < imgIndex.length; i += batchSize) {
@@ -237,13 +238,15 @@ async function mergeR2Images(cache, products) {
       })
     );
     for (const { mid, urls } of results) {
-      if (urls && urls.length > 0) imgMap[mid] = urls;
+      if (urls && urls.length > 0) imgMap[mid.toUpperCase()] = urls;
     }
   }
 
+  // D1のmanagedIdは大文字小文字混在の場合があるので大文字で照合
   for (const p of products) {
-    if (imgMap[p.managedId]) {
-      p.images = imgMap[p.managedId];
+    const key = p.managedId.toUpperCase();
+    if (imgMap[key]) {
+      p.images = imgMap[key];
     }
   }
 }

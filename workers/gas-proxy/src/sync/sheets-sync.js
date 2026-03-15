@@ -482,12 +482,13 @@ async function prewarmCaches(env) {
           })
         );
         for (const { mid, urls } of results) {
-          if (urls && urls.length > 0) imgMap[mid] = urls;
+          if (urls && urls.length > 0) imgMap[mid.toUpperCase()] = urls;
         }
       }
       for (const p of items) {
-        if (imgMap[p.managedId]) {
-          p.images = imgMap[p.managedId];
+        const key = p.managedId.toUpperCase();
+        if (imgMap[key]) {
+          p.images = imgMap[key];
         }
       }
     }
