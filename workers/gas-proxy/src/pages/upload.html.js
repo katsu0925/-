@@ -73,10 +73,10 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
   <div id="authSection" class="card auth-wall">
     <h2>パスワードを入力</h2>
     <div class="form-group" style="margin-top:16px;position:relative">
-      <input type="text" id="authPassword" placeholder="パスワード" autocomplete="off" style="-webkit-text-security:disc">
-      <button type="button" onclick="togglePwVis()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:18px;cursor:pointer;padding:4px" id="pwToggle">👁</button>
+      <input type="password" id="authPassword" placeholder="パスワード" autocomplete="off">
+      <button type="button" id="pwToggle" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:18px;cursor:pointer;padding:4px">👁</button>
     </div>
-    <button class="btn btn-primary" id="authBtn" onclick="doAuth()">認証</button>
+    <button class="btn btn-primary" id="authBtn">認証</button>
     <div class="status" id="authStatus"></div>
   </div>
 
@@ -217,21 +217,23 @@ function doAuth() {
   });
 }
 
-function togglePwVis() {
+document.getElementById('pwToggle').addEventListener('click', function() {
   var inp = document.getElementById('authPassword');
-  var btn = document.getElementById('pwToggle');
-  if (inp.style.webkitTextSecurity === 'disc') {
-    inp.style.webkitTextSecurity = 'none';
-    btn.textContent = '🔒';
+  if (inp.type === 'password') {
+    inp.type = 'text';
+    this.textContent = '🔒';
   } else {
-    inp.style.webkitTextSecurity = 'disc';
-    btn.textContent = '👁';
+    inp.type = 'password';
+    this.textContent = '👁';
   }
-}
+});
 
-// Enterキーで認証
 document.getElementById('authPassword').addEventListener('keydown', function(e) {
   if (e.key === 'Enter') doAuth();
+});
+
+document.getElementById('authBtn').addEventListener('click', function() {
+  doAuth();
 });
 
 // ─── タブ切り替え ───
@@ -524,7 +526,7 @@ function renderDeleteList() {
     var p = productListData[i];
     if (q && p.managedId.toUpperCase().indexOf(q) === -1) continue;
     var thumbSrc = p.thumbnail ? (API_BASE + p.thumbnail) : '';
-    html += '<div class="list-item" style="cursor:pointer" onclick="selectForDelete(\'' + escapeHtml(p.managedId) + '\')">' +
+    html += '<div class="list-item" style="cursor:pointer" onclick="selectForDelete(\\'' + escapeHtml(p.managedId) + '\\')">' +
       (thumbSrc ? '<img class="list-thumb" src="' + thumbSrc + '" loading="lazy">' : '<div class="list-thumb"></div>') +
       '<div class="list-info"><div class="list-id">' + escapeHtml(p.managedId) + '</div>' +
       '<div class="list-count">' + p.count + '枚</div></div>' +
@@ -605,7 +607,7 @@ function doDeleteAll() {
 function normId(s) {
   return s.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(ch) {
     return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0);
-  }).replace(/ー/g, '-').replace(/\\u3000/g, ' ').toUpperCase().trim();
+  }).replace(/ー/g, '-').replace(/\u3000/g, ' ').toUpperCase().trim();
 }
 function escapeHtml(s) {
   var d = document.createElement('div');
