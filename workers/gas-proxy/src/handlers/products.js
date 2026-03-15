@@ -34,8 +34,8 @@ export async function getCachedProducts(args, env) {
   // holds + open_items からステータスを算出して各商品に付与
   await applyProductStatuses(env.DB, products);
 
-  // R2画像をマージ
-  await mergeR2Images(env.CACHE, products);
+  // R2画像をマージ（絶対URLに変換）
+  await mergeR2Images(env.CACHE, products, env.WORKERS_URL);
 
   const options = buildFilterOptions(products);
   const settings = await getPublicSettings(env);
@@ -219,7 +219,7 @@ async function applyProductStatuses(db, products) {
 /**
  * KVのproduct-images:{managedId}からR2画像URLを各商品にマージ
  */
-async function mergeR2Images(cache, products) {
+async function mergeR2Images(cache, products, workersUrl) {
   const imgIndexJson = await cache.get('product-images:index');
   if (!imgIndexJson) return;
 
@@ -243,10 +243,14 @@ async function mergeR2Images(cache, products) {
   }
 
   // D1のmanagedIdは大文字小文字混在の場合があるので大文字で照合
+  // 相対パスを絶対URLに変換（カスタムドメインはPages直結でWorkers経由しないため）
+  const prefix = workersUrl || '';
   for (const p of products) {
     const key = p.managedId.toUpperCase();
     if (imgMap[key]) {
-      p.images = imgMap[key];
+      p.images = prefix
+        ? imgMap[key].map(u => u.startsWith('/') ? prefix + u : u)
+        : imgMap[key];
     }
   }
 }

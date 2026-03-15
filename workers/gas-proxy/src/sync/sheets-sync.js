@@ -485,10 +485,13 @@ async function prewarmCaches(env) {
           if (urls && urls.length > 0) imgMap[mid.toUpperCase()] = urls;
         }
       }
+      const imgPrefix = env.WORKERS_URL || '';
       for (const p of items) {
         const key = p.managedId.toUpperCase();
         if (imgMap[key]) {
-          p.images = imgMap[key];
+          p.images = imgPrefix
+            ? imgMap[key].map(u => u.startsWith('/') ? imgPrefix + u : u)
+            : imgMap[key];
         }
       }
     }

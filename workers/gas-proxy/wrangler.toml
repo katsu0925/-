@@ -16,6 +16,7 @@ workers_dev = true
 
 [vars]
 FRONTEND_URL = "https://wholesale.nkonline-tool.com"
+WORKERS_URL = "https://detauri-gas-proxy.nsdktts1030.workers.dev"
 
 # Cron Trigger: 5分ごとにD1 ⇔ Sheets同期
 [triggers]
