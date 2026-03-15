@@ -413,7 +413,7 @@
     .detail-info-label { font-weight: 600; color: #6b7280; }
 
     /* ===== Detail Carousel ===== */
-    .detail-carousel-wrap{position:relative;background:#f9fafb;border-radius:12px 12px 0 0;overflow:hidden}
+    .detail-carousel-wrap{position:relative;background:#f9fafb;overflow:hidden}
     .detail-carousel-track{display:flex;transition:transform .3s ease}
     .detail-carousel-track img{width:100%;max-height:300px;object-fit:contain;flex-shrink:0;background:#f9fafb}
     .detail-carousel-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.35);color:#fff;border:none;width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;z-index:2}
@@ -4907,11 +4907,17 @@ function renderDetailModalLocal(item, imageUrl, thumbUrl) {
     }
     thumbsHtml += '</div>';
     imageHtml =
-      '<div class="detail-carousel-wrap" id="detailCarouselWrap">' +
-        '<div class="detail-carousel-track" id="detailCarouselTrack">' + trackHtml + '</div>' +
-        '<button class="detail-carousel-nav prev" onclick="carouselPrev_()" style="display:none">‹</button>' +
-        '<button class="detail-carousel-nav next" onclick="carouselNext_()">›</button>' +
-        '<span class="detail-carousel-counter" id="detailCarouselCounter">1 / ' + images.length + '</span>' +
+      '<div class="detail-zoom-wrap" id="detailZoomWrap">' +
+        '<div class="detail-carousel-wrap" id="detailCarouselWrap">' +
+          '<div class="detail-carousel-track" id="detailCarouselTrack">' + trackHtml + '</div>' +
+          '<button class="detail-carousel-nav prev" onclick="carouselPrev_()" style="display:none">‹</button>' +
+          '<button class="detail-carousel-nav next" onclick="carouselNext_()">›</button>' +
+          '<span class="detail-carousel-counter" id="detailCarouselCounter">1 / ' + images.length + '</span>' +
+        '</div>' +
+        '<img class="detail-modal-image" id="detailZoomImg" src="' + images[0] + '" alt="' + safeBrand + '" style="display:none">' +
+        '<div class="detail-zoom-lens" id="detailZoomLens"></div>' +
+        '<span class="detail-zoom-hint">🔍 ホバーで拡大</span>' +
+        '<span class="detail-zoom-hint-mobile">タップで拡大</span>' +
       '</div>' +
       dotsHtml + thumbsHtml +
       '<div class="detail-zoom-result" id="detailZoomResult"></div>';
@@ -4936,8 +4942,9 @@ function renderDetailModalLocal(item, imageUrl, thumbUrl) {
     (typeof buildRecoHtml_ === 'function' ? buildRecoHtml_(item, state.products || []) : '');
 
   if (images && images.length > 1) {
-    // カルーセル初期化
+    // カルーセル初期化 + ズーム
     initDetailCarousel_(images);
+    initDetailZoom_(images[0]);
   } else {
     // 単一画像ズーム
     var zoomSrc = images && images.length === 1 ? images[0] : safeImageUrl;
@@ -4965,11 +4972,20 @@ function initDetailZoom_(imageUrl) {
   var result = document.getElementById('detailZoomResult');
   if (!wrap || !img || !lens || !result) return;
 
+  // 前回のリスナーをクリーンアップ
+  if (wrap._zoomCleanup) { wrap._zoomCleanup(); wrap._zoomCleanup = null; }
+
   var isMobile = window.matchMedia('(max-width: 700px)').matches;
 
   if (isMobile) {
     // Mobile: tap to open fullscreen viewer
-    wrap.addEventListener('click', function() { openFullscreenViewer_(imageUrl); });
+    var tapHandler = function(e) {
+      // カルーセルナビボタンのクリックは除外
+      if (e.target.closest && e.target.closest('.detail-carousel-nav')) return;
+      openFullscreenViewer_(imageUrl);
+    };
+    wrap.addEventListener('click', tapHandler);
+    wrap._zoomCleanup = function() { wrap.removeEventListener('click', tapHandler); };
     return;
   }
 
@@ -4977,11 +4993,15 @@ function initDetailZoom_(imageUrl) {
   var zoomLevel = 2.5;
   var ready = false;
 
-  img.addEventListener('load', function() {
+  // ズーム用の隠し画像にURLをセット（カルーセル時はカルーセル画像と別にズーム用画像を持つ）
+  img.src = imageUrl;
+
+  var onLoad = function() {
     ready = true;
     result.style.backgroundImage = 'url(' + imageUrl + ')';
     result.style.backgroundSize = (img.naturalWidth * zoomLevel) + 'px ' + (img.naturalHeight * zoomLevel) + 'px';
-  });
+  };
+  img.addEventListener('load', onLoad);
 
   // If image is already cached and loaded
   if (img.complete && img.naturalWidth > 0) {
@@ -4990,9 +5010,10 @@ function initDetailZoom_(imageUrl) {
     result.style.backgroundSize = (img.naturalWidth * zoomLevel) + 'px ' + (img.naturalHeight * zoomLevel) + 'px';
   }
 
-  wrap.addEventListener('mouseleave', function() { result.style.display = 'none'; lens.style.display = 'none'; });
+  var onLeave = function() { result.style.display = 'none'; lens.style.display = 'none'; };
+  wrap.addEventListener('mouseleave', onLeave);
 
-  wrap.addEventListener('mousemove', function(e) {
+  var onMove = function(e) {
     if (!ready) return;
     var rect = wrap.getBoundingClientRect();
     var x = e.clientX - rect.left;
@@ -5041,7 +5062,17 @@ function initDetailZoom_(imageUrl) {
         result.style.left = (modalRect.left - 310) + 'px';
       }
     }
-  });
+  };
+  wrap.addEventListener('mousemove', onMove);
+
+  // クリーンアップ登録
+  wrap._zoomCleanup = function() {
+    wrap.removeEventListener('mouseleave', onLeave);
+    wrap.removeEventListener('mousemove', onMove);
+    img.removeEventListener('load', onLoad);
+    result.style.display = 'none';
+    lens.style.display = 'none';
+  };
 }
 
 // =====================================================
@@ -5071,13 +5102,7 @@ function initDetailCarousel_(images) {
     }
   }, { passive: true });
 
-  // モバイル: タップで全画面ビューア
-  wrap.addEventListener('click', function(e) {
-    if (e.target.closest('.detail-carousel-nav')) return;
-    if (window.matchMedia('(max-width: 700px)').matches) {
-      openFullscreenViewer_(_carouselState.images[_carouselState.idx]);
-    }
-  });
+  // モバイルのタップ全画面はinitDetailZoom_で処理される
 }
 
 function goToSlide_(idx) {
@@ -5114,6 +5139,13 @@ function goToSlide_(idx) {
   var nextBtn = document.querySelector('.detail-carousel-nav.next');
   if (prevBtn) prevBtn.style.display = idx === 0 ? 'none' : '';
   if (nextBtn) nextBtn.style.display = idx === images.length - 1 ? 'none' : '';
+
+  // ズーム画像を現在のスライドに更新
+  var zoomImg = document.getElementById('detailZoomImg');
+  if (zoomImg) {
+    zoomImg.src = images[idx];
+    initDetailZoom_(images[idx]);
+  }
 }
 
 function carouselPrev_() { goToSlide_(_carouselState.idx - 1); }
