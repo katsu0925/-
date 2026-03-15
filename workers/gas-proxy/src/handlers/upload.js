@@ -20,6 +20,20 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const TOKEN_TTL = 7 * 24 * 60 * 60; // 7日
 
 /**
+ * 管理番号の正規化: 全角→半角、小文字→大文字
+ * データ1シートの管理番号と確実にマッチさせるため
+ */
+function normalizeManagedId(raw) {
+  return raw
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, ch =>
+      String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+    .replace(/[ー]/g, '-')
+    .replace(/\u3000/g, ' ')
+    .toUpperCase()
+    .trim();
+}
+
+/**
  * /upload/* ルーター
  */
 export async function handleUpload(request, env, path) {
@@ -117,7 +131,7 @@ async function handleImageUpload(request, env) {
     return jsonError('フォームデータの解析に失敗しました', 400);
   }
 
-  const managedId = (formData.get('managedId') || '').trim();
+  const managedId = normalizeManagedId(formData.get('managedId') || '');
   if (!managedId) {
     return jsonError('管理番号が必要です', 400);
   }
@@ -181,7 +195,7 @@ async function handleReplace(request, env) {
     return jsonError('フォームデータの解析に失敗しました', 400);
   }
 
-  const managedId = (formData.get('managedId') || '').trim();
+  const managedId = normalizeManagedId(formData.get('managedId') || '');
   if (!managedId) {
     return jsonError('管理番号が必要です', 400);
   }
@@ -239,7 +253,7 @@ async function handleProductImages(request, env) {
     return jsonError('不正なリクエスト', 400);
   }
 
-  const managedId = (body.managedId || '').trim();
+  const managedId = normalizeManagedId(body.managedId || '');
   if (!managedId) {
     return jsonError('管理番号が必要です', 400);
   }
