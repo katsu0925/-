@@ -143,7 +143,6 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
         </div>
         <div id="productList"></div>
         <button class="btn btn-success hidden" id="dlBtn" onclick="doDownloadSelected()" style="margin-top:12px">選択した1枚目を保存</button>
-        <p class="hidden" id="dlHint" style="font-size:11px;color:#888;margin-top:6px;text-align:center">スマホ: 共有メニューが表示されたら「画像を保存」を選択してください</p>
         <div class="status" id="dlStatus"></div>
       </div>
     </div>
@@ -526,7 +525,6 @@ function renderDlList() {
   el.innerHTML = html || '<div style="text-align:center;color:#999;padding:20px">該当なし</div>';
   document.getElementById('selectAllRow').classList.remove('hidden');
   document.getElementById('dlBtn').classList.remove('hidden');
-  if (navigator.canShare) document.getElementById('dlHint').classList.remove('hidden');
   updateSelectedCount();
 }
 
@@ -552,53 +550,63 @@ function doDownloadSelected() {
 
   var btn = document.getElementById('dlBtn');
   btn.disabled = true;
-  showStatus('dlStatus', '0/' + indices.length + ' 保存中...', 'info');
+  showStatus('dlStatus', '0/' + indices.length + ' 読み込み中...', 'info');
 
-  var i = 0;
-  function next() {
-    if (i >= indices.length) {
-      btn.disabled = false;
-      showStatus('dlStatus', indices.length + '枚保存完了', 'ok');
-      return;
-    }
-    var idx = indices[i];
+  // 全画像を並列で取得
+  var done = 0;
+  var fileEntries = [];
+  var promises = indices.map(function(idx) {
     var p = productListData[idx];
     var url = API_BASE + p.thumbnail;
-    showStatus('dlStatus', (i + 1) + '/' + indices.length + ' 保存中... ' + p.managedId, 'info');
-
-    fetch(url).then(function(r) { return r.blob(); })
+    return fetch(url).then(function(r) { return r.blob(); })
     .then(function(blob) {
-      return saveBlob(blob, p.managedId + '.jpg').then(function() {
-        var st = document.getElementById('dlst-' + idx);
-        if (st) { st.classList.add('show'); }
-        i++;
-        setTimeout(next, 500);
-      });
-    }).catch(function() {
-      i++;
-      setTimeout(next, 500);
-    });
-  }
-  next();
-}
+      fileEntries.push({ idx: idx, file: new File([blob], p.managedId + '.jpg', { type: 'image/jpeg' }) });
+      done++;
+      showStatus('dlStatus', done + '/' + indices.length + ' 読み込み中...', 'info');
+    }).catch(function() { done++; });
+  });
 
-function saveBlob(blob, filename) {
-  var file = new File([blob], filename, { type: blob.type || 'image/jpeg' });
-  // iOS/Android: navigator.share()で「画像を保存」を表示
-  if (navigator.canShare && navigator.canShare({ files: [file] })) {
-    return navigator.share({ files: [file] }).catch(function() {
-      // ユーザーがキャンセルした場合は何もしない
+  Promise.all(promises).then(function() {
+    if (fileEntries.length === 0) {
+      btn.disabled = false;
+      showStatus('dlStatus', 'ダウンロードに失敗しました', 'err');
+      return;
+    }
+
+    var files = fileEntries.map(function(e) { return e.file; });
+
+    // スマホ: 一括共有（写真アプリに保存）
+    if (navigator.canShare && navigator.canShare({ files: files })) {
+      showStatus('dlStatus', files.length + '枚を保存中...', 'info');
+      navigator.share({ files: files }).then(function() {
+        fileEntries.forEach(function(e) {
+          var st = document.getElementById('dlst-' + e.idx);
+          if (st) st.classList.add('show');
+        });
+        showStatus('dlStatus', files.length + '枚保存完了', 'ok');
+      }).catch(function() {
+        showStatus('dlStatus', 'キャンセルされました', 'info');
+      }).finally(function() { btn.disabled = false; });
+      return;
+    }
+
+    // PC: 1枚ずつダウンロード
+    files.forEach(function(file) {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(file);
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
     });
-  }
-  // PC等: ダウンロードリンク方式
-  var a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
-  return Promise.resolve();
+    fileEntries.forEach(function(e) {
+      var st = document.getElementById('dlst-' + e.idx);
+      if (st) st.classList.add('show');
+    });
+    btn.disabled = false;
+    showStatus('dlStatus', files.length + '枚保存完了', 'ok');
+  });
 }
 
 // ─── セクション3: 削除 ───
