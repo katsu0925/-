@@ -72,8 +72,9 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
   <!-- 認証フォーム -->
   <div id="authSection" class="card auth-wall">
     <h2>パスワードを入力</h2>
-    <div class="form-group" style="margin-top:16px">
-      <input type="password" id="authPassword" placeholder="パスワード" autocomplete="off">
+    <div class="form-group" style="margin-top:16px;position:relative">
+      <input type="text" id="authPassword" placeholder="パスワード" autocomplete="off" style="-webkit-text-security:disc">
+      <button type="button" onclick="togglePwVis()" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:18px;cursor:pointer;padding:4px" id="pwToggle">👁</button>
     </div>
     <button class="btn btn-primary" id="authBtn" onclick="doAuth()">認証</button>
     <div class="status" id="authStatus"></div>
@@ -212,8 +213,20 @@ function doAuth() {
     }
   }).catch(function(e) {
     btn.disabled = false;
-    showStatus('authStatus', 'ネットワークエラー', 'err');
+    showStatus('authStatus', 'ネットワークエラー: ' + e.message, 'err');
   });
+}
+
+function togglePwVis() {
+  var inp = document.getElementById('authPassword');
+  var btn = document.getElementById('pwToggle');
+  if (inp.style.webkitTextSecurity === 'disc') {
+    inp.style.webkitTextSecurity = 'none';
+    btn.textContent = '🔒';
+  } else {
+    inp.style.webkitTextSecurity = 'disc';
+    btn.textContent = '👁';
+  }
 }
 
 // Enterキーで認証
