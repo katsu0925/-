@@ -63,6 +63,12 @@ export async function scheduledSync(env) {
       console.log('[sync] Stats synced');
     }
 
+    // 作業者マスター → KVに保存
+    if (exportData.workers && exportData.workers.length > 0) {
+      await env.CACHE.put('workers:list', JSON.stringify(exportData.workers));
+      console.log(`[sync] Workers list synced: ${exportData.workers.length} rows`);
+    }
+
     // 3. sheetTotalCount（データ1 B1の掲載中件数）をKVに保存
     if (exportData.sheetTotalCount != null) {
       await env.CACHE.put('sheetTotalCount', String(exportData.sheetTotalCount));
@@ -79,10 +85,13 @@ export async function scheduledSync(env) {
       await pushImportData(env);
     }
 
-    // 6. pending_orders クリーンアップ
+    // 6. 撮影データ → GAS（商品管理シートに書き込み）
+    await syncPhotographyData(env);
+
+    // 7. pending_orders クリーンアップ
     await cleanupPendingOrders(env.DB);
 
-    // 7. session_token_map クリーンアップ（30日以上経過したレコードを削除）
+    // 8. session_token_map クリーンアップ（30日以上経過したレコードを削除）
     await cleanupSessionTokenMap(env.DB);
 
     console.log('[sync] Sync completed successfully');
@@ -152,7 +161,7 @@ async function fetchExportData(env) {
     args: [{
       syncSecret: env.SYNC_SECRET || '',
       since: lastSync,
-      tables: ['products', 'bulkProducts', 'customers', 'openItems', 'coupons', 'settings', 'stats'],
+      tables: ['products', 'bulkProducts', 'customers', 'openItems', 'coupons', 'settings', 'stats', 'workers'],
     }],
   });
 
@@ -227,6 +236,73 @@ async function pushImportData(env) {
     }
   } catch (e) {
     console.error('[sync] Import push failed:', e.message);
+  }
+}
+
+// ─── 撮影データ同期 ───
+
+async function syncPhotographyData(env) {
+  try {
+    const pendingJson = await env.CACHE.get('photo-meta:pending');
+    if (!pendingJson) return;
+    const pending = JSON.parse(pendingJson);
+    if (!pending || pending.length === 0) return;
+
+    // 各管理番号のメタデータを取得
+    const photographyData = [];
+    for (const managedId of pending) {
+      const metaJson = await env.CACHE.get(`photo-meta:${managedId}`);
+      if (!metaJson) continue;
+      const meta = JSON.parse(metaJson);
+      photographyData.push({
+        managedId,
+        photographer: meta.photographer || '',
+        photographyDate: meta.photographyDate || '',
+      });
+    }
+
+    if (photographyData.length === 0) {
+      await env.CACHE.delete('photo-meta:pending');
+      return;
+    }
+
+    // GASに送信
+    const gasUrl = env.GAS_API_URL;
+    if (!gasUrl) return;
+
+    const body = JSON.stringify({
+      action: 'apiSyncImportData',
+      args: [{
+        syncSecret: env.SYNC_SECRET || '',
+        photographyData,
+      }],
+    });
+
+    const resp = await fetch(gasUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body,
+      redirect: 'follow',
+    });
+
+    const text = await resp.text();
+    try {
+      const result = JSON.parse(text);
+      if (result.ok) {
+        // 成功: pendingリストとメタデータをクリア
+        await env.CACHE.delete('photo-meta:pending');
+        for (const managedId of pending) {
+          await env.CACHE.delete(`photo-meta:${managedId}`);
+        }
+        console.log(`[sync] Photography data synced: ${photographyData.length} items, written: ${result.imported?.photography || 0}`);
+      } else {
+        console.error('[sync] Photography sync failed:', result.message);
+      }
+    } catch (e) {
+      console.error('[sync] Photography sync parse error:', e.message);
+    }
+  } catch (e) {
+    console.error('[sync] Photography sync error:', e.message);
   }
 }
 

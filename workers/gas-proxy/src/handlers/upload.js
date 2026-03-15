@@ -79,6 +79,8 @@ export async function handleUpload(request, env, path) {
       return await handleDelete(request, env);
     case '/upload/delete-single':
       return await handleDeleteSingle(request, env);
+    case '/upload/workers':
+      return await handleWorkers(request, env);
     default:
       return jsonError('不明なエンドポイント', 404);
   }
@@ -138,6 +140,14 @@ async function handleImageUpload(request, env) {
     return jsonError('管理番号が必要です', 400);
   }
 
+  // 管理番号存在チェック（D1 productsテーブル）
+  const productRow = await env.DB.prepare(
+    'SELECT managed_id FROM products WHERE UPPER(managed_id) = ?'
+  ).bind(managedId.toUpperCase()).first();
+  if (!productRow) {
+    return jsonError('この管理番号は商品管理に登録されていません。先に採寸データをアプリで入力してください。', 400);
+  }
+
   // ファイル取得
   const files = formData.getAll('images');
   if (!files || files.length === 0) {
@@ -181,6 +191,26 @@ async function handleImageUpload(request, env) {
 
   // 商品キャッシュ無効化（フロントに即反映）
   await invalidateProductCache(env);
+
+  // 撮影メタデータ保存（KV）
+  const photographer = formData.get('photographer') || '';
+  const photographyDate = formData.get('photographyDate') || '';
+  if (photographer || photographyDate) {
+    const meta = {
+      photographer,
+      photographyDate,
+      uploadedAt: new Date().toISOString(),
+    };
+    await env.CACHE.put(`photo-meta:${managedId}`, JSON.stringify(meta));
+
+    // 未同期リストに追加
+    const pendingJson = await env.CACHE.get('photo-meta:pending');
+    const pending = pendingJson ? JSON.parse(pendingJson) : [];
+    if (!pending.includes(managedId)) {
+      pending.push(managedId);
+      await env.CACHE.put('photo-meta:pending', JSON.stringify(pending));
+    }
+  }
 
   return jsonOk({ managedId, urls, count: urls.length });
 }
@@ -333,6 +363,14 @@ async function handleDeleteSingle(request, env) {
   await invalidateProductCache(env);
 
   return jsonOk({ managedId, imageIndex, remaining: urls.length });
+}
+
+// ─── 作業者リスト取得 ───
+
+async function handleWorkers(request, env) {
+  const workersJson = await env.CACHE.get('workers:list');
+  const workers = workersJson ? JSON.parse(workersJson) : [];
+  return jsonOk({ workers });
 }
 
 // ─── ヘルパー ───

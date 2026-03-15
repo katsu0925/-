@@ -22,7 +22,7 @@ h2{font-size:16px;color:#1a1a2e;margin-bottom:12px;padding-bottom:8px;border-bot
 .card{background:#fff;border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
 .form-group{margin-bottom:12px}
 label{display:block;font-size:13px;font-weight:600;color:#555;margin-bottom:4px}
-input[type=text],input[type=password]{width:100%;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:16px;-webkit-appearance:none}
+input[type=text],input[type=password],input[type=date],select{width:100%;padding:10px 12px;border:1.5px solid #ddd;border-radius:8px;font-size:16px;-webkit-appearance:none}
 input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8px;font-size:14px;background:#fafafa}
 .btn{width:100%;padding:12px;border:none;border-radius:8px;font-size:15px;font-weight:600;cursor:pointer;transition:opacity .2s}
 .btn:disabled{opacity:.5;cursor:not-allowed}
@@ -88,6 +88,23 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
       <button class="tab" onclick="switchTab('delete')">削除</button>
     </div>
 
+    <!-- 撮影者選択モーダル -->
+    <div id="photographerModal" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:100;display:flex;align-items:center;justify-content:center">
+      <div class="card" style="width:90%;max-width:400px;margin:0">
+        <h2 style="border:none;text-align:center">撮影者を選択</h2>
+        <div class="form-group" style="margin-top:12px">
+          <select id="photographerSelect"><option value="">読み込み中...</option></select>
+        </div>
+        <button class="btn btn-primary" id="photographerConfirmBtn" onclick="confirmPhotographer()">決定</button>
+      </div>
+    </div>
+
+    <!-- 撮影者バー -->
+    <div id="photographerBar" class="card hidden" style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px">
+      <span style="font-size:13px">撮影者: <strong id="photographerName">-</strong></span>
+      <button class="btn btn-secondary" style="width:auto;padding:6px 12px;font-size:12px" onclick="showPhotographerModal()">変更</button>
+    </div>
+
     <!-- セクション1: アップロード -->
     <div class="section active" id="sec-upload">
       <div class="card">
@@ -95,6 +112,10 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
         <div class="form-group">
           <label>管理番号</label>
           <input type="text" id="uploadManagedId" placeholder="例: A001" autocomplete="off">
+        </div>
+        <div class="form-group">
+          <label>撮影日付</label>
+          <input type="date" id="photographyDate">
         </div>
         <div class="form-group">
           <label>画像（最大10枚）</label>
@@ -150,6 +171,8 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 // ─── 設定 ───
 var API_BASE = location.origin;
 var TOKEN_KEY = 'detauri_upload_token';
+var PHOTOGRAPHER_KEY = 'detauri_photographer';
+var _workersList = [];
 
 function getToken() { return localStorage.getItem(TOKEN_KEY); }
 function setToken(t) { localStorage.setItem(TOKEN_KEY, t); }
@@ -190,6 +213,69 @@ function showAuth() {
 function showMain() {
   document.getElementById('authSection').classList.add('hidden');
   document.getElementById('mainSection').classList.remove('hidden');
+  // 撮影日付のデフォルト=今日
+  var today = new Date();
+  var yyyy = today.getFullYear();
+  var mm = String(today.getMonth() + 1).padStart(2, '0');
+  var dd = String(today.getDate()).padStart(2, '0');
+  document.getElementById('photographyDate').value = yyyy + '-' + mm + '-' + dd;
+  // 撮影者セットアップ
+  initPhotographer();
+}
+
+function initPhotographer() {
+  fetch(API_BASE + '/upload/workers', {
+    method: 'POST',
+    headers: headers({ 'Content-Type': 'application/json' }),
+    body: '{}'
+  }).then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.ok && d.workers) _workersList = d.workers;
+    var saved = localStorage.getItem(PHOTOGRAPHER_KEY);
+    if (saved && _workersList.some(function(w) { return w.name === saved; })) {
+      setPhotographer(saved);
+    } else {
+      showPhotographerModal();
+    }
+  }).catch(function() {
+    // オフラインでも保存済みなら使える
+    var saved = localStorage.getItem(PHOTOGRAPHER_KEY);
+    if (saved) setPhotographer(saved);
+    else showPhotographerModal();
+  });
+}
+
+function showPhotographerModal() {
+  var select = document.getElementById('photographerSelect');
+  select.innerHTML = '<option value="">-- 選択してください --</option>';
+  for (var i = 0; i < _workersList.length; i++) {
+    var opt = document.createElement('option');
+    opt.value = _workersList[i].name;
+    opt.textContent = _workersList[i].name;
+    select.appendChild(opt);
+  }
+  var saved = localStorage.getItem(PHOTOGRAPHER_KEY);
+  if (saved) select.value = saved;
+  var modal = document.getElementById('photographerModal');
+  modal.classList.remove('hidden');
+  modal.style.display = 'flex';
+}
+
+function confirmPhotographer() {
+  var val = document.getElementById('photographerSelect').value;
+  if (!val) return;
+  setPhotographer(val);
+  var modal = document.getElementById('photographerModal');
+  modal.classList.add('hidden');
+  modal.style.display = 'none';
+}
+
+function setPhotographer(name) {
+  localStorage.setItem(PHOTOGRAPHER_KEY, name);
+  document.getElementById('photographerName').textContent = name;
+  var bar = document.getElementById('photographerBar');
+  bar.classList.remove('hidden');
+  bar.style.display = 'flex';
 }
 
 // ─── 認証 ───
@@ -282,6 +368,9 @@ function showPreview() {
 function doUpload() {
   var managedId = normId(document.getElementById('uploadManagedId').value);
   if (!managedId) { showStatus('uploadStatus', '管理番号を入力してください', 'err'); return; }
+  var photographer = localStorage.getItem(PHOTOGRAPHER_KEY) || '';
+  if (!photographer) { showStatus('uploadStatus', '撮影者を選択してください', 'err'); showPhotographerModal(); return; }
+  var photographyDate = document.getElementById('photographyDate').value || '';
   var input = document.getElementById('uploadFiles');
   var files = input.files;
   if (!files || files.length === 0) { showStatus('uploadStatus', '画像を選択してください', 'err'); return; }
@@ -297,7 +386,7 @@ function doUpload() {
   // 画像リサイズ → アップロード
   resizeAllImages(files, function(blobs) {
     showStatus('uploadStatus', '0/' + blobs.length + ' アップロード中...', 'info');
-    uploadInParallel(managedId, blobs, 3, function(done, total) {
+    uploadInParallel(managedId, blobs, 3, photographer, photographyDate, function(done, total) {
       fill.style.width = Math.round(done / total * 100) + '%';
       showStatus('uploadStatus', done + '/' + total + ' アップロード中...', 'info');
     }, function(err) {
@@ -352,9 +441,11 @@ function resizeImage(file, maxSize, quality, cb) {
   img.src = URL.createObjectURL(file);
 }
 
-function uploadInParallel(managedId, blobs, concurrency, onProgress, onDone) {
+function uploadInParallel(managedId, blobs, concurrency, photographer, photographyDate, onProgress, onDone) {
   var fd = new FormData();
   fd.append('managedId', managedId);
+  if (photographer) fd.append('photographer', photographer);
+  if (photographyDate) fd.append('photographyDate', photographyDate);
   for (var i = 0; i < blobs.length; i++) {
     fd.append('images', blobs[i], (i + 1) + '.jpg');
   }

@@ -71,6 +71,11 @@ function apiSyncExportData(params) {
       result.stats = exportStats_();
     }
 
+    // 作業者マスター
+    if (tables.indexOf('workers') !== -1) {
+      result.workers = exportWorkers_();
+    }
+
     return result;
   } catch (e) {
     console.error('apiSyncExportData error:', e);
@@ -94,12 +99,17 @@ function apiSyncImportData(params) {
     return { ok: false, message: '認証エラー' };
   }
 
-  var imported = { customers: 0 };
+  var imported = { customers: 0, photography: 0 };
 
   try {
     // 顧客データのインポート（D1 → Sheets）
     if (p.customers && p.customers.length > 0) {
       imported.customers = importCustomers_(p.customers);
+    }
+
+    // 撮影データのインポート（Workers KV → 商品管理シート）
+    if (p.photographyData && p.photographyData.length > 0) {
+      imported.photography = importPhotographyData_(p.photographyData);
     }
 
     return { ok: true, imported: imported };
@@ -364,6 +374,111 @@ function exportStats_() {
  * @param {object[]} customers - 顧客データ配列
  * @returns {number} インポートした件数
  */
+/**
+ * 作業者マスターシートからID・名前を取得
+ * 仕入れ管理Ver2 SS内の「作業者マスター」シート
+ * @returns {object[]} [{ id, name }, ...]
+ */
+function exportWorkers_() {
+  var ssId = '';
+  try {
+    ssId = APP_CONFIG.detail.spreadsheetId;
+  } catch (e) {}
+  if (!ssId) {
+    try {
+      ssId = PropertiesService.getScriptProperties().getProperty('DETAIL_SPREADSHEET_ID') || '';
+    } catch (e) {}
+  }
+  if (!ssId) return [];
+
+  var ss = SpreadsheetApp.openById(ssId);
+  var sh = ss.getSheetByName('作業者マスター');
+  if (!sh) return [];
+
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+
+  var data = sh.getRange(2, 1, lastRow - 1, 2).getValues();
+  var workers = [];
+  for (var i = 0; i < data.length; i++) {
+    var name = String(data[i][1] || '').trim();
+    if (!name) continue;
+    workers.push({
+      id: String(data[i][0] || (i + 1)),
+      name: name
+    });
+  }
+  return workers;
+}
+
+/**
+ * 撮影データを商品管理シートに書き込み
+ * AI列(35)=撮影日付, AJ列(36)=撮影者, F列(6)で管理番号を特定
+ * 既にAI/AJ列に値がある場合はスキップ
+ *
+ * @param {object[]} data - [{ managedId, photographyDate, photographer }, ...]
+ * @returns {number} 書き込んだ件数
+ */
+function importPhotographyData_(data) {
+  var ssId = '';
+  try {
+    ssId = APP_CONFIG.detail.spreadsheetId;
+  } catch (e) {}
+  if (!ssId) {
+    try {
+      ssId = PropertiesService.getScriptProperties().getProperty('DETAIL_SPREADSHEET_ID') || '';
+    } catch (e) {}
+  }
+  if (!ssId) return 0;
+
+  var ss = SpreadsheetApp.openById(ssId);
+  var sh = ss.getSheetByName('商品管理');
+  if (!sh) return 0;
+
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return 0;
+
+  // F列(6)の管理番号を取得して行番号マップを構築
+  var fData = sh.getRange(2, 6, lastRow - 1, 1).getValues();
+  var idToRow = {};
+  for (var i = 0; i < fData.length; i++) {
+    var mid = String(fData[i][0] || '').trim().toUpperCase();
+    if (mid) idToRow[mid] = i + 2; // 1-indexed シート行番号
+  }
+
+  // AI列(35)・AJ列(36)の既存値を取得
+  var aiajData = sh.getRange(2, 35, lastRow - 1, 2).getValues();
+
+  var written = 0;
+  for (var j = 0; j < data.length; j++) {
+    var entry = data[j];
+    var mid = String(entry.managedId || '').trim().toUpperCase();
+    if (!mid) continue;
+
+    var row = idToRow[mid];
+    if (!row) continue;
+
+    var rowIdx = row - 2; // aiajData配列のインデックス
+    var existingDate = String(aiajData[rowIdx][0] || '').trim();
+    var existingPhotographer = String(aiajData[rowIdx][1] || '').trim();
+
+    // AI列(撮影日付)が空なら書き込み
+    if (!existingDate && entry.photographyDate) {
+      sh.getRange(row, 35).setValue(entry.photographyDate);
+    }
+    // AJ列(撮影者)が空なら書き込み
+    if (!existingPhotographer && entry.photographer) {
+      sh.getRange(row, 36).setValue(entry.photographer);
+    }
+
+    if ((!existingDate && entry.photographyDate) || (!existingPhotographer && entry.photographer)) {
+      written++;
+    }
+  }
+
+  return written;
+}
+
 function importCustomers_(customers) {
   var ssId = app_getOrderSpreadsheetId_();
   if (!ssId) return 0;
