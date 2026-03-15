@@ -412,6 +412,21 @@
     .detail-info-item { font-size: 14px; color: #374151; background: #f9fafb; padding: 4px 10px; border-radius: 6px; }
     .detail-info-label { font-weight: 600; color: #6b7280; }
 
+    /* ===== Detail Carousel ===== */
+    .detail-carousel-wrap{position:relative;background:#f9fafb;border-radius:12px 12px 0 0;overflow:hidden}
+    .detail-carousel-track{display:flex;transition:transform .3s ease}
+    .detail-carousel-track img{width:100%;max-height:300px;object-fit:contain;flex-shrink:0;background:#f9fafb}
+    .detail-carousel-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,.35);color:#fff;border:none;width:32px;height:32px;border-radius:50%;font-size:16px;cursor:pointer;z-index:2}
+    .detail-carousel-nav.prev{left:6px}
+    .detail-carousel-nav.next{right:6px}
+    .detail-carousel-dots{display:flex;justify-content:center;gap:6px;padding:8px 0}
+    .detail-carousel-dot{width:8px;height:8px;border-radius:50%;background:#d1d5db;border:none;cursor:pointer;padding:0}
+    .detail-carousel-dot.active{background:#3b82f6}
+    .detail-carousel-thumbs{display:flex;gap:6px;padding:4px 12px 8px;overflow-x:auto}
+    .detail-carousel-thumbs img{width:48px;height:48px;object-fit:cover;border-radius:6px;cursor:pointer;border:2px solid transparent;flex-shrink:0}
+    .detail-carousel-thumbs img.active{border-color:#3b82f6}
+    .detail-carousel-counter{position:absolute;top:8px;right:8px;background:rgba(0,0,0,.5);color:#fff;font-size:11px;padding:2px 8px;border-radius:10px;z-index:2}
+
     /* ===== Image Zoom (Amazon-style) ===== */
     .detail-zoom-wrap { position: relative; cursor: zoom-in; background: #f9fafb; border-radius: 12px 12px 0 0; }
     .detail-zoom-wrap img.detail-modal-image { pointer-events: none; }
@@ -4867,36 +4882,76 @@ function renderDetailModalLocal(item, imageUrl, thumbUrl) {
   var safeManagedId = escapeHtml_(item.managedId || '');
   var noInfo = (!basicInfoHtml && !defectHtml && !measurementsHtml) ? '<div class="detail-loading" style="color:#999;">追加情報はありません</div>' : '';
 
-  // Show thumbnail immediately (already cached), then swap to full-res
+  // R2画像配列があればカルーセル、なければ従来の単一画像
+  var images = item.images && item.images.length > 0 ? item.images : null;
   var initialSrc = safeThumbUrl || safeImageUrl;
 
-  body.innerHTML =
-    '<div class="detail-zoom-wrap" id="detailZoomWrap">' +
-      '<img class="detail-modal-image" id="detailZoomImg" src="' + initialSrc + '" alt="' + safeBrand + '" onerror="this.parentNode.style.display=\'none\'">' +
-      '<div class="detail-zoom-lens" id="detailZoomLens"></div>' +
-      '<span class="detail-zoom-hint">🔍 ホバーで拡大</span>' +
-      '<span class="detail-zoom-hint-mobile">タップで拡大</span>' +
-    '</div>' +
-    '<div class="detail-zoom-result" id="detailZoomResult"></div>' +
+  var imageHtml;
+  if (images && images.length > 1) {
+    // カルーセル表示
+    var trackHtml = '';
+    for (var ci = 0; ci < images.length; ci++) {
+      var imgSrc = ci === 0 ? images[ci] : '';
+      var dataSrc = ci === 0 ? '' : ' data-src="' + images[ci] + '"';
+      trackHtml += '<img class="detail-modal-image" src="' + (imgSrc || '') + '"' + dataSrc + ' alt="' + safeBrand + ' ' + (ci+1) + '"' +
+        (ci === 0 ? '' : ' loading="lazy"') + '>';
+    }
+    var dotsHtml = '<div class="detail-carousel-dots">';
+    for (var di = 0; di < images.length; di++) {
+      dotsHtml += '<button class="detail-carousel-dot' + (di === 0 ? ' active' : '') + '" onclick="goToSlide_(' + di + ')"></button>';
+    }
+    dotsHtml += '</div>';
+    var thumbsHtml = '<div class="detail-carousel-thumbs">';
+    for (var ti = 0; ti < images.length; ti++) {
+      thumbsHtml += '<img src="' + images[ti] + '" class="' + (ti === 0 ? 'active' : '') + '" onclick="goToSlide_(' + ti + ')" loading="lazy">';
+    }
+    thumbsHtml += '</div>';
+    imageHtml =
+      '<div class="detail-carousel-wrap" id="detailCarouselWrap">' +
+        '<div class="detail-carousel-track" id="detailCarouselTrack">' + trackHtml + '</div>' +
+        '<button class="detail-carousel-nav prev" onclick="carouselPrev_()" style="display:none">‹</button>' +
+        '<button class="detail-carousel-nav next" onclick="carouselNext_()">›</button>' +
+        '<span class="detail-carousel-counter" id="detailCarouselCounter">1 / ' + images.length + '</span>' +
+      '</div>' +
+      dotsHtml + thumbsHtml +
+      '<div class="detail-zoom-result" id="detailZoomResult"></div>';
+  } else {
+    // 単一画像（従来表示）
+    var singleSrc = images && images.length === 1 ? images[0] : initialSrc;
+    imageHtml =
+      '<div class="detail-zoom-wrap" id="detailZoomWrap">' +
+        '<img class="detail-modal-image" id="detailZoomImg" src="' + singleSrc + '" alt="' + safeBrand + '" onerror="this.parentNode.style.display=\'none\'">' +
+        '<div class="detail-zoom-lens" id="detailZoomLens"></div>' +
+        '<span class="detail-zoom-hint">🔍 ホバーで拡大</span>' +
+        '<span class="detail-zoom-hint-mobile">タップで拡大</span>' +
+      '</div>' +
+      '<div class="detail-zoom-result" id="detailZoomResult"></div>';
+  }
+
+  body.innerHTML = imageHtml +
     '<div class="detail-modal-content"><div class="detail-modal-title">' + safeBrand + ' - ' + safeManagedId + '</div>' +
     basicInfoHtml + defectHtml + measurementsHtml + noInfo + '</div>' +
     '<div class="detail-modal-footer"><button class="detail-add-btn" ' + btnDisabled + ' onclick="addToCartFromModal(\'' + safeManagedId + '\')">' + btnText + '</button></div>' +
     (typeof buildShareButtons_ === 'function' ? buildShareButtons_(window.location.origin + window.location.pathname + '#item=' + safeManagedId, safeBrand + ' ¥' + numFmt_(item.price || 0) + ' | デタウリ.Detauri') : '') +
     (typeof buildRecoHtml_ === 'function' ? buildRecoHtml_(item, state.products || []) : '');
 
-  // Swap to full-res image when loaded (if different from thumbnail)
-  if (safeImageUrl && safeImageUrl !== safeThumbUrl) {
-    var fullImg = new Image();
-    fullImg.onload = function() {
-      var el = document.getElementById('detailZoomImg');
-      if (el) el.src = safeImageUrl;
-      initDetailZoom_(safeImageUrl);
-    };
-    fullImg.src = safeImageUrl;
+  if (images && images.length > 1) {
+    // カルーセル初期化
+    initDetailCarousel_(images);
+  } else {
+    // 単一画像ズーム
+    var zoomSrc = images && images.length === 1 ? images[0] : safeImageUrl;
+    if (zoomSrc && zoomSrc !== initialSrc && !images) {
+      var fullImg = new Image();
+      fullImg.onload = function() {
+        var el = document.getElementById('detailZoomImg');
+        if (el) el.src = zoomSrc;
+        initDetailZoom_(zoomSrc);
+      };
+      fullImg.src = zoomSrc;
+    }
+    initDetailZoom_(zoomSrc || initialSrc);
   }
-
-  // Initialize zoom with current image (thumbnail or full if already cached)
-  initDetailZoom_(safeImageUrl || initialSrc);
 }
 
 // =====================================================
@@ -4988,6 +5043,81 @@ function initDetailZoom_(imageUrl) {
     }
   });
 }
+
+// =====================================================
+// 詳細モーダル カルーセル
+// =====================================================
+
+var _carouselState = { idx: 0, images: [], touchStartX: 0 };
+
+function initDetailCarousel_(images) {
+  _carouselState.images = images;
+  _carouselState.idx = 0;
+  var wrap = document.getElementById('detailCarouselWrap');
+  if (!wrap) return;
+
+  // スワイプ対応
+  wrap.addEventListener('touchstart', function(e) {
+    if (e.touches.length === 1) {
+      _carouselState.touchStartX = e.touches[0].clientX;
+    }
+  }, { passive: true });
+
+  wrap.addEventListener('touchend', function(e) {
+    var dx = e.changedTouches[0].clientX - _carouselState.touchStartX;
+    if (Math.abs(dx) > 40) {
+      if (dx < 0) carouselNext_();
+      else carouselPrev_();
+    }
+  }, { passive: true });
+
+  // モバイル: タップで全画面ビューア
+  wrap.addEventListener('click', function(e) {
+    if (e.target.closest('.detail-carousel-nav')) return;
+    if (window.matchMedia('(max-width: 700px)').matches) {
+      openFullscreenViewer_(_carouselState.images[_carouselState.idx]);
+    }
+  });
+}
+
+function goToSlide_(idx) {
+  var images = _carouselState.images;
+  if (idx < 0 || idx >= images.length) return;
+  _carouselState.idx = idx;
+
+  var track = document.getElementById('detailCarouselTrack');
+  if (track) {
+    track.style.transform = 'translateX(-' + (idx * 100) + '%)';
+    // 遅延読み込み: data-srcをsrcにセット
+    var imgs = track.querySelectorAll('img');
+    if (imgs[idx] && imgs[idx].dataset.src) {
+      imgs[idx].src = imgs[idx].dataset.src;
+      imgs[idx].removeAttribute('data-src');
+    }
+  }
+
+  // カウンター
+  var counter = document.getElementById('detailCarouselCounter');
+  if (counter) counter.textContent = (idx + 1) + ' / ' + images.length;
+
+  // ドット
+  var dots = document.querySelectorAll('.detail-carousel-dot');
+  dots.forEach(function(d, i) { d.classList.toggle('active', i === idx); });
+
+  // サムネイル
+  var thumbs = document.querySelectorAll('.detail-carousel-thumbs img');
+  thumbs.forEach(function(t, i) { t.classList.toggle('active', i === idx); });
+  if (thumbs[idx]) thumbs[idx].scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+
+  // ナビボタン表示制御
+  var prevBtn = document.querySelector('.detail-carousel-nav.prev');
+  var nextBtn = document.querySelector('.detail-carousel-nav.next');
+  if (prevBtn) prevBtn.style.display = idx === 0 ? 'none' : '';
+  if (nextBtn) nextBtn.style.display = idx === images.length - 1 ? 'none' : '';
+}
+
+function carouselPrev_() { goToSlide_(_carouselState.idx - 1); }
+function carouselNext_() { goToSlide_(_carouselState.idx + 1); }
 
 // Fullscreen image viewer for mobile
 function openFullscreenViewer_(imageUrl) {

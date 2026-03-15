@@ -466,6 +466,32 @@ async function prewarmCaches(env) {
       else if (heldSet.has(p.managedId)) { p.status = '確保中'; p.selectable = false; }
     }
 
+    // R2画像をマージ
+    const imgIndexJson = await env.CACHE.get('product-images:index');
+    if (imgIndexJson) {
+      const imgIndex = JSON.parse(imgIndexJson);
+      const imgMap = {};
+      // 並列でKV取得（最大50件ずつ）
+      const batchSize = 50;
+      for (let i = 0; i < imgIndex.length; i += batchSize) {
+        const batch = imgIndex.slice(i, i + batchSize);
+        const results = await Promise.all(
+          batch.map(async (mid) => {
+            const json = await env.CACHE.get(`product-images:${mid}`);
+            return { mid, urls: json ? JSON.parse(json) : null };
+          })
+        );
+        for (const { mid, urls } of results) {
+          if (urls && urls.length > 0) imgMap[mid] = urls;
+        }
+      }
+      for (const p of items) {
+        if (imgMap[p.managedId]) {
+          p.images = imgMap[p.managedId];
+        }
+      }
+    }
+
     // フィルタオプション構築
     const sets = { category: new Set(), state: new Set(), gender: new Set(), size: new Set(), brand: new Set() };
     for (const p of items) {

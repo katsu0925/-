@@ -22,6 +22,8 @@ import * as coupon from './handlers/coupon.js';
 import * as mypage from './handlers/mypage.js';
 import * as submit from './handlers/submit.js';
 import { scheduledSync } from './sync/sheets-sync.js';
+import { handleUpload, serveImage } from './handlers/upload.js';
+import { getUploadPageHtml } from './pages/upload.html.js';
 
 // ─── フィーチャーフラグ: Workers側で処理するaction ───
 // 各Phaseで段階的に追加。削除で即ロールバック。
@@ -83,8 +85,18 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    // CORS preflight
+    // CORS preflight（/upload/* はAuthorization headerを許可）
     if (request.method === 'OPTIONS') {
+      if (url.pathname.startsWith('/upload')) {
+        return new Response(null, {
+          status: 204,
+          headers: {
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+          },
+        });
+      }
       return corsOptions();
     }
 
@@ -93,8 +105,27 @@ export default {
       return await purgeAllCaches(env);
     }
 
+    // ─── 画像アップロード系（既存JSON POSTフローと完全分離） ───
+
+    // R2画像配信: GET /images/* → R2 → Cache-Control 1年
+    if (request.method === 'GET' && url.pathname.startsWith('/images/')) {
+      return await serveImage(request, env, url.pathname);
+    }
+
+    // POST /upload/* → アップロードAPIハンドラー（multipart/JSON）
+    if (url.pathname.startsWith('/upload/')) {
+      return await handleUpload(request, env, url.pathname);
+    }
+
     // GET リクエスト処理
     if (request.method === 'GET') {
+      // アップロードページ
+      if (url.pathname === '/upload') {
+        return new Response(getUploadPageHtml(), {
+          headers: { 'Content-Type': 'text/html; charset=utf-8' },
+        });
+      }
+
       // ヘルスチェック（workers.devドメインの場合）
       if (!isCustomDomain(url)) {
         return jsonOk({

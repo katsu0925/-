@@ -161,6 +161,7 @@ async function readProductsFromD1(db) {
       defectDetail: row.defect_detail,
       shippingMethod: row.shipping_method,
       measurements,
+      images: [],
       // status, selectable は applyProductStatuses() で後から付与
       status: '在庫あり',
       selectable: true,

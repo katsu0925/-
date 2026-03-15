@@ -36,6 +36,11 @@ id = "5a5de61cf63343228daa74cb34957f50"
 binding = "CACHE"
 id = "9a4f7973bc644ab086397fd71564985f"
 
+# R2 Bucket（本番用 — 商品画像）
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "detauri-images"
+
 # =====================================================
 # 開発環境 — wrangler deploy --env dev / wrangler dev --env dev
 # ※ 本番には一切干渉しない独立環境
@@ -62,6 +67,11 @@ id = "e9350025a350473f9ffaf94752c9fe5d"
 [[env.dev.kv_namespaces]]
 binding = "CACHE"
 id = "9dff0a74c58d4773a1150cdecbbfc641"
+
+# R2 Bucket（開発用 — 商品画像）
+[[env.dev.r2_buckets]]
+binding = "IMAGES"
+bucket_name = "detauri-images-dev"
 
 # Secrets (wrangler secret put --env dev で設定)
 # - GAS_API_URL (GAS Web App URL)
