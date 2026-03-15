@@ -54,8 +54,6 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 .list-check{width:20px;height:20px;accent-color:#3b82f6}
 .dl-status{font-size:11px;color:#10b981;display:none}
 .dl-status.show{display:inline}
-.replace-preview{text-align:center;margin:12px 0}
-.replace-preview img{max-width:200px;max-height:200px;border-radius:8px;border:1px solid #ddd}
 .tab-bar{display:flex;gap:4px;margin-bottom:12px;background:#f3f4f6;border-radius:10px;padding:4px}
 .tab{flex:1;padding:8px;text-align:center;font-size:13px;font-weight:600;border:none;background:transparent;border-radius:8px;cursor:pointer;color:#666}
 .tab.active{background:#fff;color:#1a1a2e;box-shadow:0 1px 2px rgba(0,0,0,.1)}
@@ -86,7 +84,6 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
     <div class="tab-bar">
       <button class="tab active" onclick="switchTab('upload')">アップロード</button>
       <button class="tab" onclick="switchTab('download')">一括DL</button>
-      <button class="tab" onclick="switchTab('replace')">上書き</button>
       <button class="tab" onclick="switchTab('delete')">削除</button>
     </div>
 
@@ -127,29 +124,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
       </div>
     </div>
 
-    <!-- セクション3: 加工済み上書き -->
-    <div class="section" id="sec-replace">
-      <div class="card">
-        <h2>1枚目を上書き</h2>
-        <div class="form-group">
-          <label>管理番号</label>
-          <input type="text" id="replaceManagedId" placeholder="例: A001" autocomplete="off">
-          <button class="btn btn-secondary" onclick="loadCurrentImage()" style="margin-top:8px">現在の画像を確認</button>
-        </div>
-        <div class="replace-preview hidden" id="replacePreview">
-          <p style="font-size:12px;color:#888;margin-bottom:4px">現在の1枚目:</p>
-          <img id="replaceCurrentImg" src="">
-        </div>
-        <div class="form-group">
-          <label>新しい画像</label>
-          <input type="file" id="replaceFile" accept="image/*">
-        </div>
-        <div class="status" id="replaceStatus"></div>
-        <button class="btn btn-danger" onclick="doReplace()" style="margin-top:8px">上書き保存</button>
-      </div>
-    </div>
-
-    <!-- セクション4: 削除 -->
+    <!-- セクション3: 削除 -->
     <div class="section" id="sec-delete">
       <div class="card">
         <h2>画像削除</h2>
@@ -246,7 +221,7 @@ document.getElementById('authPassword').addEventListener('keydown', function(e) 
 function switchTab(name) {
   var tabs = document.querySelectorAll('.tab');
   var secs = document.querySelectorAll('.section');
-  var tabNames = ['upload','download','replace','delete'];
+  var tabNames = ['upload','download','delete'];
   tabs.forEach(function(t, i) {
     t.classList.toggle('active', tabNames[i] === name);
   });
@@ -494,54 +469,7 @@ function saveBlob(blob, filename) {
   return Promise.resolve();
 }
 
-// ─── セクション3: 上書き ───
-function loadCurrentImage() {
-  var managedId = normId(document.getElementById('replaceManagedId').value);
-  if (!managedId) { showStatus('replaceStatus', '管理番号を入力してください', 'err'); return; }
-
-  var url = API_BASE + '/images/products/' + encodeURIComponent(managedId) + '/1.jpg';
-  var img = document.getElementById('replaceCurrentImg');
-  var wrap = document.getElementById('replacePreview');
-
-  img.onload = function() { wrap.classList.remove('hidden'); };
-  img.onerror = function() {
-    wrap.classList.add('hidden');
-    showStatus('replaceStatus', 'この管理番号の画像はまだアップロードされていません', 'info');
-  };
-  img.src = url + '?t=' + Date.now();
-}
-
-function doReplace() {
-  var managedId = document.getElementById('replaceManagedId').value.trim();
-  if (!managedId) { showStatus('replaceStatus', '管理番号を入力してください', 'err'); return; }
-  var file = document.getElementById('replaceFile').files[0];
-  if (!file) { showStatus('replaceStatus', '画像を選択してください', 'err'); return; }
-
-  showStatus('replaceStatus', 'リサイズ中...', 'info');
-  resizeImage(file, 1200, 0.80, function(blob) {
-    showStatus('replaceStatus', 'アップロード中...', 'info');
-    var fd = new FormData();
-    fd.append('managedId', managedId);
-    fd.append('image', blob, '1.jpg');
-
-    fetch(API_BASE + '/upload/replace', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + getToken() },
-      body: fd
-    }).then(function(r) { return r.json(); })
-    .then(function(d) {
-      if (d.ok) {
-        showStatus('replaceStatus', '上書き完了', 'ok');
-        loadCurrentImage();
-      } else {
-        if (d.message && d.message.indexOf('トークン') >= 0) showAuth();
-        showStatus('replaceStatus', d.message || 'エラー', 'err');
-      }
-    }).catch(function(e) { showStatus('replaceStatus', 'ネットワークエラー', 'err'); });
-  });
-}
-
-// ─── セクション4: 削除 ───
+// ─── セクション3: 削除 ───
 var _deleteImages = [];
 var _deleteManagedId = '';
 

@@ -71,8 +71,6 @@ export async function handleUpload(request, env, path) {
   switch (path) {
     case '/upload/images':
       return await handleImageUpload(request, env);
-    case '/upload/replace':
-      return await handleReplace(request, env);
     case '/upload/list':
       return await handleList(request, env);
     case '/upload/product-images':
@@ -185,49 +183,6 @@ async function handleImageUpload(request, env) {
   await invalidateProductCache(env);
 
   return jsonOk({ managedId, urls, count: urls.length });
-}
-
-// ─── 1枚目上書き ───
-
-async function handleReplace(request, env) {
-  const contentType = request.headers.get('Content-Type') || '';
-  if (!contentType.includes('multipart/form-data')) {
-    return jsonError('multipart/form-data が必要です', 400);
-  }
-
-  let formData;
-  try {
-    formData = await request.formData();
-  } catch {
-    return jsonError('フォームデータの解析に失敗しました', 400);
-  }
-
-  const managedId = normalizeManagedId(formData.get('managedId') || '');
-  if (!managedId) {
-    return jsonError('管理番号が必要です', 400);
-  }
-
-  const file = formData.get('image');
-  if (!(file instanceof File)) {
-    return jsonError('画像ファイルが必要です', 400);
-  }
-  if (file.size > MAX_FILE_SIZE) {
-    return jsonError(`ファイルサイズが大きすぎます（最大${MAX_FILE_SIZE / 1024 / 1024}MB）`, 400);
-  }
-
-  // 1枚目を上書き
-  const key = `products/${managedId}/1.jpg`;
-  const arrayBuffer = await file.arrayBuffer();
-  await env.IMAGES.put(key, arrayBuffer, {
-    httpMetadata: {
-      contentType: 'image/jpeg',
-      cacheControl: 'public, max-age=31536000, immutable',
-    },
-  });
-
-  await invalidateProductCache(env);
-
-  return jsonOk({ managedId, url: `/images/products/${managedId}/1.jpg` });
 }
 
 // ─── 商品一覧 ───
