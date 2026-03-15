@@ -89,7 +89,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
     </div>
 
     <!-- 撮影者選択モーダル -->
-    <div id="photographerModal" class="hidden" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:100;display:flex;align-items:center;justify-content:center">
+    <div id="photographerModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:100;align-items:center;justify-content:center">
       <div class="card" style="width:90%;max-width:400px;margin:0">
         <h2 style="border:none;text-align:center">撮影者を選択</h2>
         <div class="form-group" style="margin-top:12px">
@@ -100,7 +100,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
     </div>
 
     <!-- 撮影者バー -->
-    <div id="photographerBar" class="card hidden" style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px">
+    <div id="photographerBar" class="card" style="display:none;align-items:center;justify-content:space-between;padding:10px 16px">
       <span style="font-size:13px">撮影者: <strong id="photographerName">-</strong></span>
       <button class="btn btn-secondary" style="width:auto;padding:6px 12px;font-size:12px" onclick="showPhotographerModal()">変更</button>
     </div>
