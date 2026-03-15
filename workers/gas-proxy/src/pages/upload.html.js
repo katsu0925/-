@@ -283,7 +283,7 @@ function showPreview() {
 }
 
 function doUpload() {
-  var managedId = document.getElementById('uploadManagedId').value.trim();
+  var managedId = normId(document.getElementById('uploadManagedId').value);
   if (!managedId) { showStatus('uploadStatus', '管理番号を入力してください', 'err'); return; }
   var input = document.getElementById('uploadFiles');
   var files = input.files;
@@ -489,7 +489,7 @@ function saveBlob(blob, filename) {
 
 // ─── セクション3: 上書き ───
 function loadCurrentImage() {
-  var managedId = document.getElementById('replaceManagedId').value.trim();
+  var managedId = normId(document.getElementById('replaceManagedId').value);
   if (!managedId) { showStatus('replaceStatus', '管理番号を入力してください', 'err'); return; }
 
   var url = API_BASE + '/images/products/' + encodeURIComponent(managedId) + '/1.jpg';
@@ -539,7 +539,7 @@ var _deleteImages = [];
 var _deleteManagedId = '';
 
 function loadDeletePreview() {
-  var managedId = document.getElementById('deleteManagedId').value.trim();
+  var managedId = normId(document.getElementById('deleteManagedId').value);
   if (!managedId) { showStatus('deleteStatus', '管理番号を入力してください', 'err'); return; }
   _deleteManagedId = managedId;
 
@@ -614,6 +614,11 @@ function doDeleteAll() {
 }
 
 // ─── ユーティリティ ───
+function normId(s) {
+  return s.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(ch) {
+    return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0);
+  }).replace(/ー/g, '-').replace(/\\u3000/g, ' ').toUpperCase().trim();
+}
 function escapeHtml(s) {
   var d = document.createElement('div');
   d.textContent = s;
