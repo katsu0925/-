@@ -77,6 +77,10 @@ export async function handleUpload(request, env, path) {
       return await handleList(request, env);
     case '/upload/product-images':
       return await handleProductImages(request, env);
+    case '/upload/delete':
+      return await handleDelete(request, env);
+    case '/upload/delete-single':
+      return await handleDeleteSingle(request, env);
     default:
       return jsonError('不明なエンドポイント', 404);
   }
@@ -294,6 +298,79 @@ export async function serveImage(request, env, path) {
   return new Response(object.body, { headers });
 }
 
+// ─── 商品画像の全削除 ───
+
+async function handleDelete(request, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError('不正なリクエスト', 400);
+  }
+
+  const managedId = normalizeManagedId(body.managedId || '');
+  if (!managedId) {
+    return jsonError('管理番号が必要です', 400);
+  }
+
+  // KVから画像URL一覧を取得
+  const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
+  const urls = urlsJson ? JSON.parse(urlsJson) : [];
+
+  // R2から全画像を削除
+  const deletePromises = urls.map((url) => {
+    const r2Key = url.replace(/^\/images\//, '');
+    return env.IMAGES.delete(r2Key);
+  });
+  await Promise.all(deletePromises);
+
+  // KVインデックスから削除
+  await env.CACHE.delete(`product-images:${managedId}`);
+  await removeFromIndex(env, managedId);
+
+  return jsonOk({ managedId, deleted: urls.length });
+}
+
+// ─── 個別画像の削除 ───
+
+async function handleDeleteSingle(request, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError('不正なリクエスト', 400);
+  }
+
+  const managedId = normalizeManagedId(body.managedId || '');
+  const imageIndex = parseInt(body.imageIndex, 10); // 1-based index
+  if (!managedId) {
+    return jsonError('管理番号が必要です', 400);
+  }
+  if (isNaN(imageIndex) || imageIndex < 1 || imageIndex > MAX_IMAGES) {
+    return jsonError('画像番号が不正です（1〜10）', 400);
+  }
+
+  // R2から削除
+  const r2Key = `products/${managedId}/${imageIndex}.jpg`;
+  await env.IMAGES.delete(r2Key);
+
+  // KVの画像URL一覧を更新
+  const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
+  let urls = urlsJson ? JSON.parse(urlsJson) : [];
+  const targetUrl = `/images/products/${managedId}/${imageIndex}.jpg`;
+  urls = urls.filter(u => u !== targetUrl);
+
+  if (urls.length === 0) {
+    // 全画像が削除された場合はインデックスからも除去
+    await env.CACHE.delete(`product-images:${managedId}`);
+    await removeFromIndex(env, managedId);
+  } else {
+    await env.CACHE.put(`product-images:${managedId}`, JSON.stringify(urls));
+  }
+
+  return jsonOk({ managedId, imageIndex, remaining: urls.length });
+}
+
 // ─── ヘルパー ───
 
 async function addToIndex(env, managedId) {
@@ -304,4 +381,11 @@ async function addToIndex(env, managedId) {
     index.sort();
     await env.CACHE.put('product-images:index', JSON.stringify(index));
   }
+}
+
+async function removeFromIndex(env, managedId) {
+  const indexJson = await env.CACHE.get('product-images:index');
+  if (!indexJson) return;
+  const index = JSON.parse(indexJson).filter(id => id !== managedId);
+  await env.CACHE.put('product-images:index', JSON.stringify(index));
 }

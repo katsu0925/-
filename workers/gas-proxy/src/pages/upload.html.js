@@ -87,6 +87,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
       <button class="tab active" onclick="switchTab('upload')">アップロード</button>
       <button class="tab" onclick="switchTab('download')">一括DL</button>
       <button class="tab" onclick="switchTab('replace')">上書き</button>
+      <button class="tab" onclick="switchTab('delete')">削除</button>
     </div>
 
     <!-- セクション1: アップロード -->
@@ -144,6 +145,21 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
         </div>
         <div class="status" id="replaceStatus"></div>
         <button class="btn btn-danger" onclick="doReplace()" style="margin-top:8px">上書き保存</button>
+      </div>
+    </div>
+
+    <!-- セクション4: 削除 -->
+    <div class="section" id="sec-delete">
+      <div class="card">
+        <h2>画像削除</h2>
+        <div class="form-group">
+          <label>管理番号</label>
+          <input type="text" id="deleteManagedId" placeholder="例: A001" autocomplete="off">
+          <button class="btn btn-secondary" onclick="loadDeletePreview()" style="margin-top:8px">画像を確認</button>
+        </div>
+        <div id="deletePreviewGrid" class="preview-grid" style="margin-bottom:12px"></div>
+        <div class="status" id="deleteStatus"></div>
+        <button class="btn btn-danger hidden" id="deleteAllBtn" onclick="doDeleteAll()" style="margin-top:8px">この商品の画像を全て削除</button>
       </div>
     </div>
   </div>
@@ -229,8 +245,9 @@ document.getElementById('authPassword').addEventListener('keydown', function(e) 
 function switchTab(name) {
   var tabs = document.querySelectorAll('.tab');
   var secs = document.querySelectorAll('.section');
+  var tabNames = ['upload','download','replace','delete'];
   tabs.forEach(function(t, i) {
-    t.classList.toggle('active', ['upload','download','replace'][i] === name);
+    t.classList.toggle('active', tabNames[i] === name);
   });
   secs.forEach(function(s) { s.classList.toggle('active', s.id === 'sec-' + name); });
 }
@@ -515,6 +532,85 @@ function doReplace() {
       }
     }).catch(function(e) { showStatus('replaceStatus', 'ネットワークエラー', 'err'); });
   });
+}
+
+// ─── セクション4: 削除 ───
+var _deleteImages = [];
+var _deleteManagedId = '';
+
+function loadDeletePreview() {
+  var managedId = document.getElementById('deleteManagedId').value.trim();
+  if (!managedId) { showStatus('deleteStatus', '管理番号を入力してください', 'err'); return; }
+  _deleteManagedId = managedId;
+
+  showStatus('deleteStatus', '読み込み中...', 'info');
+  fetch(API_BASE + '/upload/product-images', {
+    method: 'POST',
+    headers: headers({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ managedId: managedId })
+  }).then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (!d.ok) {
+      if (d.message && d.message.indexOf('トークン') >= 0) showAuth();
+      showStatus('deleteStatus', d.message || 'エラー', 'err');
+      return;
+    }
+    _deleteImages = d.urls || [];
+    if (_deleteImages.length === 0) {
+      showStatus('deleteStatus', 'この管理番号の画像はありません', 'info');
+      document.getElementById('deletePreviewGrid').innerHTML = '';
+      document.getElementById('deleteAllBtn').classList.add('hidden');
+      return;
+    }
+    showStatus('deleteStatus', _deleteImages.length + '枚の画像', 'ok');
+    var grid = document.getElementById('deletePreviewGrid');
+    var html = '';
+    for (var i = 0; i < _deleteImages.length; i++) {
+      html += '<div class="preview-item">' +
+        '<img src="' + API_BASE + _deleteImages[i] + '?t=' + Date.now() + '">' +
+        '<span class="badge" style="background:rgba(239,68,68,.85);cursor:pointer" onclick="doDeleteSingle(' + (i+1) + ')">×</span>' +
+        '</div>';
+    }
+    grid.innerHTML = html;
+    document.getElementById('deleteAllBtn').classList.remove('hidden');
+  }).catch(function(e) { showStatus('deleteStatus', 'ネットワークエラー', 'err'); });
+}
+
+function doDeleteSingle(imageIndex) {
+  if (!confirm(imageIndex + '枚目を削除しますか？')) return;
+  showStatus('deleteStatus', '削除中...', 'info');
+  fetch(API_BASE + '/upload/delete-single', {
+    method: 'POST',
+    headers: headers({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ managedId: _deleteManagedId, imageIndex: imageIndex })
+  }).then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.ok) {
+      showStatus('deleteStatus', '削除しました（残り' + d.remaining + '枚）', 'ok');
+      loadDeletePreview();
+    } else {
+      showStatus('deleteStatus', d.message || 'エラー', 'err');
+    }
+  }).catch(function(e) { showStatus('deleteStatus', 'ネットワークエラー', 'err'); });
+}
+
+function doDeleteAll() {
+  if (!confirm(_deleteManagedId + ' の画像を全て削除しますか？この操作は取り消せません。')) return;
+  showStatus('deleteStatus', '全削除中...', 'info');
+  fetch(API_BASE + '/upload/delete', {
+    method: 'POST',
+    headers: headers({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ managedId: _deleteManagedId })
+  }).then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.ok) {
+      showStatus('deleteStatus', d.deleted + '枚削除しました', 'ok');
+      document.getElementById('deletePreviewGrid').innerHTML = '';
+      document.getElementById('deleteAllBtn').classList.add('hidden');
+    } else {
+      showStatus('deleteStatus', d.message || 'エラー', 'err');
+    }
+  }).catch(function(e) { showStatus('deleteStatus', 'ネットワークエラー', 'err'); });
 }
 
 // ─── ユーティリティ ───
