@@ -122,6 +122,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
         </div>
         <div id="productList"></div>
         <button class="btn btn-success hidden" id="dlBtn" onclick="doDownloadSelected()" style="margin-top:12px">選択した1枚目を保存</button>
+        <p class="hidden" id="dlHint" style="font-size:11px;color:#888;margin-top:6px;text-align:center">スマホ: 共有メニューが表示されたら「画像を保存」を選択してください</p>
         <div class="status" id="dlStatus"></div>
       </div>
     </div>
@@ -420,6 +421,7 @@ function renderProductList() {
   el.innerHTML = html;
   document.getElementById('selectAllRow').classList.remove('hidden');
   document.getElementById('dlBtn').classList.remove('hidden');
+  if (navigator.canShare) document.getElementById('dlHint').classList.remove('hidden');
 }
 
 function toggleSelectAll() {
@@ -459,25 +461,29 @@ function doDownloadSelected() {
 
     fetch(url).then(function(r) { return r.blob(); })
     .then(function(blob) {
-      saveBlob(blob, p.managedId + '.jpg');
-      var st = document.getElementById('dlst-' + idx);
-      if (st) { st.classList.add('show'); }
-      i++;
-      setTimeout(next, 300);
+      return saveBlob(blob, p.managedId + '.jpg').then(function() {
+        var st = document.getElementById('dlst-' + idx);
+        if (st) { st.classList.add('show'); }
+        i++;
+        setTimeout(next, 500);
+      });
     }).catch(function() {
       i++;
-      setTimeout(next, 300);
+      setTimeout(next, 500);
     });
   }
   next();
 }
 
 function saveBlob(blob, filename) {
-  // navigator.share対応（iOS Safari）
-  if (navigator.canShare && navigator.canShare({ files: [new File([blob], filename, { type: blob.type })] })) {
-    // iOS: shareは非同期だが、連続実行の場合はdownloadフォールバック
+  var file = new File([blob], filename, { type: blob.type || 'image/jpeg' });
+  // iOS/Android: navigator.share()で「画像を保存」を表示
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    return navigator.share({ files: [file] }).catch(function() {
+      // ユーザーがキャンセルした場合は何もしない
+    });
   }
-  // ダウンロードリンク方式
+  // PC等: ダウンロードリンク方式
   var a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = filename;
@@ -485,6 +491,7 @@ function saveBlob(blob, filename) {
   a.click();
   document.body.removeChild(a);
   setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
+  return Promise.resolve();
 }
 
 // ─── セクション3: 上書き ───
