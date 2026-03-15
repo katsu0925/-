@@ -462,18 +462,22 @@ function importPhotographyData_(data) {
     var existingDate = String(aiajData[rowIdx][0] || '').trim();
     var existingPhotographer = String(aiajData[rowIdx][1] || '').trim();
 
+    var changed = false;
+
     // AI列(撮影日付)が空なら書き込み
     if (!existingDate && entry.photographyDate) {
       sh.getRange(row, 35).setValue(entry.photographyDate);
+      // E列(5)ステータスを「出品待ち」に変更
+      sh.getRange(row, 5).setValue('出品待ち');
+      changed = true;
     }
     // AJ列(撮影者)が空なら書き込み
     if (!existingPhotographer && entry.photographer) {
       sh.getRange(row, 36).setValue(entry.photographer);
+      changed = true;
     }
 
-    if ((!existingDate && entry.photographyDate) || (!existingPhotographer && entry.photographer)) {
-      written++;
-    }
+    if (changed) written++;
   }
 
   return written;

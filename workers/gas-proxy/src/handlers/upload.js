@@ -17,7 +17,7 @@ import { jsonOk, jsonError, corsResponse } from '../utils/response.js';
 
 const MAX_IMAGES = 10;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
-const TOKEN_TTL = 7 * 24 * 60 * 60; // 7日
+const TOKEN_TTL = 90 * 24 * 60 * 60; // 90日(3ヶ月)
 
 /**
  * 管理番号の正規化: 全角→半角、小文字→大文字
@@ -67,6 +67,9 @@ export async function handleUpload(request, env, path) {
   if (!valid) {
     return jsonError('トークンが無効または期限切れです', 401);
   }
+
+  // トークンTTL自動更新（アクセスごとに30日延長）
+  await env.CACHE.put(`upload-token:${token}`, '1', { expirationTtl: TOKEN_TTL });
 
   switch (path) {
     case '/upload/images':
@@ -138,14 +141,6 @@ async function handleImageUpload(request, env) {
   const managedId = normalizeManagedId(formData.get('managedId') || '');
   if (!managedId) {
     return jsonError('管理番号が必要です', 400);
-  }
-
-  // 管理番号存在チェック（D1 productsテーブル）
-  const productRow = await env.DB.prepare(
-    'SELECT managed_id FROM products WHERE UPPER(managed_id) = ?'
-  ).bind(managedId.toUpperCase()).first();
-  if (!productRow) {
-    return jsonError('この管理番号は商品管理に登録されていません。先に採寸データをアプリで入力してください。', 400);
   }
 
   // ファイル取得
