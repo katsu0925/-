@@ -420,23 +420,25 @@ function exportWorkers_() {
  * @returns {number} 書き込んだ件数
  */
 function importPhotographyData_(data) {
+  console.log('importPhotographyData_ called with ' + data.length + ' items');
   var ssId = '';
   try {
     ssId = APP_CONFIG.detail.spreadsheetId;
-  } catch (e) {}
+  } catch (e) { console.log('APP_CONFIG.detail.spreadsheetId error: ' + e); }
   if (!ssId) {
     try {
       ssId = PropertiesService.getScriptProperties().getProperty('DETAIL_SPREADSHEET_ID') || '';
-    } catch (e) {}
+    } catch (e) { console.log('DETAIL_SPREADSHEET_ID error: ' + e); }
   }
+  console.log('ssId: ' + ssId);
   if (!ssId) return 0;
 
   var ss = SpreadsheetApp.openById(ssId);
   var sh = ss.getSheetByName('商品管理');
-  if (!sh) return 0;
+  if (!sh) { console.log('商品管理シートが見つかりません'); return 0; }
 
   var lastRow = sh.getLastRow();
-  if (lastRow < 2) return 0;
+  if (lastRow < 2) { console.log('lastRow < 2'); return 0; }
 
   // F列(6)の管理番号を取得して行番号マップを構築
   var fData = sh.getRange(2, 6, lastRow - 1, 1).getValues();
@@ -445,6 +447,7 @@ function importPhotographyData_(data) {
     var mid = String(fData[i][0] || '').trim().toUpperCase();
     if (mid) idToRow[mid] = i + 2; // 1-indexed シート行番号
   }
+  console.log('idToRow keys count: ' + Object.keys(idToRow).length);
 
   // AI列(35)・AJ列(36)の既存値を取得
   var aiajData = sh.getRange(2, 35, lastRow - 1, 2).getValues();
@@ -456,7 +459,8 @@ function importPhotographyData_(data) {
     if (!mid) continue;
 
     var row = idToRow[mid];
-    if (!row) continue;
+    if (!row) { console.log('管理番号 ' + mid + ' が見つかりません'); continue; }
+    console.log('管理番号 ' + mid + ' → 行 ' + row);
 
     var rowIdx = row - 2; // aiajData配列のインデックス
     var existingDate = String(aiajData[rowIdx][0] || '').trim();
@@ -477,8 +481,11 @@ function importPhotographyData_(data) {
     }
     // E列(5)ステータスを「出品待ち」に変更（撮影データがあれば常に）
     if (changed || entry.photographyDate) {
+      console.log('E列を出品待ちに変更: 行' + row + ', changed=' + changed + ', photographyDate=' + entry.photographyDate);
       sh.getRange(row, 5).setValue('出品待ち');
       changed = true;
+    } else {
+      console.log('E列変更スキップ: 行' + row + ', changed=' + changed + ', photographyDate=' + entry.photographyDate);
     }
 
     if (changed) written++;

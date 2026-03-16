@@ -286,8 +286,10 @@ async function syncPhotographyData(env) {
     });
 
     const text = await resp.text();
+    console.log(`[sync] Photography GAS response: ${text.substring(0, 500)}`);
     try {
       const result = JSON.parse(text);
+      console.log(`[sync] Photography result: ok=${result.ok}, imported=${JSON.stringify(result.imported)}`);
       if (result.ok) {
         // 成功: pendingリストとメタデータをクリア
         await env.CACHE.delete('photo-meta:pending');
@@ -299,7 +301,7 @@ async function syncPhotographyData(env) {
         console.error('[sync] Photography sync failed:', result.message);
       }
     } catch (e) {
-      console.error('[sync] Photography sync parse error:', e.message);
+      console.error('[sync] Photography sync parse error:', e.message, 'text:', text.substring(0, 200));
     }
   } catch (e) {
     console.error('[sync] Photography sync error:', e.message);
