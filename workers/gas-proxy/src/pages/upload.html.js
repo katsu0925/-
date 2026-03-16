@@ -164,6 +164,17 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
       </div>
     </div>
   </div>
+
+  <!-- 確認モーダル -->
+  <div id="confirmModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
+    <div class="card" style="width:90%;max-width:360px;margin:0;text-align:center">
+      <p id="confirmMessage" style="font-size:14px;font-weight:600;margin-bottom:16px"></p>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" style="flex:1" onclick="closeConfirm(false)">キャンセル</button>
+        <button class="btn btn-danger" style="flex:1" onclick="closeConfirm(true)">削除する</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -665,7 +676,11 @@ function selectForDelete(managedId) {
 }
 
 function doDeleteSingle(imageIndex) {
-  if (!confirm(imageIndex + '枚目を削除しますか？')) return;
+  showConfirm(imageIndex + '枚目を削除しますか？', function() {
+    _doDeleteSingle(imageIndex);
+  });
+}
+function _doDeleteSingle(imageIndex) {
   showStatus('deleteStatus', '削除中...', 'info');
   fetch(API_BASE + '/upload/delete-single', {
     method: 'POST',
@@ -684,7 +699,11 @@ function doDeleteSingle(imageIndex) {
 }
 
 function doDeleteAll() {
-  if (!confirm(_deleteManagedId + ' の画像を全て削除しますか？この操作は取り消せません。')) return;
+  showConfirm(_deleteManagedId + ' の画像を全て削除しますか？', function() {
+    _doDeleteAll();
+  });
+}
+function _doDeleteAll() {
   showStatus('deleteStatus', '全削除中...', 'info');
   fetch(API_BASE + '/upload/delete', {
     method: 'POST',
@@ -700,6 +719,21 @@ function doDeleteAll() {
       showStatus('deleteStatus', d.message || 'エラー', 'err');
     }
   }).catch(function(e) { showStatus('deleteStatus', 'ネットワークエラー', 'err'); });
+}
+
+// ─── 確認モーダル ───
+var _confirmCallback = null;
+function showConfirm(msg, cb) {
+  _confirmCallback = cb;
+  document.getElementById('confirmMessage').textContent = msg;
+  var modal = document.getElementById('confirmModal');
+  modal.style.display = 'flex';
+}
+function closeConfirm(ok) {
+  var modal = document.getElementById('confirmModal');
+  modal.style.display = 'none';
+  if (ok && _confirmCallback) _confirmCallback();
+  _confirmCallback = null;
 }
 
 // ─── ユーティリティ ───
