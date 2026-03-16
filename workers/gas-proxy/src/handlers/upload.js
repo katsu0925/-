@@ -143,6 +143,15 @@ async function handleImageUpload(request, env) {
     return jsonError('管理番号が必要です', 400);
   }
 
+  // 管理番号存在チェック（商品管理シートのF列、KV経由）
+  const idsJson = await env.CACHE.get('managed-ids:list');
+  if (idsJson) {
+    const ids = JSON.parse(idsJson);
+    if (!ids.includes(managedId.toUpperCase())) {
+      return jsonError('この管理番号は商品管理に登録されていません。先に採寸データをアプリで入力してください。', 400);
+    }
+  }
+
   // ファイル取得
   const files = formData.getAll('images');
   if (!files || files.length === 0) {

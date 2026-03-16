@@ -76,6 +76,11 @@ function apiSyncExportData(params) {
       result.workers = exportWorkers_();
     }
 
+    // 商品管理の管理番号リスト
+    if (tables.indexOf('managedIds') !== -1) {
+      result.managedIds = exportManagedIds_();
+    }
+
     return result;
   } catch (e) {
     console.error('apiSyncExportData error:', e);
@@ -409,6 +414,34 @@ function exportWorkers_() {
     });
   }
   return workers;
+}
+
+/**
+ * 商品管理シートF列の管理番号リストを返す
+ * @returns {string[]}
+ */
+function exportManagedIds_() {
+  var ssId = '';
+  try { ssId = APP_CONFIG.detail.spreadsheetId; } catch (e) {}
+  if (!ssId) {
+    try { ssId = PropertiesService.getScriptProperties().getProperty('DETAIL_SPREADSHEET_ID') || ''; } catch (e) {}
+  }
+  if (!ssId) return [];
+
+  var ss = SpreadsheetApp.openById(ssId);
+  var sh = ss.getSheetByName('商品管理');
+  if (!sh) return [];
+
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+
+  var data = sh.getRange(2, 6, lastRow - 1, 1).getValues();
+  var ids = [];
+  for (var i = 0; i < data.length; i++) {
+    var mid = String(data[i][0] || '').trim().toUpperCase();
+    if (mid) ids.push(mid);
+  }
+  return ids;
 }
 
 /**

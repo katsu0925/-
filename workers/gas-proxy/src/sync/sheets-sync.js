@@ -69,6 +69,12 @@ export async function scheduledSync(env) {
       console.log(`[sync] Workers list synced: ${exportData.workers.length} rows`);
     }
 
+    // 商品管理の管理番号リスト → KVに保存
+    if (exportData.managedIds && exportData.managedIds.length > 0) {
+      await env.CACHE.put('managed-ids:list', JSON.stringify(exportData.managedIds));
+      console.log(`[sync] Managed IDs synced: ${exportData.managedIds.length} rows`);
+    }
+
     // 3. sheetTotalCount（データ1 B1の掲載中件数）をKVに保存
     if (exportData.sheetTotalCount != null) {
       await env.CACHE.put('sheetTotalCount', String(exportData.sheetTotalCount));
@@ -161,7 +167,7 @@ async function fetchExportData(env) {
     args: [{
       syncSecret: env.SYNC_SECRET || '',
       since: lastSync,
-      tables: ['products', 'bulkProducts', 'customers', 'openItems', 'coupons', 'settings', 'stats', 'workers'],
+      tables: ['products', 'bulkProducts', 'customers', 'openItems', 'coupons', 'settings', 'stats', 'workers', 'managedIds'],
     }],
   });
 
