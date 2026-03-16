@@ -187,24 +187,26 @@ async function handleImageUpload(request, env) {
   // 商品キャッシュ無効化（フロントに即反映）
   await invalidateProductCache(env);
 
-  // 撮影メタデータ保存（KV）
+  // 撮影メタデータ保存（KV）— 常に保存（フロントから未送信でもデフォルト値で保存）
   const photographer = formData.get('photographer') || '';
-  const photographyDate = formData.get('photographyDate') || '';
-  if (photographer || photographyDate) {
-    const meta = {
-      photographer,
-      photographyDate,
-      uploadedAt: new Date().toISOString(),
-    };
-    await env.CACHE.put(`photo-meta:${managedId}`, JSON.stringify(meta));
+  const now = new Date();
+  const todayStr = now.getFullYear() + '/' + String(now.getMonth() + 1).padStart(2, '0') + '/' + String(now.getDate()).padStart(2, '0');
+  const photographyDate = formData.get('photographyDate')
+    ? formData.get('photographyDate').replace(/-/g, '/')
+    : todayStr;
+  const meta = {
+    photographer,
+    photographyDate,
+    uploadedAt: now.toISOString(),
+  };
+  await env.CACHE.put(`photo-meta:${managedId}`, JSON.stringify(meta));
 
-    // 未同期リストに追加
-    const pendingJson = await env.CACHE.get('photo-meta:pending');
-    const pending = pendingJson ? JSON.parse(pendingJson) : [];
-    if (!pending.includes(managedId)) {
-      pending.push(managedId);
-      await env.CACHE.put('photo-meta:pending', JSON.stringify(pending));
-    }
+  // 未同期リストに追加
+  const pendingJson = await env.CACHE.get('photo-meta:pending');
+  const pending = pendingJson ? JSON.parse(pendingJson) : [];
+  if (!pending.includes(managedId)) {
+    pending.push(managedId);
+    await env.CACHE.put('photo-meta:pending', JSON.stringify(pending));
   }
 
   return jsonOk({ managedId, urls, count: urls.length });
