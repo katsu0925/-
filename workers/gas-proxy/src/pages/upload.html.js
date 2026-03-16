@@ -530,8 +530,8 @@ function renderDlList() {
 
 function toggleSelectAll() {
   var checked = document.getElementById('selectAll').checked;
-  document.querySelectorAll('.dl-check:visible,.dl-check').forEach(function(c) {
-    if (c.closest('.list-item')) c.checked = checked;
+  document.querySelectorAll('.dl-check').forEach(function(c) {
+    c.checked = checked;
   });
   updateSelectedCount();
 }
