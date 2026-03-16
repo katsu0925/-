@@ -122,7 +122,7 @@ export default {
       // アップロードページ
       if (url.pathname === '/upload') {
         return new Response(getUploadPageHtml(), {
-          headers: { 'Content-Type': 'text/html; charset=utf-8' },
+          headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' },
         });
       }
 
