@@ -2653,6 +2653,12 @@ function doRegister_() {
   // クロスチェック
   if (phone && /^\d{7}$/.test(phone)) { showToast('電話番号に郵便番号が入力されていませんか？'); return; }
   if (postal && /^0\d{9,10}$/.test(postal)) { showToast('郵便番号に電話番号が入力されていませんか？'); return; }
+  // 郵便番号が入力されている場合、番地は必須
+  if (postal) {
+    var regStreet = ($('regAddrStreet') ? $('regAddrStreet').value : '').trim();
+    if (!regStreet) { showToast('番地を入力してください'); return; }
+    if (!/\d/.test(regStreet)) { showToast('番地に数字が含まれていません。正しい番地を入力してください'); return; }
+  }
 
   // --- 楽観的UI: API応答前に即座に登録完了表示 ---
   var tempCustomer = {
