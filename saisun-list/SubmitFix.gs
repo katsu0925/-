@@ -54,17 +54,6 @@ function apiSubmitEstimate(userKey, form, ids) {
     if (!postal) return { ok: false, message: '郵便番号は必須です' };
     if (!address) return { ok: false, message: '住所は必須です' };
     if (!phone) return { ok: false, message: '電話番号は必須です' };
-    // 郵便番号: 数字のみ7桁
-    var postalClean = postal.replace(/[-ー\s]/g, '');
-    if (!/^\d{7}$/.test(postalClean)) return { ok: false, message: '郵便番号は7桁の数字で入力してください' };
-    // 電話番号: 数字のみ10-11桁、先頭0
-    var phoneClean = phone.replace(/[-ー\s]/g, '');
-    if (!/^0\d{9,10}$/.test(phoneClean)) return { ok: false, message: '電話番号の形式が正しくありません（10〜11桁）' };
-    // クロスチェック
-    if (/^\d{7}$/.test(phoneClean)) return { ok: false, message: '電話番号に郵便番号が入力されていませんか？' };
-    if (/^0\d{9,10}$/.test(postalClean)) return { ok: false, message: '郵便番号に電話番号が入力されていませんか？' };
-    // 住所: 数字（番地）を含むか
-    if (!/\d/.test(address)) return { ok: false, message: '住所に番地が含まれていません' };
 
     // === 読み取り専用操作（ロック外で先に実行 → 高速化） ===
     var orderSs = sh_getOrderSs_();
@@ -75,11 +64,11 @@ function apiSubmitEstimate(userKey, form, ids) {
     var productMap = {};
     for (var i = 0; i < products.length; i++) productMap[String(products[i].managedId)] = products[i];
 
-    // 商品存在チェック（ロック不要）— データ1に無い商品は売却済み等で除外済み
+    // 商品存在チェック（ロック不要）
     var sum = 0;
     for (var i = 0; i < list.length; i++) {
       var p = productMap[list[i]];
-      if (!p) return { ok: false, message: '在庫がありません: ' + list[i] };
+      if (!p) return { ok: false, message: '商品が見つかりません: ' + list[i] };
       sum += Number(p.price || 0);
     }
 
