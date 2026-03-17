@@ -697,16 +697,33 @@ body.admin-mode .admin-settings-fab{display:flex;}
         </div>
         <div class="auth-field">
           <label>電話番号</label>
-          <input id="regPhone" type="tel" inputmode="numeric">
+          <input id="regPhone" type="tel" inputmode="numeric" placeholder="090-0000-0000">
+          <div id="regPhoneHint" style="font-size:11px;color:#e74c3c;margin-top:2px;display:none;"></div>
         </div>
         <div class="auth-field">
           <label>郵便番号</label>
-          <input id="regPostal" type="text" inputmode="numeric" placeholder="0000000">
+          <input id="regPostal" type="text" inputmode="numeric" placeholder="0000000" maxlength="8">
+          <div id="regPostalHint" style="font-size:11px;color:#e74c3c;margin-top:2px;display:none;"></div>
+        </div>
+        <div class="auth-field" style="display:flex;gap:8px;">
+          <div style="flex:.4;">
+            <label>都道府県</label>
+            <input id="regAddrPref" type="text" readonly style="background:#f5f5f5;" placeholder="自動入力">
+          </div>
+          <div style="flex:.6;">
+            <label>市区町村</label>
+            <input id="regAddrCity" type="text" readonly style="background:#f5f5f5;" placeholder="自動入力">
+          </div>
         </div>
         <div class="auth-field">
-          <label>住所</label>
-          <input id="regAddress" type="text" autocomplete="street-address">
+          <label>番地</label>
+          <input id="regAddrStreet" type="text" placeholder="1-2-3">
         </div>
+        <div class="auth-field">
+          <label>建物名</label>
+          <input id="regAddrBuilding" type="text" placeholder="マンション名・部屋番号">
+        </div>
+        <input id="regAddress" type="hidden">
         <div class="auth-field">
           <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400;">
             <input type="checkbox" id="regNewsletter" checked style="width:18px;height:18px;">
@@ -3554,6 +3571,9 @@ function loadSharedAddress_() {
 // 住所構造化: 郵便番号自動補完 & 電話番号ヒント
 onPostalInput_('postal', 'addrPref', 'addrCity', 'postalHint');
 onPhoneInput_('phone', 'phoneHint');
+// 会員登録フォーム
+onPostalInput_('regPostal', 'regAddrPref', 'regAddrCity', 'regPostalHint');
+onPhoneInput_('regPhone', 'regPhoneHint');
 
 // 他タブでの住所変更・デタウリカート変更をリアルタイム反映
 window.addEventListener('storage', function(e) {
