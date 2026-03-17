@@ -310,6 +310,17 @@ function apiRegisterCustomer(userKey, params) {
     if (!companyName) {
       return { ok: false, message: '会社名/氏名は必須です' };
     }
+    // 入力がある場合のみバリデーション（登録時は任意項目）
+    if (postal) {
+      var postalClean = postal.replace(/[-ー\s]/g, '');
+      if (!/^\d{7}$/.test(postalClean)) return { ok: false, message: '郵便番号は7桁の数字で入力してください' };
+      if (/^0\d{9,10}$/.test(postalClean)) return { ok: false, message: '郵便番号に電話番号が入力されていませんか？' };
+    }
+    if (phone) {
+      var phoneClean = phone.replace(/[-ー\s]/g, '');
+      if (!/^0\d{9,10}$/.test(phoneClean)) return { ok: false, message: '電話番号の形式が正しくありません（10〜11桁）' };
+      if (/^\d{7}$/.test(phoneClean)) return { ok: false, message: '電話番号に郵便番号が入力されていませんか？' };
+    }
 
     // 排他制御: メール重複チェック〜appendRowをロックで保護（レースコンディション対策）
     var lock = LockService.getScriptLock();

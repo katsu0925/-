@@ -120,6 +120,21 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   if (!address) return jsonError('住所は必須です');
   if (!phone) return jsonError('電話番号は必須です');
 
+  // 郵便番号: 数字のみ7桁
+  const postalClean = postal.replace(/[-ー\s]/g, '');
+  if (!/^\d{7}$/.test(postalClean)) return jsonError('郵便番号は7桁の数字で入力してください');
+
+  // 電話番号: 数字のみ10-11桁、先頭0
+  const phoneClean = phone.replace(/[-ー\s]/g, '');
+  if (!/^0\d{9,10}$/.test(phoneClean)) return jsonError('電話番号の形式が正しくありません（10〜11桁）');
+
+  // クロスチェック
+  if (/^\d{7}$/.test(phoneClean)) return jsonError('電話番号に郵便番号が入力されていませんか？');
+  if (/^0\d{9,10}$/.test(postalClean)) return jsonError('郵便番号に電話番号が入力されていませんか？');
+
+  // 住所: 数字（番地）を含むか
+  if (!/\d/.test(address)) return jsonError('住所に番地が含まれていません');
+
   // 離島チェック
   if (isRemoteIsland(address)) {
     return jsonError('離島への配送は現在対応しておりません。');
@@ -499,7 +514,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     price: pd.price || 0,
   }));
 
-  // ─── D1 holds更新（pending_payment=1, until_ms延長） ───
+  // ─── D1 holds更新（pending_payment=1, until_ms延長）+ open_items即時追加 ───
   const now = Date.now();
   const paymentHoldMs = PAYMENT_EXPIRY_SECONDS * 1000;
   const holdUntilMs = now + paymentHoldMs;
@@ -518,6 +533,13 @@ export async function submitEstimate(args, env, bodyText, ctx) {
             receipt_no = excluded.receipt_no,
             created_at = excluded.created_at
         `).bind(managedId, userKey, userKey + ':' + now, holdUntilMs, paymentToken, new Date().toISOString())
+      );
+      // 即座にopen_itemsに追加 → 他ユーザーの確保・注文を即ブロック
+      stmts.push(
+        env.DB.prepare(`
+          INSERT INTO open_items (managed_id, receipt_no, status, updated_at) VALUES (?, ?, '依頼中', ?)
+          ON CONFLICT (managed_id) DO NOTHING
+        `).bind(managedId, paymentToken, new Date().toISOString())
       );
     }
     await env.DB.batch(stmts);
@@ -572,13 +594,18 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   }
 
   if (komojuResult.error || !komojuResult.session_url) {
-    // KOMOJU失敗 → holdsを元に戻す
+    // KOMOJU失敗 → holdsとopen_itemsを元に戻す
     console.error('KOMOJU session creation failed:', JSON.stringify(komojuResult));
     if (ids.length > 0) {
       const placeholders = ids.map(() => '?').join(',');
-      await env.DB.prepare(
-        `UPDATE holds SET pending_payment = 0, receipt_no = '' WHERE managed_id IN (${placeholders}) AND user_key = ? AND receipt_no = ?`
-      ).bind(...ids, userKey, paymentToken).run();
+      await env.DB.batch([
+        env.DB.prepare(
+          `UPDATE holds SET pending_payment = 0, receipt_no = '' WHERE managed_id IN (${placeholders}) AND user_key = ? AND receipt_no = ?`
+        ).bind(...ids, userKey, paymentToken),
+        env.DB.prepare(
+          `DELETE FROM open_items WHERE managed_id IN (${placeholders})`
+        ).bind(...ids),
+      ]);
     }
     return jsonError('決済セッションの作成に失敗しました。' + (komojuResult.error ? komojuResult.error.message || '' : ''));
   }

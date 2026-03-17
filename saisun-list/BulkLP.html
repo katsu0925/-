@@ -836,24 +836,39 @@ body.admin-mode .admin-settings-fab{display:flex;}
   <div class="form-row">
     <div class="form-group" style="flex:.4">
       <label class="form-label">郵便番号<span class="req">必須</span></label>
-      <input class="form-input" type="text" id="postal" placeholder="000-0000" maxlength="8">
+      <input class="form-input" type="text" id="postal" placeholder="0000000" maxlength="8" inputmode="numeric">
+      <div id="postalHint" style="font-size:11px;color:#e74c3c;margin-top:2px;display:none;"></div>
     </div>
     <div class="form-group" style="flex:.6">
       <label class="form-label">電話番号<span class="req">必須</span></label>
-      <input class="form-input" type="tel" id="phone" placeholder="090-0000-0000">
+      <input class="form-input" type="tel" id="phone" placeholder="090-0000-0000" inputmode="numeric">
+      <div id="phoneHint" style="font-size:11px;color:#e74c3c;margin-top:2px;display:none;"></div>
+    </div>
+  </div>
+
+  <div class="form-row">
+    <div class="form-group" style="flex:.4">
+      <label class="form-label">都道府県<span class="req">必須</span></label>
+      <input class="form-input" type="text" id="addrPref" readonly style="background:#f5f5f5;" placeholder="自動入力">
+    </div>
+    <div class="form-group" style="flex:.6">
+      <label class="form-label">市区町村<span class="req">必須</span></label>
+      <input class="form-input" type="text" id="addrCity" readonly style="background:#f5f5f5;" placeholder="自動入力">
     </div>
   </div>
 
   <div class="form-group">
-    <label class="form-label">住所<span class="req">必須</span></label>
-    <input class="form-input" type="text" id="address" placeholder="都道府県・市区町村・番地">
-    <div class="form-note">※ 郵便番号入力で住所が自動入力されます</div>
+    <label class="form-label">番地<span class="req">必須</span></label>
+    <input class="form-input" type="text" id="addrStreet" placeholder="1-2-3">
+    <div class="form-note">※ 郵便番号入力で都道府県・市区町村が自動入力されます</div>
   </div>
 
   <div class="form-group">
     <label class="form-label">建物名・部屋番号</label>
     <input class="form-input" type="text" id="building" placeholder="マンション名・号室など">
   </div>
+
+  <input type="hidden" id="address">
 
   <div class="form-group">
     <label class="form-label">備考</label>
@@ -2750,6 +2765,93 @@ function openProductModalById_(productId) {
 }
 
 // =====================================================
+// 住所バリデーション・自動補完ユーティリティ
+// =====================================================
+function lookupPostalCode_(postalCode, callback) {
+  var clean = postalCode.replace(/[-ー\s]/g, '');
+  if (!/^\d{7}$/.test(clean)) return;
+  var script = document.createElement('script');
+  var cbName = '_zipCb' + Date.now();
+  window[cbName] = function(res) {
+    delete window[cbName];
+    if (script.parentNode) script.parentNode.removeChild(script);
+    if (res && res.results && res.results.length > 0) {
+      var r = res.results[0];
+      callback({ pref: r.address1, city: r.address2 + r.address3 });
+    }
+  };
+  script.src = 'https://zipcloud.ibsnet.co.jp/api/search?zipcode=' + clean + '&callback=' + cbName;
+  script.onerror = function() { delete window[cbName]; if (script.parentNode) script.parentNode.removeChild(script); };
+  document.body.appendChild(script);
+  setTimeout(function() { if (window[cbName]) { delete window[cbName]; if (script.parentNode) script.parentNode.removeChild(script); } }, 3000);
+}
+
+function onPostalInput_(postalId, prefId, cityId, hintId) {
+  var el = document.getElementById(postalId);
+  if (!el) return;
+  el.addEventListener('input', function() {
+    var v = el.value.replace(/[-ー\s]/g, '');
+    var hint = document.getElementById(hintId);
+    if (hint) {
+      if (v.length >= 10 && /^\d+$/.test(v)) { hint.textContent = '電話番号ではありませんか？'; hint.style.display = ''; }
+      else { hint.style.display = 'none'; }
+    }
+    if (v.length === 7 && /^\d{7}$/.test(v)) {
+      lookupPostalCode_(v, function(addr) {
+        var pEl = document.getElementById(prefId);
+        var cEl = document.getElementById(cityId);
+        if (pEl) pEl.value = addr.pref;
+        if (cEl) cEl.value = addr.city;
+      });
+    }
+  });
+}
+
+function onPhoneInput_(phoneId, hintId) {
+  var el = document.getElementById(phoneId);
+  if (!el) return;
+  el.addEventListener('input', function() {
+    var v = el.value.replace(/[-ー\s]/g, '');
+    var hint = document.getElementById(hintId);
+    if (hint) {
+      if (/^\d{7}$/.test(v)) { hint.textContent = '郵便番号ではありませんか？'; hint.style.display = ''; }
+      else { hint.style.display = 'none'; }
+    }
+    formatPhone_(el);
+  });
+}
+
+function formatPhone_(input) {
+  var v = input.value.replace(/[-ー\s]/g, '');
+  if (!/^\d+$/.test(v) || v.length < 3) return;
+  var formatted = v;
+  if (/^0[789]0/.test(v) && v.length <= 11) {
+    formatted = v.slice(0,3) + '-' + v.slice(3,7) + (v.length > 7 ? '-' + v.slice(7) : '');
+  } else if (/^0[1-9]/.test(v) && v.length <= 10) {
+    var areaLen = /^0[3-9][0-9]?/.test(v) ? 2 : 3;
+    if (v.length > areaLen) {
+      var rest = v.slice(areaLen);
+      var mid = Math.ceil(rest.length / 2);
+      formatted = v.slice(0, areaLen) + '-' + rest.slice(0, mid) + (rest.length > mid ? '-' + rest.slice(mid) : '');
+    }
+  }
+  if (formatted !== input.value) {
+    var pos = input.selectionStart;
+    input.value = formatted;
+    var newPos = Math.min(pos + (formatted.length - v.length), formatted.length);
+    input.setSelectionRange(newPos, newPos);
+  }
+}
+
+function combineAddress_(prefId, cityId, streetId, buildingId) {
+  var pref = (document.getElementById(prefId) ? document.getElementById(prefId).value : '').trim();
+  var city = (document.getElementById(cityId) ? document.getElementById(cityId).value : '').trim();
+  var street = (document.getElementById(streetId) ? document.getElementById(streetId).value : '').trim();
+  var building = (document.getElementById(buildingId) ? document.getElementById(buildingId).value : '').trim();
+  return (pref + city + street + (building ? ' ' + building : '')).trim();
+}
+
+// =====================================================
 // 注文送信
 // =====================================================
 function submitOrder() {
@@ -2761,19 +2863,27 @@ function submitOrder() {
   var companyName = document.getElementById('companyName').value.trim();
   var contact = document.getElementById('contact').value.trim();
   var postal = document.getElementById('postal').value.trim();
+  document.getElementById('address').value = combineAddress_('addrPref', 'addrCity', 'addrStreet', 'building');
   var address = document.getElementById('address').value.trim();
-  var building = document.getElementById('building').value.trim();
-  var phone = document.getElementById('phone').value.trim();
+  var phone = document.getElementById('phone').value.replace(/[-ー\s]/g, '').trim();
   var note = document.getElementById('note').value.trim();
 
-  if (!companyName || !contact || !postal || !address || !phone) {
-    errEl.textContent = '必須項目を入力してください';
-    errEl.style.display = 'block';
-    errEl.scrollIntoView({behavior: 'smooth', block: 'center'});
-    return;
-  }
+  // バリデーション
+  if (!companyName || !contact) { errEl.textContent = '必須項目を入力してください'; errEl.style.display = 'block'; return; }
+  var postalClean = postal.replace(/[-ー\s]/g, '');
+  if (!/^\d{7}$/.test(postalClean)) { errEl.textContent = '郵便番号は7桁の数字で入力してください'; errEl.style.display = 'block'; return; }
+  if (/^0\d{9,10}$/.test(postalClean)) { errEl.textContent = '郵便番号に電話番号が入力されていませんか？'; errEl.style.display = 'block'; return; }
+  var phoneClean = phone.replace(/[-ー\s]/g, '');
+  if (!/^0\d{9,10}$/.test(phoneClean)) { errEl.textContent = '電話番号の形式が正しくありません（0から始まる10〜11桁）'; errEl.style.display = 'block'; return; }
+  if (/^\d{7}$/.test(phoneClean)) { errEl.textContent = '電話番号に郵便番号が入力されていませんか？'; errEl.style.display = 'block'; return; }
+  var pref = (document.getElementById('addrPref') ? document.getElementById('addrPref').value : '').trim();
+  if (!pref) { errEl.textContent = '郵便番号を入力して都道府県を自動入力してください'; errEl.style.display = 'block'; return; }
+  var street = (document.getElementById('addrStreet') ? document.getElementById('addrStreet').value : '').trim();
+  if (!street) { errEl.textContent = '番地は必須です'; errEl.style.display = 'block'; return; }
+  if (!/\d/.test(street)) { errEl.textContent = '番地に数字が含まれていません'; errEl.style.display = 'block'; return; }
+  if (!address) { errEl.textContent = '住所は必須です'; errEl.style.display = 'block'; return; }
 
-  var fullAddress = address + (building ? ' ' + building : '');
+  var fullAddress = address;
 
   var items = [];
   Object.keys(G.cart).forEach(function(pid) {
@@ -3184,8 +3294,7 @@ function autoFillCustomerForm() {
     ['companyName', G.customer.companyName],
     ['contact', G.customer.email],
     ['phone', G.customer.phone],
-    ['postal', G.customer.postal],
-    ['address', G.customer.address]
+    ['postal', G.customer.postal]
   ];
   fields.forEach(function(f) {
     var el = document.getElementById(f[0]);
@@ -3193,6 +3302,28 @@ function autoFillCustomerForm() {
       el.value = f[1];
     }
   });
+  // 郵便番号から自動補完で構造化フィールドを埋める
+  var pc = (G.customer.postal || '').replace(/[-ー\s]/g, '');
+  if (/^\d{7}$/.test(pc)) {
+    lookupPostalCode_(pc, function(addr) {
+      var pEl = document.getElementById('addrPref');
+      var cEl = document.getElementById('addrCity');
+      if (pEl && !pEl.value) pEl.value = addr.pref;
+      if (cEl && !cEl.value) cEl.value = addr.city;
+      if (G.customer.address) {
+        var remaining = G.customer.address.replace(addr.pref, '').replace(addr.city, '').trim();
+        var sEl = document.getElementById('addrStreet');
+        var bEl = document.getElementById('building');
+        var spaceIdx = remaining.indexOf(' ');
+        if (spaceIdx > 0) {
+          if (sEl && !sEl.value) sEl.value = remaining.slice(0, spaceIdx);
+          if (bEl && !bEl.value) bEl.value = remaining.slice(spaceIdx + 1);
+        } else {
+          if (sEl && !sEl.value) sEl.value = remaining;
+        }
+      }
+    });
+  }
   // 住所が入力されたら送料を再計算
   if (G.customer.address) updateCart();
 }
@@ -3378,6 +3509,8 @@ var SHARED_ADDRESS_KEY = 'shared_address_v1';
 
 function saveSharedAddress_() {
   try {
+    // 構造化住所を結合して hidden address に反映
+    document.getElementById('address').value = combineAddress_('addrPref', 'addrCity', 'addrStreet', 'building');
     var data = {
       companyName: (document.getElementById('companyName').value || '').trim(),
       contact: (document.getElementById('contact').value || '').trim(),
@@ -3409,7 +3542,7 @@ function loadSharedAddress_() {
 
 // フォームフィールドの入力時に共有住所を保存
 (function() {
-  var fields = ['companyName', 'contact', 'postal', 'address', 'building', 'phone', 'note'];
+  var fields = ['companyName', 'contact', 'postal', 'addrStreet', 'building', 'phone', 'note'];
   for (var i = 0; i < fields.length; i++) {
     var el = document.getElementById(fields[i]);
     if (el) {
@@ -3417,6 +3550,10 @@ function loadSharedAddress_() {
     }
   }
 })();
+
+// 住所構造化: 郵便番号自動補完 & 電話番号ヒント
+onPostalInput_('postal', 'addrPref', 'addrCity', 'postalHint');
+onPhoneInput_('phone', 'phoneHint');
 
 // 他タブでの住所変更・デタウリカート変更をリアルタイム反映
 window.addEventListener('storage', function(e) {
