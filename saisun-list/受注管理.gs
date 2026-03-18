@@ -799,7 +799,15 @@ function buildProductRowsForReceipt_(receiptNo) {
 
   var selectionCol = rIdx['選択リスト'];
   var selectionStr = String(reqRow[selectionCol] || '');
-  var ids = selectionStr.split(/[、,，\s]+/).map(function(s) { return s.trim(); }).filter(Boolean);
+  var idsRaw = selectionStr.split(/[、,，\s]+/).map(function(s) { return s.trim(); }).filter(Boolean);
+  // 重複除去（J列に同じIDが複数入っていた場合の安全策）
+  var seen = {};
+  var ids = [];
+  for (var di = 0; di < idsRaw.length; di++) {
+    var idUp = idsRaw[di].toUpperCase();
+    if (!seen[idUp]) { seen[idUp] = true; ids.push(idsRaw[di]); }
+  }
+  if (idsRaw.length !== ids.length) console.log('J列の重複除去: ' + idsRaw.length + '件 → ' + ids.length + '件');
   if (ids.length === 0) { console.log('選択リストが空です'); return null; }
 
   // 仕入れ管理読み込み
@@ -874,11 +882,13 @@ function buildProductRowsForReceipt_(receiptNo) {
     }
   }
 
-  // 回収完了用 outArr を構築
+  // 回収完了用 outArr を構築（mDataMapに存在するIDのみ、ids順を維持）
   var outArr = [];
+  var resolvedIds = []; // 実際にmDataMapで見つかったIDの順序リスト
   ids.forEach(function(mgmtId) {
     var row = mDataMap[mgmtId];
     if (!row) return;
+    resolvedIds.push(mgmtId);
     outArr.push([
       '', boxMap[mgmtId] || (mIdx['箱ID'] !== undefined ? String(row[mIdx['箱ID']] || '') : ''),
       mgmtId, row[mIdx['ブランド']] || '', row[mIdx['メルカリサイズ']] || '',
@@ -949,6 +959,7 @@ function buildProductRowsForReceipt_(receiptNo) {
     outArr: outArr,
     customerName: customerName,
     ids: ids,
+    resolvedIds: resolvedIds,
     reqRow: reqRow,
     rIdx: rIdx,
     orderPriceMap: orderPriceMap
@@ -969,7 +980,7 @@ function buildProductRowsForReceipt_(receiptNo) {
  * 使い方: GASエディタで受付番号を書き換えて batchExpandOrder() を実行
  */
 function batchExpandOrder() {
-  var receiptNo = '20260305193720-732'; // ← 手動実行時はここに受付番号を入力
+  var receiptNo = '20260318113100-626'; // ← 手動実行時はここに受付番号を入力
 
   // startBatchExpand_ から呼ばれた場合は ScriptProperties から受付番号を取得
   var props = PropertiesService.getScriptProperties();
@@ -1004,9 +1015,26 @@ function batchExpandOrder() {
 
   console.log('Phase 1: ' + data.ids.length + '点のデータ読み込み + 回収完了書込み');
 
-  // 回収完了に書込み
+  // 回収完了に書込み（重複防止: 同じ受付番号の既存データを先に削除）
   var shiireSs = SpreadsheetApp.openById(OM_SHIIRE_SS_ID);
   var recoverySheet = shiireSs.getSheetByName('回収完了');
+  var recLast = recoverySheet.getLastRow();
+  if (recLast >= 7) {
+    var recLastCol = recoverySheet.getLastColumn();
+    if (recLastCol > 0) {
+      var existingRec = recoverySheet.getRange(7, 1, recLast - 6, recLastCol).getValues();
+      // 受付番号列（M列=13番目=index12）に同じ受付番号がある行を除外
+      var recKeep = [];
+      for (var eri = 0; eri < existingRec.length; eri++) {
+        if (String(existingRec[eri][12] || '').trim() !== receiptNo) recKeep.push(existingRec[eri]);
+      }
+      if (recKeep.length < existingRec.length) {
+        console.log('回収完了: 既存の受付番号 ' + receiptNo + ' のデータを ' + (existingRec.length - recKeep.length) + '行削除');
+        recoverySheet.getRange(7, 1, existingRec.length, recLastCol).clearContent();
+        if (recKeep.length > 0) recoverySheet.getRange(7, 1, recKeep.length, recKeep[0].length).setValues(recKeep);
+      }
+    }
+  }
   var recoveryStartRow = Math.max(recoverySheet.getLastRow() + 1, 7);
   if (data.outArr.length > 0) {
     recoverySheet.getRange(recoveryStartRow, 1, data.outArr.length, data.outArr[0].length).setValues(data.outArr);
@@ -1024,6 +1052,7 @@ function batchExpandOrder() {
     receiptNo: receiptNo,
     customerName: data.customerName,
     idsCsv: data.ids.join(','),
+    resolvedIdsCsv: data.resolvedIds.join(','),
     totalItems: data.productRows.length,
     recoveryStartRow: recoveryStartRow,
     recoveryCount: data.outArr.length,
@@ -1048,9 +1077,12 @@ function batchExpandPhase2_(state, props, cache, stateKey) {
   var data = buildProductRowsForReceipt_(state.receiptNo);
   if (!data) { props.deleteProperty(stateKey); return; }
 
+  // Phase 1のresolvedIds順にフィルタして順序を保証
+  var productRows = batchFilterByResolvedIds_(data.productRows, state.resolvedIdsCsv);
+
   var startIdx = state.processedIndex;
   var endIdx = Math.min(startIdx + BATCH_EXPAND_AI_SIZE_, state.totalItems);
-  var batch = data.productRows.slice(startIdx, endIdx);
+  var batch = productRows.slice(startIdx, endIdx);
 
   console.log('Phase 2 バッチ ' + (state.batchNum + 1) + '/' + state.totalBatches
     + ': OpenAI説明文 ' + batch.length + '点 (' + startIdx + '〜' + (endIdx - 1) + ')');
@@ -1097,6 +1129,11 @@ function batchExpandPhase3_(state, props, cache, stateKey) {
   var data = buildProductRowsForReceipt_(state.receiptNo);
   if (!data) { props.deleteProperty(stateKey); return; }
 
+  // Phase 1のresolvedIds順にフィルタして順序を保証
+  var productRows = batchFilterByResolvedIds_(data.productRows, state.resolvedIdsCsv);
+  // titlesもresolvedIds順に再構築（CacheServiceからの取得はフォールバックとして残す）
+  var filteredTitles = batchFilterByResolvedIds_(data.titles, state.resolvedIdsCsv, data.productRows);
+
   // CacheService から全説明文を収集
   var allDescriptions = [];
   for (var b = 0; b < state.totalBatches; b++) {
@@ -1105,9 +1142,9 @@ function batchExpandPhase3_(state, props, cache, stateKey) {
     allDescriptions = allDescriptions.concat(descs);
   }
 
-  // titles を CacheService から取得（フォールバック: 再構築した titles を使用）
+  // titles を CacheService から取得（フォールバック: resolvedIds順に再構築した titles を使用）
   var titlesJson = cache.get('BATCH_TITLES');
-  var titles = titlesJson ? JSON.parse(titlesJson) : data.titles;
+  var titles = titlesJson ? JSON.parse(titlesJson) : filteredTitles;
 
   var receiptNo = state.receiptNo;
   var orderSsId = app_getOrderSpreadsheetId_();
@@ -1128,8 +1165,8 @@ function batchExpandPhase3_(state, props, cache, stateKey) {
   // exportData構築
   var exportData = [];
   var totalPrice = 0;
-  for (var pi = 0; pi < data.productRows.length; pi++) {
-    var pr = data.productRows[pi];
+  for (var pi = 0; pi < productRows.length; pi++) {
+    var pr = productRows[pi];
     totalPrice += pr.price;
     exportData.push([
       false,
@@ -1203,28 +1240,27 @@ function batchExpandPhase3_(state, props, cache, stateKey) {
   clearProductCache_();
   console.log('売却反映完了: ' + allStatusA1s.length + '行');
 
-  // 回収完了から展開行を削除
+  // 回収完了から展開行を削除（受付番号ベースで確実にマッチ）
   var recoverySheet = shiireSs.getSheetByName('回収完了');
   SpreadsheetApp.flush();
   var recLastRow = recoverySheet.getLastRow();
-  if (recLastRow >= 7 && state.recoveryStartRow) {
+  if (recLastRow >= 7) {
     var recLastCol = recoverySheet.getLastColumn();
     if (recLastCol > 0) {
       var recData = recoverySheet.getRange(7, 1, recLastRow - 6, recLastCol).getValues();
-      var recDelSet = {};
-      for (var d = 0; d < state.recoveryCount; d++) recDelSet[state.recoveryStartRow + d] = true;
       var recKeep = [];
       for (var ri = 0; ri < recData.length; ri++) {
-        var sheetRow = ri + 7; // 実際のシート行番号
-        if (!recDelSet[sheetRow]) recKeep.push(recData[ri]);
+        // M列（index 12）の受付番号で判定
+        if (String(recData[ri][12] || '').trim() !== receiptNo) recKeep.push(recData[ri]);
       }
       recoverySheet.getRange(7, 1, recData.length, recLastCol).clearContent();
       if (recKeep.length > 0) recoverySheet.getRange(7, 1, recKeep.length, recKeep[0].length).setValues(recKeep);
+      console.log('回収完了削除: ' + (recData.length - recKeep.length) + '行（受付番号: ' + receiptNo + '）');
     }
   }
 
   // 売却履歴ログ
-  var logEntries = data.productRows.map(function(pr) {
+  var logEntries = productRows.map(function(pr) {
     return { date: new Date(), managedId: pr.targetId, receiptNo: receiptNo, brand: pr.brand, cost: '' };
   });
   if (logEntries.length > 0) om_writeSaleLog_(shiireSs, logEntries);
@@ -1256,6 +1292,43 @@ function cleanupBatchExpandTriggers_() {
       ScriptApp.deleteTrigger(triggers[i]);
     }
   }
+}
+
+/**
+ * Phase 1で確定したresolvedIds順にproductRows（またはtitles）をフィルタ・並び替え。
+ * Phase間でproductRowsの順序一貫性を保証する。
+ * @param {Array} items - productRows配列 or titles配列
+ * @param {string} resolvedIdsCsv - Phase 1で確定したID順序（カンマ区切り）
+ * @param {Array} [refProductRows] - titlesフィルタ時にproductRowsを参照（targetIdの取得用）
+ */
+function batchFilterByResolvedIds_(items, resolvedIdsCsv, refProductRows) {
+  if (!resolvedIdsCsv) return items;
+  var resolvedIds = resolvedIdsCsv.split(',');
+
+  // productRows配列の場合: targetIdでマップ化してresolvedIds順に並び替え
+  if (!refProductRows) {
+    var itemMap = {};
+    for (var i = 0; i < items.length; i++) {
+      if (items[i] && items[i].targetId) itemMap[items[i].targetId] = items[i];
+    }
+    var result = [];
+    for (var j = 0; j < resolvedIds.length; j++) {
+      if (itemMap[resolvedIds[j]]) result.push(itemMap[resolvedIds[j]]);
+    }
+    return result;
+  }
+
+  // titles配列の場合: refProductRowsのtargetIdでインデックスマッピング
+  var idxMap = {};
+  for (var k = 0; k < refProductRows.length; k++) {
+    if (refProductRows[k] && refProductRows[k].targetId) idxMap[refProductRows[k].targetId] = k;
+  }
+  var result2 = [];
+  for (var m = 0; m < resolvedIds.length; m++) {
+    var idx = idxMap[resolvedIds[m]];
+    if (idx !== undefined) result2.push(items[idx]);
+  }
+  return result2;
 }
 
 /**
