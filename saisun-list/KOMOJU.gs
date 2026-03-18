@@ -184,6 +184,18 @@ function apiCheckPaymentStatus(pendingKey) {
       if (props.getProperty(fallbackKey)) {
         console.log('Webhookが未処理のため、ステータスチェック経由で注文を確定: ' + pendingKey);
         var paymentMethodType = extractPaymentMethodType_(response.payment);
+
+        // Paidy: authorized → 自動キャプチャ
+        if (paymentMethodType === 'paidy' && status === 'authorized') {
+          console.log('フォールバック: Paidy自動キャプチャ実行: ' + pendingKey);
+          var capResult = capturePayment_(response.payment.id);
+          if (capResult && !capResult.error) {
+            console.log('フォールバック: Paidyキャプチャ成功: ' + pendingKey);
+          } else {
+            console.error('フォールバック: Paidyキャプチャ失敗: ' + pendingKey, capResult);
+          }
+        }
+
         var deferredFb = { 'konbini': true, 'bank_transfer': true, 'pay_easy': true };
         var paymentStatus;
         if (status === 'paid') {
@@ -321,6 +333,22 @@ function handlePaymentSuccess_(data) {
   // === 検証済みのAPIデータで決済情報を更新 ===
   var payment = apiPayment;  // 以降はAPI検証済みデータを使用
   var paymentMethodType = extractPaymentMethodType_(payment);
+
+  // Paidy: authorized → 自動キャプチャ（売上確定）
+  // Paidyは与信確保後に加盟店が明示的にcaptureを呼ぶ必要がある。
+  // KOMOJUが立替入金するため、即座にキャプチャして注文確定する。
+  if (paymentMethodType === 'paidy' && data.type === 'payment.authorized') {
+    console.log('Paidy authorized → 自動キャプチャ実行: paymentId=' + payment.id + ', token=' + paymentToken);
+    var captureResult = capturePayment_(payment.id);
+    if (captureResult && !captureResult.error) {
+      console.log('Paidyキャプチャ成功: paymentId=' + payment.id);
+      payment = captureResult;  // キャプチャ後のデータで更新
+    } else {
+      console.error('Paidyキャプチャ失敗: paymentId=' + payment.id, captureResult);
+      // キャプチャ失敗でも注文確定は続行（authorizedの状態で記録し、後でリトライ可能にする）
+    }
+  }
+
   var saved = getPaymentSession_(paymentToken) || {};
   saved.status = 'paid';
   saved.komojuStatus = payment.status;
@@ -335,6 +363,7 @@ function handlePaymentSuccess_(data) {
 
   // 決済方法に応じた入金ステータスを決定
   // captured = 入金済み → 対応済、authorized = 承認済み（未入金）→ 入金待ち
+  // Paidy: KOMOJUが立替入金するため、キャプチャ後は '未対応'（入金済み・処理待ち）
   var deferredMethods = { 'konbini': true, 'bank_transfer': true, 'pay_easy': true };
   var paymentStatus;
   if (data.type === 'payment.captured') {
@@ -725,6 +754,20 @@ function komojuRequest_(method, endpoint, data, secretKey) {
     console.error('Failed to parse KOMOJU response:', responseText);
     return { error: { message: 'Invalid response from KOMOJU' } };
   }
+}
+
+/**
+ * KOMOJU決済をキャプチャ（売上確定）する
+ * Paidyなど、authorized後に明示的なキャプチャが必要な決済方法で使用。
+ * @param {string} paymentId - KOMOJUの決済ID
+ * @returns {object} - キャプチャ後の決済オブジェクト、またはエラー
+ */
+function capturePayment_(paymentId) {
+  var secretKey = getKomojuSecretKey_();
+  if (!secretKey) {
+    return { error: { message: 'KOMOJU APIキーが設定されていません' } };
+  }
+  return komojuRequest_('POST', '/payments/' + paymentId + '/capture', {}, secretKey);
 }
 
 // =====================================================
@@ -1630,6 +1673,18 @@ function checkPendingOrders() {
       if ((status === 'paid' || status === 'authorized') && response.payment) {
         console.log('checkPendingOrders: [' + receiptNo + '] 決済完了を検出 → 注文確定');
         var paymentMethodType = extractPaymentMethodType_(response.payment);
+
+        // Paidy: authorized → 自動キャプチャ
+        if (paymentMethodType === 'paidy' && status === 'authorized') {
+          console.log('checkPendingOrders: [' + receiptNo + '] Paidy自動キャプチャ実行');
+          var capResult = capturePayment_(response.payment.id);
+          if (capResult && !capResult.error) {
+            console.log('checkPendingOrders: [' + receiptNo + '] Paidyキャプチャ成功');
+          } else {
+            console.error('checkPendingOrders: [' + receiptNo + '] Paidyキャプチャ失敗', capResult);
+          }
+        }
+
         // コンビニ・銀行振込: authorized=入金待ち、captured/paid=未対応（入金済み）
         var paymentStatus = '未対応';
         if ((paymentMethodType === 'konbini' || paymentMethodType === 'bank_transfer') && status === 'authorized') {
