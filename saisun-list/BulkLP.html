@@ -376,7 +376,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
 .chatbot-contact-prev button{position:absolute;top:-2px;right:-2px;width:18px;height:18px;background:#ef4444;color:#fff;border:none;border-radius:50%;font-size:11px;line-height:18px;text-align:center;cursor:pointer;padding:0;}
 .chatbot-staff-btn{display:inline-flex;align-items:center;gap:4px;margin-top:6px;padding:7px 14px;border:1px solid #1e293b;border-radius:8px;background:#fff;color:#1e293b;font-size:12px;font-weight:600;cursor:pointer;}
 .chatbot-staff-btn:hover{background:#f1f5f9;}
-@media(max-width:480px){.chatbot-panel{bottom:0;right:0;left:0;width:100%;max-width:100%;height:100%;max-height:100%;border-radius:0;}.chatbot-fab{bottom:12px;right:12px;width:44px;height:44px;}.chatbot-fab svg{width:22px;height:22px;}.chatbot-fab:hover::after{display:none;}}
+@media(max-width:480px){.chatbot-panel{position:fixed;top:0;bottom:0;right:0;left:0;width:100%;max-width:100%;height:auto;max-height:none;border-radius:0;z-index:10000;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);}.chatbot-fab{bottom:12px;right:12px;width:44px;height:44px;}.chatbot-fab svg{width:22px;height:22px;}.chatbot-fab:hover::after{display:none;}}
 /* モバイルのみ: チャットボット・お役立ちFABをスクロール連動 */
 @media(max-width:767px){
   .chatbot-fab{transition:transform .3s ease,background .2s;}
@@ -5387,7 +5387,7 @@ body.admin-mode .article-panel{bottom:186px;}
 #bulkCartAddToast .toast-cta{background:#e53e3e;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}
 @keyframes bulkToastUp{from{opacity:0;transform:translateX(-50%) translateY(20px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 @media(max-width:767px){body.has-bulk-cart{padding-bottom:68px}}
-@media(max-width:767px){body.has-bulk-cart .chatbot-fab{bottom:84px}body.has-bulk-cart .chatbot-panel{bottom:160px}body.has-bulk-cart .toTop{bottom:140px}}
+@media(max-width:767px){body.has-bulk-cart .chatbot-fab{bottom:84px}body.has-bulk-cart .toTop{bottom:140px}}
 @media(min-width:768px){
   #bulkStickyPay{display:none!important}
   .pc-two-col>div:first-child{position:sticky;top:60px;max-height:80vh;overflow-y:auto}
