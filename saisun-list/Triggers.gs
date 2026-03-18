@@ -400,6 +400,24 @@ function onEdit(e) {
       return;
     }
 
+    // 顧客管理シート編集時: CUSTOMER/SESSIONキャッシュを無効化
+    if (ssId === orderId && sheet.getName() === '顧客管理') {
+      try {
+        var r = e.range;
+        var row = r.getRow();
+        if (row >= 2) {
+          var email = String(sheet.getRange(row, 2).getValue() || '').trim().toLowerCase();
+          var sessionId = String(sheet.getRange(row, 11).getValue() || '');
+          var cache = CacheService.getScriptCache();
+          if (email) cache.remove('CUSTOMER:' + email);
+          if (sessionId) cache.remove('SESSION:' + sessionId);
+        }
+      } catch (e2) {
+        console.error('顧客キャッシュ無効化エラー:', e2);
+      }
+      return;
+    }
+
     // 依頼中シートの編集・行削除を検知してopenStateを再構築
     const openLogSheetName = String(APP_CONFIG.order.openLogSheetName || '依頼中');
     if (ssId === orderId && sheet.getName() === openLogSheetName) {
