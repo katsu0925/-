@@ -475,6 +475,8 @@ function apiSubmitEstimate(userKey, form, ids) {
       email: contact,
       companyName: companyName,
       phone: phone,
+      postal: postal,
+      address: address,
       productAmount: discounted + bulkProductAmount,
       shippingAmount: shippingAmount + bulkShippingAmount,
       shippingSize: shippingSize

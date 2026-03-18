@@ -342,6 +342,8 @@ function apiBulkSubmit(form, items) {
       email: contact,
       companyName: companyName,
       phone: phone,
+      postal: postal,
+      address: address,
       productAmount: discounted + detauriProductAmount,
       shippingAmount: shippingAmount + detauriShippingAmount,
       shippingSize: shippingSize

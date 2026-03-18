@@ -572,6 +572,26 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   if (companyName) sessionData.customer.name = companyName;
   if (phone) sessionData.customer.phone = phone.replace(/[-ー\s]/g, '');
 
+  // Paidy用: payment_dataにshipping_addressを追加（物理商品の場合必須）
+  var postalFormatted = postal ? postal.replace(/[-ー\s]/g, '').replace(/^(\d{3})(\d{4})$/, '$1-$2') : '';
+  sessionData.payment_data = {
+    paidy: {
+      shipping_address: {
+        name: companyName || '',
+        line1: address || '',
+        line2: '',
+        city: '',
+        state: '',
+        zip: postalFormatted,
+        country: 'JP'
+      }
+    }
+  };
+
+  console.log('KOMOJU session request: customer=' + JSON.stringify(sessionData.customer) +
+              ', payment_types=' + JSON.stringify(sessionData.payment_types) +
+              ', amount=' + sessionData.amount);
+
   const komojuResp = await fetch(KOMOJU_API_URL + '/sessions', {
     method: 'POST',
     headers: {
@@ -583,6 +603,9 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   });
 
   const komojuResult = await komojuResp.json();
+  console.log('KOMOJU session response: id=' + (komojuResult.id || 'N/A') +
+              ', customer_in_resp=' + JSON.stringify(komojuResult.customer || null) +
+              ', error=' + JSON.stringify(komojuResult.error || null));
 
   // session_id → paymentToken マッピング保存（Webhook paymentToken解決フォールバック用）
   if (komojuResult.id) {

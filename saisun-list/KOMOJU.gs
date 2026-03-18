@@ -96,8 +96,26 @@ function apiCreateKomojuSession(paymentKey, amount, customerInfo) {
       if (customerPhone) sessionData.customer.phone = customerPhone;
     }
 
+    // Paidy用: payment_dataにshipping_addressを追加（物理商品の場合必須）
+    var customerPostal = String(info.postal || '').trim().replace(/[-ー\s]/g, '');
+    var customerAddress = String(info.address || '').trim();
+    if (customerPostal) customerPostal = customerPostal.replace(/^(\d{3})(\d{4})$/, '$1-$2');
+    sessionData.payment_data = {
+      paidy: {
+        shipping_address: {
+          name: customerName || '',
+          line1: customerAddress || '',
+          line2: '',
+          city: '',
+          state: '',
+          zip: customerPostal || '',
+          country: 'JP'
+        }
+      }
+    };
+
     console.log('KOMOJU session request: customer=' + JSON.stringify(sessionData.customer || null) +
-                ', payment_types=' + JSON.stringify(sessionData.payment_types) +
+                ', payment_data=' + JSON.stringify(sessionData.payment_data || null) +
                 ', amount=' + sessionData.amount);
 
     var response = komojuRequest_('POST', '/sessions', sessionData, secretKey);
