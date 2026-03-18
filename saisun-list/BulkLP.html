@@ -902,11 +902,11 @@ body.admin-mode .admin-settings-fab{display:flex;}
         <div style="font-size:11px;color:#888;margin-top:2px;">次の画面で決済方法を選択できます</div>
       </div>
     </label>
-    <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:10px 12px;background:#fff;border:2px solid #e0e0e0;border-radius:8px;" id="bulkPmPaidyLabel">
-      <input type="radio" name="bulkPaymentMethod" value="paidy" style="margin-top:2px;accent-color:#2196f3;">
+    <label style="display:flex;align-items:flex-start;gap:8px;padding:10px 12px;background:#f5f5f5;border:2px solid #e0e0e0;border-radius:8px;opacity:0.6;cursor:not-allowed;" id="bulkPmPaidyLabel">
+      <input type="radio" name="bulkPaymentMethod" value="paidy" style="margin-top:2px;" disabled>
       <div>
-        <div style="font-weight:600;font-size:14px;">Paidy（あと払い）</div>
-        <div style="font-size:11px;color:#888;margin-top:2px;">翌月10日までにコンビニ/銀行振込でお支払い</div>
+        <div style="font-weight:600;font-size:14px;color:#999;">Paidy（あと払い）<span style="font-size:11px;background:#ff9800;color:#fff;padding:1px 6px;border-radius:4px;margin-left:6px;font-weight:500;">準備中</span></div>
+        <div style="font-size:11px;color:#aaa;margin-top:2px;">近日中にご利用いただけるようになります</div>
       </div>
     </label>
   </div>
