@@ -409,6 +409,12 @@ async function syncCustomers(db, rows) {
          purchase_count, total_spent, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT (email) DO UPDATE SET
+        company_name = excluded.company_name,
+        phone = excluded.phone,
+        postal = excluded.postal,
+        address = excluded.address,
+        password_hash = excluded.password_hash,
+        newsletter = excluded.newsletter,
         points = CASE WHEN excluded.points != customers.points THEN excluded.points ELSE customers.points END,
         points_updated_at = CASE WHEN excluded.points != customers.points THEN excluded.points_updated_at ELSE customers.points_updated_at END,
         purchase_count = excluded.purchase_count,
