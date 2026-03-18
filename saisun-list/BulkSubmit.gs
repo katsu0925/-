@@ -345,6 +345,7 @@ function apiBulkSubmit(form, items) {
       phone: phone,
       postal: postal,
       address: address,
+      paymentMethod: paymentMethod,
       productAmount: discounted + detauriProductAmount,
       shippingAmount: shippingAmount + detauriShippingAmount,
       shippingSize: shippingSize

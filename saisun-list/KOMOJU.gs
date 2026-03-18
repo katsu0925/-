@@ -80,7 +80,9 @@ function apiCreateKomojuSession(paymentKey, amount, customerInfo) {
       external_order_num: paymentKey,
       return_url: getReturnUrl_() + '?token=' + encodeURIComponent(paymentKey) + '&status=complete',
       cancel_url: getReturnUrl_() + '?token=' + encodeURIComponent(paymentKey) + '&status=cancel',
-      payment_types: KOMOJU_CONFIG.paymentMethods,
+      payment_types: (info.paymentMethod === 'paidy')
+        ? KOMOJU_CONFIG.paymentMethods
+        : KOMOJU_CONFIG.paymentMethods.filter(function(m) { return m !== 'paidy'; }),
       customer_email: email || '',
       customer_family_name: familyName,
       customer_given_name: givenName || familyName,

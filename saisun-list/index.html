@@ -938,18 +938,22 @@
           </div>
         </div>
         <!-- 決済方法選択 -->
-        <div class="formGroup" style="margin-bottom:12px;">
-          <label class="formLabel" style="font-weight:600;margin-bottom:6px;display:block;">決済方法</label>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;">
-            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:14px;">
-              <input type="radio" name="paymentMethod" value="default" checked style="margin:0;">
-              クレジットカード・コンビニ・PayPay等
-            </label>
-            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:14px;">
-              <input type="radio" name="paymentMethod" value="paidy" style="margin:0;">
-              Paidy（あと払い）
-            </label>
-          </div>
+        <div style="background:#f0f7ff;border:2px solid #2196f3;border-radius:10px;padding:14px 16px;margin-bottom:14px;">
+          <div style="font-weight:700;font-size:15px;color:#1565c0;margin-bottom:10px;">お支払い方法を選択</div>
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:10px 12px;background:#fff;border:2px solid #2196f3;border-radius:8px;margin-bottom:8px;" id="pmDefaultLabel">
+            <input type="radio" name="paymentMethod" value="default" checked style="margin-top:2px;accent-color:#2196f3;">
+            <div>
+              <div style="font-weight:600;font-size:14px;">クレジットカード・コンビニ・PayPay・銀行振込 等</div>
+              <div style="font-size:11px;color:#888;margin-top:2px;">次の画面で決済方法を選択できます</div>
+            </div>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:10px 12px;background:#fff;border:2px solid #e0e0e0;border-radius:8px;" id="pmPaidyLabel">
+            <input type="radio" name="paymentMethod" value="paidy" style="margin-top:2px;accent-color:#2196f3;">
+            <div>
+              <div style="font-weight:600;font-size:14px;">Paidy（あと払い）</div>
+              <div style="font-size:11px;color:#888;margin-top:2px;">翌月10日までにコンビニ/銀行振込でお支払い</div>
+            </div>
+          </label>
         </div>
         <div class="formActions">
           <button class="btn" id="formBackBtn" type="button">カートに戻る</button>
@@ -6851,6 +6855,13 @@ function bindUi_() {
   });
   $('formBackBtn').addEventListener('click', function() { showCartSection_(true); });
   $('submitBtn').addEventListener('click', submitNow_);
+  // 決済方法ラジオボタンのボーダー切り替え
+  document.querySelectorAll('input[name="paymentMethod"]').forEach(function(r) {
+    r.addEventListener('change', function() {
+      $('pmDefaultLabel').style.borderColor = this.value === 'default' ? '#2196f3' : '#e0e0e0';
+      $('pmPaidyLabel').style.borderColor = this.value === 'paidy' ? '#2196f3' : '#e0e0e0';
+    });
+  });
   // 住所構造化: 郵便番号自動補完 & 電話番号ヒント
   onPostalInput_('postal', 'addrPref', 'addrCity', 'postalHint');
   onPhoneInput_('phone', 'phoneHint');

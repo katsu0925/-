@@ -557,13 +557,18 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   var givenName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
   var postalFormatted = postal ? postal.replace(/[-ー\s]/g, '').replace(/^(\d{3})(\d{4})$/, '$1-$2') : '';
 
+  // Paidy以外を選んだ場合、Hosted PageにPaidyを表示しない（混乱防止）
+  const effectivePaymentTypes = paymentMethod === 'paidy'
+    ? KOMOJU_PAYMENT_METHODS
+    : KOMOJU_PAYMENT_METHODS.filter(m => m !== 'paidy');
+
   const sessionData = {
     amount: Math.round(totalWithShipping),
     currency: KOMOJU_CURRENCY,
     external_order_num: paymentToken,
     return_url: returnUrl,
     cancel_url: cancelUrl,
-    payment_types: KOMOJU_PAYMENT_METHODS,
+    payment_types: effectivePaymentTypes,
     // Paidy含む全決済方法向け顧客情報（トップレベル）
     customer_email: contact || '',
     customer_family_name: familyName,
