@@ -969,7 +969,7 @@ function expandResearchImages() {
         h += '<div class="img-grid">';
         for (var i = 0; i < d.urls.length; i++) {
           var fullUrl = API_BASE + d.urls[i];
-          h += '<div class="preview-item search-item" style="cursor:pointer" onclick="searchImage(this.querySelector(\'img\').src)">' +
+          h += '<div class="preview-item search-item" style="cursor:pointer" data-url="' + fullUrl + '" onclick="searchImage(this.dataset.url)">' +
             '<img src="' + fullUrl + '" loading="lazy">' +
             '<span class="badge">' + (i === 0 ? 'トップ' : (i+1)) + '</span>' +
             '<div class="search-overlay">🔍</div>' +
