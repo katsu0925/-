@@ -147,27 +147,47 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     return jsonError('住所から都道府県を判別できません。住所を確認してください。');
   }
 
-  // reCAPTCHA検証
+  // reCAPTCHA検証 + D1クエリを並列実行
   let parsedBody;
   try { parsedBody = JSON.parse(bodyText); } catch (e) { parsedBody = {}; }
   const recaptchaToken = parsedBody.recaptchaToken || '';
-  if (recaptchaToken && env.RECAPTCHA_SECRET) {
-    const verified = await verifyRecaptcha(recaptchaToken, env.RECAPTCHA_SECRET);
-    if (!verified) {
-      return jsonError('bot判定されました。ブラウザを再読み込みして再度お試しください。');
-    }
-  }
-
-  // ─── D1からデータ取得 ───
 
   // 商品データ検証 + 合計計算
   let productResults = [];
   let sum = 0;
   if (ids.length > 0) {
     const placeholders = ids.map(() => '?').join(',');
-    const { results } = await env.DB.prepare(
-      `SELECT managed_id, price, no_label, brand, category, size, color, shipping_method FROM products WHERE managed_id IN (${placeholders})`
-    ).bind(...ids).all();
+    const now = Date.now();
+
+    // reCAPTCHA検証 + products/holds/open_items の3クエリを並列実行
+    const parallelTasks = [
+      env.DB.prepare(
+        `SELECT managed_id, price, no_label, brand, category, size, color, shipping_method FROM products WHERE managed_id IN (${placeholders})`
+      ).bind(...ids).all(),
+      env.DB.prepare(
+        `SELECT managed_id FROM holds
+         WHERE managed_id IN (${placeholders})
+           AND user_key != ? AND until_ms > ?`
+      ).bind(...ids, userKey, now).all(),
+      env.DB.prepare(
+        `SELECT managed_id FROM open_items WHERE managed_id IN (${placeholders})`
+      ).bind(...ids).all(),
+    ];
+
+    // reCAPTCHA検証も並列に含める
+    const recaptchaPromise = (recaptchaToken && env.RECAPTCHA_SECRET)
+      ? verifyRecaptcha(recaptchaToken, env.RECAPTCHA_SECRET)
+      : Promise.resolve(true);
+    parallelTasks.push(recaptchaPromise);
+
+    const [productsResult, holdsResult, openResult, recaptchaVerified] = await Promise.all(parallelTasks);
+
+    // reCAPTCHA検証結果チェック
+    if (recaptchaToken && env.RECAPTCHA_SECRET && !recaptchaVerified) {
+      return jsonError('bot判定されました。ブラウザを再読み込みして再度お試しください。');
+    }
+
+    const results = productsResult.results;
     productResults = results;
 
     const foundIds = new Set(results.map(r => r.managed_id));
@@ -179,26 +199,25 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     for (const r of results) sum += r.price;
 
     // 確保チェック（他ユーザーに確保されていないか）
-    const now = Date.now();
-    const { results: otherHolds } = await env.DB.prepare(
-      `SELECT managed_id FROM holds
-       WHERE managed_id IN (${placeholders})
-         AND user_key != ? AND until_ms > ?`
-    ).bind(...ids, userKey, now).all();
-
+    const otherHolds = holdsResult.results;
     if (otherHolds.length > 0) {
       const heldIds = otherHolds.map(h => h.managed_id);
       return jsonError('確保できない商品が含まれています: ' + heldIds.join('、'));
     }
 
     // 依頼中チェック
-    const { results: openCheck } = await env.DB.prepare(
-      `SELECT managed_id FROM open_items WHERE managed_id IN (${placeholders})`
-    ).bind(...ids).all();
-
+    const openCheck = openResult.results;
     if (openCheck.length > 0) {
       const openIds = openCheck.map(o => o.managed_id);
       return jsonError('依頼中の商品が含まれています: ' + openIds.join('、'));
+    }
+  } else {
+    // ids が空の場合でも reCAPTCHA 検証は実行
+    if (recaptchaToken && env.RECAPTCHA_SECRET) {
+      const verified = await verifyRecaptcha(recaptchaToken, env.RECAPTCHA_SECRET);
+      if (!verified) {
+        return jsonError('bot判定されました。ブラウザを再読み込みして再度お試しください。');
+      }
     }
   }
 
@@ -623,16 +642,14 @@ export async function submitEstimate(args, env, bodyText, ctx) {
               ', customer_in_resp=' + JSON.stringify(komojuResult.customer || null) +
               ', error=' + JSON.stringify(komojuResult.error || null));
 
-  // session_id → paymentToken マッピング保存（Webhook paymentToken解決フォールバック用）
-  if (komojuResult.id) {
-    try {
-      await env.DB.prepare(
+  // session_id → paymentToken マッピング保存（ctx.waitUntilで非同期化）
+  const sessionTokenMapPromise = komojuResult.id
+    ? env.DB.prepare(
         'INSERT INTO session_token_map (session_id, payment_token, created_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING'
-      ).bind(komojuResult.id, paymentToken, new Date().toISOString()).run();
-    } catch (mapErr) {
-      console.error('session_token_map save error (non-fatal):', mapErr.message);
-    }
-  }
+      ).bind(komojuResult.id, paymentToken, new Date().toISOString()).run().catch(mapErr => {
+        console.error('session_token_map save error (non-fatal):', mapErr.message);
+      })
+    : Promise.resolve();
 
   // ─── Paidy Session Pay API（Hosted Pageのshipping_address未送信を回避） ───
   let paidyRedirectUrl = null;
@@ -739,14 +756,17 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     console.error('D1 pending_orders save error (non-fatal):', d1Err.message);
   }
 
-  // ─── GASにペンディング注文保存（同期 — webhook前に確実に保存） ───
-  await savePendingToGas(pendingData, env);
-
-  // KVバックアップは非同期
+  // ─── GAS保存 + KVバックアップ + session_token_map を ctx.waitUntil で非同期化 ───
+  // D1 pending_orders は既に保存済みなので、GAS保存はレスポンスをブロックしない
+  const backgroundTasks = [
+    savePendingToGas(pendingData, env),
+    saveBackupToKV(pendingData, env),
+    sessionTokenMapPromise,
+  ];
   if (ctx && ctx.waitUntil) {
-    ctx.waitUntil(saveBackupToKV(pendingData, env));
+    ctx.waitUntil(Promise.all(backgroundTasks).catch(e => console.error('Background task error:', e)));
   } else {
-    saveBackupToKV(pendingData, env).catch(e => console.error('KV backup error:', e));
+    Promise.all(backgroundTasks).catch(e => console.error('Background task error:', e));
   }
 
   return jsonOk({
