@@ -126,17 +126,12 @@ function apiCreateKomojuSession(paymentKey, amount, customerInfo) {
       }
     };
 
-    console.log('KOMOJU session request: customer=' + JSON.stringify(sessionData.customer || null) +
-                ', payment_data=' + JSON.stringify(sessionData.payment_data || null) +
-                ', amount=' + sessionData.amount);
-
     var response = komojuRequest_('POST', '/sessions', sessionData, secretKey);
 
     if (response.error) {
       console.error('KOMOJU session creation error:', response);
       return { ok: false, message: response.error.message || 'セッション作成に失敗しました' };
     }
-    console.log('KOMOJU session created: id=' + response.id + ', customer_in_response=' + JSON.stringify(response.customer || null));
 
     // 決済情報を保存
     savePaymentSession_(paymentKey, {
