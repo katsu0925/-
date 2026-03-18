@@ -160,7 +160,10 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
           <span style="margin-left:auto" id="selectedCount">0件選択</span>
         </div>
         <div id="productList"></div>
-        <button class="btn btn-primary hidden" id="dlExpandBtn" onclick="expandDlImages()" style="margin-top:12px">画像を展開</button>
+        <div style="display:flex;gap:8px;margin-top:12px" id="dlActionRow" class="hidden">
+          <button class="btn btn-success" style="flex:1" id="dlTopBtn" onclick="doDownloadTopImages()">トップ画像を保存</button>
+          <button class="btn btn-primary" style="flex:1" id="dlExpandBtn" onclick="expandDlImages()">全画像を展開</button>
+        </div>
         <div id="dlImageGrid" class="hidden" style="margin-top:12px"></div>
         <div style="margin-top:8px;display:flex;gap:8px" id="dlImageActions" class="hidden">
           <button class="btn btn-secondary" style="flex:1;font-size:12px;padding:8px" onclick="toggleDlImageSelect('all')">全画像選択</button>
@@ -763,7 +766,7 @@ function renderDlList() {
   }
   el.innerHTML = html || '<div style="text-align:center;color:#999;padding:20px">該当なし</div>';
   document.getElementById('selectAllRow').classList.remove('hidden');
-  document.getElementById('dlExpandBtn').classList.remove('hidden');
+  document.getElementById('dlActionRow').classList.remove('hidden');
   // Hide image grid when re-rendering list
   document.getElementById('dlImageGrid').classList.add('hidden');
   document.getElementById('dlImageActions').classList.add('hidden');
@@ -847,6 +850,81 @@ function toggleDlImageSelect(mode) {
     } else if (mode === 'top') {
       c.checked = (c.dataset.imgidx === '0');
     }
+  });
+}
+
+function doDownloadTopImages() {
+  var checks = document.querySelectorAll('.dl-check:checked');
+  if (checks.length === 0) { showStatus('dlStatus', '商品を選択してください', 'err'); return; }
+
+  var indices = [];
+  checks.forEach(function(c) { indices.push(parseInt(c.dataset.idx)); });
+
+  var btn = document.getElementById('dlTopBtn');
+  btn.disabled = true;
+  showStatus('dlStatus', '0/' + indices.length + ' 読み込み中...', 'info');
+
+  var done = 0;
+  var fileEntries = [];
+  var promises = indices.map(function(idx) {
+    var p = productListData[idx];
+    if (!p.thumbnail) { done++; return Promise.resolve(); }
+    var url = API_BASE + p.thumbnail;
+    return fetch(url).then(function(r) { return r.blob(); })
+    .then(function(blob) {
+      fileEntries.push({ idx: idx, file: new File([blob], p.managedId + '.jpg', { type: 'image/jpeg' }) });
+      done++;
+      showStatus('dlStatus', done + '/' + indices.length + ' 読み込み中...', 'info');
+    }).catch(function() { done++; });
+  });
+
+  Promise.all(promises).then(function() {
+    if (fileEntries.length === 0) {
+      btn.disabled = false;
+      showStatus('dlStatus', 'ダウンロードに失敗しました', 'err');
+      return;
+    }
+    var files = fileEntries.map(function(e) { return e.file; });
+
+    // モバイル: 一括共有
+    if (navigator.canShare && navigator.canShare({ files: files })) {
+      showStatus('dlStatus', files.length + '枚を保存中...', 'info');
+      navigator.share({ files: files }).then(function() {
+        showStatus('dlStatus', files.length + '枚保存完了', 'ok');
+      }).catch(function() {
+        showStatus('dlStatus', 'キャンセルされました', 'info');
+      }).finally(function() { btn.disabled = false; });
+      return;
+    }
+
+    // PC: JSZip
+    if (typeof JSZip !== 'undefined') {
+      var zip = new JSZip();
+      fileEntries.forEach(function(e) { zip.file(e.file.name, e.file); });
+      zip.generateAsync({ type: 'blob' }).then(function(content) {
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(content);
+        a.download = 'detauri_top_images.zip';
+        a.click();
+        setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
+        showStatus('dlStatus', files.length + '枚保存完了（ZIP）', 'ok');
+        btn.disabled = false;
+      });
+      return;
+    }
+
+    // フォールバック: 個別DL
+    files.forEach(function(file) {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(file);
+      a.download = file.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
+    });
+    btn.disabled = false;
+    showStatus('dlStatus', files.length + '枚保存完了', 'ok');
   });
 }
 
