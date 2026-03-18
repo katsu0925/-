@@ -6527,7 +6527,6 @@ var submitting_ = false;
 function submitNow_() {
   if (submitting_) return;
   submitting_ = true;
-  var _submitStart = performance.now();
   var _chkIds = state.cart.ids || [], _chkItems = [], _chkVal = 0;
   for (var _i = 0; _i < _chkIds.length; _i++) { var _it = state.cart.itemsById[_chkIds[_i]]; if (_it) { _chkItems.push(buildGaItem_(_it, _i)); _chkVal += Number(_it.price || 0); } }
   trackEcommerce_('begin_checkout', _chkItems, _chkVal, { item_count: _chkIds.length });
@@ -6603,8 +6602,6 @@ function submitNow_() {
       if (!sessionUrl) throw new Error('決済URLの取得に失敗しました');
       // Paidy Session Pay APIで取得したリダイレクトURLがあればそちらを優先
       var redirectTo = res.paidyRedirectUrl || sessionUrl;
-      var _elapsed = Math.round(performance.now() - _submitStart);
-      alert('[PERF] 決済画面遷移: ' + (_elapsed / 1000).toFixed(1) + '秒');
       // カートは決済完了時にクリア（handlePaymentReturn_で処理）
       // KOMOJU決済ページへリダイレクト
       trackEvent_('redirect_to_payment', { payment_gateway: res.paidyRedirectUrl ? 'paidy' : 'komoju', page_type: 'detauri' });
