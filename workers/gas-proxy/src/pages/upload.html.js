@@ -93,7 +93,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
   <!-- メインUI（認証後に表示） -->
   <div id="mainSection" class="hidden">
     <div class="tab-bar">
-      <button class="tab active" onclick="switchTab('upload')">アップロード</button>
+      <button class="tab active" onclick="switchTab('upload')">アップロード <span id="unmatchedBadge" style="display:none;background:#ef4444;color:#fff;font-size:10px;padding:1px 5px;border-radius:8px;margin-left:2px"></span></button>
       <button class="tab" onclick="switchTab('download')">一括DL</button>
       <button class="tab" onclick="switchTab('research')">検索</button>
       <button class="tab" onclick="switchTab('delete')">削除</button>
@@ -127,6 +127,12 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
         <div class="form-group">
           <label>撮影日付</label>
           <input type="date" id="photographyDate">
+        </div>
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:400">
+            <input type="checkbox" id="overwritePhotographer" style="width:18px;height:18px">
+            <span style="font-size:13px">撮影者・撮影日を上書きする</span>
+          </label>
         </div>
         <div id="existingImages" class="hidden" style="margin-top:12px">
           <div style="font-size:13px;font-weight:600;margin-bottom:4px" id="existingCount"></div>
@@ -275,6 +281,26 @@ function showMain() {
   var dd = String(today.getDate()).padStart(2, '0');
   document.getElementById('photographyDate').value = yyyy + '-' + mm + '-' + dd;
   initPhotographer();
+  loadUnmatchedCount();
+}
+
+function loadUnmatchedCount() {
+  fetch(API_BASE + '/upload/unmatched', {
+    method: 'POST',
+    headers: headers({ 'Content-Type': 'application/json' }),
+    body: '{}'
+  }).then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.ok && d.total > 0) {
+      var badge = document.getElementById('unmatchedBadge');
+      badge.textContent = d.total;
+      badge.style.display = 'inline';
+      // 7日以上の警告があれば赤く
+      var hasWarning = d.items && d.items.some(function(i) { return i.warning; });
+      if (hasWarning) badge.style.background = '#ef4444';
+      else badge.style.background = '#f59e0b';
+    }
+  }).catch(function() {});
 }
 
 function initPhotographer() {
@@ -628,17 +654,22 @@ function doUpload() {
     uploadInParallel(managedId, blobs, 3, photographer, photographyDate, function(done, total) {
       fill.style.width = Math.round(done / total * 100) + '%';
       showStatus('uploadStatus', done + '/' + total + ' アップロード中...', 'info');
-    }, function(err) {
+    }, function(err, response) {
       btn.disabled = false;
       bar.classList.remove('show');
       if (err) {
         showStatus('uploadStatus', 'エラー: ' + err, 'err');
       } else {
-        showStatus('uploadStatus', blobs.length + '枚アップロード完了', 'ok');
+        if (response && response.registered === false) {
+          showStatus('uploadStatus', blobs.length + '枚アップロード完了（撮影先行: 採寸情報入力後に自動連携されます）', 'info');
+        } else {
+          showStatus('uploadStatus', blobs.length + '枚アップロード完了', 'ok');
+        }
         input.value = '';
         document.getElementById('uploadPreview').innerHTML = '';
-        // 既存画像を再取得して更新
-        checkExistingImages(managedId);
+        // 確認画面: 管理番号+サムネイルを表示
+        var mid = normId(document.getElementById('uploadManagedId').value);
+        checkExistingImages(mid);
       }
     });
   });
@@ -684,6 +715,7 @@ function uploadInParallel(managedId, blobs, concurrency, photographer, photograp
   var fd = new FormData();
   fd.append('managedId', managedId);
   fd.append('action', _uploadMode); // 'new' or 'append'
+  if (document.getElementById('overwritePhotographer').checked) fd.append('overwritePhotographer', 'true');
   if (photographer) fd.append('photographer', photographer);
   if (photographyDate) fd.append('photographyDate', photographyDate);
   for (var i = 0; i < blobs.length; i++) {
@@ -698,7 +730,7 @@ function uploadInParallel(managedId, blobs, concurrency, photographer, photograp
   .then(function(d) {
     if (d.ok) {
       onProgress(blobs.length, blobs.length);
-      onDone(null);
+      onDone(null, d);
     } else {
       if (d.message && d.message.indexOf('トークン') >= 0) { showAuth(); }
       onDone(d.message || 'アップロード失敗');

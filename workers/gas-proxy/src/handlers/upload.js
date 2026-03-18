@@ -92,6 +92,8 @@ export async function handleUpload(request, env, path) {
       return await handleReorder(request, env);
     case '/upload/list-all':
       return await handleListAll(request, env);
+    case '/upload/unmatched':
+      return await handleUnmatched(request, env);
     case '/upload/workers':
       return await handleWorkers(request, env);
     default:
@@ -154,12 +156,11 @@ async function handleImageUpload(request, env) {
   }
 
   // 管理番号存在チェック（商品管理シートのF列、KV経由）
+  let managedIdRegistered = false;
   const idsJson = await env.CACHE.get('managed-ids:list');
   if (idsJson) {
     const ids = JSON.parse(idsJson);
-    if (!ids.includes(managedId.toUpperCase())) {
-      return jsonError('この管理番号は商品管理に登録されていません。先に採寸データをアプリで入力してください。', 400);
-    }
+    managedIdRegistered = ids.includes(managedId.toUpperCase());
   }
 
   // action判定: append=追加モード, new=新規（デフォルト）
@@ -220,29 +221,47 @@ async function handleImageUpload(request, env) {
   // 商品キャッシュ無効化（フロントに即反映）
   await invalidateProductCache(env);
 
-  // 撮影メタデータ保存（KV）— 常に保存（フロントから未送信でもデフォルト値で保存）
+  // 撮影メタデータ保存（KV）
   const photographer = formData.get('photographer') || '';
+  const overwritePhotographer = formData.get('overwritePhotographer') === 'true';
   const now = new Date();
   const todayStr = now.getFullYear() + '/' + String(now.getMonth() + 1).padStart(2, '0') + '/' + String(now.getDate()).padStart(2, '0');
   const photographyDate = formData.get('photographyDate')
     ? formData.get('photographyDate').replace(/-/g, '/')
     : todayStr;
-  const meta = {
-    photographer,
-    photographyDate,
-    uploadedAt: now.toISOString(),
-  };
+
+  // 既存メタデータを確認（初回撮影者を保持）
+  const existingMetaJson = await env.CACHE.get(`photo-meta:${managedId}`);
+  let meta;
+  if (existingMetaJson && !overwritePhotographer) {
+    // 既存メタがあり上書きフラグなし → 初回撮影者を保持
+    const existingMeta = JSON.parse(existingMetaJson);
+    meta = {
+      photographer: existingMeta.photographer || photographer,
+      photographyDate: existingMeta.photographyDate || photographyDate,
+      uploadedAt: existingMeta.uploadedAt || now.toISOString(),
+    };
+  } else {
+    // 新規 or 上書きフラグあり
+    meta = {
+      photographer,
+      photographyDate,
+      uploadedAt: now.toISOString(),
+    };
+  }
   await env.CACHE.put(`photo-meta:${managedId}`, JSON.stringify(meta));
 
-  // 未同期リストに追加
-  const pendingJson = await env.CACHE.get('photo-meta:pending');
-  const pending = pendingJson ? JSON.parse(pendingJson) : [];
-  if (!pending.includes(managedId)) {
-    pending.push(managedId);
-    await env.CACHE.put('photo-meta:pending', JSON.stringify(pending));
+  // 未同期リストに追加（商品管理に登録済みの場合のみ）
+  if (managedIdRegistered) {
+    const pendingJson = await env.CACHE.get('photo-meta:pending');
+    const pending = pendingJson ? JSON.parse(pendingJson) : [];
+    if (!pending.includes(managedId)) {
+      pending.push(managedId);
+      await env.CACHE.put('photo-meta:pending', JSON.stringify(pending));
+    }
   }
 
-  return jsonOk({ managedId, urls, count: urls.length });
+  return jsonOk({ managedId, urls, count: urls.length, registered: managedIdRegistered });
 }
 
 // ─── 商品一覧 ───
@@ -530,6 +549,40 @@ async function handleListAll(request, env) {
   );
 
   return jsonOk({ items });
+}
+
+// ─── 未マッチ画像一覧（商品管理に未登録の画像） ───
+
+async function handleUnmatched(request, env) {
+  const indexJson = await env.CACHE.get('product-images:index');
+  const index = indexJson ? JSON.parse(indexJson) : [];
+
+  const idsJson = await env.CACHE.get('managed-ids:list');
+  const registeredIds = idsJson ? new Set(JSON.parse(idsJson)) : new Set();
+
+  const unmatched = [];
+  for (const managedId of index) {
+    if (!registeredIds.has(managedId)) {
+      const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
+      const urls = urlsJson ? JSON.parse(urlsJson) : [];
+      const metaJson = await env.CACHE.get(`photo-meta:${managedId}`);
+      const meta = metaJson ? JSON.parse(metaJson) : {};
+      const daysSinceUpload = meta.uploadedAt
+        ? Math.floor((Date.now() - new Date(meta.uploadedAt).getTime()) / (1000 * 60 * 60 * 24))
+        : null;
+      unmatched.push({
+        managedId,
+        thumbnail: urls[0] || null,
+        count: urls.length,
+        photographer: meta.photographer || '',
+        uploadedAt: meta.uploadedAt || '',
+        daysSinceUpload,
+        warning: daysSinceUpload !== null && daysSinceUpload >= 7,
+      });
+    }
+  }
+
+  return jsonOk({ items: unmatched, total: unmatched.length });
 }
 
 // ─── 作業者リスト取得 ───

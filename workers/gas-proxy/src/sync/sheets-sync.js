@@ -94,11 +94,17 @@ export async function scheduledSync(env) {
     // 6. 撮影データ → GAS（商品管理シートに書き込み）
     await syncPhotographyData(env);
 
+    // 6b. 撮影先行登録の自動マッチング（新規商品×先行アップロード画像）
+    await autoMatchPhotography(env);
+
     // 7. pending_orders クリーンアップ
     await cleanupPendingOrders(env.DB);
 
     // 8. session_token_map クリーンアップ（30日以上経過したレコードを削除）
     await cleanupSessionTokenMap(env.DB);
+
+    // 9. 孤立画像クリーンアップ（30日以上未マッチ）
+    await cleanupOrphanedImages(env);
 
     console.log('[sync] Sync completed successfully');
   } catch (e) {
@@ -317,6 +323,27 @@ async function syncPhotographyData(env) {
 // ─── D1 UPSERT ───
 
 async function syncProducts(db, rows) {
+  // GASから来たリストに無い商品をD1から削除（売却済み等）
+  // 安全策: GAS側エラーで空データが来た場合の全削除を防止
+  const incomingIds = new Set(rows.map(p => p.managedId));
+  const { results: existing } = await db.prepare('SELECT managed_id FROM products').all();
+
+  // 受信データが既存の20%未満の場合は異常とみなしスキップ（GAS側エラー防御）
+  if (existing.length > 0 && rows.length < existing.length * 0.2) {
+    console.warn(`[sync] Skipping product delete: incoming=${rows.length} vs existing=${existing.length} (threshold 20%)`);
+  } else {
+    const toDelete = existing.filter(r => !incomingIds.has(r.managed_id)).map(r => r.managed_id);
+    if (toDelete.length > 0) {
+      const delBatchSize = 50;
+      for (let i = 0; i < toDelete.length; i += delBatchSize) {
+        const batch = toDelete.slice(i, i + delBatchSize);
+        const placeholders = batch.map(() => '?').join(',');
+        await db.prepare(`DELETE FROM products WHERE managed_id IN (${placeholders})`).bind(...batch).run();
+      }
+      console.log(`[sync] Deleted ${toDelete.length} stale products from D1`);
+    }
+  }
+
   const batchSize = 50;
   for (let i = 0; i < rows.length; i += batchSize) {
     const batch = rows.slice(i, i + batchSize);
@@ -405,16 +432,42 @@ async function syncCustomers(db, rows) {
 }
 
 async function syncOpenItems(db, rows) {
-  // まず全削除してから挿入（依頼中リストは完全上書き）
-  const stmts = [
-    db.prepare('DELETE FROM open_items'),
-    ...rows.map(o =>
+  // GASから来たIDセット + pending_payment中のholdsのIDを保護
+  const gasIds = new Set(rows.map(o => o.managedId));
+
+  // pending_payment=1 の商品はsubmitEstimateで追加したopen_items → 削除しない
+  const { results: pendingHolds } = await db.prepare(
+    'SELECT managed_id FROM holds WHERE pending_payment = 1'
+  ).all();
+  const pendingIds = new Set(pendingHolds.map(h => h.managed_id));
+
+  // GASにもpendingにも含まれないopen_itemsのみ削除
+  const { results: existing } = await db.prepare('SELECT managed_id FROM open_items').all();
+  const toDelete = existing.filter(e => !gasIds.has(e.managed_id) && !pendingIds.has(e.managed_id));
+
+  const stmts = [];
+
+  if (toDelete.length > 0) {
+    const delBatch = toDelete.map(e => e.managed_id);
+    const placeholders = delBatch.map(() => '?').join(',');
+    stmts.push(
+      db.prepare(`DELETE FROM open_items WHERE managed_id IN (${placeholders})`).bind(...delBatch)
+    );
+  }
+
+  // GASからのデータをUPSERT
+  for (const o of rows) {
+    stmts.push(
       db.prepare(`
         INSERT INTO open_items (managed_id, receipt_no, status, updated_at)
         VALUES (?, ?, ?, ?)
+        ON CONFLICT (managed_id) DO UPDATE SET
+          receipt_no = excluded.receipt_no,
+          status = excluded.status,
+          updated_at = excluded.updated_at
       `).bind(o.managedId, o.receiptNo || '', o.status || '依頼中', new Date().toISOString())
-    ),
-  ];
+    );
+  }
 
   const batchSize = 50;
   for (let i = 0; i < stmts.length; i += batchSize) {
@@ -495,6 +548,124 @@ async function updateSyncMeta(db, exportData) {
     INSERT OR REPLACE INTO sync_meta (source, last_sync_at, row_count, checksum)
     VALUES ('export', ?, ?, '')
   `).bind(now, totalRows).run();
+}
+
+// ─── 撮影先行登録の自動マッチング ───
+
+/**
+ * 商品管理に新規登録された商品と、先行アップロードされた画像を自動マッチング。
+ * マッチしたら photo-meta:pending に追加 → 既存の syncPhotographyData() でGASに送信。
+ */
+async function autoMatchPhotography(env) {
+  try {
+    // managed-ids:list（商品管理に登録済みの管理番号）
+    const idsJson = await env.CACHE.get('managed-ids:list');
+    if (!idsJson) return;
+    const registeredIds = new Set(JSON.parse(idsJson));
+
+    // product-images:index（画像がアップロード済みの管理番号）
+    const indexJson = await env.CACHE.get('product-images:index');
+    if (!indexJson) return;
+    const imageIndex = JSON.parse(indexJson);
+
+    // 既にpendingに入っているものは除外
+    const pendingJson = await env.CACHE.get('photo-meta:pending');
+    const pending = pendingJson ? JSON.parse(pendingJson) : [];
+    const pendingSet = new Set(pending);
+
+    const newMatches = [];
+    for (const managedId of imageIndex) {
+      // 商品管理に登録済み && まだpendingに入っていない
+      if (registeredIds.has(managedId) && !pendingSet.has(managedId)) {
+        // photo-metaが存在するか確認
+        const metaJson = await env.CACHE.get(`photo-meta:${managedId}`);
+        if (!metaJson) continue;
+
+        const meta = JSON.parse(metaJson);
+        // 30日以上前のアップロードはスキップ
+        if (meta.uploadedAt) {
+          const daysDiff = (Date.now() - new Date(meta.uploadedAt).getTime()) / (1000 * 60 * 60 * 24);
+          if (daysDiff > 30) continue;
+        }
+
+        newMatches.push(managedId);
+      }
+    }
+
+    if (newMatches.length > 0) {
+      const updatedPending = [...pending, ...newMatches];
+      await env.CACHE.put('photo-meta:pending', JSON.stringify(updatedPending));
+      console.log(`[sync] Auto-matched ${newMatches.length} photography items: ${newMatches.join(', ')}`);
+    }
+  } catch (e) {
+    console.error('[sync] autoMatchPhotography error:', e.message);
+  }
+}
+
+// ─── 孤立画像クリーンアップ（30日以上未マッチ） ───
+
+async function cleanupOrphanedImages(env) {
+  try {
+    const idsJson = await env.CACHE.get('managed-ids:list');
+    const registeredIds = idsJson ? new Set(JSON.parse(idsJson)) : new Set();
+
+    const indexJson = await env.CACHE.get('product-images:index');
+    if (!indexJson) return;
+    const imageIndex = JSON.parse(indexJson);
+
+    let cleaned = 0;
+    for (const managedId of imageIndex) {
+      if (registeredIds.has(managedId)) continue; // 登録済みは対象外
+
+      const metaJson = await env.CACHE.get(`photo-meta:${managedId}`);
+      if (!metaJson) continue;
+
+      const meta = JSON.parse(metaJson);
+      if (!meta.uploadedAt) continue;
+
+      const daysDiff = (Date.now() - new Date(meta.uploadedAt).getTime()) / (1000 * 60 * 60 * 24);
+      if (daysDiff < 30) continue; // 30日未満はスキップ
+
+      // R2から画像を削除
+      const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
+      if (urlsJson) {
+        const urls = JSON.parse(urlsJson);
+        await Promise.all(urls.map(url => {
+          const r2Key = url.replace(/^\/images\//, '').split('?')[0];
+          return env.IMAGES.delete(r2Key);
+        }));
+      }
+
+      // KVを削除
+      await env.CACHE.delete(`product-images:${managedId}`);
+      await env.CACHE.delete(`photo-meta:${managedId}`);
+      cleaned++;
+      console.log(`[sync] Cleaned up orphaned images for ${managedId} (${daysDiff.toFixed(0)} days old)`);
+    }
+
+    // product-images:index を更新
+    if (cleaned > 0) {
+      const updatedIndex = imageIndex.filter(id => {
+        if (registeredIds.has(id)) return true;
+        const mj = null; // Already deleted from KV, so just check registered
+        return registeredIds.has(id);
+      });
+      // Re-read to get accurate state
+      const freshIndexJson = await env.CACHE.get('product-images:index');
+      if (freshIndexJson) {
+        const freshIndex = JSON.parse(freshIndexJson);
+        const stillExists = [];
+        for (const id of freshIndex) {
+          const check = await env.CACHE.get(`product-images:${id}`);
+          if (check) stillExists.push(id);
+        }
+        await env.CACHE.put('product-images:index', JSON.stringify(stillExists));
+      }
+      console.log(`[sync] Cleaned up ${cleaned} orphaned image sets`);
+    }
+  } catch (e) {
+    console.error('[sync] cleanupOrphanedImages error:', e.message);
+  }
 }
 
 /**
