@@ -469,19 +469,40 @@ function initDragReorder(grid, managedId) {
       else grid.insertBefore(dragItem, this);
       saveReorder(managedId);
     });
-    // モバイル: タップで位置番号入力
+    // モバイル: タップでインライン番号セレクト表示
     item.addEventListener('click', function(e) {
       if (e.target.classList.contains('replace-btn') || e.target.closest('.replace-btn')) return;
+      if (e.target.tagName === 'SELECT') return;
       if ('ontouchstart' in window) {
+        var self = this;
         var allItems = Array.from(grid.querySelectorAll('.preview-item'));
-        var currentIdx = allItems.indexOf(this);
-        var newPos = prompt('移動先の番号を入力（1〜' + allItems.length + '）', String(currentIdx + 1));
-        if (newPos === null) return;
-        var newIdx = parseInt(newPos) - 1;
-        if (isNaN(newIdx) || newIdx < 0 || newIdx >= allItems.length || newIdx === currentIdx) return;
-        if (newIdx < currentIdx) grid.insertBefore(this, allItems[newIdx]);
-        else grid.insertBefore(this, allItems[newIdx].nextSibling);
-        saveReorder(managedId);
+        var currentIdx = allItems.indexOf(self);
+        // 既にセレクトがあれば閉じる
+        var existing = grid.querySelector('.reorder-select');
+        if (existing) existing.remove();
+        // セレクトボックスを生成
+        var sel = document.createElement('select');
+        sel.className = 'reorder-select';
+        sel.style.cssText = 'position:absolute;bottom:0;left:0;right:0;font-size:14px;padding:4px;background:#fff;border:2px solid #3b82f6;border-radius:0 0 6px 6px;z-index:10;text-align:center;';
+        for (var si = 0; si < allItems.length; si++) {
+          var opt = document.createElement('option');
+          opt.value = si;
+          opt.textContent = (si + 1) + '番目' + (si === 0 ? '（トップ）' : '');
+          if (si === currentIdx) opt.selected = true;
+          sel.appendChild(opt);
+        }
+        sel.addEventListener('change', function() {
+          var newIdx = parseInt(this.value);
+          this.remove();
+          if (isNaN(newIdx) || newIdx === currentIdx) return;
+          if (newIdx < currentIdx) grid.insertBefore(self, allItems[newIdx]);
+          else grid.insertBefore(self, allItems[newIdx].nextSibling);
+          saveReorder(managedId);
+        });
+        // タップ外で閉じる
+        sel.addEventListener('blur', function() { setTimeout(function() { sel.remove(); }, 200); });
+        self.appendChild(sel);
+        sel.focus();
       }
     });
   });
