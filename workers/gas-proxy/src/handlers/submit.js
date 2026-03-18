@@ -572,10 +572,12 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   if (companyName) sessionData.customer.name = companyName;
   if (phone) sessionData.customer.phone = phone.replace(/[-ー\s]/g, '');
 
-  // Paidy用: payment_dataにshipping_addressを追加（物理商品の場合必須）
+  // Paidy用: payment_dataにemail・shipping_addressを追加
+  // Paidyはcustomerオブジェクトではなくpayment_data.paidy内に顧客情報が必要
   var postalFormatted = postal ? postal.replace(/[-ー\s]/g, '').replace(/^(\d{3})(\d{4})$/, '$1-$2') : '';
   sessionData.payment_data = {
     paidy: {
+      email: contact || '',
       shipping_address: {
         name: companyName || '',
         line1: address || '',
