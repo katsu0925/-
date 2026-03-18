@@ -25,6 +25,7 @@ function apiBulkSubmit(form, items) {
     var phone = String(f.phone || '').trim();
     var note = String(f.note || '').trim();
     var couponCode = String(f.couponCode || '').trim();
+    var paymentMethod = String(f.paymentMethod || '').trim();
 
     if (!companyName) return { ok: false, message: '会社名/氏名は必須です' };
     if (!contact) return { ok: false, message: 'メールアドレスは必須です' };
@@ -360,6 +361,17 @@ function apiBulkSubmit(form, items) {
 
     console.log('アソート商品KOMOJU決済セッション作成: ' + paymentToken + ' → ' + komojuResult.sessionUrl);
 
+    // Paidy Session Pay API（Hosted Pageのshipping_address未送信を回避）
+    var paidyRedirectUrl = null;
+    if (paymentMethod === 'paidy' && komojuResult.sessionId) {
+      var paidyResult = komojuSessionPayPaidy_(komojuResult.sessionId, contact, { line1: address, zip: postal });
+      if (paidyResult.ok) {
+        paidyRedirectUrl = paidyResult.redirectUrl;
+      } else {
+        console.warn('Paidy Session Pay失敗、Hosted Pageにフォールバック:', paidyResult.message);
+      }
+    }
+
     // === 在庫減算 + BASE在庫同期 ===
     try {
       bulk_deductStock_(orderItems);
@@ -374,6 +386,7 @@ function apiBulkSubmit(form, items) {
       ok: true,
       paymentToken: paymentToken,
       sessionUrl: komojuResult.sessionUrl,
+      paidyRedirectUrl: paidyRedirectUrl,
       totalAmount: totalWithShipping,
       shippingAmount: shippingAmount
     };

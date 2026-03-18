@@ -892,6 +892,21 @@ body.admin-mode .admin-settings-fab{display:flex;}
     <input class="form-input" type="text" id="note" placeholder="備考がありましたらご記入ください">
   </div>
 
+  <!-- 決済方法選択 -->
+  <div class="form-group" style="margin-bottom:12px;">
+    <label class="form-label" style="font-weight:600;margin-bottom:6px;display:block;">決済方法</label>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;">
+      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:14px;">
+        <input type="radio" name="bulkPaymentMethod" value="default" checked style="margin:0;">
+        クレジットカード・コンビニ・PayPay等
+      </label>
+      <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:14px;">
+        <input type="radio" name="bulkPaymentMethod" value="paidy" style="margin:0;">
+        Paidy（あと払い）
+      </label>
+    </div>
+  </div>
+
   <!-- 決済ボタン -->
   <button class="pay-button" id="payButton" onclick="submitOrder()" disabled>
     カートが空です
@@ -2956,7 +2971,8 @@ function submitOrder() {
     detauriProductAmount: detauriProductAmount,
     detauriShipping: detauriShippingAmount,
     detauriItemCount: detauriItemCount,
-    detauriIds: (G.detauriItems || []).map(function(d) { return d.id; })
+    detauriIds: (G.detauriItems || []).map(function(d) { return d.id; }),
+    paymentMethod: (function() { var r = document.querySelector('input[name="bulkPaymentMethod"]:checked'); return r ? r.value : 'default'; })()
   };
 
   G.submitting = true;
@@ -2974,13 +2990,14 @@ function submitOrder() {
     .then(function(r) {
       G.submitting = false;
       if (r && r.ok && r.sessionUrl) {
-        trackEvent_('redirect_to_payment', { payment_gateway: 'komoju', page_type: 'assort' });
+        var _redirectTo = r.paidyRedirectUrl || r.sessionUrl;
+        trackEvent_('redirect_to_payment', { payment_gateway: r.paidyRedirectUrl ? 'paidy' : 'komoju', page_type: 'assort' });
         // Phase 4-4/4-5: 広告コンバージョントラッキング
         var _convVal = _chkVal + (G.detauriCartTotal || 0);
         try { _trackGoogleAdsConversion(_convVal, 'JPY'); } catch(e) {}
         var _contentIds = items.map(function(it) { return it.productId; });
         try { _trackMetaPurchase(_convVal, 'JPY', _contentIds); } catch(e) {}
-        window.location.href = r.sessionUrl;
+        window.location.href = _redirectTo;
       } else {
         btn.disabled = false;
         btn.classList.remove('pay-button--loading');

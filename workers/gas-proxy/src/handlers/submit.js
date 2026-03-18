@@ -112,6 +112,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   const measureOpt = String(form.measureOpt || '').trim();
   const couponCode = String(form.couponCode || '').trim().toUpperCase();
   const usePoints = Math.max(0, Math.floor(Number(form.usePoints) || 0));
+  const paymentMethod = String(form.paymentMethod || '').trim();
 
   if (!companyName) return jsonError('会社名/氏名は必須です');
   if (!contact) return jsonError('メールアドレスは必須です');
@@ -628,6 +629,45 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     }
   }
 
+  // ─── Paidy Session Pay API（Hosted Pageのshipping_address未送信を回避） ───
+  let paidyRedirectUrl = null;
+  if (paymentMethod === 'paidy' && komojuResult.id && !komojuResult.error) {
+    try {
+      const paidyPayResp = await fetch(KOMOJU_API_URL + '/sessions/' + komojuResult.id + '/pay', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Basic ' + btoa(env.KOMOJU_SECRET_KEY + ':'),
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({
+          payment_details: {
+            type: 'paidy',
+            email: contact,
+            shipping_address_line1: address,
+            shipping_address_line2: '',
+            shipping_address_city: '',
+            shipping_address_state: '',
+            shipping_address_zip: postalFormatted,
+            shipping_address_country: 'JP'
+          }
+        }),
+      });
+      const paidyPayResult = await paidyPayResp.json();
+      console.log('Paidy Session Pay response: status=' + paidyPayResp.status +
+                  ', redirect_url=' + (paidyPayResult.redirect_url || 'N/A'));
+      if (paidyPayResult.redirect_url) {
+        paidyRedirectUrl = paidyPayResult.redirect_url;
+      } else if (paidyPayResult.payment && paidyPayResult.payment.payment_details && paidyPayResult.payment.payment_details.redirect_url) {
+        paidyRedirectUrl = paidyPayResult.payment.payment_details.redirect_url;
+      } else {
+        console.error('Paidy Session Pay: redirect_url not found, falling back to session_url:', JSON.stringify(paidyPayResult));
+      }
+    } catch (paidyErr) {
+      console.error('Paidy Session Pay error (falling back to session_url):', paidyErr.message);
+    }
+  }
+
   if (komojuResult.error || !komojuResult.session_url) {
     // KOMOJU失敗 → holdsとopen_itemsを元に戻す
     console.error('KOMOJU session creation failed:', JSON.stringify(komojuResult));
@@ -707,6 +747,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   return jsonOk({
     paymentToken,
     sessionUrl: komojuResult.session_url,
+    paidyRedirectUrl: paidyRedirectUrl || null,
     totalAmount: totalWithShipping,
     shippingAmount,
   });

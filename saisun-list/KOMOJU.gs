@@ -808,6 +808,51 @@ function capturePayment_(paymentId) {
   return komojuRequest_('POST', '/payments/' + paymentId + '/capture', {}, secretKey);
 }
 
+/**
+ * KOMOJU Session Pay APIでPaidy決済を開始する
+ * Hosted PageがPaidyのshipping_addressを渡さない問題を回避するため、
+ * Session Pay APIを直接呼んでPaidyの認証URLを取得する。
+ * @param {string} sessionId - KOMOJUセッションID
+ * @param {string} email - 顧客メールアドレス
+ * @param {object} shippingAddress - { line1, zip }
+ * @returns {object} - { ok, redirectUrl } or { ok: false, message }
+ */
+function komojuSessionPayPaidy_(sessionId, email, shippingAddress) {
+  var secretKey = getKomojuSecretKey_();
+  if (!secretKey) return { ok: false, message: 'KOMOJU APIキーが設定されていません' };
+
+  var zip = String(shippingAddress.zip || '').replace(/[-ー\s]/g, '');
+  if (zip.length === 7) zip = zip.slice(0, 3) + '-' + zip.slice(3);
+
+  var payData = {
+    payment_details: {
+      type: 'paidy',
+      email: email,
+      shipping_address_line1: shippingAddress.line1 || '',
+      shipping_address_line2: '',
+      shipping_address_city: '',
+      shipping_address_state: '',
+      shipping_address_zip: zip,
+      shipping_address_country: 'JP'
+    }
+  };
+
+  var result = komojuRequest_('POST', '/sessions/' + sessionId + '/pay', payData, secretKey);
+
+  if (result.error) {
+    console.error('Paidy Session Pay error:', JSON.stringify(result.error));
+    return { ok: false, message: result.error.message || 'Paidy決済の開始に失敗しました' };
+  }
+
+  var redirectUrl = result.redirect_url || (result.payment && result.payment.payment_details && result.payment.payment_details.redirect_url);
+  if (!redirectUrl) {
+    console.error('Paidy redirect_url not found:', JSON.stringify(result));
+    return { ok: false, message: 'PaidyリダイレクトURLが取得できませんでした' };
+  }
+
+  return { ok: true, redirectUrl: redirectUrl };
+}
+
 // =====================================================
 // paymentToken 5段フォールバック解決
 // =====================================================

@@ -937,6 +937,20 @@
             <div id="pointDiscountInfo" style="font-size:12px;color:#b8002a;margin-top:4px;"></div>
           </div>
         </div>
+        <!-- 決済方法選択 -->
+        <div class="formGroup" style="margin-bottom:12px;">
+          <label class="formLabel" style="font-weight:600;margin-bottom:6px;display:block;">決済方法</label>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;">
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:14px;">
+              <input type="radio" name="paymentMethod" value="default" checked style="margin:0;">
+              クレジットカード・コンビニ・PayPay等
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:14px;">
+              <input type="radio" name="paymentMethod" value="paidy" style="margin:0;">
+              Paidy（あと払い）
+            </label>
+          </div>
+        </div>
         <div class="formActions">
           <button class="btn" id="formBackBtn" type="button">カートに戻る</button>
           <button class="btn primary" id="submitBtn" type="button">決済に進む</button>
@@ -6235,6 +6249,9 @@ function readForm_() {
   if (state.appliedCoupon && state.appliedCoupon.code) f.couponCode = state.appliedCoupon.code;
   // インボイス領収書
   if ($('invoiceReceipt') && $('invoiceReceipt').checked) f.invoiceReceipt = true;
+  // 決済方法
+  var pmRadio = document.querySelector('input[name="paymentMethod"]:checked');
+  f.paymentMethod = pmRadio ? pmRadio.value : 'default';
   // 送料情報を追加
   var shipping = state.lastShipping || calculateShipping_();
   if (shipping && shipping.amount != null) {
@@ -6579,11 +6596,13 @@ function submitNow_() {
       if (!res || !res.ok) throw new Error(res && res.message ? res.message : '注文送信に失敗しました');
       var sessionUrl = res.sessionUrl || '';
       if (!sessionUrl) throw new Error('決済URLの取得に失敗しました');
+      // Paidy Session Pay APIで取得したリダイレクトURLがあればそちらを優先
+      var redirectTo = res.paidyRedirectUrl || sessionUrl;
       // カートは決済完了時にクリア（handlePaymentReturn_で処理）
       // KOMOJU決済ページへリダイレクト
-      trackEvent_('redirect_to_payment', { payment_gateway: 'komoju', page_type: 'detauri' });
+      trackEvent_('redirect_to_payment', { payment_gateway: res.paidyRedirectUrl ? 'paidy' : 'komoju', page_type: 'detauri' });
       setSending_(true, '決済ページへ移動中...');
-      window.location.href = sessionUrl;
+      window.location.href = redirectTo;
     })
     .catch(function(e) {
       showToast(e.message || '注文送信に失敗しました');

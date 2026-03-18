@@ -47,6 +47,7 @@ function apiSubmitEstimate(userKey, form, ids) {
     var measureOpt = String(f.measureOpt || 'with');
     var usePoints = Math.max(0, Math.floor(Number(f.usePoints || 0)));
     var couponCode = String(f.couponCode || '').trim();
+    var paymentMethod = String(f.paymentMethod || '').trim();
 
     if (!companyName) return { ok: false, message: '会社名/氏名は必須です' };
     if (!contact) return { ok: false, message: 'メールアドレスは必須です' };
@@ -494,10 +495,22 @@ function apiSubmitEstimate(userKey, form, ids) {
 
     console.log('KOMOJU決済セッション作成: ' + receiptNo + ' → ' + komojuResult.sessionUrl);
 
+    // Paidy Session Pay API（Hosted Pageのshipping_address未送信を回避）
+    var paidyRedirectUrl = null;
+    if (paymentMethod === 'paidy' && komojuResult.sessionId) {
+      var paidyResult = komojuSessionPayPaidy_(komojuResult.sessionId, contact, { line1: address, zip: postal });
+      if (paidyResult.ok) {
+        paidyRedirectUrl = paidyResult.redirectUrl;
+      } else {
+        console.warn('Paidy Session Pay失敗、Hosted Pageにフォールバック:', paidyResult.message);
+      }
+    }
+
     return {
       ok: true,
       receiptNo: receiptNo,
       sessionUrl: komojuResult.sessionUrl,
+      paidyRedirectUrl: paidyRedirectUrl,
       totalAmount: totalWithShipping,
       shippingAmount: shippingAmount
     };

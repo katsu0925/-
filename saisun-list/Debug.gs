@@ -4,6 +4,66 @@
 // =====================================================
 
 /**
+ * KOMOJU Session Pay APIを直接呼んでPaidyの422エラー内容を確認
+ */
+function debugPaidyPayment() {
+  var secretKey = getKomojuSecretKey_();
+  if (!secretKey) { console.log('KOMOJU APIキー未設定'); return; }
+
+  // 直近のセッションを取得
+  var props = PropertiesService.getScriptProperties();
+  var allProps = props.getProperties();
+  var latest = null;
+  for (var key in allProps) {
+    if (key.indexOf('PAYMENT_') === 0) {
+      try {
+        var val = JSON.parse(allProps[key]);
+        if (!latest || (val.createdAt || '') > (latest.createdAt || '')) {
+          val._key = key;
+          latest = val;
+        }
+      } catch (e) {}
+    }
+  }
+
+  if (!latest || !latest.sessionId) {
+    console.log('セッションが見つかりません');
+    return;
+  }
+
+  console.log('最新セッション: ' + latest._key + ', sessionId=' + latest.sessionId);
+
+  // セッション詳細を取得
+  var session = komojuRequest_('GET', '/sessions/' + latest.sessionId, null, secretKey);
+  console.log('Session status: ' + (session.status || 'N/A'));
+  console.log('Session customer_email: ' + (session.customer_email || 'N/A'));
+  console.log('Session customer_family_name: ' + (session.customer_family_name || 'N/A'));
+  console.log('Session payment_data: ' + JSON.stringify(session.payment_data || null));
+  console.log('Session full keys: ' + Object.keys(session).join(', '));
+
+  // Session Pay APIでPaidy決済を直接実行
+  // テスト1: payment_detailsにフラット形式で配送先
+  var payData = {
+    payment_details: {
+      type: 'paidy',
+      email: 'nsdktts1030@gmail.com',
+      shipping_address_line1: '大阪府大阪市中央区1-1-1',
+      shipping_address_line2: '',
+      shipping_address_city: '大阪市',
+      shipping_address_state: '大阪府',
+      shipping_address_zip: '540-0001',
+      shipping_address_country: 'JP'
+    }
+  };
+  console.log('\n=== Session Pay API テスト (shipping_address付き) ===');
+  console.log('POST /sessions/' + latest.sessionId + '/pay');
+  console.log('Request: ' + JSON.stringify(payData));
+
+  var result = komojuRequest_('POST', '/sessions/' + latest.sessionId + '/pay', payData, secretKey);
+  console.log('Response: ' + JSON.stringify(result, null, 2));
+}
+
+/**
  * KOMOJUセッションの詳細を確認（Paidyデバッグ用）
  * GASエディタから手動実行
  */
@@ -61,6 +121,28 @@ function debugKomojuSession() {
 
   if (paymentKeys.length === 0) {
     console.log('PAYMENT_セッションが見つかりません');
+  }
+
+  // 直近のPaidy決済のpayment詳細を取得
+  for (var j = 0; j < count; j++) {
+    var s = paymentKeys[j];
+    if (s.paymentId) {
+      console.log('\n=== Payment詳細: ' + s.paymentId + ' ===');
+      var payment = komojuRequest_('GET', '/payments/' + s.paymentId, null, secretKey);
+      if (payment && !payment.error) {
+        console.log('Status: ' + payment.status);
+        console.log('Amount: ' + payment.amount);
+        console.log('Payment Details Type: ' + (payment.payment_details ? payment.payment_details.type : 'N/A'));
+        console.log('Payment Details: ' + JSON.stringify(payment.payment_details || {}));
+        console.log('Customer Email: ' + (payment.customer_email || 'N/A'));
+        console.log('Customer Name: ' + (payment.customer_name || 'N/A'));
+        console.log('Customer Phone: ' + (payment.customer_phone || 'N/A'));
+        console.log('Error: ' + JSON.stringify(payment.payment_method_fee || null));
+        console.log('Full payment object keys: ' + Object.keys(payment).join(', '));
+      } else {
+        console.log('Payment取得エラー: ' + JSON.stringify(payment));
+      }
+    }
   }
 }
 
