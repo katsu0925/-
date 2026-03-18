@@ -1600,13 +1600,29 @@ var ADMIN_KEY = (function() {
 // D1確保依存APIはGASフォールバック禁止（GASとD1のデシンク防止）
 // 認証系APIはGASフォールバックを許可（v1/legacyパスワード対応）
 var _workerOnlyActions = {
-  'apiValidateCoupon': true, 'apiSubmitEstimate': true, 'apiBulkSubmit': true
+  'apiValidateCoupon': true, 'apiSubmitEstimate': true
 };
+
+function loadUserKey_() {
+  var k = localStorage.getItem('estimate_userKey');
+  if (k) return k;
+  var nk = 'u_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+  localStorage.setItem('estimate_userKey', nk);
+  return nk;
+}
 
 function runApi(fn) {
   var args = Array.prototype.slice.call(arguments, 1);
+  var extra = {};
+  // 最後の引数が _runApiExtra_ なら取り出す
+  if (args.length > 0 && args[args.length - 1] && args[args.length - 1]._runApiExtra_) {
+    extra = args.pop();
+  }
   if (IS_STANDALONE) {
-    var bodyStr = JSON.stringify({ action: fn, args: args, adminKey: (typeof ADMIN_KEY !== 'undefined' ? ADMIN_KEY : '') });
+    var payload = { action: fn, args: args };
+    if ('recaptchaToken' in extra) payload.recaptchaToken = extra.recaptchaToken;
+    if (typeof ADMIN_KEY !== 'undefined' && ADMIN_KEY) payload.adminKey = ADMIN_KEY;
+    var bodyStr = JSON.stringify(payload);
     var isWorkerOnly = !!_workerOnlyActions[fn];
     var apiUrl = (!_workerFailed && WORKER_API_URL) || isWorkerOnly ? WORKER_API_URL : GAS_API_URL;
     return fetch(apiUrl, {
@@ -2968,7 +2984,8 @@ function submitOrder() {
     return;
   }
 
-  var form = {
+  // apiSubmitEstimate が期待する formData を構築
+  var formData = {
     companyName: companyName,
     contact: contact,
     postal: postal,
@@ -2976,17 +2993,16 @@ function submitOrder() {
     phone: phone,
     note: note,
     couponCode: G.coupon ? document.getElementById('couponInput').value.trim() : '',
-    pointsUsed: G.pointsUsed || 0,
-    shippingAmount: shipping,
-    shippingSize: G.shippingSize,
-    shippingPref: G.shippingPref,
-    detauriProductAmount: detauriProductAmount,
-    detauriShipping: detauriShippingAmount,
-    detauriItemCount: detauriItemCount,
-    detauriIds: (G.detauriItems || []).map(function(d) { return d.id; }),
+    usePoints: G.pointsUsed || 0,
     paymentMethod: (function() { var r = document.querySelector('input[name="bulkPaymentMethod"]:checked'); return r ? r.value : 'default'; })(),
-    loggedIn: !!(G.customer)
+    loggedIn: !!(G.customer),
+    // アソート商品リスト（Workers submit.js がサーバー側で再計算）
+    bulkItems: items
   };
+
+  // デタウリカートのID配列（アソートのみの場合は空配列）
+  var detauriIds = (G.detauriItems || []).map(function(d) { return d.id; });
+  var userKey = loadUserKey_();
 
   G.submitting = true;
   var _chkItems = [], _chkVal = 0;
@@ -3000,7 +3016,7 @@ function submitOrder() {
   btn.classList.add('pay-button--loading');
   var _submitStart = performance.now();
 
-  runApi('apiBulkSubmit', form, items)
+  runApi('apiSubmitEstimate', userKey, formData, detauriIds, { _runApiExtra_: true })
     .then(function(r) {
       G.submitting = false;
       if (r && r.ok && r.sessionUrl) {
