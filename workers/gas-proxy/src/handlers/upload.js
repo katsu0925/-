@@ -3,13 +3,17 @@
  *
  * エンドポイント:
  *   POST /upload/auth           — パスワード認証→トークン発行
- *   POST /upload/images         — 画像アップロード（最大10枚）
- *   POST /upload/replace        — 1枚目上書き
- *   POST /upload/list           — アップロード済み商品一覧
+ *   POST /upload/images         — 画像アップロード（最大10枚、action=append で追加モード対応）
+ *   POST /upload/update-image   — 指定画像の上書き（1枚差し替え）
+ *   POST /upload/reorder        — 画像並び替え（KV配列の順序変更）
+ *   POST /upload/list           — アップロード済み商品一覧（サムネイル付き）
+ *   POST /upload/list-all       — 全商品の全画像URL一括取得
  *   POST /upload/product-images — 指定商品の画像URL一覧
+ *   POST /upload/delete         — 商品画像の全削除
+ *   POST /upload/delete-single  — 個別画像の削除（targetUrl or imageIndex）
  *
  * 認証: Authorization: Bearer {token} → KV upload-token:{token}
- * R2パス: products/{managedId}/1.jpg 〜 10.jpg
+ * R2パス: products/{managedId}/{uuid}.jpg（UUID v4）
  * KV: product-images:{managedId} → URL配列, product-images:index → managedIdリスト
  */
 
@@ -82,6 +86,12 @@ export async function handleUpload(request, env, path) {
       return await handleDelete(request, env);
     case '/upload/delete-single':
       return await handleDeleteSingle(request, env);
+    case '/upload/update-image':
+      return await handleUpdateImage(request, env);
+    case '/upload/reorder':
+      return await handleReorder(request, env);
+    case '/upload/list-all':
+      return await handleListAll(request, env);
     case '/upload/workers':
       return await handleWorkers(request, env);
     default:
@@ -152,6 +162,9 @@ async function handleImageUpload(request, env) {
     }
   }
 
+  // action判定: append=追加モード, new=新規（デフォルト）
+  const action = formData.get('action') || 'new';
+
   // ファイル取得
   const files = formData.getAll('images');
   if (!files || files.length === 0) {
@@ -159,6 +172,16 @@ async function handleImageUpload(request, env) {
   }
   if (files.length > MAX_IMAGES) {
     return jsonError(`画像は最大${MAX_IMAGES}枚までです`, 400);
+  }
+
+  // appendモード: 既存画像との合計枚数チェック
+  let existingUrls = [];
+  if (action === 'append') {
+    const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
+    existingUrls = urlsJson ? JSON.parse(urlsJson) : [];
+    if (existingUrls.length + files.length > MAX_IMAGES) {
+      return jsonError(`あと${MAX_IMAGES - existingUrls.length}枚まで追加可能です（現在${existingUrls.length}枚）`, 400);
+    }
   }
 
   // バリデーション
@@ -171,10 +194,10 @@ async function handleImageUpload(request, env) {
     }
   }
 
-  // R2に並列PUT
-  const uploadPromises = files.map(async (file, index) => {
-    const num = index + 1;
-    const key = `products/${managedId}/${num}.jpg`;
+  // R2に並列PUT（UUID v4でファイル名生成）
+  const uploadPromises = files.map(async (file) => {
+    const uuid = crypto.randomUUID();
+    const key = `products/${managedId}/${uuid}.jpg`;
     const arrayBuffer = await file.arrayBuffer();
     await env.IMAGES.put(key, arrayBuffer, {
       httpMetadata: {
@@ -182,10 +205,11 @@ async function handleImageUpload(request, env) {
         cacheControl: 'public, max-age=31536000, immutable',
       },
     });
-    return `/images/products/${managedId}/${num}.jpg`;
+    return `/images/products/${managedId}/${uuid}.jpg`;
   });
 
-  const urls = await Promise.all(uploadPromises);
+  const newUrls = await Promise.all(uploadPromises);
+  const urls = action === 'append' ? [...existingUrls, ...newUrls] : newUrls;
 
   // KVインデックス更新（商品単位）
   await env.CACHE.put(`product-images:${managedId}`, JSON.stringify(urls));
@@ -267,8 +291,9 @@ async function handleProductImages(request, env) {
 // ─── R2画像配信 ───
 
 export async function serveImage(request, env, path) {
-  // path: /images/products/{managedId}/{n}.jpg
-  const r2Key = path.replace(/^\/images\//, '');
+  // クエリ文字列を除去してR2キーを構築
+  const cleanPath = path.split('?')[0];
+  const r2Key = cleanPath.replace(/^\/images\//, '');
 
   const object = await env.IMAGES.get(r2Key);
   if (!object) {
@@ -340,26 +365,40 @@ async function handleDeleteSingle(request, env) {
   }
 
   const managedId = normalizeManagedId(body.managedId || '');
-  const imageIndex = parseInt(body.imageIndex, 10); // 1-based index
-  if (!managedId) {
-    return jsonError('管理番号が必要です', 400);
-  }
-  if (isNaN(imageIndex) || imageIndex < 1 || imageIndex > MAX_IMAGES) {
-    return jsonError('画像番号が不正です（1〜10）', 400);
+  if (!managedId) return jsonError('管理番号が必要です', 400);
+
+  // UUID方式: targetUrl でURLを指定
+  const targetUrl = body.targetUrl || '';
+  // 旧方式互換: imageIndex でも受け付ける
+  const imageIndex = parseInt(body.imageIndex, 10);
+
+  const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
+  let urls = urlsJson ? JSON.parse(urlsJson) : [];
+
+  let urlToDelete = '';
+  if (targetUrl) {
+    // URL直接指定
+    if (!urls.includes(targetUrl)) return jsonError('指定された画像はこの商品に属しません', 400);
+    urlToDelete = targetUrl;
+  } else if (!isNaN(imageIndex) && imageIndex >= 1 && imageIndex <= MAX_IMAGES) {
+    // 旧方式: 番号指定（後方互換）
+    const legacyUrl = `/images/products/${managedId}/${imageIndex}.jpg`;
+    if (urls.includes(legacyUrl)) {
+      urlToDelete = legacyUrl;
+    } else {
+      return jsonError('指定された画像が見つかりません', 400);
+    }
+  } else {
+    return jsonError('削除対象の画像を指定してください（targetUrl または imageIndex）', 400);
   }
 
   // R2から削除
-  const r2Key = `products/${managedId}/${imageIndex}.jpg`;
+  const r2Key = urlToDelete.replace(/^\/images\//, '');
   await env.IMAGES.delete(r2Key);
 
-  // KVの画像URL一覧を更新
-  const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
-  let urls = urlsJson ? JSON.parse(urlsJson) : [];
-  const targetUrl = `/images/products/${managedId}/${imageIndex}.jpg`;
-  urls = urls.filter(u => u !== targetUrl);
-
+  // KV更新
+  urls = urls.filter(u => u !== urlToDelete);
   if (urls.length === 0) {
-    // 全画像が削除された場合はインデックスからも除去
     await env.CACHE.delete(`product-images:${managedId}`);
     await removeFromIndex(env, managedId);
   } else {
@@ -367,8 +406,130 @@ async function handleDeleteSingle(request, env) {
   }
 
   await invalidateProductCache(env);
+  return jsonOk({ managedId, deleted: urlToDelete, remaining: urls.length });
+}
 
-  return jsonOk({ managedId, imageIndex, remaining: urls.length });
+// ─── 指定画像の上書き ───
+
+async function handleUpdateImage(request, env) {
+  const contentType = request.headers.get('Content-Type') || '';
+  if (!contentType.includes('multipart/form-data')) {
+    return jsonError('multipart/form-data が必要です', 400);
+  }
+
+  let formData;
+  try {
+    formData = await request.formData();
+  } catch {
+    return jsonError('フォームデータの解析に失敗しました', 400);
+  }
+
+  const managedId = normalizeManagedId(formData.get('managedId') || '');
+  if (!managedId) return jsonError('管理番号が必要です', 400);
+
+  const targetUrl = formData.get('targetUrl') || '';
+  if (!targetUrl) return jsonError('対象画像URLが必要です', 400);
+
+  // URL所有権チェック
+  const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
+  const urls = urlsJson ? JSON.parse(urlsJson) : [];
+  const targetIndex = urls.indexOf(targetUrl);
+  if (targetIndex === -1) return jsonError('指定された画像はこの商品に属しません', 400);
+
+  const files = formData.getAll('images');
+  if (!files || files.length !== 1) return jsonError('画像ファイルを1枚指定してください', 400);
+  const file = files[0];
+  if (!(file instanceof File)) return jsonError('不正なファイルです', 400);
+  if (file.size > MAX_FILE_SIZE) return jsonError(`ファイルサイズが大きすぎます（最大${MAX_FILE_SIZE / 1024 / 1024}MB）`, 400);
+
+  // 古いR2ファイルを削除
+  const oldR2Key = targetUrl.replace(/^\/images\//, '');
+  await env.IMAGES.delete(oldR2Key);
+
+  // 新UUIDで保存
+  const uuid = crypto.randomUUID();
+  const newKey = `products/${managedId}/${uuid}.jpg`;
+  const arrayBuffer = await file.arrayBuffer();
+  await env.IMAGES.put(newKey, arrayBuffer, {
+    httpMetadata: {
+      contentType: 'image/jpeg',
+      cacheControl: 'public, max-age=31536000, immutable',
+    },
+  });
+
+  const newUrl = `/images/products/${managedId}/${uuid}.jpg`;
+  urls[targetIndex] = newUrl;
+  await env.CACHE.put(`product-images:${managedId}`, JSON.stringify(urls));
+  await invalidateProductCache(env);
+
+  return jsonOk({ managedId, oldUrl: targetUrl, newUrl, urls });
+}
+
+// ─── 画像並び替え ───
+
+async function handleReorder(request, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError('不正なリクエスト', 400);
+  }
+
+  const managedId = normalizeManagedId(body.managedId || '');
+  if (!managedId) return jsonError('管理番号が必要です', 400);
+
+  const newOrder = body.newOrder;
+  if (!Array.isArray(newOrder) || newOrder.length === 0) {
+    return jsonError('新しい順序が必要です', 400);
+  }
+
+  // 既存URL取得
+  const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
+  const urls = urlsJson ? JSON.parse(urlsJson) : [];
+
+  // バリデーション: URLホワイトリスト + 所有権チェック
+  const urlPattern = /^\/images\/products\/[A-Z0-9\-]+\/[a-f0-9\-]+\.jpg$/;
+  for (const url of newOrder) {
+    if (!urlPattern.test(url) && !/^\/images\/products\/[A-Z0-9\-]+\/\d+\.jpg$/.test(url)) {
+      return jsonError('不正なURL形式です', 400);
+    }
+    if (!urls.includes(url)) {
+      return jsonError('指定された画像はこの商品に属しません', 400);
+    }
+  }
+
+  // 重複チェック
+  if (new Set(newOrder).size !== newOrder.length) {
+    return jsonError('重複したURLがあります', 400);
+  }
+
+  // 数の一致チェック
+  if (newOrder.length !== urls.length) {
+    return jsonError('画像数が一致しません', 400);
+  }
+
+  // KV更新
+  await env.CACHE.put(`product-images:${managedId}`, JSON.stringify(newOrder));
+  await invalidateProductCache(env);
+
+  return jsonOk({ managedId, urls: newOrder });
+}
+
+// ─── 全商品の全画像URL一括取得 ───
+
+async function handleListAll(request, env) {
+  const indexJson = await env.CACHE.get('product-images:index');
+  const index = indexJson ? JSON.parse(indexJson) : [];
+
+  const items = await Promise.all(
+    index.map(async (managedId) => {
+      const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
+      const urls = urlsJson ? JSON.parse(urlsJson) : [];
+      return { managedId, urls, count: urls.length };
+    })
+  );
+
+  return jsonOk({ items });
 }
 
 // ─── 作業者リスト取得 ───

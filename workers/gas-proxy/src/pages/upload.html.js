@@ -1,9 +1,10 @@
 /**
  * アップロードページHTML（自己完結型、スマホ最適化）
  *
- * セクション1: 画像アップロード（管理番号+最大10枚）
- * セクション2: 1枚目一括ダウンロード
- * セクション3: 加工済み1枚目上書き
+ * セクション1: 画像アップロード（管理番号+最大10枚、既存画像検出・追加・上書き・並び替え）
+ * セクション2: 一括ダウンロード（画像展開+JSZip ZIP DL）
+ * セクション3: 検索（リサーチ）（Google画像検索）
+ * セクション4: 削除（targetUrl方式）
  */
 export function getUploadPageHtml() {
   return `<!DOCTYPE html>
@@ -54,8 +55,8 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 .list-check{width:20px;height:20px;accent-color:#3b82f6}
 .dl-status{font-size:11px;color:#10b981;display:none}
 .dl-status.show{display:inline}
-.tab-bar{display:flex;gap:4px;margin-bottom:12px;background:#f3f4f6;border-radius:10px;padding:4px}
-.tab{flex:1;padding:8px;text-align:center;font-size:13px;font-weight:600;border:none;background:transparent;border-radius:8px;cursor:pointer;color:#666}
+.tab-bar{display:flex;gap:4px;margin-bottom:12px;background:#f3f4f6;border-radius:10px;padding:4px;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap}
+.tab{flex:none;min-width:70px;padding:8px;text-align:center;font-size:13px;font-weight:600;border:none;background:transparent;border-radius:8px;cursor:pointer;color:#666;white-space:nowrap}
 .tab.active{background:#fff;color:#1a1a2e;box-shadow:0 1px 2px rgba(0,0,0,.1)}
 .section{display:none}
 .section.active{display:block}
@@ -63,6 +64,15 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 .auth-wall h2{border:none;color:#6b7280}
 .hidden{display:none}
 .select-all-row{display:flex;align-items:center;gap:8px;padding:8px 0;font-size:13px;color:#666}
+.img-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px}
+.search-overlay{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(59,130,246,.4);display:flex;align-items:center;justify-content:center;font-size:24px;opacity:0;transition:opacity .2s;cursor:pointer;border-radius:6px}
+.search-item:hover .search-overlay,.search-item:active .search-overlay{opacity:1}
+.replace-btn{position:absolute;bottom:2px;right:2px;background:rgba(255,255,255,.9);border-radius:4px;font-size:12px;padding:2px 4px;cursor:pointer}
+.img-check-wrap{position:relative}
+.img-check-wrap input[type=checkbox]{position:absolute;top:4px;left:4px;z-index:2;width:18px;height:18px;accent-color:#3b82f6}
+@media(max-width:480px){.img-grid{grid-template-columns:repeat(2,1fr)}.preview-grid{grid-template-columns:repeat(2,1fr)}}
+@media(min-width:481px) and (max-width:768px){.img-grid{grid-template-columns:repeat(3,1fr)}}
+@media(min-width:769px){.img-grid{grid-template-columns:repeat(4,1fr)}}
 </style>
 </head>
 <body>
@@ -85,6 +95,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
     <div class="tab-bar">
       <button class="tab active" onclick="switchTab('upload')">アップロード</button>
       <button class="tab" onclick="switchTab('download')">一括DL</button>
+      <button class="tab" onclick="switchTab('research')">検索</button>
       <button class="tab" onclick="switchTab('delete')">削除</button>
     </div>
 
@@ -117,7 +128,14 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
           <label>撮影日付</label>
           <input type="date" id="photographyDate">
         </div>
-        <div class="form-group">
+        <div id="existingImages" class="hidden" style="margin-top:12px">
+          <div style="font-size:13px;font-weight:600;margin-bottom:4px" id="existingCount"></div>
+          <div class="preview-grid" id="existingGrid"></div>
+          <div style="margin-top:8px;display:flex;gap:8px">
+            <button class="btn btn-secondary" style="flex:1;font-size:12px;padding:8px" onclick="saveReorder(normId(document.getElementById('uploadManagedId').value))">並び順を保存</button>
+          </div>
+        </div>
+        <div class="form-group" style="margin-top:12px">
           <label>画像（最大10枚）</label>
           <input type="file" id="uploadFiles" multiple accept="image/*" onchange="showPreview()">
         </div>
@@ -131,7 +149,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
     <!-- セクション2: 一括ダウンロード -->
     <div class="section" id="sec-download">
       <div class="card">
-        <h2>1枚目一括ダウンロード</h2>
+        <h2>画像一括ダウンロード</h2>
         <div class="form-group">
           <input type="text" id="dlSearch" placeholder="管理番号で検索..." autocomplete="off" oninput="filterDlList()">
         </div>
@@ -142,12 +160,37 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
           <span style="margin-left:auto" id="selectedCount">0件選択</span>
         </div>
         <div id="productList"></div>
-        <button class="btn btn-success hidden" id="dlBtn" onclick="doDownloadSelected()" style="margin-top:12px">選択した1枚目を保存</button>
+        <button class="btn btn-primary hidden" id="dlExpandBtn" onclick="expandDlImages()" style="margin-top:12px">画像を展開</button>
+        <div id="dlImageGrid" class="hidden" style="margin-top:12px"></div>
+        <div style="margin-top:8px;display:flex;gap:8px" id="dlImageActions" class="hidden">
+          <button class="btn btn-secondary" style="flex:1;font-size:12px;padding:8px" onclick="toggleDlImageSelect('all')">全画像選択</button>
+          <button class="btn btn-secondary" style="flex:1;font-size:12px;padding:8px" onclick="toggleDlImageSelect('top')">トップ画像のみ</button>
+        </div>
+        <button class="btn btn-success hidden" id="dlBtn" onclick="doDownloadSelected()" style="margin-top:12px">選択した画像を保存</button>
         <div class="status" id="dlStatus"></div>
       </div>
     </div>
 
-    <!-- セクション3: 削除 -->
+    <!-- セクション3: 検索（リサーチ） -->
+    <div class="section" id="sec-research">
+      <div class="card">
+        <h2>画像検索（リサーチ）</h2>
+        <div class="form-group">
+          <input type="text" id="researchSearch" placeholder="管理番号で検索..." autocomplete="off" oninput="filterResearchList()">
+        </div>
+        <div class="status" id="researchLoadStatus"></div>
+        <div class="select-all-row hidden" id="researchSelectAllRow">
+          <input type="checkbox" id="researchSelectAll" class="list-check" onchange="toggleResearchSelectAll()">
+          <span>すべて選択</span>
+        </div>
+        <div id="researchProductList"></div>
+        <button class="btn btn-primary hidden" id="researchExpandBtn" onclick="expandResearchImages()" style="margin-top:12px">選択した商品の画像を展開</button>
+        <div class="status" id="researchStatus"></div>
+        <div id="researchImageGrid" class="hidden" style="margin-top:12px"></div>
+      </div>
+    </div>
+
+    <!-- セクション4: 削除 -->
     <div class="section" id="sec-delete">
       <div class="card">
         <h2>画像削除</h2>
@@ -177,6 +220,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 // ─── 設定 ───
 var API_BASE = location.origin;
@@ -202,7 +246,6 @@ function showStatus(id, msg, type) {
 // ─── 初期化 ───
 (function init() {
   if (getToken()) {
-    // トークン検証
     fetch(API_BASE + '/upload/list', {
       method: 'POST',
       headers: headers({ 'Content-Type': 'application/json' }),
@@ -223,13 +266,11 @@ function showAuth() {
 function showMain() {
   document.getElementById('authSection').classList.add('hidden');
   document.getElementById('mainSection').classList.remove('hidden');
-  // 撮影日付のデフォルト=今日
   var today = new Date();
   var yyyy = today.getFullYear();
   var mm = String(today.getMonth() + 1).padStart(2, '0');
   var dd = String(today.getDate()).padStart(2, '0');
   document.getElementById('photographyDate').value = yyyy + '-' + mm + '-' + dd;
-  // 撮影者セットアップ
   initPhotographer();
 }
 
@@ -248,7 +289,6 @@ function initPhotographer() {
       showPhotographerModal();
     }
   }).catch(function() {
-    // オフラインでも保存済みなら使える
     var saved = localStorage.getItem(PHOTOGRAPHER_KEY);
     if (saved) setPhotographer(saved);
     else showPhotographerModal();
@@ -336,16 +376,180 @@ document.getElementById('authBtn').addEventListener('click', function() {
 function switchTab(name) {
   var tabs = document.querySelectorAll('.tab');
   var secs = document.querySelectorAll('.section');
-  var tabNames = ['upload','download','delete'];
+  var tabNames = ['upload','download','research','delete'];
   tabs.forEach(function(t, i) {
     t.classList.toggle('active', tabNames[i] === name);
   });
   secs.forEach(function(s) { s.classList.toggle('active', s.id === 'sec-' + name); });
   if (name === 'download') ensureListLoaded(function() { renderDlList(); });
+  if (name === 'research') ensureListLoaded(function() { renderResearchList(); });
   if (name === 'delete') ensureListLoaded(function() { renderDeleteList(); });
 }
 
-// ─── セクション1: アップロード ───
+// ─── セクション1: アップロード（既存画像検出付き） ───
+var _existingUrls = [];
+var _uploadMode = 'new'; // 'new' or 'append'
+var _managedIdTimer = null;
+
+document.getElementById('uploadManagedId').addEventListener('input', function() {
+  clearTimeout(_managedIdTimer);
+  var mid = normId(this.value);
+  if (mid.length < 2) { hideExistingImages(); return; }
+  _managedIdTimer = setTimeout(function() { checkExistingImages(mid); }, 500);
+});
+
+function checkExistingImages(managedId) {
+  fetch(API_BASE + '/upload/product-images', {
+    method: 'POST',
+    headers: headers({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ managedId: managedId })
+  }).then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.ok && d.urls && d.urls.length > 0) {
+      _existingUrls = d.urls;
+      _uploadMode = 'append';
+      showExistingImages(d.urls, managedId);
+    } else {
+      _existingUrls = [];
+      _uploadMode = 'new';
+      hideExistingImages();
+    }
+  }).catch(function() { _existingUrls = []; _uploadMode = 'new'; hideExistingImages(); });
+}
+
+function showExistingImages(urls, managedId) {
+  var container = document.getElementById('existingImages');
+  container.classList.remove('hidden');
+  document.getElementById('existingCount').textContent = urls.length + '枚登録済み（あと' + (10 - urls.length) + '枚追加可能）';
+  var grid = document.getElementById('existingGrid');
+  var html = '';
+  for (var i = 0; i < urls.length; i++) {
+    html += '<div class="preview-item" draggable="true" data-idx="' + i + '">' +
+      '<img src="' + API_BASE + urls[i] + '?t=' + Date.now() + '">' +
+      '<span class="badge">' + (i === 0 ? 'トップ' : (i+1)) + '</span>' +
+      '<span class="replace-btn" data-url="' + escapeHtml(urls[i]) + '" onclick="startReplace(this.dataset.url)">🔄</span>' +
+      '</div>';
+  }
+  grid.innerHTML = html;
+  initDragReorder(grid, managedId);
+}
+
+function hideExistingImages() {
+  _existingUrls = [];
+  _uploadMode = 'new';
+  document.getElementById('existingImages').classList.add('hidden');
+  document.getElementById('existingGrid').innerHTML = '';
+}
+
+// ─── ドラッグ&ドロップ並び替え（PC） ───
+function initDragReorder(grid, managedId) {
+  var items = grid.querySelectorAll('.preview-item');
+  var dragItem = null;
+  items.forEach(function(item) {
+    item.addEventListener('dragstart', function(e) {
+      dragItem = this;
+      this.style.opacity = '0.4';
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    item.addEventListener('dragend', function() {
+      this.style.opacity = '1';
+      dragItem = null;
+    });
+    item.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    });
+    item.addEventListener('drop', function(e) {
+      e.preventDefault();
+      if (!dragItem || dragItem === this) return;
+      var allItems = Array.from(grid.querySelectorAll('.preview-item'));
+      var fromIdx = allItems.indexOf(dragItem);
+      var toIdx = allItems.indexOf(this);
+      if (fromIdx < toIdx) grid.insertBefore(dragItem, this.nextSibling);
+      else grid.insertBefore(dragItem, this);
+      saveReorder(managedId);
+    });
+    // モバイル: タップで位置番号入力
+    item.addEventListener('click', function(e) {
+      if (e.target.classList.contains('replace-btn') || e.target.closest('.replace-btn')) return;
+      if ('ontouchstart' in window) {
+        var allItems = Array.from(grid.querySelectorAll('.preview-item'));
+        var currentIdx = allItems.indexOf(this);
+        var newPos = prompt('移動先の番号を入力（1〜' + allItems.length + '）', String(currentIdx + 1));
+        if (newPos === null) return;
+        var newIdx = parseInt(newPos) - 1;
+        if (isNaN(newIdx) || newIdx < 0 || newIdx >= allItems.length || newIdx === currentIdx) return;
+        if (newIdx < currentIdx) grid.insertBefore(this, allItems[newIdx]);
+        else grid.insertBefore(this, allItems[newIdx].nextSibling);
+        saveReorder(managedId);
+      }
+    });
+  });
+}
+
+function saveReorder(managedId) {
+  var items = document.getElementById('existingGrid').querySelectorAll('.preview-item');
+  var newOrder = [];
+  items.forEach(function(item, i) {
+    var img = item.querySelector('img');
+    var url = img.src.replace(API_BASE, '').replace(/\\?t=\\d+$/, '');
+    newOrder.push(url);
+    var badge = item.querySelector('.badge');
+    badge.textContent = i === 0 ? 'トップ' : (i + 1);
+  });
+
+  fetch(API_BASE + '/upload/reorder', {
+    method: 'POST',
+    headers: headers({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ managedId: managedId, newOrder: newOrder })
+  }).then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.ok) {
+      _existingUrls = d.urls || newOrder;
+      showStatus('uploadStatus', '並び替えを保存しました', 'ok');
+    } else {
+      showStatus('uploadStatus', d.message || '並び替えエラー', 'err');
+    }
+  }).catch(function() { showStatus('uploadStatus', '並び替えエラー', 'err'); });
+}
+
+// ─── 画像上書き（Replace） ───
+function startReplace(targetUrl) {
+  var input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.onchange = function() {
+    if (!input.files || !input.files[0]) return;
+    var mid = normId(document.getElementById('uploadManagedId').value);
+    var isTop = _existingUrls.indexOf(targetUrl) === 0;
+    var maxSize = isTop ? 1200 : 800;
+    var quality = isTop ? 0.80 : 0.75;
+    showStatus('uploadStatus', '上書き中...', 'info');
+    resizeImage(input.files[0], maxSize, quality, function(blob) {
+      var fd = new FormData();
+      fd.append('managedId', mid);
+      fd.append('targetUrl', targetUrl);
+      fd.append('images', blob, 'replace.jpg');
+      fetch(API_BASE + '/upload/update-image', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + getToken() },
+        body: fd
+      }).then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.ok) {
+          _existingUrls = d.urls;
+          showExistingImages(d.urls, mid);
+          showStatus('uploadStatus', '画像を上書きしました', 'ok');
+        } else {
+          showStatus('uploadStatus', d.message || '上書きエラー', 'err');
+        }
+      }).catch(function() { showStatus('uploadStatus', '上書きエラー', 'err'); });
+    });
+  };
+  input.click();
+}
+
+// ─── プレビュー・アップロード ───
 function showPreview() {
   var input = document.getElementById('uploadFiles');
   var grid = document.getElementById('uploadPreview');
@@ -353,8 +557,9 @@ function showPreview() {
   grid.innerHTML = '';
   var files = input.files;
   if (!files || files.length === 0) { btn.disabled = true; return; }
-  if (files.length > 10) {
-    showStatus('uploadStatus', '画像は最大10枚までです', 'err');
+  var maxNew = 10 - _existingUrls.length;
+  if (files.length > maxNew) {
+    showStatus('uploadStatus', '画像は最大10枚までです（既存' + _existingUrls.length + '枚＋新規は' + maxNew + '枚まで）', 'err');
     input.value = '';
     btn.disabled = true;
     return;
@@ -366,8 +571,9 @@ function showPreview() {
       reader.onload = function(e) {
         var div = document.createElement('div');
         div.className = 'preview-item';
+        var labelIdx = _existingUrls.length + idx;
         div.innerHTML = '<img src="' + e.target.result + '">' +
-          (idx === 0 ? '<span class="badge">トップ</span>' : '<span class="badge">' + (idx+1) + '</span>');
+          (labelIdx === 0 ? '<span class="badge">トップ</span>' : '<span class="badge">' + (labelIdx+1) + '</span>');
         grid.appendChild(div);
       };
       reader.readAsDataURL(files[idx]);
@@ -393,7 +599,6 @@ function doUpload() {
   fill.style.width = '0%';
   showStatus('uploadStatus', 'リサイズ中...', 'info');
 
-  // 画像リサイズ → アップロード
   resizeAllImages(files, function(blobs) {
     showStatus('uploadStatus', '0/' + blobs.length + ' アップロード中...', 'info');
     uploadInParallel(managedId, blobs, 3, photographer, photographyDate, function(done, total) {
@@ -408,6 +613,8 @@ function doUpload() {
         showStatus('uploadStatus', blobs.length + '枚アップロード完了', 'ok');
         input.value = '';
         document.getElementById('uploadPreview').innerHTML = '';
+        // 既存画像を再取得して更新
+        checkExistingImages(managedId);
       }
     });
   });
@@ -418,8 +625,9 @@ function resizeAllImages(files, cb) {
   var done = 0;
   for (var i = 0; i < files.length; i++) {
     (function(idx) {
-      var maxSize = idx === 0 ? 1200 : 800;
-      var quality = idx === 0 ? 0.80 : 0.75;
+      var isTop = (_existingUrls.length === 0 && idx === 0);
+      var maxSize = isTop ? 1200 : 800;
+      var quality = isTop ? 0.80 : 0.75;
       resizeImage(files[idx], maxSize, quality, function(blob) {
         results[idx] = blob;
         done++;
@@ -444,16 +652,14 @@ function resizeImage(file, maxSize, quality, cb) {
     ctx.drawImage(img, 0, 0, w, h);
     canvas.toBlob(function(blob) { cb(blob); }, 'image/jpeg', quality);
   };
-  img.onerror = function() {
-    // ブラウザがデコードできない場合はそのまま渡す
-    cb(file);
-  };
+  img.onerror = function() { cb(file); };
   img.src = URL.createObjectURL(file);
 }
 
 function uploadInParallel(managedId, blobs, concurrency, photographer, photographyDate, onProgress, onDone) {
   var fd = new FormData();
   fd.append('managedId', managedId);
+  fd.append('action', _uploadMode); // 'new' or 'append'
   if (photographer) fd.append('photographer', photographer);
   if (photographyDate) fd.append('photographyDate', photographyDate);
   for (var i = 0; i < blobs.length; i++) {
@@ -511,6 +717,7 @@ function reloadList(cb) {
 }
 
 // ─── セクション2: 一括ダウンロード ───
+var _dlExpandedData = []; // [{mid, urls, filename}...]
 
 function filterDlList() {
   ensureListLoaded(function() { renderDlList(); });
@@ -527,7 +734,7 @@ function renderDlList() {
     count++;
     var thumbSrc = p.thumbnail ? (API_BASE + p.thumbnail) : '';
     html += '<div class="list-item">' +
-      '<input type="checkbox" class="list-check dl-check" data-idx="' + i + '" onchange="updateSelectedCount()">' +
+      '<input type="checkbox" class="list-check dl-check" data-idx="' + i + '" data-mid="' + escapeHtml(p.managedId) + '" onchange="updateSelectedCount()">' +
       (thumbSrc ? '<img class="list-thumb" src="' + thumbSrc + '" loading="lazy">' : '<div class="list-thumb"></div>') +
       '<div class="list-info"><div class="list-id">' + escapeHtml(p.managedId) + '</div>' +
       '<div class="list-count">' + p.count + '枚 <span class="dl-status" id="dlst-' + i + '">✓保存済</span></div></div>' +
@@ -535,7 +742,11 @@ function renderDlList() {
   }
   el.innerHTML = html || '<div style="text-align:center;color:#999;padding:20px">該当なし</div>';
   document.getElementById('selectAllRow').classList.remove('hidden');
-  document.getElementById('dlBtn').classList.remove('hidden');
+  document.getElementById('dlExpandBtn').classList.remove('hidden');
+  // Hide image grid when re-rendering list
+  document.getElementById('dlImageGrid').classList.add('hidden');
+  document.getElementById('dlImageActions').classList.add('hidden');
+  document.getElementById('dlBtn').classList.add('hidden');
   updateSelectedCount();
 }
 
@@ -552,28 +763,97 @@ function updateSelectedCount() {
   document.getElementById('selectedCount').textContent = checks.length + '件選択';
 }
 
-function doDownloadSelected() {
+function expandDlImages() {
   var checks = document.querySelectorAll('.dl-check:checked');
   if (checks.length === 0) { showStatus('dlStatus', '商品を選択してください', 'err'); return; }
+  if (checks.length > 10) { showStatus('dlStatus', '10商品以上選択されています。処理に時間がかかる場合があります', 'info'); }
 
-  var indices = [];
-  checks.forEach(function(c) { indices.push(parseInt(c.dataset.idx)); });
+  var grid = document.getElementById('dlImageGrid');
+  grid.innerHTML = '<div style="text-align:center;padding:20px;color:#666">読み込み中...</div>';
+  grid.classList.remove('hidden');
+
+  var mids = [];
+  checks.forEach(function(c) { mids.push(c.dataset.mid); });
+
+  _dlExpandedData = [];
+  var allHtml = '';
+  var done = 0;
+  mids.forEach(function(mid) {
+    fetch(API_BASE + '/upload/product-images', {
+      method: 'POST',
+      headers: headers({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ managedId: mid })
+    }).then(function(r) { return r.json(); })
+    .then(function(d) {
+      done++;
+      if (d.ok && d.urls) {
+        for (var i = 0; i < d.urls.length; i++) {
+          _dlExpandedData.push({ mid: mid, url: d.urls[i], idx: i });
+        }
+        allHtml += '<div style="margin-bottom:12px"><div style="font-weight:600;font-size:13px;margin-bottom:4px">' + escapeHtml(mid) + ' (' + d.urls.length + '枚)</div>';
+        allHtml += '<div class="img-grid">';
+        for (var j = 0; j < d.urls.length; j++) {
+          var fullUrl = API_BASE + d.urls[j];
+          allHtml += '<div class="img-check-wrap preview-item">' +
+            '<input type="checkbox" class="dl-img-check" data-mid="' + escapeHtml(mid) + '" data-url="' + escapeHtml(d.urls[j]) + '" data-imgidx="' + j + '" checked>' +
+            '<img src="' + fullUrl + '" loading="lazy">' +
+            '<span class="badge">' + (j === 0 ? 'トップ' : (j+1)) + '</span>' +
+            '</div>';
+        }
+        allHtml += '</div></div>';
+      }
+      if (done === mids.length) {
+        grid.innerHTML = allHtml || '<div style="text-align:center;color:#999;padding:20px">画像なし</div>';
+        document.getElementById('dlImageActions').classList.remove('hidden');
+        document.getElementById('dlBtn').classList.remove('hidden');
+      }
+    }).catch(function() {
+      done++;
+      if (done === mids.length) {
+        grid.innerHTML = allHtml || '<div style="text-align:center;color:#999;padding:20px">画像なし</div>';
+        document.getElementById('dlImageActions').classList.remove('hidden');
+        document.getElementById('dlBtn').classList.remove('hidden');
+      }
+    });
+  });
+}
+
+function toggleDlImageSelect(mode) {
+  var checks = document.querySelectorAll('.dl-img-check');
+  checks.forEach(function(c) {
+    if (mode === 'all') {
+      c.checked = true;
+    } else if (mode === 'top') {
+      c.checked = (c.dataset.imgidx === '0');
+    }
+  });
+}
+
+function doDownloadSelected() {
+  var checks = document.querySelectorAll('.dl-img-check:checked');
+  if (checks.length === 0) { showStatus('dlStatus', '画像を選択してください', 'err'); return; }
 
   var btn = document.getElementById('dlBtn');
   btn.disabled = true;
-  showStatus('dlStatus', '0/' + indices.length + ' 読み込み中...', 'info');
+  showStatus('dlStatus', '0/' + checks.length + ' 読み込み中...', 'info');
 
-  // 全画像を並列で取得
+  var selectedItems = [];
+  checks.forEach(function(c) {
+    selectedItems.push({
+      mid: c.dataset.mid,
+      url: API_BASE + c.dataset.url,
+      filename: c.dataset.mid + '_' + (parseInt(c.dataset.imgidx) + 1) + '.jpg'
+    });
+  });
+
   var done = 0;
   var fileEntries = [];
-  var promises = indices.map(function(idx) {
-    var p = productListData[idx];
-    var url = API_BASE + p.thumbnail;
-    return fetch(url).then(function(r) { return r.blob(); })
+  var promises = selectedItems.map(function(item) {
+    return fetch(item.url).then(function(r) { return r.blob(); })
     .then(function(blob) {
-      fileEntries.push({ idx: idx, file: new File([blob], p.managedId + '.jpg', { type: 'image/jpeg' }) });
+      fileEntries.push({ file: new File([blob], item.filename, { type: 'image/jpeg' }), blob: blob, filename: item.filename });
       done++;
-      showStatus('dlStatus', done + '/' + indices.length + ' 読み込み中...', 'info');
+      showStatus('dlStatus', done + '/' + selectedItems.length + ' 読み込み中...', 'info');
     }).catch(function() { done++; });
   });
 
@@ -584,16 +864,30 @@ function doDownloadSelected() {
       return;
     }
 
-    var files = fileEntries.map(function(e) { return e.file; });
+    // PC: JSZip
+    if (typeof JSZip !== 'undefined' && !(navigator.canShare && navigator.canShare({ files: fileEntries.map(function(e) { return e.file; }) }))) {
+      showStatus('dlStatus', 'ZIPファイルを作成中...', 'info');
+      var zip = new JSZip();
+      fileEntries.forEach(function(entry) {
+        zip.file(entry.filename, entry.blob);
+      });
+      zip.generateAsync({ type: 'blob' }).then(function(content) {
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(content);
+        a.download = 'detauri_images.zip';
+        a.click();
+        setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
+        btn.disabled = false;
+        showStatus('dlStatus', fileEntries.length + '枚をZIPで保存しました', 'ok');
+      });
+      return;
+    }
 
-    // スマホ: 一括共有（写真アプリに保存）
+    // モバイル: navigator.share
+    var files = fileEntries.map(function(e) { return e.file; });
     if (navigator.canShare && navigator.canShare({ files: files })) {
       showStatus('dlStatus', files.length + '枚を保存中...', 'info');
       navigator.share({ files: files }).then(function() {
-        fileEntries.forEach(function(e) {
-          var st = document.getElementById('dlst-' + e.idx);
-          if (st) st.classList.add('show');
-        });
         showStatus('dlStatus', files.length + '枚保存完了', 'ok');
       }).catch(function() {
         showStatus('dlStatus', 'キャンセルされました', 'info');
@@ -601,7 +895,7 @@ function doDownloadSelected() {
       return;
     }
 
-    // PC: 1枚ずつダウンロード
+    // フォールバック: 1枚ずつダウンロード
     files.forEach(function(file) {
       var a = document.createElement('a');
       a.href = URL.createObjectURL(file);
@@ -611,16 +905,108 @@ function doDownloadSelected() {
       document.body.removeChild(a);
       setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
     });
-    fileEntries.forEach(function(e) {
-      var st = document.getElementById('dlst-' + e.idx);
-      if (st) st.classList.add('show');
-    });
     btn.disabled = false;
     showStatus('dlStatus', files.length + '枚保存完了', 'ok');
   });
 }
 
-// ─── セクション3: 削除 ───
+// ─── セクション3: 検索（リサーチ） ───
+
+function filterResearchList() {
+  ensureListLoaded(function() { renderResearchList(); });
+}
+
+function renderResearchList() {
+  var q = normId(document.getElementById('researchSearch').value);
+  var el = document.getElementById('researchProductList');
+  var html = '';
+  var count = 0;
+  for (var i = 0; i < productListData.length; i++) {
+    var p = productListData[i];
+    if (q && p.managedId.toUpperCase().indexOf(q) === -1) continue;
+    count++;
+    var thumbSrc = p.thumbnail ? (API_BASE + p.thumbnail) : '';
+    html += '<div class="list-item">' +
+      '<input type="checkbox" class="list-check research-check" data-mid="' + escapeHtml(p.managedId) + '" data-idx="' + i + '">' +
+      (thumbSrc ? '<img class="list-thumb" src="' + thumbSrc + '" loading="lazy">' : '<div class="list-thumb"></div>') +
+      '<div class="list-info"><div class="list-id">' + escapeHtml(p.managedId) + '</div>' +
+      '<div class="list-count">' + p.count + '枚</div></div>' +
+      '</div>';
+  }
+  el.innerHTML = html || '<div style="text-align:center;color:#999;padding:20px">該当なし</div>';
+  document.getElementById('researchSelectAllRow').classList.remove('hidden');
+  document.getElementById('researchExpandBtn').classList.remove('hidden');
+}
+
+function toggleResearchSelectAll() {
+  var checked = document.getElementById('researchSelectAll').checked;
+  document.querySelectorAll('.research-check').forEach(function(c) { c.checked = checked; });
+}
+
+function expandResearchImages() {
+  var checks = document.querySelectorAll('.research-check:checked');
+  if (checks.length === 0) { showStatus('researchStatus', '商品を選択してください', 'err'); return; }
+
+  var grid = document.getElementById('researchImageGrid');
+  grid.innerHTML = '<div style="text-align:center;padding:20px;color:#666">読み込み中...</div>';
+  grid.classList.remove('hidden');
+
+  var mids = [];
+  checks.forEach(function(c) { mids.push(c.dataset.mid); });
+
+  var fragments = [];
+  var done = 0;
+  mids.forEach(function(mid, midIdx) {
+    fetch(API_BASE + '/upload/product-images', {
+      method: 'POST',
+      headers: headers({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ managedId: mid })
+    }).then(function(r) { return r.json(); })
+    .then(function(d) {
+      done++;
+      if (d.ok && d.urls) {
+        var h = '<div style="margin-bottom:12px"><div style="font-weight:600;font-size:13px;margin-bottom:4px">' + escapeHtml(mid) + ' (' + d.urls.length + '枚)</div>';
+        h += '<div class="img-grid">';
+        for (var i = 0; i < d.urls.length; i++) {
+          var fullUrl = API_BASE + d.urls[i];
+          h += '<div class="preview-item search-item" style="cursor:pointer" onclick="searchImage(this.querySelector(\'img\').src)">' +
+            '<img src="' + fullUrl + '" loading="lazy">' +
+            '<span class="badge">' + (i === 0 ? 'トップ' : (i+1)) + '</span>' +
+            '<div class="search-overlay">🔍</div>' +
+            '</div>';
+        }
+        h += '</div></div>';
+        fragments[midIdx] = h;
+      }
+      if (done === mids.length) {
+        var allHtml = '';
+        for (var k = 0; k < mids.length; k++) {
+          if (fragments[k]) allHtml += fragments[k];
+        }
+        grid.innerHTML = allHtml || '<div style="text-align:center;color:#999;padding:20px">画像なし</div>';
+      }
+    }).catch(function() {
+      done++;
+      if (done === mids.length) {
+        var allHtml = '';
+        for (var k = 0; k < mids.length; k++) {
+          if (fragments[k]) allHtml += fragments[k];
+        }
+        grid.innerHTML = allHtml || '<div style="text-align:center;color:#999;padding:20px">画像なし</div>';
+      }
+    });
+  });
+}
+
+function searchImage(imgUrl) {
+  if (/iPhone|iPad/.test(navigator.userAgent)) {
+    window.open('https://lens.google.com/uploadbyurl?url=' + encodeURIComponent(imgUrl));
+  } else {
+    window.open('https://www.google.com/searchbyimage?image_url=' + encodeURIComponent(imgUrl));
+  }
+}
+
+// ─── セクション4: 削除 ───
 var _deleteImages = [];
 var _deleteManagedId = '';
 
@@ -644,7 +1030,6 @@ function renderDeleteList() {
       '</div>';
   }
   el.innerHTML = html || '<div style="text-align:center;color:#999;padding:20px">該当なし</div>';
-  // 詳細をリセット
   document.getElementById('deleteDetail').classList.add('hidden');
 }
 
@@ -668,24 +1053,24 @@ function selectForDelete(managedId) {
     for (var i = 0; i < _deleteImages.length; i++) {
       html += '<div class="preview-item">' +
         '<img src="' + API_BASE + _deleteImages[i] + '?t=' + Date.now() + '">' +
-        '<span class="badge" style="background:rgba(239,68,68,.85);cursor:pointer" onclick="doDeleteSingle(' + (i+1) + ')">×</span>' +
+        '<span class="badge" style="background:rgba(239,68,68,.85);cursor:pointer" onclick="doDeleteSingle(' + i + ')">×</span>' +
         '</div>';
     }
     grid.innerHTML = html;
   }).catch(function(e) { showStatus('deleteStatus', 'ネットワークエラー', 'err'); });
 }
 
-function doDeleteSingle(imageIndex) {
-  showConfirm(imageIndex + '枚目を削除しますか？', function() {
-    _doDeleteSingle(imageIndex);
+function doDeleteSingle(urlIndex) {
+  showConfirm((urlIndex+1) + '枚目を削除しますか？', function() {
+    _doDeleteSingle(urlIndex);
   });
 }
-function _doDeleteSingle(imageIndex) {
+function _doDeleteSingle(urlIndex) {
   showStatus('deleteStatus', '削除中...', 'info');
   fetch(API_BASE + '/upload/delete-single', {
     method: 'POST',
     headers: headers({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ managedId: _deleteManagedId, imageIndex: imageIndex })
+    body: JSON.stringify({ managedId: _deleteManagedId, targetUrl: _deleteImages[urlIndex] })
   }).then(function(r) { return r.json(); })
   .then(function(d) {
     if (d.ok) {
