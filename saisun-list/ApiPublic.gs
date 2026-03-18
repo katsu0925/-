@@ -113,6 +113,11 @@ function apiSyncHolds(userKey, ids, sessionId) {
     var now = u_nowMs_();
     var wantIds = u_unique_(u_normalizeIds_(ids || []));
 
+    // 売却済み商品チェック（ロック外で取得 — 読み取り専用なので安全）
+    var products = pr_readProducts_();
+    var validProductSet = {};
+    for (var pi = 0; pi < products.length; pi++) validProductSet[String(products[pi].managedId)] = true;
+
     // ロックで並行制御（最大10秒待機: 同時アクセス時のバッティングを確実に防ぐ）
     var lock = LockService.getScriptLock();
     if (!lock.tryLock(10000)) {
@@ -148,6 +153,14 @@ function apiSyncHolds(userKey, ids, sessionId) {
 
       for (var i = 0; i < wantIds.length; i++) {
         var id = wantIds[i];
+
+        // データ1に存在しない商品（売却済み等で同期時に除外済み）は確保不可
+        if (!validProductSet[id]) {
+          var cur0a = holdItems[id];
+          if (cur0a && String(cur0a.userKey || '') === uk) delete holdItems[id];
+          failed.push({ id: id, reason: '在庫なし' });
+          continue;
+        }
 
         if (openSet[id]) {
           var cur0 = holdItems[id];
@@ -491,14 +504,21 @@ function app_sendOrderConfirmToCustomer_(data) {
       body += selectionList + '\n';
     }
 
+    // 発送目安セクション
+    var shippingTrigger = isDeferredPayment ? '入金確認後' : '決済完了後';
+    body += '━━━━━━━━━━━━━━━━━━━━\n\n'
+      + '━━━━━━━━━━━━━━━━━━━━\n'
+      + '■ 発送について\n'
+      + '━━━━━━━━━━━━━━━━━━━━\n'
+      + '発送目安：' + shippingTrigger + ' 3〜5営業日（土日祝休み）以内\n'
+      + 'お届け目安：発送後 1〜3日程度（地域により異なります）\n\n'
+      + '※ 繁忙期・天候等により遅れる場合がございます。\n';
+
     if (isDeferredPayment) {
-      body += '━━━━━━━━━━━━━━━━━━━━\n\n'
-        + '上記のお支払い期限までにお支払いをお願いいたします。\n'
+      body += '\n上記のお支払い期限までにお支払いをお願いいたします。\n'
         + '入金確認後、商品の発送準備を進めてまいります。\n\n';
     } else {
-      body += '━━━━━━━━━━━━━━━━━━━━\n\n'
-        + '商品の発送準備を進めてまいります。\n'
-        + '発送が完了しましたら、追跡番号とともにメールでお知らせいたします。\n\n';
+      body += '発送が完了しましたら、追跡番号とともにメールでお知らせいたします。\n\n';
     }
 
     body += '※ このメールは自動送信です。\n'
@@ -561,7 +581,17 @@ function app_sendOrderConfirmToCustomer_(data) {
       ? 'デタウリ.Detauri をご利用いただきありがとうございます。\n以下の内容でご注文を受け付けました。'
       : 'デタウリ.Detauri をご利用いただきありがとうございます。\nお支払いを確認しました。以下の内容でご注文が確定しました。';
 
-    var htmlNotes = ['このメールは自動送信です。'];
+    // 発送についてセクション（HTML版）
+    var htmlShippingTrigger = isDeferredPayment ? '入金確認後' : '決済完了後';
+    htmlSections.push({
+      title: '発送について',
+      rows: [
+        { label: '発送目安', value: htmlShippingTrigger + ' 3〜5営業日（土日祝休み）以内' },
+        { label: 'お届け目安', value: '発送後 1〜3日程度（地域により異なります）' }
+      ]
+    });
+
+    var htmlNotes = ['このメールは自動送信です。', '繁忙期・天候等により遅れる場合がございます。'];
     if (isDeferredPayment) {
       htmlNotes.push('期限を過ぎますとご注文は自動キャンセルとなり、確保中の商品は解放されますのでご注意ください。');
       htmlNotes.push('入金確認後に注文確定メールをお送りいたします。');
@@ -573,7 +603,7 @@ function app_sendOrderConfirmToCustomer_(data) {
       htmlNotes.push('ご注文確定後のキャンセル・変更はできません。');
       htmlSections.push({
         title: '',
-        text: '商品の発送準備を進めてまいります。\n発送が完了しましたら、追跡番号とともにメールでお知らせいたします。'
+        text: '発送が完了しましたら、追跡番号とともにメールでお知らせいたします。'
       });
     }
 
