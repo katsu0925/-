@@ -2998,13 +2998,16 @@ function submitOrder() {
   btn.disabled = true;
   btn.innerHTML = '<span class="pay-btn-spinner"></span> 処理中...';
   btn.classList.add('pay-button--loading');
+  var _submitStart = performance.now();
 
   runApi('apiBulkSubmit', form, items)
     .then(function(r) {
       G.submitting = false;
       if (r && r.ok && r.sessionUrl) {
         var _redirectTo = r.paidyRedirectUrl || r.sessionUrl;
-        trackEvent_('redirect_to_payment', { payment_gateway: r.paidyRedirectUrl ? 'paidy' : 'komoju', page_type: 'assort' });
+        var _elapsed = Math.round(performance.now() - _submitStart);
+        console.log('[PERF] 決済画面遷移: ' + _elapsed + 'ms (' + (_elapsed / 1000).toFixed(1) + '秒) — ' + (r.paidyRedirectUrl ? 'Paidy' : 'KOMOJU'));
+        trackEvent_('redirect_to_payment', { payment_gateway: r.paidyRedirectUrl ? 'paidy' : 'komoju', page_type: 'assort', elapsed_ms: _elapsed });
         // Phase 4-4/4-5: 広告コンバージョントラッキング
         var _convVal = _chkVal + (G.detauriCartTotal || 0);
         try { _trackGoogleAdsConversion(_convVal, 'JPY'); } catch(e) {}
