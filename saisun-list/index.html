@@ -6604,10 +6604,10 @@ function submitNow_() {
       // Paidy Session Pay APIで取得したリダイレクトURLがあればそちらを優先
       var redirectTo = res.paidyRedirectUrl || sessionUrl;
       var _elapsed = Math.round(performance.now() - _submitStart);
-      console.log('[PERF] 決済画面遷移: ' + _elapsed + 'ms (' + (_elapsed / 1000).toFixed(1) + '秒) — ' + (res.paidyRedirectUrl ? 'Paidy' : 'KOMOJU'));
+      alert('[PERF] 決済画面遷移: ' + (_elapsed / 1000).toFixed(1) + '秒');
       // カートは決済完了時にクリア（handlePaymentReturn_で処理）
       // KOMOJU決済ページへリダイレクト
-      trackEvent_('redirect_to_payment', { payment_gateway: res.paidyRedirectUrl ? 'paidy' : 'komoju', page_type: 'detauri', elapsed_ms: _elapsed });
+      trackEvent_('redirect_to_payment', { payment_gateway: res.paidyRedirectUrl ? 'paidy' : 'komoju', page_type: 'detauri' });
       setSending_(true, '決済ページへ移動中...');
       window.location.href = redirectTo;
     })
