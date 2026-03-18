@@ -566,9 +566,11 @@ export async function submitEstimate(args, env, bodyText, ctx) {
       shipping_size: String(shippingSize),
     },
   };
-  if (contact) {
-    sessionData.customer = { email: contact };
-  }
+  // 顧客情報を追加（Paidyは name, email, phone が必須）
+  sessionData.customer = {};
+  if (contact) sessionData.customer.email = contact;
+  if (companyName) sessionData.customer.name = companyName;
+  if (phone) sessionData.customer.phone = phone.replace(/[-ー\s]/g, '');
 
   const komojuResp = await fetch(KOMOJU_API_URL + '/sessions', {
     method: 'POST',
