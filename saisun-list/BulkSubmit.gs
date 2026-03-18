@@ -104,9 +104,10 @@ function apiBulkSubmit(form, items) {
     var validatedCoupon = null;
     var firstHalfPriceApplied = false;
 
-    // 初回全品半額キャンペーンチェック（他の割引と併用不可）
+    // 初回全品半額キャンペーンチェック（他の割引と併用不可、ログイン必須）
+    var isLoggedIn = !!(f.loggedIn);
     var fhpStatus = app_getFirstHalfPriceStatus_();
-    if (fhpStatus.enabled && contact && typeof findCustomerByEmail_ === 'function') {
+    if (fhpStatus.enabled && isLoggedIn && contact && typeof findCustomerByEmail_ === 'function') {
       var custForFhp = findCustomerByEmail_(contact);
       if (custForFhp && custForFhp.purchaseCount === 0) {
         firstHalfPriceApplied = true;

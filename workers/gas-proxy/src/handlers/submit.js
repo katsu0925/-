@@ -350,6 +350,10 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   }
 
   // 割引適用（GAS SubmitFix.gs と同一順序: 数量割引 → 会員割引 → クーポン）
+  console.log('DISCOUNT DEBUG: isLoggedIn=' + isLoggedIn + ', fhpEnabled=' + fhpStatus.enabled +
+              ', purchaseCount=' + purchaseCount + ', firstHalfPriceApplied=' + firstHalfPriceApplied +
+              ', sum=' + sum + ', bulkProductAmount=' + bulkProductAmount +
+              ', discountRate=' + discountRate + ', memberDiscountRate=' + memberDiscountRate);
   let discounted;
   if (firstHalfPriceApplied) {
     const fhpOnDetauri = Math.round(sum * fhpStatus.rate);
@@ -580,6 +584,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
       product_amount: String(discounted + bulkProductAmount),
       shipping_amount: String(shippingAmount + bulkShippingAmount),
       shipping_size: String(shippingSize),
+      _debug: 'loggedIn=' + isLoggedIn + ',fhp=' + firstHalfPriceApplied + ',pc=' + purchaseCount + ',dr=' + discountRate + ',mr=' + memberDiscountRate + ',sum=' + sum,
     },
   };
   // customerオブジェクト

@@ -2984,7 +2984,8 @@ function submitOrder() {
     detauriShipping: detauriShippingAmount,
     detauriItemCount: detauriItemCount,
     detauriIds: (G.detauriItems || []).map(function(d) { return d.id; }),
-    paymentMethod: (function() { var r = document.querySelector('input[name="bulkPaymentMethod"]:checked'); return r ? r.value : 'default'; })()
+    paymentMethod: (function() { var r = document.querySelector('input[name="bulkPaymentMethod"]:checked'); return r ? r.value : 'default'; })(),
+    loggedIn: !!(G.customer)
   };
 
   G.submitting = true;
