@@ -86,9 +86,14 @@ function apiCreateKomojuSession(paymentKey, amount, customerInfo) {
       }
     };
 
-    // 顧客メールがあれば追加
-    if (email) {
-      sessionData.customer = { email: email };
+    // 顧客情報を追加（Paidyは name, email, phone が必須）
+    var customerName = String(info.companyName || '').trim();
+    var customerPhone = String(info.phone || '').trim().replace(/[-ー\s]/g, '');
+    if (email || customerName || customerPhone) {
+      sessionData.customer = {};
+      if (email) sessionData.customer.email = email;
+      if (customerName) sessionData.customer.name = customerName;
+      if (customerPhone) sessionData.customer.phone = customerPhone;
     }
 
     var response = komojuRequest_('POST', '/sessions', sessionData, secretKey);

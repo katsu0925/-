@@ -341,6 +341,7 @@ function apiBulkSubmit(form, items) {
     var komojuResult = apiCreateKomojuSession(paymentToken, totalWithShipping, {
       email: contact,
       companyName: companyName,
+      phone: phone,
       productAmount: discounted + detauriProductAmount,
       shippingAmount: shippingAmount + detauriShippingAmount,
       shippingSize: shippingSize

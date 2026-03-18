@@ -474,6 +474,7 @@ function apiSubmitEstimate(userKey, form, ids) {
     var komojuResult = apiCreateKomojuSession(receiptNo, totalWithShipping, {
       email: contact,
       companyName: companyName,
+      phone: phone,
       productAmount: discounted + bulkProductAmount,
       shippingAmount: shippingAmount + bulkShippingAmount,
       shippingSize: shippingSize
@@ -837,7 +838,7 @@ function writeSubmitData_(data) {
   var paymentStatus = data.paymentStatus || '対応済';
   // アソート商品の場合、選択リスト/合計点数の扱いが異なる
   var selectionList = data.selectionList || (data.ids ? data.ids.join('、') : '');
-  var totalCount = data._sheetTotalCount || data.totalCount || (data.ids ? data.ids.length : 0);
+  var totalCount = data._sheetTotalCount || calcTotalCountFromProductNames_(productNames) || data.totalCount || (data.ids ? data.ids.length : 0);
   var confirmLink = (channel === 'デタウリ' || data._hasManagedIds) ? createOrderConfirmLink_(data.receiptNo, data) : '';
   var row = [
     data.receiptNo,                              // A: 受付番号
@@ -1537,6 +1538,25 @@ function createOrderConfirmLink_(receiptNo, data) {
   }
 }
 
+/**
+ * H列の商品名テキストから合計点数を算出する
+ * 「選べるxlsx付きパッケージ」はカウントしない
+ * 各行の「x2」「×3」等を合算、なければ1として加算
+ */
+function calcTotalCountFromProductNames_(productNamesText) {
+  if (!productNamesText) return 0;
+  var lines = String(productNamesText).split('\n');
+  var total = 0;
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].replace(/^・/, '').trim();
+    if (!line) continue;
+    if (line.indexOf('選べるxlsx付きパッケージ') !== -1) continue;
+    var m = line.match(/[x×]\s*(\d+)/i);
+    total += m ? parseInt(m[1], 10) : 1;
+  }
+  return total;
+}
+
 // =====================================================
 // プレミアムアソート自動選定
 // =====================================================
@@ -1577,8 +1597,8 @@ function detectPremiumAssort_(orderItems) {
   if (totalTarget <= 0) return null;
   return {
     targetAmount: totalTarget,
-    minCount: Math.min(totalMin, PREMIUM_ASSORT_MAX_),
-    maxCount: PREMIUM_ASSORT_MAX_
+    minCount: totalMin,
+    maxCount: Math.max(PREMIUM_ASSORT_MAX_, totalMin * 3)
   };
 }
 
@@ -1698,7 +1718,7 @@ function selectProductsForPremiumAssort_(targetAmount, minCount, maxCount, order
  * 使い方: GASエディタで受付番号を書き換えて実行
  */
 function manualPremiumAssortSelect() {
-  var receiptNo = '20260309133737-178'; // ← ここに受付番号を入力
+  var receiptNo = '20260305193720-732'; // ← ここに受付番号を入力
 
   var orderSs = sh_getOrderSs_();
   var reqSh = sh_ensureRequestSheet_(orderSs);
@@ -1715,19 +1735,30 @@ function manualPremiumAssortSelect() {
 
   // H列(8)から商品名を取得してプレミアムアソート検出
   var productName = String(reqSh.getRange(targetRow, 8).getValue() || '');
-  var orderItems = [{ name: productName, qty: 1 }];
+  // H列の商品名から「x2」「×2」等の数量を抽出
+  var nameQtyMatch = productName.match(/[x×]\s*(\d+)/i);
+  var qty = nameQtyMatch ? parseInt(nameQtyMatch[1], 10) : 1;
+  var orderItems = [{ name: productName, qty: qty }];
   var premiumSpec = detectPremiumAssort_(orderItems);
   if (!premiumSpec) { console.log('プレミアムアソート商品が検出されませんでした: ' + productName); return; }
 
   console.log('検出: target=¥' + premiumSpec.targetAmount + ' min=' + premiumSpec.minCount + ' max=' + premiumSpec.maxCount);
 
-  // 既存のJ列IDを除外対象にする
+  // 既存のJ列IDをopenStateから除去（再選定のためリセット）
   var existingJ = String(reqSh.getRange(targetRow, 10).getValue() || '').trim();
-  var excludeIds = existingJ ? existingJ.split(/[、,]/).map(function(s) { return s.trim(); }).filter(Boolean) : [];
+  var oldIds = existingJ ? existingJ.split(/[、,]/).map(function(s) { return s.trim(); }).filter(Boolean) : [];
+  if (oldIds.length > 0) {
+    var openStatePre = st_getOpenState_(orderSs) || {};
+    var openItemsPre = (openStatePre.items && typeof openStatePre.items === 'object') ? openStatePre.items : {};
+    for (var oi = 0; oi < oldIds.length; oi++) delete openItemsPre[oldIds[oi]];
+    openStatePre.items = openItemsPre;
+    st_setOpenState_(orderSs, openStatePre);
+    console.log('既存選定 ' + oldIds.length + '点をopenStateから除去（再選定）');
+  }
 
-  // 自動選定実行
+  // 自動選定実行（ゼロから再選定）
   var selection = selectProductsForPremiumAssort_(
-    premiumSpec.targetAmount, premiumSpec.minCount, premiumSpec.maxCount, orderSs, excludeIds
+    premiumSpec.targetAmount, premiumSpec.minCount, premiumSpec.maxCount, orderSs, []
   );
 
   if (!selection.ids || selection.ids.length === 0) {
@@ -1735,12 +1766,13 @@ function manualPremiumAssortSelect() {
     return;
   }
 
-  var allIds = excludeIds.concat(selection.ids);
+  var allIds = selection.ids;
   var selectionList = u_sortManagedIds_(allIds).join('、');
 
   // J列・K列・AF列を更新
   reqSh.getRange(targetRow, 10).setValue(selectionList);
-  reqSh.getRange(targetRow, 11).setValue(1); // K列: アソートは1
+  var hText = String(reqSh.getRange(targetRow, 8).getValue() || '');
+  reqSh.getRange(targetRow, 11).setValue(calcTotalCountFromProductNames_(hText));
   reqSh.getRange(targetRow, 32).setValue(new Date());
 
   // openStateに追加
