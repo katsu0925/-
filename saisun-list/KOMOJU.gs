@@ -69,6 +69,11 @@ function apiCreateKomojuSession(paymentKey, amount, customerInfo) {
     var email = String(info.email || info.contact || '').trim();
 
     // 決済セッション作成
+    // 名前を姓名に分割
+    var nameParts = String(info.companyName || '').trim().split(/[\s　]+/);
+    var familyName = nameParts[0] || '';
+    var givenName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+
     var sessionData = {
       amount: Math.round(amount),
       currency: KOMOJU_CONFIG.currency,
@@ -76,6 +81,9 @@ function apiCreateKomojuSession(paymentKey, amount, customerInfo) {
       return_url: getReturnUrl_() + '?token=' + encodeURIComponent(paymentKey) + '&status=complete',
       cancel_url: getReturnUrl_() + '?token=' + encodeURIComponent(paymentKey) + '&status=cancel',
       payment_types: KOMOJU_CONFIG.paymentMethods,
+      customer_email: email || '',
+      customer_family_name: familyName,
+      customer_given_name: givenName || familyName,
       metadata: {
         payment_token: String(paymentKey),
         company_name: String(info.companyName || ''),

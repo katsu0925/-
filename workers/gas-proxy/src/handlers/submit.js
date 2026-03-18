@@ -550,6 +550,12 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   const returnUrl = frontendUrl + '?token=' + encodeURIComponent(paymentToken) + '&status=complete';
   const cancelUrl = frontendUrl + '?token=' + encodeURIComponent(paymentToken) + '&status=cancel';
 
+  // 名前を姓名に分割（スペース区切り、なければ全体を姓とする）
+  var nameParts = (companyName || '').split(/[\s　]+/);
+  var familyName = nameParts[0] || '';
+  var givenName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : '';
+  var postalFormatted = postal ? postal.replace(/[-ー\s]/g, '').replace(/^(\d{3})(\d{4})$/, '$1-$2') : '';
+
   const sessionData = {
     amount: Math.round(totalWithShipping),
     currency: KOMOJU_CURRENCY,
@@ -557,6 +563,10 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     return_url: returnUrl,
     cancel_url: cancelUrl,
     payment_types: KOMOJU_PAYMENT_METHODS,
+    // Paidy含む全決済方法向け顧客情報（トップレベル）
+    customer_email: contact || '',
+    customer_family_name: familyName,
+    customer_given_name: givenName || familyName,
     metadata: {
       payment_token: String(paymentToken),
       company_name: String(companyName),
@@ -566,15 +576,13 @@ export async function submitEstimate(args, env, bodyText, ctx) {
       shipping_size: String(shippingSize),
     },
   };
-  // 顧客情報を追加（Paidyは name, email, phone が必須）
+  // customerオブジェクト
   sessionData.customer = {};
   if (contact) sessionData.customer.email = contact;
   if (companyName) sessionData.customer.name = companyName;
   if (phone) sessionData.customer.phone = phone.replace(/[-ー\s]/g, '');
 
-  // Paidy用: payment_dataにemail・shipping_addressを追加
-  // Paidyはcustomerオブジェクトではなくpayment_data.paidy内に顧客情報が必要
-  var postalFormatted = postal ? postal.replace(/[-ー\s]/g, '').replace(/^(\d{3})(\d{4})$/, '$1-$2') : '';
+  // Paidy用: payment_dataにemail・shipping_address
   sessionData.payment_data = {
     paidy: {
       email: contact || '',
