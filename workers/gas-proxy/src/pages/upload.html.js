@@ -853,6 +853,11 @@ function toggleDlImageSelect(mode) {
   });
 }
 
+// モバイル判定（タッチ+画面幅ベース、PCのcanShareを除外）
+function isMobileDevice() {
+  return ('ontouchstart' in window || navigator.maxTouchPoints > 0) && window.innerWidth <= 768;
+}
+
 function doDownloadTopImages() {
   var checks = document.querySelectorAll('.dl-check:checked');
   if (checks.length === 0) { showStatus('dlStatus', '商品を選択してください', 'err'); return; }
@@ -872,7 +877,7 @@ function doDownloadTopImages() {
     var url = API_BASE + p.thumbnail;
     return fetch(url).then(function(r) { return r.blob(); })
     .then(function(blob) {
-      fileEntries.push({ idx: idx, file: new File([blob], p.managedId + '.jpg', { type: 'image/jpeg' }) });
+      fileEntries.push({ idx: idx, mid: p.managedId, file: new File([blob], p.managedId + '.jpg', { type: 'image/jpeg' }) });
       done++;
       showStatus('dlStatus', done + '/' + indices.length + ' 読み込み中...', 'info');
     }).catch(function() { done++; });
@@ -887,7 +892,7 @@ function doDownloadTopImages() {
     var files = fileEntries.map(function(e) { return e.file; });
 
     // モバイル: 一括共有
-    if (navigator.canShare && navigator.canShare({ files: files })) {
+    if (isMobileDevice() && navigator.canShare && navigator.canShare({ files: files })) {
       showStatus('dlStatus', files.length + '枚を保存中...', 'info');
       navigator.share({ files: files }).then(function() {
         showStatus('dlStatus', files.length + '枚保存完了', 'ok');
@@ -897,10 +902,11 @@ function doDownloadTopImages() {
       return;
     }
 
-    // PC: JSZip
+    // PC: JSZip（管理番号ごとにフォルダ分け）
     if (typeof JSZip !== 'undefined') {
+      showStatus('dlStatus', 'ZIPファイルを作成中...', 'info');
       var zip = new JSZip();
-      fileEntries.forEach(function(e) { zip.file(e.file.name, e.file); });
+      fileEntries.forEach(function(e) { zip.file(e.mid + '.jpg', e.file); });
       zip.generateAsync({ type: 'blob' }).then(function(content) {
         var a = document.createElement('a');
         a.href = URL.createObjectURL(content);
@@ -963,8 +969,21 @@ function doDownloadSelected() {
       return;
     }
 
-    // PC: JSZip
-    if (typeof JSZip !== 'undefined' && !(navigator.canShare && navigator.canShare({ files: fileEntries.map(function(e) { return e.file; }) }))) {
+    var files = fileEntries.map(function(e) { return e.file; });
+
+    // モバイル: navigator.share
+    if (isMobileDevice() && navigator.canShare && navigator.canShare({ files: files })) {
+      showStatus('dlStatus', files.length + '枚を保存中...', 'info');
+      navigator.share({ files: files }).then(function() {
+        showStatus('dlStatus', files.length + '枚保存完了', 'ok');
+      }).catch(function() {
+        showStatus('dlStatus', 'キャンセルされました', 'info');
+      }).finally(function() { btn.disabled = false; });
+      return;
+    }
+
+    // PC: JSZip（管理番号_番号.jpg のファイル名）
+    if (typeof JSZip !== 'undefined') {
       showStatus('dlStatus', 'ZIPファイルを作成中...', 'info');
       var zip = new JSZip();
       fileEntries.forEach(function(entry) {
@@ -979,18 +998,6 @@ function doDownloadSelected() {
         btn.disabled = false;
         showStatus('dlStatus', fileEntries.length + '枚をZIPで保存しました', 'ok');
       });
-      return;
-    }
-
-    // モバイル: navigator.share
-    var files = fileEntries.map(function(e) { return e.file; });
-    if (navigator.canShare && navigator.canShare({ files: files })) {
-      showStatus('dlStatus', files.length + '枚を保存中...', 'info');
-      navigator.share({ files: files }).then(function() {
-        showStatus('dlStatus', files.length + '枚保存完了', 'ok');
-      }).catch(function() {
-        showStatus('dlStatus', 'キャンセルされました', 'info');
-      }).finally(function() { btn.disabled = false; });
       return;
     }
 
