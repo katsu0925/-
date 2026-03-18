@@ -33,7 +33,50 @@ function expandOrder() {
   var receiptNos = input.split(/[、,，\s]+/).map(function(s) { return s.trim(); }).filter(function(s) { return s; });
   if (receiptNos.length === 0) { ui.alert('有効な受付番号がありません。'); return; }
 
+  // 商品数チェック: 大量の場合は分割実行に自動切替
+  if (receiptNos.length === 1) {
+    var orderSs = sh_getOrderSs_();
+    var reqSh = sh_ensureRequestSheet_(orderSs);
+    var lastRow = reqSh.getLastRow();
+    if (lastRow >= 2) {
+      var rowData = reqSh.getRange(2, 1, lastRow - 1, 1).getValues();
+      for (var i = 0; i < rowData.length; i++) {
+        if (String(rowData[i][0]).trim() === receiptNos[0]) {
+          var selStr = String(reqSh.getRange(i + 2, 10).getValue() || '');
+          var idCount = selStr.split(/[、,，\s]+/).filter(Boolean).length;
+          if (idCount > BATCH_EXPAND_AI_SIZE_) {
+            var confirm = ui.alert('分割実行',
+              '商品数が ' + idCount + '点あり、タイムアウトの可能性があります。\n'
+              + BATCH_EXPAND_AI_SIZE_ + '点ずつ分割して自動実行しますか？\n\n'
+              + '（' + Math.ceil(idCount / BATCH_EXPAND_AI_SIZE_) + 'バッチ × 約1分間隔で実行されます）',
+              ui.ButtonSet.YES_NO);
+            if (confirm === ui.Button.YES) {
+              startBatchExpand_(receiptNos[0]);
+              ui.alert('分割展開を開始しました。\n' + Math.ceil(idCount / BATCH_EXPAND_AI_SIZE_) + 'バッチで自動実行されます。\n\n進捗確認: checkBatchExpandProgress を実行');
+              return;
+            }
+            // NOの場合は通常実行を続行（タイムアウトする可能性あり）
+          }
+          break;
+        }
+      }
+    }
+  }
+
   om_executeFullPipeline_(receiptNos, '依頼展開');
+}
+
+/**
+ * 分割展開を開始（内部用）
+ */
+function startBatchExpand_(receiptNo) {
+  // batchExpandOrder の受付番号を設定して呼び出す
+  // 注: batchExpandOrder() 内の receiptNo 変数を手動で書き換える代わりに
+  //     ScriptProperties に受付番号を一時保存して渡す
+  var props = PropertiesService.getScriptProperties();
+  props.setProperty('BATCH_EXPAND_RECEIPT_NO', receiptNo);
+  console.log('分割展開開始: ' + receiptNo);
+  batchExpandOrder();
 }
 
 // ═══════════════════════════════════════════
@@ -713,6 +756,546 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
     if (ui) activeSs.toast('処理対象がありませんでした', '完了', 5);
     else console.log('処理対象がありませんでした');
   }
+}
+
+// ═══════════════════════════════════════════
+// 大量商品の依頼展開を分割実行（タイムアウト回避）
+// ═══════════════════════════════════════════
+
+/**
+ * 大量商品の依頼展開を分割実行する。
+ * 1回あたり BATCH_SIZE 件ずつ処理し、残りはトリガーで自動継続。
+ *
+ * 使い方: GASエディタで受付番号を書き換えて batchExpandOrder() を実行
+ * → 自動で分割処理が開始され、完了するまでトリガーが連鎖実行される
+ */
+var BATCH_EXPAND_AI_SIZE_ = 30; // OpenAI 1回あたりの処理件数（om_generateDescriptions_ の内部バッチサイズに合わせる）
+
+/**
+ * ヘルパー: 受付番号から全スプレッドシートデータを読み込み、productRows等を構築する。
+ * Phase 1 と Phase 3 の両方で呼び出すことで、大きなデータを ScriptProperties に保存せずに済む。
+ *
+ * @param {string} receiptNo 受付番号
+ * @return {Object|null} { productRows, titles, outArr, customerName, ids, reqRow, rIdx, orderPriceMap }
+ */
+function buildProductRowsForReceipt_(receiptNo) {
+  var orderSs = sh_getOrderSs_();
+  var reqSh = sh_ensureRequestSheet_(orderSs);
+  var lastRow = reqSh.getLastRow();
+  if (lastRow < 2) { console.log('依頼管理が空です'); return null; }
+
+  // 受付番号→行を検索
+  var targetRow = -1;
+  var reqData = reqSh.getRange(2, 1, lastRow - 1, reqSh.getLastColumn()).getValues();
+  var reqHeaders = reqSh.getRange(1, 1, 1, reqSh.getLastColumn()).getValues()[0];
+  var rIdx = {};
+  reqHeaders.forEach(function(h, i) { rIdx[String(h || '').trim()] = i; });
+
+  for (var i = 0; i < reqData.length; i++) {
+    if (String(reqData[i][0]).trim() === receiptNo) { targetRow = i; break; }
+  }
+  if (targetRow < 0) { console.log('受付番号が見つかりません: ' + receiptNo); return null; }
+  var reqRow = reqData[targetRow];
+
+  var selectionCol = rIdx['選択リスト'];
+  var selectionStr = String(reqRow[selectionCol] || '');
+  var ids = selectionStr.split(/[、,，\s]+/).map(function(s) { return s.trim(); }).filter(Boolean);
+  if (ids.length === 0) { console.log('選択リストが空です'); return null; }
+
+  // 仕入れ管理読み込み
+  var shiireSs = SpreadsheetApp.openById(OM_SHIIRE_SS_ID);
+  var mainSheet = shiireSs.getSheetByName('商品管理');
+  var mData = mainSheet.getDataRange().getValues();
+  var mHeaders = mData.shift();
+  var mIdx = {};
+  mHeaders.forEach(function(h, i) { mIdx[String(h || '').trim()] = i; });
+  var idColIdx = mIdx['管理番号'];
+  var mDataMap = {};
+  for (var mi = 0; mi < mData.length; mi++) {
+    var mk = String(mData[mi][idColIdx] || '').trim();
+    if (mk) mDataMap[mk] = mData[mi];
+  }
+
+  var aiSheet = shiireSs.getSheetByName('AIキーワード抽出');
+  var aiMap = om_buildAiMap_(aiSheet);
+  var returnSheet = shiireSs.getSheetByName('返送管理');
+  var boxMap = om_buildBoxMap_(returnSheet);
+
+  // 返送管理日付マップ
+  var returnSetMap = {};
+  if (returnSheet) {
+    var rRetData = returnSheet.getDataRange().getValues();
+    for (var ri = 1; ri < rRetData.length; ri++) {
+      var rIdsStr = String(rRetData[ri][3] || '');
+      var rDate = rRetData[ri][6];
+      if (!rIdsStr || !rDate) continue;
+      var rDateVal = (rDate instanceof Date) ? rDate : new Date(rDate);
+      if (isNaN(rDateVal.getTime())) continue;
+      var rIds = rIdsStr.split(/[,\n\r\t\s、，／\/・|]+/);
+      for (var rj = 0; rj < rIds.length; rj++) {
+        var rk = String(rIds[rj]).trim();
+        if (rk) returnSetMap[rk] = rDateVal;
+      }
+    }
+  }
+
+  // データ1価格マップ
+  var data1PriceMap = {};
+  try {
+    var dataSs = SpreadsheetApp.openById(String(APP_CONFIG.data.spreadsheetId || ''));
+    var data1Sheet = dataSs.getSheetByName('データ1');
+    if (data1Sheet) {
+      var d1Last = data1Sheet.getLastRow();
+      if (d1Last >= 3) {
+        var d1Keys = data1Sheet.getRange(3, 11, d1Last - 2, 1).getValues();
+        var d1Prices = data1Sheet.getRange(3, 9, d1Last - 2, 1).getValues();
+        for (var di = 0; di < d1Keys.length; di++) {
+          var dk = String(d1Keys[di][0] || '').trim();
+          if (dk) data1PriceMap[dk] = d1Prices[di][0];
+        }
+      }
+    }
+  } catch (e) { console.warn('データ1価格読取失敗:', e.message); }
+
+  // 注文時価格JSON
+  var orderPriceMap = {};
+  try {
+    var priceJson = String(reqRow[REQUEST_SHEET_COLS.ITEM_PRICES - 1] || '');
+    if (priceJson) orderPriceMap = JSON.parse(priceJson);
+  } catch (e) {}
+
+  // 顧客名
+  var customerName = '';
+  var nameKeys = ['会社名/氏名', '会社名／氏名', '会社名', '氏名', 'お名前'];
+  for (var nk = 0; nk < nameKeys.length; nk++) {
+    if (rIdx[nameKeys[nk]] !== undefined) {
+      customerName = String(reqRow[rIdx[nameKeys[nk]]] || '').trim();
+      if (customerName) break;
+    }
+  }
+
+  // 回収完了用 outArr を構築
+  var outArr = [];
+  ids.forEach(function(mgmtId) {
+    var row = mDataMap[mgmtId];
+    if (!row) return;
+    outArr.push([
+      '', boxMap[mgmtId] || (mIdx['箱ID'] !== undefined ? String(row[mIdx['箱ID']] || '') : ''),
+      mgmtId, row[mIdx['ブランド']] || '', row[mIdx['メルカリサイズ']] || '',
+      row[mIdx['性別']] || '', row[mIdx['カテゴリ2']] || '', aiMap[mgmtId] || '',
+      row[mIdx['出品日']] || '', row[mIdx['使用アカウント']] || '',
+      row[mIdx['仕入れ値']] || '', row[mIdx['納品場所']] || '', receiptNo
+    ]);
+  });
+
+  // productRows を構築
+  var productRows = [];
+  outArr.forEach(function(listRow) {
+    var targetId = String(listRow[2] || '').trim();
+    if (!targetId) return;
+    var row = mDataMap[targetId];
+    if (!row) return;
+
+    var boxId = listRow[1];
+    if (!boxId && mIdx['箱ID'] !== undefined) boxId = String(row[mIdx['箱ID']] || '');
+    boxId = String(boxId || '');
+    var boxParts = boxId.split('-');
+    if (boxParts.length > 2) boxId = boxParts[0] + '-' + boxParts[1];
+
+    var condition = row[mIdx['状態']] || '目立った傷や汚れなし';
+    var damageDetail = row[mIdx['傷汚れ詳細']] || '';
+    var brand = row[mIdx['ブランド']] || '';
+    var size = row[mIdx['メルカリサイズ']] || '';
+    var item = row[mIdx['カテゴリ2']] || '古着';
+    var cat3 = String(row[mIdx['カテゴリ3']] || '').trim();
+    var aiKeywords = listRow[7] || '';
+    var color = String(row[mIdx['カラー']] || '').trim();
+
+    var MEASURE_FIELDS = ['着丈','肩幅','身幅','袖丈','裄丈','総丈','ウエスト','股上','股下','ワタリ','裾幅','ヒップ'];
+    var measureParts = [];
+    MEASURE_FIELDS.forEach(function(name) {
+      var val = mIdx[name] !== undefined ? row[mIdx[name]] : undefined;
+      if (val !== undefined && val !== null && String(val).trim() !== '') measureParts.push(name + ': ' + val);
+    });
+    var measurementText = measureParts.join(' / ');
+
+    var price;
+    var orderPrice = orderPriceMap[targetId];
+    if (typeof orderPrice === 'number' && isFinite(orderPrice) && orderPrice > 0) {
+      price = orderPrice;
+    } else if (typeof (data1PriceMap[targetId]) === 'number' && isFinite(data1PriceMap[targetId]) && data1PriceMap[targetId] > 0) {
+      price = data1PriceMap[targetId];
+    } else {
+      var cost = toNumber_(listRow[10]) || 0;
+      price = normalizeSellPrice_(om_calcPriceTier_(cost));
+      if (condition === '傷や汚れあり' || condition === 'やや傷や汚れあり' || condition === '全体的に状態が悪い') price = Math.round(price * 0.8);
+      else if (condition === '目立った傷や汚れなし' && damageDetail.trim() !== '') price = Math.round(price * 0.9);
+      price = applyAgingDiscount_(price, returnSetMap[targetId]);
+    }
+
+    productRows.push({
+      boxId: boxId, targetId: targetId, brand: brand, aiKeywords: aiKeywords,
+      item: item, cat3: cat3, size: size, condition: condition, damageDetail: damageDetail,
+      measurementText: measurementText, priceText: price.toLocaleString('ja-JP') + '円', price: price, color: color
+    });
+  });
+
+  // タイトルはGASロジックで即座に生成（APIなし）
+  var titles = productRows.map(function(pr) { return om_buildTitle_(pr); });
+
+  return {
+    productRows: productRows,
+    titles: titles,
+    outArr: outArr,
+    customerName: customerName,
+    ids: ids,
+    reqRow: reqRow,
+    rIdx: rIdx,
+    orderPriceMap: orderPriceMap
+  };
+}
+
+/**
+ * 大量商品の依頼展開を分割実行する（OpenAI部分のみバッチ化）。
+ *
+ * Phase 1: データ読み込み + 回収完了書込み（1回、全商品）
+ * Phase 2: OpenAI説明文生成（バッチ分割、トリガー連鎖）— CacheService に保存
+ * Phase 3: 配布用リスト + XLSX + 売却反映（1回、全商品）— スプレッドシートから再構築
+ *
+ * ScriptProperties (9KB制限): メタデータのみ保存
+ * CacheService (100KB/キー): OpenAI説明文をチャンク保存
+ * productRows/titles: Phase 1/3 でスプレッドシートから再構築（約5秒）
+ *
+ * 使い方: GASエディタで受付番号を書き換えて batchExpandOrder() を実行
+ */
+function batchExpandOrder() {
+  var receiptNo = '20260305193720-732'; // ← 手動実行時はここに受付番号を入力
+
+  // startBatchExpand_ から呼ばれた場合は ScriptProperties から受付番号を取得
+  var props = PropertiesService.getScriptProperties();
+  var cache = CacheService.getScriptCache();
+  var overrideReceipt = props.getProperty('BATCH_EXPAND_RECEIPT_NO');
+  if (overrideReceipt) {
+    receiptNo = overrideReceipt;
+    props.deleteProperty('BATCH_EXPAND_RECEIPT_NO');
+  }
+
+  var stateKey = 'BATCH_EXPAND_STATE';
+  var stateJson = props.getProperty(stateKey);
+
+  if (stateJson) {
+    // ── 継続実行: Phase 2（OpenAIバッチ）or Phase 3（最終処理） ──
+    var state = JSON.parse(stateJson);
+    receiptNo = state.receiptNo;
+
+    if (state.phase === 2) {
+      batchExpandPhase2_(state, props, cache, stateKey);
+    } else if (state.phase === 3) {
+      batchExpandPhase3_(state, props, cache, stateKey);
+    }
+    return;
+  }
+
+  // ── 初回実行: Phase 1（データ読み込み + 回収完了） ──
+  console.log('=== 分割展開開始: ' + receiptNo + ' ===');
+
+  var data = buildProductRowsForReceipt_(receiptNo);
+  if (!data) return;
+
+  console.log('Phase 1: ' + data.ids.length + '点のデータ読み込み + 回収完了書込み');
+
+  // 回収完了に書込み
+  var shiireSs = SpreadsheetApp.openById(OM_SHIIRE_SS_ID);
+  var recoverySheet = shiireSs.getSheetByName('回収完了');
+  var recoveryStartRow = Math.max(recoverySheet.getLastRow() + 1, 7);
+  if (data.outArr.length > 0) {
+    recoverySheet.getRange(recoveryStartRow, 1, data.outArr.length, data.outArr[0].length).setValues(data.outArr);
+    om_ensureRecoveryHeaders_(recoverySheet);
+    console.log('回収完了書込み: ' + data.outArr.length + '行 (row ' + recoveryStartRow + '〜)');
+  }
+
+  // titles を CacheService に保存（GASロジック生成なので高速、1時間TTL）
+  cache.put('BATCH_TITLES', JSON.stringify(data.titles), 3600);
+
+  // state: メタデータのみ（productRows/titles/descriptions は保存しない）
+  var totalBatches = Math.ceil(data.productRows.length / BATCH_EXPAND_AI_SIZE_);
+  var state = {
+    phase: 2,
+    receiptNo: receiptNo,
+    customerName: data.customerName,
+    idsCsv: data.ids.join(','),
+    totalItems: data.productRows.length,
+    recoveryStartRow: recoveryStartRow,
+    recoveryCount: data.outArr.length,
+    processedIndex: 0,
+    batchNum: 0,
+    totalBatches: totalBatches,
+    startTime: Date.now()
+  };
+
+  console.log('Phase 1 完了。Phase 2 開始: OpenAI説明文 ' + data.productRows.length + '点 → ' + totalBatches + 'バッチ');
+  props.setProperty(stateKey, JSON.stringify(state));
+
+  // 即座にPhase 2を開始
+  batchExpandPhase2_(state, props, cache, stateKey);
+}
+
+/**
+ * Phase 2: OpenAI説明文をバッチ生成（CacheService にチャンク保存）
+ */
+function batchExpandPhase2_(state, props, cache, stateKey) {
+  // スプレッドシートから productRows を再構築（バッチスライスのみ使用）
+  var data = buildProductRowsForReceipt_(state.receiptNo);
+  if (!data) { props.deleteProperty(stateKey); return; }
+
+  var startIdx = state.processedIndex;
+  var endIdx = Math.min(startIdx + BATCH_EXPAND_AI_SIZE_, state.totalItems);
+  var batch = data.productRows.slice(startIdx, endIdx);
+
+  console.log('Phase 2 バッチ ' + (state.batchNum + 1) + '/' + state.totalBatches
+    + ': OpenAI説明文 ' + batch.length + '点 (' + startIdx + '〜' + (endIdx - 1) + ')');
+
+  // OpenAI APIで説明文生成
+  var descriptions = om_generateDescriptions_(batch);
+
+  // CacheService にバッチごとに保存（1時間TTL）
+  cache.put('BATCH_DESC_' + state.batchNum, JSON.stringify(descriptions), 3600);
+
+  state.processedIndex = endIdx;
+  state.batchNum++;
+
+  if (state.processedIndex >= state.totalItems) {
+    // 全バッチ完了 → Phase 3へ
+    console.log('Phase 2 完了。Phase 3 開始: 配布用リスト + XLSX + 売却反映');
+    state.phase = 3;
+    props.setProperty(stateKey, JSON.stringify(state));
+
+    // 時間に余裕があればPhase 3を即実行、なければトリガー
+    var elapsed = (Date.now() - state.startTime) / 1000;
+    if (elapsed < 200) {
+      batchExpandPhase3_(state, props, cache, stateKey);
+    } else {
+      ScriptApp.newTrigger('batchExpandOrder').timeBased().after(30000).create();
+      console.log('Phase 3 トリガー設定: 30秒後');
+    }
+  } else {
+    // 次バッチのトリガー
+    props.setProperty(stateKey, JSON.stringify(state));
+    ScriptApp.newTrigger('batchExpandOrder').timeBased().after(30000).create();
+    console.log('次OpenAIバッチトリガー設定: 30秒後（残り '
+      + (state.totalItems - state.processedIndex) + '点）');
+  }
+}
+
+/**
+ * Phase 3: 配布用リスト書込み + XLSX生成 + 売却反映
+ */
+function batchExpandPhase3_(state, props, cache, stateKey) {
+  console.log('Phase 3: 配布用リスト + XLSX + 売却反映 (' + state.totalItems + '点)');
+
+  // スプレッドシートから productRows を再構築（約5秒）
+  var data = buildProductRowsForReceipt_(state.receiptNo);
+  if (!data) { props.deleteProperty(stateKey); return; }
+
+  // CacheService から全説明文を収集
+  var allDescriptions = [];
+  for (var b = 0; b < state.totalBatches; b++) {
+    var descJson = cache.get('BATCH_DESC_' + b);
+    var descs = descJson ? JSON.parse(descJson) : [];
+    allDescriptions = allDescriptions.concat(descs);
+  }
+
+  // titles を CacheService から取得（フォールバック: 再構築した titles を使用）
+  var titlesJson = cache.get('BATCH_TITLES');
+  var titles = titlesJson ? JSON.parse(titlesJson) : data.titles;
+
+  var receiptNo = state.receiptNo;
+  var orderSsId = app_getOrderSpreadsheetId_();
+  var shiireSs = SpreadsheetApp.openById(OM_SHIIRE_SS_ID);
+  var exportSheet = shiireSs.getSheetByName('配布用リスト');
+  if (!exportSheet) exportSheet = shiireSs.insertSheet('配布用リスト');
+
+  // 配布用リストのクリア + ヘッダー書込み
+  var maxRows = exportSheet.getMaxRows();
+  var maxCols = exportSheet.getMaxColumns();
+  if (maxRows >= 3) {
+    exportSheet.getRange(3, 1, maxRows - 2, maxCols).clearContent();
+    exportSheet.getRange(3, 1, maxRows - 2, 1).removeCheckboxes();
+  }
+  exportSheet.getRange('B1').setValue(receiptNo);
+  exportSheet.getRange('E1').setValue(state.customerName);
+
+  // exportData構築
+  var exportData = [];
+  var totalPrice = 0;
+  for (var pi = 0; pi < data.productRows.length; pi++) {
+    var pr = data.productRows[pi];
+    totalPrice += pr.price;
+    exportData.push([
+      false,
+      titles[pi] || '',
+      allDescriptions[pi] || '',
+      pr.boxId, pr.targetId, pr.brand, pr.aiKeywords, pr.item,
+      pr.size, pr.condition, pr.damageDetail, pr.measurementText, pr.priceText
+    ]);
+  }
+
+  if (exportData.length > 0) {
+    exportSheet.getRange(3, 1, exportData.length, 13).setValues(exportData);
+    exportSheet.getRange(3, 1, exportData.length, 1).insertCheckboxes();
+    exportSheet.setRowHeightsForced(3, exportData.length, 21);
+  }
+  exportSheet.getRange('I1').setValue(totalPrice.toLocaleString('ja-JP') + '円');
+  console.log('配布用リスト書込み完了: ' + exportData.length + '行');
+
+  // XLSX出力
+  var srcSheet = om_getSheetByGid_(shiireSs, OM_DIST_SHEET_GID);
+  var tmpSs = SpreadsheetApp.create('tmp_dist_' + Date.now());
+  var tmpSsId = tmpSs.getId();
+  var copiedSheet = srcSheet.copyTo(tmpSs);
+  copiedSheet.setName(srcSheet.getName());
+  om_deleteAllExceptSheet_(tmpSs, copiedSheet.getSheetId());
+
+  var xlsxResult = om_exportDistributionXlsx_fast_(state.customerName, receiptNo, orderSsId, exportSheet, tmpSsId, copiedSheet);
+  try { DriveApp.getFileById(tmpSsId).setTrashed(true); } catch (e) {}
+
+  if (xlsxResult && xlsxResult.ok) {
+    console.log('XLSX出力完了: ' + xlsxResult.fileName);
+  } else {
+    console.error('XLSX出力エラー: ' + (xlsxResult ? xlsxResult.message : '不明'));
+  }
+
+  // 売却反映
+  var mainSheet = shiireSs.getSheetByName('商品管理');
+  var mData = mainSheet.getDataRange().getValues();
+  var mHeaders = mData.shift();
+  var mIdx = {};
+  mHeaders.forEach(function(h, i) { mIdx[String(h || '').trim()] = i; });
+  var idColIdx = mIdx['管理番号'];
+  var statusCol = mIdx['ステータス'] !== undefined ? mIdx['ステータス'] + 1 : 0;
+  var statusColLetter = om_colNumToLetter_(statusCol);
+  var boColLetter = om_colNumToLetter_(67);
+
+  var idToAllRows = {};
+  for (var ir = 0; ir < mData.length; ir++) {
+    var ik = String(mData[ir][idColIdx] || '').trim();
+    if (!ik) continue;
+    if (!idToAllRows[ik]) idToAllRows[ik] = [];
+    idToAllRows[ik].push(ir + 2);
+  }
+
+  var allStatusA1s = [];
+  var allBoA1s = {};
+  data.ids.forEach(function(mgmtId) {
+    var allRows = idToAllRows[mgmtId] || [];
+    for (var ri = 0; ri < allRows.length; ri++) {
+      allStatusA1s.push(statusColLetter + allRows[ri]);
+      allBoA1s[boColLetter + allRows[ri]] = receiptNo;
+    }
+  });
+
+  if (allStatusA1s.length > 0) mainSheet.getRangeList(allStatusA1s).setValue('売却済み');
+  var boByReceipt = {};
+  Object.keys(allBoA1s).forEach(function(a1) {
+    var rn = allBoA1s[a1]; if (!boByReceipt[rn]) boByReceipt[rn] = []; boByReceipt[rn].push(a1);
+  });
+  Object.keys(boByReceipt).forEach(function(rn) { mainSheet.getRangeList(boByReceipt[rn]).setValue(rn); });
+  clearProductCache_();
+  console.log('売却反映完了: ' + allStatusA1s.length + '行');
+
+  // 回収完了から展開行を削除
+  var recoverySheet = shiireSs.getSheetByName('回収完了');
+  SpreadsheetApp.flush();
+  var recLastRow = recoverySheet.getLastRow();
+  if (recLastRow >= 7 && state.recoveryStartRow) {
+    var recLastCol = recoverySheet.getLastColumn();
+    if (recLastCol > 0) {
+      var recData = recoverySheet.getRange(7, 1, recLastRow - 6, recLastCol).getValues();
+      var recDelSet = {};
+      for (var d = 0; d < state.recoveryCount; d++) recDelSet[state.recoveryStartRow + d] = true;
+      var recKeep = [];
+      for (var ri = 0; ri < recData.length; ri++) {
+        var sheetRow = ri + 7; // 実際のシート行番号
+        if (!recDelSet[sheetRow]) recKeep.push(recData[ri]);
+      }
+      recoverySheet.getRange(7, 1, recData.length, recLastCol).clearContent();
+      if (recKeep.length > 0) recoverySheet.getRange(7, 1, recKeep.length, recKeep[0].length).setValues(recKeep);
+    }
+  }
+
+  // 売却履歴ログ
+  var logEntries = data.productRows.map(function(pr) {
+    return { date: new Date(), managedId: pr.targetId, receiptNo: receiptNo, brand: pr.brand, cost: '' };
+  });
+  if (logEntries.length > 0) om_writeSaleLog_(shiireSs, logEntries);
+
+  SpreadsheetApp.flush();
+
+  // クリーンアップ: state, トリガー, キャッシュ
+  props.deleteProperty(stateKey);
+  cleanupBatchExpandTriggers_();
+  for (var b = 0; b < state.totalBatches; b++) cache.remove('BATCH_DESC_' + b);
+  cache.remove('BATCH_TITLES');
+
+  console.log('=== 分割展開完了: ' + receiptNo + ' / ' + state.totalItems + '点 ===');
+
+  try {
+    MailApp.sendEmail({
+      to: APP_CONFIG.admin.ownerEmail,
+      subject: '依頼展開 分割処理完了: ' + receiptNo,
+      body: '受付番号: ' + receiptNo + '\n合計点数: ' + state.totalItems + '点\n処理完了しました。',
+      replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL
+    });
+  } catch (mailErr) {}
+}
+
+function cleanupBatchExpandTriggers_() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'batchExpandOrder') {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+}
+
+/**
+ * 分割展開の進捗確認（GASエディタから実行）
+ */
+function checkBatchExpandProgress() {
+  var props = PropertiesService.getScriptProperties();
+  var stateJson = props.getProperty('BATCH_EXPAND_STATE');
+  if (!stateJson) {
+    console.log('分割展開は実行中ではありません');
+    return;
+  }
+  var state = JSON.parse(stateJson);
+  var totalItems = state.totalItems || (state.idsCsv ? state.idsCsv.split(',').length : 0);
+  console.log('受付番号: ' + state.receiptNo);
+  console.log('Phase: ' + state.phase);
+  console.log('進捗: ' + state.processedIndex + '/' + totalItems + '点'
+    + ' (バッチ ' + state.batchNum + '/' + state.totalBatches + ')');
+  console.log('残り: ' + (totalItems - state.processedIndex) + '点');
+}
+
+/**
+ * 分割展開を強制停止（GASエディタから実行）
+ */
+function cancelBatchExpand() {
+  var props = PropertiesService.getScriptProperties();
+  var cache = CacheService.getScriptCache();
+  var stateJson = props.getProperty('BATCH_EXPAND_STATE');
+  if (stateJson) {
+    try {
+      var state = JSON.parse(stateJson);
+      // キャッシュもクリーンアップ
+      for (var b = 0; b < (state.totalBatches || 0); b++) cache.remove('BATCH_DESC_' + b);
+      cache.remove('BATCH_TITLES');
+    } catch (e) {}
+  }
+  props.deleteProperty('BATCH_EXPAND_STATE');
+  props.deleteProperty('BATCH_EXPAND_RECEIPT_NO');
+  cleanupBatchExpandTriggers_();
+  console.log('分割展開をキャンセルしました');
 }
 
 // ═══════════════════════════════════════════
