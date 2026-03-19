@@ -6,6 +6,7 @@
  * - apiLogoutCustomer: KVセッション削除
  */
 import { jsonOk, jsonError } from '../utils/response.js';
+import { sendEvent as sendMetaEvent } from '../utils/meta-capi.js';
 import {
   verifyPasswordV2,
   createPasswordHash,
@@ -128,7 +129,7 @@ export async function login(args, env) {
 /**
  * apiRegisterCustomer
  */
-export async function register(args, env) {
+export async function register(args, env, bodyText, ctx) {
   const userKey = args[0] || '';
   const params = args[1] || {};
   const {
@@ -199,6 +200,28 @@ export async function register(args, env) {
   // CSRFトークン発行
   const csrfToken = generateCsrfToken();
   await env.SESSIONS.put(`csrf:${userKey}`, csrfToken, { expirationTtl: 3600 });
+
+  // CAPI: CompleteRegistration イベント送信（バックグラウンド）
+  const capiPromise = sendMetaEvent(env, {
+    eventName: 'CompleteRegistration',
+    eventId: 'reg_' + customerId,
+    sourceUrl: 'https://wholesale.nkonline-tool.com/',
+    userData: {
+      email,
+      phone: phone || undefined,
+      zip: postal || undefined,
+      country: 'jp',
+      externalId: customerId,
+    },
+    customData: {
+      content_name: 'wholesale_member',
+      status: 'true',
+    },
+  }).catch(err => console.error('CAPI CompleteRegistration error:', err));
+
+  if (ctx && ctx.waitUntil) {
+    ctx.waitUntil(capiPromise);
+  }
 
   return jsonOk({ data: {
     sessionId,

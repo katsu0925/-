@@ -438,6 +438,13 @@ function handlePaymentSuccess_(data) {
       saved.receiptNo = confirmResult.receiptNo;
       savePaymentSession_(paymentToken, saved);
     }
+
+    // CAPI: Purchaseイベント送信（Cloudflare Workers経由）
+    try {
+      sendCapiPurchaseEvent_(confirmResult, payment, saved);
+    } catch (capiErr) {
+      console.warn('CAPI Purchase送信失敗（非致命的）:', capiErr.message || capiErr);
+    }
   }
 
   console.log('Payment success processed (API verified) for:', paymentToken);
@@ -2113,4 +2120,50 @@ function dumpOrderData() {
     }
   }
   if (count === 0) console.log('(受付番号を含むプロパティなし)');
+}
+
+/**
+ * CAPI Purchaseイベントを Cloudflare Workers 経由で Meta に送信
+ * @param {object} confirmResult - confirmPaymentAndCreateOrder の戻り値
+ * @param {object} payment - KOMOJU APIのpaymentオブジェクト
+ * @param {object} saved - PAYMENT_セッションデータ
+ */
+function sendCapiPurchaseEvent_(confirmResult, payment, saved) {
+  var props = PropertiesService.getScriptProperties();
+  var workersUrl = props.getProperty('WORKERS_URL') || 'https://detauri-gas-proxy.nsdktts1030.workers.dev';
+  var adminKey = props.getProperty('ADMIN_KEY');
+  if (!adminKey) {
+    console.warn('CAPI: ADMIN_KEY未設定、スキップ');
+    return;
+  }
+
+  var email = (confirmResult.form && confirmResult.form.contact) || '';
+  var phone = (confirmResult.form && confirmResult.form.phone) || '';
+  var postal = (confirmResult.form && confirmResult.form.postal) || '';
+  var amount = payment.amount || (confirmResult.discounted || 0);
+  var receiptNo = confirmResult.receiptNo || '';
+
+  var payload = {
+    action: 'apiSendCapiEvent',
+    args: [{
+      adminKey: adminKey,
+      eventName: 'Purchase',
+      eventId: 'purchase_' + receiptNo,
+      email: email,
+      phone: phone,
+      postal: postal,
+      amount: amount,
+      currency: 'JPY',
+      numItems: confirmResult.totalCount || 0
+    }]
+  };
+
+  var resp = UrlFetchApp.fetch(workersUrl, {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  });
+
+  console.log('CAPI Purchase送信: status=' + resp.getResponseCode() + ', receipt=' + receiptNo);
 }

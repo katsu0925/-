@@ -60,6 +60,9 @@ const WORKER_HANDLED = {
   // D1 session_token_map逆引き（Webhook paymentToken解決フォールバック用）
   apiLookupBySession:     (args, env, bodyText) => submit.lookupBySession(args, env, bodyText),
   apiLookupSessionByToken:(args, env, bodyText) => submit.lookupSessionByToken(args, env, bodyText),
+
+  // Meta Conversions API（サーバーサイドイベント送信）
+  apiSendCapiEvent:       (args, env) => submit.sendCapiEvent(args, env),
 };
 
 // CSRFが必要なaction（Phase 2以降で有効化）

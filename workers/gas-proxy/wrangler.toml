@@ -42,6 +42,11 @@ id = "9a4f7973bc644ab086397fd71564985f"
 binding = "IMAGES"
 bucket_name = "detauri-images"
 
+# Secrets (wrangler secret put で設定)
+# - GAS_API_URL, SYNC_SECRET, ADMIN_KEY, RECAPTCHA_SECRET, KOMOJU_SECRET_KEY
+# - META_PIXEL_ID (Meta Pixel ID: 2122295911954697)
+# - META_ACCESS_TOKEN (Meta Conversions API アクセストークン — Events Managerで生成)
+
 # =====================================================
 # 開発環境 — wrangler deploy --env dev / wrangler dev --env dev
 # ※ 本番には一切干渉しない独立環境
@@ -79,3 +84,5 @@ bucket_name = "detauri-images-dev"
 # - SYNC_SECRET (GAS同期用シークレット)
 # - ADMIN_KEY
 # - RECAPTCHA_SECRET
+# - META_PIXEL_ID (Meta Pixel ID: 2122295911954697)
+# - META_ACCESS_TOKEN (Meta Conversions API アクセストークン)

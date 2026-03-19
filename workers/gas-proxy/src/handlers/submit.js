@@ -7,6 +7,7 @@
  * ロールバック: submitEstimate末尾を `return await proxyToGasForSubmit(bodyText, env);` に戻すだけ
  */
 import { jsonOk, jsonError, corsResponse } from '../utils/response.js';
+import { sendEvent as sendMetaEvent } from '../utils/meta-capi.js';
 
 // ─── 送料テーブル ───
 
@@ -1068,4 +1069,46 @@ export async function markPendingConsumed(args, env, bodyText) {
     console.error('markPendingConsumed error:', e.message);
     return jsonError('D1 update error: ' + e.message, 500);
   }
+}
+
+/**
+ * apiSendCapiEvent — GAS等のサーバーサイドからCAPIイベントを送信するエンドポイント
+ *
+ * 主にKOMOJU webhook処理後のPurchaseイベント送信に使用。
+ * ADMIN_KEYで認証。
+ */
+export async function sendCapiEvent(args, env) {
+  const params = args[0] || {};
+  const { adminKey, eventName, eventId, email, phone, postal, amount, currency, contentIds, numItems } = params;
+
+  if (adminKey !== env.ADMIN_KEY) {
+    return jsonError('Unauthorized', 401);
+  }
+
+  if (!eventName) {
+    return jsonError('eventName is required');
+  }
+
+  const userData = {};
+  if (email) userData.email = email;
+  if (phone) userData.phone = phone;
+  if (postal) userData.zip = postal;
+  userData.country = 'jp';
+
+  const customData = {};
+  if (currency) customData.currency = currency;
+  if (amount) customData.value = amount;
+  if (contentIds) customData.content_ids = contentIds;
+  if (numItems) customData.num_items = numItems;
+  customData.content_type = 'product';
+
+  const result = await sendMetaEvent(env, {
+    eventName,
+    eventId: eventId || (eventName + '_' + Date.now()),
+    sourceUrl: 'https://wholesale.nkonline-tool.com/',
+    userData,
+    customData: Object.keys(customData).length > 0 ? customData : undefined,
+  });
+
+  return jsonOk({ ok: true, capi: result });
 }
