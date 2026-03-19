@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>月次分析レポート - 2026-03</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+:root {
+    --bg-primary: #0f0f1a;
+    --bg-secondary: #1a1a2e;
+    --bg-card: #16213e;
+    --bg-card-alt: #1a1a3e;
+    --text-primary: #e0e0e0;
+    --text-secondary: #a0a0b0;
+    --text-muted: #707088;
+    --accent-blue: #4fc3f7;
+    --accent-green: #66bb6a;
+    --accent-orange: #ffa726;
+    --accent-red: #ef5350;
+    --accent-purple: #ab47bc;
+    --accent-teal: #26a69a;
+    --border-color: #2a2a4a;
+    --shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans JP', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.6;
+    padding: 20px;
+}
+.container { max-width: 1200px; margin: 0 auto; }
+.header {
+    text-align: center;
+    padding: 40px 20px;
+    margin-bottom: 30px;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    border-radius: 16px;
+    border: 1px solid var(--border-color);
+}
+.header h1 {
+    font-size: 2em;
+    background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 8px;
+}
+.header .subtitle { color: var(--text-secondary); font-size: 1.1em; }
+.section {
+    background: var(--bg-card);
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 24px;
+    border: 1px solid var(--border-color);
+    box-shadow: var(--shadow);
+}
+.section h2 {
+    font-size: 1.3em;
+    color: var(--accent-blue);
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.section h2 .icon { font-size: 1.2em; }
+.kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 20px;
+}
+.kpi-card {
+    background: var(--bg-secondary);
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+    border: 1px solid var(--border-color);
+    transition: transform 0.2s;
+}
+.kpi-card:hover { transform: translateY(-2px); }
+.kpi-card .label { color: var(--text-secondary); font-size: 0.85em; margin-bottom: 4px; }
+.kpi-card .value { font-size: 1.6em; font-weight: 700; }
+.kpi-card .value.blue { color: var(--accent-blue); }
+.kpi-card .value.green { color: var(--accent-green); }
+.kpi-card .value.orange { color: var(--accent-orange); }
+.kpi-card .value.red { color: var(--accent-red); }
+.kpi-card .value.purple { color: var(--accent-purple); }
+.kpi-card .value.teal { color: var(--accent-teal); }
+.kpi-card .sub { color: var(--text-muted); font-size: 0.8em; margin-top: 4px; }
+.breakdown {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+}
+.breakdown-card {
+    background: var(--bg-secondary);
+    border-radius: 10px;
+    padding: 20px;
+    border-left: 4px solid var(--accent-blue);
+}
+.breakdown-card.wholesale { border-left-color: var(--accent-orange); }
+.breakdown-card.pipeline { border-left-color: var(--accent-purple); }
+.breakdown-card h3 { font-size: 1em; margin-bottom: 12px; color: var(--text-primary); }
+.breakdown-card .stat { display: flex; justify-content: space-between; padding: 4px 0; }
+.breakdown-card .stat .lbl { color: var(--text-secondary); }
+.chart-container { position: relative; height: 350px; margin: 20px 0; }
+.chart-container.small { height: 280px; }
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 12px;
+}
+table th, table td {
+    padding: 10px 14px;
+    text-align: right;
+    border-bottom: 1px solid var(--border-color);
+}
+table th {
+    background: var(--bg-secondary);
+    color: var(--accent-blue);
+    font-weight: 600;
+    font-size: 0.85em;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+table th:first-child, table td:first-child { text-align: left; }
+table tr:hover { background: rgba(79, 195, 247, 0.05); }
+.advice-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 16px;
+    background: var(--bg-secondary);
+    border-radius: 10px;
+    margin-bottom: 12px;
+    border: 1px solid var(--border-color);
+}
+.advice-num {
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
+    color: #fff;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.9em;
+    flex-shrink: 0;
+}
+.advice-item p { color: var(--text-primary); line-height: 1.5; }
+.two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+@media (max-width: 768px) {
+    .two-col { grid-template-columns: 1fr; }
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .breakdown { grid-template-columns: 1fr; }
+    .header h1 { font-size: 1.5em; }
+}
+.ws-table { overflow-x: auto; }
+.ws-table table { min-width: 600px; }
+.loss-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 600px) { .loss-grid { grid-template-columns: 1fr; } }
+.loss-card {
+    background: var(--bg-secondary);
+    border-radius: 10px;
+    padding: 20px;
+    text-align: center;
+    border: 1px solid var(--border-color);
+}
+.loss-card .loss-label { color: var(--text-secondary); margin-bottom: 6px; }
+.loss-card .loss-count { font-size: 2em; font-weight: 700; color: var(--accent-red); }
+.loss-card .loss-amount { color: var(--text-muted); margin-top: 4px; }
+.footer {
+    text-align: center;
+    color: var(--text-muted);
+    padding: 30px;
+    font-size: 0.85em;
+}
+</style>
+</head>
+<body>
+<div class="container">
+
+<!-- Header -->
+<div class="header">
+    <h1>月次分析レポート</h1>
+    <div class="subtitle">2026-03 | Generated 2026-03-19 20:54</div>
+</div>
+
+<!-- Section 1: All-channel Summary -->
+<div class="section">
+    <h2><span class="icon">&#x1f4ca;</span> 全チャネルサマリー</h2>
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="label">総売上</div>
+            <div class="value blue">¥1,725,578</div>
+            <div class="sub">916件</div>
+        </div>
+        <div class="kpi-card">
+            <div class="label">総利益</div>
+            <div class="value green">¥1,058,392</div>
+        </div>
+        <div class="kpi-card">
+            <div class="label">利益率</div>
+            <div class="value orange">61.3%</div>
+        </div>
+        <div class="kpi-card">
+            <div class="label">パイプライン（依頼中）</div>
+            <div class="value purple">6件</div>
+        </div>
+    </div>
+    <div class="breakdown">
+        <div class="breakdown-card">
+            <h3>メルカリ / ラクマ</h3>
+            <div class="stat"><span class="lbl">件数</span><span>856件</span></div>
+            <div class="stat"><span class="lbl">売上</span><span>¥1,437,978</span></div>
+            <div class="stat"><span class="lbl">利益</span><span>¥871,844</span></div>
+            <div class="stat"><span class="lbl">利益率</span><span>60.6%</span></div>
+        </div>
+        <div class="breakdown-card wholesale">
+            <h3>卸売（デタウリ）</h3>
+            <div class="stat"><span class="lbl">件数</span><span>60件</span></div>
+            <div class="stat"><span class="lbl">売上</span><span>¥287,600</span></div>
+            <div class="stat"><span class="lbl">利益</span><span>¥186,548</span></div>
+            <div class="stat"><span class="lbl">利益率</span><span>64.9%</span></div>
+        </div>
+        <div class="breakdown-card pipeline">
+            <h3>パイプライン</h3>
+            <div class="stat"><span class="lbl">依頼中</span><span>6件</span></div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 2: Monthly Profit Trend -->
+<div class="section">
+    <h2><span class="icon">&#x1f4c8;</span> 月次利益推移</h2>
+    <div class="chart-container">
+        <canvas id="monthlyTrendChart"></canvas>
+    </div>
+</div>
+
+<!-- Section 3: Wholesale Individual vs Assort -->
+<div class="section">
+    <h2><span class="icon">&#x1f4e6;</span> 卸売：個別選択 vs アソート</h2>
+    <div class="ws-table">
+        <table>
+            <thead>
+                <tr>
+                    <th>指標</th>
+                    <th>個別選択</th>
+                    <th>アソート</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr><td>件数</td><td>26件</td><td>34件</td></tr>
+                <tr><td>売上</td><td>¥139,085</td><td>¥148,515</td></tr>
+                <tr><td>送料（店負担）</td><td>¥20,590</td><td>¥56,560</td></tr>
+                <tr><td>作業報酬</td><td>¥5,500</td><td>¥13,800</td></tr>
+                <tr><td>決済手数料</td><td>¥2,225</td><td>¥2,376</td></tr>
+                <tr><td>利益</td><td>¥110,770</td><td>¥75,779</td></tr>
+                <tr><td>利益率</td><td>79.6%</td><td>51.0%</td></tr>
+                <tr><td>送料比率</td><td>14.8%</td><td>38.1%</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="chart-container" style="margin-top:24px;">
+        <canvas id="wsTrendChart"></canvas>
+    </div>
+</div>
+
+<!-- Section 4: Classification Performance -->
+<div class="section">
+    <h2><span class="icon">&#x1f3af;</span> 区分コード別パフォーマンス（メルカリ）</h2>
+    <div class="chart-container">
+        <canvas id="clfChart"></canvas>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>区分コード</th>
+                <th>件数</th>
+                <th>平均販売価格</th>
+                <th>平均利益</th>
+                <th>合計利益</th>
+                <th>赤字率</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>B</td>
+                <td>364</td>
+                <td>¥1,506</td>
+                <td>¥930</td>
+                <td>¥338,449</td>
+                <td>3.6%</td>
+            </tr><tr>
+                <td>G</td>
+                <td>336</td>
+                <td>¥1,566</td>
+                <td>¥980</td>
+                <td>¥329,414</td>
+                <td>2.1%</td>
+            </tr><tr>
+                <td>C</td>
+                <td>78</td>
+                <td>¥1,656</td>
+                <td>¥1,113</td>
+                <td>¥86,787</td>
+                <td>2.6%</td>
+            </tr><tr>
+                <td>S</td>
+                <td>35</td>
+                <td>¥3,431</td>
+                <td>¥1,418</td>
+                <td>¥49,640</td>
+                <td>22.9%</td>
+            </tr><tr>
+                <td>A</td>
+                <td>29</td>
+                <td>¥2,504</td>
+                <td>¥1,374</td>
+                <td>¥39,849</td>
+                <td>6.9%</td>
+            </tr><tr>
+                <td>AA</td>
+                <td>10</td>
+                <td>¥2,210</td>
+                <td>¥1,070</td>
+                <td>¥10,705</td>
+                <td>10.0%</td>
+            </tr><tr>
+                <td>P</td>
+                <td>4</td>
+                <td>¥4,925</td>
+                <td>¥4,250</td>
+                <td>¥17,000</td>
+                <td>0.0%</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Section 5: Category Analysis -->
+<div class="section">
+    <h2><span class="icon">&#x1f3f7;&#xfe0f;</span> カテゴリ分析（トップ8 カテゴリ2）</h2>
+    <table>
+        <thead>
+            <tr>
+                <th>カテゴリ</th>
+                <th>件数</th>
+                <th>合計利益</th>
+                <th>平均利益</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>トップス</td>
+                <td>404</td>
+                <td>¥382,072</td>
+                <td>¥946</td>
+            </tr><tr>
+                <td>ジャケット・アウター</td>
+                <td>136</td>
+                <td>¥161,915</td>
+                <td>¥1,191</td>
+            </tr><tr>
+                <td>パンツ</td>
+                <td>142</td>
+                <td>¥147,553</td>
+                <td>¥1,039</td>
+            </tr><tr>
+                <td>ワンピース</td>
+                <td>67</td>
+                <td>¥67,111</td>
+                <td>¥1,002</td>
+            </tr><tr>
+                <td>スカート</td>
+                <td>58</td>
+                <td>¥49,309</td>
+                <td>¥850</td>
+            </tr><tr>
+                <td>サロペット・オーバーオール</td>
+                <td>11</td>
+                <td>¥16,343</td>
+                <td>¥1,486</td>
+            </tr><tr>
+                <td>スーツセットアップ</td>
+                <td>7</td>
+                <td>¥12,771</td>
+                <td>¥1,824</td>
+            </tr><tr>
+                <td>ジャージセットアップ</td>
+                <td>7</td>
+                <td>¥12,766</td>
+                <td>¥1,824</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<!-- Section 6: Inventory Analysis -->
+<div class="section">
+    <h2><span class="icon">&#x1f4e6;</span> 在庫分析</h2>
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="label">在庫点数</div>
+            <div class="value blue">1,431点</div>
+        </div>
+        <div class="kpi-card">
+            <div class="label">仕入れ額合計</div>
+            <div class="value orange">¥233,476</div>
+        </div>
+    </div>
+    <div class="two-col">
+        <div>
+            <h3 style="color:var(--accent-blue);margin-bottom:12px;">在庫日数分布</h3>
+            <div class="chart-container small">
+                <canvas id="ageChart"></canvas>
+            </div>
+        </div>
+        <div>
+            <h3 style="color:var(--accent-blue);margin-bottom:12px;">区分コード構成</h3>
+            <div class="chart-container small">
+                <canvas id="invClfChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 7: Losses -->
+<div class="section">
+    <h2><span class="icon">&#x26a0;&#xfe0f;</span> 損失（返品・廃棄）</h2>
+    <div class="loss-grid">
+        <div class="loss-card">
+            <div class="loss-label">返品済み</div>
+            <div class="loss-count">1080件</div>
+            <div class="loss-amount">仕入れ額: ¥161,892</div>
+        </div>
+        <div class="loss-card">
+            <div class="loss-label">廃棄済み</div>
+            <div class="loss-count">23件</div>
+            <div class="loss-amount">仕入れ額: ¥3,638</div>
+        </div>
+    </div>
+</div>
+
+<!-- Section 8: Advice -->
+<div class="section">
+    <h2><span class="icon">&#x1f4a1;</span> データに基づくアドバイス</h2>
+    <div class="advice-item"><span class="advice-num">1</span><p>区分コード「S」は赤字率22.9%（8/35件）と高め。仕入れ基準の見直しや出品価格の調整を検討してください。</p></div>
+<div class="advice-item"><span class="advice-num">2</span><p>60日超の長期在庫が246点（仕入れ額¥38,112）あります。値下げや卸売への振り替えで資金回収を優先しましょう。</p></div>
+<div class="advice-item"><span class="advice-num">3</span><p>卸売（アソート）の送料比率が38.1%と高いです。まとめ発送や軽量商品の組み合わせで送料削減を検討してください。</p></div>
+<div class="advice-item"><span class="advice-num">4</span><p>返品1080件（仕入れ額¥161,892）が発生しています。商品状態の記載精度向上やサイズ表記の明確化で返品率を下げましょう。</p></div>
+<div class="advice-item"><span class="advice-num">5</span><p>カテゴリ「トップス」が利益¥382,072（404件）で最も好調。同カテゴリの仕入れ強化を推奨します。</p></div>
+
+</div>
+
+<div class="footer">
+    Saisun Monthly Report | Auto-generated by monthly_report.py
+</div>
+
+</div><!-- /container -->
+
+<script>
+const DATA = {"monthlyTrend": {"labels": ["2025-06", "2025-07", "2025-08", "2025-09", "2025-10", "2025-11", "2025-12", "2026-01", "2026-02", "2026-03"], "mercari": [6945.0, 27666.0, 30612.0, 89844.0, 105223.0, 157373.0, 164038.0, 142053.0, 79414.0, 68676.0], "ws_individual": [0, 0, 0, 0, 0, 0, 0, 23984.36, 38730.816000000006, 48054.46399999999], "ws_assort": [0, 0, 0, 0, 0, 0, 0, 7748.079999999999, 54261.799999999996, 13768.88]}, "wsMonths": ["2026-01", "2026-02", "2026-03"], "wsIndRevenue": [29415.0, 49574.0, 60096.0], "wsIndProfit": [23984.36, 38730.816000000006, 48054.46399999999], "wsAssRevenue": [15120.0, 114575.0, 18820.0], "wsAssProfit": [7748.079999999999, 54261.799999999996, 13768.88], "clfLabels": ["B", "G", "C", "S", "A", "AA", "P"], "clfCount": [364, 336, 78, 35, 29, 10, 4], "clfAvgProfit": [930.0, 980.0, 1113.0, 1418.0, 1374.0, 1070.0, 4250.0], "clfLossRate": [3.6, 2.1, 2.6, 22.9, 6.9, 10.0, 0.0], "catLabels": ["トップス", "ジャケット・アウター", "パンツ", "ワンピース", "スカート", "サロペット・オーバーオール", "スーツセットアップ", "ジャージセットアップ"], "catProfit": [382072.0, 161915.0, 147553.0, 67111.0, 49309.0, 16343.0, 12771.0, 12766.0], "catAvgProfit": [946.0, 1191.0, 1039.0, 1002.0, 850.0, 1486.0, 1824.0, 1824.0], "catCount": [404, 136, 142, 67, 58, 11, 7, 7], "ageDist": {"0-14": 571, "15-30": 302, "31-60": 295, "61-90": 135, "90+": 111}, "invClf": {"C": 596, "G": 562, "A": 100, "B": 86, "Y": 50, "S": 22, "P": 15}};
+
+// Color palette
+const COLORS = {
+    blue: 'rgba(79, 195, 247, 0.8)',
+    blueLight: 'rgba(79, 195, 247, 0.3)',
+    green: 'rgba(102, 187, 106, 0.8)',
+    orange: 'rgba(255, 167, 38, 0.8)',
+    orangeLight: 'rgba(255, 167, 38, 0.3)',
+    red: 'rgba(239, 83, 80, 0.8)',
+    purple: 'rgba(171, 71, 188, 0.8)',
+    teal: 'rgba(38, 166, 154, 0.8)',
+    white: 'rgba(224, 224, 224, 1)',
+};
+
+const defaultOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+        legend: { labels: { color: '#a0a0b0', font: { size: 12 } } },
+    },
+    scales: {
+        x: { ticks: { color: '#707088' }, grid: { color: 'rgba(42,42,74,0.5)' } },
+        y: { ticks: { color: '#707088', callback: v => '¥' + v.toLocaleString() }, grid: { color: 'rgba(42,42,74,0.5)' } },
+    },
+};
+
+// 1. Monthly Profit Trend (stacked bar + line)
+new Chart(document.getElementById('monthlyTrendChart'), {
+    type: 'bar',
+    data: {
+        labels: DATA.monthlyTrend.labels,
+        datasets: [
+            {
+                label: 'メルカリ利益',
+                data: DATA.monthlyTrend.mercari,
+                backgroundColor: COLORS.blue,
+                stack: 'stack',
+                order: 2,
+            },
+            {
+                label: '卸売（個別選択）利益',
+                data: DATA.monthlyTrend.ws_individual,
+                backgroundColor: COLORS.orange,
+                stack: 'stack',
+                order: 2,
+            },
+            {
+                label: '卸売（アソート）利益',
+                data: DATA.monthlyTrend.ws_assort,
+                backgroundColor: COLORS.teal,
+                stack: 'stack',
+                order: 2,
+            },
+            {
+                label: '合計利益',
+                data: DATA.monthlyTrend.labels.map((_, i) =>
+                    DATA.monthlyTrend.mercari[i] + DATA.monthlyTrend.ws_individual[i] + DATA.monthlyTrend.ws_assort[i]
+                ),
+                type: 'line',
+                borderColor: COLORS.white,
+                backgroundColor: 'transparent',
+                borderWidth: 2,
+                pointRadius: 4,
+                pointBackgroundColor: COLORS.white,
+                order: 1,
+                yAxisID: 'y',
+            },
+        ],
+    },
+    options: {
+        ...defaultOptions,
+        scales: {
+            ...defaultOptions.scales,
+            x: { ...defaultOptions.scales.x, stacked: true },
+            y: { ...defaultOptions.scales.y, stacked: true },
+        },
+    },
+});
+
+// 2. Wholesale Trend
+new Chart(document.getElementById('wsTrendChart'), {
+    type: 'bar',
+    data: {
+        labels: DATA.wsMonths,
+        datasets: [
+            {
+                label: '個別選択 売上',
+                data: DATA.wsIndRevenue,
+                backgroundColor: COLORS.blue,
+            },
+            {
+                label: 'アソート 売上',
+                data: DATA.wsAssRevenue,
+                backgroundColor: COLORS.orange,
+            },
+            {
+                label: '個別選択 利益',
+                data: DATA.wsIndProfit,
+                type: 'line',
+                borderColor: COLORS.blue,
+                backgroundColor: 'transparent',
+                borderWidth: 2,
+                pointRadius: 3,
+            },
+            {
+                label: 'アソート 利益',
+                data: DATA.wsAssProfit,
+                type: 'line',
+                borderColor: COLORS.orange,
+                backgroundColor: 'transparent',
+                borderWidth: 2,
+                pointRadius: 3,
+            },
+        ],
+    },
+    options: defaultOptions,
+});
+
+// 3. Classification Chart
+new Chart(document.getElementById('clfChart'), {
+    type: 'bar',
+    data: {
+        labels: DATA.clfLabels,
+        datasets: [
+            {
+                label: '件数',
+                data: DATA.clfCount,
+                backgroundColor: COLORS.blue,
+                yAxisID: 'y',
+            },
+            {
+                label: '平均利益',
+                data: DATA.clfAvgProfit,
+                type: 'line',
+                borderColor: COLORS.green,
+                backgroundColor: 'transparent',
+                borderWidth: 2,
+                pointRadius: 3,
+                yAxisID: 'y1',
+            },
+            {
+                label: '赤字率(%)',
+                data: DATA.clfLossRate,
+                type: 'line',
+                borderColor: COLORS.red,
+                backgroundColor: 'transparent',
+                borderWidth: 2,
+                pointRadius: 3,
+                borderDash: [5, 5],
+                yAxisID: 'y2',
+            },
+        ],
+    },
+    options: {
+        ...defaultOptions,
+        scales: {
+            x: { ticks: { color: '#707088' }, grid: { color: 'rgba(42,42,74,0.5)' } },
+            y: { position: 'left', ticks: { color: '#707088' }, grid: { color: 'rgba(42,42,74,0.5)' }, title: { display: true, text: '件数', color: '#707088' } },
+            y1: { position: 'right', ticks: { color: '#707088', callback: v => '¥' + v.toLocaleString() }, grid: { drawOnChartArea: false }, title: { display: true, text: '平均利益', color: '#707088' } },
+            y2: { position: 'right', ticks: { color: '#707088', callback: v => v + '%' }, grid: { drawOnChartArea: false }, title: { display: true, text: '赤字率', color: '#707088' }, display: false },
+        },
+    },
+});
+
+// 4. Inventory Age Distribution (bar)
+new Chart(document.getElementById('ageChart'), {
+    type: 'bar',
+    data: {
+        labels: ['0-14日', '15-30日', '31-60日', '61-90日', '90日+'],
+        datasets: [{
+            label: '在庫数',
+            data: [DATA.ageDist['0-14'], DATA.ageDist['15-30'], DATA.ageDist['31-60'], DATA.ageDist['61-90'], DATA.ageDist['90+']],
+            backgroundColor: [COLORS.green, COLORS.blue, COLORS.orange, COLORS.red, COLORS.purple],
+            borderRadius: 6,
+        }],
+    },
+    options: {
+        ...defaultOptions,
+        plugins: { legend: { display: false } },
+        scales: {
+            x: { ticks: { color: '#707088' }, grid: { color: 'rgba(42,42,74,0.5)' } },
+            y: { ticks: { color: '#707088' }, grid: { color: 'rgba(42,42,74,0.5)' } },
+        },
+    },
+});
+
+// 5. Inventory Classification Pie
+const invClfLabels = Object.keys(DATA.invClf);
+const invClfValues = Object.values(DATA.invClf);
+const pieColors = [COLORS.blue, COLORS.orange, COLORS.green, COLORS.purple, COLORS.teal, COLORS.red, 'rgba(255,235,59,0.8)', 'rgba(121,134,203,0.8)'];
+new Chart(document.getElementById('invClfChart'), {
+    type: 'doughnut',
+    data: {
+        labels: invClfLabels,
+        datasets: [{ data: invClfValues, backgroundColor: pieColors.slice(0, invClfLabels.length), borderWidth: 0 }],
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: { position: 'right', labels: { color: '#a0a0b0', font: { size: 11 }, padding: 8 } },
+        },
+    },
+});
+</script>
+</body>
+</html>

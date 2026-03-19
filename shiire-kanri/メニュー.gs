@@ -29,6 +29,8 @@ function onOpen() {
     .addItem('不要トリガー一括削除', 'cleanupObsoleteTriggers')
     .addSeparator()
     .addItem('列診断', 'debugCheckColumns')
+    .addSeparator()
+    .addItem('分析レポートリンク追加', 'addAnalysisReportManual')
     .addToUi();
 }
 
