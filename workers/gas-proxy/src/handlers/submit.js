@@ -623,7 +623,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     }
   };
 
-  console.log('KOMOJU session request: customer=' + JSON.stringify(sessionData.customer) +
+  console.log('KOMOJU session request: customer_email=' + sessionData.customer_email +
               ', payment_types=' + JSON.stringify(sessionData.payment_types) +
               ', amount=' + sessionData.amount);
 
@@ -651,10 +651,11 @@ export async function submitEstimate(args, env, bodyText, ctx) {
       })
     : Promise.resolve();
 
-  // ─── Paidy Session Pay API（Hosted Pageのshipping_address未送信を回避） ───
+  // ─── Paidy Session Pay API（Hosted PageではPaidyのemail/shipping_addressが渡されないため直接APIで決済開始） ───
   let paidyRedirectUrl = null;
   if (paymentMethod === 'paidy' && komojuResult.id && !komojuResult.error) {
     try {
+      const phoneClean = phone.replace(/[-ー\s]/g, '');
       const paidyPayResp = await fetch(KOMOJU_API_URL + '/sessions/' + komojuResult.id + '/pay', {
         method: 'POST',
         headers: {
@@ -665,7 +666,9 @@ export async function submitEstimate(args, env, bodyText, ctx) {
         body: JSON.stringify({
           payment_details: {
             type: 'paidy',
+            name: companyName,
             email: contact,
+            phone: phoneClean,
             shipping_address_line1: address,
             shipping_address_line2: '',
             shipping_address_city: '',
@@ -677,13 +680,13 @@ export async function submitEstimate(args, env, bodyText, ctx) {
       });
       const paidyPayResult = await paidyPayResp.json();
       console.log('Paidy Session Pay response: status=' + paidyPayResp.status +
-                  ', redirect_url=' + (paidyPayResult.redirect_url || 'N/A'));
+                  ', body=' + JSON.stringify(paidyPayResult).substring(0, 500));
       if (paidyPayResult.redirect_url) {
         paidyRedirectUrl = paidyPayResult.redirect_url;
       } else if (paidyPayResult.payment && paidyPayResult.payment.payment_details && paidyPayResult.payment.payment_details.redirect_url) {
         paidyRedirectUrl = paidyPayResult.payment.payment_details.redirect_url;
       } else {
-        console.error('Paidy Session Pay: redirect_url not found, falling back to session_url:', JSON.stringify(paidyPayResult));
+        console.error('Paidy Session Pay: redirect_url not found:', JSON.stringify(paidyPayResult).substring(0, 500));
       }
     } catch (paidyErr) {
       console.error('Paidy Session Pay error (falling back to session_url):', paidyErr.message);

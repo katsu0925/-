@@ -126,7 +126,17 @@ function apiCreateKomojuSession(paymentKey, amount, customerInfo) {
       }
     };
 
+    console.log('KOMOJU session creation request: customer_email=' + sessionData.customer_email +
+                ', payment_types=' + JSON.stringify(sessionData.payment_types) +
+                ', customer=' + JSON.stringify(sessionData.customer) +
+                ', payment_data_keys=' + JSON.stringify(Object.keys(sessionData.payment_data || {})));
+
     var response = komojuRequest_('POST', '/sessions', sessionData, secretKey);
+
+    console.log('KOMOJU session creation response: id=' + (response.id || 'N/A') +
+                ', session_url=' + (response.session_url || 'N/A') +
+                ', error=' + JSON.stringify(response.error || null) +
+                ', response_keys=' + (response.id ? Object.keys(response).join(',') : 'N/A'));
 
     if (response.error) {
       console.error('KOMOJU session creation error:', response);
@@ -820,11 +830,14 @@ function komojuSessionPayPaidy_(sessionId, email, shippingAddress) {
 
   var zip = String(shippingAddress.zip || '').replace(/[-ー\s]/g, '');
   if (zip.length === 7) zip = zip.slice(0, 3) + '-' + zip.slice(3);
+  var phoneClean = String(shippingAddress.phone || '').replace(/[-ー\s]/g, '');
 
   var payData = {
     payment_details: {
       type: 'paidy',
+      name: shippingAddress.name || '',
       email: email,
+      phone: phoneClean,
       shipping_address_line1: shippingAddress.line1 || '',
       shipping_address_line2: '',
       shipping_address_city: '',

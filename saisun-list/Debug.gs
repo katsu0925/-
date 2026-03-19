@@ -105,8 +105,13 @@ function debugKomojuSession() {
         console.log('KOMOJUステータス: ' + session.status);
         console.log('金額: ¥' + session.amount);
         console.log('Customer: ' + JSON.stringify(session.customer || '(なし)'));
+        console.log('customer_email: ' + (session.customer_email || '(なし)'));
+        console.log('customer_family_name: ' + (session.customer_family_name || '(なし)'));
+        console.log('customer_given_name: ' + (session.customer_given_name || '(なし)'));
         console.log('Payment Types: ' + JSON.stringify(session.payment_types || []));
+        console.log('payment_data: ' + JSON.stringify(session.payment_data || '(なし)'));
         console.log('Metadata: ' + JSON.stringify(session.metadata || {}));
+        console.log('Session全キー: ' + Object.keys(session).join(', '));
         if (session.payment) {
           console.log('Payment: status=' + session.payment.status +
             ', type=' + (session.payment.payment_details ? session.payment.payment_details.type : 'N/A'));

@@ -496,10 +496,12 @@ function apiSubmitEstimate(userKey, form, ids) {
 
     console.log('KOMOJU決済セッション作成: ' + receiptNo + ' → ' + komojuResult.sessionUrl);
 
-    // Paidy Session Pay API（Hosted Pageのshipping_address未送信を回避）
+    // Paidy Session Pay API（name/phone追加版）
     var paidyRedirectUrl = null;
     if (paymentMethod === 'paidy' && komojuResult.sessionId) {
-      var paidyResult = komojuSessionPayPaidy_(komojuResult.sessionId, contact, { line1: address, zip: postal });
+      var paidyResult = komojuSessionPayPaidy_(komojuResult.sessionId, contact, {
+        line1: address, zip: postal, name: companyName, phone: phone
+      });
       if (paidyResult.ok) {
         paidyRedirectUrl = paidyResult.redirectUrl;
       } else {
