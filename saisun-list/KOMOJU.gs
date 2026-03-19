@@ -4,7 +4,7 @@
  *
  * KOMOJU決済連携モジュール
  * クレジットカード（Visa/Mastercard）、コンビニ払い、銀行振込に対応
- * ※申請中: Paidy
+ * 対応済: Paidy（あと払い）
  *
  * 設定方法:
  * 1. https://komoju.com/ でアカウント作成
