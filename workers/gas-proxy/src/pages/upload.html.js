@@ -16,7 +16,7 @@ export function getUploadPageHtml() {
 <title>商品画像アップロード | デタウリ</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#333;line-height:1.5;padding-bottom:env(safe-area-inset-bottom)}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#333;line-height:1.5;padding-bottom:calc(80px + env(safe-area-inset-bottom))}
 .container{max-width:600px;margin:0 auto;padding:16px}
 h1{font-size:20px;text-align:center;padding:16px 0;color:#1a1a2e}
 h2{font-size:16px;color:#1a1a2e;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #e5e7eb}
@@ -70,6 +70,11 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 .replace-btn{position:absolute;bottom:2px;right:2px;background:rgba(255,255,255,.9);border-radius:4px;font-size:12px;padding:2px 4px;cursor:pointer}
 .img-check-wrap{position:relative}
 .img-check-wrap input[type=checkbox]{position:absolute;top:4px;left:4px;z-index:2;width:18px;height:18px;accent-color:#3b82f6}
+.sticky-footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e5e7eb;padding:10px 16px calc(10px + env(safe-area-inset-bottom));z-index:50;display:none}
+.sticky-footer.show{display:block}
+.sticky-footer .footer-inner{max-width:600px;margin:0 auto;display:flex;gap:8px}
+.sticky-footer .footer-inner .btn{flex:1;margin:0;padding:10px;font-size:14px}
+.del-check{width:20px;height:20px;accent-color:#ef4444;flex-shrink:0}
 @media(max-width:480px){.img-grid{grid-template-columns:repeat(2,1fr)}.preview-grid{grid-template-columns:repeat(2,1fr)}}
 @media(min-width:481px) and (max-width:768px){.img-grid{grid-template-columns:repeat(3,1fr)}}
 @media(min-width:769px){.img-grid{grid-template-columns:repeat(4,1fr)}}
@@ -148,7 +153,6 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
         <div class="preview-grid" id="uploadPreview"></div>
         <div class="progress-bar" id="uploadProgress"><div class="fill" id="uploadProgressFill"></div></div>
         <div class="status" id="uploadStatus"></div>
-        <button class="btn btn-primary" id="uploadBtn" onclick="doUpload()" style="margin-top:12px" disabled>アップロード</button>
       </div>
     </div>
 
@@ -166,16 +170,6 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
           <span style="margin-left:auto" id="selectedCount">0件選択</span>
         </div>
         <div id="productList"></div>
-        <div style="display:flex;gap:8px;margin-top:12px" id="dlActionRow" class="hidden">
-          <button class="btn btn-success" style="flex:1" id="dlTopBtn" onclick="doDownloadTopImages()">トップ画像を保存</button>
-          <button class="btn btn-primary" style="flex:1" id="dlExpandBtn" onclick="expandDlImages()">全画像を展開</button>
-        </div>
-        <div id="dlImageGrid" class="hidden" style="margin-top:12px"></div>
-        <div style="margin-top:8px;display:flex;gap:8px" id="dlImageActions" class="hidden">
-          <button class="btn btn-secondary" style="flex:1;font-size:12px;padding:8px" onclick="toggleDlImageSelect('all')">全画像選択</button>
-          <button class="btn btn-secondary" style="flex:1;font-size:12px;padding:8px" onclick="toggleDlImageSelect('top')">トップ画像のみ</button>
-        </div>
-        <button class="btn btn-success hidden" id="dlBtn" onclick="doDownloadSelected()" style="margin-top:12px">選択した画像を保存</button>
         <div class="status" id="dlStatus"></div>
       </div>
     </div>
@@ -193,7 +187,6 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
           <span>すべて選択</span>
         </div>
         <div id="researchProductList"></div>
-        <button class="btn btn-primary hidden" id="researchExpandBtn" onclick="expandResearchImages()" style="margin-top:12px">選択した商品の画像を展開</button>
         <div class="status" id="researchStatus"></div>
         <div id="researchImageGrid" class="hidden" style="margin-top:12px"></div>
       </div>
@@ -209,6 +202,29 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
         <div class="status" id="deleteStatus"></div>
         <div id="deleteList"></div>
       </div>
+    </div>
+  </div>
+
+  <!-- 固定フッタ -->
+  <div class="sticky-footer" id="footer-upload">
+    <div class="footer-inner">
+      <button class="btn btn-primary" id="uploadBtn" onclick="doUpload()" disabled>アップロード</button>
+    </div>
+  </div>
+  <div class="sticky-footer" id="footer-download">
+    <div class="footer-inner" id="dlFooterInner">
+      <button class="btn btn-success" id="dlTopBtn" onclick="doDownloadTopImages()">トップ画像を保存</button>
+      <button class="btn btn-primary" id="dlBtn" onclick="doDownloadSelected()">選択画像を保存</button>
+    </div>
+  </div>
+  <div class="sticky-footer" id="footer-research">
+    <div class="footer-inner">
+      <button class="btn btn-primary" id="researchExpandBtn" onclick="expandResearchImages()">画像を展開</button>
+    </div>
+  </div>
+  <div class="sticky-footer" id="footer-delete">
+    <div class="footer-inner">
+      <button class="btn btn-danger" id="deleteSelectedBtn" onclick="doDeleteSelected()" disabled>選択した商品を削除</button>
     </div>
   </div>
 
@@ -270,6 +286,7 @@ function showAuth() {
 function showMain() {
   document.getElementById('authSection').classList.add('hidden');
   document.getElementById('mainSection').classList.remove('hidden');
+  document.getElementById('footer-upload').classList.add('show');
   var today = new Date();
   var yyyy = today.getFullYear();
   var mm = String(today.getMonth() + 1).padStart(2, '0');
@@ -405,6 +422,11 @@ function switchTab(name) {
     t.classList.toggle('active', tabNames[i] === name);
   });
   secs.forEach(function(s) { s.classList.toggle('active', s.id === 'sec-' + name); });
+  // フッタ切り替え
+  tabNames.forEach(function(t) {
+    var f = document.getElementById('footer-' + t);
+    if (f) f.classList.toggle('show', t === name);
+  });
   if (name === 'download') ensureListLoaded(function() { renderDlList(); });
   if (name === 'research') ensureListLoaded(function() { renderResearchList(); });
   if (name === 'delete') ensureListLoaded(function() { renderDeleteList(); });
@@ -774,6 +796,8 @@ function filterDlList() {
   ensureListLoaded(function() { renderDlList(); });
 }
 
+var _dlExpandedMid = '';
+
 function renderDlList() {
   var q = normId(document.getElementById('dlSearch').value);
   var el = document.getElementById('productList');
@@ -784,20 +808,18 @@ function renderDlList() {
     if (q && p.managedId.toUpperCase().indexOf(q) === -1) continue;
     count++;
     var thumbSrc = p.thumbnail ? (API_BASE + p.thumbnail) : '';
-    html += '<div class="list-item">' +
-      '<input type="checkbox" class="list-check dl-check" data-idx="' + i + '" data-mid="' + escapeHtml(p.managedId) + '" onchange="updateSelectedCount()">' +
-      (thumbSrc ? '<img class="list-thumb" src="' + thumbSrc + '" loading="lazy">' : '<div class="list-thumb"></div>') +
-      '<div class="list-info"><div class="list-id">' + escapeHtml(p.managedId) + '</div>' +
-      '<div class="list-count">' + p.count + '枚 <span class="dl-status" id="dlst-' + i + '">✓保存済</span></div></div>' +
-      '</div>';
+    html += '<div id="dl-row-' + escapeHtml(p.managedId) + '">' +
+      '<div class="list-item">' +
+      '<input type="checkbox" class="list-check dl-check" data-idx="' + i + '" data-mid="' + escapeHtml(p.managedId) + '" onchange="updateSelectedCount()" onclick="event.stopPropagation()">' +
+      (thumbSrc ? '<img class="list-thumb" src="' + thumbSrc + '" loading="lazy" onclick="toggleDlExpand(\\'' + escapeHtml(p.managedId) + '\\')">' : '<div class="list-thumb" onclick="toggleDlExpand(\\'' + escapeHtml(p.managedId) + '\\')"></div>') +
+      '<div class="list-info" onclick="toggleDlExpand(\\'' + escapeHtml(p.managedId) + '\\')" style="cursor:pointer"><div class="list-id">' + escapeHtml(p.managedId) + '</div>' +
+      '<div class="list-count">' + p.count + '枚</div></div>' +
+      '<span style="color:#3b82f6;font-size:20px;padding:0 8px;cursor:pointer" onclick="toggleDlExpand(\\'' + escapeHtml(p.managedId) + '\\')">›</span>' +
+      '</div></div>';
   }
   el.innerHTML = html || '<div style="text-align:center;color:#999;padding:20px">該当なし</div>';
   document.getElementById('selectAllRow').classList.remove('hidden');
-  document.getElementById('dlActionRow').classList.remove('hidden');
-  // Hide image grid when re-rendering list
-  document.getElementById('dlImageGrid').classList.add('hidden');
-  document.getElementById('dlImageActions').classList.add('hidden');
-  document.getElementById('dlBtn').classList.add('hidden');
+  _dlExpandedMid = '';
   updateSelectedCount();
 }
 
@@ -814,69 +836,67 @@ function updateSelectedCount() {
   document.getElementById('selectedCount').textContent = checks.length + '件選択';
 }
 
-function expandDlImages() {
-  var checks = document.querySelectorAll('.dl-check:checked');
-  if (checks.length === 0) { showStatus('dlStatus', '商品を選択してください', 'err'); return; }
-  if (checks.length > 10) { showStatus('dlStatus', '10商品以上選択されています。処理に時間がかかる場合があります', 'info'); }
+function toggleDlExpand(managedId) {
+  // 同じ商品をもう一度タップしたら閉じる
+  if (_dlExpandedMid === managedId) {
+    var existing = document.getElementById('dlDetailInline');
+    if (existing) { existing.remove(); _dlExpandedMid = ''; return; }
+  }
+  _dlExpandedMid = managedId;
 
-  var grid = document.getElementById('dlImageGrid');
-  grid.innerHTML = '<div style="text-align:center;padding:20px;color:#666">読み込み中...</div>';
-  grid.classList.remove('hidden');
+  // 既存のインライン詳細を閉じる
+  var old = document.getElementById('dlDetailInline');
+  if (old) old.remove();
 
-  var mids = [];
-  checks.forEach(function(c) { mids.push(c.dataset.mid); });
+  var row = document.getElementById('dl-row-' + managedId);
+  if (!row) return;
+  var detail = document.createElement('div');
+  detail.id = 'dlDetailInline';
+  detail.style.cssText = 'background:#eff6ff;border-radius:8px;padding:12px;margin:4px 0 8px';
+  detail.innerHTML = '<div style="text-align:center;color:#666;font-size:13px">読み込み中...</div>';
+  row.after(detail);
 
-  _dlExpandedData = [];
-  var allHtml = '';
-  var done = 0;
-  mids.forEach(function(mid) {
-    fetch(API_BASE + '/upload/product-images', {
-      method: 'POST',
-      headers: headers({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ managedId: mid })
-    }).then(function(r) { return r.json(); })
-    .then(function(d) {
-      done++;
-      if (d.ok && d.urls) {
-        for (var i = 0; i < d.urls.length; i++) {
-          _dlExpandedData.push({ mid: mid, url: d.urls[i], idx: i });
-        }
-        allHtml += '<div style="margin-bottom:12px"><div style="font-weight:600;font-size:13px;margin-bottom:4px">' + escapeHtml(mid) + ' (' + d.urls.length + '枚)</div>';
-        allHtml += '<div class="img-grid">';
-        for (var j = 0; j < d.urls.length; j++) {
-          var fullUrl = API_BASE + d.urls[j];
-          allHtml += '<div class="img-check-wrap preview-item">' +
-            '<input type="checkbox" class="dl-img-check" data-mid="' + escapeHtml(mid) + '" data-url="' + escapeHtml(d.urls[j]) + '" data-imgidx="' + j + '" checked>' +
-            '<img src="' + fullUrl + '" loading="lazy">' +
-            '<span class="badge">' + (j === 0 ? 'トップ' : (j+1)) + '</span>' +
-            '</div>';
-        }
-        allHtml += '</div></div>';
-      }
-      if (done === mids.length) {
-        grid.innerHTML = allHtml || '<div style="text-align:center;color:#999;padding:20px">画像なし</div>';
-        document.getElementById('dlImageActions').classList.remove('hidden');
-        document.getElementById('dlBtn').classList.remove('hidden');
-      }
-    }).catch(function() {
-      done++;
-      if (done === mids.length) {
-        grid.innerHTML = allHtml || '<div style="text-align:center;color:#999;padding:20px">画像なし</div>';
-        document.getElementById('dlImageActions').classList.remove('hidden');
-        document.getElementById('dlBtn').classList.remove('hidden');
-      }
-    });
-  });
+  fetch(API_BASE + '/upload/product-images', {
+    method: 'POST',
+    headers: headers({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ managedId: managedId })
+  }).then(function(r) { return r.json(); })
+  .then(function(d) {
+    var el = document.getElementById('dlDetailInline');
+    if (!el) return;
+    if (!d.ok) { showStatus('dlStatus', d.message || 'エラー', 'err'); return; }
+    var urls = d.urls || [];
+    // _dlExpandedData に追加（DL用）
+    _dlExpandedData = [];
+    for (var i = 0; i < urls.length; i++) {
+      _dlExpandedData.push({ mid: managedId, url: urls[i], idx: i });
+    }
+    var html = '<div style="font-size:13px;font-weight:600;margin-bottom:8px">' + escapeHtml(managedId) + ' (' + urls.length + '枚)</div>';
+    html += '<div class="img-grid">';
+    for (var j = 0; j < urls.length; j++) {
+      var fullUrl = API_BASE + urls[j];
+      html += '<div class="img-check-wrap preview-item">' +
+        '<input type="checkbox" class="dl-img-check" data-mid="' + escapeHtml(managedId) + '" data-url="' + escapeHtml(urls[j]) + '" data-imgidx="' + j + '" checked>' +
+        '<img src="' + fullUrl + '" loading="lazy">' +
+        '<span class="badge">' + (j === 0 ? 'トップ' : (j+1)) + '</span>' +
+        '</div>';
+    }
+    html += '</div>';
+    html += '<div style="margin-top:8px;display:flex;gap:8px">' +
+      '<button class="btn btn-secondary" style="flex:1;font-size:12px;padding:8px" onclick="toggleDlImageSelect(\\'all\\')">全選択</button>' +
+      '<button class="btn btn-secondary" style="flex:1;font-size:12px;padding:8px" onclick="toggleDlImageSelect(\\'top\\')">トップのみ</button>' +
+      '<button class="btn btn-secondary" style="flex:1;font-size:12px;padding:8px" onclick="toggleDlImageSelect(\\'none\\')">全解除</button>' +
+      '</div>';
+    el.innerHTML = html;
+  }).catch(function(e) { showStatus('dlStatus', 'ネットワークエラー', 'err'); });
 }
 
 function toggleDlImageSelect(mode) {
   var checks = document.querySelectorAll('.dl-img-check');
   checks.forEach(function(c) {
-    if (mode === 'all') {
-      c.checked = true;
-    } else if (mode === 'top') {
-      c.checked = (c.dataset.imgidx === '0');
-    }
+    if (mode === 'all') c.checked = true;
+    else if (mode === 'top') c.checked = (c.dataset.imgidx === '0');
+    else if (mode === 'none') c.checked = false;
   });
 }
 
@@ -1068,7 +1088,6 @@ function renderResearchList() {
   }
   el.innerHTML = html || '<div style="text-align:center;color:#999;padding:20px">該当なし</div>';
   document.getElementById('researchSelectAllRow').classList.remove('hidden');
-  document.getElementById('researchExpandBtn').classList.remove('hidden');
 }
 
 function toggleResearchSelectAll() {
@@ -1156,14 +1175,17 @@ function renderDeleteList() {
     if (q && p.managedId.toUpperCase().indexOf(q) === -1) continue;
     var thumbSrc = p.thumbnail ? (API_BASE + p.thumbnail) : '';
     html += '<div id="del-row-' + escapeHtml(p.managedId) + '">' +
-      '<div class="list-item" style="cursor:pointer" onclick="selectForDelete(\\'' + escapeHtml(p.managedId) + '\\')">' +
-      (thumbSrc ? '<img class="list-thumb" src="' + thumbSrc + '" loading="lazy">' : '<div class="list-thumb"></div>') +
-      '<div class="list-info"><div class="list-id">' + escapeHtml(p.managedId) + '</div>' +
+      '<div class="list-item" style="cursor:pointer">' +
+      '<input type="checkbox" class="del-check" data-mid="' + escapeHtml(p.managedId) + '" onchange="updateDeleteSelectedCount()" onclick="event.stopPropagation()">' +
+      (thumbSrc ? '<img class="list-thumb" src="' + thumbSrc + '" loading="lazy" onclick="selectForDelete(\\'' + escapeHtml(p.managedId) + '\\')">' : '<div class="list-thumb" onclick="selectForDelete(\\'' + escapeHtml(p.managedId) + '\\')"></div>') +
+      '<div class="list-info" onclick="selectForDelete(\\'' + escapeHtml(p.managedId) + '\\')">' +
+      '<div class="list-id">' + escapeHtml(p.managedId) + '</div>' +
       '<div class="list-count">' + p.count + '枚</div></div>' +
-      '<span style="color:#ef4444;font-size:20px;padding:0 8px">›</span>' +
+      '<span style="color:#ef4444;font-size:20px;padding:0 8px" onclick="selectForDelete(\\'' + escapeHtml(p.managedId) + '\\')">›</span>' +
       '</div></div>';
   }
   el.innerHTML = html || '<div style="text-align:center;color:#999;padding:20px">該当なし</div>';
+  updateDeleteSelectedCount();
 }
 
 function selectForDelete(managedId) {
@@ -1264,6 +1286,59 @@ function _doDeleteAll() {
       showStatus('deleteStatus', d.message || 'エラー', 'err');
     }
   }).catch(function(e) { showStatus('deleteStatus', 'ネットワークエラー', 'err'); });
+}
+
+// ─── 選択削除 ───
+function updateDeleteSelectedCount() {
+  var checks = document.querySelectorAll('.del-check:checked');
+  var btn = document.getElementById('deleteSelectedBtn');
+  if (checks.length > 0) {
+    btn.disabled = false;
+    btn.textContent = checks.length + '件の商品を削除';
+  } else {
+    btn.disabled = true;
+    btn.textContent = '選択した商品を削除';
+  }
+}
+
+function doDeleteSelected() {
+  var checks = document.querySelectorAll('.del-check:checked');
+  if (checks.length === 0) return;
+  var mids = [];
+  checks.forEach(function(c) { mids.push(c.dataset.mid); });
+  showConfirm(mids.length + '件の商品画像を全て削除しますか？', function() {
+    _doDeleteSelectedBatch(mids);
+  });
+}
+
+function _doDeleteSelectedBatch(mids) {
+  showStatus('deleteStatus', '0/' + mids.length + ' 削除中...', 'info');
+  var done = 0;
+  var totalDeleted = 0;
+  mids.forEach(function(mid) {
+    fetch(API_BASE + '/upload/delete', {
+      method: 'POST',
+      headers: headers({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ managedId: mid })
+    }).then(function(r) { return r.json(); })
+    .then(function(d) {
+      done++;
+      if (d.ok) totalDeleted += (d.deleted || 0);
+      showStatus('deleteStatus', done + '/' + mids.length + ' 削除中...', 'info');
+      if (done === mids.length) {
+        showStatus('deleteStatus', mids.length + '件（' + totalDeleted + '枚）削除しました', 'ok');
+        var el = document.getElementById('deleteDetailInline'); if (el) el.remove();
+        _deleteManagedId = '';
+        reloadList(function() { renderDeleteList(); });
+      }
+    }).catch(function() {
+      done++;
+      if (done === mids.length) {
+        showStatus('deleteStatus', done + '件処理完了（一部エラーあり）', 'err');
+        reloadList(function() { renderDeleteList(); });
+      }
+    });
+  });
 }
 
 // ─── 確認モーダル ───
