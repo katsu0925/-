@@ -208,11 +208,6 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
         </div>
         <div class="status" id="deleteStatus"></div>
         <div id="deleteList"></div>
-        <div id="deleteDetail" class="hidden" style="margin-top:12px">
-          <div style="font-size:13px;font-weight:600;margin-bottom:8px" id="deleteDetailTitle"></div>
-          <div id="deletePreviewGrid" class="preview-grid" style="margin-bottom:12px"></div>
-          <button class="btn btn-danger" id="deleteAllBtn" onclick="doDeleteAll()">この商品の画像を全て削除</button>
-        </div>
       </div>
     </div>
   </div>
@@ -1160,22 +1155,38 @@ function renderDeleteList() {
     var p = productListData[i];
     if (q && p.managedId.toUpperCase().indexOf(q) === -1) continue;
     var thumbSrc = p.thumbnail ? (API_BASE + p.thumbnail) : '';
-    html += '<div class="list-item" style="cursor:pointer" onclick="selectForDelete(\\'' + escapeHtml(p.managedId) + '\\')">' +
+    html += '<div id="del-row-' + escapeHtml(p.managedId) + '">' +
+      '<div class="list-item" style="cursor:pointer" onclick="selectForDelete(\\'' + escapeHtml(p.managedId) + '\\')">' +
       (thumbSrc ? '<img class="list-thumb" src="' + thumbSrc + '" loading="lazy">' : '<div class="list-thumb"></div>') +
       '<div class="list-info"><div class="list-id">' + escapeHtml(p.managedId) + '</div>' +
       '<div class="list-count">' + p.count + '枚</div></div>' +
       '<span style="color:#ef4444;font-size:20px;padding:0 8px">›</span>' +
-      '</div>';
+      '</div></div>';
   }
   el.innerHTML = html || '<div style="text-align:center;color:#999;padding:20px">該当なし</div>';
-  document.getElementById('deleteDetail').classList.add('hidden');
 }
 
 function selectForDelete(managedId) {
+  // 同じ商品をもう一度タップしたら閉じる
+  if (_deleteManagedId === managedId) {
+    var existing = document.getElementById('deleteDetailInline');
+    if (existing) { existing.remove(); _deleteManagedId = ''; return; }
+  }
   _deleteManagedId = managedId;
-  document.getElementById('deleteDetailTitle').textContent = managedId + ' の画像';
-  document.getElementById('deleteDetail').classList.remove('hidden');
-  showStatus('deleteStatus', '読み込み中...', 'info');
+
+  // 既存のインライン詳細を閉じる
+  var old = document.getElementById('deleteDetailInline');
+  if (old) old.remove();
+
+  // 対象行の直後にインライン詳細を挿入
+  var row = document.getElementById('del-row-' + managedId);
+  if (!row) return;
+  var detail = document.createElement('div');
+  detail.id = 'deleteDetailInline';
+  detail.style.cssText = 'background:#fef2f2;border-radius:8px;padding:12px;margin:4px 0 8px';
+  detail.innerHTML = '<div style="font-size:13px;font-weight:600;margin-bottom:8px">' + escapeHtml(managedId) + ' の画像</div>' +
+    '<div style="text-align:center;color:#666;font-size:13px">読み込み中...</div>';
+  row.after(detail);
 
   fetch(API_BASE + '/upload/product-images', {
     method: 'POST',
@@ -1183,18 +1194,22 @@ function selectForDelete(managedId) {
     body: JSON.stringify({ managedId: managedId })
   }).then(function(r) { return r.json(); })
   .then(function(d) {
+    var el = document.getElementById('deleteDetailInline');
+    if (!el) return;
     if (!d.ok) { showStatus('deleteStatus', d.message || 'エラー', 'err'); return; }
     _deleteImages = d.urls || [];
     showStatus('deleteStatus', _deleteImages.length + '枚', 'ok');
-    var grid = document.getElementById('deletePreviewGrid');
-    var html = '';
+    var html = '<div style="font-size:13px;font-weight:600;margin-bottom:8px">' + escapeHtml(managedId) + ' の画像</div>';
+    html += '<div class="preview-grid">';
     for (var i = 0; i < _deleteImages.length; i++) {
       html += '<div class="preview-item">' +
         '<img src="' + API_BASE + _deleteImages[i] + '?t=' + Date.now() + '">' +
         '<span class="badge" style="background:rgba(239,68,68,.85);cursor:pointer" onclick="doDeleteSingle(' + i + ')">×</span>' +
         '</div>';
     }
-    grid.innerHTML = html;
+    html += '</div>';
+    html += '<button class="btn btn-danger" style="margin-top:8px" onclick="doDeleteAll()">この商品の画像を全て削除</button>';
+    el.innerHTML = html;
   }).catch(function(e) { showStatus('deleteStatus', 'ネットワークエラー', 'err'); });
 }
 
@@ -1213,8 +1228,8 @@ function _doDeleteSingle(urlIndex) {
   .then(function(d) {
     if (d.ok) {
       showStatus('deleteStatus', '削除しました（残り' + d.remaining + '枚）', 'ok');
-      if (d.remaining > 0) { selectForDelete(_deleteManagedId); }
-      else { reloadList(function() { renderDeleteList(); }); document.getElementById('deleteDetail').classList.add('hidden'); }
+      if (d.remaining > 0) { var mid = _deleteManagedId; _deleteManagedId = ''; selectForDelete(mid); }
+      else { var el = document.getElementById('deleteDetailInline'); if (el) el.remove(); _deleteManagedId = ''; reloadList(function() { renderDeleteList(); }); }
     } else {
       showStatus('deleteStatus', d.message || 'エラー', 'err');
     }
@@ -1236,7 +1251,8 @@ function _doDeleteAll() {
   .then(function(d) {
     if (d.ok) {
       showStatus('deleteStatus', d.deleted + '枚削除しました', 'ok');
-      document.getElementById('deleteDetail').classList.add('hidden');
+      var el = document.getElementById('deleteDetailInline'); if (el) el.remove();
+      _deleteManagedId = '';
       reloadList(function() { renderDeleteList(); });
     } else {
       showStatus('deleteStatus', d.message || 'エラー', 'err');
