@@ -182,13 +182,8 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
           <input type="text" id="researchSearch" placeholder="管理番号で検索..." autocomplete="off" oninput="filterResearchList()">
         </div>
         <div class="status" id="researchLoadStatus"></div>
-        <div class="select-all-row hidden" id="researchSelectAllRow">
-          <input type="checkbox" id="researchSelectAll" class="list-check" onchange="toggleResearchSelectAll()">
-          <span>すべて選択</span>
-        </div>
         <div id="researchProductList"></div>
         <div class="status" id="researchStatus"></div>
-        <div id="researchImageGrid" class="hidden" style="margin-top:12px"></div>
       </div>
     </div>
 
@@ -215,11 +210,6 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
     <div class="footer-inner" id="dlFooterInner">
       <button class="btn btn-success" id="dlTopBtn" onclick="doDownloadTopImages()">トップ画像を保存</button>
       <button class="btn btn-primary" id="dlBtn" onclick="doDownloadSelected()">選択画像を保存</button>
-    </div>
-  </div>
-  <div class="sticky-footer" id="footer-research">
-    <div class="footer-inner">
-      <button class="btn btn-primary" id="researchExpandBtn" onclick="expandResearchImages()">画像を展開</button>
     </div>
   </div>
   <div class="sticky-footer" id="footer-delete">
@@ -872,6 +862,11 @@ function toggleDlExpand(managedId) {
       _dlExpandedData.push({ mid: managedId, url: urls[i], idx: i });
     }
     var html = '<div style="font-size:13px;font-weight:600;margin-bottom:8px">' + escapeHtml(managedId) + ' (' + urls.length + '枚)</div>';
+    html += '<div style="margin-bottom:8px;display:flex;gap:8px">' +
+      '<button class="btn btn-secondary" style="flex:1;font-size:12px;padding:8px" onclick="toggleDlImageSelect(\\'all\\')">全選択</button>' +
+      '<button class="btn btn-secondary" style="flex:1;font-size:12px;padding:8px" onclick="toggleDlImageSelect(\\'top\\')">トップのみ</button>' +
+      '<button class="btn btn-secondary" style="flex:1;font-size:12px;padding:8px" onclick="toggleDlImageSelect(\\'none\\')">全解除</button>' +
+      '</div>';
     html += '<div class="img-grid">';
     for (var j = 0; j < urls.length; j++) {
       var fullUrl = API_BASE + urls[j];
@@ -882,11 +877,6 @@ function toggleDlExpand(managedId) {
         '</div>';
     }
     html += '</div>';
-    html += '<div style="margin-top:8px;display:flex;gap:8px">' +
-      '<button class="btn btn-secondary" style="flex:1;font-size:12px;padding:8px" onclick="toggleDlImageSelect(\\'all\\')">全選択</button>' +
-      '<button class="btn btn-secondary" style="flex:1;font-size:12px;padding:8px" onclick="toggleDlImageSelect(\\'top\\')">トップのみ</button>' +
-      '<button class="btn btn-secondary" style="flex:1;font-size:12px;padding:8px" onclick="toggleDlImageSelect(\\'none\\')">全解除</button>' +
-      '</div>';
     el.innerHTML = html;
   }).catch(function(e) { showStatus('dlStatus', 'ネットワークエラー', 'err'); });
 }
@@ -1069,85 +1059,69 @@ function filterResearchList() {
   ensureListLoaded(function() { renderResearchList(); });
 }
 
+var _researchExpandedMid = '';
+
 function renderResearchList() {
   var q = normId(document.getElementById('researchSearch').value);
   var el = document.getElementById('researchProductList');
   var html = '';
-  var count = 0;
   for (var i = 0; i < productListData.length; i++) {
     var p = productListData[i];
     if (q && p.managedId.toUpperCase().indexOf(q) === -1) continue;
-    count++;
     var thumbSrc = p.thumbnail ? (API_BASE + p.thumbnail) : '';
-    html += '<div class="list-item">' +
-      '<input type="checkbox" class="list-check research-check" data-mid="' + escapeHtml(p.managedId) + '" data-idx="' + i + '">' +
+    html += '<div id="research-row-' + escapeHtml(p.managedId) + '">' +
+      '<div class="list-item" style="cursor:pointer" onclick="toggleResearchExpand(\\'' + escapeHtml(p.managedId) + '\\')">' +
       (thumbSrc ? '<img class="list-thumb" src="' + thumbSrc + '" loading="lazy">' : '<div class="list-thumb"></div>') +
       '<div class="list-info"><div class="list-id">' + escapeHtml(p.managedId) + '</div>' +
       '<div class="list-count">' + p.count + '枚</div></div>' +
-      '</div>';
+      '<span style="color:#3b82f6;font-size:20px;padding:0 8px">›</span>' +
+      '</div></div>';
   }
   el.innerHTML = html || '<div style="text-align:center;color:#999;padding:20px">該当なし</div>';
-  document.getElementById('researchSelectAllRow').classList.remove('hidden');
+  _researchExpandedMid = '';
 }
 
-function toggleResearchSelectAll() {
-  var checked = document.getElementById('researchSelectAll').checked;
-  document.querySelectorAll('.research-check').forEach(function(c) { c.checked = checked; });
-}
+function toggleResearchExpand(managedId) {
+  if (_researchExpandedMid === managedId) {
+    var existing = document.getElementById('researchDetailInline');
+    if (existing) { existing.remove(); _researchExpandedMid = ''; return; }
+  }
+  _researchExpandedMid = managedId;
 
-function expandResearchImages() {
-  var checks = document.querySelectorAll('.research-check:checked');
-  if (checks.length === 0) { showStatus('researchStatus', '商品を選択してください', 'err'); return; }
+  var old = document.getElementById('researchDetailInline');
+  if (old) old.remove();
 
-  var grid = document.getElementById('researchImageGrid');
-  grid.innerHTML = '<div style="text-align:center;padding:20px;color:#666">読み込み中...</div>';
-  grid.classList.remove('hidden');
+  var row = document.getElementById('research-row-' + managedId);
+  if (!row) return;
+  var detail = document.createElement('div');
+  detail.id = 'researchDetailInline';
+  detail.style.cssText = 'background:#eff6ff;border-radius:8px;padding:12px;margin:4px 0 8px';
+  detail.innerHTML = '<div style="text-align:center;color:#666;font-size:13px">読み込み中...</div>';
+  row.after(detail);
 
-  var mids = [];
-  checks.forEach(function(c) { mids.push(c.dataset.mid); });
-
-  var fragments = [];
-  var done = 0;
-  mids.forEach(function(mid, midIdx) {
-    fetch(API_BASE + '/upload/product-images', {
-      method: 'POST',
-      headers: headers({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ managedId: mid })
-    }).then(function(r) { return r.json(); })
-    .then(function(d) {
-      done++;
-      if (d.ok && d.urls) {
-        var h = '<div style="margin-bottom:12px"><div style="font-weight:600;font-size:13px;margin-bottom:4px">' + escapeHtml(mid) + ' (' + d.urls.length + '枚)</div>';
-        h += '<div class="img-grid">';
-        for (var i = 0; i < d.urls.length; i++) {
-          var fullUrl = API_BASE + d.urls[i];
-          h += '<div class="preview-item search-item" style="cursor:pointer" data-url="' + fullUrl + '" onclick="searchImage(this.dataset.url)">' +
-            '<img src="' + fullUrl + '" loading="lazy">' +
-            '<span class="badge">' + (i === 0 ? 'トップ' : (i+1)) + '</span>' +
-            '<div class="search-overlay">🔍</div>' +
-            '</div>';
-        }
-        h += '</div></div>';
-        fragments[midIdx] = h;
-      }
-      if (done === mids.length) {
-        var allHtml = '';
-        for (var k = 0; k < mids.length; k++) {
-          if (fragments[k]) allHtml += fragments[k];
-        }
-        grid.innerHTML = allHtml || '<div style="text-align:center;color:#999;padding:20px">画像なし</div>';
-      }
-    }).catch(function() {
-      done++;
-      if (done === mids.length) {
-        var allHtml = '';
-        for (var k = 0; k < mids.length; k++) {
-          if (fragments[k]) allHtml += fragments[k];
-        }
-        grid.innerHTML = allHtml || '<div style="text-align:center;color:#999;padding:20px">画像なし</div>';
-      }
-    });
-  });
+  fetch(API_BASE + '/upload/product-images', {
+    method: 'POST',
+    headers: headers({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ managedId: managedId })
+  }).then(function(r) { return r.json(); })
+  .then(function(d) {
+    var el = document.getElementById('researchDetailInline');
+    if (!el) return;
+    if (!d.ok) { showStatus('researchStatus', d.message || 'エラー', 'err'); return; }
+    var urls = d.urls || [];
+    var html = '<div style="font-size:13px;font-weight:600;margin-bottom:8px">' + escapeHtml(managedId) + ' (' + urls.length + '枚) — タップで画像検索</div>';
+    html += '<div class="img-grid">';
+    for (var i = 0; i < urls.length; i++) {
+      var fullUrl = API_BASE + urls[i];
+      html += '<div class="preview-item search-item" style="cursor:pointer" data-url="' + fullUrl + '" onclick="searchImage(this.dataset.url)">' +
+        '<img src="' + fullUrl + '" loading="lazy">' +
+        '<span class="badge">' + (i === 0 ? 'トップ' : (i+1)) + '</span>' +
+        '<div class="search-overlay">🔍</div>' +
+        '</div>';
+    }
+    html += '</div>';
+    el.innerHTML = html;
+  }).catch(function(e) { showStatus('researchStatus', 'ネットワークエラー', 'err'); });
 }
 
 function searchImage(imgUrl) {
@@ -1222,15 +1196,23 @@ function selectForDelete(managedId) {
     _deleteImages = d.urls || [];
     showStatus('deleteStatus', _deleteImages.length + '枚', 'ok');
     var html = '<div style="font-size:13px;font-weight:600;margin-bottom:8px">' + escapeHtml(managedId) + ' の画像</div>';
+    html += '<div style="margin-bottom:8px;display:flex;gap:8px">' +
+      '<button class="btn btn-secondary" style="flex:1;font-size:12px;padding:6px" onclick="toggleDelImageSelect(\\'all\\')">全選択</button>' +
+      '<button class="btn btn-secondary" style="flex:1;font-size:12px;padding:6px" onclick="toggleDelImageSelect(\\'none\\')">全解除</button>' +
+      '</div>';
     html += '<div class="preview-grid">';
     for (var i = 0; i < _deleteImages.length; i++) {
-      html += '<div class="preview-item">' +
+      html += '<div class="img-check-wrap preview-item">' +
+        '<input type="checkbox" class="del-img-check" data-idx="' + i + '" onchange="updateDelImageBtnState()">' +
         '<img src="' + API_BASE + _deleteImages[i] + '?t=' + Date.now() + '">' +
-        '<span class="badge" style="background:rgba(239,68,68,.85);cursor:pointer" onclick="doDeleteSingle(' + i + ')">×</span>' +
+        '<span class="badge">' + (i === 0 ? 'トップ' : (i+1)) + '</span>' +
         '</div>';
     }
     html += '</div>';
-    html += '<button class="btn btn-danger" style="margin-top:8px" onclick="doDeleteAll()">この商品の画像を全て削除</button>';
+    html += '<div style="margin-top:8px;display:flex;gap:8px">' +
+      '<button class="btn btn-danger" style="flex:1" id="delSelectedImgBtn" onclick="doDeleteSelectedImages()" disabled>選択した画像を削除</button>' +
+      '<button class="btn btn-danger" style="flex:1" onclick="doDeleteAll()">全て削除</button>' +
+      '</div>';
     el.innerHTML = html;
   }).catch(function(e) { showStatus('deleteStatus', 'ネットワークエラー', 'err'); });
 }
@@ -1288,7 +1270,79 @@ function _doDeleteAll() {
   }).catch(function(e) { showStatus('deleteStatus', 'ネットワークエラー', 'err'); });
 }
 
-// ─── 選択削除 ───
+// ─── 画像個別選択削除 ───
+function toggleDelImageSelect(mode) {
+  var checks = document.querySelectorAll('.del-img-check');
+  checks.forEach(function(c) { c.checked = (mode === 'all'); });
+  updateDelImageBtnState();
+}
+
+function updateDelImageBtnState() {
+  var checks = document.querySelectorAll('.del-img-check:checked');
+  var btn = document.getElementById('delSelectedImgBtn');
+  if (!btn) return;
+  if (checks.length > 0) {
+    btn.disabled = false;
+    btn.textContent = checks.length + '枚を削除';
+  } else {
+    btn.disabled = true;
+    btn.textContent = '選択した画像を削除';
+  }
+}
+
+function doDeleteSelectedImages() {
+  var checks = document.querySelectorAll('.del-img-check:checked');
+  if (checks.length === 0) return;
+  var indices = [];
+  checks.forEach(function(c) { indices.push(parseInt(c.dataset.idx)); });
+  showConfirm(indices.length + '枚の画像を削除しますか？', function() {
+    _doDeleteMultipleImages(indices);
+  });
+}
+
+function _doDeleteMultipleImages(indices) {
+  // インデックスを降順にソート（削除時にインデックスがずれないように逆順で処理）
+  indices.sort(function(a, b) { return b - a; });
+  var total = indices.length;
+  var done = 0;
+  showStatus('deleteStatus', '0/' + total + ' 削除中...', 'info');
+
+  function deleteNext() {
+    if (done >= total) {
+      var mid = _deleteManagedId;
+      var remaining = _deleteImages.length - total;
+      if (remaining > 0) {
+        var row = document.getElementById('del-row-' + mid);
+        if (row) { var cnt = row.querySelector('.list-count'); if (cnt) cnt.textContent = remaining + '枚'; }
+        _deleteManagedId = ''; selectForDelete(mid);
+      } else {
+        var el = document.getElementById('deleteDetailInline'); if (el) el.remove();
+        _deleteManagedId = '';
+        reloadList(function() { renderDeleteList(); });
+      }
+      showStatus('deleteStatus', total + '枚削除しました', 'ok');
+      return;
+    }
+    var idx = indices[done];
+    fetch(API_BASE + '/upload/delete-single', {
+      method: 'POST',
+      headers: headers({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ managedId: _deleteManagedId, targetUrl: _deleteImages[idx] })
+    }).then(function(r) { return r.json(); })
+    .then(function(d) {
+      done++;
+      showStatus('deleteStatus', done + '/' + total + ' 削除中...', 'info');
+      deleteNext();
+    }).catch(function() {
+      done++;
+      showStatus('deleteStatus', done + '/' + total + ' 削除中（エラーあり）...', 'err');
+      deleteNext();
+    });
+  }
+  deleteNext();
+}
+
+// ─── 商品選択削除 ───
 function updateDeleteSelectedCount() {
   var checks = document.querySelectorAll('.del-check:checked');
   var btn = document.getElementById('deleteSelectedBtn');
