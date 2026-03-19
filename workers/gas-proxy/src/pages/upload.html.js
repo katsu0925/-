@@ -70,6 +70,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 .replace-btn{position:absolute;bottom:2px;right:2px;background:rgba(255,255,255,.9);border-radius:4px;font-size:12px;padding:2px 4px;cursor:pointer}
 .img-check-wrap{position:relative}
 .img-check-wrap input[type=checkbox]{position:absolute;top:4px;left:4px;z-index:2;width:18px;height:18px;accent-color:#3b82f6}
+.img-check-wrap .badge{left:auto;right:2px}
 .sticky-footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e5e7eb;padding:10px 16px calc(10px + env(safe-area-inset-bottom));z-index:50;display:none}
 .sticky-footer.show{display:block}
 .sticky-footer .footer-inner{max-width:600px;margin:0 auto;display:flex;gap:8px}
@@ -870,7 +871,7 @@ function toggleDlExpand(managedId) {
     html += '<div class="img-grid">';
     for (var j = 0; j < urls.length; j++) {
       var fullUrl = API_BASE + urls[j];
-      html += '<div class="img-check-wrap preview-item">' +
+      html += '<div class="img-check-wrap preview-item" onclick="toggleImgCheck(this,event)" style="cursor:pointer">' +
         '<input type="checkbox" class="dl-img-check" data-mid="' + escapeHtml(managedId) + '" data-url="' + escapeHtml(urls[j]) + '" data-imgidx="' + j + '" checked>' +
         '<img src="' + fullUrl + '" loading="lazy">' +
         '<span class="badge">' + (j === 0 ? 'トップ' : (j+1)) + '</span>' +
@@ -887,6 +888,7 @@ function toggleDlImageSelect(mode) {
     if (mode === 'all') c.checked = true;
     else if (mode === 'top') c.checked = (c.dataset.imgidx === '0');
     else if (mode === 'none') c.checked = false;
+    c.closest('.img-check-wrap').style.opacity = c.checked ? '1' : '0.4';
   });
 }
 
@@ -1202,8 +1204,8 @@ function selectForDelete(managedId) {
       '</div>';
     html += '<div class="preview-grid">';
     for (var i = 0; i < _deleteImages.length; i++) {
-      html += '<div class="img-check-wrap preview-item">' +
-        '<input type="checkbox" class="del-img-check" data-idx="' + i + '" onchange="updateDelImageBtnState()">' +
+      html += '<div class="img-check-wrap preview-item" onclick="toggleImgCheck(this);updateDelImageBtnState()" style="cursor:pointer">' +
+        '<input type="checkbox" class="del-img-check" data-idx="' + i + '" onchange="updateDelImageBtnState();this.closest(\\'.img-check-wrap\\').style.opacity=this.checked?\\'1\\':\\'0.4\\'">' +
         '<img src="' + API_BASE + _deleteImages[i] + '?t=' + Date.now() + '">' +
         '<span class="badge">' + (i === 0 ? 'トップ' : (i+1)) + '</span>' +
         '</div>';
@@ -1273,7 +1275,10 @@ function _doDeleteAll() {
 // ─── 画像個別選択削除 ───
 function toggleDelImageSelect(mode) {
   var checks = document.querySelectorAll('.del-img-check');
-  checks.forEach(function(c) { c.checked = (mode === 'all'); });
+  checks.forEach(function(c) {
+    c.checked = (mode === 'all');
+    c.closest('.img-check-wrap').style.opacity = c.checked ? '1' : '0.4';
+  });
   updateDelImageBtnState();
 }
 
@@ -1411,6 +1416,14 @@ function closeConfirm(ok) {
 }
 
 // ─── ユーティリティ ───
+function toggleImgCheck(wrap, e) {
+  // チェックボックス自体がクリックされた場合はネイティブ動作に任せる
+  if (e && (e.target.tagName === 'INPUT')) return;
+  var cb = wrap.querySelector('input[type=checkbox]');
+  if (cb) { cb.checked = !cb.checked; cb.dispatchEvent(new Event('change')); }
+  wrap.style.opacity = cb && cb.checked ? '1' : '0.4';
+}
+
 function normId(s) {
   return s.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(ch) {
     return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0);
