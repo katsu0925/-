@@ -1228,7 +1228,13 @@ function _doDeleteSingle(urlIndex) {
   .then(function(d) {
     if (d.ok) {
       showStatus('deleteStatus', '削除しました（残り' + d.remaining + '枚）', 'ok');
-      if (d.remaining > 0) { var mid = _deleteManagedId; _deleteManagedId = ''; selectForDelete(mid); }
+      if (d.remaining > 0) {
+        var mid = _deleteManagedId;
+        // 一覧側の枚数表示も即時更新
+        var row = document.getElementById('del-row-' + mid);
+        if (row) { var cnt = row.querySelector('.list-count'); if (cnt) cnt.textContent = d.remaining + '枚'; }
+        _deleteManagedId = ''; selectForDelete(mid);
+      }
       else { var el = document.getElementById('deleteDetailInline'); if (el) el.remove(); _deleteManagedId = ''; reloadList(function() { renderDeleteList(); }); }
     } else {
       showStatus('deleteStatus', d.message || 'エラー', 'err');
