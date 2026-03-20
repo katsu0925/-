@@ -355,6 +355,24 @@
     @media(max-width:480px){
       .toTop{right:12px;width:44px;height:44px;bottom:124px;font-size:14px;}
     }
+    /* FHP新規会員ポップアップ */
+    #fhpPopup{position:fixed;left:16px;bottom:16px;z-index:500;max-width:300px;border-radius:14px;background:linear-gradient(135deg,#e65100,#ff8f00);color:#fff;box-shadow:0 8px 32px rgba(0,0,0,.25);padding:18px 18px 14px;font-family:inherit;opacity:0;transform:translateX(-120%);transition:opacity .4s ease,transform .4s ease;pointer-events:none;}
+    #fhpPopup.fhp-visible{opacity:1;transform:translateX(0);pointer-events:auto;}
+    #fhpPopup .fhp-close{position:absolute;top:6px;right:8px;background:none;border:none;color:rgba(255,255,255,.8);font-size:20px;cursor:pointer;line-height:1;padding:2px 6px;}
+    #fhpPopup .fhp-close:hover{color:#fff;}
+    #fhpPopup .fhp-title{font-size:13px;font-weight:700;margin-bottom:4px;}
+    #fhpPopup .fhp-main{font-size:16px;font-weight:800;line-height:1.4;margin-bottom:10px;}
+    #fhpPopup .fhp-cta{display:inline-block;background:#fff;color:#e65100;font-weight:700;font-size:14px;padding:8px 20px;border-radius:999px;border:none;cursor:pointer;transition:transform .2s,box-shadow .2s;box-shadow:0 2px 8px rgba(0,0,0,.15);}
+    #fhpPopup .fhp-cta:hover{transform:scale(1.05);box-shadow:0 4px 12px rgba(0,0,0,.2);}
+    #fhpPopup .fhp-note{font-size:10px;color:rgba(255,255,255,.7);margin-top:8px;line-height:1.4;}
+    body.footer-visible .article-fab{transform:translateY(-60px);}
+    body.footer-visible #fhpPopup{transform:translateX(-120%) translateY(-60px);}
+    body.footer-visible #fhpPopup.fhp-visible{transform:translateX(0) translateY(-60px);}
+    @media(max-width:767px){
+      #fhpPopup{bottom:80px;left:12px;max-width:280px;}
+      body.footer-visible #fhpPopup{transform:translateX(-120%) translateY(-60px);}
+      body.footer-visible #fhpPopup.fhp-visible{transform:translateX(0) translateY(-60px);}
+    }
     .price-old { text-decoration: line-through; color:#999; }
     .price-new { color:#b8002a; font-weight:700; }
     /* フィルタ・ソート — フラットツールバー */
@@ -1505,7 +1523,59 @@
           </li>
           <li style="margin-bottom:8px;" id="guideMemberDiscount"><strong>会員割引</strong>：無料会員登録で<span style="color:#b8002a;font-weight:700;">10%OFF</span><span style="color:#666;font-size:13px;">（2026年9月末まで）</span></li>
           <li id="guideCombineDiscount"><span style="color:#b8002a;font-weight:700;">※ 併用可</span>（数量割引＋会員割引の同時適用で最大30%OFF）</li>
+          <li style="margin-top:8px;"><strong>ポイント利用</strong>：購入ごとにポイントが貯まり、1pt=1円として次回以降の割引に使用できます（レギュラー1%/シルバー3%/ゴールド・ダイヤモンド5%還元）</li>
         </ul>
+      </div>
+
+      <div class="guide-section" style="margin-top:20px;">
+        <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">会員ランク・ポイント制度</h3>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:12px;">
+            <thead>
+              <tr style="background:#f1f5f9;">
+                <th style="padding:8px 10px;border:1px solid #e2e8f0;text-align:left;">ランク</th>
+                <th style="padding:8px 10px;border:1px solid #e2e8f0;text-align:center;">累計購入額</th>
+                <th style="padding:8px 10px;border:1px solid #e2e8f0;text-align:center;">ポイント還元</th>
+                <th style="padding:8px 10px;border:1px solid #e2e8f0;text-align:center;">送料特典</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr style="background:#fff8e1;">
+                <td style="padding:8px 10px;border:1px solid #e2e8f0;font-weight:700;color:#f59e0b;">💎 ダイヤモンド</td>
+                <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:center;">50万円〜</td>
+                <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:center;color:#b8002a;font-weight:700;">5%</td>
+                <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:center;color:#2e7d32;font-weight:700;">送料無料</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 10px;border:1px solid #e2e8f0;font-weight:700;color:#f59e0b;">🥇 ゴールド</td>
+                <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:center;">20万円〜</td>
+                <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:center;color:#b8002a;font-weight:700;">5%</td>
+                <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:center;">-</td>
+              </tr>
+              <tr style="background:#f8fafc;">
+                <td style="padding:8px 10px;border:1px solid #e2e8f0;font-weight:700;color:#94a3b8;">🥈 シルバー</td>
+                <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:center;">5万円〜</td>
+                <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:center;color:#b8002a;font-weight:700;">3%</td>
+                <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:center;">-</td>
+              </tr>
+              <tr>
+                <td style="padding:8px 10px;border:1px solid #e2e8f0;font-weight:700;color:#78909c;">レギュラー</td>
+                <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:center;">-</td>
+                <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:center;color:#b8002a;font-weight:700;">1%</td>
+                <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:center;">-</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p style="margin:8px 0 4px;font-size:13px;color:#475569;">💡 月平均¥42,000のご購入で1年でダイヤモンドに到達できます</p>
+        <p style="margin:4px 0 0;font-size:12px;color:#94a3b8;">※ポイントの有効期限は最終更新日から6ヶ月間です</p>
+      </div>
+
+      <div class="guide-section" style="margin-top:20px;">
+        <div style="background:#fff3e0;border-radius:10px;padding:16px 18px;border:1px solid #ffe0b2;">
+          <h3 style="margin:0 0 8px;font-size:16px;color:#e65100;">🎁 初回購入特典</h3>
+          <p style="margin:0;font-size:14px;color:#bf360c;font-weight:700;line-height:1.6;">新規会員登録で初回購入が全品50%OFF！<br>さらに500ポイントプレゼント</p>
+        </div>
       </div>
 
       <div class="guide-section" style="margin-top:20px;">
@@ -8776,5 +8846,62 @@ function trackView_(managedId) {
   </div>
 </div>
 
+<!-- 新規会員限定ポップアップ -->
+<div id="fhpPopup">
+  <button class="fhp-close" id="fhpClose" type="button" aria-label="閉じる">&times;</button>
+  <div class="fhp-title">🎉 新規会員限定</div>
+  <div class="fhp-main">初回購入 全品50%OFF<br>+ 500ポイント</div>
+  <button class="fhp-cta" id="fhpCta" type="button">30秒で無料登録 →</button>
+  <div class="fhp-note">※初回購入のみ・会員登録必須</div>
+</div>
+<script>
+(function(){
+  var POPUP_KEY = 'fhp_popup_closed';
+  var SEVEN_DAYS = 7 * 24 * 60 * 60 * 1000;
+  var popup = document.getElementById('fhpPopup');
+  if (!popup) return;
+
+  function shouldShow() {
+    // ログイン中は表示しない
+    if (typeof state !== 'undefined' && state.sessionId) return false;
+    // 7日以内に閉じていたら表示しない
+    try {
+      var ts = localStorage.getItem(POPUP_KEY);
+      if (ts && (Date.now() - Number(ts)) < SEVEN_DAYS) return false;
+    } catch(e) {}
+    return true;
+  }
+
+  function closePopup() {
+    popup.classList.remove('fhp-visible');
+    try { localStorage.setItem(POPUP_KEY, String(Date.now())); } catch(e) {}
+  }
+
+  // 3秒後に表示
+  setTimeout(function() {
+    if (!shouldShow()) return;
+    popup.classList.add('fhp-visible');
+  }, 3000);
+
+  // 閉じるボタン
+  document.getElementById('fhpClose').addEventListener('click', closePopup);
+
+  // CTAボタン → 会員登録モーダルを開く
+  document.getElementById('fhpCta').addEventListener('click', function() {
+    closePopup();
+    if (typeof openAuthModal_ === 'function') openAuthModal_('register');
+  });
+
+  // フッター監視（IntersectionObserver）
+  var footer = document.querySelector('footer.footer');
+  if (footer && window.IntersectionObserver) {
+    new IntersectionObserver(function(entries) {
+      entries.forEach(function(entry) {
+        document.body.classList.toggle('footer-visible', entry.isIntersecting);
+      });
+    }, { threshold: 0 }).observe(footer);
+  }
+})();
+</script>
 </body>
 </html>
