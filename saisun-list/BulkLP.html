@@ -541,10 +541,11 @@ body.admin-mode .admin-settings-fab{display:flex;}
   <!-- Phase 4-5: Meta Pixel -->
   <script>
   (function(){
-    window._detauriMetaPixelId = null;
+    window._detauriMetaPixelId = window.fbq ? '2122295911954697' : null;
     window._loadMetaPixel = function(pixelId) {
-      if (!pixelId || window.fbq) return;
+      if (!pixelId) return;
       window._detauriMetaPixelId = pixelId;
+      if (window.fbq) return;
       !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
       n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
       n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;

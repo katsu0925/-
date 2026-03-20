@@ -82,3 +82,12 @@ function apiGetSitemap() {
     return { ok: false, message: 'サイトマップデータの取得に失敗しました' };
   }
 }
+
+/**
+ * Meta Pixel IDをスクリプトプロパティに設定する（1回実行すればOK）
+ * GASエディタから手動実行: setupMetaPixelId()
+ */
+function setupMetaPixelId() {
+  PropertiesService.getScriptProperties().setProperty('META_PIXEL_ID', '2122295911954697');
+  console.log('META_PIXEL_ID を設定しました: 2122295911954697');
+}

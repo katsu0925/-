@@ -626,9 +626,11 @@
   <!-- Phase 4-5: Meta Pixel（設定はScriptPropertiesから動的取得） -->
   <script>
   (function(){
-    window._detauriMetaPixelId = null;
+    window._detauriMetaPixelId = window.fbq ? '2122295911954697' : null;
     window._loadMetaPixel = function(pixelId) {
-      if (!pixelId || window.fbq) return;
+      if (!pixelId) return;
+      window._detauriMetaPixelId = pixelId;
+      if (window.fbq) return;
       window._detauriMetaPixelId = pixelId;
       !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
       n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
