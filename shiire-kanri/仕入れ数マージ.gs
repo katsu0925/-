@@ -13,12 +13,12 @@
  *
  * 仕入れ数報告シート構成:
  *   A列: ID, B列: タイムスタンプ, C列: 報告者, D列: 区分コード,
- *   E列: 仕入れ日, F列: 数量, G列: 処理済み(TRUE/FALSE)
+ *   E列: 仕入れ日, F列: 数量, G列: 処理済み(TRUE/FALSE), H列: 内容
  *
  * 仕入れ管理シート構成:
  *   A列: ID, B列: 仕入れ日, C列: 区分コード, D列: 金額,
  *   E列: 送料, F列: 商品点数, G列: 納品場所, ...
- *   K列: 登録日時, L列: 割り当て管理番号, M列: 処理列(TRUE/FALSE)
+ *   I列: 内容, K列: 登録日時, L列: 割り当て管理番号, M列: 処理列(TRUE/FALSE)
  *
  * 割り当て管理番号の生成ルール:
  *   z{区分コード}{開始番号}~{終了番号}
@@ -30,9 +30,9 @@ var SHIIRE_MERGE_CONFIG = {
   REPORT_SHEET_NAME: '仕入れ数報告',
   KANRI_SHEET_NAME: '仕入れ管理',
   // 仕入れ数報告の列番号
-  RPT: { ID: 1, TIMESTAMP: 2, REPORTER: 3, CATEGORY: 4, PURCHASE_DATE: 5, QUANTITY: 6, DONE: 7 },
+  RPT: { ID: 1, TIMESTAMP: 2, REPORTER: 3, CATEGORY: 4, PURCHASE_DATE: 5, QUANTITY: 6, DONE: 7, CONTENT: 8 },
   // 仕入れ管理の列番号
-  KNR: { ID: 1, PURCHASE_DATE: 2, CATEGORY: 3, AMOUNT: 4, SHIPPING: 5, ITEM_COUNT: 6, LOCATION: 7, UNIT_COST: 8, REG_DATE: 11, ASSIGN_NUM: 12, SYNCED: 13 }
+  KNR: { ID: 1, PURCHASE_DATE: 2, CATEGORY: 3, AMOUNT: 4, SHIPPING: 5, ITEM_COUNT: 6, LOCATION: 7, UNIT_COST: 8, CONTENT: 9, REG_DATE: 11, ASSIGN_NUM: 12, SYNCED: 13 }
 };
 
 // ═══════════════════════════════════════════
@@ -123,13 +123,15 @@ function syncKanriToReport_() {
     var purchaseDate = kanriData[i][knr.PURCHASE_DATE - 1];
     var category = String(kanriData[i][knr.CATEGORY - 1] || '').trim();
     var location = String(kanriData[i][knr.LOCATION - 1] || '').trim();
+    var content = String(kanriData[i][knr.CONTENT - 1] || '').trim();
 
     pending.push({
       kanriRowIndex: i,
       id: id,
       purchaseDate: purchaseDate,
       category: category,
-      reporter: location  // 納品場所 = 報告者
+      reporter: location,  // 納品場所 = 報告者
+      content: content      // 内容（外注が商品を識別するため）
     });
   }
 
@@ -159,8 +161,8 @@ function syncKanriToReport_() {
       continue;
     }
 
-    // A=ID, B=タイムスタンプ(空), C=報告者, D=区分コード, E=仕入れ日, F=数量(空), G=処理済み(空)
-    appendRows.push([item.id, '', item.reporter, item.category, item.purchaseDate, '', '']);
+    // A=ID, B=タイムスタンプ(空), C=報告者, D=区分コード, E=仕入れ日, F=数量(空), G=処理済み(空), H=内容
+    appendRows.push([item.id, '', item.reporter, item.category, item.purchaseDate, '', '', item.content]);
     syncedKanriRows.push(item.kanriRowIndex);
     existingIds.add(item.id);
 
@@ -170,7 +172,7 @@ function syncKanriToReport_() {
   // 仕入れ数報告に一括追加
   if (appendRows.length > 0) {
     var appendStartRow = Math.max(reportSheet.getLastRow() + 1, 2);
-    reportSheet.getRange(appendStartRow, 1, appendRows.length, 7).setValues(appendRows);
+    reportSheet.getRange(appendStartRow, 1, appendRows.length, 8).setValues(appendRows);
   }
 
   // 仕入れ管理のM列に同期済みマーク
@@ -200,7 +202,7 @@ function mergeReportToKanri_() {
   var reportLastRow = reportSheet.getLastRow();
   if (reportLastRow < 2) return;
 
-  var reportData = reportSheet.getRange(2, 1, reportLastRow - 1, 7).getValues();
+  var reportData = reportSheet.getRange(2, 1, reportLastRow - 1, 8).getValues();
   var pending = [];
 
   for (var i = 0; i < reportData.length; i++) {
