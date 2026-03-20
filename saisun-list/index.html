@@ -641,7 +641,8 @@
       fbq('track', 'PageView');
     };
     window._trackMetaPurchase = function(value, currency, contentIds) {
-      if (!window.fbq || !window._detauriMetaPixelId) return;
+      console.log('[Meta Pixel] Purchase called:', { fbq: !!window.fbq, pixelId: window._detauriMetaPixelId, value: value });
+      if (!window.fbq || !window._detauriMetaPixelId) { console.warn('[Meta Pixel] Purchase skipped'); return; }
       fbq('track', 'Purchase', {
         value: value || 0,
         currency: currency || 'JPY',
@@ -650,7 +651,8 @@
       });
     };
     window._trackMetaAddToCart = function(value, contentId) {
-      if (!window.fbq || !window._detauriMetaPixelId) return;
+      console.log('[Meta Pixel] AddToCart called:', { fbq: !!window.fbq, pixelId: window._detauriMetaPixelId, value: value, id: contentId });
+      if (!window.fbq || !window._detauriMetaPixelId) { console.warn('[Meta Pixel] AddToCart skipped'); return; }
       fbq('track', 'AddToCart', {
         value: value || 0,
         currency: 'JPY',

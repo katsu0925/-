@@ -555,7 +555,8 @@ body.admin-mode .admin-settings-fab{display:flex;}
       fbq('track', 'PageView');
     };
     window._trackMetaPurchase = function(value, currency, contentIds) {
-      if (!window.fbq || !window._detauriMetaPixelId) return;
+      console.log('[Meta Pixel] Purchase called:', { fbq: !!window.fbq, pixelId: window._detauriMetaPixelId, value: value });
+      if (!window.fbq || !window._detauriMetaPixelId) { console.warn('[Meta Pixel] Purchase skipped'); return; }
       fbq('track', 'Purchase', {
         value: value || 0,
         currency: currency || 'JPY',
@@ -564,7 +565,8 @@ body.admin-mode .admin-settings-fab{display:flex;}
       });
     };
     window._trackMetaAddToCart = function(value, contentId) {
-      if (!window.fbq || !window._detauriMetaPixelId) return;
+      console.log('[Meta Pixel] AddToCart called:', { fbq: !!window.fbq, pixelId: window._detauriMetaPixelId, value: value, id: contentId });
+      if (!window.fbq || !window._detauriMetaPixelId) { console.warn('[Meta Pixel] AddToCart skipped'); return; }
       fbq('track', 'AddToCart', {
         value: value || 0,
         currency: 'JPY',
@@ -1835,6 +1837,33 @@ function adjustHeaderForBanner_() {
 // 初期化（サーバー埋め込み優先 → キャッシュ → バックグラウンド更新）
 // =====================================================
 window.addEventListener('DOMContentLoaded', function() {
+  // KOMOJU決済完了後のリターン検出 → Meta Pixel Purchase発火
+  (function() {
+    var params = new URLSearchParams(window.location.search);
+    var token = params.get('token') || params.get('receipt');
+    var status = params.get('status');
+    if (token && status === 'complete') {
+      // URLクリーンアップ
+      if (window.history && window.history.replaceState) {
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+      // 保存済みのカート情報でPurchase発火
+      try {
+        var pending = JSON.parse(localStorage.getItem('_meta_purchase_pending') || 'null');
+        if (pending) {
+          localStorage.removeItem('_meta_purchase_pending');
+          if (typeof _trackMetaPurchase === 'function') {
+            _trackMetaPurchase(pending.value || 0, 'JPY', pending.contentIds || []);
+          }
+          if (typeof _trackGoogleAdsConversion === 'function') {
+            _trackGoogleAdsConversion(pending.value || 0, 'JPY');
+          }
+          console.log('[Meta Pixel] BulkLP Purchase fired after payment return:', pending.value);
+        }
+      } catch(e) { console.warn('Meta Pixel Purchase error:', e); }
+    }
+  })();
+
   loadDetauriCart();
   var savedCart = loadBulkCart();
   loadSharedSession();
@@ -3022,11 +3051,16 @@ function submitOrder() {
       if (r && r.ok && r.sessionUrl) {
         var _redirectTo = r.paidyRedirectUrl || r.sessionUrl;
         trackEvent_('redirect_to_payment', { payment_gateway: r.paidyRedirectUrl ? 'paidy' : 'komoju', page_type: 'assort' });
-        // Phase 4-4/4-5: 広告コンバージョントラッキング
+        // Phase 4-4/4-5: 広告コンバージョントラッキング（決済リダイレクト前）
+        // ※ Purchaseは決済完了後に発火する（リダイレクト前に発火すると偽コンバージョンになる）
+        // ※ Google Adsコンバージョンのみリダイレクト前に送信（sendBeacon使用）
         var _convVal = _chkVal + (G.detauriCartTotal || 0);
         try { _trackGoogleAdsConversion(_convVal, 'JPY'); } catch(e) {}
-        var _contentIds = items.map(function(it) { return it.productId; });
-        try { _trackMetaPurchase(_convVal, 'JPY', _contentIds); } catch(e) {}
+        // 決済完了後にPurchaseを発火するため、カート情報をlocalStorageに保存
+        try {
+          var _contentIds = items.map(function(it) { return it.productId; });
+          localStorage.setItem('_meta_purchase_pending', JSON.stringify({ value: _convVal, contentIds: _contentIds }));
+        } catch(e) {}
         window.location.href = _redirectTo;
       } else {
         btn.disabled = false;
