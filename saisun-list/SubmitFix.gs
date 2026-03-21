@@ -88,6 +88,7 @@ function apiSubmitEstimate(userKey, form, ids) {
     var bulkProductAmount = 0;
     var bulkShippingAmount = 0;
     var bulkItemCount = 0;
+    var bulkProductNames = [];
     if (hasBulkItems) {
       var bulkProducts = bulk_getProducts_();
       var bulkProductMap = {};
@@ -108,6 +109,9 @@ function apiSubmitEstimate(userKey, form, ids) {
         var bUnitPrice = (bp.discountedPrice !== undefined) ? bp.discountedPrice : bp.price;
         bulkProductAmount += bUnitPrice * bQty;
         bulkItemCount += bQty;
+        var bNameLabel = bp.name + ' x' + bQty + bp.unit;
+        if (bp.discountRate > 0) bNameLabel += '(' + Math.round(bp.discountRate * 100) + '%OFF)';
+        bulkProductNames.push(bNameLabel);
       }
     }
     // === 価格計算（CartCalcと同じ順序: FHP → 数量割引 → 会員割引 → クーポン） ===
@@ -439,6 +443,11 @@ function apiSubmitEstimate(userKey, form, ids) {
       }
     }
 
+    // === 商品名リストを構築（デタウリ個品はまとめて1行 + アソート商品は個別） ===
+    var allProductNames = [];
+    if (list.length > 0) allProductNames.push('選べるxlsx付きパッケージ');
+    allProductNames = allProductNames.concat(bulkProductNames);
+
     // === ペンディング注文データを保存（決済完了後にシート書き込み） ===
     var pendingData = {
       userKey: uk,
@@ -464,7 +473,8 @@ function apiSubmitEstimate(userKey, form, ids) {
       bulkProductAmount: bulkProductAmount,
       bulkShipping: bulkShippingAmount,
       bulkItemCount: bulkItemCount,
-      totalAmount: totalWithShipping
+      totalAmount: totalWithShipping,
+      productNames: allProductNames.join('\n')
     };
 
     var props = PropertiesService.getScriptProperties();
