@@ -236,10 +236,17 @@ export function getKitPageHtml(kitDataJson) {
       imagesHtml = '<div class="image-gallery"><div class="image-placeholder">画像未アップロード</div></div>';
     }
 
+    var brandId = 'brand-' + index;
     var titleId = 'title-' + index;
     var descId = 'desc-' + index;
 
     var copyHtml = '<div class="copy-section">';
+    if (item.brand) {
+      copyHtml += '<div class="copy-block">' +
+        '<div class="copy-block-label"><span>ブランド</span>' +
+        '<button class="copy-btn" onclick="event.stopPropagation();copyText(this,&apos;' + brandId + '&apos;)">コピー</button></div>' +
+        '<div class="copy-content title-content" id="' + brandId + '">' + esc(item.brand) + '</div></div>';
+    }
     if (item.title) {
       copyHtml += '<div class="copy-block">' +
         '<div class="copy-block-label"><span>メルカリ用タイトル</span>' +
