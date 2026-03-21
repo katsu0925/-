@@ -40,7 +40,7 @@ export async function saveKit(request, env) {
   const items = kitData.items || [];
   if (items.length > 0) {
     const imagePromises = items.map(item =>
-      env.CACHE.get(`product-images:${item.managedId}`)
+      env.CACHE.get(`product-images:${item.managedId.toUpperCase()}`)
     );
     const imageResults = await Promise.all(imagePromises);
     for (let i = 0; i < items.length; i++) {
@@ -67,11 +67,11 @@ export async function serveKit(request, env, url) {
     return kitErrorPage('トークンが指定されていません。');
   }
 
-  // レート制限（IP 10回/分）
+  // レート制限（IP 60回/分）
   const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
   const rlKey = `rl:kit:${ip}`;
   const rlCount = parseInt(await env.SESSIONS.get(rlKey) || '0', 10);
-  if (rlCount >= 10) {
+  if (rlCount >= 60) {
     return kitErrorPage('アクセス回数の上限に達しました。しばらくしてからお試しください。', 429);
   }
   await env.SESSIONS.put(rlKey, String(rlCount + 1), { expirationTtl: 60 });
