@@ -227,9 +227,9 @@ export function getKitPageHtml(kitDataJson) {
       });
       imagesHtml += '</div>';
       imagesHtml += '<div class="save-images-bar">' +
-        '<button class="save-images-btn primary-save" onclick="event.stopPropagation();saveProductImages(this,\'' + esc(item.managedId) + '\')">' +
+        '<button class="save-images-btn primary-save" onclick="event.stopPropagation();saveProductImages(this,&apos;' + esc(item.managedId) + '&apos;)">' +
           '<span class="btn-icon">&#x1F4F2;</span> 画像をまとめて保存</button>' +
-        '<button class="save-images-btn" onclick="event.stopPropagation();downloadProductZip(\'' + esc(item.managedId) + '\')">' +
+        '<button class="save-images-btn" onclick="event.stopPropagation();downloadProductZip(&apos;' + esc(item.managedId) + '&apos;)">' +
           '<span class="btn-icon">&#x1F4E5;</span> ZIP</button>' +
         '</div>';
     } else {
@@ -243,13 +243,13 @@ export function getKitPageHtml(kitDataJson) {
     if (item.title) {
       copyHtml += '<div class="copy-block">' +
         '<div class="copy-block-label"><span>メルカリ用タイトル</span>' +
-        '<button class="copy-btn" onclick="event.stopPropagation();copyText(this,\'' + titleId + '\')">コピー</button></div>' +
+        '<button class="copy-btn" onclick="event.stopPropagation();copyText(this,&apos;' + titleId + '&apos;)">コピー</button></div>' +
         '<div class="copy-content title-content" id="' + titleId + '">' + esc(item.title) + '</div></div>';
     }
     if (item.description) {
       copyHtml += '<div class="copy-block">' +
         '<div class="copy-block-label"><span>即出品用説明文</span>' +
-        '<button class="copy-btn" onclick="event.stopPropagation();copyText(this,\'' + descId + '\')">コピー</button></div>' +
+        '<button class="copy-btn" onclick="event.stopPropagation();copyText(this,&apos;' + descId + '&apos;)">コピー</button></div>' +
         '<div class="copy-content" id="' + descId + '">' + esc(item.description) + '</div></div>';
     }
     copyHtml += '</div>';
