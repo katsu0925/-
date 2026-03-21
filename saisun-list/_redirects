@@ -1,0 +1,3 @@
+# 出品キットページ → Workers にプロキシ（URLバーはカスタムドメインのまま）
+/kit https://detauri-gas-proxy.nsdktts1030.workers.dev/kit 200
+/api/kit/* https://detauri-gas-proxy.nsdktts1030.workers.dev/api/kit/:splat 200
