@@ -682,6 +682,13 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
     });
 
     results.push({ receiptNo: receiptNo, ok: true, fileName: xlsxResult.fileName });
+
+    // 出品キットデータをWorkers KVに保存
+    try {
+      om_saveKitToWorkers_(receiptNo, customerName, reqRow[REQUEST_SHEET_COLS.DATETIME - 1], totalPrice, productRows, aiResults, reqSheet, reqDataMap);
+    } catch (e) {
+      console.error('キットKV保存エラー(' + receiptNo + '): ' + e.message);
+    }
   }
 
   // --- 後処理: 売却反映バッチ実行（全受付番号分まとめて） ---
@@ -1267,6 +1274,29 @@ function batchExpandPhase3_(state, props, cache, stateKey) {
 
   SpreadsheetApp.flush();
 
+  // 出品キットデータをWorkers KVに保存
+  try {
+    var orderSs = SpreadsheetApp.openById(orderSsId);
+    var kitReqSheet = orderSs.getSheetByName('依頼管理');
+    if (kitReqSheet) {
+      var kitReqData = kitReqSheet.getDataRange().getValues();
+      var kitHeaders = kitReqData.shift();
+      var kitRIdx = {};
+      kitHeaders.forEach(function(h, i) { kitRIdx[String(h || '').trim()] = i; });
+      var kitReqDataMap = {};
+      for (var ki = 0; ki < kitReqData.length; ki++) {
+        var krn = String(kitReqData[ki][kitRIdx['受付番号']] || '').trim();
+        if (krn) kitReqDataMap[krn] = kitReqData[ki];
+      }
+      var kitReqRow = kitReqDataMap[receiptNo];
+      var kitOrderDate = kitReqRow ? kitReqRow[REQUEST_SHEET_COLS.DATETIME - 1] : '';
+      var kitAiResults = titles.map(function(t, i) { return { title: t, description: allDescriptions[i] || '' }; });
+      om_saveKitToWorkers_(receiptNo, state.customerName, kitOrderDate, totalPrice, productRows, kitAiResults, kitReqSheet, kitReqDataMap);
+    }
+  } catch (e) {
+    console.error('キットKV保存エラー(分割展開 ' + receiptNo + '): ' + e.message);
+  }
+
   // クリーンアップ: state, トリガー, キャッシュ
   props.deleteProperty(stateKey);
   cleanupBatchExpandTriggers_();
@@ -1593,6 +1623,102 @@ function om_ensureRecoveryHeaders_(sheet) {
     '確認', '箱ID', '管理番号', 'ブランド', 'サイズ', '性別', 'カテゴリ', 'AIタイトル(KW1-8)', '出品日', 'アカウント', '仕入れ値', '納品場所', '【入力】受付番号'
   ];
   sheet.getRange(6, 1, 1, headerTitles.length).setValues([headerTitles]).setFontWeight('bold').setBackground('#f3f3f3');
+}
+
+/**
+ * 出品キットデータをWorkers KVに保存し、依頼管理シートAJ列にURLを書き込む
+ * @param {string} receiptNo - 受付番号
+ * @param {string} customerName - 顧客名
+ * @param {Date|string} orderDate - 注文日
+ * @param {number} totalPrice - 合計金額
+ * @param {Array} productRows - 商品行データ
+ * @param {Array} aiResults - AI生成結果（title, description）
+ * @param {Sheet} reqSheet - 依頼管理シート
+ * @param {Object} reqDataMap - 受付番号→行データマップ
+ */
+function om_saveKitToWorkers_(receiptNo, customerName, orderDate, totalPrice, productRows, aiResults, reqSheet, reqDataMap) {
+  var props = PropertiesService.getScriptProperties();
+  var workersUrl = props.getProperty('WORKERS_URL') || 'https://detauri-gas-proxy.nsdktts1030.workers.dev';
+  var adminKey = props.getProperty('ADMIN_KEY');
+  if (!adminKey) {
+    console.warn('om_saveKitToWorkers_: ADMIN_KEY未設定');
+    return;
+  }
+
+  // UUIDv4トークン生成
+  var token = Utilities.getUuid();
+
+  // 注文日フォーマット
+  var dateStr = '';
+  if (orderDate instanceof Date) {
+    dateStr = Utilities.formatDate(orderDate, Session.getScriptTimeZone(), 'yyyy/MM/dd');
+  } else if (orderDate) {
+    dateStr = String(orderDate);
+  }
+
+  // items配列構築
+  var items = [];
+  for (var i = 0; i < productRows.length; i++) {
+    var pr = productRows[i];
+    var ai = aiResults[i] || {};
+    items.push({
+      managedId: pr.targetId || '',
+      brand: pr.brand || '',
+      item: pr.item || '',
+      size: pr.size || '',
+      color: pr.color || '',
+      condition: pr.condition || '',
+      measurementText: pr.measurementText || '',
+      priceText: pr.priceText || '',
+      title: ai.title || '',
+      description: ai.description || ''
+    });
+  }
+
+  var kitData = {
+    receiptNo: receiptNo,
+    customerName: customerName,
+    orderDate: dateStr,
+    totalPrice: totalPrice,
+    items: items
+  };
+
+  var resp = UrlFetchApp.fetch(workersUrl + '/api/kit/save', {
+    method: 'post',
+    contentType: 'application/json',
+    payload: JSON.stringify({
+      adminKey: adminKey,
+      receiptNo: receiptNo,
+      token: token,
+      kitData: kitData
+    }),
+    muteHttpExceptions: true
+  });
+
+  var code = resp.getResponseCode();
+  if (code !== 200) {
+    console.error('キットKV保存失敗: HTTP ' + code + ' ' + resp.getContentText());
+    return;
+  }
+
+  // 依頼管理シート AJ列にURL書込み
+  var kitUrl = 'https://detauri-gas-proxy.nsdktts1030.workers.dev/kit?token=' + token;
+  var reqData = reqSheet.getDataRange().getValues();
+  var reqHeaders = reqData[0];
+  var receiptColIdx = -1;
+  for (var hi = 0; hi < reqHeaders.length; hi++) {
+    if (String(reqHeaders[hi] || '').trim() === '受付番号') { receiptColIdx = hi; break; }
+  }
+  if (receiptColIdx >= 0) {
+    for (var ri = 1; ri < reqData.length; ri++) {
+      if (String(reqData[ri][receiptColIdx] || '').trim() === receiptNo) {
+        reqSheet.getRange(ri + 1, REQUEST_SHEET_COLS.KIT_URL).setValue(kitUrl);
+        break;
+      }
+    }
+  }
+
+  console.log('キットKV保存完了: ' + receiptNo + ' → ' + kitUrl);
 }
 
 function om_writeSaleLog_(ss, entries) {

@@ -24,6 +24,7 @@ import * as submit from './handlers/submit.js';
 import { scheduledSync } from './sync/sheets-sync.js';
 import { handleUpload, serveImage } from './handlers/upload.js';
 import { getUploadPageHtml } from './pages/upload.html.js';
+import * as kitHandler from './handlers/kit.js';
 
 // ─── フィーチャーフラグ: Workers側で処理するaction ───
 // 各Phaseで段階的に追加。削除で即ロールバック。
@@ -120,8 +121,23 @@ export default {
       return await handleUpload(request, env, url.pathname);
     }
 
+    // POST /api/kit/save → キットデータ保存
+    if (url.pathname === '/api/kit/save' && request.method === 'POST') {
+      return await kitHandler.saveKit(request, env);
+    }
+
     // GET リクエスト処理
     if (request.method === 'GET') {
+      // 出品キットページ
+      if (url.pathname === '/kit') {
+        return await kitHandler.serveKit(request, env, url);
+      }
+
+      // 出品キット商品ZIP
+      if (url.pathname.startsWith('/api/kit/zip/')) {
+        return await kitHandler.zipProduct(request, env, url);
+      }
+
       // アップロードページ
       if (url.pathname === '/upload') {
         return new Response(getUploadPageHtml(), {

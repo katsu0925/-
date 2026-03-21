@@ -112,7 +112,8 @@ var REQUEST_SHEET_COLS = {
   UPDATED_AT: 32,       // AF: 更新日時
   CHANNEL: 33,          // AG: チャネル（デタウリ/アソート）
   TRACKING_URL: 34,     // AH: 追跡URL
-  ITEM_PRICES: 35       // AI: 商品単価JSON（注文時価格の永続化）
+  ITEM_PRICES: 35,      // AI: 商品単価JSON（注文時価格の永続化）
+  KIT_URL: 36            // AJ: 出品キットURL
 };
 
 /**
