@@ -122,8 +122,9 @@ export async function zipProduct(request, env, url) {
     return jsonError('Missing managedId', 400);
   }
 
-  // R2から画像取得
-  const imagesJson = await env.CACHE.get(`product-images:${managedId}`);
+  // R2から画像取得（managedIdを大文字正規化）
+  const normalizedId = managedId.toUpperCase();
+  const imagesJson = await env.CACHE.get(`product-images:${normalizedId}`);
   if (!imagesJson) {
     return jsonError('No images found', 404);
   }
@@ -146,8 +147,8 @@ export async function zipProduct(request, env, url) {
   const imageData = await Promise.all(
     imageUrls.map(async (imgUrl, idx) => {
       try {
-        // R2パスを抽出してR2から直接取得
-        const r2Key = imgUrl.replace(/^https?:\/\/[^/]+\/images\//, 'products/');
+        // R2パスを抽出してR2から直接取得（相対パス・絶対パス両対応）
+        const r2Key = imgUrl.replace(/^(https?:\/\/[^/]+)?\/images\//, '');
         const obj = await env.IMAGES.get(r2Key);
         if (!obj) return null;
         const data = await obj.arrayBuffer();
