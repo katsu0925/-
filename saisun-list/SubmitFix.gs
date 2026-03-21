@@ -329,8 +329,9 @@ function apiSubmitEstimate(userKey, form, ids) {
         note = '【ポイント利用: ' + pointsUsed + 'pt（-' + pointsUsed + '円）】';
       }
     }
-    if (shippingAmount > 0) {
-      var shippingLabel = '【送料: ¥' + shippingAmount.toLocaleString() + '（' + (shippingPref || '') + '・' + shippingSizeLabel + '・税込）】';
+    var combinedShipping = shippingAmount + bulkShippingAmount;
+    if (combinedShipping > 0) {
+      var shippingLabel = '【送料: ¥' + combinedShipping.toLocaleString() + '（' + (shippingPref || '') + '・' + shippingSizeLabel + '・税込）】';
       note = note ? (note + '\n' + shippingLabel) : shippingLabel;
     }
 
@@ -339,11 +340,6 @@ function apiSubmitEstimate(userKey, form, ids) {
 
     // 送料込みの合計金額（クーポンは合計レベルで控除 — CartCalc step 6と一致）
     var totalWithShipping = discounted + shippingAmount + bulkTotal - couponDiscount;
-
-    if (bulkTotal > 0) {
-      var bulkNote = '【アソート合算: 商品代¥' + bulkProductAmount + '（' + bulkItemCount + '点）+ 送料¥' + bulkShippingAmount + '】';
-      note = note ? (note + '\n' + bulkNote) : bulkNote;
-    }
 
     // === 受付番号生成 ===
     var receiptNo = u_makeReceiptNo_();
@@ -448,6 +444,15 @@ function apiSubmitEstimate(userKey, form, ids) {
     if (list.length > 0) allProductNames.push('選べるxlsx付きパッケージ');
     allProductNames = allProductNames.concat(bulkProductNames);
 
+    // === チャネル判定 ===
+    // ※ 'アソート' はBulkSubmit.gs専用（confirmPaymentAndCreateOrderのisBulk判定に影響）
+    var orderChannel = (list.length > 0 && bulkItemCount > 0) ? 'デタウリ+アソート'
+                     : (bulkItemCount > 0) ? 'デタウリ(アソート)'
+                     : 'デタウリ';
+
+    // === K列の合計点数（デタウリは1パッケージとして数える + アソート点数） ===
+    var sheetTotalCount = (list.length > 0 ? 1 : 0) + bulkItemCount;
+
     // === ペンディング注文データを保存（決済完了後にシート書き込み） ===
     var pendingData = {
       userKey: uk,
@@ -457,8 +462,8 @@ function apiSubmitEstimate(userKey, form, ids) {
       selectionList: selectionList,
       measureOpt: measureOpt,
       totalCount: totalCount,
-      discounted: discounted,
-      shippingAmount: shippingAmount,
+      discounted: discounted + bulkProductAmount,
+      shippingAmount: shippingAmount + bulkShippingAmount,
       storeShipping: Math.round((shippingAmount + bulkShippingAmount) / 2) || 0,
       shippingSize: shippingSize,
       shippingArea: shippingArea,
@@ -470,11 +475,11 @@ function apiSubmitEstimate(userKey, form, ids) {
       couponCode: couponCode || '',
       couponDiscount: couponDiscount || 0,
       couponLabel: couponLabel || '',
-      bulkProductAmount: bulkProductAmount,
-      bulkShipping: bulkShippingAmount,
       bulkItemCount: bulkItemCount,
       totalAmount: totalWithShipping,
-      productNames: allProductNames.join('\n')
+      productNames: allProductNames.join('\n'),
+      channel: orderChannel,
+      _sheetTotalCount: sheetTotalCount
     };
 
     var props = PropertiesService.getScriptProperties();
@@ -1207,8 +1212,8 @@ function confirmPaymentAndCreateOrder(paymentToken, paymentStatus, paymentMethod
       pendingData.selectionList = u_sortManagedIds_(allIds).join('、');
       pendingData.totalCount = allIds.length;
       pendingData._hasManagedIds = true;
-    } else if (!isBulk && pendingData.ids && pendingData.ids.length > 0) {
-      // デタウリ単体注文: 管理番号が何点あってもK列は1
+    } else if (!isBulk && pendingData.ids && pendingData.ids.length > 0 && !pendingData._sheetTotalCount) {
+      // デタウリ単体注文: 管理番号が何点あってもK列は1（apiSubmitEstimateで設定済みの場合はスキップ）
       pendingData._sheetTotalCount = 1;
     }
 
