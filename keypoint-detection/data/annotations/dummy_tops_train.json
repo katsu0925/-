@@ -1,0 +1,118 @@
+{
+  "images": [
+    {
+      "id": 1,
+      "file_name": "IMG_1722.jpg",
+      "width": 4284,
+      "height": 4284
+    }
+  ],
+  "annotations": [
+    {
+      "id": 1,
+      "image_id": 1,
+      "category_id": 1,
+      "keypoints": [
+        2142,
+        930,
+        2,
+        1350,
+        1350,
+        2,
+        2900,
+        1350,
+        2,
+        1500,
+        1750,
+        2,
+        2750,
+        1750,
+        2,
+        350,
+        2200,
+        2,
+        3900,
+        2200,
+        2,
+        1400,
+        3200,
+        2,
+        2800,
+        3200,
+        2,
+        2100,
+        3250,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        300,
+        880,
+        3650,
+        2420
+      ],
+      "area": 8833000,
+      "iscrowd": 0
+    }
+  ],
+  "categories": [
+    {
+      "id": 1,
+      "name": "tops",
+      "keypoints": [
+        "collar_center",
+        "left_shoulder",
+        "right_shoulder",
+        "left_armpit",
+        "right_armpit",
+        "left_cuff",
+        "right_cuff",
+        "hem_left",
+        "hem_right",
+        "hem_center"
+      ],
+      "skeleton": [
+        [
+          1,
+          2
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          3,
+          5
+        ],
+        [
+          2,
+          6
+        ],
+        [
+          3,
+          7
+        ],
+        [
+          4,
+          8
+        ],
+        [
+          5,
+          9
+        ],
+        [
+          8,
+          10
+        ],
+        [
+          9,
+          10
+        ]
+      ]
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+name = "ai-measure-worker"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+REPLICATE_MODEL = "YOUR_USERNAME/garment-keypoints"
+
+# 既存D1に相乗り
+[[d1_databases]]
+binding = "DB"
+database_name = "detauri-db"
+database_id = "a6dd2463-5b9a-4a64-b31e-644c454a1503"
+
+# R2: 画像一時保存
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "ai-measure-images"
+
+# Secrets (wrangler secret put で設定):
+#   REPLICATE_API_TOKEN
+#   OPENAI_API_KEY
