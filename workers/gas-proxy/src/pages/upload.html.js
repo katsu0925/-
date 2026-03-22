@@ -583,21 +583,53 @@ function doUpload() {
 function resizeAllImages(files, cb) {
   var results = [];
   var idx = 0;
+  var done = 0;
+  var concurrency = 2; // 2枚並列（iOS安全圏内）
   function next() {
-    if (idx >= files.length) { cb(results); return; }
-    var i = idx++;
-    var isTop = (_existingUrls.length === 0 && i === 0);
-    var maxSize = isTop ? 1200 : 800;
-    var quality = isTop ? 0.80 : 0.75;
-    resizeImage(files[i], maxSize, quality, function(blob) {
-      results[i] = blob;
-      next();
-    });
+    while (idx < files.length && (idx - done) < concurrency) {
+      (function(i) {
+        idx++;
+        var isTop = (_existingUrls.length === 0 && i === 0);
+        var maxSize = isTop ? 1200 : 800;
+        var quality = isTop ? 0.80 : 0.75;
+        resizeImage(files[i], maxSize, quality, function(blob) {
+          results[i] = blob;
+          done++;
+          if (done === files.length) { cb(results); return; }
+          next();
+        });
+      })(idx);
+    }
   }
   next();
 }
 
 function resizeImage(file, maxSize, quality, cb) {
+  // createImageBitmap対応チェック（Canvas不要で高速+省メモリ）
+  if (typeof createImageBitmap === 'function') {
+    createImageBitmap(file).then(function(bmp) {
+      var w = bmp.width, h = bmp.height;
+      if (w > maxSize || h > maxSize) {
+        if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+        else { w = Math.round(w * maxSize / h); h = maxSize; }
+      }
+      var canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(bmp, 0, 0, w, h);
+      bmp.close();
+      canvas.toBlob(function(blob) {
+        canvas.width = 0; canvas.height = 0;
+        cb(blob);
+      }, 'image/jpeg', quality);
+    }).catch(function() { resizeImageFallback(file, maxSize, quality, cb); });
+  } else {
+    resizeImageFallback(file, maxSize, quality, cb);
+  }
+}
+
+function resizeImageFallback(file, maxSize, quality, cb) {
   var img = new Image();
   var objUrl = URL.createObjectURL(file);
   img.onload = function() {
