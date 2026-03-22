@@ -788,6 +788,7 @@ function toggleSelectAll() {
     c.checked = checked;
   });
   updateSelectedCount();
+  updateDeleteSelectedCount();
 }
 
 function updateSelectedCount() {
