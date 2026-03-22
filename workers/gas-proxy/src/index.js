@@ -111,6 +111,12 @@ export default {
 
     // ─── 画像アップロード系（既存JSON POSTフローと完全分離） ───
 
+    // ファビコン配信
+    if (request.method === 'GET' && (url.pathname === '/favicon.ico' || url.pathname === '/favicon.svg' || url.pathname === '/apple-touch-icon.png')) {
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect x="3" y="8" width="26" height="20" rx="3" fill="#3b82f6"/><rect x="1" y="5" width="30" height="7" rx="2" fill="#2563eb"/><rect x="-2" y="13" width="36" height="5" rx="1" fill="#fbbf24" transform="rotate(-35 16 16)"/></svg>`;
+      return new Response(svg, { headers: { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=604800' } });
+    }
+
     // R2画像配信: GET /images/* → R2 → Cache-Control 1年
     if (request.method === 'GET' && url.pathname.startsWith('/images/')) {
       return await serveImage(request, env, url.pathname);

@@ -11,7 +11,9 @@ export function getUploadPageHtml() {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='3' y='8' width='26' height='20' rx='3' fill='%233b82f6'/%3E%3Crect x='1' y='5' width='30' height='7' rx='2' fill='%232563eb'/%3E%3Crect x='-2' y='13' width='36' height='5' rx='1' fill='%23fbbf24' transform='rotate(-35 16 16)'/%3E%3C/svg%3E">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <title>タスキ箱 | デタウリ</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
