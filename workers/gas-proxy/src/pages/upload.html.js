@@ -526,18 +526,13 @@ function showPreview() {
   }
   btn.disabled = false;
   for (var i = 0; i < files.length; i++) {
-    (function(idx) {
-      var reader = new FileReader();
-      reader.onload = function(e) {
-        var div = document.createElement('div');
-        div.className = 'preview-item';
-        var labelIdx = _existingUrls.length + idx;
-        div.innerHTML = '<img src="' + e.target.result + '">' +
-          (labelIdx === 0 ? '<span class="badge">トップ</span>' : '<span class="badge">' + (labelIdx+1) + '</span>');
-        grid.appendChild(div);
-      };
-      reader.readAsDataURL(files[idx]);
-    })(i);
+    var div = document.createElement('div');
+    div.className = 'preview-item';
+    var labelIdx = _existingUrls.length + i;
+    var objUrl = URL.createObjectURL(files[i]);
+    div.innerHTML = '<img src="' + objUrl + '" loading="lazy">' +
+      (labelIdx === 0 ? '<span class="badge">トップ</span>' : '<span class="badge">' + (labelIdx+1) + '</span>');
+    grid.appendChild(div);
   }
 }
 
@@ -587,24 +582,26 @@ function doUpload() {
 
 function resizeAllImages(files, cb) {
   var results = [];
-  var done = 0;
-  for (var i = 0; i < files.length; i++) {
-    (function(idx) {
-      var isTop = (_existingUrls.length === 0 && idx === 0);
-      var maxSize = isTop ? 1200 : 800;
-      var quality = isTop ? 0.80 : 0.75;
-      resizeImage(files[idx], maxSize, quality, function(blob) {
-        results[idx] = blob;
-        done++;
-        if (done === files.length) cb(results);
-      });
-    })(i);
+  var idx = 0;
+  function next() {
+    if (idx >= files.length) { cb(results); return; }
+    var i = idx++;
+    var isTop = (_existingUrls.length === 0 && i === 0);
+    var maxSize = isTop ? 1200 : 800;
+    var quality = isTop ? 0.80 : 0.75;
+    resizeImage(files[i], maxSize, quality, function(blob) {
+      results[i] = blob;
+      next();
+    });
   }
+  next();
 }
 
 function resizeImage(file, maxSize, quality, cb) {
   var img = new Image();
+  var objUrl = URL.createObjectURL(file);
   img.onload = function() {
+    URL.revokeObjectURL(objUrl);
     var w = img.width, h = img.height;
     if (w > maxSize || h > maxSize) {
       if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
@@ -615,10 +612,13 @@ function resizeImage(file, maxSize, quality, cb) {
     canvas.height = h;
     var ctx = canvas.getContext('2d');
     ctx.drawImage(img, 0, 0, w, h);
-    canvas.toBlob(function(blob) { cb(blob); }, 'image/jpeg', quality);
+    canvas.toBlob(function(blob) {
+      canvas.width = 0; canvas.height = 0;
+      cb(blob);
+    }, 'image/jpeg', quality);
   };
-  img.onerror = function() { cb(file); };
-  img.src = URL.createObjectURL(file);
+  img.onerror = function() { URL.revokeObjectURL(objUrl); cb(file); };
+  img.src = objUrl;
 }
 
 function uploadInParallel(managedId, blobs, concurrency, photographer, photographyDate, onProgress, onDone) {
