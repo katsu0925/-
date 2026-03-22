@@ -16,6 +16,11 @@ export default {
       return new Response(null, { headers: corsHeaders() });
     }
 
+    // ファビコン配信
+    if (request.method === 'GET' && (path === '/favicon.ico' || path === '/favicon.svg' || path === '/apple-touch-icon.png')) {
+      return handleFavicon(path);
+    }
+
     try {
       if (path === '/api/measure' && request.method === 'POST') {
         return await handleMeasure(request, env);
@@ -279,4 +284,14 @@ function jsonResponse(data, status = 200) {
       ...corsHeaders(),
     },
   });
+}
+
+// ファビコン: カメラ+メジャーモチーフ（写メジャー）
+function handleFavicon(path) {
+  if (path === '/favicon.svg') {
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect x="4" y="8" width="24" height="18" rx="3" fill="#e94560"/><circle cx="16" cy="17" r="6" fill="#1a1a2e"/><circle cx="16" cy="17" r="4" fill="#e94560" opacity=".5"/><circle cx="16" cy="17" r="1.5" fill="#fff"/><rect x="22" y="9" width="4" height="3" rx="1" fill="#c62828"/><rect x="0" y="26" width="32" height="4" rx="1" fill="#fbbf24"/></svg>`;
+    return new Response(svg, { headers: { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=604800' } });
+  }
+  // favicon.ico / apple-touch-icon.png → SVGにリダイレクト
+  return new Response(null, { status: 302, headers: { 'Location': '/favicon.svg' } });
 }
