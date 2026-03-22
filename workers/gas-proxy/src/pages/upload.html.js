@@ -197,6 +197,12 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
   </div>
 </div>
 
+<!-- 画像プレビューモーダル -->
+<div id="previewModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.9);z-index:300;align-items:center;justify-content:center;cursor:pointer" onclick="closePreview()">
+  <img id="previewImg" style="max-width:95%;max-height:90vh;object-fit:contain;border-radius:4px">
+  <div style="position:absolute;top:env(safe-area-inset-top,12px);right:12px;color:#fff;font-size:32px;cursor:pointer;padding:8px;line-height:1" onclick="closePreview()">✕</div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 // ─── 設定 ───
@@ -425,10 +431,11 @@ function showExistingImages(urls, managedId) {
   var grid = document.getElementById('existingGrid');
   var html = '';
   for (var i = 0; i < urls.length; i++) {
+    var imgSrc = API_BASE + urls[i] + '?t=' + Date.now();
     html += '<div class="preview-item" draggable="true" data-idx="' + i + '">' +
-      '<img src="' + API_BASE + urls[i] + '?t=' + Date.now() + '">' +
+      '<img src="' + imgSrc + '" onclick="openPreview(this.src)">' +
       '<span class="badge">' + (i === 0 ? 'トップ' : (i+1)) + '</span>' +
-      '<span class="replace-btn" data-url="' + escapeHtml(urls[i]) + '" onclick="startReplace(this.dataset.url)">🔄</span>' +
+      '<span class="replace-btn" data-url="' + escapeHtml(urls[i]) + '" onclick="event.stopPropagation();startReplace(this.dataset.url)">🔄</span>' +
       '</div>';
   }
   grid.innerHTML = html;
@@ -1374,9 +1381,24 @@ function closeConfirm(ok) {
 function toggleImgCheck(wrap, e) {
   // チェックボックス自体がクリックされた場合はネイティブ動作に任せる
   if (e && (e.target.tagName === 'INPUT')) return;
+  // 画像タップ → プレビュー表示
+  if (e && (e.target.tagName === 'IMG')) {
+    openPreview(e.target.src);
+    return;
+  }
   var cb = wrap.querySelector('input[type=checkbox]');
   if (cb) { cb.checked = !cb.checked; cb.dispatchEvent(new Event('change')); }
   wrap.style.opacity = cb && cb.checked ? '1' : '0.4';
+}
+
+function openPreview(src) {
+  var modal = document.getElementById('previewModal');
+  document.getElementById('previewImg').src = src;
+  modal.style.display = 'flex';
+}
+function closePreview() {
+  document.getElementById('previewModal').style.display = 'none';
+  document.getElementById('previewImg').src = '';
 }
 
 function normId(s) {
