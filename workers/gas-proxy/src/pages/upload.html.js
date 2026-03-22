@@ -66,6 +66,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 .search-overlay{position:absolute;top:0;left:0;right:0;bottom:0;background:rgba(59,130,246,.4);display:flex;align-items:center;justify-content:center;font-size:24px;opacity:0;transition:opacity .2s;cursor:pointer;border-radius:6px}
 .search-item:hover .search-overlay,.search-item:active .search-overlay{opacity:1}
 .replace-btn{position:absolute;bottom:2px;right:2px;background:rgba(255,255,255,.9);border-radius:4px;font-size:12px;padding:2px 4px;cursor:pointer}
+.preview-btn{position:absolute;bottom:2px;right:2px;background:rgba(255,255,255,.9);border-radius:4px;font-size:12px;padding:2px 4px;cursor:pointer}
 .img-check-wrap{position:relative}
 .img-check-wrap input[type=checkbox]{position:absolute;top:4px;left:4px;z-index:2;width:18px;height:18px;accent-color:#3b82f6}
 .img-check-wrap .badge{left:auto;right:2px}
@@ -433,9 +434,9 @@ function showExistingImages(urls, managedId) {
   for (var i = 0; i < urls.length; i++) {
     var imgSrc = API_BASE + urls[i] + '?t=' + Date.now();
     html += '<div class="preview-item" draggable="true" data-idx="' + i + '">' +
-      '<img src="' + imgSrc + '" onclick="openPreview(this.src)">' +
+      '<img src="' + imgSrc + '">' +
       '<span class="badge">' + (i === 0 ? 'トップ' : (i+1)) + '</span>' +
-      '<span class="replace-btn" data-url="' + escapeHtml(urls[i]) + '" onclick="event.stopPropagation();startReplace(this.dataset.url)">🔄</span>' +
+      '<span class="replace-btn" data-url="' + escapeHtml(urls[i]) + '" onclick="startReplace(this.dataset.url)">🔄</span>' +
       '</div>';
   }
   grid.innerHTML = html;
@@ -815,6 +816,7 @@ function toggleManageExpand(managedId) {
         '<input type="checkbox" class="dl-img-check" data-mid="' + escapeHtml(managedId) + '" data-url="' + escapeHtml(urls[j]) + '" data-imgidx="' + j + '" checked>' +
         '<img src="' + fullUrl + '?t=' + Date.now() + '" loading="lazy">' +
         '<span class="badge">' + (j === 0 ? 'トップ' : (j+1)) + '</span>' +
+        '<span class="preview-btn" onclick="event.stopPropagation();openPreview(this.previousElementSibling.previousElementSibling.src)">🔍</span>' +
         '</div>';
     }
     html += '</div>';
@@ -1381,11 +1383,8 @@ function closeConfirm(ok) {
 function toggleImgCheck(wrap, e) {
   // チェックボックス自体がクリックされた場合はネイティブ動作に任せる
   if (e && (e.target.tagName === 'INPUT')) return;
-  // 画像タップ → プレビュー表示
-  if (e && (e.target.tagName === 'IMG')) {
-    openPreview(e.target.src);
-    return;
-  }
+  // プレビューボタンがクリックされた場合は無視
+  if (e && e.target.classList.contains('preview-btn')) return;
   var cb = wrap.querySelector('input[type=checkbox]');
   if (cb) { cb.checked = !cb.checked; cb.dispatchEvent(new Event('change')); }
   wrap.style.opacity = cb && cb.checked ? '1' : '0.4';
