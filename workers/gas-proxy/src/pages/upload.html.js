@@ -140,9 +140,6 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
         <div id="existingImages" class="hidden" style="margin-top:12px">
           <div style="font-size:13px;font-weight:600;margin-bottom:4px" id="existingCount"></div>
           <div class="preview-grid" id="existingGrid"></div>
-          <div style="margin-top:8px;display:flex;gap:8px">
-            <button class="btn btn-secondary" style="flex:1;font-size:12px;padding:8px" onclick="saveReorder(normId(document.getElementById('uploadManagedId').value))">並び順を保存</button>
-          </div>
         </div>
         <div class="form-group" style="margin-top:12px">
           <label>画像（最大10枚）</label>
