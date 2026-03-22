@@ -270,15 +270,29 @@ async function handleList(request, env) {
   const indexJson = await env.CACHE.get('product-images:index');
   const index = indexJson ? JSON.parse(indexJson) : [];
 
-  // 各商品の1枚目URLを取得
+  const idsJson = await env.CACHE.get('managed-ids:list');
+  const registeredIds = idsJson ? new Set(JSON.parse(idsJson)) : new Set();
+
+  // 各商品の1枚目URL＋警告フラグを取得
   const items = await Promise.all(
     index.map(async (managedId) => {
       const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
       const urls = urlsJson ? JSON.parse(urlsJson) : [];
+      let warning = false;
+      if (!registeredIds.has(managedId)) {
+        const metaJson = await env.CACHE.get(`photo-meta:${managedId}`);
+        const meta = metaJson ? JSON.parse(metaJson) : {};
+        if (meta.uploadedAt) {
+          const days = Math.floor((Date.now() - new Date(meta.uploadedAt).getTime()) / (1000 * 60 * 60 * 24));
+          warning = days >= 7;
+        }
+      }
       return {
         managedId,
         thumbnail: urls[0] || null,
         count: urls.length,
+        registered: registeredIds.has(managedId),
+        warning,
       };
     })
   );
