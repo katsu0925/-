@@ -309,10 +309,16 @@ function baseSyncOrdersNow() {
       result = baseSyncOrdersBetween_(new Date(last.getTime() - BASE_APP.SYNC_BUFFER_DAYS * 24 * 3600 * 1000), new Date());
     }
   } catch (e) {
+    var msg = String(e.message || '');
     // 帯域制限エラーは次回実行に回す（LINE通知しない）
-    if (String(e.message || '').indexOf('Bandwidth quota') !== -1) {
+    if (msg.indexOf('Bandwidth quota') !== -1) {
       console.warn('baseSyncOrdersNow: 帯域制限に到達、次回に継続');
       return { ok: false, reason: 'bandwidth_quota' };
+    }
+    // ネットワーク一時エラーは次回実行に回す（LINE通知しない）
+    if (msg.indexOf('Address unavailable') !== -1 || msg.indexOf('DNS') !== -1) {
+      console.warn('baseSyncOrdersNow: ネットワーク一時エラー、次回に継続: ' + msg);
+      return { ok: false, reason: 'network_error' };
     }
     throw e;
   }
