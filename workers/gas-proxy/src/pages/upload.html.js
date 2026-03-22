@@ -936,11 +936,7 @@ function searchManageImage(managedId) {
     url = API_BASE + _manageExpandedUrls[0];
   }
   if (!url) { showStatus('manageStatus', '画像がありません', 'err'); return; }
-  if (/iPhone|iPad/.test(navigator.userAgent)) {
-    window.open('https://lens.google.com/uploadbyurl?url=' + encodeURIComponent(url));
-  } else {
-    window.open('https://www.google.com/searchbyimage?image_url=' + encodeURIComponent(url));
-  }
+  window.open('https://lens.google.com/uploadbyurl?url=' + encodeURIComponent(url));
 }
 
 // ─── 展開内: 選択画像DL ───
