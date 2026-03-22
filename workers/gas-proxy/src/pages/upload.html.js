@@ -74,6 +74,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 .sticky-footer .footer-inner{max-width:600px;margin:0 auto;display:flex;gap:8px}
 .sticky-footer .footer-inner .btn{flex:1;margin:0;padding:10px;font-size:14px}
 .del-check{width:20px;height:20px;accent-color:#ef4444;flex-shrink:0}
+.manage-sticky-header{position:sticky;top:0;z-index:20;background:#fff;padding:12px 16px 8px;border-radius:12px 12px 0 0;box-shadow:0 1px 3px rgba(0,0,0,.1)}
 @media(max-width:480px){.img-grid{grid-template-columns:repeat(2,1fr)}.preview-grid{grid-template-columns:repeat(2,1fr)}}
 @media(min-width:481px) and (max-width:768px){.img-grid{grid-template-columns:repeat(3,1fr)}}
 @media(min-width:769px){.img-grid{grid-template-columns:repeat(4,1fr)}}
@@ -155,9 +156,8 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 
     <!-- セクション2: 商品管理（一括DL・検索・削除・並び替え統合） -->
     <div class="section" id="sec-manage">
-      <div class="card">
-        <h2>商品管理</h2>
-        <div class="form-group">
+      <div class="manage-sticky-header">
+        <div class="form-group" style="margin-bottom:8px">
           <input type="text" id="manageSearch" placeholder="管理番号で検索..." autocomplete="off" oninput="filterManageList()">
         </div>
         <div class="status" id="manageLoadStatus"></div>
@@ -166,6 +166,8 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
           <span>すべて選択（表示中）</span>
           <span style="margin-left:auto" id="selectedCount">0件選択</span>
         </div>
+      </div>
+      <div class="card" style="margin-top:0;border-top-left-radius:0;border-top-right-radius:0">
         <div id="manageList"></div>
         <div class="status" id="manageStatus"></div>
       </div>
