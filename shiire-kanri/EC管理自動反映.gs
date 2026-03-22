@@ -124,6 +124,7 @@ function syncBaseOrdersToEc() {
     const dstShipCustCol = requireCol_(dstHeader, '客負担送料', 'EC管理');
     const dstTrackingCol = findColByName_(dstHeader, '伝票番号');
     const dstTotalCountCol = findColByName_(dstHeader, '総量');
+    const dstNoCol = findColByName_(dstHeader, 'No');
 
     // --- 依頼管理データ読み込み ---
     const iraiValues = iraiSh.getRange(2, 1, iraiLastRow - 1, iraiLastCol).getValues();
@@ -289,7 +290,8 @@ function syncBaseOrdersToEc() {
         shippingStore: group.shippingStore || '',
         shippingCustomer: group.shippingCustomer || '',
         tracking: group.tracking || '',
-        totalCount: group.totalCount || ''
+        totalCount: group.totalCount || '',
+        no: 0  // 後で連番を振る
       });
     }
 
@@ -308,8 +310,19 @@ function syncBaseOrdersToEc() {
     if (dstDepositCol > 0) cols.deposit = dstDepositCol;
     if (dstTrackingCol > 0) cols.tracking = dstTrackingCol;
     if (dstTotalCountCol > 0) cols.totalCount = dstTotalCountCol;
+    if (dstNoCol > 0) cols.no = dstNoCol;
 
     const startRow = findAppendRowByActualData_(dstSh, cols);
+
+    // A列通し番号: 既存データの最大値を取得して連番を振る
+    let nextNo = 1;
+    if (dstNoCol > 0 && startRow > 2) {
+      const noValues = dstSh.getRange(2, dstNoCol, startRow - 2, 1).getValues();
+      for (let ni = 0; ni < noValues.length; ni++) {
+        const nv = Number(noValues[ni][0]) || 0;
+        if (nv >= nextNo) nextNo = nv + 1;
+      }
+    }
     const needLastRow = startRow + toInsert.length - 1;
     if (needLastRow > dstSh.getMaxRows()) {
       dstSh.insertRowsAfter(dstSh.getMaxRows(), needLastRow - dstSh.getMaxRows());
@@ -320,8 +333,9 @@ function syncBaseOrdersToEc() {
     const minCol = Math.min.apply(null, colKeys.map(k => cols[k]));
     const maxCol = Math.max.apply(null, colKeys.map(k => cols[k]));
     const width = maxCol - minCol + 1;
-    const batch = toInsert.map(o => {
+    const batch = toInsert.map((o, idx) => {
       const row = new Array(width).fill('');
+      if (cols.no) row[cols.no - minCol] = nextNo + idx;
       row[cols.orderKey - minCol] = o.orderKey;
       row[cols.soldAt - minCol] = o.soldAt;
       row[cols.channel - minCol] = o.channel;
