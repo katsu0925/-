@@ -963,6 +963,21 @@ function downloadManageImages(managedId) {
     );
   });
   Promise.all(promises).then(function() {
+    if (files.length === 0) { showStatus('manageStatus', 'ダウンロードに失敗しました', 'err'); return; }
+    var shareFiles = files.map(function(f) { return new File([f.blob], f.name, { type: 'image/jpeg' }); });
+
+    // モバイル: navigator.share
+    if (isMobileDevice() && navigator.canShare && navigator.canShare({ files: shareFiles })) {
+      showStatus('manageStatus', shareFiles.length + '枚を保存中...', 'info');
+      navigator.share({ files: shareFiles }).then(function() {
+        showStatus('manageStatus', shareFiles.length + '枚保存完了', 'ok');
+      }).catch(function() {
+        showStatus('manageStatus', 'キャンセルされました', 'info');
+      });
+      return;
+    }
+
+    // PC: JSZip
     if (typeof JSZip !== 'undefined') {
       var zip = new JSZip();
       files.forEach(function(f) { zip.file(f.name, f.blob); });
@@ -976,18 +991,20 @@ function downloadManageImages(managedId) {
         setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
         showStatus('manageStatus', files.length + '枚保存完了', 'ok');
       });
-    } else {
-      files.forEach(function(f) {
-        var a = document.createElement('a');
-        a.href = URL.createObjectURL(f.blob);
-        a.download = f.name;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
-      });
-      showStatus('manageStatus', files.length + '枚保存完了', 'ok');
+      return;
     }
+
+    // フォールバック: 個別DL
+    files.forEach(function(f) {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(f.blob);
+      a.download = f.name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
+    });
+    showStatus('manageStatus', files.length + '枚保存完了', 'ok');
   }).catch(function() { showStatus('manageStatus', 'ダウンロードエラー', 'err'); });
 }
 
