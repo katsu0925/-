@@ -2,9 +2,7 @@
  * アップロードページHTML（自己完結型、スマホ最適化）
  *
  * セクション1: 画像アップロード（管理番号+最大10枚、既存画像検出・追加・上書き・並び替え）
- * セクション2: 一括ダウンロード（画像展開+JSZip ZIP DL）
- * セクション3: 検索（リサーチ）（Google画像検索）
- * セクション4: 削除（targetUrl方式）
+ * セクション2: 商品管理（一括DL・画像検索・削除・並び替えを統合）
  */
 export function getUploadPageHtml() {
   return `<!DOCTYPE html>
@@ -100,9 +98,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
   <div id="mainSection" class="hidden">
     <div class="tab-bar">
       <button class="tab active" onclick="switchTab('upload')">アップロード <span id="unmatchedBadge" style="display:none;background:#ef4444;color:#fff;font-size:10px;padding:1px 5px;border-radius:8px;margin-left:2px"></span></button>
-      <button class="tab" onclick="switchTab('download')">一括DL</button>
-      <button class="tab" onclick="switchTab('research')">検索</button>
-      <button class="tab" onclick="switchTab('delete')">削除</button>
+      <button class="tab" onclick="switchTab('manage')">商品管理</button>
     </div>
 
     <!-- 撮影者選択モーダル -->
@@ -157,46 +153,21 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
       </div>
     </div>
 
-    <!-- セクション2: 一括ダウンロード -->
-    <div class="section" id="sec-download">
+    <!-- セクション2: 商品管理（一括DL・検索・削除・並び替え統合） -->
+    <div class="section" id="sec-manage">
       <div class="card">
-        <h2>画像一括ダウンロード</h2>
+        <h2>商品管理</h2>
         <div class="form-group">
-          <input type="text" id="dlSearch" placeholder="管理番号で検索..." autocomplete="off" oninput="filterDlList()">
+          <input type="text" id="manageSearch" placeholder="管理番号で検索..." autocomplete="off" oninput="filterManageList()">
         </div>
-        <div class="status" id="dlLoadStatus"></div>
+        <div class="status" id="manageLoadStatus"></div>
         <div class="select-all-row hidden" id="selectAllRow">
           <input type="checkbox" id="selectAll" class="list-check" onchange="toggleSelectAll()">
           <span>すべて選択（表示中）</span>
           <span style="margin-left:auto" id="selectedCount">0件選択</span>
         </div>
-        <div id="productList"></div>
-        <div class="status" id="dlStatus"></div>
-      </div>
-    </div>
-
-    <!-- セクション3: 検索（リサーチ） -->
-    <div class="section" id="sec-research">
-      <div class="card">
-        <h2>画像検索（リサーチ）</h2>
-        <div class="form-group">
-          <input type="text" id="researchSearch" placeholder="管理番号で検索..." autocomplete="off" oninput="filterResearchList()">
-        </div>
-        <div class="status" id="researchLoadStatus"></div>
-        <div id="researchProductList"></div>
-        <div class="status" id="researchStatus"></div>
-      </div>
-    </div>
-
-    <!-- セクション4: 削除 -->
-    <div class="section" id="sec-delete">
-      <div class="card">
-        <h2>画像削除</h2>
-        <div class="form-group">
-          <input type="text" id="deleteSearch" placeholder="管理番号で検索..." autocomplete="off" oninput="filterDeleteList()">
-        </div>
-        <div class="status" id="deleteStatus"></div>
-        <div id="deleteList"></div>
+        <div id="manageList"></div>
+        <div class="status" id="manageStatus"></div>
       </div>
     </div>
   </div>
@@ -207,15 +178,11 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
       <button class="btn btn-primary" id="uploadBtn" onclick="doUpload()" disabled>アップロード</button>
     </div>
   </div>
-  <div class="sticky-footer" id="footer-download">
-    <div class="footer-inner" id="dlFooterInner">
-      <button class="btn btn-success" id="dlTopBtn" onclick="doDownloadTopImages()">トップ画像を保存</button>
-      <button class="btn btn-primary" id="dlBtn" onclick="doDownloadSelected()">選択画像を保存</button>
-    </div>
-  </div>
-  <div class="sticky-footer" id="footer-delete">
-    <div class="footer-inner">
-      <button class="btn btn-danger" id="deleteSelectedBtn" onclick="doDeleteSelected()" disabled>選択した商品を削除</button>
+  <div class="sticky-footer" id="footer-manage">
+    <div class="footer-inner" style="flex-wrap:wrap;gap:6px">
+      <button class="btn btn-success" style="flex:1;min-width:45%" id="dlTopBtn" onclick="doDownloadTopImages()">トップ画像を保存</button>
+      <button class="btn btn-primary" style="flex:1;min-width:45%" id="dlBtn" onclick="doDownloadSelected()">選択画像を保存</button>
+      <button class="btn btn-danger" style="flex:1;min-width:100%" id="deleteSelectedBtn" onclick="doDeleteSelected()" disabled>選択した商品を削除</button>
     </div>
   </div>
 
@@ -408,7 +375,7 @@ document.getElementById('authBtn').addEventListener('click', function() {
 function switchTab(name) {
   var tabs = document.querySelectorAll('.tab');
   var secs = document.querySelectorAll('.section');
-  var tabNames = ['upload','download','research','delete'];
+  var tabNames = ['upload','manage'];
   tabs.forEach(function(t, i) {
     t.classList.toggle('active', tabNames[i] === name);
   });
@@ -418,9 +385,7 @@ function switchTab(name) {
     var f = document.getElementById('footer-' + t);
     if (f) f.classList.toggle('show', t === name);
   });
-  if (name === 'download') ensureListLoaded(function() { renderDlList(); });
-  if (name === 'research') ensureListLoaded(function() { renderResearchList(); });
-  if (name === 'delete') ensureListLoaded(function() { renderDeleteList(); });
+  if (name === 'manage') ensureListLoaded(function() { renderManageList(); });
 }
 
 // ─── セクション1: アップロード（既存画像検出付き） ───
@@ -752,7 +717,7 @@ var _listLoaded = false;
 
 function ensureListLoaded(cb) {
   if (_listLoaded) { cb(); return; }
-  showStatus('dlLoadStatus', '読み込み中...', 'info');
+  showStatus('manageLoadStatus', '読み込み中...', 'info');
   fetch(API_BASE + '/upload/list', {
     method: 'POST',
     headers: headers({ 'Content-Type': 'application/json' }),
@@ -761,18 +726,18 @@ function ensureListLoaded(cb) {
   .then(function(d) {
     if (!d.ok) {
       if (d.message && d.message.indexOf('トークン') >= 0) showAuth();
-      showStatus('dlLoadStatus', d.message || 'エラー', 'err');
+      showStatus('manageLoadStatus', d.message || 'エラー', 'err');
       return;
     }
     productListData = d.items || [];
     _listLoaded = true;
     if (productListData.length === 0) {
-      showStatus('dlLoadStatus', 'アップロード済み商品はありません', 'info');
+      showStatus('manageLoadStatus', 'アップロード済み商品はありません', 'info');
     } else {
-      showStatus('dlLoadStatus', productListData.length + '件の商品', 'ok');
+      showStatus('manageLoadStatus', productListData.length + '件の商品', 'ok');
     }
     cb();
-  }).catch(function(e) { showStatus('dlLoadStatus', 'ネットワークエラー', 'err'); });
+  }).catch(function(e) { showStatus('manageLoadStatus', 'ネットワークエラー', 'err'); });
 }
 
 function reloadList(cb) {
@@ -780,18 +745,18 @@ function reloadList(cb) {
   ensureListLoaded(cb || function(){});
 }
 
-// ─── セクション2: 一括ダウンロード ───
+// ─── セクション2: 商品管理（統合） ───
 var _dlExpandedData = []; // [{mid, urls, filename}...]
+var _manageExpandedMid = '';
+var _manageExpandedUrls = []; // 展開中の商品の画像URL配列
 
-function filterDlList() {
-  ensureListLoaded(function() { renderDlList(); });
+function filterManageList() {
+  ensureListLoaded(function() { renderManageList(); });
 }
 
-var _dlExpandedMid = '';
-
-function renderDlList() {
-  var q = normId(document.getElementById('dlSearch').value);
-  var el = document.getElementById('productList');
+function renderManageList() {
+  var q = normId(document.getElementById('manageSearch').value);
+  var el = document.getElementById('manageList');
   var html = '';
   var count = 0;
   for (var i = 0; i < productListData.length; i++) {
@@ -799,19 +764,20 @@ function renderDlList() {
     if (q && p.managedId.toUpperCase().indexOf(q) === -1) continue;
     count++;
     var thumbSrc = p.thumbnail ? (API_BASE + p.thumbnail) : '';
-    html += '<div id="dl-row-' + escapeHtml(p.managedId) + '">' +
+    html += '<div id="manage-row-' + escapeHtml(p.managedId) + '">' +
       '<div class="list-item">' +
-      '<input type="checkbox" class="list-check dl-check" data-idx="' + i + '" data-mid="' + escapeHtml(p.managedId) + '" onchange="updateSelectedCount()" onclick="event.stopPropagation()">' +
-      (thumbSrc ? '<img class="list-thumb" src="' + thumbSrc + '" loading="lazy" onclick="toggleDlExpand(\\'' + escapeHtml(p.managedId) + '\\')">' : '<div class="list-thumb" onclick="toggleDlExpand(\\'' + escapeHtml(p.managedId) + '\\')"></div>') +
-      '<div class="list-info" onclick="toggleDlExpand(\\'' + escapeHtml(p.managedId) + '\\')" style="cursor:pointer"><div class="list-id">' + escapeHtml(p.managedId) + (p.warning ? ' <span style="background:#ef4444;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;margin-left:4px">採寸情報未登録</span>' : !p.registered ? ' <span style="background:#f59e0b;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;margin-left:4px">採寸情報未登録</span>' : '') + '</div>' +
+      '<input type="checkbox" class="list-check dl-check" data-idx="' + i + '" data-mid="' + escapeHtml(p.managedId) + '" onchange="updateSelectedCount();updateDeleteSelectedCount()" onclick="event.stopPropagation()">' +
+      (thumbSrc ? '<img class="list-thumb" src="' + thumbSrc + '" loading="lazy" onclick="toggleManageExpand(\\'' + escapeHtml(p.managedId) + '\\')">' : '<div class="list-thumb" onclick="toggleManageExpand(\\'' + escapeHtml(p.managedId) + '\\')"></div>') +
+      '<div class="list-info" onclick="toggleManageExpand(\\'' + escapeHtml(p.managedId) + '\\')" style="cursor:pointer"><div class="list-id">' + escapeHtml(p.managedId) + (p.warning ? ' <span style="background:#ef4444;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;margin-left:4px">採寸情報未登録</span>' : !p.registered ? ' <span style="background:#f59e0b;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;margin-left:4px">採寸情報未登録</span>' : '') + '</div>' +
       '<div class="list-count">' + p.count + '枚</div></div>' +
-      '<span style="color:#3b82f6;font-size:20px;padding:0 8px;cursor:pointer" onclick="toggleDlExpand(\\'' + escapeHtml(p.managedId) + '\\')">›</span>' +
+      '<span style="color:#3b82f6;font-size:20px;padding:0 8px;cursor:pointer" onclick="toggleManageExpand(\\'' + escapeHtml(p.managedId) + '\\')">›</span>' +
       '</div></div>';
   }
   el.innerHTML = html || '<div style="text-align:center;color:#999;padding:20px">該当なし</div>';
   document.getElementById('selectAllRow').classList.remove('hidden');
-  _dlExpandedMid = '';
+  _manageExpandedMid = '';
   updateSelectedCount();
+  updateDeleteSelectedCount();
 }
 
 function toggleSelectAll() {
@@ -827,22 +793,22 @@ function updateSelectedCount() {
   document.getElementById('selectedCount').textContent = checks.length + '件選択';
 }
 
-function toggleDlExpand(managedId) {
+function toggleManageExpand(managedId) {
   // 同じ商品をもう一度タップしたら閉じる
-  if (_dlExpandedMid === managedId) {
-    var existing = document.getElementById('dlDetailInline');
-    if (existing) { existing.remove(); _dlExpandedMid = ''; return; }
+  if (_manageExpandedMid === managedId) {
+    var existing = document.getElementById('manageDetailInline');
+    if (existing) { existing.remove(); _manageExpandedMid = ''; return; }
   }
-  _dlExpandedMid = managedId;
+  _manageExpandedMid = managedId;
 
   // 既存のインライン詳細を閉じる
-  var old = document.getElementById('dlDetailInline');
+  var old = document.getElementById('manageDetailInline');
   if (old) old.remove();
 
-  var row = document.getElementById('dl-row-' + managedId);
+  var row = document.getElementById('manage-row-' + managedId);
   if (!row) return;
   var detail = document.createElement('div');
-  detail.id = 'dlDetailInline';
+  detail.id = 'manageDetailInline';
   detail.style.cssText = 'background:#eff6ff;border-radius:8px;padding:12px;margin:4px 0 8px';
   detail.innerHTML = '<div style="text-align:center;color:#666;font-size:13px">読み込み中...</div>';
   row.after(detail);
@@ -853,33 +819,231 @@ function toggleDlExpand(managedId) {
     body: JSON.stringify({ managedId: managedId })
   }).then(function(r) { return r.json(); })
   .then(function(d) {
-    var el = document.getElementById('dlDetailInline');
+    var el = document.getElementById('manageDetailInline');
     if (!el) return;
-    if (!d.ok) { showStatus('dlStatus', d.message || 'エラー', 'err'); return; }
+    if (!d.ok) { showStatus('manageStatus', d.message || 'エラー', 'err'); return; }
     var urls = d.urls || [];
+    _manageExpandedUrls = urls;
     // _dlExpandedData に追加（DL用）
     _dlExpandedData = [];
     for (var i = 0; i < urls.length; i++) {
       _dlExpandedData.push({ mid: managedId, url: urls[i], idx: i });
     }
     var html = '<div style="font-size:13px;font-weight:600;margin-bottom:8px">' + escapeHtml(managedId) + ' (' + urls.length + '枚)</div>';
+    // 画像選択ボタン
     html += '<div style="margin-bottom:8px;display:flex;gap:8px">' +
       '<button class="btn btn-secondary" style="flex:1;font-size:12px;padding:8px" onclick="toggleDlImageSelect(\\'all\\')">全選択</button>' +
       '<button class="btn btn-secondary" style="flex:1;font-size:12px;padding:8px" onclick="toggleDlImageSelect(\\'top\\')">トップのみ</button>' +
       '<button class="btn btn-secondary" style="flex:1;font-size:12px;padding:8px" onclick="toggleDlImageSelect(\\'none\\')">全解除</button>' +
       '</div>';
-    html += '<div class="img-grid">';
+    // 画像グリッド（ドラッグ並び替え対応）
+    html += '<div class="img-grid" id="manageImageGrid">';
     for (var j = 0; j < urls.length; j++) {
       var fullUrl = API_BASE + urls[j];
-      html += '<div class="img-check-wrap preview-item" onclick="toggleImgCheck(this,event)" style="cursor:pointer">' +
+      html += '<div class="img-check-wrap preview-item" draggable="true" data-idx="' + j + '" onclick="toggleImgCheck(this,event)" style="cursor:pointer">' +
         '<input type="checkbox" class="dl-img-check" data-mid="' + escapeHtml(managedId) + '" data-url="' + escapeHtml(urls[j]) + '" data-imgidx="' + j + '" checked>' +
-        '<img src="' + fullUrl + '" loading="lazy">' +
+        '<img src="' + fullUrl + '?t=' + Date.now() + '" loading="lazy">' +
         '<span class="badge">' + (j === 0 ? 'トップ' : (j+1)) + '</span>' +
         '</div>';
     }
     html += '</div>';
+    // 操作ボタン: 並び替え保存 + 画像検索 + DL + 削除
+    html += '<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">' +
+      '<button class="btn btn-secondary" style="flex:1;min-width:45%;font-size:12px;padding:8px" onclick="saveManageReorder(\\'' + escapeHtml(managedId) + '\\')">並び順を保存</button>' +
+      '<button class="btn btn-primary" style="flex:1;min-width:45%;font-size:12px;padding:8px" onclick="searchManageImage(\\'' + escapeHtml(managedId) + '\\')">🔍 画像検索</button>' +
+      '</div>' +
+      '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">' +
+      '<button class="btn btn-success" style="flex:1;min-width:45%;font-size:12px;padding:8px" onclick="downloadManageImages(\\'' + escapeHtml(managedId) + '\\')">📥 選択DL</button>' +
+      '<button class="btn btn-danger" style="flex:1;min-width:45%;font-size:12px;padding:8px" onclick="deleteManageImages(\\'' + escapeHtml(managedId) + '\\')">🗑 選択削除</button>' +
+      '</div>';
     el.innerHTML = html;
-  }).catch(function(e) { showStatus('dlStatus', 'ネットワークエラー', 'err'); });
+    // ドラッグ並び替え初期化
+    initManageDragReorder(document.getElementById('manageImageGrid'), managedId);
+  }).catch(function(e) { showStatus('manageStatus', 'ネットワークエラー', 'err'); });
+}
+
+// ─── 展開内: 並び替え保存 ───
+function saveManageReorder(managedId) {
+  var grid = document.getElementById('manageImageGrid');
+  if (!grid) return;
+  var items = grid.querySelectorAll('.preview-item');
+  var newOrder = [];
+  items.forEach(function(item, i) {
+    var img = item.querySelector('img');
+    var url = img.src.replace(API_BASE, '').replace(/\\?t=\\d+$/, '');
+    newOrder.push(url);
+    var badge = item.querySelector('.badge');
+    badge.textContent = i === 0 ? 'トップ' : (i + 1);
+  });
+
+  fetch(API_BASE + '/upload/reorder', {
+    method: 'POST',
+    headers: headers({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ managedId: managedId, newOrder: newOrder })
+  }).then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.ok) {
+      _manageExpandedUrls = d.urls || newOrder;
+      showStatus('manageStatus', '並び替えを保存しました', 'ok');
+    } else {
+      showStatus('manageStatus', d.message || '並び替えエラー', 'err');
+    }
+  }).catch(function() { showStatus('manageStatus', '並び替えエラー', 'err'); });
+}
+
+// ─── 展開内: ドラッグ並び替え ───
+function initManageDragReorder(grid, managedId) {
+  if (!grid) return;
+  var items = grid.querySelectorAll('.preview-item');
+  var dragItem = null;
+  items.forEach(function(item) {
+    item.addEventListener('dragstart', function(e) {
+      dragItem = this;
+      this.style.opacity = '0.4';
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    item.addEventListener('dragend', function() {
+      this.style.opacity = '1';
+      dragItem = null;
+    });
+    item.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    });
+    item.addEventListener('drop', function(e) {
+      e.preventDefault();
+      if (!dragItem || dragItem === this) return;
+      var allItems = Array.from(grid.querySelectorAll('.preview-item'));
+      var fromIdx = allItems.indexOf(dragItem);
+      var toIdx = allItems.indexOf(this);
+      if (fromIdx < toIdx) grid.insertBefore(dragItem, this.nextSibling);
+      else grid.insertBefore(dragItem, this);
+      saveManageReorder(managedId);
+    });
+    // モバイル: タップでインライン番号セレクト表示
+    item.addEventListener('long-press', function() {});
+  });
+}
+
+// ─── 展開内: 画像検索 ───
+function searchManageImage(managedId) {
+  // トップ画像で検索
+  var checks = document.querySelectorAll('.dl-img-check:checked');
+  var url = '';
+  if (checks.length > 0) {
+    url = API_BASE + checks[0].dataset.url;
+  } else if (_manageExpandedUrls.length > 0) {
+    url = API_BASE + _manageExpandedUrls[0];
+  }
+  if (!url) { showStatus('manageStatus', '画像がありません', 'err'); return; }
+  if (/iPhone|iPad/.test(navigator.userAgent)) {
+    window.open('https://lens.google.com/uploadbyurl?url=' + encodeURIComponent(url));
+  } else {
+    window.open('https://www.google.com/searchbyimage?image_url=' + encodeURIComponent(url));
+  }
+}
+
+// ─── 展開内: 選択画像DL ───
+function downloadManageImages(managedId) {
+  var checks = document.querySelectorAll('.dl-img-check:checked');
+  if (checks.length === 0) { showStatus('manageStatus', '画像を選択してください', 'err'); return; }
+  showStatus('manageStatus', '0/' + checks.length + ' 読み込み中...', 'info');
+  var done = 0;
+  var files = [];
+  var promises = [];
+  checks.forEach(function(c, i) {
+    var url = API_BASE + c.dataset.url;
+    var idx = parseInt(c.dataset.imgidx);
+    promises.push(
+      fetch(url).then(function(r) { return r.blob(); }).then(function(blob) {
+        done++;
+        files.push({ name: managedId + '_' + (idx + 1) + '.jpg', blob: blob });
+        showStatus('manageStatus', done + '/' + checks.length + ' 読み込み中...', 'info');
+      })
+    );
+  });
+  Promise.all(promises).then(function() {
+    if (typeof JSZip !== 'undefined') {
+      var zip = new JSZip();
+      files.forEach(function(f) { zip.file(f.name, f.blob); });
+      zip.generateAsync({ type: 'blob' }).then(function(content) {
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(content);
+        a.download = managedId + '_images.zip';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
+        showStatus('manageStatus', files.length + '枚保存完了', 'ok');
+      });
+    } else {
+      files.forEach(function(f) {
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(f.blob);
+        a.download = f.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
+      });
+      showStatus('manageStatus', files.length + '枚保存完了', 'ok');
+    }
+  }).catch(function() { showStatus('manageStatus', 'ダウンロードエラー', 'err'); });
+}
+
+// ─── 展開内: 選択画像削除 ───
+function deleteManageImages(managedId) {
+  var checks = document.querySelectorAll('.dl-img-check:checked');
+  if (checks.length === 0) { showStatus('manageStatus', '画像を選択してください', 'err'); return; }
+  var allChecks = document.querySelectorAll('.dl-img-check');
+  if (checks.length === allChecks.length) {
+    // 全画像選択 → 全削除
+    showConfirm(managedId + ' の画像を全て削除しますか？', function() {
+      showStatus('manageStatus', '全削除中...', 'info');
+      fetch(API_BASE + '/upload/delete', {
+        method: 'POST',
+        headers: headers({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ managedId: managedId })
+      }).then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.ok) {
+          showStatus('manageStatus', d.deleted + '枚削除しました', 'ok');
+          var el = document.getElementById('manageDetailInline'); if (el) el.remove();
+          _manageExpandedMid = '';
+          reloadList(function() { renderManageList(); });
+        } else { showStatus('manageStatus', d.message || 'エラー', 'err'); }
+      }).catch(function() { showStatus('manageStatus', 'ネットワークエラー', 'err'); });
+    });
+  } else {
+    // 一部選択 → 個別削除
+    var indices = [];
+    checks.forEach(function(c) { indices.push(parseInt(c.dataset.imgidx)); });
+    showConfirm(indices.length + '枚の画像を削除しますか？', function() {
+      indices.sort(function(a, b) { return b - a; });
+      var total = indices.length;
+      var done = 0;
+      showStatus('manageStatus', '0/' + total + ' 削除中...', 'info');
+      function delNext() {
+        if (done >= total) {
+          showStatus('manageStatus', total + '枚削除しました', 'ok');
+          var mid = managedId;
+          _manageExpandedMid = '';
+          toggleManageExpand(mid); // 再展開
+          // 一覧の枚数も更新
+          reloadList(function() { renderManageList(); toggleManageExpand(mid); });
+          return;
+        }
+        fetch(API_BASE + '/upload/delete-single', {
+          method: 'POST',
+          headers: headers({ 'Content-Type': 'application/json' }),
+          body: JSON.stringify({ managedId: managedId, targetUrl: _manageExpandedUrls[indices[done]] })
+        }).then(function(r) { return r.json(); })
+        .then(function() { done++; showStatus('manageStatus', done + '/' + total + ' 削除中...', 'info'); delNext(); })
+        .catch(function() { done++; delNext(); });
+      }
+      delNext();
+    });
+  }
 }
 
 function toggleDlImageSelect(mode) {
@@ -899,14 +1063,14 @@ function isMobileDevice() {
 
 function doDownloadTopImages() {
   var checks = document.querySelectorAll('.dl-check:checked');
-  if (checks.length === 0) { showStatus('dlStatus', '商品を選択してください', 'err'); return; }
+  if (checks.length === 0) { showStatus('manageStatus', '商品を選択してください', 'err'); return; }
 
   var indices = [];
   checks.forEach(function(c) { indices.push(parseInt(c.dataset.idx)); });
 
   var btn = document.getElementById('dlTopBtn');
   btn.disabled = true;
-  showStatus('dlStatus', '0/' + indices.length + ' 読み込み中...', 'info');
+  showStatus('manageStatus', '0/' + indices.length + ' 読み込み中...', 'info');
 
   var done = 0;
   var fileEntries = [];
@@ -918,32 +1082,32 @@ function doDownloadTopImages() {
     .then(function(blob) {
       fileEntries.push({ idx: idx, mid: p.managedId, file: new File([blob], p.managedId + '.jpg', { type: 'image/jpeg' }) });
       done++;
-      showStatus('dlStatus', done + '/' + indices.length + ' 読み込み中...', 'info');
+      showStatus('manageStatus', done + '/' + indices.length + ' 読み込み中...', 'info');
     }).catch(function() { done++; });
   });
 
   Promise.all(promises).then(function() {
     if (fileEntries.length === 0) {
       btn.disabled = false;
-      showStatus('dlStatus', 'ダウンロードに失敗しました', 'err');
+      showStatus('manageStatus', 'ダウンロードに失敗しました', 'err');
       return;
     }
     var files = fileEntries.map(function(e) { return e.file; });
 
     // モバイル: 一括共有
     if (isMobileDevice() && navigator.canShare && navigator.canShare({ files: files })) {
-      showStatus('dlStatus', files.length + '枚を保存中...', 'info');
+      showStatus('manageStatus', files.length + '枚を保存中...', 'info');
       navigator.share({ files: files }).then(function() {
-        showStatus('dlStatus', files.length + '枚保存完了', 'ok');
+        showStatus('manageStatus', files.length + '枚保存完了', 'ok');
       }).catch(function() {
-        showStatus('dlStatus', 'キャンセルされました', 'info');
+        showStatus('manageStatus', 'キャンセルされました', 'info');
       }).finally(function() { btn.disabled = false; });
       return;
     }
 
     // PC: JSZip（管理番号ごとにフォルダ分け）
     if (typeof JSZip !== 'undefined') {
-      showStatus('dlStatus', 'ZIPファイルを作成中...', 'info');
+      showStatus('manageStatus', 'ZIPファイルを作成中...', 'info');
       var zip = new JSZip();
       fileEntries.forEach(function(e) { zip.file(e.mid + '.jpg', e.file); });
       zip.generateAsync({ type: 'blob' }).then(function(content) {
@@ -952,7 +1116,7 @@ function doDownloadTopImages() {
         a.download = 'detauri_top_images.zip';
         a.click();
         setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
-        showStatus('dlStatus', files.length + '枚保存完了（ZIP）', 'ok');
+        showStatus('manageStatus', files.length + '枚保存完了（ZIP）', 'ok');
         btn.disabled = false;
       });
       return;
@@ -969,17 +1133,17 @@ function doDownloadTopImages() {
       setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
     });
     btn.disabled = false;
-    showStatus('dlStatus', files.length + '枚保存完了', 'ok');
+    showStatus('manageStatus', files.length + '枚保存完了', 'ok');
   });
 }
 
 function doDownloadSelected() {
   var checks = document.querySelectorAll('.dl-img-check:checked');
-  if (checks.length === 0) { showStatus('dlStatus', '画像を選択してください', 'err'); return; }
+  if (checks.length === 0) { showStatus('manageStatus', '画像を選択してください', 'err'); return; }
 
   var btn = document.getElementById('dlBtn');
   btn.disabled = true;
-  showStatus('dlStatus', '0/' + checks.length + ' 読み込み中...', 'info');
+  showStatus('manageStatus', '0/' + checks.length + ' 読み込み中...', 'info');
 
   var selectedItems = [];
   checks.forEach(function(c) {
@@ -997,14 +1161,14 @@ function doDownloadSelected() {
     .then(function(blob) {
       fileEntries.push({ file: new File([blob], item.filename, { type: 'image/jpeg' }), blob: blob, filename: item.filename });
       done++;
-      showStatus('dlStatus', done + '/' + selectedItems.length + ' 読み込み中...', 'info');
+      showStatus('manageStatus', done + '/' + selectedItems.length + ' 読み込み中...', 'info');
     }).catch(function() { done++; });
   });
 
   Promise.all(promises).then(function() {
     if (fileEntries.length === 0) {
       btn.disabled = false;
-      showStatus('dlStatus', 'ダウンロードに失敗しました', 'err');
+      showStatus('manageStatus', 'ダウンロードに失敗しました', 'err');
       return;
     }
 
@@ -1012,18 +1176,18 @@ function doDownloadSelected() {
 
     // モバイル: navigator.share
     if (isMobileDevice() && navigator.canShare && navigator.canShare({ files: files })) {
-      showStatus('dlStatus', files.length + '枚を保存中...', 'info');
+      showStatus('manageStatus', files.length + '枚を保存中...', 'info');
       navigator.share({ files: files }).then(function() {
-        showStatus('dlStatus', files.length + '枚保存完了', 'ok');
+        showStatus('manageStatus', files.length + '枚保存完了', 'ok');
       }).catch(function() {
-        showStatus('dlStatus', 'キャンセルされました', 'info');
+        showStatus('manageStatus', 'キャンセルされました', 'info');
       }).finally(function() { btn.disabled = false; });
       return;
     }
 
     // PC: JSZip（管理番号_番号.jpg のファイル名）
     if (typeof JSZip !== 'undefined') {
-      showStatus('dlStatus', 'ZIPファイルを作成中...', 'info');
+      showStatus('manageStatus', 'ZIPファイルを作成中...', 'info');
       var zip = new JSZip();
       fileEntries.forEach(function(entry) {
         zip.file(entry.filename, entry.blob);
@@ -1035,7 +1199,7 @@ function doDownloadSelected() {
         a.click();
         setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
         btn.disabled = false;
-        showStatus('dlStatus', fileEntries.length + '枚をZIPで保存しました', 'ok');
+        showStatus('manageStatus', fileEntries.length + '枚をZIPで保存しました', 'ok');
       });
       return;
     }
@@ -1051,306 +1215,16 @@ function doDownloadSelected() {
       setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
     });
     btn.disabled = false;
-    showStatus('dlStatus', files.length + '枚保存完了', 'ok');
+    showStatus('manageStatus', files.length + '枚保存完了', 'ok');
   });
 }
 
-// ─── セクション3: 検索（リサーチ） ───
 
-function filterResearchList() {
-  ensureListLoaded(function() { renderResearchList(); });
-}
-
-var _researchExpandedMid = '';
-
-function renderResearchList() {
-  var q = normId(document.getElementById('researchSearch').value);
-  var el = document.getElementById('researchProductList');
-  var html = '';
-  for (var i = 0; i < productListData.length; i++) {
-    var p = productListData[i];
-    if (q && p.managedId.toUpperCase().indexOf(q) === -1) continue;
-    var thumbSrc = p.thumbnail ? (API_BASE + p.thumbnail) : '';
-    html += '<div id="research-row-' + escapeHtml(p.managedId) + '">' +
-      '<div class="list-item" style="cursor:pointer" onclick="toggleResearchExpand(\\'' + escapeHtml(p.managedId) + '\\')">' +
-      (thumbSrc ? '<img class="list-thumb" src="' + thumbSrc + '" loading="lazy">' : '<div class="list-thumb"></div>') +
-      '<div class="list-info"><div class="list-id">' + escapeHtml(p.managedId) + '</div>' +
-      '<div class="list-count">' + p.count + '枚</div></div>' +
-      '<span style="color:#3b82f6;font-size:20px;padding:0 8px">›</span>' +
-      '</div></div>';
-  }
-  el.innerHTML = html || '<div style="text-align:center;color:#999;padding:20px">該当なし</div>';
-  _researchExpandedMid = '';
-}
-
-function toggleResearchExpand(managedId) {
-  if (_researchExpandedMid === managedId) {
-    var existing = document.getElementById('researchDetailInline');
-    if (existing) { existing.remove(); _researchExpandedMid = ''; return; }
-  }
-  _researchExpandedMid = managedId;
-
-  var old = document.getElementById('researchDetailInline');
-  if (old) old.remove();
-
-  var row = document.getElementById('research-row-' + managedId);
-  if (!row) return;
-  var detail = document.createElement('div');
-  detail.id = 'researchDetailInline';
-  detail.style.cssText = 'background:#eff6ff;border-radius:8px;padding:12px;margin:4px 0 8px';
-  detail.innerHTML = '<div style="text-align:center;color:#666;font-size:13px">読み込み中...</div>';
-  row.after(detail);
-
-  fetch(API_BASE + '/upload/product-images', {
-    method: 'POST',
-    headers: headers({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ managedId: managedId })
-  }).then(function(r) { return r.json(); })
-  .then(function(d) {
-    var el = document.getElementById('researchDetailInline');
-    if (!el) return;
-    if (!d.ok) { showStatus('researchStatus', d.message || 'エラー', 'err'); return; }
-    var urls = d.urls || [];
-    var html = '<div style="font-size:13px;font-weight:600;margin-bottom:8px">' + escapeHtml(managedId) + ' (' + urls.length + '枚) — タップで画像検索</div>';
-    html += '<div class="img-grid">';
-    for (var i = 0; i < urls.length; i++) {
-      var fullUrl = API_BASE + urls[i];
-      html += '<div class="preview-item search-item" style="cursor:pointer" data-url="' + fullUrl + '" onclick="searchImage(this.dataset.url)">' +
-        '<img src="' + fullUrl + '" loading="lazy">' +
-        '<span class="badge">' + (i === 0 ? 'トップ' : (i+1)) + '</span>' +
-        '<div class="search-overlay">🔍</div>' +
-        '</div>';
-    }
-    html += '</div>';
-    el.innerHTML = html;
-  }).catch(function(e) { showStatus('researchStatus', 'ネットワークエラー', 'err'); });
-}
-
-function searchImage(imgUrl) {
-  if (/iPhone|iPad/.test(navigator.userAgent)) {
-    window.open('https://lens.google.com/uploadbyurl?url=' + encodeURIComponent(imgUrl));
-  } else {
-    window.open('https://www.google.com/searchbyimage?image_url=' + encodeURIComponent(imgUrl));
-  }
-}
-
-// ─── セクション4: 削除 ───
-var _deleteImages = [];
-var _deleteManagedId = '';
-
-function filterDeleteList() {
-  ensureListLoaded(function() { renderDeleteList(); });
-}
-
-function renderDeleteList() {
-  var q = normId(document.getElementById('deleteSearch').value);
-  var el = document.getElementById('deleteList');
-  var html = '';
-  for (var i = 0; i < productListData.length; i++) {
-    var p = productListData[i];
-    if (q && p.managedId.toUpperCase().indexOf(q) === -1) continue;
-    var thumbSrc = p.thumbnail ? (API_BASE + p.thumbnail) : '';
-    html += '<div id="del-row-' + escapeHtml(p.managedId) + '">' +
-      '<div class="list-item" style="cursor:pointer">' +
-      '<input type="checkbox" class="del-check" data-mid="' + escapeHtml(p.managedId) + '" onchange="updateDeleteSelectedCount()" onclick="event.stopPropagation()">' +
-      (thumbSrc ? '<img class="list-thumb" src="' + thumbSrc + '" loading="lazy" onclick="selectForDelete(\\'' + escapeHtml(p.managedId) + '\\')">' : '<div class="list-thumb" onclick="selectForDelete(\\'' + escapeHtml(p.managedId) + '\\')"></div>') +
-      '<div class="list-info" onclick="selectForDelete(\\'' + escapeHtml(p.managedId) + '\\')">' +
-      '<div class="list-id">' + escapeHtml(p.managedId) + '</div>' +
-      '<div class="list-count">' + p.count + '枚</div></div>' +
-      '<span style="color:#ef4444;font-size:20px;padding:0 8px" onclick="selectForDelete(\\'' + escapeHtml(p.managedId) + '\\')">›</span>' +
-      '</div></div>';
-  }
-  el.innerHTML = html || '<div style="text-align:center;color:#999;padding:20px">該当なし</div>';
-  updateDeleteSelectedCount();
-}
-
-function selectForDelete(managedId) {
-  // 同じ商品をもう一度タップしたら閉じる
-  if (_deleteManagedId === managedId) {
-    var existing = document.getElementById('deleteDetailInline');
-    if (existing) { existing.remove(); _deleteManagedId = ''; return; }
-  }
-  _deleteManagedId = managedId;
-
-  // 既存のインライン詳細を閉じる
-  var old = document.getElementById('deleteDetailInline');
-  if (old) old.remove();
-
-  // 対象行の直後にインライン詳細を挿入
-  var row = document.getElementById('del-row-' + managedId);
-  if (!row) return;
-  var detail = document.createElement('div');
-  detail.id = 'deleteDetailInline';
-  detail.style.cssText = 'background:#fef2f2;border-radius:8px;padding:12px;margin:4px 0 8px';
-  detail.innerHTML = '<div style="font-size:13px;font-weight:600;margin-bottom:8px">' + escapeHtml(managedId) + ' の画像</div>' +
-    '<div style="text-align:center;color:#666;font-size:13px">読み込み中...</div>';
-  row.after(detail);
-
-  fetch(API_BASE + '/upload/product-images', {
-    method: 'POST',
-    headers: headers({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ managedId: managedId })
-  }).then(function(r) { return r.json(); })
-  .then(function(d) {
-    var el = document.getElementById('deleteDetailInline');
-    if (!el) return;
-    if (!d.ok) { showStatus('deleteStatus', d.message || 'エラー', 'err'); return; }
-    _deleteImages = d.urls || [];
-    showStatus('deleteStatus', _deleteImages.length + '枚', 'ok');
-    var html = '<div style="font-size:13px;font-weight:600;margin-bottom:8px">' + escapeHtml(managedId) + ' の画像</div>';
-    html += '<div style="margin-bottom:8px;display:flex;gap:8px">' +
-      '<button class="btn btn-secondary" style="flex:1;font-size:12px;padding:6px" onclick="toggleDelImageSelect(\\'all\\')">全選択</button>' +
-      '<button class="btn btn-secondary" style="flex:1;font-size:12px;padding:6px" onclick="toggleDelImageSelect(\\'none\\')">全解除</button>' +
-      '</div>';
-    html += '<div class="preview-grid">';
-    for (var i = 0; i < _deleteImages.length; i++) {
-      html += '<div class="img-check-wrap preview-item" onclick="toggleImgCheck(this);updateDelImageBtnState()" style="cursor:pointer">' +
-        '<input type="checkbox" class="del-img-check" data-idx="' + i + '" onchange="updateDelImageBtnState();this.closest(\\'.img-check-wrap\\').style.opacity=this.checked?\\'1\\':\\'0.4\\'">' +
-        '<img src="' + API_BASE + _deleteImages[i] + '?t=' + Date.now() + '">' +
-        '<span class="badge">' + (i === 0 ? 'トップ' : (i+1)) + '</span>' +
-        '</div>';
-    }
-    html += '</div>';
-    html += '<div style="margin-top:8px;display:flex;gap:8px">' +
-      '<button class="btn btn-danger" style="flex:1" id="delSelectedImgBtn" onclick="doDeleteSelectedImages()" disabled>選択した画像を削除</button>' +
-      '<button class="btn btn-danger" style="flex:1" onclick="doDeleteAll()">全て削除</button>' +
-      '</div>';
-    el.innerHTML = html;
-  }).catch(function(e) { showStatus('deleteStatus', 'ネットワークエラー', 'err'); });
-}
-
-function doDeleteSingle(urlIndex) {
-  showConfirm((urlIndex+1) + '枚目を削除しますか？', function() {
-    _doDeleteSingle(urlIndex);
-  });
-}
-function _doDeleteSingle(urlIndex) {
-  showStatus('deleteStatus', '削除中...', 'info');
-  fetch(API_BASE + '/upload/delete-single', {
-    method: 'POST',
-    headers: headers({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ managedId: _deleteManagedId, targetUrl: _deleteImages[urlIndex] })
-  }).then(function(r) { return r.json(); })
-  .then(function(d) {
-    if (d.ok) {
-      showStatus('deleteStatus', '削除しました（残り' + d.remaining + '枚）', 'ok');
-      if (d.remaining > 0) {
-        var mid = _deleteManagedId;
-        // 一覧側の枚数表示も即時更新
-        var row = document.getElementById('del-row-' + mid);
-        if (row) { var cnt = row.querySelector('.list-count'); if (cnt) cnt.textContent = d.remaining + '枚'; }
-        _deleteManagedId = ''; selectForDelete(mid);
-      }
-      else { var el = document.getElementById('deleteDetailInline'); if (el) el.remove(); _deleteManagedId = ''; reloadList(function() { renderDeleteList(); }); }
-    } else {
-      showStatus('deleteStatus', d.message || 'エラー', 'err');
-    }
-  }).catch(function(e) { showStatus('deleteStatus', 'ネットワークエラー', 'err'); });
-}
-
-function doDeleteAll() {
-  showConfirm(_deleteManagedId + ' の画像を全て削除しますか？', function() {
-    _doDeleteAll();
-  });
-}
-function _doDeleteAll() {
-  showStatus('deleteStatus', '全削除中...', 'info');
-  fetch(API_BASE + '/upload/delete', {
-    method: 'POST',
-    headers: headers({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ managedId: _deleteManagedId })
-  }).then(function(r) { return r.json(); })
-  .then(function(d) {
-    if (d.ok) {
-      showStatus('deleteStatus', d.deleted + '枚削除しました', 'ok');
-      var el = document.getElementById('deleteDetailInline'); if (el) el.remove();
-      _deleteManagedId = '';
-      reloadList(function() { renderDeleteList(); });
-    } else {
-      showStatus('deleteStatus', d.message || 'エラー', 'err');
-    }
-  }).catch(function(e) { showStatus('deleteStatus', 'ネットワークエラー', 'err'); });
-}
-
-// ─── 画像個別選択削除 ───
-function toggleDelImageSelect(mode) {
-  var checks = document.querySelectorAll('.del-img-check');
-  checks.forEach(function(c) {
-    c.checked = (mode === 'all');
-    c.closest('.img-check-wrap').style.opacity = c.checked ? '1' : '0.4';
-  });
-  updateDelImageBtnState();
-}
-
-function updateDelImageBtnState() {
-  var checks = document.querySelectorAll('.del-img-check:checked');
-  var btn = document.getElementById('delSelectedImgBtn');
-  if (!btn) return;
-  if (checks.length > 0) {
-    btn.disabled = false;
-    btn.textContent = checks.length + '枚を削除';
-  } else {
-    btn.disabled = true;
-    btn.textContent = '選択した画像を削除';
-  }
-}
-
-function doDeleteSelectedImages() {
-  var checks = document.querySelectorAll('.del-img-check:checked');
-  if (checks.length === 0) return;
-  var indices = [];
-  checks.forEach(function(c) { indices.push(parseInt(c.dataset.idx)); });
-  showConfirm(indices.length + '枚の画像を削除しますか？', function() {
-    _doDeleteMultipleImages(indices);
-  });
-}
-
-function _doDeleteMultipleImages(indices) {
-  // インデックスを降順にソート（削除時にインデックスがずれないように逆順で処理）
-  indices.sort(function(a, b) { return b - a; });
-  var total = indices.length;
-  var done = 0;
-  showStatus('deleteStatus', '0/' + total + ' 削除中...', 'info');
-
-  function deleteNext() {
-    if (done >= total) {
-      var mid = _deleteManagedId;
-      var remaining = _deleteImages.length - total;
-      if (remaining > 0) {
-        var row = document.getElementById('del-row-' + mid);
-        if (row) { var cnt = row.querySelector('.list-count'); if (cnt) cnt.textContent = remaining + '枚'; }
-        _deleteManagedId = ''; selectForDelete(mid);
-      } else {
-        var el = document.getElementById('deleteDetailInline'); if (el) el.remove();
-        _deleteManagedId = '';
-        reloadList(function() { renderDeleteList(); });
-      }
-      showStatus('deleteStatus', total + '枚削除しました', 'ok');
-      return;
-    }
-    var idx = indices[done];
-    fetch(API_BASE + '/upload/delete-single', {
-      method: 'POST',
-      headers: headers({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ managedId: _deleteManagedId, targetUrl: _deleteImages[idx] })
-    }).then(function(r) { return r.json(); })
-    .then(function(d) {
-      done++;
-      showStatus('deleteStatus', done + '/' + total + ' 削除中...', 'info');
-      deleteNext();
-    }).catch(function() {
-      done++;
-      showStatus('deleteStatus', done + '/' + total + ' 削除中（エラーあり）...', 'err');
-      deleteNext();
-    });
-  }
-  deleteNext();
-}
-
-// ─── 商品選択削除 ───
+// ─── 商品選択削除（フッタボタン用） ───
 function updateDeleteSelectedCount() {
-  var checks = document.querySelectorAll('.del-check:checked');
+  var checks = document.querySelectorAll('.dl-check:checked');
   var btn = document.getElementById('deleteSelectedBtn');
+  if (!btn) return;
   if (checks.length > 0) {
     btn.disabled = false;
     btn.textContent = checks.length + '件の商品を削除';
@@ -1361,7 +1235,7 @@ function updateDeleteSelectedCount() {
 }
 
 function doDeleteSelected() {
-  var checks = document.querySelectorAll('.del-check:checked');
+  var checks = document.querySelectorAll('.dl-check:checked');
   if (checks.length === 0) return;
   var mids = [];
   checks.forEach(function(c) { mids.push(c.dataset.mid); });
@@ -1371,7 +1245,7 @@ function doDeleteSelected() {
 }
 
 function _doDeleteSelectedBatch(mids) {
-  showStatus('deleteStatus', '0/' + mids.length + ' 削除中...', 'info');
+  showStatus('manageStatus', '0/' + mids.length + ' 削除中...', 'info');
   var done = 0;
   var totalDeleted = 0;
   mids.forEach(function(mid) {
@@ -1383,18 +1257,18 @@ function _doDeleteSelectedBatch(mids) {
     .then(function(d) {
       done++;
       if (d.ok) totalDeleted += (d.deleted || 0);
-      showStatus('deleteStatus', done + '/' + mids.length + ' 削除中...', 'info');
+      showStatus('manageStatus', done + '/' + mids.length + ' 削除中...', 'info');
       if (done === mids.length) {
-        showStatus('deleteStatus', mids.length + '件（' + totalDeleted + '枚）削除しました', 'ok');
-        var el = document.getElementById('deleteDetailInline'); if (el) el.remove();
-        _deleteManagedId = '';
-        reloadList(function() { renderDeleteList(); });
+        showStatus('manageStatus', mids.length + '件（' + totalDeleted + '枚）削除しました', 'ok');
+        var el = document.getElementById('manageDetailInline'); if (el) el.remove();
+        _manageExpandedMid = '';
+        reloadList(function() { renderManageList(); });
       }
     }).catch(function() {
       done++;
       if (done === mids.length) {
-        showStatus('deleteStatus', done + '件処理完了（一部エラーあり）', 'err');
-        reloadList(function() { renderDeleteList(); });
+        showStatus('manageStatus', done + '件処理完了（一部エラーあり）', 'err');
+        reloadList(function() { renderManageList(); });
       }
     });
   });
