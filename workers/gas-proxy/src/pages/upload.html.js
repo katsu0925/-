@@ -181,7 +181,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
   <div class="sticky-footer" id="footer-manage">
     <div class="footer-inner" style="flex-wrap:wrap;gap:6px">
       <button class="btn btn-success" style="flex:1;min-width:45%" id="dlTopBtn" onclick="doDownloadTopImages()">トップ画像を保存</button>
-      <button class="btn btn-primary" style="flex:1;min-width:45%" id="dlBtn" onclick="doDownloadSelected()">選択画像を保存</button>
+      <button class="btn btn-primary" style="flex:1;min-width:45%" id="dlAllBtn" onclick="doDownloadAllImages()">全画像を保存</button>
       <button class="btn btn-danger" style="flex:1;min-width:100%" id="deleteSelectedBtn" onclick="doDeleteSelected()" disabled>選択した商品を削除</button>
     </div>
   </div>
@@ -1144,6 +1144,110 @@ function doDownloadTopImages() {
     });
     btn.disabled = false;
     showStatus('manageStatus', files.length + '枚保存完了', 'ok');
+  });
+}
+
+function doDownloadAllImages() {
+  var checks = document.querySelectorAll('.dl-check:checked');
+  if (checks.length === 0) { showStatus('manageStatus', '商品を選択してください', 'err'); return; }
+
+  var mids = [];
+  checks.forEach(function(c) { mids.push(productListData[parseInt(c.dataset.idx)].managedId); });
+
+  var btn = document.getElementById('dlAllBtn');
+  btn.disabled = true;
+  showStatus('manageStatus', '0/' + mids.length + ' 商品の画像を取得中...', 'info');
+
+  // 各商品の全画像URLを取得
+  var productDone = 0;
+  var allItems = []; // [{mid, url, filename}]
+  var promises = mids.map(function(mid) {
+    return fetch(API_BASE + '/upload/product-images', {
+      method: 'POST',
+      headers: headers({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ managedId: mid })
+    }).then(function(r) { return r.json(); })
+    .then(function(d) {
+      productDone++;
+      showStatus('manageStatus', productDone + '/' + mids.length + ' 商品の画像を取得中...', 'info');
+      if (d.ok && d.urls) {
+        for (var i = 0; i < d.urls.length; i++) {
+          allItems.push({ mid: mid, url: API_BASE + d.urls[i], filename: mid + '_' + (i + 1) + '.jpg' });
+        }
+      }
+    });
+  });
+
+  Promise.all(promises).then(function() {
+    if (allItems.length === 0) {
+      btn.disabled = false;
+      showStatus('manageStatus', '画像が見つかりませんでした', 'err');
+      return;
+    }
+    showStatus('manageStatus', '0/' + allItems.length + ' 画像を読み込み中...', 'info');
+    var imgDone = 0;
+    var fileEntries = [];
+    var imgPromises = allItems.map(function(item) {
+      return fetch(item.url).then(function(r) { return r.blob(); })
+      .then(function(blob) {
+        fileEntries.push({ file: new File([blob], item.filename, { type: 'image/jpeg' }), blob: blob, filename: item.filename });
+        imgDone++;
+        showStatus('manageStatus', imgDone + '/' + allItems.length + ' 画像を読み込み中...', 'info');
+      }).catch(function() { imgDone++; });
+    });
+
+    return Promise.all(imgPromises).then(function() {
+      if (fileEntries.length === 0) {
+        btn.disabled = false;
+        showStatus('manageStatus', 'ダウンロードに失敗しました', 'err');
+        return;
+      }
+      var files = fileEntries.map(function(e) { return e.file; });
+
+      // モバイル: navigator.share
+      if (isMobileDevice() && navigator.canShare && navigator.canShare({ files: files })) {
+        showStatus('manageStatus', files.length + '枚を保存中...', 'info');
+        navigator.share({ files: files }).then(function() {
+          showStatus('manageStatus', files.length + '枚保存完了', 'ok');
+        }).catch(function() {
+          showStatus('manageStatus', 'キャンセルされました', 'info');
+        }).finally(function() { btn.disabled = false; });
+        return;
+      }
+
+      // PC: JSZip
+      if (typeof JSZip !== 'undefined') {
+        showStatus('manageStatus', 'ZIPファイルを作成中...', 'info');
+        var zip = new JSZip();
+        fileEntries.forEach(function(e) { zip.file(e.filename, e.blob); });
+        zip.generateAsync({ type: 'blob' }).then(function(content) {
+          var a = document.createElement('a');
+          a.href = URL.createObjectURL(content);
+          a.download = 'detauri_all_images.zip';
+          a.click();
+          setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
+          btn.disabled = false;
+          showStatus('manageStatus', fileEntries.length + '枚をZIPで保存しました', 'ok');
+        });
+        return;
+      }
+
+      // フォールバック
+      files.forEach(function(file) {
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(file);
+        a.download = file.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
+      });
+      btn.disabled = false;
+      showStatus('manageStatus', files.length + '枚保存完了', 'ok');
+    });
+  }).catch(function() {
+    btn.disabled = false;
+    showStatus('manageStatus', 'エラーが発生しました', 'err');
   });
 }
 
