@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- 箱 -->
+  <rect x="3" y="8" width="26" height="20" rx="3" fill="#3b82f6"/>
+  <!-- 箱のフタ -->
+  <rect x="1" y="5" width="30" height="7" rx="2" fill="#2563eb"/>
+  <!-- タスキ（斜めの帯） -->
+  <rect x="-2" y="13" width="36" height="5" rx="1" fill="#fbbf24" transform="rotate(-35 16 16)"/>
+  <!-- 箱の影 -->
+  <rect x="3" y="26" width="26" height="2" rx="1" fill="#1d4ed8" opacity="0.3"/>
+</svg>
