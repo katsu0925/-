@@ -830,12 +830,6 @@ function toggleManageExpand(managedId) {
       _dlExpandedData.push({ mid: managedId, url: urls[i], idx: i });
     }
     var html = '<div style="font-size:13px;font-weight:600;margin-bottom:8px">' + escapeHtml(managedId) + ' (' + urls.length + '枚)</div>';
-    // 画像選択ボタン
-    html += '<div style="margin-bottom:8px;display:flex;gap:8px">' +
-      '<button class="btn btn-secondary" style="flex:1;font-size:12px;padding:8px" onclick="toggleDlImageSelect(\\'all\\')">全選択</button>' +
-      '<button class="btn btn-secondary" style="flex:1;font-size:12px;padding:8px" onclick="toggleDlImageSelect(\\'top\\')">トップのみ</button>' +
-      '<button class="btn btn-secondary" style="flex:1;font-size:12px;padding:8px" onclick="toggleDlImageSelect(\\'none\\')">全解除</button>' +
-      '</div>';
     // 画像グリッド（ドラッグ並び替え対応）
     html += '<div class="img-grid" id="manageImageGrid">';
     for (var j = 0; j < urls.length; j++) {
@@ -847,8 +841,14 @@ function toggleManageExpand(managedId) {
         '</div>';
     }
     html += '</div>';
+    // 画像選択ボタン
+    html += '<div style="margin-top:8px;display:flex;gap:8px">' +
+      '<button class="btn btn-secondary" style="flex:1;font-size:12px;padding:8px" onclick="toggleDlImageSelect(\\'all\\')">全選択</button>' +
+      '<button class="btn btn-secondary" style="flex:1;font-size:12px;padding:8px" onclick="toggleDlImageSelect(\\'top\\')">トップのみ</button>' +
+      '<button class="btn btn-secondary" style="flex:1;font-size:12px;padding:8px" onclick="toggleDlImageSelect(\\'none\\')">全解除</button>' +
+      '</div>';
     // 操作ボタン: 画像検索 + DL + 削除
-    html += '<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">' +
+    html += '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">' +
       '<button class="btn btn-primary" style="flex:1;font-size:12px;padding:8px" onclick="searchManageImage(\\'' + escapeHtml(managedId) + '\\')">🔍 画像検索</button>' +
       '<button class="btn btn-success" style="flex:1;font-size:12px;padding:8px" onclick="downloadManageImages(\\'' + escapeHtml(managedId) + '\\')">📥 選択DL</button>' +
       '<button class="btn btn-danger" style="flex:1;font-size:12px;padding:8px" onclick="deleteManageImages(\\'' + escapeHtml(managedId) + '\\')">🗑 選択削除</button>' +
