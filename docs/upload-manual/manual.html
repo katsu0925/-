@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>商品画像アップロード 操作マニュアル | デタウリ</title>
+<style>
+@page { size: A4; margin: 15mm; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif; color: #333; line-height: 1.7; font-size: 13px; }
+h1 { font-size: 22px; text-align: center; padding: 20px 0 8px; color: #1a1a2e; border-bottom: 3px solid #3b82f6; margin-bottom: 16px; }
+h2 { font-size: 17px; color: #1a1a2e; margin: 24px 0 10px; padding: 6px 12px; background: #eff6ff; border-left: 4px solid #3b82f6; border-radius: 0 6px 6px 0; page-break-after: avoid; }
+h3 { font-size: 14px; color: #1e40af; margin: 14px 0 6px; }
+p { margin: 6px 0; }
+.subtitle { text-align: center; color: #666; font-size: 12px; margin-bottom: 20px; }
+.screenshot { display: block; max-width: 100%; border: 1px solid #e5e7eb; border-radius: 8px; margin: 10px auto; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+.screenshot-sm { max-width: 70%; }
+.step { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 14px; margin: 10px 0; }
+.step-num { display: inline-block; background: #3b82f6; color: #fff; width: 22px; height: 22px; text-align: center; border-radius: 50%; font-size: 12px; font-weight: 700; line-height: 22px; margin-right: 6px; }
+.note { background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; padding: 8px 12px; margin: 10px 0; font-size: 12px; }
+.note::before { content: "💡 "; }
+.warn { background: #fee2e2; border: 1px solid #ef4444; border-radius: 6px; padding: 8px 12px; margin: 10px 0; font-size: 12px; }
+.warn::before { content: "⚠️ "; }
+.table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px; }
+.table th, .table td { border: 1px solid #e5e7eb; padding: 6px 10px; text-align: left; }
+.table th { background: #f3f4f6; font-weight: 600; }
+.page-break { page-break-before: always; }
+.toc { background: #f9fafb; border-radius: 8px; padding: 14px 20px; margin: 16px 0; }
+.toc a { color: #3b82f6; text-decoration: none; }
+.toc li { margin: 4px 0; }
+</style>
+</head>
+<body>
+
+<h1>商品画像アップロード<br>操作マニュアル</h1>
+<p class="subtitle">デタウリ.Detauri — 最終更新: 2026年3月22日</p>
+
+<div class="toc">
+<strong>目次</strong>
+<ol>
+<li><a href="#access">アクセスと認証</a></li>
+<li><a href="#tab1">アップロード（新規・追加・上書き・並び替え）</a></li>
+<li><a href="#tab2">商品管理（一括DL・画像検索・削除・並び替え）</a></li>
+<li><a href="#photo-first">撮影先行登録（採寸前アップロード）</a></li>
+</ol>
+</div>
+
+<!-- ============================== -->
+<h2 id="access">1. アクセスと認証</h2>
+
+<div class="step">
+<p><span class="step-num">1</span>ブラウザで以下のURLにアクセスします:</p>
+<p style="font-family:monospace;background:#f3f4f6;padding:6px 10px;border-radius:4px;font-size:12px;margin-top:4px;">https://detauri-gas-proxy.nsdktts1030.workers.dev/upload</p>
+</div>
+
+<div class="step">
+<p><span class="step-num">2</span>パスワードを入力して「認証」ボタンを押します。</p>
+</div>
+
+<div class="step">
+<p><span class="step-num">3</span>初回ログイン時に<strong>撮影者</strong>を選択します（次回以降は自動で記憶されます）。</p>
+</div>
+
+<div class="note">認証は90日間有効です。期限が切れると再度パスワード入力が必要になります。</div>
+
+<p>認証後、2つのタブが表示されます:</p>
+<table class="table">
+<tr><th>タブ</th><th>機能</th></tr>
+<tr><td><strong>アップロード</strong></td><td>画像の新規登録・追加・上書き・並び替え</td></tr>
+<tr><td><strong>商品管理</strong></td><td>一括ダウンロード・画像検索・削除・並び替えを1画面で操作</td></tr>
+</table>
+
+<!-- ============================== -->
+<h2 id="tab1" class="page-break">2. アップロード</h2>
+
+<h3>2-1. 新規アップロード</h3>
+<div class="step">
+<p><span class="step-num">1</span><strong>管理番号</strong>を入力します（例: A001, ZC830）</p>
+</div>
+<div class="step">
+<p><span class="step-num">2</span><strong>撮影日付</strong>を確認（デフォルトは今日の日付）</p>
+</div>
+<div class="step">
+<p><span class="step-num">3</span>「ファイル選択」から画像を選びます（<strong>最大10枚</strong>）</p>
+<p style="font-size:12px;color:#666;">※ 画像は自動でリサイズ・圧縮されます（トップ画像: 1200px、その他: 800px）</p>
+</div>
+<div class="step">
+<p><span class="step-num">4</span>プレビューを確認して「アップロード」ボタンを押します</p>
+</div>
+
+<h3>2-2. 既存画像がある場合（追加・上書き）</h3>
+
+<p>管理番号を入力すると、既に登録済みの画像が自動で表示されます。</p>
+
+<div class="step">
+<p><strong>画像を追加</strong>: 「ファイル選択」から新しい画像を選んでアップロード → 既存画像の後ろに追加されます</p>
+</div>
+<div class="step">
+<p><strong>画像を上書き</strong>: 既存画像の右下にある 🔄 ボタンをタップ → ファイル選択 → その画像だけ差し替わります</p>
+</div>
+
+<h3>2-3. 撮影者の上書き</h3>
+<p>通常、撮影者は<strong>最初にアップロードした人</strong>が記録されます。撮影のやり直し等で撮影者を変更したい場合：</p>
+<div class="step">
+<p>アップロードフォームの<strong>「撮影者・撮影日を上書きする」</strong>にチェックを入れてからアップロードします。</p>
+<p style="font-size:12px;color:#666;">チェックを入れない場合は、初回の撮影者情報が保持されます。</p>
+</div>
+
+<h3>2-4. 並び替え（トップ画像変更）</h3>
+<div class="step">
+<p><strong>PC</strong>: 画像をドラッグ&ドロップで並び替え → <strong>自動保存</strong></p>
+<p><strong>モバイル</strong>: 画像をタップ → ドロップダウンで移動先の番号を選択 → <strong>自動保存</strong></p>
+</div>
+
+<div class="warn">1番目（トップ）の画像が商品一覧ページのサムネイルになります。最も見栄えの良い画像をトップにしてください。</div>
+<div class="note">画像は最大10枚まで。追加時に超える場合は「あと○枚追加可能です」と表示されます。</div>
+
+<!-- ============================== -->
+<h2 id="tab2" class="page-break">3. 商品管理</h2>
+
+<p>一括ダウンロード・画像検索・削除・並び替えを1つの画面で操作できます。</p>
+
+<h3>3-1. 商品一覧</h3>
+<p>商品管理タブを開くと、アップロード済みの全商品が一覧表示されます。</p>
+
+<table class="table">
+<tr><th>表示</th><th>意味</th></tr>
+<tr><td><span style="background:#f59e0b;color:#fff;font-size:11px;padding:1px 5px;border-radius:3px;">採寸情報未登録</span>（黄色）</td><td>画像はあるが採寸情報が未入力（7日未満）</td></tr>
+<tr><td><span style="background:#ef4444;color:#fff;font-size:11px;padding:1px 5px;border-radius:3px;">採寸情報未登録</span>（赤色）</td><td>7日以上未登録 — 管理番号の入力間違いの可能性あり</td></tr>
+</table>
+
+<div class="note">検索欄と「すべて選択」は画面上部に固定表示されるので、スクロール中も操作できます。</div>
+
+<h3>3-2. 商品を展開して操作</h3>
+<p>商品をタップすると画像が展開され、以下の操作ができます:</p>
+
+<table class="table">
+<tr><th>ボタン</th><th>機能</th></tr>
+<tr><td><strong>全選択 / トップのみ / 全解除</strong></td><td>画像のチェック状態を一括変更</td></tr>
+<tr><td><strong>🔍 画像検索</strong></td><td>チェックした先頭の画像でGoogleレンズ検索（相場リサーチ用）</td></tr>
+<tr><td><strong>📥 選択DL</strong></td><td>チェックした画像をダウンロード（PC: ZIP / モバイル: 共有保存）</td></tr>
+<tr><td><strong>🗑 選択削除</strong></td><td>チェックした画像を削除（確認ダイアログあり）</td></tr>
+</table>
+
+<h3>3-3. 並び替え（展開内）</h3>
+<div class="step">
+<p><strong>PC</strong>: 展開内の画像をドラッグ&ドロップで並び替え → <strong>自動保存</strong></p>
+</div>
+
+<h3>3-4. フッタボタン（複数商品の一括操作）</h3>
+<p>商品一覧でチェックを入れた<strong>複数の商品</strong>に対して、画面下部のフッタボタンで一括操作できます:</p>
+
+<table class="table">
+<tr><th>ボタン</th><th>機能</th></tr>
+<tr><td><strong>トップ画像を保存</strong></td><td>チェックした各商品のトップ画像（1枚目）をまとめて保存</td></tr>
+<tr><td><strong>全画像を保存</strong></td><td>チェックした各商品の全画像をまとめて保存</td></tr>
+<tr><td><strong>選択した商品を削除</strong></td><td>チェックした商品の画像をすべて削除</td></tr>
+</table>
+
+<table class="table">
+<tr><th>デバイス</th><th>保存方式</th></tr>
+<tr><td>PC</td><td>ZIPファイルとして一括ダウンロード（ファイル名: <code>管理番号_番号.jpg</code>）</td></tr>
+<tr><td>モバイル</td><td>写真アプリへ共有保存</td></tr>
+</table>
+
+<div class="warn">削除した画像は復元できません。慎重に操作してください。</div>
+
+<!-- ============================== -->
+<h2 id="photo-first" class="page-break">4. 撮影先行登録（採寸前アップロード）</h2>
+
+<p>採寸情報の入力（AppSheet）より<strong>先に撮影画像を登録</strong>できる機能です。外注先で撮影が先行する運用に対応しています。</p>
+
+<h3>4-1. 仕組み</h3>
+
+<div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:14px;margin:10px 0;font-size:12px;line-height:2;">
+<strong>撮影者</strong>: 管理番号で画像アップロード（採寸情報がまだ入力されていなくてもOK）<br>
+&nbsp;&nbsp;&darr; 画像はR2/KVに保存される<br>
+<strong>入力者</strong>: 後日AppSheetで採寸情報を入力 → 商品管理に管理番号が登録される<br>
+&nbsp;&nbsp;&darr; 5分ごとの自動同期で検出<br>
+<strong>自動マッチング</strong>: 管理番号が一致 → ステータスを「出品待ち」に自動変更、撮影者・撮影日も自動反映
+</div>
+
+<h3>4-2. 撮影先行アップロードの手順</h3>
+<div class="step">
+<p><span class="step-num">1</span>アップロードタブで<strong>管理番号</strong>を入力します（仕入れ管理の採番通り）</p>
+</div>
+<div class="step">
+<p><span class="step-num">2</span>商品管理に未登録でも画像を選択してアップロードできます</p>
+</div>
+<div class="step">
+<p><span class="step-num">3</span>アップロード完了後、<strong>「撮影先行: 採寸情報入力後に自動連携されます」</strong>と表示されます</p>
+</div>
+<div class="step">
+<p><span class="step-num">4</span>後日AppSheetで採寸情報を入力すると、<strong>自動でステータスが「出品待ち」に変更</strong>されます</p>
+</div>
+
+<div class="note">自動マッチングは5分ごとに実行されます。AppSheet入力から最大5分で反映されます。</div>
+
+<h3>4-3. 未マッチ画像の確認</h3>
+<p>アップロード済みだがまだ採寸情報が入力されていない画像は、アップロードタブに<strong>バッジ</strong>で件数が表示されます。また、商品管理タブの商品一覧にも<strong>「採寸情報未登録」バッジ</strong>が表示されます。</p>
+
+<table class="table">
+<tr><th>バッジの色</th><th>意味</th></tr>
+<tr><td style="background:#f59e0b;color:#fff;text-align:center;border-radius:4px;">黄色</td><td>未マッチ画像あり（7日未満）— 正常。採寸情報の入力待ち</td></tr>
+<tr><td style="background:#ef4444;color:#fff;text-align:center;border-radius:4px;">赤色</td><td>7日以上未マッチ — 管理番号の入力間違いの可能性あり。確認してください</td></tr>
+</table>
+
+<div class="warn">管理番号の打ち間違いに注意してください。撮影者が入力した番号とAppSheetの番号が一致しないと、永遠にマッチしません。赤バッジが表示されたら番号を確認してください。</div>
+
+<h3>4-4. 自動クリーンアップ</h3>
+<p><strong>30日以上</strong>マッチしない画像は、自動で削除されます（ストレージの肥大化防止）。</p>
+
+<!-- ============================== -->
+<div class="page-break" style="margin-top:30px;padding:20px;background:#f9fafb;border-radius:8px;">
+<h3 style="margin-top:0;">よくある質問</h3>
+<p><strong>Q. 画像が10枚を超えてしまう場合は？</strong></p>
+<p>A. 商品管理タブで商品を展開し、不要な画像を選択削除してから追加してください。</p>
+<br>
+<p><strong>Q. トップ画像を変更したい</strong></p>
+<p>A. アップロードタブで管理番号を入力 → 既存画像をドラッグ（PC）またはタップして番号選択（モバイル）で並び替え → 自動保存されます。商品管理タブの展開内でもドラッグで並び替えできます。</p>
+<br>
+<p><strong>Q. 複数商品の画像をまとめてダウンロードしたい</strong></p>
+<p>A. 商品管理タブで商品にチェックを入れ、フッタの「トップ画像を保存」（トップ画像のみ）または「全画像を保存」（全画像）を押してください。</p>
+<br>
+<p><strong>Q. 画像のリサイズが不要な場合は？</strong></p>
+<p>A. 画像は自動でリサイズされます（品質を保ちつつファイルサイズを最適化）。元画像を保持したい場合は商品管理タブからダウンロードしてください。</p>
+<br>
+<p><strong>Q. 認証が切れた</strong></p>
+<p>A. 90日間有効です。切れた場合はパスワードを再入力してください。</p>
+<br>
+<p><strong>Q. 採寸情報を入力する前に撮影画像を登録したい</strong></p>
+<p>A. そのまま管理番号を入力してアップロードしてください。採寸情報がAppSheetに入力された後、自動で紐づけされます（最大5分）。</p>
+<br>
+<p><strong>Q. アップロードタブに赤いバッジが表示されている</strong></p>
+<p>A. 7日以上採寸情報とマッチしていない画像があります。管理番号の入力間違いがないか確認してください。</p>
+<br>
+<p><strong>Q. 撮影者を後から変更したい</strong></p>
+<p>A. アップロードタブで「撮影者・撮影日を上書きする」にチェックを入れて、画像を追加または上書きアップロードしてください。</p>
+</div>
+
+</body>
+</html>
