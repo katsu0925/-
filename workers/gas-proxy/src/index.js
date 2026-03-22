@@ -113,8 +113,16 @@ export default {
 
     // ファビコン配信
     if (request.method === 'GET' && (url.pathname === '/favicon.ico' || url.pathname === '/favicon.svg' || url.pathname === '/apple-touch-icon.png')) {
-      const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect x="3" y="8" width="26" height="20" rx="3" fill="#3b82f6"/><rect x="1" y="5" width="30" height="7" rx="2" fill="#2563eb"/><rect x="-2" y="13" width="36" height="5" rx="1" fill="#fbbf24" transform="rotate(-35 16 16)"/></svg>`;
-      return new Response(svg, { headers: { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=604800' } });
+      if (url.pathname === '/favicon.svg') {
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect x="3" y="8" width="26" height="20" rx="3" fill="#3b82f6"/><rect x="1" y="5" width="30" height="7" rx="2" fill="#2563eb"/><rect x="-2" y="13" width="36" height="5" rx="1" fill="#fbbf24" transform="rotate(-35 16 16)"/></svg>`;
+        return new Response(svg, { headers: { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=604800' } });
+      }
+      // favicon.ico (32x32 PNG) & apple-touch-icon (180x180 PNG)
+      const png180 = 'iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAYAAAA9zQYyAAAEtElEQVR4nO3dQW4jRxAFUR7GPsUcZ27ii/lA3nszizHaAAVCEiWSXVlR+SsC+Dty0dkPWlKXy+L9tuWiTSwd/XJsfLSpqdHHtvnR5oZHH9TWibZ4Kvp4tm60zaeij2V9oq1+GX0c6xtt90P0Qax/tOH/o49geYnZ4hKzxSVmi0vMFpeYLS4xW1xitrjEbHEJ2qISs8UlZotL0BaVmC0uQVtUYra4BG1RidniErRFJWiLSswWl6AtKkFbVIK2sn79/QcyMdvwKMyCtqGRkAVtQ6MhTwX9589/XPBoxOWg6QO7/SCXgKYP7PbGPBQ0fWC3N+ShoOkjOzG/gfavs0uAPAw0fWwnZkG7SMyCdjGQBe3iMJ8GTR/fCfl2R4J2OMRRmAW9+WiEIyELevPREKswC3rT0RArIAt6w9EQqzELeqPREGdgFvQGoxHOgizoDUZDnI1Z0KGjERKQBR06GuKIHc8haIdDHAH5OkFvPBriaMyC3ng0xArMgt5wNMIqyILecDTEaswYaFELeTTkM5gF3Wg0xFmYBb06aBqikAdDPgP6NkF3Ho2QgHw06GWYBS3mOMxHQJdgFnTYaIgk5NOgS0B3HI2QhHwO9GHQHUcjJCALOnA0RBKyoANHI1wBs6DFHIdZ0GKOwizoZqMRroRZ0I1GQ1wZs6CbjIa4MmZBNxgNcRfMgl58NMRdMAt60dEQd4Is6AVHQ9wRs6AXGg1xV8yCXmA0xN0hC3qB0RApzIIW89oTdNfRCEnIgu44GuKKmAXdbTTCFTELuuNoiCtjFnSn0RBXR42B7joaIg36WNDdRyMkIQu662iIBGZBdxwNkYQs6I6jIZKYBd1xNEQasqA7joZIYxZ0t9EQZ2AWdLfREGdgFnS30RBnQBZ0x9EQZ2MWdMfREGdjFnTX0RBnYxZ019EQZ0AWdNfREHfALOjFR0PcAfJRyEd1V6DpA7v9IB+FfFRdIx0NUcyCFnMc5tOg6eO7HpBPgaYP73pBPg2aPrzrB/kUaPrwrh/kl0DTR3e9MJ8CTR/d9cJ8GjR9cNcPs6A3wkxjEvSdhCzmqAlayHGYBS3mOMyCFnMcZkGLOQayoIUch1nQYo6BLGghx2EW9OaYaXyCvpOQxSxoMUeuuhgx0yiELGgxb4ZZ0BtgpoEJ+oWELGZBB2OmUQn6ZEIWs6DFHDPWBX2RxidkMQta0JGrbjnQNEIhC/pdYnbxoGmEQhb028TsYkHTCIUs6PfFYhb0e4QsZkFvMBriDMyCXh00DVHMa2w4aBqhmNdZdUNB0xjFvMaqGwaaxijm/qtueNA0RiH3XnVDQdMYxdx31Z0GTYMUc89VdxI0DVLM/VbdS6BplGLuterOgqZhinnPVTcMNA1TzPutuiGgaZhi3nfVnQZN4xTzvqvuJGgaqJj3XnUPg6aBirnvqnsYNA1UzH1X3cOgaahi7rvqHgZNYxVz31X3EGgaq5h7r7qnQdNgxdx71T0MmoYr5v6r7inQNFwx77Fy0DReMfe+JmTrXglos6qmgjarbhtos+ouR2G2hE6BNqvqNGizqk6DNqvuclnMltBp0GYz+0/I1r1a0GZV/R/zM6DNRu0h5lOgzUbtIeYzoM1G7GHmZ0CbjdhDzEeBNhu1e5gfBW02ancxPwLabNQeYX4EtNmoPcL8CGizUXuE+RHQS+0/FiIHnYz7CVAAAAAASUVORK5CYII=';
+      const png32 = 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAApklEQVR4nO2UMQ6AIAxFOYyewuN4Ey/mgdxdHDAOLGBDW34LAz/pRvNem5QQZmZGyLpf0aOecynKTeAP7iJAgV0EanAzAQ7YTYAL/t5Cr0AydeopznE77qgpLji9J/8DDzhMQLLyvLdZQAtuFmiZulkAAVYJoKZWCaDBIgEreFXAYuVsAWswKeAxNSngCVYLIOEiATRYJGAFZwmQZ2KRbuBcoAt8hLz4p+Uq2+hnEwAAAABJRU5ErkJggg==';
+      const b64 = url.pathname === '/apple-touch-icon.png' ? png180 : png32;
+      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      return new Response(bytes, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=604800' } });
     }
 
     // R2画像配信: GET /images/* → R2 → Cache-Control 1年
