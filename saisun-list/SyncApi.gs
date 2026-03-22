@@ -482,6 +482,8 @@ function importPhotographyData_(data) {
   }
   console.log('idToRow keys count: ' + Object.keys(idToRow).length);
 
+  // E列(5)のステータスを取得
+  var eData = sh.getRange(2, 5, lastRow - 1, 1).getValues();
   // AI列(35)・AJ列(36)の既存値を取得
   var aiajData = sh.getRange(2, 35, lastRow - 1, 2).getValues();
 
@@ -493,6 +495,11 @@ function importPhotographyData_(data) {
 
     var row = idToRow[mid];
     if (!row) { console.log('管理番号 ' + mid + ' が見つかりません'); continue; }
+
+    // 返品済みのステータスは変更しない
+    var currentStatus = String(eData[row - 2][0] || '').trim();
+    if (currentStatus === '返品済み') { console.log('管理番号 ' + mid + ' は返品済みのためスキップ'); continue; }
+
     console.log('管理番号 ' + mid + ' → 行 ' + row);
 
     var rowIdx = row - 2; // aiajData配列のインデックス
