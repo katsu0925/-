@@ -803,7 +803,7 @@ function renderDlList() {
       '<div class="list-item">' +
       '<input type="checkbox" class="list-check dl-check" data-idx="' + i + '" data-mid="' + escapeHtml(p.managedId) + '" onchange="updateSelectedCount()" onclick="event.stopPropagation()">' +
       (thumbSrc ? '<img class="list-thumb" src="' + thumbSrc + '" loading="lazy" onclick="toggleDlExpand(\\'' + escapeHtml(p.managedId) + '\\')">' : '<div class="list-thumb" onclick="toggleDlExpand(\\'' + escapeHtml(p.managedId) + '\\')"></div>') +
-      '<div class="list-info" onclick="toggleDlExpand(\\'' + escapeHtml(p.managedId) + '\\')" style="cursor:pointer"><div class="list-id">' + escapeHtml(p.managedId) + (p.warning ? ' <span style="background:#ef4444;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;margin-left:4px">未登録7日+</span>' : !p.registered ? ' <span style="background:#f59e0b;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;margin-left:4px">未登録</span>' : '') + '</div>' +
+      '<div class="list-info" onclick="toggleDlExpand(\\'' + escapeHtml(p.managedId) + '\\')" style="cursor:pointer"><div class="list-id">' + escapeHtml(p.managedId) + (p.warning ? ' <span style="background:#ef4444;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;margin-left:4px">採寸情報未登録</span>' : !p.registered ? ' <span style="background:#f59e0b;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;margin-left:4px">採寸情報未登録</span>' : '') + '</div>' +
       '<div class="list-count">' + p.count + '枚</div></div>' +
       '<span style="color:#3b82f6;font-size:20px;padding:0 8px;cursor:pointer" onclick="toggleDlExpand(\\'' + escapeHtml(p.managedId) + '\\')">›</span>' +
       '</div></div>';
