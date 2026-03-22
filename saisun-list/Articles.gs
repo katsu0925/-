@@ -12,7 +12,7 @@ var ARTICLE_CONFIG = {
   CONTENT_CACHE_PREFIX: 'ARTICLE_CONTENT:',
   CONTENT_CACHE_TTL: 86400,
   MAX_ARTICLES_DISPLAY: 20,
-  MODEL: 'gpt-5',
+  MODEL: 'gpt-5-mini',
   ENDPOINT: 'https://api.openai.com/v1/chat/completions',
   MAX_COMPLETION_TOKENS: 16000
 };
@@ -223,16 +223,17 @@ function art_generateArticle_(pastTitles) {
     '【執筆ルール】',
     '・noteやXで話題になるような読みやすい文体で書く',
     '・「です・ます」調で統一',
-    '・具体的な数字（金額、%、件数など）を必ず含める',
+    '・数字を使う場合は一般的な市場相場・業界統計など出典が明確なものに限る。当サイトの売上データや注文件数など、自社の実績と誤認される架空の数字は絶対に使わない',
+    '・特定のブランド名を挙げて「○○が売上△△円」のような記述は禁止（読者が当サイトの実績データだと誤解するため）',
     '・「裏技」「あまり知られていない」「プロだけが知る」系の情報を盛り込む',
     '・最新のトレンド・アップデート・季節要因を反映した内容にする',
     '・初心者にもわかりやすく、かつ中級者にも「知らなかった！」と思わせる情報を含める',
-    '・一般的すぎるアドバイス（「写真を綺麗に撮ろう」等）は避け、具体的な手順・数字を示す',
+    '・一般的すぎるアドバイス（「写真を綺麗に撮ろう」等）は避け、具体的な手順を示す',
     '・HTMLのcontent内では<script>タグや<style>タグは使わない',
     '・content内の文字列はHTMLエンティティで適切にエスケープする',
     '',
     '【正確性・信頼性ルール（厳守）】',
-    '・事実に基づいた情報のみを記載すること。推測や憶測で数字や規約を書かない',
+    '・事実に基づいた情報のみを記載すること。推測や憶測で数字や規約を書かない。架空の売上ランキングや注文データを捏造しない',
     '・各プラットフォーム（メルカリ、Amazon、eBay等）の公式規約・ガイドラインに反する内容は絶対に書かない',
     '・税金・確定申告に関する情報は日本の国税庁の公式見解に基づくこと。税理士への相談を推奨する一文を入れる',
     '・法律（古物営業法、特定商取引法、景品表示法等）に関わる記述は正確に。不確かな場合は「詳細は専門家に確認」と付記する',
@@ -532,4 +533,24 @@ function setPexelsApiKey() {
   var key = 'ここにPexels APIキーを貼り付け';
   PropertiesService.getScriptProperties().setProperty('PEXELS_API_KEY', key);
   console.log('PEXELS_API_KEY を設定しました');
+}
+
+/**
+ * 記事キャッシュを全クリアする（GASエディタから手動実行）
+ * スプレッドシートを直接編集した後に実行すること
+ */
+function clearArticleCache() {
+  var cache = CacheService.getScriptCache();
+  cache.remove(ARTICLE_CONFIG.CACHE_KEY);
+  // 個別記事キャッシュもクリア
+  var sheet = art_getSheet_();
+  var lastRow = sheet.getLastRow();
+  if (lastRow >= 2) {
+    var ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (var i = 0; i < ids.length; i++) {
+      var id = String(ids[i][0] || '').trim();
+      if (id) cache.remove(ARTICLE_CONFIG.CONTENT_CACHE_PREFIX + id);
+    }
+  }
+  console.log('記事キャッシュをクリアしました');
 }
