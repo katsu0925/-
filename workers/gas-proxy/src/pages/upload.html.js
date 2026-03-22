@@ -847,14 +847,11 @@ function toggleManageExpand(managedId) {
         '</div>';
     }
     html += '</div>';
-    // 操作ボタン: 並び替え保存 + 画像検索 + DL + 削除
+    // 操作ボタン: 画像検索 + DL + 削除
     html += '<div style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap">' +
-      '<button class="btn btn-secondary" style="flex:1;min-width:45%;font-size:12px;padding:8px" onclick="saveManageReorder(\\'' + escapeHtml(managedId) + '\\')">並び順を保存</button>' +
-      '<button class="btn btn-primary" style="flex:1;min-width:45%;font-size:12px;padding:8px" onclick="searchManageImage(\\'' + escapeHtml(managedId) + '\\')">🔍 画像検索</button>' +
-      '</div>' +
-      '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">' +
-      '<button class="btn btn-success" style="flex:1;min-width:45%;font-size:12px;padding:8px" onclick="downloadManageImages(\\'' + escapeHtml(managedId) + '\\')">📥 選択DL</button>' +
-      '<button class="btn btn-danger" style="flex:1;min-width:45%;font-size:12px;padding:8px" onclick="deleteManageImages(\\'' + escapeHtml(managedId) + '\\')">🗑 選択削除</button>' +
+      '<button class="btn btn-primary" style="flex:1;font-size:12px;padding:8px" onclick="searchManageImage(\\'' + escapeHtml(managedId) + '\\')">🔍 画像検索</button>' +
+      '<button class="btn btn-success" style="flex:1;font-size:12px;padding:8px" onclick="downloadManageImages(\\'' + escapeHtml(managedId) + '\\')">📥 選択DL</button>' +
+      '<button class="btn btn-danger" style="flex:1;font-size:12px;padding:8px" onclick="deleteManageImages(\\'' + escapeHtml(managedId) + '\\')">🗑 選択削除</button>' +
       '</div>';
     el.innerHTML = html;
     // ドラッグ並び替え初期化
