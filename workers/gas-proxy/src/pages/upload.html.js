@@ -994,12 +994,11 @@ function deleteManageImages(managedId) {
       }).catch(function() { showStatus('manageStatus', 'ネットワークエラー', 'err'); });
     });
   } else {
-    // 一部選択 → 個別削除
-    var indices = [];
-    checks.forEach(function(c) { indices.push(parseInt(c.dataset.imgidx)); });
-    showConfirm(indices.length + '枚の画像を削除しますか？', function() {
-      indices.sort(function(a, b) { return b - a; });
-      var total = indices.length;
+    // 一部選択 → URL直接指定で削除（インデックスずれ防止）
+    var targetUrls = [];
+    checks.forEach(function(c) { targetUrls.push(c.dataset.url); });
+    showConfirm(targetUrls.length + '枚の画像を削除しますか？', function() {
+      var total = targetUrls.length;
       var done = 0;
       showStatus('manageStatus', '0/' + total + ' 削除中...', 'info');
       function delNext() {
@@ -1007,15 +1006,14 @@ function deleteManageImages(managedId) {
           showStatus('manageStatus', total + '枚削除しました', 'ok');
           var mid = managedId;
           _manageExpandedMid = '';
-          toggleManageExpand(mid); // 再展開
-          // 一覧の枚数も更新
+          // 一覧を再読込して再展開
           reloadList(function() { renderManageList(); toggleManageExpand(mid); });
           return;
         }
         fetch(API_BASE + '/upload/delete-single', {
           method: 'POST',
           headers: headers({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ managedId: managedId, targetUrl: _manageExpandedUrls[indices[done]] })
+          body: JSON.stringify({ managedId: managedId, targetUrl: targetUrls[done] })
         }).then(function(r) { return r.json(); })
         .then(function() { done++; showStatus('manageStatus', done + '/' + total + ' 削除中...', 'info'); delNext(); })
         .catch(function() { done++; delNext(); });
