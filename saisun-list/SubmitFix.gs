@@ -1265,6 +1265,24 @@ function confirmPaymentAndCreateOrder(paymentToken, paymentStatus, paymentMethod
       templateText = '受付番号：' + receiptNo + '\n' + templateText;
     }
 
+    // === 互換処理: 別フィールドに分かれている金額を合算 ===
+    // Workers旧形式: bulkProductAmount / bulkShipping（アソート分が別）
+    // BulkSubmit.gs: detauriProductAmount / detauriShipping（デタウリ分が別）
+    var mergedDiscounted = pendingData.discounted || 0;
+    var mergedShipping = pendingData.shippingAmount || 0;
+    if (pendingData.bulkProductAmount) {
+      mergedDiscounted += pendingData.bulkProductAmount;
+    }
+    if (pendingData.bulkShipping) {
+      mergedShipping += pendingData.bulkShipping;
+    }
+    if (pendingData.detauriProductAmount) {
+      mergedDiscounted += pendingData.detauriProductAmount;
+    }
+    if (pendingData.detauriShipping) {
+      mergedShipping += pendingData.detauriShipping;
+    }
+
     // 決済情報を付与してシート書き込み + メール送信
     var writeData = {
       userKey: pendingData.userKey,
@@ -1274,8 +1292,8 @@ function confirmPaymentAndCreateOrder(paymentToken, paymentStatus, paymentMethod
       selectionList: pendingData.selectionList || '',
       measureOpt: pendingData.measureOpt,
       totalCount: pendingData.totalCount,
-      discounted: pendingData.discounted,
-      shippingAmount: pendingData.shippingAmount,
+      discounted: mergedDiscounted,
+      shippingAmount: mergedShipping,
       storeShipping: pendingData.storeShipping || 0,
       shippingSize: pendingData.shippingSize,
       shippingArea: pendingData.shippingArea,

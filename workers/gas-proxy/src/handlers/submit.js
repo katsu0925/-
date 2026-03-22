@@ -248,7 +248,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
       const bUnitPrice = (bp.discounted_price !== undefined && bp.discounted_price > 0) ? bp.discounted_price : bp.price;
       bulkProductAmount += bUnitPrice * bQty;
       bulkItemCount += bQty;
-      orderItems.push({ name: bp.name, qty: bQty });
+      orderItems.push({ name: bp.name, qty: bQty, unit: bp.unit || '点', discountRate: bp.discounted_price > 0 && bp.discounted_price < bp.price ? Math.round((1 - bp.discounted_price / bp.price) * 100) : 0 });
     }
   }
   const rawBulkProductAmount = bulkProductAmount; // 送料無料判定用（クーポン適用前）
@@ -489,10 +489,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   const bulkTotal = bulkProductAmount + bulkShippingAmount;
   const totalWithShipping = discounted + shippingAmount + bulkTotal - couponDiscount;
 
-  if (bulkTotal > 0) {
-    const bulkNote = '【アソート合算: 商品代¥' + bulkProductAmount + '（' + bulkItemCount + '点）+ 送料¥' + bulkShippingAmount + '】';
-    note = note ? (note + '\n' + bulkNote) : bulkNote;
-  }
+  // アソート合算ノートは廃止（各列に正しく値が入るため不要）
 
   if (totalWithShipping <= 0) {
     return jsonError('合計金額が0円以下です。');
@@ -719,6 +716,18 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   // channel判定（GAS側プレミアムアソート自動選定用）
   const channel = hasBulkItems ? (ids.length > 0 ? 'まとめ' : 'アソート') : 'デタウリ';
 
+  // 商品名リスト構築（GAS writeSubmitData_ のH列用）
+  const allProductNames = [];
+  if (ids.length > 0) allProductNames.push('選べるxlsx付きパッケージ');
+  for (const oi of orderItems) {
+    let label = oi.name + ' x' + oi.qty + oi.unit;
+    if (oi.discountRate > 0) label += '(' + oi.discountRate + '%OFF)';
+    allProductNames.push(label);
+  }
+
+  // K列の合計点数（デタウリは1パッケージ + アソート点数）
+  const sheetTotalCount = (ids.length > 0 ? 1 : 0) + bulkItemCount;
+
   const pendingData = {
     userKey,
     form: validatedForm,
@@ -727,8 +736,8 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     selectionList,
     measureOpt,
     totalCount,
-    discounted,
-    shippingAmount,
+    discounted: discounted + bulkProductAmount,
+    shippingAmount: shippingAmount + bulkShippingAmount,
     storeShipping,
     shippingSize,
     shippingArea,
@@ -740,13 +749,13 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     couponCode: activeCouponCode || '',
     couponDiscount: couponDiscount || 0,
     couponLabel: couponLabel || '',
-    bulkProductAmount,
-    bulkShipping: bulkShippingAmount,
     bulkItemCount,
     totalAmount: totalWithShipping,
     komojuSessionId: komojuResult.id || '',
     channel,
     orderItems,
+    productNames: allProductNames.join('\n'),
+    _sheetTotalCount: sheetTotalCount,
   };
 
   // ─── D1バックアップ保存（PropertiesService欠損時のフォールバック用） ───

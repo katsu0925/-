@@ -307,6 +307,9 @@ function apiBulkSubmit(form, items) {
       invoiceReceipt: f.invoiceReceipt === true || f.invoiceReceipt === 'true'
     };
 
+    // === K列の合計点数（アソート点数 + デタウリがある場合は1パッケージ） ===
+    var sheetTotalCount = totalQty + (detauriItemCount > 0 ? 1 : 0);
+
     // === ペンディング注文データを保存 ===
     var pendingData = {
       channel: BULK_CONFIG.channel,
@@ -315,8 +318,8 @@ function apiBulkSubmit(form, items) {
       paymentToken: paymentToken,
       totalCount: totalQty,
       productAmount: sum,
-      discounted: discounted,
-      shippingAmount: shippingAmount,
+      discounted: discounted + detauriProductAmount,
+      shippingAmount: shippingAmount + detauriShippingAmount,
       storeShipping: calcStoreShippingByAddress_(shippingPref, totalQty) || 0,
       shippingSize: shippingSize,
       shippingPref: shippingPref,
@@ -328,11 +331,10 @@ function apiBulkSubmit(form, items) {
       couponLabel: couponLabel || '',
       pointsUsed: pointsUsed || 0,
       pointsDiscount: pointsDiscount || 0,
-      detauriProductAmount: detauriProductAmount,
-      detauriShipping: detauriShippingAmount,
       detauriItemCount: detauriItemCount,
       detauriIds: Array.isArray(f.detauriIds) ? f.detauriIds : [],
-      totalAmount: totalWithShipping
+      totalAmount: totalWithShipping,
+      _sheetTotalCount: sheetTotalCount
     };
 
     var props = PropertiesService.getScriptProperties();

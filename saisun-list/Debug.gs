@@ -711,6 +711,116 @@ function debugResendOrderEmail() {
 }
 
 /**
+ * 受付番号の依頼管理行を修正（アソート商品名・合計点数・金額・送料・チャネル）
+ * 備考欄のアソート合算情報 + アソート商品マスタから正しい値を復元する
+ */
+function debugFixOrderRow() {
+  var receiptNo = '20260322065719-340'; // ← 修正対象の受付番号
+
+  var orderSs = sh_getOrderSs_();
+  var reqSh = sh_ensureRequestSheet_(orderSs);
+  var lastRow = reqSh.getLastRow();
+  if (lastRow < 2) { console.log('依頼管理シートにデータなし'); return; }
+
+  // 該当行を検索
+  var receipts = reqSh.getRange(2, 1, lastRow - 1, 1).getDisplayValues();
+  var targetRow = -1;
+  for (var i = 0; i < receipts.length; i++) {
+    if (String(receipts[i][0]).trim() === receiptNo) {
+      targetRow = i + 2;
+      break;
+    }
+  }
+  if (targetRow === -1) { console.log('受付番号が見つかりません: ' + receiptNo); return; }
+
+  // 現在の値を取得
+  var currentRow = reqSh.getRange(targetRow, 1, 1, 33).getValues()[0];
+  var note = String(currentRow[29] || '');
+  console.log('該当行: ' + targetRow);
+  console.log('現在のH列: ' + currentRow[7]);
+  console.log('現在の備考: ' + note);
+
+  // 備考からアソート合算情報を抽出: 【アソート合算: 商品代¥4400（1点）+ 送料¥1440】
+  var assortMatch = note.match(/【アソート合算: 商品代¥(\d+)（(\d+)点）\+ 送料¥(\d+)】/);
+  if (!assortMatch) {
+    console.log('備考にアソート合算情報が見つかりません。手動で修正してください。');
+    return;
+  }
+  var assortProductAmount = Number(assortMatch[1]);  // 4400
+  var assortItemCount = Number(assortMatch[2]);      // 1
+  var assortShipping = Number(assortMatch[3]);        // 1440
+
+  // 備考の「商品代¥4400」は割引適用済みの金額（FHP50%OFF後）なのでそのまま使う
+  var discountedAmount = assortProductAmount;
+
+  console.log('アソート商品代(割引適用済み): ¥' + discountedAmount);
+  console.log('アソート点数: ' + assortItemCount);
+  console.log('アソート送料: ¥' + assortShipping);
+
+  // アソート商品マスタから¥4400の商品を検索して商品名を特定
+  var bulkProducts = bulk_getProducts_();
+  var matchedNames = [];
+  for (var i = 0; i < bulkProducts.length; i++) {
+    var bp = bulkProducts[i];
+    var unitPrice = (bp.discountedPrice !== undefined) ? bp.discountedPrice : bp.price;
+    if (unitPrice * assortItemCount === assortProductAmount) {
+      matchedNames.push(bp.name + ' x' + assortItemCount + bp.unit);
+      console.log('商品候補: ' + bp.name + ' (¥' + unitPrice + ' x' + assortItemCount + ')');
+    }
+  }
+
+  var productNames;
+  if (matchedNames.length === 1) {
+    productNames = '・' + matchedNames[0];
+  } else if (matchedNames.length > 1) {
+    console.log('⚠ 複数の候補商品があります。全アソート商品を表示:');
+    for (var k = 0; k < bulkProducts.length; k++) {
+      var bpk = bulkProducts[k];
+      var upk = (bpk.discountedPrice !== undefined) ? bpk.discountedPrice : bpk.price;
+      console.log('  ' + bpk.productId + ': ' + bpk.name + ' ¥' + upk + '/' + bpk.unit);
+    }
+    productNames = '・' + matchedNames.join('\n・');
+  } else {
+    console.log('⚠ ¥' + assortProductAmount + 'に一致する商品が見つかりません。全アソート商品を表示:');
+    for (var k = 0; k < bulkProducts.length; k++) {
+      var bpk = bulkProducts[k];
+      var upk = (bpk.discountedPrice !== undefined) ? bpk.discountedPrice : bpk.price;
+      console.log('  ' + bpk.productId + ': ' + bpk.name + ' ¥' + upk + '/' + bpk.unit);
+    }
+    console.log('商品を特定できません。修正を中断します。');
+    return;
+  }
+
+  // 送料の店負担（半額）
+  var storeShipping = Math.round(assortShipping / 2) || 0;
+
+  console.log('=== 修正値 ===');
+  console.log('H列(商品名): ' + productNames);
+  console.log('K列(合計点数): ' + assortItemCount);
+  console.log('L列(合計金額): ' + discountedAmount);
+  console.log('M列(送料店負担): ' + storeShipping);
+  console.log('N列(送料客負担): ' + assortShipping);
+  console.log('AG列(チャネル): アソート');
+
+  // 更新実行
+  reqSh.getRange(targetRow, 8).setValue(productNames);       // H列: 商品名
+  reqSh.getRange(targetRow, 11).setValue(assortItemCount);    // K列: 合計点数
+  reqSh.getRange(targetRow, 12).setValue(discountedAmount);   // L列: 合計金額
+  reqSh.getRange(targetRow, 13).setValue(storeShipping);      // M列: 送料(店負担)
+  reqSh.getRange(targetRow, 14).setValue(assortShipping);     // N列: 送料(客負担)
+  // AG列(チャネル)は「アソート」のまま（BulkSubmit経由なので正しい）
+
+  // 備考からアソート合算行を削除（数値が各列に入ったので不要）
+  var newNote = note.replace(/\n?【アソート合算[^】]*】/g, '').trim();
+  if (newNote !== note) {
+    reqSh.getRange(targetRow, 30).setValue(newNote);
+    console.log('AD列(備考): アソート合算行を削除 → ' + newNote);
+  }
+
+  console.log('✓ 行 ' + targetRow + ' を修正しました');
+}
+
+/**
  * 注文送信キュー・ペンディング注文を確認
  */
 function debugViewQueues() {
