@@ -11,7 +11,7 @@ export function getUploadPageHtml() {
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
 <meta name="robots" content="noindex,nofollow">
-<title>商品画像アップロード | デタウリ</title>
+<title>タスキ箱 | デタウリ</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#333;line-height:1.5;padding-bottom:calc(80px + env(safe-area-inset-bottom))}
@@ -83,7 +83,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 </head>
 <body>
 <div class="container">
-  <h1>商品画像アップロード</h1>
+  <h1>タスキ箱</h1>
 
   <!-- 認証フォーム -->
   <div id="authSection" class="card auth-wall">
