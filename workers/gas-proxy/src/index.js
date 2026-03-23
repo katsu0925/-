@@ -125,6 +125,46 @@ export default {
       return new Response(bytes, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=604800' } });
     }
 
+    // PWA: manifest.json
+    if (request.method === 'GET' && url.pathname === '/manifest.json') {
+      const manifest = JSON.stringify({
+        name: 'タスキ箱',
+        short_name: 'タスキ箱',
+        description: '商品画像をチームで共有管理',
+        start_url: '/upload',
+        display: 'standalone',
+        background_color: '#f5f5f5',
+        theme_color: '#3b82f6',
+        icons: [
+          { src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml' },
+          { src: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }
+        ]
+      });
+      return new Response(manifest, { headers: { 'Content-Type': 'application/manifest+json', 'Cache-Control': 'public, max-age=604800' } });
+    }
+
+    // PWA: Service Worker
+    if (request.method === 'GET' && url.pathname === '/sw.js') {
+      const sw = `
+const CACHE_NAME = 'tasukibako-v1';
+self.addEventListener('install', e => { self.skipWaiting(); });
+self.addEventListener('activate', e => { e.waitUntil(clients.claim()); });
+self.addEventListener('fetch', e => {
+  if (e.request.method !== 'GET') return;
+  if (e.request.url.includes('/upload/') || e.request.url.includes('/api/')) return;
+  e.respondWith(
+    fetch(e.request).then(r => {
+      if (r.ok && (e.request.url.endsWith('.js') || e.request.url.endsWith('.css') || e.request.url.includes('/favicon'))) {
+        const clone = r.clone();
+        caches.open(CACHE_NAME).then(c => c.put(e.request, clone));
+      }
+      return r;
+    }).catch(() => caches.match(e.request))
+  );
+});`;
+      return new Response(sw, { headers: { 'Content-Type': 'application/javascript', 'Cache-Control': 'no-cache' } });
+    }
+
     // R2画像配信: GET /images/* → R2 → Cache-Control 1年
     if (request.method === 'GET' && url.pathname.startsWith('/images/')) {
       return await serveImage(request, env, url.pathname);

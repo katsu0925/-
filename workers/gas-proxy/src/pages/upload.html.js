@@ -14,6 +14,11 @@ export function getUploadPageHtml() {
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#3b82f6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="タスキ箱">
 <title>タスキ箱 | デタウリ</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -1414,6 +1419,7 @@ function escapeHtml(s) {
   return d.innerHTML;
 }
 </script>
+<script>if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(function(){});}</script>
 </body>
 </html>`;
 }
