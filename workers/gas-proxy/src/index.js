@@ -112,17 +112,17 @@ export default {
     // ─── 画像アップロード系（既存JSON POSTフローと完全分離） ───
 
     // ファビコン配信
-    if (request.method === 'GET' && (url.pathname === '/favicon.ico' || url.pathname === '/favicon.svg' || url.pathname === '/apple-touch-icon.png')) {
+    if ((request.method === 'GET' || request.method === 'HEAD') && (url.pathname === '/favicon.ico' || url.pathname === '/favicon.svg' || url.pathname === '/apple-touch-icon.png' || url.pathname === '/tasukibako-apple-touch-icon.png')) {
       if (url.pathname === '/favicon.svg') {
         const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect x="3" y="8" width="26" height="20" rx="3" fill="#3b82f6"/><rect x="1" y="5" width="30" height="7" rx="2" fill="#2563eb"/><rect x="-2" y="13" width="36" height="5" rx="1" fill="#fbbf24" transform="rotate(-35 16 16)"/></svg>`;
         return new Response(svg, { headers: { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=604800' } });
       }
       // favicon.ico (32x32 PNG) & apple-touch-icon (180x180 PNG)
-      const png180 = 'iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAYAAAA9zQYyAAAEMElEQVR4nO3dwY0UWRRE0TIGrBhz8ATHMIj9bGYBQqIRanrorur8GfFfnivFPvXf2eftmzSoW/oDpCMDWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWqMCWn/035cP2w5o/SqNsRr0x09fbaOlIdaBTh/Erg35MNDpgxjMh4FOH8RgPgx0+iAGMtAXXxpbLej0YQxkoC+6NDCgDWSgDeYHQaePZTADfYGlIbUM6AFLI2oa0BsvjadxQG+6NJzWAb3Z0mBa9xTQGy2NpnW/B/QmS6Np3EsBXb40mtb9X0AXL42mca8FdOHSaFr3loAuWxpN694a0CVLg2ndj7e5J6ALlkbTuqd3AV2+NJrWPb0P6LKl0bTu+X1Aly6NpnUv3AfosqXRNO75e4EuWxpN617eB3TZ0mha99J7gS5fGk3rXnu3paChhrkVM9Ag10IGunBpNK275w2BLlkaTeMeecdTQEMNciNmoGGuhBwBDTXIbZjfDRpqmJswHwL6qTQskDuWgvyUnwbBHMO8omWg//n878il0TTu0bdcEdAgRzADDXPVjnjXFQENcgQz0DBX7Mg3XhHQIJ8OGWiYx2EGGuYxkIEGeRxmoGEeAxlokMdhBhrmUZiBhnkMZKBBHocZaJjHQAYa5HGYgYZ5DGSgQR6HGWiYR2EGGuYxkIEGeRxmoGEeAxlokMdhBhrmUZgvDToNpnVpkEDDDPOVQafRNC6NEGiQYb4y6DSaxqXhAf3tftBpNK1LowP6ZzDDfDnQaTCtS0MD+oVghvkyoNNoGpfGBfQrgQzzaNBpNI1Lg0pvRctBp9G0Lo2pYStaCjqNpnVpSC1b0RLQaTCtSwNq24oOB51G07o0ncat6FDQaTSNS6Np3ooOAZ1G07o0mPat6N2g02gal4ayy1b0MOg0mtalkey0FT0EOo2mdWkgu25Fd4FOg2ldGsaui4JOo2ldGsXOi4FOo2lcGsOEnQ46jaZ1aQhTdiroNJrGpQFM2ymg02halz7+xC0HnUbTuvThp24Z6DSY1qUPPn1LQKfRtC597CsMaJBHDWiYRw1okEcNaJhHDWiYRw1okEcNaJhHDWiQRw1omEcNaJBHDWiYRw1omMdsVaNAp49kQMN80QEN8qgBDfOYrWxL0OmDGNAw23LM24FOH8O6MW8DOn0I2wPzFqDTh7B9MFeDTh/B9oJcDTp9CNsH8POqQEvvrQa0dEQVoKWjioKWji4GWlrR6aCllZ0KWlrdKaCls1oOWjqzpaCls1sCWkp1OGgp2WGgpYYOAS219C7QUlsPg5Yaewi01NpdoKX23gxa2qFXQUs79VfQ0m69CFratT9ASzt3g1mTuoGsSd3SHyAdGdAa1XfpkHLw1sPS7wAAAABJRU5ErkJggg==';
+      const png180 = 'iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAYAAAA9zQYyAAAb6ElEQVR42u2deXgc5ZXuf6eqWq3NkizwBjGY2BY7YbEJEJYLgZDgmwHuEAIkgQkJW4AMe2xjbHAMJsHDklwTG5hhhiUEwiXET5hgkrBlGfYlrLYsA4J4xWi31N1Vde4fVS2V2rIsyW2pWvre5/EjuyVbbfVbb5/v953vlLCDpaoCWICKiB95PAHsBhwM7At8HtgdGAfsDJQBCcDGKE7ygA6gGdgAfALUAu8CLwIrRCQVeZ1tABHxBuPJyQ42si0ibuSxnYHjgKOBI4EpoXGNhofagY+AZ4GngT+ISGOOuX0R0YIxdK6RwyT+GnA68FVgp61c9dnnIzv6YjPKz0sd+eiH76S5r9kG4LfA/SLy56ixd1RiS57N3PlEVXUn4DvA94D9Il/mh7+sHAMbDQ+Ta+T1tSKf+yOwWEQeD/1hhaWIHztDh09ORURVtQK4ALg4rInJ+U8aA48sg3uAE3nseeAmEVm+I9Ja8pzKZwFzgL0jpYTkXKlGI3cxGQ20R4A5IlIbDcQhM3SWXoiIp6p7AbcA/3srT97IqCdjbwSuE5Gl+UprGWiJka19VPVfQjPvbBLZqB9yI6XIo8APRWTt9ppaBlpiqGoxcBtwYeTKM8zYqL81dpaQ1ALfFZG/qqoTxb07zNARM+8HPETAk015YZSPMsQm4Njni8gGA01qawBm3pMAmh8dvm3YxsxG2yk7NHUJcL+qXhN6zQrXavk1dMTM+wHLgT1zaiAjo3yYOluC/ELVF4TrtH6ZWvph5qnAn4CJpl42GqS6+iYRubY/W+ZWH2iGp6rjgSdC00EnHPDmcaYAfBDoH8W3VWV8jMH/kn9Jz/H7In4OddWxlyNb9fSQIcIDXvCSMOWtmXoLqAqGr4afF8/im/7M/jX5NvMysTzoz8h2fltHbFcRM638O/PrGFWETMHi/Gum4Rv+38TkzCD/x/MljsD/WJ5pjGmvYV/k3GlImAa2nEXh9yOi+pq1ZvxlT7W1tvtgB+noYFWkTiyC2/hXVF1MCLhK30a6Xw6kntKa28PSwPanJREoq4e/r6+hnfX17Jpez1lB3wcrgn4G6pymfP6vsfsMQvolFHpwNV9+AoL8Jz8Zw2zcsJ70Lg4ye/ZgIdndMcz6iUkd0zL99r1xjP8GaxBs8HS1XEq7iqA96HJFMMY0x7YDeQGO9scLMZUrAPvIaT9AKTzOLDSY1atUkH8QURugGZzZmPMXGCmIyUpFbmfakhLji9J/8DDzhMQLLyvLdZQAtuFmiZulkAAVYJoKZWCaDBIgEreFXAYuVsAWswKeAxNSngCVYLIOEiATRYJGAFZwmQZ2KRbuBcoAt8hLz4p+Uq2+hnEwAAAABJRU5ErkJggg==';
       const png32 = 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAApklEQVR4nO2UMQ6AIAxFOYyewuN4Ey/mgdxdHDAOLGBDW34LAz/pRvNem5QQZmZGyLpf0aOecynKTeAP7iJAgV0EanAzAQ7YTYAL/t5Cr0AydeopznE77qgpLji9J/8DDzhMQLLyvLdZQAtuFmiZulkAAVYJoKZWCaDBIgEreFXAYuVsAWswKeAxNSngCVYLIOEiATRYJGAFZwmQZ2KRbuBcoAt8hLz4p+Uq2+hnEwAAAABJRU5ErkJggg==';
-      const b64 = url.pathname === '/apple-touch-icon.png' ? png180 : png32;
+      const b64 = (url.pathname === '/apple-touch-icon.png' || url.pathname === '/tasukibako-apple-touch-icon.png') ? png180 : png32;
       const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-      return new Response(bytes, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=604800' } });
+      return new Response(bytes, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=0, must-revalidate' } });
     }
 
     // PWA: manifest.json
@@ -137,7 +137,7 @@ export default {
         theme_color: '#3b82f6',
         icons: [
           { src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml' },
-          { src: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' }
+          { src: '/tasukibako-apple-touch-icon.png', sizes: '180x180', type: 'image/png' }
         ]
       });
       return new Response(manifest, { headers: { 'Content-Type': 'application/manifest+json', 'Cache-Control': 'public, max-age=604800' } });
