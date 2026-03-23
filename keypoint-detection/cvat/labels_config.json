@@ -1,0 +1,73 @@
+[
+  {
+    "name": "tops",
+    "type": "skeleton",
+    "color": "#ff4444",
+    "attributes": [],
+    "sublabels": [
+      {"name": "collar_center", "type": "points", "color": "#ff0000"},
+      {"name": "left_shoulder", "type": "points", "color": "#0066ff"},
+      {"name": "right_shoulder", "type": "points", "color": "#0066ff"},
+      {"name": "left_armpit", "type": "points", "color": "#00cc00"},
+      {"name": "right_armpit", "type": "points", "color": "#00cc00"},
+      {"name": "left_cuff", "type": "points", "color": "#ffcc00"},
+      {"name": "right_cuff", "type": "points", "color": "#ffcc00"},
+      {"name": "hem_left", "type": "points", "color": "#ff00ff"},
+      {"name": "hem_right", "type": "points", "color": "#ff00ff"},
+      {"name": "hem_center", "type": "points", "color": "#ff0000"}
+    ],
+    "svg": "<line x1=\"25.00\" y1=\"5.00\" x2=\"15.00\" y2=\"20.00\" stroke=\"gray\" /><line x1=\"25.00\" y1=\"5.00\" x2=\"35.00\" y2=\"20.00\" stroke=\"gray\" /><line x1=\"15.00\" y1=\"20.00\" x2=\"20.00\" y2=\"35.00\" stroke=\"gray\" /><line x1=\"35.00\" y1=\"20.00\" x2=\"30.00\" y2=\"35.00\" stroke=\"gray\" /><line x1=\"15.00\" y1=\"20.00\" x2=\"5.00\" y2=\"40.00\" stroke=\"gray\" /><line x1=\"35.00\" y1=\"20.00\" x2=\"45.00\" y2=\"40.00\" stroke=\"gray\" /><line x1=\"20.00\" y1=\"35.00\" x2=\"15.00\" y2=\"70.00\" stroke=\"gray\" /><line x1=\"30.00\" y1=\"35.00\" x2=\"35.00\" y2=\"70.00\" stroke=\"gray\" /><line x1=\"15.00\" y1=\"70.00\" x2=\"25.00\" y2=\"72.00\" stroke=\"gray\" /><line x1=\"35.00\" y1=\"70.00\" x2=\"25.00\" y2=\"72.00\" stroke=\"gray\" /><circle r=\"1.5\" cx=\"25.00\" cy=\"5.00\" fill=\"#ff0000\" /><circle r=\"1.5\" cx=\"15.00\" cy=\"20.00\" fill=\"#0066ff\" /><circle r=\"1.5\" cx=\"35.00\" cy=\"20.00\" fill=\"#0066ff\" /><circle r=\"1.5\" cx=\"20.00\" cy=\"35.00\" fill=\"#00cc00\" /><circle r=\"1.5\" cx=\"30.00\" cy=\"35.00\" fill=\"#00cc00\" /><circle r=\"1.5\" cx=\"5.00\" cy=\"40.00\" fill=\"#ffcc00\" /><circle r=\"1.5\" cx=\"45.00\" cy=\"40.00\" fill=\"#ffcc00\" /><circle r=\"1.5\" cx=\"15.00\" cy=\"70.00\" fill=\"#ff00ff\" /><circle r=\"1.5\" cx=\"35.00\" cy=\"70.00\" fill=\"#ff00ff\" /><circle r=\"1.5\" cx=\"25.00\" cy=\"72.00\" fill=\"#ff0000\" />"
+  },
+  {
+    "name": "pants",
+    "type": "skeleton",
+    "color": "#4488ff",
+    "attributes": [],
+    "sublabels": [
+      {"name": "waist_left", "type": "points", "color": "#ff0000"},
+      {"name": "waist_right", "type": "points", "color": "#ff0000"},
+      {"name": "crotch", "type": "points", "color": "#00cc00"},
+      {"name": "left_hem", "type": "points", "color": "#ff00ff"},
+      {"name": "right_hem", "type": "points", "color": "#ff00ff"},
+      {"name": "left_thigh", "type": "points", "color": "#ffcc00"},
+      {"name": "right_thigh", "type": "points", "color": "#ffcc00"}
+    ],
+    "svg": "<line x1=\"15.00\" y1=\"5.00\" x2=\"35.00\" y2=\"5.00\" stroke=\"gray\" /><line x1=\"15.00\" y1=\"5.00\" x2=\"25.00\" y2=\"40.00\" stroke=\"gray\" /><line x1=\"35.00\" y1=\"5.00\" x2=\"25.00\" y2=\"40.00\" stroke=\"gray\" /><line x1=\"25.00\" y1=\"40.00\" x2=\"15.00\" y2=\"90.00\" stroke=\"gray\" /><line x1=\"25.00\" y1=\"40.00\" x2=\"35.00\" y2=\"90.00\" stroke=\"gray\" /><line x1=\"10.00\" y1=\"40.00\" x2=\"40.00\" y2=\"40.00\" stroke=\"gray\" /><circle r=\"1.5\" cx=\"15.00\" cy=\"5.00\" fill=\"#ff0000\" /><circle r=\"1.5\" cx=\"35.00\" cy=\"5.00\" fill=\"#ff0000\" /><circle r=\"1.5\" cx=\"25.00\" cy=\"40.00\" fill=\"#00cc00\" /><circle r=\"1.5\" cx=\"15.00\" cy=\"90.00\" fill=\"#ff00ff\" /><circle r=\"1.5\" cx=\"35.00\" cy=\"90.00\" fill=\"#ff00ff\" /><circle r=\"1.5\" cx=\"10.00\" cy=\"40.00\" fill=\"#ffcc00\" /><circle r=\"1.5\" cx=\"40.00\" cy=\"40.00\" fill=\"#ffcc00\" />"
+  },
+  {
+    "name": "skirt",
+    "type": "skeleton",
+    "color": "#44ff44",
+    "attributes": [],
+    "sublabels": [
+      {"name": "waist_left", "type": "points", "color": "#ff0000"},
+      {"name": "waist_right", "type": "points", "color": "#ff0000"},
+      {"name": "hip_left", "type": "points", "color": "#00cc00"},
+      {"name": "hip_right", "type": "points", "color": "#00cc00"},
+      {"name": "hem_left", "type": "points", "color": "#ff00ff"},
+      {"name": "hem_right", "type": "points", "color": "#ff00ff"}
+    ],
+    "svg": "<line x1=\"15.00\" y1=\"5.00\" x2=\"35.00\" y2=\"5.00\" stroke=\"gray\" /><line x1=\"15.00\" y1=\"5.00\" x2=\"10.00\" y2=\"35.00\" stroke=\"gray\" /><line x1=\"35.00\" y1=\"5.00\" x2=\"40.00\" y2=\"35.00\" stroke=\"gray\" /><line x1=\"10.00\" y1=\"35.00\" x2=\"5.00\" y2=\"90.00\" stroke=\"gray\" /><line x1=\"40.00\" y1=\"35.00\" x2=\"45.00\" y2=\"90.00\" stroke=\"gray\" /><circle r=\"1.5\" cx=\"15.00\" cy=\"5.00\" fill=\"#ff0000\" /><circle r=\"1.5\" cx=\"35.00\" cy=\"5.00\" fill=\"#ff0000\" /><circle r=\"1.5\" cx=\"10.00\" cy=\"35.00\" fill=\"#00cc00\" /><circle r=\"1.5\" cx=\"40.00\" cy=\"35.00\" fill=\"#00cc00\" /><circle r=\"1.5\" cx=\"5.00\" cy=\"90.00\" fill=\"#ff00ff\" /><circle r=\"1.5\" cx=\"45.00\" cy=\"90.00\" fill=\"#ff00ff\" />"
+  },
+  {
+    "name": "dress",
+    "type": "skeleton",
+    "color": "#ff44ff",
+    "attributes": [],
+    "sublabels": [
+      {"name": "collar_center", "type": "points", "color": "#ff0000"},
+      {"name": "left_shoulder", "type": "points", "color": "#0066ff"},
+      {"name": "right_shoulder", "type": "points", "color": "#0066ff"},
+      {"name": "left_armpit", "type": "points", "color": "#00cc00"},
+      {"name": "right_armpit", "type": "points", "color": "#00cc00"},
+      {"name": "left_cuff", "type": "points", "color": "#ffcc00"},
+      {"name": "right_cuff", "type": "points", "color": "#ffcc00"},
+      {"name": "hem_left", "type": "points", "color": "#ff00ff"},
+      {"name": "hem_right", "type": "points", "color": "#ff00ff"},
+      {"name": "hem_center", "type": "points", "color": "#ff0000"},
+      {"name": "waist_left", "type": "points", "color": "#00ffff"},
+      {"name": "waist_right", "type": "points", "color": "#00ffff"}
+    ],
+    "svg": "<line x1=\"25.00\" y1=\"5.00\" x2=\"15.00\" y2=\"15.00\" stroke=\"gray\" /><line x1=\"25.00\" y1=\"5.00\" x2=\"35.00\" y2=\"15.00\" stroke=\"gray\" /><line x1=\"15.00\" y1=\"15.00\" x2=\"18.00\" y2=\"25.00\" stroke=\"gray\" /><line x1=\"35.00\" y1=\"15.00\" x2=\"32.00\" y2=\"25.00\" stroke=\"gray\" /><line x1=\"15.00\" y1=\"15.00\" x2=\"5.00\" y2=\"30.00\" stroke=\"gray\" /><line x1=\"35.00\" y1=\"15.00\" x2=\"45.00\" y2=\"30.00\" stroke=\"gray\" /><line x1=\"18.00\" y1=\"25.00\" x2=\"15.00\" y2=\"45.00\" stroke=\"gray\" /><line x1=\"32.00\" y1=\"25.00\" x2=\"35.00\" y2=\"45.00\" stroke=\"gray\" /><line x1=\"15.00\" y1=\"45.00\" x2=\"10.00\" y2=\"85.00\" stroke=\"gray\" /><line x1=\"35.00\" y1=\"45.00\" x2=\"40.00\" y2=\"85.00\" stroke=\"gray\" /><line x1=\"10.00\" y1=\"85.00\" x2=\"25.00\" y2=\"87.00\" stroke=\"gray\" /><line x1=\"40.00\" y1=\"85.00\" x2=\"25.00\" y2=\"87.00\" stroke=\"gray\" /><circle r=\"1.5\" cx=\"25.00\" cy=\"5.00\" fill=\"#ff0000\" /><circle r=\"1.5\" cx=\"15.00\" cy=\"15.00\" fill=\"#0066ff\" /><circle r=\"1.5\" cx=\"35.00\" cy=\"15.00\" fill=\"#0066ff\" /><circle r=\"1.5\" cx=\"18.00\" cy=\"25.00\" fill=\"#00cc00\" /><circle r=\"1.5\" cx=\"32.00\" cy=\"25.00\" fill=\"#00cc00\" /><circle r=\"1.5\" cx=\"5.00\" cy=\"30.00\" fill=\"#ffcc00\" /><circle r=\"1.5\" cx=\"45.00\" cy=\"30.00\" fill=\"#ffcc00\" /><circle r=\"1.5\" cx=\"10.00\" cy=\"85.00\" fill=\"#ff00ff\" /><circle r=\"1.5\" cx=\"40.00\" cy=\"85.00\" fill=\"#ff00ff\" /><circle r=\"1.5\" cx=\"25.00\" cy=\"87.00\" fill=\"#ff0000\" /><circle r=\"1.5\" cx=\"15.00\" cy=\"45.00\" fill=\"#00ffff\" /><circle r=\"1.5\" cx=\"35.00\" cy=\"45.00\" fill=\"#00ffff\" />"
+  }
+]
