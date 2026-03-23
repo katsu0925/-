@@ -44,7 +44,7 @@ async function handleSave(request, env) {
   }
 
   const data = JSON.parse(dataJson);
-  const { worker, category, image_name, width, height, keypoints, keypoints_flat, measurements } = data;
+  const { worker, category, image_name, width, height, a4_corners, keypoints, keypoints_flat, measurements } = data;
 
   if (!worker || !category || !keypoints) {
     return json({ error: 'worker, category, keypoints are required' }, 400);
@@ -58,8 +58,8 @@ async function handleSave(request, env) {
 
   // D1に保存
   await env.DB.prepare(
-    `INSERT INTO annotations (worker, category, image_key, image_name, image_width, image_height, keypoints, keypoints_flat, measurements)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO annotations (worker, category, image_key, image_name, image_width, image_height, a4_corners, keypoints, keypoints_flat, measurements)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     worker,
     category,
@@ -67,6 +67,7 @@ async function handleSave(request, env) {
     image_name || 'unknown',
     width,
     height,
+    JSON.stringify(a4_corners || []),
     JSON.stringify(keypoints),
     JSON.stringify(keypoints_flat),
     JSON.stringify(measurements || {}),
@@ -119,6 +120,7 @@ async function handleExport(env) {
       id: annId++,
       image_id: row.id,
       category: row.category,
+      a4_corners: JSON.parse(row.a4_corners || '[]'),
       keypoints: kpFlat,
       num_keypoints: kpFlat.length / 3,
       measurements: JSON.parse(row.measurements || '{}'),

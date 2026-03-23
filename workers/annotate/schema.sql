@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS annotations (
   image_name TEXT NOT NULL,
   image_width INTEGER NOT NULL,
   image_height INTEGER NOT NULL,
+  a4_corners TEXT,
   keypoints TEXT NOT NULL,
   keypoints_flat TEXT NOT NULL,
   measurements TEXT,
