@@ -93,8 +93,8 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 <div class="container">
   <h1>タスキ箱</h1>
 
-  <!-- 認証フォーム -->
-  <div id="authSection" class="card auth-wall">
+  <!-- 認証フォーム（トークンがあれば初期非表示→検証後に切り替え） -->
+  <div id="authSection" class="card auth-wall hidden">
     <h2>パスワードを入力</h2>
     <div class="form-group" style="margin-top:16px;position:relative">
       <input type="password" id="authPassword" placeholder="パスワード" autocomplete="off">
