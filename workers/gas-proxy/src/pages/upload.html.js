@@ -238,14 +238,16 @@ function showStatus(id, msg, type) {
 // ─── 初期化 ───
 (function init() {
   if (getToken()) {
+    // トークンがあれば即座にメイン画面を表示（ネットワーク待ちなし）
+    showMain();
+    // バックグラウンドでトークン検証→無効なら認証画面に戻す
     fetch(API_BASE + '/upload/list', {
       method: 'POST',
       headers: headers({ 'Content-Type': 'application/json' }),
       body: '{}'
     }).then(function(r) {
-      if (r.ok) showMain();
-      else showAuth();
-    }).catch(function() { showAuth(); });
+      if (!r.ok) { setToken(''); showAuth(); }
+    }).catch(function() {});
   } else {
     showAuth();
   }
