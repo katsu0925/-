@@ -111,13 +111,7 @@ def build_shooting_guide(output_path):
 
     # 1. 必要枚数
     story.append(p("1. 必要枚数", "h1"))
-    story.append(p("<b>合計200枚</b>の平置き衣類写真を撮影してください。", "body"))
-    story.append(sp(2))
-    story.append(p("できるだけ<b>いろいろな種類の衣類</b>を含めてください（偏りがないように）。"))
-    story.append(p("例: トップス、ジャケット・アウター、パンツ、スカート、ワンピース、スーツ、サロペット、ルームウェア等"))
-    story.append(sp(2))
-    story.append(p("サイズはS〜XXLまで混在OK。レディース・メンズ混在OK。"))
-    story.append(p("<b>キッズ（子供服）は不要です。</b>", "important"))
+    story.append(p("お渡しした衣類（約200着）を、以下の仕様に従って<b>1着ずつ平置き撮影</b>してください。", "body"))
 
     # 2. 撮影環境
     story.append(p("2. 撮影環境", "h1"))
