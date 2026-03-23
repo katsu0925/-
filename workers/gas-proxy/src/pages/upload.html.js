@@ -217,11 +217,16 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 // ─── 設定 ───
 var API_BASE = location.origin;
 var TOKEN_KEY = 'detauri_upload_token';
+var TOKEN_VERIFIED_KEY = 'detauri_token_verified_at';
 var PHOTOGRAPHER_KEY = 'detauri_photographer';
 var _workersList = [];
 
 function getToken() { return localStorage.getItem(TOKEN_KEY); }
-function setToken(t) { localStorage.setItem(TOKEN_KEY, t); }
+function setToken(t) {
+  localStorage.setItem(TOKEN_KEY, t);
+  if (t) localStorage.setItem(TOKEN_VERIFIED_KEY, String(Date.now()));
+  else localStorage.removeItem(TOKEN_VERIFIED_KEY);
+}
 
 function headers(extra) {
   var h = { 'Authorization': 'Bearer ' + getToken() };
@@ -237,19 +242,29 @@ function showStatus(id, msg, type) {
 
 // ─── 初期化 ───
 (function init() {
-  if (getToken()) {
-    // トークンがあれば即座にメイン画面を表示（ネットワーク待ちなし）
+  if (!getToken()) { showAuth(); return; }
+
+  var lastVerified = Number(localStorage.getItem(TOKEN_VERIFIED_KEY) || '0');
+  var hoursSince = (Date.now() - lastVerified) / (1000 * 60 * 60);
+
+  if (hoursSince < 24) {
+    // 24時間以内に検証済み → 即座にメイン画面、検証スキップ
     showMain();
-    // バックグラウンドでトークン検証→無効なら認証画面に戻す
+  } else {
+    // 24時間以上 or 未検証 → サーバーで検証してから表示
     fetch(API_BASE + '/upload/list', {
       method: 'POST',
       headers: headers({ 'Content-Type': 'application/json' }),
       body: '{}'
     }).then(function(r) {
-      if (!r.ok) { setToken(''); showAuth(); }
-    }).catch(function() {});
-  } else {
-    showAuth();
+      if (r.ok) {
+        localStorage.setItem(TOKEN_VERIFIED_KEY, String(Date.now()));
+        showMain();
+      } else { setToken(''); showAuth(); }
+    }).catch(function() {
+      // オフライン時はトークンがあれば表示を許可
+      showMain();
+    });
   }
 })();
 
