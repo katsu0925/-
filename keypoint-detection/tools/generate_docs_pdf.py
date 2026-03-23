@@ -224,17 +224,66 @@ def build_shooting_guide(output_path):
     for item in checklist:
         story.append(p(f"□  {item}"))
 
+    # 実寸計測
+    story.append(PageBreak())
+    story.append(p("7. 実寸計測", "h1"))
+    story.append(p("撮影した全200着について、<b>メジャーで実寸を計測</b>し、スプレッドシートに記録してください。"))
+    story.append(sp(2))
+    story.append(p("・平置きの状態のままメジャーで測る（着用しない）"))
+    story.append(p("・<b>片面の実寸</b>を記録（×2しない）"))
+    story.append(p("・cm単位、小数点1桁まで（例: 51.5cm）"))
+    story.append(p("・ゴムウエストは<b>伸ばさない自然な状態</b>で測る"))
+    story.append(sp(3))
+    story.append(p("計測項目（カテゴリ別）:", "h2"))
+    story.append(make_table(
+        ["カテゴリ", "計測項目"],
+        [
+            ["トップス・ジャケット等", "肩幅、身幅、着丈、袖丈"],
+            ["パンツ", "ウエスト、総丈、股上、股下、ワタリ、裾幅"],
+            ["スカート", "ウエスト、ヒップ、総丈"],
+            ["ワンピース", "肩幅、身幅、着丈、袖丈、ウエスト"],
+        ],
+        [60*mm, None]
+    ))
+    story.append(sp(3))
+    story.append(p("スプレッドシートにファイル名・カテゴリ・各計測値を記入。該当しない項目は「-」。"))
+
+    # キーポイントアノテーション
+    story.append(p("8. キーポイントアノテーション（CVAT）", "h1"))
+    story.append(p("撮影した画像に対して、衣類の特徴点（キーポイント）をマーキングする作業です。"))
+    story.append(sp(2))
+    story.append(p("8-1. セットアップ", "h2"))
+    story.append(p("1. <b>https://app.cvat.ai/</b> にアクセス → アカウント作成（無料）"))
+    story.append(p("2. Projects → + → 新規プロジェクト作成"))
+    story.append(p("3. Labels にキーポイントテンプレートを設定（アノテーションマニュアル参照）"))
+    story.append(p("4. Tasks → + → 画像200枚をアップロード"))
+    story.append(sp(2))
+    story.append(p("8-2. 作業手順", "h2"))
+    story.append(p("1. 画像を開く → 衣類のカテゴリを確認"))
+    story.append(p("2. アノテーションマニュアルに従い、各キーポイントを<b>順番通りに</b>クリック"))
+    story.append(p("3. 全点マーキング後、次の画像へ"))
+    story.append(p("4. 全画像完了 → Menu → Export → <b>COCO Keypoints 1.0</b> でエクスポート"))
+    story.append(sp(2))
+    story.append(p("詳細はアノテーションマニュアルPDFを参照してください。", "note"))
+
     # ファイル命名規則
-    story.append(p("7. ファイル命名規則", "h1"))
+    story.append(p("9. ファイル命名規則", "h1"))
     story.append(p("連番でOKです。　例: 001.jpg, 002.jpg, 003.jpg ..."))
     story.append(p("ファイル名に特別なルールはありません。重複しなければ大丈夫です。"))
 
-    # 納品形式
-    story.append(p("8. 納品形式", "h1"))
-    story.append(p("・画像フォーマット: JPEG（圧縮品質80以上）"))
-    story.append(p("・解像度: 最低3000x2000px"))
-    story.append(p("・納品方法: Google Driveの共有フォルダにアップロード"))
-    story.append(p("・フォルダ分けは不要（1フォルダにまとめてOK）"))
+    # 納品物
+    story.append(p("10. 納品物（3点）", "h1"))
+    story.append(make_table(
+        ["#", "納品物", "形式"],
+        [
+            ["1", "撮影画像 200枚", "JPEG（3000x2000px以上）"],
+            ["2", "実寸データ 200枚分", "スプレッドシート（Google or Excel）"],
+            ["3", "キーポイントアノテーション", "COCO Keypoints 1.0（CVATエクスポート）"],
+        ],
+        [10*mm, 55*mm, None]
+    ))
+    story.append(sp(2))
+    story.append(p("納品方法: Google Driveの共有フォルダにアップロード。フォルダ分けは不要。"))
 
     doc.build(story)
     print(f"撮影ガイドPDF → {output_path}")
