@@ -406,9 +406,9 @@ const img = document.getElementById('img');
 const JP = { shoulderWidth:'肩幅', sleeveLength:'袖丈', bodyWidth:'身幅',
   bodyLength_cb:'着丈', dressLength_bnp:'着丈', waistWidth:'ウエスト',
   totalLength_pants:'総丈', frontRise:'股上', inseam:'股下',
-  thighWidth:'ワタリ', hemWidth:'裾幅', hipWidth_cfg:'ヒップ', skirtLength:'総丈' };
+  thighWidth:'ワタリ', hemWidth:'裾幅', hipWidth_cfg:'ヒップ', skirtLength:'総丈', totalLength_salopette:'総丈' };
 const COLORS = ['#ff4444','#44ff44','#4488ff','#ffff44','#ff44ff','#44ffff','#ff8800','#8844ff'];
-const CAT_JP = { tops:'トップス', pants:'パンツ', skirt:'スカート', dress:'ワンピース' };
+const CAT_JP = { tops:'トップス', jacket:'ジャケット・アウター', pants:'パンツ', skirt:'スカート', dress:'ワンピース', bridal:'ドレス・ブライダル', suit:'スーツ・フォーマル', roomwear:'ルームウェア・パジャマ', salopette:'サロペット・オーバーオール', maternity:'マタニティ' };
 
 // ============ ステップ管理 ============
 let maxStep = 1;
@@ -556,7 +556,13 @@ function onFile(e) {
 function renderStep2(scroll, actions) {
   drawA4Dots();
   updateA4Scale();
-  scroll.innerHTML = `<div class="a4-info">
+  scroll.innerHTML = `<div class="form-group" style="margin-bottom:8px">
+    <label><b>カテゴリ</b></label>
+    <select id="inputCategory" onchange="category=this.value" style="font-size:15px">
+      ${Object.entries(CAT_JP).map(([k,v])=>`<option value="${k}"${k===category?' selected':''}>${v}</option>`).join('')}
+    </select>
+  </div>
+  <div class="a4-info">
     <b>A4用紙の位置を確認</b><br>
     黄色の○がA4の角にぴったり合っていれば「OK」を押してください。<br>
     ずれている場合は○をタップ→ドラッグで調整。
@@ -950,8 +956,13 @@ function generateDemo(w, h, cat) {
       bodyWidth:{s:[cx-gw*.45,cy-gh*.4],e:[cx+gw*.45,cy-gh*.4],j:'身幅'},
       dressLength_bnp:{s:[cx,cy-gh*.85],e:[cx,cy+gh*.9],j:'着丈'},
       waistWidth:{s:[cx-gw*.4,cy-gh*.05],e:[cx+gw*.4,cy-gh*.05],j:'ウエスト'}},
+    salopette:{shoulderWidth:{s:[cx-gw*.6,cy-gh*.7],e:[cx+gw*.6,cy-gh*.7],j:'肩幅'},
+      bodyWidth:{s:[cx-gw*.5,cy-gh*.3],e:[cx+gw*.5,cy-gh*.3],j:'身幅'},
+      totalLength_salopette:{s:[cx-gw*.3,cy-gh*.85],e:[cx-gw*.3,cy+gh*.95],j:'総丈'},
+      inseam:{s:[cx,cy-gh*.1],e:[cx-gw*.2,cy+gh*.95],j:'股下'}},
   };
-  const def=d[cat]||d.tops, ms={};
+  const alias={jacket:'tops',suit:'tops',roomwear:'tops',maternity:'tops',bridal:'dress'};
+  const def=d[cat]||d[alias[cat]]||d.tops, ms={};
   for(const [n,m] of Object.entries(def)){
     const dx=m.e[0]-m.s[0],dy=m.e[1]-m.s[1],px=Math.sqrt(dx*dx+dy*dy);
     ms[n]={value_cm:Math.round(px*scale*10)/10,value_px:Math.round(px),
@@ -974,9 +985,15 @@ function generateDemoAiDesc(cat) {
 
   const bodyMap = {
     tops: `ゆったりめのシルエットで着回しやすい一枚です。${note}`,
+    jacket: `羽織るだけでコーデが決まるアウターです。${note}`,
     pants: `程よいフィット感で合わせやすいボトムスです。${note}`,
     skirt: `きれいめにもカジュアルにも合わせやすいスカートです。${note}`,
     dress: `1枚でコーディネートが決まるワンピースです。${note}`,
+    bridal: `特別な日を彩るドレスです。${note}`,
+    suit: `きちんと感のあるフォーマルウェアです。${note}`,
+    roomwear: `リラックスタイムにぴったりの一着です。${note}`,
+    salopette: `1枚でおしゃれが決まるサロペットです。${note}`,
+    maternity: `ゆったり設計で快適に着られます。${note}`,
   };
 
   return `${title}\n\n${bodyMap[cat] || bodyMap.tops}\n\n状態: ${cond}`;

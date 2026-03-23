@@ -1,0 +1,16 @@
+{
+  "name": "写メジャー アノテーション",
+  "short_name": "アノテーション",
+  "start_url": "/annotate.html",
+  "display": "standalone",
+  "background_color": "#111111",
+  "theme_color": "#1a1a2e",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    }
+  ]
+}
