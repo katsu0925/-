@@ -268,6 +268,65 @@ function showStatus(id, msg, type) {
   }
 })();
 
+// ─── アプリ復帰時に自動更新 ───
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState === 'visible' && getToken() && !document.getElementById('mainSection').classList.contains('hidden')) {
+    loadUnmatchedCount();
+    _listLoaded = false;
+    refreshProductList(function() { renderManageList(); });
+  }
+});
+
+// ─── プルトゥリフレッシュ ───
+(function initPullToRefresh() {
+  var startY = 0, pulling = false, indicator = null;
+
+  function createIndicator() {
+    var el = document.createElement('div');
+    el.id = 'pullIndicator';
+    el.style.cssText = 'position:fixed;top:0;left:0;right:0;text-align:center;padding:10px;background:#3b82f6;color:#fff;font-size:13px;z-index:999;transform:translateY(-100%);transition:transform .2s';
+    el.textContent = '↓ 引っ張って更新';
+    document.body.appendChild(el);
+    return el;
+  }
+
+  document.addEventListener('touchstart', function(e) {
+    if (window.scrollY === 0 && getToken() && !document.getElementById('mainSection').classList.contains('hidden')) {
+      startY = e.touches[0].clientY;
+      pulling = true;
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchmove', function(e) {
+    if (!pulling) return;
+    var dy = e.touches[0].clientY - startY;
+    if (dy > 50) {
+      if (!indicator) indicator = createIndicator();
+      indicator.style.transform = 'translateY(0)';
+      indicator.textContent = dy > 120 ? '↑ 離して更新' : '↓ 引っ張って更新';
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchend', function(e) {
+    if (!pulling) return;
+    pulling = false;
+    if (indicator && indicator.style.transform === 'translateY(0)') {
+      var dy = e.changedTouches[0].clientY - startY;
+      if (dy > 120) {
+        indicator.textContent = '更新中...';
+        loadUnmatchedCount();
+        _listLoaded = false;
+        refreshProductList(function() {
+          renderManageList();
+          indicator.style.transform = 'translateY(-100%)';
+        });
+      } else {
+        indicator.style.transform = 'translateY(-100%)';
+      }
+    }
+  }, { passive: true });
+})();
+
 function showAuth() {
   document.getElementById('authSection').classList.remove('hidden');
   document.getElementById('mainSection').classList.add('hidden');
@@ -608,6 +667,10 @@ function doUpload() {
         // 確認画面: 管理番号+サムネイルを表示
         var mid = normId(document.getElementById('uploadManagedId').value);
         checkExistingImages(mid);
+        // 商品リストを更新（バックグラウンド）
+        _listLoaded = false;
+        loadUnmatchedCount();
+        refreshProductList(function() { renderManageList(); });
       }
     });
   });
@@ -719,6 +782,10 @@ var _listLoaded = false;
 
 function ensureListLoaded(cb) {
   if (_listLoaded) { cb(); return; }
+  refreshProductList(cb);
+}
+
+function refreshProductList(cb) {
   showStatus('manageLoadStatus', '読み込み中...', 'info');
   fetch(API_BASE + '/upload/list', {
     method: 'POST',
@@ -738,7 +805,7 @@ function ensureListLoaded(cb) {
     } else {
       showStatus('manageLoadStatus', productListData.length + '件の商品', 'ok');
     }
-    cb();
+    if (cb) cb();
   }).catch(function(e) { showStatus('manageLoadStatus', 'ネットワークエラー', 'err'); });
 }
 
