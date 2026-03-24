@@ -78,7 +78,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 .img-check-wrap{position:relative}
 .img-check-wrap input[type=checkbox]{position:absolute;top:4px;left:4px;z-index:2;width:18px;height:18px;accent-color:#3b82f6}
 .img-check-wrap .badge{left:auto;right:2px}
-.sticky-footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e5e7eb;padding:10px 16px calc(10px + env(safe-area-inset-bottom));z-index:50;display:none}
+.sticky-footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e5e7eb;padding:12px 16px calc(16px + env(safe-area-inset-bottom));z-index:50;display:none}
 .sticky-footer.show{display:block}
 .sticky-footer .footer-inner{max-width:600px;margin:0 auto;display:flex;gap:8px}
 .sticky-footer .footer-inner .btn{flex:1;margin:0;padding:10px;font-size:14px}
@@ -106,9 +106,10 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 
   <!-- メインUI（認証後に表示） -->
   <div id="mainSection" class="hidden">
-    <div class="tab-bar">
-      <button class="tab active" onclick="switchTab('upload')">アップロード <span id="unmatchedBadge" style="display:none;background:#ef4444;color:#fff;font-size:10px;padding:1px 5px;border-radius:8px;margin-left:2px"></span></button>
-      <button class="tab" onclick="switchTab('manage')">商品管理</button>
+    <div class="tab-bar" style="display:flex;align-items:center">
+      <button class="tab active" onclick="switchTab('upload')" style="flex:1">アップロード <span id="unmatchedBadge" style="display:none;background:#ef4444;color:#fff;font-size:10px;padding:1px 5px;border-radius:8px;margin-left:2px"></span></button>
+      <button class="tab" onclick="switchTab('manage')" style="flex:1">商品管理</button>
+      <button id="refreshBtn" onclick="doRefresh()" style="background:none;border:none;font-size:20px;padding:4px 8px;cursor:pointer;color:#6b7280" title="更新">&#x21bb;</button>
     </div>
 
     <!-- 撮影者選択モーダル -->
@@ -277,21 +278,20 @@ document.addEventListener('visibilitychange', function() {
   }
 });
 
-// ─── プルトゥリフレッシュ ───
+// ─── プルトゥリフレッシュ（AppSheet風） ───
 (function initPullToRefresh() {
-  var startY = 0, pulling = false, indicator = null;
+  var startY = 0, pulling = false, refreshing = false;
+  var indicator = document.createElement('div');
+  indicator.style.cssText = 'position:fixed;top:-50px;left:calc(50% - 18px);width:36px;height:36px;border-radius:50%;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.2);z-index:999;display:flex;align-items:center;justify-content:center;transition:top .2s ease;font-size:18px';
+  indicator.innerHTML = '&#x21bb;';
+  document.body.appendChild(indicator);
 
-  function createIndicator() {
-    var el = document.createElement('div');
-    el.id = 'pullIndicator';
-    el.style.cssText = 'position:fixed;top:0;left:0;right:0;text-align:center;padding:10px;background:#3b82f6;color:#fff;font-size:13px;z-index:999;transform:translateY(-100%);transition:transform .2s';
-    el.textContent = '↓ 引っ張って更新';
-    document.body.appendChild(el);
-    return el;
-  }
+  var style = document.createElement('style');
+  style.textContent = '@keyframes ptr-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}';
+  document.head.appendChild(style);
 
   document.addEventListener('touchstart', function(e) {
-    if (window.scrollY === 0 && getToken() && !document.getElementById('mainSection').classList.contains('hidden')) {
+    if (!refreshing && window.scrollY === 0 && getToken() && !document.getElementById('mainSection').classList.contains('hidden')) {
       startY = e.touches[0].clientY;
       pulling = true;
     }
@@ -300,32 +300,46 @@ document.addEventListener('visibilitychange', function() {
   document.addEventListener('touchmove', function(e) {
     if (!pulling) return;
     var dy = e.touches[0].clientY - startY;
-    if (dy > 50) {
-      if (!indicator) indicator = createIndicator();
-      indicator.style.transform = 'translateY(0)';
-      indicator.textContent = dy > 120 ? '↑ 離して更新' : '↓ 引っ張って更新';
+    if (dy > 10 && dy <= 150) {
+      indicator.style.top = Math.min(dy - 30, 60) + 'px';
+      indicator.style.opacity = Math.min(dy / 80, 1);
+      indicator.style.animation = '';
     }
   }, { passive: true });
 
-  document.addEventListener('touchend', function(e) {
+  document.addEventListener('touchend', function() {
     if (!pulling) return;
     pulling = false;
-    if (indicator && indicator.style.transform === 'translateY(0)') {
-      var dy = e.changedTouches[0].clientY - startY;
-      if (dy > 120) {
-        indicator.textContent = '更新中...';
-        loadUnmatchedCount();
-        _listLoaded = false;
-        refreshProductList(function() {
-          renderManageList();
-          indicator.style.transform = 'translateY(-100%)';
-        });
-      } else {
-        indicator.style.transform = 'translateY(-100%)';
-      }
+    var top = parseInt(indicator.style.top) || 0;
+    if (top >= 50) {
+      refreshing = true;
+      indicator.style.top = '16px';
+      indicator.style.animation = 'ptr-spin .6s linear infinite';
+      doRefresh(function() {
+        refreshing = false;
+        indicator.style.animation = '';
+        indicator.style.top = '-50px';
+        indicator.style.opacity = '0';
+      });
+    } else {
+      indicator.style.top = '-50px';
+      indicator.style.opacity = '0';
     }
   }, { passive: true });
 })();
+
+// ─── 手動更新 ───
+function doRefresh(cb) {
+  var btn = document.getElementById('refreshBtn');
+  if (btn) { btn.style.animation = 'ptr-spin .6s linear infinite'; btn.style.transformOrigin = 'center'; }
+  loadUnmatchedCount();
+  _listLoaded = false;
+  refreshProductList(function() {
+    renderManageList();
+    if (btn) btn.style.animation = '';
+    if (cb) cb();
+  });
+}
 
 function showAuth() {
   document.getElementById('authSection').classList.remove('hidden');
