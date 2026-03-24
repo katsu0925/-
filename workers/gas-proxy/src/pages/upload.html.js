@@ -270,11 +270,14 @@ function showStatus(id, msg, type) {
 })();
 
 // ─── アプリ復帰時に自動更新 ───
+var _lastRefresh = 0;
+var _refreshing = false;
 document.addEventListener('visibilitychange', function() {
   if (document.visibilityState === 'visible' && getToken() && !document.getElementById('mainSection').classList.contains('hidden')) {
-    loadUnmatchedCount();
-    _listLoaded = false;
-    refreshProductList(function() { renderManageList(); });
+    // 前回の更新から30秒以上経過している場合のみ更新
+    if (Date.now() - _lastRefresh > 30000) {
+      doRefresh();
+    }
   }
 });
 
@@ -330,13 +333,20 @@ document.addEventListener('visibilitychange', function() {
 
 // ─── 手動更新 ───
 function doRefresh(cb) {
+  if (_refreshing) { if (cb) cb(); return; }
+  _refreshing = true;
+  _lastRefresh = Date.now();
   var btn = document.getElementById('refreshBtn');
   if (btn) { btn.style.animation = 'ptr-spin .6s linear infinite'; btn.style.transformOrigin = 'center'; }
   loadUnmatchedCount();
   _listLoaded = false;
+  var savedExpanded = _manageExpandedMid;
   refreshProductList(function() {
     renderManageList();
+    // 展開中の商品を復元
+    if (savedExpanded) toggleManageExpand(savedExpanded);
     if (btn) btn.style.animation = '';
+    _refreshing = false;
     if (cb) cb();
   });
 }
@@ -682,9 +692,7 @@ function doUpload() {
         var mid = normId(document.getElementById('uploadManagedId').value);
         checkExistingImages(mid);
         // 商品リストを更新（バックグラウンド）
-        _listLoaded = false;
-        loadUnmatchedCount();
-        refreshProductList(function() { renderManageList(); });
+        doRefresh();
       }
     });
   });
