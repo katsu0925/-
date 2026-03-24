@@ -269,21 +269,23 @@ function showStatus(id, msg, type) {
   }
 })();
 
-// ─── アプリ復帰時に自動更新 ───
+// ─── 更新制御 ───
 var _lastRefresh = 0;
 var _refreshing = false;
+var _busyOperation = false; // アップロード・削除・並べ替え中はtrue
+
+// アプリ復帰時に自動更新（30秒スロットリング＋操作中は抑制）
 document.addEventListener('visibilitychange', function() {
-  if (document.visibilityState === 'visible' && getToken() && !document.getElementById('mainSection').classList.contains('hidden')) {
-    // 前回の更新から30秒以上経過している場合のみ更新
-    if (Date.now() - _lastRefresh > 30000) {
-      doRefresh();
-    }
+  if (document.visibilityState === 'visible' && getToken()
+      && !document.getElementById('mainSection').classList.contains('hidden')
+      && !_busyOperation && Date.now() - _lastRefresh > 30000) {
+    doRefresh();
   }
 });
 
 // ─── プルトゥリフレッシュ（AppSheet風） ───
 (function initPullToRefresh() {
-  var startY = 0, pulling = false, refreshing = false;
+  var startY = 0, currentDy = 0, pulling = false;
   var indicator = document.createElement('div');
   indicator.style.cssText = 'position:fixed;top:-50px;left:calc(50% - 18px);width:36px;height:36px;border-radius:50%;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.2);z-index:999;display:flex;align-items:center;justify-content:center;transition:top .2s ease;font-size:18px';
   indicator.innerHTML = '&#x21bb;';
@@ -293,45 +295,49 @@ document.addEventListener('visibilitychange', function() {
   style.textContent = '@keyframes ptr-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}';
   document.head.appendChild(style);
 
+  function hideIndicator() {
+    indicator.style.animation = '';
+    indicator.style.top = '-50px';
+    indicator.style.opacity = '0';
+  }
+
   document.addEventListener('touchstart', function(e) {
-    if (!refreshing && window.scrollY === 0 && getToken() && !document.getElementById('mainSection').classList.contains('hidden')) {
+    if (!_refreshing && !_busyOperation && window.scrollY === 0 && getToken()
+        && !document.getElementById('mainSection').classList.contains('hidden')) {
       startY = e.touches[0].clientY;
+      currentDy = 0;
       pulling = true;
     }
   }, { passive: true });
 
   document.addEventListener('touchmove', function(e) {
     if (!pulling) return;
-    var dy = e.touches[0].clientY - startY;
-    if (dy > 10 && dy <= 150) {
-      indicator.style.top = Math.min(dy - 30, 60) + 'px';
-      indicator.style.opacity = Math.min(dy / 80, 1);
+    currentDy = e.touches[0].clientY - startY;
+    if (currentDy > 10) {
+      var visualDy = Math.min(currentDy * 0.5, 70); // 減衰させて自然な動きに
+      indicator.style.top = (visualDy - 20) + 'px';
+      indicator.style.opacity = Math.min(currentDy / 80, 1);
       indicator.style.animation = '';
+    } else if (currentDy < 0) {
+      pulling = false;
+      hideIndicator();
     }
   }, { passive: true });
 
   document.addEventListener('touchend', function() {
     if (!pulling) return;
     pulling = false;
-    var top = parseInt(indicator.style.top) || 0;
-    if (top >= 50) {
-      refreshing = true;
+    if (currentDy > 80) {
       indicator.style.top = '16px';
       indicator.style.animation = 'ptr-spin .6s linear infinite';
-      doRefresh(function() {
-        refreshing = false;
-        indicator.style.animation = '';
-        indicator.style.top = '-50px';
-        indicator.style.opacity = '0';
-      });
+      doRefresh(function() { hideIndicator(); });
     } else {
-      indicator.style.top = '-50px';
-      indicator.style.opacity = '0';
+      hideIndicator();
     }
   }, { passive: true });
 })();
 
-// ─── 手動更新 ───
+// ─── 更新実行（排他制御・展開状態保持） ───
 function doRefresh(cb) {
   if (_refreshing) { if (cb) cb(); return; }
   _refreshing = true;
@@ -343,12 +349,14 @@ function doRefresh(cb) {
   var savedExpanded = _manageExpandedMid;
   refreshProductList(function() {
     renderManageList();
-    // 展開中の商品を復元
     if (savedExpanded) toggleManageExpand(savedExpanded);
-    if (btn) btn.style.animation = '';
-    _refreshing = false;
-    if (cb) cb();
+    _finishRefresh(btn, cb);
   });
+}
+function _finishRefresh(btn, cb) {
+  if (btn) btn.style.animation = '';
+  _refreshing = false;
+  if (cb) cb();
 }
 
 function showAuth() {
@@ -664,6 +672,7 @@ function doUpload() {
 
   var btn = document.getElementById('uploadBtn');
   btn.disabled = true;
+  _busyOperation = true;
   var bar = document.getElementById('uploadProgress');
   var fill = document.getElementById('uploadProgressFill');
   bar.classList.add('show');
@@ -677,6 +686,7 @@ function doUpload() {
       showStatus('uploadStatus', done + '/' + total + ' アップロード中...', 'info');
     }, function(err, response) {
       btn.disabled = false;
+      _busyOperation = false;
       bar.classList.remove('show');
       if (err) {
         showStatus('uploadStatus', 'エラー: ' + err, 'err');
@@ -818,6 +828,7 @@ function refreshProductList(cb) {
     if (!d.ok) {
       if (d.message && d.message.indexOf('トークン') >= 0) showAuth();
       showStatus('manageLoadStatus', d.message || 'エラー', 'err');
+      if (cb) cb();
       return;
     }
     productListData = d.items || [];
@@ -828,7 +839,7 @@ function refreshProductList(cb) {
       showStatus('manageLoadStatus', productListData.length + '件の商品', 'ok');
     }
     if (cb) cb();
-  }).catch(function(e) { showStatus('manageLoadStatus', 'ネットワークエラー', 'err'); });
+  }).catch(function(e) { showStatus('manageLoadStatus', 'ネットワークエラー', 'err'); if (cb) cb(); });
 }
 
 function reloadList(cb) {
