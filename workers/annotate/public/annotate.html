@@ -18,7 +18,8 @@ body { font-family:-apple-system,'Hiragino Sans',sans-serif; background:#111; co
   box-shadow:0 2px 8px rgba(0,0,0,0.5); }
 .container { display:flex; height:calc(100vh - 90px); }
 .image-area { flex:1; position:relative; overflow:hidden; background:#000;
-  touch-action:manipulation; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none; }
+  touch-action:manipulation; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none;
+  transition:transform 0.3s ease; }
 .image-area img { width:100%; height:100%; object-fit:contain;
   -webkit-touch-callout:none; pointer-events:none; }
 .panel { width:320px; background:#1a1a1a; display:flex; flex-direction:column; }
@@ -55,12 +56,17 @@ body { font-family:-apple-system,'Hiragino Sans',sans-serif; background:#111; co
     linear-gradient(rgba(255,255,255,0.8),rgba(255,255,255,0.8)) center/8px 1px no-repeat;
 }
 .dot::after { content:''; position:absolute; top:-10px; left:-10px; right:-10px; bottom:-10px; }
-.dot.selected { box-shadow:0 0 14px rgba(0,100,255,0.8); border-color:#fff;
-  background:linear-gradient(#fff,#fff) center/1px 12px no-repeat,
-    linear-gradient(#fff,#fff) center/12px 1px no-repeat, rgba(0,100,255,0.5); }
+.dot.selected { width:36px; height:36px; border:3px solid #fff;
+  box-shadow:0 0 20px rgba(0,150,255,0.9), 0 0 40px rgba(0,150,255,0.4);
+  background:linear-gradient(#fff,#fff) center/2px 14px no-repeat,
+    linear-gradient(#fff,#fff) center/14px 2px no-repeat, rgba(0,100,255,0.5);
+  animation:pulse 1s ease-in-out infinite; }
+@keyframes pulse {
+  0%,100% { box-shadow:0 0 20px rgba(0,150,255,0.9), 0 0 40px rgba(0,150,255,0.4); }
+  50% { box-shadow:0 0 30px rgba(0,150,255,1), 0 0 60px rgba(0,150,255,0.6); }
+}
 .dot-label { position:absolute; font-size:9px; font-weight:700; color:#fff; width:16px; height:16px;
-  line-height:16px; text-align:center; border-radius:50%; z-index:11; pointer-events:none;
-  top:-12px; left:50%; transform:translateX(-50%); }
+  line-height:16px; text-align:center; border-radius:50%; z-index:11; pointer-events:none; }
 .a4-dot {
   position:absolute; width:28px; height:28px; border-radius:50%;
   transform:translate(-50%,-50%); z-index:9; cursor:grab;
@@ -70,9 +76,15 @@ body { font-family:-apple-system,'Hiragino Sans',sans-serif; background:#111; co
     rgba(251,191,36,0.2);
 }
 .a4-dot::after { content:''; position:absolute; top:-10px; left:-10px; right:-10px; bottom:-10px; }
+.a4-dot.a4-selected { width:36px; height:36px; border:3px solid #fbbf24;
+  box-shadow:0 0 20px rgba(251,191,36,0.9), 0 0 40px rgba(251,191,36,0.4);
+  animation:pulse-a4 1s ease-in-out infinite; }
+@keyframes pulse-a4 {
+  0%,100% { box-shadow:0 0 20px rgba(251,191,36,0.9), 0 0 40px rgba(251,191,36,0.4); }
+  50% { box-shadow:0 0 30px rgba(251,191,36,1), 0 0 60px rgba(251,191,36,0.6); }
+}
 .a4-label { position:absolute; font-size:10px; font-weight:700; color:#000; background:#fbbf24;
-  padding:1px 5px; border-radius:3px; white-space:nowrap; z-index:11; pointer-events:none;
-  left:100%; top:50%; transform:translate(6px,-50%); }
+  padding:1px 5px; border-radius:3px; white-space:nowrap; z-index:11; pointer-events:none; }
 
 .btn { display:block; width:100%; padding:10px; border:none; border-radius:8px;
   font-size:13px; font-weight:600; cursor:pointer; margin-bottom:6px; text-align:center; }
@@ -101,6 +113,15 @@ body { font-family:-apple-system,'Hiragino Sans',sans-serif; background:#111; co
     padding:10px 16px; padding-bottom:max(10px, env(safe-area-inset-bottom)); z-index:50; }
   .panel-scroll { padding-bottom:140px; }
 }
+.confirm-overlay { display:none; position:fixed; top:0;left:0;right:0;bottom:0; background:rgba(0,0,0,0.6);
+  z-index:300; align-items:center; justify-content:center; }
+.confirm-box { background:#222; border-radius:12px; padding:20px; margin:20px; max-width:320px; text-align:center; }
+.confirm-msg { font-size:14px; color:#fff; margin-bottom:16px; }
+.confirm-btns { display:flex; gap:10px; }
+.confirm-btns button { flex:1; padding:10px; border:none; border-radius:8px; font-size:14px; font-weight:600; cursor:pointer; }
+.confirm-yes { background:#e94560; color:#fff; }
+.confirm-no { background:#444; color:#ccc; }
+}
 </style>
 </head>
 <body>
@@ -111,6 +132,15 @@ body { font-family:-apple-system,'Hiragino Sans',sans-serif; background:#111; co
     <span id="saveCount" style="font-size:12px;color:#69f0ae;font-weight:600">読み込み中...</span>
     <button onclick="location.reload()" style="background:none;border:1px solid #555;color:#aaa;font-size:11px;padding:2px 8px;border-radius:4px;cursor:pointer">↻</button>
   </span>
+</div>
+<div class="confirm-overlay" id="confirmDialog">
+  <div class="confirm-box">
+    <p class="confirm-msg"></p>
+    <div class="confirm-btns">
+      <button class="confirm-no" onclick="confirmNo()">キャンセル</button>
+      <button class="confirm-yes" onclick="confirmYes()">OK</button>
+    </div>
+  </div>
 </div>
 <div class="mode-bar" id="modeBar">カテゴリを選んで実寸を入力してください</div>
 <div class="float-label" id="floatLabel"></div>
@@ -138,6 +168,7 @@ body { font-family:-apple-system,'Hiragino Sans',sans-serif; background:#111; co
         <button class="cat-btn active" id="subTop" onclick="setSubCat('top')">上（トップス）</button>
         <button class="cat-btn" id="subBottom" onclick="setSubCat('bottom')">下（パンツ）</button>
       </div>
+      <div id="catGuide" style="margin-bottom:8px;padding:6px 10px;background:#222;border-radius:6px;font-size:11px;color:#aaa;display:none"></div>
       <div id="measureForm"></div>
       <ul class="kp-list" id="kpList"></ul>
       <div id="errorTable"></div>
@@ -252,6 +283,33 @@ function effectiveCat() {
   return cat;
 }
 
+// 撮影方向とカテゴリ別ガイド
+const CAT_GUIDE = {
+  tops: {side:'背面', notes:['襟は着丈に含めない（襟の付け根からが着丈の起点）','袖口は袖の上端にドットを合わせる']},
+  jacket: {side:'背面', notes:['襟は着丈に含めない','袖口は袖の上端にドットを合わせる']},
+  suit_top: {side:'背面', notes:['襟は着丈に含めない','袖口は袖の上端にドットを合わせる']},
+  suit_bottom: {side:'正面', notes:[]},
+  roomwear_top: {side:'背面', notes:['襟は着丈に含めない','袖口は袖の上端にドットを合わせる']},
+  roomwear_bottom: {side:'正面', notes:[]},
+  maternity: {side:'背面', notes:['襟は着丈に含めない','袖口は袖の上端にドットを合わせる']},
+  pants: {side:'正面', notes:[]},
+  skirt: {side:'正面', notes:[]},
+  dress: {side:'背面', notes:['襟は着丈に含めない','袖口は袖の上端にドットを合わせる']},
+  bridal: {side:'背面', notes:['襟は着丈に含めない','袖口は袖の上端にドットを合わせる']},
+  salopette: {side:'正面', notes:[]},
+};
+
+function renderCatGuide() {
+  const g = CAT_GUIDE[effectiveCat()];
+  const el = document.getElementById('catGuide');
+  if(!g) { el.style.display = 'none'; return; }
+  const sideColor = g.side === '正面' ? '#69f0ae' : '#fbbf24';
+  let html = `<span style="color:${sideColor};font-weight:700">📷 ${g.side}から撮影</span>`;
+  if(g.notes.length) html += '<br>' + g.notes.map(n => `・${n}`).join('<br>');
+  el.innerHTML = html;
+  el.style.display = 'block';
+}
+
 let cat = localStorage.getItem('annotate_cat') || 'tops';
 let WORKER = localStorage.getItem('annotate_worker') || '';
 if(!WORKER) {
@@ -271,7 +329,30 @@ const imageArea = document.getElementById('imageArea');
 const img = document.getElementById('img');
 
 // ============ カテゴリ ============
+function hasData() {
+  return points.length > 0 || Object.keys(getMeasurements()).length > 0;
+}
+let pendingAction = null;
+function showConfirm(msg, onYes) {
+  const d = document.getElementById('confirmDialog');
+  d.querySelector('.confirm-msg').textContent = msg;
+  d.style.display = 'flex';
+  pendingAction = onYes;
+}
+function confirmYes() {
+  document.getElementById('confirmDialog').style.display = 'none';
+  if(pendingAction) { pendingAction(); pendingAction = null; }
+}
+function confirmNo() {
+  document.getElementById('confirmDialog').style.display = 'none';
+  pendingAction = null;
+}
 function setCat(c) {
+  if(c === cat) return;
+  if(hasData()) { showConfirm('入力データがリセットされます。変更しますか？', () => doSetCat(c)); return; }
+  doSetCat(c);
+}
+function doSetCat(c) {
   cat = c;
   subCat = 'top';
   localStorage.setItem('annotate_cat', c);
@@ -290,6 +371,11 @@ function setCat(c) {
   }
 }
 function setSubCat(s) {
+  if(s === subCat) return;
+  if(hasData()) { showConfirm('入力データがリセットされます。変更しますか？', () => doSetSubCat(s)); return; }
+  doSetSubCat(s);
+}
+function doSetSubCat(s) {
   subCat = s;
   document.getElementById('subTop').classList.toggle('active', s==='top');
   document.getElementById('subBottom').classList.toggle('active', s==='bottom');
@@ -310,10 +396,11 @@ function renderMeasureForm() {
     <h4>① 実寸を入力（メジャーで計測 / cm）</h4>
     ${items.map((name, i) => `<div class="measure-row">
       <label>${name}</label>
-      <input type="number" inputmode="decimal" step="0.5" id="meas_${i}" placeholder="0.0">
+      <input type="number" inputmode="decimal" step="0.5" id="meas_${i}" placeholder="0.0" oninput="renderErrors()">
       <span>cm</span>
     </div>`).join('')}
   </div>`;
+  renderCatGuide();
 }
 renderMeasureForm();
 
@@ -387,6 +474,8 @@ function resetA4() {
 function resetPoints() {
   points = [];
   dots.forEach(d => d.remove()); dots = [];
+  guideElements.forEach(el => el.remove()); guideElements = [];
+  document.getElementById('errorTable').innerHTML = '';
   document.getElementById('result').style.display = 'none';
   document.getElementById('saveBtn').style.display = 'none';
 }
@@ -421,18 +510,23 @@ function toggleA4Select(i) {
   selectedA4 = i;
   selectedIdx = -1;
   dots.forEach(d => d.classList.remove('selected'));
-  a4Dots.forEach(d => d.style.boxShadow = '');
-  a4Dots[i].style.boxShadow = '0 0 14px rgba(251,191,36,0.8)';
+  a4Dots.forEach(d => d.classList.remove('a4-selected'));
+  a4Dots[i].classList.add('a4-selected');
   setMode(`A4 ${A4_LABELS[i]}を調整中 — ドラッグで移動 / 空白タップで確定`);
+  zoomToPoint(a4Points[i].x, a4Points[i].y);
 }
 
 function deselectA4() {
   selectedA4 = -1;
   justDeselected = true;
   setTimeout(() => justDeselected = false, 300);
-  a4Dots.forEach(d => d.style.boxShadow = '');
+  zoomReset();
+  a4Dots.forEach(d => d.classList.remove('a4-selected'));
   if(phase === 'a4' && a4Points.length < 4) {
     setMode(`② A4用紙の${A4_LABELS[a4Points.length]}をタップ（${a4Points.length}/4）`);
+  } else if(phase === 'a4' && a4Points.length >= 4) {
+    setMode('A4位置を確認してください。ずれていればタップで調整');
+    document.getElementById('a4NextBtn').style.display = 'block';
   } else if(phase === 'keypoint') {
     const defs = DEFS[effectiveCat()];
     if(points.length < defs.length) setMode(`② ${defs[points.length].jp} をタップしてください`);
@@ -452,14 +546,15 @@ function addA4Point(e) {
   if(imgX < 0 || imgX > IMG_W || imgY < 0 || imgY > IMG_H) return;
 
   a4Points.push({x: imgX, y: imgY});
-  a4Dots.push(createA4Dot(a4Points.length - 1));
-
-  if(a4Points.length >= 4) {
-    setMode('A4位置を確認してください。ずれていればタップで調整');
-    document.getElementById('a4NextBtn').style.display = 'block';
-  } else {
-    setMode(`② A4用紙の${A4_LABELS[a4Points.length]}をタップ（${a4Points.length}/4）`);
-  }
+  const ai = a4Points.length - 1;
+  a4Dots.push(createA4Dot(ai));
+  // 自動で調整モードに入る
+  selectedA4 = ai;
+  a4Dots.forEach(d => d.classList.remove('a4-selected'));
+  a4Dots[ai].classList.add('a4-selected');
+  setMode(`A4 ${A4_LABELS[ai]}を調整中 — ドラッグで移動 / 空白タップで確定`);
+  repositionAllLabels();
+  zoomToPoint(imgX, imgY);
 }
 
 // 対になるキーポイント間のガイドライン定義（水平ペア / 垂直ペア）
@@ -473,12 +568,15 @@ const GUIDE_LINES = {
     {a:'waist_left', b:'waist_right', dir:'h'},
     {a:'hip_left', b:'hip_right', dir:'h'},
     {a:'left_hem', b:'right_hem', dir:'h'},
-    {a:'waist_center', b:'hem_center', dir:'v'},
+    {a:'waist_right', b:'right_hem', dir:'line'},
+    {a:'waist_center', b:'crotch', dir:'line'},
+    {a:'crotch', b:'left_hem', dir:'line'},
+    {a:'crotch', b:'thigh_outer', dir:'line'},
   ],
   skirt: [
     {a:'waist_left', b:'waist_right', dir:'h'},
     {a:'hip_left', b:'hip_right', dir:'h'},
-    {a:'waist_center', b:'hem_center', dir:'v'},
+    {a:'waist_center', b:'hem_center', dir:'line'},
   ],
   dress: [
     {a:'left_shoulder', b:'right_shoulder', dir:'h'},
@@ -489,7 +587,8 @@ const GUIDE_LINES = {
   salopette: [
     {a:'left_strap_top', b:'right_strap_top', dir:'h'},
     {a:'left_armpit', b:'right_armpit', dir:'h'},
-    {a:'left_strap_top', b:'hem_center', dir:'v'},
+    {a:'waist_left', b:'waist_right', dir:'line'},
+    {a:'right_strap_top', b:'right_hem', dir:'line'},
   ],
 };
 GUIDE_LINES.jacket = GUIDE_LINES.tops;
@@ -533,6 +632,9 @@ function renderGuideLines() {
     imageArea.appendChild(line);
     guideElements.push(line);
 
+    // line タイプは接続線のみ（ズレ表示なし）
+    if(g.dir === 'line') continue;
+
     // ズレ表示
     const scale = calcScale();
     if(scale) {
@@ -563,6 +665,51 @@ function renderGuideLines() {
       }
     }
   }
+
+  // 中心ガイド線: 左右ペアの中点に縦のダッシュ線を表示
+  const CENTER_PAIRS = [
+    {l:'waist_left', r:'waist_right', color:'rgba(255,68,68,0.5)', label:'ウエスト中心'},
+    {l:'left_hem', r:'right_hem', color:'rgba(255,0,255,0.5)', label:'裾中心'},
+    {l:'hem_left', r:'hem_right', color:'rgba(255,0,255,0.5)', label:'裾中心'},
+  ];
+  const defs2 = DEFS[effectiveCat()];
+  for(const cp of CENTER_PAIRS) {
+    const li = defs2.findIndex(d => d.name === cp.l);
+    const ri = defs2.findIndex(d => d.name === cp.r);
+    if(li < 0 || ri < 0 || li >= points.length || ri >= points.length) continue;
+    const mx = (points[li].x + points[ri].x) / 2;
+    const my = (points[li].y + points[ri].y) / 2;
+    const pm = toArea(mx, my);
+    const aRect = imageArea.getBoundingClientRect();
+    // 縦のダッシュ線（画像エリアの上から下まで）
+    const vline = document.createElement('div');
+    vline.style.cssText = `position:absolute;z-index:3;pointer-events:none;
+      left:${pm.px}px;top:0;width:1px;height:100%;
+      background:repeating-linear-gradient(to bottom,${cp.color} 0px,${cp.color} 4px,transparent 4px,transparent 8px);`;
+    // ラベル（ドットと被らない方向に動的配置）
+    const vtag = document.createElement('div');
+    vtag.style.cssText = `position:absolute;z-index:12;pointer-events:none;font-size:8px;
+      color:#fff;background:rgba(0,0,0,0.6);padding:1px 4px;border-radius:2px;white-space:nowrap;`;
+    vtag.textContent = cp.label;
+    // 4方向から最もドットから離れた位置を選択
+    const cDirs = [{dx:6,dy:-14},{dx:6,dy:8},{dx:-40,dy:-14},{dx:-40,dy:8}];
+    let bestCD = cDirs[0], bestCDist = -1;
+    const allPts = [];
+    dots.forEach((d,i) => { if(i<points.length) allPts.push({x:parseFloat(d.style.left),y:parseFloat(d.style.top)}); });
+    a4Dots.forEach((d,i) => { if(i<a4Points.length) allPts.push({x:parseFloat(d.style.left),y:parseFloat(d.style.top)}); });
+    for(const cd of cDirs) {
+      const lx = pm.px+cd.dx, ly = pm.py+cd.dy;
+      let md = Infinity;
+      for(const p of allPts) { md = Math.min(md, Math.hypot(p.x-lx, p.y-ly)); }
+      if(md > bestCDist) { bestCDist = md; bestCD = cd; }
+    }
+    vtag.style.left = (pm.px + bestCD.dx) + 'px';
+    vtag.style.top = (pm.py + bestCD.dy) + 'px';
+    imageArea.appendChild(vtag);
+    guideElements.push(vtag);
+    imageArea.appendChild(vline);
+    guideElements.push(vline);
+  }
 }
 
 // A4隅からスケール (cm/px) を計算
@@ -591,9 +738,9 @@ const KP_MEASURE_MAP = {
   pants: [
     {m:'ウエスト', a:'waist_left', b:'waist_right'},
     {m:'ヒップ', a:'hip_left', b:'hip_right'},
-    {m:'総丈', a:'waist_center', b:'hem_center'},
+    {m:'総丈', a:'waist_right', b:'right_hem'},
     {m:'股上', a:'waist_center', b:'crotch'},
-    {m:'股下', a:'crotch', b:'hem_center'},
+    {m:'股下', a:'crotch', b:'left_hem'},
     {m:'ワタリ', a:'crotch', b:'thigh_outer'},
     {m:'裾幅', a:'left_hem', b:'right_hem'},
   ],
@@ -613,8 +760,8 @@ const KP_MEASURE_MAP = {
   salopette: [
     {m:'肩幅', a:'left_strap_top', b:'right_strap_top'},
     {m:'身幅', a:'left_armpit', b:'right_armpit'},
-    {m:'総丈', a:'left_strap_top', b:'hem_center'},
-    {m:'股下', a:'crotch', b:'hem_center'},
+    {m:'総丈', a:'right_strap_top', b:'right_hem'},
+    {m:'股下', a:'crotch', b:'left_hem'},
   ],
 };
 KP_MEASURE_MAP.jacket = KP_MEASURE_MAP.tops;
@@ -695,6 +842,7 @@ function renderList() {
   });
   renderErrors();
   renderGuideLines();
+  repositionAllLabels();
 }
 
 function renderErrors() {
@@ -755,6 +903,7 @@ function toggleSelect(i) {
   dots.forEach(d => d.classList.remove('selected'));
   dots[i]?.classList.add('selected');
   setMode(`${DEFS[effectiveCat()][i].jp} を調整中 — ドラッグで移動 / 空白タップで確定`);
+  zoomToPoint(points[i].x, points[i].y);
   renderList();
 }
 
@@ -763,12 +912,14 @@ function deselectDot() {
   selectedIdx = -1;
   justDeselected = true;
   setTimeout(() => justDeselected = false, 300);
+  zoomReset();
   dots.forEach(d => d.classList.remove('selected'));
   const defs = DEFS[effectiveCat()];
   if(points.length < defs.length) {
     setMode(`② ${defs[points.length].jp} をタップしてください`);
   } else {
     setMode('全ポイント完了！ 保存してください');
+    document.getElementById('saveBtn').style.display = 'block';
   }
   renderList();
 }
@@ -821,13 +972,15 @@ function moveDrag(cx, cy) {
   if(!dragAnchor) return;
   isDragging = true;
   const r = getRect();
-  const nx = dragAnchor.origX + ((cx - dragAnchor.clientX) / r.width) * IMG_W;
-  const ny = dragAnchor.origY + ((cy - dragAnchor.clientY) / r.height) * IMG_H;
+  const s = isAutoZoomed ? ZOOM_SCALE : 1;
+  const nx = dragAnchor.origX + ((cx - dragAnchor.clientX) / s / r.width) * IMG_W;
+  const ny = dragAnchor.origY + ((cy - dragAnchor.clientY) / s / r.height) * IMG_H;
   if(dragAnchor.type === 'a4' && selectedA4 >= 0) {
     a4Points[selectedA4] = {x: nx, y: ny};
     const p = toArea(nx, ny);
     a4Dots[selectedA4].style.left = p.px + 'px';
     a4Dots[selectedA4].style.top = p.py + 'px';
+    repositionAllLabels();
   } else if(dragAnchor.type === 'kp' && selectedIdx >= 0) {
     points[selectedIdx] = {x: nx, y: ny};
     const p = toArea(nx, ny);
@@ -865,15 +1018,15 @@ function addPoint(e) {
   if(imgX < 0 || imgX > IMG_W || imgY < 0 || imgY > IMG_H) return;
 
   points.push({x: imgX, y: imgY});
-  dots.push(createDot(points.length - 1));
+  const idx = points.length - 1;
+  dots.push(createDot(idx));
+  // 自動で調整モードに入る
+  selectedIdx = idx;
+  dots.forEach(d => d.classList.remove('selected'));
+  dots[idx]?.classList.add('selected');
+  setMode(`${defs[idx].jp} を調整中 — ドラッグで移動 / 空白タップで確定`);
+  zoomToPoint(imgX, imgY);
   renderList();
-
-  if(points.length >= defs.length) {
-    setMode('全ポイント完了！ 保存してください');
-    document.getElementById('saveBtn').style.display = 'block';
-  } else {
-    setMode(`② ${defs[points.length].jp} をタップしてください`);
-  }
 }
 
 function undo() {
@@ -928,7 +1081,11 @@ async function save() {
   const measurements = getMeasurements();
   const expected = (MEASURES[effectiveCat()] || []).length;
   if(Object.keys(measurements).length < expected) {
-    if(!confirm('実寸が未入力の項目があります。このまま保存しますか？')) return;
+    if(!window._skipMeasureCheck) {
+      showConfirm('実寸が未入力の項目があります。このまま保存しますか？', () => { window._skipMeasureCheck = true; save(); });
+      return;
+    }
+    window._skipMeasureCheck = false;
   }
 
   const defs = DEFS[effectiveCat()];
@@ -970,13 +1127,11 @@ async function save() {
     if(result.ok) {
       setMode(`✅ 保存完了（${result.total}件目）`);
       updateCount();
-      setTimeout(() => {
-        // 実寸フォームもリセット
-        resetAll();
-        renderMeasureForm();
-        renderList();
-        setMode('カテゴリを選んで実寸を入力してください');
-      }, 1500);
+      // 即座にリセット（hasDataがfalseを返すように）
+      resetAll();
+      renderMeasureForm();
+      renderList();
+      setMode(`✅ 保存完了（${result.total}件目）— 次の衣類へ`);
     } else {
       setMode('❌ 保存失敗: ' + (result.error || '不明なエラー'));
       saveBtn.disabled = false;
@@ -1012,6 +1167,77 @@ function toArea(imgX, imgY) {
   return{px:(imgX/IMG_W)*r.width+(r.left-a.left), py:(imgY/IMG_H)*r.height+(r.top-a.top)};
 }
 
+const ZOOM_SCALE = 4;
+let isAutoZoomed = false;
+function zoomToPoint(imgX, imgY) {
+  const area = imageArea;
+  // 既にズーム中なら一度リセットしてtransitionを無効化して即切り替え
+  if(isAutoZoomed) {
+    area.style.transition = 'none';
+    area.style.transform = '';
+    void area.offsetHeight; // reflow
+  }
+  const rect = area.getBoundingClientRect();
+  const r = getRect();
+  const px = (imgX / IMG_W) * r.width + (r.left - rect.left);
+  const py = (imgY / IMG_H) * r.height + (r.top - rect.top);
+  const ox = (px / rect.width) * 100;
+  const oy = (py / rect.height) * 100;
+  area.style.transformOrigin = `${ox}% ${oy}%`;
+  area.style.transition = 'transform 0.3s ease';
+  area.style.transform = `scale(${ZOOM_SCALE})`;
+  isAutoZoomed = true;
+}
+function zoomReset() {
+  imageArea.style.transform = '';
+  isAutoZoomed = false;
+}
+
+// ラベル位置を全ドットとの衝突を考慮して動的に決定
+const LABEL_DIRS = [
+  {dx:18, dy:-10},  // 右上
+  {dx:18, dy:10},   // 右下
+  {dx:-34, dy:-10}, // 左上
+  {dx:-34, dy:10},  // 左下
+  {dx:0, dy:-22},   // 上
+  {dx:0, dy:18},    // 下
+  {dx:22, dy:0},    // 右
+  {dx:-38, dy:0},   // 左
+];
+
+function positionLabel(label, ownerPx, ownerPy) {
+  // 全ドットのスクリーン位置を集める
+  const allDots = [];
+  dots.forEach((d,i) => { if(i < points.length) allDots.push({x:parseFloat(d.style.left), y:parseFloat(d.style.top)}); });
+  a4Dots.forEach((d,i) => { if(i < a4Points.length) allDots.push({x:parseFloat(d.style.left), y:parseFloat(d.style.top)}); });
+
+  let bestDir = LABEL_DIRS[0], maxDist = -1;
+  for(const dir of LABEL_DIRS) {
+    const lx = ownerPx + dir.dx, ly = ownerPy + dir.dy;
+    let minD = Infinity;
+    for(const dot of allDots) {
+      const d = Math.hypot(dot.x - lx, dot.y - ly);
+      if(d < minD) minD = d;
+    }
+    if(minD > maxDist) { maxDist = minD; bestDir = dir; }
+  }
+  label.style.left = (14 + bestDir.dx) + 'px'; // 14=ドット半径
+  label.style.top = (14 + bestDir.dy) + 'px';
+}
+
+function repositionAllLabels() {
+  dots.forEach((d,i) => {
+    if(i >= points.length) return;
+    const lbl = d.querySelector('.dot-label');
+    if(lbl) positionLabel(lbl, parseFloat(d.style.left), parseFloat(d.style.top));
+  });
+  a4Dots.forEach((d,i) => {
+    if(i >= a4Points.length) return;
+    const lbl = d.querySelector('.a4-label');
+    if(lbl) positionLabel(lbl, parseFloat(d.style.left), parseFloat(d.style.top));
+  });
+}
+
 function setMode(t) {
   document.getElementById('modeBar').textContent = t;
   const fl = document.getElementById('floatLabel');
@@ -1032,6 +1258,7 @@ window.addEventListener('resize', () => {
     }
   });
   renderGuideLines();
+  repositionAllLabels();
 });
 
 // ピンチズーム時にフローティングラベルで現在のステップを表示
