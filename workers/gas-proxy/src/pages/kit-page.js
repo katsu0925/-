@@ -133,12 +133,27 @@ export function getKitPageHtml(kitDataJson) {
   .kit-footer { text-align: center; padding: 24px 16px; font-size: 12px; color: var(--text-light); }
   .kit-footer a { color: var(--accent); text-decoration: none; }
   .loading-sentinel { height: 1px; }
+  .listing-btn { display: block; width: 100%; margin: 12px 0 4px; padding: 12px; background: #ef4444; color: #fff; border: none; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; letter-spacing: 0.5px; }
+  .listing-btn:active { opacity: 0.8; }
+  .listing-banner { position: fixed; bottom: 0; left: 0; right: 0; background: #1a1a2e; color: #fff; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); z-index: 900; transform: translateY(100%); transition: transform .25s ease; }
+  .listing-banner.show { transform: translateY(0); }
+  .listing-banner .banner-step { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
+  .listing-banner .banner-msg { font-size: 12px; opacity: 0.8; line-height: 1.5; }
+  .listing-banner .banner-ref { font-size: 11px; margin-top: 8px; padding: 8px; background: rgba(255,255,255,0.1); border-radius: 6px; line-height: 1.6; }
+  .listing-banner .banner-close { position: absolute; top: 8px; right: 12px; background: none; border: none; color: #fff; font-size: 20px; cursor: pointer; opacity: 0.6; }
   @media (max-width: 480px) { .product-details { flex-direction: column; gap: 8px; } }
 </style>
 </head>
 <body>
 
 <div class="kit-container" id="kitContainer"></div>
+
+<div class="listing-banner" id="listingBanner">
+  <button class="banner-close" onclick="closeListing()">&times;</button>
+  <div class="banner-step" id="bannerStep"></div>
+  <div class="banner-msg" id="bannerMsg"></div>
+  <div class="banner-ref" id="bannerRef"></div>
+</div>
 
 <div class="modal-overlay" id="imageModal" onclick="closeModal()">
   <button class="modal-close" onclick="closeModal()">&times;</button>
@@ -298,6 +313,7 @@ export function getKitPageHtml(kitDataJson) {
       '</div>' +
       '<div class="product-body">' +
         imagesHtml + copyHtml +
+        '<button class="listing-btn" onclick="event.stopPropagation();startListing(' + index + ')">&#x1F4E6; メルカリに出品する</button>' +
         '<div class="product-details">' + infoHtml + measureHtml + '</div>' +
       '</div>' +
     '</div>';
@@ -427,6 +443,61 @@ export function getKitPageHtml(kitDataJson) {
     if (!token) { alert('トークンが不正です'); return; }
     window.location.href = '/api/kit/zip/' + encodeURIComponent(productId) + '?token=' + encodeURIComponent(token);
   };
+
+  // ─── メルカリ出品アシスト ───
+  var _listingItem = null;
+  var _listingStep = 0; // 0=inactive, 1=title copied, 2=desc copied, 3=done
+  var banner = document.getElementById('listingBanner');
+  var bannerStep = document.getElementById('bannerStep');
+  var bannerMsg = document.getElementById('bannerMsg');
+  var bannerRef = document.getElementById('bannerRef');
+
+  window.startListing = function(index) {
+    _listingItem = items[index];
+    _listingStep = 1;
+    var title = _listingItem.title || '';
+    navigator.clipboard.writeText(title).then(function() {
+      bannerStep.textContent = '\\u2460 タイトルをコピーしました \\u2713';
+      bannerMsg.textContent = 'メルカリアプリの出品画面を開いて「商品名」に貼り付けてください。貼り付けたらこの画面に戻ってください。';
+      var ref = [];
+      if (_listingItem.item) ref.push('\\u30AB\\u30C6\\u30B4\\u30EA: ' + _listingItem.item + (_listingItem.cat3 ? ' > ' + _listingItem.cat3 : ''));
+      if (_listingItem.size) ref.push('\\u30B5\\u30A4\\u30BA: ' + _listingItem.size);
+      if (_listingItem.condition) ref.push('\\u72B6\\u614B: ' + _listingItem.condition);
+      if (_listingItem.gender) ref.push('\\u6027\\u5225: ' + _listingItem.gender);
+      if (_listingItem.priceText) ref.push('\\u4FA1\\u683C: ' + _listingItem.priceText);
+      bannerRef.textContent = ref.join(' \\uFF5C ');
+      banner.classList.add('show');
+    });
+  };
+
+  window.closeListing = function() {
+    _listingStep = 0;
+    _listingItem = null;
+    banner.classList.remove('show');
+  };
+
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState !== 'visible' || !_listingItem) return;
+
+    if (_listingStep === 1) {
+      _listingStep = 2;
+      var desc = _listingItem.description || '';
+      navigator.clipboard.writeText(desc).then(function() {
+        bannerStep.textContent = '\\u2461 説明文をコピーしました \\u2713';
+        bannerMsg.textContent = 'メルカリの「商品の説明」に貼り付けてください。貼り付けたらこの画面に戻ってください。';
+      });
+    } else if (_listingStep === 2) {
+      _listingStep = 3;
+      bannerStep.textContent = '\\u2705 出品準備完了！';
+      bannerMsg.textContent = 'タイトルと説明文の貼り付けが完了しました。カテゴリ・配送方法・価格を設定して出品してください。';
+      bannerRef.textContent = '';
+      setTimeout(function() {
+        banner.classList.remove('show');
+        _listingStep = 0;
+        _listingItem = null;
+      }, 5000);
+    }
+  });
 
 })();
 </script>
