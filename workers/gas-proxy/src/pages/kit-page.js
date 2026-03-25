@@ -116,8 +116,8 @@ export function getKitPageHtml(kitDataJson) {
   .product-details .detail-col { flex: 1; min-width: 0; }
   .detail-col h3 { font-size: 11px; font-weight: 700; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
   .info-table { width: 100%; font-size: 12px; border-collapse: collapse; }
-  .info-table th { text-align: left; padding: 4px 6px; background: #f8f9fa; color: var(--text-light); font-weight: 600; width: 60px; border-bottom: 1px solid var(--border); }
-  .info-table td { padding: 4px 6px; border-bottom: 1px solid var(--border); }
+  .info-table th { text-align: left; padding: 5px 8px; background: #f8f9fa; color: var(--text-light); font-weight: 600; width: 80px; white-space: nowrap; border-bottom: 1px solid var(--border); }
+  .info-table td { padding: 5px 8px; border-bottom: 1px solid var(--border); word-break: break-all; }
   .measure-grid { display: flex; flex-wrap: wrap; gap: 4px; }
   .measure-item { background: #f8f9fa; padding: 4px 8px; border-radius: 4px; font-size: 12px; display: flex; gap: 4px; }
   .measure-item .label { color: var(--text-light); }
