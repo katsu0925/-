@@ -259,6 +259,8 @@ function syncRewardRows() {
   var shM = ss.getSheetByName('作業者マスター');
   if (!shR || !shM) return;
 
+  var START_YEAR = 2025, START_MONTH = 6; // 報酬管理の起点: 2025年6月
+
   function pad2(n) { return ('0' + n).slice(-2); }
   function norm(s) { return String(s || '').replace(/\u3000/g, ' ').trim(); }
 
@@ -368,10 +370,17 @@ function syncRewardRows() {
     }
   }
 
-  // 当月が存在しなければ追加対象
-  if (!existingMonths[curYM]) {
-    allMonthKeys.push(curYM);
-    existingMonths[curYM] = {};
+  // 起点月〜当月の全月を確保（シートが空でも全月生成）
+  var sy = START_YEAR, sm = START_MONTH;
+  var cy = today.getFullYear(), cm = today.getMonth() + 1;
+  while (sy < cy || (sy === cy && sm <= cm)) {
+    var genYM = sy + '/' + pad2(sm);
+    if (!existingMonths[genYM]) {
+      existingMonths[genYM] = {};
+      allMonthKeys.push(genYM);
+    }
+    sm++;
+    if (sm > 12) { sm = 1; sy++; }
   }
 
   // 各月について、不足している作業者の行を追加
