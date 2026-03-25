@@ -1,5 +1,5 @@
 // 報酬更新.gs
-function updateRewardsNoFormula() {
+function updateRewardsNoFormula(allMonths) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var shR = ss.getSheetByName('報酬管理');
   var shM = ss.getSheetByName('作業者マスター');
@@ -40,12 +40,12 @@ function updateRewardsNoFormula() {
     if(!p || !name) continue;
     var mk = p.y+'/'+pad2(p.m);
     var idx = mkIndex(mk);
-    if (idx===curIdx || idx===prevIdx){
+    if (allMonths || idx===curIdx || idx===prevIdx){
       updateRows.push({row:startRow+i,mk:mk,idx:idx,name:name});
       monthsSet[mk]=true;
     }
   }
-  if (updateRows.length===0) { Logger.log('No target rows for cur/prev month'); return; }
+  if (updateRows.length===0) { Logger.log('No target rows'); return; }
 
   var months = Object.keys(monthsSet).sort(function(x,y){return mkIndex(x)-mkIndex(y)});
   var firstIdx = mkIndex(months[0]);
@@ -231,4 +231,12 @@ function setupDailyTrigger() {
 
 function runOnceNow() {
   updateRewardsNoFormula();
+}
+
+/**
+ * 全期間の報酬を再計算（当月/前月フィルタなし）
+ * GASエディタから手動実行する。実行後は不要なので削除してもOK。
+ */
+function runFullRecalc() {
+  updateRewardsNoFormula(true);
 }
