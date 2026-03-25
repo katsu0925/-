@@ -133,8 +133,11 @@ export function getKitPageHtml(kitDataJson) {
   .kit-footer { text-align: center; padding: 24px 16px; font-size: 12px; color: var(--text-light); }
   .kit-footer a { color: var(--accent); text-decoration: none; }
   .loading-sentinel { height: 1px; }
-  .listing-btn { display: block; width: 100%; margin: 12px 0 4px; padding: 12px; background: #ef4444; color: #fff; border: none; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; letter-spacing: 0.5px; }
+  .listing-actions { margin: 12px 0 4px; display: flex; flex-direction: column; gap: 6px; }
+  .listing-btn { display: block; width: 100%; padding: 12px; color: #fff; border: none; border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer; letter-spacing: 0.3px; }
   .listing-btn:active { opacity: 0.8; }
+  .listing-btn-browser { background: #ef4444; font-size: 15px; }
+  .listing-btn-app { background: #6b7280; font-size: 12px; padding: 10px; }
   .listing-banner { position: fixed; bottom: 0; left: 0; right: 0; background: #1a1a2e; color: #fff; padding: 16px 16px calc(16px + env(safe-area-inset-bottom)); z-index: 900; transform: translateY(100%); transition: transform .25s ease; }
   .listing-banner.show { transform: translateY(0); }
   .listing-banner .banner-step { font-size: 14px; font-weight: 700; margin-bottom: 4px; }
@@ -313,7 +316,10 @@ export function getKitPageHtml(kitDataJson) {
       '</div>' +
       '<div class="product-body">' +
         imagesHtml + copyHtml +
-        '<button class="listing-btn" onclick="event.stopPropagation();startListing(' + index + ')">&#x1F4E6; メルカリに出品する</button>' +
+        '<div class="listing-actions">' +
+          '<button class="listing-btn listing-btn-browser" onclick="event.stopPropagation();startListingBrowser(' + index + ')">&#x1F310; ブラウザ版メルカリで自動入力</button>' +
+          '<button class="listing-btn listing-btn-app" onclick="event.stopPropagation();startListing(' + index + ')">&#x1F4CB; アプリ版はこちら（コピペ）</button>' +
+        '</div>' +
         '<div class="product-details">' + infoHtml + measureHtml + '</div>' +
       '</div>' +
     '</div>';
@@ -444,7 +450,42 @@ export function getKitPageHtml(kitDataJson) {
     window.location.href = '/api/kit/zip/' + encodeURIComponent(productId) + '?token=' + encodeURIComponent(token);
   };
 
-  // ─── メルカリ出品アシスト ───
+  // ─── メルカリ出品アシスト（ブラウザ版：自動入力） ───
+  window.startListingBrowser = function(index) {
+    var item = items[index];
+    var data = JSON.stringify({ t: item.title || '', d: item.description || '' });
+    navigator.clipboard.writeText(data).then(function() {
+      _listingItem = item;
+      _listingStep = 0;
+      bannerStep.textContent = '\\u2460 ブラウザ版メルカリで出品ページを開いてください';
+      bannerMsg.innerHTML = '<div style="margin:8px 0">' +
+        '<a href="https://jp.mercari.com/sell/create" target="_blank" rel="noopener" ' +
+        'style="display:block;padding:10px;background:#ef4444;color:#fff;border-radius:8px;text-align:center;text-decoration:none;font-weight:700">' +
+        'メルカリ出品ページを開く &rarr;</a></div>' +
+        '<div style="margin-top:8px;font-size:12px;line-height:1.6">' +
+        '\\u2461 出品ページが開いたら、アドレスバーに保存した<strong>ブックマークレット「\\u{1F4E6}デキルン自動入力」</strong>をタップしてください。<br>' +
+        'タイトルと説明文が自動入力されます。</div>' +
+        '<details style="margin-top:10px;font-size:11px;color:rgba(255,255,255,0.7)">' +
+        '<summary style="cursor:pointer">初回のみ：ブックマークレットの登録方法</summary>' +
+        '<div style="margin-top:6px;line-height:1.8">' +
+        '1. まず適当なページをブックマーク（お気に入り）に追加<br>' +
+        '2. ブックマークを編集し、名前を「\\u{1F4E6}デキルン自動入力」に変更<br>' +
+        '3. URLを以下に差し替えて保存：<br>' +
+        '<div style="background:rgba(0,0,0,0.3);padding:6px;border-radius:4px;margin:4px 0;word-break:break-all;font-family:monospace;font-size:10px;user-select:all">' +
+        'javascript:void(navigator.clipboard.readText().then(function(s){try{var d=JSON.parse(s);var inputs=document.querySelectorAll(&quot;input[type=text],input:not([type]),textarea&quot;);for(var i=0;i&lt;inputs.length;i++){var p=inputs[i].getAttribute(&quot;placeholder&quot;)||inputs[i].getAttribute(&quot;aria-label&quot;)||&quot;&quot;;if((p.indexOf(&quot;商品名&quot;)>=0||p.indexOf(&quot;タイトル&quot;)>=0||p.indexOf(&quot;name&quot;)>=0)&amp;&amp;d.t){var nv=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,&quot;value&quot;).set;nv.call(inputs[i],d.t);inputs[i].dispatchEvent(new Event(&quot;input&quot;,{bubbles:true}));inputs[i].dispatchEvent(new Event(&quot;change&quot;,{bubbles:true}))}if(inputs[i].tagName===&quot;TEXTAREA&quot;&amp;&amp;d.d){var nv2=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,&quot;value&quot;).set;nv2.call(inputs[i],d.d);inputs[i].dispatchEvent(new Event(&quot;input&quot;,{bubbles:true}));inputs[i].dispatchEvent(new Event(&quot;change&quot;,{bubbles:true}))}};alert(&quot;\\u2705 自動入力完了&quot;)}catch(e){alert(&quot;\\u274C データ読取失敗: デキルンで出品するボタンを先にタップしてください&quot;)}}))' +
+        '</div></div></details>';
+      var ref = [];
+      if (item.item) ref.push('\\u30AB\\u30C6\\u30B4\\u30EA: ' + item.item + (item.cat3 ? ' > ' + item.cat3 : ''));
+      if (item.size) ref.push('\\u30B5\\u30A4\\u30BA: ' + item.size);
+      if (item.condition) ref.push('\\u72B6\\u614B: ' + item.condition);
+      if (item.gender) ref.push('\\u6027\\u5225: ' + item.gender);
+      if (item.priceText) ref.push('\\u4FA1\\u683C: ' + item.priceText);
+      bannerRef.textContent = ref.join(' \\uFF5C ');
+      banner.classList.add('show');
+    });
+  };
+
+  // ─── メルカリ出品アシスト（アプリ版：コピペ） ───
   var _listingItem = null;
   var _listingStep = 0; // 0=inactive, 1=title copied, 2=desc copied, 3=done
   var banner = document.getElementById('listingBanner');
