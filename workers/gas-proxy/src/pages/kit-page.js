@@ -263,12 +263,15 @@ export function getKitPageHtml(kitDataJson) {
 
     // 商品情報テーブル
     var infoHtml = '<div class="detail-col"><h3>商品情報</h3><table class="info-table">';
+    if (item.managedId) infoHtml += '<tr><th>管理番号</th><td>' + esc(item.managedId) + '</td></tr>';
     if (item.brand) infoHtml += '<tr><th>ブランド</th><td>' + esc(item.brand) + '</td></tr>';
-    if (item.item) infoHtml += '<tr><th>カテゴリ</th><td>' + esc(item.item) + '</td></tr>';
+    if (item.item) infoHtml += '<tr><th>中カテゴリ</th><td>' + esc(item.item) + '</td></tr>';
+    if (item.cat3) infoHtml += '<tr><th>小カテゴリ</th><td>' + esc(item.cat3) + '</td></tr>';
     if (item.size) infoHtml += '<tr><th>サイズ</th><td>' + esc(item.size) + '</td></tr>';
     if (item.color) infoHtml += '<tr><th>カラー</th><td>' + esc(item.color) + '</td></tr>';
     if (item.gender) infoHtml += '<tr><th>性別</th><td>' + esc(item.gender) + '</td></tr>';
     if (item.condition) infoHtml += '<tr><th>状態</th><td>' + esc(item.condition) + '</td></tr>';
+    if (item.aiKeywords) infoHtml += '<tr><th>キーワード</th><td>' + esc(item.aiKeywords) + '</td></tr>';
     infoHtml += '</table></div>';
 
     // 採寸データ

@@ -1710,7 +1710,7 @@ function testCreateKitSingle() {
 }
 
 function testCreateKitLink() {
-  var receiptNo = '20260301222649-928';
+  var receiptNo = '20260324140158-692';
 
   // 商品データ再構築（スプレッドシートから読み込み）
   var data = buildProductRowsForReceipt_(receiptNo);
@@ -1743,6 +1743,86 @@ function testCreateKitLink() {
   om_saveKitToWorkers_(receiptNo, data.customerName, orderDate, totalPrice, data.productRows, aiResults, reqSheet, reqDataMap);
 
   console.log('テスト完了: ' + receiptNo);
+}
+
+/**
+ * 配布用リストの既存データからキットを生成（AI生成スキップ）
+ * GASエディタから手動実行
+ */
+function createKitFromDistList() {
+  var receiptNo = '20260324140158-692'; // ← 受付番号
+
+  var shiireSs = SpreadsheetApp.openById(OM_SHIIRE_SS_ID);
+  var exportSheet = shiireSs.getSheetByName('配布用リスト');
+  if (!exportSheet) { console.error('配布用リストが見つかりません'); return; }
+
+  var customerName = exportSheet.getRange('E1').getDisplayValue();
+  var receiptNoFromSheet = exportSheet.getRange('B1').getDisplayValue();
+  console.log('配布用リスト: 受付番号=%s 顧客名=%s', receiptNoFromSheet, customerName);
+
+  // 3行目以降のデータ読み込み（A:チェック B:タイトル C:説明文 D:箱ID E:管理番号 F:ブランド G:AIキーワード H:アイテム I:サイズ J:状態 K:傷汚れ詳細 L:採寸 M:価格 N:性別）
+  var lastRow = exportSheet.getLastRow();
+  if (lastRow < 3) { console.error('配布用リストにデータがありません'); return; }
+  var rows = exportSheet.getRange(3, 1, lastRow - 2, 14).getValues();
+
+  // 商品管理からカテゴリ3・カラーを補完
+  var mainSheet = shiireSs.getSheetByName('商品管理');
+  var mData = mainSheet.getDataRange().getValues();
+  var mHeaders = mData.shift();
+  var mIdx = {};
+  mHeaders.forEach(function(h, i) { mIdx[String(h || '').trim()] = i; });
+  var mDataMap = {};
+  var idColIdx = mIdx['管理番号'];
+  for (var mi = 0; mi < mData.length; mi++) {
+    var mk = String(mData[mi][idColIdx] || '').trim();
+    if (mk) mDataMap[mk] = mData[mi];
+  }
+
+  var productRows = [];
+  var aiResults = [];
+  var totalPrice = 0;
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    var title = String(r[1] || '');
+    var desc = String(r[2] || '');
+    var priceText = String(r[12] || '');
+    var price = parseInt(priceText.replace(/[^\d]/g, '')) || 0;
+    totalPrice += price;
+
+    var targetId = String(r[4] || '').trim();
+    var mRow = mDataMap[targetId];
+    var cat3 = mRow && mIdx['カテゴリ3'] !== undefined ? String(mRow[mIdx['カテゴリ3']] || '') : '';
+    var color = mRow && mIdx['カラー'] !== undefined ? String(mRow[mIdx['カラー']] || '') : '';
+
+    productRows.push({
+      boxId: String(r[3] || ''), targetId: targetId,
+      brand: String(r[5] || ''), aiKeywords: String(r[6] || ''),
+      item: String(r[7] || ''), cat3: cat3, size: String(r[8] || ''),
+      condition: String(r[9] || ''), damageDetail: String(r[10] || ''),
+      measurementText: String(r[11] || ''), priceText: priceText,
+      price: price, color: color, gender: String(r[13] || '')
+    });
+    aiResults.push({ title: title, description: desc });
+  }
+
+  // 依頼管理シートから注文日取得
+  var orderSs = sh_getOrderSs_();
+  var reqSheet = sh_ensureRequestSheet_(orderSs);
+  var reqData = reqSheet.getDataRange().getValues();
+  var reqHeaders = reqData.shift();
+  var rIdx = {};
+  reqHeaders.forEach(function(h, i) { rIdx[String(h || '').trim()] = i; });
+  var reqDataMap = {};
+  var orderDate = '';
+  for (var i = 0; i < reqData.length; i++) {
+    var rn = String(reqData[i][rIdx['受付番号']] || '').trim();
+    if (rn) reqDataMap[rn] = reqData[i];
+    if (rn === receiptNo) orderDate = reqData[i][REQUEST_SHEET_COLS.DATETIME - 1] || '';
+  }
+
+  // KV保存 + AJ列書込み
+  om_saveKitToWorkers_(receiptNo, customerName, orderDate, totalPrice, productRows, aiResults, reqSheet, reqDataMap);
+  console.log('createKitFromDistList 完了: %s 商品数=%s', receiptNo, productRows.length);
 }
 
 /**
@@ -1785,10 +1865,12 @@ function om_saveKitToWorkers_(receiptNo, customerName, orderDate, totalPrice, pr
       managedId: pr.targetId || '',
       brand: pr.brand || '',
       item: pr.item || '',
+      cat3: pr.cat3 || '',
       size: pr.size || '',
       color: pr.color || '',
       gender: pr.gender || '',
       condition: pr.condition || '',
+      aiKeywords: pr.aiKeywords || '',
       measurementText: pr.measurementText || '',
       priceText: pr.priceText || '',
       title: ai.title || '',
