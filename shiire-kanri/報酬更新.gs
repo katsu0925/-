@@ -303,6 +303,7 @@ function syncRewardRows() {
       for (var r = 0; r < dataRows; r++) {
         displayVals.push([abcVals[r][0], abcVals[r][1], abcVals[r][2]]);
       }
+      shR.getRange(startRow, 1, dataRows, 1).setNumberFormat('@'); // A列をテキスト形式に
       shR.getRange(startRow, 1, dataRows, 3).setValues(displayVals);
       // M列も値に変換
       var mDisplay = shR.getRange(startRow, 13, dataRows, 1).getDisplayValues();
@@ -398,11 +399,11 @@ function syncRewardRows() {
   }
 
   if (rowsToAppend.length > 0) {
-    // 報酬管理シートの最終行の後に追加（D〜L列は空＝次回の報酬計算で埋まる）
+    // 報酬管理シートの最終行の後に一括追加
     var appendRow = Math.max(lastRowR + 1, startRow);
-    for (var a = 0; a < rowsToAppend.length; a++) {
-      shR.getRange(appendRow + a, 1, 1, 3).setValues([rowsToAppend[a]]);
-    }
+    // A列をテキスト形式に設定（日付自動変換を防止）
+    shR.getRange(appendRow, 1, rowsToAppend.length, 1).setNumberFormat('@');
+    shR.getRange(appendRow, 1, rowsToAppend.length, 3).setValues(rowsToAppend);
     Logger.log('報酬管理に %s 行追加', rowsToAppend.length);
 
     // A列（年月）でソート → 同じ月の作業者がまとまるように
