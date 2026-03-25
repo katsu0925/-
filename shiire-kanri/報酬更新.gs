@@ -314,23 +314,38 @@ function syncRewardRows() {
       Logger.log('A〜C列 + M列の数式を値に変換: %s行', displayVals.length);
     }
 
-    // 既存データのマッピング構築
+    // 当月を確定（未来データ除外の基準）
+    var today = new Date();
+    var curYM = today.getFullYear() + '/' + pad2(today.getMonth() + 1);
+
+    // 既存データのマッピング構築（未来の行は削除）
+    var futureRows = []; // 未来月の行番号（削除対象）
     for (var i = 0; i < abcVals.length; i++) {
       var ym = norm(abcVals[i][0]);
       var name = norm(abcVals[i][1]);
       if (!ym || !name) continue;
       if (!ym.match(/^\d{4}\/\d{2}$/)) continue;
+      if (ym > curYM) {
+        futureRows.push(startRow + i);
+        continue;
+      }
       if (!existingMonths[ym]) {
         existingMonths[ym] = {};
         allMonthKeys.push(ym);
       }
       existingMonths[ym][name] = startRow + i;
     }
-  }
 
-  // 当月を確定
-  var today = new Date();
-  var curYM = today.getFullYear() + '/' + pad2(today.getMonth() + 1);
+    // 未来の行を削除（下から削除してインデックスがずれないように）
+    if (futureRows.length > 0) {
+      futureRows.sort(function(a, b) { return b - a; });
+      for (var f = 0; f < futureRows.length; f++) {
+        shR.deleteRow(futureRows[f]);
+      }
+      lastRowR = shR.getLastRow();
+      Logger.log('未来の行を %s 行削除', futureRows.length);
+    }
+  }
 
   // 当月が存在しなければ追加対象
   if (!existingMonths[curYM]) {
