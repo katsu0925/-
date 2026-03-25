@@ -284,34 +284,42 @@ function syncRewardRows() {
   var allMonthKeys = [];
 
   if (lastRowR >= startRow) {
-    // A〜C列の値を読み取り（数式があっても値として取得）
-    var abcVals = shR.getRange(startRow, 1, lastRowR - startRow + 1, 3).getDisplayValues();
+    // A〜C列の値を一括読み取り
+    var totalRows = lastRowR - startRow + 1;
+    var abcVals = shR.getRange(startRow, 1, totalRows, 3).getDisplayValues();
 
-    // まず全ての数式をクリアして値に変換
-    var abcValues = shR.getRange(startRow, 1, lastRowR - startRow + 1, 3).getValues();
-    // A〜C列 + M列の数式を値に変換
-    var formulasABC = shR.getRange(startRow, 1, lastRowR - startRow + 1, 3).getFormulas();
-    var formulasM = shR.getRange(startRow, 13, lastRowR - startRow + 1, 1).getFormulas();
-    var hasFormulas = false;
-    for (var r = 0; r < formulasABC.length; r++) {
-      if (formulasABC[r][0] || formulasABC[r][1] || formulasABC[r][2] || formulasM[r][0]) {
-        hasFormulas = true; break;
-      }
+    // 実データのある最終行を特定（数式が空文字を返す行を除外）
+    var dataLastIdx = -1;
+    for (var r = totalRows - 1; r >= 0; r--) {
+      if (norm(abcVals[r][0]) || norm(abcVals[r][1])) { dataLastIdx = r; break; }
     }
-    if (hasFormulas) {
+
+    // 数式→値に一括変換（データがある範囲のみ）
+    if (dataLastIdx >= 0) {
+      var dataRows = dataLastIdx + 1;
       var displayVals = [];
-      for (var r = 0; r < abcVals.length; r++) {
+      for (var r = 0; r < dataRows; r++) {
         displayVals.push([abcVals[r][0], abcVals[r][1], abcVals[r][2]]);
       }
-      shR.getRange(startRow, 1, displayVals.length, 3).setValues(displayVals);
+      shR.getRange(startRow, 1, dataRows, 3).setValues(displayVals);
       // M列も値に変換
-      var mDisplay = shR.getRange(startRow, 13, lastRowR - startRow + 1, 1).getDisplayValues();
+      var mDisplay = shR.getRange(startRow, 13, dataRows, 1).getDisplayValues();
       var mVals = [];
-      for (var r = 0; r < mDisplay.length; r++) {
+      for (var r = 0; r < dataRows; r++) {
         mVals.push([mDisplay[r][0] === '' ? '' : Number(mDisplay[r][0]) || 0]);
       }
-      shR.getRange(startRow, 13, mVals.length, 1).setValues(mVals);
-      Logger.log('A〜C列 + M列の数式を値に変換: %s行', displayVals.length);
+      shR.getRange(startRow, 13, dataRows, 1).setValues(mVals);
+      Logger.log('A〜C列 + M列を値に変換: %s行', dataRows);
+
+      // データがない余分な行（数式だけの空行）を一括削除
+      var excessRows = totalRows - dataRows;
+      if (excessRows > 0) {
+        shR.deleteRows(startRow + dataRows, excessRows);
+        Logger.log('空の数式行を %s 行一括削除', excessRows);
+      }
+      lastRowR = shR.getLastRow();
+      // abcValsをデータ範囲に切り詰め
+      abcVals = abcVals.slice(0, dataRows);
     }
 
     // 当月を確定（未来データ除外の基準）
@@ -336,14 +344,27 @@ function syncRewardRows() {
       existingMonths[ym][name] = startRow + i;
     }
 
-    // 未来の行を削除（下から削除してインデックスがずれないように）
+    // 未来の行を一括削除（連続範囲でまとめて削除）
     if (futureRows.length > 0) {
-      futureRows.sort(function(a, b) { return b - a; });
-      for (var f = 0; f < futureRows.length; f++) {
-        shR.deleteRow(futureRows[f]);
+      futureRows.sort(function(a, b) { return a - b; });
+      // 連続する行をグループ化して一括deleteRows
+      var groups = [];
+      var gStart = futureRows[0], gEnd = futureRows[0];
+      for (var f = 1; f < futureRows.length; f++) {
+        if (futureRows[f] === gEnd + 1) {
+          gEnd = futureRows[f];
+        } else {
+          groups.push({start: gStart, count: gEnd - gStart + 1});
+          gStart = futureRows[f]; gEnd = futureRows[f];
+        }
+      }
+      groups.push({start: gStart, count: gEnd - gStart + 1});
+      // 下のグループから削除（インデックスずれ防止）
+      for (var g = groups.length - 1; g >= 0; g--) {
+        shR.deleteRows(groups[g].start, groups[g].count);
       }
       lastRowR = shR.getLastRow();
-      Logger.log('未来の行を %s 行削除', futureRows.length);
+      Logger.log('未来の行を %s 行削除（%sグループ）', futureRows.length, groups.length);
     }
   }
 
