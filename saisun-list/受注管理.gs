@@ -604,10 +604,11 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
 
       var color = String(row[mIdx['カラー']] || '').trim();
 
+      var gender = row[mIdx['性別']] || '';
       productRows.push({
         boxId: boxId, targetId: targetId, brand: brand, aiKeywords: aiKeywords,
         item: item, cat3: cat3, size: size, condition: condition, damageDetail: damageDetail,
-        measurementText: measurementText, priceText: priceText, color: color
+        measurementText: measurementText, priceText: priceText, color: color, gender: gender
       });
     });
 
@@ -630,12 +631,13 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
         pr.condition,
         pr.damageDetail,
         pr.measurementText,
-        pr.priceText
+        pr.priceText,
+        pr.gender
       ]);
     }
 
     if (exportData.length > 0) {
-      exportSheet.getRange(3, 1, exportData.length, 13).setValues(exportData);
+      exportSheet.getRange(3, 1, exportData.length, 14).setValues(exportData);
       exportSheet.getRange(3, 1, exportData.length, 1).insertCheckboxes();
       // データ行の高さをデフォルト（21px）にリセット（Row 1-2は触らない）
       exportSheet.setRowHeightsForced(3, exportData.length, 21);
@@ -950,10 +952,11 @@ function buildProductRowsForReceipt_(receiptNo) {
       price = applyAgingDiscount_(price, returnSetMap[targetId]);
     }
 
+    var gender = row[mIdx['性別']] || '';
     productRows.push({
       boxId: boxId, targetId: targetId, brand: brand, aiKeywords: aiKeywords,
       item: item, cat3: cat3, size: size, condition: condition, damageDetail: damageDetail,
-      measurementText: measurementText, priceText: price.toLocaleString('ja-JP') + '円', price: price, color: color
+      measurementText: measurementText, priceText: price.toLocaleString('ja-JP') + '円', price: price, color: color, gender: gender
     });
   });
 
@@ -1180,12 +1183,13 @@ function batchExpandPhase3_(state, props, cache, stateKey) {
       titles[pi] || '',
       allDescriptions[pi] || '',
       pr.boxId, pr.targetId, pr.brand, pr.aiKeywords, pr.item,
-      pr.size, pr.condition, pr.damageDetail, pr.measurementText, pr.priceText
+      pr.size, pr.condition, pr.damageDetail, pr.measurementText, pr.priceText,
+      pr.gender
     ]);
   }
 
   if (exportData.length > 0) {
-    exportSheet.getRange(3, 1, exportData.length, 13).setValues(exportData);
+    exportSheet.getRange(3, 1, exportData.length, 14).setValues(exportData);
     exportSheet.getRange(3, 1, exportData.length, 1).insertCheckboxes();
     exportSheet.setRowHeightsForced(3, exportData.length, 21);
   }
@@ -1626,6 +1630,122 @@ function om_ensureRecoveryHeaders_(sheet) {
 }
 
 /**
+ * テスト用: 既存受付番号からキットリンクのみ作成（XLSX作成なし・既存ファイル不変）
+ * GASエディタから手動実行する
+ */
+/**
+ * テスト用: 単一商品でキットページを作成（画像表示確認用）
+ * GASエディタから手動実行する
+ */
+function testCreateKitSingle() {
+  var managedId = 'zC86';
+
+  // 商品管理から1商品を取得
+  var shiireSs = SpreadsheetApp.openById(OM_SHIIRE_SS_ID);
+  var mainSheet = shiireSs.getSheetByName('商品管理');
+  var mData = mainSheet.getDataRange().getValues();
+  var mHeaders = mData.shift();
+  var mIdx = {};
+  mHeaders.forEach(function(h, i) { mIdx[String(h || '').trim()] = i; });
+
+  var row = null;
+  for (var i = 0; i < mData.length; i++) {
+    if (String(mData[i][mIdx['管理番号']] || '').trim() === managedId) { row = mData[i]; break; }
+  }
+  if (!row) { console.error('商品が見つかりません: ' + managedId); return; }
+
+  var brand = row[mIdx['ブランド']] || '';
+  var item = row[mIdx['カテゴリ2']] || '古着';
+  var size = row[mIdx['メルカリサイズ']] || '';
+  var color = String(row[mIdx['カラー']] || '').trim();
+  var condition = row[mIdx['状態']] || '目立った傷や汚れなし';
+  var damageDetail = row[mIdx['傷汚れ詳細']] || '';
+
+  var MEASURE_FIELDS = ['着丈','肩幅','身幅','袖丈','裄丈','総丈','ウエスト','股上','股下','ワタリ','裾幅','ヒップ'];
+  var measureParts = [];
+  MEASURE_FIELDS.forEach(function(name) {
+    var val = mIdx[name] !== undefined ? row[mIdx[name]] : undefined;
+    if (val !== undefined && val !== null && String(val).trim() !== '') measureParts.push(name + ': ' + val);
+  });
+
+  var productRows = [{
+    targetId: managedId, brand: brand, item: item, size: size,
+    color: color, condition: condition, damageDetail: damageDetail,
+    measurementText: measureParts.join(' / '), priceText: '500円'
+  }];
+
+  var aiResults = om_generateMercariTexts_(productRows);
+
+  // KV保存（依頼管理シートには書き込まない）
+  var props = PropertiesService.getScriptProperties();
+  var workersUrl = props.getProperty('WORKERS_URL') || 'https://detauri-gas-proxy.nsdktts1030.workers.dev';
+  var adminKey = props.getProperty('ADMIN_KEY');
+  var token = Utilities.getUuid();
+
+  var kitData = {
+    receiptNo: 'TEST-' + managedId,
+    customerName: 'テストユーザー',
+    orderDate: Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy/MM/dd'),
+    totalPrice: 500,
+    items: [{
+      managedId: managedId, brand: brand, item: item, size: size,
+      color: color, condition: condition,
+      measurementText: measureParts.join(' / '), priceText: '500円',
+      title: aiResults[0].title || '', description: aiResults[0].description || ''
+    }]
+  };
+
+  var resp = UrlFetchApp.fetch(workersUrl + '/api/kit/save', {
+    method: 'post', contentType: 'application/json',
+    payload: JSON.stringify({ adminKey: adminKey, receiptNo: 'TEST-' + managedId, token: token, kitData: kitData }),
+    muteHttpExceptions: true
+  });
+
+  if (resp.getResponseCode() === 200) {
+    var kitUrl = 'https://wholesale.nkonline-tool.com/kit?token=' + token;
+    console.log('テストキット作成完了: ' + kitUrl);
+  } else {
+    console.error('保存失敗: HTTP ' + resp.getResponseCode() + ' ' + resp.getContentText());
+  }
+}
+
+function testCreateKitLink() {
+  var receiptNo = '20260301222649-928';
+
+  // 商品データ再構築（スプレッドシートから読み込み）
+  var data = buildProductRowsForReceipt_(receiptNo);
+  if (!data) { console.error('データ構築失敗: ' + receiptNo); return; }
+
+  // タイトル+説明文をOpenAI APIで生成
+  var aiResults = om_generateMercariTexts_(data.productRows);
+
+  // 合計金額
+  var totalPrice = 0;
+  data.productRows.forEach(function(pr) { totalPrice += (pr.price || 0); });
+
+  // 注文日
+  var orderDate = data.reqRow[REQUEST_SHEET_COLS.DATETIME - 1] || '';
+
+  // 依頼管理シート取得
+  var orderSs = sh_getOrderSs_();
+  var reqSheet = sh_ensureRequestSheet_(orderSs);
+  var reqData = reqSheet.getDataRange().getValues();
+  var reqHeaders = reqData.shift();
+  var rIdx = {};
+  reqHeaders.forEach(function(h, i) { rIdx[String(h || '').trim()] = i; });
+  var reqDataMap = {};
+  for (var i = 0; i < reqData.length; i++) {
+    var rn = String(reqData[i][rIdx['受付番号']] || '').trim();
+    if (rn) reqDataMap[rn] = reqData[i];
+  }
+
+  // KV保存 + AJ列書込み
+  om_saveKitToWorkers_(receiptNo, data.customerName, orderDate, totalPrice, data.productRows, aiResults, reqSheet, reqDataMap);
+
+  console.log('テスト完了: ' + receiptNo);
+}
+
+/**
  * 出品キットデータをWorkers KVに保存し、依頼管理シートAJ列にURLを書き込む
  * @param {string} receiptNo - 受付番号
  * @param {string} customerName - 顧客名
@@ -1702,7 +1822,7 @@ function om_saveKitToWorkers_(receiptNo, customerName, orderDate, totalPrice, pr
   }
 
   // 依頼管理シート AJ列にURL書込み
-  var kitUrl = 'https://detauri-gas-proxy.nsdktts1030.workers.dev/kit?token=' + token;
+  var kitUrl = 'https://wholesale.nkonline-tool.com/kit?token=' + token;
   var reqData = reqSheet.getDataRange().getValues();
   var reqHeaders = reqData[0];
   var receiptColIdx = -1;
