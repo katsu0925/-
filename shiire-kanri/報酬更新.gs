@@ -289,23 +289,29 @@ function syncRewardRows() {
 
     // まず全ての数式をクリアして値に変換
     var abcValues = shR.getRange(startRow, 1, lastRowR - startRow + 1, 3).getValues();
-    // 数式があるかチェック
-    var formulas = shR.getRange(startRow, 1, lastRowR - startRow + 1, 3).getFormulas();
+    // A〜C列 + M列の数式を値に変換
+    var formulasABC = shR.getRange(startRow, 1, lastRowR - startRow + 1, 3).getFormulas();
+    var formulasM = shR.getRange(startRow, 13, lastRowR - startRow + 1, 1).getFormulas();
     var hasFormulas = false;
-    for (var r = 0; r < formulas.length; r++) {
-      for (var c = 0; c < 3; c++) {
-        if (formulas[r][c]) { hasFormulas = true; break; }
+    for (var r = 0; r < formulasABC.length; r++) {
+      if (formulasABC[r][0] || formulasABC[r][1] || formulasABC[r][2] || formulasM[r][0]) {
+        hasFormulas = true; break;
       }
-      if (hasFormulas) break;
     }
     if (hasFormulas) {
-      // 数式を値に変換（D列以降は触らない）
       var displayVals = [];
       for (var r = 0; r < abcVals.length; r++) {
         displayVals.push([abcVals[r][0], abcVals[r][1], abcVals[r][2]]);
       }
       shR.getRange(startRow, 1, displayVals.length, 3).setValues(displayVals);
-      Logger.log('A〜C列の数式を値に変換: %s行', displayVals.length);
+      // M列も値に変換
+      var mDisplay = shR.getRange(startRow, 13, lastRowR - startRow + 1, 1).getDisplayValues();
+      var mVals = [];
+      for (var r = 0; r < mDisplay.length; r++) {
+        mVals.push([mDisplay[r][0] === '' ? '' : Number(mDisplay[r][0]) || 0]);
+      }
+      shR.getRange(startRow, 13, mVals.length, 1).setValues(mVals);
+      Logger.log('A〜C列 + M列の数式を値に変換: %s行', displayVals.length);
     }
 
     // 既存データのマッピング構築
@@ -363,16 +369,29 @@ function syncRewardRows() {
     Logger.log('追加行なし（全作業者の行が存在）');
   }
 
-  // C列（メール）を最新のマスターデータで更新
+  // C列（メール）＋ M列（月ブロック奇偶）を最新で更新
   lastRowR = shR.getLastRow();
   if (lastRowR >= startRow) {
-    var bVals = shR.getRange(startRow, 2, lastRowR - startRow + 1, 1).getValues();
+    var abVals2 = shR.getRange(startRow, 1, lastRowR - startRow + 1, 2).getValues();
     var cUpdates = [];
-    for (var i = 0; i < bVals.length; i++) {
-      var nm = norm(bVals[i][0]);
+    var mUpdates = [];
+    // 月→連番インデックスを構築（ソート後の順序で奇偶判定）
+    var monthOrder = {};
+    var monthIdx = 0;
+    var prevYm = '';
+    for (var i = 0; i < abVals2.length; i++) {
+      var ym = norm(abVals2[i][0]);
+      var nm = norm(abVals2[i][1]);
+      if (ym && ym !== prevYm) {
+        monthOrder[ym] = monthIdx;
+        monthIdx++;
+        prevYm = ym;
+      }
       cUpdates.push([emailMap[nm] || '']);
+      mUpdates.push([ym ? (monthOrder[ym] % 2) : '']);
     }
     shR.getRange(startRow, 3, cUpdates.length, 1).setValues(cUpdates);
+    shR.getRange(startRow, 13, mUpdates.length, 1).setValues(mUpdates);
   }
 
   Logger.log('syncRewardRows 完了');
