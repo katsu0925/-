@@ -112,8 +112,8 @@ export function getKitPageHtml(kitDataJson) {
     max-height: 180px; overflow-y: auto;
   }
   .copy-content.title-content { font-weight: 600; font-size: 14px; max-height: none; }
-  .product-details { padding: 0 16px 12px; display: flex; gap: 12px; }
-  .product-details .detail-col { flex: 1; min-width: 0; }
+  .product-details { padding: 0 16px 12px; display: flex; flex-direction: column; gap: 12px; }
+  .product-details .detail-col { width: 100%; }
   .detail-col h3 { font-size: 11px; font-weight: 700; color: var(--text-light); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
   .info-table { width: 100%; font-size: 12px; border-collapse: collapse; }
   .info-table th { text-align: left; padding: 5px 8px; background: #f8f9fa; color: var(--text-light); font-weight: 600; width: 80px; white-space: nowrap; border-bottom: 1px solid var(--border); }
