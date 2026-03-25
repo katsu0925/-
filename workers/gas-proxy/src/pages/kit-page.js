@@ -46,6 +46,10 @@ export function getKitPageHtml(kitDataJson) {
     font-size: 13px; line-height: 1.7;
   }
   .guide-banner strong { color: #856404; }
+  .guide-banner details { margin-top: 8px; }
+  .guide-banner summary { cursor: pointer; font-size: 12px; color: #856404; }
+  .guide-banner .guide-steps { margin-top: 6px; padding-left: 4px; font-size: 12px; line-height: 2; }
+  .guide-banner .guide-steps span { display: inline-block; background: var(--primary); color: #fff; width: 20px; height: 20px; border-radius: 50%; text-align: center; line-height: 20px; font-size: 10px; font-weight: 700; margin-right: 4px; }
   .order-summary {
     background: var(--card-bg); margin: 16px; padding: 16px;
     border-radius: var(--radius); border: 1px solid var(--border);
@@ -133,14 +137,29 @@ export function getKitPageHtml(kitDataJson) {
   .kit-footer { text-align: center; padding: 24px 16px; font-size: 12px; color: var(--text-light); }
   .kit-footer a { color: var(--accent); text-decoration: none; }
   .loading-sentinel { height: 1px; }
-  .mercari-link { display: block; text-align: center; margin: 12px 0 4px; padding: 10px; background: #ef4444; color: #fff; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 700; }
+  .mercari-link { display: block; text-align: center; margin: 8px 0 4px; padding: 10px; background: #ef4444; color: #fff; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 700; }
   .mercari-link:active { opacity: 0.8; }
+  .listed-check { display: flex; align-items: center; gap: 6px; padding: 8px 16px; font-size: 12px; color: var(--text-light); cursor: pointer; user-select: none; -webkit-user-select: none; }
+  .listed-check input { width: 18px; height: 18px; accent-color: var(--success); }
+  .listed-check.done { color: var(--success); font-weight: 600; }
+  .product-card.is-listed { opacity: 0.5; }
+  .product-card.is-listed .product-card-header { background: #6b7280; }
+  .suggest-price { display: inline-block; background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; margin-left: 6px; }
+  .font-toggle { position: fixed; bottom: 16px; right: 16px; z-index: 800; background: var(--primary); color: #fff; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 16px; font-weight: 700; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+  .font-toggle:active { opacity: 0.8; }
+  body.large-font { font-size: 16px; }
+  body.large-font .copy-content { font-size: 15px; }
+  body.large-font .info-table { font-size: 14px; }
+  body.large-font .measure-item { font-size: 14px; }
+  body.large-font .product-card-header { font-size: 16px; }
   @media (max-width: 480px) { .product-details { flex-direction: column; gap: 8px; } }
 </style>
 </head>
 <body>
 
 <div class="kit-container" id="kitContainer"></div>
+
+<button class="font-toggle" id="fontToggle" onclick="toggleFontSize()">A+</button>
 
 <div class="modal-overlay" id="imageModal" onclick="closeModal()">
   <button class="modal-close" onclick="closeModal()">&times;</button>
@@ -198,8 +217,17 @@ export function getKitPageHtml(kitDataJson) {
       '<div class="order-info">受付番号: ' + esc(data.receiptNo || '') + ' ／ ' + esc(maskedName) + '</div>' +
     '</div>' +
     '<div class="guide-banner">' +
-      '<strong>使い方:</strong> 商品をタップで展開。画像は<strong>長押しで保存</strong>、タイトル・説明文は「コピー」でワンタップコピー。<br>' +
-      '画像・タイトル・説明文はフリマアプリ等への出品にご自由にお使いいただけます。' +
+      '<strong>使い方:</strong> 商品をタップで展開 → 各項目の「コピー」ボタンでコピー → メルカリに貼り付けるだけ！' +
+      '<details><summary>出品手順を見る</summary>' +
+        '<div class="guide-steps">' +
+          '<span>1</span> 画像を長押しで保存（または「画像をまとめて保存」）<br>' +
+          '<span>2</span> 「メルカリで出品」リンクから出品ページを開く<br>' +
+          '<span>3</span> メルカリで写真をアップロード<br>' +
+          '<span>4</span> このページに戻り「タイトル」をコピー → メルカリの商品名に貼り付け<br>' +
+          '<span>5</span> このページに戻り「説明文」をコピー → メルカリの商品の説明に貼り付け<br>' +
+          '<span>6</span> カテゴリ・サイズ・状態・価格を設定して出品完了！' +
+        '</div>' +
+      '</details>' +
     '</div>' +
     '<div class="order-summary">' +
       '<div><div class="stat-value">' + totalCount + '</div><div class="stat-label">商品数</div></div>' +
@@ -261,7 +289,14 @@ export function getKitPageHtml(kitDataJson) {
         '<button class="copy-btn" onclick="event.stopPropagation();copyText(this,&apos;' + brandId + '&apos;)">コピー</button></div>' +
         '<div class="copy-content title-content" id="' + brandId + '">' + esc(item.brand) + '</div></div>';
     }
-    copyHtml += '<a href="https://jp.mercari.com/sell/create" target="_blank" rel="noopener" class="mercari-link" onclick="event.stopPropagation()">メルカリ出品ページを開く &rarr;</a>';
+    // 推奨販売価格
+    var buyPrice = parseInt(String(item.priceText || '0').replace(/[^\d]/g, '')) || 0;
+    var suggestMin = Math.ceil(buyPrice * 2 / 10) * 10;
+    var suggestMax = Math.ceil(buyPrice * 3 / 10) * 10;
+    var suggestHtml = buyPrice > 0 ? '<div style="font-size:11px;color:#92400e;margin:4px 0 8px;padding:6px 10px;background:#fef3c7;border-radius:6px">推奨販売価格: <strong>' + suggestMin.toLocaleString() + '〜' + suggestMax.toLocaleString() + '円</strong>（仕入値の2〜3倍）</div>' : '';
+    copyHtml += suggestHtml;
+    // メルカリリンク（アプリ優先）
+    copyHtml += '<a href="https://jp.mercari.com/sell/create" target="_blank" rel="noopener" class="mercari-link" onclick="event.stopPropagation()">メルカリで出品 &rarr;</a>';
     copyHtml += '</div>';
 
     // 商品情報テーブル
@@ -288,7 +323,9 @@ export function getKitPageHtml(kitDataJson) {
       measureHtml += '</div></div>';
     }
 
-    return '<div class="product-card' + isOpen + '">' +
+    var listedClass = isItemListed(index) ? ' is-listed' : '';
+
+    return '<div class="product-card' + isOpen + listedClass + '" id="card-' + index + '">' +
       '<div class="product-card-header" onclick="toggleCard(this)">' +
         '<div class="product-left">' +
           '<span class="product-no">' + num + '</span>' +
@@ -302,6 +339,11 @@ export function getKitPageHtml(kitDataJson) {
       '<div class="product-body">' +
         imagesHtml + copyHtml +
         '<div class="product-details">' + infoHtml + measureHtml + '</div>' +
+        '<label class="listed-check' + (isItemListed(index) ? ' done' : '') + '" onclick="event.stopPropagation()">' +
+          '<input type="checkbox"' + (isItemListed(index) ? ' checked' : '') + ' onchange="toggleListed(' + index + ',this)">' +
+          '<span>' + (isItemListed(index) ? '出品済み' : '出品したらチェック') + '</span>' +
+        '</label>' +
+        (index < totalCount - 1 ? '<button style="display:block;width:calc(100% - 32px);margin:0 16px 12px;padding:8px;background:#f0f0f0;border:1px solid #ddd;border-radius:8px;font-size:12px;cursor:pointer;color:#666" onclick="event.stopPropagation();goNextCard(' + index + ')">&#x25BC; 次の商品へ</button>' : '') +
       '</div>' +
     '</div>';
   }
@@ -431,6 +473,50 @@ export function getKitPageHtml(kitDataJson) {
     window.location.href = '/api/kit/zip/' + encodeURIComponent(productId) + '?token=' + encodeURIComponent(token);
   };
 
+  // ─── 出品済みチェック（localStorage保存） ───
+  var LISTED_KEY = 'dekirun_listed_' + (data.receiptNo || '');
+  function getListedSet() {
+    try { return JSON.parse(localStorage.getItem(LISTED_KEY) || '{}'); } catch(e) { return {}; }
+  }
+  function isItemListed(index) { return !!getListedSet()[index]; }
+
+  window.toggleListed = function(index, checkbox) {
+    var set = getListedSet();
+    if (checkbox.checked) { set[index] = true; } else { delete set[index]; }
+    localStorage.setItem(LISTED_KEY, JSON.stringify(set));
+    var card = document.getElementById('card-' + index);
+    var label = card.querySelector('.listed-check');
+    if (checkbox.checked) {
+      card.classList.add('is-listed');
+      label.classList.add('done');
+      label.querySelector('span').textContent = '出品済み';
+    } else {
+      card.classList.remove('is-listed');
+      label.classList.remove('done');
+      label.querySelector('span').textContent = '出品したらチェック';
+    }
+  };
+
+  // ─── 次の商品へ ───
+  window.goNextCard = function(currentIndex) {
+    var nextCard = document.getElementById('card-' + (currentIndex + 1));
+    if (!nextCard) return;
+    document.getElementById('card-' + currentIndex).classList.remove('open');
+    nextCard.classList.add('open');
+    nextCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  // ─── フォントサイズ切替 ───
+  window.toggleFontSize = function() {
+    document.body.classList.toggle('large-font');
+    var btn = document.getElementById('fontToggle');
+    btn.textContent = document.body.classList.contains('large-font') ? 'A-' : 'A+';
+    localStorage.setItem('dekirun_large_font', document.body.classList.contains('large-font') ? '1' : '');
+  };
+  if (localStorage.getItem('dekirun_large_font') === '1') {
+    document.body.classList.add('large-font');
+    document.getElementById('fontToggle').textContent = 'A-';
+  }
 
 })();
 </script>
