@@ -29,9 +29,9 @@ function FULL_RESTORE_ALL() {
   console.log('全てのトリガーを復旧しました。');
 }
 
-/** 毎日3時: 報酬計算 + 欠番確認 */
+/** 毎日3時: 行構造同期 → 報酬計算 → 欠番確認 */
 function cronDaily3() {
-  var fns = [updateRewardsNoFormula, 出力_欠番確認];
+  var fns = [syncRewardRows, updateRewardsNoFormula, 出力_欠番確認];
   for (var i = 0; i < fns.length; i++) {
     try { fns[i](); } catch (e) { console.error('cronDaily3 [' + fns[i].name + ']:', e); }
   }

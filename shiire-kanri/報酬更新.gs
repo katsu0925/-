@@ -235,8 +235,155 @@ function runOnceNow() {
 
 /**
  * 全期間の報酬を再計算（当月/前月フィルタなし）
- * GASエディタから手動実行する。実行後は不要なので削除してもOK。
+ * GASエディタから手動実行する。
  */
 function runFullRecalc() {
   updateRewardsNoFormula(true);
+}
+
+// ═══════════════════════════════════════════════════
+// 報酬管理シートのA・B・C列をGASで管理（数式廃止）
+// ═══════════════════════════════════════════════════
+
+/**
+ * 報酬管理シートの行構造を維持・拡張する
+ * - 既存の年月+名前の行はそのまま保持（D〜L列の値を壊さない）
+ * - 作業者マスターに新しい人が追加された場合、該当月のブロックに行を追加
+ * - 当月分が存在しなければ新しい月ブロックを追加
+ *
+ * 毎日cronDaily3で報酬計算前に実行、または手動で実行
+ */
+function syncRewardRows() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var shR = ss.getSheetByName('報酬管理');
+  var shM = ss.getSheetByName('作業者マスター');
+  if (!shR || !shM) return;
+
+  function pad2(n) { return ('0' + n).slice(-2); }
+  function norm(s) { return String(s || '').replace(/\u3000/g, ' ').trim(); }
+
+  // 作業者マスターから現在の作業者リスト＋メールを取得
+  var lastRowM = shM.getLastRow();
+  var nM = Math.max(0, lastRowM - 1);
+  if (nM === 0) return;
+  var masterData = shM.getRange(2, 2, nM, 3).getValues(); // B:名前, C:?, D:メール
+  var workers = [];
+  var emailMap = {};
+  for (var i = 0; i < masterData.length; i++) {
+    var name = norm(masterData[i][0]);
+    if (!name) continue;
+    workers.push(name);
+    emailMap[name] = norm(masterData[i][2]); // D列（B+3列目-1=index2）
+  }
+  if (workers.length === 0) return;
+
+  // 報酬管理シートの既存データを読み込み
+  var startRow = 3;
+  var lastRowR = shR.getLastRow();
+  var existingMonths = {}; // { 'YYYY/MM': { '名前': rowIndex, ... } }
+  var allMonthKeys = [];
+
+  if (lastRowR >= startRow) {
+    // A〜C列の値を読み取り（数式があっても値として取得）
+    var abcVals = shR.getRange(startRow, 1, lastRowR - startRow + 1, 3).getDisplayValues();
+
+    // まず全ての数式をクリアして値に変換
+    var abcValues = shR.getRange(startRow, 1, lastRowR - startRow + 1, 3).getValues();
+    // 数式があるかチェック
+    var formulas = shR.getRange(startRow, 1, lastRowR - startRow + 1, 3).getFormulas();
+    var hasFormulas = false;
+    for (var r = 0; r < formulas.length; r++) {
+      for (var c = 0; c < 3; c++) {
+        if (formulas[r][c]) { hasFormulas = true; break; }
+      }
+      if (hasFormulas) break;
+    }
+    if (hasFormulas) {
+      // 数式を値に変換（D列以降は触らない）
+      var displayVals = [];
+      for (var r = 0; r < abcVals.length; r++) {
+        displayVals.push([abcVals[r][0], abcVals[r][1], abcVals[r][2]]);
+      }
+      shR.getRange(startRow, 1, displayVals.length, 3).setValues(displayVals);
+      Logger.log('A〜C列の数式を値に変換: %s行', displayVals.length);
+    }
+
+    // 既存データのマッピング構築
+    for (var i = 0; i < abcVals.length; i++) {
+      var ym = norm(abcVals[i][0]);
+      var name = norm(abcVals[i][1]);
+      if (!ym || !name) continue;
+      if (!ym.match(/^\d{4}\/\d{2}$/)) continue;
+      if (!existingMonths[ym]) {
+        existingMonths[ym] = {};
+        allMonthKeys.push(ym);
+      }
+      existingMonths[ym][name] = startRow + i;
+    }
+  }
+
+  // 当月を確定
+  var today = new Date();
+  var curYM = today.getFullYear() + '/' + pad2(today.getMonth() + 1);
+
+  // 当月が存在しなければ追加対象
+  if (!existingMonths[curYM]) {
+    allMonthKeys.push(curYM);
+    existingMonths[curYM] = {};
+  }
+
+  // 各月について、不足している作業者の行を追加
+  var rowsToAppend = [];
+  allMonthKeys.sort();
+
+  for (var m = 0; m < allMonthKeys.length; m++) {
+    var ym = allMonthKeys[m];
+    var monthWorkers = existingMonths[ym];
+    for (var w = 0; w < workers.length; w++) {
+      if (!monthWorkers[workers[w]]) {
+        rowsToAppend.push([ym, workers[w], emailMap[workers[w]] || '']);
+      }
+    }
+  }
+
+  if (rowsToAppend.length > 0) {
+    // 報酬管理シートの最終行の後に追加（D〜L列は空＝次回の報酬計算で埋まる）
+    var appendRow = Math.max(lastRowR + 1, startRow);
+    for (var a = 0; a < rowsToAppend.length; a++) {
+      shR.getRange(appendRow + a, 1, 1, 3).setValues([rowsToAppend[a]]);
+    }
+    Logger.log('報酬管理に %s 行追加', rowsToAppend.length);
+
+    // A列（年月）でソート → 同じ月の作業者がまとまるように
+    var totalRows = Math.max(lastRowR, appendRow + rowsToAppend.length - 1) - startRow + 1;
+    var sortRange = shR.getRange(startRow, 1, totalRows, shR.getLastColumn());
+    sortRange.sort([{column: 1, ascending: true}, {column: 2, ascending: true}]);
+    Logger.log('報酬管理をA列→B列でソート完了');
+  } else {
+    Logger.log('追加行なし（全作業者の行が存在）');
+  }
+
+  // C列（メール）を最新のマスターデータで更新
+  lastRowR = shR.getLastRow();
+  if (lastRowR >= startRow) {
+    var bVals = shR.getRange(startRow, 2, lastRowR - startRow + 1, 1).getValues();
+    var cUpdates = [];
+    for (var i = 0; i < bVals.length; i++) {
+      var nm = norm(bVals[i][0]);
+      cUpdates.push([emailMap[nm] || '']);
+    }
+    shR.getRange(startRow, 3, cUpdates.length, 1).setValues(cUpdates);
+  }
+
+  Logger.log('syncRewardRows 完了');
+}
+
+/**
+ * 初回移行: 数式→値変換 ＋ 不足行追加 ＋ 全期間報酬再計算
+ * GASエディタから1回だけ手動実行する
+ */
+function migrateRewardSheet() {
+  syncRewardRows();
+  updateRewardsNoFormula(true);
+  Logger.log('migrateRewardSheet 完了: 数式→値変換 → 行構造修正 → 全期間報酬再計算');
 }
