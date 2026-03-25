@@ -990,7 +990,7 @@ function buildProductRowsForReceipt_(receiptNo) {
  * 使い方: GASエディタで受付番号を書き換えて batchExpandOrder() を実行
  */
 function batchExpandOrder() {
-  var receiptNo = '20260318113100-626'; // ← 手動実行時はここに受付番号を入力
+  var receiptNo = '20260324140158-692'; // ← 手動実行時はここに受付番号を入力
 
   // startBatchExpand_ から呼ばれた場合は ScriptProperties から受付番号を取得
   var props = PropertiesService.getScriptProperties();
@@ -1787,6 +1787,7 @@ function om_saveKitToWorkers_(receiptNo, customerName, orderDate, totalPrice, pr
       item: pr.item || '',
       size: pr.size || '',
       color: pr.color || '',
+      gender: pr.gender || '',
       condition: pr.condition || '',
       measurementText: pr.measurementText || '',
       priceText: pr.priceText || '',

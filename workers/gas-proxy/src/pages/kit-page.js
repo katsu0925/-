@@ -267,6 +267,7 @@ export function getKitPageHtml(kitDataJson) {
     if (item.item) infoHtml += '<tr><th>カテゴリ</th><td>' + esc(item.item) + '</td></tr>';
     if (item.size) infoHtml += '<tr><th>サイズ</th><td>' + esc(item.size) + '</td></tr>';
     if (item.color) infoHtml += '<tr><th>カラー</th><td>' + esc(item.color) + '</td></tr>';
+    if (item.gender) infoHtml += '<tr><th>性別</th><td>' + esc(item.gender) + '</td></tr>';
     if (item.condition) infoHtml += '<tr><th>状態</th><td>' + esc(item.condition) + '</td></tr>';
     infoHtml += '</table></div>';
 
