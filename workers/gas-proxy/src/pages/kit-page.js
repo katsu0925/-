@@ -168,7 +168,7 @@ export function getKitPageHtml(kitDataJson) {
 <div class="float-btns">
   <button class="float-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="最上部">&#x25B2;</button>
   <button class="float-btn" id="fontToggle" onclick="toggleFontSize()">A+</button>
-  <button class="float-btn" onclick="window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'})" title="最下部">&#x25BC;</button>
+  <button class="float-btn" onclick="scrollToBottom()" title="最下部">&#x25BC;</button>
 </div>
 
 <div class="modal-overlay" id="imageModal" onclick="closeModal()">
@@ -194,6 +194,7 @@ export function getKitPageHtml(kitDataJson) {
   var INITIAL_RENDER = 20;
   var BATCH_SIZE = 20;
   var renderedCount = 0;
+  var observer = null;
 
   // 顧客名マスク
   function maskName(name) {
@@ -378,7 +379,7 @@ export function getKitPageHtml(kitDataJson) {
   // IntersectionObserver で追加描画
   if (renderedCount < totalCount && 'IntersectionObserver' in window) {
     var sentinel = document.getElementById('loadingSentinel');
-    var observer = new IntersectionObserver(function(entries) {
+    observer = new IntersectionObserver(function(entries) {
       if (entries[0].isIntersecting && renderedCount < totalCount) {
         renderBatch(BATCH_SIZE);
         if (renderedCount >= totalCount) observer.disconnect();
@@ -618,6 +619,17 @@ export function getKitPageHtml(kitDataJson) {
   };
 
   // ─── フォントサイズ切替 ───
+  // ─── 最下部スクロール（全件描画してから） ───
+  window.scrollToBottom = function() {
+    if (renderedCount < totalCount) {
+      renderBatch(totalCount - renderedCount);
+      if (typeof observer !== 'undefined') observer.disconnect();
+    }
+    setTimeout(function() {
+      window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }, 50);
+  };
+
   window.toggleFontSize = function() {
     document.body.classList.toggle('large-font');
     var btn = document.getElementById('fontToggle');
