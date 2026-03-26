@@ -137,8 +137,6 @@ export function getKitPageHtml(kitDataJson) {
   .kit-footer { text-align: center; padding: 24px 16px; font-size: 12px; color: var(--text-light); }
   .kit-footer a { color: var(--accent); text-decoration: none; }
   .loading-sentinel { height: 1px; }
-  .mercari-link { display: block; text-align: center; margin: 8px 0 4px; padding: 10px; background: #ef4444; color: #fff; border-radius: 8px; text-decoration: none; font-size: 13px; font-weight: 700; }
-  .mercari-link:active { opacity: 0.8; }
   .listed-check { display: flex; align-items: center; gap: 6px; padding: 8px 16px; font-size: 12px; color: var(--text-light); cursor: pointer; user-select: none; -webkit-user-select: none; }
   .listed-check input { width: 18px; height: 18px; accent-color: var(--success); }
   .listed-check.done { color: var(--success); font-weight: 600; }
@@ -234,6 +232,11 @@ export function getKitPageHtml(kitDataJson) {
       '<div><div class="stat-value">' + esc(totalPrice) + '</div><div class="stat-label">合計金額（税込）</div></div>' +
       '<div><div class="stat-value">' + esc(orderDate) + '</div><div class="stat-label">注文日</div></div>' +
     '</div>' +
+    '<div style="margin:0 16px 8px;display:flex;gap:8px;align-items:center">' +
+      '<input type="text" id="kitSearch" placeholder="管理番号・ブランドで検索" oninput="filterProducts()" style="flex:1;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px">' +
+      '<a href="https://jp.mercari.com/sell/create" target="_blank" rel="noopener" style="padding:8px 14px;background:#ef4444;color:#fff;border-radius:8px;text-decoration:none;font-size:12px;font-weight:700;white-space:nowrap">メルカリで出品</a>' +
+    '</div>' +
+    '<div id="progressBar" style="margin:0 16px 12px;font-size:12px;color:#666"></div>' +
     '<div id="productList"></div>' +
     '<div class="loading-sentinel" id="loadingSentinel"></div>' +
     '<div class="kit-footer">' +
@@ -295,8 +298,6 @@ export function getKitPageHtml(kitDataJson) {
     var suggestMax = Math.ceil(buyPrice * 3 / 10) * 10;
     var suggestHtml = buyPrice > 0 ? '<div style="font-size:11px;color:#92400e;margin:4px 0 8px;padding:6px 10px;background:#fef3c7;border-radius:6px">推奨販売価格: <strong>' + suggestMin.toLocaleString() + '〜' + suggestMax.toLocaleString() + '円</strong>（仕入値の2〜3倍）</div>' : '';
     copyHtml += suggestHtml;
-    // メルカリリンク（アプリ優先）
-    copyHtml += '<a href="https://jp.mercari.com/sell/create" target="_blank" rel="noopener" class="mercari-link" onclick="event.stopPropagation()">メルカリで出品 &rarr;</a>';
     copyHtml += '</div>';
 
     // 商品情報テーブル
@@ -406,7 +407,7 @@ export function getKitPageHtml(kitDataJson) {
     var orig = btn.textContent;
     btn.textContent = 'コピー済み';
     btn.classList.add('copied');
-    setTimeout(function() { btn.textContent = orig; btn.classList.remove('copied'); }, 1500);
+    setTimeout(function() { btn.textContent = orig; btn.classList.remove('copied'); }, 3000);
   }
 
   window.openModal = function(img) {
@@ -495,15 +496,53 @@ export function getKitPageHtml(kitDataJson) {
       label.classList.remove('done');
       label.querySelector('span').textContent = '出品したらチェック';
     }
+    updateProgress();
   };
 
-  // ─── 次の商品へ ───
+  // ─── 次の商品へ（出品済みスキップ） ───
   window.goNextCard = function(currentIndex) {
-    var nextCard = document.getElementById('card-' + (currentIndex + 1));
-    if (!nextCard) return;
     document.getElementById('card-' + currentIndex).classList.remove('open');
-    nextCard.classList.add('open');
-    nextCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    for (var n = currentIndex + 1; n < totalCount; n++) {
+      if (!isItemListed(n)) {
+        var nextCard = document.getElementById('card-' + n);
+        if (nextCard && nextCard.style.display !== 'none') {
+          nextCard.classList.add('open');
+          nextCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          return;
+        }
+      }
+    }
+    // 未出品が残っていない場合
+    alert('未出品の商品はありません！');
+  };
+
+  // ─── 進捗カウンター ───
+  function updateProgress() {
+    var set = getListedSet();
+    var done = Object.keys(set).length;
+    var bar = document.getElementById('progressBar');
+    if (!bar) return;
+    var pct = totalCount > 0 ? Math.round(done / totalCount * 100) : 0;
+    bar.innerHTML = '<div style="display:flex;align-items:center;gap:8px">' +
+      '<div style="flex:1;height:6px;background:#e5e7eb;border-radius:3px;overflow:hidden">' +
+        '<div style="width:' + pct + '%;height:100%;background:#22c55e;border-radius:3px;transition:width .3s"></div>' +
+      '</div>' +
+      '<span style="white-space:nowrap;font-weight:600">出品済み ' + done + ' / ' + totalCount + '</span>' +
+    '</div>';
+  }
+  updateProgress();
+
+  // ─── 商品検索 ───
+  window.filterProducts = function() {
+    var q = (document.getElementById('kitSearch').value || '').toLowerCase().trim();
+    for (var i = 0; i < totalCount; i++) {
+      var card = document.getElementById('card-' + i);
+      if (!card) continue;
+      if (!q) { card.style.display = ''; continue; }
+      var item = items[i];
+      var text = ((item.managedId || '') + ' ' + (item.brand || '') + ' ' + (item.item || '') + ' ' + (item.title || '')).toLowerCase();
+      card.style.display = text.indexOf(q) >= 0 ? '' : 'none';
+    }
   };
 
   // ─── フォントサイズ切替 ───
