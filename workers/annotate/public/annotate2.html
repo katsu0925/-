@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>キーポイント アノテーション</title>
 <meta name="theme-color" content="#1a1a2e">
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
@@ -18,7 +18,7 @@ body { font-family:-apple-system,'Hiragino Sans',sans-serif; background:#111; co
   box-shadow:0 2px 8px rgba(0,0,0,0.5); }
 .container { display:flex; height:calc(100vh - 90px); }
 .image-area { flex:1; position:relative; overflow:hidden; background:#000;
-  touch-action:manipulation; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none;
+  touch-action:none; -webkit-touch-callout:none; -webkit-user-select:none; user-select:none;
   transition:transform 0.3s ease; }
 .image-area img { width:100%; height:100%; object-fit:contain;
   -webkit-touch-callout:none; pointer-events:none; }
@@ -1187,10 +1187,13 @@ function zoomToPoint(imgX, imgY) {
   area.style.transition = 'transform 0.3s ease';
   area.style.transform = `scale(${ZOOM_SCALE})`;
   isAutoZoomed = true;
+  updateFloatLabel();
 }
 function zoomReset() {
+  imageArea.style.transition = 'transform 0.3s ease';
   imageArea.style.transform = '';
   isAutoZoomed = false;
+  updateFloatLabel();
 }
 
 // ラベル位置を全ドットとの衝突を考慮して動的に決定
@@ -1261,24 +1264,18 @@ window.addEventListener('resize', () => {
   repositionAllLabels();
 });
 
-// ピンチズーム時にフローティングラベルで現在のステップを表示
-if(window.visualViewport) {
+// 自動ズーム中にフローティングラベルで現在のステップを表示
+function updateFloatLabel() {
   const fl = document.getElementById('floatLabel');
-  function updateFloat() {
-    const vv = window.visualViewport;
-    if(vv.scale > 1.2) {
-      fl.textContent = document.getElementById('modeBar').textContent;
-      fl.style.display = 'block';
-      const s = 1 / vv.scale;
-      fl.style.top = (vv.offsetTop + 8 * vv.scale) + 'px';
-      fl.style.left = (vv.offsetLeft + 8 * vv.scale) + 'px';
-      fl.style.transform = `scale(${s})`;
-    } else {
-      fl.style.display = 'none';
-    }
+  if(isAutoZoomed) {
+    fl.textContent = document.getElementById('modeBar').textContent;
+    fl.style.display = 'block';
+    fl.style.top = '8px';
+    fl.style.left = '8px';
+    fl.style.transform = '';
+  } else {
+    fl.style.display = 'none';
   }
-  visualViewport.addEventListener('resize', updateFloat);
-  visualViewport.addEventListener('scroll', updateFloat);
 }
 </script>
 </body>
