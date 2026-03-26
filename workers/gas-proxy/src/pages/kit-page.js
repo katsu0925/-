@@ -150,6 +150,13 @@ export function getKitPageHtml(kitDataJson) {
   body.large-font .info-table { font-size: 14px; }
   body.large-font .measure-item { font-size: 14px; }
   body.large-font .product-card-header { font-size: 16px; }
+  .kit-sticky { position: sticky; top: 0; z-index: 100; background: var(--bg); padding-bottom: 4px; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+  .listed-box { margin: 16px; }
+  .listed-box-header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: #166534; }
+  .listed-box-header .arrow { transition: transform .2s; }
+  .listed-box-header.open .arrow { transform: rotate(180deg); }
+  .listed-box-body { display: none; }
+  .listed-box-body.open { display: block; }
   @media (max-width: 480px) { .product-details { flex-direction: column; gap: 8px; } }
 </style>
 </head>
@@ -210,34 +217,35 @@ export function getKitPageHtml(kitDataJson) {
 
   // ヘッダー + ガイド + サマリー
   container.innerHTML =
-    '<div class="kit-header">' +
-      '<h1>出品キット</h1>' +
-      '<div class="order-info">受付番号: ' + esc(data.receiptNo || '') + ' ／ ' + esc(maskedName) + '</div>' +
+    '<div class="kit-sticky">' +
+      '<div class="kit-header">' +
+        '<h1>出品キット</h1>' +
+        '<div class="order-info">受付番号: ' + esc(data.receiptNo || '') + ' ／ ' + esc(maskedName) + '</div>' +
+      '</div>' +
+      '<div class="guide-banner">' +
+        '<strong>使い方:</strong> 商品をタップで展開 → 「コピー」でコピー → メルカリに貼り付け → 「出品したらチェック」で次へ！' +
+        '<details><summary>出品手順を見る</summary>' +
+          '<div class="guide-steps">' +
+            '<span>1</span> 画像を長押しで保存（または「画像をまとめて保存」）<br>' +
+            '<span>2</span> 「メルカリで出品」から出品ページを開く<br>' +
+            '<span>3</span> メルカリで写真をアップロード<br>' +
+            '<span>4</span> このページに戻り「タイトル」をコピー → メルカリの商品名に貼り付け<br>' +
+            '<span>5</span> このページに戻り「説明文」をコピー → メルカリの商品の説明に貼り付け<br>' +
+            '<span>6</span> カテゴリ・サイズ・状態・価格を設定して出品完了！' +
+          '</div>' +
+        '</details>' +
+      '</div>' +
+      '<div style="margin:0 16px 8px;display:flex;gap:8px;align-items:center">' +
+        '<input type="text" id="kitSearch" placeholder="管理番号・ブランドで検索" oninput="filterProducts()" style="flex:1;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px">' +
+        '<a href="https://jp.mercari.com/sell/create" target="_blank" rel="noopener" style="padding:8px 14px;background:#ef4444;color:#fff;border-radius:8px;text-decoration:none;font-size:12px;font-weight:700;white-space:nowrap">メルカリで出品</a>' +
+      '</div>' +
+      '<div id="progressBar" style="margin:0 16px 8px;font-size:12px;color:#666"></div>' +
     '</div>' +
-    '<div class="guide-banner">' +
-      '<strong>使い方:</strong> 商品をタップで展開 → 各項目の「コピー」ボタンでコピー → メルカリに貼り付けるだけ！' +
-      '<details><summary>出品手順を見る</summary>' +
-        '<div class="guide-steps">' +
-          '<span>1</span> 画像を長押しで保存（または「画像をまとめて保存」）<br>' +
-          '<span>2</span> 「メルカリで出品」リンクから出品ページを開く<br>' +
-          '<span>3</span> メルカリで写真をアップロード<br>' +
-          '<span>4</span> このページに戻り「タイトル」をコピー → メルカリの商品名に貼り付け<br>' +
-          '<span>5</span> このページに戻り「説明文」をコピー → メルカリの商品の説明に貼り付け<br>' +
-          '<span>6</span> カテゴリ・サイズ・状態・価格を設定して出品完了！' +
-        '</div>' +
-      '</details>' +
-    '</div>' +
-    '<div class="order-summary">' +
-      '<div><div class="stat-value">' + totalCount + '</div><div class="stat-label">商品数</div></div>' +
-      '<div><div class="stat-value">' + esc(totalPrice) + '</div><div class="stat-label">合計金額（税込）</div></div>' +
-      '<div><div class="stat-value">' + esc(orderDate) + '</div><div class="stat-label">注文日</div></div>' +
-    '</div>' +
-    '<div style="margin:0 16px 8px;display:flex;gap:8px;align-items:center">' +
-      '<input type="text" id="kitSearch" placeholder="管理番号・ブランドで検索" oninput="filterProducts()" style="flex:1;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px">' +
-      '<a href="https://jp.mercari.com/sell/create" target="_blank" rel="noopener" style="padding:8px 14px;background:#ef4444;color:#fff;border-radius:8px;text-decoration:none;font-size:12px;font-weight:700;white-space:nowrap">メルカリで出品</a>' +
-    '</div>' +
-    '<div id="progressBar" style="margin:0 16px 12px;font-size:12px;color:#666"></div>' +
     '<div id="productList"></div>' +
+    '<div class="listed-box" id="listedBox" style="display:none">' +
+      '<div class="listed-box-header" id="listedBoxHeader" onclick="toggleListedBox()"><span class="arrow">&#x25BC;</span> 出品済み（<span id="listedBoxCount">0</span>件）</div>' +
+      '<div class="listed-box-body" id="listedBoxBody"></div>' +
+    '</div>' +
     '<div class="loading-sentinel" id="loadingSentinel"></div>' +
     '<div class="kit-footer">' +
       'このページは注文者限定です。URLの共有はお控えください。<br>' +
@@ -491,13 +499,65 @@ export function getKitPageHtml(kitDataJson) {
       card.classList.add('is-listed');
       label.classList.add('done');
       label.querySelector('span').textContent = '出品済み';
+      // 出品済みBOXに移動
+      moveToListedBox(index);
+      // 次の未出品商品へ自動遷移
+      goNextCard(index);
     } else {
       card.classList.remove('is-listed');
       label.classList.remove('done');
       label.querySelector('span').textContent = '出品したらチェック';
+      // 出品済みBOXから戻す
+      moveToProductList(index);
     }
     updateProgress();
+    updateListedBox();
   };
+
+  function moveToListedBox(index) {
+    var card = document.getElementById('card-' + index);
+    if (!card) return;
+    card.classList.remove('open');
+    var box = document.getElementById('listedBoxBody');
+    box.appendChild(card);
+  }
+
+  function moveToProductList(index) {
+    var card = document.getElementById('card-' + index);
+    if (!card) return;
+    var list = document.getElementById('productList');
+    // 正しい位置に挿入（番号順を維持）
+    var inserted = false;
+    var cards = list.querySelectorAll('.product-card');
+    for (var c = 0; c < cards.length; c++) {
+      var cid = parseInt(cards[c].id.replace('card-', ''));
+      if (cid > index) { list.insertBefore(card, cards[c]); inserted = true; break; }
+    }
+    if (!inserted) list.appendChild(card);
+  }
+
+  function updateListedBox() {
+    var set = getListedSet();
+    var count = Object.keys(set).length;
+    var box = document.getElementById('listedBox');
+    var countEl = document.getElementById('listedBoxCount');
+    if (countEl) countEl.textContent = count;
+    if (box) box.style.display = count > 0 ? '' : 'none';
+  }
+
+  window.toggleListedBox = function() {
+    var header = document.getElementById('listedBoxHeader');
+    var body = document.getElementById('listedBoxBody');
+    header.classList.toggle('open');
+    body.classList.toggle('open');
+  };
+
+  // 初期化: 既に出品済みの商品をBOXに移動
+  (function initListedBox() {
+    var set = getListedSet();
+    Object.keys(set).forEach(function(idx) { moveToListedBox(parseInt(idx)); });
+    updateListedBox();
+  })();
 
   // ─── 次の商品へ（出品済みスキップ） ───
   window.goNextCard = function(currentIndex) {
