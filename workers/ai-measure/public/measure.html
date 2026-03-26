@@ -7,73 +7,190 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#0f1117">
+<script async src="https://docs.opencv.org/4.9.0/opencv.js" onload="cvReady=true"></script>
 <style>
-* { margin:0; padding:0; box-sizing:border-box; }
-body { font-family:-apple-system,'Hiragino Sans',sans-serif; background:#111; color:#fff; }
-
-.header { padding:6px 16px; background:#1a1a2e; display:flex; justify-content:space-between; align-items:center; position:sticky; top:0; z-index:60; }
-.header h1 { font-size:15px; font-weight:600; }
-.usage { font-size:11px; color:#aaa; }
-.usage b { color:#e94560; }
-
-.steps { display:flex; padding:6px 12px; background:#222; gap:3px; position:sticky; top:34px; z-index:60; }
-.step { flex:1; text-align:center; font-size:10px; padding:4px; border-radius:4px; color:#555; background:#1a1a1a; cursor:default; }
-.step.active { background:#e94560; color:#fff; font-weight:600; }
-.step.done { background:#1b5e20; color:#a5d6a7; cursor:pointer; }
-
-.mode-bar { padding:8px 12px; text-align:center; font-size:13px; background:#333; color:#ccc; min-height:36px; position:sticky; top:60px; z-index:60; }
-.mode-bar.active { background:#e94560; color:#fff; }
-.mode-bar.success { background:#1b5e20; color:#fff; }
-
-.container { display:flex; height:calc(100vh - 88px); }
-.image-area { flex:1; position:relative; overflow:hidden; background:#000; touch-action:none; }
-.image-area img { width:100%; height:100%; object-fit:contain; display:none; }
-.image-area img.show { display:block; }
-.panel { width:340px; background:#1a1a1a; display:flex; flex-direction:column; }
-.panel-scroll { flex:1; overflow-y:auto; padding:12px; }
-.panel-actions { padding:8px 12px; border-top:1px solid #333; }
-
-@media (max-width:768px) {
-  .panel-actions { position:fixed; bottom:0; left:0; right:0; background:#1a1a1a;
-    padding:10px 16px; padding-bottom:max(10px, env(safe-area-inset-bottom)); z-index:50; }
-  .panel-scroll { padding-bottom:80px; }
+/* ============ Design Tokens ============ */
+:root {
+  /* Colors - Blue-tinted dark */
+  --bg: #0f1117; --bg2: #161822; --bg3: #1e2130; --bg4: #262a3a;
+  --text: #f1f5f9; --text2: #c8cdd8; --text3: #94a3b8; --text4: #64748b; --text5: #475569;
+  --header-bg: rgba(15,17,23,0.85); --accent: #e94560; --accent2: #d63851;
+  --success: #22c55e; --success-light: #4ade80; --warn: #f59e0b;
+  --border: rgba(255,255,255,0.08); --card-bg: #1a1d2e;
+  --dot-bg: rgba(0,0,0,0.4); --overlay-bg: rgba(15,17,23,0.95);
+  --info: #3b82f6;
+  /* Spacing / Shape */
+  --radius-sm: 8px; --radius-md: 12px; --radius-lg: 20px;
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.15);
+  --shadow-md: 0 4px 20px rgba(0,0,0,0.25);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.35);
+  --transition: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --font-mono: 'SF Mono', 'JetBrains Mono', 'Menlo', monospace;
+}
+[data-theme="light"] {
+  --bg: #f8fafc; --bg2: #ffffff; --bg3: #f1f5f9; --bg4: #e2e8f0;
+  --text: #0f172a; --text2: #334155; --text3: #64748b; --text4: #94a3b8; --text5: #cbd5e1;
+  --header-bg: rgba(255,255,255,0.85); --accent: #e94560; --accent2: #d63851;
+  --success: #16a34a; --success-light: #15803d; --warn: #d97706;
+  --border: rgba(0,0,0,0.08); --card-bg: #ffffff;
+  --dot-bg: rgba(255,255,255,0.4); --overlay-bg: rgba(248,250,252,0.97);
+  --info: #2563eb;
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.06);
+  --shadow-md: 0 4px 20px rgba(0,0,0,0.08);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.12);
 }
 
-/* 撮影ガイド */
-.guide { padding:16px; line-height:1.8; font-size:13px; color:#ccc; }
-.guide h3 { color:#fff; margin-bottom:8px; font-size:14px; }
+/* ============ Light theme overrides ============ */
+[data-theme="light"] .g-card { background:var(--bg2); border:1px solid var(--border); }
+[data-theme="light"] .modal-box { background:var(--bg2); border:1px solid var(--border); }
+[data-theme="light"] .g-tip { background:#eff6ff; color:#1d4ed8; border-left-color:#3b82f6; }
+[data-theme="light"] .g-do { background:#f0fdf4; }
+[data-theme="light"] .g-dont { background:#fef2f2; }
+[data-theme="light"] .g-checklist li::before { color:#16a34a; }
+[data-theme="light"] .item.editing { background:#fef2f2; }
+
+/* ============ Base ============ */
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,'Hiragino Sans',sans-serif; background:var(--bg); color:var(--text);
+  -webkit-font-smoothing:antialiased; }
+
+/* ============ Header ============ */
+.header {
+  padding:8px 16px; background:var(--header-bg); backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px);
+  display:flex; justify-content:space-between; align-items:center;
+  position:sticky; top:0; z-index:60; border-bottom:1px solid var(--border);
+}
+.header-brand { display:flex; align-items:center; gap:8px; }
+.header-brand img { width:26px; height:26px; object-fit:contain; }
+.header h1 { font-size:16px; font-weight:700; letter-spacing:-0.02em; }
+.header-actions { display:flex; align-items:center; gap:8px; }
+.header-btn {
+  background:none; border:1px solid var(--border); color:var(--text3); width:32px; height:32px;
+  border-radius:var(--radius-sm); font-size:16px; cursor:pointer; display:flex; align-items:center;
+  justify-content:center; transition:all var(--transition);
+}
+.header-btn:hover { background:var(--bg3); color:var(--text); border-color:var(--text5); }
+
+/* ============ Step Bar ============ */
+.steps {
+  display:flex; padding:8px 16px; background:var(--bg2); gap:0; position:sticky; top:42px; z-index:60;
+  border-bottom:1px solid var(--border); align-items:center;
+}
+.step {
+  flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
+  font-size:9px; padding:6px 4px; color:var(--text5); cursor:default;
+  position:relative; transition:all var(--transition);
+}
+.step-icon {
+  width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+  font-size:13px; background:var(--bg3); border:2px solid var(--border); transition:all var(--transition);
+  color:var(--text4);
+}
+.step.active .step-icon { background:var(--accent); border-color:var(--accent); color:#fff; transform:scale(1.1);
+  box-shadow:0 0 12px rgba(233,69,96,0.4); }
+.step.active { color:var(--text); font-weight:600; }
+.step.done .step-icon { background:var(--success); border-color:var(--success); color:#fff; }
+.step.done { color:var(--success); cursor:pointer; }
+.step-connector {
+  position:absolute; top:19px; left:calc(50% + 18px); width:calc(100% - 36px);
+  height:2px; background:var(--border);
+}
+.step.done .step-connector { background:var(--success); }
+.step:last-child .step-connector { display:none; }
+
+/* ============ Bear Guide (replaces mode-bar) ============ */
+.bear-guide {
+  display:flex; align-items:center; gap:10px; padding:8px 14px;
+  background:var(--bg2); border-bottom:1px solid var(--border);
+  position:sticky; top:96px; z-index:60; min-height:44px;
+  animation:fadeSlideIn 0.3s ease;
+}
+.bear-guide-img { width:32px; height:32px; object-fit:contain; flex-shrink:0; }
+.bear-guide-bubble {
+  background:var(--bg3); border-radius:var(--radius-md); padding:6px 12px;
+  font-size:12px; color:var(--text2); line-height:1.5; position:relative; flex:1;
+}
+.bear-guide-bubble::before {
+  content:''; position:absolute; left:-6px; top:10px;
+  border:6px solid transparent; border-right-color:var(--bg3); border-left:0;
+}
+.bear-guide.active .bear-guide-bubble { background:rgba(233,69,96,0.12); color:var(--text); }
+.bear-guide.success .bear-guide-bubble { background:rgba(34,197,94,0.12); color:var(--success-light); }
+
+@keyframes fadeSlideIn {
+  from { opacity:0; transform:translateY(-4px); }
+  to { opacity:1; transform:translateY(0); }
+}
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.8)} }
+
+/* ============ Layout ============ */
+.container { display:flex; height:calc(100vh - 144px); background:var(--bg2); }
+.image-area { flex:1; position:relative; overflow:hidden; background:#080a10; touch-action:pan-y pinch-zoom; }
+.image-area img { width:100%; height:100%; object-fit:contain; display:none; }
+.image-area img.show { display:block; }
+.panel { width:340px; background:var(--bg2); display:flex; flex-direction:column; border-left:1px solid var(--border); overflow:hidden; }
+.panel-scroll { flex:1; overflow-y:auto; overflow-x:hidden; padding:12px; padding-bottom:120px; }
+.panel-scroll > * { animation:panelFadeIn 0.2s ease; }
+@keyframes panelFadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+.panel-actions { padding:8px 12px; border-top:1px solid var(--border); background:var(--bg2); }
+
+@media (max-width:768px) {
+  .panel-actions { position:fixed; bottom:0; left:0; right:0; background:var(--bg2);
+    padding:10px 16px; padding-bottom:max(10px, env(safe-area-inset-bottom)); z-index:50;
+    border-top:1px solid var(--border); box-shadow:0 -2px 12px rgba(0,0,0,0.2); }
+  .panel-scroll { padding-bottom:140px; }
+}
+
+/* ============ Drop Zone (Step 1) ============ */
+.drop-zone {
+  display:block; border:2px dashed var(--text5); border-radius:var(--radius-lg); padding:40px 24px;
+  text-align:center; cursor:pointer; transition:all var(--transition); margin:12px;
+  background:var(--bg3);
+}
+.drop-zone:hover { border-color:var(--accent); background:rgba(233,69,96,0.04); }
+.drop-zone-icon { font-size:48px; margin-bottom:12px; display:block; opacity:0.6; }
+.drop-zone-icon svg { width:48px; height:48px; }
+.drop-zone-text { font-size:15px; font-weight:600; color:var(--text); margin-bottom:4px; }
+.drop-zone-sub { font-size:12px; color:var(--text4); }
+
+/* ============ Guide ============ */
+.guide { padding:16px; line-height:1.8; font-size:13px; color:var(--text3); }
+.guide h3 { color:var(--text); margin-bottom:8px; font-size:14px; }
 .guide li { margin-bottom:4px; }
-.guide .warn { color:#ffff00; font-weight:600; }
+.guide .warn { color:var(--warn); font-weight:600; }
 
-/* タブ */
-.tabs { display:flex; gap:2px; margin-bottom:10px; }
+/* ============ Tabs ============ */
+.tabs { display:flex; gap:2px; margin-bottom:10px; background:var(--bg3); border-radius:var(--radius-sm); padding:2px; }
 .tab { flex:1; padding:8px; text-align:center; font-size:12px; font-weight:600;
-  background:#333; color:#aaa; border:none; border-radius:6px 6px 0 0; cursor:pointer; }
-.tab.active { background:#2a2a2a; color:#fff; }
+  background:transparent; color:var(--text4); border:none; border-radius:6px; cursor:pointer;
+  transition:all var(--transition); }
+.tab.active { background:var(--bg2); color:var(--text); box-shadow:var(--shadow-sm); }
 
-/* 採寸項目 */
-.item { padding:8px 10px; margin-bottom:4px; border-radius:6px; background:#222;
-  border-left:3px solid transparent; cursor:pointer; }
-.item:hover { background:#2a2a2a; }
-.item.editing { border-left-color:#e94560; background:#2a1a1a; }
-.item-name { font-size:12px; color:#999; margin-bottom:2px; }
+/* ============ Measure Items ============ */
+.item { padding:10px 12px; margin-bottom:4px; border-radius:var(--radius-sm); background:var(--bg3);
+  border-left:3px solid transparent; cursor:pointer; transition:all var(--transition); }
+.item:hover { background:var(--bg4); }
+.item.editing { border-left-color:var(--accent); background:rgba(233,69,96,0.08); }
+.item-name { font-size:12px; color:var(--text4); margin-bottom:2px; }
 .item-values { display:flex; align-items:baseline; gap:8px; }
-.val-main { font-size:20px; font-weight:700; }
-.val-main.adjusted { color:#69f0ae; }
-.val-ai { font-size:12px; color:#555; text-decoration:line-through; }
-.val-diff { font-size:11px; font-weight:600; }
+.val-main { font-size:20px; font-weight:700; font-family:var(--font-mono); letter-spacing:-0.02em; }
+.val-main.adjusted { color:var(--success-light); }
+.val-ai { font-size:12px; color:var(--text5); text-decoration:line-through; font-family:var(--font-mono); }
+.val-diff { font-size:11px; font-weight:600; font-family:var(--font-mono); }
 .val-diff.plus { color:#ef5350; }
-.val-diff.minus { color:#42a5f5; }
+.val-diff.minus { color:#60a5fa; }
 
-/* 説明文 */
-.desc-area { background:#222; border-radius:8px; padding:12px; font-size:13px; line-height:1.8;
-  color:#ccc; white-space:pre-wrap; min-height:120px; }
+/* ============ Description ============ */
+.desc-area { background:var(--bg3); border-radius:var(--radius-sm); padding:12px; font-size:13px; line-height:1.8;
+  color:var(--text2); white-space:pre-wrap; min-height:120px; }
 
-/* ドット */
+/* ============ Dots & Lines ============ */
 .dot {
   position:absolute; width:24px; height:24px; border-radius:50%; cursor:grab; z-index:10;
   transform:translate(-50%,-50%); box-shadow:0 0 6px rgba(0,0,0,0.8);
-  touch-action:none; border:2px solid rgba(255,255,255,0.9);
+  touch-action:none; border:2px solid rgba(255,255,255,0.9); transition:box-shadow var(--transition);
   background:linear-gradient(rgba(255,255,255,0.8),rgba(255,255,255,0.8)) center/1px 8px no-repeat,
     linear-gradient(rgba(255,255,255,0.8),rgba(255,255,255,0.8)) center/8px 1px no-repeat, rgba(0,0,0,0.4);
 }
@@ -92,86 +209,132 @@ body { font-family:-apple-system,'Hiragino Sans',sans-serif; background:#111; co
   box-shadow:0 0 14px rgba(255,255,0,0.8); }
 .line { position:absolute; z-index:5; pointer-events:none; height:2px; }
 .label-tag { position:absolute; font-size:10px; font-weight:600; padding:2px 6px;
-  border-radius:3px; z-index:6; pointer-events:none; white-space:nowrap; color:#fff; }
+  border-radius:4px; z-index:6; pointer-events:none; white-space:nowrap; color:#fff; }
 
-.btn { display:block; width:100%; padding:10px; border:none; border-radius:8px;
-  font-size:13px; font-weight:600; cursor:pointer; margin-bottom:6px; text-align:center; }
-.btn-primary { background:#e94560; color:#fff; }
-.btn-primary:hover { background:#c62828; }
-.btn-primary:disabled { background:#555; color:#888; cursor:default; }
-.btn-secondary { background:#333; color:#ccc; }
-.btn-secondary:hover { background:#444; }
-.btn-success { background:#2e7d32; color:#fff; }
-.btn-success:hover { background:#1b5e20; }
+/* ============ Buttons ============ */
+.btn {
+  display:block; width:100%; padding:11px; border:none; border-radius:var(--radius-sm);
+  font-size:13px; font-weight:600; cursor:pointer; margin-bottom:6px; text-align:center;
+  transition:all var(--transition); position:relative; overflow:hidden;
+}
+.btn:active { transform:scale(0.98); }
+.btn-primary { background:var(--accent); color:#fff; box-shadow:0 2px 8px rgba(233,69,96,0.3); }
+.btn-primary:hover { background:var(--accent2); box-shadow:0 4px 12px rgba(233,69,96,0.4); transform:translateY(-1px); }
+.btn-primary:active { transform:scale(0.98) translateY(0); }
+.btn-primary:disabled { background:var(--bg4); color:var(--text5); cursor:default; box-shadow:none; }
+.btn-secondary { background:var(--bg3); color:var(--text2); border:1px solid var(--border); }
+.btn-secondary:hover { background:var(--bg4); border-color:var(--text5); }
+.btn-success { background:var(--success); color:#fff; box-shadow:0 2px 8px rgba(34,197,94,0.3); }
+.btn-success:hover { filter:brightness(1.1); transform:translateY(-1px); }
 
 .copy-btns { display:flex; gap:6px; }
 .copy-btns .btn { flex:1; }
 
-.a4-info { padding:10px; background:#2a2a1a; border-radius:8px; font-size:12px; line-height:1.6; }
-.a4-info b { color:#ffff00; }
+.a4-info { padding:10px; background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius-sm);
+  font-size:12px; line-height:1.6; color:var(--text2); }
+.a4-info b { color:var(--warn); }
 
-/* ガイドモーダル */
-.g-card { background:#1a1a2e; border-radius:10px; padding:14px; margin-bottom:12px; }
-.g-card-head { font-size:13px; font-weight:700; color:#e94560; margin-bottom:10px; padding-bottom:6px; border-bottom:1px solid #333; }
+/* ============ Menu ============ */
+.menu-item {
+  display:flex; align-items:center; gap:10px; width:100%; padding:12px 16px;
+  background:none; border:none; border-bottom:1px solid var(--border);
+  color:var(--text2); font-size:14px; text-align:left; cursor:pointer; transition:all var(--transition);
+}
+.menu-item:hover { background:var(--bg3); color:var(--text); }
+.menu-icon { font-size:16px; width:20px; text-align:center; opacity:0.7; }
+
+/* ============ Modals ============ */
+.modal-overlay { position:fixed;inset:0;z-index:150;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);
+  display:flex;align-items:center;justify-content:center;padding:16px; animation:fadeIn 0.15s ease; }
+.modal-box { background:var(--card-bg);border-radius:var(--radius-md);padding:20px;max-width:360px;width:100%;
+  color:var(--text);box-shadow:var(--shadow-lg); animation:modalIn 0.2s ease; }
+@keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+@keyframes modalIn { from { opacity:0;transform:scale(0.95)translateY(8px); } to { opacity:1;transform:scale(1)translateY(0); } }
+.modal-box h3 { font-size:16px;margin-bottom:12px; }
+.modal-header { display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10;
+  padding:12px 16px;margin:-0 -16px 8px;background:var(--overlay-bg);border-bottom:1px solid var(--border); }
+.modal-close { background:none;border:none;color:var(--text);font-size:24px;cursor:pointer;padding:4px 8px;
+  transition:opacity var(--transition); }
+.modal-close:hover { opacity:0.7; }
+.modal-box p { font-size:13px;color:var(--text3);line-height:1.6;margin-bottom:16px; }
+.modal-btns { display:flex;gap:8px; }
+.modal-btns .btn { flex:1; }
+
+/* ============ Guide Modal ============ */
+.guide-hero { background:linear-gradient(135deg,#1a1d2e,#16213e); }
+[data-theme="light"] .guide-hero { background:linear-gradient(135deg,#e8eaf6,#c5cae9); }
+[data-theme="light"] .guide-hero p { color:#333 !important; }
+[data-theme="light"] .guide-hero span { color:#d63851 !important; }
+
+.g-card { background:var(--card-bg); border-radius:var(--radius-md); padding:14px; margin-bottom:12px;
+  border:1px solid var(--border); }
+.g-card-head { font-size:13px; font-weight:700; color:var(--accent); margin-bottom:10px;
+  padding-bottom:6px; border-bottom:1px solid var(--border); }
 .g-step { display:flex; gap:10px; margin-bottom:14px; }
 .g-step:last-child { margin-bottom:0; }
-.g-num { width:24px; height:24px; background:#e94560; color:#fff; border-radius:50%;
-  font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; margin-top:2px; }
-.g-body { flex:1; font-size:13px; line-height:1.6; color:#ccc; }
-.g-body b { color:#fff; }
+.g-num { width:24px; height:24px; background:var(--accent); color:#fff; border-radius:50%;
+  font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:center;
+  flex-shrink:0; margin-top:2px; }
+.g-body { flex:1; font-size:13px; line-height:1.6; color:var(--text3); }
+.g-body b { color:var(--text); }
 .g-body p { margin:4px 0; }
-.g-sub { font-size:11px; color:#777; }
-.g-warn-box { background:#4a3800; color:#ffff00; padding:6px 10px; border-radius:6px; font-size:12px; font-weight:600; margin:6px 0; }
+.g-sub { font-size:11px; color:var(--text4); }
+.g-warn-box { background:rgba(245,158,11,0.1); color:var(--warn); padding:6px 10px;
+  border-radius:6px; font-size:12px; font-weight:600; margin:6px 0; border:1px solid rgba(245,158,11,0.2); }
 .g-checklist { list-style:none; padding:0; margin:6px 0; }
-.g-checklist li { font-size:12px; padding:2px 0 2px 20px; position:relative; color:#ccc; }
-.g-checklist li::before { content:'✓'; position:absolute; left:0; color:#69f0ae; font-weight:700; }
+.g-checklist li { font-size:12px; padding:2px 0 2px 20px; position:relative; color:var(--text2); }
+.g-checklist li::before { content:'✓'; position:absolute; left:0; color:var(--success-light); font-weight:700; }
 .g-do-dont { display:flex; gap:6px; margin:8px 0; }
 .g-do, .g-dont { flex:1; padding:6px 8px; border-radius:6px; font-size:11px; }
-.g-do { background:#1a2a1a; color:#ccc; }
-.g-dont { background:#2a1a1a; color:#ccc; }
+.g-do { background:rgba(34,197,94,0.08); color:var(--text3); }
+.g-dont { background:rgba(239,68,68,0.08); color:var(--text3); }
 .g-do span, .g-dont span { font-weight:700; display:block; margin-bottom:2px; }
-.g-do span { color:#69f0ae; }
+.g-do span { color:var(--success-light); }
 .g-dont span { color:#ef5350; }
 .g-details { margin:6px 0; }
-.g-details summary { font-size:12px; color:#88a; cursor:pointer; padding:4px 0; }
-.g-details summary:hover { color:#aac; }
-.g-details-body { padding:8px 0 4px 8px; font-size:12px; color:#aaa; line-height:1.7; }
+.g-details summary { font-size:12px; color:var(--accent); cursor:pointer; padding:4px 0; transition:opacity var(--transition); }
+.g-details summary:hover { opacity:0.7; }
+.g-details-body { padding:8px 0 4px 8px; font-size:12px; color:var(--text3); line-height:1.7; }
 .g-details-body p { margin-bottom:8px; }
-.g-details-body b { color:#ccc; }
+.g-details-body b { color:var(--text); }
 .g-settings { width:100%; font-size:12px; border-collapse:collapse; }
-.g-settings td { padding:4px 6px; border-bottom:1px solid #2a2a2a; color:#ccc; }
-.g-settings td:first-child { color:#888; width:90px; }
+.g-settings td { padding:4px 6px; border-bottom:1px solid var(--border); color:var(--text3); }
+.g-settings td:first-child { color:var(--text4); width:90px; }
 .g-table { width:100%; border-collapse:collapse; font-size:12px; }
-.g-table th { background:#222; color:#888; text-align:left; padding:5px 8px; }
-.g-table td { padding:5px 8px; border-bottom:1px solid #2a2a2a; color:#ccc; }
+.g-table th { background:var(--bg3); color:var(--text4); text-align:left; padding:5px 8px; }
+.g-table td { padding:5px 8px; border-bottom:1px solid var(--border); color:var(--text2); }
 .g-img-row { display:flex; gap:8px; margin:8px 0; }
-.g-img-box { flex:1; text-align:center; border-radius:8px; padding:8px 6px 4px; }
-.g-img-box.g-ok { background:#1a2a1a; }
-.g-img-box.g-ng { background:#2a1a1a; }
+.g-img-box { flex:1; text-align:center; border-radius:var(--radius-sm); padding:8px 6px 4px; }
+.g-img-box.g-ok { background:rgba(34,197,94,0.08); }
+.g-img-box.g-ng { background:rgba(239,68,68,0.08); }
 .g-img-box>span { font-size:11px; font-weight:600; display:block; margin-top:4px; }
-.g-ok>span { color:#69f0ae; }
+.g-ok>span { color:var(--success-light); }
 .g-ng>span { color:#ef5350; }
 .g-img-illust { display:flex; justify-content:center; align-items:center; gap:6px; height:50px; }
-.g-garment { background:#555; color:#aaa; padding:6px 14px; border-radius:4px; font-size:10px; position:relative; }
+.g-garment { background:var(--bg4); color:var(--text4); padding:6px 14px; border-radius:4px; font-size:10px; position:relative; }
 .g-a4 { background:#ffff00; color:#000; padding:5px 8px; border-radius:2px; font-size:9px; font-weight:600; }
-.g-a4-over { position:absolute; top:50%;left:50%;transform:translate(-50%,-50%); background:#ffff00; color:#000; padding:2px 5px; border-radius:2px; font-size:8px; font-weight:600; }
-.g-tip { background:#1a2a3a; color:#8cf; padding:8px 10px; border-radius:6px; font-size:12px; margin:6px 0; border-left:3px solid #4488ff; }
+.g-a4-over { position:absolute; top:50%;left:50%;transform:translate(-50%,-50%); background:#ffff00; color:#000;
+  padding:2px 5px; border-radius:2px; font-size:8px; font-weight:600; }
+.g-tip { background:rgba(59,130,246,0.08); color:var(--info); padding:8px 10px; border-radius:6px;
+  font-size:12px; margin:6px 0; border-left:3px solid var(--info); }
 
+/* ============ Forms ============ */
 .form-group { margin-bottom:8px; }
-.form-group label { display:block; font-size:11px; color:#888; margin-bottom:3px; }
+.form-group label { display:block; font-size:11px; color:var(--text4); margin-bottom:3px; }
 .form-group input, .form-group select {
-  width:100%; padding:8px 10px; background:#2a2a2a; border:1px solid #444;
-  color:#fff; font-size:14px; border-radius:6px; outline:none; }
-.form-group input:focus, .form-group select:focus { border-color:#e94560; }
+  width:100%; padding:8px 10px; background:var(--bg3); border:1px solid var(--border);
+  color:var(--text); font-size:14px; border-radius:var(--radius-sm); outline:none;
+  transition:border-color var(--transition); }
+.form-group input:focus, .form-group select:focus { border-color:var(--accent); }
 .form-group select { -webkit-appearance:none; appearance:none;
-  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
   background-repeat:no-repeat; background-position:right 10px center; padding-right:30px; }
 
-/* スマホ */
+/* ============ Mobile ============ */
 @media (max-width:768px) {
-  .container { flex-direction:column; height:auto; min-height:calc(100vh - 88px); }
+  .container { flex-direction:column; height:auto; min-height:calc(100vh - 144px); }
   .image-area { width:100%; height:45vh; flex-shrink:0; }
-  .panel { width:100%; flex:1; }
+  .panel { width:100%; flex:1; border-left:none; border-top:1px solid var(--border); }
   .panel-scroll { max-height:none; overflow-y:auto; -webkit-overflow-scrolling:touch; }
   .dot { width:30px; height:30px; }
 }
@@ -180,202 +343,259 @@ body { font-family:-apple-system,'Hiragino Sans',sans-serif; background:#111; co
 <body>
 
 <div class="header">
-  <h1>写メジャー</h1>
-  <div style="display:flex;align-items:center;gap:10px">
-    <button onclick="showGuide()" style="background:none;border:1px solid #555;color:#ccc;width:28px;height:28px;border-radius:50%;font-size:14px;cursor:pointer">?</button>
-    <div class="usage">あと <b id="remaining">5</b> 回</div>
+  <div class="header-brand">
+    <img src="/img/bear-happy.png" alt="">
+    <h1>写メジャー</h1>
+  </div>
+  <div class="header-actions">
+    <button id="resetBtn" onclick="confirmReset()" title="リセット" class="header-btn" style="display:none">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8a6 6 0 0111.46-2.46" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M14 8a6 6 0 01-11.46 2.46" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><path d="M13 2v3.5h-3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 14v-3.5h3.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button onclick="toggleMenu()" class="header-btn">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+    </button>
   </div>
 </div>
+<!-- メニュー -->
+<div id="menuPanel" style="display:none;position:fixed;top:0;right:0;bottom:0;width:280px;z-index:120;background:var(--bg2);box-shadow:var(--shadow-lg);overflow-y:auto;-webkit-overflow-scrolling:touch;border-left:1px solid var(--border)">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border)">
+    <div style="display:flex;align-items:center;gap:8px">
+      <img src="/img/bear-happy.png" alt="" style="width:24px;height:24px;object-fit:contain">
+      <span style="font-size:15px;font-weight:700;color:var(--text)">メニュー</span>
+    </div>
+    <button onclick="toggleMenu()" class="modal-close" style="font-size:20px;padding:2px 6px">✕</button>
+  </div>
+  <div style="padding:6px 8px">
+    <button onclick="showGuide()" class="menu-item"><span class="menu-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 14A6 6 0 108 2a6 6 0 000 12z" stroke="currentColor" stroke-width="1.5"/><path d="M6 6.5a2 2 0 113 1.73c-.5.29-1 .77-1 1.27V10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="12" r="0.5" fill="currentColor"/></svg></span>使い方ガイド</button>
+    <button onclick="showPlanModal()" class="menu-item"><span class="menu-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M2 6.5h12" stroke="currentColor" stroke-width="1.5"/></svg></span>料金プラン</button>
+    <button onclick="showSettings()" class="menu-item"><span class="menu-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>設定</button>
+    <button onclick="showLoginModal()" class="menu-item"><span class="menu-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M3 14c0-2.76 2.24-5 5-5s5 2.24 5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>ログイン / アカウント</button>
+  </div>
+  <div style="padding:12px 16px;border-top:1px solid var(--border);margin-top:8px">
+    <div style="font-size:11px;color:var(--text4)">無料プラン <span style="color:var(--accent);font-weight:600">あと <span id="remaining">5</span> 回</span></div>
+  </div>
+</div>
+<div id="menuOverlay" style="display:none;position:fixed;inset:0;z-index:110;background:rgba(0,0,0,0.4);backdrop-filter:blur(2px)" onclick="toggleMenu()"></div>
 
 <!-- ガイドモーダル -->
-<div id="guideModal" style="display:none;position:fixed;inset:0;z-index:100;background:rgba(0,0,0,0.92);overflow-y:auto;-webkit-overflow-scrolling:touch">
-  <div style="max-width:480px;margin:0 auto;padding:16px">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+<div id="guideModal" style="display:none;position:fixed;inset:0;z-index:150;background:var(--overlay-bg);overflow-y:auto;-webkit-overflow-scrolling:touch">
+  <div style="max-width:440px;margin:0 auto;padding:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10;padding:12px 0;background:var(--overlay-bg);border-bottom:1px solid var(--border);margin-bottom:12px">
       <h2 style="font-size:17px">使い方ガイド</h2>
-      <button onclick="hideGuide()" style="background:none;border:none;color:#fff;font-size:24px;cursor:pointer;padding:4px 8px">✕</button>
+      <button onclick="hideGuide()" class="modal-close">✕</button>
     </div>
 
-    <!-- ===== 初回準備（1回だけ） ===== -->
-    <div class="g-card">
-      <div class="g-card-head">初回準備（1回だけ）</div>
-
-      <div class="g-step">
-        <div class="g-num">1</div>
-        <div class="g-body">
-          <b>A4シートを印刷する</b>
-          <p>PDFをダウンロードし、<b>A4サイズ・倍率100%</b>で印刷。</p>
-          <p class="g-warn-box">「ページに合わせる」「フィット」は必ずOFF</p>
-          <details class="g-details">
-            <summary>端末別の印刷手順</summary>
-            <div class="g-details-body">
-              <p><b>iPhone / iPad</b><br>PDFを開く → 共有（□↑）→ プリント → 用紙A4 →「用紙に合わせる」OFF</p>
-              <p><b>Android</b><br>PDFを開く → ︙ → 印刷 → 用紙A4 → 倍率100%</p>
-              <p><b>PC</b><br>印刷（Ctrl+P）→ A4 →「実際のサイズ」を選択</p>
-              <p class="g-sub">※倍率が多少ずれてもOK（用紙の物理サイズが基準）</p>
-            </div>
-          </details>
+    <!-- ヒーローセクション: 熊ストーリー -->
+    <div class="guide-hero" style="border-radius:12px;padding:20px;margin-bottom:16px;text-align:center">
+      <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:12px">
+        <div style="text-align:center">
+          <img src="/img/bear-sad.png" alt="" style="width:80px;height:80px;object-fit:contain">
+          <p style="font-size:10px;color:#888;margin-top:4px">毎日採寸つらい...</p>
+        </div>
+        <div style="font-size:24px;color:#e94560">→</div>
+        <div style="text-align:center">
+          <img src="/img/bear-happy.png" alt="" style="width:80px;height:80px;object-fit:contain">
+          <p style="font-size:10px;color:#69f0ae;font-weight:600;margin-top:4px">写真1枚で解決!</p>
         </div>
       </div>
+      <p style="font-size:18px;font-weight:800;color:#fff;line-height:1.4;margin-bottom:6px">AIが<span style="color:#69f0ae">10秒</span>で全箇所を自動採寸</p>
+      <p style="font-size:12px;color:#aaa">採寸値 + 商品説明文 + 寸法線入り画像がワンタップで完成</p>
+    </div>
 
-      <div class="g-step">
-        <div class="g-num">2</div>
-        <div class="g-body">
-          <b>カメラ設定を確認する</b>
-          <p>精度に影響する設定を一度だけ変更してください。</p>
-          <details class="g-details">
-            <summary>iPhone の設定</summary>
-            <div class="g-details-body">
-              <table class="g-settings"><tr><td>ズーム</td><td><b>1x</b>（収まらない場合は<b>0.5x</b>OK）</td></tr>
-              <tr><td>フラッシュ</td><td><b>OFF</b>（⚡をタップ）</td></tr>
-              <tr><td>Live Photos</td><td><b>OFF</b>（◎をタップ）</td></tr>
-              <tr><td>HDR</td><td><b>OFF</b><br><span class="g-sub">設定→カメラ→スマートHDR OFF</span></td></tr>
-              <tr><td>フォーマット</td><td><b>互換性優先</b><br><span class="g-sub">設定→カメラ→フォーマット</span></td></tr></table>
-            </div>
-          </details>
-          <details class="g-details">
-            <summary>Android の設定</summary>
-            <div class="g-details-body">
-              <table class="g-settings"><tr><td>ズーム</td><td><b>1x</b>（収まらない場合は<b>0.5x</b>OK）</td></tr>
-              <tr><td>フラッシュ</td><td><b>OFF</b></td></tr>
-              <tr><td>HDR</td><td><b>OFF</b></td></tr>
-              <tr><td>AI補正</td><td><b>OFF</b>（シーン認識・ビューティー）</td></tr>
-              <tr><td>解像度</td><td><b>最高</b></td></tr></table>
-            </div>
-          </details>
+    <!-- 必要なもの（熊が案内） -->
+    <div style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:10px">
+        <img src="/img/bear-angry.png" alt="" style="width:50px;height:50px;object-fit:contain;flex-shrink:0">
+        <div style="background:var(--bg4);border-radius:10px;padding:10px 12px;flex:1;position:relative">
+          <div style="position:absolute;left:-6px;top:14px;width:0;height:0;border-top:6px solid transparent;border-bottom:6px solid transparent;border-right:6px solid var(--bg4)"></div>
+          <p style="font-size:13px;font-weight:700;color:var(--text)">用意するのはA4用紙だけ!</p>
+          <p style="font-size:11px;color:var(--text3)">白紙のコピー用紙でOK。印刷は不要だよ。</p>
         </div>
       </div>
     </div>
 
-    <!-- ===== 毎回の流れ ===== -->
-    <div class="g-card">
-      <div class="g-card-head">毎回の流れ</div>
+    <!-- 早期離脱CTA -->
+    <button onclick="hideGuide()" class="btn btn-primary" style="margin-bottom:12px">さっそく始める</button>
+    <p style="text-align:center;font-size:11px;color:var(--text5);margin:-8px 0 12px">もう少し詳しく知りたい方は下へ</p>
 
-      <div class="g-step">
-        <div class="g-num">1</div>
-        <div class="g-body">
-          <b>衣類を平置きする</b>
-          <div class="g-do-dont">
-            <div class="g-do"><span>OK</span>テーブル・床など硬い平面</div>
-            <div class="g-dont"><span>NG</span>カーペット・ベッド・ソファ</div>
+    <!-- STEP 1 -->
+    <div style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:10px">
+      <div style="display:flex;align-items:flex-start;gap:12px">
+        <div style="flex-shrink:0;width:56px;height:56px;border-radius:10px;overflow:hidden">
+          <img src="/img/guide-tops.jpg" alt="" style="width:100%;height:100%;object-fit:cover">
+        </div>
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <span style="background:#e94560;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">STEP 1</span>
+          </div>
+          <p style="font-size:14px;font-weight:700;color:var(--text)">平置き + A4を右下に配置</p>
+          <p style="font-size:12px;color:var(--text3);margin-top:4px">硬い平面に衣類を広げて、A4用紙を右下に少し離して置きます。</p>
+        </div>
+      </div>
+      <details class="g-details" style="margin:8px 0 0">
+        <summary style="font-size:12px;color:var(--accent)">詳しく見る</summary>
+        <div class="g-details-body">
+          <div style="display:flex;gap:6px;margin:10px 0;overflow-x:auto">
+            <img src="/img/guide-tops.jpg" alt="トップス" style="width:100px;height:100px;object-fit:cover;border-radius:8px;flex-shrink:0">
+            <img src="/img/guide-pants.jpg" alt="パンツ" style="width:100px;height:100px;object-fit:cover;border-radius:8px;flex-shrink:0">
+            <img src="/img/guide-coat.jpg" alt="コート" style="width:100px;height:100px;object-fit:cover;border-radius:8px;flex-shrink:0">
+          </div>
+          <p style="font-size:11px;color:var(--text4);margin-bottom:8px">A4用紙は衣類の右下に少し離して配置</p>
+          <div class="g-tip">
+            <b>背面で撮影:</b> トップス・ジャケット・ワンピース・ドレス<br>
+            <b>正面で撮影:</b> パンツ・スカート・サロペット
           </div>
           <ul class="g-checklist">
-            <li>前身頃（ボタン・ロゴ側）を上に</li>
             <li>ボタン・ファスナーは閉じる</li>
-            <li>袖は自然に横に広げる（重ならないように）</li>
+            <li>袖は自然に横に広げる</li>
             <li>シワを軽く伸ばす</li>
           </ul>
         </div>
-      </div>
+      </details>
+    </div>
 
-      <div class="g-step">
-        <div class="g-num">2</div>
-        <div class="g-body">
-          <b>A4シートを衣類の上（中央）に置く</b>
-          <div class="g-img-row">
-            <div class="g-img-box g-ok">
-              <div class="g-img-illust"><div class="g-garment">衣類<div class="g-a4-over">A4</div></div></div>
-              <span>OK: 中央に配置</span>
-            </div>
-            <div class="g-img-box g-ng">
-              <div class="g-img-illust"><div class="g-garment">衣類</div><div class="g-a4">A4</div></div>
-              <span>NG: 横に置く</span>
-            </div>
+    <!-- STEP 2 -->
+    <div style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:10px">
+      <div style="display:flex;align-items:flex-start;gap:12px">
+        <div style="flex-shrink:0;width:56px;height:56px;background:var(--bg4);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center">
+          <div style="font-size:24px">📸</div>
+          <div style="font-size:8px;color:var(--text4);margin-top:2px">↓ 上から</div>
+        </div>
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <span style="background:#e94560;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">STEP 2</span>
           </div>
-          <p class="g-sub" style="margin-top:6px">4角のL字マーカーが全て見えるように</p>
+          <p style="font-size:14px;font-weight:700;color:var(--text)">上から撮影</p>
+          <p style="font-size:12px;color:var(--text3);margin-top:4px">衣類とA4が全部入るように。多少斜めでもOK。</p>
         </div>
       </div>
-
-      <div class="g-step">
-        <div class="g-num">3</div>
-        <div class="g-body">
-          <b>A4の十字線にカメラ中心を合わせて撮影</b>
-          <p>A4シートの中央にある十字線 ＝ カメラの中心。<br>これを合わせると真上から撮れます。</p>
+      <details class="g-details" style="margin:8px 0 0">
+        <summary style="font-size:12px;color:var(--accent)">詳しく見る</summary>
+        <div class="g-details-body">
+          <p class="g-tip">衣類を<b>またぐように立ち</b>、<b>0.5x（超広角）</b>で見下ろすと簡単。多少斜めでもAIが補正します。足が映ってもOK。</p>
           <details class="g-details">
-            <summary>スマホのグリッド線を使うとさらに簡単</summary>
+            <summary>カメラ設定（任意・精度向上）</summary>
             <div class="g-details-body">
-              <p><b>iPhone</b><br>設定 → カメラ →「グリッド」をON<br>画面に3×3のガイド線が表示され、中心が分かりやすくなります。</p>
-              <p><b>Android</b><br>カメラアプリ → 設定 →「グリッドライン」をON<br>（機種により「ガイドライン」「補助線」等の名前の場合あり）</p>
+              <p>設定しなくても使えます。精度を上げたい場合のみ：</p>
+              <p>ズーム<b>1x</b> / フラッシュ<b>OFF</b> / HDR<b>OFF</b></p>
             </div>
           </details>
-          <p class="g-tip">衣類を<b>またぐように立ち</b>、<b>0.5x（超広角）</b>で見下ろすと簡単に真上から撮れます。足が映ってもOK（AIが自動で無視します）。</p>
+        </div>
+      </details>
+    </div>
+
+    <!-- STEP 3 -->
+    <div style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:10px">
+      <div style="display:flex;align-items:flex-start;gap:12px">
+        <div style="flex-shrink:0;width:56px;height:56px;background:var(--bg4);border-radius:10px;display:flex;align-items:center;justify-content:center">
+          <svg width="40" height="40" viewBox="0 0 40 40">
+            <rect x="4" y="6" width="20" height="16" rx="2" fill="#333" stroke="#555" stroke-width="1"/>
+            <line x1="6" y1="10" x2="22" y2="10" stroke="#e94560" stroke-width="1.5"/>
+            <line x1="6" y1="14" x2="18" y2="14" stroke="#4488ff" stroke-width="1.5"/>
+            <line x1="6" y1="18" x2="20" y2="18" stroke="#69f0ae" stroke-width="1.5"/>
+            <circle cx="6" cy="10" r="2" fill="#e94560"/><circle cx="22" cy="10" r="2" fill="#e94560"/>
+            <rect x="26" y="6" width="10" height="3" rx="1" fill="#69f0ae"/>
+            <text x="31" y="8.5" text-anchor="middle" font-size="3" fill="#000" font-weight="700">copy</text>
+            <rect x="26" y="11" width="10" height="3" rx="1" fill="#4488ff"/>
+            <rect x="26" y="16" width="10" height="3" rx="1" fill="#fbbf24"/>
+            <path d="M20 28 L30 28 L30 36 L20 36 Z" fill="none" stroke="#69f0ae" stroke-width="1"/>
+            <text x="25" y="33" text-anchor="middle" font-size="6" fill="#69f0ae">✓</text>
+          </svg>
+        </div>
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+            <span style="background:#e94560;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:10px">STEP 3</span>
+          </div>
+          <p style="font-size:14px;font-weight:700;color:var(--text)">AIが自動採寸 → コピーして出品</p>
+          <p style="font-size:12px;color:var(--text3);margin-top:4px">採寸値・説明文・寸法線入り画像をワンタップでコピー。修正もドラッグだけ。</p>
+        </div>
+      </div>
+      <details class="g-details" style="margin:8px 0 0">
+        <summary style="font-size:12px;color:var(--accent)">詳しく見る</summary>
+        <div class="g-details-body">
+          <p>AIが自動で採寸箇所を検出。結果の<b>○をドラッグ</b>して修正でき、数値がリアルタイム更新。</p>
+          <p style="margin-top:8px"><b>出力:</b></p>
           <ul class="g-checklist">
-            <li>衣類全体が画面に収まること</li>
-            <li>手・足・影が映らないようにする</li>
+            <li>「採寸値コピー」→ 数値テキスト</li>
+            <li>「採寸画像を保存」→ 寸法線入り画像</li>
+          </ul>
+          <p style="margin-top:8px"><b>スタンダード以上:</b></p>
+          <ul style="margin:4px 0 0;padding:0 0 0 16px;font-size:12px;color:var(--text3);line-height:1.8">
+            <li><span style="background:var(--accent);color:#fff;font-size:9px;padding:1px 6px;border-radius:8px;margin-right:4px">S</span>AIタイトル・説明文の自動生成</li>
+            <li><span style="background:var(--accent);color:#fff;font-size:9px;padding:1px 6px;border-radius:8px;margin-right:4px">S</span>汚れ箇所マーキング</li>
+            <li><span style="background:var(--accent);color:#fff;font-size:9px;padding:1px 6px;border-radius:8px;margin-right:4px">S</span>タグ撮影でブランド・サイズ自動入力</li>
+            <li><span style="background:#fbbf24;color:#000;font-size:9px;padding:1px 6px;border-radius:8px;margin-right:4px">P</span>一括処理（AI自動カテゴリ判別）</li>
+            <li><span style="background:#fbbf24;color:#000;font-size:9px;padding:1px 6px;border-radius:8px;margin-right:4px">P</span>CSV出力・チーム管理</li>
           </ul>
         </div>
-      </div>
-
-      <div class="g-step">
-        <div class="g-num">4</div>
-        <div class="g-body">
-          <b>A4の位置を確認 → OK</b>
-          <p>黄色の○がA4の角に合っていれば「OK」。ずれていたら○をドラッグで調整。</p>
-        </div>
-      </div>
-
-      <div class="g-step">
-        <div class="g-num">5</div>
-        <div class="g-body">
-          <b>商品情報を入力</b>
-          <p>ブランド・色・状態を入力 →「入力完了」。<br>入力内容は説明文に反映されます。</p>
-        </div>
-      </div>
-
-      <div class="g-step">
-        <div class="g-num">6</div>
-        <div class="g-body">
-          <b>結果を確認・修正 → コピー</b>
-          <p><b>修正するには：</b>○をタップ → 画面をドラッグ<br>
-          <b>解除するには：</b>何もないところをタップ<br>
-          <b>説明文の数値</b>は修正後もリアルタイム反映</p>
-          <p style="margin-top:6px">「採寸値コピー」or「説明文コピー」→ 出品ページに貼り付け</p>
-        </div>
-      </div>
+      </details>
     </div>
 
-    <!-- ===== 採寸箇所 ===== -->
-    <div class="g-card">
-      <div class="g-card-head">採寸箇所の見方</div>
-      <p style="font-size:12px;color:#aaa;margin-bottom:8px">全て<b style="color:#ccc">平置き片面の実寸</b>です（×2しません）</p>
-      <p style="font-size:11px;color:#e94560;margin-bottom:6px">トップス・ワンピース</p>
-      <table class="g-table">
-        <tr><th>項目</th><th>どこを測るか</th></tr>
-        <tr><td>肩幅</td><td>左右の肩の縫い目の端〜端（水平）</td></tr>
-        <tr><td>身幅</td><td>脇の下（袖の付け根）の左右幅。袖は含まない</td></tr>
-        <tr><td>着丈</td><td>後ろ襟の中心付け根〜裾の最下端（垂直）</td></tr>
-        <tr><td>袖丈</td><td>肩先（=肩幅の端点）〜袖口</td></tr>
-        <tr><td>裄丈</td><td>後ろ襟の中心〜袖口。ラグラン袖など肩の縫い目がない場合に使用</td></tr>
-        <tr><td>ウエスト</td><td>くびれ・ゴムシャーリング位置の左右幅（ワンピース）</td></tr>
-      </table>
-      <p style="font-size:11px;color:#e94560;margin:10px 0 6px">パンツ</p>
-      <table class="g-table">
-        <tr><th>項目</th><th>どこを測るか</th></tr>
-        <tr><td>ウエスト</td><td>ウエストバンド上端の左右幅</td></tr>
-        <tr><td>総丈</td><td>ウエスト上端〜裾の最下端（垂直）</td></tr>
-        <tr><td>股上</td><td>ウエスト上端〜股の交差点（垂直）</td></tr>
-        <tr><td>股下</td><td>股の交差点〜裾（内股沿い）</td></tr>
-        <tr><td>ワタリ</td><td>股の交差点と同じ高さでの左右幅</td></tr>
-        <tr><td>裾幅</td><td>裾の左端〜右端</td></tr>
-      </table>
-      <p style="font-size:11px;color:#e94560;margin:10px 0 6px">スカート</p>
-      <table class="g-table">
-        <tr><th>項目</th><th>どこを測るか</th></tr>
-        <tr><td>ウエスト</td><td>ウエストバンド上端の左右幅</td></tr>
-        <tr><td>ヒップ</td><td>ウエスト上端から約18cm下の左右幅</td></tr>
-        <tr><td>総丈</td><td>ウエスト上端〜裾の最下端（垂直）</td></tr>
-      </table>
+    <!-- 採寸箇所＋操作方法（折りたたみ） -->
+    <details class="g-details" style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:10px">
+      <summary style="font-size:13px;font-weight:700;color:var(--text)">採寸箇所の見方・操作方法</summary>
+      <div class="g-details-body" style="margin-top:8px">
+        <p style="font-size:11px;color:var(--text3);margin-bottom:8px">全て平置き片面の実寸です</p>
+        <details class="g-details" style="margin:0">
+          <summary style="font-size:12px;color:var(--accent)">トップス・ワンピース</summary>
+          <div class="g-details-body">
+            <table class="g-table"><tr><td>肩幅</td><td>肩の縫い目の端〜端</td></tr><tr><td>身幅</td><td>脇下の左右幅</td></tr><tr><td>着丈</td><td>後ろ襟の中心〜裾</td></tr><tr><td>袖丈</td><td>肩先〜袖口</td></tr><tr><td>裄丈（ゆきたけ）</td><td>後ろ襟の中心〜袖口</td></tr></table>
+          </div>
+        </details>
+        <details class="g-details" style="margin:0">
+          <summary style="font-size:12px;color:var(--accent)">パンツ</summary>
+          <div class="g-details-body">
+            <table class="g-table"><tr><td>ウエスト</td><td>ウエスト上端の左右幅</td></tr><tr><td>ヒップ</td><td>ウエストから約18cm下の幅</td></tr><tr><td>総丈</td><td>ウエスト上端〜裾</td></tr><tr><td>股上</td><td>ウエスト中心〜股</td></tr><tr><td>股下</td><td>股〜裾</td></tr><tr><td>ワタリ</td><td>股〜太もも外端</td></tr><tr><td>裾幅</td><td>裾の左右幅（片脚分）</td></tr></table>
+          </div>
+        </details>
+        <details class="g-details" style="margin:0">
+          <summary style="font-size:12px;color:var(--accent)">スカート</summary>
+          <div class="g-details-body">
+            <table class="g-table"><tr><td>ウエスト</td><td>ウエスト上端の左右幅</td></tr><tr><td>ヒップ</td><td>ウエストから約18cm下の幅</td></tr><tr><td>総丈</td><td>ウエスト上端〜裾</td></tr></table>
+          </div>
+        </details>
+        <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:10px">
+          <p style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:4px">操作方法</p>
+          <p style="font-size:11px;color:var(--text3)" id="guideDeviceLabel"></p>
+          <div id="guideOpsContent"></div>
+        </div>
+      </div>
+    </details>
+
+    <!-- 完成! -->
+    <div style="text-align:center;margin:16px 0">
+      <img src="/img/bear-dance.png" alt="" style="width:100px;height:100px;object-fit:contain">
+      <p style="font-size:15px;font-weight:700;color:var(--text);margin-top:8px">準備はこれだけ! さっそく始めよう</p>
     </div>
 
-    <button onclick="hideGuide()" class="btn btn-primary" style="margin-top:12px;margin-bottom:20px">閉じる</button>
+    <button onclick="hideGuide()" class="btn btn-primary" style="margin-top:4px;margin-bottom:20px">はじめる</button>
   </div>
 </div>
 <div class="steps" id="stepsBar">
-  <div class="step active" data-step="1">撮影</div>
-  <div class="step" data-step="2">A4確認</div>
-  <div class="step" data-step="3">商品情報</div>
-  <div class="step" data-step="4">結果確認</div>
+  <div class="step active" data-step="1">
+    <div class="step-icon"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="12" height="9" rx="2" stroke="currentColor" stroke-width="1.5"/><circle cx="8" cy="8.5" r="2" stroke="currentColor" stroke-width="1.5"/><path d="M5 4V3a1 1 0 011-1h4a1 1 0 011 1v1" stroke="currentColor" stroke-width="1.5"/></svg></div>
+    撮影
+    <div class="step-connector"></div>
+  </div>
+  <div class="step" data-step="2">
+    <div class="step-icon"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><rect x="3" y="2" width="10" height="12" rx="1" stroke="currentColor" stroke-width="1.5"/><path d="M6 5h4M6 8h4M6 11h2" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg></div>
+    A4確認
+    <div class="step-connector"></div>
+  </div>
+  <div class="step" data-step="3">
+    <div class="step-icon"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M12 2l2 2-8 8H4v-2l8-8z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M10 4l2 2" stroke="currentColor" stroke-width="1.5"/></svg></div>
+    商品情報
+    <div class="step-connector"></div>
+  </div>
+  <div class="step" data-step="4">
+    <div class="step-icon"><svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M3 8l3.5 3.5L13 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+    結果確認
+  </div>
 </div>
-<div class="mode-bar" id="modeBar">衣類 + A4用紙を撮影してください</div>
+<div class="bear-guide" id="modeBar">
+  <img src="/img/bear-happy.png" alt="" class="bear-guide-img" id="bearImg">
+  <div class="bear-guide-bubble" id="bearBubble">衣類 + A4用紙（右下に配置）を撮影してください</div>
+</div>
 
 <div class="container">
   <div class="image-area" id="imageArea">
@@ -391,7 +611,7 @@ body { font-family:-apple-system,'Hiragino Sans',sans-serif; background:#111; co
 
 <script>
 const API_BASE = '';
-let step = 1, currentImage = null, category = 'tops', scale = 0;
+let step = 1, currentImage = null, category = localStorage.getItem('ai_measure_default_cat') || 'tops', scale = 0;
 let IMG_W = 0, IMG_H = 0, aiResult = null;
 let a4Corners = [], a4Dots = [], a4SelIdx = -1;
 let overlays = {}, selDot = null, dragAnchor = null, isDragging = false;
@@ -403,10 +623,17 @@ let aiDescText = '';
 const imageArea = document.getElementById('imageArea');
 const zoomWrap = document.getElementById('zoomWrap');
 const img = document.getElementById('img');
-const JP = { shoulderWidth:'肩幅', sleeveLength:'袖丈', bodyWidth:'身幅',
-  bodyLength_cb:'着丈', dressLength_bnp:'着丈', waistWidth:'ウエスト',
+const JP = { shoulderWidth:'肩幅', sleeveLength:'袖丈', yukitake:'裄丈(ゆきたけ)', bodyWidth:'身幅',
+  bodyLength_cb:'着丈', dressLength_bnp:'着丈', waistWidth:'ウエスト', hipWidth:'ヒップ',
   totalLength_pants:'総丈', frontRise:'股上', inseam:'股下',
-  thighWidth:'ワタリ', hemWidth:'裾幅', hipWidth_cfg:'ヒップ', skirtLength:'総丈', totalLength_salopette:'総丈' };
+  thighWidth:'ワタリ', hemWidth:'裾幅', hipWidth_cfg:'ヒップ', skirtLength:'総丈',
+  strapWidth:'肩幅', totalLength:'総丈' };
+// カテゴリ別撮影面ガイド
+const CAT_SHOOT = {
+  tops:'背面', jacket:'背面', suit:'背面', roomwear:'背面', maternity:'背面',
+  pants:'正面', skirt:'正面', salopette:'正面',
+  dress:'背面', bridal:'背面',
+};
 const COLORS = ['#ff4444','#44ff44','#4488ff','#ffff44','#ff44ff','#44ffff','#ff8800','#8844ff'];
 const CAT_JP = { tops:'トップス', jacket:'ジャケット・アウター', pants:'パンツ', skirt:'スカート', dress:'ワンピース', bridal:'ドレス・ブライダル', suit:'スーツ・フォーマル', roomwear:'ルームウェア・パジャマ', salopette:'サロペット・オーバーオール', maternity:'マタニティ' };
 
@@ -417,11 +644,22 @@ function goStep(n) {
   if(n > maxStep) maxStep = n;
   document.querySelectorAll('.step').forEach(s => {
     const sn = +s.dataset.step;
-    if(sn === n) s.className = 'step active';
-    else if(sn <= maxStep) s.className = 'step done';
-    else s.className = 'step';
+    s.classList.remove('active','done');
+    if(sn === n) s.classList.add('active');
+    else if(sn <= maxStep) s.classList.add('done');
   });
-  imageArea.style.display = (n === 1 && !currentImage) ? 'none' : '';
+  const noImage = (n === 1 && !currentImage);
+  imageArea.style.display = noImage ? 'none' : '';
+  const panel = document.querySelector('.panel');
+  const container = document.querySelector('.container');
+  if(panel) {
+    panel.style.width = noImage ? '100%' : '';
+    panel.style.maxWidth = noImage ? '480px' : '';
+    panel.style.margin = noImage ? '0 auto' : '';
+    panel.style.borderLeft = noImage ? 'none' : '';
+    panel.style.borderTop = noImage ? 'none' : '';
+  }
+  if(container) container.style.justifyContent = noImage ? 'center' : '';
   resetZoom();
   updateOverlayVisibility();
   renderPanel();
@@ -496,40 +734,53 @@ function renderStep1(scroll, actions) {
   const firstTime = !localStorage.getItem('ai_measure_used');
 
   if(hasImage) {
-    // 既に画像がある場合 → 変更 or 続行
-    scroll.innerHTML = `<p style="padding:16px;color:#ccc;text-align:center;font-size:13px">
+    scroll.innerHTML = `<p style="padding:16px;color:var(--text3);text-align:center;font-size:13px">
       現在の写真で続けるか、別の写真に変更できます。</p>`;
     actions.innerHTML = `
       <button class="btn btn-primary" onclick="resumeWithCurrentImage()">この写真で続ける</button>
-      <label class="btn btn-secondary" style="text-align:center">
+      <label class="btn btn-secondary" style="text-align:center;cursor:pointer">
         写真を変更<input type="file" accept="image/*" style="display:none" onchange="onFile(event)">
       </label>`;
   } else {
-    scroll.innerHTML = firstTime ? `
-      <div class="guide">
-        <h3>撮影のポイント</h3>
-        <ul>
-          <li>衣類を<b>硬い平面</b>に平置き</li>
-          <li>A4シートを<b class="warn">衣類の上（中央）</b>に置く</li>
-          <li><b>真上</b>から撮影（斜めNG）</li>
-          <li>衣類全体が画面に収まるように</li>
-        </ul>
-      </div>` : `<p style="padding:20px;color:#888;text-align:center;font-size:13px">
-      衣類 + A4用紙を撮影してください</p>`;
-    actions.innerHTML = `<label class="btn btn-primary" style="text-align:center">
-      撮影 / 写真を選択<input type="file" accept="image/*" style="display:none" onchange="onFile(event)">
-    </label>`;
+    scroll.innerHTML = `
+      <label class="drop-zone" style="cursor:pointer">
+        <div class="drop-zone-icon"><svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+          <rect x="8" y="12" width="32" height="24" rx="4" stroke="currentColor" stroke-width="2"/>
+          <circle cx="24" cy="24" r="6" stroke="currentColor" stroke-width="2"/>
+          <circle cx="24" cy="24" r="2" fill="currentColor" opacity="0.5"/>
+          <path d="M16 12v-2a2 2 0 012-2h12a2 2 0 012 2v2" stroke="currentColor" stroke-width="2"/>
+        </svg></div>
+        <div class="drop-zone-text">タップして撮影 / 写真を選択</div>
+        <div class="drop-zone-sub">衣類 + A4用紙を撮影してください</div>
+        <input type="file" accept="image/*" style="display:none" onchange="onFile(event)">
+      </label>` + (firstTime ? `
+      <div style="padding:0 12px 8px">
+        <div style="display:flex;gap:8px;margin-top:4px">
+          <div style="flex:1;background:var(--bg3);border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid var(--border)">
+            <div style="font-size:20px;margin-bottom:4px;opacity:0.7">1</div>
+            <div style="font-size:11px;color:var(--text2);font-weight:600">平置き + A4</div>
+            <div style="font-size:10px;color:var(--text4);margin-top:2px">右下に配置</div>
+          </div>
+          <div style="flex:1;background:var(--bg3);border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid var(--border)">
+            <div style="font-size:20px;margin-bottom:4px;opacity:0.7">2</div>
+            <div style="font-size:11px;color:var(--text2);font-weight:600">上から撮影</div>
+            <div style="font-size:10px;color:var(--text4);margin-top:2px">斜めでもOK</div>
+          </div>
+          <div style="flex:1;background:var(--bg3);border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid var(--border)">
+            <div style="font-size:20px;margin-bottom:4px;opacity:0.7">3</div>
+            <div style="font-size:11px;color:var(--text2);font-weight:600">AI自動採寸</div>
+            <div style="font-size:10px;color:var(--text4);margin-top:2px">コピーして出品</div>
+          </div>
+        </div>
+      </div>` : '');
+    actions.innerHTML = '';
   }
 }
 
 function resumeWithCurrentImage() {
-  if(autoDetectA4()) {
-    setMode('A4検出OK');
-    goStep(2);
-  } else {
-    startA4Detection();
-    goStep(2);
-  }
+  autoDetectA4();
+  setMode('A4用紙の位置を確認');
+  goStep(2);
 }
 
 function onFile(e) {
@@ -539,38 +790,62 @@ function onFile(e) {
   img.onload = () => {
     IMG_W = img.naturalWidth; IMG_H = img.naturalHeight;
     img.classList.add('show');
-    clearAll();
+    clearAll();updateResetBtn();
     localStorage.setItem('ai_measure_used', '1');
+    // どのステップにいてもA4確認にリセット
+    maxStep = 2;
     // A4自動検出
-    if (autoDetectA4()) {
-      setMode('A4検出OK');
-      goStep(2); // 確認ステップ（自動検出結果を見せる）
+    const detected = autoDetectA4();
+    if (detected) {
+      setMode('A4用紙の位置を確認');
     } else {
-      setMode('A4用紙が見つかりません。角をタップして指定してください', true);
-      goStep(2);
+      setMode('A4用紙を自動検出できませんでした。写真にA4用紙が写っているか確認してください', true);
     }
+    goStep(2);
   };
 }
 
 // ============ Step 2: A4確認 ============
 function renderStep2(scroll, actions) {
-  drawA4Dots();
-  updateA4Scale();
+  if(a4Corners.length >= 4) { drawA4Dots(); updateA4Scale(); }
+  const shootSide = CAT_SHOOT[category] || '正面';
+  const shootColor = shootSide === '背面' ? '#fbbf24' : '#69f0ae';
   scroll.innerHTML = `<div class="form-group" style="margin-bottom:8px">
     <label><b>カテゴリ</b></label>
-    <select id="inputCategory" onchange="category=this.value" style="font-size:15px">
+    <select id="inputCategory" onchange="onCategoryChange(this.value)" style="font-size:15px">
       ${Object.entries(CAT_JP).map(([k,v])=>`<option value="${k}"${k===category?' selected':''}>${v}</option>`).join('')}
     </select>
   </div>
-  <div class="a4-info">
+  <div style="padding:6px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;margin-bottom:8px;font-size:13px;color:var(--text2)">
+    撮影面: <b style="color:${shootColor}">${shootSide}</b>から撮影してください
+  </div>
+  ${a4Corners.length >= 4 ? `<div class="a4-info">
     <b>A4用紙の位置を確認</b><br>
     黄色の○がA4の角にぴったり合っていれば「OK」を押してください。<br>
     ずれている場合は○をタップ→ドラッグで調整。
-  </div><div id="a4ScaleInfo"></div>`;
-  updateA4ScaleInfo();
-  actions.innerHTML = `
+  </div><div id="a4ScaleInfo"></div>` : `<div class="a4-info" style="border-left:3px solid var(--accent)">
+    <b>自動検出できませんでした</b><br>
+    A4用紙の4角を手動でタップして指定できます。
+    <div style="margin-top:6px;font-size:11px;color:var(--text4)">
+      よくある原因: A4が写っていない / 背景と色が近い / 暗すぎる
+    </div>
+  </div>`}
+  <details class="g-details" style="margin-top:8px">
+    <summary style="font-size:11px;color:var(--text4)">操作方法</summary>
+    <div class="g-details-body" style="padding:6px 0 0 4px">
+      ${isMobileDevice() ?
+        '<p>○をタップで選択 → 画面をドラッグで移動<br>ピンチで拡大 / ダブルタップでズーム切替</p>' :
+        '<p>○をクリックで選択 → ドラッグで移動<br>ダブルクリックでズーム切替</p>'}
+    </div>
+  </details>`;
+  if(a4Corners.length >= 4) updateA4ScaleInfo();
+  actions.innerHTML = a4Corners.length >= 4 ? `
     <button class="btn btn-primary" onclick="confirmA4()">OK → 採寸開始</button>
-    <button class="btn btn-secondary" onclick="retake()">撮り直す</button>`;
+    <button class="btn btn-secondary" onclick="retake()">撮り直す</button>` : `
+    <button class="btn btn-primary" onclick="startManualA4()">A4の4角をタップで指定</button>
+    <label class="btn btn-secondary" style="text-align:center;cursor:pointer">
+      写真を選び直す<input type="file" accept="image/*" style="display:none" onchange="onFile(event)">
+    </label>`;
 }
 
 function retake() {
@@ -580,7 +855,158 @@ function retake() {
   setMode('写真を変更するか、この写真で続けてください');
 }
 
+let cvReady = false;
+
 function autoDetectA4() {
+  // 両方試して最良を採用
+  const results = [];
+
+  // フォールバック（白矩形検出）を先に試す
+  const fbResult = autoDetectA4_fallback();
+  if(fbResult) results.push({corners: a4Corners.slice(), scale, method:'fallback'});
+
+  // OpenCV.jsが使えるならそちらも試す
+  if(cvReady && typeof cv !== 'undefined') {
+    const cvResult = autoDetectA4_cv();
+    if(cvResult) results.push({corners: a4Corners.slice(), scale, method:'opencv'});
+  }
+
+  if(results.length === 0) return false;
+
+  // 最良の結果を選択: A4の縦横比(1.414)に最も近いものを優先
+  let best = results[0];
+  let bestRd = 999;
+  for(const r of results) {
+    const tw = dist(r.corners[0], r.corners[1]);
+    const lh = dist(r.corners[0], r.corners[3]);
+    const ratio = Math.max(tw,lh) / Math.min(tw,lh);
+    const rd = Math.abs(ratio - 1.414);
+    if(rd < bestRd) { bestRd = rd; best = r; }
+  }
+  a4Corners = best.corners;
+  scale = best.scale;
+  console.log('A4 detected by', best.method, 'ratio_diff:', bestRd.toFixed(3));
+  return true;
+}
+
+// OpenCV.js版: エッジ検出+輪郭検出
+function autoDetectA4_cv() {
+  try {
+    const canvas = document.createElement('canvas');
+    const maxDim = 800;
+    const r = Math.min(maxDim/IMG_W, maxDim/IMG_H, 1);
+    const sw = Math.round(IMG_W*r), sh = Math.round(IMG_H*r);
+    canvas.width = sw; canvas.height = sh;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, sw, sh);
+
+    const src = cv.imread(canvas);
+    const gray = new cv.Mat();
+    const blur = new cv.Mat();
+    const edges = new cv.Mat();
+    const contours = new cv.MatVector();
+    const hierarchy = new cv.Mat();
+
+    cv.cvtColor(src, gray, cv.COLOR_RGBA2GRAY);
+    cv.GaussianBlur(gray, blur, new cv.Size(5,5), 0);
+    cv.Canny(blur, edges, 30, 100);
+    // エッジを太くして途切れを繋ぐ
+    const kernel = cv.getStructuringElement(cv.MORPH_RECT, new cv.Size(3,3));
+    cv.dilate(edges, edges, kernel);
+    cv.findContours(edges, contours, hierarchy, cv.RETR_LIST, cv.CHAIN_APPROX_SIMPLE);
+
+    let best = null, bestScore = 0;
+    const imgArea = sw * sh;
+
+    for(let i = 0; i < contours.size(); i++) {
+      const cnt = contours.get(i);
+      const area = cv.contourArea(cnt);
+      const areaRatio = area / imgArea;
+      // A4は画像の2%〜50%の面積
+      if(areaRatio < 0.02 || areaRatio > 0.5) continue;
+
+      const peri = cv.arcLength(cnt, true);
+      const approx = new cv.Mat();
+      cv.approxPolyDP(cnt, approx, 0.05 * peri, true);
+
+      // 4角形のみ
+      if(approx.rows === 4) {
+        const pts = [];
+        for(let j = 0; j < 4; j++) {
+          pts.push({x: approx.data32S[j*2], y: approx.data32S[j*2+1]});
+        }
+
+        // 4辺の長さから縦横比を推定
+        const sides = [];
+        for(let j = 0; j < 4; j++) {
+          const p1 = pts[j], p2 = pts[(j+1)%4];
+          sides.push(Math.sqrt((p2.x-p1.x)**2 + (p2.y-p1.y)**2));
+        }
+        sides.sort((a,b) => a-b);
+        const shortAvg = (sides[0]+sides[1])/2;
+        const longAvg = (sides[2]+sides[3])/2;
+        if(shortAvg < 10) { approx.delete(); continue; }
+        const ratio = longAvg / shortAvg;
+        const rd = Math.abs(ratio - 1.414);
+        if(rd > 0.35) { approx.delete(); continue; }
+
+        // 内部の平均輝度チェック（A4用紙は白い）
+        const mask2 = cv.Mat.zeros(gray.rows, gray.cols, cv.CV_8UC1);
+        const ptsMat = new cv.MatVector();
+        ptsMat.push_back(approx);
+        cv.fillPoly(mask2, ptsMat, new cv.Scalar(255));
+        const mean = cv.mean(gray, mask2);
+        mask2.delete(); ptsMat.delete();
+        const brightness = mean[0];
+        // A4用紙は明るい（平均輝度130以上）
+        if(brightness < 130) { approx.delete(); continue; }
+
+        // 面積が大きすぎるものはペナルティ（A4は服より小さい）
+        const sizePenalty = areaRatio > 0.15 ? 0.3 : 1.0;
+        const brightBonus = brightness / 255;
+        const score = area * (1/(1+rd*10)) * sizePenalty * brightBonus;
+        if(score > bestScore) {
+          bestScore = score;
+          best = pts.slice();
+        }
+      }
+      approx.delete();
+    }
+
+    // クリーンアップ
+    src.delete(); gray.delete(); blur.delete(); edges.delete();
+    contours.delete(); hierarchy.delete(); kernel.delete();
+
+    if(!best) return false;
+
+    // 4角を左上→右上→右下→左下の順にソート
+    const inv = 1/r;
+    const sorted = sortCorners(best.map(p => ({imgX:p.x*inv, imgY:p.y*inv})));
+    a4Corners = sorted;
+
+    const tw = dist(a4Corners[0],a4Corners[1]);
+    const lh = dist(a4Corners[0],a4Corners[3]);
+    scale = 21.0 / Math.min(tw, lh);
+    return true;
+  } catch(e) {
+    console.warn('OpenCV detection failed, using fallback:', e);
+    return autoDetectA4_fallback();
+  }
+}
+
+// 4点を左上→右上→右下→左下にソート
+function sortCorners(pts) {
+  const cx = pts.reduce((s,p)=>s+p.imgX,0)/4;
+  const cy = pts.reduce((s,p)=>s+p.imgY,0)/4;
+  const tl = pts.find(p => p.imgX<cx && p.imgY<cy) || pts[0];
+  const tr = pts.find(p => p.imgX>=cx && p.imgY<cy) || pts[1];
+  const br = pts.find(p => p.imgX>=cx && p.imgY>=cy) || pts[2];
+  const bl = pts.find(p => p.imgX<cx && p.imgY>=cy) || pts[3];
+  return [tl, tr, br, bl];
+}
+
+// フォールバック: 白矩形検出（OpenCV未読み込み時）
+function autoDetectA4_fallback() {
   const canvas = document.createElement('canvas');
   const r = Math.min(512/IMG_W, 512/IMG_H);
   const sw = Math.round(IMG_W*r), sh = Math.round(IMG_H*r);
@@ -594,7 +1020,7 @@ function autoDetectA4() {
     const mx=Math.max(R,G,B), mn=Math.min(R,G,B);
     mask[i]=(R>180&&G>180&&B>180&&(mx>0?(mx-mn)/mx:0)<0.15)?1:0;
   }
-  let best=null, bestScore=0;
+  const candidates=[];
   for(let y=0;y<sh-20;y+=4) for(let x=0;x<sw-15;x+=4){
     if(!mask[y*sw+x]) continue;
     let ex=x; while(ex<sw&&mask[y*sw+ex]) ex++;
@@ -605,10 +1031,42 @@ function autoDetectA4() {
     let h=ey-y; if(h<20) continue;
     const ratio=Math.max(w,h)/Math.min(w,h);
     const rd=Math.abs(ratio-1.414); if(rd>0.3) continue;
-    const sc=w*h/(1+rd*10);
-    if(sc>bestScore){bestScore=sc;best={x,y,w,h};}
+    const areaRatio = (w*h)/(sw*sh);
+    if(areaRatio < 0.02 || areaRatio > 0.4) continue;
+
+    // 周辺コントラスト: 矩形のすぐ外側の暗さを計算
+    // A4用紙の周辺は暗い（服や床）、パズルマットのタイルは周辺も白い
+    let borderDark=0, borderCnt=0;
+    const margin=6;
+    for(let bx=Math.max(0,x-margin);bx<Math.min(sw,x+w+margin);bx+=2){
+      for(const by of [Math.max(0,y-margin), Math.min(sh-1,y+h+margin)]){
+        if(bx>=x&&bx<x+w) continue; // 矩形内はスキップ
+        const idx=by*sw+bx;
+        borderDark+=(d[idx*4]+d[idx*4+1]+d[idx*4+2])/3; borderCnt++;
+      }
+    }
+    for(let by=y;by<y+h;by+=2){
+      for(const bx of [Math.max(0,x-margin), Math.min(sw-1,x+w+margin)]){
+        const idx=by*sw+bx;
+        borderDark+=(d[idx*4]+d[idx*4+1]+d[idx*4+2])/3; borderCnt++;
+      }
+    }
+    const borderAvg = borderCnt>0 ? borderDark/borderCnt : 200;
+    // 周辺が暗いほどボーナス（A4用紙は周辺が暗い）
+    const contrastBonus = Math.max(0.3, (200-borderAvg)/200);
+
+    // 右下バイアス（ガイドで「右下に配置」と案内している）
+    const cx=x+w/2, cy=y+h/2;
+    const rightBias = 0.5 + 0.5*(cx/sw); // 右ほど高い(0.5〜1.0)
+    const bottomBias = 0.5 + 0.5*(cy/sh); // 下ほど高い(0.5〜1.0)
+    const posBias = rightBias * bottomBias;
+
+    const sc = w*h * (1/(1+rd*10)) * contrastBonus * posBias;
+    candidates.push({x,y,w,h,score:sc});
   }
-  if(!best||bestScore<500) return false;
+  if(candidates.length===0) return false;
+  candidates.sort((a,b)=>b.score-a.score);
+  const best=candidates[0];
   const inv=1/r;
   const bx=best.x*inv, by=best.y*inv, bw=best.w*inv, bh=best.h*inv;
   a4Corners=[{imgX:bx,imgY:by},{imgX:bx+bw,imgY:by},{imgX:bx+bw,imgY:by+bh},{imgX:bx,imgY:by+bh}];
@@ -625,8 +1083,10 @@ function drawA4Dots() {
     dot.className = 'dot a4dot';
     dot.style.left=p.px+'px'; dot.style.top=p.py+'px';
     zoomWrap.appendChild(dot); a4Dots.push(dot);
-    dot.addEventListener('click', e=>{e.stopPropagation(); toggleA4Sel(i);});
-    dot.addEventListener('touchend', e=>{if(isDragging)return;e.preventDefault();e.stopPropagation();toggleA4Sel(i);});
+    // クリック/タップで選択+ドラッグ開始
+    dot.addEventListener('mousedown', e=>{e.stopPropagation();e.preventDefault();toggleA4Sel(i);startDrag(e.clientX,e.clientY);});
+    dot.addEventListener('touchstart', e=>{e.stopPropagation();isDragging=false;toggleA4Sel(i);startDrag(e.touches[0].clientX,e.touches[0].clientY);},{passive:true});
+    dot.addEventListener('touchend', e=>{if(isDragging)return;e.preventDefault();e.stopPropagation();});
   });
   drawA4Lines();
 }
@@ -666,8 +1126,9 @@ function updateA4ScaleInfo() {
   const ok=Math.abs(ratio-1.414)<0.15;
   const el=document.getElementById('a4ScaleInfo');
   if(el) el.innerHTML=`<div class="a4-info" style="margin-top:8px">
-    スケール: <b>${scale.toFixed(5)} cm/px</b><br>
-    縦横比: ${ratio.toFixed(3)} ${ok?'✅':'⚠️ 1.414が正常'}</div>`;
+    ${ok?'✅ A4用紙が正しく認識されました':'⚠️ A4用紙の認識精度が低い可能性があります。角の位置を調整してください'}
+    <details style="margin-top:4px"><summary style="font-size:11px;color:#666;cursor:pointer">詳細情報</summary>
+    <div style="font-size:11px;color:#888;margin-top:4px">スケール: ${scale.toFixed(5)} cm/px / 縦横比: ${ratio.toFixed(3)}</div></details></div>`;
 }
 
 function confirmA4() {
@@ -687,10 +1148,13 @@ function confirmA4() {
 function renderStep3(scroll, actions) {
   scroll.innerHTML = `
     <div style="padding:4px 0">
-      <p style="color:#aaa;font-size:12px;margin-bottom:8px" id="processMsg">AIが計測中... この間に商品情報を入力してください</p>
+      <div id="processMsg" style="display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:8px;color:#aaa">
+        <span class="process-dot" style="width:8px;height:8px;border-radius:50%;background:var(--accent);animation:pulse 1.2s ease infinite;flex-shrink:0"></span>
+        AIが計測中... この間に商品情報を入力してください
+      </div>
       <div class="form-group">
         <label>ブランド名</label>
-        <input type="text" id="inputBrand" placeholder="例: ユニクロ, ZARA" value="${itemInfo.brand}">
+        <input type="text" id="inputBrand" placeholder="例: ユニクロ, ZARA" value="${itemInfo.brand || getSetting('brand','')}">
       </div>
       <div class="form-group">
         <label>サイズ表記</label>
@@ -701,7 +1165,7 @@ function renderStep3(scroll, actions) {
       <div class="form-group">
         <label>状態</label>
         <select id="inputCondition">
-          ${['新品・未使用','未使用に近い','目立った傷や汚れなし','やや傷や汚れあり','傷や汚れあり'].map(s=>`<option${s===itemInfo.condition?' selected':''}>${s}</option>`).join('')}
+          ${['新品・未使用','未使用に近い','目立った傷や汚れなし','やや傷や汚れあり','傷や汚れあり'].map(s=>`<option${s===(itemInfo.condition||getSetting('condition','目立った傷や汚れなし'))?' selected':''}>${s}</option>`).join('')}
         </select>
       </div>
       <div class="form-group">
@@ -733,11 +1197,6 @@ async function runMeasure() {
   const measurePromise = (async () => {
     if(useDemo) {
       await sleep(800);
-      const fname = currentImage?.name?.toLowerCase() || '';
-      if(fname.includes('pants')||fname.includes('1721')) category='pants';
-      else if(fname.includes('skirt')||fname.includes('1723')) category='skirt';
-      else if(fname.includes('dress')||fname.includes('1724')) category='dress';
-      else category='tops';
       return generateDemo(IMG_W, IMG_H, category);
     } else {
       const fd = new FormData();
@@ -789,14 +1248,23 @@ function renderStep4(scroll, actions) {
       <button class="tab ${activeTab==='measure'?'active':''}" onclick="switchTab('measure')">採寸値</button>
       <button class="tab ${activeTab==='desc'?'active':''}" onclick="switchTab('desc')">説明文</button>
     </div>
-    <div id="tabContent"></div>`;
+    <div id="tabContent"></div>
+    <details class="g-details" style="margin-top:8px">
+      <summary style="font-size:11px;color:var(--text4)">操作方法</summary>
+      <div class="g-details-body" style="padding:6px 0 0 4px">
+        ${isMobileDevice() ?
+          '<p>○をタップで選択 → 画面をドラッグで移動<br>ピンチで拡大 / ダブルタップでズーム切替<br>空白タップで選択解除</p>' :
+          '<p>○をクリックで選択 → ドラッグで移動<br>ダブルクリックでズーム切替<br>空白クリックで選択解除</p>'}
+      </div>
+    </details>`;
   renderTabContent();
   actions.innerHTML = `
     <div class="copy-btns">
       <button class="btn btn-success" onclick="copyMeasure()">採寸値コピー</button>
       <button class="btn btn-success" onclick="copyDesc()">説明文コピー</button>
     </div>
-    <button class="btn btn-primary" onclick="retake()" style="margin-top:4px">次の衣類へ</button>`;
+    <button class="btn btn-secondary" onclick="exportMeasureImage()" style="margin-top:4px">📐 採寸画像を保存</button>
+    <button class="btn btn-primary" onclick="confirmNext()" style="margin-top:4px">次の衣類へ</button>`;
 }
 
 function switchTab(t) { activeTab=t; renderPanel(); }
@@ -826,7 +1294,7 @@ function renderTabContent() {
     for(const [,o] of Object.entries(overlays)) sizes.push(`${o.jpName} ${calcCm(o).toFixed(1)}cm`);
     const full = aiDescText
       + '\n\nサイズ（平置き採寸）\n' + sizes.join(' / ')
-      + '\n\n※素人採寸のため多少の誤差はご了承ください。';
+      + '\n\n※' + getSetting('disclaimer','平置き採寸のため多少の誤差はご了承ください。') + '';
     el.innerHTML = `<div class="desc-area">${full}</div>`;
   }
 }
@@ -908,7 +1376,7 @@ function displayResults() {
 async function copyMeasure() {
   let text='【平置き採寸】\n';
   for(const [,o] of Object.entries(overlays)) text+=`${o.jpName}: ${calcCm(o).toFixed(1)}cm\n`;
-  text+='\n※素人採寸のため多少の誤差はご了承ください。';
+  text+='\n※' + getSetting('disclaimer','平置き採寸のため多少の誤差はご了承ください。') + '';
   await copyText(text, '採寸値をコピーしました');
   sendFeedback();
 }
@@ -917,7 +1385,7 @@ async function copyDesc() {
   for(const [,o] of Object.entries(overlays)) sizes.push(`${o.jpName} ${calcCm(o).toFixed(1)}cm`);
   const text = aiDescText
     + '\n\nサイズ（平置き採寸）\n' + sizes.join(' / ')
-    + '\n\n※素人採寸のため多少の誤差はご了承ください。';
+    + '\n\n※' + getSetting('disclaimer','平置き採寸のため多少の誤差はご了承ください。') + '';
   await copyText(text, '説明文をコピーしました');
 }
 async function copyText(text, msg) {
@@ -934,34 +1402,175 @@ async function sendFeedback() {
   }); } catch(e){}
 }
 
+// ============ 採寸画像エクスポート ============
+async function exportMeasureImage() {
+  const canvas = document.createElement('canvas');
+  // 元画像サイズで描画（高解像度）
+  canvas.width = IMG_W;
+  canvas.height = IMG_H;
+  const ctx = canvas.getContext('2d');
+
+  // 1. 元画像を描画
+  ctx.drawImage(img, 0, 0, IMG_W, IMG_H);
+
+  // 2. 半透明の暗いオーバーレイ（線が見やすくなる）
+  ctx.fillStyle = 'rgba(0,0,0,0.15)';
+  ctx.fillRect(0, 0, IMG_W, IMG_H);
+
+  const lineW = Math.max(3, Math.round(IMG_W / 500));
+  const fontSize = Math.max(16, Math.round(IMG_W / 60));
+  const dotR = Math.max(6, Math.round(IMG_W / 300));
+  ctx.font = `bold ${fontSize}px -apple-system, 'Hiragino Sans', sans-serif`;
+
+  // 3. 各採寸項目を描画
+  const entries = Object.entries(overlays);
+  for (let i = 0; i < entries.length; i++) {
+    const [name, o] = entries[i];
+    const sx = o.startImg.imgX, sy = o.startImg.imgY;
+    const ex = o.endImg.imgX, ey = o.endImg.imgY;
+    const cm = calcCm(o);
+    const color = o.color;
+
+    // 寸法線（メイン）
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineW;
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(sx, sy);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+
+    // 端点のドット
+    for (const [px, py] of [[sx, sy], [ex, ey]]) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(px, py, dotR, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = Math.max(1, lineW / 2);
+      ctx.stroke();
+    }
+
+    // 寸法補助線（端点から垂直/水平に短い線）
+    const perpLen = fontSize * 1.2;
+    const dx = ex - sx, dy = ey - sy;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len > 0) {
+      const nx = -dy / len * perpLen, ny = dx / len * perpLen;
+      ctx.strokeStyle = color + '88';
+      ctx.lineWidth = Math.max(1, lineW / 2);
+      ctx.setLineDash([]);
+      for (const [px, py] of [[sx, sy], [ex, ey]]) {
+        ctx.beginPath();
+        ctx.moveTo(px - nx * 0.5, py - ny * 0.5);
+        ctx.lineTo(px + nx * 0.5, py + ny * 0.5);
+        ctx.stroke();
+      }
+    }
+
+    // ラベル（背景付き）
+    const label = `${o.jpName} ${cm.toFixed(1)}`;
+    const midX = (sx + ex) / 2, midY = (sy + ey) / 2;
+    const tw = ctx.measureText(label).width;
+    const pad = fontSize * 0.4;
+    const lbgW = tw + pad * 2, lbgH = fontSize + pad * 2;
+
+    // ラベル位置（線の中点からオフセット）
+    const offDist = fontSize * 1.5;
+    let lx = midX, ly = midY;
+    if (len > 0) {
+      // 線に垂直な方向にオフセット
+      lx = midX + (-dy / len) * offDist;
+      ly = midY + (dx / len) * offDist;
+    }
+
+    // 背景
+    ctx.fillStyle = 'rgba(0,0,0,0.75)';
+    const bgX = lx - lbgW / 2, bgY = ly - lbgH / 2;
+    ctx.beginPath();
+    ctx.roundRect(bgX, bgY, lbgW, lbgH, fontSize * 0.25);
+    ctx.fill();
+
+    // 左にカラーバー
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.roundRect(bgX, bgY, fontSize * 0.25, lbgH, [fontSize * 0.25, 0, 0, fontSize * 0.25]);
+    ctx.fill();
+
+    // テキスト
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, lx, ly);
+  }
+
+  // 4. 右下にウォーターマーク
+  const wmFontSize = Math.max(12, Math.round(IMG_W / 100));
+  ctx.font = `${wmFontSize}px -apple-system, sans-serif`;
+  ctx.fillStyle = 'rgba(255,255,255,0.5)';
+  ctx.textAlign = 'right';
+  ctx.textBaseline = 'bottom';
+  const wmText = getSetting('shop','') || '写メジャー';
+  ctx.fillText(wmText, IMG_W - wmFontSize, IMG_H - wmFontSize * 0.5);
+
+  // 5. エクスポート
+  canvas.toBlob(async (blob) => {
+    if (!blob) { setMode('画像の生成に失敗しました'); return; }
+    const file = new File([blob], `measure_${Date.now()}.jpg`, { type: 'image/jpeg' });
+
+    // Web Share API対応（モバイル）
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: '採寸画像' });
+        setMode('採寸画像を共有しました', false, true);
+        return;
+      } catch (e) {
+        if (e.name === 'AbortError') return; // ユーザーがキャンセル
+      }
+    }
+
+    // フォールバック: ダウンロード
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.name;
+    a.click();
+    URL.revokeObjectURL(url);
+    setMode('採寸画像を保存しました', false, true);
+  }, 'image/jpeg', 0.92);
+}
+
 // ============ デモデータ生成 ============
 function generateDemo(w, h, cat) {
   const cx=w*0.5,cy=h*0.5,gw=w*0.35,gh=h*0.35;
   const d={
     tops:{shoulderWidth:{s:[cx-gw*.7,cy-gh*.6],e:[cx+gw*.7,cy-gh*.6],j:'肩幅'},
       sleeveLength:{s:[cx-gw*.7,cy-gh*.6],e:[cx-gw*1.2,cy-gh*.1],j:'袖丈'},
+      yukitake:{s:[cx,cy-gh*.85],e:[cx-gw*1.2,cy-gh*.1],j:'裄丈'},
       bodyWidth:{s:[cx-gw*.55,cy-gh*.25],e:[cx+gw*.55,cy-gh*.25],j:'身幅'},
       bodyLength_cb:{s:[cx,cy-gh*.85],e:[cx,cy+gh*.7],j:'着丈'}},
     pants:{waistWidth:{s:[cx-gw*.5,cy-gh*.9],e:[cx+gw*.5,cy-gh*.9],j:'ウエスト'},
-      totalLength_pants:{s:[cx-gw*.3,cy-gh*.9],e:[cx-gw*.3,cy+gh*.95],j:'総丈'},
+      hipWidth:{s:[cx-gw*.55,cy-gh*.7],e:[cx+gw*.55,cy-gh*.7],j:'ヒップ'},
+      totalLength_pants:{s:[cx+gw*.5,cy-gh*.9],e:[cx+gw*.3,cy+gh*.95],j:'総丈'},
       frontRise:{s:[cx,cy-gh*.9],e:[cx,cy-gh*.2],j:'股上'},
       inseam:{s:[cx,cy-gh*.2],e:[cx-gw*.2,cy+gh*.95],j:'股下'},
-      thighWidth:{s:[cx-gw*.45,cy-gh*.2],e:[cx+gw*.45,cy-gh*.2],j:'ワタリ'},
-      hemWidth:{s:[cx-gw*.3,cy+gh*.95],e:[cx+gw*.3,cy+gh*.95],j:'裾幅'}},
+      thighWidth:{s:[cx,cy-gh*.2],e:[cx+gw*.45,cy-gh*.2],j:'ワタリ'},
+      hemWidth:{s:[cx-gw*.2,cy+gh*.95],e:[cx+gw*.3,cy+gh*.95],j:'裾幅'}},
     skirt:{waistWidth:{s:[cx-gw*.45,cy-gh*.85],e:[cx+gw*.45,cy-gh*.85],j:'ウエスト'},
-      hipWidth_cfg:{s:[cx-gw*.6,cy-gh*.45],e:[cx+gw*.6,cy-gh*.45],j:'ヒップ'},
-      skirtLength:{s:[cx-gw*.3,cy-gh*.85],e:[cx-gw*.5,cy+gh*.9],j:'総丈'}},
+      hipWidth:{s:[cx-gw*.6,cy-gh*.45],e:[cx+gw*.6,cy-gh*.45],j:'ヒップ'},
+      skirtLength:{s:[cx,cy-gh*.85],e:[cx,cy+gh*.9],j:'総丈'}},
     dress:{shoulderWidth:{s:[cx-gw*.55,cy-gh*.7],e:[cx+gw*.55,cy-gh*.7],j:'肩幅'},
       sleeveLength:{s:[cx-gw*.55,cy-gh*.7],e:[cx-gw*1.1,cy-gh*.3],j:'袖丈'},
+      yukitake:{s:[cx,cy-gh*.85],e:[cx-gw*1.1,cy-gh*.3],j:'裄丈'},
       bodyWidth:{s:[cx-gw*.45,cy-gh*.4],e:[cx+gw*.45,cy-gh*.4],j:'身幅'},
       dressLength_bnp:{s:[cx,cy-gh*.85],e:[cx,cy+gh*.9],j:'着丈'},
       waistWidth:{s:[cx-gw*.4,cy-gh*.05],e:[cx+gw*.4,cy-gh*.05],j:'ウエスト'}},
-    salopette:{shoulderWidth:{s:[cx-gw*.6,cy-gh*.7],e:[cx+gw*.6,cy-gh*.7],j:'肩幅'},
+    salopette:{strapWidth:{s:[cx-gw*.6,cy-gh*.7],e:[cx+gw*.6,cy-gh*.7],j:'肩幅'},
       bodyWidth:{s:[cx-gw*.5,cy-gh*.3],e:[cx+gw*.5,cy-gh*.3],j:'身幅'},
-      totalLength_salopette:{s:[cx-gw*.3,cy-gh*.85],e:[cx-gw*.3,cy+gh*.95],j:'総丈'},
+      totalLength:{s:[cx+gw*.6,cy-gh*.7],e:[cx+gw*.3,cy+gh*.95],j:'総丈'},
       inseam:{s:[cx,cy-gh*.1],e:[cx-gw*.2,cy+gh*.95],j:'股下'}},
   };
-  const alias={jacket:'tops',suit:'tops',roomwear:'tops',maternity:'tops',bridal:'dress'};
+  const alias={jacket:'tops',suit:'tops',roomwear:'tops',maternity:'tops',bridal:'dress',suit_top:'tops',suit_bottom:'pants',roomwear_top:'tops',roomwear_bottom:'pants'};
   const def=d[cat]||d[alias[cat]]||d.tops, ms={};
   for(const [n,m] of Object.entries(def)){
     const dx=m.e[0]-m.s[0],dy=m.e[1]-m.s[1],px=Math.sqrt(dx*dx+dy*dy);
@@ -1004,8 +1613,10 @@ function createDot(px,py,key,which,color) {
   const dot=document.createElement('div');
   dot.className='dot'; dot.style.left=px+'px'; dot.style.top=py+'px'; dot.style.borderColor=color;
   zoomWrap.appendChild(dot);
-  dot.addEventListener('click',e=>{e.stopPropagation();toggleMeasureSel(key,which);});
-  dot.addEventListener('touchend',e=>{if(isDragging)return;e.preventDefault();e.stopPropagation();toggleMeasureSel(key,which);});
+  // クリック/タップで選択+ドラッグ開始
+  dot.addEventListener('mousedown',e=>{e.stopPropagation();e.preventDefault();toggleMeasureSel(key,which);startDrag(e.clientX,e.clientY);});
+  dot.addEventListener('touchstart',e=>{e.stopPropagation();isDragging=false;toggleMeasureSel(key,which);startDrag(e.touches[0].clientX,e.touches[0].clientY);},{passive:true});
+  dot.addEventListener('touchend',e=>{if(isDragging)return;e.preventDefault();e.stopPropagation();});
   return dot;
 }
 function toggleMeasureSel(key,which) {
@@ -1023,6 +1634,7 @@ function deselect() {
   if(step===4) setMode('結果を確認してください');
   if(step===2) setMode('A4用紙の位置を確認');
   renderTabContent();
+  updateTouchAction();
 }
 
 // ============ ライン ============
@@ -1036,7 +1648,12 @@ function drawLine(key) {
   zoomWrap.appendChild(line); o.line=line;
   const cm=calcCm(o), label=document.createElement('div'); label.className='label-tag';
   label.textContent=`${o.jpName}: ${cm.toFixed(1)}cm`;
-  const lx=(p1.px+p2.px)/2, ly=(p1.py+p2.py)/2-16;
+  const r=getRenderedImageRect();
+  let lx=(p1.px+p2.px)/2, ly=(p1.py+p2.py)/2-16;
+  // ラベルが画像エリア外にはみ出さないようにクランプ
+  const lw=100, lh=20; // 推定ラベルサイズ
+  lx=Math.max(r.left, Math.min(r.left+r.width-lw, lx));
+  ly=Math.max(r.top, Math.min(r.top+r.height-lh, ly));
   label.style.cssText=`background:${o.color}cc;left:${lx}px;top:${ly}px;`;
   label.dataset.origX=lx; label.dataset.origY=ly;
   zoomWrap.appendChild(label); o.label=label;
@@ -1126,7 +1743,11 @@ function fixLabelOverlaps() {
     if(allClear) break;
   }
 
+  // クランプしてから適用
+  const r=getRenderedImageRect();
   for(const l of labels) {
+    l.finalX=Math.max(r.left, Math.min(r.left+r.width-l.w, l.finalX));
+    l.finalY=Math.max(r.top, Math.min(r.top+r.height-l.h, l.finalY));
     l.el.style.left=l.finalX+'px';
     l.el.style.top=l.finalY+'px';
   }
@@ -1182,13 +1803,14 @@ function endDrag(e) {
   const wasDrag=isDragging; dragAnchor=null; isDragging=false;
   if(wasDrag){if(step===4) renderTabContent();}
   else if(e&&!e.target.classList.contains('dot')) deselect();
+  updateTouchAction();
 }
 
-imageArea.addEventListener('mousedown',e=>{if(!e.target.classList.contains('dot'))startDrag(e.clientX,e.clientY);});
+imageArea.addEventListener('mousedown',e=>{if(!e.target.classList.contains('dot')){startDrag(e.clientX,e.clientY);}});
 imageArea.addEventListener('mousemove',e=>{if(e.buttons===1&&dragAnchor){isDragging=true;moveDrag(e.clientX,e.clientY);}});
 imageArea.addEventListener('mouseup',e=>endDrag(e));
 imageArea.addEventListener('touchstart',e=>{isDragging=false;if(!e.target.classList.contains('dot'))startDrag(e.touches[0].clientX,e.touches[0].clientY);},{passive:true});
-imageArea.addEventListener('touchmove',e=>{if(dragAnchor){e.preventDefault();isDragging=true;moveDrag(e.touches[0].clientX,e.touches[0].clientY);}},{passive:false});
+imageArea.addEventListener('touchmove',e=>{if(dragAnchor){isDragging=true;e.preventDefault();moveDrag(e.touches[0].clientX,e.touches[0].clientY);}},{passive:false});
 imageArea.addEventListener('touchend',e=>endDrag(e),{passive:true});
 
 // ============ ピンチズーム ============
@@ -1203,9 +1825,15 @@ function applyZoom() {
     zoomY = Math.min(0, Math.max(areaH - areaH * zoomScale, zoomY));
   }
   zoomWrap.style.transform = `translate(${zoomX}px, ${zoomY}px) scale(${zoomScale})`;
+  updateTouchAction();
 }
 
-function resetZoom() { zoomScale=1; zoomX=0; zoomY=0; zoomWrap.style.transform=''; }
+function resetZoom() { zoomScale=1; zoomX=0; zoomY=0; zoomWrap.style.transform=''; updateTouchAction(); }
+
+function updateTouchAction() {
+  const needsNone = zoomScale > 1.05 || document.querySelector('.dot.selected');
+  imageArea.style.touchAction = needsNone ? 'none' : 'pan-y pinch-zoom';
+}
 
 // 指定した画面上の点を中心にズーム
 function zoomAt(screenX, screenY, newScale) {
@@ -1287,15 +1915,551 @@ function sleep(ms){return new Promise(r=>setTimeout(r,ms));}
 function clearMeasureOverlays(){for(const o of Object.values(overlays)){o.startDot?.remove();o.endDot?.remove();o.line?.remove();o.label?.remove();}overlays={};selDot=null;}
 function hideMeasureOverlays(){for(const o of Object.values(overlays)){if(o.startDot)o.startDot.style.display='none';if(o.endDot)o.endDot.style.display='none';if(o.line)o.line.style.display='none';if(o.label)o.label.style.display='none';}}
 function showMeasureOverlays(){for(const [key,o] of Object.entries(overlays)){if(o.startDot)o.startDot.style.display='';if(o.endDot)o.endDot.style.display='';if(o.line)o.line.style.display='';if(o.label)o.label.style.display='';drawLine(key);}}
-function clearAll(){clearMeasureOverlays();a4Dots.forEach(d=>d.remove());a4Dots=[];removeSvg();a4SelIdx=-1;scale=0;aiResult=null;aiDescText='';}
-function showGuide(){document.getElementById('guideModal').style.display='block';}
-function setMode(t,active,success){const b=document.getElementById('modeBar');b.textContent=t;b.className='mode-bar'+(active?' active':'')+(success?' success':'');}
+function clearAll(){clearMeasureOverlays();a4Dots.forEach(d=>d.remove());a4Dots=[];removeSvg();a4SelIdx=-1;scale=0;aiResult=null;aiDescText='';updateResetBtn();}
+function resetAll(){
+  clearAll();currentImage=null;img.src='';img.classList.remove('show');
+  maxStep=1;category='tops';itemInfo={brand:'',size:'なし',condition:'目立った傷や汚れなし',color:'',note:''};
+  goStep(1);setMode('衣類 + A4用紙（右下に配置）を撮影してください');updateResetBtn();
+}
+function isMobileDevice(){return 'ontouchstart' in window || navigator.maxTouchPoints > 0;}
+function updateResetBtn(){const b=document.getElementById('resetBtn');if(b)b.style.display=currentImage?'':'none';}
+// ============ A4手動指定モード ============
+let manualA4Mode = false, manualA4Count = 0;
+function startManualA4() {
+  manualA4Mode = true; manualA4Count = 0;
+  a4Corners = []; a4Dots.forEach(d=>d.remove()); a4Dots=[]; removeSvg();
+  setMode('A4用紙の左上をタップしてください (1/4)', true);
+}
+function onManualA4Tap(e) {
+  if(!manualA4Mode || step !== 2) return;
+  const rect = imageArea.getBoundingClientRect();
+  const r = getRenderedImageRect();
+  const px = (e.clientX - rect.left - r.left) / r.width * IMG_W;
+  const py = (e.clientY - rect.top - r.top) / r.height * IMG_H;
+  if(px < 0 || py < 0 || px > IMG_W || py > IMG_H) return;
+
+  a4Corners.push({imgX: px, imgY: py});
+  manualA4Count++;
+  const labels = ['左上','右上','右下','左下'];
+  if(manualA4Count < 4) {
+    setMode(`A4用紙の${labels[manualA4Count]}をタップしてください (${manualA4Count+1}/4)`, true);
+    // タップした位置にドットを仮表示
+    const p = imgToArea(px, py);
+    const dot = document.createElement('div');
+    dot.className = 'dot a4dot';
+    dot.style.left = p.px+'px'; dot.style.top = p.py+'px';
+    zoomWrap.appendChild(dot); a4Dots.push(dot);
+  } else {
+    manualA4Mode = false;
+    updateA4Scale();
+    setMode('A4用紙の位置を確認');
+    goStep(2); // 再描画
+  }
+}
+imageArea.addEventListener('click', e => {
+  if(manualA4Mode && !e.target.classList.contains('dot')) onManualA4Tap(e);
+});
+
+// ============ 色自動判定（クライアントサイド） ============
+function detectGarmentColor() {
+  if(!currentImage || !img.src) return '';
+  const canvas = document.createElement('canvas');
+  const sz = 200;
+  const r = Math.min(sz/IMG_W, sz/IMG_H);
+  const sw = Math.round(IMG_W*r), sh = Math.round(IMG_H*r);
+  canvas.width = sw; canvas.height = sh;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0, sw, sh);
+  const d = ctx.getImageData(0, 0, sw, sh).data;
+
+  // A4領域を除外するためのマスク
+  let a4x1=sw,a4y1=sh,a4x2=0,a4y2=0;
+  if(a4Corners.length>=4) {
+    for(const c of a4Corners) {
+      const px=c.imgX*r, py=c.imgY*r;
+      a4x1=Math.min(a4x1,px); a4y1=Math.min(a4y1,py);
+      a4x2=Math.max(a4x2,px); a4y2=Math.max(a4y2,py);
+    }
+    // 少し広めにマスク
+    a4x1=Math.max(0,a4x1-5); a4y1=Math.max(0,a4y1-5);
+    a4x2=Math.min(sw,a4x2+5); a4y2=Math.min(sh,a4y2+5);
+  }
+
+  // 色ヒストグラム方式: 最も面積が大きい色グループを採用
+  const buckets = {}; // HSLの色相を18度ごとに20バケット + 無彩色3バケット
+  const margin = Math.round(sw*0.1);
+  for(let y=margin;y<sh-margin;y+=2) for(let x=margin;x<sw-margin;x+=2) {
+    if(x>=a4x1&&x<=a4x2&&y>=a4y1&&y<=a4y2) continue;
+    const i=(y*sw+x)*4;
+    const R=d[i],G=d[i+1],B=d[i+2];
+    const r2=R/255,g2=G/255,b2=B/255;
+    const mx=Math.max(r2,g2,b2),mn=Math.min(r2,g2,b2);
+    const l=(mx+mn)/2;
+    const dd=mx-mn;
+    const s=dd===0?0:(l>0.5?dd/(2-mx-mn):dd/(mx+mn));
+    let key;
+    if(s<0.1) { // 無彩色
+      key = l<0.2?'K':l<0.7?'G':'W'; // 黒/グレー/白
+    } else {
+      let h=0;
+      if(mx===r2) h=((g2-b2)/dd+(g2<b2?6:0))/6;
+      else if(mx===g2) h=((b2-r2)/dd+2)/6;
+      else h=((r2-g2)/dd+4)/6;
+      key = 'H'+Math.floor(h*20); // 0-19の色相バケット
+    }
+    if(!buckets[key]) buckets[key]={r:0,g:0,b:0,cnt:0,key};
+    buckets[key].r+=R; buckets[key].g+=G; buckets[key].b+=B; buckets[key].cnt++;
+  }
+  // 最大バケットを取得
+  const sorted = Object.values(buckets).sort((a,b)=>b.cnt-a.cnt);
+  if(sorted.length===0||sorted[0].cnt<30) return '';
+  const top = sorted[0];
+  const avgR=top.r/top.cnt, avgG=top.g/top.cnt, avgB=top.b/top.cnt;
+
+  // HSLに変換
+  const r2=avgR/255,g2=avgG/255,b2=avgB/255;
+  const mx=Math.max(r2,g2,b2),mn=Math.min(r2,g2,b2);
+  const l=(mx+mn)/2;
+  let h=0,s=0;
+  if(mx!==mn){
+    const d2=mx-mn;
+    s=l>0.5?d2/(2-mx-mn):d2/(mx+mn);
+    if(mx===r2) h=((g2-b2)/d2+(g2<b2?6:0))/6;
+    else if(mx===g2) h=((b2-r2)/d2+2)/6;
+    else h=((r2-g2)/d2+4)/6;
+  }
+  h*=360;
+
+  // 日本語色名にマッピング
+  if(l<0.15) return 'ブラック';
+  if(l>0.85 && s<0.1) return 'ホワイト';
+  if(s<0.12) {
+    if(l<0.4) return 'チャコール';
+    if(l<0.65) return 'グレー';
+    return 'ライトグレー';
+  }
+  // 彩度あり
+  if(h<15||h>=345) return l<0.35?'ボルドー':'レッド';
+  if(h<40) return l<0.4?'ブラウン':(s<0.4?'ベージュ':'オレンジ');
+  if(h<65) return s<0.4?'カーキ':'イエロー';
+  if(h<150) return l<0.35?'ダークグリーン':'グリーン';
+  if(h<200) return 'ライトブルー';
+  if(h<250) return l<0.3?'ネイビー':'ブルー';
+  if(h<290) return 'パープル';
+  if(h<345) return l<0.4?'ワインレッド':'ピンク';
+  return '';
+}
+
+function onCategoryChange(newCat){
+  if(newCat !== category) {
+    category = newCat;
+    localStorage.setItem('ai_measure_default_cat', newCat);
+    // 採寸結果を完全リセット（商品情報はそのまま）
+    clearMeasureOverlays();
+    aiResult = null;
+    aiDescText = '';
+    linkedDots = {};
+    activeTab = 'measure';
+    maxStep = 2;
+  }
+  goStep(2);
+}
+
+// ============ メニュー ============
+function toggleMenu(){
+  const p=document.getElementById('menuPanel'),o=document.getElementById('menuOverlay');
+  const show=p.style.display==='none';
+  p.style.display=show?'block':'none'; o.style.display=show?'block':'none';
+}
+function closeMenu(){
+  document.getElementById('menuPanel').style.display='none';
+  document.getElementById('menuOverlay').style.display='none';
+}
+
+// ============ カスタムモーダル（confirm代替） ============
+function showModal(title, msg, okText, onOk, cancelText) {
+  const m = document.createElement('div');
+  m.className = 'modal-overlay';
+  m.innerHTML = `<div class="modal-box">
+    <h3>${title}</h3>
+    <p>${msg}</p>
+    <div class="modal-btns">
+      <button class="btn btn-secondary" id="modalCancel">${cancelText||'キャンセル'}</button>
+      <button class="btn btn-primary" id="modalOk">${okText||'OK'}</button>
+    </div>
+  </div>`;
+  document.body.appendChild(m);
+  m.querySelector('#modalOk').onclick = () => { m.remove(); if(onOk) onOk(); };
+  m.querySelector('#modalCancel').onclick = () => { m.remove(); };
+  m.querySelector('.modal-overlay').addEventListener('click', e => { if(e.target===m) m.remove(); });
+}
+
+function confirmReset() {
+  if(!currentImage || (!aiResult && !a4Corners.length)) { resetAll(); return; }
+  showModal('リセット', '現在の結果をリセットして最初からやり直しますか？', 'リセット', resetAll);
+}
+
+function confirmNext() {
+  showModal('次の衣類へ', '採寸値・説明文はコピー済みですか？<br>次の衣類に進むと現在の結果はクリアされます。', '次へ進む', goNextItem);
+}
+function goNextItem() {
+  const keepBrand = itemInfo.brand;
+  const keepCondition = itemInfo.condition;
+  clearAll();currentImage=null;img.src='';img.classList.remove('show');
+  maxStep=1;
+  itemInfo={brand:keepBrand,size:'なし',condition:keepCondition,color:'',note:''};
+  goStep(1);setMode('衣類 + A4用紙（右下に配置）を撮影してください');updateResetBtn();
+}
+
+// ============ 設定 ============
+const SETTINGS_KEYS = {
+  cat: 'ai_measure_default_cat',
+  brand: 'ai_measure_default_brand',
+  condition: 'ai_measure_default_condition',
+  shop: 'ai_measure_shop_name',
+  disclaimer: 'ai_measure_disclaimer',
+  theme: 'ai_measure_theme',
+};
+// テーマ初期化
+(function(){
+  const t=localStorage.getItem(SETTINGS_KEYS.theme)||'system';
+  applyTheme(t);
+})();
+function applyTheme(t) {
+  if(t==='system') {
+    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    document.documentElement.dataset.theme = isDark ? '' : 'light';
+  } else {
+    document.documentElement.dataset.theme = t==='light' ? 'light' : '';
+  }
+}
+// 端末のテーマ変更を自動追従
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+  if((localStorage.getItem(SETTINGS_KEYS.theme)||'system')==='system') applyTheme('system');
+});
+function getSetting(key, def) { return localStorage.getItem(SETTINGS_KEYS[key]) || def; }
+function setTheme(t) { setSetting('theme',t); applyTheme(t);
+  const isLight = document.documentElement.dataset.theme==='light';
+  document.querySelector('meta[name=theme-color]').content=isLight?'#f8fafc':'#0f1117'; }
+function setSetting(key, val) { localStorage.setItem(SETTINGS_KEYS[key], val); }
+
+function showSettings() {
+  let m = document.getElementById('settingsModal');
+  if(m) { m.remove(); } // 毎回再生成（値を最新にするため）
+  m = document.createElement('div');
+  m.id = 'settingsModal';
+  m.style.cssText = 'position:fixed;inset:0;z-index:150;background:var(--overlay-bg);overflow-y:auto;-webkit-overflow-scrolling:touch;display:block';
+  const conditions = ['新品・未使用','未使用に近い','目立った傷や汚れなし','やや傷や汚れあり','傷や汚れあり'];
+  const curCat = getSetting('cat','tops');
+  const curBrand = getSetting('brand','');
+  const curCond = getSetting('condition','目立った傷や汚れなし');
+  const curShop = getSetting('shop','');
+  const curDisclaimer = getSetting('disclaimer','平置き採寸のため多少の誤差はご了承ください。');
+  m.innerHTML = `<div style="max-width:400px;margin:0 auto;padding:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10;padding:12px 0;background:var(--overlay-bg);border-bottom:1px solid var(--border);margin-bottom:8px">
+      <h2 style="font-size:17px;color:var(--text)">設定</h2>
+      <button onclick="document.getElementById('settingsModal').style.display='none'" class="modal-close">✕</button>
+    </div>
+
+    <div class="g-card" style="padding:14px;margin-bottom:12px">
+      <p style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:10px">表示</p>
+      <div class="form-group">
+        <label>テーマ</label>
+        <select onchange="setTheme(this.value)" style="font-size:15px">
+          <option value="system"${getSetting('theme','system')==='system'?' selected':''}>端末の設定に合わせる</option>
+          <option value="dark"${getSetting('theme','system')==='dark'?' selected':''}>ダークモード</option>
+          <option value="light"${getSetting('theme','system')==='light'?' selected':''}>ライトモード</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="g-card" style="padding:14px;margin-bottom:12px">
+      <p style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:10px">デフォルト値</p>
+      <p style="font-size:11px;color:#888;margin-bottom:10px">毎回入力する手間を省けます。出品時に個別に変更もできます。</p>
+      <div class="form-group">
+        <label>カテゴリ</label>
+        <select onchange="setSetting('cat',this.value)" style="font-size:15px">
+          ${Object.entries(CAT_JP).map(([k,v])=>`<option value="${k}"${k===curCat?' selected':''}>${v}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group">
+        <label>ブランド名</label>
+        <input type="text" value="${curBrand}" placeholder="例: ユニクロ" onchange="setSetting('brand',this.value)">
+      </div>
+      <div class="form-group">
+        <label>商品の状態</label>
+        <select onchange="setSetting('condition',this.value)" style="font-size:15px">
+          ${conditions.map(c=>`<option${c===curCond?' selected':''}>${c}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+
+    <div class="g-card" style="padding:14px;margin-bottom:12px">
+      <p style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:10px">出品テンプレート</p>
+      <div class="form-group">
+        <label>ショップ名（採寸画像のウォーターマークに表示）</label>
+        <input type="text" value="${curShop}" placeholder="例: 〇〇's closet" onchange="setSetting('shop',this.value)">
+      </div>
+      <div class="form-group">
+        <label>免責文（説明文の末尾に追加）</label>
+        <input type="text" value="${curDisclaimer}" onchange="setSetting('disclaimer',this.value)" style="font-size:12px">
+      </div>
+    </div>
+
+    <p style="font-size:11px;color:#555;text-align:center">設定は端末に保存されます（アカウント不要）</p>
+    <p style="font-size:11px;color:#444;text-align:center;margin-top:4px">バージョン 0.2.0</p>
+    <button onclick="document.getElementById('settingsModal').style.display='none'" class="btn btn-primary" style="margin-top:16px">閉じる</button>
+  </div>`;
+  document.body.appendChild(m);
+}
+function showGuide(){
+  document.getElementById('guideModal').style.display='block';
+  renderOpsGuide();
+}
+function renderOpsGuide(){
+  const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+  const label = document.getElementById('guideDeviceLabel');
+  const content = document.getElementById('guideOpsContent');
+  if(!label||!content) return;
+  if(isMobile) {
+    label.textContent = 'スマートフォン操作';
+    content.innerHTML = `
+      <table class="g-table" style="font-size:12px">
+        <tr><td style="width:40%;font-weight:600;color:var(--text)">拡大 / 縮小</td><td>2本指でピンチ</td></tr>
+        <tr><td style="font-weight:600;color:var(--text)">ズーム切替</td><td>ダブルタップ</td></tr>
+        <tr><td style="font-weight:600;color:var(--text)">ドットの移動</td><td>タップで選択 → ドラッグで移動</td></tr>
+        <tr><td style="font-weight:600;color:var(--text)">選択の解除</td><td>空白部分をタップ</td></tr>
+        <tr><td style="font-weight:600;color:var(--text)">ズーム中の移動</td><td>1本指でスワイプ</td></tr>
+      </table>`;
+  } else {
+    label.textContent = 'PC操作';
+    content.innerHTML = `
+      <table class="g-table" style="font-size:12px">
+        <tr><td style="width:40%;font-weight:600;color:var(--text)">ズーム切替</td><td>ダブルクリック</td></tr>
+        <tr><td style="font-weight:600;color:var(--text)">ドットの移動</td><td>クリックで選択 → ドラッグで移動</td></tr>
+        <tr><td style="font-weight:600;color:var(--text)">選択の解除</td><td>空白部分をクリック</td></tr>
+      </table>`;
+  }
+}
+function setMode(t,active,success){
+  const bar=document.getElementById('modeBar');
+  const bubble=document.getElementById('bearBubble');
+  const bearImg=document.getElementById('bearImg');
+  if(bubble) bubble.textContent=t;
+  bar.className='bear-guide'+(active?' active':'')+(success?' success':'');
+  // 熊の表情を状態に合わせる
+  if(bearImg){
+    if(success) bearImg.src='/img/bear-dance.png';
+    else if(active) bearImg.src='/img/bear-angry.png';
+    else bearImg.src='/img/bear-happy.png';
+  }
+  // フェードインアニメーション
+  bar.style.animation='none'; bar.offsetHeight; bar.style.animation='fadeSlideIn 0.3s ease';
+}
 window.addEventListener('resize',()=>{for(const k of Object.keys(overlays))drawLine(k);if(step===2&&a4Dots.length){drawA4Dots();}});
 
 goStep(1);
 // 初回アクセス時はガイドを自動表示
 if(!localStorage.getItem('ai_measure_guide_seen')){showGuide();}
 function hideGuide(){document.getElementById('guideModal').style.display='none';localStorage.setItem('ai_measure_guide_seen','1');}
+
+// ============ 料金プランモーダル ============
+function showPlanModal() {
+  let m = document.getElementById('planModal');
+  if(m) { m.style.display='block'; return; }
+  m = document.createElement('div');
+  m.id = 'planModal';
+  m.style.cssText = 'position:fixed;inset:0;z-index:150;background:var(--overlay-bg);overflow-y:auto;-webkit-overflow-scrolling:touch;display:block';
+  m.innerHTML = `<div style="max-width:420px;margin:0 auto;padding:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10;padding:12px 0;background:var(--overlay-bg);border-bottom:1px solid var(--border);margin-bottom:8px">
+      <h2 style="font-size:17px;color:var(--text)">料金プラン</h2>
+      <button onclick="document.getElementById('planModal').style.display='none'" class="modal-close">✕</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+      <img src="/img/bear-happy.png" alt="" style="width:44px;height:44px;object-fit:contain">
+      <p style="font-size:12px;color:var(--text3)">採寸の外注相場は<b style="color:var(--text)">1件50〜200円</b>。写メジャーなら<b style="color:var(--success-light)">最安1件11.6円</b>!</p>
+    </div>
+
+    <!-- 無料 -->
+    <div style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:8px;border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:15px;font-weight:700;color:var(--text)">無料プラン</span>
+        <span style="font-size:18px;font-weight:700;color:var(--success-light)">¥0</span>
+      </div>
+      <p style="font-size:12px;color:var(--text3);margin-top:4px">月 <b style="color:var(--text)">5件</b>まで。まずはお試し。</p>
+    </div>
+
+    <!-- ライト -->
+    <div style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:8px;border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:15px;font-weight:700;color:var(--text)">ライト</span>
+        <div style="text-align:right">
+          <span style="font-size:20px;font-weight:700;color:var(--text)">¥980</span><span style="font-size:11px;color:var(--text4)">/月</span>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text3);margin-top:4px">月 <b style="color:var(--text)">50件</b>（1件¥19.6）</p>
+      <div style="background:#e8f5e9;border-radius:6px;padding:6px 10px;margin-top:8px;font-size:11px;color:#1b5e20">
+        外注比で<b>月4,000円以上</b>おトク（外注100円/件の場合）
+      </div>
+    </div>
+
+    <!-- スタンダード（おすすめ） -->
+    <div style="background:var(--card-bg);border:2px solid var(--accent);border-radius:10px;padding:14px;margin-bottom:8px;position:relative">
+      <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;font-size:10px;font-weight:700;padding:2px 12px;border-radius:10px">おすすめ</div>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:15px;font-weight:700;color:var(--text)">スタンダード</span>
+        <div style="text-align:right">
+          <span style="font-size:20px;font-weight:700;color:var(--text)">¥1,480</span><span style="font-size:11px;color:var(--text4)">/月</span>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text3);margin-top:4px">月 <b style="color:var(--text)">100件</b>（1件¥14.8）</p>
+      <div style="background:#e8f5e9;border-radius:6px;padding:6px 10px;margin-top:8px;font-size:11px;color:#1b5e20">
+        外注比で<b>月8,500円以上</b>おトク。副業セラーに最適
+      </div>
+    </div>
+
+    <!-- プロ -->
+    <div style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:8px;border:1px solid var(--border)">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:15px;font-weight:700;color:var(--text)">プロ</span>
+        <div style="text-align:right">
+          <span style="font-size:20px;font-weight:700;color:var(--text)">¥3,480</span><span style="font-size:11px;color:var(--text4)">/月</span>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text3);margin-top:4px">月 <b style="color:var(--text)">300件</b>（1件¥11.6）</p>
+      <div style="background:#e8f5e9;border-radius:6px;padding:6px 10px;margin-top:8px;font-size:11px;color:#1b5e20">
+        外注比で<b>月26,000円以上</b>おトク。本業セラー向け
+      </div>
+    </div>
+
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-top:12px">
+      <p style="font-size:12px;color:var(--warn);font-weight:600;margin-bottom:4px">手作業と比較すると？</p>
+      <p style="font-size:11px;color:var(--text2);line-height:1.6">メジャーでの手採寸は1着5〜8分。月100着なら<b>8〜13時間</b>が採寸だけに消えます。写メジャーなら<b>約50分</b>で完了。</p>
+    </div>
+
+    <!-- 機能比較表 -->
+    <div style="margin-top:14px;overflow-x:auto">
+      <p style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:8px">機能比較</p>
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead>
+          <tr style="border-bottom:2px solid var(--border)">
+            <th style="text-align:left;padding:6px 4px;color:var(--text4)">機能</th>
+            <th style="text-align:center;padding:6px 2px;color:var(--text4);width:36px">無料</th>
+            <th style="text-align:center;padding:6px 2px;color:#4488ff;width:36px">ライト</th>
+            <th style="text-align:center;padding:6px 2px;color:var(--accent);width:48px">スタン<br>ダード</th>
+            <th style="text-align:center;padding:6px 2px;color:#fbbf24;width:36px">プロ</th>
+          </tr>
+        </thead>
+        <tbody style="color:var(--text2)" id="planFeatureTable"></tbody>
+      </table>
+    </div>
+
+    <button onclick="document.getElementById('planModal').style.display='none'" class="btn btn-primary" style="margin-top:16px">閉じる</button>
+  </div>`;
+  document.body.appendChild(m);
+  // 機能比較テーブル生成
+  const features = [
+    {name:'AI採寸', marks:['○','○','○','○'], desc:'写真1枚からAIが自動で各部位のサイズを計測します。'},
+    {name:'採寸画像の保存', marks:['○','○','○','○'], desc:'寸法線と数値が入った画像を保存。メルカリの商品写真にそのまま使えます。'},
+    {name:'AIタイトル・説明文', marks:['−','−','○','○'], desc:'ブランド・状態・採寸値を元に、AIがメルカリ向けのタイトルと商品説明文を自動生成します。'},
+    {name:'汚れ箇所マーキング', marks:['−','−','○','○'], desc:'写真上で汚れ箇所をタップ。シミ・穴・毛玉などの種類を選び、ピンチで範囲を調整。汚れ画像として保存できます。'},
+    {name:'タグ撮影で自動入力', marks:['−','−','○','○'], desc:'洗濯タグや品質表示タグを撮影すると、ブランド名・素材・サイズ表記をAIが読み取って自動入力します。'},
+    {name:'採寸履歴', marks:['−','−','90日','無制限'], desc:'過去に採寸した商品をサムネイル画像付きで検索・参照できます。クレーム対応時にも便利。'},
+    {name:'一括処理', marks:['−','−','−','○'], desc:'複数の写真をまとめてアップロード。AIがカテゴリを自動判別して一括採寸。結果を一覧で確認・修正できます。'},
+    {name:'CSV出力', marks:['−','−','−','○'], desc:'採寸データをCSV形式でダウンロード。Googleスプレッドシートや在庫管理ツールに取り込めます。'},
+    {name:'チーム管理', marks:['−','−','−','○'], desc:'外注スタッフにアカウントを発行し、利用状況を一元管理。品質の標準化と進捗の把握に。'},
+  ];
+  const tbody = document.getElementById('planFeatureTable');
+  features.forEach((f,i) => {
+    const tr = document.createElement('tr');
+    tr.style.cssText = 'border-bottom:1px solid var(--border);cursor:pointer';
+    const noStyle = 'text-align:center;color:var(--text5)';
+    const yesStyle = 'text-align:center';
+    tr.innerHTML = '<td style="padding:5px 4px">' + f.name + ' <span style="font-size:9px;color:var(--text5)">▼</span></td>'
+      + f.marks.map(m => '<td style="' + (m==='−'?noStyle:yesStyle) + '">' + m + '</td>').join('');
+    tbody.appendChild(tr);
+    // 詳細行
+    const detailTr = document.createElement('tr');
+    detailTr.style.cssText = 'display:none;border-bottom:1px solid var(--border)';
+    detailTr.innerHTML = '<td colspan="5" style="padding:8px;font-size:11px;color:var(--text3);line-height:1.6;background:var(--bg4)">' + f.desc + '</td>';
+    tbody.appendChild(detailTr);
+    tr.onclick = () => { detailTr.style.display = detailTr.style.display==='none'?'':'none'; };
+  });
+}
+
+// ============ ログイン（仮） ============
+function showLoginModal() {
+  let m = document.getElementById('loginModal');
+  if(m) { m.style.display='block'; return; }
+  m = document.createElement('div');
+  m.id = 'loginModal';
+  m.style.cssText = 'position:fixed;inset:0;z-index:150;background:var(--overlay-bg);overflow-y:auto;-webkit-overflow-scrolling:touch;display:block';
+  m.innerHTML = `<div style="max-width:400px;margin:0 auto;padding:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2 style="font-size:17px;color:var(--text)">ログイン / アカウント</h2>
+      <button onclick="document.getElementById('loginModal').style.display='none'" style="background:none;border:none;color:var(--text);font-size:24px;cursor:pointer">✕</button>
+    </div>
+    <div style="text-align:center;padding:20px 0">
+      <img src="/img/bear-happy.png" alt="" style="width:80px;height:80px;object-fit:contain;margin-bottom:12px">
+      <p style="font-size:14px;color:var(--text);font-weight:600;margin-bottom:8px">無料プランをご利用中</p>
+      <p style="font-size:12px;color:var(--text3);line-height:1.6">有料プランに申し込むとアカウントが作成されます。<br>現在の設定は端末に保存されています。</p>
+    </div>
+    <button onclick="showPlanModal();document.getElementById('loginModal').style.display='none'" class="btn btn-primary">プランを見る</button>
+    <p style="font-size:11px;color:var(--text4);text-align:center;margin-top:12px">ログイン機能は近日公開予定</p>
+    <button onclick="document.getElementById('loginModal').style.display='none'" class="btn btn-secondary" style="margin-top:8px">閉じる</button>
+  </div>`;
+  document.body.appendChild(m);
+}
+
+// ============ PWA: Service Worker 登録 + 更新通知 ============
+if('serviceWorker' in navigator) {
+  // 既存のcontrollerがあるかチェック（初回インストールかどうか判定用）
+  navigator.serviceWorker.register('/sw.js').then(reg => {
+    // バージョンチェック（version.jsonのバージョンが変わった時だけ通知）
+    checkVersionUpdate();
+  });
+  // 復帰時にSW更新チェック
+  document.addEventListener('visibilitychange', () => {
+    if(document.visibilityState === 'visible' && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({type:'CHECK_UPDATE'});
+    }
+  });
+}
+async function checkVersionUpdate() {
+  try {
+    const resp = await fetch('/version.json?_=' + Date.now());
+    if(!resp.ok) return;
+    const v = await resp.json();
+    const lastSeen = localStorage.getItem('ai_measure_last_version');
+    if(lastSeen === v.version) return; // 同じバージョン → 通知しない
+    if(!lastSeen) { // 初回 → バージョン記録のみ、通知しない
+      localStorage.setItem('ai_measure_last_version', v.version);
+      return;
+    }
+    // バージョンが変わった → 通知表示
+    showUpdateBar(v);
+  } catch(e) {}
+}
+
+async function showUpdateBar(versionData) {
+  if(document.getElementById('updateBar')) return;
+  const changes = versionData?.changes || [];
+
+  const bar = document.createElement('div');
+  bar.id = 'updateBar';
+  bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:200;background:var(--card-bg);color:var(--text);padding:12px 16px;border-bottom:2px solid var(--accent);box-shadow:var(--shadow-lg);backdrop-filter:blur(12px);';
+  let html = '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:' + (changes.length ? '8px' : '0') + '">';
+  html += '<span style="font-size:13px;font-weight:600">アップデートがあります</span>';
+  html += '<button onclick="localStorage.setItem(\'ai_measure_last_version\',\'' + (versionData?.version||'') + '\');location.reload()" style="background:#e94560;color:#fff;border:none;padding:6px 16px;border-radius:6px;font-weight:700;font-size:13px;cursor:pointer">更新する</button>';
+  html += '</div>';
+  if(changes.length) {
+    html += '<ul style="margin:0;padding:0 0 0 18px;font-size:12px;color:#ccc;line-height:1.6">';
+    changes.forEach(c => html += '<li>' + c + '</li>');
+    html += '</ul>';
+  }
+  bar.innerHTML = html;
+  document.body.prepend(bar);
+}
 </script>
 </body>
 </html>
