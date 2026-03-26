@@ -143,8 +143,9 @@ export function getKitPageHtml(kitDataJson) {
   .product-card.is-listed { opacity: 0.5; }
   .product-card.is-listed .product-card-header { background: #6b7280; }
   .suggest-price { display: inline-block; background: #fef3c7; color: #92400e; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; margin-left: 6px; }
-  .font-toggle { position: fixed; bottom: 16px; right: 16px; z-index: 800; background: var(--primary); color: #fff; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 16px; font-weight: 700; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
-  .font-toggle:active { opacity: 0.8; }
+  .float-btns { position: fixed; bottom: 16px; right: 16px; z-index: 800; display: flex; flex-direction: column; gap: 8px; }
+  .float-btn { background: var(--primary); color: #fff; border: none; border-radius: 50%; width: 40px; height: 40px; font-size: 16px; font-weight: 700; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+  .float-btn:active { opacity: 0.8; }
   body.large-font { font-size: 16px; }
   body.large-font .copy-content { font-size: 15px; }
   body.large-font .info-table { font-size: 14px; }
@@ -164,7 +165,11 @@ export function getKitPageHtml(kitDataJson) {
 
 <div class="kit-container" id="kitContainer"></div>
 
-<button class="font-toggle" id="fontToggle" onclick="toggleFontSize()">A+</button>
+<div class="float-btns">
+  <button class="float-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="最上部">&#x25B2;</button>
+  <button class="float-btn" id="fontToggle" onclick="toggleFontSize()">A+</button>
+  <button class="float-btn" onclick="window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'})" title="最下部">&#x25BC;</button>
+</div>
 
 <div class="modal-overlay" id="imageModal" onclick="closeModal()">
   <button class="modal-close" onclick="closeModal()">&times;</button>
@@ -560,19 +565,26 @@ export function getKitPageHtml(kitDataJson) {
   })();
 
   // ─── 次の商品へ（出品済みスキップ） ───
+  function scrollToCard(card) {
+    var sticky = document.querySelector('.kit-sticky');
+    var offset = sticky ? sticky.offsetHeight + 8 : 0;
+    var top = card.getBoundingClientRect().top + window.pageYOffset - offset;
+    window.scrollTo({ top: top, behavior: 'smooth' });
+  }
+
   window.goNextCard = function(currentIndex) {
-    document.getElementById('card-' + currentIndex).classList.remove('open');
+    var cur = document.getElementById('card-' + currentIndex);
+    if (cur) cur.classList.remove('open');
     for (var n = currentIndex + 1; n < totalCount; n++) {
       if (!isItemListed(n)) {
         var nextCard = document.getElementById('card-' + n);
         if (nextCard && nextCard.style.display !== 'none') {
           nextCard.classList.add('open');
-          nextCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          setTimeout(function() { scrollToCard(nextCard); }, 100);
           return;
         }
       }
     }
-    // 未出品が残っていない場合
     alert('未出品の商品はありません！');
   };
 
