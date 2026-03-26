@@ -148,9 +148,23 @@ export function getKitPageHtml(kitDataJson) {
   .float-btn:active { opacity: 0.8; }
   body.large-font { font-size: 16px; }
   body.large-font .copy-content { font-size: 15px; }
+  body.large-font .copy-block-label span { font-size: 14px; }
+  body.large-font .copy-btn { font-size: 13px; padding: 6px 14px; }
   body.large-font .info-table { font-size: 14px; }
+  body.large-font .info-table th { font-size: 13px; }
+  body.large-font .detail-col h3 { font-size: 13px; }
   body.large-font .measure-item { font-size: 14px; }
   body.large-font .product-card-header { font-size: 16px; }
+  body.large-font .product-card-header .product-no { font-size: 15px; }
+  body.large-font .product-card-header .product-brand { font-size: 14px; }
+  body.large-font .product-card-header .product-price { font-size: 14px; }
+  body.large-font .guide-banner { font-size: 15px; }
+  body.large-font .order-summary .stat-value { font-size: 26px; }
+  body.large-font .order-summary .stat-label { font-size: 14px; }
+  body.large-font .listed-check { font-size: 14px; }
+  body.large-font .listed-box-header { font-size: 15px; }
+  body.large-font .kit-header h1 { font-size: 24px; }
+  body.large-font .kit-header .order-info { font-size: 15px; }
   .kit-sticky { position: sticky; top: 0; z-index: 100; background: var(--bg); padding-bottom: 4px; box-shadow: 0 2px 8px rgba(0,0,0,.08); }
   .listed-box { margin: 16px; }
   .listed-box-header { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: #166534; }
