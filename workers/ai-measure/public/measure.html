@@ -369,10 +369,10 @@ body { font-family:-apple-system,'Hiragino Sans',sans-serif; background:var(--bg
     <button onclick="showGuide()" class="menu-item"><span class="menu-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 14A6 6 0 108 2a6 6 0 000 12z" stroke="currentColor" stroke-width="1.5"/><path d="M6 6.5a2 2 0 113 1.73c-.5.29-1 .77-1 1.27V10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="12" r="0.5" fill="currentColor"/></svg></span>使い方ガイド</button>
     <button onclick="showPlanModal()" class="menu-item"><span class="menu-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="10" rx="2" stroke="currentColor" stroke-width="1.5"/><path d="M2 6.5h12" stroke="currentColor" stroke-width="1.5"/></svg></span>料金プラン</button>
     <button onclick="showSettings()" class="menu-item"><span class="menu-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>設定</button>
-    <button onclick="showLoginModal()" class="menu-item"><span class="menu-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M3 14c0-2.76 2.24-5 5-5s5 2.24 5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span>ログイン / アカウント</button>
+    <button onclick="showLoginModal()" class="menu-item" id="menuAuthBtn"><span class="menu-icon"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M3 14c0-2.76 2.24-5 5-5s5 2.24 5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></span><span id="menuAuthLabel">ログイン / アカウント</span></button>
   </div>
   <div style="padding:12px 16px;border-top:1px solid var(--border);margin-top:8px">
-    <div style="font-size:11px;color:var(--text4)">無料プラン <span style="color:var(--accent);font-weight:600">あと <span id="remaining">5</span> 回</span></div>
+    <div style="font-size:11px;color:var(--text4)" id="menuPlanInfo">無料プラン <span style="color:var(--accent);font-weight:600">あと <span id="remaining">5</span> 回</span></div>
   </div>
 </div>
 <div id="menuOverlay" style="display:none;position:fixed;inset:0;z-index:110;background:rgba(0,0,0,0.4);backdrop-filter:blur(2px)" onclick="toggleMenu()"></div>
@@ -2259,6 +2259,7 @@ function setMode(t,active,success){
 window.addEventListener('resize',()=>{for(const k of Object.keys(overlays))drawLine(k);if(step===2&&a4Dots.length){drawA4Dots();}});
 
 goStep(1);
+initAuth(); // セッション復元
 // 初回アクセス時はガイドを自動表示
 if(!localStorage.getItem('ai_measure_guide_seen')){showGuide();}
 function hideGuide(){document.getElementById('guideModal').style.display='none';localStorage.setItem('ai_measure_guide_seen','1');}
@@ -2387,8 +2388,42 @@ function showPlanModal() {
   });
 }
 
-// ============ ログイン（仮） ============
+// ============ 認証 ============
+let currentUser = null; // {id, email, plan, used, limit}
+
+async function initAuth() {
+  try {
+    const resp = await fetch('/api/auth/me', { credentials: 'same-origin' });
+    const data = await resp.json();
+    if (data.loggedIn) {
+      currentUser = data;
+      updateAuthUI();
+    } else {
+      currentUser = null;
+      // 未ログインでも使用量を表示
+      if (data.used !== undefined) updateUsageDisplay(data.used, data.limit, data.plan);
+    }
+  } catch(e) { console.log('Auth check failed:', e.message); }
+}
+
+function updateAuthUI() {
+  const u = currentUser;
+  if (!u) return;
+  const planNames = { free:'無料', light:'ライト', standard:'スタンダード', pro:'プロ', team:'チーム' };
+  const label = document.getElementById('menuAuthLabel');
+  if (label) label.textContent = u.email;
+  updateUsageDisplay(u.used, u.limit, u.plan);
+}
+
+function updateUsageDisplay(used, limit, plan) {
+  const planNames = { free:'無料プラン', light:'ライト', standard:'スタンダード', pro:'プロ', team:'チーム' };
+  const remaining = Math.max(0, limit - used);
+  const el = document.getElementById('menuPlanInfo');
+  if (el) el.innerHTML = `${planNames[plan]||plan} <span style="color:var(--accent);font-weight:600">あと <span id="remaining">${remaining}</span> 回</span>`;
+}
+
 function showLoginModal() {
+  if (currentUser) { showAccountModal(); return; }
   let m = document.getElementById('loginModal');
   if(m) { m.style.display='block'; return; }
   m = document.createElement('div');
@@ -2396,20 +2431,128 @@ function showLoginModal() {
   m.style.cssText = 'position:fixed;inset:0;z-index:150;background:var(--overlay-bg);overflow-y:auto;-webkit-overflow-scrolling:touch;display:block';
   m.innerHTML = `<div style="max-width:400px;margin:0 auto;padding:20px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-      <h2 style="font-size:17px;color:var(--text)">ログイン / アカウント</h2>
+      <h2 style="font-size:17px;color:var(--text)" id="authTitle">ログイン</h2>
       <button onclick="document.getElementById('loginModal').style.display='none'" style="background:none;border:none;color:var(--text);font-size:24px;cursor:pointer">✕</button>
     </div>
-    <div style="text-align:center;padding:20px 0">
-      <img src="/img/bear-happy.png" alt="" style="width:80px;height:80px;object-fit:contain;margin-bottom:12px">
-      <p style="font-size:14px;color:var(--text);font-weight:600;margin-bottom:8px">無料プランをご利用中</p>
-      <p style="font-size:12px;color:var(--text3);line-height:1.6">有料プランに申し込むとアカウントが作成されます。<br>現在の設定は端末に保存されています。</p>
+    <div style="text-align:center;margin-bottom:16px">
+      <img src="/img/bear-happy.png" alt="" style="width:60px;height:60px;object-fit:contain">
     </div>
-    <button onclick="showPlanModal();document.getElementById('loginModal').style.display='none'" class="btn btn-primary">プランを見る</button>
-    <p style="font-size:11px;color:var(--text4);text-align:center;margin-top:12px">ログイン機能は近日公開予定</p>
+    <div id="authError" style="display:none;background:#e945601a;border:1px solid #e94560;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:12px;color:#e94560"></div>
+    <div class="form-group"><label>メールアドレス</label><input type="email" id="authEmail" placeholder="example@mail.com" autocomplete="email"></div>
+    <div class="form-group"><label>パスワード</label><input type="password" id="authPassword" placeholder="8文字以上" autocomplete="current-password"></div>
+    <div class="form-group" id="authConfirmGroup" style="display:none"><label>パスワード（確認）</label><input type="password" id="authPasswordConfirm" placeholder="もう一度入力"></div>
+    <button class="btn btn-primary" id="authSubmitBtn" onclick="doAuth()">ログイン</button>
+    <p style="text-align:center;margin-top:12px;font-size:12px;color:var(--text3)">
+      <span id="authToggleText">アカウントをお持ちでない方は</span>
+      <a href="#" onclick="toggleAuthMode(event)" style="color:var(--accent)" id="authToggleLink">新規登録</a>
+    </p>
     <button onclick="document.getElementById('loginModal').style.display='none'" class="btn btn-secondary" style="margin-top:8px">閉じる</button>
   </div>`;
   document.body.appendChild(m);
+  // Enterキーでsubmit
+  m.querySelectorAll('input').forEach(inp => inp.addEventListener('keydown', e => { if(e.key==='Enter') doAuth(); }));
 }
+
+let authMode = 'login'; // 'login' | 'register'
+function toggleAuthMode(e) {
+  if(e) e.preventDefault();
+  authMode = authMode === 'login' ? 'register' : 'login';
+  const isReg = authMode === 'register';
+  document.getElementById('authTitle').textContent = isReg ? '新規登録' : 'ログイン';
+  document.getElementById('authSubmitBtn').textContent = isReg ? '新規登録' : 'ログイン';
+  document.getElementById('authConfirmGroup').style.display = isReg ? '' : 'none';
+  document.getElementById('authToggleText').textContent = isReg ? '既にアカウントをお持ちの方は' : 'アカウントをお持ちでない方は';
+  document.getElementById('authToggleLink').textContent = isReg ? 'ログイン' : '新規登録';
+  document.getElementById('authError').style.display = 'none';
+  if (isReg) document.getElementById('authPassword').autocomplete = 'new-password';
+  else document.getElementById('authPassword').autocomplete = 'current-password';
+}
+
+async function doAuth() {
+  const email = document.getElementById('authEmail')?.value?.trim();
+  const password = document.getElementById('authPassword')?.value;
+  const errEl = document.getElementById('authError');
+  errEl.style.display = 'none';
+
+  if (!email || !password) { errEl.textContent = 'メールアドレスとパスワードを入力してください'; errEl.style.display = ''; return; }
+
+  if (authMode === 'register') {
+    const confirm = document.getElementById('authPasswordConfirm')?.value;
+    if (password !== confirm) { errEl.textContent = 'パスワードが一致しません'; errEl.style.display = ''; return; }
+    if (password.length < 8) { errEl.textContent = 'パスワードは8文字以上で入力してください'; errEl.style.display = ''; return; }
+  }
+
+  const btn = document.getElementById('authSubmitBtn');
+  btn.disabled = true; btn.textContent = '処理中...';
+
+  try {
+    const endpoint = authMode === 'register' ? '/api/auth/register' : '/api/auth/login';
+    const resp = await fetch(endpoint, {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+    const data = await resp.json();
+
+    if (!resp.ok || data.error) {
+      errEl.textContent = data.error || data.message || 'エラーが発生しました';
+      errEl.style.display = '';
+      btn.disabled = false; btn.textContent = authMode === 'register' ? '新規登録' : 'ログイン';
+      return;
+    }
+
+    // 成功
+    currentUser = data.user || data;
+    if (!currentUser.used) currentUser.used = 0;
+    if (!currentUser.limit) currentUser.limit = PLAN_LIMITS[currentUser.plan] || 5;
+    updateAuthUI();
+    document.getElementById('loginModal').style.display = 'none';
+    toggleMenu();
+  } catch(e) {
+    errEl.textContent = '通信エラーが発生しました'; errEl.style.display = '';
+  }
+  btn.disabled = false; btn.textContent = authMode === 'register' ? '新規登録' : 'ログイン';
+}
+
+function showAccountModal() {
+  let m = document.getElementById('loginModal');
+  if (m) m.remove();
+  m = document.createElement('div');
+  m.id = 'loginModal';
+  m.style.cssText = 'position:fixed;inset:0;z-index:150;background:var(--overlay-bg);overflow-y:auto;-webkit-overflow-scrolling:touch;display:block';
+  const u = currentUser;
+  const planNames = { free:'無料プラン', light:'ライト', standard:'スタンダード', pro:'プロ', team:'チーム' };
+  const remaining = Math.max(0, (u.limit||5) - (u.used||0));
+  m.innerHTML = `<div style="max-width:400px;margin:0 auto;padding:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2 style="font-size:17px;color:var(--text)">アカウント</h2>
+      <button onclick="document.getElementById('loginModal').style.display='none'" style="background:none;border:none;color:var(--text);font-size:24px;cursor:pointer">✕</button>
+    </div>
+    <div style="text-align:center;margin-bottom:16px">
+      <img src="/img/bear-dance.png" alt="" style="width:60px;height:60px;object-fit:contain">
+    </div>
+    <div style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:12px">
+      <p style="font-size:13px;color:var(--text2)">メール: <b style="color:var(--text)">${u.email}</b></p>
+      <p style="font-size:13px;color:var(--text2);margin-top:6px">プラン: <b style="color:var(--accent)">${planNames[u.plan]||u.plan}</b></p>
+      <p style="font-size:13px;color:var(--text2);margin-top:6px">今月の残り: <b style="color:var(--accent)">${remaining} 回</b></p>
+    </div>
+    <button onclick="showPlanModal();document.getElementById('loginModal').style.display='none'" class="btn btn-primary">プランを変更</button>
+    <button onclick="doLogout()" class="btn btn-secondary" style="margin-top:8px">ログアウト</button>
+  </div>`;
+  document.body.appendChild(m);
+}
+
+async function doLogout() {
+  try { await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }); } catch(e) {}
+  currentUser = null;
+  const label = document.getElementById('menuAuthLabel');
+  if (label) label.textContent = 'ログイン / アカウント';
+  updateUsageDisplay(0, 5, 'free');
+  document.getElementById('loginModal')?.remove();
+  toggleMenu();
+}
+
+const PLAN_LIMITS = { free: 5, light: 50, standard: 100, pro: 300, team: 500 };
 
 // ============ PWA: Service Worker 登録 + 更新通知 ============
 if('serviceWorker' in navigator) {

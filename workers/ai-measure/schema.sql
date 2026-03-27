@@ -33,3 +33,30 @@ CREATE TABLE IF NOT EXISTS measure_correction (
 CREATE INDEX IF NOT EXISTS idx_feedback_category ON measure_feedback(category);
 CREATE INDEX IF NOT EXISTS idx_feedback_created ON measure_feedback(created_at);
 CREATE INDEX IF NOT EXISTS idx_correction_category ON measure_correction(category);
+
+-- ============ 認証・課金 ============
+
+-- ユーザー
+CREATE TABLE IF NOT EXISTS sm_users (
+  id TEXT PRIMARY KEY,                  -- 'U' + Date.now().toString(36)
+  email TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,          -- v2:salt:hash (SHA-256, 1000 iterations)
+  plan TEXT NOT NULL DEFAULT 'free',    -- free/light/standard/pro/team
+  monthly_limit INTEGER NOT NULL DEFAULT 5,
+  display_name TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_sm_users_email ON sm_users(email);
+
+-- 月次使用量
+CREATE TABLE IF NOT EXISTS sm_usage (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id TEXT,                         -- NULL = 匿名
+  ip_hash TEXT,                         -- 匿名ユーザーのIP追跡用
+  month TEXT NOT NULL,                  -- 'YYYY-MM'
+  used INTEGER NOT NULL DEFAULT 0,
+  UNIQUE(user_id, month),
+  UNIQUE(ip_hash, month)
+);
+CREATE INDEX IF NOT EXISTS idx_sm_usage_month ON sm_usage(month);

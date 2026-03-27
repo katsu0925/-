@@ -19,6 +19,11 @@ database_id = "a6dd2463-5b9a-4a64-b31e-644c454a1503"
 binding = "IMAGES"
 bucket_name = "ai-measure-images"
 
+# KV: セッション管理
+[[kv_namespaces]]
+binding = "SM_SESSIONS"
+id = "c44ff38032ff40c4b03d7ab43d5c8350"
+
 # Secrets (wrangler secret put で設定):
 #   REPLICATE_API_TOKEN
 #   OPENAI_API_KEY
