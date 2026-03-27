@@ -2476,6 +2476,12 @@ function showLoginModal() {
     <div class="form-group"><label>メールアドレス</label><input type="email" id="authEmail" placeholder="example@mail.com" autocomplete="email"></div>
     <div class="form-group"><label>パスワード</label><input type="password" id="authPassword" placeholder="8文字以上" autocomplete="current-password"></div>
     <div class="form-group" id="authConfirmGroup" style="display:none"><label>パスワード（確認）</label><input type="password" id="authPasswordConfirm" placeholder="もう一度入力"></div>
+    <div id="authTermsGroup" style="display:none;margin-bottom:12px">
+      <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:12px;color:var(--text3);line-height:1.5">
+        <input type="checkbox" id="authTerms" style="margin-top:3px;flex-shrink:0">
+        <span><a href="/terms" target="_blank" style="color:var(--accent)">利用規約</a>および<a href="/privacy" target="_blank" style="color:var(--accent)">プライバシーポリシー</a>に同意します</span>
+      </label>
+    </div>
     <button class="btn btn-primary" id="authSubmitBtn" onclick="doAuth()">ログイン</button>
     <p style="text-align:center;margin-top:12px;font-size:12px;color:var(--text3)">
       <span id="authToggleText">アカウントをお持ちでない方は</span>
@@ -2505,6 +2511,7 @@ function toggleAuthMode(e) {
   document.getElementById('authTitle').textContent = isReg ? '新規登録' : 'ログイン';
   document.getElementById('authSubmitBtn').textContent = isReg ? '新規登録' : 'ログイン';
   document.getElementById('authConfirmGroup').style.display = isReg ? '' : 'none';
+  document.getElementById('authTermsGroup').style.display = isReg ? '' : 'none';
   document.getElementById('authToggleText').textContent = isReg ? '既にアカウントをお持ちの方は' : 'アカウントをお持ちでない方は';
   document.getElementById('authToggleLink').textContent = isReg ? 'ログイン' : '新規登録';
   document.getElementById('authError').style.display = 'none';
@@ -2524,6 +2531,7 @@ async function doAuth() {
     const confirm = document.getElementById('authPasswordConfirm')?.value;
     if (password !== confirm) { errEl.textContent = 'パスワードが一致しません'; errEl.style.display = ''; return; }
     if (password.length < 8) { errEl.textContent = 'パスワードは8文字以上で入力してください'; errEl.style.display = ''; return; }
+    if (!document.getElementById('authTerms')?.checked) { errEl.textContent = '利用規約とプライバシーポリシーへの同意が必要です'; errEl.style.display = ''; return; }
   }
 
   const btn = document.getElementById('authSubmitBtn');
