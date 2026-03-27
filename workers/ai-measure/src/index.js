@@ -64,6 +64,7 @@ export default {
 
       // 既存API
       if (path === '/api/measure' && request.method === 'POST') return await handleMeasure(request, env, user);
+      if (path === '/api/describe' && request.method === 'POST') return await handleDescribe(request, env, user);
       if (path === '/api/feedback' && request.method === 'POST') return await handleFeedback(request, env, user);
       if (path === '/api/usage' && request.method === 'GET') return await handleUsage(request, env, user);
 
@@ -519,6 +520,60 @@ async function handleStripeWebhook(request, env) {
   }
 
   return jsonResponse({ received: true });
+}
+
+// ==================================================
+// POST /api/describe — Gemini Flash で商品説明文生成
+// ==================================================
+async function handleDescribe(request, env, user) {
+  const { category, brand, size, condition, color, note, measurements } = await request.json();
+  if (!category) return jsonResponse({ error: 'カテゴリが必要です' }, 400);
+
+  // 採寸値を「肩幅: 42cm, 身幅: 50cm」形式に変換
+  let measureText = '';
+  if (measurements && typeof measurements === 'object') {
+    measureText = Object.entries(measurements)
+      .map(([k, v]) => `${k}: ${typeof v === 'object' ? v.value_cm : v}cm`)
+      .join(', ');
+  }
+
+  const catMap = { tops:'トップス', jacket:'ジャケット', pants:'パンツ', skirt:'スカート', dress:'ワンピース', salopette:'サロペット' };
+  const catJp = catMap[category] || category;
+
+  const prompt = `あなたはメルカリの上級出品者です。以下の情報から、商品タイトル（1行）と商品説明文を生成してください。
+
+カテゴリ: ${catJp}
+ブランド: ${brand || '不明'}
+サイズ表記: ${size || 'なし'}
+色: ${color || '不明'}
+状態: ${condition || '目立った傷や汚れなし'}
+採寸値(平置き実寸): ${measureText || 'なし'}
+補足: ${note || 'なし'}
+
+【ルール】
+- タイトルは40文字以内。ブランド名・カテゴリ・特徴を含める
+- 説明文は200〜300文字。自然で丁寧な日本語
+- 採寸値は「平置き実寸」と明記して全て記載
+- 状態の説明を含める
+- 「即購入OK」「送料込み」などの定型句を末尾に入れる
+- 出力フォーマット: 1行目=タイトル、空行、3行目以降=説明文`;
+
+  try {
+    const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key=${env.GEMINI_API_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.7, maxOutputTokens: 512 },
+      }),
+    });
+    const data = await resp.json();
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (!text) return jsonResponse({ error: 'AI応答が空です', detail: data }, 500);
+    return jsonResponse({ ok: true, description: text });
+  } catch (e) {
+    return jsonResponse({ error: '説明文生成に失敗しました: ' + e.message }, 500);
+  }
 }
 
 // ==================================================

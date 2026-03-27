@@ -1227,9 +1227,17 @@ async function runMeasure() {
       if(useDemo) {
         aiDescText = generateDemoAiDesc(category);
       } else {
-        // 本番: gpt-4o-mini で生成
-        // const descResp = await fetch(`${API_BASE}/api/describe`, ...);
-        aiDescText = generateDemoAiDesc(category);
+        try {
+          const measObj = {};
+          if(aiResult?.measurements) for(const [k,v] of Object.entries(aiResult.measurements)) measObj[k] = v;
+          const descResp = await fetch(`${API_BASE}/api/describe`, {
+            method:'POST', credentials:'same-origin',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({ category, ...itemInfo, measurements: measObj }),
+          });
+          const descData = await descResp.json();
+          aiDescText = descData.description || generateDemoAiDesc(category);
+        } catch(e) { aiDescText = generateDemoAiDesc(category); }
       }
 
       goStep(4);
