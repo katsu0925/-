@@ -279,7 +279,7 @@ document.addEventListener('visibilitychange', function() {
   if (document.visibilityState === 'visible' && getToken()
       && !document.getElementById('mainSection').classList.contains('hidden')
       && !_busyOperation && Date.now() - _lastRefresh > 30000) {
-    doRefresh();
+    doRefresh(null, true);
   }
 });
 
@@ -338,7 +338,7 @@ document.addEventListener('visibilitychange', function() {
 })();
 
 // ─── 更新実行（排他制御・展開状態保持） ───
-function doRefresh(cb) {
+function doRefresh(cb, silent) {
   if (_refreshing) { if (cb) cb(); return; }
   _refreshing = true;
   _lastRefresh = Date.now();
@@ -347,11 +347,15 @@ function doRefresh(cb) {
   loadUnmatchedCount();
   _listLoaded = false;
   var savedExpanded = _manageExpandedMid;
+  var prevData = JSON.stringify(productListData || []);
   refreshProductList(function() {
-    renderManageList();
-    if (savedExpanded) toggleManageExpand(savedExpanded);
+    var newData = JSON.stringify(productListData || []);
+    if (newData !== prevData || !silent) {
+      renderManageList();
+      if (savedExpanded) toggleManageExpand(savedExpanded);
+    }
     _finishRefresh(btn, cb);
-  });
+  }, silent);
 }
 function _finishRefresh(btn, cb) {
   if (btn) btn.style.animation = '';
@@ -817,8 +821,8 @@ function ensureListLoaded(cb) {
   refreshProductList(cb);
 }
 
-function refreshProductList(cb) {
-  showStatus('manageLoadStatus', '読み込み中...', 'info');
+function refreshProductList(cb, silent) {
+  if (!silent) showStatus('manageLoadStatus', '読み込み中...', 'info');
   fetch(API_BASE + '/upload/list', {
     method: 'POST',
     headers: headers({ 'Content-Type': 'application/json' }),
@@ -833,10 +837,12 @@ function refreshProductList(cb) {
     }
     productListData = d.items || [];
     _listLoaded = true;
-    if (productListData.length === 0) {
-      showStatus('manageLoadStatus', 'アップロード済み商品はありません', 'info');
-    } else {
-      showStatus('manageLoadStatus', productListData.length + '件の商品', 'ok');
+    if (!silent) {
+      if (productListData.length === 0) {
+        showStatus('manageLoadStatus', 'アップロード済み商品はありません', 'info');
+      } else {
+        showStatus('manageLoadStatus', productListData.length + '件の商品', 'ok');
+      }
     }
     if (cb) cb();
   }).catch(function(e) { showStatus('manageLoadStatus', 'ネットワークエラー', 'err'); if (cb) cb(); });
