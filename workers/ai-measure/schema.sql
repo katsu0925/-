@@ -61,3 +61,15 @@ CREATE TABLE IF NOT EXISTS sm_usage (
   UNIQUE(ip_hash, month)
 );
 CREATE INDEX IF NOT EXISTS idx_sm_usage_month ON sm_usage(month);
+
+-- チームメンバー
+CREATE TABLE IF NOT EXISTS sm_team_members (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  owner_id TEXT NOT NULL,               -- チームオーナーのsm_users.id
+  member_id TEXT NOT NULL,              -- メンバーのsm_users.id
+  role TEXT NOT NULL DEFAULT 'member',  -- 'owner' | 'member'
+  joined_at TEXT NOT NULL,
+  UNIQUE(owner_id, member_id)
+);
+CREATE INDEX IF NOT EXISTS idx_sm_team_owner ON sm_team_members(owner_id);
+CREATE INDEX IF NOT EXISTS idx_sm_team_member ON sm_team_members(member_id);

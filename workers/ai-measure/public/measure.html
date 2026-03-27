@@ -2259,7 +2259,7 @@ function setMode(t,active,success){
 window.addEventListener('resize',()=>{for(const k of Object.keys(overlays))drawLine(k);if(step===2&&a4Dots.length){drawA4Dots();}});
 
 goStep(1);
-initAuth(); // セッション復元
+initAuth().then(() => handleInviteToken()); // セッション復元 + 招待処理
 // 初回アクセス時はガイドを自動表示
 if(!localStorage.getItem('ai_measure_guide_seen')){showGuide();}
 function hideGuide(){document.getElementById('guideModal').style.display='none';localStorage.setItem('ai_measure_guide_seen','1');}
@@ -2519,6 +2519,9 @@ async function doAuth() {
     updateAuthUI();
     document.getElementById('loginModal').style.display = 'none';
     toggleMenu();
+    // 保留中の招待トークンがあれば処理
+    const pendingInvite = sessionStorage.getItem('pending_invite');
+    if (pendingInvite) { sessionStorage.removeItem('pending_invite'); joinTeamWithToken(pendingInvite); }
   } catch(e) {
     errEl.textContent = '通信エラーが発生しました'; errEl.style.display = '';
   }
@@ -2548,6 +2551,8 @@ function showAccountModal() {
       <p style="font-size:13px;color:var(--text2);margin-top:6px">今月の残り: <b style="color:var(--accent)">${remaining} 回</b></p>
     </div>
     ${u.plan !== 'free' ? `<button onclick="openPortal()" class="btn btn-primary">サブスクリプション管理</button>` : `<button onclick="showPlanModal();document.getElementById('loginModal').style.display='none'" class="btn btn-primary">プランを変更</button>`}
+    ${(u.plan === 'pro' || u.plan === 'team') && u.teamRole !== 'member' ? `<button onclick="showTeamModal()" class="btn btn-secondary" style="margin-top:8px">チーム管理</button>` : ''}
+    ${u.teamRole === 'member' ? `<button onclick="leaveTeam()" class="btn btn-secondary" style="margin-top:8px;color:var(--accent)">チームから脱退</button>` : ''}
     <button onclick="doLogout()" class="btn btn-secondary" style="margin-top:8px">ログアウト</button>
   </div>`;
   document.body.appendChild(m);
@@ -2587,6 +2592,94 @@ async function openPortal() {
     if (data.url) window.location.href = data.url;
     else alert(data.error || 'エラーが発生しました');
   } catch(e) { alert('通信エラーが発生しました'); }
+}
+
+// ============ チーム管理 ============
+async function showTeamModal() {
+  document.getElementById('loginModal')?.remove();
+  const resp = await fetch('/api/team/members', { credentials: 'same-origin' });
+  const data = await resp.json();
+  const m = document.createElement('div');
+  m.id = 'loginModal';
+  m.style.cssText = 'position:fixed;inset:0;z-index:150;background:var(--overlay-bg);overflow-y:auto;-webkit-overflow-scrolling:touch;display:block';
+  const memberRows = (data.members||[]).map(mb => `
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border)">
+      <div><div style="font-size:13px;color:var(--text)">${mb.email}</div><div style="font-size:10px;color:var(--text4)">${mb.joined_at?.slice(0,10)||''}</div></div>
+      <button onclick="removeMember('${mb.member_id}')" style="background:none;border:1px solid var(--accent);color:var(--accent);font-size:11px;padding:3px 8px;border-radius:6px;cursor:pointer">削除</button>
+    </div>`).join('');
+  m.innerHTML = `<div style="max-width:400px;margin:0 auto;padding:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2 style="font-size:17px;color:var(--text)">チーム管理</h2>
+      <button onclick="document.getElementById('loginModal').style.display='none'" style="background:none;border:none;color:var(--text);font-size:24px;cursor:pointer">✕</button>
+    </div>
+    <div style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:12px">
+      <p style="font-size:13px;color:var(--text2)">メンバー: <b style="color:var(--text)">${data.count||1} / ${data.maxMembers||0}人</b></p>
+    </div>
+    <button onclick="generateInvite()" class="btn btn-primary" style="margin-bottom:12px">招待リンクを生成</button>
+    <div id="inviteResult" style="display:none;background:var(--bg3);border-radius:8px;padding:10px;margin-bottom:12px;word-break:break-all">
+      <p style="font-size:11px;color:var(--text4);margin-bottom:4px">招待リンク（7日間有効）:</p>
+      <p style="font-size:12px;color:var(--success-light)" id="inviteUrl"></p>
+      <button onclick="copyInvite()" style="margin-top:6px;background:var(--success);color:#fff;border:none;padding:4px 12px;border-radius:6px;font-size:11px;cursor:pointer">コピー</button>
+    </div>
+    <div style="margin-top:8px">
+      <p style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px">メンバー一覧</p>
+      ${memberRows || '<p style="font-size:12px;color:var(--text4)">まだメンバーがいません</p>'}
+    </div>
+    <button onclick="document.getElementById('loginModal').style.display='none'" class="btn btn-secondary" style="margin-top:16px">閉じる</button>
+  </div>`;
+  document.body.appendChild(m);
+}
+
+async function generateInvite() {
+  const resp = await fetch('/api/team/invite', { method: 'POST', credentials: 'same-origin' });
+  const data = await resp.json();
+  if (data.inviteUrl) {
+    document.getElementById('inviteUrl').textContent = data.inviteUrl;
+    document.getElementById('inviteResult').style.display = '';
+  } else { alert(data.error || 'エラーが発生しました'); }
+}
+
+function copyInvite() {
+  const url = document.getElementById('inviteUrl')?.textContent;
+  if (url) { navigator.clipboard.writeText(url); alert('コピーしました'); }
+}
+
+async function removeMember(memberId) {
+  if (!confirm('このメンバーを削除しますか？')) return;
+  await fetch('/api/team/remove', { method: 'POST', credentials: 'same-origin', headers: {'Content-Type':'application/json'}, body: JSON.stringify({memberId}) });
+  showTeamModal(); // リロード
+}
+
+async function leaveTeam() {
+  if (!confirm('チームから脱退しますか？')) return;
+  await fetch('/api/team/leave', { method: 'POST', credentials: 'same-origin' });
+  await initAuth(); // 状態更新
+  document.getElementById('loginModal')?.remove();
+  toggleMenu();
+}
+
+// 招待リンクからの参加処理
+async function handleInviteToken() {
+  const params = new URLSearchParams(location.search);
+  const token = params.get('invite');
+  if (!token) return;
+  history.replaceState({}, '', location.pathname);
+
+  if (!currentUser) {
+    // 未ログイン → ログインフォームを表示し、成功後に自動参加
+    sessionStorage.setItem('pending_invite', token);
+    showLoginModal();
+    return;
+  }
+  // ログイン済み → 直接参加
+  await joinTeamWithToken(token);
+}
+
+async function joinTeamWithToken(token) {
+  const resp = await fetch('/api/team/join', { method: 'POST', credentials: 'same-origin', headers: {'Content-Type':'application/json'}, body: JSON.stringify({token}) });
+  const data = await resp.json();
+  if (data.ok) { alert('チームに参加しました'); await initAuth(); }
+  else alert(data.error || 'チーム参加に失敗しました');
 }
 
 // ============ PWA: Service Worker 登録 + 更新通知 ============

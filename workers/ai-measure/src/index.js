@@ -16,6 +16,7 @@
 const SESSION_TTL = 30 * 24 * 3600; // 30日 (秒)
 const COOKIE_NAME = 'sm_session';
 const PLAN_LIMITS = { free: 5, light: 50, standard: 100, pro: 300, team: 500 };
+const TEAM_MEMBER_LIMITS = { pro: 3, team: 5 }; // オーナー含む
 
 // Stripe 価格ID → プラン名マッピング
 const STRIPE_PRICE_TO_PLAN = {
@@ -48,6 +49,13 @@ export default {
       if (path === '/api/auth/login' && request.method === 'POST') return await handleLogin(request, env);
       if (path === '/api/auth/logout' && request.method === 'POST') return handleLogout();
       if (path === '/api/auth/me' && request.method === 'GET') return await handleMe(request, env, user);
+
+      // チームAPI
+      if (path === '/api/team/invite' && request.method === 'POST') return await handleTeamInvite(request, env, user);
+      if (path === '/api/team/join' && request.method === 'POST') return await handleTeamJoin(request, env, user);
+      if (path === '/api/team/members' && request.method === 'GET') return await handleTeamMembers(request, env, user);
+      if (path === '/api/team/remove' && request.method === 'POST') return await handleTeamRemove(request, env, user);
+      if (path === '/api/team/leave' && request.method === 'POST') return await handleTeamLeave(request, env, user);
 
       // Stripe API
       if (path === '/api/stripe/checkout' && request.method === 'POST') return await handleStripeCheckout(request, env, user);
@@ -156,9 +164,39 @@ async function createSession(env, user) {
 // ==================================================
 function currentMonth() { return new Date().toISOString().slice(0, 7); }
 
+// チームのオーナー情報を取得（メンバーならオーナーを返す、オーナー自身ならnull）
+async function getTeamOwner(env, userId) {
+  const membership = await env.DB.prepare('SELECT owner_id FROM sm_team_members WHERE member_id = ?').bind(userId).first();
+  if (!membership) return null;
+  return await env.DB.prepare('SELECT id, plan, monthly_limit FROM sm_users WHERE id = ?').bind(membership.owner_id).first();
+}
+
+// チーム全体の使用量を合算
+async function getTeamUsage(env, ownerId, month) {
+  // オーナー自身 + 全メンバーの使用量合算
+  const row = await env.DB.prepare(`SELECT COALESCE(SUM(u.used), 0) as total FROM sm_usage u
+    WHERE u.month = ? AND (u.user_id = ? OR u.user_id IN (SELECT member_id FROM sm_team_members WHERE owner_id = ?))`)
+    .bind(month, ownerId, ownerId).first();
+  return row?.total || 0;
+}
+
 async function getUsage(env, user, request) {
   const month = currentMonth();
   if (user) {
+    // チームメンバーかチェック
+    const teamOwner = await getTeamOwner(env, user.userId);
+    if (teamOwner) {
+      // メンバー → オーナーの枠を使う
+      const used = await getTeamUsage(env, teamOwner.id, month);
+      return { used, limit: teamOwner.monthly_limit || PLAN_LIMITS[teamOwner.plan] || 5, plan: teamOwner.plan, teamRole: 'member' };
+    }
+    // オーナーかチェック（自分がチームを持っている場合）
+    const hasTeam = await env.DB.prepare('SELECT COUNT(*) as cnt FROM sm_team_members WHERE owner_id = ?').bind(user.userId).first();
+    if (hasTeam?.cnt > 0) {
+      const used = await getTeamUsage(env, user.userId, month);
+      return { used, limit: user.limit || PLAN_LIMITS[user.plan] || 5, plan: user.plan, teamRole: 'owner' };
+    }
+    // ソロユーザー
     const row = await env.DB.prepare('SELECT used FROM sm_usage WHERE user_id = ? AND month = ?').bind(user.userId, month).first();
     return { used: row?.used || 0, limit: user.limit || PLAN_LIMITS[user.plan] || 5, plan: user.plan };
   }
@@ -338,6 +376,100 @@ async function handleStripePortal(request, env, user) {
 }
 
 // ==================================================
+// チーム管理 API
+// ==================================================
+async function handleTeamInvite(request, env, user) {
+  if (!user) return jsonResponse({ error: 'ログインが必要です' }, 401);
+  const dbUser = await env.DB.prepare('SELECT plan FROM sm_users WHERE id = ?').bind(user.userId).first();
+  const maxMembers = TEAM_MEMBER_LIMITS[dbUser?.plan] || 0;
+  if (maxMembers === 0) return jsonResponse({ error: 'チーム機能はプロプラン以上で利用できます' }, 403);
+
+  const memberCount = await env.DB.prepare('SELECT COUNT(*) as cnt FROM sm_team_members WHERE owner_id = ?').bind(user.userId).first();
+  if ((memberCount?.cnt || 0) + 1 >= maxMembers) return jsonResponse({ error: `メンバー上限（${maxMembers}人）に達しています` }, 400);
+
+  const token = generateHex(32);
+  await env.SM_SESSIONS.put(`invite:${token}`, JSON.stringify({ ownerId: user.userId }), { expirationTtl: 7 * 24 * 3600 });
+  const origin = new URL(request.url).origin;
+  return jsonResponse({ ok: true, inviteUrl: `${origin}/measure?invite=${token}`, token });
+}
+
+async function handleTeamJoin(request, env, user) {
+  if (!user) return jsonResponse({ error: 'ログインが必要です' }, 401);
+  const { token } = await request.json();
+  if (!token) return jsonResponse({ error: '招待トークンが必要です' }, 400);
+
+  const invite = await env.SM_SESSIONS.get(`invite:${token}`, 'json');
+  if (!invite) return jsonResponse({ error: '招待リンクが無効または期限切れです' }, 400);
+
+  if (invite.ownerId === user.userId) return jsonResponse({ error: '自分自身を招待することはできません' }, 400);
+
+  // 既に別チームに所属していないかチェック
+  const existing = await env.DB.prepare('SELECT owner_id FROM sm_team_members WHERE member_id = ?').bind(user.userId).first();
+  if (existing) return jsonResponse({ error: '既に別のチームに所属しています。先に脱退してください' }, 400);
+
+  // 上限チェック
+  const owner = await env.DB.prepare('SELECT plan FROM sm_users WHERE id = ?').bind(invite.ownerId).first();
+  const maxMembers = TEAM_MEMBER_LIMITS[owner?.plan] || 0;
+  const memberCount = await env.DB.prepare('SELECT COUNT(*) as cnt FROM sm_team_members WHERE owner_id = ?').bind(invite.ownerId).first();
+  if ((memberCount?.cnt || 0) + 1 >= maxMembers) return jsonResponse({ error: 'チームのメンバー上限に達しています' }, 400);
+
+  await env.DB.prepare('INSERT INTO sm_team_members (owner_id, member_id, role, joined_at) VALUES (?, ?, ?, ?)')
+    .bind(invite.ownerId, user.userId, 'member', new Date().toISOString()).run();
+
+  // 使用済みトークンを削除
+  await env.SM_SESSIONS.delete(`invite:${token}`);
+  return jsonResponse({ ok: true });
+}
+
+async function handleTeamMembers(request, env, user) {
+  if (!user) return jsonResponse({ error: 'ログインが必要です' }, 401);
+  const members = await env.DB.prepare(`SELECT tm.member_id, tm.role, tm.joined_at, u.email, u.display_name
+    FROM sm_team_members tm JOIN sm_users u ON tm.member_id = u.id WHERE tm.owner_id = ? ORDER BY tm.joined_at`)
+    .bind(user.userId).all();
+
+  const dbUser = await env.DB.prepare('SELECT plan FROM sm_users WHERE id = ?').bind(user.userId).first();
+  const maxMembers = TEAM_MEMBER_LIMITS[dbUser?.plan] || 0;
+
+  return jsonResponse({
+    members: members.results,
+    count: members.results.length + 1, // +1 for owner
+    maxMembers,
+    plan: dbUser?.plan,
+  });
+}
+
+async function handleTeamRemove(request, env, user) {
+  if (!user) return jsonResponse({ error: 'ログインが必要です' }, 401);
+  const { memberId } = await request.json();
+  if (!memberId) return jsonResponse({ error: 'メンバーIDが必要です' }, 400);
+
+  await env.DB.prepare('DELETE FROM sm_team_members WHERE owner_id = ? AND member_id = ?').bind(user.userId, memberId).run();
+  return jsonResponse({ ok: true });
+}
+
+async function handleTeamLeave(request, env, user) {
+  if (!user) return jsonResponse({ error: 'ログインが必要です' }, 401);
+  await env.DB.prepare('DELETE FROM sm_team_members WHERE member_id = ?').bind(user.userId).run();
+  return jsonResponse({ ok: true });
+}
+
+// ダウングレード時のメンバー自動削除
+async function trimTeamMembers(env, ownerId, newPlan) {
+  const maxMembers = TEAM_MEMBER_LIMITS[newPlan] || 0;
+  if (maxMembers === 0) {
+    // チーム機能なしプラン → 全メンバー削除
+    await env.DB.prepare('DELETE FROM sm_team_members WHERE owner_id = ?').bind(ownerId).run();
+    return;
+  }
+  // 上限超過分を参加日の新しい順に削除（オーナー分の1を引く）
+  const excess = await env.DB.prepare(`SELECT id FROM sm_team_members WHERE owner_id = ?
+    ORDER BY joined_at DESC LIMIT -1 OFFSET ?`).bind(ownerId, maxMembers - 1).all();
+  for (const row of excess.results) {
+    await env.DB.prepare('DELETE FROM sm_team_members WHERE id = ?').bind(row.id).run();
+  }
+}
+
+// ==================================================
 // POST /api/stripe/webhook — Stripe Webhook
 // ==================================================
 async function handleStripeWebhook(request, env) {
@@ -369,12 +501,18 @@ async function handleStripeWebhook(request, env) {
       const limit = PLAN_LIMITS[plan] || 5;
       await env.DB.prepare('UPDATE sm_users SET plan = ?, monthly_limit = ?, updated_at = ? WHERE stripe_customer_id = ?')
         .bind(plan, limit, new Date().toISOString(), customerId).run();
+      // ダウングレード時のチームメンバー自動削除
+      const owner = await env.DB.prepare('SELECT id FROM sm_users WHERE stripe_customer_id = ?').bind(customerId).first();
+      if (owner) await trimTeamMembers(env, owner.id, plan);
     }
   }
 
   if (type === 'customer.subscription.deleted') {
     const customerId = data.customer;
     if (customerId) {
+      // チーム全メンバー削除
+      const owner = await env.DB.prepare('SELECT id FROM sm_users WHERE stripe_customer_id = ?').bind(customerId).first();
+      if (owner) await trimTeamMembers(env, owner.id, 'free');
       await env.DB.prepare('UPDATE sm_users SET plan = ?, monthly_limit = ?, updated_at = ? WHERE stripe_customer_id = ?')
         .bind('free', 5, new Date().toISOString(), customerId).run();
     }
