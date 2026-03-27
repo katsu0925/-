@@ -2299,7 +2299,7 @@ function showPlanModal() {
     </div>
 
     <!-- ライト -->
-    <div style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:8px;border:1px solid var(--border)">
+    <div onclick="subscribePlan('light')" style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:8px;border:1px solid var(--border);cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:15px;font-weight:700;color:var(--text)">ライト</span>
         <div style="text-align:right">
@@ -2310,10 +2310,11 @@ function showPlanModal() {
       <div style="background:#e8f5e9;border-radius:6px;padding:6px 10px;margin-top:8px;font-size:11px;color:#1b5e20">
         外注比で<b>月4,000円以上</b>おトク（外注100円/件の場合）
       </div>
+      <div style="text-align:center;margin-top:8px;font-size:11px;color:var(--accent);font-weight:600">タップして申し込む →</div>
     </div>
 
     <!-- スタンダード（おすすめ） -->
-    <div style="background:var(--card-bg);border:2px solid var(--accent);border-radius:10px;padding:14px;margin-bottom:8px;position:relative">
+    <div onclick="subscribePlan('standard')" style="background:var(--card-bg);border:2px solid var(--accent);border-radius:10px;padding:14px;margin-bottom:8px;position:relative;cursor:pointer;transition:all 0.15s" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform=''">
       <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;font-size:10px;font-weight:700;padding:2px 12px;border-radius:10px">おすすめ</div>
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:15px;font-weight:700;color:var(--text)">スタンダード</span>
@@ -2325,20 +2326,37 @@ function showPlanModal() {
       <div style="background:#e8f5e9;border-radius:6px;padding:6px 10px;margin-top:8px;font-size:11px;color:#1b5e20">
         外注比で<b>月8,500円以上</b>おトク。副業セラーに最適
       </div>
+      <div style="text-align:center;margin-top:8px;font-size:12px;color:#fff;font-weight:700;background:var(--accent);border-radius:6px;padding:6px">申し込む</div>
     </div>
 
     <!-- プロ -->
-    <div style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:8px;border:1px solid var(--border)">
+    <div onclick="subscribePlan('pro')" style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:8px;border:1px solid var(--border);cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:15px;font-weight:700;color:var(--text)">プロ</span>
         <div style="text-align:right">
           <span style="font-size:20px;font-weight:700;color:var(--text)">¥3,480</span><span style="font-size:11px;color:var(--text4)">/月</span>
         </div>
       </div>
-      <p style="font-size:12px;color:var(--text3);margin-top:4px">月 <b style="color:var(--text)">300件</b>（1件¥11.6）</p>
+      <p style="font-size:12px;color:var(--text3);margin-top:4px">月 <b style="color:var(--text)">300件</b>（1件¥11.6）・チーム3人</p>
       <div style="background:#e8f5e9;border-radius:6px;padding:6px 10px;margin-top:8px;font-size:11px;color:#1b5e20">
         外注比で<b>月26,000円以上</b>おトク。本業セラー向け
       </div>
+      <div style="text-align:center;margin-top:8px;font-size:11px;color:var(--accent);font-weight:600">タップして申し込む →</div>
+    </div>
+
+    <!-- チーム -->
+    <div onclick="subscribePlan('team')" style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:8px;border:1px solid var(--border);cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-size:15px;font-weight:700;color:var(--text)">チーム</span>
+        <div style="text-align:right">
+          <span style="font-size:20px;font-weight:700;color:var(--text)">¥5,980</span><span style="font-size:11px;color:var(--text4)">/月</span>
+        </div>
+      </div>
+      <p style="font-size:12px;color:var(--text3);margin-top:4px">月 <b style="color:var(--text)">500件</b>（1件¥12.0）・チーム5人</p>
+      <div style="background:#e8f5e9;border-radius:6px;padding:6px 10px;margin-top:8px;font-size:11px;color:#1b5e20">
+        中規模ショップ向け。スタッフ全員で使える
+      </div>
+      <div style="text-align:center;margin-top:8px;font-size:11px;color:var(--accent);font-weight:600">タップして申し込む →</div>
     </div>
 
     <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-top:12px">
@@ -2363,13 +2381,7 @@ function showPlanModal() {
       </table>
     </div>
 
-    <div style="margin-top:16px">
-      <button onclick="subscribePlan('light')" class="btn btn-secondary" style="margin-bottom:6px">ライトに申し込む — ¥980/月</button>
-      <button onclick="subscribePlan('standard')" class="btn btn-primary" style="margin-bottom:6px">スタンダードに申し込む — ¥1,480/月</button>
-      <button onclick="subscribePlan('pro')" class="btn btn-secondary" style="margin-bottom:6px">プロに申し込む — ¥3,480/月</button>
-      <button onclick="subscribePlan('team')" class="btn btn-secondary" style="margin-bottom:6px">チームに申し込む — ¥5,980/月</button>
-    </div>
-    <button onclick="document.getElementById('planModal').style.display='none'" class="btn btn-secondary" style="margin-top:8px">閉じる</button>
+    <button onclick="document.getElementById('planModal').style.display='none'" class="btn btn-secondary" style="margin-top:12px">閉じる</button>
   </div>`;
   document.body.appendChild(m);
   // 機能比較テーブル生成
