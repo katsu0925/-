@@ -350,12 +350,13 @@ function doRefresh(cb, silent) {
   var prevData = JSON.stringify(productListData || []);
   refreshProductList(function() {
     var newData = JSON.stringify(productListData || []);
-    if (newData !== prevData || !silent) {
+    if (newData !== prevData) {
       renderManageList();
       if (savedExpanded) toggleManageExpand(savedExpanded);
+      showStatus('manageLoadStatus', productListData.length + '件の商品', 'ok');
     }
     _finishRefresh(btn, cb);
-  }, silent);
+  }, true);
 }
 function _finishRefresh(btn, cb) {
   if (btn) btn.style.animation = '';
