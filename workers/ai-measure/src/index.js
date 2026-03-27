@@ -68,6 +68,10 @@ export default {
       if (path === '/api/feedback' && request.method === 'POST') return await handleFeedback(request, env, user);
       if (path === '/api/usage' && request.method === 'GET') return await handleUsage(request, env, user);
 
+      // 管理API
+      if (path === '/api/admin/set-plan' && request.method === 'POST') return await handleAdminSetPlan(request, env, user);
+      if (path === '/api/admin/reset-usage' && request.method === 'POST') return await handleAdminResetUsage(request, env, user);
+
       return jsonResponse({ error: 'Not found' }, 404);
     } catch (e) {
       console.error(e);
@@ -574,6 +578,45 @@ async function handleDescribe(request, env, user) {
   } catch (e) {
     return jsonResponse({ error: '説明文生成に失敗しました: ' + e.message }, 500);
   }
+}
+
+// ==================================================
+// 管理API（?admin=1 からのみ利用）
+// ==================================================
+const ADMIN_EMAILS = ['nkonline1030@gmail.com', 'nsdktts1030@gmail.com'];
+
+async function handleAdminSetPlan(request, env, user) {
+  if (!user || !ADMIN_EMAILS.includes(user.email)) return jsonResponse({ error: '権限がありません' }, 403);
+  const { plan, targetUserId } = await request.json();
+  const userId = targetUserId || user.userId;
+  const limit = PLAN_LIMITS[plan];
+  if (!limit && plan !== 'free') return jsonResponse({ error: '無効なプランです' }, 400);
+  await env.DB.prepare('UPDATE sm_users SET plan = ?, monthly_limit = ?, updated_at = ? WHERE id = ?')
+    .bind(plan, limit || 5, new Date().toISOString(), userId).run();
+  // セッションも更新
+  const cookie = request.headers.get('Cookie') || '';
+  const match = cookie.match(new RegExp(`${COOKIE_NAME}=([a-f0-9]+)`));
+  if (match) {
+    const sd = await env.SM_SESSIONS.get(`sm_session:${match[1]}`, 'json');
+    if (sd) { sd.plan = plan; sd.limit = limit || 5; await env.SM_SESSIONS.put(`sm_session:${match[1]}`, JSON.stringify(sd), { expirationTtl: SESSION_TTL }); }
+  }
+  // ダウングレード時のチームメンバー整理
+  await trimTeamMembers(env, userId, plan);
+  return jsonResponse({ ok: true, plan, limit: limit || 5 });
+}
+
+async function handleAdminResetUsage(request, env, user) {
+  if (!user || !ADMIN_EMAILS.includes(user.email)) return jsonResponse({ error: '権限がありません' }, 403);
+  const { targetUserId, used } = await request.json();
+  const userId = targetUserId || user.userId;
+  const month = currentMonth();
+  if (typeof used === 'number') {
+    await env.DB.prepare('INSERT INTO sm_usage (user_id, month, used) VALUES (?, ?, ?) ON CONFLICT(user_id, month) DO UPDATE SET used = ?')
+      .bind(userId, month, used, used).run();
+  } else {
+    await env.DB.prepare('DELETE FROM sm_usage WHERE user_id = ? AND month = ?').bind(userId, month).run();
+  }
+  return jsonResponse({ ok: true });
 }
 
 // ==================================================

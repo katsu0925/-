@@ -2641,23 +2641,23 @@ function initAdminPanel() {
   adminUpdateStatus();
 }
 
-function adminSwitchPlan(plan) {
-  if (!currentUser) {
-    currentUser = { id:'ADMIN', email:'admin@test', plan, used:0, limit:PLAN_LIMITS[plan], teamRole:null };
-  } else {
-    currentUser.plan = plan;
-    currentUser.limit = PLAN_LIMITS[plan];
-  }
-  updateAuthUI();
+async function adminSwitchPlan(plan) {
+  if (!currentUser) { alert('先にログインしてください'); return; }
+  const resp = await fetch('/api/admin/set-plan', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body:JSON.stringify({plan}) });
+  const data = await resp.json();
+  if (!data.ok) { alert(data.error || 'エラー'); return; }
+  await initAuth();
   adminUpdateStatus();
 }
 
-function adminSetUsage(val) {
+async function adminSetUsage(val) {
   if (!currentUser) return;
-  if (val === 'half') currentUser.used = Math.floor(currentUser.limit / 2);
-  else if (val === 'max') currentUser.used = currentUser.limit;
-  else currentUser.used = val;
-  updateAuthUI();
+  let used = 0;
+  if (val === 'half') used = Math.floor((currentUser.limit||5) / 2);
+  else if (val === 'max') used = currentUser.limit || 5;
+  else used = val;
+  await fetch('/api/admin/reset-usage', { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json'}, body:JSON.stringify({used}) });
+  await initAuth();
   adminUpdateStatus();
 }
 
