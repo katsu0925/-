@@ -743,6 +743,21 @@ function renderStep1(scroll, actions) {
       </label>`;
   } else {
     scroll.innerHTML = `
+      <div style="margin:12px 12px 0;display:flex;gap:8px;overflow-x:auto">
+        <div style="flex-shrink:0;width:100px;border-radius:10px;overflow:hidden;position:relative;border:1px solid var(--border)">
+          <img src="/img/guide-tops.jpg" alt="トップス例" style="width:100%;height:100px;object-fit:cover">
+          <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.6);padding:3px 6px;font-size:9px;color:#fff;text-align:center">トップス</div>
+        </div>
+        <div style="flex-shrink:0;width:100px;border-radius:10px;overflow:hidden;position:relative;border:1px solid var(--border)">
+          <img src="/img/guide-pants.jpg" alt="パンツ例" style="width:100%;height:100px;object-fit:cover">
+          <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.6);padding:3px 6px;font-size:9px;color:#fff;text-align:center">パンツ</div>
+        </div>
+        <div style="flex-shrink:0;width:100px;border-radius:10px;overflow:hidden;position:relative;border:1px solid var(--border)">
+          <img src="/img/guide-coat.jpg" alt="コート例" style="width:100%;height:100px;object-fit:cover">
+          <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.6);padding:3px 6px;font-size:9px;color:#fff;text-align:center">コート</div>
+        </div>
+      </div>
+      <p style="text-align:center;font-size:10px;color:var(--text4);margin:4px 0 0">平置き + A4用紙を右下に配置して撮影</p>
       <label class="drop-zone" style="cursor:pointer">
         <div class="drop-zone-icon"><svg width="48" height="48" viewBox="0 0 48 48" fill="none">
           <rect x="8" y="12" width="32" height="24" rx="4" stroke="currentColor" stroke-width="2"/>
@@ -753,26 +768,7 @@ function renderStep1(scroll, actions) {
         <div class="drop-zone-text">タップして撮影 / 写真を選択</div>
         <div class="drop-zone-sub">衣類 + A4用紙を撮影してください</div>
         <input type="file" accept="image/*" style="display:none" onchange="onFile(event)">
-      </label>` + (firstTime ? `
-      <div style="padding:0 12px 8px">
-        <div style="display:flex;gap:8px;margin-top:4px">
-          <div style="flex:1;background:var(--bg3);border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid var(--border)">
-            <div style="font-size:20px;margin-bottom:4px;opacity:0.7">1</div>
-            <div style="font-size:11px;color:var(--text2);font-weight:600">平置き + A4</div>
-            <div style="font-size:10px;color:var(--text4);margin-top:2px">右下に配置</div>
-          </div>
-          <div style="flex:1;background:var(--bg3);border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid var(--border)">
-            <div style="font-size:20px;margin-bottom:4px;opacity:0.7">2</div>
-            <div style="font-size:11px;color:var(--text2);font-weight:600">上から撮影</div>
-            <div style="font-size:10px;color:var(--text4);margin-top:2px">斜めでもOK</div>
-          </div>
-          <div style="flex:1;background:var(--bg3);border-radius:var(--radius-sm);padding:10px;text-align:center;border:1px solid var(--border)">
-            <div style="font-size:20px;margin-bottom:4px;opacity:0.7">3</div>
-            <div style="font-size:11px;color:var(--text2);font-weight:600">AI自動採寸</div>
-            <div style="font-size:10px;color:var(--text4);margin-top:2px">コピーして出品</div>
-          </div>
-        </div>
-      </div>` : '');
+      </label>`;
     actions.innerHTML = '';
   }
 }
