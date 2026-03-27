@@ -343,7 +343,7 @@ function doRefresh(cb, silent) {
   _refreshing = true;
   _lastRefresh = Date.now();
   var btn = document.getElementById('refreshBtn');
-  if (btn) { btn.style.animation = 'ptr-spin .6s linear infinite'; btn.style.transformOrigin = 'center'; }
+  if (btn) { btn.style.opacity = '0.4'; }
   loadUnmatchedCount();
   _listLoaded = false;
   var savedExpanded = _manageExpandedMid;
@@ -359,7 +359,7 @@ function doRefresh(cb, silent) {
   }, true);
 }
 function _finishRefresh(btn, cb) {
-  if (btn) btn.style.animation = '';
+  if (btn) { btn.style.opacity = ''; }
   _refreshing = false;
   if (cb) cb();
 }
@@ -390,12 +390,15 @@ function loadUnmatchedCount() {
   .then(function(d) {
     if (d.ok && d.total > 0) {
       var badge = document.getElementById('unmatchedBadge');
-      badge.textContent = d.total;
-      badge.style.display = 'inline';
-      // 7日以上の警告があれば赤く
+      var newText = String(d.total);
       var hasWarning = d.items && d.items.some(function(i) { return i.warning; });
-      if (hasWarning) badge.style.background = '#ef4444';
-      else badge.style.background = '#f59e0b';
+      var newBg = hasWarning ? '#ef4444' : '#f59e0b';
+      // 値が変わった場合のみDOMを更新
+      if (badge.textContent !== newText || badge.style.display !== 'inline' || badge.style.background !== newBg) {
+        badge.textContent = newText;
+        badge.style.display = 'inline';
+        badge.style.background = newBg;
+      }
     }
   }).catch(function() {});
 }
