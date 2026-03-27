@@ -2530,6 +2530,9 @@ async function doAuth() {
     // 保留中の招待トークンがあれば処理
     const pendingInvite = sessionStorage.getItem('pending_invite');
     if (pendingInvite) { sessionStorage.removeItem('pending_invite'); joinTeamWithToken(pendingInvite); }
+    // 保留中のプラン申し込みがあれば処理
+    const pendingPlan = sessionStorage.getItem('pending_plan');
+    if (pendingPlan) { sessionStorage.removeItem('pending_plan'); subscribePlan(pendingPlan); }
   } catch(e) {
     errEl.textContent = '通信エラーが発生しました'; errEl.style.display = '';
   }
@@ -2579,7 +2582,16 @@ async function doLogout() {
 const PLAN_LIMITS = { free: 5, light: 50, standard: 100, pro: 300, team: 500 };
 
 async function subscribePlan(plan) {
-  if (!currentUser) { showLoginModal(); return; }
+  if (!currentUser) {
+    document.getElementById('planModal').style.display = 'none';
+    sessionStorage.setItem('pending_plan', plan);
+    showLoginModal();
+    return;
+  }
+  // プランモーダルを閉じてローディング表示
+  const planModal = document.getElementById('planModal');
+  if (planModal) planModal.style.display = 'none';
+  setMode('決済ページに移動中...', true);
   try {
     const resp = await fetch('/api/stripe/checkout', {
       method: 'POST', credentials: 'same-origin',
@@ -2588,8 +2600,8 @@ async function subscribePlan(plan) {
     });
     const data = await resp.json();
     if (data.url) window.location.href = data.url;
-    else alert(data.error || 'エラーが発生しました');
-  } catch(e) { alert('通信エラーが発生しました'); }
+    else { alert(data.error || 'エラーが発生しました'); setMode('衣類 + A4用紙（右下に配置）を撮影してください'); }
+  } catch(e) { alert('通信エラーが発生しました'); setMode('衣類 + A4用紙（右下に配置）を撮影してください'); }
 }
 
 async function openPortal() {
