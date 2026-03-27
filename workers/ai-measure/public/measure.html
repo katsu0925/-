@@ -2355,7 +2355,13 @@ function showPlanModal() {
       </table>
     </div>
 
-    <button onclick="document.getElementById('planModal').style.display='none'" class="btn btn-primary" style="margin-top:16px">閉じる</button>
+    <div style="margin-top:16px">
+      <button onclick="subscribePlan('light')" class="btn btn-secondary" style="margin-bottom:6px">ライトに申し込む — ¥980/月</button>
+      <button onclick="subscribePlan('standard')" class="btn btn-primary" style="margin-bottom:6px">スタンダードに申し込む — ¥1,480/月</button>
+      <button onclick="subscribePlan('pro')" class="btn btn-secondary" style="margin-bottom:6px">プロに申し込む — ¥3,480/月</button>
+      <button onclick="subscribePlan('team')" class="btn btn-secondary" style="margin-bottom:6px">チームに申し込む — ¥5,980/月</button>
+    </div>
+    <button onclick="document.getElementById('planModal').style.display='none'" class="btn btn-secondary" style="margin-top:8px">閉じる</button>
   </div>`;
   document.body.appendChild(m);
   // 機能比較テーブル生成
@@ -2392,6 +2398,11 @@ function showPlanModal() {
 let currentUser = null; // {id, email, plan, used, limit}
 
 async function initAuth() {
+  // Checkout成功後のURLパラメータ処理
+  const params = new URLSearchParams(location.search);
+  if (params.get('checkout') === 'success') {
+    history.replaceState({}, '', location.pathname);
+  }
   try {
     const resp = await fetch('/api/auth/me', { credentials: 'same-origin' });
     const data = await resp.json();
@@ -2536,7 +2547,7 @@ function showAccountModal() {
       <p style="font-size:13px;color:var(--text2);margin-top:6px">プラン: <b style="color:var(--accent)">${planNames[u.plan]||u.plan}</b></p>
       <p style="font-size:13px;color:var(--text2);margin-top:6px">今月の残り: <b style="color:var(--accent)">${remaining} 回</b></p>
     </div>
-    <button onclick="showPlanModal();document.getElementById('loginModal').style.display='none'" class="btn btn-primary">プランを変更</button>
+    ${u.plan !== 'free' ? `<button onclick="openPortal()" class="btn btn-primary">サブスクリプション管理</button>` : `<button onclick="showPlanModal();document.getElementById('loginModal').style.display='none'" class="btn btn-primary">プランを変更</button>`}
     <button onclick="doLogout()" class="btn btn-secondary" style="margin-top:8px">ログアウト</button>
   </div>`;
   document.body.appendChild(m);
@@ -2553,6 +2564,30 @@ async function doLogout() {
 }
 
 const PLAN_LIMITS = { free: 5, light: 50, standard: 100, pro: 300, team: 500 };
+
+async function subscribePlan(plan) {
+  if (!currentUser) { showLoginModal(); return; }
+  try {
+    const resp = await fetch('/api/stripe/checkout', {
+      method: 'POST', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ plan }),
+    });
+    const data = await resp.json();
+    if (data.url) window.location.href = data.url;
+    else alert(data.error || 'エラーが発生しました');
+  } catch(e) { alert('通信エラーが発生しました'); }
+}
+
+async function openPortal() {
+  if (!currentUser) return;
+  try {
+    const resp = await fetch('/api/stripe/portal', { method: 'POST', credentials: 'same-origin' });
+    const data = await resp.json();
+    if (data.url) window.location.href = data.url;
+    else alert(data.error || 'エラーが発生しました');
+  } catch(e) { alert('通信エラーが発生しました'); }
+}
 
 // ============ PWA: Service Worker 登録 + 更新通知 ============
 if('serviceWorker' in navigator) {

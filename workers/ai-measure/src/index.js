@@ -8,11 +8,23 @@
  * POST /api/auth/login     — ログイン
  * POST /api/auth/logout    — ログアウト
  * GET  /api/auth/me        — セッション情報取得
+ * POST /api/stripe/checkout — Stripe Checkout セッション作成
+ * POST /api/stripe/portal   — Customer Portal セッション作成
+ * POST /api/stripe/webhook  — Stripe Webhook 受信
  */
 
 const SESSION_TTL = 30 * 24 * 3600; // 30日 (秒)
 const COOKIE_NAME = 'sm_session';
 const PLAN_LIMITS = { free: 5, light: 50, standard: 100, pro: 300, team: 500 };
+
+// Stripe 価格ID → プラン名マッピング
+const STRIPE_PRICE_TO_PLAN = {
+  'price_1TFSDJJxnW1kn7BUkNX5sc8g': 'light',
+  'price_1TFSDqJxnW1kn7BURjOr8Ha5': 'standard',
+  'price_1TFSEOJxnW1kn7BUjcMF1nyJ': 'pro',
+  'price_1TFSF7JxnW1kn7BUjbMFTOuq': 'team',
+};
+const PLAN_TO_STRIPE_PRICE = Object.fromEntries(Object.entries(STRIPE_PRICE_TO_PLAN).map(([k,v])=>[v,k]));
 
 export default {
   async fetch(request, env) {
@@ -36,6 +48,11 @@ export default {
       if (path === '/api/auth/login' && request.method === 'POST') return await handleLogin(request, env);
       if (path === '/api/auth/logout' && request.method === 'POST') return handleLogout();
       if (path === '/api/auth/me' && request.method === 'GET') return await handleMe(request, env, user);
+
+      // Stripe API
+      if (path === '/api/stripe/checkout' && request.method === 'POST') return await handleStripeCheckout(request, env, user);
+      if (path === '/api/stripe/portal' && request.method === 'POST') return await handleStripePortal(request, env, user);
+      if (path === '/api/stripe/webhook' && request.method === 'POST') return await handleStripeWebhook(request, env);
 
       // 既存API
       if (path === '/api/measure' && request.method === 'POST') return await handleMeasure(request, env, user);
@@ -251,6 +268,119 @@ async function handleMe(request, env, user) {
   if (!user) return jsonResponse({ loggedIn: false, plan: 'free', used: 0, limit: 5 });
   const usage = await getUsage(env, user, request);
   return jsonResponse({ loggedIn: true, userId: user.userId, email: user.email, plan: user.plan, ...usage });
+}
+
+// ==================================================
+// Stripe API ヘルパー
+// ==================================================
+async function stripeAPI(env, endpoint, params) {
+  const resp = await fetch(`https://api.stripe.com/v1/${endpoint}`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(params).toString(),
+  });
+  return resp.json();
+}
+
+// ==================================================
+// POST /api/stripe/checkout — Checkout セッション作成
+// ==================================================
+async function handleStripeCheckout(request, env, user) {
+  if (!user) return jsonResponse({ error: 'ログインが必要です' }, 401);
+
+  const { plan } = await request.json();
+  const priceId = PLAN_TO_STRIPE_PRICE[plan];
+  if (!priceId) return jsonResponse({ error: '無効なプランです' }, 400);
+
+  // Stripe Customer 取得 or 作成
+  const dbUser = await env.DB.prepare('SELECT stripe_customer_id, email FROM sm_users WHERE id = ?').bind(user.userId).first();
+  let customerId = dbUser?.stripe_customer_id;
+
+  if (!customerId) {
+    const customer = await stripeAPI(env, 'customers', { email: dbUser.email, 'metadata[sm_user_id]': user.userId });
+    customerId = customer.id;
+    await env.DB.prepare('UPDATE sm_users SET stripe_customer_id = ? WHERE id = ?').bind(customerId, user.userId).run();
+  }
+
+  const origin = new URL(request.url).origin;
+  const session = await stripeAPI(env, 'checkout/sessions', {
+    customer: customerId,
+    'line_items[0][price]': priceId,
+    'line_items[0][quantity]': '1',
+    mode: 'subscription',
+    success_url: `${origin}/measure?checkout=success`,
+    cancel_url: `${origin}/measure?checkout=cancel`,
+    'metadata[sm_user_id]': user.userId,
+    'metadata[plan]': plan,
+  });
+
+  if (session.error) return jsonResponse({ error: session.error.message }, 400);
+  return jsonResponse({ url: session.url });
+}
+
+// ==================================================
+// POST /api/stripe/portal — Customer Portal セッション
+// ==================================================
+async function handleStripePortal(request, env, user) {
+  if (!user) return jsonResponse({ error: 'ログインが必要です' }, 401);
+
+  const dbUser = await env.DB.prepare('SELECT stripe_customer_id FROM sm_users WHERE id = ?').bind(user.userId).first();
+  if (!dbUser?.stripe_customer_id) return jsonResponse({ error: 'サブスクリプションがありません' }, 400);
+
+  const origin = new URL(request.url).origin;
+  const session = await stripeAPI(env, 'billing/portal/sessions', {
+    customer: dbUser.stripe_customer_id,
+    return_url: `${origin}/measure`,
+  });
+
+  if (session.error) return jsonResponse({ error: session.error.message }, 400);
+  return jsonResponse({ url: session.url });
+}
+
+// ==================================================
+// POST /api/stripe/webhook — Stripe Webhook
+// ==================================================
+async function handleStripeWebhook(request, env) {
+  const body = await request.text();
+  let event;
+  try { event = JSON.parse(body); } catch { return jsonResponse({ error: 'Invalid JSON' }, 400); }
+
+  // TODO: 本番では署名検証 (STRIPE_WEBHOOK_SECRET) を追加
+  // const sig = request.headers.get('stripe-signature');
+
+  const type = event.type;
+  const data = event.data?.object;
+
+  if (type === 'checkout.session.completed') {
+    const userId = data.metadata?.sm_user_id;
+    const plan = data.metadata?.plan;
+    if (userId && plan) {
+      const limit = PLAN_LIMITS[plan] || 5;
+      await env.DB.prepare('UPDATE sm_users SET plan = ?, monthly_limit = ?, stripe_customer_id = ?, updated_at = ? WHERE id = ?')
+        .bind(plan, limit, data.customer, new Date().toISOString(), userId).run();
+    }
+  }
+
+  if (type === 'customer.subscription.updated') {
+    const customerId = data.customer;
+    const priceId = data.items?.data?.[0]?.price?.id;
+    const plan = STRIPE_PRICE_TO_PLAN[priceId];
+    if (customerId && plan) {
+      const limit = PLAN_LIMITS[plan] || 5;
+      await env.DB.prepare('UPDATE sm_users SET plan = ?, monthly_limit = ?, updated_at = ? WHERE stripe_customer_id = ?')
+        .bind(plan, limit, new Date().toISOString(), customerId).run();
+    }
+  }
+
+  if (type === 'customer.subscription.deleted') {
+    const customerId = data.customer;
+    if (customerId) {
+      await env.DB.prepare('UPDATE sm_users SET plan = ?, monthly_limit = ?, updated_at = ? WHERE stripe_customer_id = ?')
+        .bind('free', 5, new Date().toISOString(), customerId).run();
+    }
+  }
+
+  return jsonResponse({ received: true });
 }
 
 // ==================================================

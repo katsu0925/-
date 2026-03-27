@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS sm_users (
   plan TEXT NOT NULL DEFAULT 'free',    -- free/light/standard/pro/team
   monthly_limit INTEGER NOT NULL DEFAULT 5,
   display_name TEXT NOT NULL DEFAULT '',
+  stripe_customer_id TEXT,           -- Stripe Customer ID
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
