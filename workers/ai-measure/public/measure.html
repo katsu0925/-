@@ -2263,7 +2263,7 @@ function setMode(t,active,success){
 window.addEventListener('resize',()=>{for(const k of Object.keys(overlays))drawLine(k);if(step===2&&a4Dots.length){drawA4Dots();}});
 
 goStep(1);
-initAuth().then(() => handleInviteToken()); // セッション復元 + 招待処理
+initAuth().then(() => { handleInviteToken(); initAdminPanel(); }); // セッション復元 + 招待処理 + 管理パネル
 // 初回アクセス時はガイドを自動表示
 if(!localStorage.getItem('ai_measure_guide_seen')){showGuide();}
 function hideGuide(){document.getElementById('guideModal').style.display='none';localStorage.setItem('ai_measure_guide_seen','1');}
@@ -2609,6 +2609,72 @@ async function doLogout() {
 }
 
 const PLAN_LIMITS = { free: 5, light: 50, standard: 100, pro: 300, team: 500 };
+
+// ============ 管理パネル ============
+function initAdminPanel() {
+  if (new URLSearchParams(location.search).get('admin') !== '1') return;
+  const panel = document.createElement('div');
+  panel.id = 'adminPanel';
+  panel.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:200;background:#1a1a2e;border-top:2px solid #e94560;padding:10px 16px;font-size:12px;color:#f1f5f9;display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding-bottom:max(10px,env(safe-area-inset-bottom))';
+  const plans = [
+    {key:'free', label:'無料', color:'#64748b'},
+    {key:'light', label:'ライト', color:'#3b82f6'},
+    {key:'standard', label:'スタンダード', color:'#e94560'},
+    {key:'pro', label:'プロ', color:'#fbbf24'},
+    {key:'team', label:'チーム', color:'#22c55e'},
+  ];
+  panel.innerHTML = `
+    <span style="font-weight:700;color:#e94560;margin-right:4px">ADMIN</span>
+    <span style="color:#94a3b8;margin-right:4px">プラン切替:</span>
+    ${plans.map(p => `<button onclick="adminSwitchPlan('${p.key}')" style="background:${p.color};color:#fff;border:none;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">${p.label}</button>`).join('')}
+    <span style="color:#94a3b8;margin-left:8px">使用量:</span>
+    <button onclick="adminSetUsage(0)" style="background:#333;color:#fff;border:1px solid #555;padding:3px 8px;border-radius:4px;font-size:10px;cursor:pointer">0件</button>
+    <button onclick="adminSetUsage('half')" style="background:#333;color:#fff;border:1px solid #555;padding:3px 8px;border-radius:4px;font-size:10px;cursor:pointer">半分</button>
+    <button onclick="adminSetUsage('max')" style="background:#333;color:#fff;border:1px solid #555;padding:3px 8px;border-radius:4px;font-size:10px;cursor:pointer">上限</button>
+    <span style="color:#94a3b8;margin-left:8px">チーム:</span>
+    <button onclick="adminSetTeamRole('owner')" style="background:#333;color:#fff;border:1px solid #555;padding:3px 8px;border-radius:4px;font-size:10px;cursor:pointer">オーナー</button>
+    <button onclick="adminSetTeamRole('member')" style="background:#333;color:#fff;border:1px solid #555;padding:3px 8px;border-radius:4px;font-size:10px;cursor:pointer">メンバー</button>
+    <button onclick="adminSetTeamRole(null)" style="background:#333;color:#fff;border:1px solid #555;padding:3px 8px;border-radius:4px;font-size:10px;cursor:pointer">なし</button>
+    <div id="adminStatus" style="width:100%;margin-top:4px;font-size:10px;color:#94a3b8"></div>
+  `;
+  document.body.appendChild(panel);
+  adminUpdateStatus();
+}
+
+function adminSwitchPlan(plan) {
+  if (!currentUser) {
+    currentUser = { id:'ADMIN', email:'admin@test', plan, used:0, limit:PLAN_LIMITS[plan], teamRole:null };
+  } else {
+    currentUser.plan = plan;
+    currentUser.limit = PLAN_LIMITS[plan];
+  }
+  updateAuthUI();
+  adminUpdateStatus();
+}
+
+function adminSetUsage(val) {
+  if (!currentUser) return;
+  if (val === 'half') currentUser.used = Math.floor(currentUser.limit / 2);
+  else if (val === 'max') currentUser.used = currentUser.limit;
+  else currentUser.used = val;
+  updateAuthUI();
+  adminUpdateStatus();
+}
+
+function adminSetTeamRole(role) {
+  if (!currentUser) return;
+  currentUser.teamRole = role;
+  adminUpdateStatus();
+}
+
+function adminUpdateStatus() {
+  const el = document.getElementById('adminStatus');
+  if (!el) return;
+  const u = currentUser;
+  if (!u) { el.textContent = '未ログイン状態'; return; }
+  const remaining = Math.max(0, (u.limit||5) - (u.used||0));
+  el.textContent = `現在: ${u.email} | プラン: ${u.plan} | 使用: ${u.used||0}/${u.limit||5} (残り${remaining}) | チーム: ${u.teamRole||'なし'}`;
+}
 
 async function subscribePlan(plan) {
   if (!currentUser) {
