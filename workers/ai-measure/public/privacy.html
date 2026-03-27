@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>プライバシーポリシー — 写メジャー</title>
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<style>
+:root { --bg:#0f1117; --text:#f1f5f9; --text2:#c8cdd8; --text3:#94a3b8; --accent:#e94560; --border:rgba(255,255,255,0.08); }
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:-apple-system,'Hiragino Sans',sans-serif; background:var(--bg); color:var(--text); -webkit-font-smoothing:antialiased; }
+.header { padding:12px 16px; background:rgba(15,17,23,0.9); backdrop-filter:blur(12px); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:10; display:flex; align-items:center; gap:8px; }
+.header a { color:var(--accent); text-decoration:none; font-size:13px; }
+.content { max-width:700px; margin:0 auto; padding:24px 16px 60px; line-height:1.8; font-size:14px; color:var(--text2); }
+h2 { font-size:20px; font-weight:700; color:var(--text); margin:0 0 16px; }
+h3 { font-size:15px; font-weight:700; color:var(--text); margin:24px 0 8px; }
+p { margin:8px 0; }
+ul { margin:8px 0; padding-left:24px; }
+li { margin:4px 0; }
+.info-box { background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:8px; padding:12px 16px; margin:12px 0; }
+.date { margin-top:24px; color:var(--text3); font-size:12px; }
+</style>
+</head>
+<body>
+<div class="header">
+  <a href="/measure">← 写メジャーに戻る</a>
+</div>
+<div class="content">
+  <h2>プライバシーポリシー</h2>
+
+  <p>NKonline Apparel（以下「当社」）は、AI採寸サービス「写メジャー」（以下「本サービス」）におけるお客様の個人情報の保護に細心の注意を払い、以下の方針に基づき適切に取り扱います。</p>
+
+  <h3>1. 収集する情報</h3>
+  <p>本サービスでは、以下の情報を収集します。</p>
+  <ul>
+    <li><strong>アカウント情報：</strong>メールアドレス、パスワード（暗号化して保存）</li>
+    <li><strong>利用情報：</strong>採寸回数、利用プラン、利用日時</li>
+    <li><strong>画像データ：</strong>採寸のためにアップロードされた衣類画像（処理後に自動削除）</li>
+    <li><strong>採寸データ：</strong>AI推定値およびユーザーによる修正値（サービス改善のため匿名化して保存）</li>
+    <li><strong>決済情報：</strong>Stripe社を通じた決済に必要な情報（カード情報は当社サーバーに保存されません）</li>
+    <li><strong>アクセス情報：</strong>IPアドレス、ブラウザ情報（不正利用防止・匿名の利用量追跡のため）</li>
+  </ul>
+
+  <h3>2. 利用目的</h3>
+  <ul>
+    <li>AI採寸サービスの提供・運営</li>
+    <li>商品説明文の自動生成</li>
+    <li>利用回数の管理・プラン制限の適用</li>
+    <li>採寸精度の改善（匿名化されたデータによる統計分析・AI学習）</li>
+    <li>お問い合わせへの対応</li>
+    <li>サービスの改善・新機能の開発</li>
+    <li>不正利用の防止</li>
+  </ul>
+
+  <h3>3. 第三者への提供</h3>
+  <p>お客様の個人情報は、以下の場合を除き第三者に提供いたしません。</p>
+  <ul>
+    <li>決済処理のためにStripe社に必要な情報を提供する場合</li>
+    <li>AI処理のためにGoogle社（Gemini API）に画像・テキストデータを送信する場合</li>
+    <li>法令に基づく場合</li>
+  </ul>
+
+  <h3>4. AI・外部サービスの利用</h3>
+  <p>本サービスでは、以下の外部AIサービスを利用しています。</p>
+  <ul>
+    <li><strong>Google Gemini API：</strong>商品説明文の生成のため、カテゴリ・ブランド・サイズ・状態・採寸値等のテキストデータをGoogle社のサーバーに送信します。個人を特定できる情報（メールアドレス等）は送信しません。</li>
+    <li><strong>Replicate API：</strong>衣類のキーポイント検出（採寸AI）のため、アップロードされた画像をReplicate社のサーバーに送信します。画像は処理完了後に削除されます。</li>
+    <li><strong>Stripe：</strong>決済処理のため、Stripe社のサービスを利用しています。カード情報はStripe社が管理し、当社サーバーには保存されません。</li>
+  </ul>
+  <p>各サービスのAPI利用規約に基づき、送信されたデータがAIモデルの学習に使用されることはありません（APIビジネス利用規約に基づく）。</p>
+
+  <h3>5. 画像データの取り扱い</h3>
+  <ul>
+    <li>採寸のためにアップロードされた画像は、処理完了後に自動的に削除されます。</li>
+    <li>サービス改善のためにデータ利用に同意いただいた場合のみ、匿名化された採寸データ（キーポイント座標・採寸値）を統計的な精度改善に使用します。</li>
+    <li>画像そのものを長期保存・第三者提供することはありません。</li>
+  </ul>
+
+  <h3>6. 個人情報の管理</h3>
+  <p>お客様の個人情報は、不正アクセス・紛失・破壊・改ざん・漏洩等を防止するため、以下のセキュリティ対策を講じて管理いたします。</p>
+  <ul>
+    <li>パスワードは暗号化（SHA-256 + salt）して保存しており、当社スタッフを含む何人も閲覧できません</li>
+    <li>通信はすべてHTTPS（TLS）で暗号化されています</li>
+    <li>セッション管理にはHTTPOnly Cookieを使用し、XSS攻撃から保護しています</li>
+    <li>データはCloudflare社のインフラ上に保存され、適切なアクセス制御が行われています</li>
+  </ul>
+
+  <h3>7. 個人情報の保持期間</h3>
+  <p>お客様の個人情報は、利用目的の達成に必要な期間保持いたします。</p>
+  <ul>
+    <li>アカウント情報：退会のお申し出があるまで</li>
+    <li>決済に関する情報：税法等で定められた保存期間（最大7年）</li>
+    <li>採寸データ（匿名化済み）：サービス改善のため無期限</li>
+    <li>画像データ：採寸処理完了後に即時削除</li>
+  </ul>
+
+  <h3>8. Cookieおよびローカルストレージ</h3>
+  <p>本サービスでは、以下の目的でCookieおよびローカルストレージを使用しています。</p>
+  <ul>
+    <li>ログイン状態の維持（セッションCookie）</li>
+    <li>ユーザー設定の保存（テーマ・デフォルトカテゴリ等）</li>
+    <li>サービス改善のための利用状況の把握</li>
+  </ul>
+  <p>ブラウザの設定により無効化できますが、一部の機能が制限される場合があります。</p>
+
+  <h3>9. お客様の権利</h3>
+  <p>お客様は、個人情報保護法に基づき、当社が保有するご自身の個人情報について、以下の請求を行うことができます。</p>
+  <ul>
+    <li>利用目的の通知</li>
+    <li>開示</li>
+    <li>内容の訂正・追加・削除</li>
+    <li>利用の停止・消去</li>
+    <li>第三者への提供の停止</li>
+  </ul>
+  <p>上記のご請求は、下記の窓口までご連絡ください。ご本人確認のうえ、合理的な期間内に対応いたします。</p>
+
+  <div class="info-box">
+    <strong>写メジャー（個人情報に関するお問い合わせ窓口）</strong><br>
+    運営：NKonline Apparel<br>
+    代表：西出克利<br>
+    メール：nkonline1030@gmail.com<br>
+    電話：090-5820-1803（平日 10:00〜18:00）
+  </div>
+
+  <h3>10. 改定</h3>
+  <p>本ポリシーは、法令の変更やサービス内容の変更に伴い、予告なく改定する場合があります。改定後のポリシーは本サービス上に掲載した時点で効力を生じます。</p>
+
+  <p class="date">最終更新日：2026年3月27日</p>
+</div>
+</body>
+</html>
