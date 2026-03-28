@@ -383,9 +383,18 @@ function buildHtmlEmail_(opts) {
   }
 
   if (opts.cta) {
-    h += '<div style="text-align:center;margin:24px 0;">'
-      + '<a href="' + opts.cta.url + '" style="display:inline-block;background:#e53e3e;color:#ffffff;padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:700;">'
-      + e_(opts.cta.text) + '</a></div>';
+    var ctas = Array.isArray(opts.cta) ? opts.cta : [opts.cta];
+    h += '<div style="text-align:center;margin:24px 0;">';
+    for (var ci = 0; ci < ctas.length; ci++) {
+      if (!ctas[ci]) continue;
+      var bg = ctas[ci].tertiary ? '#6b7280' : (ctas[ci].secondary ? '#1a73e8' : '#e53e3e');
+      var fg = '#ffffff';
+      var border = '';
+      if (ci > 0) h += '&nbsp;&nbsp;';
+      h += '<a href="' + ctas[ci].url + '" style="display:inline-block;background:' + bg + ';color:' + fg + ';padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:700;' + border + '">'
+        + e_(ctas[ci].text) + '</a>';
+    }
+    h += '</div>';
   }
 
   if (opts.notes) {

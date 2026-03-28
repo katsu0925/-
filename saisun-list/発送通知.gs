@@ -247,27 +247,17 @@ function shipMailOnEdit(e) {
         ? '<a href="' + trackingUrl + '" style="color:#1a73e8">' + trackingNo + '</a>'
         : trackingNo });
 
+      if (confirmLink) shipRows.push({ label: 'ご注文明細', value: '赤ボタンからご確認いただけます' });
+      if (kitUrl) shipRows.push({ label: '出品キット', value: '青ボタンから確認できます' });
+
       var shipHtmlSections = [{ title: '発送内容', rows: shipRows }];
 
-      if (confirmLink) {
-        shipHtmlSections.push({
-          title: 'ご注文明細（Google Drive）',
-          text: '以下のリンクからご注文内容をご確認いただけます。',
-          link: { url: confirmLink, text: 'ご注文明細を開く' }
-        });
-      }
-
-      if (kitUrl) {
-        shipHtmlSections.push({
-          title: '出品キット',
-          text: 'メルカリ出品用の商品タイトル・説明文をご用意しました。',
-          link: { url: kitUrl, text: '出品キットを開く' }
-        });
-      }
-
-      var shipCta = trackingUrl
-        ? { text: '配送状況を確認', url: trackingUrl }
-        : (confirmLink ? { text: 'ご注文明細を確認', url: confirmLink } : null);
+      // CTAボタン
+      var shipCta = [];
+      if (confirmLink) shipCta.push({ text: 'ご注文明細を確認', url: confirmLink });
+      if (kitUrl) shipCta.push({ text: '出品キットを確認', url: kitUrl, secondary: true });
+      if (trackingUrl) shipCta.push({ text: '配送状況を確認', url: trackingUrl, tertiary: true });
+      if (shipCta.length === 0) shipCta = null;
 
       var custHtmlBody = buildHtmlEmail_({
         greeting: customer + ' 様',
@@ -458,25 +448,16 @@ function testShipMailByReceiptNo(receiptNo) {
     ? '<a href="' + trackingUrl + '" style="color:#1a73e8">' + trackingNo + '</a>'
     : trackingNo });
 
-  var shipHtmlSections = [{ title: '発送内容', rows: shipRows }];
-  if (confirmLink) {
-    shipHtmlSections.push({
-      title: 'ご注文明細（Google Drive）',
-      text: '以下のリンクからご注文内容をご確認いただけます。',
-      link: { url: confirmLink, text: 'ご注文明細を開く' }
-    });
-  }
-  if (kitUrl) {
-    shipHtmlSections.push({
-      title: '出品キット',
-      text: 'メルカリ出品用の商品タイトル・説明文をご用意しました。',
-      link: { url: kitUrl, text: '出品キットを開く' }
-    });
-  }
+  if (confirmLink) shipRows.push({ label: 'ご注文明細', value: '赤ボタンからご確認いただけます' });
+  if (kitUrl) shipRows.push({ label: '出品キット', value: '青ボタンから確認できます' });
 
-  var shipCta = trackingUrl
-    ? { text: '配送状況を確認', url: trackingUrl }
-    : (confirmLink ? { text: 'ご注文明細を確認', url: confirmLink } : null);
+  var shipHtmlSections = [{ title: '発送内容', rows: shipRows }];
+
+  var shipCta = [];
+  if (confirmLink) shipCta.push({ text: 'ご注文明細を確認', url: confirmLink });
+  if (kitUrl) shipCta.push({ text: '出品キットを確認', url: kitUrl, secondary: true });
+  if (trackingUrl) shipCta.push({ text: '配送状況を確認', url: trackingUrl, tertiary: true });
+  if (shipCta.length === 0) shipCta = null;
 
   var custHtmlBody = buildHtmlEmail_({
     greeting: customer + ' 様',
