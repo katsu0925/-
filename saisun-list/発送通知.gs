@@ -254,9 +254,9 @@ function shipMailOnEdit(e) {
 
       // CTAボタン
       var shipCta = [];
+      if (trackingUrl) shipCta.push({ text: '配送状況を確認', url: trackingUrl, tertiary: true });
       if (confirmLink) shipCta.push({ text: 'ご注文明細を確認', url: confirmLink });
       if (kitUrl) shipCta.push({ text: '出品キットを確認', url: kitUrl, secondary: true });
-      if (trackingUrl) shipCta.push({ text: '配送状況を確認', url: trackingUrl, tertiary: true });
       if (shipCta.length === 0) shipCta = null;
 
       var custHtmlBody = buildHtmlEmail_({
@@ -454,9 +454,9 @@ function testShipMailByReceiptNo(receiptNo) {
   var shipHtmlSections = [{ title: '発送内容', rows: shipRows }];
 
   var shipCta = [];
+  if (trackingUrl) shipCta.push({ text: '配送状況を確認', url: trackingUrl, tertiary: true });
   if (confirmLink) shipCta.push({ text: 'ご注文明細を確認', url: confirmLink });
   if (kitUrl) shipCta.push({ text: '出品キットを確認', url: kitUrl, secondary: true });
-  if (trackingUrl) shipCta.push({ text: '配送状況を確認', url: trackingUrl, tertiary: true });
   if (shipCta.length === 0) shipCta = null;
 
   var custHtmlBody = buildHtmlEmail_({
