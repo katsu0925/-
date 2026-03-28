@@ -178,6 +178,9 @@ form.addEventListener('submit', async (e) => {
     const data = await res.json();
     if (data.ok) {
       localStorage.setItem('sessionId', data.sessionId);
+      if (data.joinError) {
+        alert(data.joinError);
+      }
       location.href = '/app';
     } else {
       errorMsg.textContent = data.message;

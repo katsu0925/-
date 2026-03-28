@@ -5,7 +5,7 @@ import { jsonOk, jsonError } from '../utils/response.js';
 
 /**
  * リクエストからセッションを検証
- * Authorization: Bearer {sessionId} または body.token から取得
+ * Authorization: Bearer {sessionId} ヘッダーから取得
  * @returns {object|null} { userId, email, displayName } or null
  */
 export async function extractSession(request, env) {

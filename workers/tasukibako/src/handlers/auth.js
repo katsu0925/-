@@ -123,18 +123,23 @@ export async function register(request, env) {
 
   // 招待コードがある場合、チームに参加
   let joinedTeam = null;
+  let joinError = null;
   if (inviteCode) {
     const team = await env.DB.prepare(
       'SELECT * FROM teams WHERE invite_code = ? AND invite_enabled = 1'
     ).bind(inviteCode).first();
 
-    if (team) {
+    if (!team) {
+      joinError = '招待コードが無効です。チーム画面から参加できます。';
+    } else {
       const memberCount = (await env.DB.prepare(
         'SELECT COUNT(*) as cnt FROM team_members WHERE team_id = ?'
       ).bind(team.id).first()).cnt;
 
       const limits = PLAN_LIMITS[team.plan] || PLAN_LIMITS.free;
-      if (memberCount < limits.maxMembers) {
+      if (memberCount >= limits.maxMembers) {
+        joinError = `「${team.name}」のメンバー上限（${limits.maxMembers}人）に達しています。`;
+      } else {
         await env.DB.prepare(
           'INSERT INTO team_members (team_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)'
         ).bind(team.id, userId, 'member', now).run();
@@ -159,6 +164,7 @@ export async function register(request, env) {
     user: { id: userId, email, displayName: displayName.trim() },
     teams,
     joinedTeam,
+    joinError,
   });
 }
 

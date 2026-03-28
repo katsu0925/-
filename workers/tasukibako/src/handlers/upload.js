@@ -6,7 +6,7 @@
  *     team:{teamId}:product-images:index → managedIdリスト
  *     team:{teamId}:product-meta:{managedId} → メタ情報
  */
-import { jsonOk, jsonError, corsResponse } from '../utils/response.js';
+import { jsonOk, jsonError } from '../utils/response.js';
 import { verifyMembership } from './team.js';
 import { PLAN_LIMITS } from '../config.js';
 
@@ -139,16 +139,18 @@ export async function uploadImages(request, env, session) {
   await env.CACHE.put(metaKey, JSON.stringify(meta));
 
   // チームのカウンター更新
-  const addedImages = action === 'append' ? files.length : (files.length - (action !== 'append' ? existingUrls.length : 0));
   const productDelta = isNewProduct ? 1 : 0;
+  const imageDelta = action === 'append'
+    ? files.length                        // 追加: 新規枚数そのまま
+    : files.length - existingUrls.length; // 上書き: 差分（負になりうる）
 
   await env.DB.prepare(`
     UPDATE teams SET
       product_count = product_count + ?,
-      image_count = image_count + ?,
+      image_count = MAX(image_count + ?, 0),
       updated_at = ?
     WHERE id = ?
-  `).bind(productDelta, files.length - (action !== 'append' ? existingUrls.length : 0), now, teamId).run();
+  `).bind(productDelta, imageDelta, now, teamId).run();
 
   return jsonOk({ managedId, urls, count: urls.length });
 }
@@ -194,6 +196,11 @@ export async function serveImage(request, env, url) {
   if (!match) return new Response('Not Found', { status: 404 });
 
   const teamId = match[1];
+
+  // パストラバーサル防止
+  if (pathname.includes('..') || pathname.includes('%2e%2e') || pathname.includes('%2E%2E')) {
+    return new Response('Bad Request', { status: 400 });
+  }
 
   // トークン認証（img srcにAuthヘッダーを付けられないため）
   const token = url.searchParams.get('token');

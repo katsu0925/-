@@ -31,10 +31,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sa
 .app-header .logo-sm:hover{animation:none;transform:rotate(8deg) scale(1.1)}
 .team-name{font-size:13px;color:var(--text-sub);cursor:pointer}
 /* カード */
-.card{background:var(--card);border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.1);animation:slideUp .35s ease both}
+.card{background:var(--card);border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
 @keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
-.card:nth-child(2){animation-delay:.05s}
-.card:nth-child(3){animation-delay:.1s}
+.initial-anim .card{animation:slideUp .35s ease both}
+.initial-anim .card:nth-child(2){animation-delay:.05s}
+.initial-anim .card:nth-child(3){animation-delay:.1s}
 h2{font-size:16px;color:var(--text);margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #e5e7eb}
 /* フォーム */
 .field{margin-bottom:12px}
@@ -52,8 +53,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 .btn-secondary{background:#6b7280;color:#fff}
 .btn-success{background:var(--success);color:#fff;box-shadow:0 2px 8px rgba(16,185,129,.2)}
 /* ステータス */
-.status{padding:10px;border-radius:8px;margin-top:8px;font-size:13px;display:none;animation:fadeIn .25s ease}
-@keyframes fadeIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+.status{padding:10px;border-radius:8px;margin-top:8px;font-size:13px;display:none}
 .status.show{display:block}
 .status.ok{background:#d1fae5;color:#065f46}
 .status.err{background:#fee2e2;color:#991b1b}
@@ -87,7 +87,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 .tab:active{transform:scale(.95)}
 .tab.active{background:#fff;color:var(--text);box-shadow:0 1px 2px rgba(0,0,0,.1)}
 .section{display:none}
-.section.active{display:block;animation:sectionIn .3s ease}
+.section.active{display:block}
 /* 商品管理グリッド */
 .img-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px}
 .img-check-wrap{position:relative}
@@ -128,8 +128,10 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 .upload-success.show{display:block}
 .upload-success .check{width:56px;height:56px;background:var(--success);border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-size:28px;margin-bottom:8px;box-shadow:0 4px 16px rgba(16,185,129,.3)}
 /* 管理パネル */
-.admin-panel{position:fixed;bottom:0;left:0;right:0;background:#1e1b4b;color:#fff;z-index:300;padding:8px 12px calc(8px + env(safe-area-inset-bottom));font-size:12px;display:none;animation:slideFooterIn .3s ease}
+.admin-panel{position:fixed;left:0;right:0;bottom:0;background:#1e1b4b;color:#fff;z-index:40;padding:8px 12px calc(8px + env(safe-area-inset-bottom));font-size:12px;display:none;animation:slideFooterIn .3s ease}
 .admin-panel.show{display:block}
+body.has-admin .sticky-footer{bottom:var(--admin-h,80px)}
+body.has-admin{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
 .admin-panel .admin-status{margin-bottom:6px;color:#c7d2fe;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .admin-panel .admin-row{display:flex;gap:4px;flex-wrap:wrap;align-items:center;margin-bottom:4px}
 .admin-panel .admin-label{font-size:10px;color:#a5b4fc;min-width:48px;flex-shrink:0}
@@ -161,16 +163,23 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
   </div>
 
   <!-- タブバー -->
-  <div class="tab-bar">
+  <div class="tab-bar" style="align-items:center">
     <button class="tab active" data-tab="upload">アップロード</button>
     <button class="tab" data-tab="manage">商品管理</button>
     <button class="tab" data-tab="team">チーム</button>
     <button class="tab" data-tab="settings">設定</button>
+    <button id="refreshBtn" style="background:none;border:none;font-size:20px;padding:4px 8px;cursor:pointer;color:#6b7280;flex-shrink:0" title="更新"><span id="refreshIcon" style="display:inline-block">&#x21bb;</span></button>
   </div>
 
   <!-- セクション1: アップロード -->
   <div class="section active" id="sec-upload">
-    <div class="card">
+    <!-- チーム未作成ガード -->
+    <div class="card" id="uploadNoTeam" style="display:none;text-align:center">
+      <h2 style="border:none;color:var(--text-sub)">チームを作成してください</h2>
+      <p style="font-size:14px;color:var(--text-sub);margin-bottom:16px">画像をアップロードするにはチームの作成が必要です。</p>
+      <button class="btn btn-primary" onclick="switchTab('team')">チームを作成する</button>
+    </div>
+    <div class="card" id="uploadForm">
       <h2>画像アップロード</h2>
       <div class="field">
         <label>管理番号</label>
@@ -377,9 +386,12 @@ var _confirmResolve = null;
     if (_teams.length > 0) {
       _currentTeam = _teams[0];
     }
-    // ローディング→メイン切替
+    // ローディング→メイン切替（初回アニメーション付き）
     document.getElementById('pageLoader').style.display = 'none';
-    document.getElementById('appContainer').style.display = 'block';
+    var appEl = document.getElementById('appContainer');
+    appEl.style.display = 'block';
+    appEl.classList.add('initial-anim');
+    setTimeout(function() { appEl.classList.remove('initial-anim'); }, 600);
     showApp();
     if (!_currentTeam) switchTab('team');
     // 管理パネル初期化
@@ -396,7 +408,15 @@ function showApp() {
     document.getElementById('settingsDisplayName').value = _user.displayName || '';
     document.getElementById('settingsEmail').value = _user.email || '';
   }
-  document.getElementById('footer-upload').classList.add('show');
+  // チーム有無でアップロードUIを切替
+  if (_currentTeam) {
+    document.getElementById('uploadForm').style.display = '';
+    document.getElementById('uploadNoTeam').style.display = 'none';
+    document.getElementById('footer-upload').classList.add('show');
+  } else {
+    document.getElementById('uploadForm').style.display = 'none';
+    document.getElementById('uploadNoTeam').style.display = 'block';
+  }
 }
 
 // ════════════════════════════════════════
@@ -437,6 +457,24 @@ function normId(raw) {
 var _tabNames = ['upload','manage','team','settings'];
 document.querySelectorAll('.tab').forEach(function(tab) {
   tab.addEventListener('click', function() { switchTab(this.dataset.tab); });
+});
+
+// 更新ボタン（アイコンだけ回転、ページは揺れない）
+document.getElementById('refreshBtn').addEventListener('click', function() {
+  var btn = this;
+  var icon = document.getElementById('refreshIcon');
+  if (btn.dataset.busy === '1') return;
+  btn.dataset.busy = '1';
+  icon.style.animation = 'spin .6s linear infinite';
+  btn.style.opacity = '0.5';
+  _listLoaded = false;
+  refreshProductList(function() {
+    icon.style.animation = '';
+    btn.style.opacity = '';
+    btn.dataset.busy = '';
+    if (document.getElementById('sec-manage').classList.contains('active')) renderManageList();
+    if (document.getElementById('sec-team').classList.contains('active')) renderTeamSection();
+  });
 });
 
 function switchTab(name) {
@@ -1034,9 +1072,14 @@ function initAdminPanel() {
   apiPost('/api/admin/info', { teamId: _currentTeam.id }).then(function(d) {
     if (!d.ok || !d.isAdmin) return;
     _isAdmin = true;
-    document.getElementById('adminPanel').classList.add('show');
-    // 管理パネル分のpadding-bottom追加
-    document.body.style.paddingBottom = 'calc(140px + env(safe-area-inset-bottom))';
+    var panel = document.getElementById('adminPanel');
+    panel.classList.add('show');
+    document.body.classList.add('has-admin');
+    // パネル高さを測ってCSS変数にセット（フッタのbottom位置用）
+    requestAnimationFrame(function() {
+      var h = panel.offsetHeight;
+      document.documentElement.style.setProperty('--admin-h', h + 'px');
+    });
     adminUpdateStatus(d);
     adminHighlightPlan(d.team.plan);
   }).catch(function() {});
