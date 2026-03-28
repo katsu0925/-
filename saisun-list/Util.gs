@@ -388,10 +388,8 @@ function buildHtmlEmail_(opts) {
     for (var ci = 0; ci < ctas.length; ci++) {
       if (!ctas[ci]) continue;
       var bg = ctas[ci].tertiary ? '#6b7280' : (ctas[ci].secondary ? '#1a73e8' : '#e53e3e');
-      var fg = '#ffffff';
-      var border = '';
-      if (ci > 0) h += '&nbsp;&nbsp;';
-      h += '<a href="' + ctas[ci].url + '" style="display:inline-block;background:' + bg + ';color:' + fg + ';padding:12px 28px;border-radius:8px;text-decoration:none;font-size:14px;font-weight:700;' + border + '">'
+      if (ci > 0) h += '<div style="height:12px;"></div>';
+      h += '<a href="' + ctas[ci].url + '" style="display:block;width:80%;margin:0 auto;background:' + bg + ';color:#ffffff;padding:14px 0;border-radius:8px;text-decoration:none;font-size:14px;font-weight:700;text-align:center;">'
         + e_(ctas[ci].text) + '</a>';
     }
     h += '</div>';
