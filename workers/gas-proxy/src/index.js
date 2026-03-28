@@ -182,13 +182,12 @@ self.addEventListener('fetch', e => {
 
     // GET リクエスト処理
     if (request.method === 'GET') {
-      // 出品キットデモページ（SNS発信用）
-      if (url.pathname === '/kit/demo') {
-        return kitHandler.serveDemoKit();
-      }
-
       // 出品キットページ
       if (url.pathname === '/kit') {
+        // デモモード: /kit?mode=demo
+        if (url.searchParams.get('mode') === 'demo') {
+          return kitHandler.serveDemoKit();
+        }
         return await kitHandler.serveKit(request, env, url);
       }
 
