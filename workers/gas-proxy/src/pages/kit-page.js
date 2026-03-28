@@ -203,6 +203,9 @@ export function getKitPageHtml(kitDataJson) {
     return;
   }
 
+  // 画像セクション表示フラグ（false で画像・保存ボタンを非表示）
+  var SHOW_IMAGES = false;
+
   var items = data.items || [];
   var totalCount = items.length;
   var INITIAL_RENDER = 20;
@@ -281,20 +284,22 @@ export function getKitPageHtml(kitDataJson) {
     var isOpen = index === 0 ? ' open' : '';
 
     var imagesHtml = '';
-    if (item.images && item.images.length > 0) {
-      imagesHtml = '<div class="image-gallery">';
-      item.images.forEach(function(url) {
-        imagesHtml += '<img src="' + esc(url) + '" alt="" loading="lazy" onclick="openModal(this)">';
-      });
-      imagesHtml += '</div>';
-      imagesHtml += '<div class="save-images-bar">' +
-        '<button class="save-images-btn primary-save" onclick="event.stopPropagation();saveProductImages(this,&apos;' + esc(item.managedId) + '&apos;)">' +
-          '<span class="btn-icon">&#x1F4F2;</span> 画像をまとめて保存</button>' +
-        '<button class="save-images-btn" onclick="event.stopPropagation();downloadProductZip(&apos;' + esc(item.managedId) + '&apos;)">' +
-          '<span class="btn-icon">&#x1F4E5;</span> ZIP</button>' +
-        '</div>';
-    } else {
-      imagesHtml = '<div class="image-gallery"><div class="image-placeholder">画像未アップロード</div></div>';
+    if (SHOW_IMAGES) {
+      if (item.images && item.images.length > 0) {
+        imagesHtml = '<div class="image-gallery">';
+        item.images.forEach(function(url) {
+          imagesHtml += '<img src="' + esc(url) + '" alt="" loading="lazy" onclick="openModal(this)">';
+        });
+        imagesHtml += '</div>';
+        imagesHtml += '<div class="save-images-bar">' +
+          '<button class="save-images-btn primary-save" onclick="event.stopPropagation();saveProductImages(this,&apos;' + esc(item.managedId) + '&apos;)">' +
+            '<span class="btn-icon">&#x1F4F2;</span> 画像をまとめて保存</button>' +
+          '<button class="save-images-btn" onclick="event.stopPropagation();downloadProductZip(&apos;' + esc(item.managedId) + '&apos;)">' +
+            '<span class="btn-icon">&#x1F4E5;</span> ZIP</button>' +
+          '</div>';
+      } else {
+        imagesHtml = '<div class="image-gallery"><div class="image-placeholder">画像未アップロード</div></div>';
+      }
     }
 
     var brandId = 'brand-' + index;
