@@ -328,6 +328,7 @@ async function handleMe(request, env, user) {
 // Stripe API ヘルパー
 // ==================================================
 async function stripeAPI(env, endpoint, params, method = 'POST') {
+  let url = `https://api.stripe.com/v1/${endpoint}`;
   const opts = {
     method,
     headers: { 'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}` },
@@ -335,8 +336,10 @@ async function stripeAPI(env, endpoint, params, method = 'POST') {
   if (method === 'POST') {
     opts.headers['Content-Type'] = 'application/x-www-form-urlencoded';
     opts.body = new URLSearchParams(params).toString();
+  } else if (params && Object.keys(params).length > 0) {
+    url += '?' + new URLSearchParams(params).toString();
   }
-  const resp = await fetch(`https://api.stripe.com/v1/${endpoint}`, opts);
+  const resp = await fetch(url, opts);
   return resp.json();
 }
 
@@ -537,11 +540,23 @@ async function handleStripeWebhook(request, env) {
     // metadata.plan ではなく subscription の priceId からプラン判定（改ざん防止）
     let plan = null;
     if (data.subscription) {
-      const sub = await stripeAPI(env, `subscriptions/${data.subscription}`, {}, 'GET');
-      const priceId = sub.items?.data?.[0]?.price?.id;
-      plan = STRIPE_PRICE_TO_PLAN[priceId];
+      try {
+        const sub = await stripeAPI(env, `subscriptions/${data.subscription}`, {}, 'GET');
+        if (sub.error) {
+          console.error(`[checkout.completed] subscription取得失敗: ${sub.error.message}`);
+        } else {
+          const priceId = sub.items?.data?.[0]?.price?.id;
+          plan = STRIPE_PRICE_TO_PLAN[priceId];
+          if (!plan) console.warn(`[checkout.completed] 未知のpriceId: ${priceId}`);
+        }
+      } catch (e) {
+        console.error(`[checkout.completed] subscription取得例外: ${e.message}`);
+      }
     }
-    plan = plan || data.metadata?.plan; // フォールバック
+    if (!plan && data.metadata?.plan) {
+      console.warn(`[checkout.completed] metadata.planにフォールバック: ${data.metadata.plan}`);
+      plan = data.metadata.plan;
+    }
     if (userId && plan) {
       const limit = PLAN_LIMITS[plan] || 5;
       await env.DB.prepare('UPDATE sm_users SET plan = ?, monthly_limit = ?, stripe_customer_id = ?, updated_at = ? WHERE id = ?')
@@ -553,6 +568,9 @@ async function handleStripeWebhook(request, env) {
     const customerId = data.customer;
     const priceId = data.items?.data?.[0]?.price?.id;
     const plan = STRIPE_PRICE_TO_PLAN[priceId];
+    if (!plan && customerId) {
+      console.warn(`[subscription.updated] 未知のpriceId: ${priceId}, customer: ${customerId}`);
+    }
     if (customerId && plan) {
       const limit = PLAN_LIMITS[plan] || 5;
       await env.DB.prepare('UPDATE sm_users SET plan = ?, monthly_limit = ?, updated_at = ? WHERE stripe_customer_id = ?')

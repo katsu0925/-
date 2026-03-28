@@ -2269,14 +2269,15 @@ if(!localStorage.getItem('ai_measure_guide_seen')){showGuide();}
 function hideGuide(){document.getElementById('guideModal').style.display='none';localStorage.setItem('ai_measure_guide_seen','1');}
 
 // ============ 料金プランモーダル ============
+let _planBilling = 'monthly';
+let _appliedCoupon = '';
+
 function showPlanModal() {
   let m = document.getElementById('planModal');
   if(m) { m.style.display='block'; return; }
   m = document.createElement('div');
   m.id = 'planModal';
   m.style.cssText = 'position:fixed;inset:0;z-index:150;background:var(--overlay-bg);overflow-y:auto;-webkit-overflow-scrolling:touch;display:block';
-  let _planBilling = 'monthly';
-  let _appliedCoupon = '';
   m.innerHTML = `<div style="max-width:420px;margin:0 auto;padding:20px">
     <div style="display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10;padding:12px 0;background:var(--overlay-bg);border-bottom:1px solid var(--border);margin-bottom:8px">
       <h2 style="font-size:17px;color:var(--text)">料金プラン</h2>
