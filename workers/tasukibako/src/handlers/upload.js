@@ -1,0 +1,248 @@
+/**
+ * 画像アップロードAPI（マルチテナント対応）
+ *
+ * R2パス: teams/{teamId}/products/{managedId}/{uuid}.jpg
+ * KV: team:{teamId}:product-images:{managedId} → URL配列
+ *     team:{teamId}:product-images:index → managedIdリスト
+ *     team:{teamId}:product-meta:{managedId} → メタ情報
+ */
+import { jsonOk, jsonError, corsResponse } from '../utils/response.js';
+import { verifyMembership } from './team.js';
+import { PLAN_LIMITS } from '../config.js';
+
+const MAX_IMAGES = 10;
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+
+function normalizeManagedId(raw) {
+  return raw
+    .replace(/[Ａ-Ｚａ-ｚ０-９]/g, ch =>
+      String.fromCharCode(ch.charCodeAt(0) - 0xFEE0))
+    .replace(/[ー]/g, '-')
+    .replace(/\u3000/g, ' ')
+    .toUpperCase()
+    .trim();
+}
+
+/**
+ * 画像アップロード
+ */
+export async function uploadImages(request, env, session) {
+  const contentType = request.headers.get('Content-Type') || '';
+  if (!contentType.includes('multipart/form-data')) {
+    return jsonError('multipart/form-data が必要です', 400);
+  }
+
+  let formData;
+  try {
+    formData = await request.formData();
+  } catch {
+    return jsonError('フォームデータの解析に失敗しました', 400);
+  }
+
+  const teamId = formData.get('teamId') || '';
+  if (!teamId) return jsonError('teamIdは必須です。', 400);
+
+  // メンバーシップ検証
+  const membership = await verifyMembership(env, teamId, session.userId);
+  if (!membership) return jsonError('このチームのメンバーではありません。', 403);
+
+  const managedId = normalizeManagedId(formData.get('managedId') || '');
+  if (!managedId) return jsonError('管理番号が必要です。', 400);
+
+  const action = formData.get('action') || 'new';
+  const files = formData.getAll('images');
+
+  if (!files || files.length === 0) {
+    return jsonError('画像ファイルが必要です。', 400);
+  }
+  if (files.length > MAX_IMAGES) {
+    return jsonError(`画像は最大${MAX_IMAGES}枚までです。`, 400);
+  }
+
+  // チーム情報取得（プラン制限チェック用）
+  const team = await env.DB.prepare('SELECT * FROM teams WHERE id = ?').bind(teamId).first();
+  if (!team) return jsonError('チームが見つかりません。', 404);
+  const limits = PLAN_LIMITS[team.plan] || PLAN_LIMITS.free;
+
+  // 既存画像取得
+  const kvKey = `team:${teamId}:product-images:${managedId}`;
+  const urlsJson = await env.CACHE.get(kvKey);
+  let existingUrls = urlsJson ? JSON.parse(urlsJson) : [];
+  const isNewProduct = existingUrls.length === 0;
+
+  // フリープラン制限チェック
+  if (isNewProduct && team.product_count >= limits.maxProducts) {
+    return jsonError(`商品数の上限（${limits.maxProducts}）に達しています。`, 400);
+  }
+  if (team.image_count + files.length > limits.maxImages) {
+    return jsonError(`画像数の上限（${limits.maxImages}）に達しています。残り${limits.maxImages - team.image_count}枚です。`, 400);
+  }
+
+  // appendモードの枚数チェック
+  if (action === 'append') {
+    if (existingUrls.length + files.length > MAX_IMAGES) {
+      return jsonError(`あと${MAX_IMAGES - existingUrls.length}枚まで追加可能です（現在${existingUrls.length}枚）。`, 400);
+    }
+  }
+
+  // バリデーション
+  for (const file of files) {
+    if (!(file instanceof File)) return jsonError('不正なファイルです。', 400);
+    if (file.size > MAX_FILE_SIZE) return jsonError(`ファイルサイズが大きすぎます（最大10MB）。`, 400);
+  }
+
+  // appendでない場合、既存画像をR2から削除
+  if (action !== 'append' && existingUrls.length > 0) {
+    await Promise.all(existingUrls.map(url => {
+      const r2Key = url.replace(/^\/images\//, '');
+      return env.IMAGES.delete(r2Key);
+    }));
+  }
+
+  // R2に並列アップロード
+  const uploadPromises = files.map(async (file) => {
+    const uuid = crypto.randomUUID();
+    const key = `teams/${teamId}/products/${managedId}/${uuid}.jpg`;
+    const arrayBuffer = await file.arrayBuffer();
+    await env.IMAGES.put(key, arrayBuffer, {
+      httpMetadata: {
+        contentType: 'image/jpeg',
+        cacheControl: 'public, max-age=31536000, immutable',
+      },
+    });
+    return `/images/teams/${teamId}/products/${managedId}/${uuid}.jpg`;
+  });
+
+  const newUrls = await Promise.all(uploadPromises);
+  const urls = action === 'append' ? [...existingUrls, ...newUrls] : newUrls;
+
+  // KV更新
+  await env.CACHE.put(kvKey, JSON.stringify(urls));
+
+  // インデックス更新
+  await addToIndex(env, teamId, managedId);
+
+  // メタデータ保存
+  const now = new Date().toISOString();
+  const metaKey = `team:${teamId}:product-meta:${managedId}`;
+  const existingMetaJson = await env.CACHE.get(metaKey);
+  const existingMeta = existingMetaJson ? JSON.parse(existingMetaJson) : {};
+
+  const meta = {
+    uploadedBy: existingMeta.uploadedBy || session.userId,
+    uploadedByName: existingMeta.uploadedByName || session.displayName,
+    uploadedAt: existingMeta.uploadedAt || now,
+    lastUpdatedBy: session.userId,
+    lastUpdatedByName: session.displayName,
+    lastUpdatedAt: now,
+  };
+  await env.CACHE.put(metaKey, JSON.stringify(meta));
+
+  // チームのカウンター更新
+  const addedImages = action === 'append' ? files.length : (files.length - (action !== 'append' ? existingUrls.length : 0));
+  const productDelta = isNewProduct ? 1 : 0;
+
+  await env.DB.prepare(`
+    UPDATE teams SET
+      product_count = product_count + ?,
+      image_count = image_count + ?,
+      updated_at = ?
+    WHERE id = ?
+  `).bind(productDelta, files.length - (action !== 'append' ? existingUrls.length : 0), now, teamId).run();
+
+  return jsonOk({ managedId, urls, count: urls.length });
+}
+
+/**
+ * 画像並び替え
+ */
+export async function reorder(request, env, session) {
+  const body = await request.json();
+  const { teamId, newOrder } = body;
+  const managedId = normalizeManagedId(body.managedId || '');
+
+  if (!teamId) return jsonError('teamIdは必須です。', 400);
+  if (!managedId) return jsonError('管理番号が必要です。', 400);
+  if (!Array.isArray(newOrder) || newOrder.length === 0) return jsonError('新しい順序が必要です。', 400);
+
+  const membership = await verifyMembership(env, teamId, session.userId);
+  if (!membership) return jsonError('このチームのメンバーではありません。', 403);
+
+  const kvKey = `team:${teamId}:product-images:${managedId}`;
+  const urlsJson = await env.CACHE.get(kvKey);
+  const urls = urlsJson ? JSON.parse(urlsJson) : [];
+
+  // バリデーション
+  for (const url of newOrder) {
+    if (!urls.includes(url)) return jsonError('指定された画像はこの商品に属しません。', 400);
+  }
+  if (new Set(newOrder).size !== newOrder.length) return jsonError('重複したURLがあります。', 400);
+  if (newOrder.length !== urls.length) return jsonError('画像数が一致しません。', 400);
+
+  await env.CACHE.put(kvKey, JSON.stringify(newOrder));
+
+  return jsonOk({ managedId, urls: newOrder });
+}
+
+/**
+ * R2画像配信（セッション認証 ?token= 方式）
+ */
+export async function serveImage(request, env, url) {
+  const pathname = url.pathname;
+  // パスからteamIdを抽出: /images/teams/{teamId}/products/...
+  const match = pathname.match(/^\/images\/teams\/([^/]+)\/products\//);
+  if (!match) return new Response('Not Found', { status: 404 });
+
+  const teamId = match[1];
+
+  // トークン認証（img srcにAuthヘッダーを付けられないため）
+  const token = url.searchParams.get('token');
+  if (!token) return new Response('Unauthorized', { status: 401 });
+
+  const sessionData = await env.SESSIONS.get(`session:${token}`, 'json');
+  if (!sessionData) return new Response('Unauthorized', { status: 401 });
+
+  // メンバーシップ検証
+  const membership = await verifyMembership(env, teamId, sessionData.userId);
+  if (!membership) return new Response('Forbidden', { status: 403 });
+
+  // R2からオブジェクト取得
+  const r2Key = pathname.replace(/^\/images\//, '');
+  const object = await env.IMAGES.get(r2Key);
+  if (!object) return new Response('Not Found', { status: 404 });
+
+  const headers = new Headers();
+  headers.set('Content-Type', object.httpMetadata?.contentType || 'image/jpeg');
+  headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+  headers.set('Access-Control-Allow-Origin', '*');
+
+  if (object.etag) headers.set('ETag', object.etag);
+
+  const ifNoneMatch = request.headers.get('If-None-Match');
+  if (ifNoneMatch && object.etag && ifNoneMatch === object.etag) {
+    return new Response(null, { status: 304, headers });
+  }
+
+  return new Response(object.body, { headers });
+}
+
+// ─── ヘルパー ───
+
+async function addToIndex(env, teamId, managedId) {
+  const indexKey = `team:${teamId}:product-images:index`;
+  const indexJson = await env.CACHE.get(indexKey);
+  const index = indexJson ? JSON.parse(indexJson) : [];
+  if (!index.includes(managedId)) {
+    index.push(managedId);
+    index.sort();
+    await env.CACHE.put(indexKey, JSON.stringify(index));
+  }
+}
+
+export async function removeFromIndex(env, teamId, managedId) {
+  const indexKey = `team:${teamId}:product-images:index`;
+  const indexJson = await env.CACHE.get(indexKey);
+  if (!indexJson) return;
+  const index = JSON.parse(indexJson).filter(id => id !== managedId);
+  await env.CACHE.put(indexKey, JSON.stringify(index));
+}

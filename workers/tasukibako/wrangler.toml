@@ -1,0 +1,28 @@
+name = "tasukibako"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+workers_dev = true
+
+[vars]
+APP_NAME = "タスキ箱"
+
+# D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "tasukibako-db"
+database_id = "30d05549-1e52-4a2a-85af-555847c183f9"
+
+# KV: セッション・CSRF・レート制限
+[[kv_namespaces]]
+binding = "SESSIONS"
+id = "a45ffde241e64ee8aa03b6a54dc659ec"
+
+# KV: 画像キャッシュ・インデックス
+[[kv_namespaces]]
+binding = "CACHE"
+id = "4b44ff82d82b4302b3e3318522f7ae11"
+
+# R2: 商品画像ストレージ
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "tasukibako-images"
