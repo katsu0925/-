@@ -181,6 +181,7 @@ export async function zipProduct(request, env, url) {
 
 export function serveDemoKit() {
   const demoData = {
+    isDemo: true,
     receiptNo: 'DEMO-SAMPLE',
     customerName: 'サンプル',
     orderDate: '2026-03-28',

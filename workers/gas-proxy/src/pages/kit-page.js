@@ -271,8 +271,11 @@ export function getKitPageHtml(kitDataJson) {
     '</div>' +
     '<div class="loading-sentinel" id="loadingSentinel"></div>' +
     '<div class="kit-footer">' +
-      'このページは注文者限定です。URLの共有はお控えください。<br>' +
-      '<a href="https://wholesale.nkonline-tool.com">デタウリ.Detauri</a> ／ NKonline' +
+      (data.isDemo
+        ? 'これはデモページです。デタウリで購入すると、このような出品キットが届きます。<br>' +
+          '<a href="https://wholesale.nkonline-tool.com">デタウリ.Detauri でお買い物する</a>'
+        : 'このページは注文者限定です。URLの共有はお控えください。<br>' +
+          '<a href="https://wholesale.nkonline-tool.com">デタウリ.Detauri</a> ／ NKonline') +
     '</div>';
 
   var productList = document.getElementById('productList');
