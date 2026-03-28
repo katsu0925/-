@@ -2275,6 +2275,8 @@ function showPlanModal() {
   m = document.createElement('div');
   m.id = 'planModal';
   m.style.cssText = 'position:fixed;inset:0;z-index:150;background:var(--overlay-bg);overflow-y:auto;-webkit-overflow-scrolling:touch;display:block';
+  let _planBilling = 'monthly';
+  let _appliedCoupon = '';
   m.innerHTML = `<div style="max-width:420px;margin:0 auto;padding:20px">
     <div style="display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:10;padding:12px 0;background:var(--overlay-bg);border-bottom:1px solid var(--border);margin-bottom:8px">
       <h2 style="font-size:17px;color:var(--text)">料金プラン</h2>
@@ -2282,7 +2284,13 @@ function showPlanModal() {
     </div>
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
       <img src="/img/bear-happy.png" alt="" style="width:44px;height:44px;object-fit:contain">
-      <p style="font-size:12px;color:var(--text3)">採寸の外注相場は<b style="color:var(--text)">1件50〜200円</b>。写メジャーなら<b style="color:var(--success-light)">最安1件11.6円</b>!</p>
+      <p style="font-size:12px;color:var(--text3)">採寸の外注相場は<b style="color:var(--text)">1件50〜200円</b>。写メジャーなら<b style="color:var(--success-light)">最安1件11.0円</b>!</p>
+    </div>
+
+    <!-- 月額/年額トグル -->
+    <div id="billingToggle" style="display:flex;justify-content:center;gap:0;margin-bottom:14px;background:var(--bg3);border-radius:8px;padding:3px;border:1px solid var(--border)">
+      <button id="btnMonthly" onclick="switchBilling('monthly')" style="flex:1;padding:6px 0;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;background:var(--accent);color:#fff;transition:all 0.15s">月額</button>
+      <button id="btnYearly" onclick="switchBilling('yearly')" style="flex:1;padding:6px 0;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;background:transparent;color:var(--text3);transition:all 0.15s">年額<span style="font-size:10px;color:var(--success-light);font-weight:700;margin-left:4px">2ヶ月無料</span></button>
     </div>
 
     <!-- 無料 -->
@@ -2291,68 +2299,68 @@ function showPlanModal() {
         <span style="font-size:15px;font-weight:700;color:var(--text)">無料プラン</span>
         <span style="font-size:18px;font-weight:700;color:var(--success-light)">¥0</span>
       </div>
-      <p style="font-size:12px;color:var(--text3);margin-top:4px">月 <b style="color:var(--text)">5件</b>まで。まずはお試し。</p>
-    </div>
-
-    <!-- ライト -->
-    <div onclick="subscribePlan('light')" style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:8px;border:1px solid var(--border);cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
-      <div style="display:flex;justify-content:space-between;align-items:center">
-        <span style="font-size:15px;font-weight:700;color:var(--text)">ライト</span>
-        <div style="text-align:right">
-          <span style="font-size:20px;font-weight:700;color:var(--text)">¥980</span><span style="font-size:11px;color:var(--text4)">/月</span>
-        </div>
-      </div>
-      <p style="font-size:12px;color:var(--text3);margin-top:4px">月 <b style="color:var(--text)">50件</b>（1件¥19.6）</p>
-      <div style="background:#e8f5e9;border-radius:6px;padding:6px 10px;margin-top:8px;font-size:11px;color:#1b5e20">
-        外注比で<b>月4,000円以上</b>おトク（外注100円/件の場合）
-      </div>
-      <div style="text-align:center;margin-top:8px;font-size:11px;color:var(--accent);font-weight:600">タップして申し込む →</div>
+      <p style="font-size:12px;color:var(--text3);margin-top:4px">月 <b style="color:var(--text)">5件</b>・採寸+説明文+画像保存+汚れマーキング</p>
     </div>
 
     <!-- スタンダード（おすすめ） -->
     <div onclick="subscribePlan('standard')" style="background:var(--card-bg);border:2px solid var(--accent);border-radius:10px;padding:14px;margin-bottom:8px;position:relative;cursor:pointer;transition:all 0.15s" onmouseover="this.style.transform='scale(1.02)'" onmouseout="this.style.transform=''">
-      <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;font-size:10px;font-weight:700;padding:2px 12px;border-radius:10px">おすすめ</div>
+      <div style="position:absolute;top:-10px;left:14px;display:flex;gap:6px">
+        <span style="background:var(--accent);color:#fff;font-size:10px;font-weight:700;padding:2px 12px;border-radius:10px">おすすめ</span>
+        <span style="background:#ef4444;color:#fff;font-size:10px;font-weight:700;padding:2px 10px;border-radius:10px">初月無料</span>
+      </div>
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:15px;font-weight:700;color:var(--text)">スタンダード</span>
-        <div style="text-align:right">
+        <div style="text-align:right" id="priceStandard">
           <span style="font-size:20px;font-weight:700;color:var(--text)">¥1,480</span><span style="font-size:11px;color:var(--text4)">/月</span>
         </div>
       </div>
       <p style="font-size:12px;color:var(--text3);margin-top:4px">月 <b style="color:var(--text)">100件</b>（1件¥14.8）</p>
+      <p id="trialNoteStandard" style="font-size:13px;color:#ef4444;margin-top:6px;font-weight:600">30日間無料 → 解約しなければ自動で課金開始</p>
       <div style="background:#e8f5e9;border-radius:6px;padding:6px 10px;margin-top:8px;font-size:11px;color:#1b5e20">
         外注比で<b>月8,500円以上</b>おトク。副業セラーに最適
       </div>
-      <div style="text-align:center;margin-top:8px;font-size:12px;color:#fff;font-weight:700;background:var(--accent);border-radius:6px;padding:6px">申し込む</div>
+      <div style="text-align:center;margin-top:8px;font-size:12px;color:#fff;font-weight:700;background:var(--accent);border-radius:6px;padding:6px">無料で試す</div>
     </div>
 
     <!-- プロ -->
-    <div onclick="subscribePlan('pro')" style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:8px;border:1px solid var(--border);cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+    <div onclick="subscribePlan('pro')" style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:8px;border:1px solid var(--border);position:relative;cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+      <div style="position:absolute;top:-10px;right:14px"><span style="background:#ef4444;color:#fff;font-size:10px;font-weight:700;padding:2px 10px;border-radius:10px">初月無料</span></div>
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:15px;font-weight:700;color:var(--text)">プロ</span>
-        <div style="text-align:right">
+        <div style="text-align:right" id="pricePro">
           <span style="font-size:20px;font-weight:700;color:var(--text)">¥3,480</span><span style="font-size:11px;color:var(--text4)">/月</span>
         </div>
       </div>
       <p style="font-size:12px;color:var(--text3);margin-top:4px">月 <b style="color:var(--text)">300件</b>（1件¥11.6）・チーム3人</p>
+      <p id="trialNotePro" style="font-size:13px;color:#ef4444;margin-top:6px;font-weight:600">30日間無料 → 解約しなければ自動で課金開始</p>
       <div style="background:#e8f5e9;border-radius:6px;padding:6px 10px;margin-top:8px;font-size:11px;color:#1b5e20">
         外注比で<b>月26,000円以上</b>おトク。本業セラー向け
       </div>
-      <div style="text-align:center;margin-top:8px;font-size:11px;color:var(--accent);font-weight:600">タップして申し込む →</div>
+      <div style="text-align:center;margin-top:8px;font-size:11px;color:var(--accent);font-weight:600">無料で試す →</div>
     </div>
 
     <!-- チーム -->
     <div onclick="subscribePlan('team')" style="background:var(--bg3);border-radius:10px;padding:14px;margin-bottom:8px;border:1px solid var(--border);cursor:pointer;transition:all 0.15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
       <div style="display:flex;justify-content:space-between;align-items:center">
         <span style="font-size:15px;font-weight:700;color:var(--text)">チーム</span>
-        <div style="text-align:right">
-          <span style="font-size:20px;font-weight:700;color:var(--text)">¥5,980</span><span style="font-size:11px;color:var(--text4)">/月</span>
+        <div style="text-align:right" id="priceTeam">
+          <span style="font-size:20px;font-weight:700;color:var(--text)">¥5,480</span><span style="font-size:11px;color:var(--text4)">/月</span>
         </div>
       </div>
-      <p style="font-size:12px;color:var(--text3);margin-top:4px">月 <b style="color:var(--text)">500件</b>（1件¥12.0）・チーム5人</p>
+      <p style="font-size:12px;color:var(--text3);margin-top:4px">月 <b style="color:var(--text)">500件</b>（1件¥11.0）・チーム5人</p>
       <div style="background:#e8f5e9;border-radius:6px;padding:6px 10px;margin-top:8px;font-size:11px;color:#1b5e20">
         中規模ショップ向け。スタッフ全員で使える
       </div>
       <div style="text-align:center;margin-top:8px;font-size:11px;color:var(--accent);font-weight:600">タップして申し込む →</div>
+    </div>
+
+    <!-- クーポン入力 -->
+    <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-top:10px">
+      <div style="display:flex;align-items:center;gap:8px">
+        <input id="couponInput" type="text" placeholder="クーポンコード" style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;background:var(--bg2);color:var(--text)">
+        <button onclick="applyCoupon()" style="padding:6px 12px;border:none;border-radius:6px;font-size:12px;font-weight:600;background:var(--accent);color:#fff;cursor:pointer;white-space:nowrap">適用</button>
+      </div>
+      <p id="couponStatus" style="font-size:11px;margin-top:4px;display:none"></p>
     </div>
 
     <div style="background:var(--bg3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;margin-top:12px">
@@ -2368,9 +2376,9 @@ function showPlanModal() {
           <tr style="border-bottom:2px solid var(--border)">
             <th style="text-align:left;padding:6px 4px;color:var(--text4)">機能</th>
             <th style="text-align:center;padding:6px 2px;color:var(--text4);width:36px">無料</th>
-            <th style="text-align:center;padding:6px 2px;color:#4488ff;width:36px">ライト</th>
             <th style="text-align:center;padding:6px 2px;color:var(--accent);width:48px">スタン<br>ダード</th>
             <th style="text-align:center;padding:6px 2px;color:#fbbf24;width:36px">プロ</th>
+            <th style="text-align:center;padding:6px 2px;color:#a78bfa;width:36px">チーム</th>
           </tr>
         </thead>
         <tbody style="color:var(--text2)" id="planFeatureTable"></tbody>
@@ -2380,17 +2388,38 @@ function showPlanModal() {
     <button onclick="document.getElementById('planModal').style.display='none'" class="btn btn-secondary" style="margin-top:12px">閉じる</button>
   </div>`;
   document.body.appendChild(m);
-  // 機能比較テーブル生成
+  // 月額/年額切替
+  window.switchBilling = function(mode) {
+    _planBilling = mode;
+    const prices = {
+      standard: { monthly: '¥1,480', yearly: '¥14,800', suffix: '/月', ySuffix: '/年' },
+      pro:      { monthly: '¥3,480', yearly: '¥34,800', suffix: '/月', ySuffix: '/年' },
+      team:     { monthly: '¥5,480', yearly: '¥54,800', suffix: '/月', ySuffix: '/年' },
+    };
+    const isY = mode === 'yearly';
+    Object.keys(prices).forEach(p => {
+      const el = document.getElementById('price' + p.charAt(0).toUpperCase() + p.slice(1));
+      if (el) el.innerHTML = '<span style="font-size:20px;font-weight:700;color:var(--text)">' + (isY ? prices[p].yearly : prices[p].monthly) + '</span><span style="font-size:11px;color:var(--text4)">' + (isY ? prices[p].ySuffix : prices[p].suffix) + '</span>';
+    });
+    document.getElementById('btnMonthly').style.cssText = 'flex:1;padding:6px 0;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s;' + (isY ? 'background:transparent;color:var(--text3)' : 'background:var(--accent);color:#fff');
+    document.getElementById('btnYearly').style.cssText = 'flex:1;padding:6px 0;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s;' + (isY ? 'background:var(--accent);color:#fff' : 'background:transparent;color:var(--text3)');
+    // トライアル注記を年額時は更新
+    const trialS = document.getElementById('trialNoteStandard');
+    const trialP = document.getElementById('trialNotePro');
+    if (trialS) trialS.textContent = isY ? '30日間無料 → 解約しなければ¥14,800/年が一括請求されます' : '30日間無料 → 解約しなければ自動で課金開始';
+    if (trialP) trialP.textContent = isY ? '30日間無料 → 解約しなければ¥34,800/年が一括請求されます' : '30日間無料 → 解約しなければ自動で課金開始';
+  };
+  // 機能比較テーブル生成（4ティア: 無料/スタンダード/プロ/チーム）
   const features = [
     {name:'AI採寸', marks:['○','○','○','○'], desc:'写真1枚からAIが自動で各部位のサイズを計測します。'},
     {name:'採寸画像の保存', marks:['○','○','○','○'], desc:'寸法線と数値が入った画像を保存。メルカリの商品写真にそのまま使えます。'},
-    {name:'AIタイトル・説明文', marks:['−','−','○','○'], desc:'ブランド・状態・採寸値を元に、AIがメルカリ向けのタイトルと商品説明文を自動生成します。'},
-    {name:'汚れ箇所マーキング', marks:['−','−','○','○'], desc:'写真上で汚れ箇所をタップ。シミ・穴・毛玉などの種類を選び、ピンチで範囲を調整。汚れ画像として保存できます。'},
-    {name:'タグ撮影で自動入力', marks:['−','−','○','○'], desc:'洗濯タグや品質表示タグを撮影すると、ブランド名・素材・サイズ表記をAIが読み取って自動入力します。'},
-    {name:'採寸履歴', marks:['−','−','90日','無制限'], desc:'過去に採寸した商品をサムネイル画像付きで検索・参照できます。クレーム対応時にも便利。'},
-    {name:'一括処理', marks:['−','−','−','○'], desc:'複数の写真をまとめてアップロード。AIがカテゴリを自動判別して一括採寸。結果を一覧で確認・修正できます。'},
-    {name:'CSV出力', marks:['−','−','−','○'], desc:'採寸データをCSV形式でダウンロード。Googleスプレッドシートや在庫管理ツールに取り込めます。'},
-    {name:'チーム管理', marks:['−','−','−','○'], desc:'外注スタッフにアカウントを発行し、利用状況を一元管理。品質の標準化と進捗の把握に。'},
+    {name:'AIタイトル・説明文', marks:['○','○','○','○'], desc:'ブランド・状態・採寸値を元に、AIがメルカリ向けのタイトルと商品説明文を自動生成します。'},
+    {name:'汚れ箇所マーキング', marks:['○','○','○','○'], desc:'写真上で汚れ箇所をタップ。シミ・穴・毛玉などの種類を選び、ピンチで範囲を調整。汚れ画像として保存できます。'},
+    {name:'タグ撮影で自動入力', marks:['○','○','○','○'], desc:'洗濯タグや品質表示タグを撮影すると、ブランド名・素材・サイズ表記をAIが読み取って自動入力します。'},
+    {name:'採寸履歴', marks:['○','90日','無制限','無制限'], desc:'過去に採寸した商品をサムネイル画像付きで検索・参照できます。クレーム対応時にも便利。'},
+    {name:'一括処理', marks:['−','−','○','○'], desc:'複数の写真をまとめてアップロード。AIがカテゴリを自動判別して一括採寸。結果を一覧で確認・修正できます。'},
+    {name:'CSV出力', marks:['−','−','○','○'], desc:'採寸データをCSV形式でダウンロード。Googleスプレッドシートや在庫管理ツールに取り込めます。'},
+    {name:'チーム管理', marks:['−','−','3人','5人'], desc:'外注スタッフにアカウントを発行し、利用状況を一元管理。品質の標準化と進捗の把握に。'},
   ];
   const tbody = document.getElementById('planFeatureTable');
   features.forEach((f,i) => {
@@ -2436,17 +2465,32 @@ async function initAuth() {
 function updateAuthUI() {
   const u = currentUser;
   if (!u) return;
-  const planNames = { free:'無料', light:'ライト', standard:'スタンダード', pro:'プロ', team:'チーム' };
+  const planNames = { free:'無料', standard:'スタンダード', pro:'プロ', team:'チーム' };
   const label = document.getElementById('menuAuthLabel');
   if (label) label.textContent = u.email;
   updateUsageDisplay(u.used, u.limit, u.plan);
 }
 
 function updateUsageDisplay(used, limit, plan) {
-  const planNames = { free:'無料プラン', light:'ライト', standard:'スタンダード', pro:'プロ', team:'チーム' };
+  const planNames = { free:'無料プラン', standard:'スタンダード', pro:'プロ', team:'チーム' };
   const remaining = Math.max(0, limit - used);
   const el = document.getElementById('menuPlanInfo');
   if (el) el.innerHTML = `${planNames[plan]||plan} <span style="color:var(--accent);font-weight:600">あと <span id="remaining">${remaining}</span> 回</span>`;
+  // 有料誘導メッセージ
+  let upsell = document.getElementById('upsellBanner');
+  if (plan === 'free' && remaining <= 2 && remaining > 0) {
+    if (!upsell) { upsell = document.createElement('div'); upsell.id = 'upsellBanner'; document.getElementById('menuPlanInfo')?.parentElement?.appendChild(upsell); }
+    upsell.style.cssText = 'background:linear-gradient(135deg,#667eea22,#764ba222);border:1px solid var(--accent);border-radius:8px;padding:8px 12px;margin-top:8px;cursor:pointer';
+    upsell.innerHTML = '<p style="font-size:12px;color:var(--text2);margin:0">今月あと<b style="color:var(--accent)">' + remaining + '回</b> <span style="font-size:11px;color:var(--text3)">| スタンダードなら初月無料で100件/月</span></p>';
+    upsell.onclick = () => showPlanModal();
+  } else if (plan === 'free' && remaining === 0) {
+    if (!upsell) { upsell = document.createElement('div'); upsell.id = 'upsellBanner'; document.getElementById('menuPlanInfo')?.parentElement?.appendChild(upsell); }
+    upsell.style.cssText = 'background:#ef444422;border:1px solid #ef4444;border-radius:8px;padding:8px 12px;margin-top:8px;cursor:pointer';
+    upsell.innerHTML = '<p style="font-size:12px;color:#ef4444;font-weight:600;margin:0">今月の利用上限に達しました</p><p style="font-size:11px;color:var(--text3);margin:4px 0 0">来月1日に5件リセットされます</p><p style="font-size:11px;color:var(--text2);margin:4px 0 0">または、スタンダードなら<b>初月無料</b>で100件/月 →</p>';
+    upsell.onclick = () => showPlanModal();
+  } else if (upsell) {
+    upsell.remove();
+  }
 }
 
 function showLoginModal() {
@@ -2561,7 +2605,8 @@ async function doAuth() {
     if (pendingInvite) { sessionStorage.removeItem('pending_invite'); joinTeamWithToken(pendingInvite); }
     // 保留中のプラン申し込みがあれば処理
     const pendingPlan = sessionStorage.getItem('pending_plan');
-    if (pendingPlan) { sessionStorage.removeItem('pending_plan'); subscribePlan(pendingPlan); }
+    const pendingBilling = sessionStorage.getItem('pending_billing');
+    if (pendingPlan) { sessionStorage.removeItem('pending_plan'); sessionStorage.removeItem('pending_billing'); if (pendingBilling) _planBilling = pendingBilling; subscribePlan(pendingPlan); }
   } catch(e) {
     errEl.textContent = '通信エラーが発生しました'; errEl.style.display = '';
   }
@@ -2575,7 +2620,7 @@ function showAccountModal() {
   m.id = 'loginModal';
   m.style.cssText = 'position:fixed;inset:0;z-index:150;background:var(--overlay-bg);overflow-y:auto;-webkit-overflow-scrolling:touch;display:block';
   const u = currentUser;
-  const planNames = { free:'無料プラン', light:'ライト', standard:'スタンダード', pro:'プロ', team:'チーム' };
+  const planNames = { free:'無料プラン', standard:'スタンダード', pro:'プロ', team:'チーム' };
   const remaining = Math.max(0, (u.limit||5) - (u.used||0));
   m.innerHTML = `<div style="max-width:400px;margin:0 auto;padding:20px">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
@@ -2608,7 +2653,7 @@ async function doLogout() {
   toggleMenu();
 }
 
-const PLAN_LIMITS = { free: 5, light: 50, standard: 100, pro: 300, team: 500 };
+const PLAN_LIMITS = { free: 5, standard: 100, pro: 300, team: 500 };
 
 // ============ 管理パネル ============
 function initAdminPanel() {
@@ -2618,7 +2663,6 @@ function initAdminPanel() {
   panel.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:200;background:#1a1a2e;border-top:2px solid #e94560;padding:10px 16px;font-size:12px;color:#f1f5f9;display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding-bottom:max(10px,env(safe-area-inset-bottom))';
   const plans = [
     {key:'free', label:'無料', color:'#64748b'},
-    {key:'light', label:'ライト', color:'#3b82f6'},
     {key:'standard', label:'スタンダード', color:'#e94560'},
     {key:'pro', label:'プロ', color:'#fbbf24'},
     {key:'team', label:'チーム', color:'#22c55e'},
@@ -2677,11 +2721,14 @@ function adminUpdateStatus() {
 }
 
 async function subscribePlan(plan) {
+  const billing = _planBilling || 'monthly';
   if (!currentUser) {
     document.getElementById('planModal').style.display = 'none';
     sessionStorage.setItem('pending_plan', plan);
-    const planNames = {light:'ライト ¥980/月',standard:'スタンダード ¥1,480/月',pro:'プロ ¥3,480/月',team:'チーム ¥5,980/月'};
-    sessionStorage.setItem('pending_plan_label', planNames[plan] || plan);
+    sessionStorage.setItem('pending_billing', billing);
+    const planNames = {standard:'スタンダード',pro:'プロ',team:'チーム'};
+    const prices = {standard:{monthly:'¥1,480/月',yearly:'¥14,800/年'},pro:{monthly:'¥3,480/月',yearly:'¥34,800/年'},team:{monthly:'¥5,480/月',yearly:'¥54,800/年'}};
+    sessionStorage.setItem('pending_plan_label', (planNames[plan]||plan) + ' ' + (prices[plan]?.[billing]||''));
     showLoginModal();
     return;
   }
@@ -2693,7 +2740,7 @@ async function subscribePlan(plan) {
     const resp = await fetch('/api/stripe/checkout', {
       method: 'POST', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ plan }),
+      body: JSON.stringify({ plan, billing, coupon: _appliedCoupon || undefined }),
     });
     const data = await resp.json();
     if (data.url) window.location.href = data.url;
@@ -2709,6 +2756,19 @@ async function openPortal() {
     if (data.url) window.location.href = data.url;
     else alert(data.error || 'エラーが発生しました');
   } catch(e) { alert('通信エラーが発生しました'); }
+}
+
+// ============ クーポン ============
+function applyCoupon() {
+  const input = document.getElementById('couponInput');
+  const status = document.getElementById('couponStatus');
+  const code = input?.value?.trim().toUpperCase();
+  if (!code) { status.textContent = 'コードを入力してください'; status.style.color = '#ef4444'; status.style.display = ''; return; }
+  // クーポンIDとして保存（Stripe Checkout で適用される）
+  _appliedCoupon = code;
+  status.textContent = '「' + code + '」を適用します（決済画面で割引が反映されます）';
+  status.style.color = 'var(--success-light)';
+  status.style.display = '';
 }
 
 // ============ チーム管理 ============

@@ -41,10 +41,11 @@ CREATE TABLE IF NOT EXISTS sm_users (
   id TEXT PRIMARY KEY,                  -- 'U' + Date.now().toString(36)
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,          -- v2:salt:hash (SHA-256, 1000 iterations)
-  plan TEXT NOT NULL DEFAULT 'free',    -- free/light/standard/pro/team
+  plan TEXT NOT NULL DEFAULT 'free',    -- free/standard/pro/team
   monthly_limit INTEGER NOT NULL DEFAULT 5,
   display_name TEXT NOT NULL DEFAULT '',
   stripe_customer_id TEXT,           -- Stripe Customer ID
+  has_used_trial INTEGER DEFAULT 0,  -- トライアル使用済みフラグ
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

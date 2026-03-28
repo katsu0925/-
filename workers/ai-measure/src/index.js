@@ -15,17 +15,28 @@
 
 const SESSION_TTL = 30 * 24 * 3600; // 30日 (秒)
 const COOKIE_NAME = 'sm_session';
-const PLAN_LIMITS = { free: 5, light: 50, standard: 100, pro: 300, team: 500 };
+const PLAN_LIMITS = { free: 5, standard: 100, pro: 300, team: 500 };
 const TEAM_MEMBER_LIMITS = { pro: 3, team: 5 }; // オーナー含む
+const TRIAL_PLANS = new Set(['standard', 'pro']); // トライアル対象（30日無料）
+const TRIAL_DAYS = 30;
 
-// Stripe 価格ID → プラン名マッピング
+// Stripe 価格ID → プラン名マッピング（月額+年額）
 const STRIPE_PRICE_TO_PLAN = {
-  'price_1TFSDJJxnW1kn7BUkNX5sc8g': 'light',
+  // 月額
   'price_1TFSDqJxnW1kn7BURjOr8Ha5': 'standard',
   'price_1TFSEOJxnW1kn7BUjcMF1nyJ': 'pro',
-  'price_1TFSF7JxnW1kn7BUjbMFTOuq': 'team',
+  'price_1TFnazJxnW1kn7BUtKDPvUx8': 'team',     // ¥5,480/月
+  // 年額
+  'price_1TFnd5JxnW1kn7BUFK3DSAck': 'standard', // ¥14,800/年
+  'price_1TFne0JxnW1kn7BUn1V5Pzma': 'pro',      // ¥34,800/年
+  'price_1TFnbcJxnW1kn7BUub42xdSg': 'team',     // ¥54,800/年
 };
-const PLAN_TO_STRIPE_PRICE = Object.fromEntries(Object.entries(STRIPE_PRICE_TO_PLAN).map(([k,v])=>[v,k]));
+// プラン名 → 価格ID（月額/年額）
+const PLAN_TO_STRIPE_PRICE = {
+  standard: { monthly: 'price_1TFSDqJxnW1kn7BURjOr8Ha5', yearly: 'price_1TFnd5JxnW1kn7BUFK3DSAck' },
+  pro:      { monthly: 'price_1TFSEOJxnW1kn7BUjcMF1nyJ', yearly: 'price_1TFne0JxnW1kn7BUn1V5Pzma' },
+  team:     { monthly: 'price_1TFnazJxnW1kn7BUtKDPvUx8',  yearly: 'price_1TFnbcJxnW1kn7BUub42xdSg' },
+};
 
 export default {
   async fetch(request, env) {
@@ -316,12 +327,16 @@ async function handleMe(request, env, user) {
 // ==================================================
 // Stripe API ヘルパー
 // ==================================================
-async function stripeAPI(env, endpoint, params) {
-  const resp = await fetch(`https://api.stripe.com/v1/${endpoint}`, {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams(params).toString(),
-  });
+async function stripeAPI(env, endpoint, params, method = 'POST') {
+  const opts = {
+    method,
+    headers: { 'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}` },
+  };
+  if (method === 'POST') {
+    opts.headers['Content-Type'] = 'application/x-www-form-urlencoded';
+    opts.body = new URLSearchParams(params).toString();
+  }
+  const resp = await fetch(`https://api.stripe.com/v1/${endpoint}`, opts);
   return resp.json();
 }
 
@@ -331,12 +346,13 @@ async function stripeAPI(env, endpoint, params) {
 async function handleStripeCheckout(request, env, user) {
   if (!user) return jsonResponse({ error: 'ログインが必要です' }, 401);
 
-  const { plan } = await request.json();
-  const priceId = PLAN_TO_STRIPE_PRICE[plan];
+  const { plan, billing = 'monthly', coupon } = await request.json();
+  const prices = PLAN_TO_STRIPE_PRICE[plan];
+  const priceId = prices?.[billing];
   if (!priceId) return jsonResponse({ error: '無効なプランです' }, 400);
 
   // Stripe Customer 取得 or 作成
-  const dbUser = await env.DB.prepare('SELECT stripe_customer_id, email FROM sm_users WHERE id = ?').bind(user.userId).first();
+  const dbUser = await env.DB.prepare('SELECT stripe_customer_id, email, has_used_trial FROM sm_users WHERE id = ?').bind(user.userId).first();
   let customerId = dbUser?.stripe_customer_id;
 
   if (!customerId) {
@@ -345,8 +361,16 @@ async function handleStripeCheckout(request, env, user) {
     await env.DB.prepare('UPDATE sm_users SET stripe_customer_id = ? WHERE id = ?').bind(customerId, user.userId).run();
   }
 
+  // トライアル判定（スタンダード・プロのみ）— アトミックUPDATEでRace Condition防止
+  let canTrial = false;
+  if (TRIAL_PLANS.has(plan) && !dbUser?.has_used_trial) {
+    const result = await env.DB.prepare('UPDATE sm_users SET has_used_trial = 1 WHERE id = ? AND has_used_trial = 0')
+      .bind(user.userId).run();
+    canTrial = result.meta.changes > 0;
+  }
+
   const origin = new URL(request.url).origin;
-  const session = await stripeAPI(env, 'checkout/sessions', {
+  const params = {
     customer: customerId,
     'line_items[0][price]': priceId,
     'line_items[0][quantity]': '1',
@@ -355,9 +379,28 @@ async function handleStripeCheckout(request, env, user) {
     cancel_url: `${origin}/measure?checkout=cancel`,
     'metadata[sm_user_id]': user.userId,
     'metadata[plan]': plan,
-  });
+  };
 
-  if (session.error) return jsonResponse({ error: session.error.message }, 400);
+  if (canTrial) {
+    params['subscription_data[trial_period_days]'] = String(TRIAL_DAYS);
+  }
+
+  // クーポン適用（coupon指定時は直接適用、未指定時はCheckout画面でプロモコード入力可能に）
+  if (coupon) {
+    params['discounts[0][coupon]'] = coupon;
+  } else {
+    params['allow_promotion_codes'] = 'true';
+  }
+
+  const session = await stripeAPI(env, 'checkout/sessions', params);
+
+  if (session.error) {
+    // Stripe失敗時はトライアルフラグを戻す
+    if (canTrial) {
+      await env.DB.prepare('UPDATE sm_users SET has_used_trial = 0 WHERE id = ?').bind(user.userId).run();
+    }
+    return jsonResponse({ error: session.error.message }, 400);
+  }
   return jsonResponse({ url: session.url });
 }
 
@@ -490,11 +533,19 @@ async function handleStripeWebhook(request, env) {
 
   if (type === 'checkout.session.completed') {
     const userId = data.metadata?.sm_user_id;
-    const plan = data.metadata?.plan;
+    const customerId = data.customer;
+    // metadata.plan ではなく subscription の priceId からプラン判定（改ざん防止）
+    let plan = null;
+    if (data.subscription) {
+      const sub = await stripeAPI(env, `subscriptions/${data.subscription}`, {}, 'GET');
+      const priceId = sub.items?.data?.[0]?.price?.id;
+      plan = STRIPE_PRICE_TO_PLAN[priceId];
+    }
+    plan = plan || data.metadata?.plan; // フォールバック
     if (userId && plan) {
       const limit = PLAN_LIMITS[plan] || 5;
       await env.DB.prepare('UPDATE sm_users SET plan = ?, monthly_limit = ?, stripe_customer_id = ?, updated_at = ? WHERE id = ?')
-        .bind(plan, limit, data.customer, new Date().toISOString(), userId).run();
+        .bind(plan, limit, customerId, new Date().toISOString(), userId).run();
     }
   }
 
@@ -509,6 +560,17 @@ async function handleStripeWebhook(request, env) {
       // ダウングレード時のチームメンバー自動削除
       const owner = await env.DB.prepare('SELECT id FROM sm_users WHERE stripe_customer_id = ?').bind(customerId).first();
       if (owner) await trimTeamMembers(env, owner.id, plan);
+    }
+  }
+
+  // トライアル終了3日前通知（Stripeが自動送信、ここではログ記録）
+  if (type === 'customer.subscription.trial_will_end') {
+    const customerId = data.customer;
+    if (customerId) {
+      const user = await env.DB.prepare('SELECT id, email FROM sm_users WHERE stripe_customer_id = ?').bind(customerId).first();
+      if (user) {
+        console.log(`[trial_will_end] user=${user.id} email=${user.email} trial ends in 3 days`);
+      }
     }
   }
 
