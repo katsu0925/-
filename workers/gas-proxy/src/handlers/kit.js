@@ -177,6 +177,90 @@ export async function zipProduct(request, env, url) {
   });
 }
 
+// ─── GET /kit/demo — SNS発信用デモページ ───
+
+export function serveDemoKit() {
+  const demoData = {
+    receiptNo: 'DEMO-SAMPLE',
+    customerName: 'サンプル',
+    orderDate: '2026-03-28',
+    totalPrice: 9750,
+    items: [
+      {
+        managedId: 'DEMO-001',
+        brand: 'BURBERRY',
+        item: 'トップス',
+        cat3: 'ニット・セーター',
+        size: 'L',
+        color: 'ベージュ',
+        gender: 'メンズ',
+        condition: 'B（使用感少ない）',
+        priceText: '¥2,500',
+        title: 'BURBERRY バーバリー ニット セーター ノバチェック ベージュ L メンズ',
+        description: '■ブランド\nBURBERRY バーバリー\n\n■アイテム\nニット・セーター\n\n■サイズ\nL\n肩幅: 46cm / 身幅: 54cm / 着丈: 68cm / 袖丈: 62cm\n\n■カラー\nベージュ\n\n■状態\n目立った傷や汚れなし\n全体的にきれいな状態です。\n\n■商品説明\nバーバリーの定番ノバチェック柄ニットです。上質なウール素材で暖かく、シンプルなデザインで合わせやすい一着です。\n\n※素人採寸のため多少の誤差はご了承ください。\n※中古品のためご理解のある方のご購入をお願いいたします。',
+        measurementText: '肩幅: 46cm / 身幅: 54cm / 着丈: 68cm / 袖丈: 62cm',
+        images: []
+      },
+      {
+        managedId: 'DEMO-002',
+        brand: 'THE NORTH FACE',
+        item: 'アウター',
+        cat3: 'マウンテンパーカー',
+        size: 'M',
+        color: 'ブラック',
+        gender: 'メンズ',
+        condition: 'A（美品）',
+        priceText: '¥3,500',
+        title: 'THE NORTH FACE ノースフェイス マウンテンパーカー ブラック M メンズ',
+        description: '■ブランド\nTHE NORTH FACE ザ・ノースフェイス\n\n■アイテム\nマウンテンパーカー\n\n■サイズ\nM\n肩幅: 44cm / 身幅: 55cm / 着丈: 70cm / 袖丈: 64cm\n\n■カラー\nブラック\n\n■状態\n美品・ほぼ未使用に近い状態です。\n\n■商品説明\nノースフェイスのマウンテンパーカーです。防風・撥水機能があり、アウトドアからタウンユースまで幅広く活躍します。\n\n※素人採寸のため多少の誤差はご了承ください。\n※中古品のためご理解のある方のご購入をお願いいたします。',
+        measurementText: '肩幅: 44cm / 身幅: 55cm / 着丈: 70cm / 袖丈: 64cm',
+        images: []
+      },
+      {
+        managedId: 'DEMO-003',
+        brand: 'Ralph Lauren',
+        item: 'トップス',
+        cat3: 'ポロシャツ',
+        size: 'L',
+        color: 'ネイビー',
+        gender: 'メンズ',
+        condition: 'B（使用感少ない）',
+        priceText: '¥1,500',
+        title: 'Ralph Lauren ラルフローレン ポロシャツ ポニー刺繍 ネイビー L メンズ',
+        description: '■ブランド\nRalph Lauren ラルフローレン\n\n■アイテム\nポロシャツ\n\n■サイズ\nL\n肩幅: 45cm / 身幅: 56cm / 着丈: 72cm / 袖丈: 24cm\n\n■カラー\nネイビー\n\n■状態\n目立った傷や汚れなし\n\n■商品説明\nラルフローレンの定番ポロシャツです。胸元のポニー刺繍がワンポイント。鹿の子素材で通気性もよく、春夏に活躍します。\n\n※素人採寸のため多少の誤差はご了承ください。\n※中古品のためご理解のある方のご購入をお願いいたします。',
+        measurementText: '肩幅: 45cm / 身幅: 56cm / 着丈: 72cm / 袖丈: 24cm',
+        images: []
+      },
+      {
+        managedId: 'DEMO-004',
+        brand: 'COACH',
+        item: 'バッグ',
+        cat3: 'ショルダーバッグ',
+        size: '-',
+        color: 'ブラウン',
+        gender: 'レディース',
+        condition: 'B（使用感少ない）',
+        priceText: '¥2,250',
+        title: 'COACH コーチ ショルダーバッグ シグネチャー レザー ブラウン レディース',
+        description: '■ブランド\nCOACH コーチ\n\n■アイテム\nショルダーバッグ\n\n■サイズ\n縦: 22cm / 横: 28cm / マチ: 8cm / ショルダー: 120cm\n\n■カラー\nブラウン\n\n■状態\n目立った傷や汚れなし\n\n■商品説明\nコーチのシグネチャー柄ショルダーバッグです。レザーとキャンバスのコンビ素材で高級感があります。収納力もあり普段使いに最適です。\n\n※素人採寸のため多少の誤差はご了承ください。\n※中古品のためご理解のある方のご購入をお願いいたします。',
+        measurementText: '縦: 22cm / 横: 28cm / マチ: 8cm / ショルダー: 120cm',
+        images: []
+      }
+    ]
+  };
+
+  const safeJson = JSON.stringify(demoData).replace(/</g, '\\u003c');
+  const html = getKitPageHtml(safeJson);
+
+  return new Response(html, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Referrer-Policy': 'no-referrer',
+      'Cache-Control': 'public, max-age=3600',
+    },
+  });
+}
+
 // ─── ヘルパー ───
 
 function kitErrorPage(message, status = 404) {

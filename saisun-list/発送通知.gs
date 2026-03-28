@@ -19,7 +19,8 @@ const SHIPMAIL_CONFIG = {
   COL_TRACKING_X: 21,      // U列: 伝票番号
   FLAG_COL: 29,            // AC列: 発送通知
   COL_PAYMENT_ID_AF: 16,  // P列: 決済ID（KOMOJUのみ）
-  COL_TRACKING_URL: 34    // AH列: 追跡URL
+  COL_TRACKING_URL: 34,   // AH列: 追跡URL
+  COL_KIT_URL: 36          // AJ列: 出品キットURL
 };
 
 /**
@@ -119,7 +120,8 @@ function shipMailOnEdit(e) {
       SHIPMAIL_CONFIG.COL_CUSTOMER_C,
       SHIPMAIL_CONFIG.COL_RECEIPT_NO,
       SHIPMAIL_CONFIG.COL_TRACKING_X,
-      SHIPMAIL_CONFIG.COL_PAYMENT_ID_AF
+      SHIPMAIL_CONFIG.COL_PAYMENT_ID_AF,
+      SHIPMAIL_CONFIG.COL_KIT_URL
     );
 
     const rowVals = sh.getRange(row, 1, 1, maxCol).getValues()[0];
@@ -141,6 +143,7 @@ function shipMailOnEdit(e) {
     const carrier = String(rowVals[SHIPMAIL_CONFIG.COL_CARRIER_W - 1] || '').trim();
     const trackingNo = String(rowVals[SHIPMAIL_CONFIG.COL_TRACKING_X - 1] || '').trim();
     const trackingUrl = buildTrackingUrl_(carrier, trackingNo);
+    const kitUrl = String(rowVals[SHIPMAIL_CONFIG.COL_KIT_URL - 1] || '').trim();
 
     Logger.log('receiptNo=' + receiptNo);
     Logger.log('customer=' + customer);
@@ -217,6 +220,14 @@ function shipMailOnEdit(e) {
           + confirmLink + '\n\n';
       }
 
+      // 出品キットリンク
+      if (kitUrl) {
+        custBody += '■ 出品キット\n'
+          + 'メルカリ出品用の商品タイトル・説明文をご用意しました。\n'
+          + '以下のリンクからご利用いただけます。\n'
+          + kitUrl + '\n\n';
+      }
+
       custBody += '商品到着まで今しばらくお待ちください。\n'
         + '到着後、内容にご不明点がございましたらお気軽にお問い合わせください。\n\n'
         + '──────────────────\n'
@@ -243,6 +254,14 @@ function shipMailOnEdit(e) {
           title: 'ご注文明細（Google Drive）',
           text: '以下のリンクからご注文内容をご確認いただけます。',
           link: { url: confirmLink, text: 'ご注文明細を開く' }
+        });
+      }
+
+      if (kitUrl) {
+        shipHtmlSections.push({
+          title: '出品キット',
+          text: 'メルカリ出品用の商品タイトル・説明文をご用意しました。',
+          link: { url: kitUrl, text: '出品キットを開く' }
         });
       }
 
@@ -347,6 +366,136 @@ function testShipMailForRow(rowNumber) {
     value: SHIPMAIL_CONFIG.STATUS_VALUE
   };
   shipMailOnEdit(e);
+}
+
+/**
+ * 受付番号を指定して自分宛にテスト送信（フラグ・ステータスは変更しない）
+ * GASエディタから実行: testShipMailByReceiptNo('20260328141159-696')
+ */
+function testShipMailByReceiptNo(receiptNo) {
+  const ss = SpreadsheetApp.openById(SHIPMAIL_CONFIG.SPREADSHEET_ID);
+  const sh = ss.getSheetByName(SHIPMAIL_CONFIG.SHEET_NAME);
+  if (!sh) throw new Error('依頼管理シートが見つかりません');
+
+  // A列から受付番号を検索
+  const lastRow = sh.getLastRow();
+  const receiptNos = sh.getRange(1, 1, lastRow, 1).getValues();
+  var targetRow = -1;
+  for (var i = 1; i < receiptNos.length; i++) {
+    if (String(receiptNos[i][0]).trim() === String(receiptNo).trim()) {
+      targetRow = i + 1;
+      break;
+    }
+  }
+  if (targetRow === -1) throw new Error('受付番号「' + receiptNo + '」が見つかりません');
+
+  const maxCol = Math.max(
+    SHIPMAIL_CONFIG.COL_STATUS_M,
+    SHIPMAIL_CONFIG.COL_KIT_URL
+  );
+  const rowVals = sh.getRange(targetRow, 1, 1, maxCol).getValues()[0];
+
+  const customer = String(rowVals[SHIPMAIL_CONFIG.COL_CUSTOMER_C - 1] || '').trim();
+  const confirmLink = String(rowVals[SHIPMAIL_CONFIG.COL_CONFIRM_LINK_I - 1] || '').trim();
+  const selectionList = String(rowVals[SHIPMAIL_CONFIG.COL_SELECTION_J - 1] || '').trim();
+  const totalCount = rowVals[SHIPMAIL_CONFIG.COL_COUNT_K - 1] || 0;
+  const totalAmount = rowVals[SHIPMAIL_CONFIG.COL_AMOUNT_L - 1] || 0;
+  const carrier = String(rowVals[SHIPMAIL_CONFIG.COL_CARRIER_W - 1] || '').trim();
+  const trackingNo = String(rowVals[SHIPMAIL_CONFIG.COL_TRACKING_X - 1] || '').trim();
+  const trackingUrl = buildTrackingUrl_(carrier, trackingNo);
+  const kitUrl = String(rowVals[SHIPMAIL_CONFIG.COL_KIT_URL - 1] || '').trim();
+
+  // 自分のメールアドレスへ送信
+  const myEmail = Session.getActiveUser().getEmail();
+
+  var custSubject = '【テスト】【デタウリ.Detauri】商品を発送しました（受付番号：' + receiptNo + '）';
+  var custBody = customer + ' 様\n\n'
+    + 'デタウリ.Detauri をご利用いただきありがとうございます。\n'
+    + '下記の内容で商品を発送いたしました。\n\n'
+    + '━━━━━━━━━━━━━━━━━━━━\n'
+    + '■ 発送内容\n'
+    + '━━━━━━━━━━━━━━━━━━━━\n'
+    + '受付番号：' + receiptNo + '\n'
+    + '合計点数：' + totalCount + '点\n'
+    + '合計金額：' + Number(totalAmount).toLocaleString() + '円（税込）\n';
+
+  if (carrier) custBody += '配送業者：' + carrier + '\n';
+  if (trackingNo) custBody += '伝票番号：' + trackingNo + '\n';
+  if (trackingUrl) {
+    custBody += '\n■ 配送状況の確認\n'
+      + '下記URLから配送状況をご確認いただけます。\n'
+      + trackingUrl + '\n';
+  }
+  if (selectionList) custBody += '\n■ 選択商品\n' + selectionList + '\n';
+  custBody += '━━━━━━━━━━━━━━━━━━━━\n\n';
+  if (confirmLink) {
+    custBody += '■ ご注文明細（Google Drive）\n'
+      + '以下のリンクからご注文内容をご確認いただけます。\n'
+      + confirmLink + '\n\n';
+  }
+  if (kitUrl) {
+    custBody += '■ 出品キット\n'
+      + 'メルカリ出品用の商品タイトル・説明文をご用意しました。\n'
+      + '以下のリンクからご利用いただけます。\n'
+      + kitUrl + '\n\n';
+  }
+  custBody += '商品到着まで今しばらくお待ちください。\n'
+    + '到着後、内容にご不明点がございましたらお気軽にお問い合わせください。\n\n'
+    + '──────────────────\n'
+    + 'デタウリ.Detauri\n'
+    + 'https://wholesale.nkonline-tool.com/\n'
+    + 'お問い合わせ：' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
+    + '──────────────────\n';
+
+  // HTML版
+  var shipRows = [
+    { label: '受付番号', value: receiptNo },
+    { label: '合計点数', value: totalCount + '点' },
+    { label: '合計金額', value: Number(totalAmount).toLocaleString() + '円（税込）' }
+  ];
+  if (carrier) shipRows.push({ label: '配送業者', value: carrier });
+  if (trackingNo) shipRows.push({ label: '伝票番号', html: !!trackingUrl, value: trackingUrl
+    ? '<a href="' + trackingUrl + '" style="color:#1a73e8">' + trackingNo + '</a>'
+    : trackingNo });
+
+  var shipHtmlSections = [{ title: '発送内容', rows: shipRows }];
+  if (confirmLink) {
+    shipHtmlSections.push({
+      title: 'ご注文明細（Google Drive）',
+      text: '以下のリンクからご注文内容をご確認いただけます。',
+      link: { url: confirmLink, text: 'ご注文明細を開く' }
+    });
+  }
+  if (kitUrl) {
+    shipHtmlSections.push({
+      title: '出品キット',
+      text: 'メルカリ出品用の商品タイトル・説明文をご用意しました。',
+      link: { url: kitUrl, text: '出品キットを開く' }
+    });
+  }
+
+  var shipCta = trackingUrl
+    ? { text: '配送状況を確認', url: trackingUrl }
+    : (confirmLink ? { text: 'ご注文明細を確認', url: confirmLink } : null);
+
+  var custHtmlBody = buildHtmlEmail_({
+    greeting: customer + ' 様',
+    lead: 'デタウリ.Detauri をご利用いただきありがとうございます。\n下記の内容で商品を発送いたしました。',
+    sections: shipHtmlSections,
+    cta: shipCta,
+    notes: [
+      '商品到着まで今しばらくお待ちください。',
+      '到着後、内容にご不明点がございましたらお気軽にお問い合わせください。'
+    ]
+  });
+
+  GmailApp.sendEmail(myEmail, custSubject, custBody, { htmlBody: custHtmlBody });
+  Logger.log('テスト送信完了: ' + myEmail + ' (受付番号: ' + receiptNo + ', kitUrl: ' + kitUrl + ')');
+}
+
+/** GASエディタから▶で実行するテスト送信ラッパー */
+function testShipMail_20260328141159_696() {
+  testShipMailByReceiptNo('20260328141159-696');
 }
 
 function safeEvent_(e) {
