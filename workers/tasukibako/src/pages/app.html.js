@@ -142,6 +142,26 @@ body.has-admin{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
 .spinner{display:inline-block;width:20px;height:20px;border:2.5px solid rgba(79,70,229,.2);border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .page-loader{display:flex;align-items:center;justify-content:center;height:60vh;flex-direction:column;gap:12px;color:var(--text-sub);font-size:14px}
+/* オンボーディング */
+.ob-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:500;display:none;align-items:center;justify-content:center;padding:20px}
+.ob-overlay.show{display:flex}
+.ob-card{background:#fff;border-radius:16px;width:100%;max-width:420px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.ob-header{background:linear-gradient(135deg,var(--primary),#818cf8);padding:32px 24px 24px;text-align:center;color:#fff}
+.ob-header .ob-logo{width:56px;height:56px;background:rgba(255,255,255,.2);border-radius:16px;display:inline-flex;align-items:center;justify-content:center;font-size:28px;font-weight:bold;margin-bottom:12px}
+.ob-header h2{font-size:20px;font-weight:700;margin-bottom:4px}
+.ob-header p{font-size:14px;opacity:.85}
+.ob-body{padding:24px}
+.ob-steps{display:flex;flex-direction:column;gap:16px;margin-bottom:24px}
+.ob-step{display:flex;align-items:flex-start;gap:12px}
+.ob-step-num{width:28px;height:28px;border-radius:50%;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
+.ob-step-text{font-size:14px;line-height:1.5}
+.ob-step-text strong{display:block;font-size:14px;margin-bottom:2px}
+.ob-step-text span{color:var(--text-sub);font-size:13px}
+.ob-dots{display:flex;justify-content:center;gap:6px;margin-bottom:20px}
+.ob-dot{width:8px;height:8px;border-radius:50%;background:#d1d5db;transition:all .2s}
+.ob-dot.active{background:var(--primary);width:20px;border-radius:4px}
+.ob-footer{display:flex;gap:8px}
+.ob-footer .btn{flex:1}
 @media(max-width:480px){.img-grid{grid-template-columns:repeat(2,1fr)}.preview-grid{grid-template-columns:repeat(2,1fr)}}
 @media(min-width:481px) and (max-width:768px){.img-grid{grid-template-columns:repeat(3,1fr)}}
 @media(min-width:769px){.img-grid{grid-template-columns:repeat(4,1fr)}}
@@ -300,6 +320,10 @@ body.has-admin{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
       <div class="status" id="settingsStatus"></div>
     </div>
     <div class="card">
+      <h2>ヘルプ</h2>
+      <button class="btn btn-secondary" id="showGuideBtn" style="margin-bottom:8px">使い方ガイドを表示</button>
+    </div>
+    <div class="card">
       <h2>アカウント</h2>
       <button class="btn btn-danger" id="logoutBtn">ログアウト</button>
     </div>
@@ -324,6 +348,25 @@ body.has-admin{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
 <div id="previewModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:300;display:none;align-items:center;justify-content:center;cursor:pointer">
   <img id="previewImg" style="max-width:95%;max-height:90vh;object-fit:contain;border-radius:4px">
   <div style="position:absolute;top:16px;right:16px;color:#fff;font-size:32px;cursor:pointer;padding:8px;line-height:1" id="closePreviewBtn">&times;</div>
+</div>
+
+<!-- オンボーディング -->
+<div class="ob-overlay" id="obOverlay">
+  <div class="ob-card">
+    <div class="ob-header">
+      <div class="ob-logo">箱</div>
+      <h2 id="obTitle">タスキ箱へようこそ</h2>
+      <p id="obSubtitle">商品画像をチームで共有・管理</p>
+    </div>
+    <div class="ob-body">
+      <div id="obContent"></div>
+      <div class="ob-dots" id="obDots"></div>
+      <div class="ob-footer">
+        <button class="btn btn-secondary" id="obSkip">スキップ</button>
+        <button class="btn btn-primary" id="obNext">次へ</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <!-- 管理パネル -->
@@ -394,6 +437,8 @@ var _confirmResolve = null;
     setTimeout(function() { appEl.classList.remove('initial-anim'); }, 600);
     showApp();
     if (!_currentTeam) switchTab('team');
+    // オンボーディング（初回のみ）
+    showOnboarding();
     // 管理パネル初期化
     initAdminPanel();
   }).catch(function() {
@@ -1011,6 +1056,11 @@ document.getElementById('regenInviteBtn').addEventListener('click', function() {
 // ════════════════════════════════════════
 // 設定
 // ════════════════════════════════════════
+document.getElementById('showGuideBtn').addEventListener('click', function() {
+  localStorage.removeItem('ob_done');
+  showOnboarding();
+});
+
 document.getElementById('logoutBtn').addEventListener('click', function() {
   apiPost('/api/auth/logout', { sessionId: _sessionId }).then(function() {
     localStorage.removeItem('sessionId');
@@ -1058,6 +1108,95 @@ window.switchTab = switchTab;
 window.toggleManageExpand = toggleManageExpand;
 window.searchImage = searchImage;
 window.deleteManageImages = deleteManageImages;
+
+// ════════════════════════════════════════
+// オンボーディング（初回のみ表示）
+// ════════════════════════════════════════
+var OB_PAGES = [
+  {
+    title: 'タスキ箱へようこそ',
+    subtitle: '商品画像をチームで共有・管理',
+    steps: [
+      { label: 'チームを作成', desc: 'メンバーを招待して画像を共有' },
+      { label: '画像をアップロード', desc: '管理番号ごとに最大10枚まで保存' },
+      { label: '商品を管理', desc: '検索・並び替え・削除がかんたん' },
+    ]
+  },
+  {
+    title: 'アップロード方法',
+    subtitle: '管理番号 + 画像を選ぶだけ',
+    steps: [
+      { label: '管理番号を入力', desc: '全角→半角は自動変換されます' },
+      { label: '画像を選択', desc: 'TOPは高画質、2枚目以降は軽量に自動リサイズ' },
+      { label: '追加モード', desc: '同じ番号で既に画像があれば追加モードに切替' },
+    ]
+  },
+  {
+    title: '商品管理のコツ',
+    subtitle: '画像の確認・整理に便利な機能',
+    steps: [
+      { label: 'ドラッグで並び替え', desc: 'TOP画像を変更したいとき便利です' },
+      { label: '画像検索', desc: 'Google Lensで類似商品を検索できます' },
+      { label: 'チーム統計', desc: 'チームタブで使用状況を確認できます' },
+    ]
+  }
+];
+
+var _obPage = 0;
+
+function showOnboarding() {
+  if (localStorage.getItem('ob_done')) return;
+  _obPage = 0;
+  renderObPage();
+  document.getElementById('obOverlay').classList.add('show');
+}
+
+function renderObPage() {
+  var p = OB_PAGES[_obPage];
+  document.getElementById('obTitle').textContent = p.title;
+  document.getElementById('obSubtitle').textContent = p.subtitle;
+
+  var html = '<div class="ob-steps">';
+  for (var i = 0; i < p.steps.length; i++) {
+    html += '<div class="ob-step">' +
+      '<div class="ob-step-num">' + (i + 1) + '</div>' +
+      '<div class="ob-step-text"><strong>' + p.steps[i].label + '</strong>' +
+      '<span>' + p.steps[i].desc + '</span></div></div>';
+  }
+  html += '</div>';
+  document.getElementById('obContent').innerHTML = html;
+
+  // ドット
+  var dots = '';
+  for (var j = 0; j < OB_PAGES.length; j++) {
+    dots += '<div class="ob-dot' + (j === _obPage ? ' active' : '') + '"></div>';
+  }
+  document.getElementById('obDots').innerHTML = dots;
+
+  // ボタン
+  var nextBtn = document.getElementById('obNext');
+  if (_obPage === OB_PAGES.length - 1) {
+    nextBtn.textContent = 'はじめる';
+  } else {
+    nextBtn.textContent = '次へ';
+  }
+}
+
+document.getElementById('obNext').addEventListener('click', function() {
+  if (_obPage < OB_PAGES.length - 1) {
+    _obPage++;
+    renderObPage();
+  } else {
+    closeOnboarding();
+  }
+});
+
+document.getElementById('obSkip').addEventListener('click', closeOnboarding);
+
+function closeOnboarding() {
+  document.getElementById('obOverlay').classList.remove('show');
+  localStorage.setItem('ob_done', '1');
+}
 
 // ════════════════════════════════════════
 // 管理者パネル（?admin=1で表示）
