@@ -1839,6 +1839,83 @@ function manualPremiumAssortSelect() {
   console.log('完了: ' + receiptNo + ' → ' + selection.ids.length + '点選定, 合計¥' + selection.total + ', J列=' + selectionList);
 }
 
+/**
+ * 管理メニューから呼び出す: プレミアムアソート商品の手動選定（J列書込み）
+ * 受付番号をプロンプトで入力
+ */
+function menuManualAssortSelect() {
+  var ui = SpreadsheetApp.getUi();
+  var res = ui.prompt('商品自動選定（J列）', '受付番号を入力してください:', ui.ButtonSet.OK_CANCEL);
+  if (res.getSelectedButton() !== ui.Button.OK) return;
+  var receiptNo = String(res.getResponseText() || '').trim();
+  if (!receiptNo) { ui.alert('受付番号が入力されていません。'); return; }
+
+  var orderSs = sh_getOrderSs_();
+  var reqSh = sh_ensureRequestSheet_(orderSs);
+  var lastRow = reqSh.getLastRow();
+  if (lastRow < 2) { ui.alert('依頼管理が空です。'); return; }
+
+  // 受付番号でA列を検索
+  var targetRow = -1;
+  var data = reqSh.getRange(2, 1, lastRow - 1, 1).getValues();
+  for (var i = 0; i < data.length; i++) {
+    if (String(data[i][0]).trim() === receiptNo) { targetRow = i + 2; break; }
+  }
+  if (targetRow < 0) { ui.alert('受付番号が見つかりません: ' + receiptNo); return; }
+
+  // H列から商品名を取得してプレミアムアソート検出
+  var productName = String(reqSh.getRange(targetRow, 8).getValue() || '');
+  var nameQtyMatch = productName.match(/[x×]\s*(\d+)/i);
+  var qty = nameQtyMatch ? parseInt(nameQtyMatch[1], 10) : 1;
+  var orderItems = [{ name: productName, qty: qty }];
+  var premiumSpec = detectPremiumAssort_(orderItems);
+  if (!premiumSpec) {
+    ui.alert('プレミアムアソート商品が検出されませんでした。\n\n商品名: ' + productName);
+    return;
+  }
+
+  // 既存のJ列IDをopenStateから除去（再選定のためリセット）
+  var existingJ = String(reqSh.getRange(targetRow, 10).getValue() || '').trim();
+  var oldIds = existingJ ? existingJ.split(/[、,]/).map(function(s) { return s.trim(); }).filter(Boolean) : [];
+  if (oldIds.length > 0) {
+    var openStatePre = st_getOpenState_(orderSs) || {};
+    var openItemsPre = (openStatePre.items && typeof openStatePre.items === 'object') ? openStatePre.items : {};
+    for (var oi = 0; oi < oldIds.length; oi++) delete openItemsPre[oldIds[oi]];
+    openStatePre.items = openItemsPre;
+    st_setOpenState_(orderSs, openStatePre);
+  }
+
+  // 自動選定実行
+  var selection = selectProductsForPremiumAssort_(
+    premiumSpec.targetAmount, premiumSpec.minCount, premiumSpec.maxCount, orderSs, []
+  );
+
+  if (!selection.ids || selection.ids.length === 0) {
+    ui.alert('在庫不足で商品を選定できませんでした。');
+    return;
+  }
+
+  var selectionList = u_sortManagedIds_(selection.ids).join('、');
+
+  // J列・K列・AF列を更新
+  reqSh.getRange(targetRow, 10).setValue(selectionList);
+  var hText = String(reqSh.getRange(targetRow, 8).getValue() || '');
+  reqSh.getRange(targetRow, 11).setValue(calcTotalCountFromProductNames_(hText));
+  reqSh.getRange(targetRow, 32).setValue(new Date());
+
+  // openStateに追加
+  var openState = st_getOpenState_(orderSs) || {};
+  var openItems = (openState.items && typeof openState.items === 'object') ? openState.items : {};
+  for (var si = 0; si < selection.ids.length; si++) {
+    openItems[selection.ids[si]] = { receiptNo: receiptNo, at: Date.now() };
+  }
+  openState.items = openItems;
+  st_setOpenState_(orderSs, openState);
+  st_invalidateStatusCache_(orderSs);
+
+  ui.alert('選定完了\n\n受付番号: ' + receiptNo + '\n選定: ' + selection.ids.length + '点\n合計: ¥' + selection.total.toLocaleString() + '\n\nI列が空であれば5分以内にcronで自動展開されます。');
+}
+
 // =====================================================
 // 送料サイズ判定ヘルパー（CartCalc.html と同一ロジック）
 // =====================================================

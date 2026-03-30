@@ -1158,6 +1158,7 @@ function onOpen(e) {
   ui.createMenu("管理メニュー")
     .addItem("1. 依頼展開（展開→XLSX→売却 一括処理）", "expandOrder")
     .addItem("2. 欠品処理（返品→再生成 一括処理）", "handleMissingProducts")
+    .addItem("3. 商品自動選定（J列が空の場合）", "menuManualAssortSelect")
     .addSeparator()
     .addItem("クーポン登録", "registerCoupon")
     .addItem("クーポン削除", "deleteCoupon")
@@ -1174,6 +1175,18 @@ function onOpen(e) {
     .addItem("ニュースレター テスト送信", "testNewsletterSend")
     .addSeparator()
     .addItem("運用マニュアルを開く", "openManualDoc")
+    .addToUi();
+
+  ui.createMenu("デバッグ")
+    .addItem("横断検索（何でも）", "debugSearch")
+    .addItem("金額で検索", "debugSearchByAmount")
+    .addSeparator()
+    .addItem("受付番号で調査", "debugLookupByReceipt")
+    .addItem("管理番号で調査", "debugLookupByManagedId")
+    .addItem("注文メール再送", "debugResendOrderEmail")
+    .addSeparator()
+    .addItem("キュー・ペンディング確認", "debugViewQueues")
+    .addItem("確保/依頼中状態一覧", "debugViewStates")
     .addToUi();
 
   // アソート商品管理メニューは、アソート商品スプレッドシートの
