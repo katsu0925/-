@@ -562,7 +562,9 @@ function checkExisting(managedId) {
 function showExisting(urls, managedId) {
   var c = document.getElementById('existingImages');
   c.classList.remove('hidden');
-  document.getElementById('existingCount').textContent = urls.length + '枚登録済み（あと' + (10 - urls.length) + '枚追加可能）';
+  var remain = 10 - urls.length;
+  document.getElementById('existingCount').innerHTML = '<span style="color:var(--primary)">&#x1f4f7; ' + urls.length + '枚登録済み</span>' +
+    (remain > 0 ? ' — 新しい画像は<strong>追加</strong>されます（あと' + remain + '枚）' : ' — 上限に達しています');
   var grid = document.getElementById('existingGrid');
   var html = '';
   for (var i = 0; i < urls.length; i++) {

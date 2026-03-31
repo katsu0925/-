@@ -1,7 +1,7 @@
 /**
  * タスキ箱 — メインルーター
  */
-import { corsOptions, jsonOk, jsonError, htmlResponse } from './utils/response.js';
+import { corsOptions, jsonOk, jsonError, htmlResponse, setAllowedOrigin } from './utils/response.js';
 import { extractSession } from './handlers/session.js';
 import * as auth from './handlers/auth.js';
 import * as session from './handlers/session.js';
@@ -15,6 +15,7 @@ import { getAppPageHtml } from './pages/app.html.js';
 
 export default {
   async fetch(request, env, ctx) {
+    setAllowedOrigin(env.ALLOWED_ORIGIN);
     const url = new URL(request.url);
 
     if (request.method === 'OPTIONS') {
@@ -39,7 +40,12 @@ export default {
 
       // R2画像配信
       if (url.pathname.startsWith('/images/')) {
-        return await upload.serveImage(request, env, url);
+        try {
+          return await upload.serveImage(request, env, url);
+        } catch (e) {
+          console.error('Image serve error:', url.pathname, e);
+          return new Response('Internal Server Error', { status: 500 });
+        }
       }
     }
 
@@ -48,7 +54,7 @@ export default {
       try {
         return await routeApi(request, env, ctx, url.pathname);
       } catch (e) {
-        console.error('API error:', e);
+        console.error('API error:', url.pathname, e);
         return jsonError('サーバーエラーが発生しました。', 500);
       }
     }

@@ -1,19 +1,17 @@
 /**
- * 管理者API — プラン変更・使用量操作（テスト運用用）
- *
- * 写メジャーと同パターン: ADMIN_EMAILS で制御
- * 本番前に環境変数化 + DB role判定に移行すること
+ * 管理者API — プラン変更・使用量操作
+ * ADMIN_EMAILS は wrangler secret で設定（カンマ区切り）
  */
 import { jsonOk, jsonError } from '../utils/response.js';
 import { PLAN_LIMITS } from '../config.js';
 
-const ADMIN_EMAILS = ['nkonline1030@gmail.com', 'nsdktts1030@gmail.com'];
-
 /**
  * 管理者権限チェック
  */
-function isAdmin(session) {
-  return session && ADMIN_EMAILS.includes(session.email);
+function isAdmin(session, env) {
+  if (!session || !env.ADMIN_EMAILS) return false;
+  const admins = env.ADMIN_EMAILS.split(',').map(e => e.trim().toLowerCase());
+  return admins.includes(session.email);
 }
 
 /**
@@ -22,7 +20,7 @@ function isAdmin(session) {
  * body: { teamId, plan }
  */
 export async function setPlan(request, env, session) {
-  if (!isAdmin(session)) return jsonError('権限がありません', 403);
+  if (!isAdmin(session, env)) return jsonError('権限がありません', 403);
 
   const body = await request.json();
   const { teamId, plan } = body;
@@ -72,7 +70,7 @@ export async function setPlan(request, env, session) {
  * body: { teamId, productCount, imageCount }
  */
 export async function resetUsage(request, env, session) {
-  if (!isAdmin(session)) return jsonError('権限がありません', 403);
+  if (!isAdmin(session, env)) return jsonError('権限がありません', 403);
 
   const body = await request.json();
   const { teamId } = body;
@@ -102,7 +100,7 @@ export async function resetUsage(request, env, session) {
  * POST /api/admin/info
  */
 export async function info(request, env, session) {
-  if (!isAdmin(session)) return jsonError('権限がありません', 403);
+  if (!isAdmin(session, env)) return jsonError('権限がありません', 403);
 
   const body = await request.json();
   const { teamId } = body;

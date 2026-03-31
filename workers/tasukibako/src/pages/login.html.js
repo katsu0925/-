@@ -120,7 +120,7 @@ body {
   </form>
 
   <div class="links">
-    <p style="margin-bottom:8px"><a href="#" id="forgotLink">パスワードを忘れた方</a></p>
+    <p style="margin-bottom:8px"><a href="#" id="forgotLink" style="color:var(--text-sub);font-size:13px">パスワードを忘れた方（準備中）</a></p>
     <p>アカウントをお持ちでない方は <a href="/register">新規登録</a></p>
   </div>
 </div>
