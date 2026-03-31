@@ -1154,7 +1154,7 @@ function confirmPaymentAndCreateOrder(paymentToken, paymentStatus, paymentMethod
         if (d1Result.consumed === 1) {
           // D1で見つかりconsumed=1 → 既にシート書き込み済み → ステータスのみ更新
           console.log('D1 pending found but already consumed: ' + paymentToken);
-          updateOrderPaymentStatus_(paymentToken, 'paid', paymentMethod);
+          updateOrderPaymentStatus_(paymentToken, paymentStatus, paymentMethod);
           return { ok: true, message: '入金ステータスを更新しました（D1 consumed済み）' };
         }
         // D1で見つかりconsumed=0 → PropertiesServiceに復元して通常フロー継続

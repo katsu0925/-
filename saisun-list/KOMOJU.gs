@@ -431,7 +431,7 @@ function handlePaymentSuccess_(data) {
     // 既にシートに書き込まれている可能性があるため、ステータスのみ更新を試みる
     // confirmResult.receiptNoがあればそれを使用、なければpaymentTokenで旧互換
     var statusReceiptNo = (confirmResult && confirmResult.receiptNo) ? confirmResult.receiptNo : paymentToken;
-    updateOrderPaymentStatus_(statusReceiptNo, 'paid', paymentMethodType);
+    updateOrderPaymentStatus_(statusReceiptNo, paymentStatus, paymentMethodType);
   } else {
     // 確定成功時: receiptNoをPAYMENT_セッションに保存
     if (confirmResult.receiptNo) {
@@ -1412,7 +1412,16 @@ function updateOrderPaymentStatus_(receiptNo, paymentStatus, paymentMethod) {
 
         // Q列(17): 入金確認ステータスを更新
         var paymentConfirmCol = 17;  // Q列
-        var statusText = paymentStatus === 'paid' ? '未対応' : (paymentStatus === 'pending' ? '入金待ち' : '未対応');
+        var statusText;
+        if (paymentStatus === 'paid' || paymentStatus === '未対応') {
+          statusText = '未対応';
+        } else if (paymentStatus === 'pending' || paymentStatus === '入金待ち') {
+          statusText = '入金待ち';
+        } else if (paymentStatus === '対応済') {
+          statusText = '対応済';
+        } else {
+          statusText = '未対応';
+        }
         sheet.getRange(row, paymentConfirmCol).setValue(statusText);
 
         // O列(15): 決済方法（日本語表示名）
