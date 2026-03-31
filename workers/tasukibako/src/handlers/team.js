@@ -40,8 +40,8 @@ export async function create(request, env, session) {
   ).bind(teamId, session.userId, 'owner', now).run();
 
   return jsonOk({
-    team: { id: teamId, name, plan: 'free', inviteCode, role: 'owner',
-            productCount: 0, imageCount: 0 },
+    team: { id: teamId, name, plan: 'free', invite_code: inviteCode,
+            invite_enabled: 1, role: 'owner', product_count: 0, image_count: 0 },
   });
 }
 
@@ -139,7 +139,9 @@ export async function join(request, env, session) {
   ).bind(team.id, session.userId, 'member', now).run();
 
   return jsonOk({
-    team: { id: team.id, name: team.name, plan: team.plan, role: 'member' },
+    team: { id: team.id, name: team.name, plan: team.plan, role: 'member',
+            invite_code: team.invite_code, invite_enabled: team.invite_enabled,
+            product_count: team.product_count, image_count: team.image_count },
   });
 }
 
