@@ -81,7 +81,8 @@ export async function login(request, env) {
  */
 export async function register(request, env) {
   const body = await request.json();
-  const { password, displayName, inviteCode } = body;
+  const { password, inviteCode } = body;
+  const displayName = (body.displayName || '').trim().replace(/<[^>]*>/g, '');
   const email = (body.email || '').trim().toLowerCase();
 
   if (!email || !password || !displayName) {

@@ -50,7 +50,8 @@ export async function createPasswordHash(password) {
 }
 
 /**
- * パスワード検証（v2形式のみ、GASフォールバックなし）
+ * パスワード検証（v2形式のみ、1000回固定）
+ * タスキ箱は新規サービスのため旧10000回フォールバック不要
  */
 export async function verifyPasswordV2(password, storedHash) {
   if (!storedHash || !storedHash.startsWith('v2:')) {
@@ -60,13 +61,8 @@ export async function verifyPasswordV2(password, storedHash) {
   if (parts.length !== 3) return false;
 
   const [, salt, expectedHash] = parts;
-
-  const computed1000 = await hashWithIterations(password, salt, 1000);
-  if (timingSafeEqual(computed1000, expectedHash)) return true;
-
-  // 旧10000回フォールバック
-  const computed10000 = await hashWithIterations(password, salt, 10000);
-  return timingSafeEqual(computed10000, expectedHash);
+  const computed = await hashWithIterations(password, salt, 1000);
+  return timingSafeEqual(computed, expectedHash);
 }
 
 export function timingSafeEqual(a, b) {

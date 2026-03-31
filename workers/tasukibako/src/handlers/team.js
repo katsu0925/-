@@ -10,7 +10,7 @@ import { PLAN_LIMITS } from '../config.js';
  */
 export async function create(request, env, session) {
   const body = await request.json();
-  const name = (body.name || '').trim();
+  const name = (body.name || '').trim().replace(/<[^>]*>/g, '');
 
   if (!name || name.length > 50) {
     return jsonError('チーム名は1〜50文字で入力してください。');
