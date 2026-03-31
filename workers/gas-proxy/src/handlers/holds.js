@@ -60,6 +60,17 @@ export async function syncHolds(args, env) {
   const failed = [];
 
   for (const managedId of ids) {
+    // 商品存在チェック（D1に無い = 売却済み等で同期時に削除済み）
+    const productCheck = await env.DB.prepare(
+      'SELECT managed_id FROM products WHERE managed_id = ?'
+    ).bind(managedId).first();
+
+    if (!productCheck) {
+      failed.push({ id: managedId, reason: '在庫なし' });
+      digest[managedId] = { status: '在庫なし', heldByOther: false, untilMs: 0 };
+      continue;
+    }
+
     // 依頼中チェック
     const openCheck = await env.DB.prepare(
       'SELECT managed_id FROM open_items WHERE managed_id = ?'
@@ -157,13 +168,34 @@ export async function cancelPendingPayment(args, env) {
   }
 
   // pending_paymentを0にリセットし、until_msを通常確保時間（15分）に戻す
+  // 同時にsubmitEstimateで追加したopen_itemsも削除（決済キャンセル＝依頼中ではない）
   const now = Date.now();
   const normalHoldMs = HOLD_MINUTES_DEFAULT * 60 * 1000;
-  const result = await env.DB.prepare(`
-    UPDATE holds
-    SET pending_payment = 0, receipt_no = '', until_ms = ?
-    WHERE receipt_no = ? AND pending_payment = 1
-  `).bind(now + normalHoldMs, paymentToken).run();
 
-  return jsonOk({ released: true, affected: result.changes || 0 });
+  // まずreceipt_noに紐づくmanaged_idを取得してopen_itemsからも削除
+  const { results: heldItems } = await env.DB.prepare(
+    'SELECT managed_id FROM holds WHERE receipt_no = ? AND pending_payment = 1'
+  ).bind(paymentToken).all();
+
+  const stmts = [
+    env.DB.prepare(`
+      UPDATE holds
+      SET pending_payment = 0, receipt_no = '', until_ms = ?
+      WHERE receipt_no = ? AND pending_payment = 1
+    `).bind(now + normalHoldMs, paymentToken),
+  ];
+
+  if (heldItems.length > 0) {
+    const cancelIds = heldItems.map(h => h.managed_id);
+    const placeholders = cancelIds.map(() => '?').join(',');
+    stmts.push(
+      env.DB.prepare(
+        `DELETE FROM open_items WHERE managed_id IN (${placeholders}) AND receipt_no = ?`
+      ).bind(...cancelIds, paymentToken)
+    );
+  }
+
+  await env.DB.batch(stmts);
+
+  return jsonOk({ released: true, affected: heldItems.length });
 }

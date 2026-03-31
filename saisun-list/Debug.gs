@@ -757,15 +757,18 @@ function debugFixOrderRow() {
   console.log('アソート点数: ' + assortItemCount);
   console.log('アソート送料: ¥' + assortShipping);
 
-  // アソート商品マスタから¥4400の商品を検索して商品名を特定
+  // アソート商品マスタから商品を検索（FHP適用済みの場合は元値の半額でもマッチ）
+  var isFHP = note.indexOf('初回全品半額') !== -1;
   var bulkProducts = bulk_getProducts_();
   var matchedNames = [];
   for (var i = 0; i < bulkProducts.length; i++) {
     var bp = bulkProducts[i];
     var unitPrice = (bp.discountedPrice !== undefined) ? bp.discountedPrice : bp.price;
-    if (unitPrice * assortItemCount === assortProductAmount) {
+    var matchDirect = (unitPrice * assortItemCount === assortProductAmount);
+    var matchFHP = isFHP && (Math.round(unitPrice * 0.5) * assortItemCount === assortProductAmount);
+    if (matchDirect || matchFHP) {
       matchedNames.push(bp.name + ' x' + assortItemCount + bp.unit);
-      console.log('商品候補: ' + bp.name + ' (¥' + unitPrice + ' x' + assortItemCount + ')');
+      console.log('商品候補: ' + bp.name + ' (元値¥' + unitPrice + (matchFHP ? ' → FHP50%OFF→¥' + Math.round(unitPrice * 0.5) : '') + ' x' + assortItemCount + ')');
     }
   }
 
@@ -877,4 +880,61 @@ function debugViewStates() {
   for (var k = 0; k < receipts.length; k++) {
     console.log('  ' + receipts[k] + ': ' + byReceipt[receipts[k]] + '点');
   }
+}
+
+
+
+/**
+ * デキルンデモ用の配布用リスト形式スプレッドシートを新規作成
+ * GASエディタから▶で実行
+ */
+function createDemoDistributionList() {
+  var ss = SpreadsheetApp.create('【デモ】配布用リスト — デタウリ出品キット');
+  var sheet = ss.getActiveSheet();
+  sheet.setName('配布用リスト');
+
+  // Row 1: メタ情報
+  sheet.getRange('A1').setValue('受付番号');
+  sheet.getRange('B1').setValue('DEMO-SAMPLE');
+  sheet.getRange('D1').setValue('お客様名');
+  sheet.getRange('E1').setValue('サンプル');
+  sheet.getRange('G1').setValue('注文日');
+  sheet.getRange('H1').setValue('2026-03-28');
+  sheet.getRange('I1').setValue('9,750円');
+  sheet.getRange('A1:N1').setFontWeight('bold').setBackground('#f0f0f0');
+
+  // Row 2: ヘッダー
+  var headers = ['出品済', 'タイトル', '説明文', 'BOX', '管理番号', 'ブランド', 'AIキーワード', 'アイテム', 'サイズ', '状態', 'ダメージ', '採寸', '価格', '性別'];
+  sheet.getRange(2, 1, 1, headers.length).setValues([headers]).setFontWeight('bold').setBackground('#d9e2f3');
+
+  // Row 3-6: デモデータ
+  var data = [
+    [false, 'BURBERRY ニット セーター ノバチェック ベージュ L メンズ',
+     '■ブランド\nBURBERRY バーバリー\n\n■アイテム\nニット・セーター\n\n■サイズ\nL\n肩幅: 46cm / 身幅: 54cm / 着丈: 68cm / 袖丈: 62cm\n\n■カラー\nベージュ\n\n■状態\n目立った傷や汚れなし\n全体的にきれいな状態です。\n\n■商品説明\nバーバリーの定番ノバチェック柄ニットです。上質なウール素材で暖かく、シンプルなデザインで合わせやすい一着です。\n\n※素人採寸のため多少の誤差はご了承ください。\n※中古品のためご理解のある方のご購入をお願いいたします。',
+     '', 'DEMO-001', 'BURBERRY', '', 'トップス', 'L', 'B（使用感少ない）', '', '肩幅: 46cm / 身幅: 54cm / 着丈: 68cm / 袖丈: 62cm', '¥2,500', 'メンズ'],
+    [false, 'ノースフェイス マウンテンパーカー ブラック M メンズ',
+     '■ブランド\nTHE NORTH FACE ザ・ノースフェイス\n\n■アイテム\nマウンテンパーカー\n\n■サイズ\nM\n肩幅: 44cm / 身幅: 55cm / 着丈: 70cm / 袖丈: 64cm\n\n■カラー\nブラック\n\n■状態\n美品・ほぼ未使用に近い状態です。\n\n■商品説明\nノースフェイスのマウンテンパーカーです。防風・撥水機能があり、アウトドアからタウンユースまで幅広く活躍します。\n\n※素人採寸のため多少の誤差はご了承ください。\n※中古品のためご理解のある方のご購入をお願いいたします。',
+     '', 'DEMO-002', 'THE NORTH FACE', '', 'アウター', 'M', 'A（美品）', '', '肩幅: 44cm / 身幅: 55cm / 着丈: 70cm / 袖丈: 64cm', '¥3,500', 'メンズ'],
+    [false, 'ラルフローレン ポロシャツ ポニー刺繍 ネイビー L メンズ',
+     '■ブランド\nRalph Lauren ラルフローレン\n\n■アイテム\nポロシャツ\n\n■サイズ\nL\n肩幅: 45cm / 身幅: 56cm / 着丈: 72cm / 袖丈: 24cm\n\n■カラー\nネイビー\n\n■状態\n目立った傷や汚れなし\n\n■商品説明\nラルフローレンの定番ポロシャツです。胸元のポニー刺繍がワンポイント。鹿の子素材で通気性もよく、春夏に活躍します。\n\n※素人採寸のため多少の誤差はご了承ください。\n※中古品のためご理解のある方のご購入をお願いいたします。',
+     '', 'DEMO-003', 'Ralph Lauren', '', 'トップス', 'L', 'B（使用感少ない）', '', '肩幅: 45cm / 身幅: 56cm / 着丈: 72cm / 袖丈: 24cm', '¥1,500', 'メンズ'],
+    [false, 'COACH ショルダーバッグ シグネチャー ブラウン レディース',
+     '■ブランド\nCOACH コーチ\n\n■アイテム\nショルダーバッグ\n\n■サイズ\n縦: 22cm / 横: 28cm / マチ: 8cm / ショルダー: 120cm\n\n■カラー\nブラウン\n\n■状態\n目立った傷や汚れなし\n\n■商品説明\nコーチのシグネチャー柄ショルダーバッグです。レザーとキャンバスのコンビ素材で高級感があります。収納力もあり普段使いに最適です。\n\n※素人採寸のため多少の誤差はご了承ください。\n※中古品のためご理解のある方のご購入をお願いいたします。',
+     '', 'DEMO-004', 'COACH', '', 'バッグ', '-', 'B（使用感少ない）', '', '縦: 22cm / 横: 28cm / マチ: 8cm / ショルダー: 120cm', '¥2,250', 'レディース']
+  ];
+
+  sheet.getRange(3, 1, data.length, data[0].length).setValues(data);
+  sheet.getRange(3, 1, data.length, 1).insertCheckboxes();
+  sheet.setRowHeightsForced(3, data.length, 21);
+
+  // 列幅調整
+  sheet.setColumnWidth(1, 50);   // 出品済
+  sheet.setColumnWidth(2, 300);  // タイトル
+  sheet.setColumnWidth(3, 400);  // 説明文
+  sheet.setColumnWidth(5, 100);  // 管理番号
+  sheet.setColumnWidth(6, 120);  // ブランド
+  sheet.setColumnWidth(12, 250); // 採寸
+  sheet.setColumnWidth(13, 80);  // 価格
+
+  console.log('デモ配布用リスト作成完了: ' + ss.getUrl());
 }

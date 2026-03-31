@@ -451,33 +451,27 @@ async function syncOpenItems(db, rows) {
   const { results: existing } = await db.prepare('SELECT managed_id FROM open_items').all();
   const toDelete = existing.filter(e => !gasIds.has(e.managed_id) && !pendingIds.has(e.managed_id));
 
-  const stmts = [];
-
+  // GASにもpendingにも含まれないopen_itemsを削除（バッチ分割）
   if (toDelete.length > 0) {
-    const delBatch = toDelete.map(e => e.managed_id);
-    const placeholders = delBatch.map(() => '?').join(',');
-    stmts.push(
-      db.prepare(`DELETE FROM open_items WHERE managed_id IN (${placeholders})`).bind(...delBatch)
-    );
+    const DEL_BATCH = 50;
+    for (let i = 0; i < toDelete.length; i += DEL_BATCH) {
+      const chunk = toDelete.slice(i, i + DEL_BATCH).map(e => e.managed_id);
+      const placeholders = chunk.map(() => '?').join(',');
+      await db.prepare(`DELETE FROM open_items WHERE managed_id IN (${placeholders})`).bind(...chunk).run();
+    }
   }
 
-  // GASからのデータをUPSERT
+  // GASからのデータをUPSERT（1件ずつ実行）
+  const now = new Date().toISOString();
   for (const o of rows) {
-    stmts.push(
-      db.prepare(`
-        INSERT INTO open_items (managed_id, receipt_no, status, updated_at)
-        VALUES (?, ?, ?, ?)
-        ON CONFLICT (managed_id) DO UPDATE SET
-          receipt_no = excluded.receipt_no,
-          status = excluded.status,
-          updated_at = excluded.updated_at
-      `).bind(o.managedId, o.receiptNo || '', o.status || '依頼中', new Date().toISOString())
-    );
-  }
-
-  const batchSize = 50;
-  for (let i = 0; i < stmts.length; i += batchSize) {
-    await db.batch(stmts.slice(i, i + batchSize));
+    await db.prepare(`
+      INSERT INTO open_items (managed_id, receipt_no, status, updated_at)
+      VALUES (?, ?, ?, ?)
+      ON CONFLICT (managed_id) DO UPDATE SET
+        receipt_no = excluded.receipt_no,
+        status = excluded.status,
+        updated_at = excluded.updated_at
+    `).bind(o.managedId, o.receiptNo || '', o.status || '依頼中', now).run();
   }
 }
 
