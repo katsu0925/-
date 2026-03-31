@@ -411,7 +411,20 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     bulkShippingAmount = 0;
   } else if (shippingFreeCoupon) {
     shippingAmount = 0;
-    bulkShippingAmount = 0;
+    // アソート送料: 送料除外商品は除外分のみ有料（SubmitFix.gs L237-251と一致）
+    const excludeStr = validatedCoupon.shippingExcludeProducts || '';
+    if (excludeStr && bulkItemCount > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
+      const excludeIds = new Set(excludeStr.split(',').map(s => s.trim().toUpperCase()).filter(Boolean));
+      let excludedBulkQty = 0;
+      for (const bi of (form.bulkItems || [])) {
+        const pid = String(bi.productId || '').trim().toUpperCase();
+        const qty = Math.max(0, Math.floor(Number(bi.qty) || 0));
+        if (excludeIds.has(pid)) excludedBulkQty += qty;
+      }
+      bulkShippingAmount = excludedBulkQty > 0 ? SHIPPING_RATES[shippingArea][1] * excludedBulkQty : 0;
+    } else {
+      bulkShippingAmount = 0;
+    }
   } else if (thresholdFree) {
     shippingAmount = 0;
     bulkShippingAmount = 0;

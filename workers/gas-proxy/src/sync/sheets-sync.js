@@ -839,11 +839,11 @@ async function prewarmCaches(env) {
     const encoder = new TextEncoder();
     const productHashBuf = await crypto.subtle.digest('SHA-256', encoder.encode(JSON.stringify(productData)));
     const productVersion = [...new Uint8Array(productHashBuf)].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 12);
-    await env.CACHE.put('products:version', productVersion);
+    await env.CACHE.put('products:version', productVersion, { expirationTtl: CACHE_TTL });
 
     const bulkHashBuf = await crypto.subtle.digest('SHA-256', encoder.encode(JSON.stringify(bulkResult)));
     const bulkVersion = [...new Uint8Array(bulkHashBuf)].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 12);
-    await env.CACHE.put('products:bulk:version', bulkVersion);
+    await env.CACHE.put('products:bulk:version', bulkVersion, { expirationTtl: CACHE_TTL });
 
     console.log(`[sync] KV prewarm complete: ${items.length} products, ${bulkProducts.length} bulk, v=${productVersion}/${bulkVersion}`);
   } catch (e) {

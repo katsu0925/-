@@ -59,7 +59,7 @@ export async function getCachedProducts(args, env) {
   const encoder = new TextEncoder();
   const hashBuf = await crypto.subtle.digest('SHA-256', encoder.encode(dataJson));
   const ver = [...new Uint8Array(hashBuf)].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 12);
-  await cache.put('products:version', ver);
+  await cache.put('products:version', ver, { expirationTtl: CACHE_TTL });
 
   return jsonRaw(`{"ok":true,"dataVersion":"${ver}","data":${dataJson}}`, { 'X-Cache': 'MISS' });
 }
@@ -119,7 +119,7 @@ export async function bulkInit(args, env) {
   const encoder = new TextEncoder();
   const bulkHashBuf = await crypto.subtle.digest('SHA-256', encoder.encode(bulkJson));
   const bulkVer = [...new Uint8Array(bulkHashBuf)].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 12);
-  await cache.put('products:bulk:version', bulkVer);
+  await cache.put('products:bulk:version', bulkVer, { expirationTtl: CACHE_TTL });
   result.dataVersion = bulkVer;
 
   return jsonOk(result, { 'X-Cache': 'MISS' });
