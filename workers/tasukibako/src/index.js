@@ -32,6 +32,7 @@ export default {
         case '/app':
           return htmlResponse(getAppPageHtml());
         case '/favicon.svg':
+        case '/favicon.ico':
           return new Response(FAVICON_SVG, {
             headers: { 'Content-Type': 'image/svg+xml', 'Cache-Control': 'public, max-age=86400' },
           });
