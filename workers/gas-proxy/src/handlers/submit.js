@@ -722,9 +722,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   }
 
   // ─── ペンディング注文データ（GAS webhook互換） ───
-  const storeShipping = (shippingArea && SHIPPING_RATES[shippingArea])
-    ? Math.round(SHIPPING_RATES[shippingArea][shippingSize === 'small' ? 0 : 1] / 2)
-    : 0;
+  const storeShipping = Math.round((shippingAmount + bulkShippingAmount) / 2) || 0;
 
   // channel判定（GAS側プレミアムアソート自動選定用）
   const channel = hasBulkItems ? (ids.length > 0 ? 'まとめ' : 'アソート') : 'デタウリ';
