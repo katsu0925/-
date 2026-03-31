@@ -1,7 +1,7 @@
 /**
  * タスキ箱 — メインルーター
  */
-import { corsOptions, jsonOk, jsonError, htmlResponse, setAllowedOrigin } from './utils/response.js';
+import { corsOptions, jsonOk, jsonError, htmlResponse } from './utils/response.js';
 import { extractSession } from './handlers/session.js';
 import * as auth from './handlers/auth.js';
 import * as session from './handlers/session.js';
@@ -15,11 +15,10 @@ import { getAppPageHtml } from './pages/app.html.js';
 
 export default {
   async fetch(request, env, ctx) {
-    setAllowedOrigin(env.ALLOWED_ORIGIN);
     const url = new URL(request.url);
 
     if (request.method === 'OPTIONS') {
-      return corsOptions();
+      return corsOptions(env.ALLOWED_ORIGIN);
     }
 
     // --- HTMLページ ---
@@ -66,9 +65,10 @@ export default {
 async function routeApi(request, env, ctx, path) {
   // 認証不要エンドポイント
   switch (path) {
-    case '/api/auth/register': return auth.register(request, env);
-    case '/api/auth/login':    return auth.login(request, env);
-    case '/api/auth/logout':   return auth.logout(request, env);
+    case '/api/auth/register':    return auth.register(request, env);
+    case '/api/auth/login':       return auth.login(request, env);
+    case '/api/auth/logout':      return auth.logout(request, env);
+    case '/api/team/invite-info': return team.inviteInfo(request, env);
   }
 
   // 認証必須エンドポイント
@@ -84,7 +84,6 @@ async function routeApi(request, env, ctx, path) {
     // チーム管理
     case '/api/team/create':            return team.create(request, env, sess);
     case '/api/team/list':              return team.list(request, env, sess);
-    case '/api/team/invite-info':       return team.inviteInfo(request, env, sess);
     case '/api/team/join':              return team.join(request, env, sess);
     case '/api/team/members':           return team.members(request, env, sess);
     case '/api/team/regenerate-invite': return team.regenerateInvite(request, env, sess);
@@ -99,6 +98,7 @@ async function routeApi(request, env, ctx, path) {
     case '/api/manage/delete':         return manage.deleteProduct(request, env, sess);
     case '/api/manage/delete-single':  return manage.deleteSingle(request, env, sess);
     case '/api/manage/stats':          return manage.stats(request, env, sess);
+    case '/api/manage/temp-token':     return manage.tempToken(request, env, sess);
 
     // 管理者
     case '/api/admin/set-plan':     return admin.setPlan(request, env, sess);

@@ -63,7 +63,7 @@ export async function list(request, env, session) {
 /**
  * 招待コードの情報取得（参加前のプレビュー）
  */
-export async function inviteInfo(request, env, session) {
+export async function inviteInfo(request, env) {
   const body = await request.json();
   const { inviteCode } = body;
 

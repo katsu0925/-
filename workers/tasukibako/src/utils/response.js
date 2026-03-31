@@ -1,25 +1,21 @@
 /**
  * CORS・レスポンスヘルパー
- * ALLOWED_ORIGIN は wrangler.toml の vars で設定可能
+ *
+ * CORSオリジンはリクエスト単位で制御可能。
+ * モジュールレベル変数にリクエスト固有データを保存しない（Cross-request data leak防止）。
  */
 
-let _allowedOrigin = '*';
-
-export function setAllowedOrigin(origin) {
-  _allowedOrigin = origin || '*';
-}
-
-function corsHeaders() {
+function corsHeaders(origin) {
   return {
-    'Access-Control-Allow-Origin': _allowedOrigin,
+    'Access-Control-Allow-Origin': origin || '*',
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   };
 }
 
-export function corsResponse(response) {
+export function corsResponse(response, origin) {
   const headers = new Headers(response.headers);
-  for (const [k, v] of Object.entries(corsHeaders())) {
+  for (const [k, v] of Object.entries(corsHeaders(origin))) {
     headers.set(k, v);
   }
   return new Response(response.body, {
@@ -28,8 +24,8 @@ export function corsResponse(response) {
   });
 }
 
-export function corsOptions() {
-  return new Response(null, { status: 204, headers: corsHeaders() });
+export function corsOptions(origin) {
+  return new Response(null, { status: 204, headers: corsHeaders(origin) });
 }
 
 export function jsonOk(data, extra = {}) {

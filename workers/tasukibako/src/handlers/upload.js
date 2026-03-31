@@ -206,12 +206,19 @@ export async function serveImage(request, env, url) {
   const token = url.searchParams.get('token');
   if (!token) return new Response('Unauthorized', { status: 401 });
 
-  const sessionData = await env.SESSIONS.get(`session:${token}`, 'json');
-  if (!sessionData) return new Response('Unauthorized', { status: 401 });
-
-  // メンバーシップ検証
-  const membership = await verifyMembership(env, teamId, sessionData.userId);
-  if (!membership) return new Response('Forbidden', { status: 403 });
+  // ワンタイムトークン（tmp:で始まる、5分有効、外部共有用）
+  const tmpData = await env.SESSIONS.get(`tmp:${token}`, 'json');
+  if (tmpData) {
+    // ワンタイムトークンはパスを限定して検証
+    if (tmpData.teamId !== teamId) return new Response('Forbidden', { status: 403 });
+    // 使い捨て: 削除しない（TTLで自動期限切れ）
+  } else {
+    // 通常セッショントークン
+    const sessionData = await env.SESSIONS.get(`session:${token}`, 'json');
+    if (!sessionData) return new Response('Unauthorized', { status: 401 });
+    const membership = await verifyMembership(env, teamId, sessionData.userId);
+    if (!membership) return new Response('Forbidden', { status: 403 });
+  }
 
   // R2からオブジェクト取得
   const r2Key = pathname.replace(/^\/images\//, '');

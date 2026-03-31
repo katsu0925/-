@@ -199,10 +199,19 @@ body.has-admin{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
       <p style="font-size:14px;color:var(--text-sub);margin-bottom:16px">画像をアップロードするにはチームの作成が必要です。</p>
       <button class="btn btn-primary" onclick="switchTab('team')">チームを作成する</button>
     </div>
+    <!-- 使用状況ミニバー -->
+    <div id="usageMiniBar" class="card" style="display:none;padding:12px 16px">
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text-sub);margin-bottom:4px">
+        <span>商品 <strong id="miniProducts">0</strong>/<span id="miniProductsMax">200</span></span>
+        <span>画像 <strong id="miniImages">0</strong>/<span id="miniImagesMax">2,000</span></span>
+      </div>
+      <div class="usage-bar" style="margin:0"><div class="fill" id="miniBar" style="width:0%;background:var(--primary)"></div></div>
+      <div id="usageWarning" style="display:none;font-size:12px;color:var(--error);margin-top:6px"></div>
+    </div>
     <div class="card" id="uploadForm">
       <h2>画像アップロード</h2>
       <div class="field">
-        <label>管理番号</label>
+        <label for="uploadManagedId">管理番号</label>
         <input type="text" id="uploadManagedId" placeholder="例: A001" autocomplete="off">
       </div>
       <div id="existingImages" class="hidden" style="margin-top:12px">
@@ -210,7 +219,7 @@ body.has-admin{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
         <div class="preview-grid" id="existingGrid"></div>
       </div>
       <div class="field" style="margin-top:12px">
-        <label>画像（最大10枚）</label>
+        <label for="uploadFiles">画像（最大10枚）</label>
         <input type="file" id="uploadFiles" multiple accept="image/*">
       </div>
       <div class="preview-grid" id="uploadPreview"></div>
@@ -310,11 +319,11 @@ body.has-admin{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
     <div class="card">
       <h2>プロフィール</h2>
       <div class="field">
-        <label>表示名</label>
+        <label for="settingsDisplayName">表示名</label>
         <input type="text" id="settingsDisplayName">
       </div>
       <div class="field">
-        <label>メールアドレス</label>
+        <label for="settingsEmail">メールアドレス</label>
         <input type="email" id="settingsEmail" readonly style="background:#f3f4f6">
       </div>
       <div class="status" id="settingsStatus"></div>
@@ -339,8 +348,14 @@ body.has-admin{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
 
 <!-- フッタ: 商品管理 -->
 <div class="sticky-footer" id="footer-manage">
-  <div class="footer-inner">
-    <button class="btn btn-danger" id="deleteSelectedBtn" disabled>選択した商品を削除</button>
+  <div class="footer-inner" style="flex-wrap:wrap;gap:6px">
+    <button class="btn btn-success" style="flex:1;min-width:45%;opacity:.5" id="dlTopBtn" disabled onclick="showUpgradeHint()">
+      <span style="font-size:10px;background:#f59e0b;color:#fff;padding:1px 5px;border-radius:3px;margin-right:4px">PRO</span>トップ画像保存
+    </button>
+    <button class="btn btn-primary" style="flex:1;min-width:45%;opacity:.5" id="dlAllBtn" disabled onclick="showUpgradeHint()">
+      <span style="font-size:10px;background:#f59e0b;color:#fff;padding:1px 5px;border-radius:3px;margin-right:4px">PRO</span>全画像保存
+    </button>
+    <button class="btn btn-danger" style="flex:1;min-width:100%" id="deleteSelectedBtn" disabled>選択した商品を削除</button>
   </div>
 </div>
 
@@ -348,6 +363,23 @@ body.has-admin{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
 <div id="previewModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:300;display:none;align-items:center;justify-content:center;cursor:pointer">
   <img id="previewImg" style="max-width:95%;max-height:90vh;object-fit:contain;border-radius:4px">
   <div style="position:absolute;top:16px;right:16px;color:#fff;font-size:32px;cursor:pointer;padding:8px;line-height:1" id="closePreviewBtn">&times;</div>
+</div>
+
+<!-- アップグレードモーダル（ソフトペイウォール） -->
+<div class="modal-overlay" id="upgradeModal">
+  <div class="modal">
+    <h2 style="text-align:center;border:none;font-size:18px;margin-bottom:12px">もっと便利に使いませんか？</h2>
+    <div id="upgradeReason" style="text-align:center;font-size:14px;color:var(--text-sub);margin-bottom:20px"></div>
+    <div style="background:#f0f9ff;border-radius:8px;padding:12px;margin-bottom:16px;font-size:13px">
+      <div style="font-weight:600;margin-bottom:8px;color:var(--primary)">ライトプラン — 月額 ¥980</div>
+      <div>商品 1,000 / 画像 10,000 / メンバー 5人</div>
+      <div style="margin-top:4px">一括保存・トップ画像保存・通知が使える</div>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary" style="flex:1" onclick="document.getElementById('upgradeModal').classList.remove('show')">あとで</button>
+      <button class="btn btn-primary" style="flex:1" onclick="document.getElementById('upgradeModal').classList.remove('show');switchTab('team')">プランを見る</button>
+    </div>
+  </div>
 </div>
 
 <!-- オンボーディング -->
@@ -458,6 +490,7 @@ function showApp() {
     document.getElementById('uploadForm').style.display = '';
     document.getElementById('uploadNoTeam').style.display = 'none';
     document.getElementById('footer-upload').classList.add('show');
+    updateUsageMiniBar();
   } else {
     document.getElementById('uploadForm').style.display = 'none';
     document.getElementById('uploadNoTeam').style.display = 'block';
@@ -661,8 +694,12 @@ function doUpload() {
         document.getElementById('uploadPreview').innerHTML = '';
         checkExisting(managedId);
         _listLoaded = false;
+        updateUsageMiniBar();
       } else {
         showStatus('uploadStatus', d.message || 'アップロード失敗', 'err');
+        if (d.message && d.message.indexOf('上限') >= 0) {
+          showSoftPaywall(d.message);
+        }
       }
     }).catch(function(e) {
       btn.disabled = false; _busyOperation = false; bar.classList.remove('show');
@@ -858,7 +895,8 @@ function toggleManageExpand(managedId) {
   apiPost('/api/manage/product-images', { teamId: _currentTeam.id, managedId: managedId })
   .then(function(d) {
     var el = document.getElementById('manageDetailInline');
-    if (!el || !d.ok) return;
+    if (!el) return;
+    if (!d.ok) { el.innerHTML = '<div style="text-align:center;color:var(--error);font-size:13px;padding:8px">読み込みに失敗しました</div>'; return; }
     var urls = d.urls || [];
     _manageExpandedUrls = urls;
     var html = '<div style="font-size:13px;font-weight:600;margin-bottom:8px">' + escapeHtml(managedId) + ' (' + urls.length + '枚)</div>';
@@ -886,12 +924,19 @@ function toggleManageExpand(managedId) {
 }
 
 function searchImage(managedId) {
+  if (!_currentTeam) return;
   var checks = document.querySelectorAll('.dl-img-check:checked');
-  var url = '';
-  if (checks.length > 0) url = location.origin + checks[0].dataset.url + '?token=' + _sessionId;
-  else if (_manageExpandedUrls.length > 0) url = location.origin + _manageExpandedUrls[0] + '?token=' + _sessionId;
-  if (!url) return;
-  window.open('https://lens.google.com/uploadbyurl?url=' + encodeURIComponent(url));
+  var imgPath = '';
+  if (checks.length > 0) imgPath = checks[0].dataset.url;
+  else if (_manageExpandedUrls.length > 0) imgPath = _manageExpandedUrls[0];
+  if (!imgPath) return;
+  // ワンタイムトークンを取得してからGoogle Lensに送出（セッションIDは送らない）
+  apiPost('/api/manage/temp-token', { teamId: _currentTeam.id, imageUrl: location.origin + imgPath })
+  .then(function(d) {
+    if (d.ok) {
+      window.open('https://lens.google.com/uploadbyurl?url=' + encodeURIComponent(d.publicUrl));
+    }
+  });
 }
 
 // ────── 選択削除 ──────
@@ -911,6 +956,8 @@ function doDeleteSelected() {
       showStatus('manageStatus', mids.length + '件削除しました', 'ok');
       _listLoaded = false;
       ensureListLoaded(function() { renderManageList(); });
+    }).catch(function() {
+      showStatus('manageStatus', '削除中にエラーが発生しました', 'err');
     });
   });
 }
@@ -933,8 +980,10 @@ function deleteManageImages(managedId) {
     Promise.all(promises).then(function() {
       showStatus('manageStatus', checkedUrls.length + '枚削除しました', 'ok');
       _listLoaded = false;
-      toggleManageExpand(managedId); // 閉じる
+      toggleManageExpand(managedId);
       ensureListLoaded(function() { renderManageList(); });
+    }).catch(function() {
+      showStatus('manageStatus', '削除中にエラーが発生しました', 'err');
     });
   });
 }
@@ -1106,10 +1155,53 @@ document.getElementById('confirmOk').addEventListener('click', function() {
 // ════════════════════════════════════════
 // グローバル関数公開（inline onclick用）
 // ════════════════════════════════════════
+// ════════════════════════════════════════
+// 使用量ミニバー（アップロードタブ上部）
+// ════════════════════════════════════════
+function updateUsageMiniBar() {
+  if (!_currentTeam) return;
+  apiPost('/api/manage/stats', { teamId: _currentTeam.id }).then(function(d) {
+    if (!d.ok) return;
+    var bar = document.getElementById('usageMiniBar');
+    bar.style.display = '';
+    document.getElementById('miniProducts').textContent = d.productCount;
+    document.getElementById('miniProductsMax').textContent = d.limits.maxProducts.toLocaleString();
+    document.getElementById('miniImages').textContent = d.imageCount;
+    document.getElementById('miniImagesMax').textContent = d.limits.maxImages.toLocaleString();
+    var pct = Math.max(
+      d.productCount / d.limits.maxProducts,
+      d.imageCount / d.limits.maxImages
+    ) * 100;
+    var fill = document.getElementById('miniBar');
+    fill.style.width = Math.min(pct, 100) + '%';
+    fill.style.background = pct >= 90 ? 'var(--error)' : pct >= 70 ? '#f59e0b' : 'var(--primary)';
+    // 警告
+    var warn = document.getElementById('usageWarning');
+    if (pct >= 90) {
+      var remaining = d.limits.maxProducts - d.productCount;
+      warn.textContent = 'あと' + remaining + '商品で上限です。ライトプラン(¥980/月)で1,000商品に拡張できます。';
+      warn.style.display = 'block';
+    } else {
+      warn.style.display = 'none';
+    }
+  });
+}
+
+function showUpgradeHint() {
+  document.getElementById('upgradeReason').textContent = 'この機能はライトプラン以上でご利用いただけます。';
+  document.getElementById('upgradeModal').classList.add('show');
+}
+
+function showSoftPaywall(reason) {
+  document.getElementById('upgradeReason').textContent = reason;
+  document.getElementById('upgradeModal').classList.add('show');
+}
+
 window.switchTab = switchTab;
 window.toggleManageExpand = toggleManageExpand;
 window.searchImage = searchImage;
 window.deleteManageImages = deleteManageImages;
+window.showUpgradeHint = showUpgradeHint;
 
 // ════════════════════════════════════════
 // オンボーディング（初回のみ表示）

@@ -4,6 +4,7 @@
 import { jsonOk, jsonError } from '../utils/response.js';
 import { verifyMembership } from './team.js';
 import { removeFromIndex } from './upload.js';
+import { generateRandomHex } from '../utils/crypto.js';
 import { PLAN_LIMITS } from '../config.js';
 
 function normalizeManagedId(raw) {
@@ -215,4 +216,23 @@ export async function stats(request, env, session) {
       maxMembers: limits.maxMembers,
     },
   });
+}
+
+/**
+ * 画像の一時公開トークン発行（Google Lens等の外部サービス用、5分有効）
+ */
+export async function tempToken(request, env, session) {
+  const body = await request.json();
+  const { teamId, imageUrl } = body;
+
+  if (!teamId || !imageUrl) return jsonError('teamIdとimageUrlは必須です。', 400);
+
+  const membership = await verifyMembership(env, teamId, session.userId);
+  if (!membership) return jsonError('このチームのメンバーではありません。', 403);
+
+  const token = generateRandomHex(32);
+  await env.SESSIONS.put(`tmp:${token}`, JSON.stringify({ teamId }), { expirationTtl: 300 });
+
+  const publicUrl = imageUrl + '?token=' + token;
+  return jsonOk({ publicUrl });
 }
