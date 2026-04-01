@@ -172,7 +172,62 @@
 
     <!-- タブ3: メール管理 -->
     <div class="tab-content" id="tab-email">
-      <div class="card"><div class="title">メール管理</div><p class="note">実装中...</p></div>
+      <div class="card">
+        <div class="title">共通設定</div>
+        <div class="form-row"><label>件名プレフィックス</label><input type="text" id="mail-prefix" placeholder="【デタウリ.Detauri】"></div>
+        <div class="form-row"><label>サイト名</label><input type="text" id="mail-sitename" placeholder="デタウリ.Detauri"></div>
+        <div class="form-row"><label>サイトURL</label><input type="text" id="mail-siteurl"></div>
+        <div class="form-row"><label>問い合わせメール</label><input type="text" id="mail-contact"></div>
+        <div class="subtitle">領収書 事業者情報</div>
+        <div class="form-row"><label>事業者名</label><input type="text" id="mail-biz-name"></div>
+        <div class="form-row"><label>登録番号</label><input type="text" id="mail-biz-reg"></div>
+        <div class="form-row"><label>住所</label><input type="text" id="mail-biz-addr"></div>
+        <div class="form-row"><label>電話番号</label><input type="text" id="mail-biz-phone"></div>
+        <div class="btnRow"><button class="primary" onclick="saveMailCommon()">共通設定を保存</button></div>
+      </div>
+
+      <div class="card">
+        <div class="title">配信パラメータ</div>
+        <div class="subtitle">入金・キャンセル</div>
+        <div class="form-row"><label>入金期限(日)</label><input type="number" id="mail-deadline" style="width:60px" value="3"></div>
+        <div class="form-row"><label>キャンセル猶予(日)</label><input type="number" id="mail-grace" style="width:60px" value="1"></div>
+        <div class="subtitle">フォローアップ</div>
+        <div class="form-row"><label>送信開始(日後)</label><input type="number" id="mail-fu-min" style="width:60px" value="7"></div>
+        <div class="form-row"><label>送信終了(日後)</label><input type="number" id="mail-fu-max" style="width:60px" value="30"></div>
+        <div class="subtitle">ポイント</div>
+        <div class="form-row"><label>有効期限(月)</label><input type="number" id="mail-pt-months" style="width:60px" value="12"></div>
+        <div class="form-row"><label>失効リマインド(日前)</label><input type="number" id="mail-pt-warn" style="width:60px" value="30"></div>
+        <div class="subtitle">放置カート</div>
+        <div class="form-row"><label>再送間隔(時間)</label><input type="number" id="mail-cart-interval" style="width:60px" value="24"></div>
+        <div class="subtitle">新着商品通知</div>
+        <div class="form-row"><label>代表商品表示数</label><input type="number" id="mail-new-count" style="width:60px" value="5"></div>
+        <div class="subtitle">週刊メルマガ</div>
+        <div class="form-row"><label>配信曜日</label><input type="text" id="mail-weekly-days" placeholder="2,4,6" style="width:120px"> <span class="note">0=日,1=月,2=火,3=水,4=木,5=金,6=土</span></div>
+        <div class="subtitle">休眠顧客クーポン</div>
+        <div class="form-row"><label>2ヶ月休眠(日)</label><input type="number" id="mail-dormant-2m" style="width:60px" value="60"></div>
+        <div class="form-row"><label>半年休眠(日)</label><input type="number" id="mail-dormant-6m" style="width:60px" value="180"></div>
+        <div class="form-row"><label>1年休眠(日)</label><input type="number" id="mail-dormant-1y" style="width:60px" value="365"></div>
+        <div class="form-row"><label>割引率</label><input type="number" id="mail-dormant-rate" step="0.01" style="width:60px" value="0.10"></div>
+        <div class="subtitle">パスワードリセット</div>
+        <div class="form-row"><label>有効期限(分)</label><input type="number" id="mail-pw-expiry" style="width:60px" value="30"></div>
+        <div class="btnRow"><button class="primary" onclick="saveMailParams()">配信パラメータを保存</button></div>
+      </div>
+
+      <div class="card">
+        <div class="title">メール件名テンプレート</div>
+        <div class="note">プレースホルダ: {receiptNo}=受付番号, {companyName}=会社名, {count}=点数, {amount}=金額</div>
+        <div id="mail-subjects-container">読み込み中...</div>
+        <div class="btnRow"><button class="primary" onclick="saveMailSubjects()">件名を保存</button></div>
+      </div>
+
+      <div class="card">
+        <div class="title">テスト送信</div>
+        <div class="btnRow">
+          <button onclick="runTool('adminPanel_testEmails','テストメール送信')">全テストメール送信（管理者宛）</button>
+        </div>
+      </div>
+
+      <div class="log" id="email-log"></div>
     </div>
 
     <!-- タブ4: AI設定 -->
@@ -349,6 +404,7 @@ document.querySelectorAll('.tab-btn').forEach(function(btn){
     if(tab) tab.classList.add('active');
     // 遅延初期化
     if(btn.dataset.tab === 'discount' && !discountLoaded) loadDiscountStatus();
+    if(btn.dataset.tab === 'email' && !emailLoaded) loadEmailSettings();
     if(btn.dataset.tab === 'props' && !propsLoaded) loadProperties();
     if(btn.dataset.tab === 'triggers' && !triggersLoaded) loadTriggers();
   });
@@ -402,6 +458,122 @@ async function runTool(fn, label){
     appendLog('tools-log', '失敗: ' + e.message);
     showToast('エラー: ' + e.message);
   }
+}
+
+// ========== タブ3: メール管理 ==========
+var emailLoaded = false;
+var MAIL_SUBJECT_KEYS = [
+  {key:'order_confirm_paid',label:'注文確認(即時決済)',def:'【デタウリ.Detauri】ご注文ありがとうございます（受付番号：{receiptNo}）'},
+  {key:'order_confirm_pending',label:'注文確認(後払い)',def:'【デタウリ.Detauri】ご注文を受け付けました（受付番号：{receiptNo}）'},
+  {key:'order_notify_admin',label:'注文通知(管理者)',def:'デタウリ.Detauri 注文確定（決済完了）'},
+  {key:'payment_confirmed',label:'入金確認',def:'【デタウリ.Detauri】入金を確認しました（受付番号：{receiptNo}）'},
+  {key:'payment_remind_eve',label:'入金リマインド(前日)',def:'【デタウリ.Detauri】お支払い期限が明日です（受付番号：{receiptNo}）'},
+  {key:'payment_remind_day',label:'入金リマインド(当日)',def:'【デタウリ.Detauri】本日がお支払い期限です（受付番号：{receiptNo}）'},
+  {key:'payment_cancelled',label:'自動キャンセル',def:'【デタウリ.Detauri】ご注文がキャンセルされました（受付番号：{receiptNo}）'},
+  {key:'shipment',label:'発送通知',def:'【デタウリ.Detauri】商品を発送しました（受付番号：{receiptNo}）'},
+  {key:'password_reset',label:'パスワードリセット',def:'【デタウリ.Detauri】パスワードリセットのお知らせ'},
+  {key:'invoice',label:'領収書',def:'【デタウリ.Detauri】領収書 No.{receiptNo}'},
+  {key:'invoice_cancel',label:'領収書取消',def:'【デタウリ.Detauri】領収書取消通知 No.{receiptNo}'},
+  {key:'sns_coupon',label:'SNS承認クーポン',def:'【デタウリ】SNSシェアクーポンが届きました！'},
+  {key:'sns_reject',label:'SNS却下',def:'【デタウリ】SNSシェアキャンペーン申請について'},
+  {key:'referral',label:'紹介ポイント',def:'【デタウリ.Detauri】紹介ポイントが付与されました'},
+  {key:'new_arrival',label:'新着商品',def:'【デタウリ.Detauri】新着商品 {count}点が入荷しました'},
+  {key:'abandoned_cart',label:'放置カート',def:'【デタウリ.Detauri】カートに商品が残っています'},
+  {key:'followup',label:'フォローアップ',def:'【デタウリ.Detauri】ご利用ありがとうございました（受付番号：{receiptNo}）'},
+  {key:'stock_summary',label:'月次在庫サマリー',def:'【デタウリ.Detauri】今月の在庫サマリー'},
+  {key:'point_expiry_warn',label:'ポイント失効リマインド',def:'【デタウリ.Detauri】ポイント失効のお知らせ'},
+  {key:'point_expired',label:'ポイント失効通知',def:'【デタウリ.Detauri】ポイントが失効しました'}
+];
+
+async function loadEmailSettings(){
+  try {
+    var res = await run('adminPanel_getMailSettings');
+    if(!res.ok) return;
+    var s = res.settings;
+    $('mail-prefix').value = s.subjectPrefix || '【デタウリ.Detauri】';
+    $('mail-sitename').value = s.siteName || 'デタウリ.Detauri';
+    $('mail-siteurl').value = s.siteUrl || '';
+    $('mail-contact').value = s.contactEmail || '';
+    $('mail-biz-name').value = s.bizName || '';
+    $('mail-biz-reg').value = s.bizRegNo || '';
+    $('mail-biz-addr').value = s.bizAddress || '';
+    $('mail-biz-phone').value = s.bizPhone || '';
+    $('mail-deadline').value = s.paymentDeadlineDays || 3;
+    $('mail-grace').value = s.cancelGraceDays || 1;
+    $('mail-fu-min').value = s.followupMinDays || 7;
+    $('mail-fu-max').value = s.followupMaxDays || 30;
+    $('mail-pt-months').value = s.pointExpiryMonths || 12;
+    $('mail-pt-warn').value = s.pointExpiryWarnDays || 30;
+    $('mail-cart-interval').value = s.cartRemindIntervalHours || 24;
+    $('mail-new-count').value = s.newArrivalCount || 5;
+    $('mail-weekly-days').value = s.weeklyDays || '2,4,6';
+    $('mail-dormant-2m').value = s.dormant2mDays || 60;
+    $('mail-dormant-6m').value = s.dormant6mDays || 180;
+    $('mail-dormant-1y').value = s.dormant1yDays || 365;
+    $('mail-dormant-rate').value = s.dormantRate || 0.10;
+    $('mail-pw-expiry').value = s.pwResetExpiryMin || 30;
+    // 件名テンプレート
+    var subjects = s.subjects || {};
+    var html = '';
+    MAIL_SUBJECT_KEYS.forEach(function(m){
+      html += '<div class="form-row"><label title="'+m.key+'">'+m.label+'</label>'+
+        '<input type="text" data-subj="'+m.key+'" value="'+escHtml(subjects[m.key]||m.def)+'" placeholder="'+escHtml(m.def)+'"></div>';
+    });
+    $('mail-subjects-container').innerHTML = html;
+    emailLoaded = true;
+  } catch(e){ appendLog('email-log','読み込みエラー: '+e.message); }
+}
+
+async function saveMailCommon(){
+  clearLog('email-log');
+  try {
+    var res = await run('adminPanel_setMailSettings', {
+      subjectPrefix: $('mail-prefix').value,
+      siteName: $('mail-sitename').value,
+      siteUrl: $('mail-siteurl').value,
+      contactEmail: $('mail-contact').value,
+      bizName: $('mail-biz-name').value,
+      bizRegNo: $('mail-biz-reg').value,
+      bizAddress: $('mail-biz-addr').value,
+      bizPhone: $('mail-biz-phone').value
+    });
+    showToast(res.ok ? '共通設定を保存しました' : '失敗');
+  } catch(e){ appendLog('email-log','エラー: '+e.message); }
+}
+
+async function saveMailParams(){
+  clearLog('email-log');
+  try {
+    var res = await run('adminPanel_setMailSettings', {
+      paymentDeadlineDays: +$('mail-deadline').value,
+      cancelGraceDays: +$('mail-grace').value,
+      followupMinDays: +$('mail-fu-min').value,
+      followupMaxDays: +$('mail-fu-max').value,
+      pointExpiryMonths: +$('mail-pt-months').value,
+      pointExpiryWarnDays: +$('mail-pt-warn').value,
+      cartRemindIntervalHours: +$('mail-cart-interval').value,
+      newArrivalCount: +$('mail-new-count').value,
+      weeklyDays: $('mail-weekly-days').value,
+      dormant2mDays: +$('mail-dormant-2m').value,
+      dormant6mDays: +$('mail-dormant-6m').value,
+      dormant1yDays: +$('mail-dormant-1y').value,
+      dormantRate: +$('mail-dormant-rate').value,
+      pwResetExpiryMin: +$('mail-pw-expiry').value
+    });
+    showToast(res.ok ? '配信パラメータを保存しました' : '失敗');
+  } catch(e){ appendLog('email-log','エラー: '+e.message); }
+}
+
+async function saveMailSubjects(){
+  clearLog('email-log');
+  var subjects = {};
+  document.querySelectorAll('[data-subj]').forEach(function(el){
+    subjects[el.dataset.subj] = el.value;
+  });
+  try {
+    var res = await run('adminPanel_setMailSettings', { subjects: subjects });
+    showToast(res.ok ? '件名テンプレートを保存しました' : '失敗');
+  } catch(e){ appendLog('email-log','エラー: '+e.message); }
 }
 
 // ========== タブ2: 割引管理 ==========

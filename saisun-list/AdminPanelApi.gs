@@ -302,6 +302,83 @@ function adminPanel_toggleKomojuMode() {
 }
 
 // =====================================================
+// メール設定管理
+// =====================================================
+
+var MAIL_SETTINGS_KEY_ = 'CONFIG_MAIL_SETTINGS';
+
+function adminPanel_getMailSettings() {
+  var raw = PropertiesService.getScriptProperties().getProperty(MAIL_SETTINGS_KEY_);
+  var settings = {};
+  if (raw) { try { settings = JSON.parse(raw); } catch (e) {} }
+
+  // デフォルト値のマージ
+  var defaults = {
+    subjectPrefix: '【デタウリ.Detauri】',
+    siteName: 'デタウリ.Detauri',
+    siteUrl: PropertiesService.getScriptProperties().getProperty('SITE_URL') || 'https://wholesale.nkonline-tool.com/',
+    contactEmail: PropertiesService.getScriptProperties().getProperty('CONTACT_EMAIL') || '',
+    bizName: '', bizRegNo: '', bizAddress: '', bizPhone: '',
+    paymentDeadlineDays: 3, cancelGraceDays: 1,
+    followupMinDays: 7, followupMaxDays: 30,
+    pointExpiryMonths: 12, pointExpiryWarnDays: 30,
+    cartRemindIntervalHours: 24,
+    newArrivalCount: 5,
+    weeklyDays: '2,4,6',
+    dormant2mDays: 60, dormant6mDays: 180, dormant1yDays: 365, dormantRate: 0.10,
+    pwResetExpiryMin: 30,
+    subjects: {}
+  };
+
+  var merged = {};
+  var dKeys = Object.keys(defaults);
+  for (var i = 0; i < dKeys.length; i++) {
+    var k = dKeys[i];
+    merged[k] = (settings[k] !== undefined && settings[k] !== null) ? settings[k] : defaults[k];
+  }
+  // subjectsは深いマージ
+  if (settings.subjects) {
+    merged.subjects = settings.subjects;
+  }
+  return { ok: true, settings: merged };
+}
+
+function adminPanel_setMailSettings(updates) {
+  if (!updates || typeof updates !== 'object') return { ok: false, message: '無効なデータ' };
+  var props = PropertiesService.getScriptProperties();
+  var raw = props.getProperty(MAIL_SETTINGS_KEY_);
+  var current = {};
+  if (raw) { try { current = JSON.parse(raw); } catch (e) {} }
+
+  var keys = Object.keys(updates);
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i];
+    if (k === 'subjects' && typeof updates[k] === 'object') {
+      // subjectsは深いマージ
+      if (!current.subjects) current.subjects = {};
+      var sKeys = Object.keys(updates[k]);
+      for (var j = 0; j < sKeys.length; j++) {
+        current.subjects[sKeys[j]] = updates[k][sKeys[j]];
+      }
+    } else {
+      current[k] = updates[k];
+    }
+  }
+  props.setProperty(MAIL_SETTINGS_KEY_, JSON.stringify(current));
+  return { ok: true, message: 'メール設定を保存しました' };
+}
+
+function adminPanel_testEmails() {
+  try {
+    if (typeof adminTestEmails === 'function') {
+      adminTestEmails();
+      return { ok: true, message: 'テストメールを送信しました' };
+    }
+    return { ok: false, message: 'adminTestEmails関数が見つかりません' };
+  } catch (e) { return { ok: false, message: String(e.message || e) }; }
+}
+
+// =====================================================
 // デバッグツール（パラメータ化ラッパー）
 // =====================================================
 
