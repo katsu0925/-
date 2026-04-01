@@ -647,16 +647,22 @@ function run(fn){
   });
 }
 
-// ========== タブ1: 管理ツール ==========
+// ========== 共通: ツール実行（アクティブタブのログに出力） ==========
+function findActiveLog(){
+  var active = document.querySelector('.tab-content.active');
+  if(active){ var log = active.querySelector('.log'); if(log) return log.id; }
+  return 'tools-log';
+}
 async function runTool(fn, label){
-  clearLog('tools-log');
-  appendLog('tools-log', '実行中: ' + label + '...');
+  var logId = findActiveLog();
+  clearLog(logId);
+  appendLog(logId, '実行中: ' + label + '...');
   try {
     var res = await run(fn);
-    appendLog('tools-log', res.ok ? '完了: ' + (res.message||label) : '失敗: ' + (res.message||''));
+    appendLog(logId, res.ok ? '完了: ' + (res.message||label) : '失敗: ' + (res.message||''));
     showToast(res.ok ? label + ' 完了' : '失敗');
   } catch(e){
-    appendLog('tools-log', '失敗: ' + e.message);
+    appendLog(logId, '失敗: ' + e.message);
     showToast('エラー: ' + e.message);
   }
 }
