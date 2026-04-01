@@ -22,15 +22,7 @@ function onOpen() {
     .addItem('最新月の理論を前月実地で再計算', 'recalcCurrentTheoryFromPrev');
 
   ui.createMenu('管理メニュー')
-    .addSubMenu(invMenu)
-    .addSeparator()
-    .addItem('月次在庫推移を更新', 'updateMonthlyInventoryTrend')
-    .addSeparator()
-    .addItem('不要トリガー一括削除', 'cleanupObsoleteTriggers')
-    .addSeparator()
-    .addItem('列診断', 'debugCheckColumns')
-    .addSeparator()
-    .addItem('分析レポートリンク追加', 'addAnalysisReportManual')
+    .addItem('★ 管理パネルを開く', 'showAdminPanel')
     .addToUi();
 }
 

@@ -1,0 +1,490 @@
+<!-- AdminPanel.html — 仕入れ管理 統合管理パネル -->
+<!DOCTYPE html>
+<html><head><base target="_top"><meta charset="utf-8">
+<style>
+html,body{margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans JP",sans-serif;color:#111;background:#f6f7f9;}
+*{box-sizing:border-box;}
+.wrap{height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+.tab-bar{display:flex;gap:0;overflow-x:auto;background:#fff;border-bottom:2px solid #e6e8ee;flex-shrink:0;padding:0 8px;}
+.tab-btn{padding:10px 14px;border:none;background:none;cursor:pointer;font-size:12px;font-weight:700;color:#666;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-2px;}
+.tab-btn:hover{color:#111;} .tab-btn.active{color:#111;border-bottom-color:#111;}
+.tab-body{flex:1;overflow-y:auto;padding:14px;}
+.tab-content{display:none;} .tab-content.active{display:block;}
+.card{background:#fff;border:1px solid #e6e8ee;border-radius:14px;padding:14px;margin-bottom:14px;}
+.title{font-weight:900;font-size:16px;margin-bottom:10px;}
+.subtitle{font-weight:800;font-size:13px;margin:14px 0 8px;color:#333;}
+.btnRow{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+button{padding:8px 12px;border:1px solid #d9deea;border-radius:8px;background:#fff;cursor:pointer;font-weight:700;font-size:12px;}
+button:disabled{opacity:.4;} button.primary{background:#111;color:#fff;border-color:#111;}
+button.danger{background:#dc3545;color:#fff;border-color:#dc3545;} button.sm{padding:5px 8px;font-size:11px;}
+.log{margin-top:10px;font-size:11px;color:#333;white-space:pre-wrap;line-height:1.5;max-height:200px;overflow-y:auto;background:#f9f9f9;border-radius:8px;padding:8px;border:1px solid #eee;} .log:empty{display:none;}
+.toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#111;color:#fff;padding:8px 14px;border-radius:10px;display:none;z-index:50;font-weight:700;font-size:12px;}
+.toast.show{display:block;}
+input[type=text],input[type=number],input[type=password],input[type=date],select,textarea{padding:6px 8px;border:1px solid #d9deea;border-radius:6px;font-size:12px;width:100%;font-family:inherit;}
+.form-row{display:flex;gap:8px;align-items:center;margin:6px 0;}
+.form-row label{min-width:160px;font-size:12px;font-weight:600;flex-shrink:0;}
+.form-row input,.form-row select{flex:1;}
+details{margin:6px 0;} details>summary{cursor:pointer;font-weight:700;font-size:13px;padding:6px 0;}
+table.data{width:100%;border-collapse:collapse;font-size:11px;}
+table.data th,table.data td{padding:4px 6px;border:1px solid #e6e8ee;text-align:left;}
+table.data th{background:#f0f0f0;font-weight:700;}
+.note{font-size:11px;color:#888;margin-top:4px;}
+.confirm-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:100;}
+.confirm-modal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;width:min(380px,90vw);z-index:101;box-shadow:0 8px 30px rgba(0,0,0,.2);}
+</style></head>
+<body>
+<div class="wrap">
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="tools">管理ツール</button>
+    <button class="tab-btn" data-tab="props">プロパティ</button>
+    <button class="tab-btn" data-tab="biz">ビジネス設定</button>
+    <button class="tab-btn" data-tab="sync">データ同期</button>
+    <button class="tab-btn" data-tab="mail">メール/通知</button>
+    <button class="tab-btn" data-tab="swap">入替リスト</button>
+    <button class="tab-btn" data-tab="xlsx">xlsx/配布</button>
+    <button class="tab-btn" data-tab="triggers">トリガー</button>
+    <button class="tab-btn" data-tab="analysis">分析/レポート</button>
+  </div>
+  <div class="tab-body">
+
+    <!-- タブ1: 管理ツール -->
+    <div class="tab-content active" id="tab-tools">
+      <div class="card">
+        <div class="title">棚卸し</div>
+        <div class="btnRow">
+          <button class="primary" onclick="runTool('adminPanel_startNewMonth','今月を開始')">今月を開始</button>
+          <button onclick="runTool('adminPanel_syncCurrentMonthIds','新規ID同期')">新規IDを同期</button>
+          <button onclick="runTool('adminPanel_recalcCurrentTheory','理論値再計算')">理論を前月実地で再計算</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="title">データ処理</div>
+        <div class="btnRow">
+          <button onclick="runTool('adminPanel_updateInventoryTrend','月次在庫推移更新')">月次在庫推移を更新</button>
+          <button onclick="runTool('adminPanel_ecSync','EC管理同期')">EC管理手動同期</button>
+          <button onclick="runTool('adminPanel_mergeShiire','仕入れ数マージ')">仕入れ数マージ</button>
+          <button onclick="runTool('adminPanel_returnStatusSync','返送ステータス更新')">返送ステータス更新</button>
+          <button onclick="runTool('adminPanel_moveProcess','移動報告処理')">移動報告処理</button>
+        </div>
+      </div>
+      <div class="card">
+        <div class="title">レポート・診断</div>
+        <div class="btnRow">
+          <button onclick="runTool('adminPanel_generateReport','月次レポート生成')">月次レポート生成</button>
+          <button onclick="runTool('adminPanel_checkMissingIds','欠番確認')">欠番確認</button>
+          <button onclick="runTool('adminPanel_generateSwapLists','入替リスト生成')">入替リスト手動生成</button>
+          <button onclick="runTool('adminPanel_debugColumns','列診断')">列診断</button>
+          <button onclick="runTool('adminPanel_addAnalysisReport','分析レポートリンク')">分析レポートリンク追加</button>
+          <button onclick="runTool('adminPanel_cleanupTriggers','不要トリガー削除')">不要トリガー削除</button>
+        </div>
+      </div>
+      <div class="log" id="tools-log"></div>
+    </div>
+
+    <!-- タブ2: スクリプトプロパティ -->
+    <div class="tab-content" id="tab-props">
+      <div class="card">
+        <div class="title">スクリプトプロパティ</div>
+        <div class="note">秘密キー(SECRET/TOKEN/KEY等)は値がマスクされます。</div>
+        <div id="props-container">読み込み中...</div>
+        <div class="btnRow">
+          <button class="primary" id="btnSaveProps" onclick="saveProperties()" disabled>変更を保存</button>
+          <button onclick="loadProperties()">再読み込み</button>
+        </div>
+        <div class="log" id="props-log"></div>
+      </div>
+    </div>
+
+    <!-- タブ3: ビジネス設定 -->
+    <div class="tab-content" id="tab-biz">
+      <div class="card">
+        <div class="title">EC手数料率</div>
+        <div class="form-row"><label>BASE手数料率</label><input type="number" id="biz-base-rate" step="0.001" style="width:80px"> <span class="note">例: 0.066=6.6%</span></div>
+        <div class="form-row"><label>BASE固定手数料(円)</label><input type="number" id="biz-base-fix" style="width:60px"></div>
+        <div class="form-row"><label>クレジットカード</label><input type="number" id="biz-credit" step="0.001" style="width:80px"></div>
+        <div class="form-row"><label>PayPay</label><input type="number" id="biz-paypay" step="0.001" style="width:80px"></div>
+        <div class="form-row"><label>コンビニ払い</label><input type="number" id="biz-konbini" step="0.001" style="width:80px"></div>
+        <div class="form-row"><label>銀行振込</label><input type="number" id="biz-bank" step="0.001" style="width:80px"></div>
+        <div class="form-row"><label>ペイジー</label><input type="number" id="biz-payeasy" step="0.001" style="width:80px"></div>
+        <div class="form-row"><label>ペイディ</label><input type="number" id="biz-paidy" step="0.001" style="width:80px"></div>
+        <div class="form-row"><label>ジモティ</label><input type="number" id="biz-jimoti" step="0.01" style="width:80px"></div>
+      </div>
+      <div class="card">
+        <div class="title">AI キーワード設定</div>
+        <div class="form-row"><label>モデル</label><input type="text" id="biz-ai-model" placeholder="gpt-5-mini"></div>
+        <div class="form-row"><label>日次API上限</label><input type="number" id="biz-ai-limit" style="width:60px"></div>
+        <div class="form-row"><label>最大キーワード数</label><input type="number" id="biz-ai-max" style="width:60px"></div>
+        <div class="form-row"><label>最小キーワード数</label><input type="number" id="biz-ai-min" style="width:60px"></div>
+      </div>
+      <div class="card">
+        <div class="title">その他</div>
+        <div class="form-row"><label>報酬起点 年</label><input type="number" id="biz-reward-year" style="width:70px"></div>
+        <div class="form-row"><label>報酬起点 月</label><input type="number" id="biz-reward-month" style="width:60px"></div>
+        <div class="form-row"><label>月次レポート手数料率</label><input type="number" id="biz-report-fee" step="0.001" style="width:80px"></div>
+      </div>
+      <div class="btnRow"><button class="primary" onclick="saveBizSettings()">ビジネス設定を保存</button></div>
+      <div class="log" id="biz-log"></div>
+    </div>
+
+    <!-- タブ4: データ同期設定 -->
+    <div class="tab-content" id="tab-sync">
+      <div class="card">
+        <div class="title">返送管理 (RETURN_STATUS_SYNC_CONFIG)</div>
+        <div class="note">返送管理シートから商品管理のステータスを自動更新する設定</div>
+        <div class="form-row"><label>商品管理シート名</label><input type="text" id="sync-product-sheet" value="商品管理"></div>
+        <div class="form-row"><label>返送管理シート名</label><input type="text" id="sync-return-sheet" value="返送管理"></div>
+        <div class="form-row"><label>返品済みステータス</label><input type="text" id="sync-returned-text" value="返品済み"></div>
+        <div class="form-row"><label>除外ステータス(カンマ区切り)</label><input type="text" id="sync-excluded" value="売却済み,廃棄済み,キャンセル済み,発送待ち,発送済み"></div>
+      </div>
+      <div class="card">
+        <div class="title">移動報告 (MOVE_CONFIG)</div>
+        <div class="form-row"><label>移動報告シート名</label><input type="text" id="sync-move-sheet" value="移動報告"></div>
+        <div class="form-row"><label>商品管理シート名</label><input type="text" id="sync-move-product" value="商品管理"></div>
+      </div>
+      <div class="card">
+        <div class="title">棚卸し設定</div>
+        <div class="form-row"><label>仕入れ管理シート</label><input type="text" id="sync-inv-purchase" value="仕入れ管理"></div>
+        <div class="form-row"><label>棚卸明細シート</label><input type="text" id="sync-inv-stock" value="棚卸明細"></div>
+        <div class="form-row"><label>商品管理シート</label><input type="text" id="sync-inv-product" value="商品管理"></div>
+        <div class="form-row"><label>棚卸ログシート</label><input type="text" id="sync-inv-log" value="棚卸ログ"></div>
+        <div class="form-row"><label>BUSYタイムアウト(秒)</label><input type="number" id="sync-inv-timeout" value="300" style="width:70px"></div>
+      </div>
+      <div class="card">
+        <div class="title">在庫日数 終了ステータス</div>
+        <div class="form-row"><label>終了ステータス(カンマ区切り)</label><input type="text" id="sync-end-statuses" value="発送済み,発送待ち,売却済み,キャンセル,返品済み,廃棄済み"></div>
+      </div>
+      <div class="btnRow"><button class="primary" onclick="saveSyncSettings()">データ同期設定を保存</button></div>
+      <div class="log" id="sync-log"></div>
+    </div>
+
+    <!-- タブ5: メール/通知設定 -->
+    <div class="tab-content" id="tab-mail">
+      <div class="card">
+        <div class="title">経費・仕入れ数報告の通知 (CONFIG_MAILER)</div>
+        <div class="form-row"><label>設定シート名</label><input type="text" id="mail-settings-sheet" value="設定"></div>
+        <div class="form-row"><label>受信者列</label><input type="text" id="mail-recipient-col" value="K" style="width:40px"></div>
+        <div class="form-row"><label>受信者開始行</label><input type="number" id="mail-recipient-row" value="4" style="width:60px"></div>
+        <div class="subtitle">仕入れ数報告メール</div>
+        <div class="form-row"><label>件名</label><input type="text" id="mail-shiire-subject"></div>
+        <div class="form-row"><label>イントロ文</label><input type="text" id="mail-shiire-intro"></div>
+        <div class="subtitle">経費申請メール</div>
+        <div class="form-row"><label>件名</label><input type="text" id="mail-expense-subject"></div>
+        <div class="form-row"><label>イントロ文</label><input type="text" id="mail-expense-intro"></div>
+        <div class="subtitle">入替リストメール</div>
+        <div class="form-row"><label>件名フォーマット</label><input type="text" id="mail-swap-format" placeholder="【入替リスト】{account} {year}年{month}月分 — {count}件"></div>
+      </div>
+      <div class="btnRow"><button class="primary" onclick="saveMailSettings()">メール設定を保存</button></div>
+      <div class="log" id="mail-log"></div>
+    </div>
+
+    <!-- タブ6: 入替リスト -->
+    <div class="tab-content" id="tab-swap">
+      <div class="card">
+        <div class="title">入替リスト設定</div>
+        <div class="form-row"><label>トリガー日(毎月N日)</label><input type="number" id="swap-day" value="1" style="width:60px"></div>
+        <div class="subtitle">アカウント設定</div>
+        <div class="form-row"><label>アカウント1 名前</label><input type="text" id="swap-acct1-name" value="古着屋本舗"></div>
+        <div class="form-row"><label>アカウント1 メール</label><input type="text" id="swap-acct1-email"></div>
+        <div class="form-row"><label>アカウント2 名前</label><input type="text" id="swap-acct2-name" value="ほしいが見つかる古着屋さん"></div>
+        <div class="form-row"><label>アカウント2 メール</label><input type="text" id="swap-acct2-email"></div>
+        <div class="btnRow">
+          <button class="primary" onclick="saveSwapSettings()">入替リスト設定を保存</button>
+          <button onclick="runTool('adminPanel_generateSwapLists','入替リスト手動生成')">手動生成</button>
+        </div>
+        <div class="log" id="swap-log"></div>
+      </div>
+    </div>
+
+    <!-- タブ7: xlsx/配布 -->
+    <div class="tab-content" id="tab-xlsx">
+      <div class="card">
+        <div class="title">xlsxダウンロード設定</div>
+        <div class="form-row"><label>ソースSS ID</label><input type="text" id="xlsx-source"></div>
+        <div class="form-row"><label>シートGID</label><input type="number" id="xlsx-gid" style="width:120px"></div>
+        <div class="form-row"><label>配布用リストシート名</label><input type="text" id="xlsx-sheet" value="配布用リスト"></div>
+        <div class="form-row"><label>名前セル</label><input type="text" id="xlsx-name-cell" value="E1" style="width:60px"></div>
+        <div class="form-row"><label>受付番号セル</label><input type="text" id="xlsx-receipt-cell" value="B1" style="width:60px"></div>
+        <div class="form-row"><label>出力フォルダID</label><input type="text" id="xlsx-folder"></div>
+        <div class="form-row"><label>依頼管理SS ID</label><input type="text" id="xlsx-request"></div>
+        <div class="form-row"><label>依頼管理シート名</label><input type="text" id="xlsx-request-sheet" value="依頼管理"></div>
+        <div class="btnRow"><button class="primary" onclick="saveXlsxSettings()">xlsx設定を保存</button></div>
+        <div class="log" id="xlsx-log"></div>
+      </div>
+    </div>
+
+    <!-- タブ8: トリガー管理 -->
+    <div class="tab-content" id="tab-triggers">
+      <div class="card">
+        <div class="title">トリガー管理</div>
+        <div id="triggers-container">読み込み中...</div>
+        <div class="btnRow">
+          <button class="primary" onclick="rebuildTriggers()">全トリガー再構築(FULL_RESTORE_ALL)</button>
+          <button onclick="loadTriggers()">再読み込み</button>
+        </div>
+        <div class="log" id="triggers-log"></div>
+      </div>
+    </div>
+
+    <!-- タブ9: 分析/レポート -->
+    <div class="tab-content" id="tab-analysis">
+      <div class="card">
+        <div class="title">回収完了設定</div>
+        <div class="form-row"><label>在庫分析シート名</label><input type="text" id="an-inv-sheet" value="在庫分析"></div>
+        <div class="form-row"><label>ヘッダー行</label><input type="number" id="an-header-row" value="15" style="width:60px"></div>
+        <div class="form-row"><label>データ開始行</label><input type="number" id="an-start-row" value="16" style="width:60px"></div>
+      </div>
+      <div class="card">
+        <div class="title">作業分析設定</div>
+        <div class="form-row"><label>ソースシート</label><input type="text" id="an-work-src" value="商品管理"></div>
+        <div class="form-row"><label>出力シート</label><input type="text" id="an-work-dst" value="作業分析"></div>
+        <div class="form-row"><label>開始列番号</label><input type="number" id="an-work-col" value="33" style="width:60px"></div>
+        <div class="form-row"><label>列数</label><input type="number" id="an-work-width" value="26" style="width:60px"></div>
+      </div>
+      <div class="card">
+        <div class="title">分析レポート設定</div>
+        <div class="form-row"><label>シート名</label><input type="text" id="an-report-sheet" value="分析アドバイス"></div>
+        <div class="form-row"><label>ヘッダー背景色</label><input type="text" id="an-report-bg" value="#1a73e8" style="width:100px"></div>
+        <div class="form-row"><label>ヘッダー文字色</label><input type="text" id="an-report-fg" value="#ffffff" style="width:100px"></div>
+      </div>
+      <div class="card">
+        <div class="title">商品説明テンプレート (Code.gs)</div>
+        <div class="form-row"><label>割引情報テキスト</label><input type="text" id="an-discount-text" value="フォロー割→【100円OFF】"></div>
+        <div class="form-row"><label>ハッシュタグサフィックス</label><input type="text" id="an-hashtag-suffix" value="商品多数ございますので、ぜひご覧ください"></div>
+      </div>
+      <div class="btnRow"><button class="primary" onclick="saveAnalysisSettings()">分析設定を保存</button></div>
+      <div class="log" id="analysis-log"></div>
+    </div>
+
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<div class="confirm-overlay" id="confirmOverlay"></div>
+<div class="confirm-modal" id="confirmModal">
+  <div style="padding:12px 14px;border-bottom:1px solid #e6e8ee;display:flex;justify-content:space-between;align-items:center;">
+    <div style="font-weight:900;" id="confirmTitle">確認</div>
+    <button id="confirmClose" style="border:none;background:none;font-size:18px;cursor:pointer;">&times;</button>
+  </div>
+  <div style="padding:14px;">
+    <p id="confirmMessage" style="margin:0 0 14px;line-height:1.6;font-size:13px;white-space:pre-wrap;"></p>
+    <div style="display:flex;justify-content:flex-end;gap:8px;">
+      <button id="confirmCancel">キャンセル</button>
+      <button class="primary" id="confirmOk">OK</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function $(id){return document.getElementById(id);}
+document.querySelectorAll('.tab-btn').forEach(function(btn){
+  btn.addEventListener('click',function(){
+    document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});
+    document.querySelectorAll('.tab-content').forEach(function(c){c.classList.remove('active');});
+    btn.classList.add('active');
+    var tab=$('tab-'+btn.dataset.tab); if(tab) tab.classList.add('active');
+    if(btn.dataset.tab==='props'&&!propsLoaded) loadProperties();
+    if(btn.dataset.tab==='biz'&&!bizLoaded) loadBizSettings();
+    if(btn.dataset.tab==='mail'&&!mailLoaded) loadMailSettings();
+    if(btn.dataset.tab==='swap'&&!swapLoaded) loadSwapSettings();
+    if(btn.dataset.tab==='triggers'&&!triggersLoaded) loadTriggers();
+  });
+});
+
+function showToast(msg){var t=$('toast');t.textContent=String(msg||'');t.classList.add('show');setTimeout(function(){t.classList.remove('show');},2400);}
+function appendLog(id,msg){var el=$(id);if(!el)return;el.textContent=(el.textContent?el.textContent+'\n':'')+String(msg||'');el.scrollTop=el.scrollHeight;}
+function clearLog(id){var el=$(id);if(el)el.textContent='';}
+function escHtml(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function togglePw(btn){var i=btn.previousElementSibling;if(i.type==='password'){i.type='text';btn.textContent='隠す';}else{i.type='password';btn.textContent='表示';}}
+function showConfirm(msg,onOk){
+  $('confirmMessage').textContent=msg;$('confirmModal').style.display='block';$('confirmOverlay').style.display='block';
+  function cleanup(){$('confirmModal').style.display='none';$('confirmOverlay').style.display='none';}
+  $('confirmOk').onclick=function(){cleanup();if(onOk)onOk();};
+  $('confirmCancel').onclick=$('confirmClose').onclick=$('confirmOverlay').onclick=cleanup;
+}
+
+function run(fn){
+  var args=Array.prototype.slice.call(arguments,1);
+  return new Promise(function(resolve,reject){
+    var done=false,timer=setTimeout(function(){if(!done){done=true;reject(new Error('タイムアウト'));}},120000);
+    var runner=google.script.run
+      .withSuccessHandler(function(r){if(done)return;done=true;clearTimeout(timer);resolve(r);})
+      .withFailureHandler(function(e){if(done)return;done=true;clearTimeout(timer);reject(new Error(e&&e.message?e.message:String(e)));});
+    var call=runner[fn];
+    if(typeof call!=='function'){clearTimeout(timer);reject(new Error('関数なし: '+fn));return;}
+    call.apply(runner,args);
+  });
+}
+
+// 管理ツール
+async function runTool(fn,label){
+  clearLog('tools-log');appendLog('tools-log','実行中: '+label+'...');
+  try{var res=await run(fn);appendLog('tools-log',res.ok?'完了: '+(res.message||label):'失敗: '+(res.message||''));showToast(res.ok?label+' 完了':'失敗');}
+  catch(e){appendLog('tools-log','失敗: '+e.message);showToast('エラー');}
+}
+
+// プロパティ
+var propsLoaded=false,propsOriginal={};
+async function loadProperties(){
+  $('props-container').innerHTML='読み込み中...';$('btnSaveProps').disabled=true;
+  try{
+    var res=await run('adminPanel_getProperties');if(!res.ok)return;propsOriginal=res.props;propsLoaded=true;
+    var categories={'基本':['SPREADSHEET_ID','IMAGE_FOLDER_ID','ADMIN_OWNER_EMAIL'],
+      'API':['OPENAI_API_KEY'],
+      'メール':['SWAP_EMAIL_FURUGIYAHONPO','SWAP_EMAIL_HOSHIIGA','OWNER_USER_KEYS'],
+      'EC連携':['EC_SYNC_SRC_SPREADSHEET_ID','EC_SYNC_DST_SPREADSHEET_ID'],
+      'xlsx':['XLSX_SOURCE_SPREADSHEET_ID','XLSX_REQUEST_SPREADSHEET_ID','XLSX_EXPORT_FOLDER_ID'],
+      'その他':['SAISUN_LIST_SPREADSHEET_ID','INV_BUSY']};
+    var allCatKeys={};Object.values(categories).forEach(function(a){a.forEach(function(k){allCatKeys[k]=true;});});
+    var uncategorized={};Object.keys(res.props).forEach(function(k){if(!allCatKeys[k])uncategorized[k]=res.props[k];});
+    if(Object.keys(uncategorized).length>0) categories['未分類']=Object.keys(uncategorized);
+    var html='';
+    Object.keys(categories).forEach(function(cat){
+      var keys=categories[cat];var entries={};
+      keys.forEach(function(k){if(res.props[k])entries[k]=res.props[k];});
+      if(Object.keys(entries).length===0)return;
+      html+='<details'+(cat==='基本'?' open':'')+'><summary>'+cat+' ('+Object.keys(entries).length+')</summary>';
+      Object.keys(entries).forEach(function(k){
+        var p=entries[k];var t=p.masked?'password':'text';var ph=p.masked?(p.hasValue?'***設定済み***':'未設定'):'';
+        html+='<div class="form-row"><label title="'+k+'">'+k+'</label><input type="'+t+'" data-prop="'+k+'" value="'+escHtml(p.masked?'':p.value||'')+'" placeholder="'+ph+'" oninput="$(&quot;btnSaveProps&quot;).disabled=false">'+(p.masked?'<button class="sm" onclick="togglePw(this)">表示</button>':'')+'</div>';
+      });
+      html+='</details>';
+    });
+    $('props-container').innerHTML=html;
+  }catch(e){$('props-container').innerHTML='エラー: '+e.message;}
+}
+async function saveProperties(){
+  var inputs=document.querySelectorAll('[data-prop]'),updates={},count=0;
+  inputs.forEach(function(el){var k=el.dataset.prop,v=el.value,o=propsOriginal[k];
+    if(o&&o.masked){if(v)updates[k]=v,count++;}else{if(v!==(o?o.value||'':''))updates[k]=v||'',count++;}
+  });
+  if(!count){showToast('変更なし');return;}
+  showConfirm(count+'件のプロパティを更新します',async function(){
+    try{var res=await run('adminPanel_setProperties',updates);showToast(res.ok?'保存完了':'失敗');if(res.ok)loadProperties();}catch(e){showToast('エラー');}
+  });
+}
+
+// ビジネス設定
+var bizLoaded=false;
+async function loadBizSettings(){
+  try{
+    var res=await run('adminPanel_getBizSettings');if(!res.ok)return;var s=res.settings;
+    $('biz-base-rate').value=s.baseFeeRate||0.066;$('biz-base-fix').value=s.baseFeeFix||40;
+    $('biz-credit').value=s.creditRate||0.0325;$('biz-paypay').value=s.paypayRate||0.035;
+    $('biz-konbini').value=s.konbiniRate||0.0275;$('biz-bank').value=s.bankRate||0.014;
+    $('biz-payeasy').value=s.payeasyRate||0.0275;$('biz-paidy').value=s.paidyRate||0.035;
+    $('biz-jimoti').value=s.jimotiRate||0.10;
+    $('biz-ai-model').value=s.aiModel||'gpt-5-mini';$('biz-ai-limit').value=s.aiDailyLimit||200;
+    $('biz-ai-max').value=s.aiMaxKeywords||8;$('biz-ai-min').value=s.aiMinKeywords||3;
+    $('biz-reward-year').value=s.rewardStartYear||2025;$('biz-reward-month').value=s.rewardStartMonth||6;
+    $('biz-report-fee').value=s.monthlyReportFeeRate||0.016;
+    bizLoaded=true;
+  }catch(e){}
+}
+async function saveBizSettings(){
+  try{var res=await run('adminPanel_setBizSettings',{
+    baseFeeRate:+$('biz-base-rate').value,baseFeeFix:+$('biz-base-fix').value,
+    creditRate:+$('biz-credit').value,paypayRate:+$('biz-paypay').value,
+    konbiniRate:+$('biz-konbini').value,bankRate:+$('biz-bank').value,
+    payeasyRate:+$('biz-payeasy').value,paidyRate:+$('biz-paidy').value,jimotiRate:+$('biz-jimoti').value,
+    aiModel:$('biz-ai-model').value,aiDailyLimit:+$('biz-ai-limit').value,
+    aiMaxKeywords:+$('biz-ai-max').value,aiMinKeywords:+$('biz-ai-min').value,
+    rewardStartYear:+$('biz-reward-year').value,rewardStartMonth:+$('biz-reward-month').value,
+    monthlyReportFeeRate:+$('biz-report-fee').value
+  });showToast(res.ok?'保存完了':'失敗');}catch(e){showToast('エラー');}
+}
+
+// メール設定
+var mailLoaded=false;
+async function loadMailSettings(){
+  try{var res=await run('adminPanel_getMailSettings');if(!res.ok)return;var s=res.settings;
+    $('mail-settings-sheet').value=s.settingsSheet||'設定';
+    $('mail-recipient-col').value=s.recipientCol||'K';$('mail-recipient-row').value=s.recipientStartRow||4;
+    $('mail-shiire-subject').value=s.shiireSubject||'';$('mail-shiire-intro').value=s.shiireIntro||'';
+    $('mail-expense-subject').value=s.expenseSubject||'';$('mail-expense-intro').value=s.expenseIntro||'';
+    $('mail-swap-format').value=s.swapSubjectFormat||'';
+    mailLoaded=true;
+  }catch(e){}
+}
+async function saveMailSettings(){
+  try{var res=await run('adminPanel_setMailSettings',{
+    settingsSheet:$('mail-settings-sheet').value,recipientCol:$('mail-recipient-col').value,
+    recipientStartRow:+$('mail-recipient-row').value,
+    shiireSubject:$('mail-shiire-subject').value,shiireIntro:$('mail-shiire-intro').value,
+    expenseSubject:$('mail-expense-subject').value,expenseIntro:$('mail-expense-intro').value,
+    swapSubjectFormat:$('mail-swap-format').value
+  });showToast(res.ok?'保存完了':'失敗');}catch(e){showToast('エラー');}
+}
+
+// 入替リスト
+var swapLoaded=false;
+async function loadSwapSettings(){
+  try{var res=await run('adminPanel_getProperties');if(!res.ok)return;
+    $('swap-acct1-email').value=(res.props.SWAP_EMAIL_FURUGIYAHONPO||{}).value||'';
+    $('swap-acct2-email').value=(res.props.SWAP_EMAIL_HOSHIIGA||{}).value||'';
+    swapLoaded=true;
+  }catch(e){}
+}
+async function saveSwapSettings(){
+  var updates={};
+  if($('swap-acct1-email').value) updates.SWAP_EMAIL_FURUGIYAHONPO=$('swap-acct1-email').value;
+  if($('swap-acct2-email').value) updates.SWAP_EMAIL_HOSHIIGA=$('swap-acct2-email').value;
+  try{var res=await run('adminPanel_setProperties',updates);showToast(res.ok?'保存完了':'失敗');}catch(e){showToast('エラー');}
+}
+
+// xlsx設定
+async function saveXlsxSettings(){
+  var updates={};
+  if($('xlsx-source').value) updates.XLSX_SOURCE_SPREADSHEET_ID=$('xlsx-source').value;
+  if($('xlsx-folder').value) updates.XLSX_EXPORT_FOLDER_ID=$('xlsx-folder').value;
+  if($('xlsx-request').value) updates.XLSX_REQUEST_SPREADSHEET_ID=$('xlsx-request').value;
+  try{var res=await run('adminPanel_setProperties',updates);showToast(res.ok?'保存完了':'失敗');}catch(e){showToast('エラー');}
+}
+
+// データ同期設定
+async function saveSyncSettings(){
+  try{var res=await run('adminPanel_setProperties',{CONFIG_SYNC_SETTINGS:JSON.stringify({
+    productSheet:$('sync-product-sheet').value,returnSheet:$('sync-return-sheet').value,
+    returnedStatus:$('sync-returned-text').value,excludedStatuses:$('sync-excluded').value,
+    moveSheet:$('sync-move-sheet').value,moveProduct:$('sync-move-product').value,
+    invPurchase:$('sync-inv-purchase').value,invStock:$('sync-inv-stock').value,
+    invProduct:$('sync-inv-product').value,invLog:$('sync-inv-log').value,
+    invTimeout:+$('sync-inv-timeout').value,endStatuses:$('sync-end-statuses').value
+  })});showToast(res.ok?'保存完了':'失敗');}catch(e){showToast('エラー');}
+}
+
+// 分析設定
+async function saveAnalysisSettings(){
+  try{var res=await run('adminPanel_setProperties',{CONFIG_ANALYSIS_SETTINGS:JSON.stringify({
+    invSheet:$('an-inv-sheet').value,headerRow:+$('an-header-row').value,startRow:+$('an-start-row').value,
+    workSrc:$('an-work-src').value,workDst:$('an-work-dst').value,workCol:+$('an-work-col').value,workWidth:+$('an-work-width').value,
+    reportSheet:$('an-report-sheet').value,reportBg:$('an-report-bg').value,reportFg:$('an-report-fg').value,
+    discountText:$('an-discount-text').value,hashtagSuffix:$('an-hashtag-suffix').value
+  })});showToast(res.ok?'保存完了':'失敗');}catch(e){showToast('エラー');}
+}
+
+// トリガー管理
+var triggersLoaded=false;
+async function loadTriggers(){
+  $('triggers-container').innerHTML='読み込み中...';
+  try{var res=await run('adminPanel_listTriggers');if(!res.ok)return;triggersLoaded=true;
+    var html='<table class="data"><tr><th>関数名</th><th>タイプ</th><th>操作</th></tr>';
+    res.triggers.forEach(function(t){
+      html+='<tr><td>'+escHtml(t.fn)+'</td><td>'+escHtml(t.type+' / '+t.source)+'</td><td><button class="sm danger" onclick="deleteTrigger(\''+t.id+'\',\''+escHtml(t.fn)+'\')">削除</button></td></tr>';
+    });
+    html+='</table><div class="note">合計: '+res.triggers.length+'件</div>';
+    $('triggers-container').innerHTML=html;
+  }catch(e){$('triggers-container').innerHTML='エラー';}
+}
+async function rebuildTriggers(){
+  showConfirm('全トリガーを再構築します',async function(){
+    clearLog('triggers-log');appendLog('triggers-log','再構築中...');
+    try{var res=await run('adminPanel_rebuildTriggers');appendLog('triggers-log',res.ok?res.message:'失敗');showToast(res.ok?'完了':'失敗');loadTriggers();}
+    catch(e){appendLog('triggers-log','エラー: '+e.message);}
+  });
+}
+async function deleteTrigger(id,fn){
+  showConfirm('トリガー「'+fn+'」を削除します',async function(){
+    try{var res=await run('adminPanel_deleteTrigger',id);showToast(res.ok?'削除':'失敗');loadTriggers();}catch(e){showToast('エラー');}
+  });
+}
+</script>
+</body></html>
