@@ -417,7 +417,7 @@ async function loadProperties(){
       html+='<details'+(cat==='基本'?' open':'')+'><summary>'+cat+' ('+Object.keys(entries).length+')</summary>';
       Object.keys(entries).forEach(function(k){
         var p=entries[k];var t=p.masked?'password':'text';var ph=p.masked?(p.hasValue?'***設定済み***':'未設定'):'';
-        html+='<div class="form-row"><label title="'+k+'">'+k+'</label><input type="'+t+'" data-prop="'+k+'" value="'+escHtml(p.masked?'':p.value||'')+'" placeholder="'+ph+'" oninput="$(&quot;btnSaveProps&quot;).disabled=false">'+(p.masked?'<button class="sm" onclick="togglePw(this)">表示</button>':'')+'</div>';
+        html+='<div class="form-row"><label title="'+k+'">'+k+'</label><input type="'+t+'" data-prop="'+k+'" value="'+escHtml(p.value||'')+'" placeholder="'+ph+'" oninput="$(&quot;btnSaveProps&quot;).disabled=false">'+(p.masked?'<button class="sm" onclick="togglePw(this)">表示</button>':'')+'</div>';
       });
       html+='</details>';
     });
@@ -427,7 +427,7 @@ async function loadProperties(){
 async function saveProperties(){
   var inputs=document.querySelectorAll('[data-prop]'),updates={},count=0;
   inputs.forEach(function(el){var k=el.dataset.prop,v=el.value,o=propsOriginal[k];
-    if(o&&o.masked){if(v)updates[k]=v,count++;}else{if(v!==(o?o.value||'':''))updates[k]=v||'',count++;}
+    if(v!==(o?o.value||'':''))updates[k]=v||'',count++;
   });
   if(!count){showToast('変更なし');return;}
   showConfirm(count+'件のプロパティを更新します',async function(){

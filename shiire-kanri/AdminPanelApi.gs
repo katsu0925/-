@@ -26,7 +26,7 @@ function adminPanel_getProperties() {
     for (var s = 0; s < AP_SECRET_PATTERNS_.length; s++) {
       if (kUpper.indexOf(AP_SECRET_PATTERNS_[s]) !== -1) { isSecret = true; break; }
     }
-    result[k] = { value: isSecret ? '' : props[k], masked: isSecret, hasValue: !!props[k] };
+    result[k] = { value: props[k] || '', masked: isSecret, hasValue: !!props[k] };
   }
   return { ok: true, props: result };
 }

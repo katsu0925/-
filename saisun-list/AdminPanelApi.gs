@@ -67,7 +67,7 @@ function adminPanel_getProperties() {
       if (kUpper.indexOf(AP_SECRET_PATTERNS_[s]) !== -1) { isSecret = true; break; }
     }
     result[k] = {
-      value: isSecret ? '' : props[k],
+      value: props[k] || '',
       masked: isSecret,
       hasValue: !!props[k]
     };

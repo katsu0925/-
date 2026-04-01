@@ -925,7 +925,7 @@ function renderProperties(props){
       var p = entries[k];
       var inputType = p.masked ? 'password' : 'text';
       var placeholder = p.masked ? (p.hasValue ? '***設定済み***' : '未設定') : '';
-      var val = p.masked ? '' : (p.value||'');
+      var val = p.value || '';
       html += '<div class="form-row"><label title="'+k+'">'+k+'</label>'+
         '<input type="'+inputType+'" data-prop="'+k+'" value="'+escHtml(val)+'" placeholder="'+placeholder+'" oninput="onPropChange()">'+
         (p.masked ? '<button class="sm" onclick="togglePw(this)">表示</button>' : '')+
@@ -954,11 +954,7 @@ async function saveProperties(){
     var k = input.dataset.prop;
     var v = input.value;
     var orig = propsOriginal[k];
-    if(orig && orig.masked){
-      if(v && v !== '') { updates[k] = v; count++; } // 新値入力時のみ更新
-    } else {
-      if(v !== (orig ? orig.value||'' : '')) { updates[k] = v || ''; count++; }
-    }
+    if(v !== (orig ? orig.value||'' : '')) { updates[k] = v || ''; count++; }
   });
   if(count === 0){ showToast('変更なし'); return; }
   showConfirm(count + '件のプロパティを更新します', async function(){
