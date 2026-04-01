@@ -24,6 +24,9 @@ export async function scheduledSync(env) {
     const exportData = await fetchExportData(env);
     if (!exportData || !exportData.ok) {
       console.error('[sync] Export failed:', exportData?.message || 'unknown');
+      // エクスポート失敗でも撮影同期・AI判定は実行する
+      await syncPhotographyData(env);
+      await autoMatchPhotography(env);
       return;
     }
 
@@ -278,6 +281,35 @@ async function syncPhotographyData(env) {
       return;
     }
 
+    // AI判定（Gemini）— 画像がある場合のみ
+    // 結果はKVに保存し、GASへの送信時にまとめて含める
+    const geminiKey = env.GEMINI_API_KEY || '';
+    if (geminiKey) {
+      for (const entry of photographyData) {
+        const existingAi = await env.CACHE.get(`ai-result:${entry.managedId}`);
+        if (existingAi) continue;
+        try {
+          const aiResult = await runGeminiJudgment(env, entry.managedId, geminiKey);
+          if (aiResult) {
+            await env.CACHE.put(`ai-result:${entry.managedId}`, JSON.stringify(aiResult), { expirationTtl: 30 * 24 * 3600 });
+            console.log(`[sync] AI判定OK: ${entry.managedId}`);
+          }
+        } catch (e) {
+          console.error(`[sync] AI判定失敗: ${entry.managedId}: ${e.message}`);
+        }
+      }
+    }
+
+    // pendingの全managedIdについて、KVに保存されたAI結果を収集
+    const aiResults = [];
+    for (const entry of photographyData) {
+      const cachedAi = await env.CACHE.get(`ai-result:${entry.managedId}`);
+      if (cachedAi) {
+        aiResults.push({ managedId: entry.managedId, ...JSON.parse(cachedAi) });
+      }
+    }
+    if (aiResults.length > 0) console.log(`[sync] AI判定結果送信: ${aiResults.length}件`);
+
     // GASに送信
     const gasUrl = env.GAS_API_URL;
     if (!gasUrl) return;
@@ -287,6 +319,7 @@ async function syncPhotographyData(env) {
       args: [{
         syncSecret: env.SYNC_SECRET || '',
         photographyData,
+        aiData: aiResults.length > 0 ? aiResults : undefined,
       }],
     });
 
@@ -303,12 +336,38 @@ async function syncPhotographyData(env) {
       const result = JSON.parse(text);
       console.log(`[sync] Photography result: ok=${result.ok}, imported=${JSON.stringify(result.imported)}`);
       if (result.ok) {
-        // 成功: pendingリストとメタデータをクリア
-        await env.CACHE.delete('photo-meta:pending');
+        const photoWritten = result.imported?.photography || 0;
+        const aiWritten = result.imported?.aiProduct || 0;
+
+        // 書き込めたものだけクリア。書き込めなかった（行がない）ものはKVに残す
+        const successIds = [];
+        const retryIds = [];
         for (const managedId of pending) {
-          await env.CACHE.delete(`photo-meta:${managedId}`);
+          // photographyDataまたはaiDataで書き込めたかチェック
+          // GASが個別の成功/失敗を返さないため、全体の件数で判断
+          // photography > 0 なら行が存在した = 書き込めた
+          if (photoWritten > 0 || aiWritten > 0) {
+            successIds.push(managedId);
+          } else {
+            retryIds.push(managedId);
+          }
         }
-        console.log(`[sync] Photography data synced: ${photographyData.length} items, written: ${result.imported?.photography || 0}`);
+
+        // 成功分のメタデータをクリア（AI結果も）
+        for (const mid of successIds) {
+          await env.CACHE.delete(`photo-meta:${mid}`);
+          await env.CACHE.delete(`ai-result:${mid}`);
+        }
+
+        // pendingリストを更新（リトライ分は残す）
+        if (retryIds.length > 0) {
+          // リトライ分はpendingから外す（autoMatchPhotographyで再検知させる）
+          // photo-metaとai-resultはKVに残す
+          console.log(`[sync] ${retryIds.length} items kept in KV for retry (row not yet created): ${retryIds.join(',')}`);
+        }
+        await env.CACHE.delete('photo-meta:pending');
+
+        console.log(`[sync] Photography synced: ${photographyData.length} items, photo=${photoWritten}, ai=${aiWritten}`);
       } else {
         console.error('[sync] Photography sync failed:', result.message);
       }
@@ -577,15 +636,28 @@ async function autoMatchPhotography(env) {
     for (const managedId of imageIndex) {
       // 商品管理に登録済み && まだpendingに入っていない
       if (registeredIds.has(managedId) && !pendingSet.has(managedId)) {
-        // photo-metaが存在するか確認
+        // photo-metaまたはai-resultが存在するか確認
         const metaJson = await env.CACHE.get(`photo-meta:${managedId}`);
-        if (!metaJson) continue;
+        const aiJson = await env.CACHE.get(`ai-result:${managedId}`);
+        if (!metaJson && !aiJson) continue;
 
-        const meta = JSON.parse(metaJson);
-        // 30日以上前のアップロードはスキップ
-        if (meta.uploadedAt) {
-          const daysDiff = (Date.now() - new Date(meta.uploadedAt).getTime()) / (1000 * 60 * 60 * 24);
-          if (daysDiff > 30) continue;
+        if (metaJson) {
+          const meta = JSON.parse(metaJson);
+          if (meta.uploadedAt) {
+            const daysDiff = (Date.now() - new Date(meta.uploadedAt).getTime()) / (1000 * 60 * 60 * 24);
+            if (daysDiff > 30) continue;
+          }
+        }
+
+        // photo-metaがない場合はai-resultだけの再適用（ダミーのphoto-metaを作成）
+        if (!metaJson && aiJson) {
+          const now = new Date();
+          const todayStr = now.getFullYear() + '/' + String(now.getMonth() + 1).padStart(2, '0') + '/' + String(now.getDate()).padStart(2, '0');
+          await env.CACHE.put(`photo-meta:${managedId}`, JSON.stringify({
+            photographer: '',
+            photographyDate: todayStr,
+            uploadedAt: now.toISOString(),
+          }));
         }
 
         newMatches.push(managedId);
@@ -851,5 +923,126 @@ async function prewarmCaches(env) {
     // プリウォーム失敗時はキャッシュを削除（次のリクエストでD1から再構築）
     const keys = ['products:detauri', 'products:bulk', 'settings:public', 'stats:banner'];
     for (const key of keys) { await env.CACHE.delete(key); }
+  }
+}
+
+// ─── Gemini AI判定 ───
+
+const GEMINI_MODEL = 'gemini-2.5-flash-lite';
+const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+
+const AI_PRODUCT_PROMPT = `あなたは古着の商品情報を画像から判定する専門家です。以下の画像の古着商品について、JSON形式で情報を返してください。
+
+## 出力ルール
+- 画像で確実に確認できる要素のみ出力（推測は禁止）
+- 確認できない項目はnullを出力
+- ブランド名はタグが明確に読める場合のみ出力
+- 必ず以下のJSON形式のみ出力（説明文や前置きは禁止）
+
+## カテゴリ1の選択肢
+レディース, メンズ, キッズ
+
+## カテゴリ2の選択肢
+トップス, ジャケット・アウター, パンツ, スカート, ワンピース, スーツ・フォーマル, スーツセットアップ, ジャージセットアップ, ドレス・ブライダル, サロペット・オーバーオール, ルームウェア・パジャマ, マタニティ, キッズ, スーツ, 靴下・レッグウェア, 帽子, バッグ, アクセサリー, その他
+
+## カテゴリ3の選択肢（カテゴリ2に対応）
+トップス: Tシャツ/カットソー, シャツ/ブラウス, ニット/セーター, パーカー, スウェット, カーディガン, ポロシャツ, タンクトップ, ベスト/ジレ, その他
+ジャケット・アウター: テーラードジャケット, ノーカラージャケット, Gジャン/デニムジャケット, レザージャケット, ダウンジャケット, ブルゾン, MA-1, ナイロンジャケット, スタジャン, コート, ダウンコート, トレンチコート, モッズコート, ダッフルコート, その他
+パンツ: デニム/ジーンズ, チノパン, スラックス, カーゴパンツ, ワイドパンツ, スウェットパンツ, ショートパンツ, その他
+スカート: ミニスカート, ひざ丈スカート, ロングスカート, フレアスカート, タイトスカート, その他
+ワンピース: ロングワンピース, ひざ丈ワンピース, ミニワンピース, シャツワンピース, その他
+
+## 性別の選択肢
+レディース, メンズ, キッズ
+
+## カラーの選択肢
+ブラック系, ホワイト系, グレー系, ブラウン系, ベージュ系, グリーン系, ブルー系, パープル系, イエロー系, ピンク系, レッド系, オレンジ系, ネイビー系, その他
+
+## ポケットの選択肢
+あり, なし
+
+## JSON出力形式
+{
+  "brand": "ブランド名またはnull",
+  "tagLabel": "タグに表記されているサイズ（数字やアルファベットそのまま）またはnull",
+  "gender": "性別",
+  "category1": "カテゴリ1",
+  "category2": "カテゴリ2",
+  "category3": "カテゴリ3",
+  "design": "デザイン特徴（ボーダー、チェック柄、フリル等）またはnull",
+  "color": "カラー",
+  "pocket": "ポケット",
+  "defectDetail": "傷汚れ詳細（見える場合のみ）またはnull",
+  "keywords": "メルカリ検索用キーワード 半角スペース区切り 3〜8語（ブランド名/色名/サイズ/素材は禁止）"
+}`;
+
+async function runGeminiJudgment(env, managedId, apiKey) {
+  // KVから画像URL取得
+  const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
+  if (!urlsJson) return null;
+
+  const urls = JSON.parse(urlsJson);
+  if (!urls || urls.length === 0) return null;
+
+  // 1枚目の画像をR2から取得
+  const firstUrl = urls[0];
+  const r2Key = firstUrl.replace(/^\/images\//, '').split('?')[0];
+  const r2Obj = await env.IMAGES.get(r2Key);
+  if (!r2Obj) {
+    console.log(`[ai] R2 object not found for ${managedId}: ${r2Key}`);
+    return null;
+  }
+
+  const arrayBuffer = await r2Obj.arrayBuffer();
+  // 大きな画像でもスタックオーバーフローしないBase64変換
+  const bytes = new Uint8Array(arrayBuffer);
+  let binary = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+  }
+  const base64 = btoa(binary);
+  const mimeType = r2Obj.httpMetadata?.contentType || 'image/jpeg';
+
+  // Gemini API呼び出し
+  const payload = {
+    contents: [{
+      parts: [
+        { text: AI_PRODUCT_PROMPT },
+        { inline_data: { mime_type: mimeType, data: base64 } },
+      ],
+    }],
+    generationConfig: {
+      temperature: 0.1,
+      maxOutputTokens: 512,
+      responseMimeType: 'application/json',
+    },
+  };
+
+  const resp = await fetch(`${GEMINI_ENDPOINT}?key=${apiKey}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error(`Gemini API ${resp.status}: ${errText.substring(0, 200)}`);
+  }
+
+  const result = await resp.json();
+  const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  if (!text) {
+    console.log(`[ai] Empty response from Gemini for ${managedId}`);
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(text);
+    console.log(`[ai] Judgment OK for ${managedId}: cat2=${parsed.category2}, brand=${parsed.brand}`);
+    return parsed;
+  } catch (e) {
+    console.error(`[ai] JSON parse failed for ${managedId}:`, text.substring(0, 200));
+    return null;
   }
 }

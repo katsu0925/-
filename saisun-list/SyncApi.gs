@@ -117,6 +117,14 @@ function apiSyncImportData(params) {
       imported.photography = importPhotographyData_(p.photographyData);
     }
 
+    // AI判定データのインポート（Gemini → 商品管理シート + AIキーワード抽出シート）
+    if (p.aiData && p.aiData.length > 0) {
+      var aiResult = importAiProductData_(p.aiData);
+      imported.aiProduct = aiResult.product;
+      imported.aiKeywords = aiResult.keywords;
+      // imported.aiDebug = aiResult.debug; // デバッグ用（本番不要）
+    }
+
     return { ok: true, imported: imported };
   } catch (e) {
     console.error('apiSyncImportData error:', e);
@@ -555,6 +563,282 @@ function importPhotographyData_(data) {
   }
 
   return written;
+}
+
+/**
+ * AI判定データを商品管理シート + AIキーワード抽出シートに書き込み
+ * 既存値がある列はスキップ（上書き防止）
+ *
+ * @param {object[]} data - [{ managedId, brand, tagLabel, gender, category1, category2, category3, design, color, pocket, defectDetail, keywords }, ...]
+ * @returns {object} { product: 書き込み件数, keywords: キーワード書き込み件数 }
+ */
+function importAiProductData_(data) {
+  console.log('importAiProductData_ called with ' + data.length + ' items');
+  var ssId = '';
+  try {
+    ssId = APP_CONFIG.detail.spreadsheetId;
+  } catch (e) { /* ignore */ }
+  if (!ssId) {
+    try {
+      ssId = PropertiesService.getScriptProperties().getProperty('DETAIL_SPREADSHEET_ID') || '';
+    } catch (e) { /* ignore */ }
+  }
+  if (!ssId) return { product: 0, keywords: 0 };
+
+  var ss = SpreadsheetApp.openById(ssId);
+
+  // ── 商品管理シートへの書き込み ──
+  var sh = ss.getSheetByName('商品管理');
+  if (!sh) { console.log('商品管理シートが見つかりません'); return { product: 0, keywords: 0 }; }
+
+  var lastRow = sh.getLastRow();
+  var lastCol = sh.getLastColumn();
+  if (lastRow < 2) return { product: 0, keywords: 0 };
+
+  // ヘッダー名→列番号マップ構築
+  var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  var colMap = {};
+  for (var h = 0; h < headers.length; h++) {
+    var hName = String(headers[h] || '').trim();
+    if (hName) colMap[hName] = h + 1; // 1-indexed
+  }
+
+  // AI判定対象のフィールド→ヘッダー名マッピング
+  var fieldToHeader = {
+    brand: 'ブランド',
+    tagLabel: 'タグ表記',
+    gender: '性別',
+    category1: 'カテゴリ1',
+    category2: 'カテゴリ2',
+    category3: 'カテゴリ3',
+    design: 'デザイン特徴',
+    color: 'カラー',
+    pocket: 'ポケット',
+    defectDetail: '傷汚れ詳細'
+  };
+
+  // 管理番号列（F列）で行番号マップ構築
+  var colMid = colMap['管理番号'];
+  if (!colMid) { console.log('管理番号列が見つかりません'); return { product: 0, keywords: 0 }; }
+
+  var midData = sh.getRange(2, colMid, lastRow - 1, 1).getValues();
+  var idToRow = {};
+  for (var i = 0; i < midData.length; i++) {
+    var mid = String(midData[i][0] || '').trim().toUpperCase();
+    if (mid) idToRow[mid] = i + 2;
+  }
+
+  var productWritten = 0;
+  for (var j = 0; j < data.length; j++) {
+    var entry = data[j];
+    var mid = String(entry.managedId || '').trim().toUpperCase();
+    if (!mid) continue;
+
+    // 商品管理シートに行があればプリフィル（なければスキップ）
+    var row = idToRow[mid];
+    if (row) {
+      var changed = false;
+      for (var field in fieldToHeader) {
+        var headerName = fieldToHeader[field];
+        var col = colMap[headerName];
+        if (!col) continue;
+        var newVal = entry[field];
+        if (newVal === null || newVal === undefined || String(newVal).trim() === '') continue;
+        var existing = String(sh.getRange(row, col).getValue() || '').trim();
+        if (existing !== '') continue;
+        sh.getRange(row, col).setValue(String(newVal).trim());
+        changed = true;
+      }
+      if (changed) {
+        productWritten++;
+        console.log('AI: 商品情報プリフィル完了 ' + mid);
+      }
+    }
+  }
+
+  // ── AI画像判定シートへの書き込み（AppSheet Initial Value参照用） ──
+  var aiSh = ss.getSheetByName('AI画像判定');
+  if (!aiSh) {
+    console.log('AI画像判定シートが見つかりません');
+  } else {
+    var aiLastRow = aiSh.getLastRow();
+    var aiLastCol = aiSh.getLastColumn();
+    if (aiLastCol < 1) aiLastCol = 12; // ヘッダー未作成の場合
+
+    // ヘッダーが未作成なら作成
+    if (aiLastRow < 1) {
+      var aiHeaders = ['管理番号', 'ブランド', 'タグ表記', '性別', 'カテゴリ1', 'カテゴリ2', 'カテゴリ3', 'デザイン特徴', 'カラー', 'ポケット', '傷汚れ詳細', '判定日'];
+      aiSh.getRange(1, 1, 1, aiHeaders.length).setValues([aiHeaders]);
+      aiLastRow = 1;
+      aiLastCol = aiHeaders.length;
+    }
+
+    // ヘッダーマップ構築
+    var aiHeaders = aiSh.getRange(1, 1, 1, aiLastCol).getValues()[0];
+    var aiColMap = {};
+    for (var ah = 0; ah < aiHeaders.length; ah++) {
+      var ahName = String(aiHeaders[ah] || '').trim();
+      if (ahName) aiColMap[ahName] = ah + 1;
+    }
+    var aiColMid = aiColMap['管理番号'];
+
+    if (aiColMid) {
+      // 既存の管理番号→行マップ
+      var aiIdToRow = {};
+      if (aiLastRow >= 2) {
+        var aiMidData = aiSh.getRange(2, aiColMid, aiLastRow - 1, 1).getValues();
+        for (var am = 0; am < aiMidData.length; am++) {
+          var aiMid = String(aiMidData[am][0] || '').trim().toUpperCase();
+          if (aiMid) aiIdToRow[aiMid] = am + 2;
+        }
+      }
+
+      var aiFieldMap = {
+        brand: 'ブランド', tagLabel: 'タグ表記', gender: '性別',
+        category1: 'カテゴリ1', category2: 'カテゴリ2', category3: 'カテゴリ3',
+        design: 'デザイン特徴', color: 'カラー', pocket: 'ポケット', defectDetail: '傷汚れ詳細'
+      };
+
+      for (var ai = 0; ai < data.length; ai++) {
+        var aiEntry = data[ai];
+        var aiMidVal = String(aiEntry.managedId || '').trim().toUpperCase();
+        if (!aiMidVal) continue;
+
+        var aiRow = aiIdToRow[aiMidVal];
+        if (!aiRow) {
+          // 新規行追加
+          aiRow = aiLastRow + 1;
+          aiLastRow++;
+          aiSh.getRange(aiRow, aiColMid).setValue(aiEntry.managedId);
+          aiIdToRow[aiMidVal] = aiRow;
+        }
+
+        // 各フィールド書き込み（上書き）
+        for (var aiField in aiFieldMap) {
+          var aiHeaderName = aiFieldMap[aiField];
+          var aiCol = aiColMap[aiHeaderName];
+          if (!aiCol) continue;
+          var aiVal = aiEntry[aiField];
+          if (aiVal === null || aiVal === undefined) continue;
+          aiSh.getRange(aiRow, aiCol).setValue(String(aiVal).trim());
+        }
+
+        // 判定日
+        var aiColDate = aiColMap['判定日'];
+        if (aiColDate) {
+          aiSh.getRange(aiRow, aiColDate).setValue(new Date());
+        }
+
+        productWritten++;
+        console.log('AI: AI画像判定シート書込み完了 ' + aiMidVal);
+      }
+    }
+  }
+
+  // ── AIキーワード抽出シートへの書き込み ──
+  var kwWritten = 0;
+  console.log('AI: ssId=' + ssId + ', ss.getName()=' + ss.getName());
+  var kwSh = ss.getSheetByName('AIキーワード抽出');
+  console.log('AI: kwSh=' + (kwSh ? 'FOUND' : 'NULL'));
+  if (kwSh) {
+    var kwLastRow = kwSh.getLastRow();
+    var kwLastCol = kwSh.getLastColumn();
+    console.log('AI: kwLastRow=' + kwLastRow + ', kwLastCol=' + kwLastCol);
+    var kwHeaders = kwSh.getRange(1, 1, 1, kwLastCol).getValues()[0];
+    var kwColMap = {};
+    for (var kh = 0; kh < kwHeaders.length; kh++) {
+      var khName = String(kwHeaders[kh] || '').trim();
+      if (khName) kwColMap[khName] = kh + 1;
+    }
+    console.log('AI: kwColMap keys=' + Object.keys(kwColMap).join(','));
+
+    var kwColMid = kwColMap['管理番号'];
+    var kwColFlag = kwColMap['再生成フラグ'];
+    var kwColLog = kwColMap['処理ログ'];
+    var kwCols = [];
+    for (var ki = 1; ki <= 8; ki++) {
+      if (kwColMap['キーワード' + ki]) kwCols.push(kwColMap['キーワード' + ki]);
+    }
+    console.log('AI: kwColMid=' + kwColMid + ', kwCols.length=' + kwCols.length + ', kwColFlag=' + kwColFlag);
+
+    if (kwColMid && kwCols.length > 0) {
+      // 既存の管理番号→行マップ
+      var kwIdToRow = {};
+      if (kwLastRow >= 2) {
+        var kwMidData = kwSh.getRange(2, kwColMid, kwLastRow - 1, 1).getValues();
+        for (var km = 0; km < kwMidData.length; km++) {
+          var kwMid = String(kwMidData[km][0] || '').trim().toUpperCase();
+          if (kwMid) kwIdToRow[kwMid] = km + 2;
+        }
+      }
+
+      for (var d = 0; d < data.length; d++) {
+        var dEntry = data[d];
+        var dMid = String(dEntry.managedId || '').trim().toUpperCase();
+        console.log('AI KW: d=' + d + ', managedId=' + dMid + ', keys=' + Object.keys(dEntry).join(','));
+        if (!dMid) continue;
+
+        var keywords = String(dEntry.keywords || '').trim();
+        console.log('AI KW: keywords="' + keywords + '"');
+        if (!keywords) continue;
+
+        var kwParts = keywords.split(/[\s　,、]+/).filter(function(s) { return s.length > 0; });
+        if (kwParts.length === 0) continue;
+
+        // 8個にパディング
+        while (kwParts.length < 8) kwParts.push('');
+        kwParts = kwParts.slice(0, 8);
+
+        var kwRow = kwIdToRow[dMid];
+        console.log('AI KW: kwRow=' + kwRow + ', kwLastRow=' + kwLastRow);
+        if (!kwRow) {
+          // 新規行を追加
+          kwRow = kwLastRow + 1;
+          kwLastRow++;
+          console.log('AI KW: 新規行追加 row=' + kwRow + ', col=' + kwColMid + ', val=' + dEntry.managedId);
+          kwSh.getRange(kwRow, kwColMid).setValue(dEntry.managedId);
+          kwIdToRow[dMid] = kwRow;
+        }
+
+        // キーワード列が既に埋まっていたらスキップ
+        var firstKwVal = String(kwSh.getRange(kwRow, kwCols[0]).getValue() || '').trim();
+        console.log('AI KW: firstKwVal="' + firstKwVal + '", kwCols[0]=' + kwCols[0]);
+        if (firstKwVal !== '') {
+          console.log('AI: キーワード既存のためスキップ ' + dMid);
+          continue;
+        }
+
+        // キーワード1〜8を書込み
+        for (var kw = 0; kw < kwCols.length && kw < kwParts.length; kw++) {
+          kwSh.getRange(kwRow, kwCols[kw]).setValue(kwParts[kw]);
+        }
+
+        // 再生成フラグ=FALSE
+        if (kwColFlag) {
+          kwSh.getRange(kwRow, kwColFlag).setValue(false);
+        }
+
+        // 処理ログ
+        if (kwColLog) {
+          kwSh.getRange(kwRow, kwColLog).setValue('OK(Gemini): ' + kwParts.filter(Boolean).join(' '));
+        }
+
+        kwWritten++;
+        console.log('AI: キーワード書込み完了 ' + dMid + ': ' + kwParts.filter(Boolean).join(' '));
+      }
+    }
+  } else {
+    console.log('AIキーワード抽出シートが見つかりません');
+  }
+
+  var firstEntry = data[0] || {};
+  var testMid = String(firstEntry.managedId || '').trim().toUpperCase();
+  var testKwRow = kwIdToRow ? kwIdToRow[testMid] : -1;
+  var testFirstKwVal = '';
+  if (testKwRow && kwCols && kwCols.length > 0) {
+    try { testFirstKwVal = String(kwSh.getRange(testKwRow, kwCols[0]).getValue() || ''); } catch(e) {}
+  }
+  return { product: productWritten, keywords: kwWritten, debug: { ssName: ss.getName(), kwShFound: !!kwSh, kwColMid: kwColMid || null, kwColsLen: kwCols ? kwCols.length : 0, kwLastRow: kwSh ? kwSh.getLastRow() : -1, dataLen: data.length, firstMid: testMid, firstKw: String(firstEntry.keywords || '').substring(0, 50), kwRowFound: testKwRow || 'NOT_FOUND', firstKwVal: testFirstKwVal } };
 }
 
 function importCustomers_(customers) {

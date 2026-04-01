@@ -17,6 +17,7 @@ workers_dev = true
 [vars]
 FRONTEND_URL = "https://wholesale.nkonline-tool.com"
 WORKERS_URL = "https://detauri-gas-proxy.nsdktts1030.workers.dev"
+# 画像はgas-proxy自身のR2(detauri-images)に保存されているため、タスキ箱のTeamIDは不要
 
 # Cron Trigger: 5分ごとにD1 ⇔ Sheets同期
 [triggers]
@@ -46,6 +47,7 @@ bucket_name = "detauri-images"
 # - GAS_API_URL, SYNC_SECRET, ADMIN_KEY, RECAPTCHA_SECRET, KOMOJU_SECRET_KEY
 # - META_PIXEL_ID (Meta Pixel ID: 2122295911954697)
 # - META_ACCESS_TOKEN (Meta Conversions API アクセストークン — Events Managerで生成)
+# - GEMINI_API_KEY (Gemini AI判定用、写メジャーとは別キー)
 
 # =====================================================
 # 開発環境 — wrangler deploy --env dev / wrangler dev --env dev
