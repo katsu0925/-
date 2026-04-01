@@ -773,7 +773,25 @@ function debugRestoreFromSaleLog() {
     console.log('売却履歴から取得: ' + managedIds.length + '件 → ' + managedIds.join(', '));
   } catch (e) { console.error('売却履歴取得エラー:', e); }
 
-  // 5. 復元データの組み立て
+  // 5. KOMOJU APIで決済情報を検索（external_order_num = receiptNo）
+  var komojuSession = null;
+  try {
+    var secretKey = getKomojuSecretKey_();
+    if (secretKey) {
+      var searchResp = komojuRequest_('GET', '/sessions?external_order_num=' + encodeURIComponent(receiptNo), null, secretKey);
+      if (searchResp && searchResp.data && searchResp.data.length > 0) {
+        komojuSession = searchResp.data[0];
+        console.log('KOMOJUセッション発見: id=' + komojuSession.id + ' status=' + komojuSession.status + ' amount=' + komojuSession.amount);
+        // セッション詳細を取得
+        var sessionDetail = komojuRequest_('GET', '/sessions/' + komojuSession.id, null, secretKey);
+        if (sessionDetail && sessionDetail.id) komojuSession = sessionDetail;
+      } else {
+        console.log('KOMOJUセッション見つからず');
+      }
+    }
+  } catch (e) { console.error('KOMOJU検索エラー:', e); }
+
+  // 6. 復元データの組み立て
   var email = '';
   var companyName = '【要確認】';
   var phone = '';
@@ -792,7 +810,7 @@ function debugRestoreFromSaleLog() {
     + 'T' + receiptNo.substring(8, 10) + ':' + receiptNo.substring(10, 12) + ':' + receiptNo.substring(12, 14) + '+09:00');
 
   if (pendingData) {
-    // D1データがあれば優先
+    // D1データがあれば最優先
     email = (pendingData.form && pendingData.form.contact) || '';
     companyName = (pendingData.form && pendingData.form.companyName) || '【要確認】';
     phone = (pendingData.form && pendingData.form.phone) || '';
@@ -807,7 +825,33 @@ function debugRestoreFromSaleLog() {
     console.log('D1データで復元: ' + companyName + ' / ' + email + ' / ¥' + totalAmount);
   }
 
-  // 6. 顧客管理シートから住所情報を補完
+  // KOMOJUデータで補完（D1にない情報を埋める）
+  if (komojuSession) {
+    if (!totalAmount && komojuSession.amount) totalAmount = komojuSession.amount;
+    if (komojuSession.metadata) {
+      if (!email) email = komojuSession.metadata.email || '';
+      if (companyName === '【要確認】' && komojuSession.metadata.company_name) companyName = komojuSession.metadata.company_name;
+      if (!productAmount && komojuSession.metadata.product_amount) productAmount = Number(komojuSession.metadata.product_amount) || 0;
+      if (!shippingAmount && komojuSession.metadata.shipping_amount) shippingAmount = Number(komojuSession.metadata.shipping_amount) || 0;
+    }
+    if (komojuSession.customer) {
+      if (!email && komojuSession.customer.email) email = komojuSession.customer.email;
+      if (companyName === '【要確認】' && komojuSession.customer.name) companyName = komojuSession.customer.name;
+      if (!phone && komojuSession.customer.phone) phone = komojuSession.customer.phone;
+    }
+    if (komojuSession.payment) {
+      paymentId = komojuSession.payment.id || '';
+      var pmType = komojuSession.payment.type || '';
+      paymentMethod = pmType ? getPaymentMethodDisplayName_(pmType) : '';
+      var komojuStatus = komojuSession.status || '';
+      if (komojuStatus === 'completed' || komojuStatus === 'captured') paymentStatus = '対応済';
+      else if (komojuStatus === 'authorized') paymentStatus = '対応済';
+    }
+    if (!shippingAmount && totalAmount && productAmount) shippingAmount = totalAmount - productAmount;
+    console.log('KOMOJUで補完: ' + companyName + ' / ' + email + ' / ¥' + totalAmount + ' / 決済=' + paymentMethod);
+  }
+
+  // 7. 顧客管理シートから住所情報を補完
   if (email) {
     try {
       var custSh = getCustomerSheet_();
@@ -830,7 +874,7 @@ function debugRestoreFromSaleLog() {
     } catch (e) { console.error('顧客情報取得エラー:', e); }
   }
 
-  // 7. 依頼管理シートに書き込み
+  // 8. 依頼管理シートに書き込み
   var now = new Date();
   var row = [
     receiptNo,                    // A: 受付番号
