@@ -84,6 +84,7 @@
           <button onclick="runTool('adminPanel_clearCache','商品キャッシュ削除')">商品キャッシュ削除</button>
           <button onclick="runTool('adminPanel_applyDropdown','プルダウン適用')">プルダウン適用</button>
         </div>
+        <div class="note">期限切れ確保の整理=確保期限切れ商品を解放。状態の再構築=StateStoreの整合性修復。商品キャッシュ削除=CacheServiceをクリアし最新データを反映。プルダウン適用=スプレッドシートのプルダウン選択肢を再設定。</div>
       </div>
       <div class="card">
         <div class="title">業務操作</div>
@@ -92,6 +93,7 @@
           <button onclick="runTool('adminPanel_processInvoices','領収書送付')">領収書送付</button>
           <button onclick="runTool('adminPanel_cancelInvoices','領収書取消')">領収書取消</button>
         </div>
+        <div class="note">ポイント付与=完了済み注文で未付与の顧客にランクに応じたポイントを付与。領収書送付=入金確認済み注文の領収書メールを送信。領収書取消=送付済み領収書の取消通知を送信。</div>
         <div class="note">依頼展開・欠品処理・商品自動選定はスプレッドシートの管理メニューから実行してください（対話入力が必要なため）</div>
       </div>
       <div class="log" id="tools-log"></div>
@@ -109,9 +111,10 @@
 
       <div class="card">
         <div class="title">初回全品半額（FHP） <span class="badge" id="fhp-badge">-</span></div>
-        <div class="note">FHP有効時は他の全割引が無効。ログイン＋購入回数0回のみ適用。</div>
+        <div class="note">有効時は他の全割引（数量・会員・クーポン）が無効になります。購入回数0回のログインユーザーのみ適用。</div>
         <div class="form-row"><label>割引率</label><input type="number" id="fhp-rate" step="0.01" min="0" max="1" style="width:80px"> <span class="note" style="margin-left:4px;">例: 0.50 = 50%OFF</span></div>
         <div class="form-row"><label>期限</label><input type="date" id="fhp-end"></div>
+        <div class="note">期限を過ぎると自動的に無効になります。空欄の場合は無期限。</div>
         <div class="btnRow">
           <button class="primary" onclick="toggleCampaign('firstHalfPrice')">ON/OFF切替</button>
           <button onclick="saveCampaign('firstHalfPrice',{rate:+$('fhp-rate').value,endDate:$('fhp-end').value})">率・期限を保存</button>
@@ -120,6 +123,7 @@
 
       <div class="card">
         <div class="title">数量割引 <span class="badge info">デタウリ個品のみ</span></div>
+        <div class="note">デタウリ個品のみ適用。アソート商品には適用されません。閾値は降順で判定（高い方から順にマッチ）。</div>
         <div id="qty-discount-table"></div>
         <div class="btnRow">
           <button onclick="addQtyRow()">行を追加</button>
@@ -129,8 +133,9 @@
 
       <div class="card">
         <div class="title">会員割引 <span class="badge" id="md-badge">-</span></div>
-        <div class="note">ログイン必須。デタウリ+アソート両方に適用。クーポンのcomboMemberフラグで併用制御。</div>
+        <div class="note">ログイン必須。デタウリ・アソート両方に適用。クーポンのcomboMemberフラグで併用制御。</div>
         <div class="form-row"><label>割引率</label><input type="number" id="md-rate" step="0.01" min="0" max="1" style="width:80px"></div>
+        <div class="note">例: 0.10 = 10%OFF</div>
         <div class="form-row"><label>期限</label><input type="date" id="md-end"></div>
         <div class="btnRow">
           <button class="primary" onclick="toggleCampaign('memberDiscount')">ON/OFF切替</button>
@@ -140,7 +145,7 @@
 
       <div class="card">
         <div class="title">SNSシェアキャンペーン <span class="badge" id="sns-badge">-</span></div>
-        <div class="note">承認時に自動でクーポン生成: ¥1,000固定/90日有効/1人1回/他割引と非併用</div>
+        <div class="note">承認時に&#165;1,000固定クーポンを自動生成。90日有効、1人1回。他割引と非併用。</div>
         <div class="form-row"><label>期限</label><input type="date" id="sns-end"></div>
         <div class="btnRow">
           <button class="primary" onclick="toggleCampaign('snsShare')">ON/OFF切替</button>
@@ -151,13 +156,17 @@
       <div class="card">
         <div class="title">送料無料閾値・紹介プログラム</div>
         <div class="form-row"><label>送料無料閾値(円)</label><input type="number" id="biz-freeship" style="width:100px" placeholder="10000"></div>
+        <div class="note">割引後の商品合計がこの金額以上なら送料無料。Workers側にも5分同期で反映。</div>
         <div class="form-row"><label>紹介者ポイント</label><input type="number" id="biz-ref-referrer" style="width:100px" placeholder="500"></div>
+        <div class="note">紹介者が新規会員を紹介した際に付与されるポイント。</div>
         <div class="form-row"><label>被紹介者ポイント</label><input type="number" id="biz-ref-referee" style="width:100px" placeholder="300"></div>
+        <div class="note">紹介された新規会員に付与されるポイント。</div>
         <div class="btnRow"><button class="primary" onclick="saveBizDiscountSettings()">保存</button></div>
       </div>
 
       <div class="card">
         <div class="title">ランクテーブル <span class="badge info">表示のみ</span></div>
+        <div class="note">過去12ヶ月の購入金額で判定。ダイヤモンドは送料が常に無料。</div>
         <table class="data">
           <tr><th>ランク</th><th>累計閾値</th><th>ポイント率</th><th>送料無料</th></tr>
           <tr><td>ダイヤモンド</td><td>¥500,000</td><td>5%</td><td>あり</td></tr>
@@ -175,10 +184,14 @@
       <div class="card">
         <div class="title">共通設定</div>
         <div class="form-row"><label>件名プレフィックス</label><input type="text" id="mail-prefix" placeholder="【デタウリ.Detauri】"></div>
+        <div class="note">全メールの件名の先頭に付く文字列。</div>
         <div class="form-row"><label>サイト名</label><input type="text" id="mail-sitename" placeholder="デタウリ.Detauri"></div>
+        <div class="note">メールのフッターに表示されるサイト名。</div>
         <div class="form-row"><label>サイトURL</label><input type="text" id="mail-siteurl"></div>
+        <div class="note">メールのフッターに表示されるURL。</div>
         <div class="form-row"><label>問い合わせメール</label><input type="text" id="mail-contact"></div>
         <div class="subtitle">領収書 事業者情報</div>
+        <div class="note">領収書メールに記載される事業者情報。インボイス登録番号を含む。</div>
         <div class="form-row"><label>事業者名</label><input type="text" id="mail-biz-name"></div>
         <div class="form-row"><label>登録番号</label><input type="text" id="mail-biz-reg"></div>
         <div class="form-row"><label>住所</label><input type="text" id="mail-biz-addr"></div>
@@ -190,32 +203,41 @@
         <div class="title">配信パラメータ</div>
         <div class="subtitle">入金・キャンセル</div>
         <div class="form-row"><label>入金期限(日)</label><input type="number" id="mail-deadline" style="width:60px" value="3"></div>
+        <div class="note">注文日からこの日数以内に入金がなければリマインドメール送信。</div>
         <div class="form-row"><label>キャンセル猶予(日)</label><input type="number" id="mail-grace" style="width:60px" value="1"></div>
+        <div class="note">入金期限後さらにこの日数経過で自動キャンセル。</div>
         <div class="subtitle">フォローアップ</div>
+        <div class="note">完了ステータスの注文に対し、注文日から指定日数後にサンクスメール送信。</div>
         <div class="form-row"><label>送信開始(日後)</label><input type="number" id="mail-fu-min" style="width:60px" value="7"></div>
         <div class="form-row"><label>送信終了(日後)</label><input type="number" id="mail-fu-max" style="width:60px" value="30"></div>
         <div class="subtitle">ポイント</div>
         <div class="form-row"><label>有効期限(月)</label><input type="number" id="mail-pt-months" style="width:60px" value="12"></div>
+        <div class="note">最終ポイント変動日からこの月数で失効。</div>
         <div class="form-row"><label>失効リマインド(日前)</label><input type="number" id="mail-pt-warn" style="width:60px" value="30"></div>
         <div class="subtitle">放置カート</div>
         <div class="form-row"><label>再送間隔(時間)</label><input type="number" id="mail-cart-interval" style="width:60px" value="24"></div>
+        <div class="note">同一顧客への放置カートメールの最小送信間隔。</div>
         <div class="subtitle">新着商品通知</div>
         <div class="form-row"><label>代表商品表示数</label><input type="number" id="mail-new-count" style="width:60px" value="5"></div>
+        <div class="note">新着商品通知メールに掲載する代表商品の数。</div>
         <div class="subtitle">週刊メルマガ</div>
         <div class="form-row"><label>配信曜日</label><input type="text" id="mail-weekly-days" placeholder="2,4,6" style="width:120px"> <span class="note">0=日,1=月,2=火,3=水,4=木,5=金,6=土</span></div>
+        <div class="note">カンマ区切り。現在: 火=売れた速報, 木=ブランドコラム, 土=週末ピックアップ。</div>
         <div class="subtitle">休眠顧客クーポン</div>
+        <div class="note">最終購入日からの経過日数。該当顧客に自動でクーポンメール送信。</div>
         <div class="form-row"><label>2ヶ月休眠(日)</label><input type="number" id="mail-dormant-2m" style="width:60px" value="60"></div>
         <div class="form-row"><label>半年休眠(日)</label><input type="number" id="mail-dormant-6m" style="width:60px" value="180"></div>
         <div class="form-row"><label>1年休眠(日)</label><input type="number" id="mail-dormant-1y" style="width:60px" value="365"></div>
         <div class="form-row"><label>割引率</label><input type="number" id="mail-dormant-rate" step="0.01" style="width:60px" value="0.10"></div>
         <div class="subtitle">パスワードリセット</div>
         <div class="form-row"><label>有効期限(分)</label><input type="number" id="mail-pw-expiry" style="width:60px" value="30"></div>
+        <div class="note">仮パスワードの有効期限。超過すると無効。</div>
         <div class="btnRow"><button class="primary" onclick="saveMailParams()">配信パラメータを保存</button></div>
       </div>
 
       <div class="card">
         <div class="title">メール件名テンプレート</div>
-        <div class="note">プレースホルダ: {receiptNo}=受付番号, {companyName}=会社名, {count}=点数, {amount}=金額</div>
+        <div class="note">{receiptNo}=受付番号、{count}=点数、{amount}=金額、{companyName}=会社名で動的置換。プレフィックスは自動付与されます。</div>
         <div id="mail-subjects-container">読み込み中...</div>
         <div class="btnRow"><button class="primary" onclick="saveMailSubjects()">件名を保存</button></div>
       </div>
@@ -234,23 +256,28 @@
     <div class="tab-content" id="tab-ai">
       <div class="card">
         <div class="title">OpenAI APIキー（共通）</div>
+        <div class="note">OpenAI APIの認証キー。全AI機能（チャットボット・記事生成・受注管理）で共通使用。</div>
         <div class="form-row"><label>OPENAI_API_KEY</label><input type="password" id="ai-apikey" placeholder="sk-..."> <button class="sm" onclick="togglePw(this)">表示</button></div>
         <div class="btnRow"><button class="primary" onclick="saveAiKey()">APIキーを保存</button></div>
       </div>
       <div class="card">
         <div class="title">チャットボット (Chatbot.gs)</div>
+        <div class="note">サイト内チャットボットで使用するモデル。</div>
         <div class="form-row"><label>モデル</label><input type="text" id="ai-chat-model" placeholder="gpt-5-mini"></div>
       </div>
       <div class="card">
         <div class="title">記事自動生成 (Articles.gs)</div>
+        <div class="note">記事自動生成で使用。生成スケジュール: 月=売り方, 水=仕入れ, 金=副業基礎, 日=トレンド。</div>
         <div class="form-row"><label>モデル</label><input type="text" id="ai-article-model" placeholder="gpt-5-mini"></div>
         <div class="form-row"><label>表示上限</label><input type="number" id="ai-article-max" style="width:60px"></div>
-        <div class="note">生成スケジュール: 月=売り方, 水=仕入れ, 金=副業基礎, 日=トレンド</div>
+        <div class="note">サイトに表示する記事の最大数。</div>
       </div>
       <div class="card">
         <div class="title">受注管理AI (受注管理.gs)</div>
+        <div class="note">メルカリ向け商品説明の自動生成に使用。</div>
         <div class="form-row"><label>モデル</label><input type="text" id="ai-order-model" placeholder="gpt-4o-mini"></div>
         <div class="form-row"><label>バッチサイズ</label><input type="number" id="ai-order-batch" style="width:60px"></div>
+        <div class="note">1回の展開処理で同時にAI生成する商品数。大きくするとAPI制限に注意。</div>
       </div>
       <div class="btnRow"><button class="primary" onclick="saveAiSettings()">AI設定を保存</button></div>
       <div class="log" id="ai-log"></div>
@@ -274,27 +301,37 @@
     <div class="tab-content" id="tab-biz">
       <div class="card">
         <div class="title">送料テーブル</div>
+        <div class="note">地域別の送料（税込）。小型=10点以下、大型=11点以上。Workers側にも5分同期で反映。&#9888; 変更はカート計算に即影響。</div>
         <div id="shipping-table">読み込み中...</div>
         <div class="btnRow"><button class="primary" onclick="saveShippingRates()">送料テーブルを保存</button></div>
       </div>
       <div class="card">
         <div class="title">基本設定</div>
         <div class="form-row"><label>最低購入点数</label><input type="number" id="biz-minorder" style="width:60px"></div>
+        <div class="note">デタウリ個品の最低注文数。アソート併用時は1点から可。</div>
         <div class="form-row"><label>確保期間(通常/分)</label><input type="number" id="biz-hold-min" style="width:60px"></div>
         <div class="form-row"><label>確保期間(会員/分)</label><input type="number" id="biz-hold-member" style="width:60px"></div>
+        <div class="note">カートに入れた商品の確保時間。超過すると自動解放。</div>
         <div class="form-row"><label>税率</label><input type="number" id="biz-tax" step="0.01" style="width:60px"></div>
+        <div class="note">&#9888; 消費税率。変更は全価格計算に影響。</div>
         <div class="subtitle">キャッシュTTL(秒)</div>
+        <div class="note">各データのキャッシュ保持時間。短くするとリアルタイム性向上、長くするとパフォーマンス向上。</div>
         <div class="form-row"><label>商品データ</label><input type="number" id="biz-cache-products" style="width:80px"></div>
         <div class="form-row"><label>ステータス</label><input type="number" id="biz-cache-status" style="width:80px"></div>
         <div class="form-row"><label>状態</label><input type="number" id="biz-cache-state" style="width:80px"></div>
         <div class="form-row"><label>商品詳細</label><input type="number" id="biz-cache-detail" style="width:80px"></div>
         <div class="subtitle">認証</div>
         <div class="form-row"><label>セッション有効(時間)</label><input type="number" id="biz-session-h" style="width:60px"></div>
+        <div class="note">ログインセッションの有効時間。</div>
         <div class="form-row"><label>RememberMe(日)</label><input type="number" id="biz-remember-d" style="width:60px"></div>
+        <div class="note">ログイン状態保持の有効日数。</div>
         <div class="form-row"><label>パスワード最小長</label><input type="number" id="biz-pw-min" style="width:60px"></div>
+        <div class="note">新規登録・変更時のパスワード最小文字数。</div>
         <div class="form-row"><label>CSRF有効(秒)</label><input type="number" id="biz-csrf" style="width:80px"></div>
+        <div class="note">CSRFトークンの有効期間。短すぎるとフォーム送信時にエラー。</div>
         <div class="subtitle">決済</div>
         <div class="form-row"><label>決済期限(秒)</label><input type="number" id="biz-pay-expiry" style="width:100px"></div>
+        <div class="note">KOMOJU決済セッションの有効期間。259200秒=3日。</div>
         <div class="btnRow"><button class="primary" onclick="saveBizSettings()">基本設定を保存</button></div>
       </div>
       <div class="log" id="biz-log"></div>
@@ -305,13 +342,20 @@
       <div class="card">
         <div class="title">BASE連携</div>
         <div class="form-row"><label>BASE_CLIENT_ID</label><input type="text" id="base-cid"></div>
+        <div class="note">BASE API OAuth認証情報。BASE管理画面で取得。</div>
         <div class="form-row"><label>BASE_CLIENT_SECRET</label><input type="password" id="base-secret"> <button class="sm" onclick="togglePw(this)">表示</button></div>
+        <div class="note">BASE API OAuth認証情報。BASE管理画面で取得。</div>
         <div class="form-row"><label>BASE_REDIRECT_URI</label><input type="text" id="base-redirect"></div>
+        <div class="note">OAuth認証後のリダイレクト先URL。</div>
         <div class="form-row"><label>BASE_SHOP_ID</label><input type="text" id="base-shop"></div>
+        <div class="note">BASEの店舗ID。</div>
         <div class="subtitle">同期設定</div>
         <div class="form-row"><label>同期日数</label><input type="number" id="base-sync-days" style="width:60px" value="30"></div>
+        <div class="note">BASE注文を過去何日分取得するか。</div>
         <div class="form-row"><label>バッファ日数</label><input type="number" id="base-sync-buf" style="width:60px" value="7"></div>
+        <div class="note">同期日数に加算するバッファ。取りこぼし防止。</div>
         <div class="form-row"><label>取得上限</label><input type="number" id="base-sync-limit" style="width:60px" value="100"></div>
+        <div class="note">1回のAPI呼び出しで取得する最大注文数。</div>
         <div class="btnRow">
           <button class="primary" onclick="saveBaseSettings()">保存</button>
           <button onclick="runTool('adminPanel_baseReauth','BASE再認証URL取得')">再認証URL取得</button>
@@ -326,11 +370,15 @@
       <div class="card">
         <div class="title">GA4設定</div>
         <div class="form-row"><label>プロパティID</label><input type="text" id="ga4-prop" placeholder="properties/525734643"></div>
+        <div class="note">GA4のプロパティID（例: properties/525734643）。GA4管理画面で確認。</div>
         <div class="form-row"><label>取得日数</label><input type="number" id="ga4-days" style="width:60px" value="30"></div>
+        <div class="note">GA4データの取得対象日数。</div>
         <div class="form-row"><label>異常検知閾値(σ)</label><input type="number" id="ga4-sigma" step="0.1" style="width:60px" value="2.0"></div>
+        <div class="note">GA4アドバイスの異常判定。標準偏差の何倍を超えたらアラートにするか。</div>
       </div>
       <div class="card">
         <div class="title">広告トラッキング</div>
+        <div class="note">広告コンバージョントラッキング用ID。設定しなければトラッキング無効。</div>
         <div class="form-row"><label>Google Ads Conversion ID</label><input type="text" id="ads-gid"></div>
         <div class="form-row"><label>Google Ads Conversion Label</label><input type="text" id="ads-glabel"></div>
         <div class="form-row"><label>Meta Pixel ID</label><input type="text" id="ads-meta"></div>
@@ -351,6 +399,7 @@
       <div class="card">
         <div class="title">アソート商品設定</div>
         <div class="form-row"><label>BULK_SPREADSHEET_ID</label><input type="text" id="bulk-ssid"></div>
+        <div class="note">アソート商品管理スプレッドシートのID。Google SheetsのURLから取得。</div>
         <div class="note">アソート商品の管理は saisun-list-bulk スプレッドシートのメニューから行ってください。</div>
         <div class="btnRow"><button class="primary" onclick="saveBulkSettings()">保存</button></div>
         <div class="log" id="bulk-log"></div>
@@ -376,6 +425,7 @@
         <div class="title">デバッグツール</div>
 
         <details><summary>受付番号で調査</summary>
+          <div class="note">受付番号から依頼管理シートの注文情報を検索。メール再送・行修正も可能。</div>
           <div class="form-row"><label>受付番号</label><input type="text" id="dbg-receipt" placeholder="20260318113100-626"></div>
           <div class="btnRow">
             <button class="primary" onclick="runDebug('adminPanel_debugLookupByReceipt',[$('dbg-receipt').value])">調査</button>
@@ -385,16 +435,19 @@
         </details>
 
         <details><summary>管理番号で調査</summary>
+          <div class="note">仕入れ管理の管理番号から商品情報を検索。</div>
           <div class="form-row"><label>管理番号</label><input type="text" id="dbg-mid" placeholder="zB1012"></div>
           <button class="primary" onclick="runDebug('adminPanel_debugLookupByManagedId',[$('dbg-mid').value])">調査</button>
         </details>
 
         <details><summary>横断検索</summary>
+          <div class="note">メールアドレス・受付番号・会社名等で全シートを横断検索。</div>
           <div class="form-row"><label>キーワード</label><input type="text" id="dbg-kw" placeholder="メールアドレス/受付番号/etc"></div>
           <button class="primary" onclick="runDebug('adminPanel_debugSearch',[$('dbg-kw').value])">検索</button>
         </details>
 
         <details><summary>金額で検索</summary>
+          <div class="note">合計金額と日付範囲で注文を検索。入金確認時に便利。</div>
           <div class="form-row"><label>金額</label><input type="number" id="dbg-amt" placeholder="6880"></div>
           <div class="form-row"><label>開始日</label><input type="date" id="dbg-from"></div>
           <div class="form-row"><label>終了日</label><input type="date" id="dbg-to"></div>
@@ -402,11 +455,13 @@
         </details>
 
         <details><summary>売却履歴から注文復元</summary>
+          <div class="note">売却済みログから注文データを復元。誤削除時のリカバリ用。</div>
           <div class="form-row"><label>受付番号</label><input type="text" id="dbg-restore-rn" placeholder="20260320201818-560"></div>
           <button class="primary" onclick="runDebug('adminPanel_debugRestoreFromSaleLog',[$('dbg-restore-rn').value])">復元</button>
         </details>
 
         <details><summary>KOMOJU復旧</summary>
+          <div class="note">Webhook失敗等で注文が作成されなかった場合に手動で復旧。決済情報を入力して注文行を再作成。</div>
           <div class="form-row"><label>KOMOJU決済ID</label><input type="text" id="dbg-komoju-pid"></div>
           <div class="form-row"><label>受付番号</label><input type="text" id="dbg-komoju-rn"></div>
           <div class="form-row"><label>会社名</label><input type="text" id="dbg-komoju-name"></div>
@@ -429,12 +484,14 @@
         </details>
 
         <details><summary>一括売却済み</summary>
+          <div class="note">複数商品をまとめて売却済みに変更。BO列に理由を記録。</div>
           <div class="form-row"><label>管理番号(改行区切り)</label><textarea id="dbg-sold-ids" rows="4" placeholder="zC2&#10;zC11&#10;zC13"></textarea></div>
           <div class="form-row"><label>BO列の値</label><input type="text" id="dbg-sold-bo" placeholder="ファスト補填"></div>
           <button class="primary" onclick="runDebugBulkSold()">実行</button>
         </details>
 
         <details><summary>確認のみ（引数不要）</summary>
+          <div class="note">引数不要の確認・診断ツール。データの閲覧のみで変更なし。</div>
           <div class="btnRow">
             <button onclick="runDebug('adminPanel_debugPaidyPayment',[])">Paidy確認</button>
             <button onclick="runDebug('adminPanel_debugKomojuSession',[])">KOMOJUセッション</button>
@@ -461,13 +518,20 @@
         <div class="form-row"><label>タイプ</label>
           <select id="cp-type"><option value="rate">割引率(rate)</option><option value="fixed">固定額(fixed)</option><option value="shipping_free">送料無料</option></select>
         </div>
+        <div class="note">rate=割引率(例:0.10=10%OFF), fixed=固定額(例:1000=&#165;1,000引), shipping_free=送料無料</div>
         <div class="form-row"><label>値</label><input type="number" id="cp-value" step="0.01" placeholder="0.10 or 1000"></div>
+        <div class="note">rateの場合は0〜1の小数、fixedの場合は円単位の整数。shipping_freeの場合は不要。</div>
         <div class="form-row"><label>有効期限</label><input type="date" id="cp-expire"></div>
         <div class="form-row"><label>利用上限(0=無制限)</label><input type="number" id="cp-limit" value="0" style="width:60px"></div>
+        <div class="note">0=無制限。全ユーザーの合計利用回数の上限。</div>
         <div class="form-row"><label>1人1回制限</label><select id="cp-once"><option value="FALSE">なし</option><option value="TRUE">あり</option></select></div>
+        <div class="note">同一メールアドレスでの2回目以降の利用を禁止。</div>
         <div class="form-row"><label>会員割引併用</label><select id="cp-combo-member"><option value="TRUE">可</option><option value="FALSE">不可</option></select></div>
+        <div class="note">不可にすると、そのクーポン使用時に会員割引が無効になる。</div>
         <div class="form-row"><label>数量割引併用</label><select id="cp-combo-bulk"><option value="TRUE">可</option><option value="FALSE">不可</option></select></div>
+        <div class="note">不可にすると、そのクーポン使用時に数量割引が無効になる。</div>
         <div class="form-row"><label>チャネル</label><select id="cp-channel"><option value="all">全て</option><option value="detauri">デタウリのみ</option><option value="bulk">アソートのみ</option></select></div>
+        <div class="note">all=全商品, detauri=デタウリ個品のみ, bulk=アソートのみ</div>
         <div class="btnRow"><button class="primary" onclick="registerCouponFromPanel()">登録</button></div>
       </div>
       <div class="log" id="coupon-log"></div>
@@ -483,10 +547,15 @@
       <div class="card">
         <div class="title">新規登録</div>
         <div class="form-row"><label>タイトル(件名)</label><input type="text" id="nl-title"></div>
+        <div class="note">メールの件名になります。</div>
         <div class="form-row"><label>本文</label><textarea id="nl-body" rows="5"></textarea></div>
+        <div class="note">テキスト形式。HTMLは使えません。</div>
         <div class="form-row"><label>配信日時</label><input type="datetime-local" id="nl-schedule"></div>
+        <div class="note">未指定の場合、次の朝9時に配信。</div>
         <div class="form-row"><label>頻度</label><select id="nl-freq"><option value="一度">一度</option><option value="毎週">毎週</option><option value="毎月">毎月</option></select></div>
+        <div class="note">一度=1回のみ、毎週=毎週同じ曜日、毎月=毎月同じ日。</div>
         <div class="form-row"><label>対象</label><select id="nl-target"><option value="全員">全員</option><option value="リピーター">リピーター(購入2回+)</option><option value="新規">新規(0-1回)</option></select></div>
+        <div class="note">全員=メルマガ登録者全員、リピーター=購入2回以上、新規=購入0〜1回。</div>
         <div class="btnRow">
           <button class="primary" onclick="registerNewsletterFromPanel()">登録</button>
           <button onclick="testNewsletterFromPanel()">テスト送信</button>
