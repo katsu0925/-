@@ -126,8 +126,9 @@ table.data th{background:#f0f0f0;font-weight:700;}
         <div class="note">タスキ箱に画像アップ → 5分Cron → Gemini 2.5 Flash Lite で商品情報を自動判定 → AI画像判定シートに書込み → AppSheetのInitial Value(LOOKUP)で新規レコード作成時にプリフィル</div>
         <div class="note" style="margin-top:6px">■ Gemini APIキーの設定場所: <b>Cloudflare Workers (gas-proxy) の Secret</b><br>確認: <code>wrangler secret list --name detauri-gas-proxy</code><br>変更: <code>bash workers/gas-proxy/set-gemini-key.sh</code></div>
         <div class="btnRow">
-          <button onclick="runTool('adminPanel_checkAiStatus','AI判定ステータス')">AI判定ステータス確認</button>
+          <button onclick="checkAiStatus()">AI判定ステータス確認</button>
         </div>
+        <div class="log" id="ai-status-log"></div>
         <div class="subtitle">AIキーワード抽出（OpenAI）</div>
         <div class="note">既存データ用。新規データはGemini判定で自動入力されるため、このセクションは既存データのリトライ等に使用</div>
         <div class="form-row"><label>モデル</label><input type="text" id="biz-ai-model" placeholder="gpt-5-mini"></div>
@@ -380,6 +381,13 @@ function run(fn){
     if(typeof call!=='function'){clearTimeout(timer);reject(new Error('関数なし: '+fn));return;}
     call.apply(runner,args);
   });
+}
+
+// AI画像判定ステータス
+async function checkAiStatus(){
+  clearLog('ai-status-log');appendLog('ai-status-log','確認中...');
+  try{var res=await run('adminPanel_checkAiStatus');clearLog('ai-status-log');appendLog('ai-status-log',res.ok?res.message:'失敗: '+(res.message||''));showToast(res.ok?'確認完了':'失敗');}
+  catch(e){appendLog('ai-status-log','エラー: '+e.message);showToast('エラー');}
 }
 
 // 管理ツール
