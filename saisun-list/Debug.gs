@@ -752,7 +752,7 @@ function debugRestoreFromSaleLog() {
   } catch (e) { console.log('D1ペンディングデータなし: ' + e.message); }
 
   // 4. 売却履歴から管理番号リストを取得（仕入れ管理スプレッドシート）
-  var shiireSsId = APP_CONFIG.spreadsheetId; // 仕入れ管理のSSID
+  var shiireSsId = getOmProp_('OM_SHIIRE_SS_ID', '');
   var managedIds = [];
   var brands = [];
   try {
