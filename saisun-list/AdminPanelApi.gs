@@ -290,6 +290,262 @@ function adminPanel_setBizDiscountSettings(settings) {
 }
 
 // =====================================================
+// AI設定管理
+// =====================================================
+
+function adminPanel_getAiSettings() {
+  var raw = PropertiesService.getScriptProperties().getProperty('CONFIG_AI_SETTINGS');
+  var s = {};
+  if (raw) { try { s = JSON.parse(raw); } catch (e) {} }
+  return {
+    ok: true,
+    chatModel: s.chatModel || 'gpt-5-mini',
+    articleModel: s.articleModel || 'gpt-5-mini',
+    articleMaxDisplay: s.articleMaxDisplay || 10,
+    orderModel: s.orderModel || 'gpt-4o-mini',
+    orderBatchSize: s.orderBatchSize || 30
+  };
+}
+
+function adminPanel_setAiSettings(settings) {
+  PropertiesService.getScriptProperties().setProperty('CONFIG_AI_SETTINGS', JSON.stringify(settings));
+  return { ok: true, message: 'AI設定を保存しました' };
+}
+
+// =====================================================
+// ビジネス設定管理
+// =====================================================
+
+function adminPanel_getBizSettings() {
+  var raw = PropertiesService.getScriptProperties().getProperty('CONFIG_BIZ_SETTINGS');
+  var s = {};
+  if (raw) { try { s = JSON.parse(raw); } catch (e) {} }
+  // 送料テーブルは別キー
+  var shRaw = PropertiesService.getScriptProperties().getProperty('CONFIG_SHIPPING_RATES');
+  var shippingRates = null;
+  if (shRaw) { try { shippingRates = JSON.parse(shRaw); } catch (e) {} }
+  if (!shippingRates) {
+    // Config.gsのデフォルト値
+    shippingRates = {
+      minami_kyushu:[1320,1700], kita_kyushu:[1280,1620], shikoku:[1180,1440],
+      chugoku:[1200,1480], kansai:[1100,1260], hokuriku:[1160,1420],
+      tokai:[1180,1440], shinetsu:[1220,1540], kanto:[1300,1680],
+      minami_tohoku:[1400,1900], kita_tohoku:[1460,1980], hokkaido:[1640,2380], okinawa:[2500,3500]
+    };
+  }
+  return {
+    ok: true,
+    settings: {
+      minOrderCount: s.minOrderCount || 5,
+      holdMinutes: s.holdMinutes || 15,
+      holdMemberMinutes: s.holdMemberMinutes || 30,
+      taxRate: s.taxRate || 0.10,
+      cacheProducts: s.cacheProducts || 21600,
+      cacheStatus: s.cacheStatus || 300,
+      cacheState: s.cacheState || 3600,
+      cacheDetail: s.cacheDetail || 86400,
+      sessionHours: s.sessionHours || 24,
+      rememberDays: s.rememberDays || 30,
+      minPwLength: s.minPwLength || 6,
+      csrfExpiry: s.csrfExpiry || 3600,
+      paymentExpiry: s.paymentExpiry || 259200,
+      shippingRates: shippingRates
+    }
+  };
+}
+
+function adminPanel_setBizSettings(settings) {
+  var props = PropertiesService.getScriptProperties();
+  if (settings.shippingRates) {
+    props.setProperty('CONFIG_SHIPPING_RATES', JSON.stringify(settings.shippingRates));
+    delete settings.shippingRates;
+  }
+  if (Object.keys(settings).length > 0) {
+    var raw = props.getProperty('CONFIG_BIZ_SETTINGS');
+    var current = {};
+    if (raw) { try { current = JSON.parse(raw); } catch (e) {} }
+    var keys = Object.keys(settings);
+    for (var i = 0; i < keys.length; i++) current[keys[i]] = settings[keys[i]];
+    props.setProperty('CONFIG_BIZ_SETTINGS', JSON.stringify(current));
+  }
+  return { ok: true, message: 'ビジネス設定を保存しました' };
+}
+
+// =====================================================
+// BASE連携
+// =====================================================
+
+function adminPanel_getBaseSettings() {
+  var props = PropertiesService.getScriptProperties();
+  return {
+    ok: true,
+    clientId: props.getProperty('BASE_CLIENT_ID') || '',
+    redirectUri: props.getProperty('BASE_REDIRECT_URI') || '',
+    shopId: props.getProperty('BASE_SHOP_ID') || '',
+    syncDays: Number(props.getProperty('CONFIG_BASE_SYNC_DAYS') || 30),
+    syncBuffer: Number(props.getProperty('CONFIG_BASE_SYNC_BUFFER') || 7),
+    syncLimit: Number(props.getProperty('CONFIG_BASE_SYNC_LIMIT') || 100)
+  };
+}
+
+function adminPanel_baseReauth() {
+  try {
+    if (typeof baseShowAuthUrl === 'function') {
+      baseShowAuthUrl();
+      return { ok: true, message: '認証URLをダイアログに表示しました' };
+    }
+    return { ok: false, message: 'baseShowAuthUrl関数が見つかりません' };
+  } catch (e) { return { ok: false, message: String(e.message || e) }; }
+}
+
+function adminPanel_baseSyncNow() {
+  try {
+    baseSyncOrdersNow();
+    return { ok: true, message: 'BASE注文同期を実行しました' };
+  } catch (e) { return { ok: false, message: String(e.message || e) }; }
+}
+
+// =====================================================
+// GA4/分析/広告
+// =====================================================
+
+function adminPanel_getGa4Settings() {
+  var raw = PropertiesService.getScriptProperties().getProperty('CONFIG_GA4_SETTINGS');
+  var s = {};
+  if (raw) { try { s = JSON.parse(raw); } catch (e) {} }
+  var props = PropertiesService.getScriptProperties();
+  return {
+    ok: true,
+    propertyId: s.propertyId || props.getProperty('GA4_PROPERTY_ID') || '',
+    days: s.days || 30,
+    sigma: s.sigma || 2.0,
+    adsConversionId: props.getProperty('GOOGLE_ADS_CONVERSION_ID') || '',
+    adsConversionLabel: props.getProperty('GOOGLE_ADS_CONVERSION_LABEL') || '',
+    metaPixelId: props.getProperty('META_PIXEL_ID') || ''
+  };
+}
+
+function adminPanel_setGa4Settings(settings) {
+  var props = PropertiesService.getScriptProperties();
+  props.setProperty('CONFIG_GA4_SETTINGS', JSON.stringify({
+    propertyId: settings.propertyId, days: settings.days, sigma: settings.sigma
+  }));
+  if (settings.adsConversionId !== undefined) props.setProperty('GOOGLE_ADS_CONVERSION_ID', settings.adsConversionId);
+  if (settings.adsConversionLabel !== undefined) props.setProperty('GOOGLE_ADS_CONVERSION_LABEL', settings.adsConversionLabel);
+  if (settings.metaPixelId !== undefined) props.setProperty('META_PIXEL_ID', settings.metaPixelId);
+  return { ok: true, message: 'GA4/広告設定を保存しました' };
+}
+
+function adminPanel_runRfm() {
+  try { if (typeof rfm_runAnalysis_ === 'function') { rfm_runAnalysis_(); return { ok: true, message: 'RFM分析を実行しました' }; } return { ok: false, message: '関数なし' }; }
+  catch (e) { return { ok: false, message: String(e.message || e) }; }
+}
+
+function adminPanel_runProductAnalytics() {
+  try { if (typeof pa_runAnalysis_ === 'function') { pa_runAnalysis_(); return { ok: true, message: '商品分析を実行しました' }; } return { ok: false, message: '関数なし' }; }
+  catch (e) { return { ok: false, message: String(e.message || e) }; }
+}
+
+// =====================================================
+// クーポン管理
+// =====================================================
+
+function adminPanel_getCoupons() {
+  try {
+    var orderSs = sh_getOrderSs_();
+    var sh = orderSs.getSheetByName('クーポン管理');
+    if (!sh) return { ok: true, coupons: [] };
+    var lastRow = sh.getLastRow();
+    if (lastRow < 2) return { ok: true, coupons: [] };
+    var data = sh.getRange(2, 1, lastRow - 1, 18).getDisplayValues();
+    var coupons = [];
+    for (var i = 0; i < data.length; i++) {
+      if (!data[i][0]) continue;
+      coupons.push({
+        code: data[i][0], type: data[i][1], value: data[i][2], expiry: data[i][3],
+        limit: data[i][4] || '0', used: data[i][5] || '0', active: data[i][7] || 'TRUE'
+      });
+    }
+    return { ok: true, coupons: coupons };
+  } catch (e) { return { ok: false, message: String(e.message || e) }; }
+}
+
+function adminPanel_registerCoupon(params) {
+  try {
+    var orderSs = sh_getOrderSs_();
+    var sh = orderSs.getSheetByName('クーポン管理');
+    if (!sh) return { ok: false, message: 'クーポン管理シートなし' };
+    var row = [
+      params.code, params.type, params.value, params.expiry, params.limit || 0, 0, '',
+      'TRUE', '', '', '', params.comboMember || 'TRUE', params.comboBulk || 'TRUE',
+      params.channel || 'all', '', '', params.once || 'FALSE', ''
+    ];
+    sh.appendRow(row);
+    return { ok: true, message: params.code + ' を登録しました' };
+  } catch (e) { return { ok: false, message: String(e.message || e) }; }
+}
+
+function adminPanel_deleteCoupon(code) {
+  try {
+    var orderSs = sh_getOrderSs_();
+    var sh = orderSs.getSheetByName('クーポン管理');
+    if (!sh) return { ok: false, message: 'シートなし' };
+    var lastRow = sh.getLastRow();
+    for (var i = lastRow; i >= 2; i--) {
+      if (sh.getRange(i, 1).getDisplayValue().trim() === code) {
+        sh.deleteRow(i);
+        return { ok: true, message: code + ' を削除しました' };
+      }
+    }
+    return { ok: false, message: 'クーポンが見つかりません' };
+  } catch (e) { return { ok: false, message: String(e.message || e) }; }
+}
+
+// =====================================================
+// ニュースレター管理
+// =====================================================
+
+function adminPanel_getNewsletters() {
+  try {
+    var orderSs = sh_getOrderSs_();
+    var sh = orderSs.getSheetByName('ニュースレター');
+    if (!sh) return { ok: true, newsletters: [] };
+    var lastRow = sh.getLastRow();
+    if (lastRow < 2) return { ok: true, newsletters: [] };
+    var data = sh.getRange(2, 1, lastRow - 1, 7).getDisplayValues();
+    var list = [];
+    for (var i = 0; i < data.length; i++) {
+      if (!data[i][0]) continue;
+      list.push({
+        title: data[i][0], status: data[i][3] || '未配信',
+        frequency: data[i][4] || '一度', target: data[i][6] || '全員',
+        scheduleDate: data[i][2] || ''
+      });
+    }
+    return { ok: true, newsletters: list };
+  } catch (e) { return { ok: false, message: String(e.message || e) }; }
+}
+
+function adminPanel_registerNewsletter(params) {
+  try {
+    if (typeof saveNewsletter_ === 'function') {
+      saveNewsletter_(params.title, params.body, params.schedule, params.target, params.frequency);
+      return { ok: true, message: 'ニュースレターを登録しました' };
+    }
+    return { ok: false, message: 'saveNewsletter_関数なし' };
+  } catch (e) { return { ok: false, message: String(e.message || e) }; }
+}
+
+function adminPanel_testNewsletter(params) {
+  try {
+    var adminEmail = String(PropertiesService.getScriptProperties().getProperty('ADMIN_OWNER_EMAIL') || '').trim();
+    if (!adminEmail) return { ok: false, message: 'ADMIN_OWNER_EMAILが未設定' };
+    MailApp.sendEmail({ to: adminEmail, subject: '[テスト] ' + (params.title || 'ニュースレター'), body: params.body || '', noReply: true });
+    return { ok: true, message: adminEmail + 'にテスト送信しました' };
+  } catch (e) { return { ok: false, message: String(e.message || e) }; }
+}
+
+// =====================================================
 // KOMOJU決済モード
 // =====================================================
 

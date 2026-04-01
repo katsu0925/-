@@ -232,7 +232,28 @@
 
     <!-- タブ4: AI設定 -->
     <div class="tab-content" id="tab-ai">
-      <div class="card"><div class="title">AI設定</div><p class="note">実装中...</p></div>
+      <div class="card">
+        <div class="title">OpenAI APIキー（共通）</div>
+        <div class="form-row"><label>OPENAI_API_KEY</label><input type="password" id="ai-apikey" placeholder="sk-..."> <button class="sm" onclick="togglePw(this)">表示</button></div>
+        <div class="btnRow"><button class="primary" onclick="saveAiKey()">APIキーを保存</button></div>
+      </div>
+      <div class="card">
+        <div class="title">チャットボット (Chatbot.gs)</div>
+        <div class="form-row"><label>モデル</label><input type="text" id="ai-chat-model" placeholder="gpt-5-mini"></div>
+      </div>
+      <div class="card">
+        <div class="title">記事自動生成 (Articles.gs)</div>
+        <div class="form-row"><label>モデル</label><input type="text" id="ai-article-model" placeholder="gpt-5-mini"></div>
+        <div class="form-row"><label>表示上限</label><input type="number" id="ai-article-max" style="width:60px"></div>
+        <div class="note">生成スケジュール: 月=売り方, 水=仕入れ, 金=副業基礎, 日=トレンド</div>
+      </div>
+      <div class="card">
+        <div class="title">受注管理AI (受注管理.gs)</div>
+        <div class="form-row"><label>モデル</label><input type="text" id="ai-order-model" placeholder="gpt-4o-mini"></div>
+        <div class="form-row"><label>バッチサイズ</label><input type="number" id="ai-order-batch" style="width:60px"></div>
+      </div>
+      <div class="btnRow"><button class="primary" onclick="saveAiSettings()">AI設定を保存</button></div>
+      <div class="log" id="ai-log"></div>
     </div>
 
     <!-- タブ5: スクリプトプロパティ -->
@@ -251,22 +272,89 @@
 
     <!-- タブ6: ビジネス設定 -->
     <div class="tab-content" id="tab-biz">
-      <div class="card"><div class="title">ビジネス設定</div><p class="note">実装中...</p></div>
+      <div class="card">
+        <div class="title">送料テーブル</div>
+        <div id="shipping-table">読み込み中...</div>
+        <div class="btnRow"><button class="primary" onclick="saveShippingRates()">送料テーブルを保存</button></div>
+      </div>
+      <div class="card">
+        <div class="title">基本設定</div>
+        <div class="form-row"><label>最低購入点数</label><input type="number" id="biz-minorder" style="width:60px"></div>
+        <div class="form-row"><label>確保期間(通常/分)</label><input type="number" id="biz-hold-min" style="width:60px"></div>
+        <div class="form-row"><label>確保期間(会員/分)</label><input type="number" id="biz-hold-member" style="width:60px"></div>
+        <div class="form-row"><label>税率</label><input type="number" id="biz-tax" step="0.01" style="width:60px"></div>
+        <div class="subtitle">キャッシュTTL(秒)</div>
+        <div class="form-row"><label>商品データ</label><input type="number" id="biz-cache-products" style="width:80px"></div>
+        <div class="form-row"><label>ステータス</label><input type="number" id="biz-cache-status" style="width:80px"></div>
+        <div class="form-row"><label>状態</label><input type="number" id="biz-cache-state" style="width:80px"></div>
+        <div class="form-row"><label>商品詳細</label><input type="number" id="biz-cache-detail" style="width:80px"></div>
+        <div class="subtitle">認証</div>
+        <div class="form-row"><label>セッション有効(時間)</label><input type="number" id="biz-session-h" style="width:60px"></div>
+        <div class="form-row"><label>RememberMe(日)</label><input type="number" id="biz-remember-d" style="width:60px"></div>
+        <div class="form-row"><label>パスワード最小長</label><input type="number" id="biz-pw-min" style="width:60px"></div>
+        <div class="form-row"><label>CSRF有効(秒)</label><input type="number" id="biz-csrf" style="width:80px"></div>
+        <div class="subtitle">決済</div>
+        <div class="form-row"><label>決済期限(秒)</label><input type="number" id="biz-pay-expiry" style="width:100px"></div>
+        <div class="btnRow"><button class="primary" onclick="saveBizSettings()">基本設定を保存</button></div>
+      </div>
+      <div class="log" id="biz-log"></div>
     </div>
 
     <!-- タブ7: BASE連携 -->
     <div class="tab-content" id="tab-base">
-      <div class="card"><div class="title">BASE連携</div><p class="note">実装中...</p></div>
+      <div class="card">
+        <div class="title">BASE連携</div>
+        <div class="form-row"><label>BASE_CLIENT_ID</label><input type="text" id="base-cid"></div>
+        <div class="form-row"><label>BASE_CLIENT_SECRET</label><input type="password" id="base-secret"> <button class="sm" onclick="togglePw(this)">表示</button></div>
+        <div class="form-row"><label>BASE_REDIRECT_URI</label><input type="text" id="base-redirect"></div>
+        <div class="form-row"><label>BASE_SHOP_ID</label><input type="text" id="base-shop"></div>
+        <div class="subtitle">同期設定</div>
+        <div class="form-row"><label>同期日数</label><input type="number" id="base-sync-days" style="width:60px" value="30"></div>
+        <div class="form-row"><label>バッファ日数</label><input type="number" id="base-sync-buf" style="width:60px" value="7"></div>
+        <div class="form-row"><label>取得上限</label><input type="number" id="base-sync-limit" style="width:60px" value="100"></div>
+        <div class="btnRow">
+          <button class="primary" onclick="saveBaseSettings()">保存</button>
+          <button onclick="runTool('adminPanel_baseReauth','BASE再認証URL取得')">再認証URL取得</button>
+          <button onclick="runTool('adminPanel_baseSyncNow','BASE注文手動同期')">注文手動同期</button>
+        </div>
+        <div class="log" id="base-log"></div>
+      </div>
     </div>
 
     <!-- タブ8: GA4/分析 -->
     <div class="tab-content" id="tab-ga4">
-      <div class="card"><div class="title">GA4/分析/広告</div><p class="note">実装中...</p></div>
+      <div class="card">
+        <div class="title">GA4設定</div>
+        <div class="form-row"><label>プロパティID</label><input type="text" id="ga4-prop" placeholder="properties/525734643"></div>
+        <div class="form-row"><label>取得日数</label><input type="number" id="ga4-days" style="width:60px" value="30"></div>
+        <div class="form-row"><label>異常検知閾値(σ)</label><input type="number" id="ga4-sigma" step="0.1" style="width:60px" value="2.0"></div>
+      </div>
+      <div class="card">
+        <div class="title">広告トラッキング</div>
+        <div class="form-row"><label>Google Ads Conversion ID</label><input type="text" id="ads-gid"></div>
+        <div class="form-row"><label>Google Ads Conversion Label</label><input type="text" id="ads-glabel"></div>
+        <div class="form-row"><label>Meta Pixel ID</label><input type="text" id="ads-meta"></div>
+      </div>
+      <div class="card">
+        <div class="title">分析ツール</div>
+        <div class="btnRow">
+          <button onclick="runTool('adminPanel_runRfm','RFM分析実行')">RFM分析</button>
+          <button onclick="runTool('adminPanel_runProductAnalytics','商品分析実行')">商品分析</button>
+        </div>
+      </div>
+      <div class="btnRow"><button class="primary" onclick="saveGa4Settings()">GA4/広告設定を保存</button></div>
+      <div class="log" id="ga4-log"></div>
     </div>
 
     <!-- タブ9: アソート -->
     <div class="tab-content" id="tab-bulk">
-      <div class="card"><div class="title">アソート商品設定</div><p class="note">実装中...</p></div>
+      <div class="card">
+        <div class="title">アソート商品設定</div>
+        <div class="form-row"><label>BULK_SPREADSHEET_ID</label><input type="text" id="bulk-ssid"></div>
+        <div class="note">アソート商品の管理は saisun-list-bulk スプレッドシートのメニューから行ってください。</div>
+        <div class="btnRow"><button class="primary" onclick="saveBulkSettings()">保存</button></div>
+        <div class="log" id="bulk-log"></div>
+      </div>
     </div>
 
     <!-- タブ10: トリガー管理 -->
@@ -362,12 +450,49 @@
 
     <!-- タブ12: クーポン管理 -->
     <div class="tab-content" id="tab-coupon">
-      <div class="card"><div class="title">クーポン管理</div><p class="note">実装中...</p></div>
+      <div class="card">
+        <div class="title">クーポン一覧</div>
+        <div id="coupon-list">読み込み中...</div>
+        <div class="btnRow"><button onclick="loadCoupons()">再読み込み</button></div>
+      </div>
+      <div class="card">
+        <div class="title">クーポン新規登録</div>
+        <div class="form-row"><label>コード</label><input type="text" id="cp-code" placeholder="SUMMER10"></div>
+        <div class="form-row"><label>タイプ</label>
+          <select id="cp-type"><option value="rate">割引率(rate)</option><option value="fixed">固定額(fixed)</option><option value="shipping_free">送料無料</option></select>
+        </div>
+        <div class="form-row"><label>値</label><input type="number" id="cp-value" step="0.01" placeholder="0.10 or 1000"></div>
+        <div class="form-row"><label>有効期限</label><input type="date" id="cp-expire"></div>
+        <div class="form-row"><label>利用上限(0=無制限)</label><input type="number" id="cp-limit" value="0" style="width:60px"></div>
+        <div class="form-row"><label>1人1回制限</label><select id="cp-once"><option value="FALSE">なし</option><option value="TRUE">あり</option></select></div>
+        <div class="form-row"><label>会員割引併用</label><select id="cp-combo-member"><option value="TRUE">可</option><option value="FALSE">不可</option></select></div>
+        <div class="form-row"><label>数量割引併用</label><select id="cp-combo-bulk"><option value="TRUE">可</option><option value="FALSE">不可</option></select></div>
+        <div class="form-row"><label>チャネル</label><select id="cp-channel"><option value="all">全て</option><option value="detauri">デタウリのみ</option><option value="bulk">アソートのみ</option></select></div>
+        <div class="btnRow"><button class="primary" onclick="registerCouponFromPanel()">登録</button></div>
+      </div>
+      <div class="log" id="coupon-log"></div>
     </div>
 
     <!-- タブ13: ニュースレター -->
     <div class="tab-content" id="tab-news">
-      <div class="card"><div class="title">ニュースレター</div><p class="note">実装中...</p></div>
+      <div class="card">
+        <div class="title">ニュースレター一覧</div>
+        <div id="news-list">読み込み中...</div>
+        <div class="btnRow"><button onclick="loadNewsletters()">再読み込み</button></div>
+      </div>
+      <div class="card">
+        <div class="title">新規登録</div>
+        <div class="form-row"><label>タイトル(件名)</label><input type="text" id="nl-title"></div>
+        <div class="form-row"><label>本文</label><textarea id="nl-body" rows="5"></textarea></div>
+        <div class="form-row"><label>配信日時</label><input type="datetime-local" id="nl-schedule"></div>
+        <div class="form-row"><label>頻度</label><select id="nl-freq"><option value="一度">一度</option><option value="毎週">毎週</option><option value="毎月">毎月</option></select></div>
+        <div class="form-row"><label>対象</label><select id="nl-target"><option value="全員">全員</option><option value="リピーター">リピーター(購入2回+)</option><option value="新規">新規(0-1回)</option></select></div>
+        <div class="btnRow">
+          <button class="primary" onclick="registerNewsletterFromPanel()">登録</button>
+          <button onclick="testNewsletterFromPanel()">テスト送信</button>
+        </div>
+      </div>
+      <div class="log" id="news-log"></div>
     </div>
   </div>
 </div>
@@ -405,8 +530,15 @@ document.querySelectorAll('.tab-btn').forEach(function(btn){
     // 遅延初期化
     if(btn.dataset.tab === 'discount' && !discountLoaded) loadDiscountStatus();
     if(btn.dataset.tab === 'email' && !emailLoaded) loadEmailSettings();
+    if(btn.dataset.tab === 'ai' && !aiLoaded) loadAiSettings();
     if(btn.dataset.tab === 'props' && !propsLoaded) loadProperties();
+    if(btn.dataset.tab === 'biz' && !bizLoaded) loadBizSettings();
+    if(btn.dataset.tab === 'base' && !baseLoaded) loadBaseSettings();
+    if(btn.dataset.tab === 'ga4' && !ga4Loaded) loadGa4Settings();
+    if(btn.dataset.tab === 'bulk' && !bulkLoaded) loadBulkSettings();
     if(btn.dataset.tab === 'triggers' && !triggersLoaded) loadTriggers();
+    if(btn.dataset.tab === 'coupon' && !couponLoaded) loadCoupons();
+    if(btn.dataset.tab === 'news' && !newsLoaded) loadNewsletters();
   });
 });
 
@@ -836,6 +968,243 @@ function runDebugRestore(){
     orderDate: $('dbg-komoju-date').value
   };
   runDebug('adminPanel_debugRestoreOrder', [params]);
+}
+
+// ========== タブ4: AI設定 ==========
+var aiLoaded = false;
+async function loadAiSettings(){
+  try {
+    var res = await run('adminPanel_getAiSettings');
+    if(!res.ok) return;
+    $('ai-chat-model').value = res.chatModel || 'gpt-5-mini';
+    $('ai-article-model').value = res.articleModel || 'gpt-5-mini';
+    $('ai-article-max').value = res.articleMaxDisplay || 10;
+    $('ai-order-model').value = res.orderModel || 'gpt-4o-mini';
+    $('ai-order-batch').value = res.orderBatchSize || 30;
+    aiLoaded = true;
+  } catch(e){}
+}
+async function saveAiKey(){
+  var key = $('ai-apikey').value;
+  if(!key){ showToast('APIキーを入力してください'); return; }
+  try { await run('adminPanel_setProperties',{OPENAI_API_KEY:key}); showToast('APIキーを保存しました'); }
+  catch(e){ showToast('エラー: '+e.message); }
+}
+async function saveAiSettings(){
+  try {
+    var res = await run('adminPanel_setAiSettings',{
+      chatModel:$('ai-chat-model').value, articleModel:$('ai-article-model').value,
+      articleMaxDisplay:+$('ai-article-max').value, orderModel:$('ai-order-model').value,
+      orderBatchSize:+$('ai-order-batch').value
+    });
+    showToast(res.ok ? 'AI設定を保存しました' : '失敗');
+  } catch(e){ showToast('エラー: '+e.message); }
+}
+
+// ========== タブ6: ビジネス設定 ==========
+var bizLoaded = false;
+var SHIPPING_AREAS_LABELS = {minami_kyushu:'南九州',kita_kyushu:'北九州',shikoku:'四国',chugoku:'中国',kansai:'関西',hokuriku:'北陸',tokai:'東海',shinetsu:'信越',kanto:'関東',minami_tohoku:'南東北',kita_tohoku:'北東北',hokkaido:'北海道',okinawa:'沖縄'};
+async function loadBizSettings(){
+  try {
+    var res = await run('adminPanel_getBizSettings');
+    if(!res.ok) return;
+    var s = res.settings;
+    $('biz-minorder').value = s.minOrderCount||5;
+    $('biz-hold-min').value = s.holdMinutes||15;
+    $('biz-hold-member').value = s.holdMemberMinutes||30;
+    $('biz-tax').value = s.taxRate||0.10;
+    $('biz-cache-products').value = s.cacheProducts||21600;
+    $('biz-cache-status').value = s.cacheStatus||300;
+    $('biz-cache-state').value = s.cacheState||3600;
+    $('biz-cache-detail').value = s.cacheDetail||86400;
+    $('biz-session-h').value = s.sessionHours||24;
+    $('biz-remember-d').value = s.rememberDays||30;
+    $('biz-pw-min').value = s.minPwLength||6;
+    $('biz-csrf').value = s.csrfExpiry||3600;
+    $('biz-pay-expiry').value = s.paymentExpiry||259200;
+    // 送料テーブル
+    var rates = s.shippingRates || {};
+    var html = '<table class="data"><tr><th>エリア</th><th>小型(≤10点)</th><th>大型(>10点)</th></tr>';
+    Object.keys(SHIPPING_AREAS_LABELS).forEach(function(k){
+      var r = rates[k] || [0,0];
+      html += '<tr><td>'+SHIPPING_AREAS_LABELS[k]+'</td><td><input type="number" data-ship="'+k+'-0" value="'+r[0]+'" style="width:70px"></td><td><input type="number" data-ship="'+k+'-1" value="'+r[1]+'" style="width:70px"></td></tr>';
+    });
+    html += '</table>';
+    $('shipping-table').innerHTML = html;
+    bizLoaded = true;
+  } catch(e){ appendLog('biz-log','エラー: '+e.message); }
+}
+async function saveShippingRates(){
+  var rates = {};
+  document.querySelectorAll('[data-ship]').forEach(function(el){
+    var parts = el.dataset.ship.split('-');
+    if(!rates[parts[0]]) rates[parts[0]] = [0,0];
+    rates[parts[0]][+parts[1]] = +el.value;
+  });
+  try {
+    var res = await run('adminPanel_setBizSettings',{shippingRates:rates});
+    showToast(res.ok?'送料テーブルを保存':'失敗');
+  } catch(e){ showToast('エラー'); }
+}
+async function saveBizSettings(){
+  try {
+    var res = await run('adminPanel_setBizSettings',{
+      minOrderCount:+$('biz-minorder').value, holdMinutes:+$('biz-hold-min').value,
+      holdMemberMinutes:+$('biz-hold-member').value, taxRate:+$('biz-tax').value,
+      cacheProducts:+$('biz-cache-products').value, cacheStatus:+$('biz-cache-status').value,
+      cacheState:+$('biz-cache-state').value, cacheDetail:+$('biz-cache-detail').value,
+      sessionHours:+$('biz-session-h').value, rememberDays:+$('biz-remember-d').value,
+      minPwLength:+$('biz-pw-min').value, csrfExpiry:+$('biz-csrf').value,
+      paymentExpiry:+$('biz-pay-expiry').value
+    });
+    showToast(res.ok?'基本設定を保存':'失敗');
+  } catch(e){ showToast('エラー'); }
+}
+
+// ========== タブ7: BASE連携 ==========
+var baseLoaded = false;
+async function loadBaseSettings(){
+  try {
+    var res = await run('adminPanel_getBaseSettings');
+    if(!res.ok) return;
+    $('base-cid').value = res.clientId||'';
+    $('base-secret').value = '';
+    $('base-redirect').value = res.redirectUri||'';
+    $('base-shop').value = res.shopId||'';
+    $('base-sync-days').value = res.syncDays||30;
+    $('base-sync-buf').value = res.syncBuffer||7;
+    $('base-sync-limit').value = res.syncLimit||100;
+    baseLoaded = true;
+  } catch(e){}
+}
+async function saveBaseSettings(){
+  var updates = {};
+  if($('base-cid').value) updates.BASE_CLIENT_ID = $('base-cid').value;
+  if($('base-secret').value) updates.BASE_CLIENT_SECRET = $('base-secret').value;
+  if($('base-redirect').value) updates.BASE_REDIRECT_URI = $('base-redirect').value;
+  if($('base-shop').value) updates.BASE_SHOP_ID = $('base-shop').value;
+  updates.CONFIG_BASE_SYNC_DAYS = String(+$('base-sync-days').value||30);
+  updates.CONFIG_BASE_SYNC_BUFFER = String(+$('base-sync-buf').value||7);
+  updates.CONFIG_BASE_SYNC_LIMIT = String(+$('base-sync-limit').value||100);
+  try { var res = await run('adminPanel_setProperties',updates); showToast(res.ok?'BASE設定を保存':'失敗'); }
+  catch(e){ showToast('エラー'); }
+}
+
+// ========== タブ8: GA4/分析 ==========
+var ga4Loaded = false;
+async function loadGa4Settings(){
+  try {
+    var res = await run('adminPanel_getGa4Settings');
+    if(!res.ok) return;
+    $('ga4-prop').value = res.propertyId||'';
+    $('ga4-days').value = res.days||30;
+    $('ga4-sigma').value = res.sigma||2.0;
+    $('ads-gid').value = res.adsConversionId||'';
+    $('ads-glabel').value = res.adsConversionLabel||'';
+    $('ads-meta').value = res.metaPixelId||'';
+    ga4Loaded = true;
+  } catch(e){}
+}
+async function saveGa4Settings(){
+  try {
+    var res = await run('adminPanel_setGa4Settings',{
+      propertyId:$('ga4-prop').value, days:+$('ga4-days').value,
+      sigma:+$('ga4-sigma').value, adsConversionId:$('ads-gid').value,
+      adsConversionLabel:$('ads-glabel').value, metaPixelId:$('ads-meta').value
+    });
+    showToast(res.ok?'保存完了':'失敗');
+  } catch(e){ showToast('エラー'); }
+}
+
+// ========== タブ9: アソート ==========
+var bulkLoaded = false;
+async function loadBulkSettings(){
+  try {
+    var res = await run('adminPanel_getProperties');
+    if(res.ok && res.props.BULK_SPREADSHEET_ID) $('bulk-ssid').value = res.props.BULK_SPREADSHEET_ID.value||'';
+    bulkLoaded = true;
+  } catch(e){}
+}
+async function saveBulkSettings(){
+  try { var res = await run('adminPanel_setProperties',{BULK_SPREADSHEET_ID:$('bulk-ssid').value}); showToast(res.ok?'保存':'失敗'); }
+  catch(e){ showToast('エラー'); }
+}
+
+// ========== タブ12: クーポン管理 ==========
+var couponLoaded = false;
+async function loadCoupons(){
+  $('coupon-list').innerHTML = '読み込み中...';
+  try {
+    var res = await run('adminPanel_getCoupons');
+    if(!res.ok){ $('coupon-list').innerHTML = 'エラー'; return; }
+    couponLoaded = true;
+    if(!res.coupons.length){ $('coupon-list').innerHTML = '<p class="note">クーポンなし</p>'; return; }
+    var html = '<table class="data"><tr><th>コード</th><th>タイプ</th><th>値</th><th>期限</th><th>利用</th><th>有効</th><th>操作</th></tr>';
+    res.coupons.forEach(function(c){
+      html += '<tr><td>'+escHtml(c.code)+'</td><td>'+c.type+'</td><td>'+c.value+'</td><td>'+c.expiry+'</td><td>'+c.used+'/'+c.limit+'</td><td>'+c.active+'</td>'+
+        '<td><button class="sm danger" onclick="deleteCouponFromPanel(\''+escHtml(c.code)+'\')">削除</button></td></tr>';
+    });
+    html += '</table>';
+    $('coupon-list').innerHTML = html;
+  } catch(e){ $('coupon-list').innerHTML = 'エラー: '+e.message; }
+}
+async function registerCouponFromPanel(){
+  clearLog('coupon-log');
+  try {
+    var res = await run('adminPanel_registerCoupon',{
+      code:$('cp-code').value, type:$('cp-type').value, value:+$('cp-value').value,
+      expiry:$('cp-expire').value, limit:+$('cp-limit').value, once:$('cp-once').value,
+      comboMember:$('cp-combo-member').value, comboBulk:$('cp-combo-bulk').value,
+      channel:$('cp-channel').value
+    });
+    appendLog('coupon-log', res.ok?'登録完了: '+res.message:'失敗: '+res.message);
+    if(res.ok) loadCoupons();
+  } catch(e){ appendLog('coupon-log','エラー: '+e.message); }
+}
+async function deleteCouponFromPanel(code){
+  showConfirm('クーポン「'+code+'」を削除します', async function(){
+    try {
+      var res = await run('adminPanel_deleteCoupon', code);
+      showToast(res.ok?'削除完了':'失敗');
+      loadCoupons();
+    } catch(e){ showToast('エラー'); }
+  });
+}
+
+// ========== タブ13: ニュースレター ==========
+var newsLoaded = false;
+async function loadNewsletters(){
+  $('news-list').innerHTML = '読み込み中...';
+  try {
+    var res = await run('adminPanel_getNewsletters');
+    if(!res.ok){ $('news-list').innerHTML = 'エラー'; return; }
+    newsLoaded = true;
+    if(!res.newsletters.length){ $('news-list').innerHTML = '<p class="note">登録なし</p>'; return; }
+    var html = '<table class="data"><tr><th>タイトル</th><th>ステータス</th><th>頻度</th><th>対象</th><th>配信日</th></tr>';
+    res.newsletters.forEach(function(n){
+      html += '<tr><td>'+escHtml(n.title)+'</td><td>'+n.status+'</td><td>'+n.frequency+'</td><td>'+n.target+'</td><td>'+n.scheduleDate+'</td></tr>';
+    });
+    html += '</table>';
+    $('news-list').innerHTML = html;
+  } catch(e){ $('news-list').innerHTML = 'エラー: '+e.message; }
+}
+async function registerNewsletterFromPanel(){
+  clearLog('news-log');
+  try {
+    var res = await run('adminPanel_registerNewsletter',{
+      title:$('nl-title').value, body:$('nl-body').value,
+      schedule:$('nl-schedule').value, frequency:$('nl-freq').value, target:$('nl-target').value
+    });
+    appendLog('news-log', res.ok?'登録完了':'失敗: '+(res.message||''));
+    if(res.ok) loadNewsletters();
+  } catch(e){ appendLog('news-log','エラー: '+e.message); }
+}
+async function testNewsletterFromPanel(){
+  clearLog('news-log');
+  try {
+    var res = await run('adminPanel_testNewsletter',{title:$('nl-title').value, body:$('nl-body').value});
+    appendLog('news-log', res.ok?'テスト送信完了':'失敗: '+(res.message||''));
+  } catch(e){ appendLog('news-log','エラー: '+e.message); }
 }
 
 function runDebugBulkSold(){
