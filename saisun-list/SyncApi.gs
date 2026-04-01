@@ -357,6 +357,29 @@ function exportSettings_() {
   // 管理者メール
   settings.ADMIN_OWNER_EMAIL = props.getProperty('ADMIN_OWNER_EMAIL') || '';
 
+  // SNSシェアキャンペーン
+  if (typeof app_getSnsShareCampaignStatus_ === 'function') {
+    settings.SNS_SHARE_CAMPAIGN_STATUS = JSON.stringify(app_getSnsShareCampaignStatus_());
+  }
+
+  // 管理パネルから設定された値（ScriptPropertiesに保存済み）
+  var qtyDiscounts = props.getProperty('CONFIG_QTY_DISCOUNTS');
+  if (qtyDiscounts) settings.QTY_DISCOUNTS = qtyDiscounts;
+
+  var bizSettings = props.getProperty('CONFIG_BIZ_SETTINGS');
+  if (bizSettings) {
+    try {
+      var biz = JSON.parse(bizSettings);
+      settings.HOLD_MINUTES = JSON.stringify({ default: biz.holdMinutes || 15, member: biz.holdMemberMinutes || 30 });
+      settings.MIN_ORDER_COUNT = String(biz.minOrderCount || 5);
+      settings.SESSION_CONFIG = JSON.stringify({ sessionHours: biz.sessionHours || 24, rememberDays: biz.rememberDays || 30, csrfExpiry: biz.csrfExpiry || 3600 });
+      settings.PAYMENT_EXPIRY = String(biz.paymentExpiry || 259200);
+    } catch (e) {}
+  }
+
+  var freeShipThreshold = props.getProperty('CONFIG_FREE_SHIP_THRESHOLD');
+  if (freeShipThreshold) settings.FREE_SHIP_THRESHOLD = freeShipThreshold;
+
   return settings;
 }
 

@@ -9,7 +9,24 @@
 import { jsonOk, jsonError, corsResponse } from '../utils/response.js';
 import { sendEvent as sendMetaEvent } from '../utils/meta-capi.js';
 
-// ─── 送料テーブル ───
+// ─── 数量割引ヘルパー（D1 settingsから動的テーブル対応） ───
+
+const DEFAULT_QTY_DISCOUNTS = [
+  { threshold: 100, rate: 0.20 },
+  { threshold: 50, rate: 0.15 },
+  { threshold: 30, rate: 0.10 },
+  { threshold: 10, rate: 0.05 },
+];
+
+function calcQtyDiscount(count, dynTable) {
+  const table = (Array.isArray(dynTable) && dynTable.length > 0) ? dynTable : DEFAULT_QTY_DISCOUNTS;
+  for (const tier of table) {
+    if (count >= tier.threshold) return tier.rate;
+  }
+  return 0;
+}
+
+// ─── 送料テーブル（フォールバック用、D1 SHIPPING_CONFIG優先） ───
 
 const SHIPPING_AREAS = {
   '北海道': 'hokkaido',
@@ -256,12 +273,35 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   // ─── 設定・顧客データ取得 ───
   const emailLower = contact.toLowerCase();
 
-  // 並列で取得
-  const [memberDiscountRow, fhpRow, customerRow] = await Promise.all([
+  // 並列で取得（D1 settings + 顧客データ）
+  const [memberDiscountRow, fhpRow, customerRow, shippingRow, qtyDiscountRow, holdRow, minOrderRow, freeShipRow] = await Promise.all([
     env.DB.prepare("SELECT value FROM settings WHERE key = 'MEMBER_DISCOUNT_STATUS'").first(),
     env.DB.prepare("SELECT value FROM settings WHERE key = 'FIRST_HALF_PRICE_STATUS'").first(),
     env.DB.prepare('SELECT points, purchase_count, total_spent FROM customers WHERE email = ?').bind(emailLower).first(),
+    env.DB.prepare("SELECT value FROM settings WHERE key = 'SHIPPING_CONFIG'").first(),
+    env.DB.prepare("SELECT value FROM settings WHERE key = 'QTY_DISCOUNTS'").first(),
+    env.DB.prepare("SELECT value FROM settings WHERE key = 'HOLD_MINUTES'").first(),
+    env.DB.prepare("SELECT value FROM settings WHERE key = 'MIN_ORDER_COUNT'").first(),
+    env.DB.prepare("SELECT value FROM settings WHERE key = 'FREE_SHIP_THRESHOLD'").first(),
   ]);
+
+  // D1から動的設定を読み込み（フォールバック: ハードコード値）
+  let dynShippingRates = SHIPPING_RATES;
+  let dynShippingAreas = SHIPPING_AREAS;
+  if (shippingRow) {
+    try {
+      const sc = JSON.parse(shippingRow.value);
+      if (sc.rates) dynShippingRates = sc.rates;
+      if (sc.areas) dynShippingAreas = sc.areas;
+    } catch (e) { /* fallthrough */ }
+  }
+
+  let dynQtyDiscounts = null;
+  if (qtyDiscountRow) {
+    try { dynQtyDiscounts = JSON.parse(qtyDiscountRow.value); } catch (e) { /* fallthrough */ }
+  }
+
+  const dynFreeShipThreshold = freeShipRow ? (Number(freeShipRow.value) || 10000) : 10000;
 
   let memberDiscountStatus = { enabled: true, rate: 0.10, endDate: '2026-09-30', reason: 'active' };
   if (memberDiscountRow) { try { memberDiscountStatus = JSON.parse(memberDiscountRow.value); } catch (e) { /* fallthrough */ } }
@@ -347,21 +387,15 @@ export async function submitEstimate(args, env, bodyText, ctx) {
 
     // 併用可能な割引（数量割引のみdiscountRateに加算、会員割引は順次適用で別途処理）
     if (validatedCoupon.comboBulk) {
-      if (totalCount >= 100) discountRate += 0.20;
-      else if (totalCount >= 50) discountRate += 0.15;
-      else if (totalCount >= 30) discountRate += 0.10;
-      else if (totalCount >= 10) discountRate += 0.05;
+      discountRate += calcQtyDiscount(totalCount, dynQtyDiscounts);
     }
     if (validatedCoupon.comboMember && memberDiscountStatus.enabled && isLoggedIn && customerRow) {
       memberDiscountRate = memberDiscountStatus.rate;
     }
   } else if (!firstHalfPriceApplied) {
     // 通常割引（クーポン未使用時）
-    // 段階的数量割引
-    if (totalCount >= 100) discountRate += 0.20;
-    else if (totalCount >= 50) discountRate += 0.15;
-    else if (totalCount >= 30) discountRate += 0.10;
-    else if (totalCount >= 10) discountRate += 0.05;
+    // 段階的数量割引（D1 settingsから動的テーブル）
+    discountRate += calcQtyDiscount(totalCount, dynQtyDiscounts);
 
     // 会員割引（ログイン必須）
     if (memberDiscountStatus.enabled && isLoggedIn && customerRow) {
@@ -394,7 +428,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   }
 
   // ─── 送料計算 ───
-  const shippingArea = SHIPPING_AREAS[pref] || '';
+  const shippingArea = dynShippingAreas[pref] || '';
   let shippingSize = 'large';
   let shippingSizeLabel = '大';
   let shippingAmount = 0;
@@ -404,7 +438,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   const diamondFree = totalSpent >= 500000;
 
   const shippingFreeCoupon = validatedCoupon && validatedCoupon.type === 'shipping_free';
-  const thresholdFree = (discounted + bulkProductAmount) >= 10000;
+  const thresholdFree = (discounted + bulkProductAmount) >= dynFreeShipThreshold;
 
   if (diamondFree) {
     shippingAmount = 0;
@@ -413,7 +447,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     shippingAmount = 0;
     // アソート送料: 送料除外商品は除外分のみ有料（SubmitFix.gs L237-251と一致）
     const excludeStr = validatedCoupon.shippingExcludeProducts || '';
-    if (excludeStr && bulkItemCount > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
+    if (excludeStr && bulkItemCount > 0 && shippingArea && dynShippingRates[shippingArea]) {
       const excludeIds = new Set(excludeStr.split(',').map(s => s.trim().toUpperCase()).filter(Boolean));
       let excludedBulkQty = 0;
       for (const bi of (form.bulkItems || [])) {
@@ -421,7 +455,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
         const qty = Math.max(0, Math.floor(Number(bi.qty) || 0));
         if (excludeIds.has(pid)) excludedBulkQty += qty;
       }
-      bulkShippingAmount = excludedBulkQty > 0 ? SHIPPING_RATES[shippingArea][1] * excludedBulkQty : 0;
+      bulkShippingAmount = excludedBulkQty > 0 ? dynShippingRates[shippingArea][1] * excludedBulkQty : 0;
     } else {
       bulkShippingAmount = 0;
     }
@@ -430,23 +464,23 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     bulkShippingAmount = 0;
   } else {
     // 厚み分類 → サイズ判定 → 料金計算（CartCalc.html L32-77 と同一ロジック）
-    if (ids.length > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
+    if (ids.length > 0 && shippingArea && dynShippingRates[shippingArea]) {
       const { thick, thin } = classifyThickness(productResults);
       const sz = calcShippingSize(thick, thin);
       if (!sz.size) {
         // 上限超過: 複数口計算
-        const multi = calcMultiShipment(thick, thin, SHIPPING_RATES[shippingArea]);
+        const multi = calcMultiShipment(thick, thin, dynShippingRates[shippingArea]);
         shippingAmount = multi.amount;
         shippingSize = 'multi';
         shippingSizeLabel = multi.sizeLabel;
       } else {
         shippingSize = sz.size;
         shippingSizeLabel = sz.size === 'small' ? '小' : '大';
-        shippingAmount = SHIPPING_RATES[shippingArea][sz.size === 'small' ? 0 : 1];
+        shippingAmount = dynShippingRates[shippingArea][sz.size === 'small' ? 0 : 1];
       }
     }
-    if (bulkItemCount > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
-      bulkShippingAmount = SHIPPING_RATES[shippingArea][1] * bulkItemCount;
+    if (bulkItemCount > 0 && shippingArea && dynShippingRates[shippingArea]) {
+      bulkShippingAmount = dynShippingRates[shippingArea][1] * bulkItemCount;
     }
   }
 
