@@ -935,6 +935,74 @@ function debugRestoreFromSaleLog() {
 }
 
 /**
+ * 商品管理シートの指定管理番号をまとめて売却済みにし、BO列に任意の値を設定する
+ */
+function debugBulkMarkSold() {
+  var targetIds = [
+    'zC2','zC11','zC13','zC14','zC85','zC84','zC75','zC67','zC64','zC57',
+    'zC55','zC54','zC47','zC38','zC7','zC12','zB444','zB440','zB433','zB427',
+    'zB425','zB422','zB420','zB418','zB417','zB409'
+  ];
+  var boValue = 'ファスト補填'; // BO列に入れる値
+
+  console.log('========== 商品管理一括売却済み ==========');
+  console.log('対象: ' + targetIds.length + '件');
+
+  var shiireSsId = getOmProp_('OM_SHIIRE_SS_ID', '');
+  if (!shiireSsId) { console.error('OM_SHIIRE_SS_ID 未設定'); return; }
+
+  var shiireSs = SpreadsheetApp.openById(shiireSsId);
+  var sheet = shiireSs.getSheetByName('商品管理');
+  if (!sheet) { console.error('商品管理シートが見つかりません'); return; }
+
+  var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  var header = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var colMap = {};
+  header.forEach(function(name, i) { if (name) colMap[String(name).trim()] = i + 1; });
+
+  var idCol = colMap['管理番号'];
+  var statusCol = colMap['ステータス'];
+  var boCol = 67; // BO列
+
+  if (!idCol || !statusCol) {
+    console.error('管理番号列またはステータス列が見つかりません');
+    return;
+  }
+
+  var data = sheet.getRange(2, idCol, lastRow - 1, 1).getDisplayValues();
+  var targetSet = {};
+  targetIds.forEach(function(id) { targetSet[id] = true; });
+
+  var statusA1s = [];
+  var boA1s = [];
+  var found = 0;
+
+  for (var i = 0; i < data.length; i++) {
+    var id = String(data[i][0]).trim();
+    if (targetSet[id]) {
+      var row = i + 2;
+      statusA1s.push(sheet.getRange(row, statusCol).getA1Notation());
+      boA1s.push(sheet.getRange(row, boCol).getA1Notation());
+      found++;
+      delete targetSet[id]; // 重複防止
+    }
+  }
+
+  var notFound = Object.keys(targetSet);
+  if (notFound.length > 0) {
+    console.log('⚠ 見つからなかった管理番号: ' + notFound.join(', '));
+  }
+
+  if (statusA1s.length > 0) {
+    sheet.getRangeList(statusA1s).setValue('売却済み');
+    sheet.getRangeList(boA1s).setValue(boValue);
+  }
+
+  console.log('✅ 完了: ' + found + '/' + targetIds.length + '件を売却済みに更新（BO列="' + boValue + '"）');
+}
+
+/**
  * 受付番号の注文メールを再送
  */
 function debugResendOrderEmail() {
