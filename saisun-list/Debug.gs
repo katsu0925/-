@@ -703,6 +703,182 @@ function debugRestoreOrder() {
 }
 
 /**
+ * 売却履歴にあるが依頼管理にない注文を復元する
+ * 売却履歴（仕入れ管理）+ D1ペンディングデータ + 顧客管理から情報を集めて依頼管理に行を作成
+ */
+function debugRestoreFromSaleLog() {
+  var receiptNo = '20260320201818-560'; // ← 復元対象の受付番号
+
+  console.log('========== 売却履歴から注文復元 ==========');
+  console.log('受付番号: ' + receiptNo);
+
+  // 1. 依頼管理の重複チェック
+  var orderSs = sh_getOrderSs_();
+  var reqSh = sh_ensureRequestSheet_(orderSs);
+  var lastRow = reqSh.getLastRow();
+  if (lastRow >= 2) {
+    var existingReceipts = reqSh.getRange(2, 1, lastRow - 1, 1).getDisplayValues();
+    for (var i = 0; i < existingReceipts.length; i++) {
+      if (String(existingReceipts[i][0]).trim() === receiptNo) {
+        console.log('⚠ 既に依頼管理に存在します（行' + (i + 2) + '）。復旧不要です。');
+        return;
+      }
+    }
+  }
+
+  // 2. 依頼管理_アーカイブも確認
+  var arcSh = orderSs.getSheetByName('依頼管理_アーカイブ');
+  if (arcSh) {
+    var arcLast = arcSh.getLastRow();
+    if (arcLast >= 2) {
+      var arcReceipts = arcSh.getRange(2, 1, arcLast - 1, 1).getDisplayValues();
+      for (var a = 0; a < arcReceipts.length; a++) {
+        if (String(arcReceipts[a][0]).trim() === receiptNo) {
+          console.log('⚠ 依頼管理_アーカイブに存在します（行' + (a + 2) + '）。アーカイブから復元してください。');
+          return;
+        }
+      }
+    }
+  }
+
+  // 3. D1からペンディングデータを取得（受付番号=paymentToken の旧フロー）
+  var pendingData = null;
+  try {
+    var d1Result = fetchPendingFromD1_(receiptNo);
+    if (d1Result && d1Result.found && d1Result.data) {
+      pendingData = JSON.parse(d1Result.data);
+      console.log('D1ペンディングデータ取得成功');
+    }
+  } catch (e) { console.log('D1ペンディングデータなし: ' + e.message); }
+
+  // 4. 売却履歴から管理番号リストを取得（仕入れ管理スプレッドシート）
+  var shiireSsId = APP_CONFIG.spreadsheetId; // 仕入れ管理のSSID
+  var managedIds = [];
+  var brands = [];
+  try {
+    var shiireSs = SpreadsheetApp.openById(shiireSsId);
+    var saleLogSh = shiireSs.getSheetByName('売却履歴');
+    if (saleLogSh) {
+      var slLast = saleLogSh.getLastRow();
+      if (slLast >= 2) {
+        var slData = saleLogSh.getRange(2, 1, slLast - 1, 5).getDisplayValues();
+        for (var s = 0; s < slData.length; s++) {
+          if (String(slData[s][2]).trim() === receiptNo) {
+            managedIds.push(String(slData[s][1]).trim());
+            brands.push(String(slData[s][3]).trim());
+          }
+        }
+      }
+    }
+    console.log('売却履歴から取得: ' + managedIds.length + '件 → ' + managedIds.join(', '));
+  } catch (e) { console.error('売却履歴取得エラー:', e); }
+
+  // 5. 復元データの組み立て
+  var email = '';
+  var companyName = '【要確認】';
+  var phone = '';
+  var postal = '';
+  var address = '';
+  var productAmount = 0;
+  var shippingAmount = 0;
+  var storeShipping = '';
+  var totalAmount = 0;
+  var paymentMethod = '';
+  var paymentId = '';
+  var paymentStatus = '入金待ち';
+  var channel = 'デタウリ';
+  var productNames = managedIds.length > 0 ? ('管理番号: ' + managedIds.join(', ')) : '【要確認】商品情報なし';
+  var orderDate = new Date(receiptNo.substring(0, 4) + '-' + receiptNo.substring(4, 6) + '-' + receiptNo.substring(6, 8)
+    + 'T' + receiptNo.substring(8, 10) + ':' + receiptNo.substring(10, 12) + ':' + receiptNo.substring(12, 14) + '+09:00');
+
+  if (pendingData) {
+    // D1データがあれば優先
+    email = (pendingData.form && pendingData.form.contact) || '';
+    companyName = (pendingData.form && pendingData.form.companyName) || '【要確認】';
+    phone = (pendingData.form && pendingData.form.phone) || '';
+    postal = (pendingData.form && pendingData.form.postal) || '';
+    address = (pendingData.form && pendingData.form.address) || '';
+    productAmount = pendingData.discounted || 0;
+    shippingAmount = pendingData.shippingAmount || 0;
+    storeShipping = pendingData.storeShipping || '';
+    totalAmount = pendingData.totalAmount || 0;
+    channel = pendingData.channel || 'デタウリ';
+    productNames = pendingData.productNames || productNames;
+    console.log('D1データで復元: ' + companyName + ' / ' + email + ' / ¥' + totalAmount);
+  }
+
+  // 6. 顧客管理シートから住所情報を補完
+  if (email) {
+    try {
+      var custSh = getCustomerSheet_();
+      if (custSh) {
+        var custLast = custSh.getLastRow();
+        if (custLast >= 2) {
+          var custData = custSh.getRange(2, 1, custLast - 1, 8).getValues();
+          for (var c = 0; c < custData.length; c++) {
+            if (String(custData[c][CUSTOMER_SHEET_COLS.EMAIL] || '').trim().toLowerCase() === email.toLowerCase()) {
+              if (!postal) postal = String(custData[c][CUSTOMER_SHEET_COLS.POSTAL] || '');
+              if (!address) address = String(custData[c][CUSTOMER_SHEET_COLS.ADDRESS] || '');
+              if (!phone) phone = String(custData[c][CUSTOMER_SHEET_COLS.PHONE] || '');
+              if (!companyName || companyName === '【要確認】') companyName = String(custData[c][CUSTOMER_SHEET_COLS.COMPANY] || companyName);
+              console.log('顧客情報補完: ' + companyName + ' / 〒' + postal);
+              break;
+            }
+          }
+        }
+      }
+    } catch (e) { console.error('顧客情報取得エラー:', e); }
+  }
+
+  // 7. 依頼管理シートに書き込み
+  var now = new Date();
+  var row = [
+    receiptNo,                    // A: 受付番号
+    orderDate,                    // B: 依頼日時
+    companyName,                  // C: 会社名/氏名
+    email,                        // D: 連絡先メール
+    postal,                       // E: 郵便番号
+    address,                      // F: 住所
+    phone,                        // G: 電話番号
+    productNames,                 // H: 商品名
+    '',                           // I: 確認リンク
+    managedIds.join('\n'),        // J: 選択リスト（管理番号）
+    managedIds.length || '',      // K: 合計点数
+    productAmount,                // L: 合計金額
+    storeShipping,                // M: 送料(店負担)
+    shippingAmount,               // N: 送料(客負担)
+    paymentMethod,                // O: 決済方法
+    paymentId,                    // P: 決済ID
+    paymentStatus,                // Q: 入金確認
+    '',                           // R: ポイント付与済
+    '',                           // S: 発送ステータス
+    '',                           // T: 配送業者
+    '',                           // U: 伝票番号
+    '依頼中',                     // V: ステータス
+    '',                           // W: 担当者
+    '未',                         // X: リスト同梱
+    '未',                         // Y: xlsx送付
+    '',                           // Z: インボイス発行
+    '',                           // AA: インボイス状況
+    false,                        // AB: 受注通知
+    '',                           // AC: 発送通知
+    '売却履歴から復元 ' + Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy-MM-dd HH:mm'), // AD: 備考
+    '',                           // AE: 作業報酬
+    now,                          // AF: 更新日時
+    channel                       // AG: チャネル
+  ];
+
+  reqSh.getRange(lastRow + 1, 1, 1, row.length).setValues([row]);
+  console.log('✅ 依頼管理シートに書き込み完了（行' + (lastRow + 1) + '）');
+  console.log('管理番号: ' + managedIds.join(', '));
+  console.log('ブランド: ' + brands.join(', '));
+  console.log('');
+  console.log('⚠ 次のステップ:');
+  console.log('  1. D1データがない場合、金額・決済情報をKOMOJUで確認して手動更新');
+  console.log('  2. 展開済みならV列を「依頼中」→適切なステータスに変更');
+}
+
+/**
  * 受付番号の注文メールを再送
  */
 function debugResendOrderEmail() {
