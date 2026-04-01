@@ -170,9 +170,13 @@ table.data th{background:#f0f0f0;font-weight:700;}
         <div class="title">棚卸し設定</div>
         <div class="note">棚卸処理で使用する各シート名。⚠ シート名を変更した場合はここも更新</div>
         <div class="form-row"><label>仕入れ管理シート</label><input type="text" id="sync-inv-purchase" value="仕入れ管理"></div>
+        <div class="note">仕入れ金額・点数の集計元シート</div>
         <div class="form-row"><label>棚卸明細シート</label><input type="text" id="sync-inv-stock" value="棚卸明細"></div>
+        <div class="note">月次棚卸しの理論/実地在庫を記録するシート</div>
         <div class="form-row"><label>商品管理シート</label><input type="text" id="sync-inv-product" value="商品管理"></div>
+        <div class="note">販売日・売上額等の参照元。棚卸し集計で使用</div>
         <div class="form-row"><label>棚卸ログシート</label><input type="text" id="sync-inv-log" value="棚卸ログ"></div>
+        <div class="note">棚卸し処理の実行ログを記録するシート</div>
         <div class="form-row"><label>BUSYタイムアウト(秒)</label><input type="number" id="sync-inv-timeout" value="300" style="width:70px"></div>
         <div class="note">棚卸処理の排他制御タイムアウト（秒）。デフォルト300秒=5分</div>
       </div>
@@ -240,6 +244,7 @@ table.data th{background:#f0f0f0;font-weight:700;}
         <div class="form-row"><label>シートGID</label><input type="number" id="xlsx-gid" style="width:120px"></div>
         <div class="note">配布用リストシートのGID（URLの#gid=に続く数値）</div>
         <div class="form-row"><label>配布用リストシート名</label><input type="text" id="xlsx-sheet" value="配布用リスト"></div>
+        <div class="note">xlsx生成時に参照するシート名</div>
         <div class="form-row"><label>名前セル</label><input type="text" id="xlsx-name-cell" value="E1" style="width:60px"></div>
         <div class="note">配布用リストシートの顧客名が入るセル</div>
         <div class="form-row"><label>受付番号セル</label><input type="text" id="xlsx-receipt-cell" value="B1" style="width:60px"></div>
@@ -249,6 +254,7 @@ table.data th{background:#f0f0f0;font-weight:700;}
         <div class="form-row"><label>依頼管理SS ID</label><input type="text" id="xlsx-request"></div>
         <div class="note">注文データ（確認リンク更新先）のスプレッドシートID</div>
         <div class="form-row"><label>依頼管理シート名</label><input type="text" id="xlsx-request-sheet" value="依頼管理"></div>
+        <div class="note">確認リンクの更新先シート名</div>
         <div class="btnRow"><button class="primary" onclick="saveXlsxSettings()">xlsx設定を保存</button></div>
         <div class="log" id="xlsx-log"></div>
       </div>

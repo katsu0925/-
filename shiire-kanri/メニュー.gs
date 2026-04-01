@@ -15,12 +15,6 @@ var ANALYSIS_HEADER_ROW = 15;
 
 function onOpen() {
   var ui = SpreadsheetApp.getUi();
-
-  var invMenu = ui.createMenu('棚卸')
-    .addItem('今月を開始', 'startNewMonth')
-    .addItem('今月に新規IDを同期', 'syncCurrentMonthIds')
-    .addItem('最新月の理論を前月実地で再計算', 'recalcCurrentTheoryFromPrev');
-
   ui.createMenu('管理メニュー')
     .addItem('★ 管理パネルを開く', 'showAdminPanel')
     .addToUi();
