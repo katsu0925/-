@@ -99,7 +99,75 @@
 
     <!-- タブ2: 割引管理 -->
     <div class="tab-content" id="tab-discount">
-      <div class="card"><div class="title">割引管理</div><p class="note">実装中...</p></div>
+      <div class="card">
+        <div class="title">適用順序</div>
+        <div class="note" style="background:#f0f4ff;padding:8px;border-radius:6px;line-height:1.8;font-size:11px;">
+          <b>FHP(排他)</b> → 数量割引(デタウリのみ) → 会員割引(両チャネル) → クーポン控除 → ポイント利用 → 送料計算<br>
+          送料: ダイヤモンド無料 → クーポン無料 → ¥10,000以上無料 → テーブル計算
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="title">初回全品半額（FHP） <span class="badge" id="fhp-badge">-</span></div>
+        <div class="note">FHP有効時は他の全割引が無効。ログイン＋購入回数0回のみ適用。</div>
+        <div class="form-row"><label>割引率</label><input type="number" id="fhp-rate" step="0.01" min="0" max="1" style="width:80px"> <span class="note" style="margin-left:4px;">例: 0.50 = 50%OFF</span></div>
+        <div class="form-row"><label>期限</label><input type="date" id="fhp-end"></div>
+        <div class="btnRow">
+          <button class="primary" onclick="toggleCampaign('firstHalfPrice')">ON/OFF切替</button>
+          <button onclick="saveCampaign('firstHalfPrice',{rate:+$('fhp-rate').value,endDate:$('fhp-end').value})">率・期限を保存</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="title">数量割引 <span class="badge info">デタウリ個品のみ</span></div>
+        <div id="qty-discount-table"></div>
+        <div class="btnRow">
+          <button onclick="addQtyRow()">行を追加</button>
+          <button class="primary" onclick="saveQtyDiscounts()">保存</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="title">会員割引 <span class="badge" id="md-badge">-</span></div>
+        <div class="note">ログイン必須。デタウリ+アソート両方に適用。クーポンのcomboMemberフラグで併用制御。</div>
+        <div class="form-row"><label>割引率</label><input type="number" id="md-rate" step="0.01" min="0" max="1" style="width:80px"></div>
+        <div class="form-row"><label>期限</label><input type="date" id="md-end"></div>
+        <div class="btnRow">
+          <button class="primary" onclick="toggleCampaign('memberDiscount')">ON/OFF切替</button>
+          <button onclick="saveCampaign('memberDiscount',{rate:+$('md-rate').value,endDate:$('md-end').value})">率・期限を保存</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="title">SNSシェアキャンペーン <span class="badge" id="sns-badge">-</span></div>
+        <div class="note">承認時に自動でクーポン生成: ¥1,000固定/90日有効/1人1回/他割引と非併用</div>
+        <div class="form-row"><label>期限</label><input type="date" id="sns-end"></div>
+        <div class="btnRow">
+          <button class="primary" onclick="toggleCampaign('snsShare')">ON/OFF切替</button>
+          <button onclick="saveCampaign('snsShare',{endDate:$('sns-end').value})">期限を保存</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="title">送料無料閾値・紹介プログラム</div>
+        <div class="form-row"><label>送料無料閾値(円)</label><input type="number" id="biz-freeship" style="width:100px" placeholder="10000"></div>
+        <div class="form-row"><label>紹介者ポイント</label><input type="number" id="biz-ref-referrer" style="width:100px" placeholder="500"></div>
+        <div class="form-row"><label>被紹介者ポイント</label><input type="number" id="biz-ref-referee" style="width:100px" placeholder="300"></div>
+        <div class="btnRow"><button class="primary" onclick="saveBizDiscountSettings()">保存</button></div>
+      </div>
+
+      <div class="card">
+        <div class="title">ランクテーブル <span class="badge info">表示のみ</span></div>
+        <table class="data">
+          <tr><th>ランク</th><th>累計閾値</th><th>ポイント率</th><th>送料無料</th></tr>
+          <tr><td>ダイヤモンド</td><td>¥500,000</td><td>5%</td><td>あり</td></tr>
+          <tr><td>ゴールド</td><td>¥200,000</td><td>5%</td><td>なし</td></tr>
+          <tr><td>シルバー</td><td>¥50,000</td><td>3%</td><td>なし</td></tr>
+          <tr><td>レギュラー</td><td>¥0</td><td>1%</td><td>なし</td></tr>
+        </table>
+      </div>
+
+      <div class="log" id="discount-log"></div>
     </div>
 
     <!-- タブ3: メール管理 -->
@@ -280,6 +348,7 @@ document.querySelectorAll('.tab-btn').forEach(function(btn){
     var tab = $('tab-' + btn.dataset.tab);
     if(tab) tab.classList.add('active');
     // 遅延初期化
+    if(btn.dataset.tab === 'discount' && !discountLoaded) loadDiscountStatus();
     if(btn.dataset.tab === 'props' && !propsLoaded) loadProperties();
     if(btn.dataset.tab === 'triggers' && !triggersLoaded) loadTriggers();
   });
@@ -333,6 +402,103 @@ async function runTool(fn, label){
     appendLog('tools-log', '失敗: ' + e.message);
     showToast('エラー: ' + e.message);
   }
+}
+
+// ========== タブ2: 割引管理 ==========
+var discountLoaded = false;
+
+async function loadDiscountStatus(){
+  try {
+    var res = await run('adminPanel_getCampaignStatus');
+    if(!res.ok) return;
+    var fhp = res.firstHalfPrice || {};
+    var md = res.memberDiscount || {};
+    var sns = res.snsShare || {};
+    setBadge('fhp-badge', fhp.enabled);
+    setBadge('md-badge', md.enabled);
+    setBadge('sns-badge', sns.enabled);
+    $('fhp-rate').value = fhp.rate || 0.50;
+    $('fhp-end').value = fhp.endDate || '';
+    $('md-rate').value = md.rate || 0.10;
+    $('md-end').value = md.endDate || '';
+    $('sns-end').value = sns.endDate || '';
+    discountLoaded = true;
+  } catch(e){ appendLog('discount-log','読み込みエラー: '+e.message); }
+  // 数量割引も読み込み
+  try {
+    var qRes = await run('adminPanel_getQtyDiscounts');
+    if(qRes.ok) renderQtyTable(qRes.discounts);
+  } catch(e){}
+  // ビジネス設定
+  try {
+    var bRes = await run('adminPanel_getBizDiscountSettings');
+    if(bRes.ok){
+      $('biz-freeship').value = bRes.freeShipThreshold || 10000;
+      $('biz-ref-referrer').value = bRes.referralReferrer || 500;
+      $('biz-ref-referee').value = bRes.referralReferee || 300;
+    }
+  } catch(e){}
+}
+
+function setBadge(id, on){
+  var el = $(id); if(!el) return;
+  el.textContent = on ? 'ON' : 'OFF';
+  el.className = 'badge ' + (on ? 'on' : 'off');
+}
+
+async function toggleCampaign(type){
+  clearLog('discount-log');
+  try {
+    var res = await run('adminPanel_toggleCampaign', type);
+    if(res.ok){ showToast('切替完了'); loadDiscountStatus(); }
+    else appendLog('discount-log','失敗: '+res.message);
+  } catch(e){ appendLog('discount-log','エラー: '+e.message); }
+}
+
+async function saveCampaign(type, settings){
+  clearLog('discount-log');
+  try {
+    var res = await run('adminPanel_updateCampaign', type, settings);
+    if(res.ok){ showToast('保存完了'); loadDiscountStatus(); }
+    else appendLog('discount-log','失敗: '+(res.message||''));
+  } catch(e){ appendLog('discount-log','エラー: '+e.message); }
+}
+
+// 数量割引テーブル
+var qtyRows = [];
+function renderQtyTable(discounts){
+  qtyRows = discounts || [{threshold:100,rate:0.20},{threshold:50,rate:0.15},{threshold:30,rate:0.10},{threshold:10,rate:0.05}];
+  var html = '<table class="data"><tr><th>点数(以上)</th><th>割引率</th><th></th></tr>';
+  qtyRows.forEach(function(r,i){
+    html += '<tr><td><input type="number" value="'+r.threshold+'" onchange="qtyRows['+i+'].threshold=+this.value" style="width:60px"></td>'+
+      '<td><input type="number" value="'+r.rate+'" step="0.01" onchange="qtyRows['+i+'].rate=+this.value" style="width:60px"> <span class="note">'+(r.rate*100)+'%</span></td>'+
+      '<td><button class="sm danger" onclick="qtyRows.splice('+i+',1);renderQtyTable(qtyRows)">削除</button></td></tr>';
+  });
+  html += '</table>';
+  $('qty-discount-table').innerHTML = html;
+}
+function addQtyRow(){ qtyRows.push({threshold:0,rate:0}); renderQtyTable(qtyRows); }
+async function saveQtyDiscounts(){
+  clearLog('discount-log');
+  var sorted = qtyRows.filter(function(r){return r.threshold>0&&r.rate>0;}).sort(function(a,b){return b.threshold-a.threshold;});
+  try {
+    var res = await run('adminPanel_setQtyDiscounts', sorted);
+    if(res.ok){ showToast('数量割引を保存しました'); appendLog('discount-log','保存完了: '+JSON.stringify(sorted)); }
+    else appendLog('discount-log','失敗: '+res.message);
+  } catch(e){ appendLog('discount-log','エラー: '+e.message); }
+}
+
+async function saveBizDiscountSettings(){
+  clearLog('discount-log');
+  try {
+    var res = await run('adminPanel_setBizDiscountSettings', {
+      freeShipThreshold: +$('biz-freeship').value || 10000,
+      referralReferrer: +$('biz-ref-referrer').value || 500,
+      referralReferee: +$('biz-ref-referee').value || 300
+    });
+    if(res.ok) showToast('保存完了');
+    else appendLog('discount-log','失敗: '+res.message);
+  } catch(e){ appendLog('discount-log','エラー: '+e.message); }
 }
 
 // ========== タブ5: スクリプトプロパティ ==========

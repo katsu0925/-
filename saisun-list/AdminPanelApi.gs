@@ -224,6 +224,72 @@ function adminPanel_updateCampaign(type, settings) {
 }
 
 // =====================================================
+// キャンペーンON/OFFトグル
+// =====================================================
+
+function adminPanel_toggleCampaign(type) {
+  var props = PropertiesService.getScriptProperties();
+  if (type === 'memberDiscount') {
+    var cur = props.getProperty('MEMBER_DISCOUNT_ENABLED');
+    props.setProperty('MEMBER_DISCOUNT_ENABLED', cur === 'false' ? 'true' : 'false');
+  } else if (type === 'firstHalfPrice') {
+    var cur2 = props.getProperty('FIRST_HALF_PRICE_ENABLED');
+    props.setProperty('FIRST_HALF_PRICE_ENABLED', cur2 === 'false' ? 'true' : 'false');
+  } else if (type === 'snsShare') {
+    var cur3 = props.getProperty('SNS_SHARE_CAMPAIGN_ENABLED');
+    props.setProperty('SNS_SHARE_CAMPAIGN_ENABLED', cur3 === 'false' ? 'true' : 'false');
+  }
+  return { ok: true };
+}
+
+// =====================================================
+// 数量割引テーブル（ScriptProperties外出し）
+// =====================================================
+
+var QTY_DISCOUNT_DEFAULTS_ = [
+  { threshold: 100, rate: 0.20 },
+  { threshold: 50, rate: 0.15 },
+  { threshold: 30, rate: 0.10 },
+  { threshold: 10, rate: 0.05 }
+];
+
+function adminPanel_getQtyDiscounts() {
+  var raw = PropertiesService.getScriptProperties().getProperty('CONFIG_QTY_DISCOUNTS');
+  if (raw) {
+    try { return { ok: true, discounts: JSON.parse(raw) }; } catch (e) {}
+  }
+  return { ok: true, discounts: QTY_DISCOUNT_DEFAULTS_ };
+}
+
+function adminPanel_setQtyDiscounts(discounts) {
+  if (!Array.isArray(discounts)) return { ok: false, message: '無効なデータ' };
+  PropertiesService.getScriptProperties().setProperty('CONFIG_QTY_DISCOUNTS', JSON.stringify(discounts));
+  return { ok: true, message: '数量割引テーブルを保存しました' };
+}
+
+// =====================================================
+// ビジネス割引設定（送料無料閾値・紹介ポイント）
+// =====================================================
+
+function adminPanel_getBizDiscountSettings() {
+  var props = PropertiesService.getScriptProperties();
+  return {
+    ok: true,
+    freeShipThreshold: Number(props.getProperty('CONFIG_FREE_SHIP_THRESHOLD') || 10000),
+    referralReferrer: Number(props.getProperty('CONFIG_REFERRAL_REFERRER') || 500),
+    referralReferee: Number(props.getProperty('CONFIG_REFERRAL_REFEREE') || 300)
+  };
+}
+
+function adminPanel_setBizDiscountSettings(settings) {
+  var props = PropertiesService.getScriptProperties();
+  if (settings.freeShipThreshold !== undefined) props.setProperty('CONFIG_FREE_SHIP_THRESHOLD', String(settings.freeShipThreshold));
+  if (settings.referralReferrer !== undefined) props.setProperty('CONFIG_REFERRAL_REFERRER', String(settings.referralReferrer));
+  if (settings.referralReferee !== undefined) props.setProperty('CONFIG_REFERRAL_REFEREE', String(settings.referralReferee));
+  return { ok: true, message: '設定を保存しました' };
+}
+
+// =====================================================
 // KOMOJU決済モード
 // =====================================================
 
