@@ -129,16 +129,7 @@ table.data th{background:#f0f0f0;font-weight:700;}
           <button onclick="checkAiStatus()">AI判定ステータス確認</button>
         </div>
         <div class="log" id="ai-status-log"></div>
-        <div class="subtitle">AIキーワード抽出（OpenAI）</div>
-        <div class="note">既存データ用。新規データはGemini判定で自動入力されるため、このセクションは既存データのリトライ等に使用</div>
-        <div class="form-row"><label>モデル</label><input type="text" id="biz-ai-model" placeholder="gpt-5-mini"></div>
-        <div class="note">AIキーワード抽出で使用するOpenAIモデル名</div>
-        <div class="form-row"><label>日次API上限</label><input type="number" id="biz-ai-limit" style="width:60px"></div>
-        <div class="note">1日あたりのOpenAI API呼び出し上限。超過すると翌日まで停止</div>
-        <div class="form-row"><label>最大キーワード数</label><input type="number" id="biz-ai-max" style="width:60px"></div>
-        <div class="note">1商品から抽出するキーワードの最大数</div>
-        <div class="form-row"><label>最小キーワード数</label><input type="number" id="biz-ai-min" style="width:60px"></div>
-        <div class="note">1商品から抽出するキーワードの最小数</div>
+        <div class="note" style="margin-top:8px;color:#888">※ AIキーワード抽出シート（OpenAI/既存データ用）は残していますが、新規はGemini判定で自動入力されます</div>
       </div>
       <div class="card">
         <div class="title">その他</div>
@@ -454,8 +445,6 @@ async function loadBizSettings(){
     $('biz-konbini').value=s.konbiniRate||0.0275;$('biz-bank').value=s.bankRate||0.014;
     $('biz-payeasy').value=s.payeasyRate||0.0275;$('biz-paidy').value=s.paidyRate||0.035;
     $('biz-jimoti').value=s.jimotiRate||0.10;
-    $('biz-ai-model').value=s.aiModel||'gpt-5-mini';$('biz-ai-limit').value=s.aiDailyLimit||200;
-    $('biz-ai-max').value=s.aiMaxKeywords||8;$('biz-ai-min').value=s.aiMinKeywords||3;
     $('biz-reward-year').value=s.rewardStartYear||2025;$('biz-reward-month').value=s.rewardStartMonth||6;
     $('biz-report-fee').value=s.monthlyReportFeeRate||0.016;
     bizLoaded=true;
@@ -467,8 +456,6 @@ async function saveBizSettings(){
     creditRate:+$('biz-credit').value,paypayRate:+$('biz-paypay').value,
     konbiniRate:+$('biz-konbini').value,bankRate:+$('biz-bank').value,
     payeasyRate:+$('biz-payeasy').value,paidyRate:+$('biz-paidy').value,jimotiRate:+$('biz-jimoti').value,
-    aiModel:$('biz-ai-model').value,aiDailyLimit:+$('biz-ai-limit').value,
-    aiMaxKeywords:+$('biz-ai-max').value,aiMinKeywords:+$('biz-ai-min').value,
     rewardStartYear:+$('biz-reward-year').value,rewardStartMonth:+$('biz-reward-month').value,
     monthlyReportFeeRate:+$('biz-report-fee').value
   });showToast(res.ok?'保存完了':'失敗');}catch(e){showToast('エラー');}
