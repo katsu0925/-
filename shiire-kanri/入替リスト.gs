@@ -335,7 +335,7 @@ function setSwapEmails() {
 
 function setupSwapListTrigger() {
   replaceTrigger_('generateSwapLists', function(tb) {
-    tb.timeBased().onMonthDay(28).atHour(9).create();
+    tb.timeBased().onMonthDay(1).atHour(9).create();
   });
-  SpreadsheetApp.getActiveSpreadsheet().toast('入替リストトリガーを設定しました（毎月28日 9時）', '完了', 5);
+  SpreadsheetApp.getActiveSpreadsheet().toast('入替リストトリガーを設定しました（毎月1日 9時）', '完了', 5);
 }
