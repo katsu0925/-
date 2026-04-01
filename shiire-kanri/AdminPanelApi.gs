@@ -156,10 +156,10 @@ function adminPanel_checkAiStatus() {
         }
       }
       msg += '\n【コスト概算（Gemini 2.5 Flash Lite）】\n';
-      msg += '■ 単価: 約¥0.03/件（入力$0.075/出力$0.30 per 1Mトークン）\n';
-      msg += '■ 累計: ' + aiCount + '件 × ¥0.03 ≒ ¥' + Math.ceil(aiCount * 0.03) + '\n';
-      msg += '■ 当月: ' + thisMonth + '件 × ¥0.03 ≒ ¥' + Math.ceil(thisMonth * 0.03) + '\n';
-      msg += '■ 月1,000件でも約¥30\n';
+      msg += '■ 単価: 約¥0.3/件（全画像送信、入力$0.075/出力$0.30 per 1Mトークン）\n';
+      msg += '■ 累計: ' + aiCount + '件 × ¥0.3 ≒ ¥' + Math.ceil(aiCount * 0.3) + '\n';
+      msg += '■ 当月: ' + thisMonth + '件 × ¥0.3 ≒ ¥' + Math.ceil(thisMonth * 0.3) + '\n';
+      msg += '■ 月1,000件で約¥300\n';
     }
 
     return { ok: true, message: msg };

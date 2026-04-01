@@ -926,6 +926,67 @@ async function prewarmCaches(env) {
   }
 }
 
+// ─── バッチAI判定（全画像を順次処理） ───
+
+export async function batchAiJudgment(env, limit) {
+  const geminiKey = env.GEMINI_API_KEY || '';
+  if (!geminiKey) return { error: 'GEMINI_API_KEY not set' };
+
+  // product-images:index から全managedIdを取得
+  const indexJson = await env.CACHE.get('product-images:index');
+  if (!indexJson) return { error: 'No product-images:index', processed: 0 };
+  const allIds = JSON.parse(indexJson);
+
+  // ai-result が未処理のものをフィルタ
+  const pending = [];
+  for (const mid of allIds) {
+    const existing = await env.CACHE.get(`ai-result:${mid}`);
+    if (!existing) pending.push(mid);
+  }
+
+  if (pending.length === 0) {
+    return { message: '全件処理済み', total: allIds.length, remaining: 0, processed: 0 };
+  }
+
+  // limit件ずつ処理
+  const batch = pending.slice(0, limit);
+  const results = [];
+  const errors = [];
+
+  for (const mid of batch) {
+    try {
+      const aiResult = await runGeminiJudgment(env, mid, geminiKey);
+      if (aiResult) {
+        await env.CACHE.put(`ai-result:${mid}`, JSON.stringify(aiResult), { expirationTtl: 30 * 24 * 3600 });
+        results.push({ managedId: mid, category2: aiResult.category2, brand: aiResult.brand });
+
+        // GASにも送信（AI画像判定シート + AIキーワード抽出シートに書込み）
+        const gasUrl = env.GAS_API_URL;
+        if (gasUrl) {
+          const body = JSON.stringify({
+            action: 'apiSyncImportData',
+            args: [{ syncSecret: env.SYNC_SECRET || '', aiData: [{ managedId: mid, ...aiResult }] }],
+          });
+          await fetch(gasUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body, redirect: 'follow' });
+        }
+      } else {
+        errors.push({ managedId: mid, error: 'Gemini returned null' });
+      }
+    } catch (e) {
+      errors.push({ managedId: mid, error: e.message });
+    }
+  }
+
+  return {
+    total: allIds.length,
+    remaining: pending.length - batch.length,
+    processed: results.length,
+    errors: errors.length,
+    results,
+    errorDetails: errors.length > 0 ? errors : undefined,
+  };
+}
+
 // ─── Gemini AI判定 ───
 
 const GEMINI_MODEL = 'gemini-2.5-flash-lite';
@@ -984,32 +1045,36 @@ async function runGeminiJudgment(env, managedId, apiKey) {
   const urls = JSON.parse(urlsJson);
   if (!urls || urls.length === 0) return null;
 
-  // 1枚目の画像をR2から取得
-  const firstUrl = urls[0];
-  const r2Key = firstUrl.replace(/^\/images\//, '').split('?')[0];
-  const r2Obj = await env.IMAGES.get(r2Key);
-  if (!r2Obj) {
-    console.log(`[ai] R2 object not found for ${managedId}: ${r2Key}`);
+  // 全画像をR2から取得してBase64変換
+  const imageParts = [];
+  for (const imgUrl of urls) {
+    const r2Key = imgUrl.replace(/^\/images\//, '').split('?')[0];
+    const r2Obj = await env.IMAGES.get(r2Key);
+    if (!r2Obj) continue;
+
+    const arrayBuffer = await r2Obj.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+    let binary = '';
+    const chunkSize = 8192;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+    }
+    const base64 = btoa(binary);
+    const mimeType = r2Obj.httpMetadata?.contentType || 'image/jpeg';
+    imageParts.push({ inline_data: { mime_type: mimeType, data: base64 } });
+  }
+
+  if (imageParts.length === 0) {
+    console.log(`[ai] No images found in R2 for ${managedId}`);
     return null;
   }
 
-  const arrayBuffer = await r2Obj.arrayBuffer();
-  // 大きな画像でもスタックオーバーフローしないBase64変換
-  const bytes = new Uint8Array(arrayBuffer);
-  let binary = '';
-  const chunkSize = 8192;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
-  }
-  const base64 = btoa(binary);
-  const mimeType = r2Obj.httpMetadata?.contentType || 'image/jpeg';
-
-  // Gemini API呼び出し
+  // Gemini API呼び出し（全画像を送信）
   const payload = {
     contents: [{
       parts: [
-        { text: AI_PRODUCT_PROMPT },
-        { inline_data: { mime_type: mimeType, data: base64 } },
+        { text: AI_PRODUCT_PROMPT + `\n\n※ ${imageParts.length}枚の画像すべてを確認して判定してください。タグ写真があればブランド・サイズ情報を優先的に読み取ってください。` },
+        ...imageParts,
       ],
     }],
     generationConfig: {

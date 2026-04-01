@@ -21,7 +21,7 @@ import * as holds from './handlers/holds.js';
 import * as coupon from './handlers/coupon.js';
 import * as mypage from './handlers/mypage.js';
 import * as submit from './handlers/submit.js';
-import { scheduledSync } from './sync/sheets-sync.js';
+import { scheduledSync, batchAiJudgment } from './sync/sheets-sync.js';
 import { handleUpload, serveImage } from './handlers/upload.js';
 import { getUploadPageHtml } from './pages/upload.html.js';
 import * as kitHandler from './handlers/kit.js';
@@ -168,6 +168,19 @@ self.addEventListener('fetch', e => {
     // R2画像配信: GET /images/* → R2 → Cache-Control 1年
     if (request.method === 'GET' && url.pathname.startsWith('/images/')) {
       return await serveImage(request, env, url.pathname);
+    }
+
+    // バッチAI判定: GET /batch-ai?key=SECRET&limit=5
+    if (request.method === 'GET' && url.pathname === '/batch-ai') {
+      const key = url.searchParams.get('key');
+      if (key !== env.SYNC_SECRET) return new Response('Unauthorized', { status: 401 });
+      const limit = parseInt(url.searchParams.get('limit') || '5');
+      try {
+        const result = await batchAiJudgment(env, limit);
+        return new Response(JSON.stringify(result, null, 2), { headers: { 'Content-Type': 'application/json' } });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: e.message }), { headers: { 'Content-Type': 'application/json' } });
+      }
     }
 
     // POST /upload/* → アップロードAPIハンドラー（multipart/JSON）
