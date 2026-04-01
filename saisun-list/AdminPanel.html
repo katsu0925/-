@@ -77,15 +77,24 @@
     <!-- タブ1: 管理ツール -->
     <div class="tab-content active" id="tab-tools">
       <div class="card">
-        <div class="title">管理ツール</div>
+        <div class="title">システム管理</div>
         <div class="btnRow">
           <button class="primary" onclick="runTool('adminPanel_compactHolds','期限切れ確保の整理')">期限切れ確保の整理</button>
           <button onclick="runTool('adminPanel_rebuildStates','状態の再構築')">状態の再構築</button>
           <button onclick="runTool('adminPanel_clearCache','商品キャッシュ削除')">商品キャッシュ削除</button>
           <button onclick="runTool('adminPanel_applyDropdown','プルダウン適用')">プルダウン適用</button>
         </div>
-        <div class="log" id="tools-log"></div>
       </div>
+      <div class="card">
+        <div class="title">業務操作</div>
+        <div class="btnRow">
+          <button onclick="runTool('adminPanel_processPoints','顧客ポイント付与')">顧客ポイント付与（完了済み注文）</button>
+          <button onclick="runTool('adminPanel_processInvoices','領収書送付')">領収書送付</button>
+          <button onclick="runTool('adminPanel_cancelInvoices','領収書取消')">領収書取消</button>
+        </div>
+        <div class="note">依頼展開・欠品処理・商品自動選定はスプレッドシートの管理メニューから実行してください（対話入力が必要なため）</div>
+      </div>
+      <div class="log" id="tools-log"></div>
     </div>
 
     <!-- タブ2: 割引管理 -->

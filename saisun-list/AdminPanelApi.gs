@@ -140,6 +140,25 @@ function adminPanel_applyDropdown() {
 }
 
 // =====================================================
+// 業務操作
+// =====================================================
+
+function adminPanel_processPoints() {
+  try { processCustomerPointsAuto_(); return { ok: true, message: '顧客ポイントを付与しました' }; }
+  catch (e) { return { ok: false, message: String(e.message || e) }; }
+}
+
+function adminPanel_processInvoices() {
+  try { processInvoiceReceipts(); return { ok: true, message: '領収書を送付しました' }; }
+  catch (e) { return { ok: false, message: String(e.message || e) }; }
+}
+
+function adminPanel_cancelInvoices() {
+  try { processCancelledInvoices(); return { ok: true, message: '領収書取消を処理しました' }; }
+  catch (e) { return { ok: false, message: String(e.message || e) }; }
+}
+
+// =====================================================
 // トリガー管理
 // =====================================================
 
