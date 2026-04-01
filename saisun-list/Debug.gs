@@ -770,6 +770,18 @@ function debugRestoreFromSaleLog() {
         }
       }
     }
+    // 重複排除
+    var seen = {};
+    var uniqueIds = [], uniqueBrands = [];
+    for (var u = 0; u < managedIds.length; u++) {
+      if (!seen[managedIds[u]]) {
+        seen[managedIds[u]] = true;
+        uniqueIds.push(managedIds[u]);
+        uniqueBrands.push(brands[u]);
+      }
+    }
+    managedIds = uniqueIds;
+    brands = uniqueBrands;
     console.log('売却履歴から取得: ' + managedIds.length + '件 → ' + managedIds.join(', '));
   } catch (e) { console.error('売却履歴取得エラー:', e); }
 
