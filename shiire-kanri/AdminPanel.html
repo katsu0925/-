@@ -124,6 +124,7 @@ table.data th{background:#f0f0f0;font-weight:700;}
       <div class="card">
         <div class="title">AI画像判定（Gemini）</div>
         <div class="note">タスキ箱に画像アップ → 5分Cron → Gemini 2.5 Flash Lite で商品情報を自動判定 → AI画像判定シートに書込み → AppSheetのInitial Value(LOOKUP)で新規レコード作成時にプリフィル</div>
+        <div class="note" style="margin-top:6px">■ Gemini APIキーの設定場所: <b>Cloudflare Workers (gas-proxy) の Secret</b><br>確認: <code>wrangler secret list --name detauri-gas-proxy</code><br>変更: <code>bash workers/gas-proxy/set-gemini-key.sh</code></div>
         <div class="btnRow">
           <button onclick="runTool('adminPanel_checkAiStatus','AI判定ステータス')">AI判定ステータス確認</button>
         </div>
