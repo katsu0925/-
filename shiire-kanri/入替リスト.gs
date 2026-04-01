@@ -111,13 +111,10 @@ function buildSwapList_(data, hMap, accountName, prevMonthStart, prevMonthEnd, e
 
     var status = normalizeText_(data[r][colStatus]);
 
-    // 売却済み かつ 販売日が前月 → 販売数カウント
-    if (status === soldNorm) {
-      var saleDate = parseSwapDate_(data[r][colSaleDate]);
-      if (saleDate && saleDate >= prevMonthStart && saleDate <= prevMonthEnd) {
-        prevMonthSalesCount++;
-      }
-      continue;
+    // 販売日が前月 → 販売数カウント（ステータス問わず）
+    var saleDate = parseSwapDate_(data[r][colSaleDate]);
+    if (saleDate && saleDate >= prevMonthStart && saleDate <= prevMonthEnd) {
+      prevMonthSalesCount++;
     }
 
     // 出品中 → 返送候補プールに追加
