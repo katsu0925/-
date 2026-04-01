@@ -51,6 +51,7 @@ table.data th{background:#f0f0f0;font-weight:700;}
     <div class="tab-content active" id="tab-tools">
       <div class="card">
         <div class="title">棚卸し</div>
+        <div class="note">今月を開始=新しい月の棚卸明細を作成、ID同期=商品管理の新規IDを棚卸明細に追加、理論再計算=前月の実地在庫をもとに今月の理論値を再計算</div>
         <div class="btnRow">
           <button class="primary" onclick="runTool('adminPanel_startNewMonth','今月を開始')">今月を開始</button>
           <button onclick="runTool('adminPanel_syncCurrentMonthIds','新規ID同期')">新規IDを同期</button>
@@ -59,6 +60,7 @@ table.data th{background:#f0f0f0;font-weight:700;}
       </div>
       <div class="card">
         <div class="title">データ処理</div>
+        <div class="note">月次在庫推移=仕入れ・販売・在庫の月次推移を集計・更新 / EC管理同期=依頼管理＋BASE注文→EC管理シートに手数料計算付きで反映 / 仕入れ数マージ=仕入れ数報告シート→仕入れ管理シートにマージ / 返送ステータス更新=返送管理シートの管理番号→商品管理のステータスを返品済みに更新 / 移動報告処理=移動報告シートの未処理行→商品管理の納品場所を更新</div>
         <div class="btnRow">
           <button onclick="runTool('adminPanel_updateInventoryTrend','月次在庫推移更新')">月次在庫推移を更新</button>
           <button onclick="runTool('adminPanel_ecSync','EC管理同期')">EC管理手動同期</button>
@@ -69,6 +71,7 @@ table.data th{background:#f0f0f0;font-weight:700;}
       </div>
       <div class="card">
         <div class="title">レポート・診断</div>
+        <div class="note">月次レポート=当月の売上・仕入れ・在庫の集計レポートを生成 / 欠番確認=商品管理の管理番号の欠番（1〜2個だけの抜け）を検出 / 入替リスト手動生成=前月販売数と同数の古い在庫をリスト化しPDFメール送信 / 列診断=商品管理シートのヘッダー列が想定通りか検証 / 分析レポートリンク=分析アドバイスシートにリンクを追加 / 不要トリガー削除=使われなくなったトリガーを一括削除</div>
         <div class="btnRow">
           <button onclick="runTool('adminPanel_generateReport','月次レポート生成')">月次レポート生成</button>
           <button onclick="runTool('adminPanel_checkMissingIds','欠番確認')">欠番確認</button>
@@ -100,27 +103,43 @@ table.data th{background:#f0f0f0;font-weight:700;}
       <div class="card">
         <div class="title">EC手数料率</div>
         <div class="form-row"><label>BASE手数料率</label><input type="number" id="biz-base-rate" step="0.001" style="width:80px"> <span class="note">例: 0.066=6.6%</span></div>
+        <div class="note">BASE経由の販売に対するプラットフォーム手数料。0.066=6.6%</div>
         <div class="form-row"><label>BASE固定手数料(円)</label><input type="number" id="biz-base-fix" style="width:60px"></div>
+        <div class="note">1注文あたりの固定手数料（円）</div>
         <div class="form-row"><label>クレジットカード</label><input type="number" id="biz-credit" step="0.001" style="width:80px"></div>
+        <div class="note">デタウリ決済のクレカ手数料率。0.0325=3.25%</div>
         <div class="form-row"><label>PayPay</label><input type="number" id="biz-paypay" step="0.001" style="width:80px"></div>
+        <div class="note">PayPay決済の手数料率</div>
         <div class="form-row"><label>コンビニ払い</label><input type="number" id="biz-konbini" step="0.001" style="width:80px"></div>
+        <div class="note">コンビニ決済の手数料率</div>
         <div class="form-row"><label>銀行振込</label><input type="number" id="biz-bank" step="0.001" style="width:80px"></div>
+        <div class="note">銀行振込の手数料率</div>
         <div class="form-row"><label>ペイジー</label><input type="number" id="biz-payeasy" step="0.001" style="width:80px"></div>
+        <div class="note">ペイジー決済の手数料率</div>
         <div class="form-row"><label>ペイディ</label><input type="number" id="biz-paidy" step="0.001" style="width:80px"></div>
+        <div class="note">ペイディ決済の手数料率</div>
         <div class="form-row"><label>ジモティ</label><input type="number" id="biz-jimoti" step="0.01" style="width:80px"></div>
+        <div class="note">ジモティ経由の販売手数料率。0.10=10%</div>
       </div>
       <div class="card">
         <div class="title">AI キーワード設定</div>
         <div class="form-row"><label>モデル</label><input type="text" id="biz-ai-model" placeholder="gpt-5-mini"></div>
+        <div class="note">AIキーワード抽出で使用するOpenAIモデル名</div>
         <div class="form-row"><label>日次API上限</label><input type="number" id="biz-ai-limit" style="width:60px"></div>
+        <div class="note">1日あたりのOpenAI API呼び出し上限。超過すると翌日まで停止</div>
         <div class="form-row"><label>最大キーワード数</label><input type="number" id="biz-ai-max" style="width:60px"></div>
+        <div class="note">1商品から抽出するキーワードの最大数</div>
         <div class="form-row"><label>最小キーワード数</label><input type="number" id="biz-ai-min" style="width:60px"></div>
+        <div class="note">1商品から抽出するキーワードの最小数</div>
       </div>
       <div class="card">
         <div class="title">その他</div>
         <div class="form-row"><label>報酬起点 年</label><input type="number" id="biz-reward-year" style="width:70px"></div>
+        <div class="note">報酬管理の集計開始年。この年月から現在までを集計</div>
         <div class="form-row"><label>報酬起点 月</label><input type="number" id="biz-reward-month" style="width:60px"></div>
+        <div class="note">報酬管理の集計開始月</div>
         <div class="form-row"><label>月次レポート手数料率</label><input type="number" id="biz-report-fee" step="0.001" style="width:80px"></div>
+        <div class="note">月次レポートの売上計算で使用する決済手数料率。0.016=1.6%</div>
       </div>
       <div class="btnRow"><button class="primary" onclick="saveBizSettings()">ビジネス設定を保存</button></div>
       <div class="log" id="biz-log"></div>
@@ -132,26 +151,35 @@ table.data th{background:#f0f0f0;font-weight:700;}
         <div class="title">返送管理 (RETURN_STATUS_SYNC_CONFIG)</div>
         <div class="note">返送管理シートから商品管理のステータスを自動更新する設定</div>
         <div class="form-row"><label>商品管理シート名</label><input type="text" id="sync-product-sheet" value="商品管理"></div>
+        <div class="note">ステータス・納品場所の更新先シート名</div>
         <div class="form-row"><label>返送管理シート名</label><input type="text" id="sync-return-sheet" value="返送管理"></div>
+        <div class="note">返送された管理番号を記録するシート</div>
         <div class="form-row"><label>返品済みステータス</label><input type="text" id="sync-returned-text" value="返品済み"></div>
+        <div class="note">返送処理で設定されるステータス文字列</div>
         <div class="form-row"><label>除外ステータス(カンマ区切り)</label><input type="text" id="sync-excluded" value="売却済み,廃棄済み,キャンセル済み,発送待ち,発送済み"></div>
+        <div class="note">これらのステータスの商品は返送処理の対象外。カンマ区切り</div>
       </div>
       <div class="card">
         <div class="title">移動報告 (MOVE_CONFIG)</div>
         <div class="form-row"><label>移動報告シート名</label><input type="text" id="sync-move-sheet" value="移動報告"></div>
+        <div class="note">Googleフォームから送信された移動報告の記録シート</div>
         <div class="form-row"><label>商品管理シート名</label><input type="text" id="sync-move-product" value="商品管理"></div>
+        <div class="note">移動報告の反映先シート名</div>
       </div>
       <div class="card">
         <div class="title">棚卸し設定</div>
+        <div class="note">棚卸処理で使用する各シート名。⚠ シート名を変更した場合はここも更新</div>
         <div class="form-row"><label>仕入れ管理シート</label><input type="text" id="sync-inv-purchase" value="仕入れ管理"></div>
         <div class="form-row"><label>棚卸明細シート</label><input type="text" id="sync-inv-stock" value="棚卸明細"></div>
         <div class="form-row"><label>商品管理シート</label><input type="text" id="sync-inv-product" value="商品管理"></div>
         <div class="form-row"><label>棚卸ログシート</label><input type="text" id="sync-inv-log" value="棚卸ログ"></div>
         <div class="form-row"><label>BUSYタイムアウト(秒)</label><input type="number" id="sync-inv-timeout" value="300" style="width:70px"></div>
+        <div class="note">棚卸処理の排他制御タイムアウト（秒）。デフォルト300秒=5分</div>
       </div>
       <div class="card">
         <div class="title">在庫日数 終了ステータス</div>
         <div class="form-row"><label>終了ステータス(カンマ区切り)</label><input type="text" id="sync-end-statuses" value="発送済み,発送待ち,売却済み,キャンセル,返品済み,廃棄済み"></div>
+        <div class="note">在庫日数の計算で0日として扱うステータス。カンマ区切り</div>
       </div>
       <div class="btnRow"><button class="primary" onclick="saveSyncSettings()">データ同期設定を保存</button></div>
       <div class="log" id="sync-log"></div>
@@ -162,16 +190,22 @@ table.data th{background:#f0f0f0;font-weight:700;}
       <div class="card">
         <div class="title">経費・仕入れ数報告の通知 (CONFIG_MAILER)</div>
         <div class="form-row"><label>設定シート名</label><input type="text" id="mail-settings-sheet" value="設定"></div>
+        <div class="note">通知先メールアドレスが記載されているシート</div>
         <div class="form-row"><label>受信者列</label><input type="text" id="mail-recipient-col" value="K" style="width:40px"></div>
+        <div class="note">通知先メールアドレスが記載されている列</div>
         <div class="form-row"><label>受信者開始行</label><input type="number" id="mail-recipient-row" value="4" style="width:60px"></div>
+        <div class="note">通知先メールアドレスが記載されている開始行</div>
         <div class="subtitle">仕入れ数報告メール</div>
+        <div class="note">Googleフォームから仕入れ数報告があった際の通知メール</div>
         <div class="form-row"><label>件名</label><input type="text" id="mail-shiire-subject"></div>
         <div class="form-row"><label>イントロ文</label><input type="text" id="mail-shiire-intro"></div>
         <div class="subtitle">経費申請メール</div>
+        <div class="note">経費申請があった際の通知メール</div>
         <div class="form-row"><label>件名</label><input type="text" id="mail-expense-subject"></div>
         <div class="form-row"><label>イントロ文</label><input type="text" id="mail-expense-intro"></div>
         <div class="subtitle">入替リストメール</div>
         <div class="form-row"><label>件名フォーマット</label><input type="text" id="mail-swap-format" placeholder="【入替リスト】{account} {year}年{month}月分 — {count}件"></div>
+        <div class="note">プレースホルダ: {account}=アカウント名, {year}=年, {month}=月, {count}=件数</div>
       </div>
       <div class="btnRow"><button class="primary" onclick="saveMailSettings()">メール設定を保存</button></div>
       <div class="log" id="mail-log"></div>
@@ -182,7 +216,9 @@ table.data th{background:#f0f0f0;font-weight:700;}
       <div class="card">
         <div class="title">入替リスト設定</div>
         <div class="form-row"><label>トリガー日(毎月N日)</label><input type="number" id="swap-day" value="1" style="width:60px"></div>
+        <div class="note">⚠ 毎月この日に入替リストを自動生成。変更後はsetupSwapListTriggerをGASエディタから再実行</div>
         <div class="subtitle">アカウント設定</div>
+        <div class="note">アカウント名=使用アカウント列の値と完全一致で判定。メール=入替リストPDFの送信先（空欄ならそのアカウントには送信しない）</div>
         <div class="form-row"><label>アカウント1 名前</label><input type="text" id="swap-acct1-name" value="古着屋本舗"></div>
         <div class="form-row"><label>アカウント1 メール</label><input type="text" id="swap-acct1-email"></div>
         <div class="form-row"><label>アカウント2 名前</label><input type="text" id="swap-acct2-name" value="ほしいが見つかる古着屋さん"></div>
@@ -200,12 +236,18 @@ table.data th{background:#f0f0f0;font-weight:700;}
       <div class="card">
         <div class="title">xlsxダウンロード設定</div>
         <div class="form-row"><label>ソースSS ID</label><input type="text" id="xlsx-source"></div>
+        <div class="note">配布用リストが含まれるスプレッドシートのID</div>
         <div class="form-row"><label>シートGID</label><input type="number" id="xlsx-gid" style="width:120px"></div>
+        <div class="note">配布用リストシートのGID（URLの#gid=に続く数値）</div>
         <div class="form-row"><label>配布用リストシート名</label><input type="text" id="xlsx-sheet" value="配布用リスト"></div>
         <div class="form-row"><label>名前セル</label><input type="text" id="xlsx-name-cell" value="E1" style="width:60px"></div>
+        <div class="note">配布用リストシートの顧客名が入るセル</div>
         <div class="form-row"><label>受付番号セル</label><input type="text" id="xlsx-receipt-cell" value="B1" style="width:60px"></div>
+        <div class="note">配布用リストシートの受付番号が入るセル</div>
         <div class="form-row"><label>出力フォルダID</label><input type="text" id="xlsx-folder"></div>
+        <div class="note">生成されたxlsxファイルの保存先Google DriveフォルダID</div>
         <div class="form-row"><label>依頼管理SS ID</label><input type="text" id="xlsx-request"></div>
+        <div class="note">注文データ（確認リンク更新先）のスプレッドシートID</div>
         <div class="form-row"><label>依頼管理シート名</label><input type="text" id="xlsx-request-sheet" value="依頼管理"></div>
         <div class="btnRow"><button class="primary" onclick="saveXlsxSettings()">xlsx設定を保存</button></div>
         <div class="log" id="xlsx-log"></div>
@@ -216,6 +258,7 @@ table.data th{background:#f0f0f0;font-weight:700;}
     <div class="tab-content" id="tab-triggers">
       <div class="card">
         <div class="title">トリガー管理</div>
+        <div class="note">FULL_RESTORE_ALL: 全トリガーを削除してトリガー設定.gsの定義通りに再構築</div>
         <div id="triggers-container">読み込み中...</div>
         <div class="btnRow">
           <button class="primary" onclick="rebuildTriggers()">全トリガー再構築(FULL_RESTORE_ALL)</button>
@@ -230,26 +273,38 @@ table.data th{background:#f0f0f0;font-weight:700;}
       <div class="card">
         <div class="title">回収完了設定</div>
         <div class="form-row"><label>在庫分析シート名</label><input type="text" id="an-inv-sheet" value="在庫分析"></div>
+        <div class="note">回収完了の閾値判定で参照するシート</div>
         <div class="form-row"><label>ヘッダー行</label><input type="number" id="an-header-row" value="15" style="width:60px"></div>
+        <div class="note">在庫分析シートのヘッダー行。通常は15行目</div>
         <div class="form-row"><label>データ開始行</label><input type="number" id="an-start-row" value="16" style="width:60px"></div>
+        <div class="note">在庫分析シートのデータ開始行。通常は16行目</div>
       </div>
       <div class="card">
         <div class="title">作業分析設定</div>
         <div class="form-row"><label>ソースシート</label><input type="text" id="an-work-src" value="商品管理"></div>
+        <div class="note">商品管理のAG〜BF列から作業者別分析を読み込むシート</div>
         <div class="form-row"><label>出力シート</label><input type="text" id="an-work-dst" value="作業分析"></div>
+        <div class="note">作業者別分析の出力先シート</div>
         <div class="form-row"><label>開始列番号</label><input type="number" id="an-work-col" value="33" style="width:60px"></div>
+        <div class="note">商品管理シートの読み込み開始列番号。AG列=33</div>
         <div class="form-row"><label>列数</label><input type="number" id="an-work-width" value="26" style="width:60px"></div>
+        <div class="note">読み込む列数。AG〜BF=26列分</div>
       </div>
       <div class="card">
         <div class="title">分析レポート設定</div>
         <div class="form-row"><label>シート名</label><input type="text" id="an-report-sheet" value="分析アドバイス"></div>
+        <div class="note">分析アドバイスシートの名前</div>
         <div class="form-row"><label>ヘッダー背景色</label><input type="text" id="an-report-bg" value="#1a73e8" style="width:100px"></div>
+        <div class="note">分析アドバイスシートのヘッダー背景色</div>
         <div class="form-row"><label>ヘッダー文字色</label><input type="text" id="an-report-fg" value="#ffffff" style="width:100px"></div>
+        <div class="note">分析アドバイスシートのヘッダー文字色</div>
       </div>
       <div class="card">
         <div class="title">商品説明テンプレート (Code.gs)</div>
         <div class="form-row"><label>割引情報テキスト</label><input type="text" id="an-discount-text" value="フォロー割→【100円OFF】"></div>
+        <div class="note">メルカリ等への出品時に商品説明に挿入される割引案内文</div>
         <div class="form-row"><label>ハッシュタグサフィックス</label><input type="text" id="an-hashtag-suffix" value="商品多数ございますので、ぜひご覧ください"></div>
+        <div class="note">ハッシュタグの末尾に追加される定型文</div>
       </div>
       <div class="btnRow"><button class="primary" onclick="saveAnalysisSettings()">分析設定を保存</button></div>
       <div class="log" id="analysis-log"></div>
