@@ -1175,6 +1175,8 @@ function onOpen(e) {
     .addItem("ニュースレター テスト送信", "testNewsletterSend")
     .addSeparator()
     .addItem("運用マニュアルを開く", "openManualDoc")
+    .addSeparator()
+    .addItem("★ 管理パネルを開く", "showAdminPanel")
     .addToUi();
 
   ui.createMenu("デバッグ")

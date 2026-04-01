@@ -155,8 +155,8 @@ function debugKomojuSession() {
  * 受付番号で注文の全情報を表示
  * メール送信状況・決済状態・依頼中状態を一括確認
  */
-function debugLookupByReceipt() {
-  var receiptNo = '20260318113100-626'; // ← ここに受付番号を入力
+function debugLookupByReceipt(receiptNo) {
+  receiptNo = receiptNo || '20260318113100-626';
 
   if (!receiptNo) { console.log('受付番号を指定してください'); return; }
 
@@ -292,8 +292,8 @@ function debugLookupByReceipt() {
  * 管理番号で商品の状態を総合表示
  * データ1・商品管理・holdState・openState を横断確認
  */
-function debugLookupByManagedId() {
-  var targetId = 'zB1012'; // ← ここに管理番号を入力
+function debugLookupByManagedId(targetId) {
+  targetId = targetId || 'zB1012';
 
   if (!targetId) { console.log('管理番号を指定してください'); return; }
 
@@ -372,8 +372,8 @@ function debugLookupByManagedId() {
  * キーワードで依頼管理シート・KOMOJU API・ペンディング注文を横断検索
  * 決済ID、メール、会社名、受付番号、KOMOJU確認番号 等なんでも
  */
-function debugSearch() {
-  var keyword = '46545894360'; // ← ここに検索キーワードを入力
+function debugSearch(keyword) {
+  keyword = keyword || '46545894360';
 
   if (!keyword) { console.log('検索キーワードを指定してください'); return; }
   console.log('========== 横断検索: "' + keyword + '" ==========');
@@ -548,10 +548,10 @@ function debugSearch() {
  * 金額と日付範囲で依頼管理シートを検索
  * コンビニ払いのお客様番号はGAS側に保存されないため、金額で特定する
  */
-function debugSearchByAmount() {
-  var targetAmount = 6880; // ← 商品金額（手数料除く）
-  var dateFrom = '2026-03-01'; // ← 検索開始日
-  var dateTo = '2026-03-10';   // ← 検索終了日
+function debugSearchByAmount(targetAmount, dateFrom, dateTo) {
+  targetAmount = targetAmount || 6880;
+  dateFrom = dateFrom || '2026-03-01';
+  dateTo = dateTo || '2026-03-10';
 
   console.log('========== 金額検索: ¥' + targetAmount + ' (' + dateFrom + '〜' + dateTo + ') ==========');
 
@@ -603,17 +603,17 @@ function debugSearchByAmount() {
  * KOMOJU決済済みだが注文未登録の注文を復旧する
  * PENDING_ORDERがGCされてWebhookで処理できなかったケース用
  */
-function debugRestoreOrder() {
-  // === 復旧対象の情報（KOMOJU APIから取得済み） ===
-  var komojuPaymentId = 'bwk81hnjru7n299xyegdl3tr6';
-  var receiptNo = '20260305193720-732';
-  var companyName = '高橋圭子';
-  var email = 'phmy81pp@outlook.jp';
-  var productAmount = 4980;
-  var shippingAmount = 1900;
-  var totalAmount = 6880;
-  var paymentMethod = 'コンビニ払い';
-  var orderDate = new Date('2026-03-05T19:37:20+09:00');
+function debugRestoreOrder(params) {
+  params = params || {};
+  var komojuPaymentId = params.komojuPaymentId || 'bwk81hnjru7n299xyegdl3tr6';
+  var receiptNo = params.receiptNo || '20260305193720-732';
+  var companyName = params.companyName || '高橋圭子';
+  var email = params.email || 'phmy81pp@outlook.jp';
+  var productAmount = params.productAmount || 4980;
+  var shippingAmount = params.shippingAmount || 1900;
+  var totalAmount = params.totalAmount || 6880;
+  var paymentMethod = params.paymentMethod || 'コンビニ払い';
+  var orderDate = params.orderDate ? new Date(params.orderDate) : new Date('2026-03-05T19:37:20+09:00');
 
   console.log('========== 注文復旧 ==========');
   console.log('受付番号: ' + receiptNo);
@@ -706,8 +706,8 @@ function debugRestoreOrder() {
  * 売却履歴にあるが依頼管理にない注文を復元する
  * 売却履歴（仕入れ管理）+ D1ペンディングデータ + 顧客管理から情報を集めて依頼管理に行を作成
  */
-function debugRestoreFromSaleLog() {
-  var receiptNo = '20260320201818-560'; // ← 復元対象の受付番号
+function debugRestoreFromSaleLog(receiptNo) {
+  receiptNo = receiptNo || '20260320201818-560';
 
   console.log('========== 売却履歴から注文復元 ==========');
   console.log('受付番号: ' + receiptNo);
@@ -937,13 +937,13 @@ function debugRestoreFromSaleLog() {
 /**
  * 商品管理シートの指定管理番号をまとめて売却済みにし、BO列に任意の値を設定する
  */
-function debugBulkMarkSold() {
-  var targetIds = [
+function debugBulkMarkSold(targetIds, boValue) {
+  targetIds = targetIds || [
     'zC2','zC11','zC13','zC14','zC85','zC84','zC75','zC67','zC64','zC57',
     'zC55','zC54','zC47','zC38','zC7','zC12','zB444','zB440','zB433','zB427',
     'zB425','zB422','zB420','zB418','zB417','zB409'
   ];
-  var boValue = 'ファスト補填'; // BO列に入れる値
+  boValue = boValue || 'ファスト補填';
 
   console.log('========== 商品管理一括売却済み ==========');
   console.log('対象: ' + targetIds.length + '件');
@@ -1005,8 +1005,8 @@ function debugBulkMarkSold() {
 /**
  * 受付番号の注文メールを再送
  */
-function debugResendOrderEmail() {
-  var receiptNo = '20260318113100-626'; // ← ここに受付番号を入力
+function debugResendOrderEmail(receiptNo) {
+  receiptNo = receiptNo || '20260318113100-626';
   debugOrderEmail(receiptNo, true);
 }
 
@@ -1014,8 +1014,8 @@ function debugResendOrderEmail() {
  * 受付番号の依頼管理行を修正（アソート商品名・合計点数・金額・送料・チャネル）
  * 備考欄のアソート合算情報 + アソート商品マスタから正しい値を復元する
  */
-function debugFixOrderRow() {
-  var receiptNo = '20260322065719-340'; // ← 修正対象の受付番号
+function debugFixOrderRow(receiptNo) {
+  receiptNo = receiptNo || '20260322065719-340';
 
   var orderSs = sh_getOrderSs_();
   var reqSh = sh_ensureRequestSheet_(orderSs);

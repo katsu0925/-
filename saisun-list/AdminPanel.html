@@ -1,0 +1,505 @@
+<!-- AdminPanel.html — 統合管理パネル -->
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <style>
+    html,body{margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans JP","Hiragino Kaku Gothic ProN",sans-serif;color:#111;background:#f6f7f9;}
+    *{box-sizing:border-box;}
+    .wrap{height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+    .tab-bar{display:flex;gap:0;overflow-x:auto;background:#fff;border-bottom:2px solid #e6e8ee;flex-shrink:0;padding:0 8px;}
+    .tab-btn{padding:10px 14px;border:none;background:none;cursor:pointer;font-size:12px;font-weight:700;color:#666;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-2px;transition:.15s;}
+    .tab-btn:hover{color:#111;}
+    .tab-btn.active{color:#111;border-bottom-color:#111;}
+    .tab-body{flex:1;overflow-y:auto;padding:14px;}
+    .tab-content{display:none;}
+    .tab-content.active{display:block;}
+    .card{background:#fff;border:1px solid #e6e8ee;border-radius:14px;padding:14px;margin-bottom:14px;}
+    .title{font-weight:900;font-size:16px;margin-bottom:10px;}
+    .subtitle{font-weight:800;font-size:13px;margin:14px 0 8px;color:#333;}
+    .btnRow{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+    button{padding:8px 12px;border:1px solid #d9deea;border-radius:8px;background:#fff;cursor:pointer;font-weight:700;font-size:12px;}
+    button:disabled{opacity:.4;cursor:default;}
+    button.primary{background:#111;color:#fff;border-color:#111;}
+    button.danger{background:#dc3545;color:#fff;border-color:#dc3545;}
+    button.sm{padding:5px 8px;font-size:11px;}
+    .log{margin-top:10px;font-size:11px;color:#333;white-space:pre-wrap;line-height:1.5;max-height:200px;overflow-y:auto;background:#f9f9f9;border-radius:8px;padding:8px;border:1px solid #eee;}
+    .log:empty{display:none;}
+    .toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#111;color:#fff;padding:8px 14px;border-radius:10px;display:none;z-index:50;font-weight:700;font-size:12px;max-width:88vw;}
+    .toast.show{display:block;}
+    .badge{display:inline-block;padding:3px 8px;border-radius:6px;font-weight:700;font-size:11px;}
+    .badge.on{background:#d4edda;color:#155724;border:1px solid #28a745;}
+    .badge.off{background:#f8d7da;color:#721c24;border:1px solid #dc3545;}
+    .badge.test{background:#fff3cd;color:#856404;border:1px solid #ffc107;}
+    .badge.live{background:#d4edda;color:#155724;border:1px solid #28a745;}
+    .badge.info{background:#d1ecf1;color:#0c5460;border:1px solid #17a2b8;}
+    input[type=text],input[type=number],input[type=password],input[type=date],select,textarea{padding:6px 8px;border:1px solid #d9deea;border-radius:6px;font-size:12px;width:100%;font-family:inherit;}
+    textarea{resize:vertical;min-height:60px;}
+    .form-row{display:flex;gap:8px;align-items:center;margin:6px 0;}
+    .form-row label{min-width:140px;font-size:12px;font-weight:600;flex-shrink:0;}
+    .form-row input,.form-row select,.form-row textarea{flex:1;}
+    details{margin:6px 0;}
+    details>summary{cursor:pointer;font-weight:700;font-size:13px;padding:6px 0;user-select:none;}
+    table.data{width:100%;border-collapse:collapse;font-size:11px;}
+    table.data th,table.data td{padding:4px 6px;border:1px solid #e6e8ee;text-align:left;}
+    table.data th{background:#f0f0f0;font-weight:700;}
+    .note{font-size:11px;color:#888;margin-top:4px;}
+    .confirm-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:100;}
+    .confirm-modal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;width:min(380px,90vw);z-index:101;box-shadow:0 8px 30px rgba(0,0,0,.2);}
+    .confirm-header{padding:12px 14px;border-bottom:1px solid #e6e8ee;display:flex;justify-content:space-between;align-items:center;}
+    .confirm-body{padding:14px;}
+    .confirm-body p{margin:0 0 14px;line-height:1.6;font-size:13px;white-space:pre-wrap;}
+    .confirm-footer{display:flex;justify-content:flex-end;gap:8px;}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <!-- タブバー -->
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="tools">管理ツール</button>
+    <button class="tab-btn" data-tab="discount">割引管理</button>
+    <button class="tab-btn" data-tab="email">メール管理</button>
+    <button class="tab-btn" data-tab="ai">AI設定</button>
+    <button class="tab-btn" data-tab="props">プロパティ</button>
+    <button class="tab-btn" data-tab="biz">ビジネス設定</button>
+    <button class="tab-btn" data-tab="base">BASE連携</button>
+    <button class="tab-btn" data-tab="ga4">GA4/分析</button>
+    <button class="tab-btn" data-tab="bulk">アソート</button>
+    <button class="tab-btn" data-tab="triggers">トリガー</button>
+    <button class="tab-btn" data-tab="debug">デバッグ</button>
+    <button class="tab-btn" data-tab="coupon">クーポン</button>
+    <button class="tab-btn" data-tab="news">メルマガ</button>
+  </div>
+
+  <!-- タブコンテンツ -->
+  <div class="tab-body">
+    <!-- タブ1: 管理ツール -->
+    <div class="tab-content active" id="tab-tools">
+      <div class="card">
+        <div class="title">管理ツール</div>
+        <div class="btnRow">
+          <button class="primary" onclick="runTool('adminPanel_compactHolds','期限切れ確保の整理')">期限切れ確保の整理</button>
+          <button onclick="runTool('adminPanel_rebuildStates','状態の再構築')">状態の再構築</button>
+          <button onclick="runTool('adminPanel_clearCache','商品キャッシュ削除')">商品キャッシュ削除</button>
+          <button onclick="runTool('adminPanel_applyDropdown','プルダウン適用')">プルダウン適用</button>
+        </div>
+        <div class="log" id="tools-log"></div>
+      </div>
+    </div>
+
+    <!-- タブ2: 割引管理 -->
+    <div class="tab-content" id="tab-discount">
+      <div class="card"><div class="title">割引管理</div><p class="note">実装中...</p></div>
+    </div>
+
+    <!-- タブ3: メール管理 -->
+    <div class="tab-content" id="tab-email">
+      <div class="card"><div class="title">メール管理</div><p class="note">実装中...</p></div>
+    </div>
+
+    <!-- タブ4: AI設定 -->
+    <div class="tab-content" id="tab-ai">
+      <div class="card"><div class="title">AI設定</div><p class="note">実装中...</p></div>
+    </div>
+
+    <!-- タブ5: スクリプトプロパティ -->
+    <div class="tab-content" id="tab-props">
+      <div class="card">
+        <div class="title">スクリプトプロパティ</div>
+        <div class="note">秘密キー(SECRET/TOKEN/KEY等)は値がマスクされます。新しい値を入力して保存すると上書きされます。</div>
+        <div id="props-container" style="margin-top:10px;">読み込み中...</div>
+        <div class="btnRow">
+          <button class="primary" id="btnSaveProps" onclick="saveProperties()" disabled>変更を保存</button>
+          <button onclick="loadProperties()">再読み込み</button>
+        </div>
+        <div class="log" id="props-log"></div>
+      </div>
+    </div>
+
+    <!-- タブ6: ビジネス設定 -->
+    <div class="tab-content" id="tab-biz">
+      <div class="card"><div class="title">ビジネス設定</div><p class="note">実装中...</p></div>
+    </div>
+
+    <!-- タブ7: BASE連携 -->
+    <div class="tab-content" id="tab-base">
+      <div class="card"><div class="title">BASE連携</div><p class="note">実装中...</p></div>
+    </div>
+
+    <!-- タブ8: GA4/分析 -->
+    <div class="tab-content" id="tab-ga4">
+      <div class="card"><div class="title">GA4/分析/広告</div><p class="note">実装中...</p></div>
+    </div>
+
+    <!-- タブ9: アソート -->
+    <div class="tab-content" id="tab-bulk">
+      <div class="card"><div class="title">アソート商品設定</div><p class="note">実装中...</p></div>
+    </div>
+
+    <!-- タブ10: トリガー管理 -->
+    <div class="tab-content" id="tab-triggers">
+      <div class="card">
+        <div class="title">トリガー管理</div>
+        <div id="triggers-container">読み込み中...</div>
+        <div class="btnRow">
+          <button class="primary" onclick="rebuildTriggers()">全トリガー再構築</button>
+          <button onclick="loadTriggers()">再読み込み</button>
+        </div>
+        <div class="log" id="triggers-log"></div>
+      </div>
+    </div>
+
+    <!-- タブ11: デバッグツール -->
+    <div class="tab-content" id="tab-debug">
+      <div class="card">
+        <div class="title">デバッグツール</div>
+
+        <details><summary>受付番号で調査</summary>
+          <div class="form-row"><label>受付番号</label><input type="text" id="dbg-receipt" placeholder="20260318113100-626"></div>
+          <div class="btnRow">
+            <button class="primary" onclick="runDebug('adminPanel_debugLookupByReceipt',[$('dbg-receipt').value])">調査</button>
+            <button onclick="runDebug('adminPanel_debugResendOrderEmail',[$('dbg-receipt').value])">メール再送</button>
+            <button onclick="runDebug('adminPanel_debugFixOrderRow',[$('dbg-receipt').value])">行修正</button>
+          </div>
+        </details>
+
+        <details><summary>管理番号で調査</summary>
+          <div class="form-row"><label>管理番号</label><input type="text" id="dbg-mid" placeholder="zB1012"></div>
+          <button class="primary" onclick="runDebug('adminPanel_debugLookupByManagedId',[$('dbg-mid').value])">調査</button>
+        </details>
+
+        <details><summary>横断検索</summary>
+          <div class="form-row"><label>キーワード</label><input type="text" id="dbg-kw" placeholder="メールアドレス/受付番号/etc"></div>
+          <button class="primary" onclick="runDebug('adminPanel_debugSearch',[$('dbg-kw').value])">検索</button>
+        </details>
+
+        <details><summary>金額で検索</summary>
+          <div class="form-row"><label>金額</label><input type="number" id="dbg-amt" placeholder="6880"></div>
+          <div class="form-row"><label>開始日</label><input type="date" id="dbg-from"></div>
+          <div class="form-row"><label>終了日</label><input type="date" id="dbg-to"></div>
+          <button class="primary" onclick="runDebug('adminPanel_debugSearchByAmount',[+$('dbg-amt').value,$('dbg-from').value,$('dbg-to').value])">検索</button>
+        </details>
+
+        <details><summary>売却履歴から注文復元</summary>
+          <div class="form-row"><label>受付番号</label><input type="text" id="dbg-restore-rn" placeholder="20260320201818-560"></div>
+          <button class="primary" onclick="runDebug('adminPanel_debugRestoreFromSaleLog',[$('dbg-restore-rn').value])">復元</button>
+        </details>
+
+        <details><summary>KOMOJU復旧</summary>
+          <div class="form-row"><label>KOMOJU決済ID</label><input type="text" id="dbg-komoju-pid"></div>
+          <div class="form-row"><label>受付番号</label><input type="text" id="dbg-komoju-rn"></div>
+          <div class="form-row"><label>会社名</label><input type="text" id="dbg-komoju-name"></div>
+          <div class="form-row"><label>メール</label><input type="text" id="dbg-komoju-email"></div>
+          <div class="form-row"><label>商品金額</label><input type="number" id="dbg-komoju-product"></div>
+          <div class="form-row"><label>送料</label><input type="number" id="dbg-komoju-ship"></div>
+          <div class="form-row"><label>合計金額</label><input type="number" id="dbg-komoju-total"></div>
+          <div class="form-row"><label>決済方法</label>
+            <select id="dbg-komoju-method">
+              <option value="クレジットカード">クレジットカード</option>
+              <option value="コンビニ払い">コンビニ払い</option>
+              <option value="銀行振込">銀行振込</option>
+              <option value="PayPay">PayPay</option>
+              <option value="ペイジー">ペイジー</option>
+              <option value="Paidy">Paidy</option>
+            </select>
+          </div>
+          <div class="form-row"><label>注文日時</label><input type="datetime-local" id="dbg-komoju-date"></div>
+          <button class="primary" onclick="runDebugRestore()">復旧</button>
+        </details>
+
+        <details><summary>一括売却済み</summary>
+          <div class="form-row"><label>管理番号(改行区切り)</label><textarea id="dbg-sold-ids" rows="4" placeholder="zC2&#10;zC11&#10;zC13"></textarea></div>
+          <div class="form-row"><label>BO列の値</label><input type="text" id="dbg-sold-bo" placeholder="ファスト補填"></div>
+          <button class="primary" onclick="runDebugBulkSold()">実行</button>
+        </details>
+
+        <details><summary>確認のみ（引数不要）</summary>
+          <div class="btnRow">
+            <button onclick="runDebug('adminPanel_debugPaidyPayment',[])">Paidy確認</button>
+            <button onclick="runDebug('adminPanel_debugKomojuSession',[])">KOMOJUセッション</button>
+            <button onclick="runDebug('adminPanel_debugViewQueues',[])">キュー確認</button>
+            <button onclick="runDebug('adminPanel_debugViewStates',[])">状態一覧</button>
+            <button onclick="runDebug('adminPanel_createDemoDistributionList',[])">デモリスト作成</button>
+          </div>
+        </details>
+
+        <div class="log" id="debug-log"></div>
+      </div>
+    </div>
+
+    <!-- タブ12: クーポン管理 -->
+    <div class="tab-content" id="tab-coupon">
+      <div class="card"><div class="title">クーポン管理</div><p class="note">実装中...</p></div>
+    </div>
+
+    <!-- タブ13: ニュースレター -->
+    <div class="tab-content" id="tab-news">
+      <div class="card"><div class="title">ニュースレター</div><p class="note">実装中...</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- トースト -->
+<div class="toast" id="toast"></div>
+
+<!-- 確認モーダル -->
+<div class="confirm-overlay" id="confirmOverlay"></div>
+<div class="confirm-modal" id="confirmModal">
+  <div class="confirm-header">
+    <div style="font-weight:900;" id="confirmTitle">確認</div>
+    <button id="confirmClose" style="border:none;background:none;font-size:18px;cursor:pointer;">&times;</button>
+  </div>
+  <div class="confirm-body">
+    <p id="confirmMessage"></p>
+    <div class="confirm-footer">
+      <button id="confirmCancel">キャンセル</button>
+      <button class="primary" id="confirmOk">OK</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function $(id){ return document.getElementById(id); }
+
+// ========== タブ切替 ==========
+document.querySelectorAll('.tab-btn').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    document.querySelectorAll('.tab-btn').forEach(function(b){b.classList.remove('active');});
+    document.querySelectorAll('.tab-content').forEach(function(c){c.classList.remove('active');});
+    btn.classList.add('active');
+    var tab = $('tab-' + btn.dataset.tab);
+    if(tab) tab.classList.add('active');
+    // 遅延初期化
+    if(btn.dataset.tab === 'props' && !propsLoaded) loadProperties();
+    if(btn.dataset.tab === 'triggers' && !triggersLoaded) loadTriggers();
+  });
+});
+
+// ========== 共通ユーティリティ ==========
+function showToast(msg){
+  var t=$('toast'); t.textContent=String(msg||''); t.classList.add('show');
+  setTimeout(function(){t.classList.remove('show');},2400);
+}
+function appendLog(logId, msg){
+  var el=$(logId); if(!el) return;
+  el.textContent = (el.textContent ? el.textContent+'\n' : '') + String(msg||'');
+  el.scrollTop = el.scrollHeight;
+}
+function clearLog(logId){ var el=$(logId); if(el) el.textContent=''; }
+function showConfirm(msg, onOk, title){
+  $('confirmTitle').textContent = title||'確認';
+  $('confirmMessage').textContent = String(msg||'');
+  $('confirmModal').style.display='block'; $('confirmOverlay').style.display='block';
+  function cleanup(){$('confirmModal').style.display='none';$('confirmOverlay').style.display='none';}
+  function ok(){cleanup();if(onOk)onOk();}
+  function cancel(){cleanup();}
+  $('confirmOk').onclick=ok; $('confirmCancel').onclick=cancel; $('confirmClose').onclick=cancel; $('confirmOverlay').onclick=cancel;
+}
+
+// google.script.run ラッパー（引数対応版）
+function run(fn){
+  var args = Array.prototype.slice.call(arguments, 1);
+  return new Promise(function(resolve, reject){
+    var done = false;
+    var timer = setTimeout(function(){ if(!done){done=true;reject(new Error('タイムアウト: '+fn));} }, 120000);
+    var runner = google.script.run
+      .withSuccessHandler(function(res){ if(done)return; done=true; clearTimeout(timer); resolve(res); })
+      .withFailureHandler(function(err){ if(done)return; done=true; clearTimeout(timer); reject(new Error(err&&err.message?err.message:String(err))); });
+    var call = runner[fn];
+    if(typeof call !== 'function'){ clearTimeout(timer); reject(new Error('関数なし: '+fn)); return; }
+    call.apply(runner, args);
+  });
+}
+
+// ========== タブ1: 管理ツール ==========
+async function runTool(fn, label){
+  clearLog('tools-log');
+  appendLog('tools-log', '実行中: ' + label + '...');
+  try {
+    var res = await run(fn);
+    appendLog('tools-log', res.ok ? '完了: ' + (res.message||label) : '失敗: ' + (res.message||''));
+    showToast(res.ok ? label + ' 完了' : '失敗');
+  } catch(e){
+    appendLog('tools-log', '失敗: ' + e.message);
+    showToast('エラー: ' + e.message);
+  }
+}
+
+// ========== タブ5: スクリプトプロパティ ==========
+var propsLoaded = false;
+var propsOriginal = {};
+
+async function loadProperties(){
+  $('props-container').innerHTML = '読み込み中...';
+  $('btnSaveProps').disabled = true;
+  try {
+    var res = await run('adminPanel_getProperties');
+    if(!res.ok){ $('props-container').innerHTML = 'エラー'; return; }
+    propsOriginal = res.props;
+    propsLoaded = true;
+    renderProperties(res.props);
+  } catch(e){ $('props-container').innerHTML = 'エラー: ' + e.message; }
+}
+
+function renderProperties(props){
+  var categories = {
+    'メール通知': ['ADMIN_OWNER_EMAIL','NOTIFY_EMAILS','CONTACT_EMAIL'],
+    'スプレッドシートID': ['DATA_SPREADSHEET_ID','DETAIL_SPREADSHEET_ID','BULK_SPREADSHEET_ID','OM_SHIIRE_SS_ID'],
+    'KOMOJU': ['KOMOJU_SECRET_KEY','KOMOJU_WEBHOOK_SECRET','KOMOJU_MODE','KOMOJU_SECRET_KEY_LIVE','KOMOJU_SECRET_KEY_TEST'],
+    '外部API': ['RECAPTCHA_SECRET','WORKERS_API_URL','SYNC_SECRET','LINE_ACCESS_TOKEN','LINE_TO_ID','OPENAI_API_KEY'],
+    'BASE連携': ['BASE_CLIENT_ID','BASE_CLIENT_SECRET','BASE_ACCESS_TOKEN','BASE_REFRESH_TOKEN','BASE_REDIRECT_URI','BASE_SHOP_ID'],
+    '広告': ['GOOGLE_ADS_CONVERSION_ID','GOOGLE_ADS_CONVERSION_LABEL','META_PIXEL_ID'],
+    '環境/その他': ['ENV','ADMIN_KEY','SITE_URL','SNS_SHARE_FOLDER_ID','OM_XLSX_FOLDER_ID']
+  };
+  var categorized = {};
+  Object.keys(categories).forEach(function(cat){ categorized[cat]={}; categories[cat].forEach(function(k){ if(props[k]) categorized[cat][k]=props[k]; }); });
+  // 未分類
+  var allCatKeys = {};
+  Object.values(categories).forEach(function(arr){ arr.forEach(function(k){ allCatKeys[k]=true; }); });
+  var uncategorized = {};
+  Object.keys(props).forEach(function(k){ if(!allCatKeys[k]) uncategorized[k]=props[k]; });
+  if(Object.keys(uncategorized).length > 0) categorized['その他'] = uncategorized;
+
+  var html = '';
+  Object.keys(categorized).forEach(function(cat){
+    var entries = categorized[cat];
+    if(Object.keys(entries).length === 0) return;
+    html += '<details'+(cat==='メール通知'?' open':'')+'>'+
+      '<summary>'+cat+' ('+Object.keys(entries).length+')</summary>';
+    Object.keys(entries).forEach(function(k){
+      var p = entries[k];
+      var inputType = p.masked ? 'password' : 'text';
+      var placeholder = p.masked ? (p.hasValue ? '***設定済み***' : '未設定') : '';
+      var val = p.masked ? '' : (p.value||'');
+      html += '<div class="form-row"><label title="'+k+'">'+k+'</label>'+
+        '<input type="'+inputType+'" data-prop="'+k+'" value="'+escHtml(val)+'" placeholder="'+placeholder+'" oninput="onPropChange()">'+
+        (p.masked ? '<button class="sm" onclick="togglePw(this)">表示</button>' : '')+
+        '</div>';
+    });
+    html += '</details>';
+  });
+  $('props-container').innerHTML = html;
+}
+
+function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function togglePw(btn){
+  var input = btn.previousElementSibling;
+  if(input.type==='password'){ input.type='text'; btn.textContent='隠す'; }
+  else { input.type='password'; btn.textContent='表示'; }
+}
+
+function onPropChange(){ $('btnSaveProps').disabled = false; }
+
+async function saveProperties(){
+  var inputs = document.querySelectorAll('[data-prop]');
+  var updates = {};
+  var count = 0;
+  inputs.forEach(function(input){
+    var k = input.dataset.prop;
+    var v = input.value;
+    var orig = propsOriginal[k];
+    if(orig && orig.masked){
+      if(v && v !== '') { updates[k] = v; count++; } // 新値入力時のみ更新
+    } else {
+      if(v !== (orig ? orig.value||'' : '')) { updates[k] = v || ''; count++; }
+    }
+  });
+  if(count === 0){ showToast('変更なし'); return; }
+  showConfirm(count + '件のプロパティを更新します', async function(){
+    clearLog('props-log');
+    appendLog('props-log', '保存中...');
+    try {
+      var res = await run('adminPanel_setProperties', updates);
+      appendLog('props-log', res.ok ? res.message : '失敗: ' + res.message);
+      showToast(res.ok ? '保存完了' : '保存失敗');
+      if(res.ok) loadProperties();
+    } catch(e){ appendLog('props-log', 'エラー: ' + e.message); showToast('エラー'); }
+  });
+}
+
+// ========== タブ10: トリガー管理 ==========
+var triggersLoaded = false;
+
+async function loadTriggers(){
+  $('triggers-container').innerHTML = '読み込み中...';
+  try {
+    var res = await run('adminPanel_listTriggers');
+    if(!res.ok){ $('triggers-container').innerHTML = 'エラー'; return; }
+    triggersLoaded = true;
+    var html = '<table class="data"><thead><tr><th>関数名</th><th>タイプ</th><th>操作</th></tr></thead><tbody>';
+    res.triggers.forEach(function(t){
+      html += '<tr><td>'+escHtml(t.fn)+'</td><td>'+escHtml(t.type+' / '+t.source)+'</td>'+
+        '<td><button class="sm danger" onclick="deleteTrigger(\''+t.id+'\',\''+escHtml(t.fn)+'\')">削除</button></td></tr>';
+    });
+    html += '</tbody></table>';
+    html += '<div class="note">合計: ' + res.triggers.length + '件</div>';
+    $('triggers-container').innerHTML = html;
+  } catch(e){ $('triggers-container').innerHTML = 'エラー: ' + e.message; }
+}
+
+async function rebuildTriggers(){
+  showConfirm('全トリガーを削除して再構築します。よろしいですか？', async function(){
+    clearLog('triggers-log');
+    appendLog('triggers-log', '再構築中...');
+    try {
+      var res = await run('adminPanel_rebuildTriggers');
+      appendLog('triggers-log', res.ok ? res.message : '失敗: ' + res.message);
+      showToast(res.ok ? '再構築完了' : '失敗');
+      loadTriggers();
+    } catch(e){ appendLog('triggers-log', 'エラー: ' + e.message); }
+  });
+}
+
+async function deleteTrigger(id, fn){
+  showConfirm('トリガー「'+fn+'」を削除します', async function(){
+    try {
+      var res = await run('adminPanel_deleteTrigger', id);
+      showToast(res.ok ? '削除完了' : '失敗');
+      loadTriggers();
+    } catch(e){ showToast('エラー: ' + e.message); }
+  });
+}
+
+// ========== タブ11: デバッグツール ==========
+async function runDebug(fn, args){
+  clearLog('debug-log');
+  appendLog('debug-log', '実行中: ' + fn + '...');
+  try {
+    var res = await run.apply(null, [fn].concat(args||[]));
+    if(res && res.logs){
+      $('debug-log').textContent = '';
+      res.logs.forEach(function(l){ appendLog('debug-log', l); });
+    }
+    if(!res || !res.ok) appendLog('debug-log', '[失敗] ' + (res ? res.message||'' : ''));
+  } catch(e){ appendLog('debug-log', '[エラー] ' + e.message); }
+}
+
+function runDebugRestore(){
+  var params = {
+    komojuPaymentId: $('dbg-komoju-pid').value,
+    receiptNo: $('dbg-komoju-rn').value,
+    companyName: $('dbg-komoju-name').value,
+    email: $('dbg-komoju-email').value,
+    productAmount: +$('dbg-komoju-product').value||0,
+    shippingAmount: +$('dbg-komoju-ship').value||0,
+    totalAmount: +$('dbg-komoju-total').value||0,
+    paymentMethod: $('dbg-komoju-method').value,
+    orderDate: $('dbg-komoju-date').value
+  };
+  runDebug('adminPanel_debugRestoreOrder', [params]);
+}
+
+function runDebugBulkSold(){
+  var raw = $('dbg-sold-ids').value || '';
+  var ids = raw.split(/[\n,]+/).map(function(s){return s.trim();}).filter(Boolean);
+  var bo = $('dbg-sold-bo').value || '';
+  if(!ids.length){ showToast('管理番号を入力してください'); return; }
+  showConfirm(ids.length + '件を売却済みにします（BO列="'+bo+'"）', function(){
+    runDebug('adminPanel_debugBulkMarkSold', [ids, bo]);
+  });
+}
+</script>
+</body>
+</html>
