@@ -106,6 +106,53 @@ function adminPanel_addAnalysisReport() {
 }
 
 // =====================================================
+// AI画像判定ステータス
+// =====================================================
+
+function adminPanel_checkAiStatus() {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var aiSh = ss.getSheetByName('AI画像判定');
+    var kwSh = ss.getSheetByName('AIキーワード抽出');
+
+    var aiCount = aiSh ? Math.max(0, aiSh.getLastRow() - 1) : 0;
+    var kwCount = kwSh ? Math.max(0, kwSh.getLastRow() - 1) : 0;
+
+    var msg = '【AI画像判定ステータス】\n';
+    msg += '■ AI画像判定シート: ' + (aiSh ? aiCount + '件' : '未作成') + '\n';
+    msg += '■ AIキーワード抽出シート: ' + kwCount + '件\n';
+    msg += '■ Gemini判定: gas-proxy 5分Cronで自動実行\n';
+    msg += '■ AppSheet: Initial Value(LOOKUP)でプリフィル\n';
+
+    if (aiSh && aiCount > 0) {
+      var lastRow = aiSh.getLastRow();
+      var lastCol = aiSh.getLastColumn();
+      var headers = aiSh.getRange(1, 1, 1, lastCol).getValues()[0];
+      var dateCol = -1;
+      for (var i = 0; i < headers.length; i++) {
+        if (String(headers[i]).trim() === '判定日') { dateCol = i + 1; break; }
+      }
+      if (dateCol > 0) {
+        var lastDate = aiSh.getRange(lastRow, dateCol).getValue();
+        msg += '■ 最終判定: ' + (lastDate ? Utilities.formatDate(new Date(lastDate), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm') : '不明') + '\n';
+      }
+      var midCol = -1;
+      for (var j = 0; j < headers.length; j++) {
+        if (String(headers[j]).trim() === '管理番号') { midCol = j + 1; break; }
+      }
+      if (midCol > 0) {
+        var lastMid = aiSh.getRange(lastRow, midCol).getValue();
+        msg += '■ 最終管理番号: ' + lastMid + '\n';
+      }
+    }
+
+    return { ok: true, message: msg };
+  } catch (e) {
+    return { ok: false, message: String(e.message || e) };
+  }
+}
+
+// =====================================================
 // トリガー管理
 // =====================================================
 

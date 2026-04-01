@@ -122,7 +122,13 @@ table.data th{background:#f0f0f0;font-weight:700;}
         <div class="note">ジモティ経由の販売手数料率。0.10=10%</div>
       </div>
       <div class="card">
-        <div class="title">AI キーワード設定</div>
+        <div class="title">AI画像判定（Gemini）</div>
+        <div class="note">タスキ箱に画像アップ → 5分Cron → Gemini 2.5 Flash Lite で商品情報を自動判定 → AI画像判定シートに書込み → AppSheetのInitial Value(LOOKUP)で新規レコード作成時にプリフィル</div>
+        <div class="btnRow">
+          <button onclick="runTool('adminPanel_checkAiStatus','AI判定ステータス')">AI判定ステータス確認</button>
+        </div>
+        <div class="subtitle">AIキーワード抽出（OpenAI）</div>
+        <div class="note">既存データ用。新規データはGemini判定で自動入力されるため、このセクションは既存データのリトライ等に使用</div>
         <div class="form-row"><label>モデル</label><input type="text" id="biz-ai-model" placeholder="gpt-5-mini"></div>
         <div class="note">AIキーワード抽出で使用するOpenAIモデル名</div>
         <div class="form-row"><label>日次API上限</label><input type="number" id="biz-ai-limit" style="width:60px"></div>
