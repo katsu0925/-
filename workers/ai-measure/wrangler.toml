@@ -1,6 +1,12 @@
 name = "ai-measure-worker"
 main = "src/index.js"
 compatibility_date = "2024-01-01"
+workers_dev = true
+
+# カスタムドメイン
+routes = [
+  { pattern = "shameasure.nkonline-tool.com/*", zone_id = "21e05f22e3f12c87a1bff76a4284063a" }
+]
 
 [assets]
 directory = "./public"

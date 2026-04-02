@@ -3,9 +3,13 @@ main = "src/index.js"
 compatibility_date = "2024-01-01"
 workers_dev = true
 
+# カスタムドメイン
+routes = [
+  { pattern = "tasukibako.nkonline-tool.com/*", zone_id = "21e05f22e3f12c87a1bff76a4284063a" }
+]
+
 [vars]
 APP_NAME = "タスキ箱"
-# ALLOWED_ORIGIN = "https://tasukibako.example.com"  # 本番ドメイン確定後に有効化
 
 # Secrets (wrangler secret put で設定):
 #   ADMIN_EMAILS  — 管理者メール（カンマ区切り）
@@ -30,9 +34,3 @@ id = "4b44ff82d82b4302b3e3318522f7ae11"
 [[r2_buckets]]
 binding = "IMAGES"
 bucket_name = "tasukibako-images"
-
-# ── 本番用カスタムドメイン設定（ドメイン取得後に有効化） ──
-# routes = [
-#   { pattern = "tasukibako.com/*", zone_id = "YOUR_ZONE_ID" },
-#   { pattern = "www.tasukibako.com/*", zone_id = "YOUR_ZONE_ID" }
-# ]
