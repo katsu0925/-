@@ -712,7 +712,13 @@ function importAiProductData_(data) {
           // 新規行追加
           aiRow = aiLastRow + 1;
           aiLastRow++;
-          aiSh.getRange(aiRow, aiColMid).setValue(aiEntry.managedId);
+          // AppSheetの管理番号形式に合わせる（先頭小文字z + 大文字コード + 連番）
+          var aiMidWrite = String(aiEntry.managedId || '').trim();
+          // AppSheetは先頭小文字zで生成するが、タスキ箱は全大文字化するため、先頭を小文字に戻す
+          if (aiMidWrite.length > 0 && aiMidWrite.charAt(0) === 'Z') {
+            aiMidWrite = 'z' + aiMidWrite.substring(1);
+          }
+          aiSh.getRange(aiRow, aiColMid).setValue(aiMidWrite);
           aiIdToRow[aiMidVal] = aiRow;
         }
 
@@ -802,7 +808,11 @@ function importAiProductData_(data) {
           kwRow = kwLastRow + 1;
           kwLastRow++;
           console.log('AI KW: 新規行追加 row=' + kwRow + ', col=' + kwColMid + ', val=' + dEntry.managedId);
-          kwSh.getRange(kwRow, kwColMid).setValue(dEntry.managedId);
+          var kwMidWrite = String(dEntry.managedId || '').trim();
+          if (kwMidWrite.length > 0 && kwMidWrite.charAt(0) === 'Z') {
+            kwMidWrite = 'z' + kwMidWrite.substring(1);
+          }
+          kwSh.getRange(kwRow, kwColMid).setValue(kwMidWrite);
           kwIdToRow[dMid] = kwRow;
         }
 
