@@ -184,9 +184,9 @@ function runWithErrorNotify_(dispatcherName, fns) {
 // ディスパッチャー（同一間隔のトリガーを統合してトリガー数を節約）
 // =====================================================
 
-/** 5分ごと: 6関数を1トリガーで実行 */
+/** 5分ごと: 7関数を1トリガーで実行 */
 function cronEvery5min() {
-  runWithErrorNotify_('cronEvery5min', [cronExportProducts, baseSyncOrdersNow, baseSyncProductsToBase, notifyUnsentRequests, cronAutoExpandOrders, checkPendingOrders]);
+  runWithErrorNotify_('cronEvery5min', [cronExportProducts, baseSyncOrdersNow, baseSyncProductsToBase, notifyUnsentRequests, cronAutoExpandOrders, checkPendingOrders, checkAwaitingPayments]);
 }
 
 /** 毎日4時: 確保クリーンアップ + ポイント処理 + ポイント失効 + プロパティ掃除 */

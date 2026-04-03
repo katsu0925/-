@@ -1776,15 +1776,18 @@ function checkPendingOrders() {
         continue;
       }
 
-      var status = mapKomojuStatus_(response.status);
-      console.log('checkPendingOrders: [' + receiptNo + '] KOMOJUステータス=' + response.status + ' → ' + status);
+      // セッションstatusではなくpayment.statusを使用（セッションがcompletedでも
+      // paymentがauthorized=コンビニ未入金のケースがあるため）
+      var sessionStatus = mapKomojuStatus_(response.status);
+      var paymentApiStatus = response.payment ? mapKomojuStatus_(response.payment.status) : sessionStatus;
+      console.log('checkPendingOrders: [' + receiptNo + '] セッション=' + response.status + ', payment=' + (response.payment ? response.payment.status : 'N/A') + ' → ' + paymentApiStatus);
 
-      if ((status === 'paid' || status === 'authorized') && response.payment) {
+      if ((paymentApiStatus === 'paid' || paymentApiStatus === 'authorized') && response.payment) {
         console.log('checkPendingOrders: [' + receiptNo + '] 決済完了を検出 → 注文確定');
         var paymentMethodType = extractPaymentMethodType_(response.payment);
 
         // Paidy: authorized → 自動キャプチャ
-        if (paymentMethodType === 'paidy' && status === 'authorized') {
+        if (paymentMethodType === 'paidy' && paymentApiStatus === 'authorized') {
           console.log('checkPendingOrders: [' + receiptNo + '] Paidy自動キャプチャ実行');
           var capResult = capturePayment_(response.payment.id);
           if (capResult && !capResult.error) {
@@ -1796,7 +1799,7 @@ function checkPendingOrders() {
 
         // コンビニ・銀行振込: authorized=入金待ち、captured/paid=未対応（入金済み）
         var paymentStatus = '未対応';
-        if ((paymentMethodType === 'konbini' || paymentMethodType === 'bank_transfer') && status === 'authorized') {
+        if ((paymentMethodType === 'konbini' || paymentMethodType === 'bank_transfer') && paymentApiStatus === 'authorized') {
           paymentStatus = '入金待ち';
         }
         var confirmResult = confirmPaymentAndCreateOrder(
@@ -1807,11 +1810,11 @@ function checkPendingOrders() {
         } else {
           console.error('checkPendingOrders: [' + receiptNo + '] 注文確定失敗:', confirmResult);
         }
-      } else if (status === 'failed' || status === 'expired' || status === 'cancelled') {
+      } else if (paymentApiStatus === 'failed' || paymentApiStatus === 'expired' || paymentApiStatus === 'cancelled') {
         console.log('checkPendingOrders: [' + receiptNo + '] 決済失敗/期限切れ → キャンセル');
         apiCancelOrder(receiptNo);
       } else {
-        console.log('checkPendingOrders: [' + receiptNo + '] まだ決済未完了（status=' + status + '）→ 次回再チェック');
+        console.log('checkPendingOrders: [' + receiptNo + '] まだ決済未完了（status=' + paymentApiStatus + '）→ 次回再チェック');
       }
     } catch (checkErr) {
       console.error('checkPendingOrders error for ' + receiptNo + ':', checkErr);
@@ -1820,8 +1823,116 @@ function checkPendingOrders() {
 }
 
 /**
+ * 入金待ちフォローアップ: Webhook失敗時のセーフティネット
+ * 依頼管理シートでQ列が「入金待ち」の注文をKOMOJU APIで確認し、
+ * 入金済み（captured）なら「未対応」に更新する。
+ * cronEvery5minから呼び出される。
+ */
+function checkAwaitingPayments() {
+  var secretKey = getKomojuSecretKey_();
+  if (!secretKey) return;
+
+  var orderSs = sh_getOrderSs_();
+  var sheet = orderSs.getSheetByName('依頼管理');
+  if (!sheet) return;
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  // A列=受付番号, P列=決済ID, Q列=入金確認 を取得
+  var data = sheet.getRange(2, 1, lastRow - 1, 17).getValues();
+  var checked = 0;
+
+  for (var i = 0; i < data.length; i++) {
+    var paymentConfirm = String(data[i][16] || '');  // Q列(17)
+    if (paymentConfirm !== '入金待ち') continue;
+
+    var receiptNo = String(data[i][0] || '');   // A列
+    var komojuPaymentId = String(data[i][15] || '');  // P列(16) = 決済ID
+
+    if (!komojuPaymentId) {
+      console.warn('checkAwaitingPayments: [' + receiptNo + '] 決済IDなし → スキップ');
+      continue;
+    }
+
+    try {
+      var apiPayment = fetchPaymentFromApi_(komojuPaymentId);
+      if (!apiPayment) {
+        console.warn('checkAwaitingPayments: [' + receiptNo + '] API取得失敗 → スキップ');
+        continue;
+      }
+
+      var apiStatus = mapKomojuStatus_(apiPayment.status);
+      console.log('checkAwaitingPayments: [' + receiptNo + '] KOMOJU payment.status=' + apiPayment.status + ' → ' + apiStatus);
+
+      if (apiStatus === 'paid') {
+        // 入金済み → 「未対応」に更新
+        var paymentMethodType = extractPaymentMethodType_(apiPayment);
+        updateOrderPaymentStatus_(receiptNo, 'paid', paymentMethodType);
+        sendPaymentConfirmedEmail_(receiptNo, paymentMethodType);
+        console.log('checkAwaitingPayments: [' + receiptNo + '] 入金確認 → 未対応に更新');
+      } else if (apiStatus === 'expired' || apiStatus === 'cancelled' || apiStatus === 'failed') {
+        console.log('checkAwaitingPayments: [' + receiptNo + '] 決済 ' + apiStatus + ' → キャンセル処理');
+        apiCancelOrder(receiptNo);
+      }
+
+      checked++;
+      if (checked >= 10) break;  // API呼び出し制限（1回のcronで最大10件）
+    } catch (e) {
+      console.error('checkAwaitingPayments error for ' + receiptNo + ':', e);
+    }
+  }
+
+  if (checked > 0) {
+    console.log('checkAwaitingPayments: ' + checked + '件チェック完了');
+  }
+}
+
+/**
  * ペンディング注文チェックのトリガーを設定（GASエディタで1回だけ実行）
  */
+/**
+ * 【ワンショット】2件の入金ステータス手動修正
+ * GASエディタから1回だけ実行し、完了後に削除すること。
+ * - 20260402110958-952: コンビニ未入金なのに入金済み扱い → 入金待ちに修正
+ * - 20260331103725-755: KOMOJU入金済みなのに入金待ち → 未対応に修正
+ */
+function fixPaymentStatus_20260403() {
+  var fixes = [
+    { receiptNo: '20260402110958-952', newStatus: '入金待ち' },
+    { receiptNo: '20260331103725-755', newStatus: '未対応' }
+  ];
+
+  var orderSs = sh_getOrderSs_();
+  var sheet = orderSs.getSheetByName('依頼管理');
+  if (!sheet) { console.log('依頼管理シートなし'); return; }
+
+  var lastRow = sheet.getLastRow();
+  var data = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+
+  for (var f = 0; f < fixes.length; f++) {
+    var fix = fixes[f];
+    var found = false;
+    for (var i = 0; i < data.length; i++) {
+      if (String(data[i][0]) === fix.receiptNo) {
+        var row = i + 2;
+        sheet.getRange(row, 17).setValue(fix.newStatus);  // Q列=入金確認
+        // 未対応に変更する場合はAB列(受注通知)もFALSEに
+        if (fix.newStatus === '未対応') {
+          sheet.getRange(row, 28).setValue(false);
+        }
+        console.log('修正完了: ' + fix.receiptNo + ' → ' + fix.newStatus + ' (行' + row + ')');
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      console.warn('受付番号が見つかりません: ' + fix.receiptNo);
+    }
+  }
+  console.log('fixPaymentStatus_20260403 完了');
+}
+
 function setupPendingOrderTrigger() {
   // 既存のトリガーを削除
   var triggers = ScriptApp.getProjectTriggers();
