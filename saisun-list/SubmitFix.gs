@@ -1315,16 +1315,8 @@ function confirmPaymentAndCreateOrder(paymentToken, paymentStatus, paymentMethod
     writeSubmitData_(writeData);
     console.log('Order written to sheet: ' + receiptNo);
 
-    // 3.1. 購入回数を+1（初回半額の判定に使用）
-    var _pcEmail = pendingData.form && pendingData.form.contact;
-    if (_pcEmail) {
-      try {
-        incrementPurchaseCount_(String(_pcEmail).trim().toLowerCase());
-        console.log('購入回数+1: ' + _pcEmail);
-      } catch (pcErr) {
-        console.error('購入回数更新エラー:', pcErr);
-      }
-    }
+    // 3.1. 購入回数は発送完了時(発送通知.gs)にupdatePurchaseCount_で正確にカウントする
+    // 注文送信時のincrement は二重カウントの原因になるため廃止
 
     // シート書き込み成功後にペンディングキーを削除（書き込み前に削除すると例外時にデータ消失するため）
     props.deleteProperty(pendingKey);

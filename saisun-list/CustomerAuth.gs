@@ -1015,21 +1015,8 @@ function formatDate_(d) {
 /**
  * 購入回数を+1する（注文書き込み時に呼ぶ）
  */
-function incrementPurchaseCount_(email) {
-  if (!email) return;
-  var normalizedEmail = String(email).trim().toLowerCase();
-  var custSheet = getCustomerSheet_();
-  var custData = custSheet.getDataRange().getValues();
-  for (var j = 1; j < custData.length; j++) {
-    if (String(custData[j][CUSTOMER_SHEET_COLS.EMAIL] || '').trim().toLowerCase() === normalizedEmail) {
-      var current = Number(custData[j][CUSTOMER_SHEET_COLS.PURCHASE_COUNT]) || 0;
-      custSheet.getRange(j + 1, CUSTOMER_SHEET_COLS.PURCHASE_COUNT + 1).setValue(current + 1);
-      // キャッシュ無効化
-      try { CacheService.getScriptCache().remove('CUSTOMER:' + normalizedEmail); } catch(e) {}
-      return;
-    }
-  }
-}
+// incrementPurchaseCount_ は廃止（二重カウントの原因）
+// 購入回数は updatePurchaseCount_（完了注文の実数カウント）に統一
 
 function updatePurchaseCount_(email) {
   if (!email) return;
