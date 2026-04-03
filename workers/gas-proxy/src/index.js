@@ -170,17 +170,29 @@ self.addEventListener('fetch', e => {
       return await serveImage(request, env, url.pathname);
     }
 
-    // バッチAI判定: GET /batch-ai?key=SECRET&limit=5
-    if (request.method === 'GET' && url.pathname === '/batch-ai') {
-      const key = url.searchParams.get('key');
-      if (key !== env.SYNC_SECRET) return new Response('Unauthorized', { status: 401 });
-      const limit = parseInt(url.searchParams.get('limit') || '5');
+    // バッチAI判定: POST /batch-ai (body: {key, limit, skip[]})
+    if (request.method === 'POST' && url.pathname === '/batch-ai') {
       try {
+        const body = await request.json();
+        if (body.key !== env.SYNC_SECRET) return new Response('Unauthorized', { status: 401 });
+        const limit = body.limit || 5;
+        env._batchSkipSet = new Set(body.skip || []);
         const result = await batchAiJudgment(env, limit);
         return new Response(JSON.stringify(result, null, 2), { headers: { 'Content-Type': 'application/json' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: e.message }), { headers: { 'Content-Type': 'application/json' } });
       }
+    }
+
+    // GET /upload/blur?check=1 → 使用量確認
+    if (url.pathname === '/upload/blur' && request.method === 'GET') {
+      const usage = await getBlurUsage(env);
+      return jsonOk(usage);
+    }
+
+    // POST /upload/blur → CF Images segment で背景除去
+    if (url.pathname === '/upload/blur' && request.method === 'POST') {
+      return await handleBlurSegment(request, env);
     }
 
     // POST /upload/* → アップロードAPIハンドラー（multipart/JSON）
@@ -326,6 +338,90 @@ async function checkRateLimit(env, action, userKey, config) {
 }
 
 // ─── カスタムドメイン判定 ───
+
+/**
+ * CF Images segment で背景除去
+ * 1. 画像をR2に一時保存
+ * 2. CF Image Transformations (segment=foreground) で前景取得
+ * 3. 前景PNGを返す
+ * 4. 一時ファイル削除
+ */
+async function handleBlurSegment(request, env) {
+  try {
+    // 使用量チェック（?check=1 で残量確認のみ）
+    const url = new URL(request.url);
+    if (url.searchParams.get('check') === '1') {
+      const usage = await getBlurUsage(env);
+      return jsonOk(usage);
+    }
+
+    const formData = await request.formData();
+    const file = formData.get('image');
+    if (!file) return jsonError('画像が必要です', 400);
+
+    // 使用量カウント
+    const usage = await incrementBlurUsage(env);
+
+    // R2に一時保存
+    const tmpKey = 'tmp-blur/' + crypto.randomUUID() + '.jpg';
+    await env.IMAGES.put(tmpKey, await file.arrayBuffer(), {
+      httpMetadata: { contentType: file.type || 'image/jpeg' },
+    });
+
+    // CF Image Transformations で segment 実行
+    const imageUrl = new URL('/images/' + tmpKey, request.url).href;
+    const segRes = await fetch(imageUrl, {
+      cf: { image: { segment: 'foreground', format: 'png' } },
+    });
+
+    // 一時ファイル削除（バックグラウンド）
+    env.IMAGES.delete(tmpKey).catch(() => {});
+
+    if (!segRes.ok) {
+      const errText = await segRes.text();
+      console.error('CF segment error:', segRes.status, errText);
+      return jsonError('背景除去に失敗しました（CF Images）', 502);
+    }
+
+    return new Response(segRes.body, {
+      headers: {
+        'Content-Type': 'image/png',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'no-store',
+        'X-Blur-Usage': String(usage.count),
+        'X-Blur-Limit': '5000',
+      },
+    });
+  } catch (e) {
+    console.error('handleBlurSegment error:', e);
+    return jsonError('背景除去エラー: ' + e.message, 500);
+  }
+}
+
+// CF Images 使用量管理（KV、月ごとリセット）
+const BLUR_LIMIT = 5000;
+
+function blurUsageKey() {
+  const now = new Date();
+  return 'blur-usage:' + now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+}
+
+async function getBlurUsage(env) {
+  const key = blurUsageKey();
+  const count = parseInt(await env.CACHE.get(key) || '0');
+  return { count, limit: BLUR_LIMIT, remaining: Math.max(0, BLUR_LIMIT - count) };
+}
+
+async function incrementBlurUsage(env) {
+  const key = blurUsageKey();
+  const count = parseInt(await env.CACHE.get(key) || '0') + 1;
+  // 月末+1日まで保持（自動リセット）
+  const now = new Date();
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 2);
+  const ttl = Math.ceil((nextMonth - now) / 1000);
+  await env.CACHE.put(key, String(count), { expirationTtl: ttl });
+  return { count, limit: BLUR_LIMIT, remaining: Math.max(0, BLUR_LIMIT - count) };
+}
 
 const PAGES_ORIGIN = 'https://wholesale-eco.pages.dev';
 const CUSTOM_DOMAINS = ['wholesale.nkonline-tool.com'];

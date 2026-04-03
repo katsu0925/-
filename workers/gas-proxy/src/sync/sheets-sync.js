@@ -937,12 +937,8 @@ export async function batchAiJudgment(env, limit) {
   if (!indexJson) return { error: 'No product-images:index', processed: 0 };
   const allIds = JSON.parse(indexJson);
 
-  // ai-result が未処理のものをフィルタ
-  const pending = [];
-  for (const mid of allIds) {
-    const existing = await env.CACHE.get(`ai-result:${mid}`);
-    if (!existing) pending.push(mid);
-  }
+  // 処理済みリストはリクエストパラメータで受け取る（KV結果整合性問題を回避）
+  const pending = allIds.filter(mid => !env._batchSkipSet || !env._batchSkipSet.has(mid));
 
   if (pending.length === 0) {
     return { message: '全件処理済み', total: allIds.length, remaining: 0, processed: 0 };
@@ -952,6 +948,7 @@ export async function batchAiJudgment(env, limit) {
   const batch = pending.slice(0, limit);
   const results = [];
   const errors = [];
+  const aiDataForGas = [];
 
   for (const mid of batch) {
     try {
@@ -959,16 +956,7 @@ export async function batchAiJudgment(env, limit) {
       if (aiResult) {
         await env.CACHE.put(`ai-result:${mid}`, JSON.stringify(aiResult), { expirationTtl: 30 * 24 * 3600 });
         results.push({ managedId: mid, category2: aiResult.category2, brand: aiResult.brand });
-
-        // GASにも送信（AI画像判定シート + AIキーワード抽出シートに書込み）
-        const gasUrl = env.GAS_API_URL;
-        if (gasUrl) {
-          const body = JSON.stringify({
-            action: 'apiSyncImportData',
-            args: [{ syncSecret: env.SYNC_SECRET || '', aiData: [{ managedId: mid, ...aiResult }] }],
-          });
-          await fetch(gasUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body, redirect: 'follow' });
-        }
+        aiDataForGas.push({ managedId: mid, ...aiResult });
       } else {
         errors.push({ managedId: mid, error: 'Gemini returned null' });
       }
@@ -977,10 +965,36 @@ export async function batchAiJudgment(env, limit) {
     }
   }
 
+  // GASにまとめて1回で送信（リトライ付き）
+  let gasWritten = 0;
+  if (aiDataForGas.length > 0) {
+    const gasUrl = env.GAS_API_URL;
+    if (gasUrl) {
+      const body = JSON.stringify({
+        action: 'apiSyncImportData',
+        args: [{ syncSecret: env.SYNC_SECRET || '', aiData: aiDataForGas }],
+      });
+      for (let retry = 0; retry < 3; retry++) {
+        try {
+          const resp = await fetch(gasUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body, redirect: 'follow' });
+          const text = await resp.text();
+          const result = JSON.parse(text);
+          if (result.ok) {
+            gasWritten = (result.imported?.aiProduct || 0) + (result.imported?.aiKeywords || 0);
+            break;
+          }
+        } catch (e) {
+          if (retry < 2) await new Promise(r => setTimeout(r, 2000));
+        }
+      }
+    }
+  }
+
   return {
     total: allIds.length,
     remaining: pending.length - batch.length,
     processed: results.length,
+    gasWritten,
     errors: errors.length,
     results,
     errorDetails: errors.length > 0 ? errors : undefined,
@@ -1104,6 +1118,10 @@ async function runGeminiJudgment(env, managedId, apiKey) {
 
   try {
     const parsed = JSON.parse(text);
+    // null を空文字に変換（AppSheetで「null」と表示されるのを防止）
+    for (const key of Object.keys(parsed)) {
+      if (parsed[key] === null) parsed[key] = '';
+    }
     console.log(`[ai] Judgment OK for ${managedId}: cat2=${parsed.category2}, brand=${parsed.brand}`);
     return parsed;
   } catch (e) {
