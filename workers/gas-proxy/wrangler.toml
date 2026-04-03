@@ -43,6 +43,11 @@ id = "9a4f7973bc644ab086397fd71564985f"
 binding = "IMAGES"
 bucket_name = "detauri-images"
 
+# R2 Bucket（タスキ箱画像 — AI判定用の読み取り専用参照）
+[[r2_buckets]]
+binding = "TASUKIBAKO_IMAGES"
+bucket_name = "tasukibako-images"
+
 # Secrets (wrangler secret put で設定)
 # - GAS_API_URL, SYNC_SECRET, ADMIN_KEY, RECAPTCHA_SECRET, KOMOJU_SECRET_KEY
 # - META_PIXEL_ID (Meta Pixel ID: 2122295911954697)

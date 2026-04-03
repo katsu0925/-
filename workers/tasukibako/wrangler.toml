@@ -30,6 +30,11 @@ id = "a45ffde241e64ee8aa03b6a54dc659ec"
 binding = "CACHE"
 id = "4b44ff82d82b4302b3e3318522f7ae11"
 
+# KV: gas-proxy同期用（撮影データ→AI判定の自動連携）
+[[kv_namespaces]]
+binding = "SYNC_CACHE"
+id = "9a4f7973bc644ab086397fd71564985f"
+
 # R2: 商品画像ストレージ
 [[r2_buckets]]
 binding = "IMAGES"

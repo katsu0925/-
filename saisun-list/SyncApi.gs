@@ -643,10 +643,13 @@ function importAiProductData_(data) {
         var col = colMap[headerName];
         if (!col) continue;
         var newVal = entry[field];
-        if (newVal === null || newVal === undefined || String(newVal).trim() === '') continue;
+        if (newVal === null || newVal === undefined) continue;
+        var newValStr = String(newVal).trim();
+        var newValLower = newValStr.toLowerCase();
+        if (newValStr === '' || newValLower === 'null' || newValLower === 'n/a' || newValStr === 'なし' || newValStr === '不明' || newValLower === 'undefined') continue;
         var existing = String(sh.getRange(row, col).getValue() || '').trim();
         if (existing !== '') continue;
-        sh.getRange(row, col).setValue(String(newVal).trim());
+        sh.getRange(row, col).setValue(newValStr);
         changed = true;
       }
       if (changed) {
@@ -720,7 +723,10 @@ function importAiProductData_(data) {
           if (!aiCol) continue;
           var aiVal = aiEntry[aiField];
           if (aiVal === null || aiVal === undefined) continue;
-          aiSh.getRange(aiRow, aiCol).setValue(String(aiVal).trim());
+          var aiValStr = String(aiVal).trim();
+          var aiValLower = aiValStr.toLowerCase();
+          if (aiValStr === '' || aiValLower === 'null' || aiValLower === 'n/a' || aiValStr === 'なし' || aiValStr === '不明' || aiValLower === 'undefined') continue;
+          aiSh.getRange(aiRow, aiCol).setValue(aiValStr);
         }
 
         // 判定日

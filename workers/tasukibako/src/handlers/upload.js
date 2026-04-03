@@ -78,6 +78,44 @@ export async function uploadImages(request, env, session) {
     return jsonError(`画像数の上限（${limits.maxImages}）に達しています。残り${limits.maxImages - team.image_count}枚です。`, 400);
   }
 
+  // replace-single: 1枚だけ差し替え（ぼかし・画像差し替え用）
+  if (action === 'replace-single') {
+    const targetUrl = formData.get('targetUrl') || '';
+    if (!targetUrl) return jsonError('targetUrlが必要です。', 400);
+    if (files.length !== 1) return jsonError('差し替えは1枚のみです。', 400);
+    const file = files[0];
+    if (!(file instanceof File)) return jsonError('不正なファイルです。', 400);
+    if (file.size > MAX_FILE_SIZE) return jsonError('ファイルサイズが大きすぎます（最大10MB）。', 400);
+
+    // 元画像をR2から削除
+    const oldR2Key = targetUrl.replace(/^\/images\//, '');
+    await env.IMAGES.delete(oldR2Key);
+
+    // 新しい画像をR2にアップロード
+    const uuid = crypto.randomUUID();
+    const newKey = `teams/${teamId}/products/${managedId}/${uuid}.jpg`;
+    await env.IMAGES.put(newKey, await file.arrayBuffer(), {
+      httpMetadata: { contentType: 'image/jpeg', cacheControl: 'public, max-age=31536000, immutable' },
+    });
+    const newUrl = `/images/teams/${teamId}/products/${managedId}/${uuid}.jpg`;
+
+    // KVのURL配列を更新
+    const updatedUrls = existingUrls.map(u => u === targetUrl ? newUrl : u);
+    await env.CACHE.put(kvKey, JSON.stringify(updatedUrls));
+
+    // メタデータ更新
+    const now = new Date().toISOString();
+    const metaKey = `team:${teamId}:product-meta:${managedId}`;
+    const existingMetaJson = await env.CACHE.get(metaKey);
+    const existingMeta = existingMetaJson ? JSON.parse(existingMetaJson) : {};
+    existingMeta.lastUpdatedBy = session.userId;
+    existingMeta.lastUpdatedByName = session.displayName;
+    existingMeta.lastUpdatedAt = now;
+    await env.CACHE.put(metaKey, JSON.stringify(existingMeta));
+
+    return jsonOk({ managedId, urls: updatedUrls, newUrl, count: updatedUrls.length });
+  }
+
   // appendモードの枚数チェック
   if (action === 'append') {
     if (existingUrls.length + files.length > MAX_IMAGES) {
@@ -152,7 +190,61 @@ export async function uploadImages(request, env, session) {
     WHERE id = ?
   `).bind(productDelta, imageDelta, now, teamId).run();
 
+  // gas-proxy側KVに同期データを書き込み（AI判定自動連携）
+  if (env.SYNC_CACHE) {
+    try {
+      await writeSyncData(env, managedId, teamId, session, now);
+    } catch (e) {
+      console.error(`[upload] SYNC_CACHE write failed: ${e.message}`);
+    }
+  }
+
   return jsonOk({ managedId, urls, count: urls.length });
+}
+
+/**
+ * gas-proxy側KVに撮影データを書き込み（AI判定自動連携）
+ * - photo-meta:{managedId} — 撮影者・撮影日
+ * - photo-meta:pending — 待機リスト
+ * - product-images:{managedId} — 画像URL配列（R2パス）
+ * - product-images:index — managedIdリスト
+ */
+async function writeSyncData(env, managedId, teamId, session, now) {
+  const d = new Date(now);
+  const todayStr = `${d.getFullYear()}/${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`;
+
+  // photo-meta
+  await env.SYNC_CACHE.put(`photo-meta:${managedId}`, JSON.stringify({
+    photographer: session.displayName || session.userId || '',
+    photographyDate: todayStr,
+    uploadedAt: now,
+  }));
+
+  // pending リストに追加
+  const pendingJson = await env.SYNC_CACHE.get('photo-meta:pending');
+  const pending = pendingJson ? JSON.parse(pendingJson) : [];
+  if (!pending.includes(managedId)) {
+    pending.push(managedId);
+    await env.SYNC_CACHE.put('photo-meta:pending', JSON.stringify(pending));
+  }
+
+  // product-images（gas-proxy側のキー形式で保存）
+  const tasukiKey = `team:${teamId}:product-images:${managedId}`;
+  const urlsJson = await env.CACHE.get(tasukiKey);
+  if (urlsJson) {
+    await env.SYNC_CACHE.put(`product-images:${managedId}`, urlsJson);
+  }
+
+  // product-images:index
+  const indexJson = await env.SYNC_CACHE.get('product-images:index');
+  const index = indexJson ? JSON.parse(indexJson) : [];
+  if (!index.includes(managedId)) {
+    index.push(managedId);
+    index.sort();
+    await env.SYNC_CACHE.put('product-images:index', JSON.stringify(index));
+  }
+
+  console.log(`[upload] Synced to gas-proxy KV: ${managedId}`);
 }
 
 /**

@@ -1063,7 +1063,11 @@ async function runGeminiJudgment(env, managedId, apiKey) {
   const imageParts = [];
   for (const imgUrl of urls) {
     const r2Key = imgUrl.replace(/^\/images\//, '').split('?')[0];
-    const r2Obj = await env.IMAGES.get(r2Key);
+    let r2Obj = await env.IMAGES.get(r2Key);
+    // タスキ箱のR2からも探す（teams/で始まるパス）
+    if (!r2Obj && env.TASUKIBAKO_IMAGES) {
+      r2Obj = await env.TASUKIBAKO_IMAGES.get(r2Key);
+    }
     if (!r2Obj) continue;
 
     const arrayBuffer = await r2Obj.arrayBuffer();
@@ -1118,9 +1122,16 @@ async function runGeminiJudgment(env, managedId, apiKey) {
 
   try {
     const parsed = JSON.parse(text);
-    // null を空文字に変換（AppSheetで「null」と表示されるのを防止）
+    // null・"null"・"N/A"・"なし"・"不明" を空文字に変換
     for (const key of Object.keys(parsed)) {
-      if (parsed[key] === null) parsed[key] = '';
+      if (parsed[key] === null || parsed[key] === undefined) {
+        parsed[key] = '';
+      } else if (typeof parsed[key] === 'string') {
+        const v = parsed[key].trim().toLowerCase();
+        if (v === 'null' || v === 'n/a' || v === 'なし' || v === '不明' || v === 'undefined') {
+          parsed[key] = '';
+        }
+      }
     }
     console.log(`[ai] Judgment OK for ${managedId}: cat2=${parsed.category2}, brand=${parsed.brand}`);
     return parsed;
