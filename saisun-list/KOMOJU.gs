@@ -1891,48 +1891,6 @@ function checkAwaitingPayments() {
 /**
  * ペンディング注文チェックのトリガーを設定（GASエディタで1回だけ実行）
  */
-/**
- * 【ワンショット】2件の入金ステータス手動修正
- * GASエディタから1回だけ実行し、完了後に削除すること。
- * - 20260402110958-952: コンビニ未入金なのに入金済み扱い → 入金待ちに修正
- * - 20260331103725-755: KOMOJU入金済みなのに入金待ち → 未対応に修正
- */
-function fixPaymentStatus_20260403() {
-  var fixes = [
-    { receiptNo: '20260402110958-952', newStatus: '入金待ち' },
-    { receiptNo: '20260331103725-755', newStatus: '未対応' }
-  ];
-
-  var orderSs = sh_getOrderSs_();
-  var sheet = orderSs.getSheetByName('依頼管理');
-  if (!sheet) { console.log('依頼管理シートなし'); return; }
-
-  var lastRow = sheet.getLastRow();
-  var data = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
-
-  for (var f = 0; f < fixes.length; f++) {
-    var fix = fixes[f];
-    var found = false;
-    for (var i = 0; i < data.length; i++) {
-      if (String(data[i][0]) === fix.receiptNo) {
-        var row = i + 2;
-        sheet.getRange(row, 17).setValue(fix.newStatus);  // Q列=入金確認
-        // 未対応に変更する場合はAB列(受注通知)もFALSEに
-        if (fix.newStatus === '未対応') {
-          sheet.getRange(row, 28).setValue(false);
-        }
-        console.log('修正完了: ' + fix.receiptNo + ' → ' + fix.newStatus + ' (行' + row + ')');
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
-      console.warn('受付番号が見つかりません: ' + fix.receiptNo);
-    }
-  }
-  console.log('fixPaymentStatus_20260403 完了');
-}
-
 function setupPendingOrderTrigger() {
   // 既存のトリガーを削除
   var triggers = ScriptApp.getProjectTriggers();
