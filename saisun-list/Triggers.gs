@@ -186,7 +186,7 @@ function runWithErrorNotify_(dispatcherName, fns) {
 
 /** 5分ごと: 7関数を1トリガーで実行 */
 function cronEvery5min() {
-  runWithErrorNotify_('cronEvery5min', [cronExportProducts, baseSyncOrdersNow, baseSyncProductsToBase, notifyUnsentRequests, cronAutoExpandOrders, checkPendingOrders, checkAwaitingPayments]);
+  runWithErrorNotify_('cronEvery5min', [cronExportProducts, baseSyncOrdersNow, baseSyncProductsToBase, notifyUnsentRequests, cronAutoExpandOrders, checkPendingOrders, checkAwaitingPayments, applyPendingAiData]);
 }
 
 /** 毎日4時: 確保クリーンアップ + ポイント処理 + ポイント失効 + プロパティ掃除 */

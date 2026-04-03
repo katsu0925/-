@@ -847,6 +847,98 @@ function importAiProductData_(data) {
   return { product: productWritten, keywords: kwWritten, debug: { ssName: ss.getName(), kwShFound: !!kwSh, kwColMid: kwColMid || null, kwColsLen: kwCols ? kwCols.length : 0, kwLastRow: kwSh ? kwSh.getLastRow() : -1, dataLen: data.length, firstMid: testMid, firstKw: String(firstEntry.keywords || '').substring(0, 50), kwRowFound: testKwRow || 'NOT_FOUND', firstKwVal: testFirstKwVal } };
 }
 
+/**
+ * AI画像判定シート → 商品管理シートへの未適用データを再適用
+ * cronEvery5minから呼び出し。AI判定が先に完了し、商品管理に行が後から追加されるケースに対応。
+ */
+function applyPendingAiData() {
+  var ssId = '';
+  try { ssId = APP_CONFIG.detail.spreadsheetId; } catch (e) {}
+  if (!ssId) try { ssId = PropertiesService.getScriptProperties().getProperty('DETAIL_SPREADSHEET_ID') || ''; } catch (e) {}
+  if (!ssId) return;
+
+  var ss = SpreadsheetApp.openById(ssId);
+  var aiSh = ss.getSheetByName('AI画像判定');
+  var sh = ss.getSheetByName('商品管理');
+  if (!aiSh || !sh) return;
+
+  var aiLastRow = aiSh.getLastRow();
+  var aiLastCol = aiSh.getLastColumn();
+  if (aiLastRow < 2 || aiLastCol < 2) return;
+
+  // AI画像判定ヘッダーマップ
+  var aiHeaders = aiSh.getRange(1, 1, 1, aiLastCol).getValues()[0];
+  var aiColMap = {};
+  for (var i = 0; i < aiHeaders.length; i++) {
+    var name = String(aiHeaders[i] || '').trim();
+    if (name) aiColMap[name] = i + 1;
+  }
+  var aiColMid = aiColMap['管理番号'];
+  if (!aiColMid) return;
+
+  // 商品管理ヘッダーマップ
+  var shLastRow = sh.getLastRow();
+  var shLastCol = sh.getLastColumn();
+  if (shLastRow < 2) return;
+  var shHeaders = sh.getRange(1, 1, 1, shLastCol).getValues()[0];
+  var shColMap = {};
+  for (var h = 0; h < shHeaders.length; h++) {
+    var hName = String(shHeaders[h] || '').trim();
+    if (hName) shColMap[hName] = h + 1;
+  }
+
+  // 商品管理の管理番号→行マップ
+  var shColMid = shColMap['管理番号'];
+  if (!shColMid) return;
+  var shMidData = sh.getRange(2, shColMid, shLastRow - 1, 1).getValues();
+  var shIdToRow = {};
+  for (var s = 0; s < shMidData.length; s++) {
+    var smid = String(shMidData[s][0] || '').trim().toUpperCase();
+    if (smid) shIdToRow[smid] = s + 2;
+  }
+
+  // フィールドマッピング
+  var fieldMap = {
+    'ブランド': 'ブランド', 'タグ表記': 'タグ表記', '性別': '性別',
+    'カテゴリ1': 'カテゴリ1', 'カテゴリ2': 'カテゴリ2', 'カテゴリ3': 'カテゴリ3',
+    'デザイン特徴': 'デザイン特徴', 'カラー': 'カラー', 'ポケット': 'ポケット', '傷汚れ詳細': '傷汚れ詳細'
+  };
+
+  // AI画像判定の全行を走査
+  var aiData = aiSh.getRange(2, 1, aiLastRow - 1, aiLastCol).getValues();
+  var applied = 0;
+  for (var r = 0; r < aiData.length; r++) {
+    var mid = String(aiData[r][aiColMid - 1] || '').trim().toUpperCase();
+    if (!mid) continue;
+
+    var shRow = shIdToRow[mid];
+    if (!shRow) continue; // 商品管理に行がまだない
+
+    var changed = false;
+    for (var aiHeader in fieldMap) {
+      var shHeader = fieldMap[aiHeader];
+      var aiCol = aiColMap[aiHeader];
+      var shCol = shColMap[shHeader];
+      if (!aiCol || !shCol) continue;
+
+      var aiVal = String(aiData[r][aiCol - 1] || '').trim();
+      var aiValLower = aiVal.toLowerCase();
+      if (aiVal === '' || aiValLower === 'null' || aiValLower === 'n/a' || aiVal === 'なし' || aiVal === '不明') continue;
+
+      var existing = String(sh.getRange(shRow, shCol).getValue() || '').trim();
+      if (existing !== '') continue; // 既に値がある
+
+      sh.getRange(shRow, shCol).setValue(aiVal);
+      changed = true;
+    }
+    if (changed) {
+      applied++;
+      console.log('applyPendingAiData: 適用 ' + mid);
+    }
+  }
+  if (applied > 0) console.log('applyPendingAiData: ' + applied + '件適用');
+}
+
 function importCustomers_(customers) {
   var ssId = app_getOrderSpreadsheetId_();
   if (!ssId) return 0;
