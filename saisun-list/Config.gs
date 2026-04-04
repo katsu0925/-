@@ -282,6 +282,7 @@ function app_getFirstHalfPriceStatus_() {
 function isFhpEligible_(customer, fhpStatus) {
   if (!fhpStatus || !fhpStatus.enabled) return false;
   if (!customer || customer.purchaseCount !== 0) return false;
+  if (!customer.row || customer.row < 2) return false;
   var cap = fhpStatus.memberCap || 100;
   // row = シート行番号（ヘッダー=1, 最初の顧客=2）→ 登録順 = row - 1
   if (cap > 0 && (customer.row - 1) > cap) return false;

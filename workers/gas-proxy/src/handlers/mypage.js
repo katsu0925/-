@@ -51,9 +51,10 @@ export async function getMyPage(args, env) {
       let eligible = !!(fhp.enabled && customer.purchase_count === 0);
       if (eligible && fhp.memberCap > 0) {
         const orderRow = await env.DB.prepare(
-          'SELECT COUNT(*) AS cnt FROM customers WHERE created_at <= ?'
+          'SELECT COUNT(*) AS cnt FROM customers WHERE created_at < ?'
         ).bind(customer.created_at).first();
-        if (orderRow && orderRow.cnt > fhp.memberCap) eligible = false;
+        const registrationOrder = (orderRow && orderRow.cnt !== null) ? orderRow.cnt + 1 : fhp.memberCap + 1;
+        if (registrationOrder > fhp.memberCap) eligible = false;
       }
       firstHalfPrice = { eligible, rate: fhp.rate || 0.5 };
     } catch (e) { /* ignore */ }

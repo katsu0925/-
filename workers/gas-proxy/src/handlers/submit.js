@@ -331,10 +331,12 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     const memberCap = fhpStatus.memberCap || 100;
     let fhpEligible = true;
     if (memberCap > 0) {
+      // created_at < で自分より前の登録者数を取得（同一秒の曖昧さを排除）
       const orderRow = await env.DB.prepare(
-        'SELECT COUNT(*) AS cnt FROM customers WHERE created_at <= (SELECT created_at FROM customers WHERE email = ?)'
+        'SELECT COUNT(*) AS cnt FROM customers WHERE created_at < (SELECT created_at FROM customers WHERE email = ?)'
       ).bind(emailLower).first();
-      const registrationOrder = orderRow ? orderRow.cnt : 0;
+      // registrationOrder = 自分より前の人数 + 1（自分）。サブクエリNULL時は対象外にする
+      const registrationOrder = (orderRow && orderRow.cnt !== null) ? orderRow.cnt + 1 : memberCap + 1;
       if (registrationOrder > memberCap) fhpEligible = false;
     }
     if (fhpEligible) {

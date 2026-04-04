@@ -90,7 +90,7 @@ export async function login(args, env) {
   ).bind('ADMIN_OWNER_EMAIL').first();
   const isOwner = ownerEmail && customer.email === ownerEmail.value;
 
-  // firstHalfPrice判定
+  // firstHalfPrice判定（memberCap: 100人目までの登録者のみ対象）
   let firstHalfPrice = null;
   {
     const fhpRow = await env.DB.prepare(
@@ -99,10 +99,15 @@ export async function login(args, env) {
     if (fhpRow) {
       try {
         const parsed = JSON.parse(fhpRow.value);
-        firstHalfPrice = {
-          eligible: !!(parsed.enabled && customer.purchase_count === 0),
-          rate: parsed.rate || 0.5,
-        };
+        let eligible = !!(parsed.enabled && customer.purchase_count === 0);
+        if (eligible && parsed.memberCap > 0) {
+          const orderRow = await env.DB.prepare(
+            'SELECT COUNT(*) AS cnt FROM customers WHERE created_at < ?'
+          ).bind(customer.created_at).first();
+          const registrationOrder = (orderRow && orderRow.cnt !== null) ? orderRow.cnt + 1 : parsed.memberCap + 1;
+          if (registrationOrder > parsed.memberCap) eligible = false;
+        }
+        firstHalfPrice = { eligible, rate: parsed.rate || 0.5 };
       } catch (e) { /* ignore */ }
     }
   }

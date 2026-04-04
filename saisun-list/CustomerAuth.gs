@@ -199,7 +199,7 @@ function findCustomerByEmail_(email) {
     var cached = cache.get(cacheKey);
     if (cached) {
       var c = JSON.parse(cached);
-      if (c && c.email && String(c.email).trim().toLowerCase() === normalizedEmail) return c;
+      if (c && c.row && c.email && String(c.email).trim().toLowerCase() === normalizedEmail) return c;
       cache.remove(cacheKey);
     }
   } catch (e) {}
@@ -1053,6 +1053,8 @@ function updatePurchaseCount_(email) {
   for (var j = 1; j < custData.length; j++) {
     if (String(custData[j][CUSTOMER_SHEET_COLS.EMAIL] || '').trim().toLowerCase() === normalizedEmail) {
       custSheet.getRange(j + 1, CUSTOMER_SHEET_COLS.PURCHASE_COUNT + 1).setValue(count);
+      // キャッシュ無効化（FHP判定に影響するため）
+      try { CacheService.getScriptCache().remove('CUSTOMER:' + normalizedEmail); } catch(e) {}
       return;
     }
   }
