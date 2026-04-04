@@ -269,6 +269,17 @@ function app_getFirstHalfPriceStatus_() {
   if (now > end) {
     return { enabled: false, rate: 0, endDate: endDate, reason: 'expired' };
   }
+  // 会員数上限チェック（100人到達で自動終了）
+  var memberCap = Number(props.getProperty('FHP_MEMBER_CAP') || 100);
+  if (memberCap > 0) {
+    try {
+      var custSheet = getCustomerSheet_();
+      var memberCount = custSheet.getLastRow() - 1;
+      if (memberCount >= memberCap) {
+        return { enabled: false, rate: 0, endDate: endDate, reason: 'member_cap', memberCount: memberCount, memberCap: memberCap };
+      }
+    } catch (e) { /* シート読込失敗時はスキップ */ }
+  }
   return { enabled: true, rate: rate, endDate: endDate, reason: 'active' };
 }
 
