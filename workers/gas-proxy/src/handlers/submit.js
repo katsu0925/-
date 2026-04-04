@@ -440,6 +440,21 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   const shippingFreeCoupon = validatedCoupon && validatedCoupon.type === 'shipping_free';
   const thresholdFree = (discounted + bulkProductAmount) >= dynFreeShipThreshold;
 
+  // 送料無料判定前に実際の配送コストを計算（店負担送料用）
+  let actualShippingForStore = 0;
+  if (ids.length > 0 && shippingArea && dynShippingRates[shippingArea]) {
+    const { thick: _thick, thin: _thin } = classifyThickness(productResults);
+    const _sz = calcShippingSize(_thick, _thin);
+    if (!_sz.size) {
+      actualShippingForStore = calcMultiShipment(_thick, _thin, dynShippingRates[shippingArea]).amount;
+    } else {
+      actualShippingForStore = dynShippingRates[shippingArea][_sz.size === 'small' ? 0 : 1];
+    }
+  }
+  if (bulkItemCount > 0 && shippingArea && dynShippingRates[shippingArea]) {
+    actualShippingForStore += dynShippingRates[shippingArea][1] * bulkItemCount;
+  }
+
   if (diamondFree) {
     shippingAmount = 0;
     bulkShippingAmount = 0;
@@ -756,7 +771,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   }
 
   // ─── ペンディング注文データ（GAS webhook互換） ───
-  const storeShipping = Math.round((shippingAmount + bulkShippingAmount) / 2) || 0;
+  const storeShipping = Math.round(actualShippingForStore / 2) || 0;
 
   // channel判定（GAS側プレミアムアソート自動選定用）
   const channel = hasBulkItems ? (ids.length > 0 ? 'まとめ' : 'アソート') : 'デタウリ';

@@ -226,6 +226,26 @@ function apiSubmitEstimate(userKey, form, ids) {
     var shippingFreeCoupon = validatedCoupon && validatedCoupon.type === 'shipping_free';
     var thresholdFree = (discounted + bulkProductAmount) >= 10000;
 
+    // 送料無料判定の前に実際の配送コストを計算（店負担送料用）
+    var actualShippingForStore = 0;
+    if (list.length > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
+      var _thick = 0, _thin = 0;
+      for (var _si = 0; _si < list.length; _si++) {
+        var _sp = productMap[list[_si]];
+        if (_sp && String(_sp.shippingMethod || '').trim() === 'ゆうパケットポスト') _thin++;
+        else _thick++;
+      }
+      var _sz = calcShippingSize_sf_(_thick, _thin);
+      if (!_sz.size) {
+        actualShippingForStore = calcMultiShipment_sf_(_thick, _thin, SHIPPING_RATES[shippingArea]).amount;
+      } else {
+        actualShippingForStore = SHIPPING_RATES[shippingArea][(_sz.size === 'small') ? 0 : 1];
+      }
+    }
+    if (bulkItemCount > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
+      actualShippingForStore += SHIPPING_RATES[shippingArea][1] * bulkItemCount;
+    }
+
     // 送料無料判定（CartCalcと同じ優先順序: ダイヤモンド > クーポン > 1万円以上 > 計算値）
     if (diamondFree) {
       shippingAmount = 0;
@@ -464,7 +484,7 @@ function apiSubmitEstimate(userKey, form, ids) {
       totalCount: totalCount,
       discounted: discounted + bulkProductAmount,
       shippingAmount: shippingAmount + bulkShippingAmount,
-      storeShipping: Math.round((shippingAmount + bulkShippingAmount) / 2) || 0,
+      storeShipping: Math.round(actualShippingForStore / 2) || 0,
       shippingSize: shippingSize,
       shippingArea: shippingArea,
       shippingPref: shippingPref,
