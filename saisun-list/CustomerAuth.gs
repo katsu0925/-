@@ -535,11 +535,10 @@ function apiValidateSession(userKey, params) {
     var fhpData = null;
     try {
       var fhp = app_getFirstHalfPriceStatus_();
-      var pc = customer.purchaseCount;
-      if (pc === undefined || pc === null) {
-        try { pc = Number(getCustomerSheet_().getRange(customer.row, CUSTOMER_SHEET_COLS.PURCHASE_COUNT + 1).getValue()) || 0; } catch(e) { pc = 0; }
+      if (customer.purchaseCount === undefined || customer.purchaseCount === null) {
+        try { customer.purchaseCount = Number(getCustomerSheet_().getRange(customer.row, CUSTOMER_SHEET_COLS.PURCHASE_COUNT + 1).getValue()) || 0; } catch(e) { customer.purchaseCount = 0; }
       }
-      fhpData = { eligible: fhp.enabled && (pc || 0) === 0, rate: fhp.rate };
+      fhpData = { eligible: isFhpEligible_(customer, fhp), rate: fhp.rate };
     } catch(e) {}
 
     var responseData = {
@@ -934,10 +933,8 @@ function apiGetMyPage(userKey, params) {
         },
         firstHalfPrice: (function() {
           var fhp = app_getFirstHalfPriceStatus_();
-          var pc = customer.purchaseCount;
-          var eligible = fhp.enabled && (pc || 0) === 0;
-          console.log('FHP debug: enabled=' + fhp.enabled + ' reason=' + fhp.reason + ' purchaseCount=' + pc + ' eligible=' + eligible);
-          return { eligible: eligible, rate: fhp.rate, _debug: { enabled: fhp.enabled, reason: fhp.reason, purchaseCount: pc } };
+          var eligible = isFhpEligible_(customer, fhp);
+          return { eligible: eligible, rate: fhp.rate };
         })(),
         rank: {
           name: rankInfo.name,

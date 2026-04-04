@@ -269,18 +269,23 @@ function app_getFirstHalfPriceStatus_() {
   if (now > end) {
     return { enabled: false, rate: 0, endDate: endDate, reason: 'expired' };
   }
-  // 会員数上限チェック（100人到達で自動終了）
   var memberCap = Number(props.getProperty('FHP_MEMBER_CAP') || 100);
-  if (memberCap > 0) {
-    try {
-      var custSheet = getCustomerSheet_();
-      var memberCount = custSheet.getLastRow() - 1;
-      if (memberCount >= memberCap) {
-        return { enabled: false, rate: 0, endDate: endDate, reason: 'member_cap', memberCount: memberCount, memberCap: memberCap };
-      }
-    } catch (e) { /* シート読込失敗時はスキップ */ }
-  }
-  return { enabled: true, rate: rate, endDate: endDate, reason: 'active' };
+  return { enabled: true, rate: rate, endDate: endDate, reason: 'active', memberCap: memberCap };
+}
+
+/**
+ * FHP会員上限チェック（100人目までに登録した会員のみ対象）
+ * @param {object} customer - findCustomerByEmail_の返却値（row プロパティ必須）
+ * @param {object} fhpStatus - app_getFirstHalfPriceStatus_の返却値
+ * @return {boolean} FHP対象ならtrue
+ */
+function isFhpEligible_(customer, fhpStatus) {
+  if (!fhpStatus || !fhpStatus.enabled) return false;
+  if (!customer || customer.purchaseCount !== 0) return false;
+  var cap = fhpStatus.memberCap || 100;
+  // row = シート行番号（ヘッダー=1, 最初の顧客=2）→ 登録順 = row - 1
+  if (cap > 0 && (customer.row - 1) > cap) return false;
+  return true;
 }
 
 function toggleFirstHalfPrice() {

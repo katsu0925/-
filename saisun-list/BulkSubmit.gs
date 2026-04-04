@@ -109,7 +109,7 @@ function apiBulkSubmit(form, items) {
     var fhpStatus = app_getFirstHalfPriceStatus_();
     if (fhpStatus.enabled && isLoggedIn && contact && typeof findCustomerByEmail_ === 'function') {
       var custForFhp = findCustomerByEmail_(contact);
-      if (custForFhp && custForFhp.purchaseCount === 0) {
+      if (isFhpEligible_(custForFhp, fhpStatus)) {
         firstHalfPriceApplied = true;
         couponCode = ''; // 他の割引を無効化
       }
