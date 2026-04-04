@@ -326,9 +326,21 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   const isLoggedIn = !!form.loggedIn;
 
   // 初回全品半額キャンペーンチェック（他の割引と併用不可、ログイン必須）
+  // memberCap: 100人目までの登録者のみ対象（GAS isFhpEligible_ と同等）
   if (fhpStatus.enabled && isLoggedIn && customerRow && purchaseCount === 0) {
-    firstHalfPriceApplied = true;
-    activeCouponCode = ''; // 他の割引を無効化
+    const memberCap = fhpStatus.memberCap || 100;
+    let fhpEligible = true;
+    if (memberCap > 0) {
+      const orderRow = await env.DB.prepare(
+        'SELECT COUNT(*) AS cnt FROM customers WHERE created_at <= (SELECT created_at FROM customers WHERE email = ?)'
+      ).bind(emailLower).first();
+      const registrationOrder = orderRow ? orderRow.cnt : 0;
+      if (registrationOrder > memberCap) fhpEligible = false;
+    }
+    if (fhpEligible) {
+      firstHalfPriceApplied = true;
+      activeCouponCode = ''; // 他の割引を無効化
+    }
   }
 
   if (!firstHalfPriceApplied && activeCouponCode) {

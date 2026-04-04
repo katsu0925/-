@@ -40,7 +40,7 @@ export async function getMyPage(args, env) {
     return jsonError('顧客情報が見つかりません。');
   }
 
-  // firstHalfPrice判定
+  // firstHalfPrice判定（memberCap: 100人目までの登録者のみ対象）
   let firstHalfPrice = { eligible: false, rate: 0.5 };
   const fhpRow = await env.DB.prepare(
     'SELECT value FROM settings WHERE key = ?'
@@ -48,10 +48,14 @@ export async function getMyPage(args, env) {
   if (fhpRow) {
     try {
       const fhp = JSON.parse(fhpRow.value);
-      firstHalfPrice = {
-        eligible: !!(fhp.enabled && customer.purchase_count === 0),
-        rate: fhp.rate || 0.5,
-      };
+      let eligible = !!(fhp.enabled && customer.purchase_count === 0);
+      if (eligible && fhp.memberCap > 0) {
+        const orderRow = await env.DB.prepare(
+          'SELECT COUNT(*) AS cnt FROM customers WHERE created_at <= ?'
+        ).bind(customer.created_at).first();
+        if (orderRow && orderRow.cnt > fhp.memberCap) eligible = false;
+      }
+      firstHalfPrice = { eligible, rate: fhp.rate || 0.5 };
     } catch (e) { /* ignore */ }
   }
 
