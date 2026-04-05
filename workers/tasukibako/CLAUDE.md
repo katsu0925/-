@@ -26,7 +26,7 @@
 | キャッシュ | Cloudflare KV |
 | 画像ストレージ | Cloudflare R2 |
 | フロントエンド | バニラHTML/JS（Workers内インライン） |
-| 決済（未実装） | Stripe Billing（予定） |
+| 決済 | Stripe Billing（実装済み、Price IDはプレースホルダー） |
 
 ### Cloudflareリソース
 ```
@@ -51,6 +51,7 @@ wrangler deploy
 workers/tasukibako/
 ├── wrangler.toml              # D1/KV/R2 binding設定
 ├── sql/schema.sql             # users, teams, team_members, password_resets
+├── sql/migrate-001-stripe.sql # Stripe対応マイグレーション
 ├── src/
 │   ├── index.js               # URLパスベースルーター
 │   ├── config.js              # PLAN_LIMITS（free/lite/standard/pro）
@@ -60,6 +61,7 @@ workers/tasukibako/
 │   │   ├── team.js            # create, list, join, members, inviteInfo, regenerateInvite
 │   │   ├── upload.js          # uploadImages, reorder, serveImage（teamIdスコープ）
 │   │   ├── manage.js          # list, productImages, deleteProduct, deleteSingle, stats
+│   │   ├── stripe.js          # Stripe Billing（checkout, portal, webhook）
 │   │   └── admin.js           # setPlan, resetUsage, info
 │   ├── utils/
 │   │   ├── crypto.js          # SHA-256 x 1000 パスワードハッシュ
@@ -76,7 +78,7 @@ workers/tasukibako/
 
 ```sql
 -- ユーザー
-users (id, email, password_hash, display_name, created_at, last_login, updated_at)
+users (id, email, password_hash, display_name, stripe_customer_id, created_at, last_login, updated_at)
 
 -- チーム
 teams (id, name, owner_id, plan, invite_code, invite_enabled,
@@ -99,6 +101,7 @@ password_resets (token, user_id, expires_at, used, created_at)
 | `POST /api/auth/register` | 新規登録 |
 | `POST /api/auth/login` | ログイン |
 | `POST /api/auth/logout` | ログアウト |
+| `POST /api/stripe/webhook` | Stripe Webhook |
 
 ### 認証必須（セッショントークン）
 | パス | 説明 |
@@ -117,6 +120,8 @@ password_resets (token, user_id, expires_at, used, created_at)
 | `POST /api/manage/delete` | 商品削除 |
 | `POST /api/manage/delete-single` | 画像1枚削除 |
 | `POST /api/manage/stats` | 統計情報 |
+| `POST /api/stripe/checkout` | Stripe Checkoutセッション作成 |
+| `POST /api/stripe/portal` | Stripe Customer Portal |
 | `POST /api/admin/set-plan` | プラン変更（管理者） |
 | `POST /api/admin/reset-usage` | 利用量リセット（管理者） |
 | `POST /api/admin/info` | 管理者情報 |
@@ -167,7 +172,7 @@ password_resets (token, user_id, expires_at, used, created_at)
 
 ## 未着手（一般公開に必要）
 - パスワードリセット（Resend API + ドメイン取得が前提）
-- Stripe Billing連携（有料プラン課金）
+- Stripe: Price IDをDashboardで作成して差し替え + `wrangler secret put STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET`
 - 利用規約/プライバシーポリシー/特商法表記
 - LP＆オンボーディング
 - ドメイン取得（tasukibako.com等）

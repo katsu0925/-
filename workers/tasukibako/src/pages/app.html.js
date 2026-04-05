@@ -66,6 +66,11 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 .preview-item:hover img{transform:scale(1.05)}
 .preview-item .badge{position:absolute;top:2px;left:2px;background:rgba(79,70,229,.85);color:#fff;font-size:9px;padding:1px 5px;border-radius:4px}
 .replace-btn,.preview-btn{position:absolute;bottom:2px;right:2px;background:rgba(255,255,255,.9);border-radius:4px;font-size:12px;padding:2px 4px;cursor:pointer}
+.blur-btn{position:absolute;bottom:2px;left:2px;background:rgba(255,255,255,.92);border-radius:4px;font-size:10px;padding:2px 5px;cursor:pointer;color:#4F46E5;font-weight:600;border:none;line-height:1.3;z-index:3}
+.blur-btn:hover{background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+.blur-btn.done{background:rgba(79,70,229,.85);color:#fff}
+.blur-btn.processing{pointer-events:none;opacity:.7}
+.blur-overlay{position:absolute;inset:0;background:rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center;z-index:2}
 /* プログレスバー */
 .progress-bar{width:100%;height:6px;background:#e5e7eb;border-radius:3px;margin-top:8px;overflow:hidden;display:none}
 .progress-bar.show{display:block}
@@ -222,7 +227,21 @@ body.has-admin{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
         <label for="uploadFiles">画像（最大10枚）</label>
         <input type="file" id="uploadFiles" multiple accept="image/*">
       </div>
+      <div style="margin-top:8px">
+        <label style="display:inline-flex;align-items:center;gap:5px;font-size:13px;color:#374151;cursor:pointer">
+          <input type="checkbox" id="autoLevelsCheck" checked style="width:16px;height:16px;accent-color:#4F46E5">
+          明るさ自動補正
+        </label>
+      </div>
       <div class="preview-grid" id="uploadPreview"></div>
+      <!-- ぼかし操作バー -->
+      <div id="blurBar" style="display:none;margin-top:8px;align-items:center;gap:6px;flex-wrap:wrap">
+        <button id="blurSelectedBtn" style="padding:5px 12px;border:1.5px solid #4F46E5;background:#fff;color:#4F46E5;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">選択をぼかす</button>
+        <button id="blurSelectAllBtn" style="padding:5px 8px;border:1px solid #d1d5db;background:#fff;border-radius:6px;font-size:11px;cursor:pointer">全選択</button>
+        <button id="blurDeselectAllBtn" style="padding:5px 8px;border:1px solid #d1d5db;background:#fff;border-radius:6px;font-size:11px;cursor:pointer">全解除</button>
+        <span id="blurProgress" style="font-size:12px;color:#6b7280"></span>
+      </div>
+      <div id="blurStatus" style="display:none;font-size:12px;color:#6b7280;margin-top:4px"></div>
       <div class="progress-bar" id="uploadProgress"><div class="fill" id="uploadProgressFill"></div></div>
       <div class="status" id="uploadStatus"></div>
       <div class="upload-success" id="uploadSuccess">
@@ -293,6 +312,38 @@ body.has-admin{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
         <div class="usage-bar"><div class="fill" id="barMembers" style="width:0%;background:var(--success)"></div></div>
       </div>
 
+      <!-- プラン -->
+      <div class="card" id="planCard">
+        <h2>プラン</h2>
+        <div id="currentPlanInfo" style="margin-bottom:16px">
+          <div style="font-size:14px;color:var(--text-sub)">現在のプラン: <strong id="currentPlanName" style="color:var(--text-main)">フリー</strong></div>
+          <button class="btn btn-secondary" id="openPortalBtn" style="display:none;margin-top:8px;font-size:13px;padding:8px">サブスク管理（プラン変更・解約）</button>
+        </div>
+        <div id="planToggle" style="display:flex;justify-content:center;margin-bottom:16px;gap:0">
+          <button id="billingMonthly" class="btn btn-primary" style="border-radius:8px 0 0 8px;font-size:13px;padding:8px 16px" onclick="switchPlanBilling('monthly')">月額</button>
+          <button id="billingYearly" class="btn btn-secondary" style="border-radius:0 8px 8px 0;font-size:13px;padding:8px 16px;border-left:0" onclick="switchPlanBilling('yearly')">年額（2ヶ月無料）</button>
+        </div>
+        <div id="planGrid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">
+          <div class="plan-col" data-plan="lite" style="border:2px solid #e5e7eb;border-radius:12px;padding:12px;text-align:center;cursor:pointer" onclick="subscribePlan('lite')">
+            <div style="font-weight:700;font-size:15px;color:#3b82f6">ライト</div>
+            <div class="plan-price" style="font-size:18px;font-weight:700;margin:8px 0">¥980<span style="font-size:12px;font-weight:400">/月</span></div>
+            <div style="font-size:11px;color:var(--text-sub);line-height:1.5">商品 1,000<br>画像 10,000<br>メンバー 5人<br>一括保存</div>
+          </div>
+          <div class="plan-col" data-plan="standard" style="border:2px solid var(--primary);border-radius:12px;padding:12px;text-align:center;cursor:pointer;position:relative" onclick="subscribePlan('standard')">
+            <div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--primary);color:#fff;font-size:10px;padding:2px 10px;border-radius:10px;white-space:nowrap">おすすめ</div>
+            <div style="font-weight:700;font-size:15px;color:var(--primary)">スタンダード</div>
+            <div class="plan-price" style="font-size:18px;font-weight:700;margin:8px 0">¥1,980<span style="font-size:12px;font-weight:400">/月</span></div>
+            <div style="font-size:11px;color:var(--text-sub);line-height:1.5">商品 2,000<br>画像 20,000<br>メンバー 15人<br>ログ・権限</div>
+          </div>
+          <div class="plan-col" data-plan="pro" style="border:2px solid #e5e7eb;border-radius:12px;padding:12px;text-align:center;cursor:pointer" onclick="subscribePlan('pro')">
+            <div style="font-weight:700;font-size:15px;color:#f59e0b">プロ</div>
+            <div class="plan-price" style="font-size:18px;font-weight:700;margin:8px 0">¥3,980<span style="font-size:12px;font-weight:400">/月</span></div>
+            <div style="font-size:11px;color:var(--text-sub);line-height:1.5">商品 10,000<br>画像 100,000<br>無制限<br>CSV/API</div>
+          </div>
+        </div>
+        <div id="planStatus" class="status" style="margin-top:8px"></div>
+      </div>
+
       <!-- 招待リンク -->
       <div class="card" id="inviteCard">
         <h2>メンバー招待</h2>
@@ -359,9 +410,22 @@ body.has-admin{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
   </div>
 </div>
 
+<!-- ローディングポップアップ -->
+<div id="loadingPopup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:400;align-items:center;justify-content:center">
+  <div style="background:#fff;border-radius:12px;padding:20px 28px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.2);max-width:280px">
+    <div class="spinner" style="width:28px;height:28px;border-width:3px;margin:0 auto 12px"></div>
+    <div id="loadingText" style="font-size:14px;font-weight:600;color:#1f2937">処理中...</div>
+    <div id="loadingSubText" style="font-size:12px;color:#6b7280;margin-top:4px"></div>
+  </div>
+</div>
+
 <!-- 画像プレビューモーダル -->
-<div id="previewModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:300;display:none;align-items:center;justify-content:center;cursor:pointer">
+<div id="previewModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:300;align-items:center;justify-content:center;cursor:pointer">
   <img id="previewImg" style="max-width:95%;max-height:90vh;object-fit:contain;border-radius:4px">
+  <div id="previewCompareBar" style="display:none;position:absolute;top:calc(env(safe-area-inset-top,12px) + 8px);left:50%;transform:translateX(-50%);gap:8px">
+    <button id="previewBtnBlur" style="padding:6px 16px;border:none;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;background:#fff;color:#1f2937">ぼかし済</button>
+    <button id="previewBtnOrig" style="padding:6px 16px;border:none;border-radius:20px;font-size:13px;font-weight:600;cursor:pointer;background:rgba(255,255,255,.3);color:#fff">元画像</button>
+  </div>
   <div style="position:absolute;top:16px;right:16px;color:#fff;font-size:32px;cursor:pointer;padding:8px;line-height:1" id="closePreviewBtn">&times;</div>
 </div>
 
@@ -448,6 +512,18 @@ var _manageExpandedMid = '';
 var _manageExpandedUrls = [];
 var _busyOperation = false;
 var _confirmResolve = null;
+var _blurredImages = {};
+var _bgRemovalLib = null;
+var _bgModelReady = false;
+var _blurBusy = false;
+var _blurAbort = false;
+var _blurBatchMode = false;
+var _bgPreloadStarted = false;
+var _stackBlurLib = null;
+var _uploadFileOrder = [];
+var _previewBlurredSrc = '';
+var _previewOrigSrc = '';
+var _previewShowingOrig = false;
 
 // ════════════════════════════════════════
 // 初期化
@@ -477,6 +553,30 @@ var _confirmResolve = null;
     localStorage.removeItem('sessionId');
     location.href = '/login';
   });
+})();
+
+// ════════════════════════════════════════
+// ローディングポップアップ
+// ════════════════════════════════════════
+function showLoading(text, subText) {
+  document.getElementById('loadingText').textContent = text || '処理中...';
+  document.getElementById('loadingSubText').textContent = subText || '';
+  document.getElementById('loadingPopup').style.display = 'flex';
+}
+function updateLoading(text, subText) {
+  if (text) document.getElementById('loadingText').textContent = text;
+  if (subText !== undefined) document.getElementById('loadingSubText').textContent = subText;
+}
+function hideLoading() {
+  document.getElementById('loadingPopup').style.display = 'none';
+}
+
+// StackBlur ライブラリ（ページ読み込み時にロード）
+(function() {
+  import('https://esm.sh/stackblur-canvas@2').then(function(m) {
+    _stackBlurLib = m;
+    console.log('StackBlur ready');
+  }).catch(function(e) { console.warn('StackBlur load failed:', e); });
 })();
 
 function showApp() {
@@ -567,6 +667,7 @@ function switchTab(name) {
   if (name === 'team') renderTeamSection();
 }
 
+
 // ════════════════════════════════════════
 // アップロード
 // ════════════════════════════════════════
@@ -622,27 +723,100 @@ function hideExisting() {
 }
 
 function showPreview() {
+  startBgPreload();
   var input = document.getElementById('uploadFiles');
   var grid = document.getElementById('uploadPreview');
   var btn = document.getElementById('uploadBtn');
   grid.innerHTML = '';
   var files = input.files;
-  if (!files || files.length === 0) { btn.disabled = true; return; }
+  if (!files || files.length === 0) { btn.disabled = true; document.getElementById('blurBar').style.display = 'none'; return; }
   var maxNew = 10 - _existingUrls.length;
   if (files.length > maxNew) {
     showStatus('uploadStatus', '画像は最大10枚までです（既存' + _existingUrls.length + '枚+新規は' + maxNew + '枚まで）', 'err');
     input.value = ''; btn.disabled = true; return;
   }
   btn.disabled = false;
+  _blurredImages = {};
+  _uploadFileOrder = [];
   for (var i = 0; i < files.length; i++) {
+    _uploadFileOrder.push(i);
     var div = document.createElement('div');
     div.className = 'preview-item';
+    div.setAttribute('data-idx', i);
+    div.setAttribute('draggable', 'true');
+    var origUrl = URL.createObjectURL(files[i]);
+    div.setAttribute('data-orig', origUrl);
     var labelIdx = _existingUrls.length + i;
-    div.innerHTML = '<img src="' + URL.createObjectURL(files[i]) + '">' +
-      '<span class="badge">' + (labelIdx === 0 ? 'TOP' : (labelIdx+1)) + '</span>';
+    div.innerHTML =
+      '<input type="checkbox" class="upload-check" data-idx="' + i + '" style="position:absolute;top:4px;left:4px;z-index:2;width:18px;height:18px;accent-color:#4F46E5">' +
+      '<img src="' + origUrl + '" loading="lazy">' +
+      (labelIdx === 0 ? '<span class="badge" style="left:auto;right:2px">TOP</span>' : '<span class="badge" style="left:auto;right:2px">' + (labelIdx+1) + '</span>') +
+      '<span class="preview-btn" style="cursor:pointer">&#x1f50d;</span>';
     grid.appendChild(div);
+    generateLevelsPreview(files[i], i, grid);
   }
+  initUploadDragReorder(grid);
+  // プレビュークリック
+  grid.querySelectorAll('.preview-btn').forEach(function(btn) {
+    btn.addEventListener('click', function(e) { e.stopPropagation(); previewUploadImg(this.parentNode); });
+  });
+  // チェックボックストグル
+  grid.querySelectorAll('.preview-item').forEach(function(item) {
+    item.addEventListener('click', function(e) { toggleUploadCheck(this, e); });
+  });
+  // ぼかしバー表示
+  var bar = document.getElementById('blurBar');
+  bar.style.display = 'flex';
+  document.getElementById('blurProgress').textContent = '';
 }
+
+// 明るさ補正プレビュー生成（プレビューサムネ用、300px）
+var _levelsPreviewUrls = {};
+function generateLevelsPreview(file, idx, grid) {
+  if (typeof createImageBitmap !== 'function') return;
+  createImageBitmap(file).then(function(bmp) {
+    var w = bmp.width, h = bmp.height;
+    var maxSize = 300;
+    if (w > maxSize || h > maxSize) {
+      if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+      else { w = Math.round(w * maxSize / h); h = maxSize; }
+    }
+    var c = document.createElement('canvas'); c.width = w; c.height = h;
+    var ctx = c.getContext('2d');
+    ctx.drawImage(bmp, 0, 0, w, h); bmp.close();
+    autoLevels(ctx, w, h);
+    c.toBlob(function(blob) {
+      c.width = 0;
+      var url = URL.createObjectURL(blob);
+      _levelsPreviewUrls[idx] = url;
+      var chk = document.getElementById('autoLevelsCheck');
+      if (chk && chk.checked) {
+        var item = grid.children[idx];
+        if (item && !item.querySelector('.blur-done-badge')) {
+          item.querySelector('img').src = url;
+        }
+      }
+    }, 'image/jpeg', 0.85);
+  }).catch(function() {});
+}
+
+// チェックボックス切替時にプレビュー画像を差し替え
+document.getElementById('autoLevelsCheck').addEventListener('change', function() {
+  var grid = document.getElementById('uploadPreview');
+  var items = grid.querySelectorAll('.preview-item');
+  var checked = this.checked;
+  items.forEach(function(item) {
+    if (item.querySelector('.blur-done-badge')) return;
+    var idx = parseInt(item.getAttribute('data-idx'));
+    var img = item.querySelector('img');
+    if (checked && _levelsPreviewUrls[idx]) {
+      img.src = _levelsPreviewUrls[idx];
+    } else {
+      var orig = item.getAttribute('data-orig');
+      if (orig) img.src = orig;
+    }
+  });
+});
 
 document.getElementById('uploadBtn').addEventListener('click', doUpload);
 
@@ -662,8 +836,10 @@ function doUpload() {
   bar.classList.add('show');
   fill.style.width = '0%';
   showStatus('uploadStatus', 'リサイズ中...', 'info');
+  showLoading('アップロード中', 'リサイズしています...');
 
   resizeAllImages(files, function(blobs) {
+    updateLoading('アップロード中', '0/' + blobs.length);
     showStatus('uploadStatus', 'アップロード中...', 'info');
     var fd = new FormData();
     fd.append('teamId', _currentTeam.id);
@@ -678,12 +854,12 @@ function doUpload() {
       body: fd
     }).then(function(r) { return r.json(); })
     .then(function(d) {
+      hideLoading();
       btn.disabled = false;
       _busyOperation = false;
       bar.classList.remove('show');
       if (d.ok) {
         fill.style.width = '100%';
-        // サクセスアニメーション
         var suc = document.getElementById('uploadSuccess');
         suc.classList.add('show');
         suc.querySelector('.check').textContent = blobs.length;
@@ -692,6 +868,9 @@ function doUpload() {
         showStatus('uploadStatus', blobs.length + '枚アップロード完了', 'ok');
         input.value = '';
         document.getElementById('uploadPreview').innerHTML = '';
+        _blurredImages = {};
+        _uploadFileOrder = [];
+        document.getElementById('blurBar').style.display = 'none';
         checkExisting(managedId);
         _listLoaded = false;
         updateUsageMiniBar();
@@ -702,6 +881,7 @@ function doUpload() {
         }
       }
     }).catch(function(e) {
+      hideLoading();
       btn.disabled = false; _busyOperation = false; bar.classList.remove('show');
       showStatus('uploadStatus', '通信エラー: ' + e.message, 'err');
     });
@@ -712,21 +892,99 @@ function doUpload() {
 // 画像リサイズ
 // ════════════════════════════════════════
 function resizeAllImages(files, cb) {
+  var order = _uploadFileOrder.length > 0 ? _uploadFileOrder : [];
+  if (order.length === 0) { for (var oi = 0; oi < files.length; oi++) order.push(oi); }
+  var total = order.length;
   var results = []; var idx = 0; var done = 0;
   function next() {
-    while (idx < files.length && (idx - done) < 2) {
-      (function(i) {
+    while (idx < total && (idx - done) < 2) {
+      (function(pos) {
         idx++;
-        var isTop = (_existingUrls.length === 0 && i === 0);
-        resizeImage(files[i], isTop ? 1200 : 800, isTop ? 0.80 : 0.75, function(blob) {
-          results[i] = blob; done++;
-          if (done === files.length) { cb(results); return; }
+        var fileIdx = order[pos];
+        if (_blurredImages[fileIdx]) {
+          results[pos] = _blurredImages[fileIdx];
+          done++;
+          if (done === total) { cb(results); return; }
+          next(); return;
+        }
+        var isTop = (_existingUrls.length === 0 && pos === 0);
+        resizeImage(files[fileIdx], isTop ? 1200 : 800, isTop ? 0.80 : 0.75, function(blob) {
+          results[pos] = blob; done++;
+          if (done === total) { cb(results); return; }
           next();
         });
       })(idx);
     }
   }
   next();
+}
+
+// 自動明るさ補正（画像ごとに最適なガンマを計算）
+function autoLevels(ctx, w, h) {
+  var data = ctx.getImageData(0, 0, w, h);
+  var d = data.data;
+  var totalPixels = w * h;
+  var sumR = 0, sumG = 0, sumB = 0, sumLum = 0;
+  var rHist = new Uint32Array(256), gHist = new Uint32Array(256), bHist = new Uint32Array(256);
+  for (var i = 0; i < d.length; i += 4) {
+    sumR += d[i]; sumG += d[i+1]; sumB += d[i+2];
+    sumLum += d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114;
+    rHist[d[i]]++; gHist[d[i+1]]++; bHist[d[i+2]]++;
+  }
+  var avgLum = sumLum / totalPixels;
+  if (avgLum > 200) return;
+  function findWhite(hist) {
+    var th = Math.floor(totalPixels * 0.02);
+    var cnt = 0, sum = 0, num = 0;
+    for (var v = 255; v >= 0; v--) {
+      cnt += hist[v]; sum += v * hist[v]; num += hist[v];
+      if (cnt >= th) break;
+    }
+    return num > 0 ? sum / num : 255;
+  }
+  var rW = findWhite(rHist), gW = findWhite(gHist), bW = findWhite(bHist);
+  var rScale = 248 / Math.max(rW, 1);
+  var gScale = 248 / Math.max(gW, 1);
+  var bScale = 248 / Math.max(bW, 1);
+  rScale = Math.min(1.5, Math.max(1.0, rScale));
+  gScale = Math.min(1.5, Math.max(1.0, gScale));
+  bScale = Math.min(1.5, Math.max(1.0, bScale));
+  var target = 155;
+  var gamma;
+  if (avgLum < 30) { gamma = 1.8; }
+  else if (avgLum >= target - 10) { gamma = 1.0; }
+  else {
+    gamma = Math.log(target / 255) / Math.log(avgLum / 255);
+    gamma = Math.min(1.8, Math.max(1.0, gamma));
+  }
+  var maxScale = Math.max(rScale, gScale, bScale);
+  if (Math.abs(gamma - 1) < 0.03 && maxScale < 1.02) return;
+  var rLut = new Uint8Array(256), gLut = new Uint8Array(256), bLut = new Uint8Array(256);
+  for (var v = 0; v < 256; v++) {
+    rLut[v] = Math.min(255, Math.round(255 * Math.pow(Math.min(1, v * rScale / 255), 1 / gamma)));
+    gLut[v] = Math.min(255, Math.round(255 * Math.pow(Math.min(1, v * gScale / 255), 1 / gamma)));
+    bLut[v] = Math.min(255, Math.round(255 * Math.pow(Math.min(1, v * bScale / 255), 1 / gamma)));
+  }
+  for (var i = 0; i < d.length; i += 4) {
+    d[i] = rLut[d[i]]; d[i+1] = gLut[d[i+1]]; d[i+2] = bLut[d[i+2]];
+  }
+  var shadowLut = new Float32Array(256);
+  for (var v = 0; v < 256; v++) {
+    if (v < 120) {
+      var t = (120 - v) / 120;
+      shadowLut[v] = 1 + Math.pow(t, 0.7) * 1.0;
+    } else { shadowLut[v] = 1.0; }
+  }
+  for (var i = 0; i < d.length; i += 4) {
+    var lum = Math.round(d[i] * 0.299 + d[i+1] * 0.587 + d[i+2] * 0.114);
+    var boost = shadowLut[lum];
+    if (boost > 1.01) {
+      d[i]   = Math.min(255, d[i]   * boost + 0.5 | 0);
+      d[i+1] = Math.min(255, d[i+1] * boost + 0.5 | 0);
+      d[i+2] = Math.min(255, d[i+2] * boost + 0.5 | 0);
+    }
+  }
+  ctx.putImageData(data, 0, 0);
 }
 
 function resizeImage(file, maxSize, quality, cb) {
@@ -738,10 +996,468 @@ function resizeImage(file, maxSize, quality, cb) {
         else { w = Math.round(w * maxSize / h); h = maxSize; }
       }
       var c = document.createElement('canvas'); c.width = w; c.height = h;
-      c.getContext('2d').drawImage(bmp, 0, 0, w, h); bmp.close();
+      var ctx = c.getContext('2d');
+      ctx.drawImage(bmp, 0, 0, w, h); bmp.close();
+      if (document.getElementById('autoLevelsCheck') && document.getElementById('autoLevelsCheck').checked) autoLevels(ctx, w, h);
       c.toBlob(function(blob) { c.width = 0; c.height = 0; cb(blob); }, 'image/jpeg', quality);
     }).catch(function() { cb(file); });
   } else { cb(file); }
+}
+
+
+// ════════════════════════════════════════
+// AI背景ぼかし
+// ════════════════════════════════════════
+function startBgPreload() {
+  if (_bgPreloadStarted) return;
+  _bgPreloadStarted = true;
+  import('https://esm.sh/@imgly/background-removal@1').then(function(lib) {
+    _bgRemovalLib = lib;
+    _bgModelReady = true;
+    console.log('BG removal model ready');
+  }).catch(function(e) { console.warn('BG model preload failed:', e); });
+}
+
+
+function canvasBlur(srcCanvas, blurPx) {
+  var w = srcCanvas.width, h = srcCanvas.height;
+  var out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  var ctx = out.getContext('2d');
+  ctx.drawImage(srcCanvas, 0, 0);
+  if (_stackBlurLib) {
+    var imgData = ctx.getImageData(0, 0, w, h);
+    _stackBlurLib.default
+      ? _stackBlurLib.default.imageDataRGBA(imgData, 0, 0, w, h, Math.round(blurPx))
+      : _stackBlurLib.imageDataRGBA(imgData, 0, 0, w, h, Math.round(blurPx));
+    ctx.putImageData(imgData, 0, 0);
+    return out;
+  }
+  try {
+    var test = document.createElement('canvas').getContext('2d');
+    test.filter = 'blur(1px)';
+    if (test.filter === 'blur(1px)') {
+      ctx.filter = 'blur(' + blurPx + 'px)';
+      ctx.clearRect(0, 0, w, h);
+      ctx.drawImage(srcCanvas, 0, 0);
+      ctx.filter = 'none';
+    }
+  } catch(e) {}
+  return out;
+}
+
+async function loadBgRemoval() {
+  if (_bgRemovalLib) return _bgRemovalLib;
+  var s = document.getElementById('blurStatus');
+  s.style.display = 'block';
+  s.textContent = 'AIモデルを読み込み中…';
+  _bgRemovalLib = await import('https://esm.sh/@imgly/background-removal@1');
+  s.style.display = 'none';
+  return _bgRemovalLib;
+}
+
+async function blurSelected() {
+  if (_blurBusy) return;
+  var checks = document.querySelectorAll('.upload-check:checked');
+  if (checks.length === 0) {
+    showStatus('uploadStatus', 'ぼかす画像を選択してください', 'err');
+    return;
+  }
+  _blurBusy = true;
+  _blurAbort = false;
+  var actionBtn = document.getElementById('blurSelectedBtn');
+  actionBtn.textContent = '中止';
+  actionBtn.onclick = function() { _blurAbort = true; };
+  var indices = [];
+  checks.forEach(function(cb) { indices.push(parseInt(cb.dataset.idx)); });
+  var items = document.getElementById('uploadPreview').children;
+  for (var k = 0; k < indices.length; k++) {
+    var item = items[indices[k]];
+    if (!item || _blurredImages[indices[k]]) continue;
+    if (!item.querySelector('.blur-overlay')) {
+      var ov = document.createElement('div');
+      ov.className = 'blur-overlay';
+      ov.innerHTML = '<div class="spinner"></div>';
+      item.appendChild(ov);
+    }
+  }
+  _blurBatchMode = true;
+  showLoading('ぼかし処理中', '0/' + indices.length);
+  var done = 0;
+  for (var k = 0; k < indices.length; k++) {
+    if (_blurAbort) break;
+    var idx = indices[k];
+    if (_blurredImages[idx]) { done++; continue; }
+    updateLoading('ぼかし処理中', (done+1) + '/' + indices.length);
+    document.getElementById('blurProgress').textContent = (done+1) + '/' + indices.length + ' 処理中…';
+    await processBlur(idx);
+    done++;
+    await new Promise(function(r) { setTimeout(r, 30); });
+  }
+  _blurBatchMode = false;
+  hideLoading();
+  for (var k = 0; k < indices.length; k++) {
+    applyBlurUI(indices[k]);
+  }
+  document.getElementById('blurProgress').textContent = _blurAbort ? '中断' : done + '枚完了';
+  actionBtn.textContent = '選択をぼかす';
+  actionBtn.onclick = function() { blurSelected(); };
+  _blurBusy = false;
+  _blurAbort = false;
+  checks.forEach(function(cb) { cb.checked = false; });
+}
+
+async function processBlur(fileIndex) {
+  var files = document.getElementById('uploadFiles').files;
+  var file = files[fileIndex];
+  if (!file) return;
+  var item = document.getElementById('uploadPreview').children[fileIndex];
+  if (!item) return;
+  if (!item.querySelector('.blur-overlay')) {
+    var ov = document.createElement('div');
+    ov.className = 'blur-overlay';
+    ov.innerHTML = '<div class="spinner"></div>';
+    item.appendChild(ov);
+  }
+  try {
+    var fgBlob;
+    try {
+      var fd = new FormData();
+      fd.append('image', file);
+      var segRes = await fetch(API + '/api/upload/blur', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + _sessionId },
+        body: fd
+      });
+      if (segRes.ok) {
+        fgBlob = await segRes.blob();
+        updateBlurUsage(segRes);
+      } else {
+        throw new Error('server ' + segRes.status);
+      }
+    } catch(serverErr) {
+      console.warn('CF segment failed, falling back to WASM:', serverErr);
+      var lib = await loadBgRemoval();
+      fgBlob = await lib.removeBackground(file, {
+        model: 'medium',
+        output: { format: 'image/png' }
+      });
+    }
+    var isTop = (_existingUrls.length === 0 && fileIndex === 0);
+    var maxSize = isTop ? 1200 : 800;
+    var quality = isTop ? 0.80 : 0.75;
+    var origBmp = await createImageBitmap(file);
+    var w = origBmp.width, h = origBmp.height;
+    if (w > maxSize || h > maxSize) {
+      if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+      else { w = Math.round(w * maxSize / h); h = maxSize; }
+    }
+    var canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    var ctx = canvas.getContext('2d');
+    ctx.drawImage(origBmp, 0, 0, w, h);
+    origBmp.close();
+    var blurC = document.createElement('canvas');
+    blurC.width = w; blurC.height = h;
+    var blurCtx = blurC.getContext('2d');
+    blurCtx.drawImage(canvas, 0, 0);
+    var blurFn = _stackBlurLib && (_stackBlurLib.default
+      ? _stackBlurLib.default.imageDataRGBA : _stackBlurLib.imageDataRGBA);
+    if (blurFn) {
+      var bid = blurCtx.getImageData(0, 0, w, h);
+      blurFn(bid, 0, 0, w, h, 9);
+      blurCtx.putImageData(bid, 0, 0);
+      bid = null;
+    } else {
+      blurC = canvasBlur(canvas, 9);
+      blurCtx = blurC.getContext('2d');
+    }
+    var fgBmp = await createImageBitmap(fgBlob);
+    var maskC = document.createElement('canvas');
+    maskC.width = w; maskC.height = h;
+    var mCtx = maskC.getContext('2d');
+    mCtx.drawImage(fgBmp, 0, 0, w, h);
+    fgBmp.close();
+    var maskData = mCtx.getImageData(0, 0, w, h);
+    maskC.width = 0;
+    var alphaImg = new ImageData(w, h);
+    var md = maskData.data, ad = alphaImg.data;
+    for (var p = 0, len = md.length; p < len; p += 4) {
+      ad[p] = md[p+3]; ad[p+1] = md[p+3]; ad[p+2] = md[p+3]; ad[p+3] = 255;
+    }
+    maskData = null;
+    if (blurFn) {
+      blurFn(alphaImg, 0, 0, w, h, 10);
+      for (var dp = 0, dlen = ad.length; dp < dlen; dp += 4) {
+        var v = ad[dp] * 4.0;
+        ad[dp] = ad[dp+1] = ad[dp+2] = v > 255 ? 255 : v;
+      }
+      blurFn(alphaImg, 0, 0, w, h, 12);
+    } else {
+      var alphaC = document.createElement('canvas');
+      alphaC.width = w; alphaC.height = h;
+      var aCtx = alphaC.getContext('2d');
+      aCtx.putImageData(alphaImg, 0, 0);
+      for (var pass = 0; pass < 3; pass++) {
+        var tmpDil = canvasBlur(alphaC, 6);
+        var dd = tmpDil.getContext('2d').getImageData(0, 0, w, h);
+        for (var dp2 = 0; dp2 < dd.data.length; dp2 += 4) {
+          dd.data[dp2] = dd.data[dp2+1] = dd.data[dp2+2] = Math.min(255, dd.data[dp2] * 2.5);
+        }
+        aCtx.putImageData(dd, 0, 0);
+        tmpDil.width = 0;
+      }
+      var featherC = canvasBlur(alphaC, 12);
+      alphaImg = featherC.getContext('2d').getImageData(0, 0, w, h);
+      ad = alphaImg.data;
+      alphaC.width = 0; featherC.width = 0;
+    }
+    var origData = ctx.getImageData(0, 0, w, h);
+    var blurData = blurCtx.getImageData(0, 0, w, h);
+    var od = origData.data, bd = blurData.data;
+    for (var p = 0, len = od.length; p < len; p += 4) {
+      var t = 1 - (ad[p] / 255);
+      od[p]   = od[p]   + (bd[p]   - od[p])   * t;
+      od[p+1] = od[p+1] + (bd[p+1] - od[p+1]) * t;
+      od[p+2] = od[p+2] + (bd[p+2] - od[p+2]) * t;
+    }
+    ctx.putImageData(origData, 0, 0);
+    var resultBlob = await new Promise(function(r) {
+      canvas.toBlob(r, 'image/jpeg', quality);
+    });
+    _blurredImages[fileIndex] = resultBlob;
+    canvas.width = 0; blurC.width = 0;
+    if (!_blurBatchMode) {
+      applyBlurUI(fileIndex);
+    }
+  } catch(e) {
+    console.error('Blur error:', e);
+    if (!_blurBatchMode) {
+      var ovEl = item.querySelector('.blur-overlay');
+      if (ovEl) ovEl.remove();
+    }
+    showStatus('uploadStatus', 'ぼかし処理失敗: ' + e.message, 'err');
+  }
+}
+
+function applyBlurUI(fileIndex) {
+  var item = document.getElementById('uploadPreview').children[fileIndex];
+  if (!item || !_blurredImages[fileIndex]) return;
+  item.querySelector('img').src = URL.createObjectURL(_blurredImages[fileIndex]);
+  if (!item.querySelector('.blur-done-badge')) {
+    var badge = document.createElement('span');
+    badge.className = 'blur-done-badge';
+    badge.style.cssText = 'position:absolute;bottom:2px;left:2px;background:rgba(79,70,229,.85);color:#fff;font-size:9px;padding:1px 5px;border-radius:4px;z-index:3;cursor:pointer';
+    badge.textContent = 'ぼかし済';
+    badge.title = 'タップで解除';
+    badge.onclick = function(e) { e.stopPropagation(); removeBlur(fileIndex); };
+    item.appendChild(badge);
+  }
+  var ovEl = item.querySelector('.blur-overlay');
+  if (ovEl) ovEl.remove();
+}
+
+function removeBlur(fileIndex) {
+  delete _blurredImages[fileIndex];
+  var files = document.getElementById('uploadFiles').files;
+  var item = document.getElementById('uploadPreview').children[fileIndex];
+  if (item && files[fileIndex]) {
+    item.querySelector('img').src = URL.createObjectURL(files[fileIndex]);
+    var badge = item.querySelector('.blur-done-badge');
+    if (badge) badge.remove();
+  }
+}
+
+function toggleUploadCheck(wrap, e) {
+  if (e && e.target.tagName === 'INPUT') return;
+  if (e && e.target.classList.contains('preview-btn')) return;
+  if (e && e.target.classList.contains('blur-done-badge')) return;
+  var cb = wrap.querySelector('input[type=checkbox]');
+  if (cb) cb.checked = !cb.checked;
+}
+
+function selectAllUpload(checked) {
+  document.querySelectorAll('.upload-check').forEach(function(cb) { cb.checked = checked; });
+}
+
+function previewUploadImg(wrap) {
+  var imgSrc = wrap.querySelector('img').src;
+  var origSrc = wrap.getAttribute('data-orig') || '';
+  var isBlurred = !!wrap.querySelector('.blur-done-badge');
+  openPreview(imgSrc, isBlurred ? origSrc : '');
+}
+
+function initUploadDragReorder(grid) {
+  var dragItem = null;
+  var items = grid.querySelectorAll('.preview-item');
+  items.forEach(function(item) {
+    item.addEventListener('dragstart', function(e) {
+      dragItem = this; this.style.opacity = '0.4';
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    item.addEventListener('dragend', function() { this.style.opacity = '1'; dragItem = null; });
+    item.addEventListener('dragover', function(e) { e.preventDefault(); });
+    item.addEventListener('drop', function(e) {
+      e.preventDefault();
+      if (!dragItem || dragItem === this) return;
+      var all = Array.from(grid.querySelectorAll('.preview-item'));
+      var from = all.indexOf(dragItem), to = all.indexOf(this);
+      if (from < to) grid.insertBefore(dragItem, this.nextSibling);
+      else grid.insertBefore(dragItem, this);
+      updateUploadBadges(grid);
+      var moved = _uploadFileOrder.splice(from, 1)[0];
+      _uploadFileOrder.splice(to, 0, moved);
+    });
+  });
+}
+
+function updateUploadBadges(grid) {
+  var items = grid.querySelectorAll('.preview-item');
+  items.forEach(function(item, i) {
+    var badge = item.querySelector('.badge');
+    var labelIdx = _existingUrls.length + i;
+    if (badge) badge.textContent = labelIdx === 0 ? 'TOP' : (labelIdx + 1);
+  });
+}
+
+// ════════════════════════════════════════
+// 商品管理画像ぼかし
+// ════════════════════════════════════════
+async function blurManageImages(managedId) {
+  var checks = document.querySelectorAll('.dl-img-check:checked');
+  if (checks.length === 0) { showStatus('manageStatus', 'ぼかす画像を選択してください', 'err'); return; }
+  var btn = document.getElementById('manageBlurBtn');
+  var prog = document.getElementById('manageBlurProgress');
+  btn.disabled = true;
+  btn.textContent = '中止';
+  var aborted = false;
+  btn.onclick = function() { aborted = true; };
+  var targets = [];
+  checks.forEach(function(c) {
+    targets.push({ url: c.dataset.url, idx: parseInt(c.dataset.imgidx), el: c.closest('.img-check-wrap') });
+  });
+  targets.forEach(function(t) {
+    if (!t.el.querySelector('.blur-overlay')) {
+      var ov = document.createElement('div');
+      ov.className = 'blur-overlay';
+      ov.innerHTML = '<div class="spinner"></div>';
+      t.el.appendChild(ov);
+    }
+  });
+  showLoading('ぼかし処理中', '0/' + targets.length);
+  var done = 0;
+  for (var i = 0; i < targets.length; i++) {
+    if (aborted) break;
+    var t = targets[i];
+    updateLoading('ぼかし処理中', (done+1) + '/' + targets.length);
+    prog.textContent = (done+1) + '/' + targets.length + ' 処理中…';
+    try {
+      var imgSrcUrl = imgUrl(t.url);
+      var imgRes = await fetch(imgSrcUrl);
+      if (!imgRes.ok) throw new Error('画像取得失敗');
+      var imgBlob = await imgRes.blob();
+      var fd = new FormData();
+      fd.append('image', imgBlob);
+      var segRes = await fetch(API + '/api/upload/blur', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + _sessionId },
+        body: fd
+      });
+      var fgBlob;
+      if (segRes.ok) {
+        fgBlob = await segRes.blob();
+      } else {
+        var lib = await loadBgRemoval();
+        fgBlob = await lib.removeBackground(imgBlob, { model: 'medium', output: { format: 'image/png' } });
+      }
+      var origBmp = await createImageBitmap(imgBlob);
+      var w = origBmp.width, h = origBmp.height;
+      var maxSize = (t.idx === 0) ? 1200 : 800;
+      if (w > maxSize || h > maxSize) {
+        if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
+        else { w = Math.round(w * maxSize / h); h = maxSize; }
+      }
+      var canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      var ctx = canvas.getContext('2d');
+      ctx.drawImage(origBmp, 0, 0, w, h);
+      origBmp.close();
+      var origData = ctx.getImageData(0, 0, w, h);
+      var blurC = canvasBlur(canvas, 9);
+      var blurData = blurC.getContext('2d').getImageData(0, 0, w, h);
+      var fgBmp = await createImageBitmap(fgBlob);
+      var maskC = document.createElement('canvas');
+      maskC.width = w; maskC.height = h;
+      var mCtx = maskC.getContext('2d');
+      mCtx.drawImage(fgBmp, 0, 0, w, h);
+      fgBmp.close();
+      var maskData = mCtx.getImageData(0, 0, w, h);
+      maskC.width = 0;
+      var alphaImg = new ImageData(w, h);
+      var md = maskData.data, ad = alphaImg.data;
+      for (var p = 0; p < md.length; p += 4) {
+        ad[p] = md[p+3]; ad[p+1] = md[p+3]; ad[p+2] = md[p+3]; ad[p+3] = 255;
+      }
+      var blurFn = _stackBlurLib && (_stackBlurLib.default
+        ? _stackBlurLib.default.imageDataRGBA : _stackBlurLib.imageDataRGBA);
+      if (blurFn) {
+        blurFn(alphaImg, 0, 0, w, h, 10);
+        for (var dp = 0; dp < ad.length; dp += 4) {
+          var v = ad[dp] * 4.0;
+          ad[dp] = ad[dp+1] = ad[dp+2] = v > 255 ? 255 : v;
+        }
+        blurFn(alphaImg, 0, 0, w, h, 12);
+      }
+      var od = origData.data, bd = blurData.data;
+      for (var p = 0; p < od.length; p += 4) {
+        var tt = 1 - (ad[p] / 255);
+        od[p]   = od[p]   + (bd[p]   - od[p])   * tt;
+        od[p+1] = od[p+1] + (bd[p+1] - od[p+1]) * tt;
+        od[p+2] = od[p+2] + (bd[p+2] - od[p+2]) * tt;
+      }
+      ctx.putImageData(origData, 0, 0);
+      var resultBlob = await new Promise(function(r) {
+        canvas.toBlob(r, 'image/jpeg', t.idx === 0 ? 0.80 : 0.75);
+      });
+      canvas.width = 0; blurC.width = 0;
+      // R2に上書き: delete-single + upload
+      var upFd = new FormData();
+      upFd.append('teamId', _currentTeam.id);
+      upFd.append('managedId', managedId);
+      upFd.append('action', 'replace-single');
+      upFd.append('targetUrl', t.url);
+      upFd.append('images', resultBlob, 'blurred.jpg');
+      var upRes = await fetch(API + '/api/upload/images', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + _sessionId },
+        body: upFd
+      });
+      var upData = await upRes.json();
+      if (upData.ok) {
+        t.el.querySelector('img').src = imgUrl(t.url);
+      }
+    } catch(e) {
+      console.error('Manage blur error:', e);
+      showStatus('manageStatus', 'ぼかし失敗（' + (done+1) + '枚目）: ' + e.message, 'err');
+    }
+    var ov = t.el.querySelector('.blur-overlay');
+    if (ov) ov.remove();
+    done++;
+    await new Promise(function(r) { setTimeout(r, 30); });
+  }
+  hideLoading();
+  prog.textContent = aborted ? '中断' : done + '枚完了';
+  btn.disabled = false;
+  btn.textContent = '選択をぼかす';
+  btn.onclick = function() { blurManageImages(managedId); };
+  if (!aborted) {
+    setTimeout(function() {
+      _listLoaded = false;
+      refreshProductList(function() {
+        if (document.getElementById('sec-manage').classList.contains('active')) renderManageList();
+      });
+    }, 500);
+  }
 }
 
 // ════════════════════════════════════════
@@ -754,6 +1470,7 @@ function startReplace(targetUrl) {
     if (!input.files || !input.files[0]) return;
     var mid = normId(document.getElementById('uploadManagedId').value);
     var isTop = _existingUrls.indexOf(targetUrl) === 0;
+    showLoading('画像を差し替え中');
     showStatus('uploadStatus', '上書き中...', 'info');
     resizeImage(input.files[0], isTop ? 1200 : 800, isTop ? 0.80 : 0.75, function(blob) {
       var fd = new FormData();
@@ -761,9 +1478,21 @@ function startReplace(targetUrl) {
       fd.append('managedId', mid);
       fd.append('targetUrl', targetUrl);
       fd.append('images', blob, 'replace.jpg');
-      // update-image APIは未実装のため、削除+追加で代替
-      // 将来実装時にここを差し替え
-      showStatus('uploadStatus', '差し替え機能は準備中です', 'info');
+      fd.append('action', 'replace-single');
+      fetch(API + '/api/upload/images', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + _sessionId },
+        body: fd
+      }).then(function(r) { return r.json(); })
+      .then(function(d) {
+        hideLoading();
+        if (d.ok) {
+          showStatus('uploadStatus', '画像を上書きしました', 'ok');
+          checkExisting(mid);
+        } else {
+          showStatus('uploadStatus', d.message || '上書きエラー', 'err');
+        }
+      }).catch(function() { hideLoading(); showStatus('uploadStatus', '上書きエラー', 'err'); });
     });
   };
   input.click();
@@ -913,12 +1642,25 @@ function toggleManageExpand(managedId) {
     html += '<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">' +
       '<button class="btn btn-primary" style="flex:1;font-size:12px;padding:8px" onclick="searchImage(\\'' + escapeHtml(managedId) + '\\')">&#x1f50d; 画像検索</button>' +
       '<button class="btn btn-danger" style="flex:1;font-size:12px;padding:8px" onclick="deleteManageImages(\\'' + escapeHtml(managedId) + '\\')">&#x1f5d1; 選択削除</button>' +
-      '</div>';
+      '</div>' +
+      '<div style="margin-top:6px;display:flex;gap:6px">' +
+      '<button class="btn" id="manageBlurBtn" style="flex:1;font-size:12px;padding:8px;background:#4F46E5;color:#fff" onclick="blurManageImages(\\'' + escapeHtml(managedId) + '\\')">選択をぼかす</button>' +
+      '</div>' +
+      '<div id="manageBlurProgress" style="font-size:12px;color:#6b7280;margin-top:4px"></div>';
     el.innerHTML = html;
     initDragReorder(document.getElementById('manageImageGrid'), managedId);
     // プレビュー
     el.querySelectorAll('.preview-btn').forEach(function(btn) {
-      btn.addEventListener('click', function(e) { e.stopPropagation(); openPreview(this.dataset.src); });
+      btn.addEventListener('click', function(e) { e.stopPropagation(); openPreview(this.dataset.src, ''); });
+    });
+    // チェックボックストグル
+    el.querySelectorAll('.img-check-wrap').forEach(function(wrap) {
+      wrap.addEventListener('click', function(e) {
+        if (e.target.tagName === 'INPUT' || e.target.classList.contains('preview-btn')) return;
+        var cb = this.querySelector('input[type=checkbox]');
+        if (cb) { cb.checked = !cb.checked; }
+        this.style.opacity = cb && cb.checked ? '1' : '0.4';
+      });
     });
   });
 }
@@ -949,14 +1691,21 @@ function doDeleteSelected() {
   checks.forEach(function(c) { mids.push(c.dataset.mid); });
   showConfirm(mids.length + '件の商品を削除しますか？この操作は取り消せません。').then(function(ok) {
     if (!ok) return;
+    showLoading('一括削除中', '0/' + mids.length);
+    var done = 0;
     var promises = mids.map(function(mid) {
-      return apiPost('/api/manage/delete', { teamId: _currentTeam.id, managedId: mid });
+      return apiPost('/api/manage/delete', { teamId: _currentTeam.id, managedId: mid }).then(function() {
+        done++;
+        updateLoading('一括削除中', done + '/' + mids.length);
+      });
     });
     Promise.all(promises).then(function() {
+      hideLoading();
       showStatus('manageStatus', mids.length + '件削除しました', 'ok');
       _listLoaded = false;
       ensureListLoaded(function() { renderManageList(); });
     }).catch(function() {
+      hideLoading();
       showStatus('manageStatus', '削除中にエラーが発生しました', 'err');
     });
   });
@@ -974,15 +1723,22 @@ function deleteManageImages(managedId) {
 
   showConfirm(checkedUrls.length + '枚の画像を削除しますか？').then(function(ok) {
     if (!ok) return;
+    showLoading('削除中', '0/' + checkedUrls.length);
+    var done = 0;
     var promises = checkedUrls.map(function(url) {
-      return apiPost('/api/manage/delete-single', { teamId: _currentTeam.id, managedId: managedId, targetUrl: url });
+      return apiPost('/api/manage/delete-single', { teamId: _currentTeam.id, managedId: managedId, targetUrl: url }).then(function() {
+        done++;
+        updateLoading('削除中', done + '/' + checkedUrls.length);
+      });
     });
     Promise.all(promises).then(function() {
+      hideLoading();
       showStatus('manageStatus', checkedUrls.length + '枚削除しました', 'ok');
       _listLoaded = false;
       toggleManageExpand(managedId);
       ensureListLoaded(function() { renderManageList(); });
     }).catch(function() {
+      hideLoading();
       showStatus('manageStatus', '削除中にエラーが発生しました', 'err');
     });
   });
@@ -1037,6 +1793,9 @@ function renderTeamSection() {
     });
     document.getElementById('memberList').innerHTML = html;
   });
+
+  // プランUI更新
+  updatePlanUI();
 }
 
 // チーム作成
@@ -1123,15 +1882,47 @@ document.getElementById('logoutBtn').addEventListener('click', function() {
 });
 
 // ════════════════════════════════════════
-// プレビューモーダル
+// プレビューモーダル（ぼかし比較対応）
 // ════════════════════════════════════════
-function openPreview(src) {
+function openPreview(blurredSrc, origSrc) {
   var modal = document.getElementById('previewModal');
-  document.getElementById('previewImg').src = src;
+  var img = document.getElementById('previewImg');
+  img.src = blurredSrc;
+  _previewBlurredSrc = blurredSrc;
+  _previewOrigSrc = origSrc || '';
+  _previewShowingOrig = false;
   modal.style.display = 'flex';
+  document.getElementById('previewCompareBar').style.display = _previewOrigSrc ? 'flex' : 'none';
+  updatePreviewBtns();
 }
-document.getElementById('previewModal').addEventListener('click', function() { this.style.display = 'none'; });
-document.getElementById('closePreviewBtn').addEventListener('click', function() { document.getElementById('previewModal').style.display = 'none'; });
+function showPreviewBlur() {
+  _previewShowingOrig = false;
+  document.getElementById('previewImg').src = _previewBlurredSrc;
+  updatePreviewBtns();
+}
+function showPreviewOrig() {
+  _previewShowingOrig = true;
+  document.getElementById('previewImg').src = _previewOrigSrc;
+  updatePreviewBtns();
+}
+function updatePreviewBtns() {
+  var btnB = document.getElementById('previewBtnBlur');
+  var btnO = document.getElementById('previewBtnOrig');
+  if (!btnB || !btnO) return;
+  btnB.style.background = _previewShowingOrig ? 'rgba(255,255,255,.3)' : '#fff';
+  btnB.style.color = _previewShowingOrig ? '#fff' : '#1f2937';
+  btnO.style.background = _previewShowingOrig ? '#fff' : 'rgba(255,255,255,.3)';
+  btnO.style.color = _previewShowingOrig ? '#1f2937' : '#fff';
+}
+function closePreview() {
+  document.getElementById('previewModal').style.display = 'none';
+  document.getElementById('previewImg').src = '';
+  _previewBlurredSrc = ''; _previewOrigSrc = '';
+}
+document.getElementById('previewModal').addEventListener('click', closePreview);
+document.getElementById('closePreviewBtn').addEventListener('click', function(e) { e.stopPropagation(); closePreview(); });
+document.getElementById('previewBtnBlur').addEventListener('click', function(e) { e.stopPropagation(); showPreviewBlur(); });
+document.getElementById('previewBtnOrig').addEventListener('click', function(e) { e.stopPropagation(); showPreviewOrig(); });
 
 // ════════════════════════════════════════
 // 確認モーダル
@@ -1151,6 +1942,110 @@ document.getElementById('confirmOk').addEventListener('click', function() {
   document.getElementById('confirmModal').classList.remove('show');
   if (_confirmResolve) { _confirmResolve(true); _confirmResolve = null; }
 });
+
+// ════════════════════════════════════════
+// Stripe Billing（プラン課金）
+// ════════════════════════════════════════
+var _planBilling = 'monthly';
+var PLAN_PRICES = {
+  lite:     { monthly: '¥980',   yearly: '¥9,800' },
+  standard: { monthly: '¥1,980', yearly: '¥19,800' },
+  pro:      { monthly: '¥3,980', yearly: '¥39,800' },
+};
+var PLAN_NAMES = { free: 'フリー', lite: 'ライト', standard: 'スタンダード', pro: 'プロ' };
+
+function updatePlanUI() {
+  if (!_currentTeam) return;
+  var plan = _currentTeam.plan || 'free';
+  document.getElementById('currentPlanName').textContent = (PLAN_NAMES[plan] || plan);
+  // 有料プランならPortalボタン表示
+  var portalBtn = document.getElementById('openPortalBtn');
+  portalBtn.style.display = (plan !== 'free') ? '' : 'none';
+  // 現在プランをハイライト
+  document.querySelectorAll('.plan-col').forEach(function(el) {
+    var p = el.getAttribute('data-plan');
+    if (p === plan) {
+      el.style.borderColor = 'var(--success)';
+      el.style.opacity = '0.6';
+      el.style.pointerEvents = 'none';
+      el.querySelector('.plan-price').insertAdjacentHTML('afterend',
+        '<div class="current-badge" style="font-size:10px;color:var(--success);font-weight:600">利用中</div>');
+    } else {
+      el.style.opacity = '1';
+      el.style.pointerEvents = '';
+      var badge = el.querySelector('.current-badge');
+      if (badge) badge.remove();
+    }
+  });
+}
+
+window.switchPlanBilling = function(mode) {
+  _planBilling = mode;
+  var mBtn = document.getElementById('billingMonthly');
+  var yBtn = document.getElementById('billingYearly');
+  if (mode === 'monthly') {
+    mBtn.className = 'btn btn-primary'; mBtn.style.borderLeft = '';
+    yBtn.className = 'btn btn-secondary'; yBtn.style.borderLeft = '0';
+  } else {
+    mBtn.className = 'btn btn-secondary'; mBtn.style.borderLeft = '';
+    yBtn.className = 'btn btn-primary'; yBtn.style.borderLeft = '0';
+  }
+  // 価格表示更新
+  document.querySelectorAll('.plan-col').forEach(function(el) {
+    var p = el.getAttribute('data-plan');
+    var priceEl = el.querySelector('.plan-price');
+    var pr = PLAN_PRICES[p];
+    if (pr && priceEl) {
+      priceEl.innerHTML = pr[mode] + '<span style="font-size:12px;font-weight:400">/' + (mode === 'monthly' ? '月' : '年') + '</span>';
+    }
+  });
+};
+
+window.subscribePlan = function(plan) {
+  if (!_currentTeam) return;
+  // オーナーチェック（フロント側）
+  if (_currentTeam.owner_id !== _user.id) {
+    showStatus('planStatus', 'プラン変更はチームオーナーのみ可能です', 'err');
+    return;
+  }
+  showStatus('planStatus', '決済ページに移動中...', 'ok');
+  apiPost('/api/stripe/checkout', {
+    plan: plan,
+    billing: _planBilling,
+    teamId: _currentTeam.id,
+  }).then(function(d) {
+    if (d.ok && d.url) {
+      window.location.href = d.url;
+    } else {
+      showStatus('planStatus', d.message || 'エラーが発生しました', 'err');
+    }
+  }).catch(function() {
+    showStatus('planStatus', '通信エラーが発生しました', 'err');
+  });
+};
+
+document.getElementById('openPortalBtn').addEventListener('click', function() {
+  apiPost('/api/stripe/portal', {}).then(function(d) {
+    if (d.ok && d.url) {
+      window.location.href = d.url;
+    } else {
+      alert(d.message || 'エラーが発生しました');
+    }
+  }).catch(function() {
+    alert('通信エラーが発生しました');
+  });
+});
+
+// Checkout成功後のフィードバック
+(function() {
+  var params = new URLSearchParams(location.search);
+  if (params.get('checkout') === 'success') {
+    history.replaceState({}, '', location.pathname);
+    setTimeout(function() {
+      showStatus('planStatus', 'プランが更新されました！反映まで数秒かかる場合があります。', 'ok');
+    }, 500);
+  }
+})();
 
 // ════════════════════════════════════════
 // グローバル関数公開（inline onclick用）
@@ -1202,6 +2097,12 @@ window.toggleManageExpand = toggleManageExpand;
 window.searchImage = searchImage;
 window.deleteManageImages = deleteManageImages;
 window.showUpgradeHint = showUpgradeHint;
+window.blurManageImages = blurManageImages;
+
+// ぼかしバーのイベントリスナー
+document.getElementById('blurSelectedBtn').addEventListener('click', function() { blurSelected(); });
+document.getElementById('blurSelectAllBtn').addEventListener('click', function() { selectAllUpload(true); });
+document.getElementById('blurDeselectAllBtn').addEventListener('click', function() { selectAllUpload(false); });
 
 // ════════════════════════════════════════
 // オンボーディング（初回のみ表示）
@@ -1223,6 +2124,15 @@ var OB_PAGES = [
       { label: '管理番号を入力', desc: '全角→半角は自動変換されます' },
       { label: '画像を選択', desc: 'TOPは高画質、2枚目以降は軽量に自動リサイズ' },
       { label: '追加モード', desc: '同じ番号で既に画像があれば追加モードに切替' },
+    ]
+  },
+  {
+    title: '画像の便利機能',
+    subtitle: '補正・ぼかしで出品クオリティUP',
+    steps: [
+      { label: '明るさ自動補正', desc: '画像選択時にプレビューで確認。チェックOFFで無効化できます' },
+      { label: '背景ぼかし', desc: 'AIが被写体を自動認識。選択した画像の背景をぼかせます' },
+      { label: '画像差し替え', desc: '管理画面からぼかし適用や画像の上書きが可能です' },
     ]
   },
   {

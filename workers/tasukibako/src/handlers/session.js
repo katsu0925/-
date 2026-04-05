@@ -40,7 +40,7 @@ export async function extractSession(request, env) {
  */
 export async function validateAndReturn(request, env, session) {
   const { results: teams } = await env.DB.prepare(`
-    SELECT t.id, t.name, t.plan, t.product_count, t.image_count,
+    SELECT t.id, t.name, t.plan, t.owner_id, t.product_count, t.image_count,
            t.invite_code, t.invite_enabled, tm.role
     FROM teams t
     JOIN team_members tm ON t.id = tm.team_id

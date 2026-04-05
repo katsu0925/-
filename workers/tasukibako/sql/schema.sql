@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
   email TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   display_name TEXT NOT NULL DEFAULT '',
+  stripe_customer_id TEXT,
   created_at TEXT NOT NULL,
   last_login TEXT,
   updated_at TEXT NOT NULL
