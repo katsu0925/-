@@ -585,7 +585,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
 
 <!-- プロモバナー -->
 <div class="promo-banner" id="promoBanner">
-  期間限定：会員登録で全品<strong>10%OFF</strong>＋初回<strong>500ポイント</strong>プレゼント！さらに<strong>1万円以上で送料無料</strong> <a href="#" id="promoRegisterLink">今すぐ無料登録 ＞</a>
+  期間限定：会員登録で全品<strong>10%OFF</strong>＋初回<strong>500ポイント</strong>プレゼント！さらに<strong>1万円以上で送料無料</strong><span style="font-size:10px;opacity:.8">※初回50%OFF時は対象外</span> <a href="#" id="promoRegisterLink">今すぐ無料登録 ＞</a>
   <button class="promo-close" id="promoClose" type="button">✕</button>
 </div>
 <div class="survey-banner" id="surveyBanner" style="display:block;">
@@ -1032,7 +1032,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
       <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">ご注文について</h3>
       <ul style="margin:0;padding-left:20px;color:#475569;">
         <li style="margin-bottom:8px;">数量を選んでカートに追加してください</li>
-        <li>送料はお届け先に応じて自動計算されます（商品合計1万円以上またはダイヤモンド会員で送料無料）</li>
+        <li>送料はお届け先に応じて自動計算されます（商品合計1万円以上またはダイヤモンド会員で送料無料 ※初回50%OFF適用時は1万円以上送料無料の対象外）</li>
       </ul>
     </div>
     <div style="margin-bottom:20px;">
@@ -1262,7 +1262,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">メールアドレス</th><td style="padding:12px;border:1px solid #e2e8f0;">nkonline1030@gmail.com</td></tr>
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">営業時間</th><td style="padding:12px;border:1px solid #e2e8f0;">平日 10:00〜18:00<br><span style="font-size:12px;color:#888;">※土日祝は発送・事務処理休み（メッセージ返信は対応可）</span></td></tr>
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">販売価格</th><td style="padding:12px;border:1px solid #e2e8f0;">各商品ページに表示された価格（税込）</td></tr>
-      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">送料</th><td style="padding:12px;border:1px solid #e2e8f0;">地域・サイズにより異なります。<strong>商品合計1万円以上で送料無料。</strong></td></tr>
+      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">送料</th><td style="padding:12px;border:1px solid #e2e8f0;">地域・サイズにより異なります。<strong>商品合計1万円以上で送料無料。</strong><span style="font-size:12px;">※初回50%OFF適用時は対象外</span></td></tr>
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">支払方法</th><td style="padding:12px;border:1px solid #e2e8f0;">クレジットカード（Visa/Mastercard/JCB/AMEX/Diners/Discover）、コンビニ決済、銀行振込、PayPay、ペイジー、Apple Pay、Paidy（あと払い）</td></tr>
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">支払時期</th><td style="padding:12px;border:1px solid #e2e8f0;">クレジットカード・PayPay・Apple Pay：ご注文時に決済<br>コンビニ決済：ご注文後3日以内にお支払い<br>銀行振込・ペイジー：ご注文後3日以内にお振込み<br>Paidy（あと払い）：翌月10日までにお支払い</td></tr>
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">お客様負担の手数料</th><td style="padding:12px;border:1px solid #e2e8f0;">コンビニ決済：<strong>220円（税込）</strong><br>銀行振込・ペイジー：<strong>振込手数料</strong>はお客様負担<br>Paidy（あと払い）：手数料はかかりません（コンビニ/銀行振込払いの場合は356円(税込)）<br><span style="font-size:12px;color:#888;">※クレジットカード・PayPay・Apple Pay：手数料なし</span></td></tr>
@@ -2782,11 +2782,14 @@ function recalcDetauriShipping_() {
       G.detauriShipping = multi.amount;
       G.detauriShippingPref = pref;
       G.detauriShippingSizeLabel = multi.sizeLabel;
-      // 1万円以上で送料無料（割引後の商品価格で判定）
-      var _oaSub = typeof G._discountedBulkTotal === 'number' ? G._discountedBulkTotal : 0;
-      if (_oaSub <= 0) Object.keys(G.cart).forEach(function(k) { var _op = G.products.find(function(x){return x.productId===k;}); if (_op) _oaSub += Number(_op.price||0)*G.cart[k]; });
-      var _oaDet = typeof G._discountedDetauriTotal === 'number' ? G._discountedDetauriTotal : (G.detauriCartTotal || 0);
-      if (_oaSub + _oaDet >= 10000) G.detauriShipping = 0;
+      // 1万円以上で送料無料（割引後の商品価格で判定、FHP適用時は対象外）
+      var _fhpOn = G.firstHalfPrice && G.firstHalfPrice.eligible && G.customer;
+      if (!_fhpOn) {
+        var _oaSub = typeof G._discountedBulkTotal === 'number' ? G._discountedBulkTotal : 0;
+        if (_oaSub <= 0) Object.keys(G.cart).forEach(function(k) { var _op = G.products.find(function(x){return x.productId===k;}); if (_op) _oaSub += Number(_op.price||0)*G.cart[k]; });
+        var _oaDet = typeof G._discountedDetauriTotal === 'number' ? G._discountedDetauriTotal : (G.detauriCartTotal || 0);
+        if (_oaSub + _oaDet >= 10000) G.detauriShipping = 0;
+      }
       return;
     }
 
@@ -2796,12 +2799,15 @@ function recalcDetauriShipping_() {
     G.detauriShippingSizeLabel = sizeLabel;
   } catch (e) {}
 
-  // 商品合計（アソート+デタウリ）1万円以上で送料無料（割引後の商品価格で判定）
-  var _assortSub = typeof G._discountedBulkTotal === 'number' ? G._discountedBulkTotal : 0;
-  if (_assortSub <= 0) Object.keys(G.cart).forEach(function(pid) { var _p = G.products.find(function(x){return x.productId===pid;}); if (_p) _assortSub += Number(_p.price||0)*G.cart[pid]; });
-  var _assortDet = typeof G._discountedDetauriTotal === 'number' ? G._discountedDetauriTotal : (G.detauriCartTotal || 0);
-  if (_assortSub + _assortDet >= 10000) {
-    G.detauriShipping = 0;
+  // 商品合計（アソート+デタウリ）1万円以上で送料無料（割引後の商品価格で判定、FHP適用時は対象外）
+  var _fhpOn2 = G.firstHalfPrice && G.firstHalfPrice.eligible && G.customer;
+  if (!_fhpOn2) {
+    var _assortSub = typeof G._discountedBulkTotal === 'number' ? G._discountedBulkTotal : 0;
+    if (_assortSub <= 0) Object.keys(G.cart).forEach(function(pid) { var _p = G.products.find(function(x){return x.productId===pid;}); if (_p) _assortSub += Number(_p.price||0)*G.cart[pid]; });
+    var _assortDet = typeof G._discountedDetauriTotal === 'number' ? G._discountedDetauriTotal : (G.detauriCartTotal || 0);
+    if (_assortSub + _assortDet >= 10000) {
+      G.detauriShipping = 0;
+    }
   }
 }
 
@@ -3070,13 +3076,16 @@ function submitOrder() {
   var detauriShippingAmount = G.detauriShipping || 0;
   var detauriItemCount = G.detauriCartCount || 0;
 
-  // 商品合計（アソート+デタウリ）1万円以上で送料無料（割引後の商品価格で判定）
-  var _submitProdTotal = typeof G._discountedBulkTotal === 'number' ? G._discountedBulkTotal : 0;
-  if (_submitProdTotal <= 0) items.forEach(function(it) { var _p = G.products.find(function(x){return x.productId===it.productId;}); if (_p) _submitProdTotal += Number(_p.price||0)*it.qty; });
-  _submitProdTotal += (typeof G._discountedDetauriTotal === 'number' ? G._discountedDetauriTotal : detauriProductAmount);
-  if (_submitProdTotal >= 10000) {
-    shipping = 0;
-    detauriShippingAmount = 0;
+  // 商品合計（アソート+デタウリ）1万円以上で送料無料（割引後の商品価格で判定、FHP適用時は対象外）
+  var _fhpOn3 = G.firstHalfPrice && G.firstHalfPrice.eligible && G.customer;
+  if (!_fhpOn3) {
+    var _submitProdTotal = typeof G._discountedBulkTotal === 'number' ? G._discountedBulkTotal : 0;
+    if (_submitProdTotal <= 0) items.forEach(function(it) { var _p = G.products.find(function(x){return x.productId===it.productId;}); if (_p) _submitProdTotal += Number(_p.price||0)*it.qty; });
+    _submitProdTotal += (typeof G._discountedDetauriTotal === 'number' ? G._discountedDetauriTotal : detauriProductAmount);
+    if (_submitProdTotal >= 10000) {
+      shipping = 0;
+      detauriShippingAmount = 0;
+    }
   }
 
   // デタウリ最低数量チェック（アソートありなら1点〜、なしなら5点〜）
@@ -4926,11 +4935,11 @@ var modalContactFiles_ = [];
 
     // --- 送料・配送 ---
     { q: '送料はいくら？', category: '送料・配送',
-      a: '【送料について】\n送料はお届け先の地域と荷物のサイズによって異なります。\n住所を入力すると自動計算されます。\n\n・商品合計1万円以上で送料無料！\n・ダイヤモンド会員は常に送料無料！\n\n詳しくはヘッダーの「アソート送料表」からご確認ください。' },
+      a: '【送料について】\n送料はお届け先の地域と荷物のサイズによって異なります。\n住所を入力すると自動計算されます。\n\n・商品合計1万円以上で送料無料！\n・ダイヤモンド会員は常に送料無料！\n\n※初回50%OFFキャンペーン適用時は「1万円以上送料無料」の対象外です。\n\n詳しくはヘッダーの「アソート送料表」からご確認ください。' },
     { q: '配送にかかる日数は？', category: '送料・配送',
       a: '決済完了後、通常3〜5営業日（土日祝休み）で発送いたします。\nお届けまでの日数は地域により異なりますが、発送から1〜3日程度です。\n\n※繁忙期や天候・災害等により遅延する場合がございます。' },
     { q: '送料無料になる条件は？', category: '送料・配送',
-      a: '【送料無料になる条件】\n\n① 商品合計1万円以上で送料無料！\n　→ デタウリ・アソート合算でOKです\n\n② ダイヤモンド会員のお客様は金額に関わらず送料無料！\n　→ 年間購入額50万円以上で到達\n\n詳しくは「会員ランクについて」をご確認ください。' },
+      a: '【送料無料になる条件】\n\n① 商品合計1万円以上で送料無料！\n　→ デタウリ・アソート合算でOKです\n\n② ダイヤモンド会員のお客様は金額に関わらず送料無料！\n　→ 年間購入額50万円以上で到達\n\n※初回50%OFFキャンペーン適用時は①の対象外です。②のダイヤモンド会員送料無料は適用されます。\n\n詳しくは「会員ランクについて」をご確認ください。' },
 
     // --- 決済 ---
     { q: '決済方法は？', category: '決済',
@@ -4942,7 +4951,7 @@ var modalContactFiles_ = [];
 
     // --- 割引・セール ---
     { q: '割引はある？', category: '割引・セール',
-      a: '【現在の割引制度】\n\n1. 会員割引：無料登録で10%OFF（2026年9月末まで）＋初回500ポイント\n\n2. デタウリ数量割引：10点5%OFF / 30点10%OFF / 50点15%OFF / 100点20%OFF\n\n3. ポイント利用：購入ごとに貯まるポイントを1pt=1円で使用可能\n\n4. クーポンコードによる割引\n\n5. 商品合計1万円以上で送料無料！\n\n会員割引と数量割引は併用可能です！' },
+      a: '【現在の割引制度】\n\n1. 会員割引：無料登録で10%OFF（2026年9月末まで）＋初回500ポイント\n\n2. デタウリ数量割引：10点5%OFF / 30点10%OFF / 50点15%OFF / 100点20%OFF\n\n3. ポイント利用：購入ごとに貯まるポイントを1pt=1円で使用可能\n\n4. クーポンコードによる割引\n\n5. 商品合計1万円以上で送料無料！\n\n会員割引と数量割引は併用可能です！\n\n※初回50%OFFキャンペーン適用時は他の割引・1万円以上送料無料が適用されません。' },
     { q: '会員割引の期間は？', category: '割引・セール',
       a: '会員登録で全品10%OFFの特典は2026年9月末までの期間限定です。\n\n・無料登録するだけで適用\n・期間中はいつでもご利用いただけます\n\nお早めの登録がおすすめです！' },
 

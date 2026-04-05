@@ -197,7 +197,8 @@ function apiBulkSubmit(form, items) {
     }
 
     var shippingFreeCoupon = validatedCoupon && validatedCoupon.type === 'shipping_free';
-    var thresholdFree = (discounted + detauriProductAmount) >= 10000;
+    // 1万円以上で送料無料（FHP適用時は対象外）
+    var thresholdFree = !firstHalfPriceApplied && (discounted + detauriProductAmount) >= 10000;
 
     if (shippingPref) {
       shippingArea = SHIPPING_AREAS[shippingPref] || '';

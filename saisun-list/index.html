@@ -732,7 +732,7 @@
   </div>
   <div id="pageTransition"><div class="pt-content"><div class="pt-title">デタウリ.Detauri</div><div class="pt-sub">読み込み中...</div></div></div>
   <div class="promo-banner" id="promoBanner">
-    期間限定：会員登録で全品<strong>10%OFF</strong>＋初回<strong>500ポイント</strong>プレゼント！さらに<strong>1万円以上で送料無料</strong><a href="#" id="promoRegisterLink">今すぐ無料登録 ＞</a>
+    期間限定：会員登録で全品<strong>10%OFF</strong>＋初回<strong>500ポイント</strong>プレゼント！さらに<strong>1万円以上で送料無料</strong><span style="font-size:10px;opacity:.8">※初回50%OFF時は対象外</span> <a href="#" id="promoRegisterLink">今すぐ無料登録 ＞</a>
     <button class="promo-close" id="promoClose" type="button">✕</button>
   </div>
   <div class="survey-banner" id="surveyBanner" style="display:block;">
@@ -1495,7 +1495,7 @@
         <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">ご注文について</h3>
         <ul style="margin:0;padding-left:20px;color:#475569;">
           <li style="margin-bottom:8px;"><strong style="color:#1e293b;">5点から</strong>ご注文いただけます（アソート併用時は1点から）</li>
-          <li style="margin-bottom:8px;">送料はお届け先に応じて自動計算されます（商品合計1万円以上またはダイヤモンド会員で送料無料）</li>
+          <li style="margin-bottom:8px;">送料はお届け先に応じて自動計算されます（商品合計1万円以上またはダイヤモンド会員で送料無料 ※初回50%OFF適用時は1万円以上送料無料の対象外）</li>
           <li style="margin-bottom:8px;">在庫は先着のため、送信後に欠品となる場合があります</li>
           <li>ブランド・カテゴリ・価格帯・状態ランクなどのフィルター機能で絞り込みが可能です</li>
         </ul>
@@ -1506,7 +1506,7 @@
         <ol style="margin:0;padding-left:20px;color:#475569;">
           <li style="margin-bottom:8px;"><strong>商品選択</strong>：お好みの商品をカートに追加（5点以上、アソート併用時は1点以上）</li>
           <li style="margin-bottom:8px;"><strong>お届け先入力</strong>：住所を入力すると送料が自動表示されます</li>
-          <li style="margin-bottom:8px;"><strong>お支払い</strong>：商品代＋送料をオンライン決済（1万円以上で送料無料）<br><span style="font-size:12px;color:#888;">※コンビニ決済は別途手数料220円、銀行振込・ペイジーの振込手数料はお客様負担</span></li>
+          <li style="margin-bottom:8px;"><strong>お支払い</strong>：商品代＋送料をオンライン決済（1万円以上で送料無料 ※初回50%OFF時は対象外）<br><span style="font-size:12px;color:#888;">※コンビニ決済は別途手数料220円、銀行振込・ペイジーの振込手数料はお客様負担</span></li>
           <li><strong>発送</strong>：決済完了後、通常3〜5営業日（土日祝休み）で発送いたします</li>
         </ol>
       </div>
@@ -1789,7 +1789,7 @@
         </tr>
         <tr>
           <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">送料</th>
-          <td style="padding:12px;border:1px solid #e2e8f0;">地域・サイズにより異なります。<strong>商品合計1万円以上で送料無料。</strong>詳細は<a href="#" id="legalShippingLink" style="color:#3b82f6;">送料表</a>をご確認ください。</td>
+          <td style="padding:12px;border:1px solid #e2e8f0;">地域・サイズにより異なります。<strong>商品合計1万円以上で送料無料。</strong><span style="font-size:12px;">※初回50%OFF適用時は対象外</span> 詳細は<a href="#" id="legalShippingLink" style="color:#3b82f6;">送料表</a>をご確認ください。</td>
         </tr>
         <tr>
           <th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">支払方法</th>
@@ -2166,21 +2166,24 @@ function calculateShipping_() {
     return { amount: 0, label: '送料無料（クーポン適用）', canAutoPayment: true };
   }
 
-  // 商品合計1万円以上で送料無料（割引後の商品価格で判定）
-  var _freeShipSum = typeof state._discountedProductTotal === 'number'
-    ? state._discountedProductTotal
-    : (function() {
-        var s = 0;
-        for (var fi = 0; fi < ids.length; fi++) {
-          var fit = state.cart.itemsById[ids[fi]];
-          if (fit) s += Number(fit.price || 0);
-        }
-        var _blk = loadBulkCartStorage();
-        s += Number((_blk && _blk.subtotal) || 0);
-        return s;
-      })();
-  if (_freeShipSum >= 10000) {
-    return { amount: 0, label: '送料無料（商品合計1万円以上）', canAutoPayment: true };
+  // 商品合計1万円以上で送料無料（割引後の商品価格で判定、FHP適用時は対象外）
+  var _fhpActive = state.firstHalfPrice && state.firstHalfPrice.eligible && state.customer;
+  if (!_fhpActive) {
+    var _freeShipSum = typeof state._discountedProductTotal === 'number'
+      ? state._discountedProductTotal
+      : (function() {
+          var s = 0;
+          for (var fi = 0; fi < ids.length; fi++) {
+            var fit = state.cart.itemsById[ids[fi]];
+            if (fit) s += Number(fit.price || 0);
+          }
+          var _blk = loadBulkCartStorage();
+          s += Number((_blk && _blk.subtotal) || 0);
+          return s;
+        })();
+    if (_freeShipSum >= 10000) {
+      return { amount: 0, label: '送料無料（商品合計1万円以上）', canAutoPayment: true };
+    }
   }
 
   var addressEl = $('address');
@@ -7904,11 +7907,11 @@ boot();
 
     // --- 送料・配送 ---
     { q: '送料はいくら？', category: '送料・配送',
-      a: '【送料について】\n送料はお届け先の地域と荷物のサイズによって異なります。\n\n・宅配便（小）：990円〜1,700円\n・宅配便（大）：1,260円〜2,280円\n・商品合計1万円以上で送料無料！\n・ダイヤモンド会員は常に送料無料！\n\n詳しくはヘッダーの「デタウリ送料表」からご確認ください。' },
+      a: '【送料について】\n送料はお届け先の地域と荷物のサイズによって異なります。\n\n・宅配便（小）：990円〜1,700円\n・宅配便（大）：1,260円〜2,280円\n・商品合計1万円以上で送料無料！\n・ダイヤモンド会員は常に送料無料！\n\n※初回50%OFFキャンペーン適用時は「1万円以上送料無料」の対象外となります。\n\n詳しくはヘッダーの「デタウリ送料表」からご確認ください。' },
     { q: '配送にかかる日数は？', category: '送料・配送',
       a: '決済完了後、通常3〜5営業日（土日祝休み）で発送いたします。\nお届けまでの日数は地域により異なりますが、発送から1〜3日程度です。\n\n※繁忙期や天候・災害等により遅延する場合がございます。' },
     { q: '送料無料になる条件は？', category: '送料・配送',
-      a: '送料無料になる条件は以下の通りです。\n\n1. 商品合計1万円以上で送料無料！\n2. ダイヤモンド会員は常に送料無料\n\n1万円以上のお買い物で自動的に送料が無料になります。' },
+      a: '送料無料になる条件は以下の通りです。\n\n1. 商品合計1万円以上で送料無料！\n2. ダイヤモンド会員は常に送料無料\n\n1万円以上のお買い物で自動的に送料が無料になります。\n\n※初回50%OFFキャンペーン適用時は「1万円以上送料無料」の対象外です。ダイヤモンド会員の送料無料は適用されます。' },
 
     // --- 決済 ---
     { q: '決済方法は？', category: '決済',
@@ -7920,7 +7923,7 @@ boot();
 
     // --- 割引・セール ---
     { q: '割引はある？', category: '割引・セール',
-      a: '【現在の割引制度】\n\n1. 10点以上で5%OFF / 30点10%OFF / 50点15%OFF / 100点20%OFF\n2. 会員登録割引：10%OFF（2026年9月末まで）\n3. 商品合計1万円以上で送料無料！\n4. 上記は全て併用可能！最大約30%OFF\n\nたくさん買うほどお得です！' },
+      a: '【現在の割引制度】\n\n1. 10点以上で5%OFF / 30点10%OFF / 50点15%OFF / 100点20%OFF\n2. 会員登録割引：10%OFF（2026年9月末まで）\n3. 商品合計1万円以上で送料無料！\n4. 上記は全て併用可能！最大約30%OFF\n\n※初回50%OFFキャンペーン適用時は他の割引・1万円以上送料無料が適用されません。\n\nたくさん買うほどお得です！' },
     { q: '30点割引の詳細は？', category: '割引・セール',
       a: 'まとめ買い割引は以下の通りです。\n\n・10点以上：5%OFF\n・30点以上：10%OFF\n・50点以上：15%OFF\n・100点以上：20%OFF\n\n会員割引（10%OFF）との併用もOK！割引はカート内で自動計算されます。' },
     { q: '会員割引の期間は？', category: '割引・セール',

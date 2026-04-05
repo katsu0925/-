@@ -220,8 +220,8 @@ var CartCalc = (function() {
     var diamondFree = customer && customer.rank && customer.rank.freeShipping;
     // 送料無料クーポン（shipping_free型）— FHP時は無効
     var shippingFreeCoupon = !fhpApplied && coupon && coupon.type === 'shipping_free';
-    // 1万円以上で送料無料
-    var thresholdFree = combinedDiscountedProduct >= freeShipThreshold;
+    // 1万円以上で送料無料（FHP適用時は対象外）
+    var thresholdFree = !fhpApplied && combinedDiscountedProduct >= freeShipThreshold;
 
     // デタウリ送料
     if (det.count > 0 && addrPref) {
@@ -299,8 +299,8 @@ var CartCalc = (function() {
     // -- Step 8: 合計 --
     result.grandTotal = Math.max(0, sumSubtotals - result.pointsApplied);
 
-    // -- 送料無料プログレスバー --
-    if (combinedDiscountedProduct > 0 && combinedDiscountedProduct < freeShipThreshold) {
+    // -- 送料無料プログレスバー（FHP適用時は非表示） --
+    if (!fhpApplied && combinedDiscountedProduct > 0 && combinedDiscountedProduct < freeShipThreshold) {
       result.freeShipProgress = {
         show: true,
         current: combinedDiscountedProduct,
@@ -308,7 +308,7 @@ var CartCalc = (function() {
         remaining: freeShipThreshold - combinedDiscountedProduct,
         pct: Math.min(100, Math.round((combinedDiscountedProduct / freeShipThreshold) * 100))
       };
-    } else if (combinedDiscountedProduct >= freeShipThreshold) {
+    } else if (!fhpApplied && combinedDiscountedProduct >= freeShipThreshold) {
       result.freeShipProgress = { show: true, current: combinedDiscountedProduct, threshold: freeShipThreshold, remaining: 0, pct: 100 };
     }
 

@@ -224,7 +224,8 @@ function apiSubmitEstimate(userKey, form, ids) {
     }
 
     var shippingFreeCoupon = validatedCoupon && validatedCoupon.type === 'shipping_free';
-    var thresholdFree = (discounted + bulkProductAmount) >= 10000;
+    // 1万円以上で送料無料（FHP適用時は対象外）
+    var thresholdFree = !firstHalfPriceApplied && (discounted + bulkProductAmount) >= 10000;
 
     // 送料無料判定の前に実際の配送コストを計算（店負担送料用）
     var actualShippingForStore = 0;

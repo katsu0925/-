@@ -452,7 +452,8 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   const diamondFree = totalSpent >= 500000;
 
   const shippingFreeCoupon = validatedCoupon && validatedCoupon.type === 'shipping_free';
-  const thresholdFree = (discounted + bulkProductAmount) >= dynFreeShipThreshold;
+  // 1万円以上で送料無料（FHP適用時は対象外）
+  const thresholdFree = !firstHalfPriceApplied && (discounted + bulkProductAmount) >= dynFreeShipThreshold;
 
   // 送料無料判定前に実際の配送コストを計算（店負担送料用）
   let actualShippingForStore = 0;
