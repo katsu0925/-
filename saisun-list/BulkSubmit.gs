@@ -385,6 +385,9 @@ function apiBulkSubmit(form, items) {
       for (var si = 0; si < orderItems.length; si++) {
         try { baseSyncSingleStock_(orderItems[si].productId); } catch (be) { console.error('BASE在庫同期エラー:', be); }
       }
+      // confirmPaymentAndCreateOrderでの二重減算を防止
+      pendingData._stockDeducted = true;
+      props.setProperty('PENDING_ORDER_' + paymentToken, JSON.stringify(pendingData));
     } catch (stockErr) {
       console.error('在庫減算エラー（注文は継続）:', stockErr);
     }

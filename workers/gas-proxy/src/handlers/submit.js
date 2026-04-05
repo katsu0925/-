@@ -265,7 +265,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
       const bUnitPrice = (bp.discounted_price !== undefined && bp.discounted_price > 0) ? bp.discounted_price : bp.price;
       bulkProductAmount += bUnitPrice * bQty;
       bulkItemCount += bQty;
-      orderItems.push({ name: bp.name, qty: bQty, unit: bp.unit || '点', discountRate: bp.discounted_price > 0 && bp.discounted_price < bp.price ? Math.round((1 - bp.discounted_price / bp.price) * 100) : 0 });
+      orderItems.push({ productId: bPid, name: bp.name, qty: bQty, unit: bp.unit || '点', discountRate: bp.discounted_price > 0 && bp.discounted_price < bp.price ? Math.round((1 - bp.discounted_price / bp.price) * 100) : 0 });
     }
   }
   const rawBulkProductAmount = bulkProductAmount; // 送料無料判定用（クーポン適用前）

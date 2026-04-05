@@ -1373,6 +1373,19 @@ function confirmPaymentAndCreateOrder(paymentToken, paymentStatus, paymentMethod
       }
     }
 
+    // 3.7. アソート注文の在庫減算 + BASE在庫同期（GAS直接経由で既に減算済みの場合はスキップ）
+    if (isBulk && !pendingData._stockDeducted && pendingData.orderItems && pendingData.orderItems.length > 0) {
+      try {
+        bulk_deductStock_(pendingData.orderItems);
+        for (var si = 0; si < pendingData.orderItems.length; si++) {
+          try { baseSyncSingleStock_(pendingData.orderItems[si].productId); } catch (be) { console.error('BASE在庫同期エラー:', be); }
+        }
+        console.log('アソート在庫減算完了: ' + receiptNo);
+      } catch (stockErr) {
+        console.error('アソート在庫減算エラー（注文は継続）:', stockErr);
+      }
+    }
+
     // 4. プレミアムアソート → 依頼展開を自動実行
     if (premiumSpec && pendingData.ids && pendingData.ids.length > 0) {
       try {
