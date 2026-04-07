@@ -778,7 +778,7 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
  * 使い方: GASエディタで受付番号を書き換えて batchExpandOrder() を実行
  * → 自動で分割処理が開始され、完了するまでトリガーが連鎖実行される
  */
-var BATCH_EXPAND_AI_SIZE_ = 30; // OpenAI 1回あたりの処理件数（om_generateDescriptions_ の内部バッチサイズに合わせる）
+var BATCH_EXPAND_AI_SIZE_ = 20; // OpenAI 1回あたりの処理件数（スプレッドシート再読込+API呼出で6分制限に収める）
 
 /**
  * ヘルパー: 受付番号から全スプレッドシートデータを読み込み、productRows等を構築する。
@@ -1072,11 +1072,12 @@ function batchExpandOrder() {
     startTime: Date.now()
   };
 
-  console.log('Phase 1 完了。Phase 2 開始: OpenAI説明文 ' + data.productRows.length + '点 → ' + totalBatches + 'バッチ');
+  console.log('Phase 1 完了。Phase 2 へ: OpenAI説明文 ' + data.productRows.length + '点 → ' + totalBatches + 'バッチ');
   props.setProperty(stateKey, JSON.stringify(state));
 
-  // 即座にPhase 2を開始
-  batchExpandPhase2_(state, props, cache, stateKey);
+  // Phase 1でスプレッドシート読込済みなので、Phase 2は別実行にして6分制限を回避
+  ScriptApp.newTrigger('batchExpandOrder').timeBased().after(10000).create();
+  console.log('Phase 2 トリガー設定: 10秒後');
 }
 
 /**
@@ -1107,19 +1108,11 @@ function batchExpandPhase2_(state, props, cache, stateKey) {
   state.batchNum++;
 
   if (state.processedIndex >= state.totalItems) {
-    // 全バッチ完了 → Phase 3へ
-    console.log('Phase 2 完了。Phase 3 開始: 配布用リスト + XLSX + 売却反映');
+    // 全バッチ完了 → Phase 3へ（常にトリガー経由で6分制限を回避）
+    console.log('Phase 2 完了。Phase 3 トリガー設定: 10秒後');
     state.phase = 3;
     props.setProperty(stateKey, JSON.stringify(state));
-
-    // 時間に余裕があればPhase 3を即実行、なければトリガー
-    var elapsed = (Date.now() - state.startTime) / 1000;
-    if (elapsed < 200) {
-      batchExpandPhase3_(state, props, cache, stateKey);
-    } else {
-      ScriptApp.newTrigger('batchExpandOrder').timeBased().after(30000).create();
-      console.log('Phase 3 トリガー設定: 30秒後');
-    }
+    ScriptApp.newTrigger('batchExpandOrder').timeBased().after(10000).create();
   } else {
     // 次バッチのトリガー
     props.setProperty(stateKey, JSON.stringify(state));

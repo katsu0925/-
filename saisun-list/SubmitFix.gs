@@ -1218,6 +1218,14 @@ function confirmPaymentAndCreateOrder(paymentToken, paymentStatus, paymentMethod
         premiumSpec.targetAmount, premiumSpec.minCount, premiumSpec.maxCount, orderSs, detauriIds
       );
       allIds = allIds.concat(selection.ids);
+      // アソート選定商品の単価をitemDetailsに追加（商品単価JSON用）
+      if (selection.priceMap) {
+        if (!pendingData.itemDetails) pendingData.itemDetails = [];
+        var selIds = selection.ids;
+        for (var si = 0; si < selIds.length; si++) {
+          pendingData.itemDetails.push({ managedId: selIds[si], price: selection.priceMap[selIds[si]] || 0 });
+        }
+      }
       console.log('プレミアムアソート自動選定: target=¥' + premiumSpec.targetAmount
         + ' selected=¥' + selection.total + ' items=' + selection.ids.length);
     }
@@ -1785,7 +1793,9 @@ function selectProductsForPremiumAssort_(targetAmount, minCount, maxCount, order
     } catch (mailErr) { console.error('季節警告メール送信エラー:', mailErr); }
   }
 
-  return { ids: selected.map(function(s) { return s.id; }), total: total, seasonRatio: seasonRatio };
+  var priceMap = {};
+  for (var pm = 0; pm < selected.length; pm++) priceMap[selected[pm].id] = selected[pm].price;
+  return { ids: selected.map(function(s) { return s.id; }), total: total, seasonRatio: seasonRatio, priceMap: priceMap };
 }
 
 /**

@@ -418,10 +418,10 @@ body.admin-mode .admin-settings-fab{display:flex;}
   .modal-content.expanded{max-height:80vh}
   .modal-drag-handle{display:none}
   .modal-sheet-scroll{display:contents}
-  .modal-fixed-top{width:50%;flex-shrink:0;display:flex;flex-direction:column}
+  .modal-fixed-top{width:50%;flex-shrink:0;display:flex;flex-direction:column;max-height:80vh}
   .modal-images{aspect-ratio:1/1}
-  .modal-right{width:50%;display:flex;flex-direction:column;overflow:hidden;flex:1}
-  .modal-scroll{flex:1;overflow-y:auto}
+  .modal-right{width:50%;display:flex;flex-direction:column;overflow:hidden;max-height:calc(80vh - 80px);min-height:0}
+  .modal-scroll{flex:1;overflow-y:auto;min-height:0}
   .modal-fixed-bottom{width:50%;margin-left:50%;flex-shrink:0}
   .modal-close{top:8px;right:8px}
   .modal-body .product-desc.collapsed{max-height:none;overflow:visible}
