@@ -58,6 +58,8 @@ function doGet(e) {
     brand: val_("ブランド"),
     size: val_("メルカリサイズ"),
     color: val_("カラー"),
+    category2: val_("カテゴリ2"),
+    category3: val_("カテゴリ3"),
     pocket: val_("ポケット詳細"),
     design: val_("デザイン特徴"),
     damage: val_("傷汚れ詳細"),
@@ -80,15 +82,35 @@ function doGet(e) {
   data.reason = kw.reason;
   data.link = kw.link;
 
-  let kws = kw.keywords.slice();
+  // ブランド表記を「ブランド(english)」→「ブランド english」に変換
+  let brandDisplay = String(data.brand || "");
+  const brandMatch = brandDisplay.match(/^(.+?)\s*[（(](.+?)[）)]$/);
+  if (brandMatch) {
+    brandDisplay = brandMatch[1] + " " + brandMatch[2];
+  }
+
+  // 重複排除用: ブランド名・サイズ・カテゴリに含まれる語を除外
+  const dedupWords = [brandDisplay, data.brand, data.size, data.category2, data.category3]
+    .flatMap(w => String(w || "").split(/[\s　()（）]+/))
+    .filter(w => w)
+    .map(w => w.toLowerCase());
+
+  let kws = kw.keywords.slice().filter(k => {
+    const kLower = String(k).toLowerCase();
+    return !dedupWords.some(d => d === kLower || kLower === d);
+  });
   for (let j = kws.length - 1; j > 0; j--) {
     const r = Math.floor(Math.random() * (j + 1));
     [kws[j], kws[r]] = [kws[r], kws[j]];
   }
 
   const sizeLabel = String(data.size) === "フリーサイズ" ? "F" : String(data.size || "");
-  const prefix = `${data.id}【${sizeLabel}】${data.brand}`;
+  const prefix = `${data.id}【${sizeLabel}】${brandDisplay}`;
   const titleTokens = [prefix];
+  // カテゴリ3優先、なければカテゴリ2。キーワードにカテゴリを含む語があればそちらを優先
+  const cat = String(data.category3 || "") || String(data.category2 || "");
+  const kwHasCat = cat && kws.some(k => String(k).includes(cat));
+  if (cat && !kwHasCat) titleTokens.push(cat);
 
   kws.forEach(k => {
     const cand = titleTokens.concat(k).join(" ");
