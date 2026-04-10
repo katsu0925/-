@@ -194,6 +194,7 @@ body.has-admin{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
     <button class="tab" data-tab="team">チーム</button>
     <button class="tab" data-tab="settings">設定</button>
     <button id="refreshBtn" style="background:none;border:none;font-size:20px;padding:4px 8px;cursor:pointer;color:#6b7280;flex-shrink:0" title="更新"><span id="refreshIcon" style="display:inline-block">&#x21bb;</span></button>
+    <button id="helpBtn" onclick="showOnboarding(true)" style="background:none;border:none;font-size:14px;padding:0;cursor:pointer;color:#6b7280;flex-shrink:0;width:24px;height:24px;border-radius:50%;border:1.5px solid #d1d5db;display:inline-flex;align-items:center;justify-content:center;font-weight:600" title="使い方ガイド">?</button>
   </div>
 
   <!-- セクション1: アップロード -->
@@ -627,6 +628,30 @@ function normId(raw) {
   return raw.replace(/[\\uff21-\\uff3a\\uff41-\\uff5a\\uff10-\\uff19]/g, function(ch) {
     return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0);
   }).replace(/[\\u30fc]/g,'-').replace(/\\u3000/g,' ').toUpperCase().trim();
+}
+
+function formatShortDate(isoStr) {
+  if (!isoStr) return '';
+  var d = new Date(isoStr);
+  if (isNaN(d.getTime())) return '';
+  var now = new Date();
+  var mm = String(d.getMonth() + 1).padStart(2, '0');
+  var dd = String(d.getDate()).padStart(2, '0');
+  if (d.getFullYear() !== now.getFullYear()) {
+    return String(d.getFullYear()).slice(-2) + '/' + mm + '/' + dd;
+  }
+  return mm + '/' + dd;
+}
+
+function formatDateTime(isoStr) {
+  if (!isoStr) return '';
+  var d = new Date(isoStr);
+  if (isNaN(d.getTime())) return '';
+  var mm = String(d.getMonth() + 1).padStart(2, '0');
+  var dd = String(d.getDate()).padStart(2, '0');
+  var hh = String(d.getHours()).padStart(2, '0');
+  var mi = String(d.getMinutes()).padStart(2, '0');
+  return mm + '/' + dd + ' ' + hh + ':' + mi;
 }
 
 // ════════════════════════════════════════
@@ -1582,7 +1607,10 @@ function renderManageList() {
       (thumbSrc ? '<img class="list-thumb" src="' + thumbSrc + '" loading="lazy" onclick="toggleManageExpand(\\'' + escapeHtml(p.managedId) + '\\')">' : '<div class="list-thumb" onclick="toggleManageExpand(\\'' + escapeHtml(p.managedId) + '\\')"></div>') +
       '<div class="list-info" onclick="toggleManageExpand(\\'' + escapeHtml(p.managedId) + '\\')" style="cursor:pointer">' +
       '<div class="list-id">' + escapeHtml(p.managedId) + '</div>' +
-      '<div class="list-count">' + p.count + '枚</div>' +
+      '<div class="list-count">' + p.count + '枚' +
+        (p.uploadedAt ? ' | ' + formatShortDate(p.uploadedAt) : '') +
+        (p.saveCount > 0 ? ' | 保存' + p.saveCount + '回' : '') +
+      '</div>' +
       (p.uploadedByName ? '<div class="list-meta">' + escapeHtml(p.uploadedByName) + '</div>' : '') +
       '</div>' +
       '<span style="color:var(--primary);font-size:20px;padding:0 8px;cursor:pointer" onclick="toggleManageExpand(\\'' + escapeHtml(p.managedId) + '\\')">&#x203a;</span>' +
@@ -1628,7 +1656,19 @@ function toggleManageExpand(managedId) {
     if (!d.ok) { el.innerHTML = '<div style="text-align:center;color:var(--error);font-size:13px;padding:8px">読み込みに失敗しました</div>'; return; }
     var urls = d.urls || [];
     _manageExpandedUrls = urls;
-    var html = '<div style="font-size:13px;font-weight:600;margin-bottom:8px">' + escapeHtml(managedId) + ' (' + urls.length + '枚)</div>';
+    var meta = d.meta || {};
+    var sl = d.saveLog || { count: 0, users: [] };
+    _currentSaveLog = sl;
+    var html = '<div style="font-size:13px;font-weight:600;margin-bottom:4px">' + escapeHtml(managedId) + ' (' + urls.length + '枚)</div>';
+    // メタ情報行
+    var metaLine = '';
+    if (meta.uploadedAt) metaLine += '登録: ' + formatDateTime(meta.uploadedAt) + (meta.uploadedByName ? '(' + escapeHtml(meta.uploadedByName) + ')' : '');
+    if (sl.count > 0) metaLine += (metaLine ? ' | ' : '') + '保存: ' + sl.count + '回';
+    if (metaLine) {
+      html += '<div style="font-size:12px;color:#6b7280;margin-bottom:8px">' + metaLine;
+      if (sl.count > 0) html += ' <span style="cursor:pointer;text-decoration:underline;color:var(--primary)" onclick="showSaveLog()" id="saveLogLink">詳細</span>';
+      html += '</div>';
+    }
     html += '<div class="img-grid" id="manageImageGrid">';
     for (var j = 0; j < urls.length; j++) {
       html += '<div class="img-check-wrap preview-item" draggable="true" data-idx="' + j + '" style="cursor:pointer">' +
@@ -1645,6 +1685,7 @@ function toggleManageExpand(managedId) {
       '</div>' +
       '<div style="margin-top:6px;display:flex;gap:6px">' +
       '<button class="btn" id="manageBlurBtn" style="flex:1;font-size:12px;padding:8px;background:#4F46E5;color:#fff" onclick="blurManageImages(\\'' + escapeHtml(managedId) + '\\')">選択をぼかす</button>' +
+      '<button class="btn" style="flex:1;font-size:12px;padding:8px;background:#059669;color:#fff" onclick="saveAndDownload(\\'' + escapeHtml(managedId) + '\\')">&#x1f4be; 保存</button>' +
       '</div>' +
       '<div id="manageBlurProgress" style="font-size:12px;color:#6b7280;margin-top:4px"></div>';
     el.innerHTML = html;
@@ -2098,6 +2139,47 @@ window.searchImage = searchImage;
 window.deleteManageImages = deleteManageImages;
 window.showUpgradeHint = showUpgradeHint;
 window.blurManageImages = blurManageImages;
+window.showSaveLog = showSaveLog;
+window.saveAndDownload = saveAndDownload;
+
+var _currentSaveLog = { count: 0, users: [] };
+
+function showSaveLog() {
+  if (_currentSaveLog.users.length === 0) return;
+  var html = '<div style="position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:999;display:flex;align-items:center;justify-content:center" onclick="this.remove()">' +
+    '<div style="background:#fff;border-radius:12px;padding:20px;max-width:360px;width:90%;max-height:60vh;overflow-y:auto" onclick="event.stopPropagation()">' +
+    '<div style="font-weight:600;font-size:15px;margin-bottom:12px">保存履歴</div>';
+  for (var i = _currentSaveLog.users.length - 1; i >= 0; i--) {
+    var u = _currentSaveLog.users[i];
+    html += '<div style="font-size:13px;padding:6px 0;border-bottom:1px solid #f0f0f0">' +
+      escapeHtml(u.displayName) + ' <span style="color:#9ca3af">' + formatDateTime(u.savedAt) + '</span></div>';
+  }
+  html += '<div style="margin-top:12px;text-align:center"><button class="btn" onclick="this.closest(\\x27[style*=fixed]\\x27).remove()" style="font-size:13px;padding:8px 24px">閉じる</button></div>';
+  html += '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function saveAndDownload(managedId) {
+  if (!_currentTeam) return;
+  // 保存ログ記録
+  apiPost('/api/manage/save-log', { teamId: _currentTeam.id, managedId: managedId });
+  // 選択されたチェック付き画像をダウンロード
+  var checks = document.querySelectorAll('.dl-img-check:checked');
+  var urls = [];
+  checks.forEach(function(c) { urls.push(c.dataset.url); });
+  if (urls.length === 0 && _manageExpandedUrls.length > 0) urls = _manageExpandedUrls.slice();
+  urls.forEach(function(url, i) {
+    setTimeout(function() {
+      var a = document.createElement('a');
+      a.href = imgUrl(url);
+      a.download = managedId + '_' + (i + 1) + '.jpg';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }, i * 300);
+  });
+}
 
 // ぼかしバーのイベントリスナー
 document.getElementById('blurSelectedBtn').addEventListener('click', function() { blurSelected(); });
@@ -2148,8 +2230,8 @@ var OB_PAGES = [
 
 var _obPage = 0;
 
-function showOnboarding() {
-  if (localStorage.getItem('ob_done')) return;
+function showOnboarding(force) {
+  if (!force && localStorage.getItem('ob_done')) return;
   _obPage = 0;
   renderObPage();
   document.getElementById('obOverlay').classList.add('show');

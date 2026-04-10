@@ -45,6 +45,9 @@ export async function list(request, env, session) {
       const metaJson = await env.CACHE.get(`team:${teamId}:product-meta:${managedId}`);
       const meta = metaJson ? JSON.parse(metaJson) : {};
 
+      const saveLogJson = await env.CACHE.get(`team:${teamId}:product-save-log:${managedId}`);
+      const saveLog = saveLogJson ? JSON.parse(saveLogJson) : { count: 0, users: [] };
+
       return {
         managedId,
         thumbnail: urls[0] || null,
@@ -53,6 +56,7 @@ export async function list(request, env, session) {
         uploadedAt: meta.uploadedAt || '',
         lastUpdatedByName: meta.lastUpdatedByName || '',
         lastUpdatedAt: meta.lastUpdatedAt || '',
+        saveCount: saveLog.count,
       };
     })
   )).filter(Boolean);
@@ -89,7 +93,10 @@ export async function productImages(request, env, session) {
   const metaJson = await env.CACHE.get(`team:${teamId}:product-meta:${managedId}`);
   const meta = metaJson ? JSON.parse(metaJson) : {};
 
-  return jsonOk({ managedId, urls, meta });
+  const saveLogJson = await env.CACHE.get(`team:${teamId}:product-save-log:${managedId}`);
+  const saveLog = saveLogJson ? JSON.parse(saveLogJson) : { count: 0, users: [] };
+
+  return jsonOk({ managedId, urls, meta, saveLog });
 }
 
 /**
@@ -235,4 +242,39 @@ export async function tempToken(request, env, session) {
 
   const publicUrl = imageUrl + '?token=' + token;
   return jsonOk({ publicUrl });
+}
+
+/**
+ * 保存ログ記録（DL/保存時に呼び出し）
+ */
+export async function saveLog(request, env, session) {
+  const body = await request.json();
+  const { teamId } = body;
+  const managedId = normalizeManagedId(body.managedId || '');
+
+  if (!teamId) return jsonError('teamIdは必須です。', 400);
+  if (!managedId) return jsonError('管理番号が必要です。', 400);
+
+  const membership = await verifyMembership(env, teamId, session.userId);
+  if (!membership) return jsonError('このチームのメンバーではありません。', 403);
+
+  const kvKey = `team:${teamId}:product-save-log:${managedId}`;
+  const existing = await env.CACHE.get(kvKey);
+  const log = existing ? JSON.parse(existing) : { count: 0, users: [] };
+
+  log.count++;
+  log.users.push({
+    userId: session.userId,
+    displayName: session.displayName,
+    savedAt: new Date().toISOString(),
+  });
+
+  // 最新100件のみ保持
+  if (log.users.length > 100) {
+    log.users = log.users.slice(-100);
+  }
+
+  await env.CACHE.put(kvKey, JSON.stringify(log));
+
+  return jsonOk({ count: log.count });
 }

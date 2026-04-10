@@ -119,6 +119,7 @@ async function routeApi(request, env, ctx, path) {
     case '/api/manage/delete-single':  return manage.deleteSingle(request, env, sess);
     case '/api/manage/stats':          return manage.stats(request, env, sess);
     case '/api/manage/temp-token':     return manage.tempToken(request, env, sess);
+    case '/api/manage/save-log':      return manage.saveLog(request, env, sess);
 
     // Stripe Billing
     case '/api/stripe/checkout':  return stripe.checkout(request, env, sess);
