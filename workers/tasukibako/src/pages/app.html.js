@@ -145,6 +145,8 @@ body.has-admin{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
 .admin-btn.active{opacity:1;box-shadow:0 0 0 2px #fff}
 /* ローディングスピナー */
 .spinner{display:inline-block;width:20px;height:20px;border:2.5px solid rgba(79,70,229,.2);border-top-color:var(--primary);border-radius:50%;animation:spin .6s linear infinite}
+.hdr-icon{width:32px;height:32px;border:none;background:none;border-radius:8px;cursor:pointer;color:#6b7280;font-size:16px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s}
+.hdr-icon:active{background:#e5e7eb}
 @keyframes spin{to{transform:rotate(360deg)}}
 .page-loader{display:flex;align-items:center;justify-content:center;height:60vh;flex-direction:column;gap:12px;color:var(--text-sub);font-size:14px}
 /* オンボーディング */
@@ -194,9 +196,11 @@ body.has-admin{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
     <button class="tab" data-tab="manage">商品管理</button>
     <button class="tab" data-tab="team">チーム</button>
     <button class="tab" data-tab="settings">設定</button>
-    <button id="refreshBtn" style="background:none;border:none;font-size:20px;padding:4px 8px;cursor:pointer;color:#6b7280;flex-shrink:0" title="更新"><span id="refreshIcon" style="display:inline-block">&#x21bb;</span></button>
-    <button id="shareBtn" onclick="shareApp()" style="display:none;background:none;border:none;font-size:16px;padding:4px;cursor:pointer;color:#6b7280;flex-shrink:0" title="アプリを共有">&#x1f517;</button>
-    <button id="helpBtn" onclick="showOnboarding(true)" style="background:none;border:none;font-size:14px;padding:0;cursor:pointer;color:#6b7280;flex-shrink:0;width:24px;height:24px;border-radius:50%;border:1.5px solid #d1d5db;display:inline-flex;align-items:center;justify-content:center;font-weight:600" title="使い方ガイド">?</button>
+    <div style="display:flex;gap:2px;align-items:center;flex-shrink:0">
+      <button id="refreshBtn" class="hdr-icon" title="更新"><span id="refreshIcon" style="display:inline-block">&#x21bb;</span></button>
+      <button id="shareBtn" onclick="shareApp()" class="hdr-icon" style="display:none" title="共有">&#x1f517;</button>
+      <button id="helpBtn" onclick="showOnboarding(true)" class="hdr-icon" title="ヘルプ">?</button>
+    </div>
   </div>
 
   <!-- セクション1: アップロード -->

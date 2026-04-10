@@ -92,6 +92,8 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 @media(max-width:480px){.img-grid{grid-template-columns:repeat(2,1fr)}.preview-grid{grid-template-columns:repeat(2,1fr)}}
 @media(min-width:481px) and (max-width:768px){.img-grid{grid-template-columns:repeat(3,1fr)}}
 @media(min-width:769px){.img-grid{grid-template-columns:repeat(4,1fr)}}
+.hdr-icon{width:32px;height:32px;border:none;background:none;border-radius:8px;cursor:pointer;color:#6b7280;font-size:16px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s}
+.hdr-icon:active{background:#e5e7eb}
 @keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
@@ -115,9 +117,11 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
     <div class="tab-bar" style="display:flex;align-items:center">
       <button class="tab active" onclick="switchTab('upload')" style="flex:1">アップロード <span id="unmatchedBadge" style="display:none;background:#ef4444;color:#fff;font-size:10px;padding:1px 5px;border-radius:8px;margin-left:2px"></span></button>
       <button class="tab" onclick="switchTab('manage')" style="flex:1">商品管理</button>
-      <button id="refreshBtn" onclick="doRefresh()" style="background:none;border:none;font-size:20px;padding:4px 8px;cursor:pointer;color:#6b7280" title="更新"><span id="refreshIcon" style="display:inline-block">&#x21bb;</span></button>
-      <button id="shareBtn" onclick="shareApp()" style="display:none;background:none;border:none;font-size:16px;padding:4px;cursor:pointer;color:#6b7280;flex-shrink:0" title="アプリを共有">&#x1f517;</button>
-      <button onclick="showHelpGuide()" style="background:none;border:none;font-size:13px;padding:0;cursor:pointer;color:#6b7280;flex-shrink:0;width:24px;height:24px;border-radius:50%;border:1.5px solid #d1d5db;display:inline-flex;align-items:center;justify-content:center;font-weight:600" title="使い方ガイド">?</button>
+      <div style="display:flex;gap:2px;align-items:center;flex-shrink:0">
+        <button id="refreshBtn" onclick="doRefresh()" class="hdr-icon" title="更新"><span id="refreshIcon" style="display:inline-block">&#x21bb;</span></button>
+        <button id="shareBtn" onclick="shareApp()" class="hdr-icon" style="display:none" title="共有">&#x1f517;</button>
+        <button onclick="showHelpGuide()" class="hdr-icon" title="ヘルプ">?</button>
+      </div>
     </div>
 
     <!-- 撮影者選択モーダル -->
