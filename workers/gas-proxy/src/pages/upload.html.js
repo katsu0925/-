@@ -92,6 +92,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 @media(max-width:480px){.img-grid{grid-template-columns:repeat(2,1fr)}.preview-grid{grid-template-columns:repeat(2,1fr)}}
 @media(min-width:481px) and (max-width:768px){.img-grid{grid-template-columns:repeat(3,1fr)}}
 @media(min-width:769px){.img-grid{grid-template-columns:repeat(4,1fr)}}
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -114,7 +115,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
     <div class="tab-bar" style="display:flex;align-items:center">
       <button class="tab active" onclick="switchTab('upload')" style="flex:1">アップロード <span id="unmatchedBadge" style="display:none;background:#ef4444;color:#fff;font-size:10px;padding:1px 5px;border-radius:8px;margin-left:2px"></span></button>
       <button class="tab" onclick="switchTab('manage')" style="flex:1">商品管理</button>
-      <button id="refreshBtn" onclick="doRefresh()" style="background:none;border:none;font-size:20px;padding:4px 8px;cursor:pointer;color:#6b7280" title="更新">&#x21bb;</button>
+      <button id="refreshBtn" onclick="doRefresh()" style="background:none;border:none;font-size:20px;padding:4px 8px;cursor:pointer;color:#6b7280" title="更新"><span id="refreshIcon" style="display:inline-block">&#x21bb;</span></button>
       <button onclick="showHelpGuide()" style="background:none;border:none;font-size:13px;padding:0;cursor:pointer;color:#6b7280;flex-shrink:0;width:24px;height:24px;border-radius:50%;border:1.5px solid #d1d5db;display:inline-flex;align-items:center;justify-content:center;font-weight:600" title="使い方ガイド">?</button>
     </div>
 
@@ -188,26 +189,17 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
         <div class="form-group" style="margin-bottom:6px">
           <input type="text" id="manageSearch" placeholder="管理番号で検索..." autocomplete="off" oninput="filterManageList()">
         </div>
-        <div id="filterBar" style="display:none;margin-bottom:6px;display:flex;gap:4px;flex-wrap:wrap;font-size:12px">
-          <select id="filterPhotographer" onchange="filterManageList()" style="padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff">
-            <option value="">撮影者: 全員</option>
-          </select>
-          <select id="filterDate" onchange="filterManageList()" style="padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff">
-            <option value="">登録日: 全期間</option>
-            <option value="today">今日</option>
-            <option value="week">今週</option>
-            <option value="month">今月</option>
-          </select>
-          <select id="filterSave" onchange="filterManageList()" style="padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff">
-            <option value="">保存: すべて</option>
-            <option value="unsaved">未保存</option>
-            <option value="saved">保存済み</option>
-          </select>
-          <select id="filterRegistered" onchange="filterManageList()" style="padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff">
-            <option value="">採寸: すべて</option>
-            <option value="unregistered">未登録</option>
-            <option value="registered">登録済み</option>
-          </select>
+        <div id="filterBar" style="display:none;margin-bottom:6px;font-size:12px">
+          <div style="display:flex;gap:4px;margin-bottom:4px">
+            <select id="filterPhotographer" onchange="filterManageList()" style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff"><option value="">撮影者: 全員</option></select>
+            <select id="filterSave" onchange="filterManageList()" style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff"><option value="">保存: すべて</option><option value="unsaved">未保存</option><option value="saved">保存済み</option></select>
+            <select id="filterRegistered" onchange="filterManageList()" style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff"><option value="">採寸: すべて</option><option value="unregistered">未登録</option><option value="registered">登録済み</option></select>
+          </div>
+          <div style="display:flex;gap:4px;align-items:center">
+            <input type="date" id="filterDateFrom" onchange="filterManageList()" style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff">
+            <span style="font-size:11px;color:#999">〜</span>
+            <input type="date" id="filterDateTo" onchange="filterManageList()" style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff">
+          </div>
         </div>
         <div class="status" id="manageLoadStatus"></div>
         <div class="select-all-row hidden" id="selectAllRow">
@@ -412,7 +404,9 @@ function doRefresh(cb, silent) {
   _refreshing = true;
   _lastRefresh = Date.now();
   var btn = document.getElementById('refreshBtn');
-  if (btn) { btn.style.opacity = '0.4'; }
+  var icon = document.getElementById('refreshIcon');
+  if (icon) icon.style.animation = 'spin .6s linear infinite';
+  if (btn) btn.style.opacity = '0.5';
   loadUnmatchedCount();
   _listLoaded = false;
   var savedExpanded = _manageExpandedMid;
@@ -428,7 +422,9 @@ function doRefresh(cb, silent) {
   }, true);
 }
 function _finishRefresh(btn, cb) {
-  if (btn) { btn.style.opacity = ''; }
+  var icon = document.getElementById('refreshIcon');
+  if (icon) icon.style.animation = '';
+  if (btn) btn.style.opacity = '';
   _refreshing = false;
   if (cb) cb();
 }
@@ -1545,17 +1541,17 @@ function populateFilterPhotographer() {
     sel.innerHTML += '<option value="' + escapeHtml(n) + '">' + escapeHtml(n) + '</option>';
   });
   sel.value = prev;
-  document.getElementById('filterBar').style.display = productListData.length > 0 ? 'flex' : 'none';
+  document.getElementById('filterBar').style.display = productListData.length > 0 ? 'block' : 'none';
 }
 
 function renderManageList() {
   var q = normId(document.getElementById('manageSearch').value);
   var rawQ = document.getElementById('manageSearch').value.trim();
   var fPhoto = document.getElementById('filterPhotographer').value;
-  var fDate = document.getElementById('filterDate').value;
+  var fDateFrom = document.getElementById('filterDateFrom').value;
+  var fDateTo = document.getElementById('filterDateTo').value;
   var fSave = document.getElementById('filterSave').value;
   var fReg = document.getElementById('filterRegistered').value;
-  var now = new Date();
   var el = document.getElementById('manageList');
   var html = '';
   var count = 0;
@@ -1565,13 +1561,12 @@ function renderManageList() {
     if (q && p.managedId.toUpperCase().indexOf(q) === -1 && (!p.photographer || p.photographer.indexOf(rawQ) === -1)) continue;
     // 撮影者フィルタ
     if (fPhoto && (p.photographer || '') !== fPhoto) continue;
-    // 登録日フィルタ
-    if (fDate && p.uploadedAt) {
-      var ud = new Date(p.uploadedAt);
-      if (fDate === 'today' && ud.toDateString() !== now.toDateString()) continue;
-      if (fDate === 'week') { var w = new Date(now); w.setDate(w.getDate() - 7); if (ud < w) continue; }
-      if (fDate === 'month' && (ud.getMonth() !== now.getMonth() || ud.getFullYear() !== now.getFullYear())) continue;
-    } else if (fDate && !p.uploadedAt) continue;
+    // 登録日フィルタ（期間指定）
+    if ((fDateFrom || fDateTo) && p.uploadedAt) {
+      var ud = p.uploadedAt.slice(0, 10);
+      if (fDateFrom && ud < fDateFrom) continue;
+      if (fDateTo && ud > fDateTo) continue;
+    } else if ((fDateFrom || fDateTo) && !p.uploadedAt) continue;
     // 保存フィルタ
     if (fSave === 'unsaved' && (p.saveCount || 0) > 0) continue;
     if (fSave === 'saved' && (p.saveCount || 0) === 0) continue;
@@ -1597,6 +1592,9 @@ function renderManageList() {
   _manageExpandedMid = '';
   updateSelectedCount();
   updateDeleteSelectedCount();
+  // フィルタ結果の件数表示
+  var total = productListData.length;
+  showStatus('manageLoadStatus', count === total ? total + '件の商品' : count + '/' + total + '件表示', 'ok');
 }
 
 function toggleSelectAll() {
@@ -2509,7 +2507,8 @@ function showHelpGuide() {
   function renderGuide() {
     var p = pages[_guidePage];
     var html = '<div style="position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:200;display:flex;align-items:center;justify-content:center" id="helpGuideOverlay">' +
-      '<div style="background:#fff;border-radius:16px;padding:24px;max-width:380px;width:90%">' +
+      '<div style="background:#fff;border-radius:16px;padding:24px;max-width:380px;width:90%;position:relative">' +
+      '<button onclick="document.getElementById(\\x27helpGuideOverlay\\x27).remove()" style="position:absolute;top:10px;right:12px;background:none;border:none;font-size:20px;color:#9ca3af;cursor:pointer;padding:4px">&times;</button>' +
       '<div style="font-weight:700;font-size:17px;margin-bottom:4px">' + p.title + '</div>' +
       '<div style="font-size:12px;color:#9ca3af;margin-bottom:16px">' + (_guidePage + 1) + ' / ' + pages.length + '</div>';
     for (var i = 0; i < p.items.length; i++) {

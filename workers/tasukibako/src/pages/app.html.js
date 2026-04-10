@@ -258,21 +258,16 @@ body.has-admin{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
       <div class="field" style="margin-bottom:6px">
         <input type="text" id="manageSearch" placeholder="管理番号で検索..." autocomplete="off">
       </div>
-      <div id="filterBar" style="display:none;margin-bottom:6px;display:flex;gap:4px;flex-wrap:wrap;font-size:12px">
-        <select id="filterMember" onchange="renderManageList()" style="padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff">
-          <option value="">メンバー: 全員</option>
-        </select>
-        <select id="filterDate" onchange="renderManageList()" style="padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff">
-          <option value="">登録日: 全期間</option>
-          <option value="today">今日</option>
-          <option value="week">今週</option>
-          <option value="month">今月</option>
-        </select>
-        <select id="filterSave" onchange="renderManageList()" style="padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff">
-          <option value="">保存: すべて</option>
-          <option value="unsaved">未保存</option>
-          <option value="saved">保存済み</option>
-        </select>
+      <div id="filterBar" style="display:none;margin-bottom:6px;font-size:12px">
+        <div style="display:flex;gap:4px;margin-bottom:4px">
+          <select id="filterMember" onchange="renderManageList()" style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff"><option value="">メンバー: 全員</option></select>
+          <select id="filterSave" onchange="renderManageList()" style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff"><option value="">保存: すべて</option><option value="unsaved">未保存</option><option value="saved">保存済み</option></select>
+        </div>
+        <div style="display:flex;gap:4px;align-items:center">
+          <input type="date" id="filterDateFrom" onchange="renderManageList()" style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff" placeholder="開始日">
+          <span style="font-size:11px;color:#999">〜</span>
+          <input type="date" id="filterDateTo" onchange="renderManageList()" style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff" placeholder="終了日">
+        </div>
       </div>
       <div class="status" id="manageLoadStatus"></div>
       <div class="select-all-row hidden" id="selectAllRow">
@@ -465,7 +460,8 @@ body.has-admin{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
 
 <!-- オンボーディング -->
 <div class="ob-overlay" id="obOverlay">
-  <div class="ob-card">
+  <div class="ob-card" style="position:relative">
+    <button onclick="closeOnboarding()" style="position:absolute;top:10px;right:12px;background:none;border:none;font-size:20px;color:#9ca3af;cursor:pointer;z-index:1;padding:4px">&times;</button>
     <div class="ob-header">
       <div class="ob-logo">箱</div>
       <h2 id="obTitle">タスキ箱へようこそ</h2>
@@ -1619,7 +1615,7 @@ function populateFilterMember() {
     sel.appendChild(o);
   });
   sel.value = prev;
-  document.getElementById('filterBar').style.display = _productList.length > 0 ? 'flex' : 'none';
+  document.getElementById('filterBar').style.display = _productList.length > 0 ? 'block' : 'none';
 }
 
 document.getElementById('manageSearch').addEventListener('input', function() {
@@ -1636,27 +1632,28 @@ function renderManageList() {
   var q = normId(document.getElementById('manageSearch').value);
   var rawQ = document.getElementById('manageSearch').value.trim();
   var fMember = document.getElementById('filterMember').value;
-  var fDate = document.getElementById('filterDate').value;
+  var fDateFrom = document.getElementById('filterDateFrom').value;
+  var fDateTo = document.getElementById('filterDateTo').value;
   var fSave = document.getElementById('filterSave').value;
-  var now = new Date();
   var el = document.getElementById('manageList');
   var html = '';
+  var count = 0;
   for (var i = 0; i < _productList.length; i++) {
     var p = _productList[i];
     // テキスト検索
     if (q && p.managedId.toUpperCase().indexOf(q) === -1 && (!p.uploadedByName || p.uploadedByName.indexOf(rawQ) === -1)) continue;
     // メンバーフィルタ
     if (fMember && (p.uploadedByName || '') !== fMember) continue;
-    // 登録日フィルタ
-    if (fDate && p.uploadedAt) {
-      var ud = new Date(p.uploadedAt);
-      if (fDate === 'today' && ud.toDateString() !== now.toDateString()) continue;
-      if (fDate === 'week') { var w = new Date(now); w.setDate(w.getDate() - 7); if (ud < w) continue; }
-      if (fDate === 'month' && (ud.getMonth() !== now.getMonth() || ud.getFullYear() !== now.getFullYear())) continue;
-    } else if (fDate && !p.uploadedAt) continue;
+    // 登録日フィルタ（期間指定）
+    if ((fDateFrom || fDateTo) && p.uploadedAt) {
+      var ud = p.uploadedAt.slice(0, 10);
+      if (fDateFrom && ud < fDateFrom) continue;
+      if (fDateTo && ud > fDateTo) continue;
+    } else if ((fDateFrom || fDateTo) && !p.uploadedAt) continue;
     // 保存フィルタ
     if (fSave === 'unsaved' && (p.saveCount || 0) > 0) continue;
     if (fSave === 'saved' && (p.saveCount || 0) === 0) continue;
+    count++;
     var thumbSrc = p.thumbnail ? imgUrl(p.thumbnail) : '';
     html += '<div id="manage-row-' + escapeHtml(p.managedId) + '">' +
       '<div class="list-item">' +
@@ -1677,6 +1674,9 @@ function renderManageList() {
   document.getElementById('selectAllRow').classList.remove('hidden');
   _manageExpandedMid = '';
   updateSelectedCount();
+  // フィルタ結果の件数表示
+  var total = _productList.length;
+  showStatus('manageLoadStatus', count === total ? total + '件の商品' : count + '/' + total + '件表示', 'ok');
 }
 
 function updateSelectedCount() {
