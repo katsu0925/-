@@ -96,6 +96,8 @@ export async function handleUpload(request, env, path) {
       return await handleUnmatched(request, env);
     case '/upload/workers':
       return await handleWorkers(request, env);
+    case '/upload/save-log':
+      return await handleSaveLog(request, env);
     default:
       return jsonError('不明なエンドポイント', 404);
   }
@@ -292,12 +294,20 @@ async function handleList(request, env) {
           warning = days >= 7;
         }
       }
+      const metaJson2 = await env.CACHE.get(`photo-meta:${managedId}`);
+      const meta2 = metaJson2 ? JSON.parse(metaJson2) : {};
+      const saveLogJson = await env.CACHE.get(`save-log:${managedId}`);
+      const saveLog = saveLogJson ? JSON.parse(saveLogJson) : { count: 0 };
+
       return {
         managedId,
         thumbnail: urls[0] || null,
         count: urls.length,
         registered: registeredIds.has(managedId),
         warning,
+        uploadedAt: meta2.uploadedAt || '',
+        photographer: meta2.photographer || '',
+        saveCount: saveLog.count,
       };
     })
   )).filter(Boolean);
@@ -332,7 +342,13 @@ async function handleProductImages(request, env) {
   const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
   const urls = urlsJson ? JSON.parse(urlsJson) : [];
 
-  return jsonOk({ managedId, urls });
+  const metaJson = await env.CACHE.get(`photo-meta:${managedId}`);
+  const meta = metaJson ? JSON.parse(metaJson) : {};
+
+  const saveLogJson = await env.CACHE.get(`save-log:${managedId}`);
+  const saveLog = saveLogJson ? JSON.parse(saveLogJson) : { count: 0, users: [] };
+
+  return jsonOk({ managedId, urls, meta, saveLog });
 }
 
 // ─── R2画像配信 ───
@@ -646,4 +662,38 @@ async function removeFromIndex(env, managedId) {
   if (!indexJson) return;
   const index = JSON.parse(indexJson).filter(id => id !== managedId);
   await env.CACHE.put('product-images:index', JSON.stringify(index));
+}
+
+// ─── 保存ログ記録 ───
+
+async function handleSaveLog(request, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError('不正なリクエスト', 400);
+  }
+
+  const managedId = normalizeManagedId(body.managedId || '');
+  const userName = (body.userName || '').trim();
+  if (!managedId) return jsonError('管理番号が必要です', 400);
+
+  const kvKey = `save-log:${managedId}`;
+  const existing = await env.CACHE.get(kvKey);
+  const log = existing ? JSON.parse(existing) : { count: 0, users: [] };
+
+  log.count++;
+  log.users.push({
+    displayName: userName || '不明',
+    savedAt: new Date().toISOString(),
+  });
+
+  // 最新100件のみ保持
+  if (log.users.length > 100) {
+    log.users = log.users.slice(-100);
+  }
+
+  await env.CACHE.put(kvKey, JSON.stringify(log));
+
+  return jsonOk({ count: log.count });
 }
