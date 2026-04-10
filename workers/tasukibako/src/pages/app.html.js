@@ -255,8 +255,24 @@ body.has-admin{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
   <!-- セクション2: 商品管理 -->
   <div class="section" id="sec-manage">
     <div class="manage-sticky-header">
-      <div class="field" style="margin-bottom:8px">
-        <input type="text" id="manageSearch" placeholder="管理番号 or 撮影者で検索..." autocomplete="off">
+      <div class="field" style="margin-bottom:6px">
+        <input type="text" id="manageSearch" placeholder="管理番号 or メンバーで検索..." autocomplete="off">
+      </div>
+      <div id="filterBar" style="display:none;margin-bottom:6px;display:flex;gap:4px;flex-wrap:wrap;font-size:12px">
+        <select id="filterMember" onchange="renderManageList()" style="padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff">
+          <option value="">メンバー: 全員</option>
+        </select>
+        <select id="filterDate" onchange="renderManageList()" style="padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff">
+          <option value="">登録日: 全期間</option>
+          <option value="today">今日</option>
+          <option value="week">今週</option>
+          <option value="month">今月</option>
+        </select>
+        <select id="filterSave" onchange="renderManageList()" style="padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff">
+          <option value="">保存: すべて</option>
+          <option value="unsaved">未保存</option>
+          <option value="saved">保存済み</option>
+        </select>
       </div>
       <div class="status" id="manageLoadStatus"></div>
       <div class="select-all-row hidden" id="selectAllRow">
@@ -1578,9 +1594,28 @@ function refreshProductList(cb) {
     if (!d.ok) { showStatus('manageLoadStatus', d.message || 'エラー', 'err'); if (cb) cb(); return; }
     _productList = d.items || [];
     _listLoaded = true;
+    populateFilterMember();
     showStatus('manageLoadStatus', _productList.length + '件の商品', 'ok');
     if (cb) cb();
   }).catch(function() { showStatus('manageLoadStatus', 'ネットワークエラー', 'err'); if (cb) cb(); });
+}
+
+function populateFilterMember() {
+  var sel = document.getElementById('filterMember');
+  var names = {};
+  for (var i = 0; i < _productList.length; i++) {
+    var n = _productList[i].uploadedByName;
+    if (n) names[n] = true;
+  }
+  var prev = sel.value;
+  sel.innerHTML = '<option value="">メンバー: 全員</option>';
+  Object.keys(names).sort().forEach(function(n) {
+    var o = document.createElement('option');
+    o.value = n; o.textContent = n;
+    sel.appendChild(o);
+  });
+  sel.value = prev;
+  document.getElementById('filterBar').style.display = _productList.length > 0 ? 'flex' : 'none';
 }
 
 document.getElementById('manageSearch').addEventListener('input', function() {
@@ -1595,11 +1630,29 @@ document.getElementById('selectAll').addEventListener('change', function() {
 
 function renderManageList() {
   var q = normId(document.getElementById('manageSearch').value);
+  var rawQ = document.getElementById('manageSearch').value.trim();
+  var fMember = document.getElementById('filterMember').value;
+  var fDate = document.getElementById('filterDate').value;
+  var fSave = document.getElementById('filterSave').value;
+  var now = new Date();
   var el = document.getElementById('manageList');
   var html = '';
   for (var i = 0; i < _productList.length; i++) {
     var p = _productList[i];
-    if (q && p.managedId.toUpperCase().indexOf(q) === -1 && (!p.uploadedByName || p.uploadedByName.indexOf(document.getElementById('manageSearch').value.trim()) === -1)) continue;
+    // テキスト検索
+    if (q && p.managedId.toUpperCase().indexOf(q) === -1 && (!p.uploadedByName || p.uploadedByName.indexOf(rawQ) === -1)) continue;
+    // メンバーフィルタ
+    if (fMember && (p.uploadedByName || '') !== fMember) continue;
+    // 登録日フィルタ
+    if (fDate && p.uploadedAt) {
+      var ud = new Date(p.uploadedAt);
+      if (fDate === 'today' && ud.toDateString() !== now.toDateString()) continue;
+      if (fDate === 'week') { var w = new Date(now); w.setDate(w.getDate() - 7); if (ud < w) continue; }
+      if (fDate === 'month' && (ud.getMonth() !== now.getMonth() || ud.getFullYear() !== now.getFullYear())) continue;
+    } else if (fDate && !p.uploadedAt) continue;
+    // 保存フィルタ
+    if (fSave === 'unsaved' && (p.saveCount || 0) > 0) continue;
+    if (fSave === 'saved' && (p.saveCount || 0) === 0) continue;
     var thumbSrc = p.thumbnail ? imgUrl(p.thumbnail) : '';
     html += '<div id="manage-row-' + escapeHtml(p.managedId) + '">' +
       '<div class="list-item">' +

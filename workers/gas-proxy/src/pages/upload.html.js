@@ -185,8 +185,29 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
     <!-- セクション2: 商品管理（一括DL・検索・削除・並び替え統合） -->
     <div class="section" id="sec-manage">
       <div class="manage-sticky-header">
-        <div class="form-group" style="margin-bottom:8px">
+        <div class="form-group" style="margin-bottom:6px">
           <input type="text" id="manageSearch" placeholder="管理番号 or 撮影者で検索..." autocomplete="off" oninput="filterManageList()">
+        </div>
+        <div id="filterBar" style="display:none;margin-bottom:6px;display:flex;gap:4px;flex-wrap:wrap;font-size:12px">
+          <select id="filterPhotographer" onchange="filterManageList()" style="padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff">
+            <option value="">撮影者: 全員</option>
+          </select>
+          <select id="filterDate" onchange="filterManageList()" style="padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff">
+            <option value="">登録日: 全期間</option>
+            <option value="today">今日</option>
+            <option value="week">今週</option>
+            <option value="month">今月</option>
+          </select>
+          <select id="filterSave" onchange="filterManageList()" style="padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff">
+            <option value="">保存: すべて</option>
+            <option value="unsaved">未保存</option>
+            <option value="saved">保存済み</option>
+          </select>
+          <select id="filterRegistered" onchange="filterManageList()" style="padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff">
+            <option value="">採寸: すべて</option>
+            <option value="unregistered">未登録</option>
+            <option value="registered">登録済み</option>
+          </select>
         </div>
         <div class="status" id="manageLoadStatus"></div>
         <div class="select-all-row hidden" id="selectAllRow">
@@ -1483,6 +1504,7 @@ function refreshProductList(cb, silent) {
     }
     productListData = d.items || [];
     _listLoaded = true;
+    populateFilterPhotographer();
     if (!silent) {
       if (productListData.length === 0) {
         showStatus('manageLoadStatus', 'アップロード済み商品はありません', 'info');
@@ -1508,15 +1530,52 @@ function filterManageList() {
   ensureListLoaded(function() { renderManageList(); });
 }
 
+function populateFilterPhotographer() {
+  var sel = document.getElementById('filterPhotographer');
+  var names = {};
+  for (var i = 0; i < productListData.length; i++) {
+    var n = productListData[i].photographer;
+    if (n) names[n] = true;
+  }
+  var prev = sel.value;
+  sel.innerHTML = '<option value="">撮影者: 全員</option>';
+  Object.keys(names).sort().forEach(function(n) {
+    sel.innerHTML += '<option value="' + escapeHtml(n) + '">' + escapeHtml(n) + '</option>';
+  });
+  sel.value = prev;
+  document.getElementById('filterBar').style.display = productListData.length > 0 ? 'flex' : 'none';
+}
+
 function renderManageList() {
   var q = normId(document.getElementById('manageSearch').value);
+  var rawQ = document.getElementById('manageSearch').value.trim();
+  var fPhoto = document.getElementById('filterPhotographer').value;
+  var fDate = document.getElementById('filterDate').value;
+  var fSave = document.getElementById('filterSave').value;
+  var fReg = document.getElementById('filterRegistered').value;
+  var now = new Date();
   var el = document.getElementById('manageList');
   var html = '';
   var count = 0;
   for (var i = 0; i < productListData.length; i++) {
     var p = productListData[i];
-    var rawQ = document.getElementById('manageSearch').value.trim();
+    // テキスト検索
     if (q && p.managedId.toUpperCase().indexOf(q) === -1 && (!p.photographer || p.photographer.indexOf(rawQ) === -1)) continue;
+    // 撮影者フィルタ
+    if (fPhoto && (p.photographer || '') !== fPhoto) continue;
+    // 登録日フィルタ
+    if (fDate && p.uploadedAt) {
+      var ud = new Date(p.uploadedAt);
+      if (fDate === 'today' && ud.toDateString() !== now.toDateString()) continue;
+      if (fDate === 'week') { var w = new Date(now); w.setDate(w.getDate() - 7); if (ud < w) continue; }
+      if (fDate === 'month' && (ud.getMonth() !== now.getMonth() || ud.getFullYear() !== now.getFullYear())) continue;
+    } else if (fDate && !p.uploadedAt) continue;
+    // 保存フィルタ
+    if (fSave === 'unsaved' && (p.saveCount || 0) > 0) continue;
+    if (fSave === 'saved' && (p.saveCount || 0) === 0) continue;
+    // 採寸情報フィルタ
+    if (fReg === 'unregistered' && p.registered) continue;
+    if (fReg === 'registered' && !p.registered) continue;
     count++;
     var thumbSrc = p.thumbnail ? (API_BASE + p.thumbnail) : '';
     html += '<div id="manage-row-' + escapeHtml(p.managedId) + '">' +
