@@ -256,7 +256,7 @@ body.has-admin{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
   <div class="section" id="sec-manage">
     <div class="manage-sticky-header">
       <div class="field" style="margin-bottom:6px">
-        <input type="text" id="manageSearch" placeholder="管理番号 or メンバーで検索..." autocomplete="off">
+        <input type="text" id="manageSearch" placeholder="管理番号で検索..." autocomplete="off">
       </div>
       <div id="filterBar" style="display:none;margin-bottom:6px;display:flex;gap:4px;flex-wrap:wrap;font-size:12px">
         <select id="filterMember" onchange="renderManageList()" style="padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff">
@@ -611,6 +611,10 @@ function showApp() {
   } else {
     document.getElementById('uploadForm').style.display = 'none';
     document.getElementById('uploadNoTeam').style.display = 'block';
+  }
+  // バックグラウンドで商品リストをプリロード
+  if (_currentTeam && !_listLoaded) {
+    refreshProductList();
   }
 }
 

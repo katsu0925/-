@@ -263,19 +263,32 @@ async function handleImageUpload(request, env) {
     }
   }
 
+  await invalidateListCache(env);
   return jsonOk({ managedId, urls, count: urls.length, registered: managedIdRegistered });
 }
 
 // ─── 商品一覧 ───
 
 async function handleList(request, env) {
+  // キャッシュ済みリストがあれば即返却
+  const cached = await env.CACHE.get('product-list-cache');
+  if (cached) {
+    return jsonOk({ items: JSON.parse(cached) });
+  }
+
+  const items = await buildProductList(env);
+  // キ��ッシュ保存（5分TTL）
+  await env.CACHE.put('product-list-cache', JSON.stringify(items), { expirationTtl: 300 });
+  return jsonOk({ items });
+}
+
+async function buildProductList(env) {
   const indexJson = await env.CACHE.get('product-images:index');
   const index = indexJson ? JSON.parse(indexJson) : [];
 
   const idsJson = await env.CACHE.get('managed-ids:list');
   const registeredIds = idsJson ? new Set(JSON.parse(idsJson)) : new Set();
 
-  // 各商品の1枚目URL＋警告フラグを取得（0枚の商品は自動クリーンアップ）
   const cleanupIds = [];
   const items = (await Promise.all(
     index.map(async (managedId) => {
@@ -285,17 +298,16 @@ async function handleList(request, env) {
         cleanupIds.push(managedId);
         return null;
       }
+
+      const metaJson = await env.CACHE.get(`photo-meta:${managedId}`);
+      const meta = metaJson ? JSON.parse(metaJson) : {};
+
       let warning = false;
-      if (!registeredIds.has(managedId)) {
-        const metaJson = await env.CACHE.get(`photo-meta:${managedId}`);
-        const meta = metaJson ? JSON.parse(metaJson) : {};
-        if (meta.uploadedAt) {
-          const days = Math.floor((Date.now() - new Date(meta.uploadedAt).getTime()) / (1000 * 60 * 60 * 24));
-          warning = days >= 7;
-        }
+      if (!registeredIds.has(managedId) && meta.uploadedAt) {
+        const days = Math.floor((Date.now() - new Date(meta.uploadedAt).getTime()) / (1000 * 60 * 60 * 24));
+        warning = days >= 7;
       }
-      const metaJson2 = await env.CACHE.get(`photo-meta:${managedId}`);
-      const meta2 = metaJson2 ? JSON.parse(metaJson2) : {};
+
       const saveLogJson = await env.CACHE.get(`save-log:${managedId}`);
       const saveLog = saveLogJson ? JSON.parse(saveLogJson) : { count: 0 };
 
@@ -305,14 +317,13 @@ async function handleList(request, env) {
         count: urls.length,
         registered: registeredIds.has(managedId),
         warning,
-        uploadedAt: meta2.uploadedAt || '',
-        photographer: meta2.photographer || '',
+        uploadedAt: meta.uploadedAt || '',
+        photographer: meta.photographer || '',
         saveCount: saveLog.count,
       };
     })
   )).filter(Boolean);
 
-  // 0枚の商品をインデックスから自動削除
   if (cleanupIds.length > 0) {
     for (const id of cleanupIds) {
       await removeFromIndex(env, id);
@@ -321,7 +332,11 @@ async function handleList(request, env) {
     }
   }
 
-  return jsonOk({ items });
+  return items;
+}
+
+function invalidateListCache(env) {
+  return env.CACHE.delete('product-list-cache');
 }
 
 // ─── 指定商品の画像URL一覧 ───
@@ -413,6 +428,7 @@ async function handleDelete(request, env) {
   await removeFromIndex(env, managedId);
 
   await invalidateProductCache(env);
+  await invalidateListCache(env);
 
   return jsonOk({ managedId, deleted: urls.length });
 }
@@ -469,6 +485,7 @@ async function handleDeleteSingle(request, env) {
   }
 
   await invalidateProductCache(env);
+  await invalidateListCache(env);
   return jsonOk({ managedId, deleted: urlToDelete, remaining: urls.length });
 }
 
@@ -524,6 +541,7 @@ async function handleUpdateImage(request, env) {
   urls[targetIndex] = newUrl;
   await env.CACHE.put(`product-images:${managedId}`, JSON.stringify(urls));
   await invalidateProductCache(env);
+  await invalidateListCache(env);
 
   return jsonOk({ managedId, oldUrl: targetUrl, newUrl, urls });
 }
@@ -694,6 +712,7 @@ async function handleSaveLog(request, env) {
   }
 
   await env.CACHE.put(kvKey, JSON.stringify(log));
+  await invalidateListCache(env);
 
   return jsonOk({ count: log.count });
 }

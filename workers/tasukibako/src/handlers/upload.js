@@ -112,6 +112,7 @@ export async function uploadImages(request, env, session) {
     existingMeta.lastUpdatedByName = session.displayName;
     existingMeta.lastUpdatedAt = now;
     await env.CACHE.put(metaKey, JSON.stringify(existingMeta));
+    await env.CACHE.delete(`team:${teamId}:product-list-cache`);
 
     return jsonOk({ managedId, urls: updatedUrls, newUrl, count: updatedUrls.length });
   }
@@ -198,6 +199,8 @@ export async function uploadImages(request, env, session) {
       console.error(`[upload] SYNC_CACHE write failed: ${e.message}`);
     }
   }
+
+  await env.CACHE.delete(`team:${teamId}:product-list-cache`);
 
   return jsonOk({ managedId, urls, count: urls.length });
 }

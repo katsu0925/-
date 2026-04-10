@@ -186,7 +186,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
     <div class="section" id="sec-manage">
       <div class="manage-sticky-header">
         <div class="form-group" style="margin-bottom:6px">
-          <input type="text" id="manageSearch" placeholder="管理番号 or 撮影者で検索..." autocomplete="off" oninput="filterManageList()">
+          <input type="text" id="manageSearch" placeholder="管理番号で検索..." autocomplete="off" oninput="filterManageList()">
         </div>
         <div id="filterBar" style="display:none;margin-bottom:6px;display:flex;gap:4px;flex-wrap:wrap;font-size:12px">
           <select id="filterPhotographer" onchange="filterManageList()" style="padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff">
@@ -448,6 +448,8 @@ function showMain() {
   document.getElementById('photographyDate').value = yyyy + '-' + mm + '-' + dd;
   initPhotographer();
   loadUnmatchedCount();
+  // バックグラウンドで商品リストをプリロード
+  if (!_listLoaded) refreshProductList(null, true);
 }
 
 function loadUnmatchedCount() {

@@ -28,6 +28,24 @@ export async function list(request, env, session) {
   const membership = await verifyMembership(env, teamId, session.userId);
   if (!membership) return jsonError('このチームのメンバーではありません。', 403);
 
+  // キャッシュ済みリストがあれば即返却
+  const cacheKey = `team:${teamId}:product-list-cache`;
+  const cached = await env.CACHE.get(cacheKey);
+  if (cached) {
+    return jsonOk({ items: JSON.parse(cached) });
+  }
+
+  // キャッシュなし→フル構築
+  const items = await buildProductList(env, teamId);
+
+  // キャッシュ保存（5分TTL）
+  await env.CACHE.put(cacheKey, JSON.stringify(items), { expirationTtl: 300 });
+
+  return jsonOk({ items });
+}
+
+/** リストデータをKVから構築 */
+async function buildProductList(env, teamId) {
   const indexKey = `team:${teamId}:product-images:index`;
   const indexJson = await env.CACHE.get(indexKey);
   const index = indexJson ? JSON.parse(indexJson) : [];
@@ -70,7 +88,12 @@ export async function list(request, env, session) {
     }
   }
 
-  return jsonOk({ items });
+  return items;
+}
+
+/** リストキャッシュを無効化 */
+export async function invalidateListCache(env, teamId) {
+  await env.CACHE.delete(`team:${teamId}:product-list-cache`);
 }
 
 /**
@@ -138,6 +161,7 @@ export async function deleteProduct(request, env, session) {
     WHERE id = ?
   `).bind(urls.length, now, teamId).run();
 
+  await invalidateListCache(env, teamId);
   return jsonOk({ managedId, deleted: urls.length });
 }
 
@@ -188,6 +212,7 @@ export async function deleteSingle(request, env, session) {
     `).bind(now, teamId).run();
   }
 
+  await invalidateListCache(env, teamId);
   return jsonOk({ managedId, deleted: targetUrl, remaining: urls.length });
 }
 
@@ -275,6 +300,7 @@ export async function saveLog(request, env, session) {
   }
 
   await env.CACHE.put(kvKey, JSON.stringify(log));
+  await invalidateListCache(env, teamId);
 
   return jsonOk({ count: log.count });
 }
