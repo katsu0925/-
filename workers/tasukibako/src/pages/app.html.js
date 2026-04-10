@@ -171,6 +171,7 @@ body.has-admin{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
 @media(min-width:481px) and (max-width:768px){.img-grid{grid-template-columns:repeat(3,1fr)}}
 @media(min-width:769px){.img-grid{grid-template-columns:repeat(4,1fr)}}
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
 </head>
 <body>
 
@@ -2242,21 +2243,80 @@ function saveAndDownload(managedId) {
   apiPost('/api/manage/save-log', { teamId: _currentTeam.id, managedId: managedId });
   // 選択されたチェック付き画像をダウンロード
   var checks = document.querySelectorAll('.dl-img-check:checked');
-  var urls = [];
-  checks.forEach(function(c) { urls.push(c.dataset.url); });
-  if (urls.length === 0 && _manageExpandedUrls.length > 0) urls = _manageExpandedUrls.slice();
-  urls.forEach(function(url, i) {
-    setTimeout(function() {
+  if (checks.length === 0) { showStatus('manageStatus', '画像を選択してください', 'err'); return; }
+  var done = 0;
+  var files = [];
+  var promises = [];
+  checks.forEach(function(c) {
+    var url = imgUrl(c.dataset.url);
+    var idx = parseInt(c.dataset.imgidx);
+    promises.push(
+      fetch(url).then(function(r) { return r.blob(); }).then(function(blob) {
+        done++;
+        files.push({ name: managedId + '_' + (idx + 1) + '.jpg', blob: blob });
+      })
+    );
+  });
+  Promise.all(promises).then(function() {
+    if (files.length === 0) { showStatus('manageStatus', 'ダウンロードに失敗しました', 'err'); return; }
+    files.sort(function(a, b) { return a.name.localeCompare(b.name); });
+    var shareFiles = files.map(function(f) { return new File([f.blob], f.name, { type: 'image/jpeg' }); });
+
+    // モバイル: navigator.share
+    if (isMobileDevice() && navigator.canShare && navigator.canShare({ files: shareFiles })) {
+      navigator.share({ files: shareFiles }).then(function() {
+        showStatus('manageStatus', shareFiles.length + '枚保存完了', 'ok');
+      }).catch(function() {
+        showStatus('manageStatus', 'キャンセルされました', 'info');
+      });
+      return;
+    }
+
+    // PC: JSZip
+    if (typeof JSZip !== 'undefined') {
+      var zip = new JSZip();
+      files.forEach(function(f) { zip.file(f.name, f.blob); });
+      zip.generateAsync({ type: 'blob' }).then(function(content) {
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(content);
+        a.download = managedId + '_images.zip';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
+        showStatus('manageStatus', files.length + '枚保存完了', 'ok');
+      });
+      return;
+    }
+
+    // フォールバック: 個別DL
+    files.forEach(function(f) {
       var a = document.createElement('a');
-      a.href = imgUrl(url);
-      a.download = managedId + '_' + (i + 1) + '.jpg';
-      a.style.display = 'none';
+      a.href = URL.createObjectURL(f.blob);
+      a.download = f.name;
       document.body.appendChild(a);
       a.click();
       a.remove();
-    }, i * 300);
+      setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
+    });
+    showStatus('manageStatus', files.length + '枚保存完了', 'ok');
   });
 }
+
+function isMobileDevice() {
+  return ('ontouchstart' in window || navigator.maxTouchPoints > 0) && window.innerWidth <= 768;
+}
+
+function toggleDlImageSelect(mode) {
+  var checks = document.querySelectorAll('.dl-img-check');
+  checks.forEach(function(c) {
+    if (mode === 'all') c.checked = true;
+    else if (mode === 'top') c.checked = (c.dataset.imgidx === '0');
+    else if (mode === 'none') c.checked = false;
+    c.closest('.img-check-wrap').style.opacity = c.checked ? '1' : '0.4';
+  });
+}
+window.toggleDlImageSelect = toggleDlImageSelect;
 
 // ぼかしバーのイベントリスナー
 document.getElementById('blurSelectedBtn').addEventListener('click', function() { blurSelected(); });
