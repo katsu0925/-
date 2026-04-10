@@ -186,7 +186,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
     <div class="section" id="sec-manage">
       <div class="manage-sticky-header">
         <div class="form-group" style="margin-bottom:8px">
-          <input type="text" id="manageSearch" placeholder="管理番号で検索..." autocomplete="off" oninput="filterManageList()">
+          <input type="text" id="manageSearch" placeholder="管理番号 or 撮影者で検索..." autocomplete="off" oninput="filterManageList()">
         </div>
         <div class="status" id="manageLoadStatus"></div>
         <div class="select-all-row hidden" id="selectAllRow">
@@ -1515,7 +1515,8 @@ function renderManageList() {
   var count = 0;
   for (var i = 0; i < productListData.length; i++) {
     var p = productListData[i];
-    if (q && p.managedId.toUpperCase().indexOf(q) === -1) continue;
+    var rawQ = document.getElementById('manageSearch').value.trim();
+    if (q && p.managedId.toUpperCase().indexOf(q) === -1 && (!p.photographer || p.photographer.indexOf(rawQ) === -1)) continue;
     count++;
     var thumbSrc = p.thumbnail ? (API_BASE + p.thumbnail) : '';
     html += '<div id="manage-row-' + escapeHtml(p.managedId) + '">' +

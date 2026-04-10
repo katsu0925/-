@@ -256,7 +256,7 @@ body.has-admin{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
   <div class="section" id="sec-manage">
     <div class="manage-sticky-header">
       <div class="field" style="margin-bottom:8px">
-        <input type="text" id="manageSearch" placeholder="管理番号で検索..." autocomplete="off">
+        <input type="text" id="manageSearch" placeholder="管理番号 or 撮影者で検索..." autocomplete="off">
       </div>
       <div class="status" id="manageLoadStatus"></div>
       <div class="select-all-row hidden" id="selectAllRow">
@@ -1599,7 +1599,7 @@ function renderManageList() {
   var html = '';
   for (var i = 0; i < _productList.length; i++) {
     var p = _productList[i];
-    if (q && p.managedId.toUpperCase().indexOf(q) === -1) continue;
+    if (q && p.managedId.toUpperCase().indexOf(q) === -1 && (!p.uploadedByName || p.uploadedByName.indexOf(document.getElementById('manageSearch').value.trim()) === -1)) continue;
     var thumbSrc = p.thumbnail ? imgUrl(p.thumbnail) : '';
     html += '<div id="manage-row-' + escapeHtml(p.managedId) + '">' +
       '<div class="list-item">' +
