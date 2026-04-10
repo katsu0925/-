@@ -195,7 +195,7 @@ body.has-admin{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
     <button class="tab" data-tab="team">チーム</button>
     <button class="tab" data-tab="settings">設定</button>
     <button id="refreshBtn" style="background:none;border:none;font-size:20px;padding:4px 8px;cursor:pointer;color:#6b7280;flex-shrink:0" title="更新"><span id="refreshIcon" style="display:inline-block">&#x21bb;</span></button>
-    <button onclick="shareApp()" style="background:none;border:none;font-size:16px;padding:4px;cursor:pointer;color:#6b7280;flex-shrink:0" title="アプリを共有">&#x1f517;</button>
+    <button id="shareBtn" onclick="shareApp()" style="display:none;background:none;border:none;font-size:16px;padding:4px;cursor:pointer;color:#6b7280;flex-shrink:0" title="アプリを共有">&#x1f517;</button>
     <button id="helpBtn" onclick="showOnboarding(true)" style="background:none;border:none;font-size:14px;padding:0;cursor:pointer;color:#6b7280;flex-shrink:0;width:24px;height:24px;border-radius:50%;border:1.5px solid #d1d5db;display:inline-flex;align-items:center;justify-content:center;font-weight:600" title="使い方ガイド">?</button>
   </div>
 
@@ -611,6 +611,8 @@ function showApp() {
     document.getElementById('uploadForm').style.display = 'none';
     document.getElementById('uploadNoTeam').style.display = 'block';
   }
+  // オーナーのみシェアボタン表示
+  document.getElementById('shareBtn').style.display = (_currentTeam && _currentTeam.role === 'owner') ? '' : 'none';
   // バックグラウンドで商品リストをプリロード
   if (_currentTeam && !_listLoaded) {
     refreshProductList();
