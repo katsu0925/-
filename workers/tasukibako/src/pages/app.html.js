@@ -264,9 +264,10 @@ body.has-admin{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
           <select id="filterSave" onchange="renderManageList()" style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff"><option value="">保存: すべて</option><option value="unsaved">未保存</option><option value="saved">保存済み</option></select>
         </div>
         <div style="display:flex;gap:4px;align-items:center">
-          <input type="date" id="filterDateFrom" onchange="renderManageList()" style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff" placeholder="開始日">
+          <input type="date" id="filterDateFrom" onchange="renderManageList()" style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff">
           <span style="font-size:11px;color:#999">〜</span>
-          <input type="date" id="filterDateTo" onchange="renderManageList()" style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff" placeholder="終了日">
+          <input type="date" id="filterDateTo" onchange="renderManageList()" style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff">
+          <button id="filterClearBtn" onclick="clearFilters()" style="display:none;padding:4px 8px;border:none;border-radius:6px;font-size:11px;background:#ef4444;color:#fff;cursor:pointer;white-space:nowrap;flex-shrink:0">クリア</button>
         </div>
       </div>
       <div class="status" id="manageLoadStatus"></div>
@@ -1600,6 +1601,24 @@ function refreshProductList(cb) {
   }).catch(function() { showStatus('manageLoadStatus', 'ネットワークエラー', 'err'); if (cb) cb(); });
 }
 
+function clearFilters() {
+  document.getElementById('manageSearch').value = '';
+  document.getElementById('filterMember').value = '';
+  document.getElementById('filterSave').value = '';
+  document.getElementById('filterDateFrom').value = '';
+  document.getElementById('filterDateTo').value = '';
+  renderManageList();
+}
+
+function updateFilterClearBtn() {
+  var active = document.getElementById('manageSearch').value ||
+    document.getElementById('filterMember').value ||
+    document.getElementById('filterSave').value ||
+    document.getElementById('filterDateFrom').value ||
+    document.getElementById('filterDateTo').value;
+  document.getElementById('filterClearBtn').style.display = active ? '' : 'none';
+}
+
 function populateFilterMember() {
   var sel = document.getElementById('filterMember');
   var names = {};
@@ -1677,6 +1696,7 @@ function renderManageList() {
   // フィルタ結果の件数表示
   var total = _productList.length;
   showStatus('manageLoadStatus', count === total ? total + '件の商品' : count + '/' + total + '件表示', 'ok');
+  updateFilterClearBtn();
 }
 
 function updateSelectedCount() {

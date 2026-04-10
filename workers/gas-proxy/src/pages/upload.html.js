@@ -199,6 +199,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
             <input type="date" id="filterDateFrom" onchange="filterManageList()" style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff">
             <span style="font-size:11px;color:#999">〜</span>
             <input type="date" id="filterDateTo" onchange="filterManageList()" style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff">
+            <button id="filterClearBtn" onclick="clearFilters()" style="display:none;padding:4px 8px;border:none;border-radius:6px;font-size:11px;background:#ef4444;color:#fff;cursor:pointer;white-space:nowrap;flex-shrink:0">クリア</button>
           </div>
         </div>
         <div class="status" id="manageLoadStatus"></div>
@@ -1528,6 +1529,26 @@ function filterManageList() {
   ensureListLoaded(function() { renderManageList(); });
 }
 
+function clearFilters() {
+  document.getElementById('manageSearch').value = '';
+  document.getElementById('filterPhotographer').value = '';
+  document.getElementById('filterSave').value = '';
+  document.getElementById('filterRegistered').value = '';
+  document.getElementById('filterDateFrom').value = '';
+  document.getElementById('filterDateTo').value = '';
+  filterManageList();
+}
+
+function updateFilterClearBtn() {
+  var active = document.getElementById('manageSearch').value ||
+    document.getElementById('filterPhotographer').value ||
+    document.getElementById('filterSave').value ||
+    document.getElementById('filterRegistered').value ||
+    document.getElementById('filterDateFrom').value ||
+    document.getElementById('filterDateTo').value;
+  document.getElementById('filterClearBtn').style.display = active ? '' : 'none';
+}
+
 function populateFilterPhotographer() {
   var sel = document.getElementById('filterPhotographer');
   var names = {};
@@ -1595,6 +1616,7 @@ function renderManageList() {
   // フィルタ結果の件数表示
   var total = productListData.length;
   showStatus('manageLoadStatus', count === total ? total + '件の商品' : count + '/' + total + '件表示', 'ok');
+  updateFilterClearBtn();
 }
 
 function toggleSelectAll() {
