@@ -16,30 +16,18 @@ function showAdminPanel() {
 
 function captureConsoleLog_(fn) {
   var logs = [];
-  var origLog = console.log;
-  var origWarn = console.warn;
-  var origError = console.error;
-  console.log = function() {
-    var msg = Array.prototype.slice.call(arguments).join(' ');
-    logs.push(msg);
-    origLog.apply(console, arguments);
-  };
-  console.warn = function() {
-    var msg = '[WARN] ' + Array.prototype.slice.call(arguments).join(' ');
-    logs.push(msg);
-    origWarn.apply(console, arguments);
-  };
-  console.error = function() {
-    var msg = '[ERROR] ' + Array.prototype.slice.call(arguments).join(' ');
-    logs.push(msg);
-    origError.apply(console, arguments);
+  var orig = console;
+  console = {
+    log: function() { var m = [].slice.call(arguments).join(' '); logs.push(m); orig.log.apply(orig, arguments); },
+    warn: function() { var m = '[WARN] ' + [].slice.call(arguments).join(' '); logs.push(m); orig.warn.apply(orig, arguments); },
+    error: function() { var m = '[ERROR] ' + [].slice.call(arguments).join(' '); logs.push(m); orig.error.apply(orig, arguments); },
+    info: function() { var m = [].slice.call(arguments).join(' '); logs.push(m); orig.info.apply(orig, arguments); },
+    time: function(){}, timeEnd: function(){}
   };
   try {
     fn();
   } finally {
-    console.log = origLog;
-    console.warn = origWarn;
-    console.error = origError;
+    console = orig;
   }
   return { ok: true, logs: logs };
 }
@@ -688,6 +676,79 @@ function adminPanel_debugViewQueues() {
 
 function adminPanel_debugViewStates() {
   return captureConsoleLog_(function() { debugViewStates(); });
+}
+
+function adminPanel_debugSubsidyStats() {
+  try {
+    var custSheet = getCustomerSheet_();
+    var custData = custSheet.getDataRange().getValues();
+
+    var totalCustomers = custData.length - 1;
+    var purchasedOnce = 0;
+    var repeaters = 0;
+
+    for (var i = 1; i < custData.length; i++) {
+      var pc = Number(custData[i][CUSTOMER_SHEET_COLS.PURCHASE_COUNT]) || 0;
+      if (pc >= 1) purchasedOnce++;
+      if (pc >= 2) repeaters++;
+    }
+
+    var ss = sh_getOrderSs_();
+    var sheetNames = ['依頼管理', '依頼管理_アーカイブ'];
+    var totalOrders = 0;
+    var totalRevenue = 0;
+    var monthlySales = {};
+
+    for (var s = 0; s < sheetNames.length; s++) {
+      var sheet = ss.getSheetByName(sheetNames[s]);
+      if (!sheet || sheet.getLastRow() < 2) continue;
+      var data = sheet.getDataRange().getValues();
+      for (var j = 1; j < data.length; j++) {
+        var status = String(data[j][REQUEST_SHEET_COLS.STATUS - 1] || '').trim();
+        if (status !== '完了') continue;
+        totalOrders++;
+        var amount = Number(data[j][REQUEST_SHEET_COLS.TOTAL_AMOUNT - 1]) || 0;
+        totalRevenue += amount;
+        var dateVal = data[j][REQUEST_SHEET_COLS.DATETIME - 1];
+        if (dateVal instanceof Date) {
+          var ym = Utilities.formatDate(dateVal, 'Asia/Tokyo', 'yyyy-MM');
+          monthlySales[ym] = (monthlySales[ym] || 0) + amount;
+        }
+      }
+    }
+
+    var avgOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
+    var purchaseRate = totalCustomers > 0 ? +(purchasedOnce / totalCustomers * 100).toFixed(1) : 0;
+    var repeatRate = purchasedOnce > 0 ? +(repeaters / purchasedOnce * 100).toFixed(1) : 0;
+
+    var sortedMonths = Object.keys(monthlySales).sort().reverse().slice(0, 6);
+    var recent6mTotal = 0;
+    for (var m = 0; m < sortedMonths.length; m++) {
+      recent6mTotal += monthlySales[sortedMonths[m]];
+    }
+    var monthlyAvg = sortedMonths.length > 0 ? Math.round(recent6mTotal / sortedMonths.length) : 0;
+
+    var monthlyList = [];
+    for (var k = 0; k < sortedMonths.length; k++) {
+      monthlyList.push({ month: sortedMonths[k], amount: monthlySales[sortedMonths[k]] });
+    }
+
+    return {
+      ok: true, subsidy: true,
+      totalCustomers: totalCustomers,
+      purchasedOnce: purchasedOnce,
+      repeaters: repeaters,
+      purchaseRate: purchaseRate,
+      repeatRate: repeatRate,
+      totalOrders: totalOrders,
+      totalRevenue: totalRevenue,
+      avgOrderValue: avgOrderValue,
+      monthlyAvg: monthlyAvg,
+      monthlyList: monthlyList
+    };
+  } catch (e) {
+    return { ok: false, message: 'エラー: ' + (e.message || String(e)) };
+  }
 }
 
 function adminPanel_createDemoDistributionList() {

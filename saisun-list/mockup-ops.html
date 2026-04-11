@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>デタウリ業務アプリ モックアップ v5</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f0f2f5}
+.phone{width:390px;height:844px;margin:20px auto;background:#fff;border-radius:40px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.15);position:relative;border:8px solid #1a1a1a}
+.s{width:100%;height:100%;overflow-y:auto;display:none}.s.on{display:block}
+.nav{display:flex;gap:5px;padding:6px 10px;background:#f8f9fa;flex-wrap:wrap;position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:390px;z-index:100;border-top:1px solid #e0e0e0;justify-content:center}
+.nav button{padding:4px 7px;border:1px solid #ddd;background:#fff;border-radius:5px;font-size:9px;cursor:pointer}.nav button.on{background:#2563eb;color:#fff;border-color:#2563eb}
+
+/* Header */
+.hdr{background:#1e293b;color:#fff;padding:14px 20px;display:flex;align-items:center;justify-content:space-between}
+.hdr h1{font-size:17px;font-weight:700}
+.hdr .back{cursor:pointer;font-size:14px;padding:4px 8px;background:rgba(255,255,255,.15);border-radius:6px}
+.hdr .av{width:32px;height:32px;border-radius:50%;background:#3b82f6;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700}
+
+/* Big action button */
+.big-btn{display:block;width:calc(100% - 32px);margin:12px 16px;padding:20px;border:none;border-radius:16px;font-size:20px;font-weight:700;cursor:pointer;text-align:center;color:#fff;position:relative}
+.big-btn .sub{font-size:13px;font-weight:400;opacity:.85;margin-top:4px}
+
+/* Cards */
+.card{background:#fff;border-radius:14px;padding:16px;margin:10px 16px;box-shadow:0 1px 4px rgba(0,0,0,.07)}
+.card-t{font-size:12px;color:#94a3b8;font-weight:600;margin-bottom:10px;letter-spacing:.5px}
+
+/* Product row */
+.prow{display:flex;align-items:center;padding:14px;margin:6px 16px;background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.06);cursor:pointer;transition:transform .1s}
+.prow:active{transform:scale(.98)}
+.prow .icon{width:48px;height:48px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;margin-right:12px;flex-shrink:0}
+.prow .info{flex:1;min-width:0}
+.prow .id{font-size:16px;font-weight:700;color:#1e293b}
+.prow .meta{font-size:12px;color:#64748b;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.prow .arrow{color:#94a3b8;font-size:20px;margin-left:8px}
+
+/* Status dots */
+.dots{display:flex;gap:4px;margin-top:4px}
+.dot{font-size:11px;padding:2px 6px;border-radius:6px}
+.dot-red{background:#fee2e2;color:#dc2626}
+.dot-grn{background:#d1fae5;color:#065f46}
+.dot-yel{background:#fef3c7;color:#92400e}
+.dot-blu{background:#dbeafe;color:#1e40af}
+
+/* Progress */
+.prog{display:flex;align-items:center;gap:12px;padding:0 16px;margin:8px 0}
+.prog-bar{flex:1;height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden}
+.prog-fill{height:100%;border-radius:4px}
+.prog-txt{font-size:13px;font-weight:600;color:#1e293b;white-space:nowrap}
+
+/* Form */
+.fg{margin-bottom:14px}
+.fl{font-size:13px;font-weight:600;color:#374151;margin-bottom:5px;display:block}
+.fi{width:100%;padding:12px;border:1px solid #d1d5db;border-radius:10px;font-size:16px;background:#fff}
+.fs{width:100%;padding:12px;border:1px solid #d1d5db;border-radius:10px;font-size:16px;background:#fff;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23666' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
+.fr{display:flex;gap:8px}.fr .fg{flex:1}
+
+/* Type selector */
+.tsel{display:flex;gap:8px;margin-bottom:16px}
+.tbtn{flex:1;padding:14px 4px;border:2px solid #e2e8f0;border-radius:12px;text-align:center;cursor:pointer;font-weight:700;color:#94a3b8;background:#fff;font-size:16px}
+.tbtn.on{border-color:#2563eb;color:#2563eb;background:#eff6ff}
+
+/* Measure grid */
+.mg{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.ml{font-size:12px;color:#64748b;margin-bottom:3px}
+.mi{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:8px;font-size:17px;text-align:right}
+
+/* Confirm item */
+.ci{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f1f5f9}
+.ci:last-child{border-bottom:none}
+.ci-l{font-size:13px;color:#64748b}
+.ci-v{font-size:14px;font-weight:600;color:#1e293b;text-align:right}
+.ci-ai{font-size:8px;padding:2px 4px;background:#dbeafe;color:#1e40af;border-radius:3px;margin-left:3px;vertical-align:middle}
+
+/* Photo */
+.cam{border:2px dashed #94a3b8;border-radius:14px;padding:28px;text-align:center;color:#64748b;margin-bottom:12px;cursor:pointer;background:#fafafa}
+.cam:active{background:#f1f5f9}
+.cam .ic{font-size:48px}
+.pgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
+.pthumb{aspect-ratio:1;background:linear-gradient(135deg,#dbeafe,#bfdbfe);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;position:relative}
+.pthumb .n{position:absolute;top:2px;left:3px;font-size:8px;background:#1e293b;color:#fff;border-radius:3px;padding:1px 4px}
+
+/* Guide */
+.guide{background:#eff6ff;border-left:4px solid #3b82f6;border-radius:0 10px 10px 0;padding:12px 14px;margin:8px 16px;font-size:13px;color:#1e40af}
+
+/* Transfer label row */
+.trow{display:flex;align-items:center;padding:12px;margin:4px 16px;background:#fff;border-radius:10px;box-shadow:0 1px 2px rgba(0,0,0,.05);cursor:pointer}
+.trow:active{background:#f8fafc}
+.trow input{width:22px;height:22px;margin-right:12px;pointer-events:none}
+.trow .info{flex:1}
+
+.pad{padding:0 16px 100px}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <button class="on" onclick="go('login',this)">ログイン</button>
+  <button onclick="go('home',this)">ホーム</button>
+  <button onclick="go('count',this)">点数入力</button>
+  <button onclick="go('measure',this)">サイズ</button>
+  <button onclick="go('photo',this)">写真</button>
+  <button onclick="go('list',this)">登録</button>
+  <button onclick="go('edit',this)">確認</button>
+  <button onclick="go('admin',this)">管理者</button>
+  <button onclick="go('move',this)">移動</button>
+  <button onclick="go('batch',this)">仕入れ</button>
+</nav>
+
+<div class="phone">
+
+<!-- ===== LOGIN ===== -->
+<div class="s on" id="s-login">
+  <div style="height:50px"></div>
+  <div style="text-align:center;padding:50px 24px 30px">
+    <div style="font-size:48px;margin-bottom:12px">👕</div>
+    <h2 style="font-size:26px;font-weight:800;color:#1e293b">デタウリ業務アプリ</h2>
+    <p style="color:#94a3b8;margin-top:6px;font-size:14px">ログインしてください</p>
+  </div>
+  <div style="padding:0 24px">
+    <div class="fg"><label class="fl">メールアドレス</label><input class="fi" placeholder="email@example.com"></div>
+    <div class="fg"><label class="fl">パスワード</label><input class="fi" type="password" placeholder="••••••••"></div>
+    <button class="big-btn" style="background:#2563eb;width:100%;margin:20px 0" onclick="go('home')">ログイン</button>
+  </div>
+</div>
+
+<!-- ===== HOME ===== -->
+<div class="s" id="s-home">
+  <div class="hdr"><h1>👕 デタウリ業務</h1><div class="av">A</div></div>
+
+  <!-- Next action - THE most prominent element -->
+  <div style="padding:16px 16px 0">
+    <div style="font-size:13px;color:#64748b;margin-bottom:6px">📌 次にやること</div>
+  </div>
+  <button class="big-btn" style="background:#2563eb" onclick="go('photo')">
+    📷 写真を撮る
+    <div class="sub">12着がまだ撮れていません</div>
+  </button>
+  <button class="big-btn" style="background:#7c3aed" onclick="go('measure')">
+    📏 サイズを測る
+    <div class="sub">8着がまだ測れていません</div>
+  </button>
+  <button class="big-btn" style="background:#16a34a" onclick="go('list')">
+    ✓ 確認して出品する
+    <div class="sub">3着が出品できます</div>
+  </button>
+
+  <!-- Progress -->
+  <div class="card">
+    <div class="card-t">4月1日 仕入れ分（20着）</div>
+    <div class="prog">
+      <div class="prog-bar"><div class="prog-fill" style="width:25%;background:#22c55e"></div></div>
+      <div class="prog-txt">5/20</div>
+    </div>
+    <div style="display:flex;justify-content:space-around;margin-top:10px;font-size:12px;color:#64748b">
+      <span>📷 8着 済</span>
+      <span>📏 12着 済</span>
+      <span>✅ 5着 出品済</span>
+    </div>
+  </div>
+
+  <!-- Another batch -->
+  <div class="prow" onclick="go('count')" style="margin-top:4px">
+    <div class="icon" style="background:#fef3c7">📦</div>
+    <div class="info">
+      <div class="id">4月3日 仕入れ分</div>
+      <div class="meta">ベール30kg メンズ中心</div>
+      <div class="dots"><span class="dot dot-red">まだ開けていません</span></div>
+    </div>
+    <div class="arrow">›</div>
+  </div>
+
+  <!-- Transfer -->
+  <div class="prow" onclick="go('move')">
+    <div class="icon" style="background:#dbeafe">📦→</div>
+    <div class="info">
+      <div class="id">商品を送る</div>
+      <div class="meta">外注B（kanae）さんへ送る</div>
+    </div>
+    <div class="arrow">›</div>
+  </div>
+</div>
+
+<!-- ===== COUNT ===== -->
+<div class="s" id="s-count">
+  <div class="hdr"><span class="back" onclick="go('home')">← 戻る</span><h1>📦 いくつ入ってた？</h1><span></span></div>
+  <div class="card">
+    <div style="font-size:14px;color:#374151;line-height:2">
+      <p>📅 <strong>4月3日の仕入れ</strong></p>
+    </div>
+    <div style="background:#eff6ff;border-radius:8px;padding:10px 12px;margin-top:10px">
+      <div style="font-size:11px;color:#64748b">📝 メモ:</div>
+      <div style="font-size:15px;color:#1e293b;margin-top:2px;font-weight:600">ベール30kg メンズ中心</div>
+    </div>
+  </div>
+  <div class="card">
+    <div style="font-size:16px;font-weight:700;margin-bottom:12px;text-align:center">ベールの中に何着ありましたか？</div>
+    <input class="fi" type="number" placeholder="数字を入力" style="font-size:32px;text-align:center;padding:16px;font-weight:700">
+    <p style="font-size:12px;color:#94a3b8;text-align:center;margin:12px 0">入力すると商品番号が自動で振られます</p>
+    <button class="big-btn" style="background:#2563eb;width:100%;margin:8px 0">決定</button>
+  </div>
+</div>
+
+<!-- ===== MEASURE ===== -->
+<div class="s" id="s-measure">
+  <div class="hdr"><span class="back" onclick="go('home')">← 戻る</span><h1>📏 サイズを測る</h1><span style="font-size:13px;background:rgba(255,255,255,.2);padding:4px 8px;border-radius:6px">3 / 20</span></div>
+
+  <div style="padding:12px 16px;background:#f8fafc;display:flex;align-items:center;justify-content:space-between">
+    <div style="font-size:22px;font-weight:800">dS0003</div>
+    <div style="display:flex;gap:6px">
+      <button style="padding:8px 16px;border:1px solid #ddd;background:#fff;border-radius:8px;font-size:14px;cursor:pointer">← 前</button>
+      <button style="padding:8px 16px;border:1px solid #ddd;background:#fff;border-radius:8px;font-size:14px;cursor:pointer">次 →</button>
+    </div>
+  </div>
+
+  <div class="pad" style="padding-top:12px">
+    <!-- Measure guide -->
+    <div style="background:#f5f3ff;border-radius:12px;padding:12px;margin-bottom:12px">
+      <div style="font-size:13px;font-weight:700;color:#6d28d9;margin-bottom:6px">📏 測り方</div>
+      <div style="font-size:12px;color:#5b21b6;line-height:1.6">
+        ・服を<strong>平置き</strong>にして測ります<br>
+        ・メジャーはたるまないように<br>
+        ・<strong>cm単位</strong>で小数点は四捨五入
+      </div>
+    </div>
+
+    <div style="font-size:15px;font-weight:700;margin-bottom:10px">この服は何ですか？</div>
+    <div class="tsel">
+      <div class="tbtn on" onclick="st(this,'tops')">👕<br>上</div>
+      <div class="tbtn" onclick="st(this,'pants')">👖<br>下</div>
+      <div class="tbtn" onclick="st(this,'onepiece')">👗<br>ワンピ</div>
+      <div class="tbtn" onclick="st(this,'suit')">🤵<br>上下</div>
+    </div>
+
+    <div id="mt-tops" class="mg">
+      <div><div class="ml">着丈 cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+      <div><div class="ml">肩幅 cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+      <div><div class="ml">身幅 cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+      <div><div class="ml">袖丈 cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+      <div><div class="ml">裄丈 cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+    </div>
+    <div id="mt-pants" class="mg" style="display:none">
+      <div><div class="ml">総丈 cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+      <div><div class="ml">ウエスト cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+      <div><div class="ml">股上 cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+      <div><div class="ml">股下 cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+      <div><div class="ml">ワタリ cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+      <div><div class="ml">裾幅 cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+      <div><div class="ml">ヒップ cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+    </div>
+    <div id="mt-onepiece" class="mg" style="display:none">
+      <div><div class="ml">着丈 cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+      <div><div class="ml">肩幅 cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+      <div><div class="ml">身幅 cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+      <div><div class="ml">袖丈 cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+      <div><div class="ml">総丈 cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+      <div><div class="ml">ウエスト cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+    </div>
+    <div id="mt-suit" style="display:none">
+      <p style="font-size:13px;font-weight:700;color:#2563eb;margin-bottom:8px">上着</p>
+      <div class="mg" style="margin-bottom:14px">
+        <div><div class="ml">着丈 cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+        <div><div class="ml">肩幅 cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+        <div><div class="ml">身幅 cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+        <div><div class="ml">袖丈 cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+      </div>
+      <p style="font-size:13px;font-weight:700;color:#2563eb;margin-bottom:8px">ズボン・スカート <span style="font-size:11px;color:#94a3b8;font-weight:400">（上だけなら空欄OK）</span></p>
+      <div class="mg">
+        <div><div class="ml">総丈 cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+        <div><div class="ml">ウエスト cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+        <div><div class="ml">股上 cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+        <div><div class="ml">股下 cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+        <div><div class="ml">ワタリ cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+        <div><div class="ml">裾幅 cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+        <div><div class="ml">ヒップ cm</div><input class="mi" type="number" inputmode="decimal" placeholder="—"></div>
+      </div>
+    </div>
+
+    <button class="big-btn" style="background:#2563eb;width:100%;margin:16px 0">保存して次へ →</button>
+    <button style="width:100%;padding:12px;border:1px solid #e2e8f0;background:#fff;border-radius:10px;font-size:14px;color:#94a3b8;cursor:pointer">スキップ（あとで測る）</button>
+  </div>
+</div>
+
+<!-- ===== PHOTO ===== -->
+<div class="s" id="s-photo">
+  <div class="hdr"><span class="back" onclick="go('home')">← 戻る</span><h1>📷 写真を撮る</h1><span style="font-size:13px;background:rgba(255,255,255,.2);padding:4px 8px;border-radius:6px">1 / 20</span></div>
+
+  <div style="padding:12px 16px;background:#f8fafc;display:flex;align-items:center;justify-content:space-between">
+    <div style="font-size:22px;font-weight:800">dS0001</div>
+    <div style="display:flex;gap:6px">
+      <button style="padding:8px 16px;border:1px solid #ddd;background:#fff;border-radius:8px;font-size:14px;cursor:pointer">← 前</button>
+      <button style="padding:8px 16px;border:1px solid #ddd;background:#fff;border-radius:8px;font-size:14px;cursor:pointer">次 →</button>
+    </div>
+  </div>
+
+  <div class="pad" style="padding-top:8px">
+
+    <!-- Photo guide -->
+    <div style="background:#eff6ff;border-radius:12px;padding:14px;margin-bottom:12px">
+      <div style="font-size:14px;font-weight:700;color:#1e40af;margin-bottom:8px">📸 撮り方</div>
+      <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px">
+        <div style="min-width:64px;text-align:center">
+          <div style="width:56px;height:56px;background:#3b82f6;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto;color:#fff">👕</div>
+          <div style="font-size:11px;color:#1e40af;margin-top:4px;font-weight:700">1枚目</div>
+        </div>
+        <div style="font-size:13px;color:#1e40af;line-height:1.5">
+          <strong>前からの全体写真</strong><br>
+          <span style="font-size:11px;color:#64748b">服の全体が1枚に収まるように</span>
+        </div>
+      </div>
+      <div style="font-size:12px;color:#64748b;line-height:1.6;border-top:1px solid #bfdbfe;padding-top:8px">
+        2枚目〜10枚目は自由に撮ってください<br>
+        （タグ・ロゴ・傷・裏側・ディテールなど）<br>
+        <span style="color:#dc2626;font-weight:600">※ 最低4枚は必要です</span>
+      </div>
+    </div>
+
+    <div class="cam">
+      <div class="ic">📷</div>
+      <div style="font-size:16px;font-weight:600;margin-top:4px">タップして撮影</div>
+    </div>
+    <div class="pgrid">
+      <div class="pthumb" style="border:2px solid #3b82f6">👕<span class="n">1 全体</span></div>
+      <div class="pthumb">🏷<span class="n">2</span></div>
+      <div class="pthumb">📛<span class="n">3</span></div>
+      <div class="pthumb">👕<span class="n">4</span></div>
+    </div>
+    <p style="font-size:12px;color:#22c55e;text-align:center;margin-bottom:12px">✓ 4枚撮影済み（最低4枚 / 最大10枚）</p>
+
+    <button class="big-btn" style="background:#2563eb;width:100%;margin:8px 0">保存して次へ →</button>
+    <button style="width:100%;padding:12px;border:1px solid #e2e8f0;background:#fff;border-radius:10px;font-size:14px;color:#94a3b8;cursor:pointer">スキップ（あとで撮る）</button>
+  </div>
+</div>
+
+<!-- ===== LIST (confirm & register) ===== -->
+<div class="s" id="s-list">
+  <div class="hdr"><span class="back" onclick="go('home')">← 戻る</span><h1>✓ 確認して出品</h1><span></span></div>
+
+  <div style="padding:12px 16px 4px">
+    <div style="font-size:14px;color:#374151">写真もサイズも終わった商品です。<br><strong>タップして確認 → 出品できます。</strong></div>
+  </div>
+
+  <!-- Ready to register -->
+  <div class="prow" onclick="go('edit')">
+    <div class="icon" style="background:#dbeafe">👕</div>
+    <div class="info">
+      <div class="id">dS0001</div>
+      <div class="meta">UNITED ARROWS / ニット / M</div>
+      <div class="dots"><span class="dot dot-red">状態を選んでください</span></div>
+    </div>
+    <div class="arrow">›</div>
+  </div>
+
+  <div class="prow" onclick="go('edit')">
+    <div class="icon" style="background:#dbeafe">🧥</div>
+    <div class="info">
+      <div class="id">dS0002</div>
+      <div class="meta">adidas / ナイロンジャケット / L</div>
+      <div class="dots"><span class="dot dot-red">状態を選んでください</span></div>
+    </div>
+    <div class="arrow">›</div>
+  </div>
+
+  <div class="prow" onclick="go('edit')" style="border-left:3px solid #f59e0b">
+    <div class="icon" style="background:#fef3c7">❓</div>
+    <div class="info">
+      <div class="id">dS0003</div>
+      <div class="meta">ブランドが読み取れませんでした</div>
+      <div class="dots"><span class="dot dot-yel">確認が必要です</span></div>
+    </div>
+    <div class="arrow">›</div>
+  </div>
+
+  <!-- Already done -->
+  <div style="padding:12px 16px 4px;margin-top:8px">
+    <div style="font-size:12px;color:#94a3b8">出品済み</div>
+  </div>
+  <div class="prow" style="opacity:.6;cursor:default">
+    <div class="icon" style="background:#d1fae5">✅</div>
+    <div class="info">
+      <div class="id" style="color:#065f46">dS0004</div>
+      <div class="meta">BEAMS / デニム / M — 出品済み</div>
+    </div>
+  </div>
+  <div class="prow" style="opacity:.6;cursor:default">
+    <div class="icon" style="background:#d1fae5">✅</div>
+    <div class="info">
+      <div class="id" style="color:#065f46">dS0005</div>
+      <div class="meta">ZARA / スカート / S — 出品済み</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== EDIT (individual confirm & register) ===== -->
+<div class="s" id="s-edit">
+  <div class="hdr"><span class="back" onclick="go('list')">← 戻る</span><h1>dS0001</h1><span></span></div>
+
+  <div class="pad" style="padding-top:12px">
+    <!-- Photos -->
+    <div class="pgrid" style="grid-template-columns:repeat(4,1fr);margin-bottom:12px">
+      <div class="pthumb" style="height:72px">👕<span class="n">1</span></div>
+      <div class="pthumb" style="height:72px">🏷<span class="n">2</span></div>
+      <div class="pthumb" style="height:72px">📛<span class="n">3</span></div>
+      <div class="pthumb" style="height:72px">👕<span class="n">4</span></div>
+    </div>
+
+    <!-- AI results - all tappable to edit -->
+    <div style="background:#f8fafc;border-radius:12px;padding:14px;margin-bottom:12px">
+      <div style="font-size:12px;color:#94a3b8;margin-bottom:8px">写真から自動で読み取りました（間違っていたらタップして直せます）</div>
+      <div class="ci"><span class="ci-l">ブランド</span><span class="ci-v">UNITED ARROWS <span class="ci-ai">自動</span></span></div>
+      <div class="ci"><span class="ci-l">カテゴリ</span><span class="ci-v">トップス › ニット <span class="ci-ai">自動</span></span></div>
+      <div class="ci"><span class="ci-l">サイズタグ</span><span class="ci-v">38 → M <span class="ci-ai">自動</span></span></div>
+      <div class="ci"><span class="ci-l">性別</span><span class="ci-v">レディース <span class="ci-ai">自動</span></span></div>
+      <div class="ci"><span class="ci-l">カラー</span><span class="ci-v">ブラック系 <span class="ci-ai">自動</span></span></div>
+      <div class="ci"><span class="ci-l">特徴</span><span class="ci-v">Vネック 長袖 リブ編み <span class="ci-ai">自動</span></span></div>
+      <div class="ci"><span class="ci-l">ポケット</span><span class="ci-v">なし <span class="ci-ai">自動</span></span></div>
+      <div class="ci"><span class="ci-l">発送方法</span><span class="ci-v">ゆうパケットポスト <span class="ci-ai">自動</span></span></div>
+      <div class="ci"><span class="ci-l">傷・汚れ</span><span class="ci-v">なし <span class="ci-ai">自動</span></span></div>
+    </div>
+
+    <!-- Manual: State -->
+    <div style="background:#fff;border:2px solid #f59e0b;border-radius:12px;padding:14px;margin-bottom:12px">
+      <div style="font-size:14px;font-weight:700;color:#92400e;margin-bottom:8px">⚠️ 状態を選んでください</div>
+      <select class="fs" style="font-size:16px;border-color:#f59e0b">
+        <option value="">選んでください ▼</option>
+        <option>新品、未使用</option>
+        <option>未使用に近い</option>
+        <option>目立った傷や汚れなし</option>
+        <option>やや傷や汚れあり</option>
+        <option>傷や汚れあり</option>
+        <option>全体的に状態が悪い</option>
+      </select>
+    </div>
+
+    <!-- Measurements summary -->
+    <div style="background:#f0fdf4;border-radius:12px;padding:14px;margin-bottom:16px">
+      <div style="font-size:13px;color:#065f46;font-weight:600">📏 サイズ（入力済み）</div>
+      <div style="font-size:12px;color:#064e3b;margin-top:6px">着丈 60 / 肩幅 38 / 身幅 44 / 袖丈 58 / 裄丈 74</div>
+    </div>
+
+    <!-- Register button -->
+    <button class="big-btn" style="background:#16a34a;width:100%;margin:0 0 8px">
+      ✓ この商品を出品する
+    </button>
+    <p style="font-size:11px;color:#94a3b8;text-align:center;margin-bottom:8px">デタウリに掲載されます（数分後に反映）</p>
+    <button style="width:100%;padding:12px;border:1px solid #e2e8f0;background:#fff;border-radius:10px;font-size:14px;color:#94a3b8;cursor:pointer" onclick="go('list')">まだ出品しない（あとで）</button>
+  </div>
+</div>
+
+<!-- ===== ADMIN ===== -->
+<div class="s" id="s-admin">
+  <div class="hdr"><h1>📊 管理</h1><div class="av" style="background:#f59e0b">管</div></div>
+  <div class="card">
+    <div class="card-t">全体の進捗</div>
+    <div style="display:flex;justify-content:space-around;text-align:center">
+      <div><div style="font-size:28px;font-weight:800">42</div><div style="font-size:11px;color:#64748b">まだの商品</div></div>
+      <div><div style="font-size:28px;font-weight:800;color:#22c55e">156</div><div style="font-size:11px;color:#64748b">出品中</div></div>
+      <div><div style="font-size:28px;font-weight:800;color:#8b5cf6">23</div><div style="font-size:11px;color:#64748b">売れた</div></div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-t">スタッフ</div>
+    <div style="padding:8px 0;border-bottom:1px solid #f1f5f9;display:flex;align-items:center">
+      <div style="width:36px;height:36px;border-radius:50%;background:#dbeafe;display:flex;align-items:center;justify-content:center;margin-right:10px">A</div>
+      <div style="flex:1"><div style="font-size:14px;font-weight:600">外注A（青木）</div><div style="font-size:11px;color:#64748b">今日 8件 / 在庫 45点</div></div>
+      <span class="dot dot-red">未完了3件</span>
+    </div>
+    <div style="padding:8px 0;border-bottom:1px solid #f1f5f9;display:flex;align-items:center">
+      <div style="width:36px;height:36px;border-radius:50%;background:#fce7f3;display:flex;align-items:center;justify-content:center;margin-right:10px">B</div>
+      <div style="flex:1"><div style="font-size:14px;font-weight:600">外注B（kanae）</div><div style="font-size:11px;color:#64748b">今日 5件 / 在庫 32点</div></div>
+    </div>
+    <div style="padding:8px 0;display:flex;align-items:center">
+      <div style="width:36px;height:36px;border-radius:50%;background:#d1fae5;display:flex;align-items:center;justify-content:center;margin-right:10px">C</div>
+      <div style="flex:1"><div style="font-size:14px;font-weight:600">外注C（地林）</div><div style="font-size:11px;color:#64748b">発送担当 / 在庫 28点</div></div>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;padding:0 16px;flex-wrap:wrap">
+    <button style="flex:1;padding:12px;border:1px solid #ddd;background:#fff;border-radius:10px;font-size:13px;cursor:pointer" onclick="go('batch')">+ 仕入れ登録</button>
+    <button style="flex:1;padding:12px;border:1px solid #ddd;background:#fff;border-radius:10px;font-size:13px;cursor:pointer">移動先設定</button>
+    <button style="flex:1;padding:12px;border:1px solid #ddd;background:#fff;border-radius:10px;font-size:13px;cursor:pointer">スタッフ招待</button>
+  </div>
+</div>
+
+<!-- ===== MOVE (transfer) ===== -->
+<div class="s" id="s-move">
+  <div class="hdr"><span class="back" onclick="go('home')">← 戻る</span><h1>📦 商品を送る</h1><span></span></div>
+
+  <div class="card">
+    <div style="text-align:center">
+      <div style="font-size:13px;color:#64748b">送り先</div>
+      <div style="font-size:20px;font-weight:700;margin-top:4px">外注B（kanae）さん</div>
+      <div style="font-size:11px;color:#94a3b8;margin-top:2px">🔒 管理者が設定</div>
+    </div>
+  </div>
+
+  <div style="padding:4px 16px 0">
+    <div style="font-size:14px;font-weight:600;margin-bottom:6px">送る商品を選んでください（自分の在庫: 45点）</div>
+  </div>
+
+  <label class="trow" style="background:#eff6ff">
+    <input type="checkbox" checked>
+    <div class="info"><div style="font-size:14px;font-weight:600">dS0010</div><div style="font-size:12px;color:#64748b">BEAMS / トップス / M</div></div>
+  </label>
+  <label class="trow" style="background:#eff6ff">
+    <input type="checkbox" checked>
+    <div class="info"><div style="font-size:14px;font-weight:600">dS0011</div><div style="font-size:12px;color:#64748b">UNITED ARROWS / パンツ / L</div></div>
+  </label>
+  <label class="trow" style="background:#eff6ff">
+    <input type="checkbox" checked>
+    <div class="info"><div style="font-size:14px;font-weight:600">dS0012</div><div style="font-size:12px;color:#64748b">adidas / ジャケット / XL</div></div>
+  </label>
+  <label class="trow">
+    <input type="checkbox">
+    <div class="info"><div style="font-size:14px;font-weight:600">dS0013</div><div style="font-size:12px;color:#64748b">NIKE / トップス / M</div></div>
+  </label>
+
+  <div style="padding:8px 16px;font-size:12px;color:#64748b;text-align:center">3件選んでいます</div>
+
+  <div class="card">
+    <div style="text-align:center">
+      <div style="font-size:12px;color:#64748b">段ボールに書く番号</div>
+      <div style="font-size:28px;font-weight:800;font-family:monospace;color:#1e293b;margin:6px 0">BOX-260401-A3K</div>
+    </div>
+  </div>
+
+  <button class="big-btn" style="background:#f59e0b">
+    📦 この3着を送る
+    <div class="sub">外注B（kanae）さんへ</div>
+  </button>
+</div>
+
+<!-- ===== BATCH (admin) ===== -->
+<div class="s" id="s-batch">
+  <div class="hdr"><span class="back" onclick="go('admin')">← 戻る</span><h1>+ 仕入れ登録</h1><span></span></div>
+  <div class="pad" style="padding-top:16px">
+    <div class="fr">
+      <div class="fg"><label class="fl">仕入れ日</label><input class="fi" type="date" value="2026-04-03"></div>
+      <div class="fg"><label class="fl">区分コード</label><select class="fs"><option>B</option><option>S</option><option>AA</option><option>A</option><option>C</option><option>US</option><option>G</option><option>P</option><option>Y</option></select></div>
+    </div>
+    <div class="fr">
+      <div class="fg"><label class="fl">商品金額（円）</label><input class="fi" type="number" value="50000"></div>
+      <div class="fg"><label class="fl">送料（円）</label><input class="fi" type="number" value="2800"></div>
+    </div>
+    <div style="background:#f0fdf4;border-radius:8px;padding:8px;text-align:center;margin-bottom:12px;font-size:13px;color:#065f46">合計 ¥52,800</div>
+    <div class="fg"><label class="fl">渡す相手</label><select class="fs"><option>外注A（青木）</option><option>外注B（kanae）</option><option>外注C（地林）</option></select></div>
+    <div class="fg"><label class="fl">メモ（何が入ってるか等）</label><input class="fi" placeholder="例: ベール30kg メンズ中心"></div>
+    <div style="background:#f8fafc;border-radius:8px;padding:10px;margin-bottom:14px;font-size:12px;color:#64748b">
+      ※ 中身の点数は受け取った人が数えます<br>※ 商品番号は点数入力後に自動で振られます
+    </div>
+    <button class="big-btn" style="background:#2563eb;width:100%;margin:0">登録する</button>
+  </div>
+</div>
+
+</div>
+
+<script>
+function go(id, btn) {
+  document.querySelectorAll('.s').forEach(s => s.classList.remove('on'));
+  document.getElementById('s-' + id).classList.add('on');
+  document.getElementById('s-' + id).scrollTop = 0;
+  if (btn) { document.querySelectorAll('.nav button').forEach(b => b.classList.remove('on')); btn.classList.add('on'); }
+}
+function st(el, type) {
+  document.querySelectorAll('.tbtn').forEach(b => b.classList.remove('on'));
+  el.classList.add('on');
+  ['tops','pants','onepiece','suit'].forEach(id => {
+    const e = document.getElementById('mt-' + id);
+    if (e) e.style.display = (id === type) ? '' : 'none';
+  });
+}
+</script>
+</body>
+</html>

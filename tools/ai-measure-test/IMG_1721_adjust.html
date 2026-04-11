@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>採寸結果調整 - IMG_1721</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,'Hiragino Sans',sans-serif; background:#222; color:#fff; }
+  .container { display:flex; height:100vh; }
+  .image-area { flex:1; position:relative; overflow:hidden; cursor:crosshair; }
+  .image-area img { width:100%; height:100%; object-fit:contain; }
+  .panel { width:320px; background:#1a1a1a; padding:16px; overflow-y:auto; }
+  h2 { font-size:14px; margin-bottom:12px; color:#ccc; }
+  .item { padding:10px 0; border-bottom:1px solid #333; }
+  .item-name { font-size:13px; color:#999; }
+  .item-value { font-size:24px; font-weight:700; }
+  .item-value.adjusted { color:#0f0; }
+  .item-diff { font-size:12px; color:#f80; margin-top:2px; }
+  .dot {
+    position:absolute; width:28px; height:28px;
+    border:2px solid rgba(255,255,255,0.9);
+    border-radius:50%; cursor:grab; z-index:10;
+    transform:translate(-50%,-50%);
+    box-shadow:0 0 6px rgba(0,0,0,0.6);
+    touch-action:none;
+    background:
+      linear-gradient(rgba(255,255,255,0.9), rgba(255,255,255,0.9)) center/1px 10px no-repeat,
+      linear-gradient(rgba(255,255,255,0.9), rgba(255,255,255,0.9)) center/10px 1px no-repeat,
+      rgba(0,0,0,0.35);
+  }
+  /* タッチ領域拡大 */
+  .dot::after {
+    content:''; position:absolute;
+    top:-12px; left:-12px; right:-12px; bottom:-12px;
+  }
+  .dot:hover, .dot.dragging {
+    background:
+      linear-gradient(rgba(255,255,255,0.9), rgba(255,255,255,0.9)) center/1px 10px no-repeat,
+      linear-gradient(rgba(255,255,255,0.9), rgba(255,255,255,0.9)) center/10px 1px no-repeat,
+      rgba(200,0,0,0.5);
+    cursor:pointer;
+  }
+  .dot.selected {
+    background:
+      linear-gradient(rgba(255,255,255,1), rgba(255,255,255,1)) center/1px 14px no-repeat,
+      linear-gradient(rgba(255,255,255,1), rgba(255,255,255,1)) center/14px 1px no-repeat,
+      rgba(0,120,255,0.6);
+    border-color:#fff;
+    box-shadow:0 0 12px rgba(0,120,255,0.8);
+    animation: pulse 1s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { box-shadow:0 0 8px rgba(0,120,255,0.6); }
+    50% { box-shadow:0 0 16px rgba(0,120,255,1); }
+  }
+  .line {
+    position:absolute; background:rgba(255,0,0,0.6);
+    z-index:5; pointer-events:none;
+  }
+  .label {
+    position:absolute; background:rgba(200,0,0,0.85); color:#fff;
+    font-size:11px; font-weight:600; padding:2px 6px;
+    border-radius:3px; z-index:6; pointer-events:none;
+    white-space:nowrap;
+  }
+  .instructions {
+    margin-top:16px; padding:12px; background:#333; border-radius:8px;
+    font-size:12px; line-height:1.6; color:#aaa;
+  }
+  .btn {
+    display:block; width:100%; padding:12px; margin-top:12px;
+    background:#c00; color:#fff; border:none; border-radius:8px;
+    font-size:14px; font-weight:600; cursor:pointer;
+  }
+  .btn:hover { background:#a00; }
+  .btn-secondary { background:#444; }
+  .btn-secondary:hover { background:#555; }
+  .mode-info {
+    padding:8px 12px; background:#c00; text-align:center;
+    font-size:13px; font-weight:600;
+  }
+  .mode-info.inactive { background:#333; color:#888; }
+
+  /* スマホ対応 */
+  @media (max-width: 768px) {
+    .container { flex-direction:column; height:auto; }
+    .image-area { width:100%; height:60vh; }
+    .panel { width:100%; max-height:40vh; }
+    .dot { width:32px; height:32px; border-width:3px; }
+    .dot::after { top:-14px; left:-14px; right:-14px; bottom:-14px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="modeBar" class="mode-info inactive">
+  項目を選択 → 始点・終点をタップ → ○タップで微調整
+</div>
+
+<div class="container">
+  <div class="image-area" id="imageArea">
+    <img src="IMG_1721_preview.jpg" id="img" draggable="false">
+  </div>
+
+  <div class="panel">
+    <h2>採寸結果（クリックで調整）</h2>
+    <div id="items"></div>
+
+    <div class="instructions">
+      <b>使い方:</b><br>
+      1. 項目名をタップ<br>
+      2. 始点をタップ<br>
+      3. 終点をタップ<br>
+      4. <b>○をタップして選択</b>（青く光る）<br>
+      5. どこでもドラッグで相対移動<br>
+      6. もう一度○をタップで確定<br><br>
+      スケール: 0.036000 cm/px
+    </div>
+
+    <button class="btn" onclick="startCalibrate()" id="calBtn">A4用紙の横幅でスケール補正</button>
+    <button class="btn btn-secondary" onclick="exportResult()">調整結果をJSONで保存</button>
+    <button class="btn btn-secondary" onclick="resetAll()">リセット</button>
+  </div>
+</div>
+
+<script>
+const SCALE = 0.036;
+const IMG_W = 2048;
+const IMG_H = 2048;
+
+const originalMeasurements = {
+    "totalLength_pants": { value: 104.3, name: "総丈" },
+    "waistWidth": { value: 41.2, name: "ウエスト" },
+    "hipWidth_cfg": { value: 52.3, name: "ヒップ" },
+    "frontRise": { value: 28.7, name: "股上" },
+    "inseam": { value: 76.5, name: "股下" },
+    "thighWidth": { value: 31.4, name: "ワタリ" },
+    "hemWidth": { value: 19.8, name: "裾幅" }
+};
+
+let measurements = JSON.parse(JSON.stringify(originalMeasurements));
+let activeItem = null;
+let clickStep = 0;
+let tempStart = null;
+// 各項目のドットペア管理: { key: { startDot, endDot, line, label, startImg, endImg } }
+let overlays = {};
+
+const imageArea = document.getElementById('imageArea');
+const img = document.getElementById('img');
+const itemsDiv = document.getElementById('items');
+const modeBar = document.getElementById('modeBar');
+
+function renderItems() {
+  itemsDiv.innerHTML = '';
+  for (const [key, data] of Object.entries(measurements)) {
+    const div = document.createElement('div');
+    div.className = 'item';
+    div.style.cursor = 'pointer';
+    div.style.borderLeft = activeItem === key ? '3px solid #c00' : '3px solid transparent';
+    div.style.paddingLeft = '8px';
+
+    const orig = originalMeasurements[key]?.value;
+    const adjusted = data.adjustedValue !== undefined;
+    const displayVal = adjusted ? data.adjustedValue : data.value;
+    const diffStr = adjusted ? ` (元: ${orig.toFixed(1)}cm → 調整後)` : '';
+
+    div.innerHTML = `
+      <div class="item-name">${data.name} <span style="font-size:10px;color:#555">(${key})</span></div>
+      <div class="item-value ${adjusted ? 'adjusted' : ''}">${displayVal.toFixed(1)} cm</div>
+      ${adjusted ? `<div class="item-diff">${diffStr}</div>` : ''}
+    `;
+    div.onclick = () => startAdjust(key);
+    itemsDiv.appendChild(div);
+  }
+}
+
+function startAdjust(key) {
+  activeItem = key;
+  clickStep = 1;
+  tempStart = null;
+  // この項目の既存オーバーレイだけ消す
+  if (overlays[key]) {
+    removeOverlay(key);
+  }
+  modeBar.className = 'mode-info';
+  modeBar.textContent = `[${measurements[key]?.name}] 始点をタップ`;
+  renderItems();
+}
+
+function removeOverlay(key) {
+  const o = overlays[key];
+  if (!o) return;
+  o.startDot?.remove();
+  o.endDot?.remove();
+  o.line?.remove();
+  o.label?.remove();
+  delete overlays[key];
+}
+
+function clearAllOverlays() {
+  for (const key of Object.keys(overlays)) removeOverlay(key);
+}
+
+// object-fit:contain の実際の描画領域を計算
+function getRenderedImageRect() {
+  const cW = img.clientWidth;
+  const cH = img.clientHeight;
+  const cRatio = cW / cH;
+  const iRatio = IMG_W / IMG_H;
+  let rW, rH, oX, oY;
+  if (iRatio > cRatio) {
+    rW = cW; rH = cW / iRatio; oX = 0; oY = (cH - rH) / 2;
+  } else {
+    rH = cH; rW = cH * iRatio; oX = (cW - rW) / 2; oY = 0;
+  }
+  const rect = img.getBoundingClientRect();
+  return { left: rect.left + oX, top: rect.top + oY, width: rW, height: rH };
+}
+
+// 画面座標→imageArea内座標
+function clientToArea(clientX, clientY) {
+  const r = imageArea.getBoundingClientRect();
+  return { px: clientX - r.left, py: clientY - r.top };
+}
+
+// 画面座標→画像ピクセル座標
+function clientToImg(clientX, clientY) {
+  const r = getRenderedImageRect();
+  return {
+    imgX: ((clientX - r.left) / r.width) * IMG_W,
+    imgY: ((clientY - r.top) / r.height) * IMG_H
+  };
+}
+
+// 画像座標→imageArea内座標
+function imgToArea(imgX, imgY) {
+  const r = getRenderedImageRect();
+  const areaR = imageArea.getBoundingClientRect();
+  return {
+    px: (imgX / IMG_W) * r.width + (r.left - areaR.left),
+    py: (imgY / IMG_H) * r.height + (r.top - areaR.top)
+  };
+}
+
+// 2点間の距離をcmで算出
+function calcDistCm(img1, img2) {
+  const dx = img2.imgX - img1.imgX;
+  const dy = img2.imgY - img1.imgY;
+  return Math.round(Math.sqrt(dx * dx + dy * dy) * currentScale * 10) / 10;
+}
+
+// モバイル判定
+const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+const DRAG_OFFSET_Y = 50;
+
+// 選択中のドット（微調整モード）
+let selectedDot = null; // { key, which }
+let isDragging = false;
+
+// ドット作成
+function createDot(px, py, itemKey, which) {
+  const dot = document.createElement('div');
+  dot.className = 'dot';
+  dot.style.left = px + 'px';
+  dot.style.top = py + 'px';
+  dot.dataset.itemKey = itemKey;
+  dot.dataset.which = which;
+  imageArea.appendChild(dot);
+
+  // タップで選択（微調整モードに入る）
+  dot.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (calibrateMode || clickStep > 0) return;
+    selectDot(itemKey, which);
+  });
+  dot.addEventListener('touchend', (e) => {
+    if (isDragging) return; // ドラッグ終了時は無視
+    if (calibrateMode || clickStep > 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    selectDot(itemKey, which);
+  });
+
+  return dot;
+}
+
+function selectDot(key, which) {
+  // 同じドットをもう一度タップ → 選択解除
+  if (selectedDot && selectedDot.key === key && selectedDot.which === which) {
+    deselectDot();
+    return;
+  }
+  selectedDot = { key, which };
+  // 全ドットの選択表示をリセット
+  imageArea.querySelectorAll('.dot').forEach(d => d.classList.remove('selected'));
+  // 選択中のドットをハイライト
+  const o = overlays[key];
+  if (o) {
+    const dot = which === 'start' ? o.startDot : o.endDot;
+    dot?.classList.add('selected');
+  }
+  const jpName = measurements[key]?.name || key;
+  const whichName = which === 'start' ? '始点' : '終点';
+  modeBar.className = 'mode-info';
+  modeBar.textContent = `[${jpName}] ${whichName}を調整中 — どこでもドラッグで移動`;
+}
+
+function deselectDot() {
+  selectedDot = null;
+  imageArea.querySelectorAll('.dot').forEach(d => d.classList.remove('selected'));
+  modeBar.className = 'mode-info inactive';
+  modeBar.textContent = '項目を選択 → 始点・終点をタップ → ○タップで微調整';
+}
+
+// 相対ドラッグ用の開始位置
+let dragAnchor = null; // { clientX, clientY, imgX, imgY }
+
+// ドラッグ開始時のアンカーを記録
+function startDragAnchor(clientX, clientY) {
+  if (!selectedDot) return;
+  const { key, which } = selectedDot;
+  const o = overlays[key];
+  if (!o) return;
+  const currentImg = which === 'start' ? o.startImg : o.endImg;
+  dragAnchor = {
+    clientX, clientY,
+    imgX: currentImg.imgX,
+    imgY: currentImg.imgY
+  };
+}
+
+// 選択中のドットを相対移動
+function moveDotByDelta(clientX, clientY) {
+  if (!selectedDot || !dragAnchor) return;
+  const { key, which } = selectedDot;
+  const o = overlays[key];
+  if (!o) return;
+
+  // ドラッグの移動量をピクセルで計算→画像座標の移動量に変換
+  const rendered = getRenderedImageRect();
+  const deltaClientX = clientX - dragAnchor.clientX;
+  const deltaClientY = clientY - dragAnchor.clientY;
+  const deltaImgX = (deltaClientX / rendered.width) * IMG_W;
+  const deltaImgY = (deltaClientY / rendered.height) * IMG_H;
+
+  const newImgCoord = {
+    imgX: dragAnchor.imgX + deltaImgX,
+    imgY: dragAnchor.imgY + deltaImgY
+  };
+
+  if (which === 'start') o.startImg = newImgCoord;
+  else o.endImg = newImgCoord;
+
+  drawLine(key);
+}
+
+// ライン＋ラベル描画
+function drawLine(key) {
+  const o = overlays[key];
+  if (!o || !o.startImg || !o.endImg) return;
+
+  o.line?.remove();
+  o.label?.remove();
+
+  const p1 = imgToArea(o.startImg.imgX, o.startImg.imgY);
+  const p2 = imgToArea(o.endImg.imgX, o.endImg.imgY);
+
+  const dx = p2.px - p1.px;
+  const dy = p2.py - p1.py;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+  const line = document.createElement('div');
+  line.className = 'line';
+  line.style.width = len + 'px';
+  line.style.height = '2px';
+  line.style.left = p1.px + 'px';
+  line.style.top = p1.py + 'px';
+  line.style.transformOrigin = '0 0';
+  line.style.transform = `rotate(${angle}deg)`;
+  imageArea.appendChild(line);
+  o.line = line;
+
+  const distCm = calcDistCm(o.startImg, o.endImg);
+  const jpName = measurements[key]?.name || key;
+
+  const label = document.createElement('div');
+  label.className = 'label';
+  label.textContent = `${jpName}: ${distCm}cm`;
+  label.style.left = ((p1.px + p2.px) / 2) + 'px';
+  label.style.top = ((p1.py + p2.py) / 2 - 20) + 'px';
+  imageArea.appendChild(label);
+  o.label = label;
+
+  const s = imgToArea(o.startImg.imgX, o.startImg.imgY);
+  const e2 = imgToArea(o.endImg.imgX, o.endImg.imgY);
+  o.startDot.style.left = s.px + 'px';
+  o.startDot.style.top = s.py + 'px';
+  o.endDot.style.left = e2.px + 'px';
+  o.endDot.style.top = e2.py + 'px';
+
+  measurements[key].adjustedValue = distCm;
+  renderItems();
+}
+
+// 画像エリアのタッチ操作 — 相対ドラッグ
+imageArea.addEventListener('touchstart', (e) => {
+  if (selectedDot && !calibrateMode && clickStep === 0) {
+    isDragging = false;
+    const t = e.touches[0];
+    startDragAnchor(t.clientX, t.clientY);
+  }
+}, { passive: true });
+
+imageArea.addEventListener('touchmove', (e) => {
+  if (!selectedDot || calibrateMode || clickStep > 0) return;
+  e.preventDefault();
+  isDragging = true;
+  const t = e.touches[0];
+  moveDotByDelta(t.clientX, t.clientY);
+}, { passive: false });
+
+imageArea.addEventListener('touchend', (e) => {
+  dragAnchor = null;
+  if (isDragging) {
+    isDragging = false;
+    return;
+  }
+}, { passive: true });
+
+// マウス操作 — 相対ドラッグ
+imageArea.addEventListener('mousedown', (e) => {
+  if (selectedDot && !calibrateMode && clickStep === 0 && !e.target.classList.contains('dot')) {
+    startDragAnchor(e.clientX, e.clientY);
+  }
+});
+
+imageArea.addEventListener('mousemove', (e) => {
+  if (!selectedDot || calibrateMode || clickStep > 0) return;
+  if (e.buttons !== 1) return;
+  isDragging = true;
+  moveDotByDelta(e.clientX, e.clientY);
+});
+
+imageArea.addEventListener('mouseup', (e) => {
+  dragAnchor = null;
+  if (isDragging) {
+    isDragging = false;
+  }
+});
+
+// クリック: 始点終点設定のみ（微調整はドラッグで行う）
+imageArea.addEventListener('click', (e) => {
+  if (e.target.classList.contains('dot')) return;
+
+  // 微調整モード中のクリックは無視（ドラッグで操作する）
+  if (selectedDot && clickStep === 0 && !calibrateMode) return;
+
+  // 始点・終点設定モード
+  if (!activeItem || clickStep === 0) return;
+
+  const { px, py } = clientToArea(e.clientX, e.clientY);
+  const imgCoord = clientToImg(e.clientX, e.clientY);
+  const key = activeItem;
+  const jpName = measurements[key]?.name || key;
+
+  if (clickStep === 1) {
+    tempStart = imgCoord;
+    if (!overlays[key]) overlays[key] = {};
+    overlays[key].startImg = imgCoord;
+    overlays[key].startDot = createDot(px, py, key, 'start');
+    clickStep = 2;
+    modeBar.textContent = `[${jpName}] 終点をタップ`;
+  } else if (clickStep === 2) {
+    overlays[key].endImg = imgCoord;
+    overlays[key].endDot = createDot(px, py, key, 'end');
+    drawLine(key);
+
+    clickStep = 0;
+    activeItem = null;
+    modeBar.className = 'mode-info inactive';
+    modeBar.textContent = '○タップで微調整 / 項目タップで再設定';
+    renderItems();
+  }
+});
+
+// ウィンドウリサイズ時に全オーバーレイを再描画
+window.addEventListener('resize', () => {
+  for (const key of Object.keys(overlays)) {
+    if (overlays[key].startImg && overlays[key].endImg) drawLine(key);
+  }
+});
+
+function resetAll() {
+  measurements = JSON.parse(JSON.stringify(originalMeasurements));
+  activeItem = null;
+  clickStep = 0;
+  selectedDot = null;
+  clearAllOverlays();
+  modeBar.className = 'mode-info inactive';
+  modeBar.textContent = '項目を選択 → 始点・終点をタップ → ○タップで微調整';
+  renderItems();
+}
+
+let calibrateMode = false;
+let calStart = null;
+let currentScale = SCALE;
+
+function startCalibrate() {
+  calibrateMode = true;
+  calStart = null;
+  activeItem = null;
+  clickStep = 0;
+  clearAllOverlays();
+  modeBar.className = 'mode-info';
+  modeBar.textContent = 'A4用紙の左端をタップ';
+  document.getElementById('calBtn').textContent = 'キャリブレーション中...';
+}
+
+imageArea.addEventListener('click', (e) => {
+  if (!calibrateMode) return;
+  if (e.target.classList.contains('dot')) return;
+
+  const { px, py } = clientToArea(e.clientX, e.clientY);
+  const imgCoord = clientToImg(e.clientX, e.clientY);
+
+  if (!calStart) {
+    calStart = { ...imgCoord, px, py };
+    const dot = document.createElement('div');
+    dot.className = 'dot';
+    dot.style.left = px + 'px';
+    dot.style.top = py + 'px';
+    imageArea.appendChild(dot);
+    modeBar.textContent = 'A4用紙の右端をタップ';
+    e.stopImmediatePropagation();
+  } else {
+    const dot = document.createElement('div');
+    dot.className = 'dot';
+    dot.style.left = px + 'px';
+    dot.style.top = py + 'px';
+    imageArea.appendChild(dot);
+
+    const dx = imgCoord.imgX - calStart.imgX;
+    const dy = imgCoord.imgY - calStart.imgY;
+    const distPx = Math.sqrt(dx * dx + dy * dy);
+    const newScale = 21.0 / distPx;
+
+    const oldScale = currentScale;
+    currentScale = newScale;
+
+    modeBar.className = 'mode-info';
+    modeBar.textContent = `スケール補正: ${oldScale.toFixed(6)} → ${newScale.toFixed(6)} cm/px`;
+    calibrateMode = false;
+    document.getElementById('calBtn').textContent = 'スケール補正済み（再補正する）';
+
+    const ratio = newScale / oldScale;
+    for (const [key, data] of Object.entries(measurements)) {
+      data.value = Math.round(data.value * ratio * 10) / 10;
+      if (data.adjustedValue !== undefined) {
+        data.adjustedValue = Math.round(data.adjustedValue * ratio * 10) / 10;
+      }
+    }
+    renderItems();
+    e.stopImmediatePropagation();
+  }
+}, true);
+
+function exportResult() {
+  const output = {};
+  for (const [key, data] of Object.entries(measurements)) {
+    output[key] = data.adjustedValue !== undefined ? data.adjustedValue : data.value;
+  }
+  const blob = new Blob([JSON.stringify(output, null, 2)], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'IMG_1721_adjusted.json';
+  a.click();
+}
+
+renderItems();
+</script>
+</body>
+</html>

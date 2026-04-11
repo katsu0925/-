@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>AI採寸シート</title>
+<style>
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Helvetica Neue', Arial, 'Hiragino Sans', sans-serif;
+    color: #000;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* ═══ 1ページ目: 採寸シート本体 ═══ */
+  .sheet {
+    width: 210mm;
+    height: 297mm;
+    position: relative;
+    background: #e0e0e0;
+    overflow: hidden;
+    page-break-after: always;
+  }
+
+  /* ヒントテキスト */
+  .area-hint {
+    position: absolute;
+    top: 12mm;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 9pt;
+    color: #bbb;
+    text-align: center;
+    pointer-events: none;
+  }
+
+  /* ─── 十字定規 15cm（中央配置） ─── */
+  .cross-ruler {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 190mm;
+    height: 190mm;
+  }
+  /* 横線 */
+  .h-line {
+    position: absolute;
+    top: 50%;
+    left: 5mm;
+    width: 180mm;
+    border-top: 1.5mm solid #000;
+  }
+  /* 縦線 */
+  .v-line {
+    position: absolute;
+    left: 50%;
+    top: 5mm;
+    height: 180mm;
+    border-left: 1.5mm solid #000;
+  }
+  /* 端マーカー（横） */
+  .end-h {
+    position: absolute;
+    top: calc(50% - 12mm);
+    width: 7mm;
+    height: 24mm;
+    background: #000;
+  }
+  .end-h-l { left: 1mm; }
+  .end-h-r { right: 1mm; }
+  /* 端マーカー（縦） */
+  .end-v {
+    position: absolute;
+    left: calc(50% - 12mm);
+    height: 7mm;
+    width: 24mm;
+    background: #000;
+  }
+  .end-v-t { top: 1mm; }
+  .end-v-b { bottom: 1mm; }
+  /* 目盛り（横5cm刻みのみ） */
+  .th5 {
+    position: absolute;
+    top: 50%;
+    height: 8mm;
+    border-left: 0.8mm solid #000;
+  }
+  /* 目盛り（縦5cm刻みのみ） */
+  .tv5 {
+    position: absolute;
+    left: 50%;
+    width: 8mm;
+    border-top: 0.8mm solid #000;
+  }
+  /* 中心マーク */
+  .center-mark {
+    position: absolute;
+    top: calc(50% - 5mm);
+    left: calc(50% - 5mm);
+    width: 10mm;
+    height: 10mm;
+    border: 1.5mm solid #c00;
+    border-radius: 50%;
+  }
+  .cross-label {
+    position: absolute;
+    font-size: 14pt;
+    color: #000;
+    font-weight: bold;
+  }
+  .cl-h {
+    top: calc(50% - 18mm);
+    left: 50%;
+    transform: translateX(-50%);
+  }
+  .cl-v {
+    left: calc(50% + 18mm);
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  /* ─── 5cm確認ゲージ ─── */
+  .check {
+    position: absolute;
+    bottom: 8mm;
+    left: 30mm;
+    font-size: 7pt;
+    color: #888;
+  }
+  .check-gauge {
+    display: inline-block;
+    position: relative;
+    width: 54mm;
+    height: 6mm;
+    vertical-align: middle;
+  }
+  .cg-line {
+    position: absolute;
+    top: 3mm;
+    left: 2mm;
+    width: 50mm;
+    border-top: 0.6mm solid #000;
+  }
+  .cg-end {
+    position: absolute;
+    top: 1mm;
+    height: 5mm;
+    border-left: 0.6mm solid #000;
+  }
+  .cg-l { left: 2mm; }
+  .cg-r { left: 52mm; }
+
+  /* ═══ 2ページ目: 説明（裏面印刷用） ═══ */
+  .instructions-page {
+    width: 210mm;
+    height: 297mm;
+    position: relative;
+    background: #fff;
+    padding: 15mm 15mm;
+  }
+  .instructions-page h1 {
+    font-size: 15pt;
+    margin-bottom: 4mm;
+  }
+  .instructions-page h2 {
+    font-size: 11pt;
+    margin: 4mm 0 2mm;
+    padding-bottom: 1mm;
+    border-bottom: 0.3mm solid #ddd;
+  }
+  .instructions-page p {
+    font-size: 9pt;
+    line-height: 1.5;
+    margin-bottom: 2mm;
+  }
+  .instructions-page .warn {
+    color: #c00;
+    font-weight: bold;
+    font-size: 10pt;
+    border: 1.5px solid #c00;
+    padding: 2mm 4mm;
+    margin-bottom: 4mm;
+    text-align: center;
+  }
+  .steps {
+    list-style: none;
+    padding: 0;
+    margin: 2mm 0;
+  }
+  .steps li {
+    font-size: 9pt;
+    line-height: 1.6;
+    padding: 1mm 0 1mm 7mm;
+    position: relative;
+    border-bottom: 0.2mm solid #eee;
+  }
+  .steps li .num {
+    position: absolute;
+    left: 0;
+    font-weight: bold;
+    color: #333;
+  }
+  .tips {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2mm;
+    margin: 2mm 0;
+  }
+  .tip-box {
+    border: 0.3mm solid #ddd;
+    padding: 2mm 3mm;
+    font-size: 8pt;
+    line-height: 1.5;
+    border-radius: 1mm;
+  }
+  .tip-ok { border-left: 2mm solid #2a9d2a; }
+  .tip-ng { border-left: 2mm solid #d00; }
+  .tip-box b { display: block; margin-bottom: 0.5mm; }
+  .note {
+    font-size: 8pt;
+    color: #666;
+    line-height: 1.5;
+    margin-top: 3mm;
+    padding: 2mm 3mm;
+    background: #f5f5f5;
+    border-radius: 1mm;
+  }
+
+  /* ═══ 3ページ目以降: 採寸ガイド ═══ */
+  .guide-page {
+    width: 210mm;
+    height: 297mm;
+    position: relative;
+    background: #fff;
+    padding: 15mm 15mm;
+    page-break-before: always;
+  }
+  .guide-page h1 {
+    font-size: 16pt;
+    margin-bottom: 6mm;
+    text-align: center;
+  }
+  .guide-page img {
+    display: block;
+    margin: 0 auto;
+  }
+
+  @media print {
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: #e0e0e0;
+    }
+    .sheet {
+      width: 100%;
+      height: 100vh;
+      margin: 0;
+      box-shadow: none;
+    }
+    .instructions-page, .guide-page {
+      width: 100%;
+      height: 100vh;
+      margin: 0;
+      padding: 15mm;
+      box-shadow: none;
+      background: #fff;
+    }
+  }
+
+  @media screen {
+    body { background: #888; padding: 5mm; }
+    .sheet, .instructions-page, .guide-page {
+      margin: 0 auto 10mm;
+      box-shadow: 0 2px 15px rgba(0,0,0,0.3);
+    }
+  }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════
+     1ページ目: 採寸シート（表面）
+     定規のみ。テキストなし。
+     ═══════════════════════════════════════════ -->
+<div class="sheet">
+
+  <!-- ヒント -->
+  <div class="area-hint">この紙を衣類の上（中央）に置き<br>定規をカメラの中心に合わせて撮影</div>
+
+  <!-- 十字定規 15cm×15cm -->
+  <div class="cross-ruler">
+    <!-- 横線・縦線 -->
+    <div class="h-line"></div>
+    <div class="v-line"></div>
+    <!-- 端マーカー -->
+    <div class="end-h end-h-l"></div>
+    <div class="end-h end-h-r"></div>
+    <div class="end-v end-v-t"></div>
+    <div class="end-v end-v-b"></div>
+    <!-- 横目盛り（中心から5cm間隔） -->
+    <div class="th5" style="left:calc(50% - 50mm);"></div>
+    <div class="th5" style="left:calc(50% + 50mm);"></div>
+    <!-- 縦目盛り（中心から5cm間隔） -->
+    <div class="tv5" style="top:calc(50% - 50mm);"></div>
+    <div class="tv5" style="top:calc(50% + 50mm);"></div>
+    <!-- 中心マーク -->
+    <div class="center-mark"></div>
+    <!-- ラベル -->
+    <div class="cross-label cl-h">← 18cm →</div>
+    <div class="cross-label cl-v">18cm</div>
+  </div>
+
+  <!-- 確認ゲージ -->
+  <div class="check">
+    確認:
+    <div class="check-gauge">
+      <div class="cg-line"></div>
+      <div class="cg-end cg-l"></div>
+      <div class="cg-end cg-r"></div>
+    </div>
+    ← 5cm
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════
+     2ページ目: 使い方（裏面）
+     ═══════════════════════════════════════════ -->
+<div class="instructions-page">
+
+  <h1>AI採寸シート 使い方</h1>
+
+  <div class="warn">
+    印刷設定: 余白「なし」、倍率「カスタム 100」で印刷
+  </div>
+
+  <h2>使い方</h2>
+  <ol class="steps">
+    <li><span class="num">1.</span>表面の5cmゲージを手持ちの定規で確認（ずれていたら印刷し直す）</li>
+    <li><span class="num">2.</span>衣類を平置きし、この紙を衣類の上（中央付近）に置く</li>
+    <li><span class="num">3.</span>真上からスマホで撮影（定規がカメラの中心に来るように狙う）</li>
+    <li><span class="num">4.</span>アプリにアップロード → 自動で採寸＋商品説明を生成</li>
+  </ol>
+
+  <h2>撮影のコツ</h2>
+  <div class="tips">
+    <div class="tip-box tip-ok">
+      <b>OK</b>
+      真上から撮る（カメラと床が平行）<br>
+      明るい場所で影が出ないように<br>
+      シワを伸ばし左右対称に整える<br>
+      定規の両端の黒マークが写っている<br>
+      衣類全体が画角に入っている
+    </div>
+    <div class="tip-box tip-ng">
+      <b>NG</b>
+      斜めから撮る（遠近で歪む）<br>
+      フラッシュ使用（反射で黒マークが消える）<br>
+      暗い場所・影が濃い<br>
+      定規が衣類の下に隠れている<br>
+      衣類の端が画面外に切れている
+    </div>
+  </div>
+
+  <h2>スマホの水平ガイド設定</h2>
+  <p>真上から撮影するために、スマホのカメラに内蔵されている水平ガイド機能をONにしてください。</p>
+  <div class="tips">
+    <div class="tip-box tip-ok">
+      <b>iPhone</b>
+      「設定」→「カメラ」→<br>
+      <b>「グリッド」をON</b><br>
+      → カメラを真下に向けると画面中央に<b>十字マーク（+）</b>が表示されます。2つの+が重なった時が水平です。
+    </div>
+    <div class="tip-box tip-ok">
+      <b>Android</b>
+      カメラアプリの「設定」→<br>
+      <b>「グリッドライン」をON</b><br>
+      → 一部の機種（Galaxy等）は「水平ガイド」もあります。カメラ設定内で「レベル」や「水平」を探してONにしてください。
+    </div>
+  </div>
+
+  <div class="note">
+    <b>長持ちさせるコツ</b><br>
+    ・厚紙（画用紙など）に印刷すると丈夫で繰り返し使えます<br>
+    ・ラミネート加工するとさらに耐久性UP（100均でラミネートフィルムが購入できます）<br>
+    ・紙の裏にマスキングテープを貼るとすべり止めになります<br>
+    <br>
+    <b>注意</b><br>
+    ・両端の黒い四角がAIの基準点です。折ったり汚したりしないでください<br>
+    ・コートなど大きい衣類は、十分な距離を取って全体を撮影してください<br>
+    ・採寸結果は「平置き実寸（参考値）」です。±1〜2cmの誤差があります
+  </div>
+
+</div>
+
+<!-- ═══════════════════════════════════════════
+     3ページ目: 採寸ガイド（イラスト付き）
+     ═══════════════════════════════════════════ -->
+<div class="guide-page">
+
+  <img src="guide-illustrations.jpg" alt="採寸箇所ガイド" style="width:100%; height:auto; max-height:270mm; object-fit:contain;"/>
+
+</div><!-- /guide-page -->
+
+</body>
+</html>

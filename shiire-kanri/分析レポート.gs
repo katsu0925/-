@@ -34,17 +34,25 @@ function addAnalysisReport(period, link) {
 }
 
 /**
- * メニューから手動で分析レポートリンクを追加（テスト用）
+ * メニューから分析レポートリンクを追加
+ * 分析期間は当月を自動設定、リンクのみ入力
  */
 function addAnalysisReportManual() {
   var ui = SpreadsheetApp.getUi();
-  var periodResp = ui.prompt('分析期間を入力', '例: 2026年3月', ui.ButtonSet.OK_CANCEL);
-  if (periodResp.getSelectedButton() !== ui.Button.OK) return;
-  var linkResp = ui.prompt('レポートURLを入力', '', ui.ButtonSet.OK_CANCEL);
-  if (linkResp.getSelectedButton() !== ui.Button.OK) return;
+  var now = new Date();
+  var period = now.getFullYear() + '年' + (now.getMonth() + 1) + '月';
 
-  var result = addAnalysisReport(periodResp.getResponseText(), linkResp.getResponseText());
+  var linkResp = ui.prompt(
+    '分析レポートリンク追加（' + period + '）',
+    'レポートURLを入力してください',
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (linkResp.getSelectedButton() !== ui.Button.OK) return;
+  var link = linkResp.getResponseText().trim();
+  if (!link) { ui.alert('URLが空です'); return; }
+
+  var result = addAnalysisReport(period, link);
   if (result.ok) {
-    ui.alert('記録しました（行: ' + result.row + '）');
+    ui.alert('記録しました\n期間: ' + period + '\n行: ' + result.row);
   }
 }

@@ -82,6 +82,17 @@ function tr_setupTriggersOnce_() {
     }
   } catch (e) { console.log('syncListingPublicトリガー設定スキップ: ' + (e.message || e)); }
 
+  // BULK（アソート商品）onEdit — 割引率等の編集を即座にキャッシュ+Workersへ反映
+  try {
+    var bulkSsId = String(BULK_CONFIG.spreadsheetId || '').trim();
+    if (bulkSsId) {
+      var bulkSs = SpreadsheetApp.openById(bulkSsId);
+      ScriptApp.newTrigger('bulk_onEdit').forSpreadsheet(bulkSs).onEdit().create();
+    } else {
+      console.log('bulk_onEditトリガー設定スキップ: BULK_SPREADSHEET_ID 未設定');
+    }
+  } catch (e) { console.log('bulk_onEditトリガー設定スキップ: ' + (e.message || e)); }
+
   // =====================================================
   // 2. timeBasedトリガー（全て一元管理）
   // =====================================================

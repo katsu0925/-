@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>AI画像判定 導入ガイド</title>
+<style>
+@page { size: A4; margin: 20mm; }
+body { font-family: 'Hiragino Sans', 'Yu Gothic', 'Noto Sans JP', sans-serif; color: #222; line-height: 1.8; max-width: 700px; margin: 0 auto; padding: 20px; }
+h1 { font-size: 22px; border-bottom: 3px solid #111; padding-bottom: 8px; margin-top: 0; }
+h2 { font-size: 16px; background: #111; color: #fff; padding: 6px 12px; border-radius: 4px; margin-top: 32px; }
+h3 { font-size: 14px; border-left: 4px solid #3b82f6; padding-left: 10px; margin-top: 24px; }
+.date { font-size: 12px; color: #888; text-align: right; }
+.highlight { background: #fef3c7; padding: 12px 16px; border-radius: 8px; border: 1px solid #f59e0b; margin: 16px 0; }
+.highlight b { color: #b45309; }
+.info { background: #eff6ff; padding: 12px 16px; border-radius: 8px; border: 1px solid #3b82f6; margin: 16px 0; }
+.info b { color: #1d4ed8; }
+table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+th, td { padding: 8px 10px; border: 1px solid #d1d5db; text-align: left; }
+th { background: #f3f4f6; font-weight: 700; }
+.flow { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin: 16px 0; }
+.flow-step { display: flex; align-items: flex-start; margin: 8px 0; }
+.flow-num { background: #111; color: #fff; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0; margin-right: 10px; margin-top: 2px; }
+.flow-num.auto { background: #3b82f6; }
+.flow-text { flex: 1; }
+.flow-text small { color: #6b7280; }
+.badge-new { display: inline-block; background: #dc2626; color: #fff; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 3px; margin-left: 4px; vertical-align: middle; }
+.badge-auto { display: inline-block; background: #3b82f6; color: #fff; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 3px; margin-left: 4px; vertical-align: middle; }
+.compare { display: flex; gap: 16px; margin: 16px 0; }
+.compare > div { flex: 1; padding: 12px; border-radius: 8px; }
+.compare .before { background: #fef2f2; border: 1px solid #fca5a5; }
+.compare .after { background: #f0fdf4; border: 1px solid #86efac; }
+.compare .label { font-weight: 700; font-size: 13px; margin-bottom: 8px; }
+.compare ul { margin: 0; padding-left: 18px; font-size: 12px; }
+.compare li { margin: 3px 0; }
+.footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e5e7eb; font-size: 11px; color: #9ca3af; text-align: center; }
+</style>
+</head>
+<body>
+
+<h1>商品情報AI自動入力のお知らせ</h1>
+<p class="date">2026年4月2日</p>
+
+<div class="highlight">
+<b>タスキ箱に画像をアップするだけで、ブランド・カテゴリ・カラーなどの商品情報がAppSheetに自動入力されるようになりました。</b>
+</div>
+
+<h2>何が変わったか</h2>
+
+<div class="compare">
+<div class="before">
+<div class="label">これまで</div>
+<ul>
+<li>撮影・採寸・商品情報の順番は自由</li>
+<li>商品情報は<b>すべて手入力</b></li>
+<li>約20項目を1つずつ入力</li>
+</ul>
+</div>
+<div class="after">
+<div class="label">これから</div>
+<ul>
+<li><b>撮影を最初に</b>実施</li>
+<li>商品情報は<b>AIが自動入力</b></li>
+<li>確認・修正 + 採寸の<b>約8項目だけ</b></li>
+</ul>
+</div>
+</div>
+
+<h2>新しい作業フロー</h2>
+
+<div class="flow">
+
+<div class="flow-step">
+<div class="flow-num">1</div>
+<div class="flow-text">
+<b>撮影する</b><span class="badge-new">順番変更</span><br>
+<small>必ず最初に撮影してください。採寸より先です。</small>
+</div>
+</div>
+
+<div class="flow-step">
+<div class="flow-num">2</div>
+<div class="flow-text">
+<b>タスキ箱に画像アップ</b><br>
+<small>管理番号を入力して、いつも通りアップロードしてください。</small>
+</div>
+</div>
+
+<div class="flow-step">
+<div class="flow-num auto">A</div>
+<div class="flow-text">
+<b>AIが自動で商品情報を判定</b><span class="badge-auto">自動</span><br>
+<small>画像アップ後、約5分以内にAIが全画像を分析し、商品情報を自動入力します。作業は不要です。</small>
+</div>
+</div>
+
+<div class="flow-step">
+<div class="flow-num">3</div>
+<div class="flow-text">
+<b>AppSheetで商品登録</b><br>
+<small>仕入れ商品選択 → 管理番号を確認 → 商品情報が<b>自動で入っています</b>。</small>
+</div>
+</div>
+
+<div class="flow-step">
+<div class="flow-num">4</div>
+<div class="flow-text">
+<b>AI入力値を確認・修正</b><br>
+<small>AIが入力した値が正しいか確認し、間違っていれば修正してください。</small>
+</div>
+</div>
+
+<div class="flow-step">
+<div class="flow-num">5</div>
+<div class="flow-text">
+<b>採寸データを入力</b><br>
+<small>着丈・肩幅・身幅など、いつも通り採寸値を入力してください。</small>
+</div>
+</div>
+
+<div class="flow-step">
+<div class="flow-num">6</div>
+<div class="flow-text">
+<b>状態・発送方法を入力して保存</b><br>
+<small>この2つはAIでは判定できないため、手入力が必要です。</small>
+</div>
+</div>
+
+</div>
+
+<h2>AIが自動入力する項目</h2>
+
+<table>
+<tr><th>項目</th><th>AIの精度</th><th>確認ポイント</th></tr>
+<tr><td>ブランド</td><td>タグが写っていれば高精度</td><td>タグが不鮮明な場合は要修正</td></tr>
+<tr><td>タグ表記</td><td>タグが写っていれば高精度</td><td>サイズ表記の数字を確認</td></tr>
+<tr><td>性別</td><td>高い</td><td>ユニセックス商品は要確認</td></tr>
+<tr><td>カテゴリ1</td><td>高い</td><td>ほぼ修正不要</td></tr>
+<tr><td>カテゴリ2</td><td>高い</td><td>採寸項目が連動するので必ず確認</td></tr>
+<tr><td>カテゴリ3</td><td>中程度</td><td>細かい分類は要確認</td></tr>
+<tr><td>デザイン特徴</td><td>高い</td><td>ボーダー・チェック等は正確</td></tr>
+<tr><td>カラー</td><td>高い</td><td>微妙な色味は要確認</td></tr>
+<tr><td>ポケット</td><td>中程度</td><td>写真に写っていない場合は確認</td></tr>
+</table>
+
+<div class="info">
+<b>特に重要：カテゴリ2が正しいか必ず確認してください。</b><br>
+カテゴリ2によって採寸入力の項目（着丈/肩幅 or 総丈/ウエスト等）が切り替わります。
+間違ったカテゴリのまま進むと、必要な採寸項目が表示されません。
+</div>
+
+<h2>手入力が必要な項目</h2>
+
+<table>
+<tr><th>項目</th><th>理由</th></tr>
+<tr><td>状態（傷や汚れ）</td><td>実物を見ての主観判断が必要</td></tr>
+<tr><td>発送方法</td><td>業務ルールで決定</td></tr>
+<tr><td>採寸値（着丈・肩幅・身幅など）</td><td>実測が必要</td></tr>
+<tr><td>傷汚れ詳細</td><td>AIも判定しますが実物確認を優先</td></tr>
+</table>
+
+<h2>よくある質問</h2>
+
+<h3>Q. 画像アップ後、すぐにAppSheetで登録しても大丈夫？</h3>
+<p>AI判定には約5分かかります。画像アップ後、5分以上経ってからAppSheetで商品登録すれば、自動入力された状態で開けます。<b>10着まとめてアップ→まとめて採寸</b>のバッチ作業なら自然に5分は経つので問題ありません。</p>
+
+<h3>Q. AIが間違った値を入力していた場合は？</h3>
+<p>通常の手入力と同じように、そのまま値を修正してください。AIの入力値は初期値なので、自由に変更できます。</p>
+
+<h3>Q. 撮影を後回しにしてもいい？</h3>
+<p>撮影を最初にしないとAI判定ができないため、手入力になります。<b>撮影 → アップ → 採寸</b>の順番を守ってください。</p>
+
+<h3>Q. 既存の商品データはどうなる？</h3>
+<p>既に登録済みの商品データには影響ありません。新しく登録する商品からAI自動入力が適用されます。</p>
+
+<div class="footer">
+NKonline 業務改善通知 | AI画像判定システム（Gemini 2.5 Flash Lite）
+</div>
+
+</body>
+</html>

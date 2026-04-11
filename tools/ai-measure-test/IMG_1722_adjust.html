@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>採寸結果調整 - IMG_1722</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:-apple-system,'Hiragino Sans',sans-serif; background:#222; color:#fff; }
+  .container { display:flex; height:100vh; }
+  .image-area { flex:1; position:relative; overflow:hidden; cursor:crosshair; }
+  .image-area img { width:100%; height:100%; object-fit:contain; }
+  .panel { width:320px; background:#1a1a1a; padding:16px; overflow-y:auto; }
+  h2 { font-size:14px; margin-bottom:12px; color:#ccc; }
+  .item { padding:10px 0; border-bottom:1px solid #333; }
+  .item-name { font-size:13px; color:#999; }
+  .item-value { font-size:24px; font-weight:700; }
+  .item-value.adjusted { color:#0f0; }
+  .item-diff { font-size:12px; color:#f80; margin-top:2px; }
+  .dot {
+    position:absolute; width:16px; height:16px;
+    background:#000; border:2px solid #fff;
+    border-radius:50%; cursor:grab; z-index:10;
+    transform:translate(-50%,-50%);
+    box-shadow:0 0 6px rgba(0,0,0,0.8);
+  }
+  .dot:hover { background:#c00; }
+  .dot.active { background:#c00; cursor:grabbing; }
+  .line {
+    position:absolute; background:rgba(255,0,0,0.6);
+    z-index:5; pointer-events:none;
+  }
+  .label {
+    position:absolute; background:rgba(200,0,0,0.85); color:#fff;
+    font-size:11px; font-weight:600; padding:2px 6px;
+    border-radius:3px; z-index:6; pointer-events:none;
+    white-space:nowrap;
+  }
+  .instructions {
+    margin-top:16px; padding:12px; background:#333; border-radius:8px;
+    font-size:12px; line-height:1.6; color:#aaa;
+  }
+  .btn {
+    display:block; width:100%; padding:12px; margin-top:12px;
+    background:#c00; color:#fff; border:none; border-radius:8px;
+    font-size:14px; font-weight:600; cursor:pointer;
+  }
+  .btn:hover { background:#a00; }
+  .btn-secondary { background:#444; }
+  .btn-secondary:hover { background:#555; }
+  .mode-info {
+    padding:8px 12px; background:#c00; text-align:center;
+    font-size:13px; font-weight:600;
+  }
+  .mode-info.inactive { background:#333; color:#888; }
+</style>
+</head>
+<body>
+
+<div id="modeBar" class="mode-info inactive">
+  クリックで項目を選択 → 始点・終点をクリックして設定
+</div>
+
+<div class="container">
+  <div class="image-area" id="imageArea">
+    <img src="IMG_1722_preview.jpg" id="img" draggable="false">
+  </div>
+
+  <div class="panel">
+    <h2>採寸結果（クリックで調整）</h2>
+    <div id="items"></div>
+
+    <div class="instructions">
+      <b>使い方:</b><br>
+      1. 右の項目名をクリック<br>
+      2. 画像上で始点をクリック<br>
+      3. 終点をクリック<br>
+      4. 距離が自動再計算されます<br><br>
+      スケール: 0.094600 cm/px
+    </div>
+
+    <button class="btn" onclick="startCalibrate()" id="calBtn">A4用紙の横幅でスケール補正</button>
+    <button class="btn btn-secondary" onclick="exportResult()">調整結果をJSONで保存</button>
+    <button class="btn btn-secondary" onclick="resetAll()">リセット</button>
+  </div>
+</div>
+
+<script>
+const SCALE = 0.0946;
+const IMG_W = 2048;
+const IMG_H = 2048;
+
+const originalMeasurements = {
+    "bodyLength_cb": { value: 63.0, name: "着丈" },
+    "bodyWidth": { value: 21.0, name: "身幅" },
+    "shoulderWidth": { value: 21.0, name: "肩幅" },
+    "sleeveLength": { value: 11.6, name: "袖丈" },
+    "yukiLength": { value: 32.6, name: "裄丈" }
+};
+
+let measurements = JSON.parse(JSON.stringify(originalMeasurements));
+let activeItem = null;
+let clickStep = 0; // 0=none, 1=waiting start, 2=waiting end
+let tempStart = null;
+let dots = [];
+let lines = [];
+
+const imageArea = document.getElementById('imageArea');
+const img = document.getElementById('img');
+const itemsDiv = document.getElementById('items');
+const modeBar = document.getElementById('modeBar');
+
+// アイテム一覧を描画
+function renderItems() {
+  itemsDiv.innerHTML = '';
+  for (const [key, data] of Object.entries(measurements)) {
+    const div = document.createElement('div');
+    div.className = 'item';
+    div.style.cursor = 'pointer';
+    div.style.borderLeft = activeItem === key ? '3px solid #c00' : '3px solid transparent';
+    div.style.paddingLeft = '8px';
+
+    const orig = originalMeasurements[key]?.value;
+    const adjusted = data.adjustedValue !== undefined;
+    const displayVal = adjusted ? data.adjustedValue : data.value;
+    const diffStr = adjusted ? ` (元: ${orig.toFixed(1)}cm → 調整後)` : '';
+
+    div.innerHTML = `
+      <div class="item-name">${data.name} <span style="font-size:10px;color:#555">(${key})</span></div>
+      <div class="item-value ${adjusted ? 'adjusted' : ''}">${displayVal.toFixed(1)} cm</div>
+      ${adjusted ? `<div class="item-diff">${diffStr}</div>` : ''}
+    `;
+    div.onclick = () => startAdjust(key);
+    itemsDiv.appendChild(div);
+  }
+}
+
+function startAdjust(key) {
+  activeItem = key;
+  clickStep = 1;
+  tempStart = null;
+  clearOverlays();
+  modeBar.className = 'mode-info';
+  const jpName = measurements[key]?.name || key;
+  modeBar.textContent = `[${jpName}] 画像上で始点をクリックしてください`;
+  renderItems();
+}
+
+function clearOverlays() {
+  dots.forEach(d => d.remove());
+  lines.forEach(l => l.remove());
+  document.querySelectorAll('.label').forEach(l => l.remove());
+  dots = [];
+  lines = [];
+}
+
+// object-fit:contain の実際の描画領域を計算
+function getRenderedImageRect() {
+  const imgEl = img;
+  const cW = imgEl.clientWidth;
+  const cH = imgEl.clientHeight;
+  const iW = IMG_W;
+  const iH = IMG_H;
+  const cRatio = cW / cH;
+  const iRatio = iW / iH;
+  let rW, rH, oX, oY;
+  if (iRatio > cRatio) {
+    rW = cW;
+    rH = cW / iRatio;
+    oX = 0;
+    oY = (cH - rH) / 2;
+  } else {
+    rH = cH;
+    rW = cH * iRatio;
+    oX = (cW - rW) / 2;
+    oY = 0;
+  }
+  const rect = imgEl.getBoundingClientRect();
+  return { left: rect.left + oX, top: rect.top + oY, width: rW, height: rH };
+}
+
+// 画像クリック — 実際の画像描画領域基準で座標を取る
+imageArea.addEventListener('click', (e) => {
+  if (!activeItem || clickStep === 0) return;
+
+  const areaRect = imageArea.getBoundingClientRect();
+  const rendered = getRenderedImageRect();
+
+  // imageArea内でのクリック位置（ドット描画用）
+  const px = e.clientX - areaRect.left;
+  const py = e.clientY - areaRect.top;
+
+  // 実際の画像座標に変換（object-fit考慮）
+  const imgX = ((e.clientX - rendered.left) / rendered.width) * IMG_W;
+  const imgY = ((e.clientY - rendered.top) / rendered.height) * IMG_H;
+
+  const jpName = measurements[activeItem]?.name || activeItem;
+
+  if (clickStep === 1) {
+    tempStart = { px, py, imgX, imgY };
+    addDot(px, py);
+    clickStep = 2;
+    modeBar.textContent = `[${jpName}] 終点をクリックしてください`;
+  } else if (clickStep === 2) {
+    addDot(px, py);
+
+    // ピクセル距離 → cm
+    const dx = imgX - tempStart.imgX;
+    const dy = imgY - tempStart.imgY;
+    const distPx = Math.sqrt(dx * dx + dy * dy);
+    const distCm = Math.round(distPx * currentScale * 10) / 10;
+
+    measurements[activeItem].adjustedValue = distCm;
+
+    addLine(tempStart.px, tempStart.py, px, py, `${jpName}: ${distCm}cm`);
+
+    clickStep = 0;
+    activeItem = null;
+    modeBar.className = 'mode-info inactive';
+    modeBar.textContent = 'クリックで項目を選択 → 始点・終点をクリックして設定';
+    renderItems();
+  }
+});
+
+function addDot(x, y) {
+  const dot = document.createElement('div');
+  dot.className = 'dot';
+  dot.style.left = x + 'px';
+  dot.style.top = y + 'px';
+  imageArea.appendChild(dot);
+  dots.push(dot);
+}
+
+function addLine(x1, y1, x2, y2, text) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.sqrt(dx * dx + dy * dy);
+  const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+
+  const line = document.createElement('div');
+  line.className = 'line';
+  line.style.width = len + 'px';
+  line.style.height = '2px';
+  line.style.left = x1 + 'px';
+  line.style.top = y1 + 'px';
+  line.style.transformOrigin = '0 0';
+  line.style.transform = `rotate(${angle}deg)`;
+  imageArea.appendChild(line);
+  lines.push(line);
+
+  const label = document.createElement('div');
+  label.className = 'label';
+  label.textContent = text;
+  label.style.left = ((x1 + x2) / 2) + 'px';
+  label.style.top = ((y1 + y2) / 2 - 20) + 'px';
+  imageArea.appendChild(label);
+}
+
+function resetAll() {
+  measurements = JSON.parse(JSON.stringify(originalMeasurements));
+  activeItem = null;
+  clickStep = 0;
+  clearOverlays();
+  modeBar.className = 'mode-info inactive';
+  modeBar.textContent = 'クリックで項目を選択 → 始点・終点をクリックして設定';
+  renderItems();
+}
+
+let calibrateMode = false;
+let calStart = null;
+let currentScale = SCALE;
+
+function startCalibrate() {
+  calibrateMode = true;
+  calStart = null;
+  activeItem = null;
+  clickStep = 0;
+  clearOverlays();
+  modeBar.className = 'mode-info';
+  modeBar.textContent = 'A4用紙の左端をクリックしてください';
+  document.getElementById('calBtn').textContent = 'キャリブレーション中...';
+}
+
+imageArea.addEventListener('click', (e) => {
+  if (!calibrateMode) return;
+
+  const rendered = getRenderedImageRect();
+  const imgX = ((e.clientX - rendered.left) / rendered.width) * IMG_W;
+  const imgY = ((e.clientY - rendered.top) / rendered.height) * IMG_H;
+  const areaRect = imageArea.getBoundingClientRect();
+  const px = e.clientX - areaRect.left;
+  const py = e.clientY - areaRect.top;
+
+  if (!calStart) {
+    calStart = { px, py, imgX, imgY };
+    addDot(px, py);
+    modeBar.textContent = 'A4用紙の右端をクリックしてください';
+    e.stopImmediatePropagation();
+  } else {
+    addDot(px, py);
+    const dx = imgX - calStart.imgX;
+    const dy = imgY - calStart.imgY;
+    const distPx = Math.sqrt(dx * dx + dy * dy);
+    const newScale = 21.0 / distPx;
+    addLine(calStart.px, calStart.py, px, py, `21cm = ${distPx.toFixed(0)}px → ${newScale.toFixed(6)} cm/px`);
+
+    const oldScale = currentScale;
+    currentScale = newScale;
+
+    modeBar.className = 'mode-info';
+    modeBar.textContent = `スケール補正: ${oldScale.toFixed(6)} → ${newScale.toFixed(6)} cm/px`;
+    calibrateMode = false;
+    document.getElementById('calBtn').textContent = 'スケール補正済み（再補正する）';
+
+    const ratio = newScale / oldScale;
+    for (const [key, data] of Object.entries(measurements)) {
+      data.value = Math.round(data.value * ratio * 10) / 10;
+      if (data.adjustedValue !== undefined) {
+        data.adjustedValue = Math.round(data.adjustedValue * ratio * 10) / 10;
+      }
+    }
+    renderItems();
+    e.stopImmediatePropagation();
+  }
+}, true);
+
+function exportResult() {
+  const output = {};
+  for (const [key, data] of Object.entries(measurements)) {
+    output[key] = data.adjustedValue !== undefined ? data.adjustedValue : data.value;
+  }
+  const blob = new Blob([JSON.stringify(output, null, 2)], {type: 'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'IMG_1722_adjusted.json';
+  a.click();
+}
+
+renderItems();
+</script>
+</body>
+</html>

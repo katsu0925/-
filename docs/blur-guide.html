@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>タスキ箱 背景ぼかし機能 操作ガイド</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+@page{size:A4;margin:12mm}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic',sans-serif;color:#1f2937;line-height:1.7;padding:16px;max-width:780px;margin:0 auto;font-size:14px}
+h1{font-size:22px;color:#4F46E5;border-bottom:3px solid #4F46E5;padding-bottom:8px;margin-bottom:12px}
+h2{font-size:16px;color:#1f2937;margin:20px 0 10px;padding:5px 10px;background:#f0f0ff;border-left:4px solid #4F46E5;border-radius:0 6px 6px 0}
+p{margin-bottom:8px}
+.subtitle{font-size:13px;color:#6b7280;margin-bottom:16px}
+.note{background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:8px 12px;margin:10px 0;font-size:13px}
+.note::before{content:"⚠ ";font-weight:700}
+.info{background:#dbeafe;border:1px solid #3b82f6;border-radius:8px;padding:8px 12px;margin:10px 0;font-size:13px}
+.key{display:inline-block;background:#4F46E5;color:#fff;font-size:11px;font-weight:600;padding:1px 7px;border-radius:4px;vertical-align:middle}
+.badge-ex{display:inline-block;background:rgba(79,70,229,.85);color:#fff;font-size:11px;padding:1px 6px;border-radius:4px}
+.compare{display:flex;gap:12px;margin:10px 0}
+.compare div{flex:1;text-align:center;border:1px solid #e5e7eb;border-radius:8px;padding:10px;background:#fafafa}
+.compare div strong{display:block;margin-bottom:2px;font-size:13px}
+.emoji{font-size:32px;margin-bottom:2px}
+.step{margin:16px 0;page-break-inside:avoid}
+.step-title{font-size:15px;font-weight:700;color:#4F46E5;margin-bottom:8px}
+.step-row{display:flex;gap:16px;align-items:flex-start}
+.step-img{flex-shrink:0;width:200px}
+.step-img img{width:100%;border-radius:8px;border:1px solid #d1d5db;display:block}
+.step-text{flex:1;font-size:13px;padding-top:4px}
+.step-text p{margin-bottom:6px}
+table{width:100%;border-collapse:collapse;margin:10px 0;font-size:13px}
+th,td{border:1px solid #d1d5db;padding:6px 8px;text-align:left}
+th{background:#f3f4f6;font-weight:600}
+.footer{margin-top:24px;padding-top:8px;border-top:1px solid #e5e7eb;font-size:11px;color:#9ca3af;text-align:center}
+@media print{.step{break-inside:avoid}}
+@media(max-width:500px){.step-row{flex-direction:column}.step-img{width:100%}}
+</style>
+</head>
+<body>
+
+<h1>タスキ箱 背景ぼかし機能</h1>
+<p class="subtitle">操作ガイド ― 撮影担当者向け</p>
+
+<h2>背景ぼかしとは？</h2>
+
+<div class="compare">
+  <div>
+    <div class="emoji">📷</div>
+    <strong>ぼかしなし</strong>
+    背景がそのまま写る
+  </div>
+  <div>
+    <div class="emoji">✨</div>
+    <strong>ぼかしあり</strong>
+    商品はくっきり、背景だけぼける
+  </div>
+</div>
+<p>商品の形を自動で見分けて、<strong>背景だけ</strong>にぼかしをかけます。</p>
+<div class="info">スマホでもサクサク処理できます（1枚あたり約3〜5秒）。</div>
+
+<h2>ぼかしをかける画像のルール</h2>
+
+<table>
+  <tr><th style="width:30%">画像の種類</th><th style="width:15%">ぼかし</th><th>理由</th></tr>
+  <tr><td><strong>前面の全体写真</strong></td><td style="color:#dc2626;font-weight:700;text-align:center">必須</td><td>背景（壁・床）が映るため</td></tr>
+  <tr><td><strong>背面の全体写真</strong></td><td style="color:#dc2626;font-weight:700;text-align:center">必須</td><td>背景（壁・床）が映るため</td></tr>
+  <tr><td><strong>背景が映り込む写真</strong><br>（裾・袖・全体の斜めなど）</td><td style="color:#dc2626;font-weight:700;text-align:center">必須</td><td>背景が見えている画像すべて</td></tr>
+  <tr><td><strong>タグ・ブランドラベル</strong><br>（接写・アップ）</td><td style="color:#6b7280;text-align:center">不要</td><td>背景がほぼ映らないため</td></tr>
+  <tr><td><strong>素材・生地の接写</strong></td><td style="color:#6b7280;text-align:center">不要</td><td>背景がほぼ映らないため</td></tr>
+</table>
+
+<div class="info">迷ったら「背景が映っているか？」で判断してください。映っていたらぼかし対象です。</div>
+
+<!-- ═══ STEP 1 ═══ -->
+<div class="step">
+  <div class="step-title">STEP 1 ─ 画像を選択する</div>
+  <div class="step-row">
+    <div class="step-img">
+      <img src="guide-step1.png" alt="ファイル選択画面">
+    </div>
+    <div class="step-text">
+      <p>赤枠の「<strong>ファイル選択</strong>」ボタンをタップして、撮影した画像を選びます。</p>
+      <p>一度に<strong>最大10枚</strong>まで選べます。</p>
+      <p>選ぶと画像のプレビューが表示されます。</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ STEP 2 ═══ -->
+<div class="step">
+  <div class="step-title">STEP 2 ─ ぼかしたい画像にチェック → 「選択をぼかす」</div>
+  <div class="step-row">
+    <div class="step-img">
+      <img src="guide-step2.png" alt="チェック＋ぼかしボタン">
+    </div>
+    <div class="step-text">
+      <p><strong>❶ チェック</strong> ─ ぼかしたい画像の左上をタップしてチェックを入れます。画像タップでも切り替わります。</p>
+      <p><span class="key">全選択</span> <span class="key">全解除</span> でまとめて操作もできます。</p>
+      <p><strong>❷ ぼかす</strong> ─ <span class="key">選択をぼかす</span> をタップすると処理が始まります。</p>
+      <p><strong>❸ 確認</strong> ─ 🔍をタップすると大きく表示して確認できます。</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ STEP 3 ═══ -->
+<div class="step">
+  <div class="step-title">STEP 3 ─ ぼかし完了 → 仕上がりを確認</div>
+  <div class="step-row">
+    <div class="step-img">
+      <img src="guide-step3.png" alt="ぼかし完了画面">
+    </div>
+    <div class="step-text">
+      <p>処理が終わると、画像に <span class="badge-ex">ぼかし済</span> と表示されます。</p>
+      <p>🔍をタップして<strong>拡大表示で仕上がりを確認</strong>してください。</p>
+      <p>やり直したい場合は <span class="badge-ex">ぼかし済</span> をタップすると元に戻ります。</p>
+      <p>確認OKなら、管理番号を入力して「アップロード」をタップしてください。</p>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ STEP 4 ═══ -->
+<div class="step">
+  <div class="step-title">STEP 4 ─ 拡大プレビューで見比べる</div>
+  <div class="step-row">
+    <div class="step-img">
+      <img src="guide-step4.png" alt="プレビュー比較画面">
+    </div>
+    <div class="step-text">
+      <p>拡大表示の画面上部に赤枠の <span class="key">ぼかし済</span> <span class="key">元画像</span> ボタンがあります。</p>
+      <p>タップするとぼかし前後を<strong>見比べる</strong>ことができます。</p>
+      <p>確認が終わったら <strong>✕</strong> で閉じてください。</p>
+    </div>
+  </div>
+</div>
+
+<h2>注意事項</h2>
+
+<div class="note">
+  すべての画像にぼかしをかける必要はありません。<strong>必要な画像だけ</strong>を選んでください。
+</div>
+<div class="note">
+  ぼかしは<strong>アップロードする前にだけ</strong>かけられます。アップロード済みの画像には後からかけられません。
+</div>
+<div class="note">
+  背景が商品と似た色だと、うまく見分けられないことがあります。<strong>なるべく無地の背景</strong>（白い壁・床など）で撮影してください。
+</div>
+
+<h2>こんなときは？</h2>
+
+<table>
+  <tr><th style="width:35%">困ったこと</th><th>対処方法</th></tr>
+  <tr><td>処理に時間がかかる</td><td>1枚3〜5秒が目安です。Wi-Fiなど安定した通信環境でお試しください。</td></tr>
+  <tr><td>商品の一部がぼけてしまう</td><td><span class="badge-ex">ぼかし済</span>をタップして解除し、そのままアップロードしてください。</td></tr>
+  <tr><td>影がぼけてしまう</td><td>気になる場合はぼかしを解除してください。</td></tr>
+  <tr><td>画面が動かなくなった</td><td>ページを閉じてもう一度開き直してください。</td></tr>
+  <tr><td>管理番号がわからない</td><td>商品に貼ってあるラベルの番号です。</td></tr>
+</table>
+
+<div class="footer">
+  タスキ箱 背景ぼかし機能 操作ガイド ― 2026年4月作成
+</div>
+
+</body>
+</html>

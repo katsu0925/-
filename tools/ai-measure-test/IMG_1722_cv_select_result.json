@@ -1,0 +1,80 @@
+{
+  "itemType": "tops",
+  "measurements": {
+    "bodyLength_cb": {
+      "startCandidate": "none",
+      "endCandidate": "none",
+      "startPx": [
+        1024,
+        440
+      ],
+      "endPx": [
+        1024,
+        1610
+      ],
+      "distancePx": 1170,
+      "value": 85.3,
+      "confidence": "high"
+    },
+    "bodyWidth": {
+      "startCandidate": "none",
+      "endCandidate": "none",
+      "startPx": [
+        310,
+        660
+      ],
+      "endPx": [
+        1740,
+        660
+      ],
+      "distancePx": 1430,
+      "value": 104.3,
+      "confidence": "medium"
+    },
+    "shoulderWidth": {
+      "startCandidate": "none",
+      "endCandidate": "none",
+      "startPx": [
+        475,
+        495
+      ],
+      "endPx": [
+        1575,
+        495
+      ],
+      "distancePx": 1100,
+      "value": 80.2,
+      "confidence": "medium"
+    },
+    "sleeveLength": {
+      "startCandidate": "none",
+      "endCandidate": "none",
+      "startPx": [
+        475,
+        495
+      ],
+      "endPx": [
+        50,
+        565
+      ],
+      "distancePx": 430.7261293933379,
+      "value": 31.4,
+      "confidence": "medium"
+    },
+    "hemWidth": {
+      "startCandidate": "none",
+      "endCandidate": "none",
+      "startPx": [
+        350,
+        1610
+      ],
+      "endPx": [
+        1700,
+        1610
+      ],
+      "distancePx": 1350,
+      "value": 98.4,
+      "confidence": "high"
+    }
+  }
+}

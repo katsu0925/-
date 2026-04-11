@@ -170,8 +170,8 @@ function exportProductData_() {
       var status = String(row[DATA_COLUMNS.status] || '').trim();
       var statusKind = getStatusKind_(status);
       
-      // 依頼中は除外（販売済み扱い）
-      if (statusKind === 'open') continue;
+      // 依頼中・売却済み・廃棄済みは除外
+      if (statusKind === 'open' || statusKind === 'sold') continue;
       
       // 採寸データを構築
       var measurements = {};
@@ -356,6 +356,8 @@ function getStatusKind_(status) {
   if (!t) return 'available';
   if (t.indexOf('依頼中') !== -1) return 'open';
   if (t.indexOf('確保中') !== -1) return 'hold';
+  if (t.indexOf('売却済み') !== -1) return 'sold';
+  if (t.indexOf('廃棄済み') !== -1) return 'sold';
   if (t.indexOf('在庫') !== -1) return 'available';
   return 'available';
 }

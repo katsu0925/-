@@ -1,0 +1,87 @@
+{
+  "cv_scale": {
+    "corners": {
+      "topLeft": [
+        874.0,
+        820.0
+      ],
+      "topRight": [
+        1161.0,
+        817.0
+      ],
+      "bottomRight": [
+        1165.0,
+        1225.0
+      ],
+      "bottomLeft": [
+        876.0,
+        1228.0
+      ]
+    },
+    "a4WidthPx": 288.015625,
+    "a4HeightPx": 408.01226806640625,
+    "aspectRatio": 1.4166324138641357,
+    "scaleCmPerPx": 0.07291270792484283,
+    "imageSize": [
+      2048,
+      2048
+    ]
+  },
+  "ai_result": {
+    "itemType": "sweatshirt",
+    "measurements": {
+      "bodyLength_cb": {
+        "startPx": [
+          1020,
+          850
+        ],
+        "endPx": [
+          1020,
+          1300
+        ],
+        "distancePx": 450,
+        "value": 32.81,
+        "confidence": "high"
+      },
+      "bodyWidth": {
+        "startPx": [
+          900,
+          1100
+        ],
+        "endPx": [
+          1140,
+          1100
+        ],
+        "distancePx": 240,
+        "value": 17.5,
+        "confidence": "high"
+      },
+      "shoulderWidth": {
+        "startPx": [
+          850,
+          900
+        ],
+        "endPx": [
+          1190,
+          900
+        ],
+        "distancePx": 340,
+        "value": 24.78,
+        "confidence": "high"
+      },
+      "sleeveLength": {
+        "startPx": [
+          850,
+          900
+        ],
+        "endPx": [
+          650,
+          1050
+        ],
+        "distancePx": 250,
+        "value": 18.22,
+        "confidence": "high"
+      }
+    }
+  }
+}

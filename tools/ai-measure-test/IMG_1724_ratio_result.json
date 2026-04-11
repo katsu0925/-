@@ -1,0 +1,79 @@
+{
+  "itemType": "dress",
+  "a4_reference": {
+    "横幅_cm": 21.0,
+    "この画像でのA4用紙の見え方メモ": "A4用紙はウエスト部分に置かれている。ほぼ正面から撮影されており、寸法の基準として使いやすい。"
+  },
+  "measurements": {
+    "dressLength_bnp": {
+      "value": 100.8,
+      "ratioToA4Width": "A4横幅の約4.8倍",
+      "confidence": "medium",
+      "reasoning": "襟の付け根から裾までの垂直距離を目測。A4用紙の縦幅(29.7cm)の約3.4倍、または横幅(21cm)の約4.8倍と推定した。",
+      "approxStart": [
+        500,
+        225
+      ],
+      "approxEnd": [
+        500,
+        891
+      ]
+    },
+    "bodyWidth": {
+      "value": 44.1,
+      "ratioToA4Width": "A4横幅の約2.1倍",
+      "confidence": "high",
+      "reasoning": "両脇の付け根（袖と身頃の縫い目）間の水平距離を測定。A4用紙の横幅の約2.1倍と判断した。肩幅よりわずかに狭い。",
+      "approxStart": [
+        301,
+        355
+      ],
+      "approxEnd": [
+        699,
+        355
+      ]
+    },
+    "shoulderWidth": {
+      "value": 46.2,
+      "ratioToA4Width": "A4横幅の約2.2倍",
+      "confidence": "high",
+      "reasoning": "左右の肩先の縫い目（袖の付け根の最も外側）の間の水平距離を測定。A4用紙の横幅の約2.2倍と判断した。",
+      "approxStart": [
+        285,
+        255
+      ],
+      "approxEnd": [
+        715,
+        255
+      ]
+    },
+    "sleeveLength": {
+      "value": 44.1,
+      "ratioToA4Width": "A4横幅の約2.1倍",
+      "confidence": "high",
+      "reasoning": "肩先の縫い目から袖口の端までの長さを測定。A4用紙の横幅の約2.1倍と判断した。",
+      "approxStart": [
+        285,
+        255
+      ],
+      "approxEnd": [
+        98,
+        380
+      ]
+    },
+    "waistWidth": {
+      "value": 31.5,
+      "ratioToA4Width": "A4横幅の約1.5倍",
+      "confidence": "high",
+      "reasoning": "ウエストのゴムシャーリング部分の左右の幅を測定。A4用紙の横幅の約1.5倍と判断した。",
+      "approxStart": [
+        355,
+        505
+      ],
+      "approxEnd": [
+        645,
+        505
+      ]
+    }
+  }
+}

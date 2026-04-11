@@ -1,0 +1,70 @@
+{
+  "itemType": "skirt",
+  "scale": {
+    "a4Corners": {
+      "topLeft": [
+        100,
+        150
+      ],
+      "topRight": [
+        300,
+        150
+      ],
+      "bottomLeft": [
+        100,
+        450
+      ],
+      "bottomRight": [
+        300,
+        450
+      ]
+    },
+    "a4WidthPx": 200,
+    "a4HeightPx": 300,
+    "aspectRatio": 1.5,
+    "scaleCmPerPx": 0.105,
+    "confidence": "medium",
+    "notes": "A4用紙の角マーカーが明瞭に見える。"
+  },
+  "measurements": {
+    "waistWidth": {
+      "startPx": [
+        120,
+        100
+      ],
+      "endPx": [
+        280,
+        100
+      ],
+      "distancePx": 160,
+      "value": 16.8,
+      "confidence": "high"
+    },
+    "hipWidth_cfg": {
+      "startPx": [
+        110,
+        280
+      ],
+      "endPx": [
+        290,
+        280
+      ],
+      "distancePx": 180,
+      "value": 18.9,
+      "confidence": "medium"
+    },
+    "skirtLength": {
+      "startPx": [
+        200,
+        100
+      ],
+      "endPx": [
+        200,
+        600
+      ],
+      "distancePx": 500,
+      "value": 52.5,
+      "confidence": "high"
+    }
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "cv_scale": {
+    "corners": {
+      "topLeft": [
+        893.0,
+        822.0
+      ],
+      "topRight": [
+        1149.0,
+        832.0
+      ],
+      "bottomRight": [
+        1137.0,
+        1194.0
+      ],
+      "bottomLeft": [
+        882.0,
+        1186.0
+      ]
+    },
+    "a4WidthPx": 255.6603546142578,
+    "a4HeightPx": 363.1824951171875,
+    "aspectRatio": 1.4205663204193115,
+    "scaleCmPerPx": 0.0821402296423912,
+    "imageSize": [
+      2048,
+      2048
+    ]
+  },
+  "ai_result": {
+    "itemType": "dress",
+    "measurements": {
+      "dressLength_bnp": {
+        "startPx": [
+          1024,
+          300
+        ],
+        "endPx": [
+          1024,
+          1600
+        ],
+        "distancePx": 1300,
+        "value": 106.78,
+        "confidence": "high"
+      },
+      "bodyWidth": {
+        "startPx": [
+          800,
+          900
+        ],
+        "endPx": [
+          1250,
+          900
+        ],
+        "distancePx": 450,
+        "value": 36.97,
+        "confidence": "high"
+      },
+      "shoulderWidth": {
+        "startPx": [
+          750,
+          400
+        ],
+        "endPx": [
+          1300,
+          400
+        ],
+        "distancePx": 550,
+        "value": 45.19,
+        "confidence": "high"
+      },
+      "sleeveLength": {
+        "startPx": [
+          1300,
+          400
+        ],
+        "endPx": [
+          1600,
+          400
+        ],
+        "distancePx": 300,
+        "value": 24.64,
+        "confidence": "high"
+      }
+    }
+  }
+}

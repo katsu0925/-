@@ -1,0 +1,74 @@
+{
+  "cv": {
+    "corners": [
+      [
+        835.0,
+        737.0
+      ],
+      [
+        1221.0,
+        748.0
+      ],
+      [
+        1201.0,
+        1285.0
+      ],
+      [
+        826.0,
+        1277.0
+      ]
+    ],
+    "widthPx": 380.62103271484375,
+    "heightPx": 538.7236328125,
+    "aspect": 1.415380597114563,
+    "scale": 0.055172987282276154,
+    "imageSize": [
+      2048,
+      2048
+    ]
+  },
+  "gemini": {
+    "itemType": "skirt",
+    "measurements": {
+      "waistWidth": {
+        "startPx": [
+          562,
+          366
+        ],
+        "endPx": [
+          1478,
+          366
+        ],
+        "distancePx": 916.0,
+        "value": 50.5,
+        "confidence": "medium"
+      },
+      "hipWidth_cfg": {
+        "startPx": [
+          495,
+          692
+        ],
+        "endPx": [
+          1545,
+          692
+        ],
+        "distancePx": 1050.0,
+        "value": 57.9,
+        "confidence": "high"
+      },
+      "skirtLength": {
+        "startPx": [
+          1020,
+          366
+        ],
+        "endPx": [
+          1020,
+          1810
+        ],
+        "distancePx": 1444.0,
+        "value": 79.7,
+        "confidence": "high"
+      }
+    }
+  }
+}

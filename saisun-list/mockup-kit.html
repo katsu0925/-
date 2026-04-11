@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>出品キット — デタウリ.Detauri</title>
+<style>
+  :root {
+    --primary: #1a1a2e;
+    --accent: #e94560;
+    --bg: #f5f5f7;
+    --card-bg: #fff;
+    --text: #333;
+    --text-light: #666;
+    --border: #e0e0e0;
+    --success: #27ae60;
+    --radius: 12px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding-bottom: 40px;
+  }
+  .kit-container {
+    max-width: 640px;
+    margin: 0 auto;
+    background: var(--bg);
+    min-height: 100vh;
+  }
+
+  /* ヘッダー */
+  .kit-header {
+    background: var(--primary);
+    color: #fff;
+    padding: 24px 16px;
+    text-align: center;
+  }
+  .kit-header h1 { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+  .kit-header .order-info { font-size: 13px; opacity: 0.7; }
+
+  /* 案内バナー */
+  .guide-banner {
+    background: #fff3cd;
+    border-left: 4px solid #ffc107;
+    margin: 16px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .guide-banner strong { color: #856404; }
+
+  /* 注文サマリー */
+  .order-summary {
+    background: var(--card-bg);
+    margin: 16px;
+    padding: 16px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    display: flex;
+    justify-content: space-around;
+    text-align: center;
+  }
+  .order-summary .stat-value { font-size: 22px; font-weight: 700; color: var(--primary); }
+  .order-summary .stat-label { font-size: 12px; color: var(--text-light); }
+
+  /* 一括ダウンロードボタン */
+  .bulk-download {
+    margin: 0 16px 8px;
+    display: flex;
+    gap: 8px;
+  }
+  .bulk-download .dl-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .bulk-download .dl-btn:active { transform: scale(0.98); opacity: 0.9; }
+  .dl-btn .dl-icon { font-size: 16px; }
+
+  /* 商品ごと保存ボタン */
+  .save-images-bar {
+    padding: 0 12px 8px;
+    display: flex;
+    gap: 6px;
+  }
+  .save-images-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    background: #f0f0f0;
+    color: var(--text);
+    border: 1px solid var(--border);
+    padding: 9px 12px;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .save-images-btn:active { background: #e0e0e0; transform: scale(0.98); }
+  .save-images-btn .btn-icon { font-size: 14px; }
+  .save-images-btn.primary-save {
+    background: var(--accent);
+    color: #fff;
+    border-color: var(--accent);
+  }
+  .save-images-btn.primary-save:active { opacity: 0.9; }
+
+  /* 商品カード（アコーディオン） */
+  .product-card {
+    background: var(--card-bg);
+    margin: 8px 16px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+  .product-card.open { margin: 12px 16px; }
+  .product-card-header {
+    background: var(--primary);
+    color: #fff;
+    padding: 12px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .product-card-header:active { opacity: 0.85; }
+  .product-card-header .product-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  .product-card-header .product-no { font-weight: 700; font-size: 13px; white-space: nowrap; }
+  .product-card-header .product-brand {
+    font-size: 12px;
+    opacity: 0.8;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .product-card-header .product-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .product-card-header .product-price {
+    background: var(--accent);
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 12px;
+  }
+  .product-card-header .chevron {
+    font-size: 16px;
+    transition: transform 0.2s;
+    opacity: 0.7;
+  }
+  .product-card.open .chevron { transform: rotate(180deg); }
+
+  /* 展開部分 */
+  .product-body {
+    display: none;
+    padding: 0;
+  }
+  .product-card.open .product-body { display: block; }
+
+  /* 画像ギャラリー */
+  .image-gallery {
+    padding: 12px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 6px;
+  }
+  .image-gallery img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    cursor: pointer;
+  }
+  .image-gallery img:active { opacity: 0.7; }
+
+  /* コピーセクション */
+  .copy-section { padding: 0 16px 12px; }
+  .copy-block { margin-bottom: 10px; }
+  .copy-block-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .copy-block-label span {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .copy-btn {
+    display: inline-flex;
+    align-items: center;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    padding: 5px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .copy-btn:active { transform: scale(0.95); }
+  .copy-btn.copied { background: var(--success); }
+  .copy-content {
+    background: #f8f9fa;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 13px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 180px;
+    overflow-y: auto;
+  }
+  .copy-content.title-content {
+    font-weight: 600;
+    font-size: 14px;
+    max-height: none;
+  }
+
+  /* 商品情報 + 採寸（横並び） */
+  .product-details {
+    padding: 0 16px 12px;
+    display: flex;
+    gap: 12px;
+  }
+  .product-details .detail-col { flex: 1; min-width: 0; }
+  .detail-col h3 {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+  }
+  .info-table { width: 100%; font-size: 12px; border-collapse: collapse; }
+  .info-table th {
+    text-align: left;
+    padding: 4px 6px;
+    background: #f8f9fa;
+    color: var(--text-light);
+    font-weight: 600;
+    width: 60px;
+    border-bottom: 1px solid var(--border);
+  }
+  .info-table td { padding: 4px 6px; border-bottom: 1px solid var(--border); }
+  .measure-grid { display: flex; flex-wrap: wrap; gap: 4px; }
+  .measure-item {
+    background: #f8f9fa;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    display: flex;
+    gap: 4px;
+  }
+  .measure-item .label { color: var(--text-light); }
+  .measure-item .value { font-weight: 700; }
+
+  /* 画像モーダル */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.9);
+    z-index: 1000;
+    justify-content: center;
+    align-items: center;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal-overlay img { max-width: 95%; max-height: 90vh; border-radius: 8px; }
+  .modal-close {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    color: #fff;
+    font-size: 32px;
+    cursor: pointer;
+    z-index: 1001;
+    background: none;
+    border: none;
+    line-height: 1;
+  }
+
+  /* フッター */
+  .kit-footer { text-align: center; padding: 24px 16px; font-size: 12px; color: var(--text-light); }
+  .kit-footer a { color: var(--accent); text-decoration: none; }
+
+  @media (max-width: 480px) {
+    .product-details { flex-direction: column; gap: 8px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="kit-container">
+
+<div class="kit-header">
+  <h1>出品キット</h1>
+  <div class="order-info">受付番号: 20260318113100-626 ／ テスト太郎 様</div>
+</div>
+
+<div class="guide-banner">
+  <strong>使い方:</strong> 商品をタップで展開。画像は<strong>長押しで保存</strong>、タイトル・説明文は「コピー」でワンタップコピー。<br>
+  画像・タイトル・説明文はフリマアプリ等への出品にご自由にお使いいただけます。
+</div>
+
+<div class="order-summary">
+  <div>
+    <div class="stat-value">3</div>
+    <div class="stat-label">商品数</div>
+  </div>
+  <div>
+    <div class="stat-value">2,650</div>
+    <div class="stat-label">合計金額（税込）</div>
+  </div>
+  <div>
+    <div class="stat-value">2026/03/18</div>
+    <div class="stat-label">注文日</div>
+  </div>
+</div>
+
+<!-- 一括ダウンロード -->
+<div class="bulk-download">
+  <button class="dl-btn" onclick="downloadAllZip()">
+    <span class="dl-icon">&#x1F4E6;</span> 全画像を一括ダウンロード（ZIP）
+  </button>
+</div>
+
+<!-- ========== 商品1（展開済み） ========== -->
+<div class="product-card open">
+  <div class="product-card-header" onclick="toggleCard(this)">
+    <div class="product-left">
+      <span class="product-no">1/3</span>
+      <span class="product-brand">DIESEL デニムパンツ S</span>
+    </div>
+    <div class="product-right">
+      <span class="product-price">1,000円</span>
+      <span class="chevron">▼</span>
+    </div>
+  </div>
+  <div class="product-body">
+    <div class="image-gallery">
+      <img src="https://placehold.co/300x300/e8e8e8/999?text=正面" alt="正面" loading="lazy" onclick="openModal(this)">
+      <img src="https://placehold.co/300x300/e8e8e8/999?text=背面" alt="背面" loading="lazy" onclick="openModal(this)">
+      <img src="https://placehold.co/300x300/e8e8e8/999?text=タグ" alt="タグ" loading="lazy" onclick="openModal(this)">
+      <img src="https://placehold.co/300x300/e8e8e8/999?text=素材" alt="素材" loading="lazy" onclick="openModal(this)">
+      <img src="https://placehold.co/300x300/e8e8e8/999?text=ロゴ" alt="ロゴ" loading="lazy" onclick="openModal(this)">
+      <img src="https://placehold.co/300x300/e8e8e8/999?text=ディテール" alt="ディテール" loading="lazy" onclick="openModal(this)">
+    </div>
+    <div class="save-images-bar">
+      <button class="save-images-btn primary-save" onclick="event.stopPropagation();saveProductImages(this, 'A-001')">
+        <span class="btn-icon">&#x1F4F2;</span> 画像をまとめて保存
+      </button>
+      <button class="save-images-btn" onclick="event.stopPropagation();downloadProductZip('A-001')">
+        <span class="btn-icon">&#x1F4E5;</span> ZIP
+      </button>
+    </div>
+    <div class="copy-section">
+      <div class="copy-block">
+        <div class="copy-block-label">
+          <span>メルカリ用タイトル</span>
+          <button class="copy-btn" onclick="event.stopPropagation();copyText(this, 'title-1')">コピー</button>
+        </div>
+        <div class="copy-content title-content" id="title-1">美品 DIESEL ディーゼル デニム ジーンズ ブルー S</div>
+      </div>
+      <div class="copy-block">
+        <div class="copy-block-label">
+          <span>即出品用説明文</span>
+          <button class="copy-btn" onclick="event.stopPropagation();copyText(this, 'desc-1')">コピー</button>
+        </div>
+        <div class="copy-content" id="desc-1">ご覧いただきありがとうございます。
+
+【ブランド】DIESEL（ディーゼル）
+イタリア発のプレミアムデニムブランド。独創的なウォッシュ加工と大胆なデザインで世界中のファッショニスタから支持されています。
+
+【アイテム】デニムパンツ / ジーンズ
+定番のスリムフィットデニム。程よいストレッチ素材で快適な履き心地。カジュアルからきれいめまで幅広いコーディネートに対応します。
+
+【こんな方におすすめ】
+・ブランドデニムをお手頃に手に入れたい方
+・普段使いできる上質なジーンズをお探しの方
+・きれいめカジュアルが好きな方
+
+【着こなしのヒント】
+白Tシャツとスニーカーでアメカジスタイル、ジャケットを羽織ればきれいめカジュアルに。ロールアップしてアンクル丈で軽快に。
+
+【サイズ】S
+ウエスト: 38cm / 股上: 25cm / 股下: 76cm / ワタリ: 28cm / 裾幅: 16cm
+
+【状態】目立った傷や汚れなし
+全体的にきれいな状態です。
+
+#DIESEL #ディーゼル #デニム #ジーンズ #メンズ #Sサイズ #古着 #ブランド古着</div>
+      </div>
+    </div>
+    <div class="product-details">
+      <div class="detail-col">
+        <h3>商品情報</h3>
+        <table class="info-table">
+          <tr><th>ブランド</th><td>DIESEL</td></tr>
+          <tr><th>カテゴリ</th><td>デニムパンツ</td></tr>
+          <tr><th>サイズ</th><td>S</td></tr>
+          <tr><th>カラー</th><td>ブルー</td></tr>
+          <tr><th>状態</th><td>目立った傷や汚れなし</td></tr>
+        </table>
+      </div>
+      <div class="detail-col">
+        <h3>採寸データ</h3>
+        <div class="measure-grid">
+          <div class="measure-item"><span class="label">ウエスト</span><span class="value">38cm</span></div>
+          <div class="measure-item"><span class="label">股上</span><span class="value">25cm</span></div>
+          <div class="measure-item"><span class="label">股下</span><span class="value">76cm</span></div>
+          <div class="measure-item"><span class="label">ワタリ</span><span class="value">28cm</span></div>
+          <div class="measure-item"><span class="label">裾幅</span><span class="value">16cm</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 商品2（折りたたみ） ========== -->
+<div class="product-card">
+  <div class="product-card-header" onclick="toggleCard(this)">
+    <div class="product-left">
+      <span class="product-no">2/3</span>
+      <span class="product-brand">RALPH LAUREN ポロシャツ M</span>
+    </div>
+    <div class="product-right">
+      <span class="product-price">850円</span>
+      <span class="chevron">▼</span>
+    </div>
+  </div>
+  <div class="product-body">
+    <div class="image-gallery">
+      <img src="https://placehold.co/300x300/e8e8e8/999?text=正面" alt="正面" loading="lazy" onclick="openModal(this)">
+      <img src="https://placehold.co/300x300/e8e8e8/999?text=背面" alt="背面" loading="lazy" onclick="openModal(this)">
+      <img src="https://placehold.co/300x300/e8e8e8/999?text=タグ" alt="タグ" loading="lazy" onclick="openModal(this)">
+      <img src="https://placehold.co/300x300/e8e8e8/999?text=ロゴ" alt="ロゴ" loading="lazy" onclick="openModal(this)">
+    </div>
+    <div class="save-images-bar">
+      <button class="save-images-btn primary-save" onclick="event.stopPropagation();saveProductImages(this, 'B-042')">
+        <span class="btn-icon">&#x1F4F2;</span> 画像をまとめて保存
+      </button>
+      <button class="save-images-btn" onclick="event.stopPropagation();downloadProductZip('B-042')">
+        <span class="btn-icon">&#x1F4E5;</span> ZIP
+      </button>
+    </div>
+    <div class="copy-section">
+      <div class="copy-block">
+        <div class="copy-block-label">
+          <span>メルカリ用タイトル</span>
+          <button class="copy-btn" onclick="event.stopPropagation();copyText(this, 'title-2')">コピー</button>
+        </div>
+        <div class="copy-content title-content" id="title-2">RALPH LAUREN ラルフローレン ポロシャツ ネイビー M</div>
+      </div>
+      <div class="copy-block">
+        <div class="copy-block-label">
+          <span>即出品用説明文</span>
+          <button class="copy-btn" onclick="event.stopPropagation();copyText(this, 'desc-2')">コピー</button>
+        </div>
+        <div class="copy-content" id="desc-2">ご覧いただきありがとうございます。
+
+【ブランド】RALPH LAUREN（ラルフローレン）
+アメリカントラッドの代名詞。上品なポニーロゴが特徴の世界的ファッションブランドです。
+
+【アイテム】ポロシャツ
+定番の鹿の子ポロシャツ。通気性が良く春夏の必需品。1枚でサマになるアイテムです。
+
+【サイズ】M
+着丈: 68cm / 身幅: 52cm / 肩幅: 44cm / 袖丈: 22cm
+
+【状態】やや傷や汚れあり
+襟に若干の色褪せがあります。着用には問題ありません。
+
+#RALPHLAUREN #ラルフローレン #ポロシャツ #メンズ #Mサイズ #古着</div>
+      </div>
+    </div>
+    <div class="product-details">
+      <div class="detail-col">
+        <h3>商品情報</h3>
+        <table class="info-table">
+          <tr><th>ブランド</th><td>RALPH LAUREN</td></tr>
+          <tr><th>カテゴリ</th><td>ポロシャツ</td></tr>
+          <tr><th>サイズ</th><td>M</td></tr>
+          <tr><th>カラー</th><td>ネイビー</td></tr>
+          <tr><th>状態</th><td>やや傷や汚れあり</td></tr>
+        </table>
+      </div>
+      <div class="detail-col">
+        <h3>採寸データ</h3>
+        <div class="measure-grid">
+          <div class="measure-item"><span class="label">着丈</span><span class="value">68cm</span></div>
+          <div class="measure-item"><span class="label">身幅</span><span class="value">52cm</span></div>
+          <div class="measure-item"><span class="label">肩幅</span><span class="value">44cm</span></div>
+          <div class="measure-item"><span class="label">袖丈</span><span class="value">22cm</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ========== 商品3（折りたたみ） ========== -->
+<div class="product-card">
+  <div class="product-card-header" onclick="toggleCard(this)">
+    <div class="product-left">
+      <span class="product-no">3/3</span>
+      <span class="product-brand">THE NORTH FACE Tシャツ L</span>
+    </div>
+    <div class="product-right">
+      <span class="product-price">800円</span>
+      <span class="chevron">▼</span>
+    </div>
+  </div>
+  <div class="product-body">
+    <div class="image-gallery">
+      <img src="https://placehold.co/300x300/e8e8e8/999?text=正面" alt="正面" loading="lazy" onclick="openModal(this)">
+      <img src="https://placehold.co/300x300/e8e8e8/999?text=背面" alt="背面" loading="lazy" onclick="openModal(this)">
+      <img src="https://placehold.co/300x300/e8e8e8/999?text=タグ" alt="タグ" loading="lazy" onclick="openModal(this)">
+      <img src="https://placehold.co/300x300/e8e8e8/999?text=素材" alt="素材" loading="lazy" onclick="openModal(this)">
+      <img src="https://placehold.co/300x300/e8e8e8/999?text=洗濯表示" alt="洗濯表示" loading="lazy" onclick="openModal(this)">
+    </div>
+    <div class="save-images-bar">
+      <button class="save-images-btn primary-save" onclick="event.stopPropagation();saveProductImages(this, 'C-107')">
+        <span class="btn-icon">&#x1F4F2;</span> 画像をまとめて保存
+      </button>
+      <button class="save-images-btn" onclick="event.stopPropagation();downloadProductZip('C-107')">
+        <span class="btn-icon">&#x1F4E5;</span> ZIP
+      </button>
+    </div>
+    <div class="copy-section">
+      <div class="copy-block">
+        <div class="copy-block-label">
+          <span>メルカリ用タイトル</span>
+          <button class="copy-btn" onclick="event.stopPropagation();copyText(this, 'title-3')">コピー</button>
+        </div>
+        <div class="copy-content title-content" id="title-3">THE NORTH FACE ノースフェイス Tシャツ ブラック L</div>
+      </div>
+      <div class="copy-block">
+        <div class="copy-block-label">
+          <span>即出品用説明文</span>
+          <button class="copy-btn" onclick="event.stopPropagation();copyText(this, 'desc-3')">コピー</button>
+        </div>
+        <div class="copy-content" id="desc-3">ご覧いただきありがとうございます。
+
+【ブランド】THE NORTH FACE（ザ・ノースフェイス）
+アウトドアの定番ブランド。タウンユースとしても高い人気を誇ります。
+
+【アイテム】Tシャツ
+背面にビッグロゴがプリントされたインパクトのある一枚。1枚で主役になれるアイテムです。
+
+【サイズ】L
+着丈: 72cm / 身幅: 56cm / 肩幅: 48cm / 袖丈: 21cm
+
+【状態】目立った傷や汚れなし
+全体的にきれいな状態です。
+
+#THENORTHFACE #ノースフェイス #Tシャツ #メンズ #Lサイズ #古着 #アウトドア</div>
+      </div>
+    </div>
+    <div class="product-details">
+      <div class="detail-col">
+        <h3>商品情報</h3>
+        <table class="info-table">
+          <tr><th>ブランド</th><td>THE NORTH FACE</td></tr>
+          <tr><th>カテゴリ</th><td>Tシャツ</td></tr>
+          <tr><th>サイズ</th><td>L</td></tr>
+          <tr><th>カラー</th><td>ブラック</td></tr>
+          <tr><th>状態</th><td>目立った傷や汚れなし</td></tr>
+        </table>
+      </div>
+      <div class="detail-col">
+        <h3>採寸データ</h3>
+        <div class="measure-grid">
+          <div class="measure-item"><span class="label">着丈</span><span class="value">72cm</span></div>
+          <div class="measure-item"><span class="label">身幅</span><span class="value">56cm</span></div>
+          <div class="measure-item"><span class="label">肩幅</span><span class="value">48cm</span></div>
+          <div class="measure-item"><span class="label">袖丈</span><span class="value">21cm</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="kit-footer">
+  このページは注文者限定です。URLの共有はお控えください。<br>
+  <a href="https://wholesale.nkonline-tool.com">デタウリ.Detauri</a> ／ NKonline
+</div>
+
+</div>
+
+<!-- 画像モーダル -->
+<div class="modal-overlay" id="imageModal" onclick="closeModal()">
+  <button class="modal-close" onclick="closeModal()">&times;</button>
+  <img id="modalImg" src="" alt="">
+</div>
+
+<script>
+function toggleCard(header) {
+  header.closest('.product-card').classList.toggle('open');
+}
+
+function copyText(btn, id) {
+  var el = document.getElementById(id);
+  var text = el.textContent || el.innerText;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() { showCopied(btn); });
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showCopied(btn);
+  }
+}
+
+function showCopied(btn) {
+  var orig = btn.textContent;
+  btn.textContent = 'コピー済み';
+  btn.classList.add('copied');
+  setTimeout(function() { btn.textContent = orig; btn.classList.remove('copied'); }, 1500);
+}
+
+function openModal(img) {
+  document.getElementById('modalImg').src = img.src;
+  document.getElementById('imageModal').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('imageModal').classList.remove('active');
+}
+
+// --- 画像保存機能 ---
+
+// モバイル判定
+function isMobile() {
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+}
+
+// 商品カード内の画像URLを取得
+function getProductImageUrls(card) {
+  var imgs = card.querySelectorAll('.image-gallery img');
+  return Array.from(imgs).map(function(img) { return img.src; });
+}
+
+// モバイル: Web Share API で写真アプリに保存
+async function shareImages(urls, productId) {
+  try {
+    var files = [];
+    for (var i = 0; i < urls.length; i++) {
+      var res = await fetch(urls[i]);
+      var blob = await res.blob();
+      var ext = blob.type === 'image/png' ? '.png' : '.jpg';
+      files.push(new File([blob], productId + '_' + (i + 1) + ext, { type: blob.type }));
+    }
+    if (navigator.canShare && navigator.canShare({ files: files })) {
+      await navigator.share({ files: files, title: productId + ' の商品画像' });
+      return true;
+    }
+    return false;
+  } catch (e) {
+    if (e.name === 'AbortError') return true; // ユーザーがキャンセル
+    return false;
+  }
+}
+
+// 商品ごとの画像保存（メインボタン）
+async function saveProductImages(btn, productId) {
+  var card = btn.closest('.product-card');
+  var urls = getProductImageUrls(card);
+  var origText = btn.innerHTML;
+  btn.innerHTML = '<span class="btn-icon">&#x23F3;</span> 保存中...';
+  btn.disabled = true;
+
+  if (isMobile()) {
+    var shared = await shareImages(urls, productId);
+    if (!shared) {
+      // Share API 非対応 → ZIPフォールバック
+      await downloadProductZip(productId, card);
+    }
+  } else {
+    await downloadProductZip(productId, card);
+  }
+
+  btn.innerHTML = '<span class="btn-icon">&#x2705;</span> 保存完了';
+  setTimeout(function() {
+    btn.innerHTML = origText;
+    btn.disabled = false;
+  }, 2000);
+}
+
+// ZIP ダウンロード（商品単位）
+// 実装では Workers の /api/kit/images/:productId エンドポイントからZIPを返す
+async function downloadProductZip(productId, card) {
+  // モックアップ用: 実際はWorkers APIを呼ぶ
+  // var url = '/api/kit/images/' + productId + '?format=zip';
+  // window.location.href = url;
+  alert('ZIP ダウンロード: ' + productId + '\n\n実装時は Workers API からZIPを返します\n/api/kit/images/' + productId + '?format=zip');
+}
+
+// 全商品一括 ZIP ダウンロード
+async function downloadAllZip() {
+  // モックアップ用: 実際はWorkers APIを呼ぶ
+  // var orderId = '20260318113100-626';
+  // window.location.href = '/api/kit/images-all/' + orderId + '?format=zip';
+  alert('全画像一括ダウンロード（ZIP）\n\n実装時は Workers API から全商品分のZIPを返します\n商品ごとにフォルダ分け:\n  A-001/正面.jpg, A-001/背面.jpg ...\n  B-042/正面.jpg ...\n  C-107/正面.jpg ...');
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,110 @@
+{
+  "itemType": "dress",
+  "measurements": {
+    "dressLength_bnp": {
+      "startNorm": [
+        500,
+        235
+      ],
+      "endNorm": [
+        500,
+        875
+      ],
+      "confidence": "high",
+      "startPx": [
+        1024,
+        481
+      ],
+      "endPx": [
+        1024,
+        1792
+      ],
+      "distancePx": 1310.7,
+      "value": 107.7
+    },
+    "bodyWidth": {
+      "startNorm": [
+        315,
+        410
+      ],
+      "endNorm": [
+        685,
+        410
+      ],
+      "confidence": "medium",
+      "startPx": [
+        645,
+        840
+      ],
+      "endPx": [
+        1403,
+        840
+      ],
+      "distancePx": 757.8,
+      "value": 62.2
+    },
+    "shoulderWidth": {
+      "startNorm": [
+        300,
+        345
+      ],
+      "endNorm": [
+        700,
+        345
+      ],
+      "confidence": "medium",
+      "startPx": [
+        614,
+        707
+      ],
+      "endPx": [
+        1434,
+        707
+      ],
+      "distancePx": 819.2,
+      "value": 67.3
+    },
+    "sleeveLength": {
+      "startNorm": [
+        300,
+        345
+      ],
+      "endNorm": [
+        100,
+        400
+      ],
+      "confidence": "high",
+      "startPx": [
+        614,
+        707
+      ],
+      "endPx": [
+        205,
+        819
+      ],
+      "distancePx": 424.8,
+      "value": 34.9
+    },
+    "waistWidth": {
+      "startNorm": [
+        375,
+        515
+      ],
+      "endNorm": [
+        625,
+        515
+      ],
+      "confidence": "high",
+      "startPx": [
+        768,
+        1055
+      ],
+      "endPx": [
+        1280,
+        1055
+      ],
+      "distancePx": 512.0,
+      "value": 42.1
+    }
+  }
+}

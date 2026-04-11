@@ -1,0 +1,74 @@
+{
+  "cv_scale": {
+    "corners": {
+      "topLeft": [
+        835.0,
+        737.0
+      ],
+      "topRight": [
+        1221.0,
+        748.0
+      ],
+      "bottomRight": [
+        1201.0,
+        1285.0
+      ],
+      "bottomLeft": [
+        826.0,
+        1277.0
+      ]
+    },
+    "a4WidthPx": 380.62103271484375,
+    "a4HeightPx": 538.7236328125,
+    "aspectRatio": 1.415380597114563,
+    "scaleCmPerPx": 0.055172987282276154,
+    "imageSize": [
+      2048,
+      2048
+    ]
+  },
+  "ai_result": {
+    "itemType": "skirt",
+    "measurements": {
+      "waistWidth": {
+        "startPx": [
+          650,
+          300
+        ],
+        "endPx": [
+          1400,
+          320
+        ],
+        "distancePx": 750,
+        "value": 41.38,
+        "confidence": "high"
+      },
+      "hipWidth_cfg": {
+        "startPx": [
+          670,
+          600
+        ],
+        "endPx": [
+          1380,
+          620
+        ],
+        "distancePx": 710,
+        "value": 39.18,
+        "confidence": "medium"
+      },
+      "skirtLength": {
+        "startPx": [
+          1025,
+          300
+        ],
+        "endPx": [
+          1025,
+          1500
+        ],
+        "distancePx": 1200,
+        "value": 66.21,
+        "confidence": "high"
+      }
+    }
+  }
+}

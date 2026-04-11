@@ -1,0 +1,50 @@
+{
+  "itemType": "skirt",
+  "measurements": {
+    "skirtLength": {
+      "startCandidate": "custom",
+      "endCandidate": "11",
+      "startPx": [
+        1000,
+        165
+      ],
+      "endPx": [
+        738,
+        2011
+      ],
+      "distancePx": 1864.500199517258,
+      "value": 102.8801901119999,
+      "confidence": "medium"
+    },
+    "waistWidth": {
+      "startCandidate": "custom",
+      "endCandidate": "custom",
+      "startPx": [
+        620,
+        165
+      ],
+      "endPx": [
+        1380,
+        165
+      ],
+      "distancePx": 760.0,
+      "value": 41.93147033452988,
+      "confidence": "medium"
+    },
+    "hemWidth": {
+      "startCandidate": "custom",
+      "endCandidate": "custom",
+      "startPx": [
+        120,
+        1980
+      ],
+      "endPx": [
+        1880,
+        1980
+      ],
+      "distancePx": 1760.0,
+      "value": 97.10445761680603,
+      "confidence": "low"
+    }
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "itemType": "skirt",
+  "a4_reference": {
+    "横幅_cm": 21.0,
+    "この画像でのA4用紙の見え方メモ": "A4用紙は衣類の中央に縦向きに置かれている。パースは軽微で、寸法推定の基準として良好。"
+  },
+  "measurements": {
+    "waistWidth": {
+      "value": 33.6,
+      "ratioToA4Width": "A4横幅の約1.6倍",
+      "confidence": "high",
+      "reasoning": "ウエストバンドの幅をA4用紙の横幅(21cm)と比較。目視で約1.6倍と判断した。",
+      "approxStart": [
+        283,
+        115
+      ],
+      "approxEnd": [
+        717,
+        115
+      ]
+    },
+    "hipWidth_cfg": {
+      "value": 46.2,
+      "ratioToA4Width": "A4横幅の約2.2倍",
+      "confidence": "medium",
+      "reasoning": "ウエストから約18cm下（A4縦幅の約0.6倍下）の位置での幅をA4用紙の横幅(21cm)と比較。スカートが広がっているため、その位置での幅は約2.2倍と推定した。",
+      "approxStart": [
+        215,
+        360
+      ],
+      "approxEnd": [
+        785,
+        360
+      ]
+    },
+    "skirtLength": {
+      "value": 73.5,
+      "ratioToA4Width": "A4横幅の約3.5倍",
+      "confidence": "high",
+      "reasoning": "ウエスト上端から裾の最下端までの垂直距離を測定。A4用紙の縦幅(29.7cm)の約2.5倍、または横幅(21cm)の約3.5倍に見えるため、73.5cmと推定した。",
+      "approxStart": [
+        500,
+        115
+      ],
+      "approxEnd": [
+        500,
+        892
+      ]
+    }
+  }
+}

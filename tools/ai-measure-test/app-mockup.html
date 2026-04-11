@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI採寸 - 画面モック</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, 'Hiragino Sans', sans-serif;
+    background: #f5f5f5;
+    max-width: 390px;
+    margin: 0 auto;
+    color: #222;
+  }
+
+  /* ─── 共通 ─── */
+  .screen {
+    background: #fff;
+    min-height: 100vh;
+    padding-bottom: 80px;
+    display: none;
+    position: relative;
+  }
+  .screen.active { display: block; }
+  .header {
+    background: #1a1a1a;
+    color: #fff;
+    padding: 14px 16px;
+    font-size: 17px;
+    font-weight: 600;
+    text-align: center;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .header .back {
+    position: absolute;
+    left: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    background: none;
+    border: none;
+  }
+  .btn {
+    display: block;
+    width: calc(100% - 32px);
+    margin: 12px 16px;
+    padding: 14px;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+  }
+  .btn-primary { background: #c00; color: #fff; }
+  .btn-secondary { background: #f0f0f0; color: #333; }
+  .btn-small {
+    display: inline-block;
+    width: auto;
+    margin: 0;
+    padding: 6px 14px;
+    font-size: 13px;
+    border-radius: 6px;
+  }
+
+  /* ─── 画面1: 撮影前 ─── */
+  .capture-area {
+    background: #1a1a1a;
+    margin: 0;
+    padding: 20px 16px;
+    text-align: center;
+  }
+  .capture-area .camera-placeholder {
+    background: #333;
+    border-radius: 12px;
+    height: 320px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #888;
+    font-size: 48px;
+    position: relative;
+  }
+  .level-guide {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px;
+    height: 40px;
+    border: 2px solid rgba(255,255,255,0.5);
+    border-radius: 50%;
+  }
+  .level-dot {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 6px;
+    height: 6px;
+    background: #0f0;
+    border-radius: 50%;
+  }
+  .input-section {
+    padding: 16px;
+  }
+  .input-row {
+    margin-bottom: 12px;
+  }
+  .input-row label {
+    display: block;
+    font-size: 13px;
+    color: #666;
+    margin-bottom: 4px;
+  }
+  .input-row select, .input-row input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    font-size: 15px;
+    -webkit-appearance: none;
+    background: #fff;
+  }
+  .optional-tag {
+    font-size: 11px;
+    color: #999;
+    margin-left: 4px;
+  }
+
+  /* ─── 画面2: 処理中 ─── */
+  .processing {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 60vh;
+    text-align: center;
+    padding: 20px;
+  }
+  .spinner {
+    width: 48px;
+    height: 48px;
+    border: 4px solid #eee;
+    border-top: 4px solid #c00;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .processing .step {
+    font-size: 15px;
+    color: #666;
+    margin-top: 8px;
+  }
+  .processing .step.done { color: #2a9d2a; }
+  .processing .step.active { color: #222; font-weight: 600; }
+
+  /* ─── 画面3: 結果（簡単モード） ─── */
+  .result-image {
+    position: relative;
+    background: #1a1a1a;
+  }
+  .result-image img {
+    width: 100%;
+    display: block;
+  }
+  /* 矢印オーバーレイ（CSS疑似表現） */
+  .overlay-line {
+    position: absolute;
+    background: rgba(204, 0, 0, 0.8);
+    z-index: 2;
+  }
+  .overlay-label {
+    position: absolute;
+    background: rgba(204, 0, 0, 0.9);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 3px;
+    white-space: nowrap;
+    z-index: 3;
+  }
+  .overlay-dot {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    background: #000;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    z-index: 4;
+    transform: translate(-50%, -50%);
+  }
+
+  .result-tabs {
+    display: flex;
+    border-bottom: 1px solid #eee;
+  }
+  .result-tab {
+    flex: 1;
+    padding: 12px;
+    text-align: center;
+    font-size: 14px;
+    font-weight: 600;
+    color: #999;
+    border: none;
+    background: none;
+    cursor: pointer;
+  }
+  .result-tab.active {
+    color: #c00;
+    border-bottom: 2px solid #c00;
+  }
+
+  .measurement-list {
+    padding: 0 16px;
+  }
+  .measurement-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .m-name {
+    flex: 1;
+    font-size: 14px;
+  }
+  .m-value {
+    font-size: 18px;
+    font-weight: 700;
+    margin-right: 8px;
+  }
+  .m-unit {
+    font-size: 13px;
+    color: #888;
+    margin-right: 12px;
+  }
+  .m-confidence {
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-weight: 600;
+  }
+  .conf-high { background: #e8f5e9; color: #2e7d32; }
+  .conf-medium { background: #fff8e1; color: #f57f17; }
+  .conf-low { background: #ffebee; color: #c62828; }
+
+  .m-actions {
+    display: flex;
+    gap: 6px;
+    margin-left: 8px;
+  }
+  .m-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1px solid #ddd;
+    background: #fff;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .m-btn.ok { border-color: #2a9d2a; color: #2a9d2a; }
+  .m-btn.ng { border-color: #c00; color: #c00; }
+
+  .ref-note {
+    text-align: center;
+    font-size: 12px;
+    color: #999;
+    padding: 8px 16px;
+    background: #fafafa;
+  }
+
+  /* ─── 画面3b: 調整モード ─── */
+  .adjust-mode-banner {
+    background: #fff3e0;
+    padding: 8px 16px;
+    font-size: 12px;
+    color: #e65100;
+    text-align: center;
+    font-weight: 600;
+  }
+  .adjust-image {
+    position: relative;
+    background: #1a1a1a;
+    touch-action: none;
+  }
+  .dot-draggable {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    background: #000;
+    border: 3px solid #fff;
+    border-radius: 50%;
+    z-index: 5;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 8px rgba(0,0,0,0.5);
+    cursor: grab;
+  }
+  .dot-draggable::after {
+    content: '';
+    position: absolute;
+    top: -12px;
+    left: -12px;
+    right: -12px;
+    bottom: -12px;
+    border-radius: 50%;
+  }
+  .adjust-info {
+    padding: 12px 16px;
+    background: #fff;
+  }
+  .adjust-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .adjust-item .name { font-size: 14px; font-weight: 600; }
+  .adjust-item .value { font-size: 20px; font-weight: 700; color: #c00; }
+  .adjust-item .hint { font-size: 11px; color: #999; }
+
+  /* ─── 画面4: 説明文 ─── */
+  .description-box {
+    margin: 12px 16px;
+    padding: 14px;
+    background: #fafafa;
+    border: 1px solid #eee;
+    border-radius: 10px;
+    font-size: 14px;
+    line-height: 1.8;
+    white-space: pre-wrap;
+  }
+  .copy-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+  }
+
+  /* ─── ナビ ─── */
+  .demo-nav {
+    position: fixed;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 390px;
+    display: flex;
+    background: #fff;
+    border-top: 1px solid #eee;
+    padding: 8px;
+    gap: 4px;
+    z-index: 100;
+  }
+  .demo-nav button {
+    flex: 1;
+    padding: 8px 4px;
+    font-size: 11px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+  }
+  .demo-nav button.current { background: #c00; color: #fff; border-color: #c00; }
+</style>
+</head>
+<body>
+
+<!-- ====== デモ切替ナビ ====== -->
+<div class="demo-nav">
+  <button onclick="show(1)" id="nav1" class="current">1.撮影</button>
+  <button onclick="show(2)" id="nav2">2.処理中</button>
+  <button onclick="show(3)" id="nav3">3.結果</button>
+  <button onclick="show(4)" id="nav4">4.調整</button>
+  <button onclick="show(5)" id="nav5">5.説明文</button>
+</div>
+
+<!-- ====== 画面1: 撮影・入力 ====== -->
+<div class="screen active" id="s1">
+  <div class="header">AI採寸</div>
+
+  <div class="capture-area">
+    <div class="camera-placeholder">
+      <span style="font-size:60px">📷</span>
+      <div class="level-guide"><div class="level-dot"></div></div>
+    </div>
+  </div>
+
+  <div class="input-section">
+    <div class="input-row">
+      <label>出品先</label>
+      <select>
+        <option>メルカリ</option>
+        <option>ラクマ</option>
+        <option>ヤフオク</option>
+        <option>PayPayフリマ</option>
+      </select>
+    </div>
+    <div class="input-row">
+      <label>ブランド <span class="optional-tag">任意</span></label>
+      <input type="text" placeholder="例: LEVI'S">
+    </div>
+    <div class="input-row">
+      <label>サイズ表記 <span class="optional-tag">任意</span></label>
+      <select>
+        <option value="">選択してください</option>
+        <option>XS</option><option>S</option><option>M</option><option>L</option><option>XL</option><option>XXL</option><option>Free</option>
+      </select>
+    </div>
+    <div class="input-row">
+      <label>状態 <span class="optional-tag">任意</span></label>
+      <select>
+        <option value="">選択してください</option>
+        <option>新品・未使用</option>
+        <option>未使用に近い</option>
+        <option>目立った傷や汚れなし</option>
+        <option>やや傷や汚れあり</option>
+        <option>傷や汚れあり</option>
+      </select>
+    </div>
+    <div class="input-row">
+      <label>状態の詳細（検品メモ） <span class="optional-tag">任意</span></label>
+      <textarea style="width:100%; padding:10px 12px; border:1px solid #ddd; border-radius:8px; font-size:14px; font-family:inherit; resize:vertical; min-height:70px;" placeholder="例:
+・右膝に1cm程度の色落ちあり
+・ファスナー問題なし
+・裾に軽いほつれ"></textarea>
+    </div>
+    <button class="btn btn-primary" onclick="show(2)">撮影して採寸する</button>
+  </div>
+</div>
+
+<!-- ====== 画面2: 処理中 ====== -->
+<div class="screen" id="s2">
+  <div class="header">AI採寸</div>
+  <div class="processing">
+    <div class="spinner"></div>
+    <div class="step done">✓ 画像を送信しました</div>
+    <div class="step active">⏳ AIが採寸中...</div>
+    <div class="step">商品説明を作成中...</div>
+    <p style="margin-top:24px; font-size:13px; color:#999;">通常10〜15秒ほどかかります</p>
+  </div>
+</div>
+
+<!-- ====== 画面3: 結果（簡単モード） ====== -->
+<div class="screen" id="s3">
+  <div class="header">採寸結果</div>
+
+  <!-- 画像＋オーバーレイ -->
+  <div class="result-image" style="height:300px; background:#8B7355;">
+    <!-- パンツの疑似画像エリア -->
+    <div style="position:absolute; top:10px; left:50%; transform:translateX(-50%); width:200px; height:280px; border:2px solid rgba(255,255,255,0.2); border-radius:4px; display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,0.3); font-size:12px;">[衣類の写真]</div>
+
+    <!-- ウエスト矢印 -->
+    <div class="overlay-line" style="top:30px; left:105px; width:180px; height:2px;"></div>
+    <div class="overlay-label" style="top:16px; left:170px;">ウエスト 42cm</div>
+    <div class="overlay-dot" style="top:30px; left:105px;"></div>
+    <div class="overlay-dot" style="top:30px; left:285px;"></div>
+
+    <!-- 身幅の代わりに股上 -->
+    <div class="overlay-line" style="top:30px; left:300px; width:2px; height:90px;"></div>
+    <div class="overlay-label" style="top:70px; left:308px;">股上 27cm</div>
+
+    <!-- ワタリ -->
+    <div class="overlay-line" style="top:130px; left:120px; width:150px; height:2px;"></div>
+    <div class="overlay-label" style="top:116px; left:170px;">ワタリ 28cm</div>
+  </div>
+
+  <div class="ref-note">平置き実寸（参考値） ±1〜2cmの誤差があります</div>
+
+  <!-- タブ -->
+  <div class="result-tabs">
+    <button class="result-tab active" onclick="show(3)">採寸結果</button>
+    <button class="result-tab" onclick="show(5)">商品説明</button>
+  </div>
+
+  <!-- カテゴリ確認 -->
+  <div style="padding:10px 16px; background:#f8f8f8; display:flex; align-items:center; justify-content:space-between;">
+    <span style="font-size:14px;">判定: <b>パンツ</b></span>
+    <span style="font-size:12px; color:#2a9d2a;">合ってる</span>
+  </div>
+
+  <!-- 測定値リスト -->
+  <div class="measurement-list">
+    <div class="measurement-item">
+      <span class="m-name">ウエスト</span>
+      <span class="m-value">42.3</span>
+      <span class="m-unit">cm</span>
+      <span class="m-confidence conf-high">高</span>
+      <div class="m-actions">
+        <button class="m-btn ok">✓</button>
+        <button class="m-btn ng" onclick="show(4)">✕</button>
+      </div>
+    </div>
+    <div class="measurement-item">
+      <span class="m-name">股上</span>
+      <span class="m-value">29.1</span>
+      <span class="m-unit">cm</span>
+      <span class="m-confidence conf-high">高</span>
+      <div class="m-actions">
+        <button class="m-btn ok">✓</button>
+        <button class="m-btn ng" onclick="show(4)">✕</button>
+      </div>
+    </div>
+    <div class="measurement-item">
+      <span class="m-name">股下</span>
+      <span class="m-value">75.4</span>
+      <span class="m-unit">cm</span>
+      <span class="m-confidence conf-high">高</span>
+      <div class="m-actions">
+        <button class="m-btn ok">✓</button>
+        <button class="m-btn ng" onclick="show(4)">✕</button>
+      </div>
+    </div>
+    <div class="measurement-item">
+      <span class="m-name">ワタリ</span>
+      <span class="m-value">32.8</span>
+      <span class="m-unit">cm</span>
+      <span class="m-confidence conf-medium">中</span>
+      <div class="m-actions">
+        <button class="m-btn ok">✓</button>
+        <button class="m-btn ng" onclick="show(4)">✕</button>
+      </div>
+    </div>
+    <div class="measurement-item">
+      <span class="m-name">裾幅</span>
+      <span class="m-value">20.5</span>
+      <span class="m-unit">cm</span>
+      <span class="m-confidence conf-high">高</span>
+      <div class="m-actions">
+        <button class="m-btn ok">✓</button>
+        <button class="m-btn ng" onclick="show(4)">✕</button>
+      </div>
+    </div>
+  </div>
+
+  <button class="btn btn-primary" onclick="show(5)">この結果で商品説明を見る</button>
+</div>
+
+<!-- ====== 画面4: 調整モード ====== -->
+<div class="screen" id="s4">
+  <div class="header">
+    <button class="back" onclick="show(3)">← 戻る</button>
+    ワタリを調整
+  </div>
+
+  <div class="adjust-mode-banner">
+    黒い丸を指でドラッグして正しい位置に動かしてください
+  </div>
+
+  <!-- 画像＋ドラッグ可能なドット -->
+  <div class="adjust-image" style="height:350px; background:#8B7355; position:relative;">
+    <div style="position:absolute; top:10px; left:50%; transform:translateX(-50%); width:220px; height:330px; border:2px solid rgba(255,255,255,0.15); border-radius:4px; display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,0.3); font-size:12px;">[拡大された股の付近]</div>
+
+    <!-- ワタリの線 -->
+    <div style="position:absolute; top:160px; left:80px; width:220px; height:2px; background:rgba(204,0,0,0.8);"></div>
+
+    <!-- ドラッグ可能なドット -->
+    <div class="dot-draggable" style="top:160px; left:80px;" title="左端"></div>
+    <div class="dot-draggable" style="top:160px; left:300px;" title="右端"></div>
+
+    <!-- ラベル -->
+    <div class="overlay-label" style="top:140px; left:160px; font-size:14px;">ワタリ 32.8cm</div>
+  </div>
+
+  <div class="adjust-info">
+    <div class="adjust-item">
+      <div>
+        <div class="name">ワタリ</div>
+        <div class="hint">内股合わせ部分の横幅</div>
+      </div>
+      <div class="value">32.8 cm</div>
+    </div>
+    <p style="font-size:12px; color:#999; padding:10px 0; line-height:1.6;">
+      黒い丸を正しい位置にドラッグすると、数値が自動で再計算されます。
+      わからない場合は「戻る」を押してそのままお使いください。
+    </p>
+  </div>
+
+  <button class="btn btn-primary" onclick="show(3)">この位置で確定</button>
+  <button class="btn btn-secondary" onclick="show(3)">やめて戻る</button>
+</div>
+
+<!-- ====== 画面5: 商品説明 ====== -->
+<div class="screen" id="s5">
+  <div class="header">
+    <button class="back" onclick="show(3)">← 戻る</button>
+    商品説明
+  </div>
+
+  <!-- タブ -->
+  <div class="result-tabs">
+    <button class="result-tab" onclick="show(3)">採寸結果</button>
+    <button class="result-tab active">商品説明</button>
+  </div>
+
+  <div style="padding:12px 16px;">
+    <div style="font-size:12px; color:#666; margin-bottom:4px;">タイトル</div>
+    <div style="font-size:16px; font-weight:600; padding:8px 0; border-bottom:1px solid #eee;">LEVI'S リーバイス デニムパンツ ジーンズ W32 ライトブルー</div>
+  </div>
+
+  <div style="padding:0 16px;">
+    <div style="font-size:12px; color:#666; margin-bottom:4px;">説明文（メルカリ向け）</div>
+  </div>
+  <div class="description-box">ご覧いただきありがとうございます。
+
+LEVI'Sのデニムパンツです。
+ライトブルーのウォッシュ加工が雰囲気のある一本です。
+
+■ ブランド: LEVI'S
+■ サイズ表記: W32
+■ 状態: 目立った傷や汚れなし
+  ・右膝に1cm程度の色落ちあり
+  ・ファスナー問題なし
+
+■ 平置き実寸（参考値）
+  ウエスト: 42cm
+  股上: 27cm
+  股下: 73cm
+  ワタリ: 28cm
+  裾幅: 20cm
+
+※平置き採寸のため多少の誤差はご了承ください。
+
+即購入OK。お気軽にコメントください。</div>
+
+  <div style="padding:0 16px; margin-bottom:6px;">
+    <div style="font-size:11px; color:#999; background:#fff8e1; padding:6px 10px; border-radius:6px; text-align:center;">採寸値を調整した場合、説明文にも自動で反映されます</div>
+  </div>
+  <button class="btn btn-primary copy-btn" style="margin-bottom:8px;">📋 説明文をコピー</button>
+  <button class="btn btn-secondary" style="margin-top:0;">📋 タイトルだけコピー</button>
+</div>
+
+<script>
+function show(n) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.demo-nav button').forEach(b => b.classList.remove('current'));
+  document.getElementById('s'+n).classList.add('active');
+  document.getElementById('nav'+n).classList.add('current');
+  window.scrollTo(0, 0);
+}
+</script>
+
+</body>
+</html>

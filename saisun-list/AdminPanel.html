@@ -421,87 +421,95 @@
 
     <!-- タブ11: デバッグツール -->
     <div class="tab-content" id="tab-debug">
-      <div class="card">
-        <div class="title">デバッグツール</div>
+      <div style="display:flex;gap:12px;height:100%">
+        <!-- 左: 操作パネル -->
+        <div class="card" style="flex:1;overflow-y:auto;max-height:600px">
+          <div class="title">デバッグツール</div>
 
-        <details><summary>受付番号で調査</summary>
-          <div class="note">受付番号から依頼管理シートの注文情報を検索。メール再送・行修正も可能。</div>
-          <div class="form-row"><label>受付番号</label><input type="text" id="dbg-receipt" placeholder="20260318113100-626"></div>
-          <div class="btnRow">
-            <button class="primary" onclick="runDebug('adminPanel_debugLookupByReceipt',[$('dbg-receipt').value])">調査</button>
-            <button onclick="runDebug('adminPanel_debugResendOrderEmail',[$('dbg-receipt').value])">メール再送</button>
-            <button onclick="runDebug('adminPanel_debugFixOrderRow',[$('dbg-receipt').value])">行修正</button>
-          </div>
-        </details>
+          <details><summary>受付番号で調査</summary>
+            <div class="note">受付番号から依頼管理シートの注文情報を検索。メール再送・行修正も可能。</div>
+            <div class="form-row"><label>受付番号</label><input type="text" id="dbg-receipt" placeholder="20260318113100-626"></div>
+            <div class="btnRow">
+              <button class="primary" onclick="runDebug('adminPanel_debugLookupByReceipt',[$('dbg-receipt').value])">調査</button>
+              <button onclick="runDebug('adminPanel_debugResendOrderEmail',[$('dbg-receipt').value])">メール再送</button>
+              <button onclick="runDebug('adminPanel_debugFixOrderRow',[$('dbg-receipt').value])">行修正</button>
+            </div>
+          </details>
 
-        <details><summary>管理番号で調査</summary>
-          <div class="note">仕入れ管理の管理番号から商品情報を検索。</div>
-          <div class="form-row"><label>管理番号</label><input type="text" id="dbg-mid" placeholder="zB1012"></div>
-          <button class="primary" onclick="runDebug('adminPanel_debugLookupByManagedId',[$('dbg-mid').value])">調査</button>
-        </details>
+          <details><summary>管理番号で調査</summary>
+            <div class="note">仕入れ管理の管理番号から商品情報を検索。</div>
+            <div class="form-row"><label>管理番号</label><input type="text" id="dbg-mid" placeholder="zB1012"></div>
+            <button class="primary" onclick="runDebug('adminPanel_debugLookupByManagedId',[$('dbg-mid').value])">調査</button>
+          </details>
 
-        <details><summary>横断検索</summary>
-          <div class="note">メールアドレス・受付番号・会社名等で全シートを横断検索。</div>
-          <div class="form-row"><label>キーワード</label><input type="text" id="dbg-kw" placeholder="メールアドレス/受付番号/etc"></div>
-          <button class="primary" onclick="runDebug('adminPanel_debugSearch',[$('dbg-kw').value])">検索</button>
-        </details>
+          <details><summary>横断検索</summary>
+            <div class="note">メールアドレス・受付番号・会社名等で全シートを横断検索。</div>
+            <div class="form-row"><label>キーワード</label><input type="text" id="dbg-kw" placeholder="メールアドレス/受付番号/etc"></div>
+            <button class="primary" onclick="runDebug('adminPanel_debugSearch',[$('dbg-kw').value])">検索</button>
+          </details>
 
-        <details><summary>金額で検索</summary>
-          <div class="note">合計金額と日付範囲で注文を検索。入金確認時に便利。</div>
-          <div class="form-row"><label>金額</label><input type="number" id="dbg-amt" placeholder="6880"></div>
-          <div class="form-row"><label>開始日</label><input type="date" id="dbg-from"></div>
-          <div class="form-row"><label>終了日</label><input type="date" id="dbg-to"></div>
-          <button class="primary" onclick="runDebug('adminPanel_debugSearchByAmount',[+$('dbg-amt').value,$('dbg-from').value,$('dbg-to').value])">検索</button>
-        </details>
+          <details><summary>金額で検索</summary>
+            <div class="note">合計金額と日付範囲で注文を検索。入金確認時に便利。</div>
+            <div class="form-row"><label>金額</label><input type="number" id="dbg-amt" placeholder="6880"></div>
+            <div class="form-row"><label>開始日</label><input type="date" id="dbg-from"></div>
+            <div class="form-row"><label>終了日</label><input type="date" id="dbg-to"></div>
+            <button class="primary" onclick="runDebug('adminPanel_debugSearchByAmount',[+$('dbg-amt').value,$('dbg-from').value,$('dbg-to').value])">検索</button>
+          </details>
 
-        <details><summary>売却履歴から注文復元</summary>
-          <div class="note">売却済みログから注文データを復元。誤削除時のリカバリ用。</div>
-          <div class="form-row"><label>受付番号</label><input type="text" id="dbg-restore-rn" placeholder="20260320201818-560"></div>
-          <button class="primary" onclick="runDebug('adminPanel_debugRestoreFromSaleLog',[$('dbg-restore-rn').value])">復元</button>
-        </details>
+          <details><summary>売却履歴から注文復元</summary>
+            <div class="note">売却済みログから注文データを復元。誤削除時のリカバリ用。</div>
+            <div class="form-row"><label>受付番号</label><input type="text" id="dbg-restore-rn" placeholder="20260320201818-560"></div>
+            <button class="primary" onclick="runDebug('adminPanel_debugRestoreFromSaleLog',[$('dbg-restore-rn').value])">復元</button>
+          </details>
 
-        <details><summary>KOMOJU復旧</summary>
-          <div class="note">Webhook失敗等で注文が作成されなかった場合に手動で復旧。決済情報を入力して注文行を再作成。</div>
-          <div class="form-row"><label>KOMOJU決済ID</label><input type="text" id="dbg-komoju-pid"></div>
-          <div class="form-row"><label>受付番号</label><input type="text" id="dbg-komoju-rn"></div>
-          <div class="form-row"><label>会社名</label><input type="text" id="dbg-komoju-name"></div>
-          <div class="form-row"><label>メール</label><input type="text" id="dbg-komoju-email"></div>
-          <div class="form-row"><label>商品金額</label><input type="number" id="dbg-komoju-product"></div>
-          <div class="form-row"><label>送料</label><input type="number" id="dbg-komoju-ship"></div>
-          <div class="form-row"><label>合計金額</label><input type="number" id="dbg-komoju-total"></div>
-          <div class="form-row"><label>決済方法</label>
-            <select id="dbg-komoju-method">
-              <option value="クレジットカード">クレジットカード</option>
-              <option value="コンビニ払い">コンビニ払い</option>
-              <option value="銀行振込">銀行振込</option>
-              <option value="PayPay">PayPay</option>
-              <option value="ペイジー">ペイジー</option>
-              <option value="Paidy">Paidy</option>
-            </select>
-          </div>
-          <div class="form-row"><label>注文日時</label><input type="datetime-local" id="dbg-komoju-date"></div>
-          <button class="primary" onclick="runDebugRestore()">復旧</button>
-        </details>
+          <details><summary>KOMOJU復旧</summary>
+            <div class="note">Webhook失敗等で注文が作成されなかった場合に手動で復旧。決済情報を入力して注文行を再作成。</div>
+            <div class="form-row"><label>KOMOJU決済ID</label><input type="text" id="dbg-komoju-pid"></div>
+            <div class="form-row"><label>受付番号</label><input type="text" id="dbg-komoju-rn"></div>
+            <div class="form-row"><label>会社名</label><input type="text" id="dbg-komoju-name"></div>
+            <div class="form-row"><label>メール</label><input type="text" id="dbg-komoju-email"></div>
+            <div class="form-row"><label>商品金額</label><input type="number" id="dbg-komoju-product"></div>
+            <div class="form-row"><label>送料</label><input type="number" id="dbg-komoju-ship"></div>
+            <div class="form-row"><label>合計金額</label><input type="number" id="dbg-komoju-total"></div>
+            <div class="form-row"><label>決済方法</label>
+              <select id="dbg-komoju-method">
+                <option value="クレジットカード">クレジットカード</option>
+                <option value="コンビニ払い">コンビニ払い</option>
+                <option value="銀行振込">銀行振込</option>
+                <option value="PayPay">PayPay</option>
+                <option value="ペイジー">ペイジー</option>
+                <option value="Paidy">Paidy</option>
+              </select>
+            </div>
+            <div class="form-row"><label>注文日時</label><input type="datetime-local" id="dbg-komoju-date"></div>
+            <button class="primary" onclick="runDebugRestore()">復旧</button>
+          </details>
 
-        <details><summary>一括売却済み</summary>
-          <div class="note">複数商品をまとめて売却済みに変更。BO列に理由を記録。</div>
-          <div class="form-row"><label>管理番号(改行区切り)</label><textarea id="dbg-sold-ids" rows="4" placeholder="zC2&#10;zC11&#10;zC13"></textarea></div>
-          <div class="form-row"><label>BO列の値</label><input type="text" id="dbg-sold-bo" placeholder="ファスト補填"></div>
-          <button class="primary" onclick="runDebugBulkSold()">実行</button>
-        </details>
+          <details><summary>一括売却済み</summary>
+            <div class="note">複数商品をまとめて売却済みに変更。BO列に理由を記録。</div>
+            <div class="form-row"><label>管理番号(改行区切り)</label><textarea id="dbg-sold-ids" rows="4" placeholder="zC2&#10;zC11&#10;zC13"></textarea></div>
+            <div class="form-row"><label>BO列の値</label><input type="text" id="dbg-sold-bo" placeholder="ファスト補填"></div>
+            <button class="primary" onclick="runDebugBulkSold()">実行</button>
+          </details>
 
-        <details><summary>確認のみ（引数不要）</summary>
-          <div class="note">引数不要の確認・診断ツール。データの閲覧のみで変更なし。</div>
-          <div class="btnRow">
-            <button onclick="runDebug('adminPanel_debugPaidyPayment',[])">Paidy確認</button>
-            <button onclick="runDebug('adminPanel_debugKomojuSession',[])">KOMOJUセッション</button>
-            <button onclick="runDebug('adminPanel_debugViewQueues',[])">キュー確認</button>
-            <button onclick="runDebug('adminPanel_debugViewStates',[])">状態一覧</button>
-            <button onclick="runDebug('adminPanel_createDemoDistributionList',[])">デモリスト作成</button>
-          </div>
-        </details>
+          <details><summary>確認のみ（引数不要）</summary>
+            <div class="note">引数不要の確認・診断ツール。データの閲覧のみで変更なし。</div>
+            <div class="btnRow">
+              <button onclick="runDebug('adminPanel_debugPaidyPayment',[])">Paidy確認</button>
+              <button onclick="runDebug('adminPanel_debugKomojuSession',[])">KOMOJUセッション</button>
+              <button onclick="runDebug('adminPanel_debugViewQueues',[])">キュー確認</button>
+              <button onclick="runDebug('adminPanel_debugViewStates',[])">状態一覧</button>
+              <button onclick="runDebug('adminPanel_createDemoDistributionList',[])">デモリスト作成</button>
+              <button onclick="runSubsidyStats()">補助金用指標</button>
+            </div>
+          </details>
+        </div>
 
-        <div class="log" id="debug-log"></div>
+        <!-- 右: 結果表示パネル -->
+        <div style="flex:1;display:flex;flex-direction:column;gap:10px">
+          <div id="subsidy-result" style="display:none;background:#f0f7ff;border:1px solid #b3d4fc;border-radius:8px;padding:16px;overflow-y:auto;max-height:580px"></div>
+          <div id="debug-log" style="flex:1;min-height:100px;max-height:580px;font-size:12px;color:#333;white-space:pre-wrap;line-height:1.6;overflow-y:auto;background:#1e1e1e;color:#d4d4d4;border-radius:8px;padding:12px;font-family:monospace;border:1px solid #333"></div>
+        </div>
       </div>
     </div>
 
@@ -554,8 +562,8 @@
         <div class="note">未指定の場合、次の朝9時に配信。</div>
         <div class="form-row"><label>頻度</label><select id="nl-freq"><option value="一度">一度</option><option value="毎週">毎週</option><option value="毎月">毎月</option></select></div>
         <div class="note">一度=1回のみ、毎週=毎週同じ曜日、毎月=毎月同じ日。</div>
-        <div class="form-row"><label>対象</label><select id="nl-target"><option value="全員">全員</option><option value="リピーター">リピーター(購入2回+)</option><option value="新規">新規(0-1回)</option></select></div>
-        <div class="note">全員=メルマガ登録者全員、リピーター=購入2回以上、新規=購入0〜1回。</div>
+        <div class="form-row"><label>対象</label><select id="nl-target"><option value="全員">全員</option><option value="未購入">未購入(購入0回)</option><option value="1回購入">1回購入</option><option value="リピーター">リピーター(購入2回+)</option></select></div>
+        <div class="note">全員=メルマガ登録者全員、未購入=購入0回、1回購入=購入1回、リピーター=購入2回以上。</div>
         <div class="btnRow">
           <button class="primary" onclick="registerNewsletterFromPanel()">登録</button>
           <button onclick="testNewsletterFromPanel()">テスト送信</button>
@@ -1014,16 +1022,98 @@ async function deleteTrigger(id, fn){
 
 // ========== タブ11: デバッグツール ==========
 async function runDebug(fn, args){
-  clearLog('debug-log');
-  appendLog('debug-log', '実行中: ' + fn + '...');
+  $('subsidy-result').style.display = 'none';
+  var el = $('debug-log');
+  el.style.color = '';
+  el.innerHTML = '<div style="color:#888;padding:8px">実行中...</div>';
   try {
     var res = await run.apply(null, [fn].concat(args||[]));
-    if(res && res.logs){
-      $('debug-log').textContent = '';
-      res.logs.forEach(function(l){ appendLog('debug-log', l); });
+    if(res && res.logs && res.logs.length > 0){
+      el.innerHTML = formatDebugLogs_(res.logs);
+    } else {
+      el.innerHTML = '<div style="color:#f90;padding:8px">応答: ' + JSON.stringify(res).substring(0,2000) + '</div>';
     }
-    if(!res || !res.ok) appendLog('debug-log', '[失敗] ' + (res ? res.message||'' : ''));
-  } catch(e){ appendLog('debug-log', '[エラー] ' + e.message); }
+  } catch(e){
+    el.innerHTML = '<div style="color:#f44;padding:8px">[エラー] ' + e.message + '</div>';
+  }
+  el.scrollTop = 0;
+}
+function formatDebugLogs_(logs){
+  var html = '';
+  for(var i=0;i<logs.length;i++){
+    var line = logs[i].replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    // セクションヘッダー（===...===）
+    if(/^={3,}/.test(line)){
+      html += '<div style="border-top:1px solid #555;margin:8px 0 2px"></div>';
+      continue;
+    }
+    // セクションタイトル
+    if(/^-{3,}/.test(line)){
+      html += '<div style="border-top:1px dashed #555;margin:6px 0 2px"></div>';
+      continue;
+    }
+    // 見出し行
+    if(line.indexOf('【') === 0 || /^(受付番号|注文日時|会社名|メール|商品名|ステータス|決済|入金|発送)/.test(line.trim())){
+      // キー: 値のペアを分割
+      var colonIdx = line.indexOf(':');
+      if(colonIdx === -1) colonIdx = line.indexOf('：');
+      if(colonIdx > 0){
+        var key = line.substring(0,colonIdx+1);
+        var val = line.substring(colonIdx+1);
+        html += '<div style="padding:2px 0"><span style="color:#8cb4ff">' + key + '</span><span style="color:#e8e8e8">' + val + '</span></div>';
+        continue;
+      }
+    }
+    // ステータス行（絵文字付き）
+    if(/[✅⚠⏳❌]/.test(line)){
+      var c = /✅/.test(line) ? '#4caf50' : /⚠/.test(line) ? '#ff9800' : /❌/.test(line) ? '#f44' : '#42a5f5';
+      html += '<div style="padding:2px 0;color:' + c + '">' + line + '</div>';
+      continue;
+    }
+    // Gmail履歴
+    if(/^\s*\[20\d{2}-/.test(line)){
+      html += '<div style="padding:1px 0;color:#aaa;font-size:11px">' + line + '</div>';
+      continue;
+    }
+    // 通常行
+    html += '<div style="padding:1px 0;color:#d4d4d4">' + line + '</div>';
+  }
+  return '<div style="padding:8px">' + html + '</div>';
+}
+
+async function runSubsidyStats(){
+  clearLog('debug-log');
+  var el = $('subsidy-result');
+  el.style.display = 'block';
+  el.innerHTML = '<div style="color:#666">集計中...（10〜30秒かかります）</div>';
+  try {
+    var r = await run('adminPanel_debugSubsidyStats');
+    if(!r || !r.ok){ el.innerHTML = '<div style="color:red">取得失敗: ' + (r ? r.message||'' : '応答なし') + '</div>'; return; }
+    function yen(n){ return '¥' + String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+    var h = '<div style="font-weight:bold;font-size:14px;margin-bottom:10px">補助金申請用 経営指標</div>';
+    h += '<table style="width:100%;border-collapse:collapse;font-size:13px">';
+    h += '<tr style="background:#e3edf7"><th colspan="2" style="text-align:left;padding:6px;border-bottom:2px solid #b3d4fc">顧客データ</th></tr>';
+    h += tr('会員登録数', r.totalCustomers + '人');
+    h += tr('購入者数（1回以上）', r.purchasedOnce + '人');
+    h += tr('リピーター数（2回以上）', r.repeaters + '人');
+    h += '<tr style="background:#e3edf7"><th colspan="2" style="text-align:left;padding:6px;border-bottom:2px solid #b3d4fc">主要KPI</th></tr>';
+    h += tr('購入率（会員→購入）', r.purchaseRate + '%');
+    h += tr('リピート率（購入者→2回+）', r.repeatRate + '%');
+    h += '<tr style="background:#e3edf7"><th colspan="2" style="text-align:left;padding:6px;border-bottom:2px solid #b3d4fc">売上データ</th></tr>';
+    h += tr('完了注文数', r.totalOrders + '件');
+    h += tr('累計売上', yen(r.totalRevenue));
+    h += tr('平均客単価', yen(r.avgOrderValue));
+    h += tr('月平均売上（直近6ヶ月）', yen(r.monthlyAvg));
+    if(r.monthlyList && r.monthlyList.length){
+      h += '<tr style="background:#e3edf7"><th colspan="2" style="text-align:left;padding:6px;border-bottom:2px solid #b3d4fc">月別売上（直近6ヶ月）</th></tr>';
+      r.monthlyList.forEach(function(m){ h += tr(m.month, yen(m.amount)); });
+    }
+    h += '</table>';
+    el.innerHTML = h;
+  } catch(e){ el.innerHTML = '<div style="color:red">[エラー] ' + e.message + '</div>'; }
+  function tr(label, val){
+    return '<tr><td style="padding:5px 8px;border-bottom:1px solid #dde6f0;width:55%">' + label + '</td><td style="padding:5px 8px;border-bottom:1px solid #dde6f0;font-weight:bold;text-align:right">' + val + '</td></tr>';
+  }
 }
 
 function runDebugRestore(){

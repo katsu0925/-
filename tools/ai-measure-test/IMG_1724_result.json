@@ -1,0 +1,83 @@
+{
+  "itemType": "dress",
+  "scale": {
+    "a4Corners": {
+      "topLeft": [
+        100,
+        200
+      ],
+      "topRight": [
+        300,
+        200
+      ],
+      "bottomLeft": [
+        100,
+        400
+      ],
+      "bottomRight": [
+        300,
+        400
+      ]
+    },
+    "a4WidthPx": 200,
+    "a4HeightPx": 200,
+    "aspectRatio": 1.0,
+    "scaleCmPerPx": 0.105,
+    "confidence": "medium",
+    "notes": "A4用紙の縦横比が正確でないため、スケールの信頼性は中程度。"
+  },
+  "measurements": {
+    "dressLength_bnp": {
+      "startPx": [
+        150,
+        100
+      ],
+      "endPx": [
+        150,
+        600
+      ],
+      "distancePx": 500,
+      "value": 52.5,
+      "confidence": "medium"
+    },
+    "bodyWidth": {
+      "startPx": [
+        120,
+        300
+      ],
+      "endPx": [
+        280,
+        300
+      ],
+      "distancePx": 160,
+      "value": 16.8,
+      "confidence": "medium"
+    },
+    "shoulderWidth": {
+      "startPx": [
+        110,
+        150
+      ],
+      "endPx": [
+        290,
+        150
+      ],
+      "distancePx": 180,
+      "value": 18.9,
+      "confidence": "medium"
+    },
+    "sleeveLength": {
+      "startPx": [
+        290,
+        150
+      ],
+      "endPx": [
+        400,
+        150
+      ],
+      "distancePx": 110,
+      "value": 11.6,
+      "confidence": "medium"
+    }
+  }
+}

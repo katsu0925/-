@@ -1,0 +1,96 @@
+{
+  "itemType": "sweatshirt",
+  "scale": {
+    "a4Corners": {
+      "topLeft": [
+        123,
+        456
+      ],
+      "topRight": [
+        345,
+        456
+      ],
+      "bottomLeft": [
+        123,
+        678
+      ],
+      "bottomRight": [
+        345,
+        678
+      ]
+    },
+    "a4WidthPx": 222,
+    "a4HeightPx": 222,
+    "aspectRatio": 1.0,
+    "scaleCmPerPx": 0.0946,
+    "confidence": "medium",
+    "notes": "A4用紙の角マーカーが明瞭に見える。"
+  },
+  "measurements": {
+    "bodyLength_cb": {
+      "startPx": [
+        234,
+        123
+      ],
+      "endPx": [
+        234,
+        789
+      ],
+      "distancePx": 666,
+      "value": 63.0,
+      "confidence": "high"
+    },
+    "bodyWidth": {
+      "startPx": [
+        123,
+        456
+      ],
+      "endPx": [
+        345,
+        456
+      ],
+      "distancePx": 222,
+      "value": 21.0,
+      "confidence": "high"
+    },
+    "shoulderWidth": {
+      "startPx": [
+        123,
+        234
+      ],
+      "endPx": [
+        345,
+        234
+      ],
+      "distancePx": 222,
+      "value": 21.0,
+      "confidence": "high"
+    },
+    "sleeveLength": {
+      "startPx": [
+        123,
+        234
+      ],
+      "endPx": [
+        12,
+        345
+      ],
+      "distancePx": 123,
+      "value": 11.6,
+      "confidence": "medium"
+    },
+    "yukiLength": {
+      "startPx": [
+        234,
+        123
+      ],
+      "endPx": [
+        12,
+        345
+      ],
+      "distancePx": 345,
+      "value": 32.6,
+      "confidence": "medium"
+    }
+  }
+}

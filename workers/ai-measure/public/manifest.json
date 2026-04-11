@@ -1,0 +1,14 @@
+{
+  "name": "写メジャー",
+  "short_name": "写メジャー",
+  "description": "AI自動採寸 + 商品説明文生成",
+  "start_url": "/measure.html",
+  "display": "standalone",
+  "background_color": "#111111",
+  "theme_color": "#1a1a2e",
+  "orientation": "portrait",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

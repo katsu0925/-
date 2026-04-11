@@ -1,0 +1,54 @@
+[
+  {
+    "itemType": "pants",
+    "measurements": {
+      "totalLength_pants": 108.3,
+      "waistWidth": 41.2,
+      "hipWidth_cfg": 52.7,
+      "frontRise": 29.4,
+      "inseam": 80.1,
+      "thighWidth": 31.5,
+      "hemWidth": 19.8
+    },
+    "scale": {
+      "rulerPixelLengthPx": 300,
+      "scaleCmPerPx": 0.05
+    },
+    "notes": "計測は平面補正なしで実施。遠近誤差の可能性あり。"
+  },
+  {
+    "itemType": "pants",
+    "measurements": {
+      "totalLength_pants": 108.3,
+      "waistWidth": 41.2,
+      "hipWidth_cfg": 52.7,
+      "frontRise": 29.4,
+      "inseam": 80.1,
+      "thighWidth": 31.5,
+      "hemWidth": 20.4
+    },
+    "scale": {
+      "rulerPixelLengthPx": 500,
+      "scaleCmPerPx": 0.03,
+      "confidence": "high",
+      "notes": "Ruler detected clearly with physical outer edge used for scaling."
+    }
+  },
+  {
+    "itemType": "pants",
+    "measurements": {
+      "totalLength_pants": 108.5,
+      "waistWidth": 41.2,
+      "hipWidth_cfg": 52.3,
+      "frontRise": 29.7,
+      "inseam": 80.4,
+      "thighWidth": 31.8,
+      "hemWidth": 20.5
+    },
+    "scale": {
+      "rulerPixelLengthPx": 300,
+      "scaleCmPerPx": 0.05
+    },
+    "notes": "平面補正なし。遠近誤差の可能性あり。"
+  }
+]

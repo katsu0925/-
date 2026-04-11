@@ -434,7 +434,7 @@ async function syncProducts(db, rows) {
   }
 }
 
-async function syncBulkProducts(db, rows) {
+export async function syncBulkProducts(db, rows) {
   const stmts = rows.map(p =>
     db.prepare(`
       INSERT OR REPLACE INTO bulk_products

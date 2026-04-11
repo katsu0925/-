@@ -19,6 +19,9 @@
         2800,
         500,
         2,
+        2150,
+        500,
+        2,
         1300,
         1200,
         2,
@@ -30,16 +33,19 @@
         2,
         3200,
         3800,
+        2,
+        2000,
+        3850,
         2
       ],
-      "num_keypoints": 6,
+      "num_keypoints": 8,
       "bbox": [
         750,
         450,
         2500,
-        3400
+        3450
       ],
-      "area": 8500000,
+      "area": 8625000,
       "iscrowd": 0
     }
   ],
@@ -50,10 +56,12 @@
       "keypoints": [
         "waist_left",
         "waist_right",
+        "waist_center",
         "hip_left",
         "hip_right",
         "hem_left",
-        "hem_right"
+        "hem_right",
+        "hem_center"
       ],
       "skeleton": [
         [
@@ -66,15 +74,31 @@
         ],
         [
           2,
+          3
+        ],
+        [
+          1,
           4
         ],
         [
-          3,
+          2,
           5
         ],
         [
           4,
           6
+        ],
+        [
+          5,
+          7
+        ],
+        [
+          6,
+          8
+        ],
+        [
+          7,
+          8
         ]
       ]
     }

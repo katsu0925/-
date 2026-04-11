@@ -1,0 +1,95 @@
+{
+  "itemType": "dresses",
+  "measurements": {
+    "dressLength_bnp": {
+      "startCandidate": "estimated",
+      "endCandidate": "estimated",
+      "startPx": [
+        1050,
+        290
+      ],
+      "endPx": [
+        1050,
+        1860
+      ],
+      "distancePx": 1570,
+      "value": 129.0,
+      "confidence": "low"
+    },
+    "bodyWidth": {
+      "startCandidate": "estimated",
+      "endCandidate": "estimated",
+      "startPx": [
+        660,
+        590
+      ],
+      "endPx": [
+        1440,
+        590
+      ],
+      "distancePx": 780,
+      "value": 64.1,
+      "confidence": "medium"
+    },
+    "shoulderWidth": {
+      "startCandidate": "estimated",
+      "endCandidate": "estimated",
+      "startPx": [
+        760,
+        410
+      ],
+      "endPx": [
+        1340,
+        410
+      ],
+      "distancePx": 580,
+      "value": 47.6,
+      "confidence": "medium"
+    },
+    "sleeveLength": {
+      "startCandidate": "estimated",
+      "endCandidate": "2",
+      "startPx": [
+        760,
+        410
+      ],
+      "endPx": [
+        17,
+        796
+      ],
+      "distancePx": 837.284303988013,
+      "value": 68.8,
+      "confidence": "medium"
+    },
+    "waistWidth": {
+      "startCandidate": "estimated",
+      "endCandidate": "estimated",
+      "startPx": [
+        790,
+        980
+      ],
+      "endPx": [
+        1310,
+        980
+      ],
+      "distancePx": 520,
+      "value": 42.7,
+      "confidence": "high"
+    },
+    "hemWidth": {
+      "startCandidate": "estimated",
+      "endCandidate": "estimated",
+      "startPx": [
+        640,
+        1875
+      ],
+      "endPx": [
+        1460,
+        1875
+      ],
+      "distancePx": 820,
+      "value": 67.4,
+      "confidence": "low"
+    }
+  }
+}

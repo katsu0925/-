@@ -1,0 +1,87 @@
+{
+  "cv": {
+    "corners": [
+      [
+        874.0,
+        820.0
+      ],
+      [
+        1161.0,
+        817.0
+      ],
+      [
+        1165.0,
+        1225.0
+      ],
+      [
+        876.0,
+        1228.0
+      ]
+    ],
+    "widthPx": 288.015625,
+    "heightPx": 408.01226806640625,
+    "aspect": 1.4166324138641357,
+    "scale": 0.07291270792484283,
+    "imageSize": [
+      2048,
+      2048
+    ]
+  },
+  "gemini": {
+    "itemType": "sweatshirt",
+    "measurements": {
+      "bodyLength_cb": {
+        "startPx": [
+          1024,
+          552
+        ],
+        "endPx": [
+          1024,
+          1455
+        ],
+        "distancePx": 903.0,
+        "value": 65.8,
+        "confidence": "high"
+      },
+      "bodyWidth": {
+        "startPx": [
+          455,
+          855
+        ],
+        "endPx": [
+          1595,
+          855
+        ],
+        "distancePx": 1140.0,
+        "value": 83.1,
+        "confidence": "high"
+      },
+      "shoulderWidth": {
+        "startPx": [
+          382,
+          655
+        ],
+        "endPx": [
+          1668,
+          655
+        ],
+        "distancePx": 1286.0,
+        "value": 93.8,
+        "confidence": "high"
+      },
+      "sleeveLength": {
+        "startPx": [
+          382,
+          655
+        ],
+        "endPx": [
+          105,
+          1155
+        ],
+        "distancePx": 571.602134686211,
+        "value": 41.7,
+        "confidence": "high"
+      }
+    }
+  }
+}

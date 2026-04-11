@@ -747,8 +747,10 @@ function adminTestEmails() {
 /**
  * 受付番号を指定して注文状態とメール送信状況を調査する
  * GASエディタから手動実行 → ログで結果を確認
+ * ※ Debug.gs の debugLookupByReceipt() に統合済み
  */
 function debugOrderEmailStatus() {
+  console.log('※ この関数は Debug.gs の debugLookupByReceipt() に統合されました');
   var TARGET_RECEIPT = '20260310100156-993';
 
   var orderSs = sh_getOrderSs_();

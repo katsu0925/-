@@ -153,7 +153,9 @@ table tr:hover { background: rgba(79, 195, 247, 0.05); }
     font-size: 0.9em;
     flex-shrink: 0;
 }
-.advice-item p { color: var(--text-primary); line-height: 1.5; }
+.advice-title { font-weight: 700; font-size: 1.05em; color: var(--accent-blue); margin-bottom: 8px; }
+.advice-item p { color: var(--text-secondary); line-height: 1.7; font-size: 0.92em; }
+.advice-item b { color: var(--text-primary); }
 .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
 @media (max-width: 768px) {
     .two-col { grid-template-columns: 1fr; }
@@ -189,45 +191,73 @@ table tr:hover { background: rgba(79, 195, 247, 0.05); }
 <!-- Header -->
 <div class="header">
     <h1>月次分析レポート</h1>
-    <div class="subtitle">2026-03 | Generated 2026-03-19 20:54</div>
+    <div class="subtitle">2026-03 | Generated 2026-03-19 21:36</div>
 </div>
 
 <!-- Section 1: All-channel Summary -->
 <div class="section">
-    <h2><span class="icon">&#x1f4ca;</span> 全チャネルサマリー</h2>
+    <h2><span class="icon">&#x1f4ca;</span> 当月サマリー（2026-03）</h2>
     <div class="kpi-grid">
         <div class="kpi-card">
-            <div class="label">総売上</div>
-            <div class="value blue">¥1,725,578</div>
-            <div class="sub">916件</div>
+            <div class="label">当月売上</div>
+            <div class="value blue">¥190,966<span style="color:var(--accent-red);font-size:0.8em;margin-left:6px;">-37.8%</span></div>
+            <div class="sub">93件</div>
         </div>
         <div class="kpi-card">
-            <div class="label">総利益</div>
-            <div class="value green">¥1,058,392</div>
+            <div class="label">当月利益</div>
+            <div class="value green">¥130,499<span style="color:var(--accent-red);font-size:0.8em;margin-left:6px;">-24.3%</span></div>
         </div>
         <div class="kpi-card">
-            <div class="label">利益率</div>
-            <div class="value orange">61.3%</div>
+            <div class="label">当月利益率</div>
+            <div class="value orange">68.3%<span style="color:var(--accent-green);font-size:0.8em;margin-left:6px;">+12.2pt</span></div>
         </div>
         <div class="kpi-card">
             <div class="label">パイプライン（依頼中）</div>
             <div class="value purple">6件</div>
         </div>
     </div>
+    <div style="margin-bottom:20px;"><h3 style="color:var(--text-secondary);font-size:0.95em;margin-bottom:12px;">前月比較（2026-02 → 2026-03）</h3><div class="ws-table"><table><thead><tr><th>指標</th><th>2026-02</th><th>2026-03</th><th>増減</th></tr></thead><tbody><tr><td>総売上</td><td>¥306,979</td><td>¥190,966</td><td><span style="color:var(--accent-red);font-size:0.8em;margin-left:6px;">-37.8%</span></td></tr><tr><td>総利益</td><td>¥172,407</td><td>¥130,499</td><td><span style="color:var(--accent-red);font-size:0.8em;margin-left:6px;">-24.3%</span></td></tr><tr><td>メルカリ件数</td><td>95件</td><td>78件</td><td><span style="color:var(--accent-red);font-size:0.8em;margin-left:6px;">-17.9%</span></td></tr><tr><td>メルカリ利益</td><td>¥79,414</td><td>¥68,676</td><td><span style="color:var(--accent-red);font-size:0.8em;margin-left:6px;">-13.5%</span></td></tr><tr><td>卸売件数</td><td>37件</td><td>15件</td><td><span style="color:var(--accent-red);font-size:0.8em;margin-left:6px;">-59.5%</span></td></tr><tr><td>卸売利益</td><td>¥92,993</td><td>¥61,823</td><td><span style="color:var(--accent-red);font-size:0.8em;margin-left:6px;">-33.5%</span></td></tr><tr><td>卸売（個別選択）</td><td>11件 / ¥38,731</td><td>12件 / ¥48,054</td><td><span style="color:var(--accent-green);font-size:0.8em;margin-left:6px;">+24.1%</span></td></tr><tr><td>卸売（アソート）</td><td>26件 / ¥54,262</td><td>3件 / ¥13,769</td><td><span style="color:var(--accent-red);font-size:0.8em;margin-left:6px;">-74.6%</span></td></tr></tbody></table></div></div>
+    <div style="margin-top:12px;"><h3 style="color:var(--text-secondary);font-size:0.95em;margin-bottom:12px;">累計実績</h3></div>
+    <div class="kpi-grid">
+        <div class="kpi-card">
+            <div class="label">累計売上</div>
+            <div class="value blue">¥1,725,578</div>
+            <div class="sub">916件</div>
+        </div>
+        <div class="kpi-card">
+            <div class="label">累計利益</div>
+            <div class="value green">¥1,058,392</div>
+        </div>
+        <div class="kpi-card">
+            <div class="label">累計利益率</div>
+            <div class="value orange">61.3%</div>
+        </div>
+        <div class="kpi-card">
+            <div class="label">月平均利益</div>
+            <div class="value teal">¥105,839</div>
+            <div class="sub">10ヶ月間</div>
+        </div>
+    </div>
     <div class="breakdown">
         <div class="breakdown-card">
-            <h3>メルカリ / ラクマ</h3>
+            <h3>メルカリ / ラクマ（累計）</h3>
             <div class="stat"><span class="lbl">件数</span><span>856件</span></div>
             <div class="stat"><span class="lbl">売上</span><span>¥1,437,978</span></div>
             <div class="stat"><span class="lbl">利益</span><span>¥871,844</span></div>
             <div class="stat"><span class="lbl">利益率</span><span>60.6%</span></div>
+            <div class="stat"><span class="lbl">平均単価</span><span>¥1,680</span></div>
+            <div class="stat"><span class="lbl">平均利益/件</span><span>¥1,019</span></div>
+            <div class="stat"><span class="lbl">売上構成比</span><span>83.3%</span></div>
         </div>
         <div class="breakdown-card wholesale">
-            <h3>卸売（デタウリ）</h3>
+            <h3>卸売（デタウリ）（累計）</h3>
             <div class="stat"><span class="lbl">件数</span><span>60件</span></div>
             <div class="stat"><span class="lbl">売上</span><span>¥287,600</span></div>
             <div class="stat"><span class="lbl">利益</span><span>¥186,548</span></div>
             <div class="stat"><span class="lbl">利益率</span><span>64.9%</span></div>
+            <div class="stat"><span class="lbl">平均単価</span><span>¥4,793</span></div>
+            <div class="stat"><span class="lbl">平均利益/件</span><span>¥3,109</span></div>
+            <div class="stat"><span class="lbl">売上構成比</span><span>16.7%</span></div>
         </div>
         <div class="breakdown-card pipeline">
             <h3>パイプライン</h3>
@@ -452,11 +482,15 @@ table tr:hover { background: rgba(79, 195, 247, 0.05); }
 <!-- Section 8: Advice -->
 <div class="section">
     <h2><span class="icon">&#x1f4a1;</span> データに基づくアドバイス</h2>
-    <div class="advice-item"><span class="advice-num">1</span><p>区分コード「S」は赤字率22.9%（8/35件）と高め。仕入れ基準の見直しや出品価格の調整を検討してください。</p></div>
-<div class="advice-item"><span class="advice-num">2</span><p>60日超の長期在庫が246点（仕入れ額¥38,112）あります。値下げや卸売への振り替えで資金回収を優先しましょう。</p></div>
-<div class="advice-item"><span class="advice-num">3</span><p>卸売（アソート）の送料比率が38.1%と高いです。まとめ発送や軽量商品の組み合わせで送料削減を検討してください。</p></div>
-<div class="advice-item"><span class="advice-num">4</span><p>返品1080件（仕入れ額¥161,892）が発生しています。商品状態の記載精度向上やサイズ表記の明確化で返品率を下げましょう。</p></div>
-<div class="advice-item"><span class="advice-num">5</span><p>カテゴリ「トップス」が利益¥382,072（404件）で最も好調。同カテゴリの仕入れ強化を推奨します。</p></div>
+    <div class="advice-item"><span class="advice-num">1</span><div><div class="advice-title">赤字率の高い区分コードへの対策</div><p><b>Sランク</b>: 赤字率22.9%（8/35件）、平均販売価格¥3,431。<br>高単価ランクは仕入れ値が高いためハズレ時の損失が大きい。販売価格を仕入れ値の2倍以上に設定できないものは仕入れ時点でスキップするか、卸売の個別選択に回して原価¥0で利益確定する方が効率的です。 一方、<b>Gランク</b>は336件で赤字率2.1%と最も安定しており、仕入れ基準のモデルケースです。</p></div></div>
+<div class="advice-item"><span class="advice-num">2</span><div><div class="advice-title">B・Gランクが利益の大黒柱</div><p><b>B</b>: 364件 × ¥930 = ¥338,449（赤字率3.6%）<br><b>G</b>: 336件 × ¥980 = ¥329,414（赤字率2.1%）<br>合計でメルカリ利益の<b>76.6%</b>を占めます。この2区分の仕入れ量を維持・拡大することが最も確実な利益確保策です。</p></div></div>
+<div class="advice-item"><span class="advice-num">3</span><div><div class="advice-title">個別選択の拡大が最優先戦略</div><p>個別選択の利益率<b>79.6%</b>は全チャネルで最高。1件あたり送料¥792に対し、アソートは¥1,664と<b>¥872の差</b>があります。<br>撮影・採寸データが充実するほど「自分で選びたい」顧客が増え、高粗利の個別選択比率が上がります。補助金申請の「販路開拓」要件にも直結するストーリーです。</p></div></div>
+<div class="advice-item"><span class="advice-num">4</span><div><div class="advice-title">アソートの送料構造を改善</div><p>アソートの送料比率<b>38.1%</b>（¥56,560/34件、1件あたり¥1,664）は利益を圧迫しています。<br>特に少量注文（¥500〜¥3,300）は送料に食われます。最低注文額を¥5,000に引き上げるか、リピーターに個別選択への誘導を図ることで全体の収益効率が上がります。アソートは利益率51.0%で黒字ですが、集客チャネルとしての位置づけに留め、利益は個別選択で稼ぐ構造にシフトすべきです。</p></div></div>
+<div class="advice-item"><span class="advice-num">5</span><div><div class="advice-title">カテゴリ別の仕入れ最適化</div><p><b>「トップス」</b>が利益¥382,072（404件）で最も好調。同カテゴリの仕入れ強化を推奨します。<br>隠れた高利益カテゴリとして<b>「スーツセットアップ」</b>（7件、平均利益¥1,824）が注目。トップスの平均利益¥946の<b>1.9倍</b>。ニッチで競合が少ない可能性があります。<br>一方<b>「スカート」</b>は平均利益¥850と最低ライン。ブランド別に利益を分析し、利益の出るブランドに絞ることで改善可能です。</p></div></div>
+<div class="advice-item"><span class="advice-num">6</span><div><div class="advice-title">90日超の滞留在庫111点の処理プラン</div><p>仕入れ額¥8,622が滞留中。卸売の個別選択に出品すれば原価¥0計算で1点¥500でも¥55,500の売上になります。送料・手数料差し引いても<b>¥38,850以上の利益回収</b>が見込めます。<br>61-90日の135点には60日超で10-20%値下げルールを設定し、75日超で卸売行きの自動判定を入れると在庫回転率が改善します。<br>0-14日在庫571点（40%）は健全で、出品サイクルは回っています。</p></div></div>
+<div class="advice-item"><span class="advice-num">7</span><div><div class="advice-title">メルカリが前月比-14% — 要注意</div><p>メルカリ利益: ¥79,414（2026-02）→ ¥68,676（2026-03）、件数も95件→78件に減少。<br>ただし卸売が¥61,823（前月比-34%）で一部補填しており、合計利益は¥130,499（前月比-24.3%）です。<br>出品中在庫の価格見直し（特に90日超の商品）と、季節需要を見越した出品戦略の見直しが必要です。</p></div></div>
+<div class="advice-item"><span class="advice-num">8</span><div><div class="advice-title">返品1080件の実態を確認すべき</div><p>返品1080件（仕入れ額¥161,892、全商品の31.9%）が発生。<br>これが<b>仕入れ先への返品</b>（仕入れロットの中で使えない商品を返した）なのか、<b>顧客からの返品</b>なのかで対策が全く異なります。<br>仕入れ先返品の場合は仕入れ単価の交渉材料（「32%は使えない」）になります。顧客返品の場合は商品説明・写真の品質改善とサイズ表記の明確化が急務です。</p></div></div>
+<div class="advice-item"><span class="advice-num">9</span><div><div class="advice-title">補助金申請に使える数字根拠</div><p>「総売上¥1,725,578・利益率61.3%・卸売サイト開始3ヶ月で利益¥186,548」は事業成長性を示す強い材料です。<br>特に「卸売の個別選択（利益率79.6%）を撮影データ付き商品パッケージで伸ばす」というストーリーは、補助金の「販路開拓」要件に直結します。在庫1431点の撮影・採寸データ整備が投資対象として説明しやすい構造です。</p></div></div>
 
 </div>
 

@@ -1,0 +1,16 @@
+{
+  "itemType": "pants",
+  "measurements": {
+    "totalLength_pants": 104.3,
+    "waistWidth": 41.2,
+    "hipWidth_cfg": 52.6,
+    "frontRise": 28.7,
+    "inseam": 76.5,
+    "thighWidth": 31.4,
+    "hemWidth": 19.8
+  },
+  "scale": {
+    "scaleCmPerPx": 0.036
+  },
+  "notes": "A4用紙を基準にスケールを算出。"
+}

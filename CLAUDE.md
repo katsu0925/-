@@ -4,35 +4,48 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 開発ルール
 
+- **すべての応答・コメント・コミットメッセージは日本語で記述する**
 - **mainブランチで直接作業する** — フィーチャーブランチは作成しない
 - **作業完了後は自動でコミット＆プッシュする**
+- **`clasp push` の後に必ず `clasp deploy -i "$DEPLOY_ID"` も実行する** — push だけでは本番 Web App に反映されない
 
 ## プロジェクト構成
 
-Google Apps Script (GAS) モノレポ。ビルドシステム（npm等）は存在しない。
+Google Apps Script (GAS) モノレポ + Cloudflare Workers エッジプロキシ。GAS側にビルドシステムは存在しない。
 
 | ディレクトリ | 用途 |
 |---|---|
-| `saisun-list/` | メインプロジェクト（37+ .gs ファイル）。`.clasp.json` の `rootDir` はここを指す |
-| `shiire-kanri/` | 仕入れ管理・在庫管理（16 .gs ファイル） |
-| `saisun-list-bulk/` | バルク・アソート商品バリアント |
+| `saisun-list/` | メインプロジェクト（57 .gs/.html ファイル）。`.clasp.json` の `rootDir` はここを指す |
+| `shiire-kanri/` | 仕入れ管理・在庫管理 |
+| `saisun-list-bulk/` | Cron系（記事生成・GA4・報酬管理）の別GASプロジェクト |
+| `workers/gas-proxy/` | Cloudflare Workers エッジプロキシ（D1 + KV） |
 
 ## デプロイコマンド
 
+### GAS デプロイ（saisun-list）
+
 ```bash
-# ローカルからGASへプッシュ（rootDir: saisun-list を対象）
-clasp push
-
-# 既存の本番デプロイを更新（必ず -i でIDを指定する。指定しないと新デプロイが作られてしまう）
-DEPLOY_ID="AKfycbzWcsi_QteRBwc2U88urRQvWG1FsrKUoFSd_r3uPmPasJnm0jfKe02IbmzlkK7Sb1x_Jg"
-clasp deploy -i "$DEPLOY_ID" --description "変更内容"
-
-# デプロイ一覧確認
-clasp deployments
+# pushとdeployは常にセットで実行する
+clasp push 2>&1 && \
+DEPLOY_ID="AKfycbzWcsi_QteRBwc2U88urRQvWG1FsrKUoFSd_r3uPmPasJnm0jfKe02IbmzlkK7Sb1x_Jg" && \
+clasp deploy -i "$DEPLOY_ID" --description "変更内容" 2>&1
 ```
 
 > **注意:** `clasp deploy` を `-i` なしで実行すると毎回別URLの新デプロイが作成される。
-> 本番デプロイは上記の DEPLOY_ID 1本に固定して運用する（旧バージョン確認は GitHub で行う）。
+> 本番デプロイは上記の DEPLOY_ID 1本に固定して運用する。
+
+### Cloudflare Workers デプロイ
+
+```bash
+cd workers/gas-proxy
+wrangler deploy              # 本番
+wrangler deploy --env dev    # 開発
+```
+
+### Cloudflare Pages
+
+`wholesale-eco.pages.dev` — GitHub main ブランチへの push で自動デプロイ。
+`saisun-list/index.html` と `saisun-list/BulkLP.html` が静的配信される。
 
 ## テスト実行
 
@@ -56,13 +69,14 @@ setEnvProduction()   // 本番に戻す
 **ホスティング:** GAS Web App（`doGet`/`doPost` エントリポイント）
 
 ```
-フロントエンド (Cloudflare Pages)
-  ↕ JSON over HTTP
-GAS Web App (Code.gs: doGet/doPost)
-  ↕
-Google Sheets (データ1 / 依頼管理 / 顧客管理)
-  ↑
-仕入れ管理 (shiire-kanri) ─ onEditトリガーで同期
+ユーザー → wholesale.nkonline-tool.com (カスタムドメイン)
+  → Cloudflare Workers (detauri-gas-proxy)
+    → HTMLリクエスト: Cloudflare Pages (wholesale-eco.pages.dev) から取得
+       → HTMLRewriter で KV の商品データを埋め込んで返す
+    → APIリクエスト (/api/*): D1/KV で高速処理、未対応は GAS にプロキシ
+  → GAS Web App (Code.gs: doGet/doPost)
+    → Google Sheets (データ1 / 依頼管理 / 顧客管理)
+  ← 仕入れ管理 (shiire-kanri) ─ onEditトリガーで同期
 ```
 
 ### saisun-list の主要ファイル責務
@@ -80,6 +94,36 @@ Google Sheets (データ1 / 依頼管理 / 顧客管理)
 | `StateStore.gs` | 確保/依頼中状態の永続化 |
 | `Triggers.gs` | onEditハンドラ、トリガー設定 |
 | `Tests.gs` | 自動テストスイート |
+
+### フロントエンド HTML 構造
+
+- `index.html` — デタウリ個品ページ。GAS テンプレート `<?!= include_('CartCalc') ?>` で CartCalc.html をインライン展開
+- `BulkLP.html` — アソート商品ページ。同様に CartCalc をインクルード
+- `CartCalc.html` — カート計算・割引・送料の共通モジュール（`var CartCalc = (function(){...})()`）
+- Cloudflare Pages では GAS テンプレートタグが処理されないため、フォールバックで CartCalc.js を読み込む仕組みあり
+- 商品データは `<script id="__initial_products__">` にサーバー埋め込み。Workers の HTMLRewriter で KV データを注入
+
+### Cloudflare Workers (workers/gas-proxy/)
+
+| ハンドラ | 責務 |
+|---|---|
+| `products.js` | 商品データ（D1/KV キャッシュ） |
+| `session.js` | CSRF トークン |
+| `auth.js` | 認証（D1 customers テーブル） |
+| `submit.js` | 注文送信・割引計算（GAS SubmitFix.gs と統一ロジック） |
+| `holds.js` | 商品確保 |
+| `coupon.js` | クーポン検証 |
+| `mypage.js` | マイページ・ランク判定 |
+| `proxy.js` | 未対応 API を GAS にプロキシ |
+
+Workers は Phase 1（商品+CSRF）のみ有効化済み。Phase 2-5 は `index.js` のコメント解除で段階的に有効化。
+
+### 割引ロジック（CartCalc / SubmitFix.gs / Workers submit.js 共通）
+
+1. **FHP有効時:** 初回全品50%OFF → 他割引無効
+2. **通常:** 数量割引（30点10%/50点15%/100点20%）→ 会員割引（10%）→ クーポン控除（割引後金額ベース）
+3. **送料:** ダイヤモンド(累計50万円以上)→無料 / クーポン送料無料 / 1万円以上→無料 / 厚み分類ベース計算
+4. **アソート商品:** 数量割引は適用しない（デタウリ個品のみ）
 
 ### データフロー
 

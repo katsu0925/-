@@ -97,8 +97,9 @@ function registerNewsletter() {
     '<label>配信対象</label>' +
     '<select id="target">' +
       '<option value="全員">全員</option>' +
+      '<option value="未購入">未購入（購入0回）</option>' +
+      '<option value="1回購入">1回購入</option>' +
       '<option value="リピーター">リピーター（購入2回以上）</option>' +
-      '<option value="新規">新規（購入0〜1回）</option>' +
     '</select>' +
     '<label>配信頻度</label>' +
     '<select id="freq">' +
@@ -495,7 +496,7 @@ function newsletterSendCron_() {
 
 /**
  * メルマガ登録済み会員一覧を取得（対象フィルタ対応）
- * @param {string} [target] - '全員'(default) / 'リピーター'(購入2回以上) / '新規'(購入0〜1回)
+ * @param {string} [target] - '全員'(default) / '未購入'(購入0回) / '1回購入'(購入1回) / 'リピーター'(購入2回以上)
  * @return {Array<{email: string, companyName: string}>}
  */
 function getNewsletterRecipients_(target) {
@@ -515,7 +516,8 @@ function getNewsletterRecipients_(target) {
     if (tgt !== '全員') {
       var purchaseCount = Number(custData[i][CUSTOMER_SHEET_COLS.PURCHASE_COUNT] || 0);
       if (tgt === 'リピーター' && purchaseCount < 2) continue;
-      if (tgt === '新規' && purchaseCount >= 2) continue;
+      if (tgt === '1回購入' && purchaseCount !== 1) continue;
+      if (tgt === '未購入' && purchaseCount !== 0) continue;
     }
 
     recipients.push({

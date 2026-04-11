@@ -1,0 +1,93 @@
+{
+  "itemType": "pants",
+  "a4_reference": {
+    "横幅_cm": 21.0,
+    "この画像でのA4用紙の見え方メモ": "ジーンズの股部分にほぼ垂直に置かれている。衣類が平らに置かれているため、A4用紙を基準とした比率計算がしやすい。"
+  },
+  "measurements": {
+    "totalLength_pants": {
+      "value": 98.7,
+      "ratioToA4Width": "A4横幅の約4.7倍",
+      "confidence": "high",
+      "reasoning": "A4用紙の縦幅(29.7cm)と比較すると約3.3倍、横幅(21cm)と比較すると約4.7倍に見える。両者の計算結果が近いため、信頼性は高い。ここでは横幅を基準とした。",
+      "approxStart": [
+        250,
+        100
+      ],
+      "approxEnd": [
+        150,
+        950
+      ]
+    },
+    "waistWidth": {
+      "value": 39.9,
+      "ratioToA4Width": "A4横幅の約1.9倍",
+      "confidence": "high",
+      "reasoning": "ウエストの直線幅が、A4用紙の横幅の2倍弱に見えるため。1.9倍と推定した。",
+      "approxStart": [
+        280,
+        100
+      ],
+      "approxEnd": [
+        720,
+        100
+      ]
+    },
+    "frontRise": {
+      "value": 29.4,
+      "ratioToA4Width": "A4横幅の約1.4倍",
+      "confidence": "high",
+      "reasoning": "股上の長さが、A4用紙の縦幅(29.7cm)とほぼ同じに見える。A4横幅(21cm)に換算すると約1.4倍となる。",
+      "approxStart": [
+        500,
+        120
+      ],
+      "approxEnd": [
+        500,
+        450
+      ]
+    },
+    "inseam": {
+      "value": 73.5,
+      "ratioToA4Width": "A4横幅の約3.5倍",
+      "confidence": "high",
+      "reasoning": "股下の縫い目に沿った長さが、A4用紙の横幅の約3.5倍に見えるため。",
+      "approxStart": [
+        500,
+        450
+      ],
+      "approxEnd": [
+        200,
+        950
+      ]
+    },
+    "thighWidth": {
+      "value": 31.5,
+      "ratioToA4Width": "A4横幅の約1.5倍",
+      "confidence": "high",
+      "reasoning": "股の付け根部分の幅が、A4用紙の横幅のちょうど1.5倍程度に見えるため。",
+      "approxStart": [
+        250,
+        450
+      ],
+      "approxEnd": [
+        500,
+        450
+      ]
+    },
+    "hemWidth": {
+      "value": 23.1,
+      "ratioToA4Width": "A4横幅の約1.1倍",
+      "confidence": "high",
+      "reasoning": "裾の幅が、A4用紙の横幅よりわずかに広く見えるため、1.1倍と推定した。",
+      "approxStart": [
+        150,
+        950
+      ],
+      "approxEnd": [
+        350,
+        950
+      ]
+    }
+  }
+}

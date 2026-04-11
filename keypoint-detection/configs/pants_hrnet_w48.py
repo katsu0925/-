@@ -29,7 +29,7 @@ model = dict(
     head=dict(
         type='HeatmapHead',
         in_channels=48,
-        out_channels=7,  # pants: 7キーポイント
+        out_channels=10,  # pants: 10キーポイント
         deconv_out_channels=None,
         loss=dict(type='KeypointMSELoss', use_target_weight=True),
         decoder=dict(
@@ -48,7 +48,7 @@ train_pipeline = [
     dict(type='LoadImage'),
     dict(type='GetBBoxCenterScale'),
     dict(type='RandomFlip', direction='horizontal',
-         flip_indices=[1, 0, 2, 4, 3, 6, 5]),
+         flip_indices=[1, 0, 2, 4, 3, 5, 6, 8, 7, 9]),
     dict(type='RandomHalfBody'),
     dict(type='RandomBBoxTransform', scale_factor=[0.6, 1.4], rotate_factor=40),
     dict(type='TopdownAffine', input_size=(288, 384)),
@@ -97,7 +97,7 @@ val_evaluator = dict(
     type='CocoMetric',
     ann_file=data_root + 'annotations/dummy_pants_val.json',
     use_area=True,
-    sigmas=[0.06, 0.06, 0.07, 0.06, 0.06, 0.07, 0.07])
+    sigmas=[0.06, 0.06, 0.06, 0.07, 0.07, 0.07, 0.07, 0.06, 0.06, 0.06])
 
 # ---- 学習設定 ----
 train_cfg = dict(max_epochs=210, val_interval=10)

@@ -105,6 +105,56 @@ function bulk_clearCache_() {
   try { CacheService.getScriptCache().remove(BULK_CONFIG.cache.key); } catch (e) {}
 }
 
+/**
+ * BULKスプレッドシートの onEdit ハンドラ
+ * アソート商品シートが編集されたら GAS キャッシュを即クリアし、
+ * Workers 側にも apiBulkRefresh を投げて D1 + KV を即時更新する。
+ *
+ * トリガー登録: Triggers.gs の tr_setupTriggersOnce_() 内で
+ *   ScriptApp.newTrigger('bulk_onEdit').forSpreadsheet(bulkSs).onEdit().create()
+ */
+function bulk_onEdit(e) {
+  try {
+    if (!e || !e.range) return;
+    var sh = e.range.getSheet();
+    if (!sh || sh.getName() !== BULK_CONFIG.sheetName) return;
+    // ヘッダー行は無視
+    if (e.range.getRow() < 2) return;
+
+    // GASキャッシュを即クリア
+    bulk_clearCache_();
+
+    // Workers にも即時反映を依頼（fire-and-forget）
+    var props = PropertiesService.getScriptProperties();
+    var workersUrl = props.getProperty('WORKERS_URL') || 'https://detauri-gas-proxy.nsdktts1030.workers.dev';
+    var adminKey = props.getProperty('ADMIN_KEY') || '';
+    if (!adminKey) {
+      console.warn('bulk_onEdit: ADMIN_KEY未設定のためWorkers更新スキップ');
+      return;
+    }
+
+    try {
+      var resp = UrlFetchApp.fetch(workersUrl, {
+        method: 'post',
+        contentType: 'application/json',
+        payload: JSON.stringify({
+          action: 'apiBulkRefresh',
+          args: [{ adminKey: adminKey }]
+        }),
+        muteHttpExceptions: true
+      });
+      var code = resp.getResponseCode();
+      if (code !== 200) {
+        console.warn('bulk_onEdit: Workers refresh HTTP ' + code + ' body=' + resp.getContentText().slice(0, 200));
+      }
+    } catch (err) {
+      console.error('bulk_onEdit: Workers refresh error: ' + (err && err.message || err));
+    }
+  } catch (err) {
+    console.error('bulk_onEdit error: ' + (err && err.message || err));
+  }
+}
+
 // adminBulkUploadImage は削除済み — saisun-list-bulk/コード.gs:294 に一本化
 // BulkAdminModal.html は saisun-list-bulk にのみ存在
 

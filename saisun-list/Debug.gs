@@ -1238,3 +1238,86 @@ function createDemoDistributionList() {
 
   console.log('デモ配布用リスト作成完了: ' + ss.getUrl());
 }
+
+/**
+ * 補助金申請用：現状の経営指標を集計（GASエディタから手動実行）
+ */
+function debugSubsidyStats() {
+  var custSheet = getCustomerSheet_();
+  var custData = custSheet.getDataRange().getValues();
+
+  var totalCustomers = custData.length - 1;
+  var purchasedOnce = 0;   // 購入回数 >= 1
+  var repeaters = 0;       // 購入回数 >= 2
+
+  for (var i = 1; i < custData.length; i++) {
+    var pc = Number(custData[i][CUSTOMER_SHEET_COLS.PURCHASE_COUNT]) || 0;
+    if (pc >= 1) purchasedOnce++;
+    if (pc >= 2) repeaters++;
+  }
+
+  // 依頼管理 + アーカイブから完了注文の売上を集計
+  var ss = sh_getOrderSs_();
+  var sheetNames = ['依頼管理', '依頼管理_アーカイブ'];
+  var totalOrders = 0;
+  var totalRevenue = 0;
+  var monthlySales = {};
+
+  for (var s = 0; s < sheetNames.length; s++) {
+    var sheet = ss.getSheetByName(sheetNames[s]);
+    if (!sheet || sheet.getLastRow() < 2) continue;
+    var data = sheet.getDataRange().getValues();
+    for (var j = 1; j < data.length; j++) {
+      var status = String(data[j][REQUEST_SHEET_COLS.STATUS - 1] || '').trim();
+      if (status !== '完了') continue;
+      totalOrders++;
+      var amount = Number(data[j][REQUEST_SHEET_COLS.TOTAL_AMOUNT - 1]) || 0;
+      totalRevenue += amount;
+
+      var dateVal = data[j][REQUEST_SHEET_COLS.DATETIME - 1];
+      if (dateVal instanceof Date) {
+        var ym = Utilities.formatDate(dateVal, 'Asia/Tokyo', 'yyyy-MM');
+        monthlySales[ym] = (monthlySales[ym] || 0) + amount;
+      }
+    }
+  }
+
+  var avgOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
+  var purchaseRate = totalCustomers > 0 ? (purchasedOnce / totalCustomers * 100).toFixed(1) : 0;
+  var repeatRate = purchasedOnce > 0 ? (repeaters / purchasedOnce * 100).toFixed(1) : 0;
+
+  // 直近6ヶ月の月平均売上
+  var sortedMonths = Object.keys(monthlySales).sort().reverse().slice(0, 6);
+  var recent6mTotal = 0;
+  for (var m = 0; m < sortedMonths.length; m++) {
+    recent6mTotal += monthlySales[sortedMonths[m]];
+  }
+  var monthlyAvg = sortedMonths.length > 0 ? Math.round(recent6mTotal / sortedMonths.length) : 0;
+
+  function yen_(n) { return '¥' + String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+  console.log('========================================');
+  console.log('  補助金申請用 経営指標');
+  console.log('========================================');
+  console.log('');
+  console.log('【顧客データ】');
+  console.log('  会員登録数:           ' + totalCustomers + '人');
+  console.log('  購入者数(1回以上):    ' + purchasedOnce + '人');
+  console.log('  リピーター数(2回以上): ' + repeaters + '人');
+  console.log('');
+  console.log('【主要KPI】');
+  console.log('  購入率(会員→購入):       ' + purchaseRate + '%');
+  console.log('  リピート率(購入者→2回+):  ' + repeatRate + '%');
+  console.log('');
+  console.log('【売上データ】');
+  console.log('  完了注文数:    ' + totalOrders + '件');
+  console.log('  累計売上:      ' + yen_(totalRevenue));
+  console.log('  平均客単価:    ' + yen_(avgOrderValue));
+  console.log('  月平均売上(直近6ヶ月): ' + yen_(monthlyAvg));
+  console.log('');
+  console.log('【月別売上(直近6ヶ月)】');
+  for (var k = 0; k < sortedMonths.length; k++) {
+    console.log('  ' + sortedMonths[k] + ':  ' + yen_(monthlySales[sortedMonths[k]]));
+  }
+  console.log('========================================');
+}

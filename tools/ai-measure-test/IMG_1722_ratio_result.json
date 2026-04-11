@@ -1,0 +1,65 @@
+{
+  "itemType": "トップス",
+  "a4_reference": {
+    "横幅_cm": 21.0,
+    "この画像でのA4用紙の見え方メモ": "衣類の中央にほぼ歪みなく置かれているため、基準として使いやすい。"
+  },
+  "measurements": {
+    "bodyLength_cb": {
+      "value": 52.5,
+      "ratioToA4Width": "A4横幅の約2.5倍",
+      "confidence": "medium",
+      "reasoning": "A4用紙の縦幅(29.7cm)より長く、A4用紙の横幅(21cm)の約2.5倍程度に見えるため。襟の付け根は前面から推測。",
+      "approxStart": [
+        500,
+        335
+      ],
+      "approxEnd": [
+        500,
+        805
+      ]
+    },
+    "bodyWidth": {
+      "value": 58.8,
+      "ratioToA4Width": "A4横幅の約2.8倍",
+      "confidence": "high",
+      "reasoning": "脇下の縫い目間の水平距離が、中央のA4用紙とその両脇の余白を合わせて、A4横幅の約2.8倍に見えるため。",
+      "approxStart": [
+        255,
+        485
+      ],
+      "approxEnd": [
+        745,
+        485
+      ]
+    },
+    "shoulderWidth": {
+      "value": 60.9,
+      "ratioToA4Width": "A4横幅の約2.9倍",
+      "confidence": "high",
+      "reasoning": "ドロップショルダーの左右の肩先の縫い目間の水平距離が、A4用紙の横幅(21cm)の約2.9倍に見えるため。",
+      "approxStart": [
+        200,
+        380
+      ],
+      "approxEnd": [
+        800,
+        380
+      ]
+    },
+    "sleeveLength": {
+      "value": 44.1,
+      "ratioToA4Width": "A4横幅の約2.1倍",
+      "confidence": "medium",
+      "reasoning": "ドロップショルダーの肩先の縫い目から袖口までの長さが、A4用紙の横幅(21cm)の約2.1倍に見えるため。袖に少し膨らみがあるため、若干の誤差を含む可能性がある。",
+      "approxStart": [
+        200,
+        380
+      ],
+      "approxEnd": [
+        55,
+        540
+      ]
+    }
+  }
+}

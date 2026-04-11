@@ -4,6 +4,7 @@
  * Phase 1: apiGetCachedProducts, apiBulkInit
  */
 import { jsonOk, jsonError, jsonRaw } from '../utils/response.js';
+import { syncBulkProducts } from '../sync/sheets-sync.js';
 
 const PRODUCTS_CACHE_KEY = 'products:detauri';
 const BULK_CACHE_KEY = 'products:bulk';
@@ -123,6 +124,63 @@ export async function bulkInit(args, env) {
   result.dataVersion = bulkVer;
 
   return jsonOk(result, { 'X-Cache': 'MISS' });
+}
+
+/**
+ * apiBulkRefresh — アソート商品を即時再同期
+ *
+ * GAS側の onEdit から呼ばれる。認証は ADMIN_KEY。
+ * 1. GAS apiSyncExportData で bulkProducts だけ再取得
+ * 2. D1 bulk_products をUPSERT
+ * 3. KV products:bulk / products:bulk:version を削除（次回 bulkInit で D1 から再構築）
+ */
+export async function bulkRefresh(args, env) {
+  if (!args || args.adminKey !== env.ADMIN_KEY) {
+    return jsonError('unauthorized', 401);
+  }
+  const gasUrl = env.GAS_API_URL;
+  if (!gasUrl) return jsonError('GAS_API_URL not configured', 500);
+
+  let json;
+  try {
+    const resp = await fetch(gasUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'apiSyncExportData',
+        args: [{
+          syncSecret: env.SYNC_SECRET || '',
+          since: null,
+          tables: ['bulkProducts'],
+        }],
+      }),
+    });
+    json = await resp.json();
+  } catch (e) {
+    console.error('[bulkRefresh] GAS fetch error:', e.message);
+    return jsonError('GAS fetch failed: ' + e.message, 502);
+  }
+
+  if (!json || !json.ok) {
+    return jsonError('GAS export failed: ' + (json && json.message || 'unknown'), 502);
+  }
+
+  const rows = json.bulkProducts || [];
+  if (rows.length > 0) {
+    try {
+      await syncBulkProducts(env.DB, rows);
+    } catch (e) {
+      console.error('[bulkRefresh] D1 update error:', e.message);
+      return jsonError('D1 update failed: ' + e.message, 500);
+    }
+  }
+
+  // KVキャッシュ削除 → 次回 bulkInit 呼び出しで D1 から再構築される
+  await env.CACHE.delete(BULK_CACHE_KEY);
+  await env.CACHE.delete('products:bulk:version');
+
+  console.log(`[bulkRefresh] refreshed ${rows.length} bulk products, KV cleared`);
+  return jsonOk({ count: rows.length });
 }
 
 /**

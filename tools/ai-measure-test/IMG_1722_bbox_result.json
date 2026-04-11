@@ -1,0 +1,89 @@
+{
+  "itemType": "sweatshirt",
+  "measurements": {
+    "bodyLength_cb": {
+      "startNorm": [
+        500,
+        366
+      ],
+      "endNorm": [
+        500,
+        785
+      ],
+      "confidence": "high",
+      "startPx": [
+        1024,
+        750
+      ],
+      "endPx": [
+        1024,
+        1608
+      ],
+      "distancePx": 858.1,
+      "value": 62.6
+    },
+    "bodyWidth": {
+      "startNorm": [
+        236,
+        506
+      ],
+      "endNorm": [
+        766,
+        506
+      ],
+      "confidence": "high",
+      "startPx": [
+        483,
+        1036
+      ],
+      "endPx": [
+        1569,
+        1036
+      ],
+      "distancePx": 1085.4,
+      "value": 79.1
+    },
+    "shoulderWidth": {
+      "startNorm": [
+        204,
+        416
+      ],
+      "endNorm": [
+        796,
+        416
+      ],
+      "confidence": "high",
+      "startPx": [
+        418,
+        852
+      ],
+      "endPx": [
+        1630,
+        852
+      ],
+      "distancePx": 1212.4,
+      "value": 88.4
+    },
+    "sleeveLength": {
+      "startNorm": [
+        204,
+        416
+      ],
+      "endNorm": [
+        54,
+        526
+      ],
+      "confidence": "high",
+      "startPx": [
+        418,
+        852
+      ],
+      "endPx": [
+        111,
+        1077
+      ],
+      "distancePx": 381.0,
+      "value": 27.8
+    }
+  }
+}

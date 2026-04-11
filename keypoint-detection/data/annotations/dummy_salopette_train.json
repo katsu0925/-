@@ -1,0 +1,122 @@
+{
+  "images": [
+    {
+      "id": 1,
+      "file_name": "IMG_1722.jpg",
+      "width": 4284,
+      "height": 4284
+    }
+  ],
+  "annotations": [
+    {
+      "id": 1,
+      "image_id": 1,
+      "category_id": 5,
+      "keypoints": [
+        1600,
+        800,
+        2,
+        2600,
+        800,
+        2,
+        1500,
+        1500,
+        2,
+        2750,
+        1500,
+        2,
+        1450,
+        2000,
+        2,
+        2800,
+        2000,
+        2,
+        2100,
+        2500,
+        2,
+        1400,
+        3500,
+        2,
+        2800,
+        3500,
+        2,
+        2100,
+        3550,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        1350,
+        750,
+        1500,
+        2850
+      ],
+      "area": 4275000,
+      "iscrowd": 0
+    }
+  ],
+  "categories": [
+    {
+      "id": 5,
+      "name": "salopette",
+      "keypoints": [
+        "left_strap_top",
+        "right_strap_top",
+        "left_armpit",
+        "right_armpit",
+        "waist_left",
+        "waist_right",
+        "crotch",
+        "left_hem",
+        "right_hem",
+        "hem_center"
+      ],
+      "skeleton": [
+        [
+          1,
+          2
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          3,
+          5
+        ],
+        [
+          4,
+          6
+        ],
+        [
+          5,
+          7
+        ],
+        [
+          6,
+          7
+        ],
+        [
+          7,
+          8
+        ],
+        [
+          7,
+          9
+        ],
+        [
+          8,
+          10
+        ],
+        [
+          9,
+          10
+        ]
+      ]
+    }
+  ]
+}

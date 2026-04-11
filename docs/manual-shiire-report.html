@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>仕入れ数報告マニュアル</title>
+<style>
+  @page { size: A4; margin: 20mm; }
+  body {
+    font-family: 'Hiragino Kaku Gothic ProN', 'Meiryo', sans-serif;
+    max-width: 700px;
+    margin: 0 auto;
+    padding: 40px 20px;
+    color: #222;
+    line-height: 1.8;
+    font-size: 14px;
+  }
+  h1 {
+    text-align: center;
+    font-size: 22px;
+    border-bottom: 3px solid #333;
+    padding-bottom: 12px;
+    margin-bottom: 32px;
+  }
+  h2 {
+    font-size: 17px;
+    background: #f5f5f5;
+    padding: 8px 14px;
+    border-left: 4px solid #333;
+    margin-top: 32px;
+    margin-bottom: 16px;
+  }
+  .step-num {
+    display: inline-block;
+    background: #333;
+    color: #fff;
+    width: 28px;
+    height: 28px;
+    line-height: 28px;
+    text-align: center;
+    border-radius: 50%;
+    font-size: 14px;
+    font-weight: bold;
+    margin-right: 8px;
+    vertical-align: middle;
+  }
+  .step {
+    margin-bottom: 24px;
+  }
+  .step-title {
+    font-weight: bold;
+    font-size: 15px;
+    margin-bottom: 6px;
+  }
+  .step p {
+    margin: 4px 0 4px 36px;
+  }
+  .highlight {
+    background: #fff3cd;
+    border: 1px solid #e0c36a;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 16px 0;
+  }
+  .highlight-title {
+    font-weight: bold;
+    margin-bottom: 4px;
+  }
+  .note {
+    background: #e8f4fd;
+    border: 1px solid #b3d7f0;
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin: 16px 0;
+  }
+  .footer {
+    margin-top: 40px;
+    text-align: center;
+    font-size: 12px;
+    color: #999;
+  }
+</style>
+</head>
+<body>
+
+<h1>仕入れ数報告マニュアル</h1>
+
+<h2>概要</h2>
+<p>届いた商品の点数を数えて、AppSheetの「仕入れ数報告」から入力する作業です。</p>
+
+<h2>作業手順</h2>
+
+<div class="step">
+  <div class="step-title"><span class="step-num">1</span>届いた商品を伝票と照合する</div>
+  <p>届いた荷物の<strong>伝票に「内容」が記載されています</strong>。</p>
+  <p>AppSheetの仕入れ数報告一覧に表示されている<strong>「内容」</strong>と伝票の記載を照合して、どのデータに該当するかを確認してください。</p>
+</div>
+
+<div class="highlight">
+  <div class="highlight-title">照合のポイント</div>
+  <p>同じ日付・同じ区分コードのデータが複数ある場合は、<strong>「内容」</strong>で区別してください。伝票に書かれている内容と一致するものを探します。</p>
+</div>
+
+<div class="step">
+  <div class="step-title"><span class="step-num">2</span>商品の点数を数える</div>
+  <p>届いた商品を1点ずつ数えてください。</p>
+</div>
+
+<div class="step">
+  <div class="step-title"><span class="step-num">3</span>数量を入力する</div>
+  <p>該当するデータを開いて、<strong>「数量」</strong>に数えた点数を入力して保存してください。</p>
+</div>
+
+<div class="note">
+  <p>数量を入力・保存すると、自動で仕入れ管理に反映されます。入力後に他の操作は不要です。</p>
+</div>
+
+<div class="footer">
+  <p>不明点があれば管理者に連絡してください</p>
+</div>
+
+</body>
+</html>
