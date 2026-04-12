@@ -167,10 +167,15 @@ function cronCancelledInvoices() { processCancelledInvoices(); }
 /** ディスパッチャー共通: 関数リストを順次実行し、エラーがあればLINE通知 */
 function runWithErrorNotify_(dispatcherName, fns) {
   var errors = [];
+  // Google Sheets API の一時障害は次回cronで自動回復するため通知不要
+  var TRANSIENT_RE = /Service Spreadsheets failed|Service invoked too many times|Deadline exceeded/i;
   for (var i = 0; i < fns.length; i++) {
     try { fns[i](); } catch (e) {
+      var msg = e && e.message ? e.message : String(e);
       console.error(dispatcherName + ' [' + fns[i].name + ']:', e);
-      errors.push(fns[i].name + ': ' + (e && e.message ? e.message : String(e)));
+      if (!TRANSIENT_RE.test(msg)) {
+        errors.push(fns[i].name + ': ' + msg);
+      }
     }
   }
   if (errors.length > 0) {
