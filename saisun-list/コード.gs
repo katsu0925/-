@@ -20,6 +20,7 @@ const CONFIG = {
   SRC_PRODUCT_START_ROW: 2,
 
   DEST_COL_SHIPPING: 25,
+  DEST_COL_LISTED_DATE: 26, // Z列: デタウリ掲載日
 
   SRC_RETURN_START_ROW: 2,
   SRC_RETURN_COL_C: 4,
@@ -365,6 +366,7 @@ function syncFull_(productSheet, returnSheet, aiSheet, destSheet) {
   const keepCheckByKey = {};
   const measurementsByKey = {};
   const existImgByKey = {};
+  const listedDateByKey = {}; // 既存の掲載日を保持
   const destLastRow = destSheet.getLastRow();
   if (destLastRow >= CONFIG.DEST_START_ROW) {
     const nExist = destLastRow - CONFIG.DEST_START_ROW + 1;
@@ -384,6 +386,16 @@ function syncFull_(productSheet, returnSheet, aiSheet, destSheet) {
       if (hasData) measurementsByKey[k] = meas;
       if (existImgs[i][0]) existImgByKey[k] = existImgs[i][0];
     }
+    // Z列: 既存の掲載日を保持
+    try {
+      var listedDates = destSheet.getRange(CONFIG.DEST_START_ROW, CONFIG.DEST_COL_LISTED_DATE, nExist, 1).getValues();
+      for (let li = 0; li < nExist; li++) {
+        const lk = normalizeKey_(allVals[li][keyOff]);
+        if (!lk) continue;
+        var ld = listedDates[li][0];
+        if (ld instanceof Date && !isNaN(ld)) listedDateByKey[lk] = ld;
+      }
+    } catch (e) { console.log('掲載日読み取りスキップ:', e.message || e); }
   }
 
   const out = [];
@@ -499,6 +511,31 @@ function syncFull_(productSheet, returnSheet, aiSheet, destSheet) {
         2,
         500
       );
+    }
+  }
+
+  // Z列: デタウリ掲載日を書き込み（既存は保持、新規は今日の日付）
+  if (writeCount > 0) {
+    try {
+      var today = new Date();
+      var listedDatesOut = new Array(writeCount);
+      for (let ld = 0; ld < writeCount; ld++) {
+        var ldKey = normalizeKey_(out[ld][out[ld].length - 1]); // 最後の要素 = 管理番号
+        listedDatesOut[ld] = [listedDateByKey[ldKey] || today];
+      }
+      destSheet.getRange(CONFIG.DEST_START_ROW, CONFIG.DEST_COL_LISTED_DATE, writeCount, 1).setValues(listedDatesOut);
+      // ヘッダー設定（行2に列名）
+      destSheet.getRange(2, CONFIG.DEST_COL_LISTED_DATE).setValue('掲載日');
+    } catch (e) { console.error('掲載日書き込みエラー:', e.message || e); }
+    // 余剰行のZ列をクリア
+    var listedClearStart = CONFIG.DEST_START_ROW + writeCount;
+    var listedClearRows = targetLast - listedClearStart + 1;
+    if (listedClearRows > 0) {
+      try {
+        var listedBlanks = new Array(listedClearRows);
+        for (let lb = 0; lb < listedClearRows; lb++) listedBlanks[lb] = [''];
+        destSheet.getRange(listedClearStart, CONFIG.DEST_COL_LISTED_DATE, listedClearRows, 1).setValues(listedBlanks);
+      } catch (e) {}
     }
   }
 

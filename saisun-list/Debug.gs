@@ -1321,3 +1321,157 @@ function debugSubsidyStats() {
   }
   console.log('========================================');
 }
+
+/**
+ * 注文金額の分布を集計し、送料無料ラインの影響を分析
+ * GASエディタから手動実行 → 実行ログに結果が出力される
+ */
+/**
+ * デタウリに現在掲載中の商品を、出品日が古い順に10件表示
+ * データ1シート（掲載中商品）× 商品管理シート（出品日）をクロス参照
+ * GASエディタから手動実行 → 実行ログに出力
+ */
+function showOldestListings() {
+  // データ1のZ列（掲載日）を直接使用
+  var mainSs = SpreadsheetApp.getActiveSpreadsheet();
+  var data1 = mainSs.getSheetByName('データ1');
+  if (!data1) { console.log('データ1シートが見つかりません'); return; }
+  var d1Last = data1.getLastRow();
+  if (d1Last < 3) { console.log('データ1にデータなし'); return; }
+
+  // K列(11):管理番号, D列(4):ブランド, I列(9):価格, Z列(26):掲載日
+  var nRows = d1Last - 2;
+  var d1Vals = data1.getRange(3, 1, nRows, 11).getValues();
+  var listedDates = data1.getRange(3, 26, nRows, 1).getValues();
+
+  var items = [];
+  var today = new Date();
+  var noDate = 0;
+
+  for (var i = 0; i < nRows; i++) {
+    var mid = String(d1Vals[i][10] || '').trim(); // K列
+    if (!mid) continue;
+
+    var d = listedDates[i][0];
+    if (!(d instanceof Date) || isNaN(d)) { noDate++; continue; }
+
+    var days = Math.floor((today - d) / (1000 * 60 * 60 * 24));
+    items.push({
+      mid: mid,
+      brand: String(d1Vals[i][3] || ''),
+      price: Number(d1Vals[i][8]) || 0,
+      date: Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy/MM/dd'),
+      days: days
+    });
+  }
+
+  items.sort(function(a, b) { return b.days - a.days; });
+
+  console.log('========================================');
+  console.log('デタウリ掲載中 古い商品 TOP10（掲載中 ' + items.length + '件' + (noDate > 0 ? '、掲載日未設定=' + noDate + '件' : '') + '）');
+  console.log('========================================');
+  var top = Math.min(10, items.length);
+  for (var k = 0; k < top; k++) {
+    var it = items[k];
+    console.log((k + 1) + '. ' + it.mid + '  ' + it.brand + '  ¥' + it.price + '  ' + it.date + '（' + it.days + '日）');
+  }
+  if (items.length === 0) console.log('(掲載日が入っている商品がありません。先に backfillListedDate を実行してください)');
+  console.log('========================================');
+}
+
+function analyzeShippingThreshold() {
+  function yen_(n) { return '¥' + String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+  var ss = SpreadsheetApp.openById(app_getOrderSpreadsheetId_());
+  var sh = ss.getSheetByName(String(APP_CONFIG.order.requestSheetName || '依頼管理'));
+  if (!sh) { console.log('依頼管理シートが見つかりません'); return; }
+
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) { console.log('データなし'); return; }
+
+  var data = sh.getRange(2, 1, lastRow - 1, 22).getValues();
+  var amounts = [];
+  var shippingPaid = []; // 客負担送料が発生した注文
+
+  for (var i = 0; i < data.length; i++) {
+    var status = String(data[i][21] || '').trim(); // V列: ステータス
+    if (status === 'キャンセル' || status === '返品') continue;
+    var amount = Number(data[i][11]) || 0; // L列: 合計金額
+    if (amount <= 0) continue;
+    amounts.push(amount);
+    var custShip = Number(data[i][13]) || 0; // N列: 送料(客負担)
+    if (custShip > 0) shippingPaid.push({ amount: amount, shipping: custShip });
+  }
+
+  if (amounts.length === 0) { console.log('有効な注文データなし'); return; }
+
+  amounts.sort(function(a, b) { return a - b; });
+  var total = amounts.length;
+
+  // 金額帯の分布
+  var bands = [
+    [0, 5000], [5000, 10000], [10000, 15000], [15000, 20000],
+    [20000, 25000], [25000, 30000], [30000, 50000], [50000, 100000], [100000, Infinity]
+  ];
+  var bandCounts = {};
+  for (var b = 0; b < bands.length; b++) {
+    var lo = bands[b][0], hi = bands[b][1];
+    var label = hi === Infinity ? (yen_(lo) + '以上') : (yen_(lo) + '〜' + yen_(hi));
+    var cnt = 0;
+    for (var j = 0; j < amounts.length; j++) {
+      if (amounts[j] >= lo && amounts[j] < hi) cnt++;
+    }
+    bandCounts[label] = cnt;
+  }
+
+  // 各閾値で送料無料になる注文の割合
+  var thresholds = [10000, 15000, 20000, 25000, 30000];
+
+  console.log('========================================');
+  console.log('送料無料ライン分析（有効注文 ' + total + '件）');
+  console.log('========================================');
+  console.log('');
+  console.log('【注文金額の分布】');
+  for (var key in bandCounts) {
+    var pct = Math.round(bandCounts[key] / total * 1000) / 10;
+    console.log('  ' + key + ':  ' + bandCounts[key] + '件 (' + pct + '%)');
+  }
+
+  console.log('');
+  console.log('【送料無料ライン別 影響】');
+  for (var t = 0; t < thresholds.length; t++) {
+    var th = thresholds[t];
+    var freeCount = 0;
+    for (var a = 0; a < amounts.length; a++) {
+      if (amounts[a] >= th) freeCount++;
+    }
+    var freePct = Math.round(freeCount / total * 1000) / 10;
+    var paidCount = total - freeCount;
+    var paidPct = Math.round(paidCount / total * 1000) / 10;
+    console.log('  ' + yen_(th) + '以上で無料:  無料=' + freeCount + '件(' + freePct + '%)  有料=' + paidCount + '件(' + paidPct + '%)');
+  }
+
+  // 平均・中央値
+  var sum = 0;
+  for (var s = 0; s < amounts.length; s++) sum += amounts[s];
+  var avg = Math.round(sum / total);
+  var median = amounts[Math.floor(total / 2)];
+
+  console.log('');
+  console.log('【統計】');
+  console.log('  平均注文金額:  ' + yen_(avg));
+  console.log('  中央値:        ' + yen_(median));
+  console.log('  最小:          ' + yen_(amounts[0]));
+  console.log('  最大:          ' + yen_(amounts[amounts.length - 1]));
+
+  // 現在送料を払っている注文の分布
+  console.log('');
+  console.log('【現在 送料(客負担)が発生している注文: ' + shippingPaid.length + '件】');
+  if (shippingPaid.length > 0) {
+    var shipTotal = 0;
+    for (var sp = 0; sp < shippingPaid.length; sp++) shipTotal += shippingPaid[sp].shipping;
+    console.log('  送料収入合計:  ' + yen_(shipTotal));
+    console.log('  平均送料/件:   ' + yen_(Math.round(shipTotal / shippingPaid.length)));
+  }
+
+  console.log('========================================');
+}
