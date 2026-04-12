@@ -889,7 +889,7 @@ function writeSubmitData_(data) {
     productNames = '・' + productNames;
   }
   var channel = data.channel || 'デタウリ';
-  var paymentStatus = data.paymentStatus || '対応済';
+  var paymentStatus = data.paymentStatus || '未対応';
   // アソート商品の場合、選択リスト/合計点数の扱いが異なる
   var selectionList = data.selectionList || (data.ids ? data.ids.join('、') : '');
   var totalCount = data._sheetTotalCount || calcTotalCountFromProductNames_(productNames) || data.totalCount || (data.ids ? data.ids.length : 0);

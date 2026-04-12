@@ -244,7 +244,7 @@ function apiCheckPaymentStatus(pendingKey) {
         var deferredFb = { 'konbini': true, 'bank_transfer': true, 'pay_easy': true };
         var paymentStatus;
         if (status === 'paid') {
-          paymentStatus = '対応済';
+          paymentStatus = '未対応';
         } else if (deferredFb[paymentMethodType] && status === 'authorized') {
           paymentStatus = '入金待ち';
         } else {
@@ -412,7 +412,7 @@ function handlePaymentSuccess_(data) {
   var deferredMethods = { 'konbini': true, 'bank_transfer': true, 'pay_easy': true };
   var paymentStatus;
   if (data.type === 'payment.captured') {
-    paymentStatus = '対応済';
+    paymentStatus = '未対応';
   } else if (deferredMethods[paymentMethodType] && data.type === 'payment.authorized') {
     paymentStatus = '入金待ち';
   } else {
