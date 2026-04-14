@@ -1327,6 +1327,74 @@ function debugSubsidyStats() {
  * GASエディタから手動実行 → 実行ログに結果が出力される
  */
 /**
+ * 既存のデータ1掲載商品にZ列（掲載日）をバックフィル
+ * 商品管理の出品日があればそれを��い、なければ今日の日付を入れる
+ * GASエディタから1回だけ手動実行する — Debug.gs
+ */
+function backfillListedDate() {
+  var mainSs = SpreadsheetApp.getActiveSpreadsheet();
+  var data1 = mainSs.getSheetByName('データ1');
+  if (!data1) { console.log('データ1が見つかりません'); return; }
+  var d1Last = data1.getLastRow();
+  if (d1Last < 3) { console.log('データなし'); return; }
+
+  var nRows = d1Last - 2;
+  var keys = data1.getRange(3, 11, nRows, 1).getValues();     // K列: 管理番号
+  var existing = data1.getRange(3, 26, nRows, 1).getValues();  // Z列: 掲載日
+
+  // 商品管理から出品��を取得
+  var detailSsId = '';
+  try { detailSsId = APP_CONFIG.detail.spreadsheetId; } catch (e) {}
+  if (!detailSsId) try { detailSsId = PropertiesService.getScriptProperties().getProperty('DETAIL_SPREADSHEET_ID') || ''; } catch (e) {}
+
+  var listDateMap = {};
+  if (detailSsId) {
+    var detailSs = SpreadsheetApp.openById(detailSsId);
+    var mgSh = detailSs.getSheetByName('商品管理');
+    if (mgSh) {
+      var mgLast = mgSh.getLastRow();
+      var mgLastCol = mgSh.getLastColumn();
+      if (mgLast >= 2) {
+        var mgHeaders = mgSh.getRange(1, 1, 1, mgLastCol).getValues()[0];
+        var cMid = -1, cDate = -1;
+        for (var h = 0; h < mgHeaders.length; h++) {
+          var name = String(mgHeaders[h] || '').trim();
+          if (name === '管理番号') cMid = h;
+          if (name === '出品日') cDate = h;
+        }
+        if (cMid >= 0 && cDate >= 0) {
+          var mgData = mgSh.getRange(2, 1, mgLast - 1, Math.max(cMid, cDate) + 1).getValues();
+          for (var r = 0; r < mgData.length; r++) {
+            var mid = String(mgData[r][cMid] || '').trim().toUpperCase();
+            var d = mgData[r][cDate];
+            if (mid && d instanceof Date && !isNaN(d)) listDateMap[mid] = d;
+          }
+        }
+      }
+    }
+  }
+
+  var today = new Date();
+  var output = [];
+  var filled = 0, newToday = 0;
+  for (var i = 0; i < nRows; i++) {
+    var mid = String(keys[i][0] || '').trim().toUpperCase();
+    var fromMg = listDateMap[mid];
+    if (fromMg) {
+      output.push([fromMg]);
+      filled++;
+    } else {
+      output.push([today]);
+      newToday++;
+    }
+  }
+
+  data1.getRange(3, 26, nRows, 1).setValues(output);
+  data1.getRange(2, 26).setValue('掲載日');
+  console.log('バックフィル完了: 出品日流用=' + filled + ' 今日の日付(出品日なし)=' + newToday + ' 合計=' + nRows);
+}
+
+/**
  * デタウリに現在掲載中の商品を、出品日が古い順に10件表示
  * データ1シート（掲載中商品）× 商品管理シート（出品日）をクロス参照
  * GASエディタから手動実行 → 実行ログに出力
@@ -1474,4 +1542,48 @@ function analyzeShippingThreshold() {
   }
 
   console.log('========================================');
+}
+
+// =====================================================
+// 単発: D1 pendingバックアップから個品/アソートID内訳を復元
+// =====================================================
+
+function debugRecoverDetauriIds_620() {
+  debugRecoverDetauriIdsForReceipt('20260410180154-620');
+}
+
+function debugRecoverDetauriIdsForReceipt(receiptNo) {
+  console.log('=== D1 pending復元: ' + receiptNo + ' ===');
+  // 旧形式の受付番号は paymentToken === receiptNo
+  var d1Result = fetchPendingFromD1_(receiptNo);
+  if (!d1Result) { console.log('D1 API応答なし（WORKERS_API_URL/ADMIN_KEY未設定の可能性）'); return; }
+  if (!d1Result.found) { console.log('D1にバックアップなし'); return; }
+
+  var pending = null;
+  try { pending = JSON.parse(d1Result.data); }
+  catch (e) { console.log('JSONパース失敗: ' + e.message); console.log('raw: ' + String(d1Result.data).substring(0, 500)); return; }
+
+  console.log('consumed: ' + d1Result.consumed);
+  console.log('channel: ' + (pending.channel || '(なし)'));
+  console.log('totalCount: ' + pending.totalCount);
+  console.log('selectionList: ' + (pending.selectionList || '(なし)'));
+
+  var detauriIds = pending.detauriIds || [];
+  console.log('--- detauriIds (お客様が手動選択した個品) ---');
+  console.log('件数: ' + detauriIds.length);
+  if (detauriIds.length > 0) {
+    console.log('IDs: ' + detauriIds.join('、'));
+  }
+
+  var ids = pending.ids || [];
+  console.log('--- 統合ids (J列に書かれた全管理番号) ---');
+  console.log('件数: ' + ids.length);
+
+  // アソート分 = 統合ids − detauriIds
+  var detauriSet = {};
+  for (var i = 0; i < detauriIds.length; i++) detauriSet[detauriIds[i]] = true;
+  var assortIds = ids.filter(function(x) { return !detauriSet[x]; });
+  console.log('--- アソート自動選定分 (推定) ---');
+  console.log('件数: ' + assortIds.length);
+  if (assortIds.length > 0) console.log('IDs: ' + assortIds.join('、'));
 }

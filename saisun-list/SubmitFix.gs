@@ -929,12 +929,21 @@ function writeSubmitData_(data) {
     new Date(now),                               // AF: 更新日時
     channel,                                     // AG: チャネル
     '',                                          // AH: 追跡URL
-    (function() {                                // AI: 商品単価JSON（注文時価格）
-      var pm = {};
-      (data.itemDetails || []).forEach(function(it) {
-        if (it.managedId) pm[it.managedId] = it.price || 0;
+    (function() {                                // AI: 商品単価JSON（注文時価格、新形式: 個品/アソート分離）
+      var aMap = {}, dMap = {};
+      (data.assortItemDetails || []).forEach(function(it) {
+        if (it.managedId) aMap[it.managedId] = it.price || 0;
       });
-      return JSON.stringify(pm);
+      (data.detauriItemDetails || []).forEach(function(it) {
+        if (it.managedId) dMap[it.managedId] = it.price || 0;
+      });
+      // 内訳が両方空なら旧itemDetailsをdetauri扱い（後方互換）
+      if (Object.keys(aMap).length === 0 && Object.keys(dMap).length === 0) {
+        (data.itemDetails || []).forEach(function(it) {
+          if (it.managedId) dMap[it.managedId] = it.price || 0;
+        });
+      }
+      return JSON.stringify({ assort: aMap, detauri: dMap });
     })()
   ];
   var writeRow = sh_findNextRowByDisplayKey_(reqSh, 1, 1);
@@ -1212,9 +1221,10 @@ function confirmPaymentAndCreateOrder(paymentToken, paymentStatus, paymentMethod
     var detauriIds = pendingData.detauriIds || [];
     var premiumSpec = isBulk ? detectPremiumAssort_(pendingData.orderItems) : null;
     var allIds = [];
+    var selection = null;
 
     if (premiumSpec) {
-      var selection = selectProductsForPremiumAssort_(
+      selection = selectProductsForPremiumAssort_(
         premiumSpec.targetAmount, premiumSpec.minCount, premiumSpec.maxCount, orderSs, detauriIds
       );
       allIds = allIds.concat(selection.ids);
@@ -1233,6 +1243,45 @@ function confirmPaymentAndCreateOrder(paymentToken, paymentStatus, paymentMethod
     if (detauriIds.length > 0) {
       allIds = allIds.concat(detauriIds);
     }
+
+    // === AI列の新形式用に「個品/アソート」の内訳を分離保存 ===
+    var assortItemDetails = [];
+    var detauriItemDetails = [];
+
+    if (selection && selection.priceMap) {
+      for (var sai = 0; sai < selection.ids.length; sai++) {
+        assortItemDetails.push({
+          managedId: selection.ids[sai],
+          price: selection.priceMap[selection.ids[sai]] || 0
+        });
+      }
+    }
+
+    if (detauriIds.length > 0) {
+      try {
+        var dProducts = pr_readProducts_();
+        var dPriceLookup = {};
+        for (var dpi = 0; dpi < dProducts.length; dpi++) {
+          if (dProducts[dpi].managedId) dPriceLookup[dProducts[dpi].managedId] = dProducts[dpi].price || 0;
+        }
+        for (var dii = 0; dii < detauriIds.length; dii++) {
+          detauriItemDetails.push({
+            managedId: detauriIds[dii],
+            price: dPriceLookup[detauriIds[dii]] || 0
+          });
+        }
+      } catch (priceErr) {
+        console.warn('detauri価格取得エラー: ' + (priceErr.message || priceErr));
+      }
+    }
+
+    // デタウリ直接購入(isBulk=false)で premiumSpec も無い場合は、既存 itemDetails が個品リスト
+    if (!isBulk && !premiumSpec && (pendingData.itemDetails || []).length > 0 && detauriItemDetails.length === 0) {
+      detauriItemDetails = pendingData.itemDetails;
+    }
+
+    pendingData.assortItemDetails = assortItemDetails;
+    pendingData.detauriItemDetails = detauriItemDetails;
 
     if (allIds.length > 0) {
       // K列用: アソート数量はそのまま、デタウリ合算は1として加算
@@ -1334,6 +1383,8 @@ function confirmPaymentAndCreateOrder(paymentToken, paymentStatus, paymentMethod
       paymentMethod: paymentMethod || '',
       paymentId: paymentId || '',
       itemDetails: pendingData.itemDetails || [],
+      assortItemDetails: pendingData.assortItemDetails || [],
+      detauriItemDetails: pendingData.detauriItemDetails || [],
       pointsUsed: pendingData.pointsUsed || 0,
       channel: pendingData.channel || 'デタウリ',
       productNames: pendingData.productNames || '',

@@ -457,11 +457,21 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
       continue;
     }
 
-    // AI列: 注文時価格JSON（メールと一致する価格）
+    // AI列: 注文時価格JSON（新形式 {assort:{},detauri:{}} と旧形式 {id:price} の両対応）
     var orderPriceMap = {};
     try {
       var priceJson = String(reqRow[REQUEST_SHEET_COLS.ITEM_PRICES - 1] || '');
-      if (priceJson) orderPriceMap = JSON.parse(priceJson);
+      if (priceJson) {
+        var parsed = JSON.parse(priceJson);
+        if (parsed && (parsed.assort !== undefined || parsed.detauri !== undefined)) {
+          var aMap = parsed.assort || {};
+          var dMap = parsed.detauri || {};
+          for (var ak in aMap) orderPriceMap[ak] = aMap[ak];
+          for (var dk in dMap) orderPriceMap[dk] = dMap[dk];
+        } else if (parsed) {
+          orderPriceMap = parsed;
+        }
+      }
     } catch (e) { /* AI列が空または不正な場合はフォールバック */ }
 
     var selectionStr = String(reqRow[selectionCol] || '');
