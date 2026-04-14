@@ -135,7 +135,8 @@ export async function bulkInit(args, env) {
  * 3. KV products:bulk / products:bulk:version を削除（次回 bulkInit で D1 から再構築）
  */
 export async function bulkRefresh(args, env) {
-  if (!args || args.adminKey !== env.ADMIN_KEY) {
+  const params = (Array.isArray(args) ? args[0] : args) || {};
+  if (params.adminKey !== env.ADMIN_KEY) {
     return jsonError('unauthorized', 401);
   }
   const gasUrl = env.GAS_API_URL;
