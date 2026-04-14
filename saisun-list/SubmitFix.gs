@@ -1886,6 +1886,16 @@ function menuManualAssortSelect() {
   var receiptNo = String(res.getResponseText() || '').trim();
   if (!receiptNo) { ui.alert('受付番号が入力されていません。'); return; }
 
+  // 除外する管理番号（任意）: 「、」「,」区切りで複数指定可
+  var excRes = ui.prompt('除外する管理番号（任意）',
+    '選定から除外したい管理番号を「、」または「,」区切りで入力してください。\n指定不要なら空欄のままOK。',
+    ui.ButtonSet.OK_CANCEL);
+  if (excRes.getSelectedButton() !== ui.Button.OK) return;
+  var excludeIds = String(excRes.getResponseText() || '')
+    .split(/[、,，\s]+/)
+    .map(function(s) { return s.trim(); })
+    .filter(function(s) { return s; });
+
   var orderSs = sh_getOrderSs_();
   var reqSh = sh_ensureRequestSheet_(orderSs);
   var lastRow = reqSh.getLastRow();
@@ -1921,9 +1931,9 @@ function menuManualAssortSelect() {
     st_setOpenState_(orderSs, openStatePre);
   }
 
-  // 自動選定実行
+  // 自動選定実行（除外IDはこの実行限りで反映）
   var selection = selectProductsForPremiumAssort_(
-    premiumSpec.targetAmount, premiumSpec.minCount, premiumSpec.maxCount, orderSs, []
+    premiumSpec.targetAmount, premiumSpec.minCount, premiumSpec.maxCount, orderSs, excludeIds
   );
 
   if (!selection.ids || selection.ids.length === 0) {
@@ -1949,7 +1959,11 @@ function menuManualAssortSelect() {
   st_setOpenState_(orderSs, openState);
   st_invalidateStatusCache_(orderSs);
 
-  ui.alert('選定完了\n\n受付番号: ' + receiptNo + '\n選定: ' + selection.ids.length + '点\n合計: ¥' + selection.total.toLocaleString() + '\n\nI列が空であれば5分以内にcronで自動展開されます。');
+  ui.alert('選定完了\n\n受付番号: ' + receiptNo +
+    '\n選定: ' + selection.ids.length + '点' +
+    '\n合計: ¥' + selection.total.toLocaleString() +
+    (excludeIds.length > 0 ? '\n除外: ' + excludeIds.length + '点 (' + excludeIds.join('、') + ')' : '') +
+    '\n\nI列が空であれば5分以内にcronで自動展開されます。');
 }
 
 // =====================================================
