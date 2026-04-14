@@ -1961,6 +1961,110 @@ function om_calcPriceTier_(n) {
 }
 
 // ═══════════════════════════════════════════
+// 単発: 指定受付番号のJ列を商品管理＋売却履歴のみに反映
+//   XLSX生成・AI生成・回収完了展開はスキップ
+//   GASエディタから直接実行する用
+// ═══════════════════════════════════════════
+
+function applySaleReflectionOnly_575() {
+  om_applySaleReflectionOnlyForReceipt_('20260402123935-575');
+}
+
+function om_applySaleReflectionOnlyForReceipt_(receiptNo) {
+  var orderSsId = app_getOrderSpreadsheetId_();
+  var orderSs = SpreadsheetApp.openById(orderSsId);
+  var reqSheet = orderSs.getSheetByName('依頼管理');
+  if (!reqSheet) throw new Error('依頼管理シートが見つかりません');
+
+  var reqData = reqSheet.getDataRange().getValues();
+  var headers = reqData.shift();
+  var rIdx = {};
+  headers.forEach(function(h, i) { rIdx[String(h || '').trim()] = i; });
+
+  var receiptColIdx = rIdx['受付番号'];
+  var selectionColIdx = rIdx['選択リスト'];
+  if (receiptColIdx === undefined || selectionColIdx === undefined) {
+    throw new Error('依頼管理に「受付番号」または「選択リスト」列が見つかりません');
+  }
+
+  var ids = [];
+  for (var i = 0; i < reqData.length; i++) {
+    if (String(reqData[i][receiptColIdx] || '').trim() === receiptNo) {
+      var s = String(reqData[i][selectionColIdx] || '');
+      ids = s.split(/[、,，\s]+/).map(function(t) { return t.trim(); }).filter(function(t) { return t; });
+      break;
+    }
+  }
+  if (ids.length === 0) {
+    throw new Error('受付番号が見つからない、またはJ列(選択リスト)が空: ' + receiptNo);
+  }
+
+  var shiireSs = SpreadsheetApp.openById(OM_SHIIRE_SS_ID);
+  var mainSheet = shiireSs.getSheetByName('商品管理');
+  if (!mainSheet) throw new Error('商品管理シートが見つかりません');
+
+  var mData = mainSheet.getDataRange().getValues();
+  var mHeaders = mData.shift();
+  var mIdx = {};
+  mHeaders.forEach(function(h, i) { mIdx[String(h || '').trim()] = i; });
+
+  var idColIdx = mIdx['管理番号'];
+  var statusColNum = (mIdx['ステータス'] !== undefined) ? mIdx['ステータス'] + 1 : 0;
+  if (!idColIdx && idColIdx !== 0) throw new Error('商品管理に「管理番号」列が見つかりません');
+  if (!statusColNum) throw new Error('商品管理に「ステータス」列が見つかりません');
+
+  var statusColLetter = om_colNumToLetter_(statusColNum);
+  var boColLetter = om_colNumToLetter_(67);
+  var brandColIdx = mIdx['ブランド'];
+  var costColIdx = mIdx['仕入れ値'];
+
+  var idToAllRows = {};
+  var idToBrand = {};
+  var idToCost = {};
+  for (var ir = 0; ir < mData.length; ir++) {
+    var ik = String(mData[ir][idColIdx] || '').trim();
+    if (!ik) continue;
+    if (!idToAllRows[ik]) idToAllRows[ik] = [];
+    idToAllRows[ik].push(ir + 2);
+    if (idToBrand[ik] === undefined && brandColIdx !== undefined) idToBrand[ik] = mData[ir][brandColIdx] || '';
+    if (idToCost[ik] === undefined && costColIdx !== undefined) idToCost[ik] = mData[ir][costColIdx] || '';
+  }
+
+  var statusA1s = [];
+  var boA1s = [];
+  var logEntries = [];
+  var matchedIds = [];
+  var missingIds = [];
+
+  ids.forEach(function(mgmtId) {
+    var rows = idToAllRows[mgmtId] || [];
+    if (rows.length === 0) { missingIds.push(mgmtId); return; }
+    matchedIds.push(mgmtId);
+    for (var ri = 0; ri < rows.length; ri++) {
+      statusA1s.push(statusColLetter + rows[ri]);
+      boA1s.push(boColLetter + rows[ri]);
+    }
+    logEntries.push({
+      date: new Date(),
+      managedId: mgmtId,
+      receiptNo: receiptNo,
+      brand: idToBrand[mgmtId] || '',
+      cost: idToCost[mgmtId] || ''
+    });
+  });
+
+  if (statusA1s.length > 0) mainSheet.getRangeList(statusA1s).setValue('売却済み');
+  if (boA1s.length > 0) mainSheet.getRangeList(boA1s).setValue(receiptNo);
+  if (logEntries.length > 0) om_writeSaleLog_(shiireSs, logEntries);
+  clearProductCache_();
+
+  console.log('反映完了: 受付番号=' + receiptNo +
+    ' / J列ID数=' + ids.length +
+    ' / 該当=' + matchedIds.length + '件 / 未該当=' + missingIds.length + '件' +
+    (missingIds.length > 0 ? ' (' + missingIds.join(',') + ')' : ''));
+}
+
+// ═══════════════════════════════════════════
 // XLSX用サブ関数（shiire-kanri/xlsxダウンロード.gs 由来）
 // ═══════════════════════════════════════════
 
