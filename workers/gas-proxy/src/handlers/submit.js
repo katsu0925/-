@@ -807,6 +807,11 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     userKey,
     form: validatedForm,
     ids,
+    // チャネルが 'まとめ' (デタウリ個品 + アソート併用) の場合は ids が個品リストなので
+    // GAS confirmPaymentAndCreateOrder に detauriIds として明示的に渡す。
+    // これがないと GAS 側で selection.ids のみで pendingData.ids/selectionList が上書きされ
+    // 個品の管理番号が J列(選択リスト)から消える。
+    detauriIds: hasBulkItems && ids.length > 0 ? ids : undefined,
     paymentToken,
     selectionList,
     measureOpt,
