@@ -113,12 +113,10 @@ function wn_sendSoldReport_() {
   // データ1シートから管理番号→商品情報マップを構築
   var dataSs = SpreadsheetApp.openById(String(APP_CONFIG.data.spreadsheetId).trim());
   var dataSheet = dataSs.getSheetByName(APP_CONFIG.data.sheetName);
-  var stockCount = 0;
   var productMap = {}; // 管理番号 → {brand, category, price}
   if (dataSheet) {
     var headerRow = Number(APP_CONFIG.data.headerRow || 2);
     var dataLastRow = dataSheet.getLastRow();
-    stockCount = Math.max(0, dataLastRow - headerRow);
     if (dataLastRow > headerRow) {
       var dataValues = dataSheet.getRange(headerRow + 1, 1, dataLastRow - headerRow, 11).getValues();
       for (var d = 0; d < dataValues.length; d++) {
@@ -132,6 +130,9 @@ function wn_sendSoldReport_() {
       }
     }
   }
+  // 在庫数は管理番号が実在する行のみカウント
+  // （syncFull_でclearContentしたセルもgetLastRowでは行数に含まれるため）
+  var stockCount = Object.keys(productMap).length;
 
   // 依頼管理シートから直近の売約データを取得
   var ss = SpreadsheetApp.openById(app_getOrderSpreadsheetId_());
