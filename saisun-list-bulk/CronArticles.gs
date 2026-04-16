@@ -323,21 +323,23 @@ function cron_art_generateTrendArticle_(pastTitles, trendData) {
 
   var trendSection = '';
   if (trendData) {
-    trendSection = '\n\n【デタウリ最新売上データ（実売ランキング）】\n';
+    trendSection = '\n\n【デタウリ累計注文数ランキング（開業以降の累計）】\n';
     if (trendData.brands && trendData.brands.length > 0) {
-      trendSection += '■ ブランド別注文数ランキング:\n';
+      trendSection += '■ ブランド別ランキング（順位のみ、金額・注文回数は非公開）:\n';
       for (var i = 0; i < trendData.brands.length; i++) {
         var b = trendData.brands[i];
-        trendSection += (i + 1) + '位: ' + b.name + '（' + b.orders + '回注文, 売上' + Math.round(b.total).toLocaleString() + '円）\n';
+        trendSection += (i + 1) + '位: ' + b.name + '\n';
       }
     }
     if (trendData.categories && trendData.categories.length > 0) {
-      trendSection += '■ カテゴリ別注文数ランキング:\n';
+      trendSection += '■ カテゴリ別ランキング（順位のみ、金額・注文回数は非公開）:\n';
       for (var j = 0; j < trendData.categories.length; j++) {
         var c = trendData.categories[j];
-        trendSection += (j + 1) + '位: ' + c.name + '（' + c.orders + '回注文, 売上' + Math.round(c.total).toLocaleString() + '円）\n';
+        trendSection += (j + 1) + '位: ' + c.name + '\n';
       }
     }
+    trendSection += '\n※このランキングは累計データです。「今週」「今月」「春の売上」等、特定期間の数字として表現しないこと。\n';
+    trendSection += '※具体的な注文回数や売上金額は一切記事内に書かないこと（例: 「ZARAが10回注文」「売上60,644円」等の記述は禁止）。順位とブランド名のみ引用可。\n';
   }
 
   var tz = Session.getScriptTimeZone() || 'Asia/Tokyo';
@@ -352,8 +354,8 @@ function cron_art_generateTrendArticle_(pastTitles, trendData) {
     '',
     '以下のJSON形式で出力してください（他のテキストは一切出力しないでください）:',
     '{',
-    '  "title": "記事タイトル（30字以内、具体的なランキング・数字を含めてキャッチーに）",',
-    '  "summary": "要約（60〜80字、今週の売れ筋がわかるようにまとめる）",',
+    '  "title": "記事タイトル（30字以内、人気ブランド名やカテゴリ名を入れてキャッチーに。具体的な売上金額・注文回数は入れない）",',
+    '  "summary": "要約（60〜80字、人気ブランド・カテゴリの傾向がわかるようにまとめる。具体的な数字は入れない）",',
     '  "content": "本文（HTML形式、600〜1000字、<h3><p><ul><li><strong><em>タグを使用）",',
     '  "category": "せどり",',
     '  "tags": "タグ（カンマ区切り、3〜5個、例: トレンド,売れ筋,ブランド,ランキング）",',
@@ -362,18 +364,26 @@ function cron_art_generateTrendArticle_(pastTitles, trendData) {
     '}',
     '',
     '【執筆ルール】',
-    '・「デタウリの売上データによると...」のように実データを引用しながら分析する',
+    '・提供された累計ランキングを参考に、どのブランド・カテゴリが副業物販で人気かを一般論として分析する',
     '・なぜそのブランド/カテゴリが人気なのか、季節要因や市場動向を考察する',
     '・リセラーが今すぐ活かせる仕入れアクションを3つ以上提案する',
     '・「です・ます」調で統一',
-    '・具体的な数字を多用し、信頼性のある分析記事にする',
     '・HTMLのcontent内では<script>タグや<style>タグは使わない',
-    '・「確実に儲かる」等の断定は避け、リスクや注意点も併記する'
+    '・「確実に儲かる」等の断定は避け、リスクや注意点も併記する',
+    '',
+    '【数字・実績に関する厳守ルール】',
+    '・具体的な売上金額・注文回数・受注件数等の数字は絶対に記事内に書かない（例: 「ZARAは10回注文」「売上60,644円」「105回の注文」等は全て禁止）',
+    '・「今週」「今月」「○月上旬のデタウリ売上データ」「2026年春の売上」のような特定期間の自社データとして書くのは禁止',
+    '・「デタウリの売上データによると」「デタウリ実績データでは」のような自社実績データを明示する表現は禁止',
+    '・ランキング順位とブランド名・カテゴリ名のみ引用可（例: 「人気ブランドには ZARA、INGNI、adidas などがあり…」のように列挙するのはOK）',
+    '・市場相場・業界統計として出典が明確な一般的な数字は引用可（例: 総務省統計、経産省レポート等）'
   ].join('\n') + trendSection + dedupeInstruction;
 
-  var userPrompt = '今週のデタウリ売れ筋ランキングに基づくトレンド分析記事を作成してください。\n' +
-    'ランキング上位のブランド・カテゴリがなぜ人気なのか分析し、' +
-    '副業リセラーが今仕入れるべきアイテムと仕入れ先を具体的に提案してください。';
+  var userPrompt = 'デタウリで継続的に人気のあるブランド・カテゴリ（累計ランキング）を踏まえ、一般的な市場トレンド分析記事を作成してください。\n' +
+    'ランキング上位のブランド・カテゴリがなぜ物販市場全体で人気なのか、季節要因・市場動向・ターゲット層の観点から一般論として分析し、' +
+    '副業リセラーが今仕入れるべきアイテムと仕入れ先を具体的に提案してください。\n' +
+    '※「今週」「今月」「○月上旬の売上」「2026年春の売上」等、特定期間の自社データとして書かないこと。' +
+    'あくまで累計ランキングからの傾向考察として書くこと。';
 
   return cron_art_callOpenAI_(apiKey, systemPrompt, userPrompt);
 }
