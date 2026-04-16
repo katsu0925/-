@@ -30,7 +30,7 @@ function doGet(e) {
       var bulkInitData = {
         ok: true,
         products: bulkProducts,
-        settings: { appTitle: APP_CONFIG.appTitle, channel: BULK_CONFIG.channel, shippingAreas: SHIPPING_AREAS, shippingRates: SHIPPING_RATES, memberDiscount: bulkMd },
+        settings: { appTitle: APP_CONFIG.appTitle, channel: BULK_CONFIG.channel, shippingAreas: SHIPPING_AREAS, shippingRates: SHIPPING_RATES, memberDiscount: bulkMd, alwaysChargeShippingIds: (SHIPPING_CONSTANTS && SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS) || [] },
         stats: bulkStats
       };
       tBulk.initialBulkData = JSON.stringify(bulkInitData);

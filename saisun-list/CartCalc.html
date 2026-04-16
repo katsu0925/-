@@ -134,6 +134,7 @@ var CartCalc = (function() {
     var pointsUsed = input.pointsUsed || 0;
     var customer = input.customer || null;
     var assortExcQty = input.assortExcludedQty || 0;
+    var assortAlwaysChargeQty = input.assortAlwaysChargeQty || 0;  // 価格破壊商品の数量（1万円以上ルール無効化）
 
     // -- 結果オブジェクト初期化 --
     var result = {
@@ -267,7 +268,13 @@ var CartCalc = (function() {
             result.assort.shipping = { amount: 0, label: 'アソート 送料', isFree: true, freeReason: 'クーポン適用' };
           }
         } else if (thresholdFree) {
-          result.assort.shipping = { amount: 0, label: 'アソート 送料', isFree: true, freeReason: '商品合計1万円以上' };
+          // 1万円以上送料無料 — ただし価格破壊商品は対象外（数量分だけ送料請求）
+          if (assortAlwaysChargeQty > 0) {
+            var alwaysShip = rates[aArea][1] * assortAlwaysChargeQty;
+            result.assort.shipping = { amount: alwaysShip, label: 'アソート 送料（' + escHtml(addrPref) + '・大×' + assortAlwaysChargeQty + '、価格破壊商品分）', isFree: false, freeReason: '' };
+          } else {
+            result.assort.shipping = { amount: 0, label: 'アソート 送料', isFree: true, freeReason: '商品合計1万円以上' };
+          }
         } else {
           var assortShipAmt = rates[aArea][1] * ass.totalQty;
           result.assort.shipping = { amount: assortShipAmt, label: 'アソート 送料（' + escHtml(addrPref) + '・大×' + ass.totalQty + '）', isFree: false, freeReason: '' };

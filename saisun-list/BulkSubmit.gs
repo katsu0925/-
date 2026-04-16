@@ -222,8 +222,21 @@ function apiBulkSubmit(form, items) {
           shippingAmount = (shippingExcludedQty > 0) ? SHIPPING_RATES[shippingArea][1] * shippingExcludedQty : 0;
           detauriShippingAmount = 0;
         } else if (thresholdFree) {
-          shippingAmount = 0;
           detauriShippingAmount = 0;
+          // アソート送料: 価格破壊商品は1万円以上ルール無効化 → 該当商品分だけ送料請求
+          var alwaysIdsB = (typeof SHIPPING_CONSTANTS !== 'undefined' && SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS) ? SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS : [];
+          if (alwaysIdsB.length) {
+            var alwaysSetB = {};
+            for (var _ab = 0; _ab < alwaysIdsB.length; _ab++) alwaysSetB[String(alwaysIdsB[_ab]).toUpperCase()] = true;
+            var alwaysQtyB = 0;
+            for (var _oi = 0; _oi < orderItems.length; _oi++) {
+              var _opid = String(orderItems[_oi].productId || '').toUpperCase();
+              if (alwaysSetB[_opid]) alwaysQtyB += Number(orderItems[_oi].qty || 0);
+            }
+            shippingAmount = (alwaysQtyB > 0) ? SHIPPING_RATES[shippingArea][1] * alwaysQtyB : 0;
+          } else {
+            shippingAmount = 0;
+          }
         } else {
           shippingAmount = SHIPPING_RATES[shippingArea][1] * totalQty;
         }

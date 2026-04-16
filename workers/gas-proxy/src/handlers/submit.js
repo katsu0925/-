@@ -26,6 +26,10 @@ function calcQtyDiscount(count, dynTable) {
   return 0;
 }
 
+// ─── 価格破壊商品ID（1万円以上送料無料の対象外） ───
+// Constants.gs SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS と同期
+const ALWAYS_CHARGE_BULK_IDS = ['BLK-H2LZTP36'];
+
 // ─── 送料テーブル（フォールバック用、D1 SHIPPING_CONFIG優先） ───
 
 const SHIPPING_AREAS = {
@@ -491,7 +495,19 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     }
   } else if (thresholdFree) {
     shippingAmount = 0;
-    bulkShippingAmount = 0;
+    // アソート送料: 価格破壊商品は1万円以上ルール無効化 → 該当商品分だけ送料請求
+    if (ALWAYS_CHARGE_BULK_IDS.length && bulkItemCount > 0 && shippingArea && dynShippingRates[shippingArea]) {
+      const alwaysSet = new Set(ALWAYS_CHARGE_BULK_IDS.map(s => String(s).toUpperCase()));
+      let alwaysQty = 0;
+      for (const bi of (form.bulkItems || [])) {
+        const pid = String(bi.productId || '').trim().toUpperCase();
+        const qty = Math.max(0, Math.floor(Number(bi.qty) || 0));
+        if (alwaysSet.has(pid)) alwaysQty += qty;
+      }
+      bulkShippingAmount = alwaysQty > 0 ? dynShippingRates[shippingArea][1] * alwaysQty : 0;
+    } else {
+      bulkShippingAmount = 0;
+    }
   } else {
     // 厚み分類 → サイズ判定 → 料金計算（CartCalc.html L32-77 と同一ロジック）
     if (ids.length > 0 && shippingArea && dynShippingRates[shippingArea]) {

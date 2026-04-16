@@ -80,6 +80,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI','Noto Sans JP',sans
 .product-desc{font-size:12px;color:#888;margin-top:4px;line-height:1.5;display:none}
 .product-tag{display:inline-block;font-size:10px;background:#fff3cd;color:#856404;padding:2px 8px;border-radius:10px;margin-top:6px;font-weight:600}
 .product-stock-label{display:inline-block;font-size:10px;background:#fde8e8;color:#d93025;padding:2px 8px;border-radius:10px;margin-top:6px;font-weight:600}
+.product-ship-charge-label{display:inline-block;font-size:10px;background:#fff3cd;color:#7a5c00;padding:2px 8px;border-radius:10px;margin-top:6px;margin-left:4px;font-weight:600;border:1px solid #f0d78d}
 .product-bottom{display:flex;align-items:center;justify-content:space-between;margin-top:12px;gap:8px}
 .product-price-area{display:flex;flex-direction:column;gap:2px;min-width:0}
 .product-price{font-size:20px;font-weight:800;color:#e74c3c}
@@ -585,7 +586,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
 
 <!-- プロモバナー -->
 <div class="promo-banner" id="promoBanner">
-  期間限定：会員登録で全品<strong>10%OFF</strong>＋初回<strong>500ポイント</strong>プレゼント！さらに<strong>1万円以上で送料無料</strong><span style="font-size:10px;opacity:.8">※初回50%OFF時は対象外</span> <a href="#" id="promoRegisterLink">今すぐ無料登録 ＞</a>
+  期間限定：会員登録で全品<strong>10%OFF</strong>＋初回<strong>500ポイント</strong>プレゼント！さらに<strong>1万円以上で送料無料</strong><span style="font-size:10px;opacity:.8">※初回50%OFF時・価格破壊商品は対象外</span> <a href="#" id="promoRegisterLink">今すぐ無料登録 ＞</a>
   <button class="promo-close" id="promoClose" type="button">✕</button>
 </div>
 <div class="survey-banner" id="surveyBanner" style="display:block;">
@@ -1032,7 +1033,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
       <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">ご注文について</h3>
       <ul style="margin:0;padding-left:20px;color:#475569;">
         <li style="margin-bottom:8px;">数量を選んでカートに追加してください</li>
-        <li>送料はお届け先に応じて自動計算されます（商品合計1万円以上またはダイヤモンド会員で送料無料 ※初回50%OFF適用時は1万円以上送料無料の対象外）</li>
+        <li>送料はお届け先に応じて自動計算されます（商品合計1万円以上またはダイヤモンド会員で送料無料 ※初回50%OFF適用時は1万円以上送料無料の対象外 ※<strong>価格破壊商品は1万円以上でも送料別途かかります</strong>）</li>
       </ul>
     </div>
     <div style="margin-bottom:20px;">
@@ -1262,7 +1263,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">メールアドレス</th><td style="padding:12px;border:1px solid #e2e8f0;">nkonline1030@gmail.com</td></tr>
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">営業時間</th><td style="padding:12px;border:1px solid #e2e8f0;">平日 10:00〜18:00<br><span style="font-size:12px;color:#888;">※土日祝は発送・事務処理休み（メッセージ返信は対応可）</span></td></tr>
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">販売価格</th><td style="padding:12px;border:1px solid #e2e8f0;">各商品ページに表示された価格（税込）</td></tr>
-      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">送料</th><td style="padding:12px;border:1px solid #e2e8f0;">地域・サイズにより異なります。<strong>商品合計1万円以上で送料無料。</strong><span style="font-size:12px;">※初回50%OFF適用時は対象外</span></td></tr>
+      <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">送料</th><td style="padding:12px;border:1px solid #e2e8f0;">地域・サイズにより異なります。<strong>商品合計1万円以上で送料無料。</strong><span style="font-size:12px;">※初回50%OFF適用時は対象外／<strong>価格破壊商品は1万円以上でも送料別途</strong>かかります</span></td></tr>
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">支払方法</th><td style="padding:12px;border:1px solid #e2e8f0;">クレジットカード（Visa/Mastercard/JCB/AMEX/Diners/Discover）、コンビニ決済、銀行振込、PayPay、ペイジー、Apple Pay、Paidy（あと払い）</td></tr>
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">支払時期</th><td style="padding:12px;border:1px solid #e2e8f0;">クレジットカード・PayPay・Apple Pay：ご注文時に決済<br>コンビニ決済：ご注文後3日以内にお支払い<br>銀行振込・ペイジー：ご注文後3日以内にお振込み<br>Paidy（あと払い）：翌月10日までにお支払い</td></tr>
       <tr><th style="padding:12px;text-align:left;border:1px solid #e2e8f0;background:#f8fafc;vertical-align:top;">お客様負担の手数料</th><td style="padding:12px;border:1px solid #e2e8f0;">コンビニ決済：<strong>220円（税込）</strong><br>銀行振込・ペイジー：<strong>振込手数料</strong>はお客様負担<br>Paidy（あと払い）：手数料はかかりません（コンビニ/銀行振込払いの場合は356円(税込)）<br><span style="font-size:12px;color:#888;">※クレジットカード・PayPay・Apple Pay：手数料なし</span></td></tr>
@@ -2194,9 +2195,11 @@ function openProductModal(idx) {
   }
   var qty = isSoldOut ? 0 : (G.cart[p.productId] || 0);
   var qtyClass = 'qty-control' + (isSoldOut ? '" style="opacity:.3;pointer-events:none' : '');
+  var modalShipChargeHtml = isAlwaysChargeId_(p.productId)
+    ? '<span class="product-ship-charge-label">送料別途</span>' : '';
   bottomEl.innerHTML =
     '<div class="product-bottom">'
-    + '<div class="product-price-area">' + tagHtml + '<div class="product-price">' + priceHtml + '</div></div>'
+    + '<div class="product-price-area">' + modalShipChargeHtml + tagHtml + '<div class="product-price">' + priceHtml + '</div></div>'
     + '<div class="' + qtyClass + '">'
     + '<button class="qty-btn" onclick="changeQty(\'' + escAttr(p.productId) + '\',-1)">−</button>'
     + '<input class="qty-value" id="modal_qty_' + escAttr(p.productId) + '" value="' + qty + '" readonly>'
@@ -2342,6 +2345,8 @@ function renderProductCard(p, idx) {
   var tagHtml = p.tag ? '<span class="product-tag">' + escHtml(p.tag) + '</span>' : '';
   var stockLabelHtml = (!isSoldOut && p.stock !== -1 && p.stock <= 3)
     ? '<span class="product-stock-label">残り' + p.stock + '個</span>' : '';
+  var shipChargeHtml = isAlwaysChargeId_(p.productId)
+    ? '<span class="product-ship-charge-label">送料別途</span>' : '';
   var qty = isSoldOut ? 0 : (G.cart[p.productId] || 0);
 
   var priceHtml = '';
@@ -2359,7 +2364,7 @@ function renderProductCard(p, idx) {
     + '<div class="product-body">'
     + '<div class="product-name">' + escHtml(p.name) + '</div>'
     + '<div class="product-bottom">'
-    + '<div class="product-price-area">' + stockLabelHtml + tagHtml + '<div class="product-price">' + priceHtml + '</div></div>'
+    + '<div class="product-price-area">' + stockLabelHtml + shipChargeHtml + tagHtml + '<div class="product-price">' + priceHtml + '</div></div>'
     + '<div class="qty-control">'
     + '<button class="qty-btn" onclick="changeQty(\'' + escAttr(p.productId) + '\',-1)">−</button>'
     + '<input class="qty-value" id="qty_' + escAttr(p.productId) + '" value="' + qty + '" readonly>'
@@ -2478,7 +2483,8 @@ function buildCartCalcInput_(assortSubtotal, assortTotalQty) {
     addressPref: pref || null,
     addressText: addr,
     pointsUsed: G.pointsUsed || 0,
-    assortExcludedQty: calcExcludedQty_()
+    assortExcludedQty: calcExcludedQty_(),
+    assortAlwaysChargeQty: calcAlwaysChargeQty_()
   };
 }
 
@@ -2713,6 +2719,26 @@ function calcExcludedQty_() {
     if (excludeIds.indexOf(pid.toUpperCase()) >= 0) qty += G.cart[pid];
   });
   return qty;
+}
+
+// 価格破壊商品（1万円以上送料無料の対象外）の数量を計算
+function calcAlwaysChargeQty_() {
+  var ids = (G.settings && G.settings.alwaysChargeShippingIds) || [];
+  if (!ids.length) return 0;
+  var idSet = {};
+  for (var i = 0; i < ids.length; i++) idSet[String(ids[i]).toUpperCase()] = true;
+  var qty = 0;
+  Object.keys(G.cart).forEach(function(pid) {
+    if (idSet[String(pid).toUpperCase()]) qty += G.cart[pid];
+  });
+  return qty;
+}
+function isAlwaysChargeId_(pid) {
+  var ids = (G.settings && G.settings.alwaysChargeShippingIds) || [];
+  for (var i = 0; i < ids.length; i++) {
+    if (String(ids[i]).toUpperCase() === String(pid).toUpperCase()) return true;
+  }
+  return false;
 }
 
 // 送料無料クーポン適用時の実効送料を計算（送料除外商品は個別計算）
@@ -4935,11 +4961,11 @@ var modalContactFiles_ = [];
 
     // --- 送料・配送 ---
     { q: '送料はいくら？', category: '送料・配送',
-      a: '【送料について】\n送料はお届け先の地域と荷物のサイズによって異なります。\n住所を入力すると自動計算されます。\n\n・商品合計1万円以上で送料無料！\n・ダイヤモンド会員は常に送料無料！\n\n※初回50%OFFキャンペーン適用時は「1万円以上送料無料」の対象外です。\n\n詳しくはヘッダーの「アソート送料表」からご確認ください。' },
+      a: '【送料について】\n送料はお届け先の地域と荷物のサイズによって異なります。\n住所を入力すると自動計算されます。\n\n・商品合計1万円以上で送料無料！\n・ダイヤモンド会員は常に送料無料！\n\n※初回50%OFFキャンペーン適用時は「1万円以上送料無料」の対象外です。\n※アソートの「価格破壊商品」は1万円以上でも送料別途かかります（商品カードに「送料別途」と表示）。\n\n詳しくはヘッダーの「アソート送料表」からご確認ください。' },
     { q: '配送にかかる日数は？', category: '送料・配送',
       a: '決済完了後、通常3〜5営業日（土日祝休み）で発送いたします。\nお届けまでの日数は地域により異なりますが、発送から1〜3日程度です。\n\n※繁忙期や天候・災害等により遅延する場合がございます。' },
     { q: '送料無料になる条件は？', category: '送料・配送',
-      a: '【送料無料になる条件】\n\n① 商品合計1万円以上で送料無料！\n　→ デタウリ・アソート合算でOKです\n\n② ダイヤモンド会員のお客様は金額に関わらず送料無料！\n　→ 年間購入額50万円以上で到達\n\n※初回50%OFFキャンペーン適用時は①の対象外です。②のダイヤモンド会員送料無料は適用されます。\n\n詳しくは「会員ランクについて」をご確認ください。' },
+      a: '【送料無料になる条件】\n\n① 商品合計1万円以上で送料無料！\n　→ デタウリ・アソート合算でOKです\n\n② ダイヤモンド会員のお客様は金額に関わらず送料無料！\n　→ 年間購入額50万円以上で到達\n\n※初回50%OFFキャンペーン適用時は①の対象外です。②のダイヤモンド会員送料無料は適用されます。\n※アソートの「価格破壊商品」は①の対象外で、1万円以上でも送料別途かかります（商品カードに「送料別途」と表示）。②のダイヤモンド会員送料無料は適用されます。\n\n詳しくは「会員ランクについて」をご確認ください。' },
 
     // --- 決済 ---
     { q: '決済方法は？', category: '決済',

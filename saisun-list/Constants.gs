@@ -60,7 +60,9 @@ var TAX_RATE = 0.10;                               // 消費税10%
  * 送料計算の閾値
  */
 var SHIPPING_CONSTANTS = {
-  SIZE_THRESHOLD: 10                               // この数以下=小型、超=大型
+  SIZE_THRESHOLD: 10,                              // この数以下=小型、超=大型
+  FREE_SHIP_THRESHOLD: 10000,                      // 商品合計これ以上で送料無料（FHP/価格破壊は対象外）
+  ALWAYS_CHARGE_BULK_IDS: ['BLK-H2LZTP36']         // 1万円以上ルールを無効化する価格破壊商品ID（アソート）
 };
 
 /**

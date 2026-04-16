@@ -272,7 +272,21 @@ function apiSubmitEstimate(userKey, form, ids) {
       }
     } else if (thresholdFree) {
       shippingAmount = 0;
-      bulkShippingAmount = 0;
+      // アソート送料: 価格破壊商品は1万円以上ルール無効化 → 該当商品分だけ送料請求
+      var alwaysIds = (typeof SHIPPING_CONSTANTS !== 'undefined' && SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS) ? SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS : [];
+      if (alwaysIds.length && hasBulkItems && shippingArea && SHIPPING_RATES[shippingArea]) {
+        var alwaysSet = {};
+        for (var _ai = 0; _ai < alwaysIds.length; _ai++) alwaysSet[String(alwaysIds[_ai]).toUpperCase()] = true;
+        var alwaysQty = 0;
+        for (var _bi = 0; _bi < f.bulkItems.length; _bi++) {
+          var _pid = String(f.bulkItems[_bi].productId || '').trim().toUpperCase();
+          var _qty = Math.max(0, Math.floor(Number(f.bulkItems[_bi].qty) || 0));
+          if (alwaysSet[_pid]) alwaysQty += _qty;
+        }
+        bulkShippingAmount = (alwaysQty > 0) ? SHIPPING_RATES[shippingArea][1] * alwaysQty : 0;
+      } else {
+        bulkShippingAmount = 0;
+      }
     } else {
       if (list.length > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
         // 厚み分類→サイズ判定→料金計算（CartCalcと同一ロジック）

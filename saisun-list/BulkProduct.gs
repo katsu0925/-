@@ -188,7 +188,8 @@ function apiBulkInit() {
         shippingAreas: SHIPPING_AREAS,
         shippingRates: SHIPPING_RATES,
         memberDiscount: memberDiscount,
-        detauriUrl: detauriUrl
+        detauriUrl: detauriUrl,
+        alwaysChargeShippingIds: (typeof SHIPPING_CONSTANTS !== 'undefined' && SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS) ? SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS : []
       },
       stats: siteStats
     };
