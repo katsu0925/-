@@ -2263,11 +2263,15 @@ function recordSaveLog(managedId) {
   return apiPost('/api/manage/save-log', { teamId: _currentTeam.id, managedId: managedId });
 }
 
-function refreshListAfterBulkSave(saveLogPromises) {
-  Promise.all(saveLogPromises || []).then(function() {
-    _listLoaded = false;
-    refreshProductList(function() { renderManageList(); }, true);
-  });
+function bumpSaveCountLocally(mids) {
+  if (!mids || mids.length === 0) return;
+  var set = {};
+  mids.forEach(function(m) { set[m] = true; });
+  for (var i = 0; i < _productList.length; i++) {
+    var p = _productList[i];
+    if (set[p.managedId]) p.saveCount = (p.saveCount || 0) + 1;
+  }
+  renderManageList();
 }
 
 function saveAndDownload(managedId) {
@@ -2349,8 +2353,9 @@ function doDownloadTopImages() {
   var mids = [];
   checks.forEach(function(c) { mids.push(c.dataset.mid); });
 
-  // 保存ログ記録
-  var saveLogPromises = mids.map(function(m) { return recordSaveLog(m); });
+  // 保存ログ記録 + 表示を即時更新
+  mids.forEach(function(m) { recordSaveLog(m); });
+  bumpSaveCountLocally(mids);
 
   var btn = document.getElementById('dlTopBtn');
   btn.disabled = true;
@@ -2379,8 +2384,7 @@ function doDownloadTopImages() {
     if (isMobileDevice() && navigator.canShare && navigator.canShare({ files: files })) {
       navigator.share({ files: files }).then(function() {
         showStatus('manageStatus', files.length + '枚保存完了', 'ok');
-      }).catch(function() { showStatus('manageStatus', 'キャンセルされました', 'info'); })
-      .finally(function() { refreshListAfterBulkSave(saveLogPromises); });
+      }).catch(function() { showStatus('manageStatus', 'キャンセルされました', 'info'); });
       return;
     }
 
@@ -2394,7 +2398,6 @@ function doDownloadTopImages() {
         document.body.appendChild(a); a.click(); a.remove();
         setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
         showStatus('manageStatus', files.length + '枚保存完了（ZIP）', 'ok');
-        refreshListAfterBulkSave(saveLogPromises);
       });
       return;
     }
@@ -2406,7 +2409,6 @@ function doDownloadTopImages() {
       setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
     });
     showStatus('manageStatus', files.length + '枚保存完了', 'ok');
-    refreshListAfterBulkSave(saveLogPromises);
   });
 }
 
@@ -2420,8 +2422,9 @@ function doDownloadAllImages() {
   var mids = [];
   checks.forEach(function(c) { mids.push(c.dataset.mid); });
 
-  // 保存ログ記録
-  var saveLogPromises = mids.map(function(m) { return recordSaveLog(m); });
+  // 保存ログ記録 + 表示を即時更新
+  mids.forEach(function(m) { recordSaveLog(m); });
+  bumpSaveCountLocally(mids);
 
   var btn = document.getElementById('dlAllBtn');
   btn.disabled = true;
@@ -2468,8 +2471,7 @@ function doDownloadAllImages() {
       if (isMobileDevice() && navigator.canShare && navigator.canShare({ files: files })) {
         navigator.share({ files: files }).then(function() {
           showStatus('manageStatus', files.length + '枚保存完了', 'ok');
-        }).catch(function() { showStatus('manageStatus', 'キャンセルされました', 'info'); })
-        .finally(function() { refreshListAfterBulkSave(saveLogPromises); });
+        }).catch(function() { showStatus('manageStatus', 'キャンセルされました', 'info'); });
         return;
       }
 
@@ -2483,7 +2485,6 @@ function doDownloadAllImages() {
           document.body.appendChild(a); a.click(); a.remove();
           setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
           showStatus('manageStatus', fileEntries.length + '枚をZIPで保存しました', 'ok');
-          refreshListAfterBulkSave(saveLogPromises);
         });
         return;
       }
@@ -2495,7 +2496,6 @@ function doDownloadAllImages() {
         setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
       });
       showStatus('manageStatus', files.length + '枚保存完了', 'ok');
-      refreshListAfterBulkSave(saveLogPromises);
     });
   }).catch(function() {
     hideLoading(); btn.disabled = false;

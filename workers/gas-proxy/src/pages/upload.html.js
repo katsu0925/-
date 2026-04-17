@@ -1827,11 +1827,15 @@ function recordSaveLog(managedId) {
   }).catch(function() {});
 }
 
-function refreshListAfterBulkSave(saveLogPromises) {
-  Promise.all(saveLogPromises || []).then(function() {
-    _listLoaded = false;
-    refreshProductList(function() { renderManageList(); }, true);
-  });
+function bumpSaveCountLocally(mids) {
+  if (!mids || mids.length === 0) return;
+  var set = {};
+  mids.forEach(function(m) { set[m] = true; });
+  for (var i = 0; i < productListData.length; i++) {
+    var p = productListData[i];
+    if (set[p.managedId]) p.saveCount = (p.saveCount || 0) + 1;
+  }
+  renderManageList();
 }
 
 function saveAndDownload(managedId) {
@@ -2135,14 +2139,17 @@ function doDownloadTopImages() {
   if (checks.length === 0) { showStatus('manageStatus', '商品を選択してください', 'err'); return; }
 
   var indices = [];
-  checks.forEach(function(c) { indices.push(parseInt(c.dataset.idx)); });
-
-  // 選択した各商品の保存ログを記録
-  var saveLogPromises = [];
-  indices.forEach(function(idx) {
+  var mids = [];
+  checks.forEach(function(c) {
+    var idx = parseInt(c.dataset.idx);
+    indices.push(idx);
     var p = productListData[idx];
-    if (p && p.managedId) saveLogPromises.push(recordSaveLog(p.managedId));
+    if (p && p.managedId) mids.push(p.managedId);
   });
+
+  // 保存ログ記録 + 表示を即時更新
+  mids.forEach(function(m) { recordSaveLog(m); });
+  bumpSaveCountLocally(mids);
 
   var btn = document.getElementById('dlTopBtn');
   btn.disabled = true;
@@ -2180,7 +2187,6 @@ function doDownloadTopImages() {
         showStatus('manageStatus', 'キャンセルされました', 'info');
       }).finally(function() {
         btn.disabled = false;
-        refreshListAfterBulkSave(saveLogPromises);
       });
       return;
     }
@@ -2198,7 +2204,6 @@ function doDownloadTopImages() {
         setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
         showStatus('manageStatus', files.length + '枚保存完了（ZIP）', 'ok');
         btn.disabled = false;
-        refreshListAfterBulkSave(saveLogPromises);
       });
       return;
     }
@@ -2215,7 +2220,6 @@ function doDownloadTopImages() {
     });
     btn.disabled = false;
     showStatus('manageStatus', files.length + '枚保存完了', 'ok');
-    refreshListAfterBulkSave(saveLogPromises);
   });
 }
 
@@ -2226,8 +2230,9 @@ function doDownloadAllImages() {
   var mids = [];
   checks.forEach(function(c) { mids.push(productListData[parseInt(c.dataset.idx)].managedId); });
 
-  // 選択した各商品の保存ログを記録
-  var saveLogPromises = mids.map(function(mid) { return recordSaveLog(mid); });
+  // 保存ログ記録 + 表示を即時更新
+  mids.forEach(function(m) { recordSaveLog(m); });
+  bumpSaveCountLocally(mids);
 
   var btn = document.getElementById('dlAllBtn');
   btn.disabled = true;
@@ -2290,8 +2295,7 @@ function doDownloadAllImages() {
           showStatus('manageStatus', 'キャンセルされました', 'info');
         }).finally(function() {
           btn.disabled = false;
-          refreshListAfterBulkSave(saveLogPromises);
-        });
+          });
         return;
       }
 
@@ -2308,8 +2312,7 @@ function doDownloadAllImages() {
           setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
           btn.disabled = false;
           showStatus('manageStatus', fileEntries.length + '枚をZIPで保存しました', 'ok');
-          refreshListAfterBulkSave(saveLogPromises);
-        });
+          });
         return;
       }
 
@@ -2325,7 +2328,6 @@ function doDownloadAllImages() {
       });
       btn.disabled = false;
       showStatus('manageStatus', files.length + '枚保存完了', 'ok');
-      refreshListAfterBulkSave(saveLogPromises);
     });
   }).catch(function() {
     btn.disabled = false;
