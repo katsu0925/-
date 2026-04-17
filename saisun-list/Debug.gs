@@ -1587,3 +1587,102 @@ function debugRecoverDetauriIdsForReceipt(receiptNo) {
   console.log('件数: ' + assortIds.length);
   if (assortIds.length > 0) console.log('IDs: ' + assortIds.join('、'));
 }
+
+// =====================================================
+// FHP（初回半額）誤適用の診断
+// GASエディタで debugFhpCheck() を実行。受付番号を引数で指定したい場合は
+// debugFhpCheckFor('20260417120004-672') を実行
+// =====================================================
+
+function debugFhpCheck() {
+  debugFhpCheckFor('20260417120004-672');
+}
+
+function debugFhpCheckFor(receiptNo) {
+  receiptNo = String(receiptNo || '').trim();
+  console.log('=== FHP診断開始: ' + receiptNo + ' ===');
+  var ss = sh_getOrderSs_();
+  var reqSheet = ss.getSheetByName('依頼管理');
+  if (!reqSheet) { console.log('依頼管理シートなし'); return; }
+  var data = reqSheet.getDataRange().getValues();
+
+  var targetEmail = '';
+  var targetRow = null;
+  var sameEmailRows = [];
+
+  for (var i = 1; i < data.length; i++) {
+    var rowReceipt = String(data[i][REQUEST_SHEET_COLS.RECEIPT_NO - 1] || '').trim();
+    if (rowReceipt === receiptNo) {
+      targetEmail = String(data[i][REQUEST_SHEET_COLS.CONTACT - 1] || '').trim();
+      targetRow = i + 1;
+      console.log('対象注文行=' + (i+1) + ' メール=' + targetEmail
+        + ' 合計=' + data[i][REQUEST_SHEET_COLS.TOTAL_AMOUNT - 1]
+        + ' ステータス=' + data[i][REQUEST_SHEET_COLS.STATUS - 1]);
+      break;
+    }
+  }
+  if (!targetEmail) { console.log('受付番号が見つかりません: ' + receiptNo); return; }
+
+  var normalized = targetEmail.toLowerCase();
+
+  // 同メールの過去注文を全ステータスで収集
+  console.log('\n--- 同メールの全注文（依頼管理） ---');
+  for (var j = 1; j < data.length; j++) {
+    var rEmail = String(data[j][REQUEST_SHEET_COLS.CONTACT - 1] || '').trim().toLowerCase();
+    if (rEmail === normalized) {
+      var rno = String(data[j][REQUEST_SHEET_COLS.RECEIPT_NO - 1] || '');
+      var rstatus = String(data[j][REQUEST_SHEET_COLS.STATUS - 1] || '');
+      var rship = String(data[j][REQUEST_SHEET_COLS.SHIP_STATUS - 1] || '');
+      var ramt = data[j][REQUEST_SHEET_COLS.TOTAL_AMOUNT - 1];
+      console.log('行' + (j+1) + ' 受付=' + rno + ' ステータス=' + rstatus + ' 発送=' + rship + ' 金額=' + ramt);
+      sameEmailRows.push({ receipt: rno, status: rstatus, ship: rship });
+    }
+  }
+
+  // アーカイブも確認
+  var arc = ss.getSheetByName('依頼管理_アーカイブ');
+  if (arc && arc.getLastRow() >= 2) {
+    console.log('\n--- アーカイブ内の同メール注文 ---');
+    var arcData = arc.getDataRange().getValues();
+    for (var k = 1; k < arcData.length; k++) {
+      var aEmail = String(arcData[k][REQUEST_SHEET_COLS.CONTACT - 1] || '').trim().toLowerCase();
+      if (aEmail === normalized) {
+        var aRno = String(arcData[k][REQUEST_SHEET_COLS.RECEIPT_NO - 1] || '');
+        var aStatus = String(arcData[k][REQUEST_SHEET_COLS.STATUS - 1] || '');
+        console.log('行' + (k+1) + ' 受付=' + aRno + ' ステータス=' + aStatus);
+      }
+    }
+  }
+
+  // 顧客管理シートを確認
+  console.log('\n--- 顧客管理シート ---');
+  try {
+    var cust = findCustomerByEmail_(targetEmail);
+    if (!cust) {
+      console.log('⚠ 顧客レコードなし（ゲスト注文だった可能性） メール=' + targetEmail);
+    } else {
+      console.log('顧客ID=' + cust.id + ' 行=' + cust.row + ' メール=' + cust.email
+        + ' 購入回数(O列)=' + cust.purchaseCount + ' 登録日=' + cust.registeredAt);
+
+      // シートから直接再読み
+      var custSheet = getCustomerSheet_();
+      var custVals = custSheet.getRange(cust.row, 1, 1, custSheet.getLastColumn()).getValues()[0];
+      console.log('シート直読み O列(14)=' + custVals[14] + ' P列(15)=' + custVals[15]);
+    }
+  } catch (e) {
+    console.log('顧客検索エラー: ' + (e && e.message ? e.message : e));
+  }
+
+  // FHP状態
+  console.log('\n--- FHP設定 ---');
+  var fhpStatus = app_getFirstHalfPriceStatus_();
+  console.log('FHP enabled=' + fhpStatus.enabled + ' rate=' + fhpStatus.rate + ' endDate=' + fhpStatus.endDate + ' memberCap=' + fhpStatus.memberCap);
+  var custAgain = findCustomerByEmail_(targetEmail);
+  var eligible = isFhpEligible_(custAgain, fhpStatus);
+  console.log('isFhpEligible_ → ' + eligible + '（trueなら次回もFHP適用されてしまう）');
+
+  console.log('\n=== 診断完了 ===');
+  console.log('判断材料:');
+  console.log('  過去注文件数（非キャンセル）=' + sameEmailRows.filter(function(r){return r.status !== 'キャンセル';}).length);
+  console.log('  発送済み件数=' + sameEmailRows.filter(function(r){return r.ship === '発送済み';}).length);
+}
