@@ -1818,14 +1818,17 @@ function showSaveLog() {
   document.body.insertAdjacentHTML('beforeend', html);
 }
 
-function saveAndDownload(managedId) {
-  // 保存ログ記録
+function recordSaveLog(managedId) {
   var userName = localStorage.getItem(PHOTOGRAPHER_KEY) || '';
   fetch(API_BASE + '/upload/save-log', {
     method: 'POST',
     headers: headers({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ managedId: managedId, userName: userName })
   }).catch(function() {});
+}
+
+function saveAndDownload(managedId) {
+  recordSaveLog(managedId);
   // 既存DL処理を実行
   downloadManageImages(managedId);
 }
@@ -2127,6 +2130,12 @@ function doDownloadTopImages() {
   var indices = [];
   checks.forEach(function(c) { indices.push(parseInt(c.dataset.idx)); });
 
+  // 選択した各商品の保存ログを記録
+  indices.forEach(function(idx) {
+    var p = productListData[idx];
+    if (p && p.managedId) recordSaveLog(p.managedId);
+  });
+
   var btn = document.getElementById('dlTopBtn');
   btn.disabled = true;
   showLoading('トップ画像を準備中', '0/' + indices.length);
@@ -2203,6 +2212,9 @@ function doDownloadAllImages() {
 
   var mids = [];
   checks.forEach(function(c) { mids.push(productListData[parseInt(c.dataset.idx)].managedId); });
+
+  // 選択した各商品の保存ログを記録
+  mids.forEach(function(mid) { recordSaveLog(mid); });
 
   var btn = document.getElementById('dlAllBtn');
   btn.disabled = true;

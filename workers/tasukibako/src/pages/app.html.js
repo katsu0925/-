@@ -419,11 +419,11 @@ body.has-admin{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
 <!-- フッタ: 商品管理 -->
 <div class="sticky-footer" id="footer-manage">
   <div class="footer-inner" style="flex-wrap:wrap;gap:6px">
-    <button class="btn btn-success" style="flex:1;min-width:45%;opacity:.5" id="dlTopBtn" disabled onclick="showUpgradeHint()">
-      <span style="font-size:10px;background:#f59e0b;color:#fff;padding:1px 5px;border-radius:3px;margin-right:4px">PRO</span>トップ画像保存
+    <button class="btn btn-success" style="flex:1;min-width:45%;opacity:.5" id="dlTopBtn" disabled>
+      <span id="dlTopBadge" style="font-size:10px;background:#f59e0b;color:#fff;padding:1px 5px;border-radius:3px;margin-right:4px">PRO</span>トップ画像保存
     </button>
-    <button class="btn btn-primary" style="flex:1;min-width:45%;opacity:.5" id="dlAllBtn" disabled onclick="showUpgradeHint()">
-      <span style="font-size:10px;background:#f59e0b;color:#fff;padding:1px 5px;border-radius:3px;margin-right:4px">PRO</span>全画像保存
+    <button class="btn btn-primary" style="flex:1;min-width:45%;opacity:.5" id="dlAllBtn" disabled>
+      <span id="dlAllBadge" style="font-size:10px;background:#f59e0b;color:#fff;padding:1px 5px;border-radius:3px;margin-right:4px">PRO</span>全画像保存
     </button>
     <button class="btn btn-danger" style="flex:1;min-width:100%" id="deleteSelectedBtn" disabled>選択した商品を削除</button>
   </div>
@@ -2105,6 +2105,18 @@ function updatePlanUI() {
       if (badge) badge.remove();
     }
   });
+  // 一括保存ボタン: ライトプラン以上で有効化
+  var canBulk = plan !== 'free';
+  ['dlTopBtn', 'dlAllBtn'].forEach(function(id) {
+    var btn = document.getElementById(id);
+    if (!btn) return;
+    btn.disabled = !canBulk;
+    btn.style.opacity = canBulk ? '1' : '0.5';
+  });
+  var topBadge = document.getElementById('dlTopBadge');
+  if (topBadge) topBadge.style.display = canBulk ? 'none' : '';
+  var allBadge = document.getElementById('dlAllBadge');
+  if (allBadge) allBadge.style.display = canBulk ? 'none' : '';
 }
 
 window.switchPlanBilling = function(mode) {
@@ -2246,10 +2258,14 @@ function showSaveLog() {
   document.body.insertAdjacentHTML('beforeend', html);
 }
 
+function recordSaveLog(managedId) {
+  if (!_currentTeam) return;
+  apiPost('/api/manage/save-log', { teamId: _currentTeam.id, managedId: managedId });
+}
+
 function saveAndDownload(managedId) {
   if (!_currentTeam) return;
-  // 保存ログ記録
-  apiPost('/api/manage/save-log', { teamId: _currentTeam.id, managedId: managedId });
+  recordSaveLog(managedId);
   // 選択されたチェック付き画像をダウンロード
   var checks = document.querySelectorAll('.dl-img-check:checked');
   if (checks.length === 0) { showStatus('manageStatus', '画像を選択してください', 'err'); return; }
@@ -2315,6 +2331,173 @@ function saveAndDownload(managedId) {
 function isMobileDevice() {
   return ('ontouchstart' in window || navigator.maxTouchPoints > 0) && window.innerWidth <= 768;
 }
+
+// ─── 一覧: トップ画像一括保存（ライト以上） ───
+function doDownloadTopImages() {
+  if (!_currentTeam) return;
+  if ((_currentTeam.plan || 'free') === 'free') { showUpgradeHint(); return; }
+  var checks = document.querySelectorAll('.dl-check:checked');
+  if (checks.length === 0) { showStatus('manageStatus', '商品を選択してください', 'err'); return; }
+
+  var mids = [];
+  checks.forEach(function(c) { mids.push(c.dataset.mid); });
+
+  // 保存ログ記録
+  mids.forEach(function(m) { recordSaveLog(m); });
+
+  var btn = document.getElementById('dlTopBtn');
+  btn.disabled = true;
+  showLoading('トップ画像を準備中', '0/' + mids.length);
+
+  var done = 0;
+  var fileEntries = [];
+  var promises = mids.map(function(mid) {
+    var p = null;
+    for (var i = 0; i < _productList.length; i++) { if (_productList[i].managedId === mid) { p = _productList[i]; break; } }
+    if (!p || !p.thumbnail) { done++; return Promise.resolve(); }
+    return fetch(imgUrl(p.thumbnail)).then(function(r) { return r.blob(); })
+    .then(function(blob) {
+      fileEntries.push({ mid: mid, blob: blob, file: new File([blob], mid + '.jpg', { type: 'image/jpeg' }) });
+      done++;
+      updateLoading('トップ画像を準備中', done + '/' + mids.length);
+    }).catch(function() { done++; });
+  });
+
+  Promise.all(promises).then(function() {
+    hideLoading();
+    btn.disabled = false;
+    if (fileEntries.length === 0) { showStatus('manageStatus', 'ダウンロードに失敗しました', 'err'); return; }
+    var files = fileEntries.map(function(e) { return e.file; });
+
+    if (isMobileDevice() && navigator.canShare && navigator.canShare({ files: files })) {
+      navigator.share({ files: files }).then(function() {
+        showStatus('manageStatus', files.length + '枚保存完了', 'ok');
+      }).catch(function() { showStatus('manageStatus', 'キャンセルされました', 'info'); });
+      return;
+    }
+
+    if (typeof JSZip !== 'undefined') {
+      var zip = new JSZip();
+      fileEntries.forEach(function(e) { zip.file(e.mid + '.jpg', e.blob); });
+      zip.generateAsync({ type: 'blob' }).then(function(content) {
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(content);
+        a.download = 'tasukibako_top_images.zip';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
+        showStatus('manageStatus', files.length + '枚保存完了（ZIP）', 'ok');
+      });
+      return;
+    }
+
+    files.forEach(function(f) {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(f); a.download = f.name;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
+    });
+    showStatus('manageStatus', files.length + '枚保存完了', 'ok');
+  });
+}
+
+// ─── 一覧: 全画像一括保存（ライト以上） ───
+function doDownloadAllImages() {
+  if (!_currentTeam) return;
+  if ((_currentTeam.plan || 'free') === 'free') { showUpgradeHint(); return; }
+  var checks = document.querySelectorAll('.dl-check:checked');
+  if (checks.length === 0) { showStatus('manageStatus', '商品を選択してください', 'err'); return; }
+
+  var mids = [];
+  checks.forEach(function(c) { mids.push(c.dataset.mid); });
+
+  // 保存ログ記録
+  mids.forEach(function(m) { recordSaveLog(m); });
+
+  var btn = document.getElementById('dlAllBtn');
+  btn.disabled = true;
+  showLoading('全画像を準備中', '0/' + mids.length + ' 商品');
+
+  var productDone = 0;
+  var allItems = [];
+  var promises = mids.map(function(mid) {
+    return apiPost('/api/manage/product-images', { teamId: _currentTeam.id, managedId: mid })
+    .then(function(d) {
+      productDone++;
+      updateLoading('全画像を準備中', productDone + '/' + mids.length + ' 商品');
+      if (d.ok && d.urls) {
+        for (var i = 0; i < d.urls.length; i++) {
+          allItems.push({ mid: mid, url: imgUrl(d.urls[i]), filename: mid + '_' + (i + 1) + '.jpg' });
+        }
+      }
+    }).catch(function() { productDone++; });
+  });
+
+  Promise.all(promises).then(function() {
+    if (allItems.length === 0) {
+      hideLoading(); btn.disabled = false;
+      showStatus('manageStatus', '画像が見つかりませんでした', 'err');
+      return;
+    }
+    updateLoading('画像をダウンロード中', '0/' + allItems.length);
+    var imgDone = 0;
+    var fileEntries = [];
+    var imgPromises = allItems.map(function(item) {
+      return fetch(item.url).then(function(r) { return r.blob(); })
+      .then(function(blob) {
+        fileEntries.push({ blob: blob, filename: item.filename, file: new File([blob], item.filename, { type: 'image/jpeg' }) });
+        imgDone++;
+        updateLoading('画像をダウンロード中', imgDone + '/' + allItems.length);
+      }).catch(function() { imgDone++; });
+    });
+
+    return Promise.all(imgPromises).then(function() {
+      hideLoading(); btn.disabled = false;
+      if (fileEntries.length === 0) { showStatus('manageStatus', 'ダウンロードに失敗しました', 'err'); return; }
+      var files = fileEntries.map(function(e) { return e.file; });
+
+      if (isMobileDevice() && navigator.canShare && navigator.canShare({ files: files })) {
+        navigator.share({ files: files }).then(function() {
+          showStatus('manageStatus', files.length + '枚保存完了', 'ok');
+        }).catch(function() { showStatus('manageStatus', 'キャンセルされました', 'info'); });
+        return;
+      }
+
+      if (typeof JSZip !== 'undefined') {
+        var zip = new JSZip();
+        fileEntries.forEach(function(e) { zip.file(e.filename, e.blob); });
+        zip.generateAsync({ type: 'blob' }).then(function(content) {
+          var a = document.createElement('a');
+          a.href = URL.createObjectURL(content);
+          a.download = 'tasukibako_all_images.zip';
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
+          showStatus('manageStatus', fileEntries.length + '枚をZIPで保存しました', 'ok');
+        });
+        return;
+      }
+
+      files.forEach(function(f) {
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(f); a.download = f.name;
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
+      });
+      showStatus('manageStatus', files.length + '枚保存完了', 'ok');
+    });
+  }).catch(function() {
+    hideLoading(); btn.disabled = false;
+    showStatus('manageStatus', 'エラーが発生しました', 'err');
+  });
+}
+
+document.getElementById('dlTopBtn').addEventListener('click', function() {
+  if (!_currentTeam || (_currentTeam.plan || 'free') === 'free') { showUpgradeHint(); return; }
+  doDownloadTopImages();
+});
+document.getElementById('dlAllBtn').addEventListener('click', function() {
+  if (!_currentTeam || (_currentTeam.plan || 'free') === 'free') { showUpgradeHint(); return; }
+  doDownloadAllImages();
+});
 
 function toggleDlImageSelect(mode) {
   var checks = document.querySelectorAll('.dl-img-check');
