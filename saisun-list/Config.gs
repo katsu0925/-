@@ -281,12 +281,43 @@ function app_getFirstHalfPriceStatus_() {
  */
 function isFhpEligible_(customer, fhpStatus) {
   if (!fhpStatus || !fhpStatus.enabled) return false;
-  if (!customer || customer.purchaseCount !== 0) return false;
+  if (!customer || !customer.email) return false;
   if (!customer.row || customer.row < 2) return false;
   var cap = fhpStatus.memberCap || 100;
   // row = シート行番号（ヘッダー=1, 最初の顧客=2）→ 登録順 = row - 1
   if (cap > 0 && (customer.row - 1) > cap) return false;
+  // 依頼管理シートを直接スキャンして過去注文があるか確認（purchaseCount列が古い場合の抜け穴対策）
+  // 非キャンセルの注文が1件でもあればFHP無効
+  try {
+    if (hasPriorNonCancelledOrder_(customer.email)) return false;
+  } catch (e) {
+    // 依頼管理アクセス失敗時はpurchaseCount列にフォールバック
+    if (customer.purchaseCount !== 0) return false;
+  }
   return true;
+}
+
+/**
+ * 依頼管理（本シート＋アーカイブ）に同メールの非キャンセル注文があるかチェック
+ * FHP判定専用。status='キャンセル'と空欄はスキップ。
+ */
+function hasPriorNonCancelledOrder_(email) {
+  var normalized = String(email || '').trim().toLowerCase();
+  if (!normalized) return false;
+  var ss = sh_getOrderSs_();
+  var sheetNames = ['依頼管理', '依頼管理_アーカイブ'];
+  for (var s = 0; s < sheetNames.length; s++) {
+    var sheet = ss.getSheetByName(sheetNames[s]);
+    if (!sheet || sheet.getLastRow() < 2) continue;
+    var data = sheet.getDataRange().getValues();
+    for (var i = 1; i < data.length; i++) {
+      var rEmail = String(data[i][REQUEST_SHEET_COLS.CONTACT - 1] || '').trim().toLowerCase();
+      if (rEmail !== normalized) continue;
+      var rStatus = String(data[i][REQUEST_SHEET_COLS.STATUS - 1] || '').trim();
+      if (rStatus && rStatus !== 'キャンセル') return true;
+    }
+  }
+  return false;
 }
 
 function toggleFirstHalfPrice() {

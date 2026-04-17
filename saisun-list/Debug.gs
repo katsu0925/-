@@ -1598,6 +1598,29 @@ function debugFhpCheck() {
   debugFhpCheckFor('20260417120004-672');
 }
 
+/**
+ * 特定顧客のpurchaseCountを依頼管理の実績から再計算して修正
+ * GASエディタで fixPurchaseCountEthical() を実行（info@ethical-store.jp 用）
+ * 汎用は fixPurchaseCountFor('メールアドレス')
+ */
+function fixPurchaseCountEthical() {
+  fixPurchaseCountFor('info@ethical-store.jp');
+}
+
+function fixPurchaseCountFor(email) {
+  email = String(email || '').trim();
+  if (!email) { console.log('メール未指定'); return; }
+  console.log('修正開始: ' + email);
+  var before = findCustomerByEmail_(email);
+  console.log('修正前 purchaseCount=' + (before ? before.purchaseCount : 'なし'));
+  updatePurchaseCount_(email);
+  // キャッシュを明示的にクリアして再読込
+  try { CacheService.getScriptCache().remove('CUSTOMER:' + email.toLowerCase()); } catch(e) {}
+  var after = findCustomerByEmail_(email);
+  console.log('修正後 purchaseCount=' + (after ? after.purchaseCount : 'なし'));
+  console.log('完了');
+}
+
 function debugFhpCheckFor(receiptNo) {
   receiptNo = String(receiptNo || '').trim();
   console.log('=== FHP診断開始: ' + receiptNo + ' ===');
