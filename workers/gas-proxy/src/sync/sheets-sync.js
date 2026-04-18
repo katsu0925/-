@@ -51,6 +51,11 @@ export async function scheduledSync(env) {
       console.log(`[sync] Open items synced: ${exportData.openItems.length} rows`);
     }
 
+    if (exportData.orders && exportData.orders.length > 0) {
+      await syncOrders(env.DB, exportData.orders);
+      console.log(`[sync] Orders synced: ${exportData.orders.length} rows`);
+    }
+
     if (exportData.coupons && exportData.coupons.length > 0) {
       await syncCoupons(env.DB, exportData.coupons);
       console.log(`[sync] Coupons synced: ${exportData.coupons.length} rows`);
@@ -176,7 +181,7 @@ async function fetchExportData(env) {
     args: [{
       syncSecret: env.SYNC_SECRET || '',
       since: lastSync,
-      tables: ['products', 'bulkProducts', 'customers', 'openItems', 'coupons', 'settings', 'stats', 'workers', 'managedIds'],
+      tables: ['products', 'bulkProducts', 'customers', 'openItems', 'coupons', 'settings', 'stats', 'workers', 'managedIds', 'orders'],
     }],
   });
 
@@ -531,6 +536,28 @@ async function syncOpenItems(db, rows) {
         status = excluded.status,
         updated_at = excluded.updated_at
     `).bind(o.managedId, o.receiptNo || '', o.status || '依頼中', now).run();
+  }
+}
+
+async function syncOrders(db, rows) {
+  const now = new Date().toISOString();
+  const stmts = rows.map(o =>
+    db.prepare(`
+      INSERT OR REPLACE INTO orders
+        (receipt_no, email, order_date, products, item_count,
+         total_amount, shipping_cost, status, carrier, tracking, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      o.receiptNo, (o.email || '').toLowerCase(), o.orderDate || '',
+      o.products || '', o.itemCount || 0,
+      o.totalAmount || 0, o.shippingCost || 0,
+      o.status || '', o.carrier || '', o.tracking || '', now
+    )
+  );
+
+  const batchSize = 50;
+  for (let i = 0; i < stmts.length; i += batchSize) {
+    await db.batch(stmts.slice(i, i + batchSize));
   }
 }
 

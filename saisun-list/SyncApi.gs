@@ -81,6 +81,11 @@ function apiSyncExportData(params) {
       result.managedIds = exportManagedIds_();
     }
 
+    // 注文履歴（依頼管理シート → D1 ordersテーブル）
+    if (tables.indexOf('orders') !== -1) {
+      result.orders = exportOrders_();
+    }
+
     return result;
   } catch (e) {
     console.error('apiSyncExportData error:', e);
@@ -445,6 +450,60 @@ function exportWorkers_() {
     });
   }
   return workers;
+}
+
+/**
+ * 依頼管理シート → D1 ordersテーブル用エクスポート
+ * マイページ注文履歴・ランク判定に使用
+ * アーカイブシートも含めて全行エクスポート（D1側でPK=受付番号でUPSERT）
+ * @returns {object[]}
+ */
+function exportOrders_() {
+  var ssId = app_getOrderSpreadsheetId_();
+  if (!ssId) return [];
+
+  var ss = SpreadsheetApp.openById(ssId);
+  var orders = [];
+  var c = REQUEST_SHEET_COLS;
+
+  var sheetNames = ['依頼管理', '依頼管理_アーカイブ'];
+  for (var s = 0; s < sheetNames.length; s++) {
+    var sh = ss.getSheetByName(sheetNames[s]);
+    if (!sh) continue;
+    var lastRow = sh.getLastRow();
+    if (lastRow < 2) continue;
+    var lastCol = sh.getLastColumn();
+    if (lastCol < c.STATUS) lastCol = c.STATUS;
+
+    var data = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
+    for (var i = 0; i < data.length; i++) {
+      var row = data[i];
+      var receiptNo = String(row[c.RECEIPT_NO - 1] || '').trim();
+      if (!receiptNo) continue;
+      var email = String(row[c.CONTACT - 1] || '').trim().toLowerCase();
+      if (!email) continue;
+
+      var dt = row[c.DATETIME - 1];
+      var orderDate = '';
+      if (dt instanceof Date) orderDate = dt.toISOString();
+      else if (dt) { try { orderDate = new Date(dt).toISOString(); } catch (e) { orderDate = ''; } }
+
+      orders.push({
+        receiptNo: receiptNo,
+        email: email,
+        orderDate: orderDate,
+        products: String(row[c.PRODUCT_NAMES - 1] || ''),
+        itemCount: Number(row[c.TOTAL_COUNT - 1]) || 0,
+        totalAmount: Number(row[c.TOTAL_AMOUNT - 1]) || 0,
+        shippingCost: Number(row[c.SHIP_COST_SHOP - 1]) || 0,
+        status: String(row[c.STATUS - 1] || '').trim(),
+        carrier: String(row[c.CARRIER - 1] || '').trim(),
+        tracking: String(row[c.TRACKING - 1] || '').trim()
+      });
+    }
+  }
+
+  return orders;
 }
 
 /**

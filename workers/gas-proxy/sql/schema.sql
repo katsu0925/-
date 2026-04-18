@@ -184,3 +184,22 @@ CREATE TABLE IF NOT EXISTS sync_meta (
   row_count INTEGER NOT NULL DEFAULT 0,
   checksum TEXT NOT NULL DEFAULT ''        -- データ変更検出用
 );
+
+-- 注文履歴（依頼管理シートと対応。マイページ注文履歴・ランク判定用）
+CREATE TABLE IF NOT EXISTS orders (
+  receipt_no TEXT PRIMARY KEY,            -- A列: 受付番号
+  email TEXT NOT NULL,                    -- D列: 連絡先メール（lowercase normalized）
+  order_date TEXT NOT NULL,               -- B列: 依頼日時 ISO8601
+  products TEXT NOT NULL DEFAULT '',      -- H列: 商品名（改行区切り）
+  item_count INTEGER NOT NULL DEFAULT 0,  -- K列: 合計点数
+  total_amount INTEGER NOT NULL DEFAULT 0,-- L列: 合計金額
+  shipping_cost INTEGER NOT NULL DEFAULT 0,-- M列: 送料(店負担)
+  status TEXT NOT NULL DEFAULT '',        -- V列: ステータス（完了/発送済み/依頼中等）
+  carrier TEXT NOT NULL DEFAULT '',       -- T列: 配送業者
+  tracking TEXT NOT NULL DEFAULT '',      -- U列: 伝票番号
+  updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_orders_email ON orders(email);
+CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
+CREATE INDEX IF NOT EXISTS idx_orders_updated ON orders(updated_at);
