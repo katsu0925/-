@@ -1523,10 +1523,20 @@ function markOrderAsCancelled_(receiptNo) {
     for (var i = 0; i < data.length; i++) {
       if (String(data[i][0]) === String(receiptNo)) {
         var row = i + 2;
-        var statusCol = 22;  // V列
+        var statusCol = 22;        // V列（依頼ステータス）
+        var paymentConfirmCol = 17; // Q列（入金確認）
         var current = sheet.getRange(row, statusCol).getValue();
-        if (current === 'キャンセル') {
-          console.log('markOrderAsCancelled_: already cancelled, skip row ' + row);
+        var paymentConfirm = sheet.getRange(row, paymentConfirmCol).getValue();
+
+        // 既に入金確認済み（クレカ等で別セッション再決済された場合など）→ 上書きしない
+        if (paymentConfirm === '未対応' || paymentConfirm === '対応済') {
+          console.warn('markOrderAsCancelled_: 入金確認済のためキャンセル更新をスキップ row=' + row +
+                       ', paymentConfirm=' + paymentConfirm + ' (別決済で支払済みの可能性)');
+          return;
+        }
+        // 既に完了／既にキャンセル → 上書きしない
+        if (current === 'キャンセル' || current === '完了') {
+          console.log('markOrderAsCancelled_: skip row ' + row + ' (status=' + current + ')');
           return;
         }
         sheet.getRange(row, statusCol).setValue('キャンセル');
