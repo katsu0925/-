@@ -407,6 +407,19 @@ function diagnoseNewsletter() {
     }
     out.push('  ステータス内訳: ' + JSON.stringify(statusCount));
     out.push('  送信候補（次回cronで送られる行）: ' + sendCandidates + '件');
+
+    // 各行の詳細（タイトル・ステータス・配信日時・頻度）
+    for (var j = 1; j < data.length; j++) {
+      var t = String(data[j][0] || '').trim();
+      var b = String(data[j][1] || '').trim();
+      var sc = data[j][2];
+      var st = String(data[j][3] || '').trim() || '(空)';
+      var fq = String(data[j][4] || '一度').trim();
+      var tg = String(data[j][6] || '全員').trim();
+      out.push('  row' + (j+1) + ': "' + (t || '(タイトル空)') + '" | 本文=' + (b ? b.length + '字' : '空') +
+               ' | 配信=' + (sc ? new Date(sc).toLocaleString('ja-JP') : '空') +
+               ' | 状態=' + st + ' | 頻度=' + fq + ' | 対象=' + tg);
+    }
   }
 
   // 3. 配信対象会員数
@@ -509,8 +522,29 @@ function newsletterSendCron_() {
 
       // メルマガ登録済み会員にメール送信（対象フィルタ適用）
       var recipients = getNewsletterRecipients_(target);
-      var sent = 0;
 
+      // ★残枠チェック: 緊急メール用に5通分マージンを残す
+      // 残枠不足なら送信せずスキップ → 状態も更新しないので次回cronで再試行される
+      var SAFETY_MARGIN = 5;
+      var remainingQuota = MailApp.getRemainingDailyQuota();
+      if (recipients.length === 0) {
+        console.log('newsletterSendCron_: "' + title + '" 配信対象0件のためスキップ');
+        continue;
+      }
+      if (recipients.length + SAFETY_MARGIN > remainingQuota) {
+        console.warn('newsletterSendCron_: 残枠不足で "' + title + '" をスキップ (recipients=' +
+                     recipients.length + ', remaining=' + remainingQuota +
+                     ', margin=' + SAFETY_MARGIN + '). 次回cronで再試行');
+        try {
+          var logSs0 = sh_getOrderSs_();
+          appendDeliveryLog_(logSs0, 'ニュースレター', '', '',
+            '「' + title + '」残枠不足でスキップ(対象=' + recipients.length + ' / 残=' + remainingQuota + ')',
+            '送信保留');
+        } catch (_) {}
+        continue;
+      }
+
+      var sent = 0;
       for (var r = 0; r < recipients.length; r++) {
         var recip = recipients[r];
         try {
