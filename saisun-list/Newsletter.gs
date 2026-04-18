@@ -357,6 +357,76 @@ function testNewsletterSend() {
 }
 
 // =====================================================
+// 診断（配信されない時の切り分け用）— GASエディタから実行
+// =====================================================
+function diagnoseNewsletter() {
+  var out = [];
+  out.push('=== メルマガ診断 ===');
+
+  // 1. トリガー確認
+  var triggers = ScriptApp.getProjectTriggers();
+  var daily9 = triggers.filter(function(t) { return t.getHandlerFunction() === 'cronDaily9'; });
+  out.push('【1】cronDaily9 トリガー: ' + (daily9.length > 0 ? '✓ ' + daily9.length + '件登録済' : '✗ 未登録 → setupTriggers() を実行'));
+
+  // 2. ニュースレターシート状態
+  var sheet = getNewsletterSheet_();
+  var lastRow = sheet.getLastRow();
+  out.push('【2】ニュースレターシート: ' + (lastRow - 1) + '行');
+  if (lastRow >= 2) {
+    var data = sheet.getDataRange().getValues();
+    var now = new Date();
+    var statusCount = {};
+    var sendCandidates = 0;
+    for (var i = 1; i < data.length; i++) {
+      var title = String(data[i][0] || '').trim();
+      var body = String(data[i][1] || '').trim();
+      var sched = data[i][2];
+      var status = String(data[i][3] || '').trim() || '(空)';
+      var freq = String(data[i][4] || '一度').trim();
+      var lastSent = data[i][5];
+      statusCount[status] = (statusCount[status] || 0) + 1;
+
+      if (!title || !body) continue;
+      if (status === '停止' || status === '配信済み') continue;
+
+      var ok = false;
+      if (freq === '一度' || !freq) {
+        if (status === '配信済み') continue;
+        ok = !sched || new Date(sched) <= now;
+      } else if (freq === '毎週') {
+        if (!lastSent || !(lastSent instanceof Date)) ok = !sched || new Date(sched) <= now;
+        else ok = (now.getTime() - new Date(lastSent).getTime()) / 86400000 >= 7;
+      } else if (freq === '毎月') {
+        if (!lastSent || !(lastSent instanceof Date)) ok = !sched || new Date(sched) <= now;
+        else {
+          var ld = new Date(lastSent);
+          ok = now.getFullYear() > ld.getFullYear() || now.getMonth() > ld.getMonth();
+        }
+      }
+      if (ok) sendCandidates++;
+    }
+    out.push('  ステータス内訳: ' + JSON.stringify(statusCount));
+    out.push('  送信候補（次回cronで送られる行）: ' + sendCandidates + '件');
+  }
+
+  // 3. 配信対象会員数
+  var recipientsAll = getNewsletterRecipients_('全員');
+  out.push('【3】メルマガON会員: ' + recipientsAll.length + '人');
+
+  // 4. メール送信残量
+  var remaining = MailApp.getRemainingDailyQuota();
+  out.push('【4】本日の残送信枠: ' + remaining + '通');
+  if (recipientsAll.length > remaining) {
+    out.push('  ⚠ 残枠不足: 会員 ' + recipientsAll.length + ' > 残り ' + remaining);
+  }
+
+  var report = out.join('\n');
+  console.log(report);
+  try { SpreadsheetApp.getUi().alert(report); } catch (_) {}
+  return report;
+}
+
+// =====================================================
 // 自動配信（毎日9時）— 定期配信対応
 // =====================================================
 
