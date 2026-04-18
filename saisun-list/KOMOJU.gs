@@ -328,6 +328,9 @@ function handleKomojuWebhook(e) {
       case 'payment.expired':
         return handlePaymentFailed_(data);
 
+      case 'payment.cancelled':
+        return handlePaymentCancelled_(data);
+
       case 'payment.refunded':
         return handlePaymentRefunded_(data);
 
@@ -538,6 +541,60 @@ function handlePaymentRefunded_(data) {
 
   console.log('Payment refunded (API verified) for:', paymentToken);
   return { ok: true, message: 'Refund processed' };
+}
+
+/**
+ * 決済キャンセル時の処理（payment.cancelled）
+ * ペイジー等で顧客がKOMOJU側でキャンセルした場合に送信される。
+ * failed と区別して専用処理: apiCancelOrder で未確定注文を解放し、
+ * 既に確定済みの注文は依頼管理シートV列を「キャンセル」に更新する。
+ */
+function handlePaymentCancelled_(data) {
+  var webhookPayment = data.data;
+  var paymentToken = resolvePaymentToken_(webhookPayment);
+
+  if (!paymentToken) {
+    return { ok: false, message: 'Payment token not found (5-level fallback exhausted)' };
+  }
+
+  // === KOMOJU APIで決済状態を裏取り ===
+  var apiPayment = fetchPaymentFromApi_(webhookPayment.id);
+  var payment = apiPayment || webhookPayment;
+
+  if (apiPayment) {
+    var apiStatus = mapKomojuStatus_(apiPayment.status);
+    if (apiStatus === 'paid' || apiStatus === 'authorized') {
+      console.error('API検証: Webhookはキャンセルだが API では決済成功 → 処理を中止: token=' + paymentToken);
+      return { ok: false, message: 'API shows payment succeeded, ignoring cancel webhook' };
+    }
+    if (apiStatus !== 'cancelled' && apiStatus !== 'expired') {
+      console.warn('API検証: キャンセル/期限切れステータスではない: status=' + apiPayment.status + ', token=' + paymentToken);
+    } else {
+      console.log('キャンセルをAPI検証で確認: token=' + paymentToken + ', status=' + apiPayment.status);
+    }
+  } else {
+    console.warn('API検証失敗、Webhookデータで処理を続行（安全側）: token=' + paymentToken);
+  }
+
+  var saved = getPaymentSession_(paymentToken) || {};
+  saved.status = 'cancelled';
+  saved.komojuStatus = payment.status;
+  saved.cancelledAt = new Date().toISOString();
+  saved.verifiedViaApi = !!apiPayment;
+  savePaymentSession_(paymentToken, saved);
+
+  // 未確定注文（PENDING_ORDER_）がある場合は在庫・ポイントを解放
+  var cancelResult = apiCancelOrder(paymentToken);
+  if (cancelResult && cancelResult.ok) {
+    console.log('Pending order released due to payment cancellation:', paymentToken);
+  }
+
+  // 既に確定済みの注文は依頼管理シートV列を「キャンセル」に更新
+  var sheetReceiptNo = saved.receiptNo || paymentToken;
+  markOrderAsCancelled_(sheetReceiptNo);
+
+  console.log('Payment cancelled (API verified) for:', paymentToken);
+  return { ok: true, message: 'Cancellation processed' };
 }
 
 /**
@@ -1411,18 +1468,20 @@ function updateOrderPaymentStatus_(receiptNo, paymentStatus, paymentMethod) {
         var row = i + 2;
 
         // Q列(17): 入金確認ステータスを更新
+        // ドロップダウン候補は ['入金待ち', '未対応', '対応済'] のみ。
+        // cancelled / refunded は候補に無いためQ列を更新せず、V列（ステータス）で管理する。
         var paymentConfirmCol = 17;  // Q列
-        var statusText;
+        var statusText = null;
         if (paymentStatus === 'paid' || paymentStatus === '未対応') {
           statusText = '未対応';
         } else if (paymentStatus === 'pending' || paymentStatus === '入金待ち') {
           statusText = '入金待ち';
         } else if (paymentStatus === '対応済') {
           statusText = '対応済';
-        } else {
-          statusText = '未対応';
         }
-        sheet.getRange(row, paymentConfirmCol).setValue(statusText);
+        if (statusText !== null) {
+          sheet.getRange(row, paymentConfirmCol).setValue(statusText);
+        }
 
         // O列(15): 決済方法（日本語表示名）
         if (paymentMethod) {
@@ -1436,12 +1495,48 @@ function updateOrderPaymentStatus_(receiptNo, paymentStatus, paymentMethod) {
           sheet.getRange(row, notifyFlagCol).setValue(false);
         }
 
-        console.log('Updated payment status for row ' + row + ': ' + statusText);
+        console.log('Updated payment status for row ' + row + ': ' + (statusText || '(skip: ' + paymentStatus + ')'));
         break;
       }
     }
   } catch (e) {
     console.error('updateOrderPaymentStatus_ error:', e);
+  }
+}
+
+/**
+ * 依頼管理シートのV列(22)を「キャンセル」に更新
+ * payment.cancelled Webhook を受けたが、既に確定済みの注文（PENDING_ORDER_が存在しない）
+ * の場合に使用。ドロップダウン候補 ['依頼中', 'キャンセル', '返品', '完了'] のうち
+ * 'キャンセル' をセットする。
+ */
+function markOrderAsCancelled_(receiptNo) {
+  try {
+    var orderSs = sh_getOrderSs_();
+    var sheet = orderSs.getSheetByName('依頼管理');
+    if (!sheet) return;
+
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return;
+
+    var data = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (var i = 0; i < data.length; i++) {
+      if (String(data[i][0]) === String(receiptNo)) {
+        var row = i + 2;
+        var statusCol = 22;  // V列
+        var current = sheet.getRange(row, statusCol).getValue();
+        if (current === 'キャンセル') {
+          console.log('markOrderAsCancelled_: already cancelled, skip row ' + row);
+          return;
+        }
+        sheet.getRange(row, statusCol).setValue('キャンセル');
+        console.log('markOrderAsCancelled_: row ' + row + ' status → キャンセル (was: ' + current + ')');
+        return;
+      }
+    }
+    console.warn('markOrderAsCancelled_: receiptNo not found: ' + receiptNo);
+  } catch (e) {
+    console.error('markOrderAsCancelled_ error:', e);
   }
 }
 
