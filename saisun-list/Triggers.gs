@@ -168,7 +168,7 @@ function cronCancelledInvoices() { processCancelledInvoices(); }
 function runWithErrorNotify_(dispatcherName, fns) {
   var errors = [];
   // Google Sheets API の一時障害は次回cronで自動回復するため通知不要
-  var TRANSIENT_RE = /Service Spreadsheets failed|Service invoked too many times|Deadline exceeded/i;
+  var TRANSIENT_RE = /Service Spreadsheets (failed|timed out)|Service invoked too many times|Deadline exceeded|We're sorry, a server error occurred/i;
   for (var i = 0; i < fns.length; i++) {
     try { fns[i](); } catch (e) {
       var msg = e && e.message ? e.message : String(e);
