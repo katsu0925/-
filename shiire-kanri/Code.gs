@@ -74,7 +74,8 @@ function doGet(e) {
     kasha: val_("股下"),
     watari: val_("ワタリ"),
     sodeh: val_("裾幅"),
-    hip: val_("ヒップ")
+    hip: val_("ヒップ"),
+    sukekan: val_("透け感")
   };
 
   const kw = getKeywordData_(ss, id);
@@ -138,10 +139,11 @@ function doGet(e) {
   });
 
   desc += "\n";
-  if (data.design || data.pocket) {
+  if (data.design || data.pocket || data.sukekan) {
     desc += "☆デザイン・特徴\n";
     if (data.design) desc += data.design + "\n";
     if (data.pocket) desc += "ポケット：" + data.pocket + "\n";
+    if (data.sukekan) desc += "透け感：" + data.sukekan + "\n";
     desc += "\n";
   }
   if (data.damage) desc += "☆状態詳細\n" + data.damage + "\n\n";
