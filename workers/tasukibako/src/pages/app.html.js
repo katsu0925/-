@@ -270,9 +270,9 @@ body.has-admin{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
           <select id="filterSave" onchange="renderManageList()" style="flex:1;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff;height:28px"><option value="">保存: すべて</option><option value="unsaved">未保存</option><option value="saved">保存済み</option></select>
         </div>
         <div style="display:flex;gap:4px;align-items:center">
-          <label style="flex:1;position:relative"><span style="position:absolute;left:8px;top:5px;font-size:11px;color:#999;pointer-events:none" id="filterDateFromLabel">年/月/日</span><input type="date" id="filterDateFrom" onchange="renderManageList();this.previousElementSibling.style.display=this.value?'none':''" style="width:100%;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff;height:28px"></label>
+          <input type="date" id="filterDateFrom" onchange="renderManageList()" style="flex:1;min-width:0;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff;height:28px;color:#666">
           <span style="font-size:11px;color:#999;flex-shrink:0">〜</span>
-          <label style="flex:1;position:relative"><span style="position:absolute;left:8px;top:5px;font-size:11px;color:#999;pointer-events:none" id="filterDateToLabel">年/月/日</span><input type="date" id="filterDateTo" onchange="renderManageList();this.previousElementSibling.style.display=this.value?'none':''" style="width:100%;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff;height:28px"></label>
+          <input type="date" id="filterDateTo" onchange="renderManageList()" style="flex:1;min-width:0;padding:4px 6px;border:1px solid #ddd;border-radius:6px;font-size:12px;background:#fff;height:28px;color:#666">
           <button id="filterClearBtn" onclick="clearFilters()" style="display:none;padding:4px 8px;border:none;border-radius:6px;font-size:11px;background:#ef4444;color:#fff;cursor:pointer;white-space:nowrap;flex-shrink:0">クリア</button>
         </div>
       </div>
@@ -1615,8 +1615,6 @@ function clearFilters() {
   document.getElementById('filterSave').value = '';
   document.getElementById('filterDateFrom').value = '';
   document.getElementById('filterDateTo').value = '';
-  document.getElementById('filterDateFromLabel').style.display = '';
-  document.getElementById('filterDateToLabel').style.display = '';
   renderManageList();
 }
 
