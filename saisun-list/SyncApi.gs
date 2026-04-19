@@ -705,7 +705,9 @@ function importAiProductData_(data) {
         if (newVal === null || newVal === undefined) continue;
         var newValStr = String(newVal).trim();
         var newValLower = newValStr.toLowerCase();
-        if (newValStr === '' || newValLower === 'null' || newValLower === 'n/a' || newValStr === 'なし' || newValStr === '不明' || newValLower === 'undefined') continue;
+        if (newValStr === '' || newValLower === 'null' || newValLower === 'n/a' || newValStr === '不明' || newValLower === 'undefined') continue;
+        // "なし" は pocket(ポケット) だけ有効値として通す
+        if (newValStr === 'なし' && headerName !== 'ポケット') continue;
         var existing = String(sh.getRange(row, col).getValue() || '').trim();
         if (existing !== '') continue;
         sh.getRange(row, col).setValue(newValStr);
@@ -790,7 +792,9 @@ function importAiProductData_(data) {
           if (aiVal === null || aiVal === undefined) continue;
           var aiValStr = String(aiVal).trim();
           var aiValLower = aiValStr.toLowerCase();
-          if (aiValStr === '' || aiValLower === 'null' || aiValLower === 'n/a' || aiValStr === 'なし' || aiValStr === '不明' || aiValLower === 'undefined') continue;
+          if (aiValStr === '' || aiValLower === 'null' || aiValLower === 'n/a' || aiValStr === '不明' || aiValLower === 'undefined') continue;
+          // "なし" は pocket(ポケット) だけ有効値として通す
+          if (aiValStr === 'なし' && aiHeaderName !== 'ポケット') continue;
           aiSh.getRange(aiRow, aiCol).setValue(aiValStr);
         }
 
@@ -992,7 +996,9 @@ function applyPendingAiData() {
 
       var aiVal = String(aiData[r][aiCol - 1] || '').trim();
       var aiValLower = aiVal.toLowerCase();
-      if (aiVal === '' || aiValLower === 'null' || aiValLower === 'n/a' || aiVal === 'なし' || aiVal === '不明') continue;
+      if (aiVal === '' || aiValLower === 'null' || aiValLower === 'n/a' || aiVal === '不明') continue;
+      // "なし" は ポケット だけ有効値として通す
+      if (aiVal === 'なし' && aiHeader !== 'ポケット') continue;
 
       var existing = String(sh.getRange(shRow, shCol).getValue() || '').trim();
       if (existing !== '') continue; // 既に値がある
