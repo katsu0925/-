@@ -53,6 +53,8 @@ bucket_name = "tasukibako-images"
 # - META_PIXEL_ID (Meta Pixel ID: 2122295911954697)
 # - META_ACCESS_TOKEN (Meta Conversions API アクセストークン — Events Managerで生成)
 # - GEMINI_API_KEY (Gemini AI判定用、写メジャーとは別キー)
+# - BG_API_URL  (Vercel Functions URL: https://tasukibako-bg-api.vercel.app/api/bg-replace)
+# - BG_API_KEY  (Vercel側と一致するシークレット)
 
 # =====================================================
 # 開発環境 — wrangler deploy --env dev / wrangler dev --env dev

@@ -80,6 +80,8 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 .blur-btn.done{background:rgba(79,70,229,.85);color:#fff}
 .blur-btn.processing{pointer-events:none;opacity:.7}
 .blur-overlay{position:absolute;inset:0;background:rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center;z-index:2}
+.bgreplace-done-badge{position:absolute;bottom:2px;left:50px;background:rgba(16,185,129,.9);color:#fff;font-size:9px;padding:1px 5px;border-radius:4px;z-index:3;cursor:pointer}
+.revert-badge{position:absolute;bottom:2px;left:2px;background:rgba(107,114,128,.95);color:#fff;font-size:10px;padding:2px 6px;border-radius:4px;z-index:3;cursor:pointer;font-weight:600}
 .img-check-wrap{position:relative}
 .img-check-wrap input[type=checkbox]{position:absolute;top:4px;left:4px;z-index:2;width:18px;height:18px;accent-color:#3b82f6}
 .img-check-wrap .badge{left:auto;right:2px}
@@ -177,10 +179,13 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
         <!-- ぼかし操作バー -->
         <div id="blurBar" style="display:none;margin-top:8px;align-items:center;gap:6px;flex-wrap:wrap">
           <button id="blurSelectedBtn" onclick="blurSelected()" style="padding:5px 12px;border:1.5px solid #4F46E5;background:#fff;color:#4F46E5;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">選択をぼかす</button>
+          <button id="bgReplaceSelectedBtn" onclick="bgReplaceSelected()" style="padding:5px 12px;border:1.5px solid #10b981;background:#fff;color:#059669;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap">選択を背景置換</button>
           <button onclick="selectAllUpload(true)" style="padding:5px 8px;border:1px solid #d1d5db;background:#fff;border-radius:6px;font-size:11px;cursor:pointer">全選択</button>
           <button onclick="selectAllUpload(false)" style="padding:5px 8px;border:1px solid #d1d5db;background:#fff;border-radius:6px;font-size:11px;cursor:pointer">全解除</button>
           <span id="blurProgress" style="font-size:12px;color:#6b7280"></span>
+          <span id="bgReplaceProgress" style="font-size:12px;color:#6b7280"></span>
           <span id="blurUsage" style="font-size:11px;color:#9ca3af;margin-left:auto"></span>
+          <span id="bgReplaceUsage" style="font-size:11px;color:#9ca3af"></span>
         </div>
         <div id="blurStatus" style="display:none;font-size:12px;color:#6b7280;margin-top:4px"></div>
         <div class="progress-bar" id="uploadProgress"><div class="fill" id="uploadProgressFill"></div></div>
@@ -253,6 +258,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
     <div style="width:28px;height:28px;border:3px solid rgba(79,70,229,.2);border-top-color:#4F46E5;border-radius:50%;animation:ptr-spin .6s linear infinite;margin:0 auto 12px"></div>
     <div id="loadingText" style="font-size:14px;font-weight:600;color:#1f2937">処理中...</div>
     <div id="loadingSubText" style="font-size:12px;color:#6b7280;margin-top:4px"></div>
+    <button id="loadingCancelBtn" style="display:none;margin-top:12px;padding:8px 20px;border:1.5px solid #ef4444;background:#fff;color:#dc2626;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer">中止</button>
   </div>
 </div>
 
@@ -272,9 +278,23 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 var API_BASE = location.origin;
 
 // ─── ローディングポップアップ ───
-function showLoading(text, subText) {
+function showLoading(text, subText, onCancel) {
   document.getElementById('loadingText').textContent = text || '処理中...';
   document.getElementById('loadingSubText').textContent = subText || '';
+  var cancelBtn = document.getElementById('loadingCancelBtn');
+  if (typeof onCancel === 'function') {
+    cancelBtn.style.display = 'inline-block';
+    cancelBtn.disabled = false;
+    cancelBtn.textContent = '中止';
+    cancelBtn.onclick = function() {
+      cancelBtn.disabled = true;
+      cancelBtn.textContent = '中止中...';
+      onCancel();
+    };
+  } else {
+    cancelBtn.style.display = 'none';
+    cancelBtn.onclick = null;
+  }
   document.getElementById('loadingPopup').style.display = 'flex';
 }
 function updateLoading(text, subText) {
@@ -283,6 +303,8 @@ function updateLoading(text, subText) {
 }
 function hideLoading() {
   document.getElementById('loadingPopup').style.display = 'none';
+  var cancelBtn = document.getElementById('loadingCancelBtn');
+  if (cancelBtn) { cancelBtn.style.display = 'none'; cancelBtn.onclick = null; }
 }
 var TOKEN_KEY = 'detauri_upload_token';
 var TOKEN_VERIFIED_KEY = 'detauri_token_verified_at';
@@ -857,7 +879,7 @@ async function blurSelected() {
   }
 
   _blurBatchMode = true;
-  showLoading('ぼかし処理中', '0/' + indices.length);
+  showLoading('ぼかし処理中', '0/' + indices.length, function() { _blurAbort = true; });
   var done = 0;
   for (var k = 0; k < indices.length; k++) {
     if (_blurAbort) break;
@@ -1060,8 +1082,166 @@ function removeBlur(fileIndex) {
   var files = document.getElementById('uploadFiles').files;
   var item = document.getElementById('uploadPreview').children[fileIndex];
   if (item && files[fileIndex]) {
-    item.querySelector('img').src = URL.createObjectURL(files[fileIndex]);
+    // 背景置換も使われていればそちらを優先表示
+    if (_bgReplacedImages[fileIndex]) {
+      item.querySelector('img').src = URL.createObjectURL(_bgReplacedImages[fileIndex]);
+    } else {
+      item.querySelector('img').src = URL.createObjectURL(files[fileIndex]);
+    }
     var badge = item.querySelector('.blur-done-badge');
+    if (badge) badge.remove();
+  }
+}
+
+// ─── 背景置換 ───
+var _bgReplacedImages = {};
+var _bgReplaceBusy = false;
+var _bgReplaceAbort = false;
+
+function fetchBgReplaceUsage() {
+  fetch('/upload/bg-replace?check=1').then(function(r) { return r.json(); }).then(function(d) {
+    if (!d.ok) return;
+    var el = document.getElementById('bgReplaceUsage');
+    if (!el) return;
+    var remaining = d.remaining;
+    el.textContent = '置換 残' + remaining + '/' + d.limit;
+    if (remaining <= 0) {
+      el.style.color = '#dc2626';
+      el.textContent = '置換 枠超過(' + d.count + '/' + d.limit + ')';
+    } else if (remaining <= 500) {
+      el.style.color = '#f59e0b';
+    } else {
+      el.style.color = '#9ca3af';
+    }
+  }).catch(function() {});
+}
+
+function updateBgReplaceUsage(res) {
+  var count = parseInt(res.headers.get('X-BgReplace-Usage') || '0');
+  var limit = parseInt(res.headers.get('X-BgReplace-Limit') || '5000');
+  var remaining = limit - count;
+  var el = document.getElementById('bgReplaceUsage');
+  if (!el) return;
+  el.textContent = '置換 残' + remaining + '/' + limit;
+  if (remaining <= 0) { el.style.color = '#dc2626'; }
+  else if (remaining <= 500) { el.style.color = '#f59e0b'; }
+  else { el.style.color = '#9ca3af'; }
+}
+
+async function bgReplaceSelected() {
+  if (_bgReplaceBusy) return;
+  var checks = document.querySelectorAll('.upload-check:checked');
+  if (checks.length === 0) {
+    showStatus('uploadStatus', '背景置換する画像を選択してください', 'err');
+    return;
+  }
+
+  _bgReplaceBusy = true;
+  _bgReplaceAbort = false;
+  var actionBtn = document.getElementById('bgReplaceSelectedBtn');
+  actionBtn.textContent = '中止';
+  actionBtn.onclick = function() { _bgReplaceAbort = true; };
+
+  var indices = [];
+  checks.forEach(function(cb) { indices.push(parseInt(cb.dataset.idx)); });
+
+  var items = document.getElementById('uploadPreview').children;
+  for (var k = 0; k < indices.length; k++) {
+    var item = items[indices[k]];
+    if (!item || _bgReplacedImages[indices[k]]) continue;
+    if (!item.querySelector('.blur-overlay')) {
+      var ov = document.createElement('div');
+      ov.className = 'blur-overlay';
+      ov.innerHTML = '<div style="width:20px;height:20px;border:2.5px solid rgba(16,185,129,.2);border-top-color:#10b981;border-radius:50%;animation:ptr-spin .6s linear infinite"></div>';
+      item.appendChild(ov);
+    }
+  }
+
+  showLoading('背景置換中', '0/' + indices.length, function() { _bgReplaceAbort = true; });
+  var done = 0;
+  for (var k = 0; k < indices.length; k++) {
+    if (_bgReplaceAbort) break;
+    var idx = indices[k];
+    if (_bgReplacedImages[idx]) { done++; continue; }
+    updateLoading('背景置換中', (done+1) + '/' + indices.length);
+    document.getElementById('bgReplaceProgress').textContent = (done+1) + '/' + indices.length + ' 処理中…';
+    await processBgReplace(idx);
+    done++;
+    await new Promise(function(r) { setTimeout(r, 30); });
+  }
+  hideLoading();
+
+  for (var k = 0; k < indices.length; k++) {
+    applyBgReplaceUI(indices[k]);
+  }
+
+  document.getElementById('bgReplaceProgress').textContent = _bgReplaceAbort ? '中断' : done + '枚完了';
+  actionBtn.textContent = '選択を背景置換';
+  actionBtn.onclick = bgReplaceSelected;
+  _bgReplaceBusy = false;
+  _bgReplaceAbort = false;
+  checks.forEach(function(cb) { cb.checked = false; });
+}
+
+async function processBgReplace(fileIndex) {
+  var files = document.getElementById('uploadFiles').files;
+  var file = files[fileIndex];
+  if (!file) return;
+  var item = document.getElementById('uploadPreview').children[fileIndex];
+  if (!item) return;
+
+  if (!item.querySelector('.blur-overlay')) {
+    var ov = document.createElement('div');
+    ov.className = 'blur-overlay';
+    ov.innerHTML = '<div style="width:20px;height:20px;border:2.5px solid rgba(16,185,129,.2);border-top-color:#10b981;border-radius:50%;animation:ptr-spin .6s linear infinite"></div>';
+    item.appendChild(ov);
+  }
+
+  try {
+    var fd = new FormData();
+    fd.append('image', file);
+    var res = await fetch('/upload/bg-replace', { method: 'POST', body: fd });
+    if (!res.ok) {
+      var err = await res.text();
+      throw new Error('server ' + res.status + ': ' + err.slice(0, 100));
+    }
+    updateBgReplaceUsage(res);
+    var resultBlob = await res.blob();
+    _bgReplacedImages[fileIndex] = resultBlob;
+  } catch (e) {
+    var ovEl = item.querySelector('.blur-overlay');
+    if (ovEl) ovEl.remove();
+    showStatus('uploadStatus', '背景置換失敗: ' + e.message, 'err');
+  }
+}
+
+function applyBgReplaceUI(fileIndex) {
+  var item = document.getElementById('uploadPreview').children[fileIndex];
+  if (!item || !_bgReplacedImages[fileIndex]) return;
+  item.querySelector('img').src = URL.createObjectURL(_bgReplacedImages[fileIndex]);
+  if (!item.querySelector('.bgreplace-done-badge')) {
+    var badge = document.createElement('span');
+    badge.className = 'bgreplace-done-badge';
+    badge.textContent = '置換済';
+    badge.title = 'タップで解除';
+    badge.onclick = function(e) { e.stopPropagation(); removeBgReplace(fileIndex); };
+    item.appendChild(badge);
+  }
+  var ovEl = item.querySelector('.blur-overlay');
+  if (ovEl) ovEl.remove();
+}
+
+function removeBgReplace(fileIndex) {
+  delete _bgReplacedImages[fileIndex];
+  var files = document.getElementById('uploadFiles').files;
+  var item = document.getElementById('uploadPreview').children[fileIndex];
+  if (item && files[fileIndex]) {
+    if (_blurredImages[fileIndex]) {
+      item.querySelector('img').src = URL.createObjectURL(_blurredImages[fileIndex]);
+    } else {
+      item.querySelector('img').src = URL.createObjectURL(files[fileIndex]);
+    }
+    var badge = item.querySelector('.bgreplace-done-badge');
     if (badge) badge.remove();
   }
 }
@@ -1084,6 +1264,7 @@ function showPreview() {
   }
   btn.disabled = false;
   _blurredImages = {};
+  _bgReplacedImages = {};
   _uploadFileOrder = [];
   for (var i = 0; i < files.length; i++) {
     _uploadFileOrder.push(i);
@@ -1108,7 +1289,9 @@ function showPreview() {
   var bar = document.getElementById('blurBar');
   bar.style.display = 'flex';
   document.getElementById('blurProgress').textContent = '';
+  document.getElementById('bgReplaceProgress').textContent = '';
   fetchBlurUsage();
+  fetchBgReplaceUsage();
 }
 
 var _uploadFileOrder = [];
@@ -1291,6 +1474,14 @@ function resizeAllImages(files, cb) {
       (function(pos) {
         idx++;
         var fileIdx = order[pos];
+        // 背景置換済みは最優先（既にJPEG・1:1）
+        if (_bgReplacedImages[fileIdx]) {
+          results[pos] = _bgReplacedImages[fileIdx];
+          done++;
+          if (done === total) { cb(results); return; }
+          next();
+          return;
+        }
         // AIぼかし済みの画像はそのまま使用
         if (_blurredImages[fileIdx]) {
           results[pos] = _blurredImages[fileIdx];
@@ -1689,14 +1880,20 @@ function toggleManageExpand(managedId) {
       html += '</div>';
     }
     // 画像グリッド（ドラッグ並び替え対応）
+    var backupSet = {};
+    (d.backupUrls || []).forEach(function(u) { backupSet[u] = true; });
     html += '<div class="img-grid" id="manageImageGrid">';
     for (var j = 0; j < urls.length; j++) {
       var fullUrl = API_BASE + urls[j];
+      var revertBtn = backupSet[urls[j]]
+        ? '<span class="revert-badge" onclick="event.stopPropagation();revertManageImage(\\'' + escapeHtml(managedId) + '\\', \\'' + escapeHtml(urls[j]) + '\\', this)">↩ 元に戻す</span>'
+        : '';
       html += '<div class="img-check-wrap preview-item" draggable="true" data-idx="' + j + '" onclick="toggleImgCheck(this,event)" style="cursor:pointer">' +
         '<input type="checkbox" class="dl-img-check" data-mid="' + escapeHtml(managedId) + '" data-url="' + escapeHtml(urls[j]) + '" data-imgidx="' + j + '" checked>' +
         '<img src="' + fullUrl + '?t=' + Date.now() + '" loading="lazy">' +
         '<span class="badge">' + (j === 0 ? 'トップ' : (j+1)) + '</span>' +
         '<span class="preview-btn" onclick="event.stopPropagation();openPreview(this.previousElementSibling.previousElementSibling.src)">🔍</span>' +
+        revertBtn +
         '</div>';
     }
     html += '</div>';
@@ -1713,9 +1910,13 @@ function toggleManageExpand(managedId) {
       '</div>' +
       '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">' +
       '<button class="btn" id="manageBlurBtn" style="flex:1;font-size:12px;padding:8px;background:#4F46E5;color:#fff" onclick="blurManageImages(\\'' + escapeHtml(managedId) + '\\')">✨ 選択をぼかす</button>' +
+      '<button class="btn" id="manageBgReplaceBtn" style="flex:1;font-size:12px;padding:8px;background:#10b981;color:#fff" onclick="bgReplaceManageImages(\\'' + escapeHtml(managedId) + '\\')">🖼 選択を背景置換</button>' +
+      '</div>' +
+      '<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap">' +
       '<button class="btn btn-danger" style="flex:1;font-size:12px;padding:8px" onclick="deleteManageImages(\\'' + escapeHtml(managedId) + '\\')">🗑 選択削除</button>' +
       '</div>' +
-      '<div id="manageBlurProgress" style="font-size:12px;color:#6b7280;margin-top:4px"></div>';
+      '<div id="manageBlurProgress" style="font-size:12px;color:#6b7280;margin-top:4px"></div>' +
+      '<div id="manageBgReplaceProgress" style="font-size:12px;color:#6b7280;margin-top:2px"></div>';
     el.innerHTML = html;
     // ドラッグ並び替え初期化
     initManageDragReorder(document.getElementById('manageImageGrid'), managedId);
@@ -1916,9 +2117,7 @@ async function blurManageImages(managedId) {
   var btn = document.getElementById('manageBlurBtn');
   var prog = document.getElementById('manageBlurProgress');
   btn.disabled = true;
-  btn.textContent = '中止';
   var aborted = false;
-  btn.onclick = function() { aborted = true; };
 
   var targets = [];
   checks.forEach(function(c) {
@@ -1936,7 +2135,7 @@ async function blurManageImages(managedId) {
     }
   });
 
-  showLoading('ぼかし処理中', '0/' + targets.length);
+  showLoading('ぼかし処理中', '0/' + targets.length, function() { aborted = true; });
   var done = 0;
   for (var i = 0; i < targets.length; i++) {
     if (aborted) break;
@@ -2038,6 +2237,7 @@ async function blurManageImages(managedId) {
         // チェックボックスのdata-urlも更新
         var cb = t.el.querySelector('.dl-img-check');
         if (cb) cb.dataset.url = upData.newUrl;
+        addRevertBadge(t.el, managedId, upData.newUrl);
       }
     } catch(e) {
       console.error('Manage blur error:', e);
@@ -2053,12 +2253,146 @@ async function blurManageImages(managedId) {
   hideLoading();
   prog.textContent = aborted ? '中断' : done + '枚完了';
   btn.disabled = false;
-  btn.textContent = '✨ 選択をぼかす';
-  btn.onclick = function() { blurManageImages(managedId); };
 
   // 展開データ更新
   if (!aborted) {
     setTimeout(function() { doRefresh(); }, 500);
+  }
+}
+
+// ─── 展開内: 選択画像を背景置換 ───
+async function bgReplaceManageImages(managedId) {
+  var checks = document.querySelectorAll('.dl-img-check:checked');
+  if (checks.length === 0) { showStatus('manageStatus', '背景置換する画像を選択してください', 'err'); return; }
+
+  var btn = document.getElementById('manageBgReplaceBtn');
+  var prog = document.getElementById('manageBgReplaceProgress');
+  btn.disabled = true;
+  var aborted = false;
+
+  var targets = [];
+  checks.forEach(function(c) {
+    targets.push({ url: c.dataset.url, idx: parseInt(c.dataset.imgidx), el: c.closest('.img-check-wrap') });
+  });
+
+  targets.forEach(function(t) {
+    if (!t.el.querySelector('.blur-overlay')) {
+      var ov = document.createElement('div');
+      ov.className = 'blur-overlay';
+      ov.style.cssText = 'position:absolute;inset:0;background:rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center;z-index:2';
+      ov.innerHTML = '<div style="width:20px;height:20px;border:2.5px solid rgba(16,185,129,.2);border-top-color:#10b981;border-radius:50%;animation:ptr-spin .6s linear infinite"></div>';
+      t.el.appendChild(ov);
+    }
+  });
+
+  showLoading('背景置換中', '0/' + targets.length, function() { aborted = true; });
+  var done = 0;
+  for (var i = 0; i < targets.length; i++) {
+    if (aborted) break;
+    var t = targets[i];
+    updateLoading('背景置換中', (done+1) + '/' + targets.length);
+    prog.textContent = (done+1) + '/' + targets.length + ' 処理中…';
+
+    try {
+      var imgUrl = API_BASE + t.url + '?t=' + Date.now();
+      var imgRes = await fetch(imgUrl);
+      if (!imgRes.ok) throw new Error('画像取得失敗');
+      var imgBlob = await imgRes.blob();
+
+      var fd = new FormData();
+      fd.append('image', imgBlob, 'src.jpg');
+      var bgRes = await fetch(API_BASE + '/upload/bg-replace', { method: 'POST', headers: headers({}), body: fd });
+      if (!bgRes.ok) {
+        var errText = await bgRes.text();
+        throw new Error('server ' + bgRes.status + ': ' + errText.slice(0, 100));
+      }
+      var resultBlob = await bgRes.blob();
+
+      var upFd = new FormData();
+      upFd.append('managedId', managedId);
+      upFd.append('targetUrl', t.url);
+      upFd.append('images', resultBlob, 'bgreplace.jpg');
+      var upRes = await fetch(API_BASE + '/upload/update-image', {
+        method: 'POST', headers: headers({}), body: upFd
+      });
+      var upData = await upRes.json();
+
+      if (upData.ok && upData.newUrl) {
+        t.el.querySelector('img').src = API_BASE + upData.newUrl + '?t=' + Date.now();
+        var cb = t.el.querySelector('.dl-img-check');
+        if (cb) cb.dataset.url = upData.newUrl;
+        addRevertBadge(t.el, managedId, upData.newUrl);
+      }
+    } catch (e) {
+      console.error('Manage bg-replace error:', e);
+      showStatus('manageStatus', '背景置換失敗（' + (done+1) + '枚目）: ' + e.message, 'err');
+    }
+
+    var ov = t.el.querySelector('.blur-overlay');
+    if (ov) ov.remove();
+    done++;
+    await new Promise(function(r) { setTimeout(r, 30); });
+  }
+
+  hideLoading();
+  prog.textContent = aborted ? '中断' : done + '枚完了';
+  btn.disabled = false;
+
+  if (!aborted) {
+    setTimeout(function() { doRefresh(); }, 500);
+  }
+}
+
+// ─── 展開内: 元に戻すバッジ付与 ───
+function addRevertBadge(itemEl, managedId, currentUrl) {
+  if (!itemEl) return;
+  var existing = itemEl.querySelector('.revert-badge');
+  if (existing) existing.remove();
+  var b = document.createElement('span');
+  b.className = 'revert-badge';
+  b.textContent = '↩ 元に戻す';
+  b.onclick = function(e) {
+    e.stopPropagation();
+    revertManageImage(managedId, currentUrl, b);
+  };
+  itemEl.appendChild(b);
+}
+
+// ─── 展開内: 画像を置換前に戻す ───
+async function revertManageImage(managedId, currentUrl, badgeEl) {
+  if (!confirm('この画像を置換前の状態に戻しますか？')) return;
+  var wrap = badgeEl ? badgeEl.closest('.img-check-wrap') : null;
+  if (wrap && !wrap.querySelector('.blur-overlay')) {
+    var ov = document.createElement('div');
+    ov.className = 'blur-overlay';
+    ov.style.cssText = 'position:absolute;inset:0;background:rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center;z-index:2';
+    ov.innerHTML = '<div style="width:20px;height:20px;border:2.5px solid rgba(107,114,128,.2);border-top-color:#6b7280;border-radius:50%;animation:ptr-spin .6s linear infinite"></div>';
+    wrap.appendChild(ov);
+  }
+  try {
+    var res = await fetch(API_BASE + '/upload/revert-image', {
+      method: 'POST',
+      headers: headers({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ managedId: managedId, currentUrl: currentUrl })
+    });
+    var d = await res.json();
+    if (!d.ok) throw new Error(d.message || '失敗');
+    if (wrap) {
+      wrap.querySelector('img').src = API_BASE + d.newUrl + '?t=' + Date.now();
+      var cb = wrap.querySelector('.dl-img-check');
+      if (cb) cb.dataset.url = d.newUrl;
+      var ovEl = wrap.querySelector('.blur-overlay');
+      if (ovEl) ovEl.remove();
+      if (badgeEl) badgeEl.remove();
+    }
+    showStatus('manageStatus', '元に戻しました', 'ok');
+    setTimeout(function() { doRefresh(); }, 500);
+  } catch (e) {
+    if (wrap) {
+      var ovEl2 = wrap.querySelector('.blur-overlay');
+      if (ovEl2) ovEl2.remove();
+    }
+    showStatus('manageStatus', '元に戻せませんでした: ' + e.message, 'err');
   }
 }
 
@@ -2561,16 +2895,29 @@ function showHelpGuide() {
       '全角→半角は自動変換されます',
       'TOPは高画質、2枚目以降は軽量に自動リサイズ',
       '同じ番号で既に画像があれば追加モードに切替',
+      'アップロード前に「選択をぼかす」「選択を背景置換」で画像を加工可能',
     ]},
     { title: '商品管理', items: [
       '商品をタップして画像を確認・操作',
       'ドラッグ&ドロップで画像の並び替え',
       '保存DLで画像をダウンロード（保存回数を記録）',
       '画像検索でGoogle Lensから類似商品を検索',
+      '✨ 選択をぼかす / 🖼 選択を背景置換 で既存画像も加工',
+    ]},
+    { title: '背景加工の使い分け', items: [
+      '<b>ぼかし</b>: 背景を自然にぼかす。生活感を隠す・人物写り込み対策に',
+      '<b>背景置換</b>: AIが被写体を切り抜いて、白壁やグラデ背景に置き換え',
+      'トルソー/ハンガーを自動判定して最適な背景＆影を合成',
+      'アップロード前の画像、登録済みの画像どちらでも加工可能',
+    ]},
+    { title: '間違えた時は ↩ 元に戻す', items: [
+      '商品管理で加工（ぼかし・背景置換）した画像は自動で元画像を保存',
+      '画像の左下に <b>↩ 元に戻す</b> バッジが出ていればタップで復元可能',
+      '保持期間は<b>7日間</b>。それを過ぎると元に戻せません',
+      '元に戻すと、加工後の画像は破棄されます',
     ]},
     { title: '便利機能', items: [
       '明るさ自動補正: プレビューで確認可能',
-      '背景ぼかし: AIが被写体を自動認識して背景をぼかし',
       '一括操作: 全選択→一括DL/一括削除',
       '採寸情報未登録: 7日以上未登録は赤ラベル表示',
     ]},

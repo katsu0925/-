@@ -88,6 +88,8 @@ export async function handleUpload(request, env, path) {
       return await handleDeleteSingle(request, env);
     case '/upload/update-image':
       return await handleUpdateImage(request, env);
+    case '/upload/revert-image':
+      return await handleRevertImage(request, env);
     case '/upload/reorder':
       return await handleReorder(request, env);
     case '/upload/list-all':
@@ -363,7 +365,20 @@ async function handleProductImages(request, env) {
   const saveLogJson = await env.CACHE.get(`save-log:${managedId}`);
   const saveLog = saveLogJson ? JSON.parse(saveLogJson) : { count: 0, users: [] };
 
-  return jsonOk({ managedId, urls, meta, saveLog });
+  // バックアップ可能な画像URL一覧（置換前の状態が7日以内）
+  const backupUrls = [];
+  try {
+    const backupPrefix = `image-backup:${managedId}:`;
+    const backupList = await env.CACHE.list({ prefix: backupPrefix });
+    for (const entry of backupList.keys) {
+      const url = entry.name.slice(backupPrefix.length);
+      if (urls.includes(url)) backupUrls.push(url);
+    }
+  } catch {
+    // 失敗しても空配列で継続
+  }
+
+  return jsonOk({ managedId, urls, meta, saveLog, backupUrls });
 }
 
 // ─── R2画像配信 ───
@@ -371,7 +386,9 @@ async function handleProductImages(request, env) {
 export async function serveImage(request, env, path) {
   // クエリ文字列を除去してR2キーを構築
   const cleanPath = path.split('?')[0];
-  const r2Key = cleanPath.replace(/^\/images\//, '');
+  // パーセントエンコードされた日本語等をR2キー(生UTF-8)に戻す
+  let r2Key = cleanPath.replace(/^\/images\//, '');
+  try { r2Key = decodeURIComponent(r2Key); } catch {}
 
   const object = await env.IMAGES.get(r2Key);
   if (!object) {
@@ -522,11 +539,7 @@ async function handleUpdateImage(request, env) {
   if (!(file instanceof File)) return jsonError('不正なファイルです', 400);
   if (file.size > MAX_FILE_SIZE) return jsonError(`ファイルサイズが大きすぎます（最大${MAX_FILE_SIZE / 1024 / 1024}MB）`, 400);
 
-  // 古いR2ファイルを削除
-  const oldR2Key = targetUrl.replace(/^\/images\//, '');
-  await env.IMAGES.delete(oldR2Key);
-
-  // 新UUIDで保存
+  // 新UUIDで保存（古いR2ファイルは元に戻す用に残す）
   const uuid = crypto.randomUUID();
   const newKey = `products/${managedId}/${uuid}.jpg`;
   const arrayBuffer = await file.arrayBuffer();
@@ -540,10 +553,63 @@ async function handleUpdateImage(request, env) {
   const newUrl = `/images/products/${managedId}/${uuid}.jpg`;
   urls[targetIndex] = newUrl;
   await env.CACHE.put(`product-images:${managedId}`, JSON.stringify(urls));
+
+  // バックアップ：newUrl → targetUrl を 7日間保持（誤置換の復元用）
+  await env.CACHE.put(
+    `image-backup:${managedId}:${newUrl}`,
+    targetUrl,
+    { expirationTtl: 7 * 86400 }
+  );
+
   await invalidateProductCache(env);
   await invalidateListCache(env);
 
-  return jsonOk({ managedId, oldUrl: targetUrl, newUrl, urls });
+  return jsonOk({ managedId, oldUrl: targetUrl, newUrl, urls, backupAvailable: true });
+}
+
+// ─── 画像の元に戻す（置換前に復元） ───
+
+async function handleRevertImage(request, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError('不正なリクエスト', 400);
+  }
+
+  const managedId = normalizeManagedId(body.managedId || '');
+  if (!managedId) return jsonError('管理番号が必要です', 400);
+  const currentUrl = body.currentUrl || '';
+  if (!currentUrl) return jsonError('対象画像URLが必要です', 400);
+
+  const backupKey = `image-backup:${managedId}:${currentUrl}`;
+  const oldUrl = await env.CACHE.get(backupKey);
+  if (!oldUrl) return jsonError('バックアップが見つかりません（期限切れの可能性）', 404);
+
+  const oldR2Key = oldUrl.replace(/^\/images\//, '');
+  const oldObj = await env.IMAGES.head(oldR2Key);
+  if (!oldObj) {
+    await env.CACHE.delete(backupKey);
+    return jsonError('元画像が既に削除されています', 404);
+  }
+
+  const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
+  const urls = urlsJson ? JSON.parse(urlsJson) : [];
+  const idx = urls.indexOf(currentUrl);
+  if (idx === -1) return jsonError('対象画像が見つかりません', 404);
+
+  urls[idx] = oldUrl;
+  await env.CACHE.put(`product-images:${managedId}`, JSON.stringify(urls));
+
+  // 現在（置換後）のR2画像を削除
+  const currentR2Key = currentUrl.replace(/^\/images\//, '');
+  await env.IMAGES.delete(currentR2Key);
+
+  await env.CACHE.delete(backupKey);
+  await invalidateProductCache(env);
+  await invalidateListCache(env);
+
+  return jsonOk({ managedId, oldUrl: currentUrl, newUrl: oldUrl, urls });
 }
 
 // ─── 画像並び替え ───

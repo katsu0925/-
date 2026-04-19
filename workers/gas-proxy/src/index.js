@@ -196,6 +196,17 @@ self.addEventListener('fetch', e => {
       return await handleBlurSegment(request, env);
     }
 
+    // GET /upload/bg-replace?check=1 → 使用量確認
+    if (url.pathname === '/upload/bg-replace' && request.method === 'GET') {
+      const usage = await getBgReplaceUsage(env);
+      return jsonOk(usage);
+    }
+
+    // POST /upload/bg-replace → Vercel Functions に転送（Sharp + Replicate）
+    if (url.pathname === '/upload/bg-replace' && request.method === 'POST') {
+      return await handleBgReplace(request, env);
+    }
+
     // POST /upload/* → アップロードAPIハンドラー（multipart/JSON）
     if (url.pathname.startsWith('/upload/')) {
       return await handleUpload(request, env, url.pathname);
@@ -422,6 +433,72 @@ async function incrementBlurUsage(env) {
   const ttl = Math.ceil((nextMonth - now) / 1000);
   await env.CACHE.put(key, String(count), { expirationTtl: ttl });
   return { count, limit: BLUR_LIMIT, remaining: Math.max(0, BLUR_LIMIT - count) };
+}
+
+// ─── 背景置換（Vercel Functions プロキシ） ───
+const BG_REPLACE_LIMIT = 5000;
+
+function bgReplaceUsageKey() {
+  const now = new Date();
+  return 'bgreplace-usage:' + now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+}
+
+async function getBgReplaceUsage(env) {
+  const key = bgReplaceUsageKey();
+  const count = parseInt(await env.CACHE.get(key) || '0');
+  return { count, limit: BG_REPLACE_LIMIT, remaining: Math.max(0, BG_REPLACE_LIMIT - count) };
+}
+
+async function incrementBgReplaceUsage(env) {
+  const key = bgReplaceUsageKey();
+  const count = parseInt(await env.CACHE.get(key) || '0') + 1;
+  const now = new Date();
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 2);
+  const ttl = Math.ceil((nextMonth - now) / 1000);
+  await env.CACHE.put(key, String(count), { expirationTtl: ttl });
+  return { count, limit: BG_REPLACE_LIMIT, remaining: Math.max(0, BG_REPLACE_LIMIT - count) };
+}
+
+async function handleBgReplace(request, env) {
+  try {
+    const apiUrl = env.BG_API_URL;
+    const apiKey = env.BG_API_KEY;
+    if (!apiUrl || !apiKey) {
+      return jsonError('背景置換APIが未設定です（BG_API_URL/BG_API_KEY）', 500);
+    }
+
+    const usage = await incrementBgReplaceUsage(env);
+
+    // FormData をそのまま転送
+    const upstream = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'X-Api-Key': apiKey,
+        'Content-Type': request.headers.get('Content-Type') || 'multipart/form-data',
+      },
+      body: request.body,
+    });
+
+    if (!upstream.ok) {
+      const errText = await upstream.text();
+      console.error('Vercel bg-replace error:', upstream.status, errText);
+      return jsonError('背景置換に失敗しました（' + upstream.status + '）', 502);
+    }
+
+    return new Response(upstream.body, {
+      headers: {
+        'Content-Type': upstream.headers.get('Content-Type') || 'image/jpeg',
+        'X-Subject-Type': upstream.headers.get('X-Subject-Type') || '',
+        'X-BgReplace-Usage': String(usage.count),
+        'X-BgReplace-Limit': String(BG_REPLACE_LIMIT),
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'no-store',
+      },
+    });
+  } catch (e) {
+    console.error('handleBgReplace error:', e);
+    return jsonError('背景置換エラー: ' + e.message, 500);
+  }
 }
 
 const PAGES_ORIGIN = 'https://wholesale-eco.pages.dev';
