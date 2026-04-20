@@ -137,6 +137,80 @@ function apiSyncImportData(params) {
   }
 }
 
+/**
+ * apiExportPhotographyMeta — 商品管理シートから撮影メタデータを一括取得
+ *
+ * Workers KVの photo-meta 復元用。商品管理シートのF列(管理番号)・AI列(撮影日付)・AJ列(撮影者)を返す。
+ *
+ * @param {object} params - { syncSecret, managedIds? }
+ * @returns {object} { ok, items: [{ managedId, photographyDate, photographer }] }
+ */
+function apiExportPhotographyMeta(params) {
+  var p = params || {};
+  if (!verifySyncSecret_(p.syncSecret)) {
+    return { ok: false, message: '認証エラー' };
+  }
+
+  try {
+    var ssId = '';
+    try { ssId = APP_CONFIG.detail.spreadsheetId; } catch (e) {}
+    if (!ssId) {
+      ssId = PropertiesService.getScriptProperties().getProperty('DETAIL_SPREADSHEET_ID') || '';
+    }
+    if (!ssId) return { ok: false, message: 'spreadsheetId未設定' };
+
+    var ss = SpreadsheetApp.openById(ssId);
+    var sh = ss.getSheetByName('商品管理');
+    if (!sh) return { ok: false, message: '商品管理シートが見つかりません' };
+
+    var lastRow = sh.getLastRow();
+    if (lastRow < 2) return { ok: true, items: [] };
+
+    // F列(6), AI列(35), AJ列(36) を一括取得（F〜AJは列6〜36 = 31列）
+    var range = sh.getRange(2, 6, lastRow - 1, 31).getValues();
+
+    var filterSet = null;
+    if (Array.isArray(p.managedIds) && p.managedIds.length > 0) {
+      filterSet = {};
+      for (var k = 0; k < p.managedIds.length; k++) {
+        var key = String(p.managedIds[k] || '').trim().toUpperCase();
+        if (key) filterSet[key] = true;
+      }
+    }
+
+    var items = [];
+    for (var i = 0; i < range.length; i++) {
+      var mid = String(range[i][0] || '').trim();
+      if (!mid) continue;
+      var midKey = mid.toUpperCase();
+      if (filterSet && !filterSet[midKey]) continue;
+
+      var dateCell = range[i][29]; // AI列 = 6 + 29 = 35
+      var photographer = String(range[i][30] || '').trim(); // AJ列 = 36
+
+      var photographyDate = '';
+      if (dateCell instanceof Date) {
+        photographyDate = Utilities.formatDate(dateCell, 'Asia/Tokyo', 'yyyy/MM/dd');
+      } else if (dateCell) {
+        photographyDate = String(dateCell).trim().replace(/-/g, '/');
+      }
+
+      if (!photographyDate && !photographer) continue;
+
+      items.push({
+        managedId: midKey,
+        photographyDate: photographyDate,
+        photographer: photographer,
+      });
+    }
+
+    return { ok: true, items: items, total: items.length };
+  } catch (e) {
+    console.error('apiExportPhotographyMeta error:', e);
+    return { ok: false, message: (e && e.message) ? e.message : String(e) };
+  }
+}
+
 // =====================================================
 // 認証
 // =====================================================

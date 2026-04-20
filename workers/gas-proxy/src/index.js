@@ -21,7 +21,7 @@ import * as holds from './handlers/holds.js';
 import * as coupon from './handlers/coupon.js';
 import * as mypage from './handlers/mypage.js';
 import * as submit from './handlers/submit.js';
-import { scheduledSync, batchAiJudgment } from './sync/sheets-sync.js';
+import { scheduledSync, batchAiJudgment, restorePhotoMetaFromGas } from './sync/sheets-sync.js';
 import { handleUpload, serveImage } from './handlers/upload.js';
 import { getUploadPageHtml } from './pages/upload.html.js';
 import * as kitHandler from './handlers/kit.js';
@@ -169,6 +169,18 @@ self.addEventListener('fetch', e => {
     // R2画像配信: GET /images/* → R2 → Cache-Control 1年
     if (request.method === 'GET' && url.pathname.startsWith('/images/')) {
       return await serveImage(request, env, url.pathname);
+    }
+
+    // photo-meta 復元: POST /admin/restore-photo-meta (body: {key})
+    if (request.method === 'POST' && url.pathname === '/admin/restore-photo-meta') {
+      try {
+        const body = await request.json();
+        if (body.key !== env.SYNC_SECRET) return new Response('Unauthorized', { status: 401 });
+        const result = await restorePhotoMetaFromGas(env);
+        return new Response(JSON.stringify(result, null, 2), { headers: { 'Content-Type': 'application/json' } });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+      }
     }
 
     // バッチAI判定: POST /batch-ai (body: {key, limit, skip[]})

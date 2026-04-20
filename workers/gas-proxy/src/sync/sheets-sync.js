@@ -713,6 +713,112 @@ async function autoMatchPhotography(env) {
   }
 }
 
+// ─── photo-meta 復元（GASから一括取得してKVに書き戻す） ───
+
+/**
+ * 商品管理シートの撮影メタデータから KVの photo-meta を再構築。
+ * 過去にアップされたZY等で photo-meta が消失している商品の表示を復元するため。
+ * @returns {object} { ok, restored, skipped, missing, total }
+ */
+export async function restorePhotoMetaFromGas(env) {
+  const indexJson = await env.CACHE.get('product-images:index');
+  if (!indexJson) return { ok: false, message: 'product-images:index not found' };
+  const imageIndex = JSON.parse(indexJson);
+
+  // 既に synced:true のphoto-metaがある管理番号は除外
+  const needRestore = [];
+  for (const mid of imageIndex) {
+    const metaJson = await env.CACHE.get(`photo-meta:${mid}`);
+    if (!metaJson) {
+      needRestore.push(mid);
+      continue;
+    }
+    try {
+      const meta = JSON.parse(metaJson);
+      if (!meta.uploadedAt || !meta.photographer || !meta.photographyDate) {
+        needRestore.push(mid);
+      }
+    } catch (e) {
+      needRestore.push(mid);
+    }
+  }
+
+  if (needRestore.length === 0) {
+    return { ok: true, restored: 0, skipped: imageIndex.length, missing: 0, total: imageIndex.length };
+  }
+
+  // GASから一括取得
+  const gasUrl = env.GAS_API_URL;
+  if (!gasUrl) return { ok: false, message: 'GAS_API_URL未設定' };
+
+  const resp = await fetch(gasUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({
+      action: 'apiExportPhotographyMeta',
+      args: [{ syncSecret: env.SYNC_SECRET || '', managedIds: needRestore }],
+    }),
+    redirect: 'follow',
+  });
+
+  const text = await resp.text();
+  let result;
+  try {
+    result = JSON.parse(text);
+  } catch (e) {
+    return { ok: false, message: 'GAS応答パース失敗', raw: text.substring(0, 500) };
+  }
+  if (!result.ok) return { ok: false, message: result.message || 'GAS error' };
+
+  const items = result.items || [];
+  const itemMap = {};
+  for (const it of items) itemMap[String(it.managedId).toUpperCase()] = it;
+
+  let restored = 0;
+  const missing = [];
+  for (const mid of needRestore) {
+    const item = itemMap[String(mid).toUpperCase()];
+    if (!item) { missing.push(mid); continue; }
+
+    // photographyDate (yyyy/MM/dd) → ISO8601 (JST 00:00:00)
+    let uploadedAt = new Date().toISOString();
+    if (item.photographyDate) {
+      const m = item.photographyDate.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+      if (m) {
+        const iso = m[1] + '-' + m[2].padStart(2, '0') + '-' + m[3].padStart(2, '0') + 'T00:00:00+09:00';
+        const d = new Date(iso);
+        if (!isNaN(d.getTime())) uploadedAt = d.toISOString();
+      }
+    }
+
+    // 既存のphoto-metaがあればuploadedAt等を保持
+    const existingJson = await env.CACHE.get(`photo-meta:${mid}`);
+    let existing = {};
+    if (existingJson) {
+      try { existing = JSON.parse(existingJson); } catch (e) {}
+    }
+
+    const meta = {
+      ...existing,
+      photographer: item.photographer || existing.photographer || '',
+      photographyDate: item.photographyDate || existing.photographyDate || '',
+      uploadedAt: existing.uploadedAt || uploadedAt,
+      synced: true,
+    };
+    await env.CACHE.put(`photo-meta:${mid}`, JSON.stringify(meta));
+    restored++;
+  }
+
+  return {
+    ok: true,
+    restored,
+    skipped: imageIndex.length - needRestore.length,
+    missing: missing.length,
+    missingIds: missing.slice(0, 20),
+    total: imageIndex.length,
+  };
+}
+
 // ─── 孤立画像クリーンアップ（30日以上未マッチ） ───
 
 async function cleanupOrphanedImages(env) {
