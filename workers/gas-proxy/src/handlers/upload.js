@@ -253,6 +253,8 @@ async function handleImageUpload(request, env) {
       uploadedAt: now.toISOString(),
     };
   }
+  // 新しい画像がアップされたので同期済みフラグはリセット（再同期対象に戻す）
+  meta.synced = false;
   await env.CACHE.put(`photo-meta:${managedId}`, JSON.stringify(meta));
 
   // 未同期リストに追加（商品管理に登録済みの場合のみ）

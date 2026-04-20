@@ -358,9 +358,19 @@ async function syncPhotographyData(env) {
           }
         }
 
-        // 成功分のメタデータをクリア（AI結果も）
+        // 成功分: photo-metaは synced:true を立てて残す（upload一覧で撮影日/撮影者を表示するため）
+        // ai-resultは30日TTLで自動削除されるが、再送信防止のため即時削除
         for (const mid of successIds) {
-          await env.CACHE.delete(`photo-meta:${mid}`);
+          const metaJson = await env.CACHE.get(`photo-meta:${mid}`);
+          if (metaJson) {
+            try {
+              const meta = JSON.parse(metaJson);
+              meta.synced = true;
+              await env.CACHE.put(`photo-meta:${mid}`, JSON.stringify(meta));
+            } catch (e) {
+              console.error(`[sync] Failed to mark synced for ${mid}: ${e.message}`);
+            }
+          }
           await env.CACHE.delete(`ai-result:${mid}`);
         }
 
@@ -670,6 +680,8 @@ async function autoMatchPhotography(env) {
 
         if (metaJson) {
           const meta = JSON.parse(metaJson);
+          // 既に同期済み（synced:true）は再送信しない
+          if (meta.synced === true) continue;
           if (meta.uploadedAt) {
             const daysDiff = (Date.now() - new Date(meta.uploadedAt).getTime()) / (1000 * 60 * 60 * 24);
             if (daysDiff > 30) continue;
