@@ -586,9 +586,13 @@ function importPhotographyData_(data) {
     var row = idToRow[mid];
     if (!row) { console.log('管理番号 ' + mid + ' が見つかりません'); continue; }
 
-    // 返品済みのステータスは変更しない
+    // 終了済み系ステータスは変更しない（売却済み復活バグ対策）
     var currentStatus = String(eData[row - 2][0] || '').trim();
-    if (currentStatus === '返品済み') { console.log('管理番号 ' + mid + ' は返品済みのためスキップ'); continue; }
+    var PROTECTED_STATUSES = ['返品済み', '売却済み', '発送済み', '発送待ち', 'キャンセル', 'キャンセル済み', '廃棄済み'];
+    if (PROTECTED_STATUSES.indexOf(currentStatus) !== -1) {
+      console.log('管理番号 ' + mid + ' はステータス「' + currentStatus + '」のためスキップ');
+      continue;
+    }
 
     console.log('管理番号 ' + mid + ' → 行 ' + row);
 
