@@ -211,10 +211,8 @@ function syncBaseOrdersToIraiKanri() {
     if (baseShippingFee > 0) {
       // BASE側で送料が設定されている → 客負担
       shippingCustomer = baseShippingFee;
-      // 店負担送料も住所から計算（配送原価として記録）
-      if (orderPref && typeof calcStoreShippingByAddress_ === 'function') {
-        shippingStore = calcStoreShippingByAddress_(orderPref, orderTotalQty);
-      }
+      // 配送原価 = 客負担の半額（多口発送にも対応）
+      shippingStore = Math.round(baseShippingFee / 2);
     } else {
       // 送料0 → 送料表と住所から計算して店負担
       if (orderPref && typeof calcStoreShippingByAddress_ === 'function') {
