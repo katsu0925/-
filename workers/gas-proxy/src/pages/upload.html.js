@@ -353,7 +353,7 @@ function showErrorModal(title, msg, tone) {
   t.style.color = color;
   if (m.style.display === 'flex') {
     t.textContent = t.textContent + ' / ' + (title || 'エラー');
-    body.textContent = body.textContent + '\n──────────\n' + msg;
+    body.textContent = body.textContent + '\\n──────────\\n' + msg;
   } else {
     t.textContent = title || 'エラー';
     body.textContent = msg;
@@ -1195,8 +1195,8 @@ async function bgReplaceSelected() {
         var bJson = await bRes.json();
         brandText = (bJson && bJson.brands && bJson.brands[managedId]) || '';
         if (!brandText) {
-          brandFetchErr = '管理番号「' + managedId + '」に対応するブランドが見つかりませんでした。\n' +
-            '・採寸済みのブランドも\n・AI判定結果(KV)も\n見つからないため、文字入れをスキップします。';
+          brandFetchErr = '管理番号「' + managedId + '」に対応するブランドが見つかりませんでした。\\n' +
+            '・採寸済みのブランドも\\n・AI判定結果(KV)も\\n見つからないため、文字入れをスキップします。';
         }
       } else {
         brandFetchErr = 'ブランド取得API失敗: HTTP ' + bRes.status;
@@ -1205,7 +1205,7 @@ async function bgReplaceSelected() {
       brandFetchErr = 'ブランド取得API呼び出しエラー: ' + (e.message || e);
     }
   } else {
-    brandFetchErr = '管理番号が未入力のため、ブランド文字入れをスキップします。\n管理番号を入力してから実行するとブランドが自動で挿入されます。';
+    brandFetchErr = '管理番号が未入力のため、ブランド文字入れをスキップします。\\n管理番号を入力してから実行するとブランドが自動で挿入されます。';
   }
   console.log('[bg-replace] managedId=', managedId, 'brandText=', JSON.stringify(brandText), 'err=', brandFetchErr);
   if (brandFetchErr) {
@@ -1372,7 +1372,7 @@ async function processBgReplace(fileIndex, brandText) {
       } catch (overlayErr) {
         console.warn('brand overlay failed:', overlayErr);
         showErrorModal('ブランド文字入れ失敗(' + (fileIndex+1) + '枚目)',
-          'ブランド文字入れに失敗しました（背景置換は成功）。\nブランド: ' + brandText + '\n原因: ' + (overlayErr.message || overlayErr), 'warn');
+          'ブランド文字入れに失敗しました（背景置換は成功）。\\nブランド: ' + brandText + '\\n原因: ' + (overlayErr.message || overlayErr), 'warn');
       }
     }
     _bgReplacedImages[fileIndex] = resultBlob;
