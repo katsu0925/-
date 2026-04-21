@@ -246,15 +246,14 @@ export function getKitPageHtml(kitDataJson) {
         '<div class="order-info">受付番号: ' + esc(data.receiptNo || '') + ' ／ ' + esc(maskedName) + '</div>' +
       '</div>' +
       '<div class="guide-banner">' +
-        '<strong>使い方:</strong> 商品をタップで展開 → 「コピー」でコピー → メルカリに貼り付け → 「出品したらチェック」で次へ！' +
+        '<strong>使い方:</strong> 商品をタップで展開 → 「コピー」でコピー → メルカリに貼り付け → 写真は自分で撮影 → 「出品したらチェック」で次へ！' +
         '<details><summary>出品手順を見る</summary>' +
           '<div class="guide-steps">' +
-            '<span>1</span> 画像を長押しで保存（または「画像をまとめて保存」）<br>' +
-            '<span>2</span> 「メルカリで出品」から出品ページを開く<br>' +
-            '<span>3</span> メルカリで写真をアップロード<br>' +
-            '<span>4</span> このページに戻り「タイトル」をコピー → メルカリの商品名に貼り付け<br>' +
-            '<span>5</span> このページに戻り「説明文」をコピー → メルカリの商品の説明に貼り付け<br>' +
-            '<span>6</span> カテゴリ・サイズ・状態・価格を設定して出品完了！' +
+            '<span>1</span> 「メルカリで出品」から出品ページを開く<br>' +
+            '<span>2</span> お手元の商品を撮影してメルカリにアップロード<br>' +
+            '<span>3</span> このページに戻り「タイトル」をコピー → メルカリの商品名に貼り付け<br>' +
+            '<span>4</span> このページに戻り「説明文」をコピー → メルカリの商品の説明に貼り付け<br>' +
+            '<span>5</span> カテゴリ・サイズ・状態・価格を設定して出品完了！' +
           '</div>' +
         '</details>' +
       '</div>' +
