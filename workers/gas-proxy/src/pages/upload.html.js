@@ -328,7 +328,20 @@ function showStatus(id, msg, type) {
   var el = document.getElementById(id);
   el.textContent = msg;
   el.className = 'status show ' + type;
+  if (type === 'err') {
+    try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch(_) {}
+  }
 }
+
+function scrollToTop() {
+  try { window.scrollTo({ top: 0, behavior: 'smooth' }); }
+  catch(_) { window.scrollTo(0, 0); }
+}
+window.addEventListener('scroll', function() {
+  var btn = document.getElementById('scrollTopBtn');
+  if (!btn) return;
+  btn.style.display = window.scrollY > 300 ? 'flex' : 'none';
+});
 
 // ─── 初期化 ───
 (function init() {
@@ -1200,6 +1213,67 @@ async function bgReplaceSelected() {
   checks.forEach(function(cb) { cb.checked = false; });
 }
 
+// 背景置換用: 送信前リサイズ（Vercel 4.5MBリミット回避）
+async function resizeForBgReplace(file, maxEdge) {
+  var bmp = await createImageBitmap(file);
+  var w = bmp.width, h = bmp.height;
+  var long = Math.max(w, h);
+  var scale = long > maxEdge ? maxEdge / long : 1;
+  var nw = Math.round(w * scale), nh = Math.round(h * scale);
+  var canvas = document.createElement('canvas');
+  canvas.width = nw; canvas.height = nh;
+  canvas.getContext('2d').drawImage(bmp, 0, 0, nw, nh);
+  return await new Promise(function(resolve) {
+    canvas.toBlob(function(b) { resolve(b || file); }, 'image/jpeg', 0.88);
+  });
+}
+
+// ブランドバッジをクライアント側Canvasで描画（ブラウザの日本語フォント使用）
+async function overlayBrandOnBlob(jpegBlob, text) {
+  if (!text) return jpegBlob;
+  var bmp = await createImageBitmap(jpegBlob);
+  var W = bmp.width, H = bmp.height;
+  var canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  var ctx = canvas.getContext('2d');
+  ctx.drawImage(bmp, 0, 0);
+
+  var fontSize = Math.round(H * 0.035);
+  ctx.font = '700 ' + fontSize + 'px "Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif';
+  ctx.textBaseline = 'middle';
+  var textW = ctx.measureText(text).width;
+  var padX = Math.round(fontSize * 0.6);
+  var padY = Math.round(fontSize * 0.35);
+  var boxW = Math.round(textW + padX * 2);
+  var boxH = Math.round(fontSize + padY * 2);
+  var margin = Math.round(H * 0.025);
+  var x = W - boxW - margin;
+  var y = margin;
+  var r = Math.round(boxH / 2);
+
+  ctx.fillStyle = 'rgba(17,17,17,0.85)';
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + boxW - r, y);
+  ctx.arc(x + boxW - r, y + r, r, -Math.PI/2, 0);
+  ctx.lineTo(x + boxW, y + boxH - r);
+  ctx.arc(x + boxW - r, y + boxH - r, r, 0, Math.PI/2);
+  ctx.lineTo(x + r, y + boxH);
+  ctx.arc(x + r, y + boxH - r, r, Math.PI/2, Math.PI);
+  ctx.lineTo(x, y + r);
+  ctx.arc(x + r, y + r, r, Math.PI, 3*Math.PI/2);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.fillText(text, x + boxW/2, y + boxH/2);
+
+  return await new Promise(function(resolve) {
+    canvas.toBlob(function(b) { resolve(b || jpegBlob); }, 'image/jpeg', 0.92);
+  });
+}
+
 async function processBgReplace(fileIndex, brandText) {
   var files = document.getElementById('uploadFiles').files;
   var file = files[fileIndex];
@@ -1215,9 +1289,12 @@ async function processBgReplace(fileIndex, brandText) {
   }
 
   try {
+    var payload = file;
+    if (file.size > 3 * 1024 * 1024) {
+      payload = await resizeForBgReplace(file, 1600);
+    }
     var fd = new FormData();
-    fd.append('image', file);
-    fd.append('brandText', brandText || '');
+    fd.append('image', payload, 'image.jpg');
     var res = await fetch('/upload/bg-replace', { method: 'POST', body: fd });
     if (!res.ok) {
       var err = await res.text();
@@ -1225,11 +1302,15 @@ async function processBgReplace(fileIndex, brandText) {
     }
     updateBgReplaceUsage(res);
     var resultBlob = await res.blob();
+    if (brandText) {
+      try { resultBlob = await overlayBrandOnBlob(resultBlob, brandText); }
+      catch (overlayErr) { console.warn('brand overlay failed:', overlayErr); }
+    }
     _bgReplacedImages[fileIndex] = resultBlob;
   } catch (e) {
     var ovEl = item.querySelector('.blur-overlay');
     if (ovEl) ovEl.remove();
-    showStatus('uploadStatus', '背景置換失敗: ' + e.message, 'err');
+    showStatus('uploadStatus', '背景置換失敗(' + (fileIndex+1) + '枚目): ' + e.message, 'err');
   }
 }
 
@@ -3001,6 +3082,7 @@ function escapeHtml(s) {
   return d.innerHTML;
 }
 </script>
+<button id="scrollTopBtn" onclick="scrollToTop()" title="最上部へ戻る" style="display:none;position:fixed;right:16px;bottom:20px;z-index:9999;width:44px;height:44px;border:none;border-radius:50%;background:#4F46E5;color:#fff;font-size:20px;font-weight:700;box-shadow:0 4px 12px rgba(0,0,0,.2);align-items:center;justify-content:center;cursor:pointer">↑</button>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(function(){});}</script>
 </body>
 </html>`;
