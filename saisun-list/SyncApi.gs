@@ -1146,3 +1146,70 @@ function importCustomers_(customers) {
 
   return imported;
 }
+
+/**
+ * apiGetBrandsForOverlay — 背景置換時のブランド文字入れ用
+ *
+ * 指定された管理番号に対し、商品管理シートから
+ * ブランド名と採寸有無（着丈列）を返す。
+ * 採寸が入っている行は外注が手を入れたとみなし、
+ * そちらのブランドを優先採用する判定に使う。
+ *
+ * @param {object} params - { syncSecret, managedIds: string[] }
+ * @returns {object} { ok, brands: { [managedId]: { brand, hasSizing } } }
+ */
+function apiGetBrandsForOverlay(params) {
+  var p = params || {};
+  if (!verifySyncSecret_(p.syncSecret)) {
+    return { ok: false, message: '認証エラー' };
+  }
+
+  var input = p.managedIds || [];
+  var managedIds = [];
+  for (var mi = 0; mi < input.length; mi++) {
+    var v = String(input[mi] || '').trim().toUpperCase();
+    if (v) managedIds.push(v);
+  }
+  if (managedIds.length === 0) return { ok: true, brands: {} };
+
+  var ssId = '';
+  try { ssId = APP_CONFIG.detail.spreadsheetId; } catch (e) { /* ignore */ }
+  if (!ssId) {
+    try { ssId = PropertiesService.getScriptProperties().getProperty('DETAIL_SPREADSHEET_ID') || ''; } catch (e) { /* ignore */ }
+  }
+  if (!ssId) return { ok: false, message: 'spreadsheetId未設定' };
+
+  var ss = SpreadsheetApp.openById(ssId);
+  var sh = ss.getSheetByName('商品管理');
+  if (!sh) return { ok: false, message: '商品管理シートが見つかりません' };
+
+  var lastRow = sh.getLastRow();
+  var lastCol = sh.getLastColumn();
+  if (lastRow < 2) return { ok: true, brands: {} };
+
+  var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  var colMap = {};
+  for (var h = 0; h < headers.length; h++) {
+    var hName = String(headers[h] || '').trim();
+    if (hName) colMap[hName] = h + 1;
+  }
+  var colMid = colMap['管理番号'];
+  var colBrand = colMap['ブランド'];
+  var colSizing = colMap['着丈'];
+  if (!colMid || !colBrand) return { ok: false, message: '必要な列がありません' };
+
+  var idSet = {};
+  for (var k = 0; k < managedIds.length; k++) idSet[managedIds[k]] = true;
+
+  var data = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  var brands = {};
+  for (var i = 0; i < data.length; i++) {
+    var mid = String(data[i][colMid - 1] || '').trim().toUpperCase();
+    if (!mid || !idSet[mid]) continue;
+    var brand = String(data[i][colBrand - 1] || '').trim();
+    var sizingVal = colSizing ? String(data[i][colSizing - 1] || '').trim() : '';
+    brands[mid] = { brand: brand, hasSizing: !!sizingVal };
+  }
+
+  return { ok: true, brands: brands };
+}

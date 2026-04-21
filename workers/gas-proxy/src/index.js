@@ -219,6 +219,11 @@ self.addEventListener('fetch', e => {
       return await handleBgReplace(request, env);
     }
 
+    // POST /api/brands-for-overlay → 背景置換時のブランド文字入れ用
+    if (url.pathname === '/api/brands-for-overlay' && request.method === 'POST') {
+      return await handleBrandsForOverlay(request, env);
+    }
+
     // POST /upload/* → アップロードAPIハンドラー（multipart/JSON）
     if (url.pathname.startsWith('/upload/')) {
       return await handleUpload(request, env, url.pathname);
@@ -510,6 +515,70 @@ async function handleBgReplace(request, env) {
   } catch (e) {
     console.error('handleBgReplace error:', e);
     return jsonError('背景置換エラー: ' + e.message, 500);
+  }
+}
+
+// ─── 背景置換の文字入れ用ブランド取得 ───
+// 優先度: 採寸済み行のブランド（外注レビュー済み） > KV ai-result のAI判定ブランド
+async function handleBrandsForOverlay(request, env) {
+  try {
+    const body = await request.json();
+    const managedIds = Array.isArray(body.managedIds) ? body.managedIds : [];
+    const normIds = managedIds
+      .map(x => String(x || '').trim().toUpperCase())
+      .filter(Boolean);
+    if (normIds.length === 0) return jsonOk({ brands: {} });
+
+    // GASから採寸済みかつブランドあり行の情報を取得
+    const gasBrands = {};
+    const gasUrl = env.GAS_API_URL;
+    if (gasUrl) {
+      try {
+        const resp = await fetch(gasUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({
+            action: 'apiGetBrandsForOverlay',
+            args: [{ syncSecret: env.SYNC_SECRET || '', managedIds: normIds }],
+          }),
+          redirect: 'follow',
+        });
+        if (resp.ok) {
+          const j = await resp.json();
+          if (j && j.ok && j.brands) Object.assign(gasBrands, j.brands);
+        } else {
+          console.warn('GAS apiGetBrandsForOverlay failed:', resp.status);
+        }
+      } catch (e) {
+        console.warn('GAS apiGetBrandsForOverlay error:', e.message);
+      }
+    }
+
+    // 各管理番号について採用ブランドを決定
+    const brands = {};
+    for (const mid of normIds) {
+      const g = gasBrands[mid];
+      if (g && g.hasSizing && g.brand) {
+        brands[mid] = g.brand;
+        continue;
+      }
+      // KV ai-result フォールバック
+      try {
+        const cached = await env.CACHE.get(`ai-result:${mid}`);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && parsed.brand) { brands[mid] = parsed.brand; continue; }
+        }
+      } catch (e) { /* ignore */ }
+      // GASのブランドをフォールバック（採寸なくても判定済みがあれば）
+      if (g && g.brand) { brands[mid] = g.brand; continue; }
+      brands[mid] = '';
+    }
+
+    return jsonOk({ brands });
+  } catch (e) {
+    console.error('handleBrandsForOverlay error:', e);
+    return jsonError('ブランド取得エラー: ' + e.message, 500);
   }
 }
 

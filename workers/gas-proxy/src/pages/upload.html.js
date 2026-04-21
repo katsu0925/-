@@ -1145,6 +1145,23 @@ async function bgReplaceSelected() {
   var indices = [];
   checks.forEach(function(cb) { indices.push(parseInt(cb.dataset.idx)); });
 
+  // ブランド文字入れ用: 管理番号が入っていれば事前取得（採寸済み優先→AI判定フォールバック）
+  var managedId = normId(document.getElementById('uploadManagedId').value || '');
+  var brandText = '';
+  if (managedId) {
+    try {
+      var bRes = await fetch('/api/brands-for-overlay', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ managedIds: [managedId] })
+      });
+      if (bRes.ok) {
+        var bJson = await bRes.json();
+        brandText = (bJson && bJson.brands && bJson.brands[managedId]) || '';
+      }
+    } catch (e) { /* 失敗時は文字なしで置換 */ }
+  }
+
   var items = document.getElementById('uploadPreview').children;
   for (var k = 0; k < indices.length; k++) {
     var item = items[indices[k]];
@@ -1165,7 +1182,7 @@ async function bgReplaceSelected() {
     if (_bgReplacedImages[idx]) { done++; continue; }
     updateLoading('背景置換中', (done+1) + '/' + indices.length);
     document.getElementById('bgReplaceProgress').textContent = (done+1) + '/' + indices.length + ' 処理中…';
-    await processBgReplace(idx);
+    await processBgReplace(idx, brandText);
     done++;
     await new Promise(function(r) { setTimeout(r, 30); });
   }
@@ -1183,7 +1200,7 @@ async function bgReplaceSelected() {
   checks.forEach(function(cb) { cb.checked = false; });
 }
 
-async function processBgReplace(fileIndex) {
+async function processBgReplace(fileIndex, brandText) {
   var files = document.getElementById('uploadFiles').files;
   var file = files[fileIndex];
   if (!file) return;
@@ -1200,6 +1217,7 @@ async function processBgReplace(fileIndex) {
   try {
     var fd = new FormData();
     fd.append('image', file);
+    fd.append('brandText', brandText || '');
     var res = await fetch('/upload/bg-replace', { method: 'POST', body: fd });
     if (!res.ok) {
       var err = await res.text();

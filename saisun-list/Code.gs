@@ -183,6 +183,7 @@ function doPost(e) {
       'apiBulkRegisterCartAbandon',
       // D1同期API（Workers Cron Trigger から呼び出し）
       'apiSyncExportData', 'apiSyncImportData', 'apiExportPhotographyMeta',
+      'apiGetBrandsForOverlay',
       // 管理者専用API（adminKey認証必須）
       'adminGetKomojuMode', 'adminToggleKomojuMode',
       'adminGetMemberDiscountStatus', 'adminToggleMemberDiscount',
