@@ -343,6 +343,28 @@ window.addEventListener('scroll', function() {
   btn.style.display = window.scrollY > 300 ? 'flex' : 'none';
 });
 
+// ─── エラーモーダル ───
+function showErrorModal(title, msg, tone) {
+  var m = document.getElementById('errorModal');
+  if (!m) return;
+  var t = document.getElementById('errorModalTitle');
+  var body = document.getElementById('errorModalBody');
+  var color = tone === 'warn' ? '#d97706' : (tone === 'info' ? '#2563eb' : '#dc2626');
+  t.style.color = color;
+  if (m.style.display === 'flex') {
+    t.textContent = t.textContent + ' / ' + (title || 'エラー');
+    body.textContent = body.textContent + '\n──────────\n' + msg;
+  } else {
+    t.textContent = title || 'エラー';
+    body.textContent = msg;
+    m.style.display = 'flex';
+  }
+}
+function closeErrorModal() {
+  var m = document.getElementById('errorModal');
+  if (m) m.style.display = 'none';
+}
+
 // ─── 初期化 ───
 (function init() {
   if (!getToken()) { showAuth(); return; }
@@ -1161,6 +1183,7 @@ async function bgReplaceSelected() {
   // ブランド文字入れ用: 管理番号が入っていれば事前取得（採寸済み優先→AI判定フォールバック）
   var managedId = normId(document.getElementById('uploadManagedId').value || '');
   var brandText = '';
+  var brandFetchErr = '';
   if (managedId) {
     try {
       var bRes = await fetch('/api/brands-for-overlay', {
@@ -1171,8 +1194,22 @@ async function bgReplaceSelected() {
       if (bRes.ok) {
         var bJson = await bRes.json();
         brandText = (bJson && bJson.brands && bJson.brands[managedId]) || '';
+        if (!brandText) {
+          brandFetchErr = '管理番号「' + managedId + '」に対応するブランドが見つかりませんでした。\n' +
+            '・採寸済みのブランドも\n・AI判定結果(KV)も\n見つからないため、文字入れをスキップします。';
+        }
+      } else {
+        brandFetchErr = 'ブランド取得API失敗: HTTP ' + bRes.status;
       }
-    } catch (e) { /* 失敗時は文字なしで置換 */ }
+    } catch (e) {
+      brandFetchErr = 'ブランド取得API呼び出しエラー: ' + (e.message || e);
+    }
+  } else {
+    brandFetchErr = '管理番号が未入力のため、ブランド文字入れをスキップします。\n管理番号を入力してから実行するとブランドが自動で挿入されます。';
+  }
+  console.log('[bg-replace] managedId=', managedId, 'brandText=', JSON.stringify(brandText), 'err=', brandFetchErr);
+  if (brandFetchErr) {
+    showErrorModal('ブランド文字入れスキップ', brandFetchErr, 'info');
   }
 
   var items = document.getElementById('uploadPreview').children;
@@ -1228,11 +1265,29 @@ async function resizeForBgReplace(file, maxEdge) {
   });
 }
 
+// Blobを描画可能な画像（ImageBitmap または HTMLImageElement）に変換
+async function loadBlobAsDrawable(blob) {
+  try {
+    return await createImageBitmap(blob);
+  } catch (e) {
+    // iOS Safari等でcreateImageBitmapが失敗するケースのフォールバック
+    return await new Promise(function(resolve, reject) {
+      var url = URL.createObjectURL(blob);
+      var img = new Image();
+      img.onload = function() { resolve(img); };
+      img.onerror = function() { URL.revokeObjectURL(url); reject(new Error('Image load failed')); };
+      img.src = url;
+    });
+  }
+}
+
 // ブランドバッジをクライアント側Canvasで描画（ブラウザの日本語フォント使用）
 async function overlayBrandOnBlob(jpegBlob, text) {
   if (!text) return jpegBlob;
-  var bmp = await createImageBitmap(jpegBlob);
-  var W = bmp.width, H = bmp.height;
+  var bmp = await loadBlobAsDrawable(jpegBlob);
+  var W = bmp.width || bmp.naturalWidth;
+  var H = bmp.height || bmp.naturalHeight;
+  if (!W || !H) throw new Error('overlay: 画像サイズ取得失敗');
   var canvas = document.createElement('canvas');
   canvas.width = W; canvas.height = H;
   var ctx = canvas.getContext('2d');
@@ -1293,24 +1348,39 @@ async function processBgReplace(fileIndex, brandText) {
     if (file.size > 3 * 1024 * 1024) {
       payload = await resizeForBgReplace(file, 1600);
     }
-    var fd = new FormData();
-    fd.append('image', payload, 'image.jpg');
-    var res = await fetch('/upload/bg-replace', { method: 'POST', body: fd });
-    if (!res.ok) {
-      var err = await res.text();
-      throw new Error('server ' + res.status + ': ' + err.slice(0, 100));
+    var res = null;
+    var lastErr = '';
+    for (var attempt = 1; attempt <= 2; attempt++) {
+      var fd = new FormData();
+      fd.append('image', payload, 'image.jpg');
+      res = await fetch('/upload/bg-replace', { method: 'POST', body: fd });
+      if (res.ok) break;
+      lastErr = await res.text();
+      if (res.status === 413 || res.status === 401) break; // 再試行不可
+      if (attempt < 2) {
+        await new Promise(function(r) { setTimeout(r, 1500); });
+      }
+    }
+    if (!res || !res.ok) {
+      throw new Error('server ' + (res ? res.status : '?') + ': ' + lastErr.slice(0, 200));
     }
     updateBgReplaceUsage(res);
     var resultBlob = await res.blob();
     if (brandText) {
-      try { resultBlob = await overlayBrandOnBlob(resultBlob, brandText); }
-      catch (overlayErr) { console.warn('brand overlay failed:', overlayErr); }
+      try {
+        resultBlob = await overlayBrandOnBlob(resultBlob, brandText);
+      } catch (overlayErr) {
+        console.warn('brand overlay failed:', overlayErr);
+        showErrorModal('ブランド文字入れ失敗(' + (fileIndex+1) + '枚目)',
+          'ブランド文字入れに失敗しました（背景置換は成功）。\nブランド: ' + brandText + '\n原因: ' + (overlayErr.message || overlayErr), 'warn');
+      }
     }
     _bgReplacedImages[fileIndex] = resultBlob;
   } catch (e) {
     var ovEl = item.querySelector('.blur-overlay');
     if (ovEl) ovEl.remove();
-    showStatus('uploadStatus', '背景置換失敗(' + (fileIndex+1) + '枚目): ' + e.message, 'err');
+    showErrorModal('背景置換エラー(' + (fileIndex+1) + '枚目)',
+      (e && e.message) ? e.message : String(e));
   }
 }
 
@@ -3083,6 +3153,15 @@ function escapeHtml(s) {
 }
 </script>
 <button id="scrollTopBtn" onclick="scrollToTop()" title="最上部へ戻る" style="display:none;position:fixed;right:16px;bottom:20px;z-index:9999;width:44px;height:44px;border:none;border-radius:50%;background:#4F46E5;color:#fff;font-size:20px;font-weight:700;box-shadow:0 4px 12px rgba(0,0,0,.2);align-items:center;justify-content:center;cursor:pointer">↑</button>
+<div id="errorModal" style="display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.55);align-items:center;justify-content:center;padding:16px" onclick="if(event.target===this)closeErrorModal()">
+  <div style="background:#fff;border-radius:12px;max-width:520px;width:100%;padding:20px;box-shadow:0 20px 40px rgba(0,0,0,.3)">
+    <div id="errorModalTitle" style="font-weight:700;font-size:16px;color:#dc2626;margin-bottom:10px">エラー</div>
+    <div id="errorModalBody" style="font-size:14px;color:#374151;line-height:1.6;word-break:break-all;max-height:55vh;overflow-y:auto;white-space:pre-wrap"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:16px">
+      <button onclick="closeErrorModal()" style="background:#4F46E5;color:#fff;border:none;border-radius:6px;padding:9px 18px;font-size:14px;font-weight:600;cursor:pointer">閉じる</button>
+    </div>
+  </div>
+</div>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(function(){});}</script>
 </body>
 </html>`;
