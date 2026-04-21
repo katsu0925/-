@@ -506,9 +506,12 @@ async function handleBgReplace(request, env) {
       headers: {
         'Content-Type': upstream.headers.get('Content-Type') || 'image/jpeg',
         'X-Subject-Type': upstream.headers.get('X-Subject-Type') || '',
+        'X-Subject-Detect': upstream.headers.get('X-Subject-Detect') || '',
+        'X-Brand-Overlay': upstream.headers.get('X-Brand-Overlay') || '',
         'X-BgReplace-Usage': String(usage.count),
         'X-BgReplace-Limit': String(BG_REPLACE_LIMIT),
         'Access-Control-Allow-Origin': '*',
+        'Access-Control-Expose-Headers': 'X-Subject-Type,X-Subject-Detect,X-Brand-Overlay,X-BgReplace-Usage,X-BgReplace-Limit',
         'Cache-Control': 'no-store',
       },
     });

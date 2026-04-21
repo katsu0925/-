@@ -2554,6 +2554,13 @@ async function bgReplaceManageImages(managedId) {
       if (!bgRes || !bgRes.ok) {
         throw new Error('server ' + (bgRes ? bgRes.status : '?') + ': ' + lastErrText.slice(0, 200));
       }
+      try {
+        var _sType = bgRes.headers.get('X-Subject-Type') || '';
+        var _sDetectRaw = bgRes.headers.get('X-Subject-Detect') || '';
+        var _sDetect = '';
+        try { _sDetect = _sDetectRaw ? decodeURIComponent(_sDetectRaw) : ''; } catch (_) { _sDetect = _sDetectRaw; }
+        console.log('[manage bg-replace] managedId=', nid, 'idx=', (done+1), 'type=', _sType, 'detect=', _sDetect);
+      } catch (_) {}
       var resultBlob = await bgRes.blob();
 
       if (brandText) {
@@ -2698,6 +2705,13 @@ async function _bgReplaceTopBatch(targets) {
       if (!bgRes || !bgRes.ok) {
         throw new Error('server ' + (bgRes ? bgRes.status : '?') + ': ' + lastErrText.slice(0, 200));
       }
+      try {
+        var _sType = bgRes.headers.get('X-Subject-Type') || '';
+        var _sDetectRaw = bgRes.headers.get('X-Subject-Detect') || '';
+        var _sDetect = '';
+        try { _sDetect = _sDetectRaw ? decodeURIComponent(_sDetectRaw) : ''; } catch (_) { _sDetect = _sDetectRaw; }
+        console.log('[top bg-replace] managedId=', t.managedId, 'type=', _sType, 'detect=', _sDetect);
+      } catch (_) {}
       var resultBlob = await bgRes.blob();
 
       var brandText = brandMap[t.nid] || '';
