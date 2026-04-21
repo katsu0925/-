@@ -15,6 +15,10 @@ export function getUploadPageHtml() {
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="apple-touch-icon" href="/tasukibako-apple-touch-icon.png">
 <link rel="manifest" href="/manifest.json">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@700&display=swap">
 <meta name="theme-color" content="#3b82f6">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -234,9 +238,10 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
   </div>
   <div class="sticky-footer" id="footer-manage">
     <div class="footer-inner" style="flex-wrap:wrap;gap:6px">
+      <button class="btn btn-primary" style="flex:1;min-width:45%;background:#7c3aed;border-color:#6d28d9" id="bgReplaceTopBtn" onclick="bgReplaceTopImages()" disabled>🖼 トップ背景置換</button>
       <button class="btn btn-success" style="flex:1;min-width:45%" id="dlTopBtn" onclick="doDownloadTopImages()">トップ画像を保存</button>
       <button class="btn btn-primary" style="flex:1;min-width:45%" id="dlAllBtn" onclick="doDownloadAllImages()">全画像を保存</button>
-      <button class="btn btn-danger" style="flex:1;min-width:100%" id="deleteSelectedBtn" onclick="doDeleteSelected()" disabled>選択した商品を削除</button>
+      <button class="btn btn-danger" style="flex:1;min-width:45%" id="deleteSelectedBtn" onclick="doDeleteSelected()" disabled>選択した商品を削除</button>
     </div>
   </div>
 
@@ -1281,9 +1286,19 @@ async function loadBlobAsDrawable(blob) {
   }
 }
 
-// ブランドバッジをクライアント側Canvasで描画（ブラウザの日本語フォント使用）
+// ブランドバッジをクライアント側Canvasで描画（Shippori Mincho 優先）
+var _brandFontReady = null;
+function ensureBrandFontReady() {
+  if (_brandFontReady) return _brandFontReady;
+  _brandFontReady = (document.fonts && document.fonts.load)
+    ? document.fonts.load('700 24px "Shippori Mincho"').catch(function() {}).then(function() {})
+    : Promise.resolve();
+  return _brandFontReady;
+}
+
 async function overlayBrandOnBlob(jpegBlob, text) {
   if (!text) return jpegBlob;
+  await ensureBrandFontReady();
   var bmp = await loadBlobAsDrawable(jpegBlob);
   var W = bmp.width || bmp.naturalWidth;
   var H = bmp.height || bmp.naturalHeight;
@@ -1293,18 +1308,46 @@ async function overlayBrandOnBlob(jpegBlob, text) {
   var ctx = canvas.getContext('2d');
   ctx.drawImage(bmp, 0, 0);
 
-  var fontSize = Math.round(H * 0.035);
-  ctx.font = '700 ' + fontSize + 'px "Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif';
-  ctx.textBaseline = 'middle';
-  var textW = ctx.measureText(text).width;
-  var padX = Math.round(fontSize * 0.6);
-  var padY = Math.round(fontSize * 0.35);
-  var boxW = Math.round(textW + padX * 2);
-  var boxH = Math.round(fontSize + padY * 2);
+  var baseFontSize = Math.round(H * 0.035);
+  var fontFamily = '"Shippori Mincho","Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",serif';
   var margin = Math.round(H * 0.025);
+  var maxBoxW = Math.round(W * 0.45);
+  var minFontSize = Math.max(10, Math.round(baseFontSize * 0.5));
+
+  function measure(fs, displayText) {
+    ctx.font = '700 ' + fs + 'px ' + fontFamily;
+    var tw = ctx.measureText(displayText).width;
+    var px = Math.round(fs * 0.6);
+    return { tw: tw, boxW: Math.round(tw + px * 2), padX: px };
+  }
+
+  var displayText = text;
+  var fontSize = baseFontSize;
+  var m = measure(fontSize, displayText);
+  // Step 1: 幅オーバー時はフォントを縮小
+  while (m.boxW > maxBoxW && fontSize > minFontSize) {
+    fontSize -= 1;
+    m = measure(fontSize, displayText);
+  }
+  // Step 2: まだ収まらなければ末尾省略
+  if (m.boxW > maxBoxW) {
+    var truncated = displayText;
+    while (truncated.length > 1 && m.boxW > maxBoxW) {
+      truncated = truncated.slice(0, -1);
+      m = measure(fontSize, truncated + '…');
+    }
+    displayText = truncated + '…';
+  }
+
+  var padY = Math.round(fontSize * 0.35);
+  var boxW = m.boxW;
+  var boxH = Math.round(fontSize + padY * 2);
   var x = W - boxW - margin;
   var y = margin;
   var r = Math.round(boxH / 2);
+
+  ctx.font = '700 ' + fontSize + 'px ' + fontFamily;
+  ctx.textBaseline = 'middle';
 
   ctx.fillStyle = 'rgba(17,17,17,0.85)';
   ctx.beginPath();
@@ -1322,7 +1365,7 @@ async function overlayBrandOnBlob(jpegBlob, text) {
 
   ctx.fillStyle = '#fff';
   ctx.textAlign = 'center';
-  ctx.fillText(text, x + boxW/2, y + boxH/2);
+  ctx.fillText(displayText, x + boxW/2, y + boxH/2);
 
   return await new Promise(function(resolve) {
     canvas.toBlob(function(b) { resolve(b || jpegBlob); }, 'image/jpeg', 0.92);
@@ -2444,6 +2487,7 @@ async function bgReplaceManageImages(managedId) {
     targets.push({ url: c.dataset.url, idx: parseInt(c.dataset.imgidx), el: c.closest('.img-check-wrap') });
   });
 
+  // 即座にスピナー表示（ラグ体感を消す）
   targets.forEach(function(t) {
     if (!t.el.querySelector('.blur-overlay')) {
       var ov = document.createElement('div');
@@ -2453,8 +2497,37 @@ async function bgReplaceManageImages(managedId) {
       t.el.appendChild(ov);
     }
   });
+  showLoading('準備中', '0/' + targets.length, function() { aborted = true; });
 
-  showLoading('背景置換中', '0/' + targets.length, function() { aborted = true; });
+  // ブランド取得 + 全画像ダウンロードを並列実行（ラグ短縮）
+  var nid = normId(managedId || '');
+  var brandPromise = nid
+    ? fetch(API_BASE + '/api/brands-for-overlay', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, headers({})),
+        body: JSON.stringify({ managedIds: [nid] })
+      }).then(function(r) { return r.ok ? r.json() : null; }).catch(function() { return null; })
+    : Promise.resolve(null);
+  var imagePromises = targets.map(function(t) {
+    return fetch(API_BASE + t.url + '?t=' + Date.now())
+      .then(function(r) { if (!r.ok) throw new Error('画像取得失敗'); return r.blob(); })
+      .catch(function(e) { return { __error: e }; });
+  });
+
+  var brandJson = await brandPromise;
+  var brandText = (brandJson && brandJson.brands && brandJson.brands[nid]) || '';
+  var brandFetchErr = '';
+  if (nid && !brandText) {
+    brandFetchErr = brandJson
+      ? '管理番号「' + nid + '」に対応するブランドが見つかりませんでした。\\n・採寸済みのブランドも\\n・AI判定結果(KV)も\\n見つからないため、文字入れをスキップします。'
+      : 'ブランド取得に失敗したため、文字入れをスキップします。';
+  } else if (!nid) {
+    brandFetchErr = '管理番号が不明なため、ブランド文字入れをスキップします。';
+  }
+  console.log('[manage bg-replace] managedId=', nid, 'brandText=', JSON.stringify(brandText), 'err=', brandFetchErr);
+  if (brandFetchErr) {
+    showErrorModal('ブランド文字入れスキップ', brandFetchErr, 'info');
+  }
   var done = 0;
   for (var i = 0; i < targets.length; i++) {
     if (aborted) break;
@@ -2463,19 +2536,35 @@ async function bgReplaceManageImages(managedId) {
     prog.textContent = (done+1) + '/' + targets.length + ' 処理中…';
 
     try {
-      var imgUrl = API_BASE + t.url + '?t=' + Date.now();
-      var imgRes = await fetch(imgUrl);
-      if (!imgRes.ok) throw new Error('画像取得失敗');
-      var imgBlob = await imgRes.blob();
+      var imgBlob = await imagePromises[i];
+      if (imgBlob && imgBlob.__error) throw imgBlob.__error;
 
-      var fd = new FormData();
-      fd.append('image', imgBlob, 'src.jpg');
-      var bgRes = await fetch(API_BASE + '/upload/bg-replace', { method: 'POST', headers: headers({}), body: fd });
-      if (!bgRes.ok) {
-        var errText = await bgRes.text();
-        throw new Error('server ' + bgRes.status + ': ' + errText.slice(0, 100));
+      // Replicate レート制限・一時エラー用に1回リトライ
+      var bgRes = null;
+      var lastErrText = '';
+      for (var attempt = 1; attempt <= 2; attempt++) {
+        var fd = new FormData();
+        fd.append('image', imgBlob, 'src.jpg');
+        bgRes = await fetch(API_BASE + '/upload/bg-replace', { method: 'POST', headers: headers({}), body: fd });
+        if (bgRes.ok) break;
+        lastErrText = await bgRes.text();
+        if (bgRes.status === 413 || bgRes.status === 401) break;
+        if (attempt < 2) await new Promise(function(r) { setTimeout(r, 2000); });
+      }
+      if (!bgRes || !bgRes.ok) {
+        throw new Error('server ' + (bgRes ? bgRes.status : '?') + ': ' + lastErrText.slice(0, 200));
       }
       var resultBlob = await bgRes.blob();
+
+      if (brandText) {
+        try {
+          resultBlob = await overlayBrandOnBlob(resultBlob, brandText);
+        } catch (overlayErr) {
+          console.warn('brand overlay failed:', overlayErr);
+          showErrorModal('ブランド文字入れ失敗(' + (done+1) + '枚目)',
+            'ブランド文字入れに失敗しました（背景置換は成功）。\\nブランド: ' + brandText + '\\n原因: ' + (overlayErr.message || overlayErr), 'warn');
+        }
+      }
 
       var upFd = new FormData();
       upFd.append('managedId', managedId);
@@ -2494,7 +2583,7 @@ async function bgReplaceManageImages(managedId) {
       }
     } catch (e) {
       console.error('Manage bg-replace error:', e);
-      showStatus('manageStatus', '背景置換失敗（' + (done+1) + '枚目）: ' + e.message, 'err');
+      showErrorModal('背景置換失敗(' + (done+1) + '枚目)', (e && e.message) ? e.message : String(e));
     }
 
     var ov = t.el.querySelector('.blur-overlay');
@@ -2510,6 +2599,163 @@ async function bgReplaceManageImages(managedId) {
   if (!aborted) {
     setTimeout(function() { doRefresh(); }, 500);
   }
+}
+
+// ─── 一覧: チェックした商品のトップ画像を一括背景置換 ───
+async function bgReplaceTopImages() {
+  var checks = document.querySelectorAll('.dl-check:checked');
+  if (checks.length === 0) { showStatus('manageStatus', '商品を選択してください', 'err'); return; }
+
+  var targets = [];
+  checks.forEach(function(c) {
+    var idx = parseInt(c.dataset.idx);
+    var p = productListData[idx];
+    if (!p || !p.thumbnail) return;
+    var row = document.getElementById('manage-row-' + p.managedId);
+    targets.push({
+      idx: idx,
+      managedId: p.managedId,
+      thumbUrl: p.thumbnail,
+      nid: normId(p.managedId || ''),
+      row: row
+    });
+  });
+  if (targets.length === 0) { showStatus('manageStatus', '対象画像がありません', 'err'); return; }
+
+  if (!confirm('選択した ' + targets.length + ' 件のトップ画像を背景置換します。\\n元画像は復元可能です。続行しますか？')) return;
+  _bgReplaceTopBatch(targets);
+}
+
+async function _bgReplaceTopBatch(targets) {
+  var btn = document.getElementById('bgReplaceTopBtn');
+  if (btn) btn.disabled = true;
+
+  var aborted = false;
+  showLoading('準備中', '0/' + targets.length, function() { aborted = true; });
+
+  // 行ごとにスピナーを即座に表示
+  targets.forEach(function(t) {
+    if (!t.row) return;
+    var thumb = t.row.querySelector('.list-thumb');
+    if (thumb && !t.row.querySelector('.bg-replace-spinner')) {
+      var ov = document.createElement('div');
+      ov.className = 'bg-replace-spinner';
+      ov.style.cssText = 'position:absolute;inset:0;background:rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center;z-index:2;border-radius:8px';
+      ov.innerHTML = '<div style="width:18px;height:18px;border:2.5px solid rgba(124,58,237,.2);border-top-color:#7c3aed;border-radius:50%;animation:ptr-spin .6s linear infinite"></div>';
+      // list-thumb の親を相対配置に
+      var li = t.row.querySelector('.list-item');
+      if (li) {
+        li.style.position = 'relative';
+        li.appendChild(ov);
+        t._overlay = ov;
+      }
+    }
+  });
+
+  // ブランド一括取得 + 各画像取得を並列化
+  var nids = targets.map(function(t) { return t.nid; }).filter(function(x) { return !!x; });
+  var uniqNids = Array.from(new Set(nids));
+  var brandPromise = uniqNids.length
+    ? fetch(API_BASE + '/api/brands-for-overlay', {
+        method: 'POST',
+        headers: Object.assign({ 'Content-Type': 'application/json' }, headers({})),
+        body: JSON.stringify({ managedIds: uniqNids })
+      }).then(function(r) { return r.ok ? r.json() : null; }).catch(function() { return null; })
+    : Promise.resolve(null);
+  var imagePromises = targets.map(function(t) {
+    return fetch(API_BASE + t.thumbUrl + '?t=' + Date.now())
+      .then(function(r) { if (!r.ok) throw new Error('画像取得失敗'); return r.blob(); })
+      .catch(function(e) { return { __error: e }; });
+  });
+  var brandJson = await brandPromise;
+  var brandMap = (brandJson && brandJson.brands) || {};
+
+  var done = 0, okCount = 0, errCount = 0;
+  var missingBrand = [];
+  var firstErr = '';
+
+  for (var i = 0; i < targets.length; i++) {
+    if (aborted) break;
+    var t = targets[i];
+    updateLoading('背景置換中', (done+1) + '/' + targets.length + ' ' + t.managedId);
+
+    try {
+      var imgBlob = await imagePromises[i];
+      if (imgBlob && imgBlob.__error) throw imgBlob.__error;
+
+      // Replicate burst=1 対策でリトライ
+      var bgRes = null;
+      var lastErrText = '';
+      for (var attempt = 1; attempt <= 2; attempt++) {
+        var fd = new FormData();
+        fd.append('image', imgBlob, 'src.jpg');
+        bgRes = await fetch(API_BASE + '/upload/bg-replace', { method: 'POST', headers: headers({}), body: fd });
+        if (bgRes.ok) break;
+        lastErrText = await bgRes.text();
+        if (bgRes.status === 413 || bgRes.status === 401) break;
+        if (attempt < 2) await new Promise(function(r) { setTimeout(r, 2000); });
+      }
+      if (!bgRes || !bgRes.ok) {
+        throw new Error('server ' + (bgRes ? bgRes.status : '?') + ': ' + lastErrText.slice(0, 200));
+      }
+      var resultBlob = await bgRes.blob();
+
+      var brandText = brandMap[t.nid] || '';
+      if (brandText) {
+        try { resultBlob = await overlayBrandOnBlob(resultBlob, brandText); }
+        catch (overlayErr) { console.warn('overlay failed for', t.managedId, overlayErr); }
+      } else if (t.nid) {
+        missingBrand.push(t.managedId);
+      }
+
+      var upFd = new FormData();
+      upFd.append('managedId', t.managedId);
+      upFd.append('targetUrl', t.thumbUrl);
+      upFd.append('images', resultBlob, 'bgreplace.jpg');
+      var upRes = await fetch(API_BASE + '/upload/update-image', {
+        method: 'POST', headers: headers({}), body: upFd
+      });
+      var upData = await upRes.json();
+
+      if (upData.ok && upData.newUrl) {
+        var thumbImg = t.row ? t.row.querySelector('.list-thumb') : null;
+        if (thumbImg && thumbImg.tagName === 'IMG') {
+          thumbImg.src = API_BASE + upData.newUrl + '?t=' + Date.now();
+        }
+        // productListData も更新して次回の処理で新URLを使う
+        if (productListData[t.idx]) productListData[t.idx].thumbnail = upData.newUrl;
+        okCount++;
+      } else {
+        throw new Error((upData && upData.message) || '保存失敗');
+      }
+    } catch (e) {
+      console.error('bgReplaceTopImages error:', t.managedId, e);
+      errCount++;
+      if (!firstErr) firstErr = t.managedId + ': ' + ((e && e.message) ? e.message : String(e));
+    }
+
+    if (t._overlay) t._overlay.remove();
+    done++;
+    await new Promise(function(r) { setTimeout(r, 30); });
+  }
+
+  hideLoading();
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = '🖼 トップ背景置換';
+  }
+
+  if (aborted) {
+    showStatus('manageStatus', '中断しました（' + okCount + '枚完了）', 'info');
+  } else if (errCount === 0) {
+    var msg = okCount + '枚の背景置換が完了しました';
+    if (missingBrand.length) msg += '（ブランド未取得: ' + missingBrand.length + '件）';
+    showStatus('manageStatus', msg, 'ok');
+  } else {
+    showErrorModal('背景置換: 一部失敗',
+      '成功: ' + okCount + ' / 失敗: ' + errCount + '\\n最初のエラー: ' + firstErr);
+  }
+  if (!aborted && okCount > 0) setTimeout(function() { doRefresh(); }, 600);
 }
 
 // ─── 展開内: 元に戻すバッジ付与 ───
@@ -2923,13 +3169,24 @@ function doDownloadSelected() {
 function updateDeleteSelectedCount() {
   var checks = document.querySelectorAll('.dl-check:checked');
   var btn = document.getElementById('deleteSelectedBtn');
-  if (!btn) return;
-  if (checks.length > 0) {
-    btn.disabled = false;
-    btn.textContent = checks.length + '件の商品を削除';
-  } else {
-    btn.disabled = true;
-    btn.textContent = '選択した商品を削除';
+  if (btn) {
+    if (checks.length > 0) {
+      btn.disabled = false;
+      btn.textContent = checks.length + '件の商品を削除';
+    } else {
+      btn.disabled = true;
+      btn.textContent = '選択した商品を削除';
+    }
+  }
+  var bgBtn = document.getElementById('bgReplaceTopBtn');
+  if (bgBtn) {
+    if (checks.length > 0) {
+      bgBtn.disabled = false;
+      bgBtn.textContent = '🖼 トップ背景置換（' + checks.length + '件）';
+    } else {
+      bgBtn.disabled = true;
+      bgBtn.textContent = '🖼 トップ背景置換';
+    }
   }
 }
 
