@@ -1753,15 +1753,19 @@ function testCreateKitLink() {
  * GASエディタから手動実行
  */
 function createKitFromDistList() {
-  var receiptNo = '20260324140158-692'; // ← 受付番号
+  var receiptNo = '20260421224044-251'; // ← 受付番号
 
   var shiireSs = SpreadsheetApp.openById(OM_SHIIRE_SS_ID);
   var exportSheet = shiireSs.getSheetByName('配布用リスト');
   if (!exportSheet) { console.error('配布用リストが見つかりません'); return; }
 
   var customerName = exportSheet.getRange('E1').getDisplayValue();
-  var receiptNoFromSheet = exportSheet.getRange('B1').getDisplayValue();
+  var receiptNoFromSheet = String(exportSheet.getRange('B1').getDisplayValue() || '').trim();
   console.log('配布用リスト: 受付番号=%s 顧客名=%s', receiptNoFromSheet, customerName);
+  if (receiptNoFromSheet !== receiptNo) {
+    console.error('配布用リストB1の受付番号が一致しません。期待=%s 実際=%s — 処理中止', receiptNo, receiptNoFromSheet);
+    return;
+  }
 
   // 3行目以降のデータ読み込み（A:チェック B:タイトル C:説明文 D:箱ID E:管理番号 F:ブランド G:AIキーワード H:アイテム I:サイズ J:状態 K:傷汚れ詳細 L:採寸 M:価格 N:性別）
   var lastRow = exportSheet.getLastRow();
