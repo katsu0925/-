@@ -357,25 +357,7 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
   var returnSheet = shiireSs.getSheetByName('返送管理');
   var boxMap = om_buildBoxMap_(returnSheet);
 
-  // 返送管理から管理番号→G列日付マップを構築（在庫経過割引用フォールバック）
-  var returnSetMap = {};
-  if (returnSheet) {
-    var rRetData = returnSheet.getDataRange().getValues();
-    for (var ri = 1; ri < rRetData.length; ri++) {
-      var rIdsStr = String(rRetData[ri][3] || ''); // D列: 管理番号リスト
-      var rDate = rRetData[ri][6]; // G列: 日付
-      if (!rIdsStr || !rDate) continue;
-      var rDateVal = (rDate instanceof Date) ? rDate : new Date(rDate);
-      if (isNaN(rDateVal.getTime())) continue;
-      var rIds = rIdsStr.split(/[,\n\r\t\s、，／\/・|]+/);
-      for (var rj = 0; rj < rIds.length; rj++) {
-        var rk = String(rIds[rj]).trim();
-        if (rk) returnSetMap[rk] = rDateVal;
-      }
-    }
-  }
-
-  // データ1から管理番号→販売価格マップを構築（在庫経過割引済みの正価格）
+  // データ1から管理番号→販売価格マップを構築
   var data1PriceMap = {};
   try {
     var dataSs = SpreadsheetApp.openById(String(APP_CONFIG.data.spreadsheetId || ''));
@@ -603,10 +585,7 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
         } else if (condition === '目立った傷や汚れなし' && damageDetail.trim() !== '') {
           price = Math.round(price * 0.9);
         }
-        // 在庫経過割引（syncFull_と同じロジック）
-        var returnDate = returnSetMap[targetId];
-        price = applyAgingDiscount_(price, returnDate);
-        console.log('XLSX価格フォールバック: ' + targetId + ' 仕入値=' + cost + ' → ' + price + '円 (経過割引適用)');
+        console.log('XLSX価格フォールバック: ' + targetId + ' 仕入値=' + cost + ' → ' + price + '円');
       }
 
       var priceText = price.toLocaleString('ja-JP') + '円';
@@ -848,24 +827,6 @@ function buildProductRowsForReceipt_(receiptNo) {
   var returnSheet = shiireSs.getSheetByName('返送管理');
   var boxMap = om_buildBoxMap_(returnSheet);
 
-  // 返送管理日付マップ
-  var returnSetMap = {};
-  if (returnSheet) {
-    var rRetData = returnSheet.getDataRange().getValues();
-    for (var ri = 1; ri < rRetData.length; ri++) {
-      var rIdsStr = String(rRetData[ri][3] || '');
-      var rDate = rRetData[ri][6];
-      if (!rIdsStr || !rDate) continue;
-      var rDateVal = (rDate instanceof Date) ? rDate : new Date(rDate);
-      if (isNaN(rDateVal.getTime())) continue;
-      var rIds = rIdsStr.split(/[,\n\r\t\s、，／\/・|]+/);
-      for (var rj = 0; rj < rIds.length; rj++) {
-        var rk = String(rIds[rj]).trim();
-        if (rk) returnSetMap[rk] = rDateVal;
-      }
-    }
-  }
-
   // データ1価格マップ
   var data1PriceMap = {};
   try {
@@ -959,7 +920,6 @@ function buildProductRowsForReceipt_(receiptNo) {
       price = normalizeSellPrice_(om_calcPriceTier_(cost));
       if (condition === '傷や汚れあり' || condition === 'やや傷や汚れあり' || condition === '全体的に状態が悪い') price = Math.round(price * 0.8);
       else if (condition === '目立った傷や汚れなし' && damageDetail.trim() !== '') price = Math.round(price * 0.9);
-      price = applyAgingDiscount_(price, returnSetMap[targetId]);
     }
 
     var gender = row[mIdx['性別']] || '';

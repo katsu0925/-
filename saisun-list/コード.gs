@@ -24,7 +24,6 @@ const CONFIG = {
 
   SRC_RETURN_START_ROW: 2,
   SRC_RETURN_COL_C: 4,
-  SRC_RETURN_COL_DATE: 7,  // G列: 変更履歴日付（在庫経過値下げ基準日）
 
   SRC_AI_START_ROW: 2,
   SRC_AI_COL_KEY: 2,
@@ -436,9 +435,6 @@ function syncFull_(productSheet, returnSheet, aiSheet, destSheet) {
       }
     }
 
-    // 在庫経過による自動値下げ（返送管理G列の日付基準）
-    adjustedPrice = applyAgingDiscount_(adjustedPrice, returnSet[keyC]);
-
     const shippingMethod = rec.shipping;
     const keepCheck = keepCheckByKey[keyC] === true;
 
@@ -676,44 +672,22 @@ function buildReturnSet_(returnSheet) {
   const lastRow = returnSheet.getLastRow();
   const start = CONFIG.SRC_RETURN_START_ROW;
   const col = CONFIG.SRC_RETURN_COL_C;
-  const dateCol = CONFIG.SRC_RETURN_COL_DATE;
 
   const setObj = {};
   if (lastRow < start) return setObj;
 
   const n = lastRow - start + 1;
   const vals = returnSheet.getRange(start, col, n, 1).getValues();
-  // G列（変更履歴日付）を読み取り — 在庫経過値下げの基準日
-  const dateVals = returnSheet.getRange(start, dateCol, n, 1).getValues();
 
   for (let i = 0; i < n; i++) {
     const cell = String(vals[i][0] ?? "").trim();
     if (cell === "") continue;
 
-    // G列の日付を取得（Date型、テキスト日付文字列の両方を受け付ける）
-    const rawDate = dateVals[i][0];
-    let dateVal = null;
-    if (rawDate instanceof Date && !isNaN(rawDate.getTime())) {
-      dateVal = rawDate;
-    } else if (rawDate) {
-      const parsed = new Date(rawDate);
-      if (!isNaN(parsed.getTime())) dateVal = parsed;
-    }
-
     const parts = cell.split(/[,\n\r\t\s、，／\/・|]+/);
     for (let j = 0; j < parts.length; j++) {
       const k = normalizeKey_(parts[j]);
       if (!k) continue;
-      // 日付があればDateを保持、なければtrue（従来互換）
-      // 同一管理番号が複数行にある場合、最新の日付を採用
-      if (dateVal) {
-        const existing = setObj[k];
-        if (existing === true || !existing || (existing instanceof Date && dateVal > existing)) {
-          setObj[k] = dateVal;
-        }
-      } else if (!setObj[k]) {
-        setObj[k] = true;
-      }
+      if (!setObj[k]) setObj[k] = true;
     }
   }
   return setObj;
@@ -1144,41 +1118,6 @@ function convertRecoveryK_(v) {
   const n = Number(s);
   if (!isFinite(n)) return v;
   return normalizeSellPrice_(calcPriceTier_(n));
-}
-
-/**
- * 在庫経過による自動値下げ
- * 返送管理G列の日付から経過月数を算出し、段階的に割引を適用する。
- * 基準価格は状態割引適用後のadjustedPrice。
- *
- * @param {number} price - 状態割引適用後の販売価格
- * @param {Date|boolean} returnEntry - 返送管理の値（Date=G列日付、true=日付なし）
- * @return {number} 値下げ後の価格（50円単位に丸め）
- */
-function applyAgingDiscount_(price, returnEntry) {
-  if (typeof price !== 'number' || !isFinite(price)) return price;
-  if (!returnEntry || returnEntry === true) return price; // 日付なしは値下げ対象外
-
-  // Date型 or ISO文字列（キャッシュ復元時）の両方を受け付ける
-  const d = (returnEntry instanceof Date) ? returnEntry : new Date(returnEntry);
-  if (isNaN(d.getTime())) return price;
-
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffDays = diffMs / (1000 * 60 * 60 * 24);
-
-  let rate = 1;
-  if (diffDays >= 90) {       // 3ヶ月以上: 50%OFF
-    rate = 0.5;
-  } else if (diffDays >= 60) { // 2ヶ月以上: 35%OFF
-    rate = 0.65;
-  } else if (diffDays >= 30) { // 1ヶ月以上: 20%OFF
-    rate = 0.8;
-  }
-
-  if (rate === 1) return price; // 値下げなし
-  // 値下げは切り捨て（normalizeSellPrice_は切り上げのため使わない）
-  return Math.floor(Math.round(price * rate) / 50) * 50;
 }
 
 function isGuardOn_() {
