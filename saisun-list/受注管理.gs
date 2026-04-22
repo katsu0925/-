@@ -1713,7 +1713,7 @@ function testCreateKitSingle() {
 }
 
 function testCreateKitLink() {
-  var receiptNo = '20260324140158-692';
+  var receiptNo = '20260421224044-251';
 
   // 商品データ再構築（スプレッドシートから読み込み）
   var data = buildProductRowsForReceipt_(receiptNo);
