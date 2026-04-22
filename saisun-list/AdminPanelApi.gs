@@ -234,12 +234,8 @@ function adminPanel_toggleCampaign(type) {
 // 数量割引テーブル（ScriptProperties外出し）
 // =====================================================
 
-var QTY_DISCOUNT_DEFAULTS_ = [
-  { threshold: 100, rate: 0.20 },
-  { threshold: 50, rate: 0.15 },
-  { threshold: 30, rate: 0.10 },
-  { threshold: 10, rate: 0.05 }
-];
+// 数量割引は廃止済み。管理画面互換のため空配列デフォルトを返す
+var QTY_DISCOUNT_DEFAULTS_ = [];
 
 function adminPanel_getQtyDiscounts() {
   var raw = PropertiesService.getScriptProperties().getProperty('CONFIG_QTY_DISCOUNTS');
@@ -263,7 +259,7 @@ function adminPanel_getBizDiscountSettings() {
   var props = PropertiesService.getScriptProperties();
   return {
     ok: true,
-    freeShipThreshold: Number(props.getProperty('CONFIG_FREE_SHIP_THRESHOLD') || 10000),
+    freeShipThreshold: Number(props.getProperty('CONFIG_FREE_SHIP_THRESHOLD') || 30000),
     referralReferrer: Number(props.getProperty('CONFIG_REFERRAL_REFERRER') || 500),
     referralReferee: Number(props.getProperty('CONFIG_REFERRAL_REFEREE') || 300)
   };

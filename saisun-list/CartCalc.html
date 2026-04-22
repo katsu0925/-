@@ -12,19 +12,11 @@ var CartCalc = (function() {
   function escAttr(s) { return String(s || '').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;').replace(/</g,'&lt;'); }
   function yen(n) { return numFmt(n) + '円'; }
 
-  // ---- 数量割引（デタウリのみ） ----
+  // ---- 数量割引（2026-04-22廃止。関数は互換用に残しつつ常に0を返す） ----
   function bulkDiscountRate(count) {
-    if (count >= 100) return 0.20;
-    if (count >= 50)  return 0.15;
-    if (count >= 30)  return 0.10;
-    if (count >= 10)  return 0.05;
     return 0;
   }
   function bulkDiscountLabel(count) {
-    if (count >= 100) return '100点割引20%OFF';
-    if (count >= 50)  return '50点割引15%OFF';
-    if (count >= 30)  return '30点割引10%OFF';
-    if (count >= 10)  return '10点割引5%OFF';
     return '';
   }
 
@@ -134,7 +126,7 @@ var CartCalc = (function() {
     var pointsUsed = input.pointsUsed || 0;
     var customer = input.customer || null;
     var assortExcQty = input.assortExcludedQty || 0;
-    var assortAlwaysChargeQty = input.assortAlwaysChargeQty || 0;  // 価格破壊商品の数量（1万円以上ルール無効化）
+    var assortAlwaysChargeQty = input.assortAlwaysChargeQty || 0;  // 価格破壊商品の数量（¥30,000以上ルール無効化）
 
     // -- 結果オブジェクト初期化 --
     var result = {
@@ -149,7 +141,7 @@ var CartCalc = (function() {
       detauriCount: det.count,
       assortQty: ass.totalQty,
       isRemoteIsland: false,
-      freeShipProgress: { show: false, current: 0, threshold: 10000, remaining: 0, pct: 0 }
+      freeShipProgress: { show: false, current: 0, threshold: 30000, remaining: 0, pct: 0 }
     };
 
     // -- 離島チェック --
@@ -182,17 +174,7 @@ var CartCalc = (function() {
 
     // -- Step 3: FHP未適用時の割引 --
     if (!fhpApplied) {
-      // 3a: 数量割引（デタウリのみ、comboBulk !== false なら適用）
-      if (det.count > 0 && (!coupon || coupon.comboBulk !== false)) {
-        var bRate = bulkDiscountRate(det.count);
-        if (bRate > 0) {
-          var bAmt = result.detauri.discounted - Math.round(result.detauri.discounted * (1 - bRate));
-          result.detauri.discounted = Math.round(result.detauri.discounted * (1 - bRate));
-          if (bAmt > 0) {
-            result.detauri.discounts.push({ label: bulkDiscountLabel(det.count), amount: bAmt, style: 'bulk' });
-          }
-        }
-      }
+      // 3a: 数量割引は2026-04-22に廃止（bulkDiscountRate は常に0を返す）
       // 3b: 会員割引（両チャネル、comboMember !== false なら適用）
       if (customer && md.enabled && (!coupon || coupon.comboMember !== false)) {
         // デタウリ
@@ -216,14 +198,17 @@ var CartCalc = (function() {
 
     // -- Step 4: 送料計算 --
     var combinedDiscountedProduct = result.detauri.discounted + result.assort.discounted;
-    var freeShipThreshold = 10000;
+    var freeShipThreshold = 30000;
 
-    // ダイヤモンド会員 → 全送料無料
+    // ダイヤモンド会員 → 全送料無料（沖縄・離島も無料のままダイヤ特典は維持）
     var diamondFree = customer && customer.rank && customer.rank.freeShipping;
-    // 送料無料クーポン（shipping_free型）— FHP時は無効
+    // 沖縄は送料無料（閾値・クーポン）の対象外（ダイヤ会員特典のみ維持）
+    var isOkinawa = (addrPref ? areas[addrPref] : '') === 'okinawa';
+    // 送料無料クーポン（shipping_free型）— FHP時は無効、沖縄は対象外
     var shippingFreeCoupon = !fhpApplied && coupon && coupon.type === 'shipping_free';
-    // 1万円以上で送料無料（FHP適用時は対象外）
-    var thresholdFree = !fhpApplied && combinedDiscountedProduct >= freeShipThreshold;
+    var couponFreeEffective = shippingFreeCoupon && !isOkinawa;
+    // ¥30,000以上で送料無料（FHP・沖縄は対象外）
+    var thresholdFree = !fhpApplied && !isOkinawa && combinedDiscountedProduct >= freeShipThreshold;
 
     // デタウリ送料
     if (det.count > 0 && addrPref) {
@@ -231,10 +216,10 @@ var CartCalc = (function() {
       if (area && rates[area]) {
         if (diamondFree) {
           result.detauri.shipping = { amount: 0, label: 'デタウリ 送料', isFree: true, freeReason: 'ダイヤモンド会員特典' };
-        } else if (shippingFreeCoupon) {
+        } else if (couponFreeEffective) {
           result.detauri.shipping = { amount: 0, label: 'デタウリ 送料', isFree: true, freeReason: 'クーポン適用' };
         } else if (thresholdFree) {
-          result.detauri.shipping = { amount: 0, label: 'デタウリ 送料', isFree: true, freeReason: '商品合計1万円以上' };
+          result.detauri.shipping = { amount: 0, label: 'デタウリ 送料', isFree: true, freeReason: '商品合計¥30,000以上' };
         } else {
           // 厚み分類→サイズ判定→料金計算
           var t = classifyThickness(det.items);
@@ -259,7 +244,7 @@ var CartCalc = (function() {
       if (aArea && rates[aArea]) {
         if (diamondFree) {
           result.assort.shipping = { amount: 0, label: 'アソート 送料', isFree: true, freeReason: 'ダイヤモンド会員特典' };
-        } else if (shippingFreeCoupon) {
+        } else if (couponFreeEffective) {
           // 送料無料クーポンの除外商品対応
           if (assortExcQty > 0) {
             var excShip = rates[aArea][1] * assortExcQty;
@@ -268,12 +253,12 @@ var CartCalc = (function() {
             result.assort.shipping = { amount: 0, label: 'アソート 送料', isFree: true, freeReason: 'クーポン適用' };
           }
         } else if (thresholdFree) {
-          // 1万円以上送料無料 — ただし価格破壊商品は対象外（数量分だけ送料請求）
+          // ¥30,000以上送料無料 — ただし価格破壊商品は対象外（数量分だけ送料請求）
           if (assortAlwaysChargeQty > 0) {
             var alwaysShip = rates[aArea][1] * assortAlwaysChargeQty;
             result.assort.shipping = { amount: alwaysShip, label: 'アソート 送料（' + escHtml(addrPref) + '・大×' + assortAlwaysChargeQty + '、価格破壊商品分）', isFree: false, freeReason: '' };
           } else {
-            result.assort.shipping = { amount: 0, label: 'アソート 送料', isFree: true, freeReason: '商品合計1万円以上' };
+            result.assort.shipping = { amount: 0, label: 'アソート 送料', isFree: true, freeReason: '商品合計¥30,000以上' };
           }
         } else {
           var assortShipAmt = rates[aArea][1] * ass.totalQty;
@@ -307,8 +292,8 @@ var CartCalc = (function() {
     // -- Step 8: 合計 --
     result.grandTotal = Math.max(0, sumSubtotals - result.pointsApplied);
 
-    // -- 送料無料プログレスバー（FHP適用時は非表示） --
-    if (!fhpApplied && combinedDiscountedProduct > 0 && combinedDiscountedProduct < freeShipThreshold) {
+    // -- 送料無料プログレスバー（FHP時・沖縄は非表示） --
+    if (!fhpApplied && !isOkinawa && combinedDiscountedProduct > 0 && combinedDiscountedProduct < freeShipThreshold) {
       result.freeShipProgress = {
         show: true,
         current: combinedDiscountedProduct,
@@ -316,7 +301,7 @@ var CartCalc = (function() {
         remaining: freeShipThreshold - combinedDiscountedProduct,
         pct: Math.min(100, Math.round((combinedDiscountedProduct / freeShipThreshold) * 100))
       };
-    } else if (!fhpApplied && combinedDiscountedProduct >= freeShipThreshold) {
+    } else if (!fhpApplied && !isOkinawa && combinedDiscountedProduct >= freeShipThreshold) {
       result.freeShipProgress = { show: true, current: combinedDiscountedProduct, threshold: freeShipThreshold, remaining: 0, pct: 100 };
     }
 

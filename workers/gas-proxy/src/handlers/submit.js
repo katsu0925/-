@@ -9,24 +9,13 @@
 import { jsonOk, jsonError, corsResponse } from '../utils/response.js';
 import { sendEvent as sendMetaEvent } from '../utils/meta-capi.js';
 
-// ─── 数量割引ヘルパー（D1 settingsから動的テーブル対応） ───
+// ─── 数量割引（廃止済み。comboBulkスキーマは維持、常に0%） ───
 
-const DEFAULT_QTY_DISCOUNTS = [
-  { threshold: 100, rate: 0.20 },
-  { threshold: 50, rate: 0.15 },
-  { threshold: 30, rate: 0.10 },
-  { threshold: 10, rate: 0.05 },
-];
-
-function calcQtyDiscount(count, dynTable) {
-  const table = (Array.isArray(dynTable) && dynTable.length > 0) ? dynTable : DEFAULT_QTY_DISCOUNTS;
-  for (const tier of table) {
-    if (count >= tier.threshold) return tier.rate;
-  }
+function calcQtyDiscount(_count, _dynTable) {
   return 0;
 }
 
-// ─── 価格破壊商品ID（1万円以上送料無料の対象外） ───
+// ─── 価格破壊商品ID（¥30,000以上送料無料の対象外） ───
 // Constants.gs SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS と同期
 const ALWAYS_CHARGE_BULK_IDS = ['BLK-H2LZTP36'];
 
@@ -305,7 +294,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     try { dynQtyDiscounts = JSON.parse(qtyDiscountRow.value); } catch (e) { /* fallthrough */ }
   }
 
-  const dynFreeShipThreshold = freeShipRow ? (Number(freeShipRow.value) || 10000) : 10000;
+  const dynFreeShipThreshold = freeShipRow ? (Number(freeShipRow.value) || 30000) : 30000;
 
   let memberDiscountStatus = { enabled: true, rate: 0.10, endDate: '2026-09-30', reason: 'active' };
   if (memberDiscountRow) { try { memberDiscountStatus = JSON.parse(memberDiscountRow.value); } catch (e) { /* fallthrough */ } }
@@ -421,7 +410,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     }
   }
 
-  // 割引適用（GAS SubmitFix.gs と同一順序: 数量割引 → 会員割引 → クーポン）
+  // 割引適用（GAS SubmitFix.gs と同一順序: FHP → 会員割引 → クーポン ※数量割引は廃止）
   let discounted;
   if (firstHalfPriceApplied) {
     const fhpOnDetauri = Math.round(sum * fhpStatus.rate);
@@ -456,8 +445,11 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   const diamondFree = totalSpent >= 500000;
 
   const shippingFreeCoupon = validatedCoupon && validatedCoupon.type === 'shipping_free';
-  // 1万円以上で送料無料（FHP適用時は対象外）
-  const thresholdFree = !firstHalfPriceApplied && (discounted + bulkProductAmount) >= dynFreeShipThreshold;
+  // 沖縄・離島判定（送料無料閾値・クーポン送料無料の対象外。ダイヤ会員は対象）
+  const isOkinawa = shippingArea === 'okinawa';
+  const couponFreeEffective = shippingFreeCoupon && !isOkinawa;
+  // ¥30,000以上で送料無料（FHP適用時・沖縄/離島は対象外）
+  const thresholdFree = !firstHalfPriceApplied && !isOkinawa && (discounted + bulkProductAmount) >= dynFreeShipThreshold;
 
   // 送料無料判定前に実際の配送コストを計算（店負担送料用）
   let actualShippingForStore = 0;
@@ -477,7 +469,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   if (diamondFree) {
     shippingAmount = 0;
     bulkShippingAmount = 0;
-  } else if (shippingFreeCoupon) {
+  } else if (couponFreeEffective) {
     shippingAmount = 0;
     // アソート送料: 送料除外商品は除外分のみ有料（SubmitFix.gs L237-251と一致）
     const excludeStr = validatedCoupon.shippingExcludeProducts || '';
@@ -495,7 +487,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     }
   } else if (thresholdFree) {
     shippingAmount = 0;
-    // アソート送料: 価格破壊商品は1万円以上ルール無効化 → 該当商品分だけ送料請求
+    // アソート送料: 価格破壊商品は¥30,000以上ルール無効化 → 該当商品分だけ送料請求
     if (ALWAYS_CHARGE_BULK_IDS.length && bulkItemCount > 0 && shippingArea && dynShippingRates[shippingArea]) {
       const alwaysSet = new Set(ALWAYS_CHARGE_BULK_IDS.map(s => String(s).toUpperCase()));
       let alwaysQty = 0;

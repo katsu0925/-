@@ -114,7 +114,8 @@ function apiSubmitEstimate(userKey, form, ids) {
         bulkProductNames.push(bNameLabel);
       }
     }
-    // === 価格計算（CartCalcと同じ順序: FHP → 数量割引 → 会員割引 → クーポン） ===
+    // === 価格計算（CartCalcと同じ順序: FHP → 会員割引 → クーポン） ===
+    // 数量割引は2026-04-22に廃止（comboBulkスキーマはクーポン併用判定用に維持）
     var totalCount = list.length;
     var discountRate = 0;
     var memberDiscountRate = 0;
@@ -147,16 +148,8 @@ function apiSubmitEstimate(userKey, form, ids) {
           : ('クーポン' + couponResult.value + '円引き');
     }
 
-    // 数量割引レート取得（CartCalc step 3a — comboBulk !== false なら適用）
-    if (!firstHalfPriceApplied) {
-      var _comboBulkOk = !validatedCoupon || validatedCoupon.comboBulk !== false;
-      if (_comboBulkOk) {
-        if (totalCount >= 100) discountRate = 0.20;
-        else if (totalCount >= 50) discountRate = 0.15;
-        else if (totalCount >= 30) discountRate = 0.10;
-        else if (totalCount >= 10) discountRate = 0.05;
-      }
-    }
+    // 数量割引は2026-04-22に廃止 — discountRate は常に0
+    // （comboBulkスキーマはクーポン側で併用不可フラグとして残す）
 
     // 会員割引レート取得（CartCalc step 3b — comboMember !== false なら適用）
     // ログイン必須（フロントエンドと一致させるため）
@@ -173,7 +166,7 @@ function apiSubmitEstimate(userKey, form, ids) {
       }
     }
 
-    // === 割引適用（CartCalc step順: FHP → 数量割引 → 会員割引 → クーポン） ===
+    // === 割引適用（CartCalc step順: FHP → 会員割引 → クーポン） ===
     var discounted;
     if (firstHalfPriceApplied) {
       var _fhpOnDetauri = Math.round(sum * fhpStatus.rate);
@@ -182,8 +175,8 @@ function apiSubmitEstimate(userKey, form, ids) {
       bulkProductAmount = Math.max(0, bulkProductAmount - _fhpOnBulk);
       couponLabel = '初回全品半額キャンペーン（' + Math.round(fhpStatus.rate * 100) + '%OFF）';
     } else {
-      // 数量割引（デタウリのみ — CartCalc step 3a）
-      discounted = discountRate > 0 ? Math.round(sum * (1 - discountRate)) : sum;
+      // 数量割引は廃止（discountRateは常に0） — そのまま次のステップへ
+      discounted = sum;
       // 会員割引を両チャネルに適用（CartCalc step 3b）
       if (memberDiscountRate > 0) {
         discounted = Math.round(discounted * (1 - memberDiscountRate));
@@ -224,8 +217,12 @@ function apiSubmitEstimate(userKey, form, ids) {
     }
 
     var shippingFreeCoupon = validatedCoupon && validatedCoupon.type === 'shipping_free';
-    // 1万円以上で送料無料（FHP適用時は対象外）
-    var thresholdFree = !firstHalfPriceApplied && (discounted + bulkProductAmount) >= 10000;
+    // 沖縄は送料無料（閾値・クーポン）の対象外（ダイヤ会員特典は維持）
+    var isOkinawa = (shippingArea === 'okinawa');
+    // ¥30,000以上で送料無料（FHP・沖縄は対象外）
+    var thresholdFree = !firstHalfPriceApplied && !isOkinawa && (discounted + bulkProductAmount) >= 30000;
+    // 送料無料クーポンも沖縄は対象外（ダイヤ会員特典は維持）
+    var couponFreeEffective = shippingFreeCoupon && !isOkinawa;
 
     // 送料無料判定の前に実際の配送コストを計算（店負担送料用）
     var actualShippingForStore = 0;
@@ -247,11 +244,12 @@ function apiSubmitEstimate(userKey, form, ids) {
       actualShippingForStore += SHIPPING_RATES[shippingArea][1] * bulkItemCount;
     }
 
-    // 送料無料判定（CartCalcと同じ優先順序: ダイヤモンド > クーポン > 1万円以上 > 計算値）
+    // 送料無料判定（CartCalcと同じ優先順序: ダイヤモンド > クーポン > ¥30,000以上 > 計算値）
+    // 沖縄・離島はクーポン・閾値の対象外（ダイヤ会員特典のみ維持）
     if (diamondFree) {
       shippingAmount = 0;
       bulkShippingAmount = 0;
-    } else if (shippingFreeCoupon) {
+    } else if (couponFreeEffective) {
       // デタウリ送料: クーポンで無料（CartCalc line 234と一致）
       shippingAmount = 0;
       // アソート送料: 送料除外商品は除外分のみ有料（CartCalc lines 262-268と一致）
@@ -272,7 +270,7 @@ function apiSubmitEstimate(userKey, form, ids) {
       }
     } else if (thresholdFree) {
       shippingAmount = 0;
-      // アソート送料: 価格破壊商品は1万円以上ルール無効化 → 該当商品分だけ送料請求
+      // アソート送料: 価格破壊商品は¥30,000以上ルール無効化 → 該当商品分だけ送料請求
       var alwaysIds = (typeof SHIPPING_CONSTANTS !== 'undefined' && SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS) ? SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS : [];
       if (alwaysIds.length && hasBulkItems && shippingArea && SHIPPING_RATES[shippingArea]) {
         var alwaysSet = {};
@@ -345,9 +343,6 @@ function apiSubmitEstimate(userKey, form, ids) {
         } else if (couponDiscount > 0) {
           discountParts.push(couponLabel + '（-' + couponDiscount + '円）コード: ' + couponCode);
         }
-      }
-      if (discountRate > 0) {
-        discountParts.push('数量割引' + Math.round(discountRate * 100) + '%OFF');
       }
       if (memberDiscountRate > 0) {
         discountParts.push('会員割引' + Math.round(memberDiscountRate * 100) + '%OFF');

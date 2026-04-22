@@ -104,8 +104,9 @@
       <div class="card">
         <div class="title">適用順序</div>
         <div class="note" style="background:#f0f4ff;padding:8px;border-radius:6px;line-height:1.8;font-size:11px;">
-          <b>FHP(排他)</b> → 数量割引(デタウリのみ) → 会員割引(両チャネル) → クーポン控除 → ポイント利用 → 送料計算<br>
-          送料: ダイヤモンド無料 → クーポン無料 → ¥10,000以上無料 → テーブル計算
+          <b>FHP(排他)</b> → 会員割引(両チャネル) → クーポン控除 → ポイント利用 → 送料計算<br>
+          ※数量割引は廃止（comboBulkフラグはスキーマ維持のみ・常に0%）<br>
+          送料: ダイヤモンド無料(沖縄含む) → クーポン無料(沖縄除く) → ¥30,000以上無料(沖縄・FHP・価格破壊を除く) → テーブル計算
         </div>
       </div>
 
@@ -122,8 +123,8 @@
       </div>
 
       <div class="card">
-        <div class="title">数量割引 <span class="badge info">デタウリ個品のみ</span></div>
-        <div class="note">デタウリ個品のみ適用。アソート商品には適用されません。閾値は降順で判定（高い方から順にマッチ）。</div>
+        <div class="title">数量割引 <span class="badge" style="background:#64748b;color:#fff;">廃止済み</span></div>
+        <div class="note">デタウリ数量割引（10/30/50/100点）は廃止しました。テーブルを保存しても適用されません。</div>
         <div id="qty-discount-table"></div>
         <div class="btnRow">
           <button onclick="addQtyRow()">行を追加</button>
@@ -155,7 +156,7 @@
 
       <div class="card">
         <div class="title">送料無料閾値・紹介プログラム</div>
-        <div class="form-row"><label>送料無料閾値(円)</label><input type="number" id="biz-freeship" style="width:100px" placeholder="10000"></div>
+        <div class="form-row"><label>送料無料閾値(円)</label><input type="number" id="biz-freeship" style="width:100px" placeholder="30000"></div>
         <div class="note">割引後の商品合計がこの金額以上なら送料無料。Workers側にも5分同期で反映。</div>
         <div class="form-row"><label>紹介者ポイント</label><input type="number" id="biz-ref-referrer" style="width:100px" placeholder="500"></div>
         <div class="note">紹介者が新規会員を紹介した際に付与されるポイント。</div>
@@ -820,7 +821,7 @@ async function loadDiscountStatus(){
   try {
     var bRes = await run('adminPanel_getBizDiscountSettings');
     if(bRes.ok){
-      $('biz-freeship').value = bRes.freeShipThreshold || 10000;
+      $('biz-freeship').value = bRes.freeShipThreshold || 30000;
       $('biz-ref-referrer').value = bRes.referralReferrer || 500;
       $('biz-ref-referee').value = bRes.referralReferee || 300;
     }
@@ -854,7 +855,8 @@ async function saveCampaign(type, settings){
 // 数量割引テーブル
 var qtyRows = [];
 function renderQtyTable(discounts){
-  qtyRows = discounts || [{threshold:100,rate:0.20},{threshold:50,rate:0.15},{threshold:30,rate:0.10},{threshold:10,rate:0.05}];
+  // 数量割引は廃止済み（comboBulkスキーマは互換のため維持・常に0%）
+  qtyRows = discounts || [];
   var html = '<table class="data"><tr><th>点数(以上)</th><th>割引率</th><th></th></tr>';
   qtyRows.forEach(function(r,i){
     html += '<tr><td><input type="number" value="'+r.threshold+'" onchange="qtyRows['+i+'].threshold=+this.value" style="width:60px"></td>'+
@@ -879,7 +881,7 @@ async function saveBizDiscountSettings(){
   clearLog('discount-log');
   try {
     var res = await run('adminPanel_setBizDiscountSettings', {
-      freeShipThreshold: +$('biz-freeship').value || 10000,
+      freeShipThreshold: +$('biz-freeship').value || 30000,
       referralReferrer: +$('biz-ref-referrer').value || 500,
       referralReferee: +$('biz-ref-referee').value || 300
     });

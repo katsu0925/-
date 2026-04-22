@@ -251,7 +251,7 @@ function setMemberDiscountEndDate() {
 // =====================================================
 var FIRST_HALF_PRICE_DEFAULTS = {
   rate: 0.50,
-  endDate: '2026-12-31'
+  endDate: '2026-09-30'
 };
 
 function app_getFirstHalfPriceStatus_() {
