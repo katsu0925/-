@@ -445,10 +445,10 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   const diamondFree = totalSpent >= 500000;
 
   const shippingFreeCoupon = validatedCoupon && validatedCoupon.type === 'shipping_free';
-  // 沖縄・離島判定（送料無料閾値・クーポン送料無料の対象外。ダイヤ会員は対象）
+  // 沖縄県判定（送料無料閾値・クーポン送料無料の対象外。ダイヤ会員は対象）
   const isOkinawa = shippingArea === 'okinawa';
   const couponFreeEffective = shippingFreeCoupon && !isOkinawa;
-  // ¥30,000以上で送料無料（FHP適用時・沖縄/離島は対象外）
+  // ¥30,000以上で送料無料（FHP適用時・沖縄県は対象外）
   const thresholdFree = !firstHalfPriceApplied && !isOkinawa && (discounted + bulkProductAmount) >= dynFreeShipThreshold;
 
   // 送料無料判定前に実際の配送コストを計算（店負担送料用）

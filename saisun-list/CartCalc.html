@@ -200,7 +200,7 @@ var CartCalc = (function() {
     var combinedDiscountedProduct = result.detauri.discounted + result.assort.discounted;
     var freeShipThreshold = 30000;
 
-    // ダイヤモンド会員 → 全送料無料（沖縄・離島も無料のままダイヤ特典は維持）
+    // ダイヤモンド会員 → 全送料無料（沖縄県も無料のままダイヤ特典は維持）
     var diamondFree = customer && customer.rank && customer.rank.freeShipping;
     // 沖縄は送料無料（閾値・クーポン）の対象外（ダイヤ会員特典のみ維持）
     var isOkinawa = (addrPref ? areas[addrPref] : '') === 'okinawa';

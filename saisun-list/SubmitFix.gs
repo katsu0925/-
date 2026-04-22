@@ -245,7 +245,7 @@ function apiSubmitEstimate(userKey, form, ids) {
     }
 
     // 送料無料判定（CartCalcと同じ優先順序: ダイヤモンド > クーポン > ¥30,000以上 > 計算値）
-    // 沖縄・離島はクーポン・閾値の対象外（ダイヤ会員特典のみ維持）
+    // 沖縄県はクーポン・閾値の対象外（ダイヤ会員特典のみ維持）
     if (diamondFree) {
       shippingAmount = 0;
       bulkShippingAmount = 0;
