@@ -498,6 +498,18 @@ async function handleBgReplace(request, env) {
 
     if (!upstream.ok) {
       const errText = await upstream.text();
+      // 422 は「背景除去の結果が破綻」= 画像は未更新。本文をそのまま透過
+      if (upstream.status === 422) {
+        console.warn('Vercel bg-replace mask-invalid:', errText);
+        return new Response(errText, {
+          status: 422,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Cache-Control': 'no-store',
+          },
+        });
+      }
       console.error('Vercel bg-replace error:', upstream.status, errText);
       return jsonError('背景置換に失敗しました（' + upstream.status + '）', 502);
     }

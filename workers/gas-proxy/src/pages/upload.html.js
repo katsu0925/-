@@ -59,6 +59,8 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 .list-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f3f4f6}
 .list-item:last-child{border-bottom:none}
 .list-thumb{width:48px;height:48px;border-radius:6px;object-fit:cover;background:#eee;flex-shrink:0}
+.list-thumb-pair{display:flex;gap:2px;flex-shrink:0;cursor:pointer}
+.list-thumb-pair .list-thumb{width:28px;height:48px;border-radius:4px}
 .list-info{flex:1;min-width:0}
 .list-id{font-weight:600;font-size:14px}
 .list-count{font-size:12px;color:#888}
@@ -238,7 +240,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
   </div>
   <div class="sticky-footer" id="footer-manage">
     <div class="footer-inner" style="flex-wrap:wrap;gap:6px">
-      <button class="btn btn-primary" style="flex:1;min-width:45%;background:#7c3aed;border-color:#6d28d9" id="bgReplaceTopBtn" onclick="bgReplaceTopImages()" disabled>🖼 トップ背景置換</button>
+      <button class="btn btn-primary" style="flex:1;min-width:45%;background:#7c3aed;border-color:#6d28d9" id="bgReplaceTopBtn" onclick="bgReplaceTopImages()" disabled>🖼 トップ＋2枚目 背景置換</button>
       <button class="btn btn-success" style="flex:1;min-width:45%" id="dlTopBtn" onclick="doDownloadTopImages()">トップ画像を保存</button>
       <button class="btn btn-primary" style="flex:1;min-width:45%" id="dlAllBtn" onclick="doDownloadAllImages()">全画像を保存</button>
       <button class="btn btn-danger" style="flex:1;min-width:45%" id="deleteSelectedBtn" onclick="doDeleteSelected()" disabled>選択した商品を削除</button>
@@ -251,7 +253,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
       <p id="confirmMessage" style="font-size:14px;font-weight:600;margin-bottom:16px"></p>
       <div style="display:flex;gap:8px">
         <button class="btn btn-secondary" style="flex:1" onclick="closeConfirm(false)">キャンセル</button>
-        <button class="btn btn-danger" style="flex:1" onclick="closeConfirm(true)">削除する</button>
+        <button id="confirmOkBtn" class="btn btn-danger" style="flex:1" onclick="closeConfirm(true)">削除する</button>
       </div>
     </div>
   </div>
@@ -728,6 +730,9 @@ function saveReorder(managedId) {
     badge.textContent = i === 0 ? 'トップ' : (i + 1);
   });
 
+  // 一覧がすでに描画済みならそちらも即時更新
+  applyReorderToList(managedId, newOrder);
+
   fetch(API_BASE + '/upload/reorder', {
     method: 'POST',
     headers: headers({ 'Content-Type': 'application/json' }),
@@ -736,6 +741,7 @@ function saveReorder(managedId) {
   .then(function(d) {
     if (d.ok) {
       _existingUrls = d.urls || newOrder;
+      applyReorderToList(managedId, d.urls || newOrder);
       showStatus('uploadStatus', '並び替えを保存しました', 'ok');
     } else {
       showStatus('uploadStatus', d.message || '並び替えエラー', 'err');
@@ -1393,16 +1399,25 @@ async function processBgReplace(fileIndex, brandText) {
     }
     var res = null;
     var lastErr = '';
+    var maskInvalid = false;
     for (var attempt = 1; attempt <= 2; attempt++) {
       var fd = new FormData();
       fd.append('image', payload, 'image.jpg');
       res = await fetch('/upload/bg-replace', { method: 'POST', body: fd });
       if (res.ok) break;
       lastErr = await res.text();
+      if (res.status === 422) { maskInvalid = true; break; } // マスク破綻。元画像維持
       if (res.status === 413 || res.status === 401) break; // 再試行不可
       if (attempt < 2) {
         await new Promise(function(r) { setTimeout(r, 1500); });
       }
+    }
+    if (maskInvalid) {
+      var ovEl0 = item.querySelector('.blur-overlay');
+      if (ovEl0) ovEl0.remove();
+      showErrorModal('背景置換をスキップ(' + (fileIndex+1) + '枚目)',
+        '背景と被写体のコントラストが低く、背景除去に失敗しました。元画像を維持します。\\n別カットでの撮り直しをご検討ください。', 'warn');
+      return;
     }
     if (!res || !res.ok) {
       throw new Error('server ' + (res ? res.status : '?') + ': ' + lastErr.slice(0, 200));
@@ -2005,10 +2020,23 @@ function renderManageList() {
     if (fReg === 'registered' && !p.registered) continue;
     count++;
     var thumbSrc = p.thumbnail ? (API_BASE + p.thumbnail) : '';
+    var second2Src = p.secondThumbnail ? (API_BASE + p.secondThumbnail) : '';
+    var expandAttr = 'onclick="toggleManageExpand(\\'' + escapeHtml(p.managedId) + '\\')"';
+    var thumbHtml;
+    if (second2Src) {
+      thumbHtml = '<div class="list-thumb-pair" ' + expandAttr + '>' +
+        '<img class="list-thumb" data-slot="0" src="' + thumbSrc + '" loading="lazy">' +
+        '<img class="list-thumb" data-slot="1" src="' + second2Src + '" loading="lazy">' +
+        '</div>';
+    } else if (thumbSrc) {
+      thumbHtml = '<img class="list-thumb" data-slot="0" src="' + thumbSrc + '" loading="lazy" ' + expandAttr + '>';
+    } else {
+      thumbHtml = '<div class="list-thumb" ' + expandAttr + '></div>';
+    }
     html += '<div id="manage-row-' + escapeHtml(p.managedId) + '">' +
       '<div class="list-item">' +
       '<input type="checkbox" class="list-check dl-check" data-idx="' + i + '" data-mid="' + escapeHtml(p.managedId) + '" onchange="updateSelectedCount();updateDeleteSelectedCount()" onclick="event.stopPropagation()">' +
-      (thumbSrc ? '<img class="list-thumb" src="' + thumbSrc + '" loading="lazy" onclick="toggleManageExpand(\\'' + escapeHtml(p.managedId) + '\\')">' : '<div class="list-thumb" onclick="toggleManageExpand(\\'' + escapeHtml(p.managedId) + '\\')"></div>') +
+      thumbHtml +
       '<div class="list-info" onclick="toggleManageExpand(\\'' + escapeHtml(p.managedId) + '\\')" style="cursor:pointer"><div class="list-id">' + escapeHtml(p.managedId) + (p.warning ? ' <span style="background:#ef4444;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;margin-left:4px">採寸情報未登録</span>' : !p.registered ? ' <span style="background:#f59e0b;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;margin-left:4px">採寸情報未登録</span>' : '') + '</div>' +
       '<div class="list-count">' + p.count + '枚' +
         (p.uploadedAt ? ' | ' + formatShortDate(p.uploadedAt) : '') +
@@ -2149,6 +2177,9 @@ function saveManageReorder(managedId) {
     badge.textContent = i === 0 ? 'トップ' : (i + 1);
   });
 
+  // 楽観的反映: 一覧のサムネとproductListDataを即時更新
+  applyReorderToList(managedId, newOrder);
+
   fetch(API_BASE + '/upload/reorder', {
     method: 'POST',
     headers: headers({ 'Content-Type': 'application/json' }),
@@ -2157,11 +2188,71 @@ function saveManageReorder(managedId) {
   .then(function(d) {
     if (d.ok) {
       _manageExpandedUrls = d.urls || newOrder;
+      // サーバーが正規化したURL順で再反映
+      applyReorderToList(managedId, d.urls || newOrder);
       showStatus('manageStatus', '並び替えを保存しました', 'ok');
     } else {
       showStatus('manageStatus', d.message || '並び替えエラー', 'err');
     }
   }).catch(function() { showStatus('manageStatus', '並び替えエラー', 'err'); });
+}
+
+// ─── 並び替え結果を一覧サムネに即時反映 ───
+function applyReorderToList(managedId, urls) {
+  if (!Array.isArray(urls) || urls.length === 0) return;
+  var top = urls[0] || null;
+  var second = urls[1] || null;
+  var idx = -1;
+  for (var i = 0; i < productListData.length; i++) {
+    if (productListData[i] && productListData[i].managedId === managedId) { idx = i; break; }
+  }
+  if (idx >= 0) {
+    productListData[idx].thumbnail = top;
+    productListData[idx].secondThumbnail = second;
+  }
+  var row = document.getElementById('manage-row-' + managedId);
+  if (!row) return;
+  var li = row.querySelector('.list-item');
+  if (!li) return;
+  // 既存のサムネ要素（単体 or ペア）を置き換え
+  var oldPair = li.querySelector('.list-thumb-pair');
+  var oldSingle = li.querySelector(':scope > .list-thumb');
+  var target = oldPair || oldSingle;
+  if (!target) return;
+  var cacheBust = '?t=' + Date.now();
+  var expandCall = "toggleManageExpand('" + managedId + "')";
+  var frag;
+  if (second) {
+    var pair = document.createElement('div');
+    pair.className = 'list-thumb-pair';
+    pair.setAttribute('onclick', expandCall);
+    var img0 = document.createElement('img');
+    img0.className = 'list-thumb';
+    img0.setAttribute('data-slot', '0');
+    img0.loading = 'lazy';
+    img0.src = API_BASE + top + cacheBust;
+    var img1 = document.createElement('img');
+    img1.className = 'list-thumb';
+    img1.setAttribute('data-slot', '1');
+    img1.loading = 'lazy';
+    img1.src = API_BASE + second + cacheBust;
+    pair.appendChild(img0);
+    pair.appendChild(img1);
+    frag = pair;
+  } else if (top) {
+    var img = document.createElement('img');
+    img.className = 'list-thumb';
+    img.setAttribute('data-slot', '0');
+    img.loading = 'lazy';
+    img.src = API_BASE + top + cacheBust;
+    img.setAttribute('onclick', expandCall);
+    frag = img;
+  } else {
+    frag = document.createElement('div');
+    frag.className = 'list-thumb';
+    frag.setAttribute('onclick', expandCall);
+  }
+  target.replaceWith(frag);
 }
 
 // ─── 展開内: ドラッグ並び替え ───
@@ -2542,14 +2633,22 @@ async function bgReplaceManageImages(managedId) {
       // Replicate レート制限・一時エラー用に1回リトライ
       var bgRes = null;
       var lastErrText = '';
+      var maskInvalidDetail = null;
       for (var attempt = 1; attempt <= 2; attempt++) {
         var fd = new FormData();
         fd.append('image', imgBlob, 'src.jpg');
         bgRes = await fetch(API_BASE + '/upload/bg-replace', { method: 'POST', headers: headers({}), body: fd });
         if (bgRes.ok) break;
         lastErrText = await bgRes.text();
+        if (bgRes.status === 422) {
+          try { maskInvalidDetail = JSON.parse(lastErrText); } catch (_) { maskInvalidDetail = { reason: 'unknown' }; }
+          break;
+        }
         if (bgRes.status === 413 || bgRes.status === 401) break;
         if (attempt < 2) await new Promise(function(r) { setTimeout(r, 2000); });
+      }
+      if (maskInvalidDetail) {
+        throw Object.assign(new Error('mask-invalid'), { isMaskInvalid: true, detail: maskInvalidDetail });
       }
       if (!bgRes || !bgRes.ok) {
         throw new Error('server ' + (bgRes ? bgRes.status : '?') + ': ' + lastErrText.slice(0, 200));
@@ -2589,8 +2688,14 @@ async function bgReplaceManageImages(managedId) {
         addRevertBadge(t.el, managedId, upData.newUrl);
       }
     } catch (e) {
-      console.error('Manage bg-replace error:', e);
-      showErrorModal('背景置換失敗(' + (done+1) + '枚目)', (e && e.message) ? e.message : String(e));
+      if (e && e.isMaskInvalid) {
+        console.warn('[manage bg-replace] mask-invalid', managedId, e.detail);
+        showErrorModal('背景置換をスキップ(' + (done+1) + '枚目)',
+          '背景と被写体のコントラストが低く、背景除去に失敗しました。元画像は保持されています。', 'warn');
+      } else {
+        console.error('Manage bg-replace error:', e);
+        showErrorModal('背景置換失敗(' + (done+1) + '枚目)', (e && e.message) ? e.message : String(e));
+      }
     }
 
     var ov = t.el.querySelector('.blur-overlay');
@@ -2608,29 +2713,40 @@ async function bgReplaceManageImages(managedId) {
   }
 }
 
-// ─── 一覧: チェックした商品のトップ画像を一括背景置換 ───
+// ─── 一覧: チェックした商品のトップ+2枚目を一括背景置換 ───
 async function bgReplaceTopImages() {
   var checks = document.querySelectorAll('.dl-check:checked');
   if (checks.length === 0) { showStatus('manageStatus', '商品を選択してください', 'err'); return; }
 
   var targets = [];
+  var productCount = 0;
   checks.forEach(function(c) {
     var idx = parseInt(c.dataset.idx);
     var p = productListData[idx];
     if (!p || !p.thumbnail) return;
     var row = document.getElementById('manage-row-' + p.managedId);
+    var nid = normId(p.managedId || '');
+    productCount++;
     targets.push({
-      idx: idx,
+      idx: idx, slot: 0,
       managedId: p.managedId,
       thumbUrl: p.thumbnail,
-      nid: normId(p.managedId || ''),
-      row: row
+      nid: nid, row: row
     });
+    if (p.secondThumbnail) {
+      targets.push({
+        idx: idx, slot: 1,
+        managedId: p.managedId,
+        thumbUrl: p.secondThumbnail,
+        nid: nid, row: row
+      });
+    }
   });
   if (targets.length === 0) { showStatus('manageStatus', '対象画像がありません', 'err'); return; }
 
-  if (!confirm('選択した ' + targets.length + ' 件のトップ画像を背景置換します。\\n元画像は復元可能です。続行しますか？')) return;
-  _bgReplaceTopBatch(targets);
+  showConfirm('選択した ' + productCount + ' 件の商品（トップ＋2枚目 合計' + targets.length + '枚）を背景置換します。元画像は復元可能です。続行しますか？', function() {
+    _bgReplaceTopBatch(targets);
+  }, '置換する', 'btn btn-primary');
 }
 
 async function _bgReplaceTopBatch(targets) {
@@ -2640,22 +2756,22 @@ async function _bgReplaceTopBatch(targets) {
   var aborted = false;
   showLoading('準備中', '0/' + targets.length, function() { aborted = true; });
 
-  // 行ごとにスピナーを即座に表示
+  // 行ごとにスピナーを即座に表示（同じ行に複数slotが来ても1つだけ）
+  var rowOverlayMap = new Map();
   targets.forEach(function(t) {
     if (!t.row) return;
-    var thumb = t.row.querySelector('.list-thumb');
-    if (thumb && !t.row.querySelector('.bg-replace-spinner')) {
-      var ov = document.createElement('div');
-      ov.className = 'bg-replace-spinner';
-      ov.style.cssText = 'position:absolute;inset:0;background:rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center;z-index:2;border-radius:8px';
-      ov.innerHTML = '<div style="width:18px;height:18px;border:2.5px solid rgba(124,58,237,.2);border-top-color:#7c3aed;border-radius:50%;animation:ptr-spin .6s linear infinite"></div>';
-      // list-thumb の親を相対配置に
-      var li = t.row.querySelector('.list-item');
-      if (li) {
-        li.style.position = 'relative';
-        li.appendChild(ov);
-        t._overlay = ov;
-      }
+    if (rowOverlayMap.has(t.row)) { t._overlayRow = t.row; return; }
+    if (t.row.querySelector('.bg-replace-spinner')) { rowOverlayMap.set(t.row, true); t._overlayRow = t.row; return; }
+    var ov = document.createElement('div');
+    ov.className = 'bg-replace-spinner';
+    ov.style.cssText = 'position:absolute;inset:0;background:rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center;z-index:2;border-radius:8px';
+    ov.innerHTML = '<div style="width:18px;height:18px;border:2.5px solid rgba(124,58,237,.2);border-top-color:#7c3aed;border-radius:50%;animation:ptr-spin .6s linear infinite"></div>';
+    var li = t.row.querySelector('.list-item');
+    if (li) {
+      li.style.position = 'relative';
+      li.appendChild(ov);
+      rowOverlayMap.set(t.row, ov);
+      t._overlayRow = t.row;
     }
   });
 
@@ -2677,14 +2793,23 @@ async function _bgReplaceTopBatch(targets) {
   var brandJson = await brandPromise;
   var brandMap = (brandJson && brandJson.brands) || {};
 
-  var done = 0, okCount = 0, errCount = 0;
+  var done = 0, okCount = 0, errCount = 0, invalidCount = 0;
   var missingBrand = [];
+  var invalidIds = [];
   var firstErr = '';
+
+  // 行ごとの残りslot数（最後のslot完了でoverlayを外す）
+  var rowRemaining = new Map();
+  targets.forEach(function(t) {
+    if (!t.row) return;
+    rowRemaining.set(t.row, (rowRemaining.get(t.row) || 0) + 1);
+  });
 
   for (var i = 0; i < targets.length; i++) {
     if (aborted) break;
     var t = targets[i];
-    updateLoading('背景置換中', (done+1) + '/' + targets.length + ' ' + t.managedId);
+    var slotLabel = t.slot === 1 ? '(2枚目)' : '(トップ)';
+    updateLoading('背景置換中', (done+1) + '/' + targets.length + ' ' + t.managedId + slotLabel);
 
     try {
       var imgBlob = await imagePromises[i];
@@ -2693,14 +2818,23 @@ async function _bgReplaceTopBatch(targets) {
       // Replicate burst=1 対策でリトライ
       var bgRes = null;
       var lastErrText = '';
+      var maskInvalidDetail = null;
       for (var attempt = 1; attempt <= 2; attempt++) {
         var fd = new FormData();
         fd.append('image', imgBlob, 'src.jpg');
         bgRes = await fetch(API_BASE + '/upload/bg-replace', { method: 'POST', headers: headers({}), body: fd });
         if (bgRes.ok) break;
         lastErrText = await bgRes.text();
+        // 422 = 背景除去マスクが破綻。リトライせず失敗確定として扱う（元画像は保持）
+        if (bgRes.status === 422) {
+          try { maskInvalidDetail = JSON.parse(lastErrText); } catch (_) { maskInvalidDetail = { reason: 'unknown' }; }
+          break;
+        }
         if (bgRes.status === 413 || bgRes.status === 401) break;
         if (attempt < 2) await new Promise(function(r) { setTimeout(r, 2000); });
+      }
+      if (maskInvalidDetail) {
+        throw Object.assign(new Error('mask-invalid'), { isMaskInvalid: true, detail: maskInvalidDetail });
       }
       if (!bgRes || !bgRes.ok) {
         throw new Error('server ' + (bgRes ? bgRes.status : '?') + ': ' + lastErrText.slice(0, 200));
@@ -2732,42 +2866,78 @@ async function _bgReplaceTopBatch(targets) {
       var upData = await upRes.json();
 
       if (upData.ok && upData.newUrl) {
-        var thumbImg = t.row ? t.row.querySelector('.list-thumb') : null;
+        var slotSel = '.list-thumb[data-slot="' + t.slot + '"]';
+        var thumbImg = t.row ? t.row.querySelector(slotSel) : null;
+        if (!thumbImg && t.slot === 0 && t.row) thumbImg = t.row.querySelector('.list-thumb');
         if (thumbImg && thumbImg.tagName === 'IMG') {
           thumbImg.src = API_BASE + upData.newUrl + '?t=' + Date.now();
         }
         // productListData も更新して次回の処理で新URLを使う
-        if (productListData[t.idx]) productListData[t.idx].thumbnail = upData.newUrl;
+        if (productListData[t.idx]) {
+          if (t.slot === 1) productListData[t.idx].secondThumbnail = upData.newUrl;
+          else productListData[t.idx].thumbnail = upData.newUrl;
+        }
         okCount++;
       } else {
         throw new Error((upData && upData.message) || '保存失敗');
       }
     } catch (e) {
-      console.error('bgReplaceTopImages error:', t.managedId, e);
-      errCount++;
-      if (!firstErr) firstErr = t.managedId + ': ' + ((e && e.message) ? e.message : String(e));
+      if (e && e.isMaskInvalid) {
+        console.warn('[bg-replace] mask-invalid', t.managedId, 'slot=', t.slot, e.detail);
+        invalidCount++;
+        invalidIds.push(t.managedId + '(slot' + t.slot + ')');
+      } else {
+        console.error('bgReplaceTopImages error:', t.managedId, 'slot=', t.slot, e);
+        errCount++;
+        if (!firstErr) firstErr = t.managedId + '(slot' + t.slot + '): ' + ((e && e.message) ? e.message : String(e));
+      }
     }
 
-    if (t._overlay) t._overlay.remove();
+    // 行の残りslotが0になったらoverlayを外す
+    if (t.row) {
+      var rem = (rowRemaining.get(t.row) || 1) - 1;
+      rowRemaining.set(t.row, rem);
+      if (rem <= 0) {
+        var ov = rowOverlayMap.get(t.row);
+        if (ov && ov.remove) ov.remove();
+      }
+    }
     done++;
     await new Promise(function(r) { setTimeout(r, 30); });
   }
 
+  // 中止・エラー時に残っているoverlayをすべて除去
+  rowOverlayMap.forEach(function(ov) {
+    if (ov && ov.remove) ov.remove();
+  });
+
   hideLoading();
   if (btn) {
     btn.disabled = false;
-    btn.textContent = '🖼 トップ背景置換';
+    btn.textContent = '🖼 トップ＋2枚目 背景置換';
   }
 
   if (aborted) {
-    showStatus('manageStatus', '中断しました（' + okCount + '枚完了）', 'info');
-  } else if (errCount === 0) {
+    showErrorModal('背景置換を中断しました', okCount + '枚完了 / ' + (targets.length - done) + '枚スキップ', 'warn');
+  } else if (errCount === 0 && invalidCount === 0) {
     var msg = okCount + '枚の背景置換が完了しました';
-    if (missingBrand.length) msg += '（ブランド未取得: ' + missingBrand.length + '件）';
-    showStatus('manageStatus', msg, 'ok');
+    if (missingBrand.length) msg += '\\n（ブランド未取得: ' + missingBrand.length + '件）';
+    showErrorModal('背景置換 完了', msg, 'info');
   } else {
-    showErrorModal('背景置換: 一部失敗',
-      '成功: ' + okCount + ' / 失敗: ' + errCount + '\\n最初のエラー: ' + firstErr);
+    var msg2 = '成功: ' + okCount + '枚';
+    if (invalidCount > 0) {
+      msg2 += '\\n置換失敗（元画像を保持）: ' + invalidCount + '枚';
+      if (invalidIds.length) {
+        var preview = invalidIds.slice(0, 5).join(', ');
+        if (invalidIds.length > 5) preview += ' ...';
+        msg2 += '\\n' + preview;
+      }
+    }
+    if (errCount > 0) {
+      msg2 += '\\nエラー: ' + errCount + '枚';
+      if (firstErr) msg2 += '\\n最初のエラー: ' + firstErr;
+    }
+    showErrorModal('背景置換: 一部失敗', msg2, 'warn');
   }
   if (!aborted && okCount > 0) setTimeout(function() { doRefresh(); }, 600);
 }
@@ -2788,8 +2958,12 @@ function addRevertBadge(itemEl, managedId, currentUrl) {
 }
 
 // ─── 展開内: 画像を置換前に戻す ───
-async function revertManageImage(managedId, currentUrl, badgeEl) {
-  if (!confirm('この画像を置換前の状態に戻しますか？')) return;
+function revertManageImage(managedId, currentUrl, badgeEl) {
+  showConfirm('この画像を置換前の状態に戻しますか？', function() {
+    _doRevertManageImage(managedId, currentUrl, badgeEl);
+  });
+}
+async function _doRevertManageImage(managedId, currentUrl, badgeEl) {
   var wrap = badgeEl ? badgeEl.closest('.img-check-wrap') : null;
   if (wrap && !wrap.querySelector('.blur-overlay')) {
     var ov = document.createElement('div');
@@ -3196,10 +3370,10 @@ function updateDeleteSelectedCount() {
   if (bgBtn) {
     if (checks.length > 0) {
       bgBtn.disabled = false;
-      bgBtn.textContent = '🖼 トップ背景置換（' + checks.length + '件）';
+      bgBtn.textContent = '🖼 トップ＋2枚目 背景置換（' + checks.length + '件）';
     } else {
       bgBtn.disabled = true;
-      bgBtn.textContent = '🖼 トップ背景置換';
+      bgBtn.textContent = '🖼 トップ＋2枚目 背景置換';
     }
   }
 }
@@ -3248,9 +3422,15 @@ function _doDeleteSelectedBatch(mids) {
 
 // ─── 確認モーダル ───
 var _confirmCallback = null;
-function showConfirm(msg, cb) {
+function showConfirm(msg, cb, okLabel, okClass) {
   _confirmCallback = cb;
   document.getElementById('confirmMessage').textContent = msg;
+  var ok = document.getElementById('confirmOkBtn');
+  if (ok) {
+    ok.textContent = okLabel || '削除する';
+    ok.className = okClass || 'btn btn-danger';
+    ok.style.flex = '1';
+  }
   var modal = document.getElementById('confirmModal');
   modal.style.display = 'flex';
 }

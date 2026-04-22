@@ -318,6 +318,7 @@ async function buildProductList(env) {
       return {
         managedId,
         thumbnail: urls[0] || null,
+        secondThumbnail: urls[1] || null,
         count: urls.length,
         registered: registeredIds.has(managedId),
         warning,
@@ -703,6 +704,7 @@ async function handleUnmatched(request, env) {
       unmatched.push({
         managedId,
         thumbnail: urls[0] || null,
+        secondThumbnail: urls[1] || null,
         count: urls.length,
         photographer: meta.photographer || '',
         uploadedAt: meta.uploadedAt || '',
