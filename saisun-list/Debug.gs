@@ -1887,3 +1887,35 @@ function debugPointsLossByCustomerId_(customerId) {
 
   console.log('\n=== 診断完了 ===');
 }
+
+/**
+ * CMO5XCQ4G のレガシー PENDING_ORDER_ エントリをクリーンアップする
+ * Why: 旧フローで保存された PENDING_ORDER_ は `_pointsNotDeducted` フラグを持たないため、
+ *      3日経過後の `checkPendingOrders` → `apiCancelOrder` で addPoints_ が走り、
+ *      手動返還済み 500pt に対して二重返還が発生する恐れがあるため削除する。
+ * 対象受付番号:
+ *   - 85805ae0-6711-44c8-8b8b-17427e6a330e (pointsUsed=500)
+ *   - 2b76af53-0519-4863-8083-b930b7a472d6 (pointsUsed=0)
+ */
+function cleanupCMO5XCQ4G_pending() {
+  var p = PropertiesService.getScriptProperties();
+  var keys = [
+    'PENDING_ORDER_85805ae0-6711-44c8-8b8b-17427e6a330e',
+    'PENDING_ORDER_2b76af53-0519-4863-8083-b930b7a472d6'
+  ];
+  var paymentKeys = [
+    'PAYMENT_85805ae0-6711-44c8-8b8b-17427e6a330e',
+    'PAYMENT_2b76af53-0519-4863-8083-b930b7a472d6'
+  ];
+  keys.forEach(function(k) {
+    var v = p.getProperty(k);
+    console.log('削除前 ' + k + ': ' + (v ? '存在' : '既に無し'));
+    try { p.deleteProperty(k); } catch(e) { console.log('削除失敗: ' + k + ' / ' + e); }
+  });
+  paymentKeys.forEach(function(k) {
+    var v = p.getProperty(k);
+    console.log('削除前 ' + k + ': ' + (v ? '存在' : '既に無し'));
+    try { p.deleteProperty(k); } catch(e) { console.log('削除失敗: ' + k + ' / ' + e); }
+  });
+  console.log('=== CMO5XCQ4G のペンディング注文クリーンアップ完了 ===');
+}
