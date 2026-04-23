@@ -1,5 +1,8 @@
 // Code.gs
 function doGet(e) {
+  if (e && e.parameter && e.parameter.check === 'tsk') {
+    return tskCheck_(e);
+  }
   const id = (e && e.parameter && e.parameter.id) ? String(e.parameter.id).trim() : "";
 
   // Web App文脈ではgetActiveSpreadsheet()がnullを返す場合があるためScript Propertiesからのフォールバック
