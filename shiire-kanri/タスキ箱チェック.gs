@@ -1,7 +1,7 @@
 // タスキ箱チェック.gs — 商品管理シートのうち対象ステータスの管理番号をJSONで返す一時エンドポイント
 // 使い方:
 //   ?check=tsk           → 対象ステータスの管理番号IDのみ
-//   ?check=tsk&mode=all  → 全行の {id, status, worker(=出品担当)} を返す
+//   ?check=tsk&mode=all  → 全行の {id, status, worker(=作業者名)} を返す
 function tskCheck_(e) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) {
@@ -18,12 +18,13 @@ function tskCheck_(e) {
   var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
   var idxId = headers.indexOf('管理番号');
   var idxStatus = headers.indexOf('ステータス');
-  var idxWorker = headers.indexOf('出品担当');
+  var idxWorker = headers.indexOf('作業者名');
   if (idxId < 0 || idxStatus < 0) {
     return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'missing columns', headers: headers })).setMimeType(ContentService.MimeType.JSON);
   }
 
   var mode = (e && e.parameter && e.parameter.mode) || '';
+
   var all = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
 
   if (mode === 'all') {
