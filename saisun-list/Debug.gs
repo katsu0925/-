@@ -1709,3 +1709,181 @@ function debugFhpCheckFor(receiptNo) {
   console.log('  過去注文件数（非キャンセル）=' + sameEmailRows.filter(function(r){return r.status !== 'キャンセル';}).length);
   console.log('  発送済み件数=' + sameEmailRows.filter(function(r){return r.ship === '発送済み';}).length);
 }
+
+/**
+ * 顧客ID指定でポイント消失原因を診断する
+ * GASエディタから実行。引数は定数として埋め込んでいるので直接実行OK
+ */
+function debugPointsLoss_CMO5XCQ4G() {
+  debugPointsLossByCustomerId_('CMO5XCQ4G');
+}
+
+function debugPointsLossByCustomerId_(customerId) {
+  customerId = String(customerId || '').trim();
+  if (!customerId) { console.log('customerId が空'); return; }
+
+  console.log('=== ポイント消失診断: customerId=' + customerId + ' ===');
+
+  // 1) 顧客管理シートから対象を特定
+  var custSheet = getCustomerSheet_();
+  var custAll = custSheet.getDataRange().getValues();
+  var c = CUSTOMER_SHEET_COLS;
+  var targetRow = -1;
+  var targetEmail = '';
+  var targetRegisteredAt = '';
+  var targetPoints = 0;
+  var targetPointsUpdatedAt = '';
+  var targetPurchaseCount = 0;
+
+  for (var i = 1; i < custAll.length; i++) {
+    var id = String(custAll[i][c.ID] || '').trim();
+    if (id === customerId) {
+      targetRow = i + 1;
+      targetEmail = String(custAll[i][c.EMAIL] || '').trim().toLowerCase();
+      targetRegisteredAt = custAll[i][c.CREATED_AT];
+      targetPoints = Number(custAll[i][c.POINTS] || 0);
+      targetPointsUpdatedAt = custAll[i][c.POINTS_UPDATED_AT];
+      targetPurchaseCount = Number(custAll[i][c.PURCHASE_COUNT] || 0);
+      break;
+    }
+  }
+
+  if (targetRow < 0) {
+    console.log('⚠ 顧客IDが顧客管理シートに見つかりません: ' + customerId);
+    return;
+  }
+
+  console.log('\n--- 顧客管理シート ---');
+  console.log('行=' + targetRow + ' ID=' + customerId + ' メール=' + targetEmail);
+  console.log('登録日時(I列)=' + targetRegisteredAt);
+  console.log('ポイント残高(M列)=' + targetPoints);
+  console.log('ポイント更新日(N列)=' + targetPointsUpdatedAt);
+  console.log('購入回数(O列)=' + targetPurchaseCount);
+
+  // 2) POINT_EXPIRY_MONTHS による失効判定シミュレーション
+  console.log('\n--- ポイント有効期限シミュレーション ---');
+  console.log('POINT_EXPIRY_MONTHS = ' + POINT_EXPIRY_MONTHS);
+  var effUpd = targetPointsUpdatedAt || targetRegisteredAt;
+  if (effUpd) {
+    var baseDate = new Date(effUpd);
+    var expiryDate = new Date(baseDate);
+    expiryDate.setMonth(expiryDate.getMonth() + POINT_EXPIRY_MONTHS);
+    var now = new Date();
+    var daysUntil = Math.floor((expiryDate.getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+    console.log('起点日=' + baseDate + ' (N列優先,なければI列)');
+    console.log('失効予定日=' + expiryDate);
+    console.log('残日数=' + daysUntil + '日');
+    console.log('cronでの失効判定(daysUntil<=0)=' + (daysUntil <= 0 ? '失効' : '未失効'));
+  } else {
+    console.log('N列もI列も空。cronは skip される');
+  }
+
+  // 3) 依頼管理 + アーカイブ を全走査
+  console.log('\n--- 依頼管理シート走査（本シート＋アーカイブ） ---');
+  var ss = sh_getOrderSs_();
+  var sheetNames = ['依頼管理', '依頼管理_アーカイブ'];
+  var totalOrders = 0, totalPTFlag = 0, totalAmount = 0;
+  for (var s = 0; s < sheetNames.length; s++) {
+    var reqSheet = ss.getSheetByName(sheetNames[s]);
+    if (!reqSheet) { console.log('(' + sheetNames[s] + ' なし)'); continue; }
+    var reqData = reqSheet.getDataRange().getValues();
+    console.log('\n[' + sheetNames[s] + '] 行数=' + (reqData.length - 1));
+    var rc = REQUEST_SHEET_COLS;
+    for (var r = 1; r < reqData.length; r++) {
+      var emailRow = String(reqData[r][rc.CONTACT - 1] || '').trim().toLowerCase();
+      if (emailRow !== targetEmail) continue;
+      var receipt = reqData[r][rc.RECEIPT_NO - 1];
+      var datetime = reqData[r][rc.DATETIME - 1];
+      var total = Number(reqData[r][rc.TOTAL_AMOUNT - 1] || 0);
+      var status = String(reqData[r][rc.STATUS - 1] || '');
+      var ship = String(reqData[r][rc.SHIP_STATUS - 1] || '');
+      var ptFlag = String(reqData[r][rc.POINTS_AWARDED - 1] || '');
+      var selection = String(reqData[r][rc.SELECTION_LIST - 1] || '');
+      totalOrders++;
+      if (ptFlag === 'PT') totalPTFlag++;
+      totalAmount += total;
+      var hasUsePts = selection.indexOf('ポイント利用') !== -1 || selection.indexOf('pointsUsed') !== -1;
+      console.log('  受付=' + receipt + ' 日時=' + datetime + ' 金額=' + total
+        + ' V(status)=' + status + ' S(ship)=' + ship + ' R(pt)=' + ptFlag
+        + (hasUsePts ? ' ★選択リストにポイント記載あり' : ''));
+    }
+  }
+  console.log('\n注文合計件数=' + totalOrders + ' / ポイント付与済み(PT)件数=' + totalPTFlag + ' / 累計金額=' + totalAmount);
+
+  // 4) ScriptProperties 全走査（PENDING_ORDER_ / PAYMENT_ / その他）
+  console.log('\n--- ScriptProperties: PENDING_ORDER_ / PAYMENT_ 走査（form.contact対応） ---');
+  try {
+    var props = PropertiesService.getScriptProperties().getProperties();
+    var foundPending = 0, foundPayment = 0, foundOther = 0;
+    for (var k in props) {
+      var raw = props[k];
+      if (!raw) continue;
+      if (k.indexOf('PENDING_ORDER_') === 0) {
+        try {
+          var obj = JSON.parse(raw);
+          var em = String(
+            (obj.form && obj.form.contact) || obj.email || obj.contact || ''
+          ).toLowerCase();
+          if (em === targetEmail) {
+            var pu = obj.pointsUsed || 0;
+            var ca = obj.createdAtMs ? new Date(obj.createdAtMs) : '';
+            var rn = obj.receiptNo || k.replace('PENDING_ORDER_', '');
+            var amt = obj.totalAmount || '';
+            console.log('  ★PENDING_ORDER★ key=' + k + ' receiptNo=' + rn
+              + ' pointsUsed=' + pu + ' totalAmount=' + amt + ' createdAt=' + ca);
+            foundPending++;
+          }
+        } catch (e) { /* parse失敗はスキップ */ }
+      } else if (k.indexOf('PAYMENT_') === 0) {
+        // PAYMENT_にはemailが入らないケースもあるが、receiptNoがメールで始まる場合もあるので一応表示
+        if (k.indexOf(targetEmail) !== -1) {
+          console.log('  ★PAYMENT★ key=' + k + ' value=' + raw.substring(0, 120));
+          foundPayment++;
+        }
+      } else {
+        // 念のため顧客IDやメールを含むキーも拾う
+        if (raw.indexOf(customerId) !== -1 || raw.indexOf(targetEmail) !== -1) {
+          console.log('  ?OTHER? key=' + k + ' value=' + raw.substring(0, 120));
+          foundOther++;
+        }
+      }
+    }
+    console.log('  PENDING_ORDER該当=' + foundPending + '件 / PAYMENT該当=' + foundPayment + '件 / その他='+foundOther+'件');
+  } catch (e) { console.log('props走査エラー:' + e); }
+
+  // 5) 確保シートの userKey を探す（顧客が何か操作していれば手がかり）
+  console.log('\n--- 確保/注文state: 顧客関連のトレース ---');
+  try {
+    var _ss = sh_getOrderSs_();
+    var holdState = (typeof st_getHoldState_ === 'function') ? st_getHoldState_(_ss) : null;
+    var openState = (typeof st_getOpenState_ === 'function') ? st_getOpenState_(_ss) : null;
+    if (holdState && holdState.items) {
+      var hk = Object.keys(holdState.items);
+      var matchedHold = 0;
+      for (var hi = 0; hi < hk.length; hi++) {
+        var it = holdState.items[hk[hi]];
+        if (!it) continue;
+        var rn = String(it.receiptNo || '');
+        if (rn && rn.indexOf('@') === -1) continue; // receiptNoがメールベースでない場合はスキップ
+        // 取引トークンがメール由来でない限りhold側では顧客特定困難、ログだけ出す
+      }
+      console.log('  holdState items総数=' + hk.length);
+    }
+    if (openState && openState.items) {
+      var ok = Object.keys(openState.items);
+      console.log('  openState items総数=' + ok.length);
+    }
+  } catch (e) { console.log('state走査エラー:' + e); }
+
+  // 6) GAS実行ログ案内
+  console.log('\n--- 次の手順 ---');
+  console.log('★ GASエディタ → 実行数 → 2026-04-23 10:40〜11:00 の実行履歴を開き、');
+  console.log('  以下のキーワードでログを検索してください:');
+  console.log('  - "' + targetEmail + '"');
+  console.log('  - "' + customerId + '"');
+  console.log('  - "pointExpiryCron_"（ポイント失効）');
+  console.log('  - "deductPoints_"（ポイント控除）');
+  console.log('  - "ポイント返還"（addPoints_失敗時の痕跡）');
+
+  console.log('\n=== 診断完了 ===');
+}

@@ -424,9 +424,13 @@ function apiSubmitEstimate(userKey, form, ids) {
       return { ok: false, message: '確保できない商品が含まれています: ' + bad.join('、') };
     }
 
-    // ポイント残高を差し引き（ロック内で実行 → 二重引き落とし防止）
+    // ポイント残高検証のみ（実控除は決済完了時の confirmPaymentAndCreateOrder で実施）
+    // Why: 決済画面で離脱された場合のポイント人質化を防ぐため、KOMOJU決済完了まで控除を遅延
     if (pointsUsed > 0 && contact) {
-      deductPoints_(contact, pointsUsed);
+      var _pcust = findCustomerByEmail_(contact);
+      if (!_pcust || Number(_pcust.points || 0) < pointsUsed) {
+        return { ok: false, message: 'ポイント残高が不足しています。ページを再読み込みしてください。' };
+      }
     }
 
     // === 商品を確保中のまま維持（決済完了まで） ===
@@ -509,7 +513,8 @@ function apiSubmitEstimate(userKey, form, ids) {
       totalAmount: totalWithShipping,
       productNames: allProductNames.join('\n'),
       channel: orderChannel,
-      _sheetTotalCount: sheetTotalCount
+      _sheetTotalCount: sheetTotalCount,
+      _pointsNotDeducted: true
     };
 
     var props = PropertiesService.getScriptProperties();
@@ -599,6 +604,9 @@ function _internalSavePendingOrder(pendingData) {
     console.log('_internalSavePendingOrder: key=' + pendingKey + ', ids=' + ids.length + ', points=' + pointsUsed);
 
     // 1. PENDING_ORDER_をPropertiesServiceに保存（webhook互換）
+    // 新フロー: ポイント控除は決済完了後に confirmPaymentAndCreateOrder で実施するため、
+    // キャンセル時の二重返還を避けるためフラグを立てる
+    pendingData._pointsNotDeducted = true;
     var props = PropertiesService.getScriptProperties();
     props.setProperty('PENDING_ORDER_' + pendingKey, JSON.stringify(pendingData));
 
@@ -637,10 +645,14 @@ function _internalSavePendingOrder(pendingData) {
       }
     }
 
-    // 3. ポイント差し引き
+    // 3. ポイント残高検証のみ（実控除は決済完了時に confirmPaymentAndCreateOrder で実施）
+    // Why: 決済画面で離脱された場合のポイント人質化を防ぐ
     if (pointsUsed > 0 && contact) {
-      deductPoints_(contact, pointsUsed);
-      console.log('_internalSavePendingOrder: deducted ' + pointsUsed + ' points from ' + contact);
+      var _wcust = findCustomerByEmail_(contact);
+      if (!_wcust || Number(_wcust.points || 0) < pointsUsed) {
+        return { ok: false, message: 'ポイント残高が不足しています' };
+      }
+      console.log('_internalSavePendingOrder: points check ok (' + pointsUsed + 'pt, deduction deferred to payment)');
     }
 
     // 4. PAYMENT_セッション保存（Workers版submitEstimate用: apiCheckPaymentStatusで必要）
@@ -1428,15 +1440,34 @@ function confirmPaymentAndCreateOrder(paymentToken, paymentStatus, paymentMethod
       }
     }
 
-    // 3.6. アソート注文のポイント控除（決済完了後に実施）
-    if (isBulk && pendingData.pointsUsed > 0) {
+    // 3.6. ポイント控除（決済完了後に実施 — isBulk/デタウリ問わず全注文）
+    // Why: 決済画面離脱によるポイント人質化を防ぐため、apiSubmitEstimate段階では
+    //      残高チェックのみ、実控除はここで行う。並行注文で残高不足の場合は管理者通知
+    if (pendingData.pointsUsed > 0) {
       var ptEmail = pendingData.form && pendingData.form.contact;
       if (ptEmail) {
         try {
-          deductPoints_(ptEmail, pendingData.pointsUsed);
-          console.log('アソートポイント控除: ' + pendingData.pointsUsed + 'pt / ' + ptEmail);
+          var _dedOk = deductPoints_(ptEmail, pendingData.pointsUsed);
+          if (_dedOk) {
+            console.log('ポイント控除: ' + pendingData.pointsUsed + 'pt / ' + ptEmail);
+          } else {
+            console.error('ポイント控除失敗（残高不足・並行注文の可能性）: ' + pendingData.pointsUsed + 'pt / ' + ptEmail + ' / ' + receiptNo);
+            try {
+              var _adm = PropertiesService.getScriptProperties().getProperty('ADMIN_OWNER_EMAIL') || '';
+              if (_adm) {
+                GmailApp.sendEmail(_adm,
+                  '【要対応】ポイント控除失敗 — 受付番号 ' + receiptNo,
+                  '決済は完了しましたが、ポイント控除ができませんでした。\n\n'
+                  + '受付番号: ' + receiptNo + '\n'
+                  + '顧客メール: ' + ptEmail + '\n'
+                  + '控除予定ポイント: ' + pendingData.pointsUsed + 'pt\n\n'
+                  + '原因: 並行注文などで残高不足と思われます。\n'
+                  + '対応: 顧客に状況確認の上、手動でポイント補填または返金処理を行ってください。');
+              }
+            } catch (mailErr) { console.error('管理者通知失敗:', mailErr); }
+          }
         } catch (ptErr) {
-          console.error('アソートポイント控除エラー:', ptErr);
+          console.error('ポイント控除エラー:', ptErr);
         }
       }
     }
@@ -1516,12 +1547,14 @@ function apiCancelOrder(receiptNo) {
     var pointsToRefund = 0;
     var refundEmail = '';
 
+    var pointsNotDeducted = false;
     if (pendingDataStr) {
       try {
         var pendingData = JSON.parse(pendingDataStr);
         idsToRelease = pendingData.ids || [];
         pointsToRefund = pendingData.pointsUsed || 0;
         refundEmail = (pendingData.form && pendingData.form.contact) || '';
+        pointsNotDeducted = pendingData._pointsNotDeducted === true;
       } catch (pe) {
         console.error('Failed to parse pending data:', pe);
       }
@@ -1577,12 +1610,18 @@ function apiCancelOrder(receiptNo) {
     }
 
     // 4. ポイント返還
+    // 新フロー（_pointsNotDeducted=true）: apiSubmitEstimate段階で控除していないため返還不要
+    // 旧フロー（フラグなし）: 従来どおり返還
     if (pointsToRefund > 0 && refundEmail) {
-      try {
-        addPoints_(refundEmail, pointsToRefund);
-        console.log('ポイント返還: ' + refundEmail + ' +' + pointsToRefund + 'pt');
-      } catch (ptErr) {
-        console.error('ポイント返還失敗:', ptErr);
+      if (pointsNotDeducted) {
+        console.log('ポイント返還スキップ（新フロー: 控除は決済完了時のみ）: ' + refundEmail + ' ' + pointsToRefund + 'pt');
+      } else {
+        try {
+          addPoints_(refundEmail, pointsToRefund);
+          console.log('ポイント返還: ' + refundEmail + ' +' + pointsToRefund + 'pt');
+        } catch (ptErr) {
+          console.error('ポイント返還失敗:', ptErr);
+        }
       }
     }
 
