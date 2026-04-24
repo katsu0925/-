@@ -7,8 +7,20 @@ var WORK_REPORT_CFG = {
   SHEET_NAME: '商品管理',
   START_COL: 33,  // AG = 採寸日
   WIDTH: 6,       // AG〜AL（採寸日/採寸担当/撮影日/撮影担当/出品日/出品担当）
-  ACTIVE_WINDOW_DAYS: 30  // 直近N日以内に名前が出現した担当者を「在籍」とみなす
+  ACTIVE_WINDOW_DAYS: 30,  // 直近N日以内に名前が出現した担当者を「在籍」とみなす
+  EXCLUDE_PERSONS: ['Non']  // 日報・週報から除外する担当者（退職者など）
 };
+
+/** 除外対象判定（前後空白を吸収） */
+function wr_isExcluded_(name) {
+  var t = String(name || '').trim();
+  if (!t) return false;
+  var list = WORK_REPORT_CFG.EXCLUDE_PERSONS || [];
+  for (var i = 0; i < list.length; i++) {
+    if (String(list[i]).trim() === t) return true;
+  }
+  return false;
+}
 
 // ──────────────────────────────────────────────
 // エントリポイント（トリガー対象）
@@ -121,6 +133,7 @@ function wr_collectWorkCounts_(startDate, endDate) {
       if (!d) continue;
       if (d < startDate || d >= endDate) continue;
       var person = String(row[cat.personIdx] || '').trim();
+      if (wr_isExcluded_(person)) continue;
       if (person === '') person = '(未入力)';
       result.byCatPerson[cat.key][person] = (result.byCatPerson[cat.key][person] || 0) + 1;
       result.totals[cat.key]++;
@@ -152,7 +165,7 @@ function wr_getActivePersons_() {
       var d = wr_toDate_(values[i][pairs[c][0]]);
       if (!d || d < cutoff) continue;
       var p = String(values[i][pairs[c][1]] || '').trim();
-      if (p) set[p] = true;
+      if (p && !wr_isExcluded_(p)) set[p] = true;
     }
   }
   return Object.keys(set).sort(function(a, b) { return a.localeCompare(b, 'ja'); });
