@@ -1090,6 +1090,15 @@ function isShiireDone_(it) {
   return planned > 0 && registered >= planned;
 }
 
+// 古い仕入れ判定（60日超）— データズレで集計が合わない過去の仕入れを新規商品作成から除外
+function isShiireStale_(it) {
+  if (!it || !it.date) return false;
+  var d = new Date(it.date);
+  if (isNaN(d.getTime())) return false;
+  var daysAgo = (Date.now() - d.getTime()) / 86400000;
+  return daysAgo > 60;
+}
+
 // shiireId → category マップ（オートサジェスト用）
 var SHIIRE_CATEGORY_MAP = {};
 
@@ -1100,7 +1109,7 @@ async function openCreateProductModal(shiireId) {
     try {
       const res = await api('/api/purchases?limit=2000');
       const all = (res.items || []).filter(it => it.shiireId);
-      const items = all.filter(it => !isShiireDone_(it));
+      const items = all.filter(it => !isShiireDone_(it) && !isShiireStale_(it));
       // category マップを更新
       all.forEach(function(it){ SHIIRE_CATEGORY_MAP[it.shiireId] = it.category || ''; });
       if (!items.length) { closeModal(); toast('登録可能な仕入れがありません（すべて完了済）', 'error'); return; }
