@@ -130,8 +130,10 @@ async function syncPurchases(db, rows) {
     const stmts = batch.map(p =>
       db.prepare(`
         INSERT OR REPLACE INTO purchases
-          (shiire_id, date, amount, shipping, planned, place, cost, category, row_num, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          (shiire_id, date, amount, shipping, planned, place, cost, category,
+           content, supplier_id, register_user, registered_at, assigned_kanri, processed,
+           row_num, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         String(p.shiireId || ''),
         s(p.date),
@@ -139,6 +141,12 @@ async function syncPurchases(db, rows) {
         s(p.place),
         n(p.cost),
         s(p.category),
+        s(p.content),
+        s(p.supplierId),
+        s(p.registerUser),
+        s(p.registeredAt),
+        s(p.assignedKanri),
+        p.processed ? 1 : 0,
         Number(p.row || 0),
         now,
       )

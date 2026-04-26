@@ -12,6 +12,18 @@ export async function listAccounts(request, env) {
   return getCached(env, 'master:accounts', 'listAccounts');
 }
 
+export async function listSuppliers(request, env) {
+  return getCached(env, 'master:suppliers', 'listSuppliers');
+}
+
+export async function listPlaces(request, env) {
+  return getCached(env, 'master:places', 'listPlaces');
+}
+
+export async function listCategories(request, env) {
+  return getCached(env, 'master:categories', 'listCategories');
+}
+
 async function getCached(env, cacheKey, action) {
   try {
     if (env.CACHE) {

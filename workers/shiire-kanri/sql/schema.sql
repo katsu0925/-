@@ -45,6 +45,12 @@ CREATE TABLE IF NOT EXISTS purchases (
   place TEXT,                         -- 納品場所
   cost INTEGER,                       -- 商品原価
   category TEXT,                      -- 区分コード (管理番号プレフィックス用)
+  content TEXT,                       -- 内容
+  supplier_id TEXT,                   -- 仕入先名 (SUP0001 等の ID)
+  register_user TEXT,                 -- 登録者
+  registered_at TEXT,                 -- 登録日時
+  assigned_kanri TEXT,                -- 割当管理番号 (例 zB1~202)
+  processed INTEGER DEFAULT 0,        -- 処理済み (0/1)
   row_num INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );

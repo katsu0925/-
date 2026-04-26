@@ -21,6 +21,9 @@ function doPost(e) {
       case 'listAllowedEmails': result = staff_listAllowedEmails(); break;
       case 'listWorkers':       result = staff_listWorkers(); break;
       case 'listAccounts':      result = staff_listAccounts(); break;
+      case 'listSuppliers':     result = staff_listSuppliers(); break;
+      case 'listPlaces':        result = staff_listPlaces(); break;
+      case 'listCategories':    result = staff_listCategories(); break;
       case 'saveMeasurement':   result = staff_apiSaveMeasurement(body.payload || {}, email); break;
       case 'saveSale':          result = staff_apiSaveSale(body.payload || {}, email); break;
       case 'saveDetails':       result = staff_apiSaveDetails(body.payload || {}, email); break;

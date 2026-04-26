@@ -130,7 +130,7 @@ export async function saveDetails(request, env, user) {
   });
 }
 
-// POST /api/create/purchase  body: { date, category, amount, shipping, planned, place, content }
+// POST /api/create/purchase  body: { date, category, amount, shipping, planned, place, content, supplierId, registerUser }
 export async function createPurchase(request, env, user) {
   let body;
   try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
@@ -143,6 +143,8 @@ export async function createPurchase(request, env, user) {
     planned: Number(body.planned || 0) || 0,
     place: String(body.place || '').trim(),
     content: String(body.content || '').trim(),
+    supplierId: String(body.supplierId || '').trim(),
+    registerUser: String(body.registerUser || '').trim(),
   };
   if (!payload.date) return jsonError('仕入れ日が空です', 400);
   if (!payload.category) return jsonError('区分コードが空です', 400);
@@ -153,12 +155,19 @@ export async function createPurchase(request, env, user) {
 
   // D1 への楽観的 INSERT（次の Cron で確定するが即時表示のため）
   try {
+    const nowIso = new Date().toISOString();
     await env.DB.prepare(`
-      INSERT INTO purchases (shiire_id, date, amount, shipping, planned, place, cost, row_num, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO purchases (shiire_id, date, amount, shipping, planned, place, cost, category,
+                              content, supplier_id, register_user, registered_at, assigned_kanri, processed,
+                              row_num, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT(shiire_id) DO UPDATE SET
         date = excluded.date, amount = excluded.amount, shipping = excluded.shipping,
-        planned = excluded.planned, place = excluded.place, updated_at = excluded.updated_at
+        planned = excluded.planned, place = excluded.place, category = excluded.category,
+        content = excluded.content, supplier_id = excluded.supplier_id,
+        register_user = excluded.register_user, registered_at = excluded.registered_at,
+        assigned_kanri = excluded.assigned_kanri, processed = excluded.processed,
+        updated_at = excluded.updated_at
     `).bind(
       gasRes.shiireId,
       payload.date,
@@ -167,6 +176,13 @@ export async function createPurchase(request, env, user) {
       payload.planned,
       payload.place,
       payload.planned > 0 ? Math.round((payload.amount + payload.shipping) / payload.planned) : 0,
+      payload.category,
+      payload.content,
+      payload.supplierId,
+      payload.registerUser,
+      nowIso,
+      gasRes.assignedKanri || '',
+      1,
       gasRes.row || 0,
       Date.now(),
     ).run();
@@ -174,7 +190,7 @@ export async function createPurchase(request, env, user) {
     console.warn('[create] purchases d1 insert failed', err.message);
   }
 
-  return jsonOk({ created: true, shiireId: gasRes.shiireId });
+  return jsonOk({ created: true, shiireId: gasRes.shiireId, assignedKanri: gasRes.assignedKanri || '' });
 }
 
 // POST /api/create/product  body: { shiireId, kanri, brand, size, color, state, status, fields? }

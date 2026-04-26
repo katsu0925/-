@@ -5,7 +5,7 @@ import { scheduledAccessSync } from './sync/access-sync.js';
 import { listProducts, getProduct, listProductCounts, getNextKanri } from './handlers/products.js';
 import { listPurchases, getPurchaseProducts } from './handlers/purchases.js';
 import { saveMeasurement, saveSale, saveDetails, createPurchase, createProduct } from './handlers/write-proxy.js';
-import { listWorkers, listAccounts } from './handlers/master.js';
+import { listWorkers, listAccounts, listSuppliers, listPlaces, listCategories } from './handlers/master.js';
 
 export default {
   async scheduled(event, env, ctx) {
@@ -69,6 +69,15 @@ export default {
     }
     if (path === '/api/master/accounts' && request.method === 'GET') {
       return listAccounts(request, env);
+    }
+    if (path === '/api/master/suppliers' && request.method === 'GET') {
+      return listSuppliers(request, env);
+    }
+    if (path === '/api/master/places' && request.method === 'GET') {
+      return listPlaces(request, env);
+    }
+    if (path === '/api/master/categories' && request.method === 'GET') {
+      return listCategories(request, env);
     }
 
     if (path === '/api/purchases' && request.method === 'GET') {

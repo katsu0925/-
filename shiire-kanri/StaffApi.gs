@@ -526,6 +526,64 @@ function staff_listAccounts() {
   return { ok: true, items: out };
 }
 
+// 仕入先マスタ → [{id, name}]
+function staff_listSuppliers() {
+  var ss = staff_getActiveSpreadsheet_();
+  var sh = ss.getSheetByName('仕入先マスタ');
+  if (!sh) return { ok: false, error: 'sheet not found: 仕入先マスタ' };
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return { ok: true, items: [] };
+  var values = sh.getRange(2, 1, lastRow - 1, 2).getValues();
+  var seen = {};
+  var out = [];
+  for (var r = 0; r < values.length; r++) {
+    var id = String(values[r][0] == null ? '' : values[r][0]).trim();
+    var name = String(values[r][1] == null ? '' : values[r][1]).trim();
+    if (!id || seen[id]) continue;
+    seen[id] = true;
+    out.push({ id: id, name: name || id });
+  }
+  return { ok: true, items: out };
+}
+
+// 納品場所 A列 → [string]
+function staff_listPlaces() {
+  var ss = staff_getActiveSpreadsheet_();
+  var sh = ss.getSheetByName('納品場所');
+  if (!sh) return { ok: false, error: 'sheet not found: 納品場所' };
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return { ok: true, items: [] };
+  var values = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+  var seen = {};
+  var out = [];
+  for (var r = 0; r < values.length; r++) {
+    var name = String(values[r][0] == null ? '' : values[r][0]).trim();
+    if (!name || seen[name]) continue;
+    seen[name] = true;
+    out.push(name);
+  }
+  return { ok: true, items: out };
+}
+
+// 管理番号マスタ A列 (区分コード) → [string]
+function staff_listCategories() {
+  var ss = staff_getActiveSpreadsheet_();
+  var sh = ss.getSheetByName('管理番号マスタ');
+  if (!sh) return { ok: false, error: 'sheet not found: 管理番号マスタ' };
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return { ok: true, items: [] };
+  var values = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+  var seen = {};
+  var out = [];
+  for (var r = 0; r < values.length; r++) {
+    var name = String(values[r][0] == null ? '' : values[r][0]).trim();
+    if (!name || seen[name]) continue;
+    seen[name] = true;
+    out.push(name);
+  }
+  return { ok: true, items: out };
+}
+
 // 初回セットアップ用: GASエディタから手動実行して SHIIRE_SYNC_SECRET を設定する
 // （Workers の SYNC_SECRET と同じ値を埋める）
 function staff_setupSyncSecret() {
@@ -648,6 +706,12 @@ function staff_syncDumpPurchases() {
     if (!id) continue;
     var date = val(row, '仕入れ日');
     var dateStr = (date instanceof Date) ? Utilities.formatDate(date, tz, 'yyyy-MM-dd') : String(date || '');
+    var registeredAtRaw = val(row, '登録日時');
+    var registeredAtStr = (registeredAtRaw instanceof Date)
+      ? Utilities.formatDate(registeredAtRaw, tz, 'yyyy-MM-dd HH:mm:ss')
+      : String(registeredAtRaw || '');
+    var processedRaw = val(row, '処理済み');
+    var processed = (processedRaw === true) || (String(processedRaw).toLowerCase() === 'true');
     items.push({
       shiireId: id,
       date: dateStr,
@@ -657,6 +721,12 @@ function staff_syncDumpPurchases() {
       place: String(val(row, '納品場所') || ''),
       cost: num(val(row, '商品原価')),
       category: String(val(row, '区分コード') || ''),
+      content: String(val(row, '内容') || ''),
+      supplierId: String(val(row, '仕入先名') || ''),
+      registerUser: String(val(row, '登録者') || ''),
+      registeredAt: registeredAtStr,
+      assignedKanri: String(val(row, '割当管理番号') || ''),
+      processed: processed,
       row: r + 2
     });
   }
@@ -885,12 +955,10 @@ function staff_generateUniqueId_() {
   return head + hex;
 }
 
-// 仕入れ管理シートに新規行を追加
-// payload: { date, category, amount, shipping, planned, place, content }
-// onChange トリガー (handleChange_ShiireSync) が
-//   - 仕入れ数報告へ自動転記
-//   - 商品原価を自動計算
-//   - 割り当て管理番号を再計算
+// 仕入れ管理シートに新規行を追加（AppSheet と同じ 14 列を書き込む）
+// payload: { date, category, amount, shipping, planned, place, content, supplierId, registerUser }
+// 列順: A=ID, B=仕入れ日, C=区分コード, D=金額, E=送料, F=商品点数, G=納品場所,
+//       H=商品原価, I=内容, J=登録者, K=登録日時, L=割当管理番号, M=処理済み, N=仕入先名
 function staff_apiCreatePurchase(payload, email) {
   payload = payload || {};
   email = String(email || 'cloudflare-proxy');
@@ -907,6 +975,8 @@ function staff_apiCreatePurchase(payload, email) {
   var shipping = Number(payload.shipping || 0) || 0;
   var planned = Number(payload.planned || 0) || 0;
   var content = String(payload.content || '').trim();
+  var supplierId = String(payload.supplierId || '').trim();
+  var registerUser = String(payload.registerUser || '').trim();
 
   var ss = staff_getActiveSpreadsheet_();
   var sh = ss.getSheetByName('仕入れ管理');
@@ -930,7 +1000,15 @@ function staff_apiCreatePurchase(payload, email) {
   var d = new Date(date);
   dateValue = isNaN(d.getTime()) ? date : d;
 
-  // 列順: A=ID, B=仕入れ日, C=区分コード, D=金額, E=送料, F=商品点数, G=納品場所, H=商品原価, I=内容, J=空, K=登録日時
+  // 割当管理番号 (例 zB1~202): 現在の同区分の最大連番を求めて prefix + start ~ end を計算
+  var assignedKanri = '';
+  if (planned > 0) {
+    var prefix = 'z' + category;
+    var startN = staff_nextKanriNumber_(ss, prefix);
+    var endN = startN + planned - 1;
+    assignedKanri = prefix + startN + '~' + endN;
+  }
+
   var row = [
     id,
     dateValue,
@@ -941,8 +1019,11 @@ function staff_apiCreatePurchase(payload, email) {
     place,
     unitCost,
     content,
-    '',           // J列（空）
-    new Date()    // K列 登録日時
+    registerUser,    // J列 登録者
+    new Date(),      // K列 登録日時
+    assignedKanri,   // L列 割当管理番号
+    true,            // M列 処理済み (登録時 TRUE)
+    supplierId       // N列 仕入先名 (SUP0001 等の ID)
   ];
 
   var appendAt = sh.getLastRow() + 1;
@@ -957,7 +1038,27 @@ function staff_apiCreatePurchase(payload, email) {
     console.warn('createPurchase: handleChange_ShiireSync 失敗 ' + (err && err.message));
   }
 
-  return { ok: true, shiireId: id, row: appendAt };
+  return { ok: true, shiireId: id, row: appendAt, assignedKanri: assignedKanri };
+}
+
+// 商品管理シートから 'z<category>' プレフィックスの最大連番 + 1 を返す
+function staff_nextKanriNumber_(ss, prefix) {
+  var sh = ss.getSheetByName(STAFF_SHEET_NAME);
+  if (!sh) return 1;
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return 1;
+  var col = STAFF_COL && STAFF_COL.管理番号 ? STAFF_COL.管理番号 : 6;
+  var values = sh.getRange(2, col, lastRow - 1, 1).getValues();
+  var maxN = 0;
+  var pl = prefix.length;
+  for (var r = 0; r < values.length; r++) {
+    var k = String(values[r][0] || '').trim();
+    if (k.substring(0, pl) !== prefix) continue;
+    var rest = k.substring(pl);
+    var n = parseInt(rest, 10);
+    if (!isNaN(n) && n > maxN) maxN = n;
+  }
+  return maxN + 1;
 }
 
 // 商品管理シートに新規行を追加

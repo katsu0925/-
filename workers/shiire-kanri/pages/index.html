@@ -340,7 +340,8 @@ var STATE = {
   tab: 'shouhin', filter: '', filterLabel: '',
   view: 'list', current: null, items: [],
   currentShiireProducts: [],
-  workers: [], accounts: []
+  workers: [], accounts: [],
+  suppliers: [], places: [], categories: []
 };
 
 var TAB_LABELS = {
@@ -434,20 +435,23 @@ const DETAIL_SECTIONS = [
   ]}
 ];
 
-// マスター（作業者・使用アカウント）取得：失敗しても UI は壊さない
+// マスター取得：失敗しても UI は壊さない
 async function loadMasters() {
-  try {
-    const w = await api('/api/master/workers');
-    STATE.workers = Array.isArray(w.items) ? w.items : [];
-  } catch (err) {
-    console.warn('workers load failed', err);
-  }
-  try {
-    const a = await api('/api/master/accounts');
-    STATE.accounts = Array.isArray(a.items) ? a.items : [];
-  } catch (err) {
-    console.warn('accounts load failed', err);
-  }
+  const tasks = [
+    ['/api/master/workers',    'workers'],
+    ['/api/master/accounts',   'accounts'],
+    ['/api/master/suppliers',  'suppliers'],
+    ['/api/master/places',     'places'],
+    ['/api/master/categories', 'categories'],
+  ];
+  await Promise.all(tasks.map(async ([url, key]) => {
+    try {
+      const r = await api(url);
+      STATE[key] = Array.isArray(r.items) ? r.items : [];
+    } catch (err) {
+      console.warn(key + ' load failed', err);
+    }
+  }));
 }
 
 // ========== API ==========
@@ -975,24 +979,45 @@ function closeModal() {
 
 function openCreatePurchaseModal() {
   var today = new Date().toISOString().slice(0, 10);
+
+  // 区分コード ドロップダウン
+  var catOptions = '<option value="">選択してください</option>' +
+    (STATE.categories || []).map(function(c){ return '<option value="' + esc(c) + '">' + esc(c) + '</option>'; }).join('');
+  // 納品場所 ドロップダウン
+  var placeOptions = '<option value="">選択してください</option>' +
+    (STATE.places || []).map(function(p){ return '<option value="' + esc(p) + '">' + esc(p) + '</option>'; }).join('');
+  // 仕入先名 ドロップダウン (id を value にして "id - name" を表示)
+  var supplierOptions = '<option value="">選択してください</option>' +
+    (STATE.suppliers || []).map(function(s){
+      var id = (s && s.id) || '';
+      var name = (s && s.name) || id;
+      var label = name ? (id + ' - ' + name) : id;
+      return '<option value="' + esc(id) + '">' + esc(label) + '</option>';
+    }).join('');
+  // 登録者: 作業者マスタからドロップダウン（既定は STATE.email から推測しない＝AppSheet 同様 手動選択）
+  var registerOptions = '<option value="">選択してください</option>' +
+    (STATE.workers || []).map(function(w){ return '<option value="' + esc(w) + '">' + esc(w) + '</option>'; }).join('');
+
   var html =
     '<h3>新規仕入れ</h3>' +
-    '<div class="hint">区分コード（A/B/C 等）と納品場所は必須。点数を入れると割り当て管理番号が表示されます。</div>' +
+    '<div class="hint">AppSheet と同じ列順。仕入れ日 → 区分コード → 金額 → 送料 → 商品点数 → 納品場所 → 内容 → 仕入先名 → 登録者。</div>' +
     '<div class="field-row"><label>仕入れ日<span class="req">*</span></label><input id="cp_date" type="date" value="' + today + '"></div>' +
-    '<div class="field-row"><label>区分コード<span class="req">*</span></label><input id="cp_category" type="text" placeholder="例: A" maxlength="4"></div>' +
-    '<div class="field-row"><label>納品場所<span class="req">*</span></label><input id="cp_place" type="text" placeholder="例: family / 青木"></div>' +
+    '<div class="field-row"><label>区分コード<span class="req">*</span></label><select id="cp_category">' + catOptions + '</select></div>' +
     '<div class="field-row"><label>金額</label><input id="cp_amount" type="number" inputmode="numeric" value="0"></div>' +
     '<div class="field-row"><label>送料</label><input id="cp_shipping" type="number" inputmode="numeric" value="0"></div>' +
     '<div class="field-row"><label>商品点数</label><input id="cp_planned" type="number" inputmode="numeric" value="0"></div>' +
+    '<div class="field-row"><label>納品場所<span class="req">*</span></label><select id="cp_place">' + placeOptions + '</select></div>' +
     '<div id="cp_kanri_range" class="hint" style="background:#f0f9ff;border-left:3px solid var(--primary);padding:8px 12px;margin:8px 0;border-radius:4px;display:none;"></div>' +
     '<div class="field-row"><label>内容</label><textarea id="cp_content" placeholder="任意"></textarea></div>' +
+    '<div class="field-row"><label>仕入先名</label><select id="cp_supplier">' + supplierOptions + '</select></div>' +
+    '<div class="field-row"><label>登録者</label><select id="cp_register_user">' + registerOptions + '</select></div>' +
     '<div class="modal-actions">' +
       '<button class="btn-cancel" onclick="closeModal()">キャンセル</button>' +
       '<button class="btn-submit" id="cp_submit" onclick="submitCreatePurchase()">作成</button>' +
     '</div>';
   openModal(html);
   // 区分コード/点数の変更で割り当て管理番号を再計算
-  document.getElementById('cp_category').addEventListener('input', updateCpKanriRange_);
+  document.getElementById('cp_category').addEventListener('change', updateCpKanriRange_);
   document.getElementById('cp_planned').addEventListener('input', updateCpKanriRange_);
 }
 
@@ -1023,11 +1048,13 @@ async function submitCreatePurchase() {
   var body = {
     date: document.getElementById('cp_date').value,
     category: document.getElementById('cp_category').value.trim(),
-    place: document.getElementById('cp_place').value.trim(),
     amount: Number(document.getElementById('cp_amount').value || 0),
     shipping: Number(document.getElementById('cp_shipping').value || 0),
     planned: Number(document.getElementById('cp_planned').value || 0),
+    place: document.getElementById('cp_place').value.trim(),
     content: document.getElementById('cp_content').value.trim(),
+    supplierId: document.getElementById('cp_supplier').value.trim(),
+    registerUser: document.getElementById('cp_register_user').value.trim(),
   };
   if (!body.date) { toast('仕入れ日を入力してください', 'error'); return; }
   if (!body.category) { toast('区分コードを入力してください', 'error'); return; }

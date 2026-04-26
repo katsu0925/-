@@ -8,7 +8,9 @@ export async function listPurchases(request, env) {
   try {
     // 仕入れ＋登録進捗（商品管理シートに行が存在すれば登録済み扱い）
     const { results } = await env.DB.prepare(`
-      SELECT p.shiire_id, p.date, p.amount, p.shipping, p.planned, p.place, p.cost, p.category, p.row_num,
+      SELECT p.shiire_id, p.date, p.amount, p.shipping, p.planned, p.place, p.cost, p.category,
+             p.content, p.supplier_id, p.register_user, p.registered_at, p.assigned_kanri, p.processed,
+             p.row_num,
              COUNT(pr.kanri) AS registered,
              SUM(CASE WHEN pr.sale_date IS NOT NULL AND pr.sale_date <> '' THEN 1 ELSE 0 END) AS sold
       FROM purchases p
@@ -28,6 +30,12 @@ export async function listPurchases(request, env) {
         place: r.place,
         cost: r.cost,
         category: r.category || '',
+        content: r.content || '',
+        supplierId: r.supplier_id || '',
+        registerUser: r.register_user || '',
+        registeredAt: r.registered_at || '',
+        assignedKanri: r.assigned_kanri || '',
+        processed: !!r.processed,
         registered: r.registered || 0,
         sold: r.sold || 0,
         row: r.row_num,
