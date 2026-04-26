@@ -339,7 +339,8 @@ var STATE = {
   email: '', allowed: false,
   tab: 'shouhin', filter: '', filterLabel: '',
   view: 'list', current: null, items: [],
-  currentShiireProducts: []
+  currentShiireProducts: [],
+  workers: [], accounts: []
 };
 
 var TAB_LABELS = {
@@ -383,14 +384,14 @@ const DETAIL_SECTIONS = [
   ]},
   { title: '採寸記録', fields: [
     ['採寸日','date'],
-    ['採寸者','text']
+    ['採寸者','worker']
   ]},
   { title: '撮影・出品', fields: [
     ['撮影日付','date'],
-    ['撮影者','text'],
+    ['撮影者','worker'],
     ['出品日','date'],
-    ['出品者','text'],
-    ['使用アカウント','text'],
+    ['出品者','worker'],
+    ['使用アカウント','account'],
     ['リンク','url']
   ]},
   { title: '仕入れ（連動・読取専用）', fields: [
@@ -418,7 +419,7 @@ const DETAIL_SECTIONS = [
   { title: 'ステータス変更日', fields: [
     ['返品日付','date'],
     ['発送日付','date'],
-    ['発送者','text'],
+    ['発送者','worker'],
     ['完了日','date'],
     ['キャンセル日','date'],
     ['廃棄日','date']
@@ -432,6 +433,22 @@ const DETAIL_SECTIONS = [
     ['ポストシール','image']
   ]}
 ];
+
+// マスター（作業者・使用アカウント）取得：失敗しても UI は壊さない
+async function loadMasters() {
+  try {
+    const w = await api('/api/master/workers');
+    STATE.workers = Array.isArray(w.items) ? w.items : [];
+  } catch (err) {
+    console.warn('workers load failed', err);
+  }
+  try {
+    const a = await api('/api/master/accounts');
+    STATE.accounts = Array.isArray(a.items) ? a.items : [];
+  } catch (err) {
+    console.warn('accounts load failed', err);
+  }
+}
 
 // ========== API ==========
 async function api(path, opts) {
@@ -459,6 +476,7 @@ window.addEventListener('DOMContentLoaded', async function(){
     STATE.allowed = !!STATE.email;
     document.getElementById('drawer-email').textContent = STATE.email || '未取得';
     if (!STATE.allowed) { renderDenied(); return; }
+    loadMasters();
     render();
     refreshCounts();
   } catch (err) {
@@ -767,10 +785,31 @@ function fieldRowHtml(name, type, val) {
       return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + (o || '—') + '</option>';
     }).join('');
     input = '<select id="' + id + '">' + opts3 + '</select>';
+  } else if (type === 'worker') {
+    input = '<select id="' + id + '">' + masterOptionsHtml_(STATE.workers, v) + '</select>';
+  } else if (type === 'account') {
+    input = '<select id="' + id + '">' + masterOptionsHtml_(STATE.accounts, v) + '</select>';
   } else {
     input = '<input type="text" id="' + id + '" value="' + esc(v) + '">';
   }
   return '<div class="field-row"><label>' + esc(name) + '</label>' + input + '</div>';
+}
+
+// マスターリスト + 現在値（リスト外でも保持） + 空オプション
+function masterOptionsHtml_(list, current) {
+  var cur = current == null ? '' : String(current);
+  var seen = {};
+  var out = ['<option value=""' + (cur === '' ? ' selected' : '') + '>—</option>'];
+  (list || []).forEach(function(name){
+    var n = String(name || '');
+    if (!n || seen[n]) return;
+    seen[n] = true;
+    out.push('<option value="' + esc(n) + '"' + (cur === n ? ' selected' : '') + '>' + esc(n) + '</option>');
+  });
+  if (cur && !seen[cur]) {
+    out.push('<option value="' + esc(cur) + '" selected>' + esc(cur) + '（マスター外）</option>');
+  }
+  return out.join('');
 }
 
 function renderDetail() {
@@ -1050,6 +1089,10 @@ function createFieldRowHtml_(name, type, defVal) {
       return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + (o || '—') + '</option>';
     }).join('');
     input = '<select id="' + id + '">' + opts3 + '</select>';
+  } else if (type === 'worker') {
+    input = '<select id="' + id + '">' + masterOptionsHtml_(STATE.workers, v) + '</select>';
+  } else if (type === 'account') {
+    input = '<select id="' + id + '">' + masterOptionsHtml_(STATE.accounts, v) + '</select>';
   } else {
     input = '<input type="text" id="' + id + '" value="' + esc(v) + '">';
   }

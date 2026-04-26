@@ -5,6 +5,7 @@ import { scheduledAccessSync } from './sync/access-sync.js';
 import { listProducts, getProduct, listProductCounts } from './handlers/products.js';
 import { listPurchases, getPurchaseProducts } from './handlers/purchases.js';
 import { saveMeasurement, saveSale, saveDetails, createPurchase, createProduct } from './handlers/write-proxy.js';
+import { listWorkers, listAccounts } from './handlers/master.js';
 
 export default {
   async scheduled(event, env, ctx) {
@@ -57,6 +58,14 @@ export default {
     const productMatch = path.match(/^\/api\/products\/([^/]+)$/);
     if (productMatch && request.method === 'GET') {
       return getProduct(request, env, decodeURIComponent(productMatch[1]));
+    }
+
+    // マスター（作業者・使用アカウント）
+    if (path === '/api/master/workers' && request.method === 'GET') {
+      return listWorkers(request, env);
+    }
+    if (path === '/api/master/accounts' && request.method === 'GET') {
+      return listAccounts(request, env);
     }
 
     if (path === '/api/purchases' && request.method === 'GET') {

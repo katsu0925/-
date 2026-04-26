@@ -482,6 +482,50 @@ function staff_listAllowedEmails() {
   return { ok: true, emails: out, count: out.length };
 }
 
+// 作業者マスター B列（作業者名）のうち O列（有効フラグ）TRUE のみ返す
+function staff_listWorkers() {
+  var ss = staff_getActiveSpreadsheet_();
+  var sh = ss.getSheetByName('作業者マスター');
+  if (!sh) return { ok: false, error: 'sheet not found: 作業者マスター' };
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return { ok: true, items: [] };
+  // B=2, O=15
+  var values = sh.getRange(2, 1, lastRow - 1, 15).getValues();
+  var seen = {};
+  var out = [];
+  for (var r = 0; r < values.length; r++) {
+    var row = values[r];
+    var enabled = row[14]; // O列
+    var isTrue = (enabled === true) || (String(enabled).toLowerCase() === 'true');
+    if (!isTrue) continue;
+    var name = String(row[1] == null ? '' : row[1]).trim(); // B列
+    if (!name || seen[name]) continue;
+    seen[name] = true;
+    out.push(name);
+  }
+  return { ok: true, items: out };
+}
+
+// 設定シート B列（アカウント）一覧
+function staff_listAccounts() {
+  var ss = staff_getActiveSpreadsheet_();
+  var sh = ss.getSheetByName('設定');
+  if (!sh) return { ok: false, error: 'sheet not found: 設定' };
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return { ok: true, items: [] };
+  // B=2 のみ。ヘッダー行を含めるとノイズなので 2 行目以降
+  var values = sh.getRange(2, 2, lastRow - 1, 1).getValues();
+  var seen = {};
+  var out = [];
+  for (var r = 0; r < values.length; r++) {
+    var name = String(values[r][0] == null ? '' : values[r][0]).trim();
+    if (!name || seen[name]) continue;
+    seen[name] = true;
+    out.push(name);
+  }
+  return { ok: true, items: out };
+}
+
 // 初回セットアップ用: GASエディタから手動実行して SHIIRE_SYNC_SECRET を設定する
 // （Workers の SYNC_SECRET と同じ値を埋める）
 function staff_setupSyncSecret() {

@@ -19,6 +19,8 @@ function doPost(e) {
       case 'syncDumpPurchases': result = staff_syncDumpPurchases(); break;
       case 'dumpHeaders':       result = staff_debugHeaders(String((body.payload && body.payload.name) || '商品管理')); break;
       case 'listAllowedEmails': result = staff_listAllowedEmails(); break;
+      case 'listWorkers':       result = staff_listWorkers(); break;
+      case 'listAccounts':      result = staff_listAccounts(); break;
       case 'saveMeasurement':   result = staff_apiSaveMeasurement(body.payload || {}, email); break;
       case 'saveSale':          result = staff_apiSaveSale(body.payload || {}, email); break;
       case 'saveDetails':       result = staff_apiSaveDetails(body.payload || {}, email); break;
