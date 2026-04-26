@@ -565,6 +565,35 @@ function staff_listPlaces() {
   return { ok: true, items: out };
 }
 
+// 設定シート全体を { ヘッダー名: [ユニーク値...] } で返す
+// 1行目=説明文 / 2行目=空 / 3行目=ヘッダー / 4行目以降=データ
+// プルダウン用に「状態 / 発送方法 / カラー1 / カテゴリ2 / カテゴリ3」等を一括取得
+function staff_listSettings() {
+  var ss = staff_getActiveSpreadsheet_();
+  var sh = ss.getSheetByName('設定');
+  if (!sh) return { ok: false, error: 'sheet not found: 設定' };
+  var lastRow = sh.getLastRow();
+  var lastCol = sh.getLastColumn();
+  if (lastRow < 4 || lastCol < 1) return { ok: true, items: {} };
+  var headers = sh.getRange(3, 1, 1, lastCol).getValues()[0];
+  var data = sh.getRange(4, 1, lastRow - 3, lastCol).getValues();
+  var out = {};
+  for (var c = 0; c < headers.length; c++) {
+    var h = String(headers[c] == null ? '' : headers[c]).trim();
+    if (!h) continue;
+    var seen = {};
+    var list = [];
+    for (var r = 0; r < data.length; r++) {
+      var v = String(data[r][c] == null ? '' : data[r][c]).trim();
+      if (!v || seen[v]) continue;
+      seen[v] = true;
+      list.push(v);
+    }
+    if (list.length) out[h] = list;
+  }
+  return { ok: true, items: out };
+}
+
 // 管理番号マスタ A列 (区分コード) → [string]
 function staff_listCategories() {
   var ss = staff_getActiveSpreadsheet_();

@@ -24,11 +24,21 @@ export async function listCategories(request, env) {
   return getCached(env, 'master:categories', 'listCategories');
 }
 
-async function getCached(env, cacheKey, action) {
+// 設定シート（複数列の汎用マスタ）— items は { ヘッダー名: [値...] } のオブジェクト
+export async function listSettings(request, env) {
+  return getCached(env, 'master:settings', 'listSettings', { itemsType: 'object' });
+}
+
+async function getCached(env, cacheKey, action, opts) {
+  const itemsType = (opts && opts.itemsType) || 'array';
+  const isValid = (items) => itemsType === 'object'
+    ? (items && typeof items === 'object' && !Array.isArray(items))
+    : Array.isArray(items);
+
   try {
     if (env.CACHE) {
       const hit = await env.CACHE.get(cacheKey, 'json');
-      if (hit && Array.isArray(hit.items)) {
+      if (hit && isValid(hit.items)) {
         return jsonOk({ items: hit.items, cached: true });
       }
     }
@@ -49,7 +59,7 @@ async function getCached(env, cacheKey, action) {
   let data;
   try { data = await res.json(); } catch { return jsonError('gas non-json', 502); }
   if (!data || !data.ok) return jsonError(data && data.error || 'gas error', 502);
-  const items = Array.isArray(data.items) ? data.items : [];
+  const items = isValid(data.items) ? data.items : (itemsType === 'object' ? {} : []);
 
   try {
     if (env.CACHE) {

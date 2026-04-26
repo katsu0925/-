@@ -341,7 +341,17 @@ var STATE = {
   view: 'list', current: null, items: [],
   currentShiireProducts: [],
   workers: [], accounts: [],
-  suppliers: [], places: [], categories: []
+  suppliers: [], places: [], categories: [],
+  settings: {}
+};
+
+// 設定シートからプルダウンを引く項目（キー=フォーム項目名, 値=設定シートの列ヘッダー）
+var SETTINGS_FIELD_MAP = {
+  '状態': '状態',
+  '発送方法': '発送方法',
+  'カラー': 'カラー1',
+  'カテゴリ2': 'カテゴリ2',
+  'カテゴリ3': 'カテゴリ3'
 };
 
 var TAB_LABELS = {
@@ -452,6 +462,22 @@ async function loadMasters() {
       console.warn(key + ' load failed', err);
     }
   }));
+  // 設定シート（複数列マスタ：状態/発送方法/カラー1/カテゴリ2/カテゴリ3 等）
+  try {
+    const r = await api('/api/master/settings');
+    STATE.settings = (r.items && typeof r.items === 'object' && !Array.isArray(r.items)) ? r.items : {};
+  } catch (err) {
+    console.warn('settings load failed', err);
+  }
+}
+
+// SETTINGS_FIELD_MAP に登録された項目について、設定シートの値があれば <select> 用 options を返す。なければ null。
+function settingsOptionsFor_(name, current) {
+  var key = SETTINGS_FIELD_MAP[name];
+  if (!key) return null;
+  var list = STATE.settings && STATE.settings[key];
+  if (!Array.isArray(list) || !list.length) return null;
+  return masterOptionsHtml_(list, current);
 }
 
 // ========== API ==========
@@ -823,16 +849,26 @@ function fieldRowHtml(name, type, val) {
     }).join('');
     input = '<select id="' + id + '">' + opts2 + '</select>';
   } else if (type === 'shipmethod') {
-    var opts3 = SHIP_METHOD_OPTIONS.map(function(o){
-      return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + (o || '—') + '</option>';
-    }).join('');
-    input = '<select id="' + id + '">' + opts3 + '</select>';
+    var setOptsShip = settingsOptionsFor_(name, v);
+    if (setOptsShip) {
+      input = '<select id="' + id + '">' + setOptsShip + '</select>';
+    } else {
+      var opts3 = SHIP_METHOD_OPTIONS.map(function(o){
+        return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + (o || '—') + '</option>';
+      }).join('');
+      input = '<select id="' + id + '">' + opts3 + '</select>';
+    }
   } else if (type === 'worker') {
     input = '<select id="' + id + '">' + masterOptionsHtml_(STATE.workers, v) + '</select>';
   } else if (type === 'account') {
     input = '<select id="' + id + '">' + masterOptionsHtml_(STATE.accounts, v) + '</select>';
   } else {
-    input = '<input type="text" id="' + id + '" value="' + esc(v) + '">';
+    var setOpts = settingsOptionsFor_(name, v);
+    if (setOpts) {
+      input = '<select id="' + id + '">' + setOpts + '</select>';
+    } else {
+      input = '<input type="text" id="' + id + '" value="' + esc(v) + '">';
+    }
   }
   return '<div class="field-row"><label>' + esc(name) + '</label>' + input + '</div>';
 }
@@ -1202,16 +1238,26 @@ function createFieldRowHtml_(name, type, defVal) {
     }).join('');
     input = '<select id="' + id + '">' + opts2 + '</select>';
   } else if (type === 'shipmethod') {
-    var opts3 = SHIP_METHOD_OPTIONS.map(function(o){
-      return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + (o || '—') + '</option>';
-    }).join('');
-    input = '<select id="' + id + '">' + opts3 + '</select>';
+    var setOptsShipC = settingsOptionsFor_(name, v);
+    if (setOptsShipC) {
+      input = '<select id="' + id + '">' + setOptsShipC + '</select>';
+    } else {
+      var opts3 = SHIP_METHOD_OPTIONS.map(function(o){
+        return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + (o || '—') + '</option>';
+      }).join('');
+      input = '<select id="' + id + '">' + opts3 + '</select>';
+    }
   } else if (type === 'worker') {
     input = '<select id="' + id + '">' + masterOptionsHtml_(STATE.workers, v) + '</select>';
   } else if (type === 'account') {
     input = '<select id="' + id + '">' + masterOptionsHtml_(STATE.accounts, v) + '</select>';
   } else {
-    input = '<input type="text" id="' + id + '" value="' + esc(v) + '">';
+    var setOptsC = settingsOptionsFor_(name, v);
+    if (setOptsC) {
+      input = '<select id="' + id + '">' + setOptsC + '</select>';
+    } else {
+      input = '<input type="text" id="' + id + '" value="' + esc(v) + '">';
+    }
   }
   return '<div class="field-row"><label>' + esc(name) + '</label>' + input + '</div>';
 }
