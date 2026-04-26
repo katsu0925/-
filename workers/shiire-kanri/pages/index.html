@@ -1201,12 +1201,15 @@ function buildCreateProductHtml_(opts) {
     .filter(function(sec){ return !CREATE_EXCLUDE_SECTIONS[sec.title]; })
     .map(function(sec){
       var rows = sec.fields
-        .filter(function(f){ return f[1] !== 'readonly' && f[1] !== 'image'; })
+        .filter(function(f){
+          if (f[1] === 'readonly' || f[1] === 'image') return false;
+          // ステータスは作成時に常に「採寸待ち」を自動割当（手動変更不可）
+          if (f[0] === 'ステータス') return false;
+          return true;
+        })
         .map(function(f){
           var name = f[0], type = f[1];
-          // ステータスのみ デフォルト 採寸待ち、それ以外は空
-          var defVal = (name === 'ステータス') ? '採寸待ち' : '';
-          return createFieldRowHtml_(name, type, defVal);
+          return createFieldRowHtml_(name, type, '');
         }).join('');
       if (!rows) return '';
       return '<div class="section-header">' + esc(sec.title) + '</div>' +
