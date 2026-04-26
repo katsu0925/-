@@ -1,5 +1,28 @@
 import { jsonOk, jsonError } from '../utils/response.js';
 
+// 商品の派生ステータス（products.js と同一ロジックを使用）
+const D_SAISUN  = "(json_extract(extra_json, '$.\"採寸日\"') IS NOT NULL AND json_extract(extra_json, '$.\"採寸日\"') <> '')";
+const D_SATSUEI = "(json_extract(extra_json, '$.\"撮影日付\"') IS NOT NULL AND json_extract(extra_json, '$.\"撮影日付\"') <> '')";
+const D_SHUPPIN = "(json_extract(extra_json, '$.\"出品日\"') IS NOT NULL AND json_extract(extra_json, '$.\"出品日\"') <> '')";
+const D_HASSOU  = "(json_extract(extra_json, '$.\"発送日付\"') IS NOT NULL AND json_extract(extra_json, '$.\"発送日付\"') <> '')";
+const D_KANRYOU = "(json_extract(extra_json, '$.\"完了日\"') IS NOT NULL AND json_extract(extra_json, '$.\"完了日\"') <> '')";
+const D_HANBAI  = "(sale_date IS NOT NULL AND sale_date <> '')";
+const ACCOUNT_SELECTED = "(json_extract(extra_json, '$.\"使用アカウント\"') IS NOT NULL AND json_extract(extra_json, '$.\"使用アカウント\"') <> '')";
+const DERIVED_STATUS = `
+  CASE
+    WHEN status LIKE '%キャンセル%' OR status LIKE '%廃棄%' OR status LIKE '%返品%' THEN status
+    WHEN ${D_KANRYOU} THEN '売却済み'
+    WHEN ${D_HASSOU}  THEN '発送済み'
+    WHEN ${D_HANBAI}  THEN '発送待ち'
+    WHEN ${D_SHUPPIN} THEN '出品中'
+    WHEN ${D_SATSUEI} AND ${D_SAISUN} AND ${ACCOUNT_SELECTED} THEN '出品作業中'
+    WHEN ${D_SATSUEI} AND ${D_SAISUN} THEN '出品待ち'
+    WHEN ${D_SATSUEI} THEN '採寸待ち'
+    WHEN ${D_SAISUN}  THEN '撮影待ち'
+    ELSE COALESCE(NULLIF(status,''), '採寸待ち')
+  END
+`;
+
 // GET /api/purchases?limit=500
 export async function listPurchases(request, env) {
   const u = new URL(request.url);
@@ -51,7 +74,8 @@ export async function listPurchases(request, env) {
 export async function getPurchaseProducts(request, env, shiireId) {
   try {
     const { results } = await env.DB.prepare(`
-      SELECT kanri, status, state, brand, size, color, sale_date, sale_price, row_num
+      SELECT kanri, status, state, brand, size, color, sale_date, sale_price, row_num,
+             ${DERIVED_STATUS} AS derived_status
       FROM products
       WHERE shiire_id = ?
       ORDER BY kanri DESC
@@ -59,7 +83,8 @@ export async function getPurchaseProducts(request, env, shiireId) {
     return jsonOk({
       items: results.map(r => ({
         kanri: r.kanri,
-        status: r.status,
+        status: r.derived_status || r.status,
+        rawStatus: r.status,
         state: r.state,
         brand: r.brand,
         size: r.size,
