@@ -507,14 +507,14 @@ function staff_listWorkers() {
 }
 
 // 設定シート B列（アカウント）一覧
+// 1行目=説明文 / 2行目=空 / 3行目=ヘッダー / 4行目以降=データ
 function staff_listAccounts() {
   var ss = staff_getActiveSpreadsheet_();
   var sh = ss.getSheetByName('設定');
   if (!sh) return { ok: false, error: 'sheet not found: 設定' };
   var lastRow = sh.getLastRow();
-  if (lastRow < 2) return { ok: true, items: [] };
-  // B=2 のみ。ヘッダー行を含めるとノイズなので 2 行目以降
-  var values = sh.getRange(2, 2, lastRow - 1, 1).getValues();
+  if (lastRow < 4) return { ok: true, items: [] };
+  var values = sh.getRange(4, 2, lastRow - 3, 1).getValues();
   var seen = {};
   var out = [];
   for (var r = 0; r < values.length; r++) {
