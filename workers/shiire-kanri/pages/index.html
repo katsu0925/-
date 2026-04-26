@@ -1388,12 +1388,35 @@ function buildCreateProductHtml_(opts) {
     '</div>';
 }
 
+// 仕入れ選択中に一度フォーム全フィールドをリセット（管理番号は別途、ステータスは readonly 固定）
+function resetCreateProductForm_() {
+  DETAIL_SECTIONS.forEach(function(sec){
+    if (CREATE_EXCLUDE_SECTIONS[sec.title]) return;
+    sec.fields.forEach(function(f){
+      var name = f[0], type = f[1];
+      if (type === 'readonly' || type === 'image') return;
+      if (name === 'ステータス') return; // 固定 readonly
+      var el = document.getElementById(createFieldId_(name));
+      if (!el) return;
+      if (el.tagName === 'SELECT') {
+        // プリフィルで動的追加した option を初期状態の選択肢に戻すため、空 option があればそれを選択
+        el.value = '';
+      } else {
+        el.value = '';
+      }
+    });
+  });
+}
+
 async function onShiireSelectChange_() {
   const sel = document.getElementById('cprd_shiire');
   const hint = document.getElementById('cprd_hint');
   const kanriInput = document.getElementById('cprd_kanri');
   const sid = sel.value;
-  if (!sid) return;
+  // 仕入れが切り替わったら既存入力＋プリフィル値をすべて初期化（管理番号は下で再設定）
+  resetCreateProductForm_();
+  kanriInput.value = '';
+  if (!sid) { hint.textContent = '— / 候補: —'; return; }
   hint.textContent = sid + ' / 候補取得中…';
   try {
     const category = SHIIRE_CATEGORY_MAP[sid] || '';
