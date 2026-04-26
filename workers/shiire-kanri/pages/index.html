@@ -1201,14 +1201,14 @@ function buildCreateProductHtml_(opts) {
     .filter(function(sec){ return !CREATE_EXCLUDE_SECTIONS[sec.title]; })
     .map(function(sec){
       var rows = sec.fields
-        .filter(function(f){
-          if (f[1] === 'readonly' || f[1] === 'image') return false;
-          // ステータスは作成時に常に「採寸待ち」を自動割当（手動変更不可）
-          if (f[0] === 'ステータス') return false;
-          return true;
-        })
+        .filter(function(f){ return f[1] !== 'readonly' && f[1] !== 'image'; })
         .map(function(f){
           var name = f[0], type = f[1];
+          // ステータスは作成時に常に「採寸待ち」を自動割当（表示はするが手動変更不可）
+          if (name === 'ステータス') {
+            return '<div class="field-row"><label>ステータス</label>' +
+              '<input type="text" value="採寸待ち" readonly style="background:#f5f5f5;color:#666;"></div>';
+          }
           return createFieldRowHtml_(name, type, '');
         }).join('');
       if (!rows) return '';
