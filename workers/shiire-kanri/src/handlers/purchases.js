@@ -6,22 +6,11 @@ export async function listPurchases(request, env) {
   const limit = Math.min(parseInt(u.searchParams.get('limit') || '500', 10), 2000);
 
   try {
-    // 仕入れ＋登録進捗
-    // AppSheet と揃える: 商品管理シートで「キャンセル日 / 廃棄日 / 返品日付」のいずれかが
-    // 入っている商品は無効（登録枠から外す）として扱う
+    // 仕入れ＋登録進捗（商品管理シートに行が存在すれば登録済み扱い）
     const { results } = await env.DB.prepare(`
       SELECT p.shiire_id, p.date, p.amount, p.shipping, p.planned, p.place, p.cost, p.category, p.row_num,
-             SUM(CASE WHEN pr.kanri IS NOT NULL
-                       AND COALESCE(json_extract(pr.extra_json, '$.キャンセル日'), '') = ''
-                       AND COALESCE(json_extract(pr.extra_json, '$.廃棄日'), '') = ''
-                       AND COALESCE(json_extract(pr.extra_json, '$.返品日付'), '') = ''
-                  THEN 1 ELSE 0 END) AS registered,
-             SUM(CASE WHEN pr.kanri IS NOT NULL
-                       AND pr.sale_date IS NOT NULL AND pr.sale_date <> ''
-                       AND COALESCE(json_extract(pr.extra_json, '$.キャンセル日'), '') = ''
-                       AND COALESCE(json_extract(pr.extra_json, '$.廃棄日'), '') = ''
-                       AND COALESCE(json_extract(pr.extra_json, '$.返品日付'), '') = ''
-                  THEN 1 ELSE 0 END) AS sold
+             COUNT(pr.kanri) AS registered,
+             SUM(CASE WHEN pr.sale_date IS NOT NULL AND pr.sale_date <> '' THEN 1 ELSE 0 END) AS sold
       FROM purchases p
       LEFT JOIN products pr ON pr.shiire_id = p.shiire_id
       GROUP BY p.shiire_id
