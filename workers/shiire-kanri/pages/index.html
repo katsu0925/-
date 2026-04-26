@@ -630,10 +630,48 @@ async function openShiireDetail(shiireId) {
   document.getElementById('appbar-title').textContent = shiireId;
   c.innerHTML = '<div class="loading">読み込み中…</div>';
   try {
-    const res = await api('/api/purchases/' + encodeURIComponent(shiireId) + '/products');
-    const items = res.items || [];
+    const productsRes = await api('/api/purchases/' + encodeURIComponent(shiireId) + '/products');
+    const items = productsRes.items || [];
+    // 仕入れメタ情報（category / planned）を取得して割り当て管理番号を表示
+    var category = SHIIRE_CATEGORY_MAP[shiireId] || '';
+    var planned = 0;
+    if (!category) {
+      try {
+        const purRes = await api('/api/purchases?limit=2000');
+        (purRes.items || []).forEach(function(p){
+          SHIIRE_CATEGORY_MAP[p.shiireId] = p.category || '';
+          if (p.shiireId === shiireId) planned = Number(p.planned || 0);
+        });
+        category = SHIIRE_CATEGORY_MAP[shiireId] || '';
+      } catch (e) { /* ignore */ }
+    } else {
+      try {
+        const purRes = await api('/api/purchases?limit=2000');
+        (purRes.items || []).forEach(function(p){
+          if (p.shiireId === shiireId) planned = Number(p.planned || 0);
+        });
+      } catch (e) { /* ignore */ }
+    }
+    var rangeHtml = '';
+    if (category && planned > 0) {
+      try {
+        const next = await api('/api/kanri/next?category=' + encodeURIComponent(category));
+        const prefix = next.prefix || ('z' + category);
+        // 既に登録済の商品があれば、その最小〜最大を実績として表示。残りは予約として表示
+        var registered = items.length;
+        var remaining = Math.max(0, planned - registered);
+        var startN = Number(next.maxN || 0) + 1;
+        var endN = startN + remaining - 1;
+        rangeHtml = '<div class="meta" style="background:#f0f9ff;border-left:3px solid var(--primary);padding:6px 10px;border-radius:4px;margin-top:6px;">' +
+          '割り当て管理番号（残り ' + remaining + '点）: <strong>' +
+          (remaining > 0 ? esc(prefix + startN) + ' 〜 ' + esc(prefix + endN) : '完了') +
+          '</strong></div>';
+      } catch (e) { /* ignore */ }
+    }
     const head = '<div class="product-info"><h2>仕入れ ' + esc(shiireId) + '</h2>' +
-      '<div class="meta">紐づく商品: ' + items.length + ' 点</div></div>';
+      '<div class="meta">紐づく商品: ' + items.length + (planned ? ' / ' + planned : '') + ' 点</div>' +
+      rangeHtml +
+      '</div>';
     const body = items.length
       ? items.map(cardHtml).join('')
       : '<div class="empty">商品が登録されていません</div>';
@@ -939,19 +977,45 @@ function openCreatePurchaseModal() {
   var today = new Date().toISOString().slice(0, 10);
   var html =
     '<h3>新規仕入れ</h3>' +
-    '<div class="hint">区分コード（A/B/C 等）と納品場所は必須。点数は後で仕入れ数報告から自動反映されます。</div>' +
+    '<div class="hint">区分コード（A/B/C 等）と納品場所は必須。点数を入れると割り当て管理番号が表示されます。</div>' +
     '<div class="field-row"><label>仕入れ日<span class="req">*</span></label><input id="cp_date" type="date" value="' + today + '"></div>' +
     '<div class="field-row"><label>区分コード<span class="req">*</span></label><input id="cp_category" type="text" placeholder="例: A" maxlength="4"></div>' +
     '<div class="field-row"><label>納品場所<span class="req">*</span></label><input id="cp_place" type="text" placeholder="例: family / 青木"></div>' +
     '<div class="field-row"><label>金額</label><input id="cp_amount" type="number" inputmode="numeric" value="0"></div>' +
     '<div class="field-row"><label>送料</label><input id="cp_shipping" type="number" inputmode="numeric" value="0"></div>' +
     '<div class="field-row"><label>商品点数</label><input id="cp_planned" type="number" inputmode="numeric" value="0"></div>' +
+    '<div id="cp_kanri_range" class="hint" style="background:#f0f9ff;border-left:3px solid var(--primary);padding:8px 12px;margin:8px 0;border-radius:4px;display:none;"></div>' +
     '<div class="field-row"><label>内容</label><textarea id="cp_content" placeholder="任意"></textarea></div>' +
     '<div class="modal-actions">' +
       '<button class="btn-cancel" onclick="closeModal()">キャンセル</button>' +
       '<button class="btn-submit" id="cp_submit" onclick="submitCreatePurchase()">作成</button>' +
     '</div>';
   openModal(html);
+  // 区分コード/点数の変更で割り当て管理番号を再計算
+  document.getElementById('cp_category').addEventListener('input', updateCpKanriRange_);
+  document.getElementById('cp_planned').addEventListener('input', updateCpKanriRange_);
+}
+
+var CP_KANRI_REQ_SEQ = 0;
+async function updateCpKanriRange_() {
+  var box = document.getElementById('cp_kanri_range');
+  var category = document.getElementById('cp_category').value.trim();
+  var planned = Number(document.getElementById('cp_planned').value || 0);
+  if (!category || planned <= 0) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  box.textContent = '割り当て管理番号: 計算中…';
+  var seq = ++CP_KANRI_REQ_SEQ;
+  try {
+    var res = await api('/api/kanri/next?category=' + encodeURIComponent(category));
+    if (seq !== CP_KANRI_REQ_SEQ) return; // 古いリクエストは破棄
+    var prefix = res.prefix || ('z' + category);
+    var startN = Number(res.maxN || 0) + 1;
+    var endN = startN + planned - 1;
+    box.innerHTML = '割り当て管理番号: <strong>' + esc(prefix + startN) + ' 〜 ' + esc(prefix + endN) + '</strong> （' + planned + '点）';
+  } catch (err) {
+    if (seq !== CP_KANRI_REQ_SEQ) return;
+    box.textContent = '割り当て管理番号: 取得失敗 (' + err.message + ')';
+  }
 }
 
 async function submitCreatePurchase() {
