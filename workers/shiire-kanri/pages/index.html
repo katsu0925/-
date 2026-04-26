@@ -346,12 +346,15 @@ var STATE = {
 };
 
 // 設定シートからプルダウンを引く項目（キー=フォーム項目名, 値=設定シートの列ヘッダー）
+// カテゴリ1 列が設定シートに無い場合はテキスト入力にフォールバック（settingsOptionsFor_ が null を返す）
 var SETTINGS_FIELD_MAP = {
   '状態': '状態',
   '発送方法': '発送方法',
   'カラー': 'カラー1',
+  'カテゴリ1': 'カテゴリ1',
   'カテゴリ2': 'カテゴリ2',
-  'カテゴリ3': 'カテゴリ3'
+  'カテゴリ3': 'カテゴリ3',
+  'メルカリサイズ': 'サイズ'
 };
 
 var TAB_LABELS = {
@@ -1184,6 +1187,72 @@ async function openCreateProductModal(shiireId) {
   if (suggested) applyAiPrefillToForm_(suggested);
 }
 
+// タグ表記サイズ（38, M, 9号, W30 等）→ メルカリ S/M/L 表記へ変換
+// 該当しなければ空文字を返し、手動選択させる
+function convertTagToMercariSize_(tag) {
+  if (!tag) return '';
+  var t = String(tag).trim().toUpperCase();
+  if (!t) return '';
+  // 既にメルカリ表記
+  if (/^(XXS|XS|S|M|L|LL|XL|XXL|3L|4L|5L)$/.test(t)) return t === 'LL' ? 'XL' : t;
+  // フリーサイズ
+  if (/(FREE|フリー)/i.test(t) || t === 'F') return 'FREE';
+  // n号
+  var goM = t.match(/^(\d+)号$/);
+  if (goM) {
+    var g = Number(goM[1]);
+    if (g <= 7) return 'XS';
+    if (g === 9) return 'S';
+    if (g === 11) return 'M';
+    if (g === 13) return 'L';
+    if (g === 15) return 'XL';
+    return 'XXL';
+  }
+  // ウエストinch（W付き）
+  var wM = t.match(/^W?\s*(\d{2})\s*(IN|INCH|INCHES)?$/);
+  if (wM) {
+    var w = Number(wM[1]);
+    if (w >= 25 && w <= 40) {
+      if (w <= 27) return 'S';
+      if (w <= 29) return 'M';
+      if (w <= 31) return 'L';
+      if (w <= 33) return 'XL';
+      return 'XXL';
+    }
+  }
+  // 数字のみ
+  var numM = t.match(/^(\d+)$/);
+  if (numM) {
+    var n = Number(numM[1]);
+    // 5〜17 奇数 = 号系列
+    if (n >= 5 && n <= 17 && n % 2 === 1) {
+      if (n <= 7) return 'XS';
+      if (n === 9) return 'S';
+      if (n === 11) return 'M';
+      if (n === 13) return 'L';
+      if (n === 15) return 'XL';
+      return 'XXL';
+    }
+    // EU婦人 34〜50（偶数）
+    if (n >= 34 && n <= 50 && n % 2 === 0) {
+      if (n <= 36) return 'S';
+      if (n === 38) return 'M';
+      if (n === 40) return 'L';
+      if (n === 42) return 'XL';
+      return 'XXL';
+    }
+    // ウエストinch 25〜40
+    if (n >= 25 && n <= 40) {
+      if (n <= 27) return 'S';
+      if (n <= 29) return 'M';
+      if (n <= 31) return 'L';
+      if (n <= 33) return 'XL';
+      return 'XXL';
+    }
+  }
+  return '';
+}
+
 // AI画像判定シートから 9 項目（ブランド/タグ表記/性別/カテゴリ1-3/デザイン特徴/カラー/ポケット）を取得して
 // 新規商品モーダルの空欄フィールドに反映（AppSheet Initial Value 相当）
 async function applyAiPrefillToForm_(kanri) {
@@ -1191,12 +1260,30 @@ async function applyAiPrefillToForm_(kanri) {
   try {
     const res = await api('/api/ai/prefill?kanri=' + encodeURIComponent(kanri));
     const fields = (res && res.fields) || {};
+    // タグ表記からメルカリサイズを派生（既に値があれば上書きしない）
+    if (fields['タグ表記'] && !fields['メルカリサイズ']) {
+      var derived = convertTagToMercariSize_(fields['タグ表記']);
+      if (derived) fields['メルカリサイズ'] = derived;
+    }
     Object.keys(fields).forEach(function(name){
       var el = document.getElementById(createFieldId_(name));
       if (!el) return;
       // 既にユーザーが入力していたら上書きしない
       if (el.value && String(el.value).trim() !== '') return;
-      el.value = fields[name];
+      var v = String(fields[name] == null ? '' : fields[name]);
+      if (el.tagName === 'SELECT') {
+        // 選択肢に無い値はオプションとして追加してから選択（プリフィル値の取りこぼし防止）
+        var has = false;
+        for (var i = 0; i < el.options.length; i++) {
+          if (el.options[i].value === v) { has = true; break; }
+        }
+        if (!has) {
+          var opt = document.createElement('option');
+          opt.value = v; opt.textContent = v;
+          el.appendChild(opt);
+        }
+      }
+      el.value = v;
     });
   } catch (err) {
     console.warn('[ai prefill]', err && err.message);
