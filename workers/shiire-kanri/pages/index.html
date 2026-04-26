@@ -1562,6 +1562,7 @@ function buildCreateProductHtml_(opts) {
 }
 
 // 仕入れ選択中に一度フォーム全フィールドをリセット（管理番号は別途、ステータスは readonly 固定）
+// type ごとの既定値（販売場所=メルカリ, プロモーション利用=FALSE）はリセット時に維持
 function resetCreateProductForm_() {
   DETAIL_SECTIONS.forEach(function(sec){
     if (CREATE_EXCLUDE_SECTIONS[sec.title]) return;
@@ -1571,12 +1572,10 @@ function resetCreateProductForm_() {
       if (name === 'ステータス') return; // 固定 readonly
       var el = document.getElementById(createFieldId_(name));
       if (!el) return;
-      if (el.tagName === 'SELECT') {
-        // プリフィルで動的追加した option を初期状態の選択肢に戻すため、空 option があればそれを選択
-        el.value = '';
-      } else {
-        el.value = '';
-      }
+      var resetVal = '';
+      if (type === 'salechannel') resetVal = SALE_CHANNEL_DEFAULT;
+      else if (type === 'bool') resetVal = PROMO_DEFAULT;
+      el.value = resetVal;
     });
   });
 }
