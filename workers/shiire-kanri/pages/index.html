@@ -345,6 +345,46 @@ var STATE = {
   settings: {}
 };
 
+// ========== 自動更新（AppSheet風のサイレントポーリング） ==========
+const POLL_INTERVAL_MS = 30000; // 30秒
+var pollTimer = null;
+var isAutoRefreshing = false;
+
+function startPolling() {
+  stopPolling();
+  pollTimer = setInterval(autoRefresh, POLL_INTERVAL_MS);
+}
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+async function autoRefresh() {
+  if (isAutoRefreshing) return;
+  if (!STATE.allowed) return;
+  if (document.visibilityState !== 'visible') return;
+  // モーダル表示中は更新しない（フォーム入力中の事故防止）
+  var mask = document.getElementById('modal-mask');
+  if (mask && mask.classList.contains('show')) return;
+  // 詳細画面はローカル編集状態があるので自動更新しない
+  if (STATE.view === 'detail') return;
+  isAutoRefreshing = true;
+  try {
+    refreshCounts();
+    if (STATE.tab === 'shouhin' || STATE.tab === 'uriage' || STATE.tab === 'hassou') {
+      await renderShouhinList({ silent: true });
+    } else if (STATE.tab === 'shiire') {
+      await renderShiireList({ silent: true });
+    }
+  } catch (err) {
+    console.warn('autoRefresh failed', err);
+  } finally {
+    isAutoRefreshing = false;
+  }
+}
+document.addEventListener('visibilitychange', function(){
+  if (document.visibilityState === 'visible') autoRefresh();
+});
+window.addEventListener('focus', autoRefresh);
+
 // 設定シートからプルダウンを引く項目（キー=フォーム項目名, 値=設定シートの列ヘッダー）
 // カテゴリ1 列が設定シートに無い場合はテキスト入力にフォールバック（settingsOptionsFor_ が null を返す）
 var SETTINGS_FIELD_MAP = {
@@ -512,6 +552,7 @@ window.addEventListener('DOMContentLoaded', async function(){
     loadMasters();
     render();
     refreshCounts();
+    startPolling();
   } catch (err) {
     toast('認証エラー: ' + err.message, 'error');
     renderDenied();
@@ -606,9 +647,10 @@ function render() {
   }
 }
 
-async function renderShiireList() {
+async function renderShiireList(opts) {
+  opts = opts || {};
   var c = document.getElementById('content');
-  c.innerHTML = '<div class="loading">読み込み中…</div>';
+  if (!opts.silent) c.innerHTML = '<div class="loading">読み込み中…</div>';
   try {
     const res = await api('/api/purchases?limit=300');
     let items = res.items || [];
@@ -627,7 +669,7 @@ async function renderShiireList() {
     if (!items.length) { c.innerHTML = '<div class="empty">仕入れデータがありません</div>' + fab; return; }
     c.innerHTML = items.map(shiireCardHtml).join('') + fab;
   } catch (err) {
-    c.innerHTML = '<div class="empty" style="color:#c62828">' + esc(err.message) + '</div>';
+    if (!opts.silent) c.innerHTML = '<div class="empty" style="color:#c62828">' + esc(err.message) + '</div>';
   }
 }
 
@@ -719,10 +761,11 @@ async function openShiireDetail(shiireId) {
   }
 }
 
-async function renderShouhinList() {
+async function renderShouhinList(opts) {
+  opts = opts || {};
   var c = document.getElementById('content');
   var chip = STATE.filterLabel ? '<div><span class="filter-chip">📂 ' + esc(STATE.filterLabel) + '</span></div>' : '';
-  c.innerHTML = chip + '<div class="loading">読み込み中…</div>';
+  if (!opts.silent) c.innerHTML = chip + '<div class="loading">読み込み中…</div>';
   const q = (document.getElementById('search').value || '').trim();
   const params = new URLSearchParams();
   params.set('limit', '10000');
@@ -744,7 +787,7 @@ async function renderShouhinList() {
     }
     c.innerHTML = html + fab;
   } catch (err) {
-    c.innerHTML = chip + '<div class="empty" style="color:#c62828">' + esc(err.message) + '</div>' + fab;
+    if (!opts.silent) c.innerHTML = chip + '<div class="empty" style="color:#c62828">' + esc(err.message) + '</div>' + fab;
   }
 }
 
@@ -778,6 +821,7 @@ function renderPlaceholder(name) {
 }
 
 function renderDenied() {
+  stopPolling();
   document.getElementById('content').innerHTML =
     '<div class="denied">' +
       '<h2>アクセス権限がありません</h2>' +
