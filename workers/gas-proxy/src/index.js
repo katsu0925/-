@@ -21,7 +21,7 @@ import * as holds from './handlers/holds.js';
 import * as coupon from './handlers/coupon.js';
 import * as mypage from './handlers/mypage.js';
 import * as submit from './handlers/submit.js';
-import { scheduledSync, batchAiJudgment, restorePhotoMetaFromGas } from './sync/sheets-sync.js';
+import { scheduledSync, batchAiJudgment, restorePhotoMetaFromGas, reprocessSingleAi } from './sync/sheets-sync.js';
 import { handleUpload, serveImage } from './handlers/upload.js';
 import { getUploadPageHtml } from './pages/upload.html.js';
 import * as kitHandler from './handlers/kit.js';
@@ -177,6 +177,20 @@ self.addEventListener('fetch', e => {
         const body = await request.json();
         if (body.key !== env.SYNC_SECRET) return new Response('Unauthorized', { status: 401 });
         const result = await restorePhotoMetaFromGas(env);
+        return new Response(JSON.stringify(result, null, 2), { headers: { 'Content-Type': 'application/json' } });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+      }
+    }
+
+    // 単体再判定: POST /admin/reprocess-ai (body: {key, managedId})
+    if (request.method === 'POST' && url.pathname === '/admin/reprocess-ai') {
+      try {
+        const body = await request.json();
+        if (body.key !== env.SYNC_SECRET) return new Response('Unauthorized', { status: 401 });
+        const mid = (body.managedId || '').toString().trim();
+        if (!mid) return new Response(JSON.stringify({ error: 'managedId required' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
+        const result = await reprocessSingleAi(env, mid);
         return new Response(JSON.stringify(result, null, 2), { headers: { 'Content-Type': 'application/json' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });

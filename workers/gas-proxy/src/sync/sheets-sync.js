@@ -1146,6 +1146,65 @@ export async function batchAiJudgment(env, limit) {
   };
 }
 
+// ─── 単体再判定（指定 managedId のみ） ───
+
+export async function reprocessSingleAi(env, managedId) {
+  const diag = { managedId, steps: [] };
+  const geminiKey = env.GEMINI_API_KEY || '';
+  if (!geminiKey) {
+    diag.steps.push({ step: 'env', ok: false, message: 'GEMINI_API_KEY not set' });
+    return diag;
+  }
+
+  // 1. KV画像URL確認
+  const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
+  if (!urlsJson) {
+    diag.steps.push({ step: 'check-images-kv', ok: false, message: 'product-images not in KV (タスキ箱→gas-proxy同期失敗 or 統合前のアップロード)' });
+    return diag;
+  }
+  const urls = JSON.parse(urlsJson);
+  diag.steps.push({ step: 'check-images-kv', ok: true, count: urls.length });
+
+  // 2. 既存ai-resultキャッシュをクリア
+  const existing = await env.CACHE.get(`ai-result:${managedId}`);
+  await env.CACHE.delete(`ai-result:${managedId}`);
+  diag.steps.push({ step: 'clear-ai-cache', ok: true, hadCache: !!existing });
+
+  // 3. Gemini再判定
+  let aiResult;
+  try {
+    aiResult = await runGeminiJudgment(env, managedId, geminiKey);
+  } catch (e) {
+    diag.steps.push({ step: 'gemini', ok: false, message: e.message });
+    return diag;
+  }
+  if (!aiResult) {
+    diag.steps.push({ step: 'gemini', ok: false, message: 'returned null (R2画像取得失敗 or Gemini空応答)' });
+    return diag;
+  }
+  diag.steps.push({ step: 'gemini', ok: true, brand: aiResult.brand, category2: aiResult.category2 });
+
+  // 4. KVにキャッシュしGAS送信
+  await env.CACHE.put(`ai-result:${managedId}`, JSON.stringify(aiResult), { expirationTtl: 30 * 24 * 3600 });
+
+  const gasUrl = env.GAS_API_URL;
+  if (!gasUrl) {
+    diag.steps.push({ step: 'gas', ok: false, message: 'GAS_API_URL not set' });
+    return diag;
+  }
+  const body = JSON.stringify({
+    action: 'apiSyncImportData',
+    args: [{ syncSecret: env.SYNC_SECRET || '', aiData: [{ managedId, ...aiResult }] }],
+  });
+  const resp = await fetch(gasUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body, redirect: 'follow' });
+  const text = await resp.text();
+  let gasResult;
+  try { gasResult = JSON.parse(text); } catch { gasResult = { raw: text.substring(0, 500) }; }
+  diag.steps.push({ step: 'gas', ok: gasResult?.ok === true, imported: gasResult?.imported, message: gasResult?.message });
+
+  return diag;
+}
+
 // ─── Gemini AI判定 ───
 
 const GEMINI_MODEL = 'gemini-2.5-flash-lite';
