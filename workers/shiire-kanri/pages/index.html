@@ -1105,9 +1105,13 @@ async function openCreateProductModal(shiireId) {
       all.forEach(function(it){ SHIIRE_CATEGORY_MAP[it.shiireId] = it.category || ''; });
       if (!items.length) { closeModal(); toast('登録可能な仕入れがありません（すべて完了済）', 'error'); return; }
       const opts = items.map(it => {
-        const label = (it.date || '—') + ' / ' + (it.place || '—') +
-          ' / 登録 ' + (it.registered || 0) + (it.planned ? '/' + it.planned : '');
-        return '<option value="' + esc(it.shiireId) + '">' + esc(it.shiireId) + ' — ' + esc(label) + '</option>';
+        const reg = (it.registered || 0) + (it.planned ? '/' + it.planned : '');
+        const label = (it.date || '—') +
+          ' / ' + (it.place || '—') +
+          ' / ' + (it.category || '—') +
+          ' / 登録 ' + reg +
+          ' - ' + (it.shiireId || '');
+        return '<option value="' + esc(it.shiireId) + '">' + esc(label) + '</option>';
       }).join('');
       openModal(buildCreateProductHtml_({ withSelect: true, optionsHtml: opts, suggested: '' }));
       const sel = document.getElementById('cprd_shiire');
