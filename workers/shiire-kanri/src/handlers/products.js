@@ -147,17 +147,21 @@ export async function getNextKanri(request, env) {
 export async function getProduct(request, env, kanri) {
   try {
     const row = await env.DB.prepare(`
-      SELECT *, ${DERIVED_STATUS} AS derived_status
-      FROM products WHERE kanri = ? LIMIT 1
+      SELECT p.*, ${DERIVED_STATUS} AS derived_status,
+             pu.date AS pu_date, pu.cost AS pu_cost, pu.place AS pu_place,
+             pu.amount AS pu_amount, pu.shipping AS pu_shipping
+      FROM products p
+      LEFT JOIN purchases pu ON pu.shiire_id = p.shiire_id
+      WHERE p.kanri = ? LIMIT 1
     `).bind(kanri).first();
     if (!row) return jsonError('not found', 404);
-    return jsonOk({ item: formatProduct(row) });
+    return jsonOk({ item: formatProduct(row, true) });
   } catch (err) {
     return jsonError('db error: ' + err.message, 500);
   }
 }
 
-function formatProduct(row) {
+function formatProduct(row, withDerived) {
   let measure = null;
   if (row.measure_json) {
     try { measure = JSON.parse(row.measure_json); } catch { measure = null; }
@@ -165,6 +169,55 @@ function formatProduct(row) {
   let extra = null;
   if (row.extra_json) {
     try { extra = JSON.parse(row.extra_json); } catch { extra = null; }
+  }
+  if (withDerived) {
+    extra = extra || {};
+    // 仕入れ管理シート由来の連動値（読取専用）— シート側に列が無い／空の場合のみ補完
+    if (!extra['仕入れ日'] && row.pu_date) extra['仕入れ日'] = String(row.pu_date);
+    if (!extra['納品場所'] && row.pu_place) extra['納品場所'] = String(row.pu_place);
+    if (!extra['仕入れ値'] && row.pu_cost != null && row.pu_cost !== '') {
+      extra['仕入れ値'] = Number(row.pu_cost);
+    }
+    // 計算系: シート側の値を優先、空なら都度算出
+    const cost = Number(extra['仕入れ値'] || 0);
+    const salePrice = Number(row.sale_price || 0);
+    const saleShipping = Number(row.sale_shipping || 0);
+    const saleFee = Number(row.sale_fee || 0);
+    if (!extra['粗利'] && salePrice > 0) {
+      extra['粗利'] = salePrice - saleShipping - saleFee;
+    }
+    if (!extra['利益'] && salePrice > 0) {
+      extra['利益'] = salePrice - saleShipping - saleFee - cost;
+    }
+    if (!extra['利益率'] && salePrice > 0) {
+      const rieki = salePrice - saleShipping - saleFee - cost;
+      extra['利益率'] = (rieki / salePrice * 100).toFixed(1) + '%';
+    }
+    // 在庫日数: 仕入れ日 → 今日（販売日があればそこまで）
+    if (!extra['在庫日数']) {
+      const baseDateStr = extra['仕入れ日'];
+      if (baseDateStr) {
+        const start = new Date(baseDateStr);
+        const end = row.sale_date ? new Date(row.sale_date) : new Date();
+        if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+          const days = Math.floor((end - start) / 86400000);
+          if (days >= 0) extra['在庫日数'] = days;
+        }
+      }
+    }
+    // リードタイム: 仕入れ日 → 出品日
+    if (!extra['リードタイム']) {
+      const startStr = extra['仕入れ日'];
+      const endStr = extra['出品日'];
+      if (startStr && endStr) {
+        const a = new Date(startStr);
+        const b = new Date(endStr);
+        if (!isNaN(a.getTime()) && !isNaN(b.getTime())) {
+          const days = Math.floor((b - a) / 86400000);
+          if (days >= 0) extra['リードタイム'] = days;
+        }
+      }
+    }
   }
   return {
     kanri: row.kanri,
