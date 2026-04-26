@@ -851,11 +851,32 @@ async function openShiireDetail(shiireId) {
   }
 }
 
+// 商品一覧の stale-while-revalidate キャッシュ
+// キー = tab|filter|q ／ 値 = { items, ts }
+var LIST_CACHE = Object.create(null);
+function listCacheKey_() {
+  var q = (document.getElementById('search') && document.getElementById('search').value || '').trim();
+  return (STATE.tab || '') + '|' + (STATE.filter || '') + '|' + q;
+}
+// 楽観的に保存した変更を全キャッシュエントリに反映（一覧バッジを即座に更新）
+function patchListCache_(kanri, fields) {
+  Object.keys(LIST_CACHE).forEach(function(key){
+    var entry = LIST_CACHE[key];
+    if (!entry || !Array.isArray(entry.items)) return;
+    entry.items.forEach(function(it){
+      if (it.kanri !== kanri) return;
+      if (fields['販売日']) it.saleDate = fields['販売日'];
+      if (fields['販売価格']) it.salePrice = fields['販売価格'];
+      if (fields['ステータス']) it.status = fields['ステータス'];
+      if (fields['採寸日']) { it.measuredAt = fields['採寸日']; }
+    });
+  });
+}
+
 async function renderShouhinList(opts) {
   opts = opts || {};
   var c = document.getElementById('content');
   var chip = STATE.filterLabel ? '<div><span class="filter-chip">📂 ' + esc(STATE.filterLabel) + '</span></div>' : '';
-  if (!opts.silent) c.innerHTML = chip + '<div class="loading">読み込み中…</div>';
   const q = (document.getElementById('search').value || '').trim();
   const params = new URLSearchParams();
   params.set('limit', '10000');
@@ -866,18 +887,30 @@ async function renderShouhinList(opts) {
   const fab = showCreateFab
     ? '<div class="fab-stack"><button class="fab" onclick="openCreateProductModal(null)" title="新規商品">＋</button></div>'
     : '';
+
+  // キャッシュがあれば即時表示（裏で再取得して差分更新）
+  var cacheKey = listCacheKey_();
+  var cached = LIST_CACHE[cacheKey];
+  function paint(items){
+    STATE.items = items;
+    var html = chip + (items.length
+      ? items.map(cardHtml).join('')
+      : '<div class="empty">該当する商品がありません</div>');
+    c.innerHTML = html + fab;
+  }
+  if (cached) {
+    paint(cached.items);
+  } else if (!opts.silent) {
+    c.innerHTML = chip + '<div class="loading">読み込み中…</div>';
+  }
+
   try {
     const res = await api('/api/products?' + params.toString());
-    STATE.items = res.items || [];
-    let html = chip;
-    if (!STATE.items.length) {
-      html += '<div class="empty">該当する商品がありません</div>';
-    } else {
-      html += STATE.items.map(cardHtml).join('');
-    }
-    c.innerHTML = html + fab;
+    var items = res.items || [];
+    LIST_CACHE[cacheKey] = { items: items, ts: Date.now() };
+    paint(items);
   } catch (err) {
-    if (!opts.silent) c.innerHTML = chip + '<div class="empty" style="color:#c62828">' + esc(err.message) + '</div>' + fab;
+    if (!cached && !opts.silent) c.innerHTML = chip + '<div class="empty" style="color:#c62828">' + esc(err.message) + '</div>' + fab;
   }
 }
 
@@ -921,16 +954,31 @@ function renderDenied() {
 }
 
 // ========== 詳細 ==========
+// 詳細キャッシュ: 一度開いたら即時再表示できるようにする（裏で /api/products/:kanri を再取得）
+var DETAIL_CACHE = Object.create(null);
 async function openDetail(kanri) {
   STATE.view = 'detail';
+  STATE.detailDirty = false;
   document.getElementById('appbar-title').textContent = kanri;
-  document.getElementById('content').innerHTML = '<div class="loading">読み込み中…</div>';
+  var cached = DETAIL_CACHE[kanri];
+  if (cached) {
+    STATE.current = cached;
+    renderDetail();
+  } else {
+    document.getElementById('content').innerHTML = '<div class="loading">読み込み中…</div>';
+  }
   try {
     const res = await api('/api/products/' + encodeURIComponent(kanri));
-    STATE.current = res.item;
-    renderDetail();
+    DETAIL_CACHE[kanri] = res.item;
+    // フォーム入力中（dirty）は再描画でユーザー入力を消さない
+    if (STATE.view === 'detail' && !STATE.detailDirty) {
+      STATE.current = res.item;
+      renderDetail();
+    }
   } catch (err) {
-    document.getElementById('content').innerHTML = '<div class="empty" style="color:#c62828">' + esc(err.message) + '</div>';
+    if (!cached) {
+      document.getElementById('content').innerHTML = '<div class="empty" style="color:#c62828">' + esc(err.message) + '</div>';
+    }
   }
 }
 
@@ -1083,7 +1131,14 @@ function renderDetail() {
     '</div>';
   document.getElementById('content').innerHTML = html;
   wireFeeAutoCalc_('f_');
+  // フォーム編集が始まった時点で dirty マーク → 裏の再取得で入力が消えないようにする
+  var contentEl = document.getElementById('content');
+  contentEl.addEventListener('input', markDetailDirty_, { once: true });
+  contentEl.addEventListener('change', markDetailDirty_, { once: true });
 }
+function markDetailDirty_() { STATE.detailDirty = true; }
+// 保存／戻る後は dirty を解除
+function clearDetailDirty_() { STATE.detailDirty = false; }
 
 function backToList() {
   STATE.view = 'list'; STATE.current = null; render();
@@ -1123,19 +1178,20 @@ async function saveDetails() {
     return;
   }
 
-  setFabLoading('btn-save-details', '⏳', true);
-  try {
-    var res = await api('/api/save/details', { method: 'POST', body: { kanri: d.kanri, fields: fields } });
-    toast((res.written || 0) + '件保存しました', 'success');
-    // ローカル extra も更新（再取得は次回の openDetail で）
-    Object.keys(fields).forEach(function(k){ ex[k] = fields[k]; });
-    d.extra = ex;
-    refreshCounts();
-  } catch (err) {
-    toast('保存失敗: ' + err.message, 'error');
-  } finally {
-    setFabLoading('btn-save-details', '💾', false);
-  }
+  // 楽観的更新: ローカル extra を即時反映 → トースト → 一覧キャッシュも更新
+  Object.keys(fields).forEach(function(k){ ex[k] = fields[k]; });
+  d.extra = ex;
+  patchListCache_(d.kanri, fields);
+  if (DETAIL_CACHE[d.kanri]) DETAIL_CACHE[d.kanri] = d;
+  clearDetailDirty_();
+  toast('保存しました', 'success');
+
+  // 背景で API へ送信。失敗時のみエラー表示。
+  api('/api/save/details', { method: 'POST', body: { kanri: d.kanri, fields: fields } })
+    .then(function(){ refreshCounts(); })
+    .catch(function(err){
+      toast('⚠️ 保存に失敗: ' + err.message + '（再保存してください）', 'error');
+    });
 }
 
 function setFabLoading(id, icon, loading) {
