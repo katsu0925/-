@@ -1290,12 +1290,16 @@ async function applyAiPrefillToForm_(kanri) {
   }
 }
 
-// 新規作成では除外するセクション（仕入れ連動・計算結果・画像・ステータス変更日は作成時には触らない）
+// 新規作成では除外するセクション
+// - 仕入れ連動・計算結果・画像・ステータス変更日: 作成時には触らない
+// - 撮影・出品: 撮影日付/撮影者 は gas-proxy autoMatchPhotography Cron(5分) が photo-meta KV から自動反映。
+//              出品日/出品者/使用アカウント/リンクは後工程フィールド。
 var CREATE_EXCLUDE_SECTIONS = {
   '仕入れ（連動・読取専用）': 1,
   '計算結果（読取専用）': 1,
   'ステータス変更日': 1,
-  '画像': 1
+  '画像': 1,
+  '撮影・出品': 1
 };
 
 function createFieldId_(name) {

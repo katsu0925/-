@@ -652,23 +652,9 @@ function staff_lookupAiPrefill(kanri) {
     var s = String(val).trim();
     if (s) out[name] = s;
   }
-  // 撮影日付：タスキ箱アップロード後 5分Cron で書かれる「判定日」を流用
-  var dateCol = colMap['判定日'];
-  if (dateCol != null) {
-    var rawDate = hit[dateCol];
-    var formattedDate = '';
-    if (rawDate instanceof Date && !isNaN(rawDate.getTime())) {
-      var tz = Session.getScriptTimeZone() || 'Asia/Tokyo';
-      formattedDate = Utilities.formatDate(rawDate, tz, 'yyyy-MM-dd');
-    } else if (rawDate) {
-      var s2 = String(rawDate).trim();
-      var m = s2.match(/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})/);
-      if (m) {
-        formattedDate = m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
-      }
-    }
-    if (formattedDate) out['撮影日付'] = formattedDate;
-  }
+  // 撮影日付・撮影者は新規作成時にはセットしない。
+  // 商品管理シートに行が登録された後、gas-proxy の autoMatchPhotography → importPhotographyData_
+  // が photo-meta KV を元に AI列(35)=撮影日付 / AJ列(36)=撮影者 を 5分Cron で自動反映する。
   return { ok: true, fields: out, found: true };
 }
 
