@@ -6,6 +6,7 @@ import { listProducts, getProduct, listProductCounts, getNextKanri } from './han
 import { listPurchases, getPurchaseProducts } from './handlers/purchases.js';
 import { saveMeasurement, saveSale, saveDetails, createPurchase, createProduct } from './handlers/write-proxy.js';
 import { listWorkers, listAccounts, listSuppliers, listPlaces, listCategories } from './handlers/master.js';
+import { lookupAiPrefill } from './handlers/ai.js';
 
 export default {
   async scheduled(event, env, ctx) {
@@ -78,6 +79,11 @@ export default {
     }
     if (path === '/api/master/categories' && request.method === 'GET') {
       return listCategories(request, env);
+    }
+
+    // AI画像判定（管理番号 → ブランド/タグ表記/性別/カテゴリ1-3/デザイン特徴/カラー/ポケット）
+    if (path === '/api/ai/prefill' && request.method === 'GET') {
+      return lookupAiPrefill(request, env);
     }
 
     if (path === '/api/purchases' && request.method === 'GET') {

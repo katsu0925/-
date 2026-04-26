@@ -584,6 +584,48 @@ function staff_listCategories() {
   return { ok: true, items: out };
 }
 
+// 管理番号 → AI画像判定シートから 9 項目をプリフィル用に返す
+// AppSheet Initial Value (LOOKUP) 相当
+function staff_lookupAiPrefill(kanri) {
+  var key = String(kanri == null ? '' : kanri).trim();
+  if (!key) return { ok: false, error: 'kanri required' };
+  var ss = staff_getActiveSpreadsheet_();
+  var sh = ss.getSheetByName('AI画像判定');
+  if (!sh) return { ok: true, fields: {}, found: false };
+  var lastRow = sh.getLastRow();
+  var lastCol = sh.getLastColumn();
+  if (lastRow < 2 || lastCol < 1) return { ok: true, fields: {}, found: false };
+  var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  var colMap = {};
+  for (var c = 0; c < headers.length; c++) {
+    var h = String(headers[c] || '').trim();
+    if (h) colMap[h] = c;
+  }
+  var midCol = colMap['管理番号'];
+  if (midCol == null) return { ok: true, fields: {}, found: false };
+  var rows = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  var keyU = key.toUpperCase();
+  var hit = null;
+  for (var r = 0; r < rows.length; r++) {
+    var v = String(rows[r][midCol] || '').trim();
+    if (v && v.toUpperCase() === keyU) { hit = rows[r]; break; }
+  }
+  if (!hit) return { ok: true, fields: {}, found: false };
+  // ユーザー要望の 9 項目
+  var WANTED = ['ブランド','タグ表記','性別','カテゴリ1','カテゴリ2','カテゴリ3','デザイン特徴','カラー','ポケット'];
+  var out = {};
+  for (var i = 0; i < WANTED.length; i++) {
+    var name = WANTED[i];
+    var ci = colMap[name];
+    if (ci == null) continue;
+    var val = hit[ci];
+    if (val == null) continue;
+    var s = String(val).trim();
+    if (s) out[name] = s;
+  }
+  return { ok: true, fields: out, found: true };
+}
+
 // 初回セットアップ用: GASエディタから手動実行して SHIIRE_SYNC_SECRET を設定する
 // （Workers の SYNC_SECRET と同じ値を埋める）
 function staff_setupSyncSecret() {

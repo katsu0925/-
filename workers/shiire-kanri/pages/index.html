@@ -1136,6 +1136,26 @@ async function openCreateProductModal(shiireId) {
   }
   const suggested = await suggestNextKanriRemote(category);
   openModal(buildCreateProductHtml_({ withSelect: false, fixedShiireId: shiireId, suggested: suggested }));
+  if (suggested) applyAiPrefillToForm_(suggested);
+}
+
+// AI画像判定シートから 9 項目（ブランド/タグ表記/性別/カテゴリ1-3/デザイン特徴/カラー/ポケット）を取得して
+// 新規商品モーダルの空欄フィールドに反映（AppSheet Initial Value 相当）
+async function applyAiPrefillToForm_(kanri) {
+  if (!kanri) return;
+  try {
+    const res = await api('/api/ai/prefill?kanri=' + encodeURIComponent(kanri));
+    const fields = (res && res.fields) || {};
+    Object.keys(fields).forEach(function(name){
+      var el = document.getElementById(createFieldId_(name));
+      if (!el) return;
+      // 既にユーザーが入力していたら上書きしない
+      if (el.value && String(el.value).trim() !== '') return;
+      el.value = fields[name];
+    });
+  } catch (err) {
+    console.warn('[ai prefill]', err && err.message);
+  }
 }
 
 // 新規作成では除外するセクション（仕入れ連動・計算結果・画像・ステータス変更日は作成時には触らない）
@@ -1245,6 +1265,7 @@ async function onShiireSelectChange_() {
       (suggested ? ' / 自動採番: <strong>' + esc(suggested) + '</strong>' : ' / ⚠ 区分コード未設定で採番不可');
     kanriInput.value = suggested || '';
     STATE.currentShiireProducts = items;
+    if (suggested) applyAiPrefillToForm_(suggested);
   } catch (err) {
     hint.textContent = sid + ' / 候補取得失敗: ' + err.message;
   }
