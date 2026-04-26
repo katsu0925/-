@@ -25,8 +25,8 @@ export async function scheduledSync(env) {
     if (!exportData || !exportData.ok) {
       console.error('[sync] Export failed:', exportData?.message || 'unknown');
       // エクスポート失敗でも撮影同期・AI判定は実行する
-      await syncPhotographyData(env);
       await autoMatchPhotography(env);
+      await syncPhotographyData(env);
       return;
     }
 
@@ -99,11 +99,12 @@ export async function scheduledSync(env) {
       await pushImportData(env);
     }
 
-    // 6. 撮影データ → GAS（商品管理シートに書き込み）
-    await syncPhotographyData(env);
-
-    // 6b. 撮影先行登録の自動マッチング（新規商品×先行アップロード画像）
+    // 6. 撮影先行登録の自動マッチング（新規商品×先行アップロード画像）
+    //    → 同じCron tick内で syncPhotographyData が処理できるよう先に実行
     await autoMatchPhotography(env);
+
+    // 6b. 撮影データ → GAS（商品管理シートに書き込み）
+    await syncPhotographyData(env);
 
     // 7. pending_orders クリーンアップ
     await cleanupPendingOrders(env.DB);
