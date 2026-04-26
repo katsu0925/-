@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS purchases (
   planned INTEGER,                    -- 商品点数
   place TEXT,                         -- 納品場所
   cost INTEGER,                       -- 商品原価
+  category TEXT,                      -- 区分コード (管理番号プレフィックス用)
   row_num INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );

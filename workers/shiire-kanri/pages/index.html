@@ -941,31 +941,46 @@ async function submitCreatePurchase() {
   }
 }
 
-// 既存商品の管理番号から「次の管理番号」を推測（z + 区分 + 数字 形式のみ対応）
-function suggestNextKanri(items) {
-  if (!items || !items.length) return '';
-  var prefix = '';
+// 既存商品の管理番号から「次の連番」を計算（z + 区分コード + 数字 形式）
+// category が指定されていればそれをプレフィックスに使う（既存商品ゼロでも採番可能）
+function suggestNextKanri(items, category) {
+  var prefix = category ? ('z' + String(category)) : '';
   var maxN = 0;
-  for (var i = 0; i < items.length; i++) {
-    var k = String(items[i].kanri || '');
-    var m = k.match(/^(z[A-Za-z]+)(\d+)/);
-    if (!m) continue;
-    var n = parseInt(m[2], 10);
-    if (isNaN(n)) continue;
-    if (!prefix) prefix = m[1];
-    if (m[1] === prefix && n > maxN) maxN = n;
+  if (items && items.length) {
+    for (var i = 0; i < items.length; i++) {
+      var k = String(items[i].kanri || '');
+      var m = k.match(/^(z[A-Za-z0-9]+?)(\d+)$/);
+      if (!m) continue;
+      var n = parseInt(m[2], 10);
+      if (isNaN(n)) continue;
+      if (!prefix) prefix = m[1];
+      if (m[1] === prefix && n > maxN) maxN = n;
+    }
   }
   return prefix ? (prefix + (maxN + 1)) : '';
 }
 
+// 仕入れ完了判定（登録済み数 >= 予定数 で完了とみなす）
+function isShiireDone_(it) {
+  var planned = Number(it && it.planned || 0);
+  var registered = Number(it && it.registered || 0);
+  return planned > 0 && registered >= planned;
+}
+
+// shiireId → category マップ（オートサジェスト用）
+var SHIIRE_CATEGORY_MAP = {};
+
 async function openCreateProductModal(shiireId) {
-  // shiireId 未指定 → 仕入れリストから選ばせる
+  // shiireId 未指定 → 仕入れリストから選ばせる（完了済は除外）
   if (!shiireId) {
     openModal('<h3>新規商品</h3><div class="loading">仕入れ一覧を取得中…</div>');
     try {
       const res = await api('/api/purchases?limit=2000');
-      const items = (res.items || []).filter(it => it.shiireId);
-      if (!items.length) { closeModal(); toast('仕入れデータがありません', 'error'); return; }
+      const all = (res.items || []).filter(it => it.shiireId);
+      const items = all.filter(it => !isShiireDone_(it));
+      // category マップを更新
+      all.forEach(function(it){ SHIIRE_CATEGORY_MAP[it.shiireId] = it.category || ''; });
+      if (!items.length) { closeModal(); toast('登録可能な仕入れがありません（すべて完了済）', 'error'); return; }
       const opts = items.map(it => {
         const label = (it.date || '—') + ' / ' + (it.place || '—') +
           ' / 登録 ' + (it.registered || 0) + (it.planned ? '/' + it.planned : '');
@@ -982,8 +997,17 @@ async function openCreateProductModal(shiireId) {
     }
     return;
   }
-  // 仕入れ詳細から呼ばれた → 既存 STATE.currentShiireProducts から候補
-  const suggested = suggestNextKanri(STATE.currentShiireProducts || []);
+  // 仕入れ詳細から呼ばれた → 既存 STATE.currentShiireProducts と category から自動採番
+  var category = SHIIRE_CATEGORY_MAP[shiireId] || '';
+  if (!category) {
+    // category 未取得の場合は purchases API から取り直す
+    try {
+      const res = await api('/api/purchases?limit=2000');
+      (res.items || []).forEach(function(it){ SHIIRE_CATEGORY_MAP[it.shiireId] = it.category || ''; });
+      category = SHIIRE_CATEGORY_MAP[shiireId] || '';
+    } catch (e) { /* ignore */ }
+  }
+  const suggested = suggestNextKanri(STATE.currentShiireProducts || [], category);
   openModal(buildCreateProductHtml_({ withSelect: false, fixedShiireId: shiireId, suggested: suggested }));
 }
 
@@ -1059,8 +1083,8 @@ function buildCreateProductHtml_(opts) {
     }).join('');
 
   return '<h3>新規商品</h3>' + head +
-    '<div class="field-row"><label>管理番号<span class="req">*</span></label>' +
-      '<input id="cprd_kanri" type="text" value="' + esc(opts.suggested) + '" placeholder="例: zA6"></div>' +
+    '<div class="field-row"><label>管理番号</label>' +
+      '<input id="cprd_kanri" type="text" value="' + esc(opts.suggested) + '" readonly style="background:#f5f5f5;color:#666;"></div>' +
     sections +
     '<div class="modal-actions">' +
       '<button class="btn-cancel" onclick="closeModal()">キャンセル</button>' +
@@ -1078,10 +1102,11 @@ async function onShiireSelectChange_() {
   try {
     const res = await api('/api/purchases/' + encodeURIComponent(sid) + '/products');
     const items = res.items || [];
-    const suggested = suggestNextKanri(items);
+    const category = SHIIRE_CATEGORY_MAP[sid] || '';
+    const suggested = suggestNextKanri(items, category);
     hint.innerHTML = '仕入れ ID: <strong>' + esc(sid) + '</strong> / 既存 ' + items.length + '件' +
-      (suggested ? ' / 候補: <strong>' + esc(suggested) + '</strong>' : '');
-    if (suggested) kanriInput.value = suggested;
+      (suggested ? ' / 自動採番: <strong>' + esc(suggested) + '</strong>' : ' / ⚠ 区分コード未設定で採番不可');
+    kanriInput.value = suggested || '';
     STATE.currentShiireProducts = items;
   } catch (err) {
     hint.textContent = sid + ' / 候補取得失敗: ' + err.message;
@@ -1097,7 +1122,7 @@ async function submitCreateProduct(shiireId) {
   }
   if (!shiireId) { toast('仕入れを選択してください', 'error'); return; }
   var kanri = document.getElementById('cprd_kanri').value.trim();
-  if (!kanri) { toast('管理番号を入力してください', 'error'); return; }
+  if (!kanri) { toast('管理番号を採番できませんでした（区分コード未設定の可能性）', 'error'); return; }
 
   // 全セクションを走査して入力済みフィールドを収集
   var fields = {};

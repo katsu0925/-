@@ -583,7 +583,7 @@ function staff_syncDumpPurchases() {
   var hdr = sh.getRange(1, 1, 1, lastCol).getValues()[0];
   var col = {};
   for (var i = 0; i < hdr.length; i++) col[String(hdr[i] || '').trim()] = i + 1;
-  var must = ['仕入れID','仕入れ日','金額','送料','商品点数','納品場所','商品原価'];
+  var must = ['仕入れID','仕入れ日','金額','送料','商品点数','納品場所','商品原価','区分コード'];
   for (var k = 0; k < must.length; k++) {
     if (!col[must[k]]) return { ok: false, error: 'missing column: ' + must[k] };
   }
@@ -612,6 +612,7 @@ function staff_syncDumpPurchases() {
       planned: num(val(row, '商品点数')),
       place: String(val(row, '納品場所') || ''),
       cost: num(val(row, '商品原価')),
+      category: String(val(row, '区分コード') || ''),
       row: r + 2
     });
   }
