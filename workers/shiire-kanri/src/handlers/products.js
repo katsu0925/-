@@ -119,6 +119,30 @@ export async function listProductCounts(request, env) {
   }
 }
 
+// GET /api/kanri/next?category=C
+// 区分コードを受け取り、その区分での次の連番（max+1）を返す。
+// 例: category=C のとき、zC で始まる kanri の最大番号 +1 を返す。
+export async function getNextKanri(request, env) {
+  const u = new URL(request.url);
+  const category = (u.searchParams.get('category') || '').trim();
+  if (!category) return jsonError('category required', 400);
+  const prefix = 'z' + category;
+  // GLOB は SUBSTR の数字部分だけを抽出するために条件を絞る
+  const sql = `
+    SELECT MAX(CAST(SUBSTR(kanri, ?) AS INTEGER)) AS max_n
+    FROM products
+    WHERE SUBSTR(kanri, 1, ?) = ?
+      AND CAST(SUBSTR(kanri, ?) AS INTEGER) > 0
+  `;
+  try {
+    const row = await env.DB.prepare(sql).bind(prefix.length + 1, prefix.length, prefix, prefix.length + 1).first();
+    const maxN = Number(row && row.max_n || 0);
+    return jsonOk({ category, prefix, maxN, nextKanri: prefix + (maxN + 1) });
+  } catch (err) {
+    return jsonError('db error: ' + err.message, 500);
+  }
+}
+
 // GET /api/products/:kanri
 export async function getProduct(request, env, kanri) {
   try {

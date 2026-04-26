@@ -980,23 +980,16 @@ async function submitCreatePurchase() {
   }
 }
 
-// 既存商品の管理番号から「次の連番」を計算（z + 区分コード + 数字 形式）
-// category が指定されていればそれをプレフィックスに使う（既存商品ゼロでも採番可能）
-function suggestNextKanri(items, category) {
-  var prefix = category ? ('z' + String(category)) : '';
-  var maxN = 0;
-  if (items && items.length) {
-    for (var i = 0; i < items.length; i++) {
-      var k = String(items[i].kanri || '');
-      var m = k.match(/^(z[A-Za-z0-9]+?)(\d+)$/);
-      if (!m) continue;
-      var n = parseInt(m[2], 10);
-      if (isNaN(n)) continue;
-      if (!prefix) prefix = m[1];
-      if (m[1] === prefix && n > maxN) maxN = n;
-    }
+// 区分コードから「全商品にまたがる次の連番」をサーバーに問い合わせる
+// 仕入れに紐づく既存商品ではなく、システム全体の zX連番 を考慮するため API を使う
+async function suggestNextKanriRemote(category) {
+  if (!category) return '';
+  try {
+    const res = await api('/api/kanri/next?category=' + encodeURIComponent(category));
+    return res.nextKanri || '';
+  } catch (e) {
+    return '';
   }
-  return prefix ? (prefix + (maxN + 1)) : '';
 }
 
 // 仕入れ完了判定（登録済み数 >= 予定数 で完了とみなす）
@@ -1036,7 +1029,7 @@ async function openCreateProductModal(shiireId) {
     }
     return;
   }
-  // 仕入れ詳細から呼ばれた → 既存 STATE.currentShiireProducts と category から自動採番
+  // 仕入れ詳細から呼ばれた → 仕入れの category から全商品横断で次の連番を採番
   var category = SHIIRE_CATEGORY_MAP[shiireId] || '';
   if (!category) {
     // category 未取得の場合は purchases API から取り直す
@@ -1046,7 +1039,7 @@ async function openCreateProductModal(shiireId) {
       category = SHIIRE_CATEGORY_MAP[shiireId] || '';
     } catch (e) { /* ignore */ }
   }
-  const suggested = suggestNextKanri(STATE.currentShiireProducts || [], category);
+  const suggested = await suggestNextKanriRemote(category);
   openModal(buildCreateProductHtml_({ withSelect: false, fixedShiireId: shiireId, suggested: suggested }));
 }
 
@@ -1143,10 +1136,13 @@ async function onShiireSelectChange_() {
   if (!sid) return;
   hint.textContent = sid + ' / 候補取得中…';
   try {
-    const res = await api('/api/purchases/' + encodeURIComponent(sid) + '/products');
-    const items = res.items || [];
     const category = SHIIRE_CATEGORY_MAP[sid] || '';
-    const suggested = suggestNextKanri(items, category);
+    // 紐づく既存商品数も取得して表示
+    const [productsRes, suggested] = await Promise.all([
+      api('/api/purchases/' + encodeURIComponent(sid) + '/products'),
+      suggestNextKanriRemote(category),
+    ]);
+    const items = productsRes.items || [];
     hint.innerHTML = '仕入れ ID: <strong>' + esc(sid) + '</strong> / 既存 ' + items.length + '件' +
       (suggested ? ' / 自動採番: <strong>' + esc(suggested) + '</strong>' : ' / ⚠ 区分コード未設定で採番不可');
     kanriInput.value = suggested || '';

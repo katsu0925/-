@@ -2,7 +2,7 @@ import { corsOptions, jsonOk, jsonError } from './utils/response.js';
 import { getAccessUser } from './utils/access.js';
 import { scheduledSync } from './sync/sheets-sync.js';
 import { scheduledAccessSync } from './sync/access-sync.js';
-import { listProducts, getProduct, listProductCounts } from './handlers/products.js';
+import { listProducts, getProduct, listProductCounts, getNextKanri } from './handlers/products.js';
 import { listPurchases, getPurchaseProducts } from './handlers/purchases.js';
 import { saveMeasurement, saveSale, saveDetails, createPurchase, createProduct } from './handlers/write-proxy.js';
 import { listWorkers, listAccounts } from './handlers/master.js';
@@ -54,6 +54,9 @@ export default {
     }
     if (path === '/api/products/counts' && request.method === 'GET') {
       return listProductCounts(request, env);
+    }
+    if (path === '/api/kanri/next' && request.method === 'GET') {
+      return getNextKanri(request, env);
     }
     const productMatch = path.match(/^\/api\/products\/([^/]+)$/);
     if (productMatch && request.method === 'GET') {
