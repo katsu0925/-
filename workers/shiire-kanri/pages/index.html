@@ -253,7 +253,13 @@
   }
   .modal .field-row textarea { resize: vertical; min-height: 60px; }
   .modal .field-row .req { color: var(--danger); margin-left: 4px; }
-  .modal-actions { display: flex; gap: 8px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .modal-actions {
+    display: flex; gap: 8px; margin-top: 16px; padding: 12px 0;
+    border-top: 1px solid var(--border);
+    position: sticky; bottom: 0; background: #fff; z-index: 5;
+  }
+  .field-row:has(input[type="date"]) { cursor: pointer; }
+  .field-row:has(input[type="date"]) label { cursor: pointer; }
   .modal-actions button { flex: 1; padding: 12px; border: none; border-radius: 6px; font-size: 15px; cursor: pointer; }
   .modal-actions .btn-cancel { background: #eee; color: var(--text); }
   .modal-actions .btn-submit { background: var(--primary); color: #fff; }
@@ -385,6 +391,18 @@ document.addEventListener('visibilitychange', function(){
   if (document.visibilityState === 'visible') autoRefresh();
 });
 window.addEventListener('focus', autoRefresh);
+
+// 日付フィールドはラベルや余白をタップしてもカレンダーが開くようにする
+document.addEventListener('click', function(e){
+  var row = e.target.closest && e.target.closest('.field-row');
+  if (!row) return;
+  var input = row.querySelector('input[type="date"]');
+  if (!input || e.target === input) return;
+  if (typeof input.showPicker === 'function') {
+    try { input.showPicker(); return; } catch (_) { /* fallback */ }
+  }
+  input.focus();
+});
 
 // 設定シートからプルダウンを引く項目（キー=フォーム項目名, 値=設定シートの列ヘッダー）
 // カテゴリ1 列が設定シートに無い場合はテキスト入力にフォールバック（settingsOptionsFor_ が null を返す）
@@ -540,21 +558,21 @@ const DETAIL_SECTIONS = [
     ['在庫日数','readonly'],
     ['出品30日経過','readonly']
   ]},
-  { title: 'ステータス変更日', fields: [
-    ['返品日付','date'],
+  { title: '発送関係', fields: [
     ['発送日付','date'],
     ['発送者','worker'],
+    ['QR・バーコード画像','image'],
+    ['売却済み商品画像','image'],
+    ['ポストシール','image'],
     ['完了日','date'],
-    ['キャンセル日','date'],
+    ['キャンセル日','date']
+  ]},
+  { title: 'その他', fields: [
+    ['返品日付','date'],
     ['廃棄日','date']
   ]},
   { title: '備考', fields: [
     ['備考','textarea']
-  ]},
-  { title: '画像', fields: [
-    ['QR・バーコード画像','image'],
-    ['売却済み商品画像','image'],
-    ['ポストシール','image']
   ]}
 ];
 
@@ -1430,8 +1448,8 @@ async function applyAiPrefillToForm_(kanri) {
 var CREATE_EXCLUDE_SECTIONS = {
   '仕入れ（連動・読取専用）': 1,
   '計算結果（読取専用）': 1,
-  'ステータス変更日': 1,
-  '画像': 1,
+  '発送関係': 1,
+  'その他': 1,
   '撮影・出品': 1
 };
 
