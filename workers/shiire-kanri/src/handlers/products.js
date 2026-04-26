@@ -1,5 +1,31 @@
 import { jsonOk, jsonError } from '../utils/response.js';
 
+// 日付フィールドが入力されているかの判定式（SQLite）
+const D_SAISUN  = "(json_extract(extra_json, '$.\"採寸日\"') IS NOT NULL AND json_extract(extra_json, '$.\"採寸日\"') <> '')";
+const D_SATSUEI = "(json_extract(extra_json, '$.\"撮影日付\"') IS NOT NULL AND json_extract(extra_json, '$.\"撮影日付\"') <> '')";
+const D_SHUPPIN = "(json_extract(extra_json, '$.\"出品日\"') IS NOT NULL AND json_extract(extra_json, '$.\"出品日\"') <> '')";
+const D_HASSOU  = "(json_extract(extra_json, '$.\"発送日付\"') IS NOT NULL AND json_extract(extra_json, '$.\"発送日付\"') <> '')";
+const D_KANRYOU = "(json_extract(extra_json, '$.\"完了日\"') IS NOT NULL AND json_extract(extra_json, '$.\"完了日\"') <> '')";
+const D_HANBAI  = "(sale_date IS NOT NULL AND sale_date <> '')";
+const ACCOUNT_SELECTED = "(json_extract(extra_json, '$.\"使用アカウント\"') IS NOT NULL AND json_extract(extra_json, '$.\"使用アカウント\"') <> '')";
+
+// 派生ステータス: 日付・アカウントの入力状況から自動算出
+// 手動ステータス（キャンセル/返品/廃棄）は保持
+const DERIVED_STATUS = `
+  CASE
+    WHEN status LIKE '%キャンセル%' OR status LIKE '%廃棄%' OR status LIKE '%返品%' THEN status
+    WHEN ${D_KANRYOU} THEN '売却済み'
+    WHEN ${D_HASSOU}  THEN '発送済み'
+    WHEN ${D_HANBAI}  THEN '発送待ち'
+    WHEN ${D_SHUPPIN} THEN '出品中'
+    WHEN ${D_SATSUEI} AND ${D_SAISUN} AND ${ACCOUNT_SELECTED} THEN '出品作業中'
+    WHEN ${D_SATSUEI} AND ${D_SAISUN} THEN '出品待ち'
+    WHEN ${D_SATSUEI} THEN '採寸待ち'
+    WHEN ${D_SAISUN}  THEN '撮影待ち'
+    ELSE COALESCE(NULLIF(status,''), '採寸待ち')
+  END
+`;
+
 // GET /api/products?filter=...&q=...&shiire=...&limit=...
 export async function listProducts(request, env) {
   const u = new URL(request.url);
@@ -13,32 +39,23 @@ export async function listProducts(request, env) {
   const where = [];
   const args = [];
 
-  // 採寸済み判定（measure_json が空でない＝1値以上ある）
-  const SOKUTEI_DONE = "(measure_json IS NOT NULL AND measure_json <> '' AND measure_json <> '{}')";
-  const SOKUTEI_NOT_DONE = "(measure_json IS NULL OR measure_json = '' OR measure_json = '{}')";
-  // 売却判定（販売日あり OR ステータスが売却済/完了）
-  const SOLD = "((sale_date IS NOT NULL AND sale_date <> '') OR status LIKE '%売却済%' OR status LIKE '%完了%')";
-  const NOT_SOLD = "((sale_date IS NULL OR sale_date = '') AND status NOT LIKE '%売却済%' AND status NOT LIKE '%完了%')";
-
-  // 出品作業中: 使用アカウントが選択されている（extra_json 内）＋未売却＋出品中以外
-  const ACCOUNT_SELECTED = "(json_extract(extra_json, '$.\"使用アカウント\"') IS NOT NULL AND json_extract(extra_json, '$.\"使用アカウント\"') <> '')";
-
-  // フィルタプリセット
+  // フィルタプリセット（派生ステータス基準）
+  const ds = `(${DERIVED_STATUS})`;
   if (filter === 'sokutei_machi') {
-    where.push(`${SOKUTEI_NOT_DONE} AND ${NOT_SOLD}`);
+    where.push(`${ds} = '採寸待ち'`);
   } else if (filter === 'satsuei_machi') {
-    where.push(`${SOKUTEI_DONE} AND status LIKE '%撮影待ち%'`);
+    where.push(`${ds} = '撮影待ち'`);
   } else if (filter === 'shuppin_machi') {
-    where.push("status LIKE '%出品待ち%'");
+    where.push(`${ds} = '出品待ち'`);
   } else if (filter === 'shuppin_sagyou') {
-    where.push(`${ACCOUNT_SELECTED} AND ${NOT_SOLD} AND status NOT LIKE '%出品中%'`);
+    where.push(`${ds} = '出品作業中'`);
   } else if (filter === 'shuppinchu') {
-    where.push(`status LIKE '%出品中%' AND ${NOT_SOLD}`);
+    where.push(`${ds} = '出品中'`);
   } else if (filter === 'hassou') {
-    // 発送商品タブ: 出品中＋発送待ち（未売却）
-    where.push(`(status LIKE '%出品中%' OR status LIKE '%発送待ち%') AND ${NOT_SOLD}`);
+    // 発送商品タブ: 出品中＋発送待ち
+    where.push(`${ds} IN ('出品中','発送待ち')`);
   } else if (filter === 'sold') {
-    where.push(SOLD);
+    where.push(`${ds} IN ('発送待ち','発送済み','売却済み')`);
   }
 
   if (status) { where.push('status = ?'); args.push(status); }
@@ -55,7 +72,8 @@ export async function listProducts(request, env) {
     SELECT kanri, shiire_id, worker, status, state, brand, size, color,
            measure_json, measured_at, measured_by,
            sale_date, sale_place, sale_price, sale_shipping, sale_fee, sale_ts,
-           extra_json, row_num, updated_at
+           extra_json, row_num, updated_at,
+           ${DERIVED_STATUS} AS derived_status
     FROM products
     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
     ORDER BY kanri DESC
@@ -74,20 +92,15 @@ export async function listProducts(request, env) {
 
 // GET /api/products/counts → 各フィルタの件数を返す
 export async function listProductCounts(request, env) {
-  const SOKUTEI_DONE = "(measure_json IS NOT NULL AND measure_json <> '' AND measure_json <> '{}')";
-  const SOKUTEI_NOT_DONE = "(measure_json IS NULL OR measure_json = '' OR measure_json = '{}')";
-  const SOLD = "((sale_date IS NOT NULL AND sale_date <> '') OR status LIKE '%売却済%' OR status LIKE '%完了%')";
-  const NOT_SOLD = "((sale_date IS NULL OR sale_date = '') AND status NOT LIKE '%売却済%' AND status NOT LIKE '%完了%')";
-  const ACCOUNT_SELECTED = "(json_extract(extra_json, '$.\"使用アカウント\"') IS NOT NULL AND json_extract(extra_json, '$.\"使用アカウント\"') <> '')";
-
+  const ds = `(${DERIVED_STATUS})`;
   const buckets = {
-    sokutei_machi:  `${SOKUTEI_NOT_DONE} AND ${NOT_SOLD}`,
-    satsuei_machi:  `${SOKUTEI_DONE} AND status LIKE '%撮影待ち%'`,
-    shuppin_machi:  "status LIKE '%出品待ち%'",
-    shuppin_sagyou: `${ACCOUNT_SELECTED} AND ${NOT_SOLD} AND status NOT LIKE '%出品中%'`,
-    shuppinchu:     `status LIKE '%出品中%' AND ${NOT_SOLD}`,
-    hassou:         `(status LIKE '%出品中%' OR status LIKE '%発送待ち%') AND ${NOT_SOLD}`,
-    sold:           SOLD,
+    sokutei_machi:  `${ds} = '採寸待ち'`,
+    satsuei_machi:  `${ds} = '撮影待ち'`,
+    shuppin_machi:  `${ds} = '出品待ち'`,
+    shuppin_sagyou: `${ds} = '出品作業中'`,
+    shuppinchu:     `${ds} = '出品中'`,
+    hassou:         `${ds} IN ('出品中','発送待ち')`,
+    sold:           `${ds} IN ('発送待ち','発送済み','売却済み')`,
   };
 
   // 1クエリで集約（CASE で各フィルタの SUM）
@@ -110,7 +123,8 @@ export async function listProductCounts(request, env) {
 export async function getProduct(request, env, kanri) {
   try {
     const row = await env.DB.prepare(`
-      SELECT * FROM products WHERE kanri = ? LIMIT 1
+      SELECT *, ${DERIVED_STATUS} AS derived_status
+      FROM products WHERE kanri = ? LIMIT 1
     `).bind(kanri).first();
     if (!row) return jsonError('not found', 404);
     return jsonOk({ item: formatProduct(row) });
@@ -132,7 +146,8 @@ function formatProduct(row) {
     kanri: row.kanri,
     shiireId: row.shiire_id,
     worker: row.worker,
-    status: row.status,
+    status: row.derived_status || row.status,
+    rawStatus: row.status,
     state: row.state,
     brand: row.brand,
     size: row.size,
