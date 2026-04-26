@@ -1,0 +1,41 @@
+# =====================================================
+# shiire-kanri (本番) — Cloudflare Workers
+# AppSheet「NKonlineメルカリ古着物販管理」の代替（2026-04-26〜）
+# 単一 Workers で SPA(HTML) + /api/* を提供。Pages は不使用
+# =====================================================
+name = "shiire-kanri"
+main = "src/index.js"
+compatibility_date = "2024-09-23"
+workers_dev = true
+
+# 静的アセット（SPA HTML を serveする）
+[assets]
+directory = "./pages"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[vars]
+# 共通環境変数
+WORKERS_URL = "https://shiire-kanri.nsdktts1030.workers.dev"
+PAGES_URL = "https://wholesale-kanri.pages.dev"
+
+# Cron Trigger: 5分ごとに Sheets → D1 同期
+[triggers]
+crons = ["*/5 * * * *"]
+
+# D1 Database (本番)
+[[d1_databases]]
+binding = "DB"
+database_name = "shiire-kanri-db"
+database_id = "5a45ff40-69ca-4a2a-9e75-daa702e959e8"
+
+# KV Namespace (本番)
+[[kv_namespaces]]
+binding = "CACHE"
+id = "39aa093878e7425da7ecedcd31b7d274"
+
+# Secrets (wrangler secret put で設定)
+# - GAS_API_URL          : shiire-kanri GAS Web App URL (deploy ID 含む /exec)
+# - SYNC_SECRET          : GAS との共通シークレット (Sheets ダンプ・書き込み認可)
+# - CF_ACCESS_TEAM       : Cloudflare Access チーム名 (例: nkonline)
+# - CF_ACCESS_AUD        : Access Application AUD タグ (Application 作成時に取得)

@@ -1,0 +1,1147 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>仕入れ管理</title>
+<style>
+  :root {
+    --primary: #1565c0;
+    --primary-dark: #0d47a1;
+    --primary-light: #e3f2fd;
+    --accent: #ff6d00;
+    --bg: #f5f5f5;
+    --card: #ffffff;
+    --text: #212121;
+    --text-sub: #757575;
+    --border: #e0e0e0;
+    --success: #2e7d32;
+    --danger: #c62828;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  html { height: auto; overflow-y: auto; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
+    background: var(--bg); color: var(--text); font-size: 14px;
+    padding-bottom: 80px; min-height: 100vh;
+    -webkit-tap-highlight-color: transparent; overflow-x: hidden;
+  }
+  .appbar {
+    position: sticky; top: 0; z-index: 100;
+    background: var(--primary); color: #fff;
+    height: 56px; display: flex; align-items: center; padding: 0 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  }
+  .appbar .icon-btn {
+    width: 40px; height: 40px; background: none; border: none; color: #fff;
+    font-size: 24px; cursor: pointer; padding: 0;
+    display: flex; align-items: center; justify-content: center; border-radius: 50%;
+  }
+  .appbar .icon-btn:active { background: rgba(255,255,255,0.15); }
+  .appbar h1 { font-size: 18px; font-weight: 500; margin: 0; flex: 1; padding-left: 8px; }
+  .drawer-mask {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.2s;
+  }
+  .drawer-mask.show { opacity: 1; pointer-events: auto; }
+  .drawer {
+    position: fixed; top: 0; left: 0; bottom: 0;
+    width: 280px; max-width: 80vw; background: var(--card);
+    z-index: 201; transform: translateX(-100%); transition: transform 0.2s;
+    box-shadow: 2px 0 8px rgba(0,0,0,0.2);
+    display: flex; flex-direction: column;
+  }
+  .drawer.show { transform: translateX(0); }
+  .drawer-header { background: var(--primary); color: #fff; padding: 24px 16px 16px; }
+  .drawer-header .app-name { font-size: 20px; font-weight: 500; margin-bottom: 4px; }
+  .drawer-header .user { font-size: 12px; opacity: 0.9; word-break: break-all; }
+  .drawer-list { flex: 1; overflow-y: auto; padding: 8px 0; }
+  .drawer-item {
+    display: flex; align-items: center; padding: 14px 20px; cursor: pointer;
+    color: var(--text); border-left: 4px solid transparent; font-size: 15px;
+  }
+  .drawer-item:active { background: var(--primary-light); }
+  .drawer-item.active { background: var(--primary-light); color: var(--primary-dark); border-left-color: var(--primary); font-weight: 500; }
+  .drawer-item .ico { margin-right: 16px; font-size: 20px; }
+  .drawer-item .count {
+    margin-left: auto; min-width: 28px; text-align: center;
+    background: var(--border); color: var(--text-sub);
+    padding: 2px 8px; border-radius: 10px;
+    font-size: 12px; font-weight: 500;
+  }
+  .drawer-item.active .count { background: var(--primary); color: #fff; }
+  .drawer-section-label {
+    padding: 12px 20px 6px; font-size: 11px; color: var(--text-sub);
+    font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;
+  }
+  .drawer-divider { border-top: 1px solid var(--border); margin: 4px 0; }
+  .searchbar {
+    background: var(--card); padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    position: sticky; top: 56px; z-index: 99; display: none;
+  }
+  .searchbar.show { display: block; }
+  .searchbar input {
+    width: 100%; padding: 10px 12px;
+    border: 1px solid var(--border); border-radius: 4px;
+    font-size: 14px; background: #f8f8f8;
+  }
+  .searchbar input:focus { outline: none; border-color: var(--primary); background: #fff; }
+  .content { padding: 8px; min-height: calc(100vh - 56px - 64px); }
+  .filter-chip {
+    display: inline-block; background: var(--primary-light);
+    color: var(--primary-dark); padding: 4px 12px;
+    border-radius: 12px; font-size: 12px; font-weight: 500;
+    margin: 0 0 8px 4px;
+  }
+  .card {
+    background: var(--card); border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+    margin-bottom: 8px; padding: 12px 14px; cursor: pointer;
+  }
+  .card:active { background: var(--primary-light); }
+  .card-row1 { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .card-kanri { font-weight: 600; font-size: 16px; color: var(--primary-dark); }
+  .card-status { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: var(--border); color: var(--text-sub); margin-left: auto; }
+  .card-status.sold { background: #ffe0e0; color: var(--danger); }
+  .card-status.measured { background: #e0f5e0; color: var(--success); }
+  .card-row2 { color: var(--text-sub); font-size: 13px; }
+  .card-brand { font-weight: 500; color: var(--text); }
+  .shiire-card {
+    background: var(--card); border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+    margin-bottom: 8px; padding: 12px 14px; cursor: pointer;
+  }
+  .shiire-card:active { background: var(--primary-light); }
+  .shiire-row1 { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .shiire-date { font-weight: 600; font-size: 16px; color: var(--primary-dark); }
+  .shiire-place { font-size: 12px; color: var(--text-sub); background: #f0f0f0; padding: 2px 8px; border-radius: 10px; }
+  .shiire-progress {
+    margin-left: auto; font-size: 12px; padding: 2px 8px; border-radius: 10px;
+    background: var(--border); color: var(--text-sub);
+  }
+  .shiire-progress.done { background: #e0f5e0; color: var(--success); }
+  .shiire-row2 {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+    margin-top: 8px; font-size: 12px;
+  }
+  .shiire-cell .lbl { color: var(--text-sub); display: block; font-size: 11px; }
+  .shiire-cell .val { font-weight: 500; color: var(--text); font-size: 14px; }
+  .bottomnav {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--card); border-top: 1px solid var(--border);
+    height: 64px; z-index: 100;
+    box-shadow: 0 -2px 4px rgba(0,0,0,0.06);
+    overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; white-space: nowrap;
+  }
+  .bottomnav::-webkit-scrollbar { display: none; }
+  .bottomnav-inner { display: inline-flex; height: 100%; }
+  .bottomnav button {
+    min-width: 72px; height: 100%; border: none; background: none;
+    display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 4px; color: var(--text-sub); font-size: 11px; cursor: pointer; padding: 8px 6px;
+  }
+  .bottomnav button.active { color: var(--primary); }
+  .bottomnav button .ico { font-size: 22px; line-height: 1; }
+  .bottomnav button .lbl { font-size: 10px; }
+  .product-info {
+    background: var(--card); border-radius: 6px;
+    padding: 14px; margin-bottom: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+  }
+  .product-info h2 { margin: 0 0 8px; font-size: 18px; color: var(--primary-dark); }
+  .product-info .meta { color: var(--text-sub); font-size: 13px; line-height: 1.6; }
+  .section-header {
+    text-align: center; color: var(--text-sub); font-size: 13px; font-weight: 500;
+    padding: 16px 0 8px; margin-top: 4px; letter-spacing: 0.3px;
+  }
+  .section-header::before, .section-header::after {
+    content: ''; display: inline-block;
+    width: 24px; height: 1px; background: var(--border);
+    vertical-align: middle; margin: 0 12px;
+  }
+  .form-section {
+    background: var(--card); border-radius: 6px;
+    padding: 4px 0; margin-bottom: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+    overflow: hidden;
+  }
+  .field-row {
+    display: grid; grid-template-columns: 110px 1fr;
+    align-items: center; gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid #f0f0f0;
+    min-height: 48px;
+  }
+  .field-row:last-child { border-bottom: none; }
+  .field-row label { font-size: 13px; color: var(--text-sub); font-weight: 500; }
+  .field-row input, .field-row select, .field-row textarea {
+    width: 100%; padding: 8px 10px;
+    border: 1px solid var(--border); border-radius: 4px;
+    font-size: 16px; background: #fafafa;
+    font-family: inherit;
+  }
+  .field-row textarea { min-height: 56px; resize: vertical; }
+  .field-row input:focus, .field-row select:focus, .field-row textarea:focus { outline: none; border-color: var(--primary); background: #fff; }
+  .field-row.measure-row { grid-template-columns: 80px 1fr 24px; }
+  .field-row .unit { color: var(--text-sub); font-size: 12px; text-align: left; }
+  .field-readonly {
+    padding: 8px 10px; background: #f5f5f5; color: #757575;
+    border: 1px solid #ececec; border-radius: 4px; font-size: 14px;
+    min-height: 36px; word-break: break-all;
+  }
+  .fab-stack {
+    position: fixed; right: 16px; bottom: 80px;
+    display: flex; flex-direction: column; gap: 10px; z-index: 95;
+  }
+  .fab {
+    width: 48px; height: 48px; border-radius: 50%;
+    border: none; background: var(--primary); color: #fff;
+    font-size: 20px; cursor: pointer;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .fab:active { background: var(--primary-dark); }
+  .fab.danger { background: var(--danger); }
+  .fab.gray { background: #757575; }
+  .fab:disabled { background: #bdbdbd; }
+  .toast {
+    position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+    background: rgba(33,33,33,0.92); color: #fff;
+    padding: 10px 20px; border-radius: 4px; font-size: 14px;
+    z-index: 300; opacity: 0; transition: opacity 0.2s;
+    pointer-events: none; max-width: 90%; text-align: center;
+  }
+  .toast.show { opacity: 1; }
+  .toast.error { background: var(--danger); }
+  .toast.success { background: var(--success); }
+  .loading { text-align: center; padding: 40px; color: var(--text-sub); }
+  .empty { text-align: center; padding: 40px; color: var(--text-sub); }
+  .placeholder {
+    text-align: center; padding: 60px 20px; color: var(--text-sub);
+    background: var(--card); border-radius: 8px; margin: 16px;
+  }
+  .placeholder .big { font-size: 48px; margin-bottom: 12px; }
+  .placeholder h3 { margin: 0 0 8px; color: var(--text); }
+  .denied {
+    padding: 40px 20px; text-align: center;
+    background: var(--card); margin: 20px; border-radius: 8px;
+  }
+  .denied h2 { color: var(--danger); margin-bottom: 12px; }
+  .modal-mask {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5); z-index: 200;
+    align-items: flex-end; justify-content: center;
+  }
+  .modal-mask.show { display: flex; }
+  .modal {
+    width: 100%; max-width: 480px; background: #fff;
+    border-radius: 12px 12px 0 0; padding: 16px;
+    max-height: 85vh; overflow-y: auto;
+  }
+  .modal h3 { margin: 0 0 16px; font-size: 18px; }
+  .modal .field-row { display: grid; grid-template-columns: 96px 1fr; gap: 8px; padding: 8px 0; align-items: center; }
+  .modal .field-row label { color: var(--text-sub); font-size: 14px; }
+  .modal .field-row input, .modal .field-row select, .modal .field-row textarea {
+    width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 6px;
+    font-size: 16px; background: #fafafa; box-sizing: border-box;
+  }
+  .modal .field-row input:focus, .modal .field-row select:focus, .modal .field-row textarea:focus {
+    outline: none; border-color: var(--primary); background: #fff;
+  }
+  .modal .field-row textarea { resize: vertical; min-height: 60px; }
+  .modal .field-row .req { color: var(--danger); margin-left: 4px; }
+  .modal-actions { display: flex; gap: 8px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .modal-actions button { flex: 1; padding: 12px; border: none; border-radius: 6px; font-size: 15px; cursor: pointer; }
+  .modal-actions .btn-cancel { background: #eee; color: var(--text); }
+  .modal-actions .btn-submit { background: var(--primary); color: #fff; }
+  .modal-actions .btn-submit:disabled { background: #bdbdbd; }
+  .modal .hint { color: var(--text-sub); font-size: 12px; padding: 4px 0 8px; }
+</style>
+</head>
+<body>
+
+<div class="appbar">
+  <button class="icon-btn" onclick="toggleDrawer()" aria-label="メニュー">≡</button>
+  <h1 id="appbar-title">商品管理</h1>
+  <button class="icon-btn" onclick="toggleSearch()" aria-label="検索">🔍</button>
+</div>
+
+<div class="drawer-mask" id="drawer-mask" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-header">
+    <div class="app-name">仕入れ管理</div>
+    <div class="user" id="drawer-email">—</div>
+  </div>
+  <div class="drawer-list">
+    <div class="drawer-section-label">フィルタビュー</div>
+    <div class="drawer-item" data-filter="sokutei_machi" onclick="selectMenu('sokutei_machi','採寸待ち')">
+      <span class="ico">📏</span><span>採寸待ち</span><span class="count" id="cnt-sokutei_machi">—</span>
+    </div>
+    <div class="drawer-item" data-filter="satsuei_machi" onclick="selectMenu('satsuei_machi','撮影待ち')">
+      <span class="ico">📷</span><span>撮影待ち</span><span class="count" id="cnt-satsuei_machi">—</span>
+    </div>
+    <div class="drawer-item" data-filter="shuppin_machi" onclick="selectMenu('shuppin_machi','出品待ち')">
+      <span class="ico">⏳</span><span>出品待ち</span><span class="count" id="cnt-shuppin_machi">—</span>
+    </div>
+    <div class="drawer-item" data-filter="shuppin_sagyou" onclick="selectMenu('shuppin_sagyou','出品作業中')">
+      <span class="ico">✏️</span><span>出品作業中</span><span class="count" id="cnt-shuppin_sagyou">—</span>
+    </div>
+    <div class="drawer-item" data-filter="shuppinchu" onclick="selectMenu('shuppinchu','出品中')">
+      <span class="ico">🛍️</span><span>出品中</span><span class="count" id="cnt-shuppinchu">—</span>
+    </div>
+    <div class="drawer-divider"></div>
+    <div class="drawer-section-label">業務</div>
+    <div class="drawer-item" onclick="selectMenu('shiire_houkoku','仕入れ数報告')">
+      <span class="ico">📦</span><span>仕入れ数報告</span>
+    </div>
+    <div class="drawer-item" onclick="selectMenu('keihi','経費申請')">
+      <span class="ico">💸</span><span>経費申請</span>
+    </div>
+    <div class="drawer-item" onclick="selectMenu('houshu','報酬確認')">
+      <span class="ico">💰</span><span>報酬確認</span>
+    </div>
+  </div>
+</div>
+
+<div class="searchbar" id="searchbar">
+  <input id="search" type="search" placeholder="管理番号・ブランド・状態で検索" autocomplete="off">
+</div>
+
+<div class="content" id="content">
+  <div class="loading">読み込み中…</div>
+</div>
+
+<div class="bottomnav">
+  <div class="bottomnav-inner" id="bottomnav-inner">
+    <button data-tab="shiire" onclick="selectTab('shiire')"><span class="ico">📥</span><span class="lbl">仕入れ管理</span></button>
+    <button data-tab="shouhin" class="active" onclick="selectTab('shouhin')"><span class="ico">👕</span><span class="lbl">商品管理</span></button>
+    <button data-tab="hassou" onclick="selectTab('hassou')"><span class="ico">🚚</span><span class="lbl">発送商品</span></button>
+    <button data-tab="basho" onclick="selectTab('basho')"><span class="ico">📍</span><span class="lbl">場所移動</span></button>
+    <button data-tab="ai" onclick="selectTab('ai')"><span class="ico">🤖</span><span class="lbl">AI</span></button>
+    <button data-tab="hensou" onclick="selectTab('hensou')"><span class="ico">↩️</span><span class="lbl">返送</span></button>
+    <button data-tab="uriage" onclick="selectTab('uriage')"><span class="ico">📈</span><span class="lbl">売上</span></button>
+    <button data-tab="sagyou" onclick="selectTab('sagyou')"><span class="ico">👥</span><span class="lbl">作業者管理</span></button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<div class="modal-mask" id="modal-mask">
+  <div class="modal" id="modal-body"></div>
+</div>
+
+<script>
+const API_BASE = ''; // Workers 同一オリジンで /api/* と SPA HTML を提供
+
+var STATE = {
+  email: '', allowed: false,
+  tab: 'shouhin', filter: '', filterLabel: '',
+  view: 'list', current: null, items: [],
+  currentShiireProducts: []
+};
+
+var TAB_LABELS = {
+  shiire: '仕入れ管理', shouhin: '商品管理', hassou: '発送商品',
+  basho: '場所移動', ai: 'AI', hensou: '返送', uriage: '売上', sagyou: '作業者管理'
+};
+
+const MEASURE_FIELDS = ['着丈','肩幅','身幅','袖丈','裄丈','総丈','ウエスト','股上','股下','ワタリ','裾幅','ヒップ'];
+
+// 商品管理シート 68列をセクション分けして詳細編集UIに表示する設計
+// type: text | number | date | textarea | image | readonly | status
+// readonly: 計算列・自動引き当て列・サーバ側で禁止
+// image: 画像URLを表示するだけ（編集はAppSheet側 or Drive直編集）
+const STATUS_OPTIONS = ['採寸待ち','撮影待ち','出品待ち','出品作業中','出品中','売却済み','発送済み','完了','キャンセル','返品','廃棄'];
+const GENDER_OPTIONS = ['','メンズ','レディース','キッズ','ユニセックス'];
+const SHIP_METHOD_OPTIONS = ['','ゆうゆうメルカリ便','らくらくメルカリ便','普通郵便','ヤマト宅急便','佐川急便'];
+
+const DETAIL_SECTIONS = [
+  { title: '基本情報', fields: [
+    ['ステータス','status'],
+    ['状態','text'],
+    ['ブランド','text'],
+    ['タグ表記','text'],
+    ['メルカリサイズ','text'],
+    ['性別','gender'],
+    ['発送方法','shipmethod'],
+    ['カテゴリ1','text'],
+    ['カテゴリ2','text'],
+    ['カテゴリ3','text'],
+    ['デザイン特徴','textarea'],
+    ['カラー','text'],
+    ['ポケット','text'],
+    ['ポケット詳細','text'],
+    ['透け感','text'],
+    ['傷汚れ詳細','textarea']
+  ]},
+  { title: '採寸 (cm)', fields: [
+    ['着丈','number'],['肩幅','number'],['身幅','number'],['袖丈','number'],
+    ['裄丈','number'],['総丈','number'],['ウエスト','number'],['股上','number'],
+    ['股下','number'],['ワタリ','number'],['裾幅','number'],['ヒップ','number']
+  ]},
+  { title: '採寸記録', fields: [
+    ['採寸日','date'],
+    ['採寸者','text']
+  ]},
+  { title: '撮影・出品', fields: [
+    ['撮影日付','date'],
+    ['撮影者','text'],
+    ['出品日','date'],
+    ['出品者','text'],
+    ['使用アカウント','text'],
+    ['リンク','url']
+  ]},
+  { title: '仕入れ（連動・読取専用）', fields: [
+    ['仕入れ日','readonly'],
+    ['仕入れ値','readonly'],
+    ['納品場所','readonly']
+  ]},
+  { title: '販売', fields: [
+    ['販売日','date'],
+    ['販売場所','text'],
+    ['プロモーション利用','text'],
+    ['販売価格','number'],
+    ['送料','number'],
+    ['手数料','number']
+  ]},
+  { title: '計算結果（読取専用）', fields: [
+    ['プロモーション手数料','readonly'],
+    ['粗利','readonly'],
+    ['利益','readonly'],
+    ['利益率','readonly'],
+    ['リードタイム','readonly'],
+    ['在庫日数','readonly'],
+    ['出品30日経過','readonly']
+  ]},
+  { title: 'ステータス変更日', fields: [
+    ['返品日付','date'],
+    ['発送日付','date'],
+    ['発送者','text'],
+    ['完了日','date'],
+    ['キャンセル日','date'],
+    ['廃棄日','date']
+  ]},
+  { title: '備考', fields: [
+    ['備考','textarea']
+  ]},
+  { title: '画像', fields: [
+    ['QR・バーコード画像','image'],
+    ['売却済み商品画像','image'],
+    ['ポストシール','image']
+  ]}
+];
+
+// ========== API ==========
+async function api(path, opts) {
+  opts = opts || {};
+  const res = await fetch(API_BASE + path, {
+    method: opts.method || 'GET',
+    credentials: 'include',
+    headers: opts.body ? { 'Content-Type': 'application/json' } : {},
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+  let json;
+  try { json = await res.json(); } catch { json = { ok: false, message: 'invalid response' }; }
+  if (!res.ok || !json.ok) {
+    const msg = json.message || json.error || ('http ' + res.status);
+    throw new Error(msg);
+  }
+  return json;
+}
+
+// ========== 起動 ==========
+window.addEventListener('DOMContentLoaded', async function(){
+  try {
+    const me = await api('/api/me');
+    STATE.email = (me.user && me.user.email) || '';
+    STATE.allowed = !!STATE.email;
+    document.getElementById('drawer-email').textContent = STATE.email || '未取得';
+    if (!STATE.allowed) { renderDenied(); return; }
+    render();
+    refreshCounts();
+  } catch (err) {
+    toast('認証エラー: ' + err.message, 'error');
+    renderDenied();
+  }
+});
+
+async function refreshCounts() {
+  try {
+    const res = await api('/api/products/counts');
+    const c = res.counts || {};
+    Object.keys(c).forEach(function(k){
+      var el = document.getElementById('cnt-' + k);
+      if (el) el.textContent = String(c[k]);
+    });
+  } catch (err) {
+    // 件数失敗は致命ではないので静かにログだけ
+    console.warn('counts failed', err);
+  }
+}
+
+// ========== ドロワー ==========
+function toggleDrawer() {
+  document.getElementById('drawer').classList.toggle('show');
+  document.getElementById('drawer-mask').classList.toggle('show');
+}
+function closeDrawer() {
+  document.getElementById('drawer').classList.remove('show');
+  document.getElementById('drawer-mask').classList.remove('show');
+}
+function selectMenu(filter, label) {
+  STATE.tab = 'shouhin';
+  STATE.filter = filter;
+  STATE.filterLabel = label;
+  STATE.view = 'list';
+  document.querySelectorAll('#bottomnav-inner button').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-tab') === 'shouhin');
+  });
+  document.querySelectorAll('.drawer-item').forEach(function(d){
+    d.classList.toggle('active', d.getAttribute('data-filter') === filter);
+  });
+  closeDrawer();
+  render();
+}
+
+// ========== 検索 ==========
+function toggleSearch() {
+  var bar = document.getElementById('searchbar');
+  bar.classList.toggle('show');
+  if (bar.classList.contains('show')) {
+    setTimeout(function(){ document.getElementById('search').focus(); }, 50);
+  }
+}
+var searchTimer = null;
+document.getElementById('search').addEventListener('input', function(){
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(render, 250);
+});
+
+// ========== ボトムタブ ==========
+function selectTab(tab) {
+  STATE.tab = tab;
+  STATE.view = 'list';
+  if (tab !== 'shouhin') {
+    document.querySelectorAll('.drawer-item').forEach(function(d){ d.classList.remove('active'); });
+    STATE.filter = ''; STATE.filterLabel = '';
+  }
+  document.querySelectorAll('#bottomnav-inner button').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-tab') === tab);
+  });
+  render();
+}
+
+// ========== レンダリング ==========
+function render() {
+  if (!STATE.allowed) { renderDenied(); return; }
+  if (STATE.view === 'detail') { renderDetail(); return; }
+  document.getElementById('appbar-title').textContent = TAB_LABELS[STATE.tab] || '仕入れ管理';
+
+  if (STATE.tab === 'shouhin') {
+    renderShouhinList();
+  } else if (STATE.tab === 'uriage') {
+    STATE.filter = 'sold'; STATE.filterLabel = '売却済み';
+    renderShouhinList();
+  } else if (STATE.tab === 'hassou') {
+    STATE.filter = 'hassou';
+    STATE.filterLabel = '出品中・発送待ち';
+    renderShouhinList();
+  } else if (STATE.tab === 'shiire') {
+    renderShiireList();
+  } else {
+    renderPlaceholder(TAB_LABELS[STATE.tab]);
+  }
+}
+
+async function renderShiireList() {
+  var c = document.getElementById('content');
+  c.innerHTML = '<div class="loading">読み込み中…</div>';
+  try {
+    const res = await api('/api/purchases?limit=300');
+    let items = res.items || [];
+    const q = (document.getElementById('search').value || '').trim();
+    if (q) {
+      const ql = q.toLowerCase();
+      items = items.filter(it =>
+        String(it.shiireId || '').toLowerCase().includes(ql) ||
+        String(it.place || '').toLowerCase().includes(ql) ||
+        String(it.date || '').includes(q)
+      );
+    }
+    const fab = '<div class="fab-stack">' +
+      '<button class="fab" onclick="openCreatePurchaseModal()" title="新規仕入れ">＋</button>' +
+    '</div>';
+    if (!items.length) { c.innerHTML = '<div class="empty">仕入れデータがありません</div>' + fab; return; }
+    c.innerHTML = items.map(shiireCardHtml).join('') + fab;
+  } catch (err) {
+    c.innerHTML = '<div class="empty" style="color:#c62828">' + esc(err.message) + '</div>';
+  }
+}
+
+function shiireCardHtml(it) {
+  const planned = Number(it.planned || 0);
+  const registered = Number(it.registered || 0);
+  const progressLabel = planned > 0 ? (registered + '/' + planned) : String(registered);
+  const progressDone = planned > 0 && registered >= planned;
+  const progClass = progressDone ? 'shiire-progress done' : 'shiire-progress';
+  return '<div class="shiire-card" onclick="openShiireDetail(\'' + esc(it.shiireId).replace(/\'/g,"\\'") + '\')">' +
+    '<div class="shiire-row1">' +
+      '<span class="shiire-date">' + esc(it.date || '—') + '</span>' +
+      (it.place ? '<span class="shiire-place">' + esc(it.place) + '</span>' : '') +
+      '<span class="' + progClass + '">登録 ' + esc(progressLabel) + '</span>' +
+    '</div>' +
+    '<div class="shiire-row2">' +
+      '<div class="shiire-cell"><span class="lbl">金額</span><span class="val">' + fmtYen(it.amount) + '</span></div>' +
+      '<div class="shiire-cell"><span class="lbl">送料</span><span class="val">' + fmtYen(it.shipping) + '</span></div>' +
+      '<div class="shiire-cell"><span class="lbl">商品原価</span><span class="val">' + fmtYen(it.cost) + '</span></div>' +
+    '</div>' +
+  '</div>';
+}
+
+function fmtYen(v) {
+  if (v === '' || v === null || v === undefined) return '—';
+  var n = Number(v);
+  if (isNaN(n)) return esc(String(v));
+  return '¥' + n.toLocaleString('ja-JP');
+}
+
+async function openShiireDetail(shiireId) {
+  var c = document.getElementById('content');
+  document.getElementById('appbar-title').textContent = shiireId;
+  c.innerHTML = '<div class="loading">読み込み中…</div>';
+  try {
+    const res = await api('/api/purchases/' + encodeURIComponent(shiireId) + '/products');
+    const items = res.items || [];
+    const head = '<div class="product-info"><h2>仕入れ ' + esc(shiireId) + '</h2>' +
+      '<div class="meta">紐づく商品: ' + items.length + ' 点</div></div>';
+    const body = items.length
+      ? items.map(cardHtml).join('')
+      : '<div class="empty">商品が登録されていません</div>';
+    const fab = '<div class="fab-stack">' +
+      '<button class="fab gray" onclick="selectTab(\'shiire\')" title="仕入れ一覧へ">←</button>' +
+      '<button class="fab" onclick="openCreateProductModal(\'' + esc(shiireId).replace(/\'/g,"\\'") + '\')" title="新規商品">＋</button>' +
+    '</div>';
+    STATE.currentShiireProducts = items;
+    c.innerHTML = head + body + fab;
+  } catch (err) {
+    c.innerHTML = '<div class="empty" style="color:#c62828">' + esc(err.message) + '</div>';
+  }
+}
+
+async function renderShouhinList() {
+  var c = document.getElementById('content');
+  var chip = STATE.filterLabel ? '<div><span class="filter-chip">📂 ' + esc(STATE.filterLabel) + '</span></div>' : '';
+  c.innerHTML = chip + '<div class="loading">読み込み中…</div>';
+  const q = (document.getElementById('search').value || '').trim();
+  const params = new URLSearchParams();
+  params.set('limit', '10000');
+  if (q) params.set('q', q);
+  if (STATE.filter) params.set('filter', STATE.filter);
+  // 売上タブと発送タブには新規作成不要（既存商品を見る用途）
+  const showCreateFab = STATE.tab === 'shouhin';
+  const fab = showCreateFab
+    ? '<div class="fab-stack"><button class="fab" onclick="openCreateProductModal(null)" title="新規商品">＋</button></div>'
+    : '';
+  try {
+    const res = await api('/api/products?' + params.toString());
+    STATE.items = res.items || [];
+    let html = chip;
+    if (!STATE.items.length) {
+      html += '<div class="empty">該当する商品がありません</div>';
+    } else {
+      html += STATE.items.map(cardHtml).join('');
+    }
+    c.innerHTML = html + fab;
+  } catch (err) {
+    c.innerHTML = chip + '<div class="empty" style="color:#c62828">' + esc(err.message) + '</div>' + fab;
+  }
+}
+
+function cardHtml(it) {
+  const sold = !!(it.saleDate && String(it.saleDate).trim());
+  const measured = !!(it.measuredAt && String(it.measuredAt).trim());
+  let statusBadge;
+  if (sold) statusBadge = '<span class="card-status sold">売却済</span>';
+  else if (measured) statusBadge = '<span class="card-status measured">' + esc(it.status || '採寸済') + '</span>';
+  else statusBadge = '<span class="card-status">' + esc(it.status || '未採寸') + '</span>';
+  return '<div class="card" onclick="openDetail(\'' + esc(it.kanri).replace(/\'/g,"\\'") + '\')">' +
+    '<div class="card-row1">' +
+      '<span class="card-kanri">' + esc(it.kanri) + '</span>' +
+      statusBadge +
+    '</div>' +
+    '<div class="card-row2">' +
+      '<span class="card-brand">' + esc(it.brand || '—') + '</span>' +
+      ' / ' + esc(it.size || '—') +
+      (it.color ? ' / ' + esc(it.color) : '') +
+    '</div>' +
+  '</div>';
+}
+
+function renderPlaceholder(name) {
+  document.getElementById('content').innerHTML =
+    '<div class="placeholder">' +
+      '<div class="big">🚧</div>' +
+      '<h3>' + esc(name) + '</h3>' +
+      '<p>このビューは準備中です。<br>本日中の優先機能は「商品管理」（採寸入力・販売情報入力）と「仕入れ管理」「発送商品」の閲覧です。</p>' +
+    '</div>';
+}
+
+function renderDenied() {
+  document.getElementById('content').innerHTML =
+    '<div class="denied">' +
+      '<h2>アクセス権限がありません</h2>' +
+      '<p>許可されたGoogleアカウントでサインインしてください。</p>' +
+      '<p style="margin-top:16px;font-size:13px">あなたのアカウント: <strong>' + esc(STATE.email || '未取得') + '</strong></p>' +
+    '</div>';
+}
+
+// ========== 詳細 ==========
+async function openDetail(kanri) {
+  STATE.view = 'detail';
+  document.getElementById('appbar-title').textContent = kanri;
+  document.getElementById('content').innerHTML = '<div class="loading">読み込み中…</div>';
+  try {
+    const res = await api('/api/products/' + encodeURIComponent(kanri));
+    STATE.current = res.item;
+    renderDetail();
+  } catch (err) {
+    document.getElementById('content').innerHTML = '<div class="empty" style="color:#c62828">' + esc(err.message) + '</div>';
+  }
+}
+
+function detailFieldId(name) {
+  return 'f_' + name.replace(/[^A-Za-z0-9_]/g, function(ch){ return '_' + ch.charCodeAt(0).toString(16); });
+}
+
+function detailValue(d, name) {
+  var ex = d.extra || {};
+  if (ex[name] !== undefined && ex[name] !== '') return ex[name];
+  // measure_json から補完（extraにすでに同じキーで入っているはずだが念のため）
+  var m = d.measure || {};
+  if (m[name] !== undefined && m[name] !== null) return m[name];
+  return '';
+}
+
+function fieldRowHtml(name, type, val) {
+  var id = detailFieldId(name);
+  var v = (val == null) ? '' : val;
+  var input;
+  if (type === 'readonly') {
+    input = '<div class="field-readonly">' + esc(v) + '</div>';
+  } else if (type === 'textarea') {
+    input = '<textarea id="' + id + '" rows="2">' + esc(v) + '</textarea>';
+  } else if (type === 'number') {
+    input = '<input type="number" inputmode="decimal" step="0.1" id="' + id + '" value="' + esc(v) + '">';
+  } else if (type === 'date') {
+    var dv = '';
+    if (v) {
+      var s = String(v);
+      if (/^\d{4}-\d{2}-\d{2}/.test(s)) dv = s.slice(0, 10);
+      else { var d = new Date(s); if (!isNaN(d.getTime())) dv = d.toISOString().slice(0, 10); }
+    }
+    input = '<input type="date" id="' + id + '" value="' + esc(dv) + '">';
+  } else if (type === 'url') {
+    var safe = esc(v);
+    var link = v ? ' <a href="' + safe + '" target="_blank" rel="noopener" style="font-size:12px;margin-left:8px;color:#1565c0">開く</a>' : '';
+    input = '<input type="url" id="' + id + '" value="' + safe + '">' + link;
+  } else if (type === 'image') {
+    if (v && /^https?:/.test(String(v))) {
+      input = '<a href="' + esc(v) + '" target="_blank" rel="noopener"><img src="' + esc(v) + '" alt="" style="max-width:120px;max-height:120px;border:1px solid #e0e0e0;border-radius:4px"></a>';
+    } else {
+      input = '<div class="field-readonly" style="color:#bbb">画像なし</div>';
+    }
+  } else if (type === 'status') {
+    var opts = STATUS_OPTIONS.map(function(o){
+      return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + esc(o) + '</option>';
+    }).join('');
+    input = '<select id="' + id + '">' + opts + '</select>';
+  } else if (type === 'gender') {
+    var opts2 = GENDER_OPTIONS.map(function(o){
+      return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + (o || '—') + '</option>';
+    }).join('');
+    input = '<select id="' + id + '">' + opts2 + '</select>';
+  } else if (type === 'shipmethod') {
+    var opts3 = SHIP_METHOD_OPTIONS.map(function(o){
+      return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + (o || '—') + '</option>';
+    }).join('');
+    input = '<select id="' + id + '">' + opts3 + '</select>';
+  } else {
+    input = '<input type="text" id="' + id + '" value="' + esc(v) + '">';
+  }
+  return '<div class="field-row"><label>' + esc(name) + '</label>' + input + '</div>';
+}
+
+function renderDetail() {
+  var d = STATE.current;
+  if (!d) { render(); return; }
+  document.getElementById('appbar-title').textContent = d.kanri;
+
+  // 出品30日経過は仮想列なので extra に無ければ計算
+  var ex = d.extra || {};
+  if (!ex['出品30日経過']) {
+    var days = Number(ex['在庫日数'] || 0);
+    var pubd = ex['出品日'];
+    if (pubd && days >= 30) ex['出品30日経過'] = '○';
+  }
+
+  var sections = DETAIL_SECTIONS.map(function(sec){
+    var rows = sec.fields.map(function(f){
+      var name = f[0], type = f[1];
+      return fieldRowHtml(name, type, detailValue(d, name));
+    }).join('');
+    return '<div class="section-header">' + esc(sec.title) + '</div>' +
+      '<div class="form-section">' + rows + '</div>';
+  }).join('');
+
+  var html =
+    '<div class="product-info">' +
+      '<h2>' + esc(d.kanri) + '</h2>' +
+      '<div class="meta">' +
+        esc(d.brand || ex['ブランド'] || '—') + ' / ' + esc(d.size || ex['メルカリサイズ'] || '—') +
+        (d.color ? ' / ' + esc(d.color) : '') +
+        '<br>ステータス: ' + esc(d.status || ex['ステータス'] || '—') +
+        (ex['仕入れ日'] ? '<br>仕入れ日: ' + esc(ex['仕入れ日']) + (ex['納品場所'] ? ' / ' + esc(ex['納品場所']) : '') : '') +
+        (ex['在庫日数'] ? '<br>在庫日数: ' + esc(ex['在庫日数']) + '日' : '') +
+      '</div>' +
+    '</div>' +
+    sections +
+    '<div class="fab-stack">' +
+      '<button class="fab gray" id="btn-back" onclick="backToList()" title="一覧へ戻る">←</button>' +
+      '<button class="fab" id="btn-save-details" onclick="saveDetails()" title="保存">💾</button>' +
+    '</div>';
+  document.getElementById('content').innerHTML = html;
+}
+
+function backToList() {
+  STATE.view = 'list'; STATE.current = null; render();
+}
+
+async function saveDetails() {
+  var d = STATE.current;
+  if (!d) return;
+  var ex = d.extra || {};
+  var fields = {};
+
+  // 全セクションを走査して、入力値が元と異なるものだけ送る（差分送信）
+  DETAIL_SECTIONS.forEach(function(sec){
+    sec.fields.forEach(function(f){
+      var name = f[0], type = f[1];
+      if (type === 'readonly' || type === 'image') return;
+      var el = document.getElementById(detailFieldId(name));
+      if (!el) return;
+      var v = el.value;
+      var orig = ex[name] !== undefined ? String(ex[name]) : '';
+      if (type === 'date') {
+        // 元の値を yyyy-MM-dd に正規化して比較
+        var origDate = '';
+        if (orig) {
+          if (/^\d{4}-\d{2}-\d{2}/.test(orig)) origDate = orig.slice(0, 10);
+          else { var dd = new Date(orig); if (!isNaN(dd.getTime())) origDate = dd.toISOString().slice(0, 10); }
+        }
+        if ((v || '') !== origDate) fields[name] = v;
+      } else {
+        if (String(v) !== orig) fields[name] = v;
+      }
+    });
+  });
+
+  if (Object.keys(fields).length === 0) {
+    toast('変更なし');
+    return;
+  }
+
+  setFabLoading('btn-save-details', '⏳', true);
+  try {
+    var res = await api('/api/save/details', { method: 'POST', body: { kanri: d.kanri, fields: fields } });
+    toast((res.written || 0) + '件保存しました', 'success');
+    // ローカル extra も更新（再取得は次回の openDetail で）
+    Object.keys(fields).forEach(function(k){ ex[k] = fields[k]; });
+    d.extra = ex;
+    refreshCounts();
+  } catch (err) {
+    toast('保存失敗: ' + err.message, 'error');
+  } finally {
+    setFabLoading('btn-save-details', '💾', false);
+  }
+}
+
+function setFabLoading(id, icon, loading) {
+  var b = document.getElementById(id);
+  if (!b) return;
+  b.disabled = loading;
+  b.textContent = icon;
+}
+
+function esc(s) {
+  if (s === null || s === undefined) return '';
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function toast(msg, kind) {
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (kind ? ' ' + kind : '');
+  setTimeout(function(){ t.className = 'toast'; }, 2400);
+}
+
+// ========== モーダル：新規作成 ==========
+function openModal(html) {
+  document.getElementById('modal-body').innerHTML = html;
+  document.getElementById('modal-mask').classList.add('show');
+}
+function closeModal() {
+  document.getElementById('modal-mask').classList.remove('show');
+}
+
+function openCreatePurchaseModal() {
+  var today = new Date().toISOString().slice(0, 10);
+  var html =
+    '<h3>新規仕入れ</h3>' +
+    '<div class="hint">区分コード（A/B/C 等）と納品場所は必須。点数は後で仕入れ数報告から自動反映されます。</div>' +
+    '<div class="field-row"><label>仕入れ日<span class="req">*</span></label><input id="cp_date" type="date" value="' + today + '"></div>' +
+    '<div class="field-row"><label>区分コード<span class="req">*</span></label><input id="cp_category" type="text" placeholder="例: A" maxlength="4"></div>' +
+    '<div class="field-row"><label>納品場所<span class="req">*</span></label><input id="cp_place" type="text" placeholder="例: family / 青木"></div>' +
+    '<div class="field-row"><label>金額</label><input id="cp_amount" type="number" inputmode="numeric" value="0"></div>' +
+    '<div class="field-row"><label>送料</label><input id="cp_shipping" type="number" inputmode="numeric" value="0"></div>' +
+    '<div class="field-row"><label>商品点数</label><input id="cp_planned" type="number" inputmode="numeric" value="0"></div>' +
+    '<div class="field-row"><label>内容</label><textarea id="cp_content" placeholder="任意"></textarea></div>' +
+    '<div class="modal-actions">' +
+      '<button class="btn-cancel" onclick="closeModal()">キャンセル</button>' +
+      '<button class="btn-submit" id="cp_submit" onclick="submitCreatePurchase()">作成</button>' +
+    '</div>';
+  openModal(html);
+}
+
+async function submitCreatePurchase() {
+  var btn = document.getElementById('cp_submit');
+  var body = {
+    date: document.getElementById('cp_date').value,
+    category: document.getElementById('cp_category').value.trim(),
+    place: document.getElementById('cp_place').value.trim(),
+    amount: Number(document.getElementById('cp_amount').value || 0),
+    shipping: Number(document.getElementById('cp_shipping').value || 0),
+    planned: Number(document.getElementById('cp_planned').value || 0),
+    content: document.getElementById('cp_content').value.trim(),
+  };
+  if (!body.date) { toast('仕入れ日を入力してください', 'error'); return; }
+  if (!body.category) { toast('区分コードを入力してください', 'error'); return; }
+  if (!body.place) { toast('納品場所を入力してください', 'error'); return; }
+  btn.disabled = true; btn.textContent = '作成中…';
+  try {
+    var res = await api('/api/create/purchase', { method: 'POST', body: body });
+    toast('仕入れを作成しました（' + res.shiireId + '）', 'success');
+    closeModal();
+    if (STATE.tab === 'shiire') render();
+  } catch (err) {
+    toast('作成失敗: ' + err.message, 'error');
+    btn.disabled = false; btn.textContent = '作成';
+  }
+}
+
+// 既存商品の管理番号から「次の管理番号」を推測（z + 区分 + 数字 形式のみ対応）
+function suggestNextKanri(items) {
+  if (!items || !items.length) return '';
+  var prefix = '';
+  var maxN = 0;
+  for (var i = 0; i < items.length; i++) {
+    var k = String(items[i].kanri || '');
+    var m = k.match(/^(z[A-Za-z]+)(\d+)/);
+    if (!m) continue;
+    var n = parseInt(m[2], 10);
+    if (isNaN(n)) continue;
+    if (!prefix) prefix = m[1];
+    if (m[1] === prefix && n > maxN) maxN = n;
+  }
+  return prefix ? (prefix + (maxN + 1)) : '';
+}
+
+async function openCreateProductModal(shiireId) {
+  // shiireId 未指定 → 仕入れリストから選ばせる
+  if (!shiireId) {
+    openModal('<h3>新規商品</h3><div class="loading">仕入れ一覧を取得中…</div>');
+    try {
+      const res = await api('/api/purchases?limit=2000');
+      const items = (res.items || []).filter(it => it.shiireId);
+      if (!items.length) { closeModal(); toast('仕入れデータがありません', 'error'); return; }
+      const opts = items.map(it => {
+        const label = (it.date || '—') + ' / ' + (it.place || '—') +
+          ' / 登録 ' + (it.registered || 0) + (it.planned ? '/' + it.planned : '');
+        return '<option value="' + esc(it.shiireId) + '">' + esc(it.shiireId) + ' — ' + esc(label) + '</option>';
+      }).join('');
+      openModal(buildCreateProductHtml_({ withSelect: true, optionsHtml: opts, suggested: '' }));
+      const sel = document.getElementById('cprd_shiire');
+      sel.addEventListener('change', onShiireSelectChange_);
+      // 初期選択の管理番号候補を引く
+      onShiireSelectChange_();
+    } catch (err) {
+      closeModal();
+      toast('読み込み失敗: ' + err.message, 'error');
+    }
+    return;
+  }
+  // 仕入れ詳細から呼ばれた → 既存 STATE.currentShiireProducts から候補
+  const suggested = suggestNextKanri(STATE.currentShiireProducts || []);
+  openModal(buildCreateProductHtml_({ withSelect: false, fixedShiireId: shiireId, suggested: suggested }));
+}
+
+// 新規作成では除外するセクション（仕入れ連動・計算結果・画像・ステータス変更日は作成時には触らない）
+var CREATE_EXCLUDE_SECTIONS = {
+  '仕入れ（連動・読取専用）': 1,
+  '計算結果（読取専用）': 1,
+  'ステータス変更日': 1,
+  '画像': 1
+};
+
+function createFieldId_(name) {
+  return 'cf_' + name.replace(/[^A-Za-z0-9_]/g, function(ch){ return '_' + ch.charCodeAt(0).toString(16); });
+}
+
+function createFieldRowHtml_(name, type, defVal) {
+  var id = createFieldId_(name);
+  var v = (defVal == null) ? '' : defVal;
+  var input;
+  if (type === 'textarea') {
+    input = '<textarea id="' + id + '" rows="2">' + esc(v) + '</textarea>';
+  } else if (type === 'number') {
+    input = '<input type="number" inputmode="decimal" step="0.1" id="' + id + '" value="' + esc(v) + '">';
+  } else if (type === 'date') {
+    input = '<input type="date" id="' + id + '" value="' + esc(v) + '">';
+  } else if (type === 'url') {
+    input = '<input type="url" id="' + id + '" value="' + esc(v) + '">';
+  } else if (type === 'status') {
+    var opts = STATUS_OPTIONS.map(function(o){
+      return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + esc(o) + '</option>';
+    }).join('');
+    input = '<select id="' + id + '">' + opts + '</select>';
+  } else if (type === 'gender') {
+    var opts2 = GENDER_OPTIONS.map(function(o){
+      return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + (o || '—') + '</option>';
+    }).join('');
+    input = '<select id="' + id + '">' + opts2 + '</select>';
+  } else if (type === 'shipmethod') {
+    var opts3 = SHIP_METHOD_OPTIONS.map(function(o){
+      return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + (o || '—') + '</option>';
+    }).join('');
+    input = '<select id="' + id + '">' + opts3 + '</select>';
+  } else {
+    input = '<input type="text" id="' + id + '" value="' + esc(v) + '">';
+  }
+  return '<div class="field-row"><label>' + esc(name) + '</label>' + input + '</div>';
+}
+
+function buildCreateProductHtml_(opts) {
+  const head = opts.withSelect
+    ? '<div class="field-row"><label>仕入れ<span class="req">*</span></label>' +
+        '<select id="cprd_shiire">' + opts.optionsHtml + '</select></div>' +
+      '<div class="hint" id="cprd_hint">— / 候補: —</div>'
+    : '<div class="hint">仕入れ ID: <strong>' + esc(opts.fixedShiireId) + '</strong>' +
+        (opts.suggested ? ' / 次の管理番号候補: <strong>' + esc(opts.suggested) + '</strong>' : '') + '</div>';
+  const submitArg = opts.withSelect ? 'null' : "'" + esc(opts.fixedShiireId).replace(/\'/g,"\\'") + "'";
+
+  // AppSheet 同等の全セクション（仕入れ連動・計算結果・画像・ステータス変更日は除外）
+  var sections = DETAIL_SECTIONS
+    .filter(function(sec){ return !CREATE_EXCLUDE_SECTIONS[sec.title]; })
+    .map(function(sec){
+      var rows = sec.fields
+        .filter(function(f){ return f[1] !== 'readonly' && f[1] !== 'image'; })
+        .map(function(f){
+          var name = f[0], type = f[1];
+          // ステータスのみ デフォルト 採寸待ち、それ以外は空
+          var defVal = (name === 'ステータス') ? '採寸待ち' : '';
+          return createFieldRowHtml_(name, type, defVal);
+        }).join('');
+      if (!rows) return '';
+      return '<div class="section-header">' + esc(sec.title) + '</div>' +
+        '<div class="form-section">' + rows + '</div>';
+    }).join('');
+
+  return '<h3>新規商品</h3>' + head +
+    '<div class="field-row"><label>管理番号<span class="req">*</span></label>' +
+      '<input id="cprd_kanri" type="text" value="' + esc(opts.suggested) + '" placeholder="例: zA6"></div>' +
+    sections +
+    '<div class="modal-actions">' +
+      '<button class="btn-cancel" onclick="closeModal()">キャンセル</button>' +
+      '<button class="btn-submit" id="cprd_submit" onclick="submitCreateProduct(' + submitArg + ')">作成</button>' +
+    '</div>';
+}
+
+async function onShiireSelectChange_() {
+  const sel = document.getElementById('cprd_shiire');
+  const hint = document.getElementById('cprd_hint');
+  const kanriInput = document.getElementById('cprd_kanri');
+  const sid = sel.value;
+  if (!sid) return;
+  hint.textContent = sid + ' / 候補取得中…';
+  try {
+    const res = await api('/api/purchases/' + encodeURIComponent(sid) + '/products');
+    const items = res.items || [];
+    const suggested = suggestNextKanri(items);
+    hint.innerHTML = '仕入れ ID: <strong>' + esc(sid) + '</strong> / 既存 ' + items.length + '件' +
+      (suggested ? ' / 候補: <strong>' + esc(suggested) + '</strong>' : '');
+    if (suggested) kanriInput.value = suggested;
+    STATE.currentShiireProducts = items;
+  } catch (err) {
+    hint.textContent = sid + ' / 候補取得失敗: ' + err.message;
+  }
+}
+
+async function submitCreateProduct(shiireId) {
+  var btn = document.getElementById('cprd_submit');
+  // shiireId が null の場合は select から取得
+  if (!shiireId) {
+    var sel = document.getElementById('cprd_shiire');
+    shiireId = sel ? sel.value : '';
+  }
+  if (!shiireId) { toast('仕入れを選択してください', 'error'); return; }
+  var kanri = document.getElementById('cprd_kanri').value.trim();
+  if (!kanri) { toast('管理番号を入力してください', 'error'); return; }
+
+  // 全セクションを走査して入力済みフィールドを収集
+  var fields = {};
+  DETAIL_SECTIONS.forEach(function(sec){
+    if (CREATE_EXCLUDE_SECTIONS[sec.title]) return;
+    sec.fields.forEach(function(f){
+      var name = f[0], type = f[1];
+      if (type === 'readonly' || type === 'image') return;
+      var el = document.getElementById(createFieldId_(name));
+      if (!el) return;
+      var v = (el.value || '').trim ? el.value.trim() : el.value;
+      if (v !== '' && v != null) fields[name] = v;
+    });
+  });
+
+  // ヘッダー名 → 旧 API 互換キーへのショートカット（GAS 側の固定列マッピング用）
+  var body = {
+    shiireId: shiireId,
+    kanri: kanri,
+    brand: fields['ブランド'] || '',
+    size:  fields['メルカリサイズ'] || '',
+    color: fields['カラー'] || '',
+    state: fields['状態'] || '',
+    status: fields['ステータス'] || '採寸待ち',
+    fields: fields
+  };
+
+  btn.disabled = true; btn.textContent = '作成中…';
+  try {
+    await api('/api/create/product', { method: 'POST', body: body });
+    toast('商品 ' + body.kanri + ' を作成しました', 'success');
+    closeModal();
+    refreshCounts();
+    // 仕入れ詳細から作成 → 詳細を再描画 / 商品管理タブから作成 → 一覧再描画
+    if (STATE.tab === 'shiire' && STATE.view === 'detail') {
+      openShiireDetail(shiireId);
+    } else {
+      render();
+    }
+  } catch (err) {
+    toast('作成失敗: ' + err.message, 'error');
+    btn.disabled = false; btn.textContent = '作成';
+  }
+}
+</script>
+</body>
+</html>

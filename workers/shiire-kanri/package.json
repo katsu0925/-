@@ -1,0 +1,13 @@
+{
+  "name": "shiire-kanri",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "db:apply": "wrangler d1 execute shiire-kanri-db --remote --file sql/schema.sql",
+    "db:apply:local": "wrangler d1 execute shiire-kanri-db --local --file sql/schema.sql",
+    "pages:deploy": "wrangler pages deploy pages --project-name=wholesale-kanri"
+  }
+}

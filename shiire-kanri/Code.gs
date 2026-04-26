@@ -1,5 +1,49 @@
 // Code.gs
+
+// Cloudflare Workers (workers/shiire-kanri) からの同期・書き込みプロキシ用エンドポイント
+// 共通シークレット SHIIRE_SYNC_SECRET (Script Properties) で認可
+function doPost(e) {
+  try {
+    var body = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    var secret = String(body.secret || '');
+    var expected = PropertiesService.getScriptProperties().getProperty('SHIIRE_SYNC_SECRET') || '';
+    if (!expected || secret !== expected) {
+      return ContentService.createTextOutput(JSON.stringify({ ok: false, error: 'unauthorized' }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    var action = String(body.action || '');
+    var email = String(body.email || '');
+    var result;
+    switch (action) {
+      case 'syncDumpProducts':  result = staff_syncDumpProducts();  break;
+      case 'syncDumpPurchases': result = staff_syncDumpPurchases(); break;
+      case 'dumpHeaders':       result = staff_debugHeaders(String((body.payload && body.payload.name) || '商品管理')); break;
+      case 'listAllowedEmails': result = staff_listAllowedEmails(); break;
+      case 'saveMeasurement':   result = staff_apiSaveMeasurement(body.payload || {}, email); break;
+      case 'saveSale':          result = staff_apiSaveSale(body.payload || {}, email); break;
+      case 'saveDetails':       result = staff_apiSaveDetails(body.payload || {}, email); break;
+      case 'createPurchase':    result = staff_apiCreatePurchase(body.payload || {}, email); break;
+      case 'createProduct':     result = staff_apiCreateProduct(body.payload || {}, email); break;
+      default:                  result = { ok: false, error: 'unknown action: ' + action };
+    }
+    return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ ok: false, error: String(err && err.message || err) }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
 function doGet(e) {
+  if (e && e.parameter && e.parameter.app === 'staff') {
+    return HtmlService.createHtmlOutputFromFile('StaffApp')
+      .setTitle('仕入れ管理 — スタッフ入力')
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
+  if (e && e.parameter && e.parameter.debug === 'headers' && e.parameter.name) {
+    var res = staff_debugHeaders(String(e.parameter.name));
+    return ContentService.createTextOutput(JSON.stringify(res, null, 2)).setMimeType(ContentService.MimeType.JSON);
+  }
   if (e && e.parameter && e.parameter.check === 'tsk') {
     return tskCheck_(e);
   }
