@@ -1879,9 +1879,19 @@ function renderDenied() {
 // ========== 詳細 ==========
 // 詳細キャッシュ: 一度開いたら即時再表示できるようにする（裏で /api/products/:kanri を再取得）
 var DETAIL_CACHE = Object.create(null);
-async function openDetail(kanri) {
+async function openDetail(kanri, opts) {
+  opts = opts || {};
   STATE.view = 'detail';
   STATE.detailDirty = false;
+  // ブラウザ戻るで一覧に戻れるよう履歴を積む（popstate からの呼び出しでは積まない）
+  if (!opts.fromPopState) {
+    try {
+      var st = history.state;
+      if (!st || st.view !== 'detail' || st.kanri !== kanri) {
+        history.pushState({ view: 'detail', kanri: kanri }, '', '');
+      }
+    } catch(e) {}
+  }
   document.getElementById('appbar-title').textContent = kanri;
   var cached = DETAIL_CACHE[kanri];
   if (cached) {
@@ -2555,8 +2565,33 @@ function markDetailDirty_() { STATE.detailDirty = true; }
 function clearDetailDirty_() { STATE.detailDirty = false; }
 
 function backToList() {
+  // 履歴に詳細エントリがあれば history.back() で popstate に任せる
+  // （ブラウザの戻るボタンと挙動を一致させる）
+  try {
+    if (history.state && history.state.view === 'detail') {
+      history.back();
+      return;
+    }
+  } catch(e) {}
   STATE.view = 'list'; STATE.current = null; render();
 }
+
+// ブラウザ戻る／進むに対応: 詳細を開いている時に戻るで一覧へ戻す
+window.addEventListener('popstate', function(e){
+  var st = e.state;
+  if (st && st.view === 'detail' && st.kanri) {
+    // 進むボタンで詳細に戻ってきたケース
+    openDetail(st.kanri, { fromPopState: true });
+  } else {
+    // null（初期）または list: 一覧へ戻す
+    if (STATE.view === 'detail') {
+      STATE.view = 'list';
+      STATE.current = null;
+      STATE.detailDirty = false;
+      render();
+    }
+  }
+});
 
 async function saveDetails() {
   var d = STATE.current;
