@@ -4,46 +4,30 @@ export async function scheduledSync(env) {
   const startedAt = Date.now();
   console.log('[sync] start');
 
-  try {
-    const products = await fetchAction(env, 'syncDumpProducts');
-    if (products && products.ok && Array.isArray(products.items)) {
-      await syncProducts(env.DB, products.items);
-      await writeMeta(env.DB, 'products', products.items.length);
-      console.log(`[sync] products=${products.items.length}`);
-    } else {
-      console.warn('[sync] products fetch failed', products && products.error);
-    }
-  } catch (err) {
-    console.error('[sync] products error', err && err.message);
-  }
-
-  try {
-    const purchases = await fetchAction(env, 'syncDumpPurchases');
-    if (purchases && purchases.ok && Array.isArray(purchases.items)) {
-      await syncPurchases(env.DB, purchases.items);
-      await writeMeta(env.DB, 'purchases', purchases.items.length);
-      console.log(`[sync] purchases=${purchases.items.length}`);
-    } else {
-      console.warn('[sync] purchases fetch failed', purchases && purchases.error);
-    }
-  } catch (err) {
-    console.error('[sync] purchases error', err && err.message);
-  }
-
-  try {
-    const aiPrefill = await fetchAction(env, 'syncDumpAiPrefill');
-    if (aiPrefill && aiPrefill.ok && Array.isArray(aiPrefill.items)) {
-      await syncAiPrefill(env.DB, aiPrefill.items);
-      await writeMeta(env.DB, 'ai_prefill', aiPrefill.items.length);
-      console.log(`[sync] ai_prefill=${aiPrefill.items.length}`);
-    } else {
-      console.warn('[sync] ai_prefill fetch failed', aiPrefill && aiPrefill.error);
-    }
-  } catch (err) {
-    console.error('[sync] ai_prefill error', err && err.message);
-  }
+  // 3 系統を並列実行。直列だと products(5000+行)で 12s 超 → waitUntil 30s 上限で
+  // ai_prefill が cancel されるバグが過去にあった。Promise.all で 並列化して max(各系統) に短縮
+  await Promise.all([
+    syncOne(env, 'syncDumpProducts', 'products', syncProducts),
+    syncOne(env, 'syncDumpPurchases', 'purchases', syncPurchases),
+    syncOne(env, 'syncDumpAiPrefill', 'ai_prefill', syncAiPrefill),
+  ]);
 
   console.log(`[sync] done ${Date.now() - startedAt}ms`);
+}
+
+async function syncOne(env, action, source, applyFn) {
+  try {
+    const data = await fetchAction(env, action);
+    if (data && data.ok && Array.isArray(data.items)) {
+      await applyFn(env.DB, data.items);
+      await writeMeta(env.DB, source, data.items.length);
+      console.log(`[sync] ${source}=${data.items.length}`);
+    } else {
+      console.warn(`[sync] ${source} fetch failed`, data && data.error);
+    }
+  } catch (err) {
+    console.error(`[sync] ${source} error`, err && err.message);
+  }
 }
 
 async function fetchAction(env, action, payload) {
