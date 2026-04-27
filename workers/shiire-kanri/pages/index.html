@@ -414,11 +414,15 @@
   }
   /* セクション間の余白は section-header の margin-top で確保 */
   .field-row {
-    display: block; padding: 0;
+    display: block;
     border-bottom: 1px dashed #e7ecf3;
-    padding: 14px 0 12px;
+    padding: 14px 16px 12px;
+    margin: 0 -16px;
   }
   .field-row:last-child { border-bottom: none; }
+  /* 直下の field-row にゼブラ背景。grid ラッパー（.meas-grid 等）の中の行は対象外 */
+  .form-section > .field-row:nth-child(even) { background: #f4f8ff; }
+  .form-section > .field-row:nth-child(odd)  { background: #fbfcfe; }
   .field-row label {
     display: block; font-size: 13px; color: var(--text); font-weight: 700;
     margin-bottom: 6px; letter-spacing: .01em;
@@ -658,7 +662,8 @@
   }
   .modal h3 { margin: 0 0 16px; font-size: 17px; font-weight: 700; }
   .modal .field-row {
-    display: block; padding: 8px 0; border-bottom: 1px solid #f3f5f9;
+    display: block; padding: 8px 0; margin: 0; background: transparent;
+    border-bottom: 1px solid #f3f5f9;
   }
   .modal .field-row:last-child { border-bottom: none; }
   .modal .field-row label { display: block; color: var(--text-sub); font-size: 12px; font-weight: 600; margin-bottom: 4px; }
@@ -748,7 +753,7 @@
   @media (min-width: 768px) {
     body { padding-left: 16px; padding-right: 16px; }
     .content { max-width: 1100px; margin: 0 auto; padding: 16px; }
-    .field-row { display: grid; grid-template-columns: 140px 1fr; align-items: start; gap: 14px; padding: 10px 4px; }
+    .field-row { display: grid; grid-template-columns: 140px 1fr; align-items: start; gap: 14px; padding: 12px 16px; margin: 0 -16px; }
     .field-row label { margin-bottom: 0; padding-top: 8px; }
     /* グリッド内の field-row は PC でもブロック表示（label + input 縦並び） */
     .field-grid-2 > .field-row, .field-grid-3 > .field-row, .meas-grid > .field-row {
@@ -1844,7 +1849,12 @@ function resizeImage_(file, maxSide, quality) {
 
 function cardHtml(it) {
   const measured = !!(it.measuredAt && String(it.measuredAt).trim());
-  const st = it.status || '';
+  // 発送タブでは raw ステータス（発送待ち/発送済み）を優先表示。
+  // 派生ステータスは「撮影日付のみ入力」等で '採寸待ち' 等にフォールバックすることがあり、
+  // 発送タブで表示すると意味不明な状態になるため、raw を優先する。
+  const st = (STATE.tab === 'hassou')
+    ? (it.rawStatus || it.status || '')
+    : (it.status || '');
   let badgeClass = '';
   if (st === '売却済み') badgeClass = ' sold';
   else if (st === '発送済み') badgeClass = ' shipped';
@@ -2369,13 +2379,36 @@ function captureDetailEdits_() {
     });
   });
 }
+// 日付/日時を表示用に整形。時刻成分があれば "YYYY-MM-DD HH:mm"、無ければ "YYYY-MM-DD"。
+function fmtHistoryWhen_(raw) {
+  if (raw == null) return '';
+  var s = String(raw).trim();
+  if (!s) return '';
+  // ISO もしくは "YYYY/MM/DD HH:mm:ss" などを Date として解釈
+  var d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    var hasTime = /[T\s]\d{1,2}:\d{2}/.test(s);
+    var y = d.getFullYear();
+    var m = String(d.getMonth() + 1).padStart(2, '0');
+    var dd = String(d.getDate()).padStart(2, '0');
+    var datePart = y + '-' + m + '-' + dd;
+    if (!hasTime) return datePart;
+    var hh = String(d.getHours()).padStart(2, '0');
+    var mi = String(d.getMinutes()).padStart(2, '0');
+    return datePart + ' ' + hh + ':' + mi;
+  }
+  return s;
+}
+
 // extra から作業履歴を再構成（販売・発送・採寸・出品・撮影・仕入れ）
 function buildHistoryHtml_(d) {
   var ex = d.extra || {};
   var ev = [];
   function add(date, who, text) {
     if (!date) return;
-    ev.push({ date: String(date), who: who || '', text: text });
+    var raw = String(date);
+    // ソートキー（ISOに寄せる）と表示用（HH:mmまで）を分離
+    ev.push({ key: raw, when: fmtHistoryWhen_(raw), who: who || '', text: text });
   }
   add(ex['仕入れ日'], ex['登録者'] || '', '仕入れ登録');
   add(ex['採寸日'], ex['採寸者'] || '', '採寸');
@@ -2388,11 +2421,16 @@ function buildHistoryHtml_(d) {
   add(ex['返品日付'], '', '返品');
   add(ex['廃棄日'], '', '廃棄');
   if (!ev.length) return '<div class="history-empty">履歴なし</div>';
-  // 日付降順
-  ev.sort(function(a, b){ return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
+  // 日時降順（Date でパース可能なら数値比較、ダメなら文字列）
+  ev.sort(function(a, b){
+    var ta = new Date(a.key).getTime();
+    var tb = new Date(b.key).getTime();
+    if (!isNaN(ta) && !isNaN(tb)) return tb - ta;
+    return a.key < b.key ? 1 : a.key > b.key ? -1 : 0;
+  });
   return ev.map(function(e){
     return '<div class="history-item">' +
-      '<div class="history-when">' + esc(e.date) + '</div>' +
+      '<div class="history-when">' + esc(e.when) + '</div>' +
       '<div>' + (e.who ? '<span class="history-who">' + esc(e.who) + '</span> が' : '') + esc(e.text) + '</div>' +
       '</div>';
   }).join('');
