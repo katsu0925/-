@@ -36,9 +36,8 @@
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", "Meiryo", sans-serif;
     background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5;
-    padding-top: 102px; padding-bottom: 72px; min-height: 100vh;
-    transition: padding-top .12s;
-    -webkit-tap-highlight-color: transparent; overflow-x: hidden;
+    padding-bottom: 72px; min-height: 100vh;
+    -webkit-tap-highlight-color: transparent;
     -webkit-font-smoothing: antialiased;
   }
   /* グローバル focus-visible: WCAG 対応 */
@@ -46,7 +45,7 @@
     outline: 2px solid var(--primary); outline-offset: 2px;
   }
   .appbar {
-    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    position: sticky; top: 0; z-index: 100;
     background: linear-gradient(180deg, var(--primary) 0%, var(--primary-dark) 100%);
     color: #fff;
     padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 8px;
@@ -133,14 +132,13 @@
     border: 1px solid rgba(21,101,192,.18);
   }
   /* ===== chips フィルタストリップ（モックアップ） ===== */
-  /* chips-bar は appbar 直下に固定配置（body の overflow-x:hidden で sticky が崩れるのを回避） */
+  /* デタウリ topbar と同じ sticky 方式: appbar の真下に張り付く */
   .chips-bar {
-    position: fixed; top: 102px; left: 0; right: 0; z-index: 90;
+    position: sticky; top: var(--appbar-h, 102px); z-index: 90;
     background: var(--surface); border-bottom: 1px solid var(--border);
     box-shadow: 0 2px 4px rgba(0,0,0,.04);
   }
   .chips-bar[hidden] { display: none !important; }
-  body.has-chips { padding-top: 146px; }
   .chips {
     display: flex; gap: 6px; padding: 8px 12px;
     overflow-x: auto; -webkit-overflow-scrolling: touch;
@@ -364,6 +362,124 @@
     border: 1px solid var(--border); border-radius: 8px; font-size: 14px;
     min-height: 40px; word-break: break-all;
   }
+  /* ===== 詳細表示（モックアップ準拠） ===== */
+  .detail-hero {
+    background: var(--surface);
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid var(--border);
+    margin: -10px -12px 0;
+  }
+  .hero-kanri {
+    font-size: 22px; font-weight: 700; color: var(--primary);
+    letter-spacing: .02em;
+  }
+  .hero-meta {
+    display: flex; flex-wrap: wrap; gap: 6px 10px;
+    margin-top: 6px; font-size: 12px; color: var(--text-sub);
+  }
+  .hero-meta b { color: var(--text); font-weight: 600; }
+  .hero-status-row {
+    display: flex; align-items: center; gap: 8px; margin-top: 12px;
+    flex-wrap: wrap;
+  }
+  .hero-status {
+    padding: 4px 12px; border-radius: 999px;
+    font-size: 12px; font-weight: 600;
+    background: var(--gray-soft); color: var(--text-sub);
+    border: 1px solid var(--border);
+  }
+  .hero-status.s-shukka { background: var(--warning-soft); color: var(--warning); border-color: var(--warning); }
+  .hero-status.s-shukkazumi { background: var(--primary-soft); color: var(--primary); border-color: var(--primary); }
+  .hero-status.s-sold { background: var(--success-soft); color: var(--success); border-color: var(--success); }
+  .hero-deadline { margin-left: auto; font-size: 11px; color: var(--warning); font-weight: 600; }
+  .hero-deadline.overdue { color: var(--danger); }
+  /* セクションタブ（基本/採寸/撮影・出品/販売/発送/備考） sticky で appbar 直下 */
+  .sec-tabs {
+    background: var(--surface);
+    display: flex; gap: 0;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--border);
+    margin: 0 -12px;
+    position: sticky; top: 102px; z-index: 60;
+  }
+  .sec-tabs::-webkit-scrollbar { display: none; }
+  .sec-tab {
+    flex-shrink: 0;
+    padding: 12px 14px;
+    border: none; background: transparent;
+    font-size: 13px; font-weight: 500;
+    color: var(--text-sub);
+    border-bottom: 2px solid transparent;
+    white-space: nowrap; cursor: pointer;
+    position: relative;
+  }
+  .sec-tab.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+    font-weight: 700;
+  }
+  .sec-tab .dot {
+    position: absolute; top: 6px; right: 6px;
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--danger);
+  }
+  .sec-body { padding: 14px 0 100px; }
+  /* 収支サマリ（販売タブ末尾） */
+  .summary-card {
+    background: var(--surface); border-radius: 12px;
+    box-shadow: var(--shadow); padding: 14px;
+    margin-top: 14px;
+  }
+  .summary-card h4 {
+    margin: 0 0 12px; font-size: 13px; color: var(--text-sub);
+    font-weight: 700; letter-spacing: .04em;
+  }
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;
+  }
+  .stat-grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+  .stat {
+    background: var(--bg);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .stat-label { font-size: 11px; color: var(--text-sub); }
+  .stat-value { font-size: 18px; font-weight: 700; color: var(--text); margin-top: 2px; }
+  .stat-value.pos { color: var(--success); }
+  .stat-value.neg { color: var(--danger); }
+  /* 作業履歴 */
+  .history-card { margin-top: 14px; }
+  .history-item {
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 10px 0; border-bottom: 1px solid var(--border);
+  }
+  .history-item:last-child { border-bottom: none; }
+  .history-when { color: var(--text-sub); font-size: 11px; }
+  .history-who { color: var(--primary); font-weight: 600; }
+  .history-empty { color: var(--text-mute); font-size: 12px; padding: 8px 0; }
+  /* 保存バー（差分があるとき下部に固定） */
+  .savebar {
+    position: fixed; left: 12px; right: 12px; bottom: 76px;
+    background: var(--surface);
+    border-radius: 12px; box-shadow: var(--shadow-lg);
+    padding: 10px 12px;
+    display: none; align-items: center; gap: 10px;
+    border: 1px solid var(--border); z-index: 90;
+  }
+  .savebar.show { display: flex; }
+  .savebar-info { flex: 1; font-size: 12px; color: var(--text-sub); }
+  .savebar-info b { color: var(--text); font-weight: 700; }
+  .btn-cancel {
+    padding: 8px 14px; background: transparent; color: var(--text-sub);
+    border: 1px solid var(--border); border-radius: 8px;
+    font-size: 13px; cursor: pointer;
+  }
+  .btn-save {
+    padding: 8px 16px; background: var(--success); color: white;
+    border: none; border-radius: 8px; font-size: 13px; font-weight: 600;
+    cursor: pointer;
+  }
+  .btn-save:disabled { background: #bdbdbd; cursor: not-allowed; }
   .fab-stack {
     position: fixed; right: 16px; bottom: 80px;
     display: flex; flex-direction: column; gap: 10px; z-index: 95;
@@ -1076,18 +1192,16 @@ function shouhinChipsHtml_() {
   }).join('');
   return '<div class="chips" id="chips">' + html + '</div>';
 }
-// 商品管理タブのみ chips-bar を表示。body.has-chips で padding 切替
+// 商品管理タブのみ chips-bar を表示
 function updateChipsBar_() {
   var bar = document.getElementById('chips-bar');
   if (!bar) return;
-  if (STATE.tab === 'shouhin') {
-    bar.innerHTML = shouhinChipsHtml_();
-    bar.hidden = false;
-    document.body.classList.add('has-chips');
-  } else {
+  if (STATE.view === 'detail' || STATE.tab !== 'shouhin') {
     bar.innerHTML = '';
     bar.hidden = true;
-    document.body.classList.remove('has-chips');
+  } else {
+    bar.innerHTML = shouhinChipsHtml_();
+    bar.hidden = false;
   }
 }
 function selectChip_(filter, label) {
@@ -1169,9 +1283,7 @@ function selectTab(tab) {
 function render() {
   if (!STATE.allowed) { renderDenied(); return; }
   if (STATE.view === 'detail') {
-    // 詳細表示中は chips-bar を隠す
-    var bar0 = document.getElementById('chips-bar');
-    if (bar0) { bar0.hidden = true; document.body.classList.remove('has-chips'); }
+    updateChipsBar_();
     renderDetail(); return;
   }
   document.getElementById('appbar-title').textContent = TAB_LABELS[STATE.tab] || '仕入れ管理';
@@ -1414,6 +1526,7 @@ function imageFieldHtml_(id, name, v) {
   var previewInner;
   var previewAttrs = 'id="' + id + '_preview" class="img-preview';
   if (isUrl) {
+    s = normalizeDriveUrl_(s);
     previewAttrs += '"';
     previewInner = '<img src="' + esc(s) + '" alt="">';
   } else if (isLegacy) {
@@ -1471,6 +1584,16 @@ function onImageFieldPick_(inputEl, fieldId, fieldName) {
   });
 }
 
+// Drive の uc?id=... は <img> から直接表示できないため thumbnail?id=&sz=w500 に正規化
+function normalizeDriveUrl_(url) {
+  if (!url) return url;
+  var m = url.match(/^https?:\/\/drive\.google\.com\/uc\?(?:.*&)?id=([^&]+)/);
+  if (m) return 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w800';
+  var m2 = url.match(/^https?:\/\/drive\.google\.com\/file\/d\/([^/]+)/);
+  if (m2) return 'https://drive.google.com/thumbnail?id=' + m2[1] + '&sz=w800';
+  return url;
+}
+
 // 詳細描画後に呼び出し: 旧形式パスの画像を遅延解決して img に差し替え
 function resolveLegacyImages_() {
   var nodes = document.querySelectorAll('.img-preview.img-loading[data-legacy]');
@@ -1480,10 +1603,10 @@ function resolveLegacyImages_() {
     (function(el){
       var path = el.getAttribute('data-legacy') || '';
       var field = el.getAttribute('data-field') || '';
-      var cacheKey = 'imgresolve:' + path;
+      var cacheKey = 'imgresolve:v2:' + path;
       var cached = null;
       try { cached = sessionStorage.getItem(cacheKey); } catch(e) {}
-      if (cached) { applyResolved_(el, cached); return; }
+      if (cached) { applyResolved_(el, normalizeDriveUrl_(cached)); return; }
       fetch('/api/image/resolve', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1491,8 +1614,9 @@ function resolveLegacyImages_() {
       }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, body: j }; }); })
       .then(function(res){
         if (!res.ok || !res.body || !res.body.url) throw new Error((res.body && res.body.error) || '解決失敗');
-        try { sessionStorage.setItem(cacheKey, res.body.url); } catch(e) {}
-        applyResolved_(el, res.body.url);
+        var u = normalizeDriveUrl_(res.body.url);
+        try { sessionStorage.setItem(cacheKey, u); } catch(e) {}
+        applyResolved_(el, u);
       }).catch(function(err){
         el.classList.remove('img-loading');
         el.classList.add('img-error');
@@ -1568,7 +1692,7 @@ function cardHtml(it) {
   if (STATE.tab === 'hassou') {
     var imgVal = (it.extra && it.extra['売却済み商品画像']) ? String(it.extra['売却済み商品画像']) : '';
     if (/^https?:/.test(imgVal)) {
-      thumbHtml = '<div class="card-thumb"><img src="' + esc(imgVal) + '" alt="" loading="lazy"></div>';
+      thumbHtml = '<div class="card-thumb"><img src="' + esc(normalizeDriveUrl_(imgVal)) + '" alt="" loading="lazy"></div>';
     } else if (imgVal) {
       // AppSheet 旧形式の相対パス → 描画後に resolveCardImages_() が解決
       thumbHtml = '<div class="card-thumb img-loading" data-legacy="' + esc(imgVal) + '" data-field="売却済み商品画像" data-kanri="' + esc(it.kanri) + '">📷</div>';
@@ -1603,18 +1727,19 @@ function resolveCardImages_() {
     var field = el.getAttribute('data-field') || '';
     var kanri = el.getAttribute('data-kanri') || '';
     if (!path) return;
-    var cacheKey = 'imgresolve:' + path;
+    var cacheKey = 'imgresolve:v2:' + path;
     var cached = null;
     try { cached = sessionStorage.getItem(cacheKey); } catch(e) {}
-    if (cached) { applyCardThumb_(el, cached); return; }
+    if (cached) { applyCardThumb_(el, normalizeDriveUrl_(cached)); return; }
     fetch('/api/image/resolve', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ kanri: kanri, field: field, path: path })
     }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, body: j }; }); })
       .then(function(res){
         if (!res.ok || !res.body || !res.body.url) throw new Error('resolve failed');
-        try { sessionStorage.setItem(cacheKey, res.body.url); } catch(e) {}
-        applyCardThumb_(el, res.body.url);
+        var u = normalizeDriveUrl_(res.body.url);
+        try { sessionStorage.setItem(cacheKey, u); } catch(e) {}
+        applyCardThumb_(el, u);
       }).catch(function(){
         el.classList.remove('img-loading');
       });
@@ -2018,6 +2143,104 @@ function masterOptionsHtml_(list, current) {
   return out.join('');
 }
 
+// セクションタブ → DETAIL_SECTIONS のマッピング
+var SEC_TABS = [
+  { id: 'basic',    label: '基本',         sections: ['基本情報', '仕入れ（連動・読取専用）'] },
+  { id: 'measure',  label: '採寸',         sections: ['採寸 (cm)', '採寸記録'] },
+  { id: 'listing',  label: '撮影・出品',   sections: ['撮影・出品'] },
+  { id: 'sale',     label: '販売',         sections: ['販売', '計算結果（読取専用）'] },
+  { id: 'shipping', label: '発送',         sections: ['発送関係'] },
+  { id: 'memo',     label: '備考',         sections: ['備考', 'その他'] }
+];
+function selectSecTab_(id) {
+  STATE.detailSecTab = id;
+  var d = STATE.current;
+  if (d && DETAIL_CACHE[d.kanri]) {
+    // dirty な入力値を保持するため、現在の入力値を STATE.current に取り込んでから再描画
+    captureDetailEdits_();
+  }
+  renderDetail();
+}
+function captureDetailEdits_() {
+  var d = STATE.current;
+  if (!d) return;
+  var ex = d.extra || (d.extra = {});
+  DETAIL_SECTIONS.forEach(function(sec){
+    sec.fields.forEach(function(f){
+      var name = f[0], type = f[1];
+      if (type === 'readonly' || type === 'image') return;
+      var el = document.getElementById(detailFieldId(name));
+      if (!el) return;
+      ex[name] = el.value;
+    });
+  });
+}
+// extra から作業履歴を再構成（販売・発送・採寸・出品・撮影・仕入れ）
+function buildHistoryHtml_(d) {
+  var ex = d.extra || {};
+  var ev = [];
+  function add(date, who, text) {
+    if (!date) return;
+    ev.push({ date: String(date), who: who || '', text: text });
+  }
+  add(ex['仕入れ日'], ex['登録者'] || '', '仕入れ登録');
+  add(ex['採寸日'], ex['採寸者'] || '', '採寸');
+  add(ex['撮影日付'], ex['撮影者'] || '', '撮影');
+  add(ex['出品日'], ex['出品者'] || '', '出品');
+  add(ex['販売日'], '', '販売（' + (ex['販売価格'] ? '¥' + ex['販売価格'] : '価格未入力') + '）');
+  add(ex['発送日付'], ex['発送者'] || '', '発送');
+  add(ex['完了日'], '', '完了');
+  add(ex['キャンセル日'], '', 'キャンセル');
+  add(ex['返品日付'], '', '返品');
+  add(ex['廃棄日'], '', '廃棄');
+  if (!ev.length) return '<div class="history-empty">履歴なし</div>';
+  // 日付降順
+  ev.sort(function(a, b){ return a.date < b.date ? 1 : a.date > b.date ? -1 : 0; });
+  return ev.map(function(e){
+    return '<div class="history-item">' +
+      '<div class="history-when">' + esc(e.date) + '</div>' +
+      '<div>' + (e.who ? '<span class="history-who">' + esc(e.who) + '</span> が' : '') + esc(e.text) + '</div>' +
+      '</div>';
+  }).join('');
+}
+function buildSummaryHtml_(d) {
+  var ex = d.extra || {};
+  function fmtYen(v) { return v != null && v !== '' ? '¥' + Number(v).toLocaleString() : '—'; }
+  function pct(v) {
+    if (v == null || v === '') return '—';
+    var n = Number(v);
+    if (isNaN(n)) return String(v);
+    if (n > 0 && n <= 1) n *= 100;
+    return n.toFixed(1) + '%';
+  }
+  var profit = ex['利益'] != null && ex['利益'] !== '' ? Number(ex['利益']) : null;
+  var profitCls = profit == null ? '' : (profit >= 0 ? ' pos' : ' neg');
+  return '<div class="summary-card">' +
+    '<h4>収支サマリ</h4>' +
+    '<div class="stat-grid">' +
+      '<div class="stat"><div class="stat-label">販売価格</div><div class="stat-value">' + esc(fmtYen(ex['販売価格'])) + '</div></div>' +
+      '<div class="stat"><div class="stat-label">仕入れ値</div><div class="stat-value">' + esc(fmtYen(ex['仕入れ値'])) + '</div></div>' +
+      '<div class="stat"><div class="stat-label">利益</div><div class="stat-value' + profitCls + '">' + esc(fmtYen(ex['利益'])) + '</div></div>' +
+      '<div class="stat"><div class="stat-label">利益率</div><div class="stat-value' + profitCls + '">' + esc(pct(ex['利益率'])) + '</div></div>' +
+      '<div class="stat"><div class="stat-label">リードタイム</div><div class="stat-value">' + esc(ex['リードタイム'] != null && ex['リードタイム'] !== '' ? ex['リードタイム'] + '日' : '—') + '</div></div>' +
+      '<div class="stat"><div class="stat-label">在庫日数</div><div class="stat-value">' + esc(ex['在庫日数'] != null && ex['在庫日数'] !== '' ? ex['在庫日数'] + '日' : '—') + '</div></div>' +
+    '</div>' +
+  '</div>';
+}
+function buildDeadlineHtml_(d) {
+  if (d.status !== '発送待ち' || !d.saleDate) return '';
+  var sd = new Date(d.saleDate);
+  if (isNaN(sd.getTime())) return '';
+  var due = new Date(sd.getTime() + 3 * 86400000);
+  var dueStr = due.getFullYear() + '/' + (due.getMonth() + 1) + '/' + due.getDate();
+  var today = new Date(); today.setHours(0,0,0,0);
+  var diff = Math.floor((due.getTime() - today.getTime()) / 86400000);
+  var overdue = due.getTime() < today.getTime();
+  var label = overdue ? '⏰ 期限超過 ' + dueStr + '（' + Math.abs(diff) + '日経過）'
+    : (diff === 0 ? '⏰ 本日が期限 ' + dueStr : '⏰ ' + dueStr + 'まで（あと' + diff + '日）');
+  return '<span class="hero-deadline' + (overdue ? ' overdue' : '') + '">' + esc(label) + '</span>';
+}
+
 function renderDetail() {
   var d = STATE.current;
   if (!d) { render(); return; }
@@ -2031,7 +2254,44 @@ function renderDetail() {
     if (pubd && days >= 30) ex['出品30日経過'] = '○';
   }
 
-  var sections = DETAIL_SECTIONS.map(function(sec){
+  // セクションタブの初期値
+  if (!STATE.detailSecTab) STATE.detailSecTab = 'basic';
+  var activeTab = SEC_TABS.find(function(t){ return t.id === STATE.detailSecTab; }) || SEC_TABS[0];
+
+  // hero
+  var status = d.status || ex['ステータス'] || '—';
+  var statusCls = status === '発送待ち' ? ' s-shukka'
+    : status === '発送済み' ? ' s-shukkazumi'
+    : status === '売却済み' ? ' s-sold' : '';
+  var heroMeta = [];
+  var brand = d.brand || ex['ブランド'];
+  if (brand) heroMeta.push('<b>' + esc(brand) + '</b>');
+  var size = d.size || ex['メルカリサイズ'];
+  if (size) heroMeta.push(esc(size) + 'サイズ');
+  var color = d.color || ex['カラー'];
+  if (color) heroMeta.push(esc(color));
+  var heroHtml =
+    '<div class="detail-hero">' +
+      '<div class="hero-kanri">' + esc(d.kanri) + '</div>' +
+      (heroMeta.length ? '<div class="hero-meta">' + heroMeta.map(function(m){ return '<span>' + m + '</span>'; }).join('') + '</div>' : '') +
+      '<div class="hero-status-row">' +
+        '<span class="hero-status' + statusCls + '">' + esc(status) + '</span>' +
+        buildDeadlineHtml_(d) +
+      '</div>' +
+    '</div>';
+
+  // sec-tabs
+  var tabsHtml = '<div class="sec-tabs">' +
+    SEC_TABS.map(function(t){
+      var active = t.id === activeTab.id ? ' active' : '';
+      return '<button type="button" class="sec-tab' + active + '" onclick="selectSecTab_(\'' + t.id + '\')">' + esc(t.label) + '</button>';
+    }).join('') +
+  '</div>';
+
+  // 該当セクションのフィールド
+  var sectionsHtml = activeTab.sections.map(function(secTitle){
+    var sec = DETAIL_SECTIONS.find(function(s){ return s.title === secTitle; });
+    if (!sec) return '';
     var rows = sec.fields.map(function(f){
       var name = f[0], type = f[1];
       return fieldRowHtml(name, type, detailValue(d, name));
@@ -2040,31 +2300,100 @@ function renderDetail() {
       '<div class="form-section">' + rows + '</div>';
   }).join('');
 
+  // 販売タブには収支サマリ、全タブ共通で末尾に作業履歴
+  var summaryHtml = activeTab.id === 'sale' ? buildSummaryHtml_(d) : '';
+  var historyHtml =
+    '<div class="summary-card history-card">' +
+      '<h4>作業履歴</h4>' +
+      buildHistoryHtml_(d) +
+    '</div>';
+
   var html =
-    '<div class="product-info">' +
-      '<h2>' + esc(d.kanri) + '</h2>' +
-      '<div class="meta">' +
-        esc(d.brand || ex['ブランド'] || '—') + ' / ' + esc(d.size || ex['メルカリサイズ'] || '—') +
-        (d.color ? ' / ' + esc(d.color) : '') +
-        '<br>ステータス: ' + esc(d.status || ex['ステータス'] || '—') +
-        (ex['仕入れ日'] ? '<br>仕入れ日: ' + esc(ex['仕入れ日']) + (ex['納品場所'] ? ' / ' + esc(ex['納品場所']) : '') : '') +
-        (ex['在庫日数'] ? '<br>在庫日数: ' + esc(ex['在庫日数']) + '日' : '') +
-      '</div>' +
+    heroHtml +
+    tabsHtml +
+    '<div class="sec-body">' +
+      sectionsHtml +
+      summaryHtml +
+      historyHtml +
     '</div>' +
-    sections +
+    '<div class="savebar" id="savebar">' +
+      '<div class="savebar-info"><b id="savebar-count">0</b> 件の変更が未保存</div>' +
+      '<button class="btn-cancel" type="button" onclick="cancelDetailEdits_()">破棄</button>' +
+      '<button class="btn-save" type="button" id="btn-save-details" onclick="saveDetails()">保存</button>' +
+    '</div>' +
     '<div class="fab-stack">' +
       '<button class="fab gray" id="btn-back" onclick="backToList()" title="一覧へ戻る">←</button>' +
-      '<button class="fab" id="btn-save-details" onclick="saveDetails()" title="保存">💾</button>' +
     '</div>';
   document.getElementById('content').innerHTML = html;
   wireFeeAutoCalc_('f_');
-  // 既存値の長文 textarea を初期表示時に自動高さ調整
   Array.prototype.forEach.call(document.querySelectorAll('#content textarea.auto-grow'), autoGrowTextarea_);
-  // フォーム編集が始まった時点で dirty マーク → 裏の再取得で入力が消えないようにする
   var contentEl = document.getElementById('content');
-  contentEl.addEventListener('input', markDetailDirty_, { once: true });
-  contentEl.addEventListener('change', markDetailDirty_, { once: true });
+  // 任意の入力で dirty + 差分件数を更新
+  contentEl.addEventListener('input', updateSavebar_);
+  contentEl.addEventListener('change', updateSavebar_);
   resolveLegacyImages_();
+  updateSavebar_();
+}
+function diffCount_() {
+  var d = STATE.current;
+  if (!d) return 0;
+  var ex = d.extra || {};
+  var n = 0;
+  DETAIL_SECTIONS.forEach(function(sec){
+    sec.fields.forEach(function(f){
+      var name = f[0], type = f[1];
+      if (type === 'readonly' || type === 'image') return;
+      var el = document.getElementById(detailFieldId(name));
+      if (!el) return;
+      var v = el.value;
+      var orig = ex[name] !== undefined ? String(ex[name]) : '';
+      if (type === 'date') {
+        var origDate = '';
+        if (orig) {
+          if (/^\d{4}-\d{2}-\d{2}/.test(orig)) origDate = orig.slice(0, 10);
+          else { var dd = new Date(orig); if (!isNaN(dd.getTime())) origDate = dd.toISOString().slice(0, 10); }
+        }
+        if ((v || '') !== origDate) n++;
+      } else if (String(v) !== orig) n++;
+    });
+  });
+  return n;
+}
+function updateSavebar_() {
+  var bar = document.getElementById('savebar');
+  if (!bar) return;
+  var n = diffCount_();
+  if (n > 0) {
+    bar.classList.add('show');
+    var cnt = document.getElementById('savebar-count');
+    if (cnt) cnt.textContent = String(n);
+    STATE.detailDirty = true;
+  } else {
+    bar.classList.remove('show');
+    STATE.detailDirty = false;
+  }
+}
+function cancelDetailEdits_() {
+  // 入力を元の値に戻す
+  var d = STATE.current;
+  if (!d) return;
+  var ex = d.extra || {};
+  DETAIL_SECTIONS.forEach(function(sec){
+    sec.fields.forEach(function(f){
+      var name = f[0], type = f[1];
+      if (type === 'readonly' || type === 'image') return;
+      var el = document.getElementById(detailFieldId(name));
+      if (!el) return;
+      var orig = ex[name] !== undefined ? ex[name] : '';
+      if (type === 'date') {
+        if (orig && /^\d{4}-\d{2}-\d{2}/.test(orig)) el.value = orig.slice(0, 10);
+        else if (orig) { var dd = new Date(orig); el.value = isNaN(dd.getTime()) ? '' : dd.toISOString().slice(0, 10); }
+        else el.value = '';
+      } else el.value = orig != null ? String(orig) : '';
+    });
+  });
+  updateSavebar_();
+  toast('変更を破棄しました');
 }
 function markDetailDirty_() { STATE.detailDirty = true; }
 // 保存／戻る後は dirty を解除
