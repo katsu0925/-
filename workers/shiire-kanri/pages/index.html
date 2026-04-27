@@ -731,7 +731,7 @@ window.addEventListener('DOMContentLoaded', async function(){
     STATE.allowed = !!STATE.email;
     document.getElementById('drawer-email').textContent = STATE.email || '未取得';
     if (!STATE.allowed) { renderDenied(); return; }
-    loadMasters();
+    await loadMasters();
     render();
     refreshCounts();
     startPolling();
