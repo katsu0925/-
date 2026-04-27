@@ -1090,12 +1090,13 @@ async function renderShouhinList(opts) {
 }
 
 function cardHtml(it) {
-  const sold = !!(it.saleDate && String(it.saleDate).trim());
   const measured = !!(it.measuredAt && String(it.measuredAt).trim());
+  const st = it.status || '';
+  const isSold = st === '売却済み';
   let statusBadge;
-  if (sold) statusBadge = '<span class="card-status sold">売却済</span>';
-  else if (measured) statusBadge = '<span class="card-status measured">' + esc(it.status || '採寸済') + '</span>';
-  else statusBadge = '<span class="card-status">' + esc(it.status || '未採寸') + '</span>';
+  if (isSold) statusBadge = '<span class="card-status sold">' + esc(st) + '</span>';
+  else if (st) statusBadge = '<span class="card-status' + (measured ? ' measured' : '') + '">' + esc(st) + '</span>';
+  else statusBadge = '<span class="card-status">' + (measured ? '採寸済' : '未採寸') + '</span>';
   return '<div class="card" onclick="openDetail(\'' + esc(it.kanri).replace(/\'/g,"\\'") + '\')">' +
     '<div class="card-row1">' +
       '<span class="card-kanri">' + esc(it.kanri) + '</span>' +

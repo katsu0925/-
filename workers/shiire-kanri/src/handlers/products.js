@@ -52,10 +52,11 @@ export async function listProducts(request, env) {
   } else if (filter === 'shuppinchu') {
     where.push(`${ds} = '出品中'`);
   } else if (filter === 'hassou') {
-    // 発送商品タブ（AppSheet準拠）:
+    // 発送商品タブ（AppSheet準拠）— raw [ステータス] を直接参照する:
     //   OR(AND([ステータス]='発送待ち', ISBLANK([発送日付])), [ステータス]='発送済み')
-    // 派生ステータス上は: 発送待ち（=sale_date あり且つ発送日付なし）または 発送済み（=発送日付あり）
-    where.push(`${ds} IN ('発送待ち','発送済み')`);
+    // 派生ステータスではなく raw status を使う理由:
+    //   raw=売却済み だが完了日未入力の行があり派生では '発送待ち' に降格してしまうため。
+    where.push(`((status = '発送待ち' AND NOT ${D_HASSOU}) OR status = '発送済み')`);
   } else if (filter === 'sold') {
     where.push(`${ds} IN ('発送待ち','発送済み','売却済み')`);
   }
@@ -101,7 +102,7 @@ export async function listProductCounts(request, env) {
     shuppin_machi:  `${ds} = '出品待ち'`,
     shuppin_sagyou: `${ds} = '出品作業中'`,
     shuppinchu:     `${ds} = '出品中'`,
-    hassou:         `${ds} IN ('発送待ち','発送済み')`,
+    hassou:         `((status = '発送待ち' AND NOT ${D_HASSOU}) OR status = '発送済み')`,
     sold:           `${ds} IN ('発送待ち','発送済み','売却済み')`,
   };
 
