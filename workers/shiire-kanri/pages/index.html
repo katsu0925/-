@@ -454,19 +454,17 @@ document.addEventListener('click', function(e){
   input.focus();
 });
 
-// タグ表記 入力／変更で メルカリサイズ を即時派生（詳細編集 f_ / 新規作成 cf_ 共通）
-// 既存値がある場合は手動入力を尊重して上書きしない
-document.addEventListener('input', function(e){
-  var t = e.target;
-  if (!t || !t.id) return;
-  var TAG_IDS = ['f_' + escFieldId_('タグ表記'), 'cf_' + escFieldId_('タグ表記')];
-  if (TAG_IDS.indexOf(t.id) < 0) return;
-  var prefix = t.id.slice(0, t.id.indexOf('_') + 1); // 'f_' or 'cf_'
+// タグ表記 入力／性別 変更 で メルカリサイズ を即時派生（詳細編集 f_ / 新規作成 cf_ 共通）
+// 既存値があっても性別/タグ変更時は再派生（手動選択を尊重したい場合は SELECT を直接触れば確定）
+function deriveMercariSizeForPrefix_(prefix) {
+  var tagEl = document.getElementById(prefix + escFieldId_('タグ表記'));
   var sizeEl = document.getElementById(prefix + escFieldId_('メルカリサイズ'));
-  if (!sizeEl) return;
-  var derived = (typeof convertTagToMercariSize_ === 'function') ? convertTagToMercariSize_(t.value) : '';
+  var genderEl = document.getElementById(prefix + escFieldId_('性別'));
+  if (!tagEl || !sizeEl) return;
+  var derived = (typeof convertTagToMercariSize_ === 'function')
+    ? convertTagToMercariSize_(tagEl.value, genderEl ? genderEl.value : '')
+    : '';
   if (!derived) return;
-  // SELECT の場合は選択肢に無ければ追加してから選択
   if (sizeEl.tagName === 'SELECT') {
     var has = false;
     for (var i = 0; i < sizeEl.options.length; i++) {
@@ -479,6 +477,22 @@ document.addEventListener('input', function(e){
     }
   }
   sizeEl.value = derived;
+}
+document.addEventListener('input', function(e){
+  var t = e.target;
+  if (!t || !t.id) return;
+  var TAG_IDS = ['f_' + escFieldId_('タグ表記'), 'cf_' + escFieldId_('タグ表記')];
+  if (TAG_IDS.indexOf(t.id) < 0) return;
+  var prefix = t.id.slice(0, t.id.indexOf('_') + 1);
+  deriveMercariSizeForPrefix_(prefix);
+});
+document.addEventListener('change', function(e){
+  var t = e.target;
+  if (!t || !t.id) return;
+  var GENDER_IDS = ['f_' + escFieldId_('性別'), 'cf_' + escFieldId_('性別')];
+  if (GENDER_IDS.indexOf(t.id) < 0) return;
+  var prefix = t.id.slice(0, t.id.indexOf('_') + 1);
+  deriveMercariSizeForPrefix_(prefix);
 });
 function escFieldId_(name) {
   return name.replace(/[^A-Za-z0-9_]/g, function(ch){ return '_' + ch.charCodeAt(0).toString(16); });
@@ -1233,43 +1247,114 @@ function mercariSizeSelectHtml_(id, current) {
   return '<select id="' + id + '">' + out.join('') + '</select>';
 }
 
-// メルカリサイズ変換表モーダル（婦人服基準）
+// メルカリサイズ変換表モーダル（メンズ／レディース／メンズスーツ／キッズ をタブで切替）
 function openMercariSizeHelp_() {
   var existing = document.getElementById('mercari-size-help-modal');
   if (existing) existing.remove();
-  var rows = [
-    ['XS', '5号', '32', '〜25'],
-    ['S',  '7号', '34・36', '26'],
-    ['M',  '9号', '38', '27〜28'],
-    ['L',  '11号', '40', '29〜30'],
-    ['XL', '13号', '42', '31〜32'],
-    ['XXL','15号〜', '44〜', '33〜']
+
+  var ladiesRows = [
+    ['XS', '5号', '32', '〜23'],
+    ['S',  '7号', '34・36', '24〜25'],
+    ['M',  '9号', '38', '26〜27'],
+    ['L',  '11号', '40', '28〜29'],
+    ['XL', '13号', '42', '30〜31'],
+    ['XXL','15号〜', '44〜', '32〜']
   ];
-  var trs = rows.map(function(r){
-    return '<tr><td><strong>' + r[0] + '</strong></td><td>' + r[1] + '</td><td>' + r[2] + '</td><td>' + r[3] + '</td></tr>';
+  var mensRows = [
+    ['S',  '36', '〜28'],
+    ['M',  '38', '29〜30'],
+    ['L',  '40', '31〜33'],
+    ['XL', '42', '34〜36'],
+    ['XXL','44', '37〜38'],
+    ['3XL','46〜', '39〜']
+  ];
+  var suitRows = [
+    ['S',  'Y4・A4', '身長 〜165cm'],
+    ['M',  'Y5・A5・A6・AB5', '身長 170〜175cm'],
+    ['L',  'A7・AB6・AB7・B5', '身長 175〜180cm'],
+    ['XL', 'A8・B6・B7・BB5', '身長 180〜185cm'],
+    ['XXL','BB6・BB7・E系', '太め＋身長180cm〜']
+  ];
+  var kidsRows = [
+    ['80',  '80cm', '〜1歳'],
+    ['90',  '90cm', '1〜2歳'],
+    ['100', '100cm','3〜4歳'],
+    ['110', '110cm','4〜5歳'],
+    ['120', '120cm','6〜7歳'],
+    ['130', '130cm','7〜9歳'],
+    ['140', '140cm','9〜10歳'],
+    ['150', '150cm','11〜12歳'],
+    ['160', '160cm','12〜14歳']
+  ];
+
+  function tableHtml(headers, rows) {
+    var ths = headers.map(function(h){
+      return '<th style="padding:8px;border:1px solid #ddd;text-align:left">' + esc(h) + '</th>';
+    }).join('');
+    var trs = rows.map(function(r){
+      var tds = r.map(function(c, i){
+        return '<td style="padding:6px 8px;border:1px solid #ddd">' + (i === 0 ? '<strong>' + esc(c) + '</strong>' : esc(c)) + '</td>';
+      }).join('');
+      return '<tr>' + tds + '</tr>';
+    }).join('');
+    return '<table style="width:100%;border-collapse:collapse;font-size:14px">' +
+      '<thead><tr style="background:#f5f5f5">' + ths + '</tr></thead>' +
+      '<tbody>' + trs + '</tbody></table>';
+  }
+
+  var panels = {
+    ladies: tableHtml(['メルカリ','号','EU','ウエストinch'], ladiesRows),
+    mens:   tableHtml(['メルカリ','胸囲inch / 襟cm','ウエストinch'], mensRows),
+    suit:   tableHtml(['メルカリ','スーツ表記','目安'], suitRows),
+    kids:   tableHtml(['メルカリ','身長','年齢目安'], kidsRows)
+  };
+
+  var tabs = [
+    { key: 'ladies', label: 'レディース' },
+    { key: 'mens',   label: 'メンズ' },
+    { key: 'suit',   label: 'メンズスーツ' },
+    { key: 'kids',   label: 'キッズ' }
+  ];
+  var tabBtns = tabs.map(function(t, i){
+    return '<button type="button" data-tab="' + t.key + '" ' +
+      'style="flex:1;padding:8px 4px;border:none;background:' + (i === 0 ? '#1976d2' : '#eee') + ';' +
+      'color:' + (i === 0 ? '#fff' : '#333') + ';font-weight:500;cursor:pointer;font-size:13px">' +
+      esc(t.label) + '</button>';
   }).join('');
+  var panelHtmls = tabs.map(function(t, i){
+    return '<div data-panel="' + t.key + '" style="display:' + (i === 0 ? 'block' : 'none') + '">' + panels[t.key] + '</div>';
+  }).join('');
+
   var html =
     '<div id="mercari-size-help-modal" class="modal-overlay" onclick="if(event.target===this)this.remove()">' +
-      '<div class="modal-content" style="max-width:480px">' +
-        '<div class="modal-header"><h3>メルカリサイズ 変換表（婦人服）</h3>' +
+      '<div class="modal-content" style="max-width:520px">' +
+        '<div class="modal-header"><h3>メルカリサイズ 変換表</h3>' +
           '<button class="modal-close" onclick="document.getElementById(\'mercari-size-help-modal\').remove()">×</button></div>' +
         '<div class="modal-body">' +
-          '<table style="width:100%;border-collapse:collapse;font-size:14px">' +
-            '<thead><tr style="background:#f5f5f5">' +
-              '<th style="padding:8px;border:1px solid #ddd;text-align:left">メルカリ</th>' +
-              '<th style="padding:8px;border:1px solid #ddd;text-align:left">号</th>' +
-              '<th style="padding:8px;border:1px solid #ddd;text-align:left">EU</th>' +
-              '<th style="padding:8px;border:1px solid #ddd;text-align:left">ウエストinch</th>' +
-            '</tr></thead>' +
-            '<tbody>' + trs + '</tbody>' +
-          '</table>' +
-          '<p style="margin-top:12px;font-size:12px;color:#666">タグ表記を入力すると、この表に従って自動でメルカリサイズが選択されます。FREE・F・フリーは FREE、LL は XL に変換されます。</p>' +
+          '<div style="display:flex;gap:1px;margin-bottom:12px;border-radius:4px;overflow:hidden">' + tabBtns + '</div>' +
+          panelHtmls +
+          '<p style="margin-top:12px;font-size:12px;color:#666">性別を選択した上でタグ表記を入力すると、この表に従って自動でメルカリサイズが選択されます。FREE/F/フリーは FREE、LL→XL、3L→XXL に変換されます。</p>' +
         '</div>' +
       '</div>' +
     '</div>';
   var div = document.createElement('div');
   div.innerHTML = html;
-  document.body.appendChild(div.firstChild);
+  var modal = div.firstChild;
+  document.body.appendChild(modal);
+
+  modal.querySelectorAll('button[data-tab]').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var key = btn.getAttribute('data-tab');
+      modal.querySelectorAll('button[data-tab]').forEach(function(b){
+        var active = b === btn;
+        b.style.background = active ? '#1976d2' : '#eee';
+        b.style.color = active ? '#fff' : '#333';
+      });
+      modal.querySelectorAll('div[data-panel]').forEach(function(p){
+        p.style.display = (p.getAttribute('data-panel') === key) ? 'block' : 'none';
+      });
+    });
+  });
 }
 
 // マスターリスト + 現在値（リスト外でも保持） + 空オプション
@@ -1616,44 +1701,96 @@ async function openCreateProductModal(shiireId) {
   if (suggested) applyAiPrefillToForm_(suggested);
 }
 
-// タグ表記サイズ（38, M, 9号, W30 等）→ メルカリ S/M/L 表記へ変換
-// 該当しなければ空文字を返し、手動選択させる
-// メルカリ公式サイズ表（婦人服）: XS=5号, S=7号, M=9号, L=11号, XL=13号, XXL=15号
-function convertTagToMercariSize_(tag) {
+// タグ表記サイズ → メルカリ表記へ変換（性別連動）
+// gender: 'メンズ' | 'レディース' | 'キッズ' | 'ユニセックス' | '' （空はレディース基準）
+// スーツ表記（A5/AB6/Y6/B7/BB6 等）も対応
+function convertTagToMercariSize_(tag, gender) {
   if (!tag) return '';
   var t = String(tag).trim().toUpperCase();
   if (!t) return '';
+  var g = String(gender || '');
+
   // 既にメルカリ表記
-  if (/^(XXS|XS|S|M|L|LL|XL|XXL|3L|4L|5L)$/.test(t)) return t === 'LL' ? 'XL' : t;
+  if (/^(XXS|XS|S|M|L|LL|XL|XXL|3L|4L|5L|3XL|4XL|5XL)$/.test(t)) {
+    if (t === 'LL') return 'XL';
+    if (t === '3L') return 'XXL';
+    if (t === '4L') return '3XL';
+    if (t === '5L') return '4XL';
+    return t;
+  }
   // フリーサイズ
   if (/(FREE|フリー)/i.test(t) || t === 'F') return 'FREE';
-  // n号（婦人服）
+
+  // キッズ: 80cm/90cm/100cm... 160cm をそのまま採用
+  if (g === 'キッズ') {
+    var kidsM = t.match(/^(\d{2,3})(?:CM)?$/);
+    if (kidsM) {
+      var kc = Number(kidsM[1]);
+      if (kc >= 70 && kc <= 170 && kc % 10 === 0) return String(kc);
+    }
+  }
+
+  // メンズスーツ JIS: Y/A/AB/B/BB/BE/E + 数字（数字=身長号: 4=165, 5=170, 6=175, 7=180, 8=185）
+  // 体型 Y/A は標準, AB/B はやや太め, BB/BE/E は太め → 1段階上げる
+  var suitM = t.match(/^(Y|A|AB|B|BB|BE|E)\s*(\d)$/);
+  if (suitM) {
+    var build = suitM[1];
+    var h = Number(suitM[2]);
+    var base;
+    if (h <= 4) base = 'S';
+    else if (h <= 5) base = 'M';
+    else if (h <= 6) base = 'M';
+    else if (h <= 7) base = 'L';
+    else base = 'XL';
+    if (build === 'B' || build === 'BB' || build === 'BE' || build === 'E') {
+      base = bumpSize_(base, 1);
+    } else if (build === 'AB') {
+      // AB は半段階上げ。身長6以上ならL寄り
+      if (h >= 6) base = bumpSize_(base, 1);
+    }
+    return base;
+  }
+
+  // n号（婦人服 — レディース基準）
   var goM = t.match(/^(\d+)号$/);
   if (goM) {
-    var g = Number(goM[1]);
-    if (g <= 5) return 'XS';
-    if (g === 7) return 'S';
-    if (g === 9) return 'M';
-    if (g === 11) return 'L';
-    if (g === 13) return 'XL';
+    var goN = Number(goM[1]);
+    if (goN <= 5) return 'XS';
+    if (goN === 7) return 'S';
+    if (goN === 9) return 'M';
+    if (goN === 11) return 'L';
+    if (goN === 13) return 'XL';
     return 'XXL';
   }
-  // ウエストinch（W プレフィックス または inch サフィックスが必須。裸の数字は次の判定へ流す）
+
+  // ウエストinch（W プレフィックス or inch サフィックス必須）
   var wM = t.match(/^(?:W\s*(\d{2})|(\d{2})\s*(?:IN|INCH|INCHES))$/);
   if (wM) {
     var w = Number(wM[1] || wM[2]);
-    if (w >= 25 && w <= 40) {
-      if (w <= 26) return 'S';
-      if (w <= 28) return 'M';
-      if (w <= 30) return 'L';
-      if (w <= 32) return 'XL';
-      return 'XXL';
-    }
+    return waistInchToSize_(w, g);
   }
+
   // 数字のみ
   var numM = t.match(/^(\d+)$/);
   if (numM) {
     var n = Number(numM[1]);
+
+    if (g === 'メンズ') {
+      // メンズ胸囲inch / 襟cm: 36=S, 38=M, 40=L, 42=XL, 44=XXL, 46+=3XL
+      if (n >= 34 && n <= 50) {
+        if (n <= 36) return 'S';
+        if (n <= 38) return 'M';
+        if (n <= 40) return 'L';
+        if (n <= 42) return 'XL';
+        if (n <= 44) return 'XXL';
+        return '3XL';
+      }
+      // メンズウエストinch
+      if (n >= 26 && n <= 44) return waistInchToSize_(n, g);
+      return '';
+    }
+
+    // レディース or 不明
     // 5〜17 奇数 = 号系列
     if (n >= 5 && n <= 17 && n % 2 === 1) {
       if (n <= 5) return 'XS';
@@ -1663,7 +1800,7 @@ function convertTagToMercariSize_(tag) {
       if (n === 13) return 'XL';
       return 'XXL';
     }
-    // EU婦人 32〜50（偶数）— 36 は S 寄り、38 を M とする運用
+    // EU婦人 32〜50（偶数）— 38 を M とする運用
     if (n >= 32 && n <= 50 && n % 2 === 0) {
       if (n <= 32) return 'XS';
       if (n === 34) return 'S';
@@ -1673,16 +1810,37 @@ function convertTagToMercariSize_(tag) {
       if (n === 42) return 'XL';
       return 'XXL';
     }
-    // ウエストinch 25〜40
-    if (n >= 25 && n <= 40) {
-      if (n <= 26) return 'S';
-      if (n <= 28) return 'M';
-      if (n <= 30) return 'L';
-      if (n <= 32) return 'XL';
-      return 'XXL';
-    }
+    // ウエストinch
+    if (n >= 23 && n <= 38) return waistInchToSize_(n, g);
   }
+
   return '';
+}
+
+function waistInchToSize_(w, gender) {
+  if (gender === 'メンズ') {
+    if (w <= 28) return 'S';
+    if (w <= 30) return 'M';
+    if (w <= 33) return 'L';
+    if (w <= 36) return 'XL';
+    if (w <= 38) return 'XXL';
+    return '3XL';
+  }
+  // レディース基準（不明含む）
+  if (w <= 23) return 'XS';
+  if (w <= 25) return 'S';
+  if (w <= 27) return 'M';
+  if (w <= 29) return 'L';
+  if (w <= 31) return 'XL';
+  return 'XXL';
+}
+
+function bumpSize_(size, n) {
+  var order = ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL'];
+  var i = order.indexOf(size);
+  if (i < 0) return size;
+  var j = Math.max(0, Math.min(order.length - 1, i + (n || 0)));
+  return order[j];
 }
 
 // 仕入れに紐づく既存商品 + 候補管理番号を一括プリフェッチして STATE.aiPrefillCache に積む
@@ -1720,7 +1878,7 @@ async function applyAiPrefillToForm_(kanri) {
     }
     // タグ表記からメルカリサイズを派生（既に値があれば上書きしない）
     if (fields['タグ表記'] && !fields['メルカリサイズ']) {
-      var derived = convertTagToMercariSize_(fields['タグ表記']);
+      var derived = convertTagToMercariSize_(fields['タグ表記'], fields['性別']);
       if (derived) fields['メルカリサイズ'] = derived;
     }
     Object.keys(fields).forEach(function(name){
