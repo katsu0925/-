@@ -265,6 +265,33 @@
   .modal-actions .btn-submit { background: var(--primary); color: #fff; }
   .modal-actions .btn-submit:disabled { background: #bdbdbd; }
   .modal .hint { color: var(--text-sub); font-size: 12px; padding: 4px 0 8px; }
+  .size-help-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 18px; height: 18px; border-radius: 50%;
+    border: 1px solid var(--primary); background: #fff;
+    color: var(--primary); font-size: 11px; font-weight: 700;
+    cursor: pointer; padding: 0; line-height: 1; vertical-align: middle;
+  }
+  .size-help-btn:hover { background: var(--primary); color: #fff; }
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    z-index: 300; display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .modal-overlay .modal-content {
+    background: #fff; border-radius: 12px; max-width: 520px; width: 100%;
+    max-height: 85vh; overflow: hidden; display: flex; flex-direction: column;
+  }
+  .modal-overlay .modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 14px 16px; border-bottom: 1px solid var(--border);
+  }
+  .modal-overlay .modal-header h3 { margin: 0; font-size: 16px; }
+  .modal-overlay .modal-close {
+    background: none; border: none; font-size: 24px; cursor: pointer;
+    color: var(--text-sub); padding: 0; width: 32px; height: 32px;
+  }
+  .modal-overlay .modal-body { padding: 16px; overflow-y: auto; }
 </style>
 </head>
 <body>
@@ -538,7 +565,7 @@ const DETAIL_SECTIONS = [
     ['状態','text'],
     ['ブランド','text'],
     ['タグ表記','text'],
-    ['メルカリサイズ','text'],
+    ['メルカリサイズ','mercarisize'],
     ['性別','gender'],
     ['発送方法','shipmethod'],
     ['カテゴリ1','text'],
@@ -1093,6 +1120,8 @@ function fieldRowHtml(name, type, val) {
     input = '<select id="' + id + '">' + masterOptionsHtml_(STATE.workers, v) + '</select>';
   } else if (type === 'account') {
     input = '<select id="' + id + '">' + masterOptionsHtml_(STATE.accounts, v) + '</select>';
+  } else if (type === 'mercarisize') {
+    input = mercariSizeSelectHtml_(id, v);
   } else {
     var setOpts = settingsOptionsFor_(name, v);
     if (setOpts) {
@@ -1101,7 +1130,65 @@ function fieldRowHtml(name, type, val) {
       input = '<input type="text" id="' + id + '" value="' + esc(v) + '">';
     }
   }
-  return '<div class="field-row"><label>' + esc(name) + '</label>' + input + '</div>';
+  var labelHtml = '<label>' + esc(name) +
+    (type === 'mercarisize' ? ' <button type="button" class="size-help-btn" onclick="openMercariSizeHelp_()" aria-label="サイズ変換表" title="サイズ変換表">?</button>' : '') +
+    '</label>';
+  return '<div class="field-row">' + labelHtml + input + '</div>';
+}
+
+// メルカリサイズ プルダウン HTML（現在値がリスト外でも保持）
+var MERCARI_SIZE_OPTIONS = ['XS','S','M','L','XL','XXL','3L','4L','5L','FREE'];
+function mercariSizeSelectHtml_(id, current) {
+  var cur = current == null ? '' : String(current);
+  var seen = {};
+  var out = ['<option value=""' + (cur === '' ? ' selected' : '') + '>—</option>'];
+  MERCARI_SIZE_OPTIONS.forEach(function(o){
+    seen[o] = true;
+    out.push('<option value="' + esc(o) + '"' + (cur === o ? ' selected' : '') + '>' + esc(o) + '</option>');
+  });
+  if (cur && !seen[cur]) {
+    out.push('<option value="' + esc(cur) + '" selected>' + esc(cur) + '</option>');
+  }
+  return '<select id="' + id + '">' + out.join('') + '</select>';
+}
+
+// メルカリサイズ変換表モーダル（婦人服基準）
+function openMercariSizeHelp_() {
+  var existing = document.getElementById('mercari-size-help-modal');
+  if (existing) existing.remove();
+  var rows = [
+    ['XS', '5号', '32', '〜25'],
+    ['S',  '7号', '34', '26'],
+    ['M',  '9号', '36', '27〜28'],
+    ['L',  '11号', '38', '29〜30'],
+    ['XL', '13号', '40', '31〜32'],
+    ['XXL','15号', '42', '33〜']
+  ];
+  var trs = rows.map(function(r){
+    return '<tr><td><strong>' + r[0] + '</strong></td><td>' + r[1] + '</td><td>' + r[2] + '</td><td>' + r[3] + '</td></tr>';
+  }).join('');
+  var html =
+    '<div id="mercari-size-help-modal" class="modal-overlay" onclick="if(event.target===this)this.remove()">' +
+      '<div class="modal-content" style="max-width:480px">' +
+        '<div class="modal-header"><h3>メルカリサイズ 変換表（婦人服）</h3>' +
+          '<button class="modal-close" onclick="document.getElementById(\'mercari-size-help-modal\').remove()">×</button></div>' +
+        '<div class="modal-body">' +
+          '<table style="width:100%;border-collapse:collapse;font-size:14px">' +
+            '<thead><tr style="background:#f5f5f5">' +
+              '<th style="padding:8px;border:1px solid #ddd;text-align:left">メルカリ</th>' +
+              '<th style="padding:8px;border:1px solid #ddd;text-align:left">号</th>' +
+              '<th style="padding:8px;border:1px solid #ddd;text-align:left">EU</th>' +
+              '<th style="padding:8px;border:1px solid #ddd;text-align:left">ウエストinch</th>' +
+            '</tr></thead>' +
+            '<tbody>' + trs + '</tbody>' +
+          '</table>' +
+          '<p style="margin-top:12px;font-size:12px;color:#666">タグ表記を入力すると、この表に従って自動でメルカリサイズが選択されます。FREE・F・フリーは FREE、LL は XL に変換されます。</p>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  var div = document.createElement('div');
+  div.innerHTML = html;
+  document.body.appendChild(div.firstChild);
 }
 
 // マスターリスト + 現在値（リスト外でも保持） + 空オプション
@@ -1443,6 +1530,7 @@ async function openCreateProductModal(shiireId) {
 
 // タグ表記サイズ（38, M, 9号, W30 等）→ メルカリ S/M/L 表記へ変換
 // 該当しなければ空文字を返し、手動選択させる
+// メルカリ公式サイズ表（婦人服）: XS=5号, S=7号, M=9号, L=11号, XL=13号, XXL=15号
 function convertTagToMercariSize_(tag) {
   if (!tag) return '';
   var t = String(tag).trim().toUpperCase();
@@ -1451,15 +1539,15 @@ function convertTagToMercariSize_(tag) {
   if (/^(XXS|XS|S|M|L|LL|XL|XXL|3L|4L|5L)$/.test(t)) return t === 'LL' ? 'XL' : t;
   // フリーサイズ
   if (/(FREE|フリー)/i.test(t) || t === 'F') return 'FREE';
-  // n号
+  // n号（婦人服）
   var goM = t.match(/^(\d+)号$/);
   if (goM) {
     var g = Number(goM[1]);
-    if (g <= 7) return 'XS';
-    if (g === 9) return 'S';
-    if (g === 11) return 'M';
-    if (g === 13) return 'L';
-    if (g === 15) return 'XL';
+    if (g <= 5) return 'XS';
+    if (g === 7) return 'S';
+    if (g === 9) return 'M';
+    if (g === 11) return 'L';
+    if (g === 13) return 'XL';
     return 'XXL';
   }
   // ウエストinch（W付き）
@@ -1467,10 +1555,10 @@ function convertTagToMercariSize_(tag) {
   if (wM) {
     var w = Number(wM[1]);
     if (w >= 25 && w <= 40) {
-      if (w <= 27) return 'S';
-      if (w <= 29) return 'M';
-      if (w <= 31) return 'L';
-      if (w <= 33) return 'XL';
+      if (w <= 26) return 'S';
+      if (w <= 28) return 'M';
+      if (w <= 30) return 'L';
+      if (w <= 32) return 'XL';
       return 'XXL';
     }
   }
@@ -1480,27 +1568,28 @@ function convertTagToMercariSize_(tag) {
     var n = Number(numM[1]);
     // 5〜17 奇数 = 号系列
     if (n >= 5 && n <= 17 && n % 2 === 1) {
-      if (n <= 7) return 'XS';
-      if (n === 9) return 'S';
-      if (n === 11) return 'M';
-      if (n === 13) return 'L';
-      if (n === 15) return 'XL';
+      if (n <= 5) return 'XS';
+      if (n === 7) return 'S';
+      if (n === 9) return 'M';
+      if (n === 11) return 'L';
+      if (n === 13) return 'XL';
       return 'XXL';
     }
-    // EU婦人 34〜50（偶数）
-    if (n >= 34 && n <= 50 && n % 2 === 0) {
-      if (n <= 36) return 'S';
-      if (n === 38) return 'M';
-      if (n === 40) return 'L';
-      if (n === 42) return 'XL';
+    // EU婦人 32〜50（偶数）
+    if (n >= 32 && n <= 50 && n % 2 === 0) {
+      if (n <= 32) return 'XS';
+      if (n === 34) return 'S';
+      if (n === 36) return 'M';
+      if (n === 38) return 'L';
+      if (n === 40) return 'XL';
       return 'XXL';
     }
     // ウエストinch 25〜40
     if (n >= 25 && n <= 40) {
-      if (n <= 27) return 'S';
-      if (n <= 29) return 'M';
-      if (n <= 31) return 'L';
-      if (n <= 33) return 'XL';
+      if (n <= 26) return 'S';
+      if (n <= 28) return 'M';
+      if (n <= 30) return 'L';
+      if (n <= 32) return 'XL';
       return 'XXL';
     }
   }
@@ -1612,6 +1701,8 @@ function createFieldRowHtml_(name, type, defVal) {
     input = '<select id="' + id + '">' + masterOptionsHtml_(STATE.workers, v) + '</select>';
   } else if (type === 'account') {
     input = '<select id="' + id + '">' + masterOptionsHtml_(STATE.accounts, v) + '</select>';
+  } else if (type === 'mercarisize') {
+    input = mercariSizeSelectHtml_(id, v);
   } else {
     var setOptsC = settingsOptionsFor_(name, v);
     if (setOptsC) {
@@ -1620,7 +1711,10 @@ function createFieldRowHtml_(name, type, defVal) {
       input = '<input type="text" id="' + id + '" value="' + esc(v) + '">';
     }
   }
-  return '<div class="field-row"><label>' + esc(name) + '</label>' + input + '</div>';
+  var labelHtmlC = '<label>' + esc(name) +
+    (type === 'mercarisize' ? ' <button type="button" class="size-help-btn" onclick="openMercariSizeHelp_()" aria-label="サイズ変換表" title="サイズ変換表">?</button>' : '') +
+    '</label>';
+  return '<div class="field-row">' + labelHtmlC + input + '</div>';
 }
 
 function buildCreateProductHtml_(opts) {

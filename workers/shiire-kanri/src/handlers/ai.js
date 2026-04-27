@@ -17,7 +17,10 @@ export async function lookupAiPrefill(request, env) {
         const fields = mapAiResultToFields_(ai);
         return jsonOk({ fields, found: Object.keys(fields).length > 0, source: 'kv' });
       }
-    } catch (_) { /* KV 失敗は無視して GAS にフォールバック */ }
+      // KV はバインド済みかつ未ヒット = タスキ箱画像未アップ／Gemini判定未完了。
+      // GAS フォールバック（~1s）はかけずに即時 empty を返して UX を維持する
+      return jsonOk({ fields: {}, found: false, source: 'kv-miss' });
+    } catch (_) { /* KV 例外時のみ GAS にフォールバック */ }
   }
 
   let res;
