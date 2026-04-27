@@ -132,14 +132,17 @@
     margin-bottom: 8px; padding: 12px 14px; cursor: pointer;
     border-left: 4px solid transparent;
     transition: background .12s, box-shadow .12s;
-    display: flex; gap: 12px; align-items: flex-start;
   }
+  .card.has-thumb { display: flex; gap: 12px; align-items: flex-start; }
   .card-thumb {
     width: 56px; height: 56px; border-radius: 8px;
     background: var(--gray-soft); flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
     color: var(--text-mute); font-size: 22px;
     overflow: hidden;
+  }
+  .card-thumb img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
   }
   .card-body { flex: 1; min-width: 0; }
   .card:hover { box-shadow: var(--shadow-lg); }
@@ -1240,6 +1243,7 @@ async function renderShouhinList(opts) {
       body = items.map(cardHtml).join('');
     }
     c.innerHTML = chip + body + fab;
+    if (STATE.tab === 'hassou') resolveCardImages_();
   }
   if (cached) {
     paint(cached.items);
@@ -1438,21 +1442,67 @@ function cardHtml(it) {
   } else if (!measured) {
     cardClass += ' s-sokutei';
   }
-  return '<div class="' + cardClass + '" onclick="openDetail(\'' + esc(it.kanri).replace(/\'/g,"\\'") + '\')">' +
-    '<div class="card-thumb" aria-hidden="true">📷</div>' +
-    '<div class="card-body">' +
-      '<div class="card-row1">' +
-        '<span class="card-kanri">' + esc(it.kanri) + '</span>' +
-        statusBadge +
-      '</div>' +
-      '<div class="card-row2">' +
-        '<span class="card-brand">' + esc(it.brand || '—') + '</span>' +
-        ' / ' + esc(it.size || '—') +
-        (it.color ? ' / ' + esc(it.color) : '') +
-      '</div>' +
-      shipDeadlineHtml_(it) +
+  // 発送商品タブのみサムネイル表示（売却済み商品画像）。商品管理など他タブは画像なし。
+  var thumbHtml = '';
+  if (STATE.tab === 'hassou') {
+    var imgVal = (it.extra && it.extra['売却済み商品画像']) ? String(it.extra['売却済み商品画像']) : '';
+    if (/^https?:/.test(imgVal)) {
+      thumbHtml = '<div class="card-thumb"><img src="' + esc(imgVal) + '" alt="" loading="lazy"></div>';
+    } else if (imgVal) {
+      // AppSheet 旧形式の相対パス → 描画後に resolveCardImages_() が解決
+      thumbHtml = '<div class="card-thumb img-loading" data-legacy="' + esc(imgVal) + '" data-field="売却済み商品画像" data-kanri="' + esc(it.kanri) + '">📷</div>';
+    } else {
+      thumbHtml = '<div class="card-thumb" aria-hidden="true">📷</div>';
+    }
+  }
+  var openHandler = 'openDetail(\'' + esc(it.kanri).replace(/\'/g,"\\'") + '\')';
+  var bodyHtml = '<div class="card-body">' +
+    '<div class="card-row1">' +
+      '<span class="card-kanri">' + esc(it.kanri) + '</span>' +
+      statusBadge +
     '</div>' +
+    '<div class="card-row2">' +
+      '<span class="card-brand">' + esc(it.brand || '—') + '</span>' +
+      ' / ' + esc(it.size || '—') +
+      (it.color ? ' / ' + esc(it.color) : '') +
+    '</div>' +
+    shipDeadlineHtml_(it) +
   '</div>';
+  return '<div class="' + cardClass + (thumbHtml ? ' has-thumb' : '') + '" onclick="' + openHandler + '">' +
+    thumbHtml + bodyHtml +
+  '</div>';
+}
+
+// 一覧描画後に呼ぶ: 発送タブのカードサムネを遅延解決して画像に差し替える
+function resolveCardImages_() {
+  var nodes = document.querySelectorAll('.card-thumb.img-loading[data-legacy]');
+  if (!nodes || !nodes.length) return;
+  Array.prototype.forEach.call(nodes, function(el){
+    var path = el.getAttribute('data-legacy') || '';
+    var field = el.getAttribute('data-field') || '';
+    var kanri = el.getAttribute('data-kanri') || '';
+    if (!path) return;
+    var cacheKey = 'imgresolve:' + path;
+    var cached = null;
+    try { cached = sessionStorage.getItem(cacheKey); } catch(e) {}
+    if (cached) { applyCardThumb_(el, cached); return; }
+    fetch('/api/image/resolve', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kanri: kanri, field: field, path: path })
+    }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, body: j }; }); })
+      .then(function(res){
+        if (!res.ok || !res.body || !res.body.url) throw new Error('resolve failed');
+        try { sessionStorage.setItem(cacheKey, res.body.url); } catch(e) {}
+        applyCardThumb_(el, res.body.url);
+      }).catch(function(){
+        el.classList.remove('img-loading');
+      });
+  });
+}
+
+function applyCardThumb_(el, url) {
+  el.classList.remove('img-loading');
+  el.innerHTML = '<img src="' + esc(url) + '" alt="" loading="lazy">';
 }
 
 function renderHassouGrouped_(items) {
