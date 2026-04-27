@@ -1550,10 +1550,10 @@ function convertTagToMercariSize_(tag) {
     if (g === 13) return 'XL';
     return 'XXL';
   }
-  // ウエストinch（W付き）
-  var wM = t.match(/^W?\s*(\d{2})\s*(IN|INCH|INCHES)?$/);
+  // ウエストinch（W プレフィックス または inch サフィックスが必須。裸の数字は次の判定へ流す）
+  var wM = t.match(/^(?:W\s*(\d{2})|(\d{2})\s*(?:IN|INCH|INCHES))$/);
   if (wM) {
-    var w = Number(wM[1]);
+    var w = Number(wM[1] || wM[2]);
     if (w >= 25 && w <= 40) {
       if (w <= 26) return 'S';
       if (w <= 28) return 'M';
