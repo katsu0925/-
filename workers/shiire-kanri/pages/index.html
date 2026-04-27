@@ -107,6 +107,16 @@
   .card-status { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: var(--border); color: var(--text-sub); margin-left: auto; }
   .card-status.sold { background: #ffe0e0; color: var(--danger); }
   .card-status.measured { background: #e0f5e0; color: var(--success); }
+  .card-status.shipping-pending { background: #fff3cd; color: #b07000; }
+  .card-status.shipped { background: #d6e9ff; color: #1565c0; }
+  .card-deadline { font-size: 12px; color: var(--text-sub); margin-top: 4px; }
+  .card-deadline.overdue { color: var(--danger); font-weight: 600; }
+  .group-header {
+    font-size: 13px; font-weight: 600; color: var(--text-sub);
+    margin: 12px 0 6px 0; padding: 4px 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .group-header .count { color: var(--primary); margin-left: 6px; font-weight: 500; }
   .card-row2 { color: var(--text-sub); font-size: 13px; }
   .card-brand { font-weight: 500; color: var(--text); }
   .shiire-card {
@@ -1068,10 +1078,16 @@ async function renderShouhinList(opts) {
   var cached = LIST_CACHE[cacheKey];
   function paint(items){
     STATE.items = items;
-    var html = chip + (items.length
-      ? items.map(cardHtml).join('')
-      : '<div class="empty">該当する商品がありません</div>');
-    c.innerHTML = html + fab;
+    var body;
+    if (!items.length) {
+      body = '<div class="empty">該当する商品がありません</div>';
+    } else if (STATE.tab === 'hassou') {
+      // 発送商品は使用アカウント別にグループ化（発送待ち→発送済みの順、期限が近い順）
+      body = renderHassouGrouped_(items);
+    } else {
+      body = items.map(cardHtml).join('');
+    }
+    c.innerHTML = chip + body + fab;
   }
   if (cached) {
     paint(cached.items);
@@ -1089,14 +1105,35 @@ async function renderShouhinList(opts) {
   }
 }
 
+// 発送期限 = 販売日 + SHIP_DEADLINE_DAYS（AppSheet 同様の運用）
+var SHIP_DEADLINE_DAYS = 3;
+function shipDeadlineHtml_(it) {
+  if (it.status !== '発送待ち') return '';
+  if (!it.saleDate) return '';
+  var sd = new Date(it.saleDate);
+  if (isNaN(sd.getTime())) return '';
+  var due = new Date(sd.getTime() + SHIP_DEADLINE_DAYS * 86400000);
+  var dueStr = due.getFullYear() + '-' + String(due.getMonth()+1).padStart(2,'0') + '-' + String(due.getDate()).padStart(2,'0');
+  var today = new Date(); today.setHours(0,0,0,0);
+  var overdue = due.getTime() < today.getTime();
+  var diffDays = Math.floor((due.getTime() - today.getTime()) / 86400000);
+  var label;
+  if (overdue) label = '期限超過 ' + dueStr + '（' + Math.abs(diffDays) + '日経過）';
+  else if (diffDays === 0) label = '本日が期限 ' + dueStr;
+  else label = '発送期限 ' + dueStr + '（あと' + diffDays + '日）';
+  return '<div class="card-deadline' + (overdue ? ' overdue' : '') + '">⏰ ' + esc(label) + '</div>';
+}
+
 function cardHtml(it) {
   const measured = !!(it.measuredAt && String(it.measuredAt).trim());
   const st = it.status || '';
-  const isSold = st === '売却済み';
-  let statusBadge;
-  if (isSold) statusBadge = '<span class="card-status sold">' + esc(st) + '</span>';
-  else if (st) statusBadge = '<span class="card-status' + (measured ? ' measured' : '') + '">' + esc(st) + '</span>';
-  else statusBadge = '<span class="card-status">' + (measured ? '採寸済' : '未採寸') + '</span>';
+  let badgeClass = '';
+  if (st === '売却済み') badgeClass = ' sold';
+  else if (st === '発送済み') badgeClass = ' shipped';
+  else if (st === '発送待ち') badgeClass = ' shipping-pending';
+  else if (measured) badgeClass = ' measured';
+  const badgeText = st || (measured ? '採寸済' : '未採寸');
+  const statusBadge = '<span class="card-status' + badgeClass + '">' + esc(badgeText) + '</span>';
   return '<div class="card" onclick="openDetail(\'' + esc(it.kanri).replace(/\'/g,"\\'") + '\')">' +
     '<div class="card-row1">' +
       '<span class="card-kanri">' + esc(it.kanri) + '</span>' +
@@ -1107,7 +1144,43 @@ function cardHtml(it) {
       ' / ' + esc(it.size || '—') +
       (it.color ? ' / ' + esc(it.color) : '') +
     '</div>' +
+    shipDeadlineHtml_(it) +
   '</div>';
+}
+
+function renderHassouGrouped_(items) {
+  // 並び順: 発送待ち優先 → 期限が近い順 → kanri
+  function priorityKey(it) {
+    var statusRank = it.status === '発送待ち' ? 0 : 1;
+    var saleTs = it.saleDate ? new Date(it.saleDate).getTime() : Number.MAX_SAFE_INTEGER;
+    return [statusRank, saleTs, String(it.kanri || '')];
+  }
+  var groups = Object.create(null);
+  items.forEach(function(it){
+    var acc = (it.extra && it.extra['使用アカウント']) || '（未設定）';
+    if (!groups[acc]) groups[acc] = [];
+    groups[acc].push(it);
+  });
+  var accounts = Object.keys(groups).sort(function(a,b){
+    if (a === '（未設定）') return 1;
+    if (b === '（未設定）') return -1;
+    return a.localeCompare(b, 'ja');
+  });
+  return accounts.map(function(acc){
+    var arr = groups[acc].slice().sort(function(a,b){
+      var ka = priorityKey(a), kb = priorityKey(b);
+      for (var i=0; i<ka.length; i++) {
+        if (ka[i] < kb[i]) return -1;
+        if (ka[i] > kb[i]) return 1;
+      }
+      return 0;
+    });
+    var pending = arr.filter(function(x){ return x.status === '発送待ち'; }).length;
+    var header = '<div class="group-header">📮 ' + esc(acc) +
+      '<span class="count">' + arr.length + '件' +
+      (pending ? '（発送待ち ' + pending + '）' : '') + '</span></div>';
+    return header + arr.map(cardHtml).join('');
+  }).join('');
 }
 
 function renderPlaceholder(name) {
