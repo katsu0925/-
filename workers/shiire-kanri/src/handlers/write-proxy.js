@@ -130,6 +130,72 @@ export async function saveDetails(request, env, user) {
   });
 }
 
+// POST /api/save/image  body: { kanri, field, dataUrl }
+// dataUrl は "data:image/jpeg;base64,..." 形式。GAS が Drive にアップロードして URL をシートに書き戻す。
+export async function uploadImage(request, env, user) {
+  let body;
+  try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
+  const kanri = String(body.kanri || '').trim();
+  const field = String(body.field || '').trim();
+  const dataUrl = String(body.dataUrl || '');
+  if (!kanri) return jsonError('kanri required', 400);
+  if (!field) return jsonError('field required', 400);
+  if (!dataUrl) return jsonError('dataUrl required', 400);
+
+  const gasRes = await callGas(env, 'uploadImage', { kanri, field, dataUrl }, user);
+  if (!gasRes.ok) return jsonError(gasRes.error || 'gas error', 502);
+
+  // 楽観的更新: extra_json に URL を反映
+  try {
+    const cur = await env.DB.prepare('SELECT extra_json FROM products WHERE kanri = ?').bind(kanri).first();
+    let extra = {};
+    if (cur && cur.extra_json) {
+      try { extra = JSON.parse(cur.extra_json) || {}; } catch { extra = {}; }
+    }
+    extra[field] = gasRes.url;
+    await env.DB.prepare('UPDATE products SET extra_json = ?, updated_at = ? WHERE kanri = ?')
+      .bind(JSON.stringify(extra), Date.now(), kanri).run();
+  } catch (err) {
+    console.warn('[upload image] d1 update failed', err.message);
+  }
+
+  return jsonOk({ uploaded: true, url: gasRes.url, field });
+}
+
+// POST /api/image/resolve  body: { kanri, field, path }
+// AppSheet 旧形式の相対パスを Drive シェアURL に解決。KV キャッシュ 1日。
+export async function resolveImage(request, env, user) {
+  let body;
+  try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
+  const path = String(body.path || '').trim();
+  const field = String(body.field || '').trim();
+  const kanri = String(body.kanri || '').trim();
+  if (!path) return jsonError('path required', 400);
+
+  const cacheKey = 'imgresolve:' + path;
+  if (env.CACHE) {
+    try {
+      const cached = await env.CACHE.get(cacheKey);
+      if (cached) return jsonOk({ url: cached, cached: true });
+    } catch (err) {
+      console.warn('[resolve image] kv get failed', err.message);
+    }
+  }
+
+  const gasRes = await callGas(env, 'resolveImage', { kanri, field, path }, user);
+  if (!gasRes.ok) return jsonError(gasRes.error || 'gas error', 502);
+
+  if (env.CACHE && gasRes.url) {
+    try {
+      await env.CACHE.put(cacheKey, gasRes.url, { expirationTtl: 86400 });
+    } catch (err) {
+      console.warn('[resolve image] kv put failed', err.message);
+    }
+  }
+
+  return jsonOk({ url: gasRes.url, fileName: gasRes.fileName });
+}
+
 // POST /api/create/purchase  body: { date, category, amount, shipping, planned, place, content, supplierId, registerUser }
 export async function createPurchase(request, env, user) {
   let body;

@@ -111,6 +111,33 @@
   .card-status.shipped { background: #d6e9ff; color: #1565c0; }
   .card-deadline { font-size: 12px; color: var(--text-sub); margin-top: 4px; }
   .card-deadline.overdue { color: var(--danger); font-weight: 600; }
+  .card-deadline.today {
+    color: #d84315; font-weight: 700;
+    background: #fff3e0; padding: 4px 8px; border-radius: 4px;
+    border-left: 3px solid #ff6d00; display: inline-block;
+  }
+  .img-field { display: flex; flex-direction: column; gap: 8px; }
+  .img-preview {
+    display: flex; align-items: center; justify-content: center;
+    width: 160px; height: 160px;
+    border: 1px solid #e0e0e0; border-radius: 6px;
+    background: #fafafa; overflow: hidden;
+    font-size: 12px; color: #999; text-align: center; padding: 4px;
+    text-decoration: none;
+  }
+  .img-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .img-preview.img-loading { color: #1565c0; }
+  .img-preview.img-error { color: #c62828; background: #ffebee; }
+  .img-upload-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px; background: var(--primary); color: white;
+    border-radius: 4px; font-size: 13px; font-weight: 500;
+    cursor: pointer; align-self: flex-start; user-select: none;
+  }
+  .img-upload-btn:active { background: var(--primary-dark); }
+  .img-status { font-size: 12px; color: var(--text-sub); min-height: 16px; }
+  .img-status.success { color: var(--success); }
+  .img-status.error { color: var(--danger); }
   .group-header {
     font-size: 13px; font-weight: 600; color: var(--text-sub);
     margin: 12px 0 6px 0; padding: 4px 4px;
@@ -1121,7 +1148,140 @@ function shipDeadlineHtml_(it) {
   if (overdue) label = '期限超過 ' + dueStr + '（' + Math.abs(diffDays) + '日経過）';
   else if (diffDays === 0) label = '本日が期限 ' + dueStr;
   else label = '発送期限 ' + dueStr + '（あと' + diffDays + '日）';
-  return '<div class="card-deadline' + (overdue ? ' overdue' : '') + '">⏰ ' + esc(label) + '</div>';
+  var cls = overdue ? ' overdue' : (diffDays === 0 ? ' today' : '');
+  return '<div class="card-deadline' + cls + '">⏰ ' + esc(label) + '</div>';
+}
+
+// 画像フィールドの表示＋アップロード UI
+// v が http(s) URL: そのままプレビュー
+// v が AppSheet 旧形式の相対パス（"商品管理_Images/..."）: data-legacy で残し、resolveLegacyImages_ が後で解決
+// v が空: 画像なし表示
+function imageFieldHtml_(id, name, v) {
+  var s = String(v || '');
+  var isUrl = /^https?:/.test(s);
+  var isLegacy = !isUrl && s.length > 0;
+  var safeName = esc(name).replace(/\'/g,"\\'");
+  var previewInner;
+  var previewAttrs = 'id="' + id + '_preview" class="img-preview';
+  if (isUrl) {
+    previewAttrs += '"';
+    previewInner = '<img src="' + esc(s) + '" alt="">';
+  } else if (isLegacy) {
+    previewAttrs += ' img-loading" data-legacy="' + esc(s) + '" data-field="' + safeName + '"';
+    previewInner = '読み込み中…';
+  } else {
+    previewAttrs += '"';
+    previewInner = '画像なし';
+  }
+  var preview = isUrl
+    ? '<a href="' + esc(s) + '" target="_blank" rel="noopener" ' + previewAttrs + '>' + previewInner + '</a>'
+    : '<div ' + previewAttrs + '>' + previewInner + '</div>';
+  var picker =
+    '<label class="img-upload-btn" for="' + id + '_file">📷 画像を選択／撮影</label>' +
+    '<input type="file" id="' + id + '_file" accept="image/*" capture="environment" ' +
+    'onchange="onImageFieldPick_(this, \'' + esc(id) + '\', \'' + safeName + '\')" ' +
+    'style="display:none">' +
+    '<div id="' + id + '_status" class="img-status"></div>';
+  return '<div class="img-field">' + preview + picker + '</div>';
+}
+
+// 画像選択時に呼ばれる（リサイズ→base64→/api/save/image）
+function onImageFieldPick_(inputEl, fieldId, fieldName) {
+  var file = inputEl.files && inputEl.files[0];
+  if (!file) return;
+  var status = document.getElementById(fieldId + '_status');
+  var preview = document.getElementById(fieldId + '_preview');
+  var kanri = (STATE.current && STATE.current.kanri) || '';
+  if (!kanri) {
+    if (status) { status.textContent = '管理番号がありません'; status.className = 'img-status error'; }
+    return;
+  }
+  if (status) { status.textContent = '読み込み中…'; status.className = 'img-status'; }
+
+  resizeImage_(file, 1600, 0.85).then(function(dataUrl){
+    if (status) status.textContent = 'アップロード中…';
+    return fetch('/api/save/image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kanri: kanri, field: fieldName, dataUrl: dataUrl })
+    }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, body: j }; }); })
+    .then(function(res){
+      if (!res.ok || !res.body || !res.body.url) throw new Error((res.body && res.body.error) || 'アップロード失敗');
+      var url = res.body.url;
+      if (preview) {
+        var html = '<a href="' + esc(url) + '" target="_blank" rel="noopener" id="' + esc(fieldId) + '_preview" class="img-preview"><img src="' + esc(url) + '" alt=""></a>';
+        preview.outerHTML = html;
+      }
+      if (status) { status.textContent = '✓ アップロード完了'; status.className = 'img-status success'; }
+      if (STATE.current && STATE.current.extra) STATE.current.extra[fieldName] = url;
+      LIST_CACHE = {};
+    });
+  }).catch(function(err){
+    if (status) { status.textContent = '✗ ' + (err && err.message || 'エラー'); status.className = 'img-status error'; }
+  });
+}
+
+// 詳細描画後に呼び出し: 旧形式パスの画像を遅延解決して img に差し替え
+function resolveLegacyImages_() {
+  var nodes = document.querySelectorAll('.img-preview.img-loading[data-legacy]');
+  if (!nodes || !nodes.length) return;
+  var kanri = (STATE.current && STATE.current.kanri) || '';
+  for (var i = 0; i < nodes.length; i++) {
+    (function(el){
+      var path = el.getAttribute('data-legacy') || '';
+      var field = el.getAttribute('data-field') || '';
+      var cacheKey = 'imgresolve:' + path;
+      var cached = null;
+      try { cached = sessionStorage.getItem(cacheKey); } catch(e) {}
+      if (cached) { applyResolved_(el, cached); return; }
+      fetch('/api/image/resolve', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kanri: kanri, field: field, path: path })
+      }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, body: j }; }); })
+      .then(function(res){
+        if (!res.ok || !res.body || !res.body.url) throw new Error((res.body && res.body.error) || '解決失敗');
+        try { sessionStorage.setItem(cacheKey, res.body.url); } catch(e) {}
+        applyResolved_(el, res.body.url);
+      }).catch(function(err){
+        el.classList.remove('img-loading');
+        el.classList.add('img-error');
+        el.textContent = '画像読込失敗';
+      });
+    })(nodes[i]);
+  }
+}
+
+function applyResolved_(el, url) {
+  var id = el.id || '';
+  var html = '<a href="' + esc(url) + '" target="_blank" rel="noopener" id="' + esc(id) + '" class="img-preview"><img src="' + esc(url) + '" alt=""></a>';
+  el.outerHTML = html;
+}
+
+// Canvas で画像を縮小して dataURL を返す（最大辺 maxSide）
+function resizeImage_(file, maxSide, quality) {
+  return new Promise(function(resolve, reject){
+    var reader = new FileReader();
+    reader.onerror = function(){ reject(new Error('ファイル読込エラー')); };
+    reader.onload = function(){
+      var img = new Image();
+      img.onerror = function(){ reject(new Error('画像のデコードに失敗')); };
+      img.onload = function(){
+        var w = img.naturalWidth, h = img.naturalHeight;
+        var scale = Math.min(1, maxSide / Math.max(w, h));
+        var cw = Math.round(w * scale), ch = Math.round(h * scale);
+        var canvas = document.createElement('canvas');
+        canvas.width = cw; canvas.height = ch;
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, cw, ch);
+        try {
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        } catch (err) { reject(err); }
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 function cardHtml(it) {
@@ -1280,11 +1440,7 @@ function fieldRowHtml(name, type, val) {
     var link = v ? ' <a href="' + safe + '" target="_blank" rel="noopener" style="font-size:12px;margin-left:8px;color:#1565c0">開く</a>' : '';
     input = '<input type="url" id="' + id + '" value="' + safe + '">' + link;
   } else if (type === 'image') {
-    if (v && /^https?:/.test(String(v))) {
-      input = '<a href="' + esc(v) + '" target="_blank" rel="noopener"><img src="' + esc(v) + '" alt="" style="max-width:120px;max-height:120px;border:1px solid #e0e0e0;border-radius:4px"></a>';
-    } else {
-      input = '<div class="field-readonly" style="color:#bbb">画像なし</div>';
-    }
+    input = imageFieldHtml_(id, name, v);
   } else if (type === 'status') {
     var opts = STATUS_OPTIONS.map(function(o){
       return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + esc(o) + '</option>';
@@ -1590,6 +1746,7 @@ function renderDetail() {
   var contentEl = document.getElementById('content');
   contentEl.addEventListener('input', markDetailDirty_, { once: true });
   contentEl.addEventListener('change', markDetailDirty_, { once: true });
+  resolveLegacyImages_();
 }
 function markDetailDirty_() { STATE.detailDirty = true; }
 // 保存／戻る後は dirty を解除

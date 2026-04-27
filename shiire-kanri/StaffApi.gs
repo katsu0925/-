@@ -1027,6 +1027,89 @@ function staff_apiSaveDetails(payload, email) {
   };
 }
 
+// 画像アップロード（QR・バーコード画像 / 売却済み商品画像 / ポストシール）
+// payload: { kanri, field, dataUrl }  dataUrl は "data:image/jpeg;base64,..." 形式
+// Drive の '商品管理_Images' フォルダ（スプレッドシート親フォルダ配下）にアップロードし、
+// 共有URLを当該ヘッダー列に書き込む。
+var IMAGE_FIELDS_ALLOWED_ = { 'QR・バーコード画像': 1, '売却済み商品画像': 1, 'ポストシール': 1 };
+
+function staff_apiUploadImage(payload, email) {
+  payload = payload || {};
+  email = String(email || 'cloudflare-proxy');
+  var kanri = String(payload.kanri || '').trim();
+  var field = String(payload.field || '').trim();
+  var dataUrl = String(payload.dataUrl || '');
+  if (!kanri) return { ok: false, error: '管理番号が空です' };
+  if (!field) return { ok: false, error: 'フィールド名が空です' };
+  if (!IMAGE_FIELDS_ALLOWED_[field]) return { ok: false, error: '画像列ではありません: ' + field };
+  if (!dataUrl) return { ok: false, error: '画像データが空です' };
+
+  var m = String(dataUrl).match(/^data:(image\/[a-zA-Z0-9+.-]+);base64,(.+)$/);
+  if (!m) return { ok: false, error: 'data URL の形式が不正です' };
+  var mime = m[1];
+  var b64 = m[2];
+  var ext = (mime.split('/')[1] || 'jpg').toLowerCase().replace('jpeg', 'jpg');
+  var fileName = kanri + '.' + field + '.' + Date.now() + '.' + ext;
+  var blob = Utilities.newBlob(Utilities.base64Decode(b64), mime, fileName);
+
+  var sh = staff_getSheet_();
+  var ss = sh.getParent();
+  var ssFile = DriveApp.getFileById(ss.getId());
+  var parents = ssFile.getParents();
+  var parent = parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
+  var subs = parent.getFoldersByName('商品管理_Images');
+  var folder = subs.hasNext() ? subs.next() : parent.createFolder('商品管理_Images');
+  var file = folder.createFile(blob);
+  try {
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  } catch (err) {
+    // 共有設定に失敗してもアップロード自体は成功扱いとする（管理者側で設定可能）
+  }
+  var url = 'https://drive.google.com/uc?id=' + file.getId();
+
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return { ok: false, error: 'シートが空です' };
+  var idRange = sh.getRange(2, STAFF_COL.管理番号, lastRow - 1, 1);
+  var found = idRange.createTextFinder(kanri).matchEntireCell(true).findNext();
+  if (!found) return { ok: false, error: '該当なし: ' + kanri };
+  var rowNum = found.getRow();
+
+  var lastCol = sh.getLastColumn();
+  var hdr = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  var col = buildHeaderMap_(hdr);
+  if (!col[field]) return { ok: false, error: 'ヘッダーが見つかりません: ' + field };
+  sh.getRange(rowNum, col[field]).setValue(url);
+
+  return { ok: true, url: url, kanri: kanri, field: field, row: rowNum };
+}
+
+// AppSheet 旧形式の相対パス (例: "商品管理_Images/zS5.売却済み商品画像.013345.jpg") を Drive のシェアURL に解決
+// path 末尾のファイル名で 商品管理_Images フォルダを検索し、ANYONE_WITH_LINK 共有を付与して uc?id= URL を返す
+function staff_apiResolveImage(payload, email) {
+  payload = payload || {};
+  var path = String(payload.path || '').trim();
+  if (!path) return { ok: false, error: 'path が空です' };
+  // 末尾セグメント = ファイル名
+  var idx = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+  var fileName = idx >= 0 ? path.substring(idx + 1) : path;
+  if (!fileName) return { ok: false, error: 'ファイル名が抽出できません: ' + path };
+
+  var sh = staff_getSheet_();
+  var ss = sh.getParent();
+  var ssFile = DriveApp.getFileById(ss.getId());
+  var parents = ssFile.getParents();
+  var parent = parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
+  var subs = parent.getFoldersByName('商品管理_Images');
+  if (!subs.hasNext()) return { ok: false, error: '商品管理_Images フォルダが見つかりません' };
+  var folder = subs.next();
+  var files = folder.getFilesByName(fileName);
+  if (!files.hasNext()) return { ok: false, error: 'ファイルが見つかりません: ' + fileName };
+  var file = files.next();
+  try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (err) {}
+  var url = 'https://drive.google.com/uc?id=' + file.getId();
+  return { ok: true, url: url, fileName: fileName };
+}
+
 // 個別の仕入れIDに紐づく商品管理レコード一覧
 function staff_getShiireProducts(shiireId) {
   staff_assertAllowed_();

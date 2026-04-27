@@ -4,7 +4,7 @@ import { scheduledSync } from './sync/sheets-sync.js';
 import { scheduledAccessSync } from './sync/access-sync.js';
 import { listProducts, getProduct, listProductCounts, getNextKanri } from './handlers/products.js';
 import { listPurchases, getPurchaseProducts } from './handlers/purchases.js';
-import { saveMeasurement, saveSale, saveDetails, createPurchase, createProduct } from './handlers/write-proxy.js';
+import { saveMeasurement, saveSale, saveDetails, uploadImage, resolveImage, createPurchase, createProduct } from './handlers/write-proxy.js';
 import { listWorkers, listAccounts, listSuppliers, listPlaces, listCategories, listSettings } from './handlers/master.js';
 import { lookupAiPrefill, lookupAiPrefillBatch } from './handlers/ai.js';
 
@@ -109,6 +109,12 @@ export default {
     }
     if (path === '/api/save/details' && request.method === 'POST') {
       return saveDetails(request, env, user);
+    }
+    if (path === '/api/save/image' && request.method === 'POST') {
+      return uploadImage(request, env, user);
+    }
+    if (path === '/api/image/resolve' && request.method === 'POST') {
+      return resolveImage(request, env, user);
     }
 
     // 新規作成（GAS プロキシ）
