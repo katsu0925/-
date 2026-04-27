@@ -149,6 +149,10 @@ export default {
       return createProduct(request, env, user);
     }
 
-    return jsonError('not found', 404);
+    // API/admin 以外は静的アセット（SPA fallback 含む）に委譲
+    if (path.startsWith('/api/') || path.startsWith('/admin/')) {
+      return jsonError('not found', 404);
+    }
+    return env.ASSETS.fetch(request);
   },
 };
