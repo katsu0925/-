@@ -1186,9 +1186,24 @@ async function saveDetails() {
   clearDetailDirty_();
   toast('保存しました', 'success');
 
-  // 背景で API へ送信。失敗時のみエラー表示。
+  // 背景で API へ送信 → 成功後にサーバー再取得（派生ステータス・利益等の自動反映を取り込む）
   api('/api/save/details', { method: 'POST', body: { kanri: d.kanri, fields: fields } })
-    .then(function(){ refreshCounts(); })
+    .then(function(){
+      refreshCounts();
+      // 一覧キャッシュは派生値が古くなる可能性があるため破棄
+      LIST_CACHE = Object.create(null);
+      // 詳細をサーバーから再取得して、派生値（ステータス／利益／在庫日数等）を画面に反映
+      return api('/api/products/' + encodeURIComponent(d.kanri));
+    })
+    .then(function(res){
+      if (!res || !res.item) return;
+      DETAIL_CACHE[d.kanri] = res.item;
+      // 編集中（dirty）でなく、まだ同じ詳細を表示中なら再描画
+      if (STATE.view === 'detail' && STATE.current && STATE.current.kanri === d.kanri && !STATE.detailDirty) {
+        STATE.current = res.item;
+        renderDetail();
+      }
+    })
     .catch(function(err){
       toast('⚠️ 保存に失敗: ' + err.message + '（再保存してください）', 'error');
     });
