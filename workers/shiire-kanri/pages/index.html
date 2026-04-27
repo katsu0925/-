@@ -292,6 +292,24 @@
     color: var(--text-sub); padding: 0; width: 32px; height: 32px;
   }
   .modal-overlay .modal-body { padding: 16px; overflow-y: auto; }
+  /* あり/なし トグル */
+  .yesno-toggle { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+  .yesno-btn {
+    padding: 8px 16px; min-width: 64px; border: 1px solid var(--border);
+    background: #fff; color: var(--text); border-radius: 6px;
+    font-size: 14px; cursor: pointer; user-select: none;
+  }
+  .yesno-btn.yesno-yes.active { background: #1565c0; color: #fff; border-color: #1565c0; }
+  .yesno-btn.yesno-no.active  { background: #c62828; color: #fff; border-color: #c62828; }
+  .yesno-btn.yesno-clear { padding: 8px 12px; min-width: 36px; color: var(--text-sub); }
+  .yesno-btn.yesno-clear.active { background: #eee; color: var(--text); border-color: #aaa; }
+  .yesno-btn:hover { filter: brightness(0.95); }
+  /* textarea 自動拡張 */
+  textarea.auto-grow {
+    min-height: 40px; max-height: 480px;
+    overflow-y: auto; resize: vertical;
+    font-family: inherit; font-size: 14px; line-height: 1.5;
+  }
 </style>
 </head>
 <body>
@@ -376,7 +394,10 @@ var STATE = {
   currentShiireProducts: [],
   workers: [], accounts: [],
   suppliers: [], places: [], categories: [],
-  settings: {}
+  settings: {},
+  // 管理番号 → AI prefill fields のクライアントキャッシュ
+  // 仕入れ選択時に一括プリフェッチして埋める。GET /api/ai/prefill より優先
+  aiPrefillCache: new Map()
 };
 
 // ========== 自動更新（AppSheet風のサイレントポーリング） ==========
@@ -572,10 +593,10 @@ const DETAIL_SECTIONS = [
     ['カテゴリ2','text'],
     ['カテゴリ3','text'],
     ['デザイン特徴','textarea'],
-    ['カラー','text'],
-    ['ポケット','text'],
+    ['カラー','color'],
+    ['ポケット','yesno'],
     ['ポケット詳細','text'],
-    ['透け感','text'],
+    ['透け感','yesno'],
     ['傷汚れ詳細','textarea']
   ]},
   { title: '採寸 (cm)', fields: [
@@ -1059,9 +1080,18 @@ function fieldRowHtml(name, type, val) {
   if (type === 'readonly') {
     input = '<div class="field-readonly">' + esc(v) + '</div>';
   } else if (type === 'textarea') {
-    input = '<textarea id="' + id + '" rows="2">' + esc(v) + '</textarea>';
+    input = '<textarea id="' + id + '" class="auto-grow" rows="2">' + esc(v) + '</textarea>';
   } else if (type === 'number') {
     input = '<input type="number" inputmode="decimal" step="0.1" id="' + id + '" value="' + esc(v) + '">';
+  } else if (type === 'color') {
+    var setOptsColor = settingsOptionsFor_(name, v);
+    if (setOptsColor) {
+      input = '<select id="' + id + '">' + setOptsColor + '</select>';
+    } else {
+      input = '<select id="' + id + '">' + masterOptionsHtml_(COLOR_OPTIONS, v) + '</select>';
+    }
+  } else if (type === 'yesno') {
+    input = yesNoToggleHtml_(id, v);
   } else if (type === 'date') {
     var dv = '';
     if (v) {
@@ -1136,6 +1166,57 @@ function fieldRowHtml(name, type, val) {
   return '<div class="field-row">' + labelHtml + input + '</div>';
 }
 
+// カラー固定リスト（設定シートのカラー1列が空のときのフォールバック）
+var COLOR_OPTIONS = [
+  '黒','白','グレー','ベージュ','ブラウン','ネイビー','ブルー',
+  'グリーン','カーキ','イエロー','オレンジ','レッド','ピンク',
+  'パープル','シルバー','ゴールド','マルチカラー','その他'
+];
+
+// あり/なし トグルボタン HTML（透け感・ポケット用）
+function yesNoToggleHtml_(id, current) {
+  var cur = String(current || '').trim();
+  var isYes = (cur === 'あり' || cur === 'TRUE' || cur === 'true' || cur === 'YES' || cur === 'はい' || cur === 'Y');
+  var isNo  = (cur === 'なし' || cur === 'FALSE' || cur === 'false' || cur === 'NO' || cur === 'いいえ' || cur === 'N');
+  var val = isYes ? 'あり' : (isNo ? 'なし' : '');
+  return (
+    '<div class="yesno-toggle" data-target="' + id + '">' +
+      '<input type="hidden" id="' + id + '" value="' + esc(val) + '">' +
+      '<button type="button" class="yesno-btn yesno-yes' + (isYes ? ' active' : '') + '" data-val="あり" onclick="onYesNoClick_(this)">あり</button>' +
+      '<button type="button" class="yesno-btn yesno-no'  + (isNo  ? ' active' : '') + '" data-val="なし" onclick="onYesNoClick_(this)">なし</button>' +
+      '<button type="button" class="yesno-btn yesno-clear' + (!isYes && !isNo ? ' active' : '') + '" data-val="" onclick="onYesNoClick_(this)" title="クリア">—</button>' +
+    '</div>'
+  );
+}
+
+function onYesNoClick_(btn) {
+  var wrap = btn.closest('.yesno-toggle');
+  if (!wrap) return;
+  var val = btn.getAttribute('data-val') || '';
+  var hidden = wrap.querySelector('input[type="hidden"]');
+  if (hidden) hidden.value = val;
+  // detail フォームでの dirty フラグを立てる（saveDetails が再描画でユーザー入力を上書きしない為）
+  if (typeof STATE !== 'undefined' && wrap.querySelector('input[id^="f_"]')) {
+    STATE.detailDirty = true;
+  }
+  Array.prototype.forEach.call(wrap.querySelectorAll('.yesno-btn'), function(b){
+    b.classList.toggle('active', b === btn);
+  });
+}
+
+// textarea 自動拡張（rows 動的調整）— デザイン特徴・傷汚れ詳細など長文項目用
+function autoGrowTextarea_(el) {
+  if (!el) return;
+  el.style.height = 'auto';
+  // scrollHeight + 2 で枠線分の余白
+  el.style.height = (el.scrollHeight + 2) + 'px';
+}
+document.addEventListener('input', function(e){
+  if (e.target && e.target.tagName === 'TEXTAREA' && e.target.classList.contains('auto-grow')) {
+    autoGrowTextarea_(e.target);
+  }
+});
+
 // メルカリサイズ プルダウン HTML（現在値がリスト外でも保持）
 var MERCARI_SIZE_OPTIONS = ['XS','S','M','L','XL','XXL','3L','4L','5L','FREE'];
 function mercariSizeSelectHtml_(id, current) {
@@ -1158,11 +1239,11 @@ function openMercariSizeHelp_() {
   if (existing) existing.remove();
   var rows = [
     ['XS', '5号', '32', '〜25'],
-    ['S',  '7号', '34', '26'],
-    ['M',  '9号', '36', '27〜28'],
-    ['L',  '11号', '38', '29〜30'],
-    ['XL', '13号', '40', '31〜32'],
-    ['XXL','15号', '42', '33〜']
+    ['S',  '7号', '34・36', '26'],
+    ['M',  '9号', '38', '27〜28'],
+    ['L',  '11号', '40', '29〜30'],
+    ['XL', '13号', '42', '31〜32'],
+    ['XXL','15号〜', '44〜', '33〜']
   ];
   var trs = rows.map(function(r){
     return '<tr><td><strong>' + r[0] + '</strong></td><td>' + r[1] + '</td><td>' + r[2] + '</td><td>' + r[3] + '</td></tr>';
@@ -1248,6 +1329,8 @@ function renderDetail() {
     '</div>';
   document.getElementById('content').innerHTML = html;
   wireFeeAutoCalc_('f_');
+  // 既存値の長文 textarea を初期表示時に自動高さ調整
+  Array.prototype.forEach.call(document.querySelectorAll('#content textarea.auto-grow'), autoGrowTextarea_);
   // フォーム編集が始まった時点で dirty マーク → 裏の再取得で入力が消えないようにする
   var contentEl = document.getElementById('content');
   contentEl.addEventListener('input', markDetailDirty_, { once: true });
@@ -1350,6 +1433,11 @@ function toast(msg, kind) {
 function openModal(html) {
   document.getElementById('modal-body').innerHTML = html;
   document.getElementById('modal-mask').classList.add('show');
+  // モーダル内の長文 textarea を初期表示で自動拡張
+  Array.prototype.forEach.call(
+    document.querySelectorAll('#modal-body textarea.auto-grow'),
+    autoGrowTextarea_
+  );
 }
 function closeModal() {
   document.getElementById('modal-mask').classList.remove('show');
@@ -1575,13 +1663,14 @@ function convertTagToMercariSize_(tag) {
       if (n === 13) return 'XL';
       return 'XXL';
     }
-    // EU婦人 32〜50（偶数）
+    // EU婦人 32〜50（偶数）— 36 は S 寄り、38 を M とする運用
     if (n >= 32 && n <= 50 && n % 2 === 0) {
       if (n <= 32) return 'XS';
       if (n === 34) return 'S';
-      if (n === 36) return 'M';
-      if (n === 38) return 'L';
-      if (n === 40) return 'XL';
+      if (n === 36) return 'S';
+      if (n === 38) return 'M';
+      if (n === 40) return 'L';
+      if (n === 42) return 'XL';
       return 'XXL';
     }
     // ウエストinch 25〜40
@@ -1596,13 +1685,39 @@ function convertTagToMercariSize_(tag) {
   return '';
 }
 
+// 仕入れに紐づく既存商品 + 候補管理番号を一括プリフェッチして STATE.aiPrefillCache に積む
+// /api/ai/prefill/batch (D1 IN句一発 + 欠損のみ KV) なので 2-3秒級が 30-100ms に短縮される
+async function prefetchAiPrefillForKanris_(kanris) {
+  const list = (kanris || []).filter(function(k){ return k && !STATE.aiPrefillCache.has(k); });
+  if (!list.length) return;
+  try {
+    const res = await api('/api/ai/prefill/batch', { method: 'POST', body: { kanris: list } });
+    const items = (res && res.items) || {};
+    list.forEach(function(k){
+      // ヒット無しの管理番号も Map に空オブジェクトを入れて再フェッチを抑止
+      var entry = items[k];
+      STATE.aiPrefillCache.set(k, entry && entry.fields ? entry.fields : null);
+    });
+  } catch (err) {
+    console.warn('[ai prefill batch]', err && err.message);
+  }
+}
+
 // AI画像判定シートから 9 項目（ブランド/タグ表記/性別/カテゴリ1-3/デザイン特徴/カラー/ポケット）を取得して
 // 新規商品モーダルの空欄フィールドに反映（AppSheet Initial Value 相当）
 async function applyAiPrefillToForm_(kanri) {
   if (!kanri) return;
   try {
-    const res = await api('/api/ai/prefill?kanri=' + encodeURIComponent(kanri));
-    const fields = (res && res.fields) || {};
+    var fields;
+    if (STATE.aiPrefillCache.has(kanri)) {
+      // クライアントキャッシュヒット（仕入れ選択時にプリフェッチ済み）
+      var cached = STATE.aiPrefillCache.get(kanri);
+      fields = cached ? Object.assign({}, cached) : {};
+    } else {
+      const res = await api('/api/ai/prefill?kanri=' + encodeURIComponent(kanri));
+      fields = (res && res.fields) || {};
+      STATE.aiPrefillCache.set(kanri, Object.keys(fields).length ? fields : null);
+    }
     // タグ表記からメルカリサイズを派生（既に値があれば上書きしない）
     if (fields['タグ表記'] && !fields['メルカリサイズ']) {
       var derived = convertTagToMercariSize_(fields['タグ表記']);
@@ -1627,6 +1742,22 @@ async function applyAiPrefillToForm_(kanri) {
         }
       }
       el.value = v;
+      // yesno トグルの場合は、hidden に反映 + ボタンの active クラスを同期
+      if (el.type === 'hidden') {
+        var wrap = el.closest('.yesno-toggle');
+        if (wrap) {
+          var norm = (v === 'TRUE' || v === 'true' || v === 'YES' || v === 'はい' || v === 'Y') ? 'あり' :
+                     (v === 'FALSE' || v === 'false' || v === 'NO' || v === 'いいえ' || v === 'N') ? 'なし' : v;
+          el.value = norm;
+          Array.prototype.forEach.call(wrap.querySelectorAll('.yesno-btn'), function(b){
+            b.classList.toggle('active', b.getAttribute('data-val') === norm);
+          });
+        }
+      }
+      // textarea の自動拡張
+      if (el.tagName === 'TEXTAREA' && el.classList.contains('auto-grow')) {
+        autoGrowTextarea_(el);
+      }
     });
   } catch (err) {
     console.warn('[ai prefill]', err && err.message);
@@ -1654,9 +1785,18 @@ function createFieldRowHtml_(name, type, defVal) {
   var v = (defVal == null) ? '' : defVal;
   var input;
   if (type === 'textarea') {
-    input = '<textarea id="' + id + '" rows="2">' + esc(v) + '</textarea>';
+    input = '<textarea id="' + id + '" class="auto-grow" rows="2">' + esc(v) + '</textarea>';
   } else if (type === 'number') {
     input = '<input type="number" inputmode="decimal" step="0.1" id="' + id + '" value="' + esc(v) + '">';
+  } else if (type === 'color') {
+    var setOptsColorC = settingsOptionsFor_(name, v);
+    if (setOptsColorC) {
+      input = '<select id="' + id + '">' + setOptsColorC + '</select>';
+    } else {
+      input = '<select id="' + id + '">' + masterOptionsHtml_(COLOR_OPTIONS, v) + '</select>';
+    }
+  } else if (type === 'yesno') {
+    input = yesNoToggleHtml_(id, v);
   } else if (type === 'date') {
     input = '<input type="date" id="' + id + '" value="' + esc(v) + '">';
   } else if (type === 'url') {
@@ -1771,6 +1911,17 @@ function resetCreateProductForm_() {
       if (type === 'salechannel') resetVal = SALE_CHANNEL_DEFAULT;
       else if (type === 'bool') resetVal = PROMO_DEFAULT;
       el.value = resetVal;
+      if (type === 'yesno') {
+        var wrap = el.closest('.yesno-toggle');
+        if (wrap) {
+          Array.prototype.forEach.call(wrap.querySelectorAll('.yesno-btn'), function(b){
+            b.classList.toggle('active', b.getAttribute('data-val') === '');
+          });
+        }
+      }
+      if (el.tagName === 'TEXTAREA' && el.classList.contains('auto-grow')) {
+        autoGrowTextarea_(el);
+      }
     });
   });
 }
@@ -1797,6 +1948,11 @@ async function onShiireSelectChange_() {
       (suggested ? ' / 自動採番: <strong>' + esc(suggested) + '</strong>' : ' / ⚠ 区分コード未設定で採番不可');
     kanriInput.value = suggested || '';
     STATE.currentShiireProducts = items;
+    // Phase 3: 候補管理番号 + 既存商品の管理番号を一括プリフェッチ。次回の開閉や採番変更が即時反映される
+    var toPrefetch = [];
+    if (suggested) toPrefetch.push(suggested);
+    items.forEach(function(it){ if (it && it.kanri) toPrefetch.push(it.kanri); });
+    if (toPrefetch.length) prefetchAiPrefillForKanris_(toPrefetch);
     if (suggested) applyAiPrefillToForm_(suggested);
   } catch (err) {
     hint.textContent = sid + ' / 候補取得失敗: ' + err.message;

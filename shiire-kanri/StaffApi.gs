@@ -807,6 +807,45 @@ function staff_syncDumpPurchases() {
   return { ok: true, items: items };
 }
 
+// AI画像判定シート 全行ダンプ（Cloudflare D1 への同期用）
+// 管理番号 → 9項目（ブランド/タグ表記/性別/カテゴリ1-3/デザイン特徴/カラー/ポケット）
+// staff_lookupAiPrefill のシート全件版。Cron 5分で D1 に UPSERT し、handler 側は ai_prefill テーブルを引く
+function staff_syncDumpAiPrefill() {
+  var ss = staff_getActiveSpreadsheet_();
+  var sh = ss.getSheetByName('AI画像判定');
+  if (!sh) return { ok: true, items: [] }; // シート無くてもエラーにせず空返し
+  var lastRow = sh.getLastRow();
+  var lastCol = sh.getLastColumn();
+  if (lastRow < 2 || lastCol < 1) return { ok: true, items: [] };
+  var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  var colMap = {};
+  for (var c = 0; c < headers.length; c++) {
+    var h = String(headers[c] || '').trim();
+    if (h) colMap[h] = c;
+  }
+  if (colMap['管理番号'] == null) return { ok: true, items: [] };
+  var WANTED = ['ブランド','タグ表記','性別','カテゴリ1','カテゴリ2','カテゴリ3','デザイン特徴','カラー','ポケット'];
+  var rows = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  var items = [];
+  for (var r = 0; r < rows.length; r++) {
+    var kanri = String(rows[r][colMap['管理番号']] || '').trim();
+    if (!kanri) continue;
+    var fields = {};
+    for (var i = 0; i < WANTED.length; i++) {
+      var name = WANTED[i];
+      var ci = colMap[name];
+      if (ci == null) continue;
+      var v = rows[r][ci];
+      if (v == null) continue;
+      var s = String(v).trim();
+      if (s) fields[name] = s;
+    }
+    if (Object.keys(fields).length === 0) continue;
+    items.push({ kanri: kanri, fields: fields, row: r + 2 });
+  }
+  return { ok: true, items: items };
+}
+
 // Cloudflare からの書き込みプロキシ（採寸） — 認可チェックなし、シークレット認可は doPost 側
 function staff_apiSaveMeasurement(payload, email) {
   payload = payload || {};

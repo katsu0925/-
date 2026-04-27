@@ -17,6 +17,7 @@ function doPost(e) {
     switch (action) {
       case 'syncDumpProducts':  result = staff_syncDumpProducts();  break;
       case 'syncDumpPurchases': result = staff_syncDumpPurchases(); break;
+      case 'syncDumpAiPrefill': result = staff_syncDumpAiPrefill(); break;
       case 'dumpHeaders':       result = staff_debugHeaders(String((body.payload && body.payload.name) || '商品管理')); break;
       case 'listAllowedEmails': result = staff_listAllowedEmails(); break;
       case 'listWorkers':       result = staff_listWorkers(); break;

@@ -58,7 +58,16 @@ CREATE TABLE IF NOT EXISTS purchases (
 CREATE INDEX IF NOT EXISTS idx_purchases_date ON purchases(date DESC);
 
 CREATE TABLE IF NOT EXISTS sync_meta (
-  source TEXT PRIMARY KEY,            -- 'products' | 'purchases'
+  source TEXT PRIMARY KEY,            -- 'products' | 'purchases' | 'ai_prefill'
   last_sync_at INTEGER NOT NULL,
   row_count INTEGER NOT NULL
+);
+
+-- AI画像判定シートのミラー（管理番号 → 9項目フィールド）
+-- handler 側は ai_prefill → KV (ai-result) → GAS の順に試行する
+CREATE TABLE IF NOT EXISTS ai_prefill (
+  kanri TEXT PRIMARY KEY,             -- 管理番号
+  fields_json TEXT NOT NULL,          -- {ブランド,タグ表記,性別,カテゴリ1-3,デザイン特徴,カラー,ポケット}
+  row_num INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
 );

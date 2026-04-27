@@ -30,6 +30,19 @@ export async function scheduledSync(env) {
     console.error('[sync] purchases error', err && err.message);
   }
 
+  try {
+    const aiPrefill = await fetchAction(env, 'syncDumpAiPrefill');
+    if (aiPrefill && aiPrefill.ok && Array.isArray(aiPrefill.items)) {
+      await syncAiPrefill(env.DB, aiPrefill.items);
+      await writeMeta(env.DB, 'ai_prefill', aiPrefill.items.length);
+      console.log(`[sync] ai_prefill=${aiPrefill.items.length}`);
+    } else {
+      console.warn('[sync] ai_prefill fetch failed', aiPrefill && aiPrefill.error);
+    }
+  } catch (err) {
+    console.error('[sync] ai_prefill error', err && err.message);
+  }
+
   console.log(`[sync] done ${Date.now() - startedAt}ms`);
 }
 
@@ -147,6 +160,42 @@ async function syncPurchases(db, rows) {
         s(p.registeredAt),
         s(p.assignedKanri),
         p.processed ? 1 : 0,
+        Number(p.row || 0),
+        now,
+      )
+    );
+    await db.batch(stmts);
+  }
+}
+
+async function syncAiPrefill(db, rows) {
+  // 安全策: 受信が極端に少ない場合は削除をスキップ
+  const incoming = new Set(rows.map(r => String(r.kanri || '')).filter(Boolean));
+  const { results: existing } = await db.prepare('SELECT kanri FROM ai_prefill').all();
+  if (existing.length > 0 && rows.length < existing.length * 0.2) {
+    console.warn(`[sync] skip ai_prefill delete: incoming=${rows.length} vs existing=${existing.length}`);
+  } else {
+    const stale = existing.filter(r => !incoming.has(r.kanri)).map(r => r.kanri);
+    const delBatch = 50;
+    for (let i = 0; i < stale.length; i += delBatch) {
+      const batch = stale.slice(i, i + delBatch);
+      const ph = batch.map(() => '?').join(',');
+      await db.prepare(`DELETE FROM ai_prefill WHERE kanri IN (${ph})`).bind(...batch).run();
+    }
+    if (stale.length) console.log(`[sync] deleted ${stale.length} stale ai_prefill`);
+  }
+
+  const now = Date.now();
+  const batchSize = 50;
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const batch = rows.slice(i, i + batchSize);
+    const stmts = batch.map(p =>
+      db.prepare(`
+        INSERT OR REPLACE INTO ai_prefill (kanri, fields_json, row_num, updated_at)
+        VALUES (?, ?, ?, ?)
+      `).bind(
+        String(p.kanri || ''),
+        p.fields ? JSON.stringify(p.fields) : '{}',
         Number(p.row || 0),
         now,
       )
