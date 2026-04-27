@@ -25,6 +25,30 @@ export default {
       return jsonOk({ status: 'ok', ts: Date.now() });
     }
 
+    // ルート/index.html はキャッシュさせず常に最新の SPA を返す
+    // run_worker_first により先に Worker に到達 → ASSETS から fetch → no-store で返却
+    // ASSETS は /index.html → / に正規化（307）するため、最初から / で fetch する
+    if ((path === '/' || path === '/index.html') && request.method === 'GET') {
+      const rootUrl = new URL('/', request.url);
+      // ASSETS の自己ループを避けるためマーカー付きでフェッチ
+      const assetReq = new Request(rootUrl.toString(), { method: 'GET', headers: request.headers });
+      let assetResponse = await env.ASSETS.fetch(assetReq);
+      // それでもリダイレクトされる場合は最終ターゲットを取得
+      if (assetResponse.status >= 300 && assetResponse.status < 400) {
+        const loc = assetResponse.headers.get('Location') || '/';
+        const followUrl = new URL(loc, request.url);
+        assetResponse = await env.ASSETS.fetch(new Request(followUrl.toString(), { method: 'GET', headers: request.headers }));
+      }
+      const headers = new Headers(assetResponse.headers);
+      headers.set('Cache-Control', 'no-store, must-revalidate');
+      headers.set('Pragma', 'no-cache');
+      return new Response(assetResponse.body, {
+        status: assetResponse.status,
+        statusText: assetResponse.statusText,
+        headers,
+      });
+    }
+
     // 手動同期トリガー（共通シークレット必須・運用デバッグ用）
     if (path === '/admin/sync' && request.method === 'POST') {
       const secret = request.headers.get('X-Sync-Secret') || '';
