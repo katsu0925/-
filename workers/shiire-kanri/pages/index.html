@@ -36,21 +36,25 @@
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", "Meiryo", sans-serif;
     background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5;
-    padding-bottom: 72px; min-height: 100vh;
+    padding-top: 56px; padding-bottom: 72px; min-height: 100vh;
     -webkit-tap-highlight-color: transparent;
     -webkit-font-smoothing: antialiased;
   }
+  body.has-chips { padding-top: 100px; }
   /* グローバル focus-visible: WCAG 対応 */
   button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible {
     outline: 2px solid var(--primary); outline-offset: 2px;
   }
   .appbar {
-    position: sticky; top: 0; z-index: 100;
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
     background: linear-gradient(180deg, var(--primary) 0%, var(--primary-dark) 100%);
     color: #fff;
     padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 8px;
     box-shadow: 0 2px 6px rgba(0,0,0,.15);
+    transition: transform .25s ease;
+    will-change: transform;
   }
+  .appbar.is-hidden { transform: translateY(-100%); }
   .appbar-row1 { display: flex; align-items: center; gap: 4px; min-height: 40px; }
   .appbar .icon-btn {
     width: 40px; height: 40px; background: rgba(255,255,255,.14); border: none; color: #fff;
@@ -132,12 +136,15 @@
     border: 1px solid rgba(21,101,192,.18);
   }
   /* ===== chips フィルタストリップ（モックアップ） ===== */
-  /* デタウリ topbar と同じ sticky 方式: appbar の真下に張り付く */
+  /* デタウリ topbar と同じ hide-on-scroll: 下スクロールで隠れ、上スクロールで戻る */
   .chips-bar {
-    position: sticky; top: var(--appbar-h, 102px); z-index: 90;
+    position: fixed; top: 56px; left: 0; right: 0; z-index: 90;
     background: var(--surface); border-bottom: 1px solid var(--border);
     box-shadow: 0 2px 4px rgba(0,0,0,.04);
+    transition: transform .25s ease;
+    will-change: transform;
   }
+  .chips-bar.is-hidden { transform: translateY(calc(-100% - 56px)); }
   .chips-bar[hidden] { display: none !important; }
   .chips {
     display: flex; gap: 6px; padding: 8px 12px;
@@ -216,31 +223,87 @@
     border-left: 3px solid var(--danger); display: inline-flex;
     margin-top: 6px;
   }
-  .img-field { display: flex; flex-direction: column; gap: 8px; }
+  .img-field { display: flex; gap: 12px; align-items: flex-start; }
   .img-preview {
     display: flex; align-items: center; justify-content: center;
-    width: 160px; height: 160px;
+    width: 96px; height: 96px; flex-shrink: 0;
     border: 1px solid var(--border); border-radius: 8px;
     background: #f7f9fc; overflow: hidden;
-    font-size: 12px; color: var(--text-mute); text-align: center; padding: 4px;
-    text-decoration: none;
+    font-size: 11px; color: var(--text-mute); text-align: center; padding: 4px;
+    text-decoration: none; cursor: pointer;
   }
   .img-preview img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .img-preview.img-loading { color: var(--primary); }
   .img-preview.img-error { color: var(--danger); background: var(--danger-soft); }
+  .img-actions { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
   .img-upload-btn {
     display: inline-flex; align-items: center; gap: 6px;
-    padding: 10px 16px; min-height: 44px;
+    padding: 8px 14px; min-height: 38px;
     background: var(--primary); color: white;
-    border-radius: 8px; font-size: 13px; font-weight: 600;
+    border-radius: 8px; font-size: 13px; font-weight: 500;
     cursor: pointer; align-self: flex-start; user-select: none;
     box-shadow: 0 1px 2px rgba(0,0,0,.08);
   }
+  .img-upload-btn.ghost {
+    background: var(--surface); color: var(--primary);
+    border: 1px solid var(--primary); box-shadow: none;
+  }
   .img-upload-btn:hover { background: var(--primary-dark); }
+  .img-upload-btn.ghost:hover { background: var(--primary-soft); }
   .img-upload-btn:active { background: var(--primary-dark); }
+  .img-hint { font-size: 11px; color: var(--text-sub); }
   .img-status { font-size: 12px; color: var(--text-sub); min-height: 16px; }
   .img-status.success { color: var(--success); }
   .img-status.error { color: var(--danger); }
+  /* 画像拡大モーダル（タップで閉じる） */
+  .img-modal {
+    position: fixed; inset: 0; background: rgba(0,0,0,.92);
+    z-index: 9000; display: none;
+    align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .img-modal.show { display: flex; }
+  .img-modal img {
+    max-width: 100%; max-height: 100%;
+    object-fit: contain;
+    border-radius: 4px;
+    box-shadow: 0 8px 32px rgba(0,0,0,.6);
+  }
+  .img-modal-close {
+    position: absolute; top: 16px; right: 16px;
+    width: 44px; height: 44px;
+    background: rgba(255,255,255,.18); color: #fff;
+    border: none; border-radius: 50%;
+    font-size: 22px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  /* 基本タブの画像プレビュー（hero 直下） */
+  .basic-imgs {
+    display: flex; gap: 8px; padding: 10px 12px 6px;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    margin: 0 -12px;
+  }
+  .basic-imgs::-webkit-scrollbar { display: none; }
+  .basic-img {
+    width: 76px; height: 76px; flex-shrink: 0;
+    border: 1px solid var(--border); border-radius: 8px;
+    overflow: hidden; cursor: pointer;
+    background: #f7f9fc;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: var(--text-mute); text-align: center;
+  }
+  .basic-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  /* フィールド横並びグリッド */
+  .field-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
+  .field-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px 8px; }
+  .field-grid-2 > .field-row, .field-grid-3 > .field-row {
+    display: block; padding: 6px 0; border-bottom: none;
+  }
+  .meas-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+  .meas-grid > .field-row { display: block; padding: 4px 0; border-bottom: none; }
+  .meas-grid > .field-row label { font-size: 11px; margin-bottom: 2px; }
+  .meas-grid > .field-row input { padding: 8px 10px; font-size: 14px; min-height: 36px; }
   .group-header {
     font-size: 12px; font-weight: 700; color: var(--text-sub);
     margin: 14px 0 6px 0; padding: 4px 4px;
@@ -400,8 +463,10 @@
     overflow-x: auto;
     border-bottom: 1px solid var(--border);
     margin: 0 -12px;
-    position: sticky; top: 102px; z-index: 60;
+    position: sticky; top: 56px; z-index: 60;
+    transition: top .2s ease;
   }
+  body.appbar-hidden .sec-tabs { top: 0; }
   .sec-tabs::-webkit-scrollbar { display: none; }
   .sec-tab {
     flex-shrink: 0;
@@ -630,6 +695,13 @@
     .content { max-width: 1100px; margin: 0 auto; padding: 16px; }
     .field-row { display: grid; grid-template-columns: 140px 1fr; align-items: start; gap: 14px; padding: 10px 4px; }
     .field-row label { margin-bottom: 0; padding-top: 8px; }
+    /* グリッド内の field-row は PC でもブロック表示（label + input 縦並び） */
+    .field-grid-2 > .field-row, .field-grid-3 > .field-row, .meas-grid > .field-row {
+      display: block;
+    }
+    .field-grid-2 > .field-row label, .field-grid-3 > .field-row label, .meas-grid > .field-row label {
+      padding-top: 0;
+    }
     .form-section { padding: 14px 18px; }
     .product-info { padding: 18px 20px; }
     .product-info h2 { font-size: 24px; }
@@ -650,6 +722,11 @@
 </div>
 
 <div class="chips-bar" id="chips-bar" hidden></div>
+
+<div class="img-modal" id="img-modal" onclick="closeImageModal_(event)" role="dialog" aria-modal="true">
+  <button class="img-modal-close" type="button" onclick="closeImageModal_(event)" aria-label="閉じる">✕</button>
+  <img src="" alt="">
+</div>
 
 <div class="drawer-mask" id="drawer-mask" onclick="closeDrawer()"></div>
 <div class="drawer" id="drawer">
@@ -1199,9 +1276,11 @@ function updateChipsBar_() {
   if (STATE.view === 'detail' || STATE.tab !== 'shouhin') {
     bar.innerHTML = '';
     bar.hidden = true;
+    document.body.classList.remove('has-chips');
   } else {
     bar.innerHTML = shouhinChipsHtml_();
     bar.hidden = false;
+    document.body.classList.add('has-chips');
   }
 }
 function selectChip_(filter, label) {
@@ -1523,29 +1602,24 @@ function imageFieldHtml_(id, name, v) {
   var isUrl = /^https?:/.test(s);
   var isLegacy = !isUrl && s.length > 0;
   var safeName = esc(name).replace(/\'/g,"\\'");
-  var previewInner;
-  var previewAttrs = 'id="' + id + '_preview" class="img-preview';
+  var preview;
   if (isUrl) {
     s = normalizeDriveUrl_(s);
-    previewAttrs += '"';
-    previewInner = '<img src="' + esc(s) + '" alt="">';
+    var safeUrl = esc(s).replace(/\'/g,"\\'");
+    preview = '<button type="button" id="' + id + '_preview" class="img-preview" onclick="openImageModal_(\'' + safeUrl + '\')"><img src="' + esc(s) + '" alt=""></button>';
   } else if (isLegacy) {
-    previewAttrs += ' img-loading" data-legacy="' + esc(s) + '" data-field="' + safeName + '"';
-    previewInner = '読み込み中…';
+    preview = '<div id="' + id + '_preview" class="img-preview img-loading" data-legacy="' + esc(s) + '" data-field="' + safeName + '">読み込み中…</div>';
   } else {
-    previewAttrs += '"';
-    previewInner = '画像なし';
+    preview = '<div id="' + id + '_preview" class="img-preview">画像なし</div>';
   }
-  var preview = isUrl
-    ? '<a href="' + esc(s) + '" target="_blank" rel="noopener" ' + previewAttrs + '>' + previewInner + '</a>'
-    : '<div ' + previewAttrs + '>' + previewInner + '</div>';
   var picker =
-    '<label class="img-upload-btn" for="' + id + '_file">📷 画像を選択／撮影</label>' +
+    '<label class="img-upload-btn ghost" for="' + id + '_file">📷 撮影／差替え</label>' +
     '<input type="file" id="' + id + '_file" accept="image/*" capture="environment" ' +
     'onchange="onImageFieldPick_(this, \'' + esc(id) + '\', \'' + safeName + '\')" ' +
     'style="display:none">' +
+    '<div class="img-hint">最大1600px・JPG</div>' +
     '<div id="' + id + '_status" class="img-status"></div>';
-  return '<div class="img-field">' + preview + picker + '</div>';
+  return '<div class="img-field">' + preview + '<div class="img-actions">' + picker + '</div></div>';
 }
 
 // 画像選択時に呼ばれる（リサイズ→base64→/api/save/image）
@@ -1572,7 +1646,8 @@ function onImageFieldPick_(inputEl, fieldId, fieldName) {
       if (!res.ok || !res.body || !res.body.url) throw new Error((res.body && res.body.error) || 'アップロード失敗');
       var url = res.body.url;
       if (preview) {
-        var html = '<a href="' + esc(url) + '" target="_blank" rel="noopener" id="' + esc(fieldId) + '_preview" class="img-preview"><img src="' + esc(url) + '" alt=""></a>';
+        var safeUrl = esc(url).replace(/\'/g,"\\'");
+        var html = '<button type="button" id="' + esc(fieldId) + '_preview" class="img-preview" onclick="openImageModal_(\'' + safeUrl + '\')"><img src="' + esc(url) + '" alt=""></button>';
         preview.outerHTML = html;
       }
       if (status) { status.textContent = '✓ アップロード完了'; status.className = 'img-status success'; }
@@ -1596,7 +1671,8 @@ function normalizeDriveUrl_(url) {
 
 // 詳細描画後に呼び出し: 旧形式パスの画像を遅延解決して img に差し替え
 function resolveLegacyImages_() {
-  var nodes = document.querySelectorAll('.img-preview.img-loading[data-legacy]');
+  // .img-preview / .basic-img どちらも対象
+  var nodes = document.querySelectorAll('.img-loading[data-legacy]');
   if (!nodes || !nodes.length) return;
   var kanri = (STATE.current && STATE.current.kanri) || '';
   for (var i = 0; i < nodes.length; i++) {
@@ -1628,7 +1704,11 @@ function resolveLegacyImages_() {
 
 function applyResolved_(el, url) {
   var id = el.id || '';
-  var html = '<a href="' + esc(url) + '" target="_blank" rel="noopener" id="' + esc(id) + '" class="img-preview"><img src="' + esc(url) + '" alt=""></a>';
+  var safeUrl = esc(url).replace(/\'/g,"\\'");
+  // 元の class（basic-img / img-preview など）を保持。img-loading だけ除去
+  var cls = (el.className || '').replace(/\bimg-loading\b/g, '').replace(/\s+/g, ' ').trim();
+  if (!cls) cls = 'img-preview';
+  var html = '<button type="button" id="' + esc(id) + '" class="' + esc(cls) + '" onclick="openImageModal_(\'' + safeUrl + '\')"><img src="' + esc(url) + '" alt=""></button>';
   el.outerHTML = html;
 }
 
@@ -2241,6 +2321,90 @@ function buildDeadlineHtml_(d) {
   return '<span class="hero-deadline' + (overdue ? ' overdue' : '') + '">' + esc(label) + '</span>';
 }
 
+// 基本タブの先頭に表示する画像サムネ（QR / 売却済み / ポストシール）
+// クリックでモーダル拡大表示。レガシーパスは resolveLegacyImages_ が非同期解決
+function buildBasicImgsHtml_(d) {
+  var ex = d.extra || {};
+  var fields = ['QR・バーコード画像', '売却済み商品画像', 'ポストシール'];
+  var items = [];
+  fields.forEach(function(name){
+    var v = String(ex[name] || '');
+    if (!v) return;
+    if (/^https?:/.test(v)) {
+      var u = normalizeDriveUrl_(v);
+      var safeUrl = esc(u).replace(/\'/g,"\\'");
+      items.push('<button type="button" class="basic-img" onclick="openImageModal_(\'' + safeUrl + '\')" title="' + esc(name) + '"><img src="' + esc(u) + '" alt="' + esc(name) + '"></button>');
+    } else {
+      items.push('<div class="basic-img img-loading" data-legacy="' + esc(v) + '" data-field="' + esc(name) + '" title="' + esc(name) + '">…</div>');
+    }
+  });
+  if (!items.length) return '';
+  return '<div class="basic-imgs">' + items.join('') + '</div>';
+}
+
+// セクション内のフィールド配列を、項目グループ単位でグリッド化して描画
+function renderSectionFields_(sec, d) {
+  var title = sec.title;
+  var fields = sec.fields;
+  // 採寸 (cm) は全項目を 2 列グリッドで一覧性UP
+  if (title === '採寸 (cm)') {
+    return '<div class="meas-grid">' +
+      fields.map(function(f){ return fieldRowHtml(f[0], f[1], detailValue(d, f[0])); }).join('') +
+      '</div>';
+  }
+  // 基本情報は特定の連続項目をグリッド化（モックアップ準拠）
+  if (title === '基本情報') {
+    var html = '';
+    var i = 0;
+    while (i < fields.length) {
+      var n0 = fields[i][0];
+      var n1 = (i + 1 < fields.length) ? fields[i+1][0] : '';
+      var n2 = (i + 2 < fields.length) ? fields[i+2][0] : '';
+      // カテゴリ1/2/3 → 3列
+      if (n0 === 'カテゴリ1' && n1 === 'カテゴリ2' && n2 === 'カテゴリ3') {
+        html += '<div class="field-grid-3">' +
+          fieldRowHtml(fields[i][0], fields[i][1], detailValue(d, fields[i][0])) +
+          fieldRowHtml(fields[i+1][0], fields[i+1][1], detailValue(d, fields[i+1][0])) +
+          fieldRowHtml(fields[i+2][0], fields[i+2][1], detailValue(d, fields[i+2][0])) +
+          '</div>';
+        i += 3; continue;
+      }
+      // メルカリサイズ + 性別 → 2列
+      if (n0 === 'メルカリサイズ' && n1 === '性別') {
+        html += '<div class="field-grid-2">' +
+          fieldRowHtml(fields[i][0], fields[i][1], detailValue(d, fields[i][0])) +
+          fieldRowHtml(fields[i+1][0], fields[i+1][1], detailValue(d, fields[i+1][0])) +
+          '</div>';
+        i += 2; continue;
+      }
+      // ポケット + ポケット詳細 → 2列
+      if (n0 === 'ポケット' && n1 === 'ポケット詳細') {
+        html += '<div class="field-grid-2">' +
+          fieldRowHtml(fields[i][0], fields[i][1], detailValue(d, fields[i][0])) +
+          fieldRowHtml(fields[i+1][0], fields[i+1][1], detailValue(d, fields[i+1][0])) +
+          '</div>';
+        i += 2; continue;
+      }
+      html += fieldRowHtml(fields[i][0], fields[i][1], detailValue(d, fields[i][0]));
+      i++;
+    }
+    return html;
+  }
+  // 仕入れ連動・読取専用 → 3列
+  if (title === '仕入れ（連動・読取専用）') {
+    return '<div class="field-grid-3">' +
+      fields.map(function(f){ return fieldRowHtml(f[0], f[1], detailValue(d, f[0])); }).join('') +
+      '</div>';
+  }
+  // 採寸記録 / 撮影・出品 の日付+作業者ペア など、2項目連続なら 2列
+  if (title === '採寸記録' && fields.length === 2) {
+    return '<div class="field-grid-2">' +
+      fields.map(function(f){ return fieldRowHtml(f[0], f[1], detailValue(d, f[0])); }).join('') +
+      '</div>';
+  }
+  return fields.map(function(f){ return fieldRowHtml(f[0], f[1], detailValue(d, f[0])); }).join('');
+}
+
 function renderDetail() {
   var d = STATE.current;
   if (!d) { render(); return; }
@@ -2288,17 +2452,16 @@ function renderDetail() {
     }).join('') +
   '</div>';
 
-  // 該当セクションのフィールド
+  // 該当セクションのフィールド（グループ単位でグリッド化）
   var sectionsHtml = activeTab.sections.map(function(secTitle){
     var sec = DETAIL_SECTIONS.find(function(s){ return s.title === secTitle; });
     if (!sec) return '';
-    var rows = sec.fields.map(function(f){
-      var name = f[0], type = f[1];
-      return fieldRowHtml(name, type, detailValue(d, name));
-    }).join('');
     return '<div class="section-header">' + esc(sec.title) + '</div>' +
-      '<div class="form-section">' + rows + '</div>';
+      '<div class="form-section">' + renderSectionFields_(sec, d) + '</div>';
   }).join('');
+
+  // 基本タブには画像サムネを hero 直下に表示（発送タブ以外でも画像確認可能に）
+  var basicImgsHtml = activeTab.id === 'basic' ? buildBasicImgsHtml_(d) : '';
 
   // 販売タブには収支サマリ、全タブ共通で末尾に作業履歴
   var summaryHtml = activeTab.id === 'sale' ? buildSummaryHtml_(d) : '';
@@ -2310,6 +2473,7 @@ function renderDetail() {
 
   var html =
     heroHtml +
+    basicImgsHtml +
     tabsHtml +
     '<div class="sec-body">' +
       sectionsHtml +
@@ -3161,6 +3325,63 @@ async function submitCreateProduct(shiireId) {
     btn.disabled = false; btn.textContent = '作成';
   }
 }
+
+// =====================================================
+// 画像拡大モーダル: タップで開閉
+// =====================================================
+function openImageModal_(url) {
+  var m = document.getElementById('img-modal');
+  if (!m || !url) return;
+  var img = m.querySelector('img');
+  if (img) img.src = url;
+  m.classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+function closeImageModal_(e) {
+  if (e && e.target && e.target.tagName === 'IMG' && e.target.parentElement && e.target.parentElement.id === 'img-modal') {
+    // 画像本体タップは閉じない（誤タップ防止）
+    return;
+  }
+  var m = document.getElementById('img-modal');
+  if (!m) return;
+  m.classList.remove('show');
+  var img = m.querySelector('img');
+  if (img) img.src = '';
+  document.body.style.overflow = '';
+}
+
+// =====================================================
+// hide-on-scroll: 下スクロールで appbar/chips を隠す（デタウリ topbar 同様）
+// =====================================================
+(function() {
+  var lastY = 0;
+  var ticking = false;
+  function onScroll() {
+    var y = window.scrollY;
+    var d = y - lastY;
+    if (Math.abs(d) < 5) { lastY = y; ticking = false; return; }
+    var ab = document.querySelector('.appbar');
+    var cb = document.getElementById('chips-bar');
+    if (y <= 0) {
+      if (ab) ab.classList.remove('is-hidden');
+      if (cb) cb.classList.remove('is-hidden');
+      document.body.classList.remove('appbar-hidden');
+    } else if (d > 0) {
+      if (ab) ab.classList.add('is-hidden');
+      if (cb) cb.classList.add('is-hidden');
+      document.body.classList.add('appbar-hidden');
+    } else {
+      if (ab) ab.classList.remove('is-hidden');
+      if (cb) cb.classList.remove('is-hidden');
+      document.body.classList.remove('appbar-hidden');
+    }
+    lastY = y;
+    ticking = false;
+  }
+  window.addEventListener('scroll', function(){
+    if (!ticking) { requestAnimationFrame(onScroll); ticking = true; }
+  }, { passive: true });
+})();
 </script>
 </body>
 </html>
