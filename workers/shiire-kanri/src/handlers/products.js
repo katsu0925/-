@@ -52,8 +52,10 @@ export async function listProducts(request, env) {
   } else if (filter === 'shuppinchu') {
     where.push(`${ds} = '出品中'`);
   } else if (filter === 'hassou') {
-    // 発送商品タブ: 出品中＋発送待ち
-    where.push(`${ds} IN ('出品中','発送待ち')`);
+    // 発送商品タブ（AppSheet準拠）:
+    //   OR(AND([ステータス]='発送待ち', ISBLANK([発送日付])), [ステータス]='発送済み')
+    // 派生ステータス上は: 発送待ち（=sale_date あり且つ発送日付なし）または 発送済み（=発送日付あり）
+    where.push(`${ds} IN ('発送待ち','発送済み')`);
   } else if (filter === 'sold') {
     where.push(`${ds} IN ('発送待ち','発送済み','売却済み')`);
   }
@@ -99,7 +101,7 @@ export async function listProductCounts(request, env) {
     shuppin_machi:  `${ds} = '出品待ち'`,
     shuppin_sagyou: `${ds} = '出品作業中'`,
     shuppinchu:     `${ds} = '出品中'`,
-    hassou:         `${ds} IN ('出品中','発送待ち')`,
+    hassou:         `${ds} IN ('発送待ち','発送済み')`,
     sold:           `${ds} IN ('発送待ち','発送済み','売却済み')`,
   };
 
