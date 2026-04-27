@@ -569,29 +569,11 @@ var CATEGORY3_BY_CAT1_CAT2 = {
   'メンズ-サロペット・オーバーオール': ['サロペット','オーバーオール','オールインワン']
 };
 function category2OptionsFor_(cat1) {
-  var c1 = String(cat1 || '').trim();
-  if (c1) return CATEGORY2_BY_CAT1[c1] || [];
-  // 親未指定時は全 cat2 をマージして提示（既存値が候補に出ないと「マスター外」表示で1つしか見えない問題の回避）
-  var seen = {}, out = [];
-  Object.keys(CATEGORY2_BY_CAT1).forEach(function(k){
-    CATEGORY2_BY_CAT1[k].forEach(function(v){ if (!seen[v]) { seen[v] = true; out.push(v); } });
-  });
-  return out;
+  return CATEGORY2_BY_CAT1[String(cat1 || '').trim()] || [];
 }
 function category3OptionsFor_(cat1, cat2) {
-  var c1 = String(cat1 || '').trim();
-  var c2 = String(cat2 || '').trim();
-  if (c1 === 'キッズ') return ['キッズ'];
-  if (c1 && c2) return CATEGORY3_BY_CAT1_CAT2[c1 + '-' + c2] || [];
-  // 親（cat1 または cat2）未指定時は条件に合致する全 cat3 をマージ
-  var seen = {}, out = [];
-  Object.keys(CATEGORY3_BY_CAT1_CAT2).forEach(function(key){
-    var parts = key.split('-');
-    if (c1 && parts[0] !== c1) return;
-    if (c2 && parts[1] !== c2) return;
-    CATEGORY3_BY_CAT1_CAT2[key].forEach(function(v){ if (!seen[v]) { seen[v] = true; out.push(v); } });
-  });
-  return out;
+  if (String(cat1 || '').trim() === 'キッズ') return ['キッズ'];
+  return CATEGORY3_BY_CAT1_CAT2[String(cat1 || '').trim() + '-' + String(cat2 || '').trim()] || [];
 }
 // 既存値がリストに無くても保持して表示する <select> 用 options
 function categoryOptionsHtml_(list, current) {
@@ -2036,6 +2018,10 @@ async function applyAiPrefillToForm_(kanri) {
         autoGrowTextarea_(el);
       }
     });
+    // カテゴリ1 が prefill された場合、cat1→cat2→cat3 の依存リストを再構築する。
+    // el.value の代入は change を発火しないため、prefill 直後の cat2/cat3 は親=空のまま空リストで作られている。
+    // refillCategory2_ が cat1 値から正しい cat2 リストを生成し、現在値（prefill 済の cat2）を保持して cat3 まで連鎖する。
+    if (fields['カテゴリ1']) refillCategory2_('cf_');
   } catch (err) {
     console.warn('[ai prefill]', err && err.message);
   }
