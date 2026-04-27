@@ -137,6 +137,9 @@
     overflow-x: auto; -webkit-overflow-scrolling: touch;
     background: var(--surface); border-bottom: 1px solid var(--border);
     margin: -10px -12px 10px;
+    /* デタウリ topbar と同じ形式: スクロール時もヘッダ下に固定（appbar 直下に貼り付け） */
+    position: sticky; top: 102px; z-index: 50;
+    box-shadow: 0 2px 4px rgba(0,0,0,.04);
   }
   .chips::-webkit-scrollbar { display: none; }
   .chip {
