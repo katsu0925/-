@@ -298,10 +298,11 @@
   .field-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
   .field-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px 8px; }
   .field-grid-2 > .field-row, .field-grid-3 > .field-row {
-    display: block; padding: 6px 0; border-bottom: none;
+    display: block; padding: 6px 0; margin: 0; background: transparent; border-bottom: none;
+    min-width: 0;
   }
   .meas-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
-  .meas-grid > .field-row { display: block; padding: 4px 0; border-bottom: none; }
+  .meas-grid > .field-row { display: block; padding: 4px 0; margin: 0; background: transparent; border-bottom: none; min-width: 0; }
   .meas-grid > .field-row label { font-size: 11px; margin-bottom: 2px; }
   .meas-grid > .field-row input { padding: 8px 10px; font-size: 14px; min-height: 36px; }
   .group-header {
@@ -430,10 +431,19 @@
   .field-row label .req { color: var(--danger); margin-left: 4px; font-weight: 800; }
   .field-row input, .field-row select, .field-row textarea {
     width: 100%; padding: 10px 12px; min-height: 40px;
+    box-sizing: border-box; max-width: 100%;
     border: 1px solid var(--border); border-radius: 8px;
     font-size: 16px; background: #fafbfd;
     font-family: inherit; color: var(--text);
     transition: border-color .12s, background .12s, box-shadow .12s;
+  }
+  /* 狭いグリッド列ではコンパクトなフォント・パディングに */
+  .field-grid-2 > .field-row input, .field-grid-2 > .field-row select,
+  .field-grid-3 > .field-row input, .field-grid-3 > .field-row select {
+    padding: 8px 10px; font-size: 14px; min-height: 36px;
+  }
+  .field-grid-3 > .field-row label, .field-grid-2 > .field-row label {
+    font-size: 12px; margin-bottom: 4px;
   }
   .field-row input:hover, .field-row select:hover, .field-row textarea:hover {
     border-color: #c9d1dd; background: #fff;
@@ -728,14 +738,18 @@
   /* あり/なし トグル */
   .yesno-toggle { display: inline-flex; gap: 6px; flex-wrap: wrap; }
   .yesno-btn {
-    padding: 10px 18px; min-width: 64px; min-height: 44px;
+    padding: 8px 14px; min-width: 56px; min-height: 40px;
     border: 1px solid var(--border);
     background: var(--surface); color: var(--text); border-radius: 8px;
     font-size: 14px; font-weight: 500; cursor: pointer; user-select: none;
   }
+  /* 狭いグリッド列ではトグルもコンパクト化（折り返し抑制） */
+  .field-grid-2 > .field-row .yesno-btn {
+    padding: 6px 10px; min-width: 44px; min-height: 36px; font-size: 13px;
+  }
   .yesno-btn.yesno-yes.active { background: var(--primary); color: #fff; border-color: var(--primary); }
   .yesno-btn.yesno-no.active  { background: var(--danger); color: #fff; border-color: var(--danger); }
-  .yesno-btn.yesno-clear { padding: 10px 14px; min-width: 44px; color: var(--text-sub); }
+  .yesno-btn.yesno-clear { padding: 8px 10px; min-width: 36px; color: var(--text-sub); }
   .yesno-btn.yesno-clear.active { background: var(--gray-soft); color: var(--text); border-color: #aaa; }
   .yesno-btn:hover { filter: brightness(0.97); }
   /* textarea 自動拡張 */
@@ -757,8 +771,9 @@
     .field-row label { margin-bottom: 0; padding-top: 8px; }
     /* グリッド内の field-row は PC でもブロック表示（label + input 縦並び） */
     .field-grid-2 > .field-row, .field-grid-3 > .field-row, .meas-grid > .field-row {
-      display: block;
+      display: block; padding: 6px 0; margin: 0; background: transparent;
     }
+    .meas-grid > .field-row { padding: 4px 0; }
     .field-grid-2 > .field-row label, .field-grid-3 > .field-row label, .meas-grid > .field-row label {
       padding-top: 0;
     }
@@ -2576,7 +2591,13 @@ function renderDetail() {
   var activeTab = SEC_TABS.find(function(t){ return t.id === STATE.detailSecTab; }) || SEC_TABS[0];
 
   // hero
-  var status = d.status || ex['ステータス'] || '—';
+  // raw ステータスが販売後フェーズ（発送待ち/発送済み/売却済み）なら raw を優先。
+  // 派生ステータスは raw が空の時の補完用 — raw='発送待ち' の商品が
+  // '採寸日' 未入力等の理由で派生では '採寸待ち' に降格表示されないようにする。
+  var rawSt = d.rawStatus || '';
+  var derivedSt = d.status || '';
+  var status = (rawSt === '発送待ち' || rawSt === '発送済み' || rawSt === '売却済み')
+    ? rawSt : (derivedSt || ex['ステータス'] || '—');
   var statusCls = status === '発送待ち' ? ' s-shukka'
     : status === '発送済み' ? ' s-shukkazumi'
     : status === '売却済み' ? ' s-sold' : '';
