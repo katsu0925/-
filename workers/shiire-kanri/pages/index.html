@@ -376,35 +376,54 @@
     font-weight: 700; letter-spacing: .02em;
   }
   .product-info .meta { color: var(--text-sub); font-size: 12px; line-height: 1.7; }
+  /* セクション = ヘッダ＋本体 が連結したカード */
   .section-header {
-    text-align: left; color: var(--text); font-size: 14px; font-weight: 700;
-    padding: 16px 4px 8px; margin-top: 0;
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: #fff; font-size: 14px; font-weight: 700;
+    padding: 10px 16px; margin: 16px 0 0;
+    border-radius: 12px 12px 0 0;
     letter-spacing: .02em;
     display: flex; align-items: center; gap: 10px;
+    box-shadow: 0 -1px 2px rgba(21,101,192,.10);
   }
-  .section-header::before {
-    content: ''; width: 5px; height: 18px;
-    background: linear-gradient(180deg, var(--primary) 0%, var(--primary-dark) 100%);
-    border-radius: 3px; box-shadow: 0 1px 2px rgba(21,101,192,.25);
+  .section-header .sec-icon {
+    font-size: 16px; line-height: 1;
+    filter: drop-shadow(0 1px 1px rgba(0,0,0,.15));
+  }
+  /* セクション色バリエーション */
+  .section-header.sec-measure {
+    background: linear-gradient(135deg, #43a047 0%, var(--success) 100%);
+  }
+  .section-header.sec-sale {
+    background: linear-gradient(135deg, #d4951a 0%, #b95400 100%);
+  }
+  .section-header.sec-ship {
+    background: linear-gradient(135deg, #5e35b1 0%, #4527a0 100%);
+  }
+  .section-header.sec-readonly {
+    background: linear-gradient(135deg, #78858f 0%, var(--text-sub) 100%);
   }
   .form-section {
-    background: var(--surface); border-radius: 12px;
-    padding: 14px 16px 4px; margin-bottom: 14px;
+    background: var(--surface);
+    border-radius: 0 0 12px 12px;
+    padding: 4px 16px 8px;
+    margin-bottom: 0;
     box-shadow: var(--shadow);
-    border: 1px solid var(--border);
-    border-top: 3px solid var(--primary-soft);
+    border: 1px solid var(--border); border-top: none;
     overflow: hidden;
   }
+  /* セクション間の余白は section-header の margin-top で確保 */
   .field-row {
     display: block; padding: 0;
     border-bottom: 1px dashed #e7ecf3;
-    padding: 12px 0;
+    padding: 14px 0 12px;
   }
   .field-row:last-child { border-bottom: none; }
   .field-row label {
-    display: block; font-size: 12px; color: var(--text); font-weight: 700;
+    display: block; font-size: 13px; color: var(--text); font-weight: 700;
     margin-bottom: 6px; letter-spacing: .01em;
   }
+  .field-row label .req { color: var(--danger); margin-left: 4px; font-weight: 800; }
   .field-row input, .field-row select, .field-row textarea {
     width: 100%; padding: 10px 12px; min-height: 40px;
     border: 1px solid var(--border); border-radius: 8px;
@@ -748,7 +767,7 @@
 
 <div class="appbar">
   <div class="appbar-row1">
-    <button class="icon-btn" onclick="toggleDrawer()" aria-label="メニュー">≡</button>
+    <button class="icon-btn" id="appbar-menu-btn" onclick="appbarPrimaryAction_()" aria-label="メニュー">≡</button>
     <h1 id="appbar-title">商品管理</h1>
   </div>
   <div class="topbar-search" id="topbar-search">
@@ -1286,6 +1305,30 @@ async function refreshCounts() {
   }
 }
 
+// appbar 左上のボタン: 一覧では「≡（メニュー）」、詳細では「← 戻る」に切り替える
+// （詳細では右下の戻る FAB と savebar が干渉するため、戻る操作は appbar に集約する）
+function setAppbarMode_(mode) {
+  var btn = document.getElementById('appbar-menu-btn');
+  if (!btn) return;
+  if (mode === 'back') {
+    btn.textContent = '←';
+    btn.setAttribute('aria-label', '戻る');
+    btn.setAttribute('data-mode', 'back');
+  } else {
+    btn.textContent = '≡';
+    btn.setAttribute('aria-label', 'メニュー');
+    btn.setAttribute('data-mode', 'menu');
+  }
+}
+function appbarPrimaryAction_() {
+  var btn = document.getElementById('appbar-menu-btn');
+  if (btn && btn.getAttribute('data-mode') === 'back') {
+    backToList();
+  } else {
+    toggleDrawer();
+  }
+}
+
 // chips フィルタストリップ HTML（商品管理タブ用）
 function shouhinChipsHtml_() {
   var counts = STATE.counts || {};
@@ -1425,6 +1468,7 @@ function render() {
     updateChipsBar_();
     renderDetail(); return;
   }
+  setAppbarMode_('menu');
   document.getElementById('appbar-title').textContent = TAB_LABELS[STATE.tab] || '仕入れ管理';
   updateChipsBar_();
 
@@ -2478,6 +2522,7 @@ function renderSectionFields_(sec, d) {
 function renderDetail() {
   var d = STATE.current;
   if (!d) { render(); return; }
+  setAppbarMode_('back');
   document.getElementById('appbar-title').textContent = d.kanri;
 
   // 出品30日経過は仮想列なので extra に無ければ計算
@@ -2523,10 +2568,26 @@ function renderDetail() {
   '</div>';
 
   // 該当セクションのフィールド（グループ単位でグリッド化）
+  // セクション別のアイコン＋色クラス（視覚的に識別しやすく）
+  var SEC_META = {
+    '基本情報':              { icon: '📝', cls: '' },
+    '採寸 (cm)':             { icon: '📏', cls: 'sec-measure' },
+    '採寸記録':              { icon: '✏️', cls: 'sec-measure' },
+    '撮影・出品':            { icon: '📷', cls: '' },
+    '仕入れ（連動・読取専用）': { icon: '📦', cls: 'sec-readonly' },
+    '販売':                  { icon: '💰', cls: 'sec-sale' },
+    '計算結果（読取専用）':    { icon: '🧮', cls: 'sec-readonly' },
+    '発送関係':              { icon: '🚚', cls: 'sec-ship' },
+    'その他':                { icon: '📁', cls: 'sec-readonly' },
+    '備考':                  { icon: '💬', cls: '' }
+  };
   var sectionsHtml = activeTab.sections.map(function(secTitle){
     var sec = DETAIL_SECTIONS.find(function(s){ return s.title === secTitle; });
     if (!sec) return '';
-    return '<div class="section-header">' + esc(sec.title) + '</div>' +
+    var meta = SEC_META[sec.title] || { icon: '', cls: '' };
+    var iconHtml = meta.icon ? '<span class="sec-icon">' + meta.icon + '</span>' : '';
+    var hdrCls = meta.cls ? ' ' + meta.cls : '';
+    return '<div class="section-header' + hdrCls + '">' + iconHtml + esc(sec.title) + '</div>' +
       '<div class="form-section">' + renderSectionFields_(sec, d) + '</div>';
   }).join('');
 
@@ -2554,9 +2615,6 @@ function renderDetail() {
       '<div class="savebar-info"><b id="savebar-count">0</b> 件の変更が未保存</div>' +
       '<button class="btn-cancel" type="button" onclick="cancelDetailEdits_()">破棄</button>' +
       '<button class="btn-save" type="button" id="btn-save-details" onclick="saveDetails()">保存</button>' +
-    '</div>' +
-    '<div class="fab-stack">' +
-      '<button class="fab gray" id="btn-back" onclick="backToList()" title="一覧へ戻る">←</button>' +
     '</div>';
   document.getElementById('content').innerHTML = html;
   wireFeeAutoCalc_('f_');
