@@ -36,7 +36,7 @@
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", "Meiryo", sans-serif;
     background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5;
-    padding-top: 56px; padding-bottom: 72px; min-height: 100vh;
+    padding-top: 102px; padding-bottom: 72px; min-height: 100vh;
     -webkit-tap-highlight-color: transparent; overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
   }
@@ -48,12 +48,13 @@
     position: fixed; top: 0; left: 0; right: 0; z-index: 100;
     background: linear-gradient(180deg, var(--primary) 0%, var(--primary-dark) 100%);
     color: #fff;
-    height: 56px; display: flex; align-items: center; padding: 0 6px;
+    padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 8px;
     box-shadow: 0 2px 6px rgba(0,0,0,.15);
   }
+  .appbar-row1 { display: flex; align-items: center; gap: 4px; min-height: 40px; }
   .appbar .icon-btn {
-    width: 44px; height: 44px; background: rgba(255,255,255,.14); border: none; color: #fff;
-    font-size: 20px; cursor: pointer; padding: 0; margin: 0 4px;
+    width: 40px; height: 40px; background: rgba(255,255,255,.14); border: none; color: #fff;
+    font-size: 20px; cursor: pointer; padding: 0; margin: 0 2px;
     display: flex; align-items: center; justify-content: center; border-radius: 10px;
     transition: background .15s;
   }
@@ -61,6 +62,23 @@
   .appbar .icon-btn:active { background: rgba(255,255,255,.28); }
   .appbar h1 { font-size: 17px; font-weight: 600; margin: 0; flex: 1; padding-left: 8px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .topbar-search {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,.95); border-radius: 8px;
+    padding: 6px 12px; min-height: 36px;
+  }
+  .topbar-search::before { content: '🔍'; font-size: 13px; opacity: .6; }
+  .topbar-search input {
+    flex: 1; border: none; outline: none; background: transparent;
+    color: var(--text); font-size: 14px; padding: 4px 0; min-width: 0;
+  }
+  .topbar-search input::placeholder { color: var(--text-mute); }
+  .topbar-search .clear-btn {
+    background: transparent; border: none; color: var(--text-mute);
+    font-size: 16px; line-height: 1; cursor: pointer; padding: 4px;
+    display: none;
+  }
+  .topbar-search.has-value .clear-btn { display: inline-flex; align-items: center; }
   .drawer-mask {
     position: fixed; inset: 0; background: rgba(0,0,0,0.5);
     z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.2s;
@@ -102,20 +120,8 @@
     font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
   }
   .drawer-divider { border-top: 1px solid var(--border); margin: 6px 0; }
-  .searchbar {
-    background: var(--surface); padding: 8px 12px;
-    border-bottom: 1px solid var(--border);
-    position: fixed; top: 56px; left: 0; right: 0; z-index: 99; display: none;
-    box-shadow: 0 2px 4px rgba(0,0,0,.04);
-  }
-  .searchbar.show ~ .content { padding-top: 56px; }
-  .searchbar.show { display: block; }
-  .searchbar input {
-    width: 100%; padding: 10px 14px; min-height: 40px;
-    border: 1px solid var(--border); border-radius: 8px;
-    font-size: 14px; background: #f4f6fa;
-  }
-  .searchbar input:focus { outline: none; border-color: var(--primary); background: #fff; box-shadow: var(--focus-ring); }
+  /* searchbar は topbar-search に統合（後方互換のため空の擬似定義） */
+  .searchbar { display: none; }
   .content { padding: 10px 12px; min-height: calc(100vh - 56px - 64px); }
   .filter-chip {
     display: inline-flex; align-items: center; gap: 6px;
@@ -124,6 +130,36 @@
     font-size: 12px; font-weight: 600;
     margin: 4px 0 10px 0;
     border: 1px solid rgba(21,101,192,.18);
+  }
+  /* ===== chips フィルタストリップ（モックアップ） ===== */
+  .chips {
+    display: flex; gap: 6px; padding: 10px 12px 8px;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    margin: -10px -12px 10px;
+  }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    flex-shrink: 0;
+    padding: 6px 12px; border-radius: 999px;
+    background: var(--gray-soft); color: var(--text);
+    font-size: 12px; font-weight: 500;
+    border: 1px solid transparent;
+    white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 6px;
+    cursor: pointer; user-select: none;
+  }
+  .chip:hover { background: #e6e9ef; }
+  .chip.active {
+    background: var(--primary); color: #fff; border-color: var(--primary);
+  }
+  .chip-count {
+    background: rgba(255,255,255,.3); color: inherit;
+    padding: 1px 6px; border-radius: 8px; font-size: 11px; font-weight: 600;
+    min-width: 18px; text-align: center;
+  }
+  .chip:not(.active) .chip-count {
+    background: var(--surface); color: var(--text-sub);
   }
   /* ===== カード（モックアップ pcard ベース） ===== */
   .card {
@@ -480,9 +516,14 @@
 <body>
 
 <div class="appbar">
-  <button class="icon-btn" onclick="toggleDrawer()" aria-label="メニュー">≡</button>
-  <h1 id="appbar-title">商品管理</h1>
-  <button class="icon-btn" onclick="toggleSearch()" aria-label="検索">🔍</button>
+  <div class="appbar-row1">
+    <button class="icon-btn" onclick="toggleDrawer()" aria-label="メニュー">≡</button>
+    <h1 id="appbar-title">商品管理</h1>
+  </div>
+  <div class="topbar-search" id="topbar-search">
+    <input id="search" type="search" placeholder="管理番号・ブランド・状態で検索" autocomplete="off" inputmode="search">
+    <button type="button" class="clear-btn" id="search-clear" aria-label="クリア" onclick="clearSearch_()">✕</button>
+  </div>
 </div>
 
 <div class="drawer-mask" id="drawer-mask" onclick="closeDrawer()"></div>
@@ -520,10 +561,6 @@
       <span class="ico">💰</span><span>報酬確認</span>
     </div>
   </div>
-</div>
-
-<div class="searchbar" id="searchbar">
-  <input id="search" type="search" placeholder="管理番号・ブランド・状態で検索" autocomplete="off">
 </div>
 
 <div class="content" id="content">
@@ -993,14 +1030,51 @@ async function refreshCounts() {
   try {
     const res = await api('/api/products/counts');
     const c = res.counts || {};
+    STATE.counts = c;
     Object.keys(c).forEach(function(k){
       var el = document.getElementById('cnt-' + k);
       if (el) el.textContent = String(c[k]);
+      // chips の件数バッジも更新
+      document.querySelectorAll('.chip[data-filter="' + k + '"] .chip-count').forEach(function(b){
+        b.textContent = String(c[k]);
+      });
     });
   } catch (err) {
     // 件数失敗は致命ではないので静かにログだけ
     console.warn('counts failed', err);
   }
+}
+
+// chips フィルタストリップ HTML（商品管理タブ用）
+function shouhinChipsHtml_() {
+  var counts = STATE.counts || {};
+  var chips = [
+    { f: '',                lbl: 'すべて',     ico: '📋', cntKey: '' },
+    { f: 'sokutei_machi',   lbl: '採寸待ち',   ico: '📏', cntKey: 'sokutei_machi' },
+    { f: 'satsuei_machi',   lbl: '撮影待ち',   ico: '📷', cntKey: 'satsuei_machi' },
+    { f: 'shuppin_machi',   lbl: '出品待ち',   ico: '⏳', cntKey: 'shuppin_machi' },
+    { f: 'shuppin_sagyou',  lbl: '出品作業中', ico: '✏️', cntKey: 'shuppin_sagyou' },
+    { f: 'shuppinchu',      lbl: '出品中',     ico: '🛍️', cntKey: 'shuppinchu' }
+  ];
+  var html = chips.map(function(c){
+    var active = (STATE.filter || '') === c.f ? ' active' : '';
+    var cntHtml = c.cntKey
+      ? '<span class="chip-count">' + (counts[c.cntKey] != null ? counts[c.cntKey] : '—') + '</span>'
+      : '';
+    return '<button type="button" class="chip' + active + '" data-filter="' + esc(c.cntKey) + '"' +
+      ' onclick="selectChip_(\'' + c.f + '\',\'' + esc(c.lbl).replace(/\'/g,"\\\'") + '\')">' +
+      '<span class="ico">' + c.ico + '</span>' + esc(c.lbl) + cntHtml + '</button>';
+  }).join('');
+  return '<div class="chips" id="chips">' + html + '</div>';
+}
+function selectChip_(filter, label) {
+  STATE.filter = filter;
+  STATE.filterLabel = filter ? label : '';
+  STATE.view = 'list';
+  document.querySelectorAll('.drawer-item').forEach(function(d){
+    d.classList.toggle('active', d.getAttribute('data-filter') === filter);
+  });
+  render();
 }
 
 // ========== ドロワー ==========
@@ -1028,18 +1102,31 @@ function selectMenu(filter, label) {
 }
 
 // ========== 検索 ==========
+// topbar-search に常時表示。後方互換のため toggleSearch は残す（フォーカスのみ）
 function toggleSearch() {
-  var bar = document.getElementById('searchbar');
-  bar.classList.toggle('show');
-  if (bar.classList.contains('show')) {
-    setTimeout(function(){ document.getElementById('search').focus(); }, 50);
-  }
+  var input = document.getElementById('search');
+  if (input) input.focus();
+}
+function clearSearch_() {
+  var input = document.getElementById('search');
+  if (!input) return;
+  input.value = '';
+  input.dispatchEvent(new Event('input'));
+  input.focus();
+}
+function syncSearchClearVisibility_() {
+  var wrap = document.getElementById('topbar-search');
+  var input = document.getElementById('search');
+  if (!wrap || !input) return;
+  wrap.classList.toggle('has-value', !!(input.value || '').length);
 }
 var searchTimer = null;
 document.getElementById('search').addEventListener('input', function(){
+  syncSearchClearVisibility_();
   clearTimeout(searchTimer);
   searchTimer = setTimeout(render, 250);
 });
+syncSearchClearVisibility_();
 
 // ========== ボトムタブ ==========
 function selectTab(tab) {
@@ -1216,7 +1303,10 @@ function patchListCache_(kanri, fields) {
 async function renderShouhinList(opts) {
   opts = opts || {};
   var c = document.getElementById('content');
-  var chip = STATE.filterLabel ? '<div><span class="filter-chip">📂 ' + esc(STATE.filterLabel) + '</span></div>' : '';
+  // 商品管理タブのみ chips を表示。発送/売上タブは現状 UI を維持
+  var chip = (STATE.tab === 'shouhin')
+    ? shouhinChipsHtml_()
+    : (STATE.filterLabel ? '<div><span class="filter-chip">📂 ' + esc(STATE.filterLabel) + '</span></div>' : '');
   const q = (document.getElementById('search').value || '').trim();
   const params = new URLSearchParams();
   params.set('limit', '10000');
