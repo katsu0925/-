@@ -1,0 +1,820 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>仕入れ管理 — 新UIモックアップ</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --surface: #fff;
+    --border: #e3e7ee;
+    --primary: #1565c0;
+    --primary-dark: #0d47a1;
+    --primary-soft: #e3f2fd;
+    --success: #2e7d32;
+    --success-soft: #e8f5e9;
+    --warning: #ed6c02;
+    --warning-soft: #fff4e5;
+    --danger: #c62828;
+    --danger-soft: #ffebee;
+    --gray: #9e9e9e;
+    --gray-soft: #eeeeee;
+    --purple: #6a1b9a;
+    --purple-soft: #f3e5f5;
+    --text: #1a2330;
+    --text-sub: #66707d;
+    --text-mute: #9aa3b0;
+    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+    --shadow-lg: 0 4px 12px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.04);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  button { font-family: inherit; font-size: inherit; cursor: pointer; }
+  input, select, textarea { font-family: inherit; font-size: inherit; }
+
+  /* ===== Mockup layout: side-by-side comparison ===== */
+  .mockup-wrap {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px 16px 80px;
+  }
+  .mockup-title {
+    font-size: 22px; font-weight: 700; margin: 0 0 8px;
+  }
+  .mockup-sub {
+    color: var(--text-sub); margin: 0 0 24px; font-size: 13px;
+  }
+  .mockup-nav {
+    display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px;
+  }
+  .mockup-nav button {
+    padding: 8px 16px; border: 1px solid var(--border); background: var(--surface);
+    border-radius: 999px; color: var(--text); font-weight: 500;
+  }
+  .mockup-nav button.active {
+    background: var(--primary); color: white; border-color: var(--primary);
+  }
+  .frames {
+    display: flex; gap: 24px; flex-wrap: wrap; justify-content: center;
+  }
+  .frame {
+    width: 390px; height: 844px;
+    background: var(--bg);
+    border-radius: 28px;
+    box-shadow: 0 12px 32px rgba(0,0,0,.15);
+    overflow: hidden;
+    position: relative;
+    border: 1px solid #d0d4dc;
+  }
+  .frame-label {
+    text-align: center; font-size: 12px; color: var(--text-sub);
+    margin-top: 8px; font-weight: 500;
+  }
+
+  /* ===== App shell (inside each frame) ===== */
+  .app {
+    display: flex; flex-direction: column; height: 100%;
+    background: var(--bg);
+  }
+
+  /* ===== Top bar ===== */
+  .topbar {
+    background: linear-gradient(180deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: white;
+    padding: 14px 14px 12px;
+    flex-shrink: 0;
+  }
+  .topbar-row1 {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 10px;
+  }
+  .topbar-back {
+    width: 32px; height: 32px; border-radius: 8px;
+    border: none; background: rgba(255,255,255,.18);
+    color: white; font-size: 18px; line-height: 1;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .topbar-title {
+    font-size: 17px; font-weight: 600; flex: 1;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .topbar-action {
+    width: 32px; height: 32px; border-radius: 8px;
+    border: none; background: rgba(255,255,255,.18);
+    color: white; font-size: 16px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .search-box {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,.95); border-radius: 8px;
+    padding: 8px 12px;
+  }
+  .search-box input {
+    flex: 1; border: none; outline: none; background: transparent;
+    color: var(--text); font-size: 14px;
+  }
+  .search-box::before {
+    content: '🔍'; font-size: 13px; opacity: .6;
+  }
+
+  /* ===== Filter chips ===== */
+  .chips {
+    display: flex; gap: 6px; padding: 10px 12px 6px;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    flex-shrink: 0;
+    padding: 6px 12px; border-radius: 999px;
+    background: var(--gray-soft); color: var(--text);
+    font-size: 12px; font-weight: 500;
+    border: 1px solid transparent;
+    white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 4px;
+  }
+  .chip.active {
+    background: var(--primary); color: white; border-color: var(--primary);
+  }
+  .chip-count {
+    background: rgba(255,255,255,.3); color: inherit;
+    padding: 1px 6px; border-radius: 8px; font-size: 11px; font-weight: 600;
+  }
+  .chip:not(.active) .chip-count {
+    background: var(--surface); color: var(--text-sub);
+  }
+
+  /* ===== List view ===== */
+  .scroll {
+    flex: 1; overflow-y: auto;
+    padding: 8px 12px 80px;
+  }
+  .list-meta {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 4px 4px 8px;
+    font-size: 12px; color: var(--text-sub);
+  }
+  .sort-btn {
+    border: none; background: transparent; color: var(--primary);
+    font-size: 12px; font-weight: 500; padding: 2px 6px;
+  }
+
+  .pcard {
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
+    box-shadow: var(--shadow);
+    display: flex; gap: 12px;
+    border-left: 4px solid transparent;
+  }
+  .pcard.s-sokutei { border-left-color: var(--warning); }
+  .pcard.s-shukka { border-left-color: var(--primary); }
+  .pcard.s-sold   { border-left-color: var(--success); }
+  .pcard.s-overdue { border-left-color: var(--danger); background: #fff8f8; }
+
+  .pcard-thumb {
+    width: 56px; height: 56px; border-radius: 8px;
+    background: var(--gray-soft); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-mute); font-size: 11px;
+    overflow: hidden;
+  }
+  .pcard-body { flex: 1; min-width: 0; }
+  .pcard-row1 {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 4px;
+  }
+  .pcard-kanri {
+    font-weight: 700; font-size: 15px; color: var(--primary);
+    letter-spacing: .02em;
+  }
+  .pcard-badge {
+    margin-left: auto;
+    padding: 2px 8px; border-radius: 6px;
+    font-size: 11px; font-weight: 600;
+  }
+  .pcard-badge.b-warning { background: var(--warning-soft); color: var(--warning); }
+  .pcard-badge.b-primary { background: var(--primary-soft); color: var(--primary); }
+  .pcard-badge.b-success { background: var(--success-soft); color: var(--success); }
+  .pcard-badge.b-danger  { background: var(--danger-soft); color: var(--danger); }
+  .pcard-row2 {
+    color: var(--text); font-size: 13px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    margin-bottom: 2px;
+  }
+  .pcard-row3 {
+    display: flex; gap: 8px; align-items: center;
+    color: var(--text-sub); font-size: 11px;
+  }
+  .pcard-deadline {
+    color: var(--warning); font-weight: 600;
+  }
+  .pcard-deadline.today { color: var(--danger); }
+
+  /* group header */
+  .group-h {
+    padding: 12px 4px 6px;
+    font-size: 12px; font-weight: 700; color: var(--text-sub);
+    text-transform: uppercase; letter-spacing: .04em;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .group-h::before {
+    content: ''; width: 4px; height: 12px;
+    background: var(--primary); border-radius: 2px;
+  }
+
+  /* ===== Bottom tab bar ===== */
+  .tabbar {
+    flex-shrink: 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    padding: 6px 0 max(6px, env(safe-area-inset-bottom));
+  }
+  .tab {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 4px 0;
+    border: none; background: transparent;
+    color: var(--text-sub);
+  }
+  .tab.active { color: var(--primary); }
+  .tab-icon { font-size: 20px; line-height: 1; }
+  .tab-label { font-size: 10px; font-weight: 500; }
+
+  /* ===== Detail view ===== */
+  .detail-hero {
+    background: var(--surface);
+    padding: 14px 16px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .hero-kanri {
+    font-size: 22px; font-weight: 700; color: var(--primary);
+    letter-spacing: .02em;
+  }
+  .hero-meta {
+    display: flex; flex-wrap: wrap; gap: 6px 10px;
+    margin-top: 6px;
+    font-size: 12px; color: var(--text-sub);
+  }
+  .hero-meta b { color: var(--text); font-weight: 600; }
+  .hero-status-row {
+    display: flex; align-items: center; gap: 8px;
+    margin-top: 12px;
+  }
+  .hero-status {
+    padding: 4px 12px; border-radius: 999px;
+    font-size: 12px; font-weight: 600;
+    background: var(--warning-soft); color: var(--warning);
+    border: 1px solid var(--warning);
+  }
+  .hero-deadline {
+    margin-left: auto; font-size: 11px; color: var(--warning); font-weight: 600;
+  }
+
+  /* horizontal tab strip for detail sections */
+  .sec-tabs {
+    background: var(--surface);
+    display: flex; gap: 0;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .sec-tabs::-webkit-scrollbar { display: none; }
+  .sec-tab {
+    flex-shrink: 0;
+    padding: 12px 14px;
+    border: none; background: transparent;
+    font-size: 13px; font-weight: 500;
+    color: var(--text-sub);
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    position: relative;
+  }
+  .sec-tab.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+    font-weight: 700;
+  }
+  .sec-tab .dot {
+    position: absolute; top: 6px; right: 6px;
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--danger);
+  }
+
+  .sec-body {
+    padding: 14px 16px 100px;
+  }
+
+  /* form rows */
+  .frow {
+    margin-bottom: 14px;
+  }
+  .frow-label {
+    display: block; font-size: 12px; font-weight: 600; color: var(--text-sub);
+    margin-bottom: 4px;
+  }
+  .frow-label .req { color: var(--danger); margin-left: 2px; }
+  .finput {
+    width: 100%;
+    padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface);
+    font-size: 14px; color: var(--text);
+  }
+  .finput:focus {
+    outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft);
+  }
+  .finput[readonly] { background: #f7f9fc; color: var(--text-sub); }
+  .ftextarea { resize: vertical; min-height: 60px; }
+
+  /* 採寸グリッド: 2列 → 数値が縦に並ばず一覧性が上がる */
+  .meas-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 10px 12px;
+  }
+  .meas-cell .frow-label {
+    font-size: 11px; margin-bottom: 2px;
+  }
+  .meas-cell .finput {
+    padding: 8px 10px; font-size: 14px;
+  }
+
+  /* image field */
+  .img-row {
+    margin-bottom: 16px;
+  }
+  .img-row .frow-label { margin-bottom: 6px; }
+  .img-card {
+    display: flex; gap: 12px; align-items: flex-start;
+  }
+  .img-prev {
+    width: 90px; height: 90px; border-radius: 8px;
+    background: var(--gray-soft); border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-mute); font-size: 11px; text-align: center; padding: 4px;
+    overflow: hidden; flex-shrink: 0;
+  }
+  .img-prev img { width: 100%; height: 100%; object-fit: cover; }
+  .img-prev.loading { color: var(--primary); }
+  .img-actions { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  .btn-pick {
+    padding: 8px 14px; background: var(--primary); color: white;
+    border: none; border-radius: 8px; font-size: 13px; font-weight: 500;
+    align-self: flex-start;
+  }
+  .btn-pick.ghost {
+    background: var(--surface); color: var(--primary); border: 1px solid var(--primary);
+  }
+  .img-hint { font-size: 11px; color: var(--text-sub); }
+
+  /* sticky save bar */
+  .savebar {
+    position: absolute; left: 12px; right: 12px; bottom: 70px;
+    background: var(--surface);
+    border-radius: 12px; box-shadow: var(--shadow-lg);
+    padding: 10px 12px;
+    display: flex; align-items: center; gap: 10px;
+    border: 1px solid var(--border);
+  }
+  .savebar-info {
+    flex: 1; font-size: 12px; color: var(--text-sub);
+  }
+  .savebar-info b { color: var(--text); font-weight: 600; }
+  .btn-cancel {
+    padding: 8px 14px; background: transparent; color: var(--text-sub);
+    border: 1px solid var(--border); border-radius: 8px;
+    font-size: 13px;
+  }
+  .btn-save {
+    padding: 8px 16px; background: var(--success); color: white;
+    border: none; border-radius: 8px; font-size: 13px; font-weight: 600;
+  }
+
+  /* sub-row stats */
+  .stat-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;
+    margin-bottom: 14px;
+  }
+  .stat {
+    background: var(--surface);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .stat-label { font-size: 11px; color: var(--text-sub); }
+  .stat-value { font-size: 18px; font-weight: 700; color: var(--text); margin-top: 2px; }
+  .stat-value.pos { color: var(--success); }
+  .stat-value.neg { color: var(--danger); }
+
+  /* purchase view */
+  .pucard {
+    background: var(--surface); border-radius: 12px; padding: 12px 14px;
+    margin-bottom: 8px; box-shadow: var(--shadow);
+  }
+  .pucard-row1 {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 4px;
+  }
+  .pucard-id { font-weight: 700; color: var(--primary); }
+  .pucard-date { color: var(--text-sub); font-size: 12px; }
+  .pucard-progress {
+    margin-left: auto; font-size: 11px; color: var(--text-sub);
+  }
+  .pucard-bar {
+    height: 4px; background: var(--gray-soft); border-radius: 2px;
+    overflow: hidden; margin-top: 6px;
+  }
+  .pucard-bar-fill {
+    height: 100%; background: var(--primary);
+  }
+  .pucard-bar-fill.full { background: var(--success); }
+
+  /* mockup notes */
+  .notes {
+    max-width: 1100px; margin: 32px auto 0;
+    background: var(--surface); border-radius: 12px; padding: 20px 24px;
+    box-shadow: var(--shadow);
+  }
+  .notes h3 { margin: 0 0 12px; font-size: 16px; }
+  .notes ul { margin: 0; padding-left: 20px; }
+  .notes li { margin-bottom: 6px; line-height: 1.7; }
+  .notes .compare {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px;
+    margin-top: 16px;
+  }
+  .notes .col h4 { margin: 0 0 8px; font-size: 13px; color: var(--text-sub); }
+  .notes .col.before h4::before { content: '❌ '; }
+  .notes .col.after h4::before { content: '✅ '; }
+</style>
+</head>
+<body>
+
+<div class="mockup-wrap">
+  <h1 class="mockup-title">仕入れ管理 — 新UI モックアップ</h1>
+  <p class="mockup-sub">AppSheet 風の縦長フォームから、日々の業務動線に沿った構成に再設計。3画面の主要遷移を比較してください。</p>
+
+  <div class="frames">
+
+    <!-- ============================================================== -->
+    <!-- Frame 1: Product list -->
+    <!-- ============================================================== -->
+    <div>
+    <div class="frame"><div class="app">
+      <div class="topbar">
+        <div class="topbar-row1">
+          <button class="topbar-back">☰</button>
+          <div class="topbar-title">商品管理</div>
+          <button class="topbar-action">＋</button>
+        </div>
+        <div class="search-box">
+          <input placeholder="管理番号・ブランドで検索">
+        </div>
+      </div>
+
+      <div class="chips">
+        <button class="chip active">すべて<span class="chip-count">5,247</span></button>
+        <button class="chip">採寸待ち<span class="chip-count">12</span></button>
+        <button class="chip">出品待ち<span class="chip-count">38</span></button>
+        <button class="chip">発送待ち<span class="chip-count">7</span></button>
+        <button class="chip">本日期限<span class="chip-count">2</span></button>
+      </div>
+
+      <div class="scroll">
+        <div class="list-meta">
+          <span>5,247件</span>
+          <button class="sort-btn">登録日新しい順 ▾</button>
+        </div>
+
+        <div class="group-h">本日期限</div>
+
+        <div class="pcard s-overdue">
+          <div class="pcard-thumb">📷</div>
+          <div class="pcard-body">
+            <div class="pcard-row1">
+              <span class="pcard-kanri">ZK209</span>
+              <span class="pcard-badge b-danger">発送待ち</span>
+            </div>
+            <div class="pcard-row2">UNIQLO / Mサイズ / グレー</div>
+            <div class="pcard-row3">
+              <span class="pcard-deadline today">⏰ 本日が期限</span>
+              <span>•</span>
+              <span>nsdktts1030</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="group-h">発送待ち（明日以降）</div>
+
+        <div class="pcard s-shukka">
+          <div class="pcard-thumb">📷</div>
+          <div class="pcard-body">
+            <div class="pcard-row1">
+              <span class="pcard-kanri">ZS31</span>
+              <span class="pcard-badge b-primary">発送待ち</span>
+            </div>
+            <div class="pcard-row2">BEAMS / Lサイズ / ブラック</div>
+            <div class="pcard-row3">
+              <span class="pcard-deadline">⏰ 4/30まで（あと2日）</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="pcard s-shukka">
+          <div class="pcard-thumb">📷</div>
+          <div class="pcard-body">
+            <div class="pcard-row1">
+              <span class="pcard-kanri">ZS30</span>
+              <span class="pcard-badge b-primary">発送待ち</span>
+            </div>
+            <div class="pcard-row2">無印良品 / Sサイズ</div>
+            <div class="pcard-row3">
+              <span class="pcard-deadline">⏰ 5/1まで（あと3日）</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="group-h">採寸待ち</div>
+
+        <div class="pcard s-sokutei">
+          <div class="pcard-thumb">📷</div>
+          <div class="pcard-body">
+            <div class="pcard-row1">
+              <span class="pcard-kanri">ZT142</span>
+              <span class="pcard-badge b-warning">採寸待ち</span>
+            </div>
+            <div class="pcard-row2">GAP / 不明 / —</div>
+            <div class="pcard-row3">
+              <span>仕入れ 4/26</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="pcard s-sokutei">
+          <div class="pcard-thumb">📷</div>
+          <div class="pcard-body">
+            <div class="pcard-row1">
+              <span class="pcard-kanri">ZT141</span>
+              <span class="pcard-badge b-warning">採寸待ち</span>
+            </div>
+            <div class="pcard-row2">ZARA / —</div>
+            <div class="pcard-row3">
+              <span>仕入れ 4/26</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tabbar">
+        <button class="tab"><span class="tab-icon">📦</span><span class="tab-label">仕入れ</span></button>
+        <button class="tab active"><span class="tab-icon">👕</span><span class="tab-label">商品</span></button>
+        <button class="tab"><span class="tab-icon">🚚</span><span class="tab-label">発送</span></button>
+        <button class="tab"><span class="tab-icon">📍</span><span class="tab-label">場所</span></button>
+        <button class="tab"><span class="tab-icon">⋯</span><span class="tab-label">その他</span></button>
+      </div>
+    </div></div>
+    <div class="frame-label">① 商品一覧（フィルタ＋優先度グループ化）</div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- Frame 2: Detail with section tabs (基本情報) -->
+    <!-- ============================================================== -->
+    <div>
+    <div class="frame"><div class="app">
+      <div class="topbar">
+        <div class="topbar-row1">
+          <button class="topbar-back">←</button>
+          <div class="topbar-title">商品詳細</div>
+          <button class="topbar-action">⋯</button>
+        </div>
+      </div>
+
+      <div class="detail-hero">
+        <div class="hero-kanri">ZS31</div>
+        <div class="hero-meta">
+          <span><b>BEAMS</b></span>
+          <span>Lサイズ</span>
+          <span>ブラック</span>
+        </div>
+        <div class="hero-status-row">
+          <span class="hero-status">発送待ち</span>
+          <span class="hero-deadline">⏰ 4/30まで（あと2日）</span>
+        </div>
+      </div>
+
+      <div class="sec-tabs">
+        <button class="sec-tab active">基本</button>
+        <button class="sec-tab">採寸</button>
+        <button class="sec-tab">撮影・出品</button>
+        <button class="sec-tab">販売</button>
+        <button class="sec-tab">発送 <span class="dot"></span></button>
+        <button class="sec-tab">備考</button>
+      </div>
+
+      <div class="scroll" style="padding: 0;">
+      <div class="sec-body">
+        <div class="frow">
+          <label class="frow-label">ブランド<span class="req">*</span></label>
+          <input class="finput" value="BEAMS">
+        </div>
+        <div class="frow">
+          <label class="frow-label">タグ表記</label>
+          <input class="finput" value="BEAMS BOY">
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="frow">
+            <label class="frow-label">メルカリサイズ</label>
+            <select class="finput"><option>L</option></select>
+          </div>
+          <div class="frow">
+            <label class="frow-label">性別</label>
+            <select class="finput"><option>メンズ</option></select>
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+          <div class="frow">
+            <label class="frow-label">カテゴリ1</label>
+            <select class="finput"><option>トップス</option></select>
+          </div>
+          <div class="frow">
+            <label class="frow-label">カテゴリ2</label>
+            <select class="finput"><option>シャツ</option></select>
+          </div>
+          <div class="frow">
+            <label class="frow-label">カテゴリ3</label>
+            <select class="finput"><option>長袖</option></select>
+          </div>
+        </div>
+        <div class="frow">
+          <label class="frow-label">カラー</label>
+          <input class="finput" value="ブラック">
+        </div>
+        <div class="frow">
+          <label class="frow-label">デザイン特徴</label>
+          <textarea class="finput ftextarea">ボタンダウン襟、胸ポケット片側、無地</textarea>
+        </div>
+      </div>
+      </div>
+
+      <div class="savebar">
+        <div class="savebar-info">変更 <b>2件</b> あり</div>
+        <button class="btn-cancel">破棄</button>
+        <button class="btn-save">保存</button>
+      </div>
+
+      <div class="tabbar">
+        <button class="tab"><span class="tab-icon">📦</span><span class="tab-label">仕入れ</span></button>
+        <button class="tab active"><span class="tab-icon">👕</span><span class="tab-label">商品</span></button>
+        <button class="tab"><span class="tab-icon">🚚</span><span class="tab-label">発送</span></button>
+        <button class="tab"><span class="tab-icon">📍</span><span class="tab-label">場所</span></button>
+        <button class="tab"><span class="tab-icon">⋯</span><span class="tab-label">その他</span></button>
+      </div>
+    </div></div>
+    <div class="frame-label">② 詳細（横タブで章を切替・編集差分つき保存バー）</div>
+    </div>
+
+    <!-- ============================================================== -->
+    <!-- Frame 3: Detail - 採寸タブ（2列グリッド） + 発送タブの一部 -->
+    <!-- ============================================================== -->
+    <div>
+    <div class="frame"><div class="app">
+      <div class="topbar">
+        <div class="topbar-row1">
+          <button class="topbar-back">←</button>
+          <div class="topbar-title">商品詳細</div>
+          <button class="topbar-action">⋯</button>
+        </div>
+      </div>
+
+      <div class="detail-hero">
+        <div class="hero-kanri">ZS31</div>
+        <div class="hero-meta">
+          <span><b>BEAMS</b></span><span>Lサイズ</span><span>ブラック</span>
+        </div>
+      </div>
+
+      <div class="sec-tabs">
+        <button class="sec-tab">基本</button>
+        <button class="sec-tab active">採寸</button>
+        <button class="sec-tab">撮影・出品</button>
+        <button class="sec-tab">販売</button>
+        <button class="sec-tab">発送 <span class="dot"></span></button>
+        <button class="sec-tab">備考</button>
+      </div>
+
+      <div class="scroll" style="padding: 0;">
+      <div class="sec-body">
+        <div style="font-size: 12px; color: var(--text-sub); margin-bottom: 10px;">
+          採寸 (cm) — 該当しない項目は空欄でOK
+        </div>
+        <div class="meas-grid">
+          <div class="meas-cell"><label class="frow-label">着丈</label><input class="finput" value="68" inputmode="decimal"></div>
+          <div class="meas-cell"><label class="frow-label">肩幅</label><input class="finput" value="44" inputmode="decimal"></div>
+          <div class="meas-cell"><label class="frow-label">身幅</label><input class="finput" value="52" inputmode="decimal"></div>
+          <div class="meas-cell"><label class="frow-label">袖丈</label><input class="finput" value="60" inputmode="decimal"></div>
+          <div class="meas-cell"><label class="frow-label">裄丈</label><input class="finput" placeholder="—"></div>
+          <div class="meas-cell"><label class="frow-label">総丈</label><input class="finput" placeholder="—"></div>
+          <div class="meas-cell"><label class="frow-label">ウエスト</label><input class="finput" placeholder="—"></div>
+          <div class="meas-cell"><label class="frow-label">股上</label><input class="finput" placeholder="—"></div>
+          <div class="meas-cell"><label class="frow-label">股下</label><input class="finput" placeholder="—"></div>
+          <div class="meas-cell"><label class="frow-label">ワタリ</label><input class="finput" placeholder="—"></div>
+          <div class="meas-cell"><label class="frow-label">裾幅</label><input class="finput" placeholder="—"></div>
+          <div class="meas-cell"><label class="frow-label">ヒップ</label><input class="finput" placeholder="—"></div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px;">
+          <div class="frow"><label class="frow-label">採寸日</label><input class="finput" type="date" value="2026-04-27"></div>
+          <div class="frow"><label class="frow-label">採寸者</label><select class="finput"><option>森</option></select></div>
+        </div>
+
+        <div style="height: 14px;"></div>
+        <div style="font-size: 12px; color: var(--text-sub); margin-bottom: 10px; padding-top: 10px; border-top: 1px solid var(--border);">
+          発送関係（参考表示）
+        </div>
+
+        <div class="img-row">
+          <label class="frow-label">QR・バーコード画像</label>
+          <div class="img-card">
+            <a class="img-prev" href="#"><img src="https://placehold.jp/16/cccccc/000000/180x180.png?text=QR" alt=""></a>
+            <div class="img-actions">
+              <button class="btn-pick">📷 撮影／差替え</button>
+              <span class="img-hint">最大1600px・JPG</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="img-row">
+          <label class="frow-label">売却済み商品画像</label>
+          <div class="img-card">
+            <div class="img-prev loading">読み込み中…</div>
+            <div class="img-actions">
+              <button class="btn-pick ghost">📷 撮影／差替え</button>
+              <span class="img-hint">旧形式画像から自動解決中</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      </div>
+
+      <div class="tabbar">
+        <button class="tab"><span class="tab-icon">📦</span><span class="tab-label">仕入れ</span></button>
+        <button class="tab active"><span class="tab-icon">👕</span><span class="tab-label">商品</span></button>
+        <button class="tab"><span class="tab-icon">🚚</span><span class="tab-label">発送</span></button>
+        <button class="tab"><span class="tab-icon">📍</span><span class="tab-label">場所</span></button>
+        <button class="tab"><span class="tab-icon">⋯</span><span class="tab-label">その他</span></button>
+      </div>
+    </div></div>
+    <div class="frame-label">③ 採寸タブ（2列グリッドで一覧性UP）＋発送画像</div>
+    </div>
+
+  </div>
+
+  <div class="notes">
+    <h3>変更ポイント</h3>
+    <div class="compare">
+      <div class="col before">
+        <h4>現状（AppSheet 風）</h4>
+        <ul>
+          <li>10セクションが縦に積まれ、発送関係まで <b>1〜2画面分スクロール</b> が必要</li>
+          <li>採寸12項目が縦1列で、画面に4〜5項目しか同時表示されない</li>
+          <li>フィルタが画面上部のリンクで <b>件数が見えない</b></li>
+          <li>本日期限・期限超過のカードが他と同列で <b>視覚的優先度が伝わらない</b></li>
+          <li>保存ボタンが画面右下のFABで、<b>編集差分が見えない</b>（変更なしでも押せる）</li>
+        </ul>
+      </div>
+      <div class="col after">
+        <h4>新UIの提案</h4>
+        <ul>
+          <li>詳細ページに <b>横タブ</b>（基本/採寸/撮影/販売/発送/備考）を追加。1画面に必要な情報だけ</li>
+          <li>採寸を <b>2列グリッド</b> 化。12項目すべてが1画面に収まる</li>
+          <li>フィルタチップに <b>件数バッジ</b>。今やるべき仕事量が一目で分かる</li>
+          <li>本日期限を <b>一覧の最上段にグループ化</b>＋赤左ボーダー＋淡赤背景で強調</li>
+          <li>編集中だけ表示される <b>差分付き保存バー</b>（変更件数を表示・破棄ボタン併設）</li>
+          <li>未入力タブに <b>赤ドット</b> を表示（例：発送タブに未入力の画像があると気づける）</li>
+          <li>商品カードに <b>サムネイル枠</b> 追加（QR/売却済み画像があれば自動表示できる将来拡張枠）</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="notes" style="margin-top: 16px;">
+    <h3>退避と切戻し</h3>
+    <ul>
+      <li>現状コード: git tag <code>ui-appsheet-baseline</code>（commit 66030ee）に退避済み</li>
+      <li>HTML バックアップ: <code>workers/shiire-kanri/pages/index-appsheet.html.bak</code></li>
+      <li>切戻し手順: <code>cp pages/index-appsheet.html.bak pages/index.html && wrangler deploy</code> で即復帰</li>
+      <li>このモックアップは <code>pages/mockup.html</code>（静的ファイル）。本番デプロイ後 <code>https://shiire-kanri.nsdktts1030.workers.dev/mockup.html</code> でも閲覧可</li>
+    </ul>
+  </div>
+</div>
+
+</body>
+</html>
