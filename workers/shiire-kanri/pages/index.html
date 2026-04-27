@@ -36,11 +36,11 @@
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", "Meiryo", sans-serif;
     background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5;
-    padding-top: 56px; padding-bottom: 72px; min-height: 100vh;
+    padding-top: 102px; padding-bottom: 72px; min-height: 100vh;
     -webkit-tap-highlight-color: transparent;
     -webkit-font-smoothing: antialiased;
   }
-  body.has-chips { padding-top: 100px; }
+  body.has-chips { padding-top: 146px; }
   /* グローバル focus-visible: WCAG 対応 */
   button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible {
     outline: 2px solid var(--primary); outline-offset: 2px;
@@ -134,7 +134,7 @@
   }
   /* ===== chips フィルタストリップ（モックアップ） ===== */
   .chips-bar {
-    position: fixed; top: 56px; left: 0; right: 0; z-index: 90;
+    position: fixed; top: 102px; left: 0; right: 0; z-index: 90;
     background: var(--surface); border-bottom: 1px solid var(--border);
     box-shadow: 0 2px 4px rgba(0,0,0,.04);
   }
@@ -456,7 +456,7 @@
     overflow-x: auto;
     border-bottom: 1px solid var(--border);
     margin: 0 -12px;
-    position: sticky; top: 56px; z-index: 60;
+    position: sticky; top: 102px; z-index: 60;
   }
   .sec-tabs::-webkit-scrollbar { display: none; }
   .sec-tab {
