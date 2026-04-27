@@ -9,18 +9,19 @@ export async function lookupAiPrefill(request, env) {
   const kanri = String(url.searchParams.get('kanri') || '').trim();
   if (!kanri) return jsonError('kanri required', 400);
 
+  // KV ヒット時は ~50ms で返却。未ヒット時は AI画像判定シート（GAS）にフォールバック。
+  // KV TTL 切れ／タスキ箱未アップだが手動でシートに値がある等のケースを取りこぼさない。
   if (env.GAS_PROXY_CACHE) {
     try {
       const cached = await env.GAS_PROXY_CACHE.get('ai-result:' + kanri);
       if (cached) {
         const ai = JSON.parse(cached);
         const fields = mapAiResultToFields_(ai);
-        return jsonOk({ fields, found: Object.keys(fields).length > 0, source: 'kv' });
+        if (Object.keys(fields).length > 0) {
+          return jsonOk({ fields, found: true, source: 'kv' });
+        }
       }
-      // KV はバインド済みかつ未ヒット = タスキ箱画像未アップ／Gemini判定未完了。
-      // GAS フォールバック（~1s）はかけずに即時 empty を返して UX を維持する
-      return jsonOk({ fields: {}, found: false, source: 'kv-miss' });
-    } catch (_) { /* KV 例外時のみ GAS にフォールバック */ }
+    } catch (_) { /* KV 例外は無視して GAS にフォールバック */ }
   }
 
   let res;
