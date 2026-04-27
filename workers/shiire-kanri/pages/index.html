@@ -406,6 +406,36 @@ document.addEventListener('click', function(e){
   input.focus();
 });
 
+// タグ表記 入力／変更で メルカリサイズ を即時派生（詳細編集 f_ / 新規作成 cf_ 共通）
+// 既存値がある場合は手動入力を尊重して上書きしない
+document.addEventListener('input', function(e){
+  var t = e.target;
+  if (!t || !t.id) return;
+  var TAG_IDS = ['f_' + escFieldId_('タグ表記'), 'cf_' + escFieldId_('タグ表記')];
+  if (TAG_IDS.indexOf(t.id) < 0) return;
+  var prefix = t.id.slice(0, t.id.indexOf('_') + 1); // 'f_' or 'cf_'
+  var sizeEl = document.getElementById(prefix + escFieldId_('メルカリサイズ'));
+  if (!sizeEl) return;
+  var derived = (typeof convertTagToMercariSize_ === 'function') ? convertTagToMercariSize_(t.value) : '';
+  if (!derived) return;
+  // SELECT の場合は選択肢に無ければ追加してから選択
+  if (sizeEl.tagName === 'SELECT') {
+    var has = false;
+    for (var i = 0; i < sizeEl.options.length; i++) {
+      if (sizeEl.options[i].value === derived) { has = true; break; }
+    }
+    if (!has) {
+      var opt = document.createElement('option');
+      opt.value = derived; opt.textContent = derived;
+      sizeEl.appendChild(opt);
+    }
+  }
+  sizeEl.value = derived;
+});
+function escFieldId_(name) {
+  return name.replace(/[^A-Za-z0-9_]/g, function(ch){ return '_' + ch.charCodeAt(0).toString(16); });
+}
+
 // 設定シートからプルダウンを引く項目（キー=フォーム項目名, 値=設定シートの列ヘッダー）
 // カテゴリ1 列が設定シートに無い場合はテキスト入力にフォールバック（settingsOptionsFor_ が null を返す）
 var SETTINGS_FIELD_MAP = {

@@ -34,6 +34,11 @@ database_id = "5a45ff40-69ca-4a2a-9e75-daa702e959e8"
 binding = "CACHE"
 id = "39aa093878e7425da7ecedcd31b7d274"
 
+# gas-proxy 側 CACHE を読取専用で参照（AI判定キャッシュ ai-result:<kanri> を直読みして高速化）
+[[kv_namespaces]]
+binding = "GAS_PROXY_CACHE"
+id = "9a4f7973bc644ab086397fd71564985f"
+
 # Secrets (wrangler secret put で設定)
 # - GAS_API_URL          : shiire-kanri GAS Web App URL (deploy ID 含む /exec)
 # - SYNC_SECRET          : GAS との共通シークレット (Sheets ダンプ・書き込み認可)

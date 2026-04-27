@@ -2,10 +2,23 @@ import { jsonOk, jsonError } from '../utils/response.js';
 
 // AI画像判定シートの管理番号 lookup（AppSheet Initial Value 相当）
 // GET /api/ai/prefill?kanri=zB1
+// 高速パス: gas-proxy 側 KV (ai-result:<kanri>) を直読みして GAS 往復をスキップ
+// フォールバック: GAS Web App
 export async function lookupAiPrefill(request, env) {
   const url = new URL(request.url);
   const kanri = String(url.searchParams.get('kanri') || '').trim();
   if (!kanri) return jsonError('kanri required', 400);
+
+  if (env.GAS_PROXY_CACHE) {
+    try {
+      const cached = await env.GAS_PROXY_CACHE.get('ai-result:' + kanri);
+      if (cached) {
+        const ai = JSON.parse(cached);
+        const fields = mapAiResultToFields_(ai);
+        return jsonOk({ fields, found: Object.keys(fields).length > 0, source: 'kv' });
+      }
+    } catch (_) { /* KV 失敗は無視して GAS にフォールバック */ }
+  }
 
   let res;
   try {
@@ -21,7 +34,32 @@ export async function lookupAiPrefill(request, env) {
   let data;
   try { data = await res.json(); } catch { return jsonError('gas non-json', 502); }
   if (!data || !data.ok) return jsonError(data && data.error || 'gas error', 502);
-  return jsonOk({ fields: data.fields || {}, found: !!data.found });
+  return jsonOk({ fields: data.fields || {}, found: !!data.found, source: 'gas' });
+}
+
+// gas-proxy KV (英語キー Gemini 出力) → AI画像判定シート列名 (日本語) にマッピング
+// saisun-list/SyncApi.gs の fieldToHeader と整合
+function mapAiResultToFields_(ai) {
+  const map = {
+    brand: 'ブランド',
+    tagLabel: 'タグ表記',
+    gender: '性別',
+    category1: 'カテゴリ1',
+    category2: 'カテゴリ2',
+    category3: 'カテゴリ3',
+    design: 'デザイン特徴',
+    color: 'カラー',
+    pocket: 'ポケット',
+  };
+  const out = {};
+  if (!ai || typeof ai !== 'object') return out;
+  for (const k in map) {
+    const v = ai[k];
+    if (v == null) continue;
+    const s = String(v).trim();
+    if (s) out[map[k]] = s;
+  }
+  return out;
 }
 
 async function postFollowingRedirects(url, body) {
