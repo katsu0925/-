@@ -164,6 +164,18 @@ export async function uploadImage(request, env, user) {
 
 // POST /api/image/resolve  body: { kanri, field, path }
 // AppSheet 旧形式の相対パスを Drive シェアURL に解決。KV キャッシュ 1日。
+// Drive の uc?id=FILE_ID は <img> タグから直接表示できない（リダイレクト/ウイルススキャン警告）
+// → thumbnail?id=FILE_ID&sz=w500 に正規化して返す（GAS 側変更不要・既存KVキャッシュも自動対応）
+function normalizeDriveUrl_(url) {
+  if (!url) return url;
+  // /uc?id=FILE_ID パターン → /thumbnail?id=FILE_ID&sz=w500
+  var m = url.match(/^https?:\/\/drive\.google\.com\/uc\?(.*&)?id=([^&]+)/);
+  if (m) return 'https://drive.google.com/thumbnail?id=' + m[2] + '&sz=w500';
+  // /file/d/FILE_ID/view パターン → /thumbnail?id=FILE_ID&sz=w500
+  var m2 = url.match(/^https?:\/\/drive\.google\.com\/file\/d\/([^/]+)/);
+  if (m2) return 'https://drive.google.com/thumbnail?id=' + m2[1] + '&sz=w500';
+  return url;
+}
 export async function resolveImage(request, env, user) {
   let body;
   try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
@@ -176,7 +188,7 @@ export async function resolveImage(request, env, user) {
   if (env.CACHE) {
     try {
       const cached = await env.CACHE.get(cacheKey);
-      if (cached) return jsonOk({ url: cached, cached: true });
+      if (cached) return jsonOk({ url: normalizeDriveUrl_(cached), cached: true });
     } catch (err) {
       console.warn('[resolve image] kv get failed', err.message);
     }
@@ -185,15 +197,17 @@ export async function resolveImage(request, env, user) {
   const gasRes = await callGas(env, 'resolveImage', { kanri, field, path }, user);
   if (!gasRes.ok) return jsonError(gasRes.error || 'gas error', 502);
 
-  if (env.CACHE && gasRes.url) {
+  const normalizedUrl = normalizeDriveUrl_(gasRes.url);
+
+  if (env.CACHE && normalizedUrl) {
     try {
-      await env.CACHE.put(cacheKey, gasRes.url, { expirationTtl: 86400 });
+      await env.CACHE.put(cacheKey, normalizedUrl, { expirationTtl: 86400 });
     } catch (err) {
       console.warn('[resolve image] kv put failed', err.message);
     }
   }
 
-  return jsonOk({ url: gasRes.url, fileName: gasRes.fileName });
+  return jsonOk({ url: normalizedUrl, fileName: gasRes.fileName });
 }
 
 // POST /api/create/purchase  body: { date, category, amount, shipping, planned, place, content, supplierId, registerUser }

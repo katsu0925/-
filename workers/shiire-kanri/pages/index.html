@@ -37,6 +37,7 @@
     font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", "Meiryo", sans-serif;
     background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5;
     padding-top: 102px; padding-bottom: 72px; min-height: 100vh;
+    transition: padding-top .12s;
     -webkit-tap-highlight-color: transparent; overflow-x: hidden;
     -webkit-font-smoothing: antialiased;
   }
@@ -132,14 +133,17 @@
     border: 1px solid rgba(21,101,192,.18);
   }
   /* ===== chips フィルタストリップ（モックアップ） ===== */
-  .chips {
-    display: flex; gap: 6px; padding: 10px 12px 8px;
-    overflow-x: auto; -webkit-overflow-scrolling: touch;
+  /* chips-bar は appbar 直下に固定配置（body の overflow-x:hidden で sticky が崩れるのを回避） */
+  .chips-bar {
+    position: fixed; top: 102px; left: 0; right: 0; z-index: 90;
     background: var(--surface); border-bottom: 1px solid var(--border);
-    margin: -10px -12px 10px;
-    /* デタウリ topbar と同じ形式: スクロール時もヘッダ下に固定（appbar 直下に貼り付け） */
-    position: sticky; top: 102px; z-index: 50;
     box-shadow: 0 2px 4px rgba(0,0,0,.04);
+  }
+  .chips-bar[hidden] { display: none !important; }
+  body.has-chips { padding-top: 146px; }
+  .chips {
+    display: flex; gap: 6px; padding: 8px 12px;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
   }
   .chips::-webkit-scrollbar { display: none; }
   .chip {
@@ -528,6 +532,8 @@
     <button type="button" class="clear-btn" id="search-clear" aria-label="クリア" onclick="clearSearch_()">✕</button>
   </div>
 </div>
+
+<div class="chips-bar" id="chips-bar" hidden></div>
 
 <div class="drawer-mask" id="drawer-mask" onclick="closeDrawer()"></div>
 <div class="drawer" id="drawer">
@@ -1070,6 +1076,20 @@ function shouhinChipsHtml_() {
   }).join('');
   return '<div class="chips" id="chips">' + html + '</div>';
 }
+// 商品管理タブのみ chips-bar を表示。body.has-chips で padding 切替
+function updateChipsBar_() {
+  var bar = document.getElementById('chips-bar');
+  if (!bar) return;
+  if (STATE.tab === 'shouhin') {
+    bar.innerHTML = shouhinChipsHtml_();
+    bar.hidden = false;
+    document.body.classList.add('has-chips');
+  } else {
+    bar.innerHTML = '';
+    bar.hidden = true;
+    document.body.classList.remove('has-chips');
+  }
+}
 function selectChip_(filter, label) {
   STATE.filter = filter;
   STATE.filterLabel = filter ? label : '';
@@ -1148,8 +1168,14 @@ function selectTab(tab) {
 // ========== レンダリング ==========
 function render() {
   if (!STATE.allowed) { renderDenied(); return; }
-  if (STATE.view === 'detail') { renderDetail(); return; }
+  if (STATE.view === 'detail') {
+    // 詳細表示中は chips-bar を隠す
+    var bar0 = document.getElementById('chips-bar');
+    if (bar0) { bar0.hidden = true; document.body.classList.remove('has-chips'); }
+    renderDetail(); return;
+  }
   document.getElementById('appbar-title').textContent = TAB_LABELS[STATE.tab] || '仕入れ管理';
+  updateChipsBar_();
 
   if (STATE.tab === 'shouhin') {
     renderShouhinList();
@@ -1306,9 +1332,11 @@ function patchListCache_(kanri, fields) {
 async function renderShouhinList(opts) {
   opts = opts || {};
   var c = document.getElementById('content');
-  // 商品管理タブのみ chips を表示。発送/売上タブは現状 UI を維持
+  // 商品管理タブは chips-bar を appbar 直下に固定表示（renderShouhinList の innerHTML には含めない）
+  updateChipsBar_();
+  // 発送/売上タブは従来通りインライン表示
   var chip = (STATE.tab === 'shouhin')
-    ? shouhinChipsHtml_()
+    ? ''
     : (STATE.filterLabel ? '<div><span class="filter-chip">📂 ' + esc(STATE.filterLabel) + '</span></div>' : '');
   const q = (document.getElementById('search').value || '').trim();
   const params = new URLSearchParams();
