@@ -132,7 +132,16 @@
     margin-bottom: 8px; padding: 12px 14px; cursor: pointer;
     border-left: 4px solid transparent;
     transition: background .12s, box-shadow .12s;
+    display: flex; gap: 12px; align-items: flex-start;
   }
+  .card-thumb {
+    width: 56px; height: 56px; border-radius: 8px;
+    background: var(--gray-soft); flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--text-mute); font-size: 22px;
+    overflow: hidden;
+  }
+  .card-body { flex: 1; min-width: 0; }
   .card:hover { box-shadow: var(--shadow-lg); }
   .card:active { background: #f7f9fc; }
   /* ステータスでの左ボーダー色分け（モックアップ s-* 互換） */
@@ -1430,16 +1439,19 @@ function cardHtml(it) {
     cardClass += ' s-sokutei';
   }
   return '<div class="' + cardClass + '" onclick="openDetail(\'' + esc(it.kanri).replace(/\'/g,"\\'") + '\')">' +
-    '<div class="card-row1">' +
-      '<span class="card-kanri">' + esc(it.kanri) + '</span>' +
-      statusBadge +
+    '<div class="card-thumb" aria-hidden="true">📷</div>' +
+    '<div class="card-body">' +
+      '<div class="card-row1">' +
+        '<span class="card-kanri">' + esc(it.kanri) + '</span>' +
+        statusBadge +
+      '</div>' +
+      '<div class="card-row2">' +
+        '<span class="card-brand">' + esc(it.brand || '—') + '</span>' +
+        ' / ' + esc(it.size || '—') +
+        (it.color ? ' / ' + esc(it.color) : '') +
+      '</div>' +
+      shipDeadlineHtml_(it) +
     '</div>' +
-    '<div class="card-row2">' +
-      '<span class="card-brand">' + esc(it.brand || '—') + '</span>' +
-      ' / ' + esc(it.size || '—') +
-      (it.color ? ' / ' + esc(it.color) : '') +
-    '</div>' +
-    shipDeadlineHtml_(it) +
   '</div>';
 }
 
