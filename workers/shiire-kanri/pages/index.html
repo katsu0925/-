@@ -494,21 +494,103 @@ document.addEventListener('change', function(e){
   var prefix = t.id.slice(0, t.id.indexOf('_') + 1);
   deriveMercariSizeForPrefix_(prefix);
 });
+// カテゴリ1 → カテゴリ2、カテゴリ2 → カテゴリ3 の再構築（AppSheet の依存ドロップダウン同等）
+function refillCategory2_(prefix) {
+  var c1El = document.getElementById(prefix + escFieldId_('カテゴリ1'));
+  var c2El = document.getElementById(prefix + escFieldId_('カテゴリ2'));
+  if (!c2El) return;
+  var c1 = c1El ? c1El.value : '';
+  var current = c2El.value;
+  var list = category2OptionsFor_(c1);
+  c2El.innerHTML = categoryOptionsHtml_(list, list.indexOf(current) >= 0 ? current : '');
+  refillCategory3_(prefix);
+}
+function refillCategory3_(prefix) {
+  var c1El = document.getElementById(prefix + escFieldId_('カテゴリ1'));
+  var c2El = document.getElementById(prefix + escFieldId_('カテゴリ2'));
+  var c3El = document.getElementById(prefix + escFieldId_('カテゴリ3'));
+  if (!c3El) return;
+  var c1 = c1El ? c1El.value : '';
+  var c2 = c2El ? c2El.value : '';
+  var current = c3El.value;
+  var list = category3OptionsFor_(c1, c2);
+  c3El.innerHTML = categoryOptionsHtml_(list, list.indexOf(current) >= 0 ? current : '');
+}
+document.addEventListener('change', function(e){
+  var t = e.target;
+  if (!t || !t.id) return;
+  var CAT1_IDS = ['f_' + escFieldId_('カテゴリ1'), 'cf_' + escFieldId_('カテゴリ1')];
+  var CAT2_IDS = ['f_' + escFieldId_('カテゴリ2'), 'cf_' + escFieldId_('カテゴリ2')];
+  if (CAT1_IDS.indexOf(t.id) >= 0) {
+    var p1 = t.id.slice(0, t.id.indexOf('_') + 1);
+    refillCategory2_(p1);
+  } else if (CAT2_IDS.indexOf(t.id) >= 0) {
+    var p2 = t.id.slice(0, t.id.indexOf('_') + 1);
+    refillCategory3_(p2);
+  }
+});
 function escFieldId_(name) {
   return name.replace(/[^A-Za-z0-9_]/g, function(ch){ return '_' + ch.charCodeAt(0).toString(16); });
 }
 
 // 設定シートからプルダウンを引く項目（キー=フォーム項目名, 値=設定シートの列ヘッダー）
-// カテゴリ1 列が設定シートに無い場合はテキスト入力にフォールバック（settingsOptionsFor_ が null を返す）
+// カテゴリ1/2/3 は AppSheet 同等の依存プルダウン（CATEGORY*_BY_*）で生成するため、ここからは除外
 var SETTINGS_FIELD_MAP = {
   '状態': '状態',
   '発送方法': '発送方法',
   'カラー': 'カラー1',
-  'カテゴリ1': 'カテゴリ1',
-  'カテゴリ2': 'カテゴリ2',
-  'カテゴリ3': 'カテゴリ3',
   'メルカリサイズ': 'サイズ'
 };
+
+// カテゴリ1 → カテゴリ2 → カテゴリ3 の依存プルダウン（AppSheet の SWITCH/IF 同等）
+var CATEGORY1_OPTIONS = ['レディース','メンズ','キッズ'];
+var CATEGORY2_BY_CAT1 = {
+  'レディース': ['トップス','ジャケット・アウター','パンツ','スカート','ワンピース','ドレス・ブライダル','スーツ・フォーマル','スーツセットアップ','ジャージセットアップ','ルームウェア・パジャマ','サロペット・オーバーオール','マタニティ'],
+  'メンズ': ['トップス','ジャケット・アウター','パンツ','スーツ','ジャージセットアップ','ルームウェア・パジャマ','サロペット・オーバーオール'],
+  'キッズ': ['キッズ']
+};
+var CATEGORY3_BY_CAT1_CAT2 = {
+  'レディース-トップス': ['シャツ/ブラウス','Tシャツ/カットソー','ニット/セーター','カーディガン','ボレロ','アンサンブル','パーカー','トレーナー','スウェット','ベスト','ジレ','ビスチェ','チュニック','タンクトップ','キャミソール','ベアトップ','チューブトップ','ジャージ','ポロシャツ'],
+  'レディース-ジャケット・アウター': ['ダウンジャケット','ロングコート','ジャンパー','ブルゾン','テーラードジャケット','ノーカラージャケット','トレンチコート','スプリングコート','毛皮ファーコート','レザージャケット','ライダース','Gジャン','デニムジャケット','カバーオール','フリースジャケット','ボアジャケット','ダウンベスト','キルティングベスト','キルティングジャケット','ムートンコート','チェスターコート','ポンチョ','ケープコート','ピーコート','ウールコート','ダッフルコート','モッズコート','ミリタリージャケット','MA-1','スタジャン','スカジャン','マウンテンパーカー'],
+  'レディース-パンツ': ['カジュアルパンツ','デニム/ジーンズ','ショートパンツ','ハーフパンツ','ワークパンツ','カーゴパンツ','ワイドパンツ','イージーパンツ','スラックス','スキニーパンツ','キュロット','ガウチョパンツ','サルエルパンツ','ジョガーパンツ','スウェットパンツ','チノパン'],
+  'レディース-スカート': ['ロングスカート','ひざ丈スカート','ミニスカート'],
+  'レディース-ワンピース': ['ロングワンピース','ひざ丈ワンピース','ミニワンピース'],
+  'レディース-ドレス・ブライダル': ['ウェディングドレス','パーティードレス','カラードレス','ナイトドレス','キャバドレス','チャイナドレス'],
+  'レディース-スーツ・フォーマル': ['ビジネススーツ','ブラックスーツ','礼服','喪服','セレモニースーツ','リクルートスーツ'],
+  'レディース-スーツセットアップ': ['パンツセットアップ/ツーピース','パンツセットアップ/スリーピース','スカートセットアップ/ツーピース'],
+  'レディース-ルームウェア・パジャマ': ['ルームウェア','ネグリジェ','パジャマ','腹巻き','バスローブ','ガウン','ステテコ'],
+  'レディース-サロペット・オーバーオール': ['サロペット','オーバーオール','オールインワン'],
+  'レディース-マタニティ': ['マタニティ'],
+  'メンズ-トップス': ['Tシャツ','パーカー','シャツ','トレーナー','スウェット','ニット/セーター','五分袖カットソー','七分袖カットソー','長袖カットソー','ジャージ','カーディガン','ベスト','ポロシャツ','タンクトップ','ノースリーブトップス'],
+  'メンズ-ジャケット・アウター': ['ダウンジャケット','ジャンパー','ブルゾン','ナイロンジャケット','マウンテンパーカー','レザージャケット','ライダース','テーラードジャケット','Gジャン/デニムジャケット','ミリタリージャケット','スタジャン','ダウンベスト','キルティングベスト','ステンカラーコート','MA-1/フライトジャケット','チェスターコート','スカジャン','トレンチコート','モッズコート','カバーオール','ピーコート','ウールコート','ダッフルコート','ノーカラージャケット','キルティングジャケット','フリースジャケット','ボアジャケット'],
+  'メンズ-パンツ': ['デニム/ジーンズ','ワークパンツ','カーゴパンツ','ペインターパンツ','スラックス','ショートパンツ','ハーフパンツ','チノパン','オーバーオール','つなぎ','サルエルパンツ','ジョガーパンツ','スウェットパンツ','スキニーパンツ','ワイドパンツ','イージーパンツ'],
+  'メンズ-スーツ': ['ビジネススーツ','カジュアルスーツ','ブラックフォーマル','ビジネスジャケット','スーツベスト','スラックス','フォーマルシャツ','フォーマルベスト','フォーマル小物カフス','モーニング/フロックコート','燕尾服タキシード','セットアップ/ツーピース','セットアップ/スリーピース'],
+  'メンズ-ルームウェア・パジャマ': ['ルームウェア','パジャマ','バスローブ','ガウン','ステテコ','腹巻き'],
+  'メンズ-サロペット・オーバーオール': ['サロペット','オーバーオール','オールインワン']
+};
+function category2OptionsFor_(cat1) {
+  return CATEGORY2_BY_CAT1[String(cat1 || '').trim()] || [];
+}
+function category3OptionsFor_(cat1, cat2) {
+  if (String(cat1 || '').trim() === 'キッズ') return ['キッズ'];
+  return CATEGORY3_BY_CAT1_CAT2[String(cat1 || '').trim() + '-' + String(cat2 || '').trim()] || [];
+}
+// 既存値がリストに無くても保持して表示する <select> 用 options
+function categoryOptionsHtml_(list, current) {
+  var cur = String(current || '');
+  var html = '<option value=""' + (cur === '' ? ' selected' : '') + '>—</option>';
+  var found = false;
+  for (var i = 0; i < list.length; i++) {
+    var v = list[i];
+    var sel = (v === cur) ? ' selected' : '';
+    if (sel) found = true;
+    html += '<option value="' + esc(v) + '"' + sel + '>' + esc(v) + '</option>';
+  }
+  if (cur && !found) {
+    html += '<option value="' + esc(cur) + '" selected>' + esc(cur) + '（マスター外）</option>';
+  }
+  return html;
+}
 
 var TAB_LABELS = {
   shiire: '仕入れ管理', shouhin: '商品管理', hassou: '発送商品',
@@ -603,9 +685,9 @@ const DETAIL_SECTIONS = [
     ['メルカリサイズ','mercarisize'],
     ['性別','gender'],
     ['発送方法','shipmethod'],
-    ['カテゴリ1','text'],
-    ['カテゴリ2','text'],
-    ['カテゴリ3','text'],
+    ['カテゴリ1','category1'],
+    ['カテゴリ2','category2'],
+    ['カテゴリ3','category3'],
     ['デザイン特徴','textarea'],
     ['カラー','color'],
     ['ポケット','yesno'],
@@ -1166,6 +1248,15 @@ function fieldRowHtml(name, type, val) {
     input = '<select id="' + id + '">' + masterOptionsHtml_(STATE.accounts, v) + '</select>';
   } else if (type === 'mercarisize') {
     input = mercariSizeSelectHtml_(id, v);
+  } else if (type === 'category1') {
+    input = '<select id="' + id + '">' + categoryOptionsHtml_(CATEGORY1_OPTIONS, v) + '</select>';
+  } else if (type === 'category2') {
+    var c1Cur = (STATE.current && STATE.current.extra && STATE.current.extra['カテゴリ1']) || '';
+    input = '<select id="' + id + '">' + categoryOptionsHtml_(category2OptionsFor_(c1Cur), v) + '</select>';
+  } else if (type === 'category3') {
+    var c1Cur3 = (STATE.current && STATE.current.extra && STATE.current.extra['カテゴリ1']) || '';
+    var c2Cur3 = (STATE.current && STATE.current.extra && STATE.current.extra['カテゴリ2']) || '';
+    input = '<select id="' + id + '">' + categoryOptionsHtml_(category3OptionsFor_(c1Cur3, c2Cur3), v) + '</select>';
   } else {
     var setOpts = settingsOptionsFor_(name, v);
     if (setOpts) {
@@ -2001,6 +2092,13 @@ function createFieldRowHtml_(name, type, defVal) {
     input = '<select id="' + id + '">' + masterOptionsHtml_(STATE.accounts, v) + '</select>';
   } else if (type === 'mercarisize') {
     input = mercariSizeSelectHtml_(id, v);
+  } else if (type === 'category1') {
+    input = '<select id="' + id + '">' + categoryOptionsHtml_(CATEGORY1_OPTIONS, v) + '</select>';
+  } else if (type === 'category2') {
+    // 新規作成は初期空（cat1 未選択）。cat1 確定時にリスナーが options を再構築
+    input = '<select id="' + id + '">' + categoryOptionsHtml_(category2OptionsFor_(''), v) + '</select>';
+  } else if (type === 'category3') {
+    input = '<select id="' + id + '">' + categoryOptionsHtml_(category3OptionsFor_('', ''), v) + '</select>';
   } else {
     var setOptsC = settingsOptionsFor_(name, v);
     if (setOptsC) {
