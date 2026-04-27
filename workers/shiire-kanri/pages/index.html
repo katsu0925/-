@@ -813,7 +813,8 @@ window.addEventListener('DOMContentLoaded', async function(){
     STATE.allowed = !!STATE.email;
     document.getElementById('drawer-email').textContent = STATE.email || '未取得';
     if (!STATE.allowed) { renderDenied(); return; }
-    await loadMasters();
+    // マスタ取得は一覧表示には不要なのでバックグラウンドで実行（フォーム/詳細を開く時に await）
+    STATE.mastersPromise = loadMasters();
     render();
     refreshCounts();
     startPolling();
@@ -1137,12 +1138,16 @@ async function openDetail(kanri) {
   var cached = DETAIL_CACHE[kanri];
   if (cached) {
     STATE.current = cached;
+    if (STATE.mastersPromise) { try { await STATE.mastersPromise; } catch(e){} }
     renderDetail();
   } else {
     document.getElementById('content').innerHTML = '<div class="loading">読み込み中…</div>';
   }
   try {
-    const res = await api('/api/products/' + encodeURIComponent(kanri));
+    const [res] = await Promise.all([
+      api('/api/products/' + encodeURIComponent(kanri)),
+      STATE.mastersPromise || Promise.resolve(),
+    ]);
     DETAIL_CACHE[kanri] = res.item;
     // フォーム入力中（dirty）は再描画でユーザー入力を消さない
     if (STATE.view === 'detail' && !STATE.detailDirty) {
@@ -1619,7 +1624,11 @@ function closeModal() {
   document.getElementById('modal-mask').classList.remove('show');
 }
 
-function openCreatePurchaseModal() {
+async function openCreatePurchaseModal() {
+  if (STATE.mastersPromise) {
+    openModal('<h3>新規仕入れ</h3><div class="loading">読み込み中…</div>');
+    try { await STATE.mastersPromise; } catch(e){}
+  }
   var today = new Date().toISOString().slice(0, 10);
 
   // 区分コード ドロップダウン
@@ -1745,6 +1754,7 @@ function isShiireStale_(it) {
 var SHIIRE_CATEGORY_MAP = {};
 
 async function openCreateProductModal(shiireId) {
+  if (STATE.mastersPromise) { try { await STATE.mastersPromise; } catch(e){} }
   // shiireId 未指定 → 仕入れリストから選ばせる（完了済は除外）
   if (!shiireId) {
     openModal('<h3>新規商品</h3><div class="loading">仕入れ一覧を取得中…</div>');
