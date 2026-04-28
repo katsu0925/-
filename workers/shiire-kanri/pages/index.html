@@ -672,6 +672,13 @@
   .btn-primary:hover { background: var(--primary-dark); }
   .btn-secondary { background: var(--gray-soft); color: var(--text); }
   .btn-secondary:hover { background: #e3e7ee; }
+  /* 注意書きバナー */
+  .notice { background: #fff7e6; color: #8a5a00; border: 1px solid #ffd591; border-radius: 8px; padding: 10px 12px; font-size: 13px; line-height: 1.5; margin-bottom: 12px; }
+  .notice strong { color: #b07000; }
+  /* タップ可能なカード */
+  .card.clickable { cursor: pointer; transition: background-color .12s; }
+  .card.clickable:hover { background: #f7f9fc; }
+  .card.clickable:active { background: #eef2f8; }
   /* ID 多重選択ピッカー（移動報告） */
   .ids-picker { display: block; }
   .muted { color: var(--text-sub); font-size: 13px; padding: 6px 0; }
@@ -2095,6 +2102,9 @@ async function renderBashoList() {
   try {
     var res = await api('/api/moves?limit=200');
     var items = (res.items || []);
+    // 詳細モーダル用にキャッシュ
+    STATE.movesCache = {};
+    items.forEach(function(it){ if (it.moveId) STATE.movesCache[it.moveId] = it; });
     var q = (document.getElementById('search').value || '').trim().toLowerCase();
     if (q) {
       items = items.filter(function(it){
@@ -2110,7 +2120,7 @@ async function renderBashoList() {
       var done = it.done ? '<span class="badge ok">反映済</span>' : '<span class="badge wait">未反映</span>';
       var ids = String(it.ids || '').split(/[\s,、，／/・|\n\r\t]+/).filter(Boolean);
       var idsHtml = ids.length ? '<div class="meta-line">📦 ' + ids.length + '点 ' + esc(ids.slice(0, 6).join(' / ')) + (ids.length > 6 ? ' …' : '') + '</div>' : '';
-      return '<div class="card">' +
+      return '<div class="card clickable" onclick="openBashoDetail(\'' + esc(it.moveId) + '\')">' +
         '<div class="card-row"><strong>' + esc(it.moveId) + '</strong>' + done + '</div>' +
         '<div class="meta-line">📅 ' + esc(it.timestamp) + '　👤 ' + esc(it.reporter) + '</div>' +
         '<div class="meta-line">📍 移動先: <strong>' + esc(it.destination) + '</strong></div>' +
@@ -2121,6 +2131,27 @@ async function renderBashoList() {
   } catch (e) {
     c.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
   }
+}
+
+function openBashoDetail(moveId) {
+  var it = (STATE.movesCache && STATE.movesCache[moveId]) || null;
+  if (!it) { toast('データが見つかりません', 'error'); return; }
+  var ids = String(it.ids || '').split(/[\s,、，／/・|\n\r\t]+/).filter(Boolean);
+  var done = it.done ? '<span class="badge ok">反映済</span>' : '<span class="badge wait">未反映</span>';
+  var idsHtml = ids.length
+    ? '<div class="ids-list" style="max-height:50vh">' +
+        ids.map(function(id){ return '<div class="ids-item">' + esc(id) + '</div>'; }).join('') +
+      '</div>'
+    : '<div class="muted">管理番号はありません</div>';
+  openModal(
+    '<h3>📍 移動報告 詳細</h3>' +
+    '<div class="field-row"><label>移動ID</label><div>' + esc(it.moveId || '') + '　' + done + '</div></div>' +
+    '<div class="field-row"><label>タイムスタンプ</label><div>' + esc(it.timestamp || '') + '</div></div>' +
+    '<div class="field-row"><label>報告者</label><div>' + esc(it.reporter || '') + '</div></div>' +
+    '<div class="field-row"><label>移動先</label><div>' + esc(it.destination || '') + '</div></div>' +
+    '<div class="field-row"><label>管理番号（' + ids.length + '点）</label>' + idsHtml + '</div>' +
+    '<div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">閉じる</button></div>'
+  );
 }
 
 async function openBashoCreate() {
@@ -2135,6 +2166,7 @@ async function openBashoCreate() {
   c.innerHTML =
     '<div class="form-card">' +
       '<h3>📍 移動報告 新規作成</h3>' +
+      '<div class="notice">⚠️ 移動報告は必ず<strong>移動する当日・もしくは前日</strong>に行うようにしてください。</div>' +
       '<div class="field-row"><label>報告者 *</label>' +
         '<select id="basho-reporter" onchange="onBashoReporterChange()">' + workerOptions + '</select>' +
       '</div>' +
