@@ -968,6 +968,16 @@ async function autoRefresh() {
       await renderShouhinList({ silent: true });
     } else if (STATE.tab === 'shiire') {
       await renderShiireList({ silent: true });
+    } else if (STATE.tab === 'basho') {
+      await renderBashoList();
+    } else if (STATE.tab === 'hensou') {
+      await renderHensouList();
+    } else if (STATE.tab === 'ai') {
+      await renderAiList();
+    } else if (STATE.tab === 'sagyou') {
+      await renderSagyouList();
+    } else if (STATE.tab === 'business' && STATE.business) {
+      await renderBusinessSheet(STATE.business);
     }
   } catch (err) {
     console.warn('autoRefresh failed', err);
@@ -1271,8 +1281,7 @@ const DETAIL_SECTIONS = [
     ['利益','readonly'],
     ['利益率','readonly'],
     ['リードタイム','readonly'],
-    ['在庫日数','readonly'],
-    ['出品30日経過','readonly']
+    ['在庫日数','readonly']
   ]},
   { title: '発送関係', fields: [
     ['発送日付','date'],
@@ -1550,10 +1559,11 @@ function selectTab(tab) {
   STATE.tab = tab;
   STATE.view = 'list';
   STATE.business = '';
-  if (tab !== 'shouhin') {
-    document.querySelectorAll('.drawer-item').forEach(function(d){ d.classList.remove('active'); });
-    STATE.filter = ''; STATE.filterLabel = '';
-  }
+  // フィルタは常にリセット（ドロワーから設定する場合は selectMenu が再設定する）。
+  // 旧: shouhin のときだけ保持していたが、hassou/uriage から shouhin に戻った際に
+  // 前タブが強制設定したフィルタ ('hassou'/'sold') が残留して中身が変わらない不具合の原因。
+  document.querySelectorAll('.drawer-item').forEach(function(d){ d.classList.remove('active'); });
+  STATE.filter = ''; STATE.filterLabel = '';
   document.querySelectorAll('#bottomnav-inner button').forEach(function(b){
     b.classList.toggle('active', b.getAttribute('data-tab') === tab);
   });
@@ -1602,27 +1612,40 @@ function render() {
 async function renderShiireList(opts) {
   opts = opts || {};
   var c = document.getElementById('content');
-  if (!opts.silent) c.innerHTML = '<div class="loading">読み込み中…</div>';
+  var cached = TAB_CACHE['shiire'];
+  if (cached && cached.data) {
+    paintShiireList_(cached.data);
+  } else if (!opts.silent) {
+    c.innerHTML = '<div class="loading">読み込み中…</div>';
+  }
   try {
     const res = await api('/api/purchases?limit=300');
-    let items = res.items || [];
-    const q = (document.getElementById('search').value || '').trim();
-    if (q) {
-      const ql = q.toLowerCase();
-      items = items.filter(it =>
-        String(it.shiireId || '').toLowerCase().includes(ql) ||
-        String(it.place || '').toLowerCase().includes(ql) ||
-        String(it.date || '').includes(q)
-      );
-    }
-    const fab = '<div class="fab-stack">' +
-      '<button class="fab" onclick="openCreatePurchaseModal()" title="新規仕入れ">＋</button>' +
-    '</div>';
-    if (!items.length) { c.innerHTML = '<div class="empty">仕入れデータがありません</div>' + fab; return; }
-    c.innerHTML = items.map(shiireCardHtml).join('') + fab;
+    var items = res.items || [];
+    TAB_CACHE['shiire'] = { data: items, ts: Date.now() };
+    paintShiireList_(items);
   } catch (err) {
-    if (!opts.silent) c.innerHTML = '<div class="empty" style="color:#c62828">' + esc(err.message) + '</div>';
+    if (!cached && !opts.silent) c.innerHTML = '<div class="empty" style="color:#c62828">' + esc(err.message) + '</div>';
   }
+}
+
+function paintShiireList_(allItems) {
+  if (!tabCacheGuard_('shiire')) return;
+  var c = document.getElementById('content');
+  var items = allItems;
+  var q = (document.getElementById('search').value || '').trim();
+  if (q) {
+    var ql = q.toLowerCase();
+    items = items.filter(function(it){
+      return String(it.shiireId || '').toLowerCase().includes(ql) ||
+        String(it.place || '').toLowerCase().includes(ql) ||
+        String(it.date || '').includes(q);
+    });
+  }
+  var fab = '<div class="fab-stack">' +
+    '<button class="fab" onclick="openCreatePurchaseModal()" title="新規仕入れ">＋</button>' +
+  '</div>';
+  if (!items.length) { c.innerHTML = '<div class="empty">仕入れデータがありません</div>' + fab; return; }
+  c.innerHTML = items.map(shiireCardHtml).join('') + fab;
 }
 
 function shiireCardHtml(it) {
@@ -1716,6 +1739,15 @@ async function openShiireDetail(shiireId) {
 // 商品一覧の stale-while-revalidate キャッシュ
 // キー = tab|filter|q ／ 値 = { items, ts }
 var LIST_CACHE = Object.create(null);
+
+// 商品管理以外のタブ向け stale-while-revalidate キャッシュ
+// キー = tab[|sub] ／ 値 = { data, ts }
+// 2回目以降のタブ切替時にキャッシュを即時描画 → 裏で再取得して差分更新
+var TAB_CACHE = Object.create(null);
+function tabCacheGuard_(tab) {
+  // 描画中にユーザーが他タブへ移動していたら paint をスキップ
+  return STATE.tab === tab && STATE.view === 'list';
+}
 function listCacheKey_() {
   var q = (document.getElementById('search') && document.getElementById('search').value || '').trim();
   return (STATE.tab || '') + '|' + (STATE.filter || '') + '|' + q;
@@ -2098,39 +2130,51 @@ function renderPlaceholder(name) {
 // ========== 場所移動 ==========
 async function renderBashoList() {
   var c = document.getElementById('content');
-  c.innerHTML = '<div class="loading">読み込み中…</div>';
+  var cached = TAB_CACHE['basho'];
+  if (cached && cached.data) {
+    paintBashoList_(cached.data);
+  } else {
+    c.innerHTML = '<div class="loading">読み込み中…</div>';
+  }
   try {
     var res = await api('/api/moves?limit=200');
     var items = (res.items || []);
-    // 詳細モーダル用にキャッシュ
-    STATE.movesCache = {};
-    items.forEach(function(it){ if (it.moveId) STATE.movesCache[it.moveId] = it; });
-    var q = (document.getElementById('search').value || '').trim().toLowerCase();
-    if (q) {
-      items = items.filter(function(it){
-        return ((it.moveId||'') + ' ' + (it.destination||'') + ' ' + (it.reporter||'') + ' ' + (it.ids||'')).toLowerCase().indexOf(q) >= 0;
-      });
-    }
-    var addBtn = '<div class="fab-stack"><button class="fab" onclick="openBashoCreate()" title="新規移動報告">＋</button></div>';
-    if (!items.length) {
-      c.innerHTML = '<div class="empty">移動報告はまだありません。</div>' + addBtn;
-      return;
-    }
-    var html = '<div class="card-list">' + items.map(function(it){
-      var done = it.done ? '<span class="badge ok">反映済</span>' : '<span class="badge wait">未反映</span>';
-      var ids = String(it.ids || '').split(/[\s,、，／/・|\n\r\t]+/).filter(Boolean);
-      var idsHtml = ids.length ? '<div class="meta-line">📦 ' + ids.length + '点 ' + esc(ids.slice(0, 6).join(' / ')) + (ids.length > 6 ? ' …' : '') + '</div>' : '';
-      return '<div class="card clickable" onclick="openBashoDetail(\'' + esc(it.moveId) + '\')">' +
-        '<div class="card-row"><strong>' + esc(it.moveId) + '</strong>' + done + '</div>' +
-        '<div class="meta-line">📅 ' + esc(it.timestamp) + '　👤 ' + esc(it.reporter) + '</div>' +
-        '<div class="meta-line">📍 移動先: <strong>' + esc(it.destination) + '</strong></div>' +
-        idsHtml +
-      '</div>';
-    }).join('') + '</div>' + addBtn;
-    c.innerHTML = html;
+    TAB_CACHE['basho'] = { data: items, ts: Date.now() };
+    paintBashoList_(items);
   } catch (e) {
-    c.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
+    if (!cached) c.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
   }
+}
+
+function paintBashoList_(allItems) {
+  if (!tabCacheGuard_('basho')) return;
+  var c = document.getElementById('content');
+  // 詳細モーダル用にキャッシュ
+  STATE.movesCache = {};
+  allItems.forEach(function(it){ if (it.moveId) STATE.movesCache[it.moveId] = it; });
+  var q = (document.getElementById('search').value || '').trim().toLowerCase();
+  var items = q
+    ? allItems.filter(function(it){
+        return ((it.moveId||'') + ' ' + (it.destination||'') + ' ' + (it.reporter||'') + ' ' + (it.ids||'')).toLowerCase().indexOf(q) >= 0;
+      })
+    : allItems;
+  var addBtn = '<div class="fab-stack"><button class="fab" onclick="openBashoCreate()" title="新規移動報告">＋</button></div>';
+  if (!items.length) {
+    c.innerHTML = '<div class="empty">移動報告はまだありません。</div>' + addBtn;
+    return;
+  }
+  var html = '<div class="card-list">' + items.map(function(it){
+    var done = it.done ? '<span class="badge ok">反映済</span>' : '<span class="badge wait">未反映</span>';
+    var ids = String(it.ids || '').split(/[\s,、，／/・|\n\r\t]+/).filter(Boolean);
+    var idsHtml = ids.length ? '<div class="meta-line">📦 ' + ids.length + '点 ' + esc(ids.slice(0, 6).join(' / ')) + (ids.length > 6 ? ' …' : '') + '</div>' : '';
+    return '<div class="card clickable" onclick="openBashoDetail(\'' + esc(it.moveId) + '\')">' +
+      '<div class="card-row"><strong>' + esc(it.moveId) + '</strong>' + done + '</div>' +
+      '<div class="meta-line">📅 ' + esc(it.timestamp) + '　👤 ' + esc(it.reporter) + '</div>' +
+      '<div class="meta-line">📍 移動先: <strong>' + esc(it.destination) + '</strong></div>' +
+      idsHtml +
+    '</div>';
+  }).join('') + '</div>' + addBtn;
+  c.innerHTML = html;
 }
 
 function openBashoDetail(moveId) {
@@ -2154,6 +2198,15 @@ function openBashoDetail(moveId) {
   );
 }
 
+// AppSheet 互換: yyyyMMdd-HHmmss を JST で生成
+function genMoveId_() {
+  var d = new Date();
+  // ローカル(JST想定)で yyyyMMdd-HHmmss を組み立て
+  var pad = function(n){ return String(n).padStart(2, '0'); };
+  return 'MV-' + d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) + '-' +
+    pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
+}
+
 async function openBashoCreate() {
   var c = document.getElementById('content');
   c.innerHTML = '<div class="loading">読み込み中…</div>';
@@ -2163,10 +2216,14 @@ async function openBashoCreate() {
   var workers = (STATE.workers && STATE.workers.length) ? STATE.workers : [];
   var placeOptions = ['<option value="">選択してください</option>'].concat(places.map(function(p){ return '<option value="' + esc(p) + '">' + esc(p) + '</option>'; })).join('');
   var workerOptions = ['<option value="">選択してください</option>'].concat(workers.map(function(w){ return '<option value="' + esc(w) + '">' + esc(w) + '</option>'; })).join('');
+  var moveId = genMoveId_();
   c.innerHTML =
     '<div class="form-card">' +
       '<h3>📍 移動報告 新規作成</h3>' +
       '<div class="notice">⚠️ 移動報告は必ず<strong>移動する当日・もしくは前日</strong>に行うようにしてください。</div>' +
+      '<div class="field-row"><label>移動ID<small>登録時に自動採番</small></label>' +
+        '<input type="text" id="basho-moveid" value="' + esc(moveId) + '" readonly>' +
+      '</div>' +
       '<div class="field-row"><label>報告者 *</label>' +
         '<select id="basho-reporter" onchange="onBashoReporterChange()">' + workerOptions + '</select>' +
       '</div>' +
@@ -2243,14 +2300,18 @@ function toggleAllBashoIds(checked) {
 async function submitBashoCreate() {
   var reporter = (document.getElementById('basho-reporter').value || '').trim();
   var dest = (document.getElementById('basho-dest').value || '').trim();
+  var moveIdEl = document.getElementById('basho-moveid');
+  var moveId = (moveIdEl && moveIdEl.value || '').trim();
   var checks = document.querySelectorAll('#basho-ids-list input[name=basho-id]:checked');
   var ids = Array.from(checks).map(function(c){ return c.value; }).filter(Boolean).join(',');
   if (!reporter) { toast('報告者を選択してください', 'error'); return; }
   if (!dest) { toast('移動先を選択してください', 'error'); return; }
   if (!ids) { toast('管理番号を選択してください', 'error'); return; }
   try {
-    var res = await api('/api/moves', { method: 'POST', body: { destination: dest, ids: ids, reporter: reporter } });
+    var res = await api('/api/moves', { method: 'POST', body: { destination: dest, ids: ids, reporter: reporter, moveId: moveId } });
     toast('登録しました: ' + (res.moveId || ''));
+    // 登録後はキャッシュを無効化して即時再取得
+    delete TAB_CACHE['basho'];
     renderBashoList();
   } catch (e) {
     toast('登録失敗: ' + e.message, 'error');
@@ -2260,36 +2321,48 @@ async function submitBashoCreate() {
 // ========== 返送 ==========
 async function renderHensouList() {
   var c = document.getElementById('content');
-  c.innerHTML = '<div class="loading">読み込み中…</div>';
+  var cached = TAB_CACHE['hensou'];
+  if (cached && cached.data) {
+    paintHensouList_(cached.data);
+  } else {
+    c.innerHTML = '<div class="loading">読み込み中…</div>';
+  }
   try {
     var res = await api('/api/returns?limit=200');
     var items = (res.items || []);
-    var q = (document.getElementById('search').value || '').trim().toLowerCase();
-    if (q) {
-      items = items.filter(function(it){
-        return ((it.boxId||'') + ' ' + (it.destination||'') + ' ' + (it.reporter||'') + ' ' + (it.ids||'') + ' ' + (it.note||'')).toLowerCase().indexOf(q) >= 0;
-      });
-    }
-    var addBtn = '<div class="fab-stack"><button class="fab" onclick="openHensouCreate()" title="新規返送">＋</button></div>';
-    if (!items.length) {
-      c.innerHTML = '<div class="empty">返送はまだありません。</div>' + addBtn;
-      return;
-    }
-    var html = '<div class="card-list">' + items.map(function(it){
-      var ids = String(it.ids || '').split(/[\s,、，／/・|\n\r\t]+/).filter(Boolean);
-      var idsHtml = ids.length ? '<div class="meta-line">📦 ' + ids.length + '点 ' + esc(ids.slice(0, 6).join(' / ')) + (ids.length > 6 ? ' …' : '') + '</div>' : '';
-      var noteHtml = it.note ? '<div class="meta-line">📝 ' + esc(it.note) + '</div>' : '';
-      var countHtml = (it.count !== '' && it.count != null) ? '<span class="badge">着数 ' + esc(String(it.count)) + '</span>' : '';
-      return '<div class="card">' +
-        '<div class="card-row"><strong>' + esc(it.boxId) + '</strong>' + countHtml + '</div>' +
-        '<div class="meta-line">👤 ' + esc(it.reporter) + '　📍 ' + esc(it.destination) + '</div>' +
-        idsHtml + noteHtml +
-      '</div>';
-    }).join('') + '</div>' + addBtn;
-    c.innerHTML = html;
+    TAB_CACHE['hensou'] = { data: items, ts: Date.now() };
+    paintHensouList_(items);
   } catch (e) {
-    c.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
+    if (!cached) c.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
   }
+}
+
+function paintHensouList_(allItems) {
+  if (!tabCacheGuard_('hensou')) return;
+  var c = document.getElementById('content');
+  var q = (document.getElementById('search').value || '').trim().toLowerCase();
+  var items = q
+    ? allItems.filter(function(it){
+        return ((it.boxId||'') + ' ' + (it.destination||'') + ' ' + (it.reporter||'') + ' ' + (it.ids||'') + ' ' + (it.note||'')).toLowerCase().indexOf(q) >= 0;
+      })
+    : allItems;
+  var addBtn = '<div class="fab-stack"><button class="fab" onclick="openHensouCreate()" title="新規返送">＋</button></div>';
+  if (!items.length) {
+    c.innerHTML = '<div class="empty">返送はまだありません。</div>' + addBtn;
+    return;
+  }
+  var html = '<div class="card-list">' + items.map(function(it){
+    var ids = String(it.ids || '').split(/[\s,、，／/・|\n\r\t]+/).filter(Boolean);
+    var idsHtml = ids.length ? '<div class="meta-line">📦 ' + ids.length + '点 ' + esc(ids.slice(0, 6).join(' / ')) + (ids.length > 6 ? ' …' : '') + '</div>' : '';
+    var noteHtml = it.note ? '<div class="meta-line">📝 ' + esc(it.note) + '</div>' : '';
+    var countHtml = (it.count !== '' && it.count != null) ? '<span class="badge">着数 ' + esc(String(it.count)) + '</span>' : '';
+    return '<div class="card">' +
+      '<div class="card-row"><strong>' + esc(it.boxId) + '</strong>' + countHtml + '</div>' +
+      '<div class="meta-line">👤 ' + esc(it.reporter) + '　📍 ' + esc(it.destination) + '</div>' +
+      idsHtml + noteHtml +
+    '</div>';
+  }).join('') + '</div>' + addBtn;
+  c.innerHTML = html;
 }
 
 function openHensouCreate() {
@@ -2333,6 +2406,7 @@ async function submitHensouCreate() {
   try {
     var res = await api('/api/returns', { method: 'POST', body: body });
     toast('登録しました: ' + (res.boxId || ''));
+    delete TAB_CACHE['hensou'];
     renderHensouList();
   } catch (e) {
     toast('登録失敗: ' + e.message, 'error');
@@ -2342,58 +2416,85 @@ async function submitHensouCreate() {
 // ========== AI 画像判定一覧 ==========
 async function renderAiList() {
   var c = document.getElementById('content');
-  c.innerHTML = '<div class="loading">読み込み中…</div>';
+  // 検索クエリは API に渡しているので、キーに含めてキャッシュを分離
+  var qs = (document.getElementById('search').value || '').trim();
+  var key = 'ai|' + qs;
+  var cached = TAB_CACHE[key];
+  if (cached && cached.data) {
+    paintAiList_(cached.data);
+  } else {
+    c.innerHTML = '<div class="loading">読み込み中…</div>';
+  }
   try {
-    var qs = (document.getElementById('search').value || '').trim();
     var url = '/api/ai/list?limit=200' + (qs ? '&q=' + encodeURIComponent(qs) : '');
     var res = await api(url);
     var items = res.items || [];
-    if (!items.length) {
-      c.innerHTML = '<div class="empty">AI判定結果はまだありません。</div>';
-      return;
-    }
-    var html = '<div class="card-list">' + items.map(function(it){
-      var f = it.fields || {};
-      var rows = [];
-      ['ブランド','タグ表記','性別','カテゴリ1','カテゴリ2','カテゴリ3','カラー','デザイン特徴','ポケット'].forEach(function(k){
-        if (f[k]) rows.push('<div class="meta-line">' + esc(k) + ': ' + esc(String(f[k])) + '</div>');
-      });
-      return '<div class="card" onclick="openDetail(' + JSON.stringify(it.kanri) + ')">' +
-        '<div class="card-row"><strong>' + esc(it.kanri) + '</strong></div>' +
-        rows.join('') +
-      '</div>';
-    }).join('') + '</div>';
-    c.innerHTML = html;
+    TAB_CACHE[key] = { data: items, ts: Date.now() };
+    paintAiList_(items);
   } catch (e) {
-    c.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
+    if (!cached) c.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
   }
+}
+
+function paintAiList_(items) {
+  if (!tabCacheGuard_('ai')) return;
+  var c = document.getElementById('content');
+  if (!items.length) {
+    c.innerHTML = '<div class="empty">AI判定結果はまだありません。</div>';
+    return;
+  }
+  var html = '<div class="card-list">' + items.map(function(it){
+    var f = it.fields || {};
+    var rows = [];
+    ['ブランド','タグ表記','性別','カテゴリ1','カテゴリ2','カテゴリ3','カラー','デザイン特徴','ポケット'].forEach(function(k){
+      if (f[k]) rows.push('<div class="meta-line">' + esc(k) + ': ' + esc(String(f[k])) + '</div>');
+    });
+    return '<div class="card" onclick="openDetail(' + JSON.stringify(it.kanri) + ')">' +
+      '<div class="card-row"><strong>' + esc(it.kanri) + '</strong></div>' +
+      rows.join('') +
+    '</div>';
+  }).join('') + '</div>';
+  c.innerHTML = html;
 }
 
 // ========== 作業者管理 ==========
 async function renderSagyouList() {
   var c = document.getElementById('content');
-  c.innerHTML = '<div class="loading">読み込み中…</div>';
+  var cached = TAB_CACHE['sagyou'];
+  if (cached && cached.data) {
+    paintSagyouList_(cached.data);
+  } else {
+    c.innerHTML = '<div class="loading">読み込み中…</div>';
+  }
   try {
     var res = await api('/api/sagyousha?months=6');
-    var workers = res.items || [];
-    var months = res.months || [];
-    if (!workers.length) {
-      c.innerHTML = '<div class="empty">作業者データがありません。</div>';
-      return;
-    }
-    var thead = '<tr><th>作業者</th>' + months.map(function(m){ return '<th>' + esc(m) + '<br><small>採寸/撮影</small></th>'; }).join('') + '</tr>';
-    var rows = workers.map(function(w){
-      var cells = months.map(function(m){
-        var v = (w.monthly && w.monthly[m]) || { sokutei: 0, satsuei: 0 };
-        var hasAny = (v.sokutei || v.satsuei);
-        return '<td' + (hasAny ? ' class="num-strong"' : ' class="num-zero"') + '>' + (v.sokutei || 0) + ' / ' + (v.satsuei || 0) + '</td>';
-      }).join('');
-      return '<tr><th class="sticky-name">' + esc(w.name) + '</th>' + cells + '</tr>';
-    }).join('');
-    c.innerHTML = '<div class="sagyou-wrap"><table class="sagyou-table"><thead>' + thead + '</thead><tbody>' + rows + '</tbody></table></div>';
+    var data = { workers: res.items || [], months: res.months || [] };
+    TAB_CACHE['sagyou'] = { data: data, ts: Date.now() };
+    paintSagyouList_(data);
   } catch (e) {
-    c.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
+    if (!cached) c.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
   }
+}
+
+function paintSagyouList_(data) {
+  if (!tabCacheGuard_('sagyou')) return;
+  var c = document.getElementById('content');
+  var workers = data.workers || [];
+  var months = data.months || [];
+  if (!workers.length) {
+    c.innerHTML = '<div class="empty">作業者データがありません。</div>';
+    return;
+  }
+  var thead = '<tr><th>作業者</th>' + months.map(function(m){ return '<th>' + esc(m) + '<br><small>採寸/撮影</small></th>'; }).join('') + '</tr>';
+  var rows = workers.map(function(w){
+    var cells = months.map(function(m){
+      var v = (w.monthly && w.monthly[m]) || { sokutei: 0, satsuei: 0 };
+      var hasAny = (v.sokutei || v.satsuei);
+      return '<td' + (hasAny ? ' class="num-strong"' : ' class="num-zero"') + '>' + (v.sokutei || 0) + ' / ' + (v.satsuei || 0) + '</td>';
+    }).join('');
+    return '<tr><th class="sticky-name">' + esc(w.name) + '</th>' + cells + '</tr>';
+  }).join('');
+  c.innerHTML = '<div class="sagyou-wrap"><table class="sagyou-table"><thead>' + thead + '</thead><tbody>' + rows + '</tbody></table></div>';
 }
 
 // ========== 業務メニュー（汎用シートダンプ） ==========
@@ -2407,34 +2508,49 @@ async function renderBusinessSheet(menuKey) {
   var c = document.getElementById('content');
   var sheetName = BUSINESS_SHEETS[menuKey];
   if (!sheetName) { renderPlaceholder(STATE.businessLabel || '業務'); return; }
-  c.innerHTML = '<div class="loading">読み込み中…</div>';
+  var cacheKey = 'business|' + menuKey;
+  var cached = TAB_CACHE[cacheKey];
+  if (cached && cached.data) {
+    paintBusinessSheet_(menuKey, sheetName, cached.data);
+  } else {
+    c.innerHTML = '<div class="loading">読み込み中…</div>';
+  }
   try {
     var res = await api('/api/sheet/' + encodeURIComponent(sheetName) + '?limit=200');
-    var headers = res.headers || [];
-    var rows = res.rows || [];
-    var q = (document.getElementById('search').value || '').trim().toLowerCase();
-    if (q) {
-      rows = rows.filter(function(r){ return r.join(' ').toLowerCase().indexOf(q) >= 0; });
-    }
-    if (!headers.length) {
-      c.innerHTML = '<div class="empty">' + esc(sheetName) + 'シートが見つかりません。</div>';
-      return;
-    }
-    if (!rows.length) {
-      c.innerHTML = '<div class="empty">' + esc(sheetName) + ' にデータがありません。</div>';
-      return;
-    }
-    var thead = '<tr>' + headers.map(function(h){ return '<th>' + esc(h) + '</th>'; }).join('') + '</tr>';
-    var tbody = rows.map(function(r){
-      return '<tr>' + r.map(function(v){ return '<td>' + esc(String(v == null ? '' : v)) + '</td>'; }).join('') + '</tr>';
-    }).join('');
-    c.innerHTML = '<div class="biz-wrap">' +
-      '<div class="biz-meta">' + esc(sheetName) + '（最新 ' + rows.length + ' 件 / 全' + (res.total || rows.length) + ' 件）</div>' +
-      '<table class="biz-table"><thead>' + thead + '</thead><tbody>' + tbody + '</tbody></table>' +
-    '</div>';
+    var data = { headers: res.headers || [], rows: res.rows || [], total: res.total || (res.rows ? res.rows.length : 0) };
+    TAB_CACHE[cacheKey] = { data: data, ts: Date.now() };
+    paintBusinessSheet_(menuKey, sheetName, data);
   } catch (e) {
-    c.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
+    if (!cached) c.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
   }
+}
+
+function paintBusinessSheet_(menuKey, sheetName, data) {
+  // business タブで尚且つ同じメニューを開いている時のみ描画
+  if (STATE.tab !== 'business' || STATE.business !== menuKey || STATE.view !== 'list') return;
+  var c = document.getElementById('content');
+  var headers = data.headers || [];
+  var allRows = data.rows || [];
+  var q = (document.getElementById('search').value || '').trim().toLowerCase();
+  var rows = q
+    ? allRows.filter(function(r){ return r.join(' ').toLowerCase().indexOf(q) >= 0; })
+    : allRows;
+  if (!headers.length) {
+    c.innerHTML = '<div class="empty">' + esc(sheetName) + 'シートが見つかりません。</div>';
+    return;
+  }
+  if (!rows.length) {
+    c.innerHTML = '<div class="empty">' + esc(sheetName) + ' にデータがありません。</div>';
+    return;
+  }
+  var thead = '<tr>' + headers.map(function(h){ return '<th>' + esc(h) + '</th>'; }).join('') + '</tr>';
+  var tbody = rows.map(function(r){
+    return '<tr>' + r.map(function(v){ return '<td>' + esc(String(v == null ? '' : v)) + '</td>'; }).join('') + '</tr>';
+  }).join('');
+  c.innerHTML = '<div class="biz-wrap">' +
+    '<div class="biz-meta">' + esc(sheetName) + '（最新 ' + rows.length + ' 件 / 全' + (data.total || rows.length) + ' 件）</div>' +
+    '<table class="biz-table"><thead>' + thead + '</thead><tbody>' + tbody + '</tbody></table>' +
+  '</div>';
 }
 
 function renderDenied() {
@@ -2497,6 +2613,16 @@ function detailFieldId(name) {
 function detailValue(d, name) {
   var ex = d.extra || {};
   if (ex[name] !== undefined && ex[name] !== '') return ex[name];
+  // ステータスは extra が空でも raw/派生から確実に補完する
+  // （補完しないと select の初期値が先頭オプション「採寸待ち」になり、
+  //   発送済み/発送待ち商品の詳細を開いたときに採寸待ち表示の事故を起こす）
+  if (name === 'ステータス') {
+    var rawSt = d.rawStatus || '';
+    var derivedSt = d.status || '';
+    if (rawSt === '発送待ち' || rawSt === '発送済み' || rawSt === '売却済み') return rawSt;
+    if (derivedSt) return derivedSt;
+    if (rawSt) return rawSt;
+  }
   // measure_json から補完（extraにすでに同じキーで入っているはずだが念のため）
   var m = d.measure || {};
   if (m[name] !== undefined && m[name] !== null) return m[name];
@@ -2537,10 +2663,20 @@ function fieldRowHtml(name, type, val) {
   } else if (type === 'image') {
     input = imageFieldHtml_(id, name, v);
   } else if (type === 'status') {
+    // 値が空もしくは候補外の場合: 先頭にプレースホルダー option を入れ、
+    // 既存値を消さずに表示する。これにより空時に「採寸待ち」が誤選択される事故を防ぐ。
+    var curStatus = String(v == null ? '' : v);
+    var hasCur = STATUS_OPTIONS.indexOf(curStatus) >= 0;
+    var leading = '';
+    if (!hasCur) {
+      leading = curStatus
+        ? '<option value="' + esc(curStatus) + '" selected>' + esc(curStatus) + '</option>'
+        : '<option value="" selected>—</option>';
+    }
     var opts = STATUS_OPTIONS.map(function(o){
-      return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + esc(o) + '</option>';
+      return '<option value="' + esc(o) + '"' + (curStatus === o ? ' selected' : '') + '>' + esc(o) + '</option>';
     }).join('');
-    input = '<select id="' + id + '">' + opts + '</select>';
+    input = '<select id="' + id + '">' + leading + opts + '</select>';
   } else if (type === 'gender') {
     var opts2 = GENDER_OPTIONS.map(function(o){
       return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + (o || '—') + '</option>';
@@ -2557,10 +2693,11 @@ function fieldRowHtml(name, type, val) {
     }
     input = '<select id="' + id + '" onchange="onSaleChannelChange_(this, \'' + id + '\')">' + optsSc + '</select>';
   } else if (type === 'bool') {
+    // 表示は はい/いいえ、option value は TRUE/FALSE（シートにはそのまま TRUE/FALSE 文字列が渡る）
     var b = String(v || '').toUpperCase();
     var optsB = '<option value=""' + (b === '' ? ' selected' : '') + '>—</option>' +
-      '<option value="TRUE"' + (b === 'TRUE' ? ' selected' : '') + '>TRUE</option>' +
-      '<option value="FALSE"' + (b === 'FALSE' ? ' selected' : '') + '>FALSE</option>';
+      '<option value="TRUE"' + (b === 'TRUE' ? ' selected' : '') + '>はい</option>' +
+      '<option value="FALSE"' + (b === 'FALSE' ? ' selected' : '') + '>いいえ</option>';
     input = '<select id="' + id + '">' + optsB + '</select>';
   } else if (type === 'shipmethod') {
     var setOptsShip = settingsOptionsFor_(name, v);
@@ -3011,13 +3148,7 @@ function renderDetail() {
   setAppbarMode_('back');
   document.getElementById('appbar-title').textContent = d.kanri;
 
-  // 出品30日経過は仮想列なので extra に無ければ計算
   var ex = d.extra || {};
-  if (!ex['出品30日経過']) {
-    var days = Number(ex['在庫日数'] || 0);
-    var pubd = ex['出品日'];
-    if (pubd && days >= 30) ex['出品30日経過'] = '○';
-  }
 
   // セクションタブの初期値
   if (!STATE.detailSecTab) STATE.detailSecTab = 'basic';
@@ -3138,6 +3269,10 @@ function diffCount_() {
           else { var dd = new Date(orig); if (!isNaN(dd.getTime())) origDate = dd.toISOString().slice(0, 10); }
         }
         if ((v || '') !== origDate) n++;
+      } else if (type === 'bool') {
+        // bool は シート由来の "true"/"false" (JS Boolean を String 化) と option value "TRUE"/"FALSE" の
+        // 大文字小文字差で擬似 dirty が起きるため case-insensitive で比較する
+        if (String(v).toUpperCase() !== orig.toUpperCase()) n++;
       } else if (String(v) !== orig) n++;
     });
   });
@@ -3247,6 +3382,9 @@ async function saveDetails() {
           else { var dd = new Date(orig); if (!isNaN(dd.getTime())) origDate = dd.toISOString().slice(0, 10); }
         }
         if ((v || '') !== origDate) fields[name] = v;
+      } else if (type === 'bool') {
+        // diffCount_ と同じ理由で case-insensitive 比較
+        if (String(v).toUpperCase() !== orig.toUpperCase()) fields[name] = v;
       } else {
         if (String(v) !== orig) fields[name] = v;
       }
@@ -3414,6 +3552,7 @@ async function submitCreatePurchase() {
     var res = await api('/api/create/purchase', { method: 'POST', body: body });
     toast('仕入れを作成しました（' + res.shiireId + '）', 'success');
     closeModal();
+    delete TAB_CACHE['shiire'];
     if (STATE.tab === 'shiire') render();
   } catch (err) {
     toast('作成失敗: ' + err.message, 'error');
@@ -3764,10 +3903,19 @@ function createFieldRowHtml_(name, type, defVal) {
   } else if (type === 'url') {
     input = '<input type="url" id="' + id + '" value="' + esc(v) + '">';
   } else if (type === 'status') {
+    // 候補外の値・空値も保持するためのフォールバック option（誤選択事故防止）
+    var curStatus = String(v == null ? '' : v);
+    var hasCur = STATUS_OPTIONS.indexOf(curStatus) >= 0;
+    var leading = '';
+    if (!hasCur) {
+      leading = curStatus
+        ? '<option value="' + esc(curStatus) + '" selected>' + esc(curStatus) + '</option>'
+        : '<option value="" selected>—</option>';
+    }
     var opts = STATUS_OPTIONS.map(function(o){
-      return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + esc(o) + '</option>';
+      return '<option value="' + esc(o) + '"' + (curStatus === o ? ' selected' : '') + '>' + esc(o) + '</option>';
     }).join('');
-    input = '<select id="' + id + '">' + opts + '</select>';
+    input = '<select id="' + id + '">' + leading + opts + '</select>';
   } else if (type === 'gender') {
     var opts2 = GENDER_OPTIONS.map(function(o){
       return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + (o || '—') + '</option>';
@@ -3786,8 +3934,8 @@ function createFieldRowHtml_(name, type, defVal) {
   } else if (type === 'bool') {
     var bC = String(v || PROMO_DEFAULT).toUpperCase();
     var optsBC = '<option value=""' + (bC === '' ? ' selected' : '') + '>—</option>' +
-      '<option value="TRUE"' + (bC === 'TRUE' ? ' selected' : '') + '>TRUE</option>' +
-      '<option value="FALSE"' + (bC === 'FALSE' ? ' selected' : '') + '>FALSE</option>';
+      '<option value="TRUE"' + (bC === 'TRUE' ? ' selected' : '') + '>はい</option>' +
+      '<option value="FALSE"' + (bC === 'FALSE' ? ' selected' : '') + '>いいえ</option>';
     input = '<select id="' + id + '">' + optsBC + '</select>';
   } else if (type === 'shipmethod') {
     var setOptsShipC = settingsOptionsFor_(name, v);
@@ -3971,6 +4119,9 @@ async function submitCreateProduct(shiireId) {
     toast('商品 ' + body.kanri + ' を作成しました', 'success');
     closeModal();
     refreshCounts();
+    // 商品作成は仕入れの登録進捗・商品一覧の双方に影響するためキャッシュ無効化
+    LIST_CACHE = Object.create(null);
+    delete TAB_CACHE['shiire'];
     // 仕入れ詳細から作成 → 詳細を再描画 / 商品管理タブから作成 → 一覧再描画
     if (STATE.tab === 'shiire' && STATE.view === 'detail') {
       openShiireDetail(shiireId);
