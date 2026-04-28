@@ -2161,7 +2161,7 @@ async function onBashoReporterChange() {
   }
   picker.innerHTML = '<div class="muted">読み込み中…</div>';
   try {
-    var res = await api('/api/products?worker=' + encodeURIComponent(reporter) + '&filter=shuppin_machi&limit=10000');
+    var res = await api('/api/products?place=' + encodeURIComponent(reporter) + '&filter=shuppin_machi&limit=10000');
     var items = (res.items || []);
     if (!items.length) {
       picker.innerHTML = '<div class="muted">対象商品がありません</div>';

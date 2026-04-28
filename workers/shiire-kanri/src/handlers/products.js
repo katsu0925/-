@@ -35,6 +35,7 @@ export async function listProducts(request, env) {
   const brand = (u.searchParams.get('brand') || '').trim();
   const status = (u.searchParams.get('status') || '').trim();
   const worker = (u.searchParams.get('worker') || '').trim();
+  const place = (u.searchParams.get('place') || '').trim();
   const limit = Math.min(parseInt(u.searchParams.get('limit') || '10000', 10), 10000);
 
   const where = [];
@@ -66,6 +67,7 @@ export async function listProducts(request, env) {
   if (shiire) { where.push('shiire_id = ?'); args.push(shiire); }
   if (brand)  { where.push('brand = ?'); args.push(brand); }
   if (worker) { where.push('worker = ?'); args.push(worker); }
+  if (place)  { where.push("json_extract(extra_json, '$.\"納品場所\"') = ?"); args.push(place); }
 
   if (q) {
     where.push("(kanri LIKE ? OR brand LIKE ? OR color LIKE ? OR shiire_id LIKE ?)");
