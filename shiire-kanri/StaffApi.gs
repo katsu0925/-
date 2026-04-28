@@ -689,7 +689,14 @@ function staff_syncDumpProducts() {
     return String(d || '');
   }
   function fmtCell(d) {
-    if (d instanceof Date) return Utilities.formatDate(d, tz, 'yyyy-MM-dd');
+    if (d instanceof Date) {
+      // 時刻成分が非ゼロなら HH:mm:ss まで残す（new Date() で打刻された採寸日・撮影日付・出品日・発送日付など）
+      // → フロント側 fmtHistoryWhen_ が HH:mm を検出して作業履歴に分単位で表示する
+      if (d.getHours() !== 0 || d.getMinutes() !== 0 || d.getSeconds() !== 0) {
+        return Utilities.formatDate(d, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
+      }
+      return Utilities.formatDate(d, tz, 'yyyy-MM-dd');
+    }
     if (d === null || d === undefined) return '';
     return String(d);
   }
