@@ -1,6 +1,15 @@
 // StaffApiExtras.gs — Cloudflare 版 shiire-kanri 用の追加 API
 // AppSheet 互換タブ（場所移動・返送・AI画像判定・作業者・業務メニュー）の読み書き
 
+// Web App 文脈では getActiveSpreadsheet() が null を返すため SPREADSHEET_ID で開く
+function staff_getActiveSpreadsheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (ss) return ss;
+  var ssId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || '';
+  if (!ssId) throw new Error('SPREADSHEET_ID が未設定');
+  return SpreadsheetApp.openById(ssId);
+}
+
 // ========== 場所移動（移動報告シート） ==========
 
 // 移動報告シートの全行を一覧で返す
