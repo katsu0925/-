@@ -2570,8 +2570,10 @@ async function openDetail(kanri, opts) {
   opts = opts || {};
   STATE.view = 'detail';
   STATE.detailDirty = false;
-  // ブラウザ戻るで一覧に戻れるよう履歴を積む（popstate からの呼び出しでは積まない）
+  // 一覧から別の商品の詳細を開いたときは基本タブに戻す。
+  // popState 経由（ブラウザ戻る/進む）は前回見ていたタブを保つため変更しない。
   if (!opts.fromPopState) {
+    STATE.detailSecTab = 'basic';
     try {
       var st = history.state;
       if (!st || st.view !== 'detail' || st.kanri !== kanri) {
