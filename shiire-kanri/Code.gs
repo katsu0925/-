@@ -34,6 +34,14 @@ function doPost(e) {
       case 'createProduct':     result = staff_apiCreateProduct(body.payload || {}, email); break;
       case 'uploadImage':       result = staff_apiUploadImage(body.payload || {}, email); break;
       case 'resolveImage':      result = staff_apiResolveImage(body.payload || {}, email); break;
+      // AppSheet 互換タブ用 追加API
+      case 'listMoves':         result = staff_listMoves(body.payload || {}); break;
+      case 'createMove':        result = staff_apiCreateMove(body.payload || {}, email); break;
+      case 'listReturns':       result = staff_listReturns(body.payload || {}); break;
+      case 'createReturn':      result = staff_apiCreateReturn(body.payload || {}, email); break;
+      case 'listAiResults':     result = staff_listAiResults(body.payload || {}); break;
+      case 'listSagyousha':     result = staff_listSagyousha(body.payload || {}); break;
+      case 'dumpSheet':         result = staff_dumpSheet(body.payload || {}); break;
       default:                  result = { ok: false, error: 'unknown action: ' + action };
     }
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);

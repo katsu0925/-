@@ -631,6 +631,7 @@
   .fab.danger { background: var(--danger); box-shadow: 0 6px 14px rgba(198,40,40,.32), 0 2px 4px rgba(0,0,0,.08); }
   .fab.gray { background: var(--text-sub); box-shadow: 0 6px 14px rgba(0,0,0,.18), 0 2px 4px rgba(0,0,0,.08); }
   .fab.success { background: var(--success); box-shadow: 0 6px 14px rgba(46,125,50,.32), 0 2px 4px rgba(0,0,0,.08); }
+  .fab.green { background: var(--success); box-shadow: 0 6px 14px rgba(46,125,50,.32), 0 2px 4px rgba(0,0,0,.08); }
   .fab:disabled { background: #bdbdbd; box-shadow: 0 2px 4px rgba(0,0,0,.1); cursor: not-allowed; }
   .toast {
     position: fixed; bottom: 88px; left: 50%; transform: translateX(-50%);
@@ -645,6 +646,47 @@
   .toast.success { background: var(--success); }
   .loading { text-align: center; padding: 40px; color: var(--text-sub); }
   .empty { text-align: center; padding: 40px; color: var(--text-sub); }
+  .error { padding: 16px; color: var(--danger); background: var(--danger-soft); border-radius: 10px; margin: 12px; }
+  /* AppSheet 互換タブ用（場所/返送/AI/作業者/業務） */
+  .card-list { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+  .card-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+  .meta-line { color: var(--text-sub); font-size: 13px; line-height: 1.5; padding: 2px 0; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; background: var(--gray-soft); color: var(--text-sub); }
+  .badge.ok { background: var(--success-soft); color: var(--success); }
+  .badge.wait { background: var(--warning-soft); color: var(--warning); }
+  .form-card { background: var(--surface); margin: 12px; padding: 16px; border-radius: 12px; box-shadow: var(--shadow); }
+  .form-card h3 { margin: 0 0 12px; font-size: 16px; font-weight: 700; }
+  .form-card .field-row { display: block; padding: 10px 0; margin: 0; background: transparent; border-bottom: 1px solid #f3f5f9; }
+  .form-card .field-row:last-of-type { border-bottom: none; }
+  .form-card .field-row label { display: block; color: var(--text-sub); font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+  .form-card .field-row label small { display: block; color: var(--text-sub); font-size: 11px; font-weight: 400; margin-top: 2px; }
+  .form-card .field-row input, .form-card .field-row select, .form-card .field-row textarea {
+    width: 100%; padding: 10px 12px; min-height: 40px;
+    border: 1px solid var(--border); border-radius: 8px;
+    font-size: 16px; background: var(--surface); box-sizing: border-box;
+  }
+  .form-card .field-row textarea { resize: vertical; min-height: 80px; }
+  .form-actions { display: flex; gap: 8px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+  .form-actions button { flex: 1; padding: 12px; min-height: 48px; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-dark); }
+  .btn-secondary { background: var(--gray-soft); color: var(--text); }
+  .btn-secondary:hover { background: #e3e7ee; }
+  /* 作業者管理: 月次集計テーブル（左固定列付） */
+  .sagyou-wrap { overflow-x: auto; padding: 12px; }
+  .sagyou-table { border-collapse: collapse; width: 100%; min-width: 480px; background: var(--surface); border-radius: 8px; box-shadow: var(--shadow); font-size: 13px; }
+  .sagyou-table th, .sagyou-table td { padding: 8px 10px; border-bottom: 1px solid #f0f2f7; text-align: center; white-space: nowrap; }
+  .sagyou-table thead th { background: #f7f9fc; color: var(--text-sub); font-size: 12px; font-weight: 700; }
+  .sagyou-table .sticky-name, .sagyou-table th.sticky-name { position: sticky; left: 0; background: #f7f9fc; text-align: left; font-weight: 700; z-index: 1; }
+  .sagyou-table .num-strong { font-weight: 700; color: var(--text); }
+  .sagyou-table .num-zero { color: #c5cad3; }
+  /* 業務メニュー: 汎用ダンプテーブル */
+  .biz-wrap { padding: 12px; overflow-x: auto; }
+  .biz-meta { color: var(--text-sub); font-size: 12px; margin-bottom: 8px; padding: 0 4px; }
+  .biz-table { border-collapse: collapse; width: 100%; min-width: 600px; background: var(--surface); border-radius: 8px; box-shadow: var(--shadow); font-size: 13px; }
+  .biz-table th, .biz-table td { padding: 8px 10px; border-bottom: 1px solid #f0f2f7; text-align: left; vertical-align: top; }
+  .biz-table thead th { background: #f7f9fc; color: var(--text-sub); font-size: 12px; font-weight: 700; position: sticky; top: 0; z-index: 1; }
+  .biz-table tbody tr:hover { background: #fafbfd; }
   .placeholder {
     text-align: center; padding: 60px 20px; color: var(--text-sub);
     background: var(--surface); border-radius: 12px; margin: 16px;
@@ -828,13 +870,13 @@
     </div>
     <div class="drawer-divider"></div>
     <div class="drawer-section-label">業務</div>
-    <div class="drawer-item" onclick="selectMenu('shiire_houkoku','仕入れ数報告')">
+    <div class="drawer-item" data-business="shiire_houkoku" onclick="selectBusinessMenu('shiire_houkoku','仕入れ数報告')">
       <span class="ico">📦</span><span>仕入れ数報告</span>
     </div>
-    <div class="drawer-item" onclick="selectMenu('keihi','経費申請')">
+    <div class="drawer-item" data-business="keihi" onclick="selectBusinessMenu('keihi','経費申請')">
       <span class="ico">💸</span><span>経費申請</span>
     </div>
-    <div class="drawer-item" onclick="selectMenu('houshu','報酬確認')">
+    <div class="drawer-item" data-business="houshu" onclick="selectBusinessMenu('houshu','報酬確認')">
       <span class="ico">💰</span><span>報酬確認</span>
     </div>
   </div>
@@ -869,6 +911,7 @@ const API_BASE = ''; // Workers 同一オリジンで /api/* と SPA HTML を提
 var STATE = {
   email: '', allowed: false,
   tab: 'shouhin', filter: '', filterLabel: '',
+  business: '', businessLabel: '',
   view: 'list', current: null, items: [],
   currentShiireProducts: [],
   workers: [], accounts: [],
@@ -1428,11 +1471,29 @@ function selectMenu(filter, label) {
   STATE.filter = filter;
   STATE.filterLabel = label;
   STATE.view = 'list';
+  STATE.business = '';
   document.querySelectorAll('#bottomnav-inner button').forEach(function(b){
     b.classList.toggle('active', b.getAttribute('data-tab') === 'shouhin');
   });
   document.querySelectorAll('.drawer-item').forEach(function(d){
     d.classList.toggle('active', d.getAttribute('data-filter') === filter);
+  });
+  closeDrawer();
+  pushListState_();
+  render();
+}
+
+// 業務メニュー（仕入れ数報告/経費申請/報酬確認）。商品管理に飛ばさず専用ビューを表示する
+function selectBusinessMenu(menuKey, label) {
+  STATE.tab = 'business';
+  STATE.business = menuKey;
+  STATE.businessLabel = label;
+  STATE.view = 'list';
+  STATE.filter = '';
+  STATE.filterLabel = '';
+  document.querySelectorAll('#bottomnav-inner button').forEach(function(b){ b.classList.remove('active'); });
+  document.querySelectorAll('.drawer-item').forEach(function(d){
+    d.classList.toggle('active', d.getAttribute('data-business') === menuKey);
   });
   closeDrawer();
   pushListState_();
@@ -1470,6 +1531,7 @@ syncSearchClearVisibility_();
 function selectTab(tab) {
   STATE.tab = tab;
   STATE.view = 'list';
+  STATE.business = '';
   if (tab !== 'shouhin') {
     document.querySelectorAll('.drawer-item').forEach(function(d){ d.classList.remove('active'); });
     STATE.filter = ''; STATE.filterLabel = '';
@@ -1503,6 +1565,17 @@ function render() {
     renderShouhinList();
   } else if (STATE.tab === 'shiire') {
     renderShiireList();
+  } else if (STATE.tab === 'basho') {
+    renderBashoList();
+  } else if (STATE.tab === 'hensou') {
+    renderHensouList();
+  } else if (STATE.tab === 'ai') {
+    renderAiList();
+  } else if (STATE.tab === 'sagyou') {
+    renderSagyouList();
+  } else if (STATE.tab === 'business') {
+    document.getElementById('appbar-title').textContent = STATE.businessLabel || '業務';
+    renderBusinessSheet(STATE.business);
   } else {
     renderPlaceholder(TAB_LABELS[STATE.tab]);
   }
@@ -2002,6 +2075,255 @@ function renderPlaceholder(name) {
       '<h3>' + esc(name) + '</h3>' +
       '<p>このビューは準備中です。<br>本日中の優先機能は「商品管理」（採寸入力・販売情報入力）と「仕入れ管理」「発送商品」の閲覧です。</p>' +
     '</div>';
+}
+
+// ========== 場所移動 ==========
+async function renderBashoList() {
+  var c = document.getElementById('content');
+  c.innerHTML = '<div class="loading">読み込み中…</div>';
+  try {
+    var res = await api('/api/moves?limit=200');
+    var items = (res.items || []);
+    var q = (document.getElementById('search').value || '').trim().toLowerCase();
+    if (q) {
+      items = items.filter(function(it){
+        return ((it.moveId||'') + ' ' + (it.destination||'') + ' ' + (it.reporter||'') + ' ' + (it.ids||'')).toLowerCase().indexOf(q) >= 0;
+      });
+    }
+    var addBtn = '<button class="fab green" onclick="openBashoCreate()" title="新規移動報告">＋</button>';
+    if (!items.length) {
+      c.innerHTML = '<div class="empty">移動報告はまだありません。</div>' + addBtn;
+      return;
+    }
+    var html = '<div class="card-list">' + items.map(function(it){
+      var done = it.done ? '<span class="badge ok">反映済</span>' : '<span class="badge wait">未反映</span>';
+      var ids = String(it.ids || '').split(/[\s,、，／/・|\n\r\t]+/).filter(Boolean);
+      var idsHtml = ids.length ? '<div class="meta-line">📦 ' + ids.length + '点 ' + esc(ids.slice(0, 6).join(' / ')) + (ids.length > 6 ? ' …' : '') + '</div>' : '';
+      return '<div class="card">' +
+        '<div class="card-row"><strong>' + esc(it.moveId) + '</strong>' + done + '</div>' +
+        '<div class="meta-line">📅 ' + esc(it.timestamp) + '　👤 ' + esc(it.reporter) + '</div>' +
+        '<div class="meta-line">📍 移動先: <strong>' + esc(it.destination) + '</strong></div>' +
+        idsHtml +
+      '</div>';
+    }).join('') + '</div>' + addBtn;
+    c.innerHTML = html;
+  } catch (e) {
+    c.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
+  }
+}
+
+function openBashoCreate() {
+  var c = document.getElementById('content');
+  var places = (STATE.places && STATE.places.length) ? STATE.places : [];
+  var options = ['<option value="">選択してください</option>'].concat(places.map(function(p){ return '<option value="' + esc(p) + '">' + esc(p) + '</option>'; })).join('');
+  c.innerHTML =
+    '<div class="form-card">' +
+      '<h3>📍 移動報告 新規作成</h3>' +
+      '<div class="field-row"><label>移動先 *</label>' +
+        '<select id="basho-dest">' + options + '</select>' +
+      '</div>' +
+      '<div class="field-row"><label>管理番号 *<small>カンマ・改行・スペース区切り</small></label>' +
+        '<textarea id="basho-ids" rows="6" placeholder="zY1234, zY1235&#10;または改行区切り"></textarea>' +
+      '</div>' +
+      '<div class="form-actions">' +
+        '<button class="btn-secondary" onclick="renderBashoList()">キャンセル</button>' +
+        '<button class="btn-primary" onclick="submitBashoCreate()">登録</button>' +
+      '</div>' +
+    '</div>';
+}
+
+async function submitBashoCreate() {
+  var dest = (document.getElementById('basho-dest').value || '').trim();
+  var ids = (document.getElementById('basho-ids').value || '').trim();
+  if (!dest) { toast('移動先を選択してください', 'error'); return; }
+  if (!ids) { toast('管理番号を入力してください', 'error'); return; }
+  try {
+    var res = await api('/api/moves', { method: 'POST', body: { destination: dest, ids: ids } });
+    toast('登録しました: ' + (res.moveId || ''));
+    renderBashoList();
+  } catch (e) {
+    toast('登録失敗: ' + e.message, 'error');
+  }
+}
+
+// ========== 返送 ==========
+async function renderHensouList() {
+  var c = document.getElementById('content');
+  c.innerHTML = '<div class="loading">読み込み中…</div>';
+  try {
+    var res = await api('/api/returns?limit=200');
+    var items = (res.items || []);
+    var q = (document.getElementById('search').value || '').trim().toLowerCase();
+    if (q) {
+      items = items.filter(function(it){
+        return ((it.boxId||'') + ' ' + (it.destination||'') + ' ' + (it.reporter||'') + ' ' + (it.ids||'') + ' ' + (it.note||'')).toLowerCase().indexOf(q) >= 0;
+      });
+    }
+    var addBtn = '<button class="fab green" onclick="openHensouCreate()" title="新規返送">＋</button>';
+    if (!items.length) {
+      c.innerHTML = '<div class="empty">返送はまだありません。</div>' + addBtn;
+      return;
+    }
+    var html = '<div class="card-list">' + items.map(function(it){
+      var ids = String(it.ids || '').split(/[\s,、，／/・|\n\r\t]+/).filter(Boolean);
+      var idsHtml = ids.length ? '<div class="meta-line">📦 ' + ids.length + '点 ' + esc(ids.slice(0, 6).join(' / ')) + (ids.length > 6 ? ' …' : '') + '</div>' : '';
+      var noteHtml = it.note ? '<div class="meta-line">📝 ' + esc(it.note) + '</div>' : '';
+      var countHtml = (it.count !== '' && it.count != null) ? '<span class="badge">着数 ' + esc(String(it.count)) + '</span>' : '';
+      return '<div class="card">' +
+        '<div class="card-row"><strong>' + esc(it.boxId) + '</strong>' + countHtml + '</div>' +
+        '<div class="meta-line">👤 ' + esc(it.reporter) + '　📍 ' + esc(it.destination) + '</div>' +
+        idsHtml + noteHtml +
+      '</div>';
+    }).join('') + '</div>' + addBtn;
+    c.innerHTML = html;
+  } catch (e) {
+    c.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
+  }
+}
+
+function openHensouCreate() {
+  var c = document.getElementById('content');
+  var places = (STATE.places && STATE.places.length) ? STATE.places : [];
+  var options = ['<option value="">選択してください</option>'].concat(places.map(function(p){ return '<option value="' + esc(p) + '">' + esc(p) + '</option>'; })).join('');
+  c.innerHTML =
+    '<div class="form-card">' +
+      '<h3>↩️ 返送 新規作成</h3>' +
+      '<div class="field-row"><label>移動先 *</label>' +
+        '<select id="hensou-dest">' + options + '</select>' +
+      '</div>' +
+      '<div class="field-row"><label>管理番号 *<small>カンマ・改行・スペース区切り</small></label>' +
+        '<textarea id="hensou-ids" rows="6" placeholder="zY1234, zY1235"></textarea>' +
+      '</div>' +
+      '<div class="field-row"><label>着数</label>' +
+        '<input type="number" id="hensou-count" min="0" step="1" placeholder="例: 3">' +
+      '</div>' +
+      '<div class="field-row"><label>備考</label>' +
+        '<textarea id="hensou-note" rows="3"></textarea>' +
+      '</div>' +
+      '<div class="form-actions">' +
+        '<button class="btn-secondary" onclick="renderHensouList()">キャンセル</button>' +
+        '<button class="btn-primary" onclick="submitHensouCreate()">登録</button>' +
+      '</div>' +
+    '</div>';
+}
+
+async function submitHensouCreate() {
+  var dest = (document.getElementById('hensou-dest').value || '').trim();
+  var ids = (document.getElementById('hensou-ids').value || '').trim();
+  var countRaw = (document.getElementById('hensou-count').value || '').trim();
+  var note = (document.getElementById('hensou-note').value || '').trim();
+  if (!dest) { toast('移動先を選択してください', 'error'); return; }
+  if (!ids) { toast('管理番号を入力してください', 'error'); return; }
+  var body = { destination: dest, ids: ids, note: note };
+  if (countRaw !== '') {
+    var n = Number(countRaw);
+    if (!isNaN(n)) body.count = n;
+  }
+  try {
+    var res = await api('/api/returns', { method: 'POST', body: body });
+    toast('登録しました: ' + (res.boxId || ''));
+    renderHensouList();
+  } catch (e) {
+    toast('登録失敗: ' + e.message, 'error');
+  }
+}
+
+// ========== AI 画像判定一覧 ==========
+async function renderAiList() {
+  var c = document.getElementById('content');
+  c.innerHTML = '<div class="loading">読み込み中…</div>';
+  try {
+    var qs = (document.getElementById('search').value || '').trim();
+    var url = '/api/ai/list?limit=200' + (qs ? '&q=' + encodeURIComponent(qs) : '');
+    var res = await api(url);
+    var items = res.items || [];
+    if (!items.length) {
+      c.innerHTML = '<div class="empty">AI判定結果はまだありません。</div>';
+      return;
+    }
+    var html = '<div class="card-list">' + items.map(function(it){
+      var f = it.fields || {};
+      var rows = [];
+      ['ブランド','タグ表記','性別','カテゴリ1','カテゴリ2','カテゴリ3','カラー','デザイン特徴','ポケット'].forEach(function(k){
+        if (f[k]) rows.push('<div class="meta-line">' + esc(k) + ': ' + esc(String(f[k])) + '</div>');
+      });
+      return '<div class="card" onclick="openDetail(' + JSON.stringify(it.kanri) + ')">' +
+        '<div class="card-row"><strong>' + esc(it.kanri) + '</strong></div>' +
+        rows.join('') +
+      '</div>';
+    }).join('') + '</div>';
+    c.innerHTML = html;
+  } catch (e) {
+    c.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
+  }
+}
+
+// ========== 作業者管理 ==========
+async function renderSagyouList() {
+  var c = document.getElementById('content');
+  c.innerHTML = '<div class="loading">読み込み中…</div>';
+  try {
+    var res = await api('/api/sagyousha?months=6');
+    var workers = res.items || [];
+    var months = res.months || [];
+    if (!workers.length) {
+      c.innerHTML = '<div class="empty">作業者データがありません。</div>';
+      return;
+    }
+    var thead = '<tr><th>作業者</th>' + months.map(function(m){ return '<th>' + esc(m) + '<br><small>採寸/撮影</small></th>'; }).join('') + '</tr>';
+    var rows = workers.map(function(w){
+      var cells = months.map(function(m){
+        var v = (w.monthly && w.monthly[m]) || { sokutei: 0, satsuei: 0 };
+        var hasAny = (v.sokutei || v.satsuei);
+        return '<td' + (hasAny ? ' class="num-strong"' : ' class="num-zero"') + '>' + (v.sokutei || 0) + ' / ' + (v.satsuei || 0) + '</td>';
+      }).join('');
+      return '<tr><th class="sticky-name">' + esc(w.name) + '</th>' + cells + '</tr>';
+    }).join('');
+    c.innerHTML = '<div class="sagyou-wrap"><table class="sagyou-table"><thead>' + thead + '</thead><tbody>' + rows + '</tbody></table></div>';
+  } catch (e) {
+    c.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
+  }
+}
+
+// ========== 業務メニュー（汎用シートダンプ） ==========
+var BUSINESS_SHEETS = {
+  shiire_houkoku: '仕入れ数報告',
+  keihi: '経費申請',
+  houshu: '報酬管理'
+};
+
+async function renderBusinessSheet(menuKey) {
+  var c = document.getElementById('content');
+  var sheetName = BUSINESS_SHEETS[menuKey];
+  if (!sheetName) { renderPlaceholder(STATE.businessLabel || '業務'); return; }
+  c.innerHTML = '<div class="loading">読み込み中…</div>';
+  try {
+    var res = await api('/api/sheet/' + encodeURIComponent(sheetName) + '?limit=200');
+    var headers = res.headers || [];
+    var rows = res.rows || [];
+    var q = (document.getElementById('search').value || '').trim().toLowerCase();
+    if (q) {
+      rows = rows.filter(function(r){ return r.join(' ').toLowerCase().indexOf(q) >= 0; });
+    }
+    if (!headers.length) {
+      c.innerHTML = '<div class="empty">' + esc(sheetName) + 'シートが見つかりません。</div>';
+      return;
+    }
+    if (!rows.length) {
+      c.innerHTML = '<div class="empty">' + esc(sheetName) + ' にデータがありません。</div>';
+      return;
+    }
+    var thead = '<tr>' + headers.map(function(h){ return '<th>' + esc(h) + '</th>'; }).join('') + '</tr>';
+    var tbody = rows.map(function(r){
+      return '<tr>' + r.map(function(v){ return '<td>' + esc(String(v == null ? '' : v)) + '</td>'; }).join('') + '</tr>';
+    }).join('');
+    c.innerHTML = '<div class="biz-wrap">' +
+      '<div class="biz-meta">' + esc(sheetName) + '（最新 ' + rows.length + ' 件 / 全' + (res.total || rows.length) + ' 件）</div>' +
+      '<table class="biz-table"><thead>' + thead + '</thead><tbody>' + tbody + '</tbody></table>' +
+    '</div>';
+  } catch (e) {
+    c.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
+  }
 }
 
 function renderDenied() {

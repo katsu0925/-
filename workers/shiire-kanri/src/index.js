@@ -7,6 +7,7 @@ import { listPurchases, getPurchaseProducts } from './handlers/purchases.js';
 import { saveMeasurement, saveSale, saveDetails, uploadImage, resolveImage, createPurchase, createProduct } from './handlers/write-proxy.js';
 import { listWorkers, listAccounts, listSuppliers, listPlaces, listCategories, listSettings } from './handlers/master.js';
 import { lookupAiPrefill, lookupAiPrefillBatch } from './handlers/ai.js';
+import { listMoves, createMove, listReturns, createReturn, listAiResults, listSagyousha, dumpSheet } from './handlers/extras.js';
 
 export default {
   async scheduled(event, env, ctx) {
@@ -147,6 +148,38 @@ export default {
     }
     if (path === '/api/create/product' && request.method === 'POST') {
       return createProduct(request, env, user);
+    }
+
+    // 場所移動
+    if (path === '/api/moves' && request.method === 'GET') {
+      return listMoves(request, env, user);
+    }
+    if (path === '/api/moves' && request.method === 'POST') {
+      return createMove(request, env, user);
+    }
+
+    // 返送管理
+    if (path === '/api/returns' && request.method === 'GET') {
+      return listReturns(request, env, user);
+    }
+    if (path === '/api/returns' && request.method === 'POST') {
+      return createReturn(request, env, user);
+    }
+
+    // AI画像判定一覧
+    if (path === '/api/ai/list' && request.method === 'GET') {
+      return listAiResults(request, env, user);
+    }
+
+    // 作業者管理
+    if (path === '/api/sagyousha' && request.method === 'GET') {
+      return listSagyousha(request, env, user);
+    }
+
+    // 業務メニュー（汎用シートダンプ: 仕入れ数報告/経費申請/報酬管理）
+    const sheetMatch = path.match(/^\/api\/sheet\/([^/]+)$/);
+    if (sheetMatch && request.method === 'GET') {
+      return dumpSheet(request, env, user, decodeURIComponent(sheetMatch[1]));
     }
 
     // API/admin 以外は静的アセット（SPA fallback 含む）に委譲
