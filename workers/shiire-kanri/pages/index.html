@@ -672,6 +672,17 @@
   .btn-primary:hover { background: var(--primary-dark); }
   .btn-secondary { background: var(--gray-soft); color: var(--text); }
   .btn-secondary:hover { background: #e3e7ee; }
+  /* ID 多重選択ピッカー（移動報告） */
+  .ids-picker { display: block; }
+  .muted { color: var(--text-sub); font-size: 13px; padding: 6px 0; }
+  .ids-toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+  .ids-toolbar input[type=text] { flex: 1 1 180px; padding: 8px 10px; min-height: 36px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; }
+  .ids-toolbar button { padding: 6px 10px; min-height: 36px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .ids-list { max-height: 320px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
+  .ids-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #f3f5f9; font-size: 14px; cursor: pointer; }
+  .ids-item:last-child { border-bottom: none; }
+  .ids-item input[type=checkbox] { width: 18px; height: 18px; flex-shrink: 0; }
+  .ids-item .muted { font-size: 12px; padding: 0; }
   /* 作業者管理: 月次集計テーブル（左固定列付） */
   .sagyou-wrap { overflow-x: auto; padding: 12px; }
   .sagyou-table { border-collapse: collapse; width: 100%; min-width: 480px; background: var(--surface); border-radius: 8px; box-shadow: var(--shadow); font-size: 13px; }
@@ -2090,7 +2101,7 @@ async function renderBashoList() {
         return ((it.moveId||'') + ' ' + (it.destination||'') + ' ' + (it.reporter||'') + ' ' + (it.ids||'')).toLowerCase().indexOf(q) >= 0;
       });
     }
-    var addBtn = '<button class="fab green" onclick="openBashoCreate()" title="新規移動報告">＋</button>';
+    var addBtn = '<div class="fab-stack"><button class="fab" onclick="openBashoCreate()" title="新規移動報告">＋</button></div>';
     if (!items.length) {
       c.innerHTML = '<div class="empty">移動報告はまだありません。</div>' + addBtn;
       return;
@@ -2112,18 +2123,26 @@ async function renderBashoList() {
   }
 }
 
-function openBashoCreate() {
+async function openBashoCreate() {
   var c = document.getElementById('content');
+  c.innerHTML = '<div class="loading">読み込み中…</div>';
+  // マスタ取得を待つ（places/workers が未取得なら）
+  if (STATE.mastersPromise) { try { await STATE.mastersPromise; } catch (e) {} }
   var places = (STATE.places && STATE.places.length) ? STATE.places : [];
-  var options = ['<option value="">選択してください</option>'].concat(places.map(function(p){ return '<option value="' + esc(p) + '">' + esc(p) + '</option>'; })).join('');
+  var workers = (STATE.workers && STATE.workers.length) ? STATE.workers : [];
+  var placeOptions = ['<option value="">選択してください</option>'].concat(places.map(function(p){ return '<option value="' + esc(p) + '">' + esc(p) + '</option>'; })).join('');
+  var workerOptions = ['<option value="">選択してください</option>'].concat(workers.map(function(w){ return '<option value="' + esc(w) + '">' + esc(w) + '</option>'; })).join('');
   c.innerHTML =
     '<div class="form-card">' +
       '<h3>📍 移動報告 新規作成</h3>' +
-      '<div class="field-row"><label>移動先 *</label>' +
-        '<select id="basho-dest">' + options + '</select>' +
+      '<div class="field-row"><label>報告者 *</label>' +
+        '<select id="basho-reporter" onchange="onBashoReporterChange()">' + workerOptions + '</select>' +
       '</div>' +
-      '<div class="field-row"><label>管理番号 *<small>カンマ・改行・スペース区切り</small></label>' +
-        '<textarea id="basho-ids" rows="6" placeholder="zY1234, zY1235&#10;または改行区切り"></textarea>' +
+      '<div class="field-row"><label>移動先 *</label>' +
+        '<select id="basho-dest">' + placeOptions + '</select>' +
+      '</div>' +
+      '<div class="field-row"><label>管理番号 *<small>報告者を選択すると、その作業者の商品が表示されます</small></label>' +
+        '<div id="basho-ids-picker" class="ids-picker"><div class="muted">先に「報告者」を選択してください</div></div>' +
       '</div>' +
       '<div class="form-actions">' +
         '<button class="btn-secondary" onclick="renderBashoList()">キャンセル</button>' +
@@ -2132,13 +2151,77 @@ function openBashoCreate() {
     '</div>';
 }
 
-async function submitBashoCreate() {
-  var dest = (document.getElementById('basho-dest').value || '').trim();
-  var ids = (document.getElementById('basho-ids').value || '').trim();
-  if (!dest) { toast('移動先を選択してください', 'error'); return; }
-  if (!ids) { toast('管理番号を入力してください', 'error'); return; }
+async function onBashoReporterChange() {
+  var sel = document.getElementById('basho-reporter');
+  var picker = document.getElementById('basho-ids-picker');
+  var reporter = (sel && sel.value || '').trim();
+  if (!reporter) {
+    picker.innerHTML = '<div class="muted">先に「報告者」を選択してください</div>';
+    return;
+  }
+  picker.innerHTML = '<div class="muted">読み込み中…</div>';
   try {
-    var res = await api('/api/moves', { method: 'POST', body: { destination: dest, ids: ids } });
+    var res = await api('/api/products?worker=' + encodeURIComponent(reporter) + '&limit=10000');
+    var items = (res.items || []).filter(function(it){
+      var s = String(it.status || '');
+      // 売却済み・発送済みは移動対象から除外
+      return s !== '売却済み' && s !== '発送済み';
+    });
+    if (!items.length) {
+      picker.innerHTML = '<div class="muted">対象商品がありません</div>';
+      return;
+    }
+    // 検索ボックス + チェックボックス一覧
+    var listHtml = items.map(function(it){
+      var label = esc(it.kanri || '') + ' ' +
+        '<span class="muted">' + esc(it.brand || '') + ' / ' + esc(it.status || '') + '</span>';
+      return '<label class="ids-item"><input type="checkbox" name="basho-id" value="' + esc(it.kanri || '') + '"> ' + label + '</label>';
+    }).join('');
+    picker.innerHTML =
+      '<div class="ids-toolbar">' +
+        '<input type="text" id="basho-ids-q" placeholder="検索（管理番号/ブランド）" oninput="filterBashoIds()">' +
+        '<button type="button" class="btn-secondary" onclick="toggleAllBashoIds(true)">全選択</button>' +
+        '<button type="button" class="btn-secondary" onclick="toggleAllBashoIds(false)">全解除</button>' +
+        '<span class="muted" id="basho-ids-count">' + items.length + '件</span>' +
+      '</div>' +
+      '<div id="basho-ids-list" class="ids-list">' + listHtml + '</div>';
+  } catch (e) {
+    picker.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
+  }
+}
+
+function filterBashoIds() {
+  var q = (document.getElementById('basho-ids-q').value || '').trim().toLowerCase();
+  var list = document.getElementById('basho-ids-list');
+  if (!list) return;
+  var labels = list.querySelectorAll('label.ids-item');
+  for (var i = 0; i < labels.length; i++) {
+    var t = (labels[i].textContent || '').toLowerCase();
+    labels[i].style.display = (!q || t.indexOf(q) >= 0) ? '' : 'none';
+  }
+}
+
+function toggleAllBashoIds(checked) {
+  var list = document.getElementById('basho-ids-list');
+  if (!list) return;
+  var labels = list.querySelectorAll('label.ids-item');
+  for (var i = 0; i < labels.length; i++) {
+    if (labels[i].style.display === 'none') continue;
+    var cb = labels[i].querySelector('input[type=checkbox]');
+    if (cb) cb.checked = !!checked;
+  }
+}
+
+async function submitBashoCreate() {
+  var reporter = (document.getElementById('basho-reporter').value || '').trim();
+  var dest = (document.getElementById('basho-dest').value || '').trim();
+  var checks = document.querySelectorAll('#basho-ids-list input[name=basho-id]:checked');
+  var ids = Array.from(checks).map(function(c){ return c.value; }).filter(Boolean).join(',');
+  if (!reporter) { toast('報告者を選択してください', 'error'); return; }
+  if (!dest) { toast('移動先を選択してください', 'error'); return; }
+  if (!ids) { toast('管理番号を選択してください', 'error'); return; }
+  try {
+    var res = await api('/api/moves', { method: 'POST', body: { destination: dest, ids: ids, reporter: reporter } });
     toast('登録しました: ' + (res.moveId || ''));
     renderBashoList();
   } catch (e) {
@@ -2159,7 +2242,7 @@ async function renderHensouList() {
         return ((it.boxId||'') + ' ' + (it.destination||'') + ' ' + (it.reporter||'') + ' ' + (it.ids||'') + ' ' + (it.note||'')).toLowerCase().indexOf(q) >= 0;
       });
     }
-    var addBtn = '<button class="fab green" onclick="openHensouCreate()" title="新規返送">＋</button>';
+    var addBtn = '<div class="fab-stack"><button class="fab" onclick="openHensouCreate()" title="新規返送">＋</button></div>';
     if (!items.length) {
       c.innerHTML = '<div class="empty">返送はまだありません。</div>' + addBtn;
       return;
