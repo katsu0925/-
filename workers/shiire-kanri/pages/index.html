@@ -4413,6 +4413,86 @@ function closeImageModal_(e) {
   document.body.style.overflow = '';
 }
 
+// ===== 詳細画面: 左右スワイプで前後移動／長い右スワイプで戻る =====
+// 仕様:
+//   - 横方向のスワイプが縦方向より優勢かつ素早い場合のみ反応
+//   - 左→右に短くスワイプ: 前のレコード（gotoAdjacentDetail_(-1)）
+//   - 右→左に短くスワイプ: 次のレコード（gotoAdjacentDetail_(1)）
+//   - 左→右に長くスワイプ（画面幅の 35% 以上）: 一覧へ戻る（backToList）
+//   - フォーム入力中・スライダー操作中・モーダル表示中は無効
+//   - 縦スクロール中は preventDefault せず、ブラウザに任せる
+(function setupDetailSwipe(){
+  var SHORT_TH = 60;       // 横方向の最小距離（px）
+  var BACK_RATIO = 0.35;   // 「戻る」と判定する画面幅比率
+  var MAX_DURATION = 600;  // タップ的な短時間ジェスチャに限定（ms）
+  var ANGLE_LOCK = 1.4;    // |dx| > |dy| * 1.4 で水平スワイプとみなす
+
+  var st = null;
+  function isInteractive(el) {
+    if (!el) return false;
+    if (el.closest && el.closest('input, textarea, select, button, [contenteditable], canvas, [role="slider"], .yesno-btn, .modal, #img-modal, .savebar, .nav-btn')) return true;
+    return false;
+  }
+  function inDetail() {
+    try { return typeof STATE !== 'undefined' && STATE && STATE.view === 'detail'; }
+    catch(e) { return false; }
+  }
+
+  document.addEventListener('touchstart', function(e){
+    if (!inDetail()) { st = null; return; }
+    if (e.touches.length !== 1) { st = null; return; }
+    if (isInteractive(e.target)) { st = null; return; }
+    var t = e.touches[0];
+    st = { x: t.clientX, y: t.clientY, t: Date.now(), locked: false, horiz: false };
+  }, { passive: true });
+
+  document.addEventListener('touchmove', function(e){
+    if (!st) return;
+    if (e.touches.length !== 1) { st = null; return; }
+    var t = e.touches[0];
+    var dx = t.clientX - st.x;
+    var dy = t.clientY - st.y;
+    if (!st.locked) {
+      if (Math.abs(dx) > 12 || Math.abs(dy) > 12) {
+        st.horiz = Math.abs(dx) > Math.abs(dy) * ANGLE_LOCK;
+        st.locked = true;
+        if (!st.horiz) { st = null; return; } // 縦スクロール優先 → ジェスチャ放棄
+      }
+    }
+  }, { passive: true });
+
+  document.addEventListener('touchend', function(e){
+    if (!st) return;
+    var startState = st; st = null;
+    if (!startState.horiz) return;
+    var t = e.changedTouches[0];
+    var dx = t.clientX - startState.x;
+    var dy = t.clientY - startState.y;
+    var dt = Date.now() - startState.t;
+    if (dt > MAX_DURATION) return;
+    if (Math.abs(dx) < SHORT_TH) return;
+    if (Math.abs(dx) < Math.abs(dy) * ANGLE_LOCK) return;
+
+    var w = window.innerWidth || document.documentElement.clientWidth || 375;
+
+    // 左→右（dx > 0）
+    if (dx > 0) {
+      if (dx > w * BACK_RATIO) {
+        // 長い右スワイプ → 戻る
+        if (typeof backToList === 'function') backToList();
+      } else {
+        // 短い右スワイプ → 前のレコード
+        if (typeof gotoAdjacentDetail_ === 'function') gotoAdjacentDetail_(-1);
+      }
+      return;
+    }
+    // 右→左（dx < 0）→ 次のレコード
+    if (typeof gotoAdjacentDetail_ === 'function') gotoAdjacentDetail_(1);
+  }, { passive: true });
+
+  document.addEventListener('touchcancel', function(){ st = null; }, { passive: true });
+})();
+
 </script>
 <script>
 // ===== PWA 更新マネージャ =====
