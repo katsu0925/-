@@ -3211,7 +3211,7 @@ function fieldRowHtml(name, type, val) {
       input = '<select id="' + id + '">' + masterOptionsHtml_(COLOR_OPTIONS, v) + '</select>';
     }
   } else if (type === 'yesno') {
-    input = yesNoToggleHtml_(id, v);
+    input = yesNoToggleHtml_(id, v, name);
   } else if (type === 'date') {
     var dv = '';
     if (v) {
@@ -3318,17 +3318,26 @@ var COLOR_OPTIONS = [
 ];
 
 // あり/なし トグルボタン HTML（透け感・ポケット用）
-function yesNoToggleHtml_(id, current) {
+// fieldName が 'ポケット' のときは 3 つ目のボタンを「詳細入力」にして
+// 同セクションの「ポケット詳細」textarea にフォーカスさせる
+function yesNoToggleHtml_(id, current, fieldName) {
   var cur = String(current || '').trim();
   var isYes = (cur === 'あり' || cur === 'TRUE' || cur === 'true' || cur === 'YES' || cur === 'はい' || cur === 'Y');
   var isNo  = (cur === 'なし' || cur === 'FALSE' || cur === 'false' || cur === 'NO' || cur === 'いいえ' || cur === 'N');
   var val = isYes ? 'あり' : (isNo ? 'なし' : '');
+  var isPocket = (fieldName === 'ポケット');
+  var thirdLabel = isPocket ? '詳細入力' : '—';
+  var thirdAttr = isPocket ? ' data-focus-field="ポケット詳細"' : ' title="クリア"';
+  // ポケットの「詳細入力」は値クリアではなく現状値を保持しつつ詳細欄にフォーカスを移すだけ
+  // → data-val を空にせず data-keep="1" で onYesNoClick_ 側にスキップさせる
+  var thirdDataVal = isPocket ? '' : '';
+  var thirdKeep = isPocket ? ' data-keep="1"' : '';
   return (
     '<div class="yesno-toggle" data-target="' + id + '">' +
       '<input type="hidden" id="' + id + '" value="' + esc(val) + '">' +
       '<button type="button" class="yesno-btn yesno-yes' + (isYes ? ' active' : '') + '" data-val="あり" onclick="onYesNoClick_(this)">あり</button>' +
       '<button type="button" class="yesno-btn yesno-no'  + (isNo  ? ' active' : '') + '" data-val="なし" onclick="onYesNoClick_(this)">なし</button>' +
-      '<button type="button" class="yesno-btn yesno-clear' + (!isYes && !isNo ? ' active' : '') + '" data-val="" onclick="onYesNoClick_(this)" title="クリア">—</button>' +
+      '<button type="button" class="yesno-btn yesno-clear' + (!isYes && !isNo && !isPocket ? ' active' : '') + '" data-val="' + thirdDataVal + '"' + thirdKeep + thirdAttr + ' onclick="onYesNoClick_(this)">' + esc(thirdLabel) + '</button>' +
     '</div>'
   );
 }
@@ -3336,6 +3345,24 @@ function yesNoToggleHtml_(id, current) {
 function onYesNoClick_(btn) {
   var wrap = btn.closest('.yesno-toggle');
   if (!wrap) return;
+  var keep = btn.getAttribute('data-keep') === '1';
+  var focusField = btn.getAttribute('data-focus-field') || '';
+  // data-keep="1"（ポケットの詳細入力ボタン）の場合は値を変更せず、
+  // 関連 textarea にフォーカスだけ移動する
+  if (keep) {
+    if (focusField) {
+      // 詳細編集（f_）と新規作成（cf_）の両方の prefix を順に試す
+      var target = document.getElementById(detailFieldId(focusField));
+      if (!target && typeof createFieldId_ === 'function') {
+        target = document.getElementById(createFieldId_(focusField));
+      }
+      if (target) {
+        try { target.focus(); } catch(e) {}
+        try { target.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch(e) {}
+      }
+    }
+    return;
+  }
   var val = btn.getAttribute('data-val') || '';
   var hidden = wrap.querySelector('input[type="hidden"]');
   if (hidden) {
@@ -4523,7 +4550,7 @@ function createFieldRowHtml_(name, type, defVal) {
       input = '<select id="' + id + '">' + masterOptionsHtml_(COLOR_OPTIONS, v) + '</select>';
     }
   } else if (type === 'yesno') {
-    input = yesNoToggleHtml_(id, v);
+    input = yesNoToggleHtml_(id, v, name);
   } else if (type === 'date') {
     input = '<input type="date" id="' + id + '" value="' + esc(v) + '">';
   } else if (type === 'url') {
@@ -4665,8 +4692,10 @@ function resetCreateProductForm_() {
       if (type === 'yesno') {
         var wrap = el.closest('.yesno-toggle');
         if (wrap) {
+          // data-keep="1"（ポケットの詳細入力ボタン）は値ではないので active にしない
           Array.prototype.forEach.call(wrap.querySelectorAll('.yesno-btn'), function(b){
-            b.classList.toggle('active', b.getAttribute('data-val') === '');
+            var isKeep = b.getAttribute('data-keep') === '1';
+            b.classList.toggle('active', !isKeep && b.getAttribute('data-val') === '');
           });
         }
       }
