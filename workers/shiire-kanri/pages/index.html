@@ -4404,32 +4404,109 @@ function closeImageModal_(e) {
 
 </script>
 <script>
-// Service Worker 登録
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function() {
-    navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(function(reg) {
-      // 更新検知 → 即時切替（次回ナビゲーションで反映）
-      if (reg.waiting) try { reg.waiting.postMessage({ type: 'SKIP_WAITING' }); } catch(e) {}
-      reg.addEventListener('updatefound', function() {
-        var nw = reg.installing;
-        if (!nw) return;
-        nw.addEventListener('statechange', function() {
-          if (nw.state === 'installed' && navigator.serviceWorker.controller) {
-            try { nw.postMessage({ type: 'SKIP_WAITING' }); } catch(e) {}
-          }
-        });
-      });
-      // 1時間ごとに更新チェック
-      setInterval(function() { try { reg.update(); } catch(e) {} }, 60 * 60 * 1000);
-    }).catch(function(){ /* SW 登録失敗は致命的ではない */ });
-    var refreshing = false;
-    navigator.serviceWorker.addEventListener('controllerchange', function() {
-      if (refreshing) return;
-      refreshing = true;
-      // 次回フォアグラウンド時に静かに更新（ユーザー操作を妨げない）
+// ===== PWA 更新マネージャ =====
+// 目的: アプリ化したまま使うユーザーが古いバージョンに固定されないようにする
+// 戦略:
+//   1) 起動時 + 可視化時 + 5分ごとに reg.update() を強制
+//   2) 新 SW が installed になったら waiting に SKIP_WAITING → 即 activate
+//   3) controllerchange を検知したらユーザーに「更新があります」バナーを表示
+//   4) ユーザーがボタンを押すか 30 秒経過したら window.location.reload()
+//   5) フォーム編集中に勝手にリロードしない（dirty なら通知のみで止める）
+(function setupPwaUpdater(){
+  if (!('serviceWorker' in navigator)) return;
+
+  function isEditing() {
+    // 詳細画面で未保存の変更がある場合はリロードを保留
+    try {
+      if (typeof STATE !== 'undefined' && STATE && STATE.detailDirty) return true;
+    } catch(e) {}
+    var ae = document.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return true;
+    return false;
+  }
+
+  function showUpdateBanner(onApply) {
+    if (document.getElementById('pwa-update-banner')) return;
+    var bar = document.createElement('div');
+    bar.id = 'pwa-update-banner';
+    bar.setAttribute('role', 'status');
+    bar.style.cssText =
+      'position:fixed;left:50%;bottom:max(12px,env(safe-area-inset-bottom));' +
+      'transform:translateX(-50%);z-index:9999;' +
+      'background:#1565c0;color:#fff;border-radius:24px;padding:10px 14px 10px 16px;' +
+      'box-shadow:0 6px 20px rgba(0,0,0,.25);' +
+      'display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;' +
+      'max-width:calc(100vw - 24px);';
+    bar.innerHTML =
+      '<span>新しいバージョンが利用できます</span>' +
+      '<button id="pwa-update-btn" style="appearance:none;border:none;background:#fff;color:#1565c0;' +
+      'font-weight:700;border-radius:999px;padding:6px 14px;cursor:pointer;font-size:13px;">更新</button>' +
+      '<button id="pwa-update-close" aria-label="閉じる" style="appearance:none;border:none;background:transparent;' +
+      'color:#fff;font-size:18px;line-height:1;cursor:pointer;padding:4px 6px;">×</button>';
+    document.body.appendChild(bar);
+    document.getElementById('pwa-update-btn').addEventListener('click', function(){
+      try { onApply(); } catch(e) { window.location.reload(); }
     });
+    document.getElementById('pwa-update-close').addEventListener('click', function(){
+      bar.remove();
+    });
+  }
+
+  navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(function(reg) {
+    // すでに waiting がいれば即適用を促す
+    function promptIfWaiting() {
+      if (!reg.waiting) return;
+      showUpdateBanner(function(){
+        try { reg.waiting.postMessage({ type: 'SKIP_WAITING' }); } catch(e) {}
+      });
+    }
+    promptIfWaiting();
+
+    reg.addEventListener('updatefound', function(){
+      var nw = reg.installing;
+      if (!nw) return;
+      nw.addEventListener('statechange', function(){
+        if (nw.state === 'installed') {
+          if (navigator.serviceWorker.controller) {
+            // 既に SW が走っている → 新版が waiting で待っている状態
+            promptIfWaiting();
+          }
+          // 初回インストール時はユーザーに通知不要（そのまま使える）
+        }
+      });
+    });
+
+    // 起動直後に一度更新チェック
+    try { reg.update(); } catch(e) {}
+
+    // フォアグラウンド復帰 → 必ず更新チェック（iOS スタンドアロンの取りこぼし対策）
+    document.addEventListener('visibilitychange', function(){
+      if (document.visibilityState === 'visible') {
+        try { reg.update(); } catch(e) {}
+      }
+    });
+
+    // 5分ごとにも自動更新チェック
+    setInterval(function(){ try { reg.update(); } catch(e) {} }, 5 * 60 * 1000);
+  }).catch(function(){ /* SW 登録失敗は致命的ではない */ });
+
+  // controllerchange = 新 SW がページを掌握した瞬間
+  // ここでリロードすると古い JS のまま動く問題を回避できる
+  var didReload = false;
+  navigator.serviceWorker.addEventListener('controllerchange', function(){
+    if (didReload) return;
+    if (isEditing()) {
+      // 編集中はリロードせず通知のみ
+      showUpdateBanner(function(){
+        didReload = true;
+        window.location.reload();
+      });
+      return;
+    }
+    didReload = true;
+    window.location.reload();
   });
-}
+})();
 </script>
 </body>
 </html>
