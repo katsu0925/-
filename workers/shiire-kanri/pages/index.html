@@ -3331,16 +3331,12 @@ function yesNoToggleHtml_(id, current, fieldName) {
   var isPocket = (fieldName === 'ポケット');
   var thirdLabel = isPocket ? '詳細入力' : '—';
   var thirdAttr = isPocket ? ' data-focus-field="ポケット詳細"' : ' title="クリア"';
-  // ポケットの「詳細入力」は値クリアではなく現状値を保持しつつ詳細欄にフォーカスを移すだけ
-  // → data-val を空にせず data-keep="1" で onYesNoClick_ 側にスキップさせる
-  var thirdDataVal = isPocket ? '' : '';
-  var thirdKeep = isPocket ? ' data-keep="1"' : '';
   return (
     '<div class="yesno-toggle" data-target="' + id + '">' +
       '<input type="hidden" id="' + id + '" value="' + esc(val) + '">' +
       '<button type="button" class="yesno-btn yesno-yes' + (isYes ? ' active' : '') + '" data-val="あり" onclick="onYesNoClick_(this)">あり</button>' +
       '<button type="button" class="yesno-btn yesno-no'  + (isNo  ? ' active' : '') + '" data-val="なし" onclick="onYesNoClick_(this)">なし</button>' +
-      '<button type="button" class="yesno-btn yesno-clear' + (!isYes && !isNo && !isPocket ? ' active' : '') + '" data-val="' + thirdDataVal + '"' + thirdKeep + thirdAttr + ' onclick="onYesNoClick_(this)">' + esc(thirdLabel) + '</button>' +
+      '<button type="button" class="yesno-btn yesno-clear' + (!isYes && !isNo ? ' active' : '') + '" data-val=""' + thirdAttr + ' onclick="onYesNoClick_(this)">' + esc(thirdLabel) + '</button>' +
     '</div>'
   );
 }
@@ -3348,25 +3344,8 @@ function yesNoToggleHtml_(id, current, fieldName) {
 function onYesNoClick_(btn) {
   var wrap = btn.closest('.yesno-toggle');
   if (!wrap) return;
-  var keep = btn.getAttribute('data-keep') === '1';
-  var focusField = btn.getAttribute('data-focus-field') || '';
-  // data-keep="1"（ポケットの詳細入力ボタン）の場合は値を変更せず、
-  // 関連 textarea にフォーカスだけ移動する
-  if (keep) {
-    if (focusField) {
-      // 詳細編集（f_）と新規作成（cf_）の両方の prefix を順に試す
-      var target = document.getElementById(detailFieldId(focusField));
-      if (!target && typeof createFieldId_ === 'function') {
-        target = document.getElementById(createFieldId_(focusField));
-      }
-      if (target) {
-        try { target.focus(); } catch(e) {}
-        try { target.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch(e) {}
-      }
-    }
-    return;
-  }
   var val = btn.getAttribute('data-val') || '';
+  var focusField = btn.getAttribute('data-focus-field') || '';
   var hidden = wrap.querySelector('input[type="hidden"]');
   if (hidden) {
     hidden.value = val;
@@ -3381,6 +3360,18 @@ function onYesNoClick_(btn) {
   });
   if (typeof updateSavebar_ === 'function') {
     try { updateSavebar_(); } catch(e) {}
+  }
+  // 詳細入力ボタン: 通常の値設定処理を行ったのち、関連 textarea にフォーカス
+  if (focusField) {
+    // 詳細編集（f_）と新規作成（cf_）の両方の prefix を順に試す
+    var target = document.getElementById(detailFieldId(focusField));
+    if (!target && typeof createFieldId_ === 'function') {
+      target = document.getElementById(createFieldId_(focusField));
+    }
+    if (target) {
+      try { target.focus(); } catch(e) {}
+      try { target.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch(e) {}
+    }
   }
 }
 
@@ -4955,12 +4946,25 @@ function closeImageModal_(e) {
   }
 
   navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(function(reg) {
+    // 更新ボタン押下時の共通処理
+    // SKIP_WAITING を送って新 SW を起こすと同時に、controllerchange を待たず
+    // 短い fallback タイマーで強制リロードする（iOS スタンドアロンで
+    // controllerchange が発火しないケースの保険）
+    function applyUpdate() {
+      var waiting = reg.waiting;
+      if (waiting) {
+        try { waiting.postMessage({ type: 'SKIP_WAITING' }); } catch(e) {}
+      }
+      // 1.5秒以内に controllerchange でリロードされなければ強制リロード
+      setTimeout(function(){
+        try { window.location.reload(); } catch(e) {}
+      }, 1500);
+    }
+
     // すでに waiting がいれば即適用を促す
     function promptIfWaiting() {
       if (!reg.waiting) return;
-      showUpdateBanner(function(){
-        try { reg.waiting.postMessage({ type: 'SKIP_WAITING' }); } catch(e) {}
-      });
+      showUpdateBanner(applyUpdate);
     }
     promptIfWaiting();
 
