@@ -21,6 +21,13 @@ const DERIVED_STATUS = `
   CASE
     -- raw='出品待ち' のうち撮影日・採寸日・使用アカウントが揃った行は「出品作業中」に細分化
     WHEN status = '出品待ち' AND ${D_SATSUEI} AND ${D_SAISUN} AND ${ACCOUNT_SELECTED} THEN '出品作業中'
+    -- raw='出品待ち' でも採寸/撮影が未完なら日付ベースに降格（誤付与の自己修復）
+    WHEN status = '出品待ち' AND NOT (${D_SATSUEI} AND ${D_SAISUN}) THEN
+      CASE
+        WHEN ${D_SATSUEI} THEN '採寸待ち'
+        WHEN ${D_SAISUN}  THEN '撮影待ち'
+        ELSE '採寸待ち'
+      END
     -- raw status が入っていればそれを尊重（AppSheet と整合）
     WHEN status IS NOT NULL AND status <> '' THEN status
     -- raw status が空のときだけ日付ベースで派生
