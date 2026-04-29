@@ -3327,16 +3327,19 @@ function yesNoToggleHtml_(id, current, fieldName) {
   var cur = String(current || '').trim();
   var isYes = (cur === 'あり' || cur === 'TRUE' || cur === 'true' || cur === 'YES' || cur === 'はい' || cur === 'Y');
   var isNo  = (cur === 'なし' || cur === 'FALSE' || cur === 'false' || cur === 'NO' || cur === 'いいえ' || cur === 'N');
-  var val = isYes ? 'あり' : (isNo ? 'なし' : '');
   var isPocket = (fieldName === 'ポケット');
+  var isDetail = isPocket && cur === '詳細入力';
+  var val = isYes ? 'あり' : (isNo ? 'なし' : (isDetail ? '詳細入力' : ''));
   var thirdLabel = isPocket ? '詳細入力' : '—';
+  var thirdVal = isPocket ? '詳細入力' : '';
   var thirdAttr = isPocket ? ' data-focus-field="ポケット詳細"' : ' title="クリア"';
+  var thirdActive = isPocket ? isDetail : (!isYes && !isNo);
   return (
     '<div class="yesno-toggle" data-target="' + id + '">' +
       '<input type="hidden" id="' + id + '" value="' + esc(val) + '">' +
       '<button type="button" class="yesno-btn yesno-yes' + (isYes ? ' active' : '') + '" data-val="あり" onclick="onYesNoClick_(this)">あり</button>' +
       '<button type="button" class="yesno-btn yesno-no'  + (isNo  ? ' active' : '') + '" data-val="なし" onclick="onYesNoClick_(this)">なし</button>' +
-      '<button type="button" class="yesno-btn yesno-clear' + (!isYes && !isNo ? ' active' : '') + '" data-val=""' + thirdAttr + ' onclick="onYesNoClick_(this)">' + esc(thirdLabel) + '</button>' +
+      '<button type="button" class="yesno-btn yesno-clear' + (thirdActive ? ' active' : '') + '" data-val="' + esc(thirdVal) + '"' + thirdAttr + ' onclick="onYesNoClick_(this)">' + esc(thirdLabel) + '</button>' +
     '</div>'
   );
 }
@@ -4686,10 +4689,8 @@ function resetCreateProductForm_() {
       if (type === 'yesno') {
         var wrap = el.closest('.yesno-toggle');
         if (wrap) {
-          // data-keep="1"（ポケットの詳細入力ボタン）は値ではないので active にしない
           Array.prototype.forEach.call(wrap.querySelectorAll('.yesno-btn'), function(b){
-            var isKeep = b.getAttribute('data-keep') === '1';
-            b.classList.toggle('active', !isKeep && b.getAttribute('data-val') === '');
+            b.classList.toggle('active', b.getAttribute('data-val') === '');
           });
         }
       }
