@@ -949,7 +949,7 @@
   .dash-card.primary .dash-delta.flat { background: rgba(255,255,255,.18); color: rgba(255,255,255,.85); }
   /* 棒グラフ（月別） */
   .dash-bars { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; align-items: end; height: 140px; margin: 6px 0 4px; }
-  .dash-bar-col { display: flex; flex-direction: column; align-items: center; height: 100%; min-width: 0; gap: 4px; }
+  .dash-bar-col { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; min-width: 0; }
   .dash-bar-fill {
     width: 100%; max-width: 22px; min-height: 2px; border-radius: 4px 4px 0 0;
     background: linear-gradient(180deg, var(--primary) 0%, var(--primary-dark) 100%);
@@ -1606,6 +1606,7 @@ function shouhinChipsHtml_() {
   return '<div class="chips" id="chips">' + html + '</div>';
 }
 // 商品管理タブのみ chips-bar を表示
+// 再描画時に横スクロール位置がリセットされないよう scrollLeft を保持＋アクティブチップを画面内に維持
 function updateChipsBar_() {
   var bar = document.getElementById('chips-bar');
   if (!bar) return;
@@ -1613,10 +1614,24 @@ function updateChipsBar_() {
     bar.innerHTML = '';
     bar.hidden = true;
     document.body.classList.remove('has-chips');
-  } else {
-    bar.innerHTML = shouhinChipsHtml_();
-    bar.hidden = false;
-    document.body.classList.add('has-chips');
+    return;
+  }
+  var prevScrollLeft = bar.scrollLeft || 0;
+  bar.innerHTML = shouhinChipsHtml_();
+  bar.hidden = false;
+  document.body.classList.add('has-chips');
+  // 直前のスクロール位置を復元
+  bar.scrollLeft = prevScrollLeft;
+  // アクティブチップが見切れていたら可視範囲へ寄せる（左端には戻さない）
+  var active = bar.querySelector('.chip.active');
+  if (active) {
+    var ar = active.getBoundingClientRect();
+    var br = bar.getBoundingClientRect();
+    if (ar.right > br.right) {
+      bar.scrollLeft += (ar.right - br.right) + 12;
+    } else if (ar.left < br.left) {
+      bar.scrollLeft -= (br.left - ar.left) + 12;
+    }
   }
 }
 // ========== 履歴管理（戻るボタンを SPA 内ナビゲーションに使う） ==========
@@ -1714,7 +1729,11 @@ var searchTimer = null;
 document.getElementById('search').addEventListener('input', function(){
   syncSearchClearVisibility_();
   clearTimeout(searchTimer);
-  searchTimer = setTimeout(render, 250);
+  searchTimer = setTimeout(function(){
+    render();
+    // 検索時はトップへ戻す（結果の先頭から見せる）
+    try { window.scrollTo({ top: 0, behavior: 'auto' }); } catch(e) { window.scrollTo(0,0); }
+  }, 250);
 });
 syncSearchClearVisibility_();
 
@@ -1958,9 +1977,14 @@ async function renderUriageDashboard(opts) {
 }
 
 // 月別グラフの年切替（HTML から呼ばれる）
+// 切替で画面トップに戻らないよう scrollY を保持して再描画する
 window.changeUriageYear = function(year) {
   STATE.uriageYear = Number(year);
-  renderUriageDashboard({ year: year });
+  var prevY = window.scrollY || window.pageYOffset || 0;
+  // silent:true でローディング画面に置き換えず、フェッチ完了まで現状維持 → スクロール位置キープ
+  renderUriageDashboard({ year: year, silent: true }).then(function(){
+    window.scrollTo({ top: prevY, behavior: 'instant' in window ? 'instant' : 'auto' });
+  }).catch(function(){});
 };
 
 function paintUriageDashboard_(data) {
