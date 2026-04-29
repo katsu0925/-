@@ -3,7 +3,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>仕入れ管理</title>
 <meta name="theme-color" content="#1565c0">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -45,7 +45,7 @@
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", "Meiryo", sans-serif;
     background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5;
-    padding-top: 102px; padding-bottom: 72px; min-height: 100vh;
+    padding-top: 102px; padding-bottom: calc(76px + env(safe-area-inset-bottom)); min-height: 100vh;
     -webkit-tap-highlight-color: transparent;
     -webkit-font-smoothing: antialiased;
   }
@@ -355,15 +355,15 @@
   .bottomnav {
     position: fixed; bottom: 0; left: 0; right: 0;
     background: var(--surface); border-top: 1px solid var(--border);
-    height: 64px; z-index: 100;
+    height: calc(64px + env(safe-area-inset-bottom)); z-index: 100;
     box-shadow: 0 -2px 8px rgba(0,0,0,0.06);
     overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; white-space: nowrap;
     padding-bottom: env(safe-area-inset-bottom);
   }
   .bottomnav::-webkit-scrollbar { display: none; }
-  .bottomnav-inner { display: inline-flex; height: 100%; }
+  .bottomnav-inner { display: inline-flex; height: 64px; }
   .bottomnav button {
-    min-width: 72px; height: 100%; min-height: 56px; border: none; background: none;
+    min-width: 72px; height: 64px; min-height: 56px; border: none; background: none;
     display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 3px; color: var(--text-sub); font-size: 11px; cursor: pointer; padding: 8px 6px;
     position: relative;
@@ -652,7 +652,7 @@
   .history-empty { color: var(--text-mute); font-size: 12px; padding: 8px 0; text-align: center; }
   /* 保存バー（差分があるとき下部に固定） */
   .savebar {
-    position: fixed; left: 12px; right: 12px; bottom: 76px;
+    position: fixed; left: 12px; right: 12px; bottom: calc(76px + env(safe-area-inset-bottom));
     background: linear-gradient(180deg, #fffbef 0%, #fff8e1 100%);
     border-radius: 12px; box-shadow: 0 8px 24px rgba(184,134,11,.18), 0 2px 6px rgba(0,0,0,.08);
     padding: 12px 14px;
@@ -682,7 +682,7 @@
   .btn-save:hover { box-shadow: 0 4px 12px rgba(46,125,50,.42); }
   .btn-save:disabled { background: #bdbdbd; cursor: not-allowed; box-shadow: none; }
   .fab-stack {
-    position: fixed; right: 16px; bottom: 80px;
+    position: fixed; right: 16px; bottom: calc(80px + env(safe-area-inset-bottom));
     display: flex; flex-direction: column; gap: 10px; z-index: 95;
   }
   .fab {
@@ -701,7 +701,7 @@
   .fab.green { background: var(--success); box-shadow: 0 6px 14px rgba(46,125,50,.32), 0 2px 4px rgba(0,0,0,.08); }
   .fab:disabled { background: #bdbdbd; box-shadow: 0 2px 4px rgba(0,0,0,.1); cursor: not-allowed; }
   .toast {
-    position: fixed; bottom: 88px; left: 50%; transform: translateX(-50%);
+    position: fixed; bottom: calc(88px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
     background: rgba(26,35,48,.94); color: #fff;
     padding: 12px 20px; border-radius: 10px; font-size: 14px; font-weight: 500;
     z-index: 300; opacity: 0; transition: opacity 0.2s;
@@ -970,11 +970,38 @@
   .dash-month-table th { color: var(--text-mute); font-weight: 500; font-size: 11px; }
   .dash-month-table td.label { text-align: left; color: var(--text-sub); }
   .dash-month-table tr.current td { background: #fff8f0; font-weight: 600; }
+  /* 前月比/前年比のラベル付きスタック表示 */
+  .dash-deltas { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 12px; }
+  .dash-delta-item { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+  .dash-delta-item .lab { opacity: .8; }
+  .dash-card.primary .dash-delta-item .lab { color: rgba(255,255,255,.85); }
+  /* 年切替ボタン */
+  .dash-yearbar { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 10px; }
+  .dash-yearbar button {
+    border: 1px solid var(--border); background: var(--surface); color: var(--text-sub);
+    border-radius: 999px; padding: 6px 14px; font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: background .12s, color .12s, border-color .12s;
+    font-family: inherit;
+  }
+  .dash-yearbar button:hover { background: var(--gray-soft); color: var(--text); }
+  .dash-yearbar button.active {
+    background: var(--primary); color: #fff; border-color: var(--primary);
+  }
+  /* 通年カードの 今年/前年 並列レイアウト */
+  .dash-yoy { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 6px; }
+  .dash-yoy-cell {
+    background: var(--bg); border-radius: 10px; padding: 10px 12px; min-width: 0;
+  }
+  .dash-yoy-cell .yoy-label { font-size: 11px; color: var(--text-mute); margin-bottom: 4px; letter-spacing: .04em; }
+  .dash-yoy-cell .yoy-gross { font-size: 18px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+  .dash-yoy-cell .yoy-sub { font-size: 11px; color: var(--text-sub); margin-top: 2px; }
   @media (max-width: 480px) {
     .dash-num { font-size: 20px; }
     .dash-num.small { font-size: 14px; }
     .dash-bars { height: 110px; }
     .dash-month-table th:nth-child(4), .dash-month-table td:nth-child(4) { display: none; }
+    .dash-deltas { flex-direction: column; gap: 6px; align-items: flex-start; }
+    .dash-yoy { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -1907,22 +1934,34 @@ function patchListCache_(kanri, fields) {
 async function renderUriageDashboard(opts) {
   opts = opts || {};
   var c = document.getElementById('content');
+  var year = (opts && opts.year) || (STATE.uriageYear || null);
   var cached = TAB_CACHE['uriage'];
-  if (cached && cached.data) {
+  // 同じ年のキャッシュなら即描画
+  var cachedYearMatch = cached && cached.data && (
+    !year || Number(cached.data.monthlyYear) === Number(year)
+  );
+  if (cachedYearMatch) {
     paintUriageDashboard_(cached.data);
   } else if (!opts.silent) {
     c.innerHTML = '<div class="loading">読み込み中…</div>';
   }
   try {
-    var res = await api('/api/sales/summary');
+    var qs = year ? '?year=' + encodeURIComponent(year) : '';
+    var res = await api('/api/sales/summary' + qs);
     TAB_CACHE['uriage'] = { data: res, ts: Date.now() };
     paintUriageDashboard_(res);
   } catch (err) {
-    if (!cached && !opts.silent) {
+    if (!cachedYearMatch && !opts.silent) {
       c.innerHTML = '<div class="empty" style="color:#c62828">' + esc(err.message || '読み込みに失敗しました') + '</div>';
     }
   }
 }
+
+// 月別グラフの年切替（HTML から呼ばれる）
+window.changeUriageYear = function(year) {
+  STATE.uriageYear = Number(year);
+  renderUriageDashboard({ year: year });
+};
 
 function paintUriageDashboard_(data) {
   if (!tabCacheGuard_('uriage')) return;
@@ -1932,26 +1971,29 @@ function paintUriageDashboard_(data) {
   var lastM = data.lastMonth || {};
   var thisY = data.thisYear || {};
   var lastY = data.lastYear || {};
+  var lastYTd = data.lastYearYtd || {};
   var monthly = data.monthly || [];
+  var monthlyYear = data.monthlyYear || (data.now && data.now.year) || (new Date().getFullYear());
+  var availableYears = Array.isArray(data.availableYears) && data.availableYears.length ? data.availableYears : [monthlyYear];
+  var nowYear = (data.now && data.now.year) || (new Date().getFullYear());
   var nowMonth = (data.now && data.now.month) || (new Date().getMonth() + 1);
 
-  // 前月比 (今月 vs 前月)
-  function deltaHtml(curr, prev) {
+  function deltaHtml(curr, prev, suffix) {
     var c1 = Number(curr || 0); var p1 = Number(prev || 0);
     if (!p1) {
-      return c1 ? '<span class="dash-delta up">前月実績なし</span>' : '<span class="dash-delta flat">—</span>';
+      return c1 ? '<span class="dash-delta up">' + (suffix || '') + '実績なし</span>' : '<span class="dash-delta flat">—</span>';
     }
     var pct = ((c1 - p1) / p1) * 100;
     var sign = pct > 0 ? '+' : '';
     var cls = pct > 1 ? 'up' : (pct < -1 ? 'down' : 'flat');
-    return '<span class="dash-delta ' + cls + '">' + sign + pct.toFixed(1) + '%（前月比）</span>';
+    return '<span class="dash-delta ' + cls + '">' + sign + pct.toFixed(1) + '%</span>';
   }
 
   // 月別棒グラフの最大値
   var maxGross = monthly.reduce(function(a, m){ return Math.max(a, Number(m.gross || 0)); }, 0);
   if (maxGross <= 0) maxGross = 1;
 
-  function periodCardHtml_(title, period, data, opts) {
+  function periodCardHtml_(title, period, d, opts) {
     opts = opts || {};
     var cls = opts.primary ? 'dash-card primary' : 'dash-card';
     return '' +
@@ -1963,51 +2005,82 @@ function paintUriageDashboard_(data) {
         '<div class="dash-grid">' +
           '<div class="dash-cell">' +
             '<div class="dash-label">売上</div>' +
-            '<div class="dash-num">' + fmtYen(data.gross) + '</div>' +
+            '<div class="dash-num">' + fmtYen(d.gross) + '</div>' +
           '</div>' +
           '<div class="dash-cell">' +
             '<div class="dash-label">純売上（手数料・送料控除後）</div>' +
-            '<div class="dash-num">' + fmtYen(data.net) + '</div>' +
+            '<div class="dash-num">' + fmtYen(d.net) + '</div>' +
           '</div>' +
           '<div class="dash-cell">' +
             '<div class="dash-label">件数</div>' +
-            '<div class="dash-num small">' + Number(data.count || 0).toLocaleString('ja-JP') + ' 件</div>' +
+            '<div class="dash-num small">' + Number(d.count || 0).toLocaleString('ja-JP') + ' 件</div>' +
           '</div>' +
           '<div class="dash-cell">' +
             '<div class="dash-label">平均単価</div>' +
-            '<div class="dash-num small">' + fmtYen(data.avg) + '</div>' +
+            '<div class="dash-num small">' + fmtYen(d.avg) + '</div>' +
           '</div>' +
           '<div class="dash-cell">' +
             '<div class="dash-label">手数料</div>' +
-            '<div class="dash-num small">' + fmtYen(data.fee) + '</div>' +
+            '<div class="dash-num small">' + fmtYen(d.fee) + '</div>' +
           '</div>' +
           '<div class="dash-cell">' +
             '<div class="dash-label">送料</div>' +
-            '<div class="dash-num small">' + fmtYen(data.shipping) + '</div>' +
+            '<div class="dash-num small">' + fmtYen(d.shipping) + '</div>' +
           '</div>' +
         '</div>' +
-        (opts.deltaHtml ? '<div style="margin-top:10px">' + opts.deltaHtml + '</div>' : '') +
+        (opts.deltasHtml ? opts.deltasHtml : '') +
       '</div>';
   }
 
-  // 月別棒グラフ
+  // 今月カード: 売上/純売上 それぞれの前月比をラベル付きで縦方向にも崩せる形で
+  var thisDeltas =
+    '<div class="dash-deltas">' +
+      '<span class="dash-delta-item"><span class="lab">売上 前月比</span> ' + deltaHtml(thisM.gross, lastM.gross, '前月') + '</span>' +
+      '<span class="dash-delta-item"><span class="lab">純売上 前月比</span> ' + deltaHtml(thisM.net, lastM.net, '前月') + '</span>' +
+    '</div>';
+
+  // 通年カード: 今年(YTD) と 前年通年 + 前年同期 の3並列
+  var lyEndStr = lastYTd.ytdEnd ? (lastY.year + '/' + (lastYTd.ytdEnd || '').replace('-','/')) : '';
+  var yoyHtml =
+    '<div class="dash-yoy">' +
+      '<div class="dash-yoy-cell">' +
+        '<div class="yoy-label">' + esc(nowYear + '年（年初〜現在）') + '</div>' +
+        '<div class="yoy-gross">' + fmtYen(thisY.gross) + '</div>' +
+        '<div class="yoy-sub">' + Number(thisY.count||0) + '件 ／ 純 ' + fmtYen(thisY.net) + '</div>' +
+      '</div>' +
+      '<div class="dash-yoy-cell">' +
+        '<div class="yoy-label">' + esc((nowYear - 1) + '年 通年') + '</div>' +
+        '<div class="yoy-gross">' + fmtYen(lastY.gross) + '</div>' +
+        '<div class="yoy-sub">' + Number(lastY.count||0) + '件 ／ 純 ' + fmtYen(lastY.net) + '</div>' +
+      '</div>' +
+    '</div>' +
+    '<div class="dash-deltas">' +
+      '<span class="dash-delta-item"><span class="lab">前年同期比（〜' + esc(lyEndStr) + '）</span> ' + deltaHtml(thisY.gross, lastYTd.gross, '前年同期') + '</span>' +
+      '<span class="dash-delta-item"><span class="lab">前年同期 売上</span> <b style="font-variant-numeric:tabular-nums">' + fmtYen(lastYTd.gross) + '</b></span>' +
+    '</div>';
+
+  // 月別棒グラフ（任意の年。current 強調は monthlyYear==nowYear のときだけ）
+  var highlightCurrent = (Number(monthlyYear) === Number(nowYear));
   var bars = monthly.map(function(m){
     var pct = (Number(m.gross || 0) / maxGross) * 100;
-    var isCurrent = m.month === nowMonth;
-    var isFuture = m.month > nowMonth;
+    var isCurrent = highlightCurrent && m.month === nowMonth;
+    var isFuture = highlightCurrent && m.month > nowMonth;
     var cls = 'dash-bar-col' + (isCurrent ? ' current' : '') + (isFuture && Number(m.gross||0) === 0 ? ' empty' : '');
     var height = Math.max(2, pct);
     var title = m.yyyymm + '：' + fmtYen(m.gross) + '（' + Number(m.count||0) + '件）';
     return '<div class="' + cls + '" title="' + esc(title) + '"><div class="dash-bar-fill" style="height:' + height.toFixed(1) + '%"></div></div>';
   }).join('');
   var labels = monthly.map(function(m){
-    var cls = m.month === nowMonth ? 'current' : '';
+    var cls = (highlightCurrent && m.month === nowMonth) ? 'current' : '';
     return '<span class="' + cls + '">' + m.month + '月</span>';
   }).join('');
 
-  // 月別表
-  var rows = monthly.filter(function(m){ return m.count > 0 || m.month <= nowMonth; }).map(function(m){
-    var cls = m.month === nowMonth ? 'current' : '';
+  // 月別表（過去年は実績ある月のみ、当年は現在月までを表示）
+  var rows = monthly.filter(function(m){
+    if (highlightCurrent) return m.count > 0 || m.month <= nowMonth;
+    return m.count > 0;
+  }).map(function(m){
+    var cls = (highlightCurrent && m.month === nowMonth) ? 'current' : '';
     return '<tr class="' + cls + '">' +
       '<td class="label">' + m.month + '月</td>' +
       '<td>' + Number(m.count||0).toLocaleString('ja-JP') + '</td>' +
@@ -2016,21 +2089,36 @@ function paintUriageDashboard_(data) {
     '</tr>';
   }).join('');
 
+  // 年切替ボタン
+  var yearBtns = availableYears.map(function(y){
+    var active = Number(y) === Number(monthlyYear);
+    return '<button class="' + (active ? 'active' : '') + '" onclick="changeUriageYear(' + y + ')">' + y + '年</button>';
+  }).join('');
+
+  // 月別カードの集計サマリー（当年は YTD、過去年は通年合計）
+  var monthlyTotalGross = monthly.reduce(function(a, m){ return a + Number(m.gross || 0); }, 0);
+  var monthlyTotalCount = monthly.reduce(function(a, m){ return a + Number(m.count || 0); }, 0);
+
   c.innerHTML =
     '<div class="dash-wrap">' +
       periodCardHtml_('今月', (thisM.yyyymm || '') + '（' + nowMonth + '月）', thisM, {
         primary: true,
-        deltaHtml: '売上 ' + deltaHtml(thisM.gross, lastM.gross) + '　／　純売上 ' + deltaHtml(thisM.net, lastM.net)
+        deltasHtml: thisDeltas,
       }) +
       periodCardHtml_('前月', (lastM.yyyymm || ''), lastM) +
-      periodCardHtml_('通年', (thisY.year || '') + '年（前年: ' + fmtYen(lastY.gross) + ' / ' + Number(lastY.count||0) + '件）', thisY, {
-        deltaHtml: lastY.gross ? '売上 ' + deltaHtml(thisY.gross, lastY.gross) : ''
-      }) +
       '<div class="dash-card">' +
         '<div class="dash-head">' +
-          '<div class="dash-title">月別売上（' + (thisY.year || '') + '年）</div>' +
-          '<div class="dash-period">最大 ' + fmtYen(maxGross) + '</div>' +
+          '<div class="dash-title">通年（前年比）</div>' +
+          '<div class="dash-period">' + esc(nowYear + '年 vs ' + (nowYear - 1) + '年') + '</div>' +
         '</div>' +
+        yoyHtml +
+      '</div>' +
+      '<div class="dash-card">' +
+        '<div class="dash-head">' +
+          '<div class="dash-title">月別売上（' + monthlyYear + '年）</div>' +
+          '<div class="dash-period">合計 ' + fmtYen(monthlyTotalGross) + ' ／ ' + monthlyTotalCount + '件</div>' +
+        '</div>' +
+        '<div class="dash-yearbar">' + yearBtns + '</div>' +
         '<div class="dash-bars">' + bars + '</div>' +
         '<div class="dash-bar-labels">' + labels + '</div>' +
         '<table class="dash-month-table">' +
