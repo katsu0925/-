@@ -665,8 +665,20 @@
     50% { box-shadow: 0 8px 28px rgba(184,134,11,.32), 0 2px 8px rgba(0,0,0,.10); }
   }
   .savebar.show { display: flex; }
-  .savebar-info { flex: 1; font-size: 13px; color: #7a5a00; font-weight: 500; }
+  .savebar-info { flex: 1; font-size: 13px; color: #7a5a00; font-weight: 500; min-width: 0; }
   .savebar-info b { color: #4a3700; font-weight: 800; font-size: 15px; }
+  .savebar-fields {
+    display: block; margin-top: 2px; font-size: 11px; color: #8a6d10; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  /* 変更検知された行のハイライト */
+  .field-row.dirty {
+    background: linear-gradient(180deg, #fffbef 0%, #fff5d2 100%);
+    border-left: 3px solid #f0a500;
+    padding-left: 9px;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(184,134,11,.12);
+  }
   .btn-cancel {
     padding: 10px 16px; background: var(--surface); color: var(--text-sub);
     border: 1px solid var(--border); border-radius: 8px;
@@ -3807,7 +3819,7 @@ function renderDetail() {
       historyHtml +
     '</div>' +
     '<div class="savebar" id="savebar">' +
-      '<div class="savebar-info"><b id="savebar-count">0</b> 件の変更が未保存</div>' +
+      '<div class="savebar-info"><b id="savebar-count">0</b> 件の変更が未保存<span class="savebar-fields" id="savebar-fields"></span></div>' +
       '<button class="btn-cancel" type="button" onclick="cancelDetailEdits_()">破棄</button>' +
       '<button class="btn-save" type="button" id="btn-save-details" onclick="saveDetails()">保存</button>' +
     '</div>';
@@ -3821,11 +3833,15 @@ function renderDetail() {
   resolveLegacyImages_();
   updateSavebar_();
 }
-function diffCount_() {
+// 詳細画面で「変更があったフィールド」を { name, before, after } 配列で返す。
+// updateSavebar_ がここから件数とフィールド名一覧を取得して可視化する。
+// 「何も変更してないのに 1件未保存」と出る場合は before/after を見れば原因
+// （日付フォーマット差、select 候補外の値、空白の揺れなど）が特定できる。
+function getDirtyFields_() {
   var d = STATE.current;
-  if (!d) return 0;
+  if (!d) return [];
   var ex = d.extra || {};
-  var n = 0;
+  var dirty = [];
   DETAIL_SECTIONS.forEach(function(sec){
     sec.fields.forEach(function(f){
       var name = f[0], type = f[1];
@@ -3834,33 +3850,56 @@ function diffCount_() {
       if (!el) return;
       var v = el.value;
       var orig = ex[name] !== undefined ? String(ex[name]) : '';
+      var changed = false;
       if (type === 'date') {
         var origDate = '';
         if (orig) {
           if (/^\d{4}-\d{2}-\d{2}/.test(orig)) origDate = orig.slice(0, 10);
           else { var dd = new Date(orig); if (!isNaN(dd.getTime())) origDate = dd.toISOString().slice(0, 10); }
         }
-        if ((v || '') !== origDate) n++;
+        if ((v || '') !== origDate) { changed = true; orig = origDate; }
       } else if (type === 'bool') {
         // bool は シート由来の "true"/"false" (JS Boolean を String 化) と option value "TRUE"/"FALSE" の
         // 大文字小文字差で擬似 dirty が起きるため case-insensitive で比較する
-        if (String(v).toUpperCase() !== orig.toUpperCase()) n++;
-      } else if (String(v) !== orig) n++;
+        if (String(v).toUpperCase() !== orig.toUpperCase()) changed = true;
+      } else if (String(v) !== orig) changed = true;
+      if (changed) dirty.push({ name: name, before: orig, after: String(v == null ? '' : v) });
     });
   });
-  return n;
+  return dirty;
 }
+function diffCount_() { return getDirtyFields_().length; }
+
 function updateSavebar_() {
   var bar = document.getElementById('savebar');
   if (!bar) return;
-  var n = diffCount_();
+  var dirty = getDirtyFields_();
+  var n = dirty.length;
+  // 既存のハイライトをクリア
+  Array.prototype.forEach.call(document.querySelectorAll('#content .field-row.dirty'), function(row){
+    row.classList.remove('dirty');
+  });
+  // dirty なフィールドの行をハイライト
+  dirty.forEach(function(item){
+    var el = document.getElementById(detailFieldId(item.name));
+    if (!el) return;
+    var row = el.closest ? el.closest('.field-row') : null;
+    if (!row && el.parentElement) row = el.parentElement.closest && el.parentElement.closest('.field-row');
+    if (row) {
+      row.classList.add('dirty');
+      row.setAttribute('title', '変更前: ' + (item.before || '（空）') + ' → 変更後: ' + (item.after || '（空）'));
+    }
+  });
+  var cnt = document.getElementById('savebar-count');
+  var names = document.getElementById('savebar-fields');
   if (n > 0) {
     bar.classList.add('show');
-    var cnt = document.getElementById('savebar-count');
     if (cnt) cnt.textContent = String(n);
+    if (names) names.textContent = '（' + dirty.map(function(d){return d.name}).join('、') + '）';
     STATE.detailDirty = true;
   } else {
     bar.classList.remove('show');
+    if (names) names.textContent = '';
     STATE.detailDirty = false;
   }
 }

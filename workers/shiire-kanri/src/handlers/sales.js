@@ -99,6 +99,9 @@ export async function getSalesSummary(request, env) {
       `SELECT DISTINCT substr(sale_date,1,4) AS y FROM products WHERE sale_date IS NOT NULL AND sale_date <> '' ORDER BY y DESC`
     ).all()).results || [];
     const availableYears = yearsRows.map(r => Number(r.y)).filter(y => isFinite(y) && y > 2000);
+    if (!availableYears.includes(yyyy)) availableYears.unshift(yyyy);
+    if (!availableYears.includes(targetYear)) availableYears.push(targetYear);
+    availableYears.sort((a, b) => b - a);
 
     const buildPeriod = (cnt, gross, fee, ship) => {
       const c = Number(cnt || 0);
