@@ -2017,10 +2017,13 @@ function paintUriageDashboard_(data) {
   var lastY = data.lastYear || {};
   var lastYTd = data.lastYearYtd || {};
   var monthly = data.monthly || [];
-  var monthlyYear = data.monthlyYear || (data.now && data.now.year) || (new Date().getFullYear());
-  var availableYears = Array.isArray(data.availableYears) && data.availableYears.length ? data.availableYears : [monthlyYear];
   var nowYear = (data.now && data.now.year) || (new Date().getFullYear());
   var nowMonth = (data.now && data.now.month) || (new Date().getMonth() + 1);
+  var monthlyYear = data.monthlyYear || nowYear;
+  var availableYears = Array.isArray(data.availableYears) && data.availableYears.length ? data.availableYears.slice() : [monthlyYear];
+  // 防御策: API が古いキャッシュ等で今年を含まない場合でもフロントで補正
+  if (availableYears.indexOf(nowYear) === -1) availableYears.unshift(nowYear);
+  availableYears.sort(function(a, b){ return Number(b) - Number(a); });
 
   function deltaHtml(curr, prev, suffix) {
     var c1 = Number(curr || 0); var p1 = Number(prev || 0);
