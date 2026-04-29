@@ -9,7 +9,7 @@
 //  - VERSION を上げると activate 時に旧キャッシュを全削除
 //  - skipWaiting + clients.claim で即時切替、controllerchange でクライアントが UI 通知
 
-const VERSION = 'sk-2026-04-29-v6';
+const VERSION = 'sk-2026-04-30-v7';
 const SHELL_CACHE = 'shell-' + VERSION;
 const API_CACHE   = 'api-' + VERSION;
 
@@ -58,7 +58,7 @@ function isApiSwr(pathname) {
   if (pathname.startsWith('/api/save/')) return false;
   if (pathname.startsWith('/api/create/')) return false;
   if (pathname === '/api/me') return false;
-  return /^\/api\/(products|purchases|master\/|sheet\/|moves|returns|sagyousha|kanri\/next)/.test(pathname);
+  return /^\/api\/(products|purchases|master\/|sheet\/|moves|returns|sagyousha|kanri\/next|sales\/)/.test(pathname);
 }
 
 async function staleWhileRevalidate(req) {

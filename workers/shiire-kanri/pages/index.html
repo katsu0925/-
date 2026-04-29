@@ -908,6 +908,74 @@
     .product-info { padding: 18px 20px; }
     .product-info h2 { font-size: 24px; }
   }
+  /* ===== 売上ダッシュボード ===== */
+  .dash-wrap { display: flex; flex-direction: column; gap: 14px; padding: 4px 0 24px; }
+  .dash-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 14px;
+    padding: 14px 16px; box-shadow: var(--shadow);
+  }
+  .dash-card.primary {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: #fff; border: none;
+  }
+  .dash-card.primary .dash-label,
+  .dash-card.primary .dash-sub { color: rgba(255,255,255,.85); }
+  .dash-card.primary .dash-num { color: #fff; }
+  .dash-head {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+    margin-bottom: 8px;
+  }
+  .dash-title { font-size: 13px; font-weight: 600; opacity: .9; letter-spacing: .02em; }
+  .dash-period { font-size: 12px; opacity: .7; }
+  .dash-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 16px;
+  }
+  .dash-grid.three { grid-template-columns: repeat(3, 1fr); }
+  .dash-cell { min-width: 0; }
+  .dash-label { font-size: 11px; color: var(--text-mute); margin-bottom: 2px; letter-spacing: .04em; }
+  .dash-num {
+    font-size: 22px; font-weight: 700; color: var(--text);
+    font-variant-numeric: tabular-nums; letter-spacing: -.01em;
+    word-break: keep-all; white-space: nowrap;
+  }
+  .dash-num.small { font-size: 16px; font-weight: 600; }
+  .dash-sub { font-size: 11px; color: var(--text-sub); margin-top: 2px; }
+  .dash-delta { font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; display: inline-block; }
+  .dash-delta.up { background: var(--success-soft); color: var(--success); }
+  .dash-delta.down { background: var(--danger-soft); color: var(--danger); }
+  .dash-delta.flat { background: var(--gray-soft); color: var(--text-sub); }
+  .dash-card.primary .dash-delta.up { background: rgba(255,255,255,.22); color: #e0ffe0; }
+  .dash-card.primary .dash-delta.down { background: rgba(255,255,255,.22); color: #ffd6d6; }
+  .dash-card.primary .dash-delta.flat { background: rgba(255,255,255,.18); color: rgba(255,255,255,.85); }
+  /* 棒グラフ（月別） */
+  .dash-bars { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; align-items: end; height: 140px; margin: 6px 0 4px; }
+  .dash-bar-col { display: flex; flex-direction: column; align-items: center; height: 100%; min-width: 0; gap: 4px; }
+  .dash-bar-fill {
+    width: 100%; max-width: 22px; min-height: 2px; border-radius: 4px 4px 0 0;
+    background: linear-gradient(180deg, var(--primary) 0%, var(--primary-dark) 100%);
+    transition: height .3s;
+  }
+  .dash-bar-col.current .dash-bar-fill {
+    background: linear-gradient(180deg, var(--accent) 0%, #c54a00 100%);
+  }
+  .dash-bar-col.empty .dash-bar-fill { background: var(--border); }
+  .dash-bar-labels { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; font-size: 10px; color: var(--text-mute); text-align: center; }
+  .dash-bar-labels span.current { color: var(--accent); font-weight: 700; }
+  /* 月別表 */
+  .dash-month-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+  .dash-month-table th, .dash-month-table td {
+    padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--border);
+    font-variant-numeric: tabular-nums;
+  }
+  .dash-month-table th { color: var(--text-mute); font-weight: 500; font-size: 11px; }
+  .dash-month-table td.label { text-align: left; color: var(--text-sub); }
+  .dash-month-table tr.current td { background: #fff8f0; font-weight: 600; }
+  @media (max-width: 480px) {
+    .dash-num { font-size: 20px; }
+    .dash-num.small { font-size: 14px; }
+    .dash-bars { height: 110px; }
+    .dash-month-table th:nth-child(4), .dash-month-table td:nth-child(4) { display: none; }
+  }
 </style>
 </head>
 <body>
@@ -1031,8 +1099,10 @@ async function autoRefresh() {
   isAutoRefreshing = true;
   try {
     refreshCounts();
-    if (STATE.tab === 'shouhin' || STATE.tab === 'uriage' || STATE.tab === 'hassou') {
+    if (STATE.tab === 'shouhin' || STATE.tab === 'hassou') {
       await renderShouhinList({ silent: true });
+    } else if (STATE.tab === 'uriage') {
+      await renderUriageDashboard({ silent: true });
     } else if (STATE.tab === 'shiire') {
       await renderShiireList({ silent: true });
     } else if (STATE.tab === 'basho') {
@@ -1652,8 +1722,7 @@ function render() {
   if (STATE.tab === 'shouhin') {
     renderShouhinList();
   } else if (STATE.tab === 'uriage') {
-    STATE.filter = 'sold'; STATE.filterLabel = '売却済み';
-    renderShouhinList();
+    renderUriageDashboard();
   } else if (STATE.tab === 'hassou') {
     STATE.filter = 'hassou';
     STATE.filterLabel = '発送待ち・発送済み';
@@ -1832,6 +1901,149 @@ function patchListCache_(kanri, fields) {
       if (fields['採寸日']) { it.measuredAt = fields['採寸日']; }
     });
   });
+}
+
+// ========== 売上ダッシュボード ==========
+async function renderUriageDashboard(opts) {
+  opts = opts || {};
+  var c = document.getElementById('content');
+  var cached = TAB_CACHE['uriage'];
+  if (cached && cached.data) {
+    paintUriageDashboard_(cached.data);
+  } else if (!opts.silent) {
+    c.innerHTML = '<div class="loading">読み込み中…</div>';
+  }
+  try {
+    var res = await api('/api/sales/summary');
+    TAB_CACHE['uriage'] = { data: res, ts: Date.now() };
+    paintUriageDashboard_(res);
+  } catch (err) {
+    if (!cached && !opts.silent) {
+      c.innerHTML = '<div class="empty" style="color:#c62828">' + esc(err.message || '読み込みに失敗しました') + '</div>';
+    }
+  }
+}
+
+function paintUriageDashboard_(data) {
+  if (!tabCacheGuard_('uriage')) return;
+  var c = document.getElementById('content');
+  if (!data) { c.innerHTML = '<div class="empty">データがありません</div>'; return; }
+  var thisM = data.thisMonth || {};
+  var lastM = data.lastMonth || {};
+  var thisY = data.thisYear || {};
+  var lastY = data.lastYear || {};
+  var monthly = data.monthly || [];
+  var nowMonth = (data.now && data.now.month) || (new Date().getMonth() + 1);
+
+  // 前月比 (今月 vs 前月)
+  function deltaHtml(curr, prev) {
+    var c1 = Number(curr || 0); var p1 = Number(prev || 0);
+    if (!p1) {
+      return c1 ? '<span class="dash-delta up">前月実績なし</span>' : '<span class="dash-delta flat">—</span>';
+    }
+    var pct = ((c1 - p1) / p1) * 100;
+    var sign = pct > 0 ? '+' : '';
+    var cls = pct > 1 ? 'up' : (pct < -1 ? 'down' : 'flat');
+    return '<span class="dash-delta ' + cls + '">' + sign + pct.toFixed(1) + '%（前月比）</span>';
+  }
+
+  // 月別棒グラフの最大値
+  var maxGross = monthly.reduce(function(a, m){ return Math.max(a, Number(m.gross || 0)); }, 0);
+  if (maxGross <= 0) maxGross = 1;
+
+  function periodCardHtml_(title, period, data, opts) {
+    opts = opts || {};
+    var cls = opts.primary ? 'dash-card primary' : 'dash-card';
+    return '' +
+      '<div class="' + cls + '">' +
+        '<div class="dash-head">' +
+          '<div class="dash-title">' + esc(title) + '</div>' +
+          '<div class="dash-period">' + esc(period) + '</div>' +
+        '</div>' +
+        '<div class="dash-grid">' +
+          '<div class="dash-cell">' +
+            '<div class="dash-label">売上</div>' +
+            '<div class="dash-num">' + fmtYen(data.gross) + '</div>' +
+          '</div>' +
+          '<div class="dash-cell">' +
+            '<div class="dash-label">純売上（手数料・送料控除後）</div>' +
+            '<div class="dash-num">' + fmtYen(data.net) + '</div>' +
+          '</div>' +
+          '<div class="dash-cell">' +
+            '<div class="dash-label">件数</div>' +
+            '<div class="dash-num small">' + Number(data.count || 0).toLocaleString('ja-JP') + ' 件</div>' +
+          '</div>' +
+          '<div class="dash-cell">' +
+            '<div class="dash-label">平均単価</div>' +
+            '<div class="dash-num small">' + fmtYen(data.avg) + '</div>' +
+          '</div>' +
+          '<div class="dash-cell">' +
+            '<div class="dash-label">手数料</div>' +
+            '<div class="dash-num small">' + fmtYen(data.fee) + '</div>' +
+          '</div>' +
+          '<div class="dash-cell">' +
+            '<div class="dash-label">送料</div>' +
+            '<div class="dash-num small">' + fmtYen(data.shipping) + '</div>' +
+          '</div>' +
+        '</div>' +
+        (opts.deltaHtml ? '<div style="margin-top:10px">' + opts.deltaHtml + '</div>' : '') +
+      '</div>';
+  }
+
+  // 月別棒グラフ
+  var bars = monthly.map(function(m){
+    var pct = (Number(m.gross || 0) / maxGross) * 100;
+    var isCurrent = m.month === nowMonth;
+    var isFuture = m.month > nowMonth;
+    var cls = 'dash-bar-col' + (isCurrent ? ' current' : '') + (isFuture && Number(m.gross||0) === 0 ? ' empty' : '');
+    var height = Math.max(2, pct);
+    var title = m.yyyymm + '：' + fmtYen(m.gross) + '（' + Number(m.count||0) + '件）';
+    return '<div class="' + cls + '" title="' + esc(title) + '"><div class="dash-bar-fill" style="height:' + height.toFixed(1) + '%"></div></div>';
+  }).join('');
+  var labels = monthly.map(function(m){
+    var cls = m.month === nowMonth ? 'current' : '';
+    return '<span class="' + cls + '">' + m.month + '月</span>';
+  }).join('');
+
+  // 月別表
+  var rows = monthly.filter(function(m){ return m.count > 0 || m.month <= nowMonth; }).map(function(m){
+    var cls = m.month === nowMonth ? 'current' : '';
+    return '<tr class="' + cls + '">' +
+      '<td class="label">' + m.month + '月</td>' +
+      '<td>' + Number(m.count||0).toLocaleString('ja-JP') + '</td>' +
+      '<td>' + fmtYen(m.gross) + '</td>' +
+      '<td>' + fmtYen(m.net) + '</td>' +
+    '</tr>';
+  }).join('');
+
+  c.innerHTML =
+    '<div class="dash-wrap">' +
+      periodCardHtml_('今月', (thisM.yyyymm || '') + '（' + nowMonth + '月）', thisM, {
+        primary: true,
+        deltaHtml: '売上 ' + deltaHtml(thisM.gross, lastM.gross) + '　／　純売上 ' + deltaHtml(thisM.net, lastM.net)
+      }) +
+      periodCardHtml_('前月', (lastM.yyyymm || ''), lastM) +
+      periodCardHtml_('通年', (thisY.year || '') + '年（前年: ' + fmtYen(lastY.gross) + ' / ' + Number(lastY.count||0) + '件）', thisY, {
+        deltaHtml: lastY.gross ? '売上 ' + deltaHtml(thisY.gross, lastY.gross) : ''
+      }) +
+      '<div class="dash-card">' +
+        '<div class="dash-head">' +
+          '<div class="dash-title">月別売上（' + (thisY.year || '') + '年）</div>' +
+          '<div class="dash-period">最大 ' + fmtYen(maxGross) + '</div>' +
+        '</div>' +
+        '<div class="dash-bars">' + bars + '</div>' +
+        '<div class="dash-bar-labels">' + labels + '</div>' +
+        '<table class="dash-month-table">' +
+          '<thead><tr>' +
+            '<th style="text-align:left">月</th>' +
+            '<th>件数</th>' +
+            '<th>売上</th>' +
+            '<th>純売上</th>' +
+          '</tr></thead>' +
+          '<tbody>' + rows + '</tbody>' +
+        '</table>' +
+      '</div>' +
+    '</div>';
 }
 
 async function renderShouhinList(opts) {

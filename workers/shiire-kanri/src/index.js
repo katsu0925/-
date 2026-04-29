@@ -8,6 +8,7 @@ import { saveMeasurement, saveSale, saveDetails, uploadImage, resolveImage, crea
 import { listWorkers, listAccounts, listSuppliers, listPlaces, listCategories, listSettings } from './handlers/master.js';
 import { lookupAiPrefill, lookupAiPrefillBatch } from './handlers/ai.js';
 import { listMoves, createMove, listReturns, createReturn, listAiResults, listSagyousha, dumpSheet } from './handlers/extras.js';
+import { getSalesSummary } from './handlers/sales.js';
 
 export default {
   async scheduled(event, env, ctx) {
@@ -185,6 +186,11 @@ export default {
     // 作業者管理
     if (path === '/api/sagyousha' && request.method === 'GET') {
       return listSagyousha(request, env, user);
+    }
+
+    // 売上ダッシュボード（今月/前月/通年/月別内訳）
+    if (path === '/api/sales/summary' && request.method === 'GET') {
+      return getSalesSummary(request, env);
     }
 
     // 業務メニュー（汎用シートダンプ: 仕入れ数報告/経費申請/報酬管理）
