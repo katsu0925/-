@@ -2011,6 +2011,17 @@ function paintUriageDashboard_(data) {
   if (!tabCacheGuard_('uriage')) return;
   var c = document.getElementById('content');
   if (!data) { c.innerHTML = '<div class="empty">データがありません</div>'; return; }
+  try { paintUriageDashboardInner_(data, c); }
+  catch (err) {
+    console.error('[uriage paint]', err, data);
+    c.innerHTML = '<div class="empty" style="color:#c62828">グラフ描画エラー: ' + esc(err.message || String(err)) + '</div>' +
+      '<pre style="font-size:10px;overflow:auto;max-height:300px;background:#f5f5f5;padding:8px;border-radius:6px">' +
+      esc(JSON.stringify({ now: data.now, monthlyYear: data.monthlyYear, availableYears: data.availableYears, monthlyLen: (data.monthly||[]).length }, null, 2)) +
+      '</pre>';
+  }
+}
+
+function paintUriageDashboardInner_(data, c) {
   var thisM = data.thisMonth || {};
   var lastM = data.lastMonth || {};
   var thisY = data.thisYear || {};
