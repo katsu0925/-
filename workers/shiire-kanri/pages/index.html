@@ -5,6 +5,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>仕入れ管理</title>
+<meta name="theme-color" content="#1565c0">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="仕入れ管理">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<link rel="apple-touch-icon" href="/icon.svg">
 <style>
   :root {
     --primary: #1565c0;
@@ -295,10 +303,11 @@
   }
   .basic-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
   /* フィールド横並びグリッド */
-  .field-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 12px; }
-  .field-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px 8px; }
+  .field-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; padding: 12px 0; border-bottom: 1px solid #eef1f6; }
+  .field-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 8px; padding: 12px 0; border-bottom: 1px solid #eef1f6; }
+  .form-section > .field-grid-2:last-child, .form-section > .field-grid-3:last-child { border-bottom: none; }
   .field-grid-2 > .field-row, .field-grid-3 > .field-row {
-    display: block; padding: 6px 0; margin: 0; background: transparent; border-bottom: none;
+    display: block; padding: 0; margin: 0; background: transparent; border-bottom: none;
     min-width: 0;
   }
   .meas-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
@@ -407,7 +416,7 @@
   .form-section {
     background: var(--surface);
     border-radius: 0 0 12px 12px;
-    padding: 4px 16px 8px;
+    padding: 0 14px;
     margin-bottom: 0;
     box-shadow: var(--shadow);
     border: 1px solid var(--border); border-top: none;
@@ -416,24 +425,20 @@
   /* セクション間の余白は section-header の margin-top で確保 */
   .field-row {
     display: block;
-    border-bottom: 1px dashed #e7ecf3;
-    padding: 14px 16px 12px;
-    margin: 0 -16px;
+    padding: 12px 0;
+    border-bottom: 1px solid #eef1f6;
   }
   .field-row:last-child { border-bottom: none; }
-  /* 直下の field-row にゼブラ背景。grid ラッパー（.meas-grid 等）の中の行は対象外 */
-  .form-section > .field-row:nth-child(even) { background: #f4f8ff; }
-  .form-section > .field-row:nth-child(odd)  { background: #fbfcfe; }
   .field-row label {
-    display: block; font-size: 13px; color: var(--text); font-weight: 700;
-    margin-bottom: 6px; letter-spacing: .01em;
+    display: block; font-size: 12px; color: var(--text-sub); font-weight: 600;
+    margin-bottom: 5px; letter-spacing: .02em;
   }
   .field-row label .req { color: var(--danger); margin-left: 4px; font-weight: 800; }
   .field-row input, .field-row select, .field-row textarea {
-    width: 100%; padding: 10px 12px; min-height: 40px;
+    width: 100%; padding: 9px 11px; min-height: 38px;
     box-sizing: border-box; max-width: 100%;
     border: 1px solid var(--border); border-radius: 8px;
-    font-size: 16px; background: #fafbfd;
+    font-size: 15px; background: #fff;
     font-family: inherit; color: var(--text);
     transition: border-color .12s, background .12s, box-shadow .12s;
   }
@@ -443,14 +448,14 @@
     padding: 8px 10px; font-size: 14px; min-height: 36px;
   }
   .field-grid-3 > .field-row label, .field-grid-2 > .field-row label {
-    font-size: 12px; margin-bottom: 4px;
+    font-size: 11px; margin-bottom: 4px;
   }
   .field-row input:hover, .field-row select:hover, .field-row textarea:hover {
-    border-color: #c9d1dd; background: #fff;
+    border-color: #c9d1dd;
   }
   .field-row textarea { min-height: 60px; resize: vertical; }
   .field-row input:focus, .field-row select:focus, .field-row textarea:focus {
-    outline: none; border-color: var(--primary); background: #fff; box-shadow: var(--focus-ring);
+    outline: none; border-color: var(--primary); box-shadow: var(--focus-ring);
   }
   /* 採寸行は横並び（80px 1fr 24px）を維持 */
   .field-row.measure-row {
@@ -461,15 +466,65 @@
   .field-row.measure-row label { margin-bottom: 0; }
   .field-row .unit { color: var(--text-sub); font-size: 12px; text-align: left; }
   .field-readonly {
-    padding: 10px 12px; background: #f0f4f9; color: var(--text);
-    border: 1px solid var(--border); border-radius: 8px; font-size: 14px;
-    min-height: 40px; word-break: break-all;
-    display: flex; align-items: center; gap: 6px;
+    padding: 4px 0; color: var(--text); font-size: 15px;
+    min-height: 28px; word-break: break-all;
     font-weight: 500;
   }
-  .field-readonly::before {
-    content: '🔒'; font-size: 11px; opacity: .55; flex-shrink: 0;
+  /* select + アイコン横並び（発送方法・性別） */
+  .field-with-icon { display: flex; align-items: center; gap: 8px; }
+  .field-with-icon select { flex: 1 1 auto; min-width: 0; }
+  .field-icon-slot { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; }
+  .field-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: var(--gray-soft);
+    border: 1px solid var(--border);
+    transition: background .15s, border-color .15s, transform .15s;
   }
+  .field-icon svg { display: block; width: 20px; height: 20px; }
+  .field-icon.is-post { background: #fff5f5; border-color: #ffd7d7; }
+  .field-icon.is-yamato { background: #fffbe6; border-color: #ffe79e; }
+  .field-icon.is-male { background: #eaf3ff; border-color: #c8defc; }
+  .field-icon.is-female { background: #ffeaf3; border-color: #f9c4de; }
+  .field-icon.is-kid { background: #f1ffe9; border-color: #c8eab2; }
+  .field-icon.is-uni { background: #f3eeff; border-color: #d8caf6; }
+  .field-icon.is-empty { opacity: .35; }
+
+  /* 詳細画面 前後ナビ（AppSheet 風 — 画面中央 両サイド固定の半透明アイコン） */
+  .detail-nav { display: contents; } /* レイアウトに影響しない（中の要素は fixed） */
+  .nav-btn {
+    position: fixed; top: 50%; transform: translateY(-50%);
+    width: 44px; height: 44px; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    appearance: none; -webkit-appearance: none;
+    background: rgba(0, 0, 0, 0.32); color: #fff;
+    border: none; border-radius: 999px;
+    cursor: pointer; z-index: 90;
+    backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+    box-shadow: 0 2px 8px rgba(0,0,0,.18);
+    transition: background .15s, transform .08s, opacity .15s;
+  }
+  .nav-btn.nav-prev { left: 8px; }
+  .nav-btn.nav-next { right: 8px; }
+  .nav-btn svg { width: 22px; height: 22px; display: block; }
+  .nav-btn:hover:not(:disabled) { background: rgba(0, 0, 0, 0.55); }
+  .nav-btn:active:not(:disabled) { transform: translateY(-50%) scale(.92); }
+  .nav-btn:disabled { opacity: .25; cursor: not-allowed; }
+  .nav-pos {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+    font-size: 12px; color: #fff; background: rgba(0,0,0,.32);
+    padding: 4px 10px; border-radius: 999px; z-index: 90;
+    font-variant-numeric: tabular-nums; pointer-events: none;
+    backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+  }
+  .nav-pos .nav-pos-cur { font-weight: 700; }
+  /* PC 幅では本文の左右余白に合わせて少し内側へ */
+  @media (min-width: 720px) {
+    .nav-btn.nav-prev { left: max(8px, calc(50vw - 380px)); }
+    .nav-btn.nav-next { right: max(8px, calc(50vw - 380px)); }
+  }
+
   /* ===== 詳細表示（モックアップ準拠） ===== */
   .detail-hero {
     background: linear-gradient(180deg, #fff 0%, #f7faff 100%);
@@ -827,17 +882,17 @@
   @media (min-width: 768px) {
     body { padding-left: 16px; padding-right: 16px; }
     .content { max-width: 1100px; margin: 0 auto; padding: 16px; }
-    .field-row { display: grid; grid-template-columns: 140px 1fr; align-items: start; gap: 14px; padding: 12px 16px; margin: 0 -16px; }
+    .field-row { display: grid; grid-template-columns: 140px 1fr; align-items: start; gap: 14px; padding: 12px 0; }
     .field-row label { margin-bottom: 0; padding-top: 8px; }
     /* グリッド内の field-row は PC でもブロック表示（label + input 縦並び） */
     .field-grid-2 > .field-row, .field-grid-3 > .field-row, .meas-grid > .field-row {
-      display: block; padding: 6px 0; margin: 0; background: transparent;
+      display: block; padding: 0; margin: 0; background: transparent;
     }
     .meas-grid > .field-row { padding: 4px 0; }
     .field-grid-2 > .field-row label, .field-grid-3 > .field-row label, .meas-grid > .field-row label {
       padding-top: 0;
     }
-    .form-section { padding: 14px 18px; }
+    .form-section { padding: 0 18px; }
     .product-info { padding: 18px 20px; }
     .product-info h2 { font-size: 24px; }
   }
@@ -1779,6 +1834,8 @@ async function renderShouhinList(opts) {
   const q = (document.getElementById('search').value || '').trim();
   const params = new URLSearchParams();
   params.set('limit', '10000');
+  // mode=list で最小フィールドだけ取得（モバイル高速化）— 詳細を開く時にフルデータを取り直す
+  params.set('mode', 'list');
   if (q) params.set('q', q);
   if (STATE.filter) params.set('filter', STATE.filter);
   // 売上タブと発送タブには新規作成不要（既存商品を見る用途）
@@ -2250,7 +2307,7 @@ async function onBashoReporterChange() {
   }
   picker.innerHTML = '<div class="muted">読み込み中…</div>';
   try {
-    var res = await api('/api/products?place=' + encodeURIComponent(reporter) + '&filter=shuppin_machi&limit=10000');
+    var res = await api('/api/products?place=' + encodeURIComponent(reporter) + '&filter=shuppin_machi&limit=10000&mode=list');
     var items = (res.items || []).slice().reverse();
     if (!items.length) {
       picker.innerHTML = '<div class="muted">対象商品がありません</div>';
@@ -2563,6 +2620,146 @@ function renderDenied() {
     '</div>';
 }
 
+// ========== アイコン（発送方法 / 性別） ==========
+// 発送方法の値から運送会社を判定（郵便系 / ヤマト系 / 不明）
+function shipMethodCarrier_(value) {
+  var s = String(value || '');
+  if (!s) return '';
+  // 郵便: ゆうパケット/ゆうパック/ポスト便/普通郵便/レターパック/定形/スマートレター
+  if (/ゆう|郵便|レターパック|定形|定型|スマートレター|クリック|ポスト便|ぱけっとぽすと|ぱけぽす/i.test(s)) return 'post';
+  // ヤマト: 宅急便/らくらく/ネコポス/コンパクト/EAZY/EASY
+  if (/ヤマト|宅急|らくらく|ネコポス|コンパクト|EAZY|EASY|やまと/i.test(s)) return 'yamato';
+  return '';
+}
+// 〒（日本郵便） / クロネコヤマト の SVG。シンプルな黒猫シルエット風。
+function shipMethodIconHtml_(value) {
+  var c = shipMethodCarrier_(value);
+  if (c === 'post') {
+    // 〒 マークを赤地白抜き
+    return '<span class="field-icon is-post" title="郵便系" aria-label="郵便">' +
+      '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+        '<rect x="2" y="3" width="20" height="18" rx="3" fill="#e60012"/>' +
+        '<text x="12" y="17" text-anchor="middle" font-size="13" font-weight="700" fill="#fff" font-family="\'Hiragino Kaku Gothic ProN\',\'Yu Gothic\',sans-serif">〒</text>' +
+      '</svg></span>';
+  }
+  if (c === 'yamato') {
+    // 黒猫が子猫をくわえているシルエット（簡易）
+    return '<span class="field-icon is-yamato" title="クロネコヤマト" aria-label="ヤマト">' +
+      '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+        // 親猫の体
+        '<ellipse cx="9" cy="14.5" rx="6.5" ry="4.2" fill="#111"/>' +
+        // 親猫の頭
+        '<circle cx="6" cy="11" r="3" fill="#111"/>' +
+        // 耳
+        '<polygon points="3.6,8.5 4.2,5.6 6.5,8.4" fill="#111"/>' +
+        '<polygon points="6.5,8.4 8,5.6 8.5,8.6" fill="#111"/>' +
+        // しっぽ
+        '<path d="M15 13.5 q 4 -2 5.5 1.5" stroke="#111" stroke-width="1.6" fill="none" stroke-linecap="round"/>' +
+        // 子猫（くわえている）
+        '<ellipse cx="10" cy="11.4" rx="2.2" ry="1.4" fill="#111"/>' +
+        '<polygon points="8.4,10.4 8.6,9 9.6,10.4" fill="#111"/>' +
+      '</svg></span>';
+  }
+  return '<span class="field-icon is-empty" aria-hidden="true">' +
+    '<svg viewBox="0 0 24 24"><path d="M3 7h13l5 5v5h-2a3 3 0 1 1-6 0H10a3 3 0 1 1-6 0H3V7z" fill="none" stroke="#999" stroke-width="1.5"/></svg>' +
+    '</span>';
+}
+
+// 性別アイコン（メンズ/レディース/キッズ/ユニセックス）
+function genderIconHtml_(value) {
+  var s = String(value || '');
+  if (s === 'メンズ' || s === '男性') {
+    return '<span class="field-icon is-male" title="メンズ" aria-label="男性">' +
+      '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+        '<circle cx="10" cy="14" r="5" fill="none" stroke="#1565c0" stroke-width="2"/>' +
+        '<path d="M14 10 L20 4 M15 4h5v5" fill="none" stroke="#1565c0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '</svg></span>';
+  }
+  if (s === 'レディース' || s === '女性') {
+    return '<span class="field-icon is-female" title="レディース" aria-label="女性">' +
+      '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+        '<circle cx="12" cy="9" r="5" fill="none" stroke="#d63384" stroke-width="2"/>' +
+        '<path d="M12 14v7 M9 18h6" stroke="#d63384" stroke-width="2" stroke-linecap="round"/>' +
+      '</svg></span>';
+  }
+  if (s === 'キッズ') {
+    return '<span class="field-icon is-kid" title="キッズ" aria-label="キッズ">' +
+      '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+        '<circle cx="12" cy="8" r="3.4" fill="none" stroke="#3e8f25" stroke-width="2"/>' +
+        '<path d="M7 21v-5a5 5 0 0 1 10 0v5" fill="none" stroke="#3e8f25" stroke-width="2" stroke-linecap="round"/>' +
+      '</svg></span>';
+  }
+  if (s === 'ユニセックス') {
+    return '<span class="field-icon is-uni" title="ユニセックス" aria-label="ユニセックス">' +
+      '<svg viewBox="0 0 24 24" aria-hidden="true">' +
+        '<circle cx="12" cy="12" r="4" fill="none" stroke="#6f42c1" stroke-width="2"/>' +
+        '<path d="M16 9 L20 5 M17 5h3v3" fill="none" stroke="#6f42c1" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+        '<path d="M12 16v5 M9 19h6" fill="none" stroke="#6f42c1" stroke-width="2" stroke-linecap="round"/>' +
+      '</svg></span>';
+  }
+  return '<span class="field-icon is-empty" aria-hidden="true">' +
+    '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="none" stroke="#999" stroke-width="1.5"/></svg>' +
+    '</span>';
+}
+
+// select 変更時に同フィールドのアイコンを差し替える
+function updateFieldIcon_(selectEl, kind) {
+  if (!selectEl) return;
+  var slot = document.getElementById(selectEl.id + '_ico');
+  if (!slot) return;
+  var v = selectEl.value || '';
+  slot.innerHTML = (kind === 'shipmethod') ? shipMethodIconHtml_(v) : genderIconHtml_(v);
+  // インナー span はフォントサイズ等を継承するためそのまま、wrapper はそのまま
+}
+
+// 仕入れ日 等の日付 readonly 表示用フォーマッタ（ISO の T 以降を落として yyyy-MM-dd に）
+function fmtReadonlyDate_(v) {
+  var s = String(v == null ? '' : v);
+  if (!s) return '';
+  var m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (m) return m[1];
+  return s;
+}
+
+// 詳細画面 前後ナビ — 直前に開いていた一覧の並び順を使う
+// STATE.items（商品/発送/売上タブ） を最優先、次に STATE.currentShiireProducts（仕入れ詳細）を見る
+function detailNavList_() {
+  var cur = STATE.current && STATE.current.kanri;
+  if (!cur) return [];
+  var lists = [
+    Array.isArray(STATE.items) ? STATE.items : [],
+    Array.isArray(STATE.currentShiireProducts) ? STATE.currentShiireProducts : []
+  ];
+  for (var k = 0; k < lists.length; k++) {
+    for (var j = 0; j < lists[k].length; j++) {
+      if (lists[k][j].kanri === cur) return lists[k];
+    }
+  }
+  return [];
+}
+function adjacentKanri_(direction) {
+  var cur = STATE.current && STATE.current.kanri;
+  if (!cur) return null;
+  var arr = detailNavList_();
+  if (!arr.length) return null;
+  var idx = -1;
+  for (var i = 0; i < arr.length; i++) { if (arr[i].kanri === cur) { idx = i; break; } }
+  if (idx < 0) return null;
+  var nextIdx = idx + direction;
+  if (nextIdx < 0 || nextIdx >= arr.length) return null;
+  return { kanri: arr[nextIdx].kanri, index: nextIdx, total: arr.length };
+}
+function gotoAdjacentDetail_(direction) {
+  var info = adjacentKanri_(direction);
+  if (!info) return;
+  // dirty 状態なら確認
+  if (STATE.detailDirty && diffCount_() > 0) {
+    if (!confirm('未保存の変更があります。破棄して移動しますか？')) return;
+    STATE.detailDirty = false;
+  }
+  openDetail(info.kanri);
+}
+
 // ========== 詳細 ==========
 // 詳細キャッシュ: 一度開いたら即時再表示できるようにする（裏で /api/products/:kanri を再取得）
 var DETAIL_CACHE = Object.create(null);
@@ -2636,7 +2833,9 @@ function fieldRowHtml(name, type, val) {
   var v = (val == null) ? '' : val;
   var input;
   if (type === 'readonly') {
-    input = '<div class="field-readonly">' + esc(v) + '</div>';
+    // 仕入れ日 等の Date 由来 readonly は ISO の T 以降を落として日付のみ表示
+    var ro = (name === '仕入れ日') ? fmtReadonlyDate_(v) : v;
+    input = '<div class="field-readonly">' + esc(ro) + '</div>';
   } else if (type === 'textarea') {
     input = '<textarea id="' + id + '" class="auto-grow" rows="2">' + esc(v) + '</textarea>';
   } else if (type === 'number') {
@@ -2683,7 +2882,10 @@ function fieldRowHtml(name, type, val) {
     var opts2 = GENDER_OPTIONS.map(function(o){
       return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + (o || '—') + '</option>';
     }).join('');
-    input = '<select id="' + id + '">' + opts2 + '</select>';
+    input = '<div class="field-with-icon">' +
+      '<span id="' + id + '_ico" class="field-icon-slot">' + genderIconHtml_(v) + '</span>' +
+      '<select id="' + id + '" oninput="updateFieldIcon_(this,\'gender\')">' + opts2 + '</select>' +
+    '</div>';
   } else if (type === 'salechannel') {
     var cur = String(v || '');
     var optsSc = '<option value=""' + (cur === '' ? ' selected' : '') + '>—</option>' +
@@ -2703,14 +2905,19 @@ function fieldRowHtml(name, type, val) {
     input = '<select id="' + id + '">' + optsB + '</select>';
   } else if (type === 'shipmethod') {
     var setOptsShip = settingsOptionsFor_(name, v);
+    var inner;
     if (setOptsShip) {
-      input = '<select id="' + id + '">' + setOptsShip + '</select>';
+      inner = '<select id="' + id + '" oninput="updateFieldIcon_(this,\'shipmethod\')">' + setOptsShip + '</select>';
     } else {
       var opts3 = SHIP_METHOD_OPTIONS.map(function(o){
         return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + (o || '—') + '</option>';
       }).join('');
-      input = '<select id="' + id + '">' + opts3 + '</select>';
+      inner = '<select id="' + id + '" oninput="updateFieldIcon_(this,\'shipmethod\')">' + opts3 + '</select>';
     }
+    input = '<div class="field-with-icon">' +
+      '<span id="' + id + '_ico" class="field-icon-slot">' + shipMethodIconHtml_(v) + '</span>' +
+      inner +
+    '</div>';
   } else if (type === 'worker') {
     input = '<select id="' + id + '">' + masterOptionsHtml_(STATE.workers, v) + '</select>';
   } else if (type === 'account') {
@@ -2768,7 +2975,10 @@ function onYesNoClick_(btn) {
   if (!wrap) return;
   var val = btn.getAttribute('data-val') || '';
   var hidden = wrap.querySelector('input[type="hidden"]');
-  if (hidden) hidden.value = val;
+  if (hidden) {
+    hidden.value = val;
+    try { hidden.dispatchEvent(new Event('change', { bubbles: true })); } catch(e) {}
+  }
   // detail フォームでの dirty フラグを立てる（saveDetails が再描画でユーザー入力を上書きしない為）
   if (typeof STATE !== 'undefined' && wrap.querySelector('input[id^="f_"]')) {
     STATE.detailDirty = true;
@@ -2776,6 +2986,9 @@ function onYesNoClick_(btn) {
   Array.prototype.forEach.call(wrap.querySelectorAll('.yesno-btn'), function(b){
     b.classList.toggle('active', b === btn);
   });
+  if (typeof updateSavebar_ === 'function') {
+    try { updateSavebar_(); } catch(e) {}
+  }
 }
 
 // textarea 自動拡張（rows 動的調整）— デザイン特徴・傷汚れ詳細など長文項目用
@@ -3174,7 +3387,28 @@ function renderDetail() {
   if (size) heroMeta.push(esc(size) + 'サイズ');
   var color = d.color || ex['カラー'];
   if (color) heroMeta.push(esc(color));
-  var heroHtml =
+  // 前後ナビ（直前に表示した一覧の並び順を使う）
+  var prevInfo = adjacentKanri_(-1);
+  var nextInfo = adjacentKanri_(1);
+  var navList = detailNavList_();
+  var posInfo = (function(){
+    for (var i = 0; i < navList.length; i++) { if (navList[i].kanri === d.kanri) return { i: i + 1, total: navList.length }; }
+    return null;
+  })();
+  var navHtml = (navList.length > 1) ? (
+    '<div class="detail-nav">' +
+      '<button type="button" class="nav-btn nav-prev" aria-label="前のレコード"' + (prevInfo ? '' : ' disabled') +
+        ' onclick="gotoAdjacentDetail_(-1)">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>' +
+      '</button>' +
+      (posInfo ? '<span class="nav-pos"><span class="nav-pos-cur">' + posInfo.i + '</span> / ' + posInfo.total + '</span>' : '') +
+      '<button type="button" class="nav-btn nav-next" aria-label="次のレコード"' + (nextInfo ? '' : ' disabled') +
+        ' onclick="gotoAdjacentDetail_(1)">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>' +
+      '</button>' +
+    '</div>'
+  ) : '';
+  var heroHtml = navHtml +
     '<div class="detail-hero">' +
       '<div class="hero-kanri">' + esc(d.kanri) + '</div>' +
       (heroMeta.length ? '<div class="hero-meta">' + heroMeta.map(function(m){ return '<span>' + m + '</span>'; }).join('') + '</div>' : '') +
@@ -3922,7 +4156,10 @@ function createFieldRowHtml_(name, type, defVal) {
     var opts2 = GENDER_OPTIONS.map(function(o){
       return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + (o || '—') + '</option>';
     }).join('');
-    input = '<select id="' + id + '">' + opts2 + '</select>';
+    input = '<div class="field-with-icon">' +
+      '<span id="' + id + '_ico" class="field-icon-slot">' + genderIconHtml_(v) + '</span>' +
+      '<select id="' + id + '" oninput="updateFieldIcon_(this,\'gender\')">' + opts2 + '</select>' +
+    '</div>';
   } else if (type === 'salechannel') {
     var curSc = String(v || '') || SALE_CHANNEL_DEFAULT;
     var optsScC = '<option value=""' + (curSc === '' ? ' selected' : '') + '>—</option>' +
@@ -3941,14 +4178,19 @@ function createFieldRowHtml_(name, type, defVal) {
     input = '<select id="' + id + '">' + optsBC + '</select>';
   } else if (type === 'shipmethod') {
     var setOptsShipC = settingsOptionsFor_(name, v);
+    var innerC;
     if (setOptsShipC) {
-      input = '<select id="' + id + '">' + setOptsShipC + '</select>';
+      innerC = '<select id="' + id + '" oninput="updateFieldIcon_(this,\'shipmethod\')">' + setOptsShipC + '</select>';
     } else {
       var opts3 = SHIP_METHOD_OPTIONS.map(function(o){
         return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + (o || '—') + '</option>';
       }).join('');
-      input = '<select id="' + id + '">' + opts3 + '</select>';
+      innerC = '<select id="' + id + '" oninput="updateFieldIcon_(this,\'shipmethod\')">' + opts3 + '</select>';
     }
+    input = '<div class="field-with-icon">' +
+      '<span id="' + id + '_ico" class="field-icon-slot">' + shipMethodIconHtml_(v) + '</span>' +
+      innerC +
+    '</div>';
   } else if (type === 'worker') {
     input = '<select id="' + id + '">' + masterOptionsHtml_(STATE.workers, v) + '</select>';
   } else if (type === 'account') {
@@ -4160,6 +4402,34 @@ function closeImageModal_(e) {
   document.body.style.overflow = '';
 }
 
+</script>
+<script>
+// Service Worker 登録
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).then(function(reg) {
+      // 更新検知 → 即時切替（次回ナビゲーションで反映）
+      if (reg.waiting) try { reg.waiting.postMessage({ type: 'SKIP_WAITING' }); } catch(e) {}
+      reg.addEventListener('updatefound', function() {
+        var nw = reg.installing;
+        if (!nw) return;
+        nw.addEventListener('statechange', function() {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+            try { nw.postMessage({ type: 'SKIP_WAITING' }); } catch(e) {}
+          }
+        });
+      });
+      // 1時間ごとに更新チェック
+      setInterval(function() { try { reg.update(); } catch(e) {} }, 60 * 60 * 1000);
+    }).catch(function(){ /* SW 登録失敗は致命的ではない */ });
+    var refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function() {
+      if (refreshing) return;
+      refreshing = true;
+      // 次回フォアグラウンド時に静かに更新（ユーザー操作を妨げない）
+    });
+  });
+}
 </script>
 </body>
 </html>

@@ -26,6 +26,17 @@ export default {
       return jsonOk({ status: 'ok', ts: Date.now() });
     }
 
+    // PWA 用 Service Worker は no-store で配信（更新を確実に拾う）
+    // Service-Worker-Allowed を付けてスコープを / に明示
+    if (path === '/sw.js' && request.method === 'GET') {
+      const r = await env.ASSETS.fetch(request);
+      const h = new Headers(r.headers);
+      h.set('Cache-Control', 'no-store, must-revalidate');
+      h.set('Service-Worker-Allowed', '/');
+      h.set('Content-Type', 'application/javascript; charset=utf-8');
+      return new Response(r.body, { status: r.status, statusText: r.statusText, headers: h });
+    }
+
     // ルート/index.html はキャッシュさせず常に最新の SPA を返す
     // run_worker_first により先に Worker に到達 → ASSETS から fetch → no-store で返却
     // ASSETS は /index.html → / に正規化（307）するため、最初から / で fetch する
@@ -185,6 +196,14 @@ export default {
     // API/admin 以外は静的アセット（SPA fallback 含む）に委譲
     if (path.startsWith('/api/') || path.startsWith('/admin/')) {
       return jsonError('not found', 404);
+    }
+    // mockup-* / test-* はキャッシュ無効で常に最新を返す（デザイン検証用）
+    if (path.startsWith('/mockup') || path.startsWith('/test-')) {
+      const r = await env.ASSETS.fetch(request);
+      const h = new Headers(r.headers);
+      h.set('Cache-Control', 'no-store, must-revalidate');
+      h.set('Pragma', 'no-cache');
+      return new Response(r.body, { status: r.status, statusText: r.statusText, headers: h });
     }
     return env.ASSETS.fetch(request);
   },

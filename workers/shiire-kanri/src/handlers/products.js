@@ -26,7 +26,7 @@ const DERIVED_STATUS = `
   END
 `;
 
-// GET /api/products?filter=...&q=...&shiire=...&limit=...
+// GET /api/products?filter=...&q=...&shiire=...&limit=...&mode=list|full
 export async function listProducts(request, env) {
   const u = new URL(request.url);
   const filter = u.searchParams.get('filter') || '';
@@ -37,6 +37,10 @@ export async function listProducts(request, env) {
   const worker = (u.searchParams.get('worker') || '').trim();
   const place = (u.searchParams.get('place') || '').trim();
   const limit = Math.min(parseInt(u.searchParams.get('limit') || '10000', 10), 10000);
+  // mode=list: 一覧描画に必要な最小フィールドだけ返す（モバイルのモッサリ対策）
+  // mode=full: 従来通り extra_json / measure_json まで返す（旧クライアント互換）
+  const mode = (u.searchParams.get('mode') || 'full').toLowerCase();
+  const slim = (mode === 'list');
 
   const where = [];
   const args = [];
@@ -75,13 +79,26 @@ export async function listProducts(request, env) {
     args.push(pat, pat, pat, pat);
   }
 
-  const sql = `
+  // slim モードでは一覧カードに必要な extra フィールドだけ json_extract で取り出す
+  // （extra_json 全体は返さない／measure_json も省略）
+  const slimSelect = `
+    SELECT kanri, shiire_id, worker, status, brand, size, color,
+           measured_at,
+           sale_date, sale_ts,
+           json_extract(extra_json, '$."売却済み商品画像"') AS extra_thumb,
+           json_extract(extra_json, '$."使用アカウント"')   AS extra_account,
+           ${DERIVED_STATUS} AS derived_status
+    FROM products
+  `;
+  const fullSelect = `
     SELECT kanri, shiire_id, worker, status, state, brand, size, color,
            measure_json, measured_at, measured_by,
            sale_date, sale_place, sale_price, sale_shipping, sale_fee, sale_ts,
            extra_json, row_num, updated_at,
            ${DERIVED_STATUS} AS derived_status
     FROM products
+  `;
+  const sql = (slim ? slimSelect : fullSelect) + `
     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
     ORDER BY kanri DESC
     LIMIT ?
@@ -90,11 +107,32 @@ export async function listProducts(request, env) {
 
   try {
     const { results } = await env.DB.prepare(sql).bind(...args).all();
-    const items = results.map(formatProduct);
+    const items = slim ? results.map(formatProductSlim) : results.map(formatProduct);
     return jsonOk({ items, count: items.length });
   } catch (err) {
     return jsonError('db error: ' + err.message, 500);
   }
+}
+
+// 一覧用の最小フォーマッタ（mode=list）— カード描画に必要なフィールドだけ
+function formatProductSlim(row) {
+  const extra = {};
+  if (row.extra_thumb) extra['売却済み商品画像'] = String(row.extra_thumb);
+  if (row.extra_account) extra['使用アカウント'] = String(row.extra_account);
+  return {
+    kanri: row.kanri,
+    shiireId: row.shiire_id,
+    worker: row.worker,
+    status: row.derived_status || row.status,
+    rawStatus: row.status,
+    brand: row.brand,
+    size: row.size,
+    color: row.color,
+    measuredAt: row.measured_at,
+    saleDate: row.sale_date,
+    saleTs: row.sale_ts,
+    extra,
+  };
 }
 
 // GET /api/products/counts → 各フィルタの件数を返す
