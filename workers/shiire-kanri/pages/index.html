@@ -491,38 +491,49 @@
   .field-icon.is-uni { background: #f3eeff; border-color: #d8caf6; }
   .field-icon.is-empty { opacity: .35; }
 
-  /* 詳細画面 前後ナビ（AppSheet 風 — 画面中央 両サイド固定の半透明アイコン） */
+  /* 詳細画面 前後ナビ（控えめ — 画面の視認性を妨げない） */
   .detail-nav { display: contents; } /* レイアウトに影響しない（中の要素は fixed） */
   .nav-btn {
     position: fixed; top: 50%; transform: translateY(-50%);
-    width: 44px; height: 44px; padding: 0;
+    width: 36px; height: 36px; padding: 0;
     display: inline-flex; align-items: center; justify-content: center;
     appearance: none; -webkit-appearance: none;
-    background: rgba(0, 0, 0, 0.32); color: #fff;
-    border: none; border-radius: 999px;
+    background: rgba(255, 255, 255, 0.55); color: #1a2330;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    border-radius: 999px;
     cursor: pointer; z-index: 90;
-    backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
-    box-shadow: 0 2px 8px rgba(0,0,0,.18);
-    transition: background .15s, transform .08s, opacity .15s;
+    box-shadow: 0 1px 3px rgba(0,0,0,.08);
+    opacity: .55;
+    transition: background .15s, opacity .15s, transform .08s;
   }
-  .nav-btn.nav-prev { left: 8px; }
-  .nav-btn.nav-next { right: 8px; }
-  .nav-btn svg { width: 22px; height: 22px; display: block; }
-  .nav-btn:hover:not(:disabled) { background: rgba(0, 0, 0, 0.55); }
+  .nav-btn.nav-prev { left: 4px; }
+  .nav-btn.nav-next { right: 4px; }
+  .nav-btn svg { width: 18px; height: 18px; display: block; }
+  .nav-btn:hover:not(:disabled),
+  .nav-btn:focus-visible:not(:disabled) {
+    background: rgba(255, 255, 255, 0.92);
+    opacity: 1;
+  }
   .nav-btn:active:not(:disabled) { transform: translateY(-50%) scale(.92); }
-  .nav-btn:disabled { opacity: .25; cursor: not-allowed; }
+  .nav-btn:disabled { opacity: .15; cursor: not-allowed; }
   .nav-pos {
-    position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
-    font-size: 12px; color: #fff; background: rgba(0,0,0,.32);
-    padding: 4px 10px; border-radius: 999px; z-index: 90;
+    position: fixed; top: 8px; left: 50%; transform: translateX(-50%);
+    font-size: 11px; color: var(--text-sub);
+    background: rgba(255, 255, 255, 0.7);
+    padding: 2px 8px; border-radius: 999px; z-index: 90;
     font-variant-numeric: tabular-nums; pointer-events: none;
-    backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    opacity: .7;
   }
-  .nav-pos .nav-pos-cur { font-weight: 700; }
+  .nav-pos .nav-pos-cur { font-weight: 700; color: var(--text); }
+  /* タップ時のみフルに表示する端末（hover 不可）でも視認できるように */
+  @media (hover: none) {
+    .nav-btn { opacity: .65; }
+  }
   /* PC 幅では本文の左右余白に合わせて少し内側へ */
   @media (min-width: 720px) {
-    .nav-btn.nav-prev { left: max(8px, calc(50vw - 380px)); }
-    .nav-btn.nav-next { right: max(8px, calc(50vw - 380px)); }
+    .nav-btn.nav-prev { left: max(4px, calc(50vw - 380px)); }
+    .nav-btn.nav-next { right: max(4px, calc(50vw - 380px)); }
   }
 
   /* ===== 詳細表示（モックアップ準拠） ===== */
