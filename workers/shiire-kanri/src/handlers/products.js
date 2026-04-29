@@ -9,20 +9,29 @@ const D_KANRYOU = "(json_extract(extra_json, '$.\"完了日\"') IS NOT NULL AND 
 const D_HANBAI  = "(sale_date IS NOT NULL AND sale_date <> '')";
 const ACCOUNT_SELECTED = "(json_extract(extra_json, '$.\"使用アカウント\"') IS NOT NULL AND json_extract(extra_json, '$.\"使用アカウント\"') <> '')";
 
-// 派生ステータス: 日付・アカウントの入力状況から自動算出
-// 手動ステータス（キャンセル/返品/廃棄）は保持
+// 派生ステータス: シート上の手動ステータス（status 列）を最優先。
+// 「出品作業中」だけは raw='出品待ち' の中で日付＋アカウント条件を満たす行を細分化する。
+// status が空のときだけ日付ベースで自動判定する。
+//
+// なぜ raw を優先するのか:
+//   従来は日付ベースで派生していたが、シート上で「売却済み」になっていても
+//   完了日が空の行が 1300件以上存在し、それらが派生では「出品中」になって
+//   AppSheet と件数が大きく食い違っていた。シートが正、派生は補完。
 const DERIVED_STATUS = `
   CASE
-    WHEN status LIKE '%キャンセル%' OR status LIKE '%廃棄%' OR status LIKE '%返品%' THEN status
+    -- raw='出品待ち' のうち撮影日・採寸日・使用アカウントが揃った行は「出品作業中」に細分化
+    WHEN status = '出品待ち' AND ${D_SATSUEI} AND ${D_SAISUN} AND ${ACCOUNT_SELECTED} THEN '出品作業中'
+    -- raw status が入っていればそれを尊重（AppSheet と整合）
+    WHEN status IS NOT NULL AND status <> '' THEN status
+    -- raw status が空のときだけ日付ベースで派生
     WHEN ${D_KANRYOU} THEN '売却済み'
     WHEN ${D_HASSOU}  THEN '発送済み'
     WHEN ${D_HANBAI}  THEN '発送待ち'
     WHEN ${D_SHUPPIN} THEN '出品中'
-    WHEN ${D_SATSUEI} AND ${D_SAISUN} AND ${ACCOUNT_SELECTED} THEN '出品作業中'
     WHEN ${D_SATSUEI} AND ${D_SAISUN} THEN '出品待ち'
     WHEN ${D_SATSUEI} THEN '採寸待ち'
     WHEN ${D_SAISUN}  THEN '撮影待ち'
-    ELSE COALESCE(NULLIF(status,''), '採寸待ち')
+    ELSE '採寸待ち'
   END
 `;
 
