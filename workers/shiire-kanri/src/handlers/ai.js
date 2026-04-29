@@ -66,12 +66,17 @@ export async function lookupAiPrefill(request, env) {
         payload: { kanri },
       }));
     } catch (err) {
-      return jsonError('gas fetch: ' + err.message, 502);
+      return jsonError('gas fetch[lookupAiPrefill]: ' + err.message, 502);
     }
-    if (!res.ok) return jsonError('gas http ' + res.status, 502);
+    if (!res.ok) return jsonError('gas http ' + res.status + '[lookupAiPrefill]', 502);
+    let text = '';
+    try { text = await res.text(); } catch { return jsonError('gas read fail[lookupAiPrefill]', 502); }
     let data;
-    try { data = await res.json(); } catch { return jsonError('gas non-json', 502); }
-    if (!data || !data.ok) return jsonError(data && data.error || 'gas error', 502);
+    try { data = JSON.parse(text); } catch {
+      const hint = text ? text.slice(0, 80).replace(/\s+/g, ' ') : '(empty)';
+      return jsonError('gas non-json[lookupAiPrefill]: ' + hint, 502);
+    }
+    if (!data || !data.ok) return jsonError((data && data.error) || 'gas error[lookupAiPrefill]', 502);
     body = { ok: true, fields: data.fields || {}, found: !!data.found, source: 'gas' };
   }
 

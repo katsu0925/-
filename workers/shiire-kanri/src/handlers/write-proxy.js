@@ -341,10 +341,17 @@ async function callGas(env, action, payload, user) {
   try {
     res = await postFollowingRedirects(env.GAS_API_URL, body);
   } catch (err) {
-    return { ok: false, error: 'gas fetch: ' + err.message };
+    return { ok: false, error: 'gas fetch[' + action + ']: ' + err.message };
   }
-  if (!res.ok) return { ok: false, error: 'gas http ' + res.status };
-  try { return await res.json(); } catch { return { ok: false, error: 'gas non-json' }; }
+  if (!res.ok) return { ok: false, error: 'gas http ' + res.status + '[' + action + ']' };
+  // GAS が HTML を返すことがある（デプロイ切替中・タイムアウト等）。
+  // どの action で起きたかを必ず error に残す。
+  let text = '';
+  try { text = await res.text(); } catch { return { ok: false, error: 'gas read fail[' + action + ']' }; }
+  try { return JSON.parse(text); } catch {
+    const hint = text ? text.slice(0, 80).replace(/\s+/g, ' ') : '(empty)';
+    return { ok: false, error: 'gas non-json[' + action + ']: ' + hint };
+  }
 }
 
 // GAS Web App の POST フロー: POST /exec → 302 (script.googleusercontent.com/macros/echo?user_content_key=...) → GET でレスポンス取得

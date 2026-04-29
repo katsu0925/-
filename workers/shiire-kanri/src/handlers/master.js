@@ -53,12 +53,17 @@ async function getCached(env, cacheKey, action, opts) {
       secret: env.SYNC_SECRET,
     }));
   } catch (err) {
-    return jsonError('gas fetch: ' + err.message, 502);
+    return jsonError('gas fetch[' + action + ']: ' + err.message, 502);
   }
-  if (!res.ok) return jsonError('gas http ' + res.status, 502);
+  if (!res.ok) return jsonError('gas http ' + res.status + '[' + action + ']', 502);
+  let text = '';
+  try { text = await res.text(); } catch { return jsonError('gas read fail[' + action + ']', 502); }
   let data;
-  try { data = await res.json(); } catch { return jsonError('gas non-json', 502); }
-  if (!data || !data.ok) return jsonError(data && data.error || 'gas error', 502);
+  try { data = JSON.parse(text); } catch {
+    const hint = text ? text.slice(0, 80).replace(/\s+/g, ' ') : '(empty)';
+    return jsonError('gas non-json[' + action + ']: ' + hint, 502);
+  }
+  if (!data || !data.ok) return jsonError((data && data.error) || ('gas error[' + action + ']'), 502);
   const items = isValid(data.items) ? data.items : (itemsType === 'object' ? {} : []);
 
   try {

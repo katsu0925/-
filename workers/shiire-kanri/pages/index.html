@@ -331,6 +331,14 @@
     margin-bottom: 2px;
   }
   .card-brand { font-weight: 600; color: var(--text); }
+  .card-account {
+    display: inline-block; margin-top: 4px;
+    background: linear-gradient(180deg, #e3f2fd 0%, #bbdefb 100%);
+    color: #0d47a1; font-size: 11px; font-weight: 700;
+    padding: 2px 8px; border-radius: 10px;
+    border: 1px solid #90caf9;
+    max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
   .shiire-card {
     background: var(--surface); border-radius: 12px;
     box-shadow: var(--shadow);
@@ -2438,6 +2446,12 @@ function cardHtml(it) {
     }
   }
   var openHandler = 'openDetail(\'' + esc(it.kanri).replace(/\'/g,"\\'") + '\')';
+  // 出品作業中タブでは使用アカウントをカードに表示（誰のアカウントで作業中か即時把握）
+  var accountHtml = '';
+  if (STATE.filter === 'shuppin_sagyou') {
+    var accVal = (it.extra && it.extra['使用アカウント']) ? String(it.extra['使用アカウント']).trim() : '';
+    accountHtml = '<div class="card-account">👤 ' + esc(accVal || '（未設定）') + '</div>';
+  }
   var bodyHtml = '<div class="card-body">' +
     '<div class="card-row1">' +
       '<span class="card-kanri">' + esc(it.kanri) + '</span>' +
@@ -2448,6 +2462,7 @@ function cardHtml(it) {
       ' / ' + esc(it.size || '—') +
       (it.color ? ' / ' + esc(it.color) : '') +
     '</div>' +
+    accountHtml +
     shipDeadlineHtml_(it) +
   '</div>';
   return '<div class="' + cardClass + (thumbHtml ? ' has-thumb' : '') + '" onclick="' + openHandler + '">' +

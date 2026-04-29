@@ -17,9 +17,10 @@ export async function createMove(request, env, user) {
   const destination = String(body.destination || '').trim();
   const ids = String(body.ids || '').trim();
   const reporter = String(body.reporter || '').trim();
+  const moveId = String(body.moveId || '').trim();
   if (!destination) return jsonError('destination required', 400);
   if (!ids) return jsonError('ids required', 400);
-  const r = await callGas(env, 'createMove', { destination, ids, reporter }, user);
+  const r = await callGas(env, 'createMove', { destination, ids, reporter, moveId }, user);
   if (!r.ok) return jsonError(r.error || 'gas error', 502);
   return jsonOk({ created: true, moveId: r.moveId, row: r.row });
 }
@@ -100,10 +101,15 @@ async function callGas(env, action, payload, user) {
   try {
     res = await postFollowingRedirects(env.GAS_API_URL, body);
   } catch (err) {
-    return { ok: false, error: 'gas fetch: ' + err.message };
+    return { ok: false, error: 'gas fetch[' + action + ']: ' + err.message };
   }
-  if (!res.ok) return { ok: false, error: 'gas http ' + res.status };
-  try { return await res.json(); } catch { return { ok: false, error: 'gas non-json' }; }
+  if (!res.ok) return { ok: false, error: 'gas http ' + res.status + '[' + action + ']' };
+  let text = '';
+  try { text = await res.text(); } catch { return { ok: false, error: 'gas read fail[' + action + ']' }; }
+  try { return JSON.parse(text); } catch {
+    const hint = text ? text.slice(0, 80).replace(/\s+/g, ' ') : '(empty)';
+    return { ok: false, error: 'gas non-json[' + action + ']: ' + hint };
+  }
 }
 
 async function postFollowingRedirects(url, body) {
