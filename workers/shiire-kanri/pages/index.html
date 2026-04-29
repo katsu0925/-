@@ -967,10 +967,12 @@
   .dash-card.primary .dash-delta.up { background: rgba(255,255,255,.22); color: #e0ffe0; }
   .dash-card.primary .dash-delta.down { background: rgba(255,255,255,.22); color: #ffd6d6; }
   .dash-card.primary .dash-delta.flat { background: rgba(255,255,255,.18); color: rgba(255,255,255,.85); }
-  /* 棒グラフ（月別） */
-  .dash-bars { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; align-items: end; height: 140px; margin: 6px 0 4px; }
-  .dash-bar-col { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; min-width: 0; }
+  /* 棒グラフ（月別）— iOS Safari の grid+flex で % 高さが潰れる問題を回避するため
+     col を position: relative の単純なブロックにし、fill を absolute bottom で配置する */
+  .dash-bars { display: grid; grid-template-columns: repeat(12, 1fr); grid-template-rows: 140px; gap: 4px; margin: 6px 0 4px; }
+  .dash-bar-col { position: relative; height: 100%; min-width: 0; }
   .dash-bar-fill {
+    position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
     width: 100%; max-width: 22px; min-height: 2px; border-radius: 4px 4px 0 0;
     background: linear-gradient(180deg, var(--primary) 0%, var(--primary-dark) 100%);
     transition: height .3s;
@@ -1018,7 +1020,7 @@
   @media (max-width: 480px) {
     .dash-num { font-size: 20px; }
     .dash-num.small { font-size: 14px; }
-    .dash-bars { height: 110px; }
+    .dash-bars { grid-template-rows: 110px; }
     .dash-month-table th:nth-child(4), .dash-month-table td:nth-child(4) { display: none; }
     .dash-deltas { flex-direction: column; gap: 6px; align-items: flex-start; }
     .dash-yoy { grid-template-columns: 1fr; }
