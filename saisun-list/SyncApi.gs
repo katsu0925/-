@@ -648,6 +648,8 @@ function importPhotographyData_(data) {
 
   // E列(5)のステータスを取得
   var eData = sh.getRange(2, 5, lastRow - 1, 1).getValues();
+  // AG列(33)=採寸日 の既存値を取得
+  var saisunData = sh.getRange(2, 33, lastRow - 1, 1).getValues();
   // AI列(35)・AJ列(36)の既存値を取得
   var aiajData = sh.getRange(2, 35, lastRow - 1, 2).getValues();
 
@@ -687,11 +689,17 @@ function importPhotographyData_(data) {
       sh.getRange(row, 36).setValue(entry.photographer);
       changed = true;
     }
-    // E列(5)ステータスを「出品待ち」に変更（撮影データがあれば常に）
+    // E列(5)ステータスを「出品待ち」に変更（撮影データがあり、かつ採寸日入力済みのときのみ）
+    // 採寸未済で撮影だけ先行した場合は status を触らない（誤付与防止）
     if (changed || entry.photographyDate) {
-      console.log('E列を出品待ちに変更: 行' + row + ', changed=' + changed + ', photographyDate=' + entry.photographyDate);
-      sh.getRange(row, 5).setValue('出品待ち');
-      changed = true;
+      var saisunDate = String(saisunData[rowIdx][0] || '').trim();
+      if (saisunDate) {
+        console.log('E列を出品待ちに変更: 行' + row + ', changed=' + changed + ', photographyDate=' + entry.photographyDate);
+        sh.getRange(row, 5).setValue('出品待ち');
+        changed = true;
+      } else {
+        console.log('E列スキップ（採寸日未入力）: 行' + row + ', photographyDate=' + entry.photographyDate);
+      }
     } else {
       console.log('E列変更スキップ: 行' + row + ', changed=' + changed + ', photographyDate=' + entry.photographyDate);
     }

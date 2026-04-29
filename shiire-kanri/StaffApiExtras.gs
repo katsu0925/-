@@ -63,10 +63,23 @@ function staff_apiCreateMove(payload, email) {
   if (!sh) return { ok: false, error: '移動報告シートが見つかりません' };
   var tz = Session.getScriptTimeZone() || 'Asia/Tokyo';
   var now = new Date();
-  var moveId = 'MV-' + Utilities.formatDate(now, tz, 'yyyyMMdd-HHmmss');
+  // クライアント側で AppSheet 互換の moveId が事前生成されていればそれを採用、無ければ生成
+  var moveId = String(payload.moveId || '').trim();
+  if (!moveId) {
+    moveId = 'MV-' + Utilities.formatDate(now, tz, 'yyyyMMdd-HHmmss');
+  }
   var rowArr = [moveId, now, reporter, destination, ids, 'FALSE'];
   var appendAt = sh.getLastRow() + 1;
   sh.getRange(appendAt, 1, 1, 6).setValues([rowArr]);
+  // onChange トリガー任せにせず、append 直後に処理を走らせて即時「反映済」にする
+  // （AppSheet 互換: 登録 → 数秒以内に商品管理の納品場所が更新される）
+  try {
+    if (typeof processPendingMoves_ === 'function') {
+      withLock_(20000, function(){ processPendingMoves_(); });
+    }
+  } catch (err) {
+    console.warn('staff_apiCreateMove: processPendingMoves_ failed: ' + err);
+  }
   return { ok: true, moveId: moveId, row: appendAt };
 }
 
@@ -125,6 +138,14 @@ function staff_apiCreateReturn(payload, email) {
   var rowArr = [boxId, reporter, destination, ids, count, note];
   var appendAt = sh.getLastRow() + 1;
   sh.getRange(appendAt, 1, 1, 6).setValues([rowArr]);
+  // onChange トリガー任せにせず、append 直後に処理を走らせて即時にステータス＝返品済みへ反映
+  try {
+    if (typeof updateReturnStatusNowInner_ === 'function') {
+      withLock_(20000, function(){ updateReturnStatusNowInner_(); });
+    }
+  } catch (err) {
+    console.warn('staff_apiCreateReturn: updateReturnStatusNowInner_ failed: ' + err);
+  }
   return { ok: true, boxId: boxId, row: appendAt };
 }
 
@@ -263,3 +284,32 @@ function staff_dumpSheet(payload) {
   var sliced = values.slice(start).reverse();
   return { ok: true, headers: headers, rows: sliced, total: values.length };
 }
+
+// ========== ワンショット: 採寸未済なのに「出品待ち」になっている行をクリーンアップ ==========
+// SyncApi.importPhotographyData_ の旧仕様で誤って付与されたステータスを修正する。
+// 商品管理シートで status='出品待ち' AND 採寸日空 の行を '採寸待ち' に上書き。
+// GASエディタから一回だけ実行して使う。
+function cleanupOrphanShuppinMachi() {
+  var ss = staff_getActiveSpreadsheet_();
+  var sh = ss.getSheetByName(STAFF_SHEET_NAME);
+  if (!sh) throw new Error('sheet not found: ' + STAFF_SHEET_NAME);
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return { ok: true, fixed: [] };
+
+  var statusVals = sh.getRange(2, STAFF_COL.ステータス, lastRow - 1, 1).getValues();
+  var saisunVals = sh.getRange(2, STAFF_COL.採寸日,   lastRow - 1, 1).getValues();
+  var kanriVals  = sh.getRange(2, STAFF_COL.管理番号, lastRow - 1, 1).getValues();
+
+  var fixed = [];
+  for (var i = 0; i < statusVals.length; i++) {
+    var st = String(statusVals[i][0] || '').trim();
+    var sa = String(saisunVals[i][0] || '').trim();
+    if (st === '出品待ち' && !sa) {
+      sh.getRange(i + 2, STAFF_COL.ステータス).setValue('採寸待ち');
+      fixed.push(String(kanriVals[i][0] || ''));
+    }
+  }
+  Logger.log('Fixed ' + fixed.length + ' rows: ' + fixed.join(', '));
+  return { ok: true, fixed: fixed };
+}
+
