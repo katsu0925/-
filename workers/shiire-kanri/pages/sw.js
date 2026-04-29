@@ -9,12 +9,12 @@
 //  - VERSION を上げると activate 時に旧キャッシュを全削除
 //  - skipWaiting + clients.claim で即時切替、controllerchange でクライアントが UI 通知
 
-const VERSION = 'sk-2026-04-29-v4';
+const VERSION = 'sk-2026-04-29-v5';
 const SHELL_CACHE = 'shell-' + VERSION;
 const API_CACHE   = 'api-' + VERSION;
 
 // HTML は network-first なのでプリキャッシュからは外す（古いHTMLを掴ませない）
-const SHELL_URLS = ['/manifest.webmanifest', '/icon.svg', '/icon-maskable.svg'];
+const SHELL_URLS = ['/manifest.webmanifest', '/icon-192.png', '/icon-512.png', '/icon-maskable-512.png'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
