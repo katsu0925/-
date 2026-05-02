@@ -977,25 +977,31 @@
   .ids-item:last-child { border-bottom: none; }
   .ids-item input[type=checkbox] { width: 18px; height: 18px; flex-shrink: 0; }
   .ids-item .muted { font-size: 12px; padding: 0; }
-  /* 作業者管理: カード一覧 + カード内月次集計 (AppSheet 互換) */
+  /* 作業者管理: 一覧カードは「名前+今月件数+メール」に圧縮、6ヶ月詳細はモーダル送り */
   .sagyou-list { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
-  .sagyou-card { background: var(--surface); border-radius: 10px; box-shadow: var(--shadow); padding: 12px 14px; transition: background-color .12s; }
+  .sagyou-card { background: var(--surface); border-radius: 10px; box-shadow: var(--shadow); padding: 14px 16px; transition: background-color .12s; }
   .sagyou-card.clickable { cursor: pointer; }
   .sagyou-card.clickable:hover { background: #f7f9fc; }
   .sagyou-card.clickable:active { background: #eef2f8; }
   .sagyou-card.disabled { opacity: 0.55; }
-  .sagyou-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
-  .sagyou-card-name { font-size: 16px; font-weight: 700; color: var(--text); }
+  .sagyou-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+  .sagyou-card-name { font-size: 17px; font-weight: 700; color: var(--text); }
   .sagyou-card-badges { display: flex; gap: 6px; flex-shrink: 0; }
-  .sagyou-card-emails { color: var(--text-sub); font-size: 12px; line-height: 1.5; word-break: break-all; margin-bottom: 8px; }
-  .sagyou-card-emails .nomail { color: #c5cad3; }
-  .sagyou-card-monthly { font-size: 12px; }
-  .sagyou-card-monthly table { width: 100%; border-collapse: collapse; }
-  .sagyou-card-monthly th, .sagyou-card-monthly td { padding: 4px 6px; text-align: center; border-bottom: 1px solid #f3f5f9; }
-  .sagyou-card-monthly th { font-weight: 600; color: var(--text-sub); font-size: 11px; }
-  .sagyou-card-monthly td.zero { color: #c5cad3; }
-  .sagyou-card-monthly td.has { font-weight: 600; }
-  .sagyou-card-monthly .ym { text-align: left; color: var(--text-sub); }
+  .sagyou-card-thismonth { display: flex; align-items: baseline; gap: 14px; margin-bottom: 8px; padding: 8px 10px; background: #f7f9fc; border-radius: 8px; }
+  .sagyou-card-thismonth .ym-label { font-size: 11px; color: var(--text-sub); font-weight: 600; min-width: 36px; }
+  .sagyou-card-thismonth .metric { font-size: 13px; color: var(--text-sub); }
+  .sagyou-card-thismonth .metric .num { font-size: 18px; font-weight: 700; color: #1f6feb; margin: 0 4px 0 4px; }
+  .sagyou-card-thismonth .metric.zero .num { color: #9aa1ad; }
+  .sagyou-card-emails { color: var(--text-sub); font-size: 12px; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sagyou-card-emails .nomail { color: #b8bdc6; }
+  /* 詳細モーダル内の月別表 */
+  .sagyou-detail-monthly { font-size: 13px; margin-top: 6px; }
+  .sagyou-detail-monthly table { width: 100%; border-collapse: collapse; }
+  .sagyou-detail-monthly th, .sagyou-detail-monthly td { padding: 6px 8px; text-align: center; border-bottom: 1px solid #f3f5f9; }
+  .sagyou-detail-monthly th { font-weight: 600; color: var(--text-sub); font-size: 12px; }
+  .sagyou-detail-monthly td.zero { color: #9aa1ad; }
+  .sagyou-detail-monthly td.has { font-weight: 700; color: #1f6feb; font-size: 14px; }
+  .sagyou-detail-monthly .ym { text-align: left; width: 56px; color: var(--text-sub); font-size: 12px; }
   .badge.admin { background: #ede5ff; color: #6c47c8; }
   .badge.disabled { background: #f0f2f7; color: #7c8392; }
   /* 業務メニュー: 汎用ダンプテーブル */
@@ -3631,6 +3637,8 @@ function paintSagyouList_(data) {
       (isAdmin ? '<div class="fab-stack"><button class="fab" onclick="openSagyouCreate()" title="新規作業者">＋</button></div>' : '');
     return;
   }
+  var thisMonthYm = months[0] || '';
+  var thisMonthLabel = thisMonthYm ? (parseInt(thisMonthYm.slice(5), 10) + '月') : '';
   var cards = workers.map(function(w, idx){
     var enabledBadge = w.row > 0
       ? (w.enabled ? '<span class="badge ok">有効</span>' : '<span class="badge disabled">無効</span>')
@@ -3638,29 +3646,30 @@ function paintSagyouList_(data) {
     var adminBadge = w.admin ? '<span class="badge admin">管理者</span>' : '';
     var emails = [w.email1, w.email2].filter(function(e){ return e; });
     var emailHtml = emails.length
-      ? emails.map(esc).join(' / ')
+      ? esc(emails.join(' / '))
       : '<span class="nomail">メール未登録</span>';
-    var monthlyRows = months.map(function(m){
-      var v = (w.monthly && w.monthly[m]) || { sokutei: 0, satsuei: 0 };
-      var sCls = v.sokutei ? 'has' : 'zero';
-      var pCls = v.satsuei ? 'has' : 'zero';
-      return '<tr><td class="ym">' + esc(m) + '</td>' +
-             '<td class="' + sCls + '">' + (v.sokutei || 0) + '</td>' +
-             '<td class="' + pCls + '">' + (v.satsuei || 0) + '</td></tr>';
-    }).join('');
+    var tm = (w.monthly && w.monthly[thisMonthYm]) || { sokutei: 0, satsuei: 0 };
+    var sZero = !tm.sokutei, pZero = !tm.satsuei;
+    var thisMonthHtml =
+      '<div class="sagyou-card-thismonth">' +
+        '<span class="ym-label">' + esc(thisMonthLabel) + '</span>' +
+        '<span class="metric' + (sZero ? ' zero' : '') + '">採寸<span class="num">' + (tm.sokutei || 0) + '</span></span>' +
+        '<span class="metric' + (pZero ? ' zero' : '') + '">撮影<span class="num">' + (tm.satsuei || 0) + '</span></span>' +
+      '</div>';
+    // 管理者かつマスター登録済 → タップで直接編集 / それ以外 → 詳細モーダル
+    var canEdit = isAdmin && w.row > 0;
     var clickable = isAdmin || w.row > 0;
-    var onClick = clickable ? ' onclick="openSagyouDetail(' + idx + ')"' : '';
+    var onClick = clickable
+      ? ' onclick="' + (canEdit ? 'openSagyouEdit(' : 'openSagyouDetail(') + idx + ')"'
+      : '';
     var clsExtra = (w.row > 0 && !w.enabled) ? ' disabled' : '';
     return '<div class="sagyou-card' + (clickable ? ' clickable' : '') + clsExtra + '"' + onClick + '>' +
       '<div class="sagyou-card-head">' +
         '<div class="sagyou-card-name">' + esc(w.name) + '</div>' +
         '<div class="sagyou-card-badges">' + enabledBadge + adminBadge + '</div>' +
       '</div>' +
+      thisMonthHtml +
       '<div class="sagyou-card-emails">' + emailHtml + '</div>' +
-      '<div class="sagyou-card-monthly">' +
-        '<table><thead><tr><th>月</th><th>採寸</th><th>撮影</th></tr></thead>' +
-        '<tbody>' + monthlyRows + '</tbody></table>' +
-      '</div>' +
     '</div>';
   }).join('');
   var fab = isAdmin
@@ -3678,7 +3687,12 @@ function openSagyouDetail(idx) {
   var months = data.months || [];
   var monthlyRows = months.map(function(m){
     var v = (w.monthly && w.monthly[m]) || { sokutei: 0, satsuei: 0 };
-    return '<tr><td>' + esc(m) + '</td><td>' + (v.sokutei || 0) + '</td><td>' + (v.satsuei || 0) + '</td></tr>';
+    var label = parseInt(m.slice(5), 10) + '月';
+    var sCls = v.sokutei ? 'has' : 'zero';
+    var pCls = v.satsuei ? 'has' : 'zero';
+    return '<tr><td class="ym">' + esc(label) + '</td>' +
+           '<td class="' + sCls + '">' + (v.sokutei || '—') + '</td>' +
+           '<td class="' + pCls + '">' + (v.satsuei || '—') + '</td></tr>';
   }).join('');
   var emails = [w.email1, w.email2].filter(function(e){ return e; }).join(' / ') || '—';
   var actions = isAdmin && w.row > 0
@@ -3692,9 +3706,10 @@ function openSagyouDetail(idx) {
     '<div class="field-row"><label>管理者</label><div>' + (w.admin ? '✅ 管理者' : '—') + '</div></div>' +
     '<div class="field-row"><label>メールアドレス</label><div>' + esc(emails) + '</div></div>' +
     '<div class="field-row"><label>月別 採寸 / 撮影 件数</label>' +
-      '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:6px;">' +
-      '<thead><tr><th style="text-align:left;padding:4px;border-bottom:1px solid #eee;">月</th><th style="padding:4px;border-bottom:1px solid #eee;">採寸</th><th style="padding:4px;border-bottom:1px solid #eee;">撮影</th></tr></thead>' +
-      '<tbody>' + monthlyRows + '</tbody></table>' +
+      '<div class="sagyou-detail-monthly">' +
+        '<table><thead><tr><th>月</th><th>採寸</th><th>撮影</th></tr></thead>' +
+        '<tbody>' + monthlyRows + '</tbody></table>' +
+      '</div>' +
     '</div>' +
     '<div class="modal-actions">' + actions + '</div>'
   );
@@ -3717,7 +3732,7 @@ function openSagyouEdit(idx) {
     '<div class="field-row"><label><input id="sg_admin" type="checkbox"' + (w.admin ? ' checked' : '') + '> 管理者</label></div>' +
     '<input type="hidden" id="sg_row" value="' + w.row + '">' +
     '<div class="modal-actions">' +
-      '<button class="btn-cancel" onclick="openSagyouDetail(' + idx + ')">戻る</button>' +
+      '<button class="btn-cancel" onclick="closeModal()">キャンセル</button>' +
       '<button class="btn-submit" id="sg_submit" onclick="submitSagyouSave()">保存</button>' +
     '</div>'
   );
