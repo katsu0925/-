@@ -1935,22 +1935,74 @@ async function loadMasters() {
 
 // 自分のメール → 作業者マスターの「名前」を解決して STATE.userName に格納
 // 業務メニュー（仕入れ数報告 / 経費申請 / 報酬確認）で「自分の行」を絞り込むために必須
+// LocalStorage で手動選択（業務メニュー用）の名前をオーバーライド可能。
 async function resolveSelfName_() {
   if (!STATE.email) return;
   try {
     const r = await api('/api/sagyousha?months=1');
     const email = String(STATE.email || '').trim().toLowerCase();
     const items = Array.isArray(r.items) ? r.items : [];
+    STATE.allWorkers = items;
     const me = items.find(function(w){
       return (String(w.email1 || '').trim().toLowerCase() === email)
           || (String(w.email2 || '').trim().toLowerCase() === email);
     });
-    STATE.userName = me ? String(me.name || '') : '';
+    var resolved = me ? String(me.name || '') : '';
+    // 手動オーバーライド（管理者がメンバーになりすまして確認する用途／メール登録漏れの暫定対応）
+    var manual = '';
+    try { manual = String(localStorage.getItem('shiire-kanri:userName') || '').trim(); } catch(e) {}
+    if (manual && items.find(function(w){ return String(w.name || '') === manual; })) {
+      STATE.userName = manual;
+      STATE.userNameOverride = (manual !== resolved);
+    } else {
+      STATE.userName = resolved;
+      STATE.userNameOverride = false;
+    }
     STATE.isAdmin = !!(r.currentUser && r.currentUser.isAdmin);
+    console.info('[resolveSelfName_] email=' + email + ' resolved=' + (resolved || '(none)') + ' applied=' + (STATE.userName || '(none)') + ' workers=' + items.length);
   } catch (err) {
     console.warn('resolveSelfName_ failed', err);
     STATE.userName = '';
+    STATE.allWorkers = [];
   }
+}
+
+// 業務メニューで「自分」が解決できなかった or 別の作業者として確認したいときの手動切替
+function showUserNamePicker_() {
+  var c = document.getElementById('content');
+  var workers = STATE.allWorkers || [];
+  var html = '<div class="biz-wrap">' +
+    '<div class="biz-meta">あなたのメール: <strong>' + esc(STATE.email) + '</strong></div>' +
+    '<div class="empty" style="padding:20px;text-align:left">' +
+      '<p style="margin:0 0 10px"><strong>作業者マスターにあなたのメールが見つかりませんでした。</strong></p>' +
+      '<p style="margin:0 0 14px;font-size:13px;color:var(--text-sub)">' +
+        '・メール登録済みなのに表示される場合: 作業者管理タブで「' + esc(STATE.email) + '」が email1 または email2 列に正確に入っているか確認してください（前後の空白・全角文字・大文字小文字違いはNG）。<br>' +
+        '・暫定対応として、下から自分の名前を選ぶと業務タブを使えます（端末ごとに保存）。' +
+      '</p>';
+  if (workers.length) {
+    html += '<label style="display:block;margin:10px 0 6px;font-size:13px;color:var(--text-sub)">作業者として表示する</label>' +
+      '<select id="user-name-picker" style="width:100%;padding:8px;font-size:14px;border:1px solid #d8dde7;border-radius:6px">' +
+        '<option value="">— 選択してください —</option>' +
+        workers.map(function(w){
+          var label = w.name + (w.email1 ? ' (' + w.email1 + ')' : '');
+          return '<option value="' + esc(w.name) + '">' + esc(label) + '</option>';
+        }).join('') +
+      '</select>' +
+      '<button class="btn-primary" style="margin-top:12px;padding:10px 20px;border:0;border-radius:6px;cursor:pointer" onclick="applyUserNameOverride_()">この作業者として開く</button>';
+  } else {
+    html += '<p style="color:var(--danger)">作業者マスターを取得できませんでした。</p>';
+  }
+  html += '</div></div>';
+  c.innerHTML = html;
+}
+function applyUserNameOverride_() {
+  var sel = document.getElementById('user-name-picker');
+  if (!sel || !sel.value) { toast('名前を選んでください', 'error'); return; }
+  try { localStorage.setItem('shiire-kanri:userName', sel.value); } catch(e) {}
+  STATE.userName = sel.value;
+  STATE.userNameOverride = true;
+  toast('「' + sel.value + '」として開きます');
+  if (STATE.business) renderBusinessSheet(STATE.business);
 }
 
 // SETTINGS_FIELD_MAP に登録された項目について、設定シートの値があれば <select> 用 options を返す。なければ null。
@@ -3934,10 +3986,7 @@ async function renderBusinessSheet(menuKey) {
     c.innerHTML = '<div class="loading">読み込み中…</div>';
     try { await STATE.userNamePromise; } catch (e) {}
   }
-  if (!STATE.userName) {
-    c.innerHTML = '<div class="empty">作業者マスターにあなたのメール（' + esc(STATE.email) + '）が登録されていません。管理者に連絡してください。</div>';
-    return;
-  }
+  if (!STATE.userName) { showUserNamePicker_(); return; }
   if (menuKey === 'shiire_houkoku') return renderShiireHoukokuTab_();
   if (menuKey === 'keihi')          return renderKeihiTab_();
   if (menuKey === 'houshu')         return renderHoushuTab_();
