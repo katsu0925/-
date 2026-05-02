@@ -4806,6 +4806,8 @@ function renderDetail() {
   // 詳細では商品管理タブの chips-bar を確実に隠す（openDetail から直接呼ばれた場合の取りこぼし防止）
   updateChipsBar_();
   document.getElementById('appbar-title').textContent = d.kanri;
+  // タイトル・説明文を背景でプリフェッチ（クリック時に即時コピー可能にする）
+  prefetchListingText_(d.kanri);
 
   var ex = d.extra || {};
 
@@ -5189,56 +5191,96 @@ async function saveDetails() {
     });
 }
 
-// フリマ用タイトル・説明文をクリップボードにコピー
-// kind: 'title' | 'description'
-async function copyListingText_(kanri, kind, btn) {
+// フリマ用タイトル・説明文のキャッシュ（管理番号 → { title, description }）
+// 詳細画面を開いた時点でプリフェッチし、クリック時はキャッシュから即時コピーする
+var LISTING_TEXT_CACHE = {};
+var LISTING_TEXT_INFLIGHT = {};
+
+function prefetchListingText_(kanri) {
+  if (!kanri) return;
+  if (LISTING_TEXT_CACHE[kanri]) return;
+  if (LISTING_TEXT_INFLIGHT[kanri]) return;
+  var p = api('/api/listing-text/' + encodeURIComponent(kanri))
+    .then(function(res){
+      LISTING_TEXT_CACHE[kanri] = {
+        title: String(res.title || ''),
+        description: String(res.description || ''),
+      };
+    })
+    .catch(function(){ /* 失敗時は黙ってクリック時に再試行 */ })
+    .then(function(){ delete LISTING_TEXT_INFLIGHT[kanri]; });
+  LISTING_TEXT_INFLIGHT[kanri] = p;
+}
+
+// クリックハンドラ。キャッシュヒットなら即座に navigator.clipboard.writeText を呼ぶ（=ユーザー操作内・同期）
+function copyListingText_(kanri, kind, btn) {
   if (!kanri) { toast('管理番号が空です', 'error'); return; }
-  if (btn && btn.disabled) return;
+  var cached = LISTING_TEXT_CACHE[kanri];
+  if (cached) {
+    var text = kind === 'title' ? cached.title : cached.description;
+    if (!text) { toast(kind === 'title' ? 'タイトルが空です' : '説明文が空です', 'error'); return; }
+    // ユーザー操作のスタックフレーム内で同期的に writeText を呼ぶ → Safari でも許可される
+    var p = (navigator.clipboard && window.isSecureContext)
+      ? navigator.clipboard.writeText(text)
+      : Promise.reject(new Error('clipboard unavailable'));
+    p.then(function(){
+      toast((kind === 'title' ? 'タイトル' : '説明文') + 'をコピーしました', 'success');
+      flashCopied_(btn);
+    }).catch(function(){
+      // フォールバック: textarea + execCommand（ユーザー操作内ならOK）
+      try { execCopyFallback_(text); toast((kind === 'title' ? 'タイトル' : '説明文') + 'をコピーしました', 'success'); flashCopied_(btn); }
+      catch (e) { toast('コピーに失敗', 'error'); }
+    });
+    return;
+  }
+  // キャッシュ未取得 → 取得を起動しつつ「取得中…」表示。完了後 navigator.clipboard.writeText だが
+  // ここはユーザー操作スタックを離れるため Safari では失敗しうる → execCommand フォールバックで補う
   var origLabel = btn ? (btn.querySelector('.hero-copy-label') ? btn.querySelector('.hero-copy-label').textContent : '') : '';
   if (btn) {
     btn.disabled = true;
     var labelEl = btn.querySelector('.hero-copy-label');
     if (labelEl) labelEl.textContent = '取得中…';
   }
-  try {
-    var res = await api('/api/listing-text/' + encodeURIComponent(kanri));
-    var text = kind === 'title' ? String(res.title || '') : String(res.description || '');
-    if (!text) {
-      toast(kind === 'title' ? 'タイトルが空です' : '説明文が空です', 'error');
-      return;
+  prefetchListingText_(kanri);
+  var inflight = LISTING_TEXT_INFLIGHT[kanri] || Promise.resolve();
+  inflight.then(function(){
+    var c = LISTING_TEXT_CACHE[kanri];
+    if (!c) throw new Error('取得失敗');
+    var text = kind === 'title' ? c.title : c.description;
+    if (!text) throw new Error(kind === 'title' ? 'タイトルが空です' : '説明文が空です');
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(text).then(function(){ return text; });
     }
-    await copyToClipboard_(text);
+    execCopyFallback_(text);
+    return text;
+  }).then(function(){
     toast((kind === 'title' ? 'タイトル' : '説明文') + 'をコピーしました', 'success');
-    if (btn) {
-      btn.classList.add('copied');
-      var lbl = btn.querySelector('.hero-copy-label');
-      if (lbl) lbl.textContent = 'コピー済み';
-      setTimeout(function(){
-        btn.classList.remove('copied');
-        var l2 = btn.querySelector('.hero-copy-label');
-        if (l2) l2.textContent = origLabel;
-      }, 1600);
-    }
-  } catch (err) {
+    flashCopied_(btn, origLabel);
+  }).catch(function(err){
     toast('コピーに失敗: ' + (err && err.message ? err.message : err), 'error');
-  } finally {
     if (btn) {
-      btn.disabled = false;
-      // 成功時は setTimeout で戻すので、失敗時のみ即座にラベル復元
-      if (!btn.classList.contains('copied')) {
-        var l3 = btn.querySelector('.hero-copy-label');
-        if (l3 && l3.textContent === '取得中…') l3.textContent = origLabel;
-      }
+      var l = btn.querySelector('.hero-copy-label');
+      if (l) l.textContent = origLabel;
     }
-  }
+  }).then(function(){
+    if (btn) btn.disabled = false;
+  });
 }
 
-async function copyToClipboard_(text) {
-  if (navigator.clipboard && window.isSecureContext) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
-  // フォールバック: textarea を使う旧来手法
+function flashCopied_(btn, origLabel) {
+  if (!btn) return;
+  var lbl = btn.querySelector('.hero-copy-label');
+  var orig = origLabel || (lbl ? lbl.textContent : '');
+  btn.classList.add('copied');
+  if (lbl) lbl.textContent = 'コピー済み';
+  setTimeout(function(){
+    btn.classList.remove('copied');
+    var l2 = btn.querySelector('.hero-copy-label');
+    if (l2) l2.textContent = orig;
+  }, 1400);
+}
+
+function execCopyFallback_(text) {
   var ta = document.createElement('textarea');
   ta.value = text;
   ta.setAttribute('readonly', '');
@@ -5246,7 +5288,10 @@ async function copyToClipboard_(text) {
   ta.style.top = '-9999px';
   document.body.appendChild(ta);
   ta.select();
-  try { document.execCommand('copy'); } finally { document.body.removeChild(ta); }
+  ta.setSelectionRange(0, text.length);
+  var ok = false;
+  try { ok = document.execCommand('copy'); } finally { document.body.removeChild(ta); }
+  if (!ok) throw new Error('execCommand copy failed');
 }
 
 function setFabLoading(id, icon, loading) {

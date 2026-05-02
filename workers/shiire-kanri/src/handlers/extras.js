@@ -131,9 +131,22 @@ export async function dumpSheet(request, env, user, name) {
 
 // ?id=xxx&fmt=json で GAS doGet からタイトル・説明文を取得
 // （Code.gs:doGet が組み立てる generatedTitle / description を JSON で受け取る）
+// KV キャッシュ（5分）で 2 回目以降はミリ秒応答にする
+const LISTING_TEXT_TTL = 300;
 export async function getListingText(request, env, user, kanri) {
   const id = String(kanri || '').trim();
   if (!id) return jsonError('kanri required', 400);
+  const cacheKey = 'listing-text:' + id;
+  const kv = env.CACHE || env.GAS_PROXY_CACHE;
+  // KV ヒット → 即返却
+  if (kv) {
+    try {
+      const hit = await kv.get(cacheKey, 'json');
+      if (hit && typeof hit.title === 'string' && typeof hit.description === 'string') {
+        return jsonOk({ id, title: hit.title, description: hit.description, cached: true });
+      }
+    } catch {}
+  }
   const base = String(env.GAS_API_URL || '');
   if (!base) return jsonError('GAS_API_URL not configured', 500);
   const target = base + (base.indexOf('?') >= 0 ? '&' : '?') + 'id=' + encodeURIComponent(id) + '&fmt=json';
@@ -154,11 +167,14 @@ export async function getListingText(request, env, user, kanri) {
   if (!parsed || parsed.ok !== true) {
     return jsonError(String((parsed && parsed.error) || 'gas error'), 502);
   }
-  return jsonOk({
-    id: parsed.id || id,
+  const out = {
     title: String(parsed.title || ''),
     description: String(parsed.description || ''),
-  });
+  };
+  if (kv) {
+    try { await kv.put(cacheKey, JSON.stringify(out), { expirationTtl: LISTING_TEXT_TTL }); } catch {}
+  }
+  return jsonOk({ id: parsed.id || id, ...out });
 }
 
 async function getFollowingRedirects(url) {
