@@ -977,31 +977,36 @@
   .ids-item:last-child { border-bottom: none; }
   .ids-item input[type=checkbox] { width: 18px; height: 18px; flex-shrink: 0; }
   .ids-item .muted { font-size: 12px; padding: 0; }
-  /* 作業者管理: 一覧カードは「名前+今月件数+メール」に圧縮、6ヶ月詳細はモーダル送り */
+  /* 作業者管理: 一覧カードは「名前+今月件数(4項目)+メール」、履歴/編集の2導線 */
   .sagyou-list { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
-  .sagyou-card { background: var(--surface); border-radius: 10px; box-shadow: var(--shadow); padding: 14px 16px; transition: background-color .12s; }
+  .sagyou-card { position: relative; background: var(--surface); border-radius: 10px; box-shadow: var(--shadow); padding: 14px 16px; transition: background-color .12s; }
   .sagyou-card.clickable { cursor: pointer; }
   .sagyou-card.clickable:hover { background: #f7f9fc; }
   .sagyou-card.clickable:active { background: #eef2f8; }
   .sagyou-card.disabled { opacity: 0.55; }
-  .sagyou-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+  .sagyou-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; padding-right: 36px; }
   .sagyou-card-name { font-size: 17px; font-weight: 700; color: var(--text); }
-  .sagyou-card-badges { display: flex; gap: 6px; flex-shrink: 0; }
-  .sagyou-card-thismonth { display: flex; align-items: baseline; gap: 14px; margin-bottom: 8px; padding: 8px 10px; background: #f7f9fc; border-radius: 8px; }
-  .sagyou-card-thismonth .ym-label { font-size: 11px; color: var(--text-sub); font-weight: 600; min-width: 36px; }
-  .sagyou-card-thismonth .metric { font-size: 13px; color: var(--text-sub); }
-  .sagyou-card-thismonth .metric .num { font-size: 18px; font-weight: 700; color: #1f6feb; margin: 0 4px 0 4px; }
-  .sagyou-card-thismonth .metric.zero .num { color: #9aa1ad; }
+  .sagyou-card-badges { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; justify-content: flex-end; }
+  .sagyou-card-edit { position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; border: none; border-radius: 8px; background: #eef2f8; color: var(--text-sub); font-size: 15px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background-color .12s; }
+  .sagyou-card-edit:hover { background: #dde4ee; color: var(--text); }
+  .sagyou-card-edit:active { background: #ccd5e2; }
+  .sagyou-card-thismonth { display: grid; grid-template-columns: 36px repeat(4, 1fr); gap: 8px; align-items: baseline; margin-bottom: 8px; padding: 8px 10px; background: #f7f9fc; border-radius: 8px; }
+  .sagyou-card-thismonth .ym-label { font-size: 11px; color: var(--text-sub); font-weight: 600; }
+  .sagyou-card-thismonth .metric { font-size: 11px; color: var(--text-sub); display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .sagyou-card-thismonth .metric .num { font-size: 17px; font-weight: 700; color: #1f6feb; line-height: 1; }
+  .sagyou-card-thismonth .metric.zero .num { color: #9aa1ad; font-weight: 500; }
   .sagyou-card-emails { color: var(--text-sub); font-size: 12px; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .sagyou-card-emails .nomail { color: #b8bdc6; }
-  /* 詳細モーダル内の月別表 */
-  .sagyou-detail-monthly { font-size: 13px; margin-top: 6px; }
-  .sagyou-detail-monthly table { width: 100%; border-collapse: collapse; }
-  .sagyou-detail-monthly th, .sagyou-detail-monthly td { padding: 6px 8px; text-align: center; border-bottom: 1px solid #f3f5f9; }
+  /* 履歴モーダル内の月別表 */
+  .sagyou-detail-monthly { font-size: 13px; margin-top: 6px; overflow-x: auto; }
+  .sagyou-detail-monthly table { width: 100%; border-collapse: collapse; min-width: 320px; }
+  .sagyou-detail-monthly th, .sagyou-detail-monthly td { padding: 6px 6px; text-align: center; border-bottom: 1px solid #f3f5f9; }
   .sagyou-detail-monthly th { font-weight: 600; color: var(--text-sub); font-size: 12px; }
   .sagyou-detail-monthly td.zero { color: #9aa1ad; }
   .sagyou-detail-monthly td.has { font-weight: 700; color: #1f6feb; font-size: 14px; }
-  .sagyou-detail-monthly .ym { text-align: left; width: 56px; color: var(--text-sub); font-size: 12px; }
+  .sagyou-detail-monthly .ym { text-align: left; width: 48px; color: var(--text-sub); font-size: 12px; padding-left: 8px; }
+  .sagyou-detail-monthly tfoot td { border-top: 2px solid #e3e8ef; border-bottom: none; padding-top: 8px; font-weight: 700; color: var(--text); }
+  .sagyou-detail-monthly tfoot td.ym { color: var(--text-sub); font-weight: 600; }
   .badge.admin { background: #ede5ff; color: #6c47c8; }
   .badge.disabled { background: #f0f2f7; color: #7c8392; }
   /* 業務メニュー: 汎用ダンプテーブル */
@@ -3648,22 +3653,24 @@ function paintSagyouList_(data) {
     var emailHtml = emails.length
       ? esc(emails.join(' / '))
       : '<span class="nomail">メール未登録</span>';
-    var tm = (w.monthly && w.monthly[thisMonthYm]) || { sokutei: 0, satsuei: 0 };
-    var sZero = !tm.sokutei, pZero = !tm.satsuei;
+    var tm = (w.monthly && w.monthly[thisMonthYm]) || { sokutei: 0, satsuei: 0, shuppin: 0, hassou: 0 };
     var thisMonthHtml =
       '<div class="sagyou-card-thismonth">' +
         '<span class="ym-label">' + esc(thisMonthLabel) + '</span>' +
-        '<span class="metric' + (sZero ? ' zero' : '') + '">採寸<span class="num">' + (tm.sokutei || 0) + '</span></span>' +
-        '<span class="metric' + (pZero ? ' zero' : '') + '">撮影<span class="num">' + (tm.satsuei || 0) + '</span></span>' +
+        '<span class="metric' + (!tm.sokutei ? ' zero' : '') + '">採寸<span class="num">' + (tm.sokutei || 0) + '</span></span>' +
+        '<span class="metric' + (!tm.satsuei ? ' zero' : '') + '">撮影<span class="num">' + (tm.satsuei || 0) + '</span></span>' +
+        '<span class="metric' + (!tm.shuppin ? ' zero' : '') + '">出品<span class="num">' + (tm.shuppin || 0) + '</span></span>' +
+        '<span class="metric' + (!tm.hassou ? ' zero' : '') + '">発送<span class="num">' + (tm.hassou || 0) + '</span></span>' +
       '</div>';
-    // 管理者かつマスター登録済 → タップで直接編集 / それ以外 → 詳細モーダル
-    var canEdit = isAdmin && w.row > 0;
+    // カード本体タップ → 履歴モーダル / 右上ボタン → 編集（管理者かつマスター登録済のみ）
     var clickable = isAdmin || w.row > 0;
-    var onClick = clickable
-      ? ' onclick="' + (canEdit ? 'openSagyouEdit(' : 'openSagyouDetail(') + idx + ')"'
-      : '';
+    var onClick = clickable ? ' onclick="openSagyouDetail(' + idx + ')"' : '';
     var clsExtra = (w.row > 0 && !w.enabled) ? ' disabled' : '';
+    var editBtn = (isAdmin && w.row > 0)
+      ? '<button class="sagyou-card-edit" onclick="event.stopPropagation(); openSagyouEdit(' + idx + ')" title="編集" aria-label="編集">✎</button>'
+      : '';
     return '<div class="sagyou-card' + (clickable ? ' clickable' : '') + clsExtra + '"' + onClick + '>' +
+      editBtn +
       '<div class="sagyou-card-head">' +
         '<div class="sagyou-card-name">' + esc(w.name) + '</div>' +
         '<div class="sagyou-card-badges">' + enabledBadge + adminBadge + '</div>' +
@@ -3683,35 +3690,43 @@ function openSagyouDetail(idx) {
   if (!data) return;
   var w = (data.workers || [])[idx];
   if (!w) return;
-  var isAdmin = !!(data.currentUser && data.currentUser.isAdmin);
   var months = data.months || [];
+  var totals = { sokutei: 0, satsuei: 0, shuppin: 0, hassou: 0 };
   var monthlyRows = months.map(function(m){
-    var v = (w.monthly && w.monthly[m]) || { sokutei: 0, satsuei: 0 };
+    var v = (w.monthly && w.monthly[m]) || { sokutei: 0, satsuei: 0, shuppin: 0, hassou: 0 };
+    totals.sokutei += (v.sokutei || 0);
+    totals.satsuei += (v.satsuei || 0);
+    totals.shuppin += (v.shuppin || 0);
+    totals.hassou  += (v.hassou  || 0);
     var label = parseInt(m.slice(5), 10) + '月';
-    var sCls = v.sokutei ? 'has' : 'zero';
-    var pCls = v.satsuei ? 'has' : 'zero';
+    function cell(n){ return '<td class="' + (n ? 'has' : 'zero') + '">' + (n || '—') + '</td>'; }
     return '<tr><td class="ym">' + esc(label) + '</td>' +
-           '<td class="' + sCls + '">' + (v.sokutei || '—') + '</td>' +
-           '<td class="' + pCls + '">' + (v.satsuei || '—') + '</td></tr>';
+           cell(v.sokutei) + cell(v.satsuei) + cell(v.shuppin) + cell(v.hassou) + '</tr>';
   }).join('');
+  var totalsRow = '<tr>' +
+    '<td class="ym">合計</td>' +
+    '<td>' + (totals.sokutei || '—') + '</td>' +
+    '<td>' + (totals.satsuei || '—') + '</td>' +
+    '<td>' + (totals.shuppin || '—') + '</td>' +
+    '<td>' + (totals.hassou  || '—') + '</td>' +
+    '</tr>';
   var emails = [w.email1, w.email2].filter(function(e){ return e; }).join(' / ') || '—';
-  var actions = isAdmin && w.row > 0
-    ? '<button class="btn-cancel" onclick="closeModal()">閉じる</button>' +
-      '<button class="btn-submit" onclick="openSagyouEdit(' + idx + ')">編集</button>'
-    : '<button class="btn-cancel" onclick="closeModal()">閉じる</button>';
   openModal(
-    '<h3>👥 ' + esc(w.name) + '</h3>' +
-    (w.row === 0 ? '<div class="notice">マスター未登録の名前。商品管理シートで採寸/撮影者として記録された分のみ表示。</div>' : '') +
+    '<h3>📊 ' + esc(w.name) + ' の作業履歴</h3>' +
+    (w.row === 0 ? '<div class="notice">マスター未登録の名前。商品管理シートで担当者として記録された分のみ表示。</div>' : '') +
     '<div class="field-row"><label>有効</label><div>' + (w.enabled ? '✅ 有効' : '⛔ 無効') + '</div></div>' +
     '<div class="field-row"><label>管理者</label><div>' + (w.admin ? '✅ 管理者' : '—') + '</div></div>' +
     '<div class="field-row"><label>メールアドレス</label><div>' + esc(emails) + '</div></div>' +
-    '<div class="field-row"><label>月別 採寸 / 撮影 件数</label>' +
+    '<div class="field-row"><label>月別件数（採寸 / 撮影 / 出品 / 発送）</label>' +
       '<div class="sagyou-detail-monthly">' +
-        '<table><thead><tr><th>月</th><th>採寸</th><th>撮影</th></tr></thead>' +
-        '<tbody>' + monthlyRows + '</tbody></table>' +
+        '<table>' +
+          '<thead><tr><th>月</th><th>採寸</th><th>撮影</th><th>出品</th><th>発送</th></tr></thead>' +
+          '<tbody>' + monthlyRows + '</tbody>' +
+          '<tfoot>' + totalsRow + '</tfoot>' +
+        '</table>' +
       '</div>' +
     '</div>' +
-    '<div class="modal-actions">' + actions + '</div>'
+    '<div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">閉じる</button></div>'
   );
 }
 

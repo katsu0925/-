@@ -680,8 +680,11 @@ function staff_syncDumpProducts() {
   var headers = hdr.map(function(v){ return String(v || '').trim(); });
   var values = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
   var tz = Session.getScriptTimeZone() || 'Asia/Tokyo';
+  // スプレッドシートの TZ が JST と異なる（PDT など）と日付セルの時刻成分が getHours() でゼロにならず
+  // 全日付セルが ISO 化されてしまう。TZ 上の HH:mm:ss で判定することで「日付のみ」セルを正しく検出する
+  var sheetTz = ss.getSpreadsheetTimeZone() || tz;
   function fmtDate(d) {
-    if (d instanceof Date) return Utilities.formatDate(d, tz, 'yyyy-MM-dd');
+    if (d instanceof Date) return Utilities.formatDate(d, sheetTz, 'yyyy-MM-dd');
     return String(d || '');
   }
   function fmtTs(d) {
@@ -690,12 +693,11 @@ function staff_syncDumpProducts() {
   }
   function fmtCell(d) {
     if (d instanceof Date) {
-      // 時刻成分が非ゼロなら HH:mm:ss まで残す（new Date() で打刻された採寸日・撮影日付・出品日・発送日付など）
-      // → フロント側 fmtHistoryWhen_ が HH:mm を検出して作業履歴に分単位で表示する
-      if (d.getHours() !== 0 || d.getMinutes() !== 0 || d.getSeconds() !== 0) {
+      var hms = Utilities.formatDate(d, sheetTz, 'HH:mm:ss');
+      if (hms !== '00:00:00') {
         return Utilities.formatDate(d, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
       }
-      return Utilities.formatDate(d, tz, 'yyyy-MM-dd');
+      return Utilities.formatDate(d, sheetTz, 'yyyy-MM-dd');
     }
     if (d === null || d === undefined) return '';
     return String(d);
@@ -773,6 +775,9 @@ function staff_syncDumpPurchases() {
 
   var values = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
   var tz = Session.getScriptTimeZone() || 'Asia/Tokyo';
+  // スプレッドシートの TZ（PDT 等）と script TZ（JST）が異なると日付セルが時刻ズレする。
+  // 「日付のみ」セルは sheetTz でフォーマットして yyyy-MM-dd に丸める
+  var sheetTz = ss.getSpreadsheetTimeZone() || tz;
   function val(row, name) { return col[name] ? row[col[name] - 1] : ''; }
   function num(v) {
     if (v === '' || v === null || v === undefined) return 0;
@@ -786,7 +791,7 @@ function staff_syncDumpPurchases() {
     var id = String(val(row, '仕入れID') || '').trim();
     if (!id) continue;
     var date = val(row, '仕入れ日');
-    var dateStr = (date instanceof Date) ? Utilities.formatDate(date, tz, 'yyyy-MM-dd') : String(date || '');
+    var dateStr = (date instanceof Date) ? Utilities.formatDate(date, sheetTz, 'yyyy-MM-dd') : String(date || '');
     var registeredAtRaw = val(row, '登録日時');
     var registeredAtStr = (registeredAtRaw instanceof Date)
       ? Utilities.formatDate(registeredAtRaw, tz, 'yyyy-MM-dd HH:mm:ss')

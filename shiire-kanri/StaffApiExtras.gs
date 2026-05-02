@@ -254,37 +254,61 @@ function staff_listSagyousha(opts, requesterEmail) {
       });
     }
   }
-  // 商品管理: 採寸日(33)/採寸者(34) と 撮影日付(35)/撮影者(36) を集計
+  // 商品管理: 採寸/撮影/出品/発送 の (日付列, 担当者列) ペアをヘッダー名で動的解決して集計
+  // 列名は揺れがあるため候補を順に試す
   var prodSh = ss.getSheetByName(STAFF_SHEET_NAME);
   if (prodSh && prodSh.getLastRow() >= 2) {
     var pLast = prodSh.getLastRow();
-    var pVals = prodSh.getRange(2, 33, pLast - 1, 4).getValues(); // 列 33-36
-    var tz = Session.getScriptTimeZone() || 'Asia/Tokyo';
-    var workerMap = {};
-    workers.forEach(function(w){ workerMap[w.name] = w; });
-    function getYm(d) {
-      if (!(d instanceof Date)) return '';
-      return Utilities.formatDate(d, tz, 'yyyy-MM');
+    var pLastCol = prodSh.getLastColumn();
+    var pHeaders = prodSh.getRange(1, 1, 1, pLastCol).getValues()[0]
+      .map(function(v){ return String(v || '').trim(); });
+    function findCol_(cands) {
+      for (var i = 0; i < cands.length; i++) {
+        var idx = pHeaders.indexOf(cands[i]);
+        if (idx >= 0) return idx + 1; // 1-indexed
+      }
+      return 0;
     }
-    for (var i = 0; i < pVals.length; i++) {
-      var sokuteiYm = getYm(pVals[i][0]);
-      var sokuteiUser = String(pVals[i][1] || '').trim();
-      var satsueiYm = getYm(pVals[i][2]);
-      var satsueiUser = String(pVals[i][3] || '').trim();
+    var pairs = [
+      { kind: 'sokutei', dCol: findCol_(['採寸日']),               uCol: findCol_(['採寸者', '採寸担当']) },
+      { kind: 'satsuei', dCol: findCol_(['撮影日付', '撮影日']),    uCol: findCol_(['撮影者', '撮影担当']) },
+      { kind: 'shuppin', dCol: findCol_(['出品日']),               uCol: findCol_(['出品者', '出品担当']) },
+      { kind: 'hassou',  dCol: findCol_(['発送日付', '発送日']),    uCol: findCol_(['発送者', '発送担当']) }
+    ].filter(function(p){ return p.dCol > 0 && p.uCol > 0; });
+    if (pairs.length) {
+      var allCols = [];
+      pairs.forEach(function(p){ allCols.push(p.dCol); allCols.push(p.uCol); });
+      var minCol = Math.min.apply(null, allCols);
+      var maxCol = Math.max.apply(null, allCols);
+      var width = maxCol - minCol + 1;
+      var pVals = prodSh.getRange(2, minCol, pLast - 1, width).getValues();
+      var tz = Session.getScriptTimeZone() || 'Asia/Tokyo';
+      var workerMap = {};
+      workers.forEach(function(w){ workerMap[w.name] = w; });
+      function getYm(d) {
+        if (!(d instanceof Date)) return '';
+        return Utilities.formatDate(d, tz, 'yyyy-MM');
+      }
       function bumpUser(name, ym, kind) {
         if (!name || !ym) return;
         var w = workerMap[name];
         if (!w) {
-          // マスターに無い名前は集計だけ表示する (row=0=新規/孤児)
           w = { row: 0, name: name, email1: '', email2: '', enabled: false, admin: false, monthly: {} };
           workerMap[name] = w;
           workers.push(w);
         }
-        if (!w.monthly[ym]) w.monthly[ym] = { sokutei: 0, satsuei: 0 };
+        if (!w.monthly[ym]) w.monthly[ym] = { sokutei: 0, satsuei: 0, shuppin: 0, hassou: 0 };
+        if (typeof w.monthly[ym][kind] !== 'number') w.monthly[ym][kind] = 0;
         w.monthly[ym][kind]++;
       }
-      bumpUser(sokuteiUser, sokuteiYm, 'sokutei');
-      bumpUser(satsueiUser, satsueiYm, 'satsuei');
+      for (var i = 0; i < pVals.length; i++) {
+        for (var k = 0; k < pairs.length; k++) {
+          var p = pairs[k];
+          var ym = getYm(pVals[i][p.dCol - minCol]);
+          var user = String(pVals[i][p.uCol - minCol] || '').trim();
+          bumpUser(user, ym, p.kind);
+        }
+      }
     }
   }
   // 直近 months ヶ月のキー一覧
