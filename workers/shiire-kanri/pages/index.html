@@ -4713,22 +4713,37 @@ function buildBasicImgsHtml_(d) {
   return tbHtml + fieldsHtml;
 }
 
+// タスキ箱(R2/KV)に登録済みの商品画像URLリストをタブ切替えを跨いでキャッシュ
+// （タブごとに /api/products/:kanri/images を再取得しないため）
+var PRODUCT_IMAGES_CACHE = {};
+
 // タスキ箱(R2/KV)に登録済みの商品画像を取得して詳細の .basic-imgs-tb にレンダリング。
 // 画像0件のときは空のまま（DOMからは見えない）。
 async function resolveDetailTasukibakoImages_(kanri) {
   if (!kanri) return;
   var holders = document.querySelectorAll('.basic-imgs-tb[data-kanri="' + cssEscape_(kanri) + '"]');
   if (!holders.length) return;
+  // キャッシュヒット → API を叩かず即描画
+  var cached = PRODUCT_IMAGES_CACHE[kanri];
+  if (cached) {
+    renderTasukibakoImages_(holders, cached);
+    return;
+  }
   try {
     var res = await api('/api/products/' + encodeURIComponent(kanri) + '/images');
     var urls = (res && Array.isArray(res.urls)) ? res.urls : [];
-    if (!urls.length) return;
-    var html = urls.map(function(u){
-      var safeUrl = esc(u).replace(/\'/g,"\\'");
-      return '<button type="button" class="basic-img" onclick="openImageModal_(\'' + safeUrl + '\')" title="商品画像"><img src="' + esc(u) + '" alt="商品画像" loading="lazy"></button>';
-    }).join('');
-    Array.prototype.forEach.call(holders, function(h){ h.innerHTML = html; });
+    PRODUCT_IMAGES_CACHE[kanri] = urls;
+    renderTasukibakoImages_(holders, urls);
   } catch (e) { /* 画像取得失敗は無視 */ }
+}
+
+function renderTasukibakoImages_(holders, urls) {
+  if (!urls || !urls.length) return;
+  var html = urls.map(function(u){
+    var safeUrl = esc(u).replace(/\'/g,"\\'");
+    return '<button type="button" class="basic-img" onclick="openImageModal_(\'' + safeUrl + '\')" title="商品画像"><img src="' + esc(u) + '" alt="商品画像" loading="lazy"></button>';
+  }).join('');
+  Array.prototype.forEach.call(holders, function(h){ h.innerHTML = html; });
 }
 
 // querySelector 用の簡易エスケープ（kanri は英数字想定だが安全側で）
@@ -4905,8 +4920,8 @@ function renderDetail() {
       '<div class="form-section">' + renderSectionFields_(sec, d) + '</div>';
   }).join('');
 
-  // 基本タブには画像サムネを hero 直下に表示（発送タブ以外でも画像確認可能に）
-  var basicImgsHtml = activeTab.id === 'basic' ? buildBasicImgsHtml_(d) : '';
+  // 全タブで画像サムネを hero 直下に表示（タスキ箱画像URLは PRODUCT_IMAGES_CACHE で再利用）
+  var basicImgsHtml = buildBasicImgsHtml_(d);
 
   // 販売タブには収支サマリ、全タブ共通で末尾に作業履歴
   var summaryHtml = activeTab.id === 'sale' ? buildSummaryHtml_(d) : '';
@@ -4938,10 +4953,8 @@ function renderDetail() {
   contentEl.addEventListener('input', updateSavebar_);
   contentEl.addEventListener('change', updateSavebar_);
   resolveLegacyImages_();
-  // タスキ箱画像（基本タブのみ basic-imgs-tb プレースホルダがある）を非同期で取得
-  if (activeTab.id === 'basic') {
-    resolveDetailTasukibakoImages_(d.kanri);
-  }
+  // タスキ箱画像は全タブで表示（キャッシュヒット時は同期描画＝瞬時、初回のみ API）
+  resolveDetailTasukibakoImages_(d.kanri);
   updateSavebar_();
 }
 // 詳細画面で「変更があったフィールド」を { name, before, after } 配列で返す。
