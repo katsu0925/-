@@ -50,6 +50,11 @@
     -webkit-font-smoothing: antialiased;
   }
   body.has-chips { padding-top: 146px; }
+  /* 詳細画面: 検索バーを隠して appbar が縮むので、コンテンツ上余白と sec-tabs sticky 位置を一致させる */
+  body.view-detail { padding-top: 56px; }
+  body.view-detail .sec-tabs { top: 56px; }
+  /* topbar-search は display:flex が固定で当たるため hidden 属性だけでは消えない。明示的に上書き */
+  body.view-detail .topbar-search { display: none !important; }
   /* グローバル focus-visible: WCAG 対応 */
   button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible {
     outline: 2px solid var(--primary); outline-offset: 2px;
@@ -77,12 +82,23 @@
     background: rgba(255,255,255,.95); border-radius: 8px;
     padding: 6px 12px; min-height: 36px;
   }
-  .topbar-search::before { content: '🔍'; font-size: 13px; opacity: .6; }
+  .topbar-search .search-ico {
+    width: 16px; height: 16px; opacity: .55; flex-shrink: 0;
+    color: var(--text-sub);
+  }
+  .topbar-search .search-ico svg {
+    width: 100%; height: 100%; fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  }
   .topbar-search input {
     flex: 1; border: none; outline: none; background: transparent;
     color: var(--text); font-size: 14px; padding: 4px 0; min-width: 0;
   }
   .topbar-search input::placeholder { color: var(--text-mute); }
+  /* type="search" のブラウザ標準クリアボタン（Safari/Chrome）はカスタム .clear-btn と重複するため抑制 */
+  .topbar-search input[type="search"] { -webkit-appearance: textfield; appearance: textfield; }
+  .topbar-search input[type="search"]::-webkit-search-cancel-button,
+  .topbar-search input[type="search"]::-webkit-search-decoration { -webkit-appearance: none; appearance: none; display: none; }
   .topbar-search .clear-btn {
     background: transparent; border: none; color: var(--text-mute);
     font-size: 16px; line-height: 1; cursor: pointer; padding: 4px;
@@ -117,7 +133,9 @@
   .drawer-item:hover { background: #f7f9fc; }
   .drawer-item:active { background: var(--primary-soft); }
   .drawer-item.active { background: var(--primary-soft); color: var(--primary-dark); border-left-color: var(--primary); font-weight: 600; }
-  .drawer-item .ico { margin-right: 14px; font-size: 18px; width: 22px; text-align: center; }
+  .drawer-item .ico { margin-right: 14px; font-size: 18px; width: 22px; height: 22px; text-align: center; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; color: var(--text-sub); }
+  .drawer-item.active .ico { color: var(--primary); }
+  .drawer-item .ico svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
   .drawer-item .count {
     margin-left: auto; min-width: 26px; text-align: center;
     background: var(--gray-soft); color: var(--text-sub);
@@ -279,6 +297,24 @@
     font-size: 22px; cursor: pointer;
     display: flex; align-items: center; justify-content: center;
   }
+  /* モーダル内の前後ナビ（複数画像があるときだけ表示） */
+  .img-modal-nav {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    width: 48px; height: 72px;
+    background: rgba(255,255,255,.18); color: #fff;
+    border: none; border-radius: 8px;
+    font-size: 32px; line-height: 1; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    user-select: none; -webkit-user-select: none;
+  }
+  .img-modal-prev { left: 12px; }
+  .img-modal-next { right: 12px; }
+  .img-modal-counter {
+    position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: rgba(0,0,0,.55); color: #fff;
+    padding: 4px 14px; border-radius: 999px;
+    font-size: 13px; pointer-events: none;
+  }
   /* 基本タブの画像プレビュー（hero 直下） */
   .basic-imgs {
     display: flex; gap: 10px; padding: 12px 12px 10px;
@@ -305,6 +341,11 @@
   .basic-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
   /* フィールド横並びグリッド */
   .field-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; padding: 12px 0; border-bottom: 1px solid #eef1f6; }
+  /* 採寸記録: date入力と作業者selectが狭幅で被るため、狭い画面では1列に折り返す */
+  @media (max-width: 600px) {
+    .field-grid-2.fg-stack { grid-template-columns: 1fr; gap: 6px; padding: 8px 0 12px; }
+    .field-grid-2.fg-stack > .field-row { padding: 4px 0; }
+  }
   .field-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 8px; padding: 12px 0; border-bottom: 1px solid #eef1f6; }
   .form-section > .field-grid-2:last-child, .form-section > .field-grid-3:last-child { border-bottom: none; }
   .field-grid-2 > .field-row, .field-grid-3 > .field-row {
@@ -326,6 +367,134 @@
     background: var(--primary); border-radius: 2px;
   }
   .group-header .count { color: var(--primary); margin-left: auto; font-weight: 600; font-size: 11px; }
+  /* 発送グループの折りたたみ用 details/summary。デフォルト開、見た目は group-header と統一 */
+  details.group-fold { margin: 14px 0 6px 0; }
+  details.group-fold > summary {
+    list-style: none; cursor: pointer;
+    font-size: 12px; font-weight: 700; color: var(--text-sub);
+    padding: 4px 4px;
+    text-transform: uppercase; letter-spacing: .04em;
+    display: flex; align-items: center; gap: 8px;
+  }
+  details.group-fold > summary::-webkit-details-marker { display: none; }
+  details.group-fold > summary::before {
+    content: '▶'; font-size: 10px; color: var(--text-sub);
+    transition: transform .15s; flex-shrink: 0;
+  }
+  details.group-fold[open] > summary::before { transform: rotate(90deg); }
+  details.group-fold > summary .count { color: var(--primary); margin-left: auto; font-weight: 600; font-size: 11px; }
+  /* 進捗ピル（カード内: 採寸✓ / 撮影✓ / 出品✓ などを横並びで表示） */
+  .card-pills { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
+  .card-pill {
+    display: inline-flex; align-items: center; gap: 2px;
+    font-size: 10px; line-height: 1; padding: 3px 6px;
+    border-radius: 999px; background: var(--gray-soft); color: var(--text-mute);
+    white-space: nowrap;
+  }
+  .card-pill.done { background: #e8f5e9; color: #2e7d32; font-weight: 600; }
+  .card-pill .ico { font-size: 10px; }
+  /* コンパクト密度: カードの余白とピルを縮める */
+  body.density-compact .card { padding: 6px 10px; gap: 8px; }
+  body.density-compact .card-thumb { width: 56px; height: 56px; }
+  body.density-compact .card-pills { display: none; }
+  body.density-compact .card-row2 { font-size: 12px; }
+  /* 表示メニュー chip（並び順/密度の切替） */
+  .chip.chip-menu { background: transparent; border: 1px dashed var(--border); color: var(--text-sub); }
+  .chip.chip-menu:hover { background: var(--gray-soft); }
+  /* 並び順 / 密度 のポップオーバーメニュー */
+  .popover-menu {
+    position: absolute; z-index: 1000;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.12);
+    padding: 6px; min-width: 160px;
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .popover-menu .menu-section-title {
+    font-size: 11px; font-weight: 700; color: var(--text-mute);
+    padding: 6px 8px 2px; text-transform: uppercase; letter-spacing: .04em;
+  }
+  .popover-menu .menu-item {
+    text-align: left; padding: 8px 10px; border-radius: 6px;
+    background: transparent; border: none; cursor: pointer;
+    font-size: 13px; color: var(--text);
+  }
+  .popover-menu .menu-item:hover { background: var(--gray-soft); }
+  .popover-menu .menu-item.on { color: var(--primary); font-weight: 600; }
+  /* 作業者管理の横スクロールヒント（右端フェード + 画面外マーカー） */
+  .sagyou-wrap { position: relative; }
+  .sagyou-wrap.has-overflow::after {
+    content: ''; position: absolute; top: 12px; bottom: 12px; right: 12px;
+    width: 28px; pointer-events: none;
+    background: linear-gradient(to right, transparent, var(--bg, #f5f6f8) 80%);
+  }
+  .sagyou-scrollhint {
+    text-align: right; font-size: 11px; color: var(--text-mute);
+    padding: 0 16px 8px; user-select: none;
+  }
+  /* P2 #88: AIタブカードのコンパクト化 — 2列グリッド + 主要4項目のみ表示 */
+  .ai-card {
+    background: var(--surface); border-radius: 10px; box-shadow: var(--shadow);
+    padding: 10px 12px; cursor: pointer; transition: background .12s, box-shadow .12s;
+    border-left: 3px solid var(--primary-soft);
+  }
+  .ai-card:hover { box-shadow: var(--shadow-lg); }
+  .ai-card:active { background: #f7f9fc; }
+  .ai-card .ai-kanri { font-weight: 700; font-size: 14px; color: var(--primary); margin-bottom: 4px; letter-spacing: .02em; }
+  .ai-card .ai-brand { font-size: 13px; color: var(--text); font-weight: 600; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ai-card .ai-meta { font-size: 11px; color: var(--text-sub); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ai-card .ai-tags {
+    display: flex; flex-wrap: wrap; gap: 3px; margin-top: 6px;
+  }
+  .ai-card .ai-tag {
+    font-size: 10px; background: var(--gray-soft); color: var(--text-sub);
+    padding: 1px 6px; border-radius: 4px; line-height: 1.4;
+  }
+  .ai-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 12px; }
+  /* P2 #89: 場所移動 管理番号ピル化 */
+  .ids-pills { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .ids-pill {
+    display: inline-block; font-size: 11px; font-weight: 600;
+    background: var(--primary-soft); color: var(--primary-dark);
+    padding: 2px 8px; border-radius: 6px; letter-spacing: .02em;
+    border: 1px solid rgba(21,101,192,.18);
+  }
+  .ids-pill.more { background: var(--gray-soft); color: var(--text-sub); border: 1px solid var(--border); }
+  /* P2 #90: 仕入れ進捗バーのグラデーション */
+  .shiire-progress.gradient {
+    position: relative; overflow: hidden;
+    background: var(--gray-soft);
+  }
+  .shiire-progress.gradient::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+    width: var(--progress-pct, 0%);
+    background: linear-gradient(90deg, var(--primary-soft), var(--primary));
+    opacity: .35; transition: width .25s;
+    z-index: 0;
+  }
+  .shiire-progress.gradient > span { position: relative; z-index: 1; }
+  .shiire-progress.gradient.done::before {
+    background: linear-gradient(90deg, var(--success-soft), var(--success));
+    opacity: .4;
+  }
+  /* P2 #92: PC ビューでカードグリッド化 (≥900px) */
+  .cards-grid { display: contents; }
+  @media (min-width: 900px) {
+    body:not(.view-detail) .cards-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 10px;
+    }
+    body:not(.view-detail) .cards-grid > .card,
+    body:not(.view-detail) .cards-grid > .shiire-card { margin-bottom: 0; }
+    body:not(.view-detail) .card-list {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px;
+    }
+    body:not(.view-detail) .ai-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  }
+  /* P2 #93: スクロール時 appbar を隠す */
+  .appbar { transition: transform .2s ease; }
+  body.appbar-hidden:not(.view-detail) .appbar { transform: translateY(-100%); }
+  body.appbar-hidden:not(.view-detail) .chips-bar { transform: translateY(-102px); transition: transform .2s ease; }
+  body.appbar-hidden:not(.view-detail) .sec-tabs { top: 0; }
   .card-row2 { color: var(--text); font-size: 13px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     margin-bottom: 2px;
@@ -539,31 +708,32 @@
   @media (hover: none) {
     .nav-btn { opacity: .65; }
   }
-  /* PC 幅では本文の左右余白に合わせて少し内側へ */
+  /* PC 幅では本文（max-width:1100px）の外側ガター内に配置してフォームと重ねない。
+     content 端 = 50vw ± 550px、ボタン幅 36px、4px のすき間 → 50vw - 590px */
   @media (min-width: 720px) {
-    .nav-btn.nav-prev { left: max(4px, calc(50vw - 380px)); }
-    .nav-btn.nav-next { right: max(4px, calc(50vw - 380px)); }
+    .nav-btn.nav-prev { left: max(4px, calc(50vw - 590px)); }
+    .nav-btn.nav-next { right: max(4px, calc(50vw - 590px)); }
   }
 
   /* ===== 詳細表示（モックアップ準拠） ===== */
   .detail-hero {
     background: linear-gradient(180deg, #fff 0%, #f7faff 100%);
-    padding: 16px 16px 14px;
+    padding: 10px 16px 8px;
     border-bottom: 2px solid var(--primary-soft);
     margin: -10px -12px 0;
     box-shadow: 0 2px 4px rgba(21,101,192,.04);
   }
   .hero-kanri {
-    font-size: 24px; font-weight: 800; color: var(--primary-dark);
+    font-size: 20px; font-weight: 800; color: var(--primary-dark);
     letter-spacing: .02em;
   }
   .hero-meta {
-    display: flex; flex-wrap: wrap; gap: 6px 12px;
-    margin-top: 8px; font-size: 13px; color: var(--text-sub);
+    display: flex; flex-wrap: wrap; gap: 4px 12px;
+    margin-top: 4px; font-size: 12px; color: var(--text-sub);
   }
   .hero-meta b { color: var(--text); font-weight: 700; }
   .hero-status-row {
-    display: flex; align-items: center; gap: 8px; margin-top: 12px;
+    display: flex; align-items: center; gap: 8px; margin-top: 6px;
     flex-wrap: wrap;
   }
   .hero-status {
@@ -608,6 +778,20 @@
     position: absolute; top: 6px; right: 6px;
     width: 6px; height: 6px; border-radius: 50%;
     background: var(--danger);
+  }
+  /* 未保存の変更があるセクションタブにバッジ表示（ダイアログを使わない代替UI） */
+  .sec-tab.dirty {
+    color: #d84315;
+  }
+  .sec-tab.dirty::after {
+    content: '●';
+    color: #f57c00;
+    margin-left: 5px;
+    font-size: 9px;
+    vertical-align: middle;
+  }
+  .sec-tab.active.dirty {
+    color: var(--primary-dark);
   }
   .sec-body { padding: 14px 0 100px; }
   /* 収支サマリ（販売タブ末尾） */
@@ -666,7 +850,7 @@
     padding: 12px 14px;
     display: none; align-items: center; gap: 10px;
     border: 1px solid #f0d68b; z-index: 90;
-    animation: savebar-pulse 2s ease-in-out infinite;
+    animation: savebar-pulse 4s ease-in-out infinite;
   }
   @keyframes savebar-pulse {
     0%, 100% { box-shadow: 0 8px 24px rgba(184,134,11,.18), 0 2px 6px rgba(0,0,0,.08); }
@@ -701,6 +885,13 @@
   }
   .btn-save:hover { box-shadow: 0 4px 12px rgba(46,125,50,.42); }
   .btn-save:disabled { background: #bdbdbd; cursor: not-allowed; box-shadow: none; }
+  .btn-save.saving { background: linear-gradient(180deg, #66bb6a 0%, #4caf50 100%); cursor: wait; }
+  .btn-save.saving::before {
+    content: ''; display: inline-block; width: 12px; height: 12px; margin-right: 6px;
+    border: 2px solid rgba(255,255,255,.4); border-top-color: #fff; border-radius: 50%;
+    vertical-align: -2px; animation: btn-save-spin .7s linear infinite;
+  }
+  @keyframes btn-save-spin { to { transform: rotate(360deg); } }
   .fab-stack {
     position: fixed; right: 16px; bottom: calc(80px + env(safe-area-inset-bottom));
     display: flex; flex-direction: column; gap: 10px; z-index: 95;
@@ -732,7 +923,16 @@
   .toast.error { background: var(--danger); }
   .toast.success { background: var(--success); }
   .loading { text-align: center; padding: 40px; color: var(--text-sub); }
-  .empty { text-align: center; padding: 40px; color: var(--text-sub); }
+  .empty { text-align: center; padding: 40px 16px; color: var(--text-sub); }
+  .empty .empty-title { font-size: 14px; margin-bottom: 12px; }
+  .empty .empty-cta {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: var(--primary); color: #fff; border: none;
+    padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600;
+    cursor: pointer; box-shadow: var(--shadow);
+  }
+  .empty .empty-cta:hover { background: var(--primary-dark); }
+  .empty .empty-cta:active { transform: translateY(1px); }
   .error { padding: 16px; color: var(--danger); background: var(--danger-soft); border-radius: 10px; margin: 12px; }
   /* AppSheet 互換タブ用（場所/返送/AI/作業者/業務） */
   .card-list { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
@@ -777,14 +977,27 @@
   .ids-item:last-child { border-bottom: none; }
   .ids-item input[type=checkbox] { width: 18px; height: 18px; flex-shrink: 0; }
   .ids-item .muted { font-size: 12px; padding: 0; }
-  /* 作業者管理: 月次集計テーブル（左固定列付） */
-  .sagyou-wrap { overflow-x: auto; padding: 12px; }
-  .sagyou-table { border-collapse: collapse; width: 100%; min-width: 480px; background: var(--surface); border-radius: 8px; box-shadow: var(--shadow); font-size: 13px; }
-  .sagyou-table th, .sagyou-table td { padding: 8px 10px; border-bottom: 1px solid #f0f2f7; text-align: center; white-space: nowrap; }
-  .sagyou-table thead th { background: #f7f9fc; color: var(--text-sub); font-size: 12px; font-weight: 700; }
-  .sagyou-table .sticky-name, .sagyou-table th.sticky-name { position: sticky; left: 0; background: #f7f9fc; text-align: left; font-weight: 700; z-index: 1; }
-  .sagyou-table .num-strong { font-weight: 700; color: var(--text); }
-  .sagyou-table .num-zero { color: #c5cad3; }
+  /* 作業者管理: カード一覧 + カード内月次集計 (AppSheet 互換) */
+  .sagyou-list { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
+  .sagyou-card { background: var(--surface); border-radius: 10px; box-shadow: var(--shadow); padding: 12px 14px; transition: background-color .12s; }
+  .sagyou-card.clickable { cursor: pointer; }
+  .sagyou-card.clickable:hover { background: #f7f9fc; }
+  .sagyou-card.clickable:active { background: #eef2f8; }
+  .sagyou-card.disabled { opacity: 0.55; }
+  .sagyou-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+  .sagyou-card-name { font-size: 16px; font-weight: 700; color: var(--text); }
+  .sagyou-card-badges { display: flex; gap: 6px; flex-shrink: 0; }
+  .sagyou-card-emails { color: var(--text-sub); font-size: 12px; line-height: 1.5; word-break: break-all; margin-bottom: 8px; }
+  .sagyou-card-emails .nomail { color: #c5cad3; }
+  .sagyou-card-monthly { font-size: 12px; }
+  .sagyou-card-monthly table { width: 100%; border-collapse: collapse; }
+  .sagyou-card-monthly th, .sagyou-card-monthly td { padding: 4px 6px; text-align: center; border-bottom: 1px solid #f3f5f9; }
+  .sagyou-card-monthly th { font-weight: 600; color: var(--text-sub); font-size: 11px; }
+  .sagyou-card-monthly td.zero { color: #c5cad3; }
+  .sagyou-card-monthly td.has { font-weight: 600; }
+  .sagyou-card-monthly .ym { text-align: left; color: var(--text-sub); }
+  .badge.admin { background: #ede5ff; color: #6c47c8; }
+  .badge.disabled { background: #f0f2f7; color: #7c8392; }
   /* 業務メニュー: 汎用ダンプテーブル */
   .biz-wrap { padding: 12px; overflow-x: auto; }
   .biz-meta { color: var(--text-sub); font-size: 12px; margin-bottom: 8px; padding: 0 4px; }
@@ -851,6 +1064,56 @@
   .modal-actions .btn-submit:hover { background: var(--primary-dark); }
   .modal-actions .btn-submit:disabled { background: #bdbdbd; cursor: not-allowed; }
   .modal .hint { color: var(--text-sub); font-size: 12px; padding: 4px 0 8px; }
+  /* 詳細離脱時の案内シート（保存/破棄/キャンセル） */
+  .leave-sheet-mask {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5); z-index: 250;
+    align-items: flex-end; justify-content: center;
+  }
+  .leave-sheet-mask.show { display: flex; }
+  .leave-sheet {
+    width: 100%; max-width: 480px; background: var(--surface);
+    border-radius: 14px 14px 0 0; padding: 18px 16px 16px;
+    max-height: 75vh; overflow-y: auto;
+    box-shadow: 0 -8px 24px rgba(0,0,0,.2);
+  }
+  .leave-sheet h3 {
+    margin: 0 0 6px; font-size: 16px; font-weight: 700; color: var(--text);
+  }
+  .leave-sheet .sub {
+    color: var(--text-sub); font-size: 12px; margin-bottom: 10px;
+  }
+  .leave-sheet .changes {
+    list-style: none; padding: 0; margin: 0 0 14px;
+    border: 1px solid var(--border); border-radius: 10px;
+    background: #fafbfd; max-height: 38vh; overflow-y: auto;
+  }
+  .leave-sheet .changes li {
+    padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 13px;
+  }
+  .leave-sheet .changes li:last-child { border-bottom: none; }
+  .leave-sheet .changes strong {
+    color: var(--text); font-weight: 600; margin-right: 6px;
+  }
+  .leave-sheet .changes .arr { color: var(--text-sub); margin: 0 4px; }
+  .leave-sheet .changes .before { color: var(--text-sub); text-decoration: line-through; }
+  .leave-sheet .changes .after { color: #d84315; font-weight: 600; }
+  .leave-sheet-actions {
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .leave-sheet-actions button {
+    padding: 13px; min-height: 48px; border: none; border-radius: 10px;
+    font-size: 15px; font-weight: 600; cursor: pointer; width: 100%;
+  }
+  .leave-sheet-actions .ls-save { background: var(--primary); color: #fff; }
+  .leave-sheet-actions .ls-save:hover { background: var(--primary-dark); }
+  .leave-sheet-actions .ls-save:disabled { background: #bdbdbd; cursor: not-allowed; }
+  .leave-sheet-actions .ls-discard {
+    background: #fff; color: var(--danger); border: 1px solid var(--danger);
+  }
+  .leave-sheet-actions .ls-cancel {
+    background: var(--gray-soft); color: var(--text);
+  }
   .size-help-btn {
     display: inline-flex; align-items: center; justify-content: center;
     width: 20px; height: 20px; border-radius: 50%;
@@ -927,6 +1190,34 @@
     .form-section { padding: 0 18px; }
     .product-info { padding: 18px 20px; }
     .product-info h2 { font-size: 24px; }
+    /* sec-tabs を viewport 幅に full-bleed して appbar と揃え、
+       タブを均等分散（各タブ flex: 1）して右端まで広げる。
+       overflow-x: auto は PC では不要（横スクロール不要・常に全タブ可視）。*/
+    .sec-tabs {
+      margin-left: calc(50% - 50vw);
+      margin-right: calc(50% - 50vw);
+      padding-left: max(16px, calc(50vw - 550px));
+      padding-right: max(16px, calc(50vw - 550px));
+      overflow-x: visible;
+      box-sizing: border-box;
+    }
+    .sec-tab { flex: 1 1 0; text-align: center; padding: 14px 8px; font-size: 14px; }
+    /* chips-bar は固定。内側 .chips は content と揃える（PC で帯が左寄せにならないよう全幅化） */
+    .chips {
+      padding-left: max(12px, calc(50vw - 534px));
+      padding-right: max(12px, calc(50vw - 534px));
+    }
+    /* bottomnav も PC では均等分散（mobile の inline-flex+min-width だと左に固まる） */
+    .bottomnav { overflow-x: visible; }
+    .bottomnav-inner {
+      display: flex;
+      width: 100%;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 16px;
+      box-sizing: border-box;
+    }
+    .bottomnav button { flex: 1 1 0; min-width: 0; }
   }
   /* ===== 売上ダッシュボード ===== */
   .dash-wrap { display: flex; flex-direction: column; gap: 14px; padding: 4px 0 24px; }
@@ -967,22 +1258,22 @@
   .dash-card.primary .dash-delta.up { background: rgba(255,255,255,.22); color: #e0ffe0; }
   .dash-card.primary .dash-delta.down { background: rgba(255,255,255,.22); color: #ffd6d6; }
   .dash-card.primary .dash-delta.flat { background: rgba(255,255,255,.18); color: rgba(255,255,255,.85); }
-  /* 棒グラフ（月別）— iOS Safari の grid+flex で % 高さが潰れる問題を回避するため
-     col を position: relative の単純なブロックにし、fill を absolute bottom で配置する */
-  .dash-bars { display: grid; grid-template-columns: repeat(12, 1fr); grid-template-rows: 140px; gap: 4px; margin: 6px 0 4px; }
-  .dash-bar-col { position: relative; height: 100%; min-width: 0; }
+  /* 棒グラフ（月別）— 棒とラベルを同じ flex セルにまとめて構造的にズレを防止
+     高さは JS で px 直書き、絶対配置を撤廃して iOS Safari でも崩れない作り */
+  .dash-bars-wrap { display: flex; gap: 4px; margin: 6px 0 4px; }
+  .dash-bar-cell { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; }
+  .dash-bar-track { width: 100%; height: 140px; display: flex; align-items: flex-end; justify-content: center; }
   .dash-bar-fill {
-    position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
-    width: 100%; max-width: 22px; min-height: 2px; border-radius: 4px 4px 0 0;
+    width: 22px; max-width: 100%; min-height: 2px; border-radius: 4px 4px 0 0;
     background: linear-gradient(180deg, var(--primary) 0%, var(--primary-dark) 100%);
     transition: height .3s;
   }
-  .dash-bar-col.current .dash-bar-fill {
+  .dash-bar-cell.current .dash-bar-fill {
     background: linear-gradient(180deg, var(--accent) 0%, #c54a00 100%);
   }
-  .dash-bar-col.empty .dash-bar-fill { background: var(--border); }
-  .dash-bar-labels { display: grid; grid-template-columns: repeat(12, 1fr); gap: 4px; font-size: 10px; color: var(--text-mute); text-align: center; }
-  .dash-bar-labels span.current { color: var(--accent); font-weight: 700; }
+  .dash-bar-cell.future .dash-bar-fill { background: var(--border); }
+  .dash-bar-lab { font-size: 10px; color: var(--text-mute); text-align: center; margin-top: 3px; line-height: 1; }
+  .dash-bar-cell.current .dash-bar-lab { color: var(--accent); font-weight: 700; }
   /* 月別表 */
   .dash-month-table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
   .dash-month-table th, .dash-month-table td {
@@ -1020,7 +1311,7 @@
   @media (max-width: 480px) {
     .dash-num { font-size: 20px; }
     .dash-num.small { font-size: 14px; }
-    .dash-bars { grid-template-rows: 110px; }
+    .dash-bar-track { height: 110px; }
     .dash-month-table th:nth-child(4), .dash-month-table td:nth-child(4) { display: none; }
     .dash-deltas { flex-direction: column; gap: 6px; align-items: flex-start; }
     .dash-yoy { grid-template-columns: 1fr; }
@@ -1035,6 +1326,7 @@
     <h1 id="appbar-title">商品管理</h1>
   </div>
   <div class="topbar-search" id="topbar-search">
+    <span class="search-ico" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></span>
     <input id="search" type="search" placeholder="管理番号・ブランド・状態で検索" autocomplete="off" inputmode="search">
     <button type="button" class="clear-btn" id="search-clear" aria-label="クリア" onclick="clearSearch_()">✕</button>
   </div>
@@ -1044,10 +1336,25 @@
 
 <div class="img-modal" id="img-modal" onclick="closeImageModal_(event)" role="dialog" aria-modal="true">
   <button class="img-modal-close" type="button" onclick="closeImageModal_(event)" aria-label="閉じる">✕</button>
+  <button class="img-modal-nav img-modal-prev" type="button" onclick="event.stopPropagation(); navImageModal_(-1)" aria-label="前の画像">‹</button>
+  <button class="img-modal-nav img-modal-next" type="button" onclick="event.stopPropagation(); navImageModal_(1)" aria-label="次の画像">›</button>
+  <div class="img-modal-counter" id="img-modal-counter"></div>
   <img src="" alt="">
 </div>
 
 <div class="drawer-mask" id="drawer-mask" onclick="closeDrawer()"></div>
+<div class="leave-sheet-mask" id="leave-sheet-mask" onclick="leaveSheetCancel_(event)">
+  <div class="leave-sheet" onclick="event.stopPropagation()">
+    <h3>未保存の変更があります</h3>
+    <div class="sub"><span id="leave-sheet-count">0</span>件の変更</div>
+    <ul class="changes" id="leave-sheet-list"></ul>
+    <div class="leave-sheet-actions">
+      <button type="button" class="ls-save" id="leave-sheet-save" onclick="leaveSheetSave_()">保存して移動</button>
+      <button type="button" class="ls-discard" onclick="leaveSheetDiscard_()">破棄して移動</button>
+      <button type="button" class="ls-cancel" onclick="leaveSheetCancel_()">このページにとどまる</button>
+    </div>
+  </div>
+</div>
 <div class="drawer" id="drawer">
   <div class="drawer-header">
     <div class="app-name">仕入れ管理</div>
@@ -1056,30 +1363,30 @@
   <div class="drawer-list">
     <div class="drawer-section-label">フィルタビュー</div>
     <div class="drawer-item" data-filter="sokutei_machi" onclick="selectMenu('sokutei_machi','採寸待ち')">
-      <span class="ico">📏</span><span>採寸待ち</span><span class="count" id="cnt-sokutei_machi">—</span>
+      <span class="ico"><svg viewBox="0 0 24 24"><path d="M2.5 9.5l7-7 12 12-7 7z"/><path d="M6 9l1.5 1.5M9 7.5l1.5 1.5M11.5 5l1.5 1.5M14 7.5l1.5 1.5M16.5 10l1.5 1.5"/></svg></span><span>採寸待ち</span><span class="count" id="cnt-sokutei_machi">—</span>
     </div>
     <div class="drawer-item" data-filter="satsuei_machi" onclick="selectMenu('satsuei_machi','撮影待ち')">
-      <span class="ico">📷</span><span>撮影待ち</span><span class="count" id="cnt-satsuei_machi">—</span>
+      <span class="ico"><svg viewBox="0 0 24 24"><path d="M3 8h3l2-3h8l2 3h3v11H3z"/><circle cx="12" cy="13" r="3.5"/></svg></span><span>撮影待ち</span><span class="count" id="cnt-satsuei_machi">—</span>
     </div>
     <div class="drawer-item" data-filter="shuppin_machi" onclick="selectMenu('shuppin_machi','出品待ち')">
-      <span class="ico">⏳</span><span>出品待ち</span><span class="count" id="cnt-shuppin_machi">—</span>
+      <span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span><span>出品待ち</span><span class="count" id="cnt-shuppin_machi">—</span>
     </div>
     <div class="drawer-item" data-filter="shuppin_sagyou" onclick="selectMenu('shuppin_sagyou','出品作業中')">
-      <span class="ico">✏️</span><span>出品作業中</span><span class="count" id="cnt-shuppin_sagyou">—</span>
+      <span class="ico"><svg viewBox="0 0 24 24"><path d="M3 21l4-1L19 8l-3-3L4 17z"/><path d="M14 6l3 3"/></svg></span><span>出品作業中</span><span class="count" id="cnt-shuppin_sagyou">—</span>
     </div>
     <div class="drawer-item" data-filter="shuppinchu" onclick="selectMenu('shuppinchu','出品中')">
-      <span class="ico">🛍️</span><span>出品中</span><span class="count" id="cnt-shuppinchu">—</span>
+      <span class="ico"><svg viewBox="0 0 24 24"><path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 016 0"/></svg></span><span>出品中</span><span class="count" id="cnt-shuppinchu">—</span>
     </div>
     <div class="drawer-divider"></div>
     <div class="drawer-section-label">業務</div>
     <div class="drawer-item" data-business="shiire_houkoku" onclick="selectBusinessMenu('shiire_houkoku','仕入れ数報告')">
-      <span class="ico">📦</span><span>仕入れ数報告</span>
+      <span class="ico"><svg viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg></span><span>仕入れ数報告</span>
     </div>
     <div class="drawer-item" data-business="keihi" onclick="selectBusinessMenu('keihi','経費申請')">
-      <span class="ico">💸</span><span>経費申請</span>
+      <span class="ico"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M8 12l2 2 2-2 2 2 2-2"/></svg></span><span>経費申請</span>
     </div>
     <div class="drawer-item" data-business="houshu" onclick="selectBusinessMenu('houshu','報酬確認')">
-      <span class="ico">💰</span><span>報酬確認</span>
+      <span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 9l3 4 3-4M12 13v5M9.5 15h5"/></svg></span><span>報酬確認</span>
     </div>
   </div>
 </div>
@@ -1090,12 +1397,12 @@
 
 <div class="bottomnav">
   <div class="bottomnav-inner" id="bottomnav-inner">
-    <button data-tab="shiire" onclick="selectTab('shiire')"><span class="ico">📥</span><span class="lbl">仕入れ管理</span></button>
+    <button data-tab="shiire" onclick="selectTab('shiire')"><span class="ico">📦</span><span class="lbl">仕入れ管理</span></button>
     <button data-tab="shouhin" class="active" onclick="selectTab('shouhin')"><span class="ico">👕</span><span class="lbl">商品管理</span></button>
     <button data-tab="hassou" onclick="selectTab('hassou')"><span class="ico">🚚</span><span class="lbl">発送商品</span></button>
     <button data-tab="basho" onclick="selectTab('basho')"><span class="ico">📍</span><span class="lbl">場所移動</span></button>
     <button data-tab="ai" onclick="selectTab('ai')"><span class="ico">🤖</span><span class="lbl">AI</span></button>
-    <button data-tab="hensou" onclick="selectTab('hensou')"><span class="ico">↩️</span><span class="lbl">返送</span></button>
+    <button data-tab="hensou" onclick="selectTab('hensou')"><span class="ico">📤</span><span class="lbl">返送</span></button>
     <button data-tab="uriage" onclick="selectTab('uriage')"><span class="ico">📈</span><span class="lbl">売上</span></button>
     <button data-tab="sagyou" onclick="selectTab('sagyou')"><span class="ico">👥</span><span class="lbl">作業者管理</span></button>
   </div>
@@ -1119,10 +1426,17 @@ var STATE = {
   workers: [], accounts: [],
   suppliers: [], places: [], categories: [],
   settings: {},
+  // 商品管理タブの並び順 / 密度（localStorage で永続化）
+  shouhinSort: (function(){ try { return localStorage.getItem('sk.shouhinSort') || 'kanri'; } catch(e){ return 'kanri'; } })(),
+  density:     (function(){ try { return localStorage.getItem('sk.density') || 'normal'; } catch(e){ return 'normal'; } })(),
   // 管理番号 → AI prefill fields のクライアントキャッシュ
   // 仕入れ選択時に一括プリフェッチして埋める。GET /api/ai/prefill より優先
   aiPrefillCache: new Map()
 };
+// 起動時に密度クラスを body に反映
+(function applyInitialDensity_(){
+  try { document.body.classList.toggle('density-compact', STATE.density === 'compact'); } catch(e) {}
+})();
 
 // ========== 自動更新（AppSheet風のサイレントポーリング） ==========
 const POLL_INTERVAL_MS = 30000; // 30秒
@@ -1143,8 +1457,9 @@ async function autoRefresh() {
   // モーダル表示中は更新しない（フォーム入力中の事故防止）
   var mask = document.getElementById('modal-mask');
   if (mask && mask.classList.contains('show')) return;
-  // 詳細画面はローカル編集状態があるので自動更新しない
-  if (STATE.view === 'detail') return;
+  // 詳細画面・新規作成フォームはローカル編集状態があるので自動更新しない
+  // （これがないと「返送/移動報告 新規作成中に勝手に一覧に戻る」現象が起きる）
+  if (STATE.view !== 'list') return;
   isAutoRefreshing = true;
   try {
     refreshCounts();
@@ -1175,6 +1490,34 @@ document.addEventListener('visibilitychange', function(){
   if (document.visibilityState === 'visible') autoRefresh();
 });
 window.addEventListener('focus', autoRefresh);
+
+// P2 #93: スクロール方向に応じて appbar を隠す/表示する
+(function setupAppbarHideOnScroll_(){
+  var lastY = 0;
+  var ticking = false;
+  var DOWN_THRESHOLD = 80; // 下スクロール開始から隠すまでのピクセル
+  var hidden = false;
+  function update() {
+    var y = window.scrollY || window.pageYOffset || 0;
+    var dy = y - lastY;
+    if (y < 10) {
+      // 最上部に戻ったら必ず表示
+      if (hidden) { document.body.classList.remove('appbar-hidden'); hidden = false; }
+    } else if (dy > 4 && y > DOWN_THRESHOLD) {
+      if (!hidden) { document.body.classList.add('appbar-hidden'); hidden = true; }
+    } else if (dy < -4) {
+      if (hidden) { document.body.classList.remove('appbar-hidden'); hidden = false; }
+    }
+    lastY = y;
+    ticking = false;
+  }
+  window.addEventListener('scroll', function(){
+    if (!ticking) {
+      requestAnimationFrame(update);
+      ticking = true;
+    }
+  }, { passive: true });
+})();
 
 // 日付フィールドはラベル・余白・入力欄のどこをタップ／クリックしてもカレンダーを開く
 // （PC Chrome は入力欄の文字エリアをクリックしても標準ではピッカーが開かないため、
@@ -1553,6 +1896,7 @@ window.addEventListener('DOMContentLoaded', async function(){
     // 初期エントリを「list」状態として履歴にアンカー
     // （これがないと最初の戻るで認証画面まで抜けてしまう）
     replaceListState_();
+    updateSearchPlaceholder_();
     render();
     refreshCounts();
     startPolling();
@@ -1586,14 +1930,20 @@ async function refreshCounts() {
 function setAppbarMode_(mode) {
   var btn = document.getElementById('appbar-menu-btn');
   if (!btn) return;
+  // 詳細画面では検索バーを隠す（appbar の高さを 102→52 に縮め、sec-tabs の sticky 位置と一致させる）
+  var search = document.getElementById('topbar-search');
   if (mode === 'back') {
     btn.textContent = '←';
     btn.setAttribute('aria-label', '戻る');
     btn.setAttribute('data-mode', 'back');
+    if (search) search.hidden = true;
+    document.body.classList.add('view-detail');
   } else {
     btn.textContent = '≡';
     btn.setAttribute('aria-label', 'メニュー');
     btn.setAttribute('data-mode', 'menu');
+    if (search) search.hidden = false;
+    document.body.classList.remove('view-detail');
   }
 }
 function appbarPrimaryAction_() {
@@ -1609,7 +1959,7 @@ function appbarPrimaryAction_() {
 function shouhinChipsHtml_() {
   var counts = STATE.counts || {};
   var chips = [
-    { f: '',                lbl: 'すべて',     ico: '📋', cntKey: '' },
+    { f: '',                lbl: 'すべて',     ico: '📋', cntKey: 'all' },
     { f: 'sokutei_machi',   lbl: '採寸待ち',   ico: '📏', cntKey: 'sokutei_machi' },
     { f: 'satsuei_machi',   lbl: '撮影待ち',   ico: '📷', cntKey: 'satsuei_machi' },
     { f: 'shuppin_machi',   lbl: '出品待ち',   ico: '⏳', cntKey: 'shuppin_machi' },
@@ -1625,7 +1975,87 @@ function shouhinChipsHtml_() {
       ' onclick="selectChip_(\'' + c.f + '\',\'' + esc(c.lbl).replace(/\'/g,"\\\'") + '\')">' +
       '<span class="ico">' + c.ico + '</span>' + esc(c.lbl) + cntHtml + '</button>';
   }).join('');
+  // 末尾に「表示」チップ（並び順 / 密度 切替メニュー）
+  var sortLbl = SHOUHIN_SORT_LABELS[STATE.shouhinSort] || '管理番号';
+  var densLbl = STATE.density === 'compact' ? 'コンパクト' : '通常';
+  html += '<button type="button" class="chip chip-menu" onclick="openSortDensityMenu_(event)" title="表示設定">⋯ ' +
+    esc(sortLbl) + ' / ' + esc(densLbl) + '</button>';
   return '<div class="chips" id="chips">' + html + '</div>';
+}
+
+// 商品管理タブの並び替え / 密度メニュー
+var SHOUHIN_SORT_LABELS = { kanri: '管理番号', shiire: '仕入れ日', brand: 'ブランド' };
+function openSortDensityMenu_(ev) {
+  if (ev) ev.stopPropagation();
+  // 既存メニューがあれば閉じる
+  var existing = document.getElementById('sort-density-menu');
+  if (existing) { existing.remove(); return; }
+  var btn = ev && ev.currentTarget;
+  var rect = btn ? btn.getBoundingClientRect() : { top: 100, right: window.innerWidth - 16 };
+  var top = rect.bottom + 6 + window.scrollY;
+  var right = Math.max(8, window.innerWidth - rect.right);
+  var sortRows = ['kanri','shiire','brand'].map(function(k){
+    var lbl = SHOUHIN_SORT_LABELS[k];
+    var on = STATE.shouhinSort === k;
+    return '<button type="button" class="menu-item' + (on ? ' on' : '') + '"' +
+      ' onclick="setShouhinSort_(\'' + k + '\')">' + (on ? '● ' : '○ ') + esc(lbl) + '</button>';
+  }).join('');
+  var densRows = ['normal','compact'].map(function(k){
+    var lbl = k === 'compact' ? 'コンパクト' : '通常';
+    var on = STATE.density === k;
+    return '<button type="button" class="menu-item' + (on ? ' on' : '') + '"' +
+      ' onclick="setDensity_(\'' + k + '\')">' + (on ? '● ' : '○ ') + esc(lbl) + '</button>';
+  }).join('');
+  var html = '<div id="sort-density-menu" class="popover-menu" style="top:' + top + 'px; right:' + right + 'px;">' +
+    '<div class="menu-section-title">並び順</div>' + sortRows +
+    '<div class="menu-section-title">密度</div>' + densRows +
+  '</div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+  setTimeout(function(){
+    document.addEventListener('click', closeSortDensityMenu_, { once: true });
+  }, 0);
+}
+function closeSortDensityMenu_() {
+  var m = document.getElementById('sort-density-menu');
+  if (m) m.remove();
+}
+function setShouhinSort_(key) {
+  STATE.shouhinSort = key;
+  try { localStorage.setItem('sk.shouhinSort', key); } catch(e) {}
+  closeSortDensityMenu_();
+  // チップラベルを更新するため bar を再描画 + リスト再描画
+  updateChipsBar_();
+  if (STATE.tab === 'shouhin' || STATE.tab === 'hassou') renderShouhinList({ silent: true });
+}
+function setDensity_(key) {
+  STATE.density = key;
+  try { localStorage.setItem('sk.density', key); } catch(e) {}
+  document.body.classList.toggle('density-compact', key === 'compact');
+  closeSortDensityMenu_();
+  updateChipsBar_();
+}
+
+// 並び順を items に適用（in-place ソートはせず新配列を返す）
+function applyShouhinSort_(items) {
+  if (!items || items.length < 2) return items;
+  var key = STATE.shouhinSort || 'kanri';
+  var arr = items.slice();
+  if (key === 'shiire') {
+    // 仕入れ日 = shiireId 降順（IDが新しい仕入れほど後ろ。サーバ kanri 順を 2nd キー）
+    arr.sort(function(a,b){
+      var sa = String(a.shiireId || ''), sb = String(b.shiireId || '');
+      if (sa !== sb) return sb.localeCompare(sa, 'ja');
+      return String(b.kanri || '').localeCompare(String(a.kanri || ''), 'ja');
+    });
+  } else if (key === 'brand') {
+    arr.sort(function(a,b){
+      var ba = String(a.brand || '〜'), bb = String(b.brand || '〜');
+      if (ba !== bb) return ba.localeCompare(bb, 'ja');
+      return String(b.kanri || '').localeCompare(String(a.kanri || ''), 'ja');
+    });
+  }
+  // kanri はサーバ側で既に自然数ソート済みなので、そのまま返す
+  return arr;
 }
 // 商品管理タブのみ chips-bar を表示
 // 再描画時に横スクロール位置がリセットされないよう scrollLeft を保持＋アクティブチップを画面内に維持
@@ -1695,37 +2125,42 @@ function closeDrawer() {
   document.getElementById('drawer-mask').classList.remove('show');
 }
 function selectMenu(filter, label) {
-  STATE.tab = 'shouhin';
-  STATE.filter = filter;
-  STATE.filterLabel = label;
-  STATE.view = 'list';
-  STATE.business = '';
-  document.querySelectorAll('#bottomnav-inner button').forEach(function(b){
-    b.classList.toggle('active', b.getAttribute('data-tab') === 'shouhin');
+  confirmLeaveDetail_(function(){
+    STATE.tab = 'shouhin';
+    STATE.filter = filter;
+    // 「すべて」(filter='') の場合は filter-chip を表示しない
+    STATE.filterLabel = filter ? label : '';
+    STATE.view = 'list';
+    STATE.business = '';
+    document.querySelectorAll('#bottomnav-inner button').forEach(function(b){
+      b.classList.toggle('active', b.getAttribute('data-tab') === 'shouhin');
+    });
+    document.querySelectorAll('.drawer-item').forEach(function(d){
+      d.classList.toggle('active', d.getAttribute('data-filter') === filter);
+    });
+    closeDrawer();
+    pushListState_();
+    render();
   });
-  document.querySelectorAll('.drawer-item').forEach(function(d){
-    d.classList.toggle('active', d.getAttribute('data-filter') === filter);
-  });
-  closeDrawer();
-  pushListState_();
-  render();
 }
 
 // 業務メニュー（仕入れ数報告/経費申請/報酬確認）。商品管理に飛ばさず専用ビューを表示する
 function selectBusinessMenu(menuKey, label) {
-  STATE.tab = 'business';
-  STATE.business = menuKey;
-  STATE.businessLabel = label;
-  STATE.view = 'list';
-  STATE.filter = '';
-  STATE.filterLabel = '';
-  document.querySelectorAll('#bottomnav-inner button').forEach(function(b){ b.classList.remove('active'); });
-  document.querySelectorAll('.drawer-item').forEach(function(d){
-    d.classList.toggle('active', d.getAttribute('data-business') === menuKey);
+  confirmLeaveDetail_(function(){
+    STATE.tab = 'business';
+    STATE.business = menuKey;
+    STATE.businessLabel = label;
+    STATE.view = 'list';
+    STATE.filter = '';
+    STATE.filterLabel = '';
+    document.querySelectorAll('#bottomnav-inner button').forEach(function(b){ b.classList.remove('active'); });
+    document.querySelectorAll('.drawer-item').forEach(function(d){
+      d.classList.toggle('active', d.getAttribute('data-business') === menuKey);
+    });
+    closeDrawer();
+    pushListState_();
+    render();
   });
-  closeDrawer();
-  pushListState_();
-  render();
 }
 
 // ========== 検索 ==========
@@ -1760,20 +2195,47 @@ document.getElementById('search').addEventListener('input', function(){
 syncSearchClearVisibility_();
 
 // ========== ボトムタブ ==========
+// 編集中の値はタブ／ナビ切替時に STATE.detailEditsByKanri に取り込み、
+// 同じ商品詳細を再オープンすると detailValue が復元する。
+// 破棄ダイアログは UX が悪いため使わない（feedback_no_dialog.md）。
+
 function selectTab(tab) {
-  STATE.tab = tab;
-  STATE.view = 'list';
-  STATE.business = '';
-  // フィルタは常にリセット（ドロワーから設定する場合は selectMenu が再設定する）。
-  // 旧: shouhin のときだけ保持していたが、hassou/uriage から shouhin に戻った際に
-  // 前タブが強制設定したフィルタ ('hassou'/'sold') が残留して中身が変わらない不具合の原因。
-  document.querySelectorAll('.drawer-item').forEach(function(d){ d.classList.remove('active'); });
-  STATE.filter = ''; STATE.filterLabel = '';
-  document.querySelectorAll('#bottomnav-inner button').forEach(function(b){
-    b.classList.toggle('active', b.getAttribute('data-tab') === tab);
+  confirmLeaveDetail_(function(){
+    STATE.createProductReturnShiireId = null;
+    STATE.tab = tab;
+    STATE.view = 'list';
+    STATE.business = '';
+    // フィルタは常にリセット（ドロワーから設定する場合は selectMenu が再設定する）。
+    // 旧: shouhin のときだけ保持していたが、hassou/uriage から shouhin に戻った際に
+    // 前タブが強制設定したフィルタ ('hassou'/'sold') が残留して中身が変わらない不具合の原因。
+    document.querySelectorAll('.drawer-item').forEach(function(d){ d.classList.remove('active'); });
+    STATE.filter = ''; STATE.filterLabel = '';
+    document.querySelectorAll('#bottomnav-inner button').forEach(function(b){
+      b.classList.toggle('active', b.getAttribute('data-tab') === tab);
+    });
+    updateSearchPlaceholder_();
+    pushListState_();
+    render();
   });
-  pushListState_();
-  render();
+}
+
+// タブごとに検索 placeholder を切り替える（タブ移動時 / 起動時に呼ぶ）
+var SEARCH_PLACEHOLDERS = {
+  shouhin: '管理番号・ブランド・状態で検索',
+  hassou:  '使用アカウント・管理番号で検索',
+  shiire:  '仕入れID・場所で検索',
+  basho:   '管理番号・場所で検索',
+  hensou:  '管理番号で検索',
+  ai:      '管理番号・ブランドで検索',
+  uriage:  '',
+  sagyou:  '作業者名で検索',
+  business:'シート内検索'
+};
+function updateSearchPlaceholder_() {
+  var input = document.getElementById('search');
+  if (!input) return;
+  var ph = SEARCH_PLACEHOLDERS[STATE.tab];
+  input.placeholder = (ph != null) ? ph : '検索';
 }
 
 // ========== レンダリング ==========
@@ -1848,8 +2310,12 @@ function paintShiireList_(allItems) {
   var fab = '<div class="fab-stack">' +
     '<button class="fab" onclick="openCreatePurchaseModal()" title="新規仕入れ">＋</button>' +
   '</div>';
-  if (!items.length) { c.innerHTML = '<div class="empty">仕入れデータがありません</div>' + fab; return; }
-  c.innerHTML = items.map(shiireCardHtml).join('') + fab;
+  if (!items.length) {
+    c.innerHTML = '<div class="empty"><div class="empty-title">仕入れデータがありません</div>' +
+      '<button class="empty-cta" onclick="openCreatePurchaseModal()">＋ 新規仕入れを作成</button></div>' + fab;
+    return;
+  }
+  c.innerHTML = '<div class="cards-grid">' + items.map(shiireCardHtml).join('') + '</div>' + fab;
 }
 
 function shiireCardHtml(it) {
@@ -1857,12 +2323,13 @@ function shiireCardHtml(it) {
   const registered = Number(it.registered || 0);
   const progressLabel = planned > 0 ? (registered + '/' + planned) : String(registered);
   const progressDone = planned > 0 && registered >= planned;
-  const progClass = progressDone ? 'shiire-progress done' : 'shiire-progress';
+  const pct = planned > 0 ? Math.min(100, Math.round((registered / planned) * 100)) : 0;
+  const progClass = 'shiire-progress gradient' + (progressDone ? ' done' : '');
   return '<div class="shiire-card" onclick="openShiireDetail(\'' + esc(it.shiireId).replace(/\'/g,"\\'") + '\')">' +
     '<div class="shiire-row1">' +
       '<span class="shiire-date">' + esc(it.date || '—') + '</span>' +
       (it.place ? '<span class="shiire-place">' + esc(it.place) + '</span>' : '') +
-      '<span class="' + progClass + '">登録 ' + esc(progressLabel) + '</span>' +
+      '<span class="' + progClass + '" style="--progress-pct: ' + pct + '%"><span>登録 ' + esc(progressLabel) + '</span></span>' +
     '</div>' +
     '<div class="shiire-row2">' +
       '<div class="shiire-cell"><span class="lbl">金額</span><span class="val">' + fmtYen(it.amount) + '</span></div>' +
@@ -2040,9 +2507,12 @@ function paintUriageDashboardInner_(data, c) {
 
   function deltaHtml(curr, prev, suffix) {
     var c1 = Number(curr || 0); var p1 = Number(prev || 0);
-    if (!p1) {
-      return c1 ? '<span class="dash-delta up">' + (suffix || '') + '実績なし</span>' : '<span class="dash-delta flat">—</span>';
-    }
+    // 双方ゼロ: 未集計
+    if (!c1 && !p1) return '<span class="dash-delta flat">—</span>';
+    // 前期間ゼロ＝比較不能。「実績なし」は good/bad の色を持たせず flat（グレー）に
+    if (!p1) return '<span class="dash-delta flat">' + (suffix || '') + '実績なし</span>';
+    // 当期間ゼロ＝月初〜集計中。-100% を出すと誤解を招くので「—（集計中）」へ
+    if (!c1) return '<span class="dash-delta flat">—（集計中）</span>';
     var pct = ((c1 - p1) / p1) * 100;
     var sign = pct > 0 ? '+' : '';
     var cls = pct > 1 ? 'up' : (pct < -1 ? 'down' : 'flat');
@@ -2120,19 +2590,20 @@ function paintUriageDashboardInner_(data, c) {
     '</div>';
 
   // 月別棒グラフ（任意の年。current 強調は monthlyYear==nowYear のときだけ）
+  // 棒とラベルを同じ cell にまとめて構造的に左右ズレを防止。高さは px 直書き
+  var CHART_H = (window.matchMedia && window.matchMedia('(max-width: 480px)').matches) ? 110 : 140;
   var highlightCurrent = (Number(monthlyYear) === Number(nowYear));
   var bars = monthly.map(function(m){
     var pct = (Number(m.gross || 0) / maxGross) * 100;
     var isCurrent = highlightCurrent && m.month === nowMonth;
     var isFuture = highlightCurrent && m.month > nowMonth;
-    var cls = 'dash-bar-col' + (isCurrent ? ' current' : '') + (isFuture && Number(m.gross||0) === 0 ? ' empty' : '');
-    var height = Math.max(2, pct);
+    var cls = 'dash-bar-cell' + (isCurrent ? ' current' : '') + (isFuture && Number(m.gross||0) === 0 ? ' future' : '');
+    var heightPx = Math.max(2, Math.round(pct * CHART_H / 100));
     var title = m.yyyymm + '：' + fmtYen(m.gross) + '（' + Number(m.count||0) + '件）';
-    return '<div class="' + cls + '" title="' + esc(title) + '"><div class="dash-bar-fill" style="height:' + height.toFixed(1) + '%"></div></div>';
-  }).join('');
-  var labels = monthly.map(function(m){
-    var cls = (highlightCurrent && m.month === nowMonth) ? 'current' : '';
-    return '<span class="' + cls + '">' + m.month + '月</span>';
+    return '<div class="' + cls + '" title="' + esc(title) + '">' +
+             '<div class="dash-bar-track"><div class="dash-bar-fill" style="height:' + heightPx + 'px"></div></div>' +
+             '<div class="dash-bar-lab">' + m.month + '月</div>' +
+           '</div>';
   }).join('');
 
   // 月別表（過去年は実績ある月のみ、当年は現在月までを表示）
@@ -2179,8 +2650,7 @@ function paintUriageDashboardInner_(data, c) {
           '<div class="dash-period">合計 ' + fmtYen(monthlyTotalGross) + ' ／ ' + monthlyTotalCount + '件</div>' +
         '</div>' +
         '<div class="dash-yearbar">' + yearBtns + '</div>' +
-        '<div class="dash-bars">' + bars + '</div>' +
-        '<div class="dash-bar-labels">' + labels + '</div>' +
+        '<div class="dash-bars-wrap">' + bars + '</div>' +
         '<table class="dash-month-table">' +
           '<thead><tr>' +
             '<th style="text-align:left">月</th>' +
@@ -2220,18 +2690,21 @@ async function renderShouhinList(opts) {
   var cacheKey = listCacheKey_();
   var cached = LIST_CACHE[cacheKey];
   function paint(items){
-    STATE.items = items;
+    // 商品管理タブのみ並び替え設定を適用（発送タブはグルーピング側で並びを決める）
+    var sorted = (STATE.tab === 'shouhin') ? applyShouhinSort_(items) : items;
+    STATE.items = sorted;
     var body;
-    if (!items.length) {
+    if (!sorted.length) {
       body = '<div class="empty">該当する商品がありません</div>';
     } else if (STATE.tab === 'hassou') {
       // 発送商品は使用アカウント別にグループ化（発送待ち→発送済みの順、期限が近い順）
-      body = renderHassouGrouped_(items);
+      body = renderHassouGrouped_(sorted);
     } else {
-      body = items.map(cardHtml).join('');
+      // PCグリッド対応: cards-grid でラップ → CSS で auto-fill
+      body = '<div class="cards-grid">' + sorted.map(cardHtml).join('') + '</div>';
     }
     c.innerHTML = chip + body + fab;
-    if (STATE.tab === 'hassou') resolveCardImages_();
+    if (STATE.tab === 'hassou' || STATE.tab === 'shouhin') resolveCardThumbsTasukibako_();
   }
   if (cached) {
     paint(cached.items);
@@ -2448,18 +2921,11 @@ function cardHtml(it) {
   } else if (!measured) {
     cardClass += ' s-sokutei';
   }
-  // 発送商品タブのみサムネイル表示（売却済み商品画像）。商品管理など他タブは画像なし。
+  // サムネはタスキ箱トップ画像を優先（描画後に resolveCardThumbsTasukibako_() が一括解決）。
+  // 商品管理/発送 両タブで枠を確保し、画像がない場合は 📷 プレースホルダー。
   var thumbHtml = '';
-  if (STATE.tab === 'hassou') {
-    var imgVal = (it.extra && it.extra['売却済み商品画像']) ? String(it.extra['売却済み商品画像']) : '';
-    if (/^https?:/.test(imgVal)) {
-      thumbHtml = '<div class="card-thumb"><img src="' + esc(normalizeDriveUrl_(imgVal)) + '" alt="" loading="lazy"></div>';
-    } else if (imgVal) {
-      // AppSheet 旧形式の相対パス → 描画後に resolveCardImages_() が解決
-      thumbHtml = '<div class="card-thumb img-loading" data-legacy="' + esc(imgVal) + '" data-field="売却済み商品画像" data-kanri="' + esc(it.kanri) + '">📷</div>';
-    } else {
-      thumbHtml = '<div class="card-thumb" aria-hidden="true">📷</div>';
-    }
+  if (STATE.tab === 'hassou' || STATE.tab === 'shouhin') {
+    thumbHtml = '<div class="card-thumb img-tasukibako" data-kanri="' + esc(it.kanri) + '">📷</div>';
   }
   var openHandler = 'openDetail(\'' + esc(it.kanri).replace(/\'/g,"\\'") + '\')';
   // 出品作業中タブでは使用アカウントをカードに表示（誰のアカウントで作業中か即時把握）
@@ -2480,9 +2946,32 @@ function cardHtml(it) {
     '</div>' +
     accountHtml +
     shipDeadlineHtml_(it) +
+    progressPillsHtml_(it) +
   '</div>';
   return '<div class="' + cardClass + (thumbHtml ? ' has-thumb' : '') + '" onclick="' + openHandler + '">' +
     thumbHtml + bodyHtml +
+  '</div>';
+}
+
+// 工程進捗ピル（📏 採寸 / 📷 撮影 / 🛍️ 出品）。派生ステータスから完了状況を逆算。
+// 発送・売却済み のカードでは出品以降の工程に意味がないので非表示。
+function progressPillsHtml_(it) {
+  var st = it.status || '';
+  if (st === '発送待ち' || st === '発送済み' || st === '売却済み') return '';
+  // 採寸: 採寸待ち以外なら採寸完了
+  // 撮影: 採寸待ち / 撮影待ち 以外なら撮影完了
+  // 出品: 出品中 以降が出品完了
+  var saiDone = (st !== '採寸待ち');
+  var satDone = (st !== '採寸待ち' && st !== '撮影待ち');
+  var shuDone = (st === '出品中');
+  function pill(ico, label, done) {
+    return '<span class="card-pill' + (done ? ' done' : '') + '">' +
+      '<span class="ico">' + ico + '</span>' + label + (done ? ' ✓' : '') + '</span>';
+  }
+  return '<div class="card-pills">' +
+    pill('📏', '採寸', saiDone) +
+    pill('📷', '撮影', satDone) +
+    pill('🛍️', '出品', shuDone) +
   '</div>';
 }
 
@@ -2519,6 +3008,60 @@ function applyCardThumb_(el, url) {
   el.innerHTML = '<img src="' + esc(url) + '" alt="" loading="lazy">';
 }
 
+// 一覧描画後に呼ぶ: タスキ箱（gas-proxy KV: product-images:<kanri>）から各カードのトップ画像を一括解決して差し替える。
+// セッションキャッシュで再描画コスト削減。画像なしのカードは 📷 のまま。
+function resolveCardThumbsTasukibako_() {
+  var nodes = document.querySelectorAll('.card-thumb.img-tasukibako[data-kanri]');
+  if (!nodes || !nodes.length) return;
+  var pendingKanris = [];
+  var pendingMap = {};
+  Array.prototype.forEach.call(nodes, function(el){
+    var k = el.getAttribute('data-kanri') || '';
+    if (!k) return;
+    var ck = 'tbthumb:v1:' + k;
+    var cached = null;
+    try { cached = sessionStorage.getItem(ck); } catch(e) {}
+    if (cached === '__none__') return; // 画像なしと既知 → 何もしない
+    if (cached) {
+      el.classList.remove('img-tasukibako');
+      el.innerHTML = '<img src="' + esc(cached) + '" alt="" loading="lazy">';
+      return;
+    }
+    if (!pendingMap[k]) {
+      pendingMap[k] = true;
+      pendingKanris.push(k);
+    }
+  });
+  if (pendingKanris.length === 0) return;
+  // バッチサイズ200で分割
+  var BATCH = 200;
+  for (var i = 0; i < pendingKanris.length; i += BATCH) {
+    (function(slice){
+      fetch('/api/products/thumbs', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kanris: slice })
+      }).then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(res){
+          var items = (res && res.items) || {};
+          slice.forEach(function(k){
+            var ck = 'tbthumb:v1:' + k;
+            var url = items[k];
+            if (url) {
+              try { sessionStorage.setItem(ck, url); } catch(e) {}
+              document.querySelectorAll('.card-thumb.img-tasukibako[data-kanri="' + k.replace(/"/g,'\\"') + '"]').forEach(function(el){
+                el.classList.remove('img-tasukibako');
+                el.innerHTML = '<img src="' + esc(url) + '" alt="" loading="lazy">';
+              });
+            } else {
+              // 画像なしを記憶（次回以降の無駄打ち防止）
+              try { sessionStorage.setItem(ck, '__none__'); } catch(e) {}
+            }
+          });
+        }).catch(function(){ /* 静かに失敗（📷 のまま） */ });
+    })(pendingKanris.slice(i, i + BATCH));
+  }
+}
+
 function renderHassouGrouped_(items) {
   // 並び順: 発送待ち優先 → 期限が近い順 → kanri
   function priorityKey(it) {
@@ -2547,10 +3090,14 @@ function renderHassouGrouped_(items) {
       return 0;
     });
     var pending = arr.filter(function(x){ return x.status === '発送待ち'; }).length;
-    var header = '<div class="group-header">📮 ' + esc(acc) +
+    // <details> ベースで折りたたみ可能に。デフォルトは全グループ展開（ユーザーが必要に応じて折りたたむ）。
+    var openAttr = ' open';
+    var summary = '<summary>📮 ' + esc(acc) +
       '<span class="count">' + arr.length + '件' +
-      (pending ? '（発送待ち ' + pending + '）' : '') + '</span></div>';
-    return header + arr.map(cardHtml).join('');
+      (pending ? '（発送待ち ' + pending + '）' : '') + '</span></summary>';
+    return '<details class="group-fold"' + openAttr + '>' + summary +
+      '<div class="cards-grid">' + arr.map(cardHtml).join('') + '</div>' +
+      '</details>';
   }).join('');
 }
 
@@ -2565,6 +3112,8 @@ function renderPlaceholder(name) {
 
 // ========== 場所移動 ==========
 async function renderBashoList() {
+  // フォーム/詳細から戻ってきた場合に list 状態へリセット（autoRefresh の許可条件）
+  STATE.view = 'list';
   var c = document.getElementById('content');
   var cached = TAB_CACHE['basho'];
   if (cached && cached.data) {
@@ -2596,18 +3145,26 @@ function paintBashoList_(allItems) {
     : allItems;
   var addBtn = '<div class="fab-stack"><button class="fab" onclick="openBashoCreate()" title="新規移動報告">＋</button></div>';
   if (!items.length) {
-    c.innerHTML = '<div class="empty">移動報告はまだありません。</div>' + addBtn;
+    c.innerHTML = '<div class="empty"><div class="empty-title">移動報告はまだありません</div>' +
+      '<button class="empty-cta" onclick="openBashoCreate()">＋ 新規移動報告</button></div>' + addBtn;
     return;
   }
   var html = '<div class="card-list">' + items.map(function(it){
     var done = it.done ? '<span class="badge ok">反映済</span>' : '<span class="badge wait">未反映</span>';
     var ids = String(it.ids || '').split(/[\s,、，／/・|\n\r\t]+/).filter(Boolean);
-    var idsHtml = ids.length ? '<div class="meta-line">📦 ' + ids.length + '点 ' + esc(ids.slice(0, 6).join(' / ')) + (ids.length > 6 ? ' …' : '') + '</div>' : '';
+    var pillsHtml = '';
+    if (ids.length) {
+      var maxShow = 8;
+      var shown = ids.slice(0, maxShow).map(function(id){ return '<span class="ids-pill">' + esc(id) + '</span>'; }).join('');
+      var more = ids.length > maxShow ? '<span class="ids-pill more">+' + (ids.length - maxShow) + '</span>' : '';
+      pillsHtml = '<div class="meta-line">📦 ' + ids.length + '点</div>' +
+                  '<div class="ids-pills">' + shown + more + '</div>';
+    }
     return '<div class="card clickable" onclick="openBashoDetail(\'' + esc(it.moveId) + '\')">' +
       '<div class="card-row"><strong>' + esc(it.moveId) + '</strong>' + done + '</div>' +
       '<div class="meta-line">📅 ' + esc(it.timestamp) + '　👤 ' + esc(it.reporter) + '</div>' +
       '<div class="meta-line">📍 移動先: <strong>' + esc(it.destination) + '</strong></div>' +
-      idsHtml +
+      pillsHtml +
     '</div>';
   }).join('') + '</div>' + addBtn;
   c.innerHTML = html;
@@ -2619,8 +3176,8 @@ function openBashoDetail(moveId) {
   var ids = String(it.ids || '').split(/[\s,、，／/・|\n\r\t]+/).filter(Boolean);
   var done = it.done ? '<span class="badge ok">反映済</span>' : '<span class="badge wait">未反映</span>';
   var idsHtml = ids.length
-    ? '<div class="ids-list" style="max-height:50vh">' +
-        ids.map(function(id){ return '<div class="ids-item">' + esc(id) + '</div>'; }).join('') +
+    ? '<div class="ids-pills" style="max-height:50vh; overflow-y:auto;">' +
+        ids.map(function(id){ return '<span class="ids-pill">' + esc(id) + '</span>'; }).join('') +
       '</div>'
     : '<div class="muted">管理番号はありません</div>';
   openModal(
@@ -2645,6 +3202,8 @@ function genMoveId_() {
 
 async function openBashoCreate() {
   var c = document.getElementById('content');
+  // 新規作成中は autoRefresh をブロックするためフォーム状態に切り替え
+  STATE.view = 'form';
   c.innerHTML = '<div class="loading">読み込み中…</div>';
   // マスタ取得を待つ（places/workers が未取得なら）
   if (STATE.mastersPromise) { try { await STATE.mastersPromise; } catch (e) {} }
@@ -2755,7 +3314,11 @@ async function submitBashoCreate() {
 }
 
 // ========== 返送 ==========
+// 返送管理シート: A=箱ID B=報告者 C=移動先 D=管理番号 E=着数 F=備考
+// 構造は場所移動とほぼ同じ。報告者の納品場所にある商品を IDピッカーで選択する。
 async function renderHensouList() {
+  // フォーム/詳細から戻ってきた場合に list 状態へリセット（autoRefresh の許可条件）
+  STATE.view = 'list';
   var c = document.getElementById('content');
   var cached = TAB_CACHE['hensou'];
   if (cached && cached.data) {
@@ -2776,6 +3339,9 @@ async function renderHensouList() {
 function paintHensouList_(allItems) {
   if (!tabCacheGuard_('hensou')) return;
   var c = document.getElementById('content');
+  // 詳細モーダル用にキャッシュ
+  STATE.returnsCache = {};
+  allItems.forEach(function(it){ if (it.boxId) STATE.returnsCache[it.boxId] = it; });
   var q = (document.getElementById('search').value || '').trim().toLowerCase();
   var items = q
     ? allItems.filter(function(it){
@@ -2784,38 +3350,95 @@ function paintHensouList_(allItems) {
     : allItems;
   var addBtn = '<div class="fab-stack"><button class="fab" onclick="openHensouCreate()" title="新規返送">＋</button></div>';
   if (!items.length) {
-    c.innerHTML = '<div class="empty">返送はまだありません。</div>' + addBtn;
+    c.innerHTML = '<div class="empty"><div class="empty-title">返送はまだありません</div>' +
+      '<button class="empty-cta" onclick="openHensouCreate()">＋ 新規返送</button></div>' + addBtn;
     return;
   }
   var html = '<div class="card-list">' + items.map(function(it){
     var ids = String(it.ids || '').split(/[\s,、，／/・|\n\r\t]+/).filter(Boolean);
-    var idsHtml = ids.length ? '<div class="meta-line">📦 ' + ids.length + '点 ' + esc(ids.slice(0, 6).join(' / ')) + (ids.length > 6 ? ' …' : '') + '</div>' : '';
-    var noteHtml = it.note ? '<div class="meta-line">📝 ' + esc(it.note) + '</div>' : '';
+    var pillsHtml = '';
+    if (ids.length) {
+      var maxShow = 8;
+      var shown = ids.slice(0, maxShow).map(function(id){ return '<span class="ids-pill">' + esc(id) + '</span>'; }).join('');
+      var more = ids.length > maxShow ? '<span class="ids-pill more">+' + (ids.length - maxShow) + '</span>' : '';
+      pillsHtml = '<div class="meta-line">📦 ' + ids.length + '点</div>' +
+                  '<div class="ids-pills">' + shown + more + '</div>';
+    }
     var countHtml = (it.count !== '' && it.count != null) ? '<span class="badge">着数 ' + esc(String(it.count)) + '</span>' : '';
-    return '<div class="card">' +
+    var noteHtml = it.note ? '<div class="meta-line">📝 ' + esc(it.note) + '</div>' : '';
+    return '<div class="card clickable" onclick="openHensouDetail(\'' + esc(it.boxId) + '\')">' +
       '<div class="card-row"><strong>' + esc(it.boxId) + '</strong>' + countHtml + '</div>' +
-      '<div class="meta-line">👤 ' + esc(it.reporter) + '　📍 ' + esc(it.destination) + '</div>' +
-      idsHtml + noteHtml +
+      '<div class="meta-line">👤 ' + esc(it.reporter) + '　📍 移動先: <strong>' + esc(it.destination) + '</strong></div>' +
+      pillsHtml + noteHtml +
     '</div>';
   }).join('') + '</div>' + addBtn;
   c.innerHTML = html;
 }
 
-function openHensouCreate() {
+function openHensouDetail(boxId) {
+  var it = (STATE.returnsCache && STATE.returnsCache[boxId]) || null;
+  if (!it) { toast('データが見つかりません', 'error'); return; }
+  var ids = String(it.ids || '').split(/[\s,、，／/・|\n\r\t]+/).filter(Boolean);
+  var idsHtml = ids.length
+    ? '<div class="ids-pills" style="max-height:50vh; overflow-y:auto;">' +
+        ids.map(function(id){ return '<span class="ids-pill">' + esc(id) + '</span>'; }).join('') +
+      '</div>'
+    : '<div class="muted">管理番号はありません</div>';
+  var countLine = (it.count !== '' && it.count != null)
+    ? '<div class="field-row"><label>着数</label><div>' + esc(String(it.count)) + '</div></div>'
+    : '';
+  var noteLine = it.note
+    ? '<div class="field-row"><label>備考</label><div style="white-space:pre-wrap">' + esc(it.note) + '</div></div>'
+    : '';
+  openModal(
+    '<h3>↩️ 返送 詳細</h3>' +
+    '<div class="field-row"><label>箱ID</label><div>' + esc(it.boxId || '') + '</div></div>' +
+    '<div class="field-row"><label>報告者</label><div>' + esc(it.reporter || '') + '</div></div>' +
+    '<div class="field-row"><label>移動先</label><div>' + esc(it.destination || '') + '</div></div>' +
+    countLine +
+    '<div class="field-row"><label>管理番号（' + ids.length + '点）</label>' + idsHtml + '</div>' +
+    noteLine +
+    '<div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">閉じる</button></div>'
+  );
+}
+
+// AppSheet 互換: RT-yyyyMMdd-HHmmss
+function genBoxId_() {
+  var d = new Date();
+  var pad = function(n){ return String(n).padStart(2, '0'); };
+  return 'RT-' + d.getFullYear() + pad(d.getMonth()+1) + pad(d.getDate()) + '-' +
+    pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
+}
+
+async function openHensouCreate() {
   var c = document.getElementById('content');
+  // 新規作成中は autoRefresh をブロックするためフォーム状態に切り替え
+  STATE.view = 'form';
+  c.innerHTML = '<div class="loading">読み込み中…</div>';
+  if (STATE.mastersPromise) { try { await STATE.mastersPromise; } catch (e) {} }
   var places = (STATE.places && STATE.places.length) ? STATE.places : [];
-  var options = ['<option value="">選択してください</option>'].concat(places.map(function(p){ return '<option value="' + esc(p) + '">' + esc(p) + '</option>'; })).join('');
+  var workers = (STATE.workers && STATE.workers.length) ? STATE.workers : [];
+  var placeOptions = ['<option value="">選択してください</option>'].concat(places.map(function(p){ return '<option value="' + esc(p) + '">' + esc(p) + '</option>'; })).join('');
+  var workerOptions = ['<option value="">選択してください</option>'].concat(workers.map(function(w){ return '<option value="' + esc(w) + '">' + esc(w) + '</option>'; })).join('');
+  var boxId = genBoxId_();
   c.innerHTML =
     '<div class="form-card">' +
       '<h3>↩️ 返送 新規作成</h3>' +
+      '<div class="notice">⚠️ 返送対象の管理番号は <strong>商品管理シートで「返品済み」</strong>に自動更新されます。</div>' +
+      '<div class="field-row"><label>箱ID<small>登録時に自動採番</small></label>' +
+        '<input type="text" id="hensou-boxid" value="' + esc(boxId) + '" readonly>' +
+      '</div>' +
+      '<div class="field-row"><label>報告者 *</label>' +
+        '<select id="hensou-reporter" onchange="onHensouReporterChange()">' + workerOptions + '</select>' +
+      '</div>' +
       '<div class="field-row"><label>移動先 *</label>' +
-        '<select id="hensou-dest">' + options + '</select>' +
+        '<select id="hensou-dest">' + placeOptions + '</select>' +
       '</div>' +
-      '<div class="field-row"><label>管理番号 *<small>カンマ・改行・スペース区切り</small></label>' +
-        '<textarea id="hensou-ids" rows="6" placeholder="zY1234, zY1235"></textarea>' +
+      '<div class="field-row"><label>管理番号 *<small>報告者を選択すると、その作業者の商品が表示されます</small></label>' +
+        '<div id="hensou-ids-picker" class="ids-picker"><div class="muted">先に「報告者」を選択してください</div></div>' +
       '</div>' +
-      '<div class="field-row"><label>着数</label>' +
-        '<input type="number" id="hensou-count" min="0" step="1" placeholder="例: 3">' +
+      '<div class="field-row"><label>着数<small>選択した管理番号の数が自動入力されます</small></label>' +
+        '<input type="number" id="hensou-count" min="0" step="1" value="0" readonly>' +
       '</div>' +
       '<div class="field-row"><label>備考</label>' +
         '<textarea id="hensou-note" rows="3"></textarea>' +
@@ -2827,14 +3450,88 @@ function openHensouCreate() {
     '</div>';
 }
 
+async function onHensouReporterChange() {
+  var sel = document.getElementById('hensou-reporter');
+  var picker = document.getElementById('hensou-ids-picker');
+  var reporter = (sel && sel.value || '').trim();
+  if (!reporter) {
+    picker.innerHTML = '<div class="muted">先に「報告者」を選択してください</div>';
+    return;
+  }
+  picker.innerHTML = '<div class="muted">読み込み中…</div>';
+  try {
+    // 返送候補は AppSheet Valid_If と完全一致させる:
+    //   納品場所 = 報告者 AND ステータス = 出品中
+    //   AND ISNOTBLANK([出品日]) AND DATE([出品日]) <= (TODAY() - 30)
+    // → サーバー側で listedBeforeDays=30 を渡して 30日以上前の出品のみ返す
+    var res = await api('/api/products?place=' + encodeURIComponent(reporter) + '&filter=shuppinchu&listedBeforeDays=30&limit=10000&mode=list');
+    var items = (res.items || []).slice().reverse();
+    if (!items.length) {
+      picker.innerHTML = '<div class="muted">対象商品がありません</div>';
+      return;
+    }
+    var listHtml = items.map(function(it){
+      var label = esc(it.kanri || '') + ' ' +
+        '<span class="muted">' + esc(it.brand || '') + ' / ' + esc(it.status || '') + '</span>';
+      return '<label class="ids-item"><input type="checkbox" name="hensou-id" value="' + esc(it.kanri || '') + '" onchange="updateHensouCount()"> ' + label + '</label>';
+    }).join('');
+    picker.innerHTML =
+      '<div class="ids-toolbar">' +
+        '<input type="text" id="hensou-ids-q" placeholder="検索（管理番号/ブランド）" oninput="filterHensouIds()">' +
+        '<button type="button" class="btn-secondary" onclick="toggleAllHensouIds(true)">全選択</button>' +
+        '<button type="button" class="btn-secondary" onclick="toggleAllHensouIds(false)">全解除</button>' +
+        '<span class="muted" id="hensou-ids-count">' + items.length + '件</span>' +
+      '</div>' +
+      '<div id="hensou-ids-list" class="ids-list">' + listHtml + '</div>';
+    updateHensouCount();
+  } catch (e) {
+    picker.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
+  }
+}
+
+function filterHensouIds() {
+  var q = (document.getElementById('hensou-ids-q').value || '').trim().toLowerCase();
+  var list = document.getElementById('hensou-ids-list');
+  if (!list) return;
+  var labels = list.querySelectorAll('label.ids-item');
+  for (var i = 0; i < labels.length; i++) {
+    var t = (labels[i].textContent || '').toLowerCase();
+    labels[i].style.display = (!q || t.indexOf(q) >= 0) ? '' : 'none';
+  }
+}
+
+function toggleAllHensouIds(checked) {
+  var list = document.getElementById('hensou-ids-list');
+  if (!list) return;
+  var labels = list.querySelectorAll('label.ids-item');
+  for (var i = 0; i < labels.length; i++) {
+    if (labels[i].style.display === 'none') continue;
+    var cb = labels[i].querySelector('input[type=checkbox]');
+    if (cb) cb.checked = !!checked;
+  }
+  updateHensouCount();
+}
+
+// 着数を選択チェック数に同期（input は readonly にして手動入力不可）
+function updateHensouCount() {
+  var checks = document.querySelectorAll('#hensou-ids-list input[name=hensou-id]:checked');
+  var input = document.getElementById('hensou-count');
+  if (input) input.value = String(checks.length);
+}
+
 async function submitHensouCreate() {
+  var reporter = (document.getElementById('hensou-reporter').value || '').trim();
   var dest = (document.getElementById('hensou-dest').value || '').trim();
-  var ids = (document.getElementById('hensou-ids').value || '').trim();
+  var boxIdEl = document.getElementById('hensou-boxid');
+  var boxId = (boxIdEl && boxIdEl.value || '').trim();
+  var checks = document.querySelectorAll('#hensou-ids-list input[name=hensou-id]:checked');
+  var ids = Array.from(checks).map(function(c){ return c.value; }).filter(Boolean).join(',');
   var countRaw = (document.getElementById('hensou-count').value || '').trim();
   var note = (document.getElementById('hensou-note').value || '').trim();
+  if (!reporter) { toast('報告者を選択してください', 'error'); return; }
   if (!dest) { toast('移動先を選択してください', 'error'); return; }
-  if (!ids) { toast('管理番号を入力してください', 'error'); return; }
-  var body = { destination: dest, ids: ids, note: note };
+  if (!ids) { toast('管理番号を選択してください', 'error'); return; }
+  var body = { destination: dest, ids: ids, reporter: reporter, boxId: boxId, note: note };
   if (countRaw !== '') {
     var n = Number(countRaw);
     if (!isNaN(n)) body.count = n;
@@ -2879,15 +3576,22 @@ function paintAiList_(items) {
     c.innerHTML = '<div class="empty">AI判定結果はまだありません。</div>';
     return;
   }
-  var html = '<div class="card-list">' + items.map(function(it){
+  // 2列グリッドのコンパクトカード。主要4項目（管理番号/ブランド/カテゴリ/カラー）+ タグ詳細はチップ
+  var html = '<div class="ai-grid">' + items.map(function(it){
     var f = it.fields || {};
-    var rows = [];
-    ['ブランド','タグ表記','性別','カテゴリ1','カテゴリ2','カテゴリ3','カラー','デザイン特徴','ポケット'].forEach(function(k){
-      if (f[k]) rows.push('<div class="meta-line">' + esc(k) + ': ' + esc(String(f[k])) + '</div>');
-    });
-    return '<div class="card" onclick="openDetail(' + JSON.stringify(it.kanri) + ')">' +
-      '<div class="card-row"><strong>' + esc(it.kanri) + '</strong></div>' +
-      rows.join('') +
+    var brand = f['ブランド'] || '—';
+    var cat = [f['カテゴリ1'], f['カテゴリ2'], f['カテゴリ3']].filter(Boolean).join(' / ');
+    var color = f['カラー'] || '';
+    var meta = [cat, color].filter(Boolean).join('・');
+    var tagFields = ['性別','タグ表記','デザイン特徴','ポケット'];
+    var tags = tagFields.map(function(k){
+      return f[k] ? '<span class="ai-tag">' + esc(String(f[k])) + '</span>' : '';
+    }).filter(Boolean).join('');
+    return '<div class="ai-card" onclick="openDetail(' + JSON.stringify(it.kanri) + ')">' +
+      '<div class="ai-kanri">' + esc(it.kanri) + '</div>' +
+      '<div class="ai-brand">' + esc(brand) + '</div>' +
+      (meta ? '<div class="ai-meta">' + esc(meta) + '</div>' : '') +
+      (tags ? '<div class="ai-tags">' + tags + '</div>' : '') +
     '</div>';
   }).join('') + '</div>';
   c.innerHTML = html;
@@ -2904,7 +3608,11 @@ async function renderSagyouList() {
   }
   try {
     var res = await api('/api/sagyousha?months=6');
-    var data = { workers: res.items || [], months: res.months || [] };
+    var data = {
+      workers: res.items || [],
+      months: res.months || [],
+      currentUser: res.currentUser || { email: '', isAdmin: false }
+    };
     TAB_CACHE['sagyou'] = { data: data, ts: Date.now() };
     paintSagyouList_(data);
   } catch (e) {
@@ -2917,20 +3625,174 @@ function paintSagyouList_(data) {
   var c = document.getElementById('content');
   var workers = data.workers || [];
   var months = data.months || [];
+  var isAdmin = !!(data.currentUser && data.currentUser.isAdmin);
   if (!workers.length) {
-    c.innerHTML = '<div class="empty">作業者データがありません。</div>';
+    c.innerHTML = '<div class="empty">作業者データがありません。</div>' +
+      (isAdmin ? '<div class="fab-stack"><button class="fab" onclick="openSagyouCreate()" title="新規作業者">＋</button></div>' : '');
     return;
   }
-  var thead = '<tr><th>作業者</th>' + months.map(function(m){ return '<th>' + esc(m) + '<br><small>採寸/撮影</small></th>'; }).join('') + '</tr>';
-  var rows = workers.map(function(w){
-    var cells = months.map(function(m){
+  var cards = workers.map(function(w, idx){
+    var enabledBadge = w.row > 0
+      ? (w.enabled ? '<span class="badge ok">有効</span>' : '<span class="badge disabled">無効</span>')
+      : '<span class="badge disabled">マスター未登録</span>';
+    var adminBadge = w.admin ? '<span class="badge admin">管理者</span>' : '';
+    var emails = [w.email1, w.email2].filter(function(e){ return e; });
+    var emailHtml = emails.length
+      ? emails.map(esc).join(' / ')
+      : '<span class="nomail">メール未登録</span>';
+    var monthlyRows = months.map(function(m){
       var v = (w.monthly && w.monthly[m]) || { sokutei: 0, satsuei: 0 };
-      var hasAny = (v.sokutei || v.satsuei);
-      return '<td' + (hasAny ? ' class="num-strong"' : ' class="num-zero"') + '>' + (v.sokutei || 0) + ' / ' + (v.satsuei || 0) + '</td>';
+      var sCls = v.sokutei ? 'has' : 'zero';
+      var pCls = v.satsuei ? 'has' : 'zero';
+      return '<tr><td class="ym">' + esc(m) + '</td>' +
+             '<td class="' + sCls + '">' + (v.sokutei || 0) + '</td>' +
+             '<td class="' + pCls + '">' + (v.satsuei || 0) + '</td></tr>';
     }).join('');
-    return '<tr><th class="sticky-name">' + esc(w.name) + '</th>' + cells + '</tr>';
+    var clickable = isAdmin || w.row > 0;
+    var onClick = clickable ? ' onclick="openSagyouDetail(' + idx + ')"' : '';
+    var clsExtra = (w.row > 0 && !w.enabled) ? ' disabled' : '';
+    return '<div class="sagyou-card' + (clickable ? ' clickable' : '') + clsExtra + '"' + onClick + '>' +
+      '<div class="sagyou-card-head">' +
+        '<div class="sagyou-card-name">' + esc(w.name) + '</div>' +
+        '<div class="sagyou-card-badges">' + enabledBadge + adminBadge + '</div>' +
+      '</div>' +
+      '<div class="sagyou-card-emails">' + emailHtml + '</div>' +
+      '<div class="sagyou-card-monthly">' +
+        '<table><thead><tr><th>月</th><th>採寸</th><th>撮影</th></tr></thead>' +
+        '<tbody>' + monthlyRows + '</tbody></table>' +
+      '</div>' +
+    '</div>';
   }).join('');
-  c.innerHTML = '<div class="sagyou-wrap"><table class="sagyou-table"><thead>' + thead + '</thead><tbody>' + rows + '</tbody></table></div>';
+  var fab = isAdmin
+    ? '<div class="fab-stack"><button class="fab" onclick="openSagyouCreate()" title="新規作業者">＋</button></div>'
+    : '';
+  c.innerHTML = '<div class="sagyou-list">' + cards + '</div>' + fab;
+}
+
+function openSagyouDetail(idx) {
+  var data = (TAB_CACHE['sagyou'] && TAB_CACHE['sagyou'].data) || null;
+  if (!data) return;
+  var w = (data.workers || [])[idx];
+  if (!w) return;
+  var isAdmin = !!(data.currentUser && data.currentUser.isAdmin);
+  var months = data.months || [];
+  var monthlyRows = months.map(function(m){
+    var v = (w.monthly && w.monthly[m]) || { sokutei: 0, satsuei: 0 };
+    return '<tr><td>' + esc(m) + '</td><td>' + (v.sokutei || 0) + '</td><td>' + (v.satsuei || 0) + '</td></tr>';
+  }).join('');
+  var emails = [w.email1, w.email2].filter(function(e){ return e; }).join(' / ') || '—';
+  var actions = isAdmin && w.row > 0
+    ? '<button class="btn-cancel" onclick="closeModal()">閉じる</button>' +
+      '<button class="btn-submit" onclick="openSagyouEdit(' + idx + ')">編集</button>'
+    : '<button class="btn-cancel" onclick="closeModal()">閉じる</button>';
+  openModal(
+    '<h3>👥 ' + esc(w.name) + '</h3>' +
+    (w.row === 0 ? '<div class="notice">マスター未登録の名前。商品管理シートで採寸/撮影者として記録された分のみ表示。</div>' : '') +
+    '<div class="field-row"><label>有効</label><div>' + (w.enabled ? '✅ 有効' : '⛔ 無効') + '</div></div>' +
+    '<div class="field-row"><label>管理者</label><div>' + (w.admin ? '✅ 管理者' : '—') + '</div></div>' +
+    '<div class="field-row"><label>メールアドレス</label><div>' + esc(emails) + '</div></div>' +
+    '<div class="field-row"><label>月別 採寸 / 撮影 件数</label>' +
+      '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-top:6px;">' +
+      '<thead><tr><th style="text-align:left;padding:4px;border-bottom:1px solid #eee;">月</th><th style="padding:4px;border-bottom:1px solid #eee;">採寸</th><th style="padding:4px;border-bottom:1px solid #eee;">撮影</th></tr></thead>' +
+      '<tbody>' + monthlyRows + '</tbody></table>' +
+    '</div>' +
+    '<div class="modal-actions">' + actions + '</div>'
+  );
+}
+
+function openSagyouEdit(idx) {
+  var data = (TAB_CACHE['sagyou'] && TAB_CACHE['sagyou'].data) || null;
+  if (!data) return;
+  var w = (data.workers || [])[idx];
+  if (!w || w.row < 2) return;
+  openModal(
+    '<h3>👥 作業者を編集</h3>' +
+    '<div class="field-row"><label>名前 <span class="req">*</span></label>' +
+      '<input id="sg_name" type="text" value="' + esc(w.name || '') + '"></div>' +
+    '<div class="field-row"><label>メール1</label>' +
+      '<input id="sg_email1" type="email" value="' + esc(w.email1 || '') + '"></div>' +
+    '<div class="field-row"><label>メール2</label>' +
+      '<input id="sg_email2" type="email" value="' + esc(w.email2 || '') + '"></div>' +
+    '<div class="field-row"><label><input id="sg_enabled" type="checkbox"' + (w.enabled ? ' checked' : '') + '> 有効</label></div>' +
+    '<div class="field-row"><label><input id="sg_admin" type="checkbox"' + (w.admin ? ' checked' : '') + '> 管理者</label></div>' +
+    '<input type="hidden" id="sg_row" value="' + w.row + '">' +
+    '<div class="modal-actions">' +
+      '<button class="btn-cancel" onclick="openSagyouDetail(' + idx + ')">戻る</button>' +
+      '<button class="btn-submit" id="sg_submit" onclick="submitSagyouSave()">保存</button>' +
+    '</div>'
+  );
+}
+
+function openSagyouCreate() {
+  var data = (TAB_CACHE['sagyou'] && TAB_CACHE['sagyou'].data) || null;
+  if (!data || !data.currentUser || !data.currentUser.isAdmin) {
+    toast('管理者のみ追加できます', 'error'); return;
+  }
+  openModal(
+    '<h3>👥 新規作業者</h3>' +
+    '<div class="field-row"><label>名前 <span class="req">*</span></label>' +
+      '<input id="sg_name" type="text" placeholder="例: 山田 太郎"></div>' +
+    '<div class="field-row"><label>メール1</label>' +
+      '<input id="sg_email1" type="email" placeholder="example@gmail.com"></div>' +
+    '<div class="field-row"><label>メール2</label>' +
+      '<input id="sg_email2" type="email" placeholder="任意"></div>' +
+    '<div class="field-row"><label><input id="sg_enabled" type="checkbox" checked> 有効</label></div>' +
+    '<div class="field-row"><label><input id="sg_admin" type="checkbox"> 管理者</label></div>' +
+    '<div class="modal-actions">' +
+      '<button class="btn-cancel" onclick="closeModal()">キャンセル</button>' +
+      '<button class="btn-submit" id="sg_submit" onclick="submitSagyouCreate()">作成</button>' +
+    '</div>'
+  );
+}
+
+async function submitSagyouSave() {
+  var btn = document.getElementById('sg_submit');
+  var row = parseInt(document.getElementById('sg_row').value, 10);
+  var name = document.getElementById('sg_name').value.trim();
+  if (!name) { toast('名前を入力してください', 'error'); return; }
+  var body = {
+    row: row,
+    name: name,
+    email1: document.getElementById('sg_email1').value.trim(),
+    email2: document.getElementById('sg_email2').value.trim(),
+    enabled: document.getElementById('sg_enabled').checked,
+    admin: document.getElementById('sg_admin').checked,
+  };
+  btn.disabled = true; btn.textContent = '保存中…';
+  try {
+    await api('/api/sagyousha', { method: 'POST', body: body });
+    toast('保存しました', 'success');
+    closeModal();
+    delete TAB_CACHE['sagyou'];
+    if (STATE.tab === 'sagyou') renderSagyouList();
+  } catch (err) {
+    toast('保存失敗: ' + err.message, 'error');
+    btn.disabled = false; btn.textContent = '保存';
+  }
+}
+
+async function submitSagyouCreate() {
+  var btn = document.getElementById('sg_submit');
+  var name = document.getElementById('sg_name').value.trim();
+  if (!name) { toast('名前を入力してください', 'error'); return; }
+  var body = {
+    name: name,
+    email1: document.getElementById('sg_email1').value.trim(),
+    email2: document.getElementById('sg_email2').value.trim(),
+    enabled: document.getElementById('sg_enabled').checked,
+    admin: document.getElementById('sg_admin').checked,
+  };
+  btn.disabled = true; btn.textContent = '作成中…';
+  try {
+    await api('/api/sagyousha/create', { method: 'POST', body: body });
+    toast('作業者を作成しました', 'success');
+    closeModal();
+    delete TAB_CACHE['sagyou'];
+    if (STATE.tab === 'sagyou') renderSagyouList();
+  } catch (err) {
+    toast('作成失敗: ' + err.message, 'error');
+    btn.disabled = false; btn.textContent = '作成';
+  }
 }
 
 // ========== 業務メニュー（汎用シートダンプ） ==========
@@ -3189,6 +4051,11 @@ function detailFieldId(name) {
 }
 
 function detailValue(d, name) {
+  // 編集値（kanri 単位の edits バケット）があれば最優先（タブ切替やリロードで復元）
+  var edits = getDetailEdits_(d.kanri);
+  if (edits && Object.prototype.hasOwnProperty.call(edits, name)) {
+    return edits[name];
+  }
   var ex = d.extra || {};
   if (ex[name] !== undefined && ex[name] !== '') return ex[name];
   // ステータスは extra が空でも raw/派生から確実に補完する
@@ -3218,7 +4085,7 @@ function fieldRowHtml(name, type, val) {
   } else if (type === 'textarea') {
     input = '<textarea id="' + id + '" class="auto-grow" rows="2">' + esc(v) + '</textarea>';
   } else if (type === 'number') {
-    input = '<input type="number" inputmode="decimal" step="0.1" id="' + id + '" value="' + esc(v) + '">';
+    input = '<input type="number" inputmode="decimal" enterkeyhint="next" step="0.1" id="' + id + '" value="' + esc(v) + '">';
   } else if (type === 'color') {
     var setOptsColor = settingsOptionsFor_(name, v);
     if (setOptsColor) {
@@ -3557,27 +4424,120 @@ var SEC_TABS = [
   { id: 'memo',     label: '備考',         sections: ['備考', 'その他'] }
 ];
 function selectSecTab_(id) {
+  if (id === STATE.detailSecTab) return;
+  // セクションタブ切替前に現在の入力値を edits バケットに取り込み、
+  // 戻ってきたとき detailValue が edits を優先して描画することで値を復元する
+  syncEditsFromDom_();
   STATE.detailSecTab = id;
-  var d = STATE.current;
-  if (d && DETAIL_CACHE[d.kanri]) {
-    // dirty な入力値を保持するため、現在の入力値を STATE.current に取り込んでから再描画
-    captureDetailEdits_();
-  }
   renderDetail();
 }
-function captureDetailEdits_() {
+// 編集値の保持: kanri 単位で全フィールドの編集値を保持する。
+// セクションタブ切替やボトムタブ移動で DOM が消えても、編集中の値が失われない。
+// 同じ kanri の詳細を再度開くと detailValue が edits 値を優先して復元する。
+function ensureDetailEdits_(kanri) {
+  if (!STATE.detailEditsByKanri) STATE.detailEditsByKanri = {};
+  if (!STATE.detailEditsByKanri[kanri]) STATE.detailEditsByKanri[kanri] = {};
+  return STATE.detailEditsByKanri[kanri];
+}
+function getDetailEdits_(kanri) {
+  return (STATE.detailEditsByKanri && STATE.detailEditsByKanri[kanri]) || null;
+}
+function clearDetailEdits_(kanri) {
+  if (STATE.detailEditsByKanri) delete STATE.detailEditsByKanri[kanri];
+}
+// 現在表示中のセクションタブの DOM 値を edits バケットに同期する。
+// input/change のたびに呼ぶことで、edits は常に最新の入力値を保持する。
+function syncEditsFromDom_() {
   var d = STATE.current;
   if (!d) return;
-  var ex = d.extra || (d.extra = {});
+  var edits = ensureDetailEdits_(d.kanri);
   DETAIL_SECTIONS.forEach(function(sec){
     sec.fields.forEach(function(f){
       var name = f[0], type = f[1];
       if (type === 'readonly' || type === 'image') return;
       var el = document.getElementById(detailFieldId(name));
       if (!el) return;
-      ex[name] = el.value;
+      edits[name] = el.value;
     });
   });
+}
+// 後方互換のためのエイリアス
+function captureDetailEdits_() { syncEditsFromDom_(); }
+
+// ========== 詳細離脱時の案内シート ==========
+// 商品詳細を離脱するとき（一覧へ戻る／タブ切替／メニュー切替／ブラウザ戻る）に
+// 未保存変更があれば、変更内容のサマリと「保存して移動／破棄して移動／このページにとどまる」を提示する。
+// confirm ダイアログより情報量が多く、内容が見えるので UX が良い。
+function confirmLeaveDetail_(onContinue, onCancel) {
+  if (STATE.view !== 'detail' || !STATE.current) {
+    onContinue();
+    return;
+  }
+  syncEditsFromDom_();
+  var dirty = getDirtyFields_();
+  if (dirty.length === 0) {
+    onContinue();
+    return;
+  }
+  showLeaveSheet_(dirty, onContinue, onCancel);
+}
+function showLeaveSheet_(dirty, onContinue, onCancel) {
+  var listEl = document.getElementById('leave-sheet-list');
+  var cntEl = document.getElementById('leave-sheet-count');
+  if (!listEl || !cntEl) { onContinue(); return; }
+  var html = dirty.map(function(d){
+    var before = d.before === '' || d.before == null ? '(空)' : esc(String(d.before));
+    var after  = d.after  === '' || d.after  == null ? '(空)' : esc(String(d.after));
+    return '<li><strong>' + esc(d.name) + '</strong>'
+         + '<span class="before">' + before + '</span>'
+         + '<span class="arr">→</span>'
+         + '<span class="after">' + after + '</span></li>';
+  }).join('');
+  listEl.innerHTML = html;
+  cntEl.textContent = String(dirty.length);
+  STATE._leaveContinue = onContinue;
+  STATE._leaveCancel = onCancel || null;
+  STATE._leaveDirtyKanri = STATE.current ? STATE.current.kanri : null;
+  document.getElementById('leave-sheet-mask').classList.add('show');
+}
+function closeLeaveSheet_() {
+  var m = document.getElementById('leave-sheet-mask');
+  if (m) m.classList.remove('show');
+  STATE._leaveContinue = null;
+  STATE._leaveCancel = null;
+  STATE._leaveDirtyKanri = null;
+}
+async function leaveSheetSave_() {
+  var btn = document.getElementById('leave-sheet-save');
+  if (btn) { btn.disabled = true; btn.textContent = '保存中…'; }
+  var cb = STATE._leaveContinue;
+  try {
+    await saveDetails();
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.textContent = '保存して移動'; }
+    return;
+  }
+  // 保存が成功（dirty=0）になったときだけ移動。失敗時はシート閉じてユーザーに任せる
+  if (getDirtyFields_().length === 0) {
+    closeLeaveSheet_();
+    if (cb) cb();
+  } else {
+    if (btn) { btn.disabled = false; btn.textContent = '保存して移動'; }
+  }
+}
+function leaveSheetDiscard_() {
+  var k = STATE._leaveDirtyKanri;
+  if (k) clearDetailEdits_(k);
+  STATE.detailDirty = false;
+  var cb = STATE._leaveContinue;
+  closeLeaveSheet_();
+  if (cb) cb();
+}
+function leaveSheetCancel_(ev) {
+  // マスクの onclick から呼ばれた場合は中身クリックは無視（イベント上はこちらに来ない）
+  var cancelCb = STATE._leaveCancel;
+  closeLeaveSheet_();
+  if (cancelCb) cancelCb();
 }
 // 日付/日時を表示用に整形。時刻成分があれば "YYYY-MM-DD HH:mm"、無ければ "YYYY-MM-DD"。
 function fmtHistoryWhen_(raw) {
@@ -3690,8 +4650,34 @@ function buildBasicImgsHtml_(d) {
       items.push('<div class="basic-img img-loading" data-legacy="' + esc(v) + '" data-field="' + esc(name) + '" title="' + esc(name) + '">…</div>');
     }
   });
-  if (!items.length) return '';
-  return '<div class="basic-imgs">' + items.join('') + '</div>';
+  // タスキ箱に登録された商品画像を非同期で差し込む空コンテナ。
+  // QR/売却済み/ポストシールが0件でもタスキ箱画像があれば表示できるよう、必ず先頭に置く。
+  var tbHtml = '<div class="basic-imgs basic-imgs-tb" data-kanri="' + esc(d.kanri) + '"></div>';
+  var fieldsHtml = items.length ? '<div class="basic-imgs">' + items.join('') + '</div>' : '';
+  return tbHtml + fieldsHtml;
+}
+
+// タスキ箱(R2/KV)に登録済みの商品画像を取得して詳細の .basic-imgs-tb にレンダリング。
+// 画像0件のときは空のまま（DOMからは見えない）。
+async function resolveDetailTasukibakoImages_(kanri) {
+  if (!kanri) return;
+  var holders = document.querySelectorAll('.basic-imgs-tb[data-kanri="' + cssEscape_(kanri) + '"]');
+  if (!holders.length) return;
+  try {
+    var res = await api('/api/products/' + encodeURIComponent(kanri) + '/images');
+    var urls = (res && Array.isArray(res.urls)) ? res.urls : [];
+    if (!urls.length) return;
+    var html = urls.map(function(u){
+      var safeUrl = esc(u).replace(/\'/g,"\\'");
+      return '<button type="button" class="basic-img" onclick="openImageModal_(\'' + safeUrl + '\')" title="商品画像"><img src="' + esc(u) + '" alt="商品画像" loading="lazy"></button>';
+    }).join('');
+    Array.prototype.forEach.call(holders, function(h){ h.innerHTML = html; });
+  } catch (e) { /* 画像取得失敗は無視 */ }
+}
+
+// querySelector 用の簡易エスケープ（kanri は英数字想定だが安全側で）
+function cssEscape_(s) {
+  return String(s).replace(/(["\\])/g, '\\$1');
 }
 
 // セクション内のフィールド配列を、項目グループ単位でグリッド化して描画
@@ -3748,9 +4734,9 @@ function renderSectionFields_(sec, d) {
       fields.map(function(f){ return fieldRowHtml(f[0], f[1], detailValue(d, f[0])); }).join('') +
       '</div>';
   }
-  // 採寸記録 / 撮影・出品 の日付+作業者ペア など、2項目連続なら 2列
+  // 採寸記録 / 撮影・出品 の日付+作業者ペア — date と作業者selectが狭幅で被るため1列で表示
   if (title === '採寸記録' && fields.length === 2) {
-    return '<div class="field-grid-2">' +
+    return '<div class="field-grid-2 fg-stack">' +
       fields.map(function(f){ return fieldRowHtml(f[0], f[1], detailValue(d, f[0])); }).join('') +
       '</div>';
   }
@@ -3761,6 +4747,8 @@ function renderDetail() {
   var d = STATE.current;
   if (!d) { render(); return; }
   setAppbarMode_('back');
+  // 詳細では商品管理タブの chips-bar を確実に隠す（openDetail から直接呼ばれた場合の取りこぼし防止）
+  updateChipsBar_();
   document.getElementById('appbar-title').textContent = d.kanri;
 
   var ex = d.extra || {};
@@ -3822,7 +4810,7 @@ function renderDetail() {
   var tabsHtml = '<div class="sec-tabs">' +
     SEC_TABS.map(function(t){
       var active = t.id === activeTab.id ? ' active' : '';
-      return '<button type="button" class="sec-tab' + active + '" onclick="selectSecTab_(\'' + t.id + '\')">' + esc(t.label) + '</button>';
+      return '<button type="button" class="sec-tab' + active + '" data-tab-id="' + t.id + '" onclick="selectSecTab_(\'' + t.id + '\')">' + esc(t.label) + '</button>';
     }).join('') +
   '</div>';
 
@@ -3883,6 +4871,10 @@ function renderDetail() {
   contentEl.addEventListener('input', updateSavebar_);
   contentEl.addEventListener('change', updateSavebar_);
   resolveLegacyImages_();
+  // タスキ箱画像（基本タブのみ basic-imgs-tb プレースホルダがある）を非同期で取得
+  if (activeTab.id === 'basic') {
+    resolveDetailTasukibakoImages_(d.kanri);
+  }
   updateSavebar_();
 }
 // 詳細画面で「変更があったフィールド」を { name, before, after } 配列で返す。
@@ -3893,36 +4885,41 @@ function getDirtyFields_() {
   var d = STATE.current;
   if (!d) return [];
   var ex = d.extra || {};
-  var dirty = [];
+  var edits = getDetailEdits_(d.kanri);
+  if (!edits) return [];
+  // name → type のマップを構築
+  var typeByName = {};
   DETAIL_SECTIONS.forEach(function(sec){
-    sec.fields.forEach(function(f){
-      var name = f[0], type = f[1];
-      if (type === 'readonly' || type === 'image') return;
-      var el = document.getElementById(detailFieldId(name));
-      if (!el) return;
-      var v = el.value;
-      var orig = ex[name] !== undefined ? String(ex[name]) : '';
-      var changed = false;
-      if (type === 'date') {
-        var origDate = '';
-        if (orig) {
-          if (/^\d{4}-\d{2}-\d{2}/.test(orig)) origDate = orig.slice(0, 10);
-          else { var dd = new Date(orig); if (!isNaN(dd.getTime())) origDate = dd.toISOString().slice(0, 10); }
-        }
-        if ((v || '') !== origDate) { changed = true; orig = origDate; }
-      } else if (type === 'bool') {
-        // bool は シート由来の "true"/"false" (JS Boolean を String 化) と option value "TRUE"/"FALSE" の
-        // 大文字小文字差で擬似 dirty が起きるため case-insensitive で比較する
-        if (String(v).toUpperCase() !== orig.toUpperCase()) changed = true;
-      } else if (String(v) !== orig) changed = true;
-      if (changed) dirty.push({ name: name, before: orig, after: String(v == null ? '' : v) });
-    });
+    sec.fields.forEach(function(f){ typeByName[f[0]] = f[1]; });
+  });
+  var dirty = [];
+  Object.keys(edits).forEach(function(name){
+    var type = typeByName[name];
+    if (!type || type === 'readonly' || type === 'image') return;
+    var v = edits[name];
+    var orig = ex[name] !== undefined ? String(ex[name]) : '';
+    var changed = false;
+    if (type === 'date') {
+      var origDate = '';
+      if (orig) {
+        if (/^\d{4}-\d{2}-\d{2}/.test(orig)) origDate = orig.slice(0, 10);
+        else { var dd = new Date(orig); if (!isNaN(dd.getTime())) origDate = dd.toISOString().slice(0, 10); }
+      }
+      if ((v || '') !== origDate) { changed = true; orig = origDate; }
+    } else if (type === 'bool') {
+      // bool は シート由来の "true"/"false" (JS Boolean を String 化) と option value "TRUE"/"FALSE" の
+      // 大文字小文字差で擬似 dirty が起きるため case-insensitive で比較する
+      if (String(v).toUpperCase() !== orig.toUpperCase()) changed = true;
+    } else if (String(v) !== orig) changed = true;
+    if (changed) dirty.push({ name: name, before: orig, after: String(v == null ? '' : v) });
   });
   return dirty;
 }
 function diffCount_() { return getDirtyFields_().length; }
 
 function updateSavebar_() {
+  // 入力イベントのたびに edits を最新の DOM 値で同期（タブ移動時の値消失を防ぐ）
+  syncEditsFromDom_();
   var bar = document.getElementById('savebar');
   if (!bar) return;
   var dirty = getDirtyFields_();
@@ -3931,7 +4928,7 @@ function updateSavebar_() {
   Array.prototype.forEach.call(document.querySelectorAll('#content .field-row.dirty'), function(row){
     row.classList.remove('dirty');
   });
-  // dirty なフィールドの行をハイライト
+  // dirty なフィールドの行をハイライト（現在表示中のセクションタブのフィールドのみ DOM に存在）
   dirty.forEach(function(item){
     var el = document.getElementById(detailFieldId(item.name));
     if (!el) return;
@@ -3942,6 +4939,8 @@ function updateSavebar_() {
       row.setAttribute('title', '変更前: ' + (item.before || '（空）') + ' → 変更後: ' + (item.after || '（空）'));
     }
   });
+  // セクションタブのバッジ更新（dirty なフィールドが含まれるタブに ● を表示）
+  updateSecTabDirtyBadges_(dirty);
   var cnt = document.getElementById('savebar-count');
   var names = document.getElementById('savebar-fields');
   if (n > 0) {
@@ -3955,26 +4954,32 @@ function updateSavebar_() {
     STATE.detailDirty = false;
   }
 }
+// セクションタブの dirty バッジ更新（タブ間の編集状況を可視化、ダイアログの代替UI）
+function updateSecTabDirtyBadges_(dirty) {
+  if (!dirty) dirty = getDirtyFields_();
+  var dirtyNames = {};
+  dirty.forEach(function(d){ dirtyNames[d.name] = true; });
+  if (typeof SEC_TABS === 'undefined') return;
+  SEC_TABS.forEach(function(t){
+    var hasDirty = false;
+    t.sections.forEach(function(secTitle){
+      var sec = DETAIL_SECTIONS.find(function(s){ return s.title === secTitle; });
+      if (!sec) return;
+      sec.fields.forEach(function(f){
+        if (dirtyNames[f[0]]) hasDirty = true;
+      });
+    });
+    var btn = document.querySelector('.sec-tab[data-tab-id="' + t.id + '"]');
+    if (btn) btn.classList.toggle('dirty', hasDirty);
+  });
+}
 function cancelDetailEdits_() {
-  // 入力を元の値に戻す
   var d = STATE.current;
   if (!d) return;
-  var ex = d.extra || {};
-  DETAIL_SECTIONS.forEach(function(sec){
-    sec.fields.forEach(function(f){
-      var name = f[0], type = f[1];
-      if (type === 'readonly' || type === 'image') return;
-      var el = document.getElementById(detailFieldId(name));
-      if (!el) return;
-      var orig = ex[name] !== undefined ? ex[name] : '';
-      if (type === 'date') {
-        if (orig && /^\d{4}-\d{2}-\d{2}/.test(orig)) el.value = orig.slice(0, 10);
-        else if (orig) { var dd = new Date(orig); el.value = isNaN(dd.getTime()) ? '' : dd.toISOString().slice(0, 10); }
-        else el.value = '';
-      } else el.value = orig != null ? String(orig) : '';
-    });
-  });
-  updateSavebar_();
+  // edits バケットを完全クリアして再描画 → detailValue が原本値で描画する
+  clearDetailEdits_(d.kanri);
+  STATE.detailDirty = false;
+  renderDetail();
   toast('変更を破棄しました');
 }
 function markDetailDirty_() { STATE.detailDirty = true; }
@@ -3982,15 +4987,17 @@ function markDetailDirty_() { STATE.detailDirty = true; }
 function clearDetailDirty_() { STATE.detailDirty = false; }
 
 function backToList() {
-  // 履歴に詳細エントリがあれば history.back() で popstate に任せる
-  // （ブラウザの戻るボタンと挙動を一致させる）
-  try {
-    if (history.state && history.state.view === 'detail') {
-      history.back();
-      return;
-    }
-  } catch(e) {}
-  STATE.view = 'list'; STATE.current = null; render();
+  confirmLeaveDetail_(function(){
+    // 履歴に詳細エントリがあれば history.back() で popstate に任せる
+    // （ブラウザの戻るボタンと挙動を一致させる）
+    try {
+      if (history.state && history.state.view === 'detail') {
+        history.back();
+        return;
+      }
+    } catch(e) {}
+    STATE.view = 'list'; STATE.current = null; render();
+  });
 }
 
 // ブラウザ戻る／進むに対応: SPA 内のすべてのナビゲーションを history で再現する
@@ -3999,6 +5006,25 @@ function backToList() {
 //   一覧: { view:'list', tab, filter, filterLabel }
 window.addEventListener('popstate', function(e){
   var st = e.state;
+  // 詳細→詳細以外への popstate は離脱扱い。dirty があれば案内シートで確認する。
+  // popstate は既に history が進んでいるため、キャンセル時は pushState で詳細に戻す。
+  var leavingDetail = STATE.view === 'detail' && STATE.current && (!st || st.view !== 'detail');
+  if (leavingDetail) {
+    var leftKanri = STATE.current.kanri;
+    syncEditsFromDom_();
+    if (getDirtyFields_().length > 0) {
+      showLeaveSheet_(getDirtyFields_(), function(){
+        applyPopstate_(st);
+      }, function(){
+        // ユーザーがキャンセル → 詳細状態を再 push
+        try { history.pushState({ view: 'detail', kanri: leftKanri }, '', location.pathname + location.search); } catch(e) {}
+      });
+      return;
+    }
+  }
+  applyPopstate_(st);
+});
+function applyPopstate_(st) {
   if (st && st.view === 'detail' && st.kanri) {
     openDetail(st.kanri, { fromPopState: true });
     return;
@@ -4020,52 +5046,44 @@ window.addEventListener('popstate', function(e){
     d.classList.toggle('active', d.getAttribute('data-filter') === STATE.filter);
   });
   render();
-});
+}
 
 async function saveDetails() {
   var d = STATE.current;
   if (!d) return;
   var ex = d.extra || {};
+  // 現在表示中のセクションタブの最新入力を edits に取り込んでから差分計算
+  syncEditsFromDom_();
+  var dirty = getDirtyFields_();
   var fields = {};
-
-  // 全セクションを走査して、入力値が元と異なるものだけ送る（差分送信）
-  DETAIL_SECTIONS.forEach(function(sec){
-    sec.fields.forEach(function(f){
-      var name = f[0], type = f[1];
-      if (type === 'readonly' || type === 'image') return;
-      var el = document.getElementById(detailFieldId(name));
-      if (!el) return;
-      var v = el.value;
-      var orig = ex[name] !== undefined ? String(ex[name]) : '';
-      if (type === 'date') {
-        // 元の値を yyyy-MM-dd に正規化して比較
-        var origDate = '';
-        if (orig) {
-          if (/^\d{4}-\d{2}-\d{2}/.test(orig)) origDate = orig.slice(0, 10);
-          else { var dd = new Date(orig); if (!isNaN(dd.getTime())) origDate = dd.toISOString().slice(0, 10); }
-        }
-        if ((v || '') !== origDate) fields[name] = v;
-      } else if (type === 'bool') {
-        // diffCount_ と同じ理由で case-insensitive 比較
-        if (String(v).toUpperCase() !== orig.toUpperCase()) fields[name] = v;
-      } else {
-        if (String(v) !== orig) fields[name] = v;
-      }
-    });
-  });
+  dirty.forEach(function(item){ fields[item.name] = item.after; });
 
   if (Object.keys(fields).length === 0) {
     toast('変更なし');
     return;
   }
 
-  // 楽観的更新: ローカル extra を即時反映 → トースト → 一覧キャッシュも更新
+  // 失敗時に巻き戻すため、上書き前の値を退避（undefined は「キー無し」として復元）
+  var prevValues = {};
+  Object.keys(fields).forEach(function(k){ prevValues[k] = (k in ex) ? ex[k] : undefined; });
+
+  // 楽観的更新: ローカル extra を即時反映 → 一覧キャッシュも更新（トーストは API 完了後に出す）
   Object.keys(fields).forEach(function(k){ ex[k] = fields[k]; });
   d.extra = ex;
   patchListCache_(d.kanri, fields);
   if (DETAIL_CACHE[d.kanri]) DETAIL_CACHE[d.kanri] = d;
+  // 楽観的更新で extra と edits が一致 → getDirtyFields_ が 0 になり savebar も自動的に消える
+  // （edits はそのまま残してOK。原本と等しいので dirty 件数は 0）
   clearDetailDirty_();
-  toast('保存しました', 'success');
+  try { updateSavebar_(); } catch(e) {}
+
+  // 保存ボタンに「保存中…」スピナーを表示（API 完了まで）
+  var btn = document.getElementById('btn-save-details');
+  if (btn) { btn.classList.add('saving'); btn.disabled = true; btn.textContent = '保存中…'; }
+  function clearSavingBtn_() {
+    var b = document.getElementById('btn-save-details');
+    if (b) { b.classList.remove('saving'); b.disabled = false; b.textContent = '保存'; }
+  }
 
   // 背景で API へ送信 → 成功後にサーバー再取得（派生ステータス・利益等の自動反映を取り込む）
   api('/api/save/details', { method: 'POST', body: { kanri: d.kanri, fields: fields } })
@@ -4077,15 +5095,31 @@ async function saveDetails() {
       return api('/api/products/' + encodeURIComponent(d.kanri));
     })
     .then(function(res){
+      clearSavingBtn_();
+      // API 完了（書き込み + 再取得）後に成功トースト
+      toast('保存しました', 'success');
       if (!res || !res.item) return;
       DETAIL_CACHE[d.kanri] = res.item;
       // 編集中（dirty）でなく、まだ同じ詳細を表示中なら再描画
       if (STATE.view === 'detail' && STATE.current && STATE.current.kanri === d.kanri && !STATE.detailDirty) {
+        // 保存成功＋追加編集なし → edits をクリアして原本ベースで再描画
+        clearDetailEdits_(d.kanri);
         STATE.current = res.item;
         renderDetail();
       }
     })
     .catch(function(err){
+      clearSavingBtn_();
+      // 失敗時: 楽観的更新を巻き戻して dirty を復活させる → savebar 再表示で再保存可能にする
+      Object.keys(prevValues).forEach(function(k){
+        if (prevValues[k] === undefined) delete ex[k];
+        else ex[k] = prevValues[k];
+      });
+      d.extra = ex;
+      // 入力値はユーザーが入れたものを残す（再保存しやすいように）→ updateSavebar_ が dirty を再判定
+      if (STATE.view === 'detail' && STATE.current && STATE.current.kanri === d.kanri) {
+        try { updateSavebar_(); } catch(e) {}
+      }
       toast('⚠️ 保存に失敗: ' + err.message + '（再保存してください）', 'error');
     });
 }
@@ -4256,16 +5290,21 @@ var SHIIRE_CATEGORY_MAP = {};
 
 async function openCreateProductModal(shiireId) {
   if (STATE.mastersPromise) { try { await STATE.mastersPromise; } catch(e){} }
+  var c = document.getElementById('content');
+  // 仕入れ詳細から呼ばれた場合は戻り先として保持（商品管理タブからの呼び出しは null）
+  STATE.createProductReturnShiireId = shiireId || null;
+  // 新規作成中は autoRefresh をブロックするためフォーム状態に切り替え
+  STATE.view = 'form';
   // shiireId 未指定 → 仕入れリストから選ばせる（完了済は除外）
   if (!shiireId) {
-    openModal('<h3>新規商品</h3><div class="loading">仕入れ一覧を取得中…</div>');
+    c.innerHTML = '<div class="form-card"><h3>新規商品</h3><div class="loading">仕入れ一覧を取得中…</div></div>';
     try {
       const res = await api('/api/purchases?limit=2000');
       const all = (res.items || []).filter(it => it.shiireId);
       const items = all.filter(it => !isShiireDone_(it) && !isShiireStale_(it));
       // category マップを更新
       all.forEach(function(it){ SHIIRE_CATEGORY_MAP[it.shiireId] = it.category || ''; });
-      if (!items.length) { closeModal(); toast('登録可能な仕入れがありません（すべて完了済）', 'error'); return; }
+      if (!items.length) { cancelCreateProduct_(); toast('登録可能な仕入れがありません（すべて完了済）', 'error'); return; }
       const opts = items.map(it => {
         const reg = (it.registered || 0) + (it.planned ? '/' + it.planned : '');
         const label = (it.date || '—') +
@@ -4275,14 +5314,15 @@ async function openCreateProductModal(shiireId) {
           ' - ' + (it.shiireId || '');
         return '<option value="' + esc(it.shiireId) + '">' + esc(label) + '</option>';
       }).join('');
-      openModal(buildCreateProductHtml_({ withSelect: true, optionsHtml: opts, suggested: '' }));
+      c.innerHTML = buildCreateProductHtml_({ withSelect: true, optionsHtml: opts, suggested: '' });
       wireFeeAutoCalc_('cf_');
+      attachCreateDirtyTracker_();
       const sel = document.getElementById('cprd_shiire');
       sel.addEventListener('change', onShiireSelectChange_);
       // 初期選択の管理番号候補を引く
       onShiireSelectChange_();
     } catch (err) {
-      closeModal();
+      cancelCreateProduct_();
       toast('読み込み失敗: ' + err.message, 'error');
     }
     return;
@@ -4298,9 +5338,42 @@ async function openCreateProductModal(shiireId) {
     } catch (e) { /* ignore */ }
   }
   const suggested = await suggestNextKanriRemote(category);
-  openModal(buildCreateProductHtml_({ withSelect: false, fixedShiireId: shiireId, suggested: suggested }));
+  c.innerHTML = buildCreateProductHtml_({ withSelect: false, fixedShiireId: shiireId, suggested: suggested });
   wireFeeAutoCalc_('cf_');
+  attachCreateDirtyTracker_();
   if (suggested) applyAiPrefillToForm_(suggested);
+}
+
+// 新規商品フォームのキャンセル → 元の画面（仕入れ詳細 or 商品一覧）に戻る
+function cancelCreateProduct_() {
+  if (STATE.createDirty) {
+    if (!confirm('入力内容を破棄して戻りますか？')) return;
+  }
+  var returnShiire = STATE.createProductReturnShiireId;
+  STATE.createProductReturnShiireId = null;
+  STATE.createDirty = false;
+  STATE.view = 'list';
+  if (STATE.tab === 'shiire' && returnShiire) {
+    openShiireDetail(returnShiire);
+  } else {
+    render();
+  }
+}
+
+// 新規商品フォームの dirty 状態を input/change から自動追跡
+function attachCreateDirtyTracker_() {
+  var root = document.querySelector('.create-product-form');
+  if (!root) return;
+  STATE.createDirty = false;
+  var onChange = function(e){
+    var t = e.target;
+    if (!t) return;
+    if (t.id === 'cprd_kanri') return; // 自動採番のため除外
+    if (t.readOnly) return;
+    STATE.createDirty = true;
+  };
+  root.addEventListener('input', onChange);
+  root.addEventListener('change', onChange);
 }
 
 // タグ表記サイズ → メルカリ表記へ変換（性別連動）
@@ -4551,7 +5624,7 @@ function createFieldRowHtml_(name, type, defVal) {
   if (type === 'textarea') {
     input = '<textarea id="' + id + '" class="auto-grow" rows="2">' + esc(v) + '</textarea>';
   } else if (type === 'number') {
-    input = '<input type="number" inputmode="decimal" step="0.1" id="' + id + '" value="' + esc(v) + '">';
+    input = '<input type="number" inputmode="decimal" enterkeyhint="next" step="0.1" id="' + id + '" value="' + esc(v) + '">';
   } else if (type === 'color') {
     var setOptsColorC = settingsOptionsFor_(name, v);
     if (setOptsColorC) {
@@ -4646,13 +5719,44 @@ function createFieldRowHtml_(name, type, defVal) {
 }
 
 function buildCreateProductHtml_(opts) {
-  const head = opts.withSelect
-    ? '<div class="field-row"><label>仕入れ<span class="req">*</span></label>' +
-        '<select id="cprd_shiire">' + opts.optionsHtml + '</select></div>' +
-      '<div class="hint" id="cprd_hint">— / 候補: —</div>'
-    : '<div class="hint">仕入れ ID: <strong>' + esc(opts.fixedShiireId) + '</strong>' +
-        (opts.suggested ? ' / 次の管理番号候補: <strong>' + esc(opts.suggested) + '</strong>' : '') + '</div>';
   const submitArg = opts.withSelect ? 'null' : "'" + esc(opts.fixedShiireId).replace(/\'/g,"\\'") + "'";
+
+  // 先頭カード: 仕入れID/管理番号（フォームの中核）
+  var leadHtml;
+  if (opts.withSelect) {
+    leadHtml =
+      '<div class="form-card" style="margin: 12px 12px 16px;">' +
+        '<h3>📝 新規商品</h3>' +
+        '<div class="field-row"><label>仕入れ <span class="req">*</span></label>' +
+          '<select id="cprd_shiire">' + opts.optionsHtml + '</select></div>' +
+        '<div class="field-row"><label>管理番号</label>' +
+          '<input id="cprd_kanri" type="text" value="' + esc(opts.suggested) + '" readonly style="background:#f5f5f5;color:#666;"></div>' +
+        '<div class="hint" id="cprd_hint" style="padding: 8px 0 0; color: var(--text-sub); font-size: 12px;">— / 候補: —</div>' +
+      '</div>';
+  } else {
+    leadHtml =
+      '<div class="form-card" style="margin: 12px 12px 16px;">' +
+        '<h3>📝 新規商品</h3>' +
+        '<div class="field-row"><label>仕入れID</label>' +
+          '<input type="text" value="' + esc(opts.fixedShiireId) + '" readonly style="background:#f5f5f5;color:#666;"></div>' +
+        '<div class="field-row"><label>管理番号</label>' +
+          '<input id="cprd_kanri" type="text" value="' + esc(opts.suggested) + '" readonly style="background:#f5f5f5;color:#666;"></div>' +
+        (opts.suggested ? '' :
+          '<div class="hint" style="padding: 8px 0 0; color: var(--danger); font-size: 12px;">⚠ 区分コード未設定で採番不可</div>') +
+      '</div>';
+  }
+
+  // セクション別アイコン・色（renderDetail と同じ）
+  var SEC_META_C = {
+    '基本情報':              { icon: '📝', cls: '' },
+    '採寸 (cm)':             { icon: '📏', cls: 'sec-measure' },
+    '採寸記録':              { icon: '✏️', cls: 'sec-measure' },
+    '撮影・出品':            { icon: '📷', cls: '' },
+    '販売':                  { icon: '💰', cls: 'sec-sale' },
+    '発送関係':              { icon: '🚚', cls: 'sec-ship' },
+    'その他':                { icon: '📁', cls: 'sec-readonly' },
+    '備考':                  { icon: '💬', cls: '' }
+  };
 
   // AppSheet 同等の全セクション（仕入れ連動・計算結果・画像・ステータス変更日は除外）
   var sections = DETAIL_SECTIONS
@@ -4670,18 +5774,23 @@ function buildCreateProductHtml_(opts) {
           return createFieldRowHtml_(name, type, '');
         }).join('');
       if (!rows) return '';
-      return '<div class="section-header">' + esc(sec.title) + '</div>' +
-        '<div class="form-section">' + rows + '</div>';
+      var meta = SEC_META_C[sec.title] || { icon: '', cls: '' };
+      var iconHtml = meta.icon ? '<span class="sec-icon">' + meta.icon + '</span>' : '';
+      var hdrCls = meta.cls ? ' ' + meta.cls : '';
+      return '<div class="section-header' + hdrCls + '" style="margin-left:12px;margin-right:12px;">' + iconHtml + esc(sec.title) + '</div>' +
+        '<div class="form-section" style="margin-left:12px;margin-right:12px;">' + rows + '</div>';
     }).join('');
 
-  return '<h3>新規商品</h3>' + head +
-    '<div class="field-row"><label>管理番号</label>' +
-      '<input id="cprd_kanri" type="text" value="' + esc(opts.suggested) + '" readonly style="background:#f5f5f5;color:#666;"></div>' +
-    sections +
-    '<div class="modal-actions">' +
-      '<button class="btn-cancel" onclick="closeModal()">キャンセル</button>' +
-      '<button class="btn-submit" id="cprd_submit" onclick="submitCreateProduct(' + submitArg + ')">作成</button>' +
+  // 末尾カード: アクションボタン
+  var actionHtml =
+    '<div class="form-card" style="margin: 16px 12px 24px;">' +
+      '<div class="form-actions" style="margin-top: 0; padding-top: 0; border-top: none;">' +
+        '<button class="btn-secondary" onclick="cancelCreateProduct_()">キャンセル</button>' +
+        '<button class="btn-primary" id="cprd_submit" onclick="submitCreateProduct(' + submitArg + ')">作成</button>' +
+      '</div>' +
     '</div>';
+
+  return '<div class="create-product-form">' + leadHtml + sections + actionHtml + '</div>';
 }
 
 // 仕入れ選択中に一度フォーム全フィールドをリセット（管理番号は別途、ステータスは readonly 固定）
@@ -4788,14 +5897,17 @@ async function submitCreateProduct(shiireId) {
   try {
     await api('/api/create/product', { method: 'POST', body: body });
     toast('商品 ' + body.kanri + ' を作成しました', 'success');
-    closeModal();
+    var returnShiire = STATE.createProductReturnShiireId;
+    STATE.createProductReturnShiireId = null;
+    STATE.createDirty = false;
+    STATE.view = 'list';
     refreshCounts();
     // 商品作成は仕入れの登録進捗・商品一覧の双方に影響するためキャッシュ無効化
     LIST_CACHE = Object.create(null);
     delete TAB_CACHE['shiire'];
     // 仕入れ詳細から作成 → 詳細を再描画 / 商品管理タブから作成 → 一覧再描画
-    if (STATE.tab === 'shiire' && STATE.view === 'detail') {
-      openShiireDetail(shiireId);
+    if (STATE.tab === 'shiire' && returnShiire) {
+      openShiireDetail(returnShiire);
     } else {
       render();
     }
@@ -4806,28 +5918,119 @@ async function submitCreateProduct(shiireId) {
 }
 
 // =====================================================
-// 画像拡大モーダル: タップで開閉
+// 画像拡大モーダル: タップで開閉 + 左右ナビでギャラリー切替
 // =====================================================
+var IMG_GALLERY = { urls: [], index: 0 };
+
+// URL を絶対 URL に正規化（img.src は常に絶対、引数は相対の可能性あり）
+function resolveImgUrl_(u) {
+  if (!u) return '';
+  try { return new URL(u, location.href).href; } catch (e) { return String(u); }
+}
+
+// 詳細画面に表示中の画像 URL を集める（重複排除、登場順）
+function collectGalleryUrls_() {
+  var nodes = document.querySelectorAll('.img-preview img, .basic-img img');
+  var urls = [];
+  var seen = Object.create(null);
+  for (var i = 0; i < nodes.length; i++) {
+    var src = nodes[i].src; // resolved
+    if (!src || seen[src]) continue;
+    seen[src] = 1;
+    urls.push(src);
+  }
+  return urls;
+}
+
+function setImgModalSrc_(url) {
+  var m = document.getElementById('img-modal');
+  if (!m) return;
+  var img = m.querySelector('img');
+  if (img) img.src = url || '';
+}
+
+function updateImgModalNav_() {
+  var prev = document.querySelector('#img-modal .img-modal-prev');
+  var next = document.querySelector('#img-modal .img-modal-next');
+  var counter = document.getElementById('img-modal-counter');
+  var multi = IMG_GALLERY.urls.length > 1;
+  if (prev) prev.style.display = multi ? '' : 'none';
+  if (next) next.style.display = multi ? '' : 'none';
+  if (counter) {
+    counter.style.display = multi ? '' : 'none';
+    counter.textContent = (IMG_GALLERY.index + 1) + ' / ' + IMG_GALLERY.urls.length;
+  }
+}
+
 function openImageModal_(url) {
   var m = document.getElementById('img-modal');
   if (!m || !url) return;
-  var img = m.querySelector('img');
-  if (img) img.src = url;
+  IMG_GALLERY.urls = collectGalleryUrls_();
+  var resolved = resolveImgUrl_(url);
+  IMG_GALLERY.index = IMG_GALLERY.urls.indexOf(resolved);
+  if (IMG_GALLERY.index < 0) {
+    // 集まらなかった場合は単独表示
+    IMG_GALLERY.urls = [resolved];
+    IMG_GALLERY.index = 0;
+  }
+  setImgModalSrc_(IMG_GALLERY.urls[IMG_GALLERY.index]);
+  updateImgModalNav_();
   m.classList.add('show');
   document.body.style.overflow = 'hidden';
 }
+
+function navImageModal_(dir) {
+  var n = IMG_GALLERY.urls.length;
+  if (n <= 1) return;
+  IMG_GALLERY.index = (IMG_GALLERY.index + dir + n) % n;
+  setImgModalSrc_(IMG_GALLERY.urls[IMG_GALLERY.index]);
+  updateImgModalNav_();
+}
+
 function closeImageModal_(e) {
-  if (e && e.target && e.target.tagName === 'IMG' && e.target.parentElement && e.target.parentElement.id === 'img-modal') {
-    // 画像本体タップは閉じない（誤タップ防止）
-    return;
+  if (e && e.target) {
+    // 画像本体タップ・ナビボタン・カウンターは閉じない（誤タップ防止）
+    var t = e.target;
+    if (t.tagName === 'IMG' && t.parentElement && t.parentElement.id === 'img-modal') return;
+    if (t.closest && t.closest('.img-modal-nav, .img-modal-counter')) return;
   }
   var m = document.getElementById('img-modal');
   if (!m) return;
   m.classList.remove('show');
-  var img = m.querySelector('img');
-  if (img) img.src = '';
+  setImgModalSrc_('');
+  IMG_GALLERY.urls = [];
+  IMG_GALLERY.index = 0;
   document.body.style.overflow = '';
 }
+
+// キーボード ←/→ でギャラリー切替、Esc で閉じる
+document.addEventListener('keydown', function(e) {
+  var m = document.getElementById('img-modal');
+  if (!m || !m.classList.contains('show')) return;
+  if (e.key === 'ArrowLeft')  { e.preventDefault(); navImageModal_(-1); }
+  else if (e.key === 'ArrowRight') { e.preventDefault(); navImageModal_(1); }
+  else if (e.key === 'Escape')     { closeImageModal_(); }
+});
+
+// モーダル画像の左右スワイプでギャラリー切替（縦スクロールは無効＝モーダル中）
+(function setupImgModalSwipe_(){
+  var m = document.getElementById('img-modal');
+  if (!m) return;
+  var sx = 0, sy = 0, active = false;
+  m.addEventListener('touchstart', function(e){
+    if (!m.classList.contains('show')) return;
+    if (e.touches.length !== 1) { active = false; return; }
+    sx = e.touches[0].clientX; sy = e.touches[0].clientY; active = true;
+  }, { passive: true });
+  m.addEventListener('touchend', function(e){
+    if (!active) return; active = false;
+    var t = e.changedTouches[0]; if (!t) return;
+    var dx = t.clientX - sx, dy = t.clientY - sy;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.3) {
+      navImageModal_(dx < 0 ? 1 : -1);
+    }
+  }, { passive: true });
+})();
 
 // ===== 詳細画面: 左右スワイプで前後移動／長い右スワイプで戻る =====
 // 仕様:
@@ -4923,9 +6126,12 @@ function closeImageModal_(e) {
   if (!('serviceWorker' in navigator)) return;
 
   function isEditing() {
-    // 詳細画面で未保存の変更がある場合はリロードを保留
+    // 詳細／新規作成画面で未保存の変更がある場合はリロードを保留
     try {
-      if (typeof STATE !== 'undefined' && STATE && STATE.detailDirty) return true;
+      if (typeof STATE !== 'undefined' && STATE) {
+        if (STATE.detailDirty) return true;
+        if (STATE.createDirty) return true;
+      }
     } catch(e) {}
     var ae = document.activeElement;
     if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return true;

@@ -40,7 +40,9 @@ function doPost(e) {
       case 'listReturns':       result = staff_listReturns(body.payload || {}); break;
       case 'createReturn':      result = staff_apiCreateReturn(body.payload || {}, email); break;
       case 'listAiResults':     result = staff_listAiResults(body.payload || {}); break;
-      case 'listSagyousha':     result = staff_listSagyousha(body.payload || {}); break;
+      case 'listSagyousha':     result = staff_listSagyousha(body.payload || {}, email); break;
+      case 'saveSagyousha':     result = staff_apiSaveSagyousha(body.payload || {}, email); break;
+      case 'createSagyousha':   result = staff_apiCreateSagyousha(body.payload || {}, email); break;
       case 'dumpSheet':         result = staff_dumpSheet(body.payload || {}); break;
       default:                  result = { ok: false, error: 'unknown action: ' + action };
     }

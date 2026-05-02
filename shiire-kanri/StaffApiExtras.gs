@@ -195,28 +195,63 @@ function staff_listAiResults(opts) {
 
 // ========== 作業者管理 ==========
 
+// 作業者マスター列マップ (固定):
+//  B(2)=名前 / D(4)=メール1 / E(5)=メール2 / O(15)=有効
+//  管理者フラグ列はヘッダー名で動的解決 (位置非固定)
+var SAGYOU_COL_NAME = 2;
+var SAGYOU_COL_EMAIL1 = 4;
+var SAGYOU_COL_EMAIL2 = 5;
+var SAGYOU_COL_ENABLED = 15;
+
 // 作業者マスター + 商品管理シートからの月次集計を返す
-// items: [{ name, email, monthly: { ym: {sokutei, satsuei} } }]
-function staff_listSagyousha(opts) {
+// items: [{ row, name, email1, email2, enabled, admin, monthly }]
+// currentUser.isAdmin で UI 側の編集ボタン表示を判定
+function staff_listSagyousha(opts, requesterEmail) {
   opts = opts || {};
   var months = Math.min(12, Math.max(1, parseInt(opts.months, 10) || 6));
+  var reqEmail = String(requesterEmail || '').trim().toLowerCase();
   var ss = staff_getActiveSpreadsheet_();
-  // 作業者マスター
   var masterSh = ss.getSheetByName('作業者マスター');
   var workers = [];
+  var adminColIdx = -1;
+  var lastCol = 0;
+  if (masterSh && masterSh.getLastRow() >= 1) {
+    lastCol = Math.max(SAGYOU_COL_ENABLED, masterSh.getLastColumn());
+    var headers = masterSh.getRange(1, 1, 1, lastCol).getValues()[0]
+      .map(function(v){ return String(v || '').trim(); });
+    for (var c = 0; c < headers.length; c++) {
+      if (headers[c] === '管理者フラグ') { adminColIdx = c; break; }
+    }
+  }
+  var currentUserAdmin = false;
   if (masterSh && masterSh.getLastRow() >= 2) {
     var lastRow = masterSh.getLastRow();
-    var values = masterSh.getRange(2, 1, lastRow - 1, 15).getValues();
+    var values = masterSh.getRange(2, 1, lastRow - 1, lastCol).getValues();
     for (var r = 0; r < values.length; r++) {
       var row = values[r];
-      var enabled = row[14];
-      var isTrue = (enabled === true) || (String(enabled).toLowerCase() === 'true');
-      if (!isTrue) continue;
-      var name = String(row[1] || '').trim();
+      var name = String(row[SAGYOU_COL_NAME - 1] || '').trim();
       if (!name) continue;
-      var email1 = String(row[3] || '').trim().toLowerCase();
-      var email2 = String(row[4] || '').trim().toLowerCase();
-      workers.push({ name: name, email: email1 || email2, monthly: {} });
+      var enabled = row[SAGYOU_COL_ENABLED - 1];
+      var enabledFlag = (enabled === true) || (String(enabled).toLowerCase() === 'true');
+      var email1 = String(row[SAGYOU_COL_EMAIL1 - 1] || '').trim().toLowerCase();
+      var email2 = String(row[SAGYOU_COL_EMAIL2 - 1] || '').trim().toLowerCase();
+      var adminFlag = false;
+      if (adminColIdx >= 0) {
+        var adminVal = row[adminColIdx];
+        adminFlag = (adminVal === true) || (String(adminVal).toLowerCase() === 'true');
+      }
+      if (reqEmail && (email1 === reqEmail || email2 === reqEmail) && adminFlag) {
+        currentUserAdmin = true;
+      }
+      workers.push({
+        row: r + 2,
+        name: name,
+        email1: email1,
+        email2: email2,
+        enabled: enabledFlag,
+        admin: adminFlag,
+        monthly: {}
+      });
     }
   }
   // 商品管理: 採寸日(33)/採寸者(34) と 撮影日付(35)/撮影者(36) を集計
@@ -240,7 +275,8 @@ function staff_listSagyousha(opts) {
         if (!name || !ym) return;
         var w = workerMap[name];
         if (!w) {
-          w = { name: name, email: '', monthly: {} };
+          // マスターに無い名前は集計だけ表示する (row=0=新規/孤児)
+          w = { row: 0, name: name, email1: '', email2: '', enabled: false, admin: false, monthly: {} };
           workerMap[name] = w;
           workers.push(w);
         }
@@ -258,7 +294,88 @@ function staff_listSagyousha(opts) {
     var d = new Date(now.getFullYear(), now.getMonth() - m, 1);
     ymList.push(Utilities.formatDate(d, Session.getScriptTimeZone() || 'Asia/Tokyo', 'yyyy-MM'));
   }
-  return { ok: true, items: workers, months: ymList };
+  return {
+    ok: true,
+    items: workers,
+    months: ymList,
+    adminColumn: adminColIdx >= 0 ? (adminColIdx + 1) : 0,
+    currentUser: { email: reqEmail, isAdmin: currentUserAdmin }
+  };
+}
+
+// 既存行の更新 (管理者のみ)
+// payload: { row, name?, email1?, email2?, enabled?, admin? }
+function staff_apiSaveSagyousha(payload, email) {
+  payload = payload || {};
+  var row = parseInt(payload.row, 10);
+  if (!row || row < 2) return { ok: false, error: 'row が不正です' };
+  var ss = staff_getActiveSpreadsheet_();
+  var masterSh = ss.getSheetByName('作業者マスター');
+  if (!masterSh) return { ok: false, error: '作業者マスターが見つかりません' };
+  var auth = staff_assertSagyouAdmin_(masterSh, email);
+  if (!auth.ok) return auth;
+  if (row > masterSh.getLastRow()) return { ok: false, error: '行が存在しません' };
+  if (typeof payload.name === 'string') masterSh.getRange(row, SAGYOU_COL_NAME).setValue(payload.name);
+  if (typeof payload.email1 === 'string') masterSh.getRange(row, SAGYOU_COL_EMAIL1).setValue(payload.email1);
+  if (typeof payload.email2 === 'string') masterSh.getRange(row, SAGYOU_COL_EMAIL2).setValue(payload.email2);
+  if (typeof payload.enabled === 'boolean') masterSh.getRange(row, SAGYOU_COL_ENABLED).setValue(payload.enabled);
+  if (typeof payload.admin === 'boolean' && auth.adminColIdx >= 0) {
+    masterSh.getRange(row, auth.adminColIdx + 1).setValue(payload.admin);
+  }
+  return { ok: true, row: row };
+}
+
+// 新規追加 (管理者のみ)
+// payload: { name, email1?, email2?, enabled?, admin? }
+function staff_apiCreateSagyousha(payload, email) {
+  payload = payload || {};
+  var name = String(payload.name || '').trim();
+  if (!name) return { ok: false, error: '名前を指定してください' };
+  var ss = staff_getActiveSpreadsheet_();
+  var masterSh = ss.getSheetByName('作業者マスター');
+  if (!masterSh) return { ok: false, error: '作業者マスターが見つかりません' };
+  var auth = staff_assertSagyouAdmin_(masterSh, email);
+  if (!auth.ok) return auth;
+  var newRow = masterSh.getLastRow() + 1;
+  masterSh.getRange(newRow, SAGYOU_COL_NAME).setValue(name);
+  if (payload.email1) masterSh.getRange(newRow, SAGYOU_COL_EMAIL1).setValue(String(payload.email1));
+  if (payload.email2) masterSh.getRange(newRow, SAGYOU_COL_EMAIL2).setValue(String(payload.email2));
+  masterSh.getRange(newRow, SAGYOU_COL_ENABLED).setValue(payload.enabled === false ? false : true);
+  if (auth.adminColIdx >= 0) {
+    masterSh.getRange(newRow, auth.adminColIdx + 1).setValue(payload.admin === true);
+  }
+  return { ok: true, row: newRow };
+}
+
+// 呼び出し元の email が管理者フラグ TRUE かをチェック
+function staff_assertSagyouAdmin_(masterSh, email) {
+  email = String(email || '').trim().toLowerCase();
+  if (!email) return { ok: false, error: 'email がありません' };
+  var lastRow = masterSh.getLastRow();
+  var lastCol = masterSh.getLastColumn();
+  if (lastRow < 2) return { ok: false, error: '作業者がいません' };
+  var headers = masterSh.getRange(1, 1, 1, lastCol).getValues()[0]
+    .map(function(v){ return String(v || '').trim(); });
+  var adminColIdx = -1;
+  for (var c = 0; c < headers.length; c++) {
+    if (headers[c] === '管理者フラグ') { adminColIdx = c; break; }
+  }
+  if (adminColIdx < 0) return { ok: false, error: '管理者フラグ列が見つかりません' };
+  var values = masterSh.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  for (var r = 0; r < values.length; r++) {
+    var row = values[r];
+    var e1 = String(row[SAGYOU_COL_EMAIL1 - 1] || '').trim().toLowerCase();
+    var e2 = String(row[SAGYOU_COL_EMAIL2 - 1] || '').trim().toLowerCase();
+    if (e1 !== email && e2 !== email) continue;
+    var enabled = row[SAGYOU_COL_ENABLED - 1];
+    var enabledFlag = (enabled === true) || (String(enabled).toLowerCase() === 'true');
+    if (!enabledFlag) return { ok: false, error: 'アカウントが無効です' };
+    var adminVal = row[adminColIdx];
+    var adminFlag = (adminVal === true) || (String(adminVal).toLowerCase() === 'true');
+    if (adminFlag) return { ok: true, adminColIdx: adminColIdx };
+    break;
+  }
+  return { ok: false, error: '管理者権限がありません' };
 }
 
 // ========== 業務メニュー（汎用シートダンプ） ==========

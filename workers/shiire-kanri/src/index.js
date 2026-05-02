@@ -2,12 +2,12 @@ import { corsOptions, jsonOk, jsonError } from './utils/response.js';
 import { getAccessUser } from './utils/access.js';
 import { scheduledSync } from './sync/sheets-sync.js';
 import { scheduledAccessSync } from './sync/access-sync.js';
-import { listProducts, getProduct, listProductCounts, getNextKanri } from './handlers/products.js';
+import { listProducts, getProduct, listProductCounts, getNextKanri, listProductThumbs, getProductImages } from './handlers/products.js';
 import { listPurchases, getPurchaseProducts } from './handlers/purchases.js';
 import { saveMeasurement, saveSale, saveDetails, uploadImage, resolveImage, createPurchase, createProduct } from './handlers/write-proxy.js';
 import { listWorkers, listAccounts, listSuppliers, listPlaces, listCategories, listSettings } from './handlers/master.js';
 import { lookupAiPrefill, lookupAiPrefillBatch } from './handlers/ai.js';
-import { listMoves, createMove, listReturns, createReturn, listAiResults, listSagyousha, dumpSheet } from './handlers/extras.js';
+import { listMoves, createMove, listReturns, createReturn, listAiResults, listSagyousha, saveSagyousha, createSagyousha, dumpSheet } from './handlers/extras.js';
 import { getSalesSummary } from './handlers/sales.js';
 
 export default {
@@ -93,8 +93,15 @@ export default {
     if (path === '/api/products/counts' && request.method === 'GET') {
       return listProductCounts(request, env);
     }
+    if (path === '/api/products/thumbs' && request.method === 'POST') {
+      return listProductThumbs(request, env);
+    }
     if (path === '/api/kanri/next' && request.method === 'GET') {
       return getNextKanri(request, env);
+    }
+    const productImagesMatch = path.match(/^\/api\/products\/([^/]+)\/images$/);
+    if (productImagesMatch && request.method === 'GET') {
+      return getProductImages(request, env, decodeURIComponent(productImagesMatch[1]));
     }
     const productMatch = path.match(/^\/api\/products\/([^/]+)$/);
     if (productMatch && request.method === 'GET') {
@@ -186,6 +193,12 @@ export default {
     // 作業者管理
     if (path === '/api/sagyousha' && request.method === 'GET') {
       return listSagyousha(request, env, user);
+    }
+    if (path === '/api/sagyousha' && request.method === 'POST') {
+      return saveSagyousha(request, env, user);
+    }
+    if (path === '/api/sagyousha/create' && request.method === 'POST') {
+      return createSagyousha(request, env, user);
     }
 
     // 売上ダッシュボード（今月/前月/通年/月別内訳）

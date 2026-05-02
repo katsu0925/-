@@ -79,7 +79,46 @@ export async function listSagyousha(request, env, user) {
   const months = Math.min(12, Math.max(1, parseInt(url.searchParams.get('months'), 10) || 6));
   const r = await callGas(env, 'listSagyousha', { months }, user);
   if (!r.ok) return jsonError(r.error || 'gas error', 502);
-  return jsonOk({ items: r.items || [], months: r.months || [] });
+  return jsonOk({
+    items: r.items || [],
+    months: r.months || [],
+    currentUser: r.currentUser || { email: (user && user.email) || '', isAdmin: false },
+  });
+}
+
+export async function saveSagyousha(request, env, user) {
+  let body;
+  try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
+  const row = parseInt(body.row, 10);
+  if (!row || row < 2) return jsonError('row required', 400);
+  const payload = {
+    row,
+    name: typeof body.name === 'string' ? body.name : undefined,
+    email1: typeof body.email1 === 'string' ? body.email1 : undefined,
+    email2: typeof body.email2 === 'string' ? body.email2 : undefined,
+    enabled: typeof body.enabled === 'boolean' ? body.enabled : undefined,
+    admin: typeof body.admin === 'boolean' ? body.admin : undefined,
+  };
+  const r = await callGas(env, 'saveSagyousha', payload, user);
+  if (!r.ok) return jsonError(r.error || 'gas error', r.error && r.error.indexOf('管理者') >= 0 ? 403 : 502);
+  return jsonOk({ saved: true, row: r.row });
+}
+
+export async function createSagyousha(request, env, user) {
+  let body;
+  try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
+  const name = String(body.name || '').trim();
+  if (!name) return jsonError('name required', 400);
+  const payload = {
+    name,
+    email1: String(body.email1 || ''),
+    email2: String(body.email2 || ''),
+    enabled: typeof body.enabled === 'boolean' ? body.enabled : true,
+    admin: body.admin === true,
+  };
+  const r = await callGas(env, 'createSagyousha', payload, user);
+  if (!r.ok) return jsonError(r.error || 'gas error', r.error && r.error.indexOf('管理者') >= 0 ? 403 : 502);
+  return jsonOk({ created: true, row: r.row });
 }
 
 export async function dumpSheet(request, env, user, name) {
