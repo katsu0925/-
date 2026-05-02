@@ -269,12 +269,13 @@ function staff_listSagyousha(opts, requesterEmail) {
       }
       return 0;
     }
-    var pairs = [
+    var allPairs = [
       { kind: 'sokutei', dCol: findCol_(['採寸日']),               uCol: findCol_(['採寸者', '採寸担当']) },
       { kind: 'satsuei', dCol: findCol_(['撮影日付', '撮影日']),    uCol: findCol_(['撮影者', '撮影担当']) },
-      { kind: 'shuppin', dCol: findCol_(['出品日']),               uCol: findCol_(['出品者', '出品担当']) },
+      { kind: 'shuppin', dCol: findCol_(['出品日', '出品日付']),    uCol: findCol_(['出品者', '出品担当']) },
       { kind: 'hassou',  dCol: findCol_(['発送日付', '発送日']),    uCol: findCol_(['発送者', '発送担当']) }
-    ].filter(function(p){ return p.dCol > 0 && p.uCol > 0; });
+    ];
+    var pairs = allPairs.filter(function(p){ return p.dCol > 0 && p.uCol > 0; });
     if (pairs.length) {
       var allCols = [];
       pairs.forEach(function(p){ allCols.push(p.dCol); allCols.push(p.uCol); });
@@ -286,8 +287,22 @@ function staff_listSagyousha(opts, requesterEmail) {
       var workerMap = {};
       workers.forEach(function(w){ workerMap[w.name] = w; });
       function getYm(d) {
-        if (!(d instanceof Date)) return '';
-        return Utilities.formatDate(d, tz, 'yyyy-MM');
+        // Dateオブジェクト
+        if (d instanceof Date && !isNaN(d.getTime())) {
+          return Utilities.formatDate(d, tz, 'yyyy-MM');
+        }
+        // 文字列 (FILTER/ARRAYFORMULA 経由で日付が文字列化されるケース)
+        // 受理: yyyy-MM-dd, yyyy/MM/dd, yyyy/M/d, yyyy.MM.dd, yyyy年M月d日 等
+        var s = String(d || '').trim();
+        if (!s) return '';
+        // 数値はシリアル日付として扱わない（行番号などと誤認しないため）
+        var m = s.match(/^(\d{4})[\-\/\.年](\d{1,2})/);
+        if (m) {
+          var y = m[1];
+          var mo = m[2].length === 1 ? '0' + m[2] : m[2];
+          return y + '-' + mo;
+        }
+        return '';
       }
       function bumpUser(name, ym, kind) {
         if (!name || !ym) return;
