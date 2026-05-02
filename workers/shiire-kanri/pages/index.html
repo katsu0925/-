@@ -978,6 +978,7 @@
   .ids-item input[type=checkbox] { width: 18px; height: 18px; flex-shrink: 0; }
   .ids-item .muted { font-size: 12px; padding: 0; }
   /* 作業者管理: 一覧カードは「名前+今月件数(4項目)+メール」、履歴/編集の2導線 */
+  .sagyou-list-note { padding: 10px 14px 0; font-size: 12px; color: var(--text-sub); }
   .sagyou-list { display: flex; flex-direction: column; gap: 10px; padding: 12px; }
   .sagyou-card { position: relative; background: var(--surface); border-radius: 10px; box-shadow: var(--shadow); padding: 14px 16px; transition: background-color .12s; }
   .sagyou-card.clickable { cursor: pointer; }
@@ -3682,7 +3683,8 @@ function paintSagyouList_(data) {
   var fab = isAdmin
     ? '<div class="fab-stack"><button class="fab" onclick="openSagyouCreate()" title="新規作業者">＋</button></div>'
     : '';
-  c.innerHTML = '<div class="sagyou-list">' + cards + '</div>' + fab;
+  var note = '<div class="sagyou-list-note">カード=今月の件数 ／ タップで詳細（直近6ヶ月の履歴）</div>';
+  c.innerHTML = note + '<div class="sagyou-list">' + cards + '</div>' + fab;
 }
 
 function openSagyouDetail(idx) {
@@ -3717,7 +3719,7 @@ function openSagyouDetail(idx) {
     '<div class="field-row"><label>有効</label><div>' + (w.enabled ? '✅ 有効' : '⛔ 無効') + '</div></div>' +
     '<div class="field-row"><label>管理者</label><div>' + (w.admin ? '✅ 管理者' : '—') + '</div></div>' +
     '<div class="field-row"><label>メールアドレス</label><div>' + esc(emails) + '</div></div>' +
-    '<div class="field-row"><label>月別件数（採寸 / 撮影 / 出品 / 発送）</label>' +
+    '<div class="field-row"><label>月別件数（採寸 / 撮影 / 出品 / 発送）<span style="font-weight:400;color:var(--text-sub);font-size:12px;margin-left:6px;">直近6ヶ月</span></label>' +
       '<div class="sagyou-detail-monthly">' +
         '<table>' +
           '<thead><tr><th>月</th><th>採寸</th><th>撮影</th><th>出品</th><th>発送</th></tr></thead>' +
