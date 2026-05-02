@@ -1041,6 +1041,47 @@
   .biz-table th, .biz-table td { padding: 8px 10px; border-bottom: 1px solid #f0f2f7; text-align: left; vertical-align: top; }
   .biz-table thead th { background: #f7f9fc; color: var(--text-sub); font-size: 12px; font-weight: 700; position: sticky; top: 0; z-index: 1; }
   .biz-table tbody tr:hover { background: #fafbfd; }
+  /* 業務メニュー: 仕入れ数報告 / 経費申請 カード */
+  .keihi-list { display: flex; flex-direction: column; gap: 10px; }
+  .keihi-card {
+    background: var(--surface); border-radius: 10px; box-shadow: var(--shadow);
+    padding: 12px 14px; border-left: 3px solid var(--primary);
+  }
+  .keihi-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 13px; padding: 3px 0;
+  }
+  .keihi-label { color: var(--text-sub); font-size: 12px; }
+  .keihi-form {
+    display: flex; gap: 8px; margin-top: 10px; padding-top: 10px;
+    border-top: 1px dashed #e5e8ef;
+  }
+  .keihi-form input {
+    flex: 1; min-width: 0; padding: 8px 10px; font-size: 14px;
+    border: 1px solid #d8dde7; border-radius: 6px;
+  }
+  .keihi-form button { flex: 0 0 auto; padding: 8px 16px; font-size: 14px; border: 0; border-radius: 6px; cursor: pointer; }
+  /* 業務メニュー: 報酬確認 月別カード */
+  .houshu-list { display: flex; flex-direction: column; gap: 12px; }
+  .houshu-card {
+    background: var(--surface); border-radius: 12px; box-shadow: var(--shadow);
+    padding: 14px 16px; border-top: 3px solid var(--primary);
+  }
+  .houshu-month { font-size: 13px; color: var(--text-sub); font-weight: 600; }
+  .houshu-total {
+    font-size: 28px; font-weight: 700; color: var(--text);
+    margin: 4px 0 12px;
+  }
+  .houshu-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 8px 12px; font-size: 12px;
+  }
+  .houshu-grid > div {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 4px 0; border-bottom: 1px solid #f0f2f7;
+  }
+  .houshu-grid > div span { color: var(--text-sub); }
+  .houshu-grid > div b { font-size: 13px; color: var(--text); }
   .placeholder {
     text-align: center; padding: 60px 20px; color: var(--text-sub);
     background: var(--surface); border-radius: 12px; margin: 16px;
@@ -1454,7 +1495,7 @@
 const API_BASE = ''; // Workers 同一オリジンで /api/* と SPA HTML を提供
 
 var STATE = {
-  email: '', allowed: false,
+  email: '', userName: '', allowed: false,
   tab: 'shouhin', filter: '', filterLabel: '',
   business: '', businessLabel: '',
   view: 'list', current: null, items: [],
@@ -1892,6 +1933,26 @@ async function loadMasters() {
   }
 }
 
+// 自分のメール → 作業者マスターの「名前」を解決して STATE.userName に格納
+// 業務メニュー（仕入れ数報告 / 経費申請 / 報酬確認）で「自分の行」を絞り込むために必須
+async function resolveSelfName_() {
+  if (!STATE.email) return;
+  try {
+    const r = await api('/api/sagyousha?months=1');
+    const email = String(STATE.email || '').trim().toLowerCase();
+    const items = Array.isArray(r.items) ? r.items : [];
+    const me = items.find(function(w){
+      return (String(w.email1 || '').trim().toLowerCase() === email)
+          || (String(w.email2 || '').trim().toLowerCase() === email);
+    });
+    STATE.userName = me ? String(me.name || '') : '';
+    STATE.isAdmin = !!(r.currentUser && r.currentUser.isAdmin);
+  } catch (err) {
+    console.warn('resolveSelfName_ failed', err);
+    STATE.userName = '';
+  }
+}
+
 // SETTINGS_FIELD_MAP に登録された項目について、設定シートの値があれば <select> 用 options を返す。なければ null。
 function settingsOptionsFor_(name, current) {
   var key = SETTINGS_FIELD_MAP[name];
@@ -1929,6 +1990,8 @@ window.addEventListener('DOMContentLoaded', async function(){
     if (!STATE.allowed) { renderDenied(); return; }
     // マスタ取得は一覧表示には不要なのでバックグラウンドで実行（フォーム/詳細を開く時に await）
     STATE.mastersPromise = loadMasters();
+    // 自分の名前は業務メニューで必要。バックグラウンドで取得しつつ、業務タブ描画時には await
+    STATE.userNamePromise = resolveSelfName_();
     // 初期エントリを「list」状態として履歴にアンカー
     // （これがないと最初の戻るで認証画面まで抜けてしまう）
     replaceListState_();
@@ -3851,7 +3914,12 @@ async function submitSagyouCreate() {
   }
 }
 
-// ========== 業務メニュー（汎用シートダンプ） ==========
+// ========== 業務メニュー（AppSheet 互換） ==========
+// 旧: 全行ダンプの単一テーブル
+// 新: ログイン者本人で絞り込み、タブごとに専用UI
+//   - 仕入れ数報告: 自分の未処理行に「数量」を入力して送信（G列を自動 TRUE 化）
+//   - 経費申請:   自分の申請履歴 + 新規申請フォーム（appendRow）
+//   - 報酬確認:   自分の月別報酬カード（読み取り専用）
 var BUSINESS_SHEETS = {
   shiire_houkoku: '仕入れ数報告',
   keihi: '経費申請',
@@ -3860,51 +3928,340 @@ var BUSINESS_SHEETS = {
 
 async function renderBusinessSheet(menuKey) {
   var c = document.getElementById('content');
-  var sheetName = BUSINESS_SHEETS[menuKey];
-  if (!sheetName) { renderPlaceholder(STATE.businessLabel || '業務'); return; }
-  var cacheKey = 'business|' + menuKey;
-  var cached = TAB_CACHE[cacheKey];
-  if (cached && cached.data) {
-    paintBusinessSheet_(menuKey, sheetName, cached.data);
-  } else {
+  if (!BUSINESS_SHEETS[menuKey]) { renderPlaceholder(STATE.businessLabel || '業務'); return; }
+  // 自分の名前が必要なので必ず解決を待つ（初回のみ。2回目以降はキャッシュ済み）
+  if (STATE.userNamePromise && !STATE.userName) {
     c.innerHTML = '<div class="loading">読み込み中…</div>';
+    try { await STATE.userNamePromise; } catch (e) {}
   }
+  if (!STATE.userName) {
+    c.innerHTML = '<div class="empty">作業者マスターにあなたのメール（' + esc(STATE.email) + '）が登録されていません。管理者に連絡してください。</div>';
+    return;
+  }
+  if (menuKey === 'shiire_houkoku') return renderShiireHoukokuTab_();
+  if (menuKey === 'keihi')          return renderKeihiTab_();
+  if (menuKey === 'houshu')         return renderHoushuTab_();
+}
+
+// ---------- 共通: シートダンプ取得（自分用フィルタは表示時） ----------
+async function fetchBusinessSheet_(menuKey) {
+  var sheetName = BUSINESS_SHEETS[menuKey];
+  var cacheKey = 'business|' + menuKey;
+  var res = await api('/api/sheet/' + encodeURIComponent(sheetName) + '?limit=500');
+  var data = { headers: res.headers || [], rows: res.rows || [], total: res.total || (res.rows ? res.rows.length : 0) };
+  TAB_CACHE[cacheKey] = { data: data, ts: Date.now() };
+  return data;
+}
+function colIdx_(headers, name) {
+  for (var i = 0; i < headers.length; i++) {
+    if (String(headers[i] || '').trim() === name) return i;
+  }
+  return -1;
+}
+function nameMatchesSelf_(v) {
+  return String(v || '').trim() === STATE.userName;
+}
+
+// ---------- 仕入れ数報告 ----------
+async function renderShiireHoukokuTab_() {
+  if (STATE.tab !== 'business' || STATE.business !== 'shiire_houkoku' || STATE.view !== 'list') return;
+  var c = document.getElementById('content');
+  var cached = TAB_CACHE['business|shiire_houkoku'];
+  if (cached) paintShiireHoukoku_(cached.data);
+  else c.innerHTML = '<div class="loading">読み込み中…</div>';
   try {
-    var res = await api('/api/sheet/' + encodeURIComponent(sheetName) + '?limit=200');
-    var data = { headers: res.headers || [], rows: res.rows || [], total: res.total || (res.rows ? res.rows.length : 0) };
-    TAB_CACHE[cacheKey] = { data: data, ts: Date.now() };
-    paintBusinessSheet_(menuKey, sheetName, data);
+    var data = await fetchBusinessSheet_('shiire_houkoku');
+    paintShiireHoukoku_(data);
   } catch (e) {
     if (!cached) c.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
   }
 }
 
-function paintBusinessSheet_(menuKey, sheetName, data) {
-  // business タブで尚且つ同じメニューを開いている時のみ描画
-  if (STATE.tab !== 'business' || STATE.business !== menuKey || STATE.view !== 'list') return;
+function paintShiireHoukoku_(data) {
+  if (STATE.tab !== 'business' || STATE.business !== 'shiire_houkoku' || STATE.view !== 'list') return;
   var c = document.getElementById('content');
   var headers = data.headers || [];
-  var allRows = data.rows || [];
-  var q = (document.getElementById('search').value || '').trim().toLowerCase();
-  var rows = q
-    ? allRows.filter(function(r){ return r.join(' ').toLowerCase().indexOf(q) >= 0; })
-    : allRows;
-  if (!headers.length) {
-    c.innerHTML = '<div class="empty">' + esc(sheetName) + 'シートが見つかりません。</div>';
+  var rows = data.rows || [];
+  var iId      = colIdx_(headers, 'ID');
+  var iReporter= colIdx_(headers, '報告者');
+  var iCat     = colIdx_(headers, '区分コード');
+  var iDate    = colIdx_(headers, '仕入れ日');
+  var iQty     = colIdx_(headers, '数量');
+  var iDone    = colIdx_(headers, '処理済み');
+  var iContent = colIdx_(headers, '内容');
+  if (iId < 0 || iReporter < 0 || iQty < 0) {
+    c.innerHTML = '<div class="empty">仕入れ数報告シートのヘッダーが想定と異なります。</div>';
     return;
   }
-  if (!rows.length) {
-    c.innerHTML = '<div class="empty">' + esc(sheetName) + ' にデータがありません。</div>';
+  var mine = rows.filter(function(r){ return nameMatchesSelf_(r[iReporter]); });
+  var pending = mine.filter(function(r){
+    return String(r[iDone] || '').trim().toUpperCase() !== 'TRUE';
+  });
+  var done = mine.filter(function(r){
+    return String(r[iDone] || '').trim().toUpperCase() === 'TRUE';
+  });
+  var html = '<div class="biz-wrap">';
+  html += '<div class="biz-meta">' + esc(STATE.userName) + ' さんの仕入れ数報告（未処理 ' + pending.length + ' / 処理済み ' + done.length + '）</div>';
+  if (pending.length === 0) {
+    html += '<div class="empty" style="padding:24px">未処理の報告はありません。</div>';
+  } else {
+    html += '<div class="keihi-list">';
+    pending.forEach(function(r){
+      var id = String(r[iId] || '');
+      var cat = iCat >= 0 ? String(r[iCat] || '') : '';
+      var date = iDate >= 0 ? String(r[iDate] || '') : '';
+      var content = iContent >= 0 ? String(r[iContent] || '') : '';
+      var qty = String(r[iQty] || '');
+      html += '<div class="keihi-card" data-id="' + esc(id) + '">' +
+        '<div class="keihi-row"><span class="keihi-label">仕入れ日</span><span>' + esc(date) + '</span></div>' +
+        '<div class="keihi-row"><span class="keihi-label">区分コード</span><span>' + esc(cat) + '</span></div>' +
+        (content ? '<div class="keihi-row"><span class="keihi-label">内容</span><span>' + esc(content) + '</span></div>' : '') +
+        '<div class="keihi-row"><span class="keihi-label">ID</span><span style="font-family:monospace;font-size:11px;color:#888">' + esc(id) + '</span></div>' +
+        '<div class="keihi-form">' +
+          '<input type="number" inputmode="numeric" min="1" placeholder="数量" value="' + esc(qty) + '" id="qty-' + esc(id) + '" />' +
+          '<button class="btn-primary" onclick="submitShiireHoukokuQty_(\'' + esc(id).replace(/'/g, "\\'") + '\')">送信</button>' +
+        '</div>' +
+      '</div>';
+    });
+    html += '</div>';
+  }
+  if (done.length > 0) {
+    html += '<details style="margin-top:16px"><summary style="padding:8px 12px;color:#666;font-size:13px;cursor:pointer">処理済み（' + done.length + '件）</summary>';
+    html += '<table class="biz-table"><thead><tr><th>仕入れ日</th><th>区分</th><th>数量</th><th>内容</th></tr></thead><tbody>';
+    done.forEach(function(r){
+      html += '<tr>' +
+        '<td>' + esc(iDate >= 0 ? r[iDate] : '') + '</td>' +
+        '<td>' + esc(iCat >= 0 ? r[iCat] : '') + '</td>' +
+        '<td>' + esc(r[iQty] || '') + '</td>' +
+        '<td>' + esc(iContent >= 0 ? r[iContent] : '') + '</td>' +
+      '</tr>';
+    });
+    html += '</tbody></table></details>';
+  }
+  html += '</div>';
+  c.innerHTML = html;
+}
+
+async function submitShiireHoukokuQty_(id) {
+  var input = document.getElementById('qty-' + id);
+  if (!input) return;
+  var qty = parseInt(input.value, 10);
+  if (!qty || qty <= 0) { toast('数量を1以上で入力してください', 'error'); return; }
+  var btn = input.nextElementSibling;
+  if (btn) { btn.disabled = true; btn.textContent = '送信中…'; }
+  try {
+    await api('/api/shiire-houkoku/quantity', { method: 'POST', body: { id: id, quantity: qty } });
+    toast('送信しました（数量: ' + qty + '）');
+    delete TAB_CACHE['business|shiire_houkoku'];
+    await renderShiireHoukokuTab_();
+  } catch (err) {
+    toast('送信失敗: ' + err.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '送信'; }
+  }
+}
+
+// ---------- 経費申請 ----------
+async function renderKeihiTab_() {
+  if (STATE.tab !== 'business' || STATE.business !== 'keihi' || STATE.view !== 'list') return;
+  var c = document.getElementById('content');
+  var cached = TAB_CACHE['business|keihi'];
+  if (cached) paintKeihi_(cached.data);
+  else c.innerHTML = '<div class="loading">読み込み中…</div>';
+  try {
+    var data = await fetchBusinessSheet_('keihi');
+    paintKeihi_(data);
+  } catch (e) {
+    if (!cached) c.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
+  }
+}
+
+function paintKeihi_(data) {
+  if (STATE.tab !== 'business' || STATE.business !== 'keihi' || STATE.view !== 'list') return;
+  var c = document.getElementById('content');
+  var headers = data.headers || [];
+  var rows = data.rows || [];
+  var iName     = colIdx_(headers, '名前');
+  var iDate     = colIdx_(headers, '購入日');
+  var iItem     = colIdx_(headers, '商品名');
+  var iPlace    = colIdx_(headers, '購入場所');
+  var iLink     = colIdx_(headers, '購入場所リンク');
+  var iAmount   = colIdx_(headers, '購入金額');
+  var iReceipt  = colIdx_(headers, '購入証明のためのレシートやスクショ');
+  var iTs       = colIdx_(headers, 'タイムスタンプ');
+  if (iName < 0) {
+    c.innerHTML = '<div class="empty">経費申請シートのヘッダーが想定と異なります。</div>';
     return;
   }
-  var thead = '<tr>' + headers.map(function(h){ return '<th>' + esc(h) + '</th>'; }).join('') + '</tr>';
-  var tbody = rows.map(function(r){
-    return '<tr>' + r.map(function(v){ return '<td>' + esc(String(v == null ? '' : v)) + '</td>'; }).join('') + '</tr>';
-  }).join('');
-  c.innerHTML = '<div class="biz-wrap">' +
-    '<div class="biz-meta">' + esc(sheetName) + '（最新 ' + rows.length + ' 件 / 全' + (data.total || rows.length) + ' 件）</div>' +
-    '<table class="biz-table"><thead>' + thead + '</thead><tbody>' + tbody + '</tbody></table>' +
+  var mine = rows.filter(function(r){ return nameMatchesSelf_(r[iName]); });
+  var html = '<div class="biz-wrap">';
+  html += '<div class="biz-meta">' +
+    '<span>' + esc(STATE.userName) + ' さんの経費申請（' + mine.length + '件）</span>' +
+    '<button class="btn-primary" style="margin-left:auto" onclick="openKeihiForm_()">＋ 新規申請</button>' +
   '</div>';
+  if (mine.length === 0) {
+    html += '<div class="empty" style="padding:24px">申請履歴はありません。「＋ 新規申請」から登録してください。</div>';
+  } else {
+    html += '<table class="biz-table"><thead><tr>' +
+      '<th>申請日時</th><th>購入日</th><th>商品名</th><th>購入場所</th><th>金額</th><th>レシート</th>' +
+    '</tr></thead><tbody>';
+    mine.forEach(function(r){
+      var link = iLink >= 0 ? String(r[iLink] || '') : '';
+      var place = iPlace >= 0 ? String(r[iPlace] || '') : '';
+      var placeHtml = link ? '<a href="' + esc(link) + '" target="_blank" rel="noopener">' + esc(place || link) + '</a>' : esc(place);
+      var receipt = iReceipt >= 0 ? String(r[iReceipt] || '') : '';
+      var receiptHtml = receipt
+        ? (/^https?:/i.test(receipt) ? '<a href="' + esc(receipt) + '" target="_blank" rel="noopener">画像</a>' : esc(receipt))
+        : '—';
+      html += '<tr>' +
+        '<td>' + esc(iTs >= 0 ? r[iTs] : '') + '</td>' +
+        '<td>' + esc(iDate >= 0 ? r[iDate] : '') + '</td>' +
+        '<td>' + esc(iItem >= 0 ? r[iItem] : '') + '</td>' +
+        '<td>' + placeHtml + '</td>' +
+        '<td>' + esc(iAmount >= 0 ? r[iAmount] : '') + '</td>' +
+        '<td>' + receiptHtml + '</td>' +
+      '</tr>';
+    });
+    html += '</tbody></table>';
+  }
+  html += '</div>';
+  c.innerHTML = html;
+}
+
+function openKeihiForm_() {
+  var today = new Date();
+  var dateDefault = today.getFullYear() + '-' + ('0'+(today.getMonth()+1)).slice(-2) + '-' + ('0'+today.getDate()).slice(-2);
+  var html = '<h3>経費申請</h3>' +
+    '<div class="hint">あなた（' + esc(STATE.userName) + '）の経費を申請します。送信すると管理者にメール通知されます。</div>' +
+    '<form id="keihi-form" onsubmit="return submitKeihiForm_(event)">' +
+      '<div class="field-row"><label>購入日<span class="req">*</span></label><input type="date" name="purchaseDate" value="' + dateDefault + '" required /></div>' +
+      '<div class="field-row"><label>商品名<span class="req">*</span></label><input type="text" name="itemName" required /></div>' +
+      '<div class="field-row"><label>購入場所</label><input type="text" name="place" placeholder="店名 / サイト名 など" /></div>' +
+      '<div class="field-row"><label>購入場所リンク</label><input type="url" name="placeLink" placeholder="https://..." /></div>' +
+      '<div class="field-row"><label>購入金額（円）<span class="req">*</span></label><input type="number" name="amount" inputmode="numeric" min="0" required /></div>' +
+      '<div class="field-row"><label>購入証明 URL</label><input type="text" name="receipt" placeholder="レシート/スクショ画像のURL" /></div>' +
+      '<div class="modal-actions">' +
+        '<button type="button" class="btn-cancel" onclick="closeModal()">キャンセル</button>' +
+        '<button type="submit" class="btn-submit">申請する</button>' +
+      '</div>' +
+    '</form>';
+  openModal(html);
+}
+
+async function submitKeihiForm_(ev) {
+  ev.preventDefault();
+  var form = ev.target;
+  var fd = new FormData(form);
+  var payload = {
+    name: STATE.userName,
+    purchaseDate: String(fd.get('purchaseDate') || ''),
+    itemName: String(fd.get('itemName') || '').trim(),
+    place: String(fd.get('place') || '').trim(),
+    placeLink: String(fd.get('placeLink') || '').trim(),
+    amount: parseInt(fd.get('amount'), 10) || 0,
+    receipt: String(fd.get('receipt') || '').trim()
+  };
+  if (!payload.itemName) { toast('商品名を入力してください', 'error'); return false; }
+  if (!payload.amount)   { toast('金額を入力してください', 'error'); return false; }
+  var btn = form.querySelector('button[type=submit]');
+  if (btn) { btn.disabled = true; btn.textContent = '送信中…'; }
+  try {
+    await api('/api/keihi/submit', { method: 'POST', body: payload });
+    toast('申請しました');
+    closeModal_();
+    delete TAB_CACHE['business|keihi'];
+    await renderKeihiTab_();
+  } catch (err) {
+    toast('申請失敗: ' + err.message, 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '申請する'; }
+  }
+  return false;
+}
+
+// ---------- 報酬確認 ----------
+async function renderHoushuTab_() {
+  if (STATE.tab !== 'business' || STATE.business !== 'houshu' || STATE.view !== 'list') return;
+  var c = document.getElementById('content');
+  var cached = TAB_CACHE['business|houshu'];
+  if (cached) paintHoushu_(cached.data);
+  else c.innerHTML = '<div class="loading">読み込み中…</div>';
+  try {
+    var data = await fetchBusinessSheet_('houshu');
+    paintHoushu_(data);
+  } catch (e) {
+    if (!cached) c.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
+  }
+}
+
+function paintHoushu_(data) {
+  if (STATE.tab !== 'business' || STATE.business !== 'houshu' || STATE.view !== 'list') return;
+  var c = document.getElementById('content');
+  var headers = data.headers || [];
+  var rows = data.rows || [];
+  // 報酬管理: A=月, B=名前, C=合計, D=採寸, E=撮影, F=出品, G=発送, H=在庫, I=固定, J=経費, K=売上歩合, L=月ボーナス, M=ボーナス調整
+  var iMonth = colIdx_(headers, '月');
+  var iName  = colIdx_(headers, '名前');
+  if (iMonth < 0 || iName < 0) {
+    // ヘッダー名がやや違う可能性に備えて先頭2列固定をフォールバック
+    iMonth = 0; iName = 1;
+  }
+  var mine = rows.filter(function(r){ return nameMatchesSelf_(r[iName]); });
+  // 月で降順（dumpSheetは末尾→先頭で返ってくるが念のため）
+  mine.sort(function(a, b){
+    var ma = String(a[iMonth] || ''); var mb = String(b[iMonth] || '');
+    return ma < mb ? 1 : (ma > mb ? -1 : 0);
+  });
+  function num_(v){
+    if (v == null || v === '') return 0;
+    var s = String(v).replace(/[^\d\.\-]/g, '');
+    var n = parseFloat(s);
+    return isNaN(n) ? 0 : n;
+  }
+  function fmt_(n){
+    if (!n) return '¥0';
+    return '¥' + Number(n).toLocaleString('ja-JP');
+  }
+  var html = '<div class="biz-wrap">';
+  html += '<div class="biz-meta">' + esc(STATE.userName) + ' さんの報酬（' + mine.length + 'ヶ月分）</div>';
+  if (mine.length === 0) {
+    html += '<div class="empty" style="padding:24px">表示できる月の報酬がありません。</div>';
+  } else {
+    html += '<div class="houshu-list">';
+    mine.forEach(function(r){
+      var month = String(r[iMonth] || '');
+      var sokutei = num_(r[3]);  // D
+      var satsuei = num_(r[4]);  // E
+      var shuppin = num_(r[5]);  // F
+      var hassou  = num_(r[6]);  // G
+      var inv     = num_(r[7]);  // H
+      var fixed   = num_(r[8]);  // I
+      var keihi   = num_(r[9]);  // J（経費控除＝マイナス効果）
+      var buai    = num_(r[10]); // K
+      var bonus   = num_(r[11]); // L
+      var adj     = num_(r[12]); // M
+      var total   = sokutei + satsuei + shuppin + hassou + inv + fixed + buai + bonus + adj - keihi;
+      // C列にすでに合計が入っていれば優先
+      var cTotal = num_(r[2]);
+      if (cTotal) total = cTotal;
+      html += '<div class="houshu-card">' +
+        '<div class="houshu-month">' + esc(month) + '</div>' +
+        '<div class="houshu-total">' + fmt_(total) + '</div>' +
+        '<div class="houshu-grid">' +
+          '<div><span>採寸</span><b>' + fmt_(sokutei) + '</b></div>' +
+          '<div><span>撮影</span><b>' + fmt_(satsuei) + '</b></div>' +
+          '<div><span>出品</span><b>' + fmt_(shuppin) + '</b></div>' +
+          '<div><span>発送</span><b>' + fmt_(hassou)  + '</b></div>' +
+          '<div><span>在庫</span><b>' + fmt_(inv)     + '</b></div>' +
+          '<div><span>固定</span><b>' + fmt_(fixed)   + '</b></div>' +
+          '<div><span>歩合</span><b>' + fmt_(buai)    + '</b></div>' +
+          '<div><span>ボーナス</span><b>' + fmt_(bonus + adj) + '</b></div>' +
+          (keihi ? '<div><span>経費控除</span><b style="color:#c62828">- ' + fmt_(keihi).slice(1) + '</b></div>' : '') +
+        '</div>' +
+      '</div>';
+    });
+    html += '</div>';
+  }
+  html += '</div>';
+  c.innerHTML = html;
 }
 
 function renderDenied() {

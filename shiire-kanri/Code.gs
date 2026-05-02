@@ -44,6 +44,8 @@ function doPost(e) {
       case 'saveSagyousha':     result = staff_apiSaveSagyousha(body.payload || {}, email); break;
       case 'createSagyousha':   result = staff_apiCreateSagyousha(body.payload || {}, email); break;
       case 'dumpSheet':         result = staff_dumpSheet(body.payload || {}); break;
+      case 'appendKeihi':                  result = staff_apiAppendKeihi(body.payload || {}, email); break;
+      case 'updateShiireHoukokuQuantity':  result = staff_apiUpdateShiireHoukokuQuantity(body.payload || {}, email); break;
       default:                  result = { ok: false, error: 'unknown action: ' + action };
     }
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);

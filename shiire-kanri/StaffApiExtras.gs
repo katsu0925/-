@@ -441,6 +441,102 @@ function staff_dumpSheet(payload) {
   return { ok: true, headers: headers, rows: sliced, total: values.length };
 }
 
+// ========== 経費申請: 行追加 ==========
+// SPA から POST /api/keihi/submit 経由で呼ばれる。AppSheet と同じスキーマで appendRow。
+// 通知メールは onChange トリガーの handleChange_Mailer が拾うので、ここでは行追加のみ。
+function staff_apiAppendKeihi(payload, email) {
+  var p = payload || {};
+  var name = String(p.name || '').trim();
+  if (!name) return { ok: false, error: '名前が必要です' };
+  var purchaseDate = String(p.purchaseDate || '').trim();
+  var itemName = String(p.itemName || '').trim();
+  var place = String(p.place || '').trim();
+  var placeLink = String(p.placeLink || '').trim();
+  var amount = Number(p.amount || 0);
+  var receipt = String(p.receipt || '').trim();
+  if (!itemName) return { ok: false, error: '商品名が必要です' };
+  if (!amount || amount <= 0) return { ok: false, error: '金額が不正です' };
+
+  var ss = staff_getActiveSpreadsheet_();
+  var sh = ss.getSheetByName('経費申請');
+  if (!sh) return { ok: false, error: '経費申請シートが見つかりません' };
+  var lastCol = sh.getLastColumn();
+  if (lastCol < 1) return { ok: false, error: '経費申請シートのヘッダーが空です' };
+  var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function(v){ return String(v || '').trim(); });
+
+  // ID は yyyymmddHHmmss + ランダム3桁（mailer 用 dedup キーとして使われる）
+  var now = new Date();
+  function pad(n){ return n < 10 ? '0' + n : '' + n; }
+  var id = '' + now.getFullYear() + pad(now.getMonth()+1) + pad(now.getDate()) +
+           pad(now.getHours()) + pad(now.getMinutes()) + pad(now.getSeconds()) +
+           ('00' + Math.floor(Math.random() * 1000)).slice(-3);
+
+  var fieldMap = {
+    'タイムスタンプ': now,
+    '名前': name,
+    '購入日': purchaseDate,
+    '商品名': itemName,
+    '購入場所': place,
+    '購入場所リンク': placeLink,
+    '購入金額': amount,
+    '購入証明のためのレシートやスクショ': receipt,
+    'ID': id
+  };
+  var row = headers.map(function(h){
+    return Object.prototype.hasOwnProperty.call(fieldMap, h) ? fieldMap[h] : '';
+  });
+  sh.appendRow(row);
+  return { ok: true, id: id, row: sh.getLastRow() };
+}
+
+// ========== 仕入れ数報告: 数量入力 + 処理済みフラグ ==========
+// SPA から POST /api/shiire-houkoku/quantity 経由で呼ばれる。
+// 報告者は ID で一意に特定（SPA が STATE.userName でフィルタ済みの未処理行のみを対象に呼ぶ）。
+// G列(処理済み) を TRUE にすると onChange トリガーが Phase2 マージを実行する。
+function staff_apiUpdateShiireHoukokuQuantity(payload, email) {
+  var p = payload || {};
+  var id = String(p.id || '').trim();
+  var quantity = Number(p.quantity || 0);
+  if (!id) return { ok: false, error: 'id が必要です' };
+  if (!quantity || quantity <= 0) return { ok: false, error: '数量が不正です' };
+
+  var ss = staff_getActiveSpreadsheet_();
+  var sh = ss.getSheetByName('仕入れ数報告');
+  if (!sh) return { ok: false, error: '仕入れ数報告シートが見つかりません' };
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return { ok: false, error: 'データがありません' };
+  var lastCol = sh.getLastColumn();
+  var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function(v){ return String(v || '').trim(); });
+
+  function colByName(name, fallbackIdx) {
+    var i = headers.indexOf(name);
+    return i >= 0 ? i + 1 : fallbackIdx;
+  }
+  // 仕入れ数マージ.gs の RPT 定義に合わせる: A=ID, F=数量, G=処理済み
+  var idCol  = colByName('ID', 1);
+  var qtyCol = colByName('数量', 6);
+  var doneCol = colByName('処理済み', 7);
+
+  var ids = sh.getRange(2, idCol, lastRow - 1, 1).getDisplayValues();
+  var foundRow = -1;
+  for (var i = 0; i < ids.length; i++) {
+    if (String(ids[i][0] || '').trim() === id) { foundRow = i + 2; break; }
+  }
+  if (foundRow < 0) return { ok: false, error: '該当行が見つかりません: ' + id };
+
+  // 既に処理済みなら何もしない（誤操作で点数が二重マージされるのを防ぐ）
+  var doneVal = String(sh.getRange(foundRow, doneCol).getDisplayValue() || '').trim().toUpperCase();
+  if (doneVal === 'TRUE') return { ok: false, error: '既に処理済みです' };
+
+  sh.getRange(foundRow, qtyCol).setValue(quantity);
+  sh.getRange(foundRow, doneCol).setValue(true);
+  // 即時マージを実行（onChange を待たずに反映）
+  try { withLock_(15000, function(){ mergeReportToKanri_(); recalcUnitCost_(); }); } catch(err) {
+    console.error('mergeReportToKanri_ failed: ' + (err.message || err));
+  }
+  return { ok: true, id: id, row: foundRow, quantity: quantity };
+}
+
 // ========== ワンショット: 採寸未済なのに「出品待ち」になっている行をクリーンアップ ==========
 // SyncApi.importPhotographyData_ の旧仕様で誤って付与されたステータスを修正する。
 // 商品管理シートで status='出品待ち' AND 採寸日空 の行を '採寸待ち' に上書き。

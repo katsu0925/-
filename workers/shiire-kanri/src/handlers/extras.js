@@ -177,6 +177,43 @@ export async function getListingText(request, env, user, kanri) {
   return jsonOk({ id: parsed.id || id, ...out });
 }
 
+// 経費申請: SPA から本人申請を受けて GAS appendKeihi を呼ぶ
+export async function appendKeihi(request, env, user) {
+  let body;
+  try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
+  const name = String(body.name || '').trim();
+  const itemName = String(body.itemName || '').trim();
+  const amount = Number(body.amount || 0);
+  if (!name) return jsonError('name required', 400);
+  if (!itemName) return jsonError('itemName required', 400);
+  if (!amount || amount <= 0) return jsonError('amount must be positive', 400);
+  const payload = {
+    name,
+    purchaseDate: String(body.purchaseDate || '').trim(),
+    itemName,
+    place: String(body.place || '').trim(),
+    placeLink: String(body.placeLink || '').trim(),
+    amount,
+    receipt: String(body.receipt || '').trim(),
+  };
+  const r = await callGas(env, 'appendKeihi', payload, user);
+  if (!r.ok) return jsonError(r.error || 'gas error', 502);
+  return jsonOk({ submitted: true, id: r.id, row: r.row });
+}
+
+// 仕入れ数報告: SPA から数量送信 → GAS で行更新 + Phase2 マージ
+export async function updateShiireHoukokuQuantity(request, env, user) {
+  let body;
+  try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
+  const id = String(body.id || '').trim();
+  const quantity = parseInt(body.quantity, 10);
+  if (!id) return jsonError('id required', 400);
+  if (!quantity || quantity <= 0) return jsonError('quantity must be positive', 400);
+  const r = await callGas(env, 'updateShiireHoukokuQuantity', { id, quantity }, user);
+  if (!r.ok) return jsonError(r.error || 'gas error', 502);
+  return jsonOk({ saved: true, id: r.id, row: r.row, quantity: r.quantity });
+}
+
 async function getFollowingRedirects(url) {
   let current = url;
   for (let hop = 0; hop < 6; hop++) {
