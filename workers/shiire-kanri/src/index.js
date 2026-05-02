@@ -7,7 +7,7 @@ import { listPurchases, getPurchaseProducts } from './handlers/purchases.js';
 import { saveMeasurement, saveSale, saveDetails, uploadImage, resolveImage, createPurchase, createProduct } from './handlers/write-proxy.js';
 import { listWorkers, listAccounts, listSuppliers, listPlaces, listCategories, listSettings } from './handlers/master.js';
 import { lookupAiPrefill, lookupAiPrefillBatch } from './handlers/ai.js';
-import { listMoves, createMove, listReturns, createReturn, listAiResults, listSagyousha, saveSagyousha, createSagyousha, dumpSheet } from './handlers/extras.js';
+import { listMoves, createMove, listReturns, createReturn, listAiResults, listSagyousha, saveSagyousha, createSagyousha, dumpSheet, getListingText } from './handlers/extras.js';
 import { getSalesSummary } from './handlers/sales.js';
 
 export default {
@@ -204,6 +204,12 @@ export default {
     // 売上ダッシュボード（今月/前月/通年/月別内訳）
     if (path === '/api/sales/summary' && request.method === 'GET') {
       return getSalesSummary(request, env);
+    }
+
+    // フリマ用タイトル・説明文取得（GAS doGet を ?fmt=json でプロキシ）
+    const listingTextMatch = path.match(/^\/api\/listing-text\/([^/]+)$/);
+    if (listingTextMatch && request.method === 'GET') {
+      return getListingText(request, env, user, decodeURIComponent(listingTextMatch[1]));
     }
 
     // 業務メニュー（汎用シートダンプ: 仕入れ数報告/経費申請/報酬管理）

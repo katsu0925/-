@@ -226,6 +226,16 @@ function doGet(e) {
 
   data.description = desc;
 
+  // ?fmt=json: タイトル・説明文を JSON で返す（外部アプリ用）
+  if (e && e.parameter && (e.parameter.fmt === 'json' || e.parameter.format === 'json')) {
+    return ContentService.createTextOutput(JSON.stringify({
+      ok: true,
+      id: data.id,
+      title: data.generatedTitle || '',
+      description: data.description || ''
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+
   const tpl = HtmlService.createTemplateFromFile("Index");
   tpl.data = data;
 

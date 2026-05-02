@@ -129,6 +129,50 @@ export async function dumpSheet(request, env, user, name) {
   return jsonOk({ headers: r.headers || [], rows: r.rows || [], total: r.total || 0 });
 }
 
+// ?id=xxx&fmt=json で GAS doGet からタイトル・説明文を取得
+// （Code.gs:doGet が組み立てる generatedTitle / description を JSON で受け取る）
+export async function getListingText(request, env, user, kanri) {
+  const id = String(kanri || '').trim();
+  if (!id) return jsonError('kanri required', 400);
+  const base = String(env.GAS_API_URL || '');
+  if (!base) return jsonError('GAS_API_URL not configured', 500);
+  const target = base + (base.indexOf('?') >= 0 ? '&' : '?') + 'id=' + encodeURIComponent(id) + '&fmt=json';
+  let res;
+  try {
+    res = await getFollowingRedirects(target);
+  } catch (err) {
+    return jsonError('gas fetch[listingText]: ' + err.message, 502);
+  }
+  if (!res.ok) return jsonError('gas http ' + res.status + '[listingText]', 502);
+  let text = '';
+  try { text = await res.text(); } catch { return jsonError('gas read fail[listingText]', 502); }
+  let parsed;
+  try { parsed = JSON.parse(text); } catch {
+    const hint = text ? text.slice(0, 80).replace(/\s+/g, ' ') : '(empty)';
+    return jsonError('gas non-json[listingText]: ' + hint, 502);
+  }
+  if (!parsed || parsed.ok !== true) {
+    return jsonError(String((parsed && parsed.error) || 'gas error'), 502);
+  }
+  return jsonOk({
+    id: parsed.id || id,
+    title: String(parsed.title || ''),
+    description: String(parsed.description || ''),
+  });
+}
+
+async function getFollowingRedirects(url) {
+  let current = url;
+  for (let hop = 0; hop < 6; hop++) {
+    const res = await fetch(current, { method: 'GET', redirect: 'manual' });
+    if (res.status < 300 || res.status >= 400) return res;
+    const loc = res.headers.get('location');
+    if (!loc) throw new Error(`redirect without location at hop ${hop}`);
+    current = loc;
+  }
+  throw new Error('too many redirects');
+}
+
 async function callGas(env, action, payload, user) {
   const body = JSON.stringify({
     action,

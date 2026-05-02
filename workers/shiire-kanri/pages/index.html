@@ -748,6 +748,30 @@
   .hero-status.s-sold { background: var(--success-soft); color: var(--success); border-color: var(--success); }
   .hero-deadline { margin-left: auto; font-size: 11px; color: var(--warning); font-weight: 600; }
   .hero-deadline.overdue { color: var(--danger); }
+  /* タイトル・説明文コピー（フリマ出品用） */
+  .hero-copy-btns {
+    display: flex; gap: 8px; justify-content: center;
+    margin-top: 8px;
+  }
+  .hero-copy-btn {
+    flex: 1 1 0; min-width: 0; max-width: 200px;
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 6px;
+    padding: 8px 10px;
+    background: var(--primary); color: #fff;
+    border: 1px solid var(--primary-dark);
+    border-radius: 8px;
+    font-size: 13px; font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 1px 2px rgba(21,101,192,.18);
+    transition: transform .08s ease, background .15s ease;
+  }
+  .hero-copy-btn:hover:not(:disabled) { background: var(--primary-dark); }
+  .hero-copy-btn:active:not(:disabled) { transform: translateY(1px); }
+  .hero-copy-btn:disabled { opacity: .55; cursor: wait; }
+  .hero-copy-btn.copied { background: var(--success); border-color: var(--success); }
+  .hero-copy-ico { font-size: 13px; line-height: 1; }
+  .hero-copy-label { white-space: nowrap; }
   /* セクションタブ（基本/採寸/撮影・出品/販売/発送/備考） sticky で appbar 直下 */
   .sec-tabs {
     background: var(--surface);
@@ -4828,10 +4852,19 @@ function renderDetail() {
       '</button>' +
     '</div>'
   ) : '';
+  var copyKanriAttr = esc(d.kanri).replace(/'/g, '&#39;');
   var heroHtml = navHtml +
     '<div class="detail-hero">' +
       '<div class="hero-kanri">' + esc(d.kanri) + '</div>' +
       (heroMeta.length ? '<div class="hero-meta">' + heroMeta.map(function(m){ return '<span>' + m + '</span>'; }).join('') + '</div>' : '') +
+      '<div class="hero-copy-btns">' +
+        '<button type="button" class="hero-copy-btn" data-kind="title" onclick="copyListingText_(\'' + copyKanriAttr + '\', \'title\', this)">' +
+          '<span class="hero-copy-ico">📋</span><span class="hero-copy-label">タイトルコピー</span>' +
+        '</button>' +
+        '<button type="button" class="hero-copy-btn" data-kind="description" onclick="copyListingText_(\'' + copyKanriAttr + '\', \'description\', this)">' +
+          '<span class="hero-copy-ico">📋</span><span class="hero-copy-label">説明文コピー</span>' +
+        '</button>' +
+      '</div>' +
       '<div class="hero-status-row">' +
         '<span class="hero-status' + statusCls + '">' + esc(status) + '</span>' +
         buildDeadlineHtml_(d) +
@@ -5154,6 +5187,66 @@ async function saveDetails() {
       }
       toast('⚠️ 保存に失敗: ' + err.message + '（再保存してください）', 'error');
     });
+}
+
+// フリマ用タイトル・説明文をクリップボードにコピー
+// kind: 'title' | 'description'
+async function copyListingText_(kanri, kind, btn) {
+  if (!kanri) { toast('管理番号が空です', 'error'); return; }
+  if (btn && btn.disabled) return;
+  var origLabel = btn ? (btn.querySelector('.hero-copy-label') ? btn.querySelector('.hero-copy-label').textContent : '') : '';
+  if (btn) {
+    btn.disabled = true;
+    var labelEl = btn.querySelector('.hero-copy-label');
+    if (labelEl) labelEl.textContent = '取得中…';
+  }
+  try {
+    var res = await api('/api/listing-text/' + encodeURIComponent(kanri));
+    var text = kind === 'title' ? String(res.title || '') : String(res.description || '');
+    if (!text) {
+      toast(kind === 'title' ? 'タイトルが空です' : '説明文が空です', 'error');
+      return;
+    }
+    await copyToClipboard_(text);
+    toast((kind === 'title' ? 'タイトル' : '説明文') + 'をコピーしました', 'success');
+    if (btn) {
+      btn.classList.add('copied');
+      var lbl = btn.querySelector('.hero-copy-label');
+      if (lbl) lbl.textContent = 'コピー済み';
+      setTimeout(function(){
+        btn.classList.remove('copied');
+        var l2 = btn.querySelector('.hero-copy-label');
+        if (l2) l2.textContent = origLabel;
+      }, 1600);
+    }
+  } catch (err) {
+    toast('コピーに失敗: ' + (err && err.message ? err.message : err), 'error');
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      // 成功時は setTimeout で戻すので、失敗時のみ即座にラベル復元
+      if (!btn.classList.contains('copied')) {
+        var l3 = btn.querySelector('.hero-copy-label');
+        if (l3 && l3.textContent === '取得中…') l3.textContent = origLabel;
+      }
+    }
+  }
+}
+
+async function copyToClipboard_(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+  // フォールバック: textarea を使う旧来手法
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  ta.style.position = 'fixed';
+  ta.style.top = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } finally { document.body.removeChild(ta); }
 }
 
 function setFabLoading(id, icon, loading) {
