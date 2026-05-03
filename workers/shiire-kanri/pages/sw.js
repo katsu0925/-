@@ -9,7 +9,7 @@
 //  - VERSION を上げると activate 時に旧キャッシュを全削除
 //  - skipWaiting + clients.claim で即時切替、controllerchange でクライアントが UI 通知
 
-const VERSION = 'sk-2026-05-03-v83';
+const VERSION = 'sk-2026-05-03-v84';
 const SHELL_CACHE = 'shell-' + VERSION;
 const API_CACHE   = 'api-' + VERSION;
 
@@ -66,7 +66,19 @@ function isApiSwr(pathname) {
       pathname !== '/api/products/thumbs') {
     return false;
   }
-  return /^\/api\/(products|purchases|master\/|sheet\/|moves|returns|sagyousha|kanri\/next)/.test(pathname);
+  // 一覧系（/api/products, /api/purchases, /api/moves, /api/returns, /api/sagyousha,
+  // /api/kanri/next, /api/sheet/<name>）も SWR から外す。
+  // SWR だと「初回はキャッシュ表示、2回目で最新」という挙動になり、
+  // スプレッドシート直接編集 → アプリリロードしても古いまま、という UX バグの直接原因になっていた。
+  if (pathname === '/api/products') return false;
+  if (pathname === '/api/purchases') return false;
+  if (pathname === '/api/moves') return false;
+  if (pathname === '/api/returns') return false;
+  if (pathname === '/api/sagyousha') return false;
+  if (pathname === '/api/kanri/next') return false;
+  if (pathname.startsWith('/api/sheet/')) return false;
+  // master/* と /api/products/{counts,thumbs} は変動が小さいので SWR を維持（速度優先）
+  return /^\/api\/(products\/(counts|thumbs)|purchases\/[^/]+\/products|master\/)/.test(pathname);
 }
 
 async function staleWhileRevalidate(req) {
