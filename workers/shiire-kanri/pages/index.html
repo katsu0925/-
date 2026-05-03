@@ -1928,6 +1928,22 @@ function wireSaleCalcResults_recalc_(idPrefix) {
     if (el) el.textContent = text;
   }
 
+  // 収支サマリ（販売タブ末尾）も同時更新するヘルパー
+  function setSum(id, text, posNeg) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.textContent = text;
+    if (posNeg !== undefined) {
+      el.classList.remove('pos', 'neg');
+      if (posNeg !== null) el.classList.add(posNeg ? 'pos' : 'neg');
+    }
+  }
+  function fmtYen(v) { return v != null && v !== '' && !isNaN(Number(v)) ? '¥' + Number(v).toLocaleString('ja-JP') : '—'; }
+
+  // 販売価格・仕入れ値はフォーム / extra から
+  setSum('sum-sale-price', fmtYen(sp || ex['販売価格']));
+  setSum('sum-cost', fmtYen(cost || ex['仕入れ値']));
+
   if (sp > 0) {
     var gross = sp - ss - sf;
     var profit = gross - cost;
@@ -1935,6 +1951,9 @@ function wireSaleCalcResults_recalc_(idPrefix) {
     setRo('粗利', '¥' + gross.toLocaleString('ja-JP'));
     setRo('利益', '¥' + profit.toLocaleString('ja-JP'));
     setRo('利益率', rate);
+    // 収支サマリも更新（pos/neg クラスも切替）
+    setSum('sum-profit', '¥' + profit.toLocaleString('ja-JP'), profit >= 0);
+    setSum('sum-profit-rate', rate, profit >= 0);
   }
   // 在庫日数: 仕入れ日 → 販売日（なければ今日）
   var purchaseDate = ex['仕入れ日'] || '';
@@ -1944,7 +1963,10 @@ function wireSaleCalcResults_recalc_(idPrefix) {
     var end = saleDateStr ? new Date(saleDateStr) : new Date();
     if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
       var days = Math.floor((end.getTime() - start.getTime()) / 86400000);
-      if (days >= 0) setRo('在庫日数', days + '日');
+      if (days >= 0) {
+        setRo('在庫日数', days + '日');
+        setSum('sum-stockdays', days + '日');
+      }
     }
   }
   // リードタイム: 仕入れ日 → 出品日
@@ -1954,7 +1976,10 @@ function wireSaleCalcResults_recalc_(idPrefix) {
     var b = new Date(listingDateStr);
     if (!isNaN(a.getTime()) && !isNaN(b.getTime())) {
       var ld = Math.floor((b.getTime() - a.getTime()) / 86400000);
-      if (ld >= 0) setRo('リードタイム', ld + '日');
+      if (ld >= 0) {
+        setRo('リードタイム', ld + '日');
+        setSum('sum-leadtime', ld + '日');
+      }
     }
   }
 }
@@ -5383,15 +5408,16 @@ function buildSummaryHtml_(d) {
   }
   var profit = ex['利益'] != null && ex['利益'] !== '' ? Number(ex['利益']) : null;
   var profitCls = profit == null ? '' : (profit >= 0 ? ' pos' : ' neg');
-  return '<div class="summary-card">' +
+  // wireSaleCalcResults_recalc_ から textContent / className を即時更新できるよう ID を付与
+  return '<div class="summary-card" id="summary-card">' +
     '<h4>収支サマリ</h4>' +
     '<div class="stat-grid">' +
-      '<div class="stat"><div class="stat-label">販売価格</div><div class="stat-value">' + esc(fmtYen(ex['販売価格'])) + '</div></div>' +
-      '<div class="stat"><div class="stat-label">仕入れ値</div><div class="stat-value">' + esc(fmtYen(ex['仕入れ値'])) + '</div></div>' +
-      '<div class="stat"><div class="stat-label">利益</div><div class="stat-value' + profitCls + '">' + esc(fmtYen(ex['利益'])) + '</div></div>' +
-      '<div class="stat"><div class="stat-label">利益率</div><div class="stat-value' + profitCls + '">' + esc(pct(ex['利益率'])) + '</div></div>' +
-      '<div class="stat"><div class="stat-label">リードタイム</div><div class="stat-value">' + esc(ex['リードタイム'] != null && ex['リードタイム'] !== '' ? ex['リードタイム'] + '日' : '—') + '</div></div>' +
-      '<div class="stat"><div class="stat-label">在庫日数</div><div class="stat-value">' + esc(ex['在庫日数'] != null && ex['在庫日数'] !== '' ? ex['在庫日数'] + '日' : '—') + '</div></div>' +
+      '<div class="stat"><div class="stat-label">販売価格</div><div class="stat-value" id="sum-sale-price">' + esc(fmtYen(ex['販売価格'])) + '</div></div>' +
+      '<div class="stat"><div class="stat-label">仕入れ値</div><div class="stat-value" id="sum-cost">' + esc(fmtYen(ex['仕入れ値'])) + '</div></div>' +
+      '<div class="stat"><div class="stat-label">利益</div><div class="stat-value' + profitCls + '" id="sum-profit">' + esc(fmtYen(ex['利益'])) + '</div></div>' +
+      '<div class="stat"><div class="stat-label">利益率</div><div class="stat-value' + profitCls + '" id="sum-profit-rate">' + esc(pct(ex['利益率'])) + '</div></div>' +
+      '<div class="stat"><div class="stat-label">リードタイム</div><div class="stat-value" id="sum-leadtime">' + esc(ex['リードタイム'] != null && ex['リードタイム'] !== '' ? ex['リードタイム'] + '日' : '—') + '</div></div>' +
+      '<div class="stat"><div class="stat-label">在庫日数</div><div class="stat-value" id="sum-stockdays">' + esc(ex['在庫日数'] != null && ex['在庫日数'] !== '' ? ex['在庫日数'] + '日' : '—') + '</div></div>' +
     '</div>' +
   '</div>';
 }
