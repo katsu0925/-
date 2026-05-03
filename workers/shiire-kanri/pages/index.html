@@ -1062,27 +1062,28 @@
   }
   .keihi-form button { flex: 0 0 auto; padding: 8px 16px; font-size: 14px; border: 0; border-radius: 6px; cursor: pointer; }
   /* 業務メニュー: 仕入れ数報告 専用カード（内容を主役にする） */
-  .shiire-card {
+  .shiire-rep-card {
     background: var(--surface); border-radius: 10px; box-shadow: var(--shadow);
     padding: 14px 16px; border-left: 3px solid var(--primary);
+    margin: 0;
   }
-  .shiire-card-head {
+  .shiire-rep-card-head {
     display: flex; justify-content: space-between; align-items: flex-start;
     gap: 12px; margin-bottom: 6px;
   }
-  .shiire-card-title { font-size: 15px; font-weight: 600; color: var(--text); flex: 1; min-width: 0; word-break: break-word; line-height: 1.4; }
-  .shiire-card-date { font-size: 12px; color: var(--text-sub); font-weight: 600; white-space: nowrap; padding-top: 2px; }
-  .shiire-card-sub { font-size: 12px; color: var(--text-sub); margin-bottom: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
-  .shiire-card-sub .tag {
+  .shiire-rep-card-title { font-size: 15px; font-weight: 600; color: var(--text); flex: 1; min-width: 0; word-break: break-word; line-height: 1.4; }
+  .shiire-rep-card-date { font-size: 12px; color: var(--text-sub); font-weight: 600; white-space: nowrap; padding-top: 2px; }
+  .shiire-rep-card-sub { font-size: 12px; color: var(--text-sub); margin-bottom: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .shiire-rep-card-sub .tag {
     display: inline-block; padding: 2px 8px; background: #eef2f8;
     border-radius: 4px; color: #4a5572; font-weight: 500; font-size: 11px;
   }
-  .shiire-card-form { display: flex; gap: 8px; align-items: stretch; }
-  .shiire-card-form input {
+  .shiire-rep-card-form { display: flex; gap: 8px; align-items: stretch; }
+  .shiire-rep-card-form input {
     flex: 1; min-width: 0; padding: 10px 12px; font-size: 16px;
     border: 1px solid #d8dde7; border-radius: 6px; text-align: right;
   }
-  .shiire-card-form button {
+  .shiire-rep-card-form button {
     flex: 0 0 auto; padding: 10px 18px; font-size: 14px;
     border: 0; border-radius: 6px; cursor: pointer; font-weight: 600;
   }
@@ -4031,7 +4032,9 @@ async function renderBusinessSheet(menuKey) {
 async function fetchBusinessSheet_(menuKey) {
   var sheetName = BUSINESS_SHEETS[menuKey];
   var cacheKey = 'business|' + menuKey;
-  var res = await api('/api/sheet/' + encodeURIComponent(sheetName) + '?limit=500');
+  // SWR の取り回しでスプレッドシート編集が反映されない事故を防ぐため、URL に時刻パラメータで毎回バスティング
+  var bust = '&_=' + Date.now();
+  var res = await api('/api/sheet/' + encodeURIComponent(sheetName) + '?limit=500' + bust);
   var data = { headers: res.headers || [], rows: res.rows || [], total: res.total || (res.rows ? res.rows.length : 0) };
   TAB_CACHE[cacheKey] = { data: data, ts: Date.now() };
   return data;
@@ -4100,16 +4103,17 @@ function paintShiireHoukoku_(data) {
       var date = iDate >= 0 ? String(r[iDate] || '') : '';
       var content = iContent >= 0 ? String(r[iContent] || '') : '(内容未記入)';
       var safeId = esc(id).replace(/'/g, "\\'");
-      html += '<div class="shiire-card" data-id="' + esc(id) + '">' +
-        '<div class="shiire-card-head">' +
-          '<div class="shiire-card-title">' + esc(content) + '</div>' +
-          '<div class="shiire-card-date">' + esc(date) + '</div>' +
+      html += '<div class="shiire-rep-card" data-id="' + esc(id) + '">' +
+        '<div class="shiire-rep-card-head">' +
+          '<div class="shiire-rep-card-title">' + esc(content) + '</div>' +
+          '<div class="shiire-rep-card-date">' + esc(date) + '</div>' +
         '</div>' +
-        '<div class="shiire-card-sub">' +
+        '<div class="shiire-rep-card-sub">' +
+          (id ? '<span class="tag" style="background:#fff3e0;color:#e65100">🆔 ' + esc(id) + '</span>' : '') +
           (reporter ? '<span class="tag">📍 ' + esc(reporter) + '</span>' : '') +
           (cat ? '<span class="tag">区分 ' + esc(cat) + '</span>' : '') +
         '</div>' +
-        '<div class="shiire-card-form">' +
+        '<div class="shiire-rep-card-form">' +
           '<input type="number" inputmode="numeric" min="1" placeholder="数量を入力" id="qty-' + esc(id) + '" />' +
           '<button class="btn-primary" onclick="submitShiireHoukokuQty_(\'' + safeId + '\')">送信</button>' +
         '</div>' +
