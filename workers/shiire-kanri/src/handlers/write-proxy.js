@@ -4,6 +4,7 @@ import { jsonOk, jsonError } from '../utils/response.js';
 // POST /api/save/sale         body: { kanri, sale: {salePrice, saleDate, salePlace, saleShipping, saleFee} }
 
 export async function saveMeasurement(request, env, user) {
+  const __t0 = Date.now();
   let body;
   try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
   const kanri = String(body.kanri || '').trim();
@@ -14,6 +15,7 @@ export async function saveMeasurement(request, env, user) {
   if (!gasRes.ok) return jsonError(gasRes.error || 'gas error', 502);
 
   // 楽観的更新: D1 にも即時反映
+  const __td1 = Date.now();
   try {
     const measuredAt = new Date().toISOString();
     await env.DB.prepare(`
@@ -23,11 +25,12 @@ export async function saveMeasurement(request, env, user) {
   } catch (err) {
     console.warn('[save] d1 update failed', err.message);
   }
-
-  return jsonOk({ saved: true });
+  const t = Object.assign({}, gasRes._t || {}, { d1: Date.now() - __td1, total: Date.now() - __t0 });
+  return jsonOk({ saved: true }, { 'Server-Timing': buildServerTiming(t) });
 }
 
 export async function saveSale(request, env, user) {
+  const __t0 = Date.now();
   let body;
   try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
   const kanri = String(body.kanri || '').trim();
@@ -46,6 +49,7 @@ export async function saveSale(request, env, user) {
   const gasRes = await callGas(env, 'saveSale', { kanri, sale: saleForGas }, user);
   if (!gasRes.ok) return jsonError(gasRes.error || 'gas error', 502);
 
+  const __td1 = Date.now();
   try {
     await env.DB.prepare(`
       UPDATE products SET
@@ -64,13 +68,14 @@ export async function saveSale(request, env, user) {
   } catch (err) {
     console.warn('[save] d1 update failed', err.message);
   }
-
-  return jsonOk({ saved: true });
+  const t = Object.assign({}, gasRes._t || {}, { d1: Date.now() - __td1, total: Date.now() - __t0 });
+  return jsonOk({ saved: true }, { 'Server-Timing': buildServerTiming(t) });
 }
 
 // POST /api/save/details  body: { kanri, fields: { 'ヘッダー名': 値, ... } }
 // 任意のヘッダーキーで商品管理シートを部分更新する汎用エンドポイント
 export async function saveDetails(request, env, user) {
+  const __t0 = Date.now();
   let body;
   try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
   const kanri = String(body.kanri || '').trim();
@@ -81,6 +86,7 @@ export async function saveDetails(request, env, user) {
 
   const gasRes = await callGas(env, 'saveDetails', { kanri, fields }, user);
   if (!gasRes.ok) return jsonError(gasRes.error || 'gas error', 502);
+  const __td1 = Date.now();
 
   // 楽観的更新: GAS が返す record（再計算後の最新行）を優先して extra_json と専用カラムを更新する。
   // record があれば「シートが正」のスナップショットとして使える → 派生ステータス・粗利等が即時に反映される。
@@ -154,6 +160,7 @@ export async function saveDetails(request, env, user) {
     console.warn('[save details] d1 update failed', err.message);
   }
 
+  const t = Object.assign({}, gasRes._t || {}, { d1: Date.now() - __td1, total: Date.now() - __t0 });
   return jsonOk({
     saved: true,
     written: gasRes.written || 0,
@@ -161,7 +168,7 @@ export async function saveDetails(request, env, user) {
     unknown: gasRes.unknown || [],
     derivedStatus: gasRes.derivedStatus || '',
     statusChanged: !!gasRes.statusChanged
-  });
+  }, { 'Server-Timing': buildServerTiming(t) });
 }
 
 // POST /api/save/image  body: { kanri, field, dataUrl }
@@ -386,37 +393,66 @@ async function callGas(env, action, payload, user) {
     email: user.email,
     payload,
   });
+  // 計測: POST往復(post)・302→GET転送(hop)・テキスト取得(read)を分離
+  const __T = { post: 0, hop: 0, read: 0 };
   let res;
+  const __t0 = Date.now();
   try {
-    res = await postFollowingRedirects(env.GAS_API_URL, body);
+    res = await postFollowingRedirects(env.GAS_API_URL, body, __T);
   } catch (err) {
-    return { ok: false, error: 'gas fetch[' + action + ']: ' + err.message };
+    return { ok: false, error: 'gas fetch[' + action + ']: ' + err.message, _t: { call: Date.now() - __t0, ...__T } };
   }
-  if (!res.ok) return { ok: false, error: 'gas http ' + res.status + '[' + action + ']' };
+  if (!res.ok) return { ok: false, error: 'gas http ' + res.status + '[' + action + ']', _t: { call: Date.now() - __t0, ...__T } };
   // GAS が HTML を返すことがある（デプロイ切替中・タイムアウト等）。
   // どの action で起きたかを必ず error に残す。
   let text = '';
+  const __tr = Date.now();
   try { text = await res.text(); } catch { return { ok: false, error: 'gas read fail[' + action + ']' }; }
-  try { return JSON.parse(text); } catch {
+  __T.read = Date.now() - __tr;
+  __T.call = Date.now() - __t0;
+  let parsed;
+  try { parsed = JSON.parse(text); } catch {
     const hint = text ? text.slice(0, 80).replace(/\s+/g, ' ') : '(empty)';
-    return { ok: false, error: 'gas non-json[' + action + ']: ' + hint };
+    return { ok: false, error: 'gas non-json[' + action + ']: ' + hint, _t: __T };
   }
+  // GAS の _t と Worker 計測をマージ
+  parsed._t = Object.assign({}, parsed._t || {}, __T);
+  return parsed;
 }
 
+// _t を Server-Timing ヘッダ文字列に変換 (DevTools Network → Timing で可視化)
+function buildServerTiming(t) {
+  if (!t || typeof t !== 'object') return '';
+  const parts = [];
+  for (const k of Object.keys(t)) {
+    const v = Number(t[k]);
+    if (!Number.isFinite(v)) continue;
+    parts.push(`${k};dur=${v}`);
+  }
+  return parts.join(', ');
+}
+export { buildServerTiming };
+
 // GAS Web App の POST フロー: POST /exec → 302 (script.googleusercontent.com/macros/echo?user_content_key=...) → GET でレスポンス取得
-async function postFollowingRedirects(url, body) {
+async function postFollowingRedirects(url, body, T) {
+  const __tp = Date.now();
   const first = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body,
     redirect: 'manual',
   });
+  if (T) T.post = Date.now() - __tp;
   if (first.status < 300 || first.status >= 400) return first;
   let loc = first.headers.get('location');
+  const __th = Date.now();
   for (let hop = 0; hop < 5; hop++) {
     if (!loc) throw new Error(`redirect without location at hop ${hop}`);
     const next = await fetch(loc, { method: 'GET', redirect: 'manual' });
-    if (next.status < 300 || next.status >= 400) return next;
+    if (next.status < 300 || next.status >= 400) {
+      if (T) T.hop = Date.now() - __th;
+      return next;
+    }
     loc = next.headers.get('location');
   }
   throw new Error('too many redirects');

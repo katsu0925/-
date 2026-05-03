@@ -1078,6 +1078,10 @@ var DETAILS_DATE_ = {
 };
 
 function staff_apiSaveDetails(payload, email) {
+  // 計測: 各セクションの実行時間を _t に集約して返す。Worker 側で Server-Timing に転載。
+  var __T = {}; var __mark = Date.now();
+  function __lap(name){ var n = Date.now(); __T[name] = n - __mark; __mark = n; }
+
   payload = payload || {};
   email = String(email || 'cloudflare-proxy');
   var kanri = String(payload.kanri || '').trim();
@@ -1090,15 +1094,18 @@ function staff_apiSaveDetails(payload, email) {
   var sh = staff_getSheet_();
   var lastRow = sh.getLastRow();
   if (lastRow < 2) return { ok: false, error: 'シートが空です' };
+  __lap('open');
 
   var idRange = sh.getRange(2, STAFF_COL.管理番号, lastRow - 1, 1);
   var found = idRange.createTextFinder(kanri).matchEntireCell(true).findNext();
   if (!found) return { ok: false, error: '該当なし: ' + kanri };
   var rowNum = found.getRow();
+  __lap('find');
 
   var lastCol = sh.getLastColumn();
   var hdr = sh.getRange(1, 1, 1, lastCol).getValues()[0];
   var col = buildHeaderMap_(hdr);
+  __lap('hdr');
 
   var written = 0;
   var skipped = [];
@@ -1137,6 +1144,7 @@ function staff_apiSaveDetails(payload, email) {
     sh.getRange(rowNum, c).setValue(v);
     written++;
   }
+  __lap('write');
 
   // 販売価格を新規入力した場合は 販売日タイムスタンプ を自動付与（並び替え・監査用）
   if (prevSaleEmpty && newSalePrice !== null) {
@@ -1156,6 +1164,7 @@ function staff_apiSaveDetails(payload, email) {
   // ステータスを AppSheet IFS 式で再計算（任意の日付フィールドが書かれた可能性があるため必ず実施）
   var recomputed = null;
   try { recomputed = staff_recomputeStatus_(sh, rowNum, hdr, col); } catch(e) {}
+  __lap('status');
 
   // 派生値（粗利・利益・利益率・リードタイム・在庫日数）をシートにも書き込む。
   // 既存のフォーミュラがあれば触らない（=A2-B2 等のシート式を尊重）。
@@ -1191,6 +1200,7 @@ function staff_apiSaveDetails(payload, email) {
       cell.setValue(derivedFields[fk]);
     });
   } catch (e) {}
+  __lap('derived');
 
   // 保存後の最新行を読み戻し、Workers が D1 を即時に同期できるように record で返す。
   // 派生値（粗利・利益・利益率・在庫日数・リードタイム）も合わせて算出して返却。
@@ -1226,6 +1236,7 @@ function staff_apiSaveDetails(payload, email) {
       record['利益率'] = (__sp > 0 ? ((__sp - __ss - __sf - __cost) / __sp * 100).toFixed(1) : '0') + '%';
     }
   } catch (e) {}
+  __lap('record');
 
   return {
     ok: true,
@@ -1237,7 +1248,8 @@ function staff_apiSaveDetails(payload, email) {
     unknown: unknown,
     derivedStatus: derivedStatus,
     statusChanged: recomputed && recomputed.changed === true,
-    record: record
+    record: record,
+    _t: __T
   };
 }
 

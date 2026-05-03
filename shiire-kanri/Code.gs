@@ -14,6 +14,7 @@ function doPost(e) {
     var action = String(body.action || '');
     var email = String(body.email || '');
     var result;
+    var __t0 = Date.now();
     switch (action) {
       case 'syncDumpProducts':  result = staff_syncDumpProducts();  break;
       case 'syncDumpPurchases': result = staff_syncDumpPurchases(); break;
@@ -48,6 +49,10 @@ function doPost(e) {
       case 'uploadKeihiImage':             result = staff_apiUploadKeihiImage(body.payload || {}, email); break;
       case 'updateShiireHoukokuQuantity':  result = staff_apiUpdateShiireHoukokuQuantity(body.payload || {}, email); break;
       default:                  result = { ok: false, error: 'unknown action: ' + action };
+    }
+    // 計測: doPost 内の dispatch 〜 結果生成までの ms。Worker 側で Server-Timing に転載される。
+    if (result && typeof result === 'object') {
+      result._t = Object.assign({}, result._t || {}, { dispatch: Date.now() - __t0 });
     }
     return ContentService.createTextOutput(JSON.stringify(result)).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
