@@ -4901,14 +4901,30 @@ function paintHoushu_(data) {
   if (iMonth < 0 || iName < 0) {
     iMonth = 0; iName = 1;
   }
-  var mine = rows.filter(function(r){ return nameMatchesSelf_(r[iName]); });
+  // 管理者は全員の報酬を閲覧可能。selectedName で絞り込み（'__all__' なら全員）。
+  var isAdmin = !!STATE.isAdmin;
+  if (isAdmin && !STATE.houshuSelectedName) STATE.houshuSelectedName = STATE.userName || '__all__';
+  var selected = isAdmin ? STATE.houshuSelectedName : STATE.userName;
+  var mine;
+  if (isAdmin && selected === '__all__') {
+    mine = rows.slice();
+  } else if (isAdmin) {
+    mine = rows.filter(function(r){ return String(r[iName] || '').trim() === String(selected || '').trim(); });
+  } else {
+    mine = rows.filter(function(r){ return nameMatchesSelf_(r[iName]); });
+  }
   mine.sort(function(a, b){
     var ma = String(a[iMonth] || ''); var mb = String(b[iMonth] || '');
-    return ma < mb ? 1 : (ma > mb ? -1 : 0);
+    if (ma !== mb) return ma < mb ? 1 : -1;
+    // 同月内では名前順（管理者の全員表示時に安定）
+    var na = String(a[iName] || ''); var nb = String(b[iName] || '');
+    return na < nb ? -1 : (na > nb ? 1 : 0);
   });
   // 件数データ（staff_listSagyousha で取得済み）。 monthly のキーは "YYYY-MM"
-  var meWorker = (STATE.allWorkers || []).find(function(w){ return String(w.name || '') === STATE.userName; });
-  var monthlyCounts = (meWorker && meWorker.monthly) || {};
+  var workersByName = {};
+  (STATE.allWorkers || []).forEach(function(w){ workersByName[String(w.name || '')] = w; });
+  var meWorker = workersByName[STATE.userName];
+  var defaultMonthly = (meWorker && meWorker.monthly) || {};
   function ymKey_(v){
     var s = String(v || '').trim();
     // "YYYY/MM" / "YYYY-MM" / "YYYY/M" すべて "YYYY-MM" 形式に正規化
@@ -4933,13 +4949,33 @@ function paintHoushu_(data) {
     return '<div><span>' + label + '</span><b>' + fmt_(yen) + '</b>' + c + '</div>';
   }
   var html = '<div class="biz-wrap">';
-  html += '<div class="biz-meta">' + esc(STATE.userName) + ' さんの報酬（' + mine.length + 'ヶ月分）</div>';
+  // 管理者: 名前フィルタ＋"全員"オプション。一般: 自分の名前のみ。
+  if (isAdmin) {
+    var allNames = {};
+    rows.forEach(function(r){ var n = String(r[iName] || '').trim(); if (n) allNames[n] = true; });
+    var nameOptions = '<option value="__all__"' + (selected === '__all__' ? ' selected' : '') + '>全員</option>';
+    Object.keys(allNames).sort().forEach(function(n){
+      var sel = (n === selected) ? ' selected' : '';
+      nameOptions += '<option value="' + esc(n) + '"' + sel + '>' + esc(n) + '</option>';
+    });
+    html += '<div class="biz-meta" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
+      '<span style="font-weight:600">報酬（管理者）</span>' +
+      '<select id="houshu-name-filter" onchange="onHoushuNameChange_(this.value)" ' +
+        'style="padding:6px 10px;border:1px solid #cfd6e1;border-radius:8px;font-size:13px">' +
+        nameOptions +
+      '</select>' +
+      '<span style="color:var(--text-sub);font-size:12px">' + mine.length + '行</span>' +
+    '</div>';
+  } else {
+    html += '<div class="biz-meta">' + esc(STATE.userName) + ' さんの報酬（' + mine.length + 'ヶ月分）</div>';
+  }
   if (mine.length === 0) {
     html += '<div class="empty" style="padding:24px">表示できる月の報酬がありません。</div>';
   } else {
     html += '<div class="houshu-list">';
     mine.forEach(function(r){
       var month = String(r[iMonth] || '');
+      var rowName = String(r[iName] || '').trim();
       var sokutei = num_(r[3]);  // D
       var satsuei = num_(r[4]);  // E
       var shuppin = num_(r[5]);  // F
@@ -4947,14 +4983,18 @@ function paintHoushu_(data) {
       var inv     = num_(r[7]);  // H
       var fixed   = num_(r[8]);  // I
       var keihi   = num_(r[9]);  // J（経費控除＝マイナス効果）
-      // 件数（同月の作業件数）。報酬管理の月表記("YYYY/MM")を "YYYY-MM" に揃えて参照
+      // 件数（同月の作業件数）。管理者で他人を表示する場合はその作業者の monthly を参照。
+      var monthlyCounts = (workersByName[rowName] && workersByName[rowName].monthly) || defaultMonthly;
       var counts = monthlyCounts[ymKey_(month)] || { sokutei: 0, satsuei: 0, shuppin: 0, hassou: 0 };
       // 歩合(K)・ボーナス(L+M) は表示しない（運用していないため）
       // 合計は「C列があればそれを優先、なければ表示項目の合算」
       var cTotal = num_(r[2]);
       var total  = cTotal || (sokutei + satsuei + shuppin + hassou + inv + fixed - keihi);
+      var monthLabel = (isAdmin && selected === '__all__' && rowName)
+        ? esc(month) + ' — <span style="color:var(--text)">' + esc(rowName) + '</span>'
+        : esc(month);
       html += '<div class="houshu-card">' +
-        '<div class="houshu-month">' + esc(month) + '</div>' +
+        '<div class="houshu-month">' + monthLabel + '</div>' +
         '<div class="houshu-total">' + fmt_(total) + '</div>' +
         '<div class="houshu-grid">' +
           cell_('採寸', sokutei, counts.sokutei) +
@@ -4971,6 +5011,12 @@ function paintHoushu_(data) {
   }
   html += '</div>';
   c.innerHTML = html;
+}
+
+function onHoushuNameChange_(name) {
+  STATE.houshuSelectedName = name || '__all__';
+  var cached = TAB_CACHE['business|houshu'];
+  if (cached && cached.data) paintHoushu_(cached.data);
 }
 
 function renderDenied() {
