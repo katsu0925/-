@@ -192,7 +192,9 @@ export async function uploadKeihiImage(request, env, user) {
 }
 
 // 経費申請: SPA から本人申請を受けて GAS appendKeihi を呼ぶ
-export async function appendKeihi(request, env, user) {
+// GAS の sh.appendRow は 1-3 秒かかるので、検証通過後は ctx.waitUntil() で
+// fire-and-forget して 200 を即時返却する。シート反映は数秒遅れる前提。
+export async function appendKeihi(request, env, user, ctx) {
   let body;
   try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
   const name = String(body.name || '').trim();
@@ -212,9 +214,13 @@ export async function appendKeihi(request, env, user) {
     outsourceCost,
     receipt: String(body.receipt || '').trim(),
   };
-  const r = await callGas(env, 'appendKeihi', payload, user);
-  if (!r.ok) return jsonError(r.error || 'gas error', 502);
-  return jsonOk({ submitted: true, id: r.id, row: r.row });
+  const job = (async () => {
+    const r = await callGas(env, 'appendKeihi', payload, user);
+    if (!r.ok) console.error('[appendKeihi waitUntil] gas error: ' + (r.error || 'unknown'));
+  })();
+  if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(job);
+  else await job;
+  return jsonOk({ submitted: true, queued: true });
 }
 
 // 仕入れ数報告: SPA から数量送信 → GAS で行更新 + Phase2 マージ

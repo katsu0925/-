@@ -214,8 +214,9 @@ export default {
     }
 
     // 経費申請: 本人申請を受けてシートに行追加（通知メールは onChange トリガーが発火）
+    // GAS appendRow は数秒かかるので ctx.waitUntil で fire-and-forget。
     if (path === '/api/keihi/submit' && request.method === 'POST') {
-      return appendKeihi(request, env, user);
+      return appendKeihi(request, env, user, ctx);
     }
     // 経費申請レシート画像アップロード（kanri 不要 / 経費_Images フォルダに保存）
     if (path === '/api/keihi/image' && request.method === 'POST') {

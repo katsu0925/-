@@ -1103,9 +1103,15 @@
   .biz-wrap { padding: 12px; overflow-x: auto; }
   .biz-meta { color: var(--text-sub); font-size: 12px; margin-bottom: 8px; padding: 0 4px; }
   .biz-table { border-collapse: collapse; width: 100%; min-width: 600px; background: var(--surface); border-radius: 8px; box-shadow: var(--shadow); font-size: 13px; }
-  .biz-table th, .biz-table td { padding: 8px 10px; border-bottom: 1px solid #f0f2f7; text-align: left; vertical-align: top; }
+  .biz-table th, .biz-table td { padding: 8px 10px; border-bottom: 1px solid #f0f2f7; text-align: left; vertical-align: middle; }
   .biz-table thead th { background: #f7f9fc; color: var(--text-sub); font-size: 12px; font-weight: 700; position: sticky; top: 0; z-index: 1; }
   .biz-table tbody tr:hover { background: #fafbfd; }
+  .keihi-receipt-thumb {
+    padding: 0; border: 1px solid #e5e7ec; border-radius: 6px; background: #fff;
+    cursor: pointer; width: 48px; height: 48px; overflow: hidden; display: inline-block;
+  }
+  .keihi-receipt-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .keihi-receipt-thumb:hover { border-color: var(--primary); }
   /* 業務メニュー: 仕入れ数報告 / 経費申請 カード */
   .keihi-list { display: flex; flex-direction: column; gap: 10px; }
   .keihi-card {
@@ -4592,6 +4598,15 @@ async function renderKeihiTab_() {
   }
 }
 
+// 経費申請の日付/タイムスタンプ列を YYYY/MM/DD 区切りに統一する。
+// シート側で "2026-05-04" 形式が混じっていてもハイフンを / に変換。
+function fmtKeihiDate_(s) {
+  if (s === null || s === undefined) return '';
+  var str = String(s).trim();
+  if (!str) return '';
+  return str.replace(/(\d{4})-(\d{1,2})-(\d{1,2})/, '$1/$2/$3');
+}
+
 function paintKeihi_(data) {
   if (STATE.tab !== 'business' || STATE.business !== 'keihi' || STATE.view !== 'list') return;
   var c = document.getElementById('content');
@@ -4627,12 +4642,20 @@ function paintKeihi_(data) {
       var place = iPlace >= 0 ? String(r[iPlace] || '') : '';
       var placeHtml = link ? '<a href="' + esc(link) + '" target="_blank" rel="noopener">' + esc(place || link) + '</a>' : esc(place);
       var receipt = iReceipt >= 0 ? String(r[iReceipt] || '') : '';
-      var receiptHtml = receipt
-        ? (/^https?:/i.test(receipt) ? '<a href="' + esc(receipt) + '" target="_blank" rel="noopener">画像</a>' : esc(receipt))
-        : '—';
+      var receiptHtml;
+      if (receipt && /^https?:/i.test(receipt)) {
+        var safeReceipt = esc(receipt).replace(/\'/g, "\\'");
+        receiptHtml = '<button type="button" class="keihi-receipt-thumb" onclick="openImageModal_(\'' + safeReceipt + '\')" title="クリックで拡大">' +
+                        '<img src="' + esc(normalizeDriveUrl_(receipt)) + '" alt="" loading="lazy">' +
+                      '</button>';
+      } else if (receipt) {
+        receiptHtml = esc(receipt);
+      } else {
+        receiptHtml = '—';
+      }
       html += '<tr>' +
-        '<td>' + esc(iTs >= 0 ? r[iTs] : '') + '</td>' +
-        '<td>' + esc(iDate >= 0 ? r[iDate] : '') + '</td>' +
+        '<td>' + esc(fmtKeihiDate_(iTs >= 0 ? r[iTs] : '')) + '</td>' +
+        '<td>' + esc(fmtKeihiDate_(iDate >= 0 ? r[iDate] : '')) + '</td>' +
         '<td>' + esc(iItem >= 0 ? r[iItem] : '') + '</td>' +
         '<td>' + placeHtml + '</td>' +
         '<td>' + esc(iAmount >= 0 ? r[iAmount] : '') + '</td>' +
@@ -4809,9 +4832,35 @@ async function submitKeihiForm_() {
   try {
     await api('/api/keihi/submit', { method: 'POST', body: payload });
     toast('申請しました');
-    delete TAB_CACHE['business|keihi'];
+    // 楽観的更新: GAS のシート書き込みは裏で進行中なので、キャッシュに即時追加して
+    // 一覧を即時更新する（fetch を待たない）
+    var cached = TAB_CACHE['business|keihi'];
+    if (cached && cached.data && cached.data.headers) {
+      var hd = cached.data.headers;
+      var now = new Date();
+      function pad(n){ return n < 10 ? '0' + n : '' + n; }
+      var tsStr = now.getFullYear() + '/' + pad(now.getMonth()+1) + '/' + pad(now.getDate()) +
+                  ' ' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
+      var newRow = hd.map(function(h){
+        switch (h) {
+          case 'タイムスタンプ': return tsStr;
+          case '名前': return STATE.userName;
+          case '購入日': return payload.purchaseDate;
+          case '外注費': return payload.outsourceCost > 0 ? payload.outsourceCost : '';
+          case '商品名': return payload.itemName;
+          case '購入場所': return payload.place;
+          case '購入場所リンク': return payload.placeLink;
+          case '購入金額': return payload.amount || '';
+          case '購入証明のためのレシートやスクショ': return payload.receipt;
+          default: return '';
+        }
+      });
+      cached.data.rows.unshift(newRow);
+      cached.fetchedAt = Date.now();
+    }
     STATE.view = 'list';
-    await renderKeihiTab_();
+    if (cached) paintKeihi_(cached.data);
+    else await renderKeihiTab_();
   } catch (err) {
     toast('申請失敗: ' + err.message, 'error');
     if (btn) { btn.disabled = false; btn.textContent = '申請する'; }
