@@ -4054,40 +4054,25 @@ function nameMatchesSelf_(v) {
 }
 
 // ---------- 仕入れ数報告 ----------
-// 仕入れ数報告シートの 内容(H列) が未同期の行に対し、/api/purchases から id→content を引いてフォールバック表示する
-async function fetchPurchasesContentMap_() {
-  try {
-    var res = await api('/api/purchases?limit=2000');
-    var map = {};
-    (res.items || []).forEach(function(p){
-      if (p && p.shiireId) map[String(p.shiireId)] = p.content || '';
-    });
-    return map;
-  } catch (e) { return {}; }
-}
 async function renderShiireHoukokuTab_() {
   if (STATE.tab !== 'business' || STATE.business !== 'shiire_houkoku' || STATE.view !== 'list') return;
   var c = document.getElementById('content');
   var cached = TAB_CACHE['business|shiire_houkoku'];
-  if (cached) paintShiireHoukoku_(cached.data, cached.contentMap || {});
+  if (cached) paintShiireHoukoku_(cached.data);
   else c.innerHTML = '<div class="loading">読み込み中…</div>';
   try {
-    var pair = await Promise.all([fetchBusinessSheet_('shiire_houkoku'), fetchPurchasesContentMap_()]);
-    var data = pair[0]; var contentMap = pair[1] || {};
-    var entry = TAB_CACHE['business|shiire_houkoku'];
-    if (entry) entry.contentMap = contentMap;
-    paintShiireHoukoku_(data, contentMap);
+    var data = await fetchBusinessSheet_('shiire_houkoku');
+    paintShiireHoukoku_(data);
   } catch (e) {
     if (!cached) c.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
   }
 }
 
-function paintShiireHoukoku_(data, contentMap) {
+function paintShiireHoukoku_(data) {
   if (STATE.tab !== 'business' || STATE.business !== 'shiire_houkoku' || STATE.view !== 'list') return;
   var c = document.getElementById('content');
   var headers = data.headers || [];
   var rows = data.rows || [];
-  var cmap = contentMap || {};
   var iId      = colIdx_(headers, 'ID');
   var iReporter= colIdx_(headers, '報告者');
   var iCat     = colIdx_(headers, '区分コード');
@@ -4095,12 +4080,9 @@ function paintShiireHoukoku_(data, contentMap) {
   var iQty     = colIdx_(headers, '数量');
   var iDone    = colIdx_(headers, '処理済み');
   var iContent = colIdx_(headers, '内容');
-  // 仕入れ数報告に内容が未同期でも、仕入れ管理(/api/purchases) 側から ID で引けたものはフォールバック表示
-  function contentOf_(r, id) {
-    var v = iContent >= 0 ? String(r[iContent] || '').trim() : '';
-    if (v) return v;
-    var fb = id ? String(cmap[String(id)] || '').trim() : '';
-    return fb || '(内容未記入)';
+  // 内容は H列 をそのまま表示。空欄ならプレースホルダを出さず空のままにする（フォールバックは混乱の元なので使わない）。
+  function contentOf_(r) {
+    return iContent >= 0 ? String(r[iContent] || '').trim() : '';
   }
   if (iId < 0 || iQty < 0) {
     c.innerHTML = '<div class="empty">仕入れ数報告シートのヘッダーが想定と異なります。</div>';
@@ -4127,7 +4109,7 @@ function paintShiireHoukoku_(data, contentMap) {
       var reporter = iReporter >= 0 ? String(r[iReporter] || '') : '';
       var cat = iCat >= 0 ? String(r[iCat] || '') : '';
       var date = iDate >= 0 ? String(r[iDate] || '') : '';
-      var content = contentOf_(r, id);
+      var content = contentOf_(r);
       var safeId = esc(id).replace(/'/g, "\\'");
       html += '<div class="shiire-rep-card" data-id="' + esc(id) + '">' +
         '<div class="shiire-rep-card-head">' +
@@ -4151,11 +4133,10 @@ function paintShiireHoukoku_(data, contentMap) {
     html += '<details style="margin-top:16px" open><summary style="padding:8px 12px;color:#666;font-size:13px;cursor:pointer;font-weight:600">処理済み（' + done.length + '件）</summary>';
     html += '<div class="shiire-done-list" style="margin-top:8px">';
     done.forEach(function(r){
-      var id = String(r[iId] || '');
       var date = iDate >= 0 ? String(r[iDate] || '') : '';
       var reporter = iReporter >= 0 ? String(r[iReporter] || '') : '';
       var cat = iCat >= 0 ? String(r[iCat] || '') : '';
-      var content = contentOf_(r, id);
+      var content = contentOf_(r);
       var qty = qtyOf_(r);
       var meta = [reporter, cat ? '区分' + cat : ''].filter(Boolean).join(' / ');
       html += '<div class="shiire-done-row">' +
