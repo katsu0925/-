@@ -1939,11 +1939,20 @@ function wireSaleCalcResults_recalc_(idPrefix) {
   var saleDateEl = document.getElementById(fid('販売日'));
   var listingDateEl = document.getElementById(fid('出品日'));
 
-  var sp = Number((priceEl && priceEl.value) || 0);
-  var ss = Number((shipEl && shipEl.value) || 0);
-  var sf = Number((feeEl && feeEl.value) || 0);
+  // フォーム入力をそのまま読む（空文字列は 0 として扱うが、表示判定のため raw も保持）
+  var priceRaw = priceEl ? String(priceEl.value || '').trim() : '';
+  var shipRaw = shipEl ? String(shipEl.value || '').trim() : '';
+  var feeRaw = feeEl ? String(feeEl.value || '').trim() : '';
+  var sp = priceRaw === '' ? 0 : Number(priceRaw);
+  var ss = shipRaw === '' ? 0 : Number(shipRaw);
+  var sf = feeRaw === '' ? 0 : Number(feeRaw);
+  if (isNaN(sp)) sp = 0;
+  if (isNaN(ss)) ss = 0;
+  if (isNaN(sf)) sf = 0;
+  var hasPrice = priceRaw !== '';
   var ex = (STATE.current && STATE.current.extra) || {};
   var cost = Number(ex['仕入れ値'] || 0);
+  if (isNaN(cost)) cost = 0;
 
   function setRo(name, text) {
     var el = document.getElementById(fid(name));
@@ -1962,20 +1971,27 @@ function wireSaleCalcResults_recalc_(idPrefix) {
   }
   function fmtYen(v) { return v != null && v !== '' && !isNaN(Number(v)) ? '¥' + Number(v).toLocaleString('ja-JP') : '—'; }
 
-  // 販売価格・仕入れ値はフォーム / extra から
-  setSum('sum-sale-price', fmtYen(sp || ex['販売価格']));
+  // 販売価格は フォーム値で表示（空なら "—"）。
+  // 旧コードは `sp || ex['販売価格']` で空入力時に古い保存値にフォールバックしていたが、
+  // それだと「販売データ削除直後にサマリが古い 1780 のまま」になるバグの原因だった。
+  setSum('sum-sale-price', hasPrice ? '¥' + sp.toLocaleString('ja-JP') : '—');
   setSum('sum-cost', fmtYen(cost || ex['仕入れ値']));
 
+  // 派生値は常に再計算する。販売価格 0/空でも 粗利=-送料-手数料、利益=粗利-仕入れ値 を表示。
+  // 旧コードは `if (sp > 0)` でガードしていたため、途中入力の負値が消えずに残るバグがあった。
+  var gross = sp - ss - sf;
+  var profit = gross - cost;
+  setRo('粗利', '¥' + gross.toLocaleString('ja-JP'));
+  setRo('利益', '¥' + profit.toLocaleString('ja-JP'));
+  setSum('sum-profit', '¥' + profit.toLocaleString('ja-JP'), profit >= 0);
   if (sp > 0) {
-    var gross = sp - ss - sf;
-    var profit = gross - cost;
     var rate = (profit / sp * 100).toFixed(1) + '%';
-    setRo('粗利', '¥' + gross.toLocaleString('ja-JP'));
-    setRo('利益', '¥' + profit.toLocaleString('ja-JP'));
     setRo('利益率', rate);
-    // 収支サマリも更新（pos/neg クラスも切替）
-    setSum('sum-profit', '¥' + profit.toLocaleString('ja-JP'), profit >= 0);
     setSum('sum-profit-rate', rate, profit >= 0);
+  } else {
+    // 販売価格 0 だと利益率は無限大なので "—" 表示にする
+    setRo('利益率', '—');
+    setSum('sum-profit-rate', '—', null);
   }
   // 在庫日数: 仕入れ日 → 販売日（なければ今日）
   var purchaseDate = ex['仕入れ日'] || '';
