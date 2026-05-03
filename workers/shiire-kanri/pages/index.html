@@ -1061,6 +1061,40 @@
     border: 1px solid #d8dde7; border-radius: 6px;
   }
   .keihi-form button { flex: 0 0 auto; padding: 8px 16px; font-size: 14px; border: 0; border-radius: 6px; cursor: pointer; }
+  /* 業務メニュー: 仕入れ数報告 専用カード（内容を主役にする） */
+  .shiire-card {
+    background: var(--surface); border-radius: 10px; box-shadow: var(--shadow);
+    padding: 14px 16px; border-left: 3px solid var(--primary);
+  }
+  .shiire-card-head {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 12px; margin-bottom: 6px;
+  }
+  .shiire-card-title { font-size: 15px; font-weight: 600; color: var(--text); flex: 1; min-width: 0; word-break: break-word; line-height: 1.4; }
+  .shiire-card-date { font-size: 12px; color: var(--text-sub); font-weight: 600; white-space: nowrap; padding-top: 2px; }
+  .shiire-card-sub { font-size: 12px; color: var(--text-sub); margin-bottom: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .shiire-card-sub .tag {
+    display: inline-block; padding: 2px 8px; background: #eef2f8;
+    border-radius: 4px; color: #4a5572; font-weight: 500; font-size: 11px;
+  }
+  .shiire-card-form { display: flex; gap: 8px; align-items: stretch; }
+  .shiire-card-form input {
+    flex: 1; min-width: 0; padding: 10px 12px; font-size: 16px;
+    border: 1px solid #d8dde7; border-radius: 6px; text-align: right;
+  }
+  .shiire-card-form button {
+    flex: 0 0 auto; padding: 10px 18px; font-size: 14px;
+    border: 0; border-radius: 6px; cursor: pointer; font-weight: 600;
+  }
+  .shiire-done-list { display: flex; flex-direction: column; gap: 6px; }
+  .shiire-done-row {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+    background: #f7f9fc; border-radius: 6px; font-size: 13px;
+  }
+  .shiire-done-row .d-date { color: var(--text-sub); font-size: 11px; white-space: nowrap; flex: 0 0 auto; }
+  .shiire-done-row .d-title { flex: 1; min-width: 0; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .shiire-done-row .d-meta { color: var(--text-sub); font-size: 11px; white-space: nowrap; flex: 0 0 auto; }
+  .shiire-done-row .d-qty { font-weight: 700; color: var(--primary); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
   /* 業務メニュー: 報酬確認 月別カード */
   .houshu-list { display: flex; flex-direction: column; gap: 12px; }
   .houshu-card {
@@ -4043,18 +4077,16 @@ function paintShiireHoukoku_(data) {
     c.innerHTML = '<div class="empty">仕入れ数報告シートのヘッダーが想定と異なります。</div>';
     return;
   }
-  // 仕入れ数マージ.gs 仕様: 「報告者」列には作業者名ではなく納品場所(川口/渋谷など)が入る。
-  // そのため作業者名でフィルタすると常に0件になる ⇒ AppSheet と同じく未処理は全件表示する。
-  var pending = rows.filter(function(r){
-    return String(r[iDone] || '').trim().toUpperCase() !== 'TRUE';
-  });
-  var done = rows.filter(function(r){
-    return String(r[iDone] || '').trim().toUpperCase() === 'TRUE';
-  });
-  // 仕入れ日 昇順（古いものから処理）
+  // 処理済み判定: 数量が入力されていれば処理済みとみなす（G列の TRUE/FALSE は参照しない）。
+  // 仕入れ管理側の onChange / Cron が走るまで G 列は更新されないため、UI 上は数量を信頼する。
+  function qtyOf_(r){ var n = parseInt(String(r[iQty] || '').replace(/[^\d-]/g, ''), 10); return isFinite(n) ? n : 0; }
+  var pending = rows.filter(function(r){ return qtyOf_(r) <= 0; });
+  var done    = rows.filter(function(r){ return qtyOf_(r) >  0; });
+  // 仕入れ日 降順（新しい順）
   function dateKey_(r){ return iDate >= 0 ? String(r[iDate] || '') : ''; }
-  pending.sort(function(a, b){ var da = dateKey_(a), db = dateKey_(b); return da < db ? -1 : (da > db ? 1 : 0); });
-  done.sort(function(a, b){ var da = dateKey_(a), db = dateKey_(b); return da < db ? 1 : (da > db ? -1 : 0); });
+  function byDateDesc_(a, b){ var da = dateKey_(a), db = dateKey_(b); return da < db ? 1 : (da > db ? -1 : 0); }
+  pending.sort(byDateDesc_);
+  done.sort(byDateDesc_);
   var html = '<div class="biz-wrap">';
   html += '<div class="biz-meta">仕入れ数報告（未処理 ' + pending.length + ' / 処理済み ' + done.length + '）</div>';
   if (pending.length === 0) {
@@ -4066,35 +4098,43 @@ function paintShiireHoukoku_(data) {
       var reporter = iReporter >= 0 ? String(r[iReporter] || '') : '';
       var cat = iCat >= 0 ? String(r[iCat] || '') : '';
       var date = iDate >= 0 ? String(r[iDate] || '') : '';
-      var content = iContent >= 0 ? String(r[iContent] || '') : '';
-      var qty = String(r[iQty] || '');
-      html += '<div class="keihi-card" data-id="' + esc(id) + '">' +
-        '<div class="keihi-row"><span class="keihi-label">仕入れ日</span><span>' + esc(date) + '</span></div>' +
-        (reporter ? '<div class="keihi-row"><span class="keihi-label">納品場所</span><span>' + esc(reporter) + '</span></div>' : '') +
-        '<div class="keihi-row"><span class="keihi-label">区分コード</span><span>' + esc(cat) + '</span></div>' +
-        (content ? '<div class="keihi-row"><span class="keihi-label">内容</span><span>' + esc(content) + '</span></div>' : '') +
-        '<div class="keihi-row"><span class="keihi-label">ID</span><span style="font-family:monospace;font-size:11px;color:#888">' + esc(id) + '</span></div>' +
-        '<div class="keihi-form">' +
-          '<input type="number" inputmode="numeric" min="1" placeholder="数量" value="' + esc(qty) + '" id="qty-' + esc(id) + '" />' +
-          '<button class="btn-primary" onclick="submitShiireHoukokuQty_(\'' + esc(id).replace(/'/g, "\\'") + '\')">送信</button>' +
+      var content = iContent >= 0 ? String(r[iContent] || '') : '(内容未記入)';
+      var safeId = esc(id).replace(/'/g, "\\'");
+      html += '<div class="shiire-card" data-id="' + esc(id) + '">' +
+        '<div class="shiire-card-head">' +
+          '<div class="shiire-card-title">' + esc(content) + '</div>' +
+          '<div class="shiire-card-date">' + esc(date) + '</div>' +
+        '</div>' +
+        '<div class="shiire-card-sub">' +
+          (reporter ? '<span class="tag">📍 ' + esc(reporter) + '</span>' : '') +
+          (cat ? '<span class="tag">区分 ' + esc(cat) + '</span>' : '') +
+        '</div>' +
+        '<div class="shiire-card-form">' +
+          '<input type="number" inputmode="numeric" min="1" placeholder="数量を入力" id="qty-' + esc(id) + '" />' +
+          '<button class="btn-primary" onclick="submitShiireHoukokuQty_(\'' + safeId + '\')">送信</button>' +
         '</div>' +
       '</div>';
     });
     html += '</div>';
   }
   if (done.length > 0) {
-    html += '<details style="margin-top:16px"><summary style="padding:8px 12px;color:#666;font-size:13px;cursor:pointer">処理済み（' + done.length + '件）</summary>';
-    html += '<table class="biz-table"><thead><tr><th>仕入れ日</th><th>納品場所</th><th>区分</th><th>数量</th><th>内容</th></tr></thead><tbody>';
+    html += '<details style="margin-top:16px" open><summary style="padding:8px 12px;color:#666;font-size:13px;cursor:pointer;font-weight:600">処理済み（' + done.length + '件）</summary>';
+    html += '<div class="shiire-done-list" style="margin-top:8px">';
     done.forEach(function(r){
-      html += '<tr>' +
-        '<td>' + esc(iDate >= 0 ? r[iDate] : '') + '</td>' +
-        '<td>' + esc(iReporter >= 0 ? r[iReporter] : '') + '</td>' +
-        '<td>' + esc(iCat >= 0 ? r[iCat] : '') + '</td>' +
-        '<td>' + esc(r[iQty] || '') + '</td>' +
-        '<td>' + esc(iContent >= 0 ? r[iContent] : '') + '</td>' +
-      '</tr>';
+      var date = iDate >= 0 ? String(r[iDate] || '') : '';
+      var reporter = iReporter >= 0 ? String(r[iReporter] || '') : '';
+      var cat = iCat >= 0 ? String(r[iCat] || '') : '';
+      var content = iContent >= 0 ? String(r[iContent] || '') : '';
+      var qty = qtyOf_(r);
+      var meta = [reporter, cat ? '区分' + cat : ''].filter(Boolean).join(' / ');
+      html += '<div class="shiire-done-row">' +
+        '<span class="d-date">' + esc(date) + '</span>' +
+        '<span class="d-title">' + esc(content) + '</span>' +
+        (meta ? '<span class="d-meta">' + esc(meta) + '</span>' : '') +
+        '<span class="d-qty">' + qty + '点</span>' +
+      '</div>';
     });
-    html += '</tbody></table></details>';
+    html += '</div></details>';
   }
   html += '</div>';
   c.innerHTML = html;
