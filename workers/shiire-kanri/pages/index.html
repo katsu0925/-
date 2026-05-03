@@ -1215,11 +1215,27 @@
     padding: 5px 0; border-bottom: 1px solid #f0f2f7; min-width: 0;
   }
   .houshu-grid > div.is-zero { opacity: .35; }
+  /* 不採用側（合計 vs 利益歩合の負けた方）は薄く＋金額に取り消し線 */
+  .houshu-grid > div.is-loser { opacity: .4; }
+  .houshu-grid > div.is-loser b { text-decoration: line-through; text-decoration-color: rgba(0,0,0,.3); color: var(--text-sub); }
+  .houshu-grid > div.is-winner b { color: var(--primary); }
   .houshu-grid > div .h-label { color: var(--text-sub); display: inline-flex; align-items: baseline; gap: 5px; min-width: 0; }
   .houshu-grid > div .h-label .houshu-count { font-size: 10.5px; color: var(--text-mute); font-weight: 500; white-space: nowrap; }
   .houshu-grid > div b { font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .houshu-grid > div.is-credit b { color: var(--accent); }
   .houshu-grid > div.is-credit .h-label { cursor: help; border-bottom: 1px dotted var(--text-sub); }
+  /* 実支払額の説明帯（合計 vs 利益歩合の比較） */
+  .houshu-pay-vs {
+    margin: -8px 0 12px; padding: 6px 8px; border-radius: 6px;
+    background: #f5f7fc; font-size: 11.5px; color: var(--text-sub);
+    display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline;
+    font-variant-numeric: tabular-nums; line-height: 1.5;
+  }
+  .houshu-pay-vs .vs-side { white-space: nowrap; }
+  .houshu-pay-vs .vs-win { color: var(--primary); font-weight: 700; }
+  .houshu-pay-vs .vs-lose { text-decoration: line-through; opacity: .55; }
+  .houshu-pay-vs .vs-arrow { color: var(--text-mute); }
+  .houshu-pay-vs .vs-note { color: var(--text-mute); font-size: 10.5px; margin-left: auto; }
   #houshu-name-filter {
     min-height: 40px; font-size: 16px;
     padding: 6px 12px; border: 1px solid #cfd6e1; border-radius: 8px;
@@ -5012,30 +5028,51 @@ function paintHoushu_(data) {
     };
     var counts = ((workersByName[rowName] && workersByName[rowName].monthly) || defaultMonthly)[ymKey_(month)]
       || { sokutei: 0, satsuei: 0, shuppin: 0, hassou: 0 };
-    v.total = v.satsuei + v.sokutei + v.shuppin + v.hassou + v.inv + v.account + v.rieki + v.fixed + v.keihi;
+    // AppSheet [合計] と同義: 利益歩合(rieki)を除く全項目の合計
+    v.workTotal = v.satsuei + v.sokutei + v.shuppin + v.hassou + v.inv + v.account + v.keihi + v.fixed;
+    v.profitShare = v.rieki;
+    // 支払ルール: MAX(合計, 利益歩合) を実支払額とする
+    v.actualPay = Math.max(v.workTotal, v.profitShare);
+    v.profitWins = v.profitShare > v.workTotal;
+    v.workWins = v.workTotal > v.profitShare;
+    // 既存サマリ集計用: 集計バーや人別合計は実支払額ベース
+    v.total = v.actualPay;
     return { month: month, name: rowName, v: v, counts: counts };
   }
   // 1枚の月カード
   function renderCard_(r){
     var p = parseRow_(r);
+    var workCls = p.v.profitWins ? 'is-loser' : '';
+    var rieCls  = p.v.profitWins ? 'is-winner' : (p.v.workWins ? 'is-loser' : '');
+    var hasCompare = (p.v.workTotal > 0 || p.v.profitShare > 0);
+    var vsHtml = '';
+    if (hasCompare) {
+      var lTxt = '<span class="vs-side ' + (p.v.workWins ? 'vs-win' : (p.v.profitWins ? 'vs-lose' : '')) + '">合計 ' + fmt_(p.v.workTotal) + '</span>';
+      var rTxt = '<span class="vs-side ' + (p.v.profitWins ? 'vs-win' : (p.v.workWins ? 'vs-lose' : '')) + '">利益歩合 ' + fmt_(p.v.profitShare) + '</span>';
+      vsHtml = '<div class="houshu-pay-vs" title="高い方が実支払額として採用されます">' +
+        lTxt + '<span class="vs-arrow">vs</span>' + rTxt +
+        '<span class="vs-note">高い方を採用</span>' +
+      '</div>';
+    }
     return '<div class="houshu-card">' +
-      '<div class="houshu-month">' + esc(p.month) + '</div>' +
-      '<div class="houshu-total">' + fmt_(p.v.total) + '</div>' +
+      '<div class="houshu-month">' + esc(p.month) + ' <span style="color:var(--text-mute);font-weight:500">実支払額</span></div>' +
+      '<div class="houshu-total">' + fmt_(p.v.actualPay) + '</div>' +
+      vsHtml +
       '<div class="houshu-section"><div class="houshu-grid">' +
-        cell_('撮影', p.v.satsuei, { count: p.counts.satsuei }) +
-        cell_('採寸', p.v.sokutei, { count: p.counts.sokutei }) +
-        cell_('出品', p.v.shuppin, { count: p.counts.shuppin }) +
-        cell_('発送', p.v.hassou,  { count: p.counts.hassou })  +
+        cell_('撮影', p.v.satsuei, { count: p.counts.satsuei, cls: workCls }) +
+        cell_('採寸', p.v.sokutei, { count: p.counts.sokutei, cls: workCls }) +
+        cell_('出品', p.v.shuppin, { count: p.counts.shuppin, cls: workCls }) +
+        cell_('発送', p.v.hassou,  { count: p.counts.hassou,  cls: workCls }) +
       '</div></div>' +
       '<div class="houshu-section"><div class="houshu-grid">' +
-        cell_('在庫管理', p.v.inv) +
-        cell_('アカウント運用', p.v.account) +
-        cell_('利益歩合', p.v.rieki) +
-        cell_('固定費', p.v.fixed) +
+        cell_('在庫管理', p.v.inv,     { cls: workCls }) +
+        cell_('アカウント運用', p.v.account, { cls: workCls }) +
+        cell_('利益歩合', p.v.rieki,   { cls: rieCls, always: p.v.profitWins }) +
+        cell_('固定費', p.v.fixed,     { cls: workCls }) +
       '</div></div>' +
       (p.v.keihi ? '<div class="houshu-section"><div class="houshu-grid">' +
-        cell_('立替経費精算', p.v.keihi, { cls: 'is-credit', always: true,
-          title: '本人が立替えた経費を報酬と一緒に返金する分（プラス加算）' }) +
+        cell_('立替経費精算', p.v.keihi, { cls: 'is-credit' + (workCls ? ' ' + workCls : ''), always: true,
+          title: '本人が立替えた経費を報酬と一緒に返金する分（合計に含む / 利益歩合採用時は対象外）' }) +
       '</div></div>' : '') +
     '</div>';
   }
@@ -5095,10 +5132,10 @@ function paintHoushu_(data) {
   var nameCount = Object.keys(nameSet).length;
   var summaryLabel;
   if (isAdmin && selected === '__all__') {
-    summaryLabel = '全員 合計報酬（' + nameCount + '名 × ' + mine.length + '行）';
+    summaryLabel = '全員 実支払額合計（' + nameCount + '名 × ' + mine.length + '行 / max(合計, 利益歩合)）';
   } else {
     var who = isAdmin ? selected : STATE.userName;
-    summaryLabel = esc(who) + ' さんの合計報酬（' + mine.length + 'ヶ月分）';
+    summaryLabel = esc(who) + ' さんの実支払額合計（' + mine.length + 'ヶ月分 / max(合計, 利益歩合)）';
   }
   html += '<div class="houshu-summary">' +
     '<div class="s-label">' + summaryLabel + '</div>' +
