@@ -1154,7 +1154,43 @@ function staff_apiSaveDetails(payload, email) {
   }
 
   // ステータスを AppSheet IFS 式で再計算（任意の日付フィールドが書かれた可能性があるため必ず実施）
-  try { staff_recomputeStatus_(sh, rowNum, hdr, col); } catch(e) {}
+  var recomputed = null;
+  try { recomputed = staff_recomputeStatus_(sh, rowNum, hdr, col); } catch(e) {}
+
+  // 保存後の最新行を読み戻し、Workers が D1 を即時に同期できるように record で返す。
+  // 派生値（粗利・利益・利益率・在庫日数・リードタイム）も合わせて算出して返却。
+  var record = null;
+  var derivedStatus = '';
+  try {
+    var lastColAfter = sh.getLastColumn();
+    var rowVals = sh.getRange(rowNum, 1, 1, lastColAfter).getValues()[0];
+    var rowDisp = sh.getRange(rowNum, 1, 1, lastColAfter).getDisplayValues()[0];
+    record = {};
+    for (var ck = 0; ck < hdr.length; ck++) {
+      var hk = String(hdr[ck] || '').trim();
+      if (!hk) continue;
+      var rawV = rowVals[ck];
+      // 日付列・タイムスタンプ列は表示値を使う（'2026-05-03' 等の文字列で返したい）
+      if (rawV instanceof Date) {
+        record[hk] = rowDisp[ck];
+      } else if (rawV === null || rawV === undefined) {
+        record[hk] = '';
+      } else {
+        record[hk] = rawV;
+      }
+    }
+    derivedStatus = String(record['ステータス'] || '');
+    // 派生値の計算（formatProduct と同じロジック）
+    var __cost = Number(record['仕入れ値'] || 0);
+    var __sp = Number(record['販売価格'] || 0);
+    var __ss = Number(record['送料'] || 0);
+    var __sf = Number(record['手数料'] || 0);
+    if (__sp > 0) {
+      record['粗利'] = __sp - __ss - __sf;
+      record['利益'] = __sp - __ss - __sf - __cost;
+      record['利益率'] = (__sp > 0 ? ((__sp - __ss - __sf - __cost) / __sp * 100).toFixed(1) : '0') + '%';
+    }
+  } catch (e) {}
 
   return {
     ok: true,
@@ -1163,7 +1199,10 @@ function staff_apiSaveDetails(payload, email) {
     row: rowNum,
     written: written,
     skipped: skipped,
-    unknown: unknown
+    unknown: unknown,
+    derivedStatus: derivedStatus,
+    statusChanged: recomputed && recomputed.changed === true,
+    record: record
   };
 }
 
@@ -1189,7 +1228,17 @@ function staff_apiUploadImage(payload, email) {
   var mime = m[1];
   var b64 = m[2];
   var ext = (mime.split('/')[1] || 'jpg').toLowerCase().replace('jpeg', 'jpg');
-  var fileName = kanri + '.' + field + '.' + Date.now() + '.' + ext;
+  // AppSheet 互換ファイル名: <kanri>.<field>.<HHMMSS>.<ext>
+  // ※ AppSheet は秒精度のタイムスタンプ（HHMMSS）。サーバー時刻 JST で揃える。
+  var now = new Date();
+  var hh = ('0' + now.getHours()).slice(-2);
+  var mm = ('0' + now.getMinutes()).slice(-2);
+  var ss2 = ('0' + now.getSeconds()).slice(-2);
+  var stamp = hh + mm + ss2;
+  var fileName = kanri + '.' + field + '.' + stamp + '.' + ext;
+  // 相対パス（AppSheet 互換）: 商品管理_Images/<filename> をシートに書き込む
+  var relPath = '商品管理_Images/' + fileName;
+
   var blob = Utilities.newBlob(Utilities.base64Decode(b64), mime, fileName);
 
   var sh = staff_getSheet_();
@@ -1218,9 +1267,10 @@ function staff_apiUploadImage(payload, email) {
   var hdr = sh.getRange(1, 1, 1, lastCol).getValues()[0];
   var col = buildHeaderMap_(hdr);
   if (!col[field]) return { ok: false, error: 'ヘッダーが見つかりません: ' + field };
-  sh.getRange(rowNum, col[field]).setValue(url);
+  // シートには AppSheet 互換の相対パスを書き込む（軽量＋外注も AppSheet で確認可能）
+  sh.getRange(rowNum, col[field]).setValue(relPath);
 
-  return { ok: true, url: url, kanri: kanri, field: field, row: rowNum };
+  return { ok: true, path: relPath, url: url, kanri: kanri, field: field, row: rowNum };
 }
 
 // AppSheet 旧形式の相対パス (例: "商品管理_Images/zS5.売却済み商品画像.013345.jpg") を Drive のシェアURL に解決

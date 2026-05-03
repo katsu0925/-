@@ -82,38 +82,70 @@ export async function saveDetails(request, env, user) {
   const gasRes = await callGas(env, 'saveDetails', { kanri, fields }, user);
   if (!gasRes.ok) return jsonError(gasRes.error || 'gas error', 502);
 
-  // 楽観的更新: 既存の extra_json をマージして書き戻す（次の Cron で確定）
+  // 楽観的更新: GAS が返す record（再計算後の最新行）を優先して extra_json と専用カラムを更新する。
+  // record があれば「シートが正」のスナップショットとして使える → 派生ステータス・粗利等が即時に反映される。
+  // record が無い場合のみ従来通り fields をそのままマージ。
+  const record = (gasRes && gasRes.record && typeof gasRes.record === 'object') ? gasRes.record : null;
   try {
     const cur = await env.DB.prepare('SELECT extra_json FROM products WHERE kanri = ?').bind(kanri).first();
     let extra = {};
     if (cur && cur.extra_json) {
       try { extra = JSON.parse(cur.extra_json) || {}; } catch { extra = {}; }
     }
-    for (const k of keys) {
-      const v = fields[k];
-      extra[k] = v == null ? '' : String(v);
+    if (record) {
+      // record の各キーで上書き（読み取り専用キーも含めて全列が来ているはず）
+      for (const k of Object.keys(record)) {
+        const v = record[k];
+        extra[k] = v == null ? '' : v;
+      }
+    } else {
+      for (const k of keys) {
+        const v = fields[k];
+        extra[k] = v == null ? '' : String(v);
+      }
     }
-    // 既存の専用カラムにも反映できるものは反映（フィルタ性能維持）
+    // 既存の専用カラムにも反映（フィルタ性能維持）
     const sets = ['extra_json = ?', 'updated_at = ?'];
     const args = [JSON.stringify(extra), Date.now()];
     function push(col, val) { sets.push(`${col} = ?`); args.push(val); }
-    if (fields['ステータス'] !== undefined) push('status', String(fields['ステータス'] || ''));
-    if (fields['状態'] !== undefined) push('state', String(fields['状態'] || ''));
-    if (fields['ブランド'] !== undefined) push('brand', String(fields['ブランド'] || ''));
-    if (fields['メルカリサイズ'] !== undefined) push('size', String(fields['メルカリサイズ'] || ''));
-    if (fields['カラー'] !== undefined) push('color', String(fields['カラー'] || ''));
-    if (fields['販売日'] !== undefined) push('sale_date', String(fields['販売日'] || ''));
-    if (fields['販売場所'] !== undefined) push('sale_place', String(fields['販売場所'] || ''));
-    if (fields['販売価格'] !== undefined) {
-      const n = Number(fields['販売価格']);
+
+    // 派生 status は GAS の derivedStatus（再計算済み）を最優先、無ければ fields → record の順
+    const derived = (gasRes && typeof gasRes.derivedStatus === 'string' && gasRes.derivedStatus)
+      ? gasRes.derivedStatus
+      : (fields['ステータス'] !== undefined ? String(fields['ステータス'] || '') : (record && record['ステータス'] != null ? String(record['ステータス']) : null));
+    if (derived !== null) push('status', derived);
+
+    // 専用カラムは record があれば record から、無ければ fields から拾う
+    function pick(name) {
+      if (record && record[name] !== undefined) return record[name];
+      if (fields[name] !== undefined) return fields[name];
+      return undefined;
+    }
+    const state = pick('状態');
+    if (state !== undefined) push('state', String(state || ''));
+    const brand = pick('ブランド');
+    if (brand !== undefined) push('brand', String(brand || ''));
+    const size = pick('メルカリサイズ');
+    if (size !== undefined) push('size', String(size || ''));
+    const color = pick('カラー');
+    if (color !== undefined) push('color', String(color || ''));
+    const saleDate = pick('販売日');
+    if (saleDate !== undefined) push('sale_date', String(saleDate || ''));
+    const salePlace = pick('販売場所');
+    if (salePlace !== undefined) push('sale_place', String(salePlace || ''));
+    const sp = pick('販売価格');
+    if (sp !== undefined) {
+      const n = Number(sp);
       push('sale_price', Number.isFinite(n) ? n : null);
     }
-    if (fields['送料'] !== undefined) {
-      const n = Number(fields['送料']);
+    const sh = pick('送料');
+    if (sh !== undefined) {
+      const n = Number(sh);
       push('sale_shipping', Number.isFinite(n) ? n : null);
     }
-    if (fields['手数料'] !== undefined) {
-      const n = Number(fields['手数料']);
+    const sf = pick('手数料');
+    if (sf !== undefined) {
+      const n = Number(sf);
       push('sale_fee', Number.isFinite(n) ? n : null);
     }
     args.push(kanri);
@@ -126,7 +158,9 @@ export async function saveDetails(request, env, user) {
     saved: true,
     written: gasRes.written || 0,
     skipped: gasRes.skipped || [],
-    unknown: gasRes.unknown || []
+    unknown: gasRes.unknown || [],
+    derivedStatus: gasRes.derivedStatus || '',
+    statusChanged: !!gasRes.statusChanged
   });
 }
 
@@ -145,21 +179,36 @@ export async function uploadImage(request, env, user) {
   const gasRes = await callGas(env, 'uploadImage', { kanri, field, dataUrl }, user);
   if (!gasRes.ok) return jsonError(gasRes.error || 'gas error', 502);
 
-  // 楽観的更新: extra_json に URL を反映
+  // 2026-05-03 以降: GAS は相対パス (path) と Drive URL (url) の両方を返す。
+  // シートには path（AppSheet 互換 "商品管理_Images/..."）を書いているため D1 にも path を入れる。
+  // path → URL の解決は既存の /api/image/resolve（KV キャッシュ 1日）が引き受ける。
+  const sheetValue = gasRes.path || gasRes.url || '';
+  // resolveImage の KV キャッシュをこの path で予熱しておくと、直後の表示で 1往復省ける
+  if (env.CACHE && gasRes.path && gasRes.url) {
+    try {
+      // normalizeDriveUrl_ 相当の正規化（uc?id → thumbnail?id&sz=w500）
+      const m = String(gasRes.url).match(/^https?:\/\/drive\.google\.com\/uc\?(?:.*&)?id=([^&]+)/);
+      const norm = m ? ('https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w500') : gasRes.url;
+      await env.CACHE.put('imgresolve:' + gasRes.path, norm, { expirationTtl: 86400 });
+    } catch (err) {
+      console.warn('[upload image] kv warm failed', err.message);
+    }
+  }
+
   try {
     const cur = await env.DB.prepare('SELECT extra_json FROM products WHERE kanri = ?').bind(kanri).first();
     let extra = {};
     if (cur && cur.extra_json) {
       try { extra = JSON.parse(cur.extra_json) || {}; } catch { extra = {}; }
     }
-    extra[field] = gasRes.url;
+    extra[field] = sheetValue;
     await env.DB.prepare('UPDATE products SET extra_json = ?, updated_at = ? WHERE kanri = ?')
       .bind(JSON.stringify(extra), Date.now(), kanri).run();
   } catch (err) {
     console.warn('[upload image] d1 update failed', err.message);
   }
 
-  return jsonOk({ uploaded: true, url: gasRes.url, field });
+  return jsonOk({ uploaded: true, url: gasRes.url, path: gasRes.path || '', field });
 }
 
 // POST /api/image/resolve  body: { kanri, field, path }

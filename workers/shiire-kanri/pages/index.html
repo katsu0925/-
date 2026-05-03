@@ -2976,7 +2976,10 @@ function imageFieldHtml_(id, name, v) {
   return '<div class="img-field">' + preview + '<div class="img-actions">' + picker + '</div></div>';
 }
 
-// 画像選択時に呼ばれる（リサイズ→base64→/api/save/image）
+// 画像選択時に呼ばれる（楽観的: 即時にローカルプレビュー → バックグラウンドでアップロード）
+// 1) URL.createObjectURL で即座に <img> 差し替え（待ち時間ゼロ体験）
+// 2) リサイズ→base64→POST はバックグラウンド
+// 3) アップロード成功後、Drive 画像URL（thumbnail）に差し替え。失敗時はローカル画像を残してエラー表示
 function onImageFieldPick_(inputEl, fieldId, fieldName) {
   var file = inputEl.files && inputEl.files[0];
   if (!file) return;
@@ -2987,29 +2990,46 @@ function onImageFieldPick_(inputEl, fieldId, fieldName) {
     if (status) { status.textContent = '管理番号がありません'; status.className = 'img-status error'; }
     return;
   }
-  if (status) { status.textContent = '読み込み中…'; status.className = 'img-status'; }
 
+  // ① 即時プレビュー（楽観的）
+  var localUrl = '';
+  try { localUrl = URL.createObjectURL(file); } catch(e) {}
+  if (preview && localUrl) {
+    var safeLocal = esc(localUrl).replace(/\'/g,"\\'");
+    var html = '<button type="button" id="' + esc(fieldId) + '_preview" class="img-preview" onclick="openImageModal_(\'' + safeLocal + '\')"><img src="' + esc(localUrl) + '" alt=""></button>';
+    preview.outerHTML = html;
+  }
+  if (status) { status.textContent = '⏳ アップロード中…（操作続行可）'; status.className = 'img-status'; }
+
+  // ② バックグラウンドでリサイズ＋アップロード（UI は応答性維持）
   resizeImage_(file, 1600, 0.85).then(function(dataUrl){
-    if (status) status.textContent = 'アップロード中…';
     return fetch('/api/save/image', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ kanri: kanri, field: fieldName, dataUrl: dataUrl })
-    }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, body: j }; }); })
-    .then(function(res){
-      if (!res.ok || !res.body || !res.body.url) throw new Error((res.body && res.body.error) || 'アップロード失敗');
-      var url = res.body.url;
-      if (preview) {
-        var safeUrl = esc(url).replace(/\'/g,"\\'");
-        var html = '<button type="button" id="' + esc(fieldId) + '_preview" class="img-preview" onclick="openImageModal_(\'' + safeUrl + '\')"><img src="' + esc(url) + '" alt=""></button>';
-        preview.outerHTML = html;
-      }
-      if (status) { status.textContent = '✓ アップロード完了'; status.className = 'img-status success'; }
-      if (STATE.current && STATE.current.extra) STATE.current.extra[fieldName] = url;
-      LIST_CACHE = {};
-    });
+    }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, body: j }; }); });
+  }).then(function(res){
+    if (!res.ok || !res.body) throw new Error((res.body && res.body.error) || 'アップロード失敗');
+    var url = res.body.url || '';
+    var path = res.body.path || '';
+    // ③ Drive 画像URLに差し替え（thumbnail 正規化）。Drive 共有伝播の遅延に備えて localUrl は維持
+    var displayUrl = url ? normalizeDriveUrl_(url) : (localUrl || '');
+    var newPreview = document.getElementById(fieldId + '_preview');
+    if (newPreview && displayUrl) {
+      var safeDisp = esc(displayUrl).replace(/\'/g,"\\'");
+      var html = '<button type="button" id="' + esc(fieldId) + '_preview" class="img-preview" onclick="openImageModal_(\'' + safeDisp + '\')"><img src="' + esc(displayUrl) + '" alt="" onerror="this.onerror=null;this.src=\'' + esc(localUrl || '').replace(/\'/g,"\\'") + '\'"></button>';
+      newPreview.outerHTML = html;
+    }
+    if (status) {
+      var s2 = document.getElementById(fieldId + '_status');
+      if (s2) { s2.textContent = '✓ 保存完了'; s2.className = 'img-status success'; }
+    }
+    // STATE 更新: シートには相対パスが入るため、extra にも path を入れる（次回詳細表示と整合）
+    if (STATE.current && STATE.current.extra) STATE.current.extra[fieldName] = path || url;
+    LIST_CACHE = {};
   }).catch(function(err){
-    if (status) { status.textContent = '✗ ' + (err && err.message || 'エラー'); status.className = 'img-status error'; }
+    var s3 = document.getElementById(fieldId + '_status');
+    if (s3) { s3.textContent = '✗ ' + (err && err.message || 'エラー') + '（再撮影してください）'; s3.className = 'img-status error'; }
   });
 }
 
