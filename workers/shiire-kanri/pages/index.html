@@ -1169,27 +1169,62 @@
   .shiire-done-row .d-meta { color: var(--text-sub); font-size: 11px; white-space: nowrap; flex: 0 0 auto; }
   .shiire-done-row .d-qty { font-weight: 700; color: var(--primary); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
   /* 業務メニュー: 報酬確認 月別カード */
-  .houshu-list { display: flex; flex-direction: column; gap: 12px; }
+  .houshu-list { display: flex; flex-direction: column; gap: 14px; }
+  .houshu-summary {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: #fff; border-radius: 12px; padding: 14px 16px; margin-bottom: 12px;
+    box-shadow: var(--shadow);
+  }
+  .houshu-summary .s-label { font-size: 12px; opacity: .9; font-weight: 500; }
+  .houshu-summary .s-total {
+    font-size: 26px; font-weight: 700; margin-top: 2px;
+    font-variant-numeric: tabular-nums;
+  }
+  .houshu-summary .s-counts {
+    display: flex; flex-wrap: wrap; gap: 8px 14px;
+    margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.25);
+    font-size: 11.5px; opacity: .95;
+  }
+  .houshu-summary .s-counts span { font-variant-numeric: tabular-nums; }
+  .houshu-summary .s-counts b { font-weight: 700; margin-left: 3px; }
+  .houshu-group-name {
+    font-size: 15px; font-weight: 700; color: var(--text);
+    margin: 6px 2px 4px; padding-left: 8px;
+    border-left: 4px solid var(--primary);
+    line-height: 1.3;
+  }
+  .houshu-group-name small { font-weight: 500; color: var(--text-sub); font-size: 11px; margin-left: 8px; font-variant-numeric: tabular-nums; }
   .houshu-card {
     background: var(--surface); border-radius: 12px; box-shadow: var(--shadow);
     padding: 14px 16px; border-top: 3px solid var(--primary);
   }
-  .houshu-month { font-size: 13px; color: var(--text-sub); font-weight: 600; }
+  .houshu-month { font-size: 11px; color: var(--text-sub); font-weight: 600; letter-spacing: .04em; }
   .houshu-total {
-    font-size: 28px; font-weight: 700; color: var(--text);
-    margin: 4px 0 12px;
+    font-size: 30px; font-weight: 700; color: var(--text);
+    margin: 2px 0 12px; font-variant-numeric: tabular-nums;
+  }
+  .houshu-section + .houshu-section {
+    margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e5e9f0;
   }
   .houshu-grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-    gap: 8px 12px; font-size: 12px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 4px 14px; font-size: 12px;
   }
   .houshu-grid > div {
     display: flex; justify-content: space-between; align-items: baseline;
-    padding: 4px 0; border-bottom: 1px solid #f0f2f7;
+    padding: 5px 0; border-bottom: 1px solid #f0f2f7; min-width: 0;
   }
-  .houshu-grid > div span { color: var(--text-sub); }
-  .houshu-grid > div b { font-size: 13px; color: var(--text); }
-  .houshu-grid > div .houshu-count { font-size: 11px; color: var(--text-sub); margin-left: 4px; font-weight: 500; }
+  .houshu-grid > div.is-zero { opacity: .35; }
+  .houshu-grid > div .h-label { color: var(--text-sub); display: inline-flex; align-items: baseline; gap: 5px; min-width: 0; }
+  .houshu-grid > div .h-label .houshu-count { font-size: 10.5px; color: var(--text-mute); font-weight: 500; white-space: nowrap; }
+  .houshu-grid > div b { font-size: 13px; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .houshu-grid > div.is-credit b { color: var(--accent); }
+  .houshu-grid > div.is-credit .h-label { cursor: help; border-bottom: 1px dotted var(--text-sub); }
+  #houshu-name-filter {
+    min-height: 40px; font-size: 16px;
+    padding: 6px 12px; border: 1px solid #cfd6e1; border-radius: 8px;
+    background: #fff; color: var(--text);
+  }
   .placeholder {
     text-align: center; padding: 60px 20px; color: var(--text-sub);
     background: var(--surface); border-radius: 12px; margin: 16px;
@@ -4943,14 +4978,66 @@ function paintHoushu_(data) {
     if (!n) return '¥0';
     return '¥' + Number(n).toLocaleString('ja-JP');
   }
-  function cell_(label, yen, count){
-    var c = (typeof count === 'number')
-      ? '<small class="houshu-count">(' + count + '件)</small>'
-      : '';
-    return '<div><span>' + label + '</span><b>' + fmt_(yen) + '</b>' + c + '</div>';
+  // 1セル: ラベル＋金額（任意で件数バッジ・¥0 dim・特殊スタイル）
+  function cell_(label, yen, opts){
+    opts = opts || {};
+    var dim = (yen === 0 && !opts.always) ? ' is-zero' : '';
+    var extra = opts.cls ? (' ' + opts.cls) : '';
+    var title = opts.title ? (' title="' + esc(opts.title) + '"') : '';
+    var badge = '';
+    if (typeof opts.count === 'number') {
+      // (15件) と単価 @¥XXX を併記。¥0 や 0件のときは省略。
+      var unit = (opts.count > 0 && yen > 0) ? Math.round(yen / opts.count) : 0;
+      var unitTxt = unit ? ' @¥' + Number(unit).toLocaleString('ja-JP') : '';
+      if (opts.count > 0) badge = '<small class="houshu-count">' + opts.count + '件' + unitTxt + '</small>';
+    }
+    return '<div class="' + (dim + extra).trim() + '"' + title + '>' +
+      '<span class="h-label">' + esc(label) + badge + '</span>' +
+      '<b>' + fmt_(yen) + '</b>' +
+    '</div>';
   }
+  // 1行を解析して内訳と件数を返す
+  function parseRow_(r){
+    var month = String(r[iMonth] || '');
+    var rowName = String(r[iName] || '').trim();
+    // 報酬管理シートの列: D=撮影, E=採寸, F=出品, G=発送, H=在庫管理,
+    //                    I=アカウント運用, J=立替経費精算, K=利益歩合, L=固定費
+    var v = {
+      satsuei: num_(r[3]), sokutei: num_(r[4]), shuppin: num_(r[5]), hassou: num_(r[6]),
+      inv: num_(r[7]), account: num_(r[8]), keihi: num_(r[9]), rieki: num_(r[10]), fixed: num_(r[11])
+    };
+    var counts = ((workersByName[rowName] && workersByName[rowName].monthly) || defaultMonthly)[ymKey_(month)]
+      || { sokutei: 0, satsuei: 0, shuppin: 0, hassou: 0 };
+    v.total = v.satsuei + v.sokutei + v.shuppin + v.hassou + v.inv + v.account + v.rieki + v.fixed + v.keihi;
+    return { month: month, name: rowName, v: v, counts: counts };
+  }
+  // 1枚の月カード
+  function renderCard_(r){
+    var p = parseRow_(r);
+    return '<div class="houshu-card">' +
+      '<div class="houshu-month">' + esc(p.month) + '</div>' +
+      '<div class="houshu-total">' + fmt_(p.v.total) + '</div>' +
+      '<div class="houshu-section"><div class="houshu-grid">' +
+        cell_('撮影', p.v.satsuei, { count: p.counts.satsuei }) +
+        cell_('採寸', p.v.sokutei, { count: p.counts.sokutei }) +
+        cell_('出品', p.v.shuppin, { count: p.counts.shuppin }) +
+        cell_('発送', p.v.hassou,  { count: p.counts.hassou })  +
+      '</div></div>' +
+      '<div class="houshu-section"><div class="houshu-grid">' +
+        cell_('在庫管理', p.v.inv) +
+        cell_('アカウント運用', p.v.account) +
+        cell_('利益歩合', p.v.rieki) +
+        cell_('固定費', p.v.fixed) +
+      '</div></div>' +
+      (p.v.keihi ? '<div class="houshu-section"><div class="houshu-grid">' +
+        cell_('立替経費精算', p.v.keihi, { cls: 'is-credit', always: true,
+          title: '本人が立替えた経費を報酬と一緒に返金する分（プラス加算）' }) +
+      '</div></div>' : '') +
+    '</div>';
+  }
+
   var html = '<div class="biz-wrap">';
-  // 管理者: 名前フィルタ＋"全員"オプション。一般: 自分の名前のみ。
+  // 管理者: 名前フィルタ＋"全員"。一般: 自分の名前のみ。
   if (isAdmin) {
     var allNames = {};
     rows.forEach(function(r){ var n = String(r[iName] || '').trim(); if (n) allNames[n] = true; });
@@ -4959,61 +5046,77 @@ function paintHoushu_(data) {
       var sel = (n === selected) ? ' selected' : '';
       nameOptions += '<option value="' + esc(n) + '"' + sel + '>' + esc(n) + '</option>';
     });
-    html += '<div class="biz-meta" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">' +
-      '<span style="font-weight:600">報酬（管理者）</span>' +
-      '<select id="houshu-name-filter" onchange="onHoushuNameChange_(this.value)" ' +
-        'style="padding:6px 10px;border:1px solid #cfd6e1;border-radius:8px;font-size:13px">' +
+    html += '<div class="biz-meta" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px">' +
+      '<span style="font-weight:600;font-size:13px;color:var(--text)">報酬（管理者）</span>' +
+      '<select id="houshu-name-filter" aria-label="スタッフ選択" ' +
+        'onchange="onHoushuNameChange_(this.value)">' +
         nameOptions +
       '</select>' +
-      '<span style="color:var(--text-sub);font-size:12px">' + mine.length + '行</span>' +
     '</div>';
-  } else {
-    html += '<div class="biz-meta">' + esc(STATE.userName) + ' さんの報酬（' + mine.length + 'ヶ月分）</div>';
   }
+
   if (mine.length === 0) {
     html += '<div class="empty" style="padding:24px">表示できる月の報酬がありません。</div>';
-  } else {
-    html += '<div class="houshu-list">';
-    mine.forEach(function(r){
-      var month = String(r[iMonth] || '');
-      var rowName = String(r[iName] || '').trim();
-      // 報酬管理シートの実列構造（報酬更新.gs:198-213 より）
-      // D=撮影報酬, E=採寸報酬, F=出品報酬, G=発送報酬, H=在庫管理, I=アカウント運用,
-      // J=経費控除, K=利益歩合, L=固定費, M=月ブロック奇偶マーカー（表示無関係）
-      var satsuei = num_(r[3]);   // D 撮影
-      var sokutei = num_(r[4]);   // E 採寸
-      var shuppin = num_(r[5]);   // F 出品
-      var hassou  = num_(r[6]);   // G 発送
-      var inv     = num_(r[7]);   // H 在庫管理
-      var account = num_(r[8]);   // I アカウント運用
-      var keihi   = num_(r[9]);   // J 立替経費の精算（報酬で返還するためプラス加算）
-      var rieki   = num_(r[10]);  // K 利益歩合
-      var fixed   = num_(r[11]);  // L 固定費
-      // 件数（同月の作業件数）。管理者で他人を表示する場合はその作業者の monthly を参照。
-      var monthlyCounts = (workersByName[rowName] && workersByName[rowName].monthly) || defaultMonthly;
-      var counts = monthlyCounts[ymKey_(month)] || { sokutei: 0, satsuei: 0, shuppin: 0, hassou: 0 };
-      var total = satsuei + sokutei + shuppin + hassou + inv + account + rieki + fixed + keihi;
-      var monthLabel = (isAdmin && selected === '__all__' && rowName)
-        ? esc(month) + ' — <span style="color:var(--text)">' + esc(rowName) + '</span>'
-        : esc(month);
-      html += '<div class="houshu-card">' +
-        '<div class="houshu-month">' + monthLabel + '</div>' +
-        '<div class="houshu-total">' + fmt_(total) + '</div>' +
-        '<div class="houshu-grid">' +
-          cell_('撮影', satsuei, counts.satsuei) +
-          cell_('採寸', sokutei, counts.sokutei) +
-          cell_('出品', shuppin, counts.shuppin) +
-          cell_('発送', hassou,  counts.hassou)  +
-          cell_('在庫管理', inv) +
-          cell_('アカウント運用', account) +
-          cell_('利益歩合', rieki) +
-          cell_('固定費', fixed) +
-          (keihi ? '<div><span>立替経費精算</span><b>' + fmt_(keihi) + '</b></div>' : '') +
-        '</div>' +
-      '</div>';
-    });
     html += '</div>';
+    c.innerHTML = html;
+    return;
   }
+
+  // ── 集計バー（選択範囲の合計報酬・件数合計）
+  var sumTotal = 0, sumSat = 0, sumSok = 0, sumShu = 0, sumHas = 0;
+  var nameSet = {};
+  mine.forEach(function(r){
+    var p = parseRow_(r);
+    sumTotal += p.v.total;
+    sumSat += p.counts.satsuei || 0;
+    sumSok += p.counts.sokutei || 0;
+    sumShu += p.counts.shuppin || 0;
+    sumHas += p.counts.hassou  || 0;
+    if (p.name) nameSet[p.name] = true;
+  });
+  var nameCount = Object.keys(nameSet).length;
+  var summaryLabel;
+  if (isAdmin && selected === '__all__') {
+    summaryLabel = '全員 合計報酬（' + nameCount + '名 × ' + mine.length + '行）';
+  } else {
+    var who = isAdmin ? selected : STATE.userName;
+    summaryLabel = esc(who) + ' さんの合計報酬（' + mine.length + 'ヶ月分）';
+  }
+  html += '<div class="houshu-summary">' +
+    '<div class="s-label">' + summaryLabel + '</div>' +
+    '<div class="s-total">' + fmt_(sumTotal) + '</div>' +
+    '<div class="s-counts">' +
+      '<span>撮影<b>' + sumSat + '</b>件</span>' +
+      '<span>採寸<b>' + sumSok + '</b>件</span>' +
+      '<span>出品<b>' + sumShu + '</b>件</span>' +
+      '<span>発送<b>' + sumHas + '</b>件</span>' +
+    '</div>' +
+  '</div>';
+
+  html += '<div class="houshu-list">';
+  if (isAdmin && selected === '__all__') {
+    // 人ベースで group: 名前見出し → その人の月カード
+    var byName = {};
+    mine.forEach(function(r){
+      var nm = String(r[iName] || '').trim();
+      if (!nm) return;
+      (byName[nm] = byName[nm] || []).push(r);
+    });
+    Object.keys(byName).sort().forEach(function(nm){
+      var rs = byName[nm];
+      // その人の合計
+      var personTotal = 0;
+      rs.forEach(function(r){ personTotal += parseRow_(r).v.total; });
+      html += '<div class="houshu-group-name">' + esc(nm) +
+        '<small>合計 ' + fmt_(personTotal) + ' / ' + rs.length + 'ヶ月</small>' +
+      '</div>';
+      rs.forEach(function(r){ html += renderCard_(r); });
+    });
+  } else {
+    mine.forEach(function(r){ html += renderCard_(r); });
+  }
+  html += '</div>';
+
   html += '</div>';
   c.innerHTML = html;
 }
