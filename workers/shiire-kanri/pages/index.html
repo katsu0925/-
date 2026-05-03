@@ -4113,8 +4113,8 @@ function paintShiireHoukoku_(data) {
       var safeId = esc(id).replace(/'/g, "\\'");
       html += '<div class="shiire-rep-card" data-id="' + esc(id) + '">' +
         '<div class="shiire-rep-card-head">' +
-          '<div class="shiire-rep-card-title">' + esc(content) + '</div>' +
-          '<div class="shiire-rep-card-date">' + esc(date) + '</div>' +
+          '<div class="shiire-rep-card-title">' + esc(date) + '</div>' +
+          '<div class="shiire-rep-card-date">' + esc(content) + '</div>' +
         '</div>' +
         '<div class="shiire-rep-card-sub">' +
           (id ? '<span class="tag" style="background:#fff3e0;color:#e65100">🆔 ' + esc(id) + '</span>' : '') +
@@ -4140,8 +4140,8 @@ function paintShiireHoukoku_(data) {
       var qty = qtyOf_(r);
       var meta = [reporter, cat ? '区分' + cat : ''].filter(Boolean).join(' / ');
       html += '<div class="shiire-done-row">' +
-        '<span class="d-date">' + esc(date) + '</span>' +
-        '<span class="d-title">' + esc(content) + '</span>' +
+        '<span class="d-date">' + esc(content) + '</span>' +
+        '<span class="d-title">' + esc(date) + '</span>' +
         (meta ? '<span class="d-meta">' + esc(meta) + '</span>' : '') +
         '<span class="d-qty">' + qty + '点</span>' +
       '</div>';
