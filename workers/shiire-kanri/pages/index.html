@@ -5586,6 +5586,23 @@ function updateSavebar_() {
   updateSecTabDirtyBadges_(dirty);
   var cnt = document.getElementById('savebar-count');
   var names = document.getElementById('savebar-fields');
+  var info = bar.querySelector('.savebar-info');
+  // 保存中は dirty=0 でも savebar を表示し続け、テキストを「保存中…」に切り替える
+  // （楽観的更新で dirty が 0 になるが、API 完了までユーザーに状態を見せたい）
+  if (STATE.savingDetails) {
+    bar.classList.add('show');
+    bar.classList.add('saving');
+    if (info) info.innerHTML = '<b>保存中…</b><span class="savebar-fields">' +
+      (STATE.savingFieldsLabel ? '（' + STATE.savingFieldsLabel + '）' : '') + '</span>';
+    return;
+  }
+  bar.classList.remove('saving');
+  // 保存中でない場合は通常のテキスト構造を復元（前回 saving で innerHTML を上書きしているため）
+  if (info && !document.getElementById('savebar-count')) {
+    info.innerHTML = '<b id="savebar-count">0</b> 件の変更が未保存<span class="savebar-fields" id="savebar-fields"></span>';
+    cnt = document.getElementById('savebar-count');
+    names = document.getElementById('savebar-fields');
+  }
   if (n > 0) {
     bar.classList.add('show');
     if (cnt) cnt.textContent = String(n);
@@ -5715,17 +5732,22 @@ async function saveDetails() {
   d.extra = ex;
   patchListCache_(d.kanri, fields);
   if (DETAIL_CACHE[d.kanri]) DETAIL_CACHE[d.kanri] = d;
-  // 楽観的更新で extra と edits が一致 → getDirtyFields_ が 0 になり savebar も自動的に消える
-  // （edits はそのまま残してOK。原本と等しいので dirty 件数は 0）
-  clearDetailDirty_();
+
+  // 保存中フラグを立てて savebar を「保存中…」表示で固定（API 完了まで隠さない）
+  STATE.savingDetails = true;
+  STATE.savingFieldsLabel = dirty.map(function(d){return d.name}).join('、');
   try { updateSavebar_(); } catch(e) {}
 
-  // 保存ボタンに「保存中…」スピナーを表示（API 完了まで）
+  // 保存ボタンも「保存中…」スピナーに切り替え
   var btn = document.getElementById('btn-save-details');
   if (btn) { btn.classList.add('saving'); btn.disabled = true; btn.textContent = '保存中…'; }
   function clearSavingBtn_() {
+    STATE.savingDetails = false;
+    STATE.savingFieldsLabel = '';
     var b = document.getElementById('btn-save-details');
     if (b) { b.classList.remove('saving'); b.disabled = false; b.textContent = '保存'; }
+    // savebar を最新の dirty 状態で再評価（成功時は 0 件で非表示、失敗時は再表示）
+    try { updateSavebar_(); } catch(e) {}
   }
 
   // 背景で API へ送信 → 成功後にサーバー再取得（派生ステータス・利益等の自動反映を取り込む）
@@ -5752,17 +5774,14 @@ async function saveDetails() {
       }
     })
     .catch(function(err){
-      clearSavingBtn_();
-      // 失敗時: 楽観的更新を巻き戻して dirty を復活させる → savebar 再表示で再保存可能にする
+      // 失敗時: 楽観的更新を巻き戻してから saving 状態を解除する
+      // （順序を逆にすると updateSavebar_ が一瞬 dirty=0 と判断して bar を消してしまう）
       Object.keys(prevValues).forEach(function(k){
         if (prevValues[k] === undefined) delete ex[k];
         else ex[k] = prevValues[k];
       });
       d.extra = ex;
-      // 入力値はユーザーが入れたものを残す（再保存しやすいように）→ updateSavebar_ が dirty を再判定
-      if (STATE.view === 'detail' && STATE.current && STATE.current.kanri === d.kanri) {
-        try { updateSavebar_(); } catch(e) {}
-      }
+      clearSavingBtn_();
       toast('⚠️ 保存に失敗: ' + err.message + '（再保存してください）', 'error');
     });
 }

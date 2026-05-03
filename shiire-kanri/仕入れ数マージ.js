@@ -111,9 +111,12 @@ function syncKanriToReport_() {
   var kanriLastCol = Math.max(kanriSheet.getLastColumn(), knr.SYNCED);
   var kanriData = kanriSheet.getRange(2, 1, kanriNumRows, kanriLastCol).getValues();
 
-  // 全行を収集（既存行の 内容/区分/報告者/仕入れ日 編集を後段で反映するため、SYNCED でフィルタしない）
+  // 未同期の行を収集
   var pending = [];
   for (var i = 0; i < kanriData.length; i++) {
+    var synced = String(kanriData[i][knr.SYNCED - 1] || '').trim().toUpperCase();
+    if (synced === 'TRUE') continue;
+
     var id = normalizeText_(kanriData[i][knr.ID - 1]);
     if (!id) continue;
 
@@ -121,7 +124,6 @@ function syncKanriToReport_() {
     var category = String(kanriData[i][knr.CATEGORY - 1] || '').trim();
     var location = String(kanriData[i][knr.LOCATION - 1] || '').trim();
     var content = String(kanriData[i][knr.CONTENT - 1] || '').trim();
-    var itemCount = Number(kanriData[i][knr.ITEM_COUNT - 1]) || 0;
 
     pending.push({
       kanriRowIndex: i,
@@ -129,99 +131,42 @@ function syncKanriToReport_() {
       purchaseDate: purchaseDate,
       category: category,
       reporter: location,  // 納品場所 = 報告者
-      content: content,    // 内容（外注が商品を識別するため）
-      itemCount: itemCount // 仕入れ管理側で先に入力された商品点数（逆方向同期用）
+      content: content      // 内容（外注が商品を識別するため）
     });
   }
 
   if (pending.length === 0) return;
 
-  // 仕入れ数報告に既に存在するIDと、その行/内容/区分/報告者/仕入れ日/数量/処理済み を取得
-  // 内容を後から仕入れ管理に追記するケースに対応するため、差分があれば既存行も上書きする
-  // 数量・処理済みは逆方向同期（仕入れ管理 → 仕入れ数報告）用
-  var existingMap = {};  // id -> { rowIndex(1始まり), content, category, reporter, purchaseDate, quantity, done }
+  // 仕入れ数報告に既に存在するIDを取得（重複防止）
+  var existingIds = new Set();
   var reportLastRow = reportSheet.getLastRow();
   if (reportLastRow >= 2) {
-    var reportRows = reportSheet.getRange(2, 1, reportLastRow - 1, 8).getValues();
-    for (var r = 0; r < reportRows.length; r++) {
-      var rid = normalizeText_(reportRows[r][rpt.ID - 1]);
-      if (!rid) continue;
-      existingMap[rid] = {
-        rowIndex: r + 2,
-        content: String(reportRows[r][rpt.CONTENT - 1] || ''),
-        category: String(reportRows[r][rpt.CATEGORY - 1] || ''),
-        reporter: String(reportRows[r][rpt.REPORTER - 1] || ''),
-        purchaseDate: reportRows[r][rpt.PURCHASE_DATE - 1],
-        quantity: Number(reportRows[r][rpt.QUANTITY - 1]) || 0,
-        done: String(reportRows[r][rpt.DONE - 1] || '').trim().toUpperCase() === 'TRUE'
-      };
+    var reportIds = reportSheet.getRange(2, rpt.ID, reportLastRow - 1, 1).getValues();
+    for (var r = 0; r < reportIds.length; r++) {
+      var rid = normalizeText_(reportIds[r][0]);
+      if (rid) existingIds.add(rid);
     }
   }
 
-  // 仕入れ数報告に行を追加 / 既存行は内容差分があれば上書き
+  // 仕入れ数報告に行を追加
   var appendRows = [];
   var syncedKanriRows = [];
-  var updatedExistingCount = 0;
 
   for (var p = 0; p < pending.length; p++) {
     var item = pending[p];
-    var existing = existingMap[item.id];
 
-    if (existing) {
-      // 既存行: 仕入れ管理側で 内容/区分/報告者/仕入れ日 が編集された場合に追従
-      var changed = false;
-      if (String(existing.content) !== String(item.content)) {
-        reportSheet.getRange(existing.rowIndex, rpt.CONTENT).setValue(item.content);
-        changed = true;
-      }
-      if (String(existing.category) !== String(item.category)) {
-        reportSheet.getRange(existing.rowIndex, rpt.CATEGORY).setValue(item.category);
-        changed = true;
-      }
-      if (String(existing.reporter) !== String(item.reporter)) {
-        reportSheet.getRange(existing.rowIndex, rpt.REPORTER).setValue(item.reporter);
-        changed = true;
-      }
-      // 仕入れ日は Date 型比較のため文字列化して比較
-      if (String(existing.purchaseDate) !== String(item.purchaseDate)) {
-        reportSheet.getRange(existing.rowIndex, rpt.PURCHASE_DATE).setValue(item.purchaseDate);
-        changed = true;
-      }
-      // 逆方向同期: 仕入れ管理.商品点数 が入っているのに 仕入れ数報告.数量 が空 かつ 未処理 → 数量を埋めて DONE=TRUE
-      // （管理者が外注を介さず直接 商品点数 を入力したケースで pending から消すため）
-      if (item.itemCount > 0 && existing.quantity <= 0 && !existing.done) {
-        reportSheet.getRange(existing.rowIndex, rpt.QUANTITY).setValue(item.itemCount);
-        reportSheet.getRange(existing.rowIndex, rpt.DONE).setValue('TRUE');
-        // タイムスタンプが空ならシステム実行時刻を入れる（監査用）
-        if (!String(reportSheet.getRange(existing.rowIndex, rpt.TIMESTAMP).getValue() || '').trim()) {
-          reportSheet.getRange(existing.rowIndex, rpt.TIMESTAMP).setValue(new Date());
-        }
-        changed = true;
-        console.log('仕入れ数マージ Phase1.5(逆同期): ID=' + item.id + ' に商品点数 ' + item.itemCount + ' を反映 → 処理済み');
-      }
-      if (changed) updatedExistingCount++;
+    if (existingIds.has(item.id)) {
+      // 既に存在 → 同期済みマークだけ付ける
       syncedKanriRows.push(item.kanriRowIndex);
       continue;
     }
 
-    // A=ID, B=タイムスタンプ, C=報告者, D=区分コード, E=仕入れ日, F=数量, G=処理済み, H=内容
-    // 仕入れ管理側に既に 商品点数 が入っている場合は数量＋処理済みも先に埋めて pending に出さない
-    var preFilledQty = (item.itemCount > 0) ? item.itemCount : '';
-    var preFilledDone = (item.itemCount > 0) ? 'TRUE' : '';
-    var preFilledTs = (item.itemCount > 0) ? new Date() : '';
-    appendRows.push([item.id, preFilledTs, item.reporter, item.category, item.purchaseDate, preFilledQty, preFilledDone, item.content]);
+    // A=ID, B=タイムスタンプ(空), C=報告者, D=区分コード, E=仕入れ日, F=数量(空), G=処理済み(空), H=内容
+    appendRows.push([item.id, '', item.reporter, item.category, item.purchaseDate, '', '', item.content]);
     syncedKanriRows.push(item.kanriRowIndex);
-    existingMap[item.id] = {
-      rowIndex: -1, content: item.content, category: item.category,
-      reporter: item.reporter, purchaseDate: item.purchaseDate,
-      quantity: item.itemCount, done: item.itemCount > 0
-    };
+    existingIds.add(item.id);
 
-    console.log('仕入れ数マージ Phase1: 仕入れ数報告に行作成 - ID=' + item.id + ' 報告者=' + item.reporter + ' 区分=' + item.category +
-                (item.itemCount > 0 ? ' (商品点数=' + item.itemCount + ' を初期反映 / 処理済み)' : ''));
-  }
-  if (updatedExistingCount > 0) {
-    console.log('仕入れ数マージ Phase1: 既存行を' + updatedExistingCount + '件更新（内容/区分/報告者/仕入れ日 の編集を反映）');
+    console.log('仕入れ数マージ Phase1: 仕入れ数報告に行作成 - ID=' + item.id + ' 報告者=' + item.reporter + ' 区分=' + item.category);
   }
 
   // 仕入れ数報告に一括追加

@@ -43,100 +43,6 @@ var STAFF_COL = {
 
 var MEASURE_FIELDS = ['着丈','肩幅','身幅','袖丈','裄丈','総丈','ウエスト','股上','股下','ワタリ','裾幅','ヒップ'];
 
-// ========== ステータス自動算出（AppSheet IFS 式と一致） ==========
-// AppSheet 式（参照元）:
-//   IFS(
-//     ISNOTBLANK([廃棄日]),     "廃棄済み",
-//     ISNOTBLANK([返品日付]),   "返品済み",
-//     ISNOTBLANK([キャンセル日]),"キャンセル",
-//     ISNOTBLANK([完了日]),     "売却済み",
-//     ISNOTBLANK([発送日付]),   "発送済み",
-//     ISNOTBLANK([販売日]),     "発送待ち",
-//     ISNOTBLANK([出品日]),     "出品中",
-//     AND(ISNOTBLANK([撮影日付]), ISNOTBLANK([採寸日])), "出品待ち",
-//     AND(ISNOTBLANK([撮影日付]), ISBLANK([採寸日])),   "採寸待ち",
-//     ISNOTBLANK([採寸日]),     "撮影待ち",
-//     TRUE,                    ""
-//   )
-var STATUS_RULES_ = [
-  { col: '廃棄日',    cond: 'notBlank',  status: '廃棄済み' },
-  { col: '返品日付',  cond: 'notBlank',  status: '返品済み' },
-  { col: 'キャンセル日', cond: 'notBlank', status: 'キャンセル' },
-  { col: '完了日',    cond: 'notBlank',  status: '売却済み' },
-  { col: '発送日付',  cond: 'notBlank',  status: '発送済み' },
-  { col: '販売日',    cond: 'notBlank',  status: '発送待ち' },
-  { col: '出品日',    cond: 'notBlank',  status: '出品中' },
-  { cond: 'andNotBlank', cols: ['撮影日付', '採寸日'], status: '出品待ち' },
-  { cond: 'andNotBlankBlank', notBlankCol: '撮影日付', blankCol: '採寸日', status: '採寸待ち' },
-  { col: '採寸日',    cond: 'notBlank',  status: '撮影待ち' }
-];
-
-function staff_isBlankCell_(v) {
-  return v === '' || v === null || v === undefined;
-}
-
-// 現状の行（rowVals: 1-indexed相当のオブジェクト or 配列, col: ヘッダ→列番号マップ）から
-// IFS 順に評価して算出ステータス文字列を返す。該当なしは ''。
-function staff_calcStatus_(rowVals, col) {
-  function val(name) {
-    var c = col[name];
-    if (!c) return '';
-    return rowVals[c - 1];
-  }
-  for (var i = 0; i < STATUS_RULES_.length; i++) {
-    var r = STATUS_RULES_[i];
-    if (r.cond === 'notBlank') {
-      if (!staff_isBlankCell_(val(r.col))) return r.status;
-    } else if (r.cond === 'andNotBlank') {
-      var allFilled = r.cols.every(function(n){ return !staff_isBlankCell_(val(n)); });
-      if (allFilled) return r.status;
-    } else if (r.cond === 'andNotBlankBlank') {
-      if (!staff_isBlankCell_(val(r.notBlankCol)) && staff_isBlankCell_(val(r.blankCol))) return r.status;
-    }
-  }
-  return '';
-}
-
-// 行の現状を読んでステータスを再計算し、現在値と異なる場合のみ書き戻す。
-// hdr / col 未指定時は内部で取得する。複数フィールド更新後にまとめて呼ぶ用途を想定。
-function staff_recomputeStatus_(sh, rowNum, hdr, col) {
-  if (!hdr) {
-    hdr = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
-  }
-  if (!col) col = buildHeaderMap_(hdr);
-  var lastCol = sh.getLastColumn();
-  var rowVals = sh.getRange(rowNum, 1, 1, lastCol).getValues()[0];
-  var calc = staff_calcStatus_(rowVals, col);
-  var current = String(rowVals[STAFF_COL.ステータス - 1] || '');
-  // 算出が空（条件に一致しない）の場合は既存値を維持（誤って空にしない）
-  if (!calc) return { changed: false, current: current, calc: calc };
-  if (calc === current) return { changed: false, current: current, calc: calc };
-  sh.getRange(rowNum, STAFF_COL.ステータス).setValue(calc);
-  return { changed: true, prev: current, status: calc };
-}
-
-// 全行のステータスを IFS 式に揃える（手動バックフィル用 / Apps Script エディタから実行）
-function staff_recalcAllStatus() {
-  var sh = staff_getSheet_();
-  var lastRow = sh.getLastRow();
-  if (lastRow < 2) return { ok: true, changed: 0, total: 0 };
-  var lastCol = sh.getLastColumn();
-  var hdr = sh.getRange(1, 1, 1, lastCol).getValues()[0];
-  var col = buildHeaderMap_(hdr);
-  var values = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
-  var changed = 0;
-  for (var i = 0; i < values.length; i++) {
-    var rowVals = values[i];
-    var calc = staff_calcStatus_(rowVals, col);
-    if (!calc) continue;
-    var current = String(rowVals[STAFF_COL.ステータス - 1] || '');
-    if (calc === current) continue;
-    sh.getRange(i + 2, STAFF_COL.ステータス).setValue(calc);
-    changed++;
-  }
-  return { ok: true, changed: changed, total: values.length };
-}
-
 // ========== 認証 ==========
 
 function staff_currentUser() {
@@ -397,9 +303,6 @@ function staff_saveMeasurement(payload) {
   sh.getRange(rowNum, STAFF_COL.採寸日).setValue(new Date());
   sh.getRange(rowNum, STAFF_COL.採寸者).setValue(email || '');
 
-  // ステータスを IFS 式で再計算（採寸日が入る → 撮影待ち / 出品待ち 等）
-  try { staff_recomputeStatus_(sh, rowNum); } catch(e) {}
-
   return { ok: true, message: '採寸を保存しました（' + written + '項目）', kanri: kanri };
 }
 
@@ -440,13 +343,11 @@ function staff_saveSale(payload) {
   setNum(STAFF_COL.送料, sale.shipping);
   setNum(STAFF_COL.手数料, sale.fee);
 
-  // 販売価格が新規セットされた場合は 販売日タイムスタンプ を自動付与（並び替え・監査用）
+  // ステータス→売却済み（販売価格が入っている場合のみ）
   if (sale.price !== undefined && sale.price !== '' && !isNaN(Number(sale.price))) {
+    sh.getRange(rowNum, STAFF_COL.ステータス).setValue('売却済み');
     sh.getRange(rowNum, STAFF_COL.販売日タイムスタンプ).setValue(new Date());
   }
-
-  // ステータスは AppSheet IFS 式に従って再計算（販売日が入れば 発送待ち、完了日が入れば 売却済み 等）
-  try { staff_recomputeStatus_(sh, rowNum); } catch(e) {}
 
   return { ok: true, message: '販売情報を保存しました', kanri: kanri };
 }
@@ -779,11 +680,8 @@ function staff_syncDumpProducts() {
   var headers = hdr.map(function(v){ return String(v || '').trim(); });
   var values = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
   var tz = Session.getScriptTimeZone() || 'Asia/Tokyo';
-  // スプレッドシートの TZ が JST と異なる（PDT など）と日付セルの時刻成分が getHours() でゼロにならず
-  // 全日付セルが ISO 化されてしまう。TZ 上の HH:mm:ss で判定することで「日付のみ」セルを正しく検出する
-  var sheetTz = ss.getSpreadsheetTimeZone() || tz;
   function fmtDate(d) {
-    if (d instanceof Date) return Utilities.formatDate(d, sheetTz, 'yyyy-MM-dd');
+    if (d instanceof Date) return Utilities.formatDate(d, tz, 'yyyy-MM-dd');
     return String(d || '');
   }
   function fmtTs(d) {
@@ -791,13 +689,7 @@ function staff_syncDumpProducts() {
     return String(d || '');
   }
   function fmtCell(d) {
-    if (d instanceof Date) {
-      var hms = Utilities.formatDate(d, sheetTz, 'HH:mm:ss');
-      if (hms !== '00:00:00') {
-        return Utilities.formatDate(d, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
-      }
-      return Utilities.formatDate(d, sheetTz, 'yyyy-MM-dd');
-    }
+    if (d instanceof Date) return Utilities.formatDate(d, tz, 'yyyy-MM-dd');
     if (d === null || d === undefined) return '';
     return String(d);
   }
@@ -874,9 +766,6 @@ function staff_syncDumpPurchases() {
 
   var values = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
   var tz = Session.getScriptTimeZone() || 'Asia/Tokyo';
-  // スプレッドシートの TZ（PDT 等）と script TZ（JST）が異なると日付セルが時刻ズレする。
-  // 「日付のみ」セルは sheetTz でフォーマットして yyyy-MM-dd に丸める
-  var sheetTz = ss.getSpreadsheetTimeZone() || tz;
   function val(row, name) { return col[name] ? row[col[name] - 1] : ''; }
   function num(v) {
     if (v === '' || v === null || v === undefined) return 0;
@@ -890,7 +779,7 @@ function staff_syncDumpPurchases() {
     var id = String(val(row, '仕入れID') || '').trim();
     if (!id) continue;
     var date = val(row, '仕入れ日');
-    var dateStr = (date instanceof Date) ? Utilities.formatDate(date, sheetTz, 'yyyy-MM-dd') : String(date || '');
+    var dateStr = (date instanceof Date) ? Utilities.formatDate(date, tz, 'yyyy-MM-dd') : String(date || '');
     var registeredAtRaw = val(row, '登録日時');
     var registeredAtStr = (registeredAtRaw instanceof Date)
       ? Utilities.formatDate(registeredAtRaw, tz, 'yyyy-MM-dd HH:mm:ss')
@@ -914,45 +803,6 @@ function staff_syncDumpPurchases() {
       processed: processed,
       row: r + 2
     });
-  }
-  return { ok: true, items: items };
-}
-
-// AI画像判定シート 全行ダンプ（Cloudflare D1 への同期用）
-// 管理番号 → 9項目（ブランド/タグ表記/性別/カテゴリ1-3/デザイン特徴/カラー/ポケット）
-// staff_lookupAiPrefill のシート全件版。Cron 5分で D1 に UPSERT し、handler 側は ai_prefill テーブルを引く
-function staff_syncDumpAiPrefill() {
-  var ss = staff_getActiveSpreadsheet_();
-  var sh = ss.getSheetByName('AI画像判定');
-  if (!sh) return { ok: true, items: [] }; // シート無くてもエラーにせず空返し
-  var lastRow = sh.getLastRow();
-  var lastCol = sh.getLastColumn();
-  if (lastRow < 2 || lastCol < 1) return { ok: true, items: [] };
-  var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
-  var colMap = {};
-  for (var c = 0; c < headers.length; c++) {
-    var h = String(headers[c] || '').trim();
-    if (h) colMap[h] = c;
-  }
-  if (colMap['管理番号'] == null) return { ok: true, items: [] };
-  var WANTED = ['ブランド','タグ表記','性別','カテゴリ1','カテゴリ2','カテゴリ3','デザイン特徴','カラー','ポケット'];
-  var rows = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
-  var items = [];
-  for (var r = 0; r < rows.length; r++) {
-    var kanri = String(rows[r][colMap['管理番号']] || '').trim();
-    if (!kanri) continue;
-    var fields = {};
-    for (var i = 0; i < WANTED.length; i++) {
-      var name = WANTED[i];
-      var ci = colMap[name];
-      if (ci == null) continue;
-      var v = rows[r][ci];
-      if (v == null) continue;
-      var s = String(v).trim();
-      if (s) fields[name] = s;
-    }
-    if (Object.keys(fields).length === 0) continue;
-    items.push({ kanri: kanri, fields: fields, row: r + 2 });
   }
   return { ok: true, items: items };
 }
@@ -1111,8 +961,9 @@ function staff_apiSaveDetails(payload, email) {
     written++;
   }
 
-  // 販売価格を新規入力した場合は 販売日タイムスタンプ を自動付与（並び替え・監査用）
+  // 販売価格を新規入力した場合の連動処理（採寸/販売の既存ロジックと同等）
   if (prevSaleEmpty && newSalePrice !== null) {
+    sh.getRange(rowNum, STAFF_COL.ステータス).setValue('売却済み');
     sh.getRange(rowNum, STAFF_COL.販売日タイムスタンプ).setValue(new Date());
   }
 
@@ -1126,9 +977,6 @@ function staff_apiSaveDetails(payload, email) {
     if (fields['採寸者'] === undefined) sh.getRange(rowNum, STAFF_COL.採寸者).setValue(email);
   }
 
-  // ステータスを AppSheet IFS 式で再計算（任意の日付フィールドが書かれた可能性があるため必ず実施）
-  try { staff_recomputeStatus_(sh, rowNum, hdr, col); } catch(e) {}
-
   return {
     ok: true,
     message: written + '件更新しました',
@@ -1138,89 +986,6 @@ function staff_apiSaveDetails(payload, email) {
     skipped: skipped,
     unknown: unknown
   };
-}
-
-// 画像アップロード（QR・バーコード画像 / 売却済み商品画像 / ポストシール）
-// payload: { kanri, field, dataUrl }  dataUrl は "data:image/jpeg;base64,..." 形式
-// Drive の '商品管理_Images' フォルダ（スプレッドシート親フォルダ配下）にアップロードし、
-// 共有URLを当該ヘッダー列に書き込む。
-var IMAGE_FIELDS_ALLOWED_ = { 'QR・バーコード画像': 1, '売却済み商品画像': 1, 'ポストシール': 1 };
-
-function staff_apiUploadImage(payload, email) {
-  payload = payload || {};
-  email = String(email || 'cloudflare-proxy');
-  var kanri = String(payload.kanri || '').trim();
-  var field = String(payload.field || '').trim();
-  var dataUrl = String(payload.dataUrl || '');
-  if (!kanri) return { ok: false, error: '管理番号が空です' };
-  if (!field) return { ok: false, error: 'フィールド名が空です' };
-  if (!IMAGE_FIELDS_ALLOWED_[field]) return { ok: false, error: '画像列ではありません: ' + field };
-  if (!dataUrl) return { ok: false, error: '画像データが空です' };
-
-  var m = String(dataUrl).match(/^data:(image\/[a-zA-Z0-9+.-]+);base64,(.+)$/);
-  if (!m) return { ok: false, error: 'data URL の形式が不正です' };
-  var mime = m[1];
-  var b64 = m[2];
-  var ext = (mime.split('/')[1] || 'jpg').toLowerCase().replace('jpeg', 'jpg');
-  var fileName = kanri + '.' + field + '.' + Date.now() + '.' + ext;
-  var blob = Utilities.newBlob(Utilities.base64Decode(b64), mime, fileName);
-
-  var sh = staff_getSheet_();
-  var ss = sh.getParent();
-  var ssFile = DriveApp.getFileById(ss.getId());
-  var parents = ssFile.getParents();
-  var parent = parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
-  var subs = parent.getFoldersByName('商品管理_Images');
-  var folder = subs.hasNext() ? subs.next() : parent.createFolder('商品管理_Images');
-  var file = folder.createFile(blob);
-  try {
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  } catch (err) {
-    // 共有設定に失敗してもアップロード自体は成功扱いとする（管理者側で設定可能）
-  }
-  var url = 'https://drive.google.com/uc?id=' + file.getId();
-
-  var lastRow = sh.getLastRow();
-  if (lastRow < 2) return { ok: false, error: 'シートが空です' };
-  var idRange = sh.getRange(2, STAFF_COL.管理番号, lastRow - 1, 1);
-  var found = idRange.createTextFinder(kanri).matchEntireCell(true).findNext();
-  if (!found) return { ok: false, error: '該当なし: ' + kanri };
-  var rowNum = found.getRow();
-
-  var lastCol = sh.getLastColumn();
-  var hdr = sh.getRange(1, 1, 1, lastCol).getValues()[0];
-  var col = buildHeaderMap_(hdr);
-  if (!col[field]) return { ok: false, error: 'ヘッダーが見つかりません: ' + field };
-  sh.getRange(rowNum, col[field]).setValue(url);
-
-  return { ok: true, url: url, kanri: kanri, field: field, row: rowNum };
-}
-
-// AppSheet 旧形式の相対パス (例: "商品管理_Images/zS5.売却済み商品画像.013345.jpg") を Drive のシェアURL に解決
-// path 末尾のファイル名で 商品管理_Images フォルダを検索し、ANYONE_WITH_LINK 共有を付与して uc?id= URL を返す
-function staff_apiResolveImage(payload, email) {
-  payload = payload || {};
-  var path = String(payload.path || '').trim();
-  if (!path) return { ok: false, error: 'path が空です' };
-  // 末尾セグメント = ファイル名
-  var idx = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
-  var fileName = idx >= 0 ? path.substring(idx + 1) : path;
-  if (!fileName) return { ok: false, error: 'ファイル名が抽出できません: ' + path };
-
-  var sh = staff_getSheet_();
-  var ss = sh.getParent();
-  var ssFile = DriveApp.getFileById(ss.getId());
-  var parents = ssFile.getParents();
-  var parent = parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
-  var subs = parent.getFoldersByName('商品管理_Images');
-  if (!subs.hasNext()) return { ok: false, error: '商品管理_Images フォルダが見つかりません' };
-  var folder = subs.next();
-  var files = folder.getFilesByName(fileName);
-  if (!files.hasNext()) return { ok: false, error: 'ファイルが見つかりません: ' + fileName };
-  var file = files.next();
-  try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (err) {}
-  var url = 'https://drive.google.com/uc?id=' + file.getId();
-  return { ok: true, url: url, fileName: fileName };
 }
 
 // 個別の仕入れIDに紐づく商品管理レコード一覧
@@ -1462,11 +1227,6 @@ function staff_apiCreateProduct(payload, email) {
     if (fields['採寸日'] === undefined && col['採寸日']) rowArr[col['採寸日'] - 1] = new Date();
     if (fields['採寸者'] === undefined && col['採寸者']) rowArr[col['採寸者'] - 1] = email;
   }
-
-  // 書き込み前にステータスを IFS 式で再計算（payload で日付が指定されていれば反映）
-  // payload.status は外部からの上書き指定。空でなければ尊重し、空ならルール優先
-  var calcStatus = staff_calcStatus_(rowArr, col);
-  if (calcStatus) rowArr[STAFF_COL.ステータス - 1] = calcStatus;
 
   var appendAt = sh.getLastRow() + 1;
   sh.getRange(appendAt, 1, 1, width).setValues([rowArr]);

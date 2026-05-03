@@ -52,6 +52,12 @@ export async function listProducts(request, env) {
   const status = (u.searchParams.get('status') || '').trim();
   const worker = (u.searchParams.get('worker') || '').trim();
   const place = (u.searchParams.get('place') || '').trim();
+  // listedBeforeDays: 出品日が N 日以上前の商品のみに絞る（返送ピッカー用）
+  // AppSheet Valid_If: DATE([出品日]) <= (TODAY() - 30) と同条件
+  const listedBeforeDaysRaw = u.searchParams.get('listedBeforeDays');
+  const listedBeforeDays = listedBeforeDaysRaw != null && listedBeforeDaysRaw !== ''
+    ? Math.max(0, Math.min(3650, parseInt(listedBeforeDaysRaw, 10) || 0))
+    : null;
   const limit = Math.min(parseInt(u.searchParams.get('limit') || '10000', 10), 10000);
   // mode=list: 一覧描画に必要な最小フィールドだけ返す（モバイルのモッサリ対策）
   // mode=full: 従来通り extra_json / measure_json まで返す（旧クライアント互換）
@@ -89,6 +95,18 @@ export async function listProducts(request, env) {
   if (worker) { where.push('worker = ?'); args.push(worker); }
   if (place)  { where.push("json_extract(extra_json, '$.\"納品場所\"') = ?"); args.push(place); }
 
+  // 出品日が N 日以上前 (= 出品日 <= today - N days)
+  // 出品日は extra_json に "YYYY/MM/DD" or "YYYY-MM-DD" などの文字列で入っているので
+  // 先頭10文字を切り出し / を - に置換してから SQLite date() で比較する
+  if (listedBeforeDays != null) {
+    where.push(
+      "json_extract(extra_json, '$.\"出品日\"') IS NOT NULL " +
+      "AND json_extract(extra_json, '$.\"出品日\"') <> '' " +
+      "AND date(replace(substr(json_extract(extra_json, '$.\"出品日\"'), 1, 10), '/', '-')) <= date('now', ?)"
+    );
+    args.push('-' + listedBeforeDays + ' days');
+  }
+
   if (q) {
     where.push("(kanri LIKE ? OR brand LIKE ? OR color LIKE ? OR shiire_id LIKE ?)");
     const pat = `%${q}%`;
@@ -114,9 +132,11 @@ export async function listProducts(request, env) {
            ${DERIVED_STATUS} AS derived_status
     FROM products
   `;
+  // 管理番号は「2文字prefix + 数値」(例: zk1000, zG1698)。文字列ソートだと
+  // zk1000 < zk999 になるので、prefix と数値部を分けて自然数ソートする。
   const sql = (slim ? slimSelect : fullSelect) + `
     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
-    ORDER BY kanri DESC
+    ORDER BY substr(kanri,1,2) DESC, CAST(substr(kanri,3) AS INTEGER) DESC, kanri DESC
     LIMIT ?
   `;
   args.push(limit);
@@ -174,10 +194,69 @@ export async function listProductCounts(request, env) {
     const row = await env.DB.prepare(sql).first();
     const counts = {};
     Object.keys(buckets).forEach(k => { counts[k] = Number(row[k] || 0); });
-    return jsonOk({ total: Number(row.total || 0), counts });
+    counts.all = Number(row.total || 0);
+    return jsonOk({ total: counts.all, counts });
   } catch (err) {
     return jsonError('db error: ' + err.message, 500);
   }
+}
+
+// POST /api/products/thumbs body: { kanris: [...] }
+// タスキ箱（gas-proxy KV: product-images:<kanri>）から各管理番号のトップ画像URLを返す。
+// 画像なしのキーは items から省かれる（フロント側で 📷 フォールバック）。
+export async function listProductThumbs(request, env) {
+  let body = null;
+  try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
+  const kanris = Array.isArray(body && body.kanris)
+    ? body.kanris.map(s => String(s || '').trim()).filter(Boolean)
+    : [];
+  if (kanris.length === 0) return jsonOk({ items: {} });
+  if (kanris.length > 200) return jsonError('too many kanris (max 200)', 400);
+  if (!env.GAS_PROXY_CACHE) return jsonOk({ items: {} });
+
+  // FRONTEND_URL が無ければ gas-proxy のドメインに固定（KV パスは /images/... の相対）
+  const baseUrl = (env.FRONTEND_URL || 'https://wholesale.nkonline-tool.com').replace(/\/$/, '');
+  const items = {};
+
+  // gas-proxy 側 KV キーは大文字 managedId（normalizeManagedId 適用後）。
+  // shiire-kanri の products.kanri は小文字。両方を試して当たった方を返す。
+  const upper = kanris.map(k => k.toUpperCase());
+  const results = await Promise.all(upper.map(k =>
+    env.GAS_PROXY_CACHE.get('product-images:' + k).catch(() => null)
+  ));
+  for (let i = 0; i < kanris.length; i++) {
+    const raw = results[i];
+    if (!raw) continue;
+    let arr = null;
+    try { arr = JSON.parse(raw); } catch { arr = null; }
+    if (!Array.isArray(arr) || arr.length === 0) continue;
+    const top = String(arr[0] || '').trim();
+    if (!top) continue;
+    // 元の kanri（小文字含む）をキーに返す → フロントの data-kanri と完全一致
+    items[kanris[i]] = /^https?:/.test(top) ? top : (baseUrl + top);
+  }
+  return jsonOk({ items });
+}
+
+// GET /api/products/:kanri/images
+// タスキ箱に登録された該当商品の全画像URLを配列で返す（詳細画面のサムネ表示用）。
+// KV 形式は gas-proxy の `product-images:<管理番号大文字>` を JSON 配列で読み出す。
+export async function getProductImages(request, env, kanri) {
+  const k = String(kanri || '').trim();
+  if (!k) return jsonError('kanri required', 400);
+  if (!env.GAS_PROXY_CACHE) return jsonOk({ urls: [] });
+  const baseUrl = (env.FRONTEND_URL || 'https://wholesale.nkonline-tool.com').replace(/\/$/, '');
+  const raw = await env.GAS_PROXY_CACHE.get('product-images:' + k.toUpperCase()).catch(() => null);
+  if (!raw) return jsonOk({ urls: [] });
+  let arr = null;
+  try { arr = JSON.parse(raw); } catch { arr = null; }
+  if (!Array.isArray(arr)) return jsonOk({ urls: [] });
+  const urls = arr.map(u => {
+    const s = String(u || '').trim();
+    if (!s) return '';
+    return /^https?:/.test(s) ? s : (baseUrl + s);
+  }).filter(Boolean);
+  return jsonOk({ urls });
 }
 
 // GET /api/kanri/next?category=C

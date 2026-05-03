@@ -1,0 +1,682 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>詳細フィールド表示モックアップ</title>
+<style>
+  :root {
+    --primary: #1565c0;
+    --primary-dark: #0d47a1;
+    --primary-light: #e3f2fd;
+    --primary-soft: #e3f2fd;
+    --bg: #f4f6fa;
+    --surface: #ffffff;
+    --text: #1a2330;
+    --text-sub: #66707d;
+    --text-mute: #6f7786;
+    --border: #e3e7ee;
+    --success: #2e7d32;
+    --gray-soft: #eef0f4;
+    --shadow: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
+    --focus-ring: 0 0 0 3px rgba(21,101,192,.35);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI", system-ui, sans-serif;
+    font-size: 14px; line-height: 1.5;
+  }
+  .page {
+    max-width: 1480px; margin: 0 auto; padding: 24px 16px 80px;
+  }
+  h1 { font-size: 20px; margin: 0 0 8px; color: var(--text); }
+  .lead { color: var(--text-sub); margin: 0 0 24px; font-size: 13px; }
+  .compare {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+    margin-bottom: 32px;
+  }
+  @media (max-width: 1100px) {
+    .compare { grid-template-columns: 1fr; }
+  }
+  .col { min-width: 0; }
+  .col h2 {
+    font-size: 14px; font-weight: 700; color: var(--text);
+    margin: 0 0 6px; padding: 0;
+  }
+  .col .sub {
+    font-size: 12px; color: var(--text-sub);
+    margin: 0 0 14px; min-height: 32px;
+  }
+  .frame {
+    background: var(--surface); border-radius: 16px;
+    padding: 12px;
+    box-shadow: 0 4px 16px rgba(15,30,60,.06);
+  }
+
+  /* ========== 共通: セクションヘッダ ========== */
+  .section-header {
+    background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+    color: #fff; font-size: 13px; font-weight: 700;
+    padding: 9px 14px; margin: 14px 0 0;
+    border-radius: 10px 10px 0 0;
+    letter-spacing: .02em;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .section-header:first-child { margin-top: 0; }
+  .section-header .ico { font-size: 14px; }
+  .section-header.sec-measure { background: linear-gradient(135deg, #00897b 0%, #00695c 100%); }
+
+  /* ========== 案①: 現状（ゼブラ + 点線 + 枠線） ========== */
+  .v1 .form-section {
+    background: var(--surface);
+    border-radius: 0 0 10px 10px;
+    padding: 4px 14px 8px;
+    border: 1px solid var(--border); border-top: none;
+    overflow: hidden;
+  }
+  .v1 .field-row {
+    display: block;
+    border-bottom: 1px dashed #e7ecf3;
+    padding: 14px 14px 12px;
+    margin: 0 -14px;
+  }
+  .v1 .field-row:last-child { border-bottom: none; }
+  .v1 .form-section > .field-row:nth-child(even) { background: #f4f8ff; }
+  .v1 .form-section > .field-row:nth-child(odd)  { background: #fbfcfe; }
+  .v1 .field-row label {
+    display: block; font-size: 13px; color: var(--text); font-weight: 700;
+    margin-bottom: 6px; letter-spacing: .01em;
+  }
+  .v1 .field-row input, .v1 .field-row select {
+    width: 100%; padding: 10px 12px; min-height: 40px;
+    border: 1px solid var(--border); border-radius: 8px;
+    font-size: 15px; background: #fafbfd; color: var(--text);
+    font-family: inherit;
+  }
+  .v1 .field-readonly {
+    padding: 10px 12px; background: #f0f4f9; color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px; font-size: 13px;
+    min-height: 40px;
+    display: flex; align-items: center; gap: 6px;
+    font-weight: 500;
+  }
+  .v1 .field-readonly::before {
+    content: '🔒'; font-size: 11px; opacity: .55;
+  }
+  .v1 .field-grid-2, .v1 .field-grid-3 {
+    display: grid; gap: 0 12px;
+    margin: 0 -14px; padding: 0 14px;
+  }
+  .v1 .field-grid-2 { grid-template-columns: 1fr 1fr; }
+  .v1 .field-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .v1 .field-grid-2 > .field-row, .v1 .field-grid-3 > .field-row {
+    margin: 0; padding: 10px 0; border-bottom: 1px dashed #e7ecf3;
+    background: transparent !important;
+  }
+
+  /* ========== 案②: ミニマル（区切りなし、余白で構造化） ========== */
+  .v2 .form-section {
+    background: var(--surface);
+    border-radius: 0 0 10px 10px;
+    padding: 16px 16px 18px;
+    border: 1px solid var(--border); border-top: none;
+  }
+  .v2 .field-row {
+    display: block;
+    padding: 0;
+    margin: 0 0 14px;
+  }
+  .v2 .field-row:last-child { margin-bottom: 0; }
+  .v2 .field-row label {
+    display: block; font-size: 12px; color: var(--text-sub); font-weight: 600;
+    margin: 0 0 5px; letter-spacing: .02em;
+  }
+  .v2 .field-row input, .v2 .field-row select {
+    width: 100%; padding: 9px 11px; min-height: 38px;
+    border: 1px solid var(--border); border-radius: 8px;
+    font-size: 15px; background: #fff; color: var(--text);
+    font-family: inherit;
+  }
+  .v2 .field-readonly {
+    padding: 6px 0; color: var(--text); font-size: 15px;
+    min-height: 32px; font-weight: 500;
+  }
+  .v2 .field-readonly .ro-prefix {
+    font-size: 10px; color: var(--text-mute);
+    background: var(--gray-soft); padding: 1px 6px; border-radius: 4px;
+    font-weight: 600; margin-right: 6px; letter-spacing: .04em;
+  }
+  .v2 .field-grid-2, .v2 .field-grid-3 {
+    display: grid; gap: 14px 12px;
+  }
+  .v2 .field-grid-2 { grid-template-columns: 1fr 1fr; }
+  .v2 .field-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .v2 .field-grid-2 > .field-row, .v2 .field-grid-3 > .field-row { margin: 0; }
+
+  /* ========== 案③: 折衷（点線のみ、ゼブラ・絵文字なし） ========== */
+  .v3 .form-section {
+    background: var(--surface);
+    border-radius: 0 0 10px 10px;
+    padding: 0 14px;
+    border: 1px solid var(--border); border-top: none;
+  }
+  .v3 .field-row {
+    display: block;
+    padding: 12px 0;
+    border-bottom: 1px solid #eef1f6;
+  }
+  .v3 .field-row:last-child { border-bottom: none; }
+  .v3 .field-row label {
+    display: block; font-size: 12px; color: var(--text-sub); font-weight: 600;
+    margin: 0 0 5px; letter-spacing: .02em;
+  }
+  .v3 .field-row input, .v3 .field-row select {
+    width: 100%; padding: 9px 11px; min-height: 38px;
+    border: 1px solid var(--border); border-radius: 8px;
+    font-size: 15px; background: #fff; color: var(--text);
+    font-family: inherit;
+  }
+  .v3 .field-readonly {
+    padding: 4px 0; color: var(--text); font-size: 15px;
+    min-height: 28px; font-weight: 500;
+  }
+  .v3 .field-grid-2, .v3 .field-grid-3 {
+    display: grid; gap: 0 14px;
+    border-bottom: 1px solid #eef1f6;
+    padding: 12px 0;
+  }
+  .v3 .field-grid-2 { grid-template-columns: 1fr 1fr; }
+  .v3 .field-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .v3 .field-grid-2 > .field-row, .v3 .field-grid-3 > .field-row {
+    padding: 0; border-bottom: none;
+  }
+
+  /* ========== 案④: マテリアル風（下線のみ） ========== */
+  .v4 .form-section {
+    background: var(--surface);
+    border-radius: 0 0 10px 10px;
+    padding: 8px 16px 16px;
+    border: 1px solid var(--border); border-top: none;
+  }
+  .v4 .field-row {
+    display: block;
+    padding: 12px 0 6px;
+    margin: 0;
+  }
+  .v4 .field-row label {
+    display: block; font-size: 11px; color: var(--primary); font-weight: 600;
+    margin: 0 0 2px; letter-spacing: .04em; text-transform: uppercase;
+  }
+  .v4 .field-row input, .v4 .field-row select {
+    width: 100%; padding: 6px 0 8px; min-height: 32px;
+    border: none; border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    font-size: 15px; background: transparent; color: var(--text);
+    font-family: inherit;
+  }
+  .v4 .field-row input:focus, .v4 .field-row select:focus {
+    outline: none; border-bottom: 2px solid var(--primary);
+    padding-bottom: 7px;
+  }
+  .v4 .field-readonly {
+    padding: 6px 0 8px; color: var(--text); font-size: 15px;
+    min-height: 32px; font-weight: 500;
+    border-bottom: 1px dashed var(--border);
+  }
+  .v4 .field-grid-2, .v4 .field-grid-3 {
+    display: grid; gap: 4px 14px;
+  }
+  .v4 .field-grid-2 { grid-template-columns: 1fr 1fr; }
+  .v4 .field-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+  /* ========== 案⑤: ラベル左寄せ（2カラム） ========== */
+  .v5 .form-section {
+    background: var(--surface);
+    border-radius: 0 0 10px 10px;
+    padding: 0 14px;
+    border: 1px solid var(--border); border-top: none;
+  }
+  .v5 .field-row {
+    display: grid;
+    grid-template-columns: 96px 1fr;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f3f8;
+  }
+  .v5 .field-row:last-child { border-bottom: none; }
+  .v5 .field-row label {
+    font-size: 12px; color: var(--text-sub); font-weight: 600;
+    margin: 0; text-align: left;
+  }
+  .v5 .field-row input, .v5 .field-row select {
+    width: 100%; padding: 8px 10px; min-height: 36px;
+    border: 1px solid var(--border); border-radius: 6px;
+    font-size: 15px; background: #fff; color: var(--text);
+    font-family: inherit;
+  }
+  .v5 .field-readonly {
+    padding: 4px 0; color: var(--text); font-size: 15px;
+    min-height: 28px; font-weight: 500;
+  }
+  .v5 .field-grid-2, .v5 .field-grid-3 {
+    grid-column: 1 / -1;
+    display: grid; gap: 8px 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid #f0f3f8;
+  }
+  .v5 .field-grid-2 { grid-template-columns: 1fr 1fr; }
+  .v5 .field-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .v5 .field-grid-2 > .field-row, .v5 .field-grid-3 > .field-row {
+    grid-template-columns: 1fr;
+    align-items: stretch; gap: 3px;
+    padding: 4px 0; border-bottom: none;
+  }
+
+  /* ========== 案⑥: 高密度（AppSheet風） ========== */
+  .v6 .form-section {
+    background: var(--surface);
+    border-radius: 0 0 10px 10px;
+    padding: 0;
+    border: 1px solid var(--border); border-top: none;
+  }
+  .v6 .field-row {
+    display: block;
+    padding: 8px 14px 9px;
+    margin: 0;
+    border-bottom: 1px solid #f1f4f9;
+  }
+  .v6 .field-row:last-child { border-bottom: none; }
+  .v6 .field-row label {
+    display: block; font-size: 10px; color: var(--text-mute); font-weight: 700;
+    margin: 0 0 2px; letter-spacing: .06em; text-transform: uppercase;
+  }
+  .v6 .field-row input, .v6 .field-row select {
+    width: 100%; padding: 5px 8px; min-height: 30px;
+    border: 1px solid var(--border); border-radius: 5px;
+    font-size: 14px; background: #fff; color: var(--text);
+    font-family: inherit; font-weight: 500;
+  }
+  .v6 .field-readonly {
+    padding: 2px 0; color: var(--text); font-size: 14px;
+    min-height: 22px; font-weight: 600;
+  }
+  .v6 .field-grid-2, .v6 .field-grid-3 {
+    display: grid; gap: 0;
+    border-bottom: 1px solid #f1f4f9;
+  }
+  .v6 .field-grid-2 { grid-template-columns: 1fr 1fr; }
+  .v6 .field-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+  .v6 .field-grid-2 > .field-row, .v6 .field-grid-3 > .field-row {
+    border-bottom: none;
+    border-right: 1px solid #f1f4f9;
+  }
+  .v6 .field-grid-2 > .field-row:last-child,
+  .v6 .field-grid-3 > .field-row:last-child {
+    border-right: none;
+  }
+
+  .legend {
+    margin-top: 36px;
+    background: #fff; border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px 20px;
+    font-size: 13px; color: var(--text-sub);
+  }
+  .legend h3 { margin: 0 0 8px; font-size: 14px; color: var(--text); }
+  .legend ul { margin: 0; padding-left: 20px; }
+  .legend li { margin-bottom: 4px; }
+  .legend b { color: var(--text); }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>詳細フィールド表示 — 6案比較 <span style="font-size:11px;color:#999;font-weight:normal;">(v6 / 2026-04-29)</span></h1>
+  <p class="lead">同じ項目セットで、見た目だけを変えた3案を並べました。スマホ幅(360–414px)を想定したカラム幅です。</p>
+
+  <div class="compare">
+
+    <!-- ========== 案① 現状 ========== -->
+    <div class="col">
+      <h2>① 現状</h2>
+      <p class="sub">ゼブラ + 点線 + セクション枠 + 🔒絵文字 + 太字ラベル。装飾が多重で視覚ノイズあり。</p>
+      <div class="frame v1">
+        <div class="section-header"><span class="ico">📋</span>基本情報</div>
+        <div class="form-section">
+          <div class="field-row">
+            <label>商品ID</label>
+            <div class="field-readonly">P-2026-04-1234</div>
+          </div>
+          <div class="field-row">
+            <label>管理番号</label>
+            <div class="field-readonly">zY127</div>
+          </div>
+          <div class="field-row">
+            <label>仕入れID</label>
+            <div class="field-readonly">S-0421-03</div>
+          </div>
+          <div class="field-row">
+            <label>ステータス</label>
+            <select><option>採寸待ち</option></select>
+          </div>
+          <div class="field-row">
+            <label>ブランド</label>
+            <input type="text" value="UNIQLO">
+          </div>
+          <div class="field-grid-2">
+            <div class="field-row"><label>サイズ</label><select><option>M</option></select></div>
+            <div class="field-row"><label>カラー</label><input type="text" value="ネイビー"></div>
+          </div>
+        </div>
+
+        <div class="section-header sec-measure"><span class="ico">📏</span>採寸</div>
+        <div class="form-section">
+          <div class="field-grid-3">
+            <div class="field-row"><label>肩幅</label><input type="text" value="44"></div>
+            <div class="field-row"><label>身幅</label><input type="text" value="52"></div>
+            <div class="field-row"><label>着丈</label><input type="text" value="68"></div>
+          </div>
+          <div class="field-grid-3">
+            <div class="field-row"><label>袖丈</label><input type="text" value="62"></div>
+            <div class="field-row"><label>裄丈</label><input type="text" value=""></div>
+            <div class="field-row"><label>袖口</label><input type="text" value=""></div>
+          </div>
+          <div class="field-row">
+            <label>採寸日</label>
+            <div class="field-readonly">2026-04-28 14:32</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 案② ミニマル ========== -->
+    <div class="col">
+      <h2>② ミニマル（推奨）</h2>
+      <p class="sub">区切り線・ゼブラ・絵文字を全廃。余白とラベル弱化で「ラベル+値の塊」が自然に見える。</p>
+      <div class="frame v2">
+        <div class="section-header"><span class="ico">📋</span>基本情報</div>
+        <div class="form-section">
+          <div class="field-row">
+            <label>商品ID</label>
+            <div class="field-readonly"><span class="ro-prefix">読取</span>P-2026-04-1234</div>
+          </div>
+          <div class="field-row">
+            <label>管理番号</label>
+            <div class="field-readonly"><span class="ro-prefix">読取</span>zY127</div>
+          </div>
+          <div class="field-row">
+            <label>仕入れID</label>
+            <div class="field-readonly"><span class="ro-prefix">読取</span>S-0421-03</div>
+          </div>
+          <div class="field-row">
+            <label>ステータス</label>
+            <select><option>採寸待ち</option></select>
+          </div>
+          <div class="field-row">
+            <label>ブランド</label>
+            <input type="text" value="UNIQLO">
+          </div>
+          <div class="field-grid-2">
+            <div class="field-row"><label>サイズ</label><select><option>M</option></select></div>
+            <div class="field-row"><label>カラー</label><input type="text" value="ネイビー"></div>
+          </div>
+        </div>
+
+        <div class="section-header sec-measure"><span class="ico">📏</span>採寸</div>
+        <div class="form-section">
+          <div class="field-grid-3">
+            <div class="field-row"><label>肩幅</label><input type="text" value="44"></div>
+            <div class="field-row"><label>身幅</label><input type="text" value="52"></div>
+            <div class="field-row"><label>着丈</label><input type="text" value="68"></div>
+          </div>
+          <div class="field-grid-3">
+            <div class="field-row"><label>袖丈</label><input type="text" value="62"></div>
+            <div class="field-row"><label>裄丈</label><input type="text" value=""></div>
+            <div class="field-row"><label>袖口</label><input type="text" value=""></div>
+          </div>
+          <div class="field-row">
+            <label>採寸日</label>
+            <div class="field-readonly"><span class="ro-prefix">読取</span>2026-04-28 14:32</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 案③ 折衷 ========== -->
+    <div class="col">
+      <h2>③ 折衷（細い実線のみ）</h2>
+      <p class="sub">ゼブラと絵文字は外し、項目間は薄い実線1本だけ残す。項目数が多くても境界が読み取りやすい。</p>
+      <div class="frame v3">
+        <div class="section-header"><span class="ico">📋</span>基本情報</div>
+        <div class="form-section">
+          <div class="field-row">
+            <label>商品ID</label>
+            <div class="field-readonly">P-2026-04-1234</div>
+          </div>
+          <div class="field-row">
+            <label>管理番号</label>
+            <div class="field-readonly">zY127</div>
+          </div>
+          <div class="field-row">
+            <label>仕入れID</label>
+            <div class="field-readonly">S-0421-03</div>
+          </div>
+          <div class="field-row">
+            <label>ステータス</label>
+            <select><option>採寸待ち</option></select>
+          </div>
+          <div class="field-row">
+            <label>ブランド</label>
+            <input type="text" value="UNIQLO">
+          </div>
+          <div class="field-grid-2">
+            <div class="field-row"><label>サイズ</label><select><option>M</option></select></div>
+            <div class="field-row"><label>カラー</label><input type="text" value="ネイビー"></div>
+          </div>
+        </div>
+
+        <div class="section-header sec-measure"><span class="ico">📏</span>採寸</div>
+        <div class="form-section">
+          <div class="field-grid-3">
+            <div class="field-row"><label>肩幅</label><input type="text" value="44"></div>
+            <div class="field-row"><label>身幅</label><input type="text" value="52"></div>
+            <div class="field-row"><label>着丈</label><input type="text" value="68"></div>
+          </div>
+          <div class="field-grid-3">
+            <div class="field-row"><label>袖丈</label><input type="text" value="62"></div>
+            <div class="field-row"><label>裄丈</label><input type="text" value=""></div>
+            <div class="field-row"><label>袖口</label><input type="text" value=""></div>
+          </div>
+          <div class="field-row">
+            <label>採寸日</label>
+            <div class="field-readonly">2026-04-28 14:32</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <h1 style="margin-top:32px;">追加3案</h1>
+  <p class="lead">他の方向性も。スマホでもう少し色気が欲しい／情報密度を上げたい／ラベル位置を変えたい、それぞれの方向に振った案です。</p>
+
+  <div class="compare">
+
+    <!-- ========== 案④ マテリアル風 ========== -->
+    <div class="col">
+      <h2>④ マテリアル風（下線のみ）</h2>
+      <p class="sub">枠を消して下線1本に。ラベルは小さくUPPER+プライマリ色で「フォーム感」が出る。Googleフォーム/Material Design系</p>
+      <div class="frame v4">
+        <div class="section-header"><span class="ico">📋</span>基本情報</div>
+        <div class="form-section">
+          <div class="field-row">
+            <label>商品ID</label>
+            <div class="field-readonly">P-2026-04-1234</div>
+          </div>
+          <div class="field-row">
+            <label>管理番号</label>
+            <div class="field-readonly">zY127</div>
+          </div>
+          <div class="field-row">
+            <label>仕入れID</label>
+            <div class="field-readonly">S-0421-03</div>
+          </div>
+          <div class="field-row">
+            <label>ステータス</label>
+            <select><option>採寸待ち</option></select>
+          </div>
+          <div class="field-row">
+            <label>ブランド</label>
+            <input type="text" value="UNIQLO">
+          </div>
+          <div class="field-grid-2">
+            <div class="field-row"><label>サイズ</label><select><option>M</option></select></div>
+            <div class="field-row"><label>カラー</label><input type="text" value="ネイビー"></div>
+          </div>
+        </div>
+
+        <div class="section-header sec-measure"><span class="ico">📏</span>採寸</div>
+        <div class="form-section">
+          <div class="field-grid-3">
+            <div class="field-row"><label>肩幅</label><input type="text" value="44"></div>
+            <div class="field-row"><label>身幅</label><input type="text" value="52"></div>
+            <div class="field-row"><label>着丈</label><input type="text" value="68"></div>
+          </div>
+          <div class="field-grid-3">
+            <div class="field-row"><label>袖丈</label><input type="text" value="62"></div>
+            <div class="field-row"><label>裄丈</label><input type="text" value=""></div>
+            <div class="field-row"><label>袖口</label><input type="text" value=""></div>
+          </div>
+          <div class="field-row">
+            <label>採寸日</label>
+            <div class="field-readonly">2026-04-28 14:32</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 案⑤ ラベル左寄せ ========== -->
+    <div class="col">
+      <h2>⑤ ラベル左寄せ（2カラム）</h2>
+      <p class="sub">ラベル96px固定で左、値が右。スプレッドシート風で読み取りやすい。スマホでもギリ縦に積まずに済む密度。グリッド項目は別レーン</p>
+      <div class="frame v5">
+        <div class="section-header"><span class="ico">📋</span>基本情報</div>
+        <div class="form-section">
+          <div class="field-row">
+            <label>商品ID</label>
+            <div class="field-readonly">P-2026-04-1234</div>
+          </div>
+          <div class="field-row">
+            <label>管理番号</label>
+            <div class="field-readonly">zY127</div>
+          </div>
+          <div class="field-row">
+            <label>仕入れID</label>
+            <div class="field-readonly">S-0421-03</div>
+          </div>
+          <div class="field-row">
+            <label>ステータス</label>
+            <select><option>採寸待ち</option></select>
+          </div>
+          <div class="field-row">
+            <label>ブランド</label>
+            <input type="text" value="UNIQLO">
+          </div>
+          <div class="field-grid-2">
+            <div class="field-row"><label>サイズ</label><select><option>M</option></select></div>
+            <div class="field-row"><label>カラー</label><input type="text" value="ネイビー"></div>
+          </div>
+        </div>
+
+        <div class="section-header sec-measure"><span class="ico">📏</span>採寸</div>
+        <div class="form-section">
+          <div class="field-grid-3">
+            <div class="field-row"><label>肩幅</label><input type="text" value="44"></div>
+            <div class="field-row"><label>身幅</label><input type="text" value="52"></div>
+            <div class="field-row"><label>着丈</label><input type="text" value="68"></div>
+          </div>
+          <div class="field-grid-3">
+            <div class="field-row"><label>袖丈</label><input type="text" value="62"></div>
+            <div class="field-row"><label>裄丈</label><input type="text" value=""></div>
+            <div class="field-row"><label>袖口</label><input type="text" value=""></div>
+          </div>
+          <div class="field-row">
+            <label>採寸日</label>
+            <div class="field-readonly">2026-04-28 14:32</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 案⑥ 高密度AppSheet風 ========== -->
+    <div class="col">
+      <h2>⑥ 高密度（AppSheet風）</h2>
+      <p class="sub">情報密度MAX。ラベル超小型UPPER、値は太め14pxでコンパクト。スマホ1画面に大量項目を出したい時に強い</p>
+      <div class="frame v6">
+        <div class="section-header"><span class="ico">📋</span>基本情報</div>
+        <div class="form-section">
+          <div class="field-row">
+            <label>商品ID</label>
+            <div class="field-readonly">P-2026-04-1234</div>
+          </div>
+          <div class="field-row">
+            <label>管理番号</label>
+            <div class="field-readonly">zY127</div>
+          </div>
+          <div class="field-row">
+            <label>仕入れID</label>
+            <div class="field-readonly">S-0421-03</div>
+          </div>
+          <div class="field-row">
+            <label>ステータス</label>
+            <select><option>採寸待ち</option></select>
+          </div>
+          <div class="field-row">
+            <label>ブランド</label>
+            <input type="text" value="UNIQLO">
+          </div>
+          <div class="field-grid-2">
+            <div class="field-row"><label>サイズ</label><select><option>M</option></select></div>
+            <div class="field-row"><label>カラー</label><input type="text" value="ネイビー"></div>
+          </div>
+        </div>
+
+        <div class="section-header sec-measure"><span class="ico">📏</span>採寸</div>
+        <div class="form-section">
+          <div class="field-grid-3">
+            <div class="field-row"><label>肩幅</label><input type="text" value="44"></div>
+            <div class="field-row"><label>身幅</label><input type="text" value="52"></div>
+            <div class="field-row"><label>着丈</label><input type="text" value="68"></div>
+          </div>
+          <div class="field-grid-3">
+            <div class="field-row"><label>袖丈</label><input type="text" value="62"></div>
+            <div class="field-row"><label>裄丈</label><input type="text" value=""></div>
+            <div class="field-row"><label>袖口</label><input type="text" value=""></div>
+          </div>
+          <div class="field-row">
+            <label>採寸日</label>
+            <div class="field-readonly">2026-04-28 14:32</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="legend">
+    <h3>判断ポイント</h3>
+    <ul>
+      <li><b>①現状</b>: 装飾が多すぎる。ゼブラ＋点線＋枠線＋絵文字が同時に効いて、どれが主役か分からない</li>
+      <li><b>②ミニマル</b>: 区切りなし。余白で塊を作る。シンプルだが項目大量だとどこまでが1項目か曖昧</li>
+      <li><b>③折衷（候補◎）</b>: ②＋項目間1px実線。バランス良い。デフォの推奨</li>
+      <li><b>④マテリアル</b>: 枠なし下線のみ＋ラベルUPPER。Googleフォーム的でモダン。お洒落だが業務感は薄れる</li>
+      <li><b>⑤ラベル左寄せ</b>: スプレッドシート的な「左ラベル / 右値」レイアウト。読み取り重視の現場向き。スマホ360pxギリギリ</li>
+      <li><b>⑥高密度</b>: AppSheet/Salesforce的。1画面に大量フィールドを出せる。スマホで全項目スクロール最小</li>
+    </ul>
+  </div>
+</div>
+</body>
+</html>

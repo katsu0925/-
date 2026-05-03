@@ -316,6 +316,99 @@ function apiClearAiField(params) {
   return { ok: true, cleared: cleared, total: ids.length };
 }
 
+/**
+ * apiDumpAiRows — 診断用: 指定 managedIds の AI画像判定 + 商品管理 行をダンプ
+ *
+ * @param {object} params - { syncSecret, managedIds: string[] }
+ * @returns {object} { ok, ai: [{managedId, brand, ...}], product: [{managedId, ブランド, ...}] }
+ */
+function apiDumpAiRows(params) {
+  var p = params || {};
+  if (!verifySyncSecret_(p.syncSecret)) return { ok: false, message: '認証エラー' };
+
+  var ids = Array.isArray(p.managedIds) ? p.managedIds : [];
+  ids = ids.map(function(s) { return String(s || '').trim().toUpperCase(); }).filter(Boolean);
+  if (ids.length === 0) return { ok: false, message: 'managedIds required' };
+  var idSet = {};
+  for (var i = 0; i < ids.length; i++) idSet[ids[i]] = true;
+
+  var ssId = '';
+  try { ssId = APP_CONFIG.detail.spreadsheetId; } catch (e) {}
+  if (!ssId) {
+    try { ssId = PropertiesService.getScriptProperties().getProperty('DETAIL_SPREADSHEET_ID') || ''; } catch (e) {}
+  }
+  if (!ssId) return { ok: false, message: 'spreadsheetId not found' };
+
+  var ss = SpreadsheetApp.openById(ssId);
+  var aiRows = [];
+  var productRows = [];
+
+  // AI画像判定シート
+  var aiSh = ss.getSheetByName('AI画像判定');
+  if (aiSh) {
+    var aiLastRow = aiSh.getLastRow();
+    var aiLastCol = aiSh.getLastColumn();
+    if (aiLastRow >= 2 && aiLastCol >= 1) {
+      var aiHeaders = aiSh.getRange(1, 1, 1, aiLastCol).getValues()[0];
+      var allValues = aiSh.getRange(2, 1, aiLastRow - 1, aiLastCol).getValues();
+      var midCol = -1;
+      for (var h = 0; h < aiHeaders.length; h++) {
+        if (String(aiHeaders[h] || '').trim() === '管理番号') midCol = h;
+      }
+      if (midCol >= 0) {
+        for (var r = 0; r < allValues.length; r++) {
+          var mid = String(allValues[r][midCol] || '').trim().toUpperCase();
+          if (idSet[mid]) {
+            var row = { _row: r + 2 };
+            for (var hh = 0; hh < aiHeaders.length; hh++) {
+              var hn = String(aiHeaders[hh] || '').trim();
+              if (hn) row[hn] = allValues[r][hh];
+            }
+            aiRows.push(row);
+          }
+        }
+      }
+    }
+  }
+
+  // 商品管理シート（主要列のみ）
+  var sh = ss.getSheetByName('商品管理');
+  if (sh) {
+    var shLastRow = sh.getLastRow();
+    var shLastCol = sh.getLastColumn();
+    if (shLastRow >= 2 && shLastCol >= 1) {
+      var shHeaders = sh.getRange(1, 1, 1, shLastCol).getValues()[0];
+      var shAll = sh.getRange(2, 1, shLastRow - 1, shLastCol).getValues();
+      var shMidCol = -1;
+      for (var sh2 = 0; sh2 < shHeaders.length; sh2++) {
+        if (String(shHeaders[sh2] || '').trim() === '管理番号') shMidCol = sh2;
+      }
+      var pickHeaders = ['管理番号', 'ブランド', 'タグ表記', '性別', 'カテゴリ1', 'カテゴリ2', 'カテゴリ3', 'デザイン特徴', 'カラー', 'ポケット', '撮影日付', '撮影者'];
+      var pickIdx = {};
+      for (var ph = 0; ph < pickHeaders.length; ph++) {
+        var pn = pickHeaders[ph];
+        for (var hi = 0; hi < shHeaders.length; hi++) {
+          if (String(shHeaders[hi] || '').trim() === pn) { pickIdx[pn] = hi; break; }
+        }
+      }
+      if (shMidCol >= 0) {
+        for (var r3 = 0; r3 < shAll.length; r3++) {
+          var smid = String(shAll[r3][shMidCol] || '').trim().toUpperCase();
+          if (idSet[smid]) {
+            var prow = { _row: r3 + 2 };
+            for (var pn2 in pickIdx) {
+              prow[pn2] = shAll[r3][pickIdx[pn2]];
+            }
+            productRows.push(prow);
+          }
+        }
+      }
+    }
+  }
+
+  return { ok: true, ai: aiRows, product: productRows, queried: ids.length };
+}
+
 // =====================================================
 // エクスポート関数
 // =====================================================
