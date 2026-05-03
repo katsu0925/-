@@ -3090,18 +3090,72 @@ function imageFieldHtml_(id, name, v) {
     '<input type="file" id="' + id + '_file" accept="image/*" capture="environment" ' +
     'onchange="onImageFieldPick_(this, \'' + esc(id) + '\', \'' + safeName + '\')" ' +
     'style="display:none">' +
-    '<div class="img-hint">最大1600px・JPG</div>' +
+    '<button type="button" class="img-upload-btn ghost" ' +
+    'onclick="onImageFieldPaste_(\'' + esc(id) + '\', \'' + safeName + '\')">📋 貼り付け</button>' +
+    '<div class="img-hint">最大1600px・JPG（スクショは Cmd+V でも貼付可）</div>' +
     '<div id="' + id + '_status" class="img-status"></div>';
-  return '<div class="img-field">' + preview + '<div class="img-actions">' + picker + '</div></div>';
+  // data-field-id/data-field-name を付けて、フィールド全体を paste イベント受信ターゲットにする
+  // tabindex=0 で「クリックでフォーカス→Cmd+V」も可能
+  return '<div class="img-field" tabindex="0" data-img-field-id="' + esc(id) + '" data-img-field-name="' + safeName + '" ' +
+    'onpaste="onImageFieldPasteEvent_(event, \'' + esc(id) + '\', \'' + safeName + '\')">' +
+    preview + '<div class="img-actions">' + picker + '</div></div>';
 }
 
-// 画像選択時に呼ばれる（楽観的: 即時にローカルプレビュー → バックグラウンドでアップロード）
-// 1) URL.createObjectURL で即座に <img> 差し替え（待ち時間ゼロ体験）
-// 2) リサイズ→base64→POST はバックグラウンド
-// 3) アップロード成功後、Drive 画像URL（thumbnail）に差し替え。失敗時はローカル画像を残してエラー表示
+// 画像ファイル選択時のエントリ（input[type=file] からの呼び出し）
 function onImageFieldPick_(inputEl, fieldId, fieldName) {
   var file = inputEl.files && inputEl.files[0];
   if (!file) return;
+  onImageFieldFile_(file, fieldId, fieldName);
+}
+
+// クリップボード貼り付けボタン: navigator.clipboard.read() で画像Blobを取得
+async function onImageFieldPaste_(fieldId, fieldName) {
+  var status = document.getElementById(fieldId + '_status');
+  if (!navigator.clipboard || !navigator.clipboard.read) {
+    if (status) { status.textContent = 'このブラウザは貼り付けに非対応'; status.className = 'img-status error'; }
+    return;
+  }
+  try {
+    var items = await navigator.clipboard.read();
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      var imgType = (item.types || []).find(function(t){ return t.indexOf('image/') === 0; });
+      if (imgType) {
+        var blob = await item.getType(imgType);
+        var ext = imgType.split('/')[1] || 'png';
+        var file = new File([blob], 'pasted-' + Date.now() + '.' + ext, { type: imgType });
+        onImageFieldFile_(file, fieldId, fieldName);
+        return;
+      }
+    }
+    if (status) { status.textContent = 'クリップボードに画像なし（先にスクショをコピー）'; status.className = 'img-status error'; }
+  } catch(e) {
+    if (status) { status.textContent = '貼付エラー: ' + (e && e.message || e); status.className = 'img-status error'; }
+  }
+}
+
+// onpaste イベント（フィールドへのフォーカス中に Cmd+V）
+function onImageFieldPasteEvent_(ev, fieldId, fieldName) {
+  var cd = ev && ev.clipboardData;
+  if (!cd || !cd.items) return;
+  for (var i = 0; i < cd.items.length; i++) {
+    var it = cd.items[i];
+    if (it.kind === 'file' && it.type.indexOf('image/') === 0) {
+      var file = it.getAsFile();
+      if (file) {
+        ev.preventDefault();
+        onImageFieldFile_(file, fieldId, fieldName);
+        return;
+      }
+    }
+  }
+}
+
+// 画像 File を受け取ってアップロード（楽観的: 即時にローカルプレビュー → バックグラウンドでアップロード）
+// 1) URL.createObjectURL で即座に <img> 差し替え（待ち時間ゼロ体験）
+// 2) リサイズ→base64→POST はバックグラウンド
+// 3) アップロード成功後、Drive 画像URL（thumbnail）に差し替え。失敗時はローカル画像を残してエラー表示
+function onImageFieldFile_(file, fieldId, fieldName) {
   var status = document.getElementById(fieldId + '_status');
   var preview = document.getElementById(fieldId + '_preview');
   var kanri = (STATE.current && STATE.current.kanri) || '';
