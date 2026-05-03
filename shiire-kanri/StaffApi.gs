@@ -1676,6 +1676,44 @@ function staff_buildProductRowPayload_(sh, rowNum) {
     extra[hname] = fmtCell(row[c]);
   }
 
+  // 派生値の上書き計算（staff_apiSaveDetails:1184-1191 と同一ロジック）
+  // セル側に formula や stale 値が残っていても webhook 経路では常に再計算する
+  var __cost = Number(extra['仕入れ値'] || 0);
+  var __sp = Number(extra['販売価格'] || 0);
+  var __ss = Number(extra['送料'] || 0);
+  var __sf = Number(extra['手数料'] || 0);
+  if (__sp > 0) {
+    extra['粗利'] = __sp - __ss - __sf;
+    extra['利益'] = __sp - __ss - __sf - __cost;
+    extra['利益率'] = ((__sp - __ss - __sf - __cost) / __sp * 100).toFixed(1) + '%';
+  }
+  // 在庫日数: 仕入れ日 → 販売日 (なければ今日)
+  try {
+    var __startStr = extra['仕入れ日'];
+    if (__startStr) {
+      var __start = new Date(__startStr);
+      var __endStr = extra['販売日'];
+      var __end = __endStr ? new Date(__endStr) : new Date();
+      if (!isNaN(__start.getTime()) && !isNaN(__end.getTime())) {
+        var __days = Math.floor((__end.getTime() - __start.getTime()) / 86400000);
+        if (__days >= 0) extra['在庫日数'] = __days;
+      }
+    }
+  } catch (e) {}
+  // リードタイム: 仕入れ日 → 出品日
+  try {
+    var __sStr = extra['仕入れ日'];
+    var __eStr = extra['出品日'];
+    if (__sStr && __eStr) {
+      var __a = new Date(__sStr);
+      var __b = new Date(__eStr);
+      if (!isNaN(__a.getTime()) && !isNaN(__b.getTime())) {
+        var __ld = Math.floor((__b.getTime() - __a.getTime()) / 86400000);
+        if (__ld >= 0) extra['リードタイム'] = __ld;
+      }
+    }
+  } catch (e) {}
+
   return {
     kanri: kanri,
     shiireId: String(row[STAFF_COL.仕入れID - 1] || ''),
