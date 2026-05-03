@@ -4685,6 +4685,9 @@ async function openDetail(kanri, opts) {
       api('/api/products/' + encodeURIComponent(kanri)),
       STATE.mastersPromise || Promise.resolve(),
     ]);
+    // 旧 extra と新 extra を比較し、消えた/変わった画像パスの sessionStorage 解決キャッシュを破棄
+    // → シートで画像を削除/差し替えても古い解決URLが残らない
+    try { invalidateRemovedImagePaths_(cached && cached.extra, res.item && res.item.extra); } catch(e) {}
     DETAIL_CACHE[kanri] = res.item;
     // フォーム入力中（dirty）は再描画でユーザー入力を消さない
     if (STATE.view === 'detail' && !STATE.detailDirty) {
@@ -4696,6 +4699,31 @@ async function openDetail(kanri, opts) {
       document.getElementById('content').innerHTML = '<div class="empty" style="color:#c62828">' + esc(err.message) + '</div>';
     }
   }
+}
+
+// extra の各値のうち画像パス（相対 商品管理_Images/... or Drive URL）に見えるものを抽出
+function collectImagePaths_(extra) {
+  var out = new Set();
+  if (!extra || typeof extra !== 'object') return out;
+  for (var k in extra) {
+    var v = extra[k];
+    if (!v || typeof v !== 'string') continue;
+    if (/^商品管理_Images\//.test(v) || /^https?:\/\/drive\.google\.com\//.test(v)) {
+      out.add(v);
+    }
+  }
+  return out;
+}
+
+// 旧 extra にあって新 extra にない画像パスの sessionStorage キャッシュを削除
+function invalidateRemovedImagePaths_(oldExtra, newExtra) {
+  var oldPaths = collectImagePaths_(oldExtra);
+  if (!oldPaths.size) return;
+  var newPaths = collectImagePaths_(newExtra);
+  oldPaths.forEach(function(p) {
+    if (newPaths.has(p)) return; // 同じパスがまだ使われている
+    try { sessionStorage.removeItem('imgresolve:v2:' + p); } catch(e) {}
+  });
 }
 
 function detailFieldId(name) {

@@ -9,7 +9,7 @@
 //  - VERSION を上げると activate 時に旧キャッシュを全削除
 //  - skipWaiting + clients.claim で即時切替、controllerchange でクライアントが UI 通知
 
-const VERSION = 'sk-2026-05-03-v77';
+const VERSION = 'sk-2026-05-03-v78';
 const SHELL_CACHE = 'shell-' + VERSION;
 const API_CACHE   = 'api-' + VERSION;
 
@@ -59,6 +59,13 @@ function isApiSwr(pathname) {
   if (pathname.startsWith('/api/create/')) return false;
   if (pathname === '/api/me') return false;
   // 売上ダッシュボード (/api/sales/*) は SWR から外す → 常に network-first で最新を取る
+  // 商品詳細 (/api/products/<kanri>) も SWR から外す → 画像削除/差し替えを即時反映
+  // 例外: /api/products/counts と /api/products/thumbs は集約系なので SWR で OK
+  if (/^\/api\/products\/[^/]+$/.test(pathname) &&
+      pathname !== '/api/products/counts' &&
+      pathname !== '/api/products/thumbs') {
+    return false;
+  }
   return /^\/api\/(products|purchases|master\/|sheet\/|moves|returns|sagyousha|kanri\/next)/.test(pathname);
 }
 
