@@ -4680,13 +4680,14 @@ function openKeihiForm_() {
         '<input type="number" id="keihi-amount" inputmode="numeric" min="0" placeholder="0">' +
       '</div>' +
       '<div class="field-row"><label>購入証明<small>レシート / スクショの画像をアップロード</small></label>' +
-        '<div class="img-field">' +
+        '<div class="img-field" tabindex="0" onpaste="onKeihiReceiptPasteEvent_(event)">' +
           '<div id="keihi-receipt-preview" class="img-preview">画像なし</div>' +
           '<div class="img-actions">' +
             '<label class="img-upload-btn ghost" for="keihi-receipt-file">📷 撮影／選択</label>' +
             '<input type="file" id="keihi-receipt-file" accept="image/*" capture="environment" ' +
               'onchange="onKeihiReceiptPick_(this)" style="display:none">' +
-            '<div class="img-hint">最大1600px・JPG</div>' +
+            '<button type="button" class="img-upload-btn ghost" onclick="onKeihiReceiptPaste_()">📋 貼り付け</button>' +
+            '<div class="img-hint">最大1600px・JPG（スクショは Cmd+V でも貼付可）</div>' +
             '<div id="keihi-receipt-status" class="img-status"></div>' +
           '</div>' +
         '</div>' +
@@ -4706,6 +4707,10 @@ function cancelKeihiForm_() {
 function onKeihiReceiptPick_(inputEl) {
   var file = inputEl.files && inputEl.files[0];
   if (!file) return;
+  onKeihiReceiptFile_(file);
+}
+
+function onKeihiReceiptFile_(file) {
   var status = document.getElementById('keihi-receipt-status');
   var preview = document.getElementById('keihi-receipt-preview');
   if (status) { status.textContent = '読み込み中…'; status.className = 'img-status'; }
@@ -4729,6 +4734,47 @@ function onKeihiReceiptPick_(inputEl) {
   }).catch(function(err){
     if (status) { status.textContent = '✗ ' + (err && err.message || 'エラー'); status.className = 'img-status error'; }
   });
+}
+
+async function onKeihiReceiptPaste_() {
+  var status = document.getElementById('keihi-receipt-status');
+  if (!navigator.clipboard || !navigator.clipboard.read) {
+    if (status) { status.textContent = 'このブラウザは貼り付けに非対応'; status.className = 'img-status error'; }
+    return;
+  }
+  try {
+    var items = await navigator.clipboard.read();
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      var imgType = (item.types || []).find(function(t){ return t.indexOf('image/') === 0; });
+      if (imgType) {
+        var blob = await item.getType(imgType);
+        var ext = imgType.split('/')[1] || 'png';
+        var file = new File([blob], 'pasted-' + Date.now() + '.' + ext, { type: imgType });
+        onKeihiReceiptFile_(file);
+        return;
+      }
+    }
+    if (status) { status.textContent = 'クリップボードに画像なし（先にスクショをコピー）'; status.className = 'img-status error'; }
+  } catch(e) {
+    if (status) { status.textContent = '貼付エラー: ' + (e && e.message || e); status.className = 'img-status error'; }
+  }
+}
+
+function onKeihiReceiptPasteEvent_(ev) {
+  var cd = ev && ev.clipboardData;
+  if (!cd || !cd.items) return;
+  for (var i = 0; i < cd.items.length; i++) {
+    var it = cd.items[i];
+    if (it.kind === 'file' && it.type.indexOf('image/') === 0) {
+      var file = it.getAsFile();
+      if (file) {
+        ev.preventDefault();
+        onKeihiReceiptFile_(file);
+        return;
+      }
+    }
+  }
 }
 
 function onKeihiGaichuInput_() {
