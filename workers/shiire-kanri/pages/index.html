@@ -6257,10 +6257,12 @@ async function saveDetails() {
       LIST_CACHE = Object.create(null);
       if (json.record && typeof json.record === 'object') {
         // record をそのまま採用 → 1 往復省ける
-        return { item: mergeRecordIntoItem_(d, json.record) };
+        return { item: mergeRecordIntoItem_(d, json.record), optimistic: !!json.optimistic };
       }
       // フォールバック: 旧応答や record 欠損時はサーバー再取得
-      return api('/api/products/' + encodeURIComponent(d.kanri));
+      return api('/api/products/' + encodeURIComponent(d.kanri)).then(function(r){
+        return { item: r && r.item, optimistic: false };
+      });
     })
     .then(function(res){
       clearSavingBtn_();
@@ -6276,6 +6278,24 @@ async function saveDetails() {
         clearDetailEdits_(d.kanri);
         STATE.current = res.item;
         renderDetail();
+      }
+      // ★ Day 3: optimistic 応答の場合、GAS の派生値（粗利・利益・ステータス再計算等）が
+      //   裏で確定した頃合いに静かに再取得して UI を更新する。
+      //   ユーザは既に次の操作に進んでいることが多いので、現在の詳細表示中で dirty でない時だけ再描画。
+      if (res.optimistic) {
+        setTimeout(function(){
+          api('/api/products/' + encodeURIComponent(d.kanri))
+            .then(function(r){
+              if (!r || !r.item) return;
+              DETAIL_CACHE[d.kanri] = r.item;
+              if (STATE.view === 'detail' && STATE.current && STATE.current.kanri === d.kanri && !STATE.detailDirty) {
+                clearDetailEdits_(d.kanri);
+                STATE.current = r.item;
+                renderDetail();
+              }
+            })
+            .catch(function(){ /* 黙って諦める。次回詳細を開いた時には D1 が確定済み */ });
+        }, 5500);
       }
     })
     .catch(function(err){

@@ -74,7 +74,14 @@ export async function saveSale(request, env, user) {
 
 // POST /api/save/details  body: { kanri, fields: { 'ヘッダー名': 値, ... } }
 // 任意のヘッダーキーで商品管理シートを部分更新する汎用エンドポイント
-export async function saveDetails(request, env, user) {
+//
+// ★ Day 3: Fire-and-forget UX
+//   1. D1 を fields で楽観更新（~50ms）
+//   2. 即 200 を返却（体感 ~100ms）
+//   3. ctx.waitUntil で GAS にバックグラウンド投入（~4-5秒、ユーザは待たない）
+//   4. GAS が record を返したら D1 を再更新（派生値の確定反映）
+//   5. GAS 失敗時は KV にエラーログを残す（次の Cron 同期 or 手動リトライで救済）
+export async function saveDetails(request, env, user, ctx) {
   const __t0 = Date.now();
   let body;
   try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
@@ -84,94 +91,134 @@ export async function saveDetails(request, env, user) {
   const keys = Object.keys(fields);
   if (keys.length === 0) return jsonError('fields required', 400);
 
-  const gasRes = await callGas(env, 'saveDetails', { kanri, fields }, user);
-  if (!gasRes.ok) return jsonError(gasRes.error || 'gas error', 502);
   const __td1 = Date.now();
-
-  // 楽観的更新: GAS が返す record（再計算後の最新行）を優先して extra_json と専用カラムを更新する。
-  // record があれば「シートが正」のスナップショットとして使える → 派生ステータス・粗利等が即時に反映される。
-  // record が無い場合のみ従来通り fields をそのままマージ。
-  const record = (gasRes && gasRes.record && typeof gasRes.record === 'object') ? gasRes.record : null;
+  let optimisticExtra = null;
   try {
     const cur = await env.DB.prepare('SELECT extra_json FROM products WHERE kanri = ?').bind(kanri).first();
     let extra = {};
     if (cur && cur.extra_json) {
       try { extra = JSON.parse(cur.extra_json) || {}; } catch { extra = {}; }
     }
-    if (record) {
-      // record の各キーで上書き（読み取り専用キーも含めて全列が来ているはず）
-      for (const k of Object.keys(record)) {
-        const v = record[k];
-        extra[k] = v == null ? '' : v;
-      }
-    } else {
-      for (const k of keys) {
-        const v = fields[k];
-        extra[k] = v == null ? '' : String(v);
-      }
+    for (const k of keys) {
+      const v = fields[k];
+      extra[k] = v == null ? '' : String(v);
     }
-    // 既存の専用カラムにも反映（フィルタ性能維持）
-    const sets = ['extra_json = ?', 'updated_at = ?'];
-    const args = [JSON.stringify(extra), Date.now()];
-    function push(col, val) { sets.push(`${col} = ?`); args.push(val); }
-
-    // 派生 status は GAS の derivedStatus（再計算済み）を最優先、無ければ fields → record の順
-    const derived = (gasRes && typeof gasRes.derivedStatus === 'string' && gasRes.derivedStatus)
-      ? gasRes.derivedStatus
-      : (fields['ステータス'] !== undefined ? String(fields['ステータス'] || '') : (record && record['ステータス'] != null ? String(record['ステータス']) : null));
-    if (derived !== null) push('status', derived);
-
-    // 専用カラムは record があれば record から、無ければ fields から拾う
-    function pick(name) {
-      if (record && record[name] !== undefined) return record[name];
-      if (fields[name] !== undefined) return fields[name];
-      return undefined;
-    }
-    const state = pick('状態');
-    if (state !== undefined) push('state', String(state || ''));
-    const brand = pick('ブランド');
-    if (brand !== undefined) push('brand', String(brand || ''));
-    const size = pick('メルカリサイズ');
-    if (size !== undefined) push('size', String(size || ''));
-    const color = pick('カラー');
-    if (color !== undefined) push('color', String(color || ''));
-    const saleDate = pick('販売日');
-    if (saleDate !== undefined) push('sale_date', String(saleDate || ''));
-    const salePlace = pick('販売場所');
-    if (salePlace !== undefined) push('sale_place', String(salePlace || ''));
-    const sp = pick('販売価格');
-    if (sp !== undefined) {
-      const n = Number(sp);
-      push('sale_price', Number.isFinite(n) ? n : null);
-    }
-    const sh = pick('送料');
-    if (sh !== undefined) {
-      const n = Number(sh);
-      push('sale_shipping', Number.isFinite(n) ? n : null);
-    }
-    const sf = pick('手数料');
-    if (sf !== undefined) {
-      const n = Number(sf);
-      push('sale_fee', Number.isFinite(n) ? n : null);
-    }
-    args.push(kanri);
-    await env.DB.prepare(`UPDATE products SET ${sets.join(', ')} WHERE kanri = ?`).bind(...args).run();
+    optimisticExtra = extra;
+    await applyDetailColumns_(env, kanri, fields, extra);
   } catch (err) {
-    console.warn('[save details] d1 update failed', err.message);
+    console.warn('[save details] d1 optimistic update failed', err.message);
   }
 
-  const t = Object.assign({}, gasRes._t || {}, { d1: Date.now() - __td1, total: Date.now() - __t0 });
-  // record をそのまま返す: フロントは保存後の再 fetch を省いて、record で d.extra を直接更新する。
-  // これで「保存ボタン押下 → 派生値（粗利・利益・ステータス）反映」までの ms を 1 往復ぶん削減。
+  // 裏で GAS に投入（waitUntil なら fetch 終了後も走り続ける）
+  if (ctx && typeof ctx.waitUntil === 'function') {
+    ctx.waitUntil(dispatchGasSaveDetails_(env, user, kanri, fields));
+  } else {
+    // ctx 未渡しの保険（通常は通らない）
+    dispatchGasSaveDetails_(env, user, kanri, fields).catch(() => {});
+  }
+
+  const t = { d1: Date.now() - __td1, total: Date.now() - __t0 };
   return jsonOk({
     saved: true,
-    written: gasRes.written || 0,
-    skipped: gasRes.skipped || [],
-    unknown: gasRes.unknown || [],
-    derivedStatus: gasRes.derivedStatus || '',
-    statusChanged: !!gasRes.statusChanged,
-    record: record || null
+    optimistic: true,                    // フロントが「派生値はまだ来てない」と判断するためのヒント
+    record: optimisticExtra || null,     // mergeRecordIntoItem_ 用（user 入力分のみ）
   }, { 'Server-Timing': buildServerTiming(t) });
+}
+
+// 専用カラム更新を共通化（保存と GAS 確定後の reconcile 両方で使う）
+async function applyDetailColumns_(env, kanri, fields, mergedExtra, derivedStatus) {
+  const sets = ['extra_json = ?', 'updated_at = ?'];
+  const args = [JSON.stringify(mergedExtra), Date.now()];
+  function push(col, val) { sets.push(`${col} = ?`); args.push(val); }
+
+  // status: 引数 derivedStatus（GAS 再計算）優先、無ければ fields の値
+  if (derivedStatus !== undefined && derivedStatus !== null && derivedStatus !== '') {
+    push('status', String(derivedStatus));
+  } else if (fields['ステータス'] !== undefined) {
+    push('status', String(fields['ステータス'] || ''));
+  }
+
+  function pickFromFieldsOrExtra(name) {
+    if (fields && fields[name] !== undefined) return fields[name];
+    if (mergedExtra && mergedExtra[name] !== undefined) return mergedExtra[name];
+    return undefined;
+  }
+  const state = pickFromFieldsOrExtra('状態');
+  if (fields['状態'] !== undefined) push('state', String(state || ''));
+  const brand = pickFromFieldsOrExtra('ブランド');
+  if (fields['ブランド'] !== undefined) push('brand', String(brand || ''));
+  const size = pickFromFieldsOrExtra('メルカリサイズ');
+  if (fields['メルカリサイズ'] !== undefined) push('size', String(size || ''));
+  const color = pickFromFieldsOrExtra('カラー');
+  if (fields['カラー'] !== undefined) push('color', String(color || ''));
+  const saleDate = pickFromFieldsOrExtra('販売日');
+  if (fields['販売日'] !== undefined) push('sale_date', String(saleDate || ''));
+  const salePlace = pickFromFieldsOrExtra('販売場所');
+  if (fields['販売場所'] !== undefined) push('sale_place', String(salePlace || ''));
+  if (fields['販売価格'] !== undefined) {
+    const n = Number(fields['販売価格']);
+    push('sale_price', Number.isFinite(n) ? n : null);
+  }
+  if (fields['送料'] !== undefined) {
+    const n = Number(fields['送料']);
+    push('sale_shipping', Number.isFinite(n) ? n : null);
+  }
+  if (fields['手数料'] !== undefined) {
+    const n = Number(fields['手数料']);
+    push('sale_fee', Number.isFinite(n) ? n : null);
+  }
+  args.push(kanri);
+  await env.DB.prepare(`UPDATE products SET ${sets.join(', ')} WHERE kanri = ?`).bind(...args).run();
+}
+
+// バックグラウンドで GAS に saveDetails を投入し、返ってきた record で D1 を確定反映する
+async function dispatchGasSaveDetails_(env, user, kanri, fields) {
+  let gasRes;
+  try {
+    gasRes = await callGas(env, 'saveDetails', { kanri, fields }, user);
+  } catch (err) {
+    console.warn('[save details bg] gas exception', err.message);
+    await logSaveFailure_(env, user, kanri, fields, 'exception:' + err.message);
+    return;
+  }
+  if (!gasRes || !gasRes.ok) {
+    const reason = (gasRes && gasRes.error) || 'unknown';
+    console.warn('[save details bg] gas failed', reason);
+    await logSaveFailure_(env, user, kanri, fields, reason);
+    return;
+  }
+  // record があれば D1 を再更新（派生値の確定反映）
+  const record = (gasRes.record && typeof gasRes.record === 'object') ? gasRes.record : null;
+  if (!record) return;
+  try {
+    const cur = await env.DB.prepare('SELECT extra_json FROM products WHERE kanri = ?').bind(kanri).first();
+    let extra = {};
+    if (cur && cur.extra_json) {
+      try { extra = JSON.parse(cur.extra_json) || {}; } catch { extra = {}; }
+    }
+    for (const k of Object.keys(record)) {
+      const v = record[k];
+      extra[k] = v == null ? '' : v;
+    }
+    // reconcile 時は GAS の derivedStatus を最優先 + 専用カラムは record から拾う
+    const reconcileFields = {};
+    for (const name of ['ステータス', '状態', 'ブランド', 'メルカリサイズ', 'カラー', '販売日', '販売場所', '販売価格', '送料', '手数料']) {
+      if (record[name] !== undefined) reconcileFields[name] = record[name];
+    }
+    await applyDetailColumns_(env, kanri, reconcileFields, extra, gasRes.derivedStatus);
+  } catch (err) {
+    console.warn('[save details bg] d1 reconcile failed', err.message);
+  }
+}
+
+async function logSaveFailure_(env, user, kanri, fields, reason) {
+  if (!env.CACHE) return;
+  try {
+    const key = 'savefail:' + kanri + ':' + Date.now();
+    await env.CACHE.put(key, JSON.stringify({
+      kanri, fields, reason, ts: Date.now(), email: (user && user.email) || ''
+    }), { expirationTtl: 86400 * 7 });
+  } catch (e) { /* ignore */ }
 }
 
 // POST /api/save/image  body: { kanri, field, dataUrl }

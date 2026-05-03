@@ -159,7 +159,7 @@ export default {
       return saveSale(request, env, user);
     }
     if (path === '/api/save/details' && request.method === 'POST') {
-      return saveDetails(request, env, user);
+      return saveDetails(request, env, user, ctx);
     }
     if (path === '/api/save/image' && request.method === 'POST') {
       return uploadImage(request, env, user);
