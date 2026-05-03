@@ -487,9 +487,12 @@ function staff_apiAppendKeihi(payload, email) {
   var place = String(p.place || '').trim();
   var placeLink = String(p.placeLink || '').trim();
   var amount = Number(p.amount || 0);
+  var outsourceCost = Number(p.outsourceCost || 0);
   var receipt = String(p.receipt || '').trim();
   if (!itemName) return { ok: false, error: '商品名が必要です' };
-  if (!amount || amount <= 0) return { ok: false, error: '金額が不正です' };
+  if ((!outsourceCost || outsourceCost <= 0) && (!amount || amount <= 0)) {
+    return { ok: false, error: '金額または外注費が必要です' };
+  }
 
   var ss = staff_getActiveSpreadsheet_();
   var sh = ss.getSheetByName('経費申請');
@@ -509,6 +512,7 @@ function staff_apiAppendKeihi(payload, email) {
     'タイムスタンプ': now,
     '名前': name,
     '購入日': purchaseDate,
+    '外注費': outsourceCost > 0 ? outsourceCost : '',
     '商品名': itemName,
     '購入場所': place,
     '購入場所リンク': placeLink,

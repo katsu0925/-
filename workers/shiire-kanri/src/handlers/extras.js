@@ -198,9 +198,10 @@ export async function appendKeihi(request, env, user) {
   const name = String(body.name || '').trim();
   const itemName = String(body.itemName || '').trim();
   const amount = Number(body.amount || 0);
+  const outsourceCost = Number(body.outsourceCost || 0);
   if (!name) return jsonError('name required', 400);
   if (!itemName) return jsonError('itemName required', 400);
-  if (!amount || amount <= 0) return jsonError('amount must be positive', 400);
+  if (outsourceCost <= 0 && (!amount || amount <= 0)) return jsonError('amount must be positive', 400);
   const payload = {
     name,
     purchaseDate: String(body.purchaseDate || '').trim(),
@@ -208,6 +209,7 @@ export async function appendKeihi(request, env, user) {
     place: String(body.place || '').trim(),
     placeLink: String(body.placeLink || '').trim(),
     amount,
+    outsourceCost,
     receipt: String(body.receipt || '').trim(),
   };
   const r = await callGas(env, 'appendKeihi', payload, user);

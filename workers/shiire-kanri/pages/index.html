@@ -1009,8 +1009,8 @@
     box-shadow: 0 6px 20px rgba(0,0,0,.18);
   }
   .toast.show { opacity: 1; }
-  .toast.error { background: var(--danger); }
-  .toast.success { background: var(--success); }
+  .toast.error { background: var(--danger); color: #fff; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
+  .toast.success { background: var(--success); color: #fff; }
   .loading { text-align: center; padding: 40px; color: var(--text-sub); }
   .empty { text-align: center; padding: 40px 16px; color: var(--text-sub); }
   .empty .empty-title { font-size: 14px; margin-bottom: 12px; }
@@ -4654,6 +4654,11 @@ function openKeihiForm_() {
   KEIHI_DRAFT = { receiptUrl: '' };
   var today = new Date();
   var dateDefault = today.getFullYear() + '-' + ('0'+(today.getMonth()+1)).slice(-2) + '-' + ('0'+today.getDate()).slice(-2);
+  var gaichuRow = STATE.isAdmin
+    ? ('<div class="field-row"><label>外注費（円）<small>入力時は商品名・購入金額は不要</small></label>' +
+         '<input type="number" id="keihi-gaichu" inputmode="numeric" min="0" placeholder="0" oninput="onKeihiGaichuInput_()">' +
+       '</div>')
+    : '';
   c.innerHTML =
     '<div class="form-card">' +
       '<h3>💴 経費申請 新規作成</h3>' +
@@ -4661,6 +4666,7 @@ function openKeihiForm_() {
       '<div class="field-row"><label>購入日 *</label>' +
         '<input type="date" id="keihi-date" value="' + dateDefault + '">' +
       '</div>' +
+      gaichuRow +
       '<div class="field-row"><label>商品名 *</label>' +
         '<input type="text" id="keihi-item" placeholder="例: 採寸メジャー">' +
       '</div>' +
@@ -4725,18 +4731,33 @@ function onKeihiReceiptPick_(inputEl) {
   });
 }
 
+function onKeihiGaichuInput_() {
+  var g = parseInt((document.getElementById('keihi-gaichu') || {}).value, 10) || 0;
+  if (g > 0) {
+    var item = document.getElementById('keihi-item');
+    if (item && !item.value) item.value = '外注費';
+  }
+}
+
 async function submitKeihiForm_() {
+  var gaichu = parseInt((document.getElementById('keihi-gaichu') || {}).value, 10) || 0;
+  var itemName = String((document.getElementById('keihi-item') || {}).value || '').trim();
+  var amount = parseInt((document.getElementById('keihi-amount') || {}).value, 10) || 0;
+  if (gaichu > 0) {
+    if (!itemName) itemName = '外注費';
+  }
   var payload = {
     name: STATE.userName,
     purchaseDate: String((document.getElementById('keihi-date') || {}).value || ''),
-    itemName: String((document.getElementById('keihi-item') || {}).value || '').trim(),
+    itemName: itemName,
     place: String((document.getElementById('keihi-place') || {}).value || '').trim(),
     placeLink: String((document.getElementById('keihi-link') || {}).value || '').trim(),
-    amount: parseInt((document.getElementById('keihi-amount') || {}).value, 10) || 0,
+    amount: amount,
+    outsourceCost: gaichu,
     receipt: String(KEIHI_DRAFT.receiptUrl || '').trim()
   };
   if (!payload.itemName) { toast('商品名を入力してください', 'error'); return; }
-  if (!payload.amount)   { toast('金額を入力してください', 'error'); return; }
+  if (gaichu <= 0 && !payload.amount) { toast('金額を入力してください', 'error'); return; }
   var btn = document.getElementById('keihi-submit-btn');
   if (btn) { btn.disabled = true; btn.textContent = '送信中…'; }
   try {
