@@ -4610,13 +4610,14 @@ function paintKeihi_(data) {
     return;
   }
   var mine = rows.filter(function(r){ return nameMatchesSelf_(r[iName]); });
+  var addBtn = '<div class="fab-stack"><button class="fab" onclick="openKeihiForm_()" title="新規経費申請">＋</button></div>';
   var html = '<div class="biz-wrap">';
   html += '<div class="biz-meta">' +
     '<span>' + esc(STATE.userName) + ' さんの経費申請（' + mine.length + '件）</span>' +
-    '<button class="btn-primary" style="margin-left:auto" onclick="openKeihiForm_()">＋ 新規申請</button>' +
   '</div>';
   if (mine.length === 0) {
-    html += '<div class="empty" style="padding:24px">申請履歴はありません。「＋ 新規申請」から登録してください。</div>';
+    html += '<div class="empty"><div class="empty-title">申請履歴はまだありません</div>' +
+      '<button class="empty-cta" onclick="openKeihiForm_()">＋ 新規経費申請</button></div>';
   } else {
     html += '<table class="biz-table"><thead><tr>' +
       '<th>申請日時</th><th>購入日</th><th>商品名</th><th>購入場所</th><th>金額</th><th>レシート</th>' +
@@ -4641,7 +4642,7 @@ function paintKeihi_(data) {
     html += '</tbody></table>';
   }
   html += '</div>';
-  c.innerHTML = html;
+  c.innerHTML = html + addBtn;
 }
 
 // 商品管理の openBashoCreate と同じ画面遷移パターン（form-card / form-actions）
