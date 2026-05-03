@@ -45,14 +45,16 @@
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", "Meiryo", sans-serif;
     background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5;
-    padding-top: 102px; padding-bottom: calc(76px + env(safe-area-inset-bottom)); min-height: 100vh;
+    /* iOSノッチ(safe-area-inset-top)を appbar・body 双方に加味することで、固定ヘッダの被りを全画面で解消 */
+    padding-top: calc(102px + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(76px + env(safe-area-inset-bottom)); min-height: 100vh;
     -webkit-tap-highlight-color: transparent;
     -webkit-font-smoothing: antialiased;
   }
-  body.has-chips { padding-top: 146px; }
+  body.has-chips { padding-top: calc(146px + env(safe-area-inset-top, 0px)); }
   /* 詳細画面: 検索バーを隠して appbar が縮むので、コンテンツ上余白と sec-tabs sticky 位置を一致させる */
-  body.view-detail { padding-top: 56px; }
-  body.view-detail .sec-tabs { top: 56px; }
+  body.view-detail { padding-top: calc(56px + env(safe-area-inset-top, 0px)); }
+  body.view-detail .sec-tabs { top: calc(56px + env(safe-area-inset-top, 0px)); }
   /* topbar-search は display:flex が固定で当たるため hidden 属性だけでは消えない。明示的に上書き */
   body.view-detail .topbar-search { display: none !important; }
   /* グローバル focus-visible: WCAG 対応 */
@@ -63,7 +65,9 @@
     position: fixed; top: 0; left: 0; right: 0; z-index: 100;
     background: linear-gradient(180deg, var(--primary) 0%, var(--primary-dark) 100%);
     color: #fff;
-    padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 8px;
+    /* iOS ノッチ分の上余白を確保し、ステータスバー領域も同色で塗る */
+    padding: calc(8px + env(safe-area-inset-top, 0px)) 10px 10px;
+    display: flex; flex-direction: column; gap: 8px;
     box-shadow: 0 2px 6px rgba(0,0,0,.15);
   }
   .appbar-row1 { display: flex; align-items: center; gap: 4px; min-height: 40px; }
@@ -161,7 +165,7 @@
   }
   /* ===== chips フィルタストリップ（モックアップ） ===== */
   .chips-bar {
-    position: fixed; top: 102px; left: 0; right: 0; z-index: 90;
+    position: fixed; top: calc(102px + env(safe-area-inset-top, 0px)); left: 0; right: 0; z-index: 90;
     background: var(--surface); border-bottom: 1px solid var(--border);
     box-shadow: 0 2px 4px rgba(0,0,0,.04);
   }
@@ -493,7 +497,7 @@
   /* P2 #93: スクロール時 appbar を隠す */
   .appbar { transition: transform .2s ease; }
   body.appbar-hidden:not(.view-detail) .appbar { transform: translateY(-100%); }
-  body.appbar-hidden:not(.view-detail) .chips-bar { transform: translateY(-102px); transition: transform .2s ease; }
+  body.appbar-hidden:not(.view-detail) .chips-bar { transform: translateY(calc(-102px - env(safe-area-inset-top, 0px))); transition: transform .2s ease; }
   body.appbar-hidden:not(.view-detail) .sec-tabs { top: 0; }
   .card-row2 { color: var(--text); font-size: 13px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -779,7 +783,7 @@
     overflow-x: auto;
     border-bottom: 1px solid var(--border);
     margin: 0 -12px;
-    position: sticky; top: 102px; z-index: 60;
+    position: sticky; top: calc(102px + env(safe-area-inset-top, 0px)); z-index: 60;
   }
   .sec-tabs::-webkit-scrollbar { display: none; }
   .sec-tab {
