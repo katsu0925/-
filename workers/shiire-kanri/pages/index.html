@@ -5083,7 +5083,10 @@ function fieldRowHtml(name, type, val) {
     input = '<select id="' + id + '" onchange="onSaleChannelChange_(this, \'' + id + '\')">' + optsSc + '</select>';
   } else if (type === 'bool') {
     // 表示は はい/いいえ、option value は TRUE/FALSE（シートにはそのまま TRUE/FALSE 文字列が渡る）
-    var b = String(v || '').toUpperCase();
+    // 重要: チェックボックスセルの値は Boolean false で来るため `v || ''` だと '' になって "—" 表示になり、
+    // その後の syncEditsFromDom_ で擬似 dirty 化して保存時にセルが空で上書きされるバグの原因になる。
+    // null/undefined のみ空、それ以外は String(v) で安全に判定する。
+    var b = (v == null ? '' : String(v)).toUpperCase();
     var optsB = '<option value=""' + (b === '' ? ' selected' : '') + '>—</option>' +
       '<option value="TRUE"' + (b === 'TRUE' ? ' selected' : '') + '>はい</option>' +
       '<option value="FALSE"' + (b === 'FALSE' ? ' selected' : '') + '>いいえ</option>';
@@ -6794,7 +6797,8 @@ function createFieldRowHtml_(name, type, defVal) {
     }
     input = '<select id="' + id + '" onchange="onSaleChannelChange_(this, \'' + id + '\')">' + optsScC + '</select>';
   } else if (type === 'bool') {
-    var bC = String(v || PROMO_DEFAULT).toUpperCase();
+    // Boolean false を ''扱いしないよう注意（v || x は false で fallback してしまう）
+    var bC = (v == null || v === '' ? PROMO_DEFAULT : String(v)).toUpperCase();
     var optsBC = '<option value=""' + (bC === '' ? ' selected' : '') + '>—</option>' +
       '<option value="TRUE"' + (bC === 'TRUE' ? ' selected' : '') + '>はい</option>' +
       '<option value="FALSE"' + (bC === 'FALSE' ? ' selected' : '') + '>いいえ</option>';
