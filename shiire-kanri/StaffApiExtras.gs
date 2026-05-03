@@ -563,8 +563,10 @@ function staff_apiUpdateShiireHoukokuQuantity(payload, email) {
   if (doneVal === 'TRUE') return { ok: false, error: '既に処理済みです' };
 
   sh.getRange(foundRow, qtyCol).setValue(quantity);
-  sh.getRange(foundRow, doneCol).setValue(true);
-  // 即時マージを実行（onChange を待たずに反映）
+  // 処理済み=TRUE は mergeReportToKanri_ 自身が最後にセットする。
+  // ここで先に TRUE を立てると、merge ループが「DONE=TRUE は skip」判定で対象行を
+  // スキップしてしまい、仕入れ管理シートへの商品点数/原価/割り当て管理番号反映が
+  // 一切行われない（バグ）。数量だけ書き込んで merge に任せる。
   try { withLock_(15000, function(){ mergeReportToKanri_(); recalcUnitCost_(); }); } catch(err) {
     console.error('mergeReportToKanri_ failed: ' + (err.message || err));
   }
