@@ -6229,21 +6229,45 @@ async function saveDetails() {
   // 背景で API へ送信 → 成功時は record（GAS が返す保存後の最新行）で d.extra を直接更新。
   // 旧実装は save 後に /api/products/:kanri を再 fetch していたが、record で代替できるため省略。
   // record が無い古い Worker 応答にはフォールバックで再 fetch を残す。
-  api('/api/save/details', { method: 'POST', body: { kanri: d.kanri, fields: fields } })
+  // ★ Day 0 計測: Server-Timing をキャプチャしてトーストに表示（DevTools 不要）
+  var __saveStartMs = Date.now();
+  var __saveTimingStr = '';
+  fetch(API_BASE + '/api/save/details', {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kanri: d.kanri, fields: fields }),
+  })
     .then(function(res){
+      // Server-Timing ヘッダ「post;dur=120, hop;dur=1850, ...」をパース
+      var st = res.headers.get('server-timing') || '';
+      if (st) {
+        __saveTimingStr = st.split(',').map(function(p){
+          var m = p.trim().match(/^([^;]+);dur=([\d.]+)/);
+          return m ? (m[1] + ':' + Math.round(Number(m[2]))) : '';
+        }).filter(Boolean).join(' ');
+      }
+      if (!res.ok) throw new Error('http ' + res.status);
+      return res.json();
+    })
+    .then(function(json){
+      if (!json || !json.ok) throw new Error((json && (json.message || json.error)) || 'save failed');
       refreshCounts();
       // 一覧キャッシュは派生値が古くなる可能性があるため破棄
       LIST_CACHE = Object.create(null);
-      if (res && res.record && typeof res.record === 'object') {
+      if (json.record && typeof json.record === 'object') {
         // record をそのまま採用 → 1 往復省ける
-        return { item: mergeRecordIntoItem_(d, res.record) };
+        return { item: mergeRecordIntoItem_(d, json.record) };
       }
       // フォールバック: 旧応答や record 欠損時はサーバー再取得
       return api('/api/products/' + encodeURIComponent(d.kanri));
     })
     .then(function(res){
       clearSavingBtn_();
-      toast('保存しました', 'success');
+      var elapsed = Date.now() - __saveStartMs;
+      var msg = '保存しました ' + elapsed + 'ms';
+      if (__saveTimingStr) msg += ' (' + __saveTimingStr + ')';
+      toast(msg, 'success');
       if (!res || !res.item) return;
       DETAIL_CACHE[d.kanri] = res.item;
       // 編集中（dirty）でなく、まだ同じ詳細を表示中なら再描画
