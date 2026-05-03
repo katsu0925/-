@@ -1157,6 +1157,39 @@ function staff_apiSaveDetails(payload, email) {
   var recomputed = null;
   try { recomputed = staff_recomputeStatus_(sh, rowNum, hdr, col); } catch(e) {}
 
+  // 派生値（粗利・利益・利益率・リードタイム・在庫日数）をシートにも書き込む。
+  // 既存のフォーミュラがあれば触らない（=A2-B2 等のシート式を尊重）。
+  // 在庫日数は販売日が空でも今日基準で都度算出するためアプリ側のみで再計算するよう除外（毎回更新は鬱陶しいため）。
+  try {
+    var __spCell = col['販売価格'] ? Number(sh.getRange(rowNum, col['販売価格']).getValue() || 0) : 0;
+    var __ssCell = col['送料'] ? Number(sh.getRange(rowNum, col['送料']).getValue() || 0) : 0;
+    var __sfCell = col['手数料'] ? Number(sh.getRange(rowNum, col['手数料']).getValue() || 0) : 0;
+    var __costCell = col['仕入れ値'] ? Number(sh.getRange(rowNum, col['仕入れ値']).getValue() || 0) : 0;
+    var derivedFields = {};
+    if (__spCell > 0) {
+      derivedFields['粗利'] = __spCell - __ssCell - __sfCell;
+      derivedFields['利益'] = __spCell - __ssCell - __sfCell - __costCell;
+      derivedFields['利益率'] = ((__spCell - __ssCell - __sfCell - __costCell) / __spCell);  // 0.234 形式（%表示はシート書式で）
+    }
+    var __purRaw = col['仕入れ日'] ? sh.getRange(rowNum, col['仕入れ日']).getValue() : '';
+    var __listRaw = col['出品日'] ? sh.getRange(rowNum, col['出品日']).getValue() : '';
+    if (__purRaw && __listRaw) {
+      var __pd = (__purRaw instanceof Date) ? __purRaw : new Date(__purRaw);
+      var __ld = (__listRaw instanceof Date) ? __listRaw : new Date(__listRaw);
+      if (!isNaN(__pd.getTime()) && !isNaN(__ld.getTime())) {
+        var __leadDays = Math.floor((__ld.getTime() - __pd.getTime()) / 86400000);
+        if (__leadDays >= 0) derivedFields['リードタイム'] = __leadDays;
+      }
+    }
+    Object.keys(derivedFields).forEach(function(fk){
+      var fc = col[fk];
+      if (!fc) return;
+      var cell = sh.getRange(rowNum, fc);
+      if (cell.getFormula()) return; // フォーミュラがあれば上書きしない
+      cell.setValue(derivedFields[fk]);
+    });
+  } catch (e) {}
+
   // 保存後の最新行を読み戻し、Workers が D1 を即時に同期できるように record で返す。
   // 派生値（粗利・利益・利益率・在庫日数・リードタイム）も合わせて算出して返却。
   var record = null;
