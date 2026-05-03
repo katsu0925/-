@@ -4894,8 +4894,9 @@ function paintHoushu_(data) {
   var c = document.getElementById('content');
   var headers = data.headers || [];
   var rows = data.rows || [];
-  // 報酬管理: A=月, B=名前, C=合計, D=採寸, E=撮影, F=出品, G=発送, H=在庫, I=固定, J=経費, K=売上歩合, L=月ボーナス, M=ボーナス調整
-  // 表示するのは D～I + J（K/L/M は表示しない）。件数は staff_listSagyousha の monthly から拾う。
+  // 報酬管理: A=年月, B=名前, C=メール, D=撮影, E=採寸, F=出品, G=発送,
+  //          H=在庫管理, I=アカウント運用, J=経費, K=利益歩合, L=固定費, M=月ブロック奇偶マーカー
+  // 件数は staff_listSagyousha の monthly から拾う（D=撮影なので counts.satsuei 等の対応に注意）。
   var iMonth = colIdx_(headers, '月');
   var iName  = colIdx_(headers, '名前');
   if (iMonth < 0 || iName < 0) {
@@ -4976,20 +4977,22 @@ function paintHoushu_(data) {
     mine.forEach(function(r){
       var month = String(r[iMonth] || '');
       var rowName = String(r[iName] || '').trim();
-      var sokutei = num_(r[3]);  // D
-      var satsuei = num_(r[4]);  // E
-      var shuppin = num_(r[5]);  // F
-      var hassou  = num_(r[6]);  // G
-      var inv     = num_(r[7]);  // H
-      var fixed   = num_(r[8]);  // I
-      var keihi   = num_(r[9]);  // J（経費控除＝マイナス効果）
+      // 報酬管理シートの実列構造（報酬更新.gs:198-213 より）
+      // D=撮影報酬, E=採寸報酬, F=出品報酬, G=発送報酬, H=在庫管理, I=アカウント運用,
+      // J=経費控除, K=利益歩合, L=固定費, M=月ブロック奇偶マーカー（表示無関係）
+      var satsuei = num_(r[3]);   // D 撮影
+      var sokutei = num_(r[4]);   // E 採寸
+      var shuppin = num_(r[5]);   // F 出品
+      var hassou  = num_(r[6]);   // G 発送
+      var inv     = num_(r[7]);   // H 在庫管理
+      var account = num_(r[8]);   // I アカウント運用
+      var keihi   = num_(r[9]);   // J 経費控除（マイナス効果）
+      var rieki   = num_(r[10]);  // K 利益歩合
+      var fixed   = num_(r[11]);  // L 固定費
       // 件数（同月の作業件数）。管理者で他人を表示する場合はその作業者の monthly を参照。
       var monthlyCounts = (workersByName[rowName] && workersByName[rowName].monthly) || defaultMonthly;
       var counts = monthlyCounts[ymKey_(month)] || { sokutei: 0, satsuei: 0, shuppin: 0, hassou: 0 };
-      // 歩合(K)・ボーナス(L+M) は表示しない（運用していないため）
-      // 合計は「C列があればそれを優先、なければ表示項目の合算」
-      var cTotal = num_(r[2]);
-      var total  = cTotal || (sokutei + satsuei + shuppin + hassou + inv + fixed - keihi);
+      var total = satsuei + sokutei + shuppin + hassou + inv + account + rieki + fixed - keihi;
       var monthLabel = (isAdmin && selected === '__all__' && rowName)
         ? esc(month) + ' — <span style="color:var(--text)">' + esc(rowName) + '</span>'
         : esc(month);
@@ -4997,12 +5000,14 @@ function paintHoushu_(data) {
         '<div class="houshu-month">' + monthLabel + '</div>' +
         '<div class="houshu-total">' + fmt_(total) + '</div>' +
         '<div class="houshu-grid">' +
-          cell_('採寸', sokutei, counts.sokutei) +
           cell_('撮影', satsuei, counts.satsuei) +
+          cell_('採寸', sokutei, counts.sokutei) +
           cell_('出品', shuppin, counts.shuppin) +
           cell_('発送', hassou,  counts.hassou)  +
-          cell_('在庫', inv) +
-          cell_('固定', fixed) +
+          cell_('在庫管理', inv) +
+          cell_('アカウント運用', account) +
+          cell_('利益歩合', rieki) +
+          cell_('固定費', fixed) +
           (keihi ? '<div><span>経費控除</span><b style="color:#c62828">- ' + fmt_(keihi).slice(1) + '</b></div>' : '') +
         '</div>' +
       '</div>';
