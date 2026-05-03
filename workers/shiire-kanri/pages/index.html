@@ -1098,6 +1098,7 @@
   }
   .shiire-done-row .d-date { color: var(--text-sub); font-size: 11px; white-space: nowrap; flex: 0 0 auto; }
   .shiire-done-row .d-title { flex: 1; min-width: 0; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .shiire-done-row .d-id { font-size: 11px; padding: 1px 6px; background: #fff3e0; color: #e65100; border-radius: 4px; font-weight: 600; white-space: nowrap; flex: 0 0 auto; }
   .shiire-done-row .d-meta { color: var(--text-sub); font-size: 11px; white-space: nowrap; flex: 0 0 auto; }
   .shiire-done-row .d-qty { font-weight: 700; color: var(--primary); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
   /* 業務メニュー: 報酬確認 月別カード */
@@ -4136,35 +4137,45 @@ function paintShiireHoukoku_(data) {
   }
   if (done.length > 0) {
     // 初回読み込みを軽くするため、処理済みは折りたたみ（クリックで展開）。中身は遅延描画。
-    html += '<details class="shiire-done-details" style="margin-top:16px"><summary style="padding:8px 12px;color:#666;font-size:13px;cursor:pointer;font-weight:600">処理済み（' + done.length + '件）</summary>';
+    // SWR の二度描画で開状態が失われないよう、グローバル SHIIRE_DONE_OPEN を引き継ぐ
+    var openAttr = (window.SHIIRE_DONE_OPEN === true) ? ' open' : '';
+    html += '<details class="shiire-done-details" style="margin-top:16px"' + openAttr + '><summary style="padding:8px 12px;color:#666;font-size:13px;cursor:pointer;font-weight:600">処理済み（' + done.length + '件）</summary>';
     html += '<div class="shiire-done-list" data-pending="1" style="margin-top:8px"></div>';
     html += '</details>';
   }
   html += '</div>';
   c.innerHTML = html;
-  // 処理済みリストは details が初めて開かれた時に描画（初回読み込みを軽くする）
+  // 処理済みリストは details が開かれた時点で描画。SWR の再描画が来ても開状態を維持する。
   var details = c.querySelector('.shiire-done-details');
   var listEl = c.querySelector('.shiire-done-list');
+  function renderDoneList_() {
+    if (!listEl || listEl.dataset.pending !== '1') return;
+    var inner = '';
+    done.forEach(function(r){
+      var id = String(r[iId] || '');
+      var date = iDate >= 0 ? String(r[iDate] || '') : '';
+      var reporter = iReporter >= 0 ? String(r[iReporter] || '') : '';
+      var cat = iCat >= 0 ? String(r[iCat] || '') : '';
+      var content = contentOf_(r);
+      var qty = qtyOf_(r);
+      var meta = [reporter, cat ? '区分' + cat : ''].filter(Boolean).join(' / ');
+      inner += '<div class="shiire-done-row">' +
+        '<span class="d-date">' + esc(date) + '</span>' +
+        '<span class="d-title">' + esc(truncate_(content)) + '</span>' +
+        (id ? '<span class="d-id">🆔 ' + esc(id) + '</span>' : '') +
+        (meta ? '<span class="d-meta">' + esc(meta) + '</span>' : '') +
+        '<span class="d-qty">' + qty + '点</span>' +
+      '</div>';
+    });
+    listEl.innerHTML = inner;
+    listEl.dataset.pending = '0';
+  }
   if (details && listEl && done.length > 0) {
+    // 既に開いた状態で再描画された場合は即座に中身を埋める
+    if (details.open) renderDoneList_();
     details.addEventListener('toggle', function onToggle() {
-      if (!details.open || listEl.dataset.pending !== '1') return;
-      var inner = '';
-      done.forEach(function(r){
-        var date = iDate >= 0 ? String(r[iDate] || '') : '';
-        var reporter = iReporter >= 0 ? String(r[iReporter] || '') : '';
-        var cat = iCat >= 0 ? String(r[iCat] || '') : '';
-        var content = contentOf_(r);
-        var qty = qtyOf_(r);
-        var meta = [reporter, cat ? '区分' + cat : ''].filter(Boolean).join(' / ');
-        inner += '<div class="shiire-done-row">' +
-          '<span class="d-date">' + esc(date) + '</span>' +
-          '<span class="d-title">' + esc(truncate_(content)) + '</span>' +
-          (meta ? '<span class="d-meta">' + esc(meta) + '</span>' : '') +
-          '<span class="d-qty">' + qty + '点</span>' +
-        '</div>';
-      });
-      listEl.innerHTML = inner;
-      listEl.dataset.pending = '0';
+      window.SHIIRE_DONE_OPEN = !!details.open;
+      if (details.open) renderDoneList_();
     });
   }
 }
