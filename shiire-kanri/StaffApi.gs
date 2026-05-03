@@ -1550,3 +1550,255 @@ function staff_apiCreateProduct(payload, email) {
 
   return { ok: true, kanri: kanri, productId: productId, row: appendAt, skipped: skipped, unknown: unknown };
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 行単位即時同期: 商品管理 / 仕入れ管理 を編集すると Cloudflare Workers の
+// /api/sync/row へ POST して D1 を即時 UPSERT する。
+//
+// 制約 (重要):
+//  - 同一 GAS プロジェクト内のスクリプト書き込み (Range#setValue 等) は
+//    installable トリガーが発火しない。よって 別アプリ (AppSheet, スタッフアプリ
+//    経由の他関数, etc.) からの書き込み・手動編集に限り即時反映される。
+//  - 5分 Cron は引き続き走るので、トリガーが発火しなかった更新もいずれは追従する。
+//  - 削除整合性は 5分 Cron に委譲（onEdit では行削除を検知できない）。
+//
+// セットアップ:
+//  - GAS エディタで staff_setupSyncTriggers() を一度だけ手動実行
+//  - WORKERS_WEBHOOK_URL を Script Property に保存（未設定なら下記既定 URL を使用）
+// ═══════════════════════════════════════════════════════════════════════════
+
+var STAFF_WORKERS_DEFAULT_URL = 'https://shiire-kanri.nsdktts1030.workers.dev';
+
+function staff_onEditTrigger(e) {
+  try {
+    if (!e || !e.range) return;
+    var sh = e.range.getSheet();
+    var name = sh.getName();
+    var firstRow = e.range.getRow();
+    var numRows = e.range.getNumRows() || 1;
+    if (firstRow < 2) return; // ヘッダーは無視
+
+    if (name === STAFF_SHEET_NAME) {
+      var items = [];
+      for (var i = 0; i < numRows; i++) {
+        var item = staff_buildProductRowPayload_(sh, firstRow + i);
+        if (item && item.kanri) items.push(item);
+      }
+      if (items.length) staff_pushRowsToWorkers_('product', items);
+    } else if (name === '仕入れ管理') {
+      var items2 = [];
+      for (var j = 0; j < numRows; j++) {
+        var it2 = staff_buildPurchaseRowPayload_(sh, firstRow + j);
+        if (it2 && it2.shiireId) items2.push(it2);
+      }
+      if (items2.length) staff_pushRowsToWorkers_('purchase', items2);
+    }
+  } catch (err) {
+    console.error('[staff_onEditTrigger]', err && err.message);
+  }
+}
+
+// onChange: AppSheet の INSERT_ROW / 行追加・削除など、onEdit が捕捉しない構造変更
+// changeType=EDIT/INSERT_ROW/INSERT_GRID 等で発火するが、変更範囲が取れないため
+// 「最終行を読んで push する」だけのベストエフォート実装。
+function staff_onChangeTrigger(e) {
+  try {
+    if (!e) return;
+    var ct = String(e.changeType || '');
+    if (ct !== 'INSERT_ROW' && ct !== 'EDIT' && ct !== 'OTHER') return;
+    var ss = staff_getActiveSpreadsheet_();
+    // 商品管理 / 仕入れ管理 の最終行のみを再 push（onEdit に拾われない AppSheet INSERT 用の補完）
+    var pSh = ss.getSheetByName(STAFF_SHEET_NAME);
+    if (pSh && pSh.getLastRow() >= 2) {
+      var pItem = staff_buildProductRowPayload_(pSh, pSh.getLastRow());
+      if (pItem && pItem.kanri) staff_pushRowsToWorkers_('product', [pItem]);
+    }
+    var qSh = ss.getSheetByName('仕入れ管理');
+    if (qSh && qSh.getLastRow() >= 2) {
+      var qItem = staff_buildPurchaseRowPayload_(qSh, qSh.getLastRow());
+      if (qItem && qItem.shiireId) staff_pushRowsToWorkers_('purchase', [qItem]);
+    }
+  } catch (err) {
+    console.error('[staff_onChangeTrigger]', err && err.message);
+  }
+}
+
+// 商品管理 1行ぶんを D1 UPSERT 互換ペイロードに変換 (staff_syncDumpProducts と同じ items 形状)
+function staff_buildProductRowPayload_(sh, rowNum) {
+  if (rowNum < 2) return null;
+  var ss = sh.getParent();
+  var lastCol = Math.max(STAFF_COL.販売日タイムスタンプ, sh.getLastColumn());
+  var hdr = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  var headers = hdr.map(function(v){ return String(v || '').trim(); });
+  var row = sh.getRange(rowNum, 1, 1, lastCol).getValues()[0];
+
+  var tz = Session.getScriptTimeZone() || 'Asia/Tokyo';
+  var sheetTz = ss.getSpreadsheetTimeZone() || tz;
+  function fmtDate(d) {
+    if (d instanceof Date) return Utilities.formatDate(d, sheetTz, 'yyyy-MM-dd');
+    return String(d || '');
+  }
+  function fmtTs(d) {
+    if (d instanceof Date) return Utilities.formatDate(d, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
+    return String(d || '');
+  }
+  function fmtCell(d) {
+    if (d instanceof Date) {
+      var hms = Utilities.formatDate(d, sheetTz, 'HH:mm:ss');
+      if (hms !== '00:00:00') return Utilities.formatDate(d, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
+      return Utilities.formatDate(d, sheetTz, 'yyyy-MM-dd');
+    }
+    if (d === null || d === undefined) return '';
+    return String(d);
+  }
+  function num(v) {
+    if (v === '' || v === null || v === undefined) return null;
+    var n = Number(v);
+    return isNaN(n) ? null : n;
+  }
+
+  var kanri = String(row[STAFF_COL.管理番号 - 1] || '').trim();
+  if (!kanri) return null;
+
+  var measure = {};
+  MEASURE_FIELDS.forEach(function(f) {
+    var v = row[STAFF_COL[f] - 1];
+    if (v !== '' && v !== null && v !== undefined) {
+      var n = Number(v);
+      if (!isNaN(n)) measure[f] = n;
+    }
+  });
+
+  var extra = {};
+  for (var c = 0; c < headers.length; c++) {
+    var hname = headers[c];
+    if (!hname) continue;
+    extra[hname] = fmtCell(row[c]);
+  }
+
+  return {
+    kanri: kanri,
+    shiireId: String(row[STAFF_COL.仕入れID - 1] || ''),
+    worker: String(row[STAFF_COL.作業者名 - 1] || ''),
+    status: String(row[STAFF_COL.ステータス - 1] || ''),
+    state: String(row[STAFF_COL.状態 - 1] || ''),
+    brand: String(row[STAFF_COL.ブランド - 1] || ''),
+    size: String(row[STAFF_COL.メルカリサイズ - 1] || ''),
+    color: String(row[STAFF_COL.カラー - 1] || ''),
+    measure: measure,
+    measuredAt: fmtDate(row[STAFF_COL.採寸日 - 1]),
+    measuredBy: String(row[STAFF_COL.採寸者 - 1] || ''),
+    saleDate: fmtDate(row[STAFF_COL.販売日 - 1]),
+    salePlace: String(row[STAFF_COL.販売場所 - 1] || ''),
+    salePrice: num(row[STAFF_COL.販売価格 - 1]),
+    saleShipping: num(row[STAFF_COL.送料 - 1]),
+    saleFee: num(row[STAFF_COL.手数料 - 1]),
+    saleTs: fmtTs(row[STAFF_COL.販売日タイムスタンプ - 1]),
+    extra: extra,
+    row: rowNum
+  };
+}
+
+// 仕入れ管理 1行ぶんを D1 UPSERT 互換ペイロードに変換
+function staff_buildPurchaseRowPayload_(sh, rowNum) {
+  if (rowNum < 2) return null;
+  var ss = sh.getParent();
+  var lastCol = sh.getLastColumn();
+  var hdr = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  var col = {};
+  for (var i = 0; i < hdr.length; i++) col[String(hdr[i] || '').trim()] = i + 1;
+  if (!col['仕入れID']) return null;
+
+  var row = sh.getRange(rowNum, 1, 1, lastCol).getValues()[0];
+  var tz = Session.getScriptTimeZone() || 'Asia/Tokyo';
+  var sheetTz = ss.getSpreadsheetTimeZone() || tz;
+  function val(name) { return col[name] ? row[col[name] - 1] : ''; }
+  function num(v) {
+    if (v === '' || v === null || v === undefined) return 0;
+    var n = Number(v);
+    return isNaN(n) ? 0 : Math.round(n);
+  }
+
+  var id = String(val('仕入れID') || '').trim();
+  if (!id) return null;
+  var date = val('仕入れ日');
+  var dateStr = (date instanceof Date) ? Utilities.formatDate(date, sheetTz, 'yyyy-MM-dd') : String(date || '');
+  var registeredAtRaw = val('登録日時');
+  var registeredAtStr = (registeredAtRaw instanceof Date)
+    ? Utilities.formatDate(registeredAtRaw, tz, 'yyyy-MM-dd HH:mm:ss')
+    : String(registeredAtRaw || '');
+  var processedRaw = val('処理済み');
+  var processed = (processedRaw === true) || (String(processedRaw).toLowerCase() === 'true');
+
+  return {
+    shiireId: id,
+    date: dateStr,
+    amount: num(val('金額')),
+    shipping: num(val('送料')),
+    planned: num(val('商品点数')),
+    place: String(val('納品場所') || ''),
+    cost: num(val('商品原価')),
+    category: String(val('区分コード') || ''),
+    content: String(val('内容') || ''),
+    supplierId: String(val('仕入先名') || ''),
+    registerUser: String(val('登録者') || ''),
+    registeredAt: registeredAtStr,
+    assignedKanri: String(val('割当管理番号') || ''),
+    processed: processed,
+    row: rowNum
+  };
+}
+
+// Workers webhook へ POST。タイムアウトは 5 秒程度で諦める（編集体験を阻害しない）。
+function staff_pushRowsToWorkers_(type, items) {
+  try {
+    var sp = PropertiesService.getScriptProperties();
+    var url = sp.getProperty('WORKERS_WEBHOOK_URL') || STAFF_WORKERS_DEFAULT_URL;
+    var secret = sp.getProperty('SHIIRE_SYNC_SECRET') || '';
+    if (!url || !secret) {
+      console.warn('[staff_pushRowsToWorkers_] missing url/secret');
+      return;
+    }
+    var endpoint = url.replace(/\/$/, '') + '/api/sync/row';
+    var res = UrlFetchApp.fetch(endpoint, {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { 'X-Sync-Secret': secret },
+      payload: JSON.stringify({ type: type, items: items }),
+      muteHttpExceptions: true,
+      followRedirects: true,
+    });
+    var code = res.getResponseCode();
+    if (code !== 200) {
+      console.warn('[staff_pushRowsToWorkers_] http ' + code + ' ' + (res.getContentText() || '').slice(0, 120));
+    }
+  } catch (err) {
+    console.warn('[staff_pushRowsToWorkers_] ' + (err && err.message));
+  }
+}
+
+// セットアップ: GASエディタから一度だけ手動実行
+//   - 既存の staff_onEditTrigger / staff_onChangeTrigger を一度全削除して再作成
+//   - WORKERS_WEBHOOK_URL が Script Property に未設定なら警告のみ（既定 URL でフォールバック）
+function staff_setupSyncTriggers() {
+  var ss = staff_getActiveSpreadsheet_();
+  var triggers = ScriptApp.getProjectTriggers();
+  var deleted = 0;
+  triggers.forEach(function(t) {
+    var fn = t.getHandlerFunction();
+    if (fn === 'staff_onEditTrigger' || fn === 'staff_onChangeTrigger') {
+      ScriptApp.deleteTrigger(t);
+      deleted++;
+    }
+  });
+  ScriptApp.newTrigger('staff_onEditTrigger').forSpreadsheet(ss).onEdit().create();
+  ScriptApp.newTrigger('staff_onChangeTrigger').forSpreadsheet(ss).onChange().create();
+  var sp = PropertiesService.getScriptProperties();
+  if (!sp.getProperty('WORKERS_WEBHOOK_URL')) {
+    sp.setProperty('WORKERS_WEBHOOK_URL', STAFF_WORKERS_DEFAULT_URL);
+  }
+  if (!sp.getProperty('SHIIRE_SYNC_SECRET')) {
+    Logger.log('警告: SHIIRE_SYNC_SECRET が未設定です。staff_setupSyncSecret を先に実行してください。');
+  }
+  Logger.log('staff_setupSyncTriggers: 削除 ' + deleted + ' 件 / 新規 onEdit + onChange を登録しました。');
+}

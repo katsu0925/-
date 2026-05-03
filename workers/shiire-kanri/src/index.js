@@ -9,6 +9,7 @@ import { listWorkers, listAccounts, listSuppliers, listPlaces, listCategories, l
 import { lookupAiPrefill, lookupAiPrefillBatch } from './handlers/ai.js';
 import { listMoves, createMove, listReturns, createReturn, listAiResults, listSagyousha, saveSagyousha, createSagyousha, dumpSheet, getListingText, appendKeihi, uploadKeihiImage, updateShiireHoukokuQuantity } from './handlers/extras.js';
 import { getSalesSummary } from './handlers/sales.js';
+import { syncRowWebhook } from './handlers/sync-webhook.js';
 
 export default {
   async scheduled(event, env, ctx) {
@@ -68,6 +69,12 @@ export default {
       if (!secret || secret !== env.SYNC_SECRET) return jsonError('unauthorized', 403);
       ctx.waitUntil(scheduledSync(env));
       return jsonOk({ triggered: true });
+    }
+
+    // GAS onEdit/onChange トリガーからの行単位 UPSERT（即時反映）
+    // X-Sync-Secret 必須・Cloudflare Access バイパス
+    if (path === '/api/sync/row' && request.method === 'POST') {
+      return syncRowWebhook(request, env);
     }
 
     // Access ポリシー手動同期（運用デバッグ用）
