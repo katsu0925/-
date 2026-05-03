@@ -1165,12 +1165,14 @@ function staff_apiSaveDetails(payload, email) {
     var __ssCell = col['送料'] ? Number(sh.getRange(rowNum, col['送料']).getValue() || 0) : 0;
     var __sfCell = col['手数料'] ? Number(sh.getRange(rowNum, col['手数料']).getValue() || 0) : 0;
     var __costCell = col['仕入れ値'] ? Number(sh.getRange(rowNum, col['仕入れ値']).getValue() || 0) : 0;
+    // 販売価格をクリアした場合も派生値を再計算してシートに反映する。
+    // 以前は `if (__spCell > 0)` でガードしていたため、販売価格削除後もシートに古い
+    // 粗利・利益・利益率が残り続け、収支サマリが更新されない原因になっていた。
     var derivedFields = {};
-    if (__spCell > 0) {
-      derivedFields['粗利'] = __spCell - __ssCell - __sfCell;
-      derivedFields['利益'] = __spCell - __ssCell - __sfCell - __costCell;
-      derivedFields['利益率'] = ((__spCell - __ssCell - __sfCell - __costCell) / __spCell);  // 0.234 形式（%表示はシート書式で）
-    }
+    derivedFields['粗利'] = __spCell - __ssCell - __sfCell;
+    derivedFields['利益'] = __spCell - __ssCell - __sfCell - __costCell;
+    // 利益率は販売価格 0/空のとき計算できないため空セルにする（NaN/Infinity 抑止）
+    derivedFields['利益率'] = (__spCell > 0) ? ((__spCell - __ssCell - __sfCell - __costCell) / __spCell) : '';
     var __purRaw = col['仕入れ日'] ? sh.getRange(rowNum, col['仕入れ日']).getValue() : '';
     var __listRaw = col['出品日'] ? sh.getRange(rowNum, col['出品日']).getValue() : '';
     if (__purRaw && __listRaw) {
