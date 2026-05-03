@@ -248,6 +248,28 @@
     margin-top: 6px;
   }
   .img-field { display: flex; gap: 12px; align-items: flex-start; }
+  .img-preview-wrap { position: relative; flex-shrink: 0; }
+  .img-delete-btn {
+    position: absolute; top: -8px; right: -8px;
+    width: 24px; height: 24px; border-radius: 50%;
+    background: var(--danger, #e53935); color: white;
+    border: 2px solid white;
+    font-size: 14px; line-height: 1; font-weight: bold;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,.25);
+    padding: 0; z-index: 2;
+  }
+  .img-delete-btn:hover { background: #c62828; }
+  .img-delete-btn:active { transform: scale(0.92); }
+  .img-delete-btn.armed {
+    background: #c62828; transform: scale(1.25);
+    box-shadow: 0 0 0 4px rgba(229,57,53,.25), 0 1px 3px rgba(0,0,0,.3);
+    animation: img-delete-pulse 0.6s ease-in-out infinite alternate;
+  }
+  @keyframes img-delete-pulse {
+    from { box-shadow: 0 0 0 4px rgba(229,57,53,.25), 0 1px 3px rgba(0,0,0,.3); }
+    to   { box-shadow: 0 0 0 7px rgba(229,57,53,.10), 0 1px 3px rgba(0,0,0,.3); }
+  }
   .img-preview {
     display: flex; align-items: center; justify-content: center;
     width: 96px; height: 96px; flex-shrink: 0;
@@ -3094,11 +3116,18 @@ function imageFieldHtml_(id, name, v) {
     'onclick="onImageFieldPaste_(\'' + esc(id) + '\', \'' + safeName + '\')">📋 貼り付け</button>' +
     '<div class="img-hint">最大1600px・JPG（スクショは Cmd+V でも貼付可）</div>' +
     '<div id="' + id + '_status" class="img-status"></div>';
+  // 画像が登録されている（URL or 旧形式パス）ときだけ削除 ✕ ボタンを出す
+  var deleteBtn = (isUrl || isLegacy)
+    ? '<button type="button" class="img-delete-btn" ' +
+      'onclick="onImageFieldDelete_(\'' + esc(id) + '\', \'' + safeName + '\')" ' +
+      'title="画像を削除">✕</button>'
+    : '';
   // data-field-id/data-field-name を付けて、フィールド全体を paste イベント受信ターゲットにする
   // tabindex=0 で「クリックでフォーカス→Cmd+V」も可能
   return '<div class="img-field" tabindex="0" data-img-field-id="' + esc(id) + '" data-img-field-name="' + safeName + '" ' +
     'onpaste="onImageFieldPasteEvent_(event, \'' + esc(id) + '\', \'' + safeName + '\')">' +
-    preview + '<div class="img-actions">' + picker + '</div></div>';
+    '<div class="img-preview-wrap">' + preview + deleteBtn + '</div>' +
+    '<div class="img-actions">' + picker + '</div></div>';
 }
 
 // 画像ファイル選択時のエントリ（input[type=file] からの呼び出し）
@@ -3132,6 +3161,61 @@ async function onImageFieldPaste_(fieldId, fieldName) {
   } catch(e) {
     if (status) { status.textContent = '貼付エラー: ' + (e && e.message || e); status.className = 'img-status error'; }
   }
+}
+
+// 画像削除ボタンの二段階タップ管理（fieldId → タイマーID）
+// confirm() は使わず、1回目タップでボタンが「もう一度」表示に変化、3秒以内に2回目タップで実削除
+var IMG_DELETE_ARMED_ = {};
+function onImageFieldDelete_(fieldId, fieldName) {
+  var status = document.getElementById(fieldId + '_status');
+  var kanri = (STATE.current && STATE.current.kanri) || '';
+  if (!kanri) {
+    if (status) { status.textContent = '管理番号がありません'; status.className = 'img-status error'; }
+    return;
+  }
+  var btn = document.querySelector('.img-field[data-img-field-id="' + fieldId + '"] .img-delete-btn');
+  if (!btn) return;
+  // 二段階タップ: 1回目は arm、3秒以内の2回目で実削除
+  if (!IMG_DELETE_ARMED_[fieldId]) {
+    btn.classList.add('armed');
+    btn.textContent = '？';
+    btn.title = 'もう一度タップで削除';
+    if (status) { status.textContent = 'もう一度タップで削除（3秒）'; status.className = 'img-status'; }
+    IMG_DELETE_ARMED_[fieldId] = setTimeout(function(){
+      delete IMG_DELETE_ARMED_[fieldId];
+      btn.classList.remove('armed');
+      btn.textContent = '✕';
+      btn.title = '画像を削除';
+      if (status && status.textContent === 'もう一度タップで削除（3秒）') {
+        status.textContent = '';
+      }
+    }, 3000);
+    return;
+  }
+  // 2回目タップ: タイマー解除して実削除
+  clearTimeout(IMG_DELETE_ARMED_[fieldId]);
+  delete IMG_DELETE_ARMED_[fieldId];
+  if (status) { status.textContent = '⏳ 削除中…'; status.className = 'img-status'; }
+  var fields = {};
+  fields[fieldName] = '';
+  fetch('/api/save/details', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kanri: kanri, fields: fields })
+  }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, body: j }; }); })
+  .then(function(res){
+    if (!res.ok || !res.body || res.body.ok === false) throw new Error((res.body && res.body.error) || '削除失敗');
+    // プレビューを「画像なし」に差し替え + ✕ ボタン除去
+    var wrap = document.querySelector('.img-field[data-img-field-id="' + fieldId + '"] .img-preview-wrap');
+    if (wrap) {
+      wrap.innerHTML = '<div id="' + fieldId + '_preview" class="img-preview">画像なし</div>';
+    }
+    if (STATE.current && STATE.current.extra) STATE.current.extra[fieldName] = '';
+    LIST_CACHE = {};
+    if (status) { status.textContent = '✓ 削除完了'; status.className = 'img-status success'; }
+  }).catch(function(err){
+    if (status) { status.textContent = '✗ ' + (err && err.message || 'エラー'); status.className = 'img-status error'; }
+  });
 }
 
 // onpaste イベント（フィールドへのフォーカス中に Cmd+V）
