@@ -1102,30 +1102,39 @@ function staff_apiSaveDetails(payload, email) {
   var rowNum = found.getRow();
   __lap('find');
 
+  // ★ 1op化: ヘッダー + 行データ + フォーミュラ を最小回数で取得
+  // 旧実装は cell-by-cell で 15-25 op 走らせていた → このブロックで 3 op に集約
   var lastCol = sh.getLastColumn();
   var hdr = sh.getRange(1, 1, 1, lastCol).getValues()[0];
   var col = buildHeaderMap_(hdr);
+  var rowRange = sh.getRange(rowNum, 1, 1, lastCol);
+  var rowVals = rowRange.getValues()[0];
+  var rowFormulas = rowRange.getFormulas()[0];
   __lap('hdr');
 
   var written = 0;
   var skipped = [];
   var unknown = [];
+
+  // 販売価格の事前判定は in-memory rowVals から（旧実装は getValue 1 op だった）
   var prevSaleEmpty = false;
   var newSalePrice = null;
-
-  // 販売価格を新規セットしたら ステータス=売却済み + 販売日タイムスタンプ を自動更新するため事前判定
   if (fields['販売価格'] !== undefined && fields['販売価格'] !== '' && fields['販売価格'] !== null) {
-    var prev = sh.getRange(rowNum, STAFF_COL.販売価格).getValue();
+    var spIdx = col['販売価格'] ? col['販売価格'] - 1 : -1;
+    var prev = spIdx >= 0 ? rowVals[spIdx] : '';
     prevSaleEmpty = (prev === '' || prev === null || prev === undefined);
     var nP = Number(fields['販売価格']);
     if (!isNaN(nP)) newSalePrice = nP;
   }
 
+  // 全変更を rowVals に in-memory で適用（書き込みは最後に setValues 1 発）
   for (var i = 0; i < keys.length; i++) {
     var key = keys[i];
     if (DETAILS_READONLY_[key]) { skipped.push(key); continue; }
     var c = col[key];
     if (!c) { unknown.push(key); continue; }
+    // フォーミュラ列は守る（=A2-B2 等を消さない）
+    if (rowFormulas[c - 1]) { skipped.push(key); continue; }
     var raw = fields[key];
 
     var v;
@@ -1141,14 +1150,15 @@ function staff_apiSaveDetails(payload, email) {
     } else {
       v = String(raw);
     }
-    sh.getRange(rowNum, c).setValue(v);
+    rowVals[c - 1] = v;
     written++;
   }
   __lap('write');
 
   // 販売価格を新規入力した場合は 販売日タイムスタンプ を自動付与（並び替え・監査用）
   if (prevSaleEmpty && newSalePrice !== null) {
-    sh.getRange(rowNum, STAFF_COL.販売日タイムスタンプ).setValue(new Date());
+    var tsIdx = STAFF_COL.販売日タイムスタンプ ? STAFF_COL.販売日タイムスタンプ - 1 : -1;
+    if (tsIdx >= 0 && !rowFormulas[tsIdx]) rowVals[tsIdx] = new Date();
   }
 
   // 採寸関連を更新したら 採寸日・採寸者を自動補完（明示指定があればそちらを優先）
@@ -1157,33 +1167,51 @@ function staff_apiSaveDetails(payload, email) {
     if (fields[MEASURE_FIELDS[j]] !== undefined) { measureFieldUpdated = true; break; }
   }
   if (measureFieldUpdated) {
-    if (fields['採寸日'] === undefined) sh.getRange(rowNum, STAFF_COL.採寸日).setValue(new Date());
-    if (fields['採寸者'] === undefined) sh.getRange(rowNum, STAFF_COL.採寸者).setValue(email);
+    if (fields['採寸日'] === undefined) {
+      var mdIdx = STAFF_COL.採寸日 ? STAFF_COL.採寸日 - 1 : -1;
+      if (mdIdx >= 0 && !rowFormulas[mdIdx]) rowVals[mdIdx] = new Date();
+    }
+    if (fields['採寸者'] === undefined) {
+      var mbIdx = STAFF_COL.採寸者 ? STAFF_COL.採寸者 - 1 : -1;
+      if (mbIdx >= 0 && !rowFormulas[mbIdx]) rowVals[mbIdx] = email;
+    }
   }
 
-  // ステータスを AppSheet IFS 式で再計算（任意の日付フィールドが書かれた可能性があるため必ず実施）
-  var recomputed = null;
-  try { recomputed = staff_recomputeStatus_(sh, rowNum, hdr, col); } catch(e) {}
+  // ステータスを AppSheet IFS 式で再計算（in-memory）
+  var statusChanged = false;
+  var derivedStatus = '';
+  try {
+    var calc = staff_calcStatus_(rowVals, col);
+    var stIdx = STAFF_COL.ステータス ? STAFF_COL.ステータス - 1 : -1;
+    var current = stIdx >= 0 ? String(rowVals[stIdx] || '') : '';
+    if (calc) {
+      if (calc !== current && stIdx >= 0 && !rowFormulas[stIdx]) {
+        rowVals[stIdx] = calc;
+        statusChanged = true;
+      }
+      derivedStatus = calc;
+    } else {
+      derivedStatus = current;
+    }
+  } catch(e) {}
   __lap('status');
 
-  // 派生値（粗利・利益・利益率・リードタイム・在庫日数）をシートにも書き込む。
+  // 派生値（粗利・利益・利益率・リードタイム）を in-memory で計算
   // 既存のフォーミュラがあれば触らない（=A2-B2 等のシート式を尊重）。
-  // 在庫日数は販売日が空でも今日基準で都度算出するためアプリ側のみで再計算するよう除外（毎回更新は鬱陶しいため）。
+  // 在庫日数は販売日が空でも今日基準で都度算出するためアプリ側のみで再計算するよう除外。
   try {
-    var __spCell = col['販売価格'] ? Number(sh.getRange(rowNum, col['販売価格']).getValue() || 0) : 0;
-    var __ssCell = col['送料'] ? Number(sh.getRange(rowNum, col['送料']).getValue() || 0) : 0;
-    var __sfCell = col['手数料'] ? Number(sh.getRange(rowNum, col['手数料']).getValue() || 0) : 0;
-    var __costCell = col['仕入れ値'] ? Number(sh.getRange(rowNum, col['仕入れ値']).getValue() || 0) : 0;
+    var __spCell = col['販売価格'] ? Number(rowVals[col['販売価格'] - 1] || 0) : 0;
+    var __ssCell = col['送料'] ? Number(rowVals[col['送料'] - 1] || 0) : 0;
+    var __sfCell = col['手数料'] ? Number(rowVals[col['手数料'] - 1] || 0) : 0;
+    var __costCell = col['仕入れ値'] ? Number(rowVals[col['仕入れ値'] - 1] || 0) : 0;
     // 販売価格をクリアした場合も派生値を再計算してシートに反映する。
-    // 以前は `if (__spCell > 0)` でガードしていたため、販売価格削除後もシートに古い
-    // 粗利・利益・利益率が残り続け、収支サマリが更新されない原因になっていた。
     var derivedFields = {};
     derivedFields['粗利'] = __spCell - __ssCell - __sfCell;
     derivedFields['利益'] = __spCell - __ssCell - __sfCell - __costCell;
     // 利益率は販売価格 0/空のとき計算できないため空セルにする（NaN/Infinity 抑止）
     derivedFields['利益率'] = (__spCell > 0) ? ((__spCell - __ssCell - __sfCell - __costCell) / __spCell) : '';
-    var __purRaw = col['仕入れ日'] ? sh.getRange(rowNum, col['仕入れ日']).getValue() : '';
-    var __listRaw = col['出品日'] ? sh.getRange(rowNum, col['出品日']).getValue() : '';
+    var __purRaw = col['仕入れ日'] ? rowVals[col['仕入れ日'] - 1] : '';
+    var __listRaw = col['出品日'] ? rowVals[col['出品日'] - 1] : '';
     if (__purRaw && __listRaw) {
       var __pd = (__purRaw instanceof Date) ? __purRaw : new Date(__purRaw);
       var __ld = (__listRaw instanceof Date) ? __listRaw : new Date(__listRaw);
@@ -1195,37 +1223,36 @@ function staff_apiSaveDetails(payload, email) {
     Object.keys(derivedFields).forEach(function(fk){
       var fc = col[fk];
       if (!fc) return;
-      var cell = sh.getRange(rowNum, fc);
-      if (cell.getFormula()) return; // フォーミュラがあれば上書きしない
-      cell.setValue(derivedFields[fk]);
+      if (rowFormulas[fc - 1]) return;
+      rowVals[fc - 1] = derivedFields[fk];
     });
   } catch (e) {}
   __lap('derived');
 
-  // 保存後の最新行を読み戻し、Workers が D1 を即時に同期できるように record で返す。
-  // 派生値（粗利・利益・利益率・在庫日数・リードタイム）も合わせて算出して返却。
-  var record = null;
-  var derivedStatus = '';
+  // ★ 1op化: 全変更を 1 回の setValues で書き戻す
+  rowRange.setValues([rowVals]);
+  __lap('flush');
+
+  // record は in-memory rowVals から構築（旧実装は再 getValues + getDisplayValues で 2 op）
+  // 日付列は Utilities.formatDate で 'yyyy-MM-dd' に整形（getDisplayValues 相当）
+  var record = {};
   try {
-    var lastColAfter = sh.getLastColumn();
-    var rowVals = sh.getRange(rowNum, 1, 1, lastColAfter).getValues()[0];
-    var rowDisp = sh.getRange(rowNum, 1, 1, lastColAfter).getDisplayValues()[0];
-    record = {};
+    var tz = Session.getScriptTimeZone() || 'Asia/Tokyo';
     for (var ck = 0; ck < hdr.length; ck++) {
       var hk = String(hdr[ck] || '').trim();
       if (!hk) continue;
       var rawV = rowVals[ck];
-      // 日付列・タイムスタンプ列は表示値を使う（'2026-05-03' 等の文字列で返したい）
       if (rawV instanceof Date) {
-        record[hk] = rowDisp[ck];
+        // 時刻が 00:00:00 なら日付のみ、そうでなければ datetime
+        var hasTime = rawV.getHours() || rawV.getMinutes() || rawV.getSeconds();
+        record[hk] = Utilities.formatDate(rawV, tz, hasTime ? 'yyyy-MM-dd HH:mm:ss' : 'yyyy-MM-dd');
       } else if (rawV === null || rawV === undefined) {
         record[hk] = '';
       } else {
         record[hk] = rawV;
       }
     }
-    derivedStatus = String(record['ステータス'] || '');
-    // 派生値の計算（formatProduct と同じロジック）
+    // 利益率は表示形式（"1.7%"）に整形して返す（formatProduct と同じロジック）
     var __cost = Number(record['仕入れ値'] || 0);
     var __sp = Number(record['販売価格'] || 0);
     var __ss = Number(record['送料'] || 0);
@@ -1247,7 +1274,7 @@ function staff_apiSaveDetails(payload, email) {
     skipped: skipped,
     unknown: unknown,
     derivedStatus: derivedStatus,
-    statusChanged: recomputed && recomputed.changed === true,
+    statusChanged: statusChanged,
     record: record,
     _t: __T
   };
