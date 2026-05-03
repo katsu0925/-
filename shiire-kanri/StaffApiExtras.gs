@@ -546,8 +546,9 @@ function staff_apiUpdateShiireHoukokuQuantity(payload, email) {
     var i = headers.indexOf(name);
     return i >= 0 ? i + 1 : fallbackIdx;
   }
-  // 仕入れ数マージ.gs の RPT 定義に合わせる: A=ID, F=数量, G=処理済み
+  // 仕入れ数マージ.gs の RPT 定義に合わせる: A=ID, B=タイムスタンプ, F=数量, G=処理済み
   var idCol  = colByName('ID', 1);
+  var tsCol  = colByName('タイムスタンプ', 2);
   var qtyCol = colByName('数量', 6);
   var doneCol = colByName('処理済み', 7);
 
@@ -563,6 +564,8 @@ function staff_apiUpdateShiireHoukokuQuantity(payload, email) {
   if (doneVal === 'TRUE') return { ok: false, error: '既に処理済みです' };
 
   sh.getRange(foundRow, qtyCol).setValue(quantity);
+  // 数量入力時刻を B列 タイムスタンプにスタンプ（監査・通知用）
+  sh.getRange(foundRow, tsCol).setValue(new Date());
   // 処理済み=TRUE は mergeReportToKanri_ 自身が最後にセットする。
   // ここで先に TRUE を立てると、merge ループが「DONE=TRUE は skip」判定で対象行を
   // スキップしてしまい、仕入れ管理シートへの商品点数/原価/割り当て管理番号反映が
