@@ -39,7 +39,7 @@ async function getCached(env, cacheKey, action, opts) {
     if (env.CACHE) {
       const hit = await env.CACHE.get(cacheKey, 'json');
       if (hit && isValid(hit.items)) {
-        return jsonOk({ items: hit.items, cached: true });
+        return jsonOk({ ...hit, cached: true });
       }
     }
   } catch (err) {
@@ -66,14 +66,22 @@ async function getCached(env, cacheKey, action, opts) {
   if (!data || !data.ok) return jsonError((data && data.error) || ('gas error[' + action + ']'), 502);
   const items = isValid(data.items) ? data.items : (itemsType === 'object' ? {} : []);
 
+  // 拡張フィールド（saleChannels 等）を items 以外でも素通しでキャッシュ・返却する
+  const extras = {};
+  for (const k of Object.keys(data)) {
+    if (k === 'ok' || k === 'items' || k === 'cached' || k === 'error') continue;
+    extras[k] = data[k];
+  }
+  const payload = { items, ...extras };
+
   try {
     if (env.CACHE) {
-      await env.CACHE.put(cacheKey, JSON.stringify({ items }), { expirationTtl: TTL_SECONDS });
+      await env.CACHE.put(cacheKey, JSON.stringify(payload), { expirationTtl: TTL_SECONDS });
     }
   } catch (err) {
     console.warn('[master] kv put failed', err.message);
   }
-  return jsonOk({ items, cached: false });
+  return jsonOk({ ...payload, cached: false });
 }
 
 async function postFollowingRedirects(url, body) {

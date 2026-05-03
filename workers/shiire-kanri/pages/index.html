@@ -1544,6 +1544,7 @@ var STATE = {
   workers: [], accounts: [],
   suppliers: [], places: [], categories: [],
   settings: {},
+  saleChannels: {}, // { 'メルカリ': {rate:0.1, enabled:true}, ... } — 設定シートL列以降から
   // 商品管理タブの並び順 / 密度（localStorage で永続化）
   shouhinSort: (function(){ try { return localStorage.getItem('sk.shouhinSort') || 'kanri'; } catch(e){ return 'kanri'; } })(),
   density:     (function(){ try { return localStorage.getItem('sk.density') || 'normal'; } catch(e){ return 'normal'; } })(),
@@ -1807,14 +1808,16 @@ const SALE_CHANNEL_OPTIONS = ['メルカリ','ラクマ'];
 const SALE_CHANNEL_DEFAULT = 'メルカリ';
 const PROMO_DEFAULT = 'FALSE';
 
-// 設定シート(STATE.settings)から販売場所別の手数料率を取得
-// MN列のヘッダーが「メルカリ手数料」「ラクマ手数料」のように販売場所名を含む想定。
-// 値は 0.10（=10%）／ 10（=10%）どちらでも吸収。
+// 設定シートの「販売場所名／手数料率／有効フラグ」3列を行対応で読んだ
+// STATE.saleChannels = { 'メルカリ': {rate:0.1, enabled:true}, ... } を最優先で参照する。
+// 旧フォーマット（〇〇手数料 という列名に値だけ入っている）も後方互換で残す。
 function findFeeRate_(channel) {
   if (!channel) return null;
+  var ch = STATE.saleChannels && STATE.saleChannels[channel];
+  if (ch && typeof ch.rate === 'number' && !isNaN(ch.rate)) return ch.rate;
+  // ---- 旧フォーマット fallback ----
   var settings = STATE.settings || {};
   var keys = Object.keys(settings);
-  // 完全一致 → 部分一致 の順で探索
   function tryKey(name) {
     var v = settings[name];
     if (Array.isArray(v) && v.length) {
@@ -1832,6 +1835,15 @@ function findFeeRate_(channel) {
     }
   }
   return null;
+}
+
+// 販売場所 select の選択肢を STATE.saleChannels（有効フラグTRUEのみ）から動的に返す。
+// データ未ロード／空の場合は SALE_CHANNEL_OPTIONS にフォールバック。
+function getSaleChannelOptions_() {
+  var ch = STATE.saleChannels || {};
+  var keys = Object.keys(ch).filter(function(n){ return ch[n] && ch[n].enabled !== false; });
+  if (keys.length) return keys;
+  return SALE_CHANNEL_OPTIONS;
 }
 
 function calcFeeFromSettings_(channel, price) {
@@ -1969,6 +1981,7 @@ async function loadMasters() {
   try {
     const r = await api('/api/master/settings');
     STATE.settings = (r.items && typeof r.items === 'object' && !Array.isArray(r.items)) ? r.items : {};
+    STATE.saleChannels = (r.saleChannels && typeof r.saleChannels === 'object' && !Array.isArray(r.saleChannels)) ? r.saleChannels : {};
   } catch (err) {
     console.warn('settings load failed', err);
   }
@@ -4753,11 +4766,12 @@ function fieldRowHtml(name, type, val) {
     '</div>';
   } else if (type === 'salechannel') {
     var cur = String(v || '');
+    var chList = getSaleChannelOptions_();
     var optsSc = '<option value=""' + (cur === '' ? ' selected' : '') + '>—</option>' +
-      SALE_CHANNEL_OPTIONS.map(function(o){
+      chList.map(function(o){
         return '<option value="' + esc(o) + '"' + (cur === o ? ' selected' : '') + '>' + esc(o) + '</option>';
       }).join('');
-    if (cur && SALE_CHANNEL_OPTIONS.indexOf(cur) < 0) {
+    if (cur && chList.indexOf(cur) < 0) {
       optsSc += '<option value="' + esc(cur) + '" selected>' + esc(cur) + '</option>';
     }
     input = '<select id="' + id + '" onchange="onSaleChannelChange_(this, \'' + id + '\')">' + optsSc + '</select>';
@@ -6462,11 +6476,12 @@ function createFieldRowHtml_(name, type, defVal) {
     '</div>';
   } else if (type === 'salechannel') {
     var curSc = String(v || '') || SALE_CHANNEL_DEFAULT;
+    var chListC = getSaleChannelOptions_();
     var optsScC = '<option value=""' + (curSc === '' ? ' selected' : '') + '>—</option>' +
-      SALE_CHANNEL_OPTIONS.map(function(o){
+      chListC.map(function(o){
         return '<option value="' + esc(o) + '"' + (curSc === o ? ' selected' : '') + '>' + esc(o) + '</option>';
       }).join('');
-    if (curSc && SALE_CHANNEL_OPTIONS.indexOf(curSc) < 0) {
+    if (curSc && chListC.indexOf(curSc) < 0) {
       optsScC += '<option value="' + esc(curSc) + '" selected>' + esc(curSc) + '</option>';
     }
     input = '<select id="' + id + '" onchange="onSaleChannelChange_(this, \'' + id + '\')">' + optsScC + '</select>';

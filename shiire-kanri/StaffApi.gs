@@ -673,7 +673,7 @@ function staff_listSettings() {
   if (!sh) return { ok: false, error: 'sheet not found: 設定' };
   var lastRow = sh.getLastRow();
   var lastCol = sh.getLastColumn();
-  if (lastRow < 4 || lastCol < 1) return { ok: true, items: {} };
+  if (lastRow < 4 || lastCol < 1) return { ok: true, items: {}, saleChannels: {} };
   var headers = sh.getRange(3, 1, 1, lastCol).getValues()[0];
   var data = sh.getRange(4, 1, lastRow - 3, lastCol).getValues();
   var out = {};
@@ -690,7 +690,34 @@ function staff_listSettings() {
     }
     if (list.length) out[h] = list;
   }
-  return { ok: true, items: out };
+  // 販売場所名 / 手数料率 / 有効フラグ の3列が揃っていれば 行対応の structured map を生成
+  // → クライアントが販売場所別の手数料率を引けるようにする
+  var nameCol = -1, rateCol = -1, enabledCol = -1;
+  for (var i = 0; i < headers.length; i++) {
+    var h2 = String(headers[i] == null ? '' : headers[i]).trim();
+    if (h2 === '販売場所名') nameCol = i;
+    else if (h2 === '手数料率') rateCol = i;
+    else if (h2 === '有効フラグ') enabledCol = i;
+  }
+  var saleChannels = {};
+  if (nameCol >= 0 && rateCol >= 0) {
+    for (var r2 = 0; r2 < data.length; r2++) {
+      var name = String(data[r2][nameCol] == null ? '' : data[r2][nameCol]).trim();
+      if (!name) continue;
+      var rateRaw = data[r2][rateCol];
+      var rate = (rateRaw === '' || rateRaw == null) ? NaN : Number(rateRaw);
+      if (isNaN(rate)) continue;
+      // 10 のような整数で来た場合は % とみなす
+      if (rate > 1) rate = rate / 100;
+      var enabled = true;
+      if (enabledCol >= 0) {
+        var ev = String(data[r2][enabledCol] == null ? '' : data[r2][enabledCol]).trim().toUpperCase();
+        enabled = (ev === 'TRUE' || ev === '1' || ev === 'YES');
+      }
+      saleChannels[name] = { rate: rate, enabled: enabled };
+    }
+  }
+  return { ok: true, items: out, saleChannels: saleChannels };
 }
 
 // 管理番号マスタ A列 (区分コード) → [string]
