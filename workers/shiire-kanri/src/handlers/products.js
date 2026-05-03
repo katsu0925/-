@@ -80,11 +80,13 @@ export async function listProducts(request, env) {
   } else if (filter === 'shuppinchu') {
     where.push(`${ds} = '出品中'`);
   } else if (filter === 'hassou') {
-    // 発送商品タブ（AppSheet準拠）— raw [ステータス] を直接参照する:
-    //   OR(AND([ステータス]='発送待ち', ISBLANK([発送日付])), [ステータス]='発送済み')
+    // 発送商品タブ — raw [ステータス] を参照しつつ、実運用に合わせて拡張:
+    //   1. 発送待ち（発送日付未入力）= これから発送
+    //   2. 発送済み（明示的にステータス更新済）
+    //   3. 売却済み + 発送日付入力済 = 実質発送済み（スタッフは raw status を売却済みのまま運用するため）
     // 派生ステータスではなく raw status を使う理由:
     //   raw=売却済み だが完了日未入力の行があり派生では '発送待ち' に降格してしまうため。
-    where.push(`((status = '発送待ち' AND NOT ${D_HASSOU}) OR status = '発送済み')`);
+    where.push(`((status = '発送待ち' AND NOT ${D_HASSOU}) OR status = '発送済み' OR (status = '売却済み' AND ${D_HASSOU}))`);
   } else if (filter === 'sold') {
     where.push(`${ds} IN ('発送待ち','発送済み','売却済み')`);
   }
@@ -121,6 +123,7 @@ export async function listProducts(request, env) {
            sale_date, sale_ts,
            json_extract(extra_json, '$."売却済み商品画像"') AS extra_thumb,
            json_extract(extra_json, '$."使用アカウント"')   AS extra_account,
+           json_extract(extra_json, '$."発送日付"')         AS extra_hassou_date,
            ${DERIVED_STATUS} AS derived_status
     FROM products
   `;
@@ -155,6 +158,7 @@ function formatProductSlim(row) {
   const extra = {};
   if (row.extra_thumb) extra['売却済み商品画像'] = String(row.extra_thumb);
   if (row.extra_account) extra['使用アカウント'] = String(row.extra_account);
+  if (row.extra_hassou_date) extra['発送日付'] = String(row.extra_hassou_date);
   return {
     kanri: row.kanri,
     shiireId: row.shiire_id,
@@ -180,7 +184,7 @@ export async function listProductCounts(request, env) {
     shuppin_machi:  `${ds} = '出品待ち'`,
     shuppin_sagyou: `${ds} = '出品作業中'`,
     shuppinchu:     `${ds} = '出品中'`,
-    hassou:         `((status = '発送待ち' AND NOT ${D_HASSOU}) OR status = '発送済み')`,
+    hassou:         `((status = '発送待ち' AND NOT ${D_HASSOU}) OR status = '発送済み' OR (status = '売却済み' AND ${D_HASSOU}))`,
     sold:           `${ds} IN ('発送待ち','発送済み','売却済み')`,
   };
 
