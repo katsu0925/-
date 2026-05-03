@@ -1082,6 +1082,7 @@
   }
   .houshu-grid > div span { color: var(--text-sub); }
   .houshu-grid > div b { font-size: 13px; color: var(--text); }
+  .houshu-grid > div .houshu-count { font-size: 11px; color: var(--text-sub); margin-left: 4px; font-weight: 500; }
   .placeholder {
     text-align: center; padding: 60px 20px; color: var(--text-sub);
     background: var(--surface); border-radius: 12px; margin: 16px;
@@ -4038,31 +4039,38 @@ function paintShiireHoukoku_(data) {
   var iQty     = colIdx_(headers, '数量');
   var iDone    = colIdx_(headers, '処理済み');
   var iContent = colIdx_(headers, '内容');
-  if (iId < 0 || iReporter < 0 || iQty < 0) {
+  if (iId < 0 || iQty < 0) {
     c.innerHTML = '<div class="empty">仕入れ数報告シートのヘッダーが想定と異なります。</div>';
     return;
   }
-  var mine = rows.filter(function(r){ return nameMatchesSelf_(r[iReporter]); });
-  var pending = mine.filter(function(r){
+  // 仕入れ数マージ.gs 仕様: 「報告者」列には作業者名ではなく納品場所(川口/渋谷など)が入る。
+  // そのため作業者名でフィルタすると常に0件になる ⇒ AppSheet と同じく未処理は全件表示する。
+  var pending = rows.filter(function(r){
     return String(r[iDone] || '').trim().toUpperCase() !== 'TRUE';
   });
-  var done = mine.filter(function(r){
+  var done = rows.filter(function(r){
     return String(r[iDone] || '').trim().toUpperCase() === 'TRUE';
   });
+  // 仕入れ日 昇順（古いものから処理）
+  function dateKey_(r){ return iDate >= 0 ? String(r[iDate] || '') : ''; }
+  pending.sort(function(a, b){ var da = dateKey_(a), db = dateKey_(b); return da < db ? -1 : (da > db ? 1 : 0); });
+  done.sort(function(a, b){ var da = dateKey_(a), db = dateKey_(b); return da < db ? 1 : (da > db ? -1 : 0); });
   var html = '<div class="biz-wrap">';
-  html += '<div class="biz-meta">' + esc(STATE.userName) + ' さんの仕入れ数報告（未処理 ' + pending.length + ' / 処理済み ' + done.length + '）</div>';
+  html += '<div class="biz-meta">仕入れ数報告（未処理 ' + pending.length + ' / 処理済み ' + done.length + '）</div>';
   if (pending.length === 0) {
     html += '<div class="empty" style="padding:24px">未処理の報告はありません。</div>';
   } else {
     html += '<div class="keihi-list">';
     pending.forEach(function(r){
       var id = String(r[iId] || '');
+      var reporter = iReporter >= 0 ? String(r[iReporter] || '') : '';
       var cat = iCat >= 0 ? String(r[iCat] || '') : '';
       var date = iDate >= 0 ? String(r[iDate] || '') : '';
       var content = iContent >= 0 ? String(r[iContent] || '') : '';
       var qty = String(r[iQty] || '');
       html += '<div class="keihi-card" data-id="' + esc(id) + '">' +
         '<div class="keihi-row"><span class="keihi-label">仕入れ日</span><span>' + esc(date) + '</span></div>' +
+        (reporter ? '<div class="keihi-row"><span class="keihi-label">納品場所</span><span>' + esc(reporter) + '</span></div>' : '') +
         '<div class="keihi-row"><span class="keihi-label">区分コード</span><span>' + esc(cat) + '</span></div>' +
         (content ? '<div class="keihi-row"><span class="keihi-label">内容</span><span>' + esc(content) + '</span></div>' : '') +
         '<div class="keihi-row"><span class="keihi-label">ID</span><span style="font-family:monospace;font-size:11px;color:#888">' + esc(id) + '</span></div>' +
@@ -4076,10 +4084,11 @@ function paintShiireHoukoku_(data) {
   }
   if (done.length > 0) {
     html += '<details style="margin-top:16px"><summary style="padding:8px 12px;color:#666;font-size:13px;cursor:pointer">処理済み（' + done.length + '件）</summary>';
-    html += '<table class="biz-table"><thead><tr><th>仕入れ日</th><th>区分</th><th>数量</th><th>内容</th></tr></thead><tbody>';
+    html += '<table class="biz-table"><thead><tr><th>仕入れ日</th><th>納品場所</th><th>区分</th><th>数量</th><th>内容</th></tr></thead><tbody>';
     done.forEach(function(r){
       html += '<tr>' +
         '<td>' + esc(iDate >= 0 ? r[iDate] : '') + '</td>' +
+        '<td>' + esc(iReporter >= 0 ? r[iReporter] : '') + '</td>' +
         '<td>' + esc(iCat >= 0 ? r[iCat] : '') + '</td>' +
         '<td>' + esc(r[iQty] || '') + '</td>' +
         '<td>' + esc(iContent >= 0 ? r[iContent] : '') + '</td>' +
@@ -4176,54 +4185,110 @@ function paintKeihi_(data) {
   c.innerHTML = html;
 }
 
+// 商品管理の openBashoCreate と同じ画面遷移パターン（form-card / form-actions）
+// 購入証明はファイル選択 → /api/keihi/image でDriveに保存 → 戻ったURLを receipt として appendKeihi
+var KEIHI_DRAFT = { receiptUrl: '' };
 function openKeihiForm_() {
+  var c = document.getElementById('content');
+  STATE.view = 'form';
+  KEIHI_DRAFT = { receiptUrl: '' };
   var today = new Date();
   var dateDefault = today.getFullYear() + '-' + ('0'+(today.getMonth()+1)).slice(-2) + '-' + ('0'+today.getDate()).slice(-2);
-  var html = '<h3>経費申請</h3>' +
-    '<div class="hint">あなた（' + esc(STATE.userName) + '）の経費を申請します。送信すると管理者にメール通知されます。</div>' +
-    '<form id="keihi-form" onsubmit="return submitKeihiForm_(event)">' +
-      '<div class="field-row"><label>購入日<span class="req">*</span></label><input type="date" name="purchaseDate" value="' + dateDefault + '" required /></div>' +
-      '<div class="field-row"><label>商品名<span class="req">*</span></label><input type="text" name="itemName" required /></div>' +
-      '<div class="field-row"><label>購入場所</label><input type="text" name="place" placeholder="店名 / サイト名 など" /></div>' +
-      '<div class="field-row"><label>購入場所リンク</label><input type="url" name="placeLink" placeholder="https://..." /></div>' +
-      '<div class="field-row"><label>購入金額（円）<span class="req">*</span></label><input type="number" name="amount" inputmode="numeric" min="0" required /></div>' +
-      '<div class="field-row"><label>購入証明 URL</label><input type="text" name="receipt" placeholder="レシート/スクショ画像のURL" /></div>' +
-      '<div class="modal-actions">' +
-        '<button type="button" class="btn-cancel" onclick="closeModal()">キャンセル</button>' +
-        '<button type="submit" class="btn-submit">申請する</button>' +
+  c.innerHTML =
+    '<div class="form-card">' +
+      '<h3>💴 経費申請 新規作成</h3>' +
+      '<div class="notice">あなた（<strong>' + esc(STATE.userName) + '</strong>）の経費を申請します。送信すると管理者にメール通知されます。</div>' +
+      '<div class="field-row"><label>購入日 *</label>' +
+        '<input type="date" id="keihi-date" value="' + dateDefault + '">' +
       '</div>' +
-    '</form>';
-  openModal(html);
+      '<div class="field-row"><label>商品名 *</label>' +
+        '<input type="text" id="keihi-item" placeholder="例: 採寸メジャー">' +
+      '</div>' +
+      '<div class="field-row"><label>購入場所</label>' +
+        '<input type="text" id="keihi-place" placeholder="店名 / サイト名 など">' +
+      '</div>' +
+      '<div class="field-row"><label>購入場所リンク</label>' +
+        '<input type="url" id="keihi-link" placeholder="https://...">' +
+      '</div>' +
+      '<div class="field-row"><label>購入金額（円） *</label>' +
+        '<input type="number" id="keihi-amount" inputmode="numeric" min="0" placeholder="0">' +
+      '</div>' +
+      '<div class="field-row"><label>購入証明<small>レシート / スクショの画像をアップロード</small></label>' +
+        '<div class="img-field">' +
+          '<div id="keihi-receipt-preview" class="img-preview">画像なし</div>' +
+          '<div class="img-actions">' +
+            '<label class="img-upload-btn ghost" for="keihi-receipt-file">📷 撮影／選択</label>' +
+            '<input type="file" id="keihi-receipt-file" accept="image/*" capture="environment" ' +
+              'onchange="onKeihiReceiptPick_(this)" style="display:none">' +
+            '<div class="img-hint">最大1600px・JPG</div>' +
+            '<div id="keihi-receipt-status" class="img-status"></div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="form-actions">' +
+        '<button class="btn-secondary" onclick="cancelKeihiForm_()">キャンセル</button>' +
+        '<button class="btn-primary" id="keihi-submit-btn" onclick="submitKeihiForm_()">申請する</button>' +
+      '</div>' +
+    '</div>';
 }
 
-async function submitKeihiForm_(ev) {
-  ev.preventDefault();
-  var form = ev.target;
-  var fd = new FormData(form);
+function cancelKeihiForm_() {
+  STATE.view = 'list';
+  renderKeihiTab_();
+}
+
+function onKeihiReceiptPick_(inputEl) {
+  var file = inputEl.files && inputEl.files[0];
+  if (!file) return;
+  var status = document.getElementById('keihi-receipt-status');
+  var preview = document.getElementById('keihi-receipt-preview');
+  if (status) { status.textContent = '読み込み中…'; status.className = 'img-status'; }
+  resizeImage_(file, 1600, 0.85).then(function(dataUrl){
+    if (status) status.textContent = 'アップロード中…';
+    return fetch('/api/keihi/image', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dataUrl: dataUrl, name: STATE.userName || '' })
+    }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, body: j }; }); })
+    .then(function(res){
+      if (!res.ok || !res.body || !res.body.url) throw new Error((res.body && res.body.error) || 'アップロード失敗');
+      var url = res.body.url;
+      KEIHI_DRAFT.receiptUrl = url;
+      if (preview) {
+        var safeUrl = esc(url).replace(/\'/g,"\\'");
+        preview.outerHTML = '<button type="button" id="keihi-receipt-preview" class="img-preview" onclick="openImageModal_(\'' + safeUrl + '\')"><img src="' + esc(normalizeDriveUrl_(url)) + '" alt=""></button>';
+      }
+      if (status) { status.textContent = '✓ アップロード完了'; status.className = 'img-status success'; }
+    });
+  }).catch(function(err){
+    if (status) { status.textContent = '✗ ' + (err && err.message || 'エラー'); status.className = 'img-status error'; }
+  });
+}
+
+async function submitKeihiForm_() {
   var payload = {
     name: STATE.userName,
-    purchaseDate: String(fd.get('purchaseDate') || ''),
-    itemName: String(fd.get('itemName') || '').trim(),
-    place: String(fd.get('place') || '').trim(),
-    placeLink: String(fd.get('placeLink') || '').trim(),
-    amount: parseInt(fd.get('amount'), 10) || 0,
-    receipt: String(fd.get('receipt') || '').trim()
+    purchaseDate: String((document.getElementById('keihi-date') || {}).value || ''),
+    itemName: String((document.getElementById('keihi-item') || {}).value || '').trim(),
+    place: String((document.getElementById('keihi-place') || {}).value || '').trim(),
+    placeLink: String((document.getElementById('keihi-link') || {}).value || '').trim(),
+    amount: parseInt((document.getElementById('keihi-amount') || {}).value, 10) || 0,
+    receipt: String(KEIHI_DRAFT.receiptUrl || '').trim()
   };
-  if (!payload.itemName) { toast('商品名を入力してください', 'error'); return false; }
-  if (!payload.amount)   { toast('金額を入力してください', 'error'); return false; }
-  var btn = form.querySelector('button[type=submit]');
+  if (!payload.itemName) { toast('商品名を入力してください', 'error'); return; }
+  if (!payload.amount)   { toast('金額を入力してください', 'error'); return; }
+  var btn = document.getElementById('keihi-submit-btn');
   if (btn) { btn.disabled = true; btn.textContent = '送信中…'; }
   try {
     await api('/api/keihi/submit', { method: 'POST', body: payload });
     toast('申請しました');
-    closeModal_();
     delete TAB_CACHE['business|keihi'];
+    STATE.view = 'list';
     await renderKeihiTab_();
   } catch (err) {
     toast('申請失敗: ' + err.message, 'error');
     if (btn) { btn.disabled = false; btn.textContent = '申請する'; }
   }
-  return false;
 }
 
 // ---------- 報酬確認 ----------
@@ -4247,18 +4312,27 @@ function paintHoushu_(data) {
   var headers = data.headers || [];
   var rows = data.rows || [];
   // 報酬管理: A=月, B=名前, C=合計, D=採寸, E=撮影, F=出品, G=発送, H=在庫, I=固定, J=経費, K=売上歩合, L=月ボーナス, M=ボーナス調整
+  // 表示するのは D～I + J（K/L/M は表示しない）。件数は staff_listSagyousha の monthly から拾う。
   var iMonth = colIdx_(headers, '月');
   var iName  = colIdx_(headers, '名前');
   if (iMonth < 0 || iName < 0) {
-    // ヘッダー名がやや違う可能性に備えて先頭2列固定をフォールバック
     iMonth = 0; iName = 1;
   }
   var mine = rows.filter(function(r){ return nameMatchesSelf_(r[iName]); });
-  // 月で降順（dumpSheetは末尾→先頭で返ってくるが念のため）
   mine.sort(function(a, b){
     var ma = String(a[iMonth] || ''); var mb = String(b[iMonth] || '');
     return ma < mb ? 1 : (ma > mb ? -1 : 0);
   });
+  // 件数データ（staff_listSagyousha で取得済み）。 monthly のキーは "YYYY-MM"
+  var meWorker = (STATE.allWorkers || []).find(function(w){ return String(w.name || '') === STATE.userName; });
+  var monthlyCounts = (meWorker && meWorker.monthly) || {};
+  function ymKey_(v){
+    var s = String(v || '').trim();
+    // "YYYY/MM" / "YYYY-MM" / "YYYY/M" すべて "YYYY-MM" 形式に正規化
+    var m = s.match(/^(\d{4})[\/\-](\d{1,2})/);
+    if (!m) return s;
+    return m[1] + '-' + ('0' + m[2]).slice(-2);
+  }
   function num_(v){
     if (v == null || v === '') return 0;
     var s = String(v).replace(/[^\d\.\-]/g, '');
@@ -4268,6 +4342,12 @@ function paintHoushu_(data) {
   function fmt_(n){
     if (!n) return '¥0';
     return '¥' + Number(n).toLocaleString('ja-JP');
+  }
+  function cell_(label, yen, count){
+    var c = (typeof count === 'number')
+      ? '<small class="houshu-count">(' + count + '件)</small>'
+      : '';
+    return '<div><span>' + label + '</span><b>' + fmt_(yen) + '</b>' + c + '</div>';
   }
   var html = '<div class="biz-wrap">';
   html += '<div class="biz-meta">' + esc(STATE.userName) + ' さんの報酬（' + mine.length + 'ヶ月分）</div>';
@@ -4284,25 +4364,22 @@ function paintHoushu_(data) {
       var inv     = num_(r[7]);  // H
       var fixed   = num_(r[8]);  // I
       var keihi   = num_(r[9]);  // J（経費控除＝マイナス効果）
-      var buai    = num_(r[10]); // K
-      var bonus   = num_(r[11]); // L
-      var adj     = num_(r[12]); // M
-      var total   = sokutei + satsuei + shuppin + hassou + inv + fixed + buai + bonus + adj - keihi;
-      // C列にすでに合計が入っていれば優先
+      // 件数（同月の作業件数）。報酬管理の月表記("YYYY/MM")を "YYYY-MM" に揃えて参照
+      var counts = monthlyCounts[ymKey_(month)] || { sokutei: 0, satsuei: 0, shuppin: 0, hassou: 0 };
+      // 歩合(K)・ボーナス(L+M) は表示しない（運用していないため）
+      // 合計は「C列があればそれを優先、なければ表示項目の合算」
       var cTotal = num_(r[2]);
-      if (cTotal) total = cTotal;
+      var total  = cTotal || (sokutei + satsuei + shuppin + hassou + inv + fixed - keihi);
       html += '<div class="houshu-card">' +
         '<div class="houshu-month">' + esc(month) + '</div>' +
         '<div class="houshu-total">' + fmt_(total) + '</div>' +
         '<div class="houshu-grid">' +
-          '<div><span>採寸</span><b>' + fmt_(sokutei) + '</b></div>' +
-          '<div><span>撮影</span><b>' + fmt_(satsuei) + '</b></div>' +
-          '<div><span>出品</span><b>' + fmt_(shuppin) + '</b></div>' +
-          '<div><span>発送</span><b>' + fmt_(hassou)  + '</b></div>' +
-          '<div><span>在庫</span><b>' + fmt_(inv)     + '</b></div>' +
-          '<div><span>固定</span><b>' + fmt_(fixed)   + '</b></div>' +
-          '<div><span>歩合</span><b>' + fmt_(buai)    + '</b></div>' +
-          '<div><span>ボーナス</span><b>' + fmt_(bonus + adj) + '</b></div>' +
+          cell_('採寸', sokutei, counts.sokutei) +
+          cell_('撮影', satsuei, counts.satsuei) +
+          cell_('出品', shuppin, counts.shuppin) +
+          cell_('発送', hassou,  counts.hassou)  +
+          cell_('在庫', inv) +
+          cell_('固定', fixed) +
           (keihi ? '<div><span>経費控除</span><b style="color:#c62828">- ' + fmt_(keihi).slice(1) + '</b></div>' : '') +
         '</div>' +
       '</div>';

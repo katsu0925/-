@@ -7,7 +7,7 @@ import { listPurchases, getPurchaseProducts } from './handlers/purchases.js';
 import { saveMeasurement, saveSale, saveDetails, uploadImage, resolveImage, createPurchase, createProduct } from './handlers/write-proxy.js';
 import { listWorkers, listAccounts, listSuppliers, listPlaces, listCategories, listSettings } from './handlers/master.js';
 import { lookupAiPrefill, lookupAiPrefillBatch } from './handlers/ai.js';
-import { listMoves, createMove, listReturns, createReturn, listAiResults, listSagyousha, saveSagyousha, createSagyousha, dumpSheet, getListingText, appendKeihi, updateShiireHoukokuQuantity } from './handlers/extras.js';
+import { listMoves, createMove, listReturns, createReturn, listAiResults, listSagyousha, saveSagyousha, createSagyousha, dumpSheet, getListingText, appendKeihi, uploadKeihiImage, updateShiireHoukokuQuantity } from './handlers/extras.js';
 import { getSalesSummary } from './handlers/sales.js';
 
 export default {
@@ -209,6 +209,10 @@ export default {
     // 経費申請: 本人申請を受けてシートに行追加（通知メールは onChange トリガーが発火）
     if (path === '/api/keihi/submit' && request.method === 'POST') {
       return appendKeihi(request, env, user);
+    }
+    // 経費申請レシート画像アップロード（kanri 不要 / 経費_Images フォルダに保存）
+    if (path === '/api/keihi/image' && request.method === 'POST') {
+      return uploadKeihiImage(request, env, user);
     }
 
     // 仕入れ数報告: 本人の未処理行に数量を入力 → 処理済み TRUE 化（Phase2 マージは GAS 側で実行）

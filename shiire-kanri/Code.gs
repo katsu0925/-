@@ -45,6 +45,7 @@ function doPost(e) {
       case 'createSagyousha':   result = staff_apiCreateSagyousha(body.payload || {}, email); break;
       case 'dumpSheet':         result = staff_dumpSheet(body.payload || {}); break;
       case 'appendKeihi':                  result = staff_apiAppendKeihi(body.payload || {}, email); break;
+      case 'uploadKeihiImage':             result = staff_apiUploadKeihiImage(body.payload || {}, email); break;
       case 'updateShiireHoukokuQuantity':  result = staff_apiUpdateShiireHoukokuQuantity(body.payload || {}, email); break;
       default:                  result = { ok: false, error: 'unknown action: ' + action };
     }

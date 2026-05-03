@@ -177,6 +177,20 @@ export async function getListingText(request, env, user, kanri) {
   return jsonOk({ id: parsed.id || id, ...out });
 }
 
+// 経費申請レシート画像: dataUrl を GAS の Drive '経費_Images' に保存して URL を返す
+// kanri を必要としない汎用画像アップロード（商品管理の保存とは別ライン）
+export async function uploadKeihiImage(request, env, user) {
+  let body;
+  try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
+  const dataUrl = String(body.dataUrl || '');
+  const name = String(body.name || '').trim();
+  if (!dataUrl) return jsonError('dataUrl required', 400);
+  if (!/^data:image\//.test(dataUrl)) return jsonError('dataUrl must be image data url', 400);
+  const r = await callGas(env, 'uploadKeihiImage', { dataUrl, name }, user);
+  if (!r.ok) return jsonError(r.error || 'gas error', 502);
+  return jsonOk({ url: r.url, fileName: r.fileName });
+}
+
 // 経費申請: SPA から本人申請を受けて GAS appendKeihi を呼ぶ
 export async function appendKeihi(request, env, user) {
   let body;

@@ -441,6 +441,40 @@ function staff_dumpSheet(payload) {
   return { ok: true, headers: headers, rows: sliced, total: values.length };
 }
 
+// ========== 経費申請: 画像アップロード（kanri 不要 / レシート画像専用） ==========
+// SPA から POST /api/keihi/image 経由で呼ばれる。dataUrl を Drive '経費_Images' に保存し共有URLを返す。
+// シートには書き込まない（呼び出し側の appendKeihi で receipt 列にURLを入れる）。
+function staff_apiUploadKeihiImage(payload, email) {
+  payload = payload || {};
+  email = String(email || 'cloudflare-proxy');
+  var dataUrl = String(payload.dataUrl || '');
+  var nameHint = String(payload.name || '').trim().replace(/[^\w぀-ヿ一-龯\-]+/g, '_').slice(0, 30);
+  if (!dataUrl) return { ok: false, error: '画像データが空です' };
+
+  var m = String(dataUrl).match(/^data:(image\/[a-zA-Z0-9+.\-]+);base64,(.+)$/);
+  if (!m) return { ok: false, error: 'data URL の形式が不正です' };
+  var mime = m[1];
+  var b64 = m[2];
+  var ext = (mime.split('/')[1] || 'jpg').toLowerCase().replace('jpeg', 'jpg');
+  var fileName = '経費_' + (nameHint || 'receipt') + '_' + Date.now() + '.' + ext;
+  var blob = Utilities.newBlob(Utilities.base64Decode(b64), mime, fileName);
+
+  var ss = staff_getActiveSpreadsheet_();
+  var ssFile = DriveApp.getFileById(ss.getId());
+  var parents = ssFile.getParents();
+  var parent = parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
+  var subs = parent.getFoldersByName('経費_Images');
+  var folder = subs.hasNext() ? subs.next() : parent.createFolder('経費_Images');
+  var file = folder.createFile(blob);
+  try {
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  } catch (err) {
+    // 共有設定失敗時もアップロード自体は成功扱い
+  }
+  var url = 'https://drive.google.com/uc?id=' + file.getId();
+  return { ok: true, url: url, fileName: fileName };
+}
+
 // ========== 経費申請: 行追加 ==========
 // SPA から POST /api/keihi/submit 経由で呼ばれる。AppSheet と同じスキーマで appendRow。
 // 通知メールは onChange トリガーの handleChange_Mailer が拾うので、ここでは行追加のみ。
