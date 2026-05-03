@@ -4690,7 +4690,7 @@ function openKeihiForm_() {
         '<input type="date" id="keihi-date" value="' + dateDefault + '">' +
       '</div>' +
       gaichuRow +
-      '<div class="field-row"><label>商品名 *</label>' +
+      '<div class="field-row"><label id="keihi-item-label">商品名 *</label>' +
         '<input type="text" id="keihi-item" placeholder="例: 採寸メジャー">' +
       '</div>' +
       '<div class="field-row"><label>購入場所</label>' +
@@ -4699,7 +4699,7 @@ function openKeihiForm_() {
       '<div class="field-row"><label>購入場所リンク</label>' +
         '<input type="url" id="keihi-link" placeholder="https://...">' +
       '</div>' +
-      '<div class="field-row"><label>購入金額（円） *</label>' +
+      '<div class="field-row"><label id="keihi-amount-label">購入金額（円） *</label>' +
         '<input type="number" id="keihi-amount" inputmode="numeric" min="0" placeholder="0">' +
       '</div>' +
       '<div class="field-row"><label>購入証明<small>レシート / スクショの画像をアップロード</small></label>' +
@@ -4802,9 +4802,16 @@ function onKeihiReceiptPasteEvent_(ev) {
 
 function onKeihiGaichuInput_() {
   var g = parseInt((document.getElementById('keihi-gaichu') || {}).value, 10) || 0;
+  var itemLabel = document.getElementById('keihi-item-label');
+  var amountLabel = document.getElementById('keihi-amount-label');
   if (g > 0) {
     var item = document.getElementById('keihi-item');
     if (item && !item.value) item.value = '外注費';
+    if (itemLabel) itemLabel.textContent = '商品名';
+    if (amountLabel) amountLabel.textContent = '購入金額（円）';
+  } else {
+    if (itemLabel) itemLabel.textContent = '商品名 *';
+    if (amountLabel) amountLabel.textContent = '購入金額（円） *';
   }
 }
 
