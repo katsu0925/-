@@ -270,6 +270,45 @@
     from { box-shadow: 0 0 0 4px rgba(229,57,53,.25), 0 1px 3px rgba(0,0,0,.3); }
     to   { box-shadow: 0 0 0 7px rgba(229,57,53,.10), 0 1px 3px rgba(0,0,0,.3); }
   }
+  /* 任意フィールドの ✕ クリアボタン（画像と同じ 2 段タップ・3 秒ルール） */
+  .field-input-wrap {
+    display: flex; align-items: flex-start; gap: 6px;
+    width: 100%; min-width: 0;
+  }
+  .field-input-wrap > input,
+  .field-input-wrap > select,
+  .field-input-wrap > textarea {
+    flex: 1 1 auto; min-width: 0; width: auto;
+  }
+  .field-input-wrap > .field-with-icon,
+  .field-input-wrap > .yesno-toggle {
+    flex: 1 1 auto; min-width: 0;
+  }
+  .field-input-wrap > a { flex: 0 0 auto; align-self: center; }
+  .field-clear-btn {
+    flex: 0 0 auto;
+    width: 32px; height: 38px; padding: 0;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: #f4f6fa; color: #8a93a3;
+    border: 1px solid var(--border); border-radius: 8px;
+    font-size: 14px; line-height: 1; cursor: pointer;
+    transition: background .12s, color .12s, border-color .12s, transform .08s;
+  }
+  .field-clear-btn:hover { background: #fde2e2; color: var(--danger, #e53935); border-color: #f5c2c2; }
+  .field-clear-btn:active { transform: scale(0.94); }
+  .field-clear-btn.armed {
+    background: var(--danger, #e53935); color: #fff; border-color: var(--danger, #e53935);
+    font-weight: 700;
+    animation: field-clear-pulse 0.6s ease-in-out infinite alternate;
+  }
+  @keyframes field-clear-pulse {
+    from { box-shadow: 0 0 0 0 rgba(229,57,53,.45); }
+    to   { box-shadow: 0 0 0 5px rgba(229,57,53,.05); }
+  }
+  /* 狭いグリッド列内ではクリアボタンも一回り小さく */
+  .field-grid-2 .field-clear-btn,
+  .field-grid-3 .field-clear-btn,
+  .meas-grid .field-clear-btn { width: 28px; height: 36px; }
   .img-preview {
     display: flex; align-items: center; justify-content: center;
     width: 96px; height: 96px; flex-shrink: 0;
@@ -5027,6 +5066,68 @@ function detailValue(d, name) {
   return '';
 }
 
+// クリアボタンを付与しないタイプ:
+//  - readonly  : そもそも編集不可
+//  - image     : 画像専用の ✕ ボタン (img-delete-btn) が既にある
+//  - yesno     : トグル内の「—／詳細入力」ボタンでクリアできる
+function fieldClearableType_(type) {
+  return !(type === 'readonly' || type === 'image' || type === 'yesno');
+}
+
+// input HTML を ✕ ボタン付きラッパで包む。type が clear 不可なら素通し。
+function fieldClearWrap_(input, fieldId, type) {
+  if (!fieldClearableType_(type)) return input;
+  return '<div class="field-input-wrap">' + input +
+    '<button type="button" class="field-clear-btn" ' +
+    'data-clear-target="' + fieldId + '" data-clear-type="' + (type || '') + '" ' +
+    'aria-label="クリア" title="クリア" ' +
+    'onclick="onFieldClearClick_(this)">✕</button>' +
+    '</div>';
+}
+
+// ✕ ボタン 2 段タップ管理（fieldId → タイマーID）。画像削除と同じく 3 秒以内 2 回タップで実行。
+var FIELD_CLEAR_ARMED_ = {};
+function onFieldClearClick_(btn) {
+  var fieldId = btn.getAttribute('data-clear-target');
+  var type = btn.getAttribute('data-clear-type') || '';
+  if (!fieldId) return;
+  // 1 回目: arm のみ。3 秒以内にもう 1 回タップで実クリア。
+  if (!FIELD_CLEAR_ARMED_[fieldId]) {
+    btn.classList.add('armed');
+    btn.title = 'もう一度タップでクリア（3秒以内）';
+    FIELD_CLEAR_ARMED_[fieldId] = setTimeout(function(){
+      delete FIELD_CLEAR_ARMED_[fieldId];
+      btn.classList.remove('armed');
+      btn.title = 'クリア';
+    }, 3000);
+    return;
+  }
+  // 2 回目: タイマー解除して即クリア
+  clearTimeout(FIELD_CLEAR_ARMED_[fieldId]);
+  delete FIELD_CLEAR_ARMED_[fieldId];
+  btn.classList.remove('armed');
+  btn.title = 'クリア';
+  performFieldClear_(fieldId, type);
+}
+
+// 入力要素の値を空にして input/change を発火（dirty 判定・サマリ再計算・アイコン更新を駆動）
+function performFieldClear_(fieldId, type) {
+  var el = document.getElementById(fieldId);
+  if (!el) return;
+  var tag = (el.tagName || '').toLowerCase();
+  el.value = '';
+  // select で value='' option が無い場合は先頭 option にフォールバック
+  if (tag === 'select' && el.value !== '') {
+    var hit = false;
+    for (var i = 0; i < el.options.length; i++) {
+      if (el.options[i].value === '') { el.selectedIndex = i; hit = true; break; }
+    }
+    if (!hit) el.selectedIndex = 0;
+  }
+  try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch(e) {}
+  try { el.dispatchEvent(new Event('change', { bubbles: true })); } catch(e) {}
+}
+
 function fieldRowHtml(name, type, val) {
   var id = detailFieldId(name);
   var v = (val == null) ? '' : val;
@@ -5148,7 +5249,7 @@ function fieldRowHtml(name, type, val) {
   var labelHtml = '<label>' + esc(name) +
     (type === 'mercarisize' ? ' <button type="button" class="size-help-btn" onclick="openMercariSizeHelp_()" aria-label="サイズ変換表" title="サイズ変換表">?</button>' : '') +
     '</label>';
-  return '<div class="field-row">' + labelHtml + input + '</div>';
+  return '<div class="field-row">' + labelHtml + fieldClearWrap_(input, id, type) + '</div>';
 }
 
 // カラー固定リスト（設定シートのカラー1列が空のときのフォールバック）
@@ -6858,7 +6959,7 @@ function createFieldRowHtml_(name, type, defVal) {
   var labelHtmlC = '<label>' + esc(name) +
     (type === 'mercarisize' ? ' <button type="button" class="size-help-btn" onclick="openMercariSizeHelp_()" aria-label="サイズ変換表" title="サイズ変換表">?</button>' : '') +
     '</label>';
-  return '<div class="field-row">' + labelHtmlC + input + '</div>';
+  return '<div class="field-row">' + labelHtmlC + fieldClearWrap_(input, id, type) + '</div>';
 }
 
 function buildCreateProductHtml_(opts) {
