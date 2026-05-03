@@ -4928,7 +4928,11 @@ function paintHoushu_(data) {
   if (STATE.tab !== 'business' || STATE.business !== 'houshu' || STATE.view !== 'list') return;
   var c = document.getElementById('content');
   var headers = data.headers || [];
-  var rows = data.rows || [];
+  // 報酬管理シートの2行目はサブヘッダー（"名前" 等の文字列が再掲）。データ段階で除外。
+  var rows = (data.rows || []).filter(function(r){
+    var nm = String((r && r[1]) || '').trim();
+    return nm && nm !== '名前';
+  });
   // 報酬管理: A=年月, B=名前, C=メール, D=撮影, E=採寸, F=出品, G=発送,
   //          H=在庫管理, I=アカウント運用, J=経費, K=利益歩合, L=固定費, M=月ブロック奇偶マーカー
   // 件数は staff_listSagyousha の monthly から拾う（D=撮影なので counts.satsuei 等の対応に注意）。
@@ -5038,11 +5042,25 @@ function paintHoushu_(data) {
 
   var html = '<div class="biz-wrap">';
   // 管理者: 名前フィルタ＋"全員"。一般: 自分の名前のみ。
+  // 直近12ヶ月に報酬実績(>0)がある名前のみを候補にする（サブヘッダー行の "名前" 等も自動排除）
   if (isAdmin) {
-    var allNames = {};
-    rows.forEach(function(r){ var n = String(r[iName] || '').trim(); if (n) allNames[n] = true; });
+    var now = new Date();
+    var cutoff = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+    var cutoffKey = cutoff.getFullYear() + '-' + ('0' + (cutoff.getMonth() + 1)).slice(-2);
+    var totalsByName = {};
+    rows.forEach(function(r){
+      var n = String(r[iName] || '').trim();
+      if (!n || n === '名前') return;
+      var ymk = ymKey_(r[iMonth]);
+      if (!ymk || ymk < cutoffKey) return;
+      var t = num_(r[3]) + num_(r[4]) + num_(r[5]) + num_(r[6])
+            + num_(r[7]) + num_(r[8]) + num_(r[9]) + num_(r[10]) + num_(r[11]);
+      totalsByName[n] = (totalsByName[n] || 0) + t;
+    });
+    // 現在選択中の人は実績0でも候補に残す（選択肢から消えると操作不能になる）
+    if (selected && selected !== '__all__' && !(selected in totalsByName)) totalsByName[selected] = 0;
     var nameOptions = '<option value="__all__"' + (selected === '__all__' ? ' selected' : '') + '>全員</option>';
-    Object.keys(allNames).sort().forEach(function(n){
+    Object.keys(totalsByName).filter(function(n){ return totalsByName[n] > 0 || n === selected; }).sort().forEach(function(n){
       var sel = (n === selected) ? ' selected' : '';
       nameOptions += '<option value="' + esc(n) + '"' + sel + '>' + esc(n) + '</option>';
     });
