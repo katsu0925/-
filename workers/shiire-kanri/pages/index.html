@@ -3463,17 +3463,9 @@ function cardHtml(it) {
   // 発送タブでは raw ステータス（発送待ち/発送済み）を優先表示。
   // 派生ステータスは「撮影日付のみ入力」等で '採寸待ち' 等にフォールバックすることがあり、
   // 発送タブで表示すると意味不明な状態になるため、raw を優先する。
-  // ただし「売却済み + 発送日付あり」は実質発送済みなので「発送済み」として表示する
-  // （スタッフは raw を売却済みのまま運用するため、UI で補正する）。
-  let st;
-  if (STATE.tab === 'hassou') {
-    const rs = it.rawStatus || it.status || '';
-    const hassouDate = it.extra && it.extra['発送日付'] ? String(it.extra['発送日付']).trim() : '';
-    if (rs === '売却済み' && hassouDate) st = '発送済み';
-    else st = rs;
-  } else {
-    st = it.status || '';
-  }
+  const st = (STATE.tab === 'hassou')
+    ? (it.rawStatus || it.status || '')
+    : (it.status || '');
   let badgeClass = '';
   if (st === '売却済み') badgeClass = ' sold';
   else if (st === '発送済み') badgeClass = ' shipped';
