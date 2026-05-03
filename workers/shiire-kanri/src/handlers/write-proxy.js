@@ -161,13 +161,16 @@ export async function saveDetails(request, env, user) {
   }
 
   const t = Object.assign({}, gasRes._t || {}, { d1: Date.now() - __td1, total: Date.now() - __t0 });
+  // record をそのまま返す: フロントは保存後の再 fetch を省いて、record で d.extra を直接更新する。
+  // これで「保存ボタン押下 → 派生値（粗利・利益・ステータス）反映」までの ms を 1 往復ぶん削減。
   return jsonOk({
     saved: true,
     written: gasRes.written || 0,
     skipped: gasRes.skipped || [],
     unknown: gasRes.unknown || [],
     derivedStatus: gasRes.derivedStatus || '',
-    statusChanged: !!gasRes.statusChanged
+    statusChanged: !!gasRes.statusChanged,
+    record: record || null
   }, { 'Server-Timing': buildServerTiming(t) });
 }
 

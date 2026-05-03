@@ -2839,6 +2839,40 @@ function patchListCache_(kanri, fields) {
   });
 }
 
+// Day 2: GAS が返す record（保存後の最新行 = 派生値含む）で、現 item を更新したコピーを返す。
+// 旧実装は save 後に /api/products/:kanri を再 fetch していたが、これを置き換えて 1 往復削減。
+// extra（シート全列）を上書き + 主要なトップレベルフィールド（status/salePrice/etc）も同期する。
+function mergeRecordIntoItem_(item, record) {
+  var base = item || {};
+  var prevExtra = base.extra || {};
+  // record をベースに、record に無いキーは prevExtra から残す（record は全列を含むはずだが念のため）
+  var extra = Object.assign({}, prevExtra, record);
+  function num(v){ var n = Number(v); return Number.isFinite(n) ? n : 0; }
+  function strOrNull(v){ return (v === '' || v === null || v === undefined) ? null : String(v); }
+  return {
+    kanri: base.kanri,
+    shiireId: base.shiireId,
+    worker: record['作業者'] || base.worker,
+    status: String(record['ステータス'] || base.status || ''),
+    rawStatus: String(record['ステータス'] || base.rawStatus || base.status || ''),
+    state: String(record['状態'] || base.state || ''),
+    brand: String(record['ブランド'] || base.brand || ''),
+    size: String(record['メルカリサイズ'] || base.size || ''),
+    color: String(record['カラー'] || base.color || ''),
+    measure: base.measure,
+    measuredAt: record['採寸日'] || base.measuredAt,
+    measuredBy: record['採寸者'] || base.measuredBy,
+    saleDate: strOrNull(record['販売日']) || base.saleDate,
+    salePlace: strOrNull(record['販売場所']) || base.salePlace,
+    salePrice: record['販売価格'] !== undefined ? num(record['販売価格']) : base.salePrice,
+    saleShipping: record['送料'] !== undefined ? num(record['送料']) : base.saleShipping,
+    saleFee: record['手数料'] !== undefined ? num(record['手数料']) : base.saleFee,
+    saleTs: base.saleTs,
+    extra: extra,
+    row: base.row
+  };
+}
+
 // ========== 売上ダッシュボード ==========
 async function renderUriageDashboard(opts) {
   opts = opts || {};
@@ -6192,18 +6226,23 @@ async function saveDetails() {
     try { updateSavebar_(); } catch(e) {}
   }
 
-  // 背景で API へ送信 → 成功後にサーバー再取得（派生ステータス・利益等の自動反映を取り込む）
+  // 背景で API へ送信 → 成功時は record（GAS が返す保存後の最新行）で d.extra を直接更新。
+  // 旧実装は save 後に /api/products/:kanri を再 fetch していたが、record で代替できるため省略。
+  // record が無い古い Worker 応答にはフォールバックで再 fetch を残す。
   api('/api/save/details', { method: 'POST', body: { kanri: d.kanri, fields: fields } })
-    .then(function(){
+    .then(function(res){
       refreshCounts();
       // 一覧キャッシュは派生値が古くなる可能性があるため破棄
       LIST_CACHE = Object.create(null);
-      // 詳細をサーバーから再取得して、派生値（ステータス／利益／在庫日数等）を画面に反映
+      if (res && res.record && typeof res.record === 'object') {
+        // record をそのまま採用 → 1 往復省ける
+        return { item: mergeRecordIntoItem_(d, res.record) };
+      }
+      // フォールバック: 旧応答や record 欠損時はサーバー再取得
       return api('/api/products/' + encodeURIComponent(d.kanri));
     })
     .then(function(res){
       clearSavingBtn_();
-      // API 完了（書き込み + 再取得）後に成功トースト
       toast('保存しました', 'success');
       if (!res || !res.item) return;
       DETAIL_CACHE[d.kanri] = res.item;
