@@ -9,7 +9,7 @@
 //  - VERSION を上げると activate 時に旧キャッシュを全削除
 //  - skipWaiting + clients.claim で即時切替、controllerchange でクライアントが UI 通知
 
-const VERSION = 'sk-2026-05-04-v90';
+const VERSION = 'sk-2026-05-04-v91';
 const SHELL_CACHE = 'shell-' + VERSION;
 const API_CACHE   = 'api-' + VERSION;
 
@@ -219,6 +219,10 @@ self.addEventListener('fetch', (event) => {
 
   // SW 自身は絶対にキャッシュしない（更新が止まる原因 No.1）
   if (url.pathname === '/sw.js') return;
+  // app.js / sw-update.js も staticCacheFirst だと最新版が即時反映されない。
+  // _headers が no-cache なので素通しすればブラウザが ETag/304 で軽量に動く。
+  if (url.pathname === '/app.js') return;
+  if (url.pathname === '/sw-update.js') return;
   if (url.pathname.startsWith('/cdn-cgi/')) return;
   if (url.pathname.startsWith('/admin/')) return;
 

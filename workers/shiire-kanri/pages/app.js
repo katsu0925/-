@@ -2149,11 +2149,21 @@ function cardHtml(it) {
   } else if (!measured) {
     cardClass += ' s-sokutei';
   }
-  // サムネはタスキ箱トップ画像を優先（描画後に resolveCardThumbsTasukibako_() が一括解決）。
-  // 商品管理/発送 両タブで枠を確保し、画像がない場合は 📷 プレースホルダー。
+  // サムネはタスキ箱トップ画像を優先。sessionStorage に解決済 URL があればインラインで <img> を出して
+  // 再描画時のチラつき（プレースホルダ→解決後 img の二段描画）を避ける。
+  // 未解決のものだけ 📷 プレースホルダ + 描画後 resolveCardThumbsTasukibako_() で一括 fetch。
   var thumbHtml = '';
   if (STATE.tab === 'hassou' || STATE.tab === 'shouhin') {
-    thumbHtml = '<div class="card-thumb img-tasukibako" data-kanri="' + esc(it.kanri) + '">📷</div>';
+    var ck = 'tbthumb:v1:' + it.kanri;
+    var cached = null;
+    try { cached = sessionStorage.getItem(ck); } catch(e) {}
+    if (cached && cached !== '__none__') {
+      var url = normalizeDriveUrl_(cached, 200);
+      thumbHtml = '<div class="card-thumb"><img src="' + esc(url) + '" alt="" loading="lazy" decoding="async"></div>';
+    } else {
+      // 未解決 or 画像なし。__none__ もプレースホルダ枠を出し続ける（レイアウト一貫性のため）
+      thumbHtml = '<div class="card-thumb img-tasukibako" data-kanri="' + esc(it.kanri) + '">📷</div>';
+    }
   }
   var openHandler = 'openDetail(\'' + esc(it.kanri).replace(/\'/g,"\\'") + '\')';
   // 出品作業中タブでは使用アカウントをカードに表示（誰のアカウントで作業中か即時把握）
