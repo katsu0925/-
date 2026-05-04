@@ -1767,18 +1767,32 @@ async function renderShouhinList(opts) {
     // 商品管理タブのみ並び替え設定を適用（発送タブはグルーピング側で並びを決める）
     var sorted = (STATE.tab === 'shouhin') ? applyShouhinSort_(items) : items;
     STATE.items = sorted;
+    // 商品管理タブで件数が多い & mobile 幅 のときは仮想スクロールを使う
+    // （5000+ 件を全描画すると iPhone で「追いかけ表示」が発生するため）
+    var useVlist = STATE.tab === 'shouhin' &&
+                   sorted.length > 100 &&
+                   (window.innerWidth || 0) < 900;
+    // 既存の vlist は新描画前に必ず解除（スクロールリスナー残留防止）
+    vlistDeactivate_();
     var body;
     if (!sorted.length) {
       body = '<div class="empty">該当する商品がありません</div>';
     } else if (STATE.tab === 'hassou') {
       // 発送商品は使用アカウント別にグループ化（発送待ち→発送済みの順、期限が近い順）
       body = renderHassouGrouped_(sorted);
+    } else if (useVlist) {
+      // 空の cards-grid を作って vlistMount で埋める
+      body = '<div class="cards-grid"></div>';
     } else {
       // PCグリッド対応: cards-grid でラップ → CSS で auto-fill
       body = '<div class="cards-grid">' + sorted.map(cardHtml).join('') + '</div>';
     }
     c.innerHTML = chip + body + fab;
-    if (STATE.tab === 'hassou' || STATE.tab === 'shouhin') resolveCardThumbsTasukibako_();
+    if (useVlist) {
+      vlistMount_(sorted, cardHtml, resolveCardThumbsTasukibako_);
+    } else if (STATE.tab === 'hassou' || STATE.tab === 'shouhin') {
+      resolveCardThumbsTasukibako_();
+    }
   }
   if (cached) {
     paint(cached.items);
@@ -2244,6 +2258,119 @@ function resolveCardImages_() {
 function applyCardThumb_(el, url) {
   el.classList.remove('img-loading');
   el.innerHTML = '<img src="' + esc(url) + '" alt="" loading="lazy" decoding="async">';
+}
+
+// ===== 仮想スクロール（mobile 専用） =====
+// 5000+ 件のカードを全部 DOM に置くと iPhone Safari でスクロール中に
+// content-visibility による「追いかけ表示」が起きて見づらいため、
+// 表示範囲（+ buffer）だけ DOM にマウントする方式に切替える。
+// PC（≥900px）ではグリッド表示なので対象外（content-visibility に任せる）。
+var VLIST = {
+  active: false,
+  items: [],
+  container: null,
+  topSpacer: null,
+  windowEl: null,
+  bottomSpacer: null,
+  itemHeight: 110,   // 初期値。マウント直後に実測して補正
+  buffer: 6,         // 上下バッファ枚数
+  startIdx: 0,
+  endIdx: 0,
+  rafScheduled: false,
+  cardHtmlFn: null,
+  onAfter: null
+};
+
+function vlistDeactivate_() {
+  if (VLIST.active) {
+    window.removeEventListener('scroll', vlistOnScroll_);
+    VLIST.active = false;
+  }
+  VLIST.items = [];
+  VLIST.container = null;
+  VLIST.topSpacer = null;
+  VLIST.windowEl = null;
+  VLIST.bottomSpacer = null;
+  VLIST.cardHtmlFn = null;
+  VLIST.onAfter = null;
+  VLIST.startIdx = 0;
+  VLIST.endIdx = 0;
+}
+
+function vlistMount_(items, cardHtmlFn, onAfter) {
+  vlistDeactivate_();
+  var container = document.querySelector('#content .cards-grid');
+  if (!container) return;
+  VLIST.items = items;
+  VLIST.cardHtmlFn = cardHtmlFn;
+  VLIST.onAfter = onAfter || null;
+  VLIST.container = container;
+  container.innerHTML =
+    '<div class="vlist-top-spacer"></div>' +
+    '<div class="vlist-window"></div>' +
+    '<div class="vlist-bottom-spacer"></div>';
+  VLIST.topSpacer = container.querySelector('.vlist-top-spacer');
+  VLIST.windowEl = container.querySelector('.vlist-window');
+  VLIST.bottomSpacer = container.querySelector('.vlist-bottom-spacer');
+  VLIST.active = true;
+  window.addEventListener('scroll', vlistOnScroll_, { passive: true });
+  vlistRender_(true);
+  // 1 枚目の高さを実測して itemHeight を補正（密度設定や端末で変わる）
+  setTimeout(function(){
+    if (!VLIST.active || !VLIST.windowEl) return;
+    var first = VLIST.windowEl.firstElementChild;
+    if (first) {
+      var h = first.getBoundingClientRect().height;
+      if (h && h > 0) {
+        var corrected = Math.round(h + 8); // margin-bottom 込み
+        if (Math.abs(corrected - VLIST.itemHeight) > 4) {
+          VLIST.itemHeight = corrected;
+          vlistRender_(true);
+        }
+      }
+    }
+  }, 50);
+}
+
+function vlistOnScroll_() {
+  if (!VLIST.active) return;
+  if (VLIST.rafScheduled) return;
+  VLIST.rafScheduled = true;
+  requestAnimationFrame(function(){
+    VLIST.rafScheduled = false;
+    vlistRender_(false);
+  });
+}
+
+function vlistRender_(force) {
+  if (!VLIST.active || !VLIST.container) return;
+  // 親 DOM が差し替わった（タブ切替等）ら自動でクリーンアップ
+  if (!document.body.contains(VLIST.container)) {
+    vlistDeactivate_();
+    return;
+  }
+  // .cards-grid は display:contents で rect が 0 になるため、
+  // topSpacer（block 要素）の位置からリスト先頭の y 座標を取る。
+  // topSpacer.top はスペーサの高さに関わらず常に「リスト先頭の y」を指す。
+  var spacerRect = VLIST.topSpacer.getBoundingClientRect();
+  var viewportH = window.innerHeight || document.documentElement.clientHeight;
+  var visibleStart = Math.max(0, -spacerRect.top);
+  var visibleEnd = visibleStart + viewportH;
+  var ih = VLIST.itemHeight;
+  var n = VLIST.items.length;
+  var startIdx = Math.max(0, Math.floor(visibleStart / ih) - VLIST.buffer);
+  var endIdx = Math.min(n, Math.ceil(visibleEnd / ih) + VLIST.buffer);
+  if (!force && startIdx === VLIST.startIdx && endIdx === VLIST.endIdx) return;
+  VLIST.startIdx = startIdx;
+  VLIST.endIdx = endIdx;
+  VLIST.topSpacer.style.height = (startIdx * ih) + 'px';
+  VLIST.bottomSpacer.style.height = ((n - endIdx) * ih) + 'px';
+  var html = '';
+  for (var i = startIdx; i < endIdx; i++) {
+    html += VLIST.cardHtmlFn(VLIST.items[i]);
+  }
+  VLIST.windowEl.innerHTML = html;
+  if (VLIST.onAfter) VLIST.onAfter();
 }
 
 // 一覧描画後に呼ぶ: タスキ箱（gas-proxy KV: product-images:<kanri>）から各カードのトップ画像を一括解決して差し替える。

@@ -207,6 +207,12 @@
     content-visibility: auto;
     contain-intrinsic-size: 0 96px;
   }
+  /* 仮想スクロール用スペーサ（表示範囲外のカード分の高さを予約） */
+  .vlist-top-spacer, .vlist-bottom-spacer { display: block; }
+  .vlist-window { display: contents; }
+  /* 仮想スクロール内では content-visibility による「追いかけ表示」を無効化
+     （vlist が表示範囲だけマウントするので二重スキップは不要） */
+  .vlist-window > .card { content-visibility: visible; contain-intrinsic-size: auto; }
   .card.has-thumb { display: flex; gap: 12px; align-items: flex-start; }
   .card-thumb {
     width: 56px; height: 56px; border-radius: 8px;
