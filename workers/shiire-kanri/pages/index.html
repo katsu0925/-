@@ -2873,6 +2873,88 @@ var LIST_CACHE = Object.create(null);
 // キー = tab[|sub] ／ 値 = { data, ts }
 // 2回目以降のタブ切替時にキャッシュを即時描画 → 裏で再取得して差分更新
 var TAB_CACHE = Object.create(null);
+
+// ── キャッシュ永続化（強制終了後の再起動でも初回読込にならないように）
+// localStorage に snapshot を保持し、起動時に復元する。
+// 保存タイミング: visibilitychange→hidden / pagehide（iOS PWA で確実に発火する経路）
+// TTL: 7日。期限切れエントリは hydrate 時に破棄
+var CACHE_PERSIST_KEYS = { tab: 'sk.tabcache.v1', list: 'sk.listcache.v1' };
+var CACHE_PERSIST_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+var CACHE_PERSIST_MAX_BYTES = 3 * 1024 * 1024; // localStorage の他用途を圧迫しない上限
+(function hydrateCachesFromStorage_(){
+  try {
+    var raw = localStorage.getItem(CACHE_PERSIST_KEYS.tab);
+    if (raw) {
+      var snap = JSON.parse(raw);
+      var cutoff = Date.now() - CACHE_PERSIST_TTL_MS;
+      Object.keys(snap || {}).forEach(function(k){
+        var v = snap[k];
+        if (v && v.ts && v.ts > cutoff) TAB_CACHE[k] = v;
+      });
+    }
+  } catch (e) { try { localStorage.removeItem(CACHE_PERSIST_KEYS.tab); } catch(_){} }
+  try {
+    var raw2 = localStorage.getItem(CACHE_PERSIST_KEYS.list);
+    if (raw2) {
+      var snap2 = JSON.parse(raw2);
+      var cutoff2 = Date.now() - CACHE_PERSIST_TTL_MS;
+      Object.keys(snap2 || {}).forEach(function(k){
+        var v = snap2[k];
+        if (v && v.ts && v.ts > cutoff2) LIST_CACHE[k] = v;
+      });
+    }
+  } catch (e) { try { localStorage.removeItem(CACHE_PERSIST_KEYS.list); } catch(_){} }
+})();
+function persistTabCacheNow_(){
+  try {
+    var snap = {};
+    Object.keys(TAB_CACHE).forEach(function(k){ snap[k] = TAB_CACHE[k]; });
+    var s = JSON.stringify(snap);
+    if (s.length <= CACHE_PERSIST_MAX_BYTES) {
+      localStorage.setItem(CACHE_PERSIST_KEYS.tab, s);
+    } else {
+      localStorage.removeItem(CACHE_PERSIST_KEYS.tab);
+    }
+  } catch (e) { try { localStorage.removeItem(CACHE_PERSIST_KEYS.tab); } catch(_){} }
+}
+function persistListCacheNow_(){
+  // LIST_CACHE は filter/q ごとに別キーで肥大化しがち。タブ毎に「最新1件」だけ保存。
+  try {
+    var byTab = {};
+    Object.keys(LIST_CACHE).forEach(function(k){
+      var entry = LIST_CACHE[k];
+      if (!entry || !entry.ts) return;
+      var tab = String(k).split('|')[0];
+      if (!byTab[tab] || byTab[tab].entry.ts < entry.ts) byTab[tab] = { key: k, entry: entry };
+    });
+    var snap = {};
+    Object.keys(byTab).forEach(function(t){ snap[byTab[t].key] = byTab[t].entry; });
+    var s = JSON.stringify(snap);
+    if (s.length <= CACHE_PERSIST_MAX_BYTES) {
+      localStorage.setItem(CACHE_PERSIST_KEYS.list, s);
+    } else {
+      // 上限超過時は商品系の重い tab を 1 件ずつ落として再試行
+      var entries = Object.keys(byTab).map(function(t){ return { tab: t, key: byTab[t].key, entry: byTab[t].entry }; })
+        .sort(function(a,b){ return JSON.stringify(b.entry).length - JSON.stringify(a.entry).length; });
+      while (entries.length) {
+        entries.shift(); // 最も大きいエントリを除外
+        var snap2 = {};
+        entries.forEach(function(r){ snap2[r.key] = r.entry; });
+        var s2 = JSON.stringify(snap2);
+        if (s2.length <= CACHE_PERSIST_MAX_BYTES) {
+          localStorage.setItem(CACHE_PERSIST_KEYS.list, s2);
+          return;
+        }
+      }
+      localStorage.removeItem(CACHE_PERSIST_KEYS.list);
+    }
+  } catch (e) { try { localStorage.removeItem(CACHE_PERSIST_KEYS.list); } catch(_){} }
+}
+function persistAllCachesNow_(){ persistTabCacheNow_(); persistListCacheNow_(); }
+document.addEventListener('visibilitychange', function(){
+  if (document.visibilityState === 'hidden') persistAllCachesNow_();
+});
+window.addEventListener('pagehide', persistAllCachesNow_);
 function tabCacheGuard_(tab) {
   // 描画中にユーザーが他タブへ移動していたら paint をスキップ
   return STATE.tab === tab && STATE.view === 'list';
