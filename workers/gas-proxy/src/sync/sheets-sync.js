@@ -14,6 +14,18 @@
  */
 
 /**
+ * ⚠️ 重要: D1 課金事故防止
+ *
+ * このCronは5分ごとに走るため、各テーブルへの書き込みは
+ * **必ず `syncIfChanged()` 経由で行うこと**。
+ *
+ * 直接 `syncProducts(env.DB, rows)` のように呼び出すと、
+ * GAS側が全件返してくる現状の実装では INSERT OR REPLACE が
+ * 毎ティック全行を書き直し、月100M行規模の課金事故になる。
+ * （2026-04 に発生済み — D1 Rows Written $54/月）
+ *
+ * 新しいテーブル同期を追加する場合も `syncIfChanged()` を経由すること。
+ *
  * Cron Trigger エントリポイント
  */
 export async function scheduledSync(env) {
@@ -30,45 +42,45 @@ export async function scheduledSync(env) {
       return;
     }
 
-    // 2. 各テーブルにUPSERT
+    // 2. 各テーブルに UPSERT — チェックサム未変化なら書き込みスキップ（D1 課金抑制）
     if (exportData.products && exportData.products.length > 0) {
-      await syncProducts(env.DB, exportData.products);
-      console.log(`[sync] Products synced: ${exportData.products.length} rows`);
+      await syncIfChanged(env.DB, 'products', exportData.products,
+        () => syncProducts(env.DB, exportData.products));
     }
 
     if (exportData.bulkProducts && exportData.bulkProducts.length > 0) {
-      await syncBulkProducts(env.DB, exportData.bulkProducts);
-      console.log(`[sync] Bulk products synced: ${exportData.bulkProducts.length} rows`);
+      await syncIfChanged(env.DB, 'bulk_products', exportData.bulkProducts,
+        () => syncBulkProducts(env.DB, exportData.bulkProducts));
     }
 
     if (exportData.customers && exportData.customers.length > 0) {
-      await syncCustomers(env.DB, exportData.customers);
-      console.log(`[sync] Customers synced: ${exportData.customers.length} rows`);
+      await syncIfChanged(env.DB, 'customers', exportData.customers,
+        () => syncCustomers(env.DB, exportData.customers));
     }
 
     if (exportData.openItems && exportData.openItems.length > 0) {
-      await syncOpenItems(env.DB, exportData.openItems);
-      console.log(`[sync] Open items synced: ${exportData.openItems.length} rows`);
+      await syncIfChanged(env.DB, 'open_items', exportData.openItems,
+        () => syncOpenItems(env.DB, exportData.openItems));
     }
 
     if (exportData.orders && exportData.orders.length > 0) {
-      await syncOrders(env.DB, exportData.orders);
-      console.log(`[sync] Orders synced: ${exportData.orders.length} rows`);
+      await syncIfChanged(env.DB, 'orders', exportData.orders,
+        () => syncOrders(env.DB, exportData.orders));
     }
 
     if (exportData.coupons && exportData.coupons.length > 0) {
-      await syncCoupons(env.DB, exportData.coupons);
-      console.log(`[sync] Coupons synced: ${exportData.coupons.length} rows`);
+      await syncIfChanged(env.DB, 'coupons', exportData.coupons,
+        () => syncCoupons(env.DB, exportData.coupons));
     }
 
     if (exportData.settings) {
-      await syncSettings(env.DB, exportData.settings);
-      console.log('[sync] Settings synced');
+      await syncIfChanged(env.DB, 'settings', exportData.settings,
+        () => syncSettings(env.DB, exportData.settings));
     }
 
     if (exportData.stats) {
-      await syncStats(env.DB, exportData.stats);
-      console.log('[sync] Stats synced');
+      await syncIfChanged(env.DB, 'stats', exportData.stats,
+        () => syncStats(env.DB, exportData.stats));
     }
 
     // 作業者マスター → KVに保存
@@ -119,6 +131,63 @@ export async function scheduledSync(env) {
   } catch (e) {
     console.error('[sync] Sync error:', e.message, e.stack);
   }
+}
+
+// ─── checksum ガード（D1 課金事故防止）───
+
+/**
+ * 入力データのチェックサムを sync_meta テーブルに保存し、
+ * 前回と一致する場合は INSERT OR REPLACE をスキップする。
+ *
+ * GAS の exportXxx_() は `since` を無視して全件返してくるため、
+ * D1 側でガードしないと毎5分全行 UPSERT され課金が爆発する。
+ *
+ * @param {D1Database} db
+ * @param {string} source - sync_meta.source（テーブル識別子）
+ * @param {*} payload - JSON シリアライズ可能な任意の値（配列/オブジェクト）
+ * @param {() => Promise<void>} doSync - 実際の書き込み処理
+ * @returns {Promise<boolean>} 書き込みが実行されたら true、スキップなら false
+ */
+async function syncIfChanged(db, source, payload, doSync) {
+  const checksum = await sha256Hex(stableStringify(payload));
+
+  const existing = await db.prepare(
+    'SELECT checksum FROM sync_meta WHERE source = ?'
+  ).bind(source).first();
+
+  if (existing && existing.checksum === checksum) {
+    console.log(`[sync] ${source}: unchanged (skip write), checksum=${checksum.slice(0, 8)}`);
+    return false;
+  }
+
+  await doSync();
+
+  const rowCount = Array.isArray(payload) ? payload.length : 1;
+  await db.prepare(`
+    INSERT OR REPLACE INTO sync_meta (source, last_sync_at, row_count, checksum)
+    VALUES (?, ?, ?, ?)
+  `).bind(source, new Date().toISOString(), rowCount, checksum).run();
+
+  console.log(`[sync] ${source}: synced ${rowCount} rows, checksum=${checksum.slice(0, 8)}`);
+  return true;
+}
+
+async function sha256Hex(str) {
+  const buf = new TextEncoder().encode(str);
+  const hash = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(hash))
+    .map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// キー順を固定して JSON 化（同一データ → 同一文字列を保証）
+function stableStringify(v) {
+  if (v === null || v === undefined) return 'null';
+  if (Array.isArray(v)) return '[' + v.map(stableStringify).join(',') + ']';
+  if (typeof v === 'object') {
+    const keys = Object.keys(v).sort();
+    return '{' + keys.map(k => JSON.stringify(k) + ':' + stableStringify(v[k])).join(',') + '}';
+  }
+  return JSON.stringify(v);
 }
 
 // ─── pending_orders クリーンアップ ───
