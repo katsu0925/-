@@ -12,6 +12,7 @@ var STATE = {
   saleChannels: {}, // { 'メルカリ': {rate:0.1, enabled:true}, ... } — 設定シートL列以降から
   // 商品管理タブの並び順 / 密度（localStorage で永続化）
   shouhinSort: (function(){ try { return localStorage.getItem('sk.shouhinSort') || 'kanri'; } catch(e){ return 'kanri'; } })(),
+  hassouSort:  (function(){ try { return localStorage.getItem('sk.hassouSort') || 'recommend'; } catch(e){ return 'recommend'; } })(),
   density:     (function(){ try { return localStorage.getItem('sk.density') || 'normal'; } catch(e){ return 'normal'; } })(),
   // 管理番号 → AI prefill fields のクライアントキャッシュ
   // 仕入れ選択時に一括プリフェッチして埋める。GET /api/ai/prefill より優先
@@ -806,8 +807,43 @@ function shouhinChipsHtml_() {
   return '<div class="chips" id="chips">' + html + '</div>';
 }
 
+// kanri 自然数降順比較（zk1002 > zk999）。
+// 形式: 先頭2文字プレフィクス(zk/zY等) + 数字。プレフィクス比較は降順、数字は降順。
+function kanriCompareDesc_(a, b) {
+  var sa = String(a || ''), sb = String(b || '');
+  var pa = sa.slice(0, 2), pb = sb.slice(0, 2);
+  if (pa !== pb) return pb.localeCompare(pa, 'ja');
+  var na = parseInt(sa.slice(2), 10);
+  var nb = parseInt(sb.slice(2), 10);
+  if (isNaN(na) && isNaN(nb)) return sb.localeCompare(sa, 'ja');
+  if (isNaN(na)) return 1;
+  if (isNaN(nb)) return -1;
+  return nb - na;
+}
+
+// 状態（ステータス）の並び順 — chips の業務順を踏襲。未知ステータスは末尾。
+var STATUS_RANK = {
+  '採寸待ち': 1,
+  '撮影待ち': 2,
+  '出品待ち': 3,
+  '出品作業中': 4,
+  '出品中': 5,
+  '発送待ち': 6,
+  '発送済み': 7
+};
+function statusRank_(s){ var r = STATUS_RANK[s]; return r != null ? r : 99; }
+
 // 商品管理タブの並び替え / 密度メニュー
-var SHOUHIN_SORT_LABELS = { kanri: '管理番号', shiire: '仕入れ日', brand: 'ブランド' };
+var SHOUHIN_SORT_LABELS = {
+  kanri: '管理番号',
+  shiire: '仕入れ日',
+  brand: 'ブランド',
+  status: '状態',
+  saleDate: '販売日',
+  size: 'サイズ',
+  color: 'カラー'
+};
+var SHOUHIN_SORT_KEYS = ['kanri','shiire','brand','status','saleDate','size','color'];
 function openSortDensityMenu_(ev) {
   if (ev) ev.stopPropagation();
   // 既存メニューがあれば閉じる
@@ -817,7 +853,7 @@ function openSortDensityMenu_(ev) {
   var rect = btn ? btn.getBoundingClientRect() : { top: 100, right: window.innerWidth - 16 };
   var top = rect.bottom + 6 + window.scrollY;
   var right = Math.max(8, window.innerWidth - rect.right);
-  var sortRows = ['kanri','shiire','brand'].map(function(k){
+  var sortRows = SHOUHIN_SORT_KEYS.map(function(k){
     var lbl = SHOUHIN_SORT_LABELS[k];
     var on = STATE.shouhinSort === k;
     return '<button type="button" class="menu-item' + (on ? ' on' : '') + '"' +
@@ -859,25 +895,54 @@ function setDensity_(key) {
 }
 
 // 並び順を items に適用（in-place ソートはせず新配列を返す）
+// 第二キーは常に kanri 自然数降順（仕様: 全タブ共通で kanri 系は降順固定）
 function applyShouhinSort_(items) {
   if (!items || items.length < 2) return items;
   var key = STATE.shouhinSort || 'kanri';
   var arr = items.slice();
-  if (key === 'shiire') {
-    // 仕入れ日 = shiireId 降順（IDが新しい仕入れほど後ろ。サーバ kanri 順を 2nd キー）
+  if (key === 'kanri') {
+    // サーバ DESC をクライアント側でも保証
+    arr.sort(function(a,b){ return kanriCompareDesc_(a.kanri, b.kanri); });
+  } else if (key === 'shiire') {
+    // 仕入れ日 = shiireId 降順（新しい仕入れが先頭）
     arr.sort(function(a,b){
       var sa = String(a.shiireId || ''), sb = String(b.shiireId || '');
       if (sa !== sb) return sb.localeCompare(sa, 'ja');
-      return String(b.kanri || '').localeCompare(String(a.kanri || ''), 'ja');
+      return kanriCompareDesc_(a.kanri, b.kanri);
     });
   } else if (key === 'brand') {
     arr.sort(function(a,b){
       var ba = String(a.brand || '〜'), bb = String(b.brand || '〜');
       if (ba !== bb) return ba.localeCompare(bb, 'ja');
-      return String(b.kanri || '').localeCompare(String(a.kanri || ''), 'ja');
+      return kanriCompareDesc_(a.kanri, b.kanri);
+    });
+  } else if (key === 'status') {
+    arr.sort(function(a,b){
+      var ra = statusRank_(a.status), rb = statusRank_(b.status);
+      if (ra !== rb) return ra - rb;
+      return kanriCompareDesc_(a.kanri, b.kanri);
+    });
+  } else if (key === 'saleDate') {
+    // 販売日新しい順。販売日なしは末尾
+    arr.sort(function(a,b){
+      var ta = a.saleDate ? new Date(a.saleDate).getTime() : -1;
+      var tb = b.saleDate ? new Date(b.saleDate).getTime() : -1;
+      if (ta !== tb) return tb - ta;
+      return kanriCompareDesc_(a.kanri, b.kanri);
+    });
+  } else if (key === 'size') {
+    arr.sort(function(a,b){
+      var sa = String(a.size || '〜'), sb = String(b.size || '〜');
+      if (sa !== sb) return sa.localeCompare(sb, 'ja');
+      return kanriCompareDesc_(a.kanri, b.kanri);
+    });
+  } else if (key === 'color') {
+    arr.sort(function(a,b){
+      var ca = String(a.color || '〜'), cb = String(b.color || '〜');
+      if (ca !== cb) return ca.localeCompare(cb, 'ja');
+      return kanriCompareDesc_(a.kanri, b.kanri);
     });
   }
-  // kanri はサーバ側で既に自然数ソート済みなので、そのまま返す
   return arr;
 }
 // 商品管理タブのみ chips-bar を表示
@@ -1157,7 +1222,37 @@ function paintShiireList_(allItems) {
       '<button class="empty-cta" onclick="openCreatePurchaseModal()">＋ 新規仕入れを作成</button></div>' + fab;
     return;
   }
-  c.innerHTML = '<div class="cards-grid">' + items.map(shiireCardHtml).join('') + '</div>' + fab;
+  // 月別グループ化（yyyy-MM 降順、デフォルトは全て展開）
+  var groups = Object.create(null);
+  items.forEach(function(it){
+    var ym = '';
+    var d = String(it.date || '');
+    // "yyyy-MM-dd" / "yyyy/MM/dd" 両対応。先頭7文字を yyyy-MM に正規化
+    if (d.length >= 7) {
+      var m = d.match(/^(\d{4})[-/](\d{1,2})/);
+      if (m) ym = m[1] + '-' + ('0' + m[2]).slice(-2);
+    }
+    if (!ym) ym = '（日付なし）';
+    if (!groups[ym]) groups[ym] = [];
+    groups[ym].push(it);
+  });
+  var keys = Object.keys(groups).sort(function(a,b){
+    if (a === '（日付なし）') return 1;
+    if (b === '（日付なし）') return -1;
+    return b.localeCompare(a); // yyyy-MM 降順
+  });
+  var html = keys.map(function(ym){
+    var arr = groups[ym];
+    var label = ym === '（日付なし）'
+      ? ym
+      : (ym.slice(0,4) + '年' + parseInt(ym.slice(5,7), 10) + '月');
+    var summary = '<summary>📅 ' + esc(label) +
+      '<span class="count">' + arr.length + '件</span></summary>';
+    return '<details class="group-fold" open>' + summary +
+      '<div class="cards-grid">' + arr.map(shiireCardHtml).join('') + '</div>' +
+      '</details>';
+  }).join('');
+  c.innerHTML = html + fab;
 }
 
 function shiireCardHtml(it) {
@@ -2428,12 +2523,74 @@ function resolveCardThumbsTasukibako_() {
   }
 }
 
+// 発送商品タブの並び順切替
+var HASSOU_SORT_LABELS = {
+  recommend: 'おすすめ',
+  saleDate:  '販売日（新しい順）',
+  kanri:     '管理番号（降順）',
+  price:     '価格（高い順）'
+};
+var HASSOU_SORT_KEYS = ['recommend','saleDate','kanri','price'];
+function setHassouSort_(key) {
+  STATE.hassouSort = key;
+  try { localStorage.setItem('sk.hassouSort', key); } catch(e) {}
+  closeHassouSortMenu_();
+  if (STATE.tab === 'hassou') renderShouhinList({ silent: true });
+}
+function closeHassouSortMenu_() {
+  var m = document.getElementById('hassou-sort-menu');
+  if (m) m.remove();
+}
+function openHassouSortMenu_(ev) {
+  if (ev) ev.stopPropagation();
+  var existing = document.getElementById('hassou-sort-menu');
+  if (existing) { existing.remove(); return; }
+  var btn = ev && ev.currentTarget;
+  var rect = btn ? btn.getBoundingClientRect() : { top: 100, right: window.innerWidth - 16 };
+  var top = rect.bottom + 6 + window.scrollY;
+  var right = Math.max(8, window.innerWidth - rect.right);
+  var rows = HASSOU_SORT_KEYS.map(function(k){
+    var lbl = HASSOU_SORT_LABELS[k];
+    var on = STATE.hassouSort === k;
+    return '<button type="button" class="menu-item' + (on ? ' on' : '') + '"' +
+      ' onclick="setHassouSort_(\'' + k + '\')">' + (on ? '● ' : '○ ') + esc(lbl) + '</button>';
+  }).join('');
+  var html = '<div id="hassou-sort-menu" class="popover-menu" style="top:' + top + 'px; right:' + right + 'px;">' +
+    '<div class="menu-section-title">使用アカウント内の並び順</div>' + rows +
+  '</div>';
+  document.body.insertAdjacentHTML('beforeend', html);
+  setTimeout(function(){
+    document.addEventListener('click', closeHassouSortMenu_, { once: true });
+  }, 0);
+}
+
 function renderHassouGrouped_(items) {
-  // 並び順: 発送待ち優先 → 期限が近い順 → kanri
-  function priorityKey(it) {
-    var statusRank = it.status === '発送待ち' ? 0 : 1;
-    var saleTs = it.saleDate ? new Date(it.saleDate).getTime() : Number.MAX_SAFE_INTEGER;
-    return [statusRank, saleTs, String(it.kanri || '')];
+  var sortKey = STATE.hassouSort || 'recommend';
+  // 並び順比較: 使用アカウント内のソートを切替可能。kanri 系は常に自然数降順。
+  function cmp(a, b) {
+    if (sortKey === 'kanri') {
+      return kanriCompareDesc_(a.kanri, b.kanri);
+    }
+    if (sortKey === 'saleDate') {
+      var ta = a.saleDate ? new Date(a.saleDate).getTime() : -1;
+      var tb = b.saleDate ? new Date(b.saleDate).getTime() : -1;
+      if (ta !== tb) return tb - ta;
+      return kanriCompareDesc_(a.kanri, b.kanri);
+    }
+    if (sortKey === 'price') {
+      var pa = Number(a.salePrice || 0);
+      var pb = Number(b.salePrice || 0);
+      if (pa !== pb) return pb - pa;
+      return kanriCompareDesc_(a.kanri, b.kanri);
+    }
+    // recommend: 発送待ち優先 → 販売日が古い順（=期限が近い順）→ 管理番号降順
+    var ra = a.status === '発送待ち' ? 0 : 1;
+    var rb = b.status === '発送待ち' ? 0 : 1;
+    if (ra !== rb) return ra - rb;
+    var sa = a.saleDate ? new Date(a.saleDate).getTime() : Number.MAX_SAFE_INTEGER;
+    var sb = b.saleDate ? new Date(b.saleDate).getTime() : Number.MAX_SAFE_INTEGER;
+    if (sa !== sb) return sa - sb;
+    return kanriCompareDesc_(a.kanri, b.kanri);
   }
   var groups = Object.create(null);
   items.forEach(function(it){
@@ -2446,15 +2603,14 @@ function renderHassouGrouped_(items) {
     if (b === '（未設定）') return -1;
     return a.localeCompare(b, 'ja');
   });
-  return accounts.map(function(acc){
-    var arr = groups[acc].slice().sort(function(a,b){
-      var ka = priorityKey(a), kb = priorityKey(b);
-      for (var i=0; i<ka.length; i++) {
-        if (ka[i] < kb[i]) return -1;
-        if (ka[i] > kb[i]) return 1;
-      }
-      return 0;
-    });
+  // タブヘッダ: 並び順切替ボタン（タブ全体共通）
+  var sortLbl = HASSOU_SORT_LABELS[sortKey] || 'おすすめ';
+  var header = '<div class="tab-toolbar">' +
+    '<button type="button" class="chip chip-menu" onclick="openHassouSortMenu_(event)" title="並び順">' +
+    '⋯ 並び順: ' + esc(sortLbl) + '</button>' +
+  '</div>';
+  var groupHtml = accounts.map(function(acc){
+    var arr = groups[acc].slice().sort(cmp);
     var pending = arr.filter(function(x){ return x.status === '発送待ち'; }).length;
     // <details> ベースで折りたたみ可能に。デフォルトは全グループ展開（ユーザーが必要に応じて折りたたむ）。
     var openAttr = ' open';
@@ -2465,6 +2621,7 @@ function renderHassouGrouped_(items) {
       '<div class="cards-grid">' + arr.map(cardHtml).join('') + '</div>' +
       '</details>';
   }).join('');
+  return header + groupHtml;
 }
 
 function renderPlaceholder(name) {
@@ -2515,7 +2672,7 @@ function paintBashoList_(allItems) {
       '<button class="empty-cta" onclick="openBashoCreate()">＋ 新規移動報告</button></div>' + addBtn;
     return;
   }
-  var html = '<div class="card-list">' + items.map(function(it){
+  function moveCardHtml(it) {
     var done = it.done ? '<span class="badge ok">反映済</span>' : '<span class="badge wait">未反映</span>';
     var ids = String(it.ids || '').split(/[\s,、，／/・|\n\r\t]+/).filter(Boolean);
     var pillsHtml = '';
@@ -2532,8 +2689,40 @@ function paintBashoList_(allItems) {
       '<div class="meta-line">📍 移動先: <strong>' + esc(it.destination) + '</strong></div>' +
       pillsHtml +
     '</div>';
-  }).join('') + '</div>' + addBtn;
-  c.innerHTML = html;
+  }
+  // 月別グループ化（moveId が MV-yyyyMMdd-HHmmss 形式 or timestamp の先頭7文字）
+  var groups = Object.create(null);
+  items.forEach(function(it){
+    var ym = '';
+    var mid = String(it.moveId || '');
+    var m = mid.match(/^MV-(\d{4})(\d{2})/);
+    if (m) ym = m[1] + '-' + m[2];
+    if (!ym) {
+      var ts = String(it.timestamp || '');
+      var m2 = ts.match(/^(\d{4})[-/](\d{1,2})/);
+      if (m2) ym = m2[1] + '-' + ('0' + m2[2]).slice(-2);
+    }
+    if (!ym) ym = '（日付なし）';
+    if (!groups[ym]) groups[ym] = [];
+    groups[ym].push(it);
+  });
+  var keys = Object.keys(groups).sort(function(a,b){
+    if (a === '（日付なし）') return 1;
+    if (b === '（日付なし）') return -1;
+    return b.localeCompare(a);
+  });
+  var html = keys.map(function(ym){
+    var arr = groups[ym];
+    var label = ym === '（日付なし）'
+      ? ym
+      : (ym.slice(0,4) + '年' + parseInt(ym.slice(5,7), 10) + '月');
+    var summary = '<summary>📅 ' + esc(label) +
+      '<span class="count">' + arr.length + '件</span></summary>';
+    return '<details class="group-fold" open>' + summary +
+      '<div class="card-list">' + arr.map(moveCardHtml).join('') + '</div>' +
+      '</details>';
+  }).join('');
+  c.innerHTML = html + addBtn;
 }
 
 function openBashoDetail(moveId) {
@@ -2720,7 +2909,7 @@ function paintHensouList_(allItems) {
       '<button class="empty-cta" onclick="openHensouCreate()">＋ 新規返送</button></div>' + addBtn;
     return;
   }
-  var html = '<div class="card-list">' + items.map(function(it){
+  function hensouCardHtml(it) {
     var ids = String(it.ids || '').split(/[\s,、，／/・|\n\r\t]+/).filter(Boolean);
     var pillsHtml = '';
     if (ids.length) {
@@ -2737,8 +2926,35 @@ function paintHensouList_(allItems) {
       '<div class="meta-line">👤 ' + esc(it.reporter) + '　📍 移動先: <strong>' + esc(it.destination) + '</strong></div>' +
       pillsHtml + noteHtml +
     '</div>';
-  }).join('') + '</div>' + addBtn;
-  c.innerHTML = html;
+  }
+  // 月別グループ化（boxId が RT-yyyyMMdd-HHmmss 形式）
+  var groups = Object.create(null);
+  items.forEach(function(it){
+    var ym = '';
+    var bid = String(it.boxId || '');
+    var m = bid.match(/^RT-(\d{4})(\d{2})/);
+    if (m) ym = m[1] + '-' + m[2];
+    if (!ym) ym = '（日付なし）';
+    if (!groups[ym]) groups[ym] = [];
+    groups[ym].push(it);
+  });
+  var keys = Object.keys(groups).sort(function(a,b){
+    if (a === '（日付なし）') return 1;
+    if (b === '（日付なし）') return -1;
+    return b.localeCompare(a);
+  });
+  var html = keys.map(function(ym){
+    var arr = groups[ym];
+    var label = ym === '（日付なし）'
+      ? ym
+      : (ym.slice(0,4) + '年' + parseInt(ym.slice(5,7), 10) + '月');
+    var summary = '<summary>📅 ' + esc(label) +
+      '<span class="count">' + arr.length + '件</span></summary>';
+    return '<details class="group-fold" open>' + summary +
+      '<div class="card-list">' + arr.map(hensouCardHtml).join('') + '</div>' +
+      '</details>';
+  }).join('');
+  c.innerHTML = html + addBtn;
 }
 
 function openHensouDetail(boxId) {

@@ -117,7 +117,7 @@ export async function listProducts(request, env) {
   const slimSelect = `
     SELECT kanri, shiire_id, worker, status, brand, size, color,
            measured_at,
-           sale_date, sale_ts,
+           sale_date, sale_ts, sale_price,
            json_extract(extra_json, '$."売却済み商品画像"') AS extra_thumb,
            json_extract(extra_json, '$."使用アカウント"')   AS extra_account,
            ${DERIVED_STATUS} AS derived_status
@@ -150,7 +150,7 @@ export async function listProducts(request, env) {
 
   try {
     const fp = await env.DB.prepare(fingerprintSql).bind(...args).first();
-    const etag = `"p${slim ? 'S' : 'F'}-${fp.cnt}-${fp.maxup}-${limit}"`;
+    const etag = `"p${slim ? 'S2' : 'F'}-${fp.cnt}-${fp.maxup}-${limit}"`;
 
     // CF Edge は weak ETag (W/"...") に書き換えることがあるため、比較時は W/ プレフィクスを剥がす
     const inm = request.headers.get('If-None-Match') || '';
@@ -194,6 +194,7 @@ function formatProductSlim(row) {
     measuredAt: row.measured_at,
     saleDate: row.sale_date,
     saleTs: row.sale_ts,
+    salePrice: row.sale_price,
     extra,
   };
 }
