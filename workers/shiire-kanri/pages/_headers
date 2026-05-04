@@ -1,7 +1,27 @@
+# 静的アセット用の HTTP ヘッダ
+# - 全アセットは ETag ベースの再検証を強制（古い JS/HTML 固定を防止）
+# - エッジでは長く保持し、ブラウザ⇄エッジ間は If-None-Match → 304 で軽量化
+
 /
-  Cache-Control: no-store, must-revalidate
-  Pragma: no-cache
+  Cache-Control: no-cache, must-revalidate
 
 /index.html
+  Cache-Control: no-cache, must-revalidate
+
+/app.js
+  Cache-Control: no-cache, must-revalidate
+
+/sw-update.js
+  Cache-Control: no-cache, must-revalidate
+
+# Service Worker は no-store + scope 拡大ヘッダ
+/sw.js
   Cache-Control: no-store, must-revalidate
-  Pragma: no-cache
+  Service-Worker-Allowed: /
+
+# モックアップ・テスト用ページは常に最新
+/mockup-*
+  Cache-Control: no-store, must-revalidate
+
+/test-*
+  Cache-Control: no-store, must-revalidate

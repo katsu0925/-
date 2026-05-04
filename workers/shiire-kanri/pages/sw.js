@@ -9,7 +9,7 @@
 //  - VERSION を上げると activate 時に旧キャッシュを全削除
 //  - skipWaiting + clients.claim で即時切替、controllerchange でクライアントが UI 通知
 
-const VERSION = 'sk-2026-05-03-v87';
+const VERSION = 'sk-2026-05-04-v90';
 const SHELL_CACHE = 'shell-' + VERSION;
 const API_CACHE   = 'api-' + VERSION;
 
@@ -51,48 +51,115 @@ self.addEventListener('message', (event) => {
       await Promise.all(keys.map(k => caches.delete(k)));
     })());
   }
+  if (data.type === 'WARM_API') {
+    event.waitUntil(warmApi(data.urls));
+  }
 });
 
+// ETag-aware SWR 対象（GET 一覧系）。Worker 側で ETag を返す API 限定。
+// /api/products と /api/purchases は network-first（ETag/304 で十分高速）。
+//   理由: SWR にすると「シート直接編集 → リロードしても初回はキャッシュの旧データ」現象が起きる。
+//   過去に同じ手で UX バグを踏んでいる（v88 で再発）。
 function isApiSwr(pathname) {
   if (!pathname.startsWith('/api/')) return false;
   if (pathname.startsWith('/api/save/')) return false;
   if (pathname.startsWith('/api/create/')) return false;
   if (pathname === '/api/me') return false;
-  // 売上ダッシュボード (/api/sales/*) は SWR から外す → 常に network-first で最新を取る
-  // 商品詳細 (/api/products/<kanri>) も SWR から外す → 画像削除/差し替えを即時反映
-  // 例外: /api/products/counts と /api/products/thumbs は集約系なので SWR で OK
+  // 売上ダッシュボード・商品詳細は network-first 維持
+  if (pathname.startsWith('/api/sales/')) return false;
   if (/^\/api\/products\/[^/]+$/.test(pathname) &&
       pathname !== '/api/products/counts' &&
       pathname !== '/api/products/thumbs') {
     return false;
   }
-  // 一覧系（/api/products, /api/purchases, /api/moves, /api/returns, /api/sagyousha,
-  // /api/kanri/next, /api/sheet/<name>）も SWR から外す。
-  // SWR だと「初回はキャッシュ表示、2回目で最新」という挙動になり、
-  // スプレッドシート直接編集 → アプリリロードしても古いまま、という UX バグの直接原因になっていた。
-  if (pathname === '/api/products') return false;
-  if (pathname === '/api/purchases') return false;
+  // 書き戻し直後の整合性が重要なものは除外
   if (pathname === '/api/moves') return false;
   if (pathname === '/api/returns') return false;
   if (pathname === '/api/sagyousha') return false;
   if (pathname === '/api/kanri/next') return false;
   if (pathname.startsWith('/api/sheet/')) return false;
-  // master/* と /api/products/{counts,thumbs} は変動が小さいので SWR を維持（速度優先）
+  // 一覧系は network-first（ETag/304 でほぼゼロコスト）
+  if (pathname === '/api/products') return false;
+  if (pathname === '/api/purchases') return false;
+  // SWR 対象: counts/thumbs/master/購入詳細のみ（変化が遅い・あるいは ETag 不要）
   return /^\/api\/(products\/(counts|thumbs)|purchases\/[^/]+\/products|master\/)/.test(pathname);
 }
 
+// ETag-aware SWR
+//  1. キャッシュあれば即返却（描画 0ms）
+//  2. 裏で If-None-Match 付き fetch
+//     - 304: 何もしない（最新確認済み・帯域ゼロ）
+//     - 200: Cache 上書き（次回アクセスで反映）
+//  3. キャッシュなし: 通常 fetch → Cache 投入
+//
+// 注意: 200 受信時にクライアントへ通知して即時再描画する案を試したが、
+// ETag を返さないエンドポイント（counts 等）で常に 200 が返り、
+// notify→autoRefresh→fetch→notify の暴走ループを引き起こした。
+// 現行は notify せず「次のアクセスで反映」方針に統一する。
 async function staleWhileRevalidate(req) {
   const cache = await caches.open(API_CACHE);
   const cached = await cache.match(req);
-  const networkPromise = fetch(req).then((res) => {
+
+  const revalidate = async () => {
+    const headers = new Headers(req.headers);
+    if (cached) {
+      const etag = cached.headers.get('ETag');
+      if (etag) headers.set('If-None-Match', etag);
+    }
+    const conditionalReq = new Request(req.url, {
+      method: 'GET',
+      headers,
+      credentials: req.credentials,
+      mode: req.mode,
+      redirect: req.redirect,
+    });
+    try {
+      const res = await fetch(conditionalReq);
+      if (res.status === 304) return; // 最新確認済み
+      if (res && res.ok && res.status === 200) {
+        await cache.put(req, res.clone()).catch(()=>{});
+      }
+    } catch(e) { /* オフライン等は無視 */ }
+  };
+
+  if (cached) {
+    // 即返却 + 裏で再検証
+    revalidate();
+    return cached;
+  }
+
+  // 初回: 通常 fetch
+  try {
+    const res = await fetch(req);
     if (res && res.ok && res.status === 200) {
       cache.put(req, res.clone()).catch(()=>{});
     }
     return res;
-  }).catch(() => null);
-  return cached || (await networkPromise) || new Response(JSON.stringify({ ok:false, error:'offline' }), {
-    status: 503, headers: { 'Content-Type': 'application/json' }
-  });
+  } catch (err) {
+    return new Response(JSON.stringify({ ok:false, error:'offline' }), {
+      status: 503, headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}
+
+// 先回り温め: クライアントが visibilitychange:hidden 等のタイミングで呼ぶ
+// 指定 URL を裏で fetch して Cache を最新化
+async function warmApi(urls) {
+  const cache = await caches.open(API_CACHE);
+  await Promise.all((urls || []).map(async (url) => {
+    try {
+      const cached = await cache.match(url);
+      const headers = new Headers();
+      if (cached) {
+        const etag = cached.headers.get('ETag');
+        if (etag) headers.set('If-None-Match', etag);
+      }
+      const res = await fetch(url, { credentials: 'include', headers });
+      if (res && res.ok && res.status === 200) {
+        await cache.put(url, res.clone()).catch(()=>{});
+      }
+    } catch(e) {}
+  }));
 }
 
 async function networkFirst(req) {

@@ -138,12 +138,40 @@ export async function listProducts(request, env) {
     ORDER BY substr(kanri,1,2) DESC, CAST(substr(kanri,3) AS INTEGER) DESC, kanri DESC
     LIMIT ?
   `;
-  args.push(limit);
+
+  // ETag = 同一フィルタ条件で COUNT + MAX(updated_at) を取得し、これをハッシュ化したもの。
+  // 9人 × 30s ポーリング × 5000 行で毎回 JSON 化するのは重いので、変化がなければ 304 で返す。
+  // クライアントの fetch() は no-cache + ETag があれば自動で If-None-Match を送る。
+  const fingerprintSql = `
+    SELECT COUNT(*) AS cnt, COALESCE(MAX(updated_at), 0) AS maxup
+    FROM products
+    ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
+  `;
 
   try {
-    const { results } = await env.DB.prepare(sql).bind(...args).all();
+    const fp = await env.DB.prepare(fingerprintSql).bind(...args).first();
+    const etag = `"p${slim ? 'S' : 'F'}-${fp.cnt}-${fp.maxup}-${limit}"`;
+
+    // CF Edge は weak ETag (W/"...") に書き換えることがあるため、比較時は W/ プレフィクスを剥がす
+    const inm = request.headers.get('If-None-Match') || '';
+    const inmStripped = inm.replace(/^W\//, '').trim();
+    if (inmStripped && inmStripped === etag) {
+      return new Response(null, {
+        status: 304,
+        headers: {
+          ETag: etag,
+          'Cache-Control': 'no-cache, must-revalidate',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
+    }
+
+    const { results } = await env.DB.prepare(sql).bind(...args, limit).all();
     const items = slim ? results.map(formatProductSlim) : results.map(formatProduct);
-    return jsonOk({ items, count: items.length });
+    return jsonOk({ items, count: items.length }, {
+      ETag: etag,
+      'Cache-Control': 'no-cache, must-revalidate',
+    });
   } catch (err) {
     return jsonError('db error: ' + err.message, 500);
   }
@@ -171,7 +199,13 @@ function formatProductSlim(row) {
 }
 
 // GET /api/products/counts → 各フィルタの件数を返す
-export async function listProductCounts(request, env) {
+// Cache API + KV による SWR キャッシュ（TTL30s + 60s 以内なら stale 返却 + 裏で再生成）。
+// 9人 × 30s ポーリングで 18req/分の固定負荷だった D1 集約をほぼ消す。
+const COUNTS_CACHE_KEY = 'https://cache.local/products/counts/v1';
+const COUNTS_TTL_SEC = 30;
+const COUNTS_STALE_SEC = 60;
+
+async function computeCounts_(env) {
   const ds = `(${DERIVED_STATUS})`;
   const buckets = {
     sokutei_machi:  `${ds} = '採寸待ち'`,
@@ -182,22 +216,66 @@ export async function listProductCounts(request, env) {
     hassou:         `((status = '発送待ち' AND NOT ${D_HASSOU}) OR status = '発送済み')`,
     sold:           `${ds} IN ('発送待ち','発送済み','売却済み')`,
   };
-
-  // 1クエリで集約（CASE で各フィルタの SUM）
   const parts = Object.entries(buckets).map(([key, cond]) =>
     `SUM(CASE WHEN ${cond} THEN 1 ELSE 0 END) AS ${key}`
   );
   const sql = `SELECT COUNT(*) AS total, ${parts.join(', ')} FROM products`;
+  const row = await env.DB.prepare(sql).first();
+  const counts = {};
+  Object.keys(buckets).forEach(k => { counts[k] = Number(row[k] || 0); });
+  counts.all = Number(row.total || 0);
+  return { total: counts.all, counts, generatedAt: Date.now() };
+}
 
+export async function listProductCounts(request, env, ctx) {
+  const cache = caches.default;
+  const cacheReq = new Request(COUNTS_CACHE_KEY);
   try {
-    const row = await env.DB.prepare(sql).first();
-    const counts = {};
-    Object.keys(buckets).forEach(k => { counts[k] = Number(row[k] || 0); });
-    counts.all = Number(row.total || 0);
-    return jsonOk({ total: counts.all, counts });
+    const cached = await cache.match(cacheReq);
+    if (cached) {
+      const ageStr = cached.headers.get('X-Generated-At');
+      const generatedAt = ageStr ? Number(ageStr) : 0;
+      const ageSec = (Date.now() - generatedAt) / 1000;
+      if (ageSec < COUNTS_TTL_SEC) {
+        // フレッシュ
+        return cached;
+      }
+      if (ageSec < (COUNTS_TTL_SEC + COUNTS_STALE_SEC)) {
+        // stale: 裏で再生成、いまはキャッシュを返す
+        if (ctx && ctx.waitUntil) {
+          ctx.waitUntil(refreshCountsCache_(env, cache, cacheReq));
+        }
+        return cached;
+      }
+    }
+    // miss or 完全期限切れ
+    return await refreshCountsCache_(env, cache, cacheReq);
   } catch (err) {
     return jsonError('db error: ' + err.message, 500);
   }
+}
+
+async function refreshCountsCache_(env, cache, cacheReq) {
+  const data = await computeCounts_(env);
+  const body = JSON.stringify({ ok: true, ...data });
+  const res = new Response(body, {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': `public, max-age=${COUNTS_TTL_SEC + COUNTS_STALE_SEC}`,
+      'X-Generated-At': String(data.generatedAt),
+      'Access-Control-Allow-Origin': '*',
+    },
+  });
+  await cache.put(cacheReq, res.clone());
+  return res;
+}
+
+// 書き込み API から呼んで counts キャッシュを即時無効化
+export async function invalidateCountsCache() {
+  try {
+    await caches.default.delete(new Request(COUNTS_CACHE_KEY));
+  } catch (e) {}
 }
 
 // POST /api/products/thumbs body: { kanris: [...] }

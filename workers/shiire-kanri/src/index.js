@@ -28,40 +28,9 @@ export default {
       return jsonOk({ status: 'ok', ts: Date.now() });
     }
 
-    // PWA 用 Service Worker は no-store で配信（更新を確実に拾う）
-    // Service-Worker-Allowed を付けてスコープを / に明示
-    if (path === '/sw.js' && request.method === 'GET') {
-      const r = await env.ASSETS.fetch(request);
-      const h = new Headers(r.headers);
-      h.set('Cache-Control', 'no-store, must-revalidate');
-      h.set('Service-Worker-Allowed', '/');
-      h.set('Content-Type', 'application/javascript; charset=utf-8');
-      return new Response(r.body, { status: r.status, statusText: r.statusText, headers: h });
-    }
-
-    // ルート/index.html はキャッシュさせず常に最新の SPA を返す
-    // run_worker_first により先に Worker に到達 → ASSETS から fetch → no-store で返却
-    // ASSETS は /index.html → / に正規化（307）するため、最初から / で fetch する
-    if ((path === '/' || path === '/index.html') && request.method === 'GET') {
-      const rootUrl = new URL('/', request.url);
-      // ASSETS の自己ループを避けるためマーカー付きでフェッチ
-      const assetReq = new Request(rootUrl.toString(), { method: 'GET', headers: request.headers });
-      let assetResponse = await env.ASSETS.fetch(assetReq);
-      // それでもリダイレクトされる場合は最終ターゲットを取得
-      if (assetResponse.status >= 300 && assetResponse.status < 400) {
-        const loc = assetResponse.headers.get('Location') || '/';
-        const followUrl = new URL(loc, request.url);
-        assetResponse = await env.ASSETS.fetch(new Request(followUrl.toString(), { method: 'GET', headers: request.headers }));
-      }
-      const headers = new Headers(assetResponse.headers);
-      headers.set('Cache-Control', 'no-store, must-revalidate');
-      headers.set('Pragma', 'no-cache');
-      return new Response(assetResponse.body, {
-        status: assetResponse.status,
-        statusText: assetResponse.statusText,
-        headers,
-      });
-    }
+    // /sw.js, /, /index.html, /app.js, /sw-update.js, /mockup-*, /test-* のキャッシュヘッダは
+    // pages/_headers で集約管理（ETag/304 ベースの再検証は ASSETS が自動処理）。
+    // ここでハンドラを持たないことで条件付き GET（If-None-Match → 304）が透過的に通る。
 
     // 手動同期トリガー（共通シークレット必須・運用デバッグ用）
     if (path === '/admin/sync' && request.method === 'POST') {
@@ -98,7 +67,7 @@ export default {
       return listProducts(request, env);
     }
     if (path === '/api/products/counts' && request.method === 'GET') {
-      return listProductCounts(request, env);
+      return listProductCounts(request, env, ctx);
     }
     if (path === '/api/products/thumbs' && request.method === 'POST') {
       return listProductThumbs(request, env);
@@ -243,14 +212,6 @@ export default {
     // API/admin 以外は静的アセット（SPA fallback 含む）に委譲
     if (path.startsWith('/api/') || path.startsWith('/admin/')) {
       return jsonError('not found', 404);
-    }
-    // mockup-* / test-* はキャッシュ無効で常に最新を返す（デザイン検証用）
-    if (path.startsWith('/mockup') || path.startsWith('/test-')) {
-      const r = await env.ASSETS.fetch(request);
-      const h = new Headers(r.headers);
-      h.set('Cache-Control', 'no-store, must-revalidate');
-      h.set('Pragma', 'no-cache');
-      return new Response(r.body, { status: r.status, statusText: r.statusText, headers: h });
     }
     return env.ASSETS.fetch(request);
   },

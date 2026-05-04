@@ -1,4 +1,5 @@
 import { jsonOk, jsonError } from '../utils/response.js';
+import { invalidateCountsCache } from './products.js';
 
 // POST /api/save/measurement  body: { kanri, measure: {着丈, 肩幅, ...} }
 // POST /api/save/sale         body: { kanri, sale: {salePrice, saleDate, salePlace, saleShipping, saleFee} }
@@ -26,6 +27,7 @@ export async function saveMeasurement(request, env, user) {
     console.warn('[save] d1 update failed', err.message);
   }
   const t = Object.assign({}, gasRes._t || {}, { d1: Date.now() - __td1, total: Date.now() - __t0 });
+  invalidateCountsCache();
   return jsonOk({ saved: true }, { 'Server-Timing': buildServerTiming(t) });
 }
 
@@ -69,6 +71,7 @@ export async function saveSale(request, env, user) {
     console.warn('[save] d1 update failed', err.message);
   }
   const t = Object.assign({}, gasRes._t || {}, { d1: Date.now() - __td1, total: Date.now() - __t0 });
+  invalidateCountsCache();
   return jsonOk({ saved: true }, { 'Server-Timing': buildServerTiming(t) });
 }
 
@@ -118,6 +121,7 @@ export async function saveDetails(request, env, user, ctx) {
   }
 
   const t = { d1: Date.now() - __td1, total: Date.now() - __t0 };
+  invalidateCountsCache();
   return jsonOk({
     saved: true,
     optimistic: true,                    // フロントが「派生値はまだ来てない」と判断するためのヒント
