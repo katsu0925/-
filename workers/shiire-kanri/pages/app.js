@@ -1850,6 +1850,8 @@ async function renderShouhinList(opts) {
   params.set('mode', 'list');
   if (q) params.set('q', q);
   if (STATE.filter) params.set('filter', STATE.filter);
+  // 商品管理タブでは売却済み/返品済みは表示しない（chip 件数も同条件）
+  if (STATE.tab === 'shouhin') params.set('noSold', '1');
   // 売上タブと発送タブには新規作成不要（既存商品を見る用途）
   const showCreateFab = STATE.tab === 'shouhin';
   const fab = showCreateFab

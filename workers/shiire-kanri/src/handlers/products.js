@@ -88,6 +88,12 @@ export async function listProducts(request, env) {
     where.push(`${ds} IN ('発送待ち','発送済み','売却済み')`);
   }
 
+  // noSold=1: 商品管理タブ用。派生ステータス '売却済み' / '返品済み' を除外。
+  // 仕入れ詳細・売上タブ・発送タブは送らないので影響なし。
+  if (u.searchParams.get('noSold') === '1') {
+    where.push(`${ds} NOT IN ('売却済み','返品済み')`);
+  }
+
   if (status) { where.push('status = ?'); args.push(status); }
   if (shiire) { where.push('shiire_id = ?'); args.push(shiire); }
   if (brand)  { where.push('brand = ?'); args.push(brand); }
@@ -150,7 +156,7 @@ export async function listProducts(request, env) {
 
   try {
     const fp = await env.DB.prepare(fingerprintSql).bind(...args).first();
-    const etag = `"p${slim ? 'S3' : 'F2'}-${fp.cnt}-${fp.maxup}-${limit}"`;
+    const etag = `"p${slim ? 'S4' : 'F3'}-${fp.cnt}-${fp.maxup}-${limit}"`;
 
     // CF Edge は weak ETag (W/"...") に書き換えることがあるため、比較時は W/ プレフィクスを剥がす
     const inm = request.headers.get('If-None-Match') || '';
@@ -220,7 +226,11 @@ async function computeCounts_(env) {
   const parts = Object.entries(buckets).map(([key, cond]) =>
     `SUM(CASE WHEN ${cond} THEN 1 ELSE 0 END) AS ${key}`
   );
-  const sql = `SELECT COUNT(*) AS total, ${parts.join(', ')} FROM products`;
+  // total は商品管理タブ「すべて」chip と一致させるため、売却済み/返品済みを除外。
+  const sql = `SELECT
+    SUM(CASE WHEN ${ds} NOT IN ('売却済み','返品済み') THEN 1 ELSE 0 END) AS total,
+    ${parts.join(', ')}
+    FROM products`;
   const row = await env.DB.prepare(sql).first();
   const counts = {};
   Object.keys(buckets).forEach(k => { counts[k] = Number(row[k] || 0); });
