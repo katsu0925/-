@@ -26,6 +26,13 @@ export async function scheduledSync(env) {
     syncOne(env, 'syncDumpAiPrefill', 'ai_prefill', syncAiPrefill),
   ]);
 
+  // listing-text KV プリウォーム: 出品準備〜出品中フェーズの商品（実測 ~2200 件）を
+  // 毎ティック 16 件ずつ温める。16 × 288 tick/日 = 4608/日 で全件を 12〜24 時間で 1 周。
+  // 詳細を初めて開いた瞬間でも KV ヒット → ~50ms で「タイトルコピー」が即時反応するようになる。
+  // 商品データに変化があれば syncProducts 側で KV.delete されるので、古い説明文は出回らない。
+  try { await prewarmListingText(env, 16); }
+  catch (err) { console.error('[warm] error', err && err.message); }
+
   console.log(`[sync] done ${Date.now() - startedAt}ms`);
 }
 
@@ -50,7 +57,8 @@ async function syncOne(env, action, source, applyFn) {
     }
 
     // ─── ガード 2: 行単位 content_hash で UPSERT 件数を絞る ─────
-    const writeCount = await applyFn(env.DB, data.items);
+    const result = await applyFn(env, data.items);
+    const writeCount = (result && typeof result.count === 'number') ? result.count : (result || 0);
     await writeMeta(env.DB, source, data.items.length, checksum);
     console.log(`[sync] ${source}: total=${data.items.length} writes=${writeCount} hash=${checksum.slice(0, 8)}`);
   } catch (err) {
@@ -87,7 +95,8 @@ async function postFollowingRedirects(url, body) {
 }
 
 // ─── products ──────────────────────────────────────────────────
-async function syncProducts(db, rows) {
+async function syncProducts(env, rows) {
+  const db = env.DB;
   // 削除対象検出（incoming に居ない既存行）。20% 安全閾値で誤削除を防ぐ。
   const incoming = new Set(rows.map(r => String(r.kanri || '')).filter(Boolean));
   const { results: existing } = await db
@@ -149,11 +158,21 @@ async function syncProducts(db, rows) {
     );
     await db.batch(stmts);
   }
+
+  // 商品データ変化 → KV 内の listing-text を invalidate（次回ウォームで再生成）。
+  // GAS 側 CacheService 10 分も含めて古い説明文が残らないよう、ここで明示削除する。
+  if (env.CACHE && toWrite.length) {
+    const dels = toWrite.map(({ p }) =>
+      env.CACHE.delete('listing-text:' + String(p.kanri || '')).catch(() => {})
+    );
+    await Promise.all(dels);
+  }
   return toWrite.length;
 }
 
 // ─── purchases ─────────────────────────────────────────────────
-async function syncPurchases(db, rows) {
+async function syncPurchases(env, rows) {
+  const db = env.DB;
   const incoming = new Set(rows.map(r => String(r.shiireId || '')).filter(Boolean));
   const { results: existing } = await db
     .prepare('SELECT shiire_id, content_hash FROM purchases')
@@ -219,7 +238,8 @@ async function syncPurchases(db, rows) {
 }
 
 // ─── ai_prefill ────────────────────────────────────────────────
-async function syncAiPrefill(db, rows) {
+async function syncAiPrefill(env, rows) {
+  const db = env.DB;
   const incoming = new Set(rows.map(r => String(r.kanri || '')).filter(Boolean));
   const { results: existing } = await db
     .prepare('SELECT kanri, content_hash FROM ai_prefill')
@@ -304,4 +324,84 @@ function n(v) {
   if (v == null || v === '') return null;
   const num = Number(v);
   return Number.isFinite(num) ? num : null;
+}
+
+// ─── listing-text プリウォーム ───────────────────────────────────
+// アクティブフェーズ（出品待ち / 出品作業中 / 出品中）の商品を毎ティック数件ずつ
+// GAS doGet?fmt=json で取得 → KV に 30 分 TTL で保存。
+// staff app で詳細を初めて開いた瞬間でも KV ヒットして「タイトルコピー」が即時動作する。
+//
+// コスト試算: 8 件/tick × 288 tick/日 = 2304 GAS 呼び出し/日。
+// GAS の月割り無料枠（6h CPU/日）で十分カバーできる。
+async function prewarmListingText(env, batchSize) {
+  const kv = env.CACHE;
+  if (!kv) return;
+  if (!env.GAS_API_URL) return;
+
+  // 多めに候補を取って、KV 既ヒット分を除外したうえで上位 batchSize 件をウォームする。
+  const { results } = await env.DB.prepare(
+    `SELECT kanri FROM products
+     WHERE status IN ('出品待ち','出品作業中','出品中')
+     ORDER BY updated_at DESC
+     LIMIT ?`
+  ).bind(batchSize * 6).all();
+
+  const candidates = (results || []).map(r => String(r.kanri || '')).filter(Boolean);
+  if (!candidates.length) return;
+
+  // 並列で KV 在否を確認（KV.get は metadata-only より値取得が安いため text で）
+  const present = await Promise.all(
+    candidates.map(k =>
+      kv.get('listing-text:' + k, 'text').then(v => !!v).catch(() => false)
+    )
+  );
+  const misses = candidates.filter((_, i) => !present[i]).slice(0, batchSize);
+  if (!misses.length) {
+    console.log(`[warm] all hot (candidates=${candidates.length})`);
+    return;
+  }
+
+  const settled = await Promise.allSettled(misses.map(k => warmOne(env, k)));
+  const ok = settled.filter(r => r.status === 'fulfilled' && r.value).length;
+  console.log(`[warm] candidates=${candidates.length} misses=${misses.length} warmed=${ok}`);
+}
+
+async function warmOne(env, kanri) {
+  const base = String(env.GAS_API_URL || '');
+  const target = base + (base.indexOf('?') >= 0 ? '&' : '?')
+    + 'id=' + encodeURIComponent(kanri) + '&fmt=json';
+  let res;
+  try {
+    res = await getFollowingRedirects(target);
+  } catch { return false; }
+  if (!res.ok) return false;
+  let parsed;
+  try { parsed = await res.json(); } catch { return false; }
+  if (!parsed || parsed.ok !== true) return false;
+  const out = {
+    title: String(parsed.title || ''),
+    description: String(parsed.description || ''),
+  };
+  try {
+    // TTL 24h: Cron が変化検知で invalidate するので長めで OK。
+    // 万一 invalidate が漏れても 24h でセルフヒーリング。
+    await env.CACHE.put(
+      'listing-text:' + kanri,
+      JSON.stringify(out),
+      { expirationTtl: 86400 }
+    );
+  } catch { return false; }
+  return true;
+}
+
+async function getFollowingRedirects(url) {
+  let current = url;
+  for (let hop = 0; hop < 6; hop++) {
+    const res = await fetch(current, { method: 'GET', redirect: 'manual' });
+    if (res.status < 300 || res.status >= 400) return res;
+    const loc = res.headers.get('location');
+    if (!loc) throw new Error(`redirect without location at hop ${hop}`);
+    current = loc;
+  }
+  throw new Error('too many redirects');
 }

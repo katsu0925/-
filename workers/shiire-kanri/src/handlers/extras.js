@@ -131,8 +131,10 @@ export async function dumpSheet(request, env, user, name) {
 
 // ?id=xxx&fmt=json で GAS doGet からタイトル・説明文を取得
 // （Code.gs:doGet が組み立てる generatedTitle / description を JSON で受け取る）
-// KV キャッシュ（5分）で 2 回目以降はミリ秒応答にする
-const LISTING_TEXT_TTL = 300;
+// KV キャッシュ（24h）で 2 回目以降はミリ秒応答にする。
+// 5分Cron で出品準備フェーズの商品を先回りウォーム + 商品データ変化時に invalidate するため、
+// 古い説明文が出回るリスクは低い（最悪 5 分以内に Cron が拾う）。
+const LISTING_TEXT_TTL = 86400;
 export async function getListingText(request, env, user, kanri) {
   const id = String(kanri || '').trim();
   if (!id) return jsonError('kanri required', 400);
