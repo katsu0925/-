@@ -631,6 +631,11 @@
   }
   .bottomnav button .ico { font-size: 20px; line-height: 1; }
   .bottomnav button .lbl { font-size: 10px; font-weight: 500; }
+  /* 管理者専用タブ（仕入れ管理・売上・作業者管理）。
+     既定では非表示にしておき、isAdmin 判定後 body.is-admin で表示する。
+     未判定（読み込み直後）は非表示なので、非管理者にちらつかない。 */
+  .bottomnav button[data-admin-only] { display: none; }
+  body.is-admin .bottomnav button[data-admin-only] { display: inline-flex; }
   .product-info {
     background: var(--surface); border-radius: 12px;
     padding: 14px 16px 12px; margin-bottom: 12px;
@@ -1656,13 +1661,13 @@
 
 <div class="bottomnav">
   <div class="bottomnav-inner" id="bottomnav-inner">
-    <button data-tab="shiire" onclick="selectTab('shiire')"><span class="ico">📦</span><span class="lbl">仕入れ管理</span></button>
+    <button data-tab="shiire" data-admin-only onclick="selectTab('shiire')"><span class="ico">📦</span><span class="lbl">仕入れ管理</span></button>
     <button data-tab="shouhin" class="active" onclick="selectTab('shouhin')"><span class="ico">👕</span><span class="lbl">商品管理</span></button>
     <button data-tab="hassou" onclick="selectTab('hassou')"><span class="ico">🚚</span><span class="lbl">発送商品</span></button>
     <button data-tab="basho" onclick="selectTab('basho')"><span class="ico">📍</span><span class="lbl">場所移動</span></button>
     <button data-tab="hensou" onclick="selectTab('hensou')"><span class="ico">📤</span><span class="lbl">返送</span></button>
-    <button data-tab="uriage" onclick="selectTab('uriage')"><span class="ico">📈</span><span class="lbl">売上</span></button>
-    <button data-tab="sagyou" onclick="selectTab('sagyou')"><span class="ico">👥</span><span class="lbl">作業者管理</span></button>
+    <button data-tab="uriage" data-admin-only onclick="selectTab('uriage')"><span class="ico">📈</span><span class="lbl">売上</span></button>
+    <button data-tab="sagyou" data-admin-only onclick="selectTab('sagyou')"><span class="ico">👥</span><span class="lbl">作業者管理</span></button>
   </div>
 </div>
 

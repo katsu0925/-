@@ -597,6 +597,12 @@ async function loadMasters() {
 }
 
 // 自分のメール → 作業者マスターの「名前」を解決して STATE.userName に格納
+// 管理者フラグに応じてボトムナビの管理者専用タブの表示を切替
+// 仕入れ管理・売上・作業者管理は data-admin-only 付き、CSS で既定非表示
+function applyAdminVisibility_() {
+  try { document.body.classList.toggle('is-admin', !!STATE.isAdmin); } catch(e) {}
+}
+
 // 業務メニュー（仕入れ数報告 / 経費申請 / 報酬確認）で「自分の行」を絞り込むために必須
 // LocalStorage で手動選択（業務メニュー用）の名前をオーバーライド可能。
 async function resolveSelfName_() {
@@ -622,6 +628,7 @@ async function resolveSelfName_() {
       STATE.userNameOverride = false;
     }
     STATE.isAdmin = !!(r.currentUser && r.currentUser.isAdmin);
+    applyAdminVisibility_();
     console.info('[resolveSelfName_] email=' + email + ' resolved=' + (resolved || '(none)') + ' applied=' + (STATE.userName || '(none)') + ' workers=' + items.length);
   } catch (err) {
     console.warn('resolveSelfName_ failed', err);
