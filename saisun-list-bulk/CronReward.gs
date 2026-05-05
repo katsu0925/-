@@ -47,8 +47,8 @@ function rewardUpdateDaily() {
     var reward = cron_toNumber_(row[COL_REWARD - 1]);
     if (!isFinite(reward)) continue;
 
-    var confirmLink = String(row[COL_CONFIRM - 1] || '').trim();
-    var count = confirmLink ? 1 : cron_toNumber_(row[COL_COUNT - 1]);
+    // 合計点数は常にK列（合計点数）を加算（確認リンク有無で1扱いしない）
+    var count = cron_toNumber_(row[COL_COUNT - 1]);
 
     var key = ym + '\t' + person;
     if (!agg[key]) agg[key] = { ym: ym, person: person, sum: 0, cnt: 0 };

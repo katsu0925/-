@@ -51,9 +51,8 @@ function rewardUpdateDaily() {
     const reward = toNumber_(row[REWARD_CONFIG.COL_REWARD - 1]);
     if (!isFinite(reward)) continue;
 
-    // 確認リンク(I列)にデータがあれば点数=1、なければK列の合計点数を使用
-    const confirmLink = String(row[REWARD_CONFIG.COL_CONFIRM_LINK - 1] || '').trim();
-    const count = confirmLink ? 1 : toNumber_(row[REWARD_CONFIG.COL_COUNT - 1]);
+    // 合計点数は常にK列（合計点数）を加算（確認リンク有無で1扱いしない）
+    const count = toNumber_(row[REWARD_CONFIG.COL_COUNT - 1]);
 
     const key = ym + '\t' + person;
     const cur = agg.get(key) || { ym: ym, person: person, sum: 0, cnt: 0 };

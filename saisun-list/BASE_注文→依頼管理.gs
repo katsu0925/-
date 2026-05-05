@@ -320,6 +320,14 @@ function syncBaseOrdersToIraiKanri() {
   if (newRows.length === 0) return;
 
   const startRow = findAppendRowByMainCol_(shDst, dstIdx_ReceiptNo + 1);
+  // AE列（作業報酬, 31列目）に数式を埋め込む: T列の運送会社×K列の点数で自動計算
+  const REWARD_COL_IDX = 30; // 0-based: AE列 = 31列目
+  for (let i = 0; i < newRows.length; i++) {
+    const r = startRow + i;
+    if (REWARD_COL_IDX < newRows[i].length) {
+      newRows[i][REWARD_COL_IDX] = '=IF(T' + r + '="", "", IF(T' + r + '="日本郵便", 300*K' + r + ', IF(OR(T' + r + '="佐川急便", T' + r + '="ヤマト運輸"), 200*K' + r + ', "")))';
+    }
+  }
   shDst.getRange(startRow, 1, newRows.length, dstColCount).setValues(newRows);
 }
 
