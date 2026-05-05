@@ -851,9 +851,12 @@ function openSortDensityMenu_(ev) {
   var existing = document.getElementById('sort-density-menu');
   if (existing) { existing.remove(); return; }
   var btn = ev && ev.currentTarget;
-  var rect = btn ? btn.getBoundingClientRect() : { top: 100, right: window.innerWidth - 16 };
+  var rect = btn ? btn.getBoundingClientRect() : { top: 100, left: 16, right: window.innerWidth - 16 };
   var top = rect.bottom + 6 + window.scrollY;
-  var right = Math.max(8, window.innerWidth - rect.right);
+  // ボタンの左端に合わせて配置。右端がはみ出ないようクランプ（モバイルで左見切れ防止）
+  var POP_MIN_W = 220;
+  var leftPos = Math.min(rect.left, window.innerWidth - POP_MIN_W - 8);
+  leftPos = Math.max(8, leftPos);
   var sortRows = SHOUHIN_SORT_KEYS.map(function(k){
     var lbl = SHOUHIN_SORT_LABELS[k];
     var on = STATE.shouhinSort === k;
@@ -866,7 +869,7 @@ function openSortDensityMenu_(ev) {
     return '<button type="button" class="menu-item' + (on ? ' on' : '') + '"' +
       ' onclick="setDensity_(\'' + k + '\')">' + (on ? '● ' : '○ ') + esc(lbl) + '</button>';
   }).join('');
-  var html = '<div id="sort-density-menu" class="popover-menu" style="top:' + top + 'px; right:' + right + 'px;">' +
+  var html = '<div id="sort-density-menu" class="popover-menu" style="top:' + top + 'px; left:' + leftPos + 'px;">' +
     '<div class="menu-section-title">並び順</div>' + sortRows +
     '<div class="menu-section-title">密度</div>' + densRows +
   '</div>';
@@ -1123,6 +1126,8 @@ function selectTab(tab) {
     });
     updateSearchPlaceholder_();
     pushListState_();
+    // ボトムタブ切替時はスクロール位置をリセット（前タブの位置が引き継がれて中途半端になる対策）
+    try { window.scrollTo(0, 0); } catch(e) {}
     render();
   });
 }
@@ -2549,16 +2554,19 @@ function openHassouSortMenu_(ev) {
   var existing = document.getElementById('hassou-sort-menu');
   if (existing) { existing.remove(); return; }
   var btn = ev && ev.currentTarget;
-  var rect = btn ? btn.getBoundingClientRect() : { top: 100, right: window.innerWidth - 16 };
+  var rect = btn ? btn.getBoundingClientRect() : { top: 100, left: 16, right: window.innerWidth - 16 };
   var top = rect.bottom + 6 + window.scrollY;
-  var right = Math.max(8, window.innerWidth - rect.right);
+  // ボタンの左端に合わせて配置。右端がはみ出ないようクランプ（モバイルで左見切れ防止）
+  var POP_MIN_W = 220;
+  var leftPos = Math.min(rect.left, window.innerWidth - POP_MIN_W - 8);
+  leftPos = Math.max(8, leftPos);
   var rows = HASSOU_SORT_KEYS.map(function(k){
     var lbl = HASSOU_SORT_LABELS[k];
     var on = STATE.hassouSort === k;
     return '<button type="button" class="menu-item' + (on ? ' on' : '') + '"' +
       ' onclick="setHassouSort_(\'' + k + '\')">' + (on ? '● ' : '○ ') + esc(lbl) + '</button>';
   }).join('');
-  var html = '<div id="hassou-sort-menu" class="popover-menu" style="top:' + top + 'px; right:' + right + 'px;">' +
+  var html = '<div id="hassou-sort-menu" class="popover-menu" style="top:' + top + 'px; left:' + leftPos + 'px;">' +
     '<div class="menu-section-title">使用アカウント内の並び順</div>' + rows +
   '</div>';
   document.body.insertAdjacentHTML('beforeend', html);
