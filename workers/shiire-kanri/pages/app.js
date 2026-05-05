@@ -12,7 +12,8 @@ var STATE = {
   saleChannels: {}, // { 'メルカリ': {rate:0.1, enabled:true}, ... } — 設定シートL列以降から
   // 商品管理タブの並び順 / 密度（localStorage で永続化）
   shouhinSort: (function(){ try { return localStorage.getItem('sk.shouhinSort') || 'kanri'; } catch(e){ return 'kanri'; } })(),
-  hassouSort:  (function(){ try { return localStorage.getItem('sk.hassouSort') || 'recommend'; } catch(e){ return 'recommend'; } })(),
+  // 発送商品タブの表示グループ: 'pending'(発送待ち) | 'shipped'(発送済み)
+  hassouFilter: (function(){ try { return localStorage.getItem('sk.hassouFilter') || 'pending'; } catch(e){ return 'pending'; } })(),
   density:     (function(){ try { return localStorage.getItem('sk.density') || 'normal'; } catch(e){ return 'normal'; } })(),
   // 管理番号 → AI prefill fields のクライアントキャッシュ
   // 仕入れ選択時に一括プリフェッチして埋める。GET /api/ai/prefill より優先
@@ -2531,80 +2532,28 @@ function resolveCardThumbsTasukibako_() {
   }
 }
 
-// 発送商品タブの並び順切替
-var HASSOU_SORT_LABELS = {
-  recommend: 'おすすめ',
-  saleDate:  '販売日（新しい順）',
-  kanri:     '管理番号（昇順）',
-  price:     '価格（高い順）'
-};
-var HASSOU_SORT_KEYS = ['recommend','saleDate','kanri','price'];
-function setHassouSort_(key) {
-  STATE.hassouSort = key;
-  try { localStorage.setItem('sk.hassouSort', key); } catch(e) {}
-  closeHassouSortMenu_();
+// 発送商品タブの表示切替（発送待ち / 発送済み）
+function setHassouFilter_(key) {
+  if (key !== 'pending' && key !== 'shipped') return;
+  if (STATE.hassouFilter === key) return;
+  STATE.hassouFilter = key;
+  try { localStorage.setItem('sk.hassouFilter', key); } catch(e) {}
   if (STATE.tab === 'hassou') renderShouhinList({ silent: true });
-}
-function closeHassouSortMenu_() {
-  var m = document.getElementById('hassou-sort-menu');
-  if (m) m.remove();
-}
-function openHassouSortMenu_(ev) {
-  if (ev) ev.stopPropagation();
-  var existing = document.getElementById('hassou-sort-menu');
-  if (existing) { existing.remove(); return; }
-  var btn = ev && ev.currentTarget;
-  var rect = btn ? btn.getBoundingClientRect() : { top: 100, left: 16, right: window.innerWidth - 16 };
-  var top = rect.bottom + 6 + window.scrollY;
-  // ボタンの左端に合わせて配置。右端がはみ出ないようクランプ（モバイルで左見切れ防止）
-  var POP_MIN_W = 220;
-  var leftPos = Math.min(rect.left, window.innerWidth - POP_MIN_W - 8);
-  leftPos = Math.max(8, leftPos);
-  var rows = HASSOU_SORT_KEYS.map(function(k){
-    var lbl = HASSOU_SORT_LABELS[k];
-    var on = STATE.hassouSort === k;
-    return '<button type="button" class="menu-item' + (on ? ' on' : '') + '"' +
-      ' onclick="setHassouSort_(\'' + k + '\')">' + (on ? '● ' : '○ ') + esc(lbl) + '</button>';
-  }).join('');
-  var html = '<div id="hassou-sort-menu" class="popover-menu" style="top:' + top + 'px; left:' + leftPos + 'px;">' +
-    '<div class="menu-section-title">使用アカウント内の並び順</div>' + rows +
-  '</div>';
-  document.body.insertAdjacentHTML('beforeend', html);
-  setTimeout(function(){
-    document.addEventListener('click', closeHassouSortMenu_, { once: true });
-  }, 0);
 }
 
 function renderHassouGrouped_(items) {
-  var sortKey = STATE.hassouSort || 'recommend';
-  // 並び順比較: 使用アカウント内のソートを切替可能。kanri 系は常に自然数昇順。
-  function cmp(a, b) {
-    if (sortKey === 'kanri') {
-      return kanriCompareAsc_(a.kanri, b.kanri);
-    }
-    if (sortKey === 'saleDate') {
-      var ta = a.saleDate ? new Date(a.saleDate).getTime() : -1;
-      var tb = b.saleDate ? new Date(b.saleDate).getTime() : -1;
-      if (ta !== tb) return tb - ta;
-      return kanriCompareAsc_(a.kanri, b.kanri);
-    }
-    if (sortKey === 'price') {
-      var pa = Number(a.salePrice || 0);
-      var pb = Number(b.salePrice || 0);
-      if (pa !== pb) return pb - pa;
-      return kanriCompareAsc_(a.kanri, b.kanri);
-    }
-    // recommend: 発送待ち優先 → 販売日が古い順（=期限が近い順）→ 管理番号昇順
-    var ra = a.status === '発送待ち' ? 0 : 1;
-    var rb = b.status === '発送待ち' ? 0 : 1;
-    if (ra !== rb) return ra - rb;
-    var sa = a.saleDate ? new Date(a.saleDate).getTime() : Number.MAX_SAFE_INTEGER;
-    var sb = b.saleDate ? new Date(b.saleDate).getTime() : Number.MAX_SAFE_INTEGER;
-    if (sa !== sb) return sa - sb;
-    return kanriCompareAsc_(a.kanri, b.kanri);
-  }
-  var groups = Object.create(null);
+  var filterKey = STATE.hassouFilter === 'shipped' ? 'shipped' : 'pending';
+  var targetStatus = filterKey === 'shipped' ? '発送済み' : '発送待ち';
+  // チップに件数を出すため、フィルタ前に両者をカウント
+  var countPending = 0, countShipped = 0;
   items.forEach(function(it){
+    if (it.status === '発送待ち') countPending++;
+    else if (it.status === '発送済み') countShipped++;
+  });
+  var filtered = items.filter(function(it){ return it.status === targetStatus; });
+  // 使用アカウントごとにグループ化
+  var groups = Object.create(null);
+  filtered.forEach(function(it){
     var acc = (it.extra && it.extra['使用アカウント']) || '（未設定）';
     if (!groups[acc]) groups[acc] = [];
     groups[acc].push(it);
@@ -2614,21 +2563,27 @@ function renderHassouGrouped_(items) {
     if (b === '（未設定）') return -1;
     return a.localeCompare(b, 'ja');
   });
-  // タブヘッダ: 並び順切替ボタン（タブ全体共通）
-  var sortLbl = HASSOU_SORT_LABELS[sortKey] || 'おすすめ';
+  // 並び順は固定: 販売日が古い順（=期限が近い順）→ 管理番号昇順
+  function cmp(a, b) {
+    var sa = a.saleDate ? new Date(a.saleDate).getTime() : Number.MAX_SAFE_INTEGER;
+    var sb = b.saleDate ? new Date(b.saleDate).getTime() : Number.MAX_SAFE_INTEGER;
+    if (sa !== sb) return sa - sb;
+    return kanriCompareAsc_(a.kanri, b.kanri);
+  }
+  // タブヘッダ: 発送待ち / 発送済み トグル
   var header = '<div class="tab-toolbar">' +
-    '<button type="button" class="chip chip-menu" onclick="openHassouSortMenu_(event)" title="並び順">' +
-    '⋯ 並び順: ' + esc(sortLbl) + '</button>' +
+    '<button type="button" class="chip' + (filterKey === 'pending' ? ' active' : '') + '"' +
+    ' onclick="setHassouFilter_(\'pending\')">発送待ち' +
+    '<span class="chip-count">' + countPending + '</span></button>' +
+    '<button type="button" class="chip' + (filterKey === 'shipped' ? ' active' : '') + '"' +
+    ' onclick="setHassouFilter_(\'shipped\')">発送済み' +
+    '<span class="chip-count">' + countShipped + '</span></button>' +
   '</div>';
   var groupHtml = accounts.map(function(acc){
     var arr = groups[acc].slice().sort(cmp);
-    var pending = arr.filter(function(x){ return x.status === '発送待ち'; }).length;
-    // <details> ベースで折りたたみ可能に。デフォルトは全グループ展開（ユーザーが必要に応じて折りたたむ）。
-    var openAttr = ' open';
     var summary = '<summary>📮 ' + esc(acc) +
-      '<span class="count">' + arr.length + '件' +
-      (pending ? '（発送待ち ' + pending + '）' : '') + '</span></summary>';
-    return '<details class="group-fold"' + openAttr + '>' + summary +
+      '<span class="count">' + arr.length + '件</span></summary>';
+    return '<details class="group-fold" open>' + summary +
       '<div class="cards-grid">' + arr.map(cardHtml).join('') + '</div>' +
       '</details>';
   }).join('');
