@@ -135,7 +135,7 @@ export async function listProducts(request, env) {
   // zk1000 < zk999 になるので、prefix と数値部を分けて自然数ソートする。
   const sql = (slim ? slimSelect : fullSelect) + `
     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
-    ORDER BY substr(kanri,1,2) DESC, CAST(substr(kanri,3) AS INTEGER) DESC, kanri DESC
+    ORDER BY substr(kanri,1,2) ASC, CAST(substr(kanri,3) AS INTEGER) ASC, kanri ASC
     LIMIT ?
   `;
 
@@ -150,7 +150,7 @@ export async function listProducts(request, env) {
 
   try {
     const fp = await env.DB.prepare(fingerprintSql).bind(...args).first();
-    const etag = `"p${slim ? 'S2' : 'F'}-${fp.cnt}-${fp.maxup}-${limit}"`;
+    const etag = `"p${slim ? 'S3' : 'F2'}-${fp.cnt}-${fp.maxup}-${limit}"`;
 
     // CF Edge は weak ETag (W/"...") に書き換えることがあるため、比較時は W/ プレフィクスを剥がす
     const inm = request.headers.get('If-None-Match') || '';

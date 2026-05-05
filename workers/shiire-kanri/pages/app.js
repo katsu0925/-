@@ -807,18 +807,19 @@ function shouhinChipsHtml_() {
   return '<div class="chips" id="chips">' + html + '</div>';
 }
 
-// kanri 自然数降順比較（zk1002 > zk999）。
-// 形式: 先頭2文字プレフィクス(zk/zY等) + 数字。プレフィクス比較は降順、数字は降順。
-function kanriCompareDesc_(a, b) {
+// kanri 自然数昇順比較（zk999 < zk1002）。
+// 形式: 先頭2文字プレフィクス(zk/zY等) + 数字。プレフィクス比較は昇順、数字は昇順。
+// 数値化できないもの（NaN）は常に末尾。
+function kanriCompareAsc_(a, b) {
   var sa = String(a || ''), sb = String(b || '');
   var pa = sa.slice(0, 2), pb = sb.slice(0, 2);
-  if (pa !== pb) return pb.localeCompare(pa, 'ja');
+  if (pa !== pb) return pa.localeCompare(pb, 'ja');
   var na = parseInt(sa.slice(2), 10);
   var nb = parseInt(sb.slice(2), 10);
-  if (isNaN(na) && isNaN(nb)) return sb.localeCompare(sa, 'ja');
+  if (isNaN(na) && isNaN(nb)) return sa.localeCompare(sb, 'ja');
   if (isNaN(na)) return 1;
   if (isNaN(nb)) return -1;
-  return nb - na;
+  return na - nb;
 }
 
 // 状態（ステータス）の並び順 — chips の業務順を踏襲。未知ステータスは末尾。
@@ -895,32 +896,32 @@ function setDensity_(key) {
 }
 
 // 並び順を items に適用（in-place ソートはせず新配列を返す）
-// 第二キーは常に kanri 自然数降順（仕様: 全タブ共通で kanri 系は降順固定）
+// 第二キーは常に kanri 自然数昇順（仕様: 全タブ共通で kanri 系は昇順固定）
 function applyShouhinSort_(items) {
   if (!items || items.length < 2) return items;
   var key = STATE.shouhinSort || 'kanri';
   var arr = items.slice();
   if (key === 'kanri') {
     // サーバ DESC をクライアント側でも保証
-    arr.sort(function(a,b){ return kanriCompareDesc_(a.kanri, b.kanri); });
+    arr.sort(function(a,b){ return kanriCompareAsc_(a.kanri, b.kanri); });
   } else if (key === 'shiire') {
     // 仕入れ日 = shiireId 降順（新しい仕入れが先頭）
     arr.sort(function(a,b){
       var sa = String(a.shiireId || ''), sb = String(b.shiireId || '');
       if (sa !== sb) return sb.localeCompare(sa, 'ja');
-      return kanriCompareDesc_(a.kanri, b.kanri);
+      return kanriCompareAsc_(a.kanri, b.kanri);
     });
   } else if (key === 'brand') {
     arr.sort(function(a,b){
       var ba = String(a.brand || '〜'), bb = String(b.brand || '〜');
       if (ba !== bb) return ba.localeCompare(bb, 'ja');
-      return kanriCompareDesc_(a.kanri, b.kanri);
+      return kanriCompareAsc_(a.kanri, b.kanri);
     });
   } else if (key === 'status') {
     arr.sort(function(a,b){
       var ra = statusRank_(a.status), rb = statusRank_(b.status);
       if (ra !== rb) return ra - rb;
-      return kanriCompareDesc_(a.kanri, b.kanri);
+      return kanriCompareAsc_(a.kanri, b.kanri);
     });
   } else if (key === 'saleDate') {
     // 販売日新しい順。販売日なしは末尾
@@ -928,19 +929,19 @@ function applyShouhinSort_(items) {
       var ta = a.saleDate ? new Date(a.saleDate).getTime() : -1;
       var tb = b.saleDate ? new Date(b.saleDate).getTime() : -1;
       if (ta !== tb) return tb - ta;
-      return kanriCompareDesc_(a.kanri, b.kanri);
+      return kanriCompareAsc_(a.kanri, b.kanri);
     });
   } else if (key === 'size') {
     arr.sort(function(a,b){
       var sa = String(a.size || '〜'), sb = String(b.size || '〜');
       if (sa !== sb) return sa.localeCompare(sb, 'ja');
-      return kanriCompareDesc_(a.kanri, b.kanri);
+      return kanriCompareAsc_(a.kanri, b.kanri);
     });
   } else if (key === 'color') {
     arr.sort(function(a,b){
       var ca = String(a.color || '〜'), cb = String(b.color || '〜');
       if (ca !== cb) return ca.localeCompare(cb, 'ja');
-      return kanriCompareDesc_(a.kanri, b.kanri);
+      return kanriCompareAsc_(a.kanri, b.kanri);
     });
   }
   return arr;
@@ -2527,7 +2528,7 @@ function resolveCardThumbsTasukibako_() {
 var HASSOU_SORT_LABELS = {
   recommend: 'おすすめ',
   saleDate:  '販売日（新しい順）',
-  kanri:     '管理番号（降順）',
+  kanri:     '管理番号（昇順）',
   price:     '価格（高い順）'
 };
 var HASSOU_SORT_KEYS = ['recommend','saleDate','kanri','price'];
@@ -2566,31 +2567,31 @@ function openHassouSortMenu_(ev) {
 
 function renderHassouGrouped_(items) {
   var sortKey = STATE.hassouSort || 'recommend';
-  // 並び順比較: 使用アカウント内のソートを切替可能。kanri 系は常に自然数降順。
+  // 並び順比較: 使用アカウント内のソートを切替可能。kanri 系は常に自然数昇順。
   function cmp(a, b) {
     if (sortKey === 'kanri') {
-      return kanriCompareDesc_(a.kanri, b.kanri);
+      return kanriCompareAsc_(a.kanri, b.kanri);
     }
     if (sortKey === 'saleDate') {
       var ta = a.saleDate ? new Date(a.saleDate).getTime() : -1;
       var tb = b.saleDate ? new Date(b.saleDate).getTime() : -1;
       if (ta !== tb) return tb - ta;
-      return kanriCompareDesc_(a.kanri, b.kanri);
+      return kanriCompareAsc_(a.kanri, b.kanri);
     }
     if (sortKey === 'price') {
       var pa = Number(a.salePrice || 0);
       var pb = Number(b.salePrice || 0);
       if (pa !== pb) return pb - pa;
-      return kanriCompareDesc_(a.kanri, b.kanri);
+      return kanriCompareAsc_(a.kanri, b.kanri);
     }
-    // recommend: 発送待ち優先 → 販売日が古い順（=期限が近い順）→ 管理番号降順
+    // recommend: 発送待ち優先 → 販売日が古い順（=期限が近い順）→ 管理番号昇順
     var ra = a.status === '発送待ち' ? 0 : 1;
     var rb = b.status === '発送待ち' ? 0 : 1;
     if (ra !== rb) return ra - rb;
     var sa = a.saleDate ? new Date(a.saleDate).getTime() : Number.MAX_SAFE_INTEGER;
     var sb = b.saleDate ? new Date(b.saleDate).getTime() : Number.MAX_SAFE_INTEGER;
     if (sa !== sb) return sa - sb;
-    return kanriCompareDesc_(a.kanri, b.kanri);
+    return kanriCompareAsc_(a.kanri, b.kanri);
   }
   var groups = Object.create(null);
   items.forEach(function(it){
