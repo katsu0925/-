@@ -1,14 +1,28 @@
 // Cron Trigger（5分ごと）: GAS shiire-kanri Web App から商品/仕入れデータを取得し D1 に UPSERT
+//
+// ⚠️ D1 課金事故防止（重要）
+// ────────────────────────────────────────────────────────────
+// 5分 Cron × 5000+行 × INSERT OR REPLACE は月 100M writes 規模になり、
+// 過去 detauri-gas-proxy で $54/月 の課金事故が発生している。
+// このため本ファイルでは 2 段ガードを必須とする:
+//
+//   1. payload 全体の SHA-256 を sync_meta.checksum と比較し、
+//      変化なしなら 5000 行 SELECT すらスキップ（粗粒度・最も安価）
+//   2. 1 で書く必要があると判った場合のみ、既存行の content_hash と
+//      新規行のハッシュを行単位で比較し、変化行だけを UPSERT
+//
+// 新しい同期テーブルを増やす場合も必ずこの 2 段で実装すること。
+// 直 INSERT OR REPLACE / 全行 UPSERT は禁止。
 
 export async function scheduledSync(env) {
   const startedAt = Date.now();
   console.log('[sync] start');
 
-  // 3 系統を並列実行。直列だと products(5000+行)で 12s 超 → waitUntil 30s 上限で
-  // ai_prefill が cancel されるバグが過去にあった。Promise.all で 並列化して max(各系統) に短縮
+  // 3 系統を並列実行。直列だと products(5000+行) で 12s 超 → waitUntil 30s 上限で
+  // ai_prefill が cancel されるバグが過去にあった。Promise.all で max(各系統) に短縮
   await Promise.all([
-    syncOne(env, 'syncDumpProducts', 'products', syncProducts),
-    syncOne(env, 'syncDumpPurchases', 'purchases', syncPurchases),
+    syncOne(env, 'syncDumpProducts',  'products',   syncProducts),
+    syncOne(env, 'syncDumpPurchases', 'purchases',  syncPurchases),
     syncOne(env, 'syncDumpAiPrefill', 'ai_prefill', syncAiPrefill),
   ]);
 
@@ -18,15 +32,29 @@ export async function scheduledSync(env) {
 async function syncOne(env, action, source, applyFn) {
   try {
     const data = await fetchAction(env, action);
-    if (data && data.ok && Array.isArray(data.items)) {
-      await applyFn(env.DB, data.items);
-      await writeMeta(env.DB, source, data.items.length);
-      console.log(`[sync] ${source}=${data.items.length}`);
-    } else {
+    if (!(data && data.ok && Array.isArray(data.items))) {
       console.warn(`[sync] ${source} fetch failed`, data && data.error);
+      return;
     }
+
+    // ─── ガード 1: payload 全体 checksum ───────────────────────
+    // 変化なしなら以降の SELECT/UPSERT を完全にスキップ。
+    const checksum = await sha256Hex(stableStringify(data.items));
+    const meta = await env.DB.prepare(
+      'SELECT checksum FROM sync_meta WHERE source = ?'
+    ).bind(source).first();
+
+    if (meta && meta.checksum === checksum) {
+      console.log(`[sync] ${source}: unchanged (skip), n=${data.items.length}, hash=${checksum.slice(0, 8)}`);
+      return;
+    }
+
+    // ─── ガード 2: 行単位 content_hash で UPSERT 件数を絞る ─────
+    const writeCount = await applyFn(env.DB, data.items);
+    await writeMeta(env.DB, source, data.items.length, checksum);
+    console.log(`[sync] ${source}: total=${data.items.length} writes=${writeCount} hash=${checksum.slice(0, 8)}`);
   } catch (err) {
-    console.error(`[sync] ${source} error`, err && err.message);
+    console.error(`[sync] ${source} error`, err && err.message, err && err.stack);
   }
 }
 
@@ -37,8 +65,9 @@ async function fetchAction(env, action, payload) {
   return res.json();
 }
 
-// GAS Web App の POST フロー: POST /exec → 302 (script.googleusercontent.com/macros/echo?user_content_key=...) → GET でレスポンス取得
-// fetch の redirect:'follow' は標準では POST→GET 変換されるが、Cloudflare Workers では Location を保持しないケースがあるため手動で追従する
+// GAS Web App の POST フロー: POST /exec → 302 → GET でレスポンス取得
+// fetch の redirect:'follow' は標準では POST→GET 変換されるが、Cloudflare Workers では
+// Location を保持しないケースがあるため手動で追従する
 async function postFollowingRedirects(url, body) {
   const first = await fetch(url, {
     method: 'POST',
@@ -57,35 +86,52 @@ async function postFollowingRedirects(url, body) {
   throw new Error('too many redirects');
 }
 
+// ─── products ──────────────────────────────────────────────────
 async function syncProducts(db, rows) {
-  // 安全策: 受信が極端に少ない場合は削除をスキップ（GAS側エラー想定）
+  // 削除対象検出（incoming に居ない既存行）。20% 安全閾値で誤削除を防ぐ。
   const incoming = new Set(rows.map(r => String(r.kanri || '')).filter(Boolean));
-  const { results: existing } = await db.prepare('SELECT kanri FROM products').all();
+  const { results: existing } = await db
+    .prepare('SELECT kanri, content_hash FROM products')
+    .all();
+  const existingHash = new Map(existing.map(r => [r.kanri, r.content_hash]));
+
   if (existing.length > 0 && rows.length < existing.length * 0.2) {
     console.warn(`[sync] skip product delete: incoming=${rows.length} vs existing=${existing.length}`);
   } else {
     const stale = existing.filter(r => !incoming.has(r.kanri)).map(r => r.kanri);
-    const delBatch = 50;
-    for (let i = 0; i < stale.length; i += delBatch) {
-      const batch = stale.slice(i, i + delBatch);
-      const ph = batch.map(() => '?').join(',');
-      await db.prepare(`DELETE FROM products WHERE kanri IN (${ph})`).bind(...batch).run();
+    if (stale.length) {
+      const delBatch = 50;
+      for (let i = 0; i < stale.length; i += delBatch) {
+        const batch = stale.slice(i, i + delBatch);
+        const ph = batch.map(() => '?').join(',');
+        await db.prepare(`DELETE FROM products WHERE kanri IN (${ph})`).bind(...batch).run();
+      }
+      console.log(`[sync] deleted ${stale.length} stale products`);
     }
-    if (stale.length) console.log(`[sync] deleted ${stale.length} stale products`);
   }
 
+  // 行単位 content_hash 比較 → 変化行だけ抽出
   const now = Date.now();
+  const toWrite = [];
+  for (const p of rows) {
+    const hash = await sha256Hex(stableStringify(p));
+    const prev = existingHash.get(String(p.kanri || ''));
+    if (prev !== hash) toWrite.push({ p, hash });
+  }
+
+  if (toWrite.length === 0) return 0;
+
   const batchSize = 50;
-  for (let i = 0; i < rows.length; i += batchSize) {
-    const batch = rows.slice(i, i + batchSize);
-    const stmts = batch.map(p =>
+  for (let i = 0; i < toWrite.length; i += batchSize) {
+    const batch = toWrite.slice(i, i + batchSize);
+    const stmts = batch.map(({ p, hash }) =>
       db.prepare(`
         INSERT OR REPLACE INTO products
           (kanri, shiire_id, worker, status, state, brand, size, color,
            measure_json, measured_at, measured_by,
            sale_date, sale_place, sale_price, sale_shipping, sale_fee, sale_ts,
-           extra_json, row_num, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           extra_json, row_num, updated_at, content_hash)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         String(p.kanri || ''),
         s(p.shiireId), s(p.worker), s(p.status), s(p.state),
@@ -98,39 +144,57 @@ async function syncProducts(db, rows) {
         p.extra ? JSON.stringify(p.extra) : null,
         Number(p.row || 0),
         now,
+        hash,
       )
     );
     await db.batch(stmts);
   }
+  return toWrite.length;
 }
 
+// ─── purchases ─────────────────────────────────────────────────
 async function syncPurchases(db, rows) {
   const incoming = new Set(rows.map(r => String(r.shiireId || '')).filter(Boolean));
-  const { results: existing } = await db.prepare('SELECT shiire_id FROM purchases').all();
+  const { results: existing } = await db
+    .prepare('SELECT shiire_id, content_hash FROM purchases')
+    .all();
+  const existingHash = new Map(existing.map(r => [r.shiire_id, r.content_hash]));
+
   if (existing.length > 0 && rows.length < existing.length * 0.2) {
     console.warn(`[sync] skip purchase delete: incoming=${rows.length} vs existing=${existing.length}`);
   } else {
     const stale = existing.filter(r => !incoming.has(r.shiire_id)).map(r => r.shiire_id);
-    const delBatch = 50;
-    for (let i = 0; i < stale.length; i += delBatch) {
-      const batch = stale.slice(i, i + delBatch);
-      const ph = batch.map(() => '?').join(',');
-      await db.prepare(`DELETE FROM purchases WHERE shiire_id IN (${ph})`).bind(...batch).run();
+    if (stale.length) {
+      const delBatch = 50;
+      for (let i = 0; i < stale.length; i += delBatch) {
+        const batch = stale.slice(i, i + delBatch);
+        const ph = batch.map(() => '?').join(',');
+        await db.prepare(`DELETE FROM purchases WHERE shiire_id IN (${ph})`).bind(...batch).run();
+      }
+      console.log(`[sync] deleted ${stale.length} stale purchases`);
     }
-    if (stale.length) console.log(`[sync] deleted ${stale.length} stale purchases`);
   }
 
   const now = Date.now();
+  const toWrite = [];
+  for (const p of rows) {
+    const hash = await sha256Hex(stableStringify(p));
+    const prev = existingHash.get(String(p.shiireId || ''));
+    if (prev !== hash) toWrite.push({ p, hash });
+  }
+
+  if (toWrite.length === 0) return 0;
+
   const batchSize = 50;
-  for (let i = 0; i < rows.length; i += batchSize) {
-    const batch = rows.slice(i, i + batchSize);
-    const stmts = batch.map(p =>
+  for (let i = 0; i < toWrite.length; i += batchSize) {
+    const batch = toWrite.slice(i, i + batchSize);
+    const stmts = batch.map(({ p, hash }) =>
       db.prepare(`
         INSERT OR REPLACE INTO purchases
           (shiire_id, date, amount, shipping, planned, place, cost, category,
            content, supplier_id, register_user, registered_at, assigned_kanri, processed,
-           row_num, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           row_num, updated_at, content_hash)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).bind(
         String(p.shiireId || ''),
         s(p.date),
@@ -146,53 +210,93 @@ async function syncPurchases(db, rows) {
         p.processed ? 1 : 0,
         Number(p.row || 0),
         now,
+        hash,
       )
     );
     await db.batch(stmts);
   }
+  return toWrite.length;
 }
 
+// ─── ai_prefill ────────────────────────────────────────────────
 async function syncAiPrefill(db, rows) {
-  // 安全策: 受信が極端に少ない場合は削除をスキップ
   const incoming = new Set(rows.map(r => String(r.kanri || '')).filter(Boolean));
-  const { results: existing } = await db.prepare('SELECT kanri FROM ai_prefill').all();
+  const { results: existing } = await db
+    .prepare('SELECT kanri, content_hash FROM ai_prefill')
+    .all();
+  const existingHash = new Map(existing.map(r => [r.kanri, r.content_hash]));
+
   if (existing.length > 0 && rows.length < existing.length * 0.2) {
     console.warn(`[sync] skip ai_prefill delete: incoming=${rows.length} vs existing=${existing.length}`);
   } else {
     const stale = existing.filter(r => !incoming.has(r.kanri)).map(r => r.kanri);
-    const delBatch = 50;
-    for (let i = 0; i < stale.length; i += delBatch) {
-      const batch = stale.slice(i, i + delBatch);
-      const ph = batch.map(() => '?').join(',');
-      await db.prepare(`DELETE FROM ai_prefill WHERE kanri IN (${ph})`).bind(...batch).run();
+    if (stale.length) {
+      const delBatch = 50;
+      for (let i = 0; i < stale.length; i += delBatch) {
+        const batch = stale.slice(i, i + delBatch);
+        const ph = batch.map(() => '?').join(',');
+        await db.prepare(`DELETE FROM ai_prefill WHERE kanri IN (${ph})`).bind(...batch).run();
+      }
+      console.log(`[sync] deleted ${stale.length} stale ai_prefill`);
     }
-    if (stale.length) console.log(`[sync] deleted ${stale.length} stale ai_prefill`);
   }
 
   const now = Date.now();
+  const toWrite = [];
+  for (const p of rows) {
+    const hash = await sha256Hex(stableStringify(p));
+    const prev = existingHash.get(String(p.kanri || ''));
+    if (prev !== hash) toWrite.push({ p, hash });
+  }
+
+  if (toWrite.length === 0) return 0;
+
   const batchSize = 50;
-  for (let i = 0; i < rows.length; i += batchSize) {
-    const batch = rows.slice(i, i + batchSize);
-    const stmts = batch.map(p =>
+  for (let i = 0; i < toWrite.length; i += batchSize) {
+    const batch = toWrite.slice(i, i + batchSize);
+    const stmts = batch.map(({ p, hash }) =>
       db.prepare(`
-        INSERT OR REPLACE INTO ai_prefill (kanri, fields_json, row_num, updated_at)
-        VALUES (?, ?, ?, ?)
+        INSERT OR REPLACE INTO ai_prefill
+          (kanri, fields_json, row_num, updated_at, content_hash)
+        VALUES (?, ?, ?, ?, ?)
       `).bind(
         String(p.kanri || ''),
         p.fields ? JSON.stringify(p.fields) : '{}',
         Number(p.row || 0),
         now,
+        hash,
       )
     );
     await db.batch(stmts);
   }
+  return toWrite.length;
 }
 
-async function writeMeta(db, source, count) {
+// ─── sync_meta ─────────────────────────────────────────────────
+async function writeMeta(db, source, count, checksum) {
   await db.prepare(`
-    INSERT OR REPLACE INTO sync_meta (source, last_sync_at, row_count)
-    VALUES (?, ?, ?)
-  `).bind(source, Date.now(), count).run();
+    INSERT OR REPLACE INTO sync_meta (source, last_sync_at, row_count, checksum)
+    VALUES (?, ?, ?, ?)
+  `).bind(source, Date.now(), count, checksum).run();
+}
+
+// ─── ハッシュユーティリティ ─────────────────────────────────────
+async function sha256Hex(str) {
+  const buf = new TextEncoder().encode(str);
+  const hash = await crypto.subtle.digest('SHA-256', buf);
+  return Array.from(new Uint8Array(hash))
+    .map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// キー順を固定して JSON 化（同一データ → 同一文字列を保証）
+function stableStringify(v) {
+  if (v === null || v === undefined) return 'null';
+  if (Array.isArray(v)) return '[' + v.map(stableStringify).join(',') + ']';
+  if (typeof v === 'object') {
+    const keys = Object.keys(v).sort();
+    return '{' + keys.map(k => JSON.stringify(k) + ':' + stableStringify(v[k])).join(',') + '}';
+  }
+  return JSON.stringify(v);
 }
 
 function s(v) { return v == null ? null : String(v); }

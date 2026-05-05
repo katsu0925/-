@@ -28,7 +28,10 @@ CREATE TABLE IF NOT EXISTS products (
   extra_json TEXT,
 
   row_num INTEGER NOT NULL,           -- シート行番号 (書き戻し用)
-  updated_at INTEGER NOT NULL         -- ms epoch
+  updated_at INTEGER NOT NULL,        -- ms epoch
+  -- 行の SHA-256 ハッシュ。Cron がこの値と新規データのハッシュを比較し、
+  -- 変化行のみ UPSERT する（D1 課金事故防止 / 過去 $54 事故）。
+  content_hash TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
@@ -52,7 +55,8 @@ CREATE TABLE IF NOT EXISTS purchases (
   assigned_kanri TEXT,                -- 割当管理番号 (例 zB1~202)
   processed INTEGER DEFAULT 0,        -- 処理済み (0/1)
   row_num INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
+  updated_at INTEGER NOT NULL,
+  content_hash TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_purchases_date ON purchases(date DESC);
@@ -60,7 +64,10 @@ CREATE INDEX IF NOT EXISTS idx_purchases_date ON purchases(date DESC);
 CREATE TABLE IF NOT EXISTS sync_meta (
   source TEXT PRIMARY KEY,            -- 'products' | 'purchases' | 'ai_prefill'
   last_sync_at INTEGER NOT NULL,
-  row_count INTEGER NOT NULL
+  row_count INTEGER NOT NULL,
+  -- payload 全体の SHA-256。Cron 開始時にこの値が一致すれば
+  -- 行レベル比較すらスキップする粗粒度ガード（D1 課金事故防止）。
+  checksum TEXT
 );
 
 -- AI画像判定シートのミラー（管理番号 → 9項目フィールド）
@@ -69,5 +76,6 @@ CREATE TABLE IF NOT EXISTS ai_prefill (
   kanri TEXT PRIMARY KEY,             -- 管理番号
   fields_json TEXT NOT NULL,          -- {ブランド,タグ表記,性別,カテゴリ1-3,デザイン特徴,カラー,ポケット}
   row_num INTEGER NOT NULL,
-  updated_at INTEGER NOT NULL
+  updated_at INTEGER NOT NULL,
+  content_hash TEXT
 );
