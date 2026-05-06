@@ -5,6 +5,7 @@ import { scheduledAccessSync } from './sync/access-sync.js';
 import { listProducts, getProduct, listProductCounts, getNextKanri, listProductThumbs, getProductImages } from './handlers/products.js';
 import { listPurchases, getPurchaseProducts } from './handlers/purchases.js';
 import { saveMeasurement, saveSale, saveDetails, uploadImage, resolveImage, createPurchase, createProduct } from './handlers/write-proxy.js';
+import { imgProxy } from './handlers/img-proxy.js';
 import { listWorkers, listAccounts, listSuppliers, listPlaces, listCategories, listSettings } from './handlers/master.js';
 import { lookupAiPrefill, lookupAiPrefillBatch } from './handlers/ai.js';
 import { listMoves, createMove, listReturns, createReturn, listAiResults, listSagyousha, saveSagyousha, createSagyousha, dumpSheet, getListingText, appendKeihi, uploadKeihiImage, updateShiireHoukokuQuantity } from './handlers/extras.js';
@@ -135,6 +136,11 @@ export default {
     }
     if (path === '/api/image/resolve' && request.method === 'POST') {
       return resolveImage(request, env, user);
+    }
+
+    // Drive thumbnail プロキシ（CF Edge Cache 24h で 2回目以降 ~50ms）
+    if (path === '/api/img' && request.method === 'GET') {
+      return imgProxy(request, env, ctx);
     }
 
     // 新規作成（GAS プロキシ）

@@ -2155,19 +2155,26 @@ function onImageFieldFile_(file, fieldId, fieldName) {
   });
 }
 
-// Drive の uc?id=... は <img> から直接表示できないため thumbnail?id=&sz=wXXX に正規化
-// size 省略時は w800（詳細）。一覧サムネは w200 を明示指定して 5000件×800→200 で帯域 1/16
+// Drive 画像URL → Workers プロキシ /api/img?id=...&sz=wXXX に正規化。
+// プロキシ経由にすることで CF Edge Cache が効き、2回目以降 ~50ms で表示できる
+// （Drive の thumbnail エンドポイントは CDN 非経由で 1〜3秒/枚かかる）。
+// size 省略時は w800（詳細）。一覧サムネは w200。
+// プロキシで許容される sz は w100〜w2000 の離散値（src/handlers/img-proxy.js 参照）。
 function normalizeDriveUrl_(url, size) {
   if (!url) return url;
   var sz = size || 800;
+  var id = '';
   var m = url.match(/^https?:\/\/drive\.google\.com\/uc\?(?:.*&)?id=([^&]+)/);
-  if (m) return 'https://drive.google.com/thumbnail?id=' + m[1] + '&sz=w' + sz;
-  var m2 = url.match(/^https?:\/\/drive\.google\.com\/file\/d\/([^/]+)/);
-  if (m2) return 'https://drive.google.com/thumbnail?id=' + m2[1] + '&sz=w' + sz;
-  // 既に thumbnail URL の場合は sz パラメータを書き換え
-  if (/^https?:\/\/drive\.google\.com\/thumbnail/.test(url) && size) {
-    return url.replace(/([?&])sz=w\d+/, '$1sz=w' + sz);
+  if (m) id = m[1];
+  if (!id) {
+    var m2 = url.match(/^https?:\/\/drive\.google\.com\/file\/d\/([^/]+)/);
+    if (m2) id = m2[1];
   }
+  if (!id) {
+    var m3 = url.match(/^https?:\/\/drive\.google\.com\/thumbnail\?(?:.*&)?id=([^&]+)/);
+    if (m3) id = m3[1];
+  }
+  if (id) return '/api/img?id=' + encodeURIComponent(id) + '&sz=w' + sz;
   return url;
 }
 
@@ -2519,12 +2526,14 @@ function resolveCardThumbsTasukibako_() {
       }).then(function(r){ return r.ok ? r.json() : null; })
         .then(function(res){
           var items = (res && res.items) || {};
+          var resolvedUrls = [];
           slice.forEach(function(k){
             var ck = 'tbthumb:v1:' + k;
             var url = items[k];
             if (url) {
               try { sessionStorage.setItem(ck, url); } catch(e) {}
               var smallUrl = normalizeDriveUrl_(url, 200);
+              resolvedUrls.push(smallUrl);
               document.querySelectorAll('.card-thumb.img-tasukibako[data-kanri="' + k.replace(/"/g,'\\"') + '"]').forEach(function(el){
                 el.classList.remove('img-tasukibako');
                 el.innerHTML = '<img src="' + esc(smallUrl) + '" alt="" loading="lazy" decoding="async">';
@@ -2534,8 +2543,36 @@ function resolveCardThumbsTasukibako_() {
               try { sessionStorage.setItem(ck, '__none__'); } catch(e) {}
             }
           });
+          // CF Edge Cache のプリ温め: lazy 範囲外の画像も先に /api/img で取得して
+          // 次にスクロールしてきたとき即時表示できるようにする（同時 8 並列で過負荷回避）。
+          prefetchImgUrls_(resolvedUrls);
         }).catch(function(){ /* 静かに失敗（📷 のまま） */ });
     })(pendingKanris.slice(i, i + BATCH));
+  }
+}
+
+// /api/img プロキシを介して画像を先読みし、CF Edge Cache を温める。
+// fetch + no-cors で keepalive、同時並列を絞って Workers / Drive を過負荷にしないようにする。
+var __prefetchQueue = [];
+var __prefetchActive = 0;
+var __PREFETCH_PARALLEL = 8;
+function prefetchImgUrls_(urls) {
+  if (!urls || !urls.length) return;
+  for (var i = 0; i < urls.length; i++) {
+    if (urls[i] && urls[i].indexOf('/api/img') === 0) __prefetchQueue.push(urls[i]);
+  }
+  pumpPrefetchQueue_();
+}
+function pumpPrefetchQueue_() {
+  while (__prefetchActive < __PREFETCH_PARALLEL && __prefetchQueue.length) {
+    var u = __prefetchQueue.shift();
+    __prefetchActive++;
+    fetch(u, { method: 'GET', credentials: 'same-origin', cache: 'force-cache' })
+      .catch(function(){ /* 失敗は無視 */ })
+      .then(function(){
+        __prefetchActive--;
+        pumpPrefetchQueue_();
+      });
   }
 }
 
