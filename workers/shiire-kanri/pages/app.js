@@ -93,6 +93,68 @@ document.addEventListener('visibilitychange', function(){
 });
 window.addEventListener('pagehide', warmApiCachesViaSW_);
 
+// 起動時に全タブの API をバックグラウンドで先読みして TAB_CACHE / LIST_CACHE に格納する。
+// 各 render*List() は「キャッシュあれば即時描画 → 裏で再取得」になっているので、
+// 起動直後に温めておけば初回タブ切替から即時描画される。
+// 同時接続は 2 本に絞り、モバイル帯域とサーバー負荷を圧迫しない。
+// アクティブタブは通常フローで取得済みなのでスキップ。
+var __prewarmDone = false;
+async function prewarmAllTabs_() {
+  if (__prewarmDone) return;
+  __prewarmDone = true;
+  var tasks = [];
+  if (STATE.tab !== 'shouhin') tasks.push({
+    url: '/api/products?limit=10000&mode=list&noSold=1',
+    apply: function(res){ LIST_CACHE['shouhin||'] = { items: res.items || [], ts: Date.now() }; }
+  });
+  if (STATE.tab !== 'hassou') tasks.push({
+    url: '/api/products?limit=10000&mode=list&filter=hassou',
+    apply: function(res){ LIST_CACHE['hassou|hassou|'] = { items: res.items || [], ts: Date.now() }; }
+  });
+  if (STATE.tab !== 'shiire') tasks.push({
+    url: '/api/purchases?limit=300',
+    apply: function(res){ TAB_CACHE['shiire'] = { data: res.items || [], ts: Date.now() }; }
+  });
+  if (STATE.tab !== 'basho') tasks.push({
+    url: '/api/moves?limit=200',
+    apply: function(res){ TAB_CACHE['basho'] = { data: res.items || [], ts: Date.now() }; }
+  });
+  if (STATE.tab !== 'hensou') tasks.push({
+    url: '/api/returns?limit=200',
+    apply: function(res){ TAB_CACHE['hensou'] = { data: res.items || [], ts: Date.now() }; }
+  });
+  if (STATE.isAdmin && STATE.tab !== 'uriage') tasks.push({
+    url: '/api/sales/summary',
+    apply: function(res){ TAB_CACHE['uriage'] = { data: res, ts: Date.now() }; }
+  });
+  if (STATE.isAdmin && STATE.tab !== 'sagyou') tasks.push({
+    url: '/api/sagyousha?months=6',
+    apply: function(res){
+      TAB_CACHE['sagyou'] = {
+        data: {
+          workers: res.items || [],
+          months: res.months || [],
+          currentUser: res.currentUser || { email: '', isAdmin: false }
+        },
+        ts: Date.now()
+      };
+    }
+  });
+
+  var i = 0;
+  async function worker() {
+    while (i < tasks.length) {
+      var t = tasks[i++];
+      try {
+        var res = await api(t.url);
+        t.apply(res);
+      } catch (e) { console.warn('[prewarm]', t.url, e && e.message || e); }
+    }
+  }
+  await Promise.all([worker(), worker()]);
+  try { persistTabCacheNow_(); persistListCacheNow_(); } catch(e) {}
+}
+
 // P2 #93: スクロール方向に応じて appbar を隠す/表示する
 (function setupAppbarHideOnScroll_(){
   var lastY = 0;
@@ -753,6 +815,13 @@ window.addEventListener('DOMContentLoaded', async function(){
     startPolling();
     // 前セッションでオフライン時に積まれた保存をバックグラウンド再送
     setTimeout(flushOutbox_, 1500);
+    // 全タブのデータを先読み: 可視タブの初回描画(1.5秒)を待ち、
+    // かつ resolveSelfName_ で isAdmin の真値が来てから admin タブも温める。
+    setTimeout(function(){
+      Promise.resolve(STATE.userNamePromise).finally(function(){
+        prewarmAllTabs_();
+      });
+    }, 1500);
   } catch (err) {
     toast('認証エラー: ' + err.message, 'error');
     renderDenied();
