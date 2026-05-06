@@ -615,9 +615,10 @@
     padding-bottom: env(safe-area-inset-bottom);
   }
   .bottomnav::-webkit-scrollbar { display: none; }
-  .bottomnav-inner { display: inline-flex; height: 64px; }
+  /* width:100% + flex:1 で均等分散。タブ数 ×72px が画面幅を超えると親 .bottomnav の overflow-x:auto でスクロール */
+  .bottomnav-inner { display: flex; width: 100%; height: 64px; }
   .bottomnav button {
-    min-width: 72px; height: 64px; min-height: 56px; border: none; background: none;
+    flex: 1 1 0; min-width: 72px; height: 64px; min-height: 56px; border: none; background: none;
     display: inline-flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 3px; color: var(--text-sub); font-size: 11px; cursor: pointer; padding: 8px 6px;
     position: relative;
