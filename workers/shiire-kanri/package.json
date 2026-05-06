@@ -9,5 +9,9 @@
     "db:apply": "wrangler d1 execute shiire-kanri-db --remote --file sql/schema.sql",
     "db:apply:local": "wrangler d1 execute shiire-kanri-db --local --file sql/schema.sql",
     "pages:deploy": "wrangler pages deploy pages --project-name=wholesale-kanri"
+  },
+  "dependencies": {
+    "@jsquash/jpeg": "^1.5.0",
+    "@jsquash/resize": "^2.1.0"
   }
 }

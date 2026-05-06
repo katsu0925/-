@@ -2196,6 +2196,18 @@ function normalizeDriveUrl_(url, size) {
     if (m3) id = m3[1];
   }
   if (id) return '/api/img?id=' + encodeURIComponent(id) + '&sz=w' + sz;
+
+  // R2 商品画像（タスキ箱経由）— 一覧サムネ用に /api/thumb プロキシでリサイズ
+  // size 省略時 (=800, 詳細表示) は原本パススルー。詳細はモーダル拡大もあるので原寸で OK
+  if (sz <= 400) {
+    var rm = url.match(/(?:^https?:\/\/[^/]+)?(\/images\/products\/[\w-]+\/[\w-]+\.jpe?g)/i);
+    if (rm) {
+      var key = rm[1].replace(/^\/images\//, ''); // products/<managedId>/<uuid>.jpg
+      // 許容サイズ (100/160/200/240/320/400) に丸める
+      var w = sz <= 100 ? 100 : sz <= 160 ? 160 : sz <= 200 ? 200 : sz <= 240 ? 240 : sz <= 320 ? 320 : 400;
+      return '/api/thumb?key=' + encodeURIComponent(key) + '&w=' + w;
+    }
+  }
   return url;
 }
 

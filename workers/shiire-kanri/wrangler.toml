@@ -40,6 +40,14 @@ id = "39aa093878e7425da7ecedcd31b7d274"
 binding = "GAS_PROXY_CACHE"
 id = "9a4f7973bc644ab086397fd71564985f"
 
+# R2 Bucket（gas-proxy 共有 — タスキ箱由来の商品画像サムネ動的生成用）
+# 用途: GET /api/thumb?key=products/<managedId>/<uuid>.jpg&w=200
+#  R2 から原本(1200×1200, ~170KB)を取得 → WASM で 200px 縮小 → caches.default 24h
+#  発送/商品タブのサムネ初回 173KB → ~6KB に削減（一覧 22 件で 3.8MB → 130KB）
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "detauri-images"
+
 # Secrets (wrangler secret put で設定)
 # - GAS_API_URL          : shiire-kanri GAS Web App URL (deploy ID 含む /exec)
 # - SYNC_SECRET          : GAS との共通シークレット (Sheets ダンプ・書き込み認可)

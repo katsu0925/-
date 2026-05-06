@@ -6,6 +6,7 @@ import { listProducts, getProduct, listProductCounts, getNextKanri, listProductT
 import { listPurchases, getPurchaseProducts } from './handlers/purchases.js';
 import { saveMeasurement, saveSale, saveDetails, uploadImage, resolveImage, createPurchase, createProduct } from './handlers/write-proxy.js';
 import { imgProxy } from './handlers/img-proxy.js';
+import { thumbProxy } from './handlers/thumb-proxy.js';
 import { listWorkers, listAccounts, listSuppliers, listPlaces, listCategories, listSettings } from './handlers/master.js';
 import { lookupAiPrefill, lookupAiPrefillBatch } from './handlers/ai.js';
 import { listMoves, createMove, listReturns, createReturn, listAiResults, listSagyousha, saveSagyousha, createSagyousha, dumpSheet, getListingText, appendKeihi, uploadKeihiImage, updateShiireHoukokuQuantity } from './handlers/extras.js';
@@ -141,6 +142,11 @@ export default {
     // Drive thumbnail プロキシ（CF Edge Cache 24h で 2回目以降 ~50ms）
     if (path === '/api/img' && request.method === 'GET') {
       return imgProxy(request, env, ctx);
+    }
+    // R2 (タスキ箱由来) サムネ動的リサイズプロキシ（Wasm + caches.default 24h）
+    // 一覧 22 件で原本 3.8MB → 130KB に削減。詳細表示(原本)は wholesale.nkonline-tool.com 直
+    if (path === '/api/thumb' && request.method === 'GET') {
+      return thumbProxy(request, env, ctx);
     }
 
     // 新規作成（GAS プロキシ）

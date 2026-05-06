@@ -9,7 +9,7 @@
 //  - VERSION を上げると activate 時に旧キャッシュを全削除
 //  - skipWaiting + clients.claim で即時切替、controllerchange でクライアントが UI 通知
 
-const VERSION = 'sk-2026-05-06-v101';
+const VERSION = 'sk-2026-05-06-v102';
 const SHELL_CACHE = 'shell-' + VERSION;
 const API_CACHE   = 'api-' + VERSION;
 
@@ -228,6 +228,8 @@ self.addEventListener('fetch', (event) => {
   // 画像プロキシは SW を介さずブラウザ HTTP cache（24h immutable）に任せる
   // SW networkFirst を通すと毎回往復が発生して 1〜3秒/枚になる
   if (url.pathname === '/api/img') return;
+  // R2 サムネ動的リサイズも同様（Wasm + caches.default が CF Edge で 24h キャッシュ）
+  if (url.pathname === '/api/thumb') return;
 
   // HTML（SPA エントリ）は network-first
   // ナビゲーションリクエストは Accept: text/html
