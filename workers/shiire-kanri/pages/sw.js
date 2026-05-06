@@ -9,7 +9,7 @@
 //  - VERSION を上げると activate 時に旧キャッシュを全削除
 //  - skipWaiting + clients.claim で即時切替、controllerchange でクライアントが UI 通知
 
-const VERSION = 'sk-2026-05-06-v100';
+const VERSION = 'sk-2026-05-06-v101';
 const SHELL_CACHE = 'shell-' + VERSION;
 const API_CACHE   = 'api-' + VERSION;
 
@@ -225,6 +225,9 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname === '/sw-update.js') return;
   if (url.pathname.startsWith('/cdn-cgi/')) return;
   if (url.pathname.startsWith('/admin/')) return;
+  // 画像プロキシは SW を介さずブラウザ HTTP cache（24h immutable）に任せる
+  // SW networkFirst を通すと毎回往復が発生して 1〜3秒/枚になる
+  if (url.pathname === '/api/img') return;
 
   // HTML（SPA エントリ）は network-first
   // ナビゲーションリクエストは Accept: text/html

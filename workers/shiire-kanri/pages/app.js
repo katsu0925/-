@@ -603,6 +603,22 @@ function applyAdminVisibility_() {
   try { document.body.classList.toggle('is-admin', !!STATE.isAdmin); } catch(e) {}
 }
 
+// 直近の isAdmin 判定結果をメール単位で localStorage キャッシュ。
+// /api/sagyousha は GAS 往復（数秒）でタブ表示が遅いので、起動直後に
+// この値で楽観適用 → 真の値が来たら上書き、というフローで即時化する。
+function readCachedIsAdmin_(email) {
+  try {
+    var v = localStorage.getItem('shiire-kanri:isAdmin:' + (email || '').toLowerCase());
+    return v === '1';
+  } catch(e) { return false; }
+}
+function writeCachedIsAdmin_(email, isAdmin) {
+  try {
+    var key = 'shiire-kanri:isAdmin:' + (email || '').toLowerCase();
+    localStorage.setItem(key, isAdmin ? '1' : '0');
+  } catch(e) {}
+}
+
 // 業務メニュー（仕入れ数報告 / 経費申請 / 報酬確認）で「自分の行」を絞り込むために必須
 // LocalStorage で手動選択（業務メニュー用）の名前をオーバーライド可能。
 async function resolveSelfName_() {
@@ -628,6 +644,7 @@ async function resolveSelfName_() {
       STATE.userNameOverride = false;
     }
     STATE.isAdmin = !!(r.currentUser && r.currentUser.isAdmin);
+    writeCachedIsAdmin_(email, STATE.isAdmin);
     applyAdminVisibility_();
     console.info('[resolveSelfName_] email=' + email + ' resolved=' + (resolved || '(none)') + ' applied=' + (STATE.userName || '(none)') + ' workers=' + items.length);
   } catch (err) {
@@ -719,6 +736,10 @@ window.addEventListener('DOMContentLoaded', async function(){
     STATE.allowed = !!STATE.email;
     document.getElementById('drawer-email').textContent = STATE.email || '未取得';
     if (!STATE.allowed) { renderDenied(); return; }
+    // 起動時点で localStorage の isAdmin を楽観適用 → 管理者タブが瞬時に出る。
+    // 後段の resolveSelfName_（GAS 往復）で真の値が来たら上書きされる。
+    STATE.isAdmin = readCachedIsAdmin_(STATE.email);
+    applyAdminVisibility_();
     // マスタ取得は一覧表示には不要なのでバックグラウンドで実行（フォーム/詳細を開く時に await）
     STATE.mastersPromise = loadMasters();
     // 自分の名前は業務メニューで必要。バックグラウンドで取得しつつ、業務タブ描画時には await
@@ -5074,11 +5095,17 @@ async function resolveDetailTasukibakoImages_(kanri) {
 
 function renderTasukibakoImages_(holders, urls) {
   if (!urls || !urls.length) return;
+  var proxied = [];
   var html = urls.map(function(u){
-    var safeUrl = esc(u).replace(/\'/g,"\\'");
-    return '<button type="button" class="basic-img" onclick="openImageModal_(\'' + safeUrl + '\')" title="商品画像"><img src="' + esc(u) + '" alt="商品画像" loading="lazy" decoding="async"></button>';
+    // Drive URL は /api/img プロキシ経由に正規化（CF Edge Cache で 2回目以降即時表示）
+    var pu = normalizeDriveUrl_(u, 800);
+    proxied.push(pu);
+    var safeUrl = esc(pu).replace(/\'/g,"\\'");
+    return '<button type="button" class="basic-img" onclick="openImageModal_(\'' + safeUrl + '\')" title="商品画像"><img src="' + esc(pu) + '" alt="商品画像" loading="eager" decoding="async"></button>';
   }).join('');
   Array.prototype.forEach.call(holders, function(h){ h.innerHTML = html; });
+  // 詳細を開いた瞬間に全画像を即時取得 → 拡大表示時もキャッシュ済みで瞬時
+  prefetchImgUrls_(proxied);
 }
 
 // querySelector 用の簡易エスケープ（kanri は英数字想定だが安全側で）
