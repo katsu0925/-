@@ -27,7 +27,7 @@ export function getUploadPageHtml() {
 <title>タスキ箱 | デタウリ</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#333;line-height:1.5;padding-bottom:calc(64px + 14px + 100px + env(safe-area-inset-bottom))}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#333;line-height:1.5;padding-bottom:calc(64px + 16px + 100px + env(safe-area-inset-bottom))}
 .container{max-width:600px;margin:0 auto;padding:16px}
 h1{font-size:20px;text-align:center;padding:16px 0;color:#1a1a2e}
 h2{font-size:16px;color:#1a1a2e;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #e5e7eb}
@@ -68,12 +68,12 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 .list-check{width:20px;height:20px;accent-color:#3b82f6}
 .dl-status{font-size:11px;color:#10b981;display:none}
 .dl-status.show{display:inline}
-.bottomnav{position:fixed;bottom:calc(14px + env(safe-area-inset-bottom));left:12px;right:12px;background:#fff;border:1px solid #e5e7eb;border-radius:18px;height:64px;z-index:100;box-shadow:0 6px 20px rgba(0,0,0,.12);overflow:hidden;display:none}
+.bottomnav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e5e7eb;height:calc(64px + 16px + env(safe-area-inset-bottom));z-index:100;box-shadow:0 -2px 12px rgba(0,0,0,.06);padding-bottom:calc(16px + env(safe-area-inset-bottom));display:none}
 .bottomnav.show{display:block}
-.bottomnav-inner{display:flex;width:100%;height:64px;max-width:576px;margin:0 auto}
+.bottomnav-inner{display:flex;width:100%;height:64px;max-width:600px;margin:0 auto}
 .bottomnav button{flex:1 1 0;min-width:72px;height:64px;border:none;background:none;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:#6b7280;font-size:11px;cursor:pointer;padding:8px 6px;position:relative;transition:color .12s}
 .bottomnav button.active{color:#3b82f6;font-weight:600}
-.bottomnav button.active::after{content:'';position:absolute;top:6px;left:14px;right:14px;height:3px;background:#3b82f6;border-radius:3px}
+.bottomnav button.active::after{content:'';position:absolute;top:0;left:12px;right:12px;height:3px;background:#3b82f6;border-radius:0 0 3px 3px}
 .bottomnav button .ico{font-size:22px;line-height:1;display:inline-flex;align-items:center;justify-content:center}
 .bottomnav button .lbl{font-size:10px;font-weight:500}
 .bottomnav button .nav-badge{position:absolute;top:8px;right:calc(50% - 22px);background:#ef4444;color:#fff;font-size:10px;line-height:1;padding:2px 5px;border-radius:8px;min-width:16px;text-align:center;font-weight:700}
@@ -101,7 +101,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 .img-check-wrap{position:relative}
 .img-check-wrap input[type=checkbox]{position:absolute;top:4px;left:4px;z-index:2;width:18px;height:18px;accent-color:#3b82f6}
 .img-check-wrap .badge{left:auto;right:2px}
-.sticky-footer{position:fixed;bottom:calc(64px + 14px + 8px + env(safe-area-inset-bottom));left:0;right:0;background:#fff;border-top:1px solid #e5e7eb;padding:12px 16px;z-index:50;display:none}
+.sticky-footer{position:fixed;bottom:calc(64px + 16px + env(safe-area-inset-bottom));left:0;right:0;background:#fff;border-top:1px solid #e5e7eb;padding:12px 16px;z-index:50;display:none}
 .sticky-footer.show{display:block}
 .sticky-footer .footer-inner{max-width:600px;margin:0 auto;display:flex;gap:8px}
 .sticky-footer .footer-inner .btn{flex:1;margin:0;padding:10px;font-size:14px}
