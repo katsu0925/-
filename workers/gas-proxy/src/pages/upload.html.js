@@ -15,10 +15,11 @@ export function getUploadPageHtml() {
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="apple-touch-icon" href="/tasukibako-apple-touch-icon.png">
 <link rel="manifest" href="/manifest.json">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@700&display=swap">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@700&display=swap">
+<!-- 重い外部資源は使う直前に動的import。事前接続のみ確立して RTT を稼ぐ -->
+<link rel="dns-prefetch" href="https://esm.sh">
+<link rel="preconnect" href="https://esm.sh" crossorigin>
+<link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
 <meta name="theme-color" content="#3b82f6">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -26,7 +27,7 @@ export function getUploadPageHtml() {
 <title>タスキ箱 | デタウリ</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#333;line-height:1.5;padding-bottom:calc(80px + env(safe-area-inset-bottom))}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#333;line-height:1.5;padding-bottom:calc(64px + 80px + env(safe-area-inset-bottom))}
 .container{max-width:600px;margin:0 auto;padding:16px}
 h1{font-size:20px;text-align:center;padding:16px 0;color:#1a1a2e}
 h2{font-size:16px;color:#1a1a2e;margin-bottom:12px;padding-bottom:8px;border-bottom:2px solid #e5e7eb}
@@ -67,9 +68,18 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 .list-check{width:20px;height:20px;accent-color:#3b82f6}
 .dl-status{font-size:11px;color:#10b981;display:none}
 .dl-status.show{display:inline}
-.tab-bar{display:flex;gap:4px;margin-bottom:12px;background:#f3f4f6;border-radius:10px;padding:4px;overflow-x:auto;-webkit-overflow-scrolling:touch;flex-wrap:nowrap}
-.tab{flex:none;min-width:70px;padding:8px;text-align:center;font-size:13px;font-weight:600;border:none;background:transparent;border-radius:8px;cursor:pointer;color:#666;white-space:nowrap}
-.tab.active{background:#fff;color:#1a1a2e;box-shadow:0 1px 2px rgba(0,0,0,.1)}
+.bottomnav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e5e7eb;height:calc(64px + env(safe-area-inset-bottom));z-index:100;box-shadow:0 -2px 8px rgba(0,0,0,.06);padding-bottom:env(safe-area-inset-bottom);display:none}
+.bottomnav.show{display:block}
+.bottomnav-inner{display:flex;width:100%;height:64px;max-width:600px;margin:0 auto}
+.bottomnav button{flex:1 1 0;min-width:72px;height:64px;border:none;background:none;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:#6b7280;font-size:11px;cursor:pointer;padding:8px 6px;position:relative;transition:color .12s}
+.bottomnav button.active{color:#3b82f6;font-weight:600}
+.bottomnav button.active::after{content:'';position:absolute;top:0;left:12px;right:12px;height:3px;background:#3b82f6;border-radius:0 0 3px 3px}
+.bottomnav button .ico{font-size:22px;line-height:1;display:inline-flex;align-items:center;justify-content:center}
+.bottomnav button .lbl{font-size:10px;font-weight:500}
+.bottomnav button .nav-badge{position:absolute;top:8px;right:calc(50% - 22px);background:#ef4444;color:#fff;font-size:10px;line-height:1;padding:2px 5px;border-radius:8px;min-width:16px;text-align:center;font-weight:700}
+.app-header{position:relative;display:flex;align-items:center;justify-content:flex-end;padding:12px 0 8px;min-height:44px}
+.app-header h1{position:absolute;left:0;right:0;padding:0;font-size:20px;color:#1a1a2e;text-align:center;pointer-events:none}
+.app-header .hdr-icons{display:flex;gap:2px;align-items:center;flex-shrink:0;position:relative;z-index:1}
 .section{display:none}
 .section.active{display:block}
 .auth-wall{text-align:center;padding:40px 16px}
@@ -91,7 +101,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 .img-check-wrap{position:relative}
 .img-check-wrap input[type=checkbox]{position:absolute;top:4px;left:4px;z-index:2;width:18px;height:18px;accent-color:#3b82f6}
 .img-check-wrap .badge{left:auto;right:2px}
-.sticky-footer{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #e5e7eb;padding:12px 16px calc(16px + env(safe-area-inset-bottom));z-index:50;display:none}
+.sticky-footer{position:fixed;bottom:calc(64px + env(safe-area-inset-bottom));left:0;right:0;background:#fff;border-top:1px solid #e5e7eb;padding:12px 16px;z-index:50;display:none}
 .sticky-footer.show{display:block}
 .sticky-footer .footer-inner{max-width:600px;margin:0 auto;display:flex;gap:8px}
 .sticky-footer .footer-inner .btn{flex:1;margin:0;padding:10px;font-size:14px}
@@ -107,7 +117,14 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 </head>
 <body>
 <div class="container">
-  <h1>タスキ箱</h1>
+  <header class="app-header">
+    <h1>タスキ箱</h1>
+    <div class="hdr-icons" id="hdrIcons" style="display:none">
+      <button id="refreshBtn" onclick="doRefresh()" class="hdr-icon" title="更新"><span id="refreshIcon" style="display:inline-flex"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg></span></button>
+      <button id="shareBtn" onclick="shareApp()" class="hdr-icon" style="display:none" title="共有"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 6 12 2 16 6"/><line x1="12" y1="2" x2="12" y2="16"/><path d="M6 10H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1"/></svg></button>
+      <button onclick="showHelpGuide()" class="hdr-icon" title="ヘルプ"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></button>
+    </div>
+  </header>
 
   <!-- 認証フォーム（トークンがあれば初期非表示→検証後に切り替え） -->
   <div id="authSection" class="card auth-wall hidden">
@@ -122,15 +139,6 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 
   <!-- メインUI（認証後に表示） -->
   <div id="mainSection" class="hidden">
-    <div class="tab-bar" style="display:flex;align-items:center">
-      <button class="tab active" onclick="switchTab('upload')" style="flex:1">アップロード <span id="unmatchedBadge" style="display:none;background:#ef4444;color:#fff;font-size:10px;padding:1px 5px;border-radius:8px;margin-left:2px"></span></button>
-      <button class="tab" onclick="switchTab('manage')" style="flex:1">商品管理</button>
-      <div style="display:flex;gap:2px;align-items:center;flex-shrink:0">
-        <button id="refreshBtn" onclick="doRefresh()" class="hdr-icon" title="更新"><span id="refreshIcon" style="display:inline-flex"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg></span></button>
-        <button id="shareBtn" onclick="shareApp()" class="hdr-icon" style="display:none" title="共有"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="8 6 12 2 16 6"/><line x1="12" y1="2" x2="12" y2="16"/><path d="M6 10H5a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7a2 2 0 0 0-2-2h-1"/></svg></button>
-        <button onclick="showHelpGuide()" class="hdr-icon" title="ヘルプ"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></button>
-      </div>
-    </div>
 
     <!-- 撮影者選択モーダル -->
     <div id="photographerModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:100;align-items:center;justify-content:center">
@@ -259,6 +267,21 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
   </div>
 </div>
 
+<!-- ボトム固定ナビ（認証後に表示） -->
+<nav class="bottomnav" id="bottomnav" aria-label="メインタブ">
+  <div class="bottomnav-inner">
+    <button type="button" data-tab="upload" class="active" onclick="switchTab('upload')">
+      <span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg></span>
+      <span class="lbl">アップロード</span>
+      <span id="unmatchedBadge" class="nav-badge" style="display:none"></span>
+    </button>
+    <button type="button" data-tab="manage" onclick="switchTab('manage')">
+      <span class="ico"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
+      <span class="lbl">商品管理</span>
+    </button>
+  </div>
+</nav>
+
 <!-- ローディングポップアップ -->
 <div id="loadingPopup" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:400;align-items:center;justify-content:center">
   <div style="background:#fff;border-radius:12px;padding:20px 28px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.2);max-width:280px">
@@ -279,7 +302,6 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
   <div style="position:absolute;top:env(safe-area-inset-top,12px);right:12px;color:#fff;font-size:32px;cursor:pointer;padding:8px;line-height:1" onclick="closePreview()">✕</div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 // ─── 設定 ───
 var API_BASE = location.origin;
@@ -502,10 +524,14 @@ function _finishRefresh(btn, cb) {
 function showAuth() {
   document.getElementById('authSection').classList.remove('hidden');
   document.getElementById('mainSection').classList.add('hidden');
+  document.getElementById('bottomnav').classList.remove('show');
+  document.getElementById('hdrIcons').style.display = 'none';
 }
 function showMain() {
   document.getElementById('authSection').classList.add('hidden');
   document.getElementById('mainSection').classList.remove('hidden');
+  document.getElementById('bottomnav').classList.add('show');
+  document.getElementById('hdrIcons').style.display = 'flex';
   document.getElementById('footer-upload').classList.add('show');
   var today = new Date();
   var yyyy = today.getFullYear();
@@ -641,11 +667,11 @@ document.getElementById('authBtn').addEventListener('click', function() {
 
 // ─── タブ切り替え ───
 function switchTab(name) {
-  var tabs = document.querySelectorAll('.tab');
+  var tabs = document.querySelectorAll('#bottomnav button[data-tab]');
   var secs = document.querySelectorAll('.section');
   var tabNames = ['upload','manage'];
-  tabs.forEach(function(t, i) {
-    t.classList.toggle('active', tabNames[i] === name);
+  tabs.forEach(function(t) {
+    t.classList.toggle('active', t.getAttribute('data-tab') === name);
   });
   secs.forEach(function(s) { s.classList.toggle('active', s.id === 'sec-' + name); });
   // フッタ切り替え
@@ -841,14 +867,18 @@ function startBgPreload() {
   }).catch(function(e) { console.warn('BG model preload failed:', e); });
 }
 
-// StackBlur ライブラリ（ページ読み込み時にロード）
+// StackBlur ライブラリ（ぼかし機能の初回利用時にロード）
 var _stackBlurLib = null;
-(function() {
-  import('https://esm.sh/stackblur-canvas@2').then(function(m) {
+var _stackBlurLoading = null;
+function ensureStackBlur() {
+  if (_stackBlurLib) return Promise.resolve(_stackBlurLib);
+  if (_stackBlurLoading) return _stackBlurLoading;
+  _stackBlurLoading = import('https://esm.sh/stackblur-canvas@2').then(function(m) {
     _stackBlurLib = m;
-    console.log('StackBlur ready');
-  }).catch(function(e) { console.warn('StackBlur load failed:', e); });
-})();
+    return m;
+  }).catch(function(e) { console.warn('StackBlur load failed:', e); _stackBlurLoading = null; return null; });
+  return _stackBlurLoading;
+}
 
 // Canvas blur（Safari対応: filterが使えない場合はStackBlurで代替）
 function canvasBlur(srcCanvas, blurPx) {
@@ -900,6 +930,9 @@ async function blurSelected() {
     showStatus('uploadStatus', 'ぼかす画像を選択してください', 'err');
     return;
   }
+
+  // StackBlur を初回利用時にロード（Safari等 ctx.filter 未対応環境の保険）
+  await ensureStackBlur();
 
   _blurBusy = true;
   _blurAbort = false;
@@ -2427,6 +2460,9 @@ async function blurManageImages(managedId) {
     targets.push({ url: c.dataset.url, idx: parseInt(c.dataset.imgidx), el: c.closest('.img-check-wrap') });
   });
 
+  // StackBlur を初回利用時にロード（Safari等 ctx.filter 未対応環境の保険）
+  await ensureStackBlur();
+
   // 全画像にスピナー表示
   targets.forEach(function(t) {
     if (!t.el.querySelector('.blur-overlay')) {
@@ -3613,6 +3649,8 @@ function escapeHtml(s) {
     </div>
   </div>
 </div>
+<!-- JSZip は ZIP ダウンロード時のみ使用。async ロードでクリティカルパスから外す -->
+<script async src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>if('serviceWorker' in navigator){navigator.serviceWorker.register('/sw.js').catch(function(){});}</script>
 </body>
 </html>`;
