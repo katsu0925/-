@@ -123,7 +123,7 @@ export default {
       const png32 = 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAApklEQVR4nO2UMQ6AIAxFOYyewuN4Ey/mgdxdHDAOLGBDW34LAz/pRvNem5QQZmZGyLpf0aOecynKTeAP7iJAgV0EanAzAQ7YTYAL/t5Cr0AydeopznE77qgpLji9J/8DDzhMQLLyvLdZQAtuFmiZulkAAVYJoKZWCaDBIgEreFXAYuVsAWswKeAxNSngCVYLIOEiATRYJGAFZwmQZ2KRbuBcoAt8hLz4p+Uq2+hnEwAAAABJRU5ErkJggg==';
       const b64 = url.pathname === '/tasukibako-apple-touch-icon.png' ? png180 : png32;
       const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-      return new Response(bytes, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=0, must-revalidate' } });
+      return new Response(bytes, { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'public, max-age=604800, immutable' } });
     }
 
     // PWA: manifest.json
@@ -281,9 +281,15 @@ self.addEventListener('fetch', e => {
       }
 
       // アップロードページ
+      // HTMLにユーザー固有データは含まれず、認証は localStorage の token で fetch 時に行う。
+      // → CDN edge にキャッシュさせ、2回目以降は Worker を起動せず即時返す。
       if (url.pathname === '/upload') {
         return new Response(getUploadPageHtml(), {
-          headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache, no-store, must-revalidate' },
+          headers: {
+            'Content-Type': 'text/html; charset=utf-8',
+            'Cache-Control': 'public, max-age=300, s-maxage=86400, stale-while-revalidate=604800',
+            'Vary': 'Accept-Encoding',
+          },
         });
       }
 

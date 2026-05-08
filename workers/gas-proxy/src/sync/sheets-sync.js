@@ -345,9 +345,18 @@ async function syncPhotographyData(env) {
     const idsJson = await env.CACHE.get('managed-ids:list');
     const registeredIds = idsJson ? new Set(JSON.parse(idsJson)) : new Set();
 
-    // 各管理番号のメタデータを取得
+    // バッチ上限: GAS の apiSyncImportData は 1回 100s 以内に収める必要があるため
+    // 1Cron で送信する件数を制限する（524 タイムアウト回避）
+    const MAX_BATCH = 25;
+
+    // LIFO: 新しいアップロードを優先処理する
+    // FIFO だと過去の溜まった古いID（既に synced 済み or 商品管理未登録）の skip 処理に
+    // バッチ枠を消費してしまい、直近アップロード分が長時間待たされるため。
+    // pending 末尾＝最新アップロード を先に取り出す
     const entries = [];
-    for (const managedId of pending) {
+    for (let i = pending.length - 1; i >= 0; i--) {
+      if (entries.length >= MAX_BATCH) break;
+      const managedId = pending[i];
       const metaJson = await env.CACHE.get(`photo-meta:${managedId}`);
       if (!metaJson) continue;
       const meta = JSON.parse(metaJson);
@@ -412,7 +421,14 @@ async function syncPhotographyData(env) {
 
     if (photographyData.length === 0 && aiData.length === 0) {
       console.log('[sync] Photography: nothing to send (all synced or no data)');
-      await env.CACHE.delete('photo-meta:pending');
+      // 処理対象 entries 分は pending から取り除く
+      const processedIds = new Set(entries.map(e => e.managedId));
+      const remaining = pending.filter(id => !processedIds.has(id));
+      if (remaining.length > 0) {
+        await env.CACHE.put('photo-meta:pending', JSON.stringify(remaining));
+      } else {
+        await env.CACHE.delete('photo-meta:pending');
+      }
       return;
     }
 
@@ -470,8 +486,17 @@ async function syncPhotographyData(env) {
           }
         }
 
-        await env.CACHE.delete('photo-meta:pending');
-        console.log(`[sync] Photography synced: photo=${photoWritten}/${photographyData.length}, ai=${aiWritten}/${aiData.length}`);
+        // pending は送信した分だけ取り除く（バッチ未送信分は次Cronへ）
+        const sentIds = new Set([...photoSentIds, ...aiSentIds]);
+        // 送信対象だったが GAS が個別失敗したものも sentIds に含まれるが、
+        // photo-meta の synced/aiSynced フラグは未更新のため、autoMatchPhotography で再投入される
+        const remaining = pending.filter(id => !sentIds.has(id));
+        if (remaining.length > 0) {
+          await env.CACHE.put('photo-meta:pending', JSON.stringify(remaining));
+        } else {
+          await env.CACHE.delete('photo-meta:pending');
+        }
+        console.log(`[sync] Photography synced: photo=${photoWritten}/${photographyData.length}, ai=${aiWritten}/${aiData.length}, remaining_pending=${remaining.length}`);
       } else {
         console.error('[sync] Photography sync failed:', result.message);
       }

@@ -255,16 +255,17 @@ async function handleImageUpload(request, env) {
   }
   // 新しい画像がアップされたので同期済みフラグはリセット（再同期対象に戻す）
   meta.synced = false;
+  meta.aiSynced = false;
   await env.CACHE.put(`photo-meta:${managedId}`, JSON.stringify(meta));
 
-  // 未同期リストに追加（商品管理に登録済みの場合のみ）
-  if (managedIdRegistered) {
-    const pendingJson = await env.CACHE.get('photo-meta:pending');
-    const pending = pendingJson ? JSON.parse(pendingJson) : [];
-    if (!pending.includes(managedId)) {
-      pending.push(managedId);
-      await env.CACHE.put('photo-meta:pending', JSON.stringify(pending));
-    }
+  // 未同期リストに追加（未登録でも AI判定先行のため pending 入り）
+  // 商品管理シートへの photographer/photographyDate 書込みは syncPhotographyData 側で
+  // registeredIds でフィルタするので、未登録 ID が紛れ込んでも安全
+  const pendingJson = await env.CACHE.get('photo-meta:pending');
+  const pending = pendingJson ? JSON.parse(pendingJson) : [];
+  if (!pending.includes(managedId)) {
+    pending.push(managedId);
+    await env.CACHE.put('photo-meta:pending', JSON.stringify(pending));
   }
 
   await invalidateListCache(env);
