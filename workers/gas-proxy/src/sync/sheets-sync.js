@@ -338,20 +338,23 @@ async function syncPhotographyData(env) {
     const pending = JSON.parse(pendingJson);
     if (!pending || pending.length === 0) return;
 
+    // 商品管理シートに登録済みの managedId セット（photographyData フィルタ用）
+    // 未登録の場合 photographer/photographyDate は商品管理シートに書けない（importPhotographyData_ がスキップ）
+    // → 未登録分は AI判定のみ実行し、AI画像判定シートに先行書き込みすることで
+    //   AppSheet 側 LOOKUP プリフィルが利く
+    const idsJson = await env.CACHE.get('managed-ids:list');
+    const registeredIds = idsJson ? new Set(JSON.parse(idsJson)) : new Set();
+
     // 各管理番号のメタデータを取得
-    const photographyData = [];
+    const entries = [];
     for (const managedId of pending) {
       const metaJson = await env.CACHE.get(`photo-meta:${managedId}`);
       if (!metaJson) continue;
       const meta = JSON.parse(metaJson);
-      photographyData.push({
-        managedId,
-        photographer: meta.photographer || '',
-        photographyDate: meta.photographyDate || '',
-      });
+      entries.push({ managedId, meta });
     }
 
-    if (photographyData.length === 0) {
+    if (entries.length === 0) {
       await env.CACHE.delete('photo-meta:pending');
       return;
     }
@@ -360,7 +363,8 @@ async function syncPhotographyData(env) {
     // 結果はKVに保存し、GASへの送信時にまとめて含める
     const geminiKey = env.GEMINI_API_KEY || '';
     if (geminiKey) {
-      for (const entry of photographyData) {
+      for (const entry of entries) {
+        if (entry.meta.aiSynced === true) continue;
         const existingAi = await env.CACHE.get(`ai-result:${entry.managedId}`);
         if (existingAi) continue;
         try {
@@ -375,15 +379,45 @@ async function syncPhotographyData(env) {
       }
     }
 
-    // pendingの全managedIdについて、KVに保存されたAI結果を収集
-    const aiResults = [];
-    for (const entry of photographyData) {
-      const cachedAi = await env.CACHE.get(`ai-result:${entry.managedId}`);
-      if (cachedAi) {
-        aiResults.push({ managedId: entry.managedId, ...JSON.parse(cachedAi) });
+    // 送信データを2系統に分ける:
+    //   photographyData: 商品管理に行がある & まだ synced されていないもの
+    //   aiData:          まだ aiSynced されていない & ai-result キャッシュあり
+    const photographyData = [];
+    const photoSentIds = new Set();
+    const aiData = [];
+    const aiSentIds = new Set();
+    for (const entry of entries) {
+      const isRegistered = registeredIds.has(entry.managedId);
+      const photoSynced = entry.meta.synced === true;
+      const aiSynced = entry.meta.aiSynced === true || entry.meta.synced === true;
+      // 既存データ互換: meta.synced=true は AI も書き済みとみなす（移行期）
+
+      if (isRegistered && !photoSynced) {
+        photographyData.push({
+          managedId: entry.managedId,
+          photographer: entry.meta.photographer || '',
+          photographyDate: entry.meta.photographyDate || '',
+        });
+        photoSentIds.add(entry.managedId);
+      }
+
+      if (!aiSynced) {
+        const cachedAi = await env.CACHE.get(`ai-result:${entry.managedId}`);
+        if (cachedAi) {
+          aiData.push({ managedId: entry.managedId, ...JSON.parse(cachedAi) });
+          aiSentIds.add(entry.managedId);
+        }
       }
     }
-    if (aiResults.length > 0) console.log(`[sync] AI判定結果送信: ${aiResults.length}件`);
+
+    if (photographyData.length === 0 && aiData.length === 0) {
+      console.log('[sync] Photography: nothing to send (all synced or no data)');
+      await env.CACHE.delete('photo-meta:pending');
+      return;
+    }
+
+    if (aiData.length > 0) console.log(`[sync] AI判定結果送信: ${aiData.length}件`);
+    if (photographyData.length > 0) console.log(`[sync] 撮影者/日付送信: ${photographyData.length}件`);
 
     // GASに送信
     const gasUrl = env.GAS_API_URL;
@@ -393,8 +427,8 @@ async function syncPhotographyData(env) {
       action: 'apiSyncImportData',
       args: [{
         syncSecret: env.SYNC_SECRET || '',
-        photographyData,
-        aiData: aiResults.length > 0 ? aiResults : undefined,
+        photographyData: photographyData.length > 0 ? photographyData : undefined,
+        aiData: aiData.length > 0 ? aiData : undefined,
       }],
     });
 
@@ -414,45 +448,30 @@ async function syncPhotographyData(env) {
         const photoWritten = result.imported?.photography || 0;
         const aiWritten = result.imported?.aiProduct || 0;
 
-        // 書き込めたものだけクリア。書き込めなかった（行がない）ものはKVに残す
-        const successIds = [];
-        const retryIds = [];
-        for (const managedId of pending) {
-          // photographyDataまたはaiDataで書き込めたかチェック
-          // GASが個別の成功/失敗を返さないため、全体の件数で判断
-          // photography > 0 なら行が存在した = 書き込めた
-          if (photoWritten > 0 || aiWritten > 0) {
-            successIds.push(managedId);
-          } else {
-            retryIds.push(managedId);
-          }
-        }
+        // 全件成功した側だけ synced/aiSynced を立てる。失敗側は次Cronで再試行
+        const photoAllOk = photographyData.length > 0 && photoWritten >= photographyData.length;
+        const aiAllOk = aiData.length > 0 && aiWritten >= aiData.length;
 
-        // 成功分: photo-metaは synced:true を立てて残す（upload一覧で撮影日/撮影者を表示するため）
-        // ai-resultは30日TTLで自動削除されるが、再送信防止のため即時削除
-        for (const mid of successIds) {
+        const touchIds = new Set([...photoSentIds, ...aiSentIds]);
+        for (const mid of touchIds) {
           const metaJson = await env.CACHE.get(`photo-meta:${mid}`);
-          if (metaJson) {
-            try {
-              const meta = JSON.parse(metaJson);
-              meta.synced = true;
-              await env.CACHE.put(`photo-meta:${mid}`, JSON.stringify(meta));
-            } catch (e) {
-              console.error(`[sync] Failed to mark synced for ${mid}: ${e.message}`);
+          if (!metaJson) continue;
+          try {
+            const meta = JSON.parse(metaJson);
+            if (photoAllOk && photoSentIds.has(mid)) meta.synced = true;
+            if (aiAllOk && aiSentIds.has(mid)) {
+              meta.aiSynced = true;
+              // AI送信済みになったら ai-result は不要（再送信防止）
+              await env.CACHE.delete(`ai-result:${mid}`);
             }
+            await env.CACHE.put(`photo-meta:${mid}`, JSON.stringify(meta));
+          } catch (e) {
+            console.error(`[sync] Failed to update sync flags for ${mid}: ${e.message}`);
           }
-          await env.CACHE.delete(`ai-result:${mid}`);
         }
 
-        // pendingリストを更新（リトライ分は残す）
-        if (retryIds.length > 0) {
-          // リトライ分はpendingから外す（autoMatchPhotographyで再検知させる）
-          // photo-metaとai-resultはKVに残す
-          console.log(`[sync] ${retryIds.length} items kept in KV for retry (row not yet created): ${retryIds.join(',')}`);
-        }
         await env.CACHE.delete('photo-meta:pending');
-
-        console.log(`[sync] Photography synced: ${photographyData.length} items, photo=${photoWritten}, ai=${aiWritten}`);
+        console.log(`[sync] Photography synced: photo=${photoWritten}/${photographyData.length}, ai=${aiWritten}/${aiData.length}`);
       } else {
         console.error('[sync] Photography sync failed:', result.message);
       }
@@ -725,9 +744,10 @@ async function updateSyncMeta(db, exportData) {
 async function autoMatchPhotography(env) {
   try {
     // managed-ids:list（商品管理に登録済みの管理番号）
+    // 未登録でも AI判定は走らせる（AppSheet LOOKUP プリフィル用に AI画像判定シートへ先行書き込み）
+    // 商品管理シートへの撮影者/日付書き込みは syncPhotographyData 側で registered のみに限定
     const idsJson = await env.CACHE.get('managed-ids:list');
-    if (!idsJson) return;
-    const registeredIds = new Set(JSON.parse(idsJson));
+    const registeredIds = idsJson ? new Set(JSON.parse(idsJson)) : new Set();
 
     // product-images:index（画像がアップロード済みの管理番号）
     const indexJson = await env.CACHE.get('product-images:index');
@@ -741,36 +761,42 @@ async function autoMatchPhotography(env) {
 
     const newMatches = [];
     for (const managedId of imageIndex) {
-      // 商品管理に登録済み && まだpendingに入っていない
-      if (registeredIds.has(managedId) && !pendingSet.has(managedId)) {
-        // photo-metaまたはai-resultが存在するか確認
-        const metaJson = await env.CACHE.get(`photo-meta:${managedId}`);
-        const aiJson = await env.CACHE.get(`ai-result:${managedId}`);
-        if (!metaJson && !aiJson) continue;
+      if (pendingSet.has(managedId)) continue;
 
-        if (metaJson) {
-          const meta = JSON.parse(metaJson);
-          // 既に同期済み（synced:true）は再送信しない
-          if (meta.synced === true) continue;
-          if (meta.uploadedAt) {
-            const daysDiff = (Date.now() - new Date(meta.uploadedAt).getTime()) / (1000 * 60 * 60 * 24);
-            if (daysDiff > 30) continue;
-          }
+      // photo-metaまたはai-resultが存在するか確認
+      const metaJson = await env.CACHE.get(`photo-meta:${managedId}`);
+      const aiJson = await env.CACHE.get(`ai-result:${managedId}`);
+      if (!metaJson && !aiJson) continue;
+
+      let meta = null;
+      if (metaJson) {
+        try { meta = JSON.parse(metaJson); } catch (e) { meta = null; }
+        if (meta && meta.uploadedAt) {
+          const daysDiff = (Date.now() - new Date(meta.uploadedAt).getTime()) / (1000 * 60 * 60 * 24);
+          if (daysDiff > 30) continue;
         }
-
-        // photo-metaがない場合はai-resultだけの再適用（ダミーのphoto-metaを作成）
-        if (!metaJson && aiJson) {
-          const now = new Date();
-          const todayStr = now.getFullYear() + '/' + String(now.getMonth() + 1).padStart(2, '0') + '/' + String(now.getDate()).padStart(2, '0');
-          await env.CACHE.put(`photo-meta:${managedId}`, JSON.stringify({
-            photographer: '',
-            photographyDate: todayStr,
-            uploadedAt: now.toISOString(),
-          }));
-        }
-
-        newMatches.push(managedId);
       }
+
+      // 互換: 旧 meta.synced=true は「AI も写真も書き済み」として扱う
+      const aiSynced = meta && (meta.aiSynced === true || meta.synced === true);
+      const photoSynced = meta && meta.synced === true;
+      const isRegistered = registeredIds.has(managedId);
+      const needsAi = !aiSynced;
+      const needsPhoto = isRegistered && !photoSynced;
+      if (!needsAi && !needsPhoto) continue;
+
+      // photo-metaがない場合はai-resultだけの再適用（ダミーのphoto-metaを作成）
+      if (!metaJson && aiJson) {
+        const now = new Date();
+        const todayStr = now.getFullYear() + '/' + String(now.getMonth() + 1).padStart(2, '0') + '/' + String(now.getDate()).padStart(2, '0');
+        await env.CACHE.put(`photo-meta:${managedId}`, JSON.stringify({
+          photographer: '',
+          photographyDate: todayStr,
+          uploadedAt: now.toISOString(),
+        }));
+      }
+
+      newMatches.push(managedId);
     }
 
     if (newMatches.length > 0) {
@@ -1364,7 +1390,7 @@ const AI_PRODUCT_PROMPT = `あなたは古着の商品情報を画像から判�
   "color": "カラー（必ず選択肢から1つ選ぶ。該当なしなら『その他』）",
   "pocket": "ポケット（あり または なし を必ず出力。null禁止）",
   "defectDetail": "傷汚れ詳細。明確な汚れ・穴・破れ・シミのみ記載。自然な使用感や軽いシワ、通常の着用感、色褪せ程度の使用感は記載しない。該当なしはnull",
-  "keywords": "メルカリ検索用キーワード 半角スペース区切り 3〜8語。以下は絶対に含めないこと（違反しやすいので注意）: ブランド名（例: ユニクロ、GU、無印）/色名（例: 黒、ネイビー、ブラック系、白系）/サイズ（例: M、L、XL、フリー）/素材（例: コットン、ポリエステル、ウール、デニム）"
+  "keywords": "メルカリ検索用キーワード 半角スペース区切り 3〜8語。【絶対禁止】(1) ブランド名（例: ユニクロ、GU、無印） (2) 色名（例: 黒、ネイビー、ブラック、ホワイト系。漢字/カタカナ/英字すべて） (3) サイズ（例: M、L、XL、フリー） (4) 素材（例: コットン、ポリエステル、ウール、デニム） (5) カテゴリ語をそのまま再掲（例: アイテムが『ワンピース』なら『ワンピース』を入れない）。【重複禁止】語同士で部分一致・包含関係になるものは出力しない（例: 『ロゴ』と『ロゴ刺繍』は同居禁止、長い具体語のみ採用）。同義語の重複も禁止（例: 『花柄』と『フローラル』）。【優先方針】抽象語より具体語を優先し（『デザイン』より『前結び』『シースルー』）、検索流入につながるシルエット・着丈・ディテール・テイスト語を選ぶ。"
 }`;
 
 async function runGeminiJudgment(env, managedId, apiKey) {
