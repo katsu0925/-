@@ -21,7 +21,7 @@ import * as holds from './handlers/holds.js';
 import * as coupon from './handlers/coupon.js';
 import * as mypage from './handlers/mypage.js';
 import * as submit from './handlers/submit.js';
-import { scheduledSync, batchAiJudgment, restorePhotoMetaFromGas, reprocessSingleAi, bulkReprocessAi, runReorderDryrun } from './sync/sheets-sync.js';
+import { scheduledSync, batchAiJudgment, restorePhotoMetaFromGas, reprocessSingleAi, bulkReprocessAi, runReorderDryrun, runReorderApply } from './sync/sheets-sync.js';
 import { handleUpload, serveImage } from './handlers/upload.js';
 import { getUploadPageHtml } from './pages/upload.html.js';
 import * as kitHandler from './handlers/kit.js';
@@ -205,6 +205,20 @@ self.addEventListener('fetch', e => {
         const body = await request.json();
         if (body.key !== env.SYNC_SECRET) return new Response('Unauthorized', { status: 401 });
         const result = await runReorderDryrun(env, { limit: body.limit });
+        return new Response(JSON.stringify(result, null, 2), { headers: { 'Content-Type': 'application/json' } });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+      }
+    }
+
+    // 画像並び替え本番反映: POST /admin/reorder-apply (body: {key, dryRun?})
+    // ドライランシートで承認された並び替えを KV product-images:${managedId} に反映する。
+    // dryRun=true の場合は実際の書き込みをせず影響範囲だけ返す。
+    if (request.method === 'POST' && url.pathname === '/admin/reorder-apply') {
+      try {
+        const body = await request.json();
+        if (body.key !== env.SYNC_SECRET) return new Response('Unauthorized', { status: 401 });
+        const result = await runReorderApply(env, { dryRun: !!body.dryRun });
         return new Response(JSON.stringify(result, null, 2), { headers: { 'Content-Type': 'application/json' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });

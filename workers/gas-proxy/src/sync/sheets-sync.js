@@ -1742,3 +1742,90 @@ export async function runReorderDryrun(env, options = {}) {
     sample: rows.slice(0, 5),
   };
 }
+
+/**
+ * runReorderApply — ドライランシートで承認された並び替えを KV に反映
+ *
+ * GAS apiReadReorderDryrun でシートを読み戻し、changed=○ の商品について
+ * KV product-images:${managedId} を after の URL 配列で上書きする。
+ * 元の URL 集合と一致しない場合は安全のためスキップ（ドライラン後に追加・削除があった場合の事故防止）。
+ */
+export async function runReorderApply(env, options = {}) {
+  const dryRun = !!options.dryRun;
+  const gasUrl = env.GAS_API_URL;
+  if (!gasUrl) return { error: 'GAS_API_URL not set' };
+
+  // 1. シートからドライラン結果を取得
+  const readBody = JSON.stringify({
+    action: 'apiReadReorderDryrun',
+    args: [{ syncSecret: env.SYNC_SECRET || '' }],
+  });
+  const readResp = await fetch(gasUrl, {
+    method: 'POST', headers: { 'Content-Type': 'text/plain' },
+    body: readBody, redirect: 'follow',
+  });
+  const readText = await readResp.text();
+  let readJson;
+  try { readJson = JSON.parse(readText); } catch { return { error: 'failed to parse GAS response', raw: readText.substring(0, 500) }; }
+  if (!readJson.ok) return { error: 'GAS read failed', message: readJson.message };
+
+  const sheetRows = Array.isArray(readJson.rows) ? readJson.rows : [];
+  const targets = sheetRows.filter(r => r.changed && Array.isArray(r.after) && r.after.length > 0);
+
+  // 2. 各 KV を更新
+  const results = [];
+  let updated = 0;
+  let skipped = 0;
+  let mismatched = 0;
+  for (const row of targets) {
+    const mid = row.managedId;
+    const newOrder = row.after;
+    try {
+      const curJson = await env.CACHE.get(`product-images:${mid}`);
+      if (!curJson) {
+        results.push({ managedId: mid, ok: false, reason: 'no-kv' });
+        skipped++;
+        continue;
+      }
+      const cur = JSON.parse(curJson);
+      // URL 集合が一致するか確認（ドライラン後に追加・削除されていたら適用しない）
+      const curSet = new Set(cur);
+      const newSet = new Set(newOrder);
+      const sameSize = curSet.size === newSet.size;
+      let allMatch = sameSize;
+      if (allMatch) {
+        for (const u of newSet) if (!curSet.has(u)) { allMatch = false; break; }
+      }
+      if (!allMatch) {
+        results.push({ managedId: mid, ok: false, reason: 'set-mismatch', curCount: cur.length, newCount: newOrder.length });
+        mismatched++;
+        continue;
+      }
+      // 既に同じ順序なら何もしない
+      const alreadySame = cur.length === newOrder.length && cur.every((u, i) => u === newOrder[i]);
+      if (alreadySame) {
+        results.push({ managedId: mid, ok: true, noop: true });
+        skipped++;
+        continue;
+      }
+      if (!dryRun) {
+        await env.CACHE.put(`product-images:${mid}`, JSON.stringify(newOrder));
+      }
+      results.push({ managedId: mid, ok: true, applied: !dryRun });
+      updated++;
+    } catch (e) {
+      results.push({ managedId: mid, ok: false, reason: 'exception', detail: e.message });
+      skipped++;
+    }
+  }
+
+  return {
+    dryRun,
+    sheetRows: sheetRows.length,
+    targets: targets.length,
+    updated,
+    skipped,
+    mismatched,
+    results,
+  };
+}

@@ -1490,3 +1490,64 @@ function apiWriteReorderDryrun(params) {
     changedCount: rows.filter(function(r) { return r.changed; }).length,
   };
 }
+
+/**
+ * apiReadReorderDryrun — 「画像並び替えドライラン」シートを読み戻す
+ *
+ * Workers /admin/reorder-apply が呼び、changed=○ の管理番号と after URL 配列を取得する。
+ *
+ * @param {object} params - { syncSecret }
+ * @returns {object} { ok, rows: [{ managedId, after, changed }] }
+ */
+function apiReadReorderDryrun(params) {
+  var p = params || {};
+  if (!verifySyncSecret_(p.syncSecret)) return { ok: false, message: '認証エラー' };
+
+  var ssId = '';
+  try { ssId = APP_CONFIG.detail.spreadsheetId; } catch (e) {}
+  if (!ssId) {
+    try { ssId = PropertiesService.getScriptProperties().getProperty('DETAIL_SPREADSHEET_ID') || ''; } catch (e) {}
+  }
+  if (!ssId) return { ok: false, message: 'spreadsheetId not found' };
+
+  var ss = SpreadsheetApp.openById(ssId);
+  var sh = ss.getSheetByName('画像並び替えドライラン');
+  if (!sh) return { ok: false, message: 'ドライランシートが存在しません。先にドライランを実行してください' };
+
+  var lastRow = sh.getLastRow();
+  var lastCol = sh.getLastColumn();
+  if (lastRow < 2) return { ok: true, rows: [] };
+
+  var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  var colMap = {};
+  for (var h = 0; h < headers.length; h++) {
+    var n = String(headers[h] || '').trim();
+    if (n) colMap[n] = h + 1;
+  }
+  var colMid = colMap['管理番号'];
+  var colChanged = colMap['並び替えあり'];
+  if (!colMid || !colChanged) return { ok: false, message: '必要な列がありません' };
+
+  // After_1 〜 After_10 を集める
+  var afterCols = [];
+  for (var k = 1; k <= 10; k++) {
+    var c = colMap['After_' + k];
+    if (c) afterCols.push(c);
+  }
+  if (afterCols.length === 0) return { ok: false, message: 'After列がありません' };
+
+  var data = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  var rows = [];
+  for (var i = 0; i < data.length; i++) {
+    var mid = String(data[i][colMid - 1] || '').trim();
+    if (!mid) continue;
+    var changed = String(data[i][colChanged - 1] || '').trim() === '○';
+    var after = [];
+    for (var j = 0; j < afterCols.length; j++) {
+      var u = String(data[i][afterCols[j] - 1] || '').trim();
+      if (u) after.push(u);
+    }
+    rows.push({ managedId: mid, changed: changed, after: after });
+  }
+  return { ok: true, rows: rows };
+}
