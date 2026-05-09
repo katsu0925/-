@@ -2165,9 +2165,15 @@ function imageFieldHtml_(id, name, v) {
   } else {
     preview = '<div id="' + id + '_preview" class="img-preview">画像なし</div>';
   }
+  // カメラ撮影 (capture="environment") とアルバム/ファイル選択 (capture なし) を別ボタンに分けて、
+  // iOS Safari でも明示的に選べるようにする。
   var picker =
-    '<label class="img-upload-btn ghost" for="' + id + '_file">📷 撮影／差替え</label>' +
+    '<label class="img-upload-btn ghost" for="' + id + '_file">📷 カメラ</label>' +
     '<input type="file" id="' + id + '_file" accept="image/*" capture="environment" ' +
+    'onchange="onImageFieldPick_(this, \'' + esc(id) + '\', \'' + safeName + '\')" ' +
+    'style="display:none">' +
+    '<label class="img-upload-btn ghost" for="' + id + '_file_lib">🖼 画像</label>' +
+    '<input type="file" id="' + id + '_file_lib" accept="image/*" ' +
     'onchange="onImageFieldPick_(this, \'' + esc(id) + '\', \'' + safeName + '\')" ' +
     'style="display:none">' +
     '<button type="button" class="img-upload-btn ghost" ' +
