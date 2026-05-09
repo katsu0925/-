@@ -1819,6 +1819,11 @@ export async function runReorderApply(env, options = {}) {
     }
   }
 
+  // /upload 一覧キャッシュを無効化しないと並び替えが見た目に反映されない（5分TTL の product-list-cache）
+  if (!dryRun && updated > 0) {
+    try { await env.CACHE.delete('product-list-cache'); } catch (e) { /* ignore */ }
+  }
+
   return {
     dryRun,
     sheetRows: sheetRows.length,
