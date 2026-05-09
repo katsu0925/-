@@ -4642,7 +4642,7 @@ function enhanceSelect_(sel) {
   pop.className = 'cs-popover';
 
   var search = null;
-  if (sel.options.length >= 8) {
+  if (sel.options.length >= 8 && sel.getAttribute('data-cs-search') !== 'off') {
     search = document.createElement('input');
     search.type = 'search';
     search.className = 'cs-search';
@@ -5199,7 +5199,7 @@ function mercariSizeSelectHtml_(id, current) {
   if (cur && !seen[cur]) {
     out.push('<option value="' + esc(cur) + '" selected>' + esc(cur) + '</option>');
   }
-  return '<select id="' + id + '">' + out.join('') + '</select>';
+  return '<select id="' + id + '" data-cs-search="off">' + out.join('') + '</select>';
 }
 
 // メルカリサイズ変換表モーダル（メンズ／レディース／メンズスーツ／キッズ をタブで切替）
