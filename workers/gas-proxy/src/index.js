@@ -21,7 +21,7 @@ import * as holds from './handlers/holds.js';
 import * as coupon from './handlers/coupon.js';
 import * as mypage from './handlers/mypage.js';
 import * as submit from './handlers/submit.js';
-import { scheduledSync, batchAiJudgment, restorePhotoMetaFromGas, reprocessSingleAi, bulkReprocessAi } from './sync/sheets-sync.js';
+import { scheduledSync, batchAiJudgment, restorePhotoMetaFromGas, reprocessSingleAi, bulkReprocessAi, runReorderDryrun } from './sync/sheets-sync.js';
 import { handleUpload, serveImage } from './handlers/upload.js';
 import { getUploadPageHtml } from './pages/upload.html.js';
 import * as kitHandler from './handlers/kit.js';
@@ -191,6 +191,20 @@ self.addEventListener('fetch', e => {
         const mid = (body.managedId || '').toString().trim();
         if (!mid) return new Response(JSON.stringify({ error: 'managedId required' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
         const result = await reprocessSingleAi(env, mid);
+        return new Response(JSON.stringify(result, null, 2), { headers: { 'Content-Type': 'application/json' } });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+      }
+    }
+
+    // 画像並び替えドライラン: POST /admin/reorder-dryrun (body: {key, limit?})
+    // R2 (TASUKIBAKO_IMAGES) の uploaded 順で最近 limit 件の商品を AI 分類し、
+    // 並び替え結果を「画像並び替えドライラン」シートに書き出す。本番KV/シートには反映しない
+    if (request.method === 'POST' && url.pathname === '/admin/reorder-dryrun') {
+      try {
+        const body = await request.json();
+        if (body.key !== env.SYNC_SECRET) return new Response('Unauthorized', { status: 401 });
+        const result = await runReorderDryrun(env, { limit: body.limit });
         return new Response(JSON.stringify(result, null, 2), { headers: { 'Content-Type': 'application/json' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });

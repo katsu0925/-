@@ -1405,3 +1405,88 @@ function apiGetBrandsForOverlay(params) {
 
   return { ok: true, brands: brands };
 }
+
+/**
+ * apiWriteReorderDryrun — 画像並び替えドライラン結果を「画像並び替えドライラン」シートに書き出す
+ *
+ * Workers /admin/reorder-dryrun から呼ばれる。本番KV/商品管理シートには一切反映せず、
+ * レビュー用に並び替え前後の画像URLとAIラベルだけを記録する。
+ *
+ * 列構成（1行=1商品）:
+ *   A: 管理番号 / B: アップロード日時(ISO) / C: 枚数 / D: 並び替えあり (○/) / E: AIラベル(JSON)
+ *   F: 並び替え前 URL[0] / G: 並び替え後 URL[0]
+ *   H: 並び替え前 URL[1] / I: 並び替え後 URL[1]
+ *   ...（最大10枚まで横展開）
+ *   末尾: エラー列
+ *
+ * @param {object} params - { syncSecret, rows: [{ managedId, uploadedAt, count, changed, before, after, labels, error?, detail? }] }
+ */
+function apiWriteReorderDryrun(params) {
+  var p = params || {};
+  if (!verifySyncSecret_(p.syncSecret)) return { ok: false, message: '認証エラー' };
+
+  var rows = Array.isArray(p.rows) ? p.rows : [];
+  if (rows.length === 0) return { ok: false, message: 'rows required' };
+
+  var ssId = '';
+  try { ssId = APP_CONFIG.detail.spreadsheetId; } catch (e) {}
+  if (!ssId) {
+    try { ssId = PropertiesService.getScriptProperties().getProperty('DETAIL_SPREADSHEET_ID') || ''; } catch (e) {}
+  }
+  if (!ssId) return { ok: false, message: 'spreadsheetId not found' };
+
+  var ss = SpreadsheetApp.openById(ssId);
+  var sheetName = '画像並び替えドライラン';
+  var sh = ss.getSheetByName(sheetName);
+  if (!sh) {
+    sh = ss.insertSheet(sheetName);
+  }
+  sh.clear();
+
+  var MAX_IMAGES = 10;
+  var headers = ['管理番号', 'アップロード日時', '枚数', '並び替えあり', 'AIラベル(JSON)'];
+  for (var k = 0; k < MAX_IMAGES; k++) {
+    headers.push('Before_' + (k + 1));
+    headers.push('After_' + (k + 1));
+  }
+  headers.push('エラー');
+  sh.getRange(1, 1, 1, headers.length).setValues([headers]);
+  sh.setFrozenRows(1);
+
+  var data = [];
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    var row = [
+      r.managedId || '',
+      r.uploadedAt || '',
+      r.count || 0,
+      r.changed ? '○' : '',
+      r.labels ? JSON.stringify(r.labels) : '',
+    ];
+    var before = Array.isArray(r.before) ? r.before : [];
+    var after = Array.isArray(r.after) ? r.after : [];
+    for (var j = 0; j < MAX_IMAGES; j++) {
+      row.push(before[j] || '');
+      row.push(after[j] || '');
+    }
+    row.push(r.error ? (r.error + (r.detail ? (': ' + r.detail) : '')) : '');
+    data.push(row);
+  }
+  if (data.length > 0) {
+    sh.getRange(2, 1, data.length, headers.length).setValues(data);
+  }
+
+  // 列幅を整える
+  sh.setColumnWidth(1, 100);
+  sh.setColumnWidth(2, 160);
+  sh.setColumnWidth(3, 50);
+  sh.setColumnWidth(4, 80);
+  sh.setColumnWidth(5, 300);
+
+  return {
+    ok: true,
+    sheet: sheetName,
+    written: data.length,
+    changedCount: rows.filter(function(r) { return r.changed; }).length,
+  };
+}

@@ -1516,3 +1516,229 @@ async function runGeminiJudgment(env, managedId, apiKey) {
     return null;
   }
 }
+
+// ─── 画像並び替え（AIラベル付け） ───
+//
+// 各画像を以下8カテゴリのいずれかに分類し、優先順位ソートで並び替える。
+//   front_full : 前から全身（平置き or トルソー）
+//   back_full  : 後ろから全身（平置き or トルソー）
+//   worn       : 人間が着用している着画
+//   detail     : 部分アップ・ディテール
+//   tag        : タグ
+//   defect     : 傷・汚れ・破れ拡大
+//   processed  : 背景白置換＋ロゴ入りの加工画像
+//   other      : それ以外（斜め角度・不明確な構図）
+const ORDER_PRIORITY = ['front_full', 'back_full', 'worn', 'detail', 'tag', 'defect', 'other', 'processed'];
+
+const AI_ORDERING_PROMPT = `あなたは古着の商品画像を並び替えるための分類アシスタントです。
+以下の画像配列について、各画像を1つのカテゴリに必ず分類してください。
+
+## カテゴリ（必ず以下から1つだけ選ぶ）
+- front_full : 前から全身が写っている平置き or トルソー画像（人間は写っていない）
+- back_full  : 後ろから全身が写っている平置き or トルソー画像（人間は写っていない）
+- worn       : 人間（モデル）が実際に着用している着画
+- detail     : 部分アップ・ディテール（袖口・襟・素材アップなど）
+- tag        : タグやサイズ表記の写真
+- defect     : 傷・汚れ・穴・シミなどの拡大写真
+- processed  : 背景が真っ白に切り抜かれてブランドロゴが画像内に重ねられている加工済み画像
+- other      : 上記いずれにも明確に該当しない（斜めから撮った曖昧な角度、構図不明確、複数アイテム混在など）
+
+## 重要なルール
+- 斜めから撮った曖昧な角度（真正面でも真後ろでもない）は front_full / back_full に入れず必ず other にする
+- 平置きでもトルソーでも、真正面なら front_full、真後ろなら back_full
+- 真っ白な背景に商品とロゴ文字が一緒に写っているものは processed（加工済み）
+- 着用しているのが人間（顔・手足・髪が見える）なら worn
+
+## 入力
+${'`'}${'`'}${'`'}
+画像が index 0 から順に並んでいます。
+${'`'}${'`'}${'`'}
+
+## 出力（JSON配列のみ。説明文・前置き禁止）
+{
+  "labels": ["front_full", "back_full", "worn", ...]
+}
+※ labels の長さは画像枚数と必ず一致させること`;
+
+async function runOrderingJudgment(env, managedId, apiKey) {
+  const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
+  if (!urlsJson) return { error: 'no-kv' };
+  const urls = JSON.parse(urlsJson);
+  if (!urls || urls.length === 0) return { error: 'empty-urls' };
+
+  const imageParts = [];
+  const validUrls = [];
+  for (const imgUrl of urls) {
+    const r2Key = imgUrl.replace(/^\/images\//, '').split('?')[0];
+    let r2Obj = await env.IMAGES.get(r2Key);
+    if (!r2Obj && env.TASUKIBAKO_IMAGES) {
+      r2Obj = await env.TASUKIBAKO_IMAGES.get(r2Key);
+    }
+    if (!r2Obj) continue;
+    const arrayBuffer = await r2Obj.arrayBuffer();
+    const bytes = new Uint8Array(arrayBuffer);
+    let binary = '';
+    const chunkSize = 8192;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+    }
+    const base64 = btoa(binary);
+    const mimeType = r2Obj.httpMetadata?.contentType || 'image/jpeg';
+    imageParts.push({ inline_data: { mime_type: mimeType, data: base64 } });
+    validUrls.push(imgUrl);
+  }
+  if (imageParts.length === 0) return { error: 'no-r2-images' };
+
+  const payload = {
+    contents: [{
+      parts: [
+        { text: AI_ORDERING_PROMPT + `\n\n※ ${imageParts.length}枚の画像を index 0 から順に判定してください。` },
+        ...imageParts,
+      ],
+    }],
+    generationConfig: {
+      temperature: 0.1,
+      maxOutputTokens: 256,
+      responseMimeType: 'application/json',
+    },
+  };
+
+  const resp = await fetch(`${GEMINI_ENDPOINT}?key=${apiKey}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!resp.ok) {
+    const t = await resp.text();
+    return { error: `gemini-${resp.status}`, detail: t.substring(0, 200) };
+  }
+  const result = await resp.json();
+  const text = result.candidates?.[0]?.content?.parts?.[0]?.text || '';
+  if (!text) return { error: 'empty-response' };
+
+  let parsed;
+  try { parsed = JSON.parse(text); } catch { return { error: 'json-parse-failed', raw: text.substring(0, 200) }; }
+
+  const labels = Array.isArray(parsed.labels) ? parsed.labels.map(s => String(s || '').trim().toLowerCase()) : [];
+  if (labels.length !== validUrls.length) {
+    return { error: 'label-length-mismatch', expected: validUrls.length, got: labels.length, labels };
+  }
+  // 不正ラベルは other に寄せる
+  const normalized = labels.map(l => ORDER_PRIORITY.includes(l) ? l : 'other');
+  return { urls: validUrls, labels: normalized };
+}
+
+function applyOrderingRule(urls, labels) {
+  const indexed = urls.map((u, i) => ({ url: u, label: labels[i] || 'other', orig: i }));
+  indexed.sort((a, b) => {
+    const pa = ORDER_PRIORITY.indexOf(a.label);
+    const pb = ORDER_PRIORITY.indexOf(b.label);
+    if (pa !== pb) return pa - pb;
+    return a.orig - b.orig;
+  });
+  return indexed.map(x => x.url);
+}
+
+// 最近アップロードされた managedId を limit 件取得。
+// 2系統の R2 を両方スキャンし、uploaded 時刻が最も新しいものを優先：
+//   env.IMAGES (detauri-images)         : products/{managedId}/{uuid}.jpg     ← gas-proxy /upload
+//   env.TASUKIBAKO_IMAGES (tasukibako-) : teams/{teamId}/products/{mid}/...   ← 独立 Worker tasukibako
+async function getRecentTasukibakoIds(env, limit = 50) {
+  const seen = new Map(); // managedId -> latest uploaded Date
+
+  async function scan(bucket, prefix, regex) {
+    if (!bucket) return 0;
+    let cursor = undefined;
+    let scanned = 0;
+    for (let page = 0; page < 4; page++) {
+      const listed = await bucket.list({ prefix, limit: 1000, cursor });
+      for (const obj of listed.objects || []) {
+        scanned++;
+        const m = obj.key.match(regex);
+        if (!m) continue;
+        const mid = m[1];
+        const u = obj.uploaded ? new Date(obj.uploaded) : null;
+        if (!u) continue;
+        const cur = seen.get(mid);
+        if (!cur || u > cur) seen.set(mid, u);
+      }
+      if (!listed.truncated) break;
+      cursor = listed.cursor;
+    }
+    return scanned;
+  }
+
+  const a = await scan(env.IMAGES, 'products/', /^products\/([^/]+)\//);
+  const b = await scan(env.TASUKIBAKO_IMAGES, 'teams/', /^teams\/[^/]+\/products\/([^/]+)\//);
+
+  const arr = Array.from(seen.entries())
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([mid, t]) => ({ managedId: mid, uploadedAt: t.toISOString() }));
+  console.log(`[reorder] getRecentTasukibakoIds: scannedIMAGES=${a}, scannedTASUKIBAKO=${b}, unique=${seen.size}, returning=${arr.length}`);
+  return arr;
+}
+
+export async function runReorderDryrun(env, options = {}) {
+  const limit = Math.min(Math.max(parseInt(options.limit || 50, 10) || 50, 1), 100);
+  const apiKey = env.GEMINI_API_KEY || '';
+  if (!apiKey) return { error: 'GEMINI_API_KEY not set' };
+
+  const recent = await getRecentTasukibakoIds(env, limit);
+  if (recent.length === 0) return { error: 'no recent products', total: 0 };
+
+  const rows = [];
+  let success = 0;
+  let failed = 0;
+  for (const { managedId, uploadedAt } of recent) {
+    try {
+      const j = await runOrderingJudgment(env, managedId, apiKey);
+      if (j.error) {
+        rows.push({ managedId, uploadedAt, error: j.error, detail: j.detail || '' });
+        failed++;
+        continue;
+      }
+      const newOrder = applyOrderingRule(j.urls, j.labels);
+      const changed = newOrder.some((u, i) => u !== j.urls[i]);
+      rows.push({
+        managedId,
+        uploadedAt,
+        count: j.urls.length,
+        changed,
+        before: j.urls,
+        after: newOrder,
+        labels: j.labels,
+      });
+      success++;
+    } catch (e) {
+      rows.push({ managedId, uploadedAt, error: 'exception', detail: e.message });
+      failed++;
+    }
+  }
+
+  // GASに送信して新シートに書き出し
+  let gasResult = null;
+  const gasUrl = env.GAS_API_URL;
+  if (gasUrl) {
+    const body = JSON.stringify({
+      action: 'apiWriteReorderDryrun',
+      args: [{ syncSecret: env.SYNC_SECRET || '', rows }],
+    });
+    try {
+      const resp = await fetch(gasUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body, redirect: 'follow' });
+      const txt = await resp.text();
+      try { gasResult = JSON.parse(txt); } catch { gasResult = { raw: txt.substring(0, 500) }; }
+    } catch (e) {
+      gasResult = { error: e.message };
+    }
+  }
+
+  return {
+    processed: recent.length,
+    success,
+    failed,
+    changedCount: rows.filter(r => r.changed).length,
+    gasResult,
+    sample: rows.slice(0, 5),
+  };
+}
