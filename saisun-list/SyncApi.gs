@@ -1413,13 +1413,14 @@ function apiGetBrandsForOverlay(params) {
  * レビュー用に並び替え前後の画像URLとAIラベルだけを記録する。
  *
  * 列構成（1行=1商品）:
- *   A: 管理番号 / B: アップロード日時(ISO) / C: 枚数 / D: 並び替えあり (○/) / E: AIラベル(JSON)
- *   F: 並び替え前 URL[0] / G: 並び替え後 URL[0]
- *   H: 並び替え前 URL[1] / I: 並び替え後 URL[1]
- *   ...（最大10枚まで横展開）
+ *   管理番号 / アップロード日時(ISO) / 枚数 / 並び替えあり (○/) / AIラベル(JSON)
+ *   Before_1〜10 / After_1〜10 / Reason_1〜10 (AI判定根拠)
  *   末尾: エラー列
  *
- * @param {object} params - { syncSecret, rows: [{ managedId, uploadedAt, count, changed, before, after, labels, error?, detail? }] }
+ * append=false（既定）: シートをクリアしてヘッダから書き直す（先頭バッチ用）
+ * append=true        : 既存行の下に追記する（2バッチ目以降）
+ *
+ * @param {object} params - { syncSecret, rows: [...], append?: boolean }
  */
 function apiWriteReorderDryrun(params) {
   var p = params || {};
@@ -1441,17 +1442,24 @@ function apiWriteReorderDryrun(params) {
   if (!sh) {
     sh = ss.insertSheet(sheetName);
   }
-  sh.clear();
 
   var MAX_IMAGES = 10;
   var headers = ['管理番号', 'アップロード日時', '枚数', '並び替えあり', 'AIラベル(JSON)'];
-  for (var k = 0; k < MAX_IMAGES; k++) {
-    headers.push('Before_' + (k + 1));
-    headers.push('After_' + (k + 1));
-  }
+  for (var k = 0; k < MAX_IMAGES; k++) headers.push('Before_' + (k + 1));
+  for (var k = 0; k < MAX_IMAGES; k++) headers.push('After_' + (k + 1));
+  for (var k = 0; k < MAX_IMAGES; k++) headers.push('Reason_' + (k + 1));
   headers.push('エラー');
-  sh.getRange(1, 1, 1, headers.length).setValues([headers]);
-  sh.setFrozenRows(1);
+
+  var append = !!p.append;
+  if (!append) {
+    sh.clear();
+    sh.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sh.setFrozenRows(1);
+  } else if (sh.getLastRow() === 0) {
+    // append指定でもシートが空ならヘッダを書く
+    sh.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sh.setFrozenRows(1);
+  }
 
   var data = [];
   for (var i = 0; i < rows.length; i++) {
@@ -1465,29 +1473,33 @@ function apiWriteReorderDryrun(params) {
     ];
     var before = Array.isArray(r.before) ? r.before : [];
     var after = Array.isArray(r.after) ? r.after : [];
-    for (var j = 0; j < MAX_IMAGES; j++) {
-      row.push(before[j] || '');
-      row.push(after[j] || '');
-    }
+    var reasons = Array.isArray(r.reasons) ? r.reasons : [];
+    for (var j = 0; j < MAX_IMAGES; j++) row.push(before[j] || '');
+    for (var j = 0; j < MAX_IMAGES; j++) row.push(after[j] || '');
+    for (var j = 0; j < MAX_IMAGES; j++) row.push(reasons[j] || '');
     row.push(r.error ? (r.error + (r.detail ? (': ' + r.detail) : '')) : '');
     data.push(row);
   }
   if (data.length > 0) {
-    sh.getRange(2, 1, data.length, headers.length).setValues(data);
+    var startRow = Math.max(2, sh.getLastRow() + 1);
+    sh.getRange(startRow, 1, data.length, headers.length).setValues(data);
   }
 
-  // 列幅を整える
-  sh.setColumnWidth(1, 100);
-  sh.setColumnWidth(2, 160);
-  sh.setColumnWidth(3, 50);
-  sh.setColumnWidth(4, 80);
-  sh.setColumnWidth(5, 300);
+  // 列幅（先頭バッチ時のみ調整）
+  if (!append) {
+    sh.setColumnWidth(1, 100);
+    sh.setColumnWidth(2, 160);
+    sh.setColumnWidth(3, 50);
+    sh.setColumnWidth(4, 80);
+    sh.setColumnWidth(5, 300);
+  }
 
   return {
     ok: true,
     sheet: sheetName,
     written: data.length,
     changedCount: rows.filter(function(r) { return r.changed; }).length,
+    appended: append,
   };
 }
 

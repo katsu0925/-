@@ -197,14 +197,23 @@ self.addEventListener('fetch', e => {
       }
     }
 
-    // 画像並び替えドライラン: POST /admin/reorder-dryrun (body: {key, limit?})
-    // R2 (TASUKIBAKO_IMAGES) の uploaded 順で最近 limit 件の商品を AI 分類し、
-    // 並び替え結果を「画像並び替えドライラン」シートに書き出す。本番KV/シートには反映しない
+    // 画像並び替えドライラン: POST /admin/reorder-dryrun
+    // body:
+    //   {key, managedIds: string[]}                       — 明示指定（最大200件）
+    //   {key, useAll: true, cursor?: number, batchSize?: number}  — product-images:index 全件をバッチ処理
+    //   {key, limit?: number}                             — 後方互換: R2 最新 limit 件
+    // AI分類→並び替え結果を「画像並び替えドライラン」シートに書き出す。本番KV/シートには反映しない
     if (request.method === 'POST' && url.pathname === '/admin/reorder-dryrun') {
       try {
         const body = await request.json();
         if (body.key !== env.SYNC_SECRET) return new Response('Unauthorized', { status: 401 });
-        const result = await runReorderDryrun(env, { limit: body.limit });
+        const result = await runReorderDryrun(env, {
+          limit: body.limit,
+          managedIds: body.managedIds,
+          cursor: body.cursor,
+          batchSize: body.batchSize,
+          useAll: body.useAll,
+        });
         return new Response(JSON.stringify(result, null, 2), { headers: { 'Content-Type': 'application/json' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
