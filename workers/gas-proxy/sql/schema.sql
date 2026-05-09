@@ -203,3 +203,11 @@ CREATE TABLE IF NOT EXISTS orders (
 CREATE INDEX IF NOT EXISTS idx_orders_email ON orders(email);
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_updated ON orders(updated_at);
+
+-- 撮影画像アップロード済みの管理番号インデックス（KV product-images:index の権威ソース）
+-- 旧来の KV read-modify-write は並行アップロードで競合し orphan 化していたため、
+-- D1 を atomic な真実値として扱い KV はそこから再構築する。
+CREATE TABLE IF NOT EXISTS product_image_index (
+  managed_id TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL
+);

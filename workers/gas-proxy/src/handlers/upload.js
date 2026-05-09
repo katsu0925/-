@@ -736,21 +736,30 @@ async function invalidateProductCache(env) {
   await env.CACHE.delete('products:version');
 }
 
+// D1 product_image_index を真実値として保持し、KV product-images:index は再構築結果を書き込む。
+// 旧来の KV read-modify-write は並行アップロードで競合し orphan を生んでいたため
+// （ZY73/ZY74 等が index 不在で AI判定を取りこぼす事象が発生）、INSERT/DELETE を D1 で atomic 化した。
+async function rebuildImageIndexKv(env) {
+  const { results } = await env.DB.prepare(
+    'SELECT managed_id FROM product_image_index ORDER BY managed_id'
+  ).all();
+  const ids = (results || []).map(r => r.managed_id);
+  await env.CACHE.put('product-images:index', JSON.stringify(ids));
+}
+
 async function addToIndex(env, managedId) {
-  const indexJson = await env.CACHE.get('product-images:index');
-  const index = indexJson ? JSON.parse(indexJson) : [];
-  if (!index.includes(managedId)) {
-    index.push(managedId);
-    index.sort();
-    await env.CACHE.put('product-images:index', JSON.stringify(index));
-  }
+  const now = new Date().toISOString();
+  await env.DB.prepare(
+    'INSERT OR IGNORE INTO product_image_index (managed_id, created_at) VALUES (?, ?)'
+  ).bind(managedId, now).run();
+  await rebuildImageIndexKv(env);
 }
 
 async function removeFromIndex(env, managedId) {
-  const indexJson = await env.CACHE.get('product-images:index');
-  if (!indexJson) return;
-  const index = JSON.parse(indexJson).filter(id => id !== managedId);
-  await env.CACHE.put('product-images:index', JSON.stringify(index));
+  await env.DB.prepare(
+    'DELETE FROM product_image_index WHERE managed_id = ?'
+  ).bind(managedId).run();
+  await rebuildImageIndexKv(env);
 }
 
 // ─── 保存ログ記録 ───
