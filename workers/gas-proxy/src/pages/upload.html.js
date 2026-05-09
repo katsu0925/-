@@ -674,10 +674,16 @@ function switchTab(name) {
     t.classList.toggle('active', t.getAttribute('data-tab') === name);
   });
   secs.forEach(function(s) { s.classList.toggle('active', s.id === 'sec-' + name); });
-  // フッタ切り替え
+  // フッタ切り替え（商品管理フッタは選択ありの時だけ表示）
   tabNames.forEach(function(t) {
     var f = document.getElementById('footer-' + t);
-    if (f) f.classList.toggle('show', t === name);
+    if (!f) return;
+    if (t === 'manage') {
+      var anyChecked = document.querySelectorAll('.dl-check:checked').length > 0;
+      f.classList.toggle('show', name === 'manage' && anyChecked);
+    } else {
+      f.classList.toggle('show', t === name);
+    }
   });
   if (name === 'manage') ensureListLoaded(function() { renderManageList(); });
 }
@@ -3411,6 +3417,13 @@ function updateDeleteSelectedCount() {
       bgBtn.disabled = true;
       bgBtn.textContent = '🖼 トップ＋2枚目 背景置換';
     }
+  }
+  // 商品管理フッタは選択がある時だけ表示
+  var footerManage = document.getElementById('footer-manage');
+  if (footerManage) {
+    var sec = document.getElementById('sec-manage');
+    var manageActive = sec && sec.classList.contains('active');
+    footerManage.classList.toggle('show', !!manageActive && checks.length > 0);
   }
 }
 
