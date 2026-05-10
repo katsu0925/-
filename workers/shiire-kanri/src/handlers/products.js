@@ -126,6 +126,7 @@ export async function listProducts(request, env) {
            sale_date, sale_ts, sale_price,
            json_extract(extra_json, '$."売却済み商品画像"') AS extra_thumb,
            json_extract(extra_json, '$."使用アカウント"')   AS extra_account,
+           json_extract(extra_json, '$."完了日"')           AS extra_kanryou,
            ${DERIVED_STATUS} AS derived_status
     FROM products
   `;
@@ -156,7 +157,7 @@ export async function listProducts(request, env) {
 
   try {
     const fp = await env.DB.prepare(fingerprintSql).bind(...args).first();
-    const etag = `"p${slim ? 'S4' : 'F3'}-${fp.cnt}-${fp.maxup}-${limit}"`;
+    const etag = `"p${slim ? 'S5' : 'F3'}-${fp.cnt}-${fp.maxup}-${limit}"`;
 
     // CF Edge は weak ETag (W/"...") に書き換えることがあるため、比較時は W/ プレフィクスを剥がす
     const inm = request.headers.get('If-None-Match') || '';
@@ -188,6 +189,8 @@ function formatProductSlim(row) {
   const extra = {};
   if (row.extra_thumb) extra['売却済み商品画像'] = String(row.extra_thumb);
   if (row.extra_account) extra['使用アカウント'] = String(row.extra_account);
+  // 発送済みカードに「完了 ✓」ボタン or 完了日を出し分けるため slim でも 完了日 を露出
+  if (row.extra_kanryou) extra['完了日'] = String(row.extra_kanryou);
   return {
     kanri: row.kanri,
     shiireId: row.shiire_id,

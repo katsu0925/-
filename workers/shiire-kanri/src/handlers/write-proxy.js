@@ -1,10 +1,12 @@
 import { jsonOk, jsonError } from '../utils/response.js';
-import { invalidateCountsCache } from './products.js';
+import { invalidateCountsCache, DERIVED_STATUS } from './products.js';
+import { fanoutByTrigger } from './push.js';
 
 // POST /api/save/measurement  body: { kanri, measure: {着丈, 肩幅, ...} }
 // POST /api/save/sale         body: { kanri, sale: {salePrice, saleDate, salePlace, saleShipping, saleFee} }
 
-export async function saveMeasurement(request, env, user) {
+// Fire-and-forget: D1 を先に更新→即 200 を返却→裏で GAS にシート反映を投入
+export async function saveMeasurement(request, env, user, ctx) {
   const __t0 = Date.now();
   let body;
   try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
@@ -12,10 +14,6 @@ export async function saveMeasurement(request, env, user) {
   const measure = body.measure || {};
   if (!kanri) return jsonError('kanri required', 400);
 
-  const gasRes = await callGas(env, 'saveMeasurement', { kanri, measure }, user);
-  if (!gasRes.ok) return jsonError(gasRes.error || 'gas error', 502);
-
-  // 楽観的更新: D1 にも即時反映
   const __td1 = Date.now();
   try {
     const measuredAt = new Date().toISOString();
@@ -24,32 +22,47 @@ export async function saveMeasurement(request, env, user) {
       WHERE kanri = ?
     `).bind(JSON.stringify(measure), measuredAt, user.email, Date.now(), kanri).run();
   } catch (err) {
-    console.warn('[save] d1 update failed', err.message);
+    console.warn('[save measurement] d1 update failed', err.message);
   }
-  const t = Object.assign({}, gasRes._t || {}, { d1: Date.now() - __td1, total: Date.now() - __t0 });
+
+  if (ctx && typeof ctx.waitUntil === 'function') {
+    ctx.waitUntil(dispatchGasSaveMeasurement_(env, user, kanri, measure));
+  } else {
+    dispatchGasSaveMeasurement_(env, user, kanri, measure).catch(() => {});
+  }
+
+  const t = { d1: Date.now() - __td1, total: Date.now() - __t0 };
   invalidateCountsCache();
-  return jsonOk({ saved: true }, { 'Server-Timing': buildServerTiming(t) });
+  return jsonOk({ saved: true, optimistic: true }, { 'Server-Timing': buildServerTiming(t) });
 }
 
-export async function saveSale(request, env, user) {
+async function dispatchGasSaveMeasurement_(env, user, kanri, measure) {
+  let gasRes;
+  try {
+    gasRes = await callGas(env, 'saveMeasurement', { kanri, measure }, user);
+  } catch (err) {
+    console.warn('[save measurement bg] gas exception', err.message);
+    await logSaveFailure_(env, user, kanri, { measure }, 'exception:' + err.message);
+    return;
+  }
+  if (!gasRes || !gasRes.ok) {
+    const reason = (gasRes && gasRes.error) || 'unknown';
+    console.warn('[save measurement bg] gas failed', reason);
+    await logSaveFailure_(env, user, kanri, { measure }, reason);
+  }
+}
+
+// Fire-and-forget: D1 を先に更新→即 200 を返却→裏で GAS にシート反映を投入
+// 注: GAS staff_apiSaveSale は販売価格入力時に raw status を直接「売却済み」へ
+//     セットする（発送待ちは経由しない）。Push トリガーには 売却済み は無いので
+//     ここでは Push 検知を行わない。発送待ち遷移は saveDetails 経由のみ。
+export async function saveSale(request, env, user, ctx) {
   const __t0 = Date.now();
   let body;
   try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
   const kanri = String(body.kanri || '').trim();
   const sale = body.sale || {};
   if (!kanri) return jsonError('kanri required', 400);
-
-  // フロントは saleDate/salePlace/salePrice/saleShipping/saleFee で送る。
-  // GAS は sale.date/place/price/shipping/fee を期待する。ここで吸収。
-  const saleForGas = {
-    date: sale.saleDate,
-    place: sale.salePlace,
-    price: sale.salePrice,
-    shipping: sale.saleShipping,
-    fee: sale.saleFee,
-  };
-  const gasRes = await callGas(env, 'saveSale', { kanri, sale: saleForGas }, user);
-  if (!gasRes.ok) return jsonError(gasRes.error || 'gas error', 502);
 
   const __td1 = Date.now();
   try {
@@ -68,11 +81,43 @@ export async function saveSale(request, env, user) {
       kanri,
     ).run();
   } catch (err) {
-    console.warn('[save] d1 update failed', err.message);
+    console.warn('[save sale] d1 update failed', err.message);
   }
-  const t = Object.assign({}, gasRes._t || {}, { d1: Date.now() - __td1, total: Date.now() - __t0 });
+
+  if (ctx && typeof ctx.waitUntil === 'function') {
+    ctx.waitUntil(dispatchGasSaveSale_(env, user, kanri, sale));
+  } else {
+    dispatchGasSaveSale_(env, user, kanri, sale).catch(() => {});
+  }
+
+  const t = { d1: Date.now() - __td1, total: Date.now() - __t0 };
   invalidateCountsCache();
-  return jsonOk({ saved: true }, { 'Server-Timing': buildServerTiming(t) });
+  return jsonOk({ saved: true, optimistic: true }, { 'Server-Timing': buildServerTiming(t) });
+}
+
+async function dispatchGasSaveSale_(env, user, kanri, sale) {
+  // フロントは saleDate/salePlace/salePrice/saleShipping/saleFee で送る。
+  // GAS は sale.date/place/price/shipping/fee を期待する。ここで吸収。
+  const saleForGas = {
+    date: sale.saleDate,
+    place: sale.salePlace,
+    price: sale.salePrice,
+    shipping: sale.saleShipping,
+    fee: sale.saleFee,
+  };
+  let gasRes;
+  try {
+    gasRes = await callGas(env, 'saveSale', { kanri, sale: saleForGas }, user);
+  } catch (err) {
+    console.warn('[save sale bg] gas exception', err.message);
+    await logSaveFailure_(env, user, kanri, { sale }, 'exception:' + err.message);
+    return;
+  }
+  if (!gasRes || !gasRes.ok) {
+    const reason = (gasRes && gasRes.error) || 'unknown';
+    console.warn('[save sale bg] gas failed', reason);
+    await logSaveFailure_(env, user, kanri, { sale }, reason);
+  }
 }
 
 // POST /api/save/details  body: { kanri, fields: { 'ヘッダー名': 値, ... } }
@@ -96,8 +141,17 @@ export async function saveDetails(request, env, user, ctx) {
 
   const __td1 = Date.now();
   let optimisticExtra = null;
+  let oldDerivedStatus = '';
+  let oldShiireId = '';
   try {
-    const cur = await env.DB.prepare('SELECT extra_json FROM products WHERE kanri = ?').bind(kanri).first();
+    // 派生ステータスは DERIVED_STATUS で同時に取得（販売日入力で「発送待ち」に
+    // 自動遷移するパスを検知するため、raw status だけでは不十分）。
+    const cur = await env.DB.prepare(
+      `SELECT extra_json, shiire_id, ${DERIVED_STATUS} AS derived_status
+       FROM products WHERE kanri = ?`
+    ).bind(kanri).first();
+    oldDerivedStatus = (cur && cur.derived_status) ? String(cur.derived_status) : '';
+    oldShiireId = (cur && cur.shiire_id) ? String(cur.shiire_id) : '';
     let extra = {};
     if (cur && cur.extra_json) {
       try { extra = JSON.parse(cur.extra_json) || {}; } catch { extra = {}; }
@@ -113,11 +167,16 @@ export async function saveDetails(request, env, user, ctx) {
   }
 
   // 裏で GAS に投入（waitUntil なら fetch 終了後も走り続ける）
+  // Push 通知（発送待ち / 発送済み）は GAS の derivedStatus を信頼源として
+  // GAS round-trip 後に発火する。理由:
+  //   - 販売日のみ入力ケースでは raw status の遷移を D1 だけでは判定できず、
+  //     GAS 側 staff_calcStatus_ が AppSheet IFS を再計算した結果に依存する
+  //   - 反映遅延は ~5秒だがフォアグラウンドの保存は即時 200 を返すので UX は変わらない
   if (ctx && typeof ctx.waitUntil === 'function') {
-    ctx.waitUntil(dispatchGasSaveDetails_(env, user, kanri, fields));
+    ctx.waitUntil(dispatchGasSaveDetails_(env, user, kanri, fields, oldDerivedStatus, oldShiireId));
   } else {
     // ctx 未渡しの保険（通常は通らない）
-    dispatchGasSaveDetails_(env, user, kanri, fields).catch(() => {});
+    dispatchGasSaveDetails_(env, user, kanri, fields, oldDerivedStatus, oldShiireId).catch(() => {});
   }
 
   const t = { d1: Date.now() - __td1, total: Date.now() - __t0 };
@@ -176,7 +235,8 @@ async function applyDetailColumns_(env, kanri, fields, mergedExtra, derivedStatu
 }
 
 // バックグラウンドで GAS に saveDetails を投入し、返ってきた record で D1 を確定反映する
-async function dispatchGasSaveDetails_(env, user, kanri, fields) {
+// reconcile 後に Push 通知（発送待ち/発送済み 遷移）も発火させる
+async function dispatchGasSaveDetails_(env, user, kanri, fields, oldDerivedStatus, oldShiireId) {
   let gasRes;
   try {
     gasRes = await callGas(env, 'saveDetails', { kanri, fields }, user);
@@ -193,25 +253,105 @@ async function dispatchGasSaveDetails_(env, user, kanri, fields) {
   }
   // record があれば D1 を再更新（派生値の確定反映）
   const record = (gasRes.record && typeof gasRes.record === 'object') ? gasRes.record : null;
-  if (!record) return;
+  let mergedExtra = null;
+  if (record) {
+    try {
+      const cur = await env.DB.prepare('SELECT extra_json FROM products WHERE kanri = ?').bind(kanri).first();
+      let extra = {};
+      if (cur && cur.extra_json) {
+        try { extra = JSON.parse(cur.extra_json) || {}; } catch { extra = {}; }
+      }
+      for (const k of Object.keys(record)) {
+        const v = record[k];
+        extra[k] = v == null ? '' : v;
+      }
+      mergedExtra = extra;
+      // reconcile 時は GAS の derivedStatus を最優先 + 専用カラムは record から拾う
+      const reconcileFields = {};
+      for (const name of ['ステータス', '状態', 'ブランド', 'メルカリサイズ', 'カラー', '販売日', '販売場所', '販売価格', '送料', '手数料']) {
+        if (record[name] !== undefined) reconcileFields[name] = record[name];
+      }
+      await applyDetailColumns_(env, kanri, reconcileFields, extra, gasRes.derivedStatus);
+    } catch (err) {
+      console.warn('[save details bg] d1 reconcile failed', err.message);
+    }
+  }
+
+  // Push 通知: GAS の derivedStatus を信頼源にして遷移を判定する
+  // 販売日のみ入力で raw='出品中'→'発送待ち' に変わるケースは D1 単独では検知できないため、
+  // ここで GAS round-trip 後に判定する。
   try {
-    const cur = await env.DB.prepare('SELECT extra_json FROM products WHERE kanri = ?').bind(kanri).first();
-    let extra = {};
-    if (cur && cur.extra_json) {
-      try { extra = JSON.parse(cur.extra_json) || {}; } catch { extra = {}; }
+    const newDerivedStatus = String((gasRes && gasRes.derivedStatus) || '').trim();
+    if (newDerivedStatus && newDerivedStatus !== oldDerivedStatus) {
+      await maybePushOnStatusChange_(env, kanri, oldDerivedStatus, newDerivedStatus, mergedExtra, oldShiireId);
     }
-    for (const k of Object.keys(record)) {
-      const v = record[k];
-      extra[k] = v == null ? '' : v;
-    }
-    // reconcile 時は GAS の derivedStatus を最優先 + 専用カラムは record から拾う
-    const reconcileFields = {};
-    for (const name of ['ステータス', '状態', 'ブランド', 'メルカリサイズ', 'カラー', '販売日', '販売場所', '販売価格', '送料', '手数料']) {
-      if (record[name] !== undefined) reconcileFields[name] = record[name];
-    }
-    await applyDetailColumns_(env, kanri, reconcileFields, extra, gasRes.derivedStatus);
   } catch (err) {
-    console.warn('[save details bg] d1 reconcile failed', err.message);
+    console.warn('[save details bg] push fanout failed', err.message);
+  }
+}
+
+// ステータス遷移を検知して Push 配信（発送待ち / 発送済み への遷移時）
+// oldDerivedStatus: 保存前の派生ステータス（D1 から取得済み）
+// newDerivedStatus: 保存後の派生ステータス（GAS の derivedStatus を信頼源にする）
+// mergedExtra: GAS record と D1 をマージ済みの最新 extra
+// shiireId: 通知メッセージで納品場所を JOIN するためのキー
+//
+// 呼び出し側で oldDerivedStatus !== newDerivedStatus を確認済みの前提
+async function maybePushOnStatusChange_(env, kanri, oldDerivedStatus, newDerivedStatus, mergedExtra, shiireId) {
+  try {
+    if (!newDerivedStatus) return;
+    if (newDerivedStatus === oldDerivedStatus) return;
+
+    let trigger = '';
+    if (newDerivedStatus === '発送待ち') trigger = 'hassoumachi';
+    else if (newDerivedStatus === '発送済み') trigger = 'hassouzumi';
+    else return;
+
+    const extra = mergedExtra || {};
+    let payload;
+    if (trigger === 'hassoumachi') {
+      // 納品場所: extra['納品場所'] → 無ければ purchases.place を JOIN で取得
+      let place = String(extra['納品場所'] || '').trim();
+      if (!place && shiireId) {
+        try {
+          const p = await env.DB.prepare('SELECT place FROM purchases WHERE shiire_id = ?')
+            .bind(shiireId).first();
+          place = (p && p.place) ? String(p.place) : '';
+        } catch (_) {}
+      }
+      // 販売価格: extra['販売価格'] → 無ければ products.sale_price
+      let priceNum = Number(extra['販売価格']);
+      if (!Number.isFinite(priceNum) || priceNum <= 0) {
+        try {
+          const r = await env.DB.prepare('SELECT sale_price FROM products WHERE kanri = ?')
+            .bind(kanri).first();
+          if (r && Number.isFinite(Number(r.sale_price))) priceNum = Number(r.sale_price);
+        } catch (_) {}
+      }
+      const lines = [];
+      if (place) lines.push('納品場所: ' + place);
+      if (Number.isFinite(priceNum) && priceNum > 0) {
+        lines.push('¥' + priceNum.toLocaleString('en-US'));
+      }
+      payload = {
+        title: '📦 発送待ち [' + kanri + ']',
+        body: lines.join(' / ') || '発送待ちに変更されました',
+        tag: 'kanri:' + kanri,
+        url: '/?tab=hassou',
+      };
+    } else {
+      // 発送済み: 使用アカウント
+      const account = String(extra['使用アカウント'] || '').trim();
+      payload = {
+        title: '✅ 発送済み [' + kanri + ']',
+        body: account ? ('使用アカウント: ' + account) : '発送済みに変更されました',
+        tag: 'kanri:' + kanri,
+        url: '/?tab=hassou',
+      };
+    }
+    await fanoutByTrigger(env, trigger, payload);
+  } catch (err) {
+    console.warn('[push fanout] status change push failed', err.message);
   }
 }
 
@@ -384,7 +524,9 @@ export async function createPurchase(request, env, user) {
 }
 
 // POST /api/create/product  body: { shiireId, kanri, brand, size, color, state, status, fields? }
-export async function createProduct(request, env, user) {
+// Fire-and-forget: D1 へ即時 INSERT → 即 200 を返却 → 裏で GAS にシート反映を投入
+// kanri はクライアントが /api/kanri/next で採番済みなのでサーバー往復不要。
+export async function createProduct(request, env, user, ctx) {
   let body;
   try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
 
@@ -400,9 +542,6 @@ export async function createProduct(request, env, user) {
   };
   if (!payload.shiireId) return jsonError('仕入れIDが空です', 400);
   if (!payload.kanri) return jsonError('管理番号が空です', 400);
-
-  const gasRes = await callGas(env, 'createProduct', payload, user);
-  if (!gasRes.ok) return jsonError(gasRes.error || 'gas error', 502);
 
   try {
     // 即時表示用に extra_json も組み立てる（次の Cron で確定）
@@ -430,14 +569,69 @@ export async function createProduct(request, env, user) {
       payload.color,
       payload.state,
       JSON.stringify(extra),
-      gasRes.row || 0,
+      0,
       Date.now(),
     ).run();
   } catch (err) {
     console.warn('[create] products d1 insert failed', err.message);
   }
 
-  return jsonOk({ created: true, kanri: payload.kanri });
+  if (ctx && typeof ctx.waitUntil === 'function') {
+    ctx.waitUntil(dispatchGasCreateProduct_(env, user, payload));
+  } else {
+    dispatchGasCreateProduct_(env, user, payload).catch(() => {});
+  }
+
+  invalidateCountsCache();
+  return jsonOk({ created: true, optimistic: true, kanri: payload.kanri });
+}
+
+// DELETE /api/products/:kanri
+// 商品自体の削除（フロントの「商品削除ゾーン」専用）。
+// GAS で商品管理シートから物理削除 → 成功したら D1 からも削除（D1 から消すのは
+// GAS の staff_pushDiffOnRemove_ も走るが、UX 即時反映のためここでも消す）。
+// KV の同梱情報や画像は削除しない（要件: 商品管理シート行 + D1 のみ）。
+export async function deleteProduct(request, env, user, ctx, kanri) {
+  const k = String(kanri || '').trim();
+  if (!k) return jsonError('kanri required', 400);
+
+  const gasRes = await callGas(env, 'deleteProduct', { kanri: k }, user);
+  if (!gasRes || !gasRes.ok) {
+    return jsonError((gasRes && gasRes.error) || 'gas error', 502);
+  }
+
+  try {
+    await env.DB.prepare('DELETE FROM products WHERE kanri = ?').bind(k).run();
+  } catch (err) {
+    console.warn('[delete product] d1 delete failed', err.message);
+  }
+
+  invalidateCountsCache();
+  return jsonOk({ deleted: true, kanri: k });
+}
+
+async function dispatchGasCreateProduct_(env, user, payload) {
+  let gasRes;
+  try {
+    gasRes = await callGas(env, 'createProduct', payload, user);
+  } catch (err) {
+    console.warn('[create product bg] gas exception', err.message);
+    await logSaveFailure_(env, user, payload.kanri, { create: payload }, 'exception:' + err.message);
+    return;
+  }
+  if (!gasRes || !gasRes.ok) {
+    const reason = (gasRes && gasRes.error) || 'unknown';
+    console.warn('[create product bg] gas failed', reason);
+    await logSaveFailure_(env, user, payload.kanri, { create: payload }, reason);
+    return;
+  }
+  // GAS 応答に row が含まれていれば D1 の row_num を確定反映
+  if (gasRes.row && Number(gasRes.row) > 0) {
+    try {
+      await env.DB.prepare('UPDATE products SET row_num = ?, updated_at = ? WHERE kanri = ?')
+        .bind(Number(gasRes.row), Date.now(), payload.kanri).run();
+    } catch (e) { /* ignore */ }
+  }
 }
 
 async function callGas(env, action, payload, user) {

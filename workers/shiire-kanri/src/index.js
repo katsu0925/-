@@ -4,7 +4,7 @@ import { scheduledSync } from './sync/sheets-sync.js';
 import { scheduledAccessSync } from './sync/access-sync.js';
 import { listProducts, getProduct, listProductCounts, getNextKanri, listProductThumbs, getProductImages, listKanrisWithImages } from './handlers/products.js';
 import { listPurchases, getPurchaseProducts } from './handlers/purchases.js';
-import { saveMeasurement, saveSale, saveDetails, uploadImage, resolveImage, createPurchase, createProduct } from './handlers/write-proxy.js';
+import { saveMeasurement, saveSale, saveDetails, uploadImage, resolveImage, createPurchase, createProduct, deleteProduct } from './handlers/write-proxy.js';
 import { imgProxy } from './handlers/img-proxy.js';
 import { thumbProxy } from './handlers/thumb-proxy.js';
 import { listWorkers, listAccounts, listSuppliers, listPlaces, listCategories, listSettings } from './handlers/master.js';
@@ -89,6 +89,9 @@ export default {
     const productMatch = path.match(/^\/api\/products\/([^/]+)$/);
     if (productMatch && request.method === 'GET') {
       return getProduct(request, env, decodeURIComponent(productMatch[1]));
+    }
+    if (productMatch && request.method === 'DELETE') {
+      return deleteProduct(request, env, user, ctx, decodeURIComponent(productMatch[1]));
     }
 
     // マスター（作業者・使用アカウント）

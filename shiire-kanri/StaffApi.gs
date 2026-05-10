@@ -1321,6 +1321,38 @@ function staff_apiSaveDetails(payload, email) {
   };
 }
 
+// 商品自体の削除（フロントの「商品削除ゾーン」から呼ばれる）
+// payload: { kanri }
+// 商品管理シートから該当行を deleteRow で物理削除し、Worker /api/sync/row へ
+// product_diff を投げて D1 を即時整合させる。説明文キャッシュも失効させる。
+// 失敗時は ok:false を返してフロントでトースト表示。
+function staff_apiDeleteProduct(payload, email) {
+  payload = payload || {};
+  email = String(email || 'cloudflare-proxy');
+  var kanri = String(payload.kanri || '').trim();
+  if (!kanri) return { ok: false, error: '管理番号が空です' };
+
+  var sh = staff_getSheet_();
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return { ok: false, error: '該当なし: ' + kanri };
+  var idRange = sh.getRange(2, STAFF_COL.管理番号, lastRow - 1, 1);
+  var found = idRange.createTextFinder(kanri).matchEntireCell(true).findNext();
+  if (!found) return { ok: false, error: '該当なし: ' + kanri };
+
+  var rowNum = found.getRow();
+  sh.deleteRow(rowNum);
+
+  staff_invalidateListingCache_(kanri);
+  // D1 に削除を即時反映（onChange 経由を待たず確実に）
+  try {
+    var ss = sh.getParent();
+    staff_pushDiffOnRemove_(ss);
+  } catch (err) {
+    console.warn('[staff_apiDeleteProduct] pushDiff failed: ' + (err && err.message));
+  }
+  return { ok: true, message: '削除しました: ' + kanri, kanri: kanri, row: rowNum, deletedBy: email };
+}
+
 // 画像アップロード（QR・バーコード画像 / 売却済み商品画像 / ポストシール）
 // payload: { kanri, field, dataUrl }  dataUrl は "data:image/jpeg;base64,..." 形式
 // Drive の '商品管理_Images' フォルダ（スプレッドシート親フォルダ配下）にアップロードし、

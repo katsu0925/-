@@ -33,6 +33,7 @@ function doPost(e) {
       case 'saveDetails':       result = staff_apiSaveDetails(body.payload || {}, email); break;
       case 'createPurchase':    result = staff_apiCreatePurchase(body.payload || {}, email); break;
       case 'createProduct':     result = staff_apiCreateProduct(body.payload || {}, email); break;
+      case 'deleteProduct':     result = staff_apiDeleteProduct(body.payload || {}, email); break;
       case 'uploadImage':       result = staff_apiUploadImage(body.payload || {}, email); break;
       case 'resolveImage':      result = staff_apiResolveImage(body.payload || {}, email); break;
       // AppSheet 互換タブ用 追加API

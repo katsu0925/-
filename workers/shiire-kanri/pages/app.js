@@ -2560,6 +2560,25 @@ function cardHtml(it) {
       }
     }
   }
+  // 発送済み（hassou タブ）: 完了日が空ならワンタップ完了ボタン、入力済みなら日付バッジ
+  var kanryouHtml = '';
+  if (STATE.tab === 'hassou' && st === '発送済み') {
+    var kanryouVal = (it.extra && it.extra['完了日']) ? String(it.extra['完了日']).trim() : '';
+    var kanriAttr = esc(it.kanri).replace(/'/g, '&#39;');
+    if (kanryouVal) {
+      kanryouHtml =
+        '<div class="card-kanryou done">' +
+          '<span class="card-kanryou-ico">✓</span>' +
+          '<span class="card-kanryou-date">完了 ' + esc(fmtReadonlyDate_(kanryouVal)) + '</span>' +
+        '</div>';
+    } else {
+      kanryouHtml =
+        '<div class="card-kanryou">' +
+          '<button type="button" class="btn-kanryou" data-kanri="' + esc(it.kanri) + '" ' +
+            'onclick="event.stopPropagation();onCardKanryouClick_(this,\'' + kanriAttr + '\')">完了 ✓</button>' +
+        '</div>';
+    }
+  }
   var bodyHtml = '<div class="card-body">' +
     '<div class="card-row1">' +
       '<span class="card-kanri">' + esc(it.kanri) + '</span>' +
@@ -2574,6 +2593,7 @@ function cardHtml(it) {
     accountHtml +
     shipDeadlineHtml_(it) +
     progressPillsHtml_(it) +
+    kanryouHtml +
   '</div>';
   return '<div class="' + cardClass + (thumbHtml ? ' has-thumb' : '') + '" onclick="' + openHandler + '">' +
     thumbHtml + bodyHtml +
@@ -2600,6 +2620,60 @@ function progressPillsHtml_(it) {
     pill('📷', '撮影', satDone) +
     pill('🛍️', '出品', shuDone) +
   '</div>';
+}
+
+// 発送済みカードの「完了 ✓」ボタン: 二段階タップ（3秒以内に2回タップで完了日=本日をセット）
+// 1回目: armed クラス + トースト案内 / 2回目: API POST → 楽観的に extra['完了日'] 反映 → 再描画
+var CARD_KANRYOU_ARMED_ = {};
+function onCardKanryouClick_(btn, kanri) {
+  var k = String(kanri || '').trim();
+  if (!k) return;
+  if (!CARD_KANRYOU_ARMED_[k]) {
+    btn.classList.add('armed');
+    btn.textContent = 'もう一度タップで完了';
+    toast('もう一度タップで完了日をセット（3秒以内）', 'info');
+    CARD_KANRYOU_ARMED_[k] = setTimeout(function(){
+      delete CARD_KANRYOU_ARMED_[k];
+      var b = document.querySelector('.btn-kanryou[data-kanri="' + k.replace(/"/g, '\\"') + '"]');
+      if (b) { b.classList.remove('armed'); b.textContent = '完了 ✓'; }
+    }, 3000);
+    return;
+  }
+  clearTimeout(CARD_KANRYOU_ARMED_[k]);
+  delete CARD_KANRYOU_ARMED_[k];
+  btn.disabled = true;
+  btn.textContent = '保存中…';
+  // 完了日 = 本日（YYYY/MM/DD: GAS シート互換、Asia/Tokyo）
+  var d = new Date();
+  var ymd = d.getFullYear() + '/' +
+    String(d.getMonth() + 1).padStart(2, '0') + '/' +
+    String(d.getDate()).padStart(2, '0');
+  var fields = { '完了日': ymd };
+  fetch(API_BASE + '/api/save/details', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kanri: k, fields: fields })
+  }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, body: j }; }); })
+  .then(function(res){
+    if (!res.ok || !res.body || res.body.ok === false) throw new Error((res.body && res.body.error) || '保存失敗');
+    // 楽観反映: STATE.items の該当 kanri に 完了日 を入れて再描画
+    if (Array.isArray(STATE.items)) {
+      for (var i = 0; i < STATE.items.length; i++) {
+        if (STATE.items[i] && STATE.items[i].kanri === k) {
+          STATE.items[i].extra = STATE.items[i].extra || {};
+          STATE.items[i].extra['完了日'] = ymd;
+          break;
+        }
+      }
+    }
+    LIST_CACHE = {};
+    toast('完了日をセット: ' + ymd, 'success');
+    if (STATE.tab === 'hassou') renderShouhinList({ silent: true });
+  }).catch(function(err){
+    toast('保存失敗: ' + (err && err.message || '不明'), 'error');
+    btn.disabled = false;
+    btn.textContent = '完了 ✓';
+    btn.classList.remove('armed');
+  });
 }
 
 // 一覧描画後に呼ぶ: 発送タブのカードサムネを遅延解決して画像に差し替える
@@ -6098,6 +6172,23 @@ function renderDetail() {
       buildHistoryHtml_(d) +
     '</div>';
 
+  // 商品自体の削除ゾーン（独立配置・最下部）。確認入力で管理番号一致時のみ削除可能。
+  var deleteKanriAttr = esc(d.kanri).replace(/'/g, '&#39;');
+  var dangerHtml =
+    '<div class="danger-zone" id="danger-zone">' +
+      '<div class="danger-title">⚠️ 商品の削除</div>' +
+      '<div class="danger-body">' +
+        '<div class="danger-desc">商品管理シートと D1 から完全に削除します。元に戻せません。' +
+        '削除するには、確認のため管理番号 <b>' + esc(d.kanri) + '</b> を入力してください。</div>' +
+        '<div class="danger-input-row">' +
+          '<input type="text" id="danger-kanri-input" autocomplete="off" placeholder="管理番号を入力" ' +
+            'oninput="onDangerKanriInput_(this, \'' + deleteKanriAttr + '\')">' +
+          '<button type="button" class="btn-danger" id="btn-delete-product" disabled ' +
+            'onclick="onDeleteProductClick_(\'' + deleteKanriAttr + '\')">削除</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
   var html =
     heroHtml +
     basicImgsHtml +
@@ -6106,6 +6197,7 @@ function renderDetail() {
       sectionsHtml +
       summaryHtml +
       historyHtml +
+      dangerHtml +
     '</div>' +
     '<div class="savebar" id="savebar">' +
       '<div class="savebar-info"><b id="savebar-count">0</b> 件の変更が未保存<span class="savebar-fields" id="savebar-fields"></span></div>' +
@@ -6252,6 +6344,45 @@ function cancelDetailEdits_() {
 function markDetailDirty_() { STATE.detailDirty = true; }
 // 保存／戻る後は dirty を解除
 function clearDetailDirty_() { STATE.detailDirty = false; }
+
+// 商品削除ゾーン: 入力値が管理番号と完全一致したら削除ボタンを有効化
+function onDangerKanriInput_(input, kanri) {
+  var v = String(input.value || '').trim();
+  var btn = document.getElementById('btn-delete-product');
+  if (!btn) return;
+  var match = v && v === String(kanri || '').trim();
+  btn.disabled = !match;
+}
+
+// 商品削除実行: DELETE /api/products/:kanri を叩いてシート + D1 から消す。
+// 成功後は STATE.items から該当 kanri を取り除き、トースト + 一覧に戻る。
+async function onDeleteProductClick_(kanri) {
+  var k = String(kanri || '').trim();
+  if (!k) return;
+  var btn = document.getElementById('btn-delete-product');
+  if (btn) { btn.disabled = true; btn.textContent = '削除中…'; }
+  try {
+    await api('/api/products/' + encodeURIComponent(k), { method: 'DELETE' });
+    // 楽観的に STATE.items から取り除く（次回 polling で確定）
+    if (Array.isArray(STATE.items)) {
+      STATE.items = STATE.items.filter(function(it){ return it && it.kanri !== k; });
+    }
+    // sessionStorage 上のサムネキャッシュも掃除（任意）
+    try { sessionStorage.removeItem('tbthumb:v2:' + k); } catch(e) {}
+    toast('削除しました: ' + k, 'success');
+    // 詳細編集の dirty を捨てて一覧に戻る
+    try { clearDetailEdits_(k); } catch(e) {}
+    STATE.view = 'list'; STATE.current = null;
+    try {
+      if (history.state && history.state.view === 'detail') { history.back(); }
+      else { render(); }
+    } catch(e) { render(); }
+    refreshCounts();
+  } catch (err) {
+    toast('削除失敗: ' + (err && err.message ? err.message : '不明なエラー'), 'error');
+    if (btn) { btn.disabled = false; btn.textContent = '削除'; }
+  }
+}
 
 function backToList() {
   confirmLeaveDetail_(function(){

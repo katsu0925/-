@@ -472,6 +472,32 @@
   }
   .card-pill.done { background: #e8f5e9; color: #2e7d32; font-weight: 600; }
   .card-pill .ico { font-size: 10px; }
+  /* 発送済みカードの「完了 ✓」ボタン / 完了日表示 */
+  .card-kanryou { margin-top: 6px; display: flex; align-items: center; gap: 6px; }
+  .card-kanryou.done {
+    font-size: 12px; color: #1b5e20; font-weight: 700;
+    background: #e8f5e9; padding: 4px 10px; border-radius: 6px;
+    width: fit-content;
+  }
+  .card-kanryou-ico { font-size: 12px; }
+  .btn-kanryou {
+    padding: 6px 14px; font-size: 12px; font-weight: 700;
+    background: linear-gradient(180deg, #66bb6a 0%, #4caf50 100%);
+    color: white; border: none; border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(46,125,50,.28); cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn-kanryou:active { transform: translateY(1px); box-shadow: none; }
+  .btn-kanryou:disabled { background: #bdbdbd; cursor: wait; box-shadow: none; }
+  .btn-kanryou.armed {
+    background: linear-gradient(180deg, #ef5350 0%, #d32f2f 100%);
+    box-shadow: 0 2px 4px rgba(211,47,47,.32);
+    animation: kanryou-pulse 1s ease-in-out infinite;
+  }
+  @keyframes kanryou-pulse {
+    0%, 100% { box-shadow: 0 2px 4px rgba(211,47,47,.32); }
+    50% { box-shadow: 0 2px 12px rgba(211,47,47,.56); }
+  }
   /* コンパクト密度: カードの余白とピルを縮める */
   body.density-compact .card { padding: 6px 10px; gap: 8px; }
   body.density-compact .card-thumb { width: 56px; height: 56px; }
@@ -1073,6 +1099,37 @@
   .history-when { color: var(--text-sub); font-size: 11px; font-weight: 500; }
   .history-who { color: var(--primary-dark); font-weight: 700; font-size: 13px; }
   .history-empty { color: var(--text-mute); font-size: 12px; padding: 8px 0; text-align: center; }
+  /* 商品削除ゾーン（最下部・独立配置） */
+  .danger-zone {
+    margin: 32px 0 100px; padding: 16px;
+    background: #fff5f5; border: 2px dashed #ef9a9a;
+    border-radius: 12px;
+  }
+  .danger-title {
+    font-size: 14px; font-weight: 800; color: #c62828;
+    margin-bottom: 12px;
+  }
+  .danger-body { display: flex; flex-direction: column; gap: 12px; }
+  .danger-desc { font-size: 12px; color: #6d4c41; line-height: 1.7; }
+  .danger-desc b { color: #c62828; font-weight: 800; }
+  .danger-input-row { display: flex; gap: 8px; align-items: center; }
+  .danger-input-row input {
+    flex: 1; padding: 10px 12px; border: 1px solid #e0a4a4;
+    border-radius: 8px; font-size: 14px; background: #fff;
+    -webkit-appearance: none; appearance: none;
+  }
+  .danger-input-row input:focus {
+    outline: none; border-color: #c62828;
+    box-shadow: 0 0 0 3px rgba(198,40,40,.15);
+  }
+  .btn-danger {
+    padding: 10px 20px; background: #d32f2f; color: white;
+    border: none; border-radius: 8px; font-size: 14px; font-weight: 700;
+    cursor: pointer; box-shadow: 0 2px 6px rgba(211,47,47,.32);
+    white-space: nowrap;
+  }
+  .btn-danger:disabled { background: #bdbdbd; cursor: not-allowed; box-shadow: none; }
+  .btn-danger:not(:disabled):active { background: #b71c1c; transform: translateY(1px); }
   /* 保存バー（差分があるとき下部に固定） */
   .savebar {
     position: fixed; left: 12px; right: 12px; bottom: calc(76px + env(safe-area-inset-bottom));
