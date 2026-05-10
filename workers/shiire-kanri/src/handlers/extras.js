@@ -152,7 +152,8 @@ export async function getListingText(request, env, user, kanri) {
   }
   const base = String(env.GAS_API_URL || '');
   if (!base) return jsonError('GAS_API_URL not configured', 500);
-  const target = base + (base.indexOf('?') >= 0 ? '&' : '?') + 'id=' + encodeURIComponent(id) + '&fmt=json';
+  // KV 未ヒット時は GAS 側 CacheService 10分 もバイパスする（Cron invalidate 後に古い説明文が残らないように）。
+  const target = base + (base.indexOf('?') >= 0 ? '&' : '?') + 'id=' + encodeURIComponent(id) + '&fmt=json&nocache=1';
   let res;
   try {
     res = await getFollowingRedirects(target);

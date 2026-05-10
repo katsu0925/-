@@ -986,6 +986,7 @@ function statusRank_(s){ var r = STATUS_RANK[s]; return r != null ? r : 99; }
 // 商品管理タブの並び替え / 密度メニュー
 var SHOUHIN_SORT_LABELS = {
   kanri: '管理番号',
+  created: '登録順（新→旧）',
   shiire: '仕入れ日',
   brand: 'ブランド',
   status: '状態',
@@ -993,7 +994,7 @@ var SHOUHIN_SORT_LABELS = {
   size: 'サイズ',
   color: 'カラー'
 };
-var SHOUHIN_SORT_KEYS = ['kanri','shiire','brand','status','saleDate','size','color'];
+var SHOUHIN_SORT_KEYS = ['kanri','created','shiire','brand','status','saleDate','size','color'];
 function openSortDensityMenu_(ev) {
   if (ev) ev.stopPropagation();
   // 既存メニューがあれば閉じる
@@ -1056,6 +1057,15 @@ function applyShouhinSort_(items) {
   if (key === 'kanri') {
     // サーバ DESC をクライアント側でも保証
     arr.sort(function(a,b){ return kanriCompareAsc_(a.kanri, b.kanri); });
+  } else if (key === 'created') {
+    // 登録順 = シート行番号(rowNum) 降順。後から追加された行ほど大きい行番号 = 新しい登録 = 上に表示。
+    // rowNum が無い古いレコードは末尾に流す。第二キーは kanri 降順（新しい kanri を上に）。
+    arr.sort(function(a,b){
+      var ra = (a.rowNum != null) ? Number(a.rowNum) : -1;
+      var rb = (b.rowNum != null) ? Number(b.rowNum) : -1;
+      if (ra !== rb) return rb - ra;
+      return kanriCompareAsc_(b.kanri, a.kanri);
+    });
   } else if (key === 'shiire') {
     // 仕入れ日 = shiireId 降順（新しい仕入れが先頭）
     arr.sort(function(a,b){
@@ -2515,10 +2525,10 @@ function cardHtml(it) {
   // 未解決のものだけ 📷 プレースホルダ + 描画後 resolveCardThumbsTasukibako_() で一括 fetch。
   var thumbHtml = '';
   if (STATE.tab === 'hassou' || STATE.tab === 'shouhin') {
-    var ck = 'tbthumb:v1:' + it.kanri;
+    var ck = 'tbthumb:v2:' + it.kanri;
     var cached = null;
     try { cached = sessionStorage.getItem(ck); } catch(e) {}
-    if (cached && cached !== '__none__') {
+    if (cached && !isThumbNoneCached_(cached)) {
       var url = normalizeDriveUrl_(cached, 200);
       thumbHtml = '<div class="card-thumb"><img src="' + esc(url) + '" alt="" loading="lazy" decoding="async"></div>';
     } else {
@@ -2733,6 +2743,20 @@ function vlistRender_(force) {
   if (VLIST.onAfter) VLIST.onAfter();
 }
 
+// __none__ センチネルは時刻付きで保存（"__none__:<ms>"）。THUMB_NONE_TTL_MS を超えたら期限切れ扱い。
+// アップロード直後にキャッシュが残って 📷 のままになる事故を防ぐため。
+var THUMB_NONE_TTL_MS = 5 * 60 * 1000;
+function isThumbNoneCached_(v) {
+  if (!v) return false;
+  if (v === '__none__') return true; // 旧フォーマット（v1 期間）も一応扱う
+  if (v.indexOf('__none__:') === 0) {
+    var ts = parseInt(v.slice('__none__:'.length), 10);
+    if (!ts) return true;
+    return (Date.now() - ts) < THUMB_NONE_TTL_MS;
+  }
+  return false;
+}
+
 // 一覧描画後に呼ぶ: タスキ箱（gas-proxy KV: product-images:<kanri>）から各カードのトップ画像を一括解決して差し替える。
 // セッションキャッシュで再描画コスト削減。画像なしのカードは 📷 のまま。
 function resolveCardThumbsTasukibako_() {
@@ -2743,11 +2767,11 @@ function resolveCardThumbsTasukibako_() {
   Array.prototype.forEach.call(nodes, function(el){
     var k = el.getAttribute('data-kanri') || '';
     if (!k) return;
-    var ck = 'tbthumb:v1:' + k;
+    var ck = 'tbthumb:v2:' + k;
     var cached = null;
     try { cached = sessionStorage.getItem(ck); } catch(e) {}
-    if (cached === '__none__') return; // 画像なしと既知 → 何もしない
-    if (cached) {
+    if (isThumbNoneCached_(cached)) return; // 画像なしと既知 (TTL内) → 何もしない
+    if (cached && cached.indexOf('__none__') !== 0) {
       el.classList.remove('img-tasukibako');
       el.innerHTML = '<img src="' + esc(normalizeDriveUrl_(cached, 200)) + '" alt="" loading="lazy" decoding="async">';
       return;
@@ -2770,7 +2794,7 @@ function resolveCardThumbsTasukibako_() {
           var items = (res && res.items) || {};
           var resolvedUrls = [];
           slice.forEach(function(k){
-            var ck = 'tbthumb:v1:' + k;
+            var ck = 'tbthumb:v2:' + k;
             var url = items[k];
             if (url) {
               try { sessionStorage.setItem(ck, url); } catch(e) {}
@@ -2781,8 +2805,8 @@ function resolveCardThumbsTasukibako_() {
                 el.innerHTML = '<img src="' + esc(smallUrl) + '" alt="" loading="lazy" decoding="async">';
               });
             } else {
-              // 画像なしを記憶（次回以降の無駄打ち防止）
-              try { sessionStorage.setItem(ck, '__none__'); } catch(e) {}
+              // 画像なしをタイムスタンプ付きで記憶（TTL 5分後に再フェッチ → アップロード即反映）
+              try { sessionStorage.setItem(ck, '__none__:' + Date.now()); } catch(e) {}
             }
           });
           // CF Edge Cache のプリ温め: lazy 範囲外の画像も先に /api/img で取得して

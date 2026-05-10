@@ -17,7 +17,7 @@ const ACCOUNT_SELECTED = "(json_extract(extra_json, '$.\"使用アカウント\"
 //   従来は日付ベースで派生していたが、シート上で「売却済み」になっていても
 //   完了日が空の行が 1300件以上存在し、それらが派生では「出品中」になって
 //   AppSheet と件数が大きく食い違っていた。シートが正、派生は補完。
-const DERIVED_STATUS = `
+export const DERIVED_STATUS = `
   CASE
     -- raw='出品待ち' のうち撮影日・採寸日・使用アカウントが揃った行は「出品作業中」に細分化
     WHEN status = '出品待ち' AND ${D_SATSUEI} AND ${D_SAISUN} AND ${ACCOUNT_SELECTED} THEN '出品作業中'
@@ -122,7 +122,7 @@ export async function listProducts(request, env) {
   // （extra_json 全体は返さない／measure_json も省略）
   const slimSelect = `
     SELECT kanri, shiire_id, worker, status, brand, size, color,
-           measured_at,
+           measured_at, row_num,
            sale_date, sale_ts, sale_price,
            json_extract(extra_json, '$."売却済み商品画像"') AS extra_thumb,
            json_extract(extra_json, '$."使用アカウント"')   AS extra_account,
@@ -201,6 +201,7 @@ function formatProductSlim(row) {
     saleDate: row.sale_date,
     saleTs: row.sale_ts,
     salePrice: row.sale_price,
+    rowNum: row.row_num,
     extra,
   };
 }

@@ -1622,16 +1622,19 @@ function staff_apiCreateProduct(payload, email) {
   if (payload.color !== undefined) rowArr[STAFF_COL.カラー - 1] = String(payload.color || '');
 
   // 採寸登録時の自動書き込み（仕入れ管理 lookup + 派生値 0 初期化 + プロモーション FALSE + タイムスタンプ）
+  var shiireUnitCostNum = 0;
   if (col['仕入れ日'] && shiirePurchaseDate !== '' && shiirePurchaseDate !== null && shiirePurchaseDate !== undefined) {
     rowArr[col['仕入れ日'] - 1] = shiirePurchaseDate;
   }
   if (col['仕入れ値'] && shiireUnitCost !== '' && shiireUnitCost !== null && shiireUnitCost !== undefined) {
-    rowArr[col['仕入れ値'] - 1] = Number(shiireUnitCost) || 0;
+    shiireUnitCostNum = Number(shiireUnitCost) || 0;
+    rowArr[col['仕入れ値'] - 1] = shiireUnitCostNum;
   }
   if (col['納品場所']) rowArr[col['納品場所'] - 1] = shiirePlace;
   if (col['手数料']) rowArr[col['手数料'] - 1] = 0;
   if (col['粗利']) rowArr[col['粗利'] - 1] = 0;
-  if (col['利益']) rowArr[col['利益'] - 1] = 0;
+  // 利益 = 粗利(0) - 仕入れ値 = -仕入れ値（販売前のため）
+  if (col['利益']) rowArr[col['利益'] - 1] = -shiireUnitCostNum;
   if (col['利益率']) rowArr[col['利益率'] - 1] = 0;
   if (col['リードタイム']) rowArr[col['リードタイム'] - 1] = 0;
   if (col['タイムスタンプ']) rowArr[col['タイムスタンプ'] - 1] = new Date();
@@ -1679,6 +1682,15 @@ function staff_apiCreateProduct(payload, email) {
 
   var appendAt = sh.getLastRow() + 1;
   sh.getRange(appendAt, 1, 1, width).setValues([rowArr]);
+
+  // タイムスタンプ列は AppSheet 既定だと date のみで時刻が表示されない場合がある。
+  // 採寸登録由来の行は秒精度まで明示表示する。
+  if (col['タイムスタンプ']) {
+    sh.getRange(appendAt, col['タイムスタンプ']).setNumberFormat('yyyy/MM/dd HH:mm:ss');
+  }
+  if (col['プロモーション利用']) {
+    sh.getRange(appendAt, col['プロモーション利用']).insertCheckboxes();
+  }
 
   return { ok: true, kanri: kanri, productId: productId, row: appendAt, skipped: skipped, unknown: unknown };
 }

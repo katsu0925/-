@@ -368,8 +368,9 @@ async function prewarmListingText(env, batchSize) {
 
 async function warmOne(env, kanri) {
   const base = String(env.GAS_API_URL || '');
+  // ウォーム時は GAS 側 CacheService 10分 もバイパスする（Cron invalidate と整合させる）
   const target = base + (base.indexOf('?') >= 0 ? '&' : '?')
-    + 'id=' + encodeURIComponent(kanri) + '&fmt=json';
+    + 'id=' + encodeURIComponent(kanri) + '&fmt=json&nocache=1';
   let res;
   try {
     res = await getFollowingRedirects(target);
