@@ -1637,8 +1637,12 @@ function staff_apiCreateProduct(payload, email) {
   if (col['利益']) rowArr[col['利益'] - 1] = -shiireUnitCostNum;
   if (col['利益率']) rowArr[col['利益率'] - 1] = 0;
   if (col['リードタイム']) rowArr[col['リードタイム'] - 1] = 0;
-  if (col['タイムスタンプ']) rowArr[col['タイムスタンプ'] - 1] = new Date();
-  if (col['プロモーション利用']) rowArr[col['プロモーション利用'] - 1] = false;
+  // タイムスタンプは JST 文字列で書き込む（スプレッドシートのTZ設定がUTCでもズレないように）
+  if (col['タイムスタンプ']) {
+    rowArr[col['タイムスタンプ'] - 1] = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
+  }
+  // プロモーション利用は文字列セル（空）で初期化。チェックボックス化はしない
+  if (col['プロモーション利用']) rowArr[col['プロモーション利用'] - 1] = '';
 
   // payload.fields で AppSheet 同等の任意ヘッダー入力を受け付ける
   var fields = payload.fields || {};
@@ -1682,15 +1686,6 @@ function staff_apiCreateProduct(payload, email) {
 
   var appendAt = sh.getLastRow() + 1;
   sh.getRange(appendAt, 1, 1, width).setValues([rowArr]);
-
-  // タイムスタンプ列は AppSheet 既定だと date のみで時刻が表示されない場合がある。
-  // 採寸登録由来の行は秒精度まで明示表示する。
-  if (col['タイムスタンプ']) {
-    sh.getRange(appendAt, col['タイムスタンプ']).setNumberFormat('yyyy/MM/dd HH:mm:ss');
-  }
-  if (col['プロモーション利用']) {
-    sh.getRange(appendAt, col['プロモーション利用']).insertCheckboxes();
-  }
 
   return { ok: true, kanri: kanri, productId: productId, row: appendAt, skipped: skipped, unknown: unknown };
 }
