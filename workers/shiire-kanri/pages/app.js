@@ -1302,8 +1302,8 @@ function selectTab(tab) {
 
 // タブごとに検索 placeholder を切り替える（タブ移動時 / 起動時に呼ぶ）
 var SEARCH_PLACEHOLDERS = {
-  shouhin: '管理番号・ブランド・状態で検索',
-  hassou:  '使用アカウント・管理番号で検索',
+  shouhin: '管理番号で検索',
+  hassou:  '管理番号で検索',
   shiire:  '仕入れID・場所で検索',
   basho:   '管理番号・場所で検索',
   hensou:  '管理番号で検索',
@@ -2057,19 +2057,11 @@ async function renderShouhinList(opts) {
   var cacheKey = listCacheKey_();
   var cached = LIST_CACHE[cacheKey];
   function paint(items){
-    // 検索クエリは normalizeForSearch_ で全角/半角・大文字小文字を吸収してから比較
+    // 検索クエリは管理番号のみで照合（ブランド/状態等は対象外）
     var filtered = items;
     if (qNorm) {
       filtered = items.filter(function(it){
-        var hay = normalizeForSearch_(
-          (it.kanri || '') + ' ' +
-          (it.brand || '') + ' ' +
-          (it.color || '') + ' ' +
-          (it.shiireId || '') + ' ' +
-          (it.size || '') + ' ' +
-          (it.worker || '') + ' ' +
-          (it.status || '')
-        );
+        var hay = normalizeForSearch_(it.kanri || '');
         return hay.indexOf(qNorm) >= 0;
       });
     }
