@@ -29,6 +29,13 @@ binding = "DB"
 database_name = "detauri-db"
 database_id = "a6dd2463-5b9a-4a64-b31e-644c454a1503"
 
+# 仕入れ管理 D1（撮影日付/撮影者を syncPhotographyData 直後に直接反映するため）
+# 既存の shiire-kanri 5分 Cron 経由 (5〜10分遅延) を待たずに即時反映
+[[d1_databases]]
+binding = "SHIIRE_DB"
+database_name = "shiire-kanri-db"
+database_id = "5a45ff40-69ca-4a2a-9e75-daa702e959e8"
+
 # KV Namespaces（本番用）
 [[kv_namespaces]]
 binding = "SESSIONS"

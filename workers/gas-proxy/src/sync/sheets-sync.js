@@ -468,6 +468,13 @@ async function syncPhotographyData(env) {
         const photoAllOk = photographyData.length > 0 && photoWritten >= photographyData.length;
         const aiAllOk = aiData.length > 0 && aiWritten >= aiData.length;
 
+        // GAS 書込み成功直後に shiire-kanri D1 へも直接反映（管理アプリ即時反映）
+        // shiire-kanri 5分 Cron を待たずに 撮影日付/撮影者 を extra_json に書き込む。
+        // content_hash は触らないので次の shiire-kanri Cron で同値で再 UPSERT されても無害。
+        if (photoAllOk && env.SHIIRE_DB) {
+          await syncPhotoToShiireKanri(env, photographyData);
+        }
+
         const touchIds = new Set([...photoSentIds, ...aiSentIds]);
         for (const mid of touchIds) {
           const metaJson = await env.CACHE.get(`photo-meta:${mid}`);
@@ -506,6 +513,45 @@ async function syncPhotographyData(env) {
   } catch (e) {
     console.error('[sync] Photography sync error:', e.message);
   }
+}
+
+// shiire-kanri D1 (products.extra_json) に 撮影日付/撮影者 を直接書込み。
+// GAS への apiSyncImportData が成功した直後に呼ぶ。
+// shiire-kanri 5分 Cron での再同期では同値で content_hash が変わらないため再UPSERTは発生しない。
+// D1 課金ガード: 既に同値なら UPDATE をスキップする（feedback_d1_cost_safeguard）。
+async function syncPhotoToShiireKanri(env, photographyData) {
+  if (!env.SHIIRE_DB || !Array.isArray(photographyData) || photographyData.length === 0) return;
+  let updated = 0;
+  let skipped = 0;
+  for (const item of photographyData) {
+    const kanri = String(item.managedId || '').trim();
+    if (!kanri) continue;
+    try {
+      const cur = await env.SHIIRE_DB
+        .prepare('SELECT extra_json FROM products WHERE kanri = ?')
+        .bind(kanri)
+        .first();
+      if (!cur) continue; // shiire-kanri 側にまだ行が無い（次の Cron で UPSERT される）
+      let extra = {};
+      try { extra = JSON.parse(cur.extra_json || '{}') || {}; } catch (_) { extra = {}; }
+      const newDate = item.photographyDate || '';
+      const newBy = item.photographer || '';
+      if ((extra['撮影日付'] || '') === newDate && (extra['撮影者'] || '') === newBy) {
+        skipped++;
+        continue;
+      }
+      extra['撮影日付'] = newDate;
+      extra['撮影者'] = newBy;
+      await env.SHIIRE_DB
+        .prepare('UPDATE products SET extra_json = ?, updated_at = ? WHERE kanri = ?')
+        .bind(JSON.stringify(extra), Date.now(), kanri)
+        .run();
+      updated++;
+    } catch (err) {
+      console.warn(`[sync] shiire-kanri D1 photo update failed (${kanri}): ${err.message}`);
+    }
+  }
+  console.log(`[sync] shiire-kanri D1 photo sync: updated=${updated}, skipped=${skipped}, total=${photographyData.length}`);
 }
 
 // ─── D1 UPSERT ───
@@ -1355,6 +1401,10 @@ const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models
 const ORDERING_MODEL = 'gemini-2.5-flash';
 const ORDERING_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${ORDERING_MODEL}:generateContent`;
 
+// 怪しいケースだけ高精度化するためのスポット用 Pro モデル
+const ORDERING_PRO_MODEL = 'gemini-2.5-pro';
+const ORDERING_PRO_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${ORDERING_PRO_MODEL}:generateContent`;
+
 const AI_PRODUCT_PROMPT = `あなたは古着の商品情報を画像から判定する専門家です。以下の画像の古着商品について、JSON形式で情報を返してください。
 
 ## 出力ルール
@@ -1527,13 +1577,14 @@ async function runGeminiJudgment(env, managedId, apiKey) {
 //   front_full : 前から全身（平置き or トルソー）
 //   back_full  : 後ろから全身（平置き or トルソー）
 //   worn       : 人間が着用している着画
+//   angle_full        : 正面・背面以外の角度から商品全体を撮影（斜め・サイド・トルソーを斜めから等）
 //   detail            : 部分アップ・ディテール
 //   tag               : タグ
 //   defect            : 傷・汚れ・破れ拡大
 //   processed_right   : 白背景加工＋右上ロゴ（先頭）
 //   processed_left    : 白背景加工＋左上ロゴ（末尾）
-//   other             : それ以外（斜め角度・不明確な構図）
-const ORDER_PRIORITY = ['processed_right', 'front_full', 'back_full', 'worn', 'detail', 'tag', 'defect', 'other', 'processed_left'];
+//   other             : それ以外（半身しか写らない／複数アイテム混在／構図不明確）
+const ORDER_PRIORITY = ['processed_right', 'front_full', 'back_full', 'angle_full', 'worn', 'detail', 'tag', 'defect', 'other', 'processed_left'];
 
 const AI_ORDERING_PROMPT = `あなたは古着の商品画像を並び替えるための分類アシスタントです。
 画像配列の各画像について、まず観察した内容を reason に短く書いてから、最後に1つのカテゴリ label を付けてください。reason を書かずに即答することは禁止です。
@@ -1541,26 +1592,46 @@ const AI_ORDERING_PROMPT = `あなたは古着の商品画像を並び替える�
 ## カテゴリ（必ず以下から1つだけ選ぶ）
 - front_full : 商品の前面（正面）全体。人間は写っておらず、平置き／ハンガー／トルソーで真正面から撮影。トップス・ワンピならボディ前面、パンツなら脚の前面
 - back_full  : 商品の背面全体。人間は写っておらず、真後ろから撮影
+- angle_full : 正面でも背面でもない角度から「商品全体」が写っている画像。斜め45度／サイドビュー／真横／斜め上から見下ろし／トルソー or ハンガーを斜めから撮影、など。商品の輪郭ほぼ全体が画面に収まっていれば angle_full
 - worn       : 人間（モデル）が実際に着用している着画。顔・手・脚・髪などの肌や身体パーツが画像内に見える
-- detail     : 部分アップ。袖口・襟・素材アップ・装飾・ボタン・刺繍・プリント柄の拡大など、商品の一部分にフォーカス
+- detail     : 部分アップ。袖口・襟・素材アップ・装飾・ボタン・刺繍・プリント柄の拡大など、商品の一部分にフォーカス（商品全体は写っていない）
 - tag        : 内側タグ・洗濯表示・ブランドネーム・サイズ表記など、文字情報主体の拡大写真
 - defect          : 傷・汚れ・穴・シミ・ほつれ・色褪せなど、ダメージ箇所の拡大写真
 - processed_right : 真っ白に背景処理された商品＋ブランドロゴ（店名テキスト）が「画像の右上」に重ねて合成された加工済み画像（先頭表示用のヒーロー画像）
 - processed_left  : 真っ白に背景処理された商品＋ブランドロゴ（店名テキスト）が「画像の左上」に重ねて合成された加工済み画像（末尾表示用）
-- other           : 上記いずれにも明確に該当しない曖昧な画像（斜め45度撮影／構図不明確／複数アイテム混在／半身しか写っていない／極端なズームで判別不能など）
+- other           : 上記いずれにも明確に該当しない曖昧な画像（複数アイテム混在／半身しか写っていない／構図が極端で全体も部分も判別不能 など）
 
 ## 判定の具体例
 - 床に広げたトップスを真上から撮った写真 → front_full（または back_full）
 - ハンガーに掛けて壁の正面から撮った写真 → front_full / back_full
-- ハンガーに掛けて斜め45度から撮った写真 → other
+- ハンガーに掛けて斜め45度から撮った写真（商品全体が写っている） → angle_full
+- トルソーに着せて斜め前から商品全体を撮った写真 → angle_full
+- 床に広げて斜め上から商品全体を撮った写真 → angle_full
+- 商品を真横から撮ってシルエットが分かる写真 → angle_full
 - モデルが着ていて顔は写っていないが手や髪が見える → worn
-- 値札やサイズタグだけのアップ → tag（文字情報メイン）
+- 値札やサイズタグだけのアップ（文字情報メイン） → tag
 - 袖の刺繍やボタンの拡大（ダメージなし） → detail
 - 穴・シミ・色褪せの拡大 → defect
 - 真っ白い背景に切り抜かれた商品＋"BRAND"等のロゴテキストが画像の「右上」に合成 → processed_right
 - 真っ白い背景に切り抜かれた商品＋"BRAND"等のロゴテキストが画像の「左上」に合成 → processed_left
 - 同じ商品の正面が複数枚 → 全て front_full（重複していてもOK）
 - ロゴがどちらの上端にあるか曖昧（中央／下／判別不能）→ processed_left（より無難な末尾扱い）にする
+- 「全体が写っているか部分アップか」迷ったら、商品の輪郭の大部分（だいたい7割以上）が画面に収まっていれば angle_full、収まっていなければ detail
+
+## 前面・背面の見分け方（特にキャミ・ストラップ系ワンピ／袖なし／ベアトップ／ベアトップスなど袖の無い衣類）
+袖が無い衣類はトルソーで撮ると前後が紛らわしい。以下の手がかりで判定する：
+- **front_full の手がかり**：襟ぐりに明確な装飾的形状（V字／ハート型／スクエア／レース／フリル／リボン／ボタン列／ファスナー（前ジップ）／プリント柄／胸ダーツ）が見える
+- **back_full の手がかり**：背中側のファスナー（後ジップ）／ボタン列の中心線／ホック／タグの飛び出し／クロス紐／ホールカット／背中ダーツ／首後ろの肌色っぽいすっきりした輪郭が見える
+- **両方とも判定が難しい（前か後か断定できない）** → angle_full に倒す（中位置に並ぶので front/back 誤同定より傷が浅い）
+- 角度が真正面でなく、肩や脇のシルエットが斜めに見える → angle_full
+- 同一商品を「真正面・斜め前・真後ろ・斜め後ろ」と4枚撮影されているケースが多い：撮影者は通常「前→斜め前→後ろ→斜め後ろ」または「前→後ろ→斜め前→斜め後ろ」の順で並べる傾向あり
+
+### 前後判定の具体例
+- トルソーにキャミワンピを着せ、胸元にV字ネックの切り替えがはっきり見える → front_full
+- 同じワンピをトルソーで撮り、背中ファスナーが縦に見える → back_full
+- 同じワンピをトルソーで斜めから撮り、肩ストラップが斜めに重なって見える → angle_full
+- ストラップが両肩から胸元に向けて自然に下りていて、襟ぐりの形状（V字／スクエア等）が見える → front_full
+- ストラップが背中側でクロスしている／首の後ろが見えていて、襟ぐり形状が見えない → back_full
 
 ## 撮影順のヒント
 画像は upload 順で並んでいます。経験上、最初の 2〜3 枚（index 0, 1, 2）は撮影者が「商品の代表写真」として front_full / back_full を撮る蓋然性が高いです。最終手前は worn、最後付近は processed_left（左上ロゴの末尾画像）の傾向があります。processed_right（右上ロゴ）は商品アップロードの最初のほうに置かれることもあります。ただしこれはヒントであり、画像内容を最優先してください。
@@ -1571,9 +1642,9 @@ const AI_ORDERING_PROMPT = `あなたは古着の商品画像を並び替える�
 ## 出力（JSONのみ・説明文や前置き禁止）
 {
   "items": [
-    { "index": 0, "reason": "白背景に切り抜かれ右上にBRANDロゴ合成", "label": "processed_right" },
-    { "index": 1, "reason": "床に広げたトップスを真上から、人間なし", "label": "front_full" },
-    { "index": 2, "reason": "白背景に切り抜かれ左上にBRANDロゴ合成", "label": "processed_left" }
+    { "index": 0, "reason": "白背景に切り抜かれ右上にBRANDロゴ合成", "label": "processed_right", "confidence": "high" },
+    { "index": 1, "reason": "床に広げたトップスを真上から、人間なし", "label": "front_full", "confidence": "high" },
+    { "index": 2, "reason": "ストラップ系で襟ぐり装飾も背中ファスナーも判別不能", "label": "angle_full", "confidence": "low" }
   ]
 }
 
@@ -1581,9 +1652,15 @@ const AI_ORDERING_PROMPT = `あなたは古着の商品画像を並び替える�
 - items の長さは入力画像の枚数と完全に一致させること
 - index は 0 から順に通し番号で書くこと
 - reason は label の前に置き、画像の特徴を15〜40字程度で簡潔に書くこと
-- label は上記カテゴリのいずれかの英字キーをそのまま小文字で出力すること`;
+- label は上記カテゴリのいずれかの英字キーをそのまま小文字で出力すること
+- confidence は high / medium / low のいずれかを必ず付ける
+  - **high**: 上記カテゴリ定義・具体例にそのまま当てはまり、迷う余地がない
+  - **medium**: ある程度該当するが、細部で別のカテゴリの可能性も僅かに残る
+  - **low**: front/back の判別困難、全体/部分の境界、複数解釈ありうる、画像が暗い・ピンボケ・写り込み等で読みにくい、など。後で人間の確認や上位モデルの再判定が望ましいケース`;
 
-async function runOrderingJudgment(env, managedId, apiKey) {
+async function runOrderingJudgment(env, managedId, apiKey, opts = {}) {
+  const usePro = !!opts.usePro;
+  const endpoint = usePro ? ORDERING_PRO_ENDPOINT : ORDERING_ENDPOINT;
   const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
   if (!urlsJson) return { error: 'no-kv' };
   const urls = JSON.parse(urlsJson);
@@ -1612,6 +1689,17 @@ async function runOrderingJudgment(env, managedId, apiKey) {
   }
   if (imageParts.length === 0) return { error: 'no-r2-images' };
 
+  const generationConfig = {
+    temperature: 0.1,
+    maxOutputTokens: usePro ? 8192 : 4096,
+    responseMimeType: 'application/json',
+  };
+  if (!usePro) {
+    // Flash: thinking が出力枠を食いつぶさないよう抑制（reason で CoT 等価）
+    generationConfig.thinkingConfig = { thinkingBudget: 0 };
+  }
+  // Pro はデフォルトで dynamic thinking が動くので明示設定なし
+
   const payload = {
     contents: [{
       parts: [
@@ -1619,16 +1707,10 @@ async function runOrderingJudgment(env, managedId, apiKey) {
         ...imageParts,
       ],
     }],
-    generationConfig: {
-      temperature: 0.1,
-      maxOutputTokens: 4096,
-      responseMimeType: 'application/json',
-      // 2.5 系の thinking が出力枠を食いつぶすのを防ぐ（reason フィールドで CoT 等価を担保済み）
-      thinkingConfig: { thinkingBudget: 0 },
-    },
+    generationConfig,
   };
 
-  const resp = await fetch(`${ORDERING_ENDPOINT}?key=${apiKey}`, {
+  const resp = await fetch(`${endpoint}?key=${apiKey}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -1644,28 +1726,45 @@ async function runOrderingJudgment(env, managedId, apiKey) {
   let parsed;
   try { parsed = JSON.parse(text); } catch { return { error: 'json-parse-failed', raw: text.substring(0, 200) }; }
 
-  // 新形式: { items: [{ index, reason, label }] }、旧形式 { labels: [...] } も後方互換で受け付ける
+  // 新形式: { items: [{ index, reason, label, confidence }] }、旧形式 { labels: [...] } も後方互換で受け付ける
   let labels = [];
   let reasons = [];
+  let confidences = [];
+  const allowedConf = ['high', 'medium', 'low'];
   if (Array.isArray(parsed.items)) {
     const sorted = parsed.items.slice().sort((a, b) => (Number(a.index) || 0) - (Number(b.index) || 0));
     labels = sorted.map(it => String(it.label || '').trim().toLowerCase());
     reasons = sorted.map(it => String(it.reason || '').trim());
+    confidences = sorted.map(it => {
+      const c = String(it.confidence || '').trim().toLowerCase();
+      return allowedConf.includes(c) ? c : '';
+    });
   } else if (Array.isArray(parsed.labels)) {
     labels = parsed.labels.map(s => String(s || '').trim().toLowerCase());
     reasons = labels.map(() => '');
+    confidences = labels.map(() => '');
   }
   if (labels.length !== validUrls.length) {
-    return { error: 'label-length-mismatch', expected: validUrls.length, got: labels.length, labels, reasons };
+    return { error: 'label-length-mismatch', expected: validUrls.length, got: labels.length, labels, reasons, confidences };
   }
   // 不正ラベルは other に寄せる
   const normalized = labels.map(l => ORDER_PRIORITY.includes(l) ? l : 'other');
-  return { urls: validUrls, labels: normalized, reasons };
+  return { urls: validUrls, labels: normalized, reasons, confidences, model: usePro ? ORDERING_PRO_MODEL : ORDERING_MODEL };
 }
 
 function applyOrderingRule(urls, labels) {
   const indexed = urls.map((u, i) => ({ url: u, label: labels[i] || 'other', orig: i }));
+  // 正面画像（front_full / processed_right）が一切無い場合、
+  // 最初の processed_left を先頭に格上げする（back_full しかない or タグだけ等で正面代表が無い状況を回避）
+  const hasFrontLike = indexed.some(it => it.label === 'front_full' || it.label === 'processed_right');
+  let promotedOrig = -1;
+  if (!hasFrontLike) {
+    const firstLeft = indexed.find(it => it.label === 'processed_left');
+    if (firstLeft) promotedOrig = firstLeft.orig;
+  }
   indexed.sort((a, b) => {
+    if (a.orig === promotedOrig && b.orig !== promotedOrig) return -1;
+    if (b.orig === promotedOrig && a.orig !== promotedOrig) return 1;
     const pa = ORDER_PRIORITY.indexOf(a.label);
     const pb = ORDER_PRIORITY.indexOf(b.label);
     if (pa !== pb) return pa - pb;
@@ -1757,12 +1856,13 @@ export async function runReorderDryrun(env, options = {}) {
     return { error: 'no target products', mode, total, processed: 0, cursor, nextCursor: null, done: true };
   }
 
+  const usePro = !!options.usePro;
   const rows = [];
   let success = 0;
   let failed = 0;
   for (const { managedId, uploadedAt } of target) {
     try {
-      const j = await runOrderingJudgment(env, managedId, apiKey);
+      const j = await runOrderingJudgment(env, managedId, apiKey, { usePro });
       if (j.error) {
         rows.push({ managedId, uploadedAt, error: j.error, detail: j.detail || '' });
         failed++;
@@ -1770,6 +1870,9 @@ export async function runReorderDryrun(env, options = {}) {
       }
       const newOrder = applyOrderingRule(j.urls, j.labels);
       const changed = newOrder.some((u, i) => u !== j.urls[i]);
+      // 怪しさサマリ: low が1件以上ある or other ラベルあり
+      const hasLow = (j.confidences || []).some(c => c === 'low');
+      const hasOther = j.labels.includes('other');
       rows.push({
         managedId,
         uploadedAt,
@@ -1779,6 +1882,9 @@ export async function runReorderDryrun(env, options = {}) {
         after: newOrder,
         labels: j.labels,
         reasons: j.reasons || [],
+        confidences: j.confidences || [],
+        ambiguous: hasLow || hasOther,
+        model: j.model || (usePro ? ORDERING_PRO_MODEL : ORDERING_MODEL),
       });
       success++;
     } catch (e) {
@@ -1816,9 +1922,137 @@ export async function runReorderDryrun(env, options = {}) {
     success,
     failed,
     changedCount: rows.filter(r => r.changed).length,
+    ambiguousCount: rows.filter(r => r.ambiguous).length,
+    model: usePro ? ORDERING_PRO_MODEL : ORDERING_MODEL,
     gasResult,
     sample: rows.slice(0, 3),
   };
+}
+
+/**
+ * runRejudgeAmbiguous — 直近のドライランシートから ambiguous な行だけ抜き出して
+ * Gemini 2.5 Pro で再判定し、シートを上書き更新する。
+ * 全件再判定ではなくスポット用途。1100件中 ambiguous ~10% 想定で ~¥500 前後。
+ */
+export async function runRejudgeAmbiguous(env, options = {}) {
+  const apiKey = env.GEMINI_API_KEY || '';
+  if (!apiKey) return { error: 'GEMINI_API_KEY not set' };
+  const gasUrl = env.GAS_API_URL;
+  if (!gasUrl) return { error: 'GAS_API_URL not set' };
+
+  let managedIds = [];
+  if (Array.isArray(options.managedIds) && options.managedIds.length > 0) {
+    // 明示指定（人間が「これとこれだけ Pro で再判定」を指示するケース）
+    managedIds = options.managedIds.map(s => String(s || '').trim()).filter(Boolean).slice(0, 200);
+  } else {
+    // シートから ambiguous=true の行を取得
+    const readBody = JSON.stringify({
+      action: 'apiReadReorderDryrun',
+      args: [{ syncSecret: env.SYNC_SECRET || '' }],
+    });
+    const readResp = await fetch(gasUrl, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain' },
+      body: readBody, redirect: 'follow',
+    });
+    const readText = await readResp.text();
+    let readJson;
+    try { readJson = JSON.parse(readText); } catch { return { error: 'failed to parse GAS response', raw: readText.substring(0, 500) }; }
+    if (!readJson.ok) return { error: 'GAS read failed', message: readJson.message };
+    const sheetRows = Array.isArray(readJson.rows) ? readJson.rows : [];
+    managedIds = sheetRows.filter(r => r && r.ambiguous && r.managedId).map(r => String(r.managedId));
+    const limit = Math.min(Math.max(parseInt(options.limit, 10) || 50, 1), 200);
+    managedIds = managedIds.slice(0, limit);
+  }
+  if (managedIds.length === 0) {
+    return { error: 'no ambiguous targets', processed: 0 };
+  }
+
+  const rows = [];
+  let success = 0;
+  let failed = 0;
+  for (const managedId of managedIds) {
+    try {
+      const j = await runOrderingJudgment(env, managedId, apiKey, { usePro: true });
+      if (j.error) {
+        rows.push({ managedId, uploadedAt: '', error: j.error, detail: j.detail || '' });
+        failed++;
+        continue;
+      }
+      const newOrder = applyOrderingRule(j.urls, j.labels);
+      const changed = newOrder.some((u, i) => u !== j.urls[i]);
+      const hasLow = (j.confidences || []).some(c => c === 'low');
+      const hasOther = j.labels.includes('other');
+      rows.push({
+        managedId,
+        uploadedAt: '',
+        count: j.urls.length,
+        changed,
+        before: j.urls,
+        after: newOrder,
+        labels: j.labels,
+        reasons: j.reasons || [],
+        confidences: j.confidences || [],
+        ambiguous: hasLow || hasOther,
+        model: ORDERING_PRO_MODEL,
+      });
+      success++;
+    } catch (e) {
+      rows.push({ managedId, uploadedAt: '', error: 'exception', detail: e.message });
+      failed++;
+    }
+  }
+
+  // 既存シートを部分更新（managedId 一致行を上書き）
+  const body = JSON.stringify({
+    action: 'apiWriteReorderDryrun',
+    args: [{ syncSecret: env.SYNC_SECRET || '', rows, append: true, upsert: true }],
+  });
+  let gasResult = null;
+  try {
+    const resp = await fetch(gasUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body, redirect: 'follow' });
+    const txt = await resp.text();
+    try { gasResult = JSON.parse(txt); } catch { gasResult = { raw: txt.substring(0, 500) }; }
+  } catch (e) {
+    gasResult = { error: e.message };
+  }
+
+  return {
+    model: ORDERING_PRO_MODEL,
+    processed: managedIds.length,
+    success,
+    failed,
+    changedCount: rows.filter(r => r.changed).length,
+    stillAmbiguousCount: rows.filter(r => r.ambiguous).length,
+    gasResult,
+    sample: rows.slice(0, 3),
+  };
+}
+
+/**
+ * runReorderManual — 人間が AI ラベルを上書きして KV に反映する一回限りの修正用
+ * labels[] は現在の KV 順に対応する。ORDER_PRIORITY に従ってソートし、product-images:${mid} を上書き。
+ */
+export async function runReorderManual(env, managedId, labels) {
+  if (!managedId) return { error: 'managedId required' };
+  if (!Array.isArray(labels) || labels.length === 0) return { error: 'labels[] required' };
+  const curJson = await env.CACHE.get(`product-images:${managedId}`);
+  if (!curJson) return { error: 'no-kv', managedId };
+  const cur = JSON.parse(curJson);
+  if (cur.length !== labels.length) {
+    return { error: 'length-mismatch', curCount: cur.length, labelCount: labels.length };
+  }
+  const normalized = labels.map(l => {
+    const k = String(l || '').trim().toLowerCase();
+    return ORDER_PRIORITY.includes(k) ? k : 'other';
+  });
+  const after = applyOrderingRule(cur, normalized);
+  const alreadySame = cur.length === after.length && cur.every((u, i) => u === after[i]);
+  if (alreadySame) {
+    return { managedId, ok: true, noop: true, before: cur, after, labels: normalized };
+  }
+  await env.CACHE.put(`product-images:${managedId}`, JSON.stringify(after));
+  try { await env.CACHE.delete('product-list-cache'); } catch (e) { /* ignore */ }
+  return { managedId, ok: true, applied: true, before: cur, after, labels: normalized };
 }
 
 /**
