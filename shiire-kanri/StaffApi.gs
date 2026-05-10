@@ -817,13 +817,19 @@ function staff_syncDumpProducts() {
     if (d instanceof Date) return Utilities.formatDate(d, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
     return String(d || '');
   }
+  // 「日付のみ」セルの検出は単一 TZ では誤爆する。
+  // 例: AppSheet が PDT 起点で書いた `2026-04-06T07:00Z` は JST で 16:00、PDT で 00:00。
+  //     web フロント側で `new Date('2026-05-07')` を保存した値は UTC 起点で JST 09:00。
+  // → JST/UTC/America/Los_Angeles のいずれかで 00:00:00 なら date-only と判定する。
   function fmtCell(d) {
     if (d instanceof Date) {
-      var hms = Utilities.formatDate(d, sheetTz, 'HH:mm:ss');
-      if (hms !== '00:00:00') {
-        return Utilities.formatDate(d, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
+      var hmsJst = Utilities.formatDate(d, sheetTz, 'HH:mm:ss');
+      var hmsUtc = Utilities.formatDate(d, 'UTC', 'HH:mm:ss');
+      var hmsLa  = Utilities.formatDate(d, 'America/Los_Angeles', 'HH:mm:ss');
+      if (hmsJst === '00:00:00' || hmsUtc === '00:00:00' || hmsLa === '00:00:00') {
+        return Utilities.formatDate(d, sheetTz, 'yyyy-MM-dd');
       }
-      return Utilities.formatDate(d, sheetTz, 'yyyy-MM-dd');
+      return Utilities.formatDate(d, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
     }
     if (d === null || d === undefined) return '';
     return String(d);
@@ -1077,6 +1083,32 @@ var DETAILS_DATE_ = {
   '返品日付': 1, '発送日付': 1, '完了日': 1, 'キャンセル日': 1, '廃棄日': 1
 };
 
+// 日付フィールドのパース。
+//   - フロントは <input type="date"> から `YYYY-MM-DD` を送る → `new Date(s)` だと UTC 真夜中扱いで JST 09:00 等のずれが発生
+//   - 「今日 (JST)」が来たら実際の保存時刻 `new Date()` を使う → 作業履歴の時刻が分まで残る
+//   - 過去日は JST 真夜中で確定 → fmtCell で date-only と判定される
+//   - 時刻付き ISO 文字列は素通し
+function staff_parseFieldDate_(raw) {
+  if (raw === '' || raw === null || raw === undefined) return null;
+  if (raw instanceof Date) return isNaN(raw.getTime()) ? null : raw;
+  var s = String(raw).trim();
+  if (!s) return null;
+  // 時刻成分付き (T HH:mm or 空白 HH:mm) は通常パース
+  if (/[T\s]\d{1,2}:\d{2}/.test(s)) {
+    var dx = new Date(s);
+    return isNaN(dx.getTime()) ? null : dx;
+  }
+  var m = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (m) {
+    var inputJst = m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
+    var todayJst = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
+    if (inputJst === todayJst) return new Date();         // 今日 → 実時刻
+    return new Date(inputJst + 'T00:00:00+09:00');        // 過去日 → JST 真夜中
+  }
+  var d = new Date(s);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 function staff_apiSaveDetails(payload, email) {
   // 計測: 各セクションの実行時間を _t に集約して返す。Worker 側で Server-Timing に転載。
   var __T = {}; var __mark = Date.now();
@@ -1141,8 +1173,8 @@ function staff_apiSaveDetails(payload, email) {
     if (raw === '' || raw === null || raw === undefined) {
       v = '';
     } else if (DETAILS_DATE_[key]) {
-      var d = new Date(raw);
-      v = isNaN(d.getTime()) ? String(raw) : d;
+      var d = staff_parseFieldDate_(raw);
+      v = (d === null) ? String(raw) : d;
     } else if (DETAILS_NUMERIC_[key]) {
       var n = Number(raw);
       if (isNaN(n)) { skipped.push(key); continue; }
@@ -1545,15 +1577,25 @@ function staff_apiCreateProduct(payload, email) {
     if (dup) return { ok: false, error: '管理番号 ' + kanri + ' は既に存在します（' + dup.getRow() + '行目）' };
   }
 
-  // 仕入れ管理から区分コードを引く
+  // 仕入れ管理から 区分コード/仕入れ日/商品原価/納品場所 を引く
   var category = '';
+  var shiirePurchaseDate = '';
+  var shiireUnitCost = '';
+  var shiirePlace = '';
   var shiireSh = ss.getSheetByName('仕入れ管理');
   if (shiireSh && shiireSh.getLastRow() >= 2) {
     var sLast = shiireSh.getLastRow();
+    var sLastCol = shiireSh.getLastColumn();
+    var sHdr = shiireSh.getRange(1, 1, 1, sLastCol).getValues()[0];
+    var sCol = buildHeaderMap_(sHdr);
     var sIds = shiireSh.getRange(2, 1, sLast - 1, 1).getValues();
     for (var k = 0; k < sIds.length; k++) {
       if (String(sIds[k][0] || '').trim() === shiireId) {
-        category = String(shiireSh.getRange(k + 2, 3).getValue() || '').trim();
+        var sRow = shiireSh.getRange(k + 2, 1, 1, sLastCol).getValues()[0];
+        if (sCol['区分コード']) category = String(sRow[sCol['区分コード'] - 1] || '').trim();
+        if (sCol['仕入れ日']) shiirePurchaseDate = sRow[sCol['仕入れ日'] - 1];
+        if (sCol['商品原価']) shiireUnitCost = sRow[sCol['商品原価'] - 1];
+        if (sCol['納品場所']) shiirePlace = String(sRow[sCol['納品場所'] - 1] || '').trim();
         break;
       }
     }
@@ -1579,6 +1621,22 @@ function staff_apiCreateProduct(payload, email) {
   if (payload.size !== undefined) rowArr[STAFF_COL.メルカリサイズ - 1] = String(payload.size || '');
   if (payload.color !== undefined) rowArr[STAFF_COL.カラー - 1] = String(payload.color || '');
 
+  // 採寸登録時の自動書き込み（仕入れ管理 lookup + 派生値 0 初期化 + プロモーション FALSE + タイムスタンプ）
+  if (col['仕入れ日'] && shiirePurchaseDate !== '' && shiirePurchaseDate !== null && shiirePurchaseDate !== undefined) {
+    rowArr[col['仕入れ日'] - 1] = shiirePurchaseDate;
+  }
+  if (col['仕入れ値'] && shiireUnitCost !== '' && shiireUnitCost !== null && shiireUnitCost !== undefined) {
+    rowArr[col['仕入れ値'] - 1] = Number(shiireUnitCost) || 0;
+  }
+  if (col['納品場所']) rowArr[col['納品場所'] - 1] = shiirePlace;
+  if (col['手数料']) rowArr[col['手数料'] - 1] = 0;
+  if (col['粗利']) rowArr[col['粗利'] - 1] = 0;
+  if (col['利益']) rowArr[col['利益'] - 1] = 0;
+  if (col['利益率']) rowArr[col['利益率'] - 1] = 0;
+  if (col['リードタイム']) rowArr[col['リードタイム'] - 1] = 0;
+  if (col['タイムスタンプ']) rowArr[col['タイムスタンプ'] - 1] = new Date();
+  if (col['プロモーション利用']) rowArr[col['プロモーション利用'] - 1] = false;
+
   // payload.fields で AppSheet 同等の任意ヘッダー入力を受け付ける
   var fields = payload.fields || {};
   var skipped = [];
@@ -1592,8 +1650,8 @@ function staff_apiCreateProduct(payload, email) {
     if (raw === '' || raw === null || raw === undefined) {
       v = '';
     } else if (DETAILS_DATE_[key]) {
-      var d = new Date(raw);
-      v = isNaN(d.getTime()) ? String(raw) : d;
+      var d = staff_parseFieldDate_(raw);
+      v = (d === null) ? String(raw) : d;
     } else if (DETAILS_NUMERIC_[key]) {
       var n = Number(raw);
       if (isNaN(n)) { skipped.push(key); return; }
@@ -1673,14 +1731,21 @@ function staff_onEditTrigger(e) {
 }
 
 // onChange: AppSheet の INSERT_ROW / 行追加・削除など、onEdit が捕捉しない構造変更
-// changeType=EDIT/INSERT_ROW/INSERT_GRID 等で発火するが、変更範囲が取れないため
-// 「最終行を読んで push する」だけのベストエフォート実装。
+// changeType=EDIT/INSERT_ROW/INSERT_GRID/REMOVE_ROW 等で発火する。
+//  - REMOVE_ROW: 商品管理/仕入れ管理の現在のID列セットを Worker に送り、D1 で diff 削除
+//  - INSERT_ROW/EDIT/OTHER: 最終行を再 push（AppSheet INSERT の補完）
 function staff_onChangeTrigger(e) {
   try {
     if (!e) return;
     var ct = String(e.changeType || '');
-    if (ct !== 'INSERT_ROW' && ct !== 'EDIT' && ct !== 'OTHER') return;
     var ss = staff_getActiveSpreadsheet_();
+
+    if (ct === 'REMOVE_ROW') {
+      staff_pushDiffOnRemove_(ss);
+      return;
+    }
+
+    if (ct !== 'INSERT_ROW' && ct !== 'EDIT' && ct !== 'OTHER') return;
     // 商品管理 / 仕入れ管理 の最終行のみを再 push（onEdit に拾われない AppSheet INSERT 用の補完）
     var pSh = ss.getSheetByName(STAFF_SHEET_NAME);
     if (pSh && pSh.getLastRow() >= 2) {
@@ -1694,6 +1759,80 @@ function staff_onChangeTrigger(e) {
     }
   } catch (err) {
     console.error('[staff_onChangeTrigger]', err && err.message);
+  }
+}
+
+// REMOVE_ROW 時: 商品管理シートの管理番号列 / 仕入れ管理シートの仕入れID列を全取得し、
+// 「現在のID集合」を Worker に送って D1 から失われたIDを削除させる。
+// シート全行 × 1列だけ getValues するので 5000 行でも 100〜300ms 程度。
+function staff_pushDiffOnRemove_(ss) {
+  // 商品管理: 管理番号列
+  try {
+    var pSh = ss.getSheetByName(STAFF_SHEET_NAME);
+    if (pSh && pSh.getLastRow() >= 2) {
+      var pVals = pSh.getRange(2, STAFF_COL.管理番号, pSh.getLastRow() - 1, 1).getValues();
+      var kanris = [];
+      for (var i = 0; i < pVals.length; i++) {
+        var k = String(pVals[i][0] || '').trim();
+        if (k) kanris.push(k);
+      }
+      staff_pushDiffToWorkers_('product_diff', { kanris: kanris });
+    }
+  } catch (err) {
+    console.warn('[staff_pushDiffOnRemove_:product] ' + (err && err.message));
+  }
+  // 仕入れ管理: ヘッダー名「仕入れID」を動的に解決
+  try {
+    var qSh = ss.getSheetByName('仕入れ管理');
+    if (qSh && qSh.getLastRow() >= 2) {
+      var qHdr = qSh.getRange(1, 1, 1, qSh.getLastColumn()).getValues()[0];
+      var idCol = 0;
+      for (var j = 0; j < qHdr.length; j++) {
+        if (String(qHdr[j] || '').trim() === '仕入れID') { idCol = j + 1; break; }
+      }
+      if (idCol) {
+        var qVals = qSh.getRange(2, idCol, qSh.getLastRow() - 1, 1).getValues();
+        var ids = [];
+        for (var k2 = 0; k2 < qVals.length; k2++) {
+          var id2 = String(qVals[k2][0] || '').trim();
+          if (id2) ids.push(id2);
+        }
+        staff_pushDiffToWorkers_('purchase_diff', { shiireIds: ids });
+      }
+    }
+  } catch (err) {
+    console.warn('[staff_pushDiffOnRemove_:purchase] ' + (err && err.message));
+  }
+}
+
+// 削除 diff payload を Worker /api/sync/row に POST。失敗は warn のみ（次の Cron で追従）
+function staff_pushDiffToWorkers_(type, extra) {
+  try {
+    var sp = PropertiesService.getScriptProperties();
+    var url = sp.getProperty('WORKERS_WEBHOOK_URL') || STAFF_WORKERS_DEFAULT_URL;
+    var secret = sp.getProperty('SHIIRE_SYNC_SECRET') || '';
+    if (!url || !secret) {
+      console.warn('[staff_pushDiffToWorkers_] missing url/secret');
+      return;
+    }
+    var body = { type: type };
+    if (extra && extra.kanris) body.kanris = extra.kanris;
+    if (extra && extra.shiireIds) body.shiireIds = extra.shiireIds;
+    var endpoint = url.replace(/\/$/, '') + '/api/sync/row';
+    var res = UrlFetchApp.fetch(endpoint, {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { 'X-Sync-Secret': secret },
+      payload: JSON.stringify(body),
+      muteHttpExceptions: true,
+      followRedirects: true,
+    });
+    var code = res.getResponseCode();
+    if (code !== 200) {
+      console.warn('[staff_pushDiffToWorkers_] http ' + code + ' ' + (res.getContentText() || '').slice(0, 120));
+    }
+  } catch (err) {
+    console.warn('[staff_pushDiffToWorkers_] ' + (err && err.message));
   }
 }
 
@@ -1716,11 +1855,17 @@ function staff_buildProductRowPayload_(sh, rowNum) {
     if (d instanceof Date) return Utilities.formatDate(d, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
     return String(d || '');
   }
+  // 「日付のみ」セルは JST/UTC/PDT のいずれかで 00:00:00 になるので、
+  // 3 TZ いずれかで真夜中なら date-only と判定する（fmtCell コメント参照）
   function fmtCell(d) {
     if (d instanceof Date) {
-      var hms = Utilities.formatDate(d, sheetTz, 'HH:mm:ss');
-      if (hms !== '00:00:00') return Utilities.formatDate(d, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
-      return Utilities.formatDate(d, sheetTz, 'yyyy-MM-dd');
+      var hmsJst = Utilities.formatDate(d, sheetTz, 'HH:mm:ss');
+      var hmsUtc = Utilities.formatDate(d, 'UTC', 'HH:mm:ss');
+      var hmsLa  = Utilities.formatDate(d, 'America/Los_Angeles', 'HH:mm:ss');
+      if (hmsJst === '00:00:00' || hmsUtc === '00:00:00' || hmsLa === '00:00:00') {
+        return Utilities.formatDate(d, sheetTz, 'yyyy-MM-dd');
+      }
+      return Utilities.formatDate(d, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
     }
     if (d === null || d === undefined) return '';
     return String(d);
@@ -1913,4 +2058,35 @@ function staff_setupSyncTriggers() {
     Logger.log('警告: SHIIRE_SYNC_SECRET が未設定です。staff_setupSyncSecret を先に実行してください。');
   }
   Logger.log('staff_setupSyncTriggers: 削除 ' + deleted + ' 件 / 新規 onEdit + onChange を登録しました。');
+}
+
+// 手動テスト: 商品管理シートの管理番号セットを今すぐ Worker に POST し、
+// D1 で diff 削除（=シートに無い管理番号を D1 から削除）を強制する。
+// GAS エディタから「実行」 → ログに HTTP レスポンスが出れば疎通OK。
+//   - HTTP 200 + {"deleted": N}: 即時削除パスが動いた
+//   - HTTP 200 + {"deleted": 0}: シートと D1 が完全一致
+//   - HTTP 4xx/5xx: secret/URL/ペイロード形式を疑う
+function staff_testDiffDeleteNow() {
+  var ss = staff_getActiveSpreadsheet_();
+  var pSh = ss.getSheetByName(STAFF_SHEET_NAME);
+  if (!pSh || pSh.getLastRow() < 2) { Logger.log('シートに行がありません'); return; }
+  var pVals = pSh.getRange(2, STAFF_COL.管理番号, pSh.getLastRow() - 1, 1).getValues();
+  var kanris = [];
+  for (var i = 0; i < pVals.length; i++) {
+    var k = String(pVals[i][0] || '').trim();
+    if (k) kanris.push(k);
+  }
+  Logger.log('シートの管理番号件数: ' + kanris.length);
+  var sp = PropertiesService.getScriptProperties();
+  var url = (sp.getProperty('WORKERS_WEBHOOK_URL') || STAFF_WORKERS_DEFAULT_URL).replace(/\/$/, '') + '/api/sync/row';
+  var secret = sp.getProperty('SHIIRE_SYNC_SECRET') || '';
+  var res = UrlFetchApp.fetch(url, {
+    method: 'post',
+    contentType: 'application/json',
+    headers: { 'X-Sync-Secret': secret },
+    payload: JSON.stringify({ type: 'product_diff', kanris: kanris }),
+    muteHttpExceptions: true,
+    followRedirects: true,
+  });
+  Logger.log('HTTP ' + res.getResponseCode() + ' ' + res.getContentText());
 }
