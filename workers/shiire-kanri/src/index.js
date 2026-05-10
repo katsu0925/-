@@ -2,7 +2,7 @@ import { corsOptions, jsonOk, jsonError } from './utils/response.js';
 import { getAccessUser } from './utils/access.js';
 import { scheduledSync } from './sync/sheets-sync.js';
 import { scheduledAccessSync } from './sync/access-sync.js';
-import { listProducts, getProduct, listProductCounts, getNextKanri, listProductThumbs, getProductImages } from './handlers/products.js';
+import { listProducts, getProduct, listProductCounts, getNextKanri, listProductThumbs, getProductImages, listKanrisWithImages } from './handlers/products.js';
 import { listPurchases, getPurchaseProducts } from './handlers/purchases.js';
 import { saveMeasurement, saveSale, saveDetails, uploadImage, resolveImage, createPurchase, createProduct } from './handlers/write-proxy.js';
 import { imgProxy } from './handlers/img-proxy.js';
@@ -12,6 +12,8 @@ import { lookupAiPrefill, lookupAiPrefillBatch } from './handlers/ai.js';
 import { listMoves, createMove, listReturns, createReturn, listAiResults, listSagyousha, saveSagyousha, createSagyousha, dumpSheet, getListingText, appendKeihi, uploadKeihiImage, updateShiireHoukokuQuantity } from './handlers/extras.js';
 import { getSalesSummary } from './handlers/sales.js';
 import { syncRowWebhook } from './handlers/sync-webhook.js';
+import { listBundles, toggleBundle } from './handlers/bundles.js';
+import { getVapidPublicKey, subscribePush, unsubscribePush, getPushPrefs, setPushPrefs, testPush } from './handlers/push.js';
 
 export default {
   async scheduled(event, env, ctx) {
@@ -74,6 +76,9 @@ export default {
     if (path === '/api/products/thumbs' && request.method === 'POST') {
       return listProductThumbs(request, env);
     }
+    if (path === '/api/products/has-images' && request.method === 'GET') {
+      return listKanrisWithImages(request, env);
+    }
     if (path === '/api/kanri/next' && request.method === 'GET') {
       return getNextKanri(request, env);
     }
@@ -108,7 +113,7 @@ export default {
 
     // AI画像判定（管理番号 → ブランド/タグ表記/性別/カテゴリ1-3/デザイン特徴/カラー/ポケット）
     if (path === '/api/ai/prefill' && request.method === 'GET') {
-      return lookupAiPrefill(request, env);
+      return lookupAiPrefill(request, env, ctx);
     }
     if (path === '/api/ai/prefill/batch' && request.method === 'POST') {
       return lookupAiPrefillBatch(request, env);
@@ -124,10 +129,10 @@ export default {
 
     // 書き込み（GAS プロキシ）
     if (path === '/api/save/measurement' && request.method === 'POST') {
-      return saveMeasurement(request, env, user);
+      return saveMeasurement(request, env, user, ctx);
     }
     if (path === '/api/save/sale' && request.method === 'POST') {
-      return saveSale(request, env, user);
+      return saveSale(request, env, user, ctx);
     }
     if (path === '/api/save/details' && request.method === 'POST') {
       return saveDetails(request, env, user, ctx);
@@ -154,7 +159,7 @@ export default {
       return createPurchase(request, env, user);
     }
     if (path === '/api/create/product' && request.method === 'POST') {
-      return createProduct(request, env, user);
+      return createProduct(request, env, user, ctx);
     }
 
     // 場所移動
@@ -189,9 +194,37 @@ export default {
       return createSagyousha(request, env, user);
     }
 
+    // 同梱（bundled shipping）— KV のみ。スプレッドシート反映なし
+    if (path === '/api/bundles' && request.method === 'GET') {
+      return listBundles(request, env);
+    }
+    if (path === '/api/bundles/toggle' && request.method === 'POST') {
+      return toggleBundle(request, env);
+    }
+
     // 売上ダッシュボード（今月/前月/通年/月別内訳）
     if (path === '/api/sales/summary' && request.method === 'GET') {
       return getSalesSummary(request, env);
+    }
+
+    // Web Push 通知
+    if (path === '/api/push/vapid' && request.method === 'GET') {
+      return getVapidPublicKey(request, env);
+    }
+    if (path === '/api/push/subscribe' && request.method === 'POST') {
+      return subscribePush(request, env, user);
+    }
+    if (path === '/api/push/unsubscribe' && request.method === 'POST') {
+      return unsubscribePush(request, env, user);
+    }
+    if (path === '/api/push/prefs' && request.method === 'GET') {
+      return getPushPrefs(request, env, user);
+    }
+    if (path === '/api/push/prefs' && request.method === 'POST') {
+      return setPushPrefs(request, env, user);
+    }
+    if (path === '/api/push/test' && request.method === 'POST') {
+      return testPush(request, env, user);
     }
 
     // 経費申請: 本人申請を受けてシートに行追加（通知メールは onChange トリガーが発火）

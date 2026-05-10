@@ -327,6 +327,23 @@ export async function listProductThumbs(request, env) {
   return jsonOk({ items });
 }
 
+// GET /api/products/has-images
+// gas-proxy KV `product-images:index` を 1read で返す（一覧の placeholder 振り分け用）。
+// これがあると「画像未登録 → 即 📷 / 画像あり → 📷→画像」を初回描画から区別できる。
+// レスポンスは uppercase の管理番号配列。クライアントは Set にしてルックアップする。
+export async function listKanrisWithImages(request, env) {
+  if (!env.GAS_PROXY_CACHE) return jsonOk({ kanris: [] });
+  const raw = await env.GAS_PROXY_CACHE.get('product-images:index').catch(() => null);
+  if (!raw) return jsonOk({ kanris: [] });
+  let arr = null;
+  try { arr = JSON.parse(raw); } catch { arr = null; }
+  if (!Array.isArray(arr)) return jsonOk({ kanris: [] });
+  const kanris = arr.map(s => String(s || '').trim().toUpperCase()).filter(Boolean);
+  return jsonOk({ kanris }, {
+    'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
+  });
+}
+
 // GET /api/products/:kanri/images
 // タスキ箱に登録された該当商品の全画像URLを配列で返す（詳細画面のサムネ表示用）。
 // KV 形式は gas-proxy の `product-images:<管理番号大文字>` を JSON 配列で読み出す。

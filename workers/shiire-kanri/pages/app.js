@@ -863,6 +863,7 @@ window.addEventListener('DOMContentLoaded', async function(){
     updateSearchPlaceholder_();
     render();
     refreshCounts();
+    loadThumbHasSet_();
     startPolling();
     // 前セッションでオフライン時に積まれた保存をバックグラウンド再送
     setTimeout(flushOutbox_, 1500);
@@ -2520,9 +2521,10 @@ function cardHtml(it) {
   } else if (!measured) {
     cardClass += ' s-sokutei';
   }
-  // サムネはタスキ箱トップ画像を優先。sessionStorage に解決済 URL があればインラインで <img> を出して
-  // 再描画時のチラつき（プレースホルダ→解決後 img の二段描画）を避ける。
-  // 未解決のものだけ 📷 プレースホルダ + 描画後 resolveCardThumbsTasukibako_() で一括 fetch。
+  // サムネはタスキ箱トップ画像を優先。
+  // 1) sessionStorage に解決済URLがあればインラインで <img>（再描画時のチラつき回避）
+  // 2) THUMB_HAS_SET（/api/products/has-images の結果セット）に kanri があれば「読込中」プレースホルダ → 後で resolveCardThumbsTasukibako_() で画像化
+  // 3) 上記いずれでもなければ「画像未登録」確定 → 📷 アイコンを最初から固定表示（fetch しない）
   var thumbHtml = '';
   if (STATE.tab === 'hassou' || STATE.tab === 'shouhin') {
     var ck = 'tbthumb:v2:' + it.kanri;
@@ -2531,9 +2533,12 @@ function cardHtml(it) {
     if (cached && !isThumbNoneCached_(cached)) {
       var url = normalizeDriveUrl_(cached, 200);
       thumbHtml = '<div class="card-thumb"><img src="' + esc(url) + '" alt="" loading="lazy" decoding="async"></div>';
-    } else {
-      // 未解決 or 画像なし。__none__ もプレースホルダ枠を出し続ける（レイアウト一貫性のため）
+    } else if (hasRegisteredImage_(it.kanri)) {
+      // 画像あり確定 → 読込中（解決後に <img> 差替え）
       thumbHtml = '<div class="card-thumb img-tasukibako" data-kanri="' + esc(it.kanri) + '">📷</div>';
+    } else {
+      // 画像未登録 → 静的な 📷 アイコン（fetch 対象から除外: data-kanri を付けない）
+      thumbHtml = '<div class="card-thumb card-thumb-empty" title="画像未登録">📷</div>';
     }
   }
   var openHandler = 'openDetail(\'' + esc(it.kanri).replace(/\'/g,"%27") + '\')';
@@ -2741,6 +2746,41 @@ function vlistRender_(force) {
   }
   VLIST.windowEl.innerHTML = html;
   if (VLIST.onAfter) VLIST.onAfter();
+}
+
+// 画像登録あり kanri の高速ルックアップ（/api/products/has-images の結果セット）。
+// 未取得（null）時は楽観的に「あり」扱い → 解決後に再描画で 📷 固定に切り替わる。
+var THUMB_HAS_SET = null;
+(function initThumbHasSetFromCache_(){
+  try {
+    var raw = sessionStorage.getItem('tbthumb-has:v1');
+    if (!raw) return;
+    var obj = JSON.parse(raw);
+    if (!obj || !Array.isArray(obj.kanris)) return;
+    if ((Date.now() - (obj.ts || 0)) > 5 * 60 * 1000) return;
+    var s = new Set();
+    obj.kanris.forEach(function(k){ s.add(String(k || '').toUpperCase()); });
+    THUMB_HAS_SET = s;
+  } catch(e) {}
+})();
+function hasRegisteredImage_(kanri) {
+  if (THUMB_HAS_SET === null) return true;
+  return THUMB_HAS_SET.has(String(kanri || '').toUpperCase());
+}
+async function loadThumbHasSet_() {
+  try {
+    var res = await api('/api/products/has-images');
+    var arr = (res && res.kanris) || [];
+    var s = new Set();
+    arr.forEach(function(k){ s.add(String(k || '').toUpperCase()); });
+    THUMB_HAS_SET = s;
+    try {
+      sessionStorage.setItem('tbthumb-has:v1', JSON.stringify({ ts: Date.now(), kanris: arr }));
+    } catch(e) {}
+    if ((STATE.tab === 'shouhin' || STATE.tab === 'hassou') && STATE.view === 'list') {
+      try { render(); } catch(e) {}
+    }
+  } catch(e) { /* 静かに失敗 */ }
 }
 
 // __none__ センチネルは時刻付きで保存（"__none__:<ms>"）。THUMB_NONE_TTL_MS を超えたら期限切れ扱い。
