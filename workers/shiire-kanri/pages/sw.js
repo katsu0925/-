@@ -9,7 +9,7 @@
 //  - VERSION を上げると activate 時に旧キャッシュを全削除
 //  - skipWaiting + clients.claim で即時切替、controllerchange でクライアントが UI 通知
 
-const VERSION = 'sk-2026-05-06-v103';
+const VERSION = 'sk-2026-05-11-v121';
 const SHELL_CACHE = 'shell-' + VERSION;
 const API_CACHE   = 'api-' + VERSION;
 
@@ -209,6 +209,55 @@ async function staticCacheFirst(req) {
     return Response.error();
   }
 }
+
+// ---------- Web Push ----------
+// payload: { title, body, tag?, url?, icon?, badge? }
+// tag に 'kanri:<管理番号>' を入れると同一商品の最新通知で上書きされる
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    if (event.data) data = event.data.json();
+  } catch (e) {
+    try { data = { title: '通知', body: event.data ? event.data.text() : '' }; } catch(_) {}
+  }
+  const title = data.title || '通知';
+  const options = {
+    body: data.body || '',
+    icon: data.icon || '/icon-192.png',
+    badge: data.badge || '/icon-192.png',
+    tag: data.tag || undefined,
+    data: { url: data.url || '/' },
+    // バナー＋ロック画面通知のため renotify は true（同 tag 上書き時も通知）
+    renotify: !!data.tag,
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil((async () => {
+    const list = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    // 既に開いているタブがあればフォーカスして遷移
+    for (const c of list) {
+      try {
+        if ('focus' in c) {
+          await c.focus();
+          if ('navigate' in c) {
+            try { await c.navigate(targetUrl); } catch(_) {}
+          } else {
+            try { c.postMessage({ type: 'NAV', url: targetUrl }); } catch(_) {}
+          }
+          return;
+        }
+      } catch(_) {}
+    }
+    // 開いていなければ新規ウィンドウ
+    if (self.clients.openWindow) {
+      await self.clients.openWindow(targetUrl);
+    }
+  })());
+});
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
