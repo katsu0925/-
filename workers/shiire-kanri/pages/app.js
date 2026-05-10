@@ -422,7 +422,12 @@ function onSaleChannelChange_(el, channelId) {
   var feeEl = document.getElementById(feeId);
   if (!feeEl) return;
   var fee = calcFeeFromSettings_(el.value, priceEl ? priceEl.value : 0);
-  if (fee != null) feeEl.value = String(fee);
+  if (fee != null) {
+    feeEl.value = String(fee);
+    // 販売場所変更で手数料が変わったら粗利・利益・利益率も即時再計算
+    // （feeEl.value 直接代入では input イベントが発火しないため明示的に呼ぶ）
+    try { wireSaleCalcResults_recalc_(prefix); } catch(e) {}
+  }
 }
 
 // 詳細・新規作成フォームに 販売価格 → 手数料 の自動再計算リスナーを仕込む
@@ -530,10 +535,10 @@ function wireSaleCalcResults_recalc_(idPrefix) {
     setRo('利益率', '—');
     setSum('sum-profit-rate', '—', null);
   }
-  // 在庫日数: 仕入れ日 → 販売日（なければ今日）
+  // 在庫日数: 仕入れ日 → 販売日（なければ今日）。販売後は販売日で固定
   var purchaseDate = ex['仕入れ日'] || '';
+  var saleDateStr = (saleDateEl && saleDateEl.value) || '';
   if (purchaseDate) {
-    var saleDateStr = (saleDateEl && saleDateEl.value) || '';
     var start = new Date(purchaseDate);
     var end = saleDateStr ? new Date(saleDateStr) : new Date();
     if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
@@ -544,11 +549,11 @@ function wireSaleCalcResults_recalc_(idPrefix) {
       }
     }
   }
-  // リードタイム: 仕入れ日 → 出品日
+  // リードタイム: 出品日 → 販売日（なければ今日）。販売後は販売日で固定
   var listingDateStr = (listingDateEl && listingDateEl.value) || ex['出品日'] || '';
-  if (purchaseDate && listingDateStr) {
-    var a = new Date(purchaseDate);
-    var b = new Date(listingDateStr);
+  if (listingDateStr) {
+    var a = new Date(listingDateStr);
+    var b = saleDateStr ? new Date(saleDateStr) : new Date();
     if (!isNaN(a.getTime()) && !isNaN(b.getTime())) {
       var ld = Math.floor((b.getTime() - a.getTime()) / 86400000);
       if (ld >= 0) {

@@ -454,13 +454,12 @@ function formatProduct(row, withDerived) {
         }
       }
     }
-    // リードタイム: 仕入れ日 → 出品日
+    // リードタイム: 出品日 → 販売日（なければ今日）。販売後は販売日で固定
     if (!extra['リードタイム']) {
-      const startStr = extra['仕入れ日'];
-      const endStr = extra['出品日'];
-      if (startStr && endStr) {
+      const startStr = extra['出品日'];
+      if (startStr) {
         const a = new Date(startStr);
-        const b = new Date(endStr);
+        const b = row.sale_date ? new Date(row.sale_date) : new Date();
         if (!isNaN(a.getTime()) && !isNaN(b.getTime())) {
           const days = Math.floor((b - a) / 86400000);
           if (days >= 0) extra['リードタイム'] = days;

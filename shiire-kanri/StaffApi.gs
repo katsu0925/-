@@ -1250,13 +1250,19 @@ function staff_apiSaveDetails(payload, email) {
     derivedFields['利益'] = __spCell - __ssCell - __sfCell - __costCell;
     // 利益率は販売価格 0/空のとき計算できないため空セルにする（NaN/Infinity 抑止）
     derivedFields['利益率'] = (__spCell > 0) ? ((__spCell - __ssCell - __sfCell - __costCell) / __spCell) : '';
-    var __purRaw = col['仕入れ日'] ? rowVals[col['仕入れ日'] - 1] : '';
+    // リードタイム: 出品日 → 販売日（なければ今日）。販売後は販売日で固定
     var __listRaw = col['出品日'] ? rowVals[col['出品日'] - 1] : '';
-    if (__purRaw && __listRaw) {
-      var __pd = (__purRaw instanceof Date) ? __purRaw : new Date(__purRaw);
+    var __saleRaw = col['販売日'] ? rowVals[col['販売日'] - 1] : '';
+    if (__listRaw) {
       var __ld = (__listRaw instanceof Date) ? __listRaw : new Date(__listRaw);
-      if (!isNaN(__pd.getTime()) && !isNaN(__ld.getTime())) {
-        var __leadDays = Math.floor((__ld.getTime() - __pd.getTime()) / 86400000);
+      var __sd;
+      if (__saleRaw) {
+        __sd = (__saleRaw instanceof Date) ? __saleRaw : new Date(__saleRaw);
+      } else {
+        __sd = new Date();
+      }
+      if (!isNaN(__ld.getTime()) && !isNaN(__sd.getTime())) {
+        var __leadDays = Math.floor((__sd.getTime() - __ld.getTime()) / 86400000);
         if (__leadDays >= 0) derivedFields['リードタイム'] = __leadDays;
       }
     }
@@ -1967,13 +1973,13 @@ function staff_buildProductRowPayload_(sh, rowNum) {
       }
     }
   } catch (e) {}
-  // リードタイム: 仕入れ日 → 出品日
+  // リードタイム: 出品日 → 販売日（なければ今日）。販売後は販売日で固定
   try {
-    var __sStr = extra['仕入れ日'];
-    var __eStr = extra['出品日'];
-    if (__sStr && __eStr) {
-      var __a = new Date(__sStr);
-      var __b = new Date(__eStr);
+    var __listStr = extra['出品日'];
+    if (__listStr) {
+      var __a = new Date(__listStr);
+      var __saleStr = extra['販売日'];
+      var __b = __saleStr ? new Date(__saleStr) : new Date();
       if (!isNaN(__a.getTime()) && !isNaN(__b.getTime())) {
         var __ld = Math.floor((__b.getTime() - __a.getTime()) / 86400000);
         if (__ld >= 0) extra['リードタイム'] = __ld;
