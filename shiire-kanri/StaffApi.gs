@@ -108,8 +108,7 @@ function staff_recomputeStatus_(sh, rowNum, hdr, col) {
   var rowVals = sh.getRange(rowNum, 1, 1, lastCol).getValues()[0];
   var calc = staff_calcStatus_(rowVals, col);
   var current = String(rowVals[STAFF_COL.ステータス - 1] || '');
-  // 算出が空（条件に一致しない）の場合は既存値を維持（誤って空にしない）
-  if (!calc) return { changed: false, current: current, calc: calc };
+  // 判定列がすべて空なら算出も空。その場合はステータスもクリアする（削除時に前段階へ戻す）。
   if (calc === current) return { changed: false, current: current, calc: calc };
   sh.getRange(rowNum, STAFF_COL.ステータス).setValue(calc);
   return { changed: true, prev: current, status: calc };
@@ -128,7 +127,6 @@ function staff_recalcAllStatus() {
   for (var i = 0; i < values.length; i++) {
     var rowVals = values[i];
     var calc = staff_calcStatus_(rowVals, col);
-    if (!calc) continue;
     var current = String(rowVals[STAFF_COL.ステータス - 1] || '');
     if (calc === current) continue;
     sh.getRange(i + 2, STAFF_COL.ステータス).setValue(calc);
@@ -1224,15 +1222,12 @@ function staff_apiSaveDetails(payload, email) {
     var calc = staff_calcStatus_(rowVals, col);
     var stIdx = STAFF_COL.ステータス ? STAFF_COL.ステータス - 1 : -1;
     var current = stIdx >= 0 ? String(rowVals[stIdx] || '') : '';
-    if (calc) {
-      if (calc !== current && stIdx >= 0 && !rowFormulas[stIdx]) {
-        rowVals[stIdx] = calc;
-        statusChanged = true;
-      }
-      derivedStatus = calc;
-    } else {
-      derivedStatus = current;
+    // calc が '' のときも書き戻す（判定列を削除したらステータスも戻す）
+    if (calc !== current && stIdx >= 0 && !rowFormulas[stIdx]) {
+      rowVals[stIdx] = calc;
+      statusChanged = true;
     }
+    derivedStatus = calc;
   } catch(e) {}
   __lap('status');
 
