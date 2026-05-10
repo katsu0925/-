@@ -1641,8 +1641,8 @@ function staff_apiCreateProduct(payload, email) {
   if (col['タイムスタンプ']) {
     rowArr[col['タイムスタンプ'] - 1] = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss');
   }
-  // プロモーション利用は文字列セル（空）で初期化。チェックボックス化はしない
-  if (col['プロモーション利用']) rowArr[col['プロモーション利用'] - 1] = '';
+  // プロモーション利用は文字列 'FALSE' で初期化。チェックボックス化はしない
+  if (col['プロモーション利用']) rowArr[col['プロモーション利用'] - 1] = 'FALSE';
 
   // payload.fields で AppSheet 同等の任意ヘッダー入力を受け付ける
   var fields = payload.fields || {};
