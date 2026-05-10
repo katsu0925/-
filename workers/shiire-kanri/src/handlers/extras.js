@@ -140,12 +140,13 @@ export async function getListingText(request, env, user, kanri) {
   if (!id) return jsonError('kanri required', 400);
   const cacheKey = 'listing-text:' + id;
   const kv = env.CACHE || env.GAS_PROXY_CACHE;
-  // KV ヒット → 即返却
+  // KV ヒット → D1 の追加項目（伸縮性/生地の厚み/裏地）を post-cache 注入して返却
   if (kv) {
     try {
       const hit = await kv.get(cacheKey, 'json');
       if (hit && typeof hit.title === 'string' && typeof hit.description === 'string') {
-        return jsonOk({ id, title: hit.title, description: hit.description, cached: true });
+        const desc = await injectExtraDescription_(env, id, hit.description);
+        return jsonOk({ id, title: hit.title, description: desc, cached: true });
       }
     } catch {}
   }
@@ -173,10 +174,50 @@ export async function getListingText(request, env, user, kanri) {
     title: String(parsed.title || ''),
     description: String(parsed.description || ''),
   };
+  // KV にはスプレッドシート由来のオリジナル description を保存（D1 追加項目は post-cache 注入する）
   if (kv) {
     try { await kv.put(cacheKey, JSON.stringify(out), { expirationTtl: LISTING_TEXT_TTL }); } catch {}
   }
-  return jsonOk({ id: parsed.id || id, ...out });
+  const desc = await injectExtraDescription_(env, id, out.description);
+  return jsonOk({ id: parsed.id || id, title: out.title, description: desc });
+}
+
+// D1 の extra_json から 伸縮性 / 生地の厚み / 裏地 を取り出し、
+// description の「透け感：…」行の直後に挿入する。
+// 取れなければ何もしない（GAS 由来テキストをそのまま返す）。
+async function injectExtraDescription_(env, kanri, description) {
+  if (!env || !env.DB) return description;
+  let extra = {};
+  try {
+    const cur = await env.DB.prepare('SELECT extra_json FROM products WHERE kanri = ?').bind(kanri).first();
+    if (cur && cur.extra_json) extra = JSON.parse(cur.extra_json) || {};
+  } catch { return description; }
+  const lines = [];
+  const stretch = String(extra['伸縮性'] || '').trim();
+  const thick = String(extra['生地の厚み'] || '').trim();
+  const lining = String(extra['裏地'] || '').trim();
+  if (stretch) lines.push('伸縮性：' + stretch);
+  if (thick)   lines.push('生地の厚み：' + thick);
+  if (lining)  lines.push('裏地：' + lining);
+  if (lines.length === 0) return description;
+  const insert = lines.join('\n') + '\n';
+  // 1) 透け感行の直後（一番自然なデザイン・特徴ブロック内）
+  if (/透け感：[^\n]*\n/.test(description)) {
+    return description.replace(/(透け感：[^\n]*\n)/, '$1' + insert);
+  }
+  // 2) ポケット行の直後（透け感が無くてもデザイン・特徴内に収まる）
+  if (/ポケット：[^\n]*\n/.test(description)) {
+    return description.replace(/(ポケット：[^\n]*\n)/, '$1' + insert);
+  }
+  // 3) ☆状態詳細 セクションの直前にデザイン・特徴ミニブロックとして挿入
+  if (/☆状態詳細/.test(description)) {
+    return description.replace(/(☆状態詳細)/, '☆デザイン・特徴\n' + insert + '\n$1');
+  }
+  // 4) お願い文（・保管上または…）の直前
+  if (/・保管上または/.test(description)) {
+    return description.replace(/(・保管上または)/, '☆デザイン・特徴\n' + insert + '\n$1');
+  }
+  return description + (description.endsWith('\n') ? '' : '\n') + insert;
 }
 
 // 経費申請レシート画像: dataUrl を GAS の Drive '経費_Images' に保存して URL を返す

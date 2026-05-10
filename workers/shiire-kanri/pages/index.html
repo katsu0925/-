@@ -96,7 +96,7 @@
   }
   .topbar-search input {
     flex: 1; border: none; outline: none; background: transparent;
-    color: var(--text); font-size: 14px; padding: 4px 0; min-width: 0;
+    color: var(--text); font-size: 16px; padding: 4px 0; min-width: 0;
   }
   .topbar-search input::placeholder { color: var(--text-mute); }
   /* type="search" のブラウザ標準クリアボタン（Safari/Chrome）はカスタム .clear-btn と重複するため抑制 */
@@ -428,7 +428,7 @@
   .meas-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
   .meas-grid > .field-row { display: block; padding: 4px 0; margin: 0; background: transparent; border-bottom: none; min-width: 0; }
   .meas-grid > .field-row label { font-size: 11px; margin-bottom: 2px; }
-  .meas-grid > .field-row input { padding: 8px 10px; font-size: 14px; min-height: 36px; }
+  .meas-grid > .field-row input { padding: 8px 10px; font-size: 16px; min-height: 36px; }
   .group-header {
     font-size: 12px; font-weight: 700; color: var(--text-sub);
     margin: 14px 0 6px 0; padding: 4px 4px;
@@ -683,6 +683,9 @@
     border: 1px solid var(--border); border-top: none;
     overflow: hidden;
   }
+  /* popover が開いている間だけ overflow を解除し、フリップアップ時の切り捨てを防ぐ */
+  .form-section:has(.cs-wrap.open),
+  .form-card:has(.cs-wrap.open) { overflow: visible; }
   /* セクション間の余白は section-header の margin-top で確保 */
   .field-row {
     display: block;
@@ -699,14 +702,14 @@
     width: 100%; padding: 9px 11px; min-height: 38px;
     box-sizing: border-box; max-width: 100%;
     border: 1px solid var(--border); border-radius: 8px;
-    font-size: 15px; background: #fff;
+    font-size: 16px; background: #fff;
     font-family: inherit; color: var(--text);
     transition: border-color .12s, background .12s, box-shadow .12s;
   }
-  /* 狭いグリッド列ではコンパクトなフォント・パディングに */
+  /* 狭いグリッド列ではパディングを詰めるが、font-size は iOS 自動ズーム回避のため 16px 維持 */
   .field-grid-2 > .field-row input, .field-grid-2 > .field-row select,
   .field-grid-3 > .field-row input, .field-grid-3 > .field-row select {
-    padding: 8px 10px; font-size: 14px; min-height: 36px;
+    padding: 8px 10px; font-size: 16px; min-height: 36px;
   }
   .field-grid-3 > .field-row label, .field-grid-2 > .field-row label {
     font-size: 11px; margin-bottom: 4px;
@@ -718,6 +721,75 @@
   .field-row input:focus, .field-row select:focus, .field-row textarea:focus {
     outline: none; border-color: var(--primary); box-shadow: var(--focus-ring);
   }
+  /* バリデーションエラー: 赤枠＋淡い赤地で「ここを直す」と一目で分かるようにする */
+  .invalid-field, input.invalid-field, select.invalid-field, textarea.invalid-field {
+    border-color: var(--danger) !important;
+    background: var(--danger-soft) !important;
+    box-shadow: 0 0 0 3px rgba(198,40,40,.12) !important;
+    animation: invalid-shake .25s ease-in-out;
+  }
+  @keyframes invalid-shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-3px); }
+    75% { transform: translateX(3px); }
+  }
+  /* ===== 共通カスタムセレクト (.cs-*) =====
+     ネイティブ <select> はデバイスごとに見た目バラバラ＋大量項目で操作しんどい。
+     項目数の多い select だけ enhanceSelect_() で皮を被せて統一する。
+     ネイティブ select 自体は値保持用に残し、cs-trigger からの選択で sel.value を更新＋change 発火。 */
+  .cs-wrap { position: relative; display: block; width: 100%; }
+  .cs-wrap select.cs-native { position: absolute; opacity: 0; pointer-events: none; height: 0; width: 0; padding: 0; border: 0; margin: 0; }
+  .cs-trigger {
+    width: 100%; box-sizing: border-box; text-align: left;
+    padding: 9px 30px 9px 11px; min-height: 38px;
+    background: #fff url("data:image/svg+xml;utf8,<svg xmlns=%27http://www.w3.org/2000/svg%27 width=%2712%27 height=%2712%27 viewBox=%270 0 14 14%27><path d=%27M3 5l4 4 4-4%27 fill=%27none%27 stroke=%27%236b7588%27 stroke-width=%272%27/></svg>") no-repeat right 10px center;
+    border: 1px solid var(--border); border-radius: 8px;
+    font-size: 16px; color: var(--text); cursor: pointer; line-height: 1.4;
+    display: flex; align-items: center; gap: 6px;
+    transition: border-color .12s, background-color .12s, box-shadow .12s;
+  }
+  /* 狭いグリッド（field-grid-2/3）では native select と同じく詰める */
+  .field-grid-2 > .field-row .cs-trigger,
+  .field-grid-3 > .field-row .cs-trigger {
+    padding: 8px 28px 8px 10px; min-height: 36px;
+  }
+  .cs-trigger:hover { border-color: #c9d1dd; }
+  .cs-wrap.open > .cs-trigger { border-color: var(--primary); box-shadow: var(--focus-ring); }
+  .cs-trigger.is-empty .cs-display { color: #9aa3b2; }
+  .cs-trigger:disabled, .cs-trigger[aria-disabled="true"] { background-color: #f3f5f9; color: #9aa3b2; cursor: not-allowed; }
+  .cs-display { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cs-popover {
+    position: absolute; top: calc(100% + 4px); left: 0; right: auto; z-index: 60;
+    /* トリガーが狭い列（カテゴリ2/3 等）に置かれていても popover は広げる。
+       min-width=100% で「最低でもトリガー幅」、width:max-content で項目テキストに合わせて拡張、
+       max-width: 90vw で画面外にはみ出さない。 */
+    min-width: 100%; width: max-content; max-width: 90vw;
+    border: 1px solid var(--border); border-radius: 10px; background: #fff;
+    box-shadow: 0 8px 24px rgba(20,30,60,.14); overflow: hidden; display: none;
+  }
+  /* popover が画面右端を超えるときは右寄せ（cs-wrap.flip-right に JS でクラス付与） */
+  .cs-wrap.flip-right > .cs-popover { left: auto; right: 0; }
+  /* popover が画面下端を超えるときはトリガーの上に表示（cs-wrap.flip-up） */
+  .cs-wrap.flip-up > .cs-popover { top: auto; bottom: calc(100% + 4px); }
+  .cs-wrap.open > .cs-popover { display: block; }
+  .cs-search {
+    width: 100%; box-sizing: border-box; padding: 10px 12px;
+    border: none; border-bottom: 1px solid #eef1f5;
+    font-size: 16px; background: #f8fafc; outline: none; -webkit-appearance: none;
+  }
+  .cs-list { max-height: 50vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .cs-item {
+    display: flex; gap: 8px; align-items: center;
+    padding: 10px 12px; border-bottom: 1px solid #f1f3f7;
+    cursor: pointer; font-size: 15px; color: var(--text);
+  }
+  .cs-item:last-child { border-bottom: none; }
+  .cs-item:active, .cs-item.active { background: #eff5ff; }
+  .cs-item.selected { background: #f4f8ff; font-weight: 600; }
+  .cs-check { width: 14px; flex: 0 0 14px; color: #2563eb; font-weight: 700; visibility: hidden; }
+  .cs-item.selected .cs-check { visibility: visible; }
+  .cs-label { flex: 1; min-width: 0; word-break: break-word; }
+  .cs-empty { padding: 14px 12px; text-align: center; color: var(--text-sub); font-size: 13px; }
   /* 採寸行は横並び（80px 1fr 24px）を維持 */
   .field-row.measure-row {
     display: grid; grid-template-columns: 80px 1fr 24px;
@@ -731,9 +803,17 @@
     min-height: 28px; word-break: break-all;
     font-weight: 500;
   }
+  /* ステータスは派生値で編集不可。「自動算出」と分かるよう淡色バッジ風表示にする。 */
+  .field-readonly.status-readonly {
+    display: inline-block; padding: 6px 12px;
+    background: #f3f5f9; color: #334; border: 1px solid #e3e8f0;
+    border-radius: 999px; font-size: 14px; font-weight: 600;
+    min-height: 0;
+  }
   /* select + アイコン横並び（発送方法・性別） */
   .field-with-icon { display: flex; align-items: center; gap: 8px; }
   .field-with-icon select { flex: 1 1 auto; min-width: 0; }
+  .field-with-icon > .cs-wrap { flex: 1 1 auto; min-width: 0; }
   .field-icon-slot { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; }
   .field-icon {
     display: inline-flex; align-items: center; justify-content: center;
@@ -931,6 +1011,44 @@
   .stat-value { font-size: 19px; font-weight: 800; color: var(--text); margin-top: 4px; }
   .stat-value.pos { color: var(--success); }
   .stat-value.neg { color: var(--danger); }
+  /* 同梱（販売タブ） — summary-card と同系の見た目だが headline は 📦 */
+  #bundle-card { border-top-color: #6c63ff; }
+  #bundle-card h4::before { content: '📦'; }
+  .bundle-current { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; min-height: 24px; }
+  .bundle-empty { color: var(--text-mute); font-size: 12px; padding: 4px 2px; }
+  .bundle-chip {
+    display: inline-flex; align-items: center;
+    background: #eef0ff; color: #4c47b3; border: 1px solid #c7c8ff;
+    border-radius: 999px; padding: 4px 10px;
+    font-size: 12px; font-weight: 700;
+  }
+  .bundle-actions { display: flex; gap: 8px; }
+  .btn-bundle {
+    background: #6c63ff; color: #fff; border: none;
+    border-radius: 8px; padding: 10px 16px;
+    font-size: 14px; font-weight: 700; cursor: pointer;
+    box-shadow: 0 1px 2px rgba(0,0,0,.08);
+  }
+  .btn-bundle:hover { background: #5752d8; }
+  .bundle-list { display: flex; flex-direction: column; gap: 6px; }
+  .bundle-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 6px 8px; background: var(--bg); border-radius: 8px;
+  }
+  .bundle-row .btn-x {
+    background: transparent; color: var(--danger);
+    border: 1px solid var(--danger); border-radius: 6px;
+    padding: 4px 10px; font-size: 12px; cursor: pointer;
+  }
+  .bundle-row .btn-x:hover { background: var(--danger); color: #fff; }
+  /* カード上の同梱マーク（発送商品タブ） */
+  .card-bundle {
+    display: inline-flex; align-items: center;
+    background: #eef0ff; color: #4c47b3; border: 1px solid #c7c8ff;
+    border-radius: 999px; padding: 2px 8px;
+    font-size: 11px; font-weight: 700;
+    margin-right: 6px;
+  }
   /* 作業履歴 */
   .history-card {
     margin-top: 16px;
@@ -1041,6 +1159,38 @@
     background: linear-gradient(90deg, #ececec 0%, #f6f6f6 50%, #ececec 100%);
     background-size: 200% 100%; animation: skShimmer 1.2s ease-in-out infinite; }
   @keyframes skShimmer { 0%{background-position:200% 0;} 100%{background-position:-200% 0;} }
+  /* Pull-to-refresh インジケータ（appbar 直下にピル表示） */
+  .ptr-indicator {
+    position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 6px);
+    transform: translate(-50%, -60px); opacity: 0;
+    z-index: 95; pointer-events: none;
+    background: var(--surface); color: var(--text);
+    border: 1px solid var(--border);
+    box-shadow: 0 6px 16px rgba(0,0,0,.18);
+    border-radius: 999px;
+    padding: 8px 14px; min-height: 36px;
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 600; white-space: nowrap;
+    transition: opacity .18s ease, transform .25s cubic-bezier(.2,.8,.2,1);
+    will-change: transform, opacity;
+  }
+  .ptr-indicator.ptr-hide { transition: opacity .18s ease, transform .22s ease; transform: translate(-50%, -60px) !important; opacity: 0 !important; }
+  .ptr-indicator .ptr-icon { display: none; width: 16px; height: 16px; align-items: center; justify-content: center; font-size: 14px; line-height: 1; color: var(--primary); }
+  .ptr-indicator .ptr-arrow { display: inline-flex; transition: transform .15s ease; }
+  .ptr-indicator.ptr-ready .ptr-arrow { transform: rotate(180deg); }
+  .ptr-indicator.ptr-loading .ptr-arrow { display: none; }
+  .ptr-indicator.ptr-loading .ptr-spin {
+    display: inline-flex; width: 16px; height: 16px;
+    border: 2px solid rgba(21,101,192,.22); border-top-color: var(--primary);
+    border-radius: 50%; animation: ptr-spin 0.7s linear infinite;
+  }
+  .ptr-indicator.ptr-done .ptr-arrow,
+  .ptr-indicator.ptr-done .ptr-spin { display: none; }
+  .ptr-indicator.ptr-done .ptr-check { display: inline-flex; color: #2e7d32; }
+  .ptr-indicator.ptr-error .ptr-arrow,
+  .ptr-indicator.ptr-error .ptr-spin { display: none; }
+  .ptr-indicator.ptr-error .ptr-check { display: inline-flex; color: #c62828; }
+  @keyframes ptr-spin { to { transform: rotate(360deg); } }
   .empty { text-align: center; padding: 40px 16px; color: var(--text-sub); }
   .empty .empty-title { font-size: 14px; margin-bottom: 12px; }
   .empty .empty-cta {
@@ -1073,10 +1223,51 @@
   .form-card .field-row textarea { resize: vertical; min-height: 80px; }
   .form-actions { display: flex; gap: 8px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
   .form-actions button { flex: 1; padding: 12px; min-height: 48px; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; }
+  /* 登録/キャンセル等をボトム固定（場所移動・返送の新規作成フォーム用）。
+     bottomnav (64px + safe-area) の上に乗せる。中身は .form-card.with-sticky-actions の padding-bottom で被らないようにする。 */
+  .form-actions.sticky {
+    position: fixed; left: 0; right: 0;
+    bottom: calc(64px + env(safe-area-inset-bottom));
+    margin: 0; padding: 10px 12px;
+    background: var(--surface); border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.06);
+    z-index: 90;
+  }
+  .form-card.with-sticky-actions { padding-bottom: 16px; margin-bottom: calc(80px + env(safe-area-inset-bottom)); }
+  /* 商品新規作成フォーム（複数の form-card + section が並ぶレイアウト）の sticky アクション余白 */
+  .create-product-form.with-sticky-actions { padding-bottom: calc(96px + env(safe-area-inset-bottom)); }
   .btn-primary { background: var(--primary); color: #fff; }
   .btn-primary:hover { background: var(--primary-dark); }
   .btn-secondary { background: var(--gray-soft); color: var(--text); }
   .btn-secondary:hover { background: #e3e7ee; }
+  /* 任意ボタンに付ける処理中スピナー。テキスト前にくるくる回るリング */
+  .btn-loading { cursor: wait !important; opacity: .92; }
+  .btn-loading::before {
+    content: ''; display: inline-block; width: 12px; height: 12px; margin-right: 8px;
+    border: 2px solid rgba(255,255,255,.45); border-top-color: #fff; border-radius: 50%;
+    vertical-align: -2px; animation: btn-loading-spin .7s linear infinite;
+  }
+  /* 白文字でないボタン（btn-secondary等）用にダーク版 */
+  .btn-secondary.btn-loading::before {
+    border-color: rgba(0,0,0,.18); border-top-color: rgba(0,0,0,.7);
+  }
+  @keyframes btn-loading-spin { to { transform: rotate(360deg); } }
+  /* 画面トップに走るプログレスバー（API 呼び出し中表示） */
+  #global-progress {
+    position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 9999;
+    background: transparent; pointer-events: none; overflow: hidden;
+    opacity: 0; transition: opacity .15s;
+  }
+  #global-progress.on { opacity: 1; }
+  #global-progress::before {
+    content: ''; display: block; width: 40%; height: 100%;
+    background: linear-gradient(90deg, transparent, var(--primary), transparent);
+    animation: global-progress-slide 1.1s linear infinite;
+  }
+  @keyframes global-progress-slide {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(350%); }
+  }
   /* 注意書きバナー */
   .notice { background: #fff7e6; color: #8a5a00; border: 1px solid #ffd591; border-radius: 8px; padding: 10px 12px; font-size: 13px; line-height: 1.5; margin-bottom: 12px; }
   .notice strong { color: #b07000; }
@@ -1087,8 +1278,9 @@
   /* ID 多重選択ピッカー（移動報告） */
   .ids-picker { display: block; }
   .muted { color: var(--text-sub); font-size: 13px; padding: 6px 0; }
-  .ids-toolbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
-  .ids-toolbar input[type=text] { flex: 1 1 180px; padding: 8px 10px; min-height: 36px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; }
+  /* ツールバーはスクロール時も上部に貼り付く（検索／全選択を常に押せるように） */
+  .ids-toolbar { position: sticky; top: 0; z-index: 5; background: var(--surface); padding: 8px 0; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 8px; }
+  .ids-toolbar input[type=text] { flex: 1 1 180px; padding: 8px 10px; min-height: 36px; border: 1px solid var(--border); border-radius: 8px; font-size: 16px; }
   .ids-toolbar button { padding: 6px 10px; min-height: 36px; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
   .ids-list { max-height: 320px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); }
   .ids-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid #f3f5f9; font-size: 14px; cursor: pointer; }
@@ -1426,6 +1618,7 @@
   .yesno-btn.yesno-no.active  { background: var(--danger); color: #fff; border-color: var(--danger); }
   .yesno-btn.yesno-clear { padding: 8px 10px; min-width: 36px; color: var(--text-sub); }
   .yesno-btn.yesno-clear.active { background: var(--gray-soft); color: var(--text); border-color: #aaa; }
+  .yesno-btn.yesno-pick.active { background: var(--primary); color: #fff; border-color: var(--primary); }
   .yesno-btn:hover { filter: brightness(0.97); }
   /* textarea 自動拡張 */
   textarea.auto-grow {
@@ -1585,6 +1778,8 @@
 </head>
 <body>
 
+<div id="global-progress" aria-hidden="true"></div>
+
 <div class="appbar">
   <div class="appbar-row1">
     <button class="icon-btn" id="appbar-menu-btn" onclick="appbarPrimaryAction_()" aria-label="メニュー">≡</button>
@@ -1652,6 +1847,11 @@
     </div>
     <div class="drawer-item" data-business="houshu" onclick="selectBusinessMenu('houshu','報酬確認')">
       <span class="ico"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9 9l3 4 3-4M12 13v5M9.5 15h5"/></svg></span><span>報酬確認</span>
+    </div>
+    <div class="drawer-divider"></div>
+    <div class="drawer-section-label">設定</div>
+    <div class="drawer-item" onclick="openNotificationSettings()">
+      <span class="ico"><svg viewBox="0 0 24 24"><path d="M6 19V11a6 6 0 0 1 12 0v8"/><path d="M3 19h18"/><path d="M10 22h4"/></svg></span><span>通知設定</span>
     </div>
   </div>
 </div>

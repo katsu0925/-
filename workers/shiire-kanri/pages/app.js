@@ -587,6 +587,9 @@ const DETAIL_SECTIONS = [
     ['ポケット','yesno'],
     ['ポケット詳細','text'],
     ['透け感','yesno'],
+    ['伸縮性','yesno'],
+    ['生地の厚み','thickness'],
+    ['裏地','yesno'],
     ['傷汚れ詳細','textarea']
   ]},
   { title: '採寸 (cm)', fields: [
@@ -5022,6 +5025,8 @@ function fieldRowHtml(name, type, val) {
     }
   } else if (type === 'yesno') {
     input = yesNoToggleHtml_(id, v, name);
+  } else if (type === 'thickness') {
+    input = thicknessToggleHtml_(id, v);
   } else if (type === 'date') {
     var dv = '';
     if (v) {
@@ -5121,9 +5126,10 @@ var COLOR_OPTIONS = [
   'パープル','シルバー','ゴールド','マルチカラー','その他'
 ];
 
-// あり/なし トグルボタン HTML（透け感・ポケット用）
+// あり/なし トグルボタン HTML
 // fieldName が 'ポケット' のときは 3 つ目のボタンを「詳細入力」にして
 // 同セクションの「ポケット詳細」textarea にフォーカスさせる
+// それ以外（透け感・伸縮性・裏地）は「あり/なし」の2択のみ（ユーザー要望）
 function yesNoToggleHtml_(id, current, fieldName) {
   var cur = String(current || '').trim();
   var isYes = (cur === 'あり' || cur === 'TRUE' || cur === 'true' || cur === 'YES' || cur === 'はい' || cur === 'Y');
@@ -5131,18 +5137,32 @@ function yesNoToggleHtml_(id, current, fieldName) {
   var isPocket = (fieldName === 'ポケット');
   var isDetail = isPocket && cur === '詳細入力';
   var val = isYes ? 'あり' : (isNo ? 'なし' : (isDetail ? '詳細入力' : ''));
-  var thirdLabel = isPocket ? '詳細入力' : '—';
-  var thirdVal = isPocket ? '詳細入力' : '';
-  var thirdAttr = isPocket ? ' data-focus-field="ポケット詳細"' : ' title="クリア"';
-  var thirdActive = isPocket ? isDetail : (!isYes && !isNo);
+  var thirdBtn = '';
+  if (isPocket) {
+    thirdBtn = '<button type="button" class="yesno-btn yesno-clear' + (isDetail ? ' active' : '') +
+      '" data-val="詳細入力" data-focus-field="ポケット詳細" onclick="onYesNoClick_(this)">詳細入力</button>';
+  }
   return (
     '<div class="yesno-toggle" data-target="' + id + '">' +
       '<input type="hidden" id="' + id + '" value="' + esc(val) + '">' +
       '<button type="button" class="yesno-btn yesno-yes' + (isYes ? ' active' : '') + '" data-val="あり" onclick="onYesNoClick_(this)">あり</button>' +
       '<button type="button" class="yesno-btn yesno-no'  + (isNo  ? ' active' : '') + '" data-val="なし" onclick="onYesNoClick_(this)">なし</button>' +
-      '<button type="button" class="yesno-btn yesno-clear' + (thirdActive ? ' active' : '') + '" data-val="' + esc(thirdVal) + '"' + thirdAttr + ' onclick="onYesNoClick_(this)">' + esc(thirdLabel) + '</button>' +
+      thirdBtn +
     '</div>'
   );
+}
+
+// 生地の厚み トグルボタン HTML（厚手 / 普通 / 薄手）
+function thicknessToggleHtml_(id, current) {
+  var cur = String(current || '').trim();
+  var opts = ['厚手', '普通', '薄手'];
+  var html = '<div class="yesno-toggle" data-target="' + id + '">' +
+    '<input type="hidden" id="' + id + '" value="' + esc(cur) + '">';
+  opts.forEach(function(o){
+    var active = (cur === o) ? ' active' : '';
+    html += '<button type="button" class="yesno-btn yesno-pick' + active + '" data-val="' + esc(o) + '" onclick="onYesNoClick_(this)">' + esc(o) + '</button>';
+  });
+  return html + '</div>';
 }
 
 function onYesNoClick_(btn) {
@@ -7028,6 +7048,8 @@ function createFieldRowHtml_(name, type, defVal) {
     }
   } else if (type === 'yesno') {
     input = yesNoToggleHtml_(id, v, name);
+  } else if (type === 'thickness') {
+    input = thicknessToggleHtml_(id, v);
   } else if (type === 'date') {
     input = '<input type="date" id="' + id + '" value="' + esc(v) + '" onfocus="onDateFieldFocus_(this)">';
   } else if (type === 'url') {
