@@ -991,6 +991,13 @@ function staff_syncDumpAiPrefill() {
 }
 
 // Cloudflare からの書き込みプロキシ（採寸） — 認可チェックなし、シークレット認可は doPost 側
+// Code.gs doGet で生成する商品説明 (shitsu_v3_<id>) の 10分キャッシュを失効させる。
+// 採寸/詳細/新規作成 で値が変わった直後に呼ぶことで「商品説明コピー」が古い採寸値のままになる事故を防ぐ。
+function staff_invalidateListingCache_(kanri) {
+  if (!kanri) return;
+  try { CacheService.getScriptCache().remove('shitsu_v3_' + String(kanri).trim()); } catch (e) { /* ignore */ }
+}
+
 function staff_apiSaveMeasurement(payload, email) {
   payload = payload || {};
   email = String(email || 'cloudflare-proxy');
@@ -1017,6 +1024,7 @@ function staff_apiSaveMeasurement(payload, email) {
   sh.getRange(rowNum, STAFF_COL.採寸日).setValue(new Date());
   sh.getRange(rowNum, STAFF_COL.採寸者).setValue(email);
 
+  staff_invalidateListingCache_(kanri);
   return { ok: true, message: '採寸を保存しました（' + written + '項目）', kanri: kanri, row: rowNum };
 }
 
@@ -1297,6 +1305,7 @@ function staff_apiSaveDetails(payload, email) {
   } catch (e) {}
   __lap('record');
 
+  staff_invalidateListingCache_(kanri);
   return {
     ok: true,
     message: written + '件更新しました',
