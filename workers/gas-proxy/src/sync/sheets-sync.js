@@ -1527,12 +1527,13 @@ async function runGeminiJudgment(env, managedId, apiKey) {
 //   front_full : 前から全身（平置き or トルソー）
 //   back_full  : 後ろから全身（平置き or トルソー）
 //   worn       : 人間が着用している着画
-//   detail     : 部分アップ・ディテール
-//   tag        : タグ
-//   defect     : 傷・汚れ・破れ拡大
-//   processed  : 背景白置換＋ロゴ入りの加工画像
-//   other      : それ以外（斜め角度・不明確な構図）
-const ORDER_PRIORITY = ['front_full', 'back_full', 'worn', 'detail', 'tag', 'defect', 'other', 'processed'];
+//   detail            : 部分アップ・ディテール
+//   tag               : タグ
+//   defect            : 傷・汚れ・破れ拡大
+//   processed_right   : 白背景加工＋右上ロゴ（先頭）
+//   processed_left    : 白背景加工＋左上ロゴ（末尾）
+//   other             : それ以外（斜め角度・不明確な構図）
+const ORDER_PRIORITY = ['processed_right', 'front_full', 'back_full', 'worn', 'detail', 'tag', 'defect', 'other', 'processed_left'];
 
 const AI_ORDERING_PROMPT = `あなたは古着の商品画像を並び替えるための分類アシスタントです。
 画像配列の各画像について、まず観察した内容を reason に短く書いてから、最後に1つのカテゴリ label を付けてください。reason を書かずに即答することは禁止です。
@@ -1543,9 +1544,10 @@ const AI_ORDERING_PROMPT = `あなたは古着の商品画像を並び替える�
 - worn       : 人間（モデル）が実際に着用している着画。顔・手・脚・髪などの肌や身体パーツが画像内に見える
 - detail     : 部分アップ。袖口・襟・素材アップ・装飾・ボタン・刺繍・プリント柄の拡大など、商品の一部分にフォーカス
 - tag        : 内側タグ・洗濯表示・ブランドネーム・サイズ表記など、文字情報主体の拡大写真
-- defect     : 傷・汚れ・穴・シミ・ほつれ・色褪せなど、ダメージ箇所の拡大写真
-- processed  : 真っ白に背景処理された商品＋ブランドロゴ（または店名テキスト）が画像内に重ねて合成された加工済み画像
-- other      : 上記いずれにも明確に該当しない曖昧な画像（斜め45度撮影／構図不明確／複数アイテム混在／半身しか写っていない／極端なズームで判別不能など）
+- defect          : 傷・汚れ・穴・シミ・ほつれ・色褪せなど、ダメージ箇所の拡大写真
+- processed_right : 真っ白に背景処理された商品＋ブランドロゴ（店名テキスト）が「画像の右上」に重ねて合成された加工済み画像（先頭表示用のヒーロー画像）
+- processed_left  : 真っ白に背景処理された商品＋ブランドロゴ（店名テキスト）が「画像の左上」に重ねて合成された加工済み画像（末尾表示用）
+- other           : 上記いずれにも明確に該当しない曖昧な画像（斜め45度撮影／構図不明確／複数アイテム混在／半身しか写っていない／極端なズームで判別不能など）
 
 ## 判定の具体例
 - 床に広げたトップスを真上から撮った写真 → front_full（または back_full）
@@ -1555,11 +1557,13 @@ const AI_ORDERING_PROMPT = `あなたは古着の商品画像を並び替える�
 - 値札やサイズタグだけのアップ → tag（文字情報メイン）
 - 袖の刺繍やボタンの拡大（ダメージなし） → detail
 - 穴・シミ・色褪せの拡大 → defect
-- 真っ白い背景に切り抜かれた商品＋"BRAND"等のロゴテキスト合成 → processed
+- 真っ白い背景に切り抜かれた商品＋"BRAND"等のロゴテキストが画像の「右上」に合成 → processed_right
+- 真っ白い背景に切り抜かれた商品＋"BRAND"等のロゴテキストが画像の「左上」に合成 → processed_left
 - 同じ商品の正面が複数枚 → 全て front_full（重複していてもOK）
+- ロゴがどちらの上端にあるか曖昧（中央／下／判別不能）→ processed_left（より無難な末尾扱い）にする
 
 ## 撮影順のヒント
-画像は upload 順で並んでいます。経験上、最初の 2〜3 枚（index 0, 1, 2）は撮影者が「商品の代表写真」として front_full / back_full を撮る蓋然性が高いです。最終手前は worn、最後付近は processed の傾向があります。ただしこれはヒントであり、画像内容を最優先してください。
+画像は upload 順で並んでいます。経験上、最初の 2〜3 枚（index 0, 1, 2）は撮影者が「商品の代表写真」として front_full / back_full を撮る蓋然性が高いです。最終手前は worn、最後付近は processed_left（左上ロゴの末尾画像）の傾向があります。processed_right（右上ロゴ）は商品アップロードの最初のほうに置かれることもあります。ただしこれはヒントであり、画像内容を最優先してください。
 
 ## 入力
 画像が index 0 から順に渡されます。
@@ -1567,8 +1571,9 @@ const AI_ORDERING_PROMPT = `あなたは古着の商品画像を並び替える�
 ## 出力（JSONのみ・説明文や前置き禁止）
 {
   "items": [
-    { "index": 0, "reason": "床に広げたトップスを真上から、人間なし", "label": "front_full" },
-    { "index": 1, "reason": "同じトップスを裏返した状態、人間なし", "label": "back_full" }
+    { "index": 0, "reason": "白背景に切り抜かれ右上にBRANDロゴ合成", "label": "processed_right" },
+    { "index": 1, "reason": "床に広げたトップスを真上から、人間なし", "label": "front_full" },
+    { "index": 2, "reason": "白背景に切り抜かれ左上にBRANDロゴ合成", "label": "processed_left" }
   ]
 }
 
@@ -1825,6 +1830,10 @@ export async function runReorderDryrun(env, options = {}) {
  */
 export async function runReorderApply(env, options = {}) {
   const dryRun = !!options.dryRun;
+  const limit = Number.isFinite(options.limit) && options.limit > 0 ? Math.floor(options.limit) : 0;
+  const onlyIds = Array.isArray(options.managedIds) && options.managedIds.length
+    ? new Set(options.managedIds.map(String))
+    : null;
   const gasUrl = env.GAS_API_URL;
   if (!gasUrl) return { error: 'GAS_API_URL not set' };
 
@@ -1843,7 +1852,9 @@ export async function runReorderApply(env, options = {}) {
   if (!readJson.ok) return { error: 'GAS read failed', message: readJson.message };
 
   const sheetRows = Array.isArray(readJson.rows) ? readJson.rows : [];
-  const targets = sheetRows.filter(r => r.changed && Array.isArray(r.after) && r.after.length > 0);
+  let targets = sheetRows.filter(r => r.changed && Array.isArray(r.after) && r.after.length > 0);
+  if (onlyIds) targets = targets.filter(r => onlyIds.has(String(r.managedId)));
+  if (limit > 0) targets = targets.slice(0, limit);
 
   // 2. 各 KV を更新
   const results = [];
@@ -1904,6 +1915,8 @@ export async function runReorderApply(env, options = {}) {
     updated,
     skipped,
     mismatched,
+    limit: limit || null,
+    filteredByIds: onlyIds ? onlyIds.size : null,
     results,
   };
 }

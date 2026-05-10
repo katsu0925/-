@@ -220,14 +220,19 @@ self.addEventListener('fetch', e => {
       }
     }
 
-    // 画像並び替え本番反映: POST /admin/reorder-apply (body: {key, dryRun?})
+    // 画像並び替え本番反映: POST /admin/reorder-apply (body: {key, dryRun?, limit?, managedIds?[]})
     // ドライランシートで承認された並び替えを KV product-images:${managedId} に反映する。
     // dryRun=true の場合は実際の書き込みをせず影響範囲だけ返す。
+    // limit を指定すると最初の N 件のみ反映、managedIds を指定すると該当のみ反映。
     if (request.method === 'POST' && url.pathname === '/admin/reorder-apply') {
       try {
         const body = await request.json();
         if (body.key !== env.SYNC_SECRET) return new Response('Unauthorized', { status: 401 });
-        const result = await runReorderApply(env, { dryRun: !!body.dryRun });
+        const result = await runReorderApply(env, {
+          dryRun: !!body.dryRun,
+          limit: body.limit,
+          managedIds: body.managedIds,
+        });
         return new Response(JSON.stringify(result, null, 2), { headers: { 'Content-Type': 'application/json' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
