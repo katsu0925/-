@@ -1935,6 +1935,144 @@ function om_calcPriceTier_(n) {
 }
 
 // ═══════════════════════════════════════════
+// 売却反映が漏れた受付番号の復旧
+// ═══════════════════════════════════════════
+
+/**
+ * 過去に om_executeFullPipeline_ の途中で失敗・手動復旧された受付番号について、
+ * 商品管理「売却済み」+ BO列 + 売却履歴 のみを後追いで反映する。
+ * KV保存・AJ列・配布用リスト・XLSX は触らない（既に処理済みである前提）。
+ *
+ * 対象管理番号は依頼管理J列（選択リスト）を正とする。
+ * 売却履歴は冪等化のため、書き込み前に同受付番号の既存行を削除してから再書き込みする。
+ */
+function reapplyMissingSaleForReceipt(receiptNo) {
+  if (!receiptNo) {
+    console.error('受付番号が未指定です');
+    return;
+  }
+  console.log('=== 売却反映復旧開始: ' + receiptNo + ' ===');
+
+  // 依頼管理から選択リストを取得
+  var orderSs = sh_getOrderSs_();
+  var reqSheet = sh_ensureRequestSheet_(orderSs);
+  var reqLast = reqSheet.getLastRow();
+  if (reqLast < 2) { console.error('依頼管理にデータがありません'); return; }
+  var reqData = reqSheet.getRange(1, 1, reqLast, reqSheet.getLastColumn()).getValues();
+  var reqHeaders = reqData.shift();
+  var rIdx = {};
+  reqHeaders.forEach(function(h, i) { rIdx[String(h || '').trim()] = i; });
+  var receiptColIdx = rIdx['受付番号'];
+  var selectionColIdx = rIdx['選択リスト'];
+  if (receiptColIdx === undefined || selectionColIdx === undefined) {
+    console.error('依頼管理に「受付番号」または「選択リスト」列が見つかりません');
+    return;
+  }
+
+  var reqRow = null;
+  for (var i = 0; i < reqData.length; i++) {
+    if (String(reqData[i][receiptColIdx] || '').trim() === receiptNo) { reqRow = reqData[i]; break; }
+  }
+  if (!reqRow) { console.error('依頼管理に受付番号が見つかりません: ' + receiptNo); return; }
+
+  var selectionStr = String(reqRow[selectionColIdx] || '');
+  var idsRaw = selectionStr.split(/[、,，\s]+/).map(function(s) { return s.trim(); }).filter(Boolean);
+  var seen = {};
+  var ids = [];
+  for (var di = 0; di < idsRaw.length; di++) {
+    var idUp = idsRaw[di].toUpperCase();
+    if (!seen[idUp]) { seen[idUp] = true; ids.push(idsRaw[di]); }
+  }
+  if (ids.length === 0) { console.error('選択リストが空です: ' + receiptNo); return; }
+  console.log('選択リスト: ' + ids.length + '件 [' + ids.join(', ') + ']');
+
+  // 商品管理を読み込み
+  var shiireSs = SpreadsheetApp.openById(OM_SHIIRE_SS_ID);
+  var mainSheet = shiireSs.getSheetByName('商品管理');
+  if (!mainSheet) { console.error('商品管理シートが見つかりません'); return; }
+  var mData = mainSheet.getDataRange().getValues();
+  var mHeaders = mData.shift();
+  var mIdx = {};
+  mHeaders.forEach(function(h, i) { mIdx[String(h || '').trim()] = i; });
+
+  var idColIdx = mIdx['管理番号'];
+  var statusColIdx = mIdx['ステータス'];
+  var brandColIdx = mIdx['ブランド'];
+  var costColIdx = mIdx['仕入れ値'];
+  if (idColIdx === undefined || statusColIdx === undefined) {
+    console.error('商品管理に「管理番号」または「ステータス」列が見つかりません');
+    return;
+  }
+  var statusCol1 = statusColIdx + 1;
+  var statusColLetter = om_colNumToLetter_(statusCol1);
+  var boColLetter = om_colNumToLetter_(67); // BO列 = 受付番号
+
+  // 管理番号→全行（重複対応）
+  var idToAllRows = {};
+  for (var ir = 0; ir < mData.length; ir++) {
+    var ik = String(mData[ir][idColIdx] || '').trim();
+    if (!ik) continue;
+    if (!idToAllRows[ik]) idToAllRows[ik] = { rows: [], data: mData[ir] };
+    idToAllRows[ik].rows.push(ir + 2);
+  }
+
+  var statusA1s = [];
+  var boA1s = [];
+  var saleLogEntries = [];
+  var notFoundIds = [];
+
+  ids.forEach(function(mgmtId) {
+    var hit = idToAllRows[mgmtId];
+    if (!hit) { notFoundIds.push(mgmtId); return; }
+    for (var ri = 0; ri < hit.rows.length; ri++) {
+      statusA1s.push(statusColLetter + hit.rows[ri]);
+      boA1s.push(boColLetter + hit.rows[ri]);
+    }
+    if (hit.rows.length > 1) console.log('重複行検出: ' + mgmtId + ' → ' + hit.rows.length + '行');
+    saleLogEntries.push({
+      date: new Date(),
+      managedId: mgmtId,
+      receiptNo: receiptNo,
+      brand: brandColIdx !== undefined ? (hit.data[brandColIdx] || '') : '',
+      cost: costColIdx !== undefined ? (hit.data[costColIdx] || '') : ''
+    });
+  });
+
+  if (notFoundIds.length > 0) {
+    console.warn('商品管理に見つからない管理番号: ' + notFoundIds.join(', '));
+  }
+
+  if (statusA1s.length > 0) {
+    mainSheet.getRangeList(statusA1s).setValue('売却済み');
+    mainSheet.getRangeList(boA1s).setValue(receiptNo);
+    console.log('商品管理 売却済み反映: ' + statusA1s.length + '行');
+  } else {
+    console.warn('商品管理 反映対象なし');
+  }
+
+  // 売却履歴: 既存削除 → 再書き込み（冪等化）
+  om_removeSaleLogByReceipt_(shiireSs, receiptNo);
+  if (saleLogEntries.length > 0) {
+    om_writeSaleLog_(shiireSs, saleLogEntries);
+    console.log('売却履歴書き込み: ' + saleLogEntries.length + '件');
+  }
+
+  clearProductCache_();
+  SpreadsheetApp.flush();
+  console.log('=== 売却反映復旧完了: ' + receiptNo + ' ===');
+}
+
+/**
+ * 受付番号 20260421224044-251 の売却反映漏れを復旧する手動実行ラッパー。
+ * 過去に createKitFromDistList で KV+AJ列のみ復旧された際、商品管理「売却済み」と
+ * 売却履歴への書き込みが漏れていたため、ここで補填する。
+ * GASエディタから実行 → 完了後はこの関数を削除して構わない。
+ */
+function reapplyMissingSale_20260421224044_251() {
+  reapplyMissingSaleForReceipt('20260421224044-251');
+}
+
+// ═══════════════════════════════════════════
 // XLSX用サブ関数（shiire-kanri/xlsxダウンロード.gs 由来）
 // ═══════════════════════════════════════════
 
