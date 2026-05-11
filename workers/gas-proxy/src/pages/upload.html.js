@@ -200,7 +200,24 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
         </div>
         <div class="form-group" style="margin-top:12px">
           <label>画像（最大10枚）</label>
+          <!-- 選択モード切替（既定: 一括選択） -->
+          <div id="uploadModeBar" style="display:flex;gap:4px;margin-bottom:6px;font-size:11px">
+            <button type="button" class="upload-mode-btn" data-mode="bulk" onclick="setUploadSelectMode('bulk')" style="flex:1;padding:6px 4px;border:1px solid #d1d5db;background:#fff;border-radius:6px;cursor:pointer;line-height:1.2">一括選択<br><span style="font-size:10px;color:#6b7280">ドラッグで並替</span></button>
+            <button type="button" class="upload-mode-btn" data-mode="single" onclick="setUploadSelectMode('single')" style="flex:1;padding:6px 4px;border:1px solid #d1d5db;background:#fff;border-radius:6px;cursor:pointer;line-height:1.2">1枚ずつ追加<br><span style="font-size:10px;color:#6b7280">タップ順保持</span></button>
+            <button type="button" class="upload-mode-btn" data-mode="tap" onclick="setUploadSelectMode('tap')" style="flex:1;padding:6px 4px;border:1px solid #d1d5db;background:#fff;border-radius:6px;cursor:pointer;line-height:1.2">タップで番号付け<br><span style="font-size:10px;color:#6b7280">一括選択→順にタップ</span></button>
+          </div>
           <input type="file" id="uploadFiles" multiple accept="image/*" onchange="showPreview()">
+          <!-- Mode A: 1枚ずつ追加 -->
+          <div id="singleAddWrap" style="display:none;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px">
+            <button type="button" onclick="addSingleImage()" style="padding:10px 16px;border:1.5px dashed #4F46E5;background:#fff;color:#4F46E5;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">＋ 画像を追加</button>
+            <button type="button" onclick="resetUploadSelection_()" style="padding:6px 10px;border:1px solid #d1d5db;background:#fff;color:#6b7280;border-radius:6px;font-size:11px;cursor:pointer">クリア</button>
+            <span id="singleAddCount" style="font-size:11px;color:#6b7280"></span>
+          </div>
+          <input type="file" id="singleImagePicker" accept="image/*" style="display:none" onchange="onSingleImagePicked(event)">
+          <!-- Mode B: タップで番号付け hint -->
+          <div id="tapModeHint" style="display:none;padding:8px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;font-size:11px;color:#92400e;margin-top:4px">
+            画像を選択後、<strong>順番にタップ</strong>して番号を付けてください。タップ順 = アップロード順。タップした分だけアップロードされます。
+          </div>
         </div>
         <div style="margin-top:8px">
           <label style="display:inline-flex;align-items:center;gap:5px;font-size:13px;color:#374151;cursor:pointer">
@@ -575,6 +592,7 @@ function showMain() {
   var dd = String(today.getDate()).padStart(2, '0');
   document.getElementById('photographyDate').value = yyyy + '-' + mm + '-' + dd;
   initPhotographer();
+  setUploadSelectMode(_uploadSelectMode);
   loadUnmatchedCount();
   // バックグラウンドで商品リストをプリロード
   if (!_listLoaded) refreshProductList(null, true);
@@ -1564,29 +1582,45 @@ function showPreview() {
     btn.disabled = true;
     return;
   }
-  btn.disabled = false;
+  // タップ番号付けモードはタップで順序を決めるので、初期は無効化＋空配列
+  // それ以外（bulk / single）は従来通り0..n-1の順序
+  var isTapMode = (_uploadSelectMode === 'tap');
+  btn.disabled = isTapMode; // タップモードは番号付けされるまで無効
   _blurredImages = {};
   _bgReplacedImages = {};
   _uploadFileOrder = [];
   for (var i = 0; i < files.length; i++) {
-    _uploadFileOrder.push(i);
+    if (!isTapMode) _uploadFileOrder.push(i);
     var div = document.createElement('div');
     div.className = 'preview-item';
     div.setAttribute('data-idx', i);
-    div.setAttribute('draggable', 'true');
+    if (!isTapMode) div.setAttribute('draggable', 'true');
     var origUrl = URL.createObjectURL(files[i]);
     div.setAttribute('data-orig', origUrl);
-    div.onclick = function(e) { toggleUploadCheck(this, e); };
-    var labelIdx = _existingUrls.length + i;
+    if (isTapMode) {
+      div.onclick = function(e) { tapAssignNumber(parseInt(this.getAttribute('data-idx')), e); };
+    } else {
+      div.onclick = function(e) { toggleUploadCheck(this, e); };
+    }
+    var badgeHtml;
+    if (isTapMode) {
+      badgeHtml = '<span class="badge tap-badge" style="left:auto;right:2px;background:#9ca3af">未</span>';
+    } else {
+      var labelIdx = _existingUrls.length + i;
+      badgeHtml = labelIdx === 0
+        ? '<span class="badge" style="left:auto;right:2px">トップ</span>'
+        : '<span class="badge" style="left:auto;right:2px">' + (labelIdx+1) + '</span>';
+    }
     div.innerHTML =
       '<input type="checkbox" class="upload-check" data-idx="' + i + '" style="position:absolute;top:4px;left:4px;z-index:2;width:18px;height:18px;accent-color:#4F46E5">' +
       '<img src="' + origUrl + '" loading="lazy">' +
-      (labelIdx === 0 ? '<span class="badge" style="left:auto;right:2px">トップ</span>' : '<span class="badge" style="left:auto;right:2px">' + (labelIdx+1) + '</span>') +
+      badgeHtml +
       '<span class="preview-btn" onclick="event.stopPropagation();previewUploadImg(this.parentNode)">🔍</span>';
     grid.appendChild(div);
     generateLevelsPreview(files[i], i, grid);
   }
-  initUploadDragReorder(grid);
+  if (!isTapMode) initUploadDragReorder(grid);
+  if (_uploadSelectMode === 'single') updateSingleAddCount_();
   // ぼかしバー表示
   var bar = document.getElementById('blurBar');
   bar.style.display = 'flex';
@@ -1597,6 +1631,138 @@ function showPreview() {
 }
 
 var _uploadFileOrder = [];
+
+// ─── アップロード選択モード ───
+// 'bulk'   = 一括選択 + ドラッグ並替（既定・PC向け）
+// 'single' = 1枚ずつ追加（タップ順保持・iOSの並び順崩れ対策）
+// 'tap'    = 一括選択 → タップで番号付け（タップ順 = アップロード順）
+var UPLOAD_MODE_KEY = 'uploadSelectMode_v1';
+var _uploadSelectMode = (function(){
+  try { return localStorage.getItem(UPLOAD_MODE_KEY) || 'bulk'; } catch(e) { return 'bulk'; }
+})();
+
+function setUploadSelectMode(mode) {
+  if (mode !== 'bulk' && mode !== 'single' && mode !== 'tap') mode = 'bulk';
+  _uploadSelectMode = mode;
+  try { localStorage.setItem(UPLOAD_MODE_KEY, mode); } catch(e) {}
+  // ボタンのアクティブ状態を更新
+  document.querySelectorAll('.upload-mode-btn').forEach(function(b) {
+    var active = b.getAttribute('data-mode') === mode;
+    b.style.background = active ? '#eef2ff' : '#fff';
+    b.style.borderColor = active ? '#4F46E5' : '#d1d5db';
+    b.style.color = active ? '#4F46E5' : '#374151';
+    b.style.fontWeight = active ? '600' : '400';
+  });
+  // モード別UI表示
+  var input = document.getElementById('uploadFiles');
+  var singleWrap = document.getElementById('singleAddWrap');
+  var tapHint = document.getElementById('tapModeHint');
+  if (mode === 'single') {
+    if (input) input.style.display = 'none';
+    if (singleWrap) singleWrap.style.display = 'flex';
+    if (tapHint) tapHint.style.display = 'none';
+  } else {
+    if (input) input.style.display = '';
+    if (singleWrap) singleWrap.style.display = 'none';
+    if (tapHint) tapHint.style.display = (mode === 'tap') ? 'block' : 'none';
+  }
+  // モード切替時は選択をクリア（混乱防止）
+  resetUploadSelection_();
+}
+
+function resetUploadSelection_() {
+  var input = document.getElementById('uploadFiles');
+  if (input) input.value = '';
+  var grid = document.getElementById('uploadPreview');
+  if (grid) grid.innerHTML = '';
+  _blurredImages = {};
+  _bgReplacedImages = {};
+  _uploadFileOrder = [];
+  var bar = document.getElementById('blurBar');
+  if (bar) bar.style.display = 'none';
+  var btn = document.getElementById('uploadBtn');
+  if (btn) btn.disabled = true;
+  updateSingleAddCount_();
+}
+
+// Mode A: 1枚ずつ追加
+function addSingleImage() {
+  // 10枚制限チェック
+  var input = document.getElementById('uploadFiles');
+  var current = (input && input.files) ? input.files.length : 0;
+  var maxNew = 10 - _existingUrls.length;
+  if (current >= maxNew) {
+    showStatus('uploadStatus', '画像は最大' + maxNew + '枚までです', 'err');
+    return;
+  }
+  var picker = document.getElementById('singleImagePicker');
+  picker.value = '';
+  picker.click();
+}
+
+function onSingleImagePicked(e) {
+  var picked = e.target.files;
+  if (!picked || picked.length === 0) return;
+  var input = document.getElementById('uploadFiles');
+  // DataTransfer で既存の input.files に追加（iOS Safari 14.1+ 対応）
+  try {
+    var dt = new DataTransfer();
+    if (input.files) {
+      for (var i = 0; i < input.files.length; i++) dt.items.add(input.files[i]);
+    }
+    for (var j = 0; j < picked.length; j++) dt.items.add(picked[j]);
+    input.files = dt.files;
+  } catch (err) {
+    // 旧ブラウザフォールバック: input.filesに直接代入できないケース
+    showStatus('uploadStatus', 'このブラウザは1枚ずつ追加に対応していません。「一括選択」モードに切り替えてください。', 'err');
+    return;
+  }
+  showPreview();
+}
+
+function updateSingleAddCount_() {
+  var el = document.getElementById('singleAddCount');
+  if (!el) return;
+  var input = document.getElementById('uploadFiles');
+  var n = (input && input.files) ? input.files.length : 0;
+  el.textContent = n > 0 ? (n + '枚追加済み') : '';
+}
+
+// Mode B: タップで番号付け
+function tapAssignNumber(fileIdx, e) {
+  if (e && e.target.tagName === 'INPUT') return;
+  if (e && e.target.classList && e.target.classList.contains('preview-btn')) return;
+  if (e) e.stopPropagation();
+  var pos = _uploadFileOrder.indexOf(fileIdx);
+  if (pos !== -1) {
+    _uploadFileOrder.splice(pos, 1);
+  } else {
+    _uploadFileOrder.push(fileIdx);
+  }
+  refreshTapBadges_();
+  document.getElementById('uploadBtn').disabled = _uploadFileOrder.length === 0;
+}
+
+function refreshTapBadges_() {
+  var grid = document.getElementById('uploadPreview');
+  if (!grid) return;
+  var items = grid.querySelectorAll('.preview-item');
+  items.forEach(function(item) {
+    var idx = parseInt(item.getAttribute('data-idx'));
+    var badge = item.querySelector('.badge');
+    if (!badge) return;
+    var pos = _uploadFileOrder.indexOf(idx);
+    if (pos === -1) {
+      badge.textContent = '未';
+      badge.style.background = '#9ca3af';
+      item.style.outline = '';
+    } else {
+      badge.textContent = pos === 0 ? '1 トップ' : String(pos + 1);
+      badge.style.background = pos === 0 ? '#f59e0b' : '#4F46E5';
+      item.style.outline = '2px solid ' + (pos === 0 ? '#f59e0b' : '#4F46E5');
+    }
+  });
+}
 
 // 明るさ補正プレビュー生成（サムネ用、300px）
 var _levelsPreviewUrls = {};
@@ -1714,6 +1880,9 @@ function doUpload() {
   var input = document.getElementById('uploadFiles');
   var files = input.files;
   if (!files || files.length === 0) { showStatus('uploadStatus', '画像を選択してください', 'err'); return; }
+  if (_uploadSelectMode === 'tap' && _uploadFileOrder.length === 0) {
+    showStatus('uploadStatus', '画像をタップして順番（番号）を付けてください', 'err'); return;
+  }
 
   var btn = document.getElementById('uploadBtn');
   btn.disabled = true;
@@ -1755,6 +1924,7 @@ function doUpload() {
         document.getElementById('existingImages').classList.add('hidden');
         document.getElementById('existingGrid').innerHTML = '';
         _existingUrls = []; _uploadMode = 'new';
+        updateSingleAddCount_();
         // 商品リストを更新（バックグラウンド）
         doRefresh();
       }
