@@ -1964,7 +1964,7 @@ function refreshProductList(cb, silent) {
       if (cb) cb();
       return;
     }
-    productListData = d.items || [];
+    productListData = (d.items || []).slice().sort(managedIdCompareAsc_);
     _listLoaded = true;
     populateFilterPhotographer();
     if (!silent) {
@@ -1978,9 +1978,10 @@ function refreshProductList(cb, silent) {
   }).catch(function(e) { showStatus('manageLoadStatus', 'ネットワークエラー', 'err'); if (cb) cb(); });
 }
 
+// 既存データを描画したまま裏で再取得 → 完了時に cb を呼び出す側で再描画させる。
+// 「読み込み中...」を表示すると体感が遅くなるため silent モードで取得する。
 function reloadList(cb) {
-  _listLoaded = false;
-  ensureListLoaded(cb || function(){});
+  refreshProductList(cb || function(){}, true);
 }
 
 // ─── セクション2: 商品管理（統合） ───
@@ -3645,6 +3646,21 @@ function normId(s) {
   return s.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(ch) {
     return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0);
   }).replace(/ー/g, '-').replace(/\u3000/g, ' ').toUpperCase().trim();
+}
+// 管理番号昇順ソート (zk1, zk2, ..., zY1, zY2, ...)
+// プレフィックス（英字部）優先 → 数値部の自然順
+function managedIdCompareAsc_(a, b) {
+  var sa = normId(String((a && a.managedId) || a || ''));
+  var sb = normId(String((b && b.managedId) || b || ''));
+  var ma = sa.match(/^([A-Z]*)(\d+)(.*)$/);
+  var mb = sb.match(/^([A-Z]*)(\d+)(.*)$/);
+  if (ma && mb) {
+    if (ma[1] !== mb[1]) return ma[1].localeCompare(mb[1], 'ja');
+    var na = parseInt(ma[2], 10), nb = parseInt(mb[2], 10);
+    if (na !== nb) return na - nb;
+    return (ma[3] || '').localeCompare(mb[3] || '', 'ja');
+  }
+  return sa.localeCompare(sb, 'ja');
 }
 function escapeHtml(s) {
   var d = document.createElement('div');

@@ -12,6 +12,8 @@ var STATE = {
   saleChannels: {}, // { 'メルカリ': {rate:0.1, enabled:true}, ... } — 設定シートL列以降から
   // 商品管理タブの並び順 / 密度（localStorage で永続化）
   shouhinSort: (function(){ try { return localStorage.getItem('sk.shouhinSort') || 'kanri'; } catch(e){ return 'kanri'; } })(),
+  // 出品作業中タブの「使用アカウント」絞り込み（チップ式）。filter='shuppin_sagyou' のときだけ有効。
+  accountFilter: '',
   // 発送商品タブの表示グループ: 'pending'(発送待ち) | 'shipped'(発送済み)
   hassouFilter: (function(){ try { return localStorage.getItem('sk.hassouFilter') || 'pending'; } catch(e){ return 'pending'; } })(),
   density:     (function(){ try { return localStorage.getItem('sk.density') || 'normal'; } catch(e){ return 'normal'; } })(),
@@ -1165,10 +1167,18 @@ function selectChip_(filter, label) {
   STATE.filter = filter;
   STATE.filterLabel = filter ? label : '';
   STATE.view = 'list';
+  // 出品作業中以外に切替えたら使用アカウント絞り込みは解除
+  if (filter !== 'shuppin_sagyou') STATE.accountFilter = '';
   document.querySelectorAll('.drawer-item').forEach(function(d){
     d.classList.toggle('active', d.getAttribute('data-filter') === filter);
   });
   pushListState_();
+  render();
+}
+
+// 出品作業中タブ専用: 使用アカウントチップ。同じチップを再タップで解除。
+function selectAccountChip_(key) {
+  STATE.accountFilter = (key === STATE.accountFilter) ? '' : key;
   render();
 }
 
@@ -1189,6 +1199,7 @@ function selectMenu(filter, label) {
     STATE.filterLabel = filter ? label : '';
     STATE.view = 'list';
     STATE.business = '';
+    if (filter !== 'shuppin_sagyou') STATE.accountFilter = '';
     document.querySelectorAll('#bottomnav-inner button').forEach(function(b){
       b.classList.toggle('active', b.getAttribute('data-tab') === 'shouhin');
     });
@@ -1286,6 +1297,7 @@ function selectTab(tab) {
     // 前タブが強制設定したフィルタ ('hassou'/'sold') が残留して中身が変わらない不具合の原因。
     document.querySelectorAll('.drawer-item').forEach(function(d){ d.classList.remove('active'); });
     STATE.filter = ''; STATE.filterLabel = '';
+    STATE.accountFilter = '';
     document.querySelectorAll('#bottomnav-inner button').forEach(function(b){
       b.classList.toggle('active', b.getAttribute('data-tab') === tab);
     });
@@ -2070,6 +2082,48 @@ async function renderShouhinList(opts) {
         return hay.indexOf(qNorm) >= 0;
       });
     }
+    // 出品作業中タブの「使用アカウント」チップ。filter='shuppin_sagyou' のときだけ表示。
+    // 件数チップは accountFilter 適用前の集計（チップ切替前の全体感を保つため）。
+    var accountChipsHtml = '';
+    if (STATE.tab === 'shouhin' && STATE.filter === 'shuppin_sagyou') {
+      var accCount = {};
+      filtered.forEach(function(it){
+        var a = (it.extra && String(it.extra['使用アカウント'] || '').trim()) || '';
+        var key = a || '__none__';
+        accCount[key] = (accCount[key] || 0) + 1;
+      });
+      // マスター順に並べ、未設定は末尾。マスター外で実データに出現するアカウントも残す。
+      var masterAccounts = (Array.isArray(STATE.accounts) ? STATE.accounts : [])
+        .map(function(x){ return (x && (x.name || x.label || x)) ? String(x.name || x.label || x).trim() : ''; })
+        .filter(function(x){ return x; });
+      var seen = {};
+      var ordered = [];
+      masterAccounts.forEach(function(n){ if (!seen[n] && accCount[n]) { seen[n] = 1; ordered.push(n); } });
+      Object.keys(accCount).forEach(function(k){
+        if (k !== '__none__' && !seen[k]) { seen[k] = 1; ordered.push(k); }
+      });
+      if (accCount['__none__']) ordered.push('__none__');
+      var allActive = !STATE.accountFilter ? ' active' : '';
+      var chipsArr = ['<button type="button" class="chip' + allActive +
+        '" onclick="selectAccountChip_(\'\')">👤 すべて' +
+        '<span class="chip-count">' + filtered.length + '</span></button>'];
+      ordered.forEach(function(k){
+        var label = (k === '__none__') ? '（未設定）' : k;
+        var active = (STATE.accountFilter === k) ? ' active' : '';
+        var safeKey = String(k).replace(/'/g, "\\'");
+        chipsArr.push('<button type="button" class="chip' + active +
+          '" onclick="selectAccountChip_(\'' + safeKey + '\')">' + esc(label) +
+          '<span class="chip-count">' + accCount[k] + '</span></button>');
+      });
+      accountChipsHtml = '<div class="chips chips-account">' + chipsArr.join('') + '</div>';
+    }
+    if (STATE.accountFilter && STATE.tab === 'shouhin' && STATE.filter === 'shuppin_sagyou') {
+      filtered = filtered.filter(function(it){
+        var a = (it.extra && String(it.extra['使用アカウント'] || '').trim()) || '';
+        var key = a || '__none__';
+        return key === STATE.accountFilter;
+      });
+    }
     // 商品管理タブのみ並び替え設定を適用（発送タブはグルーピング側で並びを決める）
     var sorted = (STATE.tab === 'shouhin') ? applyShouhinSort_(filtered) : filtered;
     STATE.items = sorted;
@@ -2093,7 +2147,7 @@ async function renderShouhinList(opts) {
       // PCグリッド対応: cards-grid でラップ → CSS で auto-fill
       body = '<div class="cards-grid">' + sorted.map(cardHtml).join('') + '</div>';
     }
-    c.innerHTML = chip + body + fab;
+    c.innerHTML = chip + accountChipsHtml + body + fab;
     if (useVlist) {
       vlistMount_(sorted, cardHtml, resolveCardThumbsTasukibako_);
     } else if (STATE.tab === 'hassou' || STATE.tab === 'shouhin') {
@@ -4985,6 +5039,10 @@ async function openDetail(kanri, opts) {
         history.pushState({ view: 'detail', kanri: kanri }, '', '');
       }
     } catch(e) {}
+    // 詳細画面遷移時は必ずトップへスクロール（一覧で下までスクロールしてから
+    // カードをタップしても詳細の頭から見えるように）。popState（ブラウザ戻る/進む）は
+    // ブラウザがスクロール位置を復元するので除外。
+    try { window.scrollTo(0, 0); } catch(e) {}
   }
   document.getElementById('appbar-title').textContent = kanri;
   var cached = DETAIL_CACHE[kanri];
