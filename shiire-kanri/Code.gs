@@ -49,6 +49,31 @@ function doPost(e) {
       case 'appendKeihi':                  result = staff_apiAppendKeihi(body.payload || {}, email); break;
       case 'uploadKeihiImage':             result = staff_apiUploadKeihiImage(body.payload || {}, email); break;
       case 'updateShiireHoukokuQuantity':  result = staff_apiUpdateShiireHoukokuQuantity(body.payload || {}, email); break;
+      // Revision recovery (調査用 / インシデント対応)
+      case 'listRevisions':     result = staff_listRevisions(body.payload || {}); break;
+      case 'listRevisionsV2':   result = staff_listRevisionsV2(body.payload || {}); break;
+      case 'copyAtRevision':    result = staff_copyAtRevision(body.payload || {}); break;
+      case 'loadRevisionsInternal': result = staff_loadRevisionsInternal(body.payload || {}); break;
+      case 'estimateRevisionUrl':   result = staff_estimateRevisionUrl(body.payload || {}); break;
+      case 'scanGreenRows':         result = staff_scanGreenRows(body.payload || {}); break;
+      case 'findRecoveryCandidates': result = staff_findRecoveryCandidates(body.payload || {}); break;
+      case 'dumpHeadersOpenById':    result = staff_dumpHeadersOpenById(body.payload || {}); break;
+      case 'lookupShiireForRecovery': result = staff_lookupShiireForRecovery(body.payload || {}); break;
+      case 'lookupShiireById':       result = staff_lookupShiireById(body.payload || {}); break;
+      case 'lookupIraiForRecovery':   result = staff_lookupIraiForRecovery(body.payload || {}); break;
+      case 'applyRecoveredValues':    result = staff_applyRecoveredValues(body.payload || {}); break;
+      // 請求書（外注向けAPI、emailから本人解決して権限分離）
+      case 'invoiceCurrentUser':         result = staff_invoiceCurrentUser(email); break;
+      case 'listInvoices':               result = staff_listInvoices(body.payload || {}, email); break;
+      case 'getInvoiceDetail':           result = staff_getInvoiceDetail(body.payload || {}, email); break;
+      case 'calcInvoicePreview':         result = staff_calcInvoicePreview(body.payload || {}, email); break;
+      case 'getInvoiceProfile':          result = staff_getInvoiceProfile(body.payload || {}, email); break;
+      case 'saveInvoiceProfile':         result = staff_saveInvoiceProfile(body.payload || {}, email); break;
+      case 'listMyAvailableMonths':      result = staff_listMyAvailableMonths(body.payload || {}, email); break;
+      case 'createInvoice':              result = staff_createInvoice(body.payload || {}, email); break;
+      case 'downloadInvoiceCsv':         result = staff_downloadInvoiceCsv(body.payload || {}, email); break;
+      case 'requestInvoiceRevision':     result = staff_requestInvoiceRevision(body.payload || {}, email); break;
+      case 'listMyRevisions':            result = staff_listMyRevisions(body.payload || {}, email); break;
       default:                  result = { ok: false, error: 'unknown action: ' + action };
     }
     // 計測: doPost 内の dispatch 〜 結果生成までの ms。Worker 側で Server-Timing に転載される。
@@ -67,6 +92,12 @@ function doGet(e) {
     return HtmlService.createHtmlOutputFromFile('StaffApp')
       .setTitle('仕入れ管理 — スタッフ入力')
       .addMetaTag('viewport', 'width=device-width, initial-scale=1, maximum-scale=1')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
+  if (e && e.parameter && e.parameter.app === 'admin_invoice') {
+    return HtmlService.createHtmlOutputFromFile('AdminInvoice')
+      .setTitle('請求書管理（管理者）')
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1')
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
   if (e && e.parameter && e.parameter.debug === 'headers' && e.parameter.name) {

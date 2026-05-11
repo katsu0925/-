@@ -74,18 +74,48 @@ function updateRewardsNoFormula(allMonths) {
   }
 
   // 改善: 16回の個別 getRange → 1回のバッチ読み取り
+  // ヘッダー名で列位置を動的解決し、見つからない場合のみ既存 A1 記法へフォールバック。
+  // 商品管理側の列追加・移動に強くなる（インボイス機能と整合）
   var lastRowP = shP.getLastRow();
   var nP = Math.max(0,lastRowP-1);
   var lastColP = nP ? shP.getLastColumn() : 0;
   var allP = nP ? shP.getRange(2, 1, nP, lastColP).getValues() : [];
-  var _c = function(a1) { return col_(a1) - 1; }; // 0-based index
+  var headerP = lastColP
+    ? shP.getRange(1, 1, 1, lastColP).getValues()[0].map(function(v){ return String(v||'').trim(); })
+    : [];
+  function resolveCol_(candidates, fallbackA1) {
+    for (var i = 0; i < candidates.length; i++) {
+      var idx = headerP.indexOf(candidates[i]);
+      if (idx >= 0) return idx;
+    }
+    return col_(fallbackA1) - 1; // fallback (0-based)
+  }
+  var iAG = resolveCol_(['採寸日'],                       'AG');
+  var iAH = resolveCol_(['採寸者','採寸担当'],            'AH');
+  var iAI = resolveCol_(['撮影日付','撮影日'],            'AI');
+  var iAJ = resolveCol_(['撮影者','撮影担当'],            'AJ');
+  var iAK = resolveCol_(['出品日','出品日付'],            'AK');
+  var iAL = resolveCol_(['出品者','出品担当'],            'AL');
+  var iBE = resolveCol_(['発送日付','発送日'],            'BE');
+  var iBF = resolveCol_(['発送者','発送担当'],            'BF');
+  var iAP = resolveCol_(['販売日'],                       'AP');
+  var iAV = resolveCol_(['販売価格','売上','販売金額'],   'AV');
+  var iAY = resolveCol_(['キャンセル日'],                 'AY');
+  var iBH = resolveCol_(['廃棄日'],                       'BH');
+  var iBI = resolveCol_(['返品日付','返品日'],            'BI');
+  var iBA = resolveCol_(['在庫管理担当','在庫管理者'],    'BA');
+  var iAM = resolveCol_(['販売場所','アカウント','販売アカウント'], 'AM');
+  var iCN = resolveCol_(['作業者名'],                     'C');
+  Logger.log('resolved cols: AG=%s AH=%s AI=%s AJ=%s AK=%s AL=%s BE=%s BF=%s AP=%s AV=%s AY=%s BH=%s BI=%s BA=%s AM=%s CN=%s',
+    iAG, iAH, iAI, iAJ, iAK, iAL, iBE, iBF, iAP, iAV, iAY, iBH, iBI, iBA, iAM, iCN);
+
   var AI=[],AJ=[],AG=[],AH=[],AK=[],AL=[],BE=[],BF=[],AP=[],AV=[],AY=[],BH=[],BI=[],BA=[],CN=[],AM=[];
   for (var pi=0; pi<nP; pi++) {
     var pr = allP[pi];
-    AI[pi]=pr[_c('AI')]; AJ[pi]=pr[_c('AJ')]; AG[pi]=pr[_c('AG')]; AH[pi]=pr[_c('AH')];
-    AK[pi]=pr[_c('AK')]; AL[pi]=pr[_c('AL')]; BE[pi]=pr[_c('BE')]; BF[pi]=pr[_c('BF')];
-    AP[pi]=pr[_c('AP')]; AV[pi]=pr[_c('AV')]; AY[pi]=pr[_c('AY')]; BH[pi]=pr[_c('BH')];
-    BI[pi]=pr[_c('BI')]; BA[pi]=pr[_c('BA')]; CN[pi]=pr[2]; AM[pi]=pr[_c('AM')];
+    AI[pi]=pr[iAI]; AJ[pi]=pr[iAJ]; AG[pi]=pr[iAG]; AH[pi]=pr[iAH];
+    AK[pi]=pr[iAK]; AL[pi]=pr[iAL]; BE[pi]=pr[iBE]; BF[pi]=pr[iBF];
+    AP[pi]=pr[iAP]; AV[pi]=pr[iAV]; AY[pi]=pr[iAY]; BH[pi]=pr[iBH];
+    BI[pi]=pr[iBI]; BA[pi]=pr[iBA]; CN[pi]=pr[iCN]; AM[pi]=pr[iAM];
   }
 
   var cntAI_AJ = {};

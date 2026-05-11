@@ -1,0 +1,612 @@
+<!-- AdminInvoice.html — 請求書管理（管理者画面） -->
+<!DOCTYPE html>
+<html><head><base target="_top"><meta charset="utf-8">
+<style>
+html,body{margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans JP",sans-serif;color:#111;background:#f6f7f9;}
+*{box-sizing:border-box;}
+.wrap{height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+.tab-bar{display:flex;gap:0;overflow-x:auto;background:#fff;border-bottom:2px solid #e6e8ee;flex-shrink:0;padding:0 8px;}
+.tab-btn{padding:10px 14px;border:none;background:none;cursor:pointer;font-size:13px;font-weight:700;color:#666;white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-2px;}
+.tab-btn:hover{color:#111;} .tab-btn.active{color:#111;border-bottom-color:#1976d2;}
+.tab-body{flex:1;overflow-y:auto;padding:14px;}
+.tab-content{display:none;} .tab-content.active{display:block;}
+.card{background:#fff;border:1px solid #e6e8ee;border-radius:14px;padding:14px;margin-bottom:14px;}
+.title{font-weight:900;font-size:16px;margin-bottom:10px;}
+.subtitle{font-weight:800;font-size:13px;margin:14px 0 8px;color:#333;}
+.btnRow{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;}
+button{padding:7px 12px;border:1px solid #d9deea;border-radius:8px;background:#fff;cursor:pointer;font-weight:700;font-size:12px;}
+button:disabled{opacity:.4;cursor:not-allowed;} button.primary{background:#1976d2;color:#fff;border-color:#1976d2;}
+button.danger{background:#dc3545;color:#fff;border-color:#dc3545;} button.warn{background:#f57c00;color:#fff;border-color:#f57c00;}
+button.success{background:#2e7d32;color:#fff;border-color:#2e7d32;}
+button.sm{padding:4px 8px;font-size:11px;}
+.toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);background:#111;color:#fff;padding:8px 14px;border-radius:10px;display:none;z-index:200;font-weight:700;font-size:12px;max-width:90vw;}
+.toast.show{display:block;}
+.toast.success{background:#2e7d32;} .toast.error{background:#dc3545;} .toast.info{background:#1976d2;}
+input[type=text],input[type=number],input[type=email],input[type=date],select,textarea{padding:6px 8px;border:1px solid #d9deea;border-radius:6px;font-size:12px;width:100%;font-family:inherit;}
+.form-row{display:flex;gap:8px;align-items:center;margin:6px 0;}
+.form-row label{min-width:140px;font-size:12px;font-weight:600;flex-shrink:0;}
+.form-row input,.form-row select,.form-row textarea{flex:1;}
+table.data{width:100%;border-collapse:collapse;font-size:11px;}
+table.data th,table.data td{padding:6px 6px;border:1px solid #e6e8ee;text-align:left;vertical-align:top;}
+table.data th{background:#f0f0f0;font-weight:700;}
+table.data tr:hover td{background:#fafafa;}
+.note{font-size:11px;color:#888;margin-top:4px;}
+.status-pill{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;background:#eee;color:#444;}
+.status-pill.s-mikakunin{background:#e0e0e0;color:#444;}
+.status-pill.s-confirmed{background:#bbdefb;color:#0d47a1;}
+.status-pill.s-requested{background:#ffe0b2;color:#e65100;}
+.status-pill.s-approved{background:#c8e6c9;color:#1b5e20;}
+.status-pill.s-created{background:#fff9c4;color:#f57f17;}
+.status-pill.s-paid{background:#a5d6a7;color:#1b5e20;}
+.status-pill.s-canceled{background:#ffcdd2;color:#b71c1c;}
+.status-pill.s-applying{background:#ffe0b2;color:#e65100;}
+.status-pill.s-rejected{background:#ffcdd2;color:#b71c1c;}
+.status-pill.s-returned{background:#d1c4e9;color:#311b92;}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:100;display:flex;align-items:center;justify-content:center;}
+.modal{background:#fff;border-radius:14px;padding:20px;max-width:90vw;max-height:90vh;overflow-y:auto;width:520px;}
+.modal h3{margin:0 0 12px 0;font-size:16px;}
+.row-actions{display:flex;gap:4px;flex-wrap:wrap;}
+.loading{padding:40px;text-align:center;color:#888;font-weight:700;}
+.filter-bar{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap;}
+.filter-bar select,.filter-bar input{width:auto;flex:0 0 auto;}
+.amount{font-variant-numeric:tabular-nums;text-align:right;}
+.snap-pre{font-family:'Menlo','Consolas',monospace;font-size:11px;background:#f9f9f9;padding:8px;border-radius:6px;max-height:200px;overflow:auto;white-space:pre-wrap;word-break:break-all;}
+</style></head>
+<body>
+<div class="wrap">
+  <div class="tab-bar">
+    <button class="tab-btn active" data-tab="invoices">📋 全請求書</button>
+    <button class="tab-btn" data-tab="revisions">⚠️ 修正申請</button>
+    <button class="tab-btn" data-tab="grace">📊 経過措置率</button>
+    <button class="tab-btn" data-tab="settings">⚙️ 管理者設定</button>
+  </div>
+  <div class="tab-body">
+
+    <!-- 全請求書 -->
+    <div class="tab-content active" id="tab-invoices">
+      <div class="card">
+        <div class="title">全請求書一覧</div>
+        <div class="filter-bar">
+          <label>ステータス:</label>
+          <select id="inv-filter-status" onchange="loadInvoices()">
+            <option value="">すべて</option>
+            <option value="作成済み">作成済み</option>
+            <option value="修正申請中">修正申請中</option>
+            <option value="修正承認済み">修正承認済み</option>
+            <option value="支払済み">支払済み</option>
+            <option value="取消済み">取消済み</option>
+          </select>
+          <label>請求月:</label>
+          <input type="text" id="inv-filter-ym" placeholder="YYYY/MM" style="width:90px">
+          <button class="sm" onclick="loadInvoices()">フィルタ</button>
+          <button class="sm" onclick="document.getElementById('inv-filter-status').value='';document.getElementById('inv-filter-ym').value='';loadInvoices();">クリア</button>
+        </div>
+        <div id="inv-list" class="loading">読み込み中…</div>
+      </div>
+    </div>
+
+    <!-- 修正申請 -->
+    <div class="tab-content" id="tab-revisions">
+      <div class="card">
+        <div class="title">修正申請</div>
+        <div class="filter-bar">
+          <label>ステータス:</label>
+          <select id="rev-filter-status" onchange="loadRevisions()">
+            <option value="申請中" selected>申請中</option>
+            <option value="">すべて</option>
+            <option value="承認済み">承認済み</option>
+            <option value="却下">却下</option>
+            <option value="差戻し">差戻し</option>
+          </select>
+        </div>
+        <div id="rev-list" class="loading">読み込み中…</div>
+      </div>
+    </div>
+
+    <!-- 経過措置率 -->
+    <div class="tab-content" id="tab-grace">
+      <div class="card">
+        <div class="title">インボイス経過措置率</div>
+        <div class="note">控除可能率 + 控除不可率 = 1.0 となるように設定してください。終了YMが空欄の行はオープンエンド（以降ずっと）として扱われます。</div>
+        <div id="grace-editor" class="loading">読み込み中…</div>
+      </div>
+    </div>
+
+    <!-- 管理者設定 -->
+    <div class="tab-content" id="tab-settings">
+      <div class="card">
+        <div class="title">管理者設定</div>
+        <div class="note">屋号・銀行情報・振込手数料・通知先メールを設定します。新規請求書作成時にスナップショットされます。</div>
+        <div id="settings-editor" class="loading">読み込み中…</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+
+<script>
+var STATE = { me: null, invoices: [], revisions: [], graceItems: [], settings: null };
+
+var STATUS_CLS = {
+  '未確認': 's-mikakunin',
+  '確認済み': 's-confirmed',
+  '修正申請中': 's-requested',
+  '修正承認済み': 's-approved',
+  '作成済み': 's-created',
+  '支払済み': 's-paid',
+  '取消済み': 's-canceled'
+};
+var REV_STATUS_CLS = {
+  '申請中': 's-applying',
+  '承認済み': 's-approved',
+  '却下': 's-rejected',
+  '差戻し': 's-returned'
+};
+
+document.addEventListener('DOMContentLoaded', function(){
+  // タブ切替
+  document.querySelectorAll('.tab-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var tab = btn.getAttribute('data-tab');
+      document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+      document.querySelectorAll('.tab-content').forEach(function(c){ c.classList.remove('active'); });
+      btn.classList.add('active');
+      document.getElementById('tab-' + tab).classList.add('active');
+      if (tab === 'invoices') loadInvoices();
+      if (tab === 'revisions') loadRevisions();
+      if (tab === 'grace') loadGrace();
+      if (tab === 'settings') loadSettings();
+    });
+  });
+  // 認証チェック → 初期ロード
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (!res || !res.ok) {
+        document.body.innerHTML = '<div style="padding:40px;text-align:center;color:#dc3545;font-weight:700">' +
+          '管理者権限がありません: ' + (res && res.error || '不明なエラー') + '</div>';
+        return;
+      }
+      STATE.me = res;
+      loadInvoices();
+    })
+    .withFailureHandler(function(err){
+      document.body.innerHTML = '<div style="padding:40px;text-align:center;color:#dc3545">' +
+        '初期化失敗: ' + (err && err.message || err) + '</div>';
+    })
+    .adminInv_currentUser();
+});
+
+// ============================================================
+// 全請求書
+// ============================================================
+function loadInvoices() {
+  var status = document.getElementById('inv-filter-status').value;
+  var ym = document.getElementById('inv-filter-ym').value;
+  var el = document.getElementById('inv-list');
+  el.className = 'loading';
+  el.innerHTML = '読み込み中…';
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (!res || !res.ok) {
+        el.className = '';
+        el.innerHTML = '<div style="color:#dc3545">取得失敗: ' + (res && res.error || '') + '</div>';
+        return;
+      }
+      STATE.invoices = res.items || [];
+      renderInvoices();
+    })
+    .withFailureHandler(function(err){
+      el.className = '';
+      el.innerHTML = '<div style="color:#dc3545">取得失敗: ' + (err && err.message || err) + '</div>';
+    })
+    .adminInv_listAllInvoices({ status: status, ym: ym });
+}
+
+function renderInvoices() {
+  var el = document.getElementById('inv-list');
+  el.className = '';
+  if (!STATE.invoices.length) {
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:#888">該当する請求書がありません</div>';
+    return;
+  }
+  var html = '<table class="data"><thead><tr>' +
+    '<th>請求書番号</th><th>請求月</th><th>スタッフ</th><th>本名</th>' +
+    '<th class="amount">税込合計</th><th class="amount">調整額</th><th class="amount">手数料</th><th class="amount">請求額</th>' +
+    '<th>ステータス</th><th>作成日時</th><th>操作</th>' +
+    '</tr></thead><tbody>';
+  STATE.invoices.forEach(function(inv){
+    var cls = STATUS_CLS[inv.ステータス] || '';
+    html += '<tr>' +
+      '<td>' + esc(inv.請求書番号) + '</td>' +
+      '<td>' + esc(inv.請求月) + '</td>' +
+      '<td>' + esc(inv.スタッフ名) + '<br><span style="color:#888;font-size:10px">' + esc(inv.スタッフメール) + '</span></td>' +
+      '<td>' + esc(inv.本名) + '</td>' +
+      '<td class="amount">' + fmtYen(inv.税込合計) + '</td>' +
+      '<td class="amount">' + fmtYen(inv.調整額) + '</td>' +
+      '<td class="amount">' + fmtYen(inv.振込手数料) + '</td>' +
+      '<td class="amount"><strong>' + fmtYen(inv.請求額) + '</strong></td>' +
+      '<td><span class="status-pill ' + cls + '">' + esc(inv.ステータス) + '</span></td>' +
+      '<td>' + esc(inv.作成日時) + '</td>' +
+      '<td><div class="row-actions">' +
+        '<button class="sm" onclick="openInvoiceDetail(\'' + esc(inv.請求書番号).replace(/\'/g,"\\'") + '\')">詳細</button>' +
+        (inv.ステータス === '作成済み' || inv.ステータス === '修正承認済み'
+          ? '<button class="sm success" onclick="markInvoicePaid(\'' + esc(inv.請求書番号).replace(/\'/g,"\\'") + '\')">支払済み</button>'
+          : '') +
+        (inv.ステータス !== '取消済み'
+          ? '<button class="sm danger" onclick="cancelInvoice(\'' + esc(inv.請求書番号).replace(/\'/g,"\\'") + '\')">取消</button>'
+          : '') +
+      '</div></td>' +
+    '</tr>';
+  });
+  html += '</tbody></table>';
+  html += '<div class="note" style="margin-top:8px">合計 ' + STATE.invoices.length + ' 件</div>';
+  el.innerHTML = html;
+}
+
+function openInvoiceDetail(no) {
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (!res || !res.ok) { toast('取得失敗: ' + (res && res.error || ''), 'error'); return; }
+      var inv = res.invoice;
+      showModal(
+        '<h3>請求書詳細: ' + esc(inv.請求書番号) + '</h3>' +
+        '<table class="data" style="margin-bottom:12px"><tbody>' +
+          '<tr><th>請求月</th><td>' + esc(inv.請求月) + '</td><th>ステータス</th><td>' + esc(inv.ステータス) + '</td></tr>' +
+          '<tr><th>スタッフ名</th><td>' + esc(inv.スタッフ名) + '</td><th>メール</th><td>' + esc(inv.スタッフメール) + '</td></tr>' +
+          '<tr><th>屋号</th><td>' + esc(inv.屋号) + '</td><th>本名</th><td>' + esc(inv.本名) + '</td></tr>' +
+          '<tr><th>住所</th><td colspan="3">〒' + esc(inv.郵便番号) + ' ' + esc(inv.住所) + '</td></tr>' +
+          '<tr><th>電話</th><td>' + esc(inv.電話) + '</td><th>インボイス番号</th><td>' + esc(inv.インボイス番号) + '</td></tr>' +
+          '<tr><th>振込先</th><td colspan="3">' + esc(inv.銀行名) + ' ' + esc(inv.支店名) + ' ' + esc(inv.口座種別) + ' ' + esc(inv.口座番号) + ' ' + esc(inv.口座名義) + '</td></tr>' +
+          '<tr><th>件数 (採寸/撮影/出品/発送)</th><td colspan="3">' + esc(inv.採寸件数) + '/' + esc(inv.撮影件数) + '/' + esc(inv.出品件数) + '/' + esc(inv.発送件数) + '</td></tr>' +
+          '<tr><th>税込合計</th><td class="amount">' + fmtYen(inv.税込合計) + '</td><th>控除可能率</th><td>' + (Number(inv.控除可能率) * 100).toFixed(0) + '%</td></tr>' +
+          '<tr><th>調整額</th><td class="amount">' + fmtYen(inv.調整額) + '</td><th>振込手数料</th><td class="amount">' + fmtYen(inv.振込手数料) + '</td></tr>' +
+          '<tr><th>振込元銀行</th><td>' + esc(inv.振込元銀行) + '</td><th><strong>請求額</strong></th><td class="amount"><strong>' + fmtYen(inv.請求額) + '</strong></td></tr>' +
+          '<tr><th>作成日時</th><td>' + esc(inv.作成日時) + '</td><th>支払日</th><td>' + esc(inv.支払日) + '</td></tr>' +
+          (inv.管理者メモ ? '<tr><th>管理者メモ</th><td colspan="3" style="white-space:pre-wrap">' + esc(inv.管理者メモ) + '</td></tr>' : '') +
+        '</tbody></table>' +
+        '<div style="display:flex;gap:8px;justify-content:flex-end">' +
+          '<button onclick="closeModal()">閉じる</button>' +
+        '</div>'
+      );
+    })
+    .withFailureHandler(function(err){ toast('取得失敗: ' + (err && err.message || err), 'error'); })
+    .adminInv_getInvoiceDetail({ no: no });
+}
+
+function markInvoicePaid(no) {
+  if (!confirm(no + ' を「支払済み」にしますか？')) return;
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (!res || !res.ok) { toast('更新失敗: ' + (res && res.error || ''), 'error'); return; }
+      toast('支払済みに更新しました', 'success');
+      loadInvoices();
+    })
+    .withFailureHandler(function(err){ toast('更新失敗: ' + (err && err.message || err), 'error'); })
+    .adminInv_updateInvoiceStatus({ no: no, status: '支払済み' });
+}
+
+function cancelInvoice(no) {
+  var memo = prompt(no + ' を取消します。理由を入力してください:', '');
+  if (memo === null) return;
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (!res || !res.ok) { toast('更新失敗: ' + (res && res.error || ''), 'error'); return; }
+      toast('取消済みに更新しました', 'success');
+      loadInvoices();
+    })
+    .withFailureHandler(function(err){ toast('更新失敗: ' + (err && err.message || err), 'error'); })
+    .adminInv_updateInvoiceStatus({ no: no, status: '取消済み', memo: memo });
+}
+
+// ============================================================
+// 修正申請
+// ============================================================
+function loadRevisions() {
+  var status = document.getElementById('rev-filter-status').value;
+  var el = document.getElementById('rev-list');
+  el.className = 'loading';
+  el.innerHTML = '読み込み中…';
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (!res || !res.ok) {
+        el.className = '';
+        el.innerHTML = '<div style="color:#dc3545">取得失敗: ' + (res && res.error || '') + '</div>';
+        return;
+      }
+      STATE.revisions = res.items || [];
+      renderRevisions();
+    })
+    .withFailureHandler(function(err){
+      el.className = '';
+      el.innerHTML = '<div style="color:#dc3545">取得失敗: ' + (err && err.message || err) + '</div>';
+    })
+    .adminInv_listAllRevisions({ status: status });
+}
+
+function renderRevisions() {
+  var el = document.getElementById('rev-list');
+  el.className = '';
+  if (!STATE.revisions.length) {
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:#888">該当する申請がありません</div>';
+    return;
+  }
+  var html = '<table class="data"><thead><tr>' +
+    '<th>申請ID</th><th>請求書番号</th><th>請求月</th><th>スタッフ</th><th>申請日時</th><th>理由</th><th>ステータス</th><th>操作</th>' +
+    '</tr></thead><tbody>';
+  STATE.revisions.forEach(function(rev){
+    var cls = REV_STATUS_CLS[rev.ステータス] || '';
+    var reason = String(rev.申請理由 || '');
+    var reasonShort = reason.length > 60 ? reason.substring(0, 60) + '…' : reason;
+    html += '<tr>' +
+      '<td>' + esc(rev.申請ID) + '</td>' +
+      '<td>' + esc(rev.請求書番号) + '</td>' +
+      '<td>' + esc(rev.請求月) + '</td>' +
+      '<td>' + esc(rev.スタッフ名) + '<br><span style="color:#888;font-size:10px">' + esc(rev.スタッフメール) + '</span></td>' +
+      '<td>' + esc(rev.申請日時) + '</td>' +
+      '<td style="max-width:300px;white-space:pre-wrap" title="' + esc(reason) + '">' + esc(reasonShort) + '</td>' +
+      '<td><span class="status-pill ' + cls + '">' + esc(rev.ステータス) + '</span>' +
+        (rev.対応日時 ? '<br><span style="color:#888;font-size:10px">' + esc(rev.対応日時) + '</span>' : '') +
+      '</td>' +
+      '<td><div class="row-actions">' +
+        '<button class="sm" onclick="openRevisionDetail(\'' + esc(rev.申請ID).replace(/\'/g,"\\'") + '\')">詳細</button>' +
+        (rev.ステータス === '申請中'
+          ? '<button class="sm success" onclick="respondRevision(\'' + esc(rev.申請ID).replace(/\'/g,"\\'") + '\', \'承認済み\')">承認</button>' +
+            '<button class="sm warn" onclick="respondRevision(\'' + esc(rev.申請ID).replace(/\'/g,"\\'") + '\', \'差戻し\')">差戻し</button>' +
+            '<button class="sm danger" onclick="respondRevision(\'' + esc(rev.申請ID).replace(/\'/g,"\\'") + '\', \'却下\')">却下</button>'
+          : '') +
+      '</div></td>' +
+    '</tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function openRevisionDetail(applyId) {
+  var rev = STATE.revisions.filter(function(r){ return r.申請ID === applyId; })[0];
+  if (!rev) return;
+  showModal(
+    '<h3>修正申請: ' + esc(rev.申請ID) + '</h3>' +
+    '<table class="data" style="margin-bottom:12px"><tbody>' +
+      '<tr><th>請求書番号</th><td>' + esc(rev.請求書番号) + '</td></tr>' +
+      '<tr><th>請求月</th><td>' + esc(rev.請求月) + '</td></tr>' +
+      '<tr><th>スタッフ</th><td>' + esc(rev.スタッフ名) + ' (' + esc(rev.スタッフメール) + ')</td></tr>' +
+      '<tr><th>申請日時</th><td>' + esc(rev.申請日時) + '</td></tr>' +
+      '<tr><th>ステータス</th><td>' + esc(rev.ステータス) + '</td></tr>' +
+      (rev.対応日時 ? '<tr><th>対応日時</th><td>' + esc(rev.対応日時) + '</td></tr>' : '') +
+      (rev.対応者メール ? '<tr><th>対応者</th><td>' + esc(rev.対応者メール) + '</td></tr>' : '') +
+      '<tr><th>申請理由</th><td style="white-space:pre-wrap">' + esc(rev.申請理由) + '</td></tr>' +
+      (rev.申請内容JSON ? '<tr><th>申請内容</th><td><div class="snap-pre">' + esc(rev.申請内容JSON) + '</div></td></tr>' : '') +
+      (rev.管理者コメント ? '<tr><th>管理者コメント</th><td style="white-space:pre-wrap">' + esc(rev.管理者コメント) + '</td></tr>' : '') +
+    '</tbody></table>' +
+    '<div style="display:flex;gap:8px;justify-content:flex-end">' +
+      '<button onclick="closeModal()">閉じる</button>' +
+    '</div>'
+  );
+}
+
+function respondRevision(applyId, action) {
+  var label = action === '承認済み' ? '承認' : action;
+  var comment = prompt(label + 'します。コメント (スタッフ宛メールに記載されます):', '');
+  if (comment === null) return;
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (!res || !res.ok) { toast('対応失敗: ' + (res && res.error || ''), 'error'); return; }
+      toast(label + 'しました', 'success');
+      loadRevisions();
+    })
+    .withFailureHandler(function(err){ toast('対応失敗: ' + (err && err.message || err), 'error'); })
+    .adminInv_respondRevision({ applyId: applyId, action: action, comment: comment });
+}
+
+// ============================================================
+// 経過措置率
+// ============================================================
+function loadGrace() {
+  var el = document.getElementById('grace-editor');
+  el.className = 'loading';
+  el.innerHTML = '読み込み中…';
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (!res || !res.ok) {
+        el.className = '';
+        el.innerHTML = '<div style="color:#dc3545">取得失敗: ' + (res && res.error || '') + '</div>';
+        return;
+      }
+      STATE.graceItems = res.items || [];
+      renderGrace();
+    })
+    .withFailureHandler(function(err){
+      el.className = '';
+      el.innerHTML = '<div style="color:#dc3545">取得失敗: ' + (err && err.message || err) + '</div>';
+    })
+    .adminInv_listGraceRates({});
+}
+
+function renderGrace() {
+  var el = document.getElementById('grace-editor');
+  el.className = '';
+  var html = '<table class="data"><thead><tr>' +
+    '<th>開始YM</th><th>終了YM</th><th>控除可能率</th><th>控除不可率</th><th>備考</th><th>削除</th>' +
+    '</tr></thead><tbody id="grace-tbody">';
+  STATE.graceItems.forEach(function(it, idx){
+    html += graceRow(it, idx);
+  });
+  html += '</tbody></table>';
+  html += '<div class="btnRow">' +
+    '<button onclick="addGraceRow()">行追加</button>' +
+    '<button class="primary" onclick="saveGrace()">保存</button>' +
+  '</div>';
+  el.innerHTML = html;
+}
+
+function graceRow(it, idx) {
+  it = it || {};
+  return '<tr data-idx="' + idx + '">' +
+    '<td><input type="text" value="' + esc(it.開始YM || '') + '" placeholder="2026/10" data-field="開始YM"></td>' +
+    '<td><input type="text" value="' + esc(it.終了YM || '') + '" placeholder="2029/09 または空欄" data-field="終了YM"></td>' +
+    '<td><input type="number" step="0.01" min="0" max="1" value="' + (it.控除可能率 != null ? it.控除可能率 : 0.5) + '" data-field="控除可能率"></td>' +
+    '<td><input type="number" step="0.01" min="0" max="1" value="' + (it.控除不可率 != null ? it.控除不可率 : 0.5) + '" data-field="控除不可率"></td>' +
+    '<td><input type="text" value="' + esc(it.備考 || '') + '" data-field="備考"></td>' +
+    '<td><button class="sm danger" onclick="removeGraceRow(' + idx + ')">×</button></td>' +
+  '</tr>';
+}
+
+function addGraceRow() {
+  STATE.graceItems.push({ 開始YM: '', 終了YM: '', 控除可能率: 0.5, 控除不可率: 0.5, 備考: '' });
+  renderGrace();
+}
+
+function removeGraceRow(idx) {
+  STATE.graceItems.splice(idx, 1);
+  renderGrace();
+}
+
+function saveGrace() {
+  var rows = document.querySelectorAll('#grace-tbody tr');
+  var items = [];
+  for (var i = 0; i < rows.length; i++) {
+    var inputs = rows[i].querySelectorAll('input');
+    var obj = {};
+    inputs.forEach(function(ip){
+      var f = ip.getAttribute('data-field');
+      obj[f] = f.indexOf('率') >= 0 ? Number(ip.value) : ip.value;
+    });
+    if (!obj.開始YM) continue;
+    if (Math.abs((Number(obj.控除可能率) || 0) + (Number(obj.控除不可率) || 0) - 1.0) > 0.001) {
+      toast('行 ' + (i + 1) + ': 控除可能率+控除不可率 が 1.0 になっていません', 'error');
+      return;
+    }
+    items.push(obj);
+  }
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (!res || !res.ok) { toast('保存失敗: ' + (res && res.error || ''), 'error'); return; }
+      toast('保存しました (' + res.count + '件)', 'success');
+      loadGrace();
+    })
+    .withFailureHandler(function(err){ toast('保存失敗: ' + (err && err.message || err), 'error'); })
+    .adminInv_saveGraceRates({ items: items });
+}
+
+// ============================================================
+// 管理者設定
+// ============================================================
+function loadSettings() {
+  var el = document.getElementById('settings-editor');
+  el.className = 'loading';
+  el.innerHTML = '読み込み中…';
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (!res || !res.ok) {
+        el.className = '';
+        el.innerHTML = '<div style="color:#dc3545">取得失敗: ' + (res && res.error || '') + '</div>';
+        return;
+      }
+      STATE.settings = res.settings || {};
+      renderSettings();
+    })
+    .withFailureHandler(function(err){
+      el.className = '';
+      el.innerHTML = '<div style="color:#dc3545">取得失敗: ' + (err && err.message || err) + '</div>';
+    })
+    .adminInv_getAdminSettings({});
+}
+
+function renderSettings() {
+  var s = STATE.settings || {};
+  var el = document.getElementById('settings-editor');
+  el.className = '';
+  var banks = Array.isArray(s.振込元銀行候補) ? s.振込元銀行候補.join('\n') : '';
+  el.innerHTML =
+    '<div class="form-row"><label>有効</label><select id="set-enabled"><option value="true"' + (s.有効 ? ' selected' : '') + '>有効</option><option value="false"' + (!s.有効 ? ' selected' : '') + '>無効</option></select></div>' +
+    '<div class="subtitle">事業者情報</div>' +
+    '<div class="form-row"><label>屋号</label><input type="text" id="set-yago" value="' + esc(s.屋号 || '') + '"></div>' +
+    '<div class="form-row"><label>本名</label><input type="text" id="set-name" value="' + esc(s.本名 || '') + '"></div>' +
+    '<div class="form-row"><label>郵便番号</label><input type="text" id="set-zip" value="' + esc(s.郵便番号 || '') + '"></div>' +
+    '<div class="form-row"><label>住所</label><input type="text" id="set-address" value="' + esc(s.住所 || '') + '"></div>' +
+    '<div class="form-row"><label>電話</label><input type="text" id="set-phone" value="' + esc(s.電話 || '') + '"></div>' +
+    '<div class="form-row"><label>メール</label><input type="email" id="set-email" value="' + esc(s.メール || '') + '"></div>' +
+    '<div class="form-row"><label>インボイス番号</label><input type="text" id="set-invno" value="' + esc(s.インボイス番号 || '') + '"></div>' +
+    '<div class="subtitle">振込手数料</div>' +
+    '<div class="note">スタッフの振込元希望銀行 (作業者マスター AN列) と「振込元銀行候補(1番目)」が両方 楽天銀行 のとき 0 円。それ以外は請求額が高額しきい値未満→他行小額、以上→他行高額。</div>' +
+    '<div class="form-row"><label>振込元銀行候補</label><textarea id="set-banks" rows="3" placeholder="楽天銀行&#10;PayPay銀行">' + esc(banks) + '</textarea></div>' +
+    '<div class="form-row"><label>楽天⇔楽天 手数料</label><input type="number" id="set-fee-rakuten" value="' + (Number(s['楽天⇔楽天手数料']) || 0) + '"></div>' +
+    '<div class="form-row"><label>他行小額 手数料</label><input type="number" id="set-fee-small" value="' + (Number(s.他行小額手数料) || 0) + '"></div>' +
+    '<div class="form-row"><label>他行高額 手数料</label><input type="number" id="set-fee-large" value="' + (Number(s.他行高額手数料) || 0) + '"></div>' +
+    '<div class="form-row"><label>高額しきい値 (円)</label><input type="number" id="set-threshold" value="' + (Number(s.高額しきい値) || 0) + '"></div>' +
+    '<div class="subtitle">通知</div>' +
+    '<div class="form-row"><label>通知先メール</label><input type="text" id="set-notify" value="' + esc(s.通知先メール || '') + '" placeholder="複数の場合カンマ区切り"></div>' +
+    '<div class="btnRow">' +
+      '<button class="primary" onclick="saveSettings()">保存</button>' +
+      '<button onclick="loadSettings()">リセット</button>' +
+    '</div>';
+}
+
+function saveSettings() {
+  var banksRaw = document.getElementById('set-banks').value;
+  var banks = banksRaw.split(/[\n,]/).map(function(s){ return s.trim(); }).filter(Boolean);
+  var settings = {
+    有効: document.getElementById('set-enabled').value === 'true',
+    屋号: document.getElementById('set-yago').value,
+    本名: document.getElementById('set-name').value,
+    郵便番号: document.getElementById('set-zip').value,
+    住所: document.getElementById('set-address').value,
+    電話: document.getElementById('set-phone').value,
+    メール: document.getElementById('set-email').value,
+    インボイス番号: document.getElementById('set-invno').value,
+    振込元銀行候補: banks,
+    '楽天⇔楽天手数料': Number(document.getElementById('set-fee-rakuten').value) || 0,
+    他行小額手数料: Number(document.getElementById('set-fee-small').value) || 0,
+    他行高額手数料: Number(document.getElementById('set-fee-large').value) || 0,
+    高額しきい値: Number(document.getElementById('set-threshold').value) || 0,
+    通知先メール: document.getElementById('set-notify').value
+  };
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (!res || !res.ok) { toast('保存失敗: ' + (res && res.error || ''), 'error'); return; }
+      toast('保存しました', 'success');
+      loadSettings();
+    })
+    .withFailureHandler(function(err){ toast('保存失敗: ' + (err && err.message || err), 'error'); })
+    .adminInv_saveAdminSettings({ settings: settings });
+}
+
+// ============================================================
+// 共通
+// ============================================================
+function esc(s) {
+  if (s === null || s === undefined) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function fmtYen(n) {
+  if (n === null || n === undefined || n === '') return '-';
+  var v = Number(n);
+  if (isNaN(v)) return esc(n);
+  return '¥' + v.toLocaleString('ja-JP');
+}
+var TOAST_TIMER = null;
+function toast(msg, kind) {
+  var el = document.getElementById('toast');
+  el.className = 'toast show' + (kind ? ' ' + kind : '');
+  el.textContent = msg;
+  if (TOAST_TIMER) clearTimeout(TOAST_TIMER);
+  TOAST_TIMER = setTimeout(function(){ el.className = 'toast'; }, 3000);
+}
+function showModal(html) {
+  closeModal();
+  var ov = document.createElement('div');
+  ov.id = 'modal-overlay';
+  ov.className = 'modal-overlay';
+  ov.innerHTML = '<div class="modal">' + html + '</div>';
+  ov.addEventListener('click', function(e){
+    if (e.target === ov) closeModal();
+  });
+  document.body.appendChild(ov);
+}
+function closeModal() {
+  var el = document.getElementById('modal-overlay');
+  if (el) el.remove();
+}
+</script>
+</body></html>

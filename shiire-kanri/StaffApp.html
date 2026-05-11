@@ -288,6 +288,95 @@
     background: var(--card); margin: 20px; border-radius: 8px;
   }
   .denied h2 { color: var(--danger); margin-bottom: 12px; }
+
+  /* ===== 報酬確認 ===== */
+  .houshu-toolbar {
+    background: var(--card); padding: 12px 16px;
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    border-bottom: 1px solid #eee; position: sticky; top: 56px; z-index: 5;
+  }
+  .houshu-toolbar label { font-size: 13px; color: var(--text-sub); }
+  .houshu-toolbar select {
+    padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px;
+    font-size: 14px; background: #fff; min-width: 130px;
+  }
+  .houshu-toolbar .filter-chk { font-size: 13px; color: var(--text-sub); display: inline-flex; align-items: center; gap: 4px; }
+  .houshu-toolbar .filter-chk input { transform: scale(1.1); margin-right: 2px; }
+  .houshu-toolbar .btn-profile {
+    margin-left: auto; padding: 8px 12px; border-radius: 6px; border: 1px solid #1976d2;
+    background: #fff; color: #1976d2; font-size: 13px; cursor: pointer;
+  }
+  .houshu-card {
+    background: var(--card); margin: 12px 16px; padding: 14px;
+    border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .houshu-card .ttl { font-size: 16px; font-weight: bold; color: var(--primary-dark); margin-bottom: 6px; }
+  .houshu-card .row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 14px; }
+  .houshu-card .row .k { color: var(--text-sub); }
+  .houshu-card .row .v { font-weight: 500; }
+  .houshu-card .row.total { border-top: 1px solid #eee; margin-top: 6px; padding-top: 8px; font-size: 16px; }
+  .houshu-card .row.total .v { color: var(--primary-dark); font-weight: bold; }
+  .houshu-status {
+    display: inline-block; padding: 2px 8px; border-radius: 12px;
+    font-size: 11px; font-weight: bold; margin-left: 8px;
+  }
+  .houshu-status.untouched { background: #e0e0e0; color: #555; }
+  .houshu-status.confirmed { background: #c8e6c9; color: #2e7d32; }
+  .houshu-status.requested { background: #ffe0b2; color: #e65100; }
+  .houshu-status.approved  { background: #bbdefb; color: #1565c0; }
+  .houshu-status.created   { background: #c5cae9; color: #283593; }
+  .houshu-status.paid      { background: #b2dfdb; color: #00695c; }
+  .houshu-status.canceled  { background: #ffcdd2; color: #b71c1c; }
+  .houshu-actions {
+    display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap;
+  }
+  .houshu-actions button {
+    flex: 1; min-width: 100px; padding: 10px; border-radius: 6px;
+    border: none; font-size: 14px; font-weight: bold; cursor: pointer;
+  }
+  .houshu-actions .btn-primary { background: var(--primary); color: #fff; }
+  .houshu-actions .btn-secondary { background: #eee; color: var(--text); }
+  .houshu-actions .btn-warn { background: #fff3e0; color: #e65100; border: 1px solid #ffb74d; }
+  .houshu-section-label {
+    font-size: 12px; color: var(--text-sub); padding: 12px 16px 4px;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .houshu-empty {
+    text-align: center; padding: 30px 16px; color: var(--text-sub); background: var(--card);
+    margin: 12px 16px; border-radius: 8px;
+  }
+  .houshu-note {
+    margin: 8px 16px; padding: 10px 12px; background: #fffde7;
+    border-left: 3px solid #fbc02d; border-radius: 4px;
+    font-size: 12px; color: #6d4c41;
+  }
+  .inv-modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.5);
+    z-index: 100; display: flex; align-items: flex-start; justify-content: center;
+    overflow-y: auto; padding: 40px 12px;
+  }
+  .inv-modal {
+    background: #fff; border-radius: 8px; width: 100%; max-width: 420px;
+    padding: 16px;
+  }
+  .inv-modal h3 { margin: 0 0 12px; color: var(--primary-dark); font-size: 16px; }
+  .inv-modal .field {
+    margin-bottom: 10px;
+  }
+  .inv-modal .field label {
+    display: block; font-size: 12px; color: var(--text-sub); margin-bottom: 3px;
+  }
+  .inv-modal .field input, .inv-modal .field select, .inv-modal .field textarea {
+    width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px;
+    box-sizing: border-box;
+  }
+  .inv-modal .actions { display: flex; gap: 8px; margin-top: 12px; }
+  .inv-modal .actions button {
+    flex: 1; padding: 10px; border-radius: 6px; border: none;
+    font-size: 14px; font-weight: bold; cursor: pointer;
+  }
+  .inv-modal .btn-cancel { background: #eee; color: var(--text); }
+  .inv-modal .btn-save { background: var(--primary); color: #fff; }
 </style>
 </head>
 <body>
@@ -461,6 +550,10 @@ function render() {
   document.getElementById('appbar-title').textContent = TAB_LABELS[STATE.tab] || '仕入れ管理';
 
   if (STATE.tab === 'shouhin') {
+    if (STATE.filter === 'houshu') {
+      renderHoushuView();
+      return;
+    }
     renderShouhinList();
   } else if (STATE.tab === 'uriage') {
     STATE.filter = 'sold';
@@ -721,6 +814,421 @@ function setFabLoading(id, icon, loading) {
   if (!b) return;
   b.disabled = loading;
   b.textContent = icon;
+}
+
+// ========== 報酬確認 (請求書) ==========
+var HOUSHU_STATE = {
+  ym: '',            // 選択中の請求月 (YYYY/MM)
+  months: [],        // 候補月リスト
+  defaultYm: '',     // 既定値 (前月)
+  unbilledOnly: false,
+  invoices: [],      // 自分の請求書履歴 (全月)
+  preview: null,     // 選択中の月の preview
+  loading: false,
+  me: null
+};
+
+var INV_STATUS_CLS = {
+  '未確認': 'untouched',
+  '確認済み': 'confirmed',
+  '修正申請中': 'requested',
+  '修正承認済み': 'approved',
+  '作成済み': 'created',
+  '支払済み': 'paid',
+  '取消済み': 'canceled'
+};
+
+function renderHoushuView() {
+  document.getElementById('appbar-title').textContent = '報酬確認';
+  var c = document.getElementById('content');
+  c.innerHTML = '<div class="loading">読み込み中…</div>';
+  // 候補月 + 履歴 + プロフィール を並列で取得
+  HOUSHU_STATE.loading = true;
+  var done = 0, expected = 3;
+  var months = null, invoices = null, me = null, err = null;
+  function maybeDone() {
+    if (err) { c.innerHTML = '<div class="empty" style="color:#c62828">' + esc(err) + '</div>'; return; }
+    if (done < expected) return;
+    HOUSHU_STATE.loading = false;
+    HOUSHU_STATE.months = (months && months.months) || [];
+    HOUSHU_STATE.defaultYm = (months && months.defaultYm) || '';
+    HOUSHU_STATE.invoices = (invoices && invoices.items) || [];
+    HOUSHU_STATE.me = me || null;
+    if (!HOUSHU_STATE.ym) HOUSHU_STATE.ym = HOUSHU_STATE.defaultYm;
+    drawHoushuView();
+  }
+  google.script.run
+    .withSuccessHandler(function(res){ if (res && res.ok) months = res; else err = (res && res.error) || '月リスト取得失敗'; done++; maybeDone(); })
+    .withFailureHandler(function(e){ err = (e && e.message || e); done++; maybeDone(); })
+    .staff_listMyAvailableMonths({});
+  google.script.run
+    .withSuccessHandler(function(res){ if (res && res.ok) invoices = res; else err = (res && res.error) || '履歴取得失敗'; done++; maybeDone(); })
+    .withFailureHandler(function(e){ err = (e && e.message || e); done++; maybeDone(); })
+    .staff_listInvoices({});
+  google.script.run
+    .withSuccessHandler(function(res){ if (res && res.ok) me = res; else err = (res && res.error) || 'プロフィール取得失敗'; done++; maybeDone(); })
+    .withFailureHandler(function(e){ err = (e && e.message || e); done++; maybeDone(); })
+    .staff_invoiceCurrentUser();
+}
+
+function drawHoushuView() {
+  var c = document.getElementById('content');
+  // 既存履歴を月→ステータスの辞書化
+  var madeMap = {};
+  HOUSHU_STATE.invoices.forEach(function(inv){
+    if (inv.ステータス === '取消済み') return;
+    if (!madeMap[inv.請求月]) madeMap[inv.請求月] = [];
+    madeMap[inv.請求月].push(inv);
+  });
+  // フィルタ
+  var months = HOUSHU_STATE.months;
+  if (HOUSHU_STATE.unbilledOnly) {
+    months = months.filter(function(ym){ return !madeMap[ym]; });
+    // 選択中の月が消えたら先頭にフォールバック
+    if (months.indexOf(HOUSHU_STATE.ym) < 0) HOUSHU_STATE.ym = months[0] || '';
+  }
+  var opts = months.map(function(ym){
+    var made = madeMap[ym];
+    var lbl = ym.replace('/', '年') + '月';
+    if (made && made.length) lbl += '（提出済）';
+    return '<option value="' + esc(ym) + '"' + (ym === HOUSHU_STATE.ym ? ' selected' : '') + '>' + lbl + '</option>';
+  }).join('');
+
+  var toolbar =
+    '<div class="houshu-toolbar">' +
+      '<label>請求月</label>' +
+      '<select id="houshu-ym" onchange="onHoushuYmChange(this.value)">' + (opts || '<option value="">—</option>') + '</select>' +
+      '<label class="filter-chk"><input type="checkbox" id="houshu-unbilled" ' + (HOUSHU_STATE.unbilledOnly ? 'checked' : '') + ' onchange="onHoushuUnbilledToggle(this.checked)">未作成のみ</label>' +
+      '<button class="btn-profile" onclick="openInvoiceProfileModal()">プロフィール</button>' +
+    '</div>';
+
+  if (!HOUSHU_STATE.ym) {
+    c.innerHTML = toolbar + '<div class="houshu-empty">対象月がありません</div>';
+    return;
+  }
+
+  c.innerHTML = toolbar + '<div id="houshu-body"><div class="loading">明細計算中…</div></div>';
+  loadHoushuDetail();
+}
+
+function onHoushuYmChange(ym) {
+  HOUSHU_STATE.ym = ym;
+  loadHoushuDetail();
+}
+function onHoushuUnbilledToggle(v) {
+  HOUSHU_STATE.unbilledOnly = !!v;
+  drawHoushuView();
+}
+
+function loadHoushuDetail() {
+  var body = document.getElementById('houshu-body');
+  if (!body) return;
+  body.innerHTML = '<div class="loading">明細計算中…</div>';
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (!res || !res.ok) {
+        body.innerHTML = '<div class="houshu-empty" style="color:#c62828">' + esc((res && res.error) || '計算失敗') + '</div>';
+        return;
+      }
+      HOUSHU_STATE.preview = res;
+      renderHoushuDetail();
+    })
+    .withFailureHandler(function(err){
+      body.innerHTML = '<div class="houshu-empty" style="color:#c62828">' + esc((err && err.message) || err) + '</div>';
+    })
+    .staff_calcInvoicePreview({ ym: HOUSHU_STATE.ym });
+}
+
+function renderHoushuDetail() {
+  var body = document.getElementById('houshu-body');
+  if (!body) return;
+  var p = HOUSHU_STATE.preview || {};
+  var existing = (HOUSHU_STATE.invoices || []).filter(function(inv){
+    return inv.請求月 === HOUSHU_STATE.ym && inv.ステータス !== '取消済み';
+  });
+  var c = p.件数 || {}; var u = p.単価 || {}; var r = p.報酬 || {}; var s = p.集計 || {};
+
+  var detail =
+    '<div class="houshu-section-label">' + esc(p.請求月 || HOUSHU_STATE.ym) + ' 計算明細' +
+      (p.報酬管理反映済み ? '（報酬管理シート反映済み）' : '（速報値）') +
+    '</div>' +
+    '<div class="houshu-card">' +
+      houshuRow('採寸', c.採寸件数, u.採寸単価, r.採寸報酬) +
+      houshuRow('撮影', c.撮影件数, u.撮影単価, r.撮影報酬) +
+      houshuRow('出品', c.出品件数, u.出品単価, r.出品報酬) +
+      houshuRow('発送', c.発送件数, u.発送単価, r.発送報酬) +
+      houshuRowSimple('在庫管理報酬', r.在庫管理報酬) +
+      houshuRowSimple('固定報酬', r.固定報酬) +
+      houshuRowSimple('経費合計', r.経費合計) +
+      houshuRowSimple('売上報酬', r.売上報酬) +
+      houshuRowSimple('その他報酬', r.その他報酬) +
+      '<div class="row"><span class="k">税込合計</span><span class="v">' + fmtYen(s.税込合計) + '</span></div>' +
+      '<div class="row"><span class="k">控除可能率</span><span class="v">' + (s.控除可能率 != null ? (Math.round(s.控除可能率 * 100) + '%') : '—') + '</span></div>' +
+      '<div class="row"><span class="k">調整額</span><span class="v">−' + fmtYen(s.調整額 || 0) + '</span></div>' +
+      '<div class="row"><span class="k">振込手数料 (' + esc(s.振込元銀行 || '—') + '→' + esc((p.プロフィール && p.プロフィール.銀行名) || '—') + ')</span><span class="v">−' + fmtYen(s.振込手数料 || 0) + '</span></div>' +
+      '<div class="row total"><span class="k">請求額</span><span class="v">' + fmtYen(s.請求額 || 0) + '</span></div>' +
+    '</div>';
+
+  var historyHtml = existing.length
+    ? '<div class="houshu-section-label">この月の請求書</div>' +
+      existing.map(function(inv){
+        var cls = INV_STATUS_CLS[inv.ステータス] || '';
+        return '<div class="houshu-card">' +
+          '<div class="ttl">' + esc(inv.請求書番号) + '<span class="houshu-status ' + cls + '">' + esc(inv.ステータス || '') + '</span></div>' +
+          '<div class="row"><span class="k">請求額</span><span class="v">' + fmtYen(inv.請求額) + '</span></div>' +
+          '<div class="row"><span class="k">作成日時</span><span class="v">' + esc(inv.作成日時 || '') + '</span></div>' +
+          '<div class="houshu-actions">' +
+            '<button class="btn-secondary" onclick="downloadInvoiceCsv(\'' + esc(inv.請求書番号).replace(/\'/g,"\\'") + '\')">CSVダウンロード</button>' +
+            (inv.ステータス === '修正申請中'
+              ? '<span style="flex:1;text-align:center;color:#e65100;font-size:13px;align-self:center">修正申請中</span>'
+              : '<button class="btn-warn" onclick="openInvoiceRevisionModal(\'' + esc(inv.請求書番号).replace(/\'/g,"\\'") + '\')">修正申請</button>') +
+          '</div>' +
+        '</div>';
+      }).join('')
+    : '';
+
+  // 個人情報チェック
+  var profile = (HOUSHU_STATE.me && HOUSHU_STATE.me.profile) || {};
+  var missing = [];
+  if (!profile.本名) missing.push('本名');
+  if (!profile.銀行名) missing.push('銀行名');
+  if (!profile.口座番号) missing.push('口座番号');
+  var note = missing.length
+    ? '<div class="houshu-note">⚠️ 請求書作成には次の登録が必要: <strong>' + esc(missing.join(', ')) + '</strong> — 右上「プロフィール」から登録してください</div>'
+    : '';
+
+  var canCreate = !existing.length && !missing.length;
+  var createBtn = '<div class="houshu-actions" style="margin: 12px 16px;">' +
+    '<button class="btn-primary" ' + (canCreate ? '' : 'disabled style="opacity:0.5;cursor:not-allowed"') + ' onclick="submitInvoiceCreate()">' +
+    (existing.length ? '請求書作成済み' : (missing.length ? '情報未登録' : '請求書を作成')) +
+    '</button>' +
+  '</div>';
+
+  body.innerHTML = detail + note + createBtn + historyHtml;
+}
+
+function houshuRow(label, cnt, price, total) {
+  return '<div class="row"><span class="k">' + esc(label) + ' ' + (cnt || 0) + '件 × ' + fmtYen(price || 0) + '</span>' +
+         '<span class="v">' + fmtYen(total || 0) + '</span></div>';
+}
+function houshuRowSimple(label, val) {
+  return '<div class="row"><span class="k">' + esc(label) + '</span><span class="v">' + fmtYen(val || 0) + '</span></div>';
+}
+
+// ========== 請求書プロフィール ==========
+function openInvoiceProfileModal() {
+  var p = (HOUSHU_STATE.me && HOUSHU_STATE.me.profile) || {};
+  var fields = [
+    { k: '屋号',        ph: '株式会社○○ または屋号' },
+    { k: '本名',        ph: '山田 太郎', required: true },
+    { k: '郵便番号',    ph: '123-4567' },
+    { k: '住所',        ph: '東京都...' },
+    { k: '電話',        ph: '090-0000-0000' },
+    { k: '銀行名',      ph: '楽天銀行 / みずほ銀行 など', required: true },
+    { k: '支店名',      ph: 'ジャズ支店 など' },
+    { k: '口座種別',    ph: '普通 / 当座', type: 'select', options: ['普通', '当座'] },
+    { k: '口座番号',    ph: '1234567', required: true },
+    { k: '口座名義',    ph: 'ヤマダ タロウ' },
+    { k: 'インボイス登録番号', ph: 'T1234567890123 (未登録は空欄)' },
+    { k: '振込元希望銀行', ph: '楽天銀行 (任意・楽天⇔楽天で手数料0)' },
+    { k: 'スタッフ用備考', ph: '（任意）', type: 'textarea' }
+  ];
+  var rows = fields.map(function(f){
+    var val = esc(p[f.k] || '');
+    var input;
+    if (f.type === 'select') {
+      input = '<select id="prof_' + esc(f.k) + '"><option value=""></option>' +
+        f.options.map(function(o){ return '<option value="' + esc(o) + '"' + (val === o ? ' selected' : '') + '>' + esc(o) + '</option>'; }).join('') +
+      '</select>';
+    } else if (f.type === 'textarea') {
+      input = '<textarea id="prof_' + esc(f.k) + '" rows="2" placeholder="' + esc(f.ph || '') + '">' + val + '</textarea>';
+    } else {
+      input = '<input type="text" id="prof_' + esc(f.k) + '" value="' + val + '" placeholder="' + esc(f.ph || '') + '">';
+    }
+    return '<div class="field"><label>' + esc(f.k) + (f.required ? ' <span style="color:#c62828">*</span>' : '') + '</label>' + input + '</div>';
+  }).join('');
+  var modal =
+    '<div class="inv-modal-overlay" id="prof-modal" onclick="closeInvoiceProfileModal(event)">' +
+      '<div class="inv-modal" onclick="event.stopPropagation()">' +
+        '<h3>請求書 個人情報・口座</h3>' +
+        rows +
+        '<div class="actions">' +
+          '<button class="btn-cancel" onclick="closeInvoiceProfileModal()">キャンセル</button>' +
+          '<button class="btn-save" onclick="saveInvoiceProfile()">保存</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  document.body.insertAdjacentHTML('beforeend', modal);
+}
+function closeInvoiceProfileModal(e) {
+  if (e && e.target && e.target.id !== 'prof-modal') return;
+  var m = document.getElementById('prof-modal'); if (m) m.remove();
+}
+function saveInvoiceProfile() {
+  var keys = ['屋号','本名','郵便番号','住所','電話','銀行名','支店名','口座種別','口座番号','口座名義','インボイス登録番号','振込元希望銀行','スタッフ用備考'];
+  var payload = {};
+  for (var i = 0; i < keys.length; i++) {
+    var el = document.getElementById('prof_' + keys[i]);
+    if (!el) continue;
+    payload[keys[i]] = el.value;
+  }
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (!res || !res.ok) { toast((res && res.error) || '保存失敗', 'error'); return; }
+      toast('プロフィールを保存しました', 'success');
+      closeInvoiceProfileModal();
+      // 再取得
+      google.script.run
+        .withSuccessHandler(function(res){
+          if (res && res.ok) {
+            HOUSHU_STATE.me = res;
+            renderHoushuDetail();
+          }
+        })
+        .staff_invoiceCurrentUser();
+    })
+    .withFailureHandler(function(err){
+      toast('保存失敗: ' + (err && err.message || err), 'error');
+    })
+    .staff_saveInvoiceProfile(payload);
+}
+
+// 請求書作成（Phase 5）
+function submitInvoiceCreate() {
+  if (!HOUSHU_STATE.ym) { toast('請求月を選択してください', 'error'); return; }
+  if (HOUSHU_STATE.loading) return;
+  HOUSHU_STATE.loading = true;
+  drawHoushuView();
+  toast('請求書を作成中…', 'info');
+  google.script.run
+    .withSuccessHandler(function(res){
+      HOUSHU_STATE.loading = false;
+      if (!res || !res.ok) {
+        toast('請求書作成失敗: ' + (res && res.error || '不明なエラー'), 'error');
+        drawHoushuView();
+        return;
+      }
+      if (res.alreadyExists) {
+        toast('この月の請求書は既に作成済みです (' + res.invoiceNo + ')', 'info');
+      } else {
+        toast('請求書を作成しました: ' + res.invoiceNo, 'success');
+      }
+      // 一覧再読み込み
+      google.script.run
+        .withSuccessHandler(function(list){
+          HOUSHU_STATE.invoices = (list && list.items) || [];
+          drawHoushuView();
+        })
+        .withFailureHandler(function(err){
+          toast('一覧再読み込み失敗: ' + (err && err.message || err), 'error');
+          drawHoushuView();
+        })
+        .staff_listInvoices({});
+    })
+    .withFailureHandler(function(err){
+      HOUSHU_STATE.loading = false;
+      toast('請求書作成失敗: ' + (err && err.message || err), 'error');
+      drawHoushuView();
+    })
+    .staff_createInvoice({ ym: HOUSHU_STATE.ym });
+}
+
+function downloadInvoiceCsv(no) {
+  if (!no) return;
+  toast('CSV を生成中…', 'info');
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (!res || !res.ok) {
+        toast('CSV ダウンロード失敗: ' + (res && res.error || '不明'), 'error');
+        return;
+      }
+      try {
+        var url = 'data:' + (res.mimeType || 'text/csv; charset=utf-8') + ';base64,' + res.base64;
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = res.filename || (no + '.csv');
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function(){ document.body.removeChild(a); }, 100);
+        toast('CSV ダウンロード完了', 'success');
+      } catch(e) {
+        toast('ダウンロード処理失敗: ' + (e && e.message || e), 'error');
+      }
+    })
+    .withFailureHandler(function(err){
+      toast('CSV ダウンロード失敗: ' + (err && err.message || err), 'error');
+    })
+    .staff_downloadInvoiceCsv({ no: no });
+}
+
+function openInvoiceRevisionModal(no) {
+  if (!no) return;
+  // 既存モーダルがあれば閉じる
+  var existing = document.getElementById('inv-rev-modal-overlay');
+  if (existing) existing.remove();
+
+  var overlay = document.createElement('div');
+  overlay.id = 'inv-rev-modal-overlay';
+  overlay.className = 'inv-modal-overlay';
+  overlay.innerHTML =
+    '<div class="inv-modal">' +
+      '<h3 style="margin:0 0 12px 0">請求書修正申請</h3>' +
+      '<div style="margin-bottom:8px;color:#666;font-size:13px">対象: <strong>' + esc(no) + '</strong></div>' +
+      '<label style="display:block;margin-bottom:6px;font-weight:bold">申請理由 <span style="color:#d32f2f">*</span></label>' +
+      '<textarea id="inv-rev-reason" rows="6" style="width:100%;padding:8px;border:1px solid #ccc;border-radius:4px;font-family:inherit" placeholder="件数・単価・控除率など、ご不明点や訂正希望をご記載ください"></textarea>' +
+      '<div style="margin-top:8px;color:#666;font-size:12px">送信すると管理者に通知されます。対応完了までステータスは「修正申請中」になります。</div>' +
+      '<div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">' +
+        '<button class="btn-secondary" onclick="closeInvoiceRevisionModal()">キャンセル</button>' +
+        '<button class="btn-warn" id="inv-rev-submit-btn" onclick="submitInvoiceRevision(\'' + esc(no).replace(/\'/g,"\\'") + '\')">申請する</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+  setTimeout(function(){
+    var ta = document.getElementById('inv-rev-reason');
+    if (ta) ta.focus();
+  }, 50);
+}
+
+function closeInvoiceRevisionModal() {
+  var el = document.getElementById('inv-rev-modal-overlay');
+  if (el) el.remove();
+}
+
+function submitInvoiceRevision(no) {
+  var reasonEl = document.getElementById('inv-rev-reason');
+  var reason = reasonEl ? String(reasonEl.value || '').trim() : '';
+  if (!reason) {
+    toast('申請理由は必須です', 'error');
+    if (reasonEl) reasonEl.focus();
+    return;
+  }
+  var btn = document.getElementById('inv-rev-submit-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '送信中…'; }
+  google.script.run
+    .withSuccessHandler(function(res){
+      if (!res || !res.ok) {
+        toast('修正申請失敗: ' + (res && res.error || '不明'), 'error');
+        if (btn) { btn.disabled = false; btn.textContent = '申請する'; }
+        return;
+      }
+      toast('修正申請を送信しました', 'success');
+      closeInvoiceRevisionModal();
+      // 一覧再読み込み
+      google.script.run
+        .withSuccessHandler(function(list){
+          HOUSHU_STATE.invoices = (list && list.items) || [];
+          drawHoushuView();
+        })
+        .withFailureHandler(function(err){
+          toast('一覧再読み込み失敗: ' + (err && err.message || err), 'error');
+        })
+        .staff_listInvoices({});
+    })
+    .withFailureHandler(function(err){
+      toast('修正申請失敗: ' + (err && err.message || err), 'error');
+      if (btn) { btn.disabled = false; btn.textContent = '申請する'; }
+    })
+    .staff_requestInvoiceRevision({ no: no, reason: reason });
 }
 
 // ========== ユーティリティ ==========

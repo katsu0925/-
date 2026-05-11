@@ -17,7 +17,16 @@ function onOpen() {
   var ui = SpreadsheetApp.getUi();
   ui.createMenu('管理メニュー')
     .addItem('★ 管理パネルを開く', 'showAdminPanel')
+    .addItem('💴 請求書管理を開く', 'showAdminInvoicePanel')
     .addToUi();
+}
+
+function showAdminInvoicePanel() {
+  var html = HtmlService.createHtmlOutputFromFile('AdminInvoice')
+    .setWidth(1200)
+    .setHeight(800)
+    .setTitle('請求書管理（管理者）');
+  SpreadsheetApp.getUi().showModalDialog(html, '請求書管理（管理者）');
 }
 
 function onEdit(e) {
