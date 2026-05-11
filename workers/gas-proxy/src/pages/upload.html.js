@@ -3129,10 +3129,13 @@ function ensureJSZip_() {
 
 // 複数管理番号の画像を「管理番号ごとに順に」navigator.share で連続共有する。
 // iOS の写真アプリにはフォルダ階層が無いため、複数 mid を1回で渡すと判別不能になる。
-// 管理番号順にグルーピングして1管理番号ずつ share → 写真アプリ内で連続して並ぶ
-// （撮影日時≒保存順なので写真アプリのタイムラインで管理番号単位の塊として見える）。
+// 管理番号順にグルーピングして1管理番号ずつ share → 写真アプリ内で連続して並ぶ。
+//
+// 重要: iOS Safari の navigator.share は毎回 user gesture (transient activation) が必須。
+// .then() の中で自動連鎖して呼ぶと2回目以降が NotAllowedError で失敗する。
+// よって「初回はそのまま share → 完了したらボタン文言を『次へ: zkXXX』に差し替え →
+//   ユーザータップで次の share を起動」という対話ループにする。
 //   entries: [{ mid, file?, blob?, filename? }]
-//   完了/キャンセル時に btn を解放、onAfter があれば呼ぶ
 function _shareEntriesPerMid_(entries, btn, onAfter) {
   // mid ごとにグルーピング（初出順を保つ）
   var groups = [];
@@ -3150,7 +3153,6 @@ function _shareEntriesPerMid_(entries, btn, onAfter) {
     }
     groups[seen[mid]].files.push(f);
   });
-  // 管理番号昇順に並べ替え
   groups.sort(function(a, b) { return managedIdCompareAsc_(a.mid, b.mid); });
 
   if (!groups.length) {
@@ -3165,34 +3167,68 @@ function _shareEntriesPerMid_(entries, btn, onAfter) {
     return;
   }
 
+  // ボタンの初期状態を保存（完了/中断時に復元）
+  var origText = btn ? btn.textContent : '';
+  var origOnclick = btn ? btn.onclick : null;
+  var origDisabled = btn ? btn.disabled : false;
+
+  function restore() {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = origText;
+      btn.onclick = origOnclick;
+    }
+    if (onAfter) onAfter();
+  }
+
   var total = groups.length;
   var doneMids = 0;
-  function step(i) {
-    if (i >= groups.length) {
-      showStatus('manageStatus', doneMids + '/' + total + ' 管理番号 保存完了', 'ok');
-      if (btn) btn.disabled = false;
-      if (onAfter) onAfter();
-      return;
-    }
+
+  function doShare(i) {
     var g = groups[i];
     var n = i + 1;
+    if (btn) { btn.disabled = true; btn.textContent = '共有中… ' + g.mid + ' (' + n + '/' + total + ')'; }
     if (!navigator.canShare({ files: g.files })) {
       showStatus('manageStatus', '[' + n + '/' + total + '] ' + g.mid + ' は共有不可（スキップ）', 'err');
-      step(i + 1);
+      queueNext(i + 1);
       return;
     }
-    showStatus('manageStatus', '[' + n + '/' + total + '] ' + g.mid + ' を共有中…写真に保存→次へ', 'info');
+    showStatus('manageStatus', '[' + n + '/' + total + '] ' + g.mid + ' 写真アプリへ保存してください', 'info');
     navigator.share({ files: g.files, title: g.mid, text: g.mid }).then(function() {
       doneMids++;
-      step(i + 1);
+      queueNext(i + 1);
     }).catch(function() {
-      // キャンセルされたら以降は中止（誤タップで連発するのを防ぐ）
-      showStatus('manageStatus', '[' + n + '/' + total + '] でキャンセル（' + doneMids + '/' + total + ' 完了）', 'info');
-      if (btn) btn.disabled = false;
-      if (onAfter) onAfter();
+      // キャンセル時は中断
+      showStatus('manageStatus', '[' + n + '/' + total + '] で中断（' + doneMids + '/' + total + ' 完了）', 'info');
+      restore();
     });
   }
-  step(0);
+
+  function queueNext(i) {
+    if (i >= groups.length) {
+      showStatus('manageStatus', doneMids + '/' + total + ' 管理番号 保存完了', 'ok');
+      restore();
+      return;
+    }
+    // 次の管理番号: ユーザータップを待つ（iOS の user gesture 制約のため）
+    var next = groups[i];
+    var n = i + 1;
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = '▶ 次へ: ' + next.mid + ' (' + n + '/' + total + ')';
+      btn.onclick = function(ev) {
+        if (ev && ev.preventDefault) ev.preventDefault();
+        doShare(i);
+      };
+      showStatus('manageStatus', 'ボタンをタップして ' + next.mid + ' を共有 (' + n + '/' + total + ')', 'info');
+    } else {
+      // ボタンが無い特殊ケースでは即時続行（user gesture なくても初回は通る前提）
+      doShare(i);
+    }
+  }
+
+  // 初回はこの関数自体が user gesture チェーンの中で呼ばれている前提
+  doShare(0);
 }
 
 // 旧 ZIP 一括方式（フォールバック用に残置）。
