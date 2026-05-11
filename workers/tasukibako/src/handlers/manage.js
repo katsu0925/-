@@ -21,6 +21,7 @@ function normalizeManagedId(raw) {
  * 商品一覧（サムネイル付き）
  */
 export async function list(request, env, session) {
+  const t0 = Date.now();
   const body = await request.json();
   const { teamId } = body;
   if (!teamId) return jsonError('teamIdは必須です。', 400);
@@ -32,16 +33,18 @@ export async function list(request, env, session) {
   const cacheKey = `team:${teamId}:product-list-cache`;
   const cached = await env.CACHE.get(cacheKey);
   if (cached) {
-    return jsonOk({ items: JSON.parse(cached) });
+    return jsonOk({ items: JSON.parse(cached) }, { 'Server-Timing': `cache;dur=${Date.now()-t0};desc="hit"` });
   }
 
   // キャッシュなし→フル構築
+  const tBuild = Date.now();
   const items = await buildProductList(env, teamId);
+  const buildDur = Date.now() - tBuild;
 
   // キャッシュ保存（5分TTL）
   await env.CACHE.put(cacheKey, JSON.stringify(items), { expirationTtl: 300 });
 
-  return jsonOk({ items });
+  return jsonOk({ items }, { 'Server-Timing': `cache;dur=0;desc="miss", build;dur=${buildDur}, total;dur=${Date.now()-t0}` });
 }
 
 /** リストデータをKVから構築 */
@@ -53,17 +56,18 @@ async function buildProductList(env, teamId) {
   const cleanupIds = [];
   const items = (await Promise.all(
     index.map(async (managedId) => {
-      const urlsJson = await env.CACHE.get(`team:${teamId}:product-images:${managedId}`);
+      // QW1: 3つのKV読みを並列化（順次awaitを Promise.all へ）
+      const [urlsJson, metaJson, saveLogJson] = await Promise.all([
+        env.CACHE.get(`team:${teamId}:product-images:${managedId}`),
+        env.CACHE.get(`team:${teamId}:product-meta:${managedId}`),
+        env.CACHE.get(`team:${teamId}:product-save-log:${managedId}`),
+      ]);
       const urls = urlsJson ? JSON.parse(urlsJson) : [];
       if (urls.length === 0) {
         cleanupIds.push(managedId);
         return null;
       }
-
-      const metaJson = await env.CACHE.get(`team:${teamId}:product-meta:${managedId}`);
       const meta = metaJson ? JSON.parse(metaJson) : {};
-
-      const saveLogJson = await env.CACHE.get(`team:${teamId}:product-save-log:${managedId}`);
       const saveLog = saveLogJson ? JSON.parse(saveLogJson) : { count: 0, users: [] };
 
       return {
@@ -79,13 +83,13 @@ async function buildProductList(env, teamId) {
     })
   )).filter(Boolean);
 
-  // 0枚の商品をクリーンアップ
+  // 0枚の商品をクリーンアップ（QW1: 各IDの3操作を並列化）
   if (cleanupIds.length > 0) {
-    for (const id of cleanupIds) {
-      await removeFromIndex(env, teamId, id);
-      await env.CACHE.delete(`team:${teamId}:product-images:${id}`);
-      await env.CACHE.delete(`team:${teamId}:product-meta:${id}`);
-    }
+    await Promise.all(cleanupIds.map(id => Promise.all([
+      removeFromIndex(env, teamId, id),
+      env.CACHE.delete(`team:${teamId}:product-images:${id}`),
+      env.CACHE.delete(`team:${teamId}:product-meta:${id}`),
+    ])));
   }
 
   return items;
@@ -100,6 +104,7 @@ export async function invalidateListCache(env, teamId) {
  * 指定商品の画像URL一覧
  */
 export async function productImages(request, env, session) {
+  const t0 = Date.now();
   const body = await request.json();
   const { teamId } = body;
   const managedId = normalizeManagedId(body.managedId || '');
@@ -110,16 +115,19 @@ export async function productImages(request, env, session) {
   const membership = await verifyMembership(env, teamId, session.userId);
   if (!membership) return jsonError('このチームのメンバーではありません。', 403);
 
-  const urlsJson = await env.CACHE.get(`team:${teamId}:product-images:${managedId}`);
+  // QW1: 3つのKV読みを並列化（順次awaitを Promise.all へ）
+  const tKv = Date.now();
+  const [urlsJson, metaJson, saveLogJson] = await Promise.all([
+    env.CACHE.get(`team:${teamId}:product-images:${managedId}`),
+    env.CACHE.get(`team:${teamId}:product-meta:${managedId}`),
+    env.CACHE.get(`team:${teamId}:product-save-log:${managedId}`),
+  ]);
+  const kvDur = Date.now() - tKv;
   const urls = urlsJson ? JSON.parse(urlsJson) : [];
-
-  const metaJson = await env.CACHE.get(`team:${teamId}:product-meta:${managedId}`);
   const meta = metaJson ? JSON.parse(metaJson) : {};
-
-  const saveLogJson = await env.CACHE.get(`team:${teamId}:product-save-log:${managedId}`);
   const saveLog = saveLogJson ? JSON.parse(saveLogJson) : { count: 0, users: [] };
 
-  return jsonOk({ managedId, urls, meta, saveLog });
+  return jsonOk({ managedId, urls, meta, saveLog }, { 'Server-Timing': `kv;dur=${kvDur}, total;dur=${Date.now()-t0}` });
 }
 
 /**
@@ -220,6 +228,7 @@ export async function deleteSingle(request, env, session) {
  * チーム統計
  */
 export async function stats(request, env, session) {
+  const t0 = Date.now();
   const body = await request.json();
   const { teamId } = body;
 
@@ -228,12 +237,15 @@ export async function stats(request, env, session) {
   const membership = await verifyMembership(env, teamId, session.userId);
   if (!membership) return jsonError('このチームのメンバーではありません。', 403);
 
-  const team = await env.DB.prepare('SELECT * FROM teams WHERE id = ?').bind(teamId).first();
+  // QW1: 2つのD1クエリを並列化
+  const tD1 = Date.now();
+  const [team, memberRow] = await Promise.all([
+    env.DB.prepare('SELECT * FROM teams WHERE id = ?').bind(teamId).first(),
+    env.DB.prepare('SELECT COUNT(*) as cnt FROM team_members WHERE team_id = ?').bind(teamId).first(),
+  ]);
+  const d1Dur = Date.now() - tD1;
   if (!team) return jsonError('チームが見つかりません。', 404);
-
-  const { cnt: memberCount } = await env.DB.prepare(
-    'SELECT COUNT(*) as cnt FROM team_members WHERE team_id = ?'
-  ).bind(teamId).first();
+  const memberCount = memberRow.cnt;
 
   const limits = PLAN_LIMITS[team.plan] || PLAN_LIMITS.free;
 
@@ -247,7 +259,7 @@ export async function stats(request, env, session) {
       maxImages: limits.maxImages,
       maxMembers: limits.maxMembers,
     },
-  });
+  }, { 'Server-Timing': `d1;dur=${d1Dur}, total;dur=${Date.now()-t0}` });
 }
 
 /**

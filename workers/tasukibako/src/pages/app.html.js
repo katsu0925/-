@@ -77,7 +77,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 .progress-bar .fill{height:100%;background:linear-gradient(90deg,var(--primary),#818cf8);border-radius:3px;transition:width .3s ease;background-size:200% 100%;animation:shimmer 1.5s infinite linear}
 @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
 /* リスト */
-.list-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f3f4f6;transition:background .15s ease}
+.list-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f3f4f6;transition:background .15s ease;content-visibility:auto;contain-intrinsic-size:auto 68px}
 .list-item:hover{background:#f9fafb;border-radius:8px}
 .list-item:last-child{border-bottom:none}
 .list-thumb{width:48px;height:48px;border-radius:6px;object-fit:cover;background:#eee;flex-shrink:0}
@@ -626,12 +626,24 @@ function showApp() {
 // ════════════════════════════════════════
 // API通信
 // ════════════════════════════════════════
-function apiPost(path, body) {
+// QW5: 15秒タイムアウト＋JSON失敗時に { ok:false, message } で安全に返す
+function apiPost(path, body, opts) {
+  var timeoutMs = (opts && opts.timeoutMs) || 15000;
+  var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  var timer = ctrl ? setTimeout(function() { ctrl.abort(); }, timeoutMs) : null;
   return fetch(API + path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + _sessionId },
     body: JSON.stringify(body),
-  }).then(function(r) { return r.json(); });
+    signal: ctrl ? ctrl.signal : undefined,
+  }).then(function(r) {
+    return r.json().catch(function() { return { ok: false, message: 'サーバ応答の解析に失敗しました（' + r.status + '）' }; });
+  }).catch(function(e) {
+    var msg = (e && e.name === 'AbortError') ? '通信がタイムアウトしました（' + Math.round(timeoutMs/1000) + '秒）' : '通信エラー';
+    return { ok: false, message: msg };
+  }).finally(function() {
+    if (timer) clearTimeout(timer);
+  });
 }
 
 function imgUrl(url) {
@@ -753,7 +765,7 @@ function showExisting(urls, managedId) {
   var html = '';
   for (var i = 0; i < urls.length; i++) {
     html += '<div class="preview-item" draggable="true" data-idx="' + i + '">' +
-      '<img src="' + imgUrl(urls[i]) + '">' +
+      '<img src="' + imgUrl(urls[i]) + '" loading="lazy" decoding="async">' +
       '<span class="badge">' + (i === 0 ? 'TOP' : (i+1)) + '</span>' +
       '<span class="replace-btn" data-url="' + escapeHtml(urls[i]) + '">&#x1f504;</span>' +
       '</div>';

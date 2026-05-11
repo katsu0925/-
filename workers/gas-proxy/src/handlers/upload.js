@@ -275,46 +275,52 @@ async function handleImageUpload(request, env) {
 // ─── 商品一覧 ───
 
 async function handleList(request, env) {
+  const t0 = Date.now();
   // キャッシュ済みリストがあれば即返却
   const cached = await env.CACHE.get('product-list-cache');
   if (cached) {
-    return jsonOk({ items: JSON.parse(cached) });
+    return jsonOk({ items: JSON.parse(cached) }, { 'Server-Timing': `cache;dur=${Date.now()-t0};desc="hit"` });
   }
 
+  const tBuild = Date.now();
   const items = await buildProductList(env);
-  // キ��ッシュ保存（5分TTL）
+  const buildDur = Date.now() - tBuild;
+  // キャッシュ保存（5分TTL）
   await env.CACHE.put('product-list-cache', JSON.stringify(items), { expirationTtl: 300 });
-  return jsonOk({ items });
+  return jsonOk({ items }, { 'Server-Timing': `cache;dur=0;desc="miss", build;dur=${buildDur}, total;dur=${Date.now()-t0}` });
 }
 
 async function buildProductList(env) {
-  const indexJson = await env.CACHE.get('product-images:index');
+  // QW1: 2つのKV読みを並列化
+  const [indexJson, idsJson] = await Promise.all([
+    env.CACHE.get('product-images:index'),
+    env.CACHE.get('managed-ids:list'),
+  ]);
   const index = indexJson ? JSON.parse(indexJson) : [];
-
-  const idsJson = await env.CACHE.get('managed-ids:list');
   const registeredIds = idsJson ? new Set(JSON.parse(idsJson)) : new Set();
 
   const cleanupIds = [];
   const items = (await Promise.all(
     index.map(async (managedId) => {
-      const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
+      // QW1: 3つのKV読みを並列化（順次awaitを Promise.all へ）
+      const [urlsJson, metaJson, saveLogJson] = await Promise.all([
+        env.CACHE.get(`product-images:${managedId}`),
+        env.CACHE.get(`photo-meta:${managedId}`),
+        env.CACHE.get(`save-log:${managedId}`),
+      ]);
       const urls = urlsJson ? JSON.parse(urlsJson) : [];
       if (urls.length === 0) {
         cleanupIds.push(managedId);
         return null;
       }
-
-      const metaJson = await env.CACHE.get(`photo-meta:${managedId}`);
       const meta = metaJson ? JSON.parse(metaJson) : {};
+      const saveLog = saveLogJson ? JSON.parse(saveLogJson) : { count: 0 };
 
       let warning = false;
       if (!registeredIds.has(managedId) && meta.uploadedAt) {
         const days = Math.floor((Date.now() - new Date(meta.uploadedAt).getTime()) / (1000 * 60 * 60 * 24));
         warning = days >= 7;
       }
-
-      const saveLogJson = await env.CACHE.get(`save-log:${managedId}`);
-      const saveLog = saveLogJson ? JSON.parse(saveLogJson) : { count: 0 };
 
       return {
         managedId,
@@ -330,12 +336,13 @@ async function buildProductList(env) {
     })
   )).filter(Boolean);
 
+  // QW1: クリーンアップを並列化（各IDの3操作 × 全ID並列）
   if (cleanupIds.length > 0) {
-    for (const id of cleanupIds) {
-      await removeFromIndex(env, id);
-      await env.CACHE.delete(`product-images:${id}`);
-      await env.CACHE.delete(`photo-meta:${id}`);
-    }
+    await Promise.all(cleanupIds.map(id => Promise.all([
+      removeFromIndex(env, id),
+      env.CACHE.delete(`product-images:${id}`),
+      env.CACHE.delete(`photo-meta:${id}`),
+    ])));
   }
 
   return items;
@@ -360,29 +367,27 @@ async function handleProductImages(request, env) {
     return jsonError('管理番号が必要です', 400);
   }
 
-  const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
+  const t0 = Date.now();
+  // QW1: 3つのKV読み + backupリストを並列化
+  const backupPrefix = `image-backup:${managedId}:`;
+  const [urlsJson, metaJson, saveLogJson, backupList] = await Promise.all([
+    env.CACHE.get(`product-images:${managedId}`),
+    env.CACHE.get(`photo-meta:${managedId}`),
+    env.CACHE.get(`save-log:${managedId}`),
+    env.CACHE.list({ prefix: backupPrefix }).catch(() => ({ keys: [] })),
+  ]);
+  const kvDur = Date.now() - t0;
   const urls = urlsJson ? JSON.parse(urlsJson) : [];
-
-  const metaJson = await env.CACHE.get(`photo-meta:${managedId}`);
   const meta = metaJson ? JSON.parse(metaJson) : {};
-
-  const saveLogJson = await env.CACHE.get(`save-log:${managedId}`);
   const saveLog = saveLogJson ? JSON.parse(saveLogJson) : { count: 0, users: [] };
 
-  // バックアップ可能な画像URL一覧（置換前の状態が7日以内）
   const backupUrls = [];
-  try {
-    const backupPrefix = `image-backup:${managedId}:`;
-    const backupList = await env.CACHE.list({ prefix: backupPrefix });
-    for (const entry of backupList.keys) {
-      const url = entry.name.slice(backupPrefix.length);
-      if (urls.includes(url)) backupUrls.push(url);
-    }
-  } catch {
-    // 失敗しても空配列で継続
+  for (const entry of backupList.keys) {
+    const url = entry.name.slice(backupPrefix.length);
+    if (urls.includes(url)) backupUrls.push(url);
   }
 
-  return jsonOk({ managedId, urls, meta, saveLog, backupUrls });
+  return jsonOk({ managedId, urls, meta, saveLog, backupUrls }, { 'Server-Timing': `kv;dur=${kvDur}, total;dur=${Date.now()-t0}` });
 }
 
 // ─── R2画像配信 ───
@@ -686,23 +691,28 @@ async function handleListAll(request, env) {
 // ─── 未マッチ画像一覧（商品管理に未登録の画像） ───
 
 async function handleUnmatched(request, env) {
-  const indexJson = await env.CACHE.get('product-images:index');
+  // QW1: index と registeredIds を並列取得
+  const [indexJson, idsJson] = await Promise.all([
+    env.CACHE.get('product-images:index'),
+    env.CACHE.get('managed-ids:list'),
+  ]);
   const index = indexJson ? JSON.parse(indexJson) : [];
-
-  const idsJson = await env.CACHE.get('managed-ids:list');
   const registeredIds = idsJson ? new Set(JSON.parse(idsJson)) : new Set();
 
-  const unmatched = [];
-  for (const managedId of index) {
-    if (!registeredIds.has(managedId)) {
-      const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
+  // QW1: 未マッチIDをまとめて並列KV読み
+  const targetIds = index.filter(id => !registeredIds.has(id));
+  const unmatched = (await Promise.all(
+    targetIds.map(async (managedId) => {
+      const [urlsJson, metaJson] = await Promise.all([
+        env.CACHE.get(`product-images:${managedId}`),
+        env.CACHE.get(`photo-meta:${managedId}`),
+      ]);
       const urls = urlsJson ? JSON.parse(urlsJson) : [];
-      const metaJson = await env.CACHE.get(`photo-meta:${managedId}`);
       const meta = metaJson ? JSON.parse(metaJson) : {};
       const daysSinceUpload = meta.uploadedAt
         ? Math.floor((Date.now() - new Date(meta.uploadedAt).getTime()) / (1000 * 60 * 60 * 24))
         : null;
-      unmatched.push({
+      return {
         managedId,
         thumbnail: urls[0] || null,
         secondThumbnail: urls[1] || null,
@@ -711,9 +721,9 @@ async function handleUnmatched(request, env) {
         uploadedAt: meta.uploadedAt || '',
         daysSinceUpload,
         warning: daysSinceUpload !== null && daysSinceUpload >= 7,
-      });
-    }
-  }
+      };
+    })
+  ));
 
   return jsonOk({ items: unmatched, total: unmatched.length });
 }
