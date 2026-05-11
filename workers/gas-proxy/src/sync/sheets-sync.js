@@ -2068,26 +2068,42 @@ export async function runReorderApply(env, options = {}) {
   const onlyIds = Array.isArray(options.managedIds) && options.managedIds.length
     ? new Set(options.managedIds.map(String))
     : null;
+  const excludeIds = Array.isArray(options.excludeIds) && options.excludeIds.length
+    ? new Set(options.excludeIds.map(String))
+    : null;
   const gasUrl = env.GAS_API_URL;
-  if (!gasUrl) return { error: 'GAS_API_URL not set' };
 
-  // 1. シートからドライラン結果を取得
-  const readBody = JSON.stringify({
-    action: 'apiReadReorderDryrun',
-    args: [{ syncSecret: env.SYNC_SECRET || '' }],
-  });
-  const readResp = await fetch(gasUrl, {
-    method: 'POST', headers: { 'Content-Type': 'text/plain' },
-    body: readBody, redirect: 'follow',
-  });
-  const readText = await readResp.text();
-  let readJson;
-  try { readJson = JSON.parse(readText); } catch { return { error: 'failed to parse GAS response', raw: readText.substring(0, 500) }; }
-  if (!readJson.ok) return { error: 'GAS read failed', message: readJson.message };
+  // entries が直接渡された場合は GAS シート読み出しをスキップ（JSONL バックアップからの復旧用）
+  let sheetRows;
+  if (Array.isArray(options.entries) && options.entries.length) {
+    sheetRows = options.entries
+      .filter(e => e && e.managedId && Array.isArray(e.after) && e.after.length > 0)
+      .map(e => ({
+        managedId: String(e.managedId),
+        after: e.after,
+        before: Array.isArray(e.before) ? e.before : null,
+        changed: e.changed !== false,
+      }));
+  } else {
+    if (!gasUrl) return { error: 'GAS_API_URL not set' };
+    const readBody = JSON.stringify({
+      action: 'apiReadReorderDryrun',
+      args: [{ syncSecret: env.SYNC_SECRET || '' }],
+    });
+    const readResp = await fetch(gasUrl, {
+      method: 'POST', headers: { 'Content-Type': 'text/plain' },
+      body: readBody, redirect: 'follow',
+    });
+    const readText = await readResp.text();
+    let readJson;
+    try { readJson = JSON.parse(readText); } catch { return { error: 'failed to parse GAS response', raw: readText.substring(0, 500) }; }
+    if (!readJson.ok) return { error: 'GAS read failed', message: readJson.message };
+    sheetRows = Array.isArray(readJson.rows) ? readJson.rows : [];
+  }
 
-  const sheetRows = Array.isArray(readJson.rows) ? readJson.rows : [];
   let targets = sheetRows.filter(r => r.changed && Array.isArray(r.after) && r.after.length > 0);
   if (onlyIds) targets = targets.filter(r => onlyIds.has(String(r.managedId)));
+  if (excludeIds) targets = targets.filter(r => !excludeIds.has(String(r.managedId)));
   if (limit > 0) targets = targets.slice(0, limit);
 
   // 2. 各 KV を更新
@@ -2151,6 +2167,7 @@ export async function runReorderApply(env, options = {}) {
     mismatched,
     limit: limit || null,
     filteredByIds: onlyIds ? onlyIds.size : null,
+    excludedIds: excludeIds ? excludeIds.size : null,
     results,
   };
 }
