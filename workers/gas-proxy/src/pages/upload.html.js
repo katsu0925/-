@@ -203,18 +203,10 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
           <!-- 選択モード切替（既定: 一括選択） -->
           <div id="uploadModeBar" style="display:flex;gap:4px;margin-bottom:6px;font-size:11px">
             <button type="button" class="upload-mode-btn" data-mode="bulk" onclick="setUploadSelectMode('bulk')" style="flex:1;padding:6px 4px;border:1px solid #d1d5db;background:#fff;border-radius:6px;cursor:pointer;line-height:1.2">一括選択<br><span style="font-size:10px;color:#6b7280">ドラッグで並替</span></button>
-            <button type="button" class="upload-mode-btn" data-mode="single" onclick="setUploadSelectMode('single')" style="flex:1;padding:6px 4px;border:1px solid #d1d5db;background:#fff;border-radius:6px;cursor:pointer;line-height:1.2">1枚ずつ追加<br><span style="font-size:10px;color:#6b7280">タップ順保持</span></button>
             <button type="button" class="upload-mode-btn" data-mode="tap" onclick="setUploadSelectMode('tap')" style="flex:1;padding:6px 4px;border:1px solid #d1d5db;background:#fff;border-radius:6px;cursor:pointer;line-height:1.2">タップで番号付け<br><span style="font-size:10px;color:#6b7280">一括選択→順にタップ</span></button>
           </div>
           <input type="file" id="uploadFiles" multiple accept="image/*" onchange="showPreview()">
-          <!-- Mode A: 1枚ずつ追加 -->
-          <div id="singleAddWrap" style="display:none;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px">
-            <button type="button" onclick="addSingleImage()" style="padding:10px 16px;border:1.5px dashed #4F46E5;background:#fff;color:#4F46E5;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer">＋ 画像を追加</button>
-            <button type="button" onclick="resetUploadSelection_()" style="padding:6px 10px;border:1px solid #d1d5db;background:#fff;color:#6b7280;border-radius:6px;font-size:11px;cursor:pointer">クリア</button>
-            <span id="singleAddCount" style="font-size:11px;color:#6b7280"></span>
-          </div>
-          <input type="file" id="singleImagePicker" accept="image/*" style="display:none" onchange="onSingleImagePicked(event)">
-          <!-- Mode B: タップで番号付け hint -->
+          <!-- タップで番号付け hint -->
           <div id="tapModeHint" style="display:none;padding:8px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;font-size:11px;color:#92400e;margin-top:4px">
             画像を選択後、<strong>順番にタップ</strong>して番号を付けてください。タップ順 = アップロード順。タップした分だけアップロードされます。
           </div>
@@ -1583,7 +1575,7 @@ function showPreview() {
     return;
   }
   // タップ番号付けモードはタップで順序を決めるので、初期は無効化＋空配列
-  // それ以外（bulk / single）は従来通り0..n-1の順序
+  // bulk モードは従来通り 0..n-1 の順序
   var isTapMode = (_uploadSelectMode === 'tap');
   btn.disabled = isTapMode; // タップモードは番号付けされるまで無効
   _blurredImages = {};
@@ -1620,7 +1612,6 @@ function showPreview() {
     generateLevelsPreview(files[i], i, grid);
   }
   if (!isTapMode) initUploadDragReorder(grid);
-  if (_uploadSelectMode === 'single') updateSingleAddCount_();
   // ぼかしバー表示
   var bar = document.getElementById('blurBar');
   bar.style.display = 'flex';
@@ -1633,19 +1624,20 @@ function showPreview() {
 var _uploadFileOrder = [];
 
 // ─── アップロード選択モード ───
-// 'bulk'   = 一括選択 + ドラッグ並替（既定・PC向け）
-// 'single' = 1枚ずつ追加（タップ順保持・iOSの並び順崩れ対策）
-// 'tap'    = 一括選択 → タップで番号付け（タップ順 = アップロード順）
+// 'bulk' = 一括選択 + ドラッグ並替（既定・PC向け）
+// 'tap'  = 一括選択 → タップで番号付け（タップ順 = アップロード順）
 var UPLOAD_MODE_KEY = 'uploadSelectMode_v1';
 var _uploadSelectMode = (function(){
-  try { return localStorage.getItem(UPLOAD_MODE_KEY) || 'bulk'; } catch(e) { return 'bulk'; }
+  try {
+    var m = localStorage.getItem(UPLOAD_MODE_KEY);
+    return (m === 'tap') ? 'tap' : 'bulk';
+  } catch(e) { return 'bulk'; }
 })();
 
 function setUploadSelectMode(mode) {
-  if (mode !== 'bulk' && mode !== 'single' && mode !== 'tap') mode = 'bulk';
+  if (mode !== 'bulk' && mode !== 'tap') mode = 'bulk';
   _uploadSelectMode = mode;
   try { localStorage.setItem(UPLOAD_MODE_KEY, mode); } catch(e) {}
-  // ボタンのアクティブ状態を更新
   document.querySelectorAll('.upload-mode-btn').forEach(function(b) {
     var active = b.getAttribute('data-mode') === mode;
     b.style.background = active ? '#eef2ff' : '#fff';
@@ -1653,19 +1645,8 @@ function setUploadSelectMode(mode) {
     b.style.color = active ? '#4F46E5' : '#374151';
     b.style.fontWeight = active ? '600' : '400';
   });
-  // モード別UI表示
-  var input = document.getElementById('uploadFiles');
-  var singleWrap = document.getElementById('singleAddWrap');
   var tapHint = document.getElementById('tapModeHint');
-  if (mode === 'single') {
-    if (input) input.style.display = 'none';
-    if (singleWrap) singleWrap.style.display = 'flex';
-    if (tapHint) tapHint.style.display = 'none';
-  } else {
-    if (input) input.style.display = '';
-    if (singleWrap) singleWrap.style.display = 'none';
-    if (tapHint) tapHint.style.display = (mode === 'tap') ? 'block' : 'none';
-  }
+  if (tapHint) tapHint.style.display = (mode === 'tap') ? 'block' : 'none';
   // モード切替時は選択をクリア（混乱防止）
   resetUploadSelection_();
 }
@@ -1682,53 +1663,9 @@ function resetUploadSelection_() {
   if (bar) bar.style.display = 'none';
   var btn = document.getElementById('uploadBtn');
   if (btn) btn.disabled = true;
-  updateSingleAddCount_();
 }
 
-// Mode A: 1枚ずつ追加
-function addSingleImage() {
-  // 10枚制限チェック
-  var input = document.getElementById('uploadFiles');
-  var current = (input && input.files) ? input.files.length : 0;
-  var maxNew = 10 - _existingUrls.length;
-  if (current >= maxNew) {
-    showStatus('uploadStatus', '画像は最大' + maxNew + '枚までです', 'err');
-    return;
-  }
-  var picker = document.getElementById('singleImagePicker');
-  picker.value = '';
-  picker.click();
-}
-
-function onSingleImagePicked(e) {
-  var picked = e.target.files;
-  if (!picked || picked.length === 0) return;
-  var input = document.getElementById('uploadFiles');
-  // DataTransfer で既存の input.files に追加（iOS Safari 14.1+ 対応）
-  try {
-    var dt = new DataTransfer();
-    if (input.files) {
-      for (var i = 0; i < input.files.length; i++) dt.items.add(input.files[i]);
-    }
-    for (var j = 0; j < picked.length; j++) dt.items.add(picked[j]);
-    input.files = dt.files;
-  } catch (err) {
-    // 旧ブラウザフォールバック: input.filesに直接代入できないケース
-    showStatus('uploadStatus', 'このブラウザは1枚ずつ追加に対応していません。「一括選択」モードに切り替えてください。', 'err');
-    return;
-  }
-  showPreview();
-}
-
-function updateSingleAddCount_() {
-  var el = document.getElementById('singleAddCount');
-  if (!el) return;
-  var input = document.getElementById('uploadFiles');
-  var n = (input && input.files) ? input.files.length : 0;
-  el.textContent = n > 0 ? (n + '枚追加済み') : '';
-}
-
-// Mode B: タップで番号付け
+// タップで番号付け
 function tapAssignNumber(fileIdx, e) {
   if (e && e.target.tagName === 'INPUT') return;
   if (e && e.target.classList && e.target.classList.contains('preview-btn')) return;
@@ -1924,7 +1861,6 @@ function doUpload() {
         document.getElementById('existingImages').classList.add('hidden');
         document.getElementById('existingGrid').innerHTML = '';
         _existingUrls = []; _uploadMode = 'new';
-        updateSingleAddCount_();
         // 商品リストを更新（バックグラウンド）
         doRefresh();
       }

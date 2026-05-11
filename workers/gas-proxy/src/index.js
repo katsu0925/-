@@ -22,7 +22,7 @@ import * as coupon from './handlers/coupon.js';
 import * as mypage from './handlers/mypage.js';
 import * as submit from './handlers/submit.js';
 import { scheduledSync, batchAiJudgment, restorePhotoMetaFromGas, reprocessSingleAi, bulkReprocessAi, runReorderDryrun, runReorderApply } from './sync/sheets-sync.js';
-import { handleUpload, serveImage } from './handlers/upload.js';
+import { handleUpload, serveImage, warmupListCache } from './handlers/upload.js';
 import { getUploadPageHtml } from './pages/upload.html.js';
 import * as kitHandler from './handlers/kit.js';
 
@@ -213,6 +213,7 @@ self.addEventListener('fetch', e => {
           cursor: body.cursor,
           batchSize: body.batchSize,
           useAll: body.useAll,
+          usePro: body.usePro,
         });
         return new Response(JSON.stringify(result, null, 2), { headers: { 'Content-Type': 'application/json' } });
       } catch (e) {
@@ -220,10 +221,10 @@ self.addEventListener('fetch', e => {
       }
     }
 
-    // 画像並び替え本番反映: POST /admin/reorder-apply (body: {key, dryRun?, limit?, managedIds?[]})
+    // 画像並び替え本番反映: POST /admin/reorder-apply (body: {key, dryRun?, limit?, managedIds?[], excludeIds?[]})
     // ドライランシートで承認された並び替えを KV product-images:${managedId} に反映する。
     // dryRun=true の場合は実際の書き込みをせず影響範囲だけ返す。
-    // limit を指定すると最初の N 件のみ反映、managedIds を指定すると該当のみ反映。
+    // limit を指定すると最初の N 件のみ反映、managedIds を指定すると該当のみ反映、excludeIds を指定すると該当を除外。
     if (request.method === 'POST' && url.pathname === '/admin/reorder-apply') {
       try {
         const body = await request.json();
@@ -232,7 +233,60 @@ self.addEventListener('fetch', e => {
           dryRun: !!body.dryRun,
           limit: body.limit,
           managedIds: body.managedIds,
+          excludeIds: body.excludeIds,
+          entries: body.entries,
         });
+        return new Response(JSON.stringify(result, null, 2), { headers: { 'Content-Type': 'application/json' } });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+      }
+    }
+
+    // ドライランシートのURLと版数履歴URLを取得: GET /admin/reorder-sheet-url?key=...
+    if (request.method === 'GET' && url.pathname === '/admin/reorder-sheet-url') {
+      if (url.searchParams.get('key') !== env.SYNC_SECRET) return new Response('Unauthorized', { status: 401 });
+      try {
+        const body = JSON.stringify({
+          action: 'apiGetReorderSheetUrl',
+          args: [{ syncSecret: env.SYNC_SECRET || '' }],
+        });
+        const resp = await fetch(env.GAS_API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body, redirect: 'follow' });
+        const txt = await resp.text();
+        return new Response(txt, { headers: { 'Content-Type': 'application/json' } });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+      }
+    }
+
+    // 怪しい商品だけ Pro で再判定: POST /admin/reorder-rejudge
+    // body:
+    //   {key}                                   — シートの ambiguous=true 行を全件 Pro で再判定（最大50件、limitで増減）
+    //   {key, limit: 100}                       — 上限指定（最大200）
+    //   {key, managedIds: [...]}                — 明示指定（最大200）
+    // Pro 結果でシートを upsert（managedId 一致行を上書き、新規はappend）。本番KVには反映しない（apply は別途）
+    if (request.method === 'POST' && url.pathname === '/admin/reorder-rejudge') {
+      try {
+        const body = await request.json();
+        if (body.key !== env.SYNC_SECRET) return new Response('Unauthorized', { status: 401 });
+        const { runRejudgeAmbiguous } = await import('./sync/sheets-sync.js');
+        const result = await runRejudgeAmbiguous(env, {
+          managedIds: body.managedIds,
+          limit: body.limit,
+        });
+        return new Response(JSON.stringify(result, null, 2), { headers: { 'Content-Type': 'application/json' } });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+      }
+    }
+
+    // 手動ラベル指定で並び替え: POST /admin/reorder-manual (body: {key, managedId, labels[]})
+    // labels は現在の KV 順に対応した同じ長さの配列。ORDER_PRIORITY に従ってソート→KV 上書き→キャッシュ無効化。
+    if (request.method === 'POST' && url.pathname === '/admin/reorder-manual') {
+      try {
+        const body = await request.json();
+        if (body.key !== env.SYNC_SECRET) return new Response('Unauthorized', { status: 401 });
+        const { runReorderManual } = await import('./sync/sheets-sync.js');
+        const result = await runReorderManual(env, body.managedId, body.labels || []);
         return new Response(JSON.stringify(result, null, 2), { headers: { 'Content-Type': 'application/json' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
@@ -408,9 +462,10 @@ self.addEventListener('fetch', e => {
     }
   },
 
-  // Cron Trigger: D1 ⇔ Sheets 同期
+  // Cron Trigger: D1 ⇔ Sheets 同期 + /upload 一覧キャッシュのウォームアップ
   async scheduled(event, env, ctx) {
     ctx.waitUntil(scheduledSync(env));
+    ctx.waitUntil(warmupListCache(env));
   },
 };
 

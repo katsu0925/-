@@ -41,10 +41,46 @@ export async function list(request, env, session) {
   const items = await buildProductList(env, teamId);
   const buildDur = Date.now() - tBuild;
 
-  // キャッシュ保存（5分TTL）
-  await env.CACHE.put(cacheKey, JSON.stringify(items), { expirationTtl: 300 });
+  // キャッシュ保存（15分TTL — 5分Cronで定期リフレッシュ、3tick失敗まで耐える）
+  await env.CACHE.put(cacheKey, JSON.stringify(items), { expirationTtl: 900 });
 
   return jsonOk({ items }, { 'Server-Timing': `cache;dur=0;desc="miss", build;dur=${buildDur}, total;dur=${Date.now()-t0}` });
+}
+
+/**
+ * 全チームの商品一覧キャッシュをウォームアップ
+ * Cron 5分ごとに呼ばれる。D1から全チームIDを取得し、それぞれ buildProductList → KV put。
+ *
+ * KV write 概算:
+ *   チーム数N × 1 put × 288tick/日 = N × 8,640/月
+ *   N=50 → 432k/月 → 無料枠30k超過、$5/100万で約$2/月（要監視）
+ *   N=10 → 86k/月 → 無料枠超過なら約$0.4/月
+ *
+ * 注意: 全チーム並列ではなく、チャンク（5件ずつ）で順次実行してCron制限内に収める。
+ */
+export async function warmupAllTeams(env) {
+  const t0 = Date.now();
+  try {
+    const result = await env.DB.prepare('SELECT id FROM teams').all();
+    const teamIds = (result.results || []).map(r => r.id);
+    if (teamIds.length === 0) {
+      console.log('[warmup] tasukibako: no teams');
+      return;
+    }
+    let ok = 0, fail = 0;
+    const CHUNK = 5;
+    for (let i = 0; i < teamIds.length; i += CHUNK) {
+      const chunk = teamIds.slice(i, i + CHUNK);
+      const results = await Promise.allSettled(chunk.map(async (teamId) => {
+        const items = await buildProductList(env, teamId);
+        await env.CACHE.put(`team:${teamId}:product-list-cache`, JSON.stringify(items), { expirationTtl: 900 });
+      }));
+      results.forEach(r => { if (r.status === 'fulfilled') ok++; else fail++; });
+    }
+    console.log(`[warmup] tasukibako: ${ok} teams cached, ${fail} failed (${Date.now()-t0}ms, total ${teamIds.length})`);
+  } catch (e) {
+    console.error('[warmup] tasukibako failed:', e && e.message ? e.message : e);
+  }
 }
 
 /** リストデータをKVから構築 */

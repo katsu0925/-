@@ -15,6 +15,11 @@ import { getRegisterPageHtml } from './pages/register.html.js';
 import { getAppPageHtml } from './pages/app.html.js';
 
 export default {
+  // Cron Trigger: 全チームの商品一覧キャッシュをウォームアップ
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(manage.warmupAllTeams(env));
+  },
+
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 

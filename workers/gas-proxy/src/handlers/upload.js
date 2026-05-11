@@ -285,9 +285,26 @@ async function handleList(request, env) {
   const tBuild = Date.now();
   const items = await buildProductList(env);
   const buildDur = Date.now() - tBuild;
-  // キャッシュ保存（5分TTL）
-  await env.CACHE.put('product-list-cache', JSON.stringify(items), { expirationTtl: 300 });
+  // キャッシュ保存（15分TTL — 5分Cronで定期リフレッシュ、3tick失敗まで耐える）
+  await env.CACHE.put('product-list-cache', JSON.stringify(items), { expirationTtl: 900 });
   return jsonOk({ items }, { 'Server-Timing': `cache;dur=0;desc="miss", build;dur=${buildDur}, total;dur=${Date.now()-t0}` });
+}
+
+/**
+ * 商品一覧キャッシュのウォームアップ
+ * Cron 5分ごとに呼ばれる。キャッシュHITしてもbuild→put でリフレッシュし、
+ * ユーザーが「5分TTL切れ直後の初回」に当たって遅延を体感するのを防ぐ。
+ * KV write: 1回/tick × 288tick/日 = ~8,640/月（無料枠 30k/月以内）
+ */
+export async function warmupListCache(env) {
+  const t0 = Date.now();
+  try {
+    const items = await buildProductList(env);
+    await env.CACHE.put('product-list-cache', JSON.stringify(items), { expirationTtl: 900 });
+    console.log(`[warmup] gas-proxy /upload list cached (${items.length} items, ${Date.now()-t0}ms)`);
+  } catch (e) {
+    console.error('[warmup] gas-proxy /upload failed:', e && e.message ? e.message : e);
+  }
 }
 
 async function buildProductList(env) {
