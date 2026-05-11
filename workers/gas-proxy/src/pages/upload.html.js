@@ -57,7 +57,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 .progress-bar{width:100%;height:6px;background:#e5e7eb;border-radius:3px;margin-top:8px;overflow:hidden;display:none}
 .progress-bar.show{display:block}
 .progress-bar .fill{height:100%;background:#3b82f6;border-radius:3px;transition:width .3s}
-.list-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f3f4f6}
+.list-item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f3f4f6;content-visibility:auto;contain-intrinsic-size:auto 68px}
 .list-item:last-child{border-bottom:none}
 .list-thumb{width:48px;height:48px;border-radius:6px;object-fit:cover;background:#eee;flex-shrink:0}
 .list-thumb-pair{display:flex;gap:2px;flex-shrink:0;cursor:pointer}
@@ -148,6 +148,25 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
           <select id="photographerSelect"><option value="">読み込み中...</option></select>
         </div>
         <button class="btn btn-primary" id="photographerConfirmBtn" onclick="confirmPhotographer()">決定</button>
+      </div>
+    </div>
+
+    <!-- iPhone 複数商品DL 案内モーダル -->
+    <div id="iosMultiDlModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:120;align-items:center;justify-content:center">
+      <div class="card" style="width:90%;max-width:420px;margin:0">
+        <h2 style="border:none;text-align:center;color:#d97706">⚠ iPhone をご利用の方へ</h2>
+        <p style="font-size:14px;line-height:1.7;margin:12px 0">
+          iPhone の写真アプリは<strong>フォルダ分けに対応していない</strong>ため、複数商品をまとめて保存すると<strong>どの画像がどの商品か分からなくなります</strong>。<br><br>
+          ⭐ <strong>1商品ずつ選んで保存することを推奨します。</strong>
+        </p>
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin:14px 0;cursor:pointer">
+          <input type="checkbox" id="iosMultiDlDontShow" style="width:18px;height:18px">
+          <span>次回から表示しない</span>
+        </label>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-secondary" style="flex:1" onclick="cancelIosMultiDlWarning()">キャンセル</button>
+          <button class="btn btn-primary" style="flex:1" onclick="confirmIosMultiDlWarning()">このまま保存</button>
+        </div>
       </div>
     </div>
 
@@ -351,6 +370,23 @@ function headers(extra) {
   var h = { 'Authorization': 'Bearer ' + getToken() };
   if (extra) for (var k in extra) h[k] = extra[k];
   return h;
+}
+
+// QW5: 15秒タイムアウト＋JSON失敗時に { ok:false, message } を返す共通 fetch ラッパ
+function apiFetch(url, init, opts) {
+  var timeoutMs = (opts && opts.timeoutMs) || 15000;
+  var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  var timer = ctrl ? setTimeout(function() { ctrl.abort(); }, timeoutMs) : null;
+  init = init || {};
+  init.signal = ctrl ? ctrl.signal : undefined;
+  return fetch(url, init).then(function(r) {
+    return r.json().catch(function() { return { ok: false, message: 'サーバ応答の解析に失敗しました（' + r.status + '）' }; });
+  }).catch(function(e) {
+    var msg = (e && e.name === 'AbortError') ? '通信がタイムアウトしました（' + Math.round(timeoutMs/1000) + '秒）' : '通信エラー';
+    return { ok: false, message: msg };
+  }).finally(function() {
+    if (timer) clearTimeout(timer);
+  });
 }
 
 function showStatus(id, msg, type) {
@@ -730,7 +766,7 @@ function showExistingImages(urls, managedId) {
   for (var i = 0; i < urls.length; i++) {
     var imgSrc = API_BASE + urls[i] + '?t=' + Date.now();
     html += '<div class="preview-item" draggable="true" data-idx="' + i + '">' +
-      '<img src="' + imgSrc + '">' +
+      '<img src="' + imgSrc + '" loading="lazy" decoding="async">' +
       '<span class="badge">' + (i === 0 ? 'トップ' : (i+1)) + '</span>' +
       '<span class="replace-btn" data-url="' + escapeHtml(urls[i]) + '" onclick="startReplace(this.dataset.url)">🔄</span>' +
       '</div>';
@@ -3127,112 +3163,56 @@ function ensureJSZip_() {
   return _jszipPromise;
 }
 
-// 複数管理番号の画像を「管理番号ごとに順に」navigator.share で連続共有する。
-// iOS の写真アプリにはフォルダ階層が無いため、複数 mid を1回で渡すと判別不能になる。
-// 管理番号順にグルーピングして1管理番号ずつ share → 写真アプリ内で連続して並ぶ。
-//
-// 重要: iOS Safari の navigator.share は毎回 user gesture (transient activation) が必須。
-// .then() の中で自動連鎖して呼ぶと2回目以降が NotAllowedError で失敗する。
-// よって「初回はそのまま share → 完了したらボタン文言を『次へ: zkXXX』に差し替え →
-//   ユーザータップで次の share を起動」という対話ループにする。
-//   entries: [{ mid, file?, blob?, filename? }]
-function _shareEntriesPerMid_(entries, btn, onAfter) {
-  // mid ごとにグルーピング（初出順を保つ）
-  var groups = [];
-  var seen = {};
-  entries.forEach(function(e) {
-    var mid = e.mid || 'misc';
-    if (!(mid in seen)) {
-      seen[mid] = groups.length;
-      groups.push({ mid: mid, files: [] });
-    }
-    var f = e.file;
-    if (!f) {
-      var name = (e.filename || (mid + '.jpg'));
-      f = new File([e.blob], name, { type: 'image/jpeg' });
-    }
-    groups[seen[mid]].files.push(f);
-  });
-  groups.sort(function(a, b) { return managedIdCompareAsc_(a.mid, b.mid); });
-
-  if (!groups.length) {
-    if (btn) btn.disabled = false;
-    if (onAfter) onAfter();
-    return;
-  }
-  if (!navigator.canShare) {
-    showStatus('manageStatus', 'この端末では共有に対応していません', 'err');
-    if (btn) btn.disabled = false;
-    if (onAfter) onAfter();
-    return;
-  }
-
-  // ボタンの初期状態を保存（完了/中断時に復元）
-  var origText = btn ? btn.textContent : '';
-  var origOnclick = btn ? btn.onclick : null;
-  var origDisabled = btn ? btn.disabled : false;
-
-  function restore() {
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = origText;
-      btn.onclick = origOnclick;
-    }
-    if (onAfter) onAfter();
-  }
-
-  var total = groups.length;
-  var doneMids = 0;
-
-  function doShare(i) {
-    var g = groups[i];
-    var n = i + 1;
-    if (btn) { btn.disabled = true; btn.textContent = '共有中… ' + g.mid + ' (' + n + '/' + total + ')'; }
-    if (!navigator.canShare({ files: g.files })) {
-      showStatus('manageStatus', '[' + n + '/' + total + '] ' + g.mid + ' は共有不可（スキップ）', 'err');
-      queueNext(i + 1);
-      return;
-    }
-    showStatus('manageStatus', '[' + n + '/' + total + '] ' + g.mid + ' 写真アプリへ保存してください', 'info');
-    navigator.share({ files: g.files, title: g.mid, text: g.mid }).then(function() {
-      doneMids++;
-      queueNext(i + 1);
-    }).catch(function() {
-      // キャンセル時は中断
-      showStatus('manageStatus', '[' + n + '/' + total + '] で中断（' + doneMids + '/' + total + ' 完了）', 'info');
-      restore();
-    });
-  }
-
-  function queueNext(i) {
-    if (i >= groups.length) {
-      showStatus('manageStatus', doneMids + '/' + total + ' 管理番号 保存完了', 'ok');
-      restore();
-      return;
-    }
-    // 次の管理番号: ユーザータップを待つ（iOS の user gesture 制約のため）
-    var next = groups[i];
-    var n = i + 1;
-    if (btn) {
-      btn.disabled = false;
-      btn.textContent = '▶ 次へ: ' + next.mid + ' (' + n + '/' + total + ')';
-      btn.onclick = function(ev) {
-        if (ev && ev.preventDefault) ev.preventDefault();
-        doShare(i);
-      };
-      showStatus('manageStatus', 'ボタンをタップして ' + next.mid + ' を共有 (' + n + '/' + total + ')', 'info');
-    } else {
-      // ボタンが無い特殊ケースでは即時続行（user gesture なくても初回は通る前提）
-      doShare(i);
-    }
-  }
-
-  // 初回はこの関数自体が user gesture チェーンの中で呼ばれている前提
-  doShare(0);
+// iPhone 判定（iPadOS 13+ の MacIntel + touch 判定も含む）
+function isIos_() {
+  var ua = navigator.userAgent || '';
+  if (/iPad|iPhone|iPod/.test(ua)) return true;
+  return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
 }
 
-// 旧 ZIP 一括方式（フォールバック用に残置）。
-// iOS Safari でも canShare({ files: [zip] }) が落ちた場合や PC 互換用に保持。
+var IOS_MULTI_DL_WARN_KEY = 'iosMultiDlWarnDismissed_v1';
+var _iosMultiDlPending = null; // { onProceed, onCancel }
+
+function showIosMultiDlWarning_(onProceed, onCancel) {
+  _iosMultiDlPending = { onProceed: onProceed, onCancel: onCancel };
+  var cb = document.getElementById('iosMultiDlDontShow');
+  if (cb) cb.checked = false;
+  var modal = document.getElementById('iosMultiDlModal');
+  modal.classList.remove('hidden');
+  modal.style.display = 'flex';
+}
+
+function confirmIosMultiDlWarning() {
+  var cb = document.getElementById('iosMultiDlDontShow');
+  if (cb && cb.checked) {
+    try { localStorage.setItem(IOS_MULTI_DL_WARN_KEY, '1'); } catch(e) {}
+  }
+  var modal = document.getElementById('iosMultiDlModal');
+  modal.style.display = 'none';
+  var p = _iosMultiDlPending; _iosMultiDlPending = null;
+  if (p && p.onProceed) p.onProceed();
+}
+
+function cancelIosMultiDlWarning() {
+  var modal = document.getElementById('iosMultiDlModal');
+  modal.style.display = 'none';
+  var p = _iosMultiDlPending; _iosMultiDlPending = null;
+  if (p && p.onCancel) p.onCancel();
+}
+
+// モバイル向け navigator.share（全画像をフラットに共有）
+function _flatShareMobile_(files, btn) {
+  showStatus('manageStatus', files.length + '枚を保存中...', 'info');
+  navigator.share({ files: files }).then(function() {
+    showStatus('manageStatus', files.length + '枚保存完了', 'ok');
+  }).catch(function() {
+    showStatus('manageStatus', 'キャンセルされました', 'info');
+  }).finally(function() {
+    if (btn) btn.disabled = false;
+  });
+}
+
+// 旧 ZIP 一括方式（現状の主導線では未使用・フォールバック保持用）
 function _shareEntriesAsZip(entries, zipName, btn, onAfter) {
   ensureJSZip_().then(function(ok) {
     if (!ok || typeof JSZip === 'undefined') {
@@ -3331,27 +3311,16 @@ function doDownloadTopImages() {
     fileEntries.forEach(function(e) { if (e.mid) _uniqMidsTop[e.mid] = 1; });
     var _midCountTop = Object.keys(_uniqMidsTop).length;
 
-    // モバイル + 複数管理番号: 管理番号ごとに順に share（写真アプリに連続保存）
-    // iOS は navigator.share に複数画像を渡すと写真アプリにフラット保存され mid が判別不能になる
-    if (isMobileDevice() && _midCountTop >= 2) {
-      // 管理番号順にソート（保存順＝写真アプリ内の並び順）
-      var _entriesTop = fileEntries.slice().sort(function(a, b) {
-        return managedIdCompareAsc_(a.mid || '', b.mid || '');
-      });
-      _shareEntriesPerMid_(_entriesTop, btn);
-      return;
-    }
-
-    // モバイル + 単一管理番号: 従来の navigator.share
+    // モバイル: navigator.share でフラット共有
+    // iPhone で複数管理番号を一度に保存しようとした場合は事前に案内モーダルを出す
     if (isMobileDevice() && navigator.canShare && navigator.canShare({ files: files })) {
-      showStatus('manageStatus', files.length + '枚を保存中...', 'info');
-      navigator.share({ files: files }).then(function() {
-        showStatus('manageStatus', files.length + '枚保存完了', 'ok');
-      }).catch(function() {
-        showStatus('manageStatus', 'キャンセルされました', 'info');
-      }).finally(function() {
-        btn.disabled = false;
-      });
+      var warnIosTop = isIos_() && _midCountTop >= 2 && !localStorage.getItem(IOS_MULTI_DL_WARN_KEY);
+      if (warnIosTop) {
+        showIosMultiDlWarning_(function() { _flatShareMobile_(files, btn); },
+                               function() { btn.disabled = false; showStatus('manageStatus', 'キャンセルしました', 'info'); });
+      } else {
+        _flatShareMobile_(files, btn);
+      }
       return;
     }
 
@@ -3453,25 +3422,16 @@ function doDownloadAllImages() {
       fileEntries.forEach(function(e) { if (e.mid) _uniqMidsAll[e.mid] = 1; });
       var _midCountAll = Object.keys(_uniqMidsAll).length;
 
-      // モバイル + 複数管理番号: 管理番号ごとに順に share（写真アプリに連続保存）
-      if (isMobileDevice() && _midCountAll >= 2) {
-        var _entriesAll = fileEntries.slice().sort(function(a, b) {
-          return managedIdCompareAsc_(a.mid || '', b.mid || '');
-        });
-        _shareEntriesPerMid_(_entriesAll, btn);
-        return;
-      }
-
-      // モバイル + 単一管理番号: navigator.share（同一フォルダ相当でOK）
+      // モバイル: navigator.share でフラット共有
+      // iPhone で複数管理番号を一度に保存しようとした場合は事前に案内モーダルを出す
       if (isMobileDevice() && navigator.canShare && navigator.canShare({ files: files })) {
-        showStatus('manageStatus', files.length + '枚を保存中...', 'info');
-        navigator.share({ files: files }).then(function() {
-          showStatus('manageStatus', files.length + '枚保存完了', 'ok');
-        }).catch(function() {
-          showStatus('manageStatus', 'キャンセルされました', 'info');
-        }).finally(function() {
-          btn.disabled = false;
-          });
+        var warnIosAll = isIos_() && _midCountAll >= 2 && !localStorage.getItem(IOS_MULTI_DL_WARN_KEY);
+        if (warnIosAll) {
+          showIosMultiDlWarning_(function() { _flatShareMobile_(files, btn); },
+                                 function() { btn.disabled = false; showStatus('manageStatus', 'キャンセルしました', 'info'); });
+        } else {
+          _flatShareMobile_(files, btn);
+        }
         return;
       }
 
