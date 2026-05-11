@@ -2062,16 +2062,6 @@ function reapplyMissingSaleForReceipt(receiptNo) {
   console.log('=== 売却反映復旧完了: ' + receiptNo + ' ===');
 }
 
-/**
- * 受付番号 20260421224044-251 の売却反映漏れを復旧する手動実行ラッパー。
- * 過去に createKitFromDistList で KV+AJ列のみ復旧された際、商品管理「売却済み」と
- * 売却履歴への書き込みが漏れていたため、ここで補填する。
- * GASエディタから実行 → 完了後はこの関数を削除して構わない。
- */
-function reapplyMissingSale_20260421224044_251() {
-  reapplyMissingSaleForReceipt('20260421224044-251');
-}
-
 // ═══════════════════════════════════════════
 // XLSX用サブ関数（shiire-kanri/xlsxダウンロード.gs 由来）
 // ═══════════════════════════════════════════
