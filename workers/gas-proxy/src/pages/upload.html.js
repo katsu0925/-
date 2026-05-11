@@ -3127,10 +3127,76 @@ function ensureJSZip_() {
   return _jszipPromise;
 }
 
-// 複数管理番号の画像を ZIP（mid フォルダ分け）にまとめて share/DL する。
-// iOS の navigator.share({ files: [...] }) は写真アプリに全画像をフラットに保存するため、
-// 複数 mid が混在すると区別できない。ZIP 化 + フォルダで管理番号ごとに整理する。
-//   entries: [{ mid, filename, blob }]  filename は mid プレフィックスを含んでよい（中で取り除く）
+// 複数管理番号の画像を「管理番号ごとに順に」navigator.share で連続共有する。
+// iOS の写真アプリにはフォルダ階層が無いため、複数 mid を1回で渡すと判別不能になる。
+// 管理番号順にグルーピングして1管理番号ずつ share → 写真アプリ内で連続して並ぶ
+// （撮影日時≒保存順なので写真アプリのタイムラインで管理番号単位の塊として見える）。
+//   entries: [{ mid, file?, blob?, filename? }]
+//   完了/キャンセル時に btn を解放、onAfter があれば呼ぶ
+function _shareEntriesPerMid_(entries, btn, onAfter) {
+  // mid ごとにグルーピング（初出順を保つ）
+  var groups = [];
+  var seen = {};
+  entries.forEach(function(e) {
+    var mid = e.mid || 'misc';
+    if (!(mid in seen)) {
+      seen[mid] = groups.length;
+      groups.push({ mid: mid, files: [] });
+    }
+    var f = e.file;
+    if (!f) {
+      var name = (e.filename || (mid + '.jpg'));
+      f = new File([e.blob], name, { type: 'image/jpeg' });
+    }
+    groups[seen[mid]].files.push(f);
+  });
+  // 管理番号昇順に並べ替え
+  groups.sort(function(a, b) { return managedIdCompareAsc_(a.mid, b.mid); });
+
+  if (!groups.length) {
+    if (btn) btn.disabled = false;
+    if (onAfter) onAfter();
+    return;
+  }
+  if (!navigator.canShare) {
+    showStatus('manageStatus', 'この端末では共有に対応していません', 'err');
+    if (btn) btn.disabled = false;
+    if (onAfter) onAfter();
+    return;
+  }
+
+  var total = groups.length;
+  var doneMids = 0;
+  function step(i) {
+    if (i >= groups.length) {
+      showStatus('manageStatus', doneMids + '/' + total + ' 管理番号 保存完了', 'ok');
+      if (btn) btn.disabled = false;
+      if (onAfter) onAfter();
+      return;
+    }
+    var g = groups[i];
+    var n = i + 1;
+    if (!navigator.canShare({ files: g.files })) {
+      showStatus('manageStatus', '[' + n + '/' + total + '] ' + g.mid + ' は共有不可（スキップ）', 'err');
+      step(i + 1);
+      return;
+    }
+    showStatus('manageStatus', '[' + n + '/' + total + '] ' + g.mid + ' を共有中…写真に保存→次へ', 'info');
+    navigator.share({ files: g.files, title: g.mid, text: g.mid }).then(function() {
+      doneMids++;
+      step(i + 1);
+    }).catch(function() {
+      // キャンセルされたら以降は中止（誤タップで連発するのを防ぐ）
+      showStatus('manageStatus', '[' + n + '/' + total + '] でキャンセル（' + doneMids + '/' + total + ' 完了）', 'info');
+      if (btn) btn.disabled = false;
+      if (onAfter) onAfter();
+    });
+  }
+  step(0);
+}
+
+// 旧 ZIP 一括方式（フォールバック用に残置）。
+// iOS Safari でも canShare({ files: [zip] }) が落ちた場合や PC 互換用に保持。
 function _shareEntriesAsZip(entries, zipName, btn, onAfter) {
   ensureJSZip_().then(function(ok) {
     if (!ok || typeof JSZip === 'undefined') {
@@ -3229,13 +3295,14 @@ function doDownloadTopImages() {
     fileEntries.forEach(function(e) { if (e.mid) _uniqMidsTop[e.mid] = 1; });
     var _midCountTop = Object.keys(_uniqMidsTop).length;
 
-    // モバイル + 複数管理番号: ZIP（mid フォルダ分け）にまとめて share
+    // モバイル + 複数管理番号: 管理番号ごとに順に share（写真アプリに連続保存）
     // iOS は navigator.share に複数画像を渡すと写真アプリにフラット保存され mid が判別不能になる
     if (isMobileDevice() && _midCountTop >= 2) {
-      var _zipEntriesTop = fileEntries.map(function(e) {
-        return { mid: e.mid, filename: e.mid + '.jpg', blob: e.file };
+      // 管理番号順にソート（保存順＝写真アプリ内の並び順）
+      var _entriesTop = fileEntries.slice().sort(function(a, b) {
+        return managedIdCompareAsc_(a.mid || '', b.mid || '');
       });
-      _shareEntriesAsZip(_zipEntriesTop, 'detauri_top_' + Date.now() + '.zip', btn);
+      _shareEntriesPerMid_(_entriesTop, btn);
       return;
     }
 
@@ -3350,9 +3417,12 @@ function doDownloadAllImages() {
       fileEntries.forEach(function(e) { if (e.mid) _uniqMidsAll[e.mid] = 1; });
       var _midCountAll = Object.keys(_uniqMidsAll).length;
 
-      // モバイル + 複数管理番号: ZIP（mid フォルダ分け）にまとめて share
+      // モバイル + 複数管理番号: 管理番号ごとに順に share（写真アプリに連続保存）
       if (isMobileDevice() && _midCountAll >= 2) {
-        _shareEntriesAsZip(fileEntries, 'detauri_all_' + Date.now() + '.zip', btn);
+        var _entriesAll = fileEntries.slice().sort(function(a, b) {
+          return managedIdCompareAsc_(a.mid || '', b.mid || '');
+        });
+        _shareEntriesPerMid_(_entriesAll, btn);
         return;
       }
 
