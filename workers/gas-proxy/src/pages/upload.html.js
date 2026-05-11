@@ -3112,6 +3112,76 @@ function isMobileDevice() {
   return ('ontouchstart' in window || navigator.maxTouchPoints > 0) && window.innerWidth <= 768;
 }
 
+// JSZip 遅延ロード（async タグで未到達の場合に備える）
+var _jszipPromise = null;
+function ensureJSZip_() {
+  if (typeof JSZip !== 'undefined') return Promise.resolve(true);
+  if (_jszipPromise) return _jszipPromise;
+  _jszipPromise = new Promise(function(resolve) {
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+    s.onload = function() { resolve(true); };
+    s.onerror = function() { resolve(false); };
+    document.head.appendChild(s);
+  });
+  return _jszipPromise;
+}
+
+// 複数管理番号の画像を ZIP（mid フォルダ分け）にまとめて share/DL する。
+// iOS の navigator.share({ files: [...] }) は写真アプリに全画像をフラットに保存するため、
+// 複数 mid が混在すると区別できない。ZIP 化 + フォルダで管理番号ごとに整理する。
+//   entries: [{ mid, filename, blob }]  filename は mid プレフィックスを含んでよい（中で取り除く）
+function _shareEntriesAsZip(entries, zipName, btn, onAfter) {
+  ensureJSZip_().then(function(ok) {
+    if (!ok || typeof JSZip === 'undefined') {
+      if (btn) btn.disabled = false;
+      showStatus('manageStatus', 'ZIP生成に失敗しました（通信環境をご確認ください）', 'err');
+      if (onAfter) onAfter();
+      return;
+    }
+    showStatus('manageStatus', 'ZIPファイルを作成中...', 'info');
+    var zip = new JSZip();
+    entries.forEach(function(e) {
+      var mid = e.mid || 'misc';
+      var base = (e.filename || '').replace(/^.*[\\\\\\/]/, '');
+      // 「mid_N.jpg」形式なら末尾の「N.jpg」だけ取り出してフォルダ内に置く
+      var trimmed = base.indexOf(mid + '_') === 0 ? base.slice(mid.length + 1) : base;
+      zip.file(mid + '/' + trimmed, e.blob);
+    });
+    zip.generateAsync({ type: 'blob' }).then(function(content) {
+      var zipFile = new File([content], zipName, { type: 'application/zip' });
+      // iOS Safari は ZIP の share に対応（Files アプリ等に保存できる）
+      if (navigator.canShare && navigator.canShare({ files: [zipFile] })) {
+        showStatus('manageStatus', '共有メニューから「ファイルに保存」を選んでください', 'info');
+        navigator.share({ files: [zipFile] }).then(function() {
+          showStatus('manageStatus', entries.length + '枚をZIPで保存しました（管理番号別フォルダ）', 'ok');
+        }).catch(function() {
+          showStatus('manageStatus', 'キャンセルされました', 'info');
+        }).finally(function() {
+          if (btn) btn.disabled = false;
+          if (onAfter) onAfter();
+        });
+        return;
+      }
+      // canShare 不可: ダウンロードリンク
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(content);
+      a.download = zipName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function() { URL.revokeObjectURL(a.href); }, 1000);
+      showStatus('manageStatus', entries.length + '枚をZIPで保存しました（管理番号別フォルダ）', 'ok');
+      if (btn) btn.disabled = false;
+      if (onAfter) onAfter();
+    }).catch(function() {
+      if (btn) btn.disabled = false;
+      showStatus('manageStatus', 'ZIP生成エラー', 'err');
+      if (onAfter) onAfter();
+    });
+  });
+}
+
 function doDownloadTopImages() {
   var checks = document.querySelectorAll('.dl-check:checked');
   if (checks.length === 0) { showStatus('manageStatus', '商品を選択してください', 'err'); return; }
@@ -3155,8 +3225,21 @@ function doDownloadTopImages() {
       return;
     }
     var files = fileEntries.map(function(e) { return e.file; });
+    var _uniqMidsTop = {};
+    fileEntries.forEach(function(e) { if (e.mid) _uniqMidsTop[e.mid] = 1; });
+    var _midCountTop = Object.keys(_uniqMidsTop).length;
 
-    // モバイル: 一括共有
+    // モバイル + 複数管理番号: ZIP（mid フォルダ分け）にまとめて share
+    // iOS は navigator.share に複数画像を渡すと写真アプリにフラット保存され mid が判別不能になる
+    if (isMobileDevice() && _midCountTop >= 2) {
+      var _zipEntriesTop = fileEntries.map(function(e) {
+        return { mid: e.mid, filename: e.mid + '.jpg', blob: e.file };
+      });
+      _shareEntriesAsZip(_zipEntriesTop, 'detauri_top_' + Date.now() + '.zip', btn);
+      return;
+    }
+
+    // モバイル + 単一管理番号: 従来の navigator.share
     if (isMobileDevice() && navigator.canShare && navigator.canShare({ files: files })) {
       showStatus('manageStatus', files.length + '枚を保存中...', 'info');
       navigator.share({ files: files }).then(function() {
@@ -3249,7 +3332,7 @@ function doDownloadAllImages() {
     var imgPromises = allItems.map(function(item) {
       return fetch(item.url).then(function(r) { return r.blob(); })
       .then(function(blob) {
-        fileEntries.push({ file: new File([blob], item.filename, { type: 'image/jpeg' }), blob: blob, filename: item.filename });
+        fileEntries.push({ file: new File([blob], item.filename, { type: 'image/jpeg' }), blob: blob, filename: item.filename, mid: item.mid });
         imgDone++;
         updateLoading('画像をダウンロード中', imgDone + '/' + allItems.length);
       }).catch(function() { imgDone++; });
@@ -3263,8 +3346,17 @@ function doDownloadAllImages() {
         return;
       }
       var files = fileEntries.map(function(e) { return e.file; });
+      var _uniqMidsAll = {};
+      fileEntries.forEach(function(e) { if (e.mid) _uniqMidsAll[e.mid] = 1; });
+      var _midCountAll = Object.keys(_uniqMidsAll).length;
 
-      // モバイル: navigator.share
+      // モバイル + 複数管理番号: ZIP（mid フォルダ分け）にまとめて share
+      if (isMobileDevice() && _midCountAll >= 2) {
+        _shareEntriesAsZip(fileEntries, 'detauri_all_' + Date.now() + '.zip', btn);
+        return;
+      }
+
+      // モバイル + 単一管理番号: navigator.share（同一フォルダ相当でOK）
       if (isMobileDevice() && navigator.canShare && navigator.canShare({ files: files })) {
         showStatus('manageStatus', files.length + '枚を保存中...', 'info');
         navigator.share({ files: files }).then(function() {
