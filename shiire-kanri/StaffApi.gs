@@ -1760,6 +1760,30 @@ function staff_onEditTrigger(e) {
     if (firstRow < 2) return; // ヘッダーは無視
 
     if (name === STAFF_SHEET_NAME) {
+      // ステータス判定列（出品日/販売日/発送日付/完了日/撮影日付/採寸日/廃棄日/返品日付/キャンセル日）が
+      // 編集範囲に含まれていれば、行ごとに再計算する。
+      // シート直接編集や AppSheet 経由での日付入力でステータスが古いまま放置される問題を解消。
+      // GAS の installable トリガーは自身の setValue では再発火しないので、ここでの再書き込みはループしない。
+      try {
+        var firstColE = e.range.getColumn();
+        var numColsE = e.range.getNumColumns() || 1;
+        var hdrE = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+        var colE = buildHeaderMap_(hdrE);
+        var STATUS_DRIVERS = ['出品日','販売日','発送日付','完了日','撮影日付','採寸日','廃棄日','返品日付','キャンセル日'];
+        var triggersStatus = false;
+        for (var k = 0; k < STATUS_DRIVERS.length; k++) {
+          var cIdx = colE[STATUS_DRIVERS[k]];
+          if (cIdx && cIdx >= firstColE && cIdx < firstColE + numColsE) { triggersStatus = true; break; }
+        }
+        if (triggersStatus) {
+          for (var rr = 0; rr < numRows; rr++) {
+            try { staff_recomputeStatus_(sh, firstRow + rr, hdrE, colE); } catch(_) {}
+          }
+        }
+      } catch (errSt) {
+        console.warn('[staff_onEditTrigger:recomputeStatus] ' + (errSt && errSt.message));
+      }
+
       var items = [];
       for (var i = 0; i < numRows; i++) {
         var item = staff_buildProductRowPayload_(sh, firstRow + i);

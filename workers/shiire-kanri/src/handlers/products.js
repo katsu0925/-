@@ -19,6 +19,11 @@ const ACCOUNT_SELECTED = "(json_extract(extra_json, '$.\"使用アカウント\"
 //   AppSheet と件数が大きく食い違っていた。シートが正、派生は補完。
 export const DERIVED_STATUS = `
   CASE
+    -- raw='出品待ち'/'出品作業中' でも 出品日 が入っていれば 販売日入るまで '出品中' を最優先
+    -- （シート直接編集や AppSheet 経由で出品日だけ入った行のステータス遅延を解消）
+    WHEN status IN ('出品待ち','出品作業中') AND ${D_SHUPPIN}
+         AND NOT ${D_HANBAI} AND NOT ${D_HASSOU} AND NOT ${D_KANRYOU}
+         THEN '出品中'
     -- raw='出品待ち' のうち撮影日・採寸日・使用アカウントが揃った行は「出品作業中」に細分化
     WHEN status = '出品待ち' AND ${D_SATSUEI} AND ${D_SAISUN} AND ${ACCOUNT_SELECTED} THEN '出品作業中'
     -- raw='出品待ち' でも採寸/撮影が未完なら日付ベースに降格（誤付与の自己修復）
