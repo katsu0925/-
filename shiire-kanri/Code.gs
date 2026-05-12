@@ -74,6 +74,17 @@ function doPost(e) {
       case 'downloadInvoiceCsv':         result = staff_downloadInvoiceCsv(body.payload || {}, email); break;
       case 'requestInvoiceRevision':     result = staff_requestInvoiceRevision(body.payload || {}, email); break;
       case 'listMyRevisions':            result = staff_listMyRevisions(body.payload || {}, email); break;
+      // 請求書（管理者向けAPI）
+      case 'adminInv_currentUser':       result = adminInv_currentUser(email); break;
+      case 'adminInv_listAllInvoices':   result = adminInv_listAllInvoices(body.payload || {}, email); break;
+      case 'adminInv_getInvoiceDetail':  result = adminInv_getInvoiceDetail(body.payload || {}, email); break;
+      case 'adminInv_listAllRevisions':  result = adminInv_listAllRevisions(body.payload || {}, email); break;
+      case 'adminInv_respondRevision':   result = adminInv_respondRevision(body.payload || {}, email); break;
+      case 'adminInv_updateInvoiceStatus': result = adminInv_updateInvoiceStatus(body.payload || {}, email); break;
+      case 'adminInv_listGraceRates':    result = adminInv_listGraceRates(body.payload || {}, email); break;
+      case 'adminInv_saveGraceRates':    result = adminInv_saveGraceRates(body.payload || {}, email); break;
+      case 'adminInv_getAdminSettings':  result = adminInv_getAdminSettings(body.payload || {}, email); break;
+      case 'adminInv_saveAdminSettings': result = adminInv_saveAdminSettings(body.payload || {}, email); break;
       default:                  result = { ok: false, error: 'unknown action: ' + action };
     }
     // 計測: doPost 内の dispatch 〜 結果生成までの ms。Worker 側で Server-Timing に転載される。

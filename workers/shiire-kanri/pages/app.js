@@ -3914,15 +3914,32 @@ async function renderBusinessSheet(menuKey) {
 }
 
 // ---------- 共通: シートダンプ取得（自分用フィルタは表示時） ----------
-async function fetchBusinessSheet_(menuKey) {
+// Workers 側に 60秒 KV キャッシュ。再ロード即時表示のため localStorage にも前回値を保存し
+// SWR (stale-while-revalidate) で初回ペイントを高速化する。
+async function fetchBusinessSheet_(menuKey, opts) {
   var sheetName = BUSINESS_SHEETS[menuKey];
   var cacheKey = 'business|' + menuKey;
-  // SWR の取り回しでスプレッドシート編集が反映されない事故を防ぐため、URL に時刻パラメータで毎回バスティング
-  var bust = '&_=' + Date.now();
-  var res = await api('/api/sheet/' + encodeURIComponent(sheetName) + '?limit=500' + bust);
+  var lsKey = 'shiire-kanri:sheet:' + menuKey;
+  var qs = '?limit=500' + ((opts && opts.fresh) ? '&fresh=1' : '');
+  var res = await api('/api/sheet/' + encodeURIComponent(sheetName) + qs);
   var data = { headers: res.headers || [], rows: res.rows || [], total: res.total || (res.rows ? res.rows.length : 0) };
   TAB_CACHE[cacheKey] = { data: data, ts: Date.now() };
+  try { localStorage.setItem(lsKey, JSON.stringify({ data: data, ts: Date.now() })); } catch (e) {}
   return data;
+}
+function readBusinessSheetCache_(menuKey) {
+  var cached = TAB_CACHE['business|' + menuKey];
+  if (cached) return cached;
+  try {
+    var raw = localStorage.getItem('shiire-kanri:sheet:' + menuKey);
+    if (!raw) return null;
+    var parsed = JSON.parse(raw);
+    if (parsed && parsed.data) {
+      TAB_CACHE['business|' + menuKey] = parsed;
+      return parsed;
+    }
+  } catch (e) {}
+  return null;
 }
 function colIdx_(headers, name) {
   for (var i = 0; i < headers.length; i++) {
@@ -3938,7 +3955,7 @@ function nameMatchesSelf_(v) {
 async function renderShiireHoukokuTab_() {
   if (STATE.tab !== 'business' || STATE.business !== 'shiire_houkoku' || STATE.view !== 'list') return;
   var c = document.getElementById('content');
-  var cached = TAB_CACHE['business|shiire_houkoku'];
+  var cached = readBusinessSheetCache_('shiire_houkoku');
   if (cached) paintShiireHoukoku_(cached.data);
   else c.innerHTML = '<div class="loading">読み込み中…</div>';
   try {
@@ -4085,7 +4102,7 @@ async function submitShiireHoukokuQty_(id) {
 async function renderKeihiTab_() {
   if (STATE.tab !== 'business' || STATE.business !== 'keihi' || STATE.view !== 'list') return;
   var c = document.getElementById('content');
-  var cached = TAB_CACHE['business|keihi'];
+  var cached = readBusinessSheetCache_('keihi');
   if (cached) paintKeihi_(cached.data);
   else c.innerHTML = '<div class="loading">読み込み中…</div>';
   try {
@@ -4340,7 +4357,7 @@ async function submitKeihiForm_() {
     toast('申請しました');
     // 楽観的更新: GAS のシート書き込みは裏で進行中なので、キャッシュに即時追加して
     // 一覧を即時更新する（fetch を待たない）
-    var cached = TAB_CACHE['business|keihi'];
+    var cached = readBusinessSheetCache_('keihi');
     if (cached && cached.data && cached.data.headers) {
       var hd = cached.data.headers;
       var now = new Date();
@@ -4362,7 +4379,8 @@ async function submitKeihiForm_() {
         }
       });
       cached.data.rows.unshift(newRow);
-      cached.fetchedAt = Date.now();
+      cached.ts = Date.now();
+      try { localStorage.setItem('shiire-kanri:sheet:keihi', JSON.stringify(cached)); } catch (e) {}
     }
     STATE.view = 'list';
     if (cached) paintKeihi_(cached.data);
@@ -4379,7 +4397,7 @@ async function submitKeihiForm_() {
 async function renderHoushuTab_() {
   if (STATE.tab !== 'business' || STATE.business !== 'houshu' || STATE.view !== 'list') return;
   var c = document.getElementById('content');
-  var cached = TAB_CACHE['business|houshu'];
+  var cached = readBusinessSheetCache_('houshu');
   if (cached) paintHoushu_(cached.data);
   else c.innerHTML = '<div class="loading">読み込み中…</div>';
   try {
@@ -4557,6 +4575,9 @@ function paintHoushu_(data) {
         'onchange="onHoushuNameChange_(this.value)">' +
         nameOptions +
       '</select>' +
+      '<button class="btn-sm" onclick="openAdminInvoiceSettingsModal_()" ' +
+        'style="font-size:12px;margin-left:auto" title="請求書管理者設定（自分の屋号・振込元銀行・手数料表など）">' +
+        '⚙ 管理者・請求書設定</button>' +
     '</div>';
   }
 
@@ -4895,7 +4916,6 @@ async function openInvoiceProfileModal_() {
       profileField_('口座番号（必須）', '口座番号', f('口座番号')) +
       profileField_('口座名義（カナ）', '口座名義', f('口座名義')) +
       profileField_('インボイス登録番号', 'インボイス登録番号', f('インボイス登録番号'), 'T1234567890123') +
-      profileField_('振込元希望銀行', '振込元希望銀行', f('振込元希望銀行')) +
       profileFieldFull_('備考', 'スタッフ用備考', f('スタッフ用備考')) +
     '</div>' +
     '<div class="modal-actions" style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">' +
@@ -4928,9 +4948,11 @@ async function submitInvoiceProfile_() {
   Array.prototype.forEach.call(inputs, function(el){
     body[el.getAttribute('data-invoice-profile')] = el.value;
   });
+  var btn = document.querySelector('.modal .btn-primary');
+  var orig = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin" style="display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:6px"></span>保存中…'; }
   try {
     await api('/api/invoice/profile', { method: 'POST', body: body });
-    // 保存後は GAS から最新を再取得（saveInvoiceProfile は { changed } のみ返すため）
     try {
       var p = await api('/api/invoice/profile');
       INVOICE_STATE.profile = (p && p.profile) || body;
@@ -4939,7 +4961,128 @@ async function submitInvoiceProfile_() {
     }
     closeModal();
     paintInvoiceSection_();
+    if (typeof toast === 'function') toast('保存しました');
   } catch (e) {
+    if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+    alert('保存失敗: ' + e.message);
+  }
+}
+
+// ─────────────────────────────────────────────
+// 管理者向け: 請求書管理者設定モーダル
+// 振込元（管理者本人）の屋号・住所・インボイス番号・振込元銀行候補・手数料表・通知先メール
+// 値は GAS 側 `請求書管理者設定` シートに保存される（adminInv_saveAdminSettings）
+// ─────────────────────────────────────────────
+async function openAdminInvoiceSettingsModal_() {
+  if (!STATE.isAdmin) { alert('権限がありません'); return; }
+  var loadingHtml =
+    '<h3 style="margin:0 0 12px">管理者・請求書設定</h3>' +
+    '<div class="loading" style="padding:24px;font-size:13px">読み込み中…</div>';
+  openModal(loadingHtml);
+  var settings;
+  try {
+    var r = await api('/api/admin-invoice/settings');
+    settings = (r && r.settings) || {};
+  } catch (e) {
+    closeModal();
+    alert('読み込み失敗: ' + e.message);
+    return;
+  }
+  function f(k){ return esc(String(settings[k] == null ? '' : settings[k])); }
+  function fNum(k){ var v = settings[k]; return (v == null || v === '') ? '0' : String(v); }
+  var banks = Array.isArray(settings['振込元銀行候補']) ? settings['振込元銀行候補'] : [];
+  var banksStr = banks.join('\n');
+  var html =
+    '<h3 style="margin:0 0 12px">管理者・請求書設定</h3>' +
+    '<p style="margin:0 0 12px;font-size:12px;color:var(--text-mute)">' +
+      '振込元（管理者本人）の屋号・連絡先・振込元銀行候補・振込手数料を編集します。請求書 CSV の「振込元」欄、楽天⇔楽天判定、手数料計算に使われます。' +
+    '</p>' +
+    '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">' +
+      '<input type="checkbox" id="admin-inv-enabled" ' + (settings['有効'] ? 'checked' : '') + '>' +
+      '<label for="admin-inv-enabled" style="font-size:13px">請求書機能を有効にする</label>' +
+    '</div>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;font-size:13px">' +
+      adminInvField_('屋号', '屋号', f('屋号')) +
+      adminInvField_('本名', '本名', f('本名')) +
+      adminInvField_('郵便番号', '郵便番号', f('郵便番号')) +
+      adminInvField_('電話', '電話', f('電話')) +
+      adminInvFieldFull_('住所', '住所', f('住所')) +
+      adminInvField_('メール', 'メール', f('メール')) +
+      adminInvField_('インボイス番号', 'インボイス番号', f('インボイス番号'), 'T1234567890123') +
+    '</div>' +
+    '<div style="margin-top:12px">' +
+      '<label style="font-size:11px;color:var(--text-mute);display:block;margin-bottom:4px">振込元銀行候補（1行に1銀行。スタッフ請求時に表示されません ※楽天⇔楽天判定にも使用）</label>' +
+      '<textarea id="admin-inv-banks" rows="3" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--border);border-radius:4px;font-family:inherit" placeholder="楽天銀行&#10;三菱UFJ銀行">' + esc(banksStr) + '</textarea>' +
+    '</div>' +
+    '<div style="margin-top:12px;padding:10px;border:1px dashed var(--border);border-radius:6px;background:var(--bg)">' +
+      '<div style="font-size:12px;font-weight:600;margin-bottom:6px">振込手数料表</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;font-size:13px">' +
+        adminInvNumField_('楽天⇔楽天 手数料', '楽天⇔楽天手数料', fNum('楽天⇔楽天手数料')) +
+        adminInvNumField_('他行 小額（しきい値未満）', '他行小額手数料', fNum('他行小額手数料')) +
+        adminInvNumField_('他行 高額（しきい値以上）', '他行高額手数料', fNum('他行高額手数料')) +
+        adminInvNumField_('高額しきい値（円）', '高額しきい値', fNum('高額しきい値')) +
+      '</div>' +
+    '</div>' +
+    '<div style="margin-top:12px">' +
+      adminInvFieldFull_('修正申請の通知先メール（カンマ区切りで複数可）', '通知先メール', f('通知先メール')) +
+    '</div>' +
+    '<div class="modal-actions" style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">' +
+      '<button class="btn-cancel" onclick="closeModal()">キャンセル</button>' +
+      '<button class="btn-primary" onclick="submitAdminInvoiceSettings_()">保存</button>' +
+    '</div>';
+  openModal(html);
+}
+
+function adminInvField_(label, name, value, placeholder) {
+  return '<label style="display:flex;flex-direction:column;gap:2px">' +
+    '<span style="font-size:11px;color:var(--text-mute)">' + esc(label) + '</span>' +
+    '<input type="text" data-admin-inv="' + esc(name) + '" value="' + value + '" ' +
+      (placeholder ? 'placeholder="' + esc(placeholder) + '" ' : '') +
+      'style="padding:6px 8px;font-size:13px;border:1px solid var(--border);border-radius:4px">' +
+  '</label>';
+}
+
+function adminInvFieldFull_(label, name, value) {
+  return '<label style="display:flex;flex-direction:column;gap:2px;grid-column:1/-1">' +
+    '<span style="font-size:11px;color:var(--text-mute)">' + esc(label) + '</span>' +
+    '<input type="text" data-admin-inv="' + esc(name) + '" value="' + value + '" ' +
+      'style="padding:6px 8px;font-size:13px;border:1px solid var(--border);border-radius:4px">' +
+  '</label>';
+}
+
+function adminInvNumField_(label, name, value) {
+  return '<label style="display:flex;flex-direction:column;gap:2px">' +
+    '<span style="font-size:11px;color:var(--text-mute)">' + esc(label) + '</span>' +
+    '<input type="number" inputmode="numeric" min="0" data-admin-inv-num="' + esc(name) + '" value="' + esc(value) + '" ' +
+      'style="padding:6px 8px;font-size:13px;border:1px solid var(--border);border-radius:4px">' +
+  '</label>';
+}
+
+async function submitAdminInvoiceSettings_() {
+  var body = {};
+  var enabledEl = document.getElementById('admin-inv-enabled');
+  body['有効'] = !!(enabledEl && enabledEl.checked);
+  Array.prototype.forEach.call(document.querySelectorAll('[data-admin-inv]'), function(el){
+    body[el.getAttribute('data-admin-inv')] = el.value;
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-admin-inv-num]'), function(el){
+    var n = parseFloat(el.value);
+    body[el.getAttribute('data-admin-inv-num')] = isNaN(n) ? 0 : n;
+  });
+  var banksEl = document.getElementById('admin-inv-banks');
+  body['振込元銀行候補'] = String((banksEl && banksEl.value) || '')
+    .split(/\r?\n/)
+    .map(function(s){ return s.trim(); })
+    .filter(Boolean);
+  var btn = document.querySelector('.modal .btn-primary');
+  var orig = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin" style="display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:6px"></span>保存中…'; }
+  try {
+    await api('/api/admin-invoice/settings', { method: 'POST', body: body });
+    closeModal();
+    if (typeof toast === 'function') toast('保存しました');
+  } catch (e) {
+    if (btn) { btn.disabled = false; btn.innerHTML = orig; }
     alert('保存失敗: ' + e.message);
   }
 }

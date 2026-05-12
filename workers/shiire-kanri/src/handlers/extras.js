@@ -121,12 +121,33 @@ export async function createSagyousha(request, env, user) {
   return jsonOk({ created: true, row: r.row });
 }
 
+// 報酬管理など読み取り頻度の高いシートはエッジ KV に短時間キャッシュ。
+// 日次の updateRewardsNoFormula で更新されるので 60 秒程度のラグは許容。
+// クライアントから ?fresh=1 で強制再取得可能。
+const SHEET_DUMP_TTL = 60;
+const SHEET_DUMP_CACHED = { '報酬管理': true, '仕入れ報告': true, '経費': true };
 export async function dumpSheet(request, env, user, name) {
   const url = new URL(request.url);
   const limit = Math.min(500, Math.max(10, parseInt(url.searchParams.get('limit'), 10) || 200));
+  const fresh = url.searchParams.get('fresh') === '1';
+  const kv = env.CACHE || env.GAS_PROXY_CACHE;
+  const cacheable = !!SHEET_DUMP_CACHED[name];
+  const cacheKey = 'sheet-dump:' + name + ':' + limit;
+  if (kv && cacheable && !fresh) {
+    try {
+      const hit = await kv.get(cacheKey, 'json');
+      if (hit && Array.isArray(hit.headers)) {
+        return jsonOk({ headers: hit.headers, rows: hit.rows || [], total: hit.total || 0, cached: true });
+      }
+    } catch {}
+  }
   const r = await callGas(env, 'dumpSheet', { name, limit }, user);
   if (!r.ok) return jsonError(r.error || 'gas error', 502);
-  return jsonOk({ headers: r.headers || [], rows: r.rows || [], total: r.total || 0 });
+  const payload = { headers: r.headers || [], rows: r.rows || [], total: r.total || 0 };
+  if (kv && cacheable) {
+    try { await kv.put(cacheKey, JSON.stringify(payload), { expirationTtl: SHEET_DUMP_TTL }); } catch {}
+  }
+  return jsonOk(payload);
 }
 
 // ?id=xxx&fmt=json で GAS doGet からタイトル・説明文を取得

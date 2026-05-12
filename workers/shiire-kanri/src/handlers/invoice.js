@@ -117,7 +117,7 @@ export async function adminListInvoices(request, env, user) {
   if (ym) params.ym = ym;
   if (status) params.status = status;
   if (staffName) params.staffName = staffName;
-  const r = await callGas(env, 'adminInv_listInvoices', params, user);
+  const r = await callGas(env, 'adminInv_listAllInvoices', params, user);
   if (!r.ok) return jsonError(r.error || 'gas error', r.error && r.error.indexOf('管理者') >= 0 ? 403 : 502);
   return jsonOk({ items: r.items || [] });
 }
@@ -125,7 +125,7 @@ export async function adminListInvoices(request, env, user) {
 export async function adminListRevisions(request, env, user) {
   const url = new URL(request.url);
   const status = url.searchParams.get('status');
-  const r = await callGas(env, 'adminInv_listRevisions', status ? { status } : {}, user);
+  const r = await callGas(env, 'adminInv_listAllRevisions', status ? { status } : {}, user);
   if (!r.ok) return jsonError(r.error || 'gas error', r.error && r.error.indexOf('管理者') >= 0 ? 403 : 502);
   return jsonOk({ items: r.items || [] });
 }
@@ -133,7 +133,7 @@ export async function adminListRevisions(request, env, user) {
 export async function adminUpdateRevision(request, env, user) {
   let body;
   try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
-  const r = await callGas(env, 'adminInv_updateRevision', body || {}, user);
+  const r = await callGas(env, 'adminInv_respondRevision', body || {}, user);
   if (!r.ok) return jsonError(r.error || 'gas error', r.error && r.error.indexOf('管理者') >= 0 ? 403 : 502);
   return jsonOk({ updated: true });
 }
@@ -147,7 +147,7 @@ export async function adminUpdateInvoiceStatus(request, env, user) {
 }
 
 export async function adminGetGraceRates(request, env, user) {
-  const r = await callGas(env, 'adminInv_getGraceRates', {}, user);
+  const r = await callGas(env, 'adminInv_listGraceRates', {}, user);
   if (!r.ok) return jsonError(r.error || 'gas error', r.error && r.error.indexOf('管理者') >= 0 ? 403 : 502);
   return jsonOk({ items: r.items || [] });
 }
@@ -161,7 +161,7 @@ export async function adminSaveGraceRates(request, env, user) {
 }
 
 export async function adminGetSettings(request, env, user) {
-  const r = await callGas(env, 'adminInv_getSettings', {}, user);
+  const r = await callGas(env, 'adminInv_getAdminSettings', {}, user);
   if (!r.ok) return jsonError(r.error || 'gas error', r.error && r.error.indexOf('管理者') >= 0 ? 403 : 502);
   return jsonOk({ settings: r.settings || {} });
 }
@@ -169,7 +169,7 @@ export async function adminGetSettings(request, env, user) {
 export async function adminSaveSettings(request, env, user) {
   let body;
   try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
-  const r = await callGas(env, 'adminInv_saveSettings', body || {}, user);
+  const r = await callGas(env, 'adminInv_saveAdminSettings', { settings: body || {} }, user);
   if (!r.ok) return jsonError(r.error || 'gas error', r.error && r.error.indexOf('管理者') >= 0 ? 403 : 502);
   return jsonOk({ saved: true });
 }
