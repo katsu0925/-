@@ -4670,7 +4670,9 @@ function renderInvoiceSection_(forName) {
   '</div>';
 }
 
-async function loadInvoiceData_() {
+async function loadInvoiceData_(force) {
+  // 既にロード済みなら再描画のみ（paintHoushu_ が新しく差し込んだ空シェルにキャッシュを流し込む）
+  if (!force && INVOICE_STATE.loaded) { paintInvoiceSection_(); return; }
   if (INVOICE_STATE.loading) return;
   INVOICE_STATE.loading = true;
   try {
