@@ -930,6 +930,7 @@ function setAppbarMode_(mode) {
 function appbarPrimaryAction_() {
   var btn = document.getElementById('appbar-menu-btn');
   if (btn && btn.getAttribute('data-mode') === 'back') {
+    if (STATE.view === 'settings') { exitSettingsView_(); return; }
     backToList();
   } else {
     toggleDrawer();
@@ -1342,6 +1343,13 @@ function render() {
   if (STATE.view === 'detail') {
     updateChipsBar_();
     renderDetail(); return;
+  }
+  if (STATE.view === 'settings') {
+    // chips バー・bottomnav はそのままで OK（appbar の back は renderSettingsView_ で設定）
+    var chips = document.getElementById('chips-bar');
+    if (chips) chips.innerHTML = '';
+    renderSettingsView_();
+    return;
   }
   setAppbarMode_('menu');
   document.getElementById('appbar-title').textContent = TAB_LABELS[STATE.tab] || '仕入れ管理';
@@ -4884,9 +4892,62 @@ async function submitInvoiceRevision_(invoiceNo) {
   }
 }
 
-async function openInvoiceProfileModal_() {
+// 設定ビュー(フルページ) ── モバイルでモーダル入力が IME/キーボードの上下動で
+// バグるため、フォーム系は #content にフルページとして描画する。
+function openSettingsView_(kind) {
   closeDrawer();
-  // 最新のプロフィールを取り直してからモーダルを開く
+  if (kind === 'admin_invoice' && !STATE.isAdmin) { alert('権限がありません'); return; }
+  STATE.settingsReturn = {
+    tab: STATE.tab || 'shouhin',
+    filter: STATE.filter || '',
+    filterLabel: STATE.filterLabel || '',
+    business: STATE.business || '',
+    businessLabel: STATE.businessLabel || ''
+  };
+  STATE.view = 'settings';
+  STATE.settingsKind = kind;
+  try { history.pushState({ view: 'settings', kind: kind }, '', ''); } catch(e) {}
+  render();
+}
+
+function exitSettingsView_() {
+  try {
+    if (history.state && history.state.view === 'settings') {
+      history.back();
+      return;
+    }
+  } catch(e) {}
+  applySettingsReturn_();
+}
+
+function applySettingsReturn_() {
+  var ret = STATE.settingsReturn || { tab: 'shouhin' };
+  STATE.view = 'list';
+  STATE.tab = ret.tab || 'shouhin';
+  STATE.filter = ret.filter || '';
+  STATE.filterLabel = ret.filterLabel || '';
+  STATE.business = ret.business || '';
+  STATE.businessLabel = ret.businessLabel || '';
+  STATE.settingsKind = '';
+  STATE.settingsReturn = null;
+  render();
+}
+
+function renderSettingsView_() {
+  setAppbarMode_('back');
+  var titleEl = document.getElementById('appbar-title');
+  if (STATE.settingsKind === 'admin_invoice') {
+    if (titleEl) titleEl.textContent = '請求書管理者設定';
+    renderAdminInvoiceSettingsView_();
+  } else {
+    if (titleEl) titleEl.textContent = '個人情報・口座情報';
+    renderInvoiceProfileView_();
+  }
+}
+
+async function renderInvoiceProfileView_() {
+  var c = document.getElementById('content');
+  c.innerHTML = '<div class="loading" style="padding:24px">読み込み中…</div>';
   var profile = INVOICE_STATE.profile;
   if (!profile) {
     try {
@@ -4894,32 +4955,33 @@ async function openInvoiceProfileModal_() {
       profile = (r && r.profile) || {};
       INVOICE_STATE.profile = profile;
     } catch (e) {
-      alert('読み込み失敗: ' + e.message); return;
+      c.innerHTML = '<div class="error" style="padding:24px">読み込み失敗: ' + esc(e.message) + '</div>';
+      return;
     }
   }
   function f(k){ return esc(String(profile[k] == null ? '' : profile[k])); }
-  var html =
-    '<h3 style="margin:0 0 12px">個人情報・口座情報</h3>' +
-    '<p style="margin:0 0 12px;font-size:12px;color:var(--text-mute)">請求書 CSV に出力される情報です。シートに直接保存されます。</p>' +
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;font-size:13px">' +
-      profileField_('屋号', '屋号', f('屋号')) +
-      profileField_('本名（必須）', '本名', f('本名')) +
-      profileField_('郵便番号', '郵便番号', f('郵便番号')) +
-      profileField_('電話', '電話', f('電話')) +
-      profileFieldFull_('住所', '住所', f('住所')) +
-      profileField_('銀行名（必須）', '銀行名', f('銀行名')) +
-      profileField_('支店名', '支店名', f('支店名')) +
-      profileField_('口座種別', '口座種別', f('口座種別'), '普通') +
-      profileField_('口座番号（必須）', '口座番号', f('口座番号')) +
-      profileField_('口座名義（カナ）', '口座名義', f('口座名義')) +
-      profileField_('インボイス登録番号', 'インボイス登録番号', f('インボイス登録番号'), 'T1234567890123') +
-      profileFieldFull_('備考', 'スタッフ用備考', f('スタッフ用備考')) +
-    '</div>' +
-    '<div class="modal-actions" style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">' +
-      '<button class="btn-cancel" onclick="closeModal()">キャンセル</button>' +
-      '<button class="btn-primary" onclick="submitInvoiceProfile_()">保存</button>' +
+  c.innerHTML =
+    '<div class="settings-page" style="max-width:720px;margin:0 auto;padding:16px">' +
+      '<p style="margin:0 0 14px;font-size:12px;color:var(--text-mute)">請求書 CSV に出力される情報です。シートに直接保存されます。</p>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;font-size:13px">' +
+        profileField_('屋号', '屋号', f('屋号')) +
+        profileField_('本名（必須）', '本名', f('本名')) +
+        profileField_('郵便番号', '郵便番号', f('郵便番号')) +
+        profileField_('電話', '電話', f('電話')) +
+        profileFieldFull_('住所', '住所', f('住所')) +
+        profileField_('銀行名（必須）', '銀行名', f('銀行名')) +
+        profileField_('支店名', '支店名', f('支店名')) +
+        profileField_('口座種別', '口座種別', f('口座種別'), '普通') +
+        profileField_('口座番号（必須）', '口座番号', f('口座番号')) +
+        profileField_('口座名義（カナ）', '口座名義', f('口座名義')) +
+        profileField_('インボイス登録番号', 'インボイス登録番号', f('インボイス登録番号'), 'T1234567890123') +
+        profileFieldFull_('備考', 'スタッフ用備考', f('スタッフ用備考')) +
+      '</div>' +
+      '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px;padding-bottom:24px">' +
+        '<button class="btn-cancel" onclick="exitSettingsView_()">戻る</button>' +
+        '<button class="btn-primary" id="settings-save-btn" onclick="submitInvoiceProfile_()">保存</button>' +
+      '</div>' +
     '</div>';
-  openModal(html);
 }
 
 function profileField_(label, name, value, placeholder) {
@@ -4945,7 +5007,7 @@ async function submitInvoiceProfile_() {
   Array.prototype.forEach.call(inputs, function(el){
     body[el.getAttribute('data-invoice-profile')] = el.value;
   });
-  var btn = document.querySelector('.modal .btn-primary');
+  var btn = document.getElementById('settings-save-btn');
   var orig = btn ? btn.innerHTML : '';
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin" style="display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:6px"></span>保存中…'; }
   try {
@@ -4956,9 +5018,8 @@ async function submitInvoiceProfile_() {
     } catch (e2) {
       INVOICE_STATE.profile = body;
     }
-    closeModal();
-    paintInvoiceSection_();
     if (typeof toast === 'function') toast('保存しました');
+    exitSettingsView_();
   } catch (e) {
     if (btn) { btn.disabled = false; btn.innerHTML = orig; }
     alert('保存失敗: ' + e.message);
@@ -4971,64 +5032,64 @@ async function submitInvoiceProfile_() {
 // 値は GAS 側 `請求書管理者設定` シートに保存される（adminInv_saveAdminSettings）
 // ─────────────────────────────────────────────
 async function openAdminInvoiceSettingsModal_() {
-  closeDrawer();
-  if (!STATE.isAdmin) { alert('権限がありません'); return; }
-  var loadingHtml =
-    '<h3 style="margin:0 0 12px">管理者・請求書設定</h3>' +
-    '<div class="loading" style="padding:24px;font-size:13px">読み込み中…</div>';
-  openModal(loadingHtml);
+  // 互換: 既存呼び出し箇所からはフルページビューに飛ばす
+  openSettingsView_('admin_invoice');
+}
+
+async function renderAdminInvoiceSettingsView_() {
+  var c = document.getElementById('content');
+  c.innerHTML = '<div class="loading" style="padding:24px">読み込み中…</div>';
   var settings;
   try {
     var r = await api('/api/admin-invoice/settings');
     settings = (r && r.settings) || {};
   } catch (e) {
-    closeModal();
-    alert('読み込み失敗: ' + e.message);
+    c.innerHTML = '<div class="error" style="padding:24px">読み込み失敗: ' + esc(e.message) + '</div>';
     return;
   }
   function f(k){ return esc(String(settings[k] == null ? '' : settings[k])); }
   function fNum(k){ var v = settings[k]; return (v == null || v === '') ? '0' : String(v); }
   var banks = Array.isArray(settings['振込元銀行候補']) ? settings['振込元銀行候補'] : [];
   var banksStr = banks.join('\n');
-  var html =
-    '<h3 style="margin:0 0 12px">管理者・請求書設定</h3>' +
-    '<p style="margin:0 0 12px;font-size:12px;color:var(--text-mute)">' +
-      '振込元（管理者本人）の屋号・連絡先・振込元銀行候補・振込手数料を編集します。請求書 CSV の「振込元」欄、楽天⇔楽天判定、手数料計算に使われます。' +
-    '</p>' +
-    '<div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">' +
-      '<input type="checkbox" id="admin-inv-enabled" ' + (settings['有効'] ? 'checked' : '') + '>' +
-      '<label for="admin-inv-enabled" style="font-size:13px">請求書機能を有効にする</label>' +
-    '</div>' +
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;font-size:13px">' +
-      adminInvField_('屋号', '屋号', f('屋号')) +
-      adminInvField_('本名', '本名', f('本名')) +
-      adminInvField_('郵便番号', '郵便番号', f('郵便番号')) +
-      adminInvField_('電話', '電話', f('電話')) +
-      adminInvFieldFull_('住所', '住所', f('住所')) +
-      adminInvField_('メール', 'メール', f('メール')) +
-      adminInvField_('インボイス番号', 'インボイス番号', f('インボイス番号'), 'T1234567890123') +
-    '</div>' +
-    '<div style="margin-top:12px">' +
-      '<label style="font-size:11px;color:var(--text-mute);display:block;margin-bottom:4px">振込元銀行候補（1行に1銀行。スタッフ請求時に表示されません ※楽天⇔楽天判定にも使用）</label>' +
-      '<textarea id="admin-inv-banks" rows="3" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--border);border-radius:4px;font-family:inherit" placeholder="楽天銀行&#10;三菱UFJ銀行">' + esc(banksStr) + '</textarea>' +
-    '</div>' +
-    '<div style="margin-top:12px;padding:10px;border:1px dashed var(--border);border-radius:6px;background:var(--bg)">' +
-      '<div style="font-size:12px;font-weight:600;margin-bottom:6px">振込手数料表</div>' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;font-size:13px">' +
-        adminInvNumField_('楽天⇔楽天 手数料', '楽天⇔楽天手数料', fNum('楽天⇔楽天手数料')) +
-        adminInvNumField_('他行 小額（しきい値未満）', '他行小額手数料', fNum('他行小額手数料')) +
-        adminInvNumField_('他行 高額（しきい値以上）', '他行高額手数料', fNum('他行高額手数料')) +
-        adminInvNumField_('高額しきい値（円）', '高額しきい値', fNum('高額しきい値')) +
+  c.innerHTML =
+    '<div class="settings-page" style="max-width:720px;margin:0 auto;padding:16px">' +
+      '<p style="margin:0 0 12px;font-size:12px;color:var(--text-mute)">' +
+        '振込元（管理者本人）の屋号・連絡先・振込元銀行候補・振込手数料を編集します。請求書 CSV の「振込元」欄、楽天⇔楽天判定、手数料計算に使われます。' +
+      '</p>' +
+      '<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">' +
+        '<input type="checkbox" id="admin-inv-enabled" ' + (settings['有効'] ? 'checked' : '') + '>' +
+        '<label for="admin-inv-enabled" style="font-size:13px">請求書機能を有効にする</label>' +
       '</div>' +
-    '</div>' +
-    '<div style="margin-top:12px">' +
-      adminInvFieldFull_('修正申請の通知先メール（カンマ区切りで複数可）', '通知先メール', f('通知先メール')) +
-    '</div>' +
-    '<div class="modal-actions" style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">' +
-      '<button class="btn-cancel" onclick="closeModal()">キャンセル</button>' +
-      '<button class="btn-primary" onclick="submitAdminInvoiceSettings_()">保存</button>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;font-size:13px">' +
+        adminInvField_('屋号', '屋号', f('屋号')) +
+        adminInvField_('本名', '本名', f('本名')) +
+        adminInvField_('郵便番号', '郵便番号', f('郵便番号')) +
+        adminInvField_('電話', '電話', f('電話')) +
+        adminInvFieldFull_('住所', '住所', f('住所')) +
+        adminInvField_('メール', 'メール', f('メール')) +
+        adminInvField_('インボイス番号', 'インボイス番号', f('インボイス番号'), 'T1234567890123') +
+      '</div>' +
+      '<div style="margin-top:14px">' +
+        '<label style="font-size:11px;color:var(--text-mute);display:block;margin-bottom:4px">振込元銀行候補（1行に1銀行。スタッフ請求時に表示されません ※楽天⇔楽天判定にも使用）</label>' +
+        '<textarea id="admin-inv-banks" rows="3" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--border);border-radius:4px;font-family:inherit" placeholder="楽天銀行&#10;三菱UFJ銀行">' + esc(banksStr) + '</textarea>' +
+      '</div>' +
+      '<div style="margin-top:14px;padding:10px;border:1px dashed var(--border);border-radius:6px;background:var(--bg)">' +
+        '<div style="font-size:12px;font-weight:600;margin-bottom:6px">振込手数料表</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;font-size:13px">' +
+          adminInvNumField_('楽天⇔楽天 手数料', '楽天⇔楽天手数料', fNum('楽天⇔楽天手数料')) +
+          adminInvNumField_('他行 小額（しきい値未満）', '他行小額手数料', fNum('他行小額手数料')) +
+          adminInvNumField_('他行 高額（しきい値以上）', '他行高額手数料', fNum('他行高額手数料')) +
+          adminInvNumField_('高額しきい値（円）', '高額しきい値', fNum('高額しきい値')) +
+        '</div>' +
+      '</div>' +
+      '<div style="margin-top:14px">' +
+        adminInvFieldFull_('修正申請の通知先メール（カンマ区切りで複数可）', '通知先メール', f('通知先メール')) +
+      '</div>' +
+      '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px;padding-bottom:24px">' +
+        '<button class="btn-cancel" onclick="exitSettingsView_()">戻る</button>' +
+        '<button class="btn-primary" id="settings-save-btn" onclick="submitAdminInvoiceSettings_()">保存</button>' +
+      '</div>' +
     '</div>';
-  openModal(html);
 }
 
 function adminInvField_(label, name, value, placeholder) {
@@ -5072,13 +5133,13 @@ async function submitAdminInvoiceSettings_() {
     .split(/\r?\n/)
     .map(function(s){ return s.trim(); })
     .filter(Boolean);
-  var btn = document.querySelector('.modal .btn-primary');
+  var btn = document.getElementById('settings-save-btn');
   var orig = btn ? btn.innerHTML : '';
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin" style="display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:6px"></span>保存中…'; }
   try {
     await api('/api/admin-invoice/settings', { method: 'POST', body: body });
-    closeModal();
     if (typeof toast === 'function') toast('保存しました');
+    exitSettingsView_();
   } catch (e) {
     if (btn) { btn.disabled = false; btn.innerHTML = orig; }
     alert('保存失敗: ' + e.message);
@@ -6936,6 +6997,18 @@ function applyPopstate_(st) {
   }
   if (st && st.view === 'shiire-detail' && st.shiireId) {
     openShiireDetail(st.shiireId, { fromPopState: true });
+    return;
+  }
+  if (st && st.view === 'settings') {
+    // 設定ビューに留まる（pushState 直後の popstate 想定）
+    STATE.view = 'settings';
+    STATE.settingsKind = st.kind || STATE.settingsKind || 'profile';
+    render();
+    return;
+  }
+  // 設定ビューから戻る場合: settingsReturn の状態に復元
+  if (STATE.view === 'settings') {
+    applySettingsReturn_();
     return;
   }
   // list（または null = 初期エントリ）: タブ／フィルタを復元して一覧表示
