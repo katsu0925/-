@@ -677,6 +677,8 @@
      未判定（読み込み直後）は非表示なので、非管理者にちらつかない。 */
   .bottomnav button[data-admin-only] { display: none; }
   body.is-admin .bottomnav button[data-admin-only] { display: inline-flex; }
+  .drawer-item[data-admin-only] { display: none; }
+  body.is-admin .drawer-item[data-admin-only] { display: flex; }
   .product-info {
     background: var(--surface); border-radius: 12px;
     padding: 14px 16px 12px; margin-bottom: 12px;
@@ -1152,6 +1154,7 @@
     0%, 100% { box-shadow: 0 8px 24px rgba(184,134,11,.18), 0 2px 6px rgba(0,0,0,.08); }
     50% { box-shadow: 0 8px 28px rgba(184,134,11,.32), 0 2px 8px rgba(0,0,0,.10); }
   }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .savebar.show { display: flex; }
   .savebar-info { flex: 1; font-size: 13px; color: #7a5a00; font-weight: 500; min-width: 0; }
   .savebar-info b { color: #4a3700; font-weight: 800; font-size: 15px; }
@@ -1921,6 +1924,12 @@
     </div>
     <div class="drawer-divider"></div>
     <div class="drawer-section-label">設定</div>
+    <div class="drawer-item" onclick="openInvoiceProfileModal_()">
+      <span class="ico"><svg viewBox="0 0 24 24"><path d="M4 21v-2a4 4 0 0 1 4-4h8a4 4 0 0 1 4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span><span>個人情報・口座情報</span>
+    </div>
+    <div class="drawer-item" data-admin-only onclick="openAdminInvoiceSettingsModal_()">
+      <span class="ico"><svg viewBox="0 0 24 24"><path d="M14 3v4a1 1 0 0 0 1 1h4"/><path d="M17 21H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7l5 5v11a2 2 0 0 1-2 2z"/><path d="M9 13h6M9 17h6"/></svg></span><span>請求書管理者設定</span>
+    </div>
     <div class="drawer-item" onclick="openNotificationSettings()">
       <span class="ico"><svg viewBox="0 0 24 24"><path d="M6 19V11a6 6 0 0 1 12 0v8"/><path d="M3 19h18"/><path d="M10 22h4"/></svg></span><span>通知設定</span>
     </div>

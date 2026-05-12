@@ -4575,9 +4575,6 @@ function paintHoushu_(data) {
         'onchange="onHoushuNameChange_(this.value)">' +
         nameOptions +
       '</select>' +
-      '<button class="btn-sm" onclick="openAdminInvoiceSettingsModal_()" ' +
-        'style="font-size:12px;margin-left:auto" title="請求書管理者設定（自分の屋号・振込元銀行・手数料表など）">' +
-        '⚙ 管理者・請求書設定</button>' +
     '</div>';
   }
 
@@ -4683,7 +4680,6 @@ function renderInvoiceSection_(forName) {
     'style="margin:0 0 16px;padding:14px 14px 10px;border:1px solid var(--border);border-radius:10px;background:var(--bg-elev)">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">' +
       '<div style="font-weight:700;font-size:14px">請求書管理 <small style="font-weight:500;color:var(--text-mute)">' + esc(forName || '') + '</small></div>' +
-      '<button class="btn-sm" onclick="openInvoiceProfileModal_()" style="font-size:12px">個人情報・口座を編集</button>' +
     '</div>' +
     '<div id="invoice-section-body">' +
       '<div class="loading" style="padding:12px;font-size:13px">読み込み中…</div>' +
@@ -4760,7 +4756,7 @@ function paintInvoiceSection_() {
   var profile = INVOICE_STATE.profile || {};
   var profileMissing = !profile['銀行名'] || !profile['口座番号'] || !profile['本名'];
   var profileWarn = profileMissing
-    ? '<div style="padding:8px 10px;background:#fff5e6;border:1px solid #f0c674;border-radius:6px;font-size:12px;margin-bottom:10px;color:#a8530b">⚠ 口座情報/本名 未登録 — 請求書を作成する前に「個人情報・口座を編集」から入力してください</div>'
+    ? '<div style="padding:8px 10px;background:#fff5e6;border:1px solid #f0c674;border-radius:6px;font-size:12px;margin-bottom:10px;color:#a8530b">⚠ 口座情報/本名 未登録 — 請求書を作成する前に左上メニュー「設定 → 個人情報・口座情報」から入力してください</div>'
     : '';
 
   // 請求書作成 UI
@@ -4889,6 +4885,7 @@ async function submitInvoiceRevision_(invoiceNo) {
 }
 
 async function openInvoiceProfileModal_() {
+  closeDrawer();
   // 最新のプロフィールを取り直してからモーダルを開く
   var profile = INVOICE_STATE.profile;
   if (!profile) {
@@ -4974,6 +4971,7 @@ async function submitInvoiceProfile_() {
 // 値は GAS 側 `請求書管理者設定` シートに保存される（adminInv_saveAdminSettings）
 // ─────────────────────────────────────────────
 async function openAdminInvoiceSettingsModal_() {
+  closeDrawer();
   if (!STATE.isAdmin) { alert('権限がありません'); return; }
   var loadingHtml =
     '<h3 style="margin:0 0 12px">管理者・請求書設定</h3>' +
