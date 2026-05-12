@@ -4560,10 +4560,18 @@ function paintHoushu_(data) {
     '</div>';
   }
 
+  // ── 請求書セクション（自分の報酬を見ているときのみ）
+  // 管理者の "__all__" 表示時はスキップ（個人単位の請求書を扱うため）。
+  var showInvoiceSection = !(isAdmin && selected === '__all__');
+  if (showInvoiceSection) {
+    html += renderInvoiceSection_(isAdmin ? selected : STATE.userName);
+  }
+
   if (mine.length === 0) {
     html += '<div class="empty" style="padding:24px">表示できる月の報酬がありません。</div>';
     html += '</div>';
     c.innerHTML = html;
+    if (showInvoiceSection) loadInvoiceData_();
     return;
   }
 
@@ -4625,12 +4633,313 @@ function paintHoushu_(data) {
   html += '</div>';
   c.innerHTML = html;
   enhanceAllSelects_(c);
+  if (showInvoiceSection) loadInvoiceData_();
 }
 
 function onHoushuNameChange_(name) {
   STATE.houshuSelectedName = name || '__all__';
   var cached = TAB_CACHE['business|houshu'];
   if (cached && cached.data) paintHoushu_(cached.data);
+}
+
+// ========== 請求書管理（報酬タブ内セクション） ==========
+// データは GAS（請求書履歴/請求書修正申請/インボイス経過措置率/請求書管理者設定）が正本。
+// Workers API（/api/invoice/*）経由で読み書き。
+var INVOICE_STATE = {
+  loaded: false,
+  loading: false,
+  invoices: [],            // 既存請求書一覧（自分）
+  months: [],              // 直近12ヶ月（[{ ym, hasInvoice }]）
+  profile: null,           // 自分の口座/個人情報プロフィール
+  selectedYm: '',          // 月セレクト
+  hideExisting: false,     // 「請求書未作成の月だけ表示」フィルタ
+};
+
+function renderInvoiceSection_(forName) {
+  // forName: 自分または管理者が選択中のスタッフ名（情報表示のみ）。
+  // API は CF Access JWT のメールで GAS 側 inv_resolveStaffByEmail_ がスタッフを特定する。
+  return '<div class="houshu-invoice-section" id="invoice-section" ' +
+    'style="margin:0 0 16px;padding:14px 14px 10px;border:1px solid var(--border);border-radius:10px;background:var(--bg-elev)">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">' +
+      '<div style="font-weight:700;font-size:14px">請求書管理 <small style="font-weight:500;color:var(--text-mute)">' + esc(forName || '') + '</small></div>' +
+      '<button class="btn-sm" onclick="openInvoiceProfileModal_()" style="font-size:12px">個人情報・口座を編集</button>' +
+    '</div>' +
+    '<div id="invoice-section-body">' +
+      '<div class="loading" style="padding:12px;font-size:13px">読み込み中…</div>' +
+    '</div>' +
+  '</div>';
+}
+
+async function loadInvoiceData_() {
+  if (INVOICE_STATE.loading) return;
+  INVOICE_STATE.loading = true;
+  try {
+    var results = await Promise.all([
+      api('/api/invoice/list'),
+      api('/api/invoice/months'),
+      api('/api/invoice/profile'),
+    ]);
+    INVOICE_STATE.invoices = (results[0] && results[0].items) || [];
+    // GAS は直近12ヶ月 YM 文字列配列を返す（新しい順）。客側で hasInvoice を付与する。
+    var rawMonths = (results[1] && results[1].months) || [];
+    var madeSet = {};
+    INVOICE_STATE.invoices.forEach(function(inv){
+      var st = String(inv['ステータス'] || inv.status || '');
+      if (st === '取消済み') return;
+      madeSet[String(inv['請求月'] || inv.ym || '')] = true;
+    });
+    INVOICE_STATE.months = rawMonths.map(function(m){
+      var ym = (typeof m === 'string') ? m : String(m && m.ym || '');
+      return { ym: ym, hasInvoice: !!madeSet[ym] };
+    });
+    INVOICE_STATE.profile  = (results[2] && results[2].profile) || null;
+    if (!INVOICE_STATE.selectedYm) {
+      // 既定 = 直近月リストの先頭（GAS 側で直近12ヶ月を新しい順で返す前提=先頭が前月）
+      if (INVOICE_STATE.months.length > 0) {
+        INVOICE_STATE.selectedYm = INVOICE_STATE.months[0].ym;
+      } else {
+        var d = new Date();
+        d.setMonth(d.getMonth() - 1);
+        INVOICE_STATE.selectedYm = d.getFullYear() + '/' + ('0' + (d.getMonth() + 1)).slice(-2);
+      }
+    }
+    INVOICE_STATE.loaded = true;
+    paintInvoiceSection_();
+  } catch (e) {
+    var body = document.getElementById('invoice-section-body');
+    if (body) body.innerHTML = '<div class="error" style="padding:12px;font-size:13px">読み込み失敗: ' + esc(e.message) + '</div>';
+  } finally {
+    INVOICE_STATE.loading = false;
+  }
+}
+
+function paintInvoiceSection_() {
+  var body = document.getElementById('invoice-section-body');
+  if (!body) return;
+  // 月オプション（直近12ヶ月）。「未作成のみ」フィルタを反映。
+  var months = INVOICE_STATE.months || [];
+  if (INVOICE_STATE.hideExisting) {
+    months = months.filter(function(m){ return !m.hasInvoice; });
+  }
+  // selectedYm が候補にない場合はリスト先頭にフォールバック（無ければ手入力扱い）
+  if (months.length > 0 && !months.some(function(m){ return m.ym === INVOICE_STATE.selectedYm; })) {
+    INVOICE_STATE.selectedYm = months[0].ym;
+  }
+  var monthOptions = months.map(function(m){
+    var sel = m.ym === INVOICE_STATE.selectedYm ? ' selected' : '';
+    var mark = m.hasInvoice ? '（請求書あり）' : '';
+    return '<option value="' + esc(m.ym) + '"' + sel + '>' + esc(m.ym) + ' ' + esc(mark) + '</option>';
+  }).join('');
+  if (!monthOptions) {
+    monthOptions = '<option value="">対象月なし</option>';
+  }
+
+  var profile = INVOICE_STATE.profile || {};
+  var profileMissing = !profile['銀行名'] || !profile['口座番号'] || !profile['本名'];
+  var profileWarn = profileMissing
+    ? '<div style="padding:8px 10px;background:#fff5e6;border:1px solid #f0c674;border-radius:6px;font-size:12px;margin-bottom:10px;color:#a8530b">⚠ 口座情報/本名 未登録 — 請求書を作成する前に「個人情報・口座を編集」から入力してください</div>'
+    : '';
+
+  // 請求書作成 UI
+  var createUi =
+    '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">' +
+      '<label style="font-size:12px;color:var(--text-mute)">請求対象月</label>' +
+      '<select id="invoice-month-select" onchange="onInvoiceMonthChange_(this.value)" style="font-size:13px;padding:4px 8px">' +
+        monthOptions +
+      '</select>' +
+      '<label style="font-size:12px;display:flex;align-items:center;gap:4px;color:var(--text-mute)">' +
+        '<input type="checkbox" ' + (INVOICE_STATE.hideExisting ? 'checked' : '') + ' onchange="onInvoiceHideToggle_(this.checked)"> 未作成のみ' +
+      '</label>' +
+      '<button class="btn-primary" onclick="submitInvoiceCreate_()" ' +
+        (profileMissing ? 'disabled title="口座情報未登録"' : '') +
+        ' style="font-size:13px;padding:6px 12px">この月の請求書を作成</button>' +
+    '</div>';
+
+  // 既存請求書一覧
+  var invs = INVOICE_STATE.invoices || [];
+  var listHtml;
+  if (invs.length === 0) {
+    listHtml = '<div style="padding:10px;font-size:13px;color:var(--text-mute);background:var(--bg);border-radius:6px">まだ請求書はありません。</div>';
+  } else {
+    listHtml = '<table style="width:100%;border-collapse:collapse;font-size:12px">' +
+      '<thead><tr style="background:var(--bg);text-align:left">' +
+        '<th style="padding:6px 8px;border-bottom:1px solid var(--border)">請求月</th>' +
+        '<th style="padding:6px 8px;border-bottom:1px solid var(--border)">請求書番号</th>' +
+        '<th style="padding:6px 8px;border-bottom:1px solid var(--border);text-align:right">請求額</th>' +
+        '<th style="padding:6px 8px;border-bottom:1px solid var(--border)">ステータス</th>' +
+        '<th style="padding:6px 8px;border-bottom:1px solid var(--border)">操作</th>' +
+      '</tr></thead><tbody>' +
+      invs.map(function(inv){
+        var ym = String(inv['請求月'] || inv.ym || '');
+        var no = String(inv['請求書番号'] || inv.invoiceNo || '');
+        var amt = Number(inv['請求額'] || inv.amount || 0);
+        var st = String(inv['ステータス'] || inv.status || '');
+        return '<tr>' +
+          '<td style="padding:6px 8px;border-bottom:1px solid var(--border)">' + esc(ym) + '</td>' +
+          '<td style="padding:6px 8px;border-bottom:1px solid var(--border);font-family:monospace;font-size:11px">' + esc(no) + '</td>' +
+          '<td style="padding:6px 8px;border-bottom:1px solid var(--border);text-align:right">¥' + Number(amt).toLocaleString('ja-JP') + '</td>' +
+          '<td style="padding:6px 8px;border-bottom:1px solid var(--border)">' + esc(st) + '</td>' +
+          '<td style="padding:6px 8px;border-bottom:1px solid var(--border);white-space:nowrap">' +
+            '<button class="btn-sm" onclick="downloadInvoiceCsv_(\'' + esc(no) + '\')" style="font-size:11px;margin-right:4px">CSV</button>' +
+            '<button class="btn-sm" onclick="openInvoiceRevisionModal_(\'' + esc(no) + '\')" style="font-size:11px">修正申請</button>' +
+          '</td>' +
+        '</tr>';
+      }).join('') +
+    '</tbody></table>';
+  }
+
+  body.innerHTML = profileWarn + createUi + listHtml;
+  enhanceAllSelects_(body);
+}
+
+function onInvoiceMonthChange_(ym) {
+  INVOICE_STATE.selectedYm = String(ym || '');
+}
+
+function onInvoiceHideToggle_(checked) {
+  INVOICE_STATE.hideExisting = !!checked;
+  paintInvoiceSection_();
+}
+
+async function submitInvoiceCreate_() {
+  var ym = INVOICE_STATE.selectedYm;
+  if (!ym) { alert('請求対象月を選択してください'); return; }
+  if (!confirm(ym + ' の請求書を作成しますか？\n（同月の既存請求書がある場合はそれが返ります）')) return;
+  try {
+    var r = await api('/api/invoice/create', { method: 'POST', body: { ym: ym } });
+    var inv = (r && r.invoice) || {};
+    var no = String(inv['請求書番号'] || inv.invoiceNo || '');
+    if (!no) { alert('作成に失敗しました'); return; }
+    // 一覧と月リストを再読込
+    INVOICE_STATE.loaded = false;
+    await loadInvoiceData_();
+    // 続けて CSV ダウンロードを促す
+    if (confirm('請求書を作成しました（' + no + '）。\n今すぐ CSV をダウンロードしますか？')) {
+      downloadInvoiceCsv_(no);
+    }
+  } catch (e) {
+    alert('作成失敗: ' + e.message);
+  }
+}
+
+function downloadInvoiceCsv_(invoiceNo) {
+  if (!invoiceNo) return;
+  // 認証セッション付きで直接 URL を叩く（fetch+Blob 経由でも良いがブラウザのダウンロード扱いにする）
+  var url = '/api/invoice/csv?invoiceNo=' + encodeURIComponent(invoiceNo);
+  var a = document.createElement('a');
+  a.href = url;
+  // filename は Content-Disposition 側で UTF-8 指定。a.download は GAS 側の filename を尊重するため空。
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+function openInvoiceRevisionModal_(invoiceNo) {
+  if (!invoiceNo) return;
+  var html =
+    '<h3 style="margin:0 0 12px">請求書の修正申請</h3>' +
+    '<p style="margin:0 0 8px;font-size:13px;color:var(--text-mute)">対象: <code>' + esc(invoiceNo) + '</code></p>' +
+    '<label style="display:block;margin:8px 0 4px;font-size:13px">修正理由・希望内容</label>' +
+    '<textarea id="invoice-revision-reason" class="auto-grow" rows="5" ' +
+      'style="width:100%;min-height:100px;padding:8px;font-size:13px" ' +
+      'placeholder="例: ◯月分の発送件数が3件足りないようです。確認お願いします。"></textarea>' +
+    '<div class="modal-actions" style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">' +
+      '<button class="btn-cancel" onclick="closeModal()">キャンセル</button>' +
+      '<button class="btn-primary" onclick="submitInvoiceRevision_(\'' + esc(invoiceNo) + '\')">送信</button>' +
+    '</div>';
+  openModal(html);
+}
+
+async function submitInvoiceRevision_(invoiceNo) {
+  var reason = String((document.getElementById('invoice-revision-reason') || {}).value || '').trim();
+  if (!reason) { alert('修正理由を入力してください'); return; }
+  try {
+    await api('/api/invoice/revision', { method: 'POST', body: { invoiceNo: invoiceNo, reason: reason } });
+    closeModal();
+    alert('修正申請を送信しました。管理者の対応をお待ちください。');
+    // 一覧を再読込（ステータスが「修正申請中」へ変わる）
+    INVOICE_STATE.loaded = false;
+    await loadInvoiceData_();
+  } catch (e) {
+    alert('送信失敗: ' + e.message);
+  }
+}
+
+async function openInvoiceProfileModal_() {
+  // 最新のプロフィールを取り直してからモーダルを開く
+  var profile = INVOICE_STATE.profile;
+  if (!profile) {
+    try {
+      var r = await api('/api/invoice/profile');
+      profile = (r && r.profile) || {};
+      INVOICE_STATE.profile = profile;
+    } catch (e) {
+      alert('読み込み失敗: ' + e.message); return;
+    }
+  }
+  function f(k){ return esc(String(profile[k] == null ? '' : profile[k])); }
+  var html =
+    '<h3 style="margin:0 0 12px">個人情報・口座情報</h3>' +
+    '<p style="margin:0 0 12px;font-size:12px;color:var(--text-mute)">請求書 CSV に出力される情報です。シートに直接保存されます。</p>' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;font-size:13px">' +
+      profileField_('屋号', '屋号', f('屋号')) +
+      profileField_('本名（必須）', '本名', f('本名')) +
+      profileField_('郵便番号', '郵便番号', f('郵便番号')) +
+      profileField_('電話', '電話', f('電話')) +
+      profileFieldFull_('住所', '住所', f('住所')) +
+      profileField_('銀行名（必須）', '銀行名', f('銀行名')) +
+      profileField_('支店名', '支店名', f('支店名')) +
+      profileField_('口座種別', '口座種別', f('口座種別'), '普通') +
+      profileField_('口座番号（必須）', '口座番号', f('口座番号')) +
+      profileField_('口座名義（カナ）', '口座名義', f('口座名義')) +
+      profileField_('インボイス登録番号', 'インボイス登録番号', f('インボイス登録番号'), 'T1234567890123') +
+      profileField_('振込元希望銀行', '振込元希望銀行', f('振込元希望銀行')) +
+      profileFieldFull_('備考', 'スタッフ用備考', f('スタッフ用備考')) +
+    '</div>' +
+    '<div class="modal-actions" style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">' +
+      '<button class="btn-cancel" onclick="closeModal()">キャンセル</button>' +
+      '<button class="btn-primary" onclick="submitInvoiceProfile_()">保存</button>' +
+    '</div>';
+  openModal(html);
+}
+
+function profileField_(label, name, value, placeholder) {
+  return '<label style="display:flex;flex-direction:column;gap:2px">' +
+    '<span style="font-size:11px;color:var(--text-mute)">' + esc(label) + '</span>' +
+    '<input type="text" data-invoice-profile="' + esc(name) + '" value="' + value + '" ' +
+      (placeholder ? 'placeholder="' + esc(placeholder) + '" ' : '') +
+      'style="padding:6px 8px;font-size:13px;border:1px solid var(--border);border-radius:4px">' +
+  '</label>';
+}
+
+function profileFieldFull_(label, name, value) {
+  return '<label style="display:flex;flex-direction:column;gap:2px;grid-column:1/-1">' +
+    '<span style="font-size:11px;color:var(--text-mute)">' + esc(label) + '</span>' +
+    '<input type="text" data-invoice-profile="' + esc(name) + '" value="' + value + '" ' +
+      'style="padding:6px 8px;font-size:13px;border:1px solid var(--border);border-radius:4px">' +
+  '</label>';
+}
+
+async function submitInvoiceProfile_() {
+  var inputs = document.querySelectorAll('[data-invoice-profile]');
+  var body = {};
+  Array.prototype.forEach.call(inputs, function(el){
+    body[el.getAttribute('data-invoice-profile')] = el.value;
+  });
+  try {
+    await api('/api/invoice/profile', { method: 'POST', body: body });
+    // 保存後は GAS から最新を再取得（saveInvoiceProfile は { changed } のみ返すため）
+    try {
+      var p = await api('/api/invoice/profile');
+      INVOICE_STATE.profile = (p && p.profile) || body;
+    } catch (e2) {
+      INVOICE_STATE.profile = body;
+    }
+    closeModal();
+    paintInvoiceSection_();
+  } catch (e) {
+    alert('保存失敗: ' + e.message);
+  }
 }
 
 function renderDenied() {

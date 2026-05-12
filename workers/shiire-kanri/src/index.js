@@ -14,6 +14,13 @@ import { getSalesSummary } from './handlers/sales.js';
 import { syncRowWebhook } from './handlers/sync-webhook.js';
 import { listBundles, toggleBundle } from './handlers/bundles.js';
 import { getVapidPublicKey, subscribePush, unsubscribePush, getPushPrefs, setPushPrefs, testPush } from './handlers/push.js';
+import {
+  invoiceMe, listMyInvoices, getInvoiceDetail, listMyAvailableMonths,
+  calcInvoicePreview, getInvoiceProfile, saveInvoiceProfile,
+  createInvoice, downloadInvoiceCsv, requestInvoiceRevision, listMyRevisions,
+  adminListInvoices, adminListRevisions, adminUpdateRevision, adminUpdateInvoiceStatus,
+  adminGetGraceRates, adminSaveGraceRates, adminGetSettings, adminSaveSettings,
+} from './handlers/invoice.js';
 
 export default {
   async scheduled(event, env, ctx) {
@@ -249,6 +256,67 @@ export default {
     const listingTextMatch = path.match(/^\/api\/listing-text\/([^/]+)$/);
     if (listingTextMatch && request.method === 'GET') {
       return getListingText(request, env, user, decodeURIComponent(listingTextMatch[1]));
+    }
+
+    // 請求書管理（スタッフ）
+    if (path === '/api/invoice/me' && request.method === 'GET') {
+      return invoiceMe(request, env, user);
+    }
+    if (path === '/api/invoice/list' && request.method === 'GET') {
+      return listMyInvoices(request, env, user);
+    }
+    if (path === '/api/invoice/detail' && request.method === 'GET') {
+      return getInvoiceDetail(request, env, user);
+    }
+    if (path === '/api/invoice/months' && request.method === 'GET') {
+      return listMyAvailableMonths(request, env, user);
+    }
+    if (path === '/api/invoice/preview' && request.method === 'POST') {
+      return calcInvoicePreview(request, env, user);
+    }
+    if (path === '/api/invoice/profile' && request.method === 'GET') {
+      return getInvoiceProfile(request, env, user);
+    }
+    if (path === '/api/invoice/profile' && request.method === 'POST') {
+      return saveInvoiceProfile(request, env, user);
+    }
+    if (path === '/api/invoice/create' && request.method === 'POST') {
+      return createInvoice(request, env, user);
+    }
+    if (path === '/api/invoice/csv' && request.method === 'GET') {
+      return downloadInvoiceCsv(request, env, user);
+    }
+    if (path === '/api/invoice/revision' && request.method === 'POST') {
+      return requestInvoiceRevision(request, env, user);
+    }
+    if (path === '/api/invoice/revisions' && request.method === 'GET') {
+      return listMyRevisions(request, env, user);
+    }
+
+    // 請求書管理（管理者）
+    if (path === '/api/admin-invoice/list' && request.method === 'GET') {
+      return adminListInvoices(request, env, user);
+    }
+    if (path === '/api/admin-invoice/revisions' && request.method === 'GET') {
+      return adminListRevisions(request, env, user);
+    }
+    if (path === '/api/admin-invoice/revisions' && request.method === 'POST') {
+      return adminUpdateRevision(request, env, user);
+    }
+    if (path === '/api/admin-invoice/status' && request.method === 'POST') {
+      return adminUpdateInvoiceStatus(request, env, user);
+    }
+    if (path === '/api/admin-invoice/grace-rates' && request.method === 'GET') {
+      return adminGetGraceRates(request, env, user);
+    }
+    if (path === '/api/admin-invoice/grace-rates' && request.method === 'POST') {
+      return adminSaveGraceRates(request, env, user);
+    }
+    if (path === '/api/admin-invoice/settings' && request.method === 'GET') {
+      return adminGetSettings(request, env, user);
+    }
+    if (path === '/api/admin-invoice/settings' && request.method === 'POST') {
+      return adminSaveSettings(request, env, user);
     }
 
     // 業務メニュー（汎用シートダンプ: 仕入れ数報告/経費申請/報酬管理）
