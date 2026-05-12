@@ -1453,6 +1453,7 @@ function paintShiireList_(allItems) {
       '</details>';
   }).join('');
   c.innerHTML = html + fab;
+  bindSwipeListenersFor_(c);
 }
 
 function shiireCardHtml(it) {
@@ -1462,7 +1463,7 @@ function shiireCardHtml(it) {
   const progressDone = planned > 0 && registered >= planned;
   const pct = planned > 0 ? Math.min(100, Math.round((registered / planned) * 100)) : 0;
   const progClass = 'shiire-progress gradient' + (progressDone ? ' done' : '');
-  return '<div class="shiire-card" onclick="openShiireDetail(\'' + esc(it.shiireId).replace(/\'/g,"%27") + '\')">' +
+  var inner = '<div class="shiire-card" onclick="openShiireDetail(\'' + esc(it.shiireId).replace(/\'/g,"%27") + '\')">' +
     '<div class="shiire-row1">' +
       '<span class="shiire-date">' + esc(fmtReadonlyDate_(it.date) || '—') + '</span>' +
       (it.place ? '<span class="shiire-place">' + esc(it.place) + '</span>' : '') +
@@ -1474,6 +1475,7 @@ function shiireCardHtml(it) {
       '<div class="shiire-cell"><span class="lbl">商品原価</span><span class="val">' + fmtYen(it.cost) + '</span></div>' +
     '</div>' +
   '</div>';
+  return swipeWrap_(inner, { type: 'shiire', id: it.shiireId });
 }
 
 function fmtYen(v) {
@@ -3135,12 +3137,13 @@ function paintBashoList_(allItems) {
       pillsHtml = '<div class="meta-line">📦 ' + ids.length + '点</div>' +
                   '<div class="ids-pills">' + shown + more + '</div>';
     }
-    return '<div class="card clickable" onclick="openBashoDetail(\'' + esc(it.moveId) + '\')">' +
+    var inner = '<div class="card clickable" onclick="openBashoDetail(\'' + esc(it.moveId) + '\')">' +
       '<div class="card-row"><strong>' + esc(it.moveId) + '</strong>' + done + '</div>' +
       '<div class="meta-line">📅 ' + esc(fmtDateTimeSlash_(it.timestamp)) + '　👤 ' + esc(it.reporter) + '</div>' +
       '<div class="meta-line">📍 移動先: <strong>' + esc(it.destination) + '</strong></div>' +
       pillsHtml +
     '</div>';
+    return swipeWrap_(inner, { type: 'move', id: it.moveId });
   }
   // 月別グループ化（moveId が MV-yyyyMMdd-HHmmss 形式 or timestamp の先頭7文字）
   var groups = Object.create(null);
@@ -3175,7 +3178,38 @@ function paintBashoList_(allItems) {
       '</details>';
   }).join('');
   c.innerHTML = html + addBtn;
+  bindSwipeListenersFor_(c);
 }
+
+// 移動報告: スワイプ削除コールバック
+registerSwipeDeleteHandler_('move', async function(moveId, wrap) {
+  if (!moveId) return;
+  try {
+    var res = await api('/api/moves/' + encodeURIComponent(moveId), { method: 'DELETE' });
+    if (res && res.deleted) {
+      // 楽観的にカードをフェードアウト → リスト更新
+      if (wrap && wrap.parentNode) {
+        wrap.style.transition = 'opacity .15s, max-height .2s';
+        wrap.style.maxHeight = wrap.offsetHeight + 'px';
+        requestAnimationFrame(function(){
+          wrap.style.opacity = '0';
+          wrap.style.maxHeight = '0';
+        });
+        setTimeout(function(){
+          if (TAB_CACHE['basho'] && Array.isArray(TAB_CACHE['basho'].data)) {
+            TAB_CACHE['basho'].data = TAB_CACHE['basho'].data.filter(function(it){ return it.moveId !== moveId; });
+          }
+          renderBashoList();
+        }, 200);
+      }
+      toast('削除しました', 'success');
+    } else {
+      toast('削除に失敗しました', 'error');
+    }
+  } catch (err) {
+    toast('削除エラー: ' + (err && err.message || err), 'error');
+  }
+});
 
 function openBashoDetail(moveId) {
   var it = (STATE.movesCache && STATE.movesCache[moveId]) || null;
@@ -3395,12 +3429,13 @@ function paintHensouList_(allItems) {
     var countHtml = (it.count !== '' && it.count != null) ? '<span class="badge">着数 ' + esc(String(it.count)) + '</span>' : '';
     var noteHtml = it.note ? '<div class="meta-line">📝 ' + esc(it.note) + '</div>' : '';
     var tsHtml = it.timestamp ? '<div class="meta-line">📅 ' + esc(fmtDateTimeSlash_(it.timestamp)) + '</div>' : '';
-    return '<div class="card clickable" onclick="openHensouDetail(\'' + esc(it.boxId) + '\')">' +
+    var inner = '<div class="card clickable" onclick="openHensouDetail(\'' + esc(it.boxId) + '\')">' +
       '<div class="card-row"><strong>' + esc(it.boxId) + '</strong>' + countHtml + '</div>' +
       tsHtml +
       '<div class="meta-line">👤 ' + esc(it.reporter) + '　📍 移動先: <strong>' + esc(it.destination) + '</strong></div>' +
       pillsHtml + noteHtml +
     '</div>';
+    return swipeWrap_(inner, { type: 'return', id: it.boxId });
   }
   // 月別グループ化（boxId が RT-yyyyMMdd-HHmmss 形式）
   var groups = Object.create(null);
@@ -3430,7 +3465,66 @@ function paintHensouList_(allItems) {
       '</details>';
   }).join('');
   c.innerHTML = html + addBtn;
+  bindSwipeListenersFor_(c);
 }
+
+// 返送管理: スワイプ削除コールバック
+registerSwipeDeleteHandler_('return', async function(boxId, wrap) {
+  if (!boxId) return;
+  try {
+    var res = await api('/api/returns/' + encodeURIComponent(boxId), { method: 'DELETE' });
+    if (res && res.deleted) {
+      if (wrap && wrap.parentNode) {
+        wrap.style.transition = 'opacity .15s, max-height .2s';
+        wrap.style.maxHeight = wrap.offsetHeight + 'px';
+        requestAnimationFrame(function(){
+          wrap.style.opacity = '0';
+          wrap.style.maxHeight = '0';
+        });
+        setTimeout(function(){
+          if (TAB_CACHE['hensou'] && Array.isArray(TAB_CACHE['hensou'].data)) {
+            TAB_CACHE['hensou'].data = TAB_CACHE['hensou'].data.filter(function(it){ return it.boxId !== boxId; });
+          }
+          renderHensouList();
+        }, 200);
+      }
+      toast('削除しました', 'success');
+    } else {
+      toast('削除に失敗しました', 'error');
+    }
+  } catch (err) {
+    toast('削除エラー: ' + (err && err.message || err), 'error');
+  }
+});
+
+// 仕入れ管理: スワイプ削除コールバック
+registerSwipeDeleteHandler_('shiire', async function(shiireId, wrap) {
+  if (!shiireId) return;
+  try {
+    var res = await api('/api/purchases/' + encodeURIComponent(shiireId), { method: 'DELETE' });
+    if (res && res.deleted) {
+      if (wrap && wrap.parentNode) {
+        wrap.style.transition = 'opacity .15s, max-height .2s';
+        wrap.style.maxHeight = wrap.offsetHeight + 'px';
+        requestAnimationFrame(function(){
+          wrap.style.opacity = '0';
+          wrap.style.maxHeight = '0';
+        });
+        setTimeout(function(){
+          if (TAB_CACHE['shiire'] && Array.isArray(TAB_CACHE['shiire'].data)) {
+            TAB_CACHE['shiire'].data = TAB_CACHE['shiire'].data.filter(function(it){ return it.shiireId !== shiireId; });
+          }
+          renderShiireList({ silent: true });
+        }, 200);
+      }
+      toast('削除しました', 'success');
+    } else {
+      toast('削除に失敗しました', 'error');
+    }
+  } catch (err) {
+    toast('削除エラー: ' + (err && err.message || err), 'error');
+  }
+});
 
 function openHensouDetail(boxId) {
   var it = (STATE.returnsCache && STATE.returnsCache[boxId]) || null;
@@ -4930,11 +5024,13 @@ function applySettingsReturn_() {
   STATE.businessLabel = ret.businessLabel || '';
   STATE.settingsKind = '';
   STATE.settingsReturn = null;
+  document.body.classList.remove('is-settings-view');
   render();
 }
 
 function renderSettingsView_() {
   setAppbarMode_('back');
+  document.body.classList.add('is-settings-view');
   var titleEl = document.getElementById('appbar-title');
   if (STATE.settingsKind === 'admin_invoice') {
     if (titleEl) titleEl.textContent = '請求書管理者設定';
@@ -4961,10 +5057,10 @@ async function renderInvoiceProfileView_() {
   }
   function f(k){ return esc(String(profile[k] == null ? '' : profile[k])); }
   c.innerHTML =
-    '<div class="settings-page" style="max-width:720px;margin:0 auto;padding:16px">' +
+    '<div class="settings-page">' +
       '<p style="margin:0 0 14px;font-size:12px;color:var(--text-mute)">請求書 CSV に出力される情報です。シートに直接保存されます。</p>' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;font-size:13px">' +
-        profileField_('屋号', '屋号', f('屋号')) +
+      '<div class="settings-grid">' +
+        profileField_('会社名/屋号', '屋号', f('屋号')) +
         profileField_('本名（必須）', '本名', f('本名')) +
         profileField_('郵便番号', '郵便番号', f('郵便番号')) +
         profileField_('電話', '電話', f('電話')) +
@@ -4977,27 +5073,25 @@ async function renderInvoiceProfileView_() {
         profileField_('インボイス登録番号', 'インボイス登録番号', f('インボイス登録番号'), 'T1234567890123') +
         profileFieldFull_('備考', 'スタッフ用備考', f('スタッフ用備考')) +
       '</div>' +
-      '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px;padding-bottom:24px">' +
-        '<button class="btn-cancel" onclick="exitSettingsView_()">戻る</button>' +
-        '<button class="btn-primary" id="settings-save-btn" onclick="submitInvoiceProfile_()">保存</button>' +
-      '</div>' +
+    '</div>' +
+    '<div class="settings-actions">' +
+      '<button class="btn-cancel" onclick="exitSettingsView_()">キャンセル</button>' +
+      '<button class="btn-primary" id="settings-save-btn" onclick="submitInvoiceProfile_()">保存</button>' +
     '</div>';
 }
 
 function profileField_(label, name, value, placeholder) {
-  return '<label style="display:flex;flex-direction:column;gap:2px">' +
-    '<span style="font-size:11px;color:var(--text-mute)">' + esc(label) + '</span>' +
-    '<input type="text" data-invoice-profile="' + esc(name) + '" value="' + value + '" ' +
-      (placeholder ? 'placeholder="' + esc(placeholder) + '" ' : '') +
-      'style="padding:6px 8px;font-size:13px;border:1px solid var(--border);border-radius:4px">' +
+  return '<label class="settings-field">' +
+    '<span class="lbl">' + esc(label) + '</span>' +
+    '<input type="text" data-invoice-profile="' + esc(name) + '" value="' + value + '"' +
+      (placeholder ? ' placeholder="' + esc(placeholder) + '"' : '') + '>' +
   '</label>';
 }
 
 function profileFieldFull_(label, name, value) {
-  return '<label style="display:flex;flex-direction:column;gap:2px;grid-column:1/-1">' +
-    '<span style="font-size:11px;color:var(--text-mute)">' + esc(label) + '</span>' +
-    '<input type="text" data-invoice-profile="' + esc(name) + '" value="' + value + '" ' +
-      'style="padding:6px 8px;font-size:13px;border:1px solid var(--border);border-radius:4px">' +
+  return '<label class="settings-field full">' +
+    '<span class="lbl">' + esc(label) + '</span>' +
+    '<input type="text" data-invoice-profile="' + esc(name) + '" value="' + value + '">' +
   '</label>';
 }
 
@@ -5050,70 +5144,69 @@ async function renderAdminInvoiceSettingsView_() {
   function f(k){ return esc(String(settings[k] == null ? '' : settings[k])); }
   function fNum(k){ var v = settings[k]; return (v == null || v === '') ? '0' : String(v); }
   var banks = Array.isArray(settings['振込元銀行候補']) ? settings['振込元銀行候補'] : [];
-  var banksStr = banks.join('\n');
+  // 単一入力に変更（複数銀行は廃止）。既存データがあれば1件目を採用、配列でなければそのまま文字列扱い
+  var bankStr = '';
+  if (Array.isArray(banks)) bankStr = banks[0] || '';
+  else bankStr = String(banks || '');
   c.innerHTML =
-    '<div class="settings-page" style="max-width:720px;margin:0 auto;padding:16px">' +
+    '<div class="settings-page">' +
       '<p style="margin:0 0 12px;font-size:12px;color:var(--text-mute)">' +
-        '振込元（管理者本人）の屋号・連絡先・振込元銀行候補・振込手数料を編集します。請求書 CSV の「振込元」欄、楽天⇔楽天判定、手数料計算に使われます。' +
+        '振込元（管理者本人）の屋号・連絡先・振込元銀行・振込手数料を編集します。請求書 CSV の「振込元」欄、楽天⇔楽天判定、手数料計算に使われます。' +
       '</p>' +
       '<div style="display:flex;align-items:center;gap:6px;margin-bottom:10px">' +
         '<input type="checkbox" id="admin-inv-enabled" ' + (settings['有効'] ? 'checked' : '') + '>' +
         '<label for="admin-inv-enabled" style="font-size:13px">請求書機能を有効にする</label>' +
       '</div>' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;font-size:13px">' +
-        adminInvField_('屋号', '屋号', f('屋号')) +
+      '<div class="settings-grid">' +
+        adminInvField_('会社名/屋号', '屋号', f('屋号')) +
         adminInvField_('本名', '本名', f('本名')) +
         adminInvField_('郵便番号', '郵便番号', f('郵便番号')) +
         adminInvField_('電話', '電話', f('電話')) +
         adminInvFieldFull_('住所', '住所', f('住所')) +
         adminInvField_('メール', 'メール', f('メール')) +
         adminInvField_('インボイス番号', 'インボイス番号', f('インボイス番号'), 'T1234567890123') +
+        '<label class="settings-field full">' +
+          '<span class="lbl">振込元銀行（楽天⇔楽天判定にも使用）</span>' +
+          '<input type="text" id="admin-inv-bank" value="' + esc(bankStr) + '" placeholder="楽天銀行">' +
+        '</label>' +
       '</div>' +
-      '<div style="margin-top:14px">' +
-        '<label style="font-size:11px;color:var(--text-mute);display:block;margin-bottom:4px">振込元銀行候補（1行に1銀行。スタッフ請求時に表示されません ※楽天⇔楽天判定にも使用）</label>' +
-        '<textarea id="admin-inv-banks" rows="3" style="width:100%;padding:6px 8px;font-size:13px;border:1px solid var(--border);border-radius:4px;font-family:inherit" placeholder="楽天銀行&#10;三菱UFJ銀行">' + esc(banksStr) + '</textarea>' +
+      '<div class="settings-section-title">振込手数料表</div>' +
+      '<div class="settings-grid">' +
+        adminInvNumField_('楽天⇔楽天 手数料', '楽天⇔楽天手数料', fNum('楽天⇔楽天手数料')) +
+        adminInvNumField_('他行 小額（しきい値未満）', '他行小額手数料', fNum('他行小額手数料')) +
+        adminInvNumField_('他行 高額（しきい値以上）', '他行高額手数料', fNum('他行高額手数料')) +
+        adminInvNumField_('高額しきい値（円）', '高額しきい値', fNum('高額しきい値')) +
       '</div>' +
-      '<div style="margin-top:14px;padding:10px;border:1px dashed var(--border);border-radius:6px;background:var(--bg)">' +
-        '<div style="font-size:12px;font-weight:600;margin-bottom:6px">振込手数料表</div>' +
-        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;font-size:13px">' +
-          adminInvNumField_('楽天⇔楽天 手数料', '楽天⇔楽天手数料', fNum('楽天⇔楽天手数料')) +
-          adminInvNumField_('他行 小額（しきい値未満）', '他行小額手数料', fNum('他行小額手数料')) +
-          adminInvNumField_('他行 高額（しきい値以上）', '他行高額手数料', fNum('他行高額手数料')) +
-          adminInvNumField_('高額しきい値（円）', '高額しきい値', fNum('高額しきい値')) +
-        '</div>' +
-      '</div>' +
-      '<div style="margin-top:14px">' +
+      '<div class="settings-section-title">通知設定</div>' +
+      '<div class="settings-grid">' +
         adminInvFieldFull_('修正申請の通知先メール（カンマ区切りで複数可）', '通知先メール', f('通知先メール')) +
       '</div>' +
-      '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:20px;padding-bottom:24px">' +
-        '<button class="btn-cancel" onclick="exitSettingsView_()">戻る</button>' +
-        '<button class="btn-primary" id="settings-save-btn" onclick="submitAdminInvoiceSettings_()">保存</button>' +
-      '</div>' +
+    '</div>' +
+    '<div class="settings-actions">' +
+      '<button class="btn-cancel" onclick="exitSettingsView_()">キャンセル</button>' +
+      '<button class="btn-primary" id="settings-save-btn" onclick="submitAdminInvoiceSettings_()">保存</button>' +
     '</div>';
 }
 
 function adminInvField_(label, name, value, placeholder) {
-  return '<label style="display:flex;flex-direction:column;gap:2px">' +
-    '<span style="font-size:11px;color:var(--text-mute)">' + esc(label) + '</span>' +
-    '<input type="text" data-admin-inv="' + esc(name) + '" value="' + value + '" ' +
-      (placeholder ? 'placeholder="' + esc(placeholder) + '" ' : '') +
-      'style="padding:6px 8px;font-size:13px;border:1px solid var(--border);border-radius:4px">' +
+  return '<label class="settings-field">' +
+    '<span class="lbl">' + esc(label) + '</span>' +
+    '<input type="text" data-admin-inv="' + esc(name) + '" value="' + value + '"' +
+      (placeholder ? ' placeholder="' + esc(placeholder) + '"' : '') + '>' +
   '</label>';
 }
 
 function adminInvFieldFull_(label, name, value) {
-  return '<label style="display:flex;flex-direction:column;gap:2px;grid-column:1/-1">' +
-    '<span style="font-size:11px;color:var(--text-mute)">' + esc(label) + '</span>' +
-    '<input type="text" data-admin-inv="' + esc(name) + '" value="' + value + '" ' +
-      'style="padding:6px 8px;font-size:13px;border:1px solid var(--border);border-radius:4px">' +
+  return '<label class="settings-field full">' +
+    '<span class="lbl">' + esc(label) + '</span>' +
+    '<input type="text" data-admin-inv="' + esc(name) + '" value="' + value + '">' +
   '</label>';
 }
 
 function adminInvNumField_(label, name, value) {
-  return '<label style="display:flex;flex-direction:column;gap:2px">' +
-    '<span style="font-size:11px;color:var(--text-mute)">' + esc(label) + '</span>' +
-    '<input type="number" inputmode="numeric" min="0" data-admin-inv-num="' + esc(name) + '" value="' + esc(value) + '" ' +
-      'style="padding:6px 8px;font-size:13px;border:1px solid var(--border);border-radius:4px">' +
+  return '<label class="settings-field">' +
+    '<span class="lbl">' + esc(label) + '</span>' +
+    '<input type="number" inputmode="numeric" min="0" data-admin-inv-num="' + esc(name) + '" value="' + esc(value) + '">' +
   '</label>';
 }
 
@@ -5128,11 +5221,10 @@ async function submitAdminInvoiceSettings_() {
     var n = parseFloat(el.value);
     body[el.getAttribute('data-admin-inv-num')] = isNaN(n) ? 0 : n;
   });
-  var banksEl = document.getElementById('admin-inv-banks');
-  body['振込元銀行候補'] = String((banksEl && banksEl.value) || '')
-    .split(/\r?\n/)
-    .map(function(s){ return s.trim(); })
-    .filter(Boolean);
+  var bankEl = document.getElementById('admin-inv-bank');
+  var bankVal = String((bankEl && bankEl.value) || '').trim();
+  // バックエンドは配列を期待するので互換維持で配列にラップする（空なら空配列）
+  body['振込元銀行候補'] = bankVal ? [bankVal] : [];
   var btn = document.getElementById('settings-save-btn');
   var orig = btn ? btn.innerHTML : '';
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin" style="display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:6px"></span>保存中…'; }
@@ -6991,6 +7083,10 @@ window.addEventListener('popstate', function(e){
   applyPopstate_(st);
 });
 function applyPopstate_(st) {
+  // 設定ビュー以外への遷移ならクラスを外す（detail / list どちらに飛んでも bottomnav 復活）
+  if (!(st && st.view === 'settings')) {
+    document.body.classList.remove('is-settings-view');
+  }
   if (st && st.view === 'detail' && st.kanri) {
     openDetail(st.kanri, { fromPopState: true });
     return;
@@ -7303,6 +7399,126 @@ function esc(s) {
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
+
+// ===== スワイプ削除（メールアプリ風 + 2段階確認） =====
+// 使い方:
+//   var inner = moveCardHtml(item);                              // 既存のカードHTML
+//   swipeWrap_(inner, { type:'move', id:item.moveId })           // ラップして返す
+// 仕様:
+//   - モバイル: 左スワイプ（指で 60px 以上）でゴミ箱ボタンを表示
+//   - PC: 行ホバーでフェードイン（CSS）
+//   - ゴミ箱タップ 1回目: armed クラス付与「本当に削除？」3秒以内に再タップで削除実行
+//   - 削除実行: SWIPE_DELETE_HANDLERS[type] に登録されたコールバックを呼ぶ
+//   - カード本体タップは通常通り（ボタン要素のクリックは stopPropagation）
+// 注意: registerSwipeDeleteHandler_ は本ファイル上方（renderXxx ハンドラ群の直後）で
+// 先に呼ばれるため、ここで `var` 初期化に頼ると hoisting で undefined になる。
+// 既に初期化済みなら維持、未初期化なら新規作成する遅延初期化方式に変更。
+if (typeof window.SWIPE_DELETE_HANDLERS === 'undefined') window.SWIPE_DELETE_HANDLERS = {};
+var SWIPE_DELETE_HANDLERS = window.SWIPE_DELETE_HANDLERS;
+function registerSwipeDeleteHandler_(type, fn) {
+  if (!window.SWIPE_DELETE_HANDLERS) window.SWIPE_DELETE_HANDLERS = {};
+  window.SWIPE_DELETE_HANDLERS[type] = fn;
+}
+
+function swipeWrap_(innerHtml, opts) {
+  opts = opts || {};
+  var type = String(opts.type || '');
+  var id = String(opts.id || '');
+  var safeId = esc(id);
+  var safeType = esc(type);
+  return '<div class="swipe-wrap" data-swipe-type="' + safeType + '" data-swipe-id="' + safeId + '">' +
+           '<div class="swipe-actions">' +
+             '<button type="button" class="act del" aria-label="削除" ' +
+               'onclick="event.stopPropagation();swipeArmDelete_(this);">🗑</button>' +
+           '</div>' +
+           '<div class="swipe-target">' + innerHtml + '</div>' +
+         '</div>';
+}
+
+// 1回目のタップ: armed クラス付与（3秒）。2回目: 削除実行
+function swipeArmDelete_(btn) {
+  var wrap = btn.closest('.swipe-wrap');
+  if (!wrap) return;
+  if (btn.classList.contains('armed')) {
+    var type = wrap.getAttribute('data-swipe-type') || '';
+    var id = wrap.getAttribute('data-swipe-id') || '';
+    var fn = SWIPE_DELETE_HANDLERS[type];
+    btn.classList.remove('armed');
+    wrap.classList.remove('armed');
+    if (typeof fn === 'function') fn(id, wrap);
+    return;
+  }
+  btn.classList.add('armed');
+  wrap.classList.add('armed');
+  setTimeout(function(){
+    btn.classList.remove('armed');
+    wrap.classList.remove('armed');
+  }, 3000);
+}
+
+// タッチスワイプの登録（コンテナ単位で委譲。renderXxx 系の末尾で呼ぶ）
+function bindSwipeListenersFor_(container) {
+  if (!container || container.__swipeBound) return;
+  container.__swipeBound = true;
+  var startX = 0, startY = 0, activeWrap = null, locked = null;
+  container.addEventListener('touchstart', function(e){
+    var w = e.target.closest('.swipe-wrap');
+    if (!w) return;
+    activeWrap = w;
+    locked = null;
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+  }, { passive: true });
+  container.addEventListener('touchmove', function(e){
+    if (!activeWrap) return;
+    var dx = e.touches[0].clientX - startX;
+    var dy = e.touches[0].clientY - startY;
+    if (locked === null) {
+      if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
+        locked = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
+      }
+    }
+    // 横スワイプ確定後はカード本体のクリックを抑制
+    if (locked === 'h' && dx < -8) {
+      activeWrap.__suppressClick = true;
+    }
+  }, { passive: true });
+  container.addEventListener('touchend', function(e){
+    if (!activeWrap) return;
+    var w = activeWrap;
+    var endX = (e.changedTouches && e.changedTouches[0] ? e.changedTouches[0].clientX : startX);
+    var dx = endX - startX;
+    if (locked === 'h') {
+      if (dx <= -60) {
+        // 他の開いてるカードは閉じる
+        Array.prototype.forEach.call(container.querySelectorAll('.swipe-wrap.is-open'), function(o){
+          if (o !== w) o.classList.remove('is-open', 'armed');
+        });
+        w.classList.add('is-open');
+      } else if (dx >= 30) {
+        w.classList.remove('is-open', 'armed');
+      }
+    }
+    // クリック抑制を少し残してから解除
+    setTimeout(function(){ w.__suppressClick = false; }, 0);
+    activeWrap = null;
+    locked = null;
+  }, { passive: true });
+  // 開いているカードの外側をタップで閉じる
+  container.addEventListener('click', function(e){
+    var w = e.target.closest('.swipe-wrap');
+    Array.prototype.forEach.call(container.querySelectorAll('.swipe-wrap.is-open'), function(o){
+      if (o !== w) o.classList.remove('is-open', 'armed');
+    });
+    // スワイプ直後のタップは抑制
+    if (w && w.__suppressClick) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  }, true);
+}
+
+
 // 検索比較用の正規化:
 //  - 全角英数記号 (Ａ-Ｚ／ａ-ｚ／０-９) → 半角
 //  - カタカナひらがな両方ヒットさせるため濁点合成は行わず NFKC で統一
@@ -7328,6 +7544,7 @@ function openModal(html) {
   var body = document.getElementById('modal-body');
   body.innerHTML = html;
   document.getElementById('modal-mask').classList.add('show');
+  document.body.classList.add('is-modal-open');
   // モーダル内の長文 textarea を初期表示で自動拡張
   Array.prototype.forEach.call(
     body.querySelectorAll('textarea.auto-grow'),
@@ -7338,6 +7555,7 @@ function openModal(html) {
 }
 function closeModal() {
   document.getElementById('modal-mask').classList.remove('show');
+  document.body.classList.remove('is-modal-open');
 }
 
 async function openCreatePurchaseModal() {

@@ -9,7 +9,7 @@ import { imgProxy } from './handlers/img-proxy.js';
 import { thumbProxy } from './handlers/thumb-proxy.js';
 import { listWorkers, listAccounts, listSuppliers, listPlaces, listCategories, listSettings } from './handlers/master.js';
 import { lookupAiPrefill, lookupAiPrefillBatch } from './handlers/ai.js';
-import { listMoves, createMove, listReturns, createReturn, listAiResults, listSagyousha, saveSagyousha, createSagyousha, dumpSheet, getListingText, appendKeihi, uploadKeihiImage, updateShiireHoukokuQuantity } from './handlers/extras.js';
+import { listMoves, createMove, deleteMove, listReturns, createReturn, deleteReturn, deletePurchase, listAiResults, listSagyousha, saveSagyousha, createSagyousha, dumpSheet, getListingText, appendKeihi, uploadKeihiImage, updateShiireHoukokuQuantity } from './handlers/extras.js';
 import { getSalesSummary } from './handlers/sales.js';
 import { syncRowWebhook } from './handlers/sync-webhook.js';
 import { listBundles, toggleBundle } from './handlers/bundles.js';
@@ -136,6 +136,10 @@ export default {
     if (purchaseProductsMatch && request.method === 'GET') {
       return getPurchaseProducts(request, env, decodeURIComponent(purchaseProductsMatch[1]));
     }
+    if (path.startsWith('/api/purchases/') && request.method === 'DELETE') {
+      const shiireId = decodeURIComponent(path.slice('/api/purchases/'.length));
+      return deletePurchase(request, env, user, shiireId);
+    }
 
     // 書き込み（GAS プロキシ）
     if (path === '/api/save/measurement' && request.method === 'POST') {
@@ -179,6 +183,10 @@ export default {
     if (path === '/api/moves' && request.method === 'POST') {
       return createMove(request, env, user);
     }
+    if (path.startsWith('/api/moves/') && request.method === 'DELETE') {
+      const moveId = decodeURIComponent(path.slice('/api/moves/'.length));
+      return deleteMove(request, env, user, moveId);
+    }
 
     // 返送管理
     if (path === '/api/returns' && request.method === 'GET') {
@@ -186,6 +194,10 @@ export default {
     }
     if (path === '/api/returns' && request.method === 'POST') {
       return createReturn(request, env, user);
+    }
+    if (path.startsWith('/api/returns/') && request.method === 'DELETE') {
+      const boxId = decodeURIComponent(path.slice('/api/returns/'.length));
+      return deleteReturn(request, env, user, boxId);
     }
 
     // AI画像判定一覧

@@ -25,6 +25,30 @@ export async function createMove(request, env, user) {
   return jsonOk({ created: true, moveId: r.moveId, row: r.row });
 }
 
+export async function deleteMove(request, env, user, moveId) {
+  const id = String(moveId || '').trim();
+  if (!id) return jsonError('moveId required', 400);
+  const r = await callGas(env, 'deleteMove', { moveId: id }, user);
+  if (!r.ok) return jsonError(r.error || 'gas error', 502);
+  return jsonOk({ deleted: true, moveId: r.moveId });
+}
+
+export async function deleteReturn(request, env, user, boxId) {
+  const id = String(boxId || '').trim();
+  if (!id) return jsonError('boxId required', 400);
+  const r = await callGas(env, 'deleteReturn', { boxId: id }, user);
+  if (!r.ok) return jsonError(r.error || 'gas error', 502);
+  return jsonOk({ deleted: true, boxId: r.boxId });
+}
+
+export async function deletePurchase(request, env, user, shiireId) {
+  const id = String(shiireId || '').trim();
+  if (!id) return jsonError('shiireId required', 400);
+  const r = await callGas(env, 'deletePurchase', { shiireId: id }, user);
+  if (!r.ok) return jsonError(r.error || 'gas error', 502);
+  return jsonOk({ deleted: true, shiireId: r.shiireId });
+}
+
 export async function listReturns(request, env, user) {
   const url = new URL(request.url);
   const limit = Math.min(500, Math.max(10, parseInt(url.searchParams.get('limit'), 10) || 200));

@@ -32,6 +32,7 @@ function doPost(e) {
       case 'saveSale':          result = staff_apiSaveSale(body.payload || {}, email); break;
       case 'saveDetails':       result = staff_apiSaveDetails(body.payload || {}, email); break;
       case 'createPurchase':    result = staff_apiCreatePurchase(body.payload || {}, email); break;
+      case 'deletePurchase':    result = staff_apiDeletePurchase(body.payload || {}, email); break;
       case 'createProduct':     result = staff_apiCreateProduct(body.payload || {}, email); break;
       case 'deleteProduct':     result = staff_apiDeleteProduct(body.payload || {}, email); break;
       case 'uploadImage':       result = staff_apiUploadImage(body.payload || {}, email); break;
@@ -39,8 +40,10 @@ function doPost(e) {
       // AppSheet 互換タブ用 追加API
       case 'listMoves':         result = staff_listMoves(body.payload || {}); break;
       case 'createMove':        result = staff_apiCreateMove(body.payload || {}, email); break;
+      case 'deleteMove':        result = staff_apiDeleteMove(body.payload || {}, email); break;
       case 'listReturns':       result = staff_listReturns(body.payload || {}); break;
       case 'createReturn':      result = staff_apiCreateReturn(body.payload || {}, email); break;
+      case 'deleteReturn':      result = staff_apiDeleteReturn(body.payload || {}, email); break;
       case 'listAiResults':     result = staff_listAiResults(body.payload || {}); break;
       case 'listSagyousha':     result = staff_listSagyousha(body.payload || {}, email); break;
       case 'saveSagyousha':     result = staff_apiSaveSagyousha(body.payload || {}, email); break;

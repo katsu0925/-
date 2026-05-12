@@ -71,6 +71,8 @@ function staff_apiCreateMove(payload, email) {
   var rowArr = [moveId, now, reporter, destination, ids, 'FALSE'];
   var appendAt = sh.getLastRow() + 1;
   sh.getRange(appendAt, 1, 1, 6).setValues([rowArr]);
+  // B列(タイムスタンプ)は秒まで表示する書式に統一
+  sh.getRange(appendAt, 2).setNumberFormat('yyyy-MM-dd HH:mm:ss');
   // onChange トリガー任せにせず、append 直後に処理を走らせて即時「反映済」にする
   // （AppSheet 互換: 登録 → 数秒以内に商品管理の納品場所が更新される）
   try {
@@ -85,7 +87,7 @@ function staff_apiCreateMove(payload, email) {
 
 // ========== 返送管理 ==========
 
-// 返送管理シート: A=箱ID B=報告者 C=移動先 D=管理番号 E=着数 F=備考
+// 返送管理シート: A=箱ID B=報告者 C=移動先 D=管理番号 E=着数 F=備考 G=返送日
 function staff_listReturns(opts) {
   opts = opts || {};
   var limit = Math.min(500, Math.max(10, parseInt(opts.limit, 10) || 200));
@@ -94,7 +96,12 @@ function staff_listReturns(opts) {
   if (!sh) return { ok: true, items: [] };
   var lastRow = sh.getLastRow();
   if (lastRow < 2) return { ok: true, items: [] };
-  var values = sh.getRange(2, 1, lastRow - 1, 6).getValues();
+  var values = sh.getRange(2, 1, lastRow - 1, 7).getValues();
+  var tz = Session.getScriptTimeZone() || 'Asia/Tokyo';
+  function fmt(d) {
+    if (d instanceof Date) return Utilities.formatDate(d, tz, "yyyy-MM-dd HH:mm");
+    return String(d || '');
+  }
   var out = [];
   for (var i = 0; i < values.length; i++) {
     var row = values[i];
@@ -107,7 +114,8 @@ function staff_listReturns(opts) {
       destination: String(row[2] || ''),
       ids: String(row[3] || ''),
       count: row[4] === '' || row[4] == null ? '' : Number(row[4]),
-      note: String(row[5] || '')
+      note: String(row[5] || ''),
+      timestamp: fmt(row[6])
     });
   }
   out.sort(function(a, b){ return String(b.boxId).localeCompare(String(a.boxId)); });
@@ -131,13 +139,16 @@ function staff_apiCreateReturn(payload, email) {
   var sh = ss.getSheetByName('返送管理');
   if (!sh) return { ok: false, error: '返送管理シートが見つかりません' };
   var tz = Session.getScriptTimeZone() || 'Asia/Tokyo';
+  var now = new Date();
   var boxId = String(payload.boxId || '').trim();
   if (!boxId) {
-    boxId = 'RT-' + Utilities.formatDate(new Date(), tz, 'yyyyMMdd-HHmmss');
+    boxId = 'RT-' + Utilities.formatDate(now, tz, 'yyyyMMdd-HHmmss');
   }
-  var rowArr = [boxId, reporter, destination, ids, count, note];
+  var rowArr = [boxId, reporter, destination, ids, count, note, now];
   var appendAt = sh.getLastRow() + 1;
-  sh.getRange(appendAt, 1, 1, 6).setValues([rowArr]);
+  sh.getRange(appendAt, 1, 1, 7).setValues([rowArr]);
+  // G列(返送日)は秒まで表示する書式に統一
+  sh.getRange(appendAt, 7).setNumberFormat('yyyy-MM-dd HH:mm:ss');
   // onChange トリガー任せにせず、append 直後に処理を走らせて即時にステータス＝返品済みへ反映
   try {
     if (typeof updateReturnStatusNowInner_ === 'function') {
@@ -147,6 +158,109 @@ function staff_apiCreateReturn(payload, email) {
     console.warn('staff_apiCreateReturn: updateReturnStatusNowInner_ failed: ' + err);
   }
   return { ok: true, boxId: boxId, row: appendAt };
+}
+
+// ========== 削除 API ==========
+// 注意: 場所移動・返送は登録時に商品管理シートの「納品場所」「ステータス」を
+// 書き換えているが、削除では元に戻さない（記録のみ削除）。
+// 戻し処理が必要な場合は手動で再登録するか、別途専用UIを設ける。
+
+// 移動報告を削除: payload.moveId で行を特定
+function staff_apiDeleteMove(payload, email) {
+  payload = payload || {};
+  var moveId = String(payload.moveId || '').trim();
+  if (!moveId) return { ok: false, error: 'moveId required' };
+  var ss = staff_getActiveSpreadsheet_();
+  var sh = ss.getSheetByName('移動報告');
+  if (!sh) return { ok: false, error: '移動報告シートが見つかりません' };
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return { ok: false, error: '対象が見つかりません' };
+  // 同時削除衝突を避けるため LockService（既存パターンの withLock_ を使用）
+  var deleted = false;
+  withLock_(20000, function(){
+    var values = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
+    for (var i = 0; i < values.length; i++) {
+      if (String(values[i][0] || '').trim() === moveId) {
+        sh.deleteRow(i + 2);
+        deleted = true;
+        break;
+      }
+    }
+  });
+  if (!deleted) return { ok: false, error: '対象が見つかりません: ' + moveId };
+  return { ok: true, moveId: moveId };
+}
+
+// 返送管理を削除: payload.boxId で行を特定
+function staff_apiDeleteReturn(payload, email) {
+  payload = payload || {};
+  var boxId = String(payload.boxId || '').trim();
+  if (!boxId) return { ok: false, error: 'boxId required' };
+  var ss = staff_getActiveSpreadsheet_();
+  var sh = ss.getSheetByName('返送管理');
+  if (!sh) return { ok: false, error: '返送管理シートが見つかりません' };
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return { ok: false, error: '対象が見つかりません' };
+  var deleted = false;
+  withLock_(20000, function(){
+    var values = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
+    for (var i = 0; i < values.length; i++) {
+      if (String(values[i][0] || '').trim() === boxId) {
+        sh.deleteRow(i + 2);
+        deleted = true;
+        break;
+      }
+    }
+  });
+  if (!deleted) return { ok: false, error: '対象が見つかりません: ' + boxId };
+  return { ok: true, boxId: boxId };
+}
+
+// 仕入れ管理を削除: payload.shiireId で行を特定
+// 安全策: 商品管理シートに当該 仕入れID を参照する行が1件でもあれば削除拒否
+//   （登録済みの商品が孤立しないようにするため）
+function staff_apiDeletePurchase(payload, email) {
+  payload = payload || {};
+  var shiireId = String(payload.shiireId || '').trim();
+  if (!shiireId) return { ok: false, error: 'shiireId required' };
+  var ss = staff_getActiveSpreadsheet_();
+  var sh = ss.getSheetByName('仕入れ管理');
+  if (!sh) return { ok: false, error: '仕入れ管理シートが見つかりません' };
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return { ok: false, error: '対象が見つかりません' };
+
+  // 商品管理シートに当該 仕入れID を参照する行があるか確認
+  try {
+    var prodSh = ss.getSheetByName(STAFF_SHEET_NAME);
+    if (prodSh) {
+      var prodLast = prodSh.getLastRow();
+      if (prodLast >= 2 && STAFF_COL && STAFF_COL.仕入れID) {
+        var col = STAFF_COL.仕入れID;
+        var ids = prodSh.getRange(2, col, prodLast - 1, 1).getValues();
+        for (var k = 0; k < ids.length; k++) {
+          if (String(ids[k][0] || '').trim() === shiireId) {
+            return { ok: false, error: 'この仕入れに紐づく商品が商品管理シートに登録されています。先に商品を削除してください。' };
+          }
+        }
+      }
+    }
+  } catch (err) {
+    return { ok: false, error: '参照チェック失敗: ' + (err && err.message || err) };
+  }
+
+  var deleted = false;
+  withLock_(20000, function(){
+    var values = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
+    for (var i = 0; i < values.length; i++) {
+      if (String(values[i][0] || '').trim() === shiireId) {
+        sh.deleteRow(i + 2);
+        deleted = true;
+        break;
+      }
+    }
+  });
+  if (!deleted) return { ok: false, error: '対象が見つかりません: ' + shiireId };
+  return { ok: true, shiireId: shiireId };
 }
 
 // ========== AI 画像判定一覧 ==========

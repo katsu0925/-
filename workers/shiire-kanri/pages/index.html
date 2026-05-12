@@ -679,6 +679,35 @@
   body.is-admin .bottomnav button[data-admin-only] { display: inline-flex; }
   .drawer-item[data-admin-only] { display: none; }
   body.is-admin .drawer-item[data-admin-only] { display: flex; }
+  /* 設定フルページビュー（個人情報・口座情報 / 請求書管理者設定）。
+     モバイルで bottomnav と PWA 更新バナーが保存ボタンを隠さないよう、
+     設定画面中は両方を非表示にして sticky アクションバーを画面下端に固定する。 */
+  body.is-settings-view .bottomnav,
+  body.is-settings-view #pwa-update-banner { display: none !important; }
+  .settings-page { max-width: 720px; margin: 0 auto; padding: 16px 16px 0; padding-bottom: calc(96px + env(safe-area-inset-bottom)); box-sizing: border-box; }
+  .settings-grid { display: grid; grid-template-columns: 1fr; gap: 10px 12px; font-size: 13px; }
+  @media (min-width: 640px) {
+    .settings-grid { grid-template-columns: 1fr 1fr; }
+  }
+  .settings-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .settings-field.full { grid-column: 1 / -1; }
+  .settings-field span.lbl { font-size: 11px; color: var(--text-mute); }
+  .settings-field input, .settings-field textarea {
+    width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 16px;
+    border: 1px solid var(--border); border-radius: 6px; background: var(--surface);
+    min-height: 44px;
+  }
+  .settings-field textarea { min-height: 80px; resize: vertical; }
+  .settings-section-title { font-size: 12px; font-weight: 600; margin: 14px 0 6px; }
+  .settings-actions {
+    position: fixed; left: 0; right: 0; bottom: 0;
+    background: var(--surface); border-top: 1px solid var(--border);
+    padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+    box-shadow: 0 -2px 8px rgba(0,0,0,0.06);
+    display: flex; gap: 8px; justify-content: flex-end;
+    z-index: 95;
+  }
+  .settings-actions button { min-height: 44px; padding: 0 20px; font-size: 15px; font-weight: 600; border: none; border-radius: 8px; cursor: pointer; }
   .product-info {
     background: var(--surface); border-radius: 12px;
     padding: 14px 16px 12px; margin-bottom: 12px;
@@ -1349,6 +1378,42 @@
   .card.clickable { cursor: pointer; transition: background-color .12s; }
   .card.clickable:hover { background: #f7f9fc; }
   .card.clickable:active { background: #eef2f8; }
+  /* スワイプ削除（メールアプリ風）—— モバイル左スワイプでゴミ箱ボタン表示 + 2段階確認 */
+  /* PC は行ホバーで右端のゴミ箱アイコンを表示。どちらも armed 状態 (3秒) で再タップ確定。 */
+  .swipe-wrap { position: relative; overflow: hidden; }
+  .swipe-wrap .swipe-actions {
+    position: absolute; top: 0; right: 0; bottom: 0;
+    display: flex; align-items: stretch;
+    pointer-events: none;
+  }
+  .swipe-wrap .swipe-actions .act {
+    pointer-events: auto;
+    border: none; outline: none; cursor: pointer;
+    font-size: 18px; line-height: 1; padding: 0 18px;
+    color: #fff; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    min-width: 64px;
+  }
+  .swipe-wrap .swipe-actions .act.del { background: #d93025; }
+  .swipe-wrap .swipe-actions .act.del.armed { background: #a71d10; }
+  .swipe-wrap .swipe-actions .act.del.armed::after {
+    content: '本当に削除？'; font-size: 11px; font-weight: 700; margin-left: 4px; white-space: nowrap;
+  }
+  .swipe-wrap > .swipe-target {
+    position: relative; z-index: 1; background: var(--surface);
+    transition: transform .18s ease-out;
+    will-change: transform;
+    touch-action: pan-y;
+  }
+  .swipe-wrap.is-open > .swipe-target { transform: translateX(-72px); }
+  .swipe-wrap.is-open.armed > .swipe-target { transform: translateX(-150px); }
+  /* PC: 行ホバーで右端ボタンをフェードイン（モバイルでは非表示、is-open のみ表示） */
+  @media (hover: hover) and (pointer: fine) {
+    .swipe-wrap .swipe-actions { opacity: 0; transition: opacity .15s; }
+    .swipe-wrap:hover .swipe-actions,
+    .swipe-wrap.is-open .swipe-actions { opacity: 1; }
+    .swipe-wrap:hover:not(.is-open) > .swipe-target { transform: translateX(-72px); }
+  }
   /* ID 多重選択ピッカー（移動報告） */
   .ids-picker { display: block; }
   .muted { color: var(--text-sub); font-size: 13px; padding: 6px 0; }
@@ -1553,14 +1618,23 @@
     display: none; position: fixed; inset: 0;
     background: rgba(0,0,0,0.5); z-index: 200;
     align-items: flex-end; justify-content: center;
+    /* マスク自体のホイール/タッチを止め、裏の一覧へのスクロール突き抜け（chain）を防ぐ */
+    overscroll-behavior: contain;
+    touch-action: none;
   }
   .modal-mask.show { display: flex; }
   .modal {
     width: 100%; max-width: 480px; background: var(--surface);
     border-radius: 14px 14px 0 0; padding: 18px;
     max-height: 85vh; overflow-y: auto;
+    /* iOS 慣性スクロール時、モーダル末端で背後の一覧にスクロールが伝播するバグ対策 */
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
     box-shadow: 0 -8px 24px rgba(0,0,0,.18);
   }
+  /* モーダル表示中は背後の body スクロールを停止（保険として外側からも止める） */
+  body.is-modal-open { overflow: hidden; }
   .modal h3 { margin: 0 0 16px; font-size: 17px; font-weight: 700; }
   .modal .field-row {
     display: block; padding: 8px 0; margin: 0; background: transparent;
