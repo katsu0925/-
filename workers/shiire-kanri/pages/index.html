@@ -1251,6 +1251,18 @@
   .toast.error { background: var(--danger); color: #fff; font-weight: 600; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
   .toast.success { background: var(--success); color: #fff; }
   .loading { text-align: center; padding: 40px; color: var(--text-sub); }
+  .loading:not(.skeleton-init)::before {
+    content: '';
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    margin-right: 8px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: -3px;
+  }
   /* 初期 Skeleton: スクリプト読込中も即座に視覚を確保し FCP/LCP を稼ぐ */
   .skeleton-init { padding: 16px 12px; text-align: left; }
   .sk-bar { height: 14px; border-radius: 4px; margin-bottom: 10px;
