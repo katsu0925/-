@@ -1450,8 +1450,11 @@
   .swipe-wrap.is-open-left.armed > .swipe-target { transform: translateX(160px); }
   /* 削除実行中: target を半透明＋pointer無効化 */
   .swipe-wrap.is-deleting > .swipe-target { opacity: .4; pointer-events: none; }
-  /* PC: スワイプではなく、カード右上に編集/削除アイコンを浮かべる方式（ホバーでフェードイン） */
-  @media (hover: hover) and (pointer: fine) {
+  /* デフォルトでは PC 専用要素を非表示（モバイルでは縦長フローティングを出さない） */
+  .swipe-wrap .pc-actions { display: none; }
+  /* PC: スワイプではなく、カード右上に編集/削除アイコンを縦に並べる方式（ホバーでフェードイン） */
+  /* min-width で確実にモバイル幅では分岐させない（pointer/hover だけだと iPad+キーボードや外部マウスで誤判定するため） */
+  @media (min-width: 769px) and (hover: hover) and (pointer: fine) {
     /* モバイル用の左右フル高ボタンは非表示にする */
     .swipe-wrap .swipe-actions { display: none !important; }
     /* PC でカードはスライドさせない */
@@ -1459,11 +1462,11 @@
     .swipe-wrap.is-open-left > .swipe-target,
     .swipe-wrap.is-open-right.armed > .swipe-target,
     .swipe-wrap.is-open-left.armed > .swipe-target { transform: none !important; }
-    /* PC 用の小型フローティングアイコン群 */
+    /* PC 用の小型フローティングアイコン群（縦並び: 編集が上、削除が下） */
     .swipe-wrap { position: relative; }
     .swipe-wrap .pc-actions {
       position: absolute; top: 8px; right: 8px; z-index: 3;
-      display: flex; gap: 6px;
+      display: flex; flex-direction: column; gap: 6px;
       opacity: 0; transition: opacity .12s ease-out;
       pointer-events: none;
     }
@@ -1496,11 +1499,11 @@
       border: 2px solid rgba(255,255,255,.35); border-top-color: #fff;
       animation: spin .7s linear infinite;
     }
-    /* カード本体に右側余白を確保（アイコンとの衝突回避） */
+    /* カード本体に右側余白を確保（縦並びアイコンとの衝突回避、横幅は1個分の48pxで十分） */
     .swipe-wrap > .swipe-target > .card,
     .swipe-wrap > .swipe-target > .shiire-card,
     .swipe-wrap > .swipe-target > .move-card,
-    .swipe-wrap > .swipe-target > .hensou-card { padding-right: 86px !important; }
+    .swipe-wrap > .swipe-target > .hensou-card { padding-right: 48px !important; }
   }
   /* ID 多重選択ピッカー（移動報告） */
   .ids-picker { display: block; }
