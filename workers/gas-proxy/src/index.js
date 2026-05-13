@@ -22,7 +22,7 @@ import * as coupon from './handlers/coupon.js';
 import * as mypage from './handlers/mypage.js';
 import * as submit from './handlers/submit.js';
 import { scheduledSync, batchAiJudgment, restorePhotoMetaFromGas, reprocessSingleAi, bulkReprocessAi, runReorderDryrun, runReorderApply } from './sync/sheets-sync.js';
-import { handleUpload, serveImage, warmupListCache } from './handlers/upload.js';
+import { handleUpload, serveImage } from './handlers/upload.js';
 import { getUploadPageHtml } from './pages/upload.html.js';
 import * as kitHandler from './handlers/kit.js';
 
@@ -462,10 +462,9 @@ self.addEventListener('fetch', e => {
     }
   },
 
-  // Cron Trigger: D1 ⇔ Sheets 同期 + /upload 一覧キャッシュのウォームアップ
+  // Cron Trigger: D1 ⇔ Sheets 同期
   async scheduled(event, env, ctx) {
     ctx.waitUntil(scheduledSync(env));
-    ctx.waitUntil(warmupListCache(env));
   },
 };
 

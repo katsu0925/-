@@ -11,10 +11,6 @@ routes = [
 [vars]
 APP_NAME = "タスキ箱"
 
-# Cron Triggers: 商品一覧キャッシュのウォームアップ（5分ごと）
-[triggers]
-crons = ["*/5 * * * *"]
-
 # Secrets (wrangler secret put で設定):
 #   ADMIN_EMAILS  — 管理者メール（カンマ区切り）
 
