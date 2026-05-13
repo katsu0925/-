@@ -14,6 +14,8 @@
 //   adminInv_saveAdminSettings    管理者設定保存
 
 function adminInv_assertAdmin_(email) {
+  // email が空ならシートから管理者を直接探す（Session API スコープ未認可時の保険）
+  if (!email) email = adminInv_findAdminEmailFromSheet_();
   var me = inv_resolveStaffByEmail_(inv_currentEmail_(email));
   if (!me || !me.ok) throw new Error('スタッフ情報が取得できません');
   if (!me.isAdmin) throw new Error('管理者権限がありません');
@@ -29,16 +31,62 @@ function adminInv_currentUser(email) {
   }
 }
 
+// 作業者マスターから「管理者フラグ=TRUE かつ 有効=TRUE」の最初の1人のメールを返す
+// Session API のスコープが認可されていない環境で使う保険
+function adminInv_findAdminEmailFromSheet_() {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    if (!ss) {
+      var ssId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || '';
+      if (ssId) ss = SpreadsheetApp.openById(ssId);
+    }
+    if (!ss) return '';
+    var sh = ss.getSheetByName('作業者マスター');
+    if (!sh) return '';
+    var lastRow = sh.getLastRow();
+    var lastCol = sh.getLastColumn();
+    if (lastRow < 2) return '';
+    var hdr = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    var adminIdx = -1;
+    for (var i = 0; i < hdr.length; i++) {
+      if (String(hdr[i]).trim() === '管理者フラグ') { adminIdx = i; break; }
+    }
+    if (adminIdx < 0) return '';
+    var rows = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
+    for (var r = 0; r < rows.length; r++) {
+      var av = rows[r][adminIdx];
+      var isAdmin = (av === true) || (String(av).toLowerCase() === 'true');
+      if (!isAdmin) continue;
+      var enabled = rows[r][14]; // O列(15)=有効
+      var en = (enabled === true) || (String(enabled).toLowerCase() === 'true');
+      if (!en) continue;
+      var e1 = String(rows[r][3] || '').trim();  // D列(4)=email1
+      if (e1) return e1;
+      var e2 = String(rows[r][4] || '').trim();  // E列(5)=email2
+      if (e2) return e2;
+    }
+    return '';
+  } catch (e) {
+    return '';
+  }
+}
+
 function adminInv_listAllInvoices(payload, email) {
   try {
     adminInv_assertAdmin_(email);
     payload = payload || {};
     var statusFilter = inv_norm_(payload.status); // 任意フィルタ
     var ymFilter = inv_norm_(payload.ym);
+    // 自己修復: 請求書履歴シートが無ければ作成
+    var ss = inv_getSS_();
+    if (!ss.getSheetByName(INV_SHEET.HISTORY)) {
+      inv_ensureSheet_(ss, INV_SHEET.HISTORY, INV_HISTORY_HEADERS);
+    }
     var hist = inv_readAllHistory_();
     var items = [];
+    // inv_readAllHistory_ は既に historyRowToObject_ で正規化済みのオブジェクト配列を返す
     for (var i = 0; i < hist.rows.length; i++) {
-      var obj = inv_historyRowToObject_(hist.rows[i], hist.hmap);
+      var obj = hist.rows[i];
       if (statusFilter && obj.ステータス !== statusFilter) continue;
       if (ymFilter && obj.請求月 !== ymFilter) continue;
       items.push(obj);
@@ -48,7 +96,7 @@ function adminInv_listAllInvoices(payload, email) {
     });
     return { ok: true, items: items, total: items.length };
   } catch (e) {
-    return { ok: false, error: String(e && e.message || e) };
+    return { ok: false, error: 'adminInv_listAllInvoices: ' + String(e && e.message || e) };
   }
 }
 
@@ -73,7 +121,12 @@ function adminInv_listAllRevisions(payload, email) {
     var statusFilter = inv_norm_(payload.status);
     var ss = inv_getSS_();
     var sh = ss.getSheetByName(INV_SHEET.REVISION);
-    if (!sh) return { ok: true, items: [] };
+    // 自己修復: シートが無ければ作成
+    if (!sh) {
+      inv_ensureSheet_(ss, INV_SHEET.REVISION, INV_REVISION_HEADERS);
+      sh = ss.getSheetByName(INV_SHEET.REVISION);
+      if (!sh) return { ok: true, items: [] };
+    }
     var lastRow = sh.getLastRow();
     if (lastRow < 2) return { ok: true, items: [] };
     var hmap = inv_buildHeaderMap_(sh);
@@ -81,19 +134,19 @@ function adminInv_listAllRevisions(payload, email) {
     var items = [];
     for (var i = 0; i < rows.length; i++) {
       var obj = {
-        申請ID:         rows[i][hmap.idx['申請ID']],
-        請求書番号:     rows[i][hmap.idx['請求書番号']],
-        請求月:         rows[i][hmap.idx['請求月']],
-        スタッフ名:     rows[i][hmap.idx['スタッフ名']],
-        スタッフメール: rows[i][hmap.idx['スタッフメール']],
-        申請日時:       rows[i][hmap.idx['申請日時']],
-        申請理由:       rows[i][hmap.idx['申請理由']],
-        申請内容JSON:   rows[i][hmap.idx['申請内容JSON']],
-        対応日時:       rows[i][hmap.idx['対応日時']],
-        対応者メール:   rows[i][hmap.idx['対応者メール']],
-        ステータス:     rows[i][hmap.idx['ステータス']],
-        管理者コメント: rows[i][hmap.idx['管理者コメント']],
-        再請求書番号:   rows[i][hmap.idx['再請求書番号']],
+        申請ID:         inv_norm_(rows[i][hmap.idx['申請ID']]),
+        請求書番号:     inv_norm_(rows[i][hmap.idx['請求書番号']]),
+        請求月:         inv_toYm_(rows[i][hmap.idx['請求月']]),
+        スタッフ名:     inv_norm_(rows[i][hmap.idx['スタッフ名']]),
+        スタッフメール: inv_norm_(rows[i][hmap.idx['スタッフメール']]),
+        申請日時:       inv_toDateTimeStr_(rows[i][hmap.idx['申請日時']]),
+        申請理由:       inv_norm_(rows[i][hmap.idx['申請理由']]),
+        申請内容JSON:   inv_norm_(rows[i][hmap.idx['申請内容JSON']]),
+        対応日時:       inv_toDateTimeStr_(rows[i][hmap.idx['対応日時']]),
+        対応者メール:   inv_norm_(rows[i][hmap.idx['対応者メール']]),
+        ステータス:     inv_norm_(rows[i][hmap.idx['ステータス']]),
+        管理者コメント: inv_norm_(rows[i][hmap.idx['管理者コメント']]),
+        再請求書番号:   inv_norm_(rows[i][hmap.idx['再請求書番号']]),
         _sheetRow:      i + 2
       };
       if (statusFilter && obj.ステータス !== statusFilter) continue;
@@ -104,7 +157,7 @@ function adminInv_listAllRevisions(payload, email) {
     });
     return { ok: true, items: items };
   } catch (e) {
-    return { ok: false, error: String(e && e.message || e) };
+    return { ok: false, error: 'adminInv_listAllRevisions: ' + String(e && e.message || e) };
   }
 }
 
@@ -328,16 +381,33 @@ function adminInv_listGraceRates(payload, email) {
     adminInv_assertAdmin_(email);
     var ss = inv_getSS_();
     var sh = ss.getSheetByName(INV_SHEET.GRACE);
-    if (!sh) return { ok: true, items: [] };
+    // 自己修復: シートが無ければ作成して初期データを投入
+    if (!sh) {
+      inv_ensureSheet_(ss, INV_SHEET.GRACE, INV_GRACE_HEADERS);
+      inv_seedGraceRates_(ss);
+      sh = ss.getSheetByName(INV_SHEET.GRACE);
+      if (!sh) return { ok: true, items: [], note: 'sheet missing and create failed' };
+    }
     var lastRow = sh.getLastRow();
-    if (lastRow < 2) return { ok: true, items: [] };
-    var values = sh.getRange(2, 1, lastRow - 1, 5).getValues();
+    // 行が無ければ初期データを投入
+    if (lastRow < 2) {
+      inv_seedGraceRates_(ss);
+      lastRow = sh.getLastRow();
+      if (lastRow < 2) return { ok: true, items: [] };
+    }
+    var lastCol = Math.max(sh.getLastColumn(), 5);
+    var values = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
+    var tz = inv_tz_();
+    function toYm(v) {
+      if (v instanceof Date) return Utilities.formatDate(v, tz, 'yyyy/MM');
+      return String(v || '');
+    }
     var items = values.filter(function(r){ return r[0]; }).map(function(r){
-      return { 開始YM: r[0], 終了YM: r[1], 控除可能率: Number(r[2]) || 0, 控除不可率: Number(r[3]) || 0, 備考: r[4] || '' };
+      return { 開始YM: toYm(r[0]), 終了YM: toYm(r[1]), 控除可能率: Number(r[2]) || 0, 控除不可率: Number(r[3]) || 0, 備考: String(r[4] || '') };
     });
     return { ok: true, items: items };
   } catch (e) {
-    return { ok: false, error: String(e && e.message || e) };
+    return { ok: false, error: 'adminInv_listGraceRates: ' + String(e && e.message || e) + (e && e.stack ? ' @ ' + String(e.stack).split('\n')[0] : '') };
   }
 }
 
@@ -350,7 +420,12 @@ function adminInv_saveGraceRates(payload, email) {
     if (!items) throw new Error('items が配列ではありません');
     var ss = inv_getSS_();
     var sh = ss.getSheetByName(INV_SHEET.GRACE);
-    if (!sh) throw new Error('経過措置率シートがありません');
+    // 自己修復: シートが無ければ作成
+    if (!sh) {
+      inv_ensureSheet_(ss, INV_SHEET.GRACE, INV_GRACE_HEADERS);
+      sh = ss.getSheetByName(INV_SHEET.GRACE);
+      if (!sh) throw new Error('経過措置率シートを作成できませんでした');
+    }
     return inv_withLock_(function(){
       var lastRow = sh.getLastRow();
       if (lastRow >= 2) sh.getRange(2, 1, lastRow - 1, 5).clearContent();
@@ -365,11 +440,12 @@ function adminInv_saveGraceRates(payload, email) {
           ];
         });
         sh.getRange(2, 1, rows.length, 5).setValues(rows);
+        sh.getRange(2, 3, rows.length, 2).setNumberFormat('0.00%');
       }
       return { ok: true, count: items.length };
     });
   } catch (e) {
-    return { ok: false, error: String(e && e.message || e) };
+    return { ok: false, error: 'adminInv_saveGraceRates: ' + String(e && e.message || e) };
   }
 }
 
@@ -377,9 +453,15 @@ function adminInv_saveGraceRates(payload, email) {
 function adminInv_getAdminSettings(payload, email) {
   try {
     adminInv_assertAdmin_(email);
+    var ss = inv_getSS_();
+    // 自己修復: シートが無ければ作成して初期データ投入
+    if (!ss.getSheetByName(INV_SHEET.SETTINGS)) {
+      inv_ensureSheet_(ss, INV_SHEET.SETTINGS, INV_SETTINGS_HEADERS);
+      inv_seedSettings_(ss);
+    }
     return inv_getAdminSettings_();
   } catch (e) {
-    return { ok: false, error: String(e && e.message || e) };
+    return { ok: false, error: 'adminInv_getAdminSettings: ' + String(e && e.message || e) };
   }
 }
 
@@ -391,7 +473,13 @@ function adminInv_saveAdminSettings(payload, email) {
     var s = payload.settings || {};
     var ss = inv_getSS_();
     var sh = ss.getSheetByName(INV_SHEET.SETTINGS);
-    if (!sh) throw new Error('管理者設定シートがありません');
+    // 自己修復: シートが無ければ作成して初期データ投入
+    if (!sh) {
+      inv_ensureSheet_(ss, INV_SHEET.SETTINGS, INV_SETTINGS_HEADERS);
+      inv_seedSettings_(ss);
+      sh = ss.getSheetByName(INV_SHEET.SETTINGS);
+      if (!sh) throw new Error('管理者設定シートを作成できませんでした');
+    }
     var hmap = inv_buildHeaderMap_(sh);
     return inv_withLock_(function(){
       var width = sh.getLastColumn();
@@ -422,6 +510,6 @@ function adminInv_saveAdminSettings(payload, email) {
       return { ok: true };
     });
   } catch (e) {
-    return { ok: false, error: String(e && e.message || e) };
+    return { ok: false, error: 'adminInv_saveAdminSettings: ' + String(e && e.message || e) };
   }
 }

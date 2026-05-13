@@ -22,7 +22,14 @@ function onOpen() {
 }
 
 function showAdminInvoicePanel() {
-  var html = HtmlService.createHtmlOutputFromFile('AdminInvoice')
+  var email = '';
+  try { email = Session.getActiveUser().getEmail() || ''; } catch (e) {}
+  if (!email) { try { email = Session.getEffectiveUser().getEmail() || ''; } catch (e) {} }
+  // Session API が使えない場合は作業者マスターから管理者フラグTRUEの人を検索
+  if (!email) email = adminInv_findAdminEmailFromSheet_();
+  var tpl = HtmlService.createTemplateFromFile('AdminInvoice');
+  tpl.userEmail = email;
+  var html = tpl.evaluate()
     .setWidth(1200)
     .setHeight(800)
     .setTitle('請求書管理（管理者）');

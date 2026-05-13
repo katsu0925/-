@@ -643,6 +643,24 @@ function inv_buildInvoicePdfFilename_(invoice) {
   return name + '_' + amt + '円_' + ym + '.pdf';
 }
 
+// 請求書PDFを保存する Drive フォルダ（スプレッドシートと同階層に「請求書PDF」フォルダを作成）
+function inv_getPdfFolder_() {
+  var ss = inv_getSS_();
+  var ssFile = DriveApp.getFileById(ss.getId());
+  var parents = ssFile.getParents();
+  var parent = parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
+  var subs = parent.getFoldersByName('請求書PDF');
+  return subs.hasNext() ? subs.next() : parent.createFolder('請求書PDF');
+}
+
+// PDF Blob を Drive に保存し fileId を返す（事前生成キャッシュ用）
+function inv_savePdfToDrive_(pdfBlob, filename) {
+  var folder = inv_getPdfFolder_();
+  if (filename) pdfBlob.setName(filename);
+  var file = folder.createFile(pdfBlob);
+  return file.getId();
+}
+
 // ============================================================
 // 請求書履歴 読み取り
 // ============================================================
@@ -701,6 +719,7 @@ function inv_historyRowToObject_(row, hmap) {
     管理者メモ:   inv_norm_(v('管理者メモ')),
     PDFダウンロード回数: inv_toNum_(v('PDFダウンロード回数')),
     最終ダウンロード日時: inv_toDateTimeStr_(v('最終ダウンロード日時')),
+    PDFファイルID: inv_norm_(v('PDFファイルID')),
     スナップショット: snap
   };
 }
@@ -1018,9 +1037,31 @@ function inv_createInvoice_(email, ym, options) {
     set('PDFダウンロード回数', 0);
     set('最終ダウンロード日時', '');
 
+    // 事前にPDFをDriveへ生成しキャッシュする（DL即時化のため）。
+    // 失敗してもfileIdを空のまま append し、DL時に再生成できるようフォールバックを残す。
+    var pdfFileId = '';
+    try {
+      var snapshotForPdf = Object.assign({}, preview, {
+        請求書番号: invoiceNo,
+        作成日時: createdAt
+      });
+      var adminResForPdf = inv_getAdminSettings_();
+      var adminSettingsForPdf = (adminResForPdf && adminResForPdf.settings) || null;
+      var pdfFilename = inv_buildInvoicePdfFilename_(snapshotForPdf);
+      var pdfBaseName = pdfFilename.replace(/\.pdf$/, '');
+      var pdfBlobForCache = inv_buildInvoicePdfBlob_(snapshotForPdf, adminSettingsForPdf, pdfBaseName);
+      pdfFileId = inv_savePdfToDrive_(pdfBlobForCache, pdfFilename);
+    } catch (pdfErr) {
+      console.error('inv_createInvoice_ PDF事前生成失敗: ' + (pdfErr && pdfErr.message || pdfErr));
+    }
+    set('PDFファイルID', pdfFileId);
+
     // appendRow より getRange().setValues() の方が確実に lastRow を返せる
     var writtenRow = sh.getLastRow() + 1;
     sh.getRange(writtenRow, 1, 1, cols).setValues([row]);
+    // 一覧 API と同じフラット形式で返す（クライアントの即時表示用）
+    var flatObj = inv_historyRowToObject_(row, hmap);
+    flatObj._row = writtenRow;
     return {
       ok: true,
       alreadyExists: false,
@@ -1028,12 +1069,7 @@ function inv_createInvoice_(email, ym, options) {
       superseded: supersededList.length,
       invoiceNo: invoiceNo,
       row: writtenRow,
-      invoice: Object.assign({}, preview, {
-        請求書番号: invoiceNo,
-        作成日時: createdAt,
-        更新日時: now,
-        ステータス: status
-      })
+      invoice: flatObj
     };
   });
 }
@@ -1076,14 +1112,41 @@ function inv_buildInvoicePdfDownload_(no, email) {
       作成日時: hit.obj.作成日時 || inv_nowISO_()
     };
   }
-  // 請求先（管理者）の最新設定を取得（スナップショットには含めない、宛先は常に最新）
-  var adminRes = inv_getAdminSettings_();
-  var adminSettings = (adminRes && adminRes.settings) || null;
 
   var filename = inv_buildInvoicePdfFilename_(invoice);
   var baseName = filename.replace(/\.pdf$/, '');
-  var pdfBlob = inv_buildInvoicePdfBlob_(invoice, adminSettings, baseName);
-  var b64 = Utilities.base64Encode(pdfBlob.getBytes());
+
+  // キャッシュ参照: PDFファイルIDがあれば Drive から直接 blob を取得（HtmlService→PDF変換をスキップ）
+  var b64 = '';
+  var cachedFileId = inv_norm_(hit.obj.PDFファイルID);
+  if (cachedFileId) {
+    try {
+      var cachedBlob = DriveApp.getFileById(cachedFileId).getBlob();
+      b64 = Utilities.base64Encode(cachedBlob.getBytes());
+    } catch (cacheErr) {
+      console.error('inv_buildInvoicePdfDownload_ キャッシュ取得失敗 → 再生成: ' + (cacheErr && cacheErr.message || cacheErr));
+      cachedFileId = ''; // 取得失敗時は再生成へ
+    }
+  }
+  if (!b64) {
+    // 請求先（管理者）の最新設定を取得（スナップショットには含めない、宛先は常に最新）
+    var adminRes = inv_getAdminSettings_();
+    var adminSettings = (adminRes && adminRes.settings) || null;
+    var pdfBlob = inv_buildInvoicePdfBlob_(invoice, adminSettings, baseName);
+    b64 = Utilities.base64Encode(pdfBlob.getBytes());
+    // 旧データ移行: PDFファイルID が未設定なら、生成したPDFを Drive にキャッシュして次回以降を即時化
+    try {
+      var newFileId = inv_savePdfToDrive_(pdfBlob, filename);
+      if (newFileId && hit.sheet && hit.hmap && hit.obj._row) {
+        var fileIdCol = hit.hmap.idx['PDFファイルID'];
+        if (fileIdCol != null) {
+          hit.sheet.getRange(hit.obj._row, fileIdCol + 1).setValue(newFileId);
+        }
+      }
+    } catch (saveErr) {
+      console.error('inv_buildInvoicePdfDownload_ キャッシュ書き戻し失敗: ' + (saveErr && saveErr.message || saveErr));
+    }
+  }
   // ダウンロード回数をインクリメント (PDF生成成功後)
   var newCount = (hit.obj.PDFダウンロード回数 || 0) + 1;
   var lastAt = inv_nowISO_();
