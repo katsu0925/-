@@ -5113,7 +5113,13 @@ async function submitInvoiceCreate_() {
     if (!no) { toast('作成に失敗しました', 'error'); return; }
     INVOICE_STATE.loaded = false;
     await loadInvoiceData_();
-    toast('請求書を作成しました（' + no + '）— 一覧から「PDF」でダウンロード', 'success');
+    // 請求書番号末尾の連番から再作成かどうかを判定する。
+    var m = no.match(/-(\d+)$/);
+    var seq = m ? parseInt(m[1], 10) : 1;
+    var msg = seq > 1
+      ? '請求書を再作成しました（' + no + '、第' + seq + '版）— 一覧から「PDF」でダウンロード'
+      : '請求書を作成しました（' + no + '）— 一覧から「PDF」でダウンロード';
+    toast(msg, 'success');
   } catch (e) {
     toast('作成失敗: ' + e.message, 'error');
   } finally {

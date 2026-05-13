@@ -920,17 +920,10 @@ function inv_createInvoice_(email, ym, options) {
     var sh = ss.getSheetByName(INV_SHEET.HISTORY);
     if (!sh) throw new Error('請求書履歴シートがありません。inv_setupAllSheets() を実行してください。');
 
-    // 重複チェック (既存 = 取消済み以外)
+    // 各「請求書を作成」押下ごとに連番付きの新請求書を発行する。
+    // 過去版は履歴シートに残り、請求書番号末尾の連番 (-1/-2/-3) で識別できる。
     var data = inv_readAllHistory_();
     var seq = inv_nextSeq_(data, ym, me.row);
-    if (!options.force) {
-      for (var i = 0; i < data.rows.length; i++) {
-        var r = data.rows[i];
-        if (r.スタッフ名 === me.name && r.請求月 === ym && r.ステータス !== '取消済み') {
-          return { ok: true, alreadyExists: true, invoiceNo: r.請求書番号, invoice: r };
-        }
-      }
-    }
 
     // 個人情報チェック
     if (!me.profile.本名)   throw new Error('プロフィール: 本名 が未登録');
@@ -1018,16 +1011,15 @@ function inv_buildInvoicePdfDownload_(no, email) {
   var hit = inv_findInvoiceByNo_(no);
   if (!hit) throw new Error('請求書が見つかりません: ' + no);
   if (hit.obj.スタッフ名 !== me.name) throw new Error('権限がありません');
-  // スナップショットがあれば優先（作成時点の固定値で出す）
+  // スナップショット優先（作成時点の固定値で出す）。
+  // 各請求書番号は「請求書を作成」ボタン押下時点の完全凍結ドキュメント。
+  // プロフィールを更新したい場合は再度「請求書を作成」を押して連番付きの新請求書を作る運用。
   var snap = hit.obj.スナップショット;
   if (snap && typeof snap === 'object') {
     var invoice = Object.assign({}, snap, {
       請求書番号: hit.obj.請求書番号,
       作成日時: hit.obj.作成日時 || inv_nowISO_()
     });
-    // 連絡先・口座情報は常に最新を反映（金額系のみスナップショット固定）。
-    // 作成後にスタッフがプロフィールを更新したケースで「データが反映されない」と見えるのを防ぐ。
-    invoice.プロフィール = me.profile;
   } else {
     // フォールバック: 履歴行から再構築
     var invoice = {
