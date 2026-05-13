@@ -300,9 +300,11 @@ async function buildProductList(env) {
   const registeredIds = idsJson ? new Set(JSON.parse(idsJson)) : new Set();
 
   const cleanupIds = [];
-  const items = (await Promise.all(
-    index.map(async (managedId) => {
-      // QW1: 3つのKV読みを並列化（順次awaitを Promise.all へ）
+  const items = [];
+  // QW1: 並列度をチャンクで制限してメモリ128MB制限を回避（旧: 全件 Promise.all で落ちる）
+  const CHUNK = 50;
+  for (let i = 0; i < index.length; i += CHUNK) {
+    const chunkResults = await Promise.all(index.slice(i, i + CHUNK).map(async (managedId) => {
       const [urlsJson, metaJson, saveLogJson] = await Promise.all([
         env.CACHE.get(`product-images:${managedId}`),
         env.CACHE.get(`photo-meta:${managedId}`),
@@ -333,8 +335,9 @@ async function buildProductList(env) {
         photographer: meta.photographer || '',
         saveCount: saveLog.count,
       };
-    })
-  )).filter(Boolean);
+    }));
+    for (const r of chunkResults) if (r) items.push(r);
+  }
 
   // QW1: クリーンアップを並列化（各IDの3操作 × 全ID並列）
   if (cleanupIds.length > 0) {
