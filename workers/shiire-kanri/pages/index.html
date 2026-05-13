@@ -1450,17 +1450,57 @@
   .swipe-wrap.is-open-left.armed > .swipe-target { transform: translateX(160px); }
   /* 削除実行中: target を半透明＋pointer無効化 */
   .swipe-wrap.is-deleting > .swipe-target { opacity: .4; pointer-events: none; }
-  /* PC: 行ホバーで両端をフェードイン（モバイルでは非表示、is-open-* のみ表示） */
+  /* PC: スワイプではなく、カード右上に編集/削除アイコンを浮かべる方式（ホバーでフェードイン） */
   @media (hover: hover) and (pointer: fine) {
-    .swipe-wrap .swipe-actions { opacity: 0; transition: opacity .15s; }
-    .swipe-wrap:hover .swipe-actions,
-    .swipe-wrap.is-open-right .swipe-actions.actions-right,
-    .swipe-wrap.is-open-left .swipe-actions.actions-left { opacity: 1; }
-    .swipe-wrap:hover:not(.is-open-right):not(.is-open-left) > .swipe-target {
-      /* PCでは hover で両端を同時露出（左右に 1px ずつシフトせず、ボタンだけ表示） */
+    /* モバイル用の左右フル高ボタンは非表示にする */
+    .swipe-wrap .swipe-actions { display: none !important; }
+    /* PC でカードはスライドさせない */
+    .swipe-wrap.is-open-right > .swipe-target,
+    .swipe-wrap.is-open-left > .swipe-target,
+    .swipe-wrap.is-open-right.armed > .swipe-target,
+    .swipe-wrap.is-open-left.armed > .swipe-target { transform: none !important; }
+    /* PC 用の小型フローティングアイコン群 */
+    .swipe-wrap { position: relative; }
+    .swipe-wrap .pc-actions {
+      position: absolute; top: 8px; right: 8px; z-index: 3;
+      display: flex; gap: 6px;
+      opacity: 0; transition: opacity .12s ease-out;
+      pointer-events: none;
     }
-    /* PC hover ではボタンは絶対配置で重なって表示（target はスライドさせない） */
-    .swipe-wrap:hover .swipe-actions { z-index: 2; }
+    .swipe-wrap:hover .pc-actions,
+    .swipe-wrap .pc-actions:focus-within { opacity: 1; pointer-events: auto; }
+    .swipe-wrap .pc-actions .pc-act {
+      width: 32px; height: 32px; border-radius: 8px; border: none; cursor: pointer;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 15px; color: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.18);
+      transition: transform .08s, background-color .15s, box-shadow .15s, width .12s ease-out;
+      padding: 0; overflow: hidden; white-space: nowrap;
+    }
+    .swipe-wrap .pc-actions .pc-act.edit { background: #1a73e8; }
+    .swipe-wrap .pc-actions .pc-act.edit:hover { background: #1762c5; }
+    .swipe-wrap .pc-actions .pc-act.del { background: #d93025; }
+    .swipe-wrap .pc-actions .pc-act.del:hover { background: #b1271b; }
+    .swipe-wrap .pc-actions .pc-act.armed { width: auto; padding: 0 10px; gap: 4px; font-size: 12px; font-weight: 700; }
+    .swipe-wrap .pc-actions .pc-act.edit.armed { background: #0d47a1; }
+    .swipe-wrap .pc-actions .pc-act.del.armed { background: #a71d10; }
+    .swipe-wrap .pc-actions .pc-act .pc-label { display: none; }
+    .swipe-wrap .pc-actions .pc-act.armed .pc-label { display: inline; }
+    .swipe-wrap .pc-actions .pc-act .pc-icon { display: inline; }
+    .swipe-wrap .pc-actions .pc-act.armed .pc-icon { display: none; }
+    /* スピナー */
+    .swipe-wrap .pc-actions .pc-act.loading { width: 32px; padding: 0; }
+    .swipe-wrap .pc-actions .pc-act.loading .pc-icon,
+    .swipe-wrap .pc-actions .pc-act.loading .pc-label { display: none; }
+    .swipe-wrap .pc-actions .pc-act.loading::after {
+      content: ''; display: inline-block; width: 16px; height: 16px; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,.35); border-top-color: #fff;
+      animation: spin .7s linear infinite;
+    }
+    /* カード本体に右側余白を確保（アイコンとの衝突回避） */
+    .swipe-wrap > .swipe-target > .card,
+    .swipe-wrap > .swipe-target > .shiire-card,
+    .swipe-wrap > .swipe-target > .move-card,
+    .swipe-wrap > .swipe-target > .hensou-card { padding-right: 86px !important; }
   }
   /* ID 多重選択ピッカー（移動報告） */
   .ids-picker { display: block; }

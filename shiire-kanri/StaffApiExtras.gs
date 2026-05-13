@@ -216,6 +216,99 @@ function staff_apiDeleteReturn(payload, email) {
   return { ok: true, boxId: boxId };
 }
 
+// ========== 編集 API ==========
+// 移動報告を編集: payload.moveId で行を特定し、報告者/移動先/管理番号を上書き
+// 既存行を残したまま値だけ更新し、processPendingMoves_ で商品管理側を再反映する。
+function staff_apiUpdateMove(payload, email) {
+  payload = payload || {};
+  var moveId = String(payload.moveId || '').trim();
+  if (!moveId) return { ok: false, error: 'moveId required' };
+  var destination = String(payload.destination || '').trim();
+  var ids = String(payload.ids || '').trim();
+  if (!destination) return { ok: false, error: '移動先を指定してください' };
+  if (!ids) return { ok: false, error: '管理番号を指定してください' };
+  var reporter = String(payload.reporter || '').trim() || String(email || '');
+  var ss = staff_getActiveSpreadsheet_();
+  var sh = ss.getSheetByName('移動報告');
+  if (!sh) return { ok: false, error: '移動報告シートが見つかりません' };
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return { ok: false, error: '対象が見つかりません' };
+  var updatedRow = 0;
+  withLock_(20000, function(){
+    var values = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
+    for (var i = 0; i < values.length; i++) {
+      if (String(values[i][0] || '').trim() === moveId) {
+        var r = i + 2;
+        // B=タイムスタンプ は据え置き、C=報告者 D=移動先 E=管理番号 を上書き
+        sh.getRange(r, 3).setValue(reporter);
+        sh.getRange(r, 4).setValue(destination);
+        sh.getRange(r, 5).setValue(ids);
+        // F=反映フラグ を FALSE に戻して再反映キューに乗せる
+        sh.getRange(r, 6).setValue('FALSE');
+        updatedRow = r;
+        break;
+      }
+    }
+  });
+  if (!updatedRow) return { ok: false, error: '対象が見つかりません: ' + moveId };
+  // 即時反映（onChange トリガー任せにせず、商品管理側の納品場所を更新）
+  try {
+    if (typeof processPendingMoves_ === 'function') {
+      withLock_(20000, function(){ processPendingMoves_(); });
+    }
+  } catch (err) {
+    console.warn('staff_apiUpdateMove: processPendingMoves_ failed: ' + err);
+  }
+  return { ok: true, moveId: moveId, row: updatedRow };
+}
+
+// 返送を編集: payload.boxId で行を特定し、報告者/移動先/管理番号/着数/備考 を上書き
+function staff_apiUpdateReturn(payload, email) {
+  payload = payload || {};
+  var boxId = String(payload.boxId || '').trim();
+  if (!boxId) return { ok: false, error: 'boxId required' };
+  var destination = String(payload.destination || '').trim();
+  var ids = String(payload.ids || '').trim();
+  if (!destination) return { ok: false, error: '移動先を指定してください' };
+  if (!ids) return { ok: false, error: '管理番号を指定してください' };
+  var reporter = String(payload.reporter || '').trim() || String(email || '');
+  var note = String(payload.note || '');
+  var count = (payload.count === '' || payload.count == null) ? '' : Number(payload.count);
+  if (count !== '' && isNaN(count)) count = '';
+  var ss = staff_getActiveSpreadsheet_();
+  var sh = ss.getSheetByName('返送管理');
+  if (!sh) return { ok: false, error: '返送管理シートが見つかりません' };
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return { ok: false, error: '対象が見つかりません' };
+  var updatedRow = 0;
+  withLock_(20000, function(){
+    var values = sh.getRange(2, 1, sh.getLastRow() - 1, 1).getValues();
+    for (var i = 0; i < values.length; i++) {
+      if (String(values[i][0] || '').trim() === boxId) {
+        var r = i + 2;
+        // A=箱ID, G=返送日 は据え置き、B=報告者 C=移動先 D=管理番号 E=着数 F=備考 を上書き
+        sh.getRange(r, 2).setValue(reporter);
+        sh.getRange(r, 3).setValue(destination);
+        sh.getRange(r, 4).setValue(ids);
+        sh.getRange(r, 5).setValue(count);
+        sh.getRange(r, 6).setValue(note);
+        updatedRow = r;
+        break;
+      }
+    }
+  });
+  if (!updatedRow) return { ok: false, error: '対象が見つかりません: ' + boxId };
+  // 商品管理側の「返品済み」ステータス再反映
+  try {
+    if (typeof updateReturnStatusNowInner_ === 'function') {
+      withLock_(20000, function(){ updateReturnStatusNowInner_(); });
+    }
+  } catch (err) {
+    console.warn('staff_apiUpdateReturn: updateReturnStatusNowInner_ failed: ' + err);
+  }
+  return { ok: true, boxId: boxId, row: updatedRow };
+}
+
 // 仕入れ管理を削除: payload.shiireId で行を特定
 // 安全策: 商品管理シートに当該 仕入れID を参照する行が1件でもあれば削除拒否
 //   （登録済みの商品が孤立しないようにするため）

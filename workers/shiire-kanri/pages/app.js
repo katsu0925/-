@@ -3181,10 +3181,10 @@ function paintBashoList_(allItems) {
   bindSwipeListenersFor_(c);
 }
 
-// 移動報告: スワイプ編集コールバック（既存の詳細画面を開く）
+// 移動報告: スワイプ編集コールバック（編集フォームを開く）
 registerSwipeEditHandler_('move', function(moveId) {
   if (!moveId) return;
-  try { openBashoDetail(moveId); } catch (e) { toast('編集画面を開けませんでした', 'error'); }
+  try { openBashoEdit(moveId); } catch (e) { toast('編集画面を開けませんでした', 'error'); }
 });
 
 // 移動報告: スワイプ削除コールバック
@@ -3247,7 +3247,7 @@ function genMoveId_() {
     pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
 }
 
-async function openBashoCreate() {
+async function openBashoCreate(editItem) {
   var c = document.getElementById('content');
   // 新規作成中は autoRefresh をブロックするためフォーム状態に切り替え
   STATE.view = 'form';
@@ -3256,14 +3256,28 @@ async function openBashoCreate() {
   if (STATE.mastersPromise) { try { await STATE.mastersPromise; } catch (e) {} }
   var places = (STATE.places && STATE.places.length) ? STATE.places : [];
   var workers = (STATE.workers && STATE.workers.length) ? STATE.workers : [];
-  var placeOptions = ['<option value="">選択してください</option>'].concat(places.map(function(p){ return '<option value="' + esc(p) + '">' + esc(p) + '</option>'; })).join('');
-  var workerOptions = ['<option value="">選択してください</option>'].concat(workers.map(function(w){ return '<option value="' + esc(w) + '">' + esc(w) + '</option>'; })).join('');
-  var moveId = genMoveId_();
+  var isEdit = !!(editItem && editItem.moveId);
+  // 編集モードでは既存値をプリセレクト
+  var prefReporter = isEdit ? String(editItem.reporter || '') : '';
+  var prefDest = isEdit ? String(editItem.destination || '') : '';
+  var prefIds = isEdit ? String(editItem.ids || '').split(/[\s,、，／/・|\n\r\t]+/).filter(Boolean) : [];
+  var placeOptions = ['<option value="">選択してください</option>'].concat(places.map(function(p){
+    return '<option value="' + esc(p) + '"' + (p === prefDest ? ' selected' : '') + '>' + esc(p) + '</option>';
+  })).join('');
+  var workerOptions = ['<option value="">選択してください</option>'].concat(workers.map(function(w){
+    return '<option value="' + esc(w) + '"' + (w === prefReporter ? ' selected' : '') + '>' + esc(w) + '</option>';
+  })).join('');
+  var moveId = isEdit ? String(editItem.moveId) : genMoveId_();
+  var title = isEdit ? '📍 移動報告 編集' : '📍 移動報告 新規作成';
+  var submitLabel = isEdit ? '更新' : '登録';
+  var submitFn = isEdit ? "submitBashoUpdate('" + esc(moveId).replace(/'/g, "\\'") + "')" : 'submitBashoCreate()';
   c.innerHTML =
     '<div class="form-card with-sticky-actions">' +
-      '<h3>📍 移動報告 新規作成</h3>' +
-      '<div class="notice">⚠️ 移動報告は必ず<strong>移動する当日・もしくは前日</strong>に行うようにしてください。</div>' +
-      '<div class="field-row"><label>移動ID<small>登録時に自動採番</small></label>' +
+      '<h3>' + title + '</h3>' +
+      (isEdit
+        ? '<div class="notice">既存の移動報告を編集します。管理番号を変更するとシート側も再書き込みされます。</div>'
+        : '<div class="notice">⚠️ 移動報告は必ず<strong>移動する当日・もしくは前日</strong>に行うようにしてください。</div>') +
+      '<div class="field-row"><label>移動ID' + (isEdit ? '' : '<small>登録時に自動採番</small>') + '</label>' +
         '<input type="text" id="basho-moveid" value="' + esc(moveId) + '" readonly>' +
       '</div>' +
       '<div class="field-row"><label>報告者 *</label>' +
@@ -3278,9 +3292,48 @@ async function openBashoCreate() {
     '</div>' +
     '<div class="form-actions sticky">' +
       '<button class="btn-secondary" onclick="renderBashoList()">キャンセル</button>' +
-      '<button class="btn-primary" id="basho-submit" onclick="submitBashoCreate()">登録</button>' +
+      '<button class="btn-primary" id="basho-submit" onclick="' + submitFn + '">' + submitLabel + '</button>' +
     '</div>';
   enhanceAllSelects_(c);
+  // 編集モード: 報告者が事前選択されていれば商品を即時ロードして既存IDをプリチェック
+  if (isEdit && prefReporter) {
+    try {
+      window.__bashoPrefIds = prefIds;
+      await onBashoReporterChange();
+      window.__bashoPrefIds = null;
+    } catch (e) { /* noop */ }
+  }
+}
+
+function openBashoEdit(moveId) {
+  if (!moveId) return;
+  var it = (STATE.movesCache && STATE.movesCache[moveId]) || null;
+  if (!it) { toast('データが見つかりません', 'error'); return; }
+  openBashoCreate(it);
+}
+
+async function submitBashoUpdate(moveId) {
+  var btn = document.getElementById('basho-submit');
+  var reporter = (document.getElementById('basho-reporter').value || '').trim();
+  var dest = (document.getElementById('basho-dest').value || '').trim();
+  var checks = document.querySelectorAll('#basho-ids-list input[name=basho-id]:checked');
+  var ids = Array.from(checks).map(function(c){ return c.value; }).filter(Boolean).join(',');
+  if (!reporter) { toast('報告者を選択してください', 'error'); return; }
+  if (!dest) { toast('移動先を選択してください', 'error'); return; }
+  if (!ids) { toast('管理番号を選択してください', 'error'); return; }
+  var done = setBtnLoading(btn, '更新中…');
+  startGlobalProgress();
+  try {
+    var res = await api('/api/moves/' + encodeURIComponent(moveId), { method: 'PUT', body: { destination: dest, ids: ids, reporter: reporter } });
+    toast('更新しました', 'success');
+    delete TAB_CACHE['basho'];
+    renderBashoList();
+  } catch (e) {
+    toast('更新失敗: ' + e.message, 'error');
+    done();
+  } finally {
+    endGlobalProgress();
+  }
 }
 
 async function onBashoReporterChange() {
@@ -3295,15 +3348,27 @@ async function onBashoReporterChange() {
   try {
     var res = await api('/api/products?place=' + encodeURIComponent(reporter) + '&filter=shuppin_machi&limit=10000&mode=list');
     var items = (res.items || []);
+    // 編集モード: 既存IDを必ず候補に含める（出品待ち外の商品でもチェック可能にする）
+    var prefIds = Array.isArray(window.__bashoPrefIds) ? window.__bashoPrefIds : [];
+    if (prefIds.length) {
+      var existing = Object.create(null);
+      items.forEach(function(it){ existing[String(it.kanri||'')] = true; });
+      prefIds.forEach(function(id){
+        if (!existing[id]) items.push({ kanri: id, brand: '', status: '(既存)' });
+      });
+    }
     if (!items.length) {
       picker.innerHTML = '<div class="muted">対象商品がありません</div>';
       return;
     }
     // 検索ボックス + チェックボックス一覧
+    var prefSet = Object.create(null);
+    prefIds.forEach(function(id){ prefSet[id] = true; });
     var listHtml = items.map(function(it){
       var label = esc(it.kanri || '') + ' ' +
         '<span class="muted">' + esc(it.brand || '') + ' / ' + esc(it.status || '') + '</span>';
-      return '<label class="ids-item"><input type="checkbox" name="basho-id" value="' + esc(it.kanri || '') + '" onchange="updateBashoCount()"> ' + label + '</label>';
+      var checked = prefSet[String(it.kanri||'')] ? ' checked' : '';
+      return '<label class="ids-item"><input type="checkbox" name="basho-id" value="' + esc(it.kanri || '') + '"' + checked + ' onchange="updateBashoCount()"> ' + label + '</label>';
     }).join('');
     picker.innerHTML =
       '<div class="ids-toolbar">' +
@@ -3313,6 +3378,7 @@ async function onBashoReporterChange() {
         '<span class="muted" id="basho-ids-count" data-total="' + items.length + '">選択 0 / 全 ' + items.length + '件</span>' +
       '</div>' +
       '<div id="basho-ids-list" class="ids-list">' + listHtml + '</div>';
+    updateBashoCount();
   } catch (e) {
     picker.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
   }
@@ -3474,10 +3540,10 @@ function paintHensouList_(allItems) {
   bindSwipeListenersFor_(c);
 }
 
-// 返送管理: スワイプ編集コールバック
+// 返送管理: スワイプ編集コールバック（編集フォームを開く）
 registerSwipeEditHandler_('return', function(boxId) {
   if (!boxId) return;
-  try { openHensouDetail(boxId); } catch (e) { toast('編集画面を開けませんでした', 'error'); }
+  try { openHensouEdit(boxId); } catch (e) { toast('編集画面を開けませんでした', 'error'); }
 });
 
 // 返送管理: スワイプ削除コールバック
@@ -3583,7 +3649,7 @@ function genBoxId_() {
     pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
 }
 
-async function openHensouCreate() {
+async function openHensouCreate(editItem) {
   var c = document.getElementById('content');
   // 新規作成中は autoRefresh をブロックするためフォーム状態に切り替え
   STATE.view = 'form';
@@ -3591,14 +3657,28 @@ async function openHensouCreate() {
   if (STATE.mastersPromise) { try { await STATE.mastersPromise; } catch (e) {} }
   var places = (STATE.places && STATE.places.length) ? STATE.places : [];
   var workers = (STATE.workers && STATE.workers.length) ? STATE.workers : [];
-  var placeOptions = ['<option value="">選択してください</option>'].concat(places.map(function(p){ return '<option value="' + esc(p) + '">' + esc(p) + '</option>'; })).join('');
-  var workerOptions = ['<option value="">選択してください</option>'].concat(workers.map(function(w){ return '<option value="' + esc(w) + '">' + esc(w) + '</option>'; })).join('');
-  var boxId = genBoxId_();
+  var isEdit = !!(editItem && editItem.boxId);
+  var prefReporter = isEdit ? String(editItem.reporter || '') : '';
+  var prefDest = isEdit ? String(editItem.destination || '') : '';
+  var prefIds = isEdit ? String(editItem.ids || '').split(/[\s,、，／/・|\n\r\t]+/).filter(Boolean) : [];
+  var prefNote = isEdit ? String(editItem.note || '') : '';
+  var placeOptions = ['<option value="">選択してください</option>'].concat(places.map(function(p){
+    return '<option value="' + esc(p) + '"' + (p === prefDest ? ' selected' : '') + '>' + esc(p) + '</option>';
+  })).join('');
+  var workerOptions = ['<option value="">選択してください</option>'].concat(workers.map(function(w){
+    return '<option value="' + esc(w) + '"' + (w === prefReporter ? ' selected' : '') + '>' + esc(w) + '</option>';
+  })).join('');
+  var boxId = isEdit ? String(editItem.boxId) : genBoxId_();
+  var title = isEdit ? '↩️ 返送 編集' : '↩️ 返送 新規作成';
+  var submitLabel = isEdit ? '更新' : '登録';
+  var submitFn = isEdit ? "submitHensouUpdate('" + esc(boxId).replace(/'/g, "\\'") + "')" : 'submitHensouCreate()';
   c.innerHTML =
     '<div class="form-card with-sticky-actions">' +
-      '<h3>↩️ 返送 新規作成</h3>' +
-      '<div class="notice">⚠️ 返送対象の管理番号は <strong>商品管理シートで「返品済み」</strong>に自動更新されます。</div>' +
-      '<div class="field-row"><label>箱ID<small>登録時に自動採番</small></label>' +
+      '<h3>' + title + '</h3>' +
+      (isEdit
+        ? '<div class="notice">既存の返送を編集します。管理番号を変更するとシート側も再書き込みされます。</div>'
+        : '<div class="notice">⚠️ 返送対象の管理番号は <strong>商品管理シートで「返品済み」</strong>に自動更新されます。</div>') +
+      '<div class="field-row"><label>箱ID' + (isEdit ? '' : '<small>登録時に自動採番</small>') + '</label>' +
         '<input type="text" id="hensou-boxid" value="' + esc(boxId) + '" readonly>' +
       '</div>' +
       '<div class="field-row"><label>報告者 *</label>' +
@@ -3614,14 +3694,59 @@ async function openHensouCreate() {
         '<input type="number" id="hensou-count" min="0" step="1" value="0" readonly>' +
       '</div>' +
       '<div class="field-row"><label>備考</label>' +
-        '<textarea id="hensou-note" rows="3"></textarea>' +
+        '<textarea id="hensou-note" rows="3">' + esc(prefNote) + '</textarea>' +
       '</div>' +
     '</div>' +
     '<div class="form-actions sticky">' +
       '<button class="btn-secondary" onclick="renderHensouList()">キャンセル</button>' +
-      '<button class="btn-primary" id="hensou-submit" onclick="submitHensouCreate()">登録</button>' +
+      '<button class="btn-primary" id="hensou-submit" onclick="' + submitFn + '">' + submitLabel + '</button>' +
     '</div>';
   enhanceAllSelects_(c);
+  if (isEdit && prefReporter) {
+    try {
+      window.__hensouPrefIds = prefIds;
+      await onHensouReporterChange();
+      window.__hensouPrefIds = null;
+    } catch (e) { /* noop */ }
+  }
+}
+
+function openHensouEdit(boxId) {
+  if (!boxId) return;
+  var it = (STATE.returnsCache && STATE.returnsCache[boxId]) || null;
+  if (!it) { toast('データが見つかりません', 'error'); return; }
+  openHensouCreate(it);
+}
+
+async function submitHensouUpdate(boxId) {
+  var btn = document.getElementById('hensou-submit');
+  var reporter = (document.getElementById('hensou-reporter').value || '').trim();
+  var dest = (document.getElementById('hensou-dest').value || '').trim();
+  var checks = document.querySelectorAll('#hensou-ids-list input[name=hensou-id]:checked');
+  var ids = Array.from(checks).map(function(c){ return c.value; }).filter(Boolean).join(',');
+  var countRaw = (document.getElementById('hensou-count').value || '').trim();
+  var note = (document.getElementById('hensou-note').value || '').trim();
+  if (!reporter) { toast('報告者を選択してください', 'error'); return; }
+  if (!dest) { toast('移動先を選択してください', 'error'); return; }
+  if (!ids) { toast('管理番号を選択してください', 'error'); return; }
+  var body = { destination: dest, ids: ids, reporter: reporter, note: note };
+  if (countRaw !== '') {
+    var n = Number(countRaw);
+    if (!isNaN(n)) body.count = n;
+  }
+  var done = setBtnLoading(btn, '更新中…');
+  startGlobalProgress();
+  try {
+    await api('/api/returns/' + encodeURIComponent(boxId), { method: 'PUT', body: body });
+    toast('更新しました', 'success');
+    delete TAB_CACHE['hensou'];
+    renderHensouList();
+  } catch (e) {
+    toast('更新失敗: ' + e.message, 'error');
+    done();
+  } finally {
+    endGlobalProgress();
+  }
 }
 
 async function onHensouReporterChange() {
@@ -3640,14 +3765,26 @@ async function onHensouReporterChange() {
     // → サーバー側で listedBeforeDays=30 を渡して 30日以上前の出品のみ返す
     var res = await api('/api/products?place=' + encodeURIComponent(reporter) + '&filter=shuppinchu&listedBeforeDays=30&limit=10000&mode=list');
     var items = (res.items || []);
+    // 編集モード: 既存IDを必ず候補に含める（フィルタ外の商品でもチェック可能にする）
+    var prefIds = Array.isArray(window.__hensouPrefIds) ? window.__hensouPrefIds : [];
+    if (prefIds.length) {
+      var existing = Object.create(null);
+      items.forEach(function(it){ existing[String(it.kanri||'')] = true; });
+      prefIds.forEach(function(id){
+        if (!existing[id]) items.push({ kanri: id, brand: '', status: '(既存)' });
+      });
+    }
     if (!items.length) {
       picker.innerHTML = '<div class="muted">対象商品がありません</div>';
       return;
     }
+    var prefSet = Object.create(null);
+    prefIds.forEach(function(id){ prefSet[id] = true; });
     var listHtml = items.map(function(it){
       var label = esc(it.kanri || '') + ' ' +
         '<span class="muted">' + esc(it.brand || '') + ' / ' + esc(it.status || '') + '</span>';
-      return '<label class="ids-item"><input type="checkbox" name="hensou-id" value="' + esc(it.kanri || '') + '" onchange="updateHensouCount()"> ' + label + '</label>';
+      var checked = prefSet[String(it.kanri||'')] ? ' checked' : '';
+      return '<label class="ids-item"><input type="checkbox" name="hensou-id" value="' + esc(it.kanri || '') + '"' + checked + ' onchange="updateHensouCount()"> ' + label + '</label>';
     }).join('');
     picker.innerHTML =
       '<div class="ids-toolbar">' +
@@ -7451,6 +7588,7 @@ function swipeWrap_(innerHtml, opts) {
   var safeId = esc(id);
   var safeType = esc(type);
   return '<div class="swipe-wrap" data-swipe-type="' + safeType + '" data-swipe-id="' + safeId + '">' +
+           // モバイル用: 左/右スワイプで露出する全高ボタン
            '<div class="swipe-actions actions-left">' +
              '<button type="button" class="act edit" aria-label="編集" ' +
                'onclick="event.stopPropagation();swipeArmEdit_(this);"></button>' +
@@ -7458,6 +7596,17 @@ function swipeWrap_(innerHtml, opts) {
            '<div class="swipe-actions actions-right">' +
              '<button type="button" class="act del" aria-label="削除" ' +
                'onclick="event.stopPropagation();swipeArmDelete_(this);"></button>' +
+           '</div>' +
+           // PC 用: カード右上に浮かぶ小型アイコン（CSS @media で表示制御）
+           '<div class="pc-actions">' +
+             '<button type="button" class="pc-act edit" aria-label="編集" title="編集" ' +
+               'onclick="event.stopPropagation();swipeArmEdit_(this);">' +
+               '<span class="pc-icon">✏</span><span class="pc-label">編集する？</span>' +
+             '</button>' +
+             '<button type="button" class="pc-act del" aria-label="削除" title="削除" ' +
+               'onclick="event.stopPropagation();swipeArmDelete_(this);">' +
+               '<span class="pc-icon">🗑</span><span class="pc-label">本当に削除？</span>' +
+             '</button>' +
            '</div>' +
            '<div class="swipe-target">' + innerHtml + '</div>' +
          '</div>';
@@ -7526,61 +7675,104 @@ function swipeArmEdit_(btn) {
 }
 
 // タッチスワイプの登録（コンテナ単位で委譲。renderXxx 系の末尾で呼ぶ）
+// 指追従で透明な抵抗なくヌルヌル動かす（touchmove で transform を直接更新）。
+// touchend 時に閾値判定で is-open-right / is-open-left に snap、CSS transition で残りを補間。
 function bindSwipeListenersFor_(container) {
   if (!container || container.__swipeBound) return;
   container.__swipeBound = true;
-  var startX = 0, startY = 0, activeWrap = null, locked = null;
+  var startX = 0, startY = 0, activeWrap = null, activeTarget = null, locked = null, startOffset = 0;
+  var MAX_OPEN = 160; // 指追従中のクランプ上限
+  var SNAP_TH = 50;   // この px 以上で snap、未満なら戻す
+
   container.addEventListener('touchstart', function(e){
     var w = e.target.closest('.swipe-wrap');
     if (!w) return;
+    // アクションボタン上のタップはスワイプとして扱わない
+    if (e.target.closest('.swipe-actions')) return;
     activeWrap = w;
+    activeTarget = w.querySelector('.swipe-target');
     locked = null;
     startX = e.touches[0].clientX;
     startY = e.touches[0].clientY;
+    // 既に開いてる状態なら現在の transform 量を起点に
+    if (w.classList.contains('is-open-right')) startOffset = -80;
+    else if (w.classList.contains('is-open-left')) startOffset = 80;
+    else startOffset = 0;
   }, { passive: true });
+
   container.addEventListener('touchmove', function(e){
-    if (!activeWrap) return;
+    if (!activeWrap || !activeTarget) return;
     var dx = e.touches[0].clientX - startX;
     var dy = e.touches[0].clientY - startY;
     if (locked === null) {
-      if (Math.abs(dx) > 8 || Math.abs(dy) > 8) {
+      if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {
         locked = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
       }
     }
-    // 横スワイプ確定後はカード本体のクリックを抑制
-    if (locked === 'h' && Math.abs(dx) > 8) {
+    if (locked === 'h') {
+      // 横方向に確定したら縦スクロールを抑制
+      if (e.cancelable) e.preventDefault();
       activeWrap.__suppressClick = true;
+      var raw = startOffset + dx;
+      // クランプ＋反対方向への引き戻しもスムーズに
+      var x = Math.max(-MAX_OPEN, Math.min(MAX_OPEN, raw));
+      // 指追従中は CSS transition を切って即時反映
+      activeTarget.style.transition = 'none';
+      activeTarget.style.transform = 'translateX(' + x + 'px)';
+      // armed は閾値超えで一旦解除（誤動作防止）
+      if (activeWrap.classList.contains('armed')) {
+        activeWrap.classList.remove('armed');
+        var armedBtn = activeWrap.querySelector('.act.armed');
+        if (armedBtn) armedBtn.classList.remove('armed');
+      }
     }
-  }, { passive: true });
+  }, { passive: false });
+
   container.addEventListener('touchend', function(e){
     if (!activeWrap) return;
     var w = activeWrap;
+    var t = activeTarget;
     var endX = (e.changedTouches && e.changedTouches[0] ? e.changedTouches[0].clientX : startX);
     var dx = endX - startX;
-    if (locked === 'h') {
-      if (dx <= -60) {
-        // 他の開いてるカードは閉じる
-        Array.prototype.forEach.call(container.querySelectorAll('.swipe-wrap.is-open-right, .swipe-wrap.is-open-left'), function(o){
-          if (o !== w) o.classList.remove('is-open-right', 'is-open-left', 'armed');
-        });
-        w.classList.remove('is-open-left');
+    var total = startOffset + dx; // 最終ポジション
+    if (locked === 'h' && t) {
+      // インラインを外して CSS（is-open-*）に委ねる → transition でヌルヌル戻る/開く
+      t.style.transition = '';
+      t.style.transform = '';
+      // 他の開いてるカードは閉じる
+      Array.prototype.forEach.call(container.querySelectorAll('.swipe-wrap.is-open-right, .swipe-wrap.is-open-left'), function(o){
+        if (o !== w) o.classList.remove('is-open-right', 'is-open-left', 'armed');
+      });
+      if (total <= -SNAP_TH) {
+        w.classList.remove('is-open-left', 'armed');
         w.classList.add('is-open-right');
-      } else if (dx >= 60) {
-        Array.prototype.forEach.call(container.querySelectorAll('.swipe-wrap.is-open-right, .swipe-wrap.is-open-left'), function(o){
-          if (o !== w) o.classList.remove('is-open-right', 'is-open-left', 'armed');
-        });
-        w.classList.remove('is-open-right');
+      } else if (total >= SNAP_TH) {
+        w.classList.remove('is-open-right', 'armed');
         w.classList.add('is-open-left');
-      } else if (Math.abs(dx) >= 30) {
-        // 戻し方向のジェスチャは閉じる
+      } else {
         w.classList.remove('is-open-right', 'is-open-left', 'armed');
       }
     }
-    // クリック抑制を少し残してから解除
     setTimeout(function(){ w.__suppressClick = false; }, 0);
     activeWrap = null;
+    activeTarget = null;
     locked = null;
+    startOffset = 0;
   }, { passive: true });
+
+  // 中断（電話着信など）は触れた状態を必ずリセット
+  container.addEventListener('touchcancel', function(){
+    if (activeTarget) {
+      activeTarget.style.transition = '';
+      activeTarget.style.transform = '';
+    }
+    if (activeWrap) activeWrap.classList.remove('armed');
+    activeWrap = null;
+    activeTarget = null;
+    locked = null;
+    startOffset = 0;
+  }, { passive: true });
+
   // 開いているカードの外側をタップで閉じる
   container.addEventListener('click', function(e){
     var w = e.target.closest('.swipe-wrap');

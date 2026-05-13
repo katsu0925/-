@@ -40,9 +40,11 @@ function doPost(e) {
       // AppSheet 互換タブ用 追加API
       case 'listMoves':         result = staff_listMoves(body.payload || {}); break;
       case 'createMove':        result = staff_apiCreateMove(body.payload || {}, email); break;
+      case 'updateMove':        result = staff_apiUpdateMove(body.payload || {}, email); break;
       case 'deleteMove':        result = staff_apiDeleteMove(body.payload || {}, email); break;
       case 'listReturns':       result = staff_listReturns(body.payload || {}); break;
       case 'createReturn':      result = staff_apiCreateReturn(body.payload || {}, email); break;
+      case 'updateReturn':      result = staff_apiUpdateReturn(body.payload || {}, email); break;
       case 'deleteReturn':      result = staff_apiDeleteReturn(body.payload || {}, email); break;
       case 'listAiResults':     result = staff_listAiResults(body.payload || {}); break;
       case 'listSagyousha':     result = staff_listSagyousha(body.payload || {}, email); break;

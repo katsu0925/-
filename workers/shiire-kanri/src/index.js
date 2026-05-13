@@ -9,7 +9,7 @@ import { imgProxy } from './handlers/img-proxy.js';
 import { thumbProxy } from './handlers/thumb-proxy.js';
 import { listWorkers, listAccounts, listSuppliers, listPlaces, listCategories, listSettings } from './handlers/master.js';
 import { lookupAiPrefill, lookupAiPrefillBatch } from './handlers/ai.js';
-import { listMoves, createMove, deleteMove, listReturns, createReturn, deleteReturn, deletePurchase, listAiResults, listSagyousha, saveSagyousha, createSagyousha, dumpSheet, getListingText, appendKeihi, uploadKeihiImage, updateShiireHoukokuQuantity } from './handlers/extras.js';
+import { listMoves, createMove, deleteMove, updateMove, listReturns, createReturn, deleteReturn, updateReturn, deletePurchase, listAiResults, listSagyousha, saveSagyousha, createSagyousha, dumpSheet, getListingText, appendKeihi, uploadKeihiImage, updateShiireHoukokuQuantity } from './handlers/extras.js';
 import { getSalesSummary } from './handlers/sales.js';
 import { syncRowWebhook } from './handlers/sync-webhook.js';
 import { listBundles, toggleBundle } from './handlers/bundles.js';
@@ -187,6 +187,10 @@ export default {
       const moveId = decodeURIComponent(path.slice('/api/moves/'.length));
       return deleteMove(request, env, user, moveId);
     }
+    if (path.startsWith('/api/moves/') && request.method === 'PUT') {
+      const moveId = decodeURIComponent(path.slice('/api/moves/'.length));
+      return updateMove(request, env, user, moveId);
+    }
 
     // 返送管理
     if (path === '/api/returns' && request.method === 'GET') {
@@ -198,6 +202,10 @@ export default {
     if (path.startsWith('/api/returns/') && request.method === 'DELETE') {
       const boxId = decodeURIComponent(path.slice('/api/returns/'.length));
       return deleteReturn(request, env, user, boxId);
+    }
+    if (path.startsWith('/api/returns/') && request.method === 'PUT') {
+      const boxId = decodeURIComponent(path.slice('/api/returns/'.length));
+      return updateReturn(request, env, user, boxId);
     }
 
     // AI画像判定一覧

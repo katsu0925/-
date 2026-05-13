@@ -33,12 +33,44 @@ export async function deleteMove(request, env, user, moveId) {
   return jsonOk({ deleted: true, moveId: r.moveId });
 }
 
+export async function updateMove(request, env, user, moveId) {
+  const id = String(moveId || '').trim();
+  if (!id) return jsonError('moveId required', 400);
+  let body;
+  try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
+  const destination = String(body.destination || '').trim();
+  const ids = String(body.ids || '').trim();
+  const reporter = String(body.reporter || '').trim();
+  if (!destination) return jsonError('destination required', 400);
+  if (!ids) return jsonError('ids required', 400);
+  const r = await callGas(env, 'updateMove', { moveId: id, destination, ids, reporter }, user);
+  if (!r.ok) return jsonError(r.error || 'gas error', 502);
+  return jsonOk({ updated: true, moveId: r.moveId, row: r.row });
+}
+
 export async function deleteReturn(request, env, user, boxId) {
   const id = String(boxId || '').trim();
   if (!id) return jsonError('boxId required', 400);
   const r = await callGas(env, 'deleteReturn', { boxId: id }, user);
   if (!r.ok) return jsonError(r.error || 'gas error', 502);
   return jsonOk({ deleted: true, boxId: r.boxId });
+}
+
+export async function updateReturn(request, env, user, boxId) {
+  const id = String(boxId || '').trim();
+  if (!id) return jsonError('boxId required', 400);
+  let body;
+  try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
+  const destination = String(body.destination || '').trim();
+  const ids = String(body.ids || '').trim();
+  const reporter = String(body.reporter || '').trim();
+  const note = String(body.note || '');
+  const count = body.count;
+  if (!destination) return jsonError('destination required', 400);
+  if (!ids) return jsonError('ids required', 400);
+  const r = await callGas(env, 'updateReturn', { boxId: id, destination, ids, reporter, note, count }, user);
+  if (!r.ok) return jsonError(r.error || 'gas error', 502);
+  return jsonOk({ updated: true, boxId: r.boxId, row: r.row });
 }
 
 export async function deletePurchase(request, env, user, shiireId) {
