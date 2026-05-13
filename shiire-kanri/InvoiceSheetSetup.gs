@@ -263,10 +263,11 @@ function inv_migrationSelfTest() {
 // ============================================================
 // 請求書履歴 全件削除 (1行目ヘッダーは残す)
 // ────────────────────────────────────────────────
-// GAS エディタから手動実行する。誤実行防止のため `inv_purgeAllInvoices_RUN_` を別関数に分離。
+// GAS エディタの関数ドロップダウンから手動実行する。
 // 通常運用では呼ばない。重複行のクリーンアップ等にのみ使う。
+// 末尾アンダースコア無しでパブリック化（エディタUIから選択可能にするため）。
 // ============================================================
-function inv_purgeAllInvoices_() {
+function invPurgeAllInvoices() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   if (!ss) {
     var ssId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || '';
@@ -274,10 +275,17 @@ function inv_purgeAllInvoices_() {
     ss = SpreadsheetApp.openById(ssId);
   }
   var sh = ss.getSheetByName(INV_SHEET.HISTORY);
-  if (!sh) return { ok: false, error: '請求書履歴シートがありません' };
+  if (!sh) {
+    Logger.log('請求書履歴シートがありません');
+    return { ok: false, error: '請求書履歴シートがありません' };
+  }
   var lastRow = sh.getLastRow();
-  if (lastRow < 2) return { ok: true, deleted: 0, message: '削除対象なし' };
+  if (lastRow < 2) {
+    Logger.log('削除対象なし');
+    return { ok: true, deleted: 0, message: '削除対象なし' };
+  }
   var n = lastRow - 1;
   sh.deleteRows(2, n);
+  Logger.log(n + ' 行削除しました');
   return { ok: true, deleted: n, message: n + ' 行削除しました' };
 }
