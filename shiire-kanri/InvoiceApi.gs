@@ -441,6 +441,21 @@ function inv_fmtYm_(ym) {
   return m[1] + '年' + parseInt(m[2], 10) + '月';
 }
 
+// 電話番号の先頭0補完（Sheets が数値型化して先頭0を落とす対策）
+function inv_normPhone_(v) {
+  if (v == null) return '';
+  var s = String(v).trim();
+  if (!s) return '';
+  // ハイフン・括弧・空白を含むものはそのまま（ユーザー入力時のフォーマットを尊重）
+  if (/[\-\s\(\)]/.test(s)) return s;
+  // 純粋な数字のみのとき、桁数で先頭0を補完
+  if (/^\d+$/.test(s)) {
+    if (s.length === 10) return '0' + s; // 携帯11桁の頭0欠落
+    if (s.length === 9)  return '0' + s; // 固定10桁の頭0欠落
+  }
+  return s;
+}
+
 // 弥生風請求書 HTML
 //   invoice: 請求書オブジェクト
 //   adminSettings: 請求先（管理者）の情報
@@ -469,11 +484,11 @@ function inv_buildInvoiceHtml_(invoice, adminSettings) {
   addQty('撮影料', c.撮影件数, u.撮影単価);
   addQty('出品料', c.出品件数, u.出品単価);
   addQty('発送料', c.発送件数, u.発送単価);
-  addOne('在庫管理報酬', r.在庫管理報酬);
-  addOne('固定報酬',     r.固定報酬);
-  addOne('経費',         r.経費合計);
-  addOne('売上報酬',     r.売上報酬);
-  addOne('その他報酬',   r.その他報酬);
+  addOne('在庫管理費', r.在庫管理報酬);
+  addOne('固定報酬',   r.固定報酬);
+  addOne('立替経費',   r.経費合計);
+  addOne('売上連動報酬', r.売上報酬);
+  addOne('その他業務', r.その他報酬);
 
   var subtotal = s.税込合計 != null ? Number(s.税込合計) : items.reduce(function(a, it){ return a + it.amt; }, 0);
   var graceRate = s.控除可能率 != null ? s.控除可能率 : '';
@@ -506,11 +521,13 @@ function inv_buildInvoiceHtml_(invoice, adminSettings) {
   }
 
   var addressLine = (p.郵便番号 ? '〒' + esc(p.郵便番号) + '　' : '') + esc(p.住所 || '');
-  var bankLine = esc(p.銀行名 || '') + '　' + esc(p.支店名 || '') + '　' +
-                 esc(p.口座種別 || '') + '　' + esc(p.口座番号 || '');
+  var pPhone = inv_normPhone_(p.電話);
+  var admPhone = inv_normPhone_(adm.電話);
   var holder = esc(p.口座名義 || p.本名 || invoice.スタッフ名 || '');
 
   var admAddress = (adm.郵便番号 ? '〒' + esc(adm.郵便番号) + '　' : '') + esc(adm.住所 || '');
+  var admYago = esc(adm.屋号 || '株式会社デタウリ');
+  var admHonmyo = esc(adm.本名 || '');
 
   var html =
 '<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>請求書</title>' +
@@ -544,8 +561,11 @@ function inv_buildInvoiceHtml_(invoice, adminSettings) {
 '.summary td.val { text-align:right; border-bottom:1px solid #cdd5e0; }' +
 '.summary tr.tot td { font-size:12pt; font-weight:700; color:#0a3a6e; background:#dde7f3; }' +
 '.bank-box { margin:18px 0; border:1.2px solid #345; border-radius:4px; padding:10px 14px; background:#fafbfd; }' +
-'.bank-box .ttl { font-weight:700; color:#234; margin-bottom:4px; font-size:11pt; }' +
-'.bank-box .line { font-size:10.5pt; line-height:1.7; }' +
+'.bank-box .ttl { font-weight:700; color:#234; margin-bottom:6px; font-size:11pt; }' +
+'.bank-box table { width:100%; border-collapse:collapse; }' +
+'.bank-box td { padding:3px 6px; font-size:10.5pt; line-height:1.6; vertical-align:top; }' +
+'.bank-box td.lab { width:30%; color:#555; background:#eef2f7; font-weight:600; }' +
+'.bank-box td.val { width:70%; }' +
 '.note { font-size:9.5pt; color:#666; margin-top:4px; }' +
 '.issuer { margin-top:18px; padding-top:10px; border-top:1px dashed #999; font-size:10pt; line-height:1.7; }' +
 '.issuer .name { font-size:12pt; font-weight:700; }' +
@@ -553,10 +573,11 @@ function inv_buildInvoiceHtml_(invoice, adminSettings) {
 '<div class="title">請求書</div>' +
 '<div class="head">' +
   '<div class="left">' +
-    '<div class="addressee">' + esc(adm.屋号 || '株式会社デタウリ') + '<small>御中</small></div>' +
+    '<div class="addressee">' + admYago + '<small>御中</small></div>' +
+    (admHonmyo ? '<div style="font-size:11pt;margin:2px 0 6px 2px;">ご担当：' + admHonmyo + ' 様</div>' : '') +
     '<div class="meta">' +
       (admAddress ? '<div>' + admAddress + '</div>' : '') +
-      (adm.電話 ? '<div>TEL: ' + esc(adm.電話) + '</div>' : '') +
+      (admPhone ? '<div>TEL: ' + esc(admPhone) + '</div>' : '') +
     '</div>' +
     '<div class="preface">下記の通りご請求申し上げます。</div>' +
   '</div>' +
@@ -585,14 +606,19 @@ function inv_buildInvoiceHtml_(invoice, adminSettings) {
 (graceNote ? '<div class="note">' + esc(graceNote) + '</div>' : '') +
 '<div class="bank-box">' +
   '<div class="ttl">お振込先</div>' +
-  '<div class="line">' + bankLine + '</div>' +
-  '<div class="line">口座名義：' + holder + '</div>' +
+  '<table>' +
+    '<tr><td class="lab">銀行名</td><td class="val">' + esc(p.銀行名 || '') + '</td></tr>' +
+    '<tr><td class="lab">支店名</td><td class="val">' + esc(p.支店名 || '') + '</td></tr>' +
+    '<tr><td class="lab">口座種別</td><td class="val">' + esc(p.口座種別 || '') + '</td></tr>' +
+    '<tr><td class="lab">口座番号</td><td class="val">' + esc(p.口座番号 || '') + '</td></tr>' +
+    '<tr><td class="lab">口座名義</td><td class="val">' + holder + '</td></tr>' +
+  '</table>' +
 '</div>' +
 '<div class="issuer">' +
   '<div class="name">' + esc(p.屋号 || p.本名 || invoice.スタッフ名 || '') + '</div>' +
   (p.本名 && p.屋号 ? '<div>' + esc(p.本名) + '</div>' : '') +
   (addressLine ? '<div>' + addressLine + '</div>' : '') +
-  (p.電話 ? '<div>TEL: ' + esc(p.電話) + '</div>' : '') +
+  (pPhone ? '<div>TEL: ' + esc(pPhone) + '</div>' : '') +
   (invoice.スタッフメール ? '<div>Email: ' + esc(invoice.スタッフメール) + '</div>' : '') +
   (p.インボイス登録番号 ? '<div>登録番号: ' + esc(p.インボイス登録番号) + '</div>' : '') +
 '</div>' +

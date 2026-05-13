@@ -5080,7 +5080,7 @@ function paintInvoiceSection_() {
           '<td style="padding:6px 8px;border-bottom:1px solid var(--border);text-align:right">¥' + Number(amt).toLocaleString('ja-JP') + '</td>' +
           '<td style="padding:6px 8px;border-bottom:1px solid var(--border)">' + esc(st) + '</td>' +
           '<td style="padding:6px 8px;border-bottom:1px solid var(--border);white-space:nowrap">' +
-            '<button class="btn-sm" onclick="downloadInvoicePdf_(\'' + esc(no) + '\')" style="font-size:11px;margin-right:4px">PDF</button>' +
+            '<button class="btn-sm invoice-pdf-btn" data-no="' + esc(no) + '" onclick="downloadInvoicePdf_(this)" style="font-size:11px;margin-right:4px">PDF</button>' +
             '<button class="btn-sm" onclick="openInvoiceRevisionModal_(\'' + esc(no) + '\')" style="font-size:11px">修正申請</button>' +
           '</td>' +
         '</tr>';
@@ -5105,7 +5105,7 @@ async function submitInvoiceCreate_() {
   var ym = INVOICE_STATE.selectedYm;
   if (!ym) { toast('請求対象月を選択してください', 'error'); return; }
   var btn = document.getElementById('invoice-create-btn');
-  if (btn) { btn.disabled = true; btn.textContent = '作成中…'; }
+  if (btn) { btn.disabled = true; btn.classList.add('btn-loading'); btn.textContent = '作成中'; }
   try {
     var r = await api('/api/invoice/create', { method: 'POST', body: { ym: ym } });
     var inv = (r && r.invoice) || {};
@@ -5117,18 +5117,43 @@ async function submitInvoiceCreate_() {
   } catch (e) {
     toast('作成失敗: ' + e.message, 'error');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = 'この月の請求書を作成'; }
+    if (btn) { btn.disabled = false; btn.classList.remove('btn-loading'); btn.textContent = 'この月の請求書を作成'; }
   }
 }
 
-function downloadInvoicePdf_(invoiceNo) {
+async function downloadInvoicePdf_(arg) {
+  var btn = (arg && arg.nodeType === 1) ? arg : null;
+  var invoiceNo = btn ? String(btn.getAttribute('data-no') || '') : String(arg || '');
   if (!invoiceNo) return;
-  var url = '/api/invoice/pdf?invoiceNo=' + encodeURIComponent(invoiceNo);
-  var a = document.createElement('a');
-  a.href = url;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  if (btn) { btn.disabled = true; btn.classList.add('btn-loading'); btn.textContent = '生成中'; }
+  try {
+    var url = '/api/invoice/pdf?invoiceNo=' + encodeURIComponent(invoiceNo);
+    var res = await fetch(url, { credentials: 'include' });
+    if (!res.ok) {
+      var msg = 'PDFの取得に失敗しました (' + res.status + ')';
+      try { var j = await res.json(); if (j && j.error) msg = j.error; } catch (_) {}
+      throw new Error(msg);
+    }
+    var blob = await res.blob();
+    var cd = res.headers.get('Content-Disposition') || '';
+    var fname = 'invoice_' + invoiceNo + '.pdf';
+    var m = cd.match(/filename\*=UTF-8''([^;]+)/i) || cd.match(/filename="?([^";]+)"?/i);
+    if (m && m[1]) {
+      try { fname = decodeURIComponent(m[1]); } catch (_) { fname = m[1]; }
+    }
+    var objUrl = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = objUrl;
+    a.download = fname;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(objUrl); }, 1000);
+  } catch (e) {
+    toast('PDFダウンロード失敗: ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.classList.remove('btn-loading'); btn.textContent = 'PDF'; }
+  }
 }
 
 function openInvoiceRevisionModal_(invoiceNo) {
