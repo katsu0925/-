@@ -4957,18 +4957,22 @@ var INVOICE_STATE = {
   profile: null,           // 自分の口座/個人情報プロフィール
   adminSettings: null,     // 管理者設定（請求書管理者設定シート）。即時再表示用キャッシュ
   selectedYm: '',          // 月セレクト
-  hideExisting: false,     // 「請求書未作成の月だけ表示」フィルタ
+  collapsed: (function(){ try { return localStorage.getItem('invoice-section-collapsed') === '1'; } catch(_) { return false; } })(),
 };
 
 function renderInvoiceSection_(forName) {
   // forName: 自分または管理者が選択中のスタッフ名（情報表示のみ）。
   // API は CF Access JWT のメールで GAS 側 inv_resolveStaffByEmail_ がスタッフを特定する。
+  var collapsed = !!INVOICE_STATE.collapsed;
   return '<div class="houshu-invoice-section" id="invoice-section" ' +
     'style="margin:0 0 16px;padding:14px 14px 10px;border:1px solid var(--border);border-radius:10px;background:var(--bg-elev)">' +
-    '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">' +
-      '<div style="font-weight:700;font-size:14px">請求書管理 <small style="font-weight:500;color:var(--text-mute)">' + esc(forName || '') + '</small></div>' +
+    '<div onclick="toggleInvoiceSection_()" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;cursor:pointer;user-select:none">' +
+      '<div style="font-weight:700;font-size:14px;display:flex;align-items:center;gap:6px">' +
+        '<span id="invoice-section-caret" style="display:inline-block;width:14px;text-align:center;transition:transform 0.15s;transform:rotate(' + (collapsed ? '-90' : '0') + 'deg)">▼</span>' +
+        '請求書管理 <small style="font-weight:500;color:var(--text-mute)">' + esc(forName || '') + '</small>' +
+      '</div>' +
     '</div>' +
-    '<div id="invoice-section-body">' +
+    '<div id="invoice-section-body" style="' + (collapsed ? 'display:none' : '') + '">' +
       '<div style="display:flex;align-items:center;justify-content:center;min-height:200px">' +
         '<div style="text-align:center;color:var(--text-mute);font-size:13px">' +
           '<div style="display:inline-block;width:28px;height:28px;border:3px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin 0.7s linear infinite;margin-bottom:10px"></div>' +
@@ -4977,6 +4981,19 @@ function renderInvoiceSection_(forName) {
       '</div>' +
     '</div>' +
   '</div>';
+}
+
+function toggleInvoiceSection_() {
+  INVOICE_STATE.collapsed = !INVOICE_STATE.collapsed;
+  try { localStorage.setItem('invoice-section-collapsed', INVOICE_STATE.collapsed ? '1' : '0'); } catch(_) {}
+  var body = document.getElementById('invoice-section-body');
+  var caret = document.getElementById('invoice-section-caret');
+  if (body) body.style.display = INVOICE_STATE.collapsed ? 'none' : '';
+  if (caret) caret.style.transform = 'rotate(' + (INVOICE_STATE.collapsed ? '-90' : '0') + 'deg)';
+  // 初回展開時に未ロードならロード開始
+  if (!INVOICE_STATE.collapsed && !INVOICE_STATE.loaded && !INVOICE_STATE.loading) {
+    loadInvoiceData_();
+  }
 }
 
 async function loadInvoiceData_(force) {
@@ -5027,12 +5044,8 @@ async function loadInvoiceData_(force) {
 function paintInvoiceSection_() {
   var body = document.getElementById('invoice-section-body');
   if (!body) return;
-  // 月オプション（直近12ヶ月）。「未作成のみ」フィルタを反映。
+  // 月オプション（直近12ヶ月）
   var months = INVOICE_STATE.months || [];
-  if (INVOICE_STATE.hideExisting) {
-    months = months.filter(function(m){ return !m.hasInvoice; });
-  }
-  // selectedYm が候補にない場合はリスト先頭にフォールバック（無ければ手入力扱い）
   if (months.length > 0 && !months.some(function(m){ return m.ym === INVOICE_STATE.selectedYm; })) {
     INVOICE_STATE.selectedYm = months[0].ym;
   }
@@ -5058,9 +5071,6 @@ function paintInvoiceSection_() {
       '<select id="invoice-month-select" onchange="onInvoiceMonthChange_(this.value)" style="font-size:13px;padding:4px 8px">' +
         monthOptions +
       '</select>' +
-      '<label style="font-size:12px;display:flex;align-items:center;gap:4px;color:var(--text-mute)">' +
-        '<input type="checkbox" ' + (INVOICE_STATE.hideExisting ? 'checked' : '') + ' onchange="onInvoiceHideToggle_(this.checked)"> 未作成のみ' +
-      '</label>' +
       '<button id="invoice-create-btn" class="btn-primary" onclick="submitInvoiceCreate_()" ' +
         (profileMissing ? 'disabled title="口座情報未登録"' : '') +
         ' style="font-size:13px;padding:6px 12px">この月の請求書を作成</button>' +
@@ -5091,13 +5101,13 @@ function paintInvoiceSection_() {
         var dl = Number(inv['PDFダウンロード回数'] || 0);
         var lastDl = String(inv['最終ダウンロード日時'] || '');
         var dlTitle = lastDl ? '最終: ' + lastDl : '';
-        return '<tr>' +
+        return '<tr data-no="' + esc(no) + '">' +
           '<td style="padding:6px 8px;border-bottom:1px solid var(--border)">' + esc(ym) + '</td>' +
           '<td style="padding:6px 8px;border-bottom:1px solid var(--border);font-family:monospace;font-size:11px">' + esc(no) + '</td>' +
           '<td style="padding:6px 8px;border-bottom:1px solid var(--border);text-align:right">¥' + Number(amt).toLocaleString('ja-JP') + '</td>' +
-          '<td style="padding:6px 8px;border-bottom:1px solid var(--border)">' + esc(st) + '</td>' +
+          '<td class="invoice-cell-status" style="padding:6px 8px;border-bottom:1px solid var(--border)">' + esc(st) + '</td>' +
           '<td style="padding:6px 8px;border-bottom:1px solid var(--border);font-size:11px;color:var(--text-mute);white-space:nowrap">' + esc(formatInvoiceTs_(upd)) + '</td>' +
-          '<td style="padding:6px 8px;border-bottom:1px solid var(--border);text-align:right" title="' + esc(dlTitle) + '">' + dl + '</td>' +
+          '<td class="invoice-cell-dl" style="padding:6px 8px;border-bottom:1px solid var(--border);text-align:right" title="' + esc(dlTitle) + '">' + dl + '</td>' +
           '<td style="padding:6px 8px;border-bottom:1px solid var(--border);white-space:nowrap">' +
             '<button class="btn-sm invoice-pdf-btn" data-no="' + esc(no) + '" onclick="downloadInvoicePdf_(this)" style="font-size:11px;margin-right:4px">PDF</button>' +
             '<button class="btn-sm" onclick="openInvoiceRevisionModal_(\'' + esc(no) + '\')" style="font-size:11px">修正申請</button>' +
@@ -5115,11 +5125,6 @@ function onInvoiceMonthChange_(ym) {
   INVOICE_STATE.selectedYm = String(ym || '');
 }
 
-function onInvoiceHideToggle_(checked) {
-  INVOICE_STATE.hideExisting = !!checked;
-  paintInvoiceSection_();
-}
-
 async function submitInvoiceCreate_() {
   var ym = INVOICE_STATE.selectedYm;
   if (!ym) { toast('請求対象月を選択してください', 'error'); return; }
@@ -5127,11 +5132,23 @@ async function submitInvoiceCreate_() {
   if (btn) { btn.disabled = true; btn.classList.add('btn-loading'); btn.textContent = '作成中'; }
   try {
     var r = await api('/api/invoice/create', { method: 'POST', body: { ym: ym } });
-    var inv = (r && r.invoice) || {};
-    var no = String(inv['請求書番号'] || inv.invoiceNo || '');
+    var inv = (r && r.invoice) || null;
+    var no = inv && String(inv['請求書番号'] || inv.invoiceNo || '');
     if (!no) { toast('作成に失敗しました', 'error'); return; }
-    INVOICE_STATE.loaded = false;
-    await loadInvoiceData_();
+    // ピンポイント更新: 同月の既存非取消行を取消済みに、新規を先頭に追加
+    var list = INVOICE_STATE.invoices || [];
+    for (var i = 0; i < list.length; i++) {
+      var item = list[i];
+      var iYm = String(item['請求月'] || item.ym || '');
+      var iSt = String(item['ステータス'] || item.status || '');
+      if (iYm === ym && iSt !== '取消済み') {
+        item['ステータス'] = '取消済み';
+      }
+    }
+    INVOICE_STATE.invoices = [inv].concat(list);
+    // 月リストの hasInvoice フラグも更新
+    (INVOICE_STATE.months || []).forEach(function(m){ if (m.ym === ym) m.hasInvoice = true; });
+    paintInvoiceSection_();
     var supersededN = r && Number(r.superseded || 0);
     var msg = supersededN > 0
       ? '新しい請求書を作成しました（' + no + '）— 旧版' + supersededN + '件は取消済みに変更'
@@ -5172,9 +5189,33 @@ async function downloadInvoicePdf_(arg) {
     a.click();
     document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(objUrl); }, 1000);
-    // DL回数を最新化（裏で一覧を再取得）
-    INVOICE_STATE.loaded = false;
-    loadInvoiceData_().catch(function(){});
+    // DL回数をローカル即時更新（再フェッチしない）。GAS 側は別途インクリメント済み。
+    var list = INVOICE_STATE.invoices || [];
+    var nowStr = (function(){
+      var d = new Date();
+      var pad = function(n){ return ('0' + n).slice(-2); };
+      return d.getFullYear() + '/' + pad(d.getMonth() + 1) + '/' + pad(d.getDate()) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    })();
+    for (var i = 0; i < list.length; i++) {
+      var it = list[i];
+      var n = String(it['請求書番号'] || it.invoiceNo || '');
+      if (n === invoiceNo) {
+        it['PDFダウンロード回数'] = Number(it['PDFダウンロード回数'] || 0) + 1;
+        it['最終ダウンロード日時'] = nowStr;
+        var sec = document.getElementById('invoice-section');
+        if (sec) {
+          var tr = sec.querySelector('tr[data-no="' + cssEscape_(invoiceNo) + '"]');
+          if (tr) {
+            var cell = tr.querySelector('.invoice-cell-dl');
+            if (cell) {
+              cell.textContent = it['PDFダウンロード回数'];
+              cell.setAttribute('title', '最終: ' + nowStr);
+            }
+          }
+        }
+        break;
+      }
+    }
   } catch (e) {
     toast('PDFダウンロード失敗: ' + e.message, 'error');
   } finally {
