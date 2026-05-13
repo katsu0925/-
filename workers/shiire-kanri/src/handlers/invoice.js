@@ -68,6 +68,7 @@ export async function createInvoice(request, env, user) {
     invoice: r.invoice || null,
     created: r.created !== false,
     overwritten: !!r.overwritten,
+    superseded: r.superseded,
   });
 }
 

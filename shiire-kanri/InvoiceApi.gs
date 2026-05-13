@@ -285,15 +285,23 @@ function inv_getMonthlyCounts_(staffName, ym) {
     { k: '発送件数', d: col(['発送日付','発送日']),    u: col(['発送者','発送担当']) }
   ];
   var nP = sh.getLastRow() - 1;
-  var lc = sh.getLastColumn();
-  var values = sh.getRange(2, 1, nP, lc).getValues();
+  // 商品管理は列数が多い（50+）。必要な列だけ範囲を狭めて読み込む。
+  var neededIdx = [];
+  for (var pi = 0; pi < pairs.length; pi++) {
+    if (pairs[pi].d >= 0) neededIdx.push(pairs[pi].d);
+    if (pairs[pi].u >= 0) neededIdx.push(pairs[pi].u);
+  }
+  if (!neededIdx.length) return { 採寸件数: 0, 撮影件数: 0, 出品件数: 0, 発送件数: 0 };
+  var minCol = Math.min.apply(null, neededIdx);
+  var maxCol = Math.max.apply(null, neededIdx);
+  var values = sh.getRange(2, minCol + 1, nP, maxCol - minCol + 1).getValues();
   var counts = { 採寸件数: 0, 撮影件数: 0, 出品件数: 0, 発送件数: 0 };
   for (var r = 0; r < nP; r++) {
     for (var p = 0; p < pairs.length; p++) {
       var pp = pairs[p];
       if (pp.d < 0 || pp.u < 0) continue;
-      var d = values[r][pp.d];
-      var u = inv_norm_(values[r][pp.u]);
+      var d = values[r][pp.d - minCol];
+      var u = inv_norm_(values[r][pp.u - minCol]);
       if (!d || !(d instanceof Date) || isNaN(d.getTime())) continue;
       if (u !== staffName) continue;
       var rowYm = inv_ymOfDate_(d);
@@ -329,15 +337,36 @@ function inv_getStaffRates_(staffRow) {
 // payload: { ym, email }
 // 戻り値: 請求書1枚分の全フィールド (CSVと同じ構造)
 function inv_calcInvoicePreview_(email, ym) {
+  var me = inv_resolveStaffByEmail_(email);
+  return inv_calcInvoicePreviewForStaff_(me, ym);
+}
+
+// 解決済みの me を直接受け取って計算する内部版。
+// inv_createInvoice_ から呼ぶことで resolveStaffByEmail_ の二重実行を避ける。
+function inv_calcInvoicePreviewForStaff_(me, ym) {
   ym = inv_norm_(ym);
   if (!/^\d{4}\/\d{2}$/.test(ym)) throw new Error('請求月の形式が不正: ' + ym);
-  var me = inv_resolveStaffByEmail_(email);
   var summary = inv_getMonthlySummary_(me.name, ym);
-  var counts = inv_getMonthlyCounts_(me.name, ym);
   var rates = inv_getStaffRates_(me.row);
   var grace = inv_getGraceRateForMonth_(ym);
   var adminRes = inv_getAdminSettings_();
   var settings = adminRes.settings;
+
+  // 件数の取得方法:
+  // - 報酬管理に行がある場合: 件数 = 報酬 / 単価（cron 確定時の整合性を保つ）。
+  //   商品管理(2000行超×50列)の重い再スキャンを避けるための最適化。
+  // - まだ cron 反映前の月の場合: 商品管理を直接スキャンする。
+  var counts;
+  if (summary.found) {
+    counts = {
+      採寸件数: rates.F_採寸単価 > 0 ? Math.round(summary.採寸報酬 / rates.F_採寸単価) : 0,
+      撮影件数: rates.G_撮影単価 > 0 ? Math.round(summary.撮影報酬 / rates.G_撮影単価) : 0,
+      出品件数: rates.H_出品単価 > 0 ? Math.round(summary.出品報酬 / rates.H_出品単価) : 0,
+      発送件数: rates.I_発送単価 > 0 ? Math.round(summary.発送報酬 / rates.I_発送単価) : 0
+    };
+  } else {
+    counts = inv_getMonthlyCounts_(me.name, ym);
+  }
 
   var 採寸件数 = counts.採寸件数;
   var 撮影件数 = counts.撮影件数;
@@ -965,17 +994,27 @@ function inv_createInvoice_(email, ym, options) {
       }
     }
     var nowPre = inv_nowISO_();
-    for (var si = 0; si < supersededList.length; si++) {
-      var prev = supersededList[si];
-      if (statusColIdx != null && prev._row) {
-        sh.getRange(prev._row, statusColIdx + 1).setValue('取消済み');
+    // 取消ステータス更新は setValue を行ごとに呼ぶと I/O が線形に効くため、
+    // 同一列を 1 つのレンジに集約し setValues で書き戻す。
+    if (supersededList.length > 0) {
+      var rowsAsc = supersededList.slice().sort(function(a, b){ return a._row - b._row; });
+      function flushColumn_(colIdx, vals) {
+        if (colIdx == null || !vals.length) return;
+        // 連続行ごとに分割して setValues
+        var start = 0;
+        while (start < vals.length) {
+          var end = start;
+          while (end + 1 < vals.length && vals[end + 1].row === vals[end].row + 1) end++;
+          var slice = vals.slice(start, end + 1).map(function(x){ return [x.v]; });
+          sh.getRange(vals[start].row, colIdx + 1, slice.length, 1).setValues(slice);
+          start = end + 1;
+        }
       }
-      if (updateColIdx != null && prev._row) {
-        sh.getRange(prev._row, updateColIdx + 1).setValue(nowPre);
-      }
+      flushColumn_(statusColIdx, rowsAsc.map(function(r){ return { row: r._row, v: '取消済み' }; }));
+      flushColumn_(updateColIdx, rowsAsc.map(function(r){ return { row: r._row, v: nowPre }; }));
     }
 
-    var preview = inv_calcInvoicePreview_(email, ym);
+    var preview = inv_calcInvoicePreviewForStaff_(me, ym);
     var seq = inv_nextSeq_(data, ym, me.row);
     var invoiceNo = inv_buildInvoiceNo_(ym, me.row, seq);
     var createdAt = inv_nowISO_();
@@ -1036,25 +1075,9 @@ function inv_createInvoice_(email, ym, options) {
     set('管理者メモ', '');
     set('PDFダウンロード回数', 0);
     set('最終ダウンロード日時', '');
-
-    // 事前にPDFをDriveへ生成しキャッシュする（DL即時化のため）。
-    // 失敗してもfileIdを空のまま append し、DL時に再生成できるようフォールバックを残す。
-    var pdfFileId = '';
-    try {
-      var snapshotForPdf = Object.assign({}, preview, {
-        請求書番号: invoiceNo,
-        作成日時: createdAt
-      });
-      var adminResForPdf = inv_getAdminSettings_();
-      var adminSettingsForPdf = (adminResForPdf && adminResForPdf.settings) || null;
-      var pdfFilename = inv_buildInvoicePdfFilename_(snapshotForPdf);
-      var pdfBaseName = pdfFilename.replace(/\.pdf$/, '');
-      var pdfBlobForCache = inv_buildInvoicePdfBlob_(snapshotForPdf, adminSettingsForPdf, pdfBaseName);
-      pdfFileId = inv_savePdfToDrive_(pdfBlobForCache, pdfFilename);
-    } catch (pdfErr) {
-      console.error('inv_createInvoice_ PDF事前生成失敗: ' + (pdfErr && pdfErr.message || pdfErr));
-    }
-    set('PDFファイルID', pdfFileId);
+    // PDFは初回DL時にDriveへキャッシュする（inv_buildInvoicePdfDownload_ のフォールバック）。
+    // 作成時にPDF生成（HtmlService→PDF変換が15-20秒）すると作成APIが極端に遅くなるため、ここでは空。
+    set('PDFファイルID', '');
 
     // appendRow より getRange().setValues() の方が確実に lastRow を返せる
     var writtenRow = sh.getLastRow() + 1;
