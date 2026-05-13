@@ -4679,7 +4679,13 @@ async function renderHoushuTab_() {
   var c = document.getElementById('content');
   var cached = readBusinessSheetCache_('houshu');
   if (cached) paintHoushu_(cached.data);
-  else c.innerHTML = '<div class="loading">読み込み中…</div>';
+  else c.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:center;min-height:60vh">' +
+      '<div style="text-align:center;color:var(--text-mute);font-size:14px">' +
+        '<div style="display:inline-block;width:36px;height:36px;border:3px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin 0.7s linear infinite;margin-bottom:12px"></div>' +
+        '<div>報酬データを読み込み中…</div>' +
+      '</div>' +
+    '</div>';
   try {
     var data = await fetchBusinessSheet_('houshu');
     paintHoushu_(data);
@@ -4963,7 +4969,12 @@ function renderInvoiceSection_(forName) {
       '<div style="font-weight:700;font-size:14px">請求書管理 <small style="font-weight:500;color:var(--text-mute)">' + esc(forName || '') + '</small></div>' +
     '</div>' +
     '<div id="invoice-section-body">' +
-      '<div class="loading" style="padding:12px;font-size:13px">読み込み中…</div>' +
+      '<div style="display:flex;align-items:center;justify-content:center;min-height:200px">' +
+        '<div style="text-align:center;color:var(--text-mute);font-size:13px">' +
+          '<div style="display:inline-block;width:28px;height:28px;border:3px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin 0.7s linear infinite;margin-bottom:10px"></div>' +
+          '<div>請求書情報を読み込み中…</div>' +
+        '</div>' +
+      '</div>' +
     '</div>' +
   '</div>';
 }
@@ -5067,6 +5078,8 @@ function paintInvoiceSection_() {
         '<th style="padding:6px 8px;border-bottom:1px solid var(--border)">請求書番号</th>' +
         '<th style="padding:6px 8px;border-bottom:1px solid var(--border);text-align:right">請求額</th>' +
         '<th style="padding:6px 8px;border-bottom:1px solid var(--border)">ステータス</th>' +
+        '<th style="padding:6px 8px;border-bottom:1px solid var(--border)">更新日時</th>' +
+        '<th style="padding:6px 8px;border-bottom:1px solid var(--border);text-align:right">DL回数</th>' +
         '<th style="padding:6px 8px;border-bottom:1px solid var(--border)">操作</th>' +
       '</tr></thead><tbody>' +
       invs.map(function(inv){
@@ -5074,11 +5087,17 @@ function paintInvoiceSection_() {
         var no = String(inv['請求書番号'] || inv.invoiceNo || '');
         var amt = Number(inv['請求額'] || inv.amount || 0);
         var st = String(inv['ステータス'] || inv.status || '');
+        var upd = String(inv['更新日時'] || inv.updatedAt || inv['作成日時'] || '');
+        var dl = Number(inv['PDFダウンロード回数'] || 0);
+        var lastDl = String(inv['最終ダウンロード日時'] || '');
+        var dlTitle = lastDl ? '最終: ' + lastDl : '';
         return '<tr>' +
           '<td style="padding:6px 8px;border-bottom:1px solid var(--border)">' + esc(ym) + '</td>' +
           '<td style="padding:6px 8px;border-bottom:1px solid var(--border);font-family:monospace;font-size:11px">' + esc(no) + '</td>' +
           '<td style="padding:6px 8px;border-bottom:1px solid var(--border);text-align:right">¥' + Number(amt).toLocaleString('ja-JP') + '</td>' +
           '<td style="padding:6px 8px;border-bottom:1px solid var(--border)">' + esc(st) + '</td>' +
+          '<td style="padding:6px 8px;border-bottom:1px solid var(--border);font-size:11px;color:var(--text-mute);white-space:nowrap">' + esc(formatInvoiceTs_(upd)) + '</td>' +
+          '<td style="padding:6px 8px;border-bottom:1px solid var(--border);text-align:right" title="' + esc(dlTitle) + '">' + dl + '</td>' +
           '<td style="padding:6px 8px;border-bottom:1px solid var(--border);white-space:nowrap">' +
             '<button class="btn-sm invoice-pdf-btn" data-no="' + esc(no) + '" onclick="downloadInvoicePdf_(this)" style="font-size:11px;margin-right:4px">PDF</button>' +
             '<button class="btn-sm" onclick="openInvoiceRevisionModal_(\'' + esc(no) + '\')" style="font-size:11px">修正申請</button>' +
@@ -5152,11 +5171,29 @@ async function downloadInvoicePdf_(arg) {
     a.click();
     document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(objUrl); }, 1000);
+    // DL回数を最新化（裏で一覧を再取得）
+    INVOICE_STATE.loaded = false;
+    loadInvoiceData_().catch(function(){});
   } catch (e) {
     toast('PDFダウンロード失敗: ' + e.message, 'error');
   } finally {
     if (btn) { btn.disabled = false; btn.classList.remove('btn-loading'); btn.textContent = 'PDF'; }
   }
+}
+
+// 請求書一覧の日時表示用フォーマッタ
+//   ISO/Date文字列 → 'YYYY/MM/DD HH:mm' に丸める
+function formatInvoiceTs_(s) {
+  if (!s) return '';
+  var str = String(s);
+  var d = new Date(str);
+  if (isNaN(d.getTime())) {
+    // ISO ではない場合 (Sheets 由来の Date 文字列) はそのまま先頭16文字を返す
+    return str.slice(0, 16).replace('T', ' ');
+  }
+  var pad = function(n){ return ('0' + n).slice(-2); };
+  return d.getFullYear() + '/' + pad(d.getMonth() + 1) + '/' + pad(d.getDate()) +
+    ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
 }
 
 function openInvoiceRevisionModal_(invoiceNo) {

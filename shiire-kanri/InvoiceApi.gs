@@ -699,6 +699,8 @@ function inv_historyRowToObject_(row, hmap) {
     更新日時:     inv_toDateTimeStr_(v('更新日時')),
     支払日:       inv_toDateTimeStr_(v('支払日')),
     管理者メモ:   inv_norm_(v('管理者メモ')),
+    PDFダウンロード回数: inv_toNum_(v('PDFダウンロード回数')),
+    最終ダウンロード日時: inv_toDateTimeStr_(v('最終ダウンロード日時')),
     スナップショット: snap
   };
 }
@@ -1008,6 +1010,9 @@ function inv_createInvoice_(email, ym, options) {
     set('支払日', existingRow ? (existingRow.支払日 || '') : '');
     set('スナップショットJSON', JSON.stringify(preview));
     set('管理者メモ', existingRow ? (existingRow.管理者メモ || '') : '');
+    // PDFダウンロード回数は上書き時も保持（再作成しても累計をリセットしない）
+    set('PDFダウンロード回数', existingRow ? (existingRow.PDFダウンロード回数 || 0) : 0);
+    set('最終ダウンロード日時', existingRow ? (existingRow.最終ダウンロード日時 || '') : '');
 
     var writtenRow;
     if (existingRow && existingRow._row) {
@@ -1079,11 +1084,27 @@ function inv_buildInvoicePdfDownload_(no, email) {
   var baseName = filename.replace(/\.pdf$/, '');
   var pdfBlob = inv_buildInvoicePdfBlob_(invoice, adminSettings, baseName);
   var b64 = Utilities.base64Encode(pdfBlob.getBytes());
+  // ダウンロード回数をインクリメント (PDF生成成功後)
+  var newCount = (hit.obj.PDFダウンロード回数 || 0) + 1;
+  var lastAt = inv_nowISO_();
+  try {
+    var sheetRow = hit.obj._row;
+    if (sheetRow && hit.sheet && hit.hmap) {
+      var idx = hit.hmap.idx;
+      if ('PDFダウンロード回数' in idx) {
+        hit.sheet.getRange(sheetRow, idx['PDFダウンロード回数'] + 1).setValue(newCount);
+      }
+      if ('最終ダウンロード日時' in idx) {
+        hit.sheet.getRange(sheetRow, idx['最終ダウンロード日時'] + 1).setValue(lastAt);
+      }
+    }
+  } catch (_) { /* 集計失敗は致命ではないので無視 */ }
   return {
     ok: true,
     filename: filename,
     mimeType: 'application/pdf',
-    base64: b64
+    base64: b64,
+    downloadCount: newCount
   };
 }
 

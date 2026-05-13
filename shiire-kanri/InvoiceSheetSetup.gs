@@ -41,7 +41,8 @@ var INV_WORKER_EXT_HEADERS = [
 //  U=在庫管理報酬, V=固定報酬, W=経費合計, X=売上報酬, Y=その他報酬,
 //  Z=採寸単価, AA=撮影単価, AB=出品単価, AC=発送単価,
 //  AD=税込合計, AE=控除可能率, AF=調整額, AG=振込元銀行, AH=振込手数料, AI=請求額,
-//  AJ=ステータス, AK=作成日時, AL=更新日時, AM=支払日, AN=スナップショットJSON, AO=管理者メモ
+//  AJ=ステータス, AK=作成日時, AL=更新日時, AM=支払日, AN=スナップショットJSON, AO=管理者メモ,
+//  AP=PDFダウンロード回数, AQ=最終ダウンロード日時
 var INV_HISTORY_HEADERS = [
   '請求書番号', '請求月', 'スタッフ名', 'スタッフメール',
   '屋号', '本名', '郵便番号', '住所', '電話', 'インボイス番号',
@@ -50,7 +51,8 @@ var INV_HISTORY_HEADERS = [
   '在庫管理報酬', '固定報酬', '経費合計', '売上報酬', 'その他報酬',
   '採寸単価', '撮影単価', '出品単価', '発送単価',
   '税込合計', '控除可能率', '調整額', '振込元銀行', '振込手数料', '請求額',
-  'ステータス', '作成日時', '更新日時', '支払日', 'スナップショットJSON', '管理者メモ'
+  'ステータス', '作成日時', '更新日時', '支払日', 'スナップショットJSON', '管理者メモ',
+  'PDFダウンロード回数', '最終ダウンロード日時'
 ];
 
 // 請求書履歴 ステータス（7段階）
@@ -256,4 +258,26 @@ function inv_migrationSelfTest() {
   }
   Logger.log(JSON.stringify(report, null, 2));
   return report;
+}
+
+// ============================================================
+// 請求書履歴 全件削除 (1行目ヘッダーは残す)
+// ────────────────────────────────────────────────
+// GAS エディタから手動実行する。誤実行防止のため `inv_purgeAllInvoices_RUN_` を別関数に分離。
+// 通常運用では呼ばない。重複行のクリーンアップ等にのみ使う。
+// ============================================================
+function inv_purgeAllInvoices_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    var ssId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || '';
+    if (!ssId) throw new Error('SPREADSHEET_ID が未設定です');
+    ss = SpreadsheetApp.openById(ssId);
+  }
+  var sh = ss.getSheetByName(INV_SHEET.HISTORY);
+  if (!sh) return { ok: false, error: '請求書履歴シートがありません' };
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return { ok: true, deleted: 0, message: '削除対象なし' };
+  var n = lastRow - 1;
+  sh.deleteRows(2, n);
+  return { ok: true, deleted: n, message: n + ' 行削除しました' };
 }
