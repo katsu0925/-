@@ -1,6 +1,6 @@
 // GET /api/thumb?key=products/<managedId>/<uuid>.jpg&w=200
 // gas-proxy 側 R2 (detauri-images) に保存された原本(1200×1200, ~170KB)を取得し、
-// Wasm でサムネサイズに縮小して返す。caches.default に 24h キャッシュ。
+// Wasm でサムネサイズに縮小して返す。caches.default に 1年 キャッシュ（key=UUID で immutable）。
 //
 // 用途: 発送/商品タブの一覧サムネ（タスキ箱由来の R2 画像）。
 //   原本を直接表示すると 22 件 × 173KB = 3.8MB。w=200 で生成すれば ~6KB × 22 = 130KB。
@@ -104,7 +104,7 @@ export async function thumbProxy(request, env, ctx) {
   const res = new Response(outputBuf, {
     headers: {
       'Content-Type': 'image/jpeg',
-      'Cache-Control': 'public, max-age=86400, s-maxage=86400, immutable',
+      'Cache-Control': 'public, max-age=31536000, s-maxage=31536000, immutable',
       'Access-Control-Allow-Origin': '*',
       'X-Thumb-Source': 'r2-wasm',
     },

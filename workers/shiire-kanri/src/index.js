@@ -2,7 +2,7 @@ import { corsOptions, jsonOk, jsonError } from './utils/response.js';
 import { getAccessUser } from './utils/access.js';
 import { scheduledSync } from './sync/sheets-sync.js';
 import { scheduledAccessSync } from './sync/access-sync.js';
-import { listProducts, getProduct, listProductCounts, getNextKanri, listProductThumbs, getProductImages, listKanrisWithImages } from './handlers/products.js';
+import { listProducts, getProduct, listProductCounts, getNextKanri, listProductThumbs, getProductImages, listKanrisWithImages, backfillThumbUrl } from './handlers/products.js';
 import { listPurchases, getPurchaseProducts } from './handlers/purchases.js';
 import { saveMeasurement, saveSale, saveDetails, uploadImage, resolveImage, createPurchase, createProduct, deleteProduct } from './handlers/write-proxy.js';
 import { imgProxy } from './handlers/img-proxy.js';
@@ -63,6 +63,13 @@ export default {
       if (!secret || secret !== env.SYNC_SECRET) return jsonError('unauthorized', 403);
       const result = await scheduledAccessSync(env);
       return jsonOk(result);
+    }
+
+    // thumb_url 一括バックフィル（Phase 2-A 初回専用・運用デバッグ用）
+    if (path === '/admin/backfill-thumb-url' && request.method === 'POST') {
+      const secret = request.headers.get('X-Sync-Secret') || '';
+      if (!secret || secret !== env.SYNC_SECRET) return jsonError('unauthorized', 403);
+      return backfillThumbUrl(request, env);
     }
 
     // Cloudflare Access JWT 検証

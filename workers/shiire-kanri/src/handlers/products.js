@@ -129,6 +129,7 @@ export async function listProducts(request, env) {
     SELECT kanri, shiire_id, worker, status, brand, size, color,
            measured_at, row_num,
            sale_date, sale_ts, sale_price,
+           thumb_url,
            json_extract(extra_json, '$."売却済み商品画像"') AS extra_thumb,
            json_extract(extra_json, '$."使用アカウント"')   AS extra_account,
            json_extract(extra_json, '$."完了日"')           AS extra_kanryou,
@@ -162,7 +163,7 @@ export async function listProducts(request, env) {
 
   try {
     const fp = await env.DB.prepare(fingerprintSql).bind(...args).first();
-    const etag = `"p${slim ? 'S5' : 'F3'}-${fp.cnt}-${fp.maxup}-${limit}"`;
+    const etag = `"p${slim ? 'S6' : 'F3'}-${fp.cnt}-${fp.maxup}-${limit}"`;
 
     // CF Edge は weak ETag (W/"...") に書き換えることがあるため、比較時は W/ プレフィクスを剥がす
     const inm = request.headers.get('If-None-Match') || '';
@@ -210,6 +211,7 @@ function formatProductSlim(row) {
     saleTs: row.sale_ts,
     salePrice: row.sale_price,
     rowNum: row.row_num,
+    thumbUrl: row.thumb_url || '',
     extra,
   };
 }
@@ -349,6 +351,66 @@ export async function listKanrisWithImages(request, env) {
   const kanris = arr.map(s => String(s || '').trim().toUpperCase()).filter(Boolean);
   return jsonOk({ kanris }, {
     'Cache-Control': 'public, max-age=60, stale-while-revalidate=300',
+  });
+}
+
+// POST /admin/backfill-thumb-url?offset=0&limit=200 (X-Sync-Secret 必須)
+// 既存商品の thumb_url を gas-proxy KV (product-images:<MID>) から流し込む 1回限りのバックフィル。
+// Phase 2-A の D1 列追加後に初回 1 度だけ実行する想定。冪等（同値ならスキップ）。
+// Workers の 30 秒/サブリクエスト数制限を回避するため、offset/limit でチャンク処理する。
+// 呼び出し側は nextOffset が null になるまで連続実行する。
+export async function backfillThumbUrl(request, env) {
+  if (!env.GAS_PROXY_CACHE || !env.DB) {
+    return jsonError('binding missing', 500);
+  }
+  const url = new URL(request.url);
+  const offset = Math.max(0, parseInt(url.searchParams.get('offset') || '0', 10) || 0);
+  const limit = Math.min(500, Math.max(1, parseInt(url.searchParams.get('limit') || '200', 10) || 200));
+
+  const indexRaw = await env.GAS_PROXY_CACHE.get('product-images:index').catch(() => null);
+  if (!indexRaw) return jsonOk({ scanned: 0, updated: 0, message: 'no index', nextOffset: null });
+  let index = null;
+  try { index = JSON.parse(indexRaw); } catch { index = null; }
+  if (!Array.isArray(index)) return jsonOk({ scanned: 0, updated: 0, message: 'bad index', nextOffset: null });
+
+  const total = index.length;
+  const end = Math.min(offset + limit, total);
+  const slice = index.slice(offset, end);
+
+  let updated = 0;
+  let skipped = 0;
+  let missing = 0;
+  for (const idRaw of slice) {
+    const managedId = String(idRaw || '').trim().toUpperCase();
+    if (!managedId) continue;
+    const raw = await env.GAS_PROXY_CACHE.get('product-images:' + managedId).catch(() => null);
+    if (!raw) continue;
+    let arr = null;
+    try { arr = JSON.parse(raw); } catch { arr = null; }
+    if (!Array.isArray(arr) || arr.length === 0) continue;
+    const newThumb = String(arr[0] || '').trim() || null;
+    if (!newThumb) continue;
+
+    const cur = await env.DB
+      .prepare('SELECT kanri, thumb_url FROM products WHERE upper(kanri) = ?')
+      .bind(managedId)
+      .first();
+    if (!cur) { missing++; continue; }
+    if ((cur.thumb_url || null) === newThumb) { skipped++; continue; }
+    await env.DB
+      .prepare('UPDATE products SET thumb_url = ? WHERE kanri = ?')
+      .bind(newThumb, cur.kanri)
+      .run();
+    updated++;
+  }
+  return jsonOk({
+    total,
+    offset,
+    processed: slice.length,
+    updated,
+    skipped,
+    missing,
+    nextOffset: end >= total ? null : end,
   });
 }
 

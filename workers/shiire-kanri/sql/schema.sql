@@ -31,7 +31,10 @@ CREATE TABLE IF NOT EXISTS products (
   updated_at INTEGER NOT NULL,        -- ms epoch
   -- 行の SHA-256 ハッシュ。Cron がこの値と新規データのハッシュを比較し、
   -- 変化行のみ UPSERT する（D1 課金事故防止 / 過去 $54 事故）。
-  content_hash TEXT
+  content_hash TEXT,
+  -- タスキ箱（gas-proxy R2）のトップ画像 URL。一覧の即時サムネ表示用。
+  -- 書込み元は gas-proxy upload.js（クロスD1バインディング経由）。
+  thumb_url TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);

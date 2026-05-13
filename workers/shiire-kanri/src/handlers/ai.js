@@ -11,7 +11,7 @@ import { jsonOk, jsonError } from '../utils/response.js';
 //
 // D1 を最優先にする理由: TTL 切れによる KV ミス、シート手動編集 → KV 未更新 のケースを
 // Cron 同期で取りこぼさず、レスポンスが安定する。
-export async function lookupAiPrefill(request, env) {
+export async function lookupAiPrefill(request, env, ctx) {
   const url = new URL(request.url);
   const kanri = String(url.searchParams.get('kanri') || '').trim();
   if (!kanri) return jsonError('kanri required', 400);
@@ -91,10 +91,10 @@ export async function lookupAiPrefill(request, env) {
       'X-AI-Source': body.source || 'unknown',
     },
   });
-  // Note: Cache API は Response の clone を put する必要がある
-  request.cf || null; // (no-op; placeholder so we don't await before cloning if response is small)
-  // ctx.waitUntil 相当はここでは取れないが、cache.put は同期でも fire-and-forget で通常 OK
-  cache.put(cacheKey, response.clone()).catch(() => { /* cache 書込失敗は無視 */ });
+  // Cache API は Response の clone を put する必要がある。
+  // ctx.waitUntil でラップしてクライアント切断時の中断を防ぐ。
+  const putPromise = cache.put(cacheKey, response.clone()).catch(() => { /* cache 書込失敗は無視 */ });
+  if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(putPromise);
   return response;
 }
 

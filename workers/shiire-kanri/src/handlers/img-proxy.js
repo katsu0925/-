@@ -4,8 +4,9 @@
 //       caches.default にキャッシュすれば 2回目以降は CF Edge から ~50ms で返る。
 //
 // キャッシュ戦略:
-//   - caches.default: 24h (cross-user, cross-session)
-//   - Cache-Control: public, max-age=86400, immutable (ブラウザ/CDN 両方)
+//   - caches.default: 1年 (cross-user, cross-session)。URL に含まれる Drive file ID は不変かつ
+//     画像差替時はファイル ID 自体が新規発行される運用なので immutable 化して安全
+//   - Cache-Control: public, max-age=31536000, immutable (ブラウザ/CDN 両方)
 //   - キー: id+sz の組み合わせ（リクエスト URL の認証クッキーは無視）
 //
 // セキュリティ:
@@ -40,7 +41,7 @@ export async function imgProxy(request, env, ctx) {
 
   const driveUrl = `https://drive.google.com/thumbnail?id=${id}&sz=${sz}`;
   const upstream = await fetch(driveUrl, {
-    cf: { cacheTtl: 86400, cacheEverything: true },
+    cf: { cacheTtl: 31536000, cacheEverything: true },
     redirect: 'follow',
   });
 
@@ -58,7 +59,7 @@ export async function imgProxy(request, env, ctx) {
   const res = new Response(buf, {
     headers: {
       'Content-Type': ct,
-      'Cache-Control': 'public, max-age=86400, s-maxage=86400, immutable',
+      'Cache-Control': 'public, max-age=31536000, s-maxage=31536000, immutable',
       'Access-Control-Allow-Origin': '*',
     },
   });

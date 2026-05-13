@@ -2479,6 +2479,19 @@ function normalizeDriveUrl_(url, size) {
   return url;
 }
 
+// 一覧サムネ用 <img> 生成。CSS の card-thumb 実寸は 56×56 (compact も同サイズ)。
+// DPR 1x/2x/3x で w=100/160/200 に出し分けて、低DPR端末で転送量を 50% 削減。
+// img-proxy/thumb-proxy 双方の許可サイズ (100/160/200) に揃えてある。
+function thumbImgHtml_(rawUrl) {
+  if (!rawUrl) return '';
+  var u100 = esc(normalizeDriveUrl_(rawUrl, 100));
+  var u160 = esc(normalizeDriveUrl_(rawUrl, 160));
+  var u200 = esc(normalizeDriveUrl_(rawUrl, 200));
+  return '<img src="' + u200 + '" srcset="' +
+    u100 + ' 1x, ' + u160 + ' 2x, ' + u200 + ' 3x' +
+    '" sizes="56px" alt="" loading="lazy" decoding="async">';
+}
+
 // 詳細描画後に呼び出し: 旧形式パスの画像を遅延解決して img に差し替え
 function resolveLegacyImages_() {
   // .img-preview / .basic-img どちらも対象
@@ -2583,17 +2596,25 @@ function cardHtml(it) {
     cardClass += ' s-sokutei';
   }
   // サムネはタスキ箱トップ画像を優先。
+  // 0) /api/products list に同梱された it.thumbUrl があれば最初から <img> を描画（Phase 2-A）
+  //    → ブラウザ prescanner が初期HTMLからURLを拾えるので即時表示。RTT 1往復削減。
   // 1) sessionStorage に解決済URLがあればインラインで <img>（再描画時のチラつき回避）
   // 2) THUMB_HAS_SET（/api/products/has-images の結果セット）に kanri があれば「読込中」プレースホルダ → 後で resolveCardThumbsTasukibako_() で画像化
   // 3) 上記いずれでもなければ「画像未登録」確定 → 📷 アイコンを最初から固定表示（fetch しない）
   var thumbHtml = '';
   if (STATE.tab === 'hassou' || STATE.tab === 'shouhin') {
     var ck = 'tbthumb:v2:' + it.kanri;
+    var listThumb = (it.thumbUrl && String(it.thumbUrl).trim()) ? String(it.thumbUrl).trim() : '';
     var cached = null;
     try { cached = sessionStorage.getItem(ck); } catch(e) {}
-    if (cached && !isThumbNoneCached_(cached)) {
-      var url = normalizeDriveUrl_(cached, 200);
-      thumbHtml = '<div class="card-thumb"><img src="' + esc(url) + '" alt="" loading="lazy" decoding="async"></div>';
+    if (listThumb) {
+      // 後続再描画でも一致するよう sessionStorage に書き戻し（既存解決パイプラインと共存）
+      if (!cached || cached !== listThumb) {
+        try { sessionStorage.setItem(ck, listThumb); } catch(e) {}
+      }
+      thumbHtml = '<div class="card-thumb">' + thumbImgHtml_(listThumb) + '</div>';
+    } else if (cached && !isThumbNoneCached_(cached)) {
+      thumbHtml = '<div class="card-thumb">' + thumbImgHtml_(cached) + '</div>';
     } else if (hasRegisteredImage_(it.kanri)) {
       // 画像あり確定 → 読込中（解決後に <img> 差替え）
       thumbHtml = '<div class="card-thumb img-tasukibako" data-kanri="' + esc(it.kanri) + '">📷</div>';
@@ -2948,7 +2969,7 @@ function resolveCardThumbsTasukibako_() {
     if (isThumbNoneCached_(cached)) return; // 画像なしと既知 (TTL内) → 何もしない
     if (cached && cached.indexOf('__none__') !== 0) {
       el.classList.remove('img-tasukibako');
-      el.innerHTML = '<img src="' + esc(normalizeDriveUrl_(cached, 200)) + '" alt="" loading="lazy" decoding="async">';
+      el.innerHTML = thumbImgHtml_(cached);
       return;
     }
     if (!pendingMap[k]) {
@@ -2975,9 +2996,10 @@ function resolveCardThumbsTasukibako_() {
               try { sessionStorage.setItem(ck, url); } catch(e) {}
               var smallUrl = normalizeDriveUrl_(url, 200);
               resolvedUrls.push(smallUrl);
+              var imgHtml = thumbImgHtml_(url);
               document.querySelectorAll('.card-thumb.img-tasukibako[data-kanri="' + k.replace(/"/g,'\\"') + '"]').forEach(function(el){
                 el.classList.remove('img-tasukibako');
-                el.innerHTML = '<img src="' + esc(smallUrl) + '" alt="" loading="lazy" decoding="async">';
+                el.innerHTML = imgHtml;
               });
             } else {
               // 画像なしをタイムスタンプ付きで記憶（TTL 5分後に再フェッチ → アップロード即反映）

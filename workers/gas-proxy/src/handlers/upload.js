@@ -222,6 +222,9 @@ async function handleImageUpload(request, env) {
   // 商品一覧インデックスに追加
   await addToIndex(env, managedId);
 
+  // shiire-kanri 一覧の即時サムネ用に thumb_url を直接書き戻す
+  await syncThumbToShiire(env, managedId, urls);
+
   // 商品キャッシュ無効化（フロントに即反映）
   await invalidateProductCache(env);
 
@@ -455,6 +458,7 @@ async function handleDelete(request, env) {
   // KVインデックスから削除
   await env.CACHE.delete(`product-images:${managedId}`);
   await removeFromIndex(env, managedId);
+  await syncThumbToShiire(env, managedId, []);
 
   await invalidateProductCache(env);
   await invalidateListCache(env);
@@ -512,6 +516,7 @@ async function handleDeleteSingle(request, env) {
   } else {
     await env.CACHE.put(`product-images:${managedId}`, JSON.stringify(urls));
   }
+  await syncThumbToShiire(env, managedId, urls);
 
   await invalidateProductCache(env);
   await invalidateListCache(env);
@@ -565,6 +570,8 @@ async function handleUpdateImage(request, env) {
   const newUrl = `/images/products/${managedId}/${uuid}.jpg`;
   urls[targetIndex] = newUrl;
   await env.CACHE.put(`product-images:${managedId}`, JSON.stringify(urls));
+  // 先頭画像が置換された場合に備えて thumb_url を同期
+  if (targetIndex === 0) await syncThumbToShiire(env, managedId, urls);
 
   // バックアップ：newUrl → targetUrl を 7日間保持（誤置換の復元用）
   await env.CACHE.put(
@@ -612,6 +619,7 @@ async function handleRevertImage(request, env) {
 
   urls[idx] = oldUrl;
   await env.CACHE.put(`product-images:${managedId}`, JSON.stringify(urls));
+  if (idx === 0) await syncThumbToShiire(env, managedId, urls);
 
   // 現在（置換後）のR2画像を削除
   const currentR2Key = currentUrl.replace(/^\/images\//, '');
@@ -669,6 +677,7 @@ async function handleReorder(request, env) {
 
   // KV更新
   await env.CACHE.put(`product-images:${managedId}`, JSON.stringify(newOrder));
+  await syncThumbToShiire(env, managedId, newOrder);
   await invalidateProductCache(env);
 
   return jsonOk({ managedId, urls: newOrder });
@@ -773,6 +782,29 @@ async function removeFromIndex(env, managedId) {
     'DELETE FROM product_image_index WHERE managed_id = ?'
   ).bind(managedId).run();
   await rebuildImageIndexKv(env);
+}
+
+// shiire-kanri-db.products.thumb_url を直接書き換える（一覧の即時サムネ用）。
+// managedId は uppercase で来るが、shiire-kanri 側 kanri は sheets 由来の混在ケース
+// （例: zk1000 / zY125）。upper(kanri) = ? で一致させる。
+// D1 課金ガード: 既に同値なら UPDATE しない。
+async function syncThumbToShiire(env, managedId, urls) {
+  if (!env.SHIIRE_DB || !managedId) return;
+  const newThumb = (Array.isArray(urls) && urls.length > 0 && urls[0]) ? String(urls[0]) : null;
+  try {
+    const cur = await env.SHIIRE_DB
+      .prepare('SELECT kanri, thumb_url FROM products WHERE upper(kanri) = ?')
+      .bind(managedId)
+      .first();
+    if (!cur) return; // shiire-kanri 側にまだ行が無い（次の Cron で UPSERT される）
+    if ((cur.thumb_url || null) === (newThumb || null)) return;
+    await env.SHIIRE_DB
+      .prepare('UPDATE products SET thumb_url = ? WHERE kanri = ?')
+      .bind(newThumb, cur.kanri)
+      .run();
+  } catch (err) {
+    console.warn(`[upload] shiire thumb_url update failed (${managedId}): ${err.message}`);
+  }
 }
 
 // ─── 保存ログ記録 ───
