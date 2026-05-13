@@ -5104,7 +5104,7 @@ function paintInvoiceSection_() {
         return '<tr data-no="' + esc(no) + '">' +
           '<td style="padding:6px 8px;border-bottom:1px solid var(--border)">' + esc(ym) + '</td>' +
           '<td style="padding:6px 8px;border-bottom:1px solid var(--border);font-family:monospace;font-size:11px">' + esc(no) + '</td>' +
-          '<td style="padding:6px 8px;border-bottom:1px solid var(--border);text-align:right">¥' + Number(amt).toLocaleString('ja-JP') + '</td>' +
+          '<td style="padding:6px 8px;border-bottom:1px solid var(--border);text-align:right">¥' + Math.round(amt).toLocaleString('ja-JP') + '</td>' +
           '<td class="invoice-cell-status" style="padding:6px 8px;border-bottom:1px solid var(--border)">' + esc(st) + '</td>' +
           '<td style="padding:6px 8px;border-bottom:1px solid var(--border);font-size:11px;color:var(--text-mute);white-space:nowrap">' + esc(formatInvoiceTs_(upd)) + '</td>' +
           '<td class="invoice-cell-dl" style="padding:6px 8px;border-bottom:1px solid var(--border);text-align:right" title="' + esc(dlTitle) + '">' + dl + '</td>' +

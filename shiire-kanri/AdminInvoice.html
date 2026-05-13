@@ -126,6 +126,7 @@ table.data tr:hover td{background:#fafafa;}
 <div id="toast" class="toast"></div>
 
 <script>
+var USER_EMAIL = <?!= JSON.stringify(typeof userEmail === 'string' ? userEmail : '') ?>;
 var STATE = { me: null, invoices: [], revisions: [], graceItems: [], settings: null };
 
 var STATUS_CLS = {
@@ -174,7 +175,7 @@ document.addEventListener('DOMContentLoaded', function(){
       document.body.innerHTML = '<div style="padding:40px;text-align:center;color:#dc3545">' +
         '初期化失敗: ' + (err && err.message || err) + '</div>';
     })
-    .adminInv_currentUser();
+    .adminInv_currentUser(USER_EMAIL);
 });
 
 // ============================================================
@@ -200,7 +201,7 @@ function loadInvoices() {
       el.className = '';
       el.innerHTML = '<div style="color:#dc3545">取得失敗: ' + (err && err.message || err) + '</div>';
     })
-    .adminInv_listAllInvoices({ status: status, ym: ym });
+    .adminInv_listAllInvoices({ status: status, ym: ym }, USER_EMAIL);
 }
 
 function renderInvoices() {
@@ -271,7 +272,7 @@ function openInvoiceDetail(no) {
       );
     })
     .withFailureHandler(function(err){ toast('取得失敗: ' + (err && err.message || err), 'error'); })
-    .adminInv_getInvoiceDetail({ no: no });
+    .adminInv_getInvoiceDetail({ no: no }, USER_EMAIL);
 }
 
 function markInvoicePaid(no) {
@@ -283,7 +284,7 @@ function markInvoicePaid(no) {
       loadInvoices();
     })
     .withFailureHandler(function(err){ toast('更新失敗: ' + (err && err.message || err), 'error'); })
-    .adminInv_updateInvoiceStatus({ no: no, status: '支払済み' });
+    .adminInv_updateInvoiceStatus({ no: no, status: '支払済み' }, USER_EMAIL);
 }
 
 function cancelInvoice(no) {
@@ -296,7 +297,7 @@ function cancelInvoice(no) {
       loadInvoices();
     })
     .withFailureHandler(function(err){ toast('更新失敗: ' + (err && err.message || err), 'error'); })
-    .adminInv_updateInvoiceStatus({ no: no, status: '取消済み', memo: memo });
+    .adminInv_updateInvoiceStatus({ no: no, status: '取消済み', memo: memo }, USER_EMAIL);
 }
 
 // ============================================================
@@ -321,7 +322,7 @@ function loadRevisions() {
       el.className = '';
       el.innerHTML = '<div style="color:#dc3545">取得失敗: ' + (err && err.message || err) + '</div>';
     })
-    .adminInv_listAllRevisions({ status: status });
+    .adminInv_listAllRevisions({ status: status }, USER_EMAIL);
 }
 
 function renderRevisions() {
@@ -396,7 +397,7 @@ function respondRevision(applyId, action) {
       loadRevisions();
     })
     .withFailureHandler(function(err){ toast('対応失敗: ' + (err && err.message || err), 'error'); })
-    .adminInv_respondRevision({ applyId: applyId, action: action, comment: comment });
+    .adminInv_respondRevision({ applyId: applyId, action: action, comment: comment }, USER_EMAIL);
 }
 
 // ============================================================
@@ -410,7 +411,7 @@ function loadGrace() {
     .withSuccessHandler(function(res){
       if (!res || !res.ok) {
         el.className = '';
-        el.innerHTML = '<div style="color:#dc3545">取得失敗: ' + (res && res.error || '') + '</div>';
+        el.innerHTML = '<div style="color:#dc3545">取得失敗: ' + ((res && res.error) || '') + '</div>';
         return;
       }
       STATE.graceItems = res.items || [];
@@ -418,9 +419,9 @@ function loadGrace() {
     })
     .withFailureHandler(function(err){
       el.className = '';
-      el.innerHTML = '<div style="color:#dc3545">取得失敗: ' + (err && err.message || err) + '</div>';
+      el.innerHTML = '<div style="color:#dc3545">取得失敗: ' + (err && err.message || '') + '</div>';
     })
-    .adminInv_listGraceRates({});
+    .adminInv_listGraceRates({}, USER_EMAIL);
 }
 
 function renderGrace() {
@@ -486,7 +487,7 @@ function saveGrace() {
       loadGrace();
     })
     .withFailureHandler(function(err){ toast('保存失敗: ' + (err && err.message || err), 'error'); })
-    .adminInv_saveGraceRates({ items: items });
+    .adminInv_saveGraceRates({ items: items }, USER_EMAIL);
 }
 
 // ============================================================
@@ -510,7 +511,7 @@ function loadSettings() {
       el.className = '';
       el.innerHTML = '<div style="color:#dc3545">取得失敗: ' + (err && err.message || err) + '</div>';
     })
-    .adminInv_getAdminSettings({});
+    .adminInv_getAdminSettings({}, USER_EMAIL);
 }
 
 function renderSettings() {
@@ -569,7 +570,7 @@ function saveSettings() {
       loadSettings();
     })
     .withFailureHandler(function(err){ toast('保存失敗: ' + (err && err.message || err), 'error'); })
-    .adminInv_saveAdminSettings({ settings: settings });
+    .adminInv_saveAdminSettings({ settings: settings }, USER_EMAIL);
 }
 
 // ============================================================
@@ -583,7 +584,7 @@ function fmtYen(n) {
   if (n === null || n === undefined || n === '') return '-';
   var v = Number(n);
   if (isNaN(v)) return esc(n);
-  return '¥' + v.toLocaleString('ja-JP');
+  return '¥' + Math.round(v).toLocaleString('ja-JP');
 }
 var TOAST_TIMER = null;
 function toast(msg, kind) {

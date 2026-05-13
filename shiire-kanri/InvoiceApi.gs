@@ -373,7 +373,7 @@ function inv_calcInvoicePreview_(email, ym) {
   // 概算請求額 (手数料計算のために一旦算出)
   var 概算請求額 = 税込合計 - 調整額;
   var 振込手数料 = inv_calcTransferFee_(振込元銀行, スタッフ振込先銀行, 概算請求額, settings);
-  var 請求額 = 概算請求額 - 振込手数料;
+  var 請求額 = Math.round(概算請求額 - 振込手数料);
 
   return {
     ok: true,
