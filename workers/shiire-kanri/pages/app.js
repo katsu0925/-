@@ -5245,19 +5245,25 @@ function renderSettingsView_() {
 async function renderInvoiceProfileView_() {
   var c = document.getElementById('content');
   var cached = INVOICE_STATE.profile;
-  // 即時にフォーム骨格を描画（キャッシュ無しでも空フォーム表示）。読込中は入力を無効化。
-  c.innerHTML = buildInvoiceProfileHtml_(cached || {}, !cached);
-  if (cached) return;
+  if (cached) {
+    c.innerHTML = buildInvoiceProfileHtml_(cached, false);
+    return;
+  }
+  c.innerHTML =
+    '<div class="settings-page" style="display:flex;align-items:center;justify-content:center;min-height:240px">' +
+      '<div style="text-align:center;color:var(--text-mute);font-size:13px">' +
+        '<div style="display:inline-block;width:28px;height:28px;border:3px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin 0.7s linear infinite;margin-bottom:10px"></div>' +
+        '<div>個人情報・口座情報を読み込み中…</div>' +
+      '</div>' +
+    '</div>';
   try {
     var r = await api('/api/invoice/profile');
     var profile = (r && r.profile) || {};
     INVOICE_STATE.profile = profile;
-    // ユーザーが他ビューに移動していたら反映しない
     if (STATE.view !== 'settings' || STATE.settingsKind === 'admin_invoice') return;
     c.innerHTML = buildInvoiceProfileHtml_(profile, false);
   } catch (e) {
-    var note = document.getElementById('settings-load-indicator');
-    if (note) note.innerHTML = '<span style="color:#c62828">読み込み失敗: ' + esc(e.message) + '</span>';
+    c.innerHTML = '<div class="settings-page"><div style="color:#c62828;padding:20px;text-align:center">読み込み失敗: ' + esc(e.message) + '</div></div>';
   }
 }
 
@@ -5344,8 +5350,18 @@ async function openAdminInvoiceSettingsModal_() {
 async function renderAdminInvoiceSettingsView_() {
   var c = document.getElementById('content');
   var cached = INVOICE_STATE.adminSettings;
-  c.innerHTML = buildAdminInvoiceSettingsHtml_(cached || {}, !cached);
-  if (cached) return;
+  if (cached) {
+    c.innerHTML = buildAdminInvoiceSettingsHtml_(cached, false);
+    return;
+  }
+  // 初回はフォームを描かず、明確なスピナーだけ出してから API 完了後に差し替える。
+  c.innerHTML =
+    '<div class="settings-page" style="display:flex;align-items:center;justify-content:center;min-height:240px">' +
+      '<div style="text-align:center;color:var(--text-mute);font-size:13px">' +
+        '<div style="display:inline-block;width:28px;height:28px;border:3px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin 0.7s linear infinite;margin-bottom:10px"></div>' +
+        '<div>請求書管理者設定を読み込み中…</div>' +
+      '</div>' +
+    '</div>';
   try {
     var r = await api('/api/admin-invoice/settings');
     var settings = (r && r.settings) || {};
@@ -5353,8 +5369,7 @@ async function renderAdminInvoiceSettingsView_() {
     if (STATE.view !== 'settings' || STATE.settingsKind !== 'admin_invoice') return;
     c.innerHTML = buildAdminInvoiceSettingsHtml_(settings, false);
   } catch (e) {
-    var note = document.getElementById('settings-load-indicator');
-    if (note) note.innerHTML = '<span style="color:#c62828">読み込み失敗: ' + esc(e.message) + '</span>';
+    c.innerHTML = '<div class="settings-page"><div style="color:#c62828;padding:20px;text-align:center">読み込み失敗: ' + esc(e.message) + '</div></div>';
   }
 }
 

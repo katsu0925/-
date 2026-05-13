@@ -532,43 +532,43 @@ function inv_buildInvoiceHtml_(invoice, adminSettings) {
   var html =
 '<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>請求書</title>' +
 '<style>' +
-'@page { size: A4; margin: 16mm 14mm; }' +
-'body { font-family: "Noto Sans JP","Hiragino Sans","Yu Gothic",sans-serif; color:#222; font-size:11pt; line-height:1.55; }' +
-'.title { text-align:center; font-size:26pt; letter-spacing:0.5em; font-weight:700; padding-bottom:8px; border-bottom:2px solid #222; margin-bottom:18px; }' +
-'.head { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; gap:20px; }' +
+'@page { size: A4; margin: 12mm 12mm; }' +
+'body { font-family: "Noto Sans JP","Hiragino Sans","Yu Gothic",sans-serif; color:#222; font-size:10pt; line-height:1.45; margin:0; }' +
+'.title { text-align:center; font-size:22pt; letter-spacing:0.4em; font-weight:700; padding-bottom:5px; border-bottom:2px solid #222; margin-bottom:10px; }' +
+'.head { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; gap:20px; }' +
 '.head .left { flex:1.2; }' +
 '.head .right { flex:1; text-align:right; }' +
-'.addressee { font-size:16pt; font-weight:700; border-bottom:1.5px solid #333; padding-bottom:4px; margin-bottom:8px; }' +
-'.addressee small { font-size:11pt; margin-left:6px; }' +
-'.meta { font-size:10.5pt; line-height:1.7; }' +
+'.addressee { font-size:14pt; font-weight:700; border-bottom:1.2px solid #333; padding-bottom:3px; margin-bottom:5px; }' +
+'.addressee small { font-size:10pt; margin-left:6px; }' +
+'.meta { font-size:9.5pt; line-height:1.55; }' +
 '.meta .row { display:flex; justify-content:space-between; gap:14px; }' +
 '.meta .row .lab { color:#555; }' +
-'.preface { margin:10px 0 14px; font-size:11pt; }' +
-'.total-box { background:#f4f6fa; border:1.5px solid #345; padding:12px 16px; margin:8px 0 18px; border-radius:6px; display:flex; align-items:center; justify-content:space-between; }' +
-'.total-box .lab { font-size:13pt; font-weight:700; color:#234; }' +
-'.total-box .amt { font-size:22pt; font-weight:800; color:#0a3a6e; letter-spacing:0.04em; }' +
-'table.items { width:100%; border-collapse:collapse; margin-bottom:14px; }' +
-'table.items th { background:#314c70; color:#fff; padding:7px 8px; font-weight:600; font-size:10.5pt; }' +
-'table.items td { border-bottom:1px solid #cdd5e0; padding:7px 8px; font-size:10.5pt; }' +
+'.preface { margin:6px 0 8px; font-size:10pt; }' +
+'.total-box { background:#f4f6fa; border:1.2px solid #345; padding:8px 14px; margin:4px 0 10px; border-radius:5px; display:flex; align-items:center; justify-content:space-between; }' +
+'.total-box .lab { font-size:11pt; font-weight:700; color:#234; }' +
+'.total-box .amt { font-size:18pt; font-weight:800; color:#0a3a6e; letter-spacing:0.04em; }' +
+'table.items { width:100%; border-collapse:collapse; margin-bottom:8px; }' +
+'table.items th { background:#314c70; color:#fff; padding:4px 8px; font-weight:600; font-size:9.5pt; }' +
+'table.items td { border-bottom:1px solid #cdd5e0; padding:4px 8px; font-size:9.5pt; }' +
 'table.items td.c-name { width:46%; }' +
 'table.items td.c-qty  { width:12%; text-align:center; }' +
 'table.items td.c-unit { width:20%; text-align:right; }' +
 'table.items td.c-amt  { width:22%; text-align:right; }' +
 '.summary { display:flex; justify-content:flex-end; }' +
 '.summary table { border-collapse:collapse; min-width:46%; }' +
-'.summary td { padding:5px 10px; font-size:10.5pt; }' +
+'.summary td { padding:3px 10px; font-size:9.5pt; }' +
 '.summary td.lab { background:#eef2f7; color:#234; font-weight:600; width:55%; }' +
 '.summary td.val { text-align:right; border-bottom:1px solid #cdd5e0; }' +
-'.summary tr.tot td { font-size:12pt; font-weight:700; color:#0a3a6e; background:#dde7f3; }' +
-'.bank-box { margin:18px 0; border:1.2px solid #345; border-radius:4px; padding:10px 14px; background:#fafbfd; }' +
-'.bank-box .ttl { font-weight:700; color:#234; margin-bottom:6px; font-size:11pt; }' +
+'.summary tr.tot td { font-size:11pt; font-weight:700; color:#0a3a6e; background:#dde7f3; }' +
+'.bank-box { margin:10px 0 6px; border:1.1px solid #345; border-radius:4px; padding:6px 12px; background:#fafbfd; }' +
+'.bank-box .ttl { font-weight:700; color:#234; margin-bottom:3px; font-size:10pt; }' +
 '.bank-box table { width:100%; border-collapse:collapse; }' +
-'.bank-box td { padding:3px 6px; font-size:10.5pt; line-height:1.6; vertical-align:top; }' +
-'.bank-box td.lab { width:30%; color:#555; background:#eef2f7; font-weight:600; }' +
-'.bank-box td.val { width:70%; }' +
-'.note { font-size:9.5pt; color:#666; margin-top:4px; }' +
-'.issuer { margin-top:18px; padding-top:10px; border-top:1px dashed #999; font-size:10pt; line-height:1.7; }' +
-'.issuer .name { font-size:12pt; font-weight:700; }' +
+'.bank-box td { padding:2px 6px; font-size:9.5pt; line-height:1.45; vertical-align:top; }' +
+'.bank-box td.lab { width:24%; color:#555; background:#eef2f7; font-weight:600; }' +
+'.bank-box td.val { width:76%; }' +
+'.note { font-size:8.5pt; color:#666; margin-top:2px; }' +
+'.issuer { margin-top:10px; padding-top:6px; border-top:1px dashed #999; font-size:9pt; line-height:1.5; }' +
+'.issuer .name { font-size:11pt; font-weight:700; }' +
 '</style></head><body>' +
 '<div class="title">請求書</div>' +
 '<div class="head">' +
@@ -1025,6 +1025,9 @@ function inv_buildInvoicePdfDownload_(no, email) {
       請求書番号: hit.obj.請求書番号,
       作成日時: hit.obj.作成日時 || inv_nowISO_()
     });
+    // 連絡先・口座情報は常に最新を反映（金額系のみスナップショット固定）。
+    // 作成後にスタッフがプロフィールを更新したケースで「データが反映されない」と見えるのを防ぐ。
+    invoice.プロフィール = me.profile;
   } else {
     // フォールバック: 履歴行から再構築
     var invoice = {
