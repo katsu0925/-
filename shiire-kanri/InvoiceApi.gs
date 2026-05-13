@@ -709,8 +709,9 @@ function inv_historyRowToObject_(row, hmap) {
 function inv_readAllHistory_() {
   var ss = inv_getSS_();
   var sh = ss.getSheetByName(INV_SHEET.HISTORY);
-  if (!sh || sh.getLastRow() < 2) return { hmap: null, rows: [], sheet: sh };
+  if (!sh) return { hmap: null, rows: [], sheet: null };
   var hmap = inv_buildHeaderMap_(sh);
+  if (sh.getLastRow() < 2) return { hmap: hmap, rows: [], sheet: sh };
   var values = sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).getValues();
   var rows = [];
   for (var r = 0; r < values.length; r++) {
@@ -955,8 +956,9 @@ function inv_createInvoice_(email, ym, options) {
     var now = inv_nowISO_();
 
     // ヘッダーマップから 1行分を構築
-    var hmap = inv_buildHeaderMap_(sh);
-    var cols = sh.getLastColumn();
+    // data.hmap が無いのは履歴シートに行がまだ無いケース → ここで初めて構築する
+    var hmap = data.hmap || inv_buildHeaderMap_(sh);
+    var cols = hmap.headers.length;
     var row = new Array(cols).fill('');
     function set(name, val) {
       if (!(name in hmap.idx)) return;
@@ -1091,11 +1093,14 @@ function inv_buildInvoicePdfDownload_(no, email) {
     var sheetRow = hit.obj._row;
     if (sheetRow && hit.sheet && hit.hmap) {
       var idx = hit.hmap.idx;
-      if ('PDFダウンロード回数' in idx) {
-        hit.sheet.getRange(sheetRow, idx['PDFダウンロード回数'] + 1).setValue(newCount);
-      }
-      if ('最終ダウンロード日時' in idx) {
-        hit.sheet.getRange(sheetRow, idx['最終ダウンロード日時'] + 1).setValue(lastAt);
+      var ci = idx['PDFダウンロード回数'];
+      var di = idx['最終ダウンロード日時'];
+      // AP/AQ は連続列なので1回の setValues で書き込み（Sheets API 呼び出しを半減）
+      if (ci != null && di === ci + 1) {
+        hit.sheet.getRange(sheetRow, ci + 1, 1, 2).setValues([[newCount, lastAt]]);
+      } else {
+        if (ci != null) hit.sheet.getRange(sheetRow, ci + 1).setValue(newCount);
+        if (di != null) hit.sheet.getRange(sheetRow, di + 1).setValue(lastAt);
       }
     }
   } catch (_) { /* 集計失敗は致命ではないので無視 */ }
