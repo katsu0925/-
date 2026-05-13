@@ -893,8 +893,10 @@ function inv_withLock_(fn) {
 }
 
 // 履歴シートから 指定YM・staffRow の最大 seq を取得 (取消済みも含む)
+// 旧実装は inv_buildInvoiceNo_(ym, row, '') の `seq || 1` で `-1` が混入し、prefix が `INV-202604-5-1` になっていた。
+// このため `INV-202604-5-2` を読み飛ばし常に seq=1 となるバグがあった。
 function inv_nextSeq_(historyData, ym, staffRow) {
-  var prefix = inv_buildInvoiceNo_(ym, staffRow, '').replace(/-$/, '-');
+  var prefix = 'INV-' + String(ym).replace('/', '') + '-' + staffRow + '-';
   var max = 0;
   for (var i = 0; i < historyData.rows.length; i++) {
     var no = historyData.rows[i].請求書番号;
@@ -920,10 +922,17 @@ function inv_createInvoice_(email, ym, options) {
     var sh = ss.getSheetByName(INV_SHEET.HISTORY);
     if (!sh) throw new Error('請求書履歴シートがありません。inv_setupAllSheets() を実行してください。');
 
-    // 各「請求書を作成」押下ごとに連番付きの新請求書を発行する。
-    // 過去版は履歴シートに残り、請求書番号末尾の連番 (-1/-2/-3) で識別できる。
+    // 同月に取消済みでない既存行があれば「上書き更新」する。
+    // 新規の場合のみ連番を採番（取消済みも含めて最大 seq+1）。
     var data = inv_readAllHistory_();
-    var seq = inv_nextSeq_(data, ym, me.row);
+    var existingRow = null;
+    for (var ei = 0; ei < data.rows.length; ei++) {
+      var er = data.rows[ei];
+      if (er.スタッフ名 === me.name && er.請求月 === ym && er.ステータス !== '取消済み') {
+        existingRow = er;
+        break;
+      }
+    }
 
     // 個人情報チェック
     if (!me.profile.本名)   throw new Error('プロフィール: 本名 が未登録');
@@ -931,7 +940,16 @@ function inv_createInvoice_(email, ym, options) {
     if (!me.profile.口座番号) throw new Error('プロフィール: 口座番号 が未登録');
 
     var preview = inv_calcInvoicePreview_(email, ym);
-    var invoiceNo = inv_buildInvoiceNo_(ym, me.row, seq);
+    var invoiceNo;
+    var createdAt;
+    if (existingRow) {
+      invoiceNo = existingRow.請求書番号;
+      createdAt = existingRow.作成日時 || inv_nowISO_();
+    } else {
+      var seq = inv_nextSeq_(data, ym, me.row);
+      invoiceNo = inv_buildInvoiceNo_(ym, me.row, seq);
+      createdAt = inv_nowISO_();
+    }
     var now = inv_nowISO_();
 
     // ヘッダーマップから 1行分を構築
@@ -982,24 +1000,34 @@ function inv_createInvoice_(email, ym, options) {
     set('振込元銀行', s.振込元銀行 || '');
     set('振込手数料', s.振込手数料 || 0);
     set('請求額', s.請求額 || 0);
-    set('ステータス', '作成済み');
-    set('作成日時', now);
+    // 既存ステータスを上書き時は保持（支払済み等を作成済みに戻さない）
+    var status = existingRow ? (existingRow.ステータス || '作成済み') : '作成済み';
+    set('ステータス', status);
+    set('作成日時', createdAt);
     set('更新日時', now);
-    set('支払日', '');
+    set('支払日', existingRow ? (existingRow.支払日 || '') : '');
     set('スナップショットJSON', JSON.stringify(preview));
-    set('管理者メモ', '');
+    set('管理者メモ', existingRow ? (existingRow.管理者メモ || '') : '');
 
-    sh.appendRow(row);
-    var newRow = sh.getLastRow();
+    var writtenRow;
+    if (existingRow && existingRow._row) {
+      sh.getRange(existingRow._row, 1, 1, cols).setValues([row]);
+      writtenRow = existingRow._row;
+    } else {
+      sh.appendRow(row);
+      writtenRow = sh.getLastRow();
+    }
     return {
       ok: true,
-      alreadyExists: false,
+      alreadyExists: !!existingRow,
+      overwritten: !!existingRow,
       invoiceNo: invoiceNo,
-      row: newRow,
+      row: writtenRow,
       invoice: Object.assign({}, preview, {
         請求書番号: invoiceNo,
-        作成日時: now,
-        ステータス: '作成済み'
+        作成日時: createdAt,
+        更新日時: now,
+        ステータス: status
       })
     };
   });

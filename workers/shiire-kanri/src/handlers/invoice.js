@@ -64,7 +64,11 @@ export async function createInvoice(request, env, user) {
   if (!ym) return jsonError('ym required', 400);
   const r = await callGas(env, 'createInvoice', { ym }, user);
   if (!r.ok) return jsonError(r.error || 'gas error', 502);
-  return jsonOk({ invoice: r.invoice || null, created: r.created !== false });
+  return jsonOk({
+    invoice: r.invoice || null,
+    created: r.created !== false,
+    overwritten: !!r.overwritten,
+  });
 }
 
 export async function downloadInvoicePdf(request, env, user) {
