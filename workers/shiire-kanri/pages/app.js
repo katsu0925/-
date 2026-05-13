@@ -5132,10 +5132,11 @@ async function submitInvoiceCreate_() {
     if (!no) { toast('作成に失敗しました', 'error'); return; }
     INVOICE_STATE.loaded = false;
     await loadInvoiceData_();
-    var msg = r && r.overwritten
-      ? '請求書を最新データに更新しました（' + no + '）— 一覧から「PDF」でダウンロード'
-      : '請求書を作成しました（' + no + '）— 一覧から「PDF」でダウンロード';
-    toast(msg, 'success');
+    var supersededN = r && Number(r.superseded || 0);
+    var msg = supersededN > 0
+      ? '新しい請求書を作成しました（' + no + '）— 旧版' + supersededN + '件は取消済みに変更'
+      : '請求書を作成しました（' + no + '）';
+    toast(msg + ' — 一覧から「PDF」でダウンロード', 'success');
   } catch (e) {
     toast('作成失敗: ' + e.message, 'error');
   } finally {

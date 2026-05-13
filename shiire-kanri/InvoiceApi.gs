@@ -599,7 +599,7 @@ function inv_buildInvoiceHtml_(invoice, adminSettings) {
 '</table>' +
 '<div class="summary"><table>' +
   '<tr><td class="lab">小計</td><td class="val">' + yen(subtotal) + '</td></tr>' +
-  (adjustment ? '<tr><td class="lab">インボイス控除</td><td class="val">' + yen(adjustment) + '</td></tr>' : '') +
+  (adjustment ? '<tr><td class="lab">インボイス控除</td><td class="val">' + yen(-adjustment) + '</td></tr>' : '') +
   (transferFee ? '<tr><td class="lab">振込手数料</td><td class="val">' + yen(-transferFee) + '</td></tr>' : '') +
   '<tr class="tot"><td class="lab">合計（請求額）</td><td class="val">' + yen(total) + '</td></tr>' +
 '</table></div>' +
@@ -914,7 +914,8 @@ function inv_nextSeq_(historyData, ym, staffRow) {
 // 請求書を履歴シートに作成
 //   email: スタッフメール
 //   ym: 'YYYY/MM'
-//   options: { force?: true で既存があっても新連番で作る }
+// 同月でも作成のたびに seq をインクリメントして必ず新しい請求書番号で append する。
+// 既存の取消されていない請求書がある場合は、その行を自動で「取消済み」にしてから新規作成する。
 function inv_createInvoice_(email, ym, options) {
   options = options || {};
   ym = inv_norm_(ym);
@@ -925,40 +926,43 @@ function inv_createInvoice_(email, ym, options) {
     var sh = ss.getSheetByName(INV_SHEET.HISTORY);
     if (!sh) throw new Error('請求書履歴シートがありません。inv_setupAllSheets() を実行してください。');
 
-    // 同月に取消済みでない既存行があれば「上書き更新」する。
-    // 新規の場合のみ連番を採番（取消済みも含めて最大 seq+1）。
-    var data = inv_readAllHistory_();
-    var existingRow = null;
-    for (var ei = 0; ei < data.rows.length; ei++) {
-      var er = data.rows[ei];
-      if (er.スタッフ名 === me.name && er.請求月 === ym && er.ステータス !== '取消済み') {
-        existingRow = er;
-        break;
-      }
-    }
-
     // 個人情報チェック
     if (!me.profile.本名)   throw new Error('プロフィール: 本名 が未登録');
     if (!me.profile.銀行名) throw new Error('プロフィール: 銀行名 が未登録');
     if (!me.profile.口座番号) throw new Error('プロフィール: 口座番号 が未登録');
 
-    var preview = inv_calcInvoicePreview_(email, ym);
-    var invoiceNo;
-    var createdAt;
-    if (existingRow) {
-      invoiceNo = existingRow.請求書番号;
-      createdAt = existingRow.作成日時 || inv_nowISO_();
-    } else {
-      var seq = inv_nextSeq_(data, ym, me.row);
-      invoiceNo = inv_buildInvoiceNo_(ym, me.row, seq);
-      createdAt = inv_nowISO_();
-    }
-    var now = inv_nowISO_();
-
-    // ヘッダーマップから 1行分を構築
-    // data.hmap が無いのは履歴シートに行がまだ無いケース → ここで初めて構築する
+    // 履歴を読み、同月の有効行（取消済み以外）を全て先に取消ステータスに更新する。
+    // これで「最新の有効請求書は常に最後の seq」というルールが保てる。
+    var data = inv_readAllHistory_();
     var hmap = data.hmap || inv_buildHeaderMap_(sh);
     var cols = hmap.headers.length;
+    var statusColIdx = hmap.idx['ステータス'];
+    var updateColIdx = hmap.idx['更新日時'];
+    var supersededList = [];
+    for (var ei = 0; ei < data.rows.length; ei++) {
+      var er = data.rows[ei];
+      if (er.スタッフ名 === me.name && er.請求月 === ym && er.ステータス !== '取消済み') {
+        supersededList.push(er);
+      }
+    }
+    var nowPre = inv_nowISO_();
+    for (var si = 0; si < supersededList.length; si++) {
+      var prev = supersededList[si];
+      if (statusColIdx != null && prev._row) {
+        sh.getRange(prev._row, statusColIdx + 1).setValue('取消済み');
+      }
+      if (updateColIdx != null && prev._row) {
+        sh.getRange(prev._row, updateColIdx + 1).setValue(nowPre);
+      }
+    }
+
+    var preview = inv_calcInvoicePreview_(email, ym);
+    var seq = inv_nextSeq_(data, ym, me.row);
+    var invoiceNo = inv_buildInvoiceNo_(ym, me.row, seq);
+    var createdAt = inv_nowISO_();
+    var now = createdAt;
+
+    // ヘッダーマップから 1行分を構築（上で取得済みの hmap / cols を再利用）
     var row = new Array(cols).fill('');
     function set(name, val) {
       if (!(name in hmap.idx)) return;
@@ -1004,30 +1008,24 @@ function inv_createInvoice_(email, ym, options) {
     set('振込元銀行', s.振込元銀行 || '');
     set('振込手数料', s.振込手数料 || 0);
     set('請求額', s.請求額 || 0);
-    // 既存ステータスを上書き時は保持（支払済み等を作成済みに戻さない）
-    var status = existingRow ? (existingRow.ステータス || '作成済み') : '作成済み';
+    var status = '作成済み';
     set('ステータス', status);
     set('作成日時', createdAt);
     set('更新日時', now);
-    set('支払日', existingRow ? (existingRow.支払日 || '') : '');
+    set('支払日', '');
     set('スナップショットJSON', JSON.stringify(preview));
-    set('管理者メモ', existingRow ? (existingRow.管理者メモ || '') : '');
-    // PDFダウンロード回数は上書き時も保持（再作成しても累計をリセットしない）
-    set('PDFダウンロード回数', existingRow ? (existingRow.PDFダウンロード回数 || 0) : 0);
-    set('最終ダウンロード日時', existingRow ? (existingRow.最終ダウンロード日時 || '') : '');
+    set('管理者メモ', '');
+    set('PDFダウンロード回数', 0);
+    set('最終ダウンロード日時', '');
 
-    var writtenRow;
-    if (existingRow && existingRow._row) {
-      sh.getRange(existingRow._row, 1, 1, cols).setValues([row]);
-      writtenRow = existingRow._row;
-    } else {
-      sh.appendRow(row);
-      writtenRow = sh.getLastRow();
-    }
+    // appendRow より getRange().setValues() の方が確実に lastRow を返せる
+    var writtenRow = sh.getLastRow() + 1;
+    sh.getRange(writtenRow, 1, 1, cols).setValues([row]);
     return {
       ok: true,
-      alreadyExists: !!existingRow,
-      overwritten: !!existingRow,
+      alreadyExists: false,
+      overwritten: false,
+      superseded: supersededList.length,
       invoiceNo: invoiceNo,
       row: writtenRow,
       invoice: Object.assign({}, preview, {
