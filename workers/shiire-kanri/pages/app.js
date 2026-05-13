@@ -5050,7 +5050,7 @@ function paintInvoiceSection_() {
       '<label style="font-size:12px;display:flex;align-items:center;gap:4px;color:var(--text-mute)">' +
         '<input type="checkbox" ' + (INVOICE_STATE.hideExisting ? 'checked' : '') + ' onchange="onInvoiceHideToggle_(this.checked)"> 未作成のみ' +
       '</label>' +
-      '<button class="btn-primary" onclick="submitInvoiceCreate_()" ' +
+      '<button id="invoice-create-btn" class="btn-primary" onclick="submitInvoiceCreate_()" ' +
         (profileMissing ? 'disabled title="口座情報未登録"' : '') +
         ' style="font-size:13px;padding:6px 12px">この月の請求書を作成</button>' +
     '</div>';
@@ -5080,7 +5080,7 @@ function paintInvoiceSection_() {
           '<td style="padding:6px 8px;border-bottom:1px solid var(--border);text-align:right">¥' + Number(amt).toLocaleString('ja-JP') + '</td>' +
           '<td style="padding:6px 8px;border-bottom:1px solid var(--border)">' + esc(st) + '</td>' +
           '<td style="padding:6px 8px;border-bottom:1px solid var(--border);white-space:nowrap">' +
-            '<button class="btn-sm" onclick="downloadInvoiceCsv_(\'' + esc(no) + '\')" style="font-size:11px;margin-right:4px">CSV</button>' +
+            '<button class="btn-sm" onclick="downloadInvoicePdf_(\'' + esc(no) + '\')" style="font-size:11px;margin-right:4px">PDF</button>' +
             '<button class="btn-sm" onclick="openInvoiceRevisionModal_(\'' + esc(no) + '\')" style="font-size:11px">修正申請</button>' +
           '</td>' +
         '</tr>';
@@ -5103,32 +5103,29 @@ function onInvoiceHideToggle_(checked) {
 
 async function submitInvoiceCreate_() {
   var ym = INVOICE_STATE.selectedYm;
-  if (!ym) { alert('請求対象月を選択してください'); return; }
-  if (!confirm(ym + ' の請求書を作成しますか？\n（同月の既存請求書がある場合はそれが返ります）')) return;
+  if (!ym) { toast('請求対象月を選択してください', 'error'); return; }
+  var btn = document.getElementById('invoice-create-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '作成中…'; }
   try {
     var r = await api('/api/invoice/create', { method: 'POST', body: { ym: ym } });
     var inv = (r && r.invoice) || {};
     var no = String(inv['請求書番号'] || inv.invoiceNo || '');
-    if (!no) { alert('作成に失敗しました'); return; }
-    // 一覧と月リストを再読込
+    if (!no) { toast('作成に失敗しました', 'error'); return; }
     INVOICE_STATE.loaded = false;
     await loadInvoiceData_();
-    // 続けて CSV ダウンロードを促す
-    if (confirm('請求書を作成しました（' + no + '）。\n今すぐ CSV をダウンロードしますか？')) {
-      downloadInvoiceCsv_(no);
-    }
+    toast('請求書を作成しました（' + no + '）— 一覧から「PDF」でダウンロード', 'success');
   } catch (e) {
-    alert('作成失敗: ' + e.message);
+    toast('作成失敗: ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = 'この月の請求書を作成'; }
   }
 }
 
-function downloadInvoiceCsv_(invoiceNo) {
+function downloadInvoicePdf_(invoiceNo) {
   if (!invoiceNo) return;
-  // 認証セッション付きで直接 URL を叩く（fetch+Blob 経由でも良いがブラウザのダウンロード扱いにする）
-  var url = '/api/invoice/csv?invoiceNo=' + encodeURIComponent(invoiceNo);
+  var url = '/api/invoice/pdf?invoiceNo=' + encodeURIComponent(invoiceNo);
   var a = document.createElement('a');
   a.href = url;
-  // filename は Content-Disposition 側で UTF-8 指定。a.download は GAS 側の filename を尊重するため空。
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

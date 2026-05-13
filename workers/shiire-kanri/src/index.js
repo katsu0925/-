@@ -17,7 +17,7 @@ import { getVapidPublicKey, subscribePush, unsubscribePush, getPushPrefs, setPus
 import {
   invoiceMe, listMyInvoices, getInvoiceDetail, listMyAvailableMonths,
   calcInvoicePreview, getInvoiceProfile, saveInvoiceProfile,
-  createInvoice, downloadInvoiceCsv, requestInvoiceRevision, listMyRevisions,
+  createInvoice, downloadInvoicePdf, requestInvoiceRevision, listMyRevisions,
   adminListInvoices, adminListRevisions, adminUpdateRevision, adminUpdateInvoiceStatus,
   adminGetGraceRates, adminSaveGraceRates, adminGetSettings, adminSaveSettings,
 } from './handlers/invoice.js';
@@ -310,8 +310,8 @@ export default {
     if (path === '/api/invoice/create' && request.method === 'POST') {
       return createInvoice(request, env, user);
     }
-    if (path === '/api/invoice/csv' && request.method === 'GET') {
-      return downloadInvoiceCsv(request, env, user);
+    if (path === '/api/invoice/pdf' && request.method === 'GET') {
+      return downloadInvoicePdf(request, env, user);
     }
     if (path === '/api/invoice/revision' && request.method === 'POST') {
       return requestInvoiceRevision(request, env, user);

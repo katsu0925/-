@@ -67,21 +67,21 @@ export async function createInvoice(request, env, user) {
   return jsonOk({ invoice: r.invoice || null, created: r.created !== false });
 }
 
-export async function downloadInvoiceCsv(request, env, user) {
+export async function downloadInvoicePdf(request, env, user) {
   const url = new URL(request.url);
   const invoiceNo = String(url.searchParams.get('invoiceNo') || '').trim();
   if (!invoiceNo) return jsonError('invoiceNo required', 400);
-  const r = await callGas(env, 'downloadInvoiceCsv', { no: invoiceNo }, user);
+  const r = await callGas(env, 'downloadInvoicePdf', { no: invoiceNo }, user);
   if (!r.ok) return jsonError(r.error || 'gas error', 502);
-  // GAS 側で base64 化された CSV を直接バイナリ Response に整形して返す。
+  // GAS 側で base64 化された PDF を直接バイナリ Response に整形して返す。
   const b64 = String(r.base64 || '');
-  const fileName = String(r.filename || ('invoice_' + invoiceNo + '.csv'));
-  if (!b64) return jsonError('empty csv', 502);
+  const fileName = String(r.filename || ('invoice_' + invoiceNo + '.pdf'));
+  if (!b64) return jsonError('empty pdf', 502);
   const bin = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
   return new Response(bin, {
     status: 200,
     headers: {
-      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Type': 'application/pdf',
       'Content-Disposition': 'attachment; filename*=UTF-8\'\'' + encodeURIComponent(fileName),
       'Cache-Control': 'no-store',
     },
