@@ -1378,41 +1378,89 @@
   .card.clickable { cursor: pointer; transition: background-color .12s; }
   .card.clickable:hover { background: #f7f9fc; }
   .card.clickable:active { background: #eef2f8; }
-  /* スワイプ削除（メールアプリ風）—— モバイル左スワイプでゴミ箱ボタン表示 + 2段階確認 */
-  /* PC は行ホバーで右端のゴミ箱アイコンを表示。どちらも armed 状態 (3秒) で再タップ確定。 */
-  .swipe-wrap { position: relative; overflow: hidden; }
+  /* スワイプ操作（Spark Mail 風）—— カードと一体化、左/右スワイプで異なるアクション + 2段階確認 */
+  /* PC は行ホバーで両端のアクションアイコンを表示。どちらも armed 状態 (3秒) で再タップ確定。 */
+  /* swipe-wrap 自体に border-radius + overflow:hidden で内側カードと一体化（はみ出し防止） */
+  .swipe-wrap {
+    position: relative;
+    overflow: hidden;
+    border-radius: 12px;
+    margin-bottom: 10px;
+    isolation: isolate; /* z-index コンテキストを wrap に閉じる */
+  }
+  /* 内側カードが独自の margin/border-radius を持つと隙間や角ズレが出るので無効化 */
+  .swipe-wrap > .swipe-target > .card,
+  .swipe-wrap > .swipe-target > .shiire-card,
+  .swipe-wrap > .swipe-target > .move-card,
+  .swipe-wrap > .swipe-target > .hensou-card {
+    margin: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+  /* swipe-actions は左右どちらにも置けるよう left/right 個別 */
   .swipe-wrap .swipe-actions {
-    position: absolute; top: 0; right: 0; bottom: 0;
+    position: absolute; top: 0; bottom: 0;
     display: flex; align-items: stretch;
     pointer-events: none;
+    z-index: 0; /* 常に swipe-target の下に置く（target スライドで露出） */
   }
+  .swipe-wrap .swipe-actions.actions-right { right: 0; }
+  .swipe-wrap .swipe-actions.actions-left { left: 0; }
   .swipe-wrap .swipe-actions .act {
     pointer-events: auto;
     border: none; outline: none; cursor: pointer;
-    font-size: 18px; line-height: 1; padding: 0 18px;
+    font-size: 20px; line-height: 1; padding: 0 18px;
     color: #fff; font-weight: 700;
     display: flex; align-items: center; justify-content: center;
-    min-width: 64px;
+    min-width: 72px;
+    transition: background-color .15s;
   }
   .swipe-wrap .swipe-actions .act.del { background: #d93025; }
   .swipe-wrap .swipe-actions .act.del.armed { background: #a71d10; }
   .swipe-wrap .swipe-actions .act.del.armed::after {
-    content: '本当に削除？'; font-size: 11px; font-weight: 700; margin-left: 4px; white-space: nowrap;
+    content: '本当に削除？'; font-size: 11px; font-weight: 700; margin-left: 6px; white-space: nowrap;
   }
+  .swipe-wrap .swipe-actions .act.edit { background: #1a73e8; }
+  .swipe-wrap .swipe-actions .act.edit.armed { background: #0d47a1; }
+  .swipe-wrap .swipe-actions .act.edit.armed::after {
+    content: '編集する？'; font-size: 11px; font-weight: 700; margin-left: 6px; white-space: nowrap;
+  }
+  .swipe-wrap .swipe-actions .act.edit::before { content: '✏'; font-size: 18px; }
+  .swipe-wrap .swipe-actions .act.del::before { content: '🗑'; }
+  .swipe-wrap .swipe-actions .act > .act-label { font-size: 11px; margin-left: 4px; }
+  /* スピナー（削除/更新中） */
+  .swipe-wrap .swipe-actions .act.loading::before { content: ''; }
+  .swipe-wrap .swipe-actions .act.loading::after {
+    content: ''; display: inline-block; width: 18px; height: 18px; border-radius: 50%;
+    border: 2.5px solid rgba(255,255,255,.35); border-top-color: #fff;
+    animation: spin .7s linear infinite; margin: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .swipe-wrap > .swipe-target {
     position: relative; z-index: 1; background: var(--surface);
-    transition: transform .18s ease-out;
+    transition: transform .18s ease-out, opacity .25s, max-height .25s;
     will-change: transform;
     touch-action: pan-y;
   }
-  .swipe-wrap.is-open > .swipe-target { transform: translateX(-72px); }
-  .swipe-wrap.is-open.armed > .swipe-target { transform: translateX(-150px); }
-  /* PC: 行ホバーで右端ボタンをフェードイン（モバイルでは非表示、is-open のみ表示） */
+  /* 左スワイプで右側アクション露出（削除） */
+  .swipe-wrap.is-open-right > .swipe-target { transform: translateX(-80px); }
+  .swipe-wrap.is-open-right.armed > .swipe-target { transform: translateX(-160px); }
+  /* 右スワイプで左側アクション露出（編集） */
+  .swipe-wrap.is-open-left > .swipe-target { transform: translateX(80px); }
+  .swipe-wrap.is-open-left.armed > .swipe-target { transform: translateX(160px); }
+  /* 削除実行中: target を半透明＋pointer無効化 */
+  .swipe-wrap.is-deleting > .swipe-target { opacity: .4; pointer-events: none; }
+  /* PC: 行ホバーで両端をフェードイン（モバイルでは非表示、is-open-* のみ表示） */
   @media (hover: hover) and (pointer: fine) {
     .swipe-wrap .swipe-actions { opacity: 0; transition: opacity .15s; }
     .swipe-wrap:hover .swipe-actions,
-    .swipe-wrap.is-open .swipe-actions { opacity: 1; }
-    .swipe-wrap:hover:not(.is-open) > .swipe-target { transform: translateX(-72px); }
+    .swipe-wrap.is-open-right .swipe-actions.actions-right,
+    .swipe-wrap.is-open-left .swipe-actions.actions-left { opacity: 1; }
+    .swipe-wrap:hover:not(.is-open-right):not(.is-open-left) > .swipe-target {
+      /* PCでは hover で両端を同時露出（左右に 1px ずつシフトせず、ボタンだけ表示） */
+    }
+    /* PC hover ではボタンは絶対配置で重なって表示（target はスライドさせない） */
+    .swipe-wrap:hover .swipe-actions { z-index: 2; }
   }
   /* ID 多重選択ピッカー（移動報告） */
   .ids-picker { display: block; }

@@ -3181,6 +3181,12 @@ function paintBashoList_(allItems) {
   bindSwipeListenersFor_(c);
 }
 
+// 移動報告: スワイプ編集コールバック（既存の詳細画面を開く）
+registerSwipeEditHandler_('move', function(moveId) {
+  if (!moveId) return;
+  try { openBashoDetail(moveId); } catch (e) { toast('編集画面を開けませんでした', 'error'); }
+});
+
 // 移動報告: スワイプ削除コールバック
 registerSwipeDeleteHandler_('move', async function(moveId, wrap) {
   if (!moveId) return;
@@ -3468,6 +3474,12 @@ function paintHensouList_(allItems) {
   bindSwipeListenersFor_(c);
 }
 
+// 返送管理: スワイプ編集コールバック
+registerSwipeEditHandler_('return', function(boxId) {
+  if (!boxId) return;
+  try { openHensouDetail(boxId); } catch (e) { toast('編集画面を開けませんでした', 'error'); }
+});
+
 // 返送管理: スワイプ削除コールバック
 registerSwipeDeleteHandler_('return', async function(boxId, wrap) {
   if (!boxId) return;
@@ -3495,6 +3507,12 @@ registerSwipeDeleteHandler_('return', async function(boxId, wrap) {
   } catch (err) {
     toast('削除エラー: ' + (err && err.message || err), 'error');
   }
+});
+
+// 仕入れ管理: スワイプ編集コールバック
+registerSwipeEditHandler_('shiire', function(shiireId) {
+  if (!shiireId) return;
+  try { openShiireDetail(shiireId); } catch (e) { toast('編集画面を開けませんでした', 'error'); }
 });
 
 // 仕入れ管理: スワイプ削除コールバック
@@ -7414,10 +7432,16 @@ function esc(s) {
 // 先に呼ばれるため、ここで `var` 初期化に頼ると hoisting で undefined になる。
 // 既に初期化済みなら維持、未初期化なら新規作成する遅延初期化方式に変更。
 if (typeof window.SWIPE_DELETE_HANDLERS === 'undefined') window.SWIPE_DELETE_HANDLERS = {};
+if (typeof window.SWIPE_EDIT_HANDLERS === 'undefined') window.SWIPE_EDIT_HANDLERS = {};
 var SWIPE_DELETE_HANDLERS = window.SWIPE_DELETE_HANDLERS;
+var SWIPE_EDIT_HANDLERS = window.SWIPE_EDIT_HANDLERS;
 function registerSwipeDeleteHandler_(type, fn) {
   if (!window.SWIPE_DELETE_HANDLERS) window.SWIPE_DELETE_HANDLERS = {};
   window.SWIPE_DELETE_HANDLERS[type] = fn;
+}
+function registerSwipeEditHandler_(type, fn) {
+  if (!window.SWIPE_EDIT_HANDLERS) window.SWIPE_EDIT_HANDLERS = {};
+  window.SWIPE_EDIT_HANDLERS[type] = fn;
 }
 
 function swipeWrap_(innerHtml, opts) {
@@ -7427,25 +7451,70 @@ function swipeWrap_(innerHtml, opts) {
   var safeId = esc(id);
   var safeType = esc(type);
   return '<div class="swipe-wrap" data-swipe-type="' + safeType + '" data-swipe-id="' + safeId + '">' +
-           '<div class="swipe-actions">' +
+           '<div class="swipe-actions actions-left">' +
+             '<button type="button" class="act edit" aria-label="編集" ' +
+               'onclick="event.stopPropagation();swipeArmEdit_(this);"></button>' +
+           '</div>' +
+           '<div class="swipe-actions actions-right">' +
              '<button type="button" class="act del" aria-label="削除" ' +
-               'onclick="event.stopPropagation();swipeArmDelete_(this);">🗑</button>' +
+               'onclick="event.stopPropagation();swipeArmDelete_(this);"></button>' +
            '</div>' +
            '<div class="swipe-target">' + innerHtml + '</div>' +
          '</div>';
 }
 
-// 1回目のタップ: armed クラス付与（3秒）。2回目: 削除実行
+// 1回目のタップ: armed クラス付与（3秒）。2回目: 削除実行（スピナー表示中は無効）
 function swipeArmDelete_(btn) {
   var wrap = btn.closest('.swipe-wrap');
   if (!wrap) return;
+  if (btn.classList.contains('loading')) return; // 多重実行防止
   if (btn.classList.contains('armed')) {
     var type = wrap.getAttribute('data-swipe-type') || '';
     var id = wrap.getAttribute('data-swipe-id') || '';
     var fn = SWIPE_DELETE_HANDLERS[type];
     btn.classList.remove('armed');
     wrap.classList.remove('armed');
-    if (typeof fn === 'function') fn(id, wrap);
+    // スピナー＋削除中スタイルに切り替え
+    btn.classList.add('loading');
+    wrap.classList.add('is-deleting');
+    if (typeof fn === 'function') {
+      Promise.resolve()
+        .then(function(){ return fn(id, wrap); })
+        .catch(function(){})
+        .then(function(){
+          // ハンドラ側でDOMを消す前に loading を外すと一瞬戻るのでそのまま
+          btn.classList.remove('loading');
+          if (wrap && wrap.classList) wrap.classList.remove('is-deleting');
+        });
+    } else {
+      btn.classList.remove('loading');
+      wrap.classList.remove('is-deleting');
+    }
+    return;
+  }
+  btn.classList.add('armed');
+  wrap.classList.add('armed');
+  setTimeout(function(){
+    btn.classList.remove('armed');
+    wrap.classList.remove('armed');
+  }, 3000);
+}
+
+// 編集ボタン: 2段階確認（1回目 armed、2回目で編集モーダルを開く）
+function swipeArmEdit_(btn) {
+  var wrap = btn.closest('.swipe-wrap');
+  if (!wrap) return;
+  if (btn.classList.contains('loading')) return;
+  if (btn.classList.contains('armed')) {
+    var type = wrap.getAttribute('data-swipe-type') || '';
+    var id = wrap.getAttribute('data-swipe-id') || '';
+    var fn = SWIPE_EDIT_HANDLERS[type];
+    btn.classList.remove('armed');
+    wrap.classList.remove('armed');
+    // 編集は破壊的でないのでスピナー不要（モーダルが開けばユーザにわかる）
+    if (typeof fn === 'function') {
+      try { fn(id, wrap); } catch (e) {}
+    }
     return;
   }
   btn.classList.add('armed');
@@ -7479,7 +7548,7 @@ function bindSwipeListenersFor_(container) {
       }
     }
     // 横スワイプ確定後はカード本体のクリックを抑制
-    if (locked === 'h' && dx < -8) {
+    if (locked === 'h' && Math.abs(dx) > 8) {
       activeWrap.__suppressClick = true;
     }
   }, { passive: true });
@@ -7491,12 +7560,20 @@ function bindSwipeListenersFor_(container) {
     if (locked === 'h') {
       if (dx <= -60) {
         // 他の開いてるカードは閉じる
-        Array.prototype.forEach.call(container.querySelectorAll('.swipe-wrap.is-open'), function(o){
-          if (o !== w) o.classList.remove('is-open', 'armed');
+        Array.prototype.forEach.call(container.querySelectorAll('.swipe-wrap.is-open-right, .swipe-wrap.is-open-left'), function(o){
+          if (o !== w) o.classList.remove('is-open-right', 'is-open-left', 'armed');
         });
-        w.classList.add('is-open');
-      } else if (dx >= 30) {
-        w.classList.remove('is-open', 'armed');
+        w.classList.remove('is-open-left');
+        w.classList.add('is-open-right');
+      } else if (dx >= 60) {
+        Array.prototype.forEach.call(container.querySelectorAll('.swipe-wrap.is-open-right, .swipe-wrap.is-open-left'), function(o){
+          if (o !== w) o.classList.remove('is-open-right', 'is-open-left', 'armed');
+        });
+        w.classList.remove('is-open-right');
+        w.classList.add('is-open-left');
+      } else if (Math.abs(dx) >= 30) {
+        // 戻し方向のジェスチャは閉じる
+        w.classList.remove('is-open-right', 'is-open-left', 'armed');
       }
     }
     // クリック抑制を少し残してから解除
@@ -7507,8 +7584,8 @@ function bindSwipeListenersFor_(container) {
   // 開いているカードの外側をタップで閉じる
   container.addEventListener('click', function(e){
     var w = e.target.closest('.swipe-wrap');
-    Array.prototype.forEach.call(container.querySelectorAll('.swipe-wrap.is-open'), function(o){
-      if (o !== w) o.classList.remove('is-open', 'armed');
+    Array.prototype.forEach.call(container.querySelectorAll('.swipe-wrap.is-open-right, .swipe-wrap.is-open-left'), function(o){
+      if (o !== w) o.classList.remove('is-open-right', 'is-open-left', 'armed');
     });
     // スワイプ直後のタップは抑制
     if (w && w.__suppressClick) {
