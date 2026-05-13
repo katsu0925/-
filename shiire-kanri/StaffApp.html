@@ -276,6 +276,7 @@
   .toast.success { background: var(--success); }
 
   .loading { text-align: center; padding: 40px; color: var(--text-sub); }
+  @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
   .empty { text-align: center; padding: 40px; color: var(--text-sub); }
   .placeholder {
     text-align: center; padding: 60px 20px; color: var(--text-sub);
@@ -841,7 +842,13 @@ var INV_STATUS_CLS = {
 function renderHoushuView() {
   document.getElementById('appbar-title').textContent = '報酬確認';
   var c = document.getElementById('content');
-  c.innerHTML = '<div class="loading">読み込み中…</div>';
+  c.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:center;min-height:60vh">' +
+      '<div style="text-align:center;color:var(--text-sub);font-size:14px">' +
+        '<div style="display:inline-block;width:36px;height:36px;border:3px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin 0.7s linear infinite;margin-bottom:12px"></div>' +
+        '<div>報酬データを読み込み中…</div>' +
+      '</div>' +
+    '</div>';
   // 候補月 + 履歴 + プロフィール を並列で取得
   HOUSHU_STATE.loading = true;
   var done = 0, expected = 3;
