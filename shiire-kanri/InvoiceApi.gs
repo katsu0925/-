@@ -27,6 +27,16 @@ function inv_ymOfDate_(d) {
   if (!(d instanceof Date) || isNaN(d.getTime())) return '';
   return d.getFullYear() + '/' + inv_pad2_(d.getMonth() + 1);
 }
+function inv_toYm_(v) {
+  if (v instanceof Date) return inv_ymOfDate_(v);
+  return inv_norm_(v);
+}
+function inv_toDateTimeStr_(v) {
+  if (v instanceof Date && !isNaN(v.getTime())) {
+    return Utilities.formatDate(v, inv_tz_(), 'yyyy-MM-dd HH:mm:ss');
+  }
+  return inv_norm_(v);
+}
 function inv_prevYm_(today) {
   today = today || new Date();
   var d = new Date(today.getFullYear(), today.getMonth() - 1, 1);
@@ -408,72 +418,203 @@ function inv_buildInvoiceNo_(ym, staffRow, seq) {
 }
 
 // ============================================================
-// CSV 生成
+// 請求書 PDF 生成（弥生請求書フォーマット参考）
 // ============================================================
 
-function inv_csvEscape_(v) {
+function inv_htmlEscape_(v) {
   var s = (v == null) ? '' : String(v);
-  if (/[",\r\n]/.test(s)) {
-    s = '"' + s.replace(/"/g, '""') + '"';
-  }
-  return s;
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
-// 28 項目 CSV (UTF-8 BOM + CRLF)
-// 各項目はプラン定義に従う
-function inv_buildCsv_(invoice) {
+function inv_fmtYen_(n) {
+  var v = Number(n) || 0;
+  var sign = v < 0 ? '-' : '';
+  v = Math.abs(Math.round(v));
+  return sign + '¥' + v.toLocaleString('en-US');
+}
+
+function inv_fmtYm_(ym) {
+  if (!ym) return '';
+  var m = String(ym).match(/^(\d{4})[\/\-](\d{1,2})$/);
+  if (!m) return String(ym);
+  return m[1] + '年' + parseInt(m[2], 10) + '月';
+}
+
+// 弥生風請求書 HTML
+//   invoice: 請求書オブジェクト
+//   adminSettings: 請求先（管理者）の情報
+function inv_buildInvoiceHtml_(invoice, adminSettings) {
   var p = invoice.プロフィール || {};
   var c = invoice.件数 || {};
   var r = invoice.報酬 || {};
   var s = invoice.集計 || {};
   var u = invoice.単価 || {};
-  var rows = [
-    ['請求書番号', invoice.請求書番号 || ''],
-    ['請求月',     invoice.請求月 || ''],
-    ['屋号',       p.屋号 || ''],
-    ['本名',       p.本名 || invoice.スタッフ名 || ''],
-    ['郵便番号',   p.郵便番号 || ''],
-    ['住所',       p.住所 || ''],
-    ['電話',       p.電話 || ''],
-    ['メール',     invoice.スタッフメール || ''],
-    ['インボイス登録番号', p.インボイス登録番号 || ''],
-    ['銀行名',     p.銀行名 || ''],
-    ['支店名',     p.支店名 || ''],
-    ['口座種別',   p.口座種別 || ''],
-    ['口座番号',   p.口座番号 || ''],
-    ['口座名義',   p.口座名義 || ''],
-    ['採寸件数',   c.採寸件数 || 0],
-    ['撮影件数',   c.撮影件数 || 0],
-    ['出品件数',   c.出品件数 || 0],
-    ['発送件数',   c.発送件数 || 0],
-    ['在庫管理報酬', r.在庫管理報酬 || 0],
-    ['固定報酬',   r.固定報酬 || 0],
-    ['経費合計',   r.経費合計 || 0],
-    ['売上報酬',   r.売上報酬 || 0],
-    ['その他報酬', r.その他報酬 || 0],
-    ['税込合計',   s.税込合計 || 0],
-    ['控除可能率', s.控除可能率 != null ? s.控除可能率 : ''],
-    ['調整額',     s.調整額 || 0],
-    ['振込元銀行', s.振込元銀行 || ''],
-    ['振込手数料', s.振込手数料 || 0],
-    ['請求額',     s.請求額 || 0],
-    ['作成日時',   invoice.作成日時 || inv_nowISO_()]
-  ];
-  var BOM = '﻿';
-  var lines = rows.map(function(r){
-    return inv_csvEscape_(r[0]) + ',' + inv_csvEscape_(r[1]);
-  });
-  return BOM + lines.join('\r\n') + '\r\n';
+  var adm = adminSettings || {};
+  var esc = inv_htmlEscape_;
+  var yen = inv_fmtYen_;
+
+  // 明細行を組み立て（0は省略）
+  var items = [];
+  function addQty(name, qty, unit) {
+    var q = Number(qty) || 0;
+    var up = Number(unit) || 0;
+    if (q > 0 && up !== 0) items.push({ name: name, qty: q, unit: up, amt: q * up });
+  }
+  function addOne(name, amt) {
+    var a = Number(amt) || 0;
+    if (a !== 0) items.push({ name: name, qty: 1, unit: a, amt: a });
+  }
+  addQty('採寸料', c.採寸件数, u.採寸単価);
+  addQty('撮影料', c.撮影件数, u.撮影単価);
+  addQty('出品料', c.出品件数, u.出品単価);
+  addQty('発送料', c.発送件数, u.発送単価);
+  addOne('在庫管理報酬', r.在庫管理報酬);
+  addOne('固定報酬',     r.固定報酬);
+  addOne('経費',         r.経費合計);
+  addOne('売上報酬',     r.売上報酬);
+  addOne('その他報酬',   r.その他報酬);
+
+  var subtotal = s.税込合計 != null ? Number(s.税込合計) : items.reduce(function(a, it){ return a + it.amt; }, 0);
+  var graceRate = s.控除可能率 != null ? s.控除可能率 : '';
+  var adjustment = Number(s.調整額) || 0;
+  var transferFee = Number(s.振込手数料) || 0;
+  var total = Number(s.請求額) || 0;
+  var issuedAt = invoice.作成日時 || inv_nowISO_();
+  var issuedDate = String(issuedAt).slice(0, 10).replace(/-/g, '/');
+  var ymJp = inv_fmtYm_(invoice.請求月);
+
+  var itemRows = items.map(function(it){
+    return '<tr>' +
+      '<td class="c-name">' + esc(it.name) + '</td>' +
+      '<td class="c-qty">' + (it.qty || '') + '</td>' +
+      '<td class="c-unit">' + (it.qty > 1 ? yen(it.unit) : '') + '</td>' +
+      '<td class="c-amt">' + yen(it.amt) + '</td>' +
+    '</tr>';
+  }).join('');
+  // 余白行（最低7行）
+  var padRows = Math.max(0, 7 - items.length);
+  for (var i = 0; i < padRows; i++) {
+    itemRows += '<tr><td class="c-name">&nbsp;</td><td class="c-qty"></td><td class="c-unit"></td><td class="c-amt"></td></tr>';
+  }
+
+  // インボイス控除注釈
+  var graceNote = '';
+  if (graceRate !== '' && graceRate != null && !p.インボイス登録番号) {
+    var pct = Math.round((1 - Number(graceRate)) * 100);
+    graceNote = '※インボイス未登録のため経過措置 ' + pct + '% 控除';
+  }
+
+  var addressLine = (p.郵便番号 ? '〒' + esc(p.郵便番号) + '　' : '') + esc(p.住所 || '');
+  var bankLine = esc(p.銀行名 || '') + '　' + esc(p.支店名 || '') + '　' +
+                 esc(p.口座種別 || '') + '　' + esc(p.口座番号 || '');
+  var holder = esc(p.口座名義 || p.本名 || invoice.スタッフ名 || '');
+
+  var admAddress = (adm.郵便番号 ? '〒' + esc(adm.郵便番号) + '　' : '') + esc(adm.住所 || '');
+
+  var html =
+'<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>請求書</title>' +
+'<style>' +
+'@page { size: A4; margin: 16mm 14mm; }' +
+'body { font-family: "Noto Sans JP","Hiragino Sans","Yu Gothic",sans-serif; color:#222; font-size:11pt; line-height:1.55; }' +
+'.title { text-align:center; font-size:26pt; letter-spacing:0.5em; font-weight:700; padding-bottom:8px; border-bottom:2px solid #222; margin-bottom:18px; }' +
+'.head { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; gap:20px; }' +
+'.head .left { flex:1.2; }' +
+'.head .right { flex:1; text-align:right; }' +
+'.addressee { font-size:16pt; font-weight:700; border-bottom:1.5px solid #333; padding-bottom:4px; margin-bottom:8px; }' +
+'.addressee small { font-size:11pt; margin-left:6px; }' +
+'.meta { font-size:10.5pt; line-height:1.7; }' +
+'.meta .row { display:flex; justify-content:space-between; gap:14px; }' +
+'.meta .row .lab { color:#555; }' +
+'.preface { margin:10px 0 14px; font-size:11pt; }' +
+'.total-box { background:#f4f6fa; border:1.5px solid #345; padding:12px 16px; margin:8px 0 18px; border-radius:6px; display:flex; align-items:center; justify-content:space-between; }' +
+'.total-box .lab { font-size:13pt; font-weight:700; color:#234; }' +
+'.total-box .amt { font-size:22pt; font-weight:800; color:#0a3a6e; letter-spacing:0.04em; }' +
+'table.items { width:100%; border-collapse:collapse; margin-bottom:14px; }' +
+'table.items th { background:#314c70; color:#fff; padding:7px 8px; font-weight:600; font-size:10.5pt; }' +
+'table.items td { border-bottom:1px solid #cdd5e0; padding:7px 8px; font-size:10.5pt; }' +
+'table.items td.c-name { width:46%; }' +
+'table.items td.c-qty  { width:12%; text-align:center; }' +
+'table.items td.c-unit { width:20%; text-align:right; }' +
+'table.items td.c-amt  { width:22%; text-align:right; }' +
+'.summary { display:flex; justify-content:flex-end; }' +
+'.summary table { border-collapse:collapse; min-width:46%; }' +
+'.summary td { padding:5px 10px; font-size:10.5pt; }' +
+'.summary td.lab { background:#eef2f7; color:#234; font-weight:600; width:55%; }' +
+'.summary td.val { text-align:right; border-bottom:1px solid #cdd5e0; }' +
+'.summary tr.tot td { font-size:12pt; font-weight:700; color:#0a3a6e; background:#dde7f3; }' +
+'.bank-box { margin:18px 0; border:1.2px solid #345; border-radius:4px; padding:10px 14px; background:#fafbfd; }' +
+'.bank-box .ttl { font-weight:700; color:#234; margin-bottom:4px; font-size:11pt; }' +
+'.bank-box .line { font-size:10.5pt; line-height:1.7; }' +
+'.note { font-size:9.5pt; color:#666; margin-top:4px; }' +
+'.issuer { margin-top:18px; padding-top:10px; border-top:1px dashed #999; font-size:10pt; line-height:1.7; }' +
+'.issuer .name { font-size:12pt; font-weight:700; }' +
+'</style></head><body>' +
+'<div class="title">請求書</div>' +
+'<div class="head">' +
+  '<div class="left">' +
+    '<div class="addressee">' + esc(adm.屋号 || '株式会社デタウリ') + '<small>御中</small></div>' +
+    '<div class="meta">' +
+      (admAddress ? '<div>' + admAddress + '</div>' : '') +
+      (adm.電話 ? '<div>TEL: ' + esc(adm.電話) + '</div>' : '') +
+    '</div>' +
+    '<div class="preface">下記の通りご請求申し上げます。</div>' +
+  '</div>' +
+  '<div class="right">' +
+    '<div class="meta">' +
+      '<div class="row"><span class="lab">発行日</span><span>' + esc(issuedDate) + '</span></div>' +
+      '<div class="row"><span class="lab">請求書番号</span><span>' + esc(invoice.請求書番号 || '') + '</span></div>' +
+      '<div class="row"><span class="lab">対象月</span><span>' + esc(ymJp) + '</span></div>' +
+    '</div>' +
+  '</div>' +
+'</div>' +
+'<div class="total-box">' +
+  '<div class="lab">ご請求金額</div>' +
+  '<div class="amt">' + yen(total) + ' <span style="font-size:11pt;font-weight:600;">(税込)</span></div>' +
+'</div>' +
+'<table class="items">' +
+  '<thead><tr><th>品目</th><th>数量</th><th>単価</th><th>金額</th></tr></thead>' +
+  '<tbody>' + itemRows + '</tbody>' +
+'</table>' +
+'<div class="summary"><table>' +
+  '<tr><td class="lab">小計</td><td class="val">' + yen(subtotal) + '</td></tr>' +
+  (adjustment ? '<tr><td class="lab">インボイス控除</td><td class="val">' + yen(adjustment) + '</td></tr>' : '') +
+  (transferFee ? '<tr><td class="lab">振込手数料</td><td class="val">' + yen(-transferFee) + '</td></tr>' : '') +
+  '<tr class="tot"><td class="lab">合計（請求額）</td><td class="val">' + yen(total) + '</td></tr>' +
+'</table></div>' +
+(graceNote ? '<div class="note">' + esc(graceNote) + '</div>' : '') +
+'<div class="bank-box">' +
+  '<div class="ttl">お振込先</div>' +
+  '<div class="line">' + bankLine + '</div>' +
+  '<div class="line">口座名義：' + holder + '</div>' +
+'</div>' +
+'<div class="issuer">' +
+  '<div class="name">' + esc(p.屋号 || p.本名 || invoice.スタッフ名 || '') + '</div>' +
+  (p.本名 && p.屋号 ? '<div>' + esc(p.本名) + '</div>' : '') +
+  (addressLine ? '<div>' + addressLine + '</div>' : '') +
+  (p.電話 ? '<div>TEL: ' + esc(p.電話) + '</div>' : '') +
+  (invoice.スタッフメール ? '<div>Email: ' + esc(invoice.スタッフメール) + '</div>' : '') +
+  (p.インボイス登録番号 ? '<div>登録番号: ' + esc(p.インボイス登録番号) + '</div>' : '') +
+'</div>' +
+'</body></html>';
+  return html;
 }
 
-// CSV ファイル名: {本名}_{請求額}円_{YYYY年MM月}.csv（'/' は '-' に正規化）
-function inv_buildCsvFilename_(invoice) {
+// PDF Blob 生成
+function inv_buildInvoicePdfBlob_(invoice, adminSettings, filename) {
+  var html = inv_buildInvoiceHtml_(invoice, adminSettings);
+  var htmlBlob = Utilities.newBlob(html, 'text/html', (filename || 'invoice') + '.html');
+  return htmlBlob.getAs('application/pdf').setName((filename || 'invoice') + '.pdf');
+}
+
+// PDF ファイル名: {本名}_{請求額}円_{YYYY年MM月}.pdf（'/' は '-' に正規化）
+function inv_buildInvoicePdfFilename_(invoice) {
   var p = invoice.プロフィール || {};
   var s = invoice.集計 || {};
   var name = (p.本名 || invoice.スタッフ名 || '請求書').replace(/[\\\/:\*\?"<>\|]/g, '-');
   var ym = (invoice.請求月 || '').replace('/', '年') + '月';
   var amt = (s.請求額 != null ? s.請求額 : 0).toString().replace(/-/g, 'マイナス');
-  return name + '_' + amt + '円_' + ym + '.csv';
+  return name + '_' + amt + '円_' + ym + '.pdf';
 }
 
 // ============================================================
@@ -493,7 +634,7 @@ function inv_historyRowToObject_(row, hmap) {
   } catch (e) { snap = null; }
   return {
     請求書番号:   inv_norm_(v('請求書番号')),
-    請求月:       inv_norm_(v('請求月')),
+    請求月:       inv_toYm_(v('請求月')),
     スタッフ名:   inv_norm_(v('スタッフ名')),
     スタッフメール: inv_norm_(v('スタッフメール')),
     屋号:         inv_norm_(v('屋号')),
@@ -528,9 +669,9 @@ function inv_historyRowToObject_(row, hmap) {
     振込手数料:   inv_toNum_(v('振込手数料')),
     請求額:       inv_toNum_(v('請求額')),
     ステータス:   inv_norm_(v('ステータス')),
-    作成日時:     inv_norm_(v('作成日時')),
-    更新日時:     inv_norm_(v('更新日時')),
-    支払日:       inv_norm_(v('支払日')),
+    作成日時:     inv_toDateTimeStr_(v('作成日時')),
+    更新日時:     inv_toDateTimeStr_(v('更新日時')),
+    支払日:       inv_toDateTimeStr_(v('支払日')),
     管理者メモ:   inv_norm_(v('管理者メモ')),
     スナップショット: snap
   };
@@ -845,8 +986,8 @@ function inv_createInvoice_(email, ym, options) {
   });
 }
 
-// 履歴 1行 → CSV ダウンロード用 base64 を返す
-function inv_buildInvoiceCsvDownload_(no, email) {
+// 履歴 1行 → PDF ダウンロード用 base64 を返す
+function inv_buildInvoicePdfDownload_(no, email) {
   var me = inv_resolveStaffByEmail_(email);
   var hit = inv_findInvoiceByNo_(no);
   if (!hit) throw new Error('請求書が見つかりません: ' + no);
@@ -872,6 +1013,7 @@ function inv_buildInvoiceCsvDownload_(no, email) {
         インボイス登録番号: hit.obj.インボイス番号
       },
       件数: { 採寸件数: hit.obj.採寸件数, 撮影件数: hit.obj.撮影件数, 出品件数: hit.obj.出品件数, 発送件数: hit.obj.発送件数 },
+      単価: { 採寸単価: hit.obj.採寸単価, 撮影単価: hit.obj.撮影単価, 出品単価: hit.obj.出品単価, 発送単価: hit.obj.発送単価 },
       報酬: { 採寸報酬: 0, 撮影報酬: 0, 出品報酬: 0, 発送報酬: 0,
               在庫管理報酬: hit.obj.在庫管理報酬, 固定報酬: hit.obj.固定報酬, 経費合計: hit.obj.経費合計,
               売上報酬: hit.obj.売上報酬, その他報酬: hit.obj.その他報酬 },
@@ -880,14 +1022,18 @@ function inv_buildInvoiceCsvDownload_(no, email) {
       作成日時: hit.obj.作成日時 || inv_nowISO_()
     };
   }
-  var csv = inv_buildCsv_(invoice);
-  var bytes = Utilities.newBlob(csv, 'text/csv; charset=utf-8').getBytes();
-  var b64 = Utilities.base64Encode(bytes);
-  var filename = inv_buildCsvFilename_(invoice);
+  // 請求先（管理者）の最新設定を取得（スナップショットには含めない、宛先は常に最新）
+  var adminRes = inv_getAdminSettings_();
+  var adminSettings = (adminRes && adminRes.settings) || null;
+
+  var filename = inv_buildInvoicePdfFilename_(invoice);
+  var baseName = filename.replace(/\.pdf$/, '');
+  var pdfBlob = inv_buildInvoicePdfBlob_(invoice, adminSettings, baseName);
+  var b64 = Utilities.base64Encode(pdfBlob.getBytes());
   return {
     ok: true,
     filename: filename,
-    mimeType: 'text/csv; charset=utf-8',
+    mimeType: 'application/pdf',
     base64: b64
   };
 }
@@ -908,14 +1054,14 @@ function staff_createInvoice(payload, email) {
   }
 }
 
-// 請求書CSVダウンロード (base64)
+// 請求書PDFダウンロード (base64)
 //   payload: { no }
-function staff_downloadInvoiceCsv(payload, email) {
+function staff_downloadInvoicePdf(payload, email) {
   try {
     payload = payload || {};
     var no = inv_norm_(payload.no);
     if (!no) throw new Error('請求書番号が空です');
-    return inv_buildInvoiceCsvDownload_(no, inv_currentEmail_(email));
+    return inv_buildInvoicePdfDownload_(no, inv_currentEmail_(email));
   } catch (e) {
     return { ok: false, error: String(e && e.message || e) };
   }
@@ -1045,15 +1191,15 @@ function staff_listMyRevisions(payload, email) {
     for (var i = 0; i < rows.length; i++) {
       if (String(rows[i][hmap.idx['スタッフ名']]) !== me.name) continue;
       items.push({
-        申請ID:       rows[i][hmap.idx['申請ID']],
-        請求書番号:   rows[i][hmap.idx['請求書番号']],
-        請求月:       rows[i][hmap.idx['請求月']],
-        申請日時:     rows[i][hmap.idx['申請日時']],
-        申請理由:     rows[i][hmap.idx['申請理由']],
-        対応日時:     rows[i][hmap.idx['対応日時']],
-        ステータス:   rows[i][hmap.idx['ステータス']],
-        管理者コメント: rows[i][hmap.idx['管理者コメント']],
-        再請求書番号: rows[i][hmap.idx['再請求書番号']]
+        申請ID:       inv_norm_(rows[i][hmap.idx['申請ID']]),
+        請求書番号:   inv_norm_(rows[i][hmap.idx['請求書番号']]),
+        請求月:       inv_toYm_(rows[i][hmap.idx['請求月']]),
+        申請日時:     inv_toDateTimeStr_(rows[i][hmap.idx['申請日時']]),
+        申請理由:     inv_norm_(rows[i][hmap.idx['申請理由']]),
+        対応日時:     inv_toDateTimeStr_(rows[i][hmap.idx['対応日時']]),
+        ステータス:   inv_norm_(rows[i][hmap.idx['ステータス']]),
+        管理者コメント: inv_norm_(rows[i][hmap.idx['管理者コメント']]),
+        再請求書番号: inv_norm_(rows[i][hmap.idx['再請求書番号']])
       });
     }
     // 新しい順

@@ -978,7 +978,7 @@ function renderHoushuDetail() {
           '<div class="row"><span class="k">請求額</span><span class="v">' + fmtYen(inv.請求額) + '</span></div>' +
           '<div class="row"><span class="k">作成日時</span><span class="v">' + esc(inv.作成日時 || '') + '</span></div>' +
           '<div class="houshu-actions">' +
-            '<button class="btn-secondary" onclick="downloadInvoiceCsv(\'' + esc(inv.請求書番号).replace(/\'/g,"\\'") + '\')">CSVダウンロード</button>' +
+            '<button class="btn-secondary" onclick="downloadInvoicePdf(\'' + esc(inv.請求書番号).replace(/\'/g,"\\'") + '\')">PDFダウンロード</button>' +
             (inv.ステータス === '修正申請中'
               ? '<span style="flex:1;text-align:center;color:#e65100;font-size:13px;align-self:center">修正申請中</span>'
               : '<button class="btn-warn" onclick="openInvoiceRevisionModal(\'' + esc(inv.請求書番号).replace(/\'/g,"\\'") + '\')">修正申請</button>') +
@@ -1133,32 +1133,32 @@ function submitInvoiceCreate() {
     .staff_createInvoice({ ym: HOUSHU_STATE.ym });
 }
 
-function downloadInvoiceCsv(no) {
+function downloadInvoicePdf(no) {
   if (!no) return;
-  toast('CSV を生成中…', 'info');
+  toast('PDF を生成中…', 'info');
   google.script.run
     .withSuccessHandler(function(res){
       if (!res || !res.ok) {
-        toast('CSV ダウンロード失敗: ' + (res && res.error || '不明'), 'error');
+        toast('PDF ダウンロード失敗: ' + (res && res.error || '不明'), 'error');
         return;
       }
       try {
-        var url = 'data:' + (res.mimeType || 'text/csv; charset=utf-8') + ';base64,' + res.base64;
+        var url = 'data:' + (res.mimeType || 'application/pdf') + ';base64,' + res.base64;
         var a = document.createElement('a');
         a.href = url;
-        a.download = res.filename || (no + '.csv');
+        a.download = res.filename || (no + '.pdf');
         document.body.appendChild(a);
         a.click();
         setTimeout(function(){ document.body.removeChild(a); }, 100);
-        toast('CSV ダウンロード完了', 'success');
+        toast('PDF ダウンロード完了', 'success');
       } catch(e) {
         toast('ダウンロード処理失敗: ' + (e && e.message || e), 'error');
       }
     })
     .withFailureHandler(function(err){
-      toast('CSV ダウンロード失敗: ' + (err && err.message || err), 'error');
+      toast('PDF ダウンロード失敗: ' + (err && err.message || err), 'error');
     })
-    .staff_downloadInvoiceCsv({ no: no });
+    .staff_downloadInvoicePdf({ no: no });
 }
 
 function openInvoiceRevisionModal(no) {

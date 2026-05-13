@@ -76,7 +76,7 @@ function doPost(e) {
       case 'saveInvoiceProfile':         result = staff_saveInvoiceProfile(body.payload || {}, email); break;
       case 'listMyAvailableMonths':      result = staff_listMyAvailableMonths(body.payload || {}, email); break;
       case 'createInvoice':              result = staff_createInvoice(body.payload || {}, email); break;
-      case 'downloadInvoiceCsv':         result = staff_downloadInvoiceCsv(body.payload || {}, email); break;
+      case 'downloadInvoicePdf':         result = staff_downloadInvoicePdf(body.payload || {}, email); break;
       case 'requestInvoiceRevision':     result = staff_requestInvoiceRevision(body.payload || {}, email); break;
       case 'listMyRevisions':            result = staff_listMyRevisions(body.payload || {}, email); break;
       // 請求書（管理者向けAPI）
