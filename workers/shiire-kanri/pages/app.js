@@ -1748,6 +1748,12 @@ function retryOutboxItem_(rec) {
   } else if (rec.type === 'image') {
     url = '/api/save/image';
     body = JSON.stringify({ kanri: rec.kanri, field: rec.field, dataUrl: rec.dataUrl });
+  } else if (rec.type === 'keihi-image') {
+    // 経費レシート画像の再送。fetch 成功すれば Drive にアップロード済み（=保管庫登録完了）。
+    // ただし keihi 行への紐付けはフォーム送信時の receiptUrl に依存するため、
+    // タブを閉じる前にフォーム送信を終えていない場合、Drive 上にファイルだけ残る可能性がある。
+    url = '/api/keihi/image';
+    body = JSON.stringify({ name: rec.name, dataUrl: rec.dataUrl });
   } else {
     return outboxRemove_(rec.id);
   }
@@ -2404,44 +2410,50 @@ function onImageFieldFile_(file, fieldId, fieldName) {
     var html = '<button type="button" id="' + esc(fieldId) + '_preview" class="img-preview" onclick="openImageModal_(\'' + safeLocal + '\')"><img src="' + esc(localUrl) + '" alt=""></button>';
     preview.outerHTML = html;
   }
-  if (status) { status.textContent = '⏳ アップロード中…（操作続行可）'; status.className = 'img-status'; }
+  if (status) { status.textContent = '⏳ 準備中…'; status.className = 'img-status'; }
 
-  // ② リサイズ → 必ず IndexedDB outbox に積む → fetch
+  // ② リサイズ → IndexedDB outbox に積む → ここで「✓ 保存完了」表示（楽観的完了）
+  //    outbox に入った時点で、タブを閉じても次回起動時に必ず再送される。
+  //    裏で fetch も並行して走るが、ユーザーは結果を待たず別作業に移って構わない。
+  //    fetch が成功すれば Drive URL に差し替え、失敗しても outbox 再送に委ねる（UI は変更しない）。
   resizeImage_(file, 1600, 0.85).then(function(dataUrl){
     return outboxAdd_({ type: 'image', kanri: kanri, field: fieldName, dataUrl: dataUrl })
       .then(function(outboxId){ return { dataUrl: dataUrl, outboxId: outboxId }; });
   }).then(function(prep){
-    var dataUrl = prep.dataUrl;
-    var outboxId = prep.outboxId;
-    return fetch('/api/save/image', {
+    // outbox に確実に積まれた → ユーザーには即座に「保存完了」を案内
+    var sOk = document.getElementById(fieldId + '_status');
+    if (sOk) { sOk.textContent = '✓ 保存完了'; sOk.className = 'img-status success'; }
+
+    // ③ バックグラウンドで fetch（fire-and-forget）
+    fetch('/api/save/image', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kanri: kanri, field: fieldName, dataUrl: dataUrl })
-    }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, body: j, outboxId: outboxId }; }); });
-  }).then(function(res){
-    if (!res.ok || !res.body) throw new Error((res.body && res.body.error) || 'アップロード失敗');
-    // ③ 成功 → outbox から除去（重複再送を防ぐ）
-    if (res.outboxId != null) outboxRemove_(res.outboxId);
-    var url = res.body.url || '';
-    var path = res.body.path || '';
-    // ④ Drive 画像URLに差し替え。Drive 共有伝播の遅延に備えて localUrl はフォールバック保持
-    var displayUrl = url ? normalizeDriveUrl_(url) : (localUrl || '');
-    var newPreview = document.getElementById(fieldId + '_preview');
-    if (newPreview && displayUrl) {
-      var safeDisp = esc(displayUrl).replace(/\'/g,"%27");
-      var html = '<button type="button" id="' + esc(fieldId) + '_preview" class="img-preview" onclick="openImageModal_(\'' + safeDisp + '\')"><img src="' + esc(displayUrl) + '" alt="" onerror="this.onerror=null;this.src=\'' + esc(localUrl || '').replace(/\'/g,"%27") + '\'"></button>';
-      newPreview.outerHTML = html;
-    }
-    var s2 = document.getElementById(fieldId + '_status');
-    if (s2) { s2.textContent = '✓ 保存完了'; s2.className = 'img-status success'; }
-    // シートには相対パスが入るため、extra にも path を入れる（次回詳細表示と整合）
-    if (STATE.current && STATE.current.extra) STATE.current.extra[fieldName] = path || url;
-    LIST_CACHE = {};
+      body: JSON.stringify({ kanri: kanri, field: fieldName, dataUrl: prep.dataUrl })
+    }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, body: j }; }); })
+    .then(function(res){
+      if (!res.ok || !res.body) throw new Error((res.body && res.body.error) || 'fetch failed');
+      // 成功 → outbox から除去（重複再送を防ぐ）
+      if (prep.outboxId != null) outboxRemove_(prep.outboxId);
+      var url = res.body.url || '';
+      var path = res.body.path || '';
+      // Drive 画像URLに差し替え。Drive 共有伝播の遅延に備えて localUrl はフォールバック保持
+      var displayUrl = url ? normalizeDriveUrl_(url) : (localUrl || '');
+      var newPreview = document.getElementById(fieldId + '_preview');
+      if (newPreview && displayUrl) {
+        var safeDisp = esc(displayUrl).replace(/\'/g,"%27");
+        var html = '<button type="button" id="' + esc(fieldId) + '_preview" class="img-preview" onclick="openImageModal_(\'' + safeDisp + '\')"><img src="' + esc(displayUrl) + '" alt="" onerror="this.onerror=null;this.src=\'' + esc(localUrl || '').replace(/\'/g,"%27") + '\'"></button>';
+        newPreview.outerHTML = html;
+      }
+      if (STATE.current && STATE.current.extra) STATE.current.extra[fieldName] = path || url;
+      LIST_CACHE = {};
+    }).catch(function(){
+      // 静かに outbox 再送に委ねる（「✓ 保存完了」はそのまま）
+    });
   }).catch(function(err){
-    // fetch 失敗 / タブ切替で打ち切られた場合: outbox には積んであるので何もしない（自動再送される）
-    var s3 = document.getElementById(fieldId + '_status');
-    if (s3) { s3.textContent = '📥 保存待機中（自動再送）'; s3.className = 'img-status'; }
+    // outbox にも積めなかった（IndexedDB 利用不可など）— 例外的にエラー表示
+    var sErr = document.getElementById(fieldId + '_status');
+    if (sErr) { sErr.textContent = '✗ ' + (err && err.message || '保存できませんでした'); sErr.className = 'img-status error'; }
   });
 }
 
@@ -4528,29 +4540,57 @@ function onKeihiReceiptPick_(inputEl) {
   onKeihiReceiptFile_(file);
 }
 
+// 経費レシート画像のアップロード（楽観的完了 + outbox 再送セーフティネット）
+//
+//   1. 即時プレビュー（URL.createObjectURL）
+//   2. リサイズ → IndexedDB outbox に積む → ここで「✓ 保存完了」表示
+//   3. バックグラウンド fetch。成功時のみ KEIHI_DRAFT.receiptUrl をセット + outbox から除去
+//   4. fetch 失敗 / タブ切断時は outbox に残るため次回起動時に必ず Drive へ再送される
+//      （注意: receiptUrl が空のまま申請送信されたケースでは Drive 上に画像だけ残り、
+//       経費行への紐付けは管理者側で手動対応となる。これは「画像が消えるよりは残す」設計）
 function onKeihiReceiptFile_(file) {
   var status = document.getElementById('keihi-receipt-status');
   var preview = document.getElementById('keihi-receipt-preview');
-  if (status) { status.textContent = '読み込み中…'; status.className = 'img-status'; }
+
+  // ① 即時プレビュー
+  var localUrl = '';
+  try { localUrl = URL.createObjectURL(file); } catch(e) {}
+  if (preview && localUrl) {
+    var safeLocal = esc(localUrl).replace(/\'/g,"%27");
+    preview.outerHTML = '<button type="button" id="keihi-receipt-preview" class="img-preview" onclick="openImageModal_(\'' + safeLocal + '\')"><img src="' + esc(localUrl) + '" alt=""></button>';
+  }
+  if (status) { status.textContent = '⏳ 準備中…'; status.className = 'img-status'; }
+
+  // ② リサイズ → outbox 投入 → 「✓ 保存完了」表示
   resizeImage_(file, 1600, 0.85).then(function(dataUrl){
-    if (status) status.textContent = 'アップロード中…';
-    return fetch('/api/keihi/image', {
+    var name = STATE.userName || '';
+    return outboxAdd_({ type: 'keihi-image', name: name, dataUrl: dataUrl })
+      .then(function(outboxId){ return { dataUrl: dataUrl, outboxId: outboxId, name: name }; });
+  }).then(function(prep){
+    var sOk = document.getElementById('keihi-receipt-status');
+    if (sOk) { sOk.textContent = '✓ 保存完了'; sOk.className = 'img-status success'; }
+
+    // ③ バックグラウンド fetch
+    fetch('/api/keihi/image', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dataUrl: dataUrl, name: STATE.userName || '' })
+      body: JSON.stringify({ dataUrl: prep.dataUrl, name: prep.name })
     }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, body: j }; }); })
     .then(function(res){
-      if (!res.ok || !res.body || !res.body.url) throw new Error((res.body && res.body.error) || 'アップロード失敗');
-      var url = res.body.url;
-      KEIHI_DRAFT.receiptUrl = url;
-      if (preview) {
-        var safeUrl = esc(url).replace(/\'/g,"%27");
-        preview.outerHTML = '<button type="button" id="keihi-receipt-preview" class="img-preview" onclick="openImageModal_(\'' + safeUrl + '\')"><img src="' + esc(normalizeDriveUrl_(url)) + '" alt=""></button>';
+      if (!res.ok || !res.body || !res.body.url) throw new Error((res.body && res.body.error) || 'fetch failed');
+      KEIHI_DRAFT.receiptUrl = res.body.url;
+      if (prep.outboxId != null) outboxRemove_(prep.outboxId);
+      var newPreview = document.getElementById('keihi-receipt-preview');
+      if (newPreview) {
+        var safeUrl = esc(res.body.url).replace(/\'/g,"%27");
+        newPreview.outerHTML = '<button type="button" id="keihi-receipt-preview" class="img-preview" onclick="openImageModal_(\'' + safeUrl + '\')"><img src="' + esc(normalizeDriveUrl_(res.body.url)) + '" alt="" onerror="this.onerror=null;this.src=\'' + esc(localUrl || '').replace(/\'/g,"%27") + '\'"></button>';
       }
-      if (status) { status.textContent = '✓ アップロード完了'; status.className = 'img-status success'; }
+    }).catch(function(){
+      // 静かに outbox 再送に委ねる
     });
   }).catch(function(err){
-    if (status) { status.textContent = '✗ ' + (err && err.message || 'エラー'); status.className = 'img-status error'; }
+    var sErr = document.getElementById('keihi-receipt-status');
+    if (sErr) { sErr.textContent = '✗ ' + (err && err.message || '保存できませんでした'); sErr.className = 'img-status error'; }
   });
 }
 

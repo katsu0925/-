@@ -238,6 +238,41 @@ function staff_getSheet_() {
   return sh;
 }
 
+// 画像アップロード用 Drive フォルダのキャッシュ。
+// 過去: 毎回 getFileById(ss) → getParents → getFoldersByName(...) → next で 4 Drive 操作（〜1秒）
+// 改: フォルダ ID を CacheService に 6h 保存して getFolderById 1回に短縮（〜200ms）。
+// 不正 ID（手動削除など）にはフォールバックで親フォルダから再探索 + キャッシュ更新。
+var STAFF_IMG_FOLDER_CACHE_ = Object.create(null); // 同一実行内メモ
+function staff_getImageFolder_(folderName) {
+  if (STAFF_IMG_FOLDER_CACHE_[folderName]) return STAFF_IMG_FOLDER_CACHE_[folderName];
+  var cache = CacheService.getScriptCache();
+  var cacheKey = 'imgFolderId:' + folderName;
+  var cachedId = cache.get(cacheKey);
+  if (cachedId) {
+    try {
+      var fld = DriveApp.getFolderById(cachedId);
+      if (fld && fld.getName() === folderName) {
+        STAFF_IMG_FOLDER_CACHE_[folderName] = fld;
+        return fld;
+      }
+    } catch (err) { /* キャッシュ ID 不正 → 再探索 */ }
+  }
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    var ssId = PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || '';
+    if (!ssId) throw new Error('SPREADSHEET_ID が未設定');
+    ss = SpreadsheetApp.openById(ssId);
+  }
+  var ssFile = DriveApp.getFileById(ss.getId());
+  var parents = ssFile.getParents();
+  var parent = parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
+  var subs = parent.getFoldersByName(folderName);
+  var folder = subs.hasNext() ? subs.next() : parent.createFolder(folderName);
+  try { cache.put(cacheKey, folder.getId(), 6 * 60 * 60); } catch (e) {}
+  STAFF_IMG_FOLDER_CACHE_[folderName] = folder;
+  return folder;
+}
+
 // ========== 一覧 ==========
 
 function staff_listProducts(opts) {
@@ -1390,12 +1425,7 @@ function staff_apiUploadImage(payload, email) {
   var blob = Utilities.newBlob(Utilities.base64Decode(b64), mime, fileName);
 
   var sh = staff_getSheet_();
-  var ss = sh.getParent();
-  var ssFile = DriveApp.getFileById(ss.getId());
-  var parents = ssFile.getParents();
-  var parent = parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
-  var subs = parent.getFoldersByName('商品管理_Images');
-  var folder = subs.hasNext() ? subs.next() : parent.createFolder('商品管理_Images');
+  var folder = staff_getImageFolder_('商品管理_Images');
   var file = folder.createFile(blob);
   try {
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
@@ -1432,14 +1462,7 @@ function staff_apiResolveImage(payload, email) {
   var fileName = idx >= 0 ? path.substring(idx + 1) : path;
   if (!fileName) return { ok: false, error: 'ファイル名が抽出できません: ' + path };
 
-  var sh = staff_getSheet_();
-  var ss = sh.getParent();
-  var ssFile = DriveApp.getFileById(ss.getId());
-  var parents = ssFile.getParents();
-  var parent = parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
-  var subs = parent.getFoldersByName('商品管理_Images');
-  if (!subs.hasNext()) return { ok: false, error: '商品管理_Images フォルダが見つかりません' };
-  var folder = subs.next();
+  var folder = staff_getImageFolder_('商品管理_Images');
   var files = folder.getFilesByName(fileName);
   if (!files.hasNext()) return { ok: false, error: 'ファイルが見つかりません: ' + fileName };
   var file = files.next();

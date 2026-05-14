@@ -666,12 +666,7 @@ function staff_apiUploadKeihiImage(payload, email) {
   var fileName = '経費_' + (nameHint || 'receipt') + '_' + Date.now() + '.' + ext;
   var blob = Utilities.newBlob(Utilities.base64Decode(b64), mime, fileName);
 
-  var ss = staff_getActiveSpreadsheet_();
-  var ssFile = DriveApp.getFileById(ss.getId());
-  var parents = ssFile.getParents();
-  var parent = parents.hasNext() ? parents.next() : DriveApp.getRootFolder();
-  var subs = parent.getFoldersByName('経費_Images');
-  var folder = subs.hasNext() ? subs.next() : parent.createFolder('経費_Images');
+  var folder = staff_getImageFolder_('経費_Images');
   var file = folder.createFile(blob);
   try {
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
