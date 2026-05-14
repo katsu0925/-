@@ -35,6 +35,7 @@ const TARGETS = {
   staff: {
     md: 'manual-staff.md',
     pdf: '外注向けマニュアル.pdf',
+    html: '外注向けマニュアル.html',
     bodyClass: 'staff',
     title: 'shiire-kanri 外注向けマニュアル',
     subtitle: '商品管理 Web アプリの使い方',
@@ -42,6 +43,7 @@ const TARGETS = {
   admin: {
     md: 'manual-admin.md',
     pdf: '管理者向けマニュアル.pdf',
+    html: '管理者向けマニュアル.html',
     bodyClass: 'admin',
     title: 'shiire-kanri 管理者向けマニュアル',
     subtitle: 'Web アプリ運用・GAS 実装・デプロイ手順',
@@ -83,6 +85,130 @@ async function transformMissingImages(md) {
   }
   return out;
 }
+
+// HTML 配布用: <img src="..."> をすべて base64 data URI に変換
+async function inlineImagesAsBase64(html) {
+  const re = /<img([^>]*?)src="([^"]+)"([^>]*?)>/g;
+  const matches = [...html.matchAll(re)];
+  let out = html;
+  for (const m of matches) {
+    const [full, before, src, after] = m;
+    if (src.startsWith('http') || src.startsWith('data:')) continue;
+    const abs = path.isAbsolute(src) ? src : path.join(ROOT, src);
+    try {
+      const buf = await fs.readFile(abs);
+      const ext = path.extname(abs).slice(1).toLowerCase();
+      const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : `image/${ext}`;
+      const dataUri = `data:${mime};base64,${buf.toString('base64')}`;
+      out = out.replace(full, `<img${before}src="${dataUri}"${after}>`);
+    } catch {}
+  }
+  return out;
+}
+
+const WEB_STYLE = `
+@media screen {
+  html, body { background: #f4f5f7; }
+  body {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 24px 32px 64px;
+    background: #fff;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  }
+  body.staff, body.admin { background: #fff; }
+  .cover {
+    height: auto;
+    margin: -24px -32px 24px;
+    padding: 48px 24px;
+    page-break-after: auto;
+    box-sizing: border-box;
+    width: calc(100% + 64px);
+    max-width: none;
+  }
+  .cover h1 {
+    font-size: 22pt;
+    line-height: 1.3;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
+  .cover .subtitle { font-size: 13pt; }
+  .toc { page-break-after: auto; border-bottom: 1px solid #eee; padding-bottom: 16px; margin-bottom: 24px; }
+  img {
+    cursor: zoom-in;
+    max-width: 100%;
+    max-height: none;
+    width: auto;
+    transition: transform 0.15s ease;
+  }
+  img:hover { transform: scale(1.02); }
+  .lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.92);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+    cursor: zoom-out;
+    padding: 16px;
+  }
+  .lightbox.open { display: flex; }
+  .lightbox img {
+    max-width: 100%;
+    max-height: 100%;
+    cursor: zoom-out;
+    border: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  .lightbox .close {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+  }
+}
+`;
+
+const LIGHTBOX_JS = `
+(function(){
+  var lb = document.createElement('div');
+  lb.className = 'lightbox';
+  lb.innerHTML = '<button class="close" aria-label="閉じる">×</button><img alt="">';
+  document.body.appendChild(lb);
+  var lbImg = lb.querySelector('img');
+  function open(src, alt){
+    lbImg.src = src;
+    lbImg.alt = alt || '';
+    lb.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function close(){
+    lb.classList.remove('open');
+    document.body.style.overflow = '';
+    lbImg.src = '';
+  }
+  document.addEventListener('click', function(e){
+    var t = e.target;
+    if (t.tagName === 'IMG' && !t.closest('.lightbox') && !t.closest('.img-placeholder')) {
+      e.preventDefault();
+      open(t.src, t.alt);
+    } else if (t === lb || t.classList.contains('close')) {
+      close();
+    }
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape') close();
+  });
+})();
+`;
 
 // H1/H2 から目次生成
 function buildToc(html) {
@@ -169,6 +295,31 @@ ${bodyHtml}
 
   const stat = await fs.stat(outPdf);
   console.log(`✅ ${t.pdf} (${(stat.size / 1024).toFixed(1)} KB) → ${outPdf}`);
+
+  // 配布用 HTML (画像 base64 埋込み + タップでプレビュー)
+  const outHtml = path.join(DIST, t.html);
+  const bodyHtmlInlined = await inlineImagesAsBase64(bodyHtml);
+  const coverInlined = await inlineImagesAsBase64(cover);
+  const tocInlined = await inlineImagesAsBase64(toc);
+  const htmlForWeb = `<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${t.title}</title>
+<style>${css}
+${WEB_STYLE}</style>
+</head>
+<body class="${t.bodyClass}">
+${coverInlined}
+${tocInlined}
+${bodyHtmlInlined}
+<script>${LIGHTBOX_JS}</script>
+</body>
+</html>`;
+  await fs.writeFile(outHtml, htmlForWeb);
+  const htmlStat = await fs.stat(outHtml);
+  console.log(`✅ ${t.html} (${(htmlStat.size / 1024).toFixed(1)} KB) → ${outHtml}`);
 }
 
 (async () => {

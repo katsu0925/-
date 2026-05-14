@@ -1,0 +1,1906 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>shiire-kanri 管理者向けマニュアル</title>
+<style>/* shiire-kanri マニュアル共通スタイル
+ * 印刷用 A4、日本語フォント、目次・章扉対応。 */
+
+@page {
+  size: A4;
+  margin: 10mm 14mm 12mm 14mm;
+  @bottom-right {
+    content: counter(page) " / " counter(pages);
+    font-size: 9pt;
+    color: #888;
+  }
+  @bottom-left {
+    content: string(doc-title);
+    font-size: 9pt;
+    color: #888;
+  }
+}
+
+html {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+body {
+  font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans CJK JP",
+               "Yu Gothic", "Meiryo", sans-serif;
+  font-size: 10pt;
+  line-height: 1.55;
+  color: #222;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  word-break: break-word;
+  -webkit-font-feature-settings: "palt";
+  font-feature-settings: "palt";
+}
+
+/* タイトルページ */
+.cover {
+  page: cover;
+  box-sizing: border-box;
+  height: 275mm;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  page-break-after: always;
+  background: linear-gradient(135deg, #0066cc 0%, #003d7a 100%);
+  color: #fff;
+  margin: -10mm -14mm;
+  padding: 30mm 16mm;
+}
+.cover h1 {
+  font-size: 28pt;
+  margin: 0 0 8mm;
+  border: none;
+  color: #fff;
+  string-set: doc-title content();
+  page-break-before: avoid;
+}
+.cover .subtitle {
+  font-size: 14pt;
+  margin: 0 0 20mm;
+  opacity: 0.95;
+}
+.cover .meta {
+  font-size: 10pt;
+  opacity: 0.85;
+  margin-top: auto;
+}
+.cover .logo {
+  font-size: 40pt;
+  margin-bottom: 6mm;
+}
+
+/* 見出し */
+h1 {
+  font-size: 18pt;
+  color: #003d7a;
+  border-bottom: 3px solid #0066cc;
+  padding-bottom: 2mm;
+  margin-top: 5mm;
+  margin-bottom: 3mm;
+  page-break-after: avoid;
+  string-set: doc-title content();
+}
+h1:first-of-type,
+.cover + h1 {
+  page-break-before: avoid;
+}
+h2 {
+  font-size: 13pt;
+  color: #0066cc;
+  border-left: 4px solid #0066cc;
+  padding-left: 3mm;
+  margin-top: 4mm;
+  margin-bottom: 2mm;
+  page-break-after: avoid;
+}
+h3 {
+  font-size: 11pt;
+  color: #003d7a;
+  margin-top: 3mm;
+  margin-bottom: 1.5mm;
+  page-break-after: avoid;
+}
+h4 {
+  font-size: 11pt;
+  color: #444;
+  margin-top: 3mm;
+  margin-bottom: 1.5mm;
+  page-break-after: avoid;
+}
+
+/* 段落・リスト */
+p {
+  margin: 2mm 0;
+}
+ul, ol {
+  margin: 2mm 0 4mm;
+  padding-left: 7mm;
+}
+li {
+  margin: 0.5mm 0;
+}
+li > ul, li > ol {
+  margin: 1mm 0;
+}
+
+/* リンク */
+a {
+  color: #0066cc;
+  text-decoration: none;
+  word-break: break-all;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* コード */
+code {
+  font-family: "Menlo", "Consolas", "Courier New", monospace;
+  font-size: 9.5pt;
+  background: #f4f4f6;
+  color: #b04020;
+  padding: 0.5mm 1.5mm;
+  border-radius: 2px;
+}
+pre {
+  background: #1e1e2e;
+  color: #f0f0f0;
+  padding: 4mm;
+  border-radius: 3px;
+  font-size: 9pt;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  page-break-inside: avoid;
+}
+pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+/* 表 */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 4mm 0;
+  font-size: 9.5pt;
+  page-break-inside: avoid;
+}
+table th {
+  background: #003d7a;
+  color: #fff;
+  padding: 2mm 3mm;
+  text-align: left;
+  font-weight: 600;
+}
+table td {
+  border: 1px solid #d0d4dc;
+  padding: 1.5mm 3mm;
+  vertical-align: top;
+}
+table tr:nth-child(even) td {
+  background: #f6f8fb;
+}
+
+/* 引用・注記 */
+blockquote {
+  background: #fff8e6;
+  border-left: 5px solid #f5b300;
+  margin: 4mm 0;
+  padding: 3mm 5mm;
+  color: #5a4500;
+  page-break-inside: avoid;
+}
+
+/* 注記ボックス（カスタム class） */
+.note, .warn, .tip, .danger {
+  margin: 3mm 0;
+  padding: 3mm 4mm;
+  border-radius: 4px;
+  page-break-inside: avoid;
+}
+.note { background: #eef5ff; border-left: 5px solid #0066cc; }
+.warn { background: #fff8e6; border-left: 5px solid #f5b300; }
+.tip  { background: #eafbf0; border-left: 5px solid #2faa55; }
+.danger { background: #fff0f0; border-left: 5px solid #c8302a; color: #80201c; }
+
+.note::before { content: "💡 "; font-weight: bold; color: #0066cc; }
+.warn::before { content: "⚠️ "; font-weight: bold; color: #b87800; }
+.tip::before  { content: "✅ "; font-weight: bold; color: #1e7f3e; }
+.danger::before { content: "🚫 "; font-weight: bold; color: #c8302a; }
+
+/* キーボード/UI */
+kbd {
+  display: inline-block;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  padding: 0.5mm 1.5mm;
+  font-family: "Menlo", monospace;
+  font-size: 9pt;
+  background: #f7f7f7;
+  box-shadow: 0 1px 0 #ccc;
+}
+
+/* 画像 — モバイル縦長スクショ（414×896, 1:2.16）は max-height で1ページに収める */
+img {
+  max-width: 56mm;
+  max-height: 120mm;
+  height: auto;
+  width: auto;
+  display: block;
+  margin: 2mm auto;
+  border: 1px solid #d0d4dc;
+  border-radius: 3px;
+  page-break-inside: avoid;
+}
+img.shadow {
+  box-shadow: 0 2mm 4mm rgba(0, 0, 0, 0.15);
+}
+.caption {
+  text-align: center;
+  font-size: 9pt;
+  color: #666;
+  margin-top: -2mm;
+  margin-bottom: 4mm;
+}
+
+/* 画像プレースホルダ（後日差し替え予定） */
+.img-placeholder {
+  margin: 4mm auto;
+  padding: 12mm;
+  border: 2px dashed #b0b8c4;
+  border-radius: 4px;
+  background: #f7f9fc;
+  text-align: center;
+  color: #6b7280;
+  font-size: 10pt;
+  page-break-inside: avoid;
+}
+
+/* 横並びコンテナ（簡易レイアウト） */
+.cols {
+  display: flex;
+  gap: 5mm;
+  margin: 4mm 0;
+}
+.cols > * {
+  flex: 1;
+}
+
+/* 目次 */
+.toc {
+  page-break-after: always;
+}
+.toc h1 {
+  page-break-before: avoid;
+}
+.toc ul {
+  list-style: none;
+  padding-left: 0;
+}
+.toc li {
+  margin: 0.6mm 0;
+  font-size: 9.5pt;
+}
+.toc a {
+  color: #222;
+}
+
+/* 改ページ制御ヘルパー */
+.page-break { page-break-after: always; }
+.no-break { page-break-inside: avoid; }
+
+/* 強調 */
+strong { color: #003d7a; }
+em { color: #b04020; font-style: normal; font-weight: 600; }
+
+/* ---------- 外注用バリアント（オプション） ---------- */
+body.staff h1 { color: #1e7f3e; border-bottom-color: #2faa55; }
+body.staff h2 { color: #1e7f3e; border-left-color: #2faa55; }
+body.staff .cover { background: linear-gradient(135deg, #2faa55 0%, #1a6a3e 100%); }
+
+/* ---------- 印刷時の細かな調整 ---------- */
+@media print {
+  pre, table, img, blockquote, .note, .warn, .tip, .danger {
+    page-break-inside: avoid;
+  }
+  h2 + p, h3 + p {
+    page-break-before: avoid;
+  }
+}
+
+
+@media screen {
+  html, body { background: #f4f5f7; }
+  body {
+    max-width: 820px;
+    margin: 0 auto;
+    padding: 24px 32px 64px;
+    background: #fff;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+  }
+  body.staff, body.admin { background: #fff; }
+  .cover {
+    height: auto;
+    margin: -24px -32px 24px;
+    padding: 48px 24px;
+    page-break-after: auto;
+    box-sizing: border-box;
+    width: calc(100% + 64px);
+    max-width: none;
+  }
+  .cover h1 {
+    font-size: 22pt;
+    line-height: 1.3;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
+  .cover .subtitle { font-size: 13pt; }
+  .toc { page-break-after: auto; border-bottom: 1px solid #eee; padding-bottom: 16px; margin-bottom: 24px; }
+  img {
+    cursor: zoom-in;
+    max-width: 100%;
+    max-height: none;
+    width: auto;
+    transition: transform 0.15s ease;
+  }
+  img:hover { transform: scale(1.02); }
+  .lightbox {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.92);
+    z-index: 9999;
+    align-items: center;
+    justify-content: center;
+    cursor: zoom-out;
+    padding: 16px;
+  }
+  .lightbox.open { display: flex; }
+  .lightbox img {
+    max-width: 100%;
+    max-height: 100%;
+    cursor: zoom-out;
+    border: none;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  }
+  .lightbox .close {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.15);
+    color: #fff;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+  }
+}
+</style>
+</head>
+<body class="admin">
+
+    <section class="cover">
+      <div class="logo">📦</div>
+      <h1 id="cover-title">shiire-kanri 管理者向けマニュアル</h1>
+      <div class="subtitle">Web アプリ運用・GAS 実装・デプロイ手順</div>
+      <div class="meta">最終更新: 2026年5月15日<br>shiire-kanri.nsdktts1030.workers.dev</div>
+    </section>
+  
+<section class="toc"><h1>目次</h1><ul><li style="font-weight:600;"><a href="#はじめに">はじめに</a></li><li style="font-weight:600;"><a href="#システム全体像">システム全体像</a></li><li style="font-weight:600;"><a href="#未反映ゼロ保証アーキテクチャ">未反映ゼロ保証アーキテクチャ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#3-層構造">3 層構造</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#レイヤー-1-クライアント-outboxpagesappjs">レイヤー 1: クライアント outbox（pages/app.js）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#レイヤー-2-workers-冪等性ミドルウェアsrcutilsidempotencyjs">レイヤー 2: Workers 冪等性ミドルウェア（src/utils/idempotency.js）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#レイヤー-3-監視ポイント">レイヤー 3: 監視ポイント</a></li><li style="font-weight:600;"><a href="#新規外注スタッフの追加手順">新規外注スタッフの追加手順</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ステップ-1-作業者マスターに登録">ステップ 1: 作業者マスターに登録</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ステップ-2-5-分待つ">ステップ 2: 5 分待つ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ステップ-3-外注に-url-を共有">ステップ 3: 外注に URL を共有</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ステップ-4-外注本人がログイン">ステップ 4: 外注本人がログイン</a></li><li style="font-weight:600;"><a href="#管理者の主な業務">管理者の主な業務</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#1-adminpanelgas-エディタ内モーダル">1. AdminPanel（GAS エディタ内モーダル）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#2-請求書管理パネル">2. 請求書管理パネル</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#3-月次運用ルーチン">3. 月次運用ルーチン</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#4-ai-判定の運用">4. AI 判定の運用</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#5-ec-連携">5. EC 連携</a></li><li style="font-weight:600;"><a href="#スプレッドシート構造">スプレッドシート構造</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#主要シート一覧21">主要シート一覧（21+）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#商品管理シート-主要列staff_col">商品管理シート 主要列（STAFF_COL）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#作業者マスターシート-列">作業者マスターシート 列</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#請求書履歴シート-列構成">請求書履歴シート 列構成</a></li><li style="font-weight:600;"><a href="#gas-関数一覧">GAS 関数一覧</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#エントリポイント">エントリポイント</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#認証ユーティリティ">認証・ユーティリティ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#スタッフ向け-api-action-一覧">スタッフ向け API (action 一覧)</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#トリガーハンドラー">トリガーハンドラー</a></li><li style="font-weight:600;"><a href="#workers-ルート一覧">Workers ルート一覧</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#管理者運用系">管理者・運用系</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#認証マスター">認証・マスター</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#商品仕入れ">商品・仕入れ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#保存系">保存系</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#業務系">業務系</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#push-通知">Push 通知</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#請求書スタッフ">請求書（スタッフ）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#請求書管理者">請求書（管理者）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#汎用">汎用</a></li><li style="font-weight:600;"><a href="#デプロイ手順">デプロイ手順</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#gas-デプロイshiire-kanri">GAS デプロイ（shiire-kanri）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#cloudflare-workers-デプロイ">Cloudflare Workers デプロイ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#cron-トリガー再登録">Cron トリガー再登録</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#workers-cron-確認">Workers Cron 確認</a></li><li style="font-weight:600;"><a href="#環境変数シークレット一覧">環境変数・シークレット一覧</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#gas-スクリプトプロパティ">GAS スクリプトプロパティ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#workers-シークレットwrangler-secret">Workers シークレット（wrangler secret）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#workers-バインディングwranglertoml">Workers バインディング（wrangler.toml）</a></li><li style="font-weight:600;"><a href="#ビジネス設定adminpanel-から編集可能">ビジネス設定（AdminPanel から編集可能）</a></li><li style="font-weight:600;"><a href="#請求書フロー詳細">請求書フロー詳細</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ステータス遷移">ステータス遷移</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#csv--pdf-生成">CSV / PDF 生成</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#csv-28-項目">CSV 28 項目</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#重複防止">重複防止</a></li><li style="font-weight:600;"><a href="#トラブルシューティング">トラブルシューティング</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#スタッフがログインできない">スタッフがログインできない</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#請求書-pdf-がダウンロードできない">請求書 PDF がダウンロードできない</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#報酬集計が更新されない">報酬集計が更新されない</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#workers-が応答しない">Workers が応答しない</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ai-判定が止まっている">AI 判定が止まっている</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ec-連携同期が遅延">EC 連携同期が遅延</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#スプレッドシート列を間違って削除した">スプレッドシート列を間違って削除した</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#外注から右下のバッジ未送信が消えないと連絡が来た">外注から「右下のバッジ（未送信）が消えない」と連絡が来た</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#同じ操作が二重登録された">同じ操作が二重登録された</a></li><li style="font-weight:600;"><a href="#改良時のマニュアル更新フロー">改良時のマニュアル更新フロー</a></li><li style="font-weight:600;"><a href="#参考リンク">参考リンク</a></li><li style="font-weight:600;"><a href="#付録-各シートの初期化">付録: 各シートの初期化</a></li></ul></section>
+<h1 id="はじめに">はじめに</h1>
+<p>このマニュアルは、<strong>shiire-kanri Web アプリ</strong>の <strong>管理者（オーナー）向け</strong> の運用・保守手引きです。</p>
+<p>外注向けの操作方法は別冊「外注向けマニュアル」に分離してあります。本書は管理者しか触らない領域（スプレッドシート構造・GAS 関数一覧・デプロイ手順・トラブルシューティング）まで網羅しています。</p>
+<p><strong>アプリURL（本番）:</strong></p>
+<ul>
+<li>フロント: <a href="https://shiire-kanri.nsdktts1030.workers.dev/">https://shiire-kanri.nsdktts1030.workers.dev/</a></li>
+<li>GAS Web App: Cloudflare Workers の <code>GAS_API_URL</code> シークレットに格納</li>
+</ul>
+<p><strong>主要リポジトリ:</strong></p>
+<ul>
+<li>GAS コード: <code>/Users/katsu/saisun-repo/shiire-kanri/</code></li>
+<li>Workers コード: <code>/Users/katsu/saisun-repo/workers/shiire-kanri/</code></li>
+</ul>
+<hr>
+<h1 id="システム全体像">システム全体像</h1>
+<pre><code>ユーザー（外注スタッフ・管理者）
+    ↓
+Cloudflare Access（Email OTP 認証）
+    ↓
+Cloudflare Workers（shiire-kanri.nsdktts1030.workers.dev）
+    ├ SPA 配信（HTML/JS/CSS）
+    ├ JWT 検証
+    ├ /api/* ルーティング
+    │   ├ D1 / KV / R2 で高速処理
+    │   └ 未対応 API は GAS にプロキシ
+    └ 5 分 Cron で GAS から作業者メール一覧を取得 → CF Access ポリシー同期
+    ↓ （X-Sync-Secret 認証）
+GAS Web App（仕入れ管理 GAS プロジェクト）
+    ├ doPost: action ベース dispatch
+    └ doGet: SPA ／ AdminInvoice モーダル
+    ↓
+Google Sheets（DBの代替・スプレッドシート 1 個）
+    ├ 商品管理 / 仕入れ管理 / 作業者マスター
+    ├ 経費申請 / 仕入れ数報告 / 移動報告 / 返送管理
+    ├ 報酬管理 / EC管理 / 売却履歴
+    ├ 請求書履歴 / 請求書修正申請 / インボイス経過措置率 / 請求書管理者設定
+    ├ AI画像判定 / AIキーワード抽出
+    └ 各種マスタ・設定・分析シート
+</code></pre>
+<p><strong>役割分担:</strong></p>
+<ul>
+<li><strong>Cloudflare Workers</strong>: 認証・JSON 整形・キャッシュ・静的配信</li>
+<li><strong>GAS</strong>: 業務ロジック・Sheets 操作・メール送信・PDF 生成</li>
+<li><strong>Sheets</strong>: 永続データ</li>
+<li><strong>CF Access</strong>: メール OTP 認証（実装は Cloudflare 側、コード変更不要）</li>
+</ul>
+<hr>
+<h1 id="未反映ゼロ保証アーキテクチャ">未反映ゼロ保証アーキテクチャ</h1>
+<p><strong>目的:</strong> 外注スタッフがアプリで実行した操作（採寸保存・写真アップ・経費申請・移動・請求書修正など）が <strong>絶対にスプレッドシートへ反映漏れしない</strong> ことを保証する。圏外・5xx・タブ切断・ブラウザ強制終了などの障害をすべて吸収する。</p>
+<h2 id="3-層構造">3 層構造</h2>
+<pre><code>[クライアント側 outbox]      → IndexedDB（sk-outbox.queue）
+   ↓ 復帰時に自動 flush（X-Idempotency-Key 付き）
+[Workers 側 冪等性ミドルウェア] → D1: idempotency_keys（TTL 7日）
+   ↓ 初回のみハンドラ実行
+[GAS / Sheets]
+</code></pre>
+<h2 id="レイヤー-1-クライアント-outboxpagesappjs">レイヤー 1: クライアント outbox（pages/app.js）</h2>
+<ul>
+<li><code>api(path, { outbox: true, label })</code> で書き込み API を呼ぶと、IndexedDB <code>sk-outbox.queue</code> に <strong>送信前</strong> にレコードを積む</li>
+<li>ネットワーク失敗 / 5xx は <strong>「予約しました」</strong> トーストで成功扱い、4xx は破棄</li>
+<li>復帰イベント（DOMContentLoaded・online イベント）で <code>flushOutbox_()</code> が走り、最大 30 回までリトライ</li>
+<li>各リクエストにブラウザ生成の UUIDv4 を <code>X-Idempotency-Key</code> ヘッダで付与</li>
+<li>右下に <strong>「⏳ 未送信 N件」バッジ</strong>（<code>refreshOutboxBadge_</code>）。タップで詳細モーダル（<code>showOutboxModal_</code>）</li>
+</ul>
+<p><strong>対応済み API（14系統）:</strong> 経費送信 / 移動 CRUD / 返品 CRUD / 作業者保存 / 仕入れ数量 / 請求書プロフィール / 請求書修正申請 / 同梱トグル など。画像アップロードは別系統（<code>outboxAdd_({type:&#39;image&#39;})</code>）。</p>
+<h2 id="レイヤー-2-workers-冪等性ミドルウェアsrcutilsidempotencyjs">レイヤー 2: Workers 冪等性ミドルウェア（src/utils/idempotency.js）</h2>
+<ul>
+<li>D1 テーブル <code>idempotency_keys</code>（migration 004）<ul>
+<li><code>key</code> PRIMARY KEY, <code>response_body</code>, <code>status_code</code>, <code>path</code>, <code>user_email</code>, <code>created_at</code>, <code>expires_at</code></li>
+<li>TTL 7 日（外注が長期オフラインでも安全に flush できる期間）</li>
+</ul>
+</li>
+<li><code>withIdempotency(request, env, handler)</code> ですべての write ルートをラップ（21箇所、<code>src/index.js</code>）</li>
+<li>同じ <code>X-Idempotency-Key</code> で再送されると <strong>D1 から 2xx レスポンスを再生</strong> してハンドラを実行しない → GAS/Sheets への二重書き込みを防止</li>
+<li>4xx/5xx はキャッシュしない（リトライ可能）</li>
+</ul>
+<h2 id="レイヤー-3-監視ポイント">レイヤー 3: 監視ポイント</h2>
+<ul>
+<li>D1 <code>idempotency_keys</code> の行数が異常に膨らんでいないか（通常運用なら数百件以内）<pre><code class="language-bash">wrangler d1 execute shiire-kanri-db --remote \
+  --command &quot;SELECT COUNT(*) FROM idempotency_keys WHERE expires_at &gt; strftime(&#39;%s&#39;,&#39;now&#39;)&quot;
+</code></pre>
+</li>
+<li>外注から「右下のバッジが消えない」と連絡が来たら、まずは本人のオンライン環境を確認。それでもダメな場合は Workers/GAS のエラーログを確認</li>
+</ul>
+<hr>
+<h1 id="新規外注スタッフの追加手順">新規外注スタッフの追加手順</h1>
+<p>外注を追加する基本フローは下記の 4 ステップ。</p>
+<h2 id="ステップ-1-作業者マスターに登録">ステップ 1: 作業者マスターに登録</h2>
+<p>仕入れ管理スプレッドシートの <strong>「作業者マスター」</strong> シートを開く。</p>
+<table>
+<thead>
+<tr>
+<th>列</th>
+<th>入力内容</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>B 列</td>
+<td>氏名（一意の文字列。主キーとして使用）</td>
+</tr>
+<tr>
+<td>C 列</td>
+<td>フリガナ／別名（任意）</td>
+</tr>
+<tr>
+<td>D 列</td>
+<td>Gmail アドレス（メイン）</td>
+</tr>
+<tr>
+<td>E 列</td>
+<td>Gmail アドレス（サブ・任意）</td>
+</tr>
+<tr>
+<td>O 列</td>
+<td>チェックボックス（<strong>TRUE</strong> にする）</td>
+</tr>
+</tbody></table>
+<p>D 列または E 列に外注の Gmail を入力し、O 列にチェック。</p>
+<div class="warn">
+
+<p>B 列の氏名は他のスタッフと重複させないでください。同姓同名の場合は屋号付き・年齢付き等で区別。</p>
+</div>
+
+<h2 id="ステップ-2-5-分待つ">ステップ 2: 5 分待つ</h2>
+<p>Cloudflare Workers の Cron トリガーが <strong>5 分ごと</strong> に GAS から許可メール一覧を取得し、CF Access ポリシーを更新します。</p>
+<p>実装場所:</p>
+<ul>
+<li>同期スクリプト: <code>workers/shiire-kanri/src/sync/access-sync.js</code></li>
+<li>Cron 設定: <code>workers/shiire-kanri/wrangler.toml</code>（<code>*/5 * * * *</code>）</li>
+</ul>
+<p>手動で即時反映したい場合は <code>POST /admin/sync-access</code> を叩く。</p>
+<pre><code class="language-bash">curl -X POST https://shiire-kanri.nsdktts1030.workers.dev/admin/sync-access \
+  -H &quot;X-Admin-Key: &lt;ADMIN_KEY&gt;&quot;
+</code></pre>
+<h2 id="ステップ-3-外注に-url-を共有">ステップ 3: 外注に URL を共有</h2>
+<pre><code>https://shiire-kanri.nsdktts1030.workers.dev/
+</code></pre>
+<p>をメッセージや LINE で送る。</p>
+<h2 id="ステップ-4-外注本人がログイン">ステップ 4: 外注本人がログイン</h2>
+<ol>
+<li>URL を開く</li>
+<li>Gmail アドレスを入力 → 「Send me a code」</li>
+<li>受信した 6 桁コードを入力 → 「Sign in」</li>
+<li>アプリ画面が開く</li>
+</ol>
+<div class="note">
+
+<p>外注側でやることは「URL を開いてメール入力 → コード入力」だけ。Google アカウント連携などは不要。</p>
+</div>
+
+<hr>
+<h1 id="管理者の主な業務">管理者の主な業務</h1>
+<h2 id="1-adminpanelgas-エディタ内モーダル">1. AdminPanel（GAS エディタ内モーダル）</h2>
+<p>GAS エディタを開いて <strong>「★ 管理パネルを開く」</strong> メニューから起動。</p>
+<p>実装: <code>shiire-kanri/AdminPanel.html</code> + <code>shiire-kanri/AdminPanelApi.gs</code></p>
+<p><strong>主な機能:</strong></p>
+<table>
+<thead>
+<tr>
+<th>機能</th>
+<th>関数</th>
+<th>ファイル:行</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>プロパティ表示・編集</td>
+<td><code>adminPanel_getProperties</code> / <code>adminPanel_setProperties</code></td>
+<td>AdminPanelApi.gs:16-45</td>
+</tr>
+<tr>
+<td>新月処理</td>
+<td><code>startNewMonth</code></td>
+<td>AdminPanelApi.gs:51</td>
+</tr>
+<tr>
+<td>当月管理番号同期</td>
+<td><code>syncCurrentMonthIds</code></td>
+<td>AdminPanelApi.gs:62</td>
+</tr>
+<tr>
+<td>当月理論在庫再計算</td>
+<td><code>recalcCurrentTheory</code></td>
+<td>AdminPanelApi.gs:71</td>
+</tr>
+<tr>
+<td>在庫推移更新</td>
+<td><code>updateInventoryTrend</code></td>
+<td>AdminPanelApi.gs:75</td>
+</tr>
+<tr>
+<td>月次レポート生成</td>
+<td><code>generateReport</code></td>
+<td>AdminPanelApi.gs:79</td>
+</tr>
+<tr>
+<td>EC連携同期</td>
+<td><code>ecSync</code></td>
+<td>AdminPanelApi.gs:83</td>
+</tr>
+<tr>
+<td>返送ステータス同期</td>
+<td><code>returnStatusSync</code></td>
+<td>AdminPanelApi.gs:87</td>
+</tr>
+<tr>
+<td>場所移動処理</td>
+<td><code>moveProcess</code></td>
+<td>AdminPanelApi.gs:91</td>
+</tr>
+<tr>
+<td>仕入れ数マージ</td>
+<td><code>mergeShiire</code></td>
+<td>AdminPanelApi.gs:95</td>
+</tr>
+<tr>
+<td>欠番チェック</td>
+<td><code>checkMissingIds</code></td>
+<td>AdminPanelApi.gs:99</td>
+</tr>
+<tr>
+<td>入替リスト生成</td>
+<td><code>generateSwapLists</code></td>
+<td>AdminPanelApi.gs:103</td>
+</tr>
+<tr>
+<td>AI 判定ステータス</td>
+<td><code>aiKeywordStatus</code></td>
+<td>AdminPanelApi.gs:112-169</td>
+</tr>
+<tr>
+<td>トリガー管理</td>
+<td><code>listTriggers</code> / <code>rebuildTriggers</code> / <code>deleteTrigger</code></td>
+<td>AdminPanelApi.gs:175-199</td>
+</tr>
+<tr>
+<td>ビジネス設定</td>
+<td><code>getBizSettings</code> / <code>setBizSettings</code></td>
+<td>AdminPanelApi.gs:205-242</td>
+</tr>
+<tr>
+<td>メール設定</td>
+<td><code>getMailSettings</code> / <code>setMailSettings</code></td>
+<td>AdminPanelApi.gs:248-276</td>
+</tr>
+</tbody></table>
+<div class="tip">
+
+<p>プロパティ画面は SECRET/TOKEN/PASSWORD/KEY パターンが自動マスクされます。表示には「マスクを解除」操作が必要です。</p>
+</div>
+
+<h2 id="2-請求書管理パネル">2. 請求書管理パネル</h2>
+<p>GAS エディタ → <strong>「💴 請求書管理を開く」</strong> メニュー、または Web 画面の管理者メニューから。</p>
+<p>実装: <code>shiire-kanri/AdminInvoice.html</code> + <code>shiire-kanri/AdminInvoiceApi.gs</code> + Workers <code>/api/admin-invoice/*</code></p>
+<p><strong>タブ構成:</strong></p>
+<h3 id="全請求書タブ">全請求書タブ</h3>
+<p>全スタッフの全請求書を一覧表示。月・ステータス・スタッフ名でフィルタ可能。</p>
+<p>ステータス変更（未確認 → 確認済み → 修正申請中 → 修正承認済み → 作成済み → 支払済み → 取消済み）はここから操作。</p>
+<h3 id="修正申請タブ">修正申請タブ</h3>
+<p>スタッフからの修正申請を一覧表示。承認・却下・差戻しのいずれかを選択し、コメントを添えて送信。スタッフにメール通知。</p>
+<h3 id="経過措置率タブ">経過措置率タブ</h3>
+<p>インボイス制度の経過措置率を区間ごとに管理。</p>
+<table>
+<thead>
+<tr>
+<th>区間</th>
+<th>控除可能率</th>
+<th>デフォルト終了日</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>〜2026/09</td>
+<td>80%</td>
+<td>2026/09/30</td>
+</tr>
+<tr>
+<td>2026/10〜2029/09</td>
+<td>50%</td>
+<td>2029/09/30</td>
+</tr>
+<tr>
+<td>2029/10〜</td>
+<td>0%</td>
+<td>永続</td>
+</tr>
+</tbody></table>
+<p>開始/終了 YM・控除可能率を編集すると、新規請求書プレビューに即反映されます。</p>
+<h3 id="管理者設定タブ">管理者設定タブ</h3>
+<p>請求書の発行元情報を管理。</p>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>有効</td>
+<td>TRUE で請求書発行を許可</td>
+</tr>
+<tr>
+<td>屋号</td>
+<td>受領者として表示</td>
+</tr>
+<tr>
+<td>インボイス番号</td>
+<td>自社の登録番号</td>
+</tr>
+<tr>
+<td>振込元銀行候補</td>
+<td>スタッフが選択できる銀行リスト</td>
+</tr>
+<tr>
+<td>振込手数料（楽天⇔楽天）</td>
+<td>0 円固定</td>
+</tr>
+<tr>
+<td>振込手数料（他行小額）</td>
+<td>例: 165 円</td>
+</tr>
+<tr>
+<td>振込手数料（他行高額）</td>
+<td>例: 270 円</td>
+</tr>
+<tr>
+<td>通知先メール</td>
+<td>修正申請発生時の通知先</td>
+</tr>
+</tbody></table>
+<h2 id="3-月次運用ルーチン">3. 月次運用ルーチン</h2>
+<h3 id="月末毎月末日">月末（毎月末日）</h3>
+<ul>
+<li><code>updateRewardsNoFormula(false)</code> 実行（自動 Cron）→ 報酬管理シート更新</li>
+<li><code>generateMonthlyReport</code> 実行（自動 Cron）→ 月次レポート生成</li>
+<li>仕入れ・販売データの締め</li>
+</ul>
+<h3 id="月初15日">月初（1〜5日）</h3>
+<ul>
+<li>前月の売上・利益を確認</li>
+<li>スタッフからの修正申請対応</li>
+</ul>
+<h3 id="月中20日25日頃">月中（20日〜25日頃）</h3>
+<ul>
+<li>スタッフが前月分の請求書を作成・提出</li>
+<li>修正申請が来たら速やかに対応（メールで通知が届く）</li>
+<li>承認後、銀行振込</li>
+</ul>
+<h3 id="振込後">振込後</h3>
+<ul>
+<li>該当請求書のステータスを「支払済み」に変更</li>
+</ul>
+<h2 id="4-ai-判定の運用">4. AI 判定の運用</h2>
+<p>タスキ箱（画像アップロードツール）から商品画像がアップされると、5 分 Cron で Gemini API による判定が走り、AI画像判定シートに結果が書き込まれます。</p>
+<p>詳細: <code>project-tasukibako-ai-integration</code> 関連メモ。</p>
+<ul>
+<li>1 分 Cron: <code>processPendingKeywordRows</code>（AIキーワード抽出.gs）</li>
+<li>5 分 Cron: AppSheet/Gemini 判定（gas-proxy 側）</li>
+</ul>
+<h2 id="5-ec-連携">5. EC 連携</h2>
+<p>BASE で売れた注文は 5 分 Cron で「依頼管理」シート→「EC管理」シートに自動反映されます。</p>
+<ul>
+<li>関数: <code>syncBaseOrdersToEc</code> (EC管理自動反映.gs:44)</li>
+<li>関連プロパティ: <code>EC_SYNC_SRC_SPREADSHEET_ID</code>, <code>EC_SYNC_DST_SPREADSHEET_ID</code></li>
+</ul>
+<hr>
+<h1 id="スプレッドシート構造">スプレッドシート構造</h1>
+<p>仕入れ管理スプレッドシートは <strong>1 個のスプレッドシート</strong> に複数シートが入っています。スプレッドシート ID はスクリプトプロパティ <code>SPREADSHEET_ID</code> に格納。</p>
+<h2 id="主要シート一覧21">主要シート一覧（21+）</h2>
+<table>
+<thead>
+<tr>
+<th>シート名</th>
+<th>用途</th>
+<th>列数</th>
+<th>主要列マップ参照</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>商品管理</td>
+<td>商品マスター</td>
+<td>68</td>
+<td>StaffApi.gs:4-42 <code>STAFF_COL</code></td>
+</tr>
+<tr>
+<td>仕入れ管理</td>
+<td>購買記録</td>
+<td>多列</td>
+<td>仕入れ管理.gs</td>
+</tr>
+<tr>
+<td>作業者マスター</td>
+<td>従業員管理</td>
+<td>41+</td>
+<td>StaffApiExtras.gs:405-432 / InvoiceSheetSetup.gs:14-28</td>
+</tr>
+<tr>
+<td>請求書履歴</td>
+<td>請求書履歴</td>
+<td>45</td>
+<td>InvoiceSheetSetup.gs:46-56</td>
+</tr>
+<tr>
+<td>請求書修正申請</td>
+<td>修正申請管理</td>
+<td>13</td>
+<td>InvoiceSheetSetup.gs:65-69</td>
+</tr>
+<tr>
+<td>インボイス経過措置率</td>
+<td>税務経過措置</td>
+<td>5</td>
+<td>InvoiceSheetSetup.gs:76-86</td>
+</tr>
+<tr>
+<td>請求書管理者設定</td>
+<td>管理者設定</td>
+<td>14</td>
+<td>InvoiceSheetSetup.gs:92-96</td>
+</tr>
+<tr>
+<td>移動報告</td>
+<td>場所移動記録</td>
+<td>6</td>
+<td>StaffApiExtras.gs:16-49</td>
+</tr>
+<tr>
+<td>返送管理</td>
+<td>返送記録</td>
+<td>7</td>
+<td>StaffApiExtras.gs:91-123</td>
+</tr>
+<tr>
+<td>経費申請</td>
+<td>経費申請</td>
+<td>10+</td>
+<td>StaffApiExtras.gs:709-732</td>
+</tr>
+<tr>
+<td>仕入れ数報告</td>
+<td>仕入数報告</td>
+<td>7+</td>
+<td>StaffApiExtras.gs:761-764</td>
+</tr>
+<tr>
+<td>AIキーワード抽出</td>
+<td>AI 抽出結果</td>
+<td>10+</td>
+<td>キーワードAPI.gs:42-58</td>
+</tr>
+<tr>
+<td>AI画像判定</td>
+<td>AI 判定結果</td>
+<td>多列</td>
+<td>AdminPanelApi.gs:115-157</td>
+</tr>
+<tr>
+<td>EC管理</td>
+<td>EC売上管理</td>
+<td>12+</td>
+<td>EC管理自動反映.gs:76-128</td>
+</tr>
+<tr>
+<td>依頼管理</td>
+<td>saisun-list 側注文</td>
+<td>多列</td>
+<td>（別プロジェクト連動）</td>
+</tr>
+<tr>
+<td>売却履歴</td>
+<td>売上記録</td>
+<td>多列</td>
+<td>報酬更新.gs</td>
+</tr>
+<tr>
+<td>回収完了</td>
+<td>在庫回収</td>
+<td>多列</td>
+<td>メニュー.gs:39-46</td>
+</tr>
+<tr>
+<td>納品場所</td>
+<td>納品先マスター</td>
+<td>多列</td>
+<td>場所.gs</td>
+</tr>
+<tr>
+<td>管理番号マスタ</td>
+<td>管理番号採番</td>
+<td>3+</td>
+<td>番号採番.gs</td>
+</tr>
+<tr>
+<td>仕入先マスタ</td>
+<td>仕入先マスター</td>
+<td>多列</td>
+<td>仕入先.gs</td>
+</tr>
+<tr>
+<td>設定</td>
+<td>汎用設定</td>
+<td>多列</td>
+<td>Config.gs</td>
+</tr>
+<tr>
+<td>作業分析 / 在庫分析 / 月次推移</td>
+<td>分析レポート</td>
+<td>多列</td>
+<td>各レポート.gs</td>
+</tr>
+</tbody></table>
+<h2 id="商品管理シート-主要列staff_col">商品管理シート 主要列（STAFF_COL）</h2>
+<p><code>shiire-kanri/StaffApi.gs:4-42</code> に定義。</p>
+<table>
+<thead>
+<tr>
+<th>列</th>
+<th>フィールド</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>A (1)</td>
+<td>管理番号</td>
+<td><code>zkXXXX</code> 主キー</td>
+</tr>
+<tr>
+<td>B (2)</td>
+<td>仕入れID</td>
+<td>仕入れ管理シートとの紐付け</td>
+</tr>
+<tr>
+<td>C (3)</td>
+<td>作業者名</td>
+<td>作業担当者</td>
+</tr>
+<tr>
+<td>D-T (4-20)</td>
+<td>採寸寸法 12 項目</td>
+<td>着丈・肩幅・身幅 等</td>
+</tr>
+<tr>
+<td>U (21)</td>
+<td>採寸日</td>
+<td>タイムスタンプ</td>
+</tr>
+<tr>
+<td>V (22)</td>
+<td>採寸者</td>
+<td>名前</td>
+</tr>
+<tr>
+<td>W-AB (23-28)</td>
+<td>商品名・カテゴリ・ブランド・色・素材・状態</td>
+<td></td>
+</tr>
+<tr>
+<td>AJ (42)</td>
+<td>販売日</td>
+<td></td>
+</tr>
+<tr>
+<td>AK (43)</td>
+<td>販売場所</td>
+<td>メルカリ / BASE / ジモティ等</td>
+</tr>
+<tr>
+<td>AL (44)</td>
+<td>販売価格</td>
+<td></td>
+</tr>
+<tr>
+<td>AM (45)</td>
+<td>送料</td>
+<td></td>
+</tr>
+<tr>
+<td>AN (46)</td>
+<td>手数料</td>
+<td></td>
+</tr>
+<tr>
+<td>AS (65)</td>
+<td>販売タイムスタンプ</td>
+<td>onEdit で自動</td>
+</tr>
+</tbody></table>
+<div class="warn">
+
+<p>列番号固定参照は将来の列追加で壊れます。新規実装ではヘッダー名動的解決（<code>Utils.gs:13-40</code> の <code>buildHeaderMap_</code> / <code>findColByName_</code> / <code>requireCol_</code>）を使ってください。</p>
+</div>
+
+<h2 id="作業者マスターシート-列">作業者マスターシート 列</h2>
+<table>
+<thead>
+<tr>
+<th>列</th>
+<th>内容</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>B</td>
+<td>氏名</td>
+<td>主キー</td>
+</tr>
+<tr>
+<td>D / E</td>
+<td>Gmail</td>
+<td>CF Access 認証</td>
+</tr>
+<tr>
+<td>F-M</td>
+<td>単価マスター</td>
+<td>採寸／撮影／出品／発送 等の単価</td>
+</tr>
+<tr>
+<td>O</td>
+<td>有効フラグ</td>
+<td>TRUE でアプリログイン可</td>
+</tr>
+<tr>
+<td>Q (17)</td>
+<td>管理者フラグ</td>
+<td>TRUE で管理者権限</td>
+</tr>
+<tr>
+<td>AC-AO (29-41)</td>
+<td>請求書拡張</td>
+<td>屋号／本名／住所／口座／インボイス番号</td>
+</tr>
+</tbody></table>
+<p>請求書拡張列のマップ: <code>InvoiceSheetSetup.gs:14-28</code> の <code>INV_WORKER_EXT_COL</code></p>
+<h2 id="請求書履歴シート-列構成">請求書履歴シート 列構成</h2>
+<p><code>InvoiceSheetSetup.gs:46-56</code> の <code>INV_HISTORY_HEADERS</code> に 45 列分のヘッダー定義。</p>
+<p>主要列:</p>
+<ul>
+<li>A: 請求書番号 <code>INV-YYYYMM-{row}-{seq}</code></li>
+<li>B: 請求月 <code>YYYY/MM</code></li>
+<li>C: スタッフ名</li>
+<li>E-P: スナップショット情報（屋号・本名・住所・口座等）</li>
+<li>Q-T: 件数（採寸／撮影／出品／発送）</li>
+<li>U-X: 単価</li>
+<li>AD: 税込合計</li>
+<li>AE: 控除率</li>
+<li>AF: 調整額</li>
+<li>AG: 振込元</li>
+<li>AH: 手数料</li>
+<li>AI: 請求額</li>
+<li>AJ: ステータス（7段階）</li>
+<li>AN: スナップショットJSON（全データの不変コピー）</li>
+</ul>
+<hr>
+<h1 id="gas-関数一覧">GAS 関数一覧</h1>
+<p><code>/Users/katsu/saisun-repo/shiire-kanri/</code> 配下の主要 .gs ファイル。</p>
+<h2 id="エントリポイント">エントリポイント</h2>
+<table>
+<thead>
+<tr>
+<th>関数</th>
+<th>ファイル:行</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>doPost(e)</code></td>
+<td>Code.gs:5-104</td>
+<td>Web API メイン dispatcher。X-Sync-Secret 認証＋ action ベース分岐</td>
+</tr>
+<tr>
+<td><code>doGet(e)</code></td>
+<td>Code.gs:78-90</td>
+<td>SPA・AdminInvoice モーダル配信</td>
+</tr>
+<tr>
+<td><code>onOpen()</code></td>
+<td>メニュー.gs:16-21</td>
+<td>スプレッドシート開封時にメニュー登録</td>
+</tr>
+</tbody></table>
+<h2 id="認証ユーティリティ">認証・ユーティリティ</h2>
+<table>
+<thead>
+<tr>
+<th>関数</th>
+<th>ファイル:行</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>staff_isWhitelisted_</code></td>
+<td>StaffApi.gs:380</td>
+<td>メールアドレスが許可リストにあるか判定</td>
+</tr>
+<tr>
+<td><code>staff_assertSagyouAdmin_</code></td>
+<td>StaffApiExtras.gs:597</td>
+<td>管理者フラグの有無を検査</td>
+</tr>
+<tr>
+<td><code>inv_resolveStaffByEmail_</code></td>
+<td>InvoiceApi.gs:131</td>
+<td>メールから作業者マスターの行を解決</td>
+</tr>
+<tr>
+<td><code>adminInv_assertAdmin_</code></td>
+<td>AdminInvoiceApi.gs:16</td>
+<td>管理者専用ガード</td>
+</tr>
+<tr>
+<td><code>buildHeaderMap_</code></td>
+<td>Utils.gs:13</td>
+<td>1 行目をヘッダー名→列インデックスのマップ化</td>
+</tr>
+<tr>
+<td><code>findColByName_</code></td>
+<td>Utils.gs:25</td>
+<td>ヘッダー名で列番号取得</td>
+</tr>
+<tr>
+<td><code>requireCol_</code></td>
+<td>Utils.gs:35</td>
+<td>必須ヘッダーが無ければエラー</td>
+</tr>
+<tr>
+<td><code>withLock_</code></td>
+<td>Utils.gs</td>
+<td>DocumentLock で排他処理</td>
+</tr>
+<tr>
+<td><code>cleanupStaleProps</code></td>
+<td>Utils.gs:119-157</td>
+<td>古いスクリプトプロパティ削除（毎日 5 時 Cron）</td>
+</tr>
+</tbody></table>
+<h2 id="スタッフ向け-api-action-一覧">スタッフ向け API (action 一覧)</h2>
+<p><code>doPost</code> の switch から分岐される action 群（X-Sync-Secret 認証必須）。</p>
+<p><strong>データ参照系:</strong></p>
+<ul>
+<li><code>syncDumpProducts</code> / <code>syncDumpPurchases</code> / <code>syncDumpAiPrefill</code> — Workers KV 用ダンプ</li>
+<li><code>dumpHeaders</code> / <code>dumpSheet</code> — 汎用ダンプ</li>
+<li><code>listAllowedEmails</code> — CF Access 同期用</li>
+<li><code>listWorkers</code> / <code>listAccounts</code> / <code>listSuppliers</code> / <code>listPlaces</code> / <code>listCategories</code> / <code>listSettings</code> — マスター取得</li>
+<li><code>lookupAiPrefill</code> — AI 判定結果検索</li>
+</ul>
+<p><strong>商品 CRUD:</strong></p>
+<ul>
+<li><code>saveMeasurement</code> — 採寸保存</li>
+<li><code>saveSale</code> — 販売情報保存</li>
+<li><code>saveDetails</code> — 商品詳細保存</li>
+<li><code>createProduct</code> / <code>deleteProduct</code> — 商品作成・削除</li>
+<li><code>uploadImage</code> — 画像アップロード（Drive）</li>
+</ul>
+<p><strong>業務 API:</strong></p>
+<ul>
+<li><code>listMoves</code> / <code>createMove</code> / <code>updateMove</code> / <code>deleteMove</code> — 場所移動</li>
+<li><code>listReturns</code> / <code>createReturn</code> / <code>updateReturn</code> / <code>deleteReturn</code> — 返送管理</li>
+<li><code>listAiResults</code> — AI 判定結果一覧</li>
+<li><code>listSagyousha</code> / <code>saveSagyousha</code> / <code>createSagyousha</code> — 作業者管理</li>
+<li><code>appendKeihi</code> / <code>uploadKeihiImage</code> — 経費申請</li>
+<li><code>updateShiireHoukokuQuantity</code> — 仕入れ数報告</li>
+</ul>
+<p><strong>請求書 API（スタッフ）:</strong></p>
+<ul>
+<li><code>invoiceCurrentUser</code> — 自身の情報取得</li>
+<li><code>listInvoices</code> — 自身の請求書一覧</li>
+<li><code>getInvoiceDetail</code> — 詳細</li>
+<li><code>listMyAvailableMonths</code> — 利用可能月</li>
+<li><code>calcInvoicePreview</code> — 見積計算</li>
+<li><code>getInvoiceProfile</code> / <code>saveInvoiceProfile</code> — プロフィール</li>
+<li><code>createInvoice</code> — 請求書作成</li>
+<li><code>downloadInvoicePdf</code> — PDF ダウンロード</li>
+<li><code>requestInvoiceRevision</code> — 修正申請</li>
+<li><code>listMyRevisions</code> — 自身の修正申請一覧</li>
+</ul>
+<p><strong>請求書 API（管理者）:</strong></p>
+<ul>
+<li><code>adminInv_listAllInvoices</code> — 全請求書</li>
+<li><code>adminInv_getInvoiceDetail</code> — 詳細</li>
+<li><code>adminInv_listAllRevisions</code> — 全修正申請</li>
+<li><code>adminInv_respondRevision</code> — 修正申請対応</li>
+<li><code>adminInv_updateInvoiceStatus</code> — ステータス変更</li>
+<li><code>adminInv_listGraceRates</code> / <code>adminInv_saveGraceRates</code> — 経過措置率</li>
+<li><code>adminInv_getAdminSettings</code> / <code>adminInv_saveAdminSettings</code> — 管理者設定</li>
+</ul>
+<h2 id="トリガーハンドラー">トリガーハンドラー</h2>
+<p><code>shiire-kanri/トリガー設定.gs:2-30</code> に登録。</p>
+<table>
+<thead>
+<tr>
+<th>ハンドラー</th>
+<th>起動条件</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>stampByThreshold</code></td>
+<td>毎日 0:30 JST</td>
+<td>在庫日数スタンプ</td>
+</tr>
+<tr>
+<td><code>handleChange_Mailer</code></td>
+<td>onChange</td>
+<td>依頼管理シート編集でメール通知</td>
+</tr>
+<tr>
+<td><code>handleChange_Inventory</code></td>
+<td>onChange</td>
+<td>在庫同期</td>
+</tr>
+<tr>
+<td><code>handleChange_Move</code></td>
+<td>onChange</td>
+<td>場所移動報告→商品管理に反映</td>
+</tr>
+<tr>
+<td><code>handleChange_Return</code></td>
+<td>onChange</td>
+<td>返送管理→ステータス更新</td>
+</tr>
+<tr>
+<td><code>handleChange_ShiireSync</code></td>
+<td>onChange</td>
+<td>仕入れ数報告→仕入れ管理マージ</td>
+</tr>
+<tr>
+<td><code>processPendingKeywordRows</code></td>
+<td>1 分ごと</td>
+<td>AI キーワード抽出</td>
+</tr>
+<tr>
+<td><code>buildWorkAnalysis</code></td>
+<td>1 時間ごと</td>
+<td>作業分析レポート</td>
+</tr>
+<tr>
+<td><code>cronDaily3</code></td>
+<td>毎日 3:00 JST</td>
+<td><code>syncRewardRows</code> + <code>updateRewardsNoFormula</code> + 欠番確認</td>
+</tr>
+<tr>
+<td><code>recalcZaikoNissu</code></td>
+<td>毎日 4:00 JST</td>
+<td>在庫日数再計算</td>
+</tr>
+<tr>
+<td><code>cleanupStaleProps</code></td>
+<td>毎日 5:00 JST</td>
+<td>プロパティクリーンアップ</td>
+</tr>
+<tr>
+<td><code>syncBaseOrdersToEc</code></td>
+<td>5 分ごと</td>
+<td>BASE → EC管理シート同期</td>
+</tr>
+</tbody></table>
+<p><code>FULL_RESTORE_ALL()</code> (<code>shiire-kanri/トリガー設定.gs:2</code>) でトリガー一括登録。</p>
+<hr>
+<h1 id="workers-ルート一覧">Workers ルート一覧</h1>
+<p><code>/Users/katsu/saisun-repo/workers/shiire-kanri/src/index.js</code> で定義。全 60+ エンドポイント。</p>
+<h2 id="管理者運用系">管理者・運用系</h2>
+<table>
+<thead>
+<tr>
+<th>メソッド</th>
+<th>パス</th>
+<th>関数 / ファイル:行</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/health</code></td>
+<td>index.js:38-40</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/admin/sync</code></td>
+<td>手動同期 (index.js:47)</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/admin/sync-access</code></td>
+<td>CF Access ポリシー手動同期 (index.js:61)</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/admin/backfill-thumb-url</code></td>
+<td>thumb_url 一括バックフィル (index.js:69)</td>
+</tr>
+</tbody></table>
+<h2 id="認証マスター">認証・マスター</h2>
+<table>
+<thead>
+<tr>
+<th>メソッド</th>
+<th>パス</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/api/me</code></td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/master/workers</code> / <code>/accounts</code> / <code>/suppliers</code> / <code>/places</code> / <code>/categories</code> / <code>/settings</code></td>
+</tr>
+</tbody></table>
+<h2 id="商品仕入れ">商品・仕入れ</h2>
+<table>
+<thead>
+<tr>
+<th>メソッド</th>
+<th>パス</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET/DELETE</td>
+<td><code>/api/products</code>, <code>/api/products/{kanri}</code>, <code>/api/products/{kanri}/images</code></td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/products/counts</code> / <code>/api/products/has-images</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/products/thumbs</code></td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/kanri/next</code></td>
+</tr>
+<tr>
+<td>GET/DELETE</td>
+<td><code>/api/purchases</code>, <code>/api/purchases/{shiireId}</code>, <code>/api/purchases/{shiireId}/products</code></td>
+</tr>
+</tbody></table>
+<h2 id="保存系">保存系</h2>
+<table>
+<thead>
+<tr>
+<th>メソッド</th>
+<th>パス</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>POST</td>
+<td><code>/api/save/measurement</code> / <code>/sale</code> / <code>/details</code> / <code>/image</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/image/resolve</code></td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/img</code> / <code>/api/thumb</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/create/purchase</code> / <code>/api/create/product</code></td>
+</tr>
+</tbody></table>
+<h2 id="業務系">業務系</h2>
+<table>
+<thead>
+<tr>
+<th>メソッド</th>
+<th>パス</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET/POST/PUT/DELETE</td>
+<td><code>/api/moves</code>, <code>/api/moves/{moveId}</code></td>
+</tr>
+<tr>
+<td>GET/POST/PUT/DELETE</td>
+<td><code>/api/returns</code>, <code>/api/returns/{boxId}</code></td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/ai/list</code>, <code>/api/ai/prefill</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/ai/prefill/batch</code></td>
+</tr>
+<tr>
+<td>GET/POST</td>
+<td><code>/api/sagyousha</code>, <code>/api/sagyousha/create</code></td>
+</tr>
+<tr>
+<td>GET/POST</td>
+<td><code>/api/bundles</code>, <code>/api/bundles/toggle</code></td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/sales/summary</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/keihi/submit</code>, <code>/api/keihi/image</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/shiire-houkoku/quantity</code></td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/listing-text/{kanri}</code></td>
+</tr>
+</tbody></table>
+<h2 id="push-通知">Push 通知</h2>
+<table>
+<thead>
+<tr>
+<th>メソッド</th>
+<th>パス</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/api/push/vapid</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/push/subscribe</code> / <code>/unsubscribe</code> / <code>/test</code></td>
+</tr>
+<tr>
+<td>GET/POST</td>
+<td><code>/api/push/prefs</code></td>
+</tr>
+</tbody></table>
+<h2 id="請求書スタッフ">請求書（スタッフ）</h2>
+<table>
+<thead>
+<tr>
+<th>メソッド</th>
+<th>パス</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/api/invoice/me</code> / <code>/list</code> / <code>/detail</code> / <code>/months</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/invoice/preview</code></td>
+</tr>
+<tr>
+<td>GET/POST</td>
+<td><code>/api/invoice/profile</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/invoice/create</code></td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/invoice/pdf</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/invoice/revision</code></td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/api/invoice/revisions</code></td>
+</tr>
+</tbody></table>
+<h2 id="請求書管理者">請求書（管理者）</h2>
+<table>
+<thead>
+<tr>
+<th>メソッド</th>
+<th>パス</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/api/admin-invoice/list</code> / <code>/revisions</code></td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/api/admin-invoice/revisions</code> / <code>/status</code></td>
+</tr>
+<tr>
+<td>GET/POST</td>
+<td><code>/api/admin-invoice/grace-rates</code> / <code>/settings</code></td>
+</tr>
+</tbody></table>
+<h2 id="汎用">汎用</h2>
+<table>
+<thead>
+<tr>
+<th>メソッド</th>
+<th>パス</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>GET</td>
+<td><code>/api/sheet/{name}</code> — シート汎用ダンプ（業務メニュー）</td>
+</tr>
+<tr>
+<td>GET/その他</td>
+<td><code>/{path}</code> — 静的アセット（SPA fallback）</td>
+</tr>
+</tbody></table>
+<hr>
+<h1 id="デプロイ手順">デプロイ手順</h1>
+<h2 id="gas-デプロイshiire-kanri">GAS デプロイ（shiire-kanri）</h2>
+<pre><code class="language-bash">cd /Users/katsu/saisun-repo/shiire-kanri
+
+clasp push 2&gt;&amp;1 &amp;&amp; \
+DEPLOY_ID=&quot;&lt;shiire-kanri 用 DEPLOY_ID&gt;&quot; &amp;&amp; \
+clasp deploy -i &quot;$DEPLOY_ID&quot; --description &quot;変更内容&quot; 2&gt;&amp;1
+</code></pre>
+<div class="danger">
+
+<p><code>clasp push</code> だけでは本番 Web App に反映されません。必ず <code>clasp deploy -i &quot;$DEPLOY_ID&quot;</code> をセットで実行してください。</p>
+</div>
+
+<div class="warn">
+
+<p>DEPLOY_ID を間違えると別 URL の新デプロイが作成されます。本番は 1 本に固定。</p>
+</div>
+
+<h2 id="cloudflare-workers-デプロイ">Cloudflare Workers デプロイ</h2>
+<pre><code class="language-bash">cd /Users/katsu/saisun-repo/workers/shiire-kanri
+
+# 本番
+wrangler deploy
+
+# 開発環境
+wrangler deploy --env dev
+</code></pre>
+<p>Workers の本番 URL: <code>https://shiire-kanri.nsdktts1030.workers.dev/</code></p>
+<h2 id="cron-トリガー再登録">Cron トリガー再登録</h2>
+<p>GAS 側のトリガーが消えた場合は、GAS エディタから <code>FULL_RESTORE_ALL()</code> を 1 回実行すれば全トリガー再登録できます。</p>
+<pre><code class="language-javascript">FULL_RESTORE_ALL()  // トリガー設定.gs:2
+</code></pre>
+<h2 id="workers-cron-確認">Workers Cron 確認</h2>
+<pre><code class="language-bash">cd /Users/katsu/saisun-repo/workers/shiire-kanri
+wrangler tail   # ライブログ
+</code></pre>
+<p><code>wrangler.toml</code> の <code>[triggers]</code> で <code>crons = [&quot;*/5 * * * *&quot;]</code> を確認。</p>
+<hr>
+<h1 id="環境変数シークレット一覧">環境変数・シークレット一覧</h1>
+<h2 id="gas-スクリプトプロパティ">GAS スクリプトプロパティ</h2>
+<p><code>Utils.gs:106-112</code> の <code>KEEP_PROPS_</code> リストで cleanup から保護されているキー：</p>
+<table>
+<thead>
+<tr>
+<th>キー</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>SHIIRE_SYNC_SECRET</code></td>
+<td>Workers ↔ GAS 認証トークン</td>
+</tr>
+<tr>
+<td><code>OPENAI_API_KEY</code></td>
+<td>Gemini / ChatGPT API キー</td>
+</tr>
+<tr>
+<td><code>SPREADSHEET_ID</code></td>
+<td>メインスプレッドシート ID</td>
+</tr>
+<tr>
+<td><code>IMAGE_FOLDER_ID</code></td>
+<td>Drive 画像保存フォルダ ID</td>
+</tr>
+<tr>
+<td><code>INV_BUSY</code></td>
+<td>請求書生成ロック</td>
+</tr>
+<tr>
+<td><code>SWAP_EMAIL_FURUGIYAHONPO</code></td>
+<td>入替リスト通知先 1</td>
+</tr>
+<tr>
+<td><code>SWAP_EMAIL_HOSHIIGA</code></td>
+<td>入替リスト通知先 2</td>
+</tr>
+<tr>
+<td><code>EC_SYNC_SRC_SPREADSHEET_ID</code></td>
+<td>EC同期ソースID</td>
+</tr>
+<tr>
+<td><code>EC_SYNC_DST_SPREADSHEET_ID</code></td>
+<td>EC同期先ID</td>
+</tr>
+<tr>
+<td><code>XLSX_SOURCE_SPREADSHEET_ID</code></td>
+<td>XLSX ダウンロードソース</td>
+</tr>
+<tr>
+<td><code>XLSX_REQUEST_SPREADSHEET_ID</code></td>
+<td>XLSX リクエストシート</td>
+</tr>
+<tr>
+<td><code>OWNER_USER_KEYS</code></td>
+<td>所有者キー</td>
+</tr>
+</tbody></table>
+<h2 id="workers-シークレットwrangler-secret">Workers シークレット（wrangler secret）</h2>
+<pre><code class="language-bash">cd /Users/katsu/saisun-repo/workers/shiire-kanri
+
+wrangler secret put GAS_API_URL       # GAS Web App URL
+wrangler secret put SYNC_SECRET       # GAS の SHIIRE_SYNC_SECRET と一致させる
+wrangler secret put CF_ACCESS_TEAM    # Cloudflare Account ID
+wrangler secret put CF_ACCESS_AUD     # CF Access Application ID
+wrangler secret put ADMIN_KEY         # 管理者エンドポイント認証
+wrangler secret put CF_API_TOKEN      # CF API（Access ポリシー更新用）
+</code></pre>
+<h2 id="workers-バインディングwranglertoml">Workers バインディング（wrangler.toml）</h2>
+<table>
+<thead>
+<tr>
+<th>種別</th>
+<th>名前</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>D1</td>
+<td>（databases）</td>
+<td>商品インデックス・キャッシュ</td>
+</tr>
+<tr>
+<td>KV</td>
+<td>CACHE</td>
+<td>短期キャッシュ</td>
+</tr>
+<tr>
+<td>KV</td>
+<td>GAS_PROXY_CACHE</td>
+<td>GAS レスポンスキャッシュ</td>
+</tr>
+<tr>
+<td>R2</td>
+<td>detauri-images</td>
+<td>画像ストレージ</td>
+</tr>
+<tr>
+<td>Assets</td>
+<td>ASSETS</td>
+<td>SPA 静的ファイル</td>
+</tr>
+</tbody></table>
+<hr>
+<h1 id="ビジネス設定adminpanel-から編集可能">ビジネス設定（AdminPanel から編集可能）</h1>
+<p><code>AdminPanelApi.gs:205-242</code> の <code>CONFIG_BIZ_SETTINGS</code>：</p>
+<table>
+<thead>
+<tr>
+<th>キー</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>baseFeeRate</code> / <code>baseFeeFix</code></td>
+<td>BASE 手数料率／固定額</td>
+</tr>
+<tr>
+<td><code>creditRate</code></td>
+<td>クレカ決済手数料率</td>
+</tr>
+<tr>
+<td><code>paypayRate</code></td>
+<td>PayPay 手数料率</td>
+</tr>
+<tr>
+<td><code>konbiniRate</code></td>
+<td>コンビニ決済手数料率</td>
+</tr>
+<tr>
+<td><code>bankRate</code></td>
+<td>銀行振込手数料率</td>
+</tr>
+<tr>
+<td><code>payeasyRate</code></td>
+<td>Pay-easy 手数料率</td>
+</tr>
+<tr>
+<td><code>paidyRate</code></td>
+<td>Paidy 手数料率</td>
+</tr>
+<tr>
+<td><code>jimotiRate</code></td>
+<td>ジモティ手数料率</td>
+</tr>
+<tr>
+<td><code>aiModel</code></td>
+<td>Gemini モデル名</td>
+</tr>
+<tr>
+<td><code>aiDailyLimit</code></td>
+<td>AI 判定の 1 日上限</td>
+</tr>
+<tr>
+<td><code>aiMaxKeywords</code> / <code>aiMinKeywords</code></td>
+<td>AI キーワード抽出範囲</td>
+</tr>
+<tr>
+<td><code>rewardStartYear</code> / <code>rewardStartMonth</code></td>
+<td>報酬集計の開始年月</td>
+</tr>
+<tr>
+<td><code>swapTriggerDay</code></td>
+<td>入替リスト生成日</td>
+</tr>
+<tr>
+<td><code>monthlyReportFeeRate</code></td>
+<td>月次レポート手数料率</td>
+</tr>
+</tbody></table>
+<p>メール設定 (<code>AdminPanelApi.gs:248-276</code>):</p>
+<table>
+<thead>
+<tr>
+<th>キー</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>settingsSheet</code></td>
+<td>通知先メールアドレスシート名</td>
+</tr>
+<tr>
+<td><code>recipientCol</code> / <code>recipientStartRow</code></td>
+<td>宛先列・開始行</td>
+</tr>
+<tr>
+<td><code>shiireSubject</code></td>
+<td>仕入れ通知件名フォーマット</td>
+</tr>
+<tr>
+<td><code>expenseSubject</code></td>
+<td>経費通知件名フォーマット</td>
+</tr>
+<tr>
+<td><code>swapSubjectFormat</code></td>
+<td>入替リスト件名フォーマット</td>
+</tr>
+</tbody></table>
+<hr>
+<h1 id="請求書フロー詳細">請求書フロー詳細</h1>
+<h2 id="ステータス遷移">ステータス遷移</h2>
+<p>7 段階のステータスがあり、<code>InvoiceSheetSetup.gs:59</code> の <code>INV_STATUS_LIST</code> で定義。</p>
+<pre><code>未確認 → 確認済み → 修正申請中 ⇄ 修正承認済み → 作成済み → 支払済み
+                       ↓                                 ↓
+                     （却下）                         （取消済み）
+</code></pre>
+<h2 id="csv--pdf-生成">CSV / PDF 生成</h2>
+<ul>
+<li>文字コード: UTF-8 BOM 付き</li>
+<li>改行: CRLF</li>
+<li>ファイル名: <code>{本名}_{請求額}円_{YYYY年MM月}.csv</code>（<code>/</code> は <code>-</code> に正規化）</li>
+<li>PDF: GAS で生成し base64 エンコード → Workers が <code>application/pdf</code> で返却 (<code>workers/shiire-kanri/src/handlers/invoice.js:75-94</code>)</li>
+</ul>
+<h2 id="csv-28-項目">CSV 28 項目</h2>
+<p>請求書番号 / 請求月 / 屋号 / 本名 / 郵便 / 住所 / 電話 / メール / インボイス番号 / 銀行名 / 支店 / 口座番号 / 採寸件数 / 撮影件数 / 出品件数 / 発送件数 / 在庫管理報酬 / 固定報酬 / 経費合計 / 売上報酬 / その他報酬 / 税込合計 / インボイス控除率 / 調整額 / 振込元 / 手数料 / 請求額 / 作成日時</p>
+<h2 id="重複防止">重複防止</h2>
+<ul>
+<li><code>LockService.getDocumentLock().tryLock(20000)</code> で同時押下競合を防止</li>
+<li>同月再作成時は既存レコードを返す</li>
+<li>「取消」後の再作成は連番 <code>-2</code>, <code>-3</code>, ... が振られる</li>
+</ul>
+<hr>
+<h1 id="トラブルシューティング">トラブルシューティング</h1>
+<h2 id="スタッフがログインできない">スタッフがログインできない</h2>
+<ol>
+<li>作業者マスター D 列または E 列に Gmail が入っているか確認</li>
+<li>O 列（有効フラグ）が TRUE か確認</li>
+<li>5 分待っても入れない場合は手動同期:<pre><code class="language-bash">curl -X POST https://shiire-kanri.nsdktts1030.workers.dev/admin/sync-access \
+  -H &quot;X-Admin-Key: &lt;ADMIN_KEY&gt;&quot;
+</code></pre>
+</li>
+<li>Cloudflare ダッシュボード → Access → Applications → shiire-kanri → Policy で該当メールが Include 側にあるか確認</li>
+</ol>
+<h2 id="請求書-pdf-がダウンロードできない">請求書 PDF がダウンロードできない</h2>
+<ol>
+<li><code>INV_BUSY</code> プロパティが残っていないか確認（残っていれば削除）</li>
+<li>PDF 生成は GAS 側で Drive 上の Google Doc を経由するため、Drive 容量超過していないか確認</li>
+<li>スタッフのプロフィールが全項目埋まっているか確認</li>
+</ol>
+<h2 id="報酬集計が更新されない">報酬集計が更新されない</h2>
+<ol>
+<li>毎日 3 時の Cron (<code>cronDaily3</code>) が動いているか:<ul>
+<li>GAS エディタ → トリガー画面で実行履歴を確認</li>
+<li>エラーがあれば <code>FULL_RESTORE_ALL()</code> で再登録</li>
+</ul>
+</li>
+<li>手動実行: <code>updateRewardsNoFormula(false)</code> を直接呼ぶ</li>
+</ol>
+<h2 id="workers-が応答しない">Workers が応答しない</h2>
+<ol>
+<li><code>wrangler tail</code> でログ確認</li>
+<li>CF Access ポリシーで自分自身が締め出されていないか確認</li>
+<li>Cloudflare ダッシュボードで Workers のデプロイ状態を確認</li>
+</ol>
+<h2 id="ai-判定が止まっている">AI 判定が止まっている</h2>
+<ol>
+<li><code>processPendingKeywordRows</code> の Cron が動いているか</li>
+<li><code>OPENAI_API_KEY</code> が有効か</li>
+<li>AdminPanel の「AI 判定ステータス」で今日の使用量を確認</li>
+<li><code>aiDailyLimit</code> に達していないか確認</li>
+</ol>
+<h2 id="ec-連携同期が遅延">EC 連携同期が遅延</h2>
+<ol>
+<li><code>syncBaseOrdersToEc</code> (EC管理自動反映.gs:44) の Cron が動いているか</li>
+<li><code>EC_SYNC_SRC_SPREADSHEET_ID</code> / <code>EC_SYNC_DST_SPREADSHEET_ID</code> が正しいか</li>
+<li>手動実行で同期可能</li>
+</ol>
+<h2 id="スプレッドシート列を間違って削除した">スプレッドシート列を間違って削除した</h2>
+<ol>
+<li>スプレッドシート → ファイル → 版の履歴 → 版の履歴を表示</li>
+<li>影響を受けた版より前の版に戻す</li>
+<li>戻せない場合は手動で列を再追加し、<code>buildHeaderMap_</code> のヘッダー名と一致させる</li>
+</ol>
+<h2 id="外注から右下のバッジ未送信が消えないと連絡が来た">外注から「右下のバッジ（未送信）が消えない」と連絡が来た</h2>
+<ol>
+<li><strong>本人のオンライン環境を確認</strong> — モバイルデータ ON / Wi-Fi 接続 / 機内モード OFF</li>
+<li>ブラウザを開き直して <code>flushOutbox_</code> の自動再送を待つ（1〜2分）</li>
+<li>それでも消えない場合は Workers ログを確認<pre><code class="language-bash">cd /Users/katsu/saisun-repo/workers/shiire-kanri
+wrangler tail
+</code></pre>
+</li>
+<li>4xx ループ（バリデーションエラー）の場合は外注に「破棄」操作を案内</li>
+<li>D1 障害が疑われる場合は冪等性テーブルを確認<pre><code class="language-bash">wrangler d1 execute shiire-kanri-db --remote \
+  --command &quot;SELECT COUNT(*) FROM idempotency_keys&quot;
+</code></pre>
+</li>
+</ol>
+<h2 id="同じ操作が二重登録された">同じ操作が二重登録された</h2>
+<ul>
+<li>通常起きないはず（Workers の <code>withIdempotency</code> でブロック）</li>
+<li>もし発生したら、外注がブラウザのキャッシュクリア等で <strong>IndexedDB を消した直後</strong> に同じ操作を再実行した可能性</li>
+<li>スプレッドシート側で重複行を 1 件削除すれば復旧</li>
+</ul>
+<hr>
+<h1 id="改良時のマニュアル更新フロー">改良時のマニュアル更新フロー</h1>
+<p>UI や機能を変更したら、以下の順序でマニュアルを更新します。</p>
+<ol>
+<li><code>/Users/katsu/saisun-repo/shiire-kanri/docs/manual/manual-staff.md</code> または <code>manual-admin.md</code> を編集</li>
+<li>UI 変更が大きいなら関連スクリーンショットを撮り直して <code>screenshots/staff/</code> または <code>screenshots/admin/</code> に同名で上書き</li>
+<li><code>npm run build</code> で PDF 再生成</li>
+<li><code>dist/外注向けマニュアル.pdf</code> / <code>dist/管理者向けマニュアル.pdf</code> を関係者に共有</li>
+</ol>
+<p>PDF ビルド詳細は <code>/Users/katsu/saisun-repo/shiire-kanri/docs/manual/README.md</code> を参照。</p>
+<hr>
+<h1 id="参考リンク">参考リンク</h1>
+<ul>
+<li>GAS エディタ: スプレッドシート → 拡張機能 → Apps Script</li>
+<li>Cloudflare ダッシュボード: <a href="https://dash.cloudflare.com/">https://dash.cloudflare.com/</a></li>
+<li>Workers コンソール: <a href="https://dash.cloudflare.com/?to=/:account/workers">https://dash.cloudflare.com/?to=/:account/workers</a></li>
+<li>CF Access: <a href="https://one.dash.cloudflare.com/">https://one.dash.cloudflare.com/</a></li>
+<li>BASE 管理画面: <a href="https://admin.thebase.in/">https://admin.thebase.in/</a></li>
+<li>関連プロジェクトメモ: <code>/Users/katsu/.claude/projects/-Users-katsu/memory/</code></li>
+</ul>
+<hr>
+<h1 id="付録-各シートの初期化">付録: 各シートの初期化</h1>
+<p>新規スプレッドシートで運用を始める場合：</p>
+<pre><code class="language-javascript">// GAS エディタで実行
+inv_setupAllSheets()           // 請求書系 4 シート初期化
+FULL_RESTORE_ALL()             // 全トリガー一括登録
+</code></pre>
+<p>すでに本番運用中の場合、これらの関数は冪等なので再実行しても安全です。</p>
+
+<script>
+(function(){
+  var lb = document.createElement('div');
+  lb.className = 'lightbox';
+  lb.innerHTML = '<button class="close" aria-label="閉じる">×</button><img alt="">';
+  document.body.appendChild(lb);
+  var lbImg = lb.querySelector('img');
+  function open(src, alt){
+    lbImg.src = src;
+    lbImg.alt = alt || '';
+    lb.classList.add('open');
+    document.body.style.overflow = 'hidden';
+  }
+  function close(){
+    lb.classList.remove('open');
+    document.body.style.overflow = '';
+    lbImg.src = '';
+  }
+  document.addEventListener('click', function(e){
+    var t = e.target;
+    if (t.tagName === 'IMG' && !t.closest('.lightbox') && !t.closest('.img-placeholder')) {
+      e.preventDefault();
+      open(t.src, t.alt);
+    } else if (t === lb || t.classList.contains('close')) {
+      close();
+    }
+  });
+  document.addEventListener('keydown', function(e){
+    if (e.key === 'Escape') close();
+  });
+})();
+</script>
+</body>
+</html>

@@ -38,7 +38,8 @@ body {
 /* タイトルページ */
 .cover {
   page: cover;
-  height: 270mm;
+  box-sizing: border-box;
+  height: 275mm;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -48,28 +49,29 @@ body {
   background: linear-gradient(135deg, #0066cc 0%, #003d7a 100%);
   color: #fff;
   margin: -10mm -14mm;
-  padding: 60mm 16mm;
+  padding: 30mm 16mm;
 }
 .cover h1 {
-  font-size: 36pt;
-  margin: 0 0 10mm;
+  font-size: 28pt;
+  margin: 0 0 8mm;
   border: none;
   color: #fff;
   string-set: doc-title content();
+  page-break-before: avoid;
 }
 .cover .subtitle {
-  font-size: 16pt;
-  margin: 0 0 30mm;
+  font-size: 14pt;
+  margin: 0 0 20mm;
   opacity: 0.95;
 }
 .cover .meta {
-  font-size: 11pt;
+  font-size: 10pt;
   opacity: 0.85;
   margin-top: auto;
 }
 .cover .logo {
-  font-size: 48pt;
-  margin-bottom: 8mm;
+  font-size: 40pt;
+  margin-bottom: 6mm;
 }
 
 /* 見出し */
