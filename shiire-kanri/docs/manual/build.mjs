@@ -61,7 +61,7 @@ marked.use(gfmHeadingId());
 function transformAdmonitions(md) {
   return md.replace(
     /^:::(note|warn|tip|danger)\s*\n([\s\S]*?)\n:::\s*$/gm,
-    (_, kind, body) => `<div class="${kind}">\n\n${body}\n\n</div>`
+    (_, kind, body) => `<div class="${kind}">\n\n${body}\n\n</div>\n`
   );
 }
 
@@ -84,9 +84,9 @@ async function transformMissingImages(md) {
   return out;
 }
 
-// H1/H2/H3 から目次生成
+// H1/H2 から目次生成
 function buildToc(html) {
-  const re = /<h([1-3])[^>]*id="([^"]+)"[^>]*>([\s\S]*?)<\/h\1>/g;
+  const re = /<h([1-2])[^>]*id="([^"]+)"[^>]*>([\s\S]*?)<\/h\1>/g;
   const items = [];
   let m;
   while ((m = re.exec(html)) !== null) {

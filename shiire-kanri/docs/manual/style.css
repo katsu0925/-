@@ -3,7 +3,7 @@
 
 @page {
   size: A4;
-  margin: 18mm 16mm 22mm 16mm;
+  margin: 10mm 14mm 12mm 14mm;
   @bottom-right {
     content: counter(page) " / " counter(pages);
     font-size: 9pt;
@@ -24,8 +24,8 @@ html {
 body {
   font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans CJK JP",
                "Yu Gothic", "Meiryo", sans-serif;
-  font-size: 10.5pt;
-  line-height: 1.7;
+  font-size: 10pt;
+  line-height: 1.55;
   color: #222;
   max-width: 100%;
   margin: 0;
@@ -38,7 +38,7 @@ body {
 /* タイトルページ */
 .cover {
   page: cover;
-  height: 240mm;
+  height: 270mm;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -47,7 +47,7 @@ body {
   page-break-after: always;
   background: linear-gradient(135deg, #0066cc 0%, #003d7a 100%);
   color: #fff;
-  margin: -18mm -16mm;
+  margin: -10mm -14mm;
   padding: 60mm 16mm;
 }
 .cover h1 {
@@ -74,13 +74,12 @@ body {
 
 /* 見出し */
 h1 {
-  font-size: 22pt;
+  font-size: 18pt;
   color: #003d7a;
   border-bottom: 3px solid #0066cc;
-  padding-bottom: 4mm;
-  margin-top: 10mm;
-  margin-bottom: 6mm;
-  page-break-before: always;
+  padding-bottom: 2mm;
+  margin-top: 5mm;
+  margin-bottom: 3mm;
   page-break-after: avoid;
   string-set: doc-title content();
 }
@@ -89,26 +88,26 @@ h1:first-of-type,
   page-break-before: avoid;
 }
 h2 {
-  font-size: 16pt;
+  font-size: 13pt;
   color: #0066cc;
-  border-left: 5px solid #0066cc;
-  padding-left: 4mm;
-  margin-top: 10mm;
-  margin-bottom: 4mm;
+  border-left: 4px solid #0066cc;
+  padding-left: 3mm;
+  margin-top: 4mm;
+  margin-bottom: 2mm;
   page-break-after: avoid;
 }
 h3 {
-  font-size: 13pt;
+  font-size: 11pt;
   color: #003d7a;
-  margin-top: 7mm;
-  margin-bottom: 3mm;
+  margin-top: 3mm;
+  margin-bottom: 1.5mm;
   page-break-after: avoid;
 }
 h4 {
-  font-size: 11.5pt;
+  font-size: 11pt;
   color: #444;
-  margin-top: 5mm;
-  margin-bottom: 2mm;
+  margin-top: 3mm;
+  margin-bottom: 1.5mm;
   page-break-after: avoid;
 }
 
@@ -200,8 +199,8 @@ blockquote {
 
 /* 注記ボックス（カスタム class） */
 .note, .warn, .tip, .danger {
-  margin: 4mm 0;
-  padding: 4mm 5mm;
+  margin: 3mm 0;
+  padding: 3mm 4mm;
   border-radius: 4px;
   page-break-inside: avoid;
 }
@@ -227,12 +226,14 @@ kbd {
   box-shadow: 0 1px 0 #ccc;
 }
 
-/* 画像 */
+/* 画像 — モバイル縦長スクショ（414×896, 1:2.16）は max-height で1ページに収める */
 img {
-  max-width: 100%;
+  max-width: 56mm;
+  max-height: 120mm;
   height: auto;
+  width: auto;
   display: block;
-  margin: 4mm auto;
+  margin: 2mm auto;
   border: 1px solid #d0d4dc;
   border-radius: 3px;
   page-break-inside: avoid;
@@ -283,7 +284,8 @@ img.shadow {
   padding-left: 0;
 }
 .toc li {
-  margin: 1.5mm 0;
+  margin: 0.6mm 0;
+  font-size: 9.5pt;
 }
 .toc a {
   color: #222;
