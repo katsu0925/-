@@ -138,6 +138,7 @@ async function buildOne(key) {
 <html lang="ja">
 <head>
 <meta charset="utf-8">
+<base href="file://${ROOT}/">
 <title>${t.title}</title>
 <style>${css}</style>
 </head>
