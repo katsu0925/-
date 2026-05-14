@@ -811,17 +811,54 @@ function humanizeApiError_(status, rawMsg) {
   return raw || '処理に失敗しました。';
 }
 
+// 書き込み系 API のうち outbox 経由で「未反映ゼロ」を保証したい呼び出しは
+// opts.outbox = true を渡す。挙動:
+//   1. 呼び出し前に IndexedDB outbox に積む（クライアント発行の冪等キー付き）
+//   2. fetch 試行 → 成功時は outbox から除去して通常通り JSON を返す
+//   3. ネットワーク失敗 / 5xx → outbox に残し、visibilitychange/online で自動再送
+//                              呼び出し側には { ok: true, queued: true } を返して
+//                              UI 楽観反映を維持（=外注は「保存完了」と認識して次へ進める）
+//   4. 4xx クライアントエラー → outbox から除去してエラー伝播（入力エラー等は再送無意味）
 async function api(path, opts) {
   opts = opts || {};
+  var method = opts.method || (opts.body ? 'POST' : 'GET');
+  var isWrite = method !== 'GET';
+  var useOutbox = !!(isWrite && opts.outbox);
+  var idempotencyKey = opts.idempotencyKey;
+  var outboxId = null;
+
+  // ① 書き込みは outbox に先に積む（fetch 前に確実に保存）
+  if (useOutbox) {
+    if (!idempotencyKey) idempotencyKey = genIdempotencyKey_();
+    outboxId = await outboxAdd_({
+      type: 'generic',
+      method: method,
+      url: path,
+      body: opts.body || null,
+      idempotencyKey: idempotencyKey,
+      label: opts.label || path,
+    });
+    try { refreshOutboxBadge_(); } catch (e) {}
+  }
+
+  // ② fetch 試行
   let res;
   try {
+    var headers = {};
+    if (opts.body) headers['Content-Type'] = 'application/json';
+    if (idempotencyKey) headers['X-Idempotency-Key'] = idempotencyKey;
     res = await fetch(API_BASE + path, {
-      method: opts.method || 'GET',
+      method: method,
       credentials: 'include',
-      headers: opts.body ? { 'Content-Type': 'application/json' } : {},
+      headers: headers,
       body: opts.body ? JSON.stringify(opts.body) : undefined,
     });
   } catch (netErr) {
+    // ネットワーク失敗 (status=0)
+    if (useOutbox) {
+      // outbox は残したまま、楽観成功として返す（再送はバックグラウンドで継続）
+      return { ok: true, queued: true, message: '送信を予約しました（圏外/ネットワーク失敗）' };
+    }
     var e = new Error(humanizeApiError_(0, netErr && netErr.message));
     e.detail = netErr && netErr.message;
     e.status = 0;
@@ -831,10 +868,22 @@ async function api(path, opts) {
   try { json = await res.json(); } catch { json = { ok: false, message: 'invalid response' }; }
   if (!res.ok || !json.ok) {
     const raw = json.message || json.error || ('http ' + res.status);
-    const e = new Error(humanizeApiError_(res.status, raw));
-    e.detail = raw;
-    e.status = res.status;
-    throw e;
+    if (useOutbox) {
+      if (res.status >= 500 || res.status === 0) {
+        // サーバー側エラー → outbox に残し、楽観成功として返す
+        return { ok: true, queued: true, message: '送信を予約しました（サーバー一時エラー）' };
+      }
+      // 4xx クライアントエラー: 再送しても通らない → outbox から除去してエラー伝播
+      if (outboxId != null) outboxRemove_(outboxId).then(refreshOutboxBadge_);
+    }
+    const err = new Error(humanizeApiError_(res.status, raw));
+    err.detail = raw;
+    err.status = res.status;
+    throw err;
+  }
+  // ③ 成功: outbox から除去
+  if (useOutbox && outboxId != null) {
+    outboxRemove_(outboxId).then(refreshOutboxBadge_);
   }
   return json;
 }
@@ -874,6 +923,8 @@ window.addEventListener('DOMContentLoaded', async function(){
     startPolling();
     // 前セッションでオフライン時に積まれた保存をバックグラウンド再送
     setTimeout(flushOutbox_, 1500);
+    // 起動時点でバッジを反映（前回タブ閉じ後に残った未送信件数を表示）
+    setTimeout(refreshOutboxBadge_, 100);
     // 全タブのデータを先読み: 可視タブの初回描画(1.5秒)を待ち、
     // かつ resolveSelfName_ で isAdmin の真値が来てから admin タブも温める。
     setTimeout(function(){
@@ -1662,9 +1713,146 @@ window.addEventListener('beforeunload', function(e){
 // ===== 保存リトライキュー (IndexedDB) =====
 // 倉庫の電波ムラで API が瞬断した時、UI 上の「✗ 保存に失敗」を出さず
 // IndexedDB に積んで online/visibilitychange で自動再送する。
-// type: 'details' (saveDetails 失敗) | 'image' (画像アップロード失敗)
+// type: 'details' (saveDetails) | 'image' (画像) | 'keihi-image' (経費レシート)
+//     | 'generic' (任意の書き込み API: method/url/body/idempotencyKey を保持)
+// generic レコード形式:
+//   { type:'generic', method, url, body, idempotencyKey, label?, attempts, createdAt }
 var OUTBOX_DB = 'sk-outbox';
 var OUTBOX_STORE = 'queue';
+// 冪等キー生成（クライアント側 UUID）。同じ送信を2回試みた場合、サーバー側は
+// X-Idempotency-Key を見て重複を1件にまとめる。outbox 再送時も同じキーを使う。
+function genIdempotencyKey_(){
+  try {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  } catch (e) {}
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c){
+    var r = Math.random() * 16 | 0;
+    var v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+// outbox の未送信件数をバッジに反映（Phase C で実装。それまでは no-op）
+function refreshOutboxBadge_(){
+  if (typeof document === 'undefined') return;
+  outboxList_().then(function(items){
+    var n = (items || []).length;
+    var badge = document.getElementById('outbox-badge');
+    if (!badge) {
+      if (n === 0) return;
+      // 初回出現時に動的生成
+      badge = document.createElement('div');
+      badge.id = 'outbox-badge';
+      badge.setAttribute('role', 'status');
+      badge.style.cssText = 'position:fixed;right:14px;bottom:14px;z-index:9999;background:#f59e0b;color:#fff;padding:8px 14px;border-radius:999px;font-size:13px;font-weight:600;box-shadow:0 4px 12px rgba(0,0,0,0.25);cursor:pointer;display:none;';
+      badge.addEventListener('click', function(){ try { showOutboxModal_(); } catch (e) {} });
+      document.body.appendChild(badge);
+    }
+    if (n === 0) {
+      badge.style.display = 'none';
+    } else {
+      badge.textContent = '⏳ 未送信 ' + n + '件（タップで詳細）';
+      badge.style.display = 'block';
+    }
+  }).catch(function(){});
+}
+// バッジタップ時の詳細モーダル（Phase C 本実装）
+function showOutboxModal_(){
+  outboxList_().then(function(items){
+    var existing = document.getElementById('outbox-modal');
+    if (existing) existing.remove();
+    items = items || [];
+    function fmtAge(ms) {
+      var sec = Math.round((Date.now() - (ms || Date.now())) / 1000);
+      if (sec < 60) return sec + '秒前';
+      if (sec < 3600) return Math.round(sec / 60) + '分前';
+      if (sec < 86400) return Math.round(sec / 3600) + '時間前';
+      return Math.round(sec / 86400) + '日前';
+    }
+    function escapeHtml(s) {
+      return String(s || '').replace(/[&<>"']/g, function(c){
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+      });
+    }
+    var listHtml;
+    if (!items.length) {
+      listHtml = '<div style="text-align:center;padding:24px;color:#16a34a;font-weight:600">✓ 未送信はありません</div>';
+    } else {
+      listHtml = items.map(function(it, i){
+        var label = escapeHtml(it.label || it.url || it.type);
+        var typeLabel = it.type === 'image' ? '画像' : (it.type === 'keihi-image' ? '経費画像' : (it.type === 'details' ? '詳細編集' : '操作'));
+        return (
+          '<div style="padding:10px 12px;border:1px solid #e5e7eb;border-radius:6px;margin-bottom:8px;background:#fafafa">' +
+            '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">' +
+              '<div style="flex:1;min-width:0">' +
+                '<div style="font-size:13px;font-weight:600;color:#111;word-break:break-all">' + label + '</div>' +
+                '<div style="font-size:11px;color:#6b7280;margin-top:2px">' + typeLabel + ' / ' + fmtAge(it.createdAt) + ' / 再送 ' + (it.attempts || 0) + '回</div>' +
+              '</div>' +
+              '<button data-discard="' + it.id + '" style="flex:0 0 auto;font-size:11px;padding:4px 8px;background:#fee2e2;border:1px solid #fecaca;color:#b91c1c;border-radius:4px;cursor:pointer">破棄</button>' +
+            '</div>' +
+          '</div>'
+        );
+      }).join('');
+    }
+    var html =
+      '<div id="outbox-modal" class="modal-overlay" onclick="if(event.target===this)this.remove()">' +
+        '<div class="modal-content" style="max-width:440px">' +
+          '<div class="modal-header"><h3>未送信の操作 (' + items.length + '件)</h3>' +
+            '<button class="modal-close" onclick="document.getElementById(\'outbox-modal\').remove()">×</button></div>' +
+          '<div class="modal-body">' +
+            '<p style="margin:0 0 12px;font-size:12px;color:#6b7280;line-height:1.5">圏外やネットワーク失敗で送信できなかった操作です。オンラインに戻ると自動で再送されます。</p>' +
+            '<div id="outbox-modal-list">' + listHtml + '</div>' +
+          '</div>' +
+          '<div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;padding:12px;border-top:1px solid #e5e7eb">' +
+            (items.length ? '<button id="outbox-flush-btn" style="padding:8px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;font-weight:600;cursor:pointer">今すぐ再送を試す</button>' : '') +
+            '<button onclick="document.getElementById(\'outbox-modal\').remove()" style="padding:8px 16px;background:#f3f4f6;border:1px solid #d1d5db;border-radius:6px;cursor:pointer">閉じる</button>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    var wrap = document.createElement('div');
+    wrap.innerHTML = html;
+    var modal = wrap.firstChild;
+    document.body.appendChild(modal);
+    var flushBtn = modal.querySelector('#outbox-flush-btn');
+    if (flushBtn) flushBtn.addEventListener('click', function(){
+      flushBtn.disabled = true;
+      flushBtn.textContent = '再送中…';
+      flushOutbox_().then(function(){
+        setTimeout(function(){ try { modal.remove(); showOutboxModal_(); } catch (e) {} }, 600);
+      }).catch(function(){
+        flushBtn.disabled = false;
+        flushBtn.textContent = '今すぐ再送を試す';
+      });
+    });
+    modal.querySelectorAll('button[data-discard]').forEach(function(btn){
+      var armed = false;
+      var armTimer = null;
+      btn.addEventListener('click', function(){
+        var id = Number(btn.getAttribute('data-discard'));
+        if (!armed) {
+          armed = true;
+          btn.textContent = 'もう一度押して破棄';
+          btn.style.background = '#dc2626';
+          btn.style.color = '#fff';
+          btn.style.borderColor = '#dc2626';
+          armTimer = setTimeout(function(){
+            armed = false;
+            btn.textContent = '破棄';
+            btn.style.background = '#fee2e2';
+            btn.style.color = '#b91c1c';
+            btn.style.borderColor = '#fecaca';
+          }, 3000);
+          return;
+        }
+        clearTimeout(armTimer);
+        outboxRemove_(id).then(function(){
+          try { refreshOutboxBadge_(); } catch(e) {}
+          modal.remove();
+          showOutboxModal_();
+        });
+      });
+    });
+  });
+}
 var _outboxOpenP = null;
 var _outboxFlushing = false;
 function outboxOpen_() {
@@ -1730,49 +1918,71 @@ function flushOutbox_() {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
   _outboxFlushing = true;
   outboxList_().then(function(items){
-    if (!items.length) { _outboxFlushing = false; return; }
+    if (!items.length) { _outboxFlushing = false; refreshOutboxBadge_(); return; }
     return items.reduce(function(p, rec){
       return p.then(function(){
         return retryOutboxItem_(rec);
       });
     }, Promise.resolve()).then(function(){
       _outboxFlushing = false;
+      refreshOutboxBadge_();
     });
-  }).catch(function(){ _outboxFlushing = false; });
+  }).catch(function(){ _outboxFlushing = false; refreshOutboxBadge_(); });
 }
 function retryOutboxItem_(rec) {
-  var url, body;
+  var url, body, method = 'POST', label = '';
   if (rec.type === 'details') {
     url = '/api/save/details';
     body = JSON.stringify({ kanri: rec.kanri, fields: rec.fields });
+    label = rec.kanri || '';
   } else if (rec.type === 'image') {
     url = '/api/save/image';
     body = JSON.stringify({ kanri: rec.kanri, field: rec.field, dataUrl: rec.dataUrl });
+    label = rec.kanri || '';
   } else if (rec.type === 'keihi-image') {
     // 経費レシート画像の再送。fetch 成功すれば Drive にアップロード済み（=保管庫登録完了）。
     // ただし keihi 行への紐付けはフォーム送信時の receiptUrl に依存するため、
     // タブを閉じる前にフォーム送信を終えていない場合、Drive 上にファイルだけ残る可能性がある。
     url = '/api/keihi/image';
     body = JSON.stringify({ name: rec.name, dataUrl: rec.dataUrl });
+    label = '経費レシート';
+  } else if (rec.type === 'generic') {
+    // 汎用書き込み (Phase A): 任意の API を冪等キー付きで再送
+    url = rec.url;
+    method = rec.method || 'POST';
+    body = (rec.body == null) ? undefined : (typeof rec.body === 'string' ? rec.body : JSON.stringify(rec.body));
+    label = rec.label || rec.url || '';
   } else {
     return outboxRemove_(rec.id);
   }
+  var headers = { 'Content-Type': 'application/json' };
+  // 冪等キー: あればサーバーに送って重複登録を防ぐ
+  if (rec.idempotencyKey) headers['X-Idempotency-Key'] = rec.idempotencyKey;
   return fetch(url, {
-    method: 'POST', credentials: 'include',
-    headers: { 'Content-Type': 'application/json' }, body: body
-  }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, body: j }; }); })
+    method: method, credentials: 'include', headers: headers,
+    body: body
+  }).then(function(r){
+    return r.json().then(function(j){ return { ok: r.ok, status: r.status, body: j }; })
+      .catch(function(){ return { ok: r.ok, status: r.status, body: null }; });
+  })
     .then(function(res){
+      // 4xx (クライアントエラー) は再送しても通らないので諦めて除去
+      if (res.status >= 400 && res.status < 500) {
+        try { toast('⚠️ 未送信を破棄: ' + label + '（要再入力）', 'error'); } catch(e){}
+        return outboxRemove_(rec.id);
+      }
       if (!res.ok || !res.body || res.body.ok === false) throw new Error('retry failed');
       // 再送成功
-      try { toast('✓ オフライン中の保存を再送しました（' + (rec.kanri || '') + '）', 'success'); } catch(e){}
+      try { toast('✓ オフライン中の保存を再送しました' + (label ? '（' + label + '）' : ''), 'success'); } catch(e){}
       LIST_CACHE = Object.create(null);
+      try { refreshOutboxBadge_(); } catch(e){}
       return outboxRemove_(rec.id);
     })
     .catch(function(){
       rec.attempts = (rec.attempts || 0) + 1;
-      if (rec.attempts >= 10) {
-        // 諦め: ユーザー手動対応へ
-        try { toast('⚠️ ' + (rec.kanri || '') + ' の再送に失敗（手動で再保存してください）', 'error'); } catch(e){}
+      if (rec.attempts >= 30) {
+        // 諦め: ユーザー手動対応へ（しきい値を 10→30 に緩和、倉庫の長時間圏外を想定）
+        try { toast('⚠️ ' + label + ' の再送に失敗（手動で再保存してください）', 'error'); } catch(e){}
         return outboxRemove_(rec.id);
       }
       return outboxUpdate_(rec);
@@ -3226,8 +3436,12 @@ registerSwipeEditHandler_('move', function(moveId) {
 registerSwipeDeleteHandler_('move', async function(moveId, wrap) {
   if (!moveId) return;
   try {
-    var res = await api('/api/moves/' + encodeURIComponent(moveId), { method: 'DELETE' });
-    if (res && res.deleted) {
+    var res = await api('/api/moves/' + encodeURIComponent(moveId), {
+      method: 'DELETE',
+      outbox: true,
+      label: '移動削除: ' + moveId
+    });
+    if (res && (res.deleted || res.queued)) {
       // 楽観的にカードをフェードアウト → リスト更新
       if (wrap && wrap.parentNode) {
         wrap.style.transition = 'opacity .15s, max-height .2s';
@@ -3359,8 +3573,13 @@ async function submitBashoUpdate(moveId) {
   var done = setBtnLoading(btn, '更新中…');
   startGlobalProgress();
   try {
-    var res = await api('/api/moves/' + encodeURIComponent(moveId), { method: 'PUT', body: { destination: dest, ids: ids, reporter: reporter } });
-    toast('更新しました', 'success');
+    var res = await api('/api/moves/' + encodeURIComponent(moveId), {
+      method: 'PUT',
+      body: { destination: dest, ids: ids, reporter: reporter },
+      outbox: true,
+      label: '移動編集: ' + moveId
+    });
+    toast(res && res.queued ? '更新を予約しました（圏外時は復帰後に自動送信）' : '更新しました', 'success');
     delete TAB_CACHE['basho'];
     renderBashoList();
   } catch (e) {
@@ -3466,8 +3685,13 @@ async function submitBashoCreate() {
   var done = setBtnLoading(btn, '登録中…');
   startGlobalProgress();
   try {
-    var res = await api('/api/moves', { method: 'POST', body: { destination: dest, ids: ids, reporter: reporter, moveId: moveId } });
-    toast('登録しました: ' + (res.moveId || ''), 'success');
+    var res = await api('/api/moves', {
+      method: 'POST',
+      body: { destination: dest, ids: ids, reporter: reporter, moveId: moveId },
+      outbox: true,
+      label: '移動登録: ' + moveId
+    });
+    toast(res && res.queued ? '登録を予約しました（圏外時は復帰後に自動送信）' : '登録しました: ' + (res.moveId || ''), 'success');
     // 登録後はキャッシュを無効化して即時再取得
     delete TAB_CACHE['basho'];
     renderBashoList();
@@ -3585,8 +3809,12 @@ registerSwipeEditHandler_('return', function(boxId) {
 registerSwipeDeleteHandler_('return', async function(boxId, wrap) {
   if (!boxId) return;
   try {
-    var res = await api('/api/returns/' + encodeURIComponent(boxId), { method: 'DELETE' });
-    if (res && res.deleted) {
+    var res = await api('/api/returns/' + encodeURIComponent(boxId), {
+      method: 'DELETE',
+      outbox: true,
+      label: '返送削除: ' + boxId
+    });
+    if (res && (res.deleted || res.queued)) {
       if (wrap && wrap.parentNode) {
         wrap.style.transition = 'opacity .15s, max-height .2s';
         wrap.style.maxHeight = wrap.offsetHeight + 'px';
@@ -3620,8 +3848,12 @@ registerSwipeEditHandler_('shiire', function(shiireId) {
 registerSwipeDeleteHandler_('shiire', async function(shiireId, wrap) {
   if (!shiireId) return;
   try {
-    var res = await api('/api/purchases/' + encodeURIComponent(shiireId), { method: 'DELETE' });
-    if (res && res.deleted) {
+    var res = await api('/api/purchases/' + encodeURIComponent(shiireId), {
+      method: 'DELETE',
+      outbox: true,
+      label: '仕入れ削除: ' + shiireId
+    });
+    if (res && (res.deleted || res.queued)) {
       if (wrap && wrap.parentNode) {
         wrap.style.transition = 'opacity .15s, max-height .2s';
         wrap.style.maxHeight = wrap.offsetHeight + 'px';
@@ -3772,8 +4004,13 @@ async function submitHensouUpdate(boxId) {
   var done = setBtnLoading(btn, '更新中…');
   startGlobalProgress();
   try {
-    await api('/api/returns/' + encodeURIComponent(boxId), { method: 'PUT', body: body });
-    toast('更新しました', 'success');
+    var resUpd = await api('/api/returns/' + encodeURIComponent(boxId), {
+      method: 'PUT',
+      body: body,
+      outbox: true,
+      label: '返送編集: ' + boxId
+    });
+    toast(resUpd && resUpd.queued ? '更新を予約しました（圏外時は復帰後に自動送信）' : '更新しました', 'success');
     delete TAB_CACHE['hensou'];
     renderHensouList();
   } catch (e) {
@@ -3892,8 +4129,13 @@ async function submitHensouCreate() {
   var done = setBtnLoading(btn, '登録中…');
   startGlobalProgress();
   try {
-    var res = await api('/api/returns', { method: 'POST', body: body });
-    toast('登録しました: ' + (res.boxId || ''), 'success');
+    var res = await api('/api/returns', {
+      method: 'POST',
+      body: body,
+      outbox: true,
+      label: '返送登録: ' + boxId
+    });
+    toast(res && res.queued ? '登録を予約しました（圏外時は復帰後に自動送信）' : '登録しました: ' + (res.boxId || ''), 'success');
     delete TAB_CACHE['hensou'];
     renderHensouList();
   } catch (e) {
@@ -4139,8 +4381,8 @@ async function submitSagyouSave() {
   var done = setBtnLoading(btn, '保存中…');
   startGlobalProgress();
   try {
-    await api('/api/sagyousha', { method: 'POST', body: body });
-    toast('保存しました', 'success');
+    var resSg = await api('/api/sagyousha', { method: 'POST', body: body, outbox: true, label: '作業者編集: ' + name });
+    toast(resSg && resSg.queued ? '保存を予約しました（圏外時は復帰後に自動送信）' : '保存しました', 'success');
     closeModal();
     delete TAB_CACHE['sagyou'];
     if (STATE.tab === 'sagyou') renderSagyouList();
@@ -4166,8 +4408,8 @@ async function submitSagyouCreate() {
   var done = setBtnLoading(btn, '作成中…');
   startGlobalProgress();
   try {
-    await api('/api/sagyousha/create', { method: 'POST', body: body });
-    toast('作業者を作成しました', 'success');
+    var resSgC = await api('/api/sagyousha/create', { method: 'POST', body: body, outbox: true, label: '作業者新規: ' + name });
+    toast(resSgC && resSgC.queued ? '作成を予約しました（圏外時は復帰後に自動送信）' : '作業者を作成しました', 'success');
     closeModal();
     delete TAB_CACHE['sagyou'];
     if (STATE.tab === 'sagyou') renderSagyouList();
@@ -4378,8 +4620,11 @@ async function submitShiireHoukokuQty_(id) {
   var done = setBtnLoading(btn, '送信中…');
   startGlobalProgress();
   try {
-    await api('/api/shiire-houkoku/quantity', { method: 'POST', body: { id: id, quantity: qty } });
-    toast('送信しました（数量: ' + qty + '）');
+    var resQ = await api('/api/shiire-houkoku/quantity', {
+      method: 'POST', body: { id: id, quantity: qty },
+      outbox: true, label: '数量更新: ' + id + ' x ' + qty
+    });
+    toast(resQ && resQ.queued ? '送信を予約しました（圏外時は復帰後に自動送信）' : '送信しました（数量: ' + qty + '）');
     delete TAB_CACHE['business|shiire_houkoku'];
     await renderShiireHoukokuTab_();
   } catch (err) {
@@ -4673,8 +4918,8 @@ async function submitKeihiForm_() {
   var done = setBtnLoading(btn, '送信中…');
   startGlobalProgress();
   try {
-    await api('/api/keihi/submit', { method: 'POST', body: payload });
-    toast('申請しました');
+    var res = await api('/api/keihi/submit', { method: 'POST', body: payload, outbox: true, label: '経費申請: ' + (payload.itemName || '') });
+    toast(res && res.queued ? '申請を予約しました（圏外時は復帰後に自動送信）' : '申請しました');
     // 楽観的更新: GAS のシート書き込みは裏で進行中なので、キャッシュに即時追加して
     // 一覧を即時更新する（fetch を待たない）
     var cached = readBusinessSheetCache_('keihi');
@@ -5298,9 +5543,12 @@ async function submitInvoiceRevision_(invoiceNo) {
   var reason = String((document.getElementById('invoice-revision-reason') || {}).value || '').trim();
   if (!reason) { alert('修正理由を入力してください'); return; }
   try {
-    await api('/api/invoice/revision', { method: 'POST', body: { invoiceNo: invoiceNo, reason: reason } });
+    var resRev = await api('/api/invoice/revision', {
+      method: 'POST', body: { invoiceNo: invoiceNo, reason: reason },
+      outbox: true, label: '請求書修正申請: ' + invoiceNo
+    });
     closeModal();
-    alert('修正申請を送信しました。管理者の対応をお待ちください。');
+    alert(resRev && resRev.queued ? '修正申請を予約しました（圏外時は復帰後に自動送信）' : '修正申請を送信しました。管理者の対応をお待ちください。');
     // 一覧を再読込（ステータスが「修正申請中」へ変わる）
     INVOICE_STATE.loaded = false;
     await loadInvoiceData_();
@@ -5444,7 +5692,7 @@ async function submitInvoiceProfile_() {
   var orig = btn ? btn.innerHTML : '';
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin" style="display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin 0.7s linear infinite;vertical-align:middle;margin-right:6px"></span>保存中…'; }
   try {
-    await api('/api/invoice/profile', { method: 'POST', body: body });
+    await api('/api/invoice/profile', { method: 'POST', body: body, outbox: true, label: '請求書プロフィール保存' });
     try {
       var p = await api('/api/invoice/profile');
       INVOICE_STATE.profile = (p && p.profile) || body;
@@ -6864,7 +7112,10 @@ async function addBundleMember_(kanri) {
   if (target === kanri) { showBundleError_('自分自身は指定できません'); return; }
   if (!/^[A-Za-z0-9_-]{1,32}$/.test(target)) { showBundleError_('管理番号の形式が不正です'); return; }
   try {
-    var res = await api('/api/bundles/toggle', { method: 'POST', body: { kanri: kanri, target: target } });
+    var res = await api('/api/bundles/toggle', {
+      method: 'POST', body: { kanri: kanri, target: target },
+      outbox: true, label: '同梱追加: ' + kanri + '+' + target
+    });
     if (!res || !res.ok) throw new Error((res && res.message) || 'failed');
     // BUNDLE_CACHE 全体を更新（影響範囲: kanri / target / 旧グループメンバー）
     invalidateBundlesAround_([kanri, target]);
@@ -6872,7 +7123,7 @@ async function addBundleMember_(kanri) {
     document.getElementById('bundle-modal') && document.getElementById('bundle-modal').remove();
     await openBundleModal_(kanri);
     rerenderBundleCard_(kanri);
-    toast('同梱を更新しました', 'success');
+    toast(res.queued ? '同梱を予約しました（圏外時は復帰後に自動送信）' : '同梱を更新しました', 'success');
   } catch (e) {
     showBundleError_('追加に失敗しました: ' + (e && e.message || e));
   }
@@ -6881,13 +7132,16 @@ async function addBundleMember_(kanri) {
 async function removeBundleMember_(member, currentKanri) {
   try {
     // member 自身を「自グループから外す」呼び出し（target 未指定）
-    var res = await api('/api/bundles/toggle', { method: 'POST', body: { kanri: member } });
+    var res = await api('/api/bundles/toggle', {
+      method: 'POST', body: { kanri: member },
+      outbox: true, label: '同梱解除: ' + member
+    });
     if (!res || !res.ok) throw new Error((res && res.message) || 'failed');
     invalidateBundlesAround_([member, currentKanri]);
     document.getElementById('bundle-modal') && document.getElementById('bundle-modal').remove();
     await openBundleModal_(currentKanri);
     rerenderBundleCard_(currentKanri);
-    toast('同梱から外しました', 'success');
+    toast(res.queued ? '同梱解除を予約しました（圏外時は復帰後に自動送信）' : '同梱から外しました', 'success');
   } catch (e) {
     showBundleError_('解除に失敗しました: ' + (e && e.message || e));
   }

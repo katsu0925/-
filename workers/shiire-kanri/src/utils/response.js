@@ -1,7 +1,7 @@
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Cf-Access-Jwt-Assertion',
+  'Access-Control-Allow-Headers': 'Content-Type, Cf-Access-Jwt-Assertion, X-Idempotency-Key',
 };
 
 export function corsResponse(response) {

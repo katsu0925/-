@@ -1,5 +1,6 @@
 import { corsOptions, jsonOk, jsonError } from './utils/response.js';
 import { getAccessUser } from './utils/access.js';
+import { withIdempotency } from './utils/idempotency.js';
 import { scheduledSync } from './sync/sheets-sync.js';
 import { scheduledAccessSync } from './sync/access-sync.js';
 import { listProducts, getProduct, listProductCounts, getNextKanri, listProductThumbs, getProductImages, listKanrisWithImages, backfillThumbUrl } from './handlers/products.js';
@@ -105,7 +106,7 @@ export default {
       return getProduct(request, env, decodeURIComponent(productMatch[1]));
     }
     if (productMatch && request.method === 'DELETE') {
-      return deleteProduct(request, env, user, ctx, decodeURIComponent(productMatch[1]));
+      return withIdempotency(request, env, () => deleteProduct(request, env, user, ctx, decodeURIComponent(productMatch[1])));
     }
 
     // マスター（作業者・使用アカウント）
@@ -145,21 +146,21 @@ export default {
     }
     if (path.startsWith('/api/purchases/') && request.method === 'DELETE') {
       const shiireId = decodeURIComponent(path.slice('/api/purchases/'.length));
-      return deletePurchase(request, env, user, shiireId);
+      return withIdempotency(request, env, () => deletePurchase(request, env, user, shiireId));
     }
 
     // 書き込み（GAS プロキシ）
     if (path === '/api/save/measurement' && request.method === 'POST') {
-      return saveMeasurement(request, env, user, ctx);
+      return withIdempotency(request, env, () => saveMeasurement(request, env, user, ctx));
     }
     if (path === '/api/save/sale' && request.method === 'POST') {
-      return saveSale(request, env, user, ctx);
+      return withIdempotency(request, env, () => saveSale(request, env, user, ctx));
     }
     if (path === '/api/save/details' && request.method === 'POST') {
-      return saveDetails(request, env, user, ctx);
+      return withIdempotency(request, env, () => saveDetails(request, env, user, ctx));
     }
     if (path === '/api/save/image' && request.method === 'POST') {
-      return uploadImage(request, env, user);
+      return withIdempotency(request, env, () => uploadImage(request, env, user));
     }
     if (path === '/api/image/resolve' && request.method === 'POST') {
       return resolveImage(request, env, user);
@@ -177,10 +178,10 @@ export default {
 
     // 新規作成（GAS プロキシ）
     if (path === '/api/create/purchase' && request.method === 'POST') {
-      return createPurchase(request, env, user);
+      return withIdempotency(request, env, () => createPurchase(request, env, user));
     }
     if (path === '/api/create/product' && request.method === 'POST') {
-      return createProduct(request, env, user, ctx);
+      return withIdempotency(request, env, () => createProduct(request, env, user, ctx));
     }
 
     // 場所移動
@@ -188,15 +189,15 @@ export default {
       return listMoves(request, env, user);
     }
     if (path === '/api/moves' && request.method === 'POST') {
-      return createMove(request, env, user);
+      return withIdempotency(request, env, () => createMove(request, env, user));
     }
     if (path.startsWith('/api/moves/') && request.method === 'DELETE') {
       const moveId = decodeURIComponent(path.slice('/api/moves/'.length));
-      return deleteMove(request, env, user, moveId);
+      return withIdempotency(request, env, () => deleteMove(request, env, user, moveId));
     }
     if (path.startsWith('/api/moves/') && request.method === 'PUT') {
       const moveId = decodeURIComponent(path.slice('/api/moves/'.length));
-      return updateMove(request, env, user, moveId);
+      return withIdempotency(request, env, () => updateMove(request, env, user, moveId));
     }
 
     // 返送管理
@@ -204,15 +205,15 @@ export default {
       return listReturns(request, env, user);
     }
     if (path === '/api/returns' && request.method === 'POST') {
-      return createReturn(request, env, user);
+      return withIdempotency(request, env, () => createReturn(request, env, user));
     }
     if (path.startsWith('/api/returns/') && request.method === 'DELETE') {
       const boxId = decodeURIComponent(path.slice('/api/returns/'.length));
-      return deleteReturn(request, env, user, boxId);
+      return withIdempotency(request, env, () => deleteReturn(request, env, user, boxId));
     }
     if (path.startsWith('/api/returns/') && request.method === 'PUT') {
       const boxId = decodeURIComponent(path.slice('/api/returns/'.length));
-      return updateReturn(request, env, user, boxId);
+      return withIdempotency(request, env, () => updateReturn(request, env, user, boxId));
     }
 
     // AI画像判定一覧
@@ -225,10 +226,10 @@ export default {
       return listSagyousha(request, env, user);
     }
     if (path === '/api/sagyousha' && request.method === 'POST') {
-      return saveSagyousha(request, env, user);
+      return withIdempotency(request, env, () => saveSagyousha(request, env, user));
     }
     if (path === '/api/sagyousha/create' && request.method === 'POST') {
-      return createSagyousha(request, env, user);
+      return withIdempotency(request, env, () => createSagyousha(request, env, user));
     }
 
     // 同梱（bundled shipping）— KV のみ。スプレッドシート反映なし
@@ -236,7 +237,7 @@ export default {
       return listBundles(request, env);
     }
     if (path === '/api/bundles/toggle' && request.method === 'POST') {
-      return toggleBundle(request, env);
+      return withIdempotency(request, env, () => toggleBundle(request, env));
     }
 
     // 売上ダッシュボード（今月/前月/通年/月別内訳）
@@ -267,16 +268,16 @@ export default {
     // 経費申請: 本人申請を受けてシートに行追加（通知メールは onChange トリガーが発火）
     // GAS appendRow は数秒かかるので ctx.waitUntil で fire-and-forget。
     if (path === '/api/keihi/submit' && request.method === 'POST') {
-      return appendKeihi(request, env, user, ctx);
+      return withIdempotency(request, env, () => appendKeihi(request, env, user, ctx));
     }
     // 経費申請レシート画像アップロード（kanri 不要 / 経費_Images フォルダに保存）
     if (path === '/api/keihi/image' && request.method === 'POST') {
-      return uploadKeihiImage(request, env, user);
+      return withIdempotency(request, env, () => uploadKeihiImage(request, env, user));
     }
 
     // 仕入れ数報告: 本人の未処理行に数量を入力 → 処理済み TRUE 化（Phase2 マージは GAS 側で実行）
     if (path === '/api/shiire-houkoku/quantity' && request.method === 'POST') {
-      return updateShiireHoukokuQuantity(request, env, user);
+      return withIdempotency(request, env, () => updateShiireHoukokuQuantity(request, env, user));
     }
 
     // フリマ用タイトル・説明文取得（GAS doGet を ?fmt=json でプロキシ）
@@ -305,16 +306,16 @@ export default {
       return getInvoiceProfile(request, env, user);
     }
     if (path === '/api/invoice/profile' && request.method === 'POST') {
-      return saveInvoiceProfile(request, env, user);
+      return withIdempotency(request, env, () => saveInvoiceProfile(request, env, user));
     }
     if (path === '/api/invoice/create' && request.method === 'POST') {
-      return createInvoice(request, env, user);
+      return withIdempotency(request, env, () => createInvoice(request, env, user));
     }
     if (path === '/api/invoice/pdf' && request.method === 'GET') {
       return downloadInvoicePdf(request, env, user);
     }
     if (path === '/api/invoice/revision' && request.method === 'POST') {
-      return requestInvoiceRevision(request, env, user);
+      return withIdempotency(request, env, () => requestInvoiceRevision(request, env, user));
     }
     if (path === '/api/invoice/revisions' && request.method === 'GET') {
       return listMyRevisions(request, env, user);
@@ -328,22 +329,22 @@ export default {
       return adminListRevisions(request, env, user);
     }
     if (path === '/api/admin-invoice/revisions' && request.method === 'POST') {
-      return adminUpdateRevision(request, env, user);
+      return withIdempotency(request, env, () => adminUpdateRevision(request, env, user));
     }
     if (path === '/api/admin-invoice/status' && request.method === 'POST') {
-      return adminUpdateInvoiceStatus(request, env, user);
+      return withIdempotency(request, env, () => adminUpdateInvoiceStatus(request, env, user));
     }
     if (path === '/api/admin-invoice/grace-rates' && request.method === 'GET') {
       return adminGetGraceRates(request, env, user);
     }
     if (path === '/api/admin-invoice/grace-rates' && request.method === 'POST') {
-      return adminSaveGraceRates(request, env, user);
+      return withIdempotency(request, env, () => adminSaveGraceRates(request, env, user));
     }
     if (path === '/api/admin-invoice/settings' && request.method === 'GET') {
       return adminGetSettings(request, env, user);
     }
     if (path === '/api/admin-invoice/settings' && request.method === 'POST') {
-      return adminSaveSettings(request, env, user);
+      return withIdempotency(request, env, () => adminSaveSettings(request, env, user));
     }
 
     // 業務メニュー（汎用シートダンプ: 仕入れ数報告/経費申請/報酬管理）
