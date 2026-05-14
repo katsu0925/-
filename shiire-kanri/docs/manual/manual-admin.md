@@ -50,6 +50,50 @@ Google Sheets（DBの代替・スプレッドシート 1 個）
 
 ---
 
+# 未反映ゼロ保証アーキテクチャ
+
+**目的:** 外注スタッフがアプリで実行した操作（採寸保存・写真アップ・経費申請・移動・請求書修正など）が **絶対にスプレッドシートへ反映漏れしない** ことを保証する。圏外・5xx・タブ切断・ブラウザ強制終了などの障害をすべて吸収する。
+
+## 3 層構造
+
+```
+[クライアント側 outbox]      → IndexedDB（sk-outbox.queue）
+   ↓ 復帰時に自動 flush（X-Idempotency-Key 付き）
+[Workers 側 冪等性ミドルウェア] → D1: idempotency_keys（TTL 7日）
+   ↓ 初回のみハンドラ実行
+[GAS / Sheets]
+```
+
+## レイヤー 1: クライアント outbox（pages/app.js）
+
+- `api(path, { outbox: true, label })` で書き込み API を呼ぶと、IndexedDB `sk-outbox.queue` に **送信前** にレコードを積む
+- ネットワーク失敗 / 5xx は **「予約しました」** トーストで成功扱い、4xx は破棄
+- 復帰イベント（DOMContentLoaded・online イベント）で `flushOutbox_()` が走り、最大 30 回までリトライ
+- 各リクエストにブラウザ生成の UUIDv4 を `X-Idempotency-Key` ヘッダで付与
+- 右下に **「⏳ 未送信 N件」バッジ**（`refreshOutboxBadge_`）。タップで詳細モーダル（`showOutboxModal_`）
+
+**対応済み API（14系統）:** 経費送信 / 移動 CRUD / 返品 CRUD / 作業者保存 / 仕入れ数量 / 請求書プロフィール / 請求書修正申請 / 同梱トグル など。画像アップロードは別系統（`outboxAdd_({type:'image'})`）。
+
+## レイヤー 2: Workers 冪等性ミドルウェア（src/utils/idempotency.js）
+
+- D1 テーブル `idempotency_keys`（migration 004）
+  - `key` PRIMARY KEY, `response_body`, `status_code`, `path`, `user_email`, `created_at`, `expires_at`
+  - TTL 7 日（外注が長期オフラインでも安全に flush できる期間）
+- `withIdempotency(request, env, handler)` ですべての write ルートをラップ（21箇所、`src/index.js`）
+- 同じ `X-Idempotency-Key` で再送されると **D1 から 2xx レスポンスを再生** してハンドラを実行しない → GAS/Sheets への二重書き込みを防止
+- 4xx/5xx はキャッシュしない（リトライ可能）
+
+## レイヤー 3: 監視ポイント
+
+- D1 `idempotency_keys` の行数が異常に膨らんでいないか（通常運用なら数百件以内）
+  ```bash
+  wrangler d1 execute shiire-kanri-db --remote \
+    --command "SELECT COUNT(*) FROM idempotency_keys WHERE expires_at > strftime('%s','now')"
+  ```
+- 外注から「右下のバッジが消えない」と連絡が来たら、まずは本人のオンライン環境を確認。それでもダメな場合は Workers/GAS のエラーログを確認
+
+---
+
 # 新規外注スタッフの追加手順
 
 外注を追加する基本フローは下記の 4 ステップ。
@@ -709,6 +753,28 @@ wrangler secret put CF_API_TOKEN      # CF API（Access ポリシー更新用）
 1. スプレッドシート → ファイル → 版の履歴 → 版の履歴を表示
 2. 影響を受けた版より前の版に戻す
 3. 戻せない場合は手動で列を再追加し、`buildHeaderMap_` のヘッダー名と一致させる
+
+## 外注から「右下のバッジ（未送信）が消えない」と連絡が来た
+
+1. **本人のオンライン環境を確認** — モバイルデータ ON / Wi-Fi 接続 / 機内モード OFF
+2. ブラウザを開き直して `flushOutbox_` の自動再送を待つ（1〜2分）
+3. それでも消えない場合は Workers ログを確認
+   ```bash
+   cd /Users/katsu/saisun-repo/workers/shiire-kanri
+   wrangler tail
+   ```
+4. 4xx ループ（バリデーションエラー）の場合は外注に「破棄」操作を案内
+5. D1 障害が疑われる場合は冪等性テーブルを確認
+   ```bash
+   wrangler d1 execute shiire-kanri-db --remote \
+     --command "SELECT COUNT(*) FROM idempotency_keys"
+   ```
+
+## 同じ操作が二重登録された
+
+- 通常起きないはず（Workers の `withIdempotency` でブロック）
+- もし発生したら、外注がブラウザのキャッシュクリア等で **IndexedDB を消した直後** に同じ操作を再実行した可能性
+- スプレッドシート側で重複行を 1 件削除すれば復旧
 
 ---
 
