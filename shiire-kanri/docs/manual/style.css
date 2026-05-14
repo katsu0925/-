@@ -1,0 +1,313 @@
+/* shiire-kanri マニュアル共通スタイル
+ * 印刷用 A4、日本語フォント、目次・章扉対応。 */
+
+@page {
+  size: A4;
+  margin: 18mm 16mm 22mm 16mm;
+  @bottom-right {
+    content: counter(page) " / " counter(pages);
+    font-size: 9pt;
+    color: #888;
+  }
+  @bottom-left {
+    content: string(doc-title);
+    font-size: 9pt;
+    color: #888;
+  }
+}
+
+html {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+body {
+  font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans CJK JP",
+               "Yu Gothic", "Meiryo", sans-serif;
+  font-size: 10.5pt;
+  line-height: 1.7;
+  color: #222;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  word-break: break-word;
+  -webkit-font-feature-settings: "palt";
+  font-feature-settings: "palt";
+}
+
+/* タイトルページ */
+.cover {
+  page: cover;
+  height: 240mm;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  page-break-after: always;
+  background: linear-gradient(135deg, #0066cc 0%, #003d7a 100%);
+  color: #fff;
+  margin: -18mm -16mm;
+  padding: 60mm 16mm;
+}
+.cover h1 {
+  font-size: 36pt;
+  margin: 0 0 10mm;
+  border: none;
+  color: #fff;
+  string-set: doc-title content();
+}
+.cover .subtitle {
+  font-size: 16pt;
+  margin: 0 0 30mm;
+  opacity: 0.95;
+}
+.cover .meta {
+  font-size: 11pt;
+  opacity: 0.85;
+  margin-top: auto;
+}
+.cover .logo {
+  font-size: 48pt;
+  margin-bottom: 8mm;
+}
+
+/* 見出し */
+h1 {
+  font-size: 22pt;
+  color: #003d7a;
+  border-bottom: 3px solid #0066cc;
+  padding-bottom: 4mm;
+  margin-top: 10mm;
+  margin-bottom: 6mm;
+  page-break-before: always;
+  page-break-after: avoid;
+  string-set: doc-title content();
+}
+h1:first-of-type,
+.cover + h1 {
+  page-break-before: avoid;
+}
+h2 {
+  font-size: 16pt;
+  color: #0066cc;
+  border-left: 5px solid #0066cc;
+  padding-left: 4mm;
+  margin-top: 10mm;
+  margin-bottom: 4mm;
+  page-break-after: avoid;
+}
+h3 {
+  font-size: 13pt;
+  color: #003d7a;
+  margin-top: 7mm;
+  margin-bottom: 3mm;
+  page-break-after: avoid;
+}
+h4 {
+  font-size: 11.5pt;
+  color: #444;
+  margin-top: 5mm;
+  margin-bottom: 2mm;
+  page-break-after: avoid;
+}
+
+/* 段落・リスト */
+p {
+  margin: 2mm 0;
+}
+ul, ol {
+  margin: 2mm 0 4mm;
+  padding-left: 7mm;
+}
+li {
+  margin: 0.5mm 0;
+}
+li > ul, li > ol {
+  margin: 1mm 0;
+}
+
+/* リンク */
+a {
+  color: #0066cc;
+  text-decoration: none;
+  word-break: break-all;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* コード */
+code {
+  font-family: "Menlo", "Consolas", "Courier New", monospace;
+  font-size: 9.5pt;
+  background: #f4f4f6;
+  color: #b04020;
+  padding: 0.5mm 1.5mm;
+  border-radius: 2px;
+}
+pre {
+  background: #1e1e2e;
+  color: #f0f0f0;
+  padding: 4mm;
+  border-radius: 3px;
+  font-size: 9pt;
+  line-height: 1.5;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  page-break-inside: avoid;
+}
+pre code {
+  background: transparent;
+  color: inherit;
+  padding: 0;
+}
+
+/* 表 */
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 4mm 0;
+  font-size: 9.5pt;
+  page-break-inside: avoid;
+}
+table th {
+  background: #003d7a;
+  color: #fff;
+  padding: 2mm 3mm;
+  text-align: left;
+  font-weight: 600;
+}
+table td {
+  border: 1px solid #d0d4dc;
+  padding: 1.5mm 3mm;
+  vertical-align: top;
+}
+table tr:nth-child(even) td {
+  background: #f6f8fb;
+}
+
+/* 引用・注記 */
+blockquote {
+  background: #fff8e6;
+  border-left: 5px solid #f5b300;
+  margin: 4mm 0;
+  padding: 3mm 5mm;
+  color: #5a4500;
+  page-break-inside: avoid;
+}
+
+/* 注記ボックス（カスタム class） */
+.note, .warn, .tip, .danger {
+  margin: 4mm 0;
+  padding: 4mm 5mm;
+  border-radius: 4px;
+  page-break-inside: avoid;
+}
+.note { background: #eef5ff; border-left: 5px solid #0066cc; }
+.warn { background: #fff8e6; border-left: 5px solid #f5b300; }
+.tip  { background: #eafbf0; border-left: 5px solid #2faa55; }
+.danger { background: #fff0f0; border-left: 5px solid #c8302a; color: #80201c; }
+
+.note::before { content: "💡 "; font-weight: bold; color: #0066cc; }
+.warn::before { content: "⚠️ "; font-weight: bold; color: #b87800; }
+.tip::before  { content: "✅ "; font-weight: bold; color: #1e7f3e; }
+.danger::before { content: "🚫 "; font-weight: bold; color: #c8302a; }
+
+/* キーボード/UI */
+kbd {
+  display: inline-block;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  padding: 0.5mm 1.5mm;
+  font-family: "Menlo", monospace;
+  font-size: 9pt;
+  background: #f7f7f7;
+  box-shadow: 0 1px 0 #ccc;
+}
+
+/* 画像 */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+  margin: 4mm auto;
+  border: 1px solid #d0d4dc;
+  border-radius: 3px;
+  page-break-inside: avoid;
+}
+img.shadow {
+  box-shadow: 0 2mm 4mm rgba(0, 0, 0, 0.15);
+}
+.caption {
+  text-align: center;
+  font-size: 9pt;
+  color: #666;
+  margin-top: -2mm;
+  margin-bottom: 4mm;
+}
+
+/* 画像プレースホルダ（後日差し替え予定） */
+.img-placeholder {
+  margin: 4mm auto;
+  padding: 12mm;
+  border: 2px dashed #b0b8c4;
+  border-radius: 4px;
+  background: #f7f9fc;
+  text-align: center;
+  color: #6b7280;
+  font-size: 10pt;
+  page-break-inside: avoid;
+}
+
+/* 横並びコンテナ（簡易レイアウト） */
+.cols {
+  display: flex;
+  gap: 5mm;
+  margin: 4mm 0;
+}
+.cols > * {
+  flex: 1;
+}
+
+/* 目次 */
+.toc {
+  page-break-after: always;
+}
+.toc h1 {
+  page-break-before: avoid;
+}
+.toc ul {
+  list-style: none;
+  padding-left: 0;
+}
+.toc li {
+  margin: 1.5mm 0;
+}
+.toc a {
+  color: #222;
+}
+
+/* 改ページ制御ヘルパー */
+.page-break { page-break-after: always; }
+.no-break { page-break-inside: avoid; }
+
+/* 強調 */
+strong { color: #003d7a; }
+em { color: #b04020; font-style: normal; font-weight: 600; }
+
+/* ---------- 外注用バリアント（オプション） ---------- */
+body.staff h1 { color: #1e7f3e; border-bottom-color: #2faa55; }
+body.staff h2 { color: #1e7f3e; border-left-color: #2faa55; }
+body.staff .cover { background: linear-gradient(135deg, #2faa55 0%, #1a6a3e 100%); }
+
+/* ---------- 印刷時の細かな調整 ---------- */
+@media print {
+  pre, table, img, blockquote, .note, .warn, .tip, .danger {
+    page-break-inside: avoid;
+  }
+  h2 + p, h3 + p {
+    page-break-before: avoid;
+  }
+}
