@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>仕入れプルダウン UX 比較モックアップ</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', sans-serif;
+    background: #f3f5f9;
+    color: #1f2a44;
+    -webkit-font-smoothing: antialiased;
+  }
+  .pane { padding: 0 16px 80px; }
+  .header {
+    background: #2563eb;
+    color: #fff;
+    padding: 16px 16px calc(env(safe-area-inset-top, 0) + 16px);
+    padding-top: calc(env(safe-area-inset-top, 0) + 16px);
+  }
+  .header h1 { margin: 0; font-size: 18px; font-weight: 700; }
+  .header sub { display: block; font-size: 11px; opacity: .85; margin-top: 4px; }
+
+  /* タブ切替 */
+  .tabs {
+    position: sticky; top: 0; z-index: 5;
+    display: flex; gap: 6px;
+    background: #fff;
+    padding: 10px 12px;
+    border-bottom: 1px solid #e5e9f0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tab {
+    flex: 0 0 auto;
+    padding: 8px 14px;
+    border-radius: 999px;
+    border: 1px solid #d6dbe4;
+    background: #fff;
+    color: #3b4759;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .tab.active { background: #2563eb; border-color: #2563eb; color: #fff; }
+
+  .card {
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 1px 3px rgba(20,30,60,.05);
+    padding: 16px;
+    margin-top: 16px;
+  }
+  .card h2 { margin: 0 0 4px; font-size: 14px; font-weight: 700; color: #2563eb; }
+  .card .desc { font-size: 12px; color: #6b7588; margin-bottom: 14px; line-height: 1.6; }
+  .label { display: block; font-size: 12px; color: #6b7588; margin-bottom: 6px; font-weight: 600; }
+  .label .req { color: #dc2626; margin-left: 4px; }
+
+  /* 共通: ネイティブ select */
+  select {
+    appearance: none; -webkit-appearance: none;
+    width: 100%;
+    padding: 12px 36px 12px 12px;
+    background: #f8fafc url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'><path d='M3 5l4 4 4-4' fill='none' stroke='%236b7588' stroke-width='2'/></svg>") no-repeat right 12px center;
+    border: 1px solid #d6dbe4;
+    border-radius: 10px;
+    font-size: 15px;
+    color: #1f2a44;
+    line-height: 1.4;
+  }
+
+  /* === 案2: カスタムドロップダウン === */
+  .dd-trigger {
+    width: 100%;
+    text-align: left;
+    padding: 12px 36px 12px 12px;
+    background: #f8fafc url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'><path d='M3 5l4 4 4-4' fill='none' stroke='%236b7588' stroke-width='2'/></svg>") no-repeat right 12px center;
+    border: 1px solid #d6dbe4;
+    border-radius: 10px;
+    font-size: 15px;
+    color: #1f2a44;
+    cursor: pointer;
+    line-height: 1.4;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .dd-trigger.placeholder { color: #9aa3b2; }
+  .dd-trigger .row { flex: 1; min-width: 0; }
+  .dd-trigger .row-1 { font-weight: 600; }
+  .dd-trigger .row-2 { font-size: 12px; color: #6b7588; margin-top: 2px; }
+  .dd-popover {
+    margin-top: 8px;
+    border: 1px solid #d6dbe4;
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 6px 20px rgba(20,30,60,.10);
+    overflow: hidden;
+    display: none;
+  }
+  .dd-popover.open { display: block; }
+  .dd-search {
+    width: 100%;
+    padding: 10px 12px;
+    border: none;
+    border-bottom: 1px solid #eef1f5;
+    font-size: 14px;
+    background: #f8fafc;
+    outline: none;
+  }
+  .dd-list { max-height: 320px; overflow: auto; }
+  .dd-item {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    border-bottom: 1px solid #f1f3f7;
+    cursor: pointer;
+  }
+  .dd-item:last-child { border-bottom: none; }
+  .dd-item:active, .dd-item.active { background: #eff5ff; }
+  .dd-check { width: 16px; flex: 0 0 16px; color: #2563eb; font-weight: 700; visibility: hidden; }
+  .dd-item.selected .dd-check { visibility: visible; }
+  .dd-body { flex: 1; min-width: 0; }
+  .dd-line1 {
+    display: flex; gap: 8px; align-items: center;
+    font-size: 14px; font-weight: 600; color: #1f2a44;
+  }
+  .dd-date { font-variant-numeric: tabular-nums; }
+  .dd-cat {
+    display: inline-block;
+    padding: 1px 7px;
+    background: #e0eaff;
+    color: #2563eb;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .dd-line2 {
+    display: flex; gap: 10px;
+    font-size: 12px; color: #6b7588; margin-top: 3px;
+  }
+  .dd-progress { font-variant-numeric: tabular-nums; }
+  .dd-progress.done { color: #16a34a; font-weight: 600; }
+  .dd-id { color: #9aa3b2; font-size: 11px; font-family: ui-monospace, Menlo, monospace; }
+
+  /* === 案3: 全画面モーダル === */
+  .modal-mask {
+    position: fixed; inset: 0;
+    background: rgba(15,23,42,.45);
+    display: none;
+    z-index: 50;
+    align-items: stretch;
+    justify-content: center;
+  }
+  .modal-mask.open { display: flex; }
+  .modal-sheet {
+    background: #fff;
+    width: 100%;
+    max-width: 480px;
+    display: flex;
+    flex-direction: column;
+    animation: slideUp .22s ease-out;
+  }
+  @keyframes slideUp { from { transform: translateY(20px); opacity: .6; } to { transform: translateY(0); opacity: 1; } }
+  .modal-head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 14px 12px;
+    border-bottom: 1px solid #e5e9f0;
+    background: #fff;
+  }
+  .modal-head h3 { margin: 0; font-size: 16px; font-weight: 700; flex: 1; }
+  .icon-btn {
+    width: 36px; height: 36px;
+    border-radius: 999px;
+    border: none;
+    background: #f1f3f7;
+    color: #1f2a44;
+    font-size: 18px;
+    cursor: pointer;
+  }
+  .modal-search-wrap {
+    padding: 10px 12px;
+    background: #fff;
+    border-bottom: 1px solid #eef1f5;
+  }
+  .modal-search {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d6dbe4;
+    border-radius: 10px;
+    font-size: 15px;
+    outline: none;
+    background: #f8fafc;
+  }
+  .modal-filters {
+    display: flex; gap: 6px;
+    padding: 8px 12px 10px;
+    background: #fff;
+    border-bottom: 1px solid #eef1f5;
+    overflow-x: auto;
+  }
+  .chip {
+    flex: 0 0 auto;
+    padding: 6px 12px;
+    border-radius: 999px;
+    border: 1px solid #d6dbe4;
+    background: #fff;
+    color: #3b4759;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  .chip.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+  .modal-list {
+    flex: 1;
+    overflow: auto;
+    background: #f8fafc;
+  }
+  .ml-item {
+    display: flex; gap: 12px; align-items: center;
+    padding: 12px 14px;
+    background: #fff;
+    border-bottom: 1px solid #eef1f5;
+    cursor: pointer;
+  }
+  .ml-item:active { background: #eff5ff; }
+  .ml-item.selected { background: #eff5ff; }
+  .ml-date {
+    font-size: 11px; color: #6b7588; font-variant-numeric: tabular-nums;
+    text-align: center;
+    flex: 0 0 56px;
+    line-height: 1.2;
+  }
+  .ml-date b { display: block; font-size: 18px; color: #1f2a44; font-weight: 700; }
+  .ml-body { flex: 1; min-width: 0; }
+  .ml-l1 { display: flex; gap: 8px; align-items: center; }
+  .ml-worker { font-size: 14px; font-weight: 600; }
+  .ml-cat {
+    display: inline-block; padding: 1px 7px;
+    background: #e0eaff; color: #2563eb;
+    border-radius: 999px; font-size: 11px; font-weight: 700;
+  }
+  .ml-l2 { font-size: 12px; color: #6b7588; margin-top: 3px; }
+  .ml-bar {
+    margin-top: 6px;
+    height: 4px;
+    background: #eef1f5;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .ml-bar-fill { height: 100%; background: #16a34a; border-radius: 2px; }
+  .ml-check { color: #2563eb; font-size: 18px; font-weight: 700; visibility: hidden; }
+  .ml-item.selected .ml-check { visibility: visible; }
+
+  /* === 現状(参考) === */
+  .compare-note {
+    margin: 14px 4px 0;
+    font-size: 11px;
+    color: #6b7588;
+    line-height: 1.6;
+  }
+  .compare-note b { color: #1f2a44; }
+  .pros, .cons { margin: 6px 0 0; padding-left: 18px; }
+  .pros li::marker { color: #16a34a; }
+  .cons li::marker { color: #dc2626; }
+
+  /* デモタグ */
+  .demo-tag {
+    display: inline-block;
+    background: #fef3c7;
+    color: #92400e;
+    font-size: 10px;
+    padding: 2px 7px;
+    border-radius: 999px;
+    margin-left: 6px;
+    font-weight: 700;
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>仕入れプルダウン UX 比較</h1>
+  <sub>3案のモックアップ（タップ操作可）</sub>
+</div>
+
+<div class="tabs" id="tabs">
+  <button class="tab active" data-pane="p0">現状</button>
+  <button class="tab" data-pane="p1">案1: 短縮ラベル</button>
+  <button class="tab" data-pane="p2">案2: カスタム</button>
+  <button class="tab" data-pane="p3">案3: モーダル</button>
+</div>
+
+<!-- =================== 現状 =================== -->
+<div class="pane" id="p0">
+  <div class="card">
+    <h2>現状（ネイティブ select）<span class="demo-tag">参考</span></h2>
+    <p class="desc">iOS 標準ピッカーに長い文字列を流し込んでいるため、折り返しが発生して視認性が低い。タップして実機の挙動を確認できます。</p>
+    <label class="label">仕入れ <span class="req">*</span></label>
+    <select>
+      <option value="">選択してください</option>
+      <option>2026-04-28 / 多恵 / C / 登録 61/145 - f3ef751f</option>
+      <option selected>2026-04-21 / family / C / 登録 33/54 - d0e9e98c</option>
+      <option>2026-04-21 / family / B / 登録 0/111 - w419c8a8</option>
+      <option>2026-04-16 / 青木 / G / 登録 0 - u385d306</option>
+      <option>2026-04-02 / mako / C / 登録 14/125 - d47ea337</option>
+      <option>2026-03-29 / 多恵 / A / 登録 80/80 - 9be12ac1</option>
+      <option>2026-03-22 / 青木 / B / 登録 22/45 - 5f4d8b22</option>
+    </select>
+    <div class="compare-note">
+      <ul class="cons">
+        <li>項目が長すぎて折り返し → 1 件あたりの占有面積が大きい</li>
+        <li>背景が暗くコントラストが低い（iOS の仕様）</li>
+        <li>絞り込み・検索ができない</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- =================== 案1 =================== -->
+<div class="pane" id="p1" style="display:none">
+  <div class="card">
+    <h2>案1: ラベル短縮（ネイティブのまま）</h2>
+    <p class="desc">UI は今の <code>&lt;select&gt;</code> のまま、ラベルから ID suffix を取り除き全角スラッシュを半角スペースに置換。実装 5 分程度で 1 行に収まる確率が大幅に上がる。</p>
+    <label class="label">仕入れ <span class="req">*</span></label>
+    <select>
+      <option value="">選択してください</option>
+      <option>2026-04-28 多恵 C  61/145</option>
+      <option selected>2026-04-21 family C  33/54</option>
+      <option>2026-04-21 family B  0/111</option>
+      <option>2026-04-16 青木 G  0</option>
+      <option>2026-04-02 mako C  14/125</option>
+      <option>2026-03-29 多恵 A  80/80</option>
+      <option>2026-03-22 青木 B  22/45</option>
+    </select>
+    <div class="compare-note">
+      <ul class="pros">
+        <li>実装最小（select の option 文字列を変えるだけ、5分）</li>
+        <li>ID 値は value にだけ残せるので、サーバ送信は今のまま</li>
+      </ul>
+      <ul class="cons">
+        <li>ネイティブピッカーの暗い背景は変えられない（iOS 仕様）</li>
+        <li>検索・絞り込みは依然できない</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- =================== 案2 =================== -->
+<div class="pane" id="p2" style="display:none">
+  <div class="card">
+    <h2>案2: カスタムドロップダウン</h2>
+    <p class="desc">自前 UI に置換。日付・担当者・カテゴリ・進捗を構造化表示。検索ボックスも内蔵。タップして体験できます。</p>
+    <label class="label">仕入れ <span class="req">*</span></label>
+    <button type="button" class="dd-trigger" id="dd2-trigger">
+      <span class="row" id="dd2-display">
+        <span class="row-1">2026-04-21 family <span class="dd-cat">C</span></span>
+        <span class="row-2">登録 33/54</span>
+      </span>
+    </button>
+    <div class="dd-popover" id="dd2-popover">
+      <input class="dd-search" id="dd2-search" placeholder="日付・担当者・カテゴリで絞り込み…" />
+      <div class="dd-list" id="dd2-list"></div>
+    </div>
+    <div class="compare-note">
+      <ul class="pros">
+        <li>視認性最良 — 列で揃うので走査しやすい</li>
+        <li>検索ボックスで担当者/カテゴリ即フィルタ</li>
+        <li>選択中のチェックマーク・進捗 100% の色分けも自由</li>
+      </ul>
+      <ul class="cons">
+        <li>実装 1〜2 時間（CSS + 開閉/外側クリック判定/キーボード対応）</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- =================== 案3 =================== -->
+<div class="pane" id="p3" style="display:none">
+  <div class="card">
+    <h2>案3: 全画面モーダルピッカー</h2>
+    <p class="desc">タップで全画面モーダル。検索 + カテゴリチップ絞り込み + 大きな日付表示。仕入れ件数が多い場合の最良解。</p>
+    <label class="label">仕入れ <span class="req">*</span></label>
+    <button type="button" class="dd-trigger" id="dd3-trigger">
+      <span class="row" id="dd3-display">
+        <span class="row-1">2026-04-21 family <span class="dd-cat">C</span></span>
+        <span class="row-2">登録 33/54</span>
+      </span>
+    </button>
+    <div class="compare-note">
+      <ul class="pros">
+        <li>仕入れ件数が増えても破綻しない（縦に長い領域が確保できる）</li>
+        <li>カテゴリチップで一気に絞り込める</li>
+        <li>日付が大きくスキャンしやすい・進捗バーで視覚化</li>
+      </ul>
+      <ul class="cons">
+        <li>実装 2〜3 時間（モーダルのみ最大、検索＋絞り込みも込み）</li>
+        <li>ワンタップ多くなる感が出る（モーダルで全画面占有）</li>
+      </ul>
+    </div>
+  </div>
+</div>
+
+<!-- 案3 モーダル -->
+<div class="modal-mask" id="modal3">
+  <div class="modal-sheet">
+    <div class="modal-head">
+      <button class="icon-btn" id="modal3-close" aria-label="閉じる">×</button>
+      <h3>仕入れを選択</h3>
+    </div>
+    <div class="modal-search-wrap">
+      <input class="modal-search" id="modal3-search" placeholder="日付・担当者・カテゴリで絞り込み…" />
+    </div>
+    <div class="modal-filters" id="modal3-filters">
+      <button class="chip active" data-cat="">すべて</button>
+      <button class="chip" data-cat="A">A</button>
+      <button class="chip" data-cat="B">B</button>
+      <button class="chip" data-cat="C">C</button>
+      <button class="chip" data-cat="G">G</button>
+    </div>
+    <div class="modal-list" id="modal3-list"></div>
+  </div>
+</div>
+
+<script>
+// ====== 共通サンプルデータ ======
+var DATA = [
+  { id: 'f3ef751f', date: '2026-04-28', worker: '多恵',   cat: 'C', done: 61, total: 145 },
+  { id: 'd0e9e98c', date: '2026-04-21', worker: 'family', cat: 'C', done: 33, total: 54 },
+  { id: 'w419c8a8', date: '2026-04-21', worker: 'family', cat: 'B', done: 0,  total: 111 },
+  { id: 'u385d306', date: '2026-04-16', worker: '青木',   cat: 'G', done: 0,  total: 0 },
+  { id: 'd47ea337', date: '2026-04-02', worker: 'mako',   cat: 'C', done: 14, total: 125 },
+  { id: '9be12ac1', date: '2026-03-29', worker: '多恵',   cat: 'A', done: 80, total: 80 },
+  { id: '5f4d8b22', date: '2026-03-22', worker: '青木',   cat: 'B', done: 22, total: 45 },
+];
+
+// ====== タブ切替 ======
+document.getElementById('tabs').addEventListener('click', function(e){
+  var btn = e.target.closest('.tab');
+  if (!btn) return;
+  document.querySelectorAll('.tab').forEach(function(t){ t.classList.toggle('active', t === btn); });
+  ['p0','p1','p2','p3'].forEach(function(id){
+    document.getElementById(id).style.display = (btn.dataset.pane === id) ? '' : 'none';
+  });
+});
+
+// ====== 案2: カスタムドロップダウン ======
+(function(){
+  var trigger = document.getElementById('dd2-trigger');
+  var pop = document.getElementById('dd2-popover');
+  var list = document.getElementById('dd2-list');
+  var search = document.getElementById('dd2-search');
+  var display = document.getElementById('dd2-display');
+  var selectedId = 'd0e9e98c';
+
+  function progressClass(done, total){
+    if (total > 0 && done >= total) return 'done';
+    return '';
+  }
+
+  function render(filter){
+    var q = (filter || '').toLowerCase();
+    var html = DATA.filter(function(d){
+      if (!q) return true;
+      return (d.date + ' ' + d.worker + ' ' + d.cat).toLowerCase().indexOf(q) >= 0;
+    }).map(function(d){
+      var prog = (d.total > 0) ? d.done + '/' + d.total : '0';
+      return '<div class="dd-item ' + (d.id === selectedId ? 'selected' : '') + '" data-id="' + d.id + '">' +
+               '<span class="dd-check">✓</span>' +
+               '<div class="dd-body">' +
+                 '<div class="dd-line1">' +
+                   '<span class="dd-date">' + d.date + '</span>' +
+                   '<span>' + d.worker + '</span>' +
+                   '<span class="dd-cat">' + d.cat + '</span>' +
+                 '</div>' +
+                 '<div class="dd-line2">' +
+                   '<span class="dd-progress ' + progressClass(d.done, d.total) + '">登録 ' + prog + '</span>' +
+                   '<span class="dd-id">' + d.id + '</span>' +
+                 '</div>' +
+               '</div>' +
+             '</div>';
+    }).join('');
+    list.innerHTML = html || '<div style="padding:20px;text-align:center;color:#9aa3b2;font-size:13px">該当なし</div>';
+  }
+
+  function setDisplay(d){
+    var prog = (d.total > 0) ? d.done + '/' + d.total : '0';
+    display.innerHTML =
+      '<span class="row-1">' + d.date + ' ' + d.worker + ' <span class="dd-cat">' + d.cat + '</span></span>' +
+      '<span class="row-2">登録 ' + prog + '</span>';
+  }
+
+  trigger.addEventListener('click', function(e){
+    e.stopPropagation();
+    var open = pop.classList.toggle('open');
+    if (open) { render(''); search.value = ''; setTimeout(function(){ search.focus(); }, 50); }
+  });
+  search.addEventListener('input', function(){ render(search.value); });
+  list.addEventListener('click', function(e){
+    var item = e.target.closest('.dd-item');
+    if (!item) return;
+    selectedId = item.dataset.id;
+    var d = DATA.find(function(x){ return x.id === selectedId; });
+    setDisplay(d);
+    pop.classList.remove('open');
+  });
+  document.addEventListener('click', function(e){
+    if (!pop.contains(e.target) && e.target !== trigger) pop.classList.remove('open');
+  });
+})();
+
+// ====== 案3: 全画面モーダル ======
+(function(){
+  var trigger = document.getElementById('dd3-trigger');
+  var modal = document.getElementById('modal3');
+  var closeBtn = document.getElementById('modal3-close');
+  var list = document.getElementById('modal3-list');
+  var search = document.getElementById('modal3-search');
+  var filters = document.getElementById('modal3-filters');
+  var display = document.getElementById('dd3-display');
+  var selectedId = 'd0e9e98c';
+  var activeCat = '';
+
+  function render(){
+    var q = (search.value || '').toLowerCase();
+    var html = DATA.filter(function(d){
+      if (activeCat && d.cat !== activeCat) return false;
+      if (!q) return true;
+      return (d.date + ' ' + d.worker + ' ' + d.cat).toLowerCase().indexOf(q) >= 0;
+    }).map(function(d){
+      var dateParts = d.date.split('-');
+      var prog = (d.total > 0) ? d.done + '/' + d.total : '未登録';
+      var pct = (d.total > 0) ? Math.round((d.done / d.total) * 100) : 0;
+      var done = (d.total > 0 && d.done >= d.total);
+      return '<div class="ml-item ' + (d.id === selectedId ? 'selected' : '') + '" data-id="' + d.id + '">' +
+               '<div class="ml-date">' + dateParts[1] + '/' + dateParts[2] + '<b>' + dateParts[0] + '</b></div>' +
+               '<div class="ml-body">' +
+                 '<div class="ml-l1">' +
+                   '<span class="ml-worker">' + d.worker + '</span>' +
+                   '<span class="ml-cat">' + d.cat + '</span>' +
+                 '</div>' +
+                 '<div class="ml-l2">登録 ' + prog + (done ? ' ✓ 完了' : '') + '</div>' +
+                 (d.total > 0 ? '<div class="ml-bar"><div class="ml-bar-fill" style="width:' + pct + '%;background:' + (done ? '#16a34a' : '#2563eb') + '"></div></div>' : '') +
+               '</div>' +
+               '<span class="ml-check">✓</span>' +
+             '</div>';
+    }).join('');
+    list.innerHTML = html || '<div style="padding:40px;text-align:center;color:#9aa3b2;font-size:13px;background:#fff">該当なし</div>';
+  }
+
+  function setDisplay(d){
+    var prog = (d.total > 0) ? d.done + '/' + d.total : '0';
+    display.innerHTML =
+      '<span class="row-1">' + d.date + ' ' + d.worker + ' <span class="dd-cat">' + d.cat + '</span></span>' +
+      '<span class="row-2">登録 ' + prog + '</span>';
+  }
+
+  trigger.addEventListener('click', function(){
+    modal.classList.add('open');
+    search.value = ''; activeCat = '';
+    filters.querySelectorAll('.chip').forEach(function(c){ c.classList.toggle('active', c.dataset.cat === ''); });
+    render();
+  });
+  closeBtn.addEventListener('click', function(){ modal.classList.remove('open'); });
+  modal.addEventListener('click', function(e){
+    if (e.target === modal) modal.classList.remove('open');
+  });
+  search.addEventListener('input', render);
+  filters.addEventListener('click', function(e){
+    var c = e.target.closest('.chip');
+    if (!c) return;
+    activeCat = c.dataset.cat;
+    filters.querySelectorAll('.chip').forEach(function(x){ x.classList.toggle('active', x === c); });
+    render();
+  });
+  list.addEventListener('click', function(e){
+    var item = e.target.closest('.ml-item');
+    if (!item) return;
+    selectedId = item.dataset.id;
+    var d = DATA.find(function(x){ return x.id === selectedId; });
+    setDisplay(d);
+    modal.classList.remove('open');
+  });
+})();
+</script>
+</body>
+</html>

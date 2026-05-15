@@ -1413,14 +1413,15 @@ function apiGetBrandsForOverlay(params) {
  * レビュー用に並び替え前後の画像URLとAIラベルだけを記録する。
  *
  * 列構成（1行=1商品）:
- *   管理番号 / アップロード日時(ISO) / 枚数 / 並び替えあり (○/) / AIラベル(JSON)
- *   Before_1〜10 / After_1〜10 / Reason_1〜10 (AI判定根拠)
+ *   管理番号 / アップロード日時(ISO) / 枚数 / 並び替えあり (○/) / 怪しい (○/) / モデル / AIラベル(JSON)
+ *   Before_1〜10 / After_1〜10 / Reason_1〜10 / Confidence_1〜10
  *   末尾: エラー列
  *
  * append=false（既定）: シートをクリアしてヘッダから書き直す（先頭バッチ用）
  * append=true        : 既存行の下に追記する（2バッチ目以降）
+ * upsert=true        : managedId が一致する既存行があれば上書き、なければ追記（Pro再判定用）
  *
- * @param {object} params - { syncSecret, rows: [...], append?: boolean }
+ * @param {object} params - { syncSecret, rows: [...], append?: boolean, upsert?: boolean }
  */
 function apiWriteReorderDryrun(params) {
   var p = params || {};
@@ -1444,45 +1445,97 @@ function apiWriteReorderDryrun(params) {
   }
 
   var MAX_IMAGES = 10;
-  var headers = ['管理番号', 'アップロード日時', '枚数', '並び替えあり', 'AIラベル(JSON)'];
+  var headers = ['管理番号', 'アップロード日時', '枚数', '並び替えあり', '怪しい', 'モデル', 'AIラベル(JSON)'];
   for (var k = 0; k < MAX_IMAGES; k++) headers.push('Before_' + (k + 1));
   for (var k = 0; k < MAX_IMAGES; k++) headers.push('After_' + (k + 1));
   for (var k = 0; k < MAX_IMAGES; k++) headers.push('Reason_' + (k + 1));
+  for (var k = 0; k < MAX_IMAGES; k++) headers.push('Confidence_' + (k + 1));
   headers.push('エラー');
 
   var append = !!p.append;
-  if (!append) {
-    sh.clear();
-    sh.getRange(1, 1, 1, headers.length).setValues([headers]);
-    sh.setFrozenRows(1);
-  } else if (sh.getLastRow() === 0) {
-    // append指定でもシートが空ならヘッダを書く
-    sh.getRange(1, 1, 1, headers.length).setValues([headers]);
-    sh.setFrozenRows(1);
+  var upsert = !!p.upsert;
+
+  // 既存ヘッダが旧フォーマットの場合は強制再構築（列追加されたため）
+  function needsRebuild() {
+    if (sh.getLastRow() === 0) return true;
+    var lastCol = sh.getLastColumn();
+    if (lastCol !== headers.length) return true;
+    var existing = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    for (var x = 0; x < headers.length; x++) {
+      if (String(existing[x] || '').trim() !== headers[x]) return true;
+    }
+    return false;
   }
 
-  var data = [];
-  for (var i = 0; i < rows.length; i++) {
-    var r = rows[i];
+  // append/upsert モードでは既存データを絶対に消さない（Pro再判定で全消失する事故防止）
+  // 先頭バッチ（append=false）のときだけクリア再構築する
+  if (!append) {
+    if (needsRebuild()) {
+      sh.clear();
+      sh.getRange(1, 1, 1, headers.length).setValues([headers]);
+      sh.setFrozenRows(1);
+    } else if (sh.getLastRow() >= 2) {
+      // 同スキーマでの再実行: ヘッダ残してデータ行だけ消す
+      sh.getRange(2, 1, sh.getLastRow() - 1, sh.getLastColumn()).clearContent();
+    }
+  }
+
+  // upsert: 既存行から managedId → 行番号 のマップを作る
+  var existingMap = {};
+  if (upsert) {
+    var lr = sh.getLastRow();
+    if (lr >= 2) {
+      var ids = sh.getRange(2, 1, lr - 1, 1).getValues();
+      for (var ix = 0; ix < ids.length; ix++) {
+        var midKey = String(ids[ix][0] || '').trim();
+        if (midKey) existingMap[midKey] = ix + 2; // 行番号
+      }
+    }
+  }
+
+  function buildRow(r) {
     var row = [
       r.managedId || '',
       r.uploadedAt || '',
       r.count || 0,
       r.changed ? '○' : '',
+      r.ambiguous ? '○' : '',
+      r.model || '',
       r.labels ? JSON.stringify(r.labels) : '',
     ];
     var before = Array.isArray(r.before) ? r.before : [];
     var after = Array.isArray(r.after) ? r.after : [];
     var reasons = Array.isArray(r.reasons) ? r.reasons : [];
+    var confs = Array.isArray(r.confidences) ? r.confidences : [];
     for (var j = 0; j < MAX_IMAGES; j++) row.push(before[j] || '');
     for (var j = 0; j < MAX_IMAGES; j++) row.push(after[j] || '');
     for (var j = 0; j < MAX_IMAGES; j++) row.push(reasons[j] || '');
+    for (var j = 0; j < MAX_IMAGES; j++) row.push(confs[j] || '');
     row.push(r.error ? (r.error + (r.detail ? (': ' + r.detail) : '')) : '');
-    data.push(row);
+    return row;
   }
-  if (data.length > 0) {
+
+  var appendRows = [];
+  var updates = []; // { rowNum, values }
+  for (var i = 0; i < rows.length; i++) {
+    var r = rows[i];
+    var built = buildRow(r);
+    var midKey2 = String(r.managedId || '').trim();
+    if (upsert && midKey2 && existingMap[midKey2]) {
+      updates.push({ rowNum: existingMap[midKey2], values: built });
+    } else {
+      appendRows.push(built);
+    }
+  }
+
+  // upsert: 既存行を上書き
+  for (var u = 0; u < updates.length; u++) {
+    sh.getRange(updates[u].rowNum, 1, 1, headers.length).setValues([updates[u].values]);
+  }
+  // 残りは末尾に追記
+  if (appendRows.length > 0) {
     var startRow = Math.max(2, sh.getLastRow() + 1);
-    sh.getRange(startRow, 1, data.length, headers.length).setValues(data);
+    sh.getRange(startRow, 1, appendRows.length, headers.length).setValues(appendRows);
   }
 
   // 列幅（先頭バッチ時のみ調整）
@@ -1491,15 +1544,19 @@ function apiWriteReorderDryrun(params) {
     sh.setColumnWidth(2, 160);
     sh.setColumnWidth(3, 50);
     sh.setColumnWidth(4, 80);
-    sh.setColumnWidth(5, 300);
+    sh.setColumnWidth(5, 70);
+    sh.setColumnWidth(6, 140);
+    sh.setColumnWidth(7, 300);
   }
 
   return {
     ok: true,
     sheet: sheetName,
-    written: data.length,
+    written: appendRows.length + updates.length,
+    appended: appendRows.length,
+    updated: updates.length,
     changedCount: rows.filter(function(r) { return r.changed; }).length,
-    appended: append,
+    ambiguousCount: rows.filter(function(r) { return r.ambiguous; }).length,
   };
 }
 
@@ -1511,6 +1568,31 @@ function apiWriteReorderDryrun(params) {
  * @param {object} params - { syncSecret }
  * @returns {object} { ok, rows: [{ managedId, after, changed }] }
  */
+/**
+ * apiGetReorderSheetUrl — 「画像並び替えドライラン」シートを含むスプレッドシートの URL と版数履歴 URL を返す
+ * Workers /admin/reorder-sheet-url から呼び出される。復元 UI への直接リンクを得る用途。
+ */
+function apiGetReorderSheetUrl(params) {
+  var p = params || {};
+  if (!verifySyncSecret_(p.syncSecret)) return { ok: false, message: '認証エラー' };
+  var ssId = '';
+  try { ssId = APP_CONFIG.detail.spreadsheetId; } catch (e) {}
+  if (!ssId) {
+    try { ssId = PropertiesService.getScriptProperties().getProperty('DETAIL_SPREADSHEET_ID') || ''; } catch (e) {}
+  }
+  if (!ssId) return { ok: false, message: 'spreadsheetId not found' };
+  var ss = SpreadsheetApp.openById(ssId);
+  var sh = ss.getSheetByName('画像並び替えドライラン');
+  return {
+    ok: true,
+    spreadsheetId: ssId,
+    url: ss.getUrl(),
+    sheetUrl: sh ? (ss.getUrl() + '#gid=' + sh.getSheetId()) : null,
+    revisionsUrl: 'https://docs.google.com/spreadsheets/d/' + ssId + '/revisions',
+    currentRows: sh ? sh.getLastRow() : 0,
+  };
+}
+
 function apiReadReorderDryrun(params) {
   var p = params || {};
   if (!verifySyncSecret_(p.syncSecret)) return { ok: false, message: '認証エラー' };
@@ -1538,6 +1620,8 @@ function apiReadReorderDryrun(params) {
   }
   var colMid = colMap['管理番号'];
   var colChanged = colMap['並び替えあり'];
+  var colAmb = colMap['怪しい']; // 旧シートには存在しないので存在チェックする
+  var colModel = colMap['モデル'];
   if (!colMid || !colChanged) return { ok: false, message: '必要な列がありません' };
 
   // After_1 〜 After_10 を集める
@@ -1554,12 +1638,14 @@ function apiReadReorderDryrun(params) {
     var mid = String(data[i][colMid - 1] || '').trim();
     if (!mid) continue;
     var changed = String(data[i][colChanged - 1] || '').trim() === '○';
+    var ambiguous = colAmb ? (String(data[i][colAmb - 1] || '').trim() === '○') : false;
+    var model = colModel ? String(data[i][colModel - 1] || '').trim() : '';
     var after = [];
     for (var j = 0; j < afterCols.length; j++) {
       var u = String(data[i][afterCols[j] - 1] || '').trim();
       if (u) after.push(u);
     }
-    rows.push({ managedId: mid, changed: changed, after: after });
+    rows.push({ managedId: mid, changed: changed, ambiguous: ambiguous, model: model, after: after });
   }
   return { ok: true, rows: rows };
 }

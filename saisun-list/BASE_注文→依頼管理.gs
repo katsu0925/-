@@ -2,7 +2,9 @@
 function syncBaseOrdersToIraiKanri() {
   // XLSX商品（選べるパッケージのアソート商品）も依頼管理に反映する（選択リストは管理者が後から紐付け）
   const ORDER_STATUS_COL_1BASED = 7;
-  const ORDER_STATUS_VALUE = '未対応';
+  // 「未対応」だけでなく「対応済」も取り込む（BASE側で即発送マークされる注文の取りこぼし対策）
+  // キャンセルは除外。重複は existingKeys でブロックされるので冪等。
+  const VALID_ORDER_STATUSES = { '未対応': true, '対応済': true };
 
   // トリガーからも動作するようID指定で開く（getActiveSpreadsheetはトリガー非対応）
   const ss = baseGetTargetSpreadsheet_();
@@ -144,7 +146,7 @@ function syncBaseOrdersToIraiKanri() {
   for (let r = 0; r < orders.length; r++) {
     const row = orders[r];
     const status = normalizeKey_(row[ORDER_STATUS_COL_1BASED - 1]);
-    if (status !== ORDER_STATUS_VALUE) continue;
+    if (!VALID_ORDER_STATUSES[status]) continue;
 
     const key = normalizeKey_(row[idxOrderKey_Order]);
     if (!key) continue;
@@ -280,16 +282,22 @@ function syncBaseOrdersToIraiKanri() {
       out[dstIdx_TotalAmount] = subtotal;
       out[dstIdx_RequestAt] = updatedAt;
 
-      out[dstIdx_ShipStatus] = '未着手';
+      // BASE_注文 G列のステータスを判定（対応済=既に発送済み）
+      const orderStatus = normalizeKey_(orderRow[ORDER_STATUS_COL_1BASED - 1]);
+      const isDispatched = orderStatus === '対応済';
+
+      // 対応済注文は実態と整合させる: 発送ステータス=発送済み、通知フラグ=TRUE(LINE通知抑制)
+      out[dstIdx_ShipStatus] = isDispatched ? '発送済み' : '未着手';
       out[dstIdx_Status] = '依頼中';
       if (dstIdx_PaymentStatus !== -1) out[dstIdx_PaymentStatus] = '未対応';  // R列: 入金確認
 
       const hasXlsx = hasXlsx_(itemName);
-      out[dstIdx_ListInclude] = hasXlsx ? '未' : '無し';
-      out[dstIdx_XlsxSend] = hasXlsx ? '未' : '無し';
+      // 対応済の場合、xlsx関連も完了扱いに（既に送付済みの想定）
+      out[dstIdx_ListInclude] = hasXlsx ? (isDispatched ? '済' : '未') : '無し';
+      out[dstIdx_XlsxSend] = hasXlsx ? (isDispatched ? '済' : '未') : '無し';
 
-      // AA列: 通知フラグにFALSEを設定（発送通知の二重送信防止）
-      if (dstIdx_NotifyFlag !== -1) out[dstIdx_NotifyFlag] = false;
+      // AB列: 通知フラグ — 対応済は既に発送済みなのでTRUE(LINE通知抑制)、未対応はFALSE(新規通知対象)
+      if (dstIdx_NotifyFlag !== -1) out[dstIdx_NotifyFlag] = isDispatched ? true : false;
 
       if (pidColInDst !== -1) {
         out[pidColInDst] = pid;
@@ -329,6 +337,139 @@ function syncBaseOrdersToIraiKanri() {
     }
   }
   shDst.getRange(startRow, 1, newRows.length, dstColCount).setValues(newRows);
+}
+
+// 診断用: BASE_注文 で「対応済」だが依頼管理に未反映の孤立注文を一覧化する
+// GASエディタから auditOrphanBaseOrders() を実行すると Logger.log と返り値で結果を得られる
+function auditOrphanBaseOrders() {
+  const ss = baseGetTargetSpreadsheet_();
+  const shOrder = ss.getSheetByName('BASE_注文');
+  const shItem = ss.getSheetByName('BASE_注文商品');
+  const shDst = ss.getSheetByName('依頼管理');
+  if (!shOrder || !shItem || !shDst) throw new Error('必要シートが見つかりません');
+
+  const orderLastRow = shOrder.getLastRow();
+  const itemLastRow = shItem.getLastRow();
+  const dstLastRow = shDst.getLastRow();
+  if (orderLastRow < 2) return { ok: true, orphans: [], note: 'BASE_注文が空' };
+
+  const orderHeader = shOrder.getRange(1, 1, 1, shOrder.getLastColumn()).getValues()[0];
+  const itemHeader = shItem.getRange(1, 1, 1, shItem.getLastColumn()).getValues()[0];
+  const dstHeader = shDst.getRange(1, 1, 1, shDst.getLastColumn()).getValues()[0];
+  const orderMap = buildHeaderMap_(orderHeader);
+  const itemMap = buildHeaderMap_(itemHeader);
+  const dstMap = buildHeaderMap_(dstHeader);
+
+  const idxOrderKey_Order = findAnyCol_(orderMap, ['注文キー', '注文Key', 'order_key', '注文ID', '受注ID']);
+  const idxOrderedAt_Order = findAnyCol_(orderMap, ['注文日', 'ordered', '受注日', '注文日時']);
+  const idxStatus_Order = 7 - 1; // G列固定
+  const idxTotal_Order = findAnyCol_(orderMap, ['合計金額', 'total', '金額']);
+  const idxSurname_Order = findAnyCol_(orderMap, ['姓', '名字', 'last_name']);
+  const idxGiven_Order = findAnyCol_(orderMap, ['名', 'first_name']);
+
+  const idxOrderKey_Item = findAnyCol_(itemMap, ['注文キー', '注文Key', 'order_key', '注文ID', '受注ID']);
+  const idxProductId_Item = findAnyCol_(itemMap, ['商品ID', 'product_id', '商品コード']);
+  const idxProductName_Item = findAnyCol_(itemMap, ['商品名', 'item_name', 'product_name']);
+  const idxQty_Item = findAnyCol_(itemMap, ['数量、多', '数量', 'quantity', 'qty', '注文数']);
+  const idxSubtotal_Item = findAnyCol_(itemMap, ['商品小計', '小計', 'subtotal', '商品合計']);
+
+  const dstIdx_ReceiptNo = findAnyCol_(dstMap, ['受付番号', '注文キー', '注文ID']);
+  if (dstIdx_ReceiptNo === -1) throw new Error('依頼管理に受付番号列が見つかりません');
+
+  // 依頼管理に存在する受付番号セット
+  const dstReceiptSet = new Set();
+  if (dstLastRow >= 2) {
+    const dstVals = shDst.getRange(2, 1, dstLastRow - 1, shDst.getLastColumn()).getValues();
+    for (let r = 0; r < dstVals.length; r++) {
+      const k = normalizeKey_(dstVals[r][dstIdx_ReceiptNo]);
+      if (k) dstReceiptSet.add(k);
+    }
+  }
+
+  // BASE_注文商品をkeyごとにグルーピング
+  const items = (itemLastRow >= 2)
+    ? shItem.getRange(2, 1, itemLastRow - 1, shItem.getLastColumn()).getValues()
+    : [];
+  const itemsByKey = new Map();
+  for (let r = 0; r < items.length; r++) {
+    const row = items[r];
+    const k = normalizeKey_(row[idxOrderKey_Item]);
+    if (!k) continue;
+    if (!itemsByKey.has(k)) itemsByKey.set(k, []);
+    itemsByKey.get(k).push(row);
+  }
+
+  // BASE_注文の全行を走査、依頼管理に無いものを孤立として収集
+  const orders = shOrder.getRange(2, 1, orderLastRow - 1, shOrder.getLastColumn()).getValues();
+  const orphans = [];
+  let total = 0, dispatched = 0, cancelled = 0, pending = 0, presentInDst = 0;
+
+  for (let r = 0; r < orders.length; r++) {
+    const row = orders[r];
+    const key = normalizeKey_(row[idxOrderKey_Order]);
+    if (!key) continue;
+    total++;
+    const status = normalizeKey_(row[idxStatus_Order]);
+    if (status === '対応済') dispatched++;
+    else if (status === 'キャンセル') cancelled++;
+    else pending++;
+
+    if (dstReceiptSet.has(key)) { presentInDst++; continue; }
+    if (status === 'キャンセル') continue; // キャンセルは孤立扱いしない
+
+    const itemsForKey = itemsByKey.get(key) || [];
+    const productIds = [];
+    const productNames = [];
+    let qtySum = 0;
+    let subtotalSum = 0;
+    for (let j = 0; j < itemsForKey.length; j++) {
+      const it = itemsForKey[j];
+      if (idxProductId_Item !== -1) productIds.push(String(it[idxProductId_Item] || '').trim());
+      if (idxProductName_Item !== -1) productNames.push(String(it[idxProductName_Item] || '').trim());
+      if (idxQty_Item !== -1) {
+        const q = Number(it[idxQty_Item]);
+        if (!isNaN(q)) qtySum += q;
+      }
+      if (idxSubtotal_Item !== -1) {
+        const s = Number(it[idxSubtotal_Item]);
+        if (!isNaN(s)) subtotalSum += s;
+      }
+    }
+
+    orphans.push({
+      行: r + 2,
+      注文キー: key,
+      ステータス: status,
+      注文日: idxOrderedAt_Order !== -1 ? row[idxOrderedAt_Order] : '',
+      合計金額: idxTotal_Order !== -1 ? row[idxTotal_Order] : '',
+      氏名: (idxSurname_Order !== -1 ? String(row[idxSurname_Order] || '') : '')
+          + (idxGiven_Order !== -1 ? String(row[idxGiven_Order] || '') : ''),
+      商品ID: productIds.join(','),
+      商品名: productNames.join(' / '),
+      点数: qtySum,
+      小計合計: subtotalSum
+    });
+  }
+
+  orphans.sort(function(a, b) {
+    const da = new Date(a.注文日).getTime() || 0;
+    const db = new Date(b.注文日).getTime() || 0;
+    return da - db;
+  });
+
+  Logger.log('=== BASE_注文 孤立注文 監査 ===');
+  Logger.log('総注文数=' + total + ' / 対応済=' + dispatched + ' / 未対応=' + pending + ' / キャンセル=' + cancelled);
+  Logger.log('依頼管理に存在=' + presentInDst + ' / 孤立=' + orphans.length);
+  Logger.log('--- 孤立注文一覧 ---');
+  for (let i = 0; i < orphans.length; i++) {
+    const o = orphans[i];
+    Logger.log((i + 1) + '. [' + o.ステータス + '] ' + o.注文キー
+      + ' ' + Utilities.formatDate(new Date(o.注文日 || 0), 'Asia/Tokyo', 'yyyy/MM/dd')
+      + ' ' + o.氏名 + ' ¥' + o.合計金額
+      + ' / ' + o.商品ID + ' ' + o.商品名 + ' x' + o.点数);
+  }
+
+  return { ok: true, total: total, dispatched: dispatched, pending: pending, cancelled: cancelled, presentInDst: presentInDst, orphanCount: orphans.length, orphans: orphans };
 }
 
 function buildHeaderMap_(headerRow) {

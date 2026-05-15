@@ -184,7 +184,7 @@ function doPost(e) {
       // D1同期API（Workers Cron Trigger から呼び出し）
       'apiSyncExportData', 'apiSyncImportData', 'apiExportPhotographyMeta',
       'apiGetBrandsForOverlay', 'apiClearAiField', 'apiDumpAiRows',
-      'apiWriteReorderDryrun', 'apiReadReorderDryrun',
+      'apiWriteReorderDryrun', 'apiReadReorderDryrun', 'apiGetReorderSheetUrl',
       // 管理者専用API（adminKey認証必須）
       'adminGetKomojuMode', 'adminToggleKomojuMode',
       'adminGetMemberDiscountStatus', 'adminToggleMemberDiscount',

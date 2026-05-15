@@ -357,6 +357,18 @@ function syncFull_(productSheet, returnSheet, aiSheet, destSheet) {
   const returnSet = getReturnSetCached_(returnSheet);
   const aiPathMap = getAiPathMapCached_(aiSheet);
 
+  // 安全策: productMap または returnSet が空の場合は既存データ保護のためスキップ
+  // （シート読み込み失敗・一時的な権限エラー等で全データを消すのを防ぐ）
+  const productKeyCount = Object.keys(productMap).length;
+  const returnKeyCount = Object.keys(returnSet).length;
+  if (productKeyCount === 0 || returnKeyCount === 0) {
+    console.error('syncFull_: SKIP for safety. productMap=' + productKeyCount + ' returnSet=' + returnKeyCount);
+    return;
+  }
+
+  // パフォーマンス: AIフォルダ全ファイルを一度に取得してマップ化（resolveAiFileId_の高速化用）
+  const aiFolderFileMap = buildAiFolderFileMap_(CONFIG.AI_DEFAULT_FOLDER_NAME);
+
   const MEAS_START_COL = 12; // L列
   const MEAS_END_COL = 24;   // X列
   const MEAS_WIDTH = MEAS_END_COL - MEAS_START_COL + 1; // 13列
@@ -444,7 +456,7 @@ function syncFull_(productSheet, returnSheet, aiSheet, destSheet) {
       const rawPath = aiPathMap[keyC] || "";
       var fileId = "";
       try {
-        fileId = rawPath ? resolveAiFileId_(rawPath) : "";
+        fileId = rawPath ? resolveAiFileId_(rawPath, aiFolderFileMap) : "";
       } catch (e) {
         if (!syncFull_._aiErrLogged) {
           console.warn('resolveAiFileId_ error (以降省略):', e.message || e);
@@ -877,7 +889,46 @@ function syncManualTest() {
   console.log('syncManualTest 完了');
 }
 
-function resolveAiFileId_(raw) {
+/**
+ * AIフォルダ全ファイルを一括取得して fileName -> fileId のマップを返す
+ * 大量レコード処理時の resolveAiFileId_ 高速化用
+ * 失敗時は空オブジェクトを返す（resolveAiFileId_ が個別取得にフォールバック）
+ */
+function buildAiFolderFileMap_(folderName) {
+  const fname = folderName || CONFIG.AI_DEFAULT_FOLDER_NAME;
+  const cacheKey = 'AI_FOLDER_FILE_MAP:' + fname;
+  const cache = CacheService.getScriptCache();
+
+  // キャッシュ命中時は即返却（DriveApp 全件走査を回避）
+  try {
+    const cached = app_cacheGetLarge_(cache, cacheKey);
+    if (cached) {
+      const obj = JSON.parse(cached);
+      if (obj && typeof obj === 'object') return obj;
+    }
+  } catch (e) { /* fallthrough to rebuild */ }
+
+  const map = {};
+  try {
+    const it = DriveApp.getFoldersByName(fname);
+    if (!it.hasNext()) return map;
+    const folder = it.next();
+    const files = folder.getFiles();
+    let count = 0;
+    while (files.hasNext()) {
+      const f = files.next();
+      map[f.getName()] = f.getId();
+      count++;
+    }
+    console.log('buildAiFolderFileMap_: ' + fname + ' に ' + count + ' 件');
+    try { app_cachePutLarge_(cache, cacheKey, JSON.stringify(map), 21600); } catch (e) {}
+  } catch (e) {
+    console.warn('buildAiFolderFileMap_ error:', e.message || e);
+  }
+  return map;
+}
+
+function resolveAiFileId_(raw, folderFileMap) {
   const s = String(raw ?? "").trim();
   if (!s) return "";
 
@@ -898,6 +949,11 @@ function resolveAiFileId_(raw) {
   }
   if (!folderName) folderName = CONFIG.AI_DEFAULT_FOLDER_NAME;
   if (!fileName) return "";
+
+  // 高速パス: 呼び出し元から渡された folderFileMap (デフォルトAIフォルダ全ファイル) を優先利用
+  if (folderFileMap && folderName === CONFIG.AI_DEFAULT_FOLDER_NAME && folderFileMap[fileName]) {
+    return folderFileMap[fileName];
+  }
 
   const cache = CacheService.getScriptCache();
 
@@ -950,6 +1006,7 @@ function publishAiImagesInDest() {
 
     const { aiSheet, destSheet } = openSheets_();
     const aiPathMap = getAiPathMapCached_(aiSheet);
+    const aiFolderFileMap = buildAiFolderFileMap_(CONFIG.AI_DEFAULT_FOLDER_NAME);
 
     const last = destSheet.getLastRow();
     if (last < CONFIG.DEST_START_ROW) return;
@@ -963,7 +1020,7 @@ function publishAiImagesInDest() {
       if (!k) continue;
       const p = aiPathMap[k] || "";
       if (!p) continue;
-      const id = resolveAiFileId_(p);
+      const id = resolveAiFileId_(p, aiFolderFileMap);
       if (!id) continue;
       if (done[id]) continue;
       done[id] = true;
@@ -1314,4 +1371,53 @@ function checkManagement() {
   }
 }
 
+function diag2() {
+  var sheets = openSheets_();
+  var pm = buildProductMap_(sheets.productSheet);
+  var rs = buildReturnSet_(sheets.returnSheet);
+  var pmKeys = Object.keys(pm);
+  var rsKeys = Object.keys(rs);
+  var byStatus = {};
+  var intersectAny = 0;
+  for (var i = 0; i < pmKeys.length; i++) {
+    var k = pmKeys[i];
+    if (!rs[k]) continue;
+    intersectAny++;
+    var bs = String(pm[k].bizStatus || '');
+    byStatus[bs] = (byStatus[bs] || 0) + 1;
+  }
+  var destLast = sheets.destSheet.getLastRow();
+  var destRows = Math.max(0, destLast - CONFIG.DEST_START_ROW + 1);
+  console.log('pm=' + pmKeys.length + ' rs=' + rsKeys.length + ' inter=' + intersectAny + ' data1Rows=' + destRows);
+  console.log(JSON.stringify(byStatus));
+  return { pm: pmKeys.length, rs: rsKeys.length, inter: intersectAny, data1Rows: destRows, byStatus: byStatus };
+}
+
+function diag3() {
+  var sheets = openSheets_();
+  var ss = sheets.destSS;
+  var sh = sheets.destSheet;
+  console.log('SSID: ' + ss.getId());
+  console.log('URL : ' + ss.getUrl());
+  console.log('Sheet name: ' + sh.getName());
+  console.log('lastRow: ' + sh.getLastRow() + ' lastCol: ' + sh.getLastColumn());
+  console.log('B1 (sheetTotalCount): ' + sh.getRange('B1').getValue());
+  // Sample rows 3-7 (first 5 data rows)
+  var n = Math.min(5, Math.max(0, sh.getLastRow() - 2));
+  if (n > 0) {
+    var sample = sh.getRange(3, 1, n, Math.min(11, sh.getLastColumn())).getValues();
+    for (var i = 0; i < sample.length; i++) {
+      console.log('row' + (i+3) + ': ' + JSON.stringify(sample[i]));
+    }
+  }
+  // Last 5 data rows
+  var last = sh.getLastRow();
+  if (last >= 7) {
+    var startLast = Math.max(3, last - 4);
+    var lastSample = sh.getRange(startLast, 1, last - startLast + 1, Math.min(11, sh.getLastColumn())).getValues();
+    for (var j = 0; j < lastSample.length; j++) {
+      console.log('row' + (startLast + j) + ': ' + JSON.stringify(lastSample[j]));
+    }
+  }
+}
 
