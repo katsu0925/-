@@ -1,4 +1,11 @@
 // BASE_注文→依頼管理.gs
+
+// 依頼管理から手動削除済みでCRON再挿入したくない注文キーのスキップリスト
+// 用途: 同一注文の別行が既に手動で取り込まれており、CRONで新規行が作られると重複する場合に追加する
+const SKIP_RECEIPT_KEYS_ = new Set([
+  '811BC5542AAABAAC' // 2026-05-16 復元時に依頼管理側で既に同一データ反映済み、CRON再挿入を抑止
+]);
+
 function syncBaseOrdersToIraiKanri() {
   // XLSX商品（選べるパッケージのアソート商品）も依頼管理に反映する（選択リストは管理者が後から紐付け）
   const ORDER_STATUS_COL_1BASED = 7;
@@ -150,6 +157,7 @@ function syncBaseOrdersToIraiKanri() {
 
     const key = normalizeKey_(row[idxOrderKey_Order]);
     if (!key) continue;
+    if (SKIP_RECEIPT_KEYS_.has(key)) continue; // 手動削除済み注文の再挿入を抑止
     orderByKey.set(key, row);
   }
 

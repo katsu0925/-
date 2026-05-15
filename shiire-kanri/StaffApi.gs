@@ -114,6 +114,59 @@ function staff_recomputeStatus_(sh, rowNum, hdr, col) {
   return { changed: true, prev: current, status: calc };
 }
 
+// 指定の管理番号リストの E列ステータスを「売却済み」に一括書き戻す（5/3 Ctrl+H 連鎖被害の復旧用）
+// Apps Script エディタから restoreSoldStatusBatch() を実行する。事前に KANRI_LIST を編集
+// 注意: staff_recalcAllStatus() を後から実行すると IFS 式評価で再上書きされるので扱い注意
+function restoreSoldStatusBatch() {
+  // 2026-05-03 Ctrl+H で「売却済み→出品中→返品済み」と連鎖した35件
+  var KANRI_LIST = [
+    'zB32','zB33','zB35','zB38','zB51','zB83','zB85','zB87','zB88','zB94','zB95','zB99',
+    'zB111','zB115','zB128','zB133','zB134','zB139','zB142','zB147','zB149','zB153','zB160','zB194',
+    'zB248','zB404','zB406','zB419','zB423','zB472','zB857',
+    'zG36',
+    'zS6','zS7','zS12'
+  ];
+  var TARGET_STATUS = '売却済み';
+
+  var sh = staff_getSheet_();
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return { ok: true, updated: 0, notFound: KANRI_LIST.slice() };
+
+  var kanriRange = sh.getRange(2, STAFF_COL.管理番号, lastRow - 1, 1).getValues();
+  var kanriToRow = Object.create(null);
+  for (var i = 0; i < kanriRange.length; i++) {
+    var k = String(kanriRange[i][0] || '').trim();
+    if (k) kanriToRow[k] = i + 2; // シート上の行番号
+  }
+
+  var updated = [];
+  var notFound = [];
+  for (var j = 0; j < KANRI_LIST.length; j++) {
+    var kanri = KANRI_LIST[j];
+    var rowNum = kanriToRow[kanri];
+    if (!rowNum) { notFound.push(kanri); continue; }
+    var current = String(sh.getRange(rowNum, STAFF_COL.ステータス).getValue() || '');
+    if (current === TARGET_STATUS) {
+      updated.push({ kanri: kanri, row: rowNum, prev: current, status: TARGET_STATUS, skipped: true });
+      continue;
+    }
+    sh.getRange(rowNum, STAFF_COL.ステータス).setValue(TARGET_STATUS);
+    updated.push({ kanri: kanri, row: rowNum, prev: current, status: TARGET_STATUS });
+  }
+
+  Logger.log('=== restoreSoldStatusBatch 結果 ===');
+  Logger.log('対象=' + KANRI_LIST.length + ' / 更新=' + updated.filter(function(u){ return !u.skipped; }).length
+    + ' / 既に売却済み=' + updated.filter(function(u){ return u.skipped; }).length
+    + ' / 見つからず=' + notFound.length);
+  for (var k = 0; k < updated.length; k++) {
+    var u = updated[k];
+    Logger.log((k + 1) + '. ' + u.kanri + ' 行' + u.row + ' [' + u.prev + ']→[' + u.status + ']' + (u.skipped ? ' (skip)' : ''));
+  }
+  if (notFound.length) Logger.log('見つからず: ' + notFound.join(', '));
+
+  return { ok: true, updated: updated, notFound: notFound };
+}
+
 // 全行のステータスを IFS 式に揃える（手動バックフィル用 / Apps Script エディタから実行）
 function staff_recalcAllStatus() {
   var sh = staff_getSheet_();
