@@ -167,6 +167,62 @@ function restoreSoldStatusBatch() {
   return { ok: true, updated: updated, notFound: notFound };
 }
 
+// 5/3 Ctrl+H 被害復旧の続き: 38件 (35件復旧 + 元々売却済み3件) の受付番号列を一括書き戻す
+// Apps Script エディタから setReceiptNoBatch() を実行する
+function setReceiptNoBatch() {
+  var KANRI_LIST = [
+    // 5/3 Ctrl+H 被害35件
+    'zB32','zB33','zB35','zB38','zB51','zB83','zB85','zB87','zB88','zB94','zB95','zB99',
+    'zB111','zB115','zB128','zB133','zB134','zB139','zB142','zB147','zB149','zB153','zB160','zB194',
+    'zB248','zB404','zB406','zB419','zB423','zB472','zB857',
+    'zG36',
+    'zS6','zS7','zS12',
+    // 元々売却済み3件 (既存値を上書き)
+    'zB70','zB125','zG112'
+  ];
+  var TARGET_VALUE = '20260210163541-716';
+
+  var sh = staff_getSheet_();
+  var lastRow = sh.getLastRow();
+  var lastCol = sh.getLastColumn();
+  if (lastRow < 2) return { ok: true, updated: 0, notFound: KANRI_LIST.slice() };
+
+  // 「受付番号」列をヘッダーから動的解決
+  var hdr = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+  var col = buildHeaderMap_(hdr);
+  var receiptCol = col['受付番号'];
+  if (!receiptCol) throw new Error('「受付番号」列がヘッダーに見つかりません');
+
+  var kanriRange = sh.getRange(2, STAFF_COL.管理番号, lastRow - 1, 1).getValues();
+  var kanriToRow = Object.create(null);
+  for (var i = 0; i < kanriRange.length; i++) {
+    var k = String(kanriRange[i][0] || '').trim();
+    if (k) kanriToRow[k] = i + 2;
+  }
+
+  var updated = [];
+  var notFound = [];
+  for (var j = 0; j < KANRI_LIST.length; j++) {
+    var kanri = KANRI_LIST[j];
+    var rowNum = kanriToRow[kanri];
+    if (!rowNum) { notFound.push(kanri); continue; }
+    var current = String(sh.getRange(rowNum, receiptCol).getValue() || '');
+    sh.getRange(rowNum, receiptCol).setValue(TARGET_VALUE);
+    updated.push({ kanri: kanri, row: rowNum, prev: current, value: TARGET_VALUE });
+  }
+
+  Logger.log('=== setReceiptNoBatch 結果 ===');
+  Logger.log('対象=' + KANRI_LIST.length + ' / 更新=' + updated.length + ' / 見つからず=' + notFound.length);
+  Logger.log('書き込み列=受付番号 (列' + receiptCol + ') / 値=' + TARGET_VALUE);
+  for (var k = 0; k < updated.length; k++) {
+    var u = updated[k];
+    Logger.log((k + 1) + '. ' + u.kanri + ' 行' + u.row + ' [旧:' + (u.prev || '空') + ']→[' + u.value + ']');
+  }
+  if (notFound.length) Logger.log('見つからず: ' + notFound.join(', '));
+
+  return { ok: true, updated: updated, notFound: notFound };
+}
+
 // 全行のステータスを IFS 式に揃える（手動バックフィル用 / Apps Script エディタから実行）
 function staff_recalcAllStatus() {
   var sh = staff_getSheet_();
