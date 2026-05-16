@@ -9,8 +9,10 @@
  *   POST /upload/list           — アップロード済み商品一覧（サムネイル付き）
  *   POST /upload/list-all       — 全商品の全画像URL一括取得
  *   POST /upload/product-images — 指定商品の画像URL一覧
- *   POST /upload/delete         — 商品画像の全削除
+ *   POST /upload/delete         — 商品画像の全削除（ソフトデリート: 7日間は復元可能）
  *   POST /upload/delete-single  — 個別画像の削除（targetUrl or imageIndex）
+ *   POST /upload/restore        — ソフトデリートした商品の復元
+ *   POST /upload/deleted-list   — 最近削除した商品の一覧（復元候補）
  *
  * 認証: Authorization: Bearer {token} → KV upload-token:{token}
  * R2パス: products/{managedId}/{uuid}.jpg（UUID v4）
@@ -86,6 +88,10 @@ export async function handleUpload(request, env, path) {
       return await handleDelete(request, env);
     case '/upload/delete-single':
       return await handleDeleteSingle(request, env);
+    case '/upload/restore':
+      return await handleRestore(request, env);
+    case '/upload/deleted-list':
+      return await handleDeletedList(request, env);
     case '/upload/update-image':
       return await handleUpdateImage(request, env);
     case '/upload/revert-image':
@@ -429,7 +435,11 @@ export async function serveImage(request, env, path) {
   return new Response(object.body, { headers });
 }
 
-// ─── 商品画像の全削除 ───
+// ─── 商品画像の全削除（ソフトデリート） ───
+
+// 削除した商品を復元可能な状態で保持する日数。
+// この期間を過ぎたものは Cron（sheets-sync.js）が R2画像ごと実削除する。
+const SOFT_DELETE_RETENTION_DAYS = 7;
 
 async function handleDelete(request, env) {
   let body;
@@ -444,18 +454,40 @@ async function handleDelete(request, env) {
     return jsonError('管理番号が必要です', 400);
   }
 
+  // 削除前の確認強化: 管理番号の再入力（confirm）が一致しないと実行しない（誤操作防止）
+  if (normalizeManagedId(body.confirm || '') !== managedId) {
+    return jsonError('確認のため管理番号をもう一度入力してください', 400);
+  }
+
   // KVから画像URL一覧を取得
-  const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
+  const [urlsJson, metaJson, saveLogJson] = await Promise.all([
+    env.CACHE.get(`product-images:${managedId}`),
+    env.CACHE.get(`photo-meta:${managedId}`),
+    env.CACHE.get(`save-log:${managedId}`),
+  ]);
   const urls = urlsJson ? JSON.parse(urlsJson) : [];
+  if (urls.length === 0) {
+    return jsonError('対象の商品が見つかりません', 404);
+  }
 
-  // R2から全画像を削除
-  const deletePromises = urls.map((url) => {
-    const r2Key = url.replace(/^\/images\//, '');
-    return env.IMAGES.delete(r2Key);
+  // ソフトデリート: R2画像は消さず deleted-product:{id} へ退避する（誤削除の復元用）。
+  // 実体の R2画像と image-backup KV はそのまま残し、保持期間経過後に Cron が purge する。
+  const now = Date.now();
+  const trash = {
+    managedId,
+    urls,
+    meta: metaJson ? JSON.parse(metaJson) : null,
+    saveLog: saveLogJson ? JSON.parse(saveLogJson) : null,
+    deletedAt: new Date(now).toISOString(),
+    deletedBy: (body.userName || '').trim() || '不明',
+    purgeAt: now + SOFT_DELETE_RETENTION_DAYS * 86400 * 1000,
+  };
+  // KV 自体は「保持期間 + 7日」のバックストップ TTL（Cron purge が失敗しても自然消滅）
+  await env.CACHE.put(`deleted-product:${managedId}`, JSON.stringify(trash), {
+    expirationTtl: (SOFT_DELETE_RETENTION_DAYS + 7) * 86400,
   });
-  await Promise.all(deletePromises);
 
-  // KVインデックスから削除
+  // 一覧からは即座に外す（R2画像とバックアップは保持期間中は残す）
   await env.CACHE.delete(`product-images:${managedId}`);
   await removeFromIndex(env, managedId);
   await syncThumbToShiire(env, managedId, []);
@@ -463,7 +495,85 @@ async function handleDelete(request, env) {
   await invalidateProductCache(env);
   await invalidateListCache(env);
 
-  return jsonOk({ managedId, deleted: urls.length });
+  return jsonOk({
+    managedId,
+    softDeleted: true,
+    count: urls.length,
+    deletedAt: trash.deletedAt,
+    retentionDays: SOFT_DELETE_RETENTION_DAYS,
+  });
+}
+
+// ─── ソフトデリートした商品の復元 ───
+
+async function handleRestore(request, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError('不正なリクエスト', 400);
+  }
+
+  const managedId = normalizeManagedId(body.managedId || '');
+  if (!managedId) return jsonError('管理番号が必要です', 400);
+
+  const trashJson = await env.CACHE.get(`deleted-product:${managedId}`);
+  if (!trashJson) {
+    return jsonError('復元データが見つかりません（保持期間切れの可能性）', 404);
+  }
+  const trash = JSON.parse(trashJson);
+
+  // R2実体が残っているURLだけを復元対象にする
+  const existing = [];
+  for (const url of trash.urls || []) {
+    const r2Key = url.replace(/^\/images\//, '');
+    const head = await env.IMAGES.head(r2Key);
+    if (head) existing.push(url);
+  }
+  if (existing.length === 0) {
+    return jsonError('画像の実体が既に削除されています（復元不可）', 410);
+  }
+
+  await env.CACHE.put(`product-images:${managedId}`, JSON.stringify(existing));
+  await addToIndex(env, managedId);
+  await syncThumbToShiire(env, managedId, existing);
+  await env.CACHE.delete(`deleted-product:${managedId}`);
+
+  await invalidateProductCache(env);
+  await invalidateListCache(env);
+
+  return jsonOk({
+    managedId,
+    restored: existing.length,
+    missing: (trash.urls || []).length - existing.length,
+  });
+}
+
+// ─── 最近削除した商品の一覧（復元候補） ───
+
+async function handleDeletedList(request, env) {
+  const prefix = 'deleted-product:';
+  const list = await env.CACHE.list({ prefix }).catch(() => ({ keys: [] }));
+
+  const items = [];
+  for (const entry of list.keys) {
+    const json = await env.CACHE.get(entry.name);
+    if (!json) continue;
+    const t = JSON.parse(json);
+    const daysLeft = Math.max(0, Math.ceil((t.purgeAt - Date.now()) / 86400000));
+    items.push({
+      managedId: entry.name.slice(prefix.length),
+      thumbnail: (t.urls && t.urls[0]) || null,
+      count: (t.urls || []).length,
+      deletedAt: t.deletedAt || '',
+      deletedBy: t.deletedBy || '不明',
+      daysLeft,
+    });
+  }
+  // 削除日時の新しい順
+  items.sort((a, b) => (b.deletedAt || '').localeCompare(a.deletedAt || ''));
+
+  return jsonOk({ items });
 }
 
 // ─── 個別画像の削除 ───

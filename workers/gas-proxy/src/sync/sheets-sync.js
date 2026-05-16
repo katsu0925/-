@@ -127,6 +127,9 @@ export async function scheduledSync(env) {
     // 9. 孤立画像クリーンアップ（30日以上未マッチ）
     await cleanupOrphanedImages(env);
 
+    // 10. ソフトデリート商品の purge（保持期間切れの R2画像を実削除）
+    await purgeSoftDeletedProducts(env);
+
     console.log('[sync] Sync completed successfully');
   } catch (e) {
     console.error('[sync] Sync error:', e.message, e.stack);
@@ -1049,6 +1052,44 @@ async function cleanupOrphanedImages(env) {
     }
   } catch (e) {
     console.error('[sync] cleanupOrphanedImages error:', e.message);
+  }
+}
+
+/**
+ * ソフトデリート商品の purge。
+ * /upload/delete はソフトデリート（deleted-product:{id} KV へ退避）になり、
+ * R2画像は即削除しない。保持期間（purgeAt）を過ぎた分だけここで実削除する。
+ */
+async function purgeSoftDeletedProducts(env) {
+  try {
+    const list = await env.CACHE.list({ prefix: 'deleted-product:' });
+    const now = Date.now();
+    let purged = 0;
+
+    for (const entry of list.keys) {
+      const json = await env.CACHE.get(entry.name);
+      if (!json) continue;
+      const trash = JSON.parse(json);
+
+      // 保持期間内は温存（誤削除の復元用）
+      if (typeof trash.purgeAt === 'number' && now < trash.purgeAt) continue;
+
+      // R2画像と image-backup を実削除
+      for (const url of trash.urls || []) {
+        const r2Key = url.replace(/^\/images\//, '').split('?')[0];
+        await env.IMAGES.delete(r2Key);
+        await env.CACHE.delete(`image-backup:${trash.managedId}:${url}`);
+      }
+      await env.CACHE.delete(entry.name);
+      purged++;
+      console.log(`[sync] Purged soft-deleted product ${trash.managedId} (${(trash.urls || []).length} images)`);
+    }
+
+    if (purged > 0) {
+      console.log(`[sync] Purged ${purged} soft-deleted product(s)`);
+    }
+  } catch (e) {
+    console.error('[sync] purgeSoftDeletedProducts error:', e.message);
   }
 }
 

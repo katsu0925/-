@@ -265,6 +265,12 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
         <div id="manageList"></div>
         <div class="status" id="manageStatus"></div>
       </div>
+      <div class="card" id="deletedCard" style="display:none;margin-top:12px">
+        <h3 style="font-size:14px;font-weight:700;margin:0 0 4px">最近削除した商品</h3>
+        <p style="font-size:11px;color:#999;margin:0 0 10px">削除から7日以内は復元できます。7日経過後は画像が完全に削除されます。</p>
+        <div id="deletedList"></div>
+        <div class="status" id="deletedStatus"></div>
+      </div>
     </div>
   </div>
 
@@ -287,6 +293,10 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
   <div id="confirmModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
     <div class="card" style="width:90%;max-width:360px;margin:0;text-align:center">
       <p id="confirmMessage" style="font-size:14px;font-weight:600;margin-bottom:16px"></p>
+      <div id="confirmInputWrap" style="display:none;margin-bottom:16px">
+        <p id="confirmInputHint" style="font-size:12px;color:#666;margin-bottom:6px"></p>
+        <input type="text" id="confirmInput" autocomplete="off" oninput="onConfirmInput()" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:14px;text-align:center">
+      </div>
       <div style="display:flex;gap:8px">
         <button class="btn btn-secondary" style="flex:1" onclick="closeConfirm(false)">キャンセル</button>
         <button id="confirmOkBtn" class="btn btn-danger" style="flex:1" onclick="closeConfirm(true)">削除する</button>
@@ -731,7 +741,10 @@ function switchTab(name) {
       f.classList.toggle('show', t === name);
     }
   });
-  if (name === 'manage') ensureListLoaded(function() { renderManageList(); });
+  if (name === 'manage') {
+    ensureListLoaded(function() { renderManageList(); });
+    loadDeletedList();
+  }
 }
 
 // ─── セクション1: アップロード（既存画像検出付き） ───
@@ -3190,24 +3203,24 @@ function deleteManageImages(managedId) {
   if (checks.length === 0) { showStatus('manageStatus', '画像を選択してください', 'err'); return; }
   var allChecks = document.querySelectorAll('.dl-img-check');
   if (checks.length === allChecks.length) {
-    // 全画像選択 → 全削除
-    showConfirm(managedId + ' の画像を全て削除しますか？', function() {
+    // 全画像選択 → 全削除（ソフトデリート: 7日間は復元可能）
+    showConfirm(managedId + ' の画像を全て削除しますか？\n（7日間は「最近削除した商品」から復元できます）', function() {
       showLoading('削除中', managedId);
       fetch(API_BASE + '/upload/delete', {
         method: 'POST',
         headers: headers({ 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ managedId: managedId })
+        body: JSON.stringify({ managedId: managedId, confirm: managedId, userName: localStorage.getItem(PHOTOGRAPHER_KEY) || '' })
       }).then(function(r) { return r.json(); })
       .then(function(d) {
         hideLoading();
         if (d.ok) {
-          showStatus('manageStatus', d.deleted + '枚削除しました', 'ok');
+          showStatus('manageStatus', d.count + '枚削除しました（7日間は復元可能）', 'ok');
           var el = document.getElementById('manageDetailInline'); if (el) el.remove();
           _manageExpandedMid = '';
-          reloadList(function() { renderManageList(); });
+          reloadList(function() { renderManageList(); loadDeletedList(); });
         } else { showStatus('manageStatus', d.message || 'エラー', 'err'); }
       }).catch(function() { hideLoading(); showStatus('manageStatus', 'ネットワークエラー', 'err'); });
-    });
+    }, '削除する', 'btn btn-danger', managedId);
   } else {
     // 一部選択 → URL直接指定で削除（インデックスずれ防止）
     var targetUrls = [];
@@ -3697,28 +3710,29 @@ function doDeleteSelected() {
   if (checks.length === 0) return;
   var mids = [];
   checks.forEach(function(c) { mids.push(c.dataset.mid); });
-  showConfirm(mids.length + '件の商品画像を全て削除しますか？', function() {
+  showConfirm(mids.length + '件の商品画像を全て削除しますか？\n（7日間は「最近削除した商品」から復元できます）', function() {
     _doDeleteSelectedBatch(mids);
-  });
+  }, '削除する', 'btn btn-danger', '削除');
 }
 
 function _doDeleteSelectedBatch(mids) {
   showLoading('一括削除中', '0/' + mids.length);
   var done = 0;
   var totalDeleted = 0;
+  var userName = localStorage.getItem(PHOTOGRAPHER_KEY) || '';
   mids.forEach(function(mid) {
     fetch(API_BASE + '/upload/delete', {
       method: 'POST',
       headers: headers({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ managedId: mid })
+      body: JSON.stringify({ managedId: mid, confirm: mid, userName: userName })
     }).then(function(r) { return r.json(); })
     .then(function(d) {
       done++;
-      if (d.ok) totalDeleted += (d.deleted || 0);
+      if (d.ok) totalDeleted += (d.count || 0);
       updateLoading('一括削除中', done + '/' + mids.length);
       if (done === mids.length) {
         hideLoading();
-        showStatus('manageStatus', mids.length + '件（' + totalDeleted + '枚）削除しました', 'ok');
+        showStatus('manageStatus', mids.length + '件（' + totalDeleted + '枚）削除しました（7日間は復元可能）', 'ok');
         var el = document.getElementById('manageDetailInline'); if (el) el.remove();
         _manageExpandedMid = '';
         reloadList(function() { renderManageList(); });
@@ -3736,8 +3750,10 @@ function _doDeleteSelectedBatch(mids) {
 
 // ─── 確認モーダル ───
 var _confirmCallback = null;
-function showConfirm(msg, cb, okLabel, okClass) {
+var _confirmRequireText = '';
+function showConfirm(msg, cb, okLabel, okClass, requireText) {
   _confirmCallback = cb;
+  _confirmRequireText = requireText || '';
   document.getElementById('confirmMessage').textContent = msg;
   var ok = document.getElementById('confirmOkBtn');
   if (ok) {
@@ -3745,14 +3761,94 @@ function showConfirm(msg, cb, okLabel, okClass) {
     ok.className = okClass || 'btn btn-danger';
     ok.style.flex = '1';
   }
+  var wrap = document.getElementById('confirmInputWrap');
+  var input = document.getElementById('confirmInput');
+  if (_confirmRequireText) {
+    document.getElementById('confirmInputHint').textContent = '確認のため「' + _confirmRequireText + '」と入力してください';
+    input.value = '';
+    wrap.style.display = 'block';
+    if (ok) ok.disabled = true;
+    setTimeout(function() { input.focus(); }, 50);
+  } else {
+    wrap.style.display = 'none';
+    if (ok) ok.disabled = false;
+  }
   var modal = document.getElementById('confirmModal');
   modal.style.display = 'flex';
+}
+function onConfirmInput() {
+  var input = document.getElementById('confirmInput');
+  var ok = document.getElementById('confirmOkBtn');
+  if (!ok) return;
+  ok.disabled = normId(input.value) !== normId(_confirmRequireText);
 }
 function closeConfirm(ok) {
   var modal = document.getElementById('confirmModal');
   modal.style.display = 'none';
+  document.getElementById('confirmInputWrap').style.display = 'none';
+  _confirmRequireText = '';
   if (ok && _confirmCallback) _confirmCallback();
   _confirmCallback = null;
+}
+
+// ─── 最近削除した商品（ソフトデリート復元） ───
+function loadDeletedList() {
+  var card = document.getElementById('deletedCard');
+  fetch(API_BASE + '/upload/deleted-list', {
+    method: 'POST',
+    headers: headers({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({})
+  }).then(function(r) { return r.json(); })
+  .then(function(d) {
+    if (d.ok && d.items && d.items.length > 0) {
+      card.style.display = 'block';
+      renderDeletedList(d.items);
+    } else {
+      card.style.display = 'none';
+    }
+  }).catch(function() { card.style.display = 'none'; });
+}
+
+function renderDeletedList(items) {
+  var html = '';
+  items.forEach(function(it) {
+    var thumb = it.thumbnail ? (API_BASE + it.thumbnail) : '';
+    var thumbHtml = thumb
+      ? '<img src="' + thumb + '" style="width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0">'
+      : '<div style="width:48px;height:48px;border-radius:6px;background:#eee;flex-shrink:0"></div>';
+    var by = it.deletedBy ? ('・' + escapeHtml(it.deletedBy)) : '';
+    html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0f0f0">'
+      + thumbHtml
+      + '<div style="flex:1;min-width:0">'
+      +   '<div style="font-weight:600;font-size:13px">' + escapeHtml(it.managedId) + '</div>'
+      +   '<div style="font-size:11px;color:#999">' + it.count + '枚' + by + '・残り' + it.daysLeft + '日</div>'
+      + '</div>'
+      + '<button class="btn btn-primary" style="flex:0 0 auto;padding:6px 12px;font-size:12px" onclick="restoreProduct(\'' + escapeHtml(it.managedId) + '\')">復元</button>'
+      + '</div>';
+  });
+  document.getElementById('deletedList').innerHTML = html;
+}
+
+function restoreProduct(managedId) {
+  showConfirm(managedId + ' を復元しますか？', function() {
+    showLoading('復元中', managedId);
+    fetch(API_BASE + '/upload/restore', {
+      method: 'POST',
+      headers: headers({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ managedId: managedId })
+    }).then(function(r) { return r.json(); })
+    .then(function(d) {
+      hideLoading();
+      if (d.ok) {
+        var msg = d.restored + '枚復元しました';
+        if (d.missing > 0) msg += '（' + d.missing + '枚は画像が失われていて復元できませんでした）';
+        showStatus('deletedStatus', msg, d.missing > 0 ? 'err' : 'ok');
+        reloadList(function() { renderManageList(); loadDeletedList(); });
+      } else {
+        showStatus('deletedStatus', d.message || 'エラー', 'err');
+      }
+    }).catch(function() { hideLoading(); showStatus('deletedStatus', 'ネットワークエラー', 'err'); });
+  }, '復元する', 'btn btn-primary');
 }
 
 // ─── ユーティリティ ───
