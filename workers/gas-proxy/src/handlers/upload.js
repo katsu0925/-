@@ -10,9 +10,10 @@
  *   POST /upload/list-all       — 全商品の全画像URL一括取得
  *   POST /upload/product-images — 指定商品の画像URL一覧
  *   POST /upload/delete         — 商品画像の全削除（ソフトデリート: 7日間は復元可能）
- *   POST /upload/delete-single  — 個別画像の削除（targetUrl or imageIndex）
+ *   POST /upload/delete-single  — 個別画像の削除（ソフトデリート: 7日間は復元可能）
  *   POST /upload/restore        — ソフトデリートした商品の復元
- *   POST /upload/deleted-list   — 最近削除した商品の一覧（復元候補）
+ *   POST /upload/restore-image  — ソフトデリートした個別画像の復元
+ *   POST /upload/deleted-list   — 最近削除した商品・画像の一覧（復元候補）
  *
  * 認証: Authorization: Bearer {token} → KV upload-token:{token}
  * R2パス: products/{managedId}/{uuid}.jpg（UUID v4）
@@ -90,6 +91,8 @@ export async function handleUpload(request, env, path) {
       return await handleDeleteSingle(request, env);
     case '/upload/restore':
       return await handleRestore(request, env);
+    case '/upload/restore-image':
+      return await handleRestoreImage(request, env);
     case '/upload/deleted-list':
       return await handleDeletedList(request, env);
     case '/upload/update-image':
@@ -549,20 +552,21 @@ async function handleRestore(request, env) {
   });
 }
 
-// ─── 最近削除した商品の一覧（復元候補） ───
+// ─── 最近削除した商品・画像の一覧（復元候補） ───
 
 async function handleDeletedList(request, env) {
-  const prefix = 'deleted-product:';
-  const list = await env.CACHE.list({ prefix }).catch(() => ({ keys: [] }));
-
   const items = [];
-  for (const entry of list.keys) {
+
+  // 商品まるごと削除（deleted-product:）
+  const prodList = await env.CACHE.list({ prefix: 'deleted-product:' }).catch(() => ({ keys: [] }));
+  for (const entry of prodList.keys) {
     const json = await env.CACHE.get(entry.name);
     if (!json) continue;
     const t = JSON.parse(json);
     const daysLeft = Math.max(0, Math.ceil((t.purgeAt - Date.now()) / 86400000));
     items.push({
-      managedId: entry.name.slice(prefix.length),
+      type: 'product',
+      managedId: entry.name.slice('deleted-product:'.length),
       thumbnail: (t.urls && t.urls[0]) || null,
       count: (t.urls || []).length,
       deletedAt: t.deletedAt || '',
@@ -570,6 +574,26 @@ async function handleDeletedList(request, env) {
       daysLeft,
     });
   }
+
+  // 個別画像の削除・上書き旧版（deleted-image:）
+  const imgList = await env.CACHE.list({ prefix: 'deleted-image:' }).catch(() => ({ keys: [] }));
+  for (const entry of imgList.keys) {
+    const json = await env.CACHE.get(entry.name);
+    if (!json) continue;
+    const t = JSON.parse(json);
+    const daysLeft = Math.max(0, Math.ceil((t.purgeAt - Date.now()) / 86400000));
+    items.push({
+      type: 'image',
+      managedId: t.managedId || '',
+      url: t.url || '',
+      thumbnail: t.url || null,
+      count: 1,
+      deletedAt: t.deletedAt || '',
+      deletedBy: t.deletedBy || '不明',
+      daysLeft,
+    });
+  }
+
   // 削除日時の新しい順
   items.sort((a, b) => (b.deletedAt || '').localeCompare(a.deletedAt || ''));
 
@@ -614,11 +638,24 @@ async function handleDeleteSingle(request, env) {
     return jsonError('削除対象の画像を指定してください（targetUrl または imageIndex）', 400);
   }
 
-  // R2から削除
-  const r2Key = urlToDelete.replace(/^\/images\//, '');
-  await env.IMAGES.delete(r2Key);
+  // ソフトデリート: R2実体は消さず deleted-image:{id}:{fileId} へ退避（7日間は復元可能）
+  const position = urls.indexOf(urlToDelete);
+  const fileId = urlToDelete.split('/').pop().replace(/\.jpg$/i, '');
+  const now = Date.now();
+  await env.CACHE.put(
+    `deleted-image:${managedId}:${fileId}`,
+    JSON.stringify({
+      managedId,
+      url: urlToDelete,
+      position,
+      deletedAt: new Date(now).toISOString(),
+      deletedBy: (body.userName || '').trim() || '不明',
+      purgeAt: now + SOFT_DELETE_RETENTION_DAYS * 86400 * 1000,
+    }),
+    { expirationTtl: (SOFT_DELETE_RETENTION_DAYS + 7) * 86400 }
+  );
 
-  // KV更新
+  // KV更新（一覧からは即座に外す。R2実体は保持期間中は残し、Cron が purge する）
   urls = urls.filter(u => u !== urlToDelete);
   if (urls.length === 0) {
     await env.CACHE.delete(`product-images:${managedId}`);
@@ -630,7 +667,57 @@ async function handleDeleteSingle(request, env) {
 
   await invalidateProductCache(env);
   await invalidateListCache(env);
-  return jsonOk({ managedId, deleted: urlToDelete, remaining: urls.length });
+  return jsonOk({ managedId, deleted: urlToDelete, remaining: urls.length, softDeleted: true });
+}
+
+// ─── ソフトデリートした個別画像の復元 ───
+
+async function handleRestoreImage(request, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonError('不正なリクエスト', 400);
+  }
+
+  const managedId = normalizeManagedId(body.managedId || '');
+  if (!managedId) return jsonError('管理番号が必要です', 400);
+  const url = body.url || '';
+  if (!url) return jsonError('復元対象の画像URLが必要です', 400);
+
+  const fileId = url.split('/').pop().replace(/\.jpg$/i, '');
+  const stashKey = `deleted-image:${managedId}:${fileId}`;
+  const stashJson = await env.CACHE.get(stashKey);
+  if (!stashJson) {
+    return jsonError('復元データが見つかりません（保持期間切れの可能性）', 404);
+  }
+  const stash = JSON.parse(stashJson);
+
+  // R2実体が残っているか確認
+  const r2Key = url.replace(/^\/images\//, '');
+  const head = await env.IMAGES.head(r2Key);
+  if (!head) {
+    await env.CACHE.delete(stashKey);
+    return jsonError('画像の実体が既に削除されています（復元不可）', 410);
+  }
+
+  // product-images に元の位置で挿入（重複は除く）
+  const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
+  const urls = urlsJson ? JSON.parse(urlsJson) : [];
+  if (!urls.includes(url)) {
+    let pos = typeof stash.position === 'number' ? stash.position : urls.length;
+    if (pos < 0 || pos > urls.length) pos = urls.length;
+    urls.splice(pos, 0, url);
+  }
+  await env.CACHE.put(`product-images:${managedId}`, JSON.stringify(urls));
+  await addToIndex(env, managedId);
+  await syncThumbToShiire(env, managedId, urls);
+  await env.CACHE.delete(stashKey);
+
+  await invalidateProductCache(env);
+  await invalidateListCache(env);
+
+  return jsonOk({ managedId, restored: url, count: urls.length });
 }
 
 // ─── 指定画像の上書き ───
@@ -683,11 +770,28 @@ async function handleUpdateImage(request, env) {
   // 先頭画像が置換された場合に備えて thumb_url を同期
   if (targetIndex === 0) await syncThumbToShiire(env, managedId, urls);
 
-  // バックアップ：newUrl → targetUrl を 7日間保持（誤置換の復元用）
+  // バックアップ：newUrl → targetUrl を保持（直前に戻す「元に戻す」用）
   await env.CACHE.put(
     `image-backup:${managedId}:${newUrl}`,
     targetUrl,
-    { expirationTtl: 7 * 86400 }
+    { expirationTtl: SOFT_DELETE_RETENTION_DAYS * 86400 }
+  );
+
+  // 上書きで外れた旧版も deleted-image: へ退避（「最近削除した商品・画像」から復元可能。
+  // 保持期間後に Cron が R2 を purge するので孤立画像も残さない）
+  const oldFileId = targetUrl.split('/').pop().replace(/\.jpg$/i, '');
+  const nowTs = Date.now();
+  await env.CACHE.put(
+    `deleted-image:${managedId}:${oldFileId}`,
+    JSON.stringify({
+      managedId,
+      url: targetUrl,
+      position: targetIndex,
+      deletedAt: new Date(nowTs).toISOString(),
+      deletedBy: '画像上書き',
+      purgeAt: nowTs + SOFT_DELETE_RETENTION_DAYS * 86400 * 1000,
+    }),
+    { expirationTtl: (SOFT_DELETE_RETENTION_DAYS + 7) * 86400 }
   );
 
   await invalidateProductCache(env);
@@ -730,6 +834,10 @@ async function handleRevertImage(request, env) {
   urls[idx] = oldUrl;
   await env.CACHE.put(`product-images:${managedId}`, JSON.stringify(urls));
   if (idx === 0) await syncThumbToShiire(env, managedId, urls);
+
+  // 旧版が現役に復帰したので deleted-image: 退避を解除（Cron による誤 purge を防ぐ）
+  const revertedFileId = oldUrl.split('/').pop().replace(/\.jpg$/i, '');
+  await env.CACHE.delete(`deleted-image:${managedId}:${revertedFileId}`);
 
   // 現在（置換後）のR2画像を削除
   const currentR2Key = currentUrl.replace(/^\/images\//, '');

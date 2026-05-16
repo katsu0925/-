@@ -1088,6 +1088,28 @@ async function purgeSoftDeletedProducts(env) {
     if (purged > 0) {
       console.log(`[sync] Purged ${purged} soft-deleted product(s)`);
     }
+
+    // 個別画像のソフトデリート分（delete-single / 画像上書きの旧版）も purge
+    const imgList = await env.CACHE.list({ prefix: 'deleted-image:' });
+    let purgedImages = 0;
+    for (const entry of imgList.keys) {
+      const json = await env.CACHE.get(entry.name);
+      if (!json) continue;
+      const stash = JSON.parse(json);
+
+      // 保持期間内は温存（誤削除の復元用）
+      if (typeof stash.purgeAt === 'number' && now < stash.purgeAt) continue;
+
+      if (stash.url) {
+        const r2Key = stash.url.replace(/^\/images\//, '').split('?')[0];
+        await env.IMAGES.delete(r2Key);
+      }
+      await env.CACHE.delete(entry.name);
+      purgedImages++;
+    }
+    if (purgedImages > 0) {
+      console.log(`[sync] Purged ${purgedImages} soft-deleted image(s)`);
+    }
   } catch (e) {
     console.error('[sync] purgeSoftDeletedProducts error:', e.message);
   }

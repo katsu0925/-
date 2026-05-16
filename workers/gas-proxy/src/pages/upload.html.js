@@ -266,7 +266,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
         <div class="status" id="manageStatus"></div>
       </div>
       <div class="card" id="deletedCard" style="display:none;margin-top:12px">
-        <h3 style="font-size:14px;font-weight:700;margin:0 0 4px">最近削除した商品</h3>
+        <h3 style="font-size:14px;font-weight:700;margin:0 0 4px">最近削除した商品・画像</h3>
         <p style="font-size:11px;color:#999;margin:0 0 10px">削除から7日以内は復元できます。7日経過後は画像が完全に削除されます。</p>
         <div id="deletedList"></div>
         <div class="status" id="deletedStatus"></div>
@@ -3225,7 +3225,7 @@ function deleteManageImages(managedId) {
     // 一部選択 → URL直接指定で削除（インデックスずれ防止）
     var targetUrls = [];
     checks.forEach(function(c) { targetUrls.push(c.dataset.url); });
-    showConfirm(targetUrls.length + '枚の画像を削除しますか？', function() {
+    showConfirm(targetUrls.length + '枚の画像を削除しますか？\\n（7日間は「最近削除した商品・画像」から復元できます）', function() {
       var total = targetUrls.length;
       var done = 0;
       showLoading('削除中', '0/' + total);
@@ -3235,14 +3235,14 @@ function deleteManageImages(managedId) {
           showStatus('manageStatus', total + '枚削除しました', 'ok');
           var mid = managedId;
           _manageExpandedMid = '';
-          reloadList(function() { renderManageList(); toggleManageExpand(mid); });
+          reloadList(function() { renderManageList(); toggleManageExpand(mid); loadDeletedList(); });
           return;
         }
         updateLoading('削除中', (done+1) + '/' + total);
         fetch(API_BASE + '/upload/delete-single', {
           method: 'POST',
           headers: headers({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ managedId: managedId, targetUrl: targetUrls[done] })
+          body: JSON.stringify({ managedId: managedId, targetUrl: targetUrls[done], userName: localStorage.getItem(PHOTOGRAPHER_KEY) || '' })
         }).then(function(r) { return r.json(); })
         .then(function() { done++; delNext(); })
         .catch(function() { done++; delNext(); });
@@ -3817,13 +3817,23 @@ function renderDeletedList(items) {
       ? '<img src="' + thumb + '" style="width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0">'
       : '<div style="width:48px;height:48px;border-radius:6px;background:#eee;flex-shrink:0"></div>';
     var by = it.deletedBy ? ('・' + escapeHtml(it.deletedBy)) : '';
+    var isImage = it.type === 'image';
+    var label = isImage
+      ? (escapeHtml(it.managedId) + ' <span style="color:#999;font-weight:400;font-size:11px">画像1枚</span>')
+      : escapeHtml(it.managedId);
+    var meta = isImage
+      ? ('画像削除' + by + '・残り' + it.daysLeft + '日')
+      : (it.count + '枚' + by + '・残り' + it.daysLeft + '日');
+    var btn = isImage
+      ? '<button class="btn btn-primary" style="flex:0 0 auto;padding:6px 12px;font-size:12px" onclick="restoreImage(\\'' + escapeHtml(it.managedId) + '\\',\\'' + escapeHtml(it.url) + '\\')">復元</button>'
+      : '<button class="btn btn-primary" style="flex:0 0 auto;padding:6px 12px;font-size:12px" onclick="restoreProduct(\\'' + escapeHtml(it.managedId) + '\\')">復元</button>';
     html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0f0f0">'
       + thumbHtml
       + '<div style="flex:1;min-width:0">'
-      +   '<div style="font-weight:600;font-size:13px">' + escapeHtml(it.managedId) + '</div>'
-      +   '<div style="font-size:11px;color:#999">' + it.count + '枚' + by + '・残り' + it.daysLeft + '日</div>'
+      +   '<div style="font-weight:600;font-size:13px">' + label + '</div>'
+      +   '<div style="font-size:11px;color:#999">' + meta + '</div>'
       + '</div>'
-      + '<button class="btn btn-primary" style="flex:0 0 auto;padding:6px 12px;font-size:12px" onclick="restoreProduct(\\'' + escapeHtml(it.managedId) + '\\')">復元</button>'
+      + btn
       + '</div>';
   });
   document.getElementById('deletedList').innerHTML = html;
@@ -3843,6 +3853,26 @@ function restoreProduct(managedId) {
         var msg = d.restored + '枚復元しました';
         if (d.missing > 0) msg += '（' + d.missing + '枚は画像が失われていて復元できませんでした）';
         showStatus('deletedStatus', msg, d.missing > 0 ? 'err' : 'ok');
+        reloadList(function() { renderManageList(); loadDeletedList(); });
+      } else {
+        showStatus('deletedStatus', d.message || 'エラー', 'err');
+      }
+    }).catch(function() { hideLoading(); showStatus('deletedStatus', 'ネットワークエラー', 'err'); });
+  }, '復元する', 'btn btn-primary');
+}
+
+function restoreImage(managedId, url) {
+  showConfirm(managedId + ' の画像を1枚復元しますか？', function() {
+    showLoading('復元中', managedId);
+    fetch(API_BASE + '/upload/restore-image', {
+      method: 'POST',
+      headers: headers({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ managedId: managedId, url: url })
+    }).then(function(r) { return r.json(); })
+    .then(function(d) {
+      hideLoading();
+      if (d.ok) {
+        showStatus('deletedStatus', '画像を復元しました', 'ok');
         reloadList(function() { renderManageList(); loadDeletedList(); });
       } else {
         showStatus('deletedStatus', d.message || 'エラー', 'err');
