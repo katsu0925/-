@@ -292,7 +292,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
   <!-- 確認モーダル -->
   <div id="confirmModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.5);z-index:200;align-items:center;justify-content:center">
     <div class="card" style="width:90%;max-width:360px;margin:0;text-align:center">
-      <p id="confirmMessage" style="font-size:14px;font-weight:600;margin-bottom:16px"></p>
+      <p id="confirmMessage" style="font-size:14px;font-weight:600;margin-bottom:16px;white-space:pre-line"></p>
       <div id="confirmInputWrap" style="display:none;margin-bottom:16px">
         <p id="confirmInputHint" style="font-size:12px;color:#666;margin-bottom:6px"></p>
         <input type="text" id="confirmInput" autocomplete="off" oninput="onConfirmInput()" style="width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:14px;text-align:center">
@@ -3204,7 +3204,7 @@ function deleteManageImages(managedId) {
   var allChecks = document.querySelectorAll('.dl-img-check');
   if (checks.length === allChecks.length) {
     // 全画像選択 → 全削除（ソフトデリート: 7日間は復元可能）
-    showConfirm(managedId + ' の画像を全て削除しますか？\n（7日間は「最近削除した商品」から復元できます）', function() {
+    showConfirm(managedId + ' の画像を全て削除しますか？\\n（7日間は「最近削除した商品」から復元できます）', function() {
       showLoading('削除中', managedId);
       fetch(API_BASE + '/upload/delete', {
         method: 'POST',
@@ -3710,7 +3710,7 @@ function doDeleteSelected() {
   if (checks.length === 0) return;
   var mids = [];
   checks.forEach(function(c) { mids.push(c.dataset.mid); });
-  showConfirm(mids.length + '件の商品画像を全て削除しますか？\n（7日間は「最近削除した商品」から復元できます）', function() {
+  showConfirm(mids.length + '件の商品画像を全て削除しますか？\\n（7日間は「最近削除した商品」から復元できます）', function() {
     _doDeleteSelectedBatch(mids);
   }, '削除する', 'btn btn-danger', '削除');
 }
@@ -3823,7 +3823,7 @@ function renderDeletedList(items) {
       +   '<div style="font-weight:600;font-size:13px">' + escapeHtml(it.managedId) + '</div>'
       +   '<div style="font-size:11px;color:#999">' + it.count + '枚' + by + '・残り' + it.daysLeft + '日</div>'
       + '</div>'
-      + '<button class="btn btn-primary" style="flex:0 0 auto;padding:6px 12px;font-size:12px" onclick="restoreProduct(\'' + escapeHtml(it.managedId) + '\')">復元</button>'
+      + '<button class="btn btn-primary" style="flex:0 0 auto;padding:6px 12px;font-size:12px" onclick="restoreProduct(\\'' + escapeHtml(it.managedId) + '\\')">復元</button>'
       + '</div>';
   });
   document.getElementById('deletedList').innerHTML = html;
