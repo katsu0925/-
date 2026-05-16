@@ -327,13 +327,20 @@ body.staff .cover { background: linear-gradient(135deg, #2faa55 0%, #1a6a3e 100%
   html, body { background: #f4f5f7; }
   body {
     max-width: 820px;
-    margin: 0 0 0 248px;
+    margin: 0 auto 0 max(248px, calc(124px + (100vw - 884px) / 2));
     padding: 24px 32px 64px;
     background: #fff;
     box-shadow: 0 4px 24px rgba(0,0,0,0.08);
     min-height: 100vh;
+    line-height: 1.95;
+    font-size: 11pt;
   }
   body.staff, body.admin { background: #fff; }
+  p { margin: 0 0 3.5mm 0; line-height: 1.95; }
+  li { margin: 0 0 2mm 0; line-height: 1.9; }
+  ul, ol { margin: 2mm 0 5mm; }
+  h2 { margin-top: 8mm; }
+  h3, h4 { margin-top: 6mm; }
   /* 左サイドバー目次 */
   #sidebar {
     position: fixed;
@@ -438,6 +445,27 @@ body.staff .cover { background: linear-gradient(135deg, #2faa55 0%, #1a6a3e 100%
 @media print {
   #sidebar { display: none !important; }
   .chapter { display: block !important; }
+}
+/* スマホ表示: サイドバーを上部に折りたたみ、本文を全幅・大きめ文字に */
+@media screen and (max-width: 820px) {
+  html, body { font-size: 13pt; }
+  body {
+    max-width: 100%;
+    margin: 0;
+    padding: 16px 16px 48px;
+    box-shadow: none;
+    line-height: 2;
+  }
+  #sidebar {
+    position: static;
+    width: 100%;
+    height: auto;
+    max-height: 42vh;
+  }
+  .cover { margin: -16px -16px 24px; width: calc(100% + 32px); }
+  h1 { font-size: 19pt; }
+  h2 { font-size: 15pt; }
+  h3, h4 { font-size: 13pt; }
 }
 </style>
 </head>
