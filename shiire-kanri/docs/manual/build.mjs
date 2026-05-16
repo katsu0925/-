@@ -111,12 +111,55 @@ const WEB_STYLE = `
   html, body { background: #f4f5f7; }
   body {
     max-width: 820px;
-    margin: 0 auto;
+    margin: 0 0 0 248px;
     padding: 24px 32px 64px;
     background: #fff;
     box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    min-height: 100vh;
   }
   body.staff, body.admin { background: #fff; }
+  /* 左サイドバー目次 */
+  #sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 248px;
+    height: 100vh;
+    overflow-y: auto;
+    background: #1b2330;
+    padding: 0 0 24px;
+    box-sizing: border-box;
+    z-index: 200;
+  }
+  #sidebar .nav-title {
+    font-size: 13px;
+    font-weight: bold;
+    color: #fff;
+    padding: 16px 18px 12px;
+    line-height: 1.45;
+    border-bottom: 1px solid #2c3a4f;
+    margin-bottom: 6px;
+  }
+  #sidebar a {
+    display: block;
+    padding: 8px 18px;
+    color: #cdd8e6;
+    text-decoration: none;
+    font-size: 13px;
+    line-height: 1.45;
+    border-left: 3px solid transparent;
+    cursor: pointer;
+  }
+  #sidebar a:hover { background: #283447; color: #fff; }
+  #sidebar a.active {
+    background: #283447;
+    color: #fff;
+    border-left-color: #1f6feb;
+    font-weight: bold;
+  }
+  /* クリックした章だけ表示 */
+  .chapter { display: none; }
+  .chapter.active { display: block; }
   .cover {
     height: auto;
     margin: -24px -32px 24px;
@@ -175,6 +218,11 @@ const WEB_STYLE = `
     cursor: pointer;
   }
 }
+/* 配布 HTML をブラウザから印刷する場合は全章表示・サイドバー非表示 */
+@media print {
+  #sidebar { display: none !important; }
+  .chapter { display: block !important; }
+}
 `;
 
 const LIGHTBOX_JS = `
@@ -207,6 +255,90 @@ const LIGHTBOX_JS = `
   document.addEventListener('keydown', function(e){
     if (e.key === 'Escape') close();
   });
+})();
+`;
+
+// 配布 HTML 用: 左サイドバー目次 + クリックした章だけ表示（画面表示のみ。印刷時は全章表示）
+const SIDEBAR_JS = `
+(function () {
+  var body = document.body;
+  var scriptAnchor = document.currentScript;
+  var kids = [].slice.call(body.children);
+  var chapters = [];
+  var current = null;
+
+  function startChapter(title) {
+    var div = document.createElement('div');
+    div.className = 'chapter';
+    current = { el: div, title: title };
+    chapters.push(current);
+  }
+
+  // body 直下の要素を章ごとに div.chapter へまとめる
+  kids.forEach(function (el) {
+    if (el.tagName === 'SCRIPT') return;
+    if (el.tagName === 'SECTION' && el.classList.contains('cover')) {
+      startChapter('表紙');
+    } else if (el.tagName === 'SECTION' && el.classList.contains('toc')) {
+      startChapter('目次');
+    } else if (el.tagName === 'H1') {
+      startChapter(el.textContent.trim());
+    }
+    if (current) current.el.appendChild(el);
+  });
+  chapters.forEach(function (ch) { body.insertBefore(ch.el, scriptAnchor); });
+
+  function showChapter(i, headEl) {
+    chapters.forEach(function (ch, idx) {
+      var on = idx === i;
+      ch.el.classList.toggle('active', on);
+      if (ch.link) ch.link.classList.toggle('active', on);
+    });
+    if (headEl && headEl.scrollIntoView) headEl.scrollIntoView({ block: 'start' });
+    else window.scrollTo(0, 0);
+  }
+
+  // サイドバー生成
+  var nav = document.createElement('nav');
+  nav.id = 'sidebar';
+  var navTitle = document.createElement('div');
+  navTitle.className = 'nav-title';
+  navTitle.textContent = document.title;
+  nav.appendChild(navTitle);
+  chapters.forEach(function (ch, i) {
+    var a = document.createElement('a');
+    a.href = '#';
+    a.textContent = ch.title;
+    a.addEventListener('click', function (e) { e.preventDefault(); showChapter(i); });
+    ch.link = a;
+    nav.appendChild(a);
+  });
+  body.insertBefore(nav, body.firstChild);
+
+  // 見出し要素から該当章を表示（目次リンクから利用）
+  window.__manualShowChapter = function (headEl) {
+    for (var i = 0; i < chapters.length; i++) {
+      if (chapters[i].el.contains(headEl)) { showChapter(i, headEl); return true; }
+    }
+    return false;
+  };
+
+  // 目次ページ内の #id リンクをクリックしたら該当章へ
+  [].slice.call(document.querySelectorAll('.toc a')).forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      var id = (a.getAttribute('href') || '').replace('#', '');
+      var target = id && document.getElementById(id);
+      if (target) { e.preventDefault(); window.__manualShowChapter(target); }
+    });
+  });
+
+  // 初期表示: URL ハッシュがあればその章、なければ表紙
+  var shown = false;
+  if (location.hash) {
+    var t = document.getElementById(location.hash.replace('#', ''));
+    if (t) shown = window.__manualShowChapter(t);
+  }
+  if (!shown) showChapter(0);
 })();
 `;
 
@@ -314,6 +446,7 @@ ${WEB_STYLE}</style>
 ${coverInlined}
 ${tocInlined}
 ${bodyHtmlInlined}
+<script>${SIDEBAR_JS}</script>
 <script>${LIGHTBOX_JS}</script>
 </body>
 </html>`;

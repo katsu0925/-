@@ -327,12 +327,55 @@ body.staff .cover { background: linear-gradient(135deg, #2faa55 0%, #1a6a3e 100%
   html, body { background: #f4f5f7; }
   body {
     max-width: 820px;
-    margin: 0 auto;
+    margin: 0 0 0 248px;
     padding: 24px 32px 64px;
     background: #fff;
     box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    min-height: 100vh;
   }
   body.staff, body.admin { background: #fff; }
+  /* 左サイドバー目次 */
+  #sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 248px;
+    height: 100vh;
+    overflow-y: auto;
+    background: #1b2330;
+    padding: 0 0 24px;
+    box-sizing: border-box;
+    z-index: 200;
+  }
+  #sidebar .nav-title {
+    font-size: 13px;
+    font-weight: bold;
+    color: #fff;
+    padding: 16px 18px 12px;
+    line-height: 1.45;
+    border-bottom: 1px solid #2c3a4f;
+    margin-bottom: 6px;
+  }
+  #sidebar a {
+    display: block;
+    padding: 8px 18px;
+    color: #cdd8e6;
+    text-decoration: none;
+    font-size: 13px;
+    line-height: 1.45;
+    border-left: 3px solid transparent;
+    cursor: pointer;
+  }
+  #sidebar a:hover { background: #283447; color: #fff; }
+  #sidebar a.active {
+    background: #283447;
+    color: #fff;
+    border-left-color: #1f6feb;
+    font-weight: bold;
+  }
+  /* クリックした章だけ表示 */
+  .chapter { display: none; }
+  .chapter.active { display: block; }
   .cover {
     height: auto;
     margin: -24px -32px 24px;
@@ -391,6 +434,11 @@ body.staff .cover { background: linear-gradient(135deg, #2faa55 0%, #1a6a3e 100%
     cursor: pointer;
   }
 }
+/* 配布 HTML をブラウザから印刷する場合は全章表示・サイドバー非表示 */
+@media print {
+  #sidebar { display: none !important; }
+  .chapter { display: block !important; }
+}
 </style>
 </head>
 <body class="staff">
@@ -399,7 +447,7 @@ body.staff .cover { background: linear-gradient(135deg, #2faa55 0%, #1a6a3e 100%
       <div class="logo">📦</div>
       <h1 id="cover-title">shiire-kanri 外注向けマニュアル</h1>
       <div class="subtitle">商品管理 Web アプリの使い方</div>
-      <div class="meta">最終更新: 2026年5月15日<br>shiire-kanri.nsdktts1030.workers.dev</div>
+      <div class="meta">最終更新: 2026年5月17日<br>shiire-kanri.nsdktts1030.workers.dev</div>
     </section>
   
 <section class="toc"><h1>目次</h1><ul><li style="font-weight:600;"><a href="#はじめに">はじめに</a></li><li style="font-weight:600;"><a href="#初回ログイン手順">初回ログイン手順</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ステップ-1-管理者から-url-を受け取る">ステップ 1: 管理者から URL を受け取る</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ステップ-2-メールアドレスを入力">ステップ 2: メールアドレスを入力</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ステップ-3-メールに届いた-6-桁コードを入力">ステップ 3: メールに届いた 6 桁コードを入力</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ステップ-4-アプリ画面が開く">ステップ 4: アプリ画面が開く</a></li><li style="font-weight:600;"><a href="#画面の基本構造">画面の基本構造</a></li><li style="font-weight:600;"><a href="#圏外通信失敗時の動作重要">圏外・通信失敗時の動作（重要）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#右下に-未送信-n件と出たとき">右下に「⏳ 未送信 N件」と出たとき</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#やってはいけないこと">やってはいけないこと</a></li><li style="font-weight:600;"><a href="#商品管理メニュー">商品管理メニュー</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#仕入れ管理タブ">仕入れ管理タブ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#商品管理タブ">商品管理タブ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#発送管理タブ">発送管理タブ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#納品場所タブ">納品場所タブ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ai判定タブ">AI判定タブ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#返送タブ">返送タブ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#売上タブ">売上タブ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#作業者タブ">作業者タブ</a></li><li style="font-weight:600;"><a href="#業務メニュー">業務メニュー</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#仕入れ数報告">仕入れ数報告</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#経費申請">経費申請</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#報酬確認請求書作成">報酬確認・請求書作成</a></li><li style="font-weight:600;"><a href="#よくある質問">よくある質問</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#q-ログインできない">Q. ログインできない</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#q-画像がアップできない">Q. 画像がアップできない</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#q-右下の-未送信-n件バッジが消えない">Q. 右下の「⏳ 未送信 N件」バッジが消えない</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#q-同じ操作を-2-回押してしまった">Q. 同じ操作を 2 回押してしまった</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#q-採寸データの保存ボタンが押せない">Q. 採寸データの保存ボタンが押せない</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#q-請求書が作れない">Q. 請求書が作れない</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#q-報酬の集計が更新されていない">Q. 報酬の集計が更新されていない</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#q-同じ月の請求書を-2-度作ったらどうなる">Q. 同じ月の請求書を 2 度作ったらどうなる?</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#q-画像を間違って削除した">Q. 画像を間違って削除した</a></li><li style="font-weight:600;"><a href="#連絡先">連絡先</a></li></ul></section>
@@ -790,6 +838,88 @@ body.staff .cover { background: linear-gradient(135deg, #2faa55 0%, #1a6a3e 100%
 <p>不明点はメモせず、その都度すぐに聞いてください。後から「やっぱり聞きたかった」となるよりも早めに解決した方がスムーズです。</p>
 </div>
 
+<script>
+(function () {
+  var body = document.body;
+  var scriptAnchor = document.currentScript;
+  var kids = [].slice.call(body.children);
+  var chapters = [];
+  var current = null;
+
+  function startChapter(title) {
+    var div = document.createElement('div');
+    div.className = 'chapter';
+    current = { el: div, title: title };
+    chapters.push(current);
+  }
+
+  // body 直下の要素を章ごとに div.chapter へまとめる
+  kids.forEach(function (el) {
+    if (el.tagName === 'SCRIPT') return;
+    if (el.tagName === 'SECTION' && el.classList.contains('cover')) {
+      startChapter('表紙');
+    } else if (el.tagName === 'SECTION' && el.classList.contains('toc')) {
+      startChapter('目次');
+    } else if (el.tagName === 'H1') {
+      startChapter(el.textContent.trim());
+    }
+    if (current) current.el.appendChild(el);
+  });
+  chapters.forEach(function (ch) { body.insertBefore(ch.el, scriptAnchor); });
+
+  function showChapter(i, headEl) {
+    chapters.forEach(function (ch, idx) {
+      var on = idx === i;
+      ch.el.classList.toggle('active', on);
+      if (ch.link) ch.link.classList.toggle('active', on);
+    });
+    if (headEl && headEl.scrollIntoView) headEl.scrollIntoView({ block: 'start' });
+    else window.scrollTo(0, 0);
+  }
+
+  // サイドバー生成
+  var nav = document.createElement('nav');
+  nav.id = 'sidebar';
+  var navTitle = document.createElement('div');
+  navTitle.className = 'nav-title';
+  navTitle.textContent = document.title;
+  nav.appendChild(navTitle);
+  chapters.forEach(function (ch, i) {
+    var a = document.createElement('a');
+    a.href = '#';
+    a.textContent = ch.title;
+    a.addEventListener('click', function (e) { e.preventDefault(); showChapter(i); });
+    ch.link = a;
+    nav.appendChild(a);
+  });
+  body.insertBefore(nav, body.firstChild);
+
+  // 見出し要素から該当章を表示（目次リンクから利用）
+  window.__manualShowChapter = function (headEl) {
+    for (var i = 0; i < chapters.length; i++) {
+      if (chapters[i].el.contains(headEl)) { showChapter(i, headEl); return true; }
+    }
+    return false;
+  };
+
+  // 目次ページ内の #id リンクをクリックしたら該当章へ
+  [].slice.call(document.querySelectorAll('.toc a')).forEach(function (a) {
+    a.addEventListener('click', function (e) {
+      var id = (a.getAttribute('href') || '').replace('#', '');
+      var target = id && document.getElementById(id);
+      if (target) { e.preventDefault(); window.__manualShowChapter(target); }
+    });
+  });
+
+  // 初期表示: URL ハッシュがあればその章、なければ表紙
+  var shown = false;
+  if (location.hash) {
+    var t = document.getElementById(location.hash.replace('#', ''));
+    if (t) shown = window.__manualShowChapter(t);
+  }
+  if (!shown) showChapter(0);
+})();
+</script>
 <script>
 (function(){
   var lb = document.createElement('div');
