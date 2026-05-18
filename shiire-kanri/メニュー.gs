@@ -18,6 +18,8 @@ function onOpen() {
   ui.createMenu('管理メニュー')
     .addItem('★ 管理パネルを開く', 'showAdminPanel')
     .addItem('💴 請求書管理を開く', 'showAdminInvoicePanel')
+    .addSeparator()
+    .addItem('🔢 仕入れ点数を修正', 'showShiireQuantityFix')
     .addToUi();
 }
 
