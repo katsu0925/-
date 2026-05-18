@@ -37,7 +37,7 @@ const TARGETS = {
     pdf: '外注向けマニュアル.pdf',
     html: '外注向けマニュアル.html',
     bodyClass: 'staff',
-    title: 'shiire-kanri 外注向けマニュアル',
+    title: '管理アプリ 外注向けマニュアル',
     subtitle: '商品管理 Web アプリの使い方',
   },
   admin: {
