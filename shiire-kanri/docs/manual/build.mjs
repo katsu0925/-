@@ -168,7 +168,7 @@ const WEB_STYLE = `
   .chapter { display: none; }
   .chapter.active { display: block; }
   .cover {
-    height: auto;
+    min-height: 100vh;
     margin: -24px -32px 24px;
     padding: 48px 24px;
     page-break-after: auto;
