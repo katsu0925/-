@@ -626,9 +626,43 @@ function staff_assertSagyouAdmin_(masterSh, email) {
 
 // ========== 業務メニュー（汎用シートダンプ） ==========
 
+// メールアドレスから作業者マスターの本人情報を解決する軽量ヘルパー
+// 戻り値: { name: string, isAdmin: boolean } / 未登録なら name='' , isAdmin=false
+function staff_resolveUserByEmail_(email) {
+  var reqEmail = String(email || '').trim().toLowerCase();
+  var result = { name: '', isAdmin: false };
+  if (!reqEmail) return result;
+  var ss = staff_getActiveSpreadsheet_();
+  var masterSh = ss.getSheetByName('作業者マスター');
+  if (!masterSh || masterSh.getLastRow() < 2) return result;
+  var lastCol = Math.max(SAGYOU_COL_ENABLED, masterSh.getLastColumn());
+  var headers = masterSh.getRange(1, 1, 1, lastCol).getValues()[0]
+    .map(function(v){ return String(v || '').trim(); });
+  var adminColIdx = -1;
+  for (var c = 0; c < headers.length; c++) {
+    if (headers[c] === '管理者フラグ') { adminColIdx = c; break; }
+  }
+  var values = masterSh.getRange(2, 1, masterSh.getLastRow() - 1, lastCol).getValues();
+  for (var r = 0; r < values.length; r++) {
+    var row = values[r];
+    var email1 = String(row[SAGYOU_COL_EMAIL1 - 1] || '').trim().toLowerCase();
+    var email2 = String(row[SAGYOU_COL_EMAIL2 - 1] || '').trim().toLowerCase();
+    if (email1 === reqEmail || email2 === reqEmail) {
+      result.name = String(row[SAGYOU_COL_NAME - 1] || '').trim();
+      if (adminColIdx >= 0) {
+        var adminVal = row[adminColIdx];
+        result.isAdmin = (adminVal === true) || (String(adminVal).toLowerCase() === 'true');
+      }
+      return result;
+    }
+  }
+  return result;
+}
+
 // 任意のシートをヘッダー＋行で返す（読み取り専用）
 // payload: { name: string, limit?: number }
-function staff_dumpSheet(payload) {
+// 経費申請シートは本人の行のみ返す（管理者は全件）
+function staff_dumpSheet(payload, email) {
   payload = payload || {};
   var name = String(payload.name || '').trim();
   if (!name) return { ok: false, error: 'name required' };
@@ -642,6 +676,20 @@ function staff_dumpSheet(payload) {
   var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0].map(function(v){ return String(v || '').trim(); });
   if (lastRow < 2) return { ok: true, headers: headers, rows: [] };
   var values = sh.getRange(2, 1, lastRow - 1, lastCol).getDisplayValues();
+
+  // 経費申請シート: 報酬管理と同じく、非管理者は本人の行のみに絞り込む
+  if (name === '経費申請') {
+    var me = staff_resolveUserByEmail_(email);
+    if (!me.isAdmin) {
+      var iName = headers.indexOf('名前');
+      if (iName < 0) return { ok: false, error: '経費申請シートに「名前」列がありません' };
+      var myName = String(me.name || '').trim();
+      values = values.filter(function(row){
+        return String(row[iName] || '').trim() === myName;
+      });
+    }
+  }
+
   // 末尾から limit 件を取得（新しい順表示）
   var start = Math.max(0, values.length - limit);
   var sliced = values.slice(start).reverse();

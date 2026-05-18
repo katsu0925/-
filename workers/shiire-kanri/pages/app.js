@@ -4676,17 +4676,20 @@ function paintKeihi_(data) {
     c.innerHTML = '<div class="empty">経費申請シートのヘッダーが想定と異なります。</div>';
     return;
   }
-  var mine = rows.filter(function(r){ return nameMatchesSelf_(r[iName]); });
+  // 管理者は全員分、非管理者は本人分のみ（サーバ側でも絞り込み済み・多重防御）
+  var isAdmin = !!STATE.isAdmin;
+  var mine = isAdmin ? rows.slice() : rows.filter(function(r){ return nameMatchesSelf_(r[iName]); });
   var addBtn = '<div class="fab-stack"><button class="fab" onclick="openKeihiForm_()" title="新規経費申請">＋</button></div>';
   var html = '<div class="biz-wrap">';
   html += '<div class="biz-meta">' +
-    '<span>' + esc(STATE.userName) + ' さんの経費申請（' + mine.length + '件）</span>' +
+    '<span>' + (isAdmin ? '全員の経費申請' : esc(STATE.userName) + ' さんの経費申請') + '（' + mine.length + '件）</span>' +
   '</div>';
   if (mine.length === 0) {
     html += '<div class="empty"><div class="empty-title">申請履歴はまだありません</div>' +
       '<button class="empty-cta" onclick="openKeihiForm_()">＋ 新規経費申請</button></div>';
   } else {
     html += '<table class="biz-table"><thead><tr>' +
+      (isAdmin ? '<th>申請者</th>' : '') +
       '<th>申請日時</th><th>購入日</th><th>商品名</th><th>購入場所</th><th>金額</th><th>レシート</th>' +
     '</tr></thead><tbody>';
     mine.forEach(function(r){
@@ -4706,6 +4709,7 @@ function paintKeihi_(data) {
         receiptHtml = '—';
       }
       html += '<tr>' +
+        (isAdmin ? '<td>' + esc(iName >= 0 ? r[iName] : '') + '</td>' : '') +
         '<td>' + esc(fmtKeihiDate_(iTs >= 0 ? r[iTs] : '')) + '</td>' +
         '<td>' + esc(fmtKeihiDate_(iDate >= 0 ? r[iDate] : '')) + '</td>' +
         '<td>' + esc(iItem >= 0 ? r[iItem] : '') + '</td>' +

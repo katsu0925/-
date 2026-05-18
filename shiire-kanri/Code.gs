@@ -50,7 +50,7 @@ function doPost(e) {
       case 'listSagyousha':     result = staff_listSagyousha(body.payload || {}, email); break;
       case 'saveSagyousha':     result = staff_apiSaveSagyousha(body.payload || {}, email); break;
       case 'createSagyousha':   result = staff_apiCreateSagyousha(body.payload || {}, email); break;
-      case 'dumpSheet':         result = staff_dumpSheet(body.payload || {}); break;
+      case 'dumpSheet':         result = staff_dumpSheet(body.payload || {}, email); break;
       case 'appendKeihi':                  result = staff_apiAppendKeihi(body.payload || {}, email); break;
       case 'uploadKeihiImage':             result = staff_apiUploadKeihiImage(body.payload || {}, email); break;
       case 'updateShiireHoukokuQuantity':  result = staff_apiUpdateShiireHoukokuQuantity(body.payload || {}, email); break;

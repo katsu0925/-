@@ -53,6 +53,8 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 .preview-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:8px;margin-top:8px}
 .preview-item{position:relative;aspect-ratio:1;border-radius:6px;overflow:hidden;background:#f3f4f6}
 .preview-item img{width:100%;height:100%;object-fit:cover}
+.preview-item.bad-format{outline:2px solid #dc2626;outline-offset:-2px}
+.bad-format-label{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(220,38,38,.1);color:#dc2626;font-size:10px;font-weight:700;text-align:center;line-height:1.35;padding:4px;z-index:3}
 .preview-item .badge{position:absolute;top:2px;left:2px;background:rgba(59,130,246,.85);color:#fff;font-size:9px;padding:1px 5px;border-radius:4px}
 .progress-bar{width:100%;height:6px;background:#e5e7eb;border-radius:3px;margin-top:8px;overflow:hidden;display:none}
 .progress-bar.show{display:block}
@@ -1578,6 +1580,9 @@ function showPreview() {
   var grid = document.getElementById('uploadPreview');
   var btn = document.getElementById('uploadBtn');
   grid.innerHTML = '';
+  // 前回選択時のエラー表示をクリア
+  var _us = document.getElementById('uploadStatus');
+  if (_us) { _us.textContent = ''; _us.className = 'status'; }
   var files = input.files;
   if (!files || files.length === 0) { btn.disabled = true; document.getElementById('blurBar').style.display = 'none'; return; }
   var maxNew = 10 - _existingUrls.length;
@@ -1594,6 +1599,7 @@ function showPreview() {
   _blurredImages = {};
   _bgReplacedImages = {};
   _uploadFileOrder = [];
+  _hasUndecodableFile = false;
   for (var i = 0; i < files.length; i++) {
     if (!isTapMode) _uploadFileOrder.push(i);
     var div = document.createElement('div');
@@ -1625,6 +1631,8 @@ function showPreview() {
     generateLevelsPreview(files[i], i, grid);
   }
   if (!isTapMode) initUploadDragReorder(grid);
+  // 選択画像のデコード可否を検証（HEIC等の非対応形式を検知）
+  validateUploadFiles(files, grid);
   // ぼかしバー表示
   var bar = document.getElementById('blurBar');
   bar.style.display = 'flex';
@@ -1635,6 +1643,53 @@ function showPreview() {
 }
 
 var _uploadFileOrder = [];
+var _hasUndecodableFile = false;
+
+// ─── 画像デコード可否の検証（HEIC等の非対応形式を検知） ───
+// このブラウザで表示できない形式（HEIC等）はプレビューが真っ白になり、
+// そのままアップロードすると生データが保存され各所で表示不可になるため事前に弾く。
+function markBadFormat(grid, idx) {
+  var item = grid.children[idx];
+  if (!item || item.querySelector('.bad-format-label')) return;
+  item.classList.add('bad-format');
+  var label = document.createElement('div');
+  label.className = 'bad-format-label';
+  label.textContent = '表示できない形式（HEIC等）';
+  item.appendChild(label);
+}
+
+function validateUploadFiles(files, grid) {
+  var total = files.length;
+  if (!total) return;
+  var checked = 0, badCount = 0;
+  function onChecked(ok, idx) {
+    checked++;
+    if (!ok) { badCount++; markBadFormat(grid, idx); }
+    if (checked < total) return;
+    if (badCount > 0) {
+      _hasUndecodableFile = true;
+      document.getElementById('uploadBtn').disabled = true;
+      showStatus('uploadStatus',
+        badCount + '枚の画像はこのブラウザで表示できない形式です（HEIC等）。JPEGに変換してから選択し直してください',
+        'err');
+    }
+  }
+  for (var i = 0; i < total; i++) {
+    (function(idx) {
+      var f = files[idx];
+      if (typeof createImageBitmap === 'function') {
+        createImageBitmap(f).then(function(bmp) { bmp.close(); onChecked(true, idx); })
+          .catch(function() { onChecked(false, idx); });
+      } else {
+        var im = new Image();
+        var u = URL.createObjectURL(f);
+        im.onload = function() { URL.revokeObjectURL(u); onChecked(im.naturalWidth > 0, idx); };
+        im.onerror = function() { URL.revokeObjectURL(u); onChecked(false, idx); };
+        im.src = u;
+      }
+    })(i);
+  }
+}
 
 // ─── アップロード選択モード ───
 // 'bulk' = 一括選択 + ドラッグ並替（既定・PC向け）
@@ -1832,6 +1887,10 @@ function doUpload() {
   if (!files || files.length === 0) { showStatus('uploadStatus', '画像を選択してください', 'err'); return; }
   if (_uploadSelectMode === 'tap' && _uploadFileOrder.length === 0) {
     showStatus('uploadStatus', '画像をタップして順番（番号）を付けてください', 'err'); return;
+  }
+  if (_hasUndecodableFile) {
+    showStatus('uploadStatus', '表示できない形式（HEIC等）の画像が含まれています。JPEGに変換してから選択し直してください', 'err');
+    return;
   }
 
   var btn = document.getElementById('uploadBtn');
