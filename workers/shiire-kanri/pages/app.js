@@ -4688,19 +4688,21 @@ function paintKeihi_(data) {
     html += '<div class="empty"><div class="empty-title">申請履歴はまだありません</div>' +
       '<button class="empty-cta" onclick="openKeihiForm_()">＋ 新規経費申請</button></div>';
   } else {
+    // 詳細モーダル用に表示中の行データを保持（ヘッダー全列＋絞り込み後の行）
+    KEIHI_VIEW = { headers: headers, rows: mine, iReceipt: iReceipt };
     html += '<table class="biz-table"><thead><tr>' +
       (isAdmin ? '<th>申請者</th>' : '') +
       '<th>申請日時</th><th>購入日</th><th>商品名</th><th>購入場所</th><th>金額</th><th>レシート</th>' +
     '</tr></thead><tbody>';
-    mine.forEach(function(r){
+    mine.forEach(function(r, ri){
       var link = iLink >= 0 ? String(r[iLink] || '') : '';
       var place = iPlace >= 0 ? String(r[iPlace] || '') : '';
-      var placeHtml = link ? '<a href="' + esc(link) + '" target="_blank" rel="noopener">' + esc(place || link) + '</a>' : esc(place);
+      var placeHtml = link ? '<a href="' + esc(link) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()">' + esc(place || link) + '</a>' : esc(place);
       var receipt = iReceipt >= 0 ? String(r[iReceipt] || '') : '';
       var receiptHtml;
       if (receipt && /^https?:/i.test(receipt)) {
         var safeReceipt = esc(receipt).replace(/\'/g, "%27");
-        receiptHtml = '<button type="button" class="keihi-receipt-thumb" onclick="openImageModal_(\'' + safeReceipt + '\')" title="クリックで拡大">' +
+        receiptHtml = '<button type="button" class="keihi-receipt-thumb" onclick="event.stopPropagation();openImageModal_(\'' + safeReceipt + '\')" title="クリックで拡大">' +
                         '<img src="' + esc(normalizeDriveUrl_(receipt)) + '" alt="" loading="lazy" decoding="async">' +
                       '</button>';
       } else if (receipt) {
@@ -4708,7 +4710,7 @@ function paintKeihi_(data) {
       } else {
         receiptHtml = '—';
       }
-      html += '<tr>' +
+      html += '<tr class="biz-row" style="cursor:pointer" onclick="openKeihiDetail_(' + ri + ')" title="クリックで詳細">' +
         (isAdmin ? '<td>' + esc(iName >= 0 ? r[iName] : '') + '</td>' : '') +
         '<td>' + esc(fmtKeihiDate_(iTs >= 0 ? r[iTs] : '')) + '</td>' +
         '<td>' + esc(fmtKeihiDate_(iDate >= 0 ? r[iDate] : '')) + '</td>' +
@@ -4722,6 +4724,60 @@ function paintKeihi_(data) {
   }
   html += '</div>';
   c.innerHTML = html + addBtn;
+}
+
+// paintKeihi_ で表示中の経費申請データ（詳細モーダル用）
+var KEIHI_VIEW = { headers: [], rows: [], iReceipt: -1 };
+
+// 経費申請の1行をモーダルで開き、全項目（シートの全列）を表示する
+function openKeihiDetail_(idx) {
+  var v = KEIHI_VIEW || {};
+  var headers = v.headers || [];
+  var row = (v.rows || [])[idx];
+  if (!row) return;
+  var existing = document.getElementById('keihi-detail-modal');
+  if (existing) existing.remove();
+
+  var rowsHtml = '';
+  for (var i = 0; i < headers.length; i++) {
+    var label = String(headers[i] || '').trim();
+    if (!label) continue;
+    var val = row[i];
+    var valStr = (val == null) ? '' : String(val);
+    var cell;
+    if (valStr && /^https?:\/\//i.test(valStr)) {
+      if (i === v.iReceipt) {
+        // レシート画像はサムネイル表示（クリックで拡大）
+        var safeImg = esc(valStr).replace(/\'/g, '%27');
+        cell = '<button type="button" class="keihi-receipt-thumb" onclick="openImageModal_(\'' + safeImg + '\')" title="クリックで拡大" style="margin-top:4px">' +
+                 '<img src="' + esc(normalizeDriveUrl_(valStr)) + '" alt="" loading="lazy" decoding="async">' +
+               '</button>';
+      } else {
+        cell = '<a href="' + esc(valStr) + '" target="_blank" rel="noopener">' + esc(valStr) + '</a>';
+      }
+    } else {
+      cell = valStr ? esc(valStr) : '<span style="color:#9ca3af">—</span>';
+    }
+    rowsHtml += '<div class="field-row">' +
+      '<label>' + esc(label) + '</label>' +
+      '<div style="font-size:14px;word-break:break-word">' + cell + '</div>' +
+    '</div>';
+  }
+
+  var modal = document.createElement('div');
+  modal.id = 'keihi-detail-modal';
+  modal.className = 'modal-overlay';
+  modal.setAttribute('onclick', "if(event.target===this)this.remove()");
+  modal.innerHTML =
+    '<div class="modal-content" style="max-width:480px">' +
+      '<div class="modal-header"><h3>経費申請の詳細</h3>' +
+        '<button class="modal-close" onclick="document.getElementById(\'keihi-detail-modal\').remove()">×</button></div>' +
+      '<div class="modal-body">' + rowsHtml + '</div>' +
+      '<div class="modal-footer" style="display:flex;justify-content:flex-end;padding:12px;border-top:1px solid #e5e7eb">' +
+        '<button class="btn-cancel" onclick="document.getElementById(\'keihi-detail-modal\').remove()">閉じる</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(modal);
 }
 
 // 商品管理の openBashoCreate と同じ画面遷移パターン（form-card / form-actions）
