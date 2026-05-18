@@ -123,6 +123,7 @@ const WEB_STYLE = `
   p { margin: 0 0 3.5mm 0; line-height: 1.95; }
   li { margin: 0 0 2mm 0; line-height: 1.9; }
   ul, ol { margin: 2mm 0 5mm; }
+  h1, h2, h3, h4 { scroll-margin-top: 24px; }
   h2 { margin-top: 8mm; }
   h3, h4 { margin-top: 6mm; }
   /* 左サイドバー目次 */
@@ -164,6 +165,9 @@ const WEB_STYLE = `
     border-left-color: #1f6feb;
     font-weight: bold;
   }
+  /* モバイル用アプリバー・背景オーバーレイ（PC では非表示） */
+  #appbar { display: none; }
+  #navBackdrop { display: none; }
   /* クリックした章だけ表示 */
   .chapter { display: none; }
   .chapter.active { display: block; }
@@ -224,32 +228,154 @@ const WEB_STYLE = `
     font-size: 20px;
     cursor: pointer;
   }
+  /* 表は横スクロール可能なラッパで包む（スマホで横長表が切れない） */
+  .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 4mm 0;
+    border-radius: 4px;
+  }
+  .table-scroll table { margin: 0; }
+  /* 章末の「前へ／次へ」ナビ */
+  .chapter-nav {
+    display: flex;
+    gap: 12px;
+    margin: 48px 0 0;
+    border-top: 1px solid #e5e8ec;
+    padding-top: 20px;
+  }
+  .chapter-nav a {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 12px 16px;
+    min-height: 44px;
+    border: 1px solid #d8dde5;
+    border-radius: 8px;
+    text-decoration: none;
+    color: #1b2330;
+    box-sizing: border-box;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .chapter-nav a:hover { border-color: #1f6feb; background: #f5f9ff; }
+  .chapter-nav a.next { text-align: right; align-items: flex-end; }
+  .chapter-nav a.disabled { visibility: hidden; }
+  .chapter-nav .cn-label { font-size: 11px; color: #8a93a0; }
+  .chapter-nav .cn-title { font-size: 14px; font-weight: 600; }
+  /* トップへ戻るボタン */
+  #toTop {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: #1f6feb;
+    color: #fff;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    display: none;
+    box-shadow: 0 3px 12px rgba(0,0,0,0.28);
+    z-index: 230;
+  }
+  #toTop.show { display: block; }
+  #toTop:hover { background: #1a5fd0; }
 }
-/* 配布 HTML をブラウザから印刷する場合は全章表示・サイドバー非表示 */
+/* 配布 HTML をブラウザから印刷する場合は全章表示・サイドバー等を非表示 */
 @media print {
-  #sidebar { display: none !important; }
+  #sidebar, #appbar, #navBackdrop, #toTop, .chapter-nav { display: none !important; }
   .chapter { display: block !important; }
 }
-/* スマホ表示: サイドバーを上部に折りたたみ、本文を全幅・大きめ文字に */
+/* ───────── スマホ表示（ハンバーガー＋スライド式ドロワー目次） ───────── */
 @media screen and (max-width: 820px) {
-  html, body { font-size: 13pt; }
+  html, body { font-size: 12.5pt; }
   body {
     max-width: 100%;
     margin: 0;
-    padding: 16px 16px 48px;
+    padding: 68px 16px 56px;
     box-shadow: none;
-    line-height: 2;
+    line-height: 1.9;
   }
+  body.nav-lock { overflow: hidden; }
+  /* 画面上部に固定するアプリバー */
+  #appbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 52px;
+    padding: 0 10px;
+    background: #1b2330;
+    color: #fff;
+    z-index: 250;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  #navToggle {
+    width: 40px;
+    height: 40px;
+    flex: none;
+    border: none;
+    background: transparent;
+    color: #fff;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 6px;
+  }
+  #navToggle:active { background: rgba(255,255,255,0.14); }
+  #appbarTitle {
+    font-size: 15px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* サイドバーを左からスライドするドロワーに */
   #sidebar {
-    position: static;
-    width: 100%;
-    height: auto;
-    max-height: 42vh;
+    width: 80vw;
+    max-width: 320px;
+    height: 100vh;
+    padding: 52px 0 24px;
+    z-index: 245;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: 4px 0 28px rgba(0,0,0,0.4);
   }
-  .cover { margin: -16px -16px 24px; width: calc(100% + 32px); }
-  h1 { font-size: 19pt; }
-  h2 { font-size: 15pt; }
-  h3, h4 { font-size: 13pt; }
+  #sidebar.open { transform: translateX(0); }
+  #sidebar a { padding: 13px 18px; font-size: 14px; }
+  #navBackdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 240;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+  #navBackdrop.open { opacity: 1; pointer-events: auto; }
+  /* 本文 */
+  h1, h2, h3, h4 { scroll-margin-top: 64px; }
+  .cover {
+    min-height: 72vh;
+    margin: -68px -16px 24px;
+    width: calc(100% + 32px);
+    padding: 84px 24px 48px;
+  }
+  .cover h1 { font-size: 19pt; }
+  h1 { font-size: 18pt; }
+  h2 { font-size: 14.5pt; }
+  h3, h4 { font-size: 12.5pt; }
+  pre { font-size: 8.5pt; }
+  table { font-size: 9pt; }
+  .cols { flex-direction: column; gap: 0; }
+  .chapter-nav { gap: 8px; margin-top: 36px; }
+  .chapter-nav a { padding: 10px 12px; }
+  .chapter-nav .cn-title { font-size: 12.5px; }
+  #toTop { right: 14px; bottom: 14px; }
 }
 `;
 
@@ -286,7 +412,7 @@ const LIGHTBOX_JS = `
 })();
 `;
 
-// 配布 HTML 用: 左サイドバー目次 + クリックした章だけ表示（画面表示のみ。印刷時は全章表示）
+// 配布 HTML 用: 目次ドロワー + 章送り + トップへ戻る（画面表示のみ。印刷時は全章表示）
 const SIDEBAR_JS = `
 (function () {
   var body = document.body;
@@ -316,23 +442,53 @@ const SIDEBAR_JS = `
   });
   chapters.forEach(function (ch) { body.insertBefore(ch.el, scriptAnchor); });
 
-  function showChapter(i, headEl) {
-    chapters.forEach(function (ch, idx) {
-      var on = idx === i;
-      ch.el.classList.toggle('active', on);
-      if (ch.link) ch.link.classList.toggle('active', on);
-    });
-    if (headEl && headEl.scrollIntoView) headEl.scrollIntoView({ block: 'start' });
-    else window.scrollTo(0, 0);
-  }
+  // 横長の表は横スクロール可能なラッパで包む
+  [].slice.call(document.querySelectorAll('table')).forEach(function (tbl) {
+    if (tbl.parentElement && tbl.parentElement.classList.contains('table-scroll')) return;
+    var wrap = document.createElement('div');
+    wrap.className = 'table-scroll';
+    tbl.parentNode.insertBefore(wrap, tbl);
+    wrap.appendChild(tbl);
+  });
 
-  // サイドバー生成
+  // モバイル用アプリバー・サイドバー・背景オーバーレイ
+  var appbar = document.createElement('header');
+  appbar.id = 'appbar';
+  appbar.innerHTML = '<button id="navToggle" aria-label="目次を開く">☰</button><span id="appbarTitle"></span>';
+  var backdrop = document.createElement('div');
+  backdrop.id = 'navBackdrop';
   var nav = document.createElement('nav');
   nav.id = 'sidebar';
   var navTitle = document.createElement('div');
   navTitle.className = 'nav-title';
   navTitle.textContent = document.title;
   nav.appendChild(navTitle);
+
+  function closeDrawer() {
+    nav.classList.remove('open');
+    backdrop.classList.remove('open');
+    body.classList.remove('nav-lock');
+  }
+  function openDrawer() {
+    nav.classList.add('open');
+    backdrop.classList.add('open');
+    body.classList.add('nav-lock');
+  }
+
+  function showChapter(i, headEl) {
+    chapters.forEach(function (ch, idx) {
+      var on = idx === i;
+      ch.el.classList.toggle('active', on);
+      if (ch.link) ch.link.classList.toggle('active', on);
+    });
+    var at = document.getElementById('appbarTitle');
+    if (at) at.textContent = (i === 0) ? document.title : (chapters[i] ? chapters[i].title : document.title);
+    closeDrawer();
+    if (headEl && headEl.scrollIntoView) headEl.scrollIntoView({ block: 'start' });
+    else window.scrollTo(0, 0);
+  }
+
+  // サイドバーの章リンク
   chapters.forEach(function (ch, i) {
     var a = document.createElement('a');
     a.href = '#';
@@ -342,6 +498,52 @@ const SIDEBAR_JS = `
     nav.appendChild(a);
   });
   body.insertBefore(nav, body.firstChild);
+  body.insertBefore(backdrop, body.firstChild);
+  body.insertBefore(appbar, body.firstChild);
+
+  // ハンバーガー開閉
+  document.getElementById('navToggle').addEventListener('click', function () {
+    if (nav.classList.contains('open')) closeDrawer(); else openDrawer();
+  });
+  backdrop.addEventListener('click', closeDrawer);
+
+  // 各章末に「前へ／次へ」ナビを追加
+  chapters.forEach(function (ch, i) {
+    var navEl = document.createElement('div');
+    navEl.className = 'chapter-nav';
+    var prev = document.createElement('a');
+    prev.className = 'prev';
+    if (i > 0) {
+      prev.href = '#';
+      prev.innerHTML = '<span class="cn-label">← 前へ</span><span class="cn-title"></span>';
+      prev.querySelector('.cn-title').textContent = chapters[i - 1].title;
+      prev.addEventListener('click', function (e) { e.preventDefault(); showChapter(i - 1); });
+    } else { prev.className += ' disabled'; }
+    var next = document.createElement('a');
+    next.className = 'next';
+    if (i < chapters.length - 1) {
+      next.href = '#';
+      next.innerHTML = '<span class="cn-label">次へ →</span><span class="cn-title"></span>';
+      next.querySelector('.cn-title').textContent = chapters[i + 1].title;
+      next.addEventListener('click', function (e) { e.preventDefault(); showChapter(i + 1); });
+    } else { next.className += ' disabled'; }
+    navEl.appendChild(prev);
+    navEl.appendChild(next);
+    ch.el.appendChild(navEl);
+  });
+
+  // トップへ戻るボタン
+  var toTop = document.createElement('button');
+  toTop.id = 'toTop';
+  toTop.setAttribute('aria-label', 'ページ上部へ');
+  toTop.textContent = '↑';
+  toTop.addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+  body.appendChild(toTop);
+  window.addEventListener('scroll', function () {
+    toTop.classList.toggle('show', window.scrollY > 400);
+  }, { passive: true });
 
   // 見出し要素から該当章を表示（目次リンクから利用）
   window.__manualShowChapter = function (headEl) {

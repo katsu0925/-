@@ -339,6 +339,7 @@ body.staff .cover { background: linear-gradient(135deg, #2faa55 0%, #1a6a3e 100%
   p { margin: 0 0 3.5mm 0; line-height: 1.95; }
   li { margin: 0 0 2mm 0; line-height: 1.9; }
   ul, ol { margin: 2mm 0 5mm; }
+  h1, h2, h3, h4 { scroll-margin-top: 24px; }
   h2 { margin-top: 8mm; }
   h3, h4 { margin-top: 6mm; }
   /* 左サイドバー目次 */
@@ -380,6 +381,9 @@ body.staff .cover { background: linear-gradient(135deg, #2faa55 0%, #1a6a3e 100%
     border-left-color: #1f6feb;
     font-weight: bold;
   }
+  /* モバイル用アプリバー・背景オーバーレイ（PC では非表示） */
+  #appbar { display: none; }
+  #navBackdrop { display: none; }
   /* クリックした章だけ表示 */
   .chapter { display: none; }
   .chapter.active { display: block; }
@@ -440,32 +444,154 @@ body.staff .cover { background: linear-gradient(135deg, #2faa55 0%, #1a6a3e 100%
     font-size: 20px;
     cursor: pointer;
   }
+  /* 表は横スクロール可能なラッパで包む（スマホで横長表が切れない） */
+  .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin: 4mm 0;
+    border-radius: 4px;
+  }
+  .table-scroll table { margin: 0; }
+  /* 章末の「前へ／次へ」ナビ */
+  .chapter-nav {
+    display: flex;
+    gap: 12px;
+    margin: 48px 0 0;
+    border-top: 1px solid #e5e8ec;
+    padding-top: 20px;
+  }
+  .chapter-nav a {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 12px 16px;
+    min-height: 44px;
+    border: 1px solid #d8dde5;
+    border-radius: 8px;
+    text-decoration: none;
+    color: #1b2330;
+    box-sizing: border-box;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .chapter-nav a:hover { border-color: #1f6feb; background: #f5f9ff; }
+  .chapter-nav a.next { text-align: right; align-items: flex-end; }
+  .chapter-nav a.disabled { visibility: hidden; }
+  .chapter-nav .cn-label { font-size: 11px; color: #8a93a0; }
+  .chapter-nav .cn-title { font-size: 14px; font-weight: 600; }
+  /* トップへ戻るボタン */
+  #toTop {
+    position: fixed;
+    right: 20px;
+    bottom: 20px;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: #1f6feb;
+    color: #fff;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    display: none;
+    box-shadow: 0 3px 12px rgba(0,0,0,0.28);
+    z-index: 230;
+  }
+  #toTop.show { display: block; }
+  #toTop:hover { background: #1a5fd0; }
 }
-/* 配布 HTML をブラウザから印刷する場合は全章表示・サイドバー非表示 */
+/* 配布 HTML をブラウザから印刷する場合は全章表示・サイドバー等を非表示 */
 @media print {
-  #sidebar { display: none !important; }
+  #sidebar, #appbar, #navBackdrop, #toTop, .chapter-nav { display: none !important; }
   .chapter { display: block !important; }
 }
-/* スマホ表示: サイドバーを上部に折りたたみ、本文を全幅・大きめ文字に */
+/* ───────── スマホ表示（ハンバーガー＋スライド式ドロワー目次） ───────── */
 @media screen and (max-width: 820px) {
-  html, body { font-size: 13pt; }
+  html, body { font-size: 12.5pt; }
   body {
     max-width: 100%;
     margin: 0;
-    padding: 16px 16px 48px;
+    padding: 68px 16px 56px;
     box-shadow: none;
-    line-height: 2;
+    line-height: 1.9;
   }
+  body.nav-lock { overflow: hidden; }
+  /* 画面上部に固定するアプリバー */
+  #appbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    height: 52px;
+    padding: 0 10px;
+    background: #1b2330;
+    color: #fff;
+    z-index: 250;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  }
+  #navToggle {
+    width: 40px;
+    height: 40px;
+    flex: none;
+    border: none;
+    background: transparent;
+    color: #fff;
+    font-size: 22px;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 6px;
+  }
+  #navToggle:active { background: rgba(255,255,255,0.14); }
+  #appbarTitle {
+    font-size: 15px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  /* サイドバーを左からスライドするドロワーに */
   #sidebar {
-    position: static;
-    width: 100%;
-    height: auto;
-    max-height: 42vh;
+    width: 80vw;
+    max-width: 320px;
+    height: 100vh;
+    padding: 52px 0 24px;
+    z-index: 245;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: 4px 0 28px rgba(0,0,0,0.4);
   }
-  .cover { margin: -16px -16px 24px; width: calc(100% + 32px); }
-  h1 { font-size: 19pt; }
-  h2 { font-size: 15pt; }
-  h3, h4 { font-size: 13pt; }
+  #sidebar.open { transform: translateX(0); }
+  #sidebar a { padding: 13px 18px; font-size: 14px; }
+  #navBackdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 240;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
+  }
+  #navBackdrop.open { opacity: 1; pointer-events: auto; }
+  /* 本文 */
+  h1, h2, h3, h4 { scroll-margin-top: 64px; }
+  .cover {
+    min-height: 72vh;
+    margin: -68px -16px 24px;
+    width: calc(100% + 32px);
+    padding: 84px 24px 48px;
+  }
+  .cover h1 { font-size: 19pt; }
+  h1 { font-size: 18pt; }
+  h2 { font-size: 14.5pt; }
+  h3, h4 { font-size: 12.5pt; }
+  pre { font-size: 8.5pt; }
+  table { font-size: 9pt; }
+  .cols { flex-direction: column; gap: 0; }
+  .chapter-nav { gap: 8px; margin-top: 36px; }
+  .chapter-nav a { padding: 10px 12px; }
+  .chapter-nav .cn-title { font-size: 12.5px; }
+  #toTop { right: 14px; bottom: 14px; }
 }
 </style>
 </head>
@@ -475,7 +601,7 @@ body.staff .cover { background: linear-gradient(135deg, #2faa55 0%, #1a6a3e 100%
       <div class="logo">📦</div>
       <h1 id="cover-title">shiire-kanri 管理者向けマニュアル</h1>
       <div class="subtitle">Web アプリ運用・GAS 実装・デプロイ手順</div>
-      <div class="meta">最終更新: 2026年5月18日<br>shiire-kanri.nsdktts1030.workers.dev</div>
+      <div class="meta">最終更新: 2026年5月19日<br>shiire-kanri.nsdktts1030.workers.dev</div>
     </section>
   
 <section class="toc"><h1>目次</h1><ul><li style="font-weight:600;"><a href="#はじめに">はじめに</a></li><li style="font-weight:600;"><a href="#システム全体像">システム全体像</a></li><li style="font-weight:600;"><a href="#未反映ゼロ保証アーキテクチャ">未反映ゼロ保証アーキテクチャ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#3-層構造">3 層構造</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#レイヤー-1-クライアント-outboxpagesappjs">レイヤー 1: クライアント outbox（pages/app.js）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#レイヤー-2-workers-冪等性ミドルウェアsrcutilsidempotencyjs">レイヤー 2: Workers 冪等性ミドルウェア（src/utils/idempotency.js）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#レイヤー-3-監視ポイント">レイヤー 3: 監視ポイント</a></li><li style="font-weight:600;"><a href="#新規外注スタッフの追加手順">新規外注スタッフの追加手順</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ステップ-1-作業者マスターに登録">ステップ 1: 作業者マスターに登録</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ステップ-2-5-分待つ">ステップ 2: 5 分待つ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ステップ-3-外注に-url-を共有">ステップ 3: 外注に URL を共有</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ステップ-4-外注本人がログイン">ステップ 4: 外注本人がログイン</a></li><li style="font-weight:600;"><a href="#管理者の主な業務">管理者の主な業務</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#1-adminpanelgas-エディタ内モーダル">1. AdminPanel（GAS エディタ内モーダル）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#2-請求書管理パネル">2. 請求書管理パネル</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#3-月次運用ルーチン">3. 月次運用ルーチン</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#4-ai-判定の運用">4. AI 判定の運用</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#5-ec-連携">5. EC 連携</a></li><li style="font-weight:600;"><a href="#スプレッドシート構造">スプレッドシート構造</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#主要シート一覧21">主要シート一覧（21+）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#商品管理シート-主要列staff_col">商品管理シート 主要列（STAFF_COL）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#作業者マスターシート-列">作業者マスターシート 列</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#請求書履歴シート-列構成">請求書履歴シート 列構成</a></li><li style="font-weight:600;"><a href="#gas-関数一覧">GAS 関数一覧</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#エントリポイント">エントリポイント</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#認証ユーティリティ">認証・ユーティリティ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#スタッフ向け-api-action-一覧">スタッフ向け API (action 一覧)</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#トリガーハンドラー">トリガーハンドラー</a></li><li style="font-weight:600;"><a href="#workers-ルート一覧">Workers ルート一覧</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#管理者運用系">管理者・運用系</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#認証マスター">認証・マスター</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#商品仕入れ">商品・仕入れ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#保存系">保存系</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#業務系">業務系</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#push-通知">Push 通知</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#請求書スタッフ">請求書（スタッフ）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#請求書管理者">請求書（管理者）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#汎用">汎用</a></li><li style="font-weight:600;"><a href="#デプロイ手順">デプロイ手順</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#gas-デプロイshiire-kanri">GAS デプロイ（shiire-kanri）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#cloudflare-workers-デプロイ">Cloudflare Workers デプロイ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#cron-トリガー再登録">Cron トリガー再登録</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#workers-cron-確認">Workers Cron 確認</a></li><li style="font-weight:600;"><a href="#環境変数シークレット一覧">環境変数・シークレット一覧</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#gas-スクリプトプロパティ">GAS スクリプトプロパティ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#workers-シークレットwrangler-secret">Workers シークレット（wrangler secret）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#workers-バインディングwranglertoml">Workers バインディング（wrangler.toml）</a></li><li style="font-weight:600;"><a href="#ビジネス設定adminpanel-から編集可能">ビジネス設定（AdminPanel から編集可能）</a></li><li style="font-weight:600;"><a href="#請求書フロー詳細">請求書フロー詳細</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ステータス遷移">ステータス遷移</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#csv--pdf-生成">CSV / PDF 生成</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#csv-28-項目">CSV 28 項目</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#重複防止">重複防止</a></li><li style="font-weight:600;"><a href="#トラブルシューティング">トラブルシューティング</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#スタッフがログインできない">スタッフがログインできない</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#請求書-pdf-がダウンロードできない">請求書 PDF がダウンロードできない</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#報酬集計が更新されない">報酬集計が更新されない</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#workers-が応答しない">Workers が応答しない</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ai-判定が止まっている">AI 判定が止まっている</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ec-連携同期が遅延">EC 連携同期が遅延</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#スプレッドシート列を間違って削除した">スプレッドシート列を間違って削除した</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#外注から右下のバッジ未送信が消えないと連絡が来た">外注から「右下のバッジ（未送信）が消えない」と連絡が来た</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#同じ操作が二重登録された">同じ操作が二重登録された</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#仕入れ数点数を間違えて報告された">仕入れ数（点数）を間違えて報告された</a></li><li style="font-weight:600;"><a href="#改良時のマニュアル更新フロー">改良時のマニュアル更新フロー</a></li><li style="font-weight:600;"><a href="#参考リンク">参考リンク</a></li><li style="font-weight:600;"><a href="#付録-各シートの初期化">付録: 各シートの初期化</a></li></ul></section>
@@ -2019,23 +2145,53 @@ FULL_RESTORE_ALL()             // 全トリガー一括登録
   });
   chapters.forEach(function (ch) { body.insertBefore(ch.el, scriptAnchor); });
 
-  function showChapter(i, headEl) {
-    chapters.forEach(function (ch, idx) {
-      var on = idx === i;
-      ch.el.classList.toggle('active', on);
-      if (ch.link) ch.link.classList.toggle('active', on);
-    });
-    if (headEl && headEl.scrollIntoView) headEl.scrollIntoView({ block: 'start' });
-    else window.scrollTo(0, 0);
-  }
+  // 横長の表は横スクロール可能なラッパで包む
+  [].slice.call(document.querySelectorAll('table')).forEach(function (tbl) {
+    if (tbl.parentElement && tbl.parentElement.classList.contains('table-scroll')) return;
+    var wrap = document.createElement('div');
+    wrap.className = 'table-scroll';
+    tbl.parentNode.insertBefore(wrap, tbl);
+    wrap.appendChild(tbl);
+  });
 
-  // サイドバー生成
+  // モバイル用アプリバー・サイドバー・背景オーバーレイ
+  var appbar = document.createElement('header');
+  appbar.id = 'appbar';
+  appbar.innerHTML = '<button id="navToggle" aria-label="目次を開く">☰</button><span id="appbarTitle"></span>';
+  var backdrop = document.createElement('div');
+  backdrop.id = 'navBackdrop';
   var nav = document.createElement('nav');
   nav.id = 'sidebar';
   var navTitle = document.createElement('div');
   navTitle.className = 'nav-title';
   navTitle.textContent = document.title;
   nav.appendChild(navTitle);
+
+  function closeDrawer() {
+    nav.classList.remove('open');
+    backdrop.classList.remove('open');
+    body.classList.remove('nav-lock');
+  }
+  function openDrawer() {
+    nav.classList.add('open');
+    backdrop.classList.add('open');
+    body.classList.add('nav-lock');
+  }
+
+  function showChapter(i, headEl) {
+    chapters.forEach(function (ch, idx) {
+      var on = idx === i;
+      ch.el.classList.toggle('active', on);
+      if (ch.link) ch.link.classList.toggle('active', on);
+    });
+    var at = document.getElementById('appbarTitle');
+    if (at) at.textContent = (i === 0) ? document.title : (chapters[i] ? chapters[i].title : document.title);
+    closeDrawer();
+    if (headEl && headEl.scrollIntoView) headEl.scrollIntoView({ block: 'start' });
+    else window.scrollTo(0, 0);
+  }
+
+  // サイドバーの章リンク
   chapters.forEach(function (ch, i) {
     var a = document.createElement('a');
     a.href = '#';
@@ -2045,6 +2201,52 @@ FULL_RESTORE_ALL()             // 全トリガー一括登録
     nav.appendChild(a);
   });
   body.insertBefore(nav, body.firstChild);
+  body.insertBefore(backdrop, body.firstChild);
+  body.insertBefore(appbar, body.firstChild);
+
+  // ハンバーガー開閉
+  document.getElementById('navToggle').addEventListener('click', function () {
+    if (nav.classList.contains('open')) closeDrawer(); else openDrawer();
+  });
+  backdrop.addEventListener('click', closeDrawer);
+
+  // 各章末に「前へ／次へ」ナビを追加
+  chapters.forEach(function (ch, i) {
+    var navEl = document.createElement('div');
+    navEl.className = 'chapter-nav';
+    var prev = document.createElement('a');
+    prev.className = 'prev';
+    if (i > 0) {
+      prev.href = '#';
+      prev.innerHTML = '<span class="cn-label">← 前へ</span><span class="cn-title"></span>';
+      prev.querySelector('.cn-title').textContent = chapters[i - 1].title;
+      prev.addEventListener('click', function (e) { e.preventDefault(); showChapter(i - 1); });
+    } else { prev.className += ' disabled'; }
+    var next = document.createElement('a');
+    next.className = 'next';
+    if (i < chapters.length - 1) {
+      next.href = '#';
+      next.innerHTML = '<span class="cn-label">次へ →</span><span class="cn-title"></span>';
+      next.querySelector('.cn-title').textContent = chapters[i + 1].title;
+      next.addEventListener('click', function (e) { e.preventDefault(); showChapter(i + 1); });
+    } else { next.className += ' disabled'; }
+    navEl.appendChild(prev);
+    navEl.appendChild(next);
+    ch.el.appendChild(navEl);
+  });
+
+  // トップへ戻るボタン
+  var toTop = document.createElement('button');
+  toTop.id = 'toTop';
+  toTop.setAttribute('aria-label', 'ページ上部へ');
+  toTop.textContent = '↑';
+  toTop.addEventListener('click', function () {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  });
+  body.appendChild(toTop);
+  window.addEventListener('scroll', function () {
+    toTop.classList.toggle('show', window.scrollY > 400);
+  }, { passive: true });
 
   // 見出し要素から該当章を表示（目次リンクから利用）
   window.__manualShowChapter = function (headEl) {
