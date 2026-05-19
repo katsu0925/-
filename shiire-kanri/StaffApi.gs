@@ -638,7 +638,7 @@ function staff_listShiire(opts) {
 
   var hdr = sh.getRange(1, 1, 1, lastCol).getValues()[0];
   var col = {};
-  for (var i = 0; i < hdr.length; i++) col[String(hdr[i] || '').trim()] = i + 1;
+  for (var i = 0; i < hdr.length; i++) { var hk = String(hdr[i] || '').trim(); if (hk && !(hk in col)) col[hk] = i + 1; }
 
   // AppSheetビューに必要な列
   var must = ['仕入れID','仕入れ日','金額','送料','商品点数','納品場所','商品原価'];
@@ -1041,7 +1041,7 @@ function staff_syncDumpPurchases() {
 
   var hdr = sh.getRange(1, 1, 1, lastCol).getValues()[0];
   var col = {};
-  for (var i = 0; i < hdr.length; i++) col[String(hdr[i] || '').trim()] = i + 1;
+  for (var i = 0; i < hdr.length; i++) { var hk = String(hdr[i] || '').trim(); if (hk && !(hk in col)) col[hk] = i + 1; }
   var must = ['仕入れID','仕入れ日','金額','送料','商品点数','納品場所','商品原価','区分コード'];
   for (var k = 0; k < must.length; k++) {
     if (!col[must[k]]) return { ok: false, error: 'missing column: ' + must[k] };
@@ -2189,7 +2189,7 @@ function staff_buildPurchaseRowPayload_(sh, rowNum) {
   var lastCol = sh.getLastColumn();
   var hdr = sh.getRange(1, 1, 1, lastCol).getValues()[0];
   var col = {};
-  for (var i = 0; i < hdr.length; i++) col[String(hdr[i] || '').trim()] = i + 1;
+  for (var i = 0; i < hdr.length; i++) { var hk = String(hdr[i] || '').trim(); if (hk && !(hk in col)) col[hk] = i + 1; }
   if (!col['仕入れID']) return null;
 
   var row = sh.getRange(rowNum, 1, 1, lastCol).getValues()[0];
