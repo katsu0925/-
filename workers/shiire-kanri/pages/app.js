@@ -2853,6 +2853,12 @@ function cardHtml(it) {
     var accVal = (it.extra && it.extra['使用アカウント']) ? String(it.extra['使用アカウント']).trim() : '';
     accountHtml = '<div class="card-account">👤 ' + esc(accVal || '（未設定）') + '</div>';
   }
+  // 発送商品タブのみ「納品場所」をカードに表示（どの拠点から発送するか即時把握）
+  var placeHtml = '';
+  if (STATE.tab === 'hassou') {
+    var placeVal = (it.extra && it.extra['納品場所']) ? String(it.extra['納品場所']).trim() : '';
+    placeHtml = '<div class="card-place">📍 ' + esc(placeVal || '（納品場所なし）') + '</div>';
+  }
   // 発送商品タブのみ「同梱マーク」をステータス左に表示。BUNDLE_CACHE 未解決時は空（後で再描画）。
   var bundleMark = '';
   if (STATE.tab === 'hassou') {
@@ -2896,6 +2902,7 @@ function cardHtml(it) {
       (it.color ? ' / ' + esc(it.color) : '') +
     '</div>' +
     accountHtml +
+    placeHtml +
     shipDeadlineHtml_(it) +
     progressPillsHtml_(it) +
     kanryouHtml +
