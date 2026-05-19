@@ -1343,19 +1343,24 @@ function staff_apiSaveDetails(payload, email) {
     if (tsIdx >= 0 && !rowFormulas[tsIdx]) rowVals[tsIdx] = new Date();
   }
 
-  // 採寸関連を更新したら 採寸日・採寸者を自動補完（明示指定があればそちらを優先）
+  // 採寸関連を更新したら 採寸者を自動補完（明示指定があればそちらを優先）
   var measureFieldUpdated = false;
   for (var j = 0; j < MEASURE_FIELDS.length; j++) {
     if (fields[MEASURE_FIELDS[j]] !== undefined) { measureFieldUpdated = true; break; }
   }
-  if (measureFieldUpdated) {
-    if (fields['採寸日'] === undefined) {
-      var mdIdx = STAFF_COL.採寸日 ? STAFF_COL.採寸日 - 1 : -1;
-      if (mdIdx >= 0 && !rowFormulas[mdIdx]) rowVals[mdIdx] = new Date();
-    }
-    if (fields['採寸者'] === undefined) {
-      var mbIdx = STAFF_COL.採寸者 ? STAFF_COL.採寸者 - 1 : -1;
-      if (mbIdx >= 0 && !rowFormulas[mbIdx]) rowVals[mbIdx] = email;
+  var mdIdx = STAFF_COL.採寸日 ? STAFF_COL.採寸日 - 1 : -1;
+  var mbIdx = STAFF_COL.採寸者 ? STAFF_COL.採寸者 - 1 : -1;
+  if (measureFieldUpdated && fields['採寸者'] === undefined) {
+    if (mbIdx >= 0 && !rowFormulas[mbIdx]) rowVals[mbIdx] = email;
+  }
+  // 採寸者と採寸日はセット必須: 採寸者が入っていて採寸日が空なら当日で補完する
+  // （採寸者だけ登録されると報酬計算が合わなくなるため）
+  if (mbIdx >= 0 && mdIdx >= 0 && !rowFormulas[mdIdx]) {
+    var mbVal = rowVals[mbIdx];
+    var mdVal = rowVals[mdIdx];
+    if (mbVal !== '' && mbVal !== null && mbVal !== undefined &&
+        (mdVal === '' || mdVal === null || mdVal === undefined)) {
+      rowVals[mdIdx] = new Date();
     }
   }
 
@@ -1864,14 +1869,23 @@ function staff_apiCreateProduct(payload, email) {
     rowArr[c - 1] = v;
   });
 
-  // 採寸関連が含まれていたら採寸日・採寸者を補完
+  // 採寸関連が含まれていたら採寸者を補完
   var measureUpdated = false;
   for (var j = 0; j < MEASURE_FIELDS.length; j++) {
     if (fields[MEASURE_FIELDS[j]] !== undefined && fields[MEASURE_FIELDS[j]] !== '') { measureUpdated = true; break; }
   }
-  if (measureUpdated) {
-    if (fields['採寸日'] === undefined && col['採寸日']) rowArr[col['採寸日'] - 1] = new Date();
-    if (fields['採寸者'] === undefined && col['採寸者']) rowArr[col['採寸者'] - 1] = email;
+  if (measureUpdated && fields['採寸者'] === undefined && col['採寸者']) {
+    rowArr[col['採寸者'] - 1] = email;
+  }
+  // 採寸者と採寸日はセット必須: 採寸者が入っていて採寸日が空なら当日で補完する
+  // （採寸者だけ登録されると報酬計算が合わなくなるため）
+  if (col['採寸者'] && col['採寸日']) {
+    var mbV = rowArr[col['採寸者'] - 1];
+    var mdV = rowArr[col['採寸日'] - 1];
+    if (mbV !== '' && mbV !== null && mbV !== undefined &&
+        (mdV === '' || mdV === null || mdV === undefined)) {
+      rowArr[col['採寸日'] - 1] = new Date();
+    }
   }
 
   // 書き込み前にステータスを IFS 式で再計算（payload で日付が指定されていれば反映）
