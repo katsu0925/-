@@ -969,7 +969,8 @@ function writeSubmitData_(data) {
   ];
   var writeRow = sh_findNextRowByDisplayKey_(reqSh, 1, 1);
   // AE列（作業報酬）は数式で残す: T列の運送会社×K列の点数で自動計算
-  row[REQUEST_SHEET_COLS.REWARD - 1] = '=IF(T' + writeRow + '="", "", IF(T' + writeRow + '="日本郵便", 300*K' + writeRow + ', IF(OR(T' + writeRow + '="佐川急便", T' + writeRow + '="ヤマト運輸"), 200*K' + writeRow + ', "")))';
+  // 2026/6/1以降の依頼（B列の依頼日時ベース）は単価+50円（郵便350/佐川・ヤマト250）
+  row[REQUEST_SHEET_COLS.REWARD - 1] = '=IF(T' + writeRow + '="", "", IF(B' + writeRow + '>=DATE(2026,6,1), IF(T' + writeRow + '="日本郵便", 350*K' + writeRow + ', IF(OR(T' + writeRow + '="佐川急便", T' + writeRow + '="ヤマト運輸"), 250*K' + writeRow + ', "")), IF(T' + writeRow + '="日本郵便", 300*K' + writeRow + ', IF(OR(T' + writeRow + '="佐川急便", T' + writeRow + '="ヤマト運輸"), 200*K' + writeRow + ', ""))))';
   reqSh.getRange(writeRow, 1, 1, row.length).setValues([row]);
 
   // 2. hold/openログシートの同期
