@@ -9266,6 +9266,27 @@ async function submitCreateProduct(shiireId) {
     });
   });
 
+  // 採寸者と採寸日はセット必須（採寸者だけ登録すると報酬計算が合わなくなる）
+  var sokMb_ = fields['採寸者'];
+  var sokMd_ = fields['採寸日'];
+  if (sokMd_ && !sokMb_) {
+    // 採寸日だけ入力 → 採寸者が空なら登録をブロック
+    toast('採寸日を入力した場合は採寸者も選択してください', 'error');
+    flagInvalidField_(createFieldId_('採寸者'));
+    return;
+  }
+  if (sokMb_ && !sokMd_) {
+    // 採寸者だけ入力 → 採寸日を当日で自動補完
+    var sokToday_ = new Date();
+    var sokYmd_ = sokToday_.getFullYear() + '-' +
+      ('0' + (sokToday_.getMonth() + 1)).slice(-2) + '-' +
+      ('0' + sokToday_.getDate()).slice(-2);
+    fields['採寸日'] = sokYmd_;
+    var sokMdEl_ = document.getElementById(createFieldId_('採寸日'));
+    if (sokMdEl_) sokMdEl_.value = sokYmd_;
+    toast('採寸者のみ入力されたため採寸日を本日で補完しました', 'success');
+  }
+
   // ヘッダー名 → 旧 API 互換キーへのショートカット（GAS 側の固定列マッピング用）
   var body = {
     shiireId: shiireId,
