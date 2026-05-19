@@ -1707,23 +1707,44 @@ function staff_apiCreatePurchase(payload, email) {
   return { ok: true, shiireId: id, row: appendAt, assignedKanri: assignedKanri };
 }
 
-// 商品管理シートから 'z<category>' プレフィックスの最大連番 + 1 を返す
+// 次の割当開始番号（'z<category>' プレフィックスの最大連番 + 1）を返す。
+// 参照元は2系統で、両方の最大値を見る:
+//   ① 仕入れ管理シートの割当管理番号(L列) — 例 "zB101~300" の末尾 300。
+//      まだ商品管理シートに商品が作られていない「予約済みレンジ」も含めて見るため、
+//      同区分を連続で仕入れ登録しても番号レンジが重複しない。
+//   ② 商品管理シートの管理番号列 — 予約レンジを持たない実在商品（手入力等）への保険。
+// 従来は①を見ておらず、未投入の予約レンジと番号が重複していた。
 function staff_nextKanriNumber_(ss, prefix) {
-  var sh = ss.getSheetByName(STAFF_SHEET_NAME);
-  if (!sh) return 1;
-  var lastRow = sh.getLastRow();
-  if (lastRow < 2) return 1;
-  var col = STAFF_COL && STAFF_COL.管理番号 ? STAFF_COL.管理番号 : 6;
-  var values = sh.getRange(2, col, lastRow - 1, 1).getValues();
-  var maxN = 0;
   var pl = prefix.length;
-  for (var r = 0; r < values.length; r++) {
-    var k = String(values[r][0] || '').trim();
-    if (k.substring(0, pl) !== prefix) continue;
-    var rest = k.substring(pl);
-    var n = parseInt(rest, 10);
-    if (!isNaN(n) && n > maxN) maxN = n;
+  var maxN = 0;
+
+  // ① 仕入れ管理シートの割当管理番号(L列)= 予約済みレンジの末尾
+  var ksh = ss.getSheetByName('仕入れ管理');
+  if (ksh && ksh.getLastRow() >= 2) {
+    var avals = ksh.getRange(2, 12, ksh.getLastRow() - 1, 1).getValues(); // L=12 割当管理番号
+    for (var a = 0; a < avals.length; a++) {
+      var av = String(avals[a][0] || '').trim();
+      if (!av || av.substring(0, pl) !== prefix) continue;
+      // "zB101~300" → 末尾 300 / "zB101"(レンジ無し) → 101
+      var tail = av.indexOf('~') >= 0 ? av.substring(av.indexOf('~') + 1) : av.substring(pl);
+      var endN = parseInt(tail, 10);
+      if (!isNaN(endN) && endN > maxN) maxN = endN;
+    }
   }
+
+  // ② 商品管理シートの管理番号列 = 実在商品（予約レンジ無しの保険）
+  var psh = ss.getSheetByName(STAFF_SHEET_NAME);
+  if (psh && psh.getLastRow() >= 2) {
+    var col = STAFF_COL && STAFF_COL.管理番号 ? STAFF_COL.管理番号 : 6;
+    var pvals = psh.getRange(2, col, psh.getLastRow() - 1, 1).getValues();
+    for (var r = 0; r < pvals.length; r++) {
+      var k = String(pvals[r][0] || '').trim();
+      if (!k || k.substring(0, pl) !== prefix) continue;
+      var n = parseInt(k.substring(pl), 10);
+      if (!isNaN(n) && n > maxN) maxN = n;
+    }
+  }
+
   return maxN + 1;
 }
 
