@@ -6228,13 +6228,18 @@ function enhanceSelect_(sel) {
         var spaceBelow = vh - triggerRect.bottom - 12 - csEdgeObstruction_('bottom');
         var spaceAbove = triggerRect.top - 12 - csEdgeObstruction_('top');
         // 下に十分な余裕がなく、上のほうが広いなら上方向に倒す
-        var flipUp = (spaceBelow < 220) && (spaceAbove > spaceBelow);
+        var flipUp = (spaceBelow < 260) && (spaceAbove > spaceBelow);
         if (flipUp) wrap.classList.add('flip-up');
         if (listEl) {
-          var avail = flipUp ? spaceAbove : spaceBelow;
+          var avail = Math.max(0, flipUp ? spaceAbove : spaceBelow);
           // 検索バーぶんを差し引く（あるとき 44px 程度）
           var searchH = pop.querySelector('.cs-search') ? 44 : 0;
-          var maxList = Math.max(120, avail - searchH - 16);
+          // popover 全体（検索バー＋リスト＋枠線）が可視領域に必ず収まる list 高さにする。
+          // avail を超えない高さなので、list を末尾までスクロールすれば全行が見える。
+          // 従来は最低 120px を強制していたため、空きが狭いと popover 下端が
+          // ボトムバー裏／画面外にはみ出し、最後の数行が見切れてスクロールしても
+          // 見えない状態になっていた。
+          var maxList = Math.max(96, avail - searchH - 8);
           listEl.style.maxHeight = maxList + 'px';
         }
         // 横方向: popover が右端を越えるなら右寄せに
