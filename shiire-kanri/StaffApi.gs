@@ -1363,6 +1363,16 @@ function staff_apiSaveDetails(payload, email) {
       rowVals[mdIdx] = new Date();
     }
   }
+  // 逆パターン: 採寸日が入っていて採寸者が空なら保存をブロックする
+  // （このリクエストで採寸日／採寸者を更新した場合のみ判定。既存の片欠け行は触らない）
+  if (fields['採寸日'] !== undefined || fields['採寸者'] !== undefined) {
+    var chkMd = mdIdx >= 0 ? rowVals[mdIdx] : '';
+    var chkMb = mbIdx >= 0 ? rowVals[mbIdx] : '';
+    if (chkMd !== '' && chkMd !== null && chkMd !== undefined &&
+        (chkMb === '' || chkMb === null || chkMb === undefined)) {
+      return { ok: false, error: '採寸日を登録するには採寸者も必須です（採寸者と採寸日はセットで登録してください）' };
+    }
+  }
 
   // ステータスを AppSheet IFS 式で再計算（in-memory）
   var statusChanged = false;
@@ -1885,6 +1895,13 @@ function staff_apiCreateProduct(payload, email) {
     if (mbV !== '' && mbV !== null && mbV !== undefined &&
         (mdV === '' || mdV === null || mdV === undefined)) {
       rowArr[col['採寸日'] - 1] = new Date();
+    }
+    // 逆パターン: 採寸日が入っていて採寸者が空なら新規登録をブロックする
+    var mbV2 = rowArr[col['採寸者'] - 1];
+    var mdV2 = rowArr[col['採寸日'] - 1];
+    if (mdV2 !== '' && mdV2 !== null && mdV2 !== undefined &&
+        (mbV2 === '' || mbV2 === null || mbV2 === undefined)) {
+      return { ok: false, error: '採寸日を登録するには採寸者も必須です（採寸者と採寸日はセットで登録してください）' };
     }
   }
 
