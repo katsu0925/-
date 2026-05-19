@@ -9,6 +9,38 @@ const D_KANRYOU = "(json_extract(extra_json, '$.\"完了日\"') IS NOT NULL AND 
 const D_HANBAI  = "(sale_date IS NOT NULL AND sale_date <> '')";
 const ACCOUNT_SELECTED = "(json_extract(extra_json, '$.\"使用アカウント\"') IS NOT NULL AND json_extract(extra_json, '$.\"使用アカウント\"') <> '')";
 
+// 出品待ちタブ／出品報告ピッカーから除外する「仮置き場」の納品場所。
+// family / なかの屋plus は撮影・採寸中の一時納品場所で、在庫保管場所へ移動報告
+// するまで出品させてはいけない（出品後に売れると発送処理ができなくなるため）。
+// 管理者は設定シートの「出品待ち除外納品場所」列（master:settings KV）で編集でき、
+// KV ミス・列が空のときは下の既定値にフォールバックする。
+const DEFAULT_SHUPPIN_EXCLUDE_PLACES = ['family', 'なかの屋plus'];
+const SHUPPIN_EXCLUDE_SETTING_KEY = '出品待ち除外納品場所';
+
+async function getShuppinExcludePlaces_(env) {
+  try {
+    const s = env.CACHE && await env.CACHE.get('master:settings', 'json');
+    const list = s && s.items && s.items[SHUPPIN_EXCLUDE_SETTING_KEY];
+    if (Array.isArray(list)) {
+      const cleaned = list.map((v) => String(v == null ? '' : v).trim()).filter(Boolean);
+      if (cleaned.length) return cleaned;
+    }
+  } catch (err) {
+    console.warn('[products] settings kv get failed', err && err.message);
+  }
+  return DEFAULT_SHUPPIN_EXCLUDE_PLACES;
+}
+
+// 「納品場所が除外拠点でない」SQL 句とバインド引数を返す。
+// AppSheet の [納品場所]<>"x" 同様、納品場所が空の行は通す（IFNULL で NULL セーフ）。
+function shuppinPlaceClause_(places) {
+  const ph = places.map(() => '?').join(', ');
+  return {
+    clause: `IFNULL(json_extract(extra_json, '$."納品場所"'), '') NOT IN (${ph})`,
+    args: places.slice(),
+  };
+}
+
 // 派生ステータス: シート上の手動ステータス（status 列）を最優先。
 // 「出品作業中」だけは raw='出品待ち' の中で日付＋アカウント条件を満たす行を細分化する。
 // status が空のときだけ日付ベースで自動判定する。
@@ -79,7 +111,11 @@ export async function listProducts(request, env) {
   } else if (filter === 'satsuei_machi') {
     where.push(`${ds} = '撮影待ち'`);
   } else if (filter === 'shuppin_machi') {
-    where.push(`${ds} = '出品待ち'`);
+    // 出品待ち = 派生ステータス '出品待ち'（採寸・撮影済み）かつ
+    // 納品場所が仮置き場（family 等）でない。AppSheet の出品待ちビュー条件と一致。
+    const ex = shuppinPlaceClause_(await getShuppinExcludePlaces_(env));
+    where.push(`${ds} = '出品待ち' AND ${ex.clause}`);
+    ex.args.forEach((a) => args.push(a));
   } else if (filter === 'shuppin_sagyou') {
     where.push(`${ds} = '出品作業中'`);
   } else if (filter === 'shuppinchu') {
@@ -225,10 +261,12 @@ const COUNTS_STALE_SEC = 60;
 
 async function computeCounts_(env) {
   const ds = `(${DERIVED_STATUS})`;
+  // 出品待ちは納品場所が仮置き場の行を除外（フィルタ側 shuppin_machi と同条件）
+  const ex = shuppinPlaceClause_(await getShuppinExcludePlaces_(env));
   const buckets = {
     sokutei_machi:  `${ds} = '採寸待ち'`,
     satsuei_machi:  `${ds} = '撮影待ち'`,
-    shuppin_machi:  `${ds} = '出品待ち'`,
+    shuppin_machi:  `${ds} = '出品待ち' AND ${ex.clause}`,
     shuppin_sagyou: `${ds} = '出品作業中'`,
     shuppinchu:     `${ds} = '出品中'`,
     hassou:         `((status = '発送待ち' AND NOT ${D_HASSOU}) OR status = '発送済み')`,
@@ -242,7 +280,8 @@ async function computeCounts_(env) {
     SUM(CASE WHEN ${ds} NOT IN ('売却済み','返品済み') THEN 1 ELSE 0 END) AS total,
     ${parts.join(', ')}
     FROM products`;
-  const row = await env.DB.prepare(sql).first();
+  const stmt = env.DB.prepare(sql);
+  const row = await (ex.args.length ? stmt.bind(...ex.args) : stmt).first();
   const counts = {};
   Object.keys(buckets).forEach(k => { counts[k] = Number(row[k] || 0); });
   counts.all = Number(row.total || 0);
