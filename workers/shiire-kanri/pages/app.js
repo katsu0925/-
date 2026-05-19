@@ -288,6 +288,22 @@ document.addEventListener('change', function(e){
     refillCategory3_(p2);
   }
 });
+// 採寸者を選んだら採寸日を当日で即時補完（採寸者だけ登録すると報酬計算が合わなくなるため）
+document.addEventListener('change', function(e){
+  var t = e.target;
+  if (!t || !t.id) return;
+  var MB_IDS = ['f_' + escFieldId_('採寸者'), 'cf_' + escFieldId_('採寸者')];
+  if (MB_IDS.indexOf(t.id) < 0) return;
+  if (!t.value) return; // 採寸者を空に戻したときは何もしない
+  var prefix = t.id.slice(0, t.id.indexOf('_') + 1);
+  var mdEl = document.getElementById(prefix + escFieldId_('採寸日'));
+  if (!mdEl || mdEl.value) return; // 採寸日が既に入っていれば触らない
+  var d = new Date();
+  mdEl.value = d.getFullYear() + '-' +
+    ('0' + (d.getMonth() + 1)).slice(-2) + '-' +
+    ('0' + d.getDate()).slice(-2);
+  try { mdEl.dispatchEvent(new Event('change', { bubbles: true })); } catch(err) {}
+});
 function escFieldId_(name) {
   return name.replace(/[^A-Za-z0-9_]/g, function(ch){ return '_' + ch.charCodeAt(0).toString(16); });
 }
