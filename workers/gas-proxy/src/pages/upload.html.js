@@ -267,12 +267,6 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
         <div id="manageList"></div>
         <div class="status" id="manageStatus"></div>
       </div>
-      <div class="card" id="deletedCard" style="display:none;margin-top:12px">
-        <h3 style="font-size:14px;font-weight:700;margin:0 0 4px">最近削除した商品・画像</h3>
-        <p style="font-size:11px;color:#999;margin:0 0 10px">削除から7日以内は復元できます。7日経過後は画像が完全に削除されます。</p>
-        <div id="deletedList"></div>
-        <div class="status" id="deletedStatus"></div>
-      </div>
     </div>
   </div>
 
@@ -745,7 +739,6 @@ function switchTab(name) {
   });
   if (name === 'manage') {
     ensureListLoaded(function() { renderManageList(); });
-    loadDeletedList();
   }
 }
 
@@ -3262,8 +3255,8 @@ function deleteManageImages(managedId) {
   if (checks.length === 0) { showStatus('manageStatus', '画像を選択してください', 'err'); return; }
   var allChecks = document.querySelectorAll('.dl-img-check');
   if (checks.length === allChecks.length) {
-    // 全画像選択 → 全削除（ソフトデリート: 7日間は復元可能）
-    showConfirm(managedId + ' の画像を全て削除しますか？\\n（7日間は「最近削除した商品」から復元できます）', function() {
+    // 全画像選択 → 全削除（ソフトデリート: 復元は管理者のみ）
+    showConfirm(managedId + ' の画像を全て削除しますか？\\n（誤って削除した場合は管理者に連絡してください）', function() {
       showLoading('削除中', managedId);
       fetch(API_BASE + '/upload/delete', {
         method: 'POST',
@@ -3273,10 +3266,10 @@ function deleteManageImages(managedId) {
       .then(function(d) {
         hideLoading();
         if (d.ok) {
-          showStatus('manageStatus', d.count + '枚削除しました（7日間は復元可能）', 'ok');
+          showStatus('manageStatus', d.count + '枚削除しました', 'ok');
           var el = document.getElementById('manageDetailInline'); if (el) el.remove();
           _manageExpandedMid = '';
-          reloadList(function() { renderManageList(); loadDeletedList(); });
+          reloadList(function() { renderManageList(); });
         } else { showStatus('manageStatus', d.message || 'エラー', 'err'); }
       }).catch(function() { hideLoading(); showStatus('manageStatus', 'ネットワークエラー', 'err'); });
     }, '削除する', 'btn btn-danger', managedId);
@@ -3284,7 +3277,7 @@ function deleteManageImages(managedId) {
     // 一部選択 → URL直接指定で削除（インデックスずれ防止）
     var targetUrls = [];
     checks.forEach(function(c) { targetUrls.push(c.dataset.url); });
-    showConfirm(targetUrls.length + '枚の画像を削除しますか？\\n（7日間は「最近削除した商品・画像」から復元できます）', function() {
+    showConfirm(targetUrls.length + '枚の画像を削除しますか？\\n（誤って削除した場合は管理者に連絡してください）', function() {
       var total = targetUrls.length;
       var done = 0;
       showLoading('削除中', '0/' + total);
@@ -3294,7 +3287,7 @@ function deleteManageImages(managedId) {
           showStatus('manageStatus', total + '枚削除しました', 'ok');
           var mid = managedId;
           _manageExpandedMid = '';
-          reloadList(function() { renderManageList(); toggleManageExpand(mid); loadDeletedList(); });
+          reloadList(function() { renderManageList(); toggleManageExpand(mid); });
           return;
         }
         updateLoading('削除中', (done+1) + '/' + total);
@@ -3769,7 +3762,7 @@ function doDeleteSelected() {
   if (checks.length === 0) return;
   var mids = [];
   checks.forEach(function(c) { mids.push(c.dataset.mid); });
-  showConfirm(mids.length + '件の商品画像を全て削除しますか？\\n（7日間は「最近削除した商品」から復元できます）', function() {
+  showConfirm(mids.length + '件の商品画像を全て削除しますか？\\n（誤って削除した場合は管理者に連絡してください）', function() {
     _doDeleteSelectedBatch(mids);
   }, '削除する', 'btn btn-danger', '削除');
 }
@@ -3791,7 +3784,7 @@ function _doDeleteSelectedBatch(mids) {
       updateLoading('一括削除中', done + '/' + mids.length);
       if (done === mids.length) {
         hideLoading();
-        showStatus('manageStatus', mids.length + '件（' + totalDeleted + '枚）削除しました（7日間は復元可能）', 'ok');
+        showStatus('manageStatus', mids.length + '件（' + totalDeleted + '枚）削除しました', 'ok');
         var el = document.getElementById('manageDetailInline'); if (el) el.remove();
         _manageExpandedMid = '';
         reloadList(function() { renderManageList(); });
@@ -3850,95 +3843,8 @@ function closeConfirm(ok) {
   _confirmCallback = null;
 }
 
-// ─── 最近削除した商品（ソフトデリート復元） ───
-function loadDeletedList() {
-  var card = document.getElementById('deletedCard');
-  fetch(API_BASE + '/upload/deleted-list', {
-    method: 'POST',
-    headers: headers({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({})
-  }).then(function(r) { return r.json(); })
-  .then(function(d) {
-    if (d.ok && d.items && d.items.length > 0) {
-      card.style.display = 'block';
-      renderDeletedList(d.items);
-    } else {
-      card.style.display = 'none';
-    }
-  }).catch(function() { card.style.display = 'none'; });
-}
-
-function renderDeletedList(items) {
-  var html = '';
-  items.forEach(function(it) {
-    var thumb = it.thumbnail ? (API_BASE + it.thumbnail) : '';
-    var thumbHtml = thumb
-      ? '<img src="' + thumb + '" style="width:48px;height:48px;object-fit:cover;border-radius:6px;flex-shrink:0">'
-      : '<div style="width:48px;height:48px;border-radius:6px;background:#eee;flex-shrink:0"></div>';
-    var by = it.deletedBy ? ('・' + escapeHtml(it.deletedBy)) : '';
-    var isImage = it.type === 'image';
-    var label = isImage
-      ? (escapeHtml(it.managedId) + ' <span style="color:#999;font-weight:400;font-size:11px">画像1枚</span>')
-      : escapeHtml(it.managedId);
-    var meta = isImage
-      ? ('画像削除' + by + '・残り' + it.daysLeft + '日')
-      : (it.count + '枚' + by + '・残り' + it.daysLeft + '日');
-    var btn = isImage
-      ? '<button class="btn btn-primary" style="flex:0 0 auto;padding:6px 12px;font-size:12px" onclick="restoreImage(\\'' + escapeHtml(it.managedId) + '\\',\\'' + escapeHtml(it.url) + '\\')">復元</button>'
-      : '<button class="btn btn-primary" style="flex:0 0 auto;padding:6px 12px;font-size:12px" onclick="restoreProduct(\\'' + escapeHtml(it.managedId) + '\\')">復元</button>';
-    html += '<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f0f0f0">'
-      + thumbHtml
-      + '<div style="flex:1;min-width:0">'
-      +   '<div style="font-weight:600;font-size:13px">' + label + '</div>'
-      +   '<div style="font-size:11px;color:#999">' + meta + '</div>'
-      + '</div>'
-      + btn
-      + '</div>';
-  });
-  document.getElementById('deletedList').innerHTML = html;
-}
-
-function restoreProduct(managedId) {
-  showConfirm(managedId + ' を復元しますか？', function() {
-    showLoading('復元中', managedId);
-    fetch(API_BASE + '/upload/restore', {
-      method: 'POST',
-      headers: headers({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ managedId: managedId })
-    }).then(function(r) { return r.json(); })
-    .then(function(d) {
-      hideLoading();
-      if (d.ok) {
-        var msg = d.restored + '枚復元しました';
-        if (d.missing > 0) msg += '（' + d.missing + '枚は画像が失われていて復元できませんでした）';
-        showStatus('deletedStatus', msg, d.missing > 0 ? 'err' : 'ok');
-        reloadList(function() { renderManageList(); loadDeletedList(); });
-      } else {
-        showStatus('deletedStatus', d.message || 'エラー', 'err');
-      }
-    }).catch(function() { hideLoading(); showStatus('deletedStatus', 'ネットワークエラー', 'err'); });
-  }, '復元する', 'btn btn-primary');
-}
-
-function restoreImage(managedId, url) {
-  showConfirm(managedId + ' の画像を1枚復元しますか？', function() {
-    showLoading('復元中', managedId);
-    fetch(API_BASE + '/upload/restore-image', {
-      method: 'POST',
-      headers: headers({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ managedId: managedId, url: url })
-    }).then(function(r) { return r.json(); })
-    .then(function(d) {
-      hideLoading();
-      if (d.ok) {
-        showStatus('deletedStatus', '画像を復元しました', 'ok');
-        reloadList(function() { renderManageList(); loadDeletedList(); });
-      } else {
-        showStatus('deletedStatus', d.message || 'エラー', 'err');
-      }
-    }).catch(function() { hideLoading(); showStatus('deletedStatus', 'ネットワークエラー', 'err'); });
-  }, '復元する', 'btn btn-primary');
-}
+// 削除した商品・画像の復元はアプリ内に出さない（管理者がバックエンドで手動復元）。
+// エンドポイント /upload/restore・/upload/restore-image・/upload/deleted-list は残置。
 
 // ─── ユーティリティ ───
 function toggleImgCheck(wrap, e) {
