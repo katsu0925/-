@@ -480,22 +480,94 @@ export async function getProductImages(request, env, kanri) {
 // GET /api/kanri/next?category=C
 // 区分コードを受け取り、その区分での次の連番（max+1）を返す。
 // 例: category=C のとき、zC で始まる kanri の最大番号 +1 を返す。
+// ※ 商品管理テーブルの実在商品だけでなく、仕入れの予約レンジ(assigned_kanri)の
+//    末尾も考慮する。SPA作成の仕入れは recalcAssignNumbers_ を経由しないため、
+//    予約レンジ末尾が実在商品より先行することがあるため。
 export async function getNextKanri(request, env) {
   const u = new URL(request.url);
   const category = (u.searchParams.get('category') || '').trim();
   if (!category) return jsonError('category required', 400);
   const prefix = 'z' + category;
-  // GLOB は SUBSTR の数字部分だけを抽出するために条件を絞る
-  const sql = `
+  // ① 商品管理テーブルの実在商品の最大番号
+  const sqlP = `
     SELECT MAX(CAST(SUBSTR(kanri, ?) AS INTEGER)) AS max_n
     FROM products
     WHERE SUBSTR(kanri, 1, ?) = ?
       AND CAST(SUBSTR(kanri, ?) AS INTEGER) > 0
   `;
   try {
-    const row = await env.DB.prepare(sql).bind(prefix.length + 1, prefix.length, prefix, prefix.length + 1).first();
-    const maxN = Number(row && row.max_n || 0);
+    const rowP = await env.DB.prepare(sqlP).bind(prefix.length + 1, prefix.length, prefix, prefix.length + 1).first();
+    let maxN = Number(rowP && rowP.max_n || 0);
+    // ② 仕入れの予約レンジ(assigned_kanri)末尾も考慮（zC950~1074 → 1074）
+    const rowsA = await env.DB.prepare(
+      `SELECT assigned_kanri FROM purchases WHERE category = ? AND assigned_kanri != ''`
+    ).bind(category).all();
+    for (const r of (rowsA.results || [])) {
+      const a = String(r.assigned_kanri || '').trim();
+      if (a.substring(0, prefix.length) !== prefix) continue;
+      const tail = a.indexOf('~') >= 0 ? a.substring(a.indexOf('~') + 1) : a.substring(prefix.length);
+      const endN = parseInt(tail, 10);
+      if (!isNaN(endN) && endN > maxN) maxN = endN;
+    }
     return jsonOk({ category, prefix, maxN, nextKanri: prefix + (maxN + 1) });
+  } catch (err) {
+    return jsonError('db error: ' + err.message, 500);
+  }
+}
+
+// GET /api/purchases/:sid/next-kanri
+// 指定した仕入れIDの予約レンジ(assigned_kanri 例 zC950~1074)内で
+// 未使用の先頭番号を返す。1仕入れID = 1箱 を連番で管理するため、
+// 商品作成時の管理番号はその仕入れの予約レンジから採番する。
+export async function getNextKanriForPurchase(request, env, shiireId) {
+  try {
+    const pu = await env.DB.prepare(
+      `SELECT shiire_id, category, assigned_kanri FROM purchases WHERE shiire_id = ? LIMIT 1`
+    ).bind(shiireId).first();
+    if (!pu) return jsonError('not found', 404);
+    const category = String(pu.category || '').trim();
+    const prefix = 'z' + category;
+    const assigned = String(pu.assigned_kanri || '').trim();
+    // 予約レンジを解析: "zC950~1074" → start=950, end=1074
+    let startN = 0, endN = 0;
+    if (assigned.indexOf('~') >= 0 && assigned.substring(0, prefix.length) === prefix) {
+      const parts = assigned.substring(prefix.length).split('~');
+      startN = parseInt(parts[0], 10);
+      endN = parseInt(parts[1], 10);
+      if (isNaN(startN)) startN = 0;
+      if (isNaN(endN)) endN = 0;
+    }
+    // この仕入れに紐づく既存商品の番号を収集
+    const rows = await env.DB.prepare(
+      `SELECT kanri FROM products WHERE shiire_id = ?`
+    ).bind(shiireId).all();
+    const used = new Set();
+    let maxUsed = 0;
+    for (const r of (rows.results || [])) {
+      const k = String(r.kanri || '').trim();
+      if (k.substring(0, prefix.length) !== prefix) continue;
+      const n = parseInt(k.substring(prefix.length), 10);
+      if (!isNaN(n) && n > 0) { used.add(n); if (n > maxUsed) maxUsed = n; }
+    }
+    let nextN = 0;
+    let withinRange = false;
+    if (startN > 0 && endN >= startN) {
+      // 予約レンジ内の未使用先頭番号
+      for (let n = startN; n <= endN; n++) {
+        if (!used.has(n)) { nextN = n; withinRange = true; break; }
+      }
+      // レンジが満杯ならレンジ末尾+1（オーバーフロー）
+      if (nextN === 0) nextN = endN + 1;
+    } else {
+      // 予約レンジ未設定の旧仕入れ → 既存最大+1（フォールバック）
+      nextN = maxUsed + 1;
+    }
+    return jsonOk({
+      shiireId, category, prefix, assignedKanri: assigned,
+      rangeStart: startN, rangeEnd: endN,
+      registered: used.size, nextN, nextKanri: prefix + nextN,
+      withinRange,
+    });
   } catch (err) {
     return jsonError('db error: ' + err.message, 500);
   }

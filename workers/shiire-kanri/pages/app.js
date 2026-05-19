@@ -1575,21 +1575,22 @@ async function openShiireDetail(shiireId, opts) {
       } catch (e) { /* ignore */ }
     }
     var rangeHtml = '';
-    if (category && planned > 0) {
-      try {
-        const next = await api('/api/kanri/next?category=' + encodeURIComponent(category));
-        const prefix = next.prefix || ('z' + category);
-        // 既に登録済の商品があれば、その最小〜最大を実績として表示。残りは予約として表示
+    try {
+      // この仕入れ専用の予約レンジ(assigned_kanri 例 zC950~1074)を表示。
+      // 1仕入れID = 1箱 を連番管理するため、全商品横断の連番ではなく
+      // この仕入れに割り当てられたレンジをそのまま使う。
+      const nk = await api('/api/purchases/' + encodeURIComponent(shiireId) + '/next-kanri');
+      if (nk.rangeStart > 0 && nk.rangeEnd >= nk.rangeStart) {
+        var rangeTotal = nk.rangeEnd - nk.rangeStart + 1;
         var registered = items.length;
-        var remaining = Math.max(0, planned - registered);
-        var startN = Number(next.maxN || 0) + 1;
-        var endN = startN + remaining - 1;
+        var remaining = Math.max(0, rangeTotal - registered);
         rangeHtml = '<div class="meta" style="background:#f0f9ff;border-left:3px solid var(--primary);padding:6px 10px;border-radius:4px;margin-top:6px;">' +
-          '割り当て管理番号（残り ' + remaining + '点）: <strong>' +
-          (remaining > 0 ? esc(prefix + startN) + ' 〜 ' + esc(prefix + endN) : '完了') +
-          '</strong></div>';
-      } catch (e) { /* ignore */ }
-    }
+          '割り当て管理番号: <strong>' + esc(nk.prefix + nk.rangeStart) + ' 〜 ' + esc(nk.prefix + nk.rangeEnd) + '</strong>' +
+          ' （' + rangeTotal + '点 / 登録済 ' + registered + ' / 残り ' + remaining + '）' +
+          (remaining > 0 ? '<br>次の番号: <strong>' + esc(nk.nextKanri) + '</strong>' : '') +
+          '</div>';
+      }
+    } catch (e) { /* ignore */ }
     const head = '<div class="product-info"><h2>仕入れ ' + esc(shiireId) + '</h2>' +
       '<div class="meta">紐づく商品: ' + items.length + (planned ? ' / ' + planned : '') + ' 点</div>' +
       rangeHtml +
@@ -8487,12 +8488,14 @@ async function submitCreatePurchase() {
   }
 }
 
-// 区分コードから「全商品にまたがる次の連番」をサーバーに問い合わせる
-// 仕入れに紐づく既存商品ではなく、システム全体の zX連番 を考慮するため API を使う
-async function suggestNextKanriRemote(category) {
-  if (!category) return '';
+// 仕入れID単位の予約レンジ(assigned_kanri 例 zC950~1074)から
+// 未使用の先頭番号をサーバーに問い合わせる。
+// 1仕入れID = 1箱 を連番管理するため、商品の管理番号はその仕入れの
+// 予約レンジ内から採番する（全商品横断の連番は使わない）。
+async function suggestNextKanriRemote(shiireId) {
+  if (!shiireId) return '';
   try {
-    const res = await api('/api/kanri/next?category=' + encodeURIComponent(category));
+    const res = await api('/api/purchases/' + encodeURIComponent(shiireId) + '/next-kanri');
     return res.nextKanri || '';
   } catch (e) {
     return '';
@@ -8560,7 +8563,7 @@ async function openCreateProductModal(shiireId) {
       category = SHIIRE_CATEGORY_MAP[shiireId] || '';
     } catch (e) { /* ignore */ }
   }
-  const suggested = await suggestNextKanriRemote(category);
+  const suggested = await suggestNextKanriRemote(shiireId);
   c.innerHTML = buildCreateProductHtml_({ withSelect: false, fixedShiireId: shiireId, suggested: suggested });
   enhanceAllSelects_(c);
   wireFeeAutoCalc_('cf_');
@@ -9211,11 +9214,10 @@ async function onShiireSelectChange_() {
   if (!sid) { hint.textContent = '— / 候補: —'; return; }
   hint.textContent = sid + ' / 候補取得中…';
   try {
-    const category = SHIIRE_CATEGORY_MAP[sid] || '';
     // 紐づく既存商品数も取得して表示
     const [productsRes, suggested] = await Promise.all([
       api('/api/purchases/' + encodeURIComponent(sid) + '/products'),
-      suggestNextKanriRemote(category),
+      suggestNextKanriRemote(sid),
     ]);
     const items = productsRes.items || [];
     hint.innerHTML = '仕入れ ID: <strong>' + esc(sid) + '</strong> / 既存 ' + items.length + '件' +

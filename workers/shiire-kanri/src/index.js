@@ -3,7 +3,7 @@ import { getAccessUser } from './utils/access.js';
 import { withIdempotency } from './utils/idempotency.js';
 import { scheduledSync } from './sync/sheets-sync.js';
 import { scheduledAccessSync } from './sync/access-sync.js';
-import { listProducts, getProduct, listProductCounts, getNextKanri, listProductThumbs, getProductImages, listKanrisWithImages, backfillThumbUrl } from './handlers/products.js';
+import { listProducts, getProduct, listProductCounts, getNextKanri, getNextKanriForPurchase, listProductThumbs, getProductImages, listKanrisWithImages, backfillThumbUrl } from './handlers/products.js';
 import { listPurchases, getPurchaseProducts } from './handlers/purchases.js';
 import { saveMeasurement, saveSale, saveDetails, uploadImage, resolveImage, createPurchase, createProduct, deleteProduct } from './handlers/write-proxy.js';
 import { imgProxy } from './handlers/img-proxy.js';
@@ -143,6 +143,10 @@ export default {
     const purchaseProductsMatch = path.match(/^\/api\/purchases\/([^/]+)\/products$/);
     if (purchaseProductsMatch && request.method === 'GET') {
       return getPurchaseProducts(request, env, decodeURIComponent(purchaseProductsMatch[1]));
+    }
+    const purchaseNextKanriMatch = path.match(/^\/api\/purchases\/([^/]+)\/next-kanri$/);
+    if (purchaseNextKanriMatch && request.method === 'GET') {
+      return getNextKanriForPurchase(request, env, decodeURIComponent(purchaseNextKanriMatch[1]));
     }
     if (path.startsWith('/api/purchases/') && request.method === 'DELETE') {
       const shiireId = decodeURIComponent(path.slice('/api/purchases/'.length));
