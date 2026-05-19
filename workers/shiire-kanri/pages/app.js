@@ -8534,7 +8534,12 @@ async function openCreateProductModal(shiireId) {
     try {
       const res = await api('/api/purchases?limit=2000');
       const all = (res.items || []).filter(it => it.shiireId);
-      const items = all.filter(it => !isShiireDone_(it) && !isShiireStale_(it));
+      // 未完了（registered < planned）の仕入れは60日超でもプルダウンに残す。
+      // planned 不明（0以下）で完了判定できない古い仕入れだけ stale 除外する。
+      const items = all.filter(it =>
+        !isShiireDone_(it) &&
+        (!isShiireStale_(it) || (Number(it.planned) > 0 && Number(it.registered) < Number(it.planned)))
+      );
       // category マップを更新
       all.forEach(function(it){ SHIIRE_CATEGORY_MAP[it.shiireId] = it.category || ''; });
       if (!items.length) { cancelCreateProduct_(); toast('登録可能な仕入れがありません（すべて完了済）', 'error'); return; }
