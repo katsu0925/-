@@ -830,7 +830,9 @@
   .cs-trigger:disabled, .cs-trigger[aria-disabled="true"] { background-color: #f3f5f9; color: #9aa3b2; cursor: not-allowed; }
   .cs-display { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .cs-popover {
-    position: absolute; top: calc(100% + 4px); left: 0; right: auto; z-index: 60;
+    /* z-index は bottomnav(100)・sticky アクションバー(90〜110) より高くして、
+       わずかに重なっても popover が裏に隠れないようにする（高さ制限は JS 側で実施） */
+    position: absolute; top: calc(100% + 4px); left: 0; right: auto; z-index: 130;
     /* トリガーが狭い列（カテゴリ2/3 等）に置かれていても popover は広げる。
        min-width=100% で「最低でもトリガー幅」、width:max-content で項目テキストに合わせて拡張、
        max-width: 90vw で画面外にはみ出さない。 */

@@ -33,7 +33,24 @@ export async function scheduledSync(env) {
   try { await prewarmListingText(env, 16); }
   catch (err) { console.error('[warm] error', err && err.message); }
 
+  // 作業者/アカウント等のマスター KV を毎ティック破棄。master.js は TTL 600s で
+  // 保持するが、スタッフがシートを直接編集した場合に最大 10 分間アプリが旧リストを
+  // 参照し、新しい名前が「マスター外」と表示される問題があった。Cron(5分)で破棄して
+  // おけば、次のリクエストで GAS から再取得・再キャッシュされ、最大 5 分で最新化される。
+  try { await bustMasterCache(env); }
+  catch (err) { console.error('[master] bust error', err && err.message); }
+
   console.log(`[sync] done ${Date.now() - startedAt}ms`);
+}
+
+// マスター系 KV キャッシュ（master.js が put するキー）を破棄する
+async function bustMasterCache(env) {
+  if (!env.CACHE) return;
+  const keys = [
+    'master:workers', 'master:accounts', 'master:suppliers',
+    'master:places', 'master:categories', 'master:settings',
+  ];
+  await Promise.all(keys.map((k) => env.CACHE.delete(k).catch(() => {})));
 }
 
 async function syncOne(env, action, source, applyFn) {

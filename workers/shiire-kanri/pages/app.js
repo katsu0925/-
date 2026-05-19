@@ -6094,6 +6094,32 @@ function enhanceAllSelects_(root) {
   }
 }
 
+// popover が画面端の固定 UI（ボトムタブ・保存バー・sticky アクションバー・appbar）の
+// 裏に潜り込まないよう、その被り高さ(px)を返す。edge: 'bottom' | 'top'
+function csEdgeObstruction_(edge) {
+  var vh = window.innerHeight || document.documentElement.clientHeight;
+  var selectors = edge === 'top'
+    ? ['.appbar']
+    : ['.bottomnav', '.savebar.show', '.form-actions.sticky'];
+  var reserved = 0;
+  for (var s = 0; s < selectors.length; s++) {
+    var els = document.querySelectorAll(selectors[s]);
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      var cs;
+      try { cs = window.getComputedStyle(el); } catch(e) { continue; }
+      if (!cs || cs.position !== 'fixed') continue;
+      if (cs.display === 'none' || cs.visibility === 'hidden') continue;
+      var r = el.getBoundingClientRect();
+      if (r.height <= 0) continue;
+      // bottom: 要素上端より下を予約 / top: 要素下端より上を予約
+      var h = edge === 'top' ? r.bottom : (vh - r.top);
+      if (h > reserved) reserved = h;
+    }
+  }
+  return reserved > 0 ? reserved : 0;
+}
+
 function enhanceSelect_(sel) {
   sel.setAttribute('data-cs-done', '1');
   var wrap = document.createElement('div');
@@ -6190,8 +6216,10 @@ function enhanceSelect_(sel) {
         var listEl = pop.querySelector('.cs-list');
         var triggerRect = btn.getBoundingClientRect();
         var vh = window.innerHeight || document.documentElement.clientHeight;
-        var spaceBelow = vh - triggerRect.bottom - 12;
-        var spaceAbove = triggerRect.top - 12;
+        // 画面端に固定された UI（ボトムタブ・保存バー・sticky アクションバー／appbar）の
+        // 高さを空き高から差し引き、popover がその裏に隠れて見切れないようにする
+        var spaceBelow = vh - triggerRect.bottom - 12 - csEdgeObstruction_('bottom');
+        var spaceAbove = triggerRect.top - 12 - csEdgeObstruction_('top');
         // 下に十分な余裕がなく、上のほうが広いなら上方向に倒す
         var flipUp = (spaceBelow < 220) && (spaceAbove > spaceBelow);
         if (flipUp) wrap.classList.add('flip-up');
