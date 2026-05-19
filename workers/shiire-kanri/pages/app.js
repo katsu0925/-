@@ -7855,6 +7855,30 @@ async function saveDetails() {
     return;
   }
 
+  // 採寸者と採寸日はセット必須（採寸者だけ登録すると報酬計算が合わなくなる）
+  // 採寸者・採寸日のどちらかを編集したときだけ判定（既存の片欠け行は触らない）
+  if (('採寸者' in fields) || ('採寸日' in fields)) {
+    var effMb_ = ('採寸者' in fields) ? fields['採寸者'] : ex['採寸者'];
+    var effMd_ = ('採寸日' in fields) ? fields['採寸日'] : ex['採寸日'];
+    if (effMd_ && !effMb_) {
+      // 採寸日が入っていて採寸者が空 → 保存をブロック
+      toast('採寸日を入力した場合は採寸者も選択してください', 'error');
+      flagInvalidField_(detailFieldId('採寸者'));
+      return;
+    }
+    if (effMb_ && !effMd_) {
+      // 採寸者だけ入力 → 採寸日を当日で自動補完
+      var dToday_ = new Date();
+      var dYmd_ = dToday_.getFullYear() + '-' +
+        ('0' + (dToday_.getMonth() + 1)).slice(-2) + '-' +
+        ('0' + dToday_.getDate()).slice(-2);
+      fields['採寸日'] = dYmd_;
+      var dMdEl_ = document.getElementById(detailFieldId('採寸日'));
+      if (dMdEl_) dMdEl_.value = dYmd_;
+      toast('採寸者のみ入力されたため採寸日を本日で補完しました', 'success');
+    }
+  }
+
   // 失敗時に巻き戻すため、上書き前の値を退避（undefined は「キー無し」として復元）
   var prevValues = {};
   Object.keys(fields).forEach(function(k){ prevValues[k] = (k in ex) ? ex[k] : undefined; });
