@@ -357,11 +357,15 @@ async function syncPhotographyData(env) {
     // バッチ枠を消費してしまい、直近アップロード分が長時間待たされるため。
     // pending 末尾＝最新アップロード を先に取り出す
     const entries = [];
+    const orphanIds = new Set(); // photo-meta が存在しない pending 項目（除去対象）
     for (let i = pending.length - 1; i >= 0; i--) {
       if (entries.length >= MAX_BATCH) break;
       const managedId = pending[i];
       const metaJson = await env.CACHE.get(`photo-meta:${managedId}`);
-      if (!metaJson) continue;
+      if (!metaJson) {
+        orphanIds.add(managedId);
+        continue;
+      }
       const meta = JSON.parse(metaJson);
       entries.push({ managedId, meta });
     }
@@ -424,8 +428,8 @@ async function syncPhotographyData(env) {
 
     if (photographyData.length === 0 && aiData.length === 0) {
       console.log('[sync] Photography: nothing to send (all synced or no data)');
-      // 処理対象 entries 分は pending から取り除く
-      const processedIds = new Set(entries.map(e => e.managedId));
+      // 処理対象 entries + orphan を pending から取り除く
+      const processedIds = new Set([...entries.map(e => e.managedId), ...orphanIds]);
       const remaining = pending.filter(id => !processedIds.has(id));
       if (remaining.length > 0) {
         await env.CACHE.put('photo-meta:pending', JSON.stringify(remaining));
@@ -496,11 +500,13 @@ async function syncPhotographyData(env) {
           }
         }
 
-        // pending は送信した分だけ取り除く（バッチ未送信分は次Cronへ）
-        const sentIds = new Set([...photoSentIds, ...aiSentIds]);
-        // 送信対象だったが GAS が個別失敗したものも sentIds に含まれるが、
-        // photo-meta の synced/aiSynced フラグは未更新のため、autoMatchPhotography で再投入される
-        const remaining = pending.filter(id => !sentIds.has(id));
+        // pending からは「今回 batch 枠を消費した全件」を取り除く。
+        // - 既に aiSynced だった entries も含む（残し続けるとバッチ枠を奪い続けるため）
+        // - photo-meta 消失 orphan も同時に除去
+        // - GAS 個別失敗分は photo-meta.synced/aiSynced が false のまま残るので、
+        //   次Cronの autoMatchPhotography で再 pending 入りする（再試行ループ成立）
+        const processedIds = new Set([...entries.map(e => e.managedId), ...orphanIds]);
+        const remaining = pending.filter(id => !processedIds.has(id));
         if (remaining.length > 0) {
           await env.CACHE.put('photo-meta:pending', JSON.stringify(remaining));
         } else {
