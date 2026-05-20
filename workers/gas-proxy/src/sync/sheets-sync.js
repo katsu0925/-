@@ -377,20 +377,40 @@ async function syncPhotographyData(env) {
 
     // AI判定（Gemini）— 画像がある場合のみ
     // 結果はKVに保存し、GASへの送信時にまとめて含める
+    //
+    // 失敗ループ防止: 3回連続失敗した managedId は ai-failed カウンタで
+    // 永続スキップする。これをやらないと、LIFO バッチ枠を同じ 25件が
+    // 占拠して、pending 先頭側の items が永久に処理されなくなる。
+    // （2026-05-21 pending=1224 停滞バグの根因対策）
+    const AI_MAX_ATTEMPTS = 3;
     const geminiKey = env.GEMINI_API_KEY || '';
     if (geminiKey) {
       for (const entry of entries) {
         if (entry.meta.aiSynced === true) continue;
         const existingAi = await env.CACHE.get(`ai-result:${entry.managedId}`);
         if (existingAi) continue;
+
+        // 永続失敗マーカー確認
+        const failedJson = await env.CACHE.get(`ai-failed:${entry.managedId}`);
+        if (failedJson) {
+          try {
+            const f = JSON.parse(failedJson);
+            if ((f.attempts || 0) >= AI_MAX_ATTEMPTS) continue;
+          } catch (_) {}
+        }
+
         try {
           const aiResult = await runGeminiJudgment(env, entry.managedId, geminiKey);
           if (aiResult) {
             await env.CACHE.put(`ai-result:${entry.managedId}`, JSON.stringify(aiResult), { expirationTtl: 30 * 24 * 3600 });
+            await env.CACHE.delete(`ai-failed:${entry.managedId}`);
             console.log(`[sync] AI判定OK: ${entry.managedId}`);
+          } else {
+            await incrementAiFailure(env, entry.managedId, 'null result');
           }
         } catch (e) {
           console.error(`[sync] AI判定失敗: ${entry.managedId}: ${e.message}`);
+          await incrementAiFailure(env, entry.managedId, e.message);
         }
       }
     }
@@ -839,6 +859,29 @@ async function updateSyncMeta(db, exportData) {
   `).bind(now, totalRows).run();
 }
 
+// ─── AI判定失敗カウンタ ───
+
+/**
+ * AI判定が失敗した managedId のカウンタを ai-failed:{managedId} に保存。
+ * 3回連続失敗で syncPhotographyData / autoMatchPhotography 双方からスキップ対象になる。
+ * TTL 7日: 失敗原因が一時的（Geminiレート制限等）の場合は1週間後に再試行可能。
+ */
+async function incrementAiFailure(env, managedId, reason) {
+  try {
+    const existing = await env.CACHE.get(`ai-failed:${managedId}`);
+    const f = existing ? JSON.parse(existing) : { attempts: 0 };
+    f.attempts = (f.attempts || 0) + 1;
+    f.lastError = String(reason || '').substring(0, 200);
+    f.lastAt = new Date().toISOString();
+    await env.CACHE.put(`ai-failed:${managedId}`, JSON.stringify(f), { expirationTtl: 7 * 24 * 3600 });
+    if (f.attempts >= 3) {
+      console.warn(`[sync] AI判定 永続失敗マーク: ${managedId} (attempts=${f.attempts}, lastError=${f.lastError})`);
+    }
+  } catch (e) {
+    console.error(`[sync] incrementAiFailure error for ${managedId}: ${e.message}`);
+  }
+}
+
 // ─── 撮影先行登録の自動マッチング ───
 
 /**
@@ -885,8 +928,21 @@ async function autoMatchPhotography(env) {
       const aiSynced = meta && (meta.aiSynced === true || meta.synced === true);
       const photoSynced = meta && meta.synced === true;
       const isRegistered = registeredIds.has(managedId);
-      const needsAi = !aiSynced;
+      let needsAi = !aiSynced;
       const needsPhoto = isRegistered && !photoSynced;
+
+      // AI判定が3回以上失敗している managedId は再 push しない
+      // （LIFOバッチ枠の永久占拠を防ぐ — 2026-05-21 修正）
+      if (needsAi) {
+        const failedJson = await env.CACHE.get(`ai-failed:${managedId}`);
+        if (failedJson) {
+          try {
+            const f = JSON.parse(failedJson);
+            if ((f.attempts || 0) >= 3) needsAi = false;
+          } catch (_) {}
+        }
+      }
+
       if (!needsAi && !needsPhoto) continue;
 
       // photo-metaがない場合はai-resultだけの再適用（ダミーのphoto-metaを作成）
