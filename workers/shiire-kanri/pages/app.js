@@ -19,7 +19,11 @@ var STATE = {
   density:     (function(){ try { return localStorage.getItem('sk.density') || 'normal'; } catch(e){ return 'normal'; } })(),
   // 管理番号 → AI prefill fields のクライアントキャッシュ
   // 仕入れ選択時に一括プリフェッチして埋める。GET /api/ai/prefill より優先
-  aiPrefillCache: new Map()
+  aiPrefillCache: new Map(),
+  // 画像アップロード進行中のローカルプレビュー保持。
+  // キー = フィールド名（例 "QR・バーコード画像"）、値 = { localUrl, fieldId }
+  // renderDetail() による innerHTML 再描画でもプレビューを維持するため、imageFieldHtml_ がここを優先参照する
+  uploadingImages: {}
 };
 // 起動時に密度クラスを body に反映
 (function applyInitialDensity_(){
@@ -2464,8 +2468,13 @@ function imageFieldHtml_(id, name, v) {
   var isUrl = /^https?:/.test(s);
   var isLegacy = !isUrl && s.length > 0;
   var safeName = esc(name).replace(/\'/g,"%27");
+  // アップロード進行中ならローカル blob プレビューを優先（renderDetail() の再描画でも維持される）
+  var pending = (STATE.uploadingImages && STATE.uploadingImages[name]) ? STATE.uploadingImages[name] : null;
   var preview;
-  if (isUrl) {
+  if (pending && pending.localUrl) {
+    var safePending = esc(pending.localUrl).replace(/\'/g,"%27");
+    preview = '<button type="button" id="' + id + '_preview" class="img-preview img-uploading" onclick="openImageModal_(\'' + safePending + '\')"><img src="' + esc(pending.localUrl) + '" alt=""><span class="img-uploading-spinner" aria-label="アップロード中"></span></button>';
+  } else if (isUrl) {
     s = normalizeDriveUrl_(s);
     var safeUrl = esc(s).replace(/\'/g,"%27");
     preview = '<button type="button" id="' + id + '_preview" class="img-preview" onclick="openImageModal_(\'' + safeUrl + '\')"><img src="' + esc(s) + '" alt=""></button>';
@@ -2629,15 +2638,33 @@ function onImageFieldFile_(file, fieldId, fieldName) {
     return;
   }
 
-  // ① 即時プレビュー（楽観的）
+  // ① 即時プレビュー（楽観的）+ STATE.uploadingImages に登録
+  //    登録しておくと、別フィールド保存や renderDetail() による innerHTML 全置換が起きても
+  //    imageFieldHtml_ が pending を優先描画するため、ローカルプレビューが消えない。
   var localUrl = '';
   try { localUrl = URL.createObjectURL(file); } catch(e) {}
+  if (localUrl) {
+    if (!STATE.uploadingImages) STATE.uploadingImages = {};
+    // 同一フィールドで連続アップロードされた場合、前回の blob URL は revoke しておく
+    var prev = STATE.uploadingImages[fieldName];
+    if (prev && prev.localUrl) { try { URL.revokeObjectURL(prev.localUrl); } catch(e) {} }
+    STATE.uploadingImages[fieldName] = { localUrl: localUrl, fieldId: fieldId };
+  }
   if (preview && localUrl) {
     var safeLocal = esc(localUrl).replace(/\'/g,"%27");
-    var html = '<button type="button" id="' + esc(fieldId) + '_preview" class="img-preview" onclick="openImageModal_(\'' + safeLocal + '\')"><img src="' + esc(localUrl) + '" alt=""></button>';
+    var html = '<button type="button" id="' + esc(fieldId) + '_preview" class="img-preview img-uploading" onclick="openImageModal_(\'' + safeLocal + '\')"><img src="' + esc(localUrl) + '" alt=""><span class="img-uploading-spinner" aria-label="アップロード中"></span></button>';
     preview.outerHTML = html;
   }
   if (status) { status.textContent = '⏳ 準備中…'; status.className = 'img-status'; }
+
+  // pending 解除ヘルパ（成功/失敗の両方で必ず呼ぶ）
+  function clearPending_() {
+    if (STATE.uploadingImages && STATE.uploadingImages[fieldName]) {
+      var p = STATE.uploadingImages[fieldName];
+      if (p && p.localUrl) { try { URL.revokeObjectURL(p.localUrl); } catch(e) {} }
+      delete STATE.uploadingImages[fieldName];
+    }
+  }
 
   // ② リサイズ → IndexedDB outbox に積む → ここで「✓ 保存完了」表示（楽観的完了）
   //    outbox に入った時点で、タブを閉じても次回起動時に必ず再送される。
@@ -2664,6 +2691,9 @@ function onImageFieldFile_(file, fieldId, fieldName) {
       if (prep.outboxId != null) outboxRemove_(prep.outboxId);
       var url = res.body.url || '';
       var path = res.body.path || '';
+      // STATE.current.extra に Drive URL を先に書き込んでから pending を解除する
+      // （再描画タイミングで imageFieldHtml_ が新しい URL を拾えるようにする）
+      if (STATE.current && STATE.current.extra) STATE.current.extra[fieldName] = path || url;
       // Drive 画像URLに差し替え。Drive 共有伝播の遅延に備えて localUrl はフォールバック保持
       var displayUrl = url ? normalizeDriveUrl_(url) : (localUrl || '');
       var newPreview = document.getElementById(fieldId + '_preview');
@@ -2672,15 +2702,18 @@ function onImageFieldFile_(file, fieldId, fieldName) {
         var html = '<button type="button" id="' + esc(fieldId) + '_preview" class="img-preview" onclick="openImageModal_(\'' + safeDisp + '\')"><img src="' + esc(displayUrl) + '" alt="" onerror="this.onerror=null;this.src=\'' + esc(localUrl || '').replace(/\'/g,"%27") + '\'"></button>';
         newPreview.outerHTML = html;
       }
-      if (STATE.current && STATE.current.extra) STATE.current.extra[fieldName] = path || url;
+      clearPending_();
       LIST_CACHE = {};
     }).catch(function(){
       // 静かに outbox 再送に委ねる（「✓ 保存完了」はそのまま）
+      // pending は解除しておく（永続的にスピナーが残るのを防ぐ）。outbox の再送には影響しない。
+      clearPending_();
     });
   }).catch(function(err){
     // outbox にも積めなかった（IndexedDB 利用不可など）— 例外的にエラー表示
     var sErr = document.getElementById(fieldId + '_status');
     if (sErr) { sErr.textContent = '✗ ' + (err && err.message || '保存できませんでした'); sErr.className = 'img-status error'; }
+    clearPending_();
   });
 }
 
