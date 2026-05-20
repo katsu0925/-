@@ -500,6 +500,30 @@ async function syncPhotographyData(env) {
           }
         }
 
+        // AI同期成功した管理番号は shiire-kanri の listing-text KV を invalidate する。
+        // これをやらないと、SPA 詳細画面の「タイトルコピー」が AIキーワード書込み前にウォーム
+        // された 24h KV を 1日掴み続け、外注に AIキーワードを含まない短いタイトルが渡る。
+        // （事例: zG1740 が 29文字のままになっていた件 — 2026-05-20 修正）
+        if (aiAllOk && aiSentIds.size > 0 && env.SHIIRE_KANRI_URL) {
+          try {
+            const resp = await fetch(
+              env.SHIIRE_KANRI_URL.replace(/\/$/, '') + '/admin/invalidate-listing-text',
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-Sync-Secret': env.SHIIRE_SYNC_SECRET || env.SYNC_SECRET || '',
+                },
+                body: JSON.stringify({ kanriIds: [...aiSentIds] }),
+              }
+            );
+            const txt = await resp.text();
+            console.log(`[sync] listing-text invalidate: ${resp.status} ${txt.substring(0, 120)}`);
+          } catch (e) {
+            console.error(`[sync] listing-text invalidate failed: ${e.message}`);
+          }
+        }
+
         // pending からは「今回 batch 枠を消費した全件」を取り除く。
         // - 既に aiSynced だった entries も含む（残し続けるとバッチ枠を奪い続けるため）
         // - photo-meta 消失 orphan も同時に除去

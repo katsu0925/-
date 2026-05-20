@@ -73,6 +73,27 @@ export default {
       return backfillThumbUrl(request, env);
     }
 
+    // listing-text KV invalidate（gas-proxy の AI同期完了通知用）
+    // AIキーワード抽出シートに新規キーワードが書き込まれた直後、対象 kanri の
+    // listing-text:xxx KV を強制削除し、次回詳細閲覧で最新タイトルが再生成されるようにする。
+    // 認可: X-Sync-Secret ヘッダ（既存 /admin/sync と共通）
+    if (path === '/admin/invalidate-listing-text' && request.method === 'POST') {
+      const secret = request.headers.get('X-Sync-Secret') || '';
+      if (!secret || secret !== env.SYNC_SECRET) return jsonError('unauthorized', 403);
+      let body = {};
+      try { body = await request.json(); } catch {}
+      const ids = Array.isArray(body && body.kanriIds) ? body.kanriIds : [];
+      if (!ids.length) return jsonOk({ invalidated: 0 });
+      const kv = env.CACHE;
+      if (!kv) return jsonOk({ invalidated: 0, note: 'no CACHE binding' });
+      const dels = ids
+        .map(k => String(k || '').trim())
+        .filter(Boolean)
+        .map(k => kv.delete('listing-text:' + k).catch(() => {}));
+      await Promise.all(dels);
+      return jsonOk({ invalidated: dels.length });
+    }
+
     // Cloudflare Access JWT 検証
     const user = await getAccessUser(request, env);
     if (!user) return jsonError('unauthorized', 403);

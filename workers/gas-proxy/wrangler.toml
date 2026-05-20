@@ -19,6 +19,10 @@ FRONTEND_URL = "https://wholesale.nkonline-tool.com"
 WORKERS_URL = "https://detauri-gas-proxy.nsdktts1030.workers.dev"
 # 画像はgas-proxy自身のR2(detauri-images)に保存されているため、タスキ箱のTeamIDは不要
 
+# AI判定→GAS同期成功直後に shiire-kanri Worker の listing-text KV を invalidate するため
+# （AIキーワード書込み前にウォームされた古いタイトルが 24h KV に貼り付くのを防ぐ）
+SHIIRE_KANRI_URL = "https://shiire-kanri.nsdktts1030.workers.dev"
+
 # Cron Trigger: 5分ごとにD1 ⇔ Sheets同期
 [triggers]
 crons = ["*/5 * * * *"]
