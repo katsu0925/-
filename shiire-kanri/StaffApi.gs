@@ -1297,6 +1297,11 @@ function staff_apiSaveDetails(payload, email) {
   var written = 0;
   var skipped = [];
   var unknown = [];
+  // ★ このリクエストで実際に変更したセル列のインデックス（0始まり）。
+  //   全行 setValues を廃止し、ここに登録した列だけを書き戻す。これにより
+  //   保存中に並行実行された staff_apiUploadImage 等のセル書き込みを、
+  //   stale な行スナップショットで上書きしてしまう lost-update を防ぐ。
+  var dirtyIdx = {};
 
   // 販売価格の事前判定は in-memory rowVals から（旧実装は getValue 1 op だった）
   var prevSaleEmpty = false;
@@ -1333,6 +1338,7 @@ function staff_apiSaveDetails(payload, email) {
       v = String(raw);
     }
     rowVals[c - 1] = v;
+    dirtyIdx[c - 1] = true;
     written++;
   }
   __lap('write');
@@ -1340,7 +1346,7 @@ function staff_apiSaveDetails(payload, email) {
   // 販売価格を新規入力した場合は 販売日タイムスタンプ を自動付与（並び替え・監査用）
   if (prevSaleEmpty && newSalePrice !== null) {
     var tsIdx = STAFF_COL.販売日タイムスタンプ ? STAFF_COL.販売日タイムスタンプ - 1 : -1;
-    if (tsIdx >= 0 && !rowFormulas[tsIdx]) rowVals[tsIdx] = new Date();
+    if (tsIdx >= 0 && !rowFormulas[tsIdx]) { rowVals[tsIdx] = new Date(); dirtyIdx[tsIdx] = true; }
   }
 
   // 採寸関連を更新したら 採寸者を自動補完（明示指定があればそちらを優先）
@@ -1351,7 +1357,7 @@ function staff_apiSaveDetails(payload, email) {
   var mdIdx = STAFF_COL.採寸日 ? STAFF_COL.採寸日 - 1 : -1;
   var mbIdx = STAFF_COL.採寸者 ? STAFF_COL.採寸者 - 1 : -1;
   if (measureFieldUpdated && fields['採寸者'] === undefined) {
-    if (mbIdx >= 0 && !rowFormulas[mbIdx]) rowVals[mbIdx] = email;
+    if (mbIdx >= 0 && !rowFormulas[mbIdx]) { rowVals[mbIdx] = email; dirtyIdx[mbIdx] = true; }
   }
   // 採寸者と採寸日はセット必須: 採寸者が入っていて採寸日が空なら当日で補完する
   // （採寸者だけ登録されると報酬計算が合わなくなるため）
@@ -1361,6 +1367,7 @@ function staff_apiSaveDetails(payload, email) {
     if (mbVal !== '' && mbVal !== null && mbVal !== undefined &&
         (mdVal === '' || mdVal === null || mdVal === undefined)) {
       rowVals[mdIdx] = new Date();
+      dirtyIdx[mdIdx] = true;
     }
   }
   // 逆パターン: 採寸日が入っていて採寸者が空なら保存をブロックする
@@ -1384,6 +1391,7 @@ function staff_apiSaveDetails(payload, email) {
     // calc が '' のときも書き戻す（判定列を削除したらステータスも戻す）
     if (calc !== current && stIdx >= 0 && !rowFormulas[stIdx]) {
       rowVals[stIdx] = calc;
+      dirtyIdx[stIdx] = true;
       statusChanged = true;
     }
     derivedStatus = calc;
@@ -1425,12 +1433,32 @@ function staff_apiSaveDetails(payload, email) {
       if (!fc) return;
       if (rowFormulas[fc - 1]) return;
       rowVals[fc - 1] = derivedFields[fk];
+      dirtyIdx[fc - 1] = true;
     });
   } catch (e) {}
   __lap('derived');
 
-  // ★ 1op化: 全変更を 1 回の setValues で書き戻す
-  rowRange.setValues([rowVals]);
+  // ★ 変更したセルだけを書き戻す。
+  //   旧実装は全行 setValues([rowVals]) で書き戻していたが、rowVals は
+  //   関数冒頭で取得した stale なスナップショット。保存処理中に並行実行された
+  //   staff_apiUploadImage（画像列を 1 セル setValue）等の書き込みが、
+  //   この全行書き戻しで空値に上書きされていた（画像登録が消えるバグの原因）。
+  //   → dirtyIdx に登録した列のみを書く。連続列はまとめて 1 回の setValues、
+  //     飛び地は個別レンジで書く（op 数を抑えつつ無関係セルには触れない）。
+  var dirtyCols = Object.keys(dirtyIdx).map(Number).sort(function(a, b){ return a - b; });
+  if (dirtyCols.length) {
+    var runStart = dirtyCols[0];
+    var runEnd = dirtyCols[0];
+    for (var di = 1; di <= dirtyCols.length; di++) {
+      if (di < dirtyCols.length && dirtyCols[di] === runEnd + 1) {
+        runEnd = dirtyCols[di];
+        continue;
+      }
+      sh.getRange(rowNum, runStart + 1, 1, runEnd - runStart + 1)
+        .setValues([rowVals.slice(runStart, runEnd + 1)]);
+      if (di < dirtyCols.length) { runStart = dirtyCols[di]; runEnd = dirtyCols[di]; }
+    }
+  }
   __lap('flush');
 
   // record は in-memory rowVals から構築（旧実装は再 getValues + getDisplayValues で 2 op）
@@ -1441,6 +1469,9 @@ function staff_apiSaveDetails(payload, email) {
     for (var ck = 0; ck < hdr.length; ck++) {
       var hk = String(hdr[ck] || '').trim();
       if (!hk) continue;
+      // 画像列は record に含めない。staff_apiSaveDetails は画像列を一切編集しないため、
+      // stale な空値を返すと Worker 側の reconcile が D1 の画像パスを空で上書きしてしまう。
+      if (IMAGE_FIELDS_ALLOWED_[hk]) continue;
       var rawV = rowVals[ck];
       if (rawV instanceof Date) {
         // 時刻が 00:00:00 なら日付のみ、そうでなければ datetime
@@ -1593,6 +1624,67 @@ function staff_apiResolveImage(payload, email) {
   try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (err) {}
   var url = 'https://drive.google.com/uc?id=' + file.getId();
   return { ok: true, url: url, fileName: fileName };
+}
+
+// ========== 画像セル復旧ツール ==========
+// 並行書き込みの lost-update で画像パスが消えた行を救済する。
+// Drive の '商品管理_Images' にファイル本体は残っているので、その相対パスを
+// 画像列が空のセルにだけ書き戻す（既に値があれば触らない）。
+//   - fileName 指定時: getFilesByName で厳密一致（高速）
+//   - 未指定時: '<kanri>.<field>.' 前方一致の最新ファイルを採用
+// 例: staff_restoreImageCell_('zY162', '売却済み商品画像', 'zY162.売却済み商品画像.091737.jpg')
+function staff_restoreImageCell_(kanri, field, fileName) {
+  kanri = String(kanri || '').trim();
+  field = String(field || '').trim();
+  if (!kanri) throw new Error('kanri が空です');
+  if (!IMAGE_FIELDS_ALLOWED_[field]) throw new Error('画像列ではありません: ' + field);
+
+  var sh = staff_getSheet_();
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) throw new Error('シートが空です');
+  var idRange = sh.getRange(2, STAFF_COL.管理番号, lastRow - 1, 1);
+  var found = idRange.createTextFinder(kanri).matchEntireCell(true).findNext();
+  if (!found) throw new Error('該当なし: ' + kanri);
+  var rowNum = found.getRow();
+
+  var hdr = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  var col = buildHeaderMap_(hdr);
+  if (!col[field]) throw new Error('ヘッダーが見つかりません: ' + field);
+
+  var folder = staff_getImageFolder_('商品管理_Images');
+  var best = null;
+  if (fileName) {
+    var exact = folder.getFilesByName(String(fileName));
+    if (exact.hasNext()) best = exact.next();
+  } else {
+    var prefix = (kanri + '.' + field + '.').toLowerCase();
+    var files = folder.getFiles();
+    while (files.hasNext()) {
+      var f = files.next();
+      if (f.getName().toLowerCase().indexOf(prefix) === 0) {
+        if (!best || f.getDateCreated().getTime() > best.getDateCreated().getTime()) best = f;
+      }
+    }
+  }
+  if (!best) throw new Error('Drive にファイルが見つかりません: ' + (fileName || (kanri + '.' + field + '.*')));
+
+  var relPath = '商品管理_Images/' + best.getName();
+  var cell = sh.getRange(rowNum, col[field]);
+  var before = String(cell.getValue() || '').trim();
+  if (before) {
+    return { ok: true, skipped: true, reason: '既に値あり', kanri: kanri, field: field, row: rowNum, value: before };
+  }
+  cell.setValue(relPath);
+  staff_invalidateListingCache_(kanri);
+  return { ok: true, kanri: kanri, field: field, row: rowNum, restored: relPath, file: best.getName() };
+}
+
+// ZY162 の「売却済み商品画像」を復旧する 1 回実行用エントリ（GAS エディタから実行）。
+// 実行後、次の Cron 同期（5分以内）で D1 に反映され管理アプリの発送タブに表示される。
+function staff_runRestoreZY162() {
+  var r = staff_restoreImageCell_('zY162', '売却済み商品画像', 'zY162.売却済み商品画像.091737.jpg');
+  Logger.log(JSON.stringify(r, null, 2));
+  return r;
 }
 
 // 個別の仕入れIDに紐づく商品管理レコード一覧
