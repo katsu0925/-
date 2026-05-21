@@ -1752,6 +1752,28 @@ function genIdempotencyKey_(){
     return v.toString(16);
   });
 }
+// タイムアウト付き fetch。
+// iOS Safari はタブ移動・カメラ起動時に in-flight な fetch を「無音で」打ち切ることがあり
+// （resolve も reject もされない）、これを await/then で待つコードが永久にハングする。
+// AbortController で一定時間後に強制中断し、必ず reject させることでハングを根絶する。
+// これが無いと flushOutbox_ の _outboxFlushing ロックが固着し outbox が永久滞留する。
+function fetchWithTimeout_(url, opts, timeoutMs) {
+  opts = opts || {};
+  timeoutMs = timeoutMs || 30000;
+  if (typeof AbortController === 'undefined') {
+    return fetch(url, opts); // 非対応環境はタイムアウト無しでフォールバック
+  }
+  var ctrl = new AbortController();
+  var timer = setTimeout(function(){ try { ctrl.abort(); } catch (e) {} }, timeoutMs);
+  var merged = Object.assign({}, opts, { signal: ctrl.signal });
+  return fetch(url, merged).then(function(r){
+    clearTimeout(timer);
+    return r;
+  }, function(err){
+    clearTimeout(timer);
+    throw err;
+  });
+}
 // outbox の未送信件数をバッジに反映（Phase C で実装。それまでは no-op）
 function refreshOutboxBadge_(){
   if (typeof document === 'undefined') return;
@@ -1935,20 +1957,38 @@ function outboxUpdate_(rec) {
   }).catch(function(){});
 }
 function flushOutbox_() {
-  if (_outboxFlushing) return;
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) return;
+  if (_outboxFlushing) return Promise.resolve();
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) return Promise.resolve();
   _outboxFlushing = true;
-  outboxList_().then(function(items){
-    if (!items.length) { _outboxFlushing = false; refreshOutboxBadge_(); return; }
+  // ウォッチドッグ: 万一 reduce チェーンが固着しても 300 秒で必ずロックを解放する。
+  // 主因の「iOS 無音 fetch 打ち切り」は retryOutboxItem_ の fetchWithTimeout_ で塞いだが、
+  // IndexedDB トランザクションが oncomplete も onerror も発火しないハング等に備えた保険。
+  // これが無いと _outboxFlushing が true のまま固着し、outbox が永久に再送されなくなる
+  // （「未送信N件」バッジが消えなくなる実機バグの根本原因）。
+  var settled = false;
+  var watchdog = setTimeout(function(){
+    if (settled) return;
+    settled = true;
+    _outboxFlushing = false;
+    try { refreshOutboxBadge_(); } catch (e) {}
+  }, 300000);
+  function finish() {
+    if (settled) return;
+    settled = true;
+    clearTimeout(watchdog);
+    _outboxFlushing = false;
+    try { refreshOutboxBadge_(); } catch (e) {}
+  }
+  return outboxList_().then(function(items){
+    if (!items.length) { finish(); return; }
     return items.reduce(function(p, rec){
       return p.then(function(){
         return retryOutboxItem_(rec);
       });
     }, Promise.resolve()).then(function(){
-      _outboxFlushing = false;
-      refreshOutboxBadge_();
+      finish();
     });
-  }).catch(function(){ _outboxFlushing = false; refreshOutboxBadge_(); });
+  }).then(null, function(){ finish(); });
 }
 function retryOutboxItem_(rec) {
   var url, body, method = 'POST', label = '';
@@ -1979,10 +2019,14 @@ function retryOutboxItem_(rec) {
   var headers = { 'Content-Type': 'application/json' };
   // 冪等キー: あればサーバーに送って重複登録を防ぐ
   if (rec.idempotencyKey) headers['X-Idempotency-Key'] = rec.idempotencyKey;
-  return fetch(url, {
+  // 画像系は本体が大きく送信に時間がかかるため余裕を持たせる。
+  // fetchWithTimeout_ で必ず resolve/reject させ、iOS の無音打ち切りでチェーンが
+  // 固着するのを防ぐ（固着すると flushOutbox_ のロックが解放されない）。
+  var timeoutMs = (rec.type === 'image' || rec.type === 'keihi-image') ? 60000 : 30000;
+  return fetchWithTimeout_(url, {
     method: method, credentials: 'include', headers: headers,
     body: body
-  }).then(function(r){
+  }, timeoutMs).then(function(r){
     return r.json().then(function(j){ return { ok: r.ok, status: r.status, body: j }; })
       .catch(function(){ return { ok: r.ok, status: r.status, body: null }; });
   })
@@ -2674,7 +2718,7 @@ function onImageFieldFile_(file, fieldId, fieldName) {
   //    アプリを閉じて再送が走っても、サーバー側 withIdempotency が重複を1件にまとめ、
   //    Drive に同じ画像ファイルが二重生成されるのを防ぐ。
   var idemKey = genIdempotencyKey_();
-  resizeImage_(file, 1600, 0.85).then(function(dataUrl){
+  prepareImageDataUrl_(file).then(function(dataUrl){
     return outboxAdd_({ type: 'image', kanri: kanri, field: fieldName, dataUrl: dataUrl, idempotencyKey: idemKey })
       .then(function(outboxId){ return { dataUrl: dataUrl, outboxId: outboxId }; });
   }).then(function(prep){
@@ -2683,12 +2727,14 @@ function onImageFieldFile_(file, fieldId, fieldName) {
     if (sOk) { sOk.textContent = '✓ 保存完了'; sOk.className = 'img-status success'; }
 
     // ③ バックグラウンドで fetch（fire-and-forget）
-    fetch('/api/save/image', {
+    //    fetchWithTimeout_ で必ず resolve/reject させる。iOS がタブ切替で fetch を
+    //    無音打ち切りしても、ここがハングせず catch に落ちて outbox 再送に委ねられる。
+    fetchWithTimeout_('/api/save/image', {
       method: 'POST',
       credentials: 'include',
       headers: { 'Content-Type': 'application/json', 'X-Idempotency-Key': idemKey },
       body: JSON.stringify({ kanri: kanri, field: fieldName, dataUrl: prep.dataUrl })
-    }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, body: j }; }); })
+    }, 60000).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, body: j }; }); })
     .then(function(res){
       if (!res.ok || !res.body) throw new Error((res.body && res.body.error) || 'fetch failed');
       // 成功 → outbox から除去（重複再送を防ぐ）
@@ -2813,13 +2859,25 @@ function applyResolved_(el, url) {
 }
 
 // Canvas で画像を縮小して dataURL を返す（最大辺 maxSide）
+// iOS Safari は大きいカメラ画像で img.onload / img.onerror のどちらも発火しないことがあり、
+// その場合この Promise が永久に未解決のままになり、画像が outbox にすら積まれず消失する。
+// 20 秒のタイムアウトで必ず reject させ、呼び出し側 prepareImageDataUrl_ が
+// 生ファイル fallback へ進めるようにする。
 function resizeImage_(file, maxSide, quality) {
   return new Promise(function(resolve, reject){
+    var settled = false;
+    var timer = setTimeout(function(){
+      if (settled) return;
+      settled = true;
+      reject(new Error('画像処理がタイムアウトしました'));
+    }, 20000);
+    function done(v){ if (settled) return; settled = true; clearTimeout(timer); resolve(v); }
+    function fail(e){ if (settled) return; settled = true; clearTimeout(timer); reject(e); }
     var reader = new FileReader();
-    reader.onerror = function(){ reject(new Error('ファイル読込エラー')); };
+    reader.onerror = function(){ fail(new Error('ファイル読込エラー')); };
     reader.onload = function(){
       var img = new Image();
-      img.onerror = function(){ reject(new Error('画像のデコードに失敗')); };
+      img.onerror = function(){ fail(new Error('画像のデコードに失敗')); };
       img.onload = function(){
         var w = img.naturalWidth, h = img.naturalHeight;
         var scale = Math.min(1, maxSide / Math.max(w, h));
@@ -2829,12 +2887,27 @@ function resizeImage_(file, maxSide, quality) {
         var ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, cw, ch);
         try {
-          resolve(canvas.toDataURL('image/jpeg', quality));
-        } catch (err) { reject(err); }
+          done(canvas.toDataURL('image/jpeg', quality));
+        } catch (err) { fail(err); }
       };
       img.src = reader.result;
     };
     reader.readAsDataURL(file);
+  });
+}
+
+// 画像 File を dataURL 化。通常は resizeImage_ で縮小するが、iOS でデコードが
+// ハングする等で resizeImage_ が失敗・タイムアウトした場合は、生ファイルを
+// そのまま base64 化して必ず dataURL を返す。リサイズ失敗で画像が outbox にすら
+// 積まれず永久消失する事故（QR・バーコード画像消失）を防ぐ保険。
+function prepareImageDataUrl_(file) {
+  return resizeImage_(file, 1600, 0.85).catch(function(){
+    return new Promise(function(resolve, reject){
+      var reader = new FileReader();
+      reader.onerror = function(){ reject(new Error('ファイル読込エラー')); };
+      reader.onload = function(){ resolve(reader.result); };
+      reader.readAsDataURL(file);
+    });
   });
 }
 
