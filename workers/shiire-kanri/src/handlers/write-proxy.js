@@ -378,7 +378,16 @@ export async function uploadImage(request, env, user) {
   if (!dataUrl) return jsonError('dataUrl required', 400);
 
   const gasRes = await callGas(env, 'uploadImage', { kanri, field, dataUrl }, user);
-  if (!gasRes.ok) return jsonError(gasRes.error || 'gas error', 502);
+  if (!gasRes.ok) {
+    const reason = gasRes.error || 'gas error';
+    console.warn('[uploadImage] GAS NG kanri=' + kanri + ' field=' + field + ' error=' + reason);
+    // 画像アップロード失敗を KV にも残す。wrangler tail の接続タイミングに依存せず
+    // 後から `wrangler kv key list --prefix savefail:` で失敗理由を確認できるようにする。
+    try {
+      await logSaveFailure_(env, user, kanri, { image: field, dataUrlLen: dataUrl.length }, 'uploadImage:' + reason);
+    } catch (e) { /* ignore */ }
+    return jsonError(reason, 502);
+  }
 
   // 2026-05-03 以降: GAS は相対パス (path) と Drive URL (url) の両方を返す。
   // シートには path（AppSheet 互換 "商品管理_Images/..."）を書いているため D1 にも path を入れる。
