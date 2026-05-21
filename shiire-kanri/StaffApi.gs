@@ -1679,14 +1679,6 @@ function staff_restoreImageCell_(kanri, field, fileName) {
   return { ok: true, kanri: kanri, field: field, row: rowNum, restored: relPath, file: best.getName() };
 }
 
-// ZY162 の「売却済み商品画像」を復旧する 1 回実行用エントリ（GAS エディタから実行）。
-// 実行後、次の Cron 同期（5分以内）で D1 に反映され管理アプリの発送タブに表示される。
-function staff_runRestoreZY162() {
-  var r = staff_restoreImageCell_('zY162', '売却済み商品画像', 'zY162.売却済み商品画像.091737.jpg');
-  Logger.log(JSON.stringify(r, null, 2));
-  return r;
-}
-
 // 個別の仕入れIDに紐づく商品管理レコード一覧
 function staff_getShiireProducts(shiireId) {
   staff_assertAllowed_();
