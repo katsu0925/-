@@ -350,8 +350,13 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     if (coupon.target_customer_name && coupon.target_customer_name !== companyName) {
       return jsonError('このクーポンはご利用いただけません。');
     }
-    // チャネルチェック
-    if (coupon.channel !== 'all' && coupon.channel !== 'detauri') {
+    // チャネルチェック（デタウリ個品 / アソート / 併用に対応）
+    // coupon.js apiValidateCoupon と同一ロジック: 'all' は常に許可、
+    // 'detauri'/'bulk' はカート内容と一致する場合のみ許可
+    const cartChannels = [];
+    if (ids.length > 0) cartChannels.push('detauri');
+    if (hasBulkItems) cartChannels.push('bulk');
+    if (coupon.channel !== 'all' && !cartChannels.includes(coupon.channel)) {
       return jsonError('このクーポンは対象外のチャネルです。');
     }
     // 開始日・有効期限チェック
