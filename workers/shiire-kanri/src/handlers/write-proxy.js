@@ -397,14 +397,14 @@ export async function uploadImage(request, env, user) {
   }
 
   try {
-    const cur = await env.DB.prepare('SELECT extra_json FROM products WHERE kanri = ?').bind(kanri).first();
-    let extra = {};
-    if (cur && cur.extra_json) {
-      try { extra = JSON.parse(cur.extra_json) || {}; } catch { extra = {}; }
-    }
-    extra[field] = sheetValue;
-    await env.DB.prepare('UPDATE products SET extra_json = ?, updated_at = ? WHERE kanri = ?')
-      .bind(JSON.stringify(extra), Date.now(), kanri).run();
+    // 2026-05-21: SELECT→UPDATE の read-modify-write を廃止し、json_set() の単一文で
+    // 原子的に1キーだけ更新する。同一商品への画像アップロードが2件ほぼ同時に走っても、
+    // 一方の SELECT〜UPDATE の隙間に他方の書き込みが挟まって取りこぼされる事故を防ぐ
+    // （過去の orphan-image インシデントと同型の lost-update レース対策）。
+    const jsonPath = '$."' + field.replace(/"/g, '\\"') + '"';
+    await env.DB.prepare(
+      "UPDATE products SET extra_json = json_set(COALESCE(extra_json, '{}'), ?, ?), updated_at = ? WHERE kanri = ?"
+    ).bind(jsonPath, sheetValue, Date.now(), kanri).run();
   } catch (err) {
     console.warn('[upload image] d1 update failed', err.message);
   }

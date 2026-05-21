@@ -2670,8 +2670,12 @@ function onImageFieldFile_(file, fieldId, fieldName) {
   //    outbox に入った時点で、タブを閉じても次回起動時に必ず再送される。
   //    裏で fetch も並行して走るが、ユーザーは結果を待たず別作業に移って構わない。
   //    fetch が成功すれば Drive URL に差し替え、失敗しても outbox 再送に委ねる（UI は変更しない）。
+  //    冪等キーを先に発番し、直接 fetch と outbox 再送の両方で同じキーを使う。
+  //    アプリを閉じて再送が走っても、サーバー側 withIdempotency が重複を1件にまとめ、
+  //    Drive に同じ画像ファイルが二重生成されるのを防ぐ。
+  var idemKey = genIdempotencyKey_();
   resizeImage_(file, 1600, 0.85).then(function(dataUrl){
-    return outboxAdd_({ type: 'image', kanri: kanri, field: fieldName, dataUrl: dataUrl })
+    return outboxAdd_({ type: 'image', kanri: kanri, field: fieldName, dataUrl: dataUrl, idempotencyKey: idemKey })
       .then(function(outboxId){ return { dataUrl: dataUrl, outboxId: outboxId }; });
   }).then(function(prep){
     // outbox に確実に積まれた → ユーザーには即座に「保存完了」を案内
@@ -2682,7 +2686,7 @@ function onImageFieldFile_(file, fieldId, fieldName) {
     fetch('/api/save/image', {
       method: 'POST',
       credentials: 'include',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Idempotency-Key': idemKey },
       body: JSON.stringify({ kanri: kanri, field: fieldName, dataUrl: prep.dataUrl })
     }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, body: j }; }); })
     .then(function(res){
