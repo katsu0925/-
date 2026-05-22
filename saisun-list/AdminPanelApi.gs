@@ -459,10 +459,14 @@ function adminPanel_registerCoupon(params) {
     var orderSs = sh_getOrderSs_();
     var sh = orderSs.getSheetByName('クーポン管理');
     if (!sh) return { ok: false, message: 'クーポン管理シートなし' };
+    // A:コード B:タイプ C:値 D:有効期限 E:利用上限 F:利用回数 G:1人1回制限 H:有効
+    // I:メモ J:対象顧客 K:有効開始日 L:会員割引併用 M:数量割引併用 N:チャネル
+    // O:対象商品ID P:送料除外商品ID Q:限定顧客名 R:限定顧客メール S:送料無料併用
     var row = [
-      params.code, params.type, params.value, params.expiry, params.limit || 0, 0, '',
-      'TRUE', '', '', '', params.comboMember || 'TRUE', params.comboBulk || 'TRUE',
-      params.channel || 'all', '', '', params.once || 'FALSE', ''
+      params.code, params.type, params.value, params.expiry, params.limit || 0, 0,
+      params.once || 'FALSE', 'TRUE', '', '', '', params.comboMember || 'TRUE',
+      params.comboBulk || 'TRUE', params.channel || 'all', '', '', '', '',
+      params.freeShipping || 'FALSE'
     ];
     sh.appendRow(row);
     return { ok: true, message: params.code + ' を登録しました' };

@@ -541,6 +541,8 @@
         <div class="note">不可にすると、そのクーポン使用時に数量割引が無効になる。</div>
         <div class="form-row"><label>チャネル</label><select id="cp-channel"><option value="all">全て</option><option value="detauri">デタウリのみ</option><option value="bulk">アソートのみ</option></select></div>
         <div class="note">all=全商品, detauri=デタウリ個品のみ, bulk=アソートのみ</div>
+        <div class="form-row"><label>送料無料を付与</label><select id="cp-free-ship"><option value="FALSE">しない</option><option value="TRUE">する</option></select></div>
+        <div class="note">割引率/固定額クーポンでも送料無料にする（沖縄県は対象外）。タイプが「送料無料」の場合は不要。</div>
         <div class="btnRow"><button class="primary" onclick="registerCouponFromPanel()">登録</button></div>
       </div>
       <div class="log" id="coupon-log"></div>
@@ -1318,7 +1320,7 @@ async function registerCouponFromPanel(){
       code:$('cp-code').value, type:$('cp-type').value, value:+$('cp-value').value,
       expiry:$('cp-expire').value, limit:+$('cp-limit').value, once:$('cp-once').value,
       comboMember:$('cp-combo-member').value, comboBulk:$('cp-combo-bulk').value,
-      channel:$('cp-channel').value
+      channel:$('cp-channel').value, freeShipping:$('cp-free-ship').value
     });
     appendLog('coupon-log', res.ok?'登録完了: '+res.message:'失敗: '+res.message);
     if(res.ok) loadCoupons();
