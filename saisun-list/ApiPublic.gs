@@ -820,6 +820,14 @@ function apiGetProductDetail(params) {
 
 /**
  * お問い合わせフォーム送信API
+ *
+ * 【非同期化】メール送信はこの場では行わない。
+ * 入力検証後、お問い合わせをシートに「未送信」で記録して即座に応答を返す
+ * （doPost を1秒以内で完了させる）。実際のメール送信は cronEvery5min から
+ * processContactQueue() が非同期で行う。詳細は ContactQueue.gs を参照。
+ *
+ * params.submitToken があれば冪等化され、自動フォールバック再送・手動再送が
+ * 来ても重複登録されない。
  */
 function apiSendContactForm(params) {
   try {
@@ -831,130 +839,8 @@ function apiSendContactForm(params) {
     if (!email || email.indexOf('@') === -1) return { ok: false, message: '有効なメールアドレスを入力してください' };
     if (!message) return { ok: false, message: 'お問い合わせ内容を入力してください' };
 
-    var datetime = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
-
-    // 画像添付処理（最大3枚）
-    var images = (params.images || []).slice(0, 3);
-    var attachments = images.map(function(img) {
-      var bytes = Utilities.base64Decode(img.data);
-      return Utilities.newBlob(bytes, img.type || 'image/jpeg', img.name || 'image.jpg');
-    });
-
-    // 1. 管理者宛通知（返信ボタンでお客様に直接返信可能）
-    var adminTo = (function() {
-      try { return PropertiesService.getScriptProperties().getProperty('CONTACT_ADMIN_EMAILS') || (SITE_CONSTANTS.CONTACT_EMAIL + ',nsdktts1030@gmail.com'); }
-      catch (e) { return SITE_CONSTANTS.CONTACT_EMAIL + ',nsdktts1030@gmail.com'; }
-    })();
-    var adminSubject = '【デタウリ.Detauri】お問い合わせ: ' + name;
-    var adminBody = 'お問い合わせを受信しました。\n'
-      + 'このメールに返信すると ' + email + ' 宛に送信されます。\n\n'
-      + 'お名前: ' + name + '\n'
-      + 'メールアドレス: ' + email + '\n'
-      + '日時: ' + datetime + '\n'
-      + (attachments.length > 0 ? '添付画像: ' + attachments.length + '枚\n' : '')
-      + '\n--- お問い合わせ内容 ---\n'
-      + message + '\n'
-      + '\n━━━ 返信テンプレート ━━━\n\n'
-      + name + ' 様\n\n'
-      + 'お問い合わせいただきありがとうございます。\n'
-      + 'デタウリ.Detauriでございます。\n\n'
-      + '\n\n'
-      + '──────────────────\n'
-      + 'デタウリ.Detauri\n'
-      + 'https://wholesale.nkonline-tool.com/\n'
-      + 'お問い合わせ：' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
-      + '──────────────────\n';
-
-    var adminHtmlBody = buildHtmlEmail_({
-      lead: 'お問い合わせを受信しました。<br>このメールに返信すると <strong>' + email + '</strong> 宛に送信されます。',
-      sections: [
-        {
-          title: 'お問い合わせ情報',
-          rows: [
-            { label: 'お名前', value: name },
-            { label: 'メールアドレス', value: email },
-            { label: '日時', value: datetime }
-          ].concat(attachments.length > 0 ? [{ label: '添付画像', value: attachments.length + '枚' }] : [])
-        },
-        {
-          title: 'お問い合わせ内容',
-          text: message
-        },
-        {
-          title: '返信テンプレート（コピーしてご利用ください）',
-          text: name + ' 様\n\n'
-            + 'お問い合わせいただきありがとうございます。\n'
-            + 'デタウリ.Detauriでございます。\n\n'
-            + '\n\n'
-            + '──────────────────\n'
-            + 'デタウリ.Detauri\n'
-            + 'https://wholesale.nkonline-tool.com/\n'
-            + 'お問い合わせ：' + SITE_CONSTANTS.CONTACT_EMAIL
-        }
-      ]
-    });
-
-    var adminMailOpts = {
-      to: adminTo,
-      replyTo: email,
-      subject: adminSubject,
-      body: adminBody,
-      htmlBody: adminHtmlBody
-    };
-    if (attachments.length > 0) adminMailOpts.attachments = attachments;
-    MailApp.sendEmail(adminMailOpts);
-
-    // 2. 顧客宛確認メール
-    var custSubject = '【デタウリ.Detauri】お問い合わせを受け付けました';
-    var custBody = name + ' 様\n\n'
-      + 'お問い合わせいただきありがとうございます。\n'
-      + '以下の内容で受け付けました。2営業日以内にご連絡いたします。\n\n'
-      + '━━━━━━━━━━━━━━━━━━━━\n'
-      + '■ お問い合わせ内容\n'
-      + '━━━━━━━━━━━━━━━━━━━━\n'
-      + 'お名前：' + name + '\n'
-      + 'メールアドレス：' + email + '\n'
-      + '日時：' + datetime + '\n\n'
-      + message + '\n'
-      + '━━━━━━━━━━━━━━━━━━━━\n\n'
-      + '※ このメールは自動送信です。\n'
-      + '  このメールへの返信はお控えください。\n\n'
-      + '──────────────────\n'
-      + 'デタウリ.Detauri\n'
-      + 'https://wholesale.nkonline-tool.com/\n'
-      + 'お問い合わせ：' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
-      + '──────────────────\n';
-
-    var custHtmlBody2 = buildHtmlEmail_({
-      greeting: name + ' 様',
-      lead: 'お問い合わせいただきありがとうございます。\n以下の内容で受け付けました。2営業日以内にご連絡いたします。',
-      sections: [
-        {
-          title: 'お問い合わせ内容',
-          rows: [
-            { label: 'お名前', value: name },
-            { label: 'メールアドレス', value: email },
-            { label: '日時', value: datetime }
-          ]
-        },
-        {
-          title: '',
-          text: message
-        }
-      ],
-      notes: [
-        'このメールは自動送信です。',
-        'このメールへの返信はお控えください。'
-      ]
-    });
-
-    GmailApp.sendEmail(email, custSubject, custBody, {
-      from: SITE_CONSTANTS.CUSTOMER_EMAIL,
-      replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
-      htmlBody: custHtmlBody2
-    });
-
-    return { ok: true };
+    // キューに登録するだけ（メール送信は processContactQueue が非同期で実行）
+    return contact_enqueue_(params);
   } catch (e) {
     console.error('apiSendContactForm error:', e);
     return { ok: false, message: '送信に失敗しました: ' + (e.message || String(e)) };

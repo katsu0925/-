@@ -2319,6 +2319,7 @@ function buildCartCalcInputIdx_(sum, count, bulk) {
       type: state.appliedCoupon.type || 'amount',
       value: state.appliedCoupon.value || 0,
       label: state.appliedCoupon.label || state.appliedCoupon.code || '',
+      freeShipping: !!state.appliedCoupon.freeShipping,
       comboBulk: state.appliedCoupon.comboBulk,
       comboMember: state.appliedCoupon.comboMember,
       shippingExcludeProducts: state.appliedCoupon.shippingExcludeProducts || undefined
@@ -3067,6 +3068,16 @@ function validateSession_() {
     });
 }
 
+// 冪等トークン生成（お問い合わせ重複送信防止用）
+// フォームを開くたびに発行し、送信失敗→再送・自動フォールバック再送が
+// 来てもサーバー側で同一トークンとして1件に集約される。
+function genSubmitToken_() {
+  try {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  } catch (e) {}
+  return 'tk-' + Date.now() + '-' + Math.random().toString(36).slice(2, 12);
+}
+
 // 画像リサイズ＆base64変換（お問い合わせ共通）
 function resizeAndEncode_(file) {
   return new Promise(function(resolve) {
@@ -3094,6 +3105,7 @@ function resizeAndEncode_(file) {
 
 // お問い合わせモーダル — 画像添付
 var modalContactFiles_ = [];
+var contactSubmitToken_ = '';
 (function() {
   var fileInput = $('modalContactFiles');
   var previews = $('modalContactPreviews');
@@ -3246,6 +3258,7 @@ function setupAuthUi_() {
       $('contactName').value = state.customer.companyName || '';
       $('contactEmail').value = state.customer.email || '';
     }
+    contactSubmitToken_ = genSubmitToken_(); // 開くたびに新規発行（再送はこのトークンで集約）
     openModal($('contactModal'));
   }
   if (openContactLink) openContactLink.addEventListener('click', handleContactOpen_);
@@ -3269,7 +3282,7 @@ function setupAuthUi_() {
       contactSubmitBtn.textContent = '送信中...';
       var files = modalContactFiles_.slice();
       Promise.all(files.map(function(f) { return resizeAndEncode_(f); })).then(function(images) {
-        var params = { name: name, email: email, message: message };
+        var params = { name: name, email: email, message: message, submitToken: contactSubmitToken_ };
         if (images.length > 0) params.images = images;
         return runApi('apiSendContactForm', params);
       })
@@ -3293,6 +3306,7 @@ function setupAuthUi_() {
 
   // バグ報告モーダル
   var bugReportFiles_ = [];
+  var bugReportSubmitToken_ = '';
   (function() {
     var fileInput = $('bugReportFiles');
     var previews = $('bugReportPreviews');
@@ -3336,6 +3350,7 @@ function setupAuthUi_() {
       $('bugReportName').value = state.customer.companyName || '';
       $('bugReportEmail').value = state.customer.email || '';
     }
+    bugReportSubmitToken_ = genSubmitToken_(); // 開くたびに新規発行（再送はこのトークンで集約）
     openModal($('bugReportModal'));
   }
   if (openBugReportLink) openBugReportLink.addEventListener('click', handleBugReportOpen_);
@@ -3359,7 +3374,7 @@ function setupAuthUi_() {
       bugReportSubmitBtn.textContent = '送信中...';
       var files = bugReportFiles_.slice();
       Promise.all(files.map(function(f) { return resizeAndEncode_(f); })).then(function(images) {
-        var params = { name: name, email: email, message: '【バグ報告】' + message };
+        var params = { name: name, email: email, message: '【バグ報告】' + message, submitToken: bugReportSubmitToken_ };
         if (images.length > 0) params.images = images;
         return runApi('apiSendContactForm', params);
       })
@@ -6439,7 +6454,7 @@ function restoreCoupon_() {
       showToast('クーポンの有効期限が切れました');
       return;
     }
-    state.appliedCoupon = { code: saved.code, type: res.type, value: res.value, discountAmount: res.discountAmount, label: res.label, comboMember: res.comboMember || false, comboBulk: res.comboBulk || false };
+    state.appliedCoupon = { code: saved.code, type: res.type, value: res.value, discountAmount: res.discountAmount, label: res.label, comboMember: res.comboMember || false, comboBulk: res.comboBulk || false, freeShipping: res.freeShipping || false };
     saveCouponToStorage_();
     var dt = res.type === 'shipping_free' ? '' : '（-' + yen(res.discountAmount) + '）';
     $('couponInfo').innerHTML = '<span style="color:#2e7d32;">&#10003; ' + escapeHtml_(res.label) + dt + '適用済み</span>';
@@ -6479,7 +6494,7 @@ function applyCoupon_() {
       restoreBtn_();
       return;
     }
-    state.appliedCoupon = { code: code.toUpperCase(), type: res.type, value: res.value, discountAmount: res.discountAmount, label: res.label, comboMember: res.comboMember || false, comboBulk: res.comboBulk || false };
+    state.appliedCoupon = { code: code.toUpperCase(), type: res.type, value: res.value, discountAmount: res.discountAmount, label: res.label, comboMember: res.comboMember || false, comboBulk: res.comboBulk || false, freeShipping: res.freeShipping || false };
     saveCouponToStorage_();
     trackEvent_('apply_coupon', { coupon_code: code.toUpperCase(), discount_type: res.type, discount_amount: res.discountAmount, page_type: 'detauri' });
     var discountText = res.type === 'shipping_free' ? '' : '（-' + yen(res.discountAmount) + '）';
@@ -6540,7 +6555,7 @@ function revalidateCoupon_() {
       return;
     }
     // 有効 → 割引額を更新
-    state.appliedCoupon = { code: code, type: res.type, value: res.value, discountAmount: res.discountAmount, label: res.label, comboMember: res.comboMember || false, comboBulk: res.comboBulk || false };
+    state.appliedCoupon = { code: code, type: res.type, value: res.value, discountAmount: res.discountAmount, label: res.label, comboMember: res.comboMember || false, comboBulk: res.comboBulk || false, freeShipping: res.freeShipping || false };
     saveCouponToStorage_();
     var discountText = res.type === 'shipping_free' ? '' : '（-' + yen(res.discountAmount) + '）';
     $('couponInfo').innerHTML = '<span style="color:#2e7d32;">&#10003; ' + escapeHtml_(res.label) + discountText + '適用済み</span>';
@@ -8120,6 +8135,7 @@ boot();
     var nameEl = document.getElementById('chatContactName');
     if (nameEl && !prefillName) nameEl.focus();
     document.getElementById('chatContactSubmit').addEventListener('click', submitChatContact_);
+    window._chatContactToken = genSubmitToken_(); // フォーム表示ごとに新規発行（再送はこのトークンで集約）
     // ── 画像添付イベント ──
     var chatFileInput = document.getElementById('chatContactFiles');
     var chatPreviews = document.getElementById('chatContactPreviews');
@@ -8185,7 +8201,7 @@ boot();
     var files = window._chatContactSelectedFiles || [];
     var imagePromises = files.map(function(f) { return resizeAndEncode_(f); });
     Promise.all(imagePromises).then(function(images) {
-      var params = { name: name, email: email, message: message, page: 'デタウリ' };
+      var params = { name: name, email: email, message: message, page: 'デタウリ', submitToken: window._chatContactToken };
       if (images.length > 0) params.images = images;
       return runApi('apiSendContactForm', params);
     })
