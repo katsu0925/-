@@ -111,12 +111,22 @@ export async function validateCoupon(args, env) {
   }
 
   // 検証成功
+  // 送料無料フラグ・表示ラベル（GAS apiValidateCoupon と一致）
+  const freeShipping = coupon.type === 'shipping_free' || coupon.free_shipping === 1;
+  let label = coupon.type === 'rate'
+    ? (Math.round(coupon.value * 100) + '%OFF')
+    : coupon.type === 'shipping_free'
+      ? '送料無料'
+      : (coupon.value + '円引き');
+  if (freeShipping && coupon.type !== 'shipping_free') label += '＋送料無料';
+
   return jsonOk({
     type: coupon.type,
     value: coupon.value,
+    label,
+    freeShipping,
     comboMember: coupon.combo_member === 1,
     comboBulk: coupon.combo_bulk === 1,
     shippingExcludeProducts: coupon.shipping_exclude_products || '',
-    freeShipping: coupon.free_shipping === 1,
   });
 }
