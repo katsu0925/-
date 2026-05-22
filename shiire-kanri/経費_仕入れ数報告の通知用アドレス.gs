@@ -56,7 +56,9 @@ function processPendingForSheet(ss, def, recipients) {
     const body = lines.join("\n");
     let sentAny = false;
     recipients.forEach(rcpt => {
-      try { GmailApp.sendEmail(rcpt, def.subject, body); sentAny = true; } catch (err) { console.error('critical operation failed: send notification email to ' + rcpt + ': ' + (err.message || err)); }
+      // MailApp.sendEmail は appsscript.json の script.send_mail スコープで動作する。
+      // GmailApp.sendEmail は gmail.send スコープが必要だが未付与のため権限エラーになる。
+      try { MailApp.sendEmail(rcpt, def.subject, body); sentAny = true; } catch (err) { console.error('critical operation failed: send notification email to ' + rcpt + ': ' + (err.message || err)); }
       Utilities.sleep(200);
     });
     if (sentAny) {
