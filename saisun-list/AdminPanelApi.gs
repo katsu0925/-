@@ -457,7 +457,8 @@ function adminPanel_getCoupons() {
 function adminPanel_registerCoupon(params) {
   try {
     var orderSs = sh_getOrderSs_();
-    var sh = orderSs.getSheetByName('クーポン管理');
+    // ヘッダー（S列「送料無料併用」含む）を保証してから追記
+    var sh = sh_ensureCouponSheet_(orderSs);
     if (!sh) return { ok: false, message: 'クーポン管理シートなし' };
     // A:コード B:タイプ C:値 D:有効期限 E:利用上限 F:利用回数 G:1人1回制限 H:有効
     // I:メモ J:対象顧客 K:有効開始日 L:会員割引併用 M:数量割引併用 N:チャネル
