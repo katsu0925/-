@@ -389,6 +389,8 @@ export async function submitEstimate(args, env, bodyText, ctx) {
       value: coupon.value,
       comboMember: coupon.combo_member === 1,
       comboBulk: coupon.combo_bulk === 1,
+      shippingExcludeProducts: coupon.shipping_exclude_products || '',
+      freeShipping: coupon.free_shipping === 1,
     };
 
     couponLabel = validatedCoupon.type === 'rate'
@@ -396,6 +398,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
       : validatedCoupon.type === 'shipping_free'
         ? 'クーポン送料無料'
         : ('クーポン' + validatedCoupon.value + '円引き');
+    if (validatedCoupon.freeShipping && validatedCoupon.type !== 'shipping_free') couponLabel += '＋送料無料';
 
     // 併用可能な割引（数量割引のみdiscountRateに加算、会員割引は順次適用で別途処理）
     if (validatedCoupon.comboBulk) {
@@ -449,7 +452,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   const totalSpent = customerRow ? (customerRow.total_spent || 0) : 0;
   const diamondFree = totalSpent >= 500000;
 
-  const shippingFreeCoupon = validatedCoupon && validatedCoupon.type === 'shipping_free';
+  const shippingFreeCoupon = validatedCoupon && (validatedCoupon.type === 'shipping_free' || validatedCoupon.freeShipping === true);
   // 沖縄県判定（送料無料閾値・クーポン送料無料の対象外。ダイヤ会員は対象）
   const isOkinawa = shippingArea === 'okinawa';
   const couponFreeEffective = shippingFreeCoupon && !isOkinawa;
@@ -476,10 +479,13 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     bulkShippingAmount = 0;
   } else if (couponFreeEffective) {
     shippingAmount = 0;
-    // アソート送料: 送料除外商品は除外分のみ有料（SubmitFix.gs L237-251と一致）
-    const excludeStr = validatedCoupon.shippingExcludeProducts || '';
-    if (excludeStr && bulkItemCount > 0 && shippingArea && dynShippingRates[shippingArea]) {
-      const excludeIds = new Set(excludeStr.split(',').map(s => s.trim().toUpperCase()).filter(Boolean));
+    // アソート送料: クーポンの送料除外指定＋価格破壊商品は送料を請求（SubmitFix.gs / BulkLP.html と一致）
+    if (bulkItemCount > 0 && shippingArea && dynShippingRates[shippingArea]) {
+      const excludeIds = new Set(ALWAYS_CHARGE_BULK_IDS.map(s => String(s).toUpperCase()));
+      const excludeStr = validatedCoupon.shippingExcludeProducts || '';
+      if (excludeStr) {
+        excludeStr.split(',').map(s => s.trim().toUpperCase()).filter(Boolean).forEach(id => excludeIds.add(id));
+      }
       let excludedBulkQty = 0;
       for (const bi of (form.bulkItems || [])) {
         const pid = String(bi.productId || '').trim().toUpperCase();

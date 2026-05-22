@@ -570,7 +570,7 @@ function exportCoupons_() {
   var lastRow = sh.getLastRow();
   if (lastRow < 2) return [];
 
-  var data = sh.getRange(2, 1, lastRow - 1, 18).getValues();
+  var data = sh.getRange(2, 1, lastRow - 1, 19).getValues();
   var coupons = [];
 
   for (var i = 0; i < data.length; i++) {
@@ -596,7 +596,8 @@ function exportCoupons_() {
       targetProducts: String(row[14] || ''),
       shippingExcludeProducts: String(row[15] || ''),
       targetCustomerName: String(row[16] || ''),
-      targetCustomerEmail: String(row[17] || '')
+      targetCustomerEmail: String(row[17] || ''),
+      freeShipping: row[18] === true || String(row[18]).toUpperCase() === 'TRUE'
     });
   }
 

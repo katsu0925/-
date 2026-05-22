@@ -12,6 +12,10 @@ const SETTINGS_CACHE_KEY = 'settings:public';
 const STATS_CACHE_KEY = 'stats:banner';
 const CACHE_TTL = 300; // 5分
 
+// ─── 価格破壊商品ID（¥30,000以上・送料無料クーポンの送料無料対象外） ───
+// Constants.gs SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS / submit.js と同期
+const ALWAYS_CHARGE_BULK_IDS = ['BLK-H2LZTP36'];
+
 /**
  * apiGetCachedProducts — デタウリ商品一覧
  *
@@ -97,6 +101,7 @@ export async function bulkInit(args, env) {
       shippingRates: null,
       memberDiscount,
       detauriUrl: '',      // 同期時に設定テーブルから読み込み
+      alwaysChargeShippingIds: ALWAYS_CHARGE_BULK_IDS,
     },
     stats,
   };

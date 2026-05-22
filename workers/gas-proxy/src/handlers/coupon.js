@@ -117,5 +117,6 @@ export async function validateCoupon(args, env) {
     comboMember: coupon.combo_member === 1,
     comboBulk: coupon.combo_bulk === 1,
     shippingExcludeProducts: coupon.shipping_exclude_products || '',
+    freeShipping: coupon.free_shipping === 1,
   });
 }

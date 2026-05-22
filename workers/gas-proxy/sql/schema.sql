@@ -126,6 +126,7 @@ CREATE TABLE IF NOT EXISTS coupons (
   channel TEXT NOT NULL DEFAULT 'all',     -- 'all' | 'detauri' | 'bulk'
   target_products TEXT NOT NULL DEFAULT '', -- comma-separated IDs
   shipping_exclude_products TEXT NOT NULL DEFAULT '',
+  free_shipping INTEGER NOT NULL DEFAULT 0, -- rate/fixedクーポンでも送料無料を付与
   target_customer_name TEXT NOT NULL DEFAULT '',
   target_customer_email TEXT NOT NULL DEFAULT '',
   updated_at TEXT NOT NULL

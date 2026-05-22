@@ -28,6 +28,11 @@
  *
  * Cron Trigger エントリポイント
  */
+
+// ─── 価格破壊商品ID（¥30,000以上・送料無料クーポンの送料無料対象外） ───
+// Constants.gs SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS / submit.js と同期
+const ALWAYS_CHARGE_BULK_IDS = ['BLK-H2LZTP36'];
+
 export async function scheduledSync(env) {
   console.log('[sync] Starting scheduled sync...');
 
@@ -790,16 +795,17 @@ async function syncCoupons(db, rows) {
       INSERT OR REPLACE INTO coupons
         (code, type, value, expires_at, max_uses, use_count, once_per_user,
          active, memo, target, start_date, combo_member, combo_bulk, channel,
-         target_products, shipping_exclude_products, target_customer_name,
-         target_customer_email, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         target_products, shipping_exclude_products, free_shipping,
+         target_customer_name, target_customer_email, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       c.code, c.type, c.value || 0, c.expiresAt || null,
       c.maxUses || 0, c.useCount || 0, c.oncePerUser ? 1 : 0,
       c.active ? 1 : 0, c.memo || '', c.target || 'all',
       c.startDate || null, c.comboMember ? 1 : 0, c.comboBulk ? 1 : 0,
       c.channel || 'all', c.targetProducts || '',
-      c.shippingExcludeProducts || '', c.targetCustomerName || '',
+      c.shippingExcludeProducts || '', c.freeShipping ? 1 : 0,
+      c.targetCustomerName || '',
       c.targetCustomerEmail || '', new Date().toISOString()
     )
   );
@@ -1363,6 +1369,7 @@ async function prewarmCaches(env) {
         appTitle: 'デタウリ.Detauri', channel: 'アソート',
         shippingAreas: shippingData?.areas || null, shippingRates: shippingData?.rates || null,
         memberDiscount, detauriUrl: siteUrlRow?.value || '',
+        alwaysChargeShippingIds: ALWAYS_CHARGE_BULK_IDS,
       },
       stats,
     };
