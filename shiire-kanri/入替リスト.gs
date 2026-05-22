@@ -238,7 +238,9 @@ function sendSwapEmail_(email, accountName, prevStart, prevCount, items, pdfBlob
     '返送対象: ' + items.length + '件' + dateRange + '\n\n' +
     '詳細はPDFをご確認ください。';
 
-  GmailApp.sendEmail(email, subject, body, { attachments: [pdfBlob] });
+  // MailApp.sendEmail は appsscript.json の script.send_mail スコープで動作する。
+  // GmailApp.sendEmail は gmail.send スコープが必要だが未付与のため権限エラーになる。
+  MailApp.sendEmail(email, subject, body, { attachments: [pdfBlob] });
 }
 
 // ═══════════════════════════════════════════

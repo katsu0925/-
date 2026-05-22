@@ -53,9 +53,9 @@ async function dispatchGasSaveMeasurement_(env, user, kanri, measure) {
 }
 
 // Fire-and-forget: D1 を先に更新→即 200 を返却→裏で GAS にシート反映を投入
-// 注: GAS staff_apiSaveSale は販売価格入力時に raw status を直接「売却済み」へ
-//     セットする（発送待ちは経由しない）。Push トリガーには 売却済み は無いので
-//     ここでは Push 検知を行わない。発送待ち遷移は saveDetails 経由のみ。
+// Push 通知（発送待ち）は GAS round-trip 後に発火する。GAS staff_apiSaveSale が
+// IFS 式でステータスを再計算し、販売日入力で「出品中→発送待ち」へ遷移するため、
+// その遷移を信頼源（GAS が返す status）で検知して fanout する。
 export async function saveSale(request, env, user, ctx) {
   const __t0 = Date.now();
   let body;
@@ -63,6 +63,20 @@ export async function saveSale(request, env, user, ctx) {
   const kanri = String(body.kanri || '').trim();
   const sale = body.sale || {};
   if (!kanri) return jsonError('kanri required', 400);
+
+  // Push 遷移検知用に、保存前の派生ステータスと仕入れID を取得しておく
+  // （発送待ち Push の本文で納品場所を JOIN するため shiire_id も拾う）。
+  let oldDerivedStatus = '';
+  let oldShiireId = '';
+  try {
+    const cur = await env.DB.prepare(
+      `SELECT shiire_id, ${DERIVED_STATUS} AS derived_status FROM products WHERE kanri = ?`
+    ).bind(kanri).first();
+    oldDerivedStatus = (cur && cur.derived_status) ? String(cur.derived_status) : '';
+    oldShiireId = (cur && cur.shiire_id) ? String(cur.shiire_id) : '';
+  } catch (err) {
+    console.warn('[save sale] derived status fetch failed', err.message);
+  }
 
   const __td1 = Date.now();
   try {
@@ -85,9 +99,9 @@ export async function saveSale(request, env, user, ctx) {
   }
 
   if (ctx && typeof ctx.waitUntil === 'function') {
-    ctx.waitUntil(dispatchGasSaveSale_(env, user, kanri, sale));
+    ctx.waitUntil(dispatchGasSaveSale_(env, user, kanri, sale, oldDerivedStatus, oldShiireId));
   } else {
-    dispatchGasSaveSale_(env, user, kanri, sale).catch(() => {});
+    dispatchGasSaveSale_(env, user, kanri, sale, oldDerivedStatus, oldShiireId).catch(() => {});
   }
 
   const t = { d1: Date.now() - __td1, total: Date.now() - __t0 };
@@ -95,7 +109,7 @@ export async function saveSale(request, env, user, ctx) {
   return jsonOk({ saved: true, optimistic: true }, { 'Server-Timing': buildServerTiming(t) });
 }
 
-async function dispatchGasSaveSale_(env, user, kanri, sale) {
+async function dispatchGasSaveSale_(env, user, kanri, sale, oldDerivedStatus, oldShiireId) {
   // フロントは saleDate/salePlace/salePrice/saleShipping/saleFee で送る。
   // GAS は sale.date/place/price/shipping/fee を期待する。ここで吸収。
   const saleForGas = {
@@ -117,6 +131,30 @@ async function dispatchGasSaveSale_(env, user, kanri, sale) {
     const reason = (gasRes && gasRes.error) || 'unknown';
     console.warn('[save sale bg] gas failed', reason);
     await logSaveFailure_(env, user, kanri, { sale }, reason);
+    return;
+  }
+
+  // GAS が IFS 式で再計算したステータス（販売日入力後は通常「発送待ち」）を信頼源にする。
+  // saveSale の optimistic update は sale_* 列しか触れていないため、status 列はここで確定反映する。
+  const newStatus = String((gasRes && gasRes.status) || '').trim();
+  if (newStatus) {
+    try {
+      await env.DB.prepare('UPDATE products SET status = ?, updated_at = ? WHERE kanri = ?')
+        .bind(newStatus, Date.now(), kanri).run();
+    } catch (err) {
+      console.warn('[save sale bg] d1 status reconcile failed', err.message);
+    }
+  }
+
+  // ステータス遷移（→発送待ち / →発送済み）を検知して Push 配信。
+  // 販売処理は通常「出品中→発送待ち」なので 発送待ち Push が発送担当全員に飛ぶ。
+  // mergedExtra は null 渡し（納品場所は purchases JOIN、販売価格は products.sale_price で補完される）。
+  try {
+    if (newStatus && newStatus !== oldDerivedStatus) {
+      await maybePushOnStatusChange_(env, kanri, oldDerivedStatus, newStatus, null, oldShiireId);
+    }
+  } catch (err) {
+    console.warn('[save sale bg] push fanout failed', err.message);
   }
 }
 

@@ -1205,12 +1205,22 @@ function staff_apiSaveSale(payload, email) {
   setNum(STAFF_COL.送料, sale.shipping);
   setNum(STAFF_COL.手数料, sale.fee);
 
+  // 販売価格が新規セットされたら 販売日タイムスタンプ を自動付与（並び替え・監査用）
   if (sale.price !== undefined && sale.price !== '' && !isNaN(Number(sale.price))) {
-    sh.getRange(rowNum, STAFF_COL.ステータス).setValue('売却済み');
     sh.getRange(rowNum, STAFF_COL.販売日タイムスタンプ).setValue(new Date());
   }
 
-  return { ok: true, message: '販売情報を保存しました', kanri: kanri, row: rowNum };
+  // ステータスは AppSheet IFS 式で再計算する（販売日が入れば「発送待ち」）。
+  // 旧 staff_saveSale と同じ挙動。以前は販売価格入力時にステータスへ「売却済み」を
+  // 直接書き込んでいたが、それは IFS 仕様（完了日が入って初めて売却済み）に反し、
+  // 「出品中→発送待ち」遷移を消すため発送待ち Push も発火しないバグだった。
+  var statusResult = null;
+  try { statusResult = staff_recomputeStatus_(sh, rowNum); } catch (e) {}
+  var newStatus = statusResult
+    ? (statusResult.changed ? statusResult.status : statusResult.current)
+    : '';
+
+  return { ok: true, message: '販売情報を保存しました', kanri: kanri, row: rowNum, status: newStatus };
 }
 
 // Cloudflare からの汎用書き込みプロキシ（ヘッダー名キーで任意フィールド更新）
