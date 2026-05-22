@@ -2729,14 +2729,22 @@ function calcShipping(totalQty) {
   G.shipping = largeRate * totalQty;
 }
 
-// 送料除外商品の数量を計算
+// 送料無料クーポン適用時に送料を請求する数量（クーポンの送料除外指定＋価格破壊商品の和集合）
 function calcExcludedQty_() {
-  if (!G.coupon || !G.coupon.shippingExcludeProducts) return 0;
-  var excludeIds = G.coupon.shippingExcludeProducts.split(',').map(function(s) { return s.trim().toUpperCase(); }).filter(function(s) { return s; });
-  if (excludeIds.length === 0) return 0;
+  var excSet = {};
+  // クーポンの送料除外商品指定
+  if (G.coupon && G.coupon.shippingExcludeProducts) {
+    G.coupon.shippingExcludeProducts.split(',').forEach(function(s) {
+      var id = s.trim().toUpperCase();
+      if (id) excSet[id] = true;
+    });
+  }
+  // 価格破壊商品（送料無料条件の対象外 → 送料無料クーポン適用時も送料を請求）
+  var acIds = (G.settings && G.settings.alwaysChargeShippingIds) || [];
+  for (var i = 0; i < acIds.length; i++) excSet[String(acIds[i]).toUpperCase()] = true;
   var qty = 0;
   Object.keys(G.cart).forEach(function(pid) {
-    if (excludeIds.indexOf(pid.toUpperCase()) >= 0) qty += G.cart[pid];
+    if (excSet[pid.toUpperCase()]) qty += G.cart[pid];
   });
   return qty;
 }

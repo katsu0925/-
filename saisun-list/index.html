@@ -2338,7 +2338,7 @@ function buildCartCalcInputIdx_(sum, count, bulk) {
     addressPref: CartCalc.detectPref(address),
     addressText: address,
     pointsUsed: pts,
-    assortExcludedQty: 0,
+    assortExcludedQty: calcExcludedQtyIdx_(bulk),
     assortAlwaysChargeQty: calcAlwaysChargeQtyIdx_(bulk)
   };
 }
@@ -2352,6 +2352,28 @@ function calcAlwaysChargeQtyIdx_(bulk) {
   for (var j = 0; j < bulk.items.length; j++) {
     var it = bulk.items[j];
     if (it && idSet[String(it.id || '').toUpperCase()]) qty += Number(it.qty || 0);
+  }
+  return qty;
+}
+
+// 送料無料クーポン適用時に送料を請求するアソート数量（クーポンの送料除外指定＋価格破壊商品の和集合）
+function calcExcludedQtyIdx_(bulk) {
+  if (!bulk || !bulk.items || !bulk.items.length) return 0;
+  var excSet = {};
+  // クーポンの送料除外商品指定
+  var ap = (typeof state !== 'undefined' && state.appliedCoupon) ? state.appliedCoupon : null;
+  if (ap && ap.shippingExcludeProducts) {
+    String(ap.shippingExcludeProducts).split(',').forEach(function(s) {
+      var id = s.trim().toUpperCase();
+      if (id) excSet[id] = true;
+    });
+  }
+  // 価格破壊商品（送料無料条件の対象外 → 送料無料クーポン適用時も送料を請求）
+  for (var i = 0; i < ALWAYS_CHARGE_BULK_IDS.length; i++) excSet[String(ALWAYS_CHARGE_BULK_IDS[i]).toUpperCase()] = true;
+  var qty = 0;
+  for (var j = 0; j < bulk.items.length; j++) {
+    var it = bulk.items[j];
+    if (it && excSet[String(it.id || '').toUpperCase()]) qty += Number(it.qty || 0);
   }
   return qty;
 }

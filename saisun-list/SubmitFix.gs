@@ -253,17 +253,23 @@ function apiSubmitEstimate(userKey, form, ids) {
     } else if (couponFreeEffective) {
       // デタウリ送料: クーポンで無料（CartCalc line 234と一致）
       shippingAmount = 0;
-      // アソート送料: 送料除外商品は除外分のみ有料（CartCalc lines 262-268と一致）
-      var excludeStr = validatedCoupon.shippingExcludeProducts || '';
-      if (excludeStr && hasBulkItems && shippingArea && SHIPPING_RATES[shippingArea]) {
-        var excludeIds = excludeStr.split(',').map(function(s) { return s.trim().toUpperCase(); }).filter(function(s) { return s; });
+      // アソート送料: クーポンの送料除外指定＋価格破壊商品は送料を請求
+      if (hasBulkItems && shippingArea && SHIPPING_RATES[shippingArea]) {
+        var excSetSF = {};
+        var excludeStr = validatedCoupon.shippingExcludeProducts || '';
+        if (excludeStr) {
+          excludeStr.split(',').forEach(function(s) {
+            var id = s.trim().toUpperCase();
+            if (id) excSetSF[id] = true;
+          });
+        }
+        var alwaysIdsSF = (typeof SHIPPING_CONSTANTS !== 'undefined' && SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS) ? SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS : [];
+        for (var _asf = 0; _asf < alwaysIdsSF.length; _asf++) excSetSF[String(alwaysIdsSF[_asf]).toUpperCase()] = true;
         var excludedBulkQty = 0;
         for (var bei = 0; bei < f.bulkItems.length; bei++) {
           var bePid = String(f.bulkItems[bei].productId || '').trim().toUpperCase();
           var beQty = Math.max(0, Math.floor(Number(f.bulkItems[bei].qty) || 0));
-          for (var bex = 0; bex < excludeIds.length; bex++) {
-            if (bePid === excludeIds[bex]) { excludedBulkQty += beQty; break; }
-          }
+          if (excSetSF[bePid]) excludedBulkQty += beQty;
         }
         bulkShippingAmount = (excludedBulkQty > 0) ? SHIPPING_RATES[shippingArea][1] * excludedBulkQty : 0;
       } else {

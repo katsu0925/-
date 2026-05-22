@@ -197,17 +197,21 @@ function apiBulkSubmit(form, items) {
           shippingAmount = 0;
           detauriShippingAmount = 0;
         } else if (couponFreeEffective) {
-          // 送料無料クーポン（送料除外商品は除外分のみ有料）
+          // 送料無料クーポン（クーポンの送料除外指定＋価格破壊商品は送料を請求）
           var shippingExcludedQty = 0;
+          var excSetB = {};
           var excludeStr = validatedCoupon.shippingExcludeProducts || '';
           if (excludeStr) {
-            var excludeIds = excludeStr.split(',').map(function(s) { return s.trim().toUpperCase(); }).filter(function(s) { return s; });
-            for (var ei = 0; ei < orderItems.length; ei++) {
-              var ePid = String(orderItems[ei].productId || '').toUpperCase();
-              for (var ex = 0; ex < excludeIds.length; ex++) {
-                if (ePid === excludeIds[ex]) { shippingExcludedQty += orderItems[ei].qty; break; }
-              }
-            }
+            excludeStr.split(',').forEach(function(s) {
+              var id = s.trim().toUpperCase();
+              if (id) excSetB[id] = true;
+            });
+          }
+          var alwaysIdsCF = (typeof SHIPPING_CONSTANTS !== 'undefined' && SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS) ? SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS : [];
+          for (var _acf = 0; _acf < alwaysIdsCF.length; _acf++) excSetB[String(alwaysIdsCF[_acf]).toUpperCase()] = true;
+          for (var ei = 0; ei < orderItems.length; ei++) {
+            var ePid = String(orderItems[ei].productId || '').toUpperCase();
+            if (excSetB[ePid]) shippingExcludedQty += Number(orderItems[ei].qty || 0);
           }
           shippingAmount = (shippingExcludedQty > 0) ? SHIPPING_RATES[shippingArea][1] * shippingExcludedQty : 0;
           detauriShippingAmount = 0;
