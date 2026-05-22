@@ -152,6 +152,106 @@ function debugKomojuSession() {
 }
 
 /**
+ * PAIDY決済が「保留」になっている原因を診断する（読み取り専用・キャプチャは実行しない）
+ * GASエディタから debugPaidyStatus('決済ID') で実行する。
+ *
+ * KOMOJUステータスの意味:
+ *   authorized = 与信確保済み・キャプチャ未実行（管理画面の「保留」）→ 本来は自動キャプチャ済みのはず＝異常
+ *   pending    = 顧客が決済画面を完了していない → 正常な離脱（注文も作られない）
+ *   captured   = 売上確定済み → 正常
+ *   expired    = 与信期限切れ / cancelled = 取消済み
+ */
+function debugPaidyStatus(paymentId) {
+  if (!paymentId) { console.log('決済IDを指定してください'); return; }
+  console.log('========== PAIDY決済診断: ' + paymentId + ' ==========');
+
+  // === 1. KOMOJU APIで決済の実ステータスを取得 ===
+  var payment = fetchPaymentFromApi_(paymentId);
+  if (!payment) {
+    console.log('❌ KOMOJU APIから決済を取得できませんでした（IDが誤り or APIキー未設定）');
+    return;
+  }
+
+  var status = String(payment.status || '');
+  var methodType = (payment.payment_details && payment.payment_details.type) || extractPaymentMethodType_(payment) || '';
+  console.log('決済方法: ' + getPaymentMethodDisplayName_(methodType) + ' (' + methodType + ')');
+  console.log('KOMOJUステータス: ' + status);
+  console.log('金額: ¥' + payment.amount + ' / 合計(手数料込): ¥' + (payment.total != null ? payment.total : payment.amount));
+  console.log('external_order_num: ' + (payment.external_order_num || '(なし)'));
+  console.log('作成日時: ' + (payment.created_at || '(なし)'));
+  console.log('キャプチャ日時(captured_at): ' + (payment.captured_at || '(未キャプチャ)'));
+  console.log('与信期限(expiry_date): ' + (payment.expiry_date || payment.payment_deadline || '(なし)'));
+  console.log('metadata: ' + JSON.stringify(payment.metadata || {}));
+
+  // === 2. 依頼管理シートに注文が作られているか確認 ===
+  var orderRow = null, orderRowIdx = -1;
+  try {
+    var orderSs = sh_getOrderSs_();
+    var reqSh = orderSs.getSheetByName(APP_CONFIG.order.requestSheetName || '依頼管理');
+    if (reqSh) {
+      var lastRow = reqSh.getLastRow();
+      if (lastRow >= 2) {
+        var pidCol = REQUEST_SHEET_COLS.PAYMENT_ID;
+        var data = reqSh.getRange(2, 1, lastRow - 1, reqSh.getLastColumn()).getDisplayValues();
+        for (var i = 0; i < data.length; i++) {
+          if (String(data[i][pidCol - 1] || '').trim() === paymentId) {
+            orderRow = data[i]; orderRowIdx = i + 2; break;
+          }
+        }
+      }
+    }
+  } catch (e) { console.log('依頼管理シート照合エラー: ' + e.message); }
+
+  console.log('--- 依頼管理シート照合 ---');
+  if (orderRow) {
+    console.log('注文: あり（行' + orderRowIdx + '）');
+    console.log('  受付番号: ' + (orderRow[REQUEST_SHEET_COLS.RECEIPT_NO - 1] || ''));
+    console.log('  会社名: ' + (orderRow[REQUEST_SHEET_COLS.COMPANY_NAME - 1] || ''));
+    console.log('  入金確認(Q列): ' + (orderRow[REQUEST_SHEET_COLS.PAYMENT - 1] || ''));
+    console.log('  ステータス(V列): ' + (orderRow[REQUEST_SHEET_COLS.STATUS - 1] || ''));
+  } else {
+    console.log('注文: なし（この決済IDは依頼管理シートに存在しない）');
+  }
+
+  // === 3. 診断結果 ===
+  console.log('========== 診断結果 ==========');
+  if (status === 'captured' || status === 'completed') {
+    console.log('✅ 売上確定済み（captured）。正常です。');
+    console.log('   管理画面が「保留」表示なら、表示の反映遅れか別決済の可能性。');
+  } else if (status === 'authorized') {
+    console.log('⚠ 与信確保済み・キャプチャ未実行（authorized）= 管理画面の「保留」。');
+    if (orderRow) {
+      console.log('   → バグです。注文は成立しているのにキャプチャが漏れています。');
+      console.log('   → 本来 payment.authorized Webhook受信時に自動キャプチャされるはず（KOMOJU.gs:388-398）。');
+      console.log('   → 対処: capturePayment_(\'' + paymentId + '\') を手動実行して売上確定してください。');
+      console.log('   → 与信期限を過ぎると入金されなくなるため早めの対応を推奨。');
+    } else {
+      console.log('   → 注文が依頼管理に無い＝Webhook自体が未処理の可能性。');
+      console.log('   → metadata/external_order_num から受付番号を特定し、注文復旧＋キャプチャが必要。');
+    }
+  } else if (status === 'pending') {
+    console.log('ℹ 顧客が決済画面を完了していない（pending）= 正常な離脱です。バグではありません。');
+    console.log('   注文も作られていないのが正常。対応不要。');
+  } else if (status === 'expired') {
+    console.log('❌ 与信期限切れ（expired）。この決済はもう確定できません。顧客に再決済を依頼してください。');
+  } else if (status === 'cancelled') {
+    console.log('❌ 取消済み（cancelled）。');
+  } else {
+    console.log('? 想定外のステータス: ' + status);
+  }
+  console.log('==============================');
+}
+
+/**
+ * 問い合わせのあった2件のPAIDY決済をまとめて診断する
+ */
+function debugPaidyStatusBoth() {
+  debugPaidyStatus('erwuktrd40ya4boxyxiwy5cwx');
+  console.log('');
+  debugPaidyStatus('3dsxq6gxcsxs16xad964o81ot');
+}
+
+/**
  * 受付番号で注文の全情報を表示
  * メール送信状況・決済状態・依頼中状態を一括確認
  */
