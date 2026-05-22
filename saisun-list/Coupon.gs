@@ -29,10 +29,11 @@ var COUPON_COLS = {
   TARGET_PRODUCTS: 14, // O: 対象商品ID (アソート商品用、カンマ区切り。空=全商品)
   SHIPPING_EXCLUDE_PRODUCTS: 15, // P: 送料除外商品ID（送料無料クーポン時、ここに指定された商品は送料無料対象外）
   TARGET_CUSTOMER_NAME: 16,      // Q: 限定顧客名（名前+メール一致で判定）
-  TARGET_CUSTOMER_EMAIL: 17      // R: 限定顧客メール
+  TARGET_CUSTOMER_EMAIL: 17,     // R: 限定顧客メール
+  FREE_SHIPPING: 18              // S: 送料無料併用（rate/fixed型でも送料無料を付与。TRUE/FALSE）
 };
 
-var COUPON_COL_COUNT = 18;
+var COUPON_COL_COUNT = 19;
 
 // クーポン利用履歴シート列構成:
 // A=クーポンコード, B=メールアドレス, C=受付番号, D=利用日時
@@ -44,7 +45,7 @@ var COUPON_LOG_SHEET_NAME = 'クーポン利用履歴';
 function sh_ensureCouponSheet_(ss) {
   var sh = ss.getSheetByName(COUPON_SHEET_NAME);
   if (!sh) sh = ss.insertSheet(COUPON_SHEET_NAME);
-  var header = ['クーポンコード', '割引タイプ', '割引値', '有効期限', '利用上限', '利用回数', '1人1回制限', '有効', 'メモ', '対象顧客', '有効開始日', '会員割引併用', '30点割引併用', '適用チャネル', '対象商品ID', '送料除外商品ID', '限定顧客名', '限定顧客メール'];
+  var header = ['クーポンコード', '割引タイプ', '割引値', '有効期限', '利用上限', '利用回数', '1人1回制限', '有効', 'メモ', '対象顧客', '有効開始日', '会員割引併用', '30点割引併用', '適用チャネル', '対象商品ID', '送料除外商品ID', '限定顧客名', '限定顧客メール', '送料無料併用'];
   var r1 = sh.getRange(1, 1, 1, header.length).getValues()[0];
   var needs = false;
   for (var i = 0; i < header.length; i++) if (String(r1[i] || '') !== header[i]) { needs = true; break; }
@@ -132,7 +133,8 @@ function getCouponListForDuplicate() {
       targetProducts: String(data[i][COUPON_COLS.TARGET_PRODUCTS] || '').trim(),
       shippingExcludeProducts: String(data[i][COUPON_COLS.SHIPPING_EXCLUDE_PRODUCTS] || '').trim(),
       targetCustomerName: String(data[i][COUPON_COLS.TARGET_CUSTOMER_NAME] || '').trim(),
-      targetCustomerEmail: String(data[i][COUPON_COLS.TARGET_CUSTOMER_EMAIL] || '').trim()
+      targetCustomerEmail: String(data[i][COUPON_COLS.TARGET_CUSTOMER_EMAIL] || '').trim(),
+      freeShipping: (data[i][COUPON_COLS.FREE_SHIPPING] === true || String(data[i][COUPON_COLS.FREE_SHIPPING]).toUpperCase() === 'TRUE')
     });
   }
   return list;
@@ -195,6 +197,7 @@ function registerCouponFromDialog(data) {
 
   var comboMember = data.comboMember === true || String(data.comboMember) === 'true';
   var comboBulk = data.comboBulk === true || String(data.comboBulk) === 'true';
+  var freeShipping = data.freeShipping === true || String(data.freeShipping) === 'true';
 
   var channelInput = String(data.channel || '').toLowerCase();
   var channel = (channelInput === 'detauri' || channelInput === 'bulk') ? channelInput : 'all';
@@ -224,7 +227,7 @@ function registerCouponFromDialog(data) {
 
   // 書き込み
   var newRow = sh.getLastRow() + 1;
-  sh.getRange(newRow, 1, 1, COUPON_COL_COUNT).setValues([[code, type, value, expires, maxUses, 0, oncePerUser, true, memo, target, startDate, comboMember, comboBulk, channel, targetProducts, shippingExcludeProducts, targetCustomerName, targetCustomerEmail]]);
+  sh.getRange(newRow, 1, 1, COUPON_COL_COUNT).setValues([[code, type, value, expires, maxUses, 0, oncePerUser, true, memo, target, startDate, comboMember, comboBulk, channel, targetProducts, shippingExcludeProducts, targetCustomerName, targetCustomerEmail, freeShipping]]);
 
   // クーポンキャッシュを無効化（即時反映）
   try { CacheService.getScriptCache().remove(COUPON_CACHE_KEY); } catch (e) { console.log('optional: coupon cache invalidation: ' + (e.message || e)); }
@@ -232,6 +235,7 @@ function registerCouponFromDialog(data) {
   var label = type === 'rate' ? (Math.round(value * 100) + '%OFF')
             : type === 'fixed' ? (value + '円引き')
             : '送料無料';
+  if (freeShipping && type !== 'shipping_free') label += '＋送料無料';
 
   return { ok: true, message: 'クーポン「' + code + '」（' + label + '）を登録しました' };
 }
@@ -386,6 +390,18 @@ function getCouponDialogHtml_() {
 
     + '<div class="row">'
     + '<div class="col">'
+    + '  <label>送料無料を付与</label>'
+    + '  <select id="freeShipping">'
+    + '    <option value="false">しない</option>'
+    + '    <option value="true">する</option>'
+    + '  </select>'
+    + '  <div class="hint">割引率/固定額クーポンでも送料無料にする（沖縄県は対象外）</div>'
+    + '</div>'
+    + '<div class="col"></div>'
+    + '</div>'
+
+    + '<div class="row">'
+    + '<div class="col">'
     + '  <label>適用チャネル</label>'
     + '  <select id="channel" onchange="onChannelChange()">'
     + '    <option value="all">全て（デタウリ＋アソート）</option>'
@@ -504,6 +520,7 @@ function getCouponDialogHtml_() {
     + '  document.getElementById("memo").value=c.memo||"";'
     + '  document.getElementById("comboMember").value=c.comboMember?"true":"false";'
     + '  document.getElementById("comboBulk").value=c.comboBulk?"true":"false";'
+    + '  document.getElementById("freeShipping").value=c.freeShipping?"true":"false";'
     + '  document.getElementById("channel").value=c.channel||"all";'
     + '  onChannelChange();'
     + '  buildChkList("tpList","targetProducts",c.targetProducts||"");'
@@ -553,6 +570,7 @@ function getCouponDialogHtml_() {
     + '    memo:document.getElementById("memo").value,'
     + '    comboMember:document.getElementById("comboMember").value,'
     + '    comboBulk:document.getElementById("comboBulk").value,'
+    + '    freeShipping:document.getElementById("freeShipping").value,'
     + '    channel:document.getElementById("channel").value,'
     + '    targetProducts:document.getElementById("targetProducts").value,'
     + '    shippingExcludeProducts:document.getElementById("shippingExcludeProducts").value,'
@@ -779,12 +797,13 @@ function apiValidateCoupon(code, email, productAmount, channel, productIds, cust
       : result.type === 'shipping_free'
         ? '送料無料'
         : (result.value + '円引き');
+    if (result.freeShipping === true && result.type !== 'shipping_free') label += '＋送料無料';
     return {
       ok: true,
       type: result.type,
       value: result.value,
       discountAmount: discountAmount,
-      freeShipping: result.type === 'shipping_free',
+      freeShipping: result.type === 'shipping_free' || result.freeShipping === true,
       label: label,
       comboMember: result.comboMember || false,
       comboBulk: result.comboBulk || false,
@@ -849,6 +868,7 @@ function getCouponDataCached_() {
       shippingExcludeProducts: String(row[COUPON_COLS.SHIPPING_EXCLUDE_PRODUCTS] || '').trim(),
       targetCustomerName: String(row[COUPON_COLS.TARGET_CUSTOMER_NAME] || '').trim(),
       targetCustomerEmail: String(row[COUPON_COLS.TARGET_CUSTOMER_EMAIL] || '').trim(),
+      freeShipping: (row[COUPON_COLS.FREE_SHIPPING] === true || String(row[COUPON_COLS.FREE_SHIPPING]).toUpperCase() === 'TRUE'),
       rowIndex: i + 2
     });
   }
@@ -993,7 +1013,7 @@ function validateCoupon_(code, email, channel, productIds, customerName) {
     return { ok: false, message: 'クーポン設定にエラーがあります' };
   }
 
-  return { ok: true, type: type, value: value, row: coupon.rowIndex, comboMember: coupon.comboMember, comboBulk: coupon.comboBulk, shippingExcludeProducts: coupon.shippingExcludeProducts || '' };
+  return { ok: true, type: type, value: value, row: coupon.rowIndex, comboMember: coupon.comboMember, comboBulk: coupon.comboBulk, shippingExcludeProducts: coupon.shippingExcludeProducts || '', freeShipping: coupon.freeShipping === true };
 }
 
 /**

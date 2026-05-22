@@ -128,6 +128,7 @@ function apiBulkSubmit(form, items) {
         : couponResult.type === 'shipping_free'
           ? 'クーポン送料無料'
           : ('クーポン' + couponResult.value + '円引き');
+      if (couponResult.freeShipping && couponResult.type !== 'shipping_free') couponLabel += '＋送料無料';
     }
 
     // 会員割引レート取得（CartCalc step 3b — comboMember !== false なら適用）
@@ -182,7 +183,7 @@ function apiBulkSubmit(form, items) {
       } catch (e) { console.error('ランク取得エラー:', e); }
     }
 
-    var shippingFreeCoupon = validatedCoupon && validatedCoupon.type === 'shipping_free';
+    var shippingFreeCoupon = validatedCoupon && (validatedCoupon.type === 'shipping_free' || validatedCoupon.freeShipping === true);
     var isOkinawa = ((SHIPPING_AREAS[shippingPref] || '') === 'okinawa');
     // ¥30,000以上で送料無料（FHP・沖縄は対象外）
     var thresholdFree = !firstHalfPriceApplied && !isOkinawa && (discounted + detauriProductAmount) >= 30000;

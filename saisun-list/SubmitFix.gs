@@ -146,6 +146,7 @@ function apiSubmitEstimate(userKey, form, ids) {
         : couponResult.type === 'shipping_free'
           ? 'クーポン送料無料'
           : ('クーポン' + couponResult.value + '円引き');
+      if (couponResult.freeShipping && couponResult.type !== 'shipping_free') couponLabel += '＋送料無料';
     }
 
     // 数量割引は2026-04-22に廃止 — discountRate は常に0
@@ -216,7 +217,7 @@ function apiSubmitEstimate(userKey, form, ids) {
       } catch (e) { console.error('ランク取得エラー:', e); }
     }
 
-    var shippingFreeCoupon = validatedCoupon && validatedCoupon.type === 'shipping_free';
+    var shippingFreeCoupon = validatedCoupon && (validatedCoupon.type === 'shipping_free' || validatedCoupon.freeShipping === true);
     // 沖縄は送料無料（閾値・クーポン）の対象外（ダイヤ会員特典は維持）
     var isOkinawa = (shippingArea === 'okinawa');
     // ¥30,000以上で送料無料（FHP・沖縄は対象外）

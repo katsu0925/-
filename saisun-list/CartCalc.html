@@ -204,8 +204,8 @@ var CartCalc = (function() {
     var diamondFree = customer && customer.rank && customer.rank.freeShipping;
     // 沖縄は送料無料（閾値・クーポン）の対象外（ダイヤ会員特典のみ維持）
     var isOkinawa = (addrPref ? areas[addrPref] : '') === 'okinawa';
-    // 送料無料クーポン（shipping_free型）— FHP時は無効、沖縄は対象外
-    var shippingFreeCoupon = !fhpApplied && coupon && coupon.type === 'shipping_free';
+    // 送料無料クーポン（shipping_free型 または rate/fixed型の送料無料併用フラグ）— FHP時は無効、沖縄は対象外
+    var shippingFreeCoupon = !fhpApplied && coupon && (coupon.type === 'shipping_free' || coupon.freeShipping === true);
     var couponFreeEffective = shippingFreeCoupon && !isOkinawa;
     // ¥30,000以上で送料無料（FHP・沖縄は対象外）
     var thresholdFree = !fhpApplied && !isOkinawa && combinedDiscountedProduct >= freeShipThreshold;

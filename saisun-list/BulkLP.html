@@ -2457,9 +2457,10 @@ function buildCartCalcInput_(assortSubtotal, assortTotalQty) {
   var coupon = null;
   if (G.coupon) {
     coupon = {
-      type: G.coupon.type === 'shipping_free' || G.coupon.freeShipping ? 'shipping_free' : (G.coupon.type || 'amount'),
+      type: G.coupon.type || 'amount',
       value: Number(G.coupon.value || G.coupon.discountAmount || 0),
       label: G.coupon.label || '',
+      freeShipping: !!G.coupon.freeShipping,
       comboBulk: G.coupon.comboBulk,
       comboMember: G.coupon.comboMember,
       shippingExcludeProducts: G.coupon.shippingExcludeProducts || undefined
