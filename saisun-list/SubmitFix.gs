@@ -934,7 +934,7 @@ function writeSubmitData_(data) {
     confirmLink,                                 // I: 確認リンク
     selectionList,                               // J: 選択リスト
     totalCount,                                  // K: 合計点数
-    data.discounted || 0,                        // L: 合計金額
+    Math.max(0, (data.discounted || 0) - (data.couponDiscount || 0)),  // L: 合計金額（クーポン控除後の商品代、送料は N列）
     data.storeShipping || '',                     // M: 送料(店負担)
     data.shippingAmount || '',                   // N: 送料(客負担)
     data.paymentMethod ? getPaymentMethodDisplayName_(data.paymentMethod) : '',  // O: 決済方法（日本語表示名）
@@ -1417,6 +1417,8 @@ function confirmPaymentAndCreateOrder(paymentToken, paymentStatus, paymentMethod
       assortItemDetails: pendingData.assortItemDetails || [],
       detauriItemDetails: pendingData.detauriItemDetails || [],
       pointsUsed: pendingData.pointsUsed || 0,
+      couponCode: pendingData.couponCode || '',
+      couponDiscount: pendingData.couponDiscount || 0,
       channel: pendingData.channel || 'デタウリ',
       productNames: pendingData.productNames || '',
       _hasManagedIds: pendingData._hasManagedIds || false,
@@ -1678,6 +1680,7 @@ function createOrderConfirmLink_(receiptNo, data) {
     var sheet = ss.getActiveSheet();
     sheet.setName('注文明細');
 
+    var grandTotal = Math.max(0, (data.discounted || 0) - (data.couponDiscount || 0) + (data.shippingAmount || 0));
     var headerRows = [
       ['デタウリ.Detauri - ご注文明細'],
       [''],
@@ -1685,7 +1688,7 @@ function createOrderConfirmLink_(receiptNo, data) {
       ['注文日時', dateStr],
       ['会社名/氏名', form.companyName || ''],
       ['合計点数', String(ids.length) + '点'],
-      ['合計金額', String(Number(data.discounted || 0).toLocaleString()) + '円（税込・送料込）'],
+      ['合計金額', String(Number(grandTotal).toLocaleString()) + '円（税込・送料込）'],
       [''],
       ['■ 選択商品一覧'],
       ['No.', '管理番号']

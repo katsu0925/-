@@ -419,8 +419,12 @@ function app_sendOrderConfirmToCustomer_(data) {
     var companyName = (data.form && data.form.companyName) || '';
     var datetime = new Date(data.createdAtMs || Date.now()).toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
     var totalCount = data.totalCount || (data.ids ? data.ids.length : 0);
-    var discounted = data.discounted || 0;
+    var couponDiscount = data.couponDiscount || 0;
+    // discounted は「商品代（会員割引・FHP・ポイント控除後）− クーポン控除」＝KOMOJU支払い額のうち商品代部分
+    var discounted = Math.max(0, (data.discounted || 0) - couponDiscount);
     var shippingAmount = data.shippingAmount || 0;
+    // 顧客への表示用「合計金額（税込・送料込）」＝KOMOJU入金額
+    var grandTotal = discounted + shippingAmount;
     var selectionList = data.selectionList || (data.ids ? data.ids.join('、') : '');
     var note = (data.form && data.form.note) || '';
     var paymentMethod = data.paymentMethod || '';
@@ -473,7 +477,7 @@ function app_sendOrderConfirmToCustomer_(data) {
       + '注文日時：' + datetime + '\n'
       + '会社名/氏名：' + companyName + '\n'
       + '合計点数：' + totalCount + '点\n'
-      + '合計金額：' + Number(discounted).toLocaleString() + '円（税込・送料込）\n';
+      + '合計金額：' + Number(grandTotal).toLocaleString() + '円（税込・送料込）\n';
 
     if (shippingAmount > 0) {
       body += '（うち送料：' + Number(shippingAmount).toLocaleString() + '円）\n';
@@ -547,7 +551,7 @@ function app_sendOrderConfirmToCustomer_(data) {
       { label: '注文日時', value: datetime },
       { label: '会社名/氏名', value: companyName },
       { label: '合計点数', value: totalCount + '点' },
-      { label: '合計金額', value: Number(discounted).toLocaleString() + '円（税込・送料込）' }
+      { label: '合計金額', value: Number(grandTotal).toLocaleString() + '円（税込・送料込）' }
     ];
     if (shippingAmount > 0) {
       orderRows.push({ label: 'うち送料', value: Number(shippingAmount).toLocaleString() + '円' });
