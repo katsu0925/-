@@ -492,6 +492,7 @@ function staff_listSagyousha(opts, requesterEmail) {
       var pVals = prodSh.getRange(2, minCol, pLast - 1, width).getValues();
       var tz = Session.getScriptTimeZone() || 'Asia/Tokyo';
       var workerMap = {};
+      var emailMap = {};
       // 表記揺れ（全角/半角スペース、全半角混在）で別人扱いされないよう、
       // NFKC正規化＋全空白除去＋小文字化したキーで突き合わせる
       function normKey_(s) {
@@ -500,6 +501,9 @@ function staff_listSagyousha(opts, requesterEmail) {
       workers.forEach(function(w){
         var k = normKey_(w.name);
         if (k) workerMap[k] = w;
+        // 担当者列にメールが入っているケースに備え、メール→ワーカーの逆引きも作る
+        if (w.email1) emailMap[w.email1] = w;
+        if (w.email2) emailMap[w.email2] = w;
       });
       function getYm(d) {
         // Dateオブジェクト
@@ -524,6 +528,14 @@ function staff_listSagyousha(opts, requesterEmail) {
         var k = normKey_(name);
         if (!k) return;
         var w = workerMap[k];
+        if (!w && name.indexOf('@') >= 0) {
+          // 担当者列にメールアドレスが入っているケース → マスターのメール列で名前解決
+          var em = String(name).trim().toLowerCase();
+          if (emailMap[em]) {
+            w = emailMap[em];
+            workerMap[k] = w; // 以後の同値lookupを高速化
+          }
+        }
         if (!w) {
           w = { row: 0, name: name, email1: '', email2: '', enabled: false, admin: false, monthly: {} };
           workerMap[k] = w;
