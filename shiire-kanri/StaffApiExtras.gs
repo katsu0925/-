@@ -492,7 +492,15 @@ function staff_listSagyousha(opts, requesterEmail) {
       var pVals = prodSh.getRange(2, minCol, pLast - 1, width).getValues();
       var tz = Session.getScriptTimeZone() || 'Asia/Tokyo';
       var workerMap = {};
-      workers.forEach(function(w){ workerMap[w.name] = w; });
+      // 表記揺れ（全角/半角スペース、全半角混在）で別人扱いされないよう、
+      // NFKC正規化＋全空白除去＋小文字化したキーで突き合わせる
+      function normKey_(s) {
+        return String(s == null ? '' : s).normalize('NFKC').replace(/\s+/g, '').toLowerCase();
+      }
+      workers.forEach(function(w){
+        var k = normKey_(w.name);
+        if (k) workerMap[k] = w;
+      });
       function getYm(d) {
         // Dateオブジェクト
         if (d instanceof Date && !isNaN(d.getTime())) {
@@ -513,10 +521,12 @@ function staff_listSagyousha(opts, requesterEmail) {
       }
       function bumpUser(name, ym, kind) {
         if (!name || !ym) return;
-        var w = workerMap[name];
+        var k = normKey_(name);
+        if (!k) return;
+        var w = workerMap[k];
         if (!w) {
           w = { row: 0, name: name, email1: '', email2: '', enabled: false, admin: false, monthly: {} };
-          workerMap[name] = w;
+          workerMap[k] = w;
           workers.push(w);
         }
         if (!w.monthly[ym]) w.monthly[ym] = { sokutei: 0, satsuei: 0, shuppin: 0, hassou: 0 };
