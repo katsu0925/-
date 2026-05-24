@@ -220,8 +220,8 @@ function apiSubmitEstimate(userKey, form, ids) {
     var shippingFreeCoupon = validatedCoupon && (validatedCoupon.type === 'shipping_free' || validatedCoupon.freeShipping === true);
     // 沖縄は送料無料（閾値・クーポン）の対象外（ダイヤ会員特典は維持）
     var isOkinawa = (shippingArea === 'okinawa');
-    // ¥30,000以上で送料無料（FHP・沖縄は対象外）
-    var thresholdFree = !firstHalfPriceApplied && !isOkinawa && (discounted + bulkProductAmount) >= 30000;
+    // ¥10,000以上で送料無料（FHP・沖縄は対象外）
+    var thresholdFree = !firstHalfPriceApplied && !isOkinawa && (discounted + bulkProductAmount) >= 10000;
     // 送料無料クーポンも沖縄は対象外（ダイヤ会員特典は維持）
     var couponFreeEffective = shippingFreeCoupon && !isOkinawa;
 
@@ -245,7 +245,7 @@ function apiSubmitEstimate(userKey, form, ids) {
       actualShippingForStore += SHIPPING_RATES[shippingArea][1] * bulkItemCount;
     }
 
-    // 送料無料判定（CartCalcと同じ優先順序: ダイヤモンド > クーポン > ¥30,000以上 > 計算値）
+    // 送料無料判定（CartCalcと同じ優先順序: ダイヤモンド > クーポン > ¥10,000以上 > 計算値）
     // 沖縄県はクーポン・閾値の対象外（ダイヤ会員特典のみ維持）
     if (diamondFree) {
       shippingAmount = 0;
@@ -277,7 +277,7 @@ function apiSubmitEstimate(userKey, form, ids) {
       }
     } else if (thresholdFree) {
       shippingAmount = 0;
-      // アソート送料: 価格破壊商品は¥30,000以上ルール無効化 → 該当商品分だけ送料請求
+      // アソート送料: 価格破壊商品は¥10,000以上ルール無効化 → 該当商品分だけ送料請求
       var alwaysIds = (typeof SHIPPING_CONSTANTS !== 'undefined' && SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS) ? SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS : [];
       if (alwaysIds.length && hasBulkItems && shippingArea && SHIPPING_RATES[shippingArea]) {
         var alwaysSet = {};

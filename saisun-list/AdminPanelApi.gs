@@ -259,7 +259,7 @@ function adminPanel_getBizDiscountSettings() {
   var props = PropertiesService.getScriptProperties();
   return {
     ok: true,
-    freeShipThreshold: Number(props.getProperty('CONFIG_FREE_SHIP_THRESHOLD') || 30000),
+    freeShipThreshold: Number(props.getProperty('CONFIG_FREE_SHIP_THRESHOLD') || 10000),
     referralReferrer: Number(props.getProperty('CONFIG_REFERRAL_REFERRER') || 500),
     referralReferee: Number(props.getProperty('CONFIG_REFERRAL_REFEREE') || 300)
   };
@@ -271,6 +271,15 @@ function adminPanel_setBizDiscountSettings(settings) {
   if (settings.referralReferrer !== undefined) props.setProperty('CONFIG_REFERRAL_REFERRER', String(settings.referralReferrer));
   if (settings.referralReferee !== undefined) props.setProperty('CONFIG_REFERRAL_REFEREE', String(settings.referralReferee));
   return { ok: true, message: '設定を保存しました' };
+}
+
+// 一度だけGASエディタから手動実行: 旧値¥30,000を¥10,000に戻すための一括移行
+function migrateFreeShipThresholdTo10000() {
+  var props = PropertiesService.getScriptProperties();
+  var before = props.getProperty('CONFIG_FREE_SHIP_THRESHOLD');
+  props.setProperty('CONFIG_FREE_SHIP_THRESHOLD', '10000');
+  console.log('CONFIG_FREE_SHIP_THRESHOLD: ' + before + ' → 10000');
+  return { ok: true, before: before, after: '10000' };
 }
 
 // =====================================================

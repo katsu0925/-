@@ -15,7 +15,7 @@ function calcQtyDiscount(_count, _dynTable) {
   return 0;
 }
 
-// ─── 価格破壊商品ID（¥30,000以上送料無料の対象外） ───
+// ─── 価格破壊商品ID（¥10,000以上送料無料の対象外） ───
 // Constants.gs SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS と同期
 const ALWAYS_CHARGE_BULK_IDS = ['BLK-H2LZTP36'];
 
@@ -294,7 +294,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     try { dynQtyDiscounts = JSON.parse(qtyDiscountRow.value); } catch (e) { /* fallthrough */ }
   }
 
-  const dynFreeShipThreshold = freeShipRow ? (Number(freeShipRow.value) || 30000) : 30000;
+  const dynFreeShipThreshold = freeShipRow ? (Number(freeShipRow.value) || 10000) : 10000;
 
   let memberDiscountStatus = { enabled: true, rate: 0.10, endDate: '2026-09-30', reason: 'active' };
   if (memberDiscountRow) { try { memberDiscountStatus = JSON.parse(memberDiscountRow.value); } catch (e) { /* fallthrough */ } }
@@ -456,7 +456,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   // 沖縄県判定（送料無料閾値・クーポン送料無料の対象外。ダイヤ会員は対象）
   const isOkinawa = shippingArea === 'okinawa';
   const couponFreeEffective = shippingFreeCoupon && !isOkinawa;
-  // ¥30,000以上で送料無料（FHP適用時・沖縄県は対象外）
+  // ¥10,000以上で送料無料（FHP適用時・沖縄県は対象外）
   const thresholdFree = !firstHalfPriceApplied && !isOkinawa && (discounted + bulkProductAmount) >= dynFreeShipThreshold;
 
   // 送料無料判定前に実際の配送コストを計算（店負担送料用）
@@ -498,7 +498,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     }
   } else if (thresholdFree) {
     shippingAmount = 0;
-    // アソート送料: 価格破壊商品は¥30,000以上ルール無効化 → 該当商品分だけ送料請求
+    // アソート送料: 価格破壊商品は¥10,000以上ルール無効化 → 該当商品分だけ送料請求
     if (ALWAYS_CHARGE_BULK_IDS.length && bulkItemCount > 0 && shippingArea && dynShippingRates[shippingArea]) {
       const alwaysSet = new Set(ALWAYS_CHARGE_BULK_IDS.map(s => String(s).toUpperCase()));
       let alwaysQty = 0;

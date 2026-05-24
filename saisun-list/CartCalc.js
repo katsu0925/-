@@ -125,7 +125,7 @@ var CartCalc = (function() {
     var pointsUsed = input.pointsUsed || 0;
     var customer = input.customer || null;
     var assortExcQty = input.assortExcludedQty || 0;
-    var assortAlwaysChargeQty = input.assortAlwaysChargeQty || 0;  // 価格破壊商品の数量（¥30,000以上ルール無効化）
+    var assortAlwaysChargeQty = input.assortAlwaysChargeQty || 0;  // 価格破壊商品の数量（¥10,000以上ルール無効化）
 
     // -- 結果オブジェクト初期化 --
     var result = {
@@ -140,7 +140,7 @@ var CartCalc = (function() {
       detauriCount: det.count,
       assortQty: ass.totalQty,
       isRemoteIsland: false,
-      freeShipProgress: { show: false, current: 0, threshold: 30000, remaining: 0, pct: 0 }
+      freeShipProgress: { show: false, current: 0, threshold: 10000, remaining: 0, pct: 0 }
     };
 
     // -- 離島チェック --
@@ -197,7 +197,7 @@ var CartCalc = (function() {
 
     // -- Step 4: 送料計算 --
     var combinedDiscountedProduct = result.detauri.discounted + result.assort.discounted;
-    var freeShipThreshold = 30000;
+    var freeShipThreshold = 10000;
 
     // ダイヤモンド会員 → 全送料無料（沖縄県も無料のままダイヤ特典は維持）
     var diamondFree = customer && customer.rank && customer.rank.freeShipping;
@@ -206,7 +206,7 @@ var CartCalc = (function() {
     // 送料無料クーポン（shipping_free型 または rate/fixed型の送料無料併用フラグ）— FHP時は無効、沖縄は対象外
     var shippingFreeCoupon = !fhpApplied && coupon && (coupon.type === 'shipping_free' || coupon.freeShipping === true);
     var couponFreeEffective = shippingFreeCoupon && !isOkinawa;
-    // ¥30,000以上で送料無料（FHP・沖縄は対象外）
+    // ¥10,000以上で送料無料（FHP・沖縄は対象外）
     var thresholdFree = !fhpApplied && !isOkinawa && combinedDiscountedProduct >= freeShipThreshold;
 
     // デタウリ送料
@@ -218,7 +218,7 @@ var CartCalc = (function() {
         } else if (couponFreeEffective) {
           result.detauri.shipping = { amount: 0, label: 'デタウリ 送料', isFree: true, freeReason: 'クーポン適用' };
         } else if (thresholdFree) {
-          result.detauri.shipping = { amount: 0, label: 'デタウリ 送料', isFree: true, freeReason: '商品合計¥30,000以上' };
+          result.detauri.shipping = { amount: 0, label: 'デタウリ 送料', isFree: true, freeReason: '商品合計¥10,000以上' };
         } else {
           // 厚み分類→サイズ判定→料金計算
           var t = classifyThickness(det.items);
@@ -252,12 +252,12 @@ var CartCalc = (function() {
             result.assort.shipping = { amount: 0, label: 'アソート 送料', isFree: true, freeReason: 'クーポン適用' };
           }
         } else if (thresholdFree) {
-          // ¥30,000以上送料無料 — ただし価格破壊商品は対象外（数量分だけ送料請求）
+          // ¥10,000以上送料無料 — ただし価格破壊商品は対象外（数量分だけ送料請求）
           if (assortAlwaysChargeQty > 0) {
             var alwaysShip = rates[aArea][1] * assortAlwaysChargeQty;
             result.assort.shipping = { amount: alwaysShip, label: 'アソート 送料（' + escHtml(addrPref) + '・大×' + assortAlwaysChargeQty + '、価格破壊商品分）', isFree: false, freeReason: '' };
           } else {
-            result.assort.shipping = { amount: 0, label: 'アソート 送料', isFree: true, freeReason: '商品合計¥30,000以上' };
+            result.assort.shipping = { amount: 0, label: 'アソート 送料', isFree: true, freeReason: '商品合計¥10,000以上' };
           }
         } else {
           var assortShipAmt = rates[aArea][1] * ass.totalQty;

@@ -29,7 +29,9 @@
  * Cron Trigger エントリポイント
  */
 
-// ─── 価格破壊商品ID（¥30,000以上・送料無料クーポンの送料無料対象外） ───
+import { incrementGeminiUsage } from '../usage.js';
+
+// ─── 価格破壊商品ID（¥10,000以上・送料無料クーポンの送料無料対象外） ───
 // Constants.gs SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS / submit.js と同期
 const ALWAYS_CHARGE_BULK_IDS = ['BLK-H2LZTP36'];
 
@@ -1679,6 +1681,7 @@ async function runGeminiJudgment(env, managedId, apiKey) {
     },
   };
 
+  try { await incrementGeminiUsage(env, GEMINI_MODEL); } catch (e) { console.warn('[ai] incrementGeminiUsage failed:', e.message); }
   const resp = await fetch(`${GEMINI_ENDPOINT}?key=${apiKey}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1866,6 +1869,7 @@ async function runOrderingJudgment(env, managedId, apiKey, opts = {}) {
     generationConfig,
   };
 
+  try { await incrementGeminiUsage(env, usePro ? ORDERING_PRO_MODEL : ORDERING_MODEL); } catch (e) { console.warn('[ordering] incrementGeminiUsage failed:', e.message); }
   const resp = await fetch(`${endpoint}?key=${apiKey}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

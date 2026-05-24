@@ -167,7 +167,7 @@ function apiBulkSubmit(form, items) {
       }
     }
 
-    // === 送料計算（CartCalcと同じ優先順序: ダイヤモンド > クーポン > ¥30,000以上 > 計算値） ===
+    // === 送料計算（CartCalcと同じ優先順序: ダイヤモンド > クーポン > ¥10,000以上 > 計算値） ===
     // 沖縄県はクーポン・閾値の対象外（ダイヤ会員特典のみ維持）
     var shippingPref = String(f.shippingPref || '');
     var shippingSize = 'large';
@@ -185,8 +185,8 @@ function apiBulkSubmit(form, items) {
 
     var shippingFreeCoupon = validatedCoupon && (validatedCoupon.type === 'shipping_free' || validatedCoupon.freeShipping === true);
     var isOkinawa = ((SHIPPING_AREAS[shippingPref] || '') === 'okinawa');
-    // ¥30,000以上で送料無料（FHP・沖縄は対象外）
-    var thresholdFree = !firstHalfPriceApplied && !isOkinawa && (discounted + detauriProductAmount) >= 30000;
+    // ¥10,000以上で送料無料（FHP・沖縄は対象外）
+    var thresholdFree = !firstHalfPriceApplied && !isOkinawa && (discounted + detauriProductAmount) >= 10000;
     // 送料無料クーポンも沖縄は対象外（ダイヤ会員特典は維持）
     var couponFreeEffective = shippingFreeCoupon && !isOkinawa;
 
@@ -217,7 +217,7 @@ function apiBulkSubmit(form, items) {
           detauriShippingAmount = 0;
         } else if (thresholdFree) {
           detauriShippingAmount = 0;
-          // アソート送料: 価格破壊商品は¥30,000以上ルール無効化 → 該当商品分だけ送料請求
+          // アソート送料: 価格破壊商品は¥10,000以上ルール無効化 → 該当商品分だけ送料請求
           var alwaysIdsB = (typeof SHIPPING_CONSTANTS !== 'undefined' && SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS) ? SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS : [];
           if (alwaysIdsB.length) {
             var alwaysSetB = {};
