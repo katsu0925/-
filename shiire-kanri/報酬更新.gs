@@ -104,7 +104,10 @@ function updateRewardsNoFormula(allMonths) {
   var iBH = resolveCol_(['廃棄日'],                       'BH');
   var iBI = resolveCol_(['返品日付','返品日'],            'BI');
   var iBA = resolveCol_(['在庫管理担当','在庫管理者'],    'BA');
-  var iAM = resolveCol_(['販売場所','アカウント','販売アカウント'], 'AM');
+  // 利益歩合(K列)の対象判定に使う「使用アカウント」を読む。
+  // 「販売場所」(AQ列)はメルカリ/ラクマ等プラットフォーム名で、作業者マスター Q列
+  // (アカウント名)と突合しないため候補に含めない。
+  var iAM = resolveCol_(['使用アカウント','アカウント','販売アカウント'], 'AM');
   var iCN = resolveCol_(['作業者名'],                     'C');
   Logger.log('resolved cols: AG=%s AH=%s AI=%s AJ=%s AK=%s AL=%s BE=%s BF=%s AP=%s AV=%s AY=%s BH=%s BI=%s BA=%s AM=%s CN=%s',
     iAG, iAH, iAI, iAJ, iAK, iAL, iBE, iBF, iAP, iAV, iAY, iBH, iBI, iBA, iAM, iCN);
@@ -481,4 +484,124 @@ function migrateRewardSheet() {
   syncRewardRows();
   updateRewardsNoFormula(true);
   Logger.log('migrateRewardSheet 完了: 数式→値変換 → 行構造修正 → 全期間報酬再計算');
+}
+
+/**
+ * デバッグ: 特定管理番号の販売情報を生値で出力
+ * + AM列の全ユニーク値（販売日有無別）も列挙
+ * GASエディタから debugInspectKanrinum('zB1247') で実行
+ */
+function debugInspectKanrinum(kanrinum) {
+  var target = String(kanrinum || 'zB1247').trim().toLowerCase();
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var shP = ss.getSheetByName('商品管理');
+  if (!shP) { Logger.log('商品管理シートが見つかりません'); return; }
+  var lastRow = shP.getLastRow();
+  var lastCol = shP.getLastColumn();
+  if (lastRow < 2) { Logger.log('データなし'); return; }
+  var headers = shP.getRange(1, 1, 1, lastCol).getValues()[0]
+    .map(function(v){ return String(v||'').trim(); });
+  function idxOf(name, fallback1based) {
+    var idx = headers.indexOf(name);
+    if (idx >= 0) return idx;
+    return (fallback1based - 1);
+  }
+  var iKan = idxOf('管理番号', 6);
+  var iAP  = idxOf('販売日',  42);
+  var iAM  = idxOf('販売場所', 43);
+  var iAV  = idxOf('販売価格', 44);
+  var iC   = idxOf('作業者名',  3);
+  Logger.log('Headers resolved: 管理番号=%s 販売日=%s 販売場所=%s 販売価格=%s 作業者名=%s',
+    iKan, iAP, iAM, iAV, iC);
+
+  var values = shP.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  var displays = shP.getRange(2, 1, lastRow - 1, lastCol).getDisplayValues();
+
+  var hits = 0;
+  for (var r = 0; r < values.length; r++) {
+    var kan = String(values[r][iKan] || '').trim().toLowerCase();
+    if (kan !== target) continue;
+    hits++;
+    var ap = values[r][iAP];
+    var am = values[r][iAM];
+    var av = values[r][iAV];
+    var cn = values[r][iC];
+    var apType = (ap instanceof Date) ? 'Date(' + ap.toISOString() + ')'
+               : (typeof ap) + '/raw=' + JSON.stringify(ap)
+                 + '/display=' + JSON.stringify(displays[r][iAP]);
+    var amHex = '';
+    var amStr = String(am || '');
+    for (var c = 0; c < amStr.length; c++) {
+      amHex += amStr.charCodeAt(c).toString(16) + ' ';
+    }
+    Logger.log('HIT row=%s 管理番号=%s 販売日=%s 販売場所(raw)=%s 販売場所(display)=%s 販売場所(hex)=%s 販売価格=%s 作業者名=%s',
+      r + 2, kan, apType, JSON.stringify(am), JSON.stringify(displays[r][iAM]),
+      amHex.trim(), JSON.stringify(av), JSON.stringify(cn));
+  }
+  if (hits === 0) {
+    Logger.log('管理番号 "%s" は見つかりませんでした', target);
+  }
+
+  // AM列の全ユニーク値（販売日Date型あり/なし別）を出力
+  var amWithSold = {};
+  var amWithoutSold = {};
+  for (var r2 = 0; r2 < values.length; r2++) {
+    var am2 = String(values[r2][iAM] || '').replace(/　/g, ' ').trim();
+    if (!am2) continue;
+    var ap2 = values[r2][iAP];
+    if (ap2 instanceof Date) {
+      amWithSold[am2] = (amWithSold[am2] || 0) + 1;
+    } else {
+      amWithoutSold[am2] = (amWithoutSold[am2] || 0) + 1;
+    }
+  }
+  Logger.log('AM列ユニーク値（販売日=Date あり）: %s', JSON.stringify(amWithSold));
+  Logger.log('AM列ユニーク値（販売日=Date なし）: %s', JSON.stringify(amWithoutSold));
+}
+
+/**
+ * デバッグ: 任意の文字列が商品管理シートのどの列に出現するか全列スキャン
+ * GASエディタから debugFindStringInSheet('古着屋本舗') で実行
+ */
+function debugFindStringInSheet(needle) {
+  var target = String(needle || '古着屋本舗').replace(/　/g, ' ').trim();
+  if (!target) { Logger.log('検索文字列が空です'); return; }
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var shP = ss.getSheetByName('商品管理');
+  if (!shP) { Logger.log('商品管理シートが見つかりません'); return; }
+  var lastRow = shP.getLastRow();
+  var lastCol = shP.getLastColumn();
+  if (lastRow < 2) { Logger.log('データなし'); return; }
+  var headers = shP.getRange(1, 1, 1, lastCol).getValues()[0];
+  var values  = shP.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  var colHitCount = {};
+  var colSamples = {};
+  var totalHits = 0;
+  for (var r = 0; r < values.length; r++) {
+    for (var c = 0; c < lastCol; c++) {
+      var v = String(values[r][c] || '').replace(/　/g, ' ').trim();
+      if (!v) continue;
+      // 完全一致 or 部分一致
+      if (v === target || v.indexOf(target) >= 0) {
+        var key = (c + 1) + ':' + String(headers[c] || '');
+        colHitCount[key] = (colHitCount[key] || 0) + 1;
+        if (!colSamples[key]) colSamples[key] = [];
+        if (colSamples[key].length < 3) {
+          colSamples[key].push('row=' + (r + 2) + ' value=' + JSON.stringify(v));
+        }
+        totalHits++;
+      }
+    }
+  }
+  Logger.log('検索文字列 "%s" の全列スキャン結果: 総ヒット=%s', target, totalHits);
+  var keys = Object.keys(colHitCount).sort(function(a,b){
+    return colHitCount[b] - colHitCount[a];
+  });
+  for (var i = 0; i < keys.length; i++) {
+    Logger.log('  列「%s」: %s件  サンプル=%s',
+      keys[i], colHitCount[keys[i]], JSON.stringify(colSamples[keys[i]]));
+  }
+  if (totalHits === 0) {
+    Logger.log('  -> 「%s」は商品管理シートのどの列にも見つかりませんでした', target);
+  }
 }
