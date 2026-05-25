@@ -3756,12 +3756,20 @@ function saveSharedAddress_() {
   try {
     // 構造化住所を結合して hidden address に反映
     document.getElementById('address').value = combineAddress_('addrPref', 'addrCity', 'addrStreet', 'building');
+    var prefEl = document.getElementById('addrPref');
+    var cityEl = document.getElementById('addrCity');
+    var streetEl = document.getElementById('addrStreet');
+    var bldgEl = document.getElementById('building');
     var data = {
       companyName: (document.getElementById('companyName').value || '').trim(),
       contact: (document.getElementById('contact').value || '').trim(),
       postal: (document.getElementById('postal').value || '').trim(),
       address: (document.getElementById('address').value || '').trim(),
-      building: (document.getElementById('building').value || '').trim(),
+      addrPref: prefEl ? (prefEl.value || '').trim() : '',
+      addrCity: cityEl ? (cityEl.value || '').trim() : '',
+      addrStreet: streetEl ? (streetEl.value || '').trim() : '',
+      addrBuilding: bldgEl ? (bldgEl.value || '').trim() : '',
+      building: bldgEl ? (bldgEl.value || '').trim() : '',
       phone: (document.getElementById('phone').value || '').trim(),
       note: (document.getElementById('note').value || '').trim(),
       ts: Date.now()
@@ -3776,18 +3784,40 @@ function loadSharedAddress_() {
     if (!raw) return;
     var data = JSON.parse(raw);
     if (!data || !data.ts) return;
-    var fields = ['companyName', 'contact', 'postal', 'address', 'building', 'phone', 'note'];
+    // 構造化フィールドが入っていれば優先（index.html と共有）
+    var pref = data.addrPref || '';
+    var city = data.addrCity || '';
+    var street = data.addrStreet || '';
+    var bldg = data.addrBuilding || data.building || '';
+    var prefEl = document.getElementById('addrPref');
+    var cityEl = document.getElementById('addrCity');
+    var streetEl = document.getElementById('addrStreet');
+    if (prefEl && pref) prefEl.value = pref;
+    if (cityEl && city) cityEl.value = city;
+    if (streetEl && street) streetEl.value = street;
+    var fields = ['companyName', 'contact', 'postal', 'phone', 'note'];
     for (var i = 0; i < fields.length; i++) {
       var el = document.getElementById(fields[i]);
       if (el && data[fields[i]]) el.value = data[fields[i]];
     }
-    if (data.address) updateCart();
+    var buildingEl = document.getElementById('building');
+    if (buildingEl && bldg) buildingEl.value = bldg;
+    // hidden #address を再構築
+    var addrEl = document.getElementById('address');
+    if (addrEl) {
+      if (pref || city || street) {
+        addrEl.value = combineAddress_('addrPref', 'addrCity', 'addrStreet', 'building');
+      } else if (data.address) {
+        addrEl.value = data.address;
+      }
+    }
+    if ((addrEl && addrEl.value) || data.address) updateCart();
   } catch (e) {}
 }
 
 // フォームフィールドの入力時に共有住所を保存
 (function() {
-  var fields = ['companyName', 'contact', 'postal', 'addrStreet', 'building', 'phone', 'note'];
+  var fields = ['companyName', 'contact', 'postal', 'addrPref', 'addrCity', 'addrStreet', 'building', 'phone', 'note'];
   for (var i = 0; i < fields.length; i++) {
     var el = document.getElementById(fields[i]);
     if (el) {
@@ -3809,12 +3839,32 @@ window.addEventListener('storage', function(e) {
     try {
       var data = JSON.parse(e.newValue);
       if (!data || !data.ts) return;
-      var fields = ['companyName', 'contact', 'postal', 'address', 'building', 'phone', 'note'];
+      var pref = data.addrPref || '';
+      var city = data.addrCity || '';
+      var street = data.addrStreet || '';
+      var bldg = data.addrBuilding || data.building || '';
+      var prefEl = document.getElementById('addrPref');
+      var cityEl = document.getElementById('addrCity');
+      var streetEl = document.getElementById('addrStreet');
+      if (prefEl && pref !== undefined) prefEl.value = pref;
+      if (cityEl && city !== undefined) cityEl.value = city;
+      if (streetEl && street !== undefined) streetEl.value = street;
+      var fields = ['companyName', 'contact', 'postal', 'phone', 'note'];
       for (var i = 0; i < fields.length; i++) {
         var el = document.getElementById(fields[i]);
         if (el && data[fields[i]] !== undefined) el.value = data[fields[i]];
       }
-      if (data.address) updateCart();
+      var buildingEl = document.getElementById('building');
+      if (buildingEl) buildingEl.value = bldg;
+      var addrEl = document.getElementById('address');
+      if (addrEl) {
+        if (pref || city || street) {
+          addrEl.value = combineAddress_('addrPref', 'addrCity', 'addrStreet', 'building');
+        } else if (data.address !== undefined) {
+          addrEl.value = data.address;
+        }
+      }
+      if ((addrEl && addrEl.value) || data.address) updateCart();
     } catch (e) {}
   }
   if (e.key === DETAURI_CART_KEY) {

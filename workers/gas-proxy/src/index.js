@@ -25,6 +25,7 @@ import { scheduledSync, batchAiJudgment, restorePhotoMetaFromGas, reprocessSingl
 import { handleUpload, serveImage } from './handlers/upload.js';
 import { getUploadPageHtml } from './pages/upload.html.js';
 import * as kitHandler from './handlers/kit.js';
+import { getGeminiUsage } from './usage.js';
 
 // ─── フィーチャーフラグ: Workers側で処理するaction ───
 // 各Phaseで段階的に追加。削除で即ロールバック。
@@ -77,9 +78,11 @@ const CSRF_REQUIRED = new Set([
 ]);
 
 // レート制限設定
+// countOnSuccess: true の場合、ハンドラがHTTP 200を返したときのみカウント加算する
+//   （validationエラーで枠を消費しない＝住所未入力リトライ等で429にならない）
 const RATE_LIMITS = {
-  apiSubmitEstimate:    { max: 5, windowSec: 3600 },
-  apiBulkSubmit:        { max: 5, windowSec: 3600 },
+  apiSubmitEstimate:    { max: 30, windowSec: 3600, countOnSuccess: true },
+  apiBulkSubmit:        { max: 30, windowSec: 3600, countOnSuccess: true },
   apiSyncHolds:         { max: 30, windowSec: 60 },
   apiLoginCustomer:     { max: 30, windowSec: 3600 },
   apiRegisterCustomer:  { max: 20, windowSec: 3600 },
@@ -345,6 +348,12 @@ self.addEventListener('fetch', e => {
       return await handleBgReplace(request, env);
     }
 
+    // GET /usage/gemini → 今月の Gemini API 呼出し数（All-buppan Monitor.js 用）
+    if (url.pathname === '/usage/gemini' && request.method === 'GET') {
+      const usage = await getGeminiUsage(env);
+      return jsonOk(usage);
+    }
+
     // POST /api/brands-for-overlay → 背景置換時のブランド文字入れ用
     if (url.pathname === '/api/brands-for-overlay' && request.method === 'POST') {
       return await handleBrandsForOverlay(request, env);
@@ -429,11 +438,16 @@ self.addEventListener('fetch', e => {
       }
 
       // レート制限チェック（Workers処理のactionのみ）
+      // countOnSuccess: true の場合は事前チェックのみ。ハンドラ成功時にカウント加算。
       const rlConfig = RATE_LIMITS[action];
       if (rlConfig) {
-        const limited = await checkRateLimit(env, action, userKey, rlConfig);
+        const limited = await peekRateLimit(env, action, userKey, rlConfig);
         if (limited) {
           return jsonError('リクエスト回数の上限に達しました。しばらくしてからお試しください。', 429);
+        }
+        if (!rlConfig.countOnSuccess) {
+          // 従来動作: 事前チェックと同時にカウント加算
+          await incrementRateLimit(env, action, userKey, rlConfig);
         }
       }
 
@@ -452,6 +466,12 @@ self.addEventListener('fetch', e => {
       // null返却 = GASフォールバック（パスワードv1/legacy等）
       if (result === null) {
         return await proxyToGas(bodyText, env);
+      }
+
+      // countOnSuccess: true のactionは、HTTP 200成功時のみカウント加算
+      // （validation/重複等のエラーで枠を消費しない）
+      if (rlConfig && rlConfig.countOnSuccess && result && result.status === 200) {
+        await incrementRateLimit(env, action, userKey, rlConfig);
       }
 
       return result;
@@ -479,23 +499,31 @@ function extractUserKey(request, args) {
   return request.headers.get('CF-Connecting-IP') || 'unknown';
 }
 
-async function checkRateLimit(env, action, userKey, config) {
+// 事前チェック（read-only）: 上限到達なら true を返す
+async function peekRateLimit(env, action, userKey, config) {
   try {
     const key = `rl:${action}:${userKey}`;
     const count = parseInt(await env.SESSIONS.get(key) || '0', 10);
-
     if (count >= config.max) {
       return true; // rate limited
     }
+  } catch (e) {
+    console.warn('Rate limit peek failed (skipping):', e.message);
+  }
+  return false;
+}
 
+// カウント加算（成功時のみ呼ぶ／従来パスでは事前に呼ぶ）
+async function incrementRateLimit(env, action, userKey, config) {
+  try {
+    const key = `rl:${action}:${userKey}`;
+    const count = parseInt(await env.SESSIONS.get(key) || '0', 10);
     await env.SESSIONS.put(key, String(count + 1), {
       expirationTtl: config.windowSec,
     });
   } catch (e) {
-    // KV制限超過時はレート制限をスキップしてリクエストを通す
-    console.warn('Rate limit check failed (skipping):', e.message);
+    console.warn('Rate limit increment failed (skipping):', e.message);
   }
-  return false;
 }
 
 // ─── カスタムドメイン判定 ───

@@ -3914,6 +3914,10 @@ function saveSharedAddress_() {
       contact: ($('contact') ? $('contact').value : '').trim(),
       postal: ($('postal') ? $('postal').value : '').trim(),
       address: ($('address') ? $('address').value : '').trim(),
+      addrPref: ($('addrPref') ? $('addrPref').value : '').trim(),
+      addrCity: ($('addrCity') ? $('addrCity').value : '').trim(),
+      addrStreet: ($('addrStreet') ? $('addrStreet').value : '').trim(),
+      addrBuilding: ($('addrBuilding') ? $('addrBuilding').value : '').trim(),
       building: ($('addrBuilding') ? $('addrBuilding').value : '').trim(),
       phone: ($('phone') ? $('phone').value : '').trim(),
       note: ($('note') ? $('note').value : '').trim(),
@@ -3928,10 +3932,30 @@ function loadSharedAddress_() {
     if (!raw) return;
     var data = JSON.parse(raw);
     if (!data || !data.ts) return;
-    var fields = ['companyName', 'contact', 'postal', 'address', 'phone', 'note'];
+    var fields = ['companyName', 'contact', 'postal', 'address', 'addrPref', 'addrCity', 'addrStreet', 'addrBuilding', 'phone', 'note'];
     for (var i = 0; i < fields.length; i++) {
       var el = $(fields[i]);
       if (el && data[fields[i]]) el.value = data[fields[i]];
+    }
+    // 旧データ（構造化フィールド未保存）の救済: address があれば split を試みる
+    if (data.address && (!data.addrPref || !data.addrCity || !data.addrStreet)) {
+      var pc = (data.postal || '').replace(/[-ー\s]/g, '');
+      if (/^\d{7}$/.test(pc) && typeof lookupPostalCode_ === 'function') {
+        lookupPostalCode_(pc, function(addr) {
+          if ($('addrPref') && !$('addrPref').value) $('addrPref').value = addr.pref || '';
+          if ($('addrCity') && !$('addrCity').value) $('addrCity').value = addr.city || '';
+          if ($('addrStreet') && !$('addrStreet').value) {
+            var remaining = String(data.address || '').replace(addr.pref || '', '').replace(addr.city || '', '').trim();
+            var spaceIdx = remaining.indexOf(' ');
+            if (spaceIdx > 0) {
+              $('addrStreet').value = remaining.slice(0, spaceIdx);
+              if ($('addrBuilding') && !$('addrBuilding').value) $('addrBuilding').value = remaining.slice(spaceIdx + 1);
+            } else {
+              $('addrStreet').value = remaining;
+            }
+          }
+        });
+      }
     }
   } catch (e) {}
 }
@@ -3988,7 +4012,7 @@ window.addEventListener('storage', function(e) {
     try {
       var data = JSON.parse(e.newValue);
       if (!data || !data.ts) return;
-      var fields = ['companyName', 'contact', 'postal', 'address', 'phone', 'note'];
+      var fields = ['companyName', 'contact', 'postal', 'address', 'addrPref', 'addrCity', 'addrStreet', 'addrBuilding', 'phone', 'note'];
       for (var i = 0; i < fields.length; i++) {
         var el = $(fields[i]);
         if (el && data[fields[i]] !== undefined) el.value = data[fields[i]];
