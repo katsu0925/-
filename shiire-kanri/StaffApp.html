@@ -317,6 +317,19 @@
   .houshu-card .row .v { font-weight: 500; }
   .houshu-card .row.total { border-top: 1px solid #eee; margin-top: 6px; padding-top: 8px; font-size: 16px; }
   .houshu-card .row.total .v { color: var(--primary-dark); font-weight: bold; }
+  /* 報酬MAX判定: 負け側は薄く、勝者は強調 */
+  .houshu-card .row.is-loser { opacity: 0.4; text-decoration: line-through; }
+  .houshu-card .row.is-winner .k,
+  .houshu-card .row.is-winner .v { color: var(--primary-dark); font-weight: 700; }
+  .houshu-card .houshu-vs {
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    margin: 0 0 10px; padding: 8px 10px; background: #fafafa;
+    border-radius: 6px; font-size: 12px;
+  }
+  .houshu-card .houshu-vs .vs-side { color: var(--text-sub); }
+  .houshu-card .houshu-vs .vs-side.vs-win { color: #2e7d32; font-weight: 700; }
+  .houshu-card .houshu-vs .vs-arrow { color: var(--text-mute); font-size: 11px; }
+  .houshu-card .houshu-vs .vs-note { margin-left: auto; color: var(--text-mute); font-size: 11px; }
   .houshu-status {
     display: inline-block; padding: 2px 8px; border-radius: 12px;
     font-size: 11px; font-weight: bold; margin-left: 8px;
@@ -875,7 +888,7 @@ function renderHoushuView() {
   google.script.run
     .withSuccessHandler(function(res){ if (res && res.ok) me = res; else err = (res && res.error) || 'プロフィール取得失敗'; done++; maybeDone(); })
     .withFailureHandler(function(e){ err = (e && e.message || e); done++; maybeDone(); })
-    .staff_invoiceCurrentUser();
+    .staff_invoiceCurrentUser({});
 }
 
 function drawHoushuView() {
@@ -955,21 +968,35 @@ function renderHoushuDetail() {
   });
   var c = p.件数 || {}; var u = p.単価 || {}; var r = p.報酬 || {}; var s = p.集計 || {};
 
+  // 支払ルール = MAX(作業合計, 売上報酬)。負け側は dim、勝者だけハイライト。
+  var 売上勝ち = !!s.売上勝ち;
+  var 作業合計 = (typeof s.作業合計 === 'number') ? s.作業合計 : 0;
+  var workCls = 売上勝ち ? ' is-loser' : '';
+  var profitCls = 売上勝ち ? ' is-winner' : ' is-loser';
+  var vsHtml =
+    '<div class="houshu-vs">' +
+      '<span class="vs-side' + (売上勝ち ? '' : ' vs-win') + '">作業合計 ' + fmtYen(作業合計) + '</span>' +
+      '<span class="vs-arrow">vs</span>' +
+      '<span class="vs-side' + (売上勝ち ? ' vs-win' : '') + '">売上報酬 ' + fmtYen(r.売上報酬 || 0) + '</span>' +
+      '<span class="vs-note">高い方を採用</span>' +
+    '</div>';
+
   var detail =
     '<div class="houshu-section-label">' + esc(p.請求月 || HOUSHU_STATE.ym) + ' 計算明細' +
       (p.報酬管理反映済み ? '（報酬管理シート反映済み）' : '（速報値）') +
     '</div>' +
     '<div class="houshu-card">' +
-      houshuRow('採寸', c.採寸件数, u.採寸単価, r.採寸報酬) +
-      houshuRow('撮影', c.撮影件数, u.撮影単価, r.撮影報酬) +
-      houshuRow('出品', c.出品件数, u.出品単価, r.出品報酬) +
-      houshuRow('発送', c.発送件数, u.発送単価, r.発送報酬) +
-      houshuRowSimple('在庫管理報酬', r.在庫管理報酬) +
-      houshuRowSimple('固定報酬', r.固定報酬) +
-      houshuRowSimple('経費合計', r.経費合計) +
-      houshuRowSimple('売上報酬', r.売上報酬) +
-      houshuRowSimple('その他報酬', r.その他報酬) +
-      '<div class="row"><span class="k">税込合計</span><span class="v">' + fmtYen(s.税込合計) + '</span></div>' +
+      vsHtml +
+      houshuRow('採寸', c.採寸件数, u.採寸単価, r.採寸報酬, workCls) +
+      houshuRow('撮影', c.撮影件数, u.撮影単価, r.撮影報酬, workCls) +
+      houshuRow('出品', c.出品件数, u.出品単価, r.出品報酬, workCls) +
+      houshuRow('発送', c.発送件数, u.発送単価, r.発送報酬, workCls) +
+      houshuRowSimple('在庫管理報酬', r.在庫管理報酬, workCls) +
+      houshuRowSimple('固定報酬', r.固定報酬, workCls) +
+      houshuRowSimple('経費合計', r.経費合計, workCls) +
+      houshuRowSimple('その他報酬', r.その他報酬, workCls) +
+      houshuRowSimple('売上報酬', r.売上報酬, profitCls) +
+      '<div class="row"><span class="k">税込合計（採用額）</span><span class="v">' + fmtYen(s.税込合計) + '</span></div>' +
       '<div class="row"><span class="k">控除可能率</span><span class="v">' + (s.控除可能率 != null ? (Math.round(s.控除可能率 * 100) + '%') : '—') + '</span></div>' +
       '<div class="row"><span class="k">調整額</span><span class="v">−' + fmtYen(s.調整額 || 0) + '</span></div>' +
       '<div class="row"><span class="k">振込手数料 (' + esc(s.振込元銀行 || '—') + '→' + esc((p.プロフィール && p.プロフィール.銀行名) || '—') + ')</span><span class="v">−' + fmtYen(s.振込手数料 || 0) + '</span></div>' +
@@ -1014,12 +1041,14 @@ function renderHoushuDetail() {
   body.innerHTML = detail + note + createBtn + historyHtml;
 }
 
-function houshuRow(label, cnt, price, total) {
-  return '<div class="row"><span class="k">' + esc(label) + ' ' + (cnt || 0) + '件 × ' + fmtYen(price || 0) + '</span>' +
+function houshuRow(label, cnt, price, total, extraCls) {
+  var cls = 'row' + (extraCls || '');
+  return '<div class="' + cls + '"><span class="k">' + esc(label) + ' ' + (cnt || 0) + '件 × ' + fmtYen(price || 0) + '</span>' +
          '<span class="v">' + fmtYen(total || 0) + '</span></div>';
 }
-function houshuRowSimple(label, val) {
-  return '<div class="row"><span class="k">' + esc(label) + '</span><span class="v">' + fmtYen(val || 0) + '</span></div>';
+function houshuRowSimple(label, val, extraCls) {
+  var cls = 'row' + (extraCls || '');
+  return '<div class="' + cls + '"><span class="k">' + esc(label) + '</span><span class="v">' + fmtYen(val || 0) + '</span></div>';
 }
 
 // ========== 請求書プロフィール ==========
@@ -1092,7 +1121,7 @@ function saveInvoiceProfile() {
             renderHoushuDetail();
           }
         })
-        .staff_invoiceCurrentUser();
+        .staff_invoiceCurrentUser({});
     })
     .withFailureHandler(function(err){
       toast('保存失敗: ' + (err && err.message || err), 'error');

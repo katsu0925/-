@@ -68,7 +68,7 @@ function doPost(e) {
       case 'lookupIraiForRecovery':   result = staff_lookupIraiForRecovery(body.payload || {}); break;
       case 'applyRecoveredValues':    result = staff_applyRecoveredValues(body.payload || {}); break;
       // 請求書（外注向けAPI、emailから本人解決して権限分離）
-      case 'invoiceCurrentUser':         result = staff_invoiceCurrentUser(email); break;
+      case 'invoiceCurrentUser':         result = staff_invoiceCurrentUser(body.payload || {}, email); break;
       case 'listInvoices':               result = staff_listInvoices(body.payload || {}, email); break;
       case 'getInvoiceDetail':           result = staff_getInvoiceDetail(body.payload || {}, email); break;
       case 'calcInvoicePreview':         result = staff_calcInvoicePreview(body.payload || {}, email); break;

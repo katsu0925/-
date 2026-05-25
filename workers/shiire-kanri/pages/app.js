@@ -5421,6 +5421,46 @@ function paintHoushu_(data) {
 
 function onHoushuNameChange_(name) {
   STATE.houshuSelectedName = name || '__all__';
+  // 請求書セクションの参照対象も切り替える（管理者なりすまし）。
+  // 報酬管理シート C列に email が無い場合は STATE.allWorkers から引く。
+  // 自分自身を選び直したとき・"全員" のときは scope を空に戻す（API に asStaffEmail を付けない）。
+  var selected = STATE.houshuSelectedName;
+  var isSelf = !selected || selected === '__all__' || selected === STATE.userName;
+  var newEmail = '';
+  var newName = '';
+  if (!isSelf && STATE.isAdmin) {
+    var workersByName = {};
+    (STATE.allWorkers || []).forEach(function(w){ workersByName[String(w.name || '')] = w; });
+    var w = workersByName[selected];
+    // 報酬管理シートに残っている過去スタッフは作業者マスタに無い場合がある。
+    // その場合は C列のメールを使った検索を試みる（TAB_CACHE 経由）。
+    if (w && (w.email1 || w.email2)) {
+      newEmail = String(w.email1 || w.email2 || '').trim();
+      newName = String(w.name || selected);
+    } else {
+      var cached0 = TAB_CACHE['business|houshu'];
+      var rows0 = (cached0 && cached0.data && cached0.data.rows) || [];
+      for (var i = 0; i < rows0.length; i++) {
+        var r0 = rows0[i];
+        if (String((r0 && r0[1]) || '').trim() === String(selected).trim()) {
+          newEmail = String((r0 && r0[2]) || '').trim();
+          newName = String(selected);
+          if (newEmail) break;
+        }
+      }
+    }
+  }
+  var scopeChanged = (newEmail !== INVOICE_STATE.scopedEmail) || (newName !== INVOICE_STATE.scopedName);
+  INVOICE_STATE.scopedEmail = newEmail;
+  INVOICE_STATE.scopedName = newName;
+  if (scopeChanged) {
+    // 別人参照に切り替え → 月セレクトもリセットして対象月再選定。
+    INVOICE_STATE.loaded = false;
+    INVOICE_STATE.invoices = [];
+    INVOICE_STATE.months = [];
+    INVOICE_STATE.profile = null;
+    INVOICE_STATE.selectedYm = '';
+  }
   var cached = TAB_CACHE['business|houshu'];
   if (cached && cached.data) paintHoushu_(cached.data);
 }
@@ -5431,12 +5471,16 @@ function onHoushuNameChange_(name) {
 var INVOICE_STATE = {
   loaded: false,
   loading: false,
-  invoices: [],            // 既存請求書一覧（自分）
+  invoices: [],            // 既存請求書一覧（参照対象スタッフ）
   months: [],              // 直近12ヶ月（[{ ym, hasInvoice }]）
-  profile: null,           // 自分の口座/個人情報プロフィール
+  profile: null,           // 参照対象スタッフの口座/個人情報プロフィール
   adminSettings: null,     // 管理者設定（請求書管理者設定シート）。即時再表示用キャッシュ
   selectedYm: '',          // 月セレクト
   collapsed: (function(){ try { return localStorage.getItem('invoice-section-collapsed') === '1'; } catch(_) { return false; } })(),
+  // 管理者なりすまし: 他スタッフの請求書管理を参照中はメール/名前を保持。
+  // 自分自身を見ている時は '' のままで API は asStaffEmail を付けない（403回避＋既存挙動互換）。
+  scopedEmail: '',
+  scopedName: '',
 };
 
 function renderInvoiceSection_(forName) {
@@ -5481,10 +5525,15 @@ async function loadInvoiceData_(force) {
   if (INVOICE_STATE.loading) return;
   INVOICE_STATE.loading = true;
   try {
+    // 管理者なりすまし参照中は asStaffEmail を URL クエリで透過する。
+    // GAS 側 inv_resolveScopedStaff_ で管理者権限と email 一致を再検証する。
+    var scopeQ = INVOICE_STATE.scopedEmail
+      ? ('?asStaffEmail=' + encodeURIComponent(INVOICE_STATE.scopedEmail))
+      : '';
     var results = await Promise.all([
-      api('/api/invoice/list'),
-      api('/api/invoice/months'),
-      api('/api/invoice/profile'),
+      api('/api/invoice/list' + scopeQ),
+      api('/api/invoice/months' + scopeQ),
+      api('/api/invoice/profile' + scopeQ),
     ]);
     INVOICE_STATE.invoices = (results[0] && results[0].items) || [];
     // GAS は直近12ヶ月 YM 文字列配列を返す（新しい順）。客側で hasInvoice を付与する。
@@ -5539,20 +5588,26 @@ function paintInvoiceSection_() {
 
   var profile = INVOICE_STATE.profile || {};
   var profileMissing = !profile['銀行名'] || !profile['口座番号'] || !profile['本名'];
-  var profileWarn = profileMissing
+  // 管理者なりすまし: 他人の請求書管理を参照中は読み取り専用（作成・修正申請は本人のみ実行可）。
+  var viewingOther = !!INVOICE_STATE.scopedEmail;
+  var profileWarn = profileMissing && !viewingOther
     ? '<div style="padding:8px 10px;background:#fff5e6;border:1px solid #f0c674;border-radius:6px;font-size:12px;margin-bottom:10px;color:#a8530b">⚠ 口座情報/本名 未登録 — 請求書を作成する前に左上メニュー「設定 → 個人情報・口座情報」から入力してください</div>'
     : '';
+  var viewingBanner = viewingOther
+    ? '<div style="padding:8px 10px;background:#eef5ff;border:1px solid #b3d4ff;border-radius:6px;font-size:12px;margin-bottom:10px;color:#1a4d99">👁 ' + esc(INVOICE_STATE.scopedName || '') + ' さんの請求書管理を閲覧中（作成・修正申請は本人のみ実行可）</div>'
+    : '';
 
-  // 請求書作成 UI
+  // 請求書作成 UI（本人のみボタン表示。管理者の他人参照時はセレクトのみ）
   var createUi =
     '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px">' +
       '<label style="font-size:12px;color:var(--text-mute)">請求対象月</label>' +
       '<select id="invoice-month-select" onchange="onInvoiceMonthChange_(this.value)" style="font-size:13px;padding:4px 8px">' +
         monthOptions +
       '</select>' +
-      '<button id="invoice-create-btn" class="btn-primary" onclick="submitInvoiceCreate_()" ' +
-        (profileMissing ? 'disabled title="口座情報未登録"' : '') +
-        ' style="font-size:13px;padding:6px 12px">この月の請求書を作成</button>' +
+      (viewingOther ? '' :
+        '<button id="invoice-create-btn" class="btn-primary" onclick="submitInvoiceCreate_()" ' +
+          (profileMissing ? 'disabled title="口座情報未登録"' : '') +
+          ' style="font-size:13px;padding:6px 12px">この月の請求書を作成</button>') +
     '</div>';
 
   // 既存請求書一覧
@@ -5589,14 +5644,15 @@ function paintInvoiceSection_() {
           '<td class="invoice-cell-dl" style="padding:6px 8px;border-bottom:1px solid var(--border);text-align:right" title="' + esc(dlTitle) + '">' + dl + '</td>' +
           '<td style="padding:6px 8px;border-bottom:1px solid var(--border);white-space:nowrap">' +
             '<button class="btn-sm invoice-pdf-btn" data-no="' + esc(no) + '" onclick="downloadInvoicePdf_(this)" style="font-size:11px;margin-right:4px">PDF</button>' +
-            '<button class="btn-sm" onclick="openInvoiceRevisionModal_(\'' + esc(no) + '\')" style="font-size:11px">修正申請</button>' +
+            (viewingOther ? '' :
+              '<button class="btn-sm" onclick="openInvoiceRevisionModal_(\'' + esc(no) + '\')" style="font-size:11px">修正申請</button>') +
           '</td>' +
         '</tr>';
       }).join('') +
     '</tbody></table>';
   }
 
-  body.innerHTML = profileWarn + createUi + listHtml;
+  body.innerHTML = viewingBanner + profileWarn + createUi + listHtml;
   enhanceAllSelects_(body);
 }
 

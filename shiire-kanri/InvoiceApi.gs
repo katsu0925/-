@@ -231,9 +231,14 @@ function inv_calcTransferFee_(振込元銀行, スタッフ振込先銀行, 請�
 // 月次サマリー (報酬管理シートから)
 // ============================================================
 
-// 報酬管理シート: A=年月(YYYY/MM), B=作業者名, C=メール, D=採寸報酬, E=撮影報酬,
-//   F=出品報酬, G=発送報酬, H=在庫管理報酬, I=固定報酬, J=経費合計, K=売上報酬, L=その他報酬
-// updateRewardsNoFormula() でこの形に維持されている (D〜L が setValues される L220)
+// 報酬管理シート（実シートを Drive MCP で確認した正しい列構成）:
+//   A=年月(YYYY/MM), B=作業者名, C=メール,
+//   D=撮影報酬, E=採寸報酬, F=出品報酬, G=発送報酬, H=在庫管理報酬,
+//   I=固定報酬(ヘッダー表記は「アカウント運用」), J=経費合計,
+//   K=売上報酬(ヘッダー表記は「パーセンテージ」 / kBase×rate.K/100 の確定値),
+//   L=その他報酬(ヘッダー表記は「固定費」)
+// 報酬更新.gs の updateRewardsNoFormula() でこの並びに setValues される (L256)。
+// 過去 D=採寸/E=撮影 と読んでいたバグを 2026-05-25 に修正。
 function inv_getMonthlySummary_(staffName, ym) {
   var ss = inv_getSS_();
   var sh = ss.getSheetByName('報酬管理');
@@ -251,8 +256,8 @@ function inv_getMonthlySummary_(staffName, ym) {
       ym: ym,
       name: name,
       email: inv_norm_(values[r][2]),
-      採寸報酬: inv_toNum_(values[r][3]),
-      撮影報酬: inv_toNum_(values[r][4]),
+      撮影報酬: inv_toNum_(values[r][3]),
+      採寸報酬: inv_toNum_(values[r][4]),
       出品報酬: inv_toNum_(values[r][5]),
       発送報酬: inv_toNum_(values[r][6]),
       在庫管理報酬: inv_toNum_(values[r][7]),
@@ -384,8 +389,13 @@ function inv_calcInvoicePreviewForStaff_(me, ym) {
   var 出品報酬     = summary.found ? summary.出品報酬     : 出品件数 * rates.H_出品単価;
   var 発送報酬     = summary.found ? summary.発送報酬     : 発送件数 * rates.I_発送単価;
 
-  var 税込合計 = 採寸報酬 + 撮影報酬 + 出品報酬 + 発送報酬
-               + 在庫管理報酬 + 固定報酬 + 経費合計 + 売上報酬 + その他報酬;
+  // 支払ルール: 報酬 = MAX(作業合計, 売上報酬)
+  // 作業合計 = 採寸+撮影+出品+発送+在庫管理+固定報酬+経費合計+その他報酬 （売上報酬を除く全項目）
+  // SPA(app.js parseRow_) と完全同一の範囲。勝ち負けで請求書 PDF・StaffApp プレビューの明細を出し分けする。
+  var 作業合計 = 採寸報酬 + 撮影報酬 + 出品報酬 + 発送報酬
+               + 在庫管理報酬 + 固定報酬 + 経費合計 + その他報酬;
+  var 売上勝ち = 売上報酬 > 作業合計;
+  var 税込合計 = Math.max(作業合計, 売上報酬);
 
   // インボイス未登録(=登録番号空) の場合のみ経過措置調整額を適用
   // 登録済みの場合は控除可能率=1.0 とみなして調整額=0
@@ -424,6 +434,8 @@ function inv_calcInvoicePreviewForStaff_(me, ym) {
       売上報酬: 売上報酬, その他報酬: その他報酬
     },
     集計: {
+      作業合計: 作業合計,
+      売上勝ち: 売上勝ち,
       税込合計: 税込合計,
       控除可能率: 控除可能率, 控除不可率: 控除不可率,
       調整額: 調整額,
@@ -509,15 +521,21 @@ function inv_buildInvoiceHtml_(invoice, adminSettings) {
     var a = Number(amt) || 0;
     if (a !== 0) items.push({ name: name, qty: 1, unit: a, amt: a });
   }
-  addQty('採寸料', c.採寸件数, u.採寸単価);
-  addQty('撮影料', c.撮影件数, u.撮影単価);
-  addQty('出品料', c.出品件数, u.出品単価);
-  addQty('発送料', c.発送件数, u.発送単価);
-  addOne('在庫管理費', r.在庫管理報酬);
-  addOne('固定報酬',   r.固定報酬);
-  addOne('立替経費',   r.経費合計);
-  addOne('売上連動報酬', r.売上報酬);
-  addOne('その他業務', r.その他報酬);
+  // 支払ルール: 報酬 = MAX(作業合計, 売上報酬)。
+  // 売上勝ち→売上連動報酬1行のみ。作業勝ち（または同額）→作業内訳のみ表示し売上連動報酬は隠す。
+  // 旧実装は両方を加算して明細に並べていたため、PDF合計が二重計上された (2026-05-25 修正)。
+  if (s.売上勝ち) {
+    addOne('売上連動報酬', r.売上報酬);
+  } else {
+    addQty('採寸料', c.採寸件数, u.採寸単価);
+    addQty('撮影料', c.撮影件数, u.撮影単価);
+    addQty('出品料', c.出品件数, u.出品単価);
+    addQty('発送料', c.発送件数, u.発送単価);
+    addOne('在庫管理費', r.在庫管理報酬);
+    addOne('固定報酬',   r.固定報酬);
+    addOne('立替経費',   r.経費合計);
+    addOne('その他業務', r.その他報酬);
+  }
 
   var subtotal = s.税込合計 != null ? Number(s.税込合計) : items.reduce(function(a, it){ return a + it.amt; }, 0);
   var graceRate = s.控除可能率 != null ? s.控除可能率 : '';
@@ -836,28 +854,52 @@ function inv_currentEmail_(email) {
   return '';
 }
 
+// 参照対象スタッフを解決する。
+//   - payload.asStaffEmail がある場合:
+//       * 呼び出し元(email)が管理者でない → 例外
+//       * asStaffEmail を作業者マスターから解決して返す
+//   - 無い場合: 呼び出し元自身を返す
+// 書込み系(saveInvoiceProfile/createInvoice/requestInvoiceRevision)からは呼ばない。
+// 読み取り系のみで使う。
+function inv_resolveScopedStaff_(callerEmail, payload) {
+  var caller = inv_resolveStaffByEmail_(callerEmail);
+  var target = inv_norm_((payload || {}).asStaffEmail);
+  if (!target || target === caller.email) return caller;
+  if (!caller.isAdmin) throw new Error('権限がありません: 他スタッフの請求書情報は管理者のみ参照可能');
+  return inv_resolveStaffByEmail_(target);
+}
+
 // 現在ユーザーの解決結果 (画面初期化用)
-function staff_invoiceCurrentUser(email) {
+//   payload: { asStaffEmail? }  asStaffEmail を渡すと管理者は対象スタッフの情報を取得できる。
+function staff_invoiceCurrentUser(payload, email) {
   try {
     var em = inv_currentEmail_(email);
-    var me = inv_resolveStaffByEmail_(em);
+    var caller = inv_resolveStaffByEmail_(em);
+    var target = caller;
+    var asEmail = inv_norm_((payload || {}).asStaffEmail);
+    if (asEmail && asEmail !== caller.email) {
+      if (!caller.isAdmin) throw new Error('権限がありません: 他スタッフの請求書情報は管理者のみ参照可能');
+      target = inv_resolveStaffByEmail_(asEmail);
+    }
     return {
       ok: true,
-      email: me.email,
-      name: me.name,
-      isAdmin: !!me.isAdmin,
-      profile: me.profile
+      email: target.email,
+      name: target.name,
+      isAdmin: !!caller.isAdmin,         // 呼び出し元の管理者フラグ（UI出し分け用）
+      viewingOther: target.email !== caller.email,
+      callerEmail: caller.email,
+      profile: target.profile
     };
   } catch (e) {
     return { ok: false, error: String(e && e.message || e) };
   }
 }
 
-// 履歴一覧 (自分のみ)
-//   payload: { ym? }
+// 履歴一覧
+//   payload: { ym?, asStaffEmail? }
 function staff_listInvoices(payload, email) {
   try {
-    var me = inv_resolveStaffByEmail_(inv_currentEmail_(email));
+    var me = inv_resolveScopedStaff_(inv_currentEmail_(email), payload);
     var rows = inv_listInvoicesByStaff_(me.name, payload || {});
     return { ok: true, items: rows };
   } catch (e) {
@@ -865,7 +907,7 @@ function staff_listInvoices(payload, email) {
   }
 }
 
-// 履歴1件詳細 (権限チェック: 自分以外は不可)
+// 履歴1件詳細 (権限チェック: 自分 or 管理者)
 //   payload: { no }
 function staff_getInvoiceDetail(payload, email) {
   try {
@@ -874,7 +916,8 @@ function staff_getInvoiceDetail(payload, email) {
     if (!no) throw new Error('請求書番号が空です');
     var hit = inv_findInvoiceByNo_(no);
     if (!hit) throw new Error('請求書が見つかりません: ' + no);
-    if (hit.obj.スタッフ名 !== me.name) throw new Error('権限がありません');
+    // 本人 or 管理者（請求書セクションを管理者が他スタッフで閲覧中の詳細表示用）
+    if (hit.obj.スタッフ名 !== me.name && !me.isAdmin) throw new Error('権限がありません');
     return { ok: true, invoice: hit.obj };
   } catch (e) {
     return { ok: false, error: String(e && e.message || e) };
@@ -882,11 +925,12 @@ function staff_getInvoiceDetail(payload, email) {
 }
 
 // 指定月の請求書プレビュー計算 (履歴に保存しない)
-//   payload: { ym }
+//   payload: { ym, asStaffEmail? }
 function staff_calcInvoicePreview(payload, email) {
   try {
     var ym = inv_norm_((payload || {}).ym) || inv_prevYm_();
-    var preview = inv_calcInvoicePreview_(inv_currentEmail_(email), ym);
+    var me = inv_resolveScopedStaff_(inv_currentEmail_(email), payload);
+    var preview = inv_calcInvoicePreviewForStaff_(me, ym);
     return preview;
   } catch (e) {
     return { ok: false, error: String(e && e.message || e) };
@@ -894,9 +938,10 @@ function staff_calcInvoicePreview(payload, email) {
 }
 
 // 自分の請求書プロフィール取得
+//   payload: { asStaffEmail? }
 function staff_getInvoiceProfile(payload, email) {
   try {
-    var me = inv_resolveStaffByEmail_(inv_currentEmail_(email));
+    var me = inv_resolveScopedStaff_(inv_currentEmail_(email), payload);
     return { ok: true, name: me.name, profile: me.profile };
   } catch (e) {
     return { ok: false, error: String(e && e.message || e) };
@@ -915,10 +960,10 @@ function staff_saveInvoiceProfile(payload, email) {
 }
 
 // 直近12ヶ月の月リスト
-//   payload: { mode? }  mode='unbilled'|'billed'|undefined(all)
+//   payload: { mode?, asStaffEmail? }  mode='unbilled'|'billed'|undefined(all)
 function staff_listMyAvailableMonths(payload, email) {
   try {
-    var me = inv_resolveStaffByEmail_(inv_currentEmail_(email));
+    var me = inv_resolveScopedStaff_(inv_currentEmail_(email), payload);
     var mode = inv_norm_((payload || {}).mode).toLowerCase();
     var filterMade;
     if (mode === 'billed') filterMade = true;
@@ -1102,7 +1147,8 @@ function inv_buildInvoicePdfDownload_(no, email) {
   var me = inv_resolveStaffByEmail_(email);
   var hit = inv_findInvoiceByNo_(no);
   if (!hit) throw new Error('請求書が見つかりません: ' + no);
-  if (hit.obj.スタッフ名 !== me.name) throw new Error('権限がありません');
+  // 本人 or 管理者のみダウンロード可。管理者は別スタッフの請求書管理を閲覧/PDF取得できる。
+  if (hit.obj.スタッフ名 !== me.name && !me.isAdmin) throw new Error('権限がありません');
   // スナップショット優先（作成時点の固定値で出す）。
   // 各請求書番号は「請求書を作成」ボタン押下時点の完全凍結ドキュメント。
   // プロフィールを更新したい場合は再度「請求書を作成」を押して連番付きの新請求書を作る運用。

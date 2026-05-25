@@ -6,15 +6,25 @@ import { jsonOk, jsonError } from '../utils/response.js';
 
 // ───── スタッフ向け ─────
 
+// asStaffEmail を含む read 系は URL クエリ ?asStaffEmail=... で受け取り、GAS payload に詰める。
+// GAS 側で管理者権限チェックする（非管理者がクエリ付与しても 403 になる）。
+function pickAsStaffEmail(request) {
+  try {
+    const url = new URL(request.url);
+    const v = String(url.searchParams.get('asStaffEmail') || '').trim();
+    return v ? { asStaffEmail: v } : {};
+  } catch { return {}; }
+}
+
 export async function invoiceMe(request, env, user) {
-  const r = await callGas(env, 'invoiceCurrentUser', {}, user);
-  if (!r.ok) return jsonError(r.error || 'gas error', 502);
-  return jsonOk({ user: r.user || {}, settings: r.settings || {} });
+  const r = await callGas(env, 'invoiceCurrentUser', pickAsStaffEmail(request), user);
+  if (!r.ok) return jsonError(r.error || 'gas error', r.error && r.error.indexOf('権限') >= 0 ? 403 : 502);
+  return jsonOk({ user: r, settings: r.settings || {} });
 }
 
 export async function listMyInvoices(request, env, user) {
-  const r = await callGas(env, 'listInvoices', {}, user);
-  if (!r.ok) return jsonError(r.error || 'gas error', 502);
+  const r = await callGas(env, 'listInvoices', pickAsStaffEmail(request), user);
+  if (!r.ok) return jsonError(r.error || 'gas error', r.error && r.error.indexOf('権限') >= 0 ? 403 : 502);
   return jsonOk({ items: r.items || [] });
 }
 
@@ -28,8 +38,8 @@ export async function getInvoiceDetail(request, env, user) {
 }
 
 export async function listMyAvailableMonths(request, env, user) {
-  const r = await callGas(env, 'listMyAvailableMonths', {}, user);
-  if (!r.ok) return jsonError(r.error || 'gas error', 502);
+  const r = await callGas(env, 'listMyAvailableMonths', pickAsStaffEmail(request), user);
+  if (!r.ok) return jsonError(r.error || 'gas error', r.error && r.error.indexOf('権限') >= 0 ? 403 : 502);
   return jsonOk({ months: r.months || [] });
 }
 
@@ -38,15 +48,19 @@ export async function calcInvoicePreview(request, env, user) {
   try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
   const ym = String(body.ym || '').trim();
   if (!ym) return jsonError('ym required', 400);
-  const r = await callGas(env, 'calcInvoicePreview', { ym }, user);
-  if (!r.ok) return jsonError(r.error || 'gas error', 502);
-  return jsonOk({ preview: r.preview || null });
+  const payload = { ym };
+  const asStaffEmail = String(body.asStaffEmail || '').trim();
+  if (asStaffEmail) payload.asStaffEmail = asStaffEmail;
+  const r = await callGas(env, 'calcInvoicePreview', payload, user);
+  if (!r.ok) return jsonError(r.error || 'gas error', r.error && r.error.indexOf('権限') >= 0 ? 403 : 502);
+  // GAS は preview を直接返す（ラップしていない）。フラグ類含めて全部そのまま透過する。
+  return jsonOk({ preview: r });
 }
 
 export async function getInvoiceProfile(request, env, user) {
-  const r = await callGas(env, 'getInvoiceProfile', {}, user);
-  if (!r.ok) return jsonError(r.error || 'gas error', 502);
-  return jsonOk({ profile: r.profile || {} });
+  const r = await callGas(env, 'getInvoiceProfile', pickAsStaffEmail(request), user);
+  if (!r.ok) return jsonError(r.error || 'gas error', r.error && r.error.indexOf('権限') >= 0 ? 403 : 502);
+  return jsonOk({ profile: r.profile || {}, name: r.name || '' });
 }
 
 export async function saveInvoiceProfile(request, env, user) {
