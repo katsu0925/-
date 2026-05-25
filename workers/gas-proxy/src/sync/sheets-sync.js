@@ -348,6 +348,11 @@ async function syncPhotographyData(env) {
     const pending = JSON.parse(pendingJson);
     if (!pending || pending.length === 0) return;
 
+    // 異常サイズ警告: 500件超は LIFO/FIFO 独占ループ再発の兆候
+    if (pending.length > 500) {
+      console.warn(`[sync] WARNING: photo-meta:pending abnormal size = ${pending.length} (独占ループ再発の可能性 — autoMatchPhotography 再push条件と photo/AI failure カウンタを確認)`);
+    }
+
     // 商品管理シートに登録済みの managedId セット（photographyData フィルタ用）
     // 未登録の場合 photographer/photographyDate は商品管理シートに書けない（importPhotographyData_ がスキップ）
     // → 未登録分は AI判定のみ実行し、AI画像判定シートに先行書き込みすることで
@@ -358,23 +363,44 @@ async function syncPhotographyData(env) {
     // バッチ上限: GAS の apiSyncImportData は 1回 100s 以内に収める必要があるため
     // 1Cron で送信する件数を制限する（524 タイムアウト回避）
     const MAX_BATCH = 25;
+    const LIFO_QUOTA = 15; // 末尾(新着)優先
+    const FIFO_QUOTA = MAX_BATCH - LIFO_QUOTA; // 先頭(古い分)救済
 
-    // LIFO: 新しいアップロードを優先処理する
-    // FIFO だと過去の溜まった古いID（既に synced 済み or 商品管理未登録）の skip 処理に
-    // バッチ枠を消費してしまい、直近アップロード分が長時間待たされるため。
-    // pending 末尾＝最新アップロード を先に取り出す
+    // バッチ取得 hybrid化:
+    //   末尾15件(LIFO=新着優先) + 先頭10件(FIFO=古い分の救済)
+    //
+    // 純LIFOだと「失敗エントリが末尾に再push され続けて独占」する事故が起きる。
+    // 2026-05-21 修正は AI失敗ループだけ塞いだが、2026-05-26 に photo同期 失敗の
+    // 経路で同じ独占ループが再発（pending=1587件、5日間 ai=0/0）。
+    // 構造的に潰すため、先頭側にも必ず処理機会を割く。
     const entries = [];
     const orphanIds = new Set(); // photo-meta が存在しない pending 項目（除去対象）
-    for (let i = pending.length - 1; i >= 0; i--) {
-      if (entries.length >= MAX_BATCH) break;
+    const picked = new Set();
+
+    // LIFO 側: 末尾から
+    for (let i = pending.length - 1; i >= 0 && entries.length < LIFO_QUOTA; i--) {
       const managedId = pending[i];
+      if (picked.has(managedId)) continue;
+      picked.add(managedId);
       const metaJson = await env.CACHE.get(`photo-meta:${managedId}`);
       if (!metaJson) {
         orphanIds.add(managedId);
         continue;
       }
-      const meta = JSON.parse(metaJson);
-      entries.push({ managedId, meta });
+      entries.push({ managedId, meta: JSON.parse(metaJson) });
+    }
+
+    // FIFO 側: 先頭から（古い分の救済枠）
+    for (let i = 0; i < pending.length && entries.length < MAX_BATCH; i++) {
+      const managedId = pending[i];
+      if (picked.has(managedId)) continue;
+      picked.add(managedId);
+      const metaJson = await env.CACHE.get(`photo-meta:${managedId}`);
+      if (!metaJson) {
+        orphanIds.add(managedId);
+        continue;
+      }
+      entries.push({ managedId, meta: JSON.parse(metaJson) });
     }
 
     if (entries.length === 0) {
@@ -515,7 +541,24 @@ async function syncPhotographyData(env) {
           if (!metaJson) continue;
           try {
             const meta = JSON.parse(metaJson);
-            if (photoAllOk && photoSentIds.has(mid)) meta.synced = true;
+            if (photoAllOk && photoSentIds.has(mid)) {
+              meta.synced = true;
+              meta.photoSendAttempts = 0; // 成功でクリア
+              delete meta.photoLastError;
+            } else if (photoSentIds.has(mid)) {
+              // photo 同期 部分失敗時: 試行回数++
+              // これを記録しないと autoMatchPhotography が同じ ID を毎Cron 末尾に
+              // 再 push し続けて LIFO 枠を独占する（2026-05-26 pending=1587件停滞バグの根因）。
+              // 個別失敗 ID は GAS応答に含まれないため、送信した全 photoSentIds を一括カウント。
+              // 成功 ID は同 Cron 内で synced=true 立つので autoMatch では再 push されず、
+              // この attempts++ は無害。
+              meta.photoSendAttempts = (meta.photoSendAttempts || 0) + 1;
+              meta.photoLastError = `partial fail: photo=${photoWritten}/${photographyData.length}`;
+              meta.photoLastAttemptAt = new Date().toISOString();
+              if (meta.photoSendAttempts >= 3) {
+                console.warn(`[sync] photo同期 永続失敗マーク: ${mid} (attempts=${meta.photoSendAttempts}, lastError=${meta.photoLastError})`);
+              }
+            }
             if (aiAllOk && aiSentIds.has(mid)) {
               meta.aiSynced = true;
               // AI送信済みになったら ai-result は不要（再送信防止）
@@ -937,7 +980,7 @@ async function autoMatchPhotography(env) {
       const photoSynced = meta && meta.synced === true;
       const isRegistered = registeredIds.has(managedId);
       let needsAi = !aiSynced;
-      const needsPhoto = isRegistered && !photoSynced;
+      let needsPhoto = isRegistered && !photoSynced;
 
       // AI判定が3回以上失敗している managedId は再 push しない
       // （LIFOバッチ枠の永久占拠を防ぐ — 2026-05-21 修正）
@@ -949,6 +992,15 @@ async function autoMatchPhotography(env) {
             if ((f.attempts || 0) >= 3) needsAi = false;
           } catch (_) {}
         }
+      }
+
+      // photo 送信が 3回以上失敗している managedId は再 push しない
+      // （バッチ枠の独占を防ぐ — 2026-05-26 修正）
+      // GAS importPhotographyData_ で「ステータスが既に進行済」「商品管理に行なし」等で
+      // 書き込めない ID は何回送信しても永久に同期失敗する。同じ ID が autoMatch で再 push され
+      // 続けると LIFO/FIFO 枠を独占し、健全な新規 ID の処理が止まる。
+      if (needsPhoto && meta && (meta.photoSendAttempts || 0) >= 3) {
+        needsPhoto = false;
       }
 
       if (!needsAi && !needsPhoto) continue;
