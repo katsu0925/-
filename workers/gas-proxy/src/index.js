@@ -680,10 +680,11 @@ async function handleBgReplace(request, env) {
         'X-Subject-Type': upstream.headers.get('X-Subject-Type') || '',
         'X-Subject-Detect': upstream.headers.get('X-Subject-Detect') || '',
         'X-Brand-Overlay': upstream.headers.get('X-Brand-Overlay') || '',
+        'X-Model-Used': upstream.headers.get('X-Model-Used') || '',
         'X-BgReplace-Usage': String(usage.count),
         'X-BgReplace-Limit': String(BG_REPLACE_LIMIT),
         'Access-Control-Allow-Origin': '*',
-        'Access-Control-Expose-Headers': 'X-Subject-Type,X-Subject-Detect,X-Brand-Overlay,X-BgReplace-Usage,X-BgReplace-Limit',
+        'Access-Control-Expose-Headers': 'X-Subject-Type,X-Subject-Detect,X-Brand-Overlay,X-Model-Used,X-BgReplace-Usage,X-BgReplace-Limit',
         'Cache-Control': 'no-store',
       },
     });

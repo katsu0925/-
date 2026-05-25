@@ -424,7 +424,7 @@ window.addEventListener('scroll', function() {
 });
 
 // ─── エラーモーダル ───
-function showErrorModal(title, msg, tone) {
+function showErrorModal(title, msg, tone, action) {
   var m = document.getElementById('errorModal');
   if (!m) return;
   var t = document.getElementById('errorModalTitle');
@@ -439,10 +439,21 @@ function showErrorModal(title, msg, tone) {
     body.textContent = msg;
     m.style.display = 'flex';
   }
+  // action ボタン追加（再試行用など）。複数回呼ばれた場合は追記。
+  var slot = document.getElementById('errorModalActions');
+  if (slot && action && action.label && typeof action.onClick === 'function') {
+    var btn = document.createElement('button');
+    btn.textContent = action.label;
+    btn.style.cssText = 'background:#10b981;color:#fff;border:none;border-radius:6px;padding:9px 16px;font-size:13px;font-weight:600;cursor:pointer;margin-right:8px';
+    btn.onclick = function() { closeErrorModal(); try { action.onClick(); } catch (e) { console.error(e); } };
+    slot.appendChild(btn);
+  }
 }
 function closeErrorModal() {
   var m = document.getElementById('errorModal');
   if (m) m.style.display = 'none';
+  var slot = document.getElementById('errorModalActions');
+  if (slot) slot.innerHTML = '';
 }
 
 // ─── 初期化 ───
@@ -1471,7 +1482,7 @@ async function overlayBrandOnBlob(jpegBlob, text) {
   });
 }
 
-async function processBgReplace(fileIndex, brandText) {
+async function processBgReplace(fileIndex, brandText, modelKey) {
   var files = document.getElementById('uploadFiles').files;
   var file = files[fileIndex];
   if (!file) return;
@@ -1496,6 +1507,7 @@ async function processBgReplace(fileIndex, brandText) {
     for (var attempt = 1; attempt <= 2; attempt++) {
       var fd = new FormData();
       fd.append('image', payload, 'image.jpg');
+      if (modelKey) fd.append('model', modelKey);
       res = await fetch('/upload/bg-replace', { method: 'POST', body: fd });
       if (res.ok) break;
       lastErr = await res.text();
@@ -1508,8 +1520,12 @@ async function processBgReplace(fileIndex, brandText) {
     if (maskInvalid) {
       var ovEl0 = item.querySelector('.blur-overlay');
       if (ovEl0) ovEl0.remove();
-      showErrorModal('背景置換をスキップ(' + (fileIndex+1) + '枚目)',
-        '背景と被写体のコントラストが低く、背景除去に失敗しました。元画像を維持します。\\n別カットでの撮り直しをご検討ください。', 'warn');
+      var retryAction = !modelKey || modelKey === 'default'
+        ? { label: '別モデル(BRIA)で再試行', onClick: function() { processBgReplace(fileIndex, brandText, 'bria'); } }
+        : null;
+      var modelLabel = (modelKey === 'bria') ? '（BRIAでも失敗）' : '';
+      showErrorModal('背景置換をスキップ(' + (fileIndex+1) + '枚目)' + modelLabel,
+        '背景と被写体のコントラストが低く、背景除去に失敗しました（淡色生地・薄手素材で起きやすい）。元画像を維持します。', 'warn', retryAction);
       return;
     }
     if (!res || !res.ok) {
@@ -2940,8 +2956,11 @@ async function bgReplaceManageImages(managedId) {
     } catch (e) {
       if (e && e.isMaskInvalid) {
         console.warn('[manage bg-replace] mask-invalid', managedId, e.detail);
-        showErrorModal('背景置換をスキップ(' + (done+1) + '枚目)',
-          '背景と被写体のコントラストが低く、背景除去に失敗しました。元画像は保持されています。', 'warn');
+        (function(capturedTarget, slotIdx) {
+          showErrorModal('背景置換をスキップ(' + slotIdx + '枚目)',
+            '背景と被写体のコントラストが低く、背景除去に失敗しました（淡色生地・薄手素材で起きやすい）。元画像は保持されています。', 'warn',
+            { label: '別モデル(BRIA)で再試行', onClick: function() { _retryManageBgReplaceWithBria(managedId, capturedTarget, brandText); } });
+        })(t, done+1);
       } else {
         console.error('Manage bg-replace error:', e);
         showErrorModal('背景置換失敗(' + (done+1) + '枚目)', (e && e.message) ? e.message : String(e));
@@ -2960,6 +2979,60 @@ async function bgReplaceManageImages(managedId) {
 
   if (!aborted) {
     setTimeout(function() { doRefresh(); }, 500);
+  }
+}
+
+// ─── 単一画像を BRIA で再試行（管理ビューの 422 スキップから呼ばれる） ───
+async function _retryManageBgReplaceWithBria(managedId, target, brandText) {
+  if (!target || !target.el) return;
+  if (!target.el.querySelector('.blur-overlay')) {
+    var ov = document.createElement('div');
+    ov.className = 'blur-overlay';
+    ov.style.cssText = 'position:absolute;inset:0;background:rgba(255,255,255,.6);display:flex;align-items:center;justify-content:center;z-index:2';
+    ov.innerHTML = '<div style="width:20px;height:20px;border:2.5px solid rgba(16,185,129,.2);border-top-color:#10b981;border-radius:50%;animation:ptr-spin .6s linear infinite"></div>';
+    target.el.appendChild(ov);
+  }
+  try {
+    var imgRes = await fetch(API_BASE + target.url + '?t=' + Date.now());
+    if (!imgRes.ok) throw new Error('画像取得失敗');
+    var imgBlob = await imgRes.blob();
+    var fd = new FormData();
+    fd.append('image', imgBlob, 'src.jpg');
+    fd.append('model', 'bria');
+    var bgRes = await fetch(API_BASE + '/upload/bg-replace', { method: 'POST', headers: headers({}), body: fd });
+    if (!bgRes.ok) {
+      var errText = await bgRes.text();
+      if (bgRes.status === 422) {
+        showErrorModal('BRIA でも失敗', '別モデルでも背景除去に失敗しました（生地と背景のコントラスト不足）。元画像のままです。', 'warn');
+        return;
+      }
+      throw new Error('server ' + bgRes.status + ': ' + errText.slice(0, 200));
+    }
+    var resultBlob = await bgRes.blob();
+    if (brandText) {
+      try { resultBlob = await overlayBrandOnBlob(resultBlob, brandText); }
+      catch (overlayErr) { console.warn('brand overlay failed (retry):', overlayErr); }
+    }
+    var upFd = new FormData();
+    upFd.append('managedId', managedId);
+    upFd.append('targetUrl', target.url);
+    upFd.append('images', resultBlob, 'bgreplace.jpg');
+    var upRes = await fetch(API_BASE + '/upload/update-image', {
+      method: 'POST', headers: headers({}), body: upFd
+    });
+    var upData = await upRes.json();
+    if (upData.ok && upData.newUrl) {
+      target.el.querySelector('img').src = API_BASE + upData.newUrl + '?t=' + Date.now();
+      var cb = target.el.querySelector('.dl-img-check');
+      if (cb) cb.dataset.url = upData.newUrl;
+      addRevertBadge(target.el, managedId, upData.newUrl);
+    }
+  } catch (e) {
+    console.error('[manage bg-replace] BRIA retry error:', e);
+    showErrorModal('BRIA 再試行エラー', (e && e.message) ? e.message : String(e));
+  } finally {
+    var ovEl = target.el.querySelector('.blur-overlay');
+    if (ovEl) ovEl.remove();
   }
 }
 
@@ -2999,12 +3072,13 @@ async function bgReplaceTopImages() {
   }, '置換する', 'btn btn-primary');
 }
 
-async function _bgReplaceTopBatch(targets) {
+async function _bgReplaceTopBatch(targets, modelKey) {
   var btn = document.getElementById('bgReplaceTopBtn');
   if (btn) btn.disabled = true;
 
   var aborted = false;
-  showLoading('準備中', '0/' + targets.length, function() { aborted = true; });
+  var loadingPrefix = (modelKey === 'bria') ? '準備中(BRIA再試行)' : '準備中';
+  showLoading(loadingPrefix, '0/' + targets.length, function() { aborted = true; });
 
   // 行ごとにスピナーを即座に表示（同じ行に複数slotが来ても1つだけ）
   var rowOverlayMap = new Map();
@@ -3046,6 +3120,7 @@ async function _bgReplaceTopBatch(targets) {
   var done = 0, okCount = 0, errCount = 0, invalidCount = 0;
   var missingBrand = [];
   var invalidIds = [];
+  var invalidTargets = [];
   var firstErr = '';
 
   // 行ごとの残りslot数（最後のslot完了でoverlayを外す）
@@ -3072,6 +3147,7 @@ async function _bgReplaceTopBatch(targets) {
       for (var attempt = 1; attempt <= 2; attempt++) {
         var fd = new FormData();
         fd.append('image', imgBlob, 'src.jpg');
+        if (modelKey) fd.append('model', modelKey);
         bgRes = await fetch(API_BASE + '/upload/bg-replace', { method: 'POST', headers: headers({}), body: fd });
         if (bgRes.ok) break;
         lastErrText = await bgRes.text();
@@ -3094,7 +3170,7 @@ async function _bgReplaceTopBatch(targets) {
         var _sDetectRaw = bgRes.headers.get('X-Subject-Detect') || '';
         var _sDetect = '';
         try { _sDetect = _sDetectRaw ? decodeURIComponent(_sDetectRaw) : ''; } catch (_) { _sDetect = _sDetectRaw; }
-        console.log('[top bg-replace] managedId=', t.managedId, 'type=', _sType, 'detect=', _sDetect);
+        console.log('[top bg-replace] modelKey=', modelKey || 'default', 'managedId=', t.managedId, 'type=', _sType, 'detect=', _sDetect);
       } catch (_) {}
       var resultBlob = await bgRes.blob();
 
@@ -3133,9 +3209,10 @@ async function _bgReplaceTopBatch(targets) {
       }
     } catch (e) {
       if (e && e.isMaskInvalid) {
-        console.warn('[bg-replace] mask-invalid', t.managedId, 'slot=', t.slot, e.detail);
+        console.warn('[bg-replace] mask-invalid', t.managedId, 'slot=', t.slot, 'modelKey=', modelKey || 'default', e.detail);
         invalidCount++;
         invalidIds.push(t.managedId + '(slot' + t.slot + ')');
+        invalidTargets.push(t);
       } else {
         console.error('bgReplaceTopImages error:', t.managedId, 'slot=', t.slot, e);
         errCount++;
@@ -3167,12 +3244,13 @@ async function _bgReplaceTopBatch(targets) {
     btn.textContent = '🖼 トップ＋2枚目 背景置換';
   }
 
+  var titleSuffix = (modelKey === 'bria') ? '（BRIA再試行）' : '';
   if (aborted) {
-    showErrorModal('背景置換を中断しました', okCount + '枚完了 / ' + (targets.length - done) + '枚スキップ', 'warn');
+    showErrorModal('背景置換を中断しました' + titleSuffix, okCount + '枚完了 / ' + (targets.length - done) + '枚スキップ', 'warn');
   } else if (errCount === 0 && invalidCount === 0) {
     var msg = okCount + '枚の背景置換が完了しました';
     if (missingBrand.length) msg += '\\n（ブランド未取得: ' + missingBrand.length + '件）';
-    showErrorModal('背景置換 完了', msg, 'info');
+    showErrorModal('背景置換 完了' + titleSuffix, msg, 'info');
   } else {
     var msg2 = '成功: ' + okCount + '枚';
     if (invalidCount > 0) {
@@ -3187,7 +3265,15 @@ async function _bgReplaceTopBatch(targets) {
       msg2 += '\\nエラー: ' + errCount + '枚';
       if (firstErr) msg2 += '\\n最初のエラー: ' + firstErr;
     }
-    showErrorModal('背景置換: 一部失敗', msg2, 'warn');
+    var retryAction = null;
+    if (!modelKey && invalidCount > 0 && invalidTargets.length > 0) {
+      var retryList = invalidTargets.slice();
+      retryAction = {
+        label: '失敗 ' + invalidCount + '枚を BRIA で再試行',
+        onClick: function() { _bgReplaceTopBatch(retryList, 'bria'); }
+      };
+    }
+    showErrorModal('背景置換: 一部失敗' + titleSuffix, msg2, 'warn', retryAction);
   }
   if (!aborted && okCount > 0) setTimeout(function() { doRefresh(); }, 600);
 }
@@ -4036,7 +4122,8 @@ function escapeHtml(s) {
   <div style="background:#fff;border-radius:12px;max-width:520px;width:100%;padding:20px;box-shadow:0 20px 40px rgba(0,0,0,.3)">
     <div id="errorModalTitle" style="font-weight:700;font-size:16px;color:#dc2626;margin-bottom:10px">エラー</div>
     <div id="errorModalBody" style="font-size:14px;color:#374151;line-height:1.6;word-break:break-all;max-height:55vh;overflow-y:auto;white-space:pre-wrap"></div>
-    <div style="display:flex;justify-content:flex-end;margin-top:16px">
+    <div style="display:flex;justify-content:flex-end;align-items:center;margin-top:16px;flex-wrap:wrap;gap:8px">
+      <span id="errorModalActions"></span>
       <button onclick="closeErrorModal()" style="background:#4F46E5;color:#fff;border:none;border-radius:6px;padding:9px 18px;font-size:14px;font-weight:600;cursor:pointer">閉じる</button>
     </div>
   </div>
