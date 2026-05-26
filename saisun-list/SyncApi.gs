@@ -226,13 +226,14 @@ function verifySyncSecret_(secret) {
 }
 
 /**
- * apiClearAiField — 指定 managedIds の AI判定フィールドを AI画像判定 + 商品管理 シートから一括クリア
+ * apiClearAiField — 指定 managedIds の AI判定フィールドをクリア
  *
- * 誤判定（例: デザイン特徴に "フリルレース" を量産）を一括除去する用途。
- * AI画像判定 シートの該当列を空にしたうえで、商品管理 シートの該当列も空にする
- * （applyPendingAiData Cron で再書込みされないように両方をクリアする必要がある）。
+ * scope:
+ *   'both'    既定。AI画像判定 + 商品管理 の両シートをクリア（誤判定の完全除去用）
+ *   'ai'      AI画像判定 シートのみクリア
+ *   'product' 商品管理 シートのみクリア（applyPendingAiData Cron で AI画像判定 から再適用させたい時）
  *
- * @param {object} params - { syncSecret, managedIds: string[], headerName: string }
+ * @param {object} params - { syncSecret, managedIds: string[], headerName: string, scope?: string }
  * @returns {object} { ok, cleared: { ai: number, product: number }, total: number }
  */
 function apiClearAiField(params) {
@@ -245,6 +246,13 @@ function apiClearAiField(params) {
   var ids = Array.isArray(p.managedIds) ? p.managedIds : [];
   ids = ids.map(function(s) { return String(s || '').trim().toUpperCase(); }).filter(Boolean);
   if (ids.length === 0) return { ok: false, message: 'managedIds required' };
+
+  var scope = String(p.scope || 'both').toLowerCase();
+  if (scope !== 'both' && scope !== 'ai' && scope !== 'product') {
+    return { ok: false, message: 'invalid scope: ' + scope };
+  }
+  var doAi = (scope === 'both' || scope === 'ai');
+  var doProduct = (scope === 'both' || scope === 'product');
 
   var ssId = '';
   try { ssId = APP_CONFIG.detail.spreadsheetId; } catch (e) {}
@@ -260,26 +268,28 @@ function apiClearAiField(params) {
   var cleared = { ai: 0, product: 0 };
 
   // AI画像判定 シート
-  var aiSh = ss.getSheetByName('AI画像判定');
-  if (aiSh) {
-    var aiLastRow = aiSh.getLastRow();
-    var aiLastCol = aiSh.getLastColumn();
-    if (aiLastRow >= 2 && aiLastCol >= 1) {
-      var aiHeaders = aiSh.getRange(1, 1, 1, aiLastCol).getValues()[0];
-      var aiColMid = -1;
-      var aiColTarget = -1;
-      for (var ah = 0; ah < aiHeaders.length; ah++) {
-        var n = String(aiHeaders[ah] || '').trim();
-        if (n === '管理番号') aiColMid = ah + 1;
-        if (n === headerName) aiColTarget = ah + 1;
-      }
-      if (aiColMid > 0 && aiColTarget > 0) {
-        var aiMidVals = aiSh.getRange(2, aiColMid, aiLastRow - 1, 1).getValues();
-        for (var r = 0; r < aiMidVals.length; r++) {
-          var mid = String(aiMidVals[r][0] || '').trim().toUpperCase();
-          if (mid && idSet[mid]) {
-            aiSh.getRange(r + 2, aiColTarget).setValue('');
-            cleared.ai++;
+  if (doAi) {
+    var aiSh = ss.getSheetByName('AI画像判定');
+    if (aiSh) {
+      var aiLastRow = aiSh.getLastRow();
+      var aiLastCol = aiSh.getLastColumn();
+      if (aiLastRow >= 2 && aiLastCol >= 1) {
+        var aiHeaders = aiSh.getRange(1, 1, 1, aiLastCol).getValues()[0];
+        var aiColMid = -1;
+        var aiColTarget = -1;
+        for (var ah = 0; ah < aiHeaders.length; ah++) {
+          var n = String(aiHeaders[ah] || '').trim();
+          if (n === '管理番号') aiColMid = ah + 1;
+          if (n === headerName) aiColTarget = ah + 1;
+        }
+        if (aiColMid > 0 && aiColTarget > 0) {
+          var aiMidVals = aiSh.getRange(2, aiColMid, aiLastRow - 1, 1).getValues();
+          for (var r = 0; r < aiMidVals.length; r++) {
+            var mid = String(aiMidVals[r][0] || '').trim().toUpperCase();
+            if (mid && idSet[mid]) {
+              aiSh.getRange(r + 2, aiColTarget).setValue('');
+              cleared.ai++;
+            }
           }
         }
       }
@@ -287,33 +297,35 @@ function apiClearAiField(params) {
   }
 
   // 商品管理 シート
-  var sh = ss.getSheetByName('商品管理');
-  if (sh) {
-    var shLastRow = sh.getLastRow();
-    var shLastCol = sh.getLastColumn();
-    if (shLastRow >= 2 && shLastCol >= 1) {
-      var shHeaders = sh.getRange(1, 1, 1, shLastCol).getValues()[0];
-      var shColMid = -1;
-      var shColTarget = -1;
-      for (var sh2 = 0; sh2 < shHeaders.length; sh2++) {
-        var n2 = String(shHeaders[sh2] || '').trim();
-        if (n2 === '管理番号') shColMid = sh2 + 1;
-        if (n2 === headerName) shColTarget = sh2 + 1;
-      }
-      if (shColMid > 0 && shColTarget > 0) {
-        var shMidVals = sh.getRange(2, shColMid, shLastRow - 1, 1).getValues();
-        for (var r2 = 0; r2 < shMidVals.length; r2++) {
-          var smid = String(shMidVals[r2][0] || '').trim().toUpperCase();
-          if (smid && idSet[smid]) {
-            sh.getRange(r2 + 2, shColTarget).setValue('');
-            cleared.product++;
+  if (doProduct) {
+    var sh = ss.getSheetByName('商品管理');
+    if (sh) {
+      var shLastRow = sh.getLastRow();
+      var shLastCol = sh.getLastColumn();
+      if (shLastRow >= 2 && shLastCol >= 1) {
+        var shHeaders = sh.getRange(1, 1, 1, shLastCol).getValues()[0];
+        var shColMid = -1;
+        var shColTarget = -1;
+        for (var sh2 = 0; sh2 < shHeaders.length; sh2++) {
+          var n2 = String(shHeaders[sh2] || '').trim();
+          if (n2 === '管理番号') shColMid = sh2 + 1;
+          if (n2 === headerName) shColTarget = sh2 + 1;
+        }
+        if (shColMid > 0 && shColTarget > 0) {
+          var shMidVals = sh.getRange(2, shColMid, shLastRow - 1, 1).getValues();
+          for (var r2 = 0; r2 < shMidVals.length; r2++) {
+            var smid = String(shMidVals[r2][0] || '').trim().toUpperCase();
+            if (smid && idSet[smid]) {
+              sh.getRange(r2 + 2, shColTarget).setValue('');
+              cleared.product++;
+            }
           }
         }
       }
     }
   }
 
-  return { ok: true, cleared: cleared, total: ids.length };
+  return { ok: true, cleared: cleared, total: ids.length, scope: scope };
 }
 
 /**

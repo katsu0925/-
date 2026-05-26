@@ -695,7 +695,10 @@ async function handleBgReplace(request, env) {
 }
 
 // ─── 背景置換の文字入れ用ブランド取得 ───
-// 優先度: 採寸済み行のブランド（外注レビュー済み） > KV ai-result のAI判定ブランド
+// 優先度: 商品管理シートのブランド（権威ソース） > KV ai-result のAI判定ブランド
+// 商品管理が空のときだけ KV ai-result にフォールバックする。
+// 旧実装は hasSizing=false で KV を優先していたため、4/27 LEPSIM 一括バグの
+// 残骸が KV に残った商品で誤ったブランド名がオーバーレイされる事故が発生した。
 async function handleBrandsForOverlay(request, env) {
   try {
     const body = await request.json();
@@ -705,7 +708,7 @@ async function handleBrandsForOverlay(request, env) {
       .filter(Boolean);
     if (normIds.length === 0) return jsonOk({ brands: {} });
 
-    // GASから採寸済みかつブランドあり行の情報を取得
+    // GASから商品管理シートのブランド情報を取得（権威ソース）
     const gasBrands = {};
     const gasUrl = env.GAS_API_URL;
     if (gasUrl) {
@@ -734,11 +737,12 @@ async function handleBrandsForOverlay(request, env) {
     const brands = {};
     for (const mid of normIds) {
       const g = gasBrands[mid];
-      if (g && g.hasSizing && g.brand) {
+      // 商品管理シートのブランドを最優先（人手で確定済み）
+      if (g && g.brand) {
         brands[mid] = g.brand;
         continue;
       }
-      // KV ai-result フォールバック
+      // 商品管理が空のときだけ KV ai-result にフォールバック
       try {
         const cached = await env.CACHE.get(`ai-result:${mid}`);
         if (cached) {
@@ -746,8 +750,6 @@ async function handleBrandsForOverlay(request, env) {
           if (parsed && parsed.brand) { brands[mid] = parsed.brand; continue; }
         }
       } catch (e) { /* ignore */ }
-      // GASのブランドをフォールバック（採寸なくても判定済みがあれば）
-      if (g && g.brand) { brands[mid] = g.brand; continue; }
       brands[mid] = '';
     }
 
