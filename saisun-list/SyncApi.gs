@@ -993,7 +993,9 @@ function importAiProductData_(data) {
         if (newValStr === 'なし' && headerName !== 'ポケット') continue;
         var existing = String(sh.getRange(row, col).getValue() || '').trim();
         if (existing !== '') continue;
-        sh.getRange(row, col).setValue(newValStr);
+        var writeRng = sh.getRange(row, col);
+        if (headerName === 'タグ表記') writeRng.setNumberFormat('@');
+        writeRng.setValue(newValStr);
         changed = true;
       }
       if (changed) {
@@ -1078,7 +1080,9 @@ function importAiProductData_(data) {
           if (aiValStr === '' || aiValLower === 'null' || aiValLower === 'n/a' || aiValStr === '不明' || aiValLower === 'undefined') continue;
           // "なし" は pocket(ポケット) だけ有効値として通す
           if (aiValStr === 'なし' && aiHeaderName !== 'ポケット') continue;
-          aiSh.getRange(aiRow, aiCol).setValue(aiValStr);
+          var aiWriteRng = aiSh.getRange(aiRow, aiCol);
+          if (aiHeaderName === 'タグ表記') aiWriteRng.setNumberFormat('@');
+          aiWriteRng.setValue(aiValStr);
         }
 
         // 判定日
@@ -1661,4 +1665,58 @@ function apiReadReorderDryrun(params) {
     rows.push({ managedId: mid, changed: changed, ambiguous: ambiguous, model: model, after: after });
   }
   return { ok: true, rows: rows };
+}
+
+/**
+ * 既存「タグ表記」列の指数表記化バグ修復ツール
+ * 商品管理シート + AI画像判定シートの「タグ表記」列を
+ *  (1) テキスト書式（@）に切替
+ *  (2) Number として保存されてる値を文字列で書き戻す
+ * 単発で1回叩けば過去分を一括で正常化できる。
+ * GAS エディタから手動実行 / または clasp run repairTagLabelFormat。
+ */
+function repairTagLabelFormat() {
+  var ssId = '';
+  try { ssId = APP_CONFIG.detail.spreadsheetId; } catch (e) {}
+  if (!ssId) {
+    try { ssId = PropertiesService.getScriptProperties().getProperty('DETAIL_SPREADSHEET_ID') || ''; } catch (e) {}
+  }
+  if (!ssId) throw new Error('detail spreadsheetId not found');
+
+  var ss = SpreadsheetApp.openById(ssId);
+  var report = {};
+  ['商品管理', 'AI画像判定'].forEach(function(sheetName) {
+    var sh = ss.getSheetByName(sheetName);
+    if (!sh) { report[sheetName] = 'sheet not found'; return; }
+    var lastRow = sh.getLastRow();
+    var lastCol = sh.getLastColumn();
+    if (lastRow < 2 || lastCol < 1) { report[sheetName] = 'empty'; return; }
+    var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    var tagCol = -1;
+    for (var i = 0; i < headers.length; i++) {
+      if (String(headers[i] || '').trim() === 'タグ表記') { tagCol = i + 1; break; }
+    }
+    if (tagCol < 0) { report[sheetName] = 'no タグ表記 column'; return; }
+
+    var range = sh.getRange(2, tagCol, lastRow - 1, 1);
+    var values = range.getValues();
+    range.setNumberFormat('@');
+    var rewrite = [];
+    var fixedNumeric = 0;
+    for (var r = 0; r < values.length; r++) {
+      var raw = values[r][0];
+      if (raw === '' || raw === null || raw === undefined) { rewrite.push(['']); continue; }
+      if (typeof raw === 'number') {
+        var s = Number.isInteger(raw) ? String(raw) : String(raw);
+        rewrite.push([s]);
+        fixedNumeric++;
+      } else {
+        rewrite.push([String(raw)]);
+      }
+    }
+    range.setValues(rewrite);
+    report[sheetName] = { rows: values.length, fixedNumeric: fixedNumeric };
+  });
+  console.log('repairTagLabelFormat: ' + JSON.stringify(report));
+  return report;
 }
