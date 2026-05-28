@@ -325,10 +325,15 @@ function contact_sendMails_(rec) {
       ]
     });
 
-    GmailApp.sendEmail(email, custSubject, custBody, {
-      from: SITE_CONSTANTS.CUSTOMER_EMAIL,
-      replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
-      htmlBody: custHtmlBody2
+    // MailApp 方式（script.send_mail スコープのみで動作。トリガー実行でも Gmail スコープ不要）。
+    // from は使えないため、表示名 name + replyTo で「デタウリ.Detauri」差出人・返信先 CUSTOMER_EMAIL を実現。
+    MailApp.sendEmail({
+      to: email,
+      subject: custSubject,
+      body: custBody,
+      htmlBody: custHtmlBody2,
+      name: 'デタウリ.Detauri',
+      replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL
     });
   } catch (e) {
     console.error('contact_sendMails_ 顧客宛メール送信失敗（管理者宛は送信済み）:', e);
