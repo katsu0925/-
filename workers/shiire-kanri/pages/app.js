@@ -5185,7 +5185,8 @@ function paintHoushu_(data) {
   });
   // 報酬管理: A=年月, B=名前, C=メール, D=撮影, E=採寸, F=出品, G=発送,
   //          H=在庫管理, I=アカウント運用, J=経費, K=利益歩合, L=固定費, M=月ブロック奇偶マーカー
-  // 件数は確定報酬 ÷ staff_listSagyousha の rates（作業者マスター単価）で割り戻す（請求書と同一基準）。
+  // 件数は商品管理の live スキャン値(staff_listSagyousha の monthly)を使う。
+  // 単価バッジは金額÷件数ではなく作業者マスター単価(rates)を直接表示する。
   var iMonth = colIdx_(headers, '月');
   var iName  = colIdx_(headers, '名前');
   if (iMonth < 0 || iName < 0) {
@@ -5210,10 +5211,11 @@ function paintHoushu_(data) {
     var na = String(a[iName] || ''); var nb = String(b[iName] || '');
     return na < nb ? -1 : (na > nb ? 1 : 0);
   });
-  // 単価データ（staff_listSagyousha の rates: 作業者マスター F〜I 列）を参照して件数を割り戻す
+  // 件数(monthly) と 単価(rates) は staff_listSagyousha から取得済み
   var workersByName = {};
   (STATE.allWorkers || []).forEach(function(w){ workersByName[String(w.name || '')] = w; });
   var meWorker = workersByName[STATE.userName];
+  var defaultMonthly = (meWorker && meWorker.monthly) || {};
   function ymKey_(v){
     var s = String(v || '').trim();
     // "YYYY/MM" / "YYYY-MM" / "YYYY/M" すべて "YYYY-MM" 形式に正規化
@@ -5240,7 +5242,10 @@ function paintHoushu_(data) {
     var badge = '';
     if (typeof opts.count === 'number') {
       // (15件) と単価 @¥XXX を併記。¥0 や 0件のときは省略。
-      var unit = (opts.count > 0 && yen > 0) ? Math.round(yen / opts.count) : 0;
+      // 単価は作業者マスター単価(opts.unit)を優先。無ければ金額÷件数で算出（旧互換）。
+      var unit = (typeof opts.unit === 'number' && opts.unit > 0)
+        ? opts.unit
+        : ((opts.count > 0 && yen > 0) ? Math.round(yen / opts.count) : 0);
       var unitTxt = unit ? ' @¥' + Number(unit).toLocaleString('ja-JP') : '';
       if (opts.count > 0) badge = '<small class="houshu-count">' + opts.count + '件' + unitTxt + '</small>';
     }
@@ -5259,17 +5264,13 @@ function paintHoushu_(data) {
       satsuei: num_(r[3]), sokutei: num_(r[4]), shuppin: num_(r[5]), hassou: num_(r[6]),
       inv: num_(r[7]), account: num_(r[8]), keihi: num_(r[9]), rieki: num_(r[10]), fixed: num_(r[11])
     };
-    // 件数は商品管理の live スキャン値ではなく「確定報酬 ÷ 作業者マスター単価」で割り戻す。
-    // 請求書(InvoiceApi inv_calcInvoicePreviewForStaff_)と同一基準。
-    // live 件数は当月 Cron 確定報酬より先行しうるため、報酬÷件数で出す単価が
-    // 30→29 のようにズレていた（例: 報酬¥6,420 ÷ live221件 = @¥29）。割り戻せば常に整合する。
-    var wRates = ((workersByName[rowName] || meWorker) || {}).rates || {};
-    var counts = {
-      satsuei: wRates.satsuei > 0 ? Math.round(v.satsuei / wRates.satsuei) : 0,
-      sokutei: wRates.sokutei > 0 ? Math.round(v.sokutei / wRates.sokutei) : 0,
-      shuppin: wRates.shuppin > 0 ? Math.round(v.shuppin / wRates.shuppin) : 0,
-      hassou:  wRates.hassou  > 0 ? Math.round(v.hassou  / wRates.hassou)  : 0
-    };
+    // 件数は商品管理の live スキャン値(monthly)をそのまま使う＝実作業件数が真実。
+    var wObj = (workersByName[rowName] || meWorker) || {};
+    var counts = (wObj.monthly || defaultMonthly)[ymKey_(month)]
+      || { sokutei: 0, satsuei: 0, shuppin: 0, hassou: 0 };
+    // 単価は作業者マスター単価(rates)。金額÷件数で割ると当月 Cron 確定報酬が
+    // live 件数より先行/遅行したとき @¥29 のようにズレるため、マスター単価を直接表示する。
+    var rates = wObj.rates || { satsuei: 0, sokutei: 0, shuppin: 0, hassou: 0 };
     // AppSheet [合計] と同義: 利益歩合(rieki)を除く全項目の合計
     v.workTotal = v.satsuei + v.sokutei + v.shuppin + v.hassou + v.inv + v.account + v.keihi + v.fixed;
     v.profitShare = v.rieki;
@@ -5279,7 +5280,7 @@ function paintHoushu_(data) {
     v.workWins = v.workTotal > v.profitShare;
     // 既存サマリ集計用: 集計バーや人別合計は実支払額ベース
     v.total = v.actualPay;
-    return { month: month, name: rowName, v: v, counts: counts };
+    return { month: month, name: rowName, v: v, counts: counts, rates: rates };
   }
   // 1枚の月カード
   function renderCard_(r){
@@ -5301,10 +5302,10 @@ function paintHoushu_(data) {
       '<div class="houshu-total">' + fmt_(p.v.actualPay) + '</div>' +
       vsHtml +
       '<div class="houshu-section"><div class="houshu-grid">' +
-        cell_('撮影', p.v.satsuei, { count: p.counts.satsuei, cls: workCls }) +
-        cell_('採寸', p.v.sokutei, { count: p.counts.sokutei, cls: workCls }) +
-        cell_('出品', p.v.shuppin, { count: p.counts.shuppin, cls: workCls }) +
-        cell_('発送', p.v.hassou,  { count: p.counts.hassou,  cls: workCls }) +
+        cell_('撮影', p.v.satsuei, { count: p.counts.satsuei, unit: p.rates.satsuei, cls: workCls }) +
+        cell_('採寸', p.v.sokutei, { count: p.counts.sokutei, unit: p.rates.sokutei, cls: workCls }) +
+        cell_('出品', p.v.shuppin, { count: p.counts.shuppin, unit: p.rates.shuppin, cls: workCls }) +
+        cell_('発送', p.v.hassou,  { count: p.counts.hassou,  unit: p.rates.hassou,  cls: workCls }) +
       '</div></div>' +
       '<div class="houshu-section"><div class="houshu-grid">' +
         cell_('在庫管理', p.v.inv,     { cls: workCls }) +
