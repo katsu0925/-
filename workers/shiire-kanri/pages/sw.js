@@ -9,7 +9,7 @@
 //  - VERSION を上げると activate 時に旧キャッシュを全削除
 //  - skipWaiting + clients.claim で即時切替、controllerchange でクライアントが UI 通知
 
-const VERSION = 'sk-2026-05-11-v127';
+const VERSION = 'sk-2026-05-29-v128';
 const SHELL_CACHE = 'shell-' + VERSION;
 const API_CACHE   = 'api-' + VERSION;
 
@@ -78,6 +78,9 @@ function isApiSwr(pathname) {
   if (pathname === '/api/sagyousha') return false;
   if (pathname === '/api/kanri/next') return false;
   if (pathname.startsWith('/api/sheet/')) return false;
+  // 作業者マスターは「無効化＝即プルダウンから除外」を反映したいので network-first。
+  // SWR だと無効化後も古い一覧（無効者入り）がリロード初回に出続ける。
+  if (pathname === '/api/master/workers') return false;
   // 一覧系は network-first（ETag/304 でほぼゼロコスト）
   if (pathname === '/api/products') return false;
   if (pathname === '/api/purchases') return false;
