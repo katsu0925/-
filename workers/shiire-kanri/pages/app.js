@@ -3734,7 +3734,8 @@ async function onBashoReporterChange() {
   }
   picker.innerHTML = '<div class="muted">読み込み中…</div>';
   try {
-    var res = await api('/api/products?place=' + encodeURIComponent(reporter) + '&filter=shuppin_machi&limit=10000&mode=list');
+    // includeHolding=1: 仮置き場（family等）の商品こそ移動対象なので除外しない（出品待ちタブと違う点）
+    var res = await api('/api/products?place=' + encodeURIComponent(reporter) + '&filter=shuppin_machi&includeHolding=1&limit=10000&mode=list');
     var items = (res.items || []);
     // 編集モード: 既存IDを必ず候補に含める（出品待ち外の商品でもチェック可能にする）
     var prefIds = Array.isArray(window.__bashoPrefIds) ? window.__bashoPrefIds : [];

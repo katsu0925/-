@@ -89,6 +89,9 @@ export async function listProducts(request, env) {
   const status = (u.searchParams.get('status') || '').trim();
   const worker = (u.searchParams.get('worker') || '').trim();
   const place = (u.searchParams.get('place') || '').trim();
+  // includeHolding=1: 仮置き場（family等）除外を無効化。場所移動ピッカー専用。
+  // 仮置き場の商品こそ移動対象なので、出品待ちタブと違って除外してはいけない。
+  const includeHolding = u.searchParams.get('includeHolding') === '1';
   // listedBeforeDays: 出品日が N 日以上前の商品のみに絞る（返送ピッカー用）
   // AppSheet Valid_If: DATE([出品日]) <= (TODAY() - 30) と同条件
   const listedBeforeDaysRaw = u.searchParams.get('listedBeforeDays');
@@ -113,9 +116,14 @@ export async function listProducts(request, env) {
   } else if (filter === 'shuppin_machi') {
     // 出品待ち = 派生ステータス '出品待ち'（採寸・撮影済み）かつ
     // 納品場所が仮置き場（family 等）でない。AppSheet の出品待ちビュー条件と一致。
-    const ex = shuppinPlaceClause_(await getShuppinExcludePlaces_(env));
-    where.push(`${ds} = '出品待ち' AND ${ex.clause}`);
-    ex.args.forEach((a) => args.push(a));
+    // ただし includeHolding=1（場所移動ピッカー）のときは仮置き場こそ移動対象なので除外しない。
+    if (includeHolding) {
+      where.push(`${ds} = '出品待ち'`);
+    } else {
+      const ex = shuppinPlaceClause_(await getShuppinExcludePlaces_(env));
+      where.push(`${ds} = '出品待ち' AND ${ex.clause}`);
+      ex.args.forEach((a) => args.push(a));
+    }
   } else if (filter === 'shuppin_sagyou') {
     where.push(`${ds} = '出品作業中'`);
   } else if (filter === 'shuppinchu') {
