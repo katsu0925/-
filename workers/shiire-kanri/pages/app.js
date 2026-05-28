@@ -5185,7 +5185,7 @@ function paintHoushu_(data) {
   });
   // 報酬管理: A=年月, B=名前, C=メール, D=撮影, E=採寸, F=出品, G=発送,
   //          H=在庫管理, I=アカウント運用, J=経費, K=利益歩合, L=固定費, M=月ブロック奇偶マーカー
-  // 件数は staff_listSagyousha の monthly から拾う（D=撮影なので counts.satsuei 等の対応に注意）。
+  // 件数は確定報酬 ÷ staff_listSagyousha の rates（作業者マスター単価）で割り戻す（請求書と同一基準）。
   var iMonth = colIdx_(headers, '月');
   var iName  = colIdx_(headers, '名前');
   if (iMonth < 0 || iName < 0) {
@@ -5210,11 +5210,10 @@ function paintHoushu_(data) {
     var na = String(a[iName] || ''); var nb = String(b[iName] || '');
     return na < nb ? -1 : (na > nb ? 1 : 0);
   });
-  // 件数データ（staff_listSagyousha で取得済み）。 monthly のキーは "YYYY-MM"
+  // 単価データ（staff_listSagyousha の rates: 作業者マスター F〜I 列）を参照して件数を割り戻す
   var workersByName = {};
   (STATE.allWorkers || []).forEach(function(w){ workersByName[String(w.name || '')] = w; });
   var meWorker = workersByName[STATE.userName];
-  var defaultMonthly = (meWorker && meWorker.monthly) || {};
   function ymKey_(v){
     var s = String(v || '').trim();
     // "YYYY/MM" / "YYYY-MM" / "YYYY/M" すべて "YYYY-MM" 形式に正規化
@@ -5260,8 +5259,17 @@ function paintHoushu_(data) {
       satsuei: num_(r[3]), sokutei: num_(r[4]), shuppin: num_(r[5]), hassou: num_(r[6]),
       inv: num_(r[7]), account: num_(r[8]), keihi: num_(r[9]), rieki: num_(r[10]), fixed: num_(r[11])
     };
-    var counts = ((workersByName[rowName] && workersByName[rowName].monthly) || defaultMonthly)[ymKey_(month)]
-      || { sokutei: 0, satsuei: 0, shuppin: 0, hassou: 0 };
+    // 件数は商品管理の live スキャン値ではなく「確定報酬 ÷ 作業者マスター単価」で割り戻す。
+    // 請求書(InvoiceApi inv_calcInvoicePreviewForStaff_)と同一基準。
+    // live 件数は当月 Cron 確定報酬より先行しうるため、報酬÷件数で出す単価が
+    // 30→29 のようにズレていた（例: 報酬¥6,420 ÷ live221件 = @¥29）。割り戻せば常に整合する。
+    var wRates = ((workersByName[rowName] || meWorker) || {}).rates || {};
+    var counts = {
+      satsuei: wRates.satsuei > 0 ? Math.round(v.satsuei / wRates.satsuei) : 0,
+      sokutei: wRates.sokutei > 0 ? Math.round(v.sokutei / wRates.sokutei) : 0,
+      shuppin: wRates.shuppin > 0 ? Math.round(v.shuppin / wRates.shuppin) : 0,
+      hassou:  wRates.hassou  > 0 ? Math.round(v.hassou  / wRates.hassou)  : 0
+    };
     // AppSheet [合計] と同義: 利益歩合(rieki)を除く全項目の合計
     v.workTotal = v.satsuei + v.sokutei + v.shuppin + v.hassou + v.inv + v.account + v.keihi + v.fixed;
     v.profitShare = v.rieki;

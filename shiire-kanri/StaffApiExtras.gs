@@ -403,12 +403,20 @@ function staff_listAiResults(opts) {
 // ========== 作業者管理 ==========
 
 // 作業者マスター列マップ (固定):
-//  B(2)=名前 / D(4)=メール1 / E(5)=メール2 / O(15)=有効
+//  B(2)=名前 / D(4)=メール1 / E(5)=メール2 / F(6)=採寸単価 / G(7)=撮影単価
+//  H(8)=出品単価 / I(9)=発送単価 / O(15)=有効
 //  管理者フラグ列はヘッダー名で動的解決 (位置非固定)
 var SAGYOU_COL_NAME = 2;
 var SAGYOU_COL_EMAIL1 = 4;
 var SAGYOU_COL_EMAIL2 = 5;
 var SAGYOU_COL_ENABLED = 15;
+
+// 単価セルを数値化（通貨記号や桁区切りが混じっても拾う）
+function staff_rateNum_(v) {
+  if (v == null || v === '') return 0;
+  var n = parseFloat(String(v).replace(/[^\d.\-]/g, ''));
+  return isNaN(n) ? 0 : n;
+}
 
 // 作業者マスター + 商品管理シートからの月次集計を返す
 // items: [{ row, name, email1, email2, enabled, admin, monthly }]
@@ -457,6 +465,14 @@ function staff_listSagyousha(opts, requesterEmail) {
         email2: email2,
         enabled: enabledFlag,
         admin: adminFlag,
+        // 作業者マスターの単価（F=採寸 G=撮影 H=出品 I=発送）。
+        // 報酬確認カードはこの単価で確定報酬を割り戻して件数を出すため必須。
+        rates: {
+          satsuei: staff_rateNum_(row[6]), // G列 撮影単価
+          sokutei: staff_rateNum_(row[5]), // F列 採寸単価
+          shuppin: staff_rateNum_(row[7]), // H列 出品単価
+          hassou:  staff_rateNum_(row[8])  // I列 発送単価
+        },
         monthly: {}
       });
     }
