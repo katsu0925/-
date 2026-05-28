@@ -55,6 +55,29 @@ function setupTriggers() {
   return tr_setupTriggersOnce_();
 }
 
+/**
+ * お問い合わせメール送信用の専用トリガー（5分ごと）を登録する。
+ * 全トリガーを作り直す setupTriggers と違い、これは processContactQueue の
+ * トリガーだけを安全に追加する（既存の同名トリガーは削除してから1本だけ作成）。
+ * 上限(20)に達している場合は作成せず明示的にエラーにする。
+ */
+function setupContactQueueTrigger() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'processContactQueue') {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+  var count = ScriptApp.getProjectTriggers().length;
+  if (count >= 20) {
+    throw new Error('トリガー上限(20)に達しています。現在' + count + '件。不要なトリガーを削除してから再実行してください。');
+  }
+  ScriptApp.newTrigger('processContactQueue').timeBased().everyMinutes(5).create();
+  var after = ScriptApp.getProjectTriggers().length;
+  console.log('processContactQueue 専用トリガー作成完了。トリガー総数: ' + after + '/20');
+  return { ok: true, count: after };
+}
+
 function tr_setupTriggersOnce_() {
   // =====================================================
   // 1. onEditトリガー（スプレッドシート別）
@@ -101,6 +124,8 @@ function tr_setupTriggersOnce_() {
     { fn: 'syncListingPublicCron', type: 'minutes', interval: 1 },
     // 5分ごと（ディスパッチャー: 6関数を1トリガーに統合）
     { fn: 'cronEvery5min', type: 'minutes', interval: 5 },
+    // 5分ごと（お問い合わせメール送信専用。重いcronEvery5minのタイムアウトに巻き込まれないよう分離）
+    { fn: 'processContactQueue', type: 'minutes', interval: 5 },
     // 30分ごと
     { fn: 'cronAbandonedCart', type: 'minutes', interval: 30 },
     // 1時間ごと
@@ -202,7 +227,9 @@ function runWithErrorNotify_(dispatcherName, fns) {
 
 /** 5分ごと: 各関数を1トリガーで実行 */
 function cronEvery5min() {
-  runWithErrorNotify_('cronEvery5min', [cronExportProducts, baseSyncOrdersNow, baseSyncProductsToBase, notifyUnsentRequests, cronAutoExpandOrders, checkPendingOrders, checkAwaitingPayments, applyPendingAiData, processContactQueue]);
+  // processContactQueue はここでは呼ばない。重い処理で6分制限に達すると末尾まで到達せず
+  // お問い合わせメールが恒常的に未送信になるため、専用トリガー（setupContactQueueTrigger）に分離した。
+  runWithErrorNotify_('cronEvery5min', [cronExportProducts, baseSyncOrdersNow, baseSyncProductsToBase, notifyUnsentRequests, cronAutoExpandOrders, checkPendingOrders, checkAwaitingPayments, applyPendingAiData]);
 }
 
 /** 毎日4時: 確保クリーンアップ + ポイント処理 + ポイント失効 + プロパティ掃除 */
