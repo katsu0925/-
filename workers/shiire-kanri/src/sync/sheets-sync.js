@@ -124,15 +124,33 @@ async function syncProducts(env, rows) {
   if (existing.length > 0 && rows.length < existing.length * 0.2) {
     console.warn(`[sync] skip product delete: incoming=${rows.length} vs existing=${existing.length}`);
   } else {
-    const stale = existing.filter(r => !incoming.has(r.kanri)).map(r => r.kanri);
+    let stale = existing.filter(r => !incoming.has(r.kanri)).map(r => r.kanri);
     if (stale.length) {
+      // 楽観 INSERT 保護: 直近 180 秒以内に updated_at が更新された行は GAS 書き込み完了前の
+      // 可能性があるため削除対象から除外する。3 分経っても Sheet に居なければ削除（GAS 書込失敗）。
+      const protectedThreshold = Date.now() - 180 * 1000;
+      const protectedKanris = new Set();
+      const probeBatch = 50;
+      for (let i = 0; i < stale.length; i += probeBatch) {
+        const batch = stale.slice(i, i + probeBatch);
+        const ph = batch.map(() => '?').join(',');
+        const { results: recent } = await db
+          .prepare(`SELECT kanri FROM products WHERE updated_at > ?1 AND kanri IN (${ph})`)
+          .bind(protectedThreshold, ...batch)
+          .all();
+        for (const r of recent) protectedKanris.add(r.kanri);
+      }
+      if (protectedKanris.size) {
+        console.log(`[sync] protect ${protectedKanris.size} recent products from delete`);
+        stale = stale.filter(k => !protectedKanris.has(k));
+      }
       const delBatch = 50;
       for (let i = 0; i < stale.length; i += delBatch) {
         const batch = stale.slice(i, i + delBatch);
         const ph = batch.map(() => '?').join(',');
         await db.prepare(`DELETE FROM products WHERE kanri IN (${ph})`).bind(...batch).run();
       }
-      console.log(`[sync] deleted ${stale.length} stale products`);
+      if (stale.length) console.log(`[sync] deleted ${stale.length} stale products`);
     }
   }
 

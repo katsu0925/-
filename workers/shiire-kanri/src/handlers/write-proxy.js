@@ -571,7 +571,9 @@ export async function createPurchase(request, env, user) {
 }
 
 // POST /api/create/product  body: { shiireId, kanri, brand, size, color, state, status, fields? }
-// Fire-and-forget: D1 へ即時 INSERT → 即 200 を返却 → 裏で GAS にシート反映を投入
+// 同期 GAS 呼び出し: D1 へ即時 INSERT → GAS で Sheet 書き込み → 結果次第で 200/503/502 を返却。
+// busy/exception 時は 503 を返して outbox に自動再送させる。idempotency_keys と GAS LockService の二重防御で重複防止。
+// D1 楽観 INSERT は sheets-sync.js の 180 秒保護で Cron 削除から守られる。
 // kanri はクライアントが /api/kanri/next で採番済みなのでサーバー往復不要。
 export async function createProduct(request, env, user, ctx) {
   let body;
@@ -623,14 +625,38 @@ export async function createProduct(request, env, user, ctx) {
     console.warn('[create] products d1 insert failed', err.message);
   }
 
-  if (ctx && typeof ctx.waitUntil === 'function') {
-    ctx.waitUntil(dispatchGasCreateProduct_(env, user, payload));
-  } else {
-    dispatchGasCreateProduct_(env, user, payload).catch(() => {});
+  // 同期 GAS 呼び出し（旧: ctx.waitUntil でバックグラウンド）。
+  // busy/exception → 503 で outbox 自動再送、その他失敗 → 502。
+  let gasRes;
+  try {
+    gasRes = await callGas(env, 'createProduct', payload, user);
+  } catch (err) {
+    console.warn('[create product] gas exception', err.message);
+    await logSaveFailure_(env, user, payload.kanri, { create: payload }, 'exception:' + err.message);
+    invalidateCountsCache();
+    return jsonError('gas exception, retrying', 503);
+  }
+  if (!gasRes || !gasRes.ok) {
+    const reason = (gasRes && gasRes.error) || 'unknown';
+    console.warn('[create product] gas failed', reason);
+    await logSaveFailure_(env, user, payload.kanri, { create: payload }, reason);
+    invalidateCountsCache();
+    if (/busy/i.test(reason)) {
+      return jsonError('gas busy, retrying', 503);
+    }
+    return jsonError(reason, 502);
+  }
+
+  // 成功時: GAS 応答に row が含まれていれば D1 の row_num を確定反映
+  if (gasRes.row && Number(gasRes.row) > 0) {
+    try {
+      await env.DB.prepare('UPDATE products SET row_num = ?, updated_at = ? WHERE kanri = ?')
+        .bind(Number(gasRes.row), Date.now(), payload.kanri).run();
+    } catch (e) { /* ignore */ }
   }
 
   invalidateCountsCache();
-  return jsonOk({ created: true, optimistic: true, kanri: payload.kanri });
+  return jsonOk({ created: true, kanri: payload.kanri, row: gasRes.row || 0 });
 }
 
 // DELETE /api/products/:kanri
@@ -655,30 +681,6 @@ export async function deleteProduct(request, env, user, ctx, kanri) {
 
   invalidateCountsCache();
   return jsonOk({ deleted: true, kanri: k });
-}
-
-async function dispatchGasCreateProduct_(env, user, payload) {
-  let gasRes;
-  try {
-    gasRes = await callGas(env, 'createProduct', payload, user);
-  } catch (err) {
-    console.warn('[create product bg] gas exception', err.message);
-    await logSaveFailure_(env, user, payload.kanri, { create: payload }, 'exception:' + err.message);
-    return;
-  }
-  if (!gasRes || !gasRes.ok) {
-    const reason = (gasRes && gasRes.error) || 'unknown';
-    console.warn('[create product bg] gas failed', reason);
-    await logSaveFailure_(env, user, payload.kanri, { create: payload }, reason);
-    return;
-  }
-  // GAS 応答に row が含まれていれば D1 の row_num を確定反映
-  if (gasRes.row && Number(gasRes.row) > 0) {
-    try {
-      await env.DB.prepare('UPDATE products SET row_num = ?, updated_at = ? WHERE kanri = ?')
-        .bind(Number(gasRes.row), Date.now(), payload.kanri).run();
-    } catch (e) { /* ignore */ }
-  }
 }
 
 async function callGas(env, action, payload, user) {

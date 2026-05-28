@@ -1860,7 +1860,22 @@ function staff_nextKanriNumber_(ss, prefix) {
 // 商品管理シートに新規行を追加
 // payload: { shiireId, kanri, brand, size, color, state, status }
 // 区分コードは仕入れ管理から自動引き当て
+// 並列 + ボタン押下時の race による重複行作成を防ぐため ScriptLock で直列化する。
 function staff_apiCreateProduct(payload, email) {
+  var lock = LockService.getScriptLock();
+  try {
+    lock.waitLock(8000);
+  } catch (e) {
+    return { ok: false, error: 'busy, retry' };
+  }
+  try {
+    return staff_apiCreateProduct_impl_(payload, email);
+  } finally {
+    try { lock.releaseLock(); } catch (e) {}
+  }
+}
+
+function staff_apiCreateProduct_impl_(payload, email) {
   payload = payload || {};
   email = String(email || 'cloudflare-proxy');
 

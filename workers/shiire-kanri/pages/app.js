@@ -9508,8 +9508,17 @@ async function submitCreateProduct(shiireId) {
   var done = setBtnLoading(btn, '作成中…');
   startGlobalProgress();
   try {
-    await api('/api/create/product', { method: 'POST', body: body });
-    toast('商品 ' + body.kanri + ' を作成しました', 'success');
+    var res = await api('/api/create/product', {
+      method: 'POST',
+      body: body,
+      outbox: true,
+      label: '新規商品 ' + body.kanri,
+    });
+    if (res && res.queued) {
+      toast('商品 ' + body.kanri + ' を送信予約しました（自動で再送します）', 'success');
+    } else {
+      toast('商品 ' + body.kanri + ' を作成しました', 'success');
+    }
     var returnShiire = STATE.createProductReturnShiireId;
     STATE.createProductReturnShiireId = null;
     STATE.createDirty = false;
@@ -9525,12 +9534,13 @@ async function submitCreateProduct(shiireId) {
       render();
     }
   } catch (err) {
-    toast('作成失敗: ' + err.message, 'error');
+    toast('作成失敗: ' + err.message + '（自動再送はされません）', 'error');
     done();
   } finally {
     endGlobalProgress();
   }
 }
+
 
 // =====================================================
 // 画像拡大モーダル: タップで開閉 + 左右ナビでギャラリー切替
