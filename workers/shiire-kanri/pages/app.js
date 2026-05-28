@@ -763,7 +763,8 @@ async function resolveSelfName_() {
 // 業務メニューで「自分」が解決できなかった or 別の作業者として確認したいときの手動切替
 function showUserNamePicker_() {
   var c = document.getElementById('content');
-  var workers = STATE.allWorkers || [];
+  // 無効(有効=FALSE)の作業者はそもそも稼働対象外なので、自分の名前ピッカーには出さない
+  var workers = (STATE.allWorkers || []).filter(function(w){ return w && w.enabled; });
   var html = '<div class="biz-wrap">' +
     '<div class="biz-meta">あなたのメール: <strong>' + esc(STATE.email) + '</strong></div>' +
     '<div class="empty" style="padding:20px;text-align:left">' +
