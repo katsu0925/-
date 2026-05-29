@@ -64,6 +64,8 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
 .list-thumb{width:48px;height:48px;border-radius:6px;object-fit:cover;background:#eee;flex-shrink:0}
 .list-thumb-pair{display:flex;gap:2px;flex-shrink:0;cursor:pointer}
 .list-thumb-pair .list-thumb{width:28px;height:48px;border-radius:4px}
+.list-thumb-loading{display:flex;align-items:center;justify-content:center;cursor:pointer}
+.list-thumb-loading .thumb-spin{width:18px;height:18px;border:2.5px solid rgba(79,70,229,.2);border-top-color:#4F46E5;border-radius:50%;animation:spin .6s linear infinite}
 .list-info{flex:1;min-width:0}
 .list-id{font-weight:600;font-size:14px}
 .list-count{font-size:12px;color:#888}
@@ -2344,7 +2346,7 @@ function ensureListLoaded(cb) {
 
 function refreshProductList(cb, silent) {
   if (!silent) showStatus('manageLoadStatus', '読み込み中...', 'info');
-  fetch(API_BASE + '/upload/list', {
+  fetch(API_BASE + '/upload/list-meta', {
     method: 'POST',
     headers: headers({ 'Content-Type': 'application/json' }),
     body: '{}'
@@ -2356,7 +2358,32 @@ function refreshProductList(cb, silent) {
       if (cb) cb();
       return;
     }
-    productListData = (d.items || []).slice().sort(managedIdCompareAsc_);
+    // S4: encoded=true は配列マニフェスト（URL無し）。encoded=false はフォールバックでサムネ込みオブジェクト。
+    var rawItems = d.items || [];
+    var decoded;
+    if (d.encoded) {
+      decoded = rawItems.map(function(a) {
+        return {
+          managedId: a[0],
+          photographer: a[1] || '',
+          uploadedAt: a[2] || '',
+          count: a[3] || 0,
+          registered: !!a[4],
+          warning: !!a[5],
+          saveCount: a[6] || 0
+        };
+      });
+    } else {
+      // フォールバック: 旧来の {managedId, thumbnail, secondThumbnail, ...} 形式。
+      // サムネを即 _thumbCache へ投入し、以降は遅延ロード経路と同じ扱いにする。
+      decoded = rawItems;
+      rawItems.forEach(function(p) {
+        if (p && p.managedId && (p.thumbnail || p.secondThumbnail)) {
+          _thumbCache[p.managedId] = { thumbnail: p.thumbnail || null, secondThumbnail: p.secondThumbnail || null };
+        }
+      });
+    }
+    productListData = decoded.slice().sort(managedIdCompareAsc_);
     _listLoaded = true;
     populateFilterPhotographer();
     if (!silent) {
@@ -2388,6 +2415,10 @@ var _manageRendered = 0;                  // これまでに描画した行数
 var _selectedMids = Object.create(null);  // 選択中の managedId 集合
 var _productByMid = Object.create(null);  // managedId → 商品オブジェクト（一括処理の参照用）
 var _manageObserver = null;               // 無限スクロール用 IntersectionObserver
+// S4: 軽量マニフェスト + サムネ遅延ロード。一覧の初回取得はURL無しの軽量メタだけ受け取り、
+// 可視行のサムネURLは _thumbCache に都度埋める。_thumbPending は取得中Promiseで多重リクエストを防ぐ。
+var _thumbCache = Object.create(null);    // managedId → {thumbnail, secondThumbnail}（原寸URL／未取得は未定義）
+var _thumbPending = Object.create(null);  // managedId → 取得中Promise
 
 function getSelectedMids() { return Object.keys(_selectedMids); }
 
@@ -2471,25 +2502,89 @@ function computeManageFiltered_() {
   return out;
 }
 
-// 1行ぶんのHTMLを生成（チェック状態は _selectedMids 由来）
-function buildManageRowHtml_(p) {
-  // 表示は軽量サムネ(_thumb)。data-full は原寸でフォールバック用。
-  var thumbSrc = p.thumbnail ? toThumbSrc(p.thumbnail) : '';
-  var thumbFull = p.thumbnail ? (API_BASE + p.thumbnail) : '';
-  var second2Src = p.secondThumbnail ? toThumbSrc(p.secondThumbnail) : '';
-  var second2Full = p.secondThumbnail ? (API_BASE + p.secondThumbnail) : '';
-  var expandAttr = 'onclick="toggleManageExpand(\\'' + escapeHtml(p.managedId) + '\\')"';
-  var thumbHtml;
+// サムネ部分のHTMLを生成。_thumbCache 未取得ならスピナープレースホルダを返す。
+// 取得済みなら従来どおり軽量サムネ(_thumb)を表示し、data-full は原寸フォールバック用。
+function thumbBlockHtml_(mid) {
+  var expandAttr = 'onclick="toggleManageExpand(\\'' + escapeHtml(mid) + '\\')"';
+  var tc = _thumbCache[mid];
+  if (!tc) {
+    // 未取得: スピナー（遅延ロード後に paintRowThumb_ で差し替え）
+    return '<div class="list-thumb list-thumb-loading" ' + expandAttr + '><span class="thumb-spin"></span></div>';
+  }
+  var thumbSrc = tc.thumbnail ? toThumbSrc(tc.thumbnail) : '';
+  var thumbFull = tc.thumbnail ? (API_BASE + tc.thumbnail) : '';
+  var second2Src = tc.secondThumbnail ? toThumbSrc(tc.secondThumbnail) : '';
+  var second2Full = tc.secondThumbnail ? (API_BASE + tc.secondThumbnail) : '';
   if (second2Src) {
-    thumbHtml = '<div class="list-thumb-pair" ' + expandAttr + '>' +
+    return '<div class="list-thumb-pair" ' + expandAttr + '>' +
       '<img class="list-thumb" data-slot="0" src="' + thumbSrc + '" data-full="' + thumbFull + '" onerror="thumbFallback(this)" loading="lazy">' +
       '<img class="list-thumb" data-slot="1" src="' + second2Src + '" data-full="' + second2Full + '" onerror="thumbFallback(this)" loading="lazy">' +
       '</div>';
   } else if (thumbSrc) {
-    thumbHtml = '<img class="list-thumb" data-slot="0" src="' + thumbSrc + '" data-full="' + thumbFull + '" onerror="thumbFallback(this)" loading="lazy" ' + expandAttr + '>';
-  } else {
-    thumbHtml = '<div class="list-thumb" ' + expandAttr + '></div>';
+    return '<img class="list-thumb" data-slot="0" src="' + thumbSrc + '" data-full="' + thumbFull + '" onerror="thumbFallback(this)" loading="lazy" ' + expandAttr + '>';
   }
+  // 取得済みだがサムネ無し（D1に該当URL無し）: 空プレースホルダ
+  return '<div class="list-thumb" ' + expandAttr + '></div>';
+}
+
+// 指定 managedId 群のサムネURLを /upload/thumbs から遅延取得して _thumbCache に投入する。
+// 取得済み・取得中のものは除外し、未取得ぶんだけ ≤100 件チャンクで並列取得する。
+function ensureThumbs(mids) {
+  if (!mids || mids.length === 0) return Promise.resolve();
+  var promises = [];
+  var need = [];
+  var seen = Object.create(null);
+  for (var i = 0; i < mids.length; i++) {
+    var m = mids[i];
+    if (!m || seen[m]) continue;
+    seen[m] = true;
+    if (_thumbCache[m]) continue;
+    if (_thumbPending[m]) { promises.push(_thumbPending[m]); continue; }
+    need.push(m);
+  }
+  for (var j = 0; j < need.length; j += 100) {
+    (function(chunk) {
+      var pr = fetch(API_BASE + '/upload/thumbs', {
+        method: 'POST',
+        headers: headers({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ mids: chunk })
+      }).then(function(r) { return r.json(); })
+      .then(function(d) {
+        var th = (d && d.thumbs) || {};
+        chunk.forEach(function(m) {
+          var v = th[m] || {};
+          // 取得結果（サムネ無しは null）を確定キャッシュ。永久スピナーを防ぐ。
+          _thumbCache[m] = { thumbnail: v.t || null, secondThumbnail: v.s || null };
+          delete _thumbPending[m];
+        });
+      }).catch(function() {
+        // 失敗時は pending を解放（次回再取得可能にする・キャッシュは確定させない）
+        chunk.forEach(function(m) { delete _thumbPending[m]; });
+      });
+      chunk.forEach(function(m) { _thumbPending[m] = pr; });
+      promises.push(pr);
+    })(need.slice(j, j + 100));
+  }
+  return Promise.all(promises);
+}
+
+// 取得済みサムネを該当行に差し替える（スピナー → 実サムネ）。
+function paintRowThumb_(mid) {
+  var row = document.getElementById('manage-row-' + mid);
+  if (!row) return;
+  var li = row.querySelector('.list-item');
+  if (!li) return;
+  var target = li.querySelector('.list-thumb-pair, .list-thumb-loading, .list-thumb');
+  if (!target) return;
+  var tmp = document.createElement('div');
+  tmp.innerHTML = thumbBlockHtml_(mid);
+  var frag = tmp.firstChild;
+  if (frag) target.replaceWith(frag);
+}
+
+// 1行ぶんのHTMLを生成（チェック状態は _selectedMids 由来）
+function buildManageRowHtml_(p) {
+  var thumbHtml = thumbBlockHtml_(p.managedId);
   var checkedAttr = _selectedMids[p.managedId] ? ' checked' : '';
   return '<div id="manage-row-' + escapeHtml(p.managedId) + '">' +
     '<div class="list-item">' +
@@ -2508,14 +2603,23 @@ function buildManageRowHtml_(p) {
 function appendManageBatch() {
   var el = document.getElementById('manageList');
   if (!el) return;
-  var end = Math.min(_manageRendered + MANAGE_BATCH, _manageFiltered.length);
+  var start = _manageRendered;
+  var end = Math.min(start + MANAGE_BATCH, _manageFiltered.length);
   var html = '';
-  for (var i = _manageRendered; i < end; i++) html += buildManageRowHtml_(_manageFiltered[i]);
+  for (var i = start; i < end; i++) html += buildManageRowHtml_(_manageFiltered[i]);
   var frag = document.createElement('div');
   frag.innerHTML = html;
   while (frag.firstChild) el.appendChild(frag.firstChild);
   _manageRendered = end;
   setupManageSentinel_();
+  // S4: 追記分のサムネを遅延取得し、完了したらスピナーを実サムネへ差し替える。
+  var batchMids = [];
+  for (var j = start; j < end; j++) batchMids.push(_manageFiltered[j].managedId);
+  if (batchMids.length) {
+    ensureThumbs(batchMids).then(function() {
+      batchMids.forEach(function(m) { paintRowThumb_(m); });
+    });
+  }
 }
 
 // 末尾に番兵を置き、可視に入ったら次バッチを追記
@@ -2725,14 +2829,8 @@ function applyReorderToList(managedId, urls) {
   if (!Array.isArray(urls) || urls.length === 0) return;
   var top = urls[0] || null;
   var second = urls[1] || null;
-  var idx = -1;
-  for (var i = 0; i < productListData.length; i++) {
-    if (productListData[i] && productListData[i].managedId === managedId) { idx = i; break; }
-  }
-  if (idx >= 0) {
-    productListData[idx].thumbnail = top;
-    productListData[idx].secondThumbnail = second;
-  }
+  // S4: サムネURLは productListData(マニフェスト)ではなく _thumbCache に保持する。
+  _thumbCache[managedId] = { thumbnail: top, secondThumbnail: second };
   var row = document.getElementById('manage-row-' + managedId);
   if (!row) return;
   var li = row.querySelector('.list-item');
@@ -3301,23 +3399,28 @@ async function bgReplaceTopImages() {
   var selMids = getSelectedMids();
   if (selMids.length === 0) { showStatus('manageStatus', '商品を選択してください', 'err'); return; }
 
+  // S4: 選択行のサムネURLを遅延キャッシュから確保（未取得ぶんを /upload/thumbs で取得）
+  showLoading('準備中', 'サムネ情報を取得中…');
+  try { await ensureThumbs(selMids); } finally { hideLoading(); }
+
   var targets = [];
   var productCount = 0;
   selMids.forEach(function(mid) {
     var p = _productByMid[mid];
-    if (!p || !p.thumbnail) return;
+    var tc = _thumbCache[mid];
+    if (!p || !tc || !tc.thumbnail) return;
     var row = document.getElementById('manage-row-' + p.managedId);
     var nid = normId(p.managedId || '');
     productCount++;
     targets.push({
       managedId: p.managedId, slot: 0,
-      thumbUrl: p.thumbnail,
+      thumbUrl: tc.thumbnail,
       nid: nid, row: row
     });
-    if (p.secondThumbnail) {
+    if (tc.secondThumbnail) {
       targets.push({
         managedId: p.managedId, slot: 1,
-        thumbUrl: p.secondThumbnail,
+        thumbUrl: tc.secondThumbnail,
         nid: nid, row: row
       });
     }
@@ -3455,12 +3558,10 @@ async function _bgReplaceTopBatch(targets, modelKey) {
         if (thumbImg && thumbImg.tagName === 'IMG') {
           thumbImg.src = API_BASE + upData.newUrl + '?t=' + Date.now();
         }
-        // productListData も更新して次回の処理で新URLを使う
-        var pRef = _productByMid[t.managedId];
-        if (pRef) {
-          if (t.slot === 1) pRef.secondThumbnail = upData.newUrl;
-          else pRef.thumbnail = upData.newUrl;
-        }
+        // S4: サムネキャッシュを更新して次回の処理で新URLを使う
+        var tcRef = _thumbCache[t.managedId] || (_thumbCache[t.managedId] = { thumbnail: null, secondThumbnail: null });
+        if (t.slot === 1) tcRef.secondThumbnail = upData.newUrl;
+        else tcRef.thumbnail = upData.newUrl;
         okCount++;
       } else {
         throw new Error((upData && upData.message) || '保存失敗');
@@ -3779,9 +3880,13 @@ function _shareEntriesAsZip(entries, zipName, btn, onAfter) {
   });
 }
 
-function doDownloadTopImages() {
+async function doDownloadTopImages() {
   var selMids = getSelectedMids();
   if (selMids.length === 0) { showStatus('manageStatus', '商品を選択してください', 'err'); return; }
+
+  // S4: 選択行のサムネURLを遅延キャッシュから確保（未取得ぶんを /upload/thumbs で取得）
+  showLoading('準備中', 'サムネ情報を取得中…');
+  try { await ensureThumbs(selMids); } finally { hideLoading(); }
 
   var prods = [];
   var mids = [];
@@ -3803,8 +3908,9 @@ function doDownloadTopImages() {
   var done = 0;
   var fileEntries = [];
   var promises = prods.map(function(p) {
-    if (!p.thumbnail) { done++; return Promise.resolve(); }
-    var url = API_BASE + p.thumbnail;
+    var tc = _thumbCache[p.managedId];
+    if (!tc || !tc.thumbnail) { done++; return Promise.resolve(); }
+    var url = API_BASE + tc.thumbnail;
     return fetch(url).then(function(r) { return r.blob(); })
     .then(function(blob) {
       fileEntries.push({ mid: p.managedId, file: new File([blob], p.managedId + '.jpg', { type: 'image/jpeg' }) });

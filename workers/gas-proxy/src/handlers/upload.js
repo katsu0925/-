@@ -86,6 +86,10 @@ export async function handleUpload(request, env, path) {
       return await handleImageUpload(request, env);
     case '/upload/list':
       return await handleList(request, env);
+    case '/upload/list-meta':
+      return await handleListMeta(request, env);
+    case '/upload/thumbs':
+      return await handleThumbs(request, env);
     case '/upload/product-images':
       return await handleProductImages(request, env);
     case '/upload/delete':
@@ -363,6 +367,89 @@ async function handleList(request, env) {
     };
   });
   return jsonOk({ items }, { 'Server-Timing': `mode;desc="d1", rows;dur=${items.length}, total;dur=${Date.now()-t0}` });
+}
+
+// ─── 商品一覧（軽量メタ・画像URL無し）───
+// S4 ページング: 一覧の初回ラウンドトリップから画像URL（行あたり最大2本）を外し、
+// 配列エンコードの軽量マニフェストだけ返す。サムネは可視行のぶんだけ /upload/thumbs で遅延取得する。
+// 配列の並び: [managedId, photographer, uploadedAt, count, registered(0/1), warning(0/1), saveCount]
+// backfill 未完（marker != 'done'）の間は handleList にフォールバックし、旧来どおりサムネ込みの
+// オブジェクト配列を返す（フロントは encoded=false で受けてサムネを即 _thumbCache に投入する）。
+async function handleListMeta(request, env) {
+  const t0 = Date.now();
+  const marker = await env.CACHE.get('backfill:image-index:v1');
+  if (marker !== 'done') {
+    // フォールバック: 旧経路はサムネ込みのオブジェクト配列で返る。encoded=false でフロントへ伝える。
+    const res = await handleList(request, env);
+    const data = await res.json();
+    return jsonOk({ items: data.items || [], encoded: false },
+      { 'Server-Timing': `mode;desc="meta-legacy", total;dur=${Date.now()-t0}` });
+  }
+
+  // managed-ids:list だけ KV から1回読む → registered / warning を JS 計算（handleList と同一ロジック）
+  const idsJson = await env.CACHE.get('managed-ids:list');
+  const registeredIds = idsJson ? new Set(JSON.parse(idsJson)) : new Set();
+
+  // 一覧描画に必要な「URL以外」の列だけを1回の SELECT で全件取得。
+  const { results } = await env.DB.prepare(
+    `SELECT managed_id, image_count, uploaded_at, photographer, save_count
+       FROM product_image_index
+      WHERE first_image_url IS NOT NULL AND first_image_url != ''
+      ORDER BY sort_key, managed_id`
+  ).all();
+
+  const now = Date.now();
+  const items = (results || []).map(r => {
+    const registered = registeredIds.has(r.managed_id);
+    let warning = false;
+    if (!registered && r.uploaded_at) {
+      const days = Math.floor((now - new Date(r.uploaded_at).getTime()) / (1000 * 60 * 60 * 24));
+      warning = days >= 7;
+    }
+    return [
+      r.managed_id,
+      r.photographer || '',
+      r.uploaded_at || '',
+      r.image_count || 0,
+      registered ? 1 : 0,
+      warning ? 1 : 0,
+      r.save_count || 0,
+    ];
+  });
+  return jsonOk({ items, encoded: true },
+    { 'Server-Timing': `mode;desc="meta-d1", rows;dur=${items.length}, total;dur=${Date.now()-t0}` });
+}
+
+// ─── サムネ遅延取得（指定 managedId 群の first/second 原寸URL）───
+// POST {mids:[...]} → {thumbs:{<mid>:{t:<first>,s:<second>}}}。
+// D1 の IN バインド上限を避けるため ≤100 件ずつ分割して SELECT する。
+// backfill 未完の間は list-meta がフォールバックでサムネ込みを返すため、このEPは呼ばれない（空で返す）。
+async function handleThumbs(request, env) {
+  let body;
+  try { body = await request.json(); } catch { return jsonError('不正なリクエスト', 400); }
+  const mids = Array.isArray(body.mids)
+    ? body.mids.filter(m => typeof m === 'string' && m)
+    : [];
+  const thumbs = {};
+  if (mids.length === 0) return jsonOk({ thumbs });
+
+  const marker = await env.CACHE.get('backfill:image-index:v1');
+  if (marker !== 'done') return jsonOk({ thumbs });
+
+  const CHUNK = 100;
+  for (let i = 0; i < mids.length; i += CHUNK) {
+    const chunk = mids.slice(i, i + CHUNK);
+    const placeholders = chunk.map(() => '?').join(',');
+    const { results } = await env.DB.prepare(
+      `SELECT managed_id, first_image_url, second_image_url
+         FROM product_image_index
+        WHERE managed_id IN (${placeholders})`
+    ).bind(...chunk).all();
+    (results || []).forEach(r => {
+      thumbs[r.managed_id] = { t: r.first_image_url || null, s: r.second_image_url || null };
+    });
+  }
+  return jsonOk({ thumbs });
 }
 
 // backfill 未完の間だけ使う旧経路（KV を商品単位に集約）。backfill 完了で到達しなくなる。
