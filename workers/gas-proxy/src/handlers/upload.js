@@ -385,22 +385,31 @@ async function handleProductImages(request, env) {
   const t0 = Date.now();
   // QW1: 3つのKV読み + backupリストを並列化
   const backupPrefix = `image-backup:${managedId}:`;
-  const [urlsJson, metaJson, saveLogJson, backupList] = await Promise.all([
+  const originalPrefix = `image-original:${managedId}:`;
+  const [urlsJson, metaJson, saveLogJson, backupList, originalList] = await Promise.all([
     env.CACHE.get(`product-images:${managedId}`),
     env.CACHE.get(`photo-meta:${managedId}`),
     env.CACHE.get(`save-log:${managedId}`),
     env.CACHE.list({ prefix: backupPrefix }).catch(() => ({ keys: [] })),
+    env.CACHE.list({ prefix: originalPrefix }).catch(() => ({ keys: [] })),
   ]);
   const kvDur = Date.now() - t0;
   const urls = urlsJson ? JSON.parse(urlsJson) : [];
   const meta = metaJson ? JSON.parse(metaJson) : {};
   const saveLog = saveLogJson ? JSON.parse(saveLogJson) : { count: 0, users: [] };
 
-  const backupUrls = [];
+  // 直前バックアップ（image-backup）と永久保存の真の原画（image-original）の
+  // どちらかがあれば「元に戻す」可能。両者を結合して重複排除。
+  const backupSet = new Set();
   for (const entry of backupList.keys) {
     const url = entry.name.slice(backupPrefix.length);
-    if (urls.includes(url)) backupUrls.push(url);
+    if (urls.includes(url)) backupSet.add(url);
   }
+  for (const entry of originalList.keys) {
+    const url = entry.name.slice(originalPrefix.length);
+    if (urls.includes(url)) backupSet.add(url);
+  }
+  const backupUrls = [...backupSet];
 
   return jsonOk({ managedId, urls, meta, saveLog, backupUrls }, { 'Server-Timing': `kv;dur=${kvDur}, total;dur=${Date.now()-t0}` });
 }
@@ -777,6 +786,17 @@ async function handleUpdateImage(request, env) {
     { expirationTtl: SOFT_DELETE_RETENTION_DAYS * 86400 }
   );
 
+  // 【恒久対応】真の原画（最初に撮影・アップした生写真）を永久保存。
+  // image-backup は7日TTL＋上書き1段分しか保持しないため、複数回の背景置換や
+  // ブランド文字入れを重ねると原画に戻せなくなる。そこで TTL なしの
+  // image-original:{id}:{newUrl} に「真の原画URL」を引き継ぎ続ける。
+  //   - targetUrl に既に原画ポインタがあれば、それをそのまま引き継ぐ
+  //   - 無ければ targetUrl 自身が原画（初回上書き）
+  // この値が指す R2 実体は Cron purge から保護する（sheets-sync.js 参照）。
+  const existingOriginal = await env.CACHE.get(`image-original:${managedId}:${targetUrl}`);
+  const trueOriginal = existingOriginal || targetUrl;
+  await env.CACHE.put(`image-original:${managedId}:${newUrl}`, trueOriginal);
+
   // 上書きで外れた旧版も deleted-image: へ退避（「最近削除した商品・画像」から復元可能。
   // 保持期間後に Cron が R2 を purge するので孤立画像も残さない）
   const oldFileId = targetUrl.split('/').pop().replace(/\.jpg$/i, '');
@@ -816,8 +836,11 @@ async function handleRevertImage(request, env) {
   if (!currentUrl) return jsonError('対象画像URLが必要です', 400);
 
   const backupKey = `image-backup:${managedId}:${currentUrl}`;
-  const oldUrl = await env.CACHE.get(backupKey);
-  if (!oldUrl) return jsonError('バックアップが見つかりません（期限切れの可能性）', 404);
+  const originalKey = `image-original:${managedId}:${currentUrl}`;
+  // まず直前バックアップ（1段戻し）。無ければ永久保存した真の原画にフォールバック。
+  let oldUrl = await env.CACHE.get(backupKey);
+  if (!oldUrl) oldUrl = await env.CACHE.get(originalKey);
+  if (!oldUrl) return jsonError('元に戻せる画像が見つかりません', 404);
 
   const oldR2Key = oldUrl.replace(/^\/images\//, '');
   const oldObj = await env.IMAGES.head(oldR2Key);
@@ -844,6 +867,9 @@ async function handleRevertImage(request, env) {
   await env.IMAGES.delete(currentR2Key);
 
   await env.CACHE.delete(backupKey);
+  // currentUrl はもう商品に存在しないので、その原画ポインタも撤去（孤立防止）。
+  // 復帰した oldUrl 側の image-original は温存し、再度の原画戻しに備える。
+  await env.CACHE.delete(originalKey);
   await invalidateProductCache(env);
   await invalidateListCache(env);
 

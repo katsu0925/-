@@ -99,7 +99,10 @@ function updateRewardsNoFormula(allMonths) {
   var iBE = resolveCol_(['発送日付','発送日'],            'BE');
   var iBF = resolveCol_(['発送者','発送担当'],            'BF');
   var iAP = resolveCol_(['販売日'],                       'AP');
-  var iAV = resolveCol_(['販売価格','売上','販売金額'],   'AV');
+  // K列「利益歩合」は商品管理シートの「利益」を月次合算した値に
+  // K%(rate.K) を掛けて算出する。旧実装は「販売価格(=売上)」を集計していたが
+  // 本来の仕様は利益ベース。fallback 'AV'(=48列) は実シートの利益列と一致。
+  var iAV = resolveCol_(['利益'], 'AV');
   var iAY = resolveCol_(['キャンセル日'],                 'AY');
   var iBH = resolveCol_(['廃棄日'],                       'BH');
   var iBI = resolveCol_(['返品日付','返品日'],            'BI');

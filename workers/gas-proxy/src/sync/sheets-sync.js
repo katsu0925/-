@@ -1206,11 +1206,38 @@ async function cleanupOrphanedImages(env) {
  * /upload/delete はソフトデリート（deleted-product:{id} KV へ退避）になり、
  * R2画像は即削除しない。保持期間（purgeAt）を過ぎた分だけここで実削除する。
  */
+/**
+ * image-original:* の全値（真の原画URL）を R2キー集合として返す。
+ * これらは Cron purge から永久に保護する。KVは増え続けるので cursor 全走査する。
+ */
+async function buildProtectedOriginalKeys_(env) {
+  const protectedKeys = new Set();
+  try {
+    let cursor = undefined;
+    for (let page = 0; page < 100; page++) {
+      const listed = await env.CACHE.list({ prefix: 'image-original:', cursor });
+      for (const e of listed.keys || []) {
+        const v = await env.CACHE.get(e.name);
+        if (v) protectedKeys.add(v.replace(/^\/images\//, '').split('?')[0]);
+      }
+      if (listed.list_complete || !listed.cursor) break;
+      cursor = listed.cursor;
+    }
+  } catch (e) {
+    console.error('[sync] buildProtectedOriginalKeys_ error:', e.message);
+  }
+  return protectedKeys;
+}
+
 async function purgeSoftDeletedProducts(env) {
   try {
     const list = await env.CACHE.list({ prefix: 'deleted-product:' });
     const now = Date.now();
     let purged = 0;
+
+    // 【恒久対応】永久保存の真の原画（image-original の値）が指す R2 実体は
+    // 絶対に purge しない。ここで保護対象キーの集合を一度だけ構築する。
+    const protectedKeys = await buildProtectedOriginalKeys_(env);
 
     for (const entry of list.keys) {
       const json = await env.CACHE.get(entry.name);
@@ -1220,10 +1247,10 @@ async function purgeSoftDeletedProducts(env) {
       // 保持期間内は温存（誤削除の復元用）
       if (typeof trash.purgeAt === 'number' && now < trash.purgeAt) continue;
 
-      // R2画像と image-backup を実削除
+      // R2画像と image-backup を実削除（真の原画として保護中のキーは除く）
       for (const url of trash.urls || []) {
         const r2Key = url.replace(/^\/images\//, '').split('?')[0];
-        await env.IMAGES.delete(r2Key);
+        if (!protectedKeys.has(r2Key)) await env.IMAGES.delete(r2Key);
         await env.CACHE.delete(`image-backup:${trash.managedId}:${url}`);
       }
       await env.CACHE.delete(entry.name);
@@ -1248,7 +1275,8 @@ async function purgeSoftDeletedProducts(env) {
 
       if (stash.url) {
         const r2Key = stash.url.replace(/^\/images\//, '').split('?')[0];
-        await env.IMAGES.delete(r2Key);
+        // 真の原画として保護中の実体は削除しない（上書きで外れた旧版が原画のケース）
+        if (!protectedKeys.has(r2Key)) await env.IMAGES.delete(r2Key);
       }
       await env.CACHE.delete(entry.name);
       purgedImages++;

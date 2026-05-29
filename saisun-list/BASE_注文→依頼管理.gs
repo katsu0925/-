@@ -192,6 +192,11 @@ function syncBaseOrdersToIraiKanri() {
     existingKeys.add(ok + '||' + subKey);
   }
 
+  // 依頼管理_アーカイブ に存在する受付番号は処理完了済み → CRONで再取り込みしない
+  // 注文を処理してアーカイブへ移動すると active「依頼管理」から行が消えるため、
+  // existingKeys（active基準）だけでは完了済み注文を孤立扱いして再挿入してしまう
+  const archiveReceiptSet = buildArchiveReceiptSet_(ss);
+
   const newRows = [];
   const dstColCount = dstHeader.length;
 
@@ -201,6 +206,9 @@ function syncBaseOrdersToIraiKanri() {
 
     const orderRow = orderByKey.get(orderKey);
     if (!orderRow) continue;
+
+    // 依頼管理_アーカイブに存在 = 処理完了済み。CRONによる再取り込みを抑止
+    if (archiveReceiptSet.has(orderKey)) continue;
 
     // --- 注文単位の送料計算 ---
     const baseShippingFee = (idxShipping_Order !== -1) ? (Number(orderRow[idxShipping_Order]) || 0) : 0;
@@ -394,6 +402,8 @@ function auditOrphanBaseOrders() {
       if (k) dstReceiptSet.add(k);
     }
   }
+  // 依頼管理_アーカイブ の受付番号も「存在する」扱いにする（処理完了済み注文）
+  buildArchiveReceiptSet_(ss).forEach(function(k) { dstReceiptSet.add(k); });
 
   // BASE_注文商品をkeyごとにグルーピング
   const items = (itemLastRow >= 2)
@@ -509,6 +519,26 @@ function findAnyCol_(headerMap, candidates) {
 }
 
 // normalizeKey_ はコード.gsで定義済み
+
+// 依頼管理_アーカイブ に記録済みの受付番号セットを返す
+// 処理完了してアーカイブへ移動した注文を CRON が再取り込みするのを防ぐために使用
+function buildArchiveReceiptSet_(ss) {
+  const set = new Set();
+  const sh = ss.getSheetByName('依頼管理_アーカイブ');
+  if (!sh) return set;
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return set;
+  const header = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  const map = buildHeaderMap_(header);
+  const idxReceipt = findAnyCol_(map, ['受付番号', '注文キー', '注文ID']);
+  if (idxReceipt === -1) return set;
+  const vals = sh.getRange(2, idxReceipt + 1, lastRow - 1, 1).getValues();
+  for (let r = 0; r < vals.length; r++) {
+    const k = normalizeKey_(vals[r][0]);
+    if (k) set.add(k);
+  }
+  return set;
+}
 
 function findAppendRowByMainCol_(sheet, col1Based) {
   const last = sheet.getLastRow();

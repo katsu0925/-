@@ -1,0 +1,10237 @@
+{
+  "info": {
+    "description": "Detauri / Toludake clothing keypoint dataset (tops+jacket)",
+    "version": "1.0",
+    "split": "train",
+    "keypoints_per_instance": 10
+  },
+  "licenses": [],
+  "images": [
+    {
+      "id": 6,
+      "file_name": "0006_IMG_1595.jpeg",
+      "width": 768,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 145,
+      "file_name": "0145_IMG_3721.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 64,
+      "file_name": "0064_IMG_2697.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 99,
+      "file_name": "0099_IMG_3065.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 48,
+      "file_name": "0048_IMG_2389.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 116,
+      "file_name": "0116_IMG_3369.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 8,
+      "file_name": "0008_IMG_1615.jpeg",
+      "width": 768,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 159,
+      "file_name": "0159_IMG_3933.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 76,
+      "file_name": "0076_IMG_2815.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 103,
+      "file_name": "0103_IMG_3095.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 58,
+      "file_name": "0058_IMG_2578.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 157,
+      "file_name": "0157_IMG_3918.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 179,
+      "file_name": "0179_IMG_2418.jpeg",
+      "width": 576,
+      "height": 1024,
+      "worker": "かつ",
+      "category_label": "tops"
+    },
+    {
+      "id": 88,
+      "file_name": "0088_IMG_2919.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 143,
+      "file_name": "0143_IMG_3689.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 91,
+      "file_name": "0091_IMG_2942.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 10,
+      "file_name": "0010_IMG_1633.jpeg",
+      "width": 768,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 122,
+      "file_name": "0122_IMG_3438.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 74,
+      "file_name": "0074_IMG_2799.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 50,
+      "file_name": "0050_IMG_2408.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 121,
+      "file_name": "0121_IMG_3426.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 26,
+      "file_name": "0026_IMG_1966.jpeg",
+      "width": 768,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 180,
+      "file_name": "0180_IMG_2419.jpeg",
+      "width": 576,
+      "height": 1024,
+      "worker": "かつ",
+      "category_label": "tops"
+    },
+    {
+      "id": 90,
+      "file_name": "0090_IMG_2935.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "jacket"
+    },
+    {
+      "id": 169,
+      "file_name": "0169_IMG_2408.jpeg",
+      "width": 576,
+      "height": 1024,
+      "worker": "かつ",
+      "category_label": "jacket"
+    },
+    {
+      "id": 158,
+      "file_name": "0158_IMG_3927.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "jacket"
+    },
+    {
+      "id": 119,
+      "file_name": "0119_IMG_3411.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "jacket"
+    },
+    {
+      "id": 109,
+      "file_name": "0109_IMG_3302.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 134,
+      "file_name": "0134_IMG_3593.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 161,
+      "file_name": "0161_IMG_3947.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 168,
+      "file_name": "0168_IMG_2407.jpeg",
+      "width": 576,
+      "height": 1024,
+      "worker": "かつ",
+      "category_label": "jacket"
+    },
+    {
+      "id": 126,
+      "file_name": "0126_IMG_3530.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 28,
+      "file_name": "0028_IMG_1972.jpeg",
+      "width": 768,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 105,
+      "file_name": "0105_IMG_3221.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 93,
+      "file_name": "0093_IMG_2959.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 75,
+      "file_name": "0075_IMG_2809.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 40,
+      "file_name": "0040_IMG_2290.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 101,
+      "file_name": "0101_IMG_3085.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 102,
+      "file_name": "0102_IMG_3092.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 87,
+      "file_name": "0087_IMG_2916.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "jacket"
+    },
+    {
+      "id": 129,
+      "file_name": "0129_IMG_3555.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 112,
+      "file_name": "0112_IMG_3316.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 167,
+      "file_name": "0167_IMG_2406.jpeg",
+      "width": 576,
+      "height": 1024,
+      "worker": "かつ",
+      "category_label": "tops"
+    },
+    {
+      "id": 56,
+      "file_name": "0056_IMG_2576.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 113,
+      "file_name": "0113_IMG_3323.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 152,
+      "file_name": "0152_IMG_3790.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 92,
+      "file_name": "0092_IMG_2952.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 29,
+      "file_name": "0029_IMG_1973.jpeg",
+      "width": 768,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 73,
+      "file_name": "0073_IMG_2783.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 163,
+      "file_name": "0163_IMG_2402.jpeg",
+      "width": 576,
+      "height": 1024,
+      "worker": "かつ",
+      "category_label": "tops"
+    },
+    {
+      "id": 11,
+      "file_name": "0011_IMG_1643.jpeg",
+      "width": 768,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "jacket"
+    },
+    {
+      "id": 156,
+      "file_name": "0156_IMG_3910.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 181,
+      "file_name": "0181_IMG_2420.jpeg",
+      "width": 576,
+      "height": 1024,
+      "worker": "かつ",
+      "category_label": "tops"
+    },
+    {
+      "id": 61,
+      "file_name": "0061_IMG_2584.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 200,
+      "file_name": "0200_IMG_2462.jpeg",
+      "width": 576,
+      "height": 1024,
+      "worker": "かつ",
+      "category_label": "tops"
+    },
+    {
+      "id": 131,
+      "file_name": "0131_IMG_3569.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 115,
+      "file_name": "0115_IMG_3357.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 186,
+      "file_name": "0186_IMG_2448.jpeg",
+      "width": 576,
+      "height": 1024,
+      "worker": "かつ",
+      "category_label": "tops"
+    },
+    {
+      "id": 110,
+      "file_name": "0110_IMG_3303.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 49,
+      "file_name": "0049_IMG_2399.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 146,
+      "file_name": "0146_IMG_3728.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 36,
+      "file_name": "0036_IMG_1993.jpeg",
+      "width": 768,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 166,
+      "file_name": "0166_IMG_2405.jpeg",
+      "width": 576,
+      "height": 1024,
+      "worker": "かつ",
+      "category_label": "tops"
+    },
+    {
+      "id": 17,
+      "file_name": "0017_IMG_1714.jpeg",
+      "width": 768,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 54,
+      "file_name": "0054_IMG_2573.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 187,
+      "file_name": "0187_IMG_2449.jpeg",
+      "width": 576,
+      "height": 1024,
+      "worker": "かつ",
+      "category_label": "tops"
+    },
+    {
+      "id": 148,
+      "file_name": "0148_IMG_3761.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 69,
+      "file_name": "0069_IMG_2742.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 35,
+      "file_name": "0035_IMG_1992.jpeg",
+      "width": 768,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 130,
+      "file_name": "0130_IMG_3562.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 108,
+      "file_name": "0108_IMG_3290.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 139,
+      "file_name": "0139_IMG_3645.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 188,
+      "file_name": "0188_IMG_2450.jpeg",
+      "width": 576,
+      "height": 1024,
+      "worker": "かつ",
+      "category_label": "tops"
+    },
+    {
+      "id": 136,
+      "file_name": "0136_IMG_3602.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 149,
+      "file_name": "0149_IMG_3770.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 140,
+      "file_name": "0140_IMG_3658.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 135,
+      "file_name": "0135_IMG_3600.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 142,
+      "file_name": "0142_IMG_3682.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "jacket"
+    },
+    {
+      "id": 47,
+      "file_name": "0047_IMG_2371.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 111,
+      "file_name": "0111_IMG_3309.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 141,
+      "file_name": "0141_IMG_3667.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 183,
+      "file_name": "0183_IMG_2445.jpeg",
+      "width": 576,
+      "height": 1024,
+      "worker": "かつ",
+      "category_label": "tops"
+    },
+    {
+      "id": 117,
+      "file_name": "0117_IMG_3376.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 39,
+      "file_name": "0039_IMG_2158.jpeg",
+      "width": 768,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "jacket"
+    },
+    {
+      "id": 100,
+      "file_name": "0100_IMG_3075.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 68,
+      "file_name": "0068_IMG_2736.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 106,
+      "file_name": "0106_IMG_3229.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 107,
+      "file_name": "0107_IMG_3276.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 57,
+      "file_name": "0057_IMG_2577.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 198,
+      "file_name": "0198_IMG_2460.jpeg",
+      "width": 576,
+      "height": 1024,
+      "worker": "かつ",
+      "category_label": "tops"
+    },
+    {
+      "id": 18,
+      "file_name": "0018_IMG_1723.jpeg",
+      "width": 768,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "jacket"
+    },
+    {
+      "id": 150,
+      "file_name": "0150_IMG_3771.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 27,
+      "file_name": "0027_IMG_1970.jpeg",
+      "width": 768,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 95,
+      "file_name": "0095_IMG_3036.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 80,
+      "file_name": "0080_IMG_2853.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 120,
+      "file_name": "0120_IMG_3419.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "jacket"
+    },
+    {
+      "id": 12,
+      "file_name": "0012_IMG_1658.jpeg",
+      "width": 768,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "jacket"
+    },
+    {
+      "id": 133,
+      "file_name": "0133_IMG_3587.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 51,
+      "file_name": "0051_IMG_2417.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "jacket"
+    },
+    {
+      "id": 104,
+      "file_name": "0104_IMG_3220.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 66,
+      "file_name": "0066_IMG_2719.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 171,
+      "file_name": "0171_IMG_2410.jpeg",
+      "width": 576,
+      "height": 1024,
+      "worker": "かつ",
+      "category_label": "tops"
+    },
+    {
+      "id": 67,
+      "file_name": "0067_IMG_2729.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 24,
+      "file_name": "0024_IMG_1944.jpeg",
+      "width": 768,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 70,
+      "file_name": "0070_IMG_2756.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "jacket"
+    },
+    {
+      "id": 19,
+      "file_name": "0019_IMG_1732.jpeg",
+      "width": 768,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "jacket"
+    },
+    {
+      "id": 25,
+      "file_name": "0025_IMG_1946.jpeg",
+      "width": 768,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 65,
+      "file_name": "0065_IMG_2707.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 127,
+      "file_name": "0127_IMG_3538.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 153,
+      "file_name": "0153_IMG_3800.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 45,
+      "file_name": "0045_IMG_2354.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 34,
+      "file_name": "0034_IMG_1990.jpeg",
+      "width": 768,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 165,
+      "file_name": "0165_IMG_2404.jpeg",
+      "width": 576,
+      "height": 1024,
+      "worker": "かつ",
+      "category_label": "jacket"
+    },
+    {
+      "id": 114,
+      "file_name": "0114_IMG_3330.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 184,
+      "file_name": "0184_IMG_2446.jpeg",
+      "width": 576,
+      "height": 1024,
+      "worker": "かつ",
+      "category_label": "tops"
+    },
+    {
+      "id": 60,
+      "file_name": "0060_IMG_2582.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 7,
+      "file_name": "0007_IMG_1605.jpeg",
+      "width": 768,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 98,
+      "file_name": "0098_IMG_3062.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 144,
+      "file_name": "0144_IMG_3708.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 78,
+      "file_name": "0078_IMG_2841.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 137,
+      "file_name": "0137_IMG_3621.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 72,
+      "file_name": "0072_IMG_2778.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 199,
+      "file_name": "0199_IMG_2461.jpeg",
+      "width": 576,
+      "height": 1024,
+      "worker": "かつ",
+      "category_label": "tops"
+    },
+    {
+      "id": 162,
+      "file_name": "0162_IMG_2401.jpeg",
+      "width": 576,
+      "height": 1024,
+      "worker": "かつ",
+      "category_label": "tops"
+    },
+    {
+      "id": 86,
+      "file_name": "0086_IMG_2907.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 77,
+      "file_name": "0077_IMG_2822.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "jacket"
+    },
+    {
+      "id": 38,
+      "file_name": "0038_IMG_2157.jpeg",
+      "width": 768,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "jacket"
+    },
+    {
+      "id": 15,
+      "file_name": "0015_IMG_1700.jpeg",
+      "width": 768,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "jacket"
+    },
+    {
+      "id": 16,
+      "file_name": "0016_IMG_1707.jpeg",
+      "width": 768,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 138,
+      "file_name": "0138_IMG_3637.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 37,
+      "file_name": "0037_IMG_1996.jpeg",
+      "width": 768,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 172,
+      "file_name": "0172_IMG_2411.jpeg",
+      "width": 576,
+      "height": 1024,
+      "worker": "かつ",
+      "category_label": "tops"
+    },
+    {
+      "id": 44,
+      "file_name": "0044_IMG_2343.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 55,
+      "file_name": "0055_IMG_2575.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 79,
+      "file_name": "0079_IMG_2848.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 89,
+      "file_name": "0089_IMG_2927.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "jacket"
+    },
+    {
+      "id": 97,
+      "file_name": "0097_IMG_3055.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    },
+    {
+      "id": 13,
+      "file_name": "0013_IMG_1668.jpeg",
+      "width": 768,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "jacket"
+    },
+    {
+      "id": 46,
+      "file_name": "0046_IMG_2361.jpeg",
+      "width": 1024,
+      "height": 1024,
+      "worker": "村上絵梨香",
+      "category_label": "tops"
+    }
+  ],
+  "annotations": [
+    {
+      "id": 1,
+      "image_id": 6,
+      "category_id": 1,
+      "keypoints": [
+        287.0,
+        300.0,
+        2,
+        175.0,
+        293.0,
+        2,
+        397.0,
+        295.0,
+        2,
+        165.0,
+        409.0,
+        2,
+        396.0,
+        408.0,
+        2,
+        25.0,
+        531.0,
+        2,
+        548.0,
+        537.0,
+        2,
+        150.0,
+        605.0,
+        2,
+        408.0,
+        611.0,
+        2,
+        284.0,
+        613.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        17.0,
+        285.0,
+        539.0,
+        336.0
+      ],
+      "area": 181104.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 559,
+          "y": 431
+        },
+        {
+          "x": 695,
+          "y": 434
+        },
+        {
+          "x": 556,
+          "y": 618
+        },
+        {
+          "x": 694,
+          "y": 623
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "image_id": 145,
+      "category_id": 1,
+      "keypoints": [
+        503.0,
+        312.0,
+        2,
+        365.0,
+        333.0,
+        2,
+        645.0,
+        331.0,
+        2,
+        343.0,
+        447.0,
+        2,
+        662.0,
+        447.0,
+        2,
+        81.0,
+        484.0,
+        2,
+        931.0,
+        420.0,
+        2,
+        396.0,
+        657.0,
+        2,
+        636.0,
+        659.0,
+        2,
+        504.0,
+        657.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        73.0,
+        304.0,
+        866.0,
+        363.0
+      ],
+      "area": 314358.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 746,
+          "y": 494
+        },
+        {
+          "x": 876,
+          "y": 492
+        },
+        {
+          "x": 747,
+          "y": 675
+        },
+        {
+          "x": 876,
+          "y": 674
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "image_id": 64,
+      "category_id": 1,
+      "keypoints": [
+        394.0,
+        215.0,
+        2,
+        236.0,
+        247.0,
+        2,
+        547.0,
+        247.0,
+        2,
+        211.0,
+        398.0,
+        2,
+        552.0,
+        398.0,
+        2,
+        39.0,
+        458.0,
+        2,
+        724.0,
+        470.0,
+        2,
+        192.0,
+        656.0,
+        2,
+        583.0,
+        654.0,
+        2,
+        388.0,
+        656.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        31.0,
+        207.0,
+        701.0,
+        457.0
+      ],
+      "area": 320357.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 762,
+          "y": 396
+        },
+        {
+          "x": 927,
+          "y": 390
+        },
+        {
+          "x": 770,
+          "y": 629
+        },
+        {
+          "x": 935,
+          "y": 624
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "image_id": 99,
+      "category_id": 1,
+      "keypoints": [
+        471.0,
+        223.0,
+        2,
+        305.0,
+        264.0,
+        2,
+        630.0,
+        260.0,
+        2,
+        287.0,
+        426.0,
+        2,
+        680.0,
+        428.0,
+        2,
+        14.0,
+        551.0,
+        2,
+        997.0,
+        444.0,
+        2,
+        278.0,
+        708.0,
+        2,
+        710.0,
+        706.0,
+        2,
+        472.0,
+        708.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        6.0,
+        215.0,
+        999.0,
+        501.0
+      ],
+      "area": 500499.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 832,
+          "y": 554
+        },
+        {
+          "x": 997,
+          "y": 549
+        },
+        {
+          "x": 840,
+          "y": 785
+        },
+        {
+          "x": 1006,
+          "y": 781
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "image_id": 48,
+      "category_id": 1,
+      "keypoints": [
+        467.0,
+        204.0,
+        2,
+        320.0,
+        223.0,
+        2,
+        611.0,
+        223.0,
+        2,
+        295.0,
+        359.0,
+        2,
+        624.0,
+        356.0,
+        2,
+        25.0,
+        264.0,
+        2,
+        902.0,
+        265.0,
+        2,
+        310.0,
+        605.0,
+        2,
+        584.0,
+        604.0,
+        2,
+        468.0,
+        586.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        17.0,
+        196.0,
+        893.0,
+        417.0
+      ],
+      "area": 372381.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 804,
+          "y": 452
+        },
+        {
+          "x": 933,
+          "y": 456
+        },
+        {
+          "x": 801,
+          "y": 634
+        },
+        {
+          "x": 933,
+          "y": 636
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "image_id": 116,
+      "category_id": 1,
+      "keypoints": [
+        437.0,
+        213.0,
+        2,
+        290.0,
+        227.0,
+        2,
+        584.0,
+        225.0,
+        2,
+        286.0,
+        350.0,
+        2,
+        577.0,
+        353.0,
+        2,
+        114.0,
+        463.0,
+        2,
+        765.0,
+        453.0,
+        2,
+        296.0,
+        599.0,
+        2,
+        585.0,
+        596.0,
+        2,
+        440.0,
+        598.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        106.0,
+        205.0,
+        667.0,
+        402.0
+      ],
+      "area": 268134.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 747,
+          "y": 491
+        },
+        {
+          "x": 910,
+          "y": 490
+        },
+        {
+          "x": 750,
+          "y": 725
+        },
+        {
+          "x": 915,
+          "y": 722
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "image_id": 8,
+      "category_id": 1,
+      "keypoints": [
+        287.0,
+        330.0,
+        2,
+        202.0,
+        342.0,
+        2,
+        384.0,
+        339.0,
+        2,
+        191.0,
+        418.0,
+        2,
+        397.0,
+        419.0,
+        2,
+        22.0,
+        534.0,
+        2,
+        576.0,
+        515.0,
+        2,
+        212.0,
+        596.0,
+        2,
+        381.0,
+        596.0,
+        2,
+        289.0,
+        581.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        14.0,
+        322.0,
+        570.0,
+        282.0
+      ],
+      "area": 160740.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 585,
+          "y": 471
+        },
+        {
+          "x": 698,
+          "y": 470
+        },
+        {
+          "x": 587,
+          "y": 628
+        },
+        {
+          "x": 702,
+          "y": 628
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "image_id": 159,
+      "category_id": 1,
+      "keypoints": [
+        503.0,
+        262.0,
+        2,
+        327.0,
+        294.0,
+        2,
+        695.0,
+        296.0,
+        2,
+        318.0,
+        424.0,
+        2,
+        690.0,
+        426.0,
+        2,
+        24.0,
+        427.0,
+        2,
+        1003.0,
+        370.0,
+        2,
+        362.0,
+        636.0,
+        2,
+        636.0,
+        636.0,
+        2,
+        505.0,
+        649.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        16.0,
+        254.0,
+        995.0,
+        403.0
+      ],
+      "area": 400985.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 757,
+          "y": 510
+        },
+        {
+          "x": 907,
+          "y": 510
+        },
+        {
+          "x": 759,
+          "y": 722
+        },
+        {
+          "x": 909,
+          "y": 720
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "image_id": 76,
+      "category_id": 1,
+      "keypoints": [
+        413.0,
+        159.0,
+        2,
+        264.0,
+        188.0,
+        2,
+        562.0,
+        185.0,
+        2,
+        262.0,
+        361.0,
+        2,
+        551.0,
+        360.0,
+        2,
+        44.0,
+        570.0,
+        2,
+        791.0,
+        567.0,
+        2,
+        270.0,
+        560.0,
+        2,
+        573.0,
+        552.0,
+        2,
+        417.0,
+        536.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        36.0,
+        151.0,
+        763.0,
+        427.0
+      ],
+      "area": 325801.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 809,
+          "y": 534
+        },
+        {
+          "x": 977,
+          "y": 540
+        },
+        {
+          "x": 801,
+          "y": 768
+        },
+        {
+          "x": 970,
+          "y": 772
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "image_id": 103,
+      "category_id": 1,
+      "keypoints": [
+        396.0,
+        246.0,
+        2,
+        259.0,
+        263.0,
+        2,
+        539.0,
+        262.0,
+        2,
+        262.0,
+        414.0,
+        2,
+        532.0,
+        414.0,
+        2,
+        63.0,
+        478.0,
+        2,
+        752.0,
+        440.0,
+        2,
+        266.0,
+        601.0,
+        2,
+        546.0,
+        602.0,
+        2,
+        398.0,
+        595.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        55.0,
+        238.0,
+        705.0,
+        372.0
+      ],
+      "area": 262260.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 751,
+          "y": 464
+        },
+        {
+          "x": 908,
+          "y": 464
+        },
+        {
+          "x": 752,
+          "y": 685
+        },
+        {
+          "x": 909,
+          "y": 684
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "image_id": 58,
+      "category_id": 1,
+      "keypoints": [
+        331.0,
+        151.0,
+        2,
+        185.0,
+        145.0,
+        2,
+        471.0,
+        141.0,
+        2,
+        162.0,
+        322.0,
+        2,
+        509.0,
+        318.0,
+        2,
+        69.0,
+        230.0,
+        2,
+        596.0,
+        205.0,
+        2,
+        175.0,
+        653.0,
+        2,
+        512.0,
+        642.0,
+        2,
+        336.0,
+        648.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        61.0,
+        133.0,
+        543.0,
+        528.0
+      ],
+      "area": 286704.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 803,
+          "y": 363
+        },
+        {
+          "x": 1000,
+          "y": 369
+        },
+        {
+          "x": 795,
+          "y": 641
+        },
+        {
+          "x": 993,
+          "y": 646
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "image_id": 157,
+      "category_id": 1,
+      "keypoints": [
+        453.0,
+        97.0,
+        2,
+        285.0,
+        136.0,
+        2,
+        606.0,
+        133.0,
+        2,
+        304.0,
+        272.0,
+        2,
+        583.0,
+        272.0,
+        2,
+        64.0,
+        523.0,
+        2,
+        875.0,
+        481.0,
+        2,
+        319.0,
+        563.0,
+        2,
+        605.0,
+        561.0,
+        2,
+        459.0,
+        545.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        56.0,
+        89.0,
+        827.0,
+        482.0
+      ],
+      "area": 398614.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 735,
+          "y": 575
+        },
+        {
+          "x": 895,
+          "y": 573
+        },
+        {
+          "x": 738,
+          "y": 800
+        },
+        {
+          "x": 899,
+          "y": 798
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "image_id": 179,
+      "category_id": 1,
+      "keypoints": [
+        293.0,
+        385.0,
+        2,
+        181.0,
+        402.0,
+        2,
+        408.0,
+        406.0,
+        2,
+        194.0,
+        471.0,
+        2,
+        385.0,
+        475.0,
+        2,
+        21.0,
+        460.0,
+        2,
+        562.0,
+        477.0,
+        2,
+        202.0,
+        594.0,
+        2,
+        364.0,
+        592.0,
+        2,
+        283.0,
+        588.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        13.0,
+        377.0,
+        557.0,
+        225.0
+      ],
+      "area": 125325.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 392,
+          "y": 500
+        },
+        {
+          "x": 475,
+          "y": 507
+        },
+        {
+          "x": 384,
+          "y": 616
+        },
+        {
+          "x": 466,
+          "y": 624
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "image_id": 88,
+      "category_id": 1,
+      "keypoints": [
+        422.0,
+        264.0,
+        2,
+        256.0,
+        259.0,
+        2,
+        582.0,
+        261.0,
+        2,
+        210.0,
+        457.0,
+        2,
+        641.0,
+        458.0,
+        2,
+        21.0,
+        390.0,
+        2,
+        810.0,
+        412.0,
+        2,
+        189.0,
+        675.0,
+        2,
+        643.0,
+        681.0,
+        2,
+        423.0,
+        673.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        13.0,
+        251.0,
+        805.0,
+        438.0
+      ],
+      "area": 352590.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 783,
+          "y": 499
+        },
+        {
+          "x": 952,
+          "y": 502
+        },
+        {
+          "x": 777,
+          "y": 735
+        },
+        {
+          "x": 944,
+          "y": 739
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "image_id": 143,
+      "category_id": 1,
+      "keypoints": [
+        423.0,
+        222.0,
+        2,
+        283.0,
+        252.0,
+        2,
+        560.0,
+        250.0,
+        2,
+        307.0,
+        392.0,
+        2,
+        560.0,
+        393.0,
+        2,
+        65.0,
+        601.0,
+        2,
+        827.0,
+        550.0,
+        2,
+        304.0,
+        622.0,
+        2,
+        592.0,
+        601.0,
+        2,
+        425.0,
+        622.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        57.0,
+        214.0,
+        778.0,
+        416.0
+      ],
+      "area": 323648.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 840,
+          "y": 481
+        },
+        {
+          "x": 996,
+          "y": 477
+        },
+        {
+          "x": 845,
+          "y": 701
+        },
+        {
+          "x": 1000,
+          "y": 697
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "image_id": 91,
+      "category_id": 1,
+      "keypoints": [
+        391.0,
+        203.0,
+        2,
+        256.0,
+        237.0,
+        2,
+        518.0,
+        235.0,
+        2,
+        260.0,
+        370.0,
+        2,
+        539.0,
+        367.0,
+        2,
+        11.0,
+        456.0,
+        2,
+        800.0,
+        422.0,
+        2,
+        227.0,
+        644.0,
+        2,
+        569.0,
+        647.0,
+        2,
+        395.0,
+        623.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        3.0,
+        195.0,
+        805.0,
+        460.0
+      ],
+      "area": 370300.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 755,
+          "y": 518
+        },
+        {
+          "x": 895,
+          "y": 515
+        },
+        {
+          "x": 759,
+          "y": 710
+        },
+        {
+          "x": 898,
+          "y": 708
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "image_id": 10,
+      "category_id": 1,
+      "keypoints": [
+        320.0,
+        319.0,
+        2,
+        206.0,
+        307.0,
+        2,
+        446.0,
+        307.0,
+        2,
+        221.0,
+        381.0,
+        2,
+        422.0,
+        380.0,
+        2,
+        21.0,
+        459.0,
+        2,
+        614.0,
+        420.0,
+        2,
+        230.0,
+        544.0,
+        2,
+        389.0,
+        546.0,
+        2,
+        319.0,
+        536.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        13.0,
+        299.0,
+        609.0,
+        255.0
+      ],
+      "area": 155295.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 638,
+          "y": 437
+        },
+        {
+          "x": 734,
+          "y": 438
+        },
+        {
+          "x": 635,
+          "y": 571
+        },
+        {
+          "x": 735,
+          "y": 572
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "image_id": 122,
+      "category_id": 1,
+      "keypoints": [
+        501.0,
+        174.0,
+        2,
+        306.0,
+        212.0,
+        2,
+        688.0,
+        212.0,
+        2,
+        318.0,
+        374.0,
+        2,
+        686.0,
+        372.0,
+        2,
+        11.0,
+        392.0,
+        2,
+        1002.0,
+        379.0,
+        2,
+        357.0,
+        608.0,
+        2,
+        656.0,
+        608.0,
+        2,
+        503.0,
+        589.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        3.0,
+        166.0,
+        1007.0,
+        450.0
+      ],
+      "area": 453150.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 809,
+          "y": 542
+        },
+        {
+          "x": 935,
+          "y": 541
+        },
+        {
+          "x": 809,
+          "y": 718
+        },
+        {
+          "x": 935,
+          "y": 717
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "image_id": 74,
+      "category_id": 1,
+      "keypoints": [
+        361.0,
+        198.0,
+        2,
+        190.0,
+        250.0,
+        2,
+        537.0,
+        248.0,
+        2,
+        194.0,
+        414.0,
+        2,
+        555.0,
+        413.0,
+        2,
+        64.0,
+        349.0,
+        2,
+        686.0,
+        332.0,
+        2,
+        171.0,
+        695.0,
+        2,
+        580.0,
+        692.0,
+        2,
+        368.0,
+        690.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        56.0,
+        190.0,
+        638.0,
+        513.0
+      ],
+      "area": 327294.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 750,
+          "y": 536
+        },
+        {
+          "x": 907,
+          "y": 538
+        },
+        {
+          "x": 750,
+          "y": 752
+        },
+        {
+          "x": 905,
+          "y": 755
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "image_id": 50,
+      "category_id": 1,
+      "keypoints": [
+        474.0,
+        216.0,
+        2,
+        353.0,
+        265.0,
+        2,
+        598.0,
+        264.0,
+        2,
+        330.0,
+        377.0,
+        2,
+        615.0,
+        379.0,
+        2,
+        65.0,
+        441.0,
+        2,
+        897.0,
+        425.0,
+        2,
+        373.0,
+        590.0,
+        2,
+        573.0,
+        592.0,
+        2,
+        475.0,
+        579.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        57.0,
+        208.0,
+        848.0,
+        392.0
+      ],
+      "area": 332416.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 800,
+          "y": 530
+        },
+        {
+          "x": 938,
+          "y": 533
+        },
+        {
+          "x": 796,
+          "y": 721
+        },
+        {
+          "x": 937,
+          "y": 726
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "image_id": 121,
+      "category_id": 1,
+      "keypoints": [
+        437.0,
+        220.0,
+        2,
+        267.0,
+        261.0,
+        2,
+        603.0,
+        259.0,
+        2,
+        287.0,
+        375.0,
+        2,
+        591.0,
+        376.0,
+        2,
+        61.0,
+        427.0,
+        2,
+        816.0,
+        425.0,
+        2,
+        256.0,
+        608.0,
+        2,
+        652.0,
+        621.0,
+        2,
+        439.0,
+        691.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        53.0,
+        212.0,
+        771.0,
+        487.0
+      ],
+      "area": 375477.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 811,
+          "y": 507
+        },
+        {
+          "x": 942,
+          "y": 507
+        },
+        {
+          "x": 814,
+          "y": 689
+        },
+        {
+          "x": 944,
+          "y": 688
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "image_id": 26,
+      "category_id": 1,
+      "keypoints": [
+        298.0,
+        327.0,
+        2,
+        156.0,
+        372.0,
+        2,
+        444.0,
+        370.0,
+        2,
+        177.0,
+        438.0,
+        2,
+        420.0,
+        436.0,
+        2,
+        26.0,
+        497.0,
+        2,
+        579.0,
+        495.0,
+        2,
+        163.0,
+        554.0,
+        2,
+        433.0,
+        558.0,
+        2,
+        298.0,
+        564.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        18.0,
+        319.0,
+        569.0,
+        253.0
+      ],
+      "area": 143957.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 600,
+          "y": 424
+        },
+        {
+          "x": 703,
+          "y": 422
+        },
+        {
+          "x": 601,
+          "y": 566
+        },
+        {
+          "x": 706,
+          "y": 564
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "image_id": 180,
+      "category_id": 1,
+      "keypoints": [
+        277.0,
+        353.0,
+        2,
+        183.0,
+        377.0,
+        2,
+        381.0,
+        378.0,
+        2,
+        189.0,
+        453.0,
+        2,
+        375.0,
+        450.0,
+        2,
+        28.0,
+        496.0,
+        2,
+        547.0,
+        463.0,
+        2,
+        188.0,
+        581.0,
+        2,
+        366.0,
+        579.0,
+        2,
+        278.0,
+        572.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        20.0,
+        345.0,
+        535.0,
+        244.0
+      ],
+      "area": 130540.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 385,
+          "y": 490
+        },
+        {
+          "x": 461,
+          "y": 494
+        },
+        {
+          "x": 377,
+          "y": 599
+        },
+        {
+          "x": 456,
+          "y": 604
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "image_id": 90,
+      "category_id": 1,
+      "keypoints": [
+        444.0,
+        230.0,
+        2,
+        282.0,
+        248.0,
+        2,
+        608.0,
+        249.0,
+        2,
+        258.0,
+        422.0,
+        2,
+        600.0,
+        424.0,
+        2,
+        31.0,
+        509.0,
+        2,
+        814.0,
+        562.0,
+        2,
+        271.0,
+        686.0,
+        2,
+        572.0,
+        697.0,
+        2,
+        446.0,
+        682.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        23.0,
+        222.0,
+        799.0,
+        483.0
+      ],
+      "area": 385917.0,
+      "iscrowd": 0,
+      "category_label": "jacket",
+      "a4_corners": [
+        {
+          "x": 817,
+          "y": 472
+        },
+        {
+          "x": 979,
+          "y": 475
+        },
+        {
+          "x": 811,
+          "y": 696
+        },
+        {
+          "x": 973,
+          "y": 699
+        }
+      ]
+    },
+    {
+      "id": 25,
+      "image_id": 169,
+      "category_id": 1,
+      "keypoints": [
+        280.0,
+        306.0,
+        2,
+        212.0,
+        311.0,
+        2,
+        346.0,
+        315.0,
+        2,
+        205.0,
+        398.0,
+        2,
+        353.0,
+        403.0,
+        2,
+        29.0,
+        530.0,
+        2,
+        548.0,
+        521.0,
+        2,
+        198.0,
+        553.0,
+        2,
+        346.0,
+        557.0,
+        2,
+        273.0,
+        556.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        21.0,
+        298.0,
+        535.0,
+        267.0
+      ],
+      "area": 142845.0,
+      "iscrowd": 0,
+      "category_label": "jacket",
+      "a4_corners": [
+        {
+          "x": 373,
+          "y": 483
+        },
+        {
+          "x": 466,
+          "y": 498
+        },
+        {
+          "x": 355,
+          "y": 614
+        },
+        {
+          "x": 446,
+          "y": 626
+        }
+      ]
+    },
+    {
+      "id": 26,
+      "image_id": 158,
+      "category_id": 1,
+      "keypoints": [
+        466.0,
+        198.0,
+        2,
+        323.0,
+        223.0,
+        2,
+        608.0,
+        226.0,
+        2,
+        299.0,
+        383.0,
+        2,
+        615.0,
+        380.0,
+        2,
+        34.0,
+        545.0,
+        2,
+        920.0,
+        507.0,
+        2,
+        281.0,
+        575.0,
+        2,
+        623.0,
+        590.0,
+        2,
+        462.0,
+        571.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        26.0,
+        190.0,
+        902.0,
+        408.0
+      ],
+      "area": 368016.0,
+      "iscrowd": 0,
+      "category_label": "jacket",
+      "a4_corners": [
+        {
+          "x": 698,
+          "y": 582
+        },
+        {
+          "x": 861,
+          "y": 581
+        },
+        {
+          "x": 702,
+          "y": 807
+        },
+        {
+          "x": 864,
+          "y": 807
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "image_id": 119,
+      "category_id": 1,
+      "keypoints": [
+        487.0,
+        123.0,
+        2,
+        299.0,
+        199.0,
+        2,
+        686.0,
+        202.0,
+        2,
+        313.0,
+        376.0,
+        2,
+        668.0,
+        373.0,
+        2,
+        54.0,
+        459.0,
+        2,
+        910.0,
+        483.0,
+        2,
+        321.0,
+        609.0,
+        2,
+        661.0,
+        614.0,
+        2,
+        489.0,
+        617.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        46.0,
+        115.0,
+        872.0,
+        510.0
+      ],
+      "area": 444720.0,
+      "iscrowd": 0,
+      "category_label": "jacket",
+      "a4_corners": [
+        {
+          "x": 829,
+          "y": 580
+        },
+        {
+          "x": 986,
+          "y": 578
+        },
+        {
+          "x": 833,
+          "y": 801
+        },
+        {
+          "x": 991,
+          "y": 801
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "image_id": 109,
+      "category_id": 1,
+      "keypoints": [
+        432.0,
+        296.0,
+        2,
+        285.0,
+        305.0,
+        2,
+        578.0,
+        302.0,
+        2,
+        270.0,
+        435.0,
+        2,
+        578.0,
+        432.0,
+        2,
+        45.0,
+        643.0,
+        2,
+        780.0,
+        640.0,
+        2,
+        263.0,
+        655.0,
+        2,
+        595.0,
+        657.0,
+        2,
+        436.0,
+        651.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        37.0,
+        288.0,
+        751.0,
+        377.0
+      ],
+      "area": 283127.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 832,
+          "y": 550
+        },
+        {
+          "x": 982,
+          "y": 548
+        },
+        {
+          "x": 837,
+          "y": 770
+        },
+        {
+          "x": 992,
+          "y": 766
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "image_id": 134,
+      "category_id": 1,
+      "keypoints": [
+        402.0,
+        124.0,
+        2,
+        224.0,
+        146.0,
+        2,
+        572.0,
+        148.0,
+        2,
+        198.0,
+        331.0,
+        2,
+        598.0,
+        328.0,
+        2,
+        55.0,
+        254.0,
+        2,
+        740.0,
+        241.0,
+        2,
+        212.0,
+        668.0,
+        2,
+        609.0,
+        654.0,
+        2,
+        409.0,
+        656.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        47.0,
+        116.0,
+        701.0,
+        560.0
+      ],
+      "area": 392560.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 821,
+          "y": 430
+        },
+        {
+          "x": 984,
+          "y": 428
+        },
+        {
+          "x": 823,
+          "y": 661
+        },
+        {
+          "x": 986,
+          "y": 658
+        }
+      ]
+    },
+    {
+      "id": 30,
+      "image_id": 161,
+      "category_id": 1,
+      "keypoints": [
+        454.0,
+        264.0,
+        2,
+        329.0,
+        273.0,
+        2,
+        591.0,
+        270.0,
+        2,
+        321.0,
+        398.0,
+        2,
+        598.0,
+        394.0,
+        2,
+        61.0,
+        534.0,
+        2,
+        879.0,
+        465.0,
+        2,
+        374.0,
+        617.0,
+        2,
+        564.0,
+        614.0,
+        2,
+        457.0,
+        597.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        53.0,
+        256.0,
+        834.0,
+        369.0
+      ],
+      "area": 307746.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 728,
+          "y": 522
+        },
+        {
+          "x": 883,
+          "y": 523
+        },
+        {
+          "x": 731,
+          "y": 742
+        },
+        {
+          "x": 886,
+          "y": 741
+        }
+      ]
+    },
+    {
+      "id": 31,
+      "image_id": 168,
+      "category_id": 1,
+      "keypoints": [
+        272.0,
+        342.0,
+        2,
+        190.0,
+        356.0,
+        2,
+        358.0,
+        354.0,
+        2,
+        185.0,
+        447.0,
+        2,
+        366.0,
+        444.0,
+        2,
+        33.0,
+        491.0,
+        2,
+        505.0,
+        488.0,
+        2,
+        175.0,
+        594.0,
+        2,
+        375.0,
+        586.0,
+        2,
+        276.0,
+        589.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        25.0,
+        334.0,
+        488.0,
+        268.0
+      ],
+      "area": 130784.0,
+      "iscrowd": 0,
+      "category_label": "jacket",
+      "a4_corners": [
+        {
+          "x": 383,
+          "y": 512
+        },
+        {
+          "x": 462,
+          "y": 514
+        },
+        {
+          "x": 383,
+          "y": 623
+        },
+        {
+          "x": 458,
+          "y": 622
+        }
+      ]
+    },
+    {
+      "id": 32,
+      "image_id": 126,
+      "category_id": 1,
+      "keypoints": [
+        387.0,
+        139.0,
+        2,
+        223.0,
+        153.0,
+        2,
+        541.0,
+        151.0,
+        2,
+        223.0,
+        316.0,
+        2,
+        544.0,
+        318.0,
+        2,
+        148.0,
+        235.0,
+        2,
+        620.0,
+        225.0,
+        2,
+        221.0,
+        588.0,
+        2,
+        548.0,
+        589.0,
+        2,
+        389.0,
+        599.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        140.0,
+        131.0,
+        488.0,
+        476.0
+      ],
+      "area": 232288.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 660,
+          "y": 507
+        },
+        {
+          "x": 855,
+          "y": 504
+        },
+        {
+          "x": 665,
+          "y": 779
+        },
+        {
+          "x": 859,
+          "y": 777
+        }
+      ]
+    },
+    {
+      "id": 33,
+      "image_id": 28,
+      "category_id": 1,
+      "keypoints": [
+        273.0,
+        225.0,
+        2,
+        181.0,
+        234.0,
+        2,
+        363.0,
+        231.0,
+        2,
+        191.0,
+        330.0,
+        2,
+        353.0,
+        329.0,
+        2,
+        57.0,
+        531.0,
+        2,
+        519.0,
+        499.0,
+        2,
+        201.0,
+        501.0,
+        2,
+        346.0,
+        494.0,
+        2,
+        272.0,
+        494.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        49.0,
+        217.0,
+        478.0,
+        322.0
+      ],
+      "area": 153916.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 602,
+          "y": 343
+        },
+        {
+          "x": 727,
+          "y": 339
+        },
+        {
+          "x": 605,
+          "y": 518
+        },
+        {
+          "x": 731,
+          "y": 514
+        }
+      ]
+    },
+    {
+      "id": 34,
+      "image_id": 105,
+      "category_id": 1,
+      "keypoints": [
+        390.0,
+        219.0,
+        2,
+        173.0,
+        253.0,
+        2,
+        615.0,
+        253.0,
+        2,
+        165.0,
+        447.0,
+        2,
+        589.0,
+        448.0,
+        2,
+        22.0,
+        352.0,
+        2,
+        763.0,
+        370.0,
+        2,
+        139.0,
+        808.0,
+        2,
+        603.0,
+        811.0,
+        2,
+        389.0,
+        818.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        14.0,
+        211.0,
+        757.0,
+        615.0
+      ],
+      "area": 465555.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 700,
+          "y": 497
+        },
+        {
+          "x": 900,
+          "y": 494
+        },
+        {
+          "x": 707,
+          "y": 774
+        },
+        {
+          "x": 908,
+          "y": 772
+        }
+      ]
+    },
+    {
+      "id": 35,
+      "image_id": 93,
+      "category_id": 1,
+      "keypoints": [
+        386.0,
+        200.0,
+        2,
+        117.0,
+        249.0,
+        2,
+        640.0,
+        248.0,
+        2,
+        146.0,
+        382.0,
+        2,
+        611.0,
+        386.0,
+        2,
+        148.0,
+        384.0,
+        2,
+        615.0,
+        386.0,
+        2,
+        177.0,
+        781.0,
+        2,
+        575.0,
+        781.0,
+        2,
+        385.0,
+        776.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        109.0,
+        192.0,
+        539.0,
+        597.0
+      ],
+      "area": 321783.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 724,
+          "y": 509
+        },
+        {
+          "x": 899,
+          "y": 508
+        },
+        {
+          "x": 724,
+          "y": 752
+        },
+        {
+          "x": 898,
+          "y": 752
+        }
+      ]
+    },
+    {
+      "id": 36,
+      "image_id": 75,
+      "category_id": 1,
+      "keypoints": [
+        407.0,
+        145.0,
+        2,
+        284.0,
+        167.0,
+        2,
+        530.0,
+        165.0,
+        2,
+        267.0,
+        345.0,
+        2,
+        549.0,
+        344.0,
+        2,
+        59.0,
+        499.0,
+        2,
+        771.0,
+        484.0,
+        2,
+        262.0,
+        615.0,
+        2,
+        568.0,
+        600.0,
+        2,
+        409.0,
+        596.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        51.0,
+        137.0,
+        728.0,
+        486.0
+      ],
+      "area": 353808.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 781,
+          "y": 437
+        },
+        {
+          "x": 918,
+          "y": 438
+        },
+        {
+          "x": 779,
+          "y": 630
+        },
+        {
+          "x": 916,
+          "y": 628
+        }
+      ]
+    },
+    {
+      "id": 37,
+      "image_id": 40,
+      "category_id": 1,
+      "keypoints": [
+        406.0,
+        260.0,
+        2,
+        327.0,
+        277.0,
+        2,
+        497.0,
+        276.0,
+        2,
+        310.0,
+        379.0,
+        2,
+        526.0,
+        376.0,
+        2,
+        66.0,
+        456.0,
+        2,
+        765.0,
+        462.0,
+        2,
+        314.0,
+        559.0,
+        2,
+        519.0,
+        560.0,
+        2,
+        407.0,
+        554.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        58.0,
+        252.0,
+        715.0,
+        316.0
+      ],
+      "area": 225940.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 779,
+          "y": 404
+        },
+        {
+          "x": 903,
+          "y": 400
+        },
+        {
+          "x": 782,
+          "y": 567
+        },
+        {
+          "x": 904,
+          "y": 567
+        }
+      ]
+    },
+    {
+      "id": 38,
+      "image_id": 101,
+      "category_id": 1,
+      "keypoints": [
+        496.0,
+        295.0,
+        2,
+        352.0,
+        313.0,
+        2,
+        636.0,
+        312.0,
+        2,
+        322.0,
+        453.0,
+        2,
+        687.0,
+        450.0,
+        2,
+        29.0,
+        452.0,
+        2,
+        994.0,
+        394.0,
+        2,
+        287.0,
+        676.0,
+        2,
+        704.0,
+        688.0,
+        2,
+        494.0,
+        693.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        21.0,
+        287.0,
+        981.0,
+        414.0
+      ],
+      "area": 406134.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 740,
+          "y": 509
+        },
+        {
+          "x": 889,
+          "y": 509
+        },
+        {
+          "x": 741,
+          "y": 718
+        },
+        {
+          "x": 890,
+          "y": 718
+        }
+      ]
+    },
+    {
+      "id": 39,
+      "image_id": 102,
+      "category_id": 1,
+      "keypoints": [
+        396.0,
+        327.0,
+        2,
+        255.0,
+        332.0,
+        2,
+        542.0,
+        330.0,
+        2,
+        244.0,
+        490.0,
+        2,
+        582.0,
+        489.0,
+        2,
+        131.0,
+        451.0,
+        2,
+        673.0,
+        442.0,
+        2,
+        207.0,
+        707.0,
+        2,
+        617.0,
+        692.0,
+        2,
+        395.0,
+        691.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        123.0,
+        319.0,
+        558.0,
+        396.0
+      ],
+      "area": 220968.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 706,
+          "y": 549
+        },
+        {
+          "x": 856,
+          "y": 549
+        },
+        {
+          "x": 706,
+          "y": 761
+        },
+        {
+          "x": 857,
+          "y": 759
+        }
+      ]
+    },
+    {
+      "id": 40,
+      "image_id": 87,
+      "category_id": 1,
+      "keypoints": [
+        461.0,
+        210.0,
+        2,
+        330.0,
+        237.0,
+        2,
+        570.0,
+        238.0,
+        2,
+        315.0,
+        354.0,
+        2,
+        599.0,
+        354.0,
+        2,
+        20.0,
+        411.0,
+        2,
+        900.0,
+        430.0,
+        2,
+        320.0,
+        611.0,
+        2,
+        594.0,
+        611.0,
+        2,
+        460.0,
+        607.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        12.0,
+        202.0,
+        896.0,
+        417.0
+      ],
+      "area": 373632.0,
+      "iscrowd": 0,
+      "category_label": "jacket",
+      "a4_corners": [
+        {
+          "x": 777,
+          "y": 501
+        },
+        {
+          "x": 909,
+          "y": 503
+        },
+        {
+          "x": 775,
+          "y": 686
+        },
+        {
+          "x": 908,
+          "y": 689
+        }
+      ]
+    },
+    {
+      "id": 41,
+      "image_id": 129,
+      "category_id": 1,
+      "keypoints": [
+        349.0,
+        190.0,
+        2,
+        174.0,
+        191.0,
+        2,
+        523.0,
+        189.0,
+        2,
+        196.0,
+        374.0,
+        2,
+        523.0,
+        370.0,
+        2,
+        64.0,
+        343.0,
+        2,
+        648.0,
+        304.0,
+        2,
+        196.0,
+        684.0,
+        2,
+        519.0,
+        684.0,
+        2,
+        353.0,
+        687.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        56.0,
+        181.0,
+        600.0,
+        514.0
+      ],
+      "area": 308400.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 735,
+          "y": 419
+        },
+        {
+          "x": 951,
+          "y": 419
+        },
+        {
+          "x": 738,
+          "y": 722
+        },
+        {
+          "x": 955,
+          "y": 722
+        }
+      ]
+    },
+    {
+      "id": 42,
+      "image_id": 112,
+      "category_id": 1,
+      "keypoints": [
+        410.0,
+        223.0,
+        2,
+        224.0,
+        244.0,
+        2,
+        576.0,
+        244.0,
+        2,
+        232.0,
+        432.0,
+        2,
+        585.0,
+        435.0,
+        2,
+        34.0,
+        463.0,
+        2,
+        817.0,
+        449.0,
+        2,
+        197.0,
+        634.0,
+        2,
+        620.0,
+        648.0,
+        2,
+        408.0,
+        660.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        26.0,
+        215.0,
+        799.0,
+        453.0
+      ],
+      "area": 361947.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 831,
+          "y": 485
+        },
+        {
+          "x": 1002,
+          "y": 485
+        },
+        {
+          "x": 828,
+          "y": 727
+        },
+        {
+          "x": 1001,
+          "y": 727
+        }
+      ]
+    },
+    {
+      "id": 43,
+      "image_id": 167,
+      "category_id": 1,
+      "keypoints": [
+        287.0,
+        320.0,
+        2,
+        226.0,
+        320.0,
+        2,
+        351.0,
+        323.0,
+        2,
+        209.0,
+        403.0,
+        2,
+        355.0,
+        397.0,
+        2,
+        66.0,
+        478.0,
+        2,
+        508.0,
+        483.0,
+        2,
+        212.0,
+        551.0,
+        2,
+        361.0,
+        548.0,
+        2,
+        288.0,
+        549.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        58.0,
+        312.0,
+        458.0,
+        247.0
+      ],
+      "area": 113126.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 386,
+          "y": 497
+        },
+        {
+          "x": 466,
+          "y": 499
+        },
+        {
+          "x": 381,
+          "y": 607
+        },
+        {
+          "x": 462,
+          "y": 611
+        }
+      ]
+    },
+    {
+      "id": 44,
+      "image_id": 56,
+      "category_id": 1,
+      "keypoints": [
+        442.0,
+        270.0,
+        2,
+        319.0,
+        280.0,
+        2,
+        564.0,
+        279.0,
+        2,
+        305.0,
+        372.0,
+        2,
+        568.0,
+        374.0,
+        2,
+        48.0,
+        362.0,
+        2,
+        818.0,
+        436.0,
+        2,
+        290.0,
+        599.0,
+        2,
+        550.0,
+        600.0,
+        2,
+        441.0,
+        599.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        40.0,
+        262.0,
+        786.0,
+        346.0
+      ],
+      "area": 271956.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 813,
+          "y": 457
+        },
+        {
+          "x": 925,
+          "y": 460
+        },
+        {
+          "x": 808,
+          "y": 615
+        },
+        {
+          "x": 922,
+          "y": 617
+        }
+      ]
+    },
+    {
+      "id": 45,
+      "image_id": 113,
+      "category_id": 1,
+      "keypoints": [
+        479.0,
+        295.0,
+        2,
+        318.0,
+        301.0,
+        2,
+        632.0,
+        303.0,
+        2,
+        310.0,
+        426.0,
+        2,
+        630.0,
+        424.0,
+        2,
+        56.0,
+        560.0,
+        2,
+        954.0,
+        502.0,
+        2,
+        310.0,
+        698.0,
+        2,
+        637.0,
+        708.0,
+        2,
+        478.0,
+        698.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        48.0,
+        287.0,
+        914.0,
+        429.0
+      ],
+      "area": 392106.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 703,
+          "y": 562
+        },
+        {
+          "x": 840,
+          "y": 562
+        },
+        {
+          "x": 703,
+          "y": 756
+        },
+        {
+          "x": 841,
+          "y": 756
+        }
+      ]
+    },
+    {
+      "id": 46,
+      "image_id": 152,
+      "category_id": 1,
+      "keypoints": [
+        384.0,
+        199.0,
+        2,
+        243.0,
+        220.0,
+        2,
+        530.0,
+        218.0,
+        2,
+        205.0,
+        392.0,
+        2,
+        572.0,
+        392.0,
+        2,
+        90.0,
+        286.0,
+        2,
+        680.0,
+        286.0,
+        2,
+        189.0,
+        680.0,
+        2,
+        566.0,
+        685.0,
+        2,
+        384.0,
+        683.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        82.0,
+        191.0,
+        606.0,
+        502.0
+      ],
+      "area": 304212.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 823,
+          "y": 457
+        },
+        {
+          "x": 977,
+          "y": 456
+        },
+        {
+          "x": 827,
+          "y": 674
+        },
+        {
+          "x": 980,
+          "y": 670
+        }
+      ]
+    },
+    {
+      "id": 47,
+      "image_id": 92,
+      "category_id": 1,
+      "keypoints": [
+        422.0,
+        281.0,
+        2,
+        293.0,
+        300.0,
+        2,
+        569.0,
+        302.0,
+        2,
+        267.0,
+        442.0,
+        2,
+        556.0,
+        443.0,
+        2,
+        17.0,
+        469.0,
+        2,
+        825.0,
+        483.0,
+        2,
+        307.0,
+        656.0,
+        2,
+        509.0,
+        654.0,
+        2,
+        422.0,
+        657.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        9.0,
+        273.0,
+        824.0,
+        392.0
+      ],
+      "area": 323008.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 772,
+          "y": 545
+        },
+        {
+          "x": 922,
+          "y": 545
+        },
+        {
+          "x": 771,
+          "y": 753
+        },
+        {
+          "x": 922,
+          "y": 754
+        }
+      ]
+    },
+    {
+      "id": 48,
+      "image_id": 29,
+      "category_id": 1,
+      "keypoints": [
+        337.0,
+        359.0,
+        2,
+        267.0,
+        311.0,
+        2,
+        414.0,
+        312.0,
+        2,
+        230.0,
+        405.0,
+        2,
+        436.0,
+        407.0,
+        2,
+        33.0,
+        430.0,
+        2,
+        640.0,
+        448.0,
+        2,
+        248.0,
+        522.0,
+        2,
+        394.0,
+        528.0,
+        2,
+        337.0,
+        521.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        25.0,
+        303.0,
+        623.0,
+        233.0
+      ],
+      "area": 145159.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 643,
+          "y": 383
+        },
+        {
+          "x": 741,
+          "y": 382
+        },
+        {
+          "x": 643,
+          "y": 519
+        },
+        {
+          "x": 743,
+          "y": 517
+        }
+      ]
+    },
+    {
+      "id": 49,
+      "image_id": 73,
+      "category_id": 1,
+      "keypoints": [
+        498.0,
+        178.0,
+        2,
+        339.0,
+        208.0,
+        2,
+        663.0,
+        209.0,
+        2,
+        325.0,
+        350.0,
+        2,
+        680.0,
+        352.0,
+        2,
+        28.0,
+        389.0,
+        2,
+        968.0,
+        429.0,
+        2,
+        319.0,
+        630.0,
+        2,
+        683.0,
+        641.0,
+        2,
+        498.0,
+        646.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        20.0,
+        170.0,
+        956.0,
+        484.0
+      ],
+      "area": 462704.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 779,
+          "y": 510
+        },
+        {
+          "x": 921,
+          "y": 509
+        },
+        {
+          "x": 782,
+          "y": 705
+        },
+        {
+          "x": 921,
+          "y": 704
+        }
+      ]
+    },
+    {
+      "id": 50,
+      "image_id": 163,
+      "category_id": 1,
+      "keypoints": [
+        287.0,
+        395.0,
+        2,
+        238.0,
+        353.0,
+        2,
+        363.0,
+        348.0,
+        2,
+        206.0,
+        430.0,
+        2,
+        364.0,
+        435.0,
+        2,
+        101.0,
+        456.0,
+        2,
+        467.0,
+        472.0,
+        2,
+        205.0,
+        544.0,
+        2,
+        363.0,
+        551.0,
+        2,
+        283.0,
+        543.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        93.0,
+        340.0,
+        382.0,
+        219.0
+      ],
+      "area": 83658.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 382,
+          "y": 506
+        },
+        {
+          "x": 464,
+          "y": 508
+        },
+        {
+          "x": 380,
+          "y": 621
+        },
+        {
+          "x": 463,
+          "y": 623
+        }
+      ]
+    },
+    {
+      "id": 51,
+      "image_id": 11,
+      "category_id": 1,
+      "keypoints": [
+        285.0,
+        261.0,
+        2,
+        187.0,
+        278.0,
+        2,
+        385.0,
+        278.0,
+        2,
+        187.0,
+        386.0,
+        2,
+        395.0,
+        384.0,
+        2,
+        26.0,
+        534.0,
+        2,
+        585.0,
+        495.0,
+        2,
+        178.0,
+        534.0,
+        2,
+        418.0,
+        533.0,
+        2,
+        287.0,
+        524.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        18.0,
+        253.0,
+        575.0,
+        289.0
+      ],
+      "area": 166175.0,
+      "iscrowd": 0,
+      "category_label": "jacket",
+      "a4_corners": [
+        {
+          "x": 627,
+          "y": 402
+        },
+        {
+          "x": 738,
+          "y": 401
+        },
+        {
+          "x": 630,
+          "y": 554
+        },
+        {
+          "x": 742,
+          "y": 554
+        }
+      ]
+    },
+    {
+      "id": 52,
+      "image_id": 156,
+      "category_id": 1,
+      "keypoints": [
+        467.0,
+        168.0,
+        2,
+        335.0,
+        200.0,
+        2,
+        603.0,
+        200.0,
+        2,
+        324.0,
+        331.0,
+        2,
+        628.0,
+        329.0,
+        2,
+        29.0,
+        470.0,
+        2,
+        964.0,
+        368.0,
+        2,
+        320.0,
+        602.0,
+        2,
+        645.0,
+        583.0,
+        2,
+        467.0,
+        639.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        21.0,
+        160.0,
+        951.0,
+        487.0
+      ],
+      "area": 463137.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 742,
+          "y": 467
+        },
+        {
+          "x": 901,
+          "y": 462
+        },
+        {
+          "x": 747,
+          "y": 689
+        },
+        {
+          "x": 907,
+          "y": 686
+        }
+      ]
+    },
+    {
+      "id": 53,
+      "image_id": 181,
+      "category_id": 1,
+      "keypoints": [
+        220.0,
+        260.0,
+        2,
+        142.0,
+        209.0,
+        2,
+        293.0,
+        211.0,
+        2,
+        103.0,
+        345.0,
+        2,
+        339.0,
+        351.0,
+        2,
+        128.0,
+        224.0,
+        2,
+        311.0,
+        222.0,
+        2,
+        89.0,
+        581.0,
+        2,
+        351.0,
+        587.0,
+        2,
+        220.0,
+        586.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        81.0,
+        201.0,
+        278.0,
+        394.0
+      ],
+      "area": 109532.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 386,
+          "y": 384
+        },
+        {
+          "x": 532,
+          "y": 388
+        },
+        {
+          "x": 381,
+          "y": 592
+        },
+        {
+          "x": 528,
+          "y": 595
+        }
+      ]
+    },
+    {
+      "id": 54,
+      "image_id": 61,
+      "category_id": 1,
+      "keypoints": [
+        438.0,
+        303.0,
+        2,
+        320.0,
+        297.0,
+        2,
+        558.0,
+        300.0,
+        2,
+        321.0,
+        435.0,
+        2,
+        561.0,
+        437.0,
+        2,
+        22.0,
+        426.0,
+        2,
+        867.0,
+        415.0,
+        2,
+        320.0,
+        621.0,
+        2,
+        552.0,
+        628.0,
+        2,
+        438.0,
+        632.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        14.0,
+        289.0,
+        861.0,
+        351.0
+      ],
+      "area": 302211.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 867,
+          "y": 458
+        },
+        {
+          "x": 987,
+          "y": 458
+        },
+        {
+          "x": 864,
+          "y": 627
+        },
+        {
+          "x": 986,
+          "y": 628
+        }
+      ]
+    },
+    {
+      "id": 55,
+      "image_id": 200,
+      "category_id": 1,
+      "keypoints": [
+        285.0,
+        361.0,
+        2,
+        176.0,
+        372.0,
+        2,
+        398.0,
+        388.0,
+        2,
+        187.0,
+        437.0,
+        2,
+        373.0,
+        448.0,
+        2,
+        14.0,
+        444.0,
+        2,
+        544.0,
+        466.0,
+        2,
+        201.0,
+        594.0,
+        2,
+        350.0,
+        600.0,
+        2,
+        277.0,
+        592.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        6.0,
+        353.0,
+        546.0,
+        255.0
+      ],
+      "area": 139230.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 402,
+          "y": 492
+        },
+        {
+          "x": 479,
+          "y": 500
+        },
+        {
+          "x": 393,
+          "y": 606
+        },
+        {
+          "x": 473,
+          "y": 613
+        }
+      ]
+    },
+    {
+      "id": 56,
+      "image_id": 131,
+      "category_id": 1,
+      "keypoints": [
+        390.0,
+        190.0,
+        2,
+        209.0,
+        208.0,
+        2,
+        573.0,
+        210.0,
+        2,
+        209.0,
+        387.0,
+        2,
+        578.0,
+        391.0,
+        2,
+        82.0,
+        276.0,
+        2,
+        715.0,
+        274.0,
+        2,
+        185.0,
+        686.0,
+        2,
+        593.0,
+        694.0,
+        2,
+        393.0,
+        678.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        74.0,
+        182.0,
+        649.0,
+        520.0
+      ],
+      "area": 337480.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 799,
+          "y": 457
+        },
+        {
+          "x": 962,
+          "y": 459
+        },
+        {
+          "x": 795,
+          "y": 687
+        },
+        {
+          "x": 960,
+          "y": 690
+        }
+      ]
+    },
+    {
+      "id": 57,
+      "image_id": 115,
+      "category_id": 1,
+      "keypoints": [
+        407.0,
+        283.0,
+        2,
+        257.0,
+        281.0,
+        2,
+        566.0,
+        283.0,
+        2,
+        269.0,
+        411.0,
+        2,
+        564.0,
+        413.0,
+        2,
+        59.0,
+        512.0,
+        2,
+        800.0,
+        462.0,
+        2,
+        259.0,
+        657.0,
+        2,
+        559.0,
+        658.0,
+        2,
+        409.0,
+        657.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        51.0,
+        273.0,
+        757.0,
+        393.0
+      ],
+      "area": 297501.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 795,
+          "y": 487
+        },
+        {
+          "x": 970,
+          "y": 486
+        },
+        {
+          "x": 794,
+          "y": 732
+        },
+        {
+          "x": 969,
+          "y": 732
+        }
+      ]
+    },
+    {
+      "id": 58,
+      "image_id": 186,
+      "category_id": 1,
+      "keypoints": [
+        264.0,
+        324.0,
+        2,
+        168.0,
+        336.0,
+        2,
+        358.0,
+        326.0,
+        2,
+        157.0,
+        430.0,
+        2,
+        384.0,
+        417.0,
+        2,
+        32.0,
+        516.0,
+        2,
+        512.0,
+        474.0,
+        2,
+        151.0,
+        572.0,
+        2,
+        399.0,
+        561.0,
+        2,
+        276.0,
+        587.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        24.0,
+        316.0,
+        496.0,
+        279.0
+      ],
+      "area": 138384.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 421,
+          "y": 507
+        },
+        {
+          "x": 522,
+          "y": 511
+        },
+        {
+          "x": 418,
+          "y": 650
+        },
+        {
+          "x": 518,
+          "y": 652
+        }
+      ]
+    },
+    {
+      "id": 59,
+      "image_id": 110,
+      "category_id": 1,
+      "keypoints": [
+        407.0,
+        203.0,
+        2,
+        237.0,
+        195.0,
+        2,
+        577.0,
+        196.0,
+        2,
+        230.0,
+        357.0,
+        2,
+        565.0,
+        355.0,
+        2,
+        30.0,
+        430.0,
+        2,
+        781.0,
+        413.0,
+        2,
+        192.0,
+        751.0,
+        2,
+        630.0,
+        744.0,
+        2,
+        406.0,
+        755.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        22.0,
+        187.0,
+        767.0,
+        576.0
+      ],
+      "area": 441792.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 789,
+          "y": 476
+        },
+        {
+          "x": 966,
+          "y": 470
+        },
+        {
+          "x": 800,
+          "y": 725
+        },
+        {
+          "x": 978,
+          "y": 719
+        }
+      ]
+    },
+    {
+      "id": 60,
+      "image_id": 49,
+      "category_id": 1,
+      "keypoints": [
+        458.0,
+        166.0,
+        2,
+        299.0,
+        187.0,
+        2,
+        622.0,
+        190.0,
+        2,
+        267.0,
+        343.0,
+        2,
+        633.0,
+        345.0,
+        2,
+        21.0,
+        276.0,
+        2,
+        893.0,
+        329.0,
+        2,
+        270.0,
+        431.0,
+        2,
+        627.0,
+        442.0,
+        2,
+        456.0,
+        439.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        13.0,
+        158.0,
+        888.0,
+        292.0
+      ],
+      "area": 259296.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 807,
+          "y": 475
+        },
+        {
+          "x": 951,
+          "y": 478
+        },
+        {
+          "x": 800,
+          "y": 677
+        },
+        {
+          "x": 949,
+          "y": 681
+        }
+      ]
+    },
+    {
+      "id": 61,
+      "image_id": 146,
+      "category_id": 1,
+      "keypoints": [
+        435.0,
+        207.0,
+        2,
+        270.0,
+        234.0,
+        2,
+        604.0,
+        230.0,
+        2,
+        289.0,
+        358.0,
+        2,
+        589.0,
+        358.0,
+        2,
+        59.0,
+        523.0,
+        2,
+        891.0,
+        388.0,
+        2,
+        269.0,
+        574.0,
+        2,
+        621.0,
+        570.0,
+        2,
+        437.0,
+        573.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        51.0,
+        199.0,
+        848.0,
+        383.0
+      ],
+      "area": 324784.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 833,
+          "y": 475
+        },
+        {
+          "x": 981,
+          "y": 473
+        },
+        {
+          "x": 836,
+          "y": 684
+        },
+        {
+          "x": 984,
+          "y": 681
+        }
+      ]
+    },
+    {
+      "id": 62,
+      "image_id": 36,
+      "category_id": 1,
+      "keypoints": [
+        351.0,
+        336.0,
+        2,
+        238.0,
+        361.0,
+        2,
+        479.0,
+        376.0,
+        2,
+        230.0,
+        458.0,
+        2,
+        473.0,
+        470.0,
+        2,
+        49.0,
+        455.0,
+        2,
+        630.0,
+        518.0,
+        2,
+        261.0,
+        600.0,
+        2,
+        424.0,
+        602.0,
+        2,
+        350.0,
+        579.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        41.0,
+        328.0,
+        597.0,
+        282.0
+      ],
+      "area": 168354.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 635,
+          "y": 497
+        },
+        {
+          "x": 729,
+          "y": 496
+        },
+        {
+          "x": 636,
+          "y": 627
+        },
+        {
+          "x": 730,
+          "y": 627
+        }
+      ]
+    },
+    {
+      "id": 63,
+      "image_id": 166,
+      "category_id": 1,
+      "keypoints": [
+        285.0,
+        358.0,
+        2,
+        224.0,
+        371.0,
+        2,
+        361.0,
+        379.0,
+        2,
+        200.0,
+        476.0,
+        2,
+        366.0,
+        464.0,
+        2,
+        71.0,
+        529.0,
+        2,
+        491.0,
+        544.0,
+        2,
+        178.0,
+        597.0,
+        2,
+        389.0,
+        593.0,
+        2,
+        284.0,
+        603.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        63.0,
+        350.0,
+        436.0,
+        261.0
+      ],
+      "area": 113796.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 392,
+          "y": 551
+        },
+        {
+          "x": 472,
+          "y": 558
+        },
+        {
+          "x": 383,
+          "y": 663
+        },
+        {
+          "x": 462,
+          "y": 670
+        }
+      ]
+    },
+    {
+      "id": 64,
+      "image_id": 17,
+      "category_id": 1,
+      "keypoints": [
+        297.0,
+        252.0,
+        2,
+        183.0,
+        275.0,
+        2,
+        407.0,
+        274.0,
+        2,
+        172.0,
+        398.0,
+        2,
+        422.0,
+        395.0,
+        2,
+        16.0,
+        587.0,
+        2,
+        578.0,
+        586.0,
+        2,
+        163.0,
+        643.0,
+        2,
+        439.0,
+        639.0,
+        2,
+        297.0,
+        646.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        8.0,
+        244.0,
+        578.0,
+        410.0
+      ],
+      "area": 236980.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 577,
+          "y": 442
+        },
+        {
+          "x": 714,
+          "y": 440
+        },
+        {
+          "x": 579,
+          "y": 630
+        },
+        {
+          "x": 717,
+          "y": 628
+        }
+      ]
+    },
+    {
+      "id": 65,
+      "image_id": 54,
+      "category_id": 1,
+      "keypoints": [
+        487.0,
+        210.0,
+        2,
+        349.0,
+        208.0,
+        2,
+        623.0,
+        206.0,
+        2,
+        343.0,
+        337.0,
+        2,
+        634.0,
+        337.0,
+        2,
+        65.0,
+        366.0,
+        2,
+        940.0,
+        324.0,
+        2,
+        366.0,
+        533.0,
+        2,
+        626.0,
+        523.0,
+        2,
+        489.0,
+        517.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        57.0,
+        198.0,
+        891.0,
+        343.0
+      ],
+      "area": 305613.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 863,
+          "y": 394
+        },
+        {
+          "x": 990,
+          "y": 400
+        },
+        {
+          "x": 857,
+          "y": 572
+        },
+        {
+          "x": 986,
+          "y": 576
+        }
+      ]
+    },
+    {
+      "id": 66,
+      "image_id": 187,
+      "category_id": 1,
+      "keypoints": [
+        283.0,
+        386.0,
+        2,
+        169.0,
+        395.0,
+        2,
+        396.0,
+        395.0,
+        2,
+        176.0,
+        470.0,
+        2,
+        391.0,
+        471.0,
+        2,
+        39.0,
+        505.0,
+        2,
+        522.0,
+        498.0,
+        2,
+        184.0,
+        571.0,
+        2,
+        384.0,
+        580.0,
+        2,
+        283.0,
+        577.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        31.0,
+        378.0,
+        499.0,
+        210.0
+      ],
+      "area": 104790.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 397,
+          "y": 527
+        },
+        {
+          "x": 475,
+          "y": 529
+        },
+        {
+          "x": 393,
+          "y": 641
+        },
+        {
+          "x": 474,
+          "y": 641
+        }
+      ]
+    },
+    {
+      "id": 67,
+      "image_id": 148,
+      "category_id": 1,
+      "keypoints": [
+        478.0,
+        118.0,
+        2,
+        344.0,
+        168.0,
+        2,
+        605.0,
+        166.0,
+        2,
+        342.0,
+        309.0,
+        2,
+        625.0,
+        308.0,
+        2,
+        67.0,
+        400.0,
+        2,
+        868.0,
+        410.0,
+        2,
+        354.0,
+        513.0,
+        2,
+        600.0,
+        514.0,
+        2,
+        480.0,
+        506.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        59.0,
+        110.0,
+        817.0,
+        412.0
+      ],
+      "area": 336604.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 728,
+          "y": 465
+        },
+        {
+          "x": 855,
+          "y": 464
+        },
+        {
+          "x": 733,
+          "y": 643
+        },
+        {
+          "x": 860,
+          "y": 641
+        }
+      ]
+    },
+    {
+      "id": 68,
+      "image_id": 69,
+      "category_id": 1,
+      "keypoints": [
+        342.0,
+        237.0,
+        2,
+        181.0,
+        210.0,
+        2,
+        492.0,
+        209.0,
+        2,
+        156.0,
+        409.0,
+        2,
+        544.0,
+        407.0,
+        2,
+        150.0,
+        420.0,
+        2,
+        544.0,
+        412.0,
+        2,
+        149.0,
+        701.0,
+        2,
+        566.0,
+        697.0,
+        2,
+        344.0,
+        697.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        141.0,
+        201.0,
+        433.0,
+        508.0
+      ],
+      "area": 219964.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 728,
+          "y": 425
+        },
+        {
+          "x": 922,
+          "y": 420
+        },
+        {
+          "x": 736,
+          "y": 692
+        },
+        {
+          "x": 929,
+          "y": 689
+        }
+      ]
+    },
+    {
+      "id": 69,
+      "image_id": 35,
+      "category_id": 1,
+      "keypoints": [
+        340.0,
+        371.0,
+        2,
+        256.0,
+        370.0,
+        2,
+        424.0,
+        368.0,
+        2,
+        253.0,
+        456.0,
+        2,
+        438.0,
+        456.0,
+        2,
+        58.0,
+        522.0,
+        2,
+        631.0,
+        516.0,
+        2,
+        250.0,
+        483.0,
+        2,
+        440.0,
+        482.0,
+        2,
+        341.0,
+        480.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        50.0,
+        360.0,
+        589.0,
+        170.0
+      ],
+      "area": 100130.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 641,
+          "y": 485
+        },
+        {
+          "x": 736,
+          "y": 483
+        },
+        {
+          "x": 642,
+          "y": 619
+        },
+        {
+          "x": 738,
+          "y": 618
+        }
+      ]
+    },
+    {
+      "id": 70,
+      "image_id": 130,
+      "category_id": 1,
+      "keypoints": [
+        424.0,
+        150.0,
+        2,
+        223.0,
+        158.0,
+        2,
+        610.0,
+        157.0,
+        2,
+        219.0,
+        345.0,
+        2,
+        620.0,
+        342.0,
+        2,
+        57.0,
+        200.0,
+        2,
+        784.0,
+        182.0,
+        2,
+        217.0,
+        673.0,
+        2,
+        620.0,
+        659.0,
+        2,
+        425.0,
+        678.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        49.0,
+        142.0,
+        743.0,
+        544.0
+      ],
+      "area": 404192.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 758,
+          "y": 391
+        },
+        {
+          "x": 929,
+          "y": 395
+        },
+        {
+          "x": 753,
+          "y": 633
+        },
+        {
+          "x": 923,
+          "y": 634
+        }
+      ]
+    },
+    {
+      "id": 71,
+      "image_id": 108,
+      "category_id": 1,
+      "keypoints": [
+        437.0,
+        132.0,
+        2,
+        303.0,
+        138.0,
+        2,
+        569.0,
+        141.0,
+        2,
+        293.0,
+        269.0,
+        2,
+        572.0,
+        267.0,
+        2,
+        115.0,
+        356.0,
+        2,
+        773.0,
+        346.0,
+        2,
+        228.0,
+        667.0,
+        2,
+        614.0,
+        685.0,
+        2,
+        438.0,
+        679.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        107.0,
+        124.0,
+        674.0,
+        569.0
+      ],
+      "area": 383506.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 769,
+          "y": 505
+        },
+        {
+          "x": 908,
+          "y": 504
+        },
+        {
+          "x": 770,
+          "y": 701
+        },
+        {
+          "x": 910,
+          "y": 698
+        }
+      ]
+    },
+    {
+      "id": 72,
+      "image_id": 139,
+      "category_id": 1,
+      "keypoints": [
+        421.0,
+        261.0,
+        2,
+        305.0,
+        264.0,
+        2,
+        546.0,
+        267.0,
+        2,
+        291.0,
+        362.0,
+        2,
+        562.0,
+        360.0,
+        2,
+        162.0,
+        370.0,
+        2,
+        665.0,
+        367.0,
+        2,
+        228.0,
+        607.0,
+        2,
+        626.0,
+        601.0,
+        2,
+        421.0,
+        626.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        154.0,
+        253.0,
+        519.0,
+        381.0
+      ],
+      "area": 197739.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 752,
+          "y": 460
+        },
+        {
+          "x": 867,
+          "y": 459
+        },
+        {
+          "x": 753,
+          "y": 624
+        },
+        {
+          "x": 869,
+          "y": 621
+        }
+      ]
+    },
+    {
+      "id": 73,
+      "image_id": 188,
+      "category_id": 1,
+      "keypoints": [
+        291.0,
+        391.0,
+        2,
+        187.0,
+        405.0,
+        2,
+        393.0,
+        407.0,
+        2,
+        199.0,
+        478.0,
+        2,
+        378.0,
+        480.0,
+        2,
+        17.0,
+        500.0,
+        2,
+        564.0,
+        503.0,
+        2,
+        196.0,
+        564.0,
+        2,
+        391.0,
+        560.0,
+        2,
+        294.0,
+        562.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        9.0,
+        383.0,
+        563.0,
+        189.0
+      ],
+      "area": 106407.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 406,
+          "y": 524
+        },
+        {
+          "x": 488,
+          "y": 528
+        },
+        {
+          "x": 402,
+          "y": 642
+        },
+        {
+          "x": 486,
+          "y": 646
+        }
+      ]
+    },
+    {
+      "id": 74,
+      "image_id": 136,
+      "category_id": 1,
+      "keypoints": [
+        442.0,
+        175.0,
+        2,
+        274.0,
+        189.0,
+        2,
+        617.0,
+        187.0,
+        2,
+        269.0,
+        365.0,
+        2,
+        623.0,
+        362.0,
+        2,
+        144.0,
+        257.0,
+        2,
+        757.0,
+        260.0,
+        2,
+        264.0,
+        657.0,
+        2,
+        643.0,
+        637.0,
+        2,
+        446.0,
+        647.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        136.0,
+        167.0,
+        629.0,
+        498.0
+      ],
+      "area": 313242.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 817,
+          "y": 435
+        },
+        {
+          "x": 970,
+          "y": 432
+        },
+        {
+          "x": 822,
+          "y": 650
+        },
+        {
+          "x": 975,
+          "y": 646
+        }
+      ]
+    },
+    {
+      "id": 75,
+      "image_id": 149,
+      "category_id": 1,
+      "keypoints": [
+        471.0,
+        167.0,
+        2,
+        334.0,
+        209.0,
+        2,
+        633.0,
+        212.0,
+        2,
+        318.0,
+        349.0,
+        2,
+        637.0,
+        351.0,
+        2,
+        50.0,
+        452.0,
+        2,
+        949.0,
+        369.0,
+        2,
+        372.0,
+        599.0,
+        2,
+        598.0,
+        593.0,
+        2,
+        471.0,
+        578.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        42.0,
+        159.0,
+        915.0,
+        448.0
+      ],
+      "area": 409920.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 751,
+          "y": 586
+        },
+        {
+          "x": 889,
+          "y": 584
+        },
+        {
+          "x": 754,
+          "y": 776
+        },
+        {
+          "x": 892,
+          "y": 774
+        }
+      ]
+    },
+    {
+      "id": 76,
+      "image_id": 140,
+      "category_id": 1,
+      "keypoints": [
+        450.0,
+        229.0,
+        2,
+        266.0,
+        254.0,
+        2,
+        605.0,
+        257.0,
+        2,
+        247.0,
+        396.0,
+        2,
+        625.0,
+        398.0,
+        2,
+        35.0,
+        369.0,
+        2,
+        835.0,
+        378.0,
+        2,
+        283.0,
+        628.0,
+        2,
+        602.0,
+        635.0,
+        2,
+        451.0,
+        626.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        27.0,
+        221.0,
+        816.0,
+        422.0
+      ],
+      "area": 344352.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 834,
+          "y": 426
+        },
+        {
+          "x": 986,
+          "y": 430
+        },
+        {
+          "x": 830,
+          "y": 641
+        },
+        {
+          "x": 981,
+          "y": 643
+        }
+      ]
+    },
+    {
+      "id": 77,
+      "image_id": 135,
+      "category_id": 1,
+      "keypoints": [
+        412.0,
+        267.0,
+        2,
+        284.0,
+        244.0,
+        2,
+        546.0,
+        245.0,
+        2,
+        246.0,
+        443.0,
+        2,
+        573.0,
+        445.0,
+        2,
+        50.0,
+        396.0,
+        2,
+        761.0,
+        381.0,
+        2,
+        236.0,
+        653.0,
+        2,
+        609.0,
+        646.0,
+        2,
+        411.0,
+        652.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        42.0,
+        236.0,
+        727.0,
+        425.0
+      ],
+      "area": 308975.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 817,
+          "y": 429
+        },
+        {
+          "x": 972,
+          "y": 429
+        },
+        {
+          "x": 817,
+          "y": 649
+        },
+        {
+          "x": 974,
+          "y": 648
+        }
+      ]
+    },
+    {
+      "id": 78,
+      "image_id": 142,
+      "category_id": 1,
+      "keypoints": [
+        454.0,
+        178.0,
+        2,
+        317.0,
+        207.0,
+        2,
+        589.0,
+        206.0,
+        2,
+        304.0,
+        375.0,
+        2,
+        597.0,
+        372.0,
+        2,
+        94.0,
+        531.0,
+        2,
+        822.0,
+        532.0,
+        2,
+        305.0,
+        650.0,
+        2,
+        628.0,
+        653.0,
+        2,
+        452.0,
+        646.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        86.0,
+        170.0,
+        744.0,
+        491.0
+      ],
+      "area": 365304.0,
+      "iscrowd": 0,
+      "category_label": "jacket",
+      "a4_corners": [
+        {
+          "x": 855,
+          "y": 430
+        },
+        {
+          "x": 999,
+          "y": 427
+        },
+        {
+          "x": 860,
+          "y": 631
+        },
+        {
+          "x": 1003,
+          "y": 629
+        }
+      ]
+    },
+    {
+      "id": 79,
+      "image_id": 47,
+      "category_id": 1,
+      "keypoints": [
+        445.0,
+        242.0,
+        2,
+        314.0,
+        246.0,
+        2,
+        572.0,
+        245.0,
+        2,
+        325.0,
+        357.0,
+        2,
+        568.0,
+        356.0,
+        2,
+        63.0,
+        373.0,
+        2,
+        847.0,
+        352.0,
+        2,
+        336.0,
+        510.0,
+        2,
+        551.0,
+        505.0,
+        2,
+        446.0,
+        507.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        55.0,
+        234.0,
+        800.0,
+        284.0
+      ],
+      "area": 227200.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 780,
+          "y": 466
+        },
+        {
+          "x": 900,
+          "y": 464
+        },
+        {
+          "x": 784,
+          "y": 632
+        },
+        {
+          "x": 908,
+          "y": 630
+        }
+      ]
+    },
+    {
+      "id": 80,
+      "image_id": 111,
+      "category_id": 1,
+      "keypoints": [
+        412.0,
+        147.0,
+        2,
+        207.0,
+        159.0,
+        2,
+        605.0,
+        161.0,
+        2,
+        209.0,
+        354.0,
+        2,
+        611.0,
+        358.0,
+        2,
+        35.0,
+        220.0,
+        2,
+        778.0,
+        208.0,
+        2,
+        197.0,
+        738.0,
+        2,
+        628.0,
+        742.0,
+        2,
+        409.0,
+        730.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        27.0,
+        139.0,
+        759.0,
+        611.0
+      ],
+      "area": 463749.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 775,
+          "y": 500
+        },
+        {
+          "x": 948,
+          "y": 498
+        },
+        {
+          "x": 780,
+          "y": 744
+        },
+        {
+          "x": 953,
+          "y": 740
+        }
+      ]
+    },
+    {
+      "id": 81,
+      "image_id": 141,
+      "category_id": 1,
+      "keypoints": [
+        426.0,
+        237.0,
+        2,
+        288.0,
+        242.0,
+        2,
+        552.0,
+        240.0,
+        2,
+        278.0,
+        371.0,
+        2,
+        564.0,
+        373.0,
+        2,
+        184.0,
+        279.0,
+        2,
+        655.0,
+        261.0,
+        2,
+        288.0,
+        598.0,
+        2,
+        574.0,
+        585.0,
+        2,
+        428.0,
+        595.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        176.0,
+        229.0,
+        487.0,
+        377.0
+      ],
+      "area": 183599.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 741,
+          "y": 449
+        },
+        {
+          "x": 866,
+          "y": 448
+        },
+        {
+          "x": 746,
+          "y": 626
+        },
+        {
+          "x": 871,
+          "y": 622
+        }
+      ]
+    },
+    {
+      "id": 82,
+      "image_id": 183,
+      "category_id": 1,
+      "keypoints": [
+        283.0,
+        269.0,
+        2,
+        190.0,
+        274.0,
+        2,
+        374.0,
+        273.0,
+        2,
+        196.0,
+        366.0,
+        2,
+        371.0,
+        368.0,
+        2,
+        31.0,
+        533.0,
+        2,
+        552.0,
+        509.0,
+        2,
+        195.0,
+        547.0,
+        2,
+        368.0,
+        549.0,
+        2,
+        281.0,
+        556.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        23.0,
+        261.0,
+        537.0,
+        303.0
+      ],
+      "area": 162711.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 382,
+          "y": 479
+        },
+        {
+          "x": 477,
+          "y": 486
+        },
+        {
+          "x": 372,
+          "y": 613
+        },
+        {
+          "x": 468,
+          "y": 622
+        }
+      ]
+    },
+    {
+      "id": 83,
+      "image_id": 117,
+      "category_id": 1,
+      "keypoints": [
+        401.0,
+        298.0,
+        2,
+        254.0,
+        305.0,
+        2,
+        543.0,
+        301.0,
+        2,
+        261.0,
+        428.0,
+        2,
+        569.0,
+        432.0,
+        2,
+        51.0,
+        512.0,
+        2,
+        774.0,
+        490.0,
+        2,
+        263.0,
+        675.0,
+        2,
+        572.0,
+        669.0,
+        2,
+        404.0,
+        672.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        43.0,
+        290.0,
+        739.0,
+        393.0
+      ],
+      "area": 290427.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 764,
+          "y": 512
+        },
+        {
+          "x": 942,
+          "y": 510
+        },
+        {
+          "x": 766,
+          "y": 764
+        },
+        {
+          "x": 946,
+          "y": 762
+        }
+      ]
+    },
+    {
+      "id": 84,
+      "image_id": 39,
+      "category_id": 1,
+      "keypoints": [
+        310.0,
+        253.0,
+        2,
+        194.0,
+        260.0,
+        2,
+        430.0,
+        264.0,
+        2,
+        185.0,
+        369.0,
+        2,
+        422.0,
+        369.0,
+        2,
+        20.0,
+        548.0,
+        2,
+        583.0,
+        557.0,
+        2,
+        185.0,
+        519.0,
+        2,
+        415.0,
+        523.0,
+        2,
+        310.0,
+        525.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        12.0,
+        245.0,
+        579.0,
+        320.0
+      ],
+      "area": 185280.0,
+      "iscrowd": 0,
+      "category_label": "jacket",
+      "a4_corners": [
+        {
+          "x": 609,
+          "y": 436
+        },
+        {
+          "x": 737,
+          "y": 437
+        },
+        {
+          "x": 608,
+          "y": 612
+        },
+        {
+          "x": 736,
+          "y": 614
+        }
+      ]
+    },
+    {
+      "id": 85,
+      "image_id": 100,
+      "category_id": 1,
+      "keypoints": [
+        472.0,
+        138.0,
+        2,
+        302.0,
+        145.0,
+        2,
+        675.0,
+        147.0,
+        2,
+        283.0,
+        311.0,
+        2,
+        659.0,
+        310.0,
+        2,
+        123.0,
+        298.0,
+        2,
+        831.0,
+        294.0,
+        2,
+        216.0,
+        725.0,
+        2,
+        731.0,
+        719.0,
+        2,
+        468.0,
+        751.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        115.0,
+        130.0,
+        724.0,
+        629.0
+      ],
+      "area": 455396.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 746,
+          "y": 481
+        },
+        {
+          "x": 906,
+          "y": 484
+        },
+        {
+          "x": 742,
+          "y": 709
+        },
+        {
+          "x": 906,
+          "y": 712
+        }
+      ]
+    },
+    {
+      "id": 86,
+      "image_id": 68,
+      "category_id": 1,
+      "keypoints": [
+        449.0,
+        242.0,
+        2,
+        348.0,
+        267.0,
+        2,
+        563.0,
+        267.0,
+        2,
+        304.0,
+        377.0,
+        2,
+        573.0,
+        376.0,
+        2,
+        17.0,
+        429.0,
+        2,
+        863.0,
+        523.0,
+        2,
+        328.0,
+        631.0,
+        2,
+        536.0,
+        640.0,
+        2,
+        450.0,
+        627.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        9.0,
+        234.0,
+        862.0,
+        414.0
+      ],
+      "area": 356868.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 864,
+          "y": 420
+        },
+        {
+          "x": 991,
+          "y": 417
+        },
+        {
+          "x": 869,
+          "y": 593
+        },
+        {
+          "x": 995,
+          "y": 589
+        }
+      ]
+    },
+    {
+      "id": 87,
+      "image_id": 106,
+      "category_id": 1,
+      "keypoints": [
+        452.0,
+        305.0,
+        2,
+        326.0,
+        317.0,
+        2,
+        591.0,
+        314.0,
+        2,
+        314.0,
+        455.0,
+        2,
+        595.0,
+        452.0,
+        2,
+        87.0,
+        546.0,
+        2,
+        837.0,
+        519.0,
+        2,
+        345.0,
+        711.0,
+        2,
+        586.0,
+        702.0,
+        2,
+        454.0,
+        704.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        79.0,
+        297.0,
+        766.0,
+        422.0
+      ],
+      "area": 323252.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 836,
+          "y": 480
+        },
+        {
+          "x": 1001,
+          "y": 482
+        },
+        {
+          "x": 837,
+          "y": 712
+        },
+        {
+          "x": 1002,
+          "y": 711
+        }
+      ]
+    },
+    {
+      "id": 88,
+      "image_id": 107,
+      "category_id": 1,
+      "keypoints": [
+        465.0,
+        186.0,
+        2,
+        302.0,
+        280.0,
+        2,
+        627.0,
+        280.0,
+        2,
+        328.0,
+        422.0,
+        2,
+        613.0,
+        423.0,
+        2,
+        97.0,
+        528.0,
+        2,
+        925.0,
+        400.0,
+        2,
+        369.0,
+        643.0,
+        2,
+        549.0,
+        644.0,
+        2,
+        465.0,
+        642.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        89.0,
+        178.0,
+        844.0,
+        474.0
+      ],
+      "area": 400056.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 741,
+          "y": 582
+        },
+        {
+          "x": 866,
+          "y": 582
+        },
+        {
+          "x": 738,
+          "y": 760
+        },
+        {
+          "x": 866,
+          "y": 761
+        }
+      ]
+    },
+    {
+      "id": 89,
+      "image_id": 57,
+      "category_id": 1,
+      "keypoints": [
+        405.0,
+        326.0,
+        2,
+        300.0,
+        318.0,
+        2,
+        509.0,
+        319.0,
+        2,
+        294.0,
+        428.0,
+        2,
+        525.0,
+        426.0,
+        2,
+        42.0,
+        489.0,
+        2,
+        791.0,
+        467.0,
+        2,
+        289.0,
+        624.0,
+        2,
+        515.0,
+        627.0,
+        2,
+        405.0,
+        624.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        34.0,
+        310.0,
+        765.0,
+        325.0
+      ],
+      "area": 248625.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 816,
+          "y": 435
+        },
+        {
+          "x": 941,
+          "y": 437
+        },
+        {
+          "x": 813,
+          "y": 612
+        },
+        {
+          "x": 940,
+          "y": 614
+        }
+      ]
+    },
+    {
+      "id": 90,
+      "image_id": 198,
+      "category_id": 1,
+      "keypoints": [
+        286.0,
+        347.0,
+        2,
+        203.0,
+        356.0,
+        2,
+        376.0,
+        359.0,
+        2,
+        180.0,
+        452.0,
+        2,
+        379.0,
+        452.0,
+        2,
+        70.0,
+        526.0,
+        2,
+        497.0,
+        537.0,
+        2,
+        183.0,
+        577.0,
+        2,
+        378.0,
+        583.0,
+        2,
+        281.0,
+        568.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        62.0,
+        339.0,
+        443.0,
+        252.0
+      ],
+      "area": 111636.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 393,
+          "y": 568
+        },
+        {
+          "x": 491,
+          "y": 572
+        },
+        {
+          "x": 387,
+          "y": 709
+        },
+        {
+          "x": 486,
+          "y": 715
+        }
+      ]
+    },
+    {
+      "id": 91,
+      "image_id": 18,
+      "category_id": 1,
+      "keypoints": [
+        302.0,
+        340.0,
+        2,
+        174.0,
+        351.0,
+        2,
+        438.0,
+        349.0,
+        2,
+        200.0,
+        463.0,
+        2,
+        432.0,
+        462.0,
+        2,
+        24.0,
+        658.0,
+        2,
+        595.0,
+        648.0,
+        2,
+        189.0,
+        623.0,
+        2,
+        424.0,
+        623.0,
+        2,
+        304.0,
+        616.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        16.0,
+        332.0,
+        587.0,
+        334.0
+      ],
+      "area": 196058.0,
+      "iscrowd": 0,
+      "category_label": "jacket",
+      "a4_corners": [
+        {
+          "x": 618,
+          "y": 452
+        },
+        {
+          "x": 753,
+          "y": 448
+        },
+        {
+          "x": 625,
+          "y": 640
+        },
+        {
+          "x": 763,
+          "y": 637
+        }
+      ]
+    },
+    {
+      "id": 92,
+      "image_id": 150,
+      "category_id": 1,
+      "keypoints": [
+        409.0,
+        118.0,
+        2,
+        244.0,
+        160.0,
+        2,
+        570.0,
+        161.0,
+        2,
+        222.0,
+        326.0,
+        2,
+        578.0,
+        327.0,
+        2,
+        106.0,
+        255.0,
+        2,
+        714.0,
+        254.0,
+        2,
+        227.0,
+        640.0,
+        2,
+        572.0,
+        637.0,
+        2,
+        412.0,
+        637.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        98.0,
+        110.0,
+        624.0,
+        538.0
+      ],
+      "area": 335712.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 710,
+          "y": 417
+        },
+        {
+          "x": 856,
+          "y": 417
+        },
+        {
+          "x": 712,
+          "y": 625
+        },
+        {
+          "x": 859,
+          "y": 622
+        }
+      ]
+    },
+    {
+      "id": 93,
+      "image_id": 27,
+      "category_id": 1,
+      "keypoints": [
+        322.0,
+        255.0,
+        2,
+        212.0,
+        287.0,
+        2,
+        439.0,
+        266.0,
+        2,
+        240.0,
+        371.0,
+        2,
+        419.0,
+        351.0,
+        2,
+        63.0,
+        394.0,
+        2,
+        593.0,
+        378.0,
+        2,
+        264.0,
+        441.0,
+        2,
+        411.0,
+        428.0,
+        2,
+        323.0,
+        427.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        55.0,
+        247.0,
+        546.0,
+        202.0
+      ],
+      "area": 110292.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 603,
+          "y": 329
+        },
+        {
+          "x": 689,
+          "y": 328
+        },
+        {
+          "x": 604,
+          "y": 450
+        },
+        {
+          "x": 691,
+          "y": 448
+        }
+      ]
+    },
+    {
+      "id": 94,
+      "image_id": 95,
+      "category_id": 1,
+      "keypoints": [
+        500.0,
+        247.0,
+        2,
+        386.0,
+        254.0,
+        2,
+        618.0,
+        256.0,
+        2,
+        364.0,
+        389.0,
+        2,
+        624.0,
+        391.0,
+        2,
+        35.0,
+        546.0,
+        2,
+        953.0,
+        569.0,
+        2,
+        369.0,
+        706.0,
+        2,
+        603.0,
+        713.0,
+        2,
+        498.0,
+        716.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        27.0,
+        239.0,
+        934.0,
+        485.0
+      ],
+      "area": 452990.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 817,
+          "y": 626
+        },
+        {
+          "x": 987,
+          "y": 627
+        },
+        {
+          "x": 817,
+          "y": 865
+        },
+        {
+          "x": 988,
+          "y": 867
+        }
+      ]
+    },
+    {
+      "id": 95,
+      "image_id": 80,
+      "category_id": 1,
+      "keypoints": [
+        442.0,
+        136.0,
+        2,
+        205.0,
+        171.0,
+        2,
+        688.0,
+        174.0,
+        2,
+        190.0,
+        355.0,
+        2,
+        665.0,
+        355.0,
+        2,
+        23.0,
+        234.0,
+        2,
+        865.0,
+        267.0,
+        2,
+        178.0,
+        812.0,
+        2,
+        658.0,
+        812.0,
+        2,
+        434.0,
+        791.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        15.0,
+        128.0,
+        858.0,
+        692.0
+      ],
+      "area": 593736.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 751,
+          "y": 458
+        },
+        {
+          "x": 958,
+          "y": 458
+        },
+        {
+          "x": 748,
+          "y": 742
+        },
+        {
+          "x": 955,
+          "y": 747
+        }
+      ]
+    },
+    {
+      "id": 96,
+      "image_id": 120,
+      "category_id": 1,
+      "keypoints": [
+        461.0,
+        167.0,
+        2,
+        323.0,
+        192.0,
+        2,
+        603.0,
+        194.0,
+        2,
+        305.0,
+        382.0,
+        2,
+        598.0,
+        379.0,
+        2,
+        94.0,
+        531.0,
+        2,
+        779.0,
+        565.0,
+        2,
+        293.0,
+        608.0,
+        2,
+        610.0,
+        604.0,
+        2,
+        461.0,
+        597.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        86.0,
+        159.0,
+        701.0,
+        457.0
+      ],
+      "area": 320357.0,
+      "iscrowd": 0,
+      "category_label": "jacket",
+      "a4_corners": [
+        {
+          "x": 803,
+          "y": 570
+        },
+        {
+          "x": 945,
+          "y": 571
+        },
+        {
+          "x": 801,
+          "y": 773
+        },
+        {
+          "x": 945,
+          "y": 773
+        }
+      ]
+    },
+    {
+      "id": 97,
+      "image_id": 12,
+      "category_id": 1,
+      "keypoints": [
+        306.0,
+        282.0,
+        2,
+        211.0,
+        299.0,
+        2,
+        414.0,
+        300.0,
+        2,
+        185.0,
+        406.0,
+        2,
+        423.0,
+        406.0,
+        2,
+        26.0,
+        434.0,
+        2,
+        600.0,
+        414.0,
+        2,
+        144.0,
+        544.0,
+        2,
+        473.0,
+        546.0,
+        2,
+        307.0,
+        559.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        18.0,
+        274.0,
+        590.0,
+        293.0
+      ],
+      "area": 172870.0,
+      "iscrowd": 0,
+      "category_label": "jacket",
+      "a4_corners": [
+        {
+          "x": 624,
+          "y": 421
+        },
+        {
+          "x": 728,
+          "y": 415
+        },
+        {
+          "x": 634,
+          "y": 565
+        },
+        {
+          "x": 739,
+          "y": 560
+        }
+      ]
+    },
+    {
+      "id": 98,
+      "image_id": 133,
+      "category_id": 1,
+      "keypoints": [
+        463.0,
+        219.0,
+        2,
+        323.0,
+        242.0,
+        2,
+        600.0,
+        240.0,
+        2,
+        312.0,
+        371.0,
+        2,
+        602.0,
+        368.0,
+        2,
+        74.0,
+        481.0,
+        2,
+        819.0,
+        511.0,
+        2,
+        323.0,
+        605.0,
+        2,
+        622.0,
+        597.0,
+        2,
+        464.0,
+        585.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        66.0,
+        211.0,
+        761.0,
+        402.0
+      ],
+      "area": 305922.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 759,
+          "y": 569
+        },
+        {
+          "x": 900,
+          "y": 570
+        },
+        {
+          "x": 759,
+          "y": 770
+        },
+        {
+          "x": 902,
+          "y": 771
+        }
+      ]
+    },
+    {
+      "id": 99,
+      "image_id": 51,
+      "category_id": 1,
+      "keypoints": [
+        419.0,
+        129.0,
+        2,
+        268.0,
+        132.0,
+        2,
+        571.0,
+        129.0,
+        2,
+        265.0,
+        323.0,
+        2,
+        566.0,
+        322.0,
+        2,
+        78.0,
+        555.0,
+        2,
+        785.0,
+        510.0,
+        2,
+        230.0,
+        609.0,
+        2,
+        629.0,
+        594.0,
+        2,
+        420.0,
+        621.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        70.0,
+        121.0,
+        723.0,
+        508.0
+      ],
+      "area": 367284.0,
+      "iscrowd": 0,
+      "category_label": "jacket",
+      "a4_corners": [
+        {
+          "x": 808,
+          "y": 438
+        },
+        {
+          "x": 963,
+          "y": 441
+        },
+        {
+          "x": 806,
+          "y": 659
+        },
+        {
+          "x": 967,
+          "y": 660
+        }
+      ]
+    },
+    {
+      "id": 100,
+      "image_id": 104,
+      "category_id": 1,
+      "keypoints": [
+        338.0,
+        167.0,
+        2,
+        169.0,
+        181.0,
+        2,
+        509.0,
+        183.0,
+        2,
+        175.0,
+        373.0,
+        2,
+        482.0,
+        370.0,
+        2,
+        68.0,
+        311.0,
+        2,
+        598.0,
+        322.0,
+        2,
+        147.0,
+        720.0,
+        2,
+        514.0,
+        717.0,
+        2,
+        340.0,
+        723.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        60.0,
+        159.0,
+        546.0,
+        572.0
+      ],
+      "area": 312312.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 708,
+          "y": 452
+        },
+        {
+          "x": 904,
+          "y": 454
+        },
+        {
+          "x": 705,
+          "y": 727
+        },
+        {
+          "x": 903,
+          "y": 730
+        }
+      ]
+    },
+    {
+      "id": 101,
+      "image_id": 66,
+      "category_id": 1,
+      "keypoints": [
+        458.0,
+        237.0,
+        2,
+        332.0,
+        268.0,
+        2,
+        587.0,
+        266.0,
+        2,
+        330.0,
+        411.0,
+        2,
+        610.0,
+        413.0,
+        2,
+        75.0,
+        517.0,
+        2,
+        885.0,
+        430.0,
+        2,
+        359.0,
+        631.0,
+        2,
+        566.0,
+        621.0,
+        2,
+        459.0,
+        620.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        67.0,
+        229.0,
+        826.0,
+        410.0
+      ],
+      "area": 338660.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 839,
+          "y": 483
+        },
+        {
+          "x": 984,
+          "y": 481
+        },
+        {
+          "x": 844,
+          "y": 684
+        },
+        {
+          "x": 988,
+          "y": 683
+        }
+      ]
+    },
+    {
+      "id": 102,
+      "image_id": 171,
+      "category_id": 1,
+      "keypoints": [
+        283.0,
+        346.0,
+        2,
+        156.0,
+        370.0,
+        2,
+        411.0,
+        379.0,
+        2,
+        156.0,
+        446.0,
+        2,
+        403.0,
+        454.0,
+        2,
+        21.0,
+        409.0,
+        2,
+        542.0,
+        435.0,
+        2,
+        154.0,
+        595.0,
+        2,
+        399.0,
+        605.0,
+        2,
+        277.0,
+        598.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        13.0,
+        338.0,
+        537.0,
+        275.0
+      ],
+      "area": 147675.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 414,
+          "y": 508
+        },
+        {
+          "x": 509,
+          "y": 511
+        },
+        {
+          "x": 411,
+          "y": 641
+        },
+        {
+          "x": 504,
+          "y": 644
+        }
+      ]
+    },
+    {
+      "id": 103,
+      "image_id": 67,
+      "category_id": 1,
+      "keypoints": [
+        384.0,
+        151.0,
+        2,
+        194.0,
+        160.0,
+        2,
+        558.0,
+        163.0,
+        2,
+        143.0,
+        339.0,
+        2,
+        611.0,
+        343.0,
+        2,
+        144.0,
+        340.0,
+        2,
+        612.0,
+        346.0,
+        2,
+        210.0,
+        727.0,
+        2,
+        520.0,
+        724.0,
+        2,
+        380.0,
+        719.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        135.0,
+        143.0,
+        485.0,
+        592.0
+      ],
+      "area": 287120.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 642,
+          "y": 425
+        },
+        {
+          "x": 856,
+          "y": 421
+        },
+        {
+          "x": 648,
+          "y": 722
+        },
+        {
+          "x": 862,
+          "y": 718
+        }
+      ]
+    },
+    {
+      "id": 104,
+      "image_id": 24,
+      "category_id": 1,
+      "keypoints": [
+        302.0,
+        240.0,
+        2,
+        207.0,
+        209.0,
+        2,
+        390.0,
+        207.0,
+        2,
+        217.0,
+        336.0,
+        2,
+        385.0,
+        337.0,
+        2,
+        43.0,
+        530.0,
+        2,
+        578.0,
+        503.0,
+        2,
+        217.0,
+        542.0,
+        2,
+        369.0,
+        541.0,
+        2,
+        302.0,
+        540.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        35.0,
+        199.0,
+        551.0,
+        351.0
+      ],
+      "area": 193401.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 603,
+          "y": 381
+        },
+        {
+          "x": 735,
+          "y": 379
+        },
+        {
+          "x": 605,
+          "y": 563
+        },
+        {
+          "x": 736,
+          "y": 562
+        }
+      ]
+    },
+    {
+      "id": 105,
+      "image_id": 70,
+      "category_id": 1,
+      "keypoints": [
+        392.0,
+        179.0,
+        2,
+        217.0,
+        185.0,
+        2,
+        567.0,
+        185.0,
+        2,
+        202.0,
+        375.0,
+        2,
+        573.0,
+        371.0,
+        2,
+        13.0,
+        656.0,
+        2,
+        768.0,
+        658.0,
+        2,
+        201.0,
+        586.0,
+        2,
+        591.0,
+        583.0,
+        2,
+        396.0,
+        577.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        5.0,
+        171.0,
+        771.0,
+        495.0
+      ],
+      "area": 381645.0,
+      "iscrowd": 0,
+      "category_label": "jacket",
+      "a4_corners": [
+        {
+          "x": 779,
+          "y": 474
+        },
+        {
+          "x": 981,
+          "y": 469
+        },
+        {
+          "x": 786,
+          "y": 748
+        },
+        {
+          "x": 986,
+          "y": 745
+        }
+      ]
+    },
+    {
+      "id": 106,
+      "image_id": 19,
+      "category_id": 1,
+      "keypoints": [
+        319.0,
+        280.0,
+        2,
+        196.0,
+        314.0,
+        2,
+        440.0,
+        311.0,
+        2,
+        199.0,
+        437.0,
+        2,
+        441.0,
+        436.0,
+        2,
+        14.0,
+        593.0,
+        2,
+        584.0,
+        623.0,
+        2,
+        201.0,
+        580.0,
+        2,
+        451.0,
+        579.0,
+        2,
+        322.0,
+        575.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        6.0,
+        272.0,
+        586.0,
+        359.0
+      ],
+      "area": 210374.0,
+      "iscrowd": 0,
+      "category_label": "jacket",
+      "a4_corners": [
+        {
+          "x": 604,
+          "y": 413
+        },
+        {
+          "x": 743,
+          "y": 412
+        },
+        {
+          "x": 605,
+          "y": 605
+        },
+        {
+          "x": 747,
+          "y": 606
+        }
+      ]
+    },
+    {
+      "id": 107,
+      "image_id": 25,
+      "category_id": 1,
+      "keypoints": [
+        309.0,
+        391.0,
+        2,
+        228.0,
+        393.0,
+        2,
+        397.0,
+        392.0,
+        2,
+        219.0,
+        467.0,
+        2,
+        406.0,
+        466.0,
+        2,
+        35.0,
+        492.0,
+        2,
+        591.0,
+        493.0,
+        2,
+        241.0,
+        544.0,
+        2,
+        397.0,
+        539.0,
+        2,
+        312.0,
+        533.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        27.0,
+        383.0,
+        572.0,
+        169.0
+      ],
+      "area": 96668.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 596,
+          "y": 452
+        },
+        {
+          "x": 692,
+          "y": 448
+        },
+        {
+          "x": 601,
+          "y": 582
+        },
+        {
+          "x": 697,
+          "y": 581
+        }
+      ]
+    },
+    {
+      "id": 108,
+      "image_id": 65,
+      "category_id": 1,
+      "keypoints": [
+        435.0,
+        211.0,
+        2,
+        306.0,
+        237.0,
+        2,
+        553.0,
+        240.0,
+        2,
+        299.0,
+        383.0,
+        2,
+        552.0,
+        380.0,
+        2,
+        27.0,
+        434.0,
+        2,
+        822.0,
+        464.0,
+        2,
+        309.0,
+        631.0,
+        2,
+        545.0,
+        629.0,
+        2,
+        436.0,
+        633.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        19.0,
+        203.0,
+        811.0,
+        438.0
+      ],
+      "area": 355218.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 835,
+          "y": 394
+        },
+        {
+          "x": 981,
+          "y": 395
+        },
+        {
+          "x": 832,
+          "y": 597
+        },
+        {
+          "x": 976,
+          "y": 598
+        }
+      ]
+    },
+    {
+      "id": 109,
+      "image_id": 127,
+      "category_id": 1,
+      "keypoints": [
+        437.0,
+        236.0,
+        2,
+        223.0,
+        294.0,
+        2,
+        652.0,
+        291.0,
+        2,
+        265.0,
+        379.0,
+        2,
+        613.0,
+        377.0,
+        2,
+        27.0,
+        438.0,
+        2,
+        851.0,
+        438.0,
+        2,
+        264.0,
+        647.0,
+        2,
+        581.0,
+        652.0,
+        2,
+        434.0,
+        657.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        19.0,
+        228.0,
+        840.0,
+        437.0
+      ],
+      "area": 367080.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 790,
+          "y": 525
+        },
+        {
+          "x": 934,
+          "y": 526
+        },
+        {
+          "x": 789,
+          "y": 729
+        },
+        {
+          "x": 933,
+          "y": 728
+        }
+      ]
+    },
+    {
+      "id": 110,
+      "image_id": 153,
+      "category_id": 1,
+      "keypoints": [
+        435.0,
+        229.0,
+        2,
+        283.0,
+        257.0,
+        2,
+        573.0,
+        255.0,
+        2,
+        259.0,
+        400.0,
+        2,
+        603.0,
+        401.0,
+        2,
+        143.0,
+        308.0,
+        2,
+        720.0,
+        291.0,
+        2,
+        267.0,
+        658.0,
+        2,
+        610.0,
+        654.0,
+        2,
+        437.0,
+        663.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        135.0,
+        221.0,
+        593.0,
+        450.0
+      ],
+      "area": 266850.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 797,
+          "y": 463
+        },
+        {
+          "x": 931,
+          "y": 459
+        },
+        {
+          "x": 802,
+          "y": 651
+        },
+        {
+          "x": 936,
+          "y": 648
+        }
+      ]
+    },
+    {
+      "id": 111,
+      "image_id": 45,
+      "category_id": 1,
+      "keypoints": [
+        431.0,
+        242.0,
+        2,
+        338.0,
+        224.0,
+        2,
+        527.0,
+        223.0,
+        2,
+        318.0,
+        354.0,
+        2,
+        529.0,
+        353.0,
+        2,
+        55.0,
+        486.0,
+        2,
+        786.0,
+        499.0,
+        2,
+        337.0,
+        590.0,
+        2,
+        533.0,
+        575.0,
+        2,
+        429.0,
+        577.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        47.0,
+        215.0,
+        747.0,
+        383.0
+      ],
+      "area": 286101.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 800,
+          "y": 414
+        },
+        {
+          "x": 953,
+          "y": 418
+        },
+        {
+          "x": 796,
+          "y": 628
+        },
+        {
+          "x": 953,
+          "y": 633
+        }
+      ]
+    },
+    {
+      "id": 112,
+      "image_id": 34,
+      "category_id": 1,
+      "keypoints": [
+        332.0,
+        334.0,
+        2,
+        259.0,
+        326.0,
+        2,
+        404.0,
+        326.0,
+        2,
+        229.0,
+        443.0,
+        2,
+        439.0,
+        442.0,
+        2,
+        73.0,
+        479.0,
+        2,
+        591.0,
+        468.0,
+        2,
+        221.0,
+        583.0,
+        2,
+        442.0,
+        576.0,
+        2,
+        332.0,
+        575.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        65.0,
+        318.0,
+        534.0,
+        273.0
+      ],
+      "area": 145782.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 609,
+          "y": 456
+        },
+        {
+          "x": 699,
+          "y": 457
+        },
+        {
+          "x": 608,
+          "y": 584
+        },
+        {
+          "x": 700,
+          "y": 585
+        }
+      ]
+    },
+    {
+      "id": 113,
+      "image_id": 165,
+      "category_id": 1,
+      "keypoints": [
+        285.0,
+        345.0,
+        2,
+        215.0,
+        352.0,
+        2,
+        366.0,
+        355.0,
+        2,
+        50.0,
+        467.0,
+        2,
+        523.0,
+        452.0,
+        2,
+        197.0,
+        439.0,
+        2,
+        365.0,
+        441.0,
+        2,
+        213.0,
+        546.0,
+        2,
+        351.0,
+        546.0,
+        2,
+        282.0,
+        538.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        42.0,
+        337.0,
+        489.0,
+        217.0
+      ],
+      "area": 106113.0,
+      "iscrowd": 0,
+      "category_label": "jacket",
+      "a4_corners": [
+        {
+          "x": 382,
+          "y": 483
+        },
+        {
+          "x": 456,
+          "y": 486
+        },
+        {
+          "x": 378,
+          "y": 588
+        },
+        {
+          "x": 454,
+          "y": 591
+        }
+      ]
+    },
+    {
+      "id": 114,
+      "image_id": 114,
+      "category_id": 1,
+      "keypoints": [
+        405.0,
+        141.0,
+        2,
+        205.0,
+        151.0,
+        2,
+        608.0,
+        150.0,
+        2,
+        194.0,
+        363.0,
+        2,
+        632.0,
+        363.0,
+        2,
+        38.0,
+        261.0,
+        2,
+        778.0,
+        264.0,
+        2,
+        190.0,
+        722.0,
+        2,
+        622.0,
+        725.0,
+        2,
+        405.0,
+        725.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        30.0,
+        133.0,
+        756.0,
+        600.0
+      ],
+      "area": 453600.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 699,
+          "y": 490
+        },
+        {
+          "x": 903,
+          "y": 490
+        },
+        {
+          "x": 699,
+          "y": 770
+        },
+        {
+          "x": 901,
+          "y": 772
+        }
+      ]
+    },
+    {
+      "id": 115,
+      "image_id": 184,
+      "category_id": 1,
+      "keypoints": [
+        283.0,
+        335.0,
+        2,
+        153.0,
+        358.0,
+        2,
+        415.0,
+        365.0,
+        2,
+        154.0,
+        437.0,
+        2,
+        410.0,
+        441.0,
+        2,
+        16.0,
+        433.0,
+        2,
+        550.0,
+        431.0,
+        2,
+        151.0,
+        584.0,
+        2,
+        405.0,
+        589.0,
+        2,
+        278.0,
+        589.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        8.0,
+        327.0,
+        550.0,
+        270.0
+      ],
+      "area": 148500.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 424,
+          "y": 490
+        },
+        {
+          "x": 518,
+          "y": 493
+        },
+        {
+          "x": 418,
+          "y": 626
+        },
+        {
+          "x": 516,
+          "y": 629
+        }
+      ]
+    },
+    {
+      "id": 116,
+      "image_id": 60,
+      "category_id": 1,
+      "keypoints": [
+        491.0,
+        289.0,
+        2,
+        339.0,
+        299.0,
+        2,
+        643.0,
+        287.0,
+        2,
+        322.0,
+        452.0,
+        2,
+        669.0,
+        449.0,
+        2,
+        16.0,
+        433.0,
+        2,
+        986.0,
+        398.0,
+        2,
+        328.0,
+        665.0,
+        2,
+        660.0,
+        660.0,
+        2,
+        489.0,
+        651.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        8.0,
+        279.0,
+        986.0,
+        394.0
+      ],
+      "area": 388484.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 886,
+          "y": 469
+        },
+        {
+          "x": 1014,
+          "y": 466
+        },
+        {
+          "x": 891,
+          "y": 648
+        },
+        {
+          "x": 1020,
+          "y": 645
+        }
+      ]
+    },
+    {
+      "id": 117,
+      "image_id": 7,
+      "category_id": 1,
+      "keypoints": [
+        304.0,
+        256.0,
+        2,
+        213.0,
+        262.0,
+        2,
+        405.0,
+        250.0,
+        2,
+        201.0,
+        357.0,
+        2,
+        419.0,
+        355.0,
+        2,
+        33.0,
+        517.0,
+        2,
+        618.0,
+        479.0,
+        2,
+        215.0,
+        556.0,
+        2,
+        416.0,
+        552.0,
+        2,
+        316.0,
+        547.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        25.0,
+        242.0,
+        601.0,
+        322.0
+      ],
+      "area": 193522.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 628,
+          "y": 381
+        },
+        {
+          "x": 751,
+          "y": 377
+        },
+        {
+          "x": 634,
+          "y": 550
+        },
+        {
+          "x": 757,
+          "y": 546
+        }
+      ]
+    },
+    {
+      "id": 118,
+      "image_id": 98,
+      "category_id": 1,
+      "keypoints": [
+        485.0,
+        257.0,
+        2,
+        324.0,
+        306.0,
+        2,
+        649.0,
+        306.0,
+        2,
+        315.0,
+        437.0,
+        2,
+        666.0,
+        434.0,
+        2,
+        84.0,
+        518.0,
+        2,
+        943.0,
+        404.0,
+        2,
+        294.0,
+        666.0,
+        2,
+        692.0,
+        611.0,
+        2,
+        487.0,
+        695.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        76.0,
+        249.0,
+        875.0,
+        454.0
+      ],
+      "area": 397250.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 763,
+          "y": 543
+        },
+        {
+          "x": 912,
+          "y": 543
+        },
+        {
+          "x": 762,
+          "y": 752
+        },
+        {
+          "x": 910,
+          "y": 751
+        }
+      ]
+    },
+    {
+      "id": 119,
+      "image_id": 144,
+      "category_id": 1,
+      "keypoints": [
+        508.0,
+        234.0,
+        2,
+        359.0,
+        245.0,
+        2,
+        646.0,
+        244.0,
+        2,
+        356.0,
+        359.0,
+        2,
+        665.0,
+        358.0,
+        2,
+        89.0,
+        413.0,
+        2,
+        934.0,
+        375.0,
+        2,
+        351.0,
+        592.0,
+        2,
+        661.0,
+        588.0,
+        2,
+        509.0,
+        583.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        81.0,
+        226.0,
+        861.0,
+        374.0
+      ],
+      "area": 322014.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 720,
+          "y": 527
+        },
+        {
+          "x": 842,
+          "y": 527
+        },
+        {
+          "x": 721,
+          "y": 697
+        },
+        {
+          "x": 844,
+          "y": 697
+        }
+      ]
+    },
+    {
+      "id": 120,
+      "image_id": 78,
+      "category_id": 1,
+      "keypoints": [
+        439.0,
+        171.0,
+        2,
+        265.0,
+        203.0,
+        2,
+        611.0,
+        202.0,
+        2,
+        270.0,
+        328.0,
+        2,
+        614.0,
+        329.0,
+        2,
+        69.0,
+        359.0,
+        2,
+        806.0,
+        358.0,
+        2,
+        263.0,
+        641.0,
+        2,
+        609.0,
+        654.0,
+        2,
+        438.0,
+        677.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        61.0,
+        163.0,
+        753.0,
+        522.0
+      ],
+      "area": 393066.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 683,
+          "y": 462
+        },
+        {
+          "x": 828,
+          "y": 460
+        },
+        {
+          "x": 685,
+          "y": 665
+        },
+        {
+          "x": 830,
+          "y": 663
+        }
+      ]
+    },
+    {
+      "id": 121,
+      "image_id": 137,
+      "category_id": 1,
+      "keypoints": [
+        453.0,
+        221.0,
+        2,
+        300.0,
+        252.0,
+        2,
+        600.0,
+        254.0,
+        2,
+        290.0,
+        416.0,
+        2,
+        604.0,
+        413.0,
+        2,
+        68.0,
+        540.0,
+        2,
+        813.0,
+        549.0,
+        2,
+        267.0,
+        564.0,
+        2,
+        630.0,
+        568.0,
+        2,
+        455.0,
+        584.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        60.0,
+        213.0,
+        761.0,
+        379.0
+      ],
+      "area": 288419.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 821,
+          "y": 483
+        },
+        {
+          "x": 971,
+          "y": 479
+        },
+        {
+          "x": 828,
+          "y": 694
+        },
+        {
+          "x": 979,
+          "y": 689
+        }
+      ]
+    },
+    {
+      "id": 122,
+      "image_id": 72,
+      "category_id": 1,
+      "keypoints": [
+        412.0,
+        78.0,
+        2,
+        218.0,
+        80.0,
+        2,
+        619.0,
+        76.0,
+        2,
+        238.0,
+        254.0,
+        2,
+        585.0,
+        257.0,
+        2,
+        81.0,
+        275.0,
+        2,
+        747.0,
+        282.0,
+        2,
+        254.0,
+        624.0,
+        2,
+        572.0,
+        632.0,
+        2,
+        411.0,
+        624.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        73.0,
+        68.0,
+        682.0,
+        572.0
+      ],
+      "area": 390104.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 795,
+          "y": 369
+        },
+        {
+          "x": 991,
+          "y": 368
+        },
+        {
+          "x": 795,
+          "y": 637
+        },
+        {
+          "x": 990,
+          "y": 638
+        }
+      ]
+    },
+    {
+      "id": 123,
+      "image_id": 199,
+      "category_id": 1,
+      "keypoints": [
+        289.0,
+        241.0,
+        2,
+        185.0,
+        252.0,
+        2,
+        388.0,
+        252.0,
+        2,
+        190.0,
+        351.0,
+        2,
+        381.0,
+        354.0,
+        2,
+        34.0,
+        556.0,
+        2,
+        550.0,
+        560.0,
+        2,
+        177.0,
+        541.0,
+        2,
+        385.0,
+        546.0,
+        2,
+        279.0,
+        547.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        26.0,
+        233.0,
+        532.0,
+        335.0
+      ],
+      "area": 178220.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 402,
+          "y": 582
+        },
+        {
+          "x": 522,
+          "y": 583
+        },
+        {
+          "x": 400,
+          "y": 756
+        },
+        {
+          "x": 523,
+          "y": 757
+        }
+      ]
+    },
+    {
+      "id": 124,
+      "image_id": 162,
+      "category_id": 1,
+      "keypoints": [
+        277.0,
+        366.0,
+        2,
+        168.0,
+        392.0,
+        2,
+        388.0,
+        386.0,
+        2,
+        169.0,
+        474.0,
+        2,
+        387.0,
+        473.0,
+        2,
+        16.0,
+        529.0,
+        2,
+        545.0,
+        496.0,
+        2,
+        172.0,
+        594.0,
+        2,
+        382.0,
+        594.0,
+        2,
+        277.0,
+        596.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        8.0,
+        358.0,
+        545.0,
+        246.0
+      ],
+      "area": 134070.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 399,
+          "y": 505
+        },
+        {
+          "x": 484,
+          "y": 508
+        },
+        {
+          "x": 392,
+          "y": 626
+        },
+        {
+          "x": 480,
+          "y": 630
+        }
+      ]
+    },
+    {
+      "id": 125,
+      "image_id": 86,
+      "category_id": 1,
+      "keypoints": [
+        458.0,
+        284.0,
+        2,
+        335.0,
+        318.0,
+        2,
+        591.0,
+        317.0,
+        2,
+        324.0,
+        455.0,
+        2,
+        617.0,
+        456.0,
+        2,
+        50.0,
+        523.0,
+        2,
+        878.0,
+        499.0,
+        2,
+        301.0,
+        688.0,
+        2,
+        640.0,
+        678.0,
+        2,
+        460.0,
+        678.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        42.0,
+        276.0,
+        844.0,
+        420.0
+      ],
+      "area": 354480.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 785,
+          "y": 563
+        },
+        {
+          "x": 915,
+          "y": 562
+        },
+        {
+          "x": 789,
+          "y": 747
+        },
+        {
+          "x": 918,
+          "y": 745
+        }
+      ]
+    },
+    {
+      "id": 126,
+      "image_id": 77,
+      "category_id": 1,
+      "keypoints": [
+        386.0,
+        197.0,
+        2,
+        208.0,
+        236.0,
+        2,
+        557.0,
+        232.0,
+        2,
+        209.0,
+        405.0,
+        2,
+        570.0,
+        406.0,
+        2,
+        30.0,
+        637.0,
+        2,
+        768.0,
+        629.0,
+        2,
+        178.0,
+        667.0,
+        2,
+        572.0,
+        668.0,
+        2,
+        382.0,
+        668.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        22.0,
+        189.0,
+        754.0,
+        487.0
+      ],
+      "area": 367198.0,
+      "iscrowd": 0,
+      "category_label": "jacket",
+      "a4_corners": [
+        {
+          "x": 784,
+          "y": 518
+        },
+        {
+          "x": 970,
+          "y": 519
+        },
+        {
+          "x": 783,
+          "y": 775
+        },
+        {
+          "x": 970,
+          "y": 777
+        }
+      ]
+    },
+    {
+      "id": 127,
+      "image_id": 38,
+      "category_id": 1,
+      "keypoints": [
+        291.0,
+        90.0,
+        2,
+        188.0,
+        114.0,
+        2,
+        403.0,
+        111.0,
+        2,
+        182.0,
+        247.0,
+        2,
+        409.0,
+        247.0,
+        2,
+        36.0,
+        390.0,
+        2,
+        579.0,
+        379.0,
+        2,
+        135.0,
+        687.0,
+        2,
+        469.0,
+        698.0,
+        2,
+        298.0,
+        692.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        28.0,
+        82.0,
+        559.0,
+        624.0
+      ],
+      "area": 348816.0,
+      "iscrowd": 0,
+      "category_label": "jacket",
+      "a4_corners": [
+        {
+          "x": 579,
+          "y": 525
+        },
+        {
+          "x": 702,
+          "y": 521
+        },
+        {
+          "x": 586,
+          "y": 698
+        },
+        {
+          "x": 709,
+          "y": 693
+        }
+      ]
+    },
+    {
+      "id": 128,
+      "image_id": 15,
+      "category_id": 1,
+      "keypoints": [
+        302.0,
+        258.0,
+        2,
+        184.0,
+        280.0,
+        2,
+        428.0,
+        282.0,
+        2,
+        172.0,
+        391.0,
+        2,
+        434.0,
+        394.0,
+        2,
+        6.0,
+        583.0,
+        2,
+        577.0,
+        604.0,
+        2,
+        177.0,
+        569.0,
+        2,
+        425.0,
+        568.0,
+        2,
+        304.0,
+        566.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        0.0,
+        250.0,
+        587.0,
+        362.0
+      ],
+      "area": 212494.0,
+      "iscrowd": 0,
+      "category_label": "jacket",
+      "a4_corners": [
+        {
+          "x": 585,
+          "y": 425
+        },
+        {
+          "x": 727,
+          "y": 422
+        },
+        {
+          "x": 586,
+          "y": 620
+        },
+        {
+          "x": 730,
+          "y": 620
+        }
+      ]
+    },
+    {
+      "id": 129,
+      "image_id": 16,
+      "category_id": 1,
+      "keypoints": [
+        297.0,
+        296.0,
+        2,
+        155.0,
+        322.0,
+        2,
+        436.0,
+        323.0,
+        2,
+        143.0,
+        423.0,
+        2,
+        441.0,
+        425.0,
+        2,
+        66.0,
+        451.0,
+        2,
+        513.0,
+        466.0,
+        2,
+        140.0,
+        625.0,
+        2,
+        454.0,
+        626.0,
+        2,
+        296.0,
+        603.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        58.0,
+        288.0,
+        463.0,
+        346.0
+      ],
+      "area": 160198.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 547,
+          "y": 400
+        },
+        {
+          "x": 704,
+          "y": 396
+        },
+        {
+          "x": 551,
+          "y": 616
+        },
+        {
+          "x": 709,
+          "y": 614
+        }
+      ]
+    },
+    {
+      "id": 130,
+      "image_id": 138,
+      "category_id": 1,
+      "keypoints": [
+        390.0,
+        163.0,
+        2,
+        240.0,
+        199.0,
+        2,
+        540.0,
+        201.0,
+        2,
+        223.0,
+        333.0,
+        2,
+        561.0,
+        331.0,
+        2,
+        92.0,
+        280.0,
+        2,
+        694.0,
+        237.0,
+        2,
+        207.0,
+        614.0,
+        2,
+        576.0,
+        619.0,
+        2,
+        390.0,
+        623.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        84.0,
+        155.0,
+        618.0,
+        476.0
+      ],
+      "area": 294168.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 736,
+          "y": 452
+        },
+        {
+          "x": 876,
+          "y": 451
+        },
+        {
+          "x": 739,
+          "y": 649
+        },
+        {
+          "x": 880,
+          "y": 648
+        }
+      ]
+    },
+    {
+      "id": 131,
+      "image_id": 37,
+      "category_id": 1,
+      "keypoints": [
+        316.0,
+        365.0,
+        2,
+        248.0,
+        365.0,
+        2,
+        393.0,
+        366.0,
+        2,
+        233.0,
+        443.0,
+        2,
+        400.0,
+        442.0,
+        2,
+        64.0,
+        552.0,
+        2,
+        582.0,
+        551.0,
+        2,
+        245.0,
+        588.0,
+        2,
+        382.0,
+        592.0,
+        2,
+        314.0,
+        582.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        56.0,
+        357.0,
+        534.0,
+        243.0
+      ],
+      "area": 129762.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 612,
+          "y": 469
+        },
+        {
+          "x": 713,
+          "y": 467
+        },
+        {
+          "x": 618,
+          "y": 609
+        },
+        {
+          "x": 718,
+          "y": 606
+        }
+      ]
+    },
+    {
+      "id": 132,
+      "image_id": 172,
+      "category_id": 1,
+      "keypoints": [
+        283.0,
+        325.0,
+        2,
+        209.0,
+        331.0,
+        2,
+        359.0,
+        329.0,
+        2,
+        205.0,
+        405.0,
+        2,
+        370.0,
+        406.0,
+        2,
+        25.0,
+        467.0,
+        2,
+        544.0,
+        445.0,
+        2,
+        202.0,
+        616.0,
+        2,
+        365.0,
+        617.0,
+        2,
+        284.0,
+        617.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        17.0,
+        317.0,
+        535.0,
+        308.0
+      ],
+      "area": 164780.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 382,
+          "y": 474
+        },
+        {
+          "x": 461,
+          "y": 477
+        },
+        {
+          "x": 379,
+          "y": 588
+        },
+        {
+          "x": 459,
+          "y": 590
+        }
+      ]
+    },
+    {
+      "id": 133,
+      "image_id": 44,
+      "category_id": 1,
+      "keypoints": [
+        404.0,
+        171.0,
+        2,
+        289.0,
+        214.0,
+        2,
+        530.0,
+        212.0,
+        2,
+        266.0,
+        353.0,
+        2,
+        563.0,
+        351.0,
+        2,
+        65.0,
+        483.0,
+        2,
+        759.0,
+        474.0,
+        2,
+        260.0,
+        602.0,
+        2,
+        566.0,
+        599.0,
+        2,
+        407.0,
+        597.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        57.0,
+        163.0,
+        710.0,
+        447.0
+      ],
+      "area": 317370.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 762,
+          "y": 489
+        },
+        {
+          "x": 893,
+          "y": 490
+        },
+        {
+          "x": 762,
+          "y": 673
+        },
+        {
+          "x": 896,
+          "y": 674
+        }
+      ]
+    },
+    {
+      "id": 134,
+      "image_id": 55,
+      "category_id": 1,
+      "keypoints": [
+        423.0,
+        270.0,
+        2,
+        278.0,
+        282.0,
+        2,
+        574.0,
+        280.0,
+        2,
+        289.0,
+        380.0,
+        2,
+        577.0,
+        378.0,
+        2,
+        11.0,
+        380.0,
+        2,
+        861.0,
+        361.0,
+        2,
+        283.0,
+        603.0,
+        2,
+        561.0,
+        608.0,
+        2,
+        422.0,
+        602.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        3.0,
+        262.0,
+        866.0,
+        354.0
+      ],
+      "area": 306564.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 852,
+          "y": 408
+        },
+        {
+          "x": 988,
+          "y": 408
+        },
+        {
+          "x": 851,
+          "y": 599
+        },
+        {
+          "x": 990,
+          "y": 600
+        }
+      ]
+    },
+    {
+      "id": 135,
+      "image_id": 79,
+      "category_id": 1,
+      "keypoints": [
+        422.0,
+        140.0,
+        2,
+        200.0,
+        168.0,
+        2,
+        632.0,
+        165.0,
+        2,
+        199.0,
+        378.0,
+        2,
+        650.0,
+        376.0,
+        2,
+        5.0,
+        243.0,
+        2,
+        831.0,
+        215.0,
+        2,
+        215.0,
+        725.0,
+        2,
+        639.0,
+        722.0,
+        2,
+        432.0,
+        723.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        0.0,
+        132.0,
+        842.0,
+        601.0
+      ],
+      "area": 506042.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 758,
+          "y": 488
+        },
+        {
+          "x": 948,
+          "y": 485
+        },
+        {
+          "x": 764,
+          "y": 751
+        },
+        {
+          "x": 951,
+          "y": 747
+        }
+      ]
+    },
+    {
+      "id": 136,
+      "image_id": 89,
+      "category_id": 1,
+      "keypoints": [
+        417.0,
+        186.0,
+        2,
+        275.0,
+        193.0,
+        2,
+        560.0,
+        196.0,
+        2,
+        279.0,
+        332.0,
+        2,
+        565.0,
+        333.0,
+        2,
+        3.0,
+        503.0,
+        2,
+        789.0,
+        544.0,
+        2,
+        246.0,
+        539.0,
+        2,
+        559.0,
+        545.0,
+        2,
+        416.0,
+        551.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        0.0,
+        178.0,
+        802.0,
+        381.0
+      ],
+      "area": 305562.0,
+      "iscrowd": 0,
+      "category_label": "jacket",
+      "a4_corners": [
+        {
+          "x": 803,
+          "y": 508
+        },
+        {
+          "x": 947,
+          "y": 508
+        },
+        {
+          "x": 800,
+          "y": 707
+        },
+        {
+          "x": 944,
+          "y": 707
+        }
+      ]
+    },
+    {
+      "id": 137,
+      "image_id": 97,
+      "category_id": 1,
+      "keypoints": [
+        468.0,
+        275.0,
+        2,
+        285.0,
+        281.0,
+        2,
+        648.0,
+        281.0,
+        2,
+        281.0,
+        418.0,
+        2,
+        659.0,
+        418.0,
+        2,
+        24.0,
+        386.0,
+        2,
+        935.0,
+        391.0,
+        2,
+        321.0,
+        666.0,
+        2,
+        631.0,
+        663.0,
+        2,
+        468.0,
+        651.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        16.0,
+        267.0,
+        927.0,
+        407.0
+      ],
+      "area": 377289.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 733,
+          "y": 560
+        },
+        {
+          "x": 870,
+          "y": 561
+        },
+        {
+          "x": 730,
+          "y": 753
+        },
+        {
+          "x": 869,
+          "y": 755
+        }
+      ]
+    },
+    {
+      "id": 138,
+      "image_id": 13,
+      "category_id": 1,
+      "keypoints": [
+        331.0,
+        199.0,
+        2,
+        195.0,
+        219.0,
+        2,
+        482.0,
+        219.0,
+        2,
+        202.0,
+        376.0,
+        2,
+        481.0,
+        375.0,
+        2,
+        37.0,
+        419.0,
+        2,
+        643.0,
+        344.0,
+        2,
+        211.0,
+        657.0,
+        2,
+        472.0,
+        649.0,
+        2,
+        329.0,
+        652.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        29.0,
+        191.0,
+        622.0,
+        474.0
+      ],
+      "area": 294828.0,
+      "iscrowd": 0,
+      "category_label": "jacket",
+      "a4_corners": [
+        {
+          "x": 591,
+          "y": 494
+        },
+        {
+          "x": 692,
+          "y": 492
+        },
+        {
+          "x": 594,
+          "y": 638
+        },
+        {
+          "x": 700,
+          "y": 636
+        }
+      ]
+    },
+    {
+      "id": 139,
+      "image_id": 46,
+      "category_id": 1,
+      "keypoints": [
+        479.0,
+        245.0,
+        2,
+        291.0,
+        306.0,
+        2,
+        664.0,
+        305.0,
+        2,
+        311.0,
+        412.0,
+        2,
+        648.0,
+        410.0,
+        2,
+        41.0,
+        370.0,
+        2,
+        911.0,
+        410.0,
+        2,
+        346.0,
+        533.0,
+        2,
+        625.0,
+        526.0,
+        2,
+        479.0,
+        512.0,
+        2
+      ],
+      "num_keypoints": 10,
+      "bbox": [
+        33.0,
+        237.0,
+        886.0,
+        304.0
+      ],
+      "area": 269344.0,
+      "iscrowd": 0,
+      "category_label": "tops",
+      "a4_corners": [
+        {
+          "x": 846,
+          "y": 485
+        },
+        {
+          "x": 975,
+          "y": 486
+        },
+        {
+          "x": 845,
+          "y": 667
+        },
+        {
+          "x": 980,
+          "y": 669
+        }
+      ]
+    }
+  ],
+  "categories": [
+    {
+      "id": 1,
+      "name": "garment_top",
+      "supercategory": "clothing",
+      "keypoints": [
+        "collar_center",
+        "left_shoulder",
+        "right_shoulder",
+        "left_armpit",
+        "right_armpit",
+        "left_cuff",
+        "right_cuff",
+        "hem_left",
+        "hem_right",
+        "hem_center"
+      ],
+      "skeleton": [
+        [
+          2,
+          3
+        ],
+        [
+          4,
+          5
+        ],
+        [
+          6,
+          7
+        ],
+        [
+          8,
+          9
+        ],
+        [
+          1,
+          2
+        ],
+        [
+          1,
+          3
+        ],
+        [
+          2,
+          4
+        ],
+        [
+          3,
+          5
+        ],
+        [
+          4,
+          6
+        ],
+        [
+          5,
+          7
+        ],
+        [
+          4,
+          8
+        ],
+        [
+          5,
+          9
+        ],
+        [
+          8,
+          10
+        ],
+        [
+          9,
+          10
+        ]
+      ]
+    }
+  ]
+}
