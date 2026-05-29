@@ -9,6 +9,7 @@
  *   POST /upload/list           — アップロード済み商品一覧（サムネイル付き）
  *   POST /upload/list-all       — 全商品の全画像URL一括取得
  *   POST /upload/product-images — 指定商品の画像URL一覧
+ *   POST /upload/put-thumb      — 既存画像の軽量サムネ(_thumb)保存（クライアント生成サムネのバックフィル用）
  *   POST /upload/delete         — 商品画像の全削除（ソフトデリート: 7日間は復元可能）
  *   POST /upload/delete-single  — 個別画像の削除（ソフトデリート: 7日間は復元可能）
  *   POST /upload/restore        — ソフトデリートした商品の復元
@@ -21,6 +22,7 @@
  */
 
 import { jsonOk, jsonError, corsResponse } from '../utils/response.js';
+import { deriveThumbKey_ } from '../utils/thumb.js';
 
 const MAX_IMAGES = 10;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -99,6 +101,8 @@ export async function handleUpload(request, env, path) {
       return await handleUpdateImage(request, env);
     case '/upload/revert-image':
       return await handleRevertImage(request, env);
+    case '/upload/put-thumb':
+      return await handlePutThumb(request, env);
     case '/upload/reorder':
       return await handleReorder(request, env);
     case '/upload/list-all':
@@ -208,8 +212,12 @@ async function handleImageUpload(request, env) {
     }
   }
 
+  // クライアント生成の軽量サムネ（長辺320/品質0.7）。images と同順で送られる想定。
+  // 生成失敗時は 0バイトのプレースホルダで詰めて整列を保つ（size>0 のみPUT）。
+  const thumbFiles = formData.getAll('thumbs');
+
   // R2に並列PUT（UUID v4でファイル名生成）
-  const uploadPromises = files.map(async (file) => {
+  const uploadPromises = files.map(async (file, i) => {
     const uuid = crypto.randomUUID();
     const key = `products/${managedId}/${uuid}.jpg`;
     const arrayBuffer = await file.arrayBuffer();
@@ -219,6 +227,21 @@ async function handleImageUpload(request, env) {
         cacheControl: 'public, max-age=31536000, immutable',
       },
     });
+    // 同じ uuid の _thumb として軽量サムネを保存（一覧の即時表示用）
+    const tb = thumbFiles[i];
+    if (tb instanceof File && tb.size > 0) {
+      try {
+        const tbuf = await tb.arrayBuffer();
+        await env.IMAGES.put(`products/${managedId}/${uuid}_thumb.jpg`, tbuf, {
+          httpMetadata: {
+            contentType: 'image/jpeg',
+            cacheControl: 'public, max-age=31536000, immutable',
+          },
+        });
+      } catch (e) {
+        console.warn(`[upload] thumb put failed ${managedId}/${uuid}: ${e.message}`);
+      }
+    }
     return `/images/products/${managedId}/${uuid}.jpg`;
   });
 
@@ -423,14 +446,23 @@ export async function serveImage(request, env, path) {
   let r2Key = cleanPath.replace(/^\/images\//, '');
   try { r2Key = decodeURIComponent(r2Key); } catch {}
 
-  const object = await env.IMAGES.get(r2Key);
+  let object = await env.IMAGES.get(r2Key);
+  // _thumb がまだ生成されていない既存画像は原寸にフォールバック（バックフィル前/失敗時の保険）。
+  // ただしフォールバック時は immutable で焼かない（短期キャッシュ）。さもないと _thumb URL に
+  // 原寸が1年キャッシュされ、バックフィル後も小サムネに切り替わらなくなる。
+  let isThumbFallback = false;
+  if (!object && /_thumb\.jpg$/i.test(r2Key)) {
+    const fullKey = r2Key.replace(/_thumb\.jpg$/i, '.jpg');
+    object = await env.IMAGES.get(fullKey);
+    isThumbFallback = !!object;
+  }
   if (!object) {
     return new Response('Not Found', { status: 404 });
   }
 
   const headers = new Headers();
   headers.set('Content-Type', object.httpMetadata?.contentType || 'image/jpeg');
-  headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+  headers.set('Cache-Control', isThumbFallback ? 'public, max-age=60' : 'public, max-age=31536000, immutable');
   headers.set('Access-Control-Allow-Origin', '*');
 
   // ETag
@@ -624,6 +656,8 @@ async function handleDeleteSingle(request, env) {
 
   // UUID方式: targetUrl でURLを指定
   const targetUrl = body.targetUrl || '';
+  // _thumb は派生物。削除対象は原寸URLのみ（原寸を消せば _thumb も連動削除される）。
+  if (targetUrl && /_thumb\.jpg$/i.test(targetUrl)) return jsonError('内部エラー: サムネURLは削除対象にできません', 400);
   // 旧方式互換: imageIndex でも受け付ける
   const imageIndex = parseInt(body.imageIndex, 10);
 
@@ -749,6 +783,8 @@ async function handleUpdateImage(request, env) {
 
   const targetUrl = formData.get('targetUrl') || '';
   if (!targetUrl) return jsonError('対象画像URLが必要です', 400);
+  // _thumb は派生物。差替対象に指定されると原寸を200pxで上書きし原画破壊につながるため拒否。
+  if (/_thumb\.jpg$/i.test(targetUrl)) return jsonError('内部エラー: サムネURLは差替対象にできません', 400);
 
   // URL所有権チェック
   const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
@@ -772,6 +808,23 @@ async function handleUpdateImage(request, env) {
       cacheControl: 'public, max-age=31536000, immutable',
     },
   });
+
+  // クライアントが軽量サムネを併せて送ってきた場合は同 uuid の _thumb として保存。
+  // 無ければ serveImage が原寸にフォールバックするので必須ではない。
+  const thumbFile = formData.get('thumb');
+  if (thumbFile instanceof File && thumbFile.size > 0) {
+    try {
+      const tbuf = await thumbFile.arrayBuffer();
+      await env.IMAGES.put(`products/${managedId}/${uuid}_thumb.jpg`, tbuf, {
+        httpMetadata: {
+          contentType: 'image/jpeg',
+          cacheControl: 'public, max-age=31536000, immutable',
+        },
+      });
+    } catch (e) {
+      console.warn(`[upload] update thumb put failed ${managedId}/${uuid}: ${e.message}`);
+    }
+  }
 
   const newUrl = `/images/products/${managedId}/${uuid}.jpg`;
   urls[targetIndex] = newUrl;
@@ -865,6 +918,9 @@ async function handleRevertImage(request, env) {
   // 現在（置換後）のR2画像を削除
   const currentR2Key = currentUrl.replace(/^\/images\//, '');
   await env.IMAGES.delete(currentR2Key);
+  // 派生サムネ(_thumb)も連動削除（派生物なので保護対象照合は不要）
+  const currentThumbKey = deriveThumbKey_(currentR2Key);
+  if (currentThumbKey) await env.IMAGES.delete(currentThumbKey);
 
   await env.CACHE.delete(backupKey);
   // currentUrl はもう商品に存在しないので、その原画ポインタも撤去（孤立防止）。
@@ -874,6 +930,62 @@ async function handleRevertImage(request, env) {
   await invalidateListCache(env);
 
   return jsonOk({ managedId, oldUrl: currentUrl, newUrl: oldUrl, urls });
+}
+
+// ─── 既存画像のサムネ・バックフィル ───
+
+// クライアントが生成した軽量サムネ(_thumb)を、対応する原寸画像の隣に保存するだけのエンドポイント。
+// 一覧表示を即時化するための「表示専用キャッシュ」を既存3,000件超に後付けする用途。
+//   - product-images / image-original / D1 / 各種キャッシュには一切触れない（純粋な派生物の追加）
+//   - 原寸URL（UUID形式）のみ受け付ける。番号URL（{n}.jpg）はサムネ非対応で拒否
+//   - immutable で保存（同一 uuid のサムネ内容は不変）。再送は上書き=冪等
+async function handlePutThumb(request, env) {
+  const contentType = request.headers.get('Content-Type') || '';
+  if (!contentType.includes('multipart/form-data')) {
+    return jsonError('multipart/form-data が必要です', 400);
+  }
+
+  let formData;
+  try {
+    formData = await request.formData();
+  } catch {
+    return jsonError('フォームデータの解析に失敗しました', 400);
+  }
+
+  const managedId = normalizeManagedId(formData.get('managedId') || '');
+  if (!managedId) return jsonError('管理番号が必要です', 400);
+
+  const targetUrl = formData.get('targetUrl') || '';
+  if (!targetUrl) return jsonError('対象画像URLが必要です', 400);
+  // _thumb 自身は対象外。原寸URLのみ受け付ける。
+  if (/_thumb\.jpg$/i.test(targetUrl)) return jsonError('内部エラー: サムネURLは対象にできません', 400);
+
+  // 原寸URL → _thumb キーを派生。UUID形式でなければ null（番号URLはサムネ非対応）。
+  const r2Key = String(targetUrl).replace(/^\/images\//, '').split('?')[0];
+  const thumbKey = deriveThumbKey_(r2Key);
+  if (!thumbKey) return jsonError('サムネ非対応のURL形式です（UUID形式のみ）', 400);
+
+  // 所有権チェック: targetUrl がこの商品に属することを確認（任意キーへの書込み防止）
+  const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
+  const urls = urlsJson ? JSON.parse(urlsJson) : [];
+  if (!urls.includes(targetUrl)) return jsonError('指定された画像はこの商品に属しません', 400);
+
+  // サムネファイル
+  const thumb = formData.get('thumb');
+  if (!(thumb instanceof File) || thumb.size === 0) return jsonError('サムネ画像が必要です', 400);
+  if (thumb.size > 2 * 1024 * 1024) return jsonError('サムネが大きすぎます（最大2MB）', 400);
+
+  const tbuf = await thumb.arrayBuffer();
+  await env.IMAGES.put(thumbKey, tbuf, {
+    httpMetadata: {
+      contentType: 'image/jpeg',
+      cacheControl: 'public, max-age=31536000, immutable',
+    },
+  });
+
+  // 一覧キャッシュ等は不変（代表画像URLは原寸のまま）。serveImage が次回以降この _thumb を返す
+  // （フォールバックの max-age=60 が切れ次第、ブラウザは小サムネを取得）。
+  return jsonOk({ managedId, thumbKey: '/images/' + thumbKey, size: tbuf.byteLength });
 }
 
 // ─── 画像並び替え ───
@@ -901,6 +1013,8 @@ async function handleReorder(request, env) {
   // バリデーション: URLホワイトリスト + 所有権チェック
   const urlPattern = /^\/images\/products\/[A-Z0-9\-]+\/[a-f0-9\-]+\.jpg$/;
   for (const url of newOrder) {
+    // _thumb は派生物。並び順は原寸URL配列でのみ管理する。
+    if (/_thumb\.jpg$/i.test(url)) return jsonError('内部エラー: サムネURLは並び替え対象にできません', 400);
     if (!urlPattern.test(url) && !/^\/images\/products\/[A-Z0-9\-]+\/\d+\.jpg$/.test(url)) {
       return jsonError('不正なURL形式です', 400);
     }
@@ -933,13 +1047,17 @@ async function handleListAll(request, env) {
   const indexJson = await env.CACHE.get('product-images:index');
   const index = indexJson ? JSON.parse(indexJson) : [];
 
-  const items = await Promise.all(
-    index.map(async (managedId) => {
+  // 並列度をチャンクで制限（メモリ128MB・サブリクエスト上限の崖を回避）
+  const items = [];
+  const CHUNK = 50;
+  for (let i = 0; i < index.length; i += CHUNK) {
+    const chunkResults = await Promise.all(index.slice(i, i + CHUNK).map(async (managedId) => {
       const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
       const urls = urlsJson ? JSON.parse(urlsJson) : [];
       return { managedId, urls, count: urls.length };
-    })
-  );
+    }));
+    for (const r of chunkResults) items.push(r);
+  }
 
   return jsonOk({ items });
 }
@@ -955,10 +1073,12 @@ async function handleUnmatched(request, env) {
   const index = indexJson ? JSON.parse(indexJson) : [];
   const registeredIds = idsJson ? new Set(JSON.parse(idsJson)) : new Set();
 
-  // QW1: 未マッチIDをまとめて並列KV読み
+  // QW1: 未マッチIDをまとめて並列KV読み（チャンクで並列度を制限）
   const targetIds = index.filter(id => !registeredIds.has(id));
-  const unmatched = (await Promise.all(
-    targetIds.map(async (managedId) => {
+  const unmatched = [];
+  const CHUNK = 50;
+  for (let i = 0; i < targetIds.length; i += CHUNK) {
+    const chunkResults = await Promise.all(targetIds.slice(i, i + CHUNK).map(async (managedId) => {
       const [urlsJson, metaJson] = await Promise.all([
         env.CACHE.get(`product-images:${managedId}`),
         env.CACHE.get(`photo-meta:${managedId}`),
@@ -978,8 +1098,9 @@ async function handleUnmatched(request, env) {
         daysSinceUpload,
         warning: daysSinceUpload !== null && daysSinceUpload >= 7,
       };
-    })
-  ));
+    }));
+    for (const r of chunkResults) unmatched.push(r);
+  }
 
   return jsonOk({ items: unmatched, total: unmatched.length });
 }

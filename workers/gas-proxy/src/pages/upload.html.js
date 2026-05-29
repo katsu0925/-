@@ -2137,32 +2137,187 @@ function resizeImageFallback(file, maxSize, quality, cb) {
   img.src = objUrl;
 }
 
+// 一覧の即時表示用サムネ(長辺320/品質0.7)を生成。入力blobは既にリサイズ＋autoLevels済みなので
+// autoLevels は再適用しない（二重適用防止）。生成失敗時は null を返す。
+function makeThumb(blob, cb) {
+  var MAX = 320, Q = 0.7;
+  if (typeof createImageBitmap !== 'function') { cb(null); return; }
+  createImageBitmap(blob).then(function(bmp) {
+    var w = bmp.width, h = bmp.height;
+    if (w > MAX || h > MAX) {
+      if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+      else { w = Math.round(w * MAX / h); h = MAX; }
+    }
+    var canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(bmp, 0, 0, w, h);
+    bmp.close();
+    canvas.toBlob(function(tb) {
+      canvas.width = 0; canvas.height = 0;
+      cb(tb || null);
+    }, 'image/jpeg', Q);
+  }).catch(function() { cb(null); });
+}
+
+// blobs と同順のサムネ配列を生成（失敗要素は null）。逐次生成でメモリ負荷を抑える。
+function makeThumbs(blobs, cb) {
+  var thumbs = new Array(blobs.length);
+  var i = 0;
+  function next() {
+    if (i >= blobs.length) { cb(thumbs); return; }
+    var pos = i++;
+    makeThumb(blobs[pos], function(tb) { thumbs[pos] = tb; next(); });
+  }
+  next();
+}
+
 function uploadInParallel(managedId, blobs, concurrency, photographer, photographyDate, onProgress, onDone) {
-  var fd = new FormData();
-  fd.append('managedId', managedId);
-  fd.append('action', _uploadMode); // 'new' or 'append'
-  if (document.getElementById('overwritePhotographer').checked) fd.append('overwritePhotographer', 'true');
-  if (photographer) fd.append('photographer', photographer);
-  if (photographyDate) fd.append('photographyDate', photographyDate);
-  for (var i = 0; i < blobs.length; i++) {
-    fd.append('images', blobs[i], (i + 1) + '.jpg');
+  // 一覧の即時表示用に軽量サムネを生成してから送信（images と同順で 'thumbs' に詰める）
+  makeThumbs(blobs, function(thumbs) {
+    var fd = new FormData();
+    fd.append('managedId', managedId);
+    fd.append('action', _uploadMode); // 'new' or 'append'
+    if (document.getElementById('overwritePhotographer').checked) fd.append('overwritePhotographer', 'true');
+    if (photographer) fd.append('photographer', photographer);
+    if (photographyDate) fd.append('photographyDate', photographyDate);
+    for (var i = 0; i < blobs.length; i++) {
+      fd.append('images', blobs[i], (i + 1) + '.jpg');
+      // 整列維持: サムネ生成失敗は 0バイトのプレースホルダ（サーバは size>0 のみPUT）
+      var tb = thumbs[i];
+      fd.append('thumbs', (tb && tb.size > 0) ? tb : new Blob([], { type: 'image/jpeg' }), (i + 1) + '_thumb.jpg');
+    }
+
+    fetch(API_BASE + '/upload/images', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + getToken() },
+      body: fd
+    }).then(function(r) { return r.json(); })
+    .then(function(d) {
+      if (d.ok) {
+        onProgress(blobs.length, blobs.length);
+        onDone(null, d);
+      } else {
+        if (d.message && d.message.indexOf('トークン') >= 0) { showAuth(); }
+        onDone(d.message || 'アップロード失敗');
+      }
+    }).catch(function(e) { onDone(e.message); });
+  });
+}
+
+// ─── 既存商品のサムネ一括バックフィル（初回のみ・PCで実行） ───
+// 一覧表示が重い既存商品の代表2枚(urls[0]/urls[1])に軽量サムネ(_thumb)を後付け生成する。
+// 使い方: PCのブラウザでこのページを開き、開発者コンソールで runThumbBackfill() を実行。
+// 進捗オーバーレイ＋中断ボタン付き。途中で閉じても再実行で続きから（生成済みはスキップ）。
+// 仕組み: _thumb URLを1回GET → immutableヘッダなら生成済み(skip)、max-age=60なら原寸が返るので
+//         そのblobからサムネ生成→/upload/put-thumb で保存（1回のGETで存在判定と原寸取得を兼ねる）。
+var _thumbBackfillAbort = false;
+
+function _bfOverlay(html) {
+  var el = document.getElementById('thumbBackfillOverlay');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'thumbBackfillOverlay';
+    el.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:11000;background:#111827;color:#fff;padding:14px 18px;font-size:14px;box-shadow:0 -4px 16px rgba(0,0,0,.3);display:flex;align-items:center;gap:14px;flex-wrap:wrap';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = html;
+}
+function _bfClose() {
+  var el = document.getElementById('thumbBackfillOverlay');
+  if (el && el.parentNode) el.parentNode.removeChild(el);
+}
+
+async function runThumbBackfill() {
+  if (!getToken()) { _bfOverlay('<span>先にログインしてください</span>'); return; }
+  _thumbBackfillAbort = false;
+  _bfOverlay('<span>サムネ対象を集計中…</span>');
+
+  // 1) 一覧取得（thumbnail=urls[0], secondThumbnail=urls[1] が一覧表示で使う2枚）
+  var listRes;
+  try {
+    listRes = await fetch(API_BASE + '/upload/list', {
+      method: 'POST', headers: headers({ 'Content-Type': 'application/json' }), body: '{}'
+    }).then(function(r){ return r.json(); });
+  } catch (e) { _bfOverlay('<span>一覧取得に失敗: ' + e.message + '</span>'); return; }
+  if (!listRes || !listRes.ok) { _bfOverlay('<span>一覧取得に失敗: ' + ((listRes && listRes.message) || '') + '</span>'); return; }
+
+  // 2) UUID形式の原寸URLだけを対象に収集（番号URLはサムネ非対応なので除外）
+  var UUID_RE = /^\\/images\\/products\\/[^/]+\\/[a-f0-9-]{36}\\.jpg$/i;
+  var targets = [];
+  (listRes.items || []).forEach(function(p) {
+    [p.thumbnail, p.secondThumbnail].forEach(function(u) {
+      if (u && UUID_RE.test(u)) targets.push({ mid: p.managedId, url: u });
+    });
+  });
+  var total = targets.length;
+  if (total === 0) { _bfOverlay('<span>対象サムネがありません</span><button onclick="_bfClose()" style="margin-left:auto;background:#4F46E5;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-weight:600;cursor:pointer">閉じる</button>'); return; }
+
+  var done = 0, made = 0, skipped = 0, failed = 0, idx = 0;
+  function render() {
+    _bfOverlay(
+      '<span style="display:inline-block;width:16px;height:16px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:bfspin .8s linear infinite"></span>' +
+      '<b>サムネ生成中</b> ' + done + ' / ' + total +
+      ' <span style="opacity:.85">（生成 ' + made + ' ・ スキップ ' + skipped + ' ・ 失敗 ' + failed + '）</span>' +
+      '<button id="bfCancelBtn" style="margin-left:auto;background:#dc2626;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-weight:600;cursor:pointer">中断</button>' +
+      '<style>@keyframes bfspin{to{transform:rotate(360deg)}}</style>'
+    );
+    var cb = document.getElementById('bfCancelBtn');
+    if (cb) cb.onclick = function(){ _thumbBackfillAbort = true; };
+  }
+  render();
+
+  // 3) 1件処理: _thumb URLを1回GET → immutableなら生成済み(skip)、原寸フォールバックならその場でサムネ化
+  async function processOne(t) {
+    var thumbUrl = t.url.replace(/\\.jpg$/i, '_thumb.jpg');
+    var res;
+    try {
+      res = await fetch(API_BASE + thumbUrl, { cache: 'no-store' });
+    } catch (e) { failed++; return; }
+    if (!res.ok) { failed++; return; }
+    var cc = res.headers.get('cache-control') || '';
+    if (cc.indexOf('immutable') >= 0) { skipped++; return; } // 本物のサムネが既に存在
+    // max-age=60 のフォールバック = 原寸そのもの。このblobからサムネ生成。
+    var blob;
+    try { blob = await res.blob(); } catch (e) { failed++; return; }
+    if (!blob || blob.size === 0) { failed++; return; }
+    var tb = await new Promise(function(resolve){ makeThumb(blob, resolve); });
+    if (!tb || tb.size === 0) { failed++; return; }
+    try {
+      var fd = new FormData();
+      fd.append('managedId', t.mid);
+      fd.append('targetUrl', t.url);
+      fd.append('thumb', tb, 'thumb.jpg');
+      var putRes = await fetch(API_BASE + '/upload/put-thumb', {
+        method: 'POST', headers: { 'Authorization': 'Bearer ' + getToken() }, body: fd
+      }).then(function(r){ return r.json(); });
+      if (putRes && putRes.ok) made++; else failed++;
+    } catch (e) { failed++; }
   }
 
-  fetch(API_BASE + '/upload/images', {
-    method: 'POST',
-    headers: { 'Authorization': 'Bearer ' + getToken() },
-    body: fd
-  }).then(function(r) { return r.json(); })
-  .then(function(d) {
-    if (d.ok) {
-      onProgress(blobs.length, blobs.length);
-      onDone(null, d);
-    } else {
-      if (d.message && d.message.indexOf('トークン') >= 0) { showAuth(); }
-      onDone(d.message || 'アップロード失敗');
+  // 4) 並列度4のワーカープールで処理
+  var CONC = 4;
+  async function worker() {
+    while (true) {
+      if (_thumbBackfillAbort) return;
+      var my = idx++;
+      if (my >= total) return;
+      await processOne(targets[my]);
+      done++;
+      if (done % 5 === 0 || done === total) render();
     }
-  }).catch(function(e) { onDone(e.message); });
+  }
+  var pool = [];
+  for (var w = 0; w < CONC; w++) pool.push(worker());
+  await Promise.all(pool);
+
+  // 5) 完了表示
+  var msg = _thumbBackfillAbort
+    ? '中断しました（' + done + ' / ' + total + '）。再実行で続きから処理します。'
+    : '完了: 生成 ' + made + ' ・ スキップ ' + skipped + ' ・ 失敗 ' + failed + '（計 ' + total + '）';
+  _bfOverlay('<span>' + msg + '</span><button onclick="_bfClose()" style="margin-left:auto;background:#4F46E5;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-weight:600;cursor:pointer">閉じる</button>');
+  console.log('[thumb-backfill] ' + msg);
 }
+window.runThumbBackfill = runThumbBackfill;
 
 // ─── 共通: 商品一覧データ ───
 var productListData = [];
@@ -2282,17 +2437,20 @@ function renderManageList() {
     if (fReg === 'unregistered' && p.registered) continue;
     if (fReg === 'registered' && !p.registered) continue;
     count++;
-    var thumbSrc = p.thumbnail ? (API_BASE + p.thumbnail) : '';
-    var second2Src = p.secondThumbnail ? (API_BASE + p.secondThumbnail) : '';
+    // 表示は軽量サムネ(_thumb)。data-full は原寸でフォールバック用。
+    var thumbSrc = p.thumbnail ? toThumbSrc(p.thumbnail) : '';
+    var thumbFull = p.thumbnail ? (API_BASE + p.thumbnail) : '';
+    var second2Src = p.secondThumbnail ? toThumbSrc(p.secondThumbnail) : '';
+    var second2Full = p.secondThumbnail ? (API_BASE + p.secondThumbnail) : '';
     var expandAttr = 'onclick="toggleManageExpand(\\'' + escapeHtml(p.managedId) + '\\')"';
     var thumbHtml;
     if (second2Src) {
       thumbHtml = '<div class="list-thumb-pair" ' + expandAttr + '>' +
-        '<img class="list-thumb" data-slot="0" src="' + thumbSrc + '" loading="lazy">' +
-        '<img class="list-thumb" data-slot="1" src="' + second2Src + '" loading="lazy">' +
+        '<img class="list-thumb" data-slot="0" src="' + thumbSrc + '" data-full="' + thumbFull + '" onerror="thumbFallback(this)" loading="lazy">' +
+        '<img class="list-thumb" data-slot="1" src="' + second2Src + '" data-full="' + second2Full + '" onerror="thumbFallback(this)" loading="lazy">' +
         '</div>';
     } else if (thumbSrc) {
-      thumbHtml = '<img class="list-thumb" data-slot="0" src="' + thumbSrc + '" loading="lazy" ' + expandAttr + '>';
+      thumbHtml = '<img class="list-thumb" data-slot="0" src="' + thumbSrc + '" data-full="' + thumbFull + '" onerror="thumbFallback(this)" loading="lazy" ' + expandAttr + '>';
     } else {
       thumbHtml = '<div class="list-thumb" ' + expandAttr + '></div>';
     }
@@ -4115,6 +4273,22 @@ function escapeHtml(s) {
   var d = document.createElement('div');
   d.textContent = s;
   return d.innerHTML;
+}
+// 一覧サムネ用: 原寸パス(/images/products/{id}/{uuid}.jpg)→ 軽量サムネ(_thumb)の表示src。
+// UUID形式のみ _thumb 化。legacy番号URL（{n}.jpg）は派生せず原寸のまま。
+// 注意: ここはフロント表示の src 差し替えのみ。D1/API が持つ代表画像は常に原寸URL。
+function toThumbSrc(path) {
+  if (!path) return '';
+  var m = path.match(/^(\\/images\\/products\\/[^/]+\\/[a-f0-9-]{36})\\.jpg$/i);
+  return API_BASE + (m ? m[1] + '_thumb.jpg' : path);
+}
+// サムネ取得に失敗したら原寸へフォールバック（無限ループ防止に一度だけ）。
+// serveImage 側の原寸フォールバックがあるので通常は発火しないが二重の保険。
+function thumbFallback(img) {
+  if (img.dataset.fb) return;
+  img.dataset.fb = '1';
+  img.onerror = null;
+  if (img.dataset.full) img.src = img.dataset.full;
 }
 </script>
 <button id="scrollTopBtn" onclick="scrollToTop()" title="最上部へ戻る" style="display:none;position:fixed;right:16px;bottom:20px;z-index:9999;width:44px;height:44px;border:none;border-radius:50%;background:#4F46E5;color:#fff;font-size:20px;font-weight:700;box-shadow:0 4px 12px rgba(0,0,0,.2);align-items:center;justify-content:center;cursor:pointer">↑</button>

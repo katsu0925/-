@@ -30,6 +30,7 @@
  */
 
 import { incrementGeminiUsage } from '../usage.js';
+import { deriveThumbKey_ } from '../utils/thumb.js';
 
 // ─── 価格破壊商品ID（¥10,000以上・送料無料クーポンの送料無料対象外） ───
 // Constants.gs SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS / submit.js と同期
@@ -1163,9 +1164,13 @@ async function cleanupOrphanedImages(env) {
       const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
       if (urlsJson) {
         const urls = JSON.parse(urlsJson);
-        await Promise.all(urls.map(url => {
+        await Promise.all(urls.flatMap(url => {
           const r2Key = url.replace(/^\/images\//, '').split('?')[0];
-          return env.IMAGES.delete(r2Key);
+          const ops = [env.IMAGES.delete(r2Key)];
+          // 派生サムネ(_thumb)も連動削除（派生物なので保護対象照合は不要）
+          const tk = deriveThumbKey_(r2Key);
+          if (tk) ops.push(env.IMAGES.delete(tk));
+          return ops;
         }));
       }
 
@@ -1209,6 +1214,9 @@ async function cleanupOrphanedImages(env) {
 /**
  * image-original:* の全値（真の原画URL）を R2キー集合として返す。
  * これらは Cron purge から永久に保護する。KVは増え続けるので cursor 全走査する。
+ *
+ * 注: ここで保護するのは「原寸の原画」のみ。派生サムネ(_thumb)は表示用キャッシュであり
+ *     保護対象ではない（原寸を消す全経路で常に連動削除してよい）。
  */
 async function buildProtectedOriginalKeys_(env) {
   const protectedKeys = new Set();
@@ -1251,6 +1259,9 @@ async function purgeSoftDeletedProducts(env) {
       for (const url of trash.urls || []) {
         const r2Key = url.replace(/^\/images\//, '').split('?')[0];
         if (!protectedKeys.has(r2Key)) await env.IMAGES.delete(r2Key);
+        // 派生サムネ(_thumb)は原画ではないので常に削除（protectedKeys 照合不要）
+        const tk = deriveThumbKey_(r2Key);
+        if (tk) await env.IMAGES.delete(tk);
         await env.CACHE.delete(`image-backup:${trash.managedId}:${url}`);
       }
       await env.CACHE.delete(entry.name);
@@ -1277,6 +1288,9 @@ async function purgeSoftDeletedProducts(env) {
         const r2Key = stash.url.replace(/^\/images\//, '').split('?')[0];
         // 真の原画として保護中の実体は削除しない（上書きで外れた旧版が原画のケース）
         if (!protectedKeys.has(r2Key)) await env.IMAGES.delete(r2Key);
+        // 派生サムネ(_thumb)は原画ではないので常に削除（protectedKeys 照合不要）
+        const tk = deriveThumbKey_(r2Key);
+        if (tk) await env.IMAGES.delete(tk);
       }
       await env.CACHE.delete(entry.name);
       purgedImages++;
