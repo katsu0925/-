@@ -208,7 +208,18 @@ CREATE INDEX IF NOT EXISTS idx_orders_updated ON orders(updated_at);
 -- 撮影画像アップロード済みの管理番号インデックス（KV product-images:index の権威ソース）
 -- 旧来の KV read-modify-write は並行アップロードで競合し orphan 化していたため、
 -- D1 を atomic な真実値として扱い KV はそこから再構築する。
+-- S3-lite: 一覧描画用の列を行に焼き込む（いずれも原寸URL。_thumb 派生は焼き込まない）。
+-- handleList は WHERE first_image_url IS NOT NULL AND first_image_url != '' で1回 SELECT し全件返す。
 CREATE TABLE IF NOT EXISTS product_image_index (
   managed_id TEXT PRIMARY KEY,
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  first_image_url TEXT,                     -- 先頭画像URL（原寸）
+  second_image_url TEXT,                    -- 2枚目画像URL（原寸）
+  image_count INTEGER NOT NULL DEFAULT 0,   -- 画像枚数
+  uploaded_at TEXT,                         -- 撮影/アップ日時 ISO8601（photo-meta 由来）
+  photographer TEXT,                        -- 撮影者（photo-meta 由来）
+  save_count INTEGER NOT NULL DEFAULT 0,    -- 保存回数（save-log 由来）
+  sort_key TEXT,                            -- 一覧初期描画順（buildSortKey_）
+  updated_at TEXT                           -- 行更新日時 / backfill 完了判定にも使用
 );
+CREATE INDEX IF NOT EXISTS idx_pii_sort_key ON product_image_index(sort_key);

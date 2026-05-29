@@ -23,6 +23,7 @@
 
 import { jsonOk, jsonError, corsResponse } from '../utils/response.js';
 import { deriveThumbKey_ } from '../utils/thumb.js';
+import { upsertImageIndexRow, removeFromIndex } from '../utils/image-index.js';
 
 const MAX_IMAGES = 10;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -251,9 +252,6 @@ async function handleImageUpload(request, env) {
   // KVインデックス更新（商品単位）
   await env.CACHE.put(`product-images:${managedId}`, JSON.stringify(urls));
 
-  // 商品一覧インデックスに追加
-  await addToIndex(env, managedId);
-
   // shiire-kanri 一覧の即時サムネ用に thumb_url を直接書き戻す
   await syncThumbToShiire(env, managedId, urls);
 
@@ -303,6 +301,10 @@ async function handleImageUpload(request, env) {
     await env.CACHE.put('photo-meta:pending', JSON.stringify(pending));
   }
 
+  // 商品一覧インデックス行を最新化（メンバーシップ追加＋サムネ/件数/撮影者/日時を焼き込む）。
+  // photo-meta 書込み後に呼ぶことで撮影者・uploadedAt が行へ正しく反映される。
+  await upsertImageIndexRow(env, managedId);
+
   await invalidateListCache(env);
   return jsonOk({ managedId, urls, count: urls.length, registered: managedIdRegistered });
 }
@@ -311,21 +313,60 @@ async function handleImageUpload(request, env) {
 
 async function handleList(request, env) {
   const t0 = Date.now();
-  // キャッシュ済みリストがあれば即返却
-  const cached = await env.CACHE.get('product-list-cache');
-  if (cached) {
-    return jsonOk({ items: JSON.parse(cached) }, { 'Server-Timing': `cache;dur=${Date.now()-t0};desc="hit"` });
+
+  // S3-lite: backfill 完了後は D1 product_image_index を1回 SELECT して全件返す。
+  // backfill 未完（marker != 'done'）の間は旧経路（KV集約 + product-list-cache）にフォールバックし、
+  // 列が埋まる前に一覧が空になるのを防ぐ。
+  const marker = await env.CACHE.get('backfill:image-index:v1');
+  if (marker !== 'done') {
+    const cached = await env.CACHE.get('product-list-cache');
+    if (cached) {
+      return jsonOk({ items: JSON.parse(cached) }, { 'Server-Timing': `mode;desc="legacy-cache", total;dur=${Date.now()-t0}` });
+    }
+    const items = await buildProductListLegacy(env);
+    await env.CACHE.put('product-list-cache', JSON.stringify(items), { expirationTtl: 86400 * 30 });
+    return jsonOk({ items }, { 'Server-Timing': `mode;desc="legacy-build", total;dur=${Date.now()-t0}` });
   }
 
-  const tBuild = Date.now();
-  const items = await buildProductList(env);
-  const buildDur = Date.now() - tBuild;
-  // キャッシュ保存（30日TTL — write側で invalidateListCache が呼ばれるので、それまでは保持）
-  await env.CACHE.put('product-list-cache', JSON.stringify(items), { expirationTtl: 86400 * 30 });
-  return jsonOk({ items }, { 'Server-Timing': `cache;dur=0;desc="miss", build;dur=${buildDur}, total;dur=${Date.now()-t0}` });
+  // managed-ids:list（登録済み管理番号）だけ KV から1回読む → registered / warning を JS 計算
+  const idsJson = await env.CACHE.get('managed-ids:list');
+  const registeredIds = idsJson ? new Set(JSON.parse(idsJson)) : new Set();
+
+  // 一覧描画に必要な列を1回の SELECT で全件取得。
+  // WHERE は first_image_url ベース（image_count>0 ではなく）— backfill 途中でも空一覧窓を作らない。
+  const { results } = await env.DB.prepare(
+    `SELECT managed_id, first_image_url, second_image_url, image_count,
+            uploaded_at, photographer, save_count
+       FROM product_image_index
+      WHERE first_image_url IS NOT NULL AND first_image_url != ''
+      ORDER BY sort_key, managed_id`
+  ).all();
+
+  const now = Date.now();
+  const items = (results || []).map(r => {
+    const registered = registeredIds.has(r.managed_id);
+    let warning = false;
+    if (!registered && r.uploaded_at) {
+      const days = Math.floor((now - new Date(r.uploaded_at).getTime()) / (1000 * 60 * 60 * 24));
+      warning = days >= 7;
+    }
+    return {
+      managedId: r.managed_id,
+      thumbnail: r.first_image_url || null,
+      secondThumbnail: r.second_image_url || null,
+      count: r.image_count || 0,
+      registered,
+      warning,
+      uploadedAt: r.uploaded_at || '',
+      photographer: r.photographer || '',
+      saveCount: r.save_count || 0,
+    };
+  });
+  return jsonOk({ items }, { 'Server-Timing': `mode;desc="d1", rows;dur=${items.length}, total;dur=${Date.now()-t0}` });
 }
 
-async function buildProductList(env) {
+// backfill 未完の間だけ使う旧経路（KV を商品単位に集約）。backfill 完了で到達しなくなる。
+async function buildProductListLegacy(env) {
   // QW1: 2つのKV読みを並列化
   const [indexJson, idsJson] = await Promise.all([
     env.CACHE.get('product-images:index'),
@@ -579,7 +620,7 @@ async function handleRestore(request, env) {
   }
 
   await env.CACHE.put(`product-images:${managedId}`, JSON.stringify(existing));
-  await addToIndex(env, managedId);
+  await upsertImageIndexRow(env, managedId);
   await syncThumbToShiire(env, managedId, existing);
   await env.CACHE.delete(`deleted-product:${managedId}`);
 
@@ -702,10 +743,11 @@ async function handleDeleteSingle(request, env) {
   urls = urls.filter(u => u !== urlToDelete);
   if (urls.length === 0) {
     await env.CACHE.delete(`product-images:${managedId}`);
-    await removeFromIndex(env, managedId);
   } else {
     await env.CACHE.put(`product-images:${managedId}`, JSON.stringify(urls));
   }
+  // 0件なら行ごと削除、残れば先頭画像/件数を更新（upsertImageIndexRow が内部で分岐）
+  await upsertImageIndexRow(env, managedId);
   await syncThumbToShiire(env, managedId, urls);
 
   await invalidateProductCache(env);
@@ -753,7 +795,7 @@ async function handleRestoreImage(request, env) {
     urls.splice(pos, 0, url);
   }
   await env.CACHE.put(`product-images:${managedId}`, JSON.stringify(urls));
-  await addToIndex(env, managedId);
+  await upsertImageIndexRow(env, managedId);
   await syncThumbToShiire(env, managedId, urls);
   await env.CACHE.delete(stashKey);
 
@@ -831,6 +873,8 @@ async function handleUpdateImage(request, env) {
   await env.CACHE.put(`product-images:${managedId}`, JSON.stringify(urls));
   // 先頭画像が置換された場合に備えて thumb_url を同期
   if (targetIndex === 0) await syncThumbToShiire(env, managedId, urls);
+  // 先頭画像URLが変わるので一覧インデックス行のサムネを更新
+  await upsertImageIndexRow(env, managedId);
 
   // バックアップ：newUrl → targetUrl を保持（直前に戻す「元に戻す」用）
   await env.CACHE.put(
@@ -910,6 +954,8 @@ async function handleRevertImage(request, env) {
   urls[idx] = oldUrl;
   await env.CACHE.put(`product-images:${managedId}`, JSON.stringify(urls));
   if (idx === 0) await syncThumbToShiire(env, managedId, urls);
+  // 先頭画像が元に戻る場合に備えて一覧インデックス行のサムネを更新
+  await upsertImageIndexRow(env, managedId);
 
   // 旧版が現役に復帰したので deleted-image: 退避を解除（Cron による誤 purge を防ぐ）
   const revertedFileId = oldUrl.split('/').pop().replace(/\.jpg$/i, '');
@@ -1036,7 +1082,10 @@ async function handleReorder(request, env) {
   // KV更新
   await env.CACHE.put(`product-images:${managedId}`, JSON.stringify(newOrder));
   await syncThumbToShiire(env, managedId, newOrder);
+  // 先頭/2枚目が変わるので一覧インデックス行のサムネを更新
+  await upsertImageIndexRow(env, managedId);
   await invalidateProductCache(env);
+  await invalidateListCache(env);
 
   return jsonOk({ managedId, urls: newOrder });
 }
@@ -1123,30 +1172,62 @@ async function invalidateProductCache(env) {
   await env.CACHE.delete('products:version');
 }
 
-// D1 product_image_index を真実値として保持し、KV product-images:index は再構築結果を書き込む。
-// 旧来の KV read-modify-write は並行アップロードで競合し orphan を生んでいたため
-// （ZY73/ZY74 等が index 不在で AI判定を取りこぼす事象が発生）、INSERT/DELETE を D1 で atomic 化した。
-async function rebuildImageIndexKv(env) {
+// 画像インデックス（D1 product_image_index）の操作は ../utils/image-index.js に集約。
+// upsertImageIndexRow / removeFromIndex / rebuildImageIndexKv はそこから import している
+// （sheets-sync.js の Cron・並び替え経路と共有するためリーフモジュール化した）。
+
+// ─── S3-lite backfill（一回きり・Cron化しない／$54課金事故回避） ───
+// 既存 product_image_index の新列（first_image_url 等）を一括で埋める。
+// cursor / batchSize で分割再POST。全行が backfill 済み（updated_at IS NULL が 0件）になった時だけ
+// marker をセットし、以降 handleList が D1 直読みモードに切り替わる（B2 空一覧窓を回避）。
+export async function backfillImageIndex(env, opts = {}) {
+  const cursor = Number.isFinite(opts.cursor) && opts.cursor > 0 ? Math.floor(opts.cursor) : 0;
+  let batchSize = Number.isFinite(opts.batchSize) ? Math.floor(opts.batchSize) : 50;
+  batchSize = Math.min(Math.max(1, batchSize), 50);
+
+  // M5: stale KV ではなく D1 を真実値として走査する
   const { results } = await env.DB.prepare(
-    'SELECT managed_id FROM product_image_index ORDER BY managed_id'
-  ).all();
+    'SELECT managed_id FROM product_image_index ORDER BY managed_id LIMIT ? OFFSET ?'
+  ).bind(batchSize, cursor).all();
   const ids = (results || []).map(r => r.managed_id);
-  await env.CACHE.put('product-images:index', JSON.stringify(ids));
-}
 
-async function addToIndex(env, managedId) {
-  const now = new Date().toISOString();
-  await env.DB.prepare(
-    'INSERT OR IGNORE INTO product_image_index (managed_id, created_at) VALUES (?, ?)'
-  ).bind(managedId, now).run();
-  await rebuildImageIndexKv(env);
-}
+  let processed = 0;
+  for (const id of ids) {
+    await upsertImageIndexRow(env, id); // 画像0件なら DELETE、あれば列を焼き込む
+    processed++;
+  }
 
-async function removeFromIndex(env, managedId) {
-  await env.DB.prepare(
-    'DELETE FROM product_image_index WHERE managed_id = ?'
-  ).bind(managedId).run();
-  await rebuildImageIndexKv(env);
+  const nextCursor = cursor + ids.length;
+  const batchDone = ids.length < batchSize; // 取得件数 < batchSize で末尾到達
+
+  let markerSet = false;
+  let remaining = null;
+  if (batchDone) {
+    // M4: 残り未充填（backfill が触れていない＝updated_at IS NULL）が 0 のときだけ marker をセット
+    const { results: rem } = await env.DB.prepare(
+      'SELECT COUNT(*) AS c FROM product_image_index WHERE updated_at IS NULL'
+    ).all();
+    remaining = (rem && rem[0] && rem[0].c) || 0;
+    if (remaining === 0) {
+      await env.CACHE.put('backfill:image-index:v1', 'done'); // handleList hot-path 用（TTLなし）
+      const nowIso = new Date().toISOString();
+      await env.DB.prepare(
+        `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+           ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+      ).bind('backfill:image-index:v1', 'done', nowIso).run(); // 冪等マーカー（再実行防止）
+      markerSet = true;
+    }
+  }
+
+  return {
+    ok: true,
+    processed,
+    cursor,
+    nextCursor,
+    batchDone,
+    remaining,       // batchDone 時のみ: 未充填行数（0 で完了）
+    markerSet,       // true で D1 直読みモードへ切替完了
+  };
 }
 
 // shiire-kanri-db.products.thumb_url を直接書き換える（一覧の即時サムネ用）。
@@ -1202,6 +1283,8 @@ async function handleSaveLog(request, env) {
   }
 
   await env.CACHE.put(kvKey, JSON.stringify(log));
+  // 保存回数が変わるので一覧インデックス行の save_count を更新
+  await upsertImageIndexRow(env, managedId);
   await invalidateListCache(env);
 
   return jsonOk({ count: log.count });

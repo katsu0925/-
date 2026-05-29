@@ -31,6 +31,7 @@
 
 import { incrementGeminiUsage } from '../usage.js';
 import { deriveThumbKey_ } from '../utils/thumb.js';
+import { upsertImageIndexRow, rebuildImageIndexKv } from '../utils/image-index.js';
 
 // ─── 価格破壊商品ID（¥10,000以上・送料無料クーポンの送料無料対象外） ───
 // Constants.gs SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS / submit.js と同期
@@ -1123,6 +1124,8 @@ export async function restorePhotoMetaFromGas(env) {
       synced: true,
     };
     await env.CACHE.put(`photo-meta:${mid}`, JSON.stringify(meta));
+    // 撮影者・uploadedAt が変わったので一覧インデックス行へ反映（同値ガードあり）
+    await upsertImageIndexRow(env, mid);
     restored++;
   }
 
@@ -1147,7 +1150,7 @@ async function cleanupOrphanedImages(env) {
     if (!indexJson) return;
     const imageIndex = JSON.parse(indexJson);
 
-    let cleaned = 0;
+    const cleanedIds = [];
     for (const managedId of imageIndex) {
       if (registeredIds.has(managedId)) continue; // 登録済みは対象外
 
@@ -1160,7 +1163,7 @@ async function cleanupOrphanedImages(env) {
       const daysDiff = (Date.now() - new Date(meta.uploadedAt).getTime()) / (1000 * 60 * 60 * 24);
       if (daysDiff < 30) continue; // 30日未満はスキップ
 
-      // R2から画像を削除
+      // R2から画像を削除（保持期間後の物理削除。30日経過した未登録孤立のみ）
       const urlsJson = await env.CACHE.get(`product-images:${managedId}`);
       if (urlsJson) {
         const urls = JSON.parse(urlsJson);
@@ -1177,29 +1180,23 @@ async function cleanupOrphanedImages(env) {
       // KVを削除
       await env.CACHE.delete(`product-images:${managedId}`);
       await env.CACHE.delete(`photo-meta:${managedId}`);
-      cleaned++;
+      cleanedIds.push(managedId);
       console.log(`[sync] Cleaned up orphaned images for ${managedId} (${daysDiff.toFixed(0)} days old)`);
     }
 
-    // product-images:index を更新
-    if (cleaned > 0) {
-      const updatedIndex = imageIndex.filter(id => {
-        if (registeredIds.has(id)) return true;
-        const mj = null; // Already deleted from KV, so just check registered
-        return registeredIds.has(id);
-      });
-      // Re-read to get accurate state
-      const freshIndexJson = await env.CACHE.get('product-images:index');
-      if (freshIndexJson) {
-        const freshIndex = JSON.parse(freshIndexJson);
-        const stillExists = [];
-        for (const id of freshIndex) {
-          const check = await env.CACHE.get(`product-images:${id}`);
-          if (check) stillExists.push(id);
-        }
-        await env.CACHE.put('product-images:index', JSON.stringify(stillExists));
+    // product_image_index を D1 で更新（M1: 旧来の全件 KV 再スキャンは廃止）。
+    // 5分ごとの Cron だが、削除対象が無ければ D1/KV 書き込みは一切発生しない（$54課金事故ガード）。
+    if (cleanedIds.length > 0) {
+      const BIND_CHUNK = 100; // D1 bind 上限
+      for (let i = 0; i < cleanedIds.length; i += BIND_CHUNK) {
+        const chunk = cleanedIds.slice(i, i + BIND_CHUNK);
+        const placeholders = chunk.map(() => '?').join(',');
+        await env.DB.prepare(
+          `DELETE FROM product_image_index WHERE managed_id IN (${placeholders})`
+        ).bind(...chunk).run();
       }
-      console.log(`[sync] Cleaned up ${cleaned} orphaned image sets`);
+      await rebuildImageIndexKv(env); // KV index を D1 から1回だけ再構築
+      console.log(`[sync] Cleaned up ${cleanedIds.length} orphaned image sets`);
     }
   } catch (e) {
     console.error('[sync] cleanupOrphanedImages error:', e.message);
@@ -2305,6 +2302,7 @@ export async function runReorderManual(env, managedId, labels) {
     return { managedId, ok: true, noop: true, before: cur, after, labels: normalized };
   }
   await env.CACHE.put(`product-images:${managedId}`, JSON.stringify(after));
+  await upsertImageIndexRow(env, managedId); // 先頭/2枚目が変わるので一覧インデックス行を更新
   try { await env.CACHE.delete('product-list-cache'); } catch (e) { /* ignore */ }
   return { managedId, ok: true, applied: true, before: cur, after, labels: normalized };
 }
@@ -2398,6 +2396,7 @@ export async function runReorderApply(env, options = {}) {
       }
       if (!dryRun) {
         await env.CACHE.put(`product-images:${mid}`, JSON.stringify(newOrder));
+        await upsertImageIndexRow(env, mid); // 先頭/2枚目が変わるので一覧インデックス行を更新
       }
       results.push({ managedId: mid, ok: true, applied: !dryRun });
       updated++;

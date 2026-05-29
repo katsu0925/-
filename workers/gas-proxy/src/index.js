@@ -22,7 +22,7 @@ import * as coupon from './handlers/coupon.js';
 import * as mypage from './handlers/mypage.js';
 import * as submit from './handlers/submit.js';
 import { scheduledSync, batchAiJudgment, restorePhotoMetaFromGas, reprocessSingleAi, bulkReprocessAi, runReorderDryrun, runReorderApply } from './sync/sheets-sync.js';
-import { handleUpload, serveImage } from './handlers/upload.js';
+import { handleUpload, serveImage, backfillImageIndex } from './handlers/upload.js';
 import { getUploadPageHtml } from './pages/upload.html.js';
 import * as kitHandler from './handlers/kit.js';
 import { getGeminiUsage } from './usage.js';
@@ -306,6 +306,20 @@ self.addEventListener('fetch', e => {
           return new Response(JSON.stringify({ error: 'managedIds (array) required' }), { status: 400, headers: { 'Content-Type': 'application/json' } });
         }
         const result = await bulkReprocessAi(env, body.managedIds, { limit: body.limit });
+        return new Response(JSON.stringify(result, null, 2), { headers: { 'Content-Type': 'application/json' } });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+      }
+    }
+
+    // 画像インデックス backfill（S3-lite 一回きり）: POST /admin/backfill-image-index
+    // body: {key, cursor?, batchSize?}。batchDone=false の間は nextCursor で再POSTし続ける。
+    // markerSet=true で完了（handleList が D1 直読みに切替）。
+    if (request.method === 'POST' && url.pathname === '/admin/backfill-image-index') {
+      try {
+        const body = await request.json();
+        if (body.key !== env.SYNC_SECRET) return new Response('Unauthorized', { status: 401 });
+        const result = await backfillImageIndex(env, { cursor: body.cursor, batchSize: body.batchSize });
         return new Response(JSON.stringify(result, null, 2), { headers: { 'Content-Type': 'application/json' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
