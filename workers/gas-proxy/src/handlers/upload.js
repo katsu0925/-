@@ -1091,7 +1091,14 @@ async function handleReorder(request, env) {
 }
 
 // ─── 全商品の全画像URL一括取得 ───
-
+//
+// ⚠ 既知の崖（2026-05-30 時点で意図的に据え置き）:
+//   このエンドポイント /upload/list-all はリポジトリ内に消費者が1件も無いデッドエンドポイント。
+//   商品単位に product-images:{id} を全件 KV 読みするため、サブリクエスト総数が商品数 N に比例して増え、
+//   商品が増えると Workers のサブリクエスト上限の崖に達しうる（CHUNK=50 は同時並列度を抑えるだけで総数は減らない）。
+//   handleList / handleUnmatched は D1 product_image_index 化済みだが、こちらは「全画像URL（3枚目以降含む）」を
+//   返す契約で、D1 には first/second しか焼き込んでいない。D1 化には all_image_urls 列の新設＋再 backfill が必要で、
+//   誰も呼ばない機能への投資になるため見送る。将来このエンドポイントを実利用する場合は、まず D1 化を検討すること。
 async function handleListAll(request, env) {
   const indexJson = await env.CACHE.get('product-images:index');
   const index = indexJson ? JSON.parse(indexJson) : [];
@@ -1114,6 +1121,47 @@ async function handleListAll(request, env) {
 // ─── 未マッチ画像一覧（商品管理に未登録の画像） ───
 
 async function handleUnmatched(request, env) {
+  // S3-lite: backfill 完了後は D1 product_image_index を1回 SELECT し、managed-ids:list を
+  // 1回だけ KV から読んで「未マッチ（画像はあるが商品管理に未登録）」行を JS で抽出する。
+  // handleList と同じ D1 化パターン。商品単位の KV ファンアウト（旧経路の崖）を解消する。
+  // D1 列 uploaded_at / photographer は upsertImageIndexRow が photo-meta:{id} から焼き込む値で、
+  // 旧経路が読んでいた photo-meta と同一ソースのため daysSinceUpload / warning は等価。
+  // backfill 未完（marker != 'done'）の間は旧経路（KV を商品単位に集約）にフォールバックする。
+  const marker = await env.CACHE.get('backfill:image-index:v1');
+  if (marker === 'done') {
+    const idsJson = await env.CACHE.get('managed-ids:list');
+    const registeredIds = idsJson ? new Set(JSON.parse(idsJson)) : new Set();
+
+    const { results } = await env.DB.prepare(
+      `SELECT managed_id, first_image_url, second_image_url, image_count,
+              uploaded_at, photographer
+         FROM product_image_index
+        WHERE first_image_url IS NOT NULL AND first_image_url != ''
+        ORDER BY sort_key, managed_id`
+    ).all();
+
+    const now = Date.now();
+    const items = (results || [])
+      .filter(r => !registeredIds.has(r.managed_id))
+      .map(r => {
+        const daysSinceUpload = r.uploaded_at
+          ? Math.floor((now - new Date(r.uploaded_at).getTime()) / (1000 * 60 * 60 * 24))
+          : null;
+        return {
+          managedId: r.managed_id,
+          thumbnail: r.first_image_url || null,
+          secondThumbnail: r.second_image_url || null,
+          count: r.image_count || 0,
+          photographer: r.photographer || '',
+          uploadedAt: r.uploaded_at || '',
+          daysSinceUpload,
+          warning: daysSinceUpload !== null && daysSinceUpload >= 7,
+        };
+      });
+    return jsonOk({ items, total: items.length });
+  }
+
+  // ── backfill 未完の間だけ使う旧経路（KV を商品単位に集約）。backfill 完了で到達しなくなる。──
   // QW1: index と registeredIds を並列取得
   const [indexJson, idsJson] = await Promise.all([
     env.CACHE.get('product-images:index'),
