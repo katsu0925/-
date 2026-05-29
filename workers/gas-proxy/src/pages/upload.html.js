@@ -2253,6 +2253,7 @@ async function runThumbBackfill() {
   if (total === 0) { _bfOverlay('<span>対象サムネがありません</span><button onclick="_bfClose()" style="margin-left:auto;background:#4F46E5;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-weight:600;cursor:pointer">閉じる</button>'); return; }
 
   var done = 0, made = 0, skipped = 0, failed = 0, idx = 0;
+  var fails = []; // 失敗詳細 { mid, url, reason } を記録（完了時に console.table ＋ window._thumbBackfillFailures）
   function render() {
     _bfOverlay(
       '<span style="display:inline-block;width:16px;height:16px;border:3px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:bfspin .8s linear infinite"></span>' +
@@ -2267,21 +2268,22 @@ async function runThumbBackfill() {
   render();
 
   // 3) 1件処理: _thumb URLを1回GET → immutableなら生成済み(skip)、原寸フォールバックならその場でサムネ化
+  function fail(t, reason) { failed++; fails.push({ mid: t.mid, url: t.url, reason: reason }); }
   async function processOne(t) {
     var thumbUrl = t.url.replace(/\\.jpg$/i, '_thumb.jpg');
     var res;
     try {
       res = await fetch(API_BASE + thumbUrl, { cache: 'no-store' });
-    } catch (e) { failed++; return; }
-    if (!res.ok) { failed++; return; }
+    } catch (e) { fail(t, 'thumb-fetch-network: ' + (e && e.message || e)); return; }
+    if (!res.ok) { fail(t, 'thumb-fetch-status: ' + res.status); return; }
     var cc = res.headers.get('cache-control') || '';
     if (cc.indexOf('immutable') >= 0) { skipped++; return; } // 本物のサムネが既に存在
     // max-age=60 のフォールバック = 原寸そのもの。このblobからサムネ生成。
     var blob;
-    try { blob = await res.blob(); } catch (e) { failed++; return; }
-    if (!blob || blob.size === 0) { failed++; return; }
+    try { blob = await res.blob(); } catch (e) { fail(t, 'blob-read: ' + (e && e.message || e)); return; }
+    if (!blob || blob.size === 0) { fail(t, 'empty-blob (ct=' + (res.headers.get('content-type') || '?') + ')'); return; }
     var tb = await new Promise(function(resolve){ makeThumb(blob, resolve); });
-    if (!tb || tb.size === 0) { failed++; return; }
+    if (!tb || tb.size === 0) { fail(t, 'makeThumb-failed (size=' + blob.size + ', ct=' + (blob.type || '?') + ')'); return; }
     try {
       var fd = new FormData();
       fd.append('managedId', t.mid);
@@ -2290,8 +2292,8 @@ async function runThumbBackfill() {
       var putRes = await fetch(API_BASE + '/upload/put-thumb', {
         method: 'POST', headers: { 'Authorization': 'Bearer ' + getToken() }, body: fd
       }).then(function(r){ return r.json(); });
-      if (putRes && putRes.ok) made++; else failed++;
-    } catch (e) { failed++; }
+      if (putRes && putRes.ok) made++; else fail(t, 'put-thumb: ' + ((putRes && putRes.message) || 'unknown'));
+    } catch (e) { fail(t, 'put-thumb-network: ' + (e && e.message || e)); }
   }
 
   // 4) 並列度4のワーカープールで処理
@@ -2314,8 +2316,20 @@ async function runThumbBackfill() {
   var msg = _thumbBackfillAbort
     ? '中断しました（' + done + ' / ' + total + '）。再実行で続きから処理します。'
     : '完了: 生成 ' + made + ' ・ スキップ ' + skipped + ' ・ 失敗 ' + failed + '（計 ' + total + '）';
-  _bfOverlay('<span>' + msg + '</span><button onclick="_bfClose()" style="margin-left:auto;background:#4F46E5;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-weight:600;cursor:pointer">閉じる</button>');
+  _bfOverlay('<span>' + msg + '</span>' +
+    (fails.length ? '<span style="opacity:.85">失敗の内訳は開発者コンソールに出力しました（window._thumbBackfillFailures）</span>' : '') +
+    '<button onclick="_bfClose()" style="margin-left:auto;background:#4F46E5;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-weight:600;cursor:pointer">閉じる</button>');
   console.log('[thumb-backfill] ' + msg);
+  window._thumbBackfillFailures = fails;
+  if (fails.length) {
+    console.warn('[thumb-backfill] 失敗 ' + fails.length + ' 件。window._thumbBackfillFailures に詳細あり。');
+    try { console.table(fails); } catch (_) { console.log(fails); }
+    // 理由ごとの件数サマリ
+    var byReason = {};
+    fails.forEach(function(f){ var k = String(f.reason).split(' (')[0].split(':')[0]; byReason[k] = (byReason[k] || 0) + 1; });
+    console.log('[thumb-backfill] 理由別件数:', byReason);
+  }
+  return fails;
 }
 window.runThumbBackfill = runThumbBackfill;
 
