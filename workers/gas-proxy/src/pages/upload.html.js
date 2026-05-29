@@ -259,7 +259,7 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
         <div class="status" id="manageLoadStatus"></div>
         <div class="select-all-row hidden" id="selectAllRow">
           <input type="checkbox" id="selectAll" class="list-check" onchange="toggleSelectAll()">
-          <span>すべて選択（表示中）</span>
+          <span>すべて選択（絞り込み全件）</span>
           <span style="margin-left:auto" id="selectedCount">0件選択</span>
         </div>
       </div>
@@ -742,7 +742,7 @@ function switchTab(name) {
     var f = document.getElementById('footer-' + t);
     if (!f) return;
     if (t === 'manage') {
-      var anyChecked = document.querySelectorAll('.dl-check:checked').length > 0;
+      var anyChecked = getSelectedMids().length > 0;
       f.classList.toggle('show', name === 'manage' && anyChecked);
     } else {
       f.classList.toggle('show', t === name);
@@ -2381,6 +2381,16 @@ var _dlExpandedData = []; // [{mid, urls, filename}...]
 var _manageExpandedMid = '';
 var _manageExpandedUrls = []; // 展開中の商品の画像URL配列
 
+// ─── S2: 追記式・無限スクロール + managedId集合での選択管理 ───
+var MANAGE_BATCH = 60;                    // 1回に描画する行数
+var _manageFiltered = [];                 // 現在の絞り込み結果（productListData の部分集合・順序維持）
+var _manageRendered = 0;                  // これまでに描画した行数
+var _selectedMids = Object.create(null);  // 選択中の managedId 集合
+var _productByMid = Object.create(null);  // managedId → 商品オブジェクト（一括処理の参照用）
+var _manageObserver = null;               // 無限スクロール用 IntersectionObserver
+
+function getSelectedMids() { return Object.keys(_selectedMids); }
+
 function filterManageList() {
   ensureListLoaded(function() { renderManageList(); });
 }
@@ -2421,7 +2431,29 @@ function populateFilterPhotographer() {
   document.getElementById('filterBar').style.display = productListData.length > 0 ? 'block' : 'none';
 }
 
-function renderManageList() {
+// 1商品が現在のフィルタ条件に合致するか
+function manageRowMatchesFilters_(p, q, rawQ, fPhoto, fDateFrom, fDateTo, fSave, fReg) {
+  // テキスト検索
+  if (q && p.managedId.toUpperCase().indexOf(q) === -1 && (!p.photographer || p.photographer.indexOf(rawQ) === -1)) return false;
+  // 撮影者フィルタ
+  if (fPhoto && (p.photographer || '') !== fPhoto) return false;
+  // 登録日フィルタ（期間指定）
+  if ((fDateFrom || fDateTo) && p.uploadedAt) {
+    var ud = p.uploadedAt.slice(0, 10);
+    if (fDateFrom && ud < fDateFrom) return false;
+    if (fDateTo && ud > fDateTo) return false;
+  } else if ((fDateFrom || fDateTo) && !p.uploadedAt) return false;
+  // 保存フィルタ
+  if (fSave === 'unsaved' && (p.saveCount || 0) > 0) return false;
+  if (fSave === 'saved' && (p.saveCount || 0) === 0) return false;
+  // 採寸情報フィルタ
+  if (fReg === 'unregistered' && p.registered) return false;
+  if (fReg === 'registered' && !p.registered) return false;
+  return true;
+}
+
+// 現在のフィルタ結果を計算しつつ managedId→商品 の索引も再構築
+function computeManageFiltered_() {
   var q = normId(document.getElementById('manageSearch').value);
   var rawQ = document.getElementById('manageSearch').value.trim();
   var fPhoto = document.getElementById('filterPhotographer').value;
@@ -2429,80 +2461,136 @@ function renderManageList() {
   var fDateTo = document.getElementById('filterDateTo').value;
   var fSave = document.getElementById('filterSave').value;
   var fReg = document.getElementById('filterRegistered').value;
-  var el = document.getElementById('manageList');
-  var html = '';
-  var count = 0;
+  var out = [];
+  _productByMid = Object.create(null);
   for (var i = 0; i < productListData.length; i++) {
     var p = productListData[i];
-    // テキスト検索
-    if (q && p.managedId.toUpperCase().indexOf(q) === -1 && (!p.photographer || p.photographer.indexOf(rawQ) === -1)) continue;
-    // 撮影者フィルタ
-    if (fPhoto && (p.photographer || '') !== fPhoto) continue;
-    // 登録日フィルタ（期間指定）
-    if ((fDateFrom || fDateTo) && p.uploadedAt) {
-      var ud = p.uploadedAt.slice(0, 10);
-      if (fDateFrom && ud < fDateFrom) continue;
-      if (fDateTo && ud > fDateTo) continue;
-    } else if ((fDateFrom || fDateTo) && !p.uploadedAt) continue;
-    // 保存フィルタ
-    if (fSave === 'unsaved' && (p.saveCount || 0) > 0) continue;
-    if (fSave === 'saved' && (p.saveCount || 0) === 0) continue;
-    // 採寸情報フィルタ
-    if (fReg === 'unregistered' && p.registered) continue;
-    if (fReg === 'registered' && !p.registered) continue;
-    count++;
-    // 表示は軽量サムネ(_thumb)。data-full は原寸でフォールバック用。
-    var thumbSrc = p.thumbnail ? toThumbSrc(p.thumbnail) : '';
-    var thumbFull = p.thumbnail ? (API_BASE + p.thumbnail) : '';
-    var second2Src = p.secondThumbnail ? toThumbSrc(p.secondThumbnail) : '';
-    var second2Full = p.secondThumbnail ? (API_BASE + p.secondThumbnail) : '';
-    var expandAttr = 'onclick="toggleManageExpand(\\'' + escapeHtml(p.managedId) + '\\')"';
-    var thumbHtml;
-    if (second2Src) {
-      thumbHtml = '<div class="list-thumb-pair" ' + expandAttr + '>' +
-        '<img class="list-thumb" data-slot="0" src="' + thumbSrc + '" data-full="' + thumbFull + '" onerror="thumbFallback(this)" loading="lazy">' +
-        '<img class="list-thumb" data-slot="1" src="' + second2Src + '" data-full="' + second2Full + '" onerror="thumbFallback(this)" loading="lazy">' +
-        '</div>';
-    } else if (thumbSrc) {
-      thumbHtml = '<img class="list-thumb" data-slot="0" src="' + thumbSrc + '" data-full="' + thumbFull + '" onerror="thumbFallback(this)" loading="lazy" ' + expandAttr + '>';
-    } else {
-      thumbHtml = '<div class="list-thumb" ' + expandAttr + '></div>';
-    }
-    html += '<div id="manage-row-' + escapeHtml(p.managedId) + '">' +
-      '<div class="list-item">' +
-      '<input type="checkbox" class="list-check dl-check" data-idx="' + i + '" data-mid="' + escapeHtml(p.managedId) + '" onchange="updateSelectedCount();updateDeleteSelectedCount()" onclick="event.stopPropagation()">' +
-      thumbHtml +
-      '<div class="list-info" onclick="toggleManageExpand(\\'' + escapeHtml(p.managedId) + '\\')" style="cursor:pointer"><div class="list-id">' + escapeHtml(p.managedId) + (p.warning ? ' <span style="background:#ef4444;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;margin-left:4px">採寸情報未登録</span>' : !p.registered ? ' <span style="background:#f59e0b;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;margin-left:4px">採寸情報未登録</span>' : '') + '</div>' +
-      '<div class="list-count">' + p.count + '枚' +
-        (p.uploadedAt ? ' | ' + formatShortDate(p.uploadedAt) : '') +
-        (p.saveCount > 0 ? ' | 保存' + p.saveCount + '回' : '') +
-      '</div></div>' +
-      '<span style="color:#3b82f6;font-size:20px;padding:0 8px;cursor:pointer" onclick="toggleManageExpand(\\'' + escapeHtml(p.managedId) + '\\')">›</span>' +
-      '</div></div>';
+    _productByMid[p.managedId] = p;
+    if (manageRowMatchesFilters_(p, q, rawQ, fPhoto, fDateFrom, fDateTo, fSave, fReg)) out.push(p);
   }
-  el.innerHTML = html || '<div style="text-align:center;color:#999;padding:20px">該当なし</div>';
-  document.getElementById('selectAllRow').classList.remove('hidden');
+  return out;
+}
+
+// 1行ぶんのHTMLを生成（チェック状態は _selectedMids 由来）
+function buildManageRowHtml_(p) {
+  // 表示は軽量サムネ(_thumb)。data-full は原寸でフォールバック用。
+  var thumbSrc = p.thumbnail ? toThumbSrc(p.thumbnail) : '';
+  var thumbFull = p.thumbnail ? (API_BASE + p.thumbnail) : '';
+  var second2Src = p.secondThumbnail ? toThumbSrc(p.secondThumbnail) : '';
+  var second2Full = p.secondThumbnail ? (API_BASE + p.secondThumbnail) : '';
+  var expandAttr = 'onclick="toggleManageExpand(\\'' + escapeHtml(p.managedId) + '\\')"';
+  var thumbHtml;
+  if (second2Src) {
+    thumbHtml = '<div class="list-thumb-pair" ' + expandAttr + '>' +
+      '<img class="list-thumb" data-slot="0" src="' + thumbSrc + '" data-full="' + thumbFull + '" onerror="thumbFallback(this)" loading="lazy">' +
+      '<img class="list-thumb" data-slot="1" src="' + second2Src + '" data-full="' + second2Full + '" onerror="thumbFallback(this)" loading="lazy">' +
+      '</div>';
+  } else if (thumbSrc) {
+    thumbHtml = '<img class="list-thumb" data-slot="0" src="' + thumbSrc + '" data-full="' + thumbFull + '" onerror="thumbFallback(this)" loading="lazy" ' + expandAttr + '>';
+  } else {
+    thumbHtml = '<div class="list-thumb" ' + expandAttr + '></div>';
+  }
+  var checkedAttr = _selectedMids[p.managedId] ? ' checked' : '';
+  return '<div id="manage-row-' + escapeHtml(p.managedId) + '">' +
+    '<div class="list-item">' +
+    '<input type="checkbox" class="list-check dl-check" data-mid="' + escapeHtml(p.managedId) + '"' + checkedAttr + ' onchange="onManageCheckChange(this)" onclick="event.stopPropagation()">' +
+    thumbHtml +
+    '<div class="list-info" onclick="toggleManageExpand(\\'' + escapeHtml(p.managedId) + '\\')" style="cursor:pointer"><div class="list-id">' + escapeHtml(p.managedId) + (p.warning ? ' <span style="background:#ef4444;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;margin-left:4px">採寸情報未登録</span>' : !p.registered ? ' <span style="background:#f59e0b;color:#fff;font-size:10px;padding:1px 5px;border-radius:3px;margin-left:4px">採寸情報未登録</span>' : '') + '</div>' +
+    '<div class="list-count">' + p.count + '枚' +
+      (p.uploadedAt ? ' | ' + formatShortDate(p.uploadedAt) : '') +
+      (p.saveCount > 0 ? ' | 保存' + p.saveCount + '回' : '') +
+    '</div></div>' +
+    '<span style="color:#3b82f6;font-size:20px;padding:0 8px;cursor:pointer" onclick="toggleManageExpand(\\'' + escapeHtml(p.managedId) + '\\')">›</span>' +
+    '</div></div>';
+}
+
+// 次のバッチ（MANAGE_BATCH 件）を末尾に追記
+function appendManageBatch() {
+  var el = document.getElementById('manageList');
+  if (!el) return;
+  var end = Math.min(_manageRendered + MANAGE_BATCH, _manageFiltered.length);
+  var html = '';
+  for (var i = _manageRendered; i < end; i++) html += buildManageRowHtml_(_manageFiltered[i]);
+  var frag = document.createElement('div');
+  frag.innerHTML = html;
+  while (frag.firstChild) el.appendChild(frag.firstChild);
+  _manageRendered = end;
+  setupManageSentinel_();
+}
+
+// 末尾に番兵を置き、可視に入ったら次バッチを追記
+function setupManageSentinel_() {
+  var el = document.getElementById('manageList');
+  var old = document.getElementById('manageSentinel');
+  if (old) old.remove();
+  if (!el || _manageRendered >= _manageFiltered.length) return;
+  var s = document.createElement('div');
+  s.id = 'manageSentinel';
+  s.style.cssText = 'height:1px';
+  el.appendChild(s);
+  if (!_manageObserver) {
+    _manageObserver = new IntersectionObserver(function(entries) {
+      if (entries[0] && entries[0].isIntersecting) appendManageBatch();
+    }, { rootMargin: '600px 0px' });
+  } else {
+    _manageObserver.disconnect();
+  }
+  _manageObserver.observe(s);
+}
+
+function renderManageList() {
+  _selectedMids = Object.create(null);   // 再描画＝選択リセット（従来挙動を踏襲）
   _manageExpandedMid = '';
+  _manageFiltered = computeManageFiltered_();
+  _manageRendered = 0;
+  var el = document.getElementById('manageList');
+  if (_manageObserver) _manageObserver.disconnect();
+  if (_manageFiltered.length === 0) {
+    el.innerHTML = '<div style="text-align:center;color:#999;padding:20px">該当なし</div>';
+  } else {
+    el.innerHTML = '';
+    appendManageBatch();   // 初期バッチ＋無限スクロール開始
+  }
+  document.getElementById('selectAllRow').classList.remove('hidden');
+  var selAll = document.getElementById('selectAll'); if (selAll) selAll.checked = false;
   updateSelectedCount();
   updateDeleteSelectedCount();
   // フィルタ結果の件数表示
   var total = productListData.length;
+  var count = _manageFiltered.length;
   showStatus('manageLoadStatus', count === total ? total + '件の商品' : count + '/' + total + '件表示', 'ok');
   updateFilterClearBtn();
 }
 
+// チェック切替（選択状態は managedId 集合で保持）
+function onManageCheckChange(cb) {
+  var mid = cb.dataset.mid;
+  if (!mid) return;
+  if (cb.checked) {
+    _selectedMids[mid] = true;
+  } else {
+    delete _selectedMids[mid];
+    var selAll = document.getElementById('selectAll'); if (selAll) selAll.checked = false;
+  }
+  updateSelectedCount();
+  updateDeleteSelectedCount();
+}
+
 function toggleSelectAll() {
   var checked = document.getElementById('selectAll').checked;
-  document.querySelectorAll('.dl-check').forEach(function(c) {
-    c.checked = checked;
-  });
+  // 「すべて選択」は現在の絞り込み結果すべてが対象（未描画行も含む）
+  _selectedMids = Object.create(null);
+  if (checked) {
+    for (var i = 0; i < _manageFiltered.length; i++) _selectedMids[_manageFiltered[i].managedId] = true;
+  }
+  // 描画済みのチェックボックスにも即時反映
+  document.querySelectorAll('.dl-check').forEach(function(c) { c.checked = checked; });
   updateSelectedCount();
   updateDeleteSelectedCount();
 }
 
 function updateSelectedCount() {
-  var checks = document.querySelectorAll('.dl-check:checked');
-  document.getElementById('selectedCount').textContent = checks.length + '件選択';
+  document.getElementById('selectedCount').textContent = getSelectedMids().length + '件選択';
 }
 
 function toggleManageExpand(managedId) {
@@ -2907,7 +2995,7 @@ async function blurManageImages(managedId) {
       // 3) 合成（ぼかし背景 + シャープ前景）
       var origBmp = await createImageBitmap(imgBlob);
       var w = origBmp.width, h = origBmp.height;
-      var maxSize = (t.idx === 0) ? 1200 : 800;
+      var maxSize = (t.slot === 0) ? 1200 : 800;
       if (w > maxSize || h > maxSize) {
         if (w > h) { h = Math.round(h * maxSize / w); w = maxSize; }
         else { w = Math.round(w * maxSize / h); h = maxSize; }
@@ -2958,7 +3046,7 @@ async function blurManageImages(managedId) {
       ctx.putImageData(origData, 0, 0);
 
       var resultBlob = await new Promise(function(r) {
-        canvas.toBlob(r, 'image/jpeg', t.idx === 0 ? 0.80 : 0.75);
+        canvas.toBlob(r, 'image/jpeg', t.slot === 0 ? 0.80 : 0.75);
       });
       canvas.width = 0; blurC.width = 0;
 
@@ -3210,28 +3298,25 @@ async function _retryManageBgReplaceWithBria(managedId, target, brandText) {
 
 // ─── 一覧: チェックした商品のトップ+2枚目を一括背景置換 ───
 async function bgReplaceTopImages() {
-  var checks = document.querySelectorAll('.dl-check:checked');
-  if (checks.length === 0) { showStatus('manageStatus', '商品を選択してください', 'err'); return; }
+  var selMids = getSelectedMids();
+  if (selMids.length === 0) { showStatus('manageStatus', '商品を選択してください', 'err'); return; }
 
   var targets = [];
   var productCount = 0;
-  checks.forEach(function(c) {
-    var idx = parseInt(c.dataset.idx);
-    var p = productListData[idx];
+  selMids.forEach(function(mid) {
+    var p = _productByMid[mid];
     if (!p || !p.thumbnail) return;
     var row = document.getElementById('manage-row-' + p.managedId);
     var nid = normId(p.managedId || '');
     productCount++;
     targets.push({
-      idx: idx, slot: 0,
-      managedId: p.managedId,
+      managedId: p.managedId, slot: 0,
       thumbUrl: p.thumbnail,
       nid: nid, row: row
     });
     if (p.secondThumbnail) {
       targets.push({
-        idx: idx, slot: 1,
-        managedId: p.managedId,
+        managedId: p.managedId, slot: 1,
         thumbUrl: p.secondThumbnail,
         nid: nid, row: row
       });
@@ -3371,9 +3456,10 @@ async function _bgReplaceTopBatch(targets, modelKey) {
           thumbImg.src = API_BASE + upData.newUrl + '?t=' + Date.now();
         }
         // productListData も更新して次回の処理で新URLを使う
-        if (productListData[t.idx]) {
-          if (t.slot === 1) productListData[t.idx].secondThumbnail = upData.newUrl;
-          else productListData[t.idx].thumbnail = upData.newUrl;
+        var pRef = _productByMid[t.managedId];
+        if (pRef) {
+          if (t.slot === 1) pRef.secondThumbnail = upData.newUrl;
+          else pRef.thumbnail = upData.newUrl;
         }
         okCount++;
       } else {
@@ -3694,16 +3780,16 @@ function _shareEntriesAsZip(entries, zipName, btn, onAfter) {
 }
 
 function doDownloadTopImages() {
-  var checks = document.querySelectorAll('.dl-check:checked');
-  if (checks.length === 0) { showStatus('manageStatus', '商品を選択してください', 'err'); return; }
+  var selMids = getSelectedMids();
+  if (selMids.length === 0) { showStatus('manageStatus', '商品を選択してください', 'err'); return; }
 
-  var indices = [];
+  var prods = [];
   var mids = [];
-  checks.forEach(function(c) {
-    var idx = parseInt(c.dataset.idx);
-    indices.push(idx);
-    var p = productListData[idx];
-    if (p && p.managedId) mids.push(p.managedId);
+  selMids.forEach(function(mid) {
+    var p = _productByMid[mid];
+    if (!p) return;
+    prods.push(p);
+    if (p.managedId) mids.push(p.managedId);
   });
 
   // 保存ログ記録 + 表示を即時更新
@@ -3712,19 +3798,18 @@ function doDownloadTopImages() {
 
   var btn = document.getElementById('dlTopBtn');
   btn.disabled = true;
-  showLoading('トップ画像を準備中', '0/' + indices.length);
+  showLoading('トップ画像を準備中', '0/' + prods.length);
 
   var done = 0;
   var fileEntries = [];
-  var promises = indices.map(function(idx) {
-    var p = productListData[idx];
+  var promises = prods.map(function(p) {
     if (!p.thumbnail) { done++; return Promise.resolve(); }
     var url = API_BASE + p.thumbnail;
     return fetch(url).then(function(r) { return r.blob(); })
     .then(function(blob) {
-      fileEntries.push({ idx: idx, mid: p.managedId, file: new File([blob], p.managedId + '.jpg', { type: 'image/jpeg' }) });
+      fileEntries.push({ mid: p.managedId, file: new File([blob], p.managedId + '.jpg', { type: 'image/jpeg' }) });
       done++;
-      updateLoading('トップ画像を準備中', done + '/' + indices.length);
+      updateLoading('トップ画像を準備中', done + '/' + prods.length);
     }).catch(function() { done++; });
   });
 
@@ -3786,11 +3871,8 @@ function doDownloadTopImages() {
 }
 
 function doDownloadAllImages() {
-  var checks = document.querySelectorAll('.dl-check:checked');
-  if (checks.length === 0) { showStatus('manageStatus', '商品を選択してください', 'err'); return; }
-
-  var mids = [];
-  checks.forEach(function(c) { mids.push(productListData[parseInt(c.dataset.idx)].managedId); });
+  var mids = getSelectedMids();
+  if (mids.length === 0) { showStatus('manageStatus', '商品を選択してください', 'err'); return; }
 
   // 保存ログ記録 + 表示を即時更新
   mids.forEach(function(m) { recordSaveLog(m); });
@@ -3985,12 +4067,12 @@ function doDownloadSelected() {
 
 // ─── 商品選択削除（フッタボタン用） ───
 function updateDeleteSelectedCount() {
-  var checks = document.querySelectorAll('.dl-check:checked');
+  var n = getSelectedMids().length;
   var btn = document.getElementById('deleteSelectedBtn');
   if (btn) {
-    if (checks.length > 0) {
+    if (n > 0) {
       btn.disabled = false;
-      btn.textContent = checks.length + '件の商品を削除';
+      btn.textContent = n + '件の商品を削除';
     } else {
       btn.disabled = true;
       btn.textContent = '選択した商品を削除';
@@ -3998,9 +4080,9 @@ function updateDeleteSelectedCount() {
   }
   var bgBtn = document.getElementById('bgReplaceTopBtn');
   if (bgBtn) {
-    if (checks.length > 0) {
+    if (n > 0) {
       bgBtn.disabled = false;
-      bgBtn.textContent = '🖼 トップ＋2枚目 背景置換（' + checks.length + '件）';
+      bgBtn.textContent = '🖼 トップ＋2枚目 背景置換（' + n + '件）';
     } else {
       bgBtn.disabled = true;
       bgBtn.textContent = '🖼 トップ＋2枚目 背景置換';
@@ -4011,15 +4093,13 @@ function updateDeleteSelectedCount() {
   if (footerManage) {
     var sec = document.getElementById('sec-manage');
     var manageActive = sec && sec.classList.contains('active');
-    footerManage.classList.toggle('show', !!manageActive && checks.length > 0);
+    footerManage.classList.toggle('show', !!manageActive && n > 0);
   }
 }
 
 function doDeleteSelected() {
-  var checks = document.querySelectorAll('.dl-check:checked');
-  if (checks.length === 0) return;
-  var mids = [];
-  checks.forEach(function(c) { mids.push(c.dataset.mid); });
+  var mids = getSelectedMids();
+  if (mids.length === 0) return;
   showConfirm(mids.length + '件の商品画像を全て削除しますか？\\n（誤って削除した場合は管理者に連絡してください）', function() {
     _doDeleteSelectedBatch(mids);
   }, '削除する', 'btn btn-danger', '削除');
