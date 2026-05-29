@@ -3297,7 +3297,7 @@ function addRevertBadge(itemEl, managedId, currentUrl) {
 function revertManageImage(managedId, currentUrl, badgeEl) {
   showConfirm('この画像を置換前の状態に戻しますか？', function() {
     _doRevertManageImage(managedId, currentUrl, badgeEl);
-  });
+  }, '元に戻す', 'btn btn-primary');
 }
 async function _doRevertManageImage(managedId, currentUrl, badgeEl) {
   var wrap = badgeEl ? badgeEl.closest('.img-check-wrap') : null;
