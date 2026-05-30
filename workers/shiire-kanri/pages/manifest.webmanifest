@@ -1,7 +1,7 @@
 {
-  "name": "仕入れ管理",
-  "short_name": "仕入れ管理",
-  "description": "NKonline 仕入れ管理 — 採寸・撮影・出品・発送のスタッフ業務アプリ",
+  "name": "外注アプリ",
+  "short_name": "外注アプリ",
+  "description": "NKonline 外注アプリ — 採寸・撮影・出品・発送のスタッフ業務アプリ",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
