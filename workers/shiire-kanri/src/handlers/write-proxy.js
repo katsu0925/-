@@ -228,8 +228,32 @@ export async function saveDetails(request, env, user, ctx) {
 
 // 専用カラム更新を共通化（保存と GAS 確定後の reconcile 両方で使う）
 async function applyDetailColumns_(env, kanri, fields, mergedExtra, derivedStatus) {
-  const sets = ['extra_json = ?', 'updated_at = ?'];
-  const args = [JSON.stringify(mergedExtra), Date.now()];
+  // #6: extra_json は全体上書き(= extra_json = ?)をやめ、json_set で mergedExtra のキーだけを
+  //     原子的に更新する。全体上書きだと SELECT〜UPDATE の隙間に uploadImage の atomic json_set が
+  //     書いた画像URLキー（こちらの SELECT スナップショットには写っていない）を丸ごと消してしまう
+  //     （過去の orphan-image / image-clobber インシデントと同型の lost-update レース）。
+  //     json_set なら mergedExtra に含まれるキーのみ set し、他キー（並行で書かれた画像URL等）は保持。
+  //     ※ saveDetails / reconcile / uploadImage はいずれも extra_json のキーを追加・更新するのみで
+  //       削除しないため、全体上書きと結果は等価。
+  const sets = [];
+  const args = [];
+  const extraEntries = Object.entries(mergedExtra || {});
+  if (extraEntries.length) {
+    let expr = "COALESCE(extra_json, '{}')";
+    for (const [k, v] of extraEntries) {
+      const path = '$."' + String(k).replace(/"/g, '\\"') + '"';
+      if (v !== null && typeof v === 'object') {
+        // ネスト値（通常は発生しないが保険）は JSON テキストとして埋め込む
+        expr = `json_set(${expr}, ?, json(?))`;
+        args.push(path, JSON.stringify(v));
+      } else {
+        expr = `json_set(${expr}, ?, ?)`;
+        args.push(path, v == null ? '' : v);
+      }
+    }
+    sets.push(`extra_json = ${expr}`);
+  }
+  sets.push('updated_at = ?'); args.push(Date.now());
   function push(col, val) { sets.push(`${col} = ?`); args.push(val); }
 
   // status: 引数 derivedStatus（GAS 再計算）優先、無ければ fields の値
@@ -592,6 +616,29 @@ export async function createProduct(request, env, user, ctx) {
   if (!payload.shiireId) return jsonError('仕入れIDが空です', 400);
   if (!payload.kanri) return jsonError('管理番号が空です', 400);
 
+  // #7 二重採番ガード: getNextKanri/getNextKanriForPurchase は予約・排他をせず MAX+1 を
+  //    返すため、並行作成で同一 kanri が提案され得る（products.js 側はその場で楽観 INSERT を
+  //    used に数えるので逐次呼び出しは自然に繰り上がり、競合窓はサブ秒のみ）。最終的に kanri が
+  //    確定するのはこの createProduct なので、ここで衝突を検知して弾く:
+  //      (1) row_num>0 = GAS 確定済みの別商品 → 必ず拒否
+  //      (2) row_num=0 かつ shiire_id が別 = 別の箱が同じ番号を採番処理中（cross-box 衝突）→ 拒否
+  //      (3) row_num=0 かつ同一 shiire_id = 自分の 503 リトライで置いた楽観 INSERT の可能性が
+  //          高いので通す（誤って 409 にすると正当なリトライで実在商品を取りこぼす）
+  //    ※(3) の同一箱・真の同時タップだけは原子的採番(予約カウンタ)無しには弾けないが、上記の
+  //      used 繰り上がりで窓は極小。現行 9 名運用ではこの残存リスクを許容する。
+  try {
+    const dup = await env.DB.prepare('SELECT row_num, shiire_id FROM products WHERE kanri = ?')
+      .bind(payload.kanri).first();
+    if (dup) {
+      if (Number(dup.row_num) > 0) {
+        return jsonError(`管理番号 ${payload.kanri} は既に使われています。番号を採り直してください。`, 409);
+      }
+      if (dup.shiire_id && String(dup.shiire_id) !== payload.shiireId) {
+        return jsonError(`管理番号 ${payload.kanri} は別の商品で採番処理中です。番号を採り直してください。`, 409);
+      }
+    }
+  } catch (e) { /* D1 障害時はガードをスキップして従来動作（GAS 側の整合に委ねる） */ }
+
   try {
     // 即時表示用に extra_json も組み立てる（次の Cron で確定）
     const extra = Object.assign({}, payload.fields || {});
@@ -602,13 +649,15 @@ export async function createProduct(request, env, user, ctx) {
     extra['状態'] = payload.state || extra['状態'] || '';
     extra['管理番号'] = payload.kanri;
     extra['仕入れID'] = payload.shiireId;
+    // #8: ON CONFLICT は DO NOTHING にする。createProduct は新規登録専用だが、
+    //     万一 kanri が既存（別商品の採寸・販売データを持つ行 / 503 リトライで attempt1 が
+    //     既に INSERT 済み）の場合に DO UPDATE すると、蓄積済みの extra_json を最小ペイロードで
+    //     上書きしてデータ消失を招く。DO NOTHING なら既存行を保護でき、かつ後続の GAS 呼び出しは
+    //     そのまま継続するのでリトライ経路も壊れない（GAS が kanri で行解決し最終確定する）。
     await env.DB.prepare(`
       INSERT INTO products (kanri, shiire_id, status, brand, size, color, state, extra_json, row_num, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(kanri) DO UPDATE SET
-        shiire_id = excluded.shiire_id, status = excluded.status, brand = excluded.brand,
-        size = excluded.size, color = excluded.color, state = excluded.state,
-        extra_json = excluded.extra_json, updated_at = excluded.updated_at
+      ON CONFLICT(kanri) DO NOTHING
     `).bind(
       payload.kanri,
       payload.shiireId,

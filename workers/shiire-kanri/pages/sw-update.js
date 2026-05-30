@@ -9,6 +9,12 @@
 (function setupPwaUpdater(){
   if (!('serviceWorker' in navigator)) return;
 
+  // ページ読み込み時点でコントローラ(=既存SW)が居たか。
+  // 初回インストールでは clients.claim() で controllerchange / SW_ACTIVATED が発火するが、
+  // これは「更新」ではないので自動リロードしてはいけない（初回アクセスで無駄な再読込が走る）。
+  // 真の更新ではページは旧SW配下で読み込まれている＝ここが true になる。
+  var hadControllerAtLoad = !!navigator.serviceWorker.controller;
+
   // ✕ で閉じたバージョンを localStorage に記憶
   // 同一バージョンの waiting に対しては再表示しない（無限再表示ループ対策）
   var DISMISS_KEY = 'pwa-dismissed-version';
@@ -164,6 +170,8 @@
   // ここでリロードすると古い JS のまま動く問題を回避できる
   navigator.serviceWorker.addEventListener('controllerchange', function(){
     if (didReload) return;
+    // 初回インストールの claim による発火はリロードしない（更新ではない）
+    if (!hadControllerAtLoad) return;
     if (isEditing()) {
       // 編集中はリロードせず通知のみ
       showUpdateBanner(function(){ safeReload(); });
@@ -179,6 +187,8 @@
     if (d.type !== 'SW_ACTIVATED') return;
     if (d.version) setDismissedVersion(d.version); // activate 完了 → 旧 dismiss はクリア相当
     if (didReload) return;
+    // 初回インストールの activate ではリロードしない（controllerchange と同じ理由）
+    if (!hadControllerAtLoad) return;
     if (isEditing()) {
       showUpdateBanner(function(){ safeReload(); });
       return;

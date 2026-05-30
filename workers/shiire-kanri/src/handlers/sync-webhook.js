@@ -192,9 +192,15 @@ async function diffDeleteProducts(db, incomingKanris) {
     console.warn(`[diff] skip product delete: incoming=${incoming.size} vs existing=${existing.length}`);
     return 0;
   }
-  const stale = existing
+  let stale = existing
     .filter(r => !incoming.has(String(r.kanri || '')))
     .map(r => r.kanri);
+  if (!stale.length) return 0;
+  // #3 楽観 INSERT 保護: 直近 180 秒以内に updated_at が更新された行は、書込側(write-proxy)が
+  // D1 へ先行 INSERT したばかりで GAS→シート反映前の可能性がある。この diff スナップショットは
+  // 反映前のシートから採取されている恐れがあるため、新規行を「stale」と誤判定し消す競合が起きる。
+  // 3 分経ってもシートに居なければ削除する（sheets-sync.js syncProducts と同一閾値）。
+  stale = await excludeRecent(db, 'products', 'kanri', stale);
   if (!stale.length) return 0;
   const batchSize = 50;
   for (let i = 0; i < stale.length; i += batchSize) {
@@ -216,9 +222,12 @@ async function diffDeletePurchases(db, incomingIds) {
     console.warn(`[diff] skip purchase delete: incoming=${incoming.size} vs existing=${existing.length}`);
     return 0;
   }
-  const stale = existing
+  let stale = existing
     .filter(r => !incoming.has(String(r.shiire_id || '')))
     .map(r => r.shiire_id);
+  if (!stale.length) return 0;
+  // #3 楽観 INSERT 保護（diffDeleteProducts と同一趣旨）
+  stale = await excludeRecent(db, 'purchases', 'shiire_id', stale);
   if (!stale.length) return 0;
   const batchSize = 50;
   for (let i = 0; i < stale.length; i += batchSize) {
@@ -228,4 +237,27 @@ async function diffDeletePurchases(db, incomingIds) {
   }
   console.log(`[diff] deleted ${stale.length} stale purchases`);
   return stale.length;
+}
+
+// 直近 180 秒以内に updated_at が更新された行(=楽観 INSERT 直後でシート未反映の可能性)を
+// 削除候補から除外する。keyCol は PK 列名（products: kanri / purchases: shiire_id）。
+async function excludeRecent(db, table, keyCol, keys) {
+  if (!keys.length) return keys;
+  const threshold = Date.now() - 180 * 1000;
+  const protectedSet = new Set();
+  const probeBatch = 50;
+  for (let i = 0; i < keys.length; i += probeBatch) {
+    const batch = keys.slice(i, i + probeBatch);
+    const ph = batch.map(() => '?').join(',');
+    const { results: recent } = await db
+      .prepare(`SELECT ${keyCol} AS k FROM ${table} WHERE updated_at > ?1 AND ${keyCol} IN (${ph})`)
+      .bind(threshold, ...batch)
+      .all();
+    for (const r of recent) protectedSet.add(r.k);
+  }
+  if (protectedSet.size) {
+    console.log(`[diff] protect ${protectedSet.size} recent ${table} rows from delete`);
+    return keys.filter(k => !protectedSet.has(k));
+  }
+  return keys;
 }

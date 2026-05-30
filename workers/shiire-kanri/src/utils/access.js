@@ -49,9 +49,16 @@ async function verifyJwt(token, team, expectedAud) {
   const header = JSON.parse(base64UrlDecodeStr(headerB64));
   const payload = JSON.parse(base64UrlDecodeStr(payloadB64));
 
-  // exp / aud
+  // #23: alg 許可リスト。Cloudflare Access は RS256 固定。
+  // alg 混同攻撃（none / HS256 など）を明示的に弾く（検証は RS256 固定で行うため実害は無いが defense-in-depth）。
+  if (header.alg !== 'RS256') throw new Error('unexpected alg: ' + header.alg);
+
+  // exp / iss / aud
   const now = Math.floor(Date.now() / 1000);
   if (payload.exp && now > payload.exp) throw new Error('jwt expired');
+  // #23: iss（発行者）検証。自テナントの Access が発行したトークンであることを確認する。
+  const expectedIss = `https://${team}.cloudflareaccess.com`;
+  if (payload.iss && payload.iss !== expectedIss) throw new Error('iss mismatch');
   if (expectedAud) {
     const audOk = Array.isArray(payload.aud)
       ? payload.aud.includes(expectedAud)

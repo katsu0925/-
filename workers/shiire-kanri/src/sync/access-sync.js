@@ -73,6 +73,14 @@ async function updatePolicyEmails(env, appId, policyId, emails) {
   if (before.size === after.size && [...after].every(e => before.has(e))) {
     return { changed: false };
   }
+  // #4: 急激な縮小ロックアウト防止。GAS の一時的な部分読み取りやバグで許可リストが
+  //     大幅に縮むと全外注がアクセス不能になる。現行が十分な人数(>=4)で、新リストが
+  //     その半数未満なら異常とみなし PUT をスキップしてログだけ残す（手動確認を促す）。
+  //     本当に大量無効化したい場合は CF ダッシュボードで直接編集する運用。
+  if (before.size >= 4 && after.size < before.size * 0.5) {
+    console.error(`[access-sync] refuse shrink: before=${before.size} after=${after.size} (>=50% drop). policy unchanged.`);
+    return { changed: false, skippedShrink: true, before: before.size, after: after.size };
+  }
   await cfApi(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${appId}/policies/${policyId}`, {
     method: 'PUT',
     body: {

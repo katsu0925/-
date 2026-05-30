@@ -42,7 +42,14 @@ function ensureWasmReady() {
       initJpegDecode(JPEG_DEC_WASM),
       initJpegEncode(JPEG_ENC_WASM),
       initResize(RESIZE_WASM),
-    ]);
+    ]).catch((err) => {
+      // #12: 初期化失敗を恒久キャッシュしない。reject された Promise をそのまま保持すると、
+      //      同一 isolate の後続リクエストが永久に同じ reject を再利用し（isolate 再起動まで）
+      //      サムネ生成が全滅する。null に戻して次リクエストで再初期化を試みる。
+      //      呼び出し側 catch のフォールバック（原本素通し）は維持される。
+      wasmInitPromise = null;
+      throw err;
+    });
   }
   return wasmInitPromise;
 }

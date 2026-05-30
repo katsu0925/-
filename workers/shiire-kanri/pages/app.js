@@ -111,13 +111,13 @@ async function prewarmAllTabs_() {
   var tasks = [];
   if (STATE.tab !== 'shouhin') tasks.push({
     url: '/api/products?limit=10000&mode=list&noSold=1',
-    apply: function(res){ LIST_CACHE['shouhin||'] = { items: res.items || [], ts: Date.now() }; }
+    apply: function(res){ LIST_CACHE['shouhin|'] = { items: res.items || [], ts: Date.now() }; }
   });
   if (STATE.tab !== 'hassou') tasks.push({
     url: '/api/products?limit=10000&mode=list&filter=hassou',
     apply: function(res){
       var items = res.items || [];
-      LIST_CACHE['hassou|hassou|'] = { items: items, ts: Date.now() };
+      LIST_CACHE['hassou|hassou'] = { items: items, ts: Date.now() };
       // 同梱情報も先読みしてカードに即座にマークが出るようにする
       var kanris = items.map(function(it){ return it.kanri; }).filter(Boolean);
       if (kanris.length) loadBundlesForKanris_(kanris);
@@ -2070,10 +2070,12 @@ function patchListCache_(kanri, fields) {
     if (!entry || !Array.isArray(entry.items)) return;
     entry.items.forEach(function(it){
       if (it.kanri !== kanri) return;
-      if (fields['販売日']) it.saleDate = fields['販売日'];
-      if (fields['販売価格']) it.salePrice = fields['販売価格'];
-      if (fields['ステータス']) it.status = fields['ステータス'];
-      if (fields['採寸日']) { it.measuredAt = fields['採寸日']; }
+      // 値の存在（'in'）で判定する。truthy 判定だと空文字（クリア）が無視され、
+      // 「販売日を消したのに一覧に古い値が残る」サイレント不整合が起きる（タブ切替まで未反映）。
+      if ('販売日' in fields) it.saleDate = fields['販売日'] || null;
+      if ('販売価格' in fields) it.salePrice = fields['販売価格'];
+      if ('ステータス' in fields) it.status = fields['ステータス'];
+      if ('採寸日' in fields) { it.measuredAt = fields['採寸日'] || null; }
     });
   });
 }
@@ -2639,6 +2641,8 @@ function onImageFieldDelete_(fieldId, fieldName) {
     }
     if (STATE.current && STATE.current.extra) STATE.current.extra[fieldName] = '';
     LIST_CACHE = {};
+    // ヘッダー直下サムネからも即時除去
+    refreshBasicImgs_();
     if (status) { status.textContent = '✓ 削除完了'; status.className = 'img-status success'; }
   }).catch(function(err){
     if (status) { status.textContent = '✗ ' + (err && err.message || 'エラー'); status.className = 'img-status error'; }
@@ -2755,6 +2759,8 @@ function onImageFieldFile_(file, fieldId, fieldName) {
       }
       clearPending_();
       LIST_CACHE = {};
+      // ヘッダー直下サムネ（売却済み商品画像/QR/ポストシール）に即時反映
+      refreshBasicImgs_();
     }).catch(function(){
       // 静かに outbox 再送に委ねる（「✓ 保存完了」はそのまま）
       // pending は解除しておく（永続的にスピナーが残るのを防ぐ）。outbox の再送には影響しない。
@@ -3096,18 +3102,24 @@ function onCardKanryouClick_(btn, kanri) {
   .then(function(res){
     if (!res.ok || !res.body || res.body.ok === false) throw new Error((res.body && res.body.error) || '保存失敗');
     // 楽観反映: STATE.items の該当 kanri に 完了日 を入れて再描画
+    // 完了日が入ると GAS の IFS 式（StaffApi.gs:65 「完了日 notBlank → 売却済み」）で
+    // サーバー側 status は '売却済み' に再計算される。発送済みリストは status==='発送済み' で
+    // 絞っているため、ローカル status も '売却済み' に追従させて即座に一覧から外す。
+    // （従来は 完了日 だけ更新し status を据え置いていたため、タブを切り替えるまで残っていた）
     if (Array.isArray(STATE.items)) {
       for (var i = 0; i < STATE.items.length; i++) {
         if (STATE.items[i] && STATE.items[i].kanri === k) {
           STATE.items[i].extra = STATE.items[i].extra || {};
           STATE.items[i].extra['完了日'] = ymd;
+          STATE.items[i].status = '売却済み';
           break;
         }
       }
     }
     LIST_CACHE = {};
-    toast('完了日をセット: ' + ymd, 'success');
+    toast('完了しました（発送済みから除外）', 'success');
     if (STATE.tab === 'hassou') renderShouhinList({ silent: true });
+    refreshCounts();
   }).catch(function(err){
     toast('保存失敗: ' + (err && err.message || '不明'), 'error');
     btn.disabled = false;
@@ -3725,6 +3737,10 @@ async function submitBashoUpdate(moveId) {
   }
 }
 
+// 報告者切替の競合ガード: 素早く切り替えると、先に投げた遅いレスポンスが
+// 後勝ち（last-write-wins）で picker を上書きしてしまう。リクエストごとに連番を振り、
+// await から戻った時点で最新リクエストでなければ描画を捨てる。
+var __bashoReqSeq = 0;
 async function onBashoReporterChange() {
   var sel = document.getElementById('basho-reporter');
   var picker = document.getElementById('basho-ids-picker');
@@ -3733,10 +3749,13 @@ async function onBashoReporterChange() {
     picker.innerHTML = '<div class="muted">先に「報告者」を選択してください</div>';
     return;
   }
+  var mySeq = ++__bashoReqSeq;
   picker.innerHTML = '<div class="muted">読み込み中…</div>';
   try {
     // includeHolding=1: 仮置き場（family等）の商品こそ移動対象なので除外しない（出品待ちタブと違う点）
     var res = await api('/api/products?place=' + encodeURIComponent(reporter) + '&filter=shuppin_machi&includeHolding=1&limit=10000&mode=list');
+    // 自分より後のリクエストが走っていたら（=報告者が切り替わった）描画しない
+    if (mySeq !== __bashoReqSeq) return;
     var items = (res.items || []);
     // 編集モード: 既存IDを必ず候補に含める（出品待ち外の商品でもチェック可能にする）
     var prefIds = Array.isArray(window.__bashoPrefIds) ? window.__bashoPrefIds : [];
@@ -3770,6 +3789,7 @@ async function onBashoReporterChange() {
       '<div id="basho-ids-list" class="ids-list">' + listHtml + '</div>';
     updateBashoCount();
   } catch (e) {
+    if (mySeq !== __bashoReqSeq) return;
     picker.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
   }
 }
@@ -4323,7 +4343,7 @@ function paintAiList_(items) {
     var tags = tagFields.map(function(k){
       return f[k] ? '<span class="ai-tag">' + esc(String(f[k])) + '</span>' : '';
     }).filter(Boolean).join('');
-    return '<div class="ai-card" onclick="openDetail(' + JSON.stringify(it.kanri) + ')">' +
+    return '<div class="ai-card" onclick="openDetail(\'' + esc(it.kanri).replace(/\'/g,"%27") + '\')">' +
       '<div class="ai-kanri">' + esc(it.kanri) + '</div>' +
       '<div class="ai-brand">' + esc(brand) + '</div>' +
       (meta ? '<div class="ai-meta">' + esc(meta) + '</div>' : '') +
@@ -4833,7 +4853,8 @@ function paintKeihi_(data) {
     mine.forEach(function(r, ri){
       var link = iLink >= 0 ? String(r[iLink] || '') : '';
       var place = iPlace >= 0 ? String(r[iPlace] || '') : '';
-      var placeHtml = link ? '<a href="' + esc(link) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()">' + esc(place || link) + '</a>' : esc(place);
+      var safeLink = safeHttpUrl_(link);
+      var placeHtml = safeLink ? '<a href="' + esc(safeLink) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()">' + esc(place || link) + '</a>' : esc(place || link);
       var receipt = iReceipt >= 0 ? String(r[iReceipt] || '') : '';
       var receiptHtml;
       if (receipt && /^https?:/i.test(receipt)) {
@@ -5535,17 +5556,26 @@ async function loadInvoiceData_(force) {
   if (!force && INVOICE_STATE.loaded) { paintInvoiceSection_(); return; }
   if (INVOICE_STATE.loading) return;
   INVOICE_STATE.loading = true;
+  // 取得中に参照対象スタッフが切り替わる場合がある（管理者なりすまし）。
+  // リクエスト時点のスコープを控え、レスポンス到着時に一致しなければ破棄する
+  // （切替前の遅いレスポンスが後勝ちで別人の請求書を表示する事故を防ぐ）。
+  var reqEmail = INVOICE_STATE.scopedEmail;
+  var reqName = INVOICE_STATE.scopedName;
+  var scopeStale = function(){
+    return INVOICE_STATE.scopedEmail !== reqEmail || INVOICE_STATE.scopedName !== reqName;
+  };
   try {
     // 管理者なりすまし参照中は asStaffEmail を URL クエリで透過する。
     // GAS 側 inv_resolveScopedStaff_ で管理者権限と email 一致を再検証する。
-    var scopeQ = INVOICE_STATE.scopedEmail
-      ? ('?asStaffEmail=' + encodeURIComponent(INVOICE_STATE.scopedEmail))
+    var scopeQ = reqEmail
+      ? ('?asStaffEmail=' + encodeURIComponent(reqEmail))
       : '';
     var results = await Promise.all([
       api('/api/invoice/list' + scopeQ),
       api('/api/invoice/months' + scopeQ),
       api('/api/invoice/profile' + scopeQ),
     ]);
+    if (scopeStale()) return; // 参照対象が切り替わった → このレスポンスは捨てる
     INVOICE_STATE.invoices = (results[0] && results[0].items) || [];
     // GAS は直近12ヶ月 YM 文字列配列を返す（新しい順）。客側で hasInvoice を付与する。
     var rawMonths = (results[1] && results[1].months) || [];
@@ -5573,10 +5603,17 @@ async function loadInvoiceData_(force) {
     INVOICE_STATE.loaded = true;
     paintInvoiceSection_();
   } catch (e) {
-    var body = document.getElementById('invoice-section-body');
-    if (body) body.innerHTML = '<div class="error" style="padding:12px;font-size:13px">読み込み失敗: ' + esc(e.message) + '</div>';
+    if (!scopeStale()) {
+      var body = document.getElementById('invoice-section-body');
+      if (body) body.innerHTML = '<div class="error" style="padding:12px;font-size:13px">読み込み失敗: ' + esc(e.message) + '</div>';
+    }
   } finally {
     INVOICE_STATE.loading = false;
+    // 取得中に切り替わってレスポンスを破棄した場合、現在のスコープで再ロードする
+    // （loading 中ガードで弾かれていた最新リクエストをここで補完）。
+    if (scopeStale() && !INVOICE_STATE.loaded && !INVOICE_STATE.collapsed) {
+      loadInvoiceData_();
+    }
   }
 }
 
@@ -5795,14 +5832,16 @@ function openInvoiceRevisionModal_(invoiceNo) {
       'placeholder="例: ◯月分の発送件数が3件足りないようです。確認お願いします。"></textarea>' +
     '<div class="modal-actions" style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px">' +
       '<button class="btn-cancel" onclick="closeModal()">キャンセル</button>' +
-      '<button class="btn-primary" onclick="submitInvoiceRevision_(\'' + esc(invoiceNo) + '\')">送信</button>' +
+      '<button class="btn-primary" onclick="submitInvoiceRevision_(\'' + esc(invoiceNo) + '\', this)">送信</button>' +
     '</div>';
   openModal(html);
 }
 
-async function submitInvoiceRevision_(invoiceNo) {
+async function submitInvoiceRevision_(invoiceNo, btn) {
   var reason = String((document.getElementById('invoice-revision-reason') || {}).value || '').trim();
   if (!reason) { alert('修正理由を入力してください'); return; }
+  // 二度押し防止: 送信ボタンを無効化＋ローディング表示（重複申請を防ぐ）
+  var done = setBtnLoading(btn, '送信中…');
   try {
     var resRev = await api('/api/invoice/revision', {
       method: 'POST', body: { invoiceNo: invoiceNo, reason: reason },
@@ -5814,6 +5853,7 @@ async function submitInvoiceRevision_(invoiceNo) {
     INVOICE_STATE.loaded = false;
     await loadInvoiceData_();
   } catch (e) {
+    done(); // モーダルは残すのでボタンを復帰させ再送信可能にする
     alert('送信失敗: ' + e.message);
   }
 }
@@ -6736,7 +6776,8 @@ function fieldRowHtml(name, type, val) {
     input = '<input type="date" id="' + id + '" value="' + esc(dv) + '" onfocus="onDateFieldFocus_(this)">';
   } else if (type === 'url') {
     var safe = esc(v);
-    var link = v ? ' <a href="' + safe + '" target="_blank" rel="noopener" style="font-size:12px;margin-left:8px;color:#1565c0">開く</a>' : '';
+    var safeUrl = safeHttpUrl_(v); // javascript: 等の危険スキームは「開く」リンクにしない
+    var link = safeUrl ? ' <a href="' + esc(safeUrl) + '" target="_blank" rel="noopener" style="font-size:12px;margin-left:8px;color:#1565c0">開く</a>' : '';
     input = '<input type="url" id="' + id + '" value="' + safe + '">' + link;
   } else if (type === 'image') {
     input = imageFieldHtml_(id, name, v);
@@ -7499,7 +7540,7 @@ function buildBasicImgsHtml_(d) {
       var largeU = normalizeDriveUrl_(v, 1200);
       modalPrefetch.push(largeU);
       var safeLarge = esc(largeU).replace(/\'/g,"%27");
-      items.push('<button type="button" class="basic-img" onclick="openImageModal_(\'' + safeLarge + '\')" title="' + esc(name) + '"><img src="' + esc(thumbU) + '" alt="' + esc(name) + '" loading="eager" decoding="async"></button>');
+      items.push('<button type="button" class="basic-img" data-full="' + esc(largeU) + '" onclick="openImageModal_(\'' + safeLarge + '\')" title="' + esc(name) + '"><img src="' + esc(thumbU) + '" alt="' + esc(name) + '" loading="eager" decoding="async"></button>');
     } else {
       items.push('<div class="basic-img img-loading" data-legacy="' + esc(v) + '" data-field="' + esc(name) + '" title="' + esc(name) + '">…</div>');
     }
@@ -7513,6 +7554,20 @@ function buildBasicImgsHtml_(d) {
   var tbHtml = '<div class="basic-imgs basic-imgs-tb" data-kanri="' + esc(d.kanri) + '"></div>';
   var fieldsHtml = items.length ? '<div class="basic-imgs">' + items.join('') + '</div>' : '';
   return tbHtml + fieldsHtml;
+}
+
+// 画像アップロード/削除後に、ヘッダー直下のサムネ（buildBasicImgsHtml_）を再描画する。
+// 売却済み商品画像/QR・バーコード画像/ポストシール を登録・削除しても、上部サムネは
+// openDetail() 時に一度だけ描画されるため即時反映されなかった（タブ切替で初めて反映）。
+// STATE.current.extra は各保存処理で更新済みなので、そこから組み直すだけで最新化できる。
+function refreshBasicImgs_() {
+  var d = STATE.current;
+  if (!d) return;
+  var holder = document.getElementById('detail-basic-imgs');
+  if (!holder) return;
+  holder.innerHTML = buildBasicImgsHtml_(d);
+  resolveLegacyImages_();
+  resolveDetailTasukibakoImages_(d.kanri);
 }
 
 // タスキ箱(R2/KV)に登録済みの商品画像URLリストをタブ切替えを跨いでキャッシュ
@@ -7758,7 +7813,7 @@ function renderDetail() {
 
   var html =
     heroHtml +
-    basicImgsHtml +
+    '<div id="detail-basic-imgs">' + basicImgsHtml + '</div>' +
     tabsHtml +
     '<div class="sec-body">' +
       sectionsHtml +
@@ -8329,6 +8384,18 @@ function esc(s) {
   return String(s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// href に使う URL のスキーム検証。javascript:/data:/vbscript: 等の危険スキームを弾き、
+// http(s) と自サイト相対パスのみ許可する（外注がシート編集で混入させても XSS にしない）。
+// 許可されなければ '' を返すので、呼び出し側はリンクを張らずプレーン表示にフォールバックする。
+function safeHttpUrl_(u) {
+  var s = String(u == null ? '' : u).trim();
+  if (!s) return '';
+  if (/^https?:\/\//i.test(s)) return s;
+  // 先頭が単一の '/'（//host は protocol-relative なので除外）= 自サイト相対のみ許可
+  if (s.charAt(0) === '/' && s.charAt(1) !== '/') return s;
+  return '';
 }
 
 // ===== スワイプ削除（メールアプリ風 + 2段階確認） =====
@@ -9565,12 +9632,24 @@ function resolveImgUrl_(u) {
 }
 
 // 詳細画面に表示中の画像 URL を集める（重複排除、登場順）
+// 注意: basic-img（QR/売却済み/ポストシール）はサムネ(320px)を表示しつつ、
+// モーダルでは拡大版(1200px)を開く。サムネ src を集めると、モーダルに渡る
+// 拡大URLが一覧に含まれず indexOf=-1 → 単独表示に落ちてナビ/カウンターが消える。
+// そこで「モーダルで開く実URL」を data-full に持たせ、それを優先して集める
+// （無ければ従来どおり内側 img の src にフォールバック）。
 function collectGalleryUrls_() {
-  var nodes = document.querySelectorAll('.img-preview img, .basic-img img');
+  var nodes = document.querySelectorAll('.img-preview, .basic-img');
   var urls = [];
   var seen = Object.create(null);
   for (var i = 0; i < nodes.length; i++) {
-    var src = nodes[i].src; // resolved
+    var el = nodes[i];
+    var raw = el.getAttribute && el.getAttribute('data-full');
+    if (!raw) {
+      var img = el.querySelector ? el.querySelector('img') : null;
+      raw = img && img.getAttribute('src');
+    }
+    if (!raw) continue;
+    var src = resolveImgUrl_(raw); // 絶対URL化（onclick で渡る拡大URLと比較可能に）
     if (!src || seen[src]) continue;
     seen[src] = 1;
     urls.push(src);

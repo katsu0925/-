@@ -267,7 +267,7 @@ export default {
 
     // 売上ダッシュボード（今月/前月/通年/月別内訳）
     if (path === '/api/sales/summary' && request.method === 'GET') {
-      return getSalesSummary(request, env);
+      return getSalesSummary(request, env, ctx);
     }
 
     // Web Push 通知

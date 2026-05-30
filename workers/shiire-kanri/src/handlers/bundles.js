@@ -18,6 +18,17 @@
 //
 // 解除規則:
 //   メンバー1人になったグループは自動削除（同梱の意味がないため）
+//
+// #9 KV 非原子 read-modify-write の既知制約:
+//   KV には CAS/トランザクションが無いため、同一グループへの並行トグルでは
+//   members 取りこぼし（後勝ちで片方のpushが消える）や bundle-of との不整合が
+//   理論上起こり得る（orphan-image インシデントと同型）。本機能は KV 専用設計
+//   （シート/D1 を経由しない）かつ 外注 9 名による低頻度の手動操作のため、
+//   完全な原子化（Durable Object でのシリアライズ）はコスト過大と判断し未導入。
+//   代わりに次の二重の緩和でUIへの影響を抑える:
+//     (a) writeBundle で members を常に重複排除（並行二重 push の痕跡を消す）
+//     (b) listBundles で bundle-of が指すグループに当該 kanri が実在する場合のみ
+//         同梱中として返す（dangling な bundle-of ポインタを読取時に自己修復）
 
 import { jsonOk, jsonError } from '../utils/response.js';
 
@@ -34,6 +45,8 @@ async function readBundle(env, id) {
 }
 
 async function writeBundle(env, b) {
+  // #9(a): 並行トグルで同一 kanri が二重 push された痕跡を消すため、保存前に重複排除
+  if (Array.isArray(b.members)) b.members = Array.from(new Set(b.members));
   await env.CACHE.put(bundleKey(b.id), JSON.stringify(b));
 }
 
@@ -146,6 +159,10 @@ export async function listBundles(request, env) {
     if (!gid) continue;
     const b = byId[gid];
     if (!b) continue;
+    // #9(b): bundle-of は指しているがグループ members に当該 kanri が居ない
+    //        （並行トグルの取りこぼしで生じた dangling ポインタ）場合は同梱中扱いしない。
+    //        書込はせず読取時にフィルタするだけ（GET でのKV write/二次レース回避）。
+    if (!b.members.includes(k)) continue;
     result[k] = { id: b.id, members: b.members };
   }
   return jsonOk({ bundles: result });

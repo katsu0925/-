@@ -158,7 +158,7 @@ async function syncProducts(env, rows) {
   const now = Date.now();
   const toWrite = [];
   for (const p of rows) {
-    const hash = await sha256Hex(stableStringify(p));
+    const hash = await contentHash(p);
     const prev = existingHash.get(String(p.kanri || ''));
     if (prev !== hash) toWrite.push({ p, hash });
   }
@@ -255,7 +255,7 @@ async function syncPurchases(env, rows) {
   const now = Date.now();
   const toWrite = [];
   for (const p of rows) {
-    const hash = await sha256Hex(stableStringify(p));
+    const hash = await contentHash(p);
     const prev = existingHash.get(String(p.shiireId || ''));
     if (prev !== hash) toWrite.push({ p, hash });
   }
@@ -267,11 +267,28 @@ async function syncPurchases(env, rows) {
     const batch = toWrite.slice(i, i + batchSize);
     const stmts = batch.map(({ p, hash }) =>
       db.prepare(`
-        INSERT OR REPLACE INTO purchases
+        INSERT INTO purchases
           (shiire_id, date, amount, shipping, planned, place, cost, category,
            content, supplier_id, register_user, registered_at, assigned_kanri, processed,
            row_num, updated_at, content_hash)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(shiire_id) DO UPDATE SET
+          date          = excluded.date,
+          amount        = excluded.amount,
+          shipping      = excluded.shipping,
+          planned       = excluded.planned,
+          place         = excluded.place,
+          cost          = excluded.cost,
+          category      = excluded.category,
+          content       = excluded.content,
+          supplier_id   = excluded.supplier_id,
+          register_user = excluded.register_user,
+          registered_at = excluded.registered_at,
+          assigned_kanri= excluded.assigned_kanri,
+          processed     = excluded.processed,
+          row_num       = excluded.row_num,
+          updated_at    = excluded.updated_at,
+          content_hash  = excluded.content_hash
       `).bind(
         String(p.shiireId || ''),
         s(p.date),
@@ -322,7 +339,7 @@ async function syncAiPrefill(env, rows) {
   const now = Date.now();
   const toWrite = [];
   for (const p of rows) {
-    const hash = await sha256Hex(stableStringify(p));
+    const hash = await contentHash(p);
     const prev = existingHash.get(String(p.kanri || ''));
     if (prev !== hash) toWrite.push({ p, hash });
   }
@@ -364,6 +381,18 @@ async function sha256Hex(str) {
   const hash = await crypto.subtle.digest('SHA-256', buf);
   return Array.from(new Uint8Array(hash))
     .map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// 行レベルの content_hash は「行の中身」だけを表す。
+// シート行番号(row)はシート編集で位置がずれるたびに変化し、全行 mass UPSERT
+// （過去 detauri-gas-proxy で $54/月 の課金事故）を誘発するため、ハッシュから除外する。
+// row_num は GAS が kanri / shiire_id で行を解決するため表示専用であり、多少 stale でも
+// 書き戻しには影響しない（write-proxy は常に {kanri,...} を送り GAS 側で行解決）。
+// #10: 比較用と保存用で必ず同じ関数を使うこと。食い違うと毎 Cron 再 UPSERT になる。
+async function contentHash(p) {
+  const src = Object.assign({}, (p && typeof p === 'object') ? p : {});
+  delete src.row;
+  return sha256Hex(stableStringify(src));
 }
 
 // キー順を固定して JSON 化（同一データ → 同一文字列を保証）

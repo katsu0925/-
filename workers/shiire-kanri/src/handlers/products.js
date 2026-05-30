@@ -491,6 +491,11 @@ export async function getProductImages(request, env, kanri) {
 // ※ 商品管理テーブルの実在商品だけでなく、仕入れの予約レンジ(assigned_kanri)の
 //    末尾も考慮する。SPA作成の仕入れは recalcAssignNumbers_ を経由しないため、
 //    予約レンジ末尾が実在商品より先行することがあるため。
+// #7 これは「予約・排他をしない助言的採番」である。MAX(=実在 + 楽観 INSERT 済 row_num=0
+//    行も含む) + 1 を返すだけなので、createProduct が INSERT する前のサブ秒だけ並行呼び出しで
+//    同番号が提案され得る。実際の二重採番の最終ガードは write-proxy.js createProduct 側
+//    (row_num>0 / cross-box shiire_id 衝突を 409)。完全な原子予約はここを書込化する必要があり
+//    （abandon 時の orphan 予約・番号スキップを生む）現行運用では未導入。
 export async function getNextKanri(request, env) {
   const u = new URL(request.url);
   const category = (u.searchParams.get('category') || '').trim();
@@ -527,6 +532,9 @@ export async function getNextKanri(request, env) {
 // 指定した仕入れIDの予約レンジ(assigned_kanri 例 zC950~1074)内で
 // 未使用の先頭番号を返す。1仕入れID = 1箱 を連番で管理するため、
 // 商品作成時の管理番号はその仕入れの予約レンジから採番する。
+// #7 getNextKanri と同様に助言的採番。used は products(楽観 INSERT 済の row_num=0 行を含む)
+//    から集めるため、先行 createProduct の楽観 INSERT が着地していれば後続呼び出しは自然に
+//    次番号へ繰り上がる。最終的な二重採番ガードは createProduct 側。
 export async function getNextKanriForPurchase(request, env, shiireId) {
   try {
     const pu = await env.DB.prepare(

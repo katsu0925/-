@@ -159,18 +159,28 @@ export async function lookupAiPrefillBatch(request, env) {
   const result = {};
 
   // D1 一括取得
-  try {
-    const ph = kanris.map(() => '?').join(',');
-    const { results } = await env.DB.prepare(
-      `SELECT kanri, fields_json FROM ai_prefill WHERE kanri IN (${ph})`
-    ).bind(...kanris).all();
-    for (const row of results || []) {
-      const fields = safeParse_(row.fields_json);
-      if (fields && Object.keys(fields).length > 0) {
-        result[row.kanri] = { fields, found: true, source: 'd1' };
+  // #5: D1 のバインド変数上限は 1 クエリ 100 個。kanris は最大 200 件なので
+  //     90 件チャンクに分割して実行する（分割しないと "too many SQL variables" で
+  //     クエリ全体が失敗し、catch で握り潰されて全件 KV フォールバックに落ちていた）。
+  const CHUNK = 90;
+  for (let i = 0; i < kanris.length; i += CHUNK) {
+    const chunk = kanris.slice(i, i + CHUNK);
+    try {
+      const ph = chunk.map(() => '?').join(',');
+      const { results } = await env.DB.prepare(
+        `SELECT kanri, fields_json FROM ai_prefill WHERE kanri IN (${ph})`
+      ).bind(...chunk).all();
+      for (const row of results || []) {
+        const fields = safeParse_(row.fields_json);
+        if (fields && Object.keys(fields).length > 0) {
+          result[row.kanri] = { fields, found: true, source: 'd1' };
+        }
       }
+    } catch (err) {
+      // このチャンクだけ D1 失敗 → 欠損分は後段の KV フォールバックで拾う
+      console.warn('[ai-prefill-batch] D1 chunk failed:', err && err.message);
     }
-  } catch (_) { /* 全件 D1 失敗時は KV にフォールバック */ }
+  }
 
   // 欠損分を KV から（並列取得）
   if (env.GAS_PROXY_CACHE) {

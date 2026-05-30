@@ -9,7 +9,7 @@
 //  - VERSION を上げると activate 時に旧キャッシュを全削除
 //  - skipWaiting + clients.claim で即時切替、controllerchange でクライアントが UI 通知
 
-const VERSION = 'sk-2026-05-30-v129';
+const VERSION = 'sk-2026-05-31-v130';
 const SHELL_CACHE = 'shell-' + VERSION;
 const API_CACHE   = 'api-' + VERSION;
 
@@ -99,7 +99,7 @@ function isApiSwr(pathname) {
 // ETag を返さないエンドポイント（counts 等）で常に 200 が返り、
 // notify→autoRefresh→fetch→notify の暴走ループを引き起こした。
 // 現行は notify せず「次のアクセスで反映」方針に統一する。
-async function staleWhileRevalidate(req) {
+async function staleWhileRevalidate(req, event) {
   const cache = await caches.open(API_CACHE);
   const cached = await cache.match(req);
 
@@ -126,8 +126,12 @@ async function staleWhileRevalidate(req) {
   };
 
   if (cached) {
-    // 即返却 + 裏で再検証
-    revalidate();
+    // 即返却 + 裏で再検証。
+    // 再検証は event.waitUntil でイベント寿命を延ばす。これをしないと
+    // respondWith 解決直後に SW が停止され、裏の fetch/cache.put が中断されて
+    // キャッシュが更新されない（次回も古いまま）ことがある。
+    const p = revalidate();
+    if (event && event.waitUntil) { try { event.waitUntil(p); } catch (e) {} }
     return cached;
   }
 
@@ -262,6 +266,42 @@ self.addEventListener('notificationclick', (event) => {
   })());
 });
 
+// 購読のローテーション対応。ブラウザ都合で push 購読(endpoint)が無効化・再発行されると、
+// この端末には通知が届かなくなる（ユーザーは気づけない）。pushsubscriptionchange で
+// 自動的に再購読し、サーバへ再登録する。VAPID 公開鍵はアプリ本体と同じ /api/push/vapid から取得。
+self.addEventListener('pushsubscriptionchange', (event) => {
+  event.waitUntil((async () => {
+    try {
+      // 実装によっては新購読が event.newSubscription に入る。無ければ取り直して購読し直す。
+      let sub = event.newSubscription;
+      if (!sub) {
+        const pubRes = await fetch('/api/push/vapid', { credentials: 'include' });
+        const pubJson = await pubRes.json().catch(() => ({}));
+        if (!pubJson || !pubJson.ok || !pubJson.publicKey) return;
+        sub = await self.registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(pubJson.publicKey),
+        });
+      }
+      await fetch('/api/push/subscribe', {
+        method: 'POST', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ subscription: sub.toJSON() }),
+      });
+    } catch (e) { /* 失敗時は次回アプリ起動の通知設定フローで回復する */ }
+  })());
+});
+
+// VAPID 公開鍵 (base64url) → Uint8Array（アプリ本体 urlBase64ToUint8Array_ と同等）
+function urlBase64ToUint8Array(b64) {
+  const padding = '='.repeat((4 - (b64.length % 4)) % 4);
+  const base64 = (b64 + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
 self.addEventListener('fetch', (event) => {
   const req = event.request;
   if (req.method !== 'GET') return; // POST/PUT/DELETE はスルー（=ネットワーク）
@@ -294,7 +334,7 @@ self.addEventListener('fetch', (event) => {
 
   if (url.pathname.startsWith('/api/')) {
     if (isApiSwr(url.pathname)) {
-      event.respondWith(staleWhileRevalidate(req));
+      event.respondWith(staleWhileRevalidate(req, event));
     } else {
       event.respondWith(networkFirst(req));
     }

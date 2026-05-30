@@ -5,7 +5,7 @@ import { jsonOk, jsonError } from '../utils/response.js';
 //        純売上(net)=gross - 手数料 - 送料, 件数=COUNT, 平均単価=gross/件数
 // パラメータ:
 //   ?year=YYYY  月別グラフ用の対象年（省略時=現在年）
-export async function getSalesSummary(request, env) {
+export async function getSalesSummary(request, env, ctx) {
   const url = new URL(request.url);
   const tzOffsetMin = parseInt(url.searchParams.get('tz') || '-540', 10); // JST デフォルト
   const now = new Date(Date.now() - tzOffsetMin * 60 * 1000);
@@ -26,37 +26,50 @@ export async function getSalesSummary(request, env) {
   const targetYear = isFinite(yearParam) ? yearParam : yyyy;
   const targetYearStr = String(targetYear);
 
+  // #24: 毎回 products 全件(5000+行)を 3 回フルスキャンするため、エッジキャッシュ
+  //      (caches.default) で短時間キャッシュする。キーは tz / 対象年 / 当日(ymd) を
+  //      含め、日付境界で自然に分離。Access cookie は含めずユーザー横断で共有。TTL 60s。
+  const ymdNow = fmtYmd(yyyy, mm, dd);
+  const cache = caches.default;
+  const cacheKey = new Request(
+    `https://shiire-kanri-sales.local/summary?tz=${tzOffsetMin}&year=${targetYear}&d=${ymdNow}`,
+    { method: 'GET' }
+  );
+  const cached = await cache.match(cacheKey);
+  if (cached) return cached;
+
   try {
     // 期間集計: 4 期間 + 前年同期(YTD と同じ MM-DD まで)
     // 前年同期 (YoY同期): 前年の 1/1 〜 今日と同じ MM-DD
     const ytdEndMmdd = fmtYmd(yyyy, mm, dd).slice(5); // "MM-DD"
-    const lyearYtdEnd = `${yearLastStr}-${ytdEndMmdd}`;
+    // #25: sale_date はシート由来でスラッシュ区切り("YYYY/MM/DD")が混在し得る。
+    //      substr の固定オフセットだと無言で 0 集計になるため replace で "-" 正規化してから抽出する。
     const sql = `
       SELECT
-        SUM(CASE WHEN substr(sale_date,1,7) = ?1 THEN 1 ELSE 0 END) AS this_count,
-        SUM(CASE WHEN substr(sale_date,1,7) = ?1 THEN COALESCE(sale_price,0) ELSE 0 END) AS this_gross,
-        SUM(CASE WHEN substr(sale_date,1,7) = ?1 THEN COALESCE(sale_fee,0) ELSE 0 END) AS this_fee,
-        SUM(CASE WHEN substr(sale_date,1,7) = ?1 THEN COALESCE(sale_shipping,0) ELSE 0 END) AS this_ship,
+        SUM(CASE WHEN substr(replace(sale_date,'/','-'),1,7) = ?1 THEN 1 ELSE 0 END) AS this_count,
+        SUM(CASE WHEN substr(replace(sale_date,'/','-'),1,7) = ?1 THEN COALESCE(sale_price,0) ELSE 0 END) AS this_gross,
+        SUM(CASE WHEN substr(replace(sale_date,'/','-'),1,7) = ?1 THEN COALESCE(sale_fee,0) ELSE 0 END) AS this_fee,
+        SUM(CASE WHEN substr(replace(sale_date,'/','-'),1,7) = ?1 THEN COALESCE(sale_shipping,0) ELSE 0 END) AS this_ship,
 
-        SUM(CASE WHEN substr(sale_date,1,7) = ?2 THEN 1 ELSE 0 END) AS last_count,
-        SUM(CASE WHEN substr(sale_date,1,7) = ?2 THEN COALESCE(sale_price,0) ELSE 0 END) AS last_gross,
-        SUM(CASE WHEN substr(sale_date,1,7) = ?2 THEN COALESCE(sale_fee,0) ELSE 0 END) AS last_fee,
-        SUM(CASE WHEN substr(sale_date,1,7) = ?2 THEN COALESCE(sale_shipping,0) ELSE 0 END) AS last_ship,
+        SUM(CASE WHEN substr(replace(sale_date,'/','-'),1,7) = ?2 THEN 1 ELSE 0 END) AS last_count,
+        SUM(CASE WHEN substr(replace(sale_date,'/','-'),1,7) = ?2 THEN COALESCE(sale_price,0) ELSE 0 END) AS last_gross,
+        SUM(CASE WHEN substr(replace(sale_date,'/','-'),1,7) = ?2 THEN COALESCE(sale_fee,0) ELSE 0 END) AS last_fee,
+        SUM(CASE WHEN substr(replace(sale_date,'/','-'),1,7) = ?2 THEN COALESCE(sale_shipping,0) ELSE 0 END) AS last_ship,
 
-        SUM(CASE WHEN substr(sale_date,1,4) = ?3 THEN 1 ELSE 0 END) AS year_count,
-        SUM(CASE WHEN substr(sale_date,1,4) = ?3 THEN COALESCE(sale_price,0) ELSE 0 END) AS year_gross,
-        SUM(CASE WHEN substr(sale_date,1,4) = ?3 THEN COALESCE(sale_fee,0) ELSE 0 END) AS year_fee,
-        SUM(CASE WHEN substr(sale_date,1,4) = ?3 THEN COALESCE(sale_shipping,0) ELSE 0 END) AS year_ship,
+        SUM(CASE WHEN substr(replace(sale_date,'/','-'),1,4) = ?3 THEN 1 ELSE 0 END) AS year_count,
+        SUM(CASE WHEN substr(replace(sale_date,'/','-'),1,4) = ?3 THEN COALESCE(sale_price,0) ELSE 0 END) AS year_gross,
+        SUM(CASE WHEN substr(replace(sale_date,'/','-'),1,4) = ?3 THEN COALESCE(sale_fee,0) ELSE 0 END) AS year_fee,
+        SUM(CASE WHEN substr(replace(sale_date,'/','-'),1,4) = ?3 THEN COALESCE(sale_shipping,0) ELSE 0 END) AS year_ship,
 
-        SUM(CASE WHEN substr(sale_date,1,4) = ?4 THEN 1 ELSE 0 END) AS lyear_count,
-        SUM(CASE WHEN substr(sale_date,1,4) = ?4 THEN COALESCE(sale_price,0) ELSE 0 END) AS lyear_gross,
-        SUM(CASE WHEN substr(sale_date,1,4) = ?4 THEN COALESCE(sale_fee,0) ELSE 0 END) AS lyear_fee,
-        SUM(CASE WHEN substr(sale_date,1,4) = ?4 THEN COALESCE(sale_shipping,0) ELSE 0 END) AS lyear_ship,
+        SUM(CASE WHEN substr(replace(sale_date,'/','-'),1,4) = ?4 THEN 1 ELSE 0 END) AS lyear_count,
+        SUM(CASE WHEN substr(replace(sale_date,'/','-'),1,4) = ?4 THEN COALESCE(sale_price,0) ELSE 0 END) AS lyear_gross,
+        SUM(CASE WHEN substr(replace(sale_date,'/','-'),1,4) = ?4 THEN COALESCE(sale_fee,0) ELSE 0 END) AS lyear_fee,
+        SUM(CASE WHEN substr(replace(sale_date,'/','-'),1,4) = ?4 THEN COALESCE(sale_shipping,0) ELSE 0 END) AS lyear_ship,
 
-        SUM(CASE WHEN substr(sale_date,1,4) = ?4 AND substr(sale_date,6,5) <= ?5 THEN 1 ELSE 0 END) AS lytd_count,
-        SUM(CASE WHEN substr(sale_date,1,4) = ?4 AND substr(sale_date,6,5) <= ?5 THEN COALESCE(sale_price,0) ELSE 0 END) AS lytd_gross,
-        SUM(CASE WHEN substr(sale_date,1,4) = ?4 AND substr(sale_date,6,5) <= ?5 THEN COALESCE(sale_fee,0) ELSE 0 END) AS lytd_fee,
-        SUM(CASE WHEN substr(sale_date,1,4) = ?4 AND substr(sale_date,6,5) <= ?5 THEN COALESCE(sale_shipping,0) ELSE 0 END) AS lytd_ship
+        SUM(CASE WHEN substr(replace(sale_date,'/','-'),1,4) = ?4 AND substr(replace(sale_date,'/','-'),6,5) <= ?5 THEN 1 ELSE 0 END) AS lytd_count,
+        SUM(CASE WHEN substr(replace(sale_date,'/','-'),1,4) = ?4 AND substr(replace(sale_date,'/','-'),6,5) <= ?5 THEN COALESCE(sale_price,0) ELSE 0 END) AS lytd_gross,
+        SUM(CASE WHEN substr(replace(sale_date,'/','-'),1,4) = ?4 AND substr(replace(sale_date,'/','-'),6,5) <= ?5 THEN COALESCE(sale_fee,0) ELSE 0 END) AS lytd_fee,
+        SUM(CASE WHEN substr(replace(sale_date,'/','-'),1,4) = ?4 AND substr(replace(sale_date,'/','-'),6,5) <= ?5 THEN COALESCE(sale_shipping,0) ELSE 0 END) AS lytd_ship
       FROM products
       WHERE sale_date IS NOT NULL AND sale_date <> ''
     `;
@@ -66,13 +79,13 @@ export async function getSalesSummary(request, env) {
 
     // 月別内訳（指定年）
     const monthlySql = `
-      SELECT substr(sale_date,1,7) AS ym,
+      SELECT substr(replace(sale_date,'/','-'),1,7) AS ym,
              COUNT(*) AS c,
              COALESCE(SUM(sale_price),0) AS gross,
              COALESCE(SUM(sale_fee),0) AS fee,
              COALESCE(SUM(sale_shipping),0) AS ship
       FROM products
-      WHERE sale_date LIKE ?1
+      WHERE replace(sale_date,'/','-') LIKE ?1
       GROUP BY ym
       ORDER BY ym
     `;
@@ -96,7 +109,7 @@ export async function getSalesSummary(request, env) {
 
     // 利用可能な年（売上データのある年）
     const yearsRows = (await env.DB.prepare(
-      `SELECT DISTINCT substr(sale_date,1,4) AS y FROM products WHERE sale_date IS NOT NULL AND sale_date <> '' ORDER BY y DESC`
+      `SELECT DISTINCT substr(replace(sale_date,'/','-'),1,4) AS y FROM products WHERE sale_date IS NOT NULL AND sale_date <> '' ORDER BY y DESC`
     ).all()).results || [];
     const availableYears = yearsRows.map(r => Number(r.y)).filter(y => isFinite(y) && y > 2000);
     if (!availableYears.includes(yyyy)) availableYears.unshift(yyyy);
@@ -115,7 +128,7 @@ export async function getSalesSummary(request, env) {
       };
     };
 
-    return jsonOk({
+    const res = jsonOk({
       now: { year: yyyy, month: mm, ym: ymThis, ymd: fmtYmd(yyyy, mm, dd) },
       thisMonth: { yyyymm: ymThis, ...buildPeriod(row.this_count, row.this_gross, row.this_fee, row.this_ship) },
       lastMonth: { yyyymm: ymLast, ...buildPeriod(row.last_count, row.last_gross, row.last_fee, row.last_ship) },
@@ -125,7 +138,11 @@ export async function getSalesSummary(request, env) {
       monthly,
       monthlyYear: targetYear,
       availableYears,
-    });
+    }, { 'Cache-Control': 'max-age=60' });
+    // #24: caches.default に 60s 保存（put は clone 必須）。クライアント切断に強くするため waitUntil。
+    const putPromise = cache.put(cacheKey, res.clone()).catch(() => { /* cache 書込失敗は無視 */ });
+    if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(putPromise); else await putPromise;
+    return res;
   } catch (err) {
     return jsonError('db error: ' + err.message, 500);
   }
