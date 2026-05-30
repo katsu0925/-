@@ -327,11 +327,11 @@ export function getKitPageHtml(kitDataJson) {
         '<button class="copy-btn" onclick="event.stopPropagation();copyText(this,&apos;' + brandId + '&apos;)">コピー</button></div>' +
         '<div class="copy-content title-content" id="' + brandId + '">' + esc(item.brand) + '</div></div>';
     }
-    // 推奨販売価格
+    // 販売参考価格（顧客向けの再販目安。仕入価格そのものとは別物であることを明記）
     var buyPrice = parseInt(String(item.priceText || '0').replace(/[^\d]/g, '')) || 0;
     var suggestMin = Math.ceil(buyPrice * 2 / 10) * 10;
     var suggestMax = Math.ceil(buyPrice * 3 / 10) * 10;
-    var suggestHtml = buyPrice > 0 ? '<div style="font-size:11px;color:#92400e;margin:4px 0 8px;padding:6px 10px;background:#fef3c7;border-radius:6px">推奨販売価格: <strong>' + suggestMin.toLocaleString() + '〜' + suggestMax.toLocaleString() + '円</strong>（仕入値の2〜3倍）</div>' : '';
+    var suggestHtml = buyPrice > 0 ? '<div style="font-size:11px;color:#92400e;margin:4px 0 8px;padding:6px 10px;background:#fef3c7;border-radius:6px">販売参考価格: <strong>' + suggestMin.toLocaleString() + '〜' + suggestMax.toLocaleString() + '円</strong>（メルカリ等での再販目安。仕入価格の約2〜3倍を目安にした参考値です）</div>' : '';
     copyHtml += suggestHtml;
     copyHtml += '</div>';
 
