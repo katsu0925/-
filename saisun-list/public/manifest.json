@@ -1,7 +1,7 @@
 {
   "name": "デタウリ.Detauri",
   "short_name": "デタウリ",
-  "description": "採寸データ付き古着卸 - 10点から購入可能",
+  "description": "採寸撮影データ付き古着卸 - 10点から購入可能",
   "start_url": "/",
   "display": "standalone",
   "theme_color": "#b8002a",
