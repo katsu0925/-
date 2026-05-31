@@ -1150,6 +1150,7 @@ function normalizeSellPrice_(p) {
   return base + 100;
 }
 
+// 旧価格テーブル（2026-05-31 まで有効）。仕入値≤上限の最初の段の販売価格を返す。
 const PRICE_TIER_TABLE_ = [
   [50, 200], [100, 320], [149, 430], [199, 485], [249, 595],
   [299, 650], [349, 705], [399, 760], [449, 815], [499, 925],
@@ -1160,12 +1161,33 @@ const PRICE_TIER_TABLE_ = [
   [1549, 2300], [1599, 2355], [1649, 2410], [1699, 2465]
 ];
 
+// 2026-06-01「採寸撮影付き」リブランドに伴う新価格テーブル（旧価格 ×1.2・¥50切上げ・上限¥3,000）。
+// 6/1 00:00 JST 以降は getActivePriceTierTable_() がこちらを返す。
+const PRICE_TIER_TABLE_V2_ = [
+  [50, 250], [100, 400], [149, 550], [199, 600], [249, 750],
+  [299, 800], [349, 850], [399, 950], [449, 1000], [499, 1150],
+  [549, 1200], [599, 1250], [649, 1350], [699, 1400], [749, 1550],
+  [799, 1600], [849, 1650], [899, 1750], [949, 1800], [999, 1950],
+  [1049, 2000], [1099, 2050], [1149, 2100], [1199, 2200], [1249, 2300],
+  [1299, 2400], [1349, 2450], [1399, 2500], [1449, 2600], [1499, 2700],
+  [1549, 2800], [1599, 2850], [1649, 2900], [1699, 3000]
+];
+
+// 価格テーブル切替日時（2026-06-01 00:00 JST）。以降は撮影データ付きの新価格。
+const PRICE_TIER_V2_EFFECTIVE_MS_ = new Date('2026-06-01T00:00:00+09:00').getTime();
+
+// 現在日時に応じて有効な価格テーブルを返す（6/1 00:00 JST で新価格へ自動切替）。
+function getActivePriceTierTable_() {
+  return (Date.now() >= PRICE_TIER_V2_EFFECTIVE_MS_) ? PRICE_TIER_TABLE_V2_ : PRICE_TIER_TABLE_;
+}
+
 function calcPriceTier_(n) {
   if (n < 0) return 0;
-  for (let i = 0; i < PRICE_TIER_TABLE_.length; i++) {
-    if (n <= PRICE_TIER_TABLE_[i][0]) return PRICE_TIER_TABLE_[i][1];
+  const table = getActivePriceTierTable_();
+  for (let i = 0; i < table.length; i++) {
+    if (n <= table[i][0]) return table[i][1];
   }
-  return PRICE_TIER_TABLE_[PRICE_TIER_TABLE_.length - 1][1];
+  return table[table.length - 1][1];
 }
 
 function convertRecoveryK_(v) {
