@@ -1765,6 +1765,28 @@ var PREMIUM_ASSORT_MAP_ = [
 ];
 var PREMIUM_ASSORT_MAX_ = 50;
 
+// 2026-06-01「採寸撮影付き」リブランド: プレミアムアソートの選定目標額を +20%。
+// 個品価格の +20%（PRICE_TIER_TABLE_V2_）に追従させ、ボックス内の点数を維持する。
+// 切替は BulkProduct.gs の maybeApplyPremiumRepricing_() が D列の顧客表示価格を更新した時点
+// （PREMIUM_REPRICED_PROP_ フラグ）と同期させ、目標額と顧客価格を同時に切り替える（過不足配送による損失防止）。
+var PREMIUM_ASSORT_TARGET_V2_ = {
+  'プレミアムアソート小ロット': 6800,
+  'プレミアムアソート中ロット': 16200,
+  'プレミアムアソート大ロット': 32000
+};
+var PREMIUM_REPRICED_PROP_ = 'PREMIUM_REPRICED_0601';
+
+// 6/1 価格反映済み（フラグON）なら新目標額、未反映なら旧目標額を返す。
+function getPremiumTarget_(keyword, oldTarget) {
+  try {
+    if (PropertiesService.getScriptProperties().getProperty(PREMIUM_REPRICED_PROP_) === '1'
+        && PREMIUM_ASSORT_TARGET_V2_[keyword]) {
+      return PREMIUM_ASSORT_TARGET_V2_[keyword];
+    }
+  } catch (e) {}
+  return oldTarget;
+}
+
 function classifyProductSeason_(product) {
   if (String(product.category || '') === 'ジャケット・アウター') return 'aw';
   if (String(product.shippingMethod || '').trim() === 'ゆうパケットポスト') return 'ss';
@@ -1785,7 +1807,7 @@ function detectPremiumAssort_(orderItems) {
     var qty = Math.max(1, Number(orderItems[i].qty) || 1);
     for (var j = 0; j < PREMIUM_ASSORT_MAP_.length; j++) {
       if (name.indexOf(PREMIUM_ASSORT_MAP_[j].keyword) !== -1) {
-        totalTarget += PREMIUM_ASSORT_MAP_[j].target * qty;
+        totalTarget += getPremiumTarget_(PREMIUM_ASSORT_MAP_[j].keyword, PREMIUM_ASSORT_MAP_[j].target) * qty;
         totalMin += PREMIUM_ASSORT_MAP_[j].min * qty;
         break;
       }

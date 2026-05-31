@@ -7,6 +7,64 @@
  * アソート商品一覧を取得（キャッシュ付き）
  * @returns {object[]} 商品リスト
  */
+// =====================================================
+// 2026-06-01「採寸撮影付き」リブランド: プレミアムアソート価格 +20% ＋ 撮影データ同梱を一回限り反映
+// 6/1 00:00 JST 以降、アソート商品シートの該当3行（小/中/大ロット）の D列（価格）を新価格に更新し、
+// C列（説明）に撮影データ同梱の案内を追記する。ScriptProperty フラグで冪等化。
+// このフラグは SubmitFix.gs の getPremiumTarget_() も参照し、選定目標額と顧客表示価格を同時に切替する。
+// =====================================================
+function maybeApplyPremiumRepricing_() {
+  if (typeof PRICE_TIER_V2_EFFECTIVE_MS_ === 'undefined') return;
+  if (Date.now() < PRICE_TIER_V2_EFFECTIVE_MS_) return;
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty(PREMIUM_REPRICED_PROP_) === '1') return;
+  var n = applyPremiumRepricing_();
+  // 1行以上更新できた時だけフラグON（名称不一致による無言失敗を防ぐ＝次回読込で再試行）
+  if (n > 0) {
+    props.setProperty(PREMIUM_REPRICED_PROP_, '1');
+    console.log('プレミアムアソート 6/1価格反映完了: ' + n + '行更新');
+  } else {
+    console.warn('プレミアムアソート 6/1価格反映: 対象行が見つからずスキップ（シートの商品名を要確認）');
+  }
+}
+
+// アソート商品シートのプレミアム3行を新価格（小¥6,800 / 中¥16,200 / 大¥32,000）に更新し、
+// 説明列に撮影データ同梱の案内を追記する。更新できた行数を返す。
+// 手動でも単独実行可能（フラグ判定なしで即反映）。
+function applyPremiumRepricing_() {
+  var ssId = String(BULK_CONFIG.spreadsheetId || '').trim();
+  if (!ssId) return 0;
+  var ss = SpreadsheetApp.openById(ssId);
+  var sh = ss.getSheetByName(BULK_CONFIG.sheetName);
+  if (!sh) return 0;
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return 0;
+  var c = BULK_CONFIG.cols;
+  var data = sh.getRange(2, 1, lastRow - 1, BULK_SHEET_HEADER.length).getValues();
+  var newPrice = {
+    'プレミアムアソート小ロット': 6800,
+    'プレミアムアソート中ロット': 16200,
+    'プレミアムアソート大ロット': 32000
+  };
+  var note = '【採寸撮影データ付き】出品キットから全商品の撮影画像をダウンロードでき、フリマ出品にそのまま使えます。';
+  var count = 0;
+  for (var i = 0; i < data.length; i++) {
+    var name = String(data[i][c.name] || '').trim();
+    // 完全一致または前方/部分一致（小/中/大は互いに部分文字列にならないため安全）
+    var matchKey = null;
+    for (var k in newPrice) { if (name === k || name.indexOf(k) >= 0) { matchKey = k; break; } }
+    if (!matchKey) continue;
+    sh.getRange(i + 2, c.price + 1).setValue(newPrice[matchKey]); // 価格列（0始まりindex+1）
+    var desc = String(data[i][c.description] || '');
+    if (desc.indexOf('採寸撮影データ付き') < 0) {
+      sh.getRange(i + 2, c.description + 1).setValue(desc ? (desc + ' ' + note) : note); // 説明列
+    }
+    count++;
+  }
+  if (count > 0) SpreadsheetApp.flush();
+  return count;
+}
+
 function bulk_getProducts_() {
   var cache = CacheService.getScriptCache();
   var cached = cache.get(BULK_CONFIG.cache.key);
@@ -30,6 +88,7 @@ function bulk_getProducts_() {
  * @returns {object[]} 公開中・表示順ソート済みの商品リスト
  */
 function bulk_readProductsFromSheet_() {
+  try { maybeApplyPremiumRepricing_(); } catch (e) {}
   var ssId = String(BULK_CONFIG.spreadsheetId || '').trim();
   if (!ssId) return [];
 

@@ -204,7 +204,7 @@ export function getKitPageHtml(kitDataJson) {
   }
 
   // 画像セクション表示フラグ（false で画像・保存ボタンを非表示）
-  var SHOW_IMAGES = false;
+  var SHOW_IMAGES = true;
 
   var items = data.items || [];
   var totalCount = items.length;
@@ -299,6 +299,10 @@ export function getKitPageHtml(kitDataJson) {
           '<button class="save-images-btn" onclick="event.stopPropagation();downloadProductZip(&apos;' + esc(item.managedId) + '&apos;)">' +
             '<span class="btn-icon">&#x1F4E5;</span> ZIP</button>' +
           '</div>';
+        imagesHtml += '<div class="img-top-note" style="margin:8px 0 0;padding:9px 11px;background:#fff7ed;border:1px solid #fdba74;border-radius:8px;font-size:12px;color:#9a3412;line-height:1.65;">'
+          + '&#x1F4A1; <strong>1枚目（トップ画像）</strong>は、メルカリ等で他の出品と画像が重複しないよう、加工アプリで明るさ・トリミングなどを少し調整してから出品するのがおすすめです。'
+          + '<br>&#x203B; ダウンロードされる画像は無加工のまま（透かしなし）です。'
+          + '</div>';
       } else {
         imagesHtml = '<div class="image-gallery"><div class="image-placeholder">画像未アップロード</div></div>';
       }
