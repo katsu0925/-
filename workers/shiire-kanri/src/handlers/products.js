@@ -71,6 +71,20 @@ export const DERIVED_STATUS = `
     -- （StaffApi.gs:65 完了日 notBlank→売却済み）と整合させ、reconcile を待たず即「売却済み」を
     -- 返す（発送済みリストからも即外れる）。廃棄/返品/キャンセル済みは上位で確定済みなので影響なし。
     WHEN ${D_KANRYOU} AND status IN ('発送済み','発送待ち') THEN '売却済み'
+    -- ▼ 楽観更新の即時反映（reconcile 待ちラグ解消）:
+    --   採寸日/撮影日付/出品日/販売日/発送日付 等は SPA 保存で extra_json/sale_date に即入るが、
+    --   raw status 列は GAS round-trip の reconcile（~5秒／失敗時5分Cron）まで前段階のまま。
+    --   一覧カードの表示は derived_status を見るため、下の line「raw status を尊重」に落ちると
+    --   日付を入れても表示が前段階に張り付き「数分ラグ」に見える（完了日だけ上の branch で即時化済）。
+    --   そこで raw status が「日付が示す段階より前」のときだけ、日付ベースの段階へ前進させる。
+    --   ※ 前進のみ・降格はしない。raw status が既に '売却済み'/'返品済み'/'廃棄済み'/'キャンセル' 等の
+    --     終端や、日付段階以上に進んでいる行（1300件の status='売却済み'×完了日空白 を含む）は
+    --     どの WHEN にも一致せず下の「raw status を尊重」に落ちるので従来通り維持される。
+    --     条件は StaffApi.gs:staff_calcStatus_（AppSheet IFS）と同順・同判定で整合させる。
+    WHEN ${D_HASSOU}  AND status IN ('採寸待ち','撮影待ち','出品待ち','出品作業中','出品中','発送待ち') THEN '発送済み'
+    WHEN ${D_HANBAI}  AND status IN ('採寸待ち','撮影待ち','出品待ち','出品作業中','出品中') THEN '発送待ち'
+    WHEN ${D_SATSUEI} AND ${D_SAISUN} AND status IN ('採寸待ち','撮影待ち') THEN '出品待ち'
+    WHEN ${D_SAISUN}  AND NOT ${D_SATSUEI} AND status = '採寸待ち' THEN '撮影待ち'
     -- raw status が入っていればそれを尊重（AppSheet と整合）
     WHEN status IS NOT NULL AND status <> '' THEN status
     -- raw status が空のときだけ日付ベースで派生
@@ -216,7 +230,7 @@ export async function listProducts(request, env) {
 
   try {
     const fp = await env.DB.prepare(fingerprintSql).bind(...args).first();
-    const etag = `"p${slim ? 'S8' : 'F4'}-${fp.cnt}-${fp.maxup}-${limit}"`;
+    const etag = `"p${slim ? 'S9' : 'F5'}-${fp.cnt}-${fp.maxup}-${limit}"`;
 
     // CF Edge は weak ETag (W/"...") に書き換えることがあるため、比較時は W/ プレフィクスを剥がす
     const inm = request.headers.get('If-None-Match') || '';
