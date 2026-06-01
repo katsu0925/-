@@ -65,6 +65,12 @@ export const DERIVED_STATUS = `
         WHEN ${D_SAISUN}  THEN '撮影待ち'
         ELSE '採寸待ち'
       END
+    -- 完了日が入っていれば raw status('発送済み'/'発送待ち') より優先して '売却済み' を返す。
+    -- 完了ボタン押下直後は D1.status の reconcile（GAS往復で最大数分／失敗時は5分Cron）が
+    -- 未着地で raw='発送済み' のままだが、extra_json.完了日 は楽観更新で即入る。シート側 IFS
+    -- （StaffApi.gs:65 完了日 notBlank→売却済み）と整合させ、reconcile を待たず即「売却済み」を
+    -- 返す（発送済みリストからも即外れる）。廃棄/返品/キャンセル済みは上位で確定済みなので影響なし。
+    WHEN ${D_KANRYOU} AND status IN ('発送済み','発送待ち') THEN '売却済み'
     -- raw status が入っていればそれを尊重（AppSheet と整合）
     WHEN status IS NOT NULL AND status <> '' THEN status
     -- raw status が空のときだけ日付ベースで派生
@@ -132,7 +138,9 @@ export async function listProducts(request, env) {
     // 発送商品タブ — raw [ステータス] を参照する:
     //   1. 発送待ち（発送日付未入力）= これから発送
     //   2. 発送済み（明示的にステータス更新済）
-    where.push(`((status = '発送待ち' AND NOT ${D_HASSOU}) OR status = '発送済み')`);
+    // ※ 完了日が入った行は「完了」操作済みなので即除外する（D1.status の reconcile を待たない）。
+    //   reconcile が数分遅れても、完了ボタンを押した商品が発送済みリストに残り続けないようにする。
+    where.push(`((status = '発送待ち' AND NOT ${D_HASSOU}) OR status = '発送済み') AND NOT ${D_KANRYOU}`);
   } else if (filter === 'sold') {
     where.push(`${ds} IN ('発送待ち','発送済み','売却済み')`);
   }
@@ -208,7 +216,7 @@ export async function listProducts(request, env) {
 
   try {
     const fp = await env.DB.prepare(fingerprintSql).bind(...args).first();
-    const etag = `"p${slim ? 'S7' : 'F3'}-${fp.cnt}-${fp.maxup}-${limit}"`;
+    const etag = `"p${slim ? 'S8' : 'F4'}-${fp.cnt}-${fp.maxup}-${limit}"`;
 
     // CF Edge は weak ETag (W/"...") に書き換えることがあるため、比較時は W/ プレフィクスを剥がす
     const inm = request.headers.get('If-None-Match') || '';
@@ -280,7 +288,7 @@ async function computeCounts_(env) {
     shuppin_machi:  `${ds} = '出品待ち' AND ${ex.clause}`,
     shuppin_sagyou: `${ds} = '出品作業中'`,
     shuppinchu:     `${ds} = '出品中'`,
-    hassou:         `((status = '発送待ち' AND NOT ${D_HASSOU}) OR status = '発送済み')`,
+    hassou:         `((status = '発送待ち' AND NOT ${D_HASSOU}) OR status = '発送済み') AND NOT ${D_KANRYOU}`,
     sold:           `${ds} IN ('発送待ち','発送済み','売却済み')`,
   };
   const parts = Object.entries(buckets).map(([key, cond]) =>

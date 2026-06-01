@@ -65,6 +65,15 @@ function applyPremiumRepricing_() {
   return count;
 }
 
+// 6/1 アソート説明文の後追い修正用ワンショット（フラグをリセットして再適用）。
+// 価格反映時に PREMIUM_REPRICED_0601 が既に立っているため、説明文だけ後から直す用途。
+function fix0601AssortDesc() {
+  try { PropertiesService.getScriptProperties().deleteProperty(PREMIUM_REPRICED_PROP_); } catch (e) {}
+  applyPremiumRepricing_();
+  bulk_clearCache_();
+  return 'done';
+}
+
 function bulk_getProducts_() {
   var cache = CacheService.getScriptCache();
   var cached = cache.get(BULK_CONFIG.cache.key);
