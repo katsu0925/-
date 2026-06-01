@@ -36,19 +36,59 @@ export async function saveKit(request, env) {
     return jsonError('Missing required fields', 400);
   }
 
-  // 画像URL取得: product-images:{managedId} を並列取得
+  // 画像URL取得＋「真の原画」への差し替え:
+  //   1) product-images:{id} = 現在の表示画像URL配列（背景加工した商品は加工後版が入る）
+  //   2) image-original:{id}:{現URL} があれば、その値（真の原画URL＝最初に撮影した生写真）に差し替える
+  //      ※加工していない画像は image-original キーが無く、現URL自体が原画なのでそのまま使う
+  //   配布画像をデタウリ自身の出品（加工済み）と別物にし、メルカリ重複画像検知を避ける狙い。
   const items = kitData.items || [];
   if (items.length > 0) {
-    const imagePromises = items.map(item =>
-      env.CACHE.get(`product-images:${item.managedId.toUpperCase()}`)
+    const ids = items.map(item => String(item.managedId || '').toUpperCase());
+
+    // 1) 各商品の現在の表示画像URLを並列取得
+    const urlResults = await Promise.all(
+      ids.map(id => env.CACHE.get(`product-images:${id}`))
     );
-    const imageResults = await Promise.all(imagePromises);
+    const itemUrls = urlResults.map(json => {
+      try { return json ? JSON.parse(json) : []; } catch { return []; }
+    });
+
+    // 2) 「原画ポインタを持つ表示URL」を list で特定（list は値を返さないが、
+    //    どの表示URLが加工済みかが分かるので、原画値の get は加工画像ぶんだけで済む）
+    const listResults = await Promise.all(
+      ids.map(id => env.CACHE.list({ prefix: `image-original:${id}:` }).catch(() => ({ keys: [] })))
+    );
+
+    // 3) 差し替えが必要な (商品index, 現URL, 原画キー) を収集。
+    //    Workersのサブリクエスト上限(1000/呼び出し)を超えないよう原画getの本数を制限。
+    //    既に product-images + list で 2N 本消費しているため、残りを原画getに割り当てる。
+    const budget = Math.max(0, 950 - 2 * items.length);
+    const lookups = [];
+    let truncated = false;
     for (let i = 0; i < items.length; i++) {
-      try {
-        items[i].images = imageResults[i] ? JSON.parse(imageResults[i]) : [];
-      } catch {
-        items[i].images = [];
+      const prefix = `image-original:${ids[i]}:`;
+      const hasOriginal = new Set();
+      for (const entry of listResults[i].keys) hasOriginal.add(entry.name.slice(prefix.length));
+      for (const url of itemUrls[i]) {
+        if (!hasOriginal.has(url)) continue; // 加工なし＝現URLが原画
+        if (lookups.length >= budget) { truncated = true; continue; }
+        lookups.push({ i, url, key: prefix + url });
       }
+    }
+    if (truncated) {
+      console.warn(`saveKit: 原画解決がサブリクエスト上限に達したため一部は現画像のまま (receiptNo=${receiptNo}, items=${items.length})`);
+    }
+
+    // 4) 真の原画URLを並列取得してマップ化
+    const originalValues = await Promise.all(lookups.map(l => env.CACHE.get(l.key)));
+    const originalMap = items.map(() => ({}));
+    for (let k = 0; k < lookups.length; k++) {
+      if (originalValues[k]) originalMap[lookups[k].i][lookups[k].url] = originalValues[k];
+    }
+
+    // 5) 表示URLを原画URLに差し替えて焼き込み（原画が無ければ現URL＝それ自体が原画）
+    for (let i = 0; i < items.length; i++) {
+      items[i].images = itemUrls[i].map(url => originalMap[i][url] || url);
     }
   }
 
