@@ -1759,9 +1759,9 @@ function calcTotalCountFromProductNames_(productNamesText) {
 // =====================================================
 
 var PREMIUM_ASSORT_MAP_ = [
-  { keyword: 'プレミアムアソート小ロット', target: 5600, min: 10 },
-  { keyword: 'プレミアムアソート中ロット', target: 13500, min: 20 },
-  { keyword: 'プレミアムアソート大ロット', target: 26700, min: 30 }
+  { keyword: 'プレミアムアソート小ロット', target: 7400, min: 10 },
+  { keyword: 'プレミアムアソート中ロット', target: 18900, min: 20 },
+  { keyword: 'プレミアムアソート大ロット', target: 38900, min: 30 }
 ];
 var PREMIUM_ASSORT_MAX_ = 50;
 
@@ -1770,9 +1770,9 @@ var PREMIUM_ASSORT_MAX_ = 50;
 // 切替は BulkProduct.gs の maybeApplyPremiumRepricing_() が D列の顧客表示価格を更新した時点
 // （PREMIUM_REPRICED_PROP_ フラグ）と同期させ、目標額と顧客価格を同時に切り替える（過不足配送による損失防止）。
 var PREMIUM_ASSORT_TARGET_V2_ = {
-  'プレミアムアソート小ロット': 6800,
-  'プレミアムアソート中ロット': 16200,
-  'プレミアムアソート大ロット': 32000
+  'プレミアムアソート小ロット': 7400,
+  'プレミアムアソート中ロット': 18900,
+  'プレミアムアソート大ロット': 38900
 };
 var PREMIUM_REPRICED_PROP_ = 'PREMIUM_REPRICED_0601';
 
