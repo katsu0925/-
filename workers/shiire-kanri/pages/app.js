@@ -1634,26 +1634,123 @@ async function openShiireDetail(shiireId, opts) {
 // キー = tab|filter|q ／ 値 = { items, ts }
 var LIST_CACHE = Object.create(null);
 
-// ローカル完了オーバーレイ（kanri -> ts）。
-// 発送タブで「完了 ✓」したカードは、サーバー側 D1/GAS の反映が一瞬でも遅れて
-// 再フェッチが古い一覧（その kanri 入り）を返しても、ローカルで確実に除外し続ける。
+// ローカル工程オーバーレイ（kanri -> { stage, fromTab, fromFilter, ts }）。
+// 保存で工程を前進させた商品（完了 ✓ だけでなく 採寸日/撮影日付/出品日/販売日/発送日付 等の
+// 詳細フォーム保存も含む）は、サーバー側 D1/GAS の反映が一瞬でも遅れて再フェッチが古い派生
+// ステータスの一覧（その kanri 入り）を返しても、ローカルで確実に除外し続ける。
 // （楽観的な STATE.items 書き換えは直後の再フェッチ paint() で上書きされ復活し得る＝
-//   他の外注がまだ発送済みに見えて重複登録するリスクを断つための確定的除外）
-// サーバーがその kanri を返さなくなった＝反映完了とみなして解放（メモリ肥大防止）。
-var LOCAL_COMPLETED_ = Object.create(null);
-function pruneLocalCompleted_(serverItems){
-  // 発送タブの取得結果でのみ「サーバー反映済み」を判定（他タブの一覧では誤解放になるため）
-  if (STATE.tab !== 'hassou') return;
-  var hasAny = false; for (var _k in LOCAL_COMPLETED_) { hasAny = true; break; }
+//   他の外注がまだ前工程に見えて重複登録するリスクを断つための確定的除外）
+// stage = 保存後にクライアントで算出した新派生ステータス（deriveStageForward_）。
+// その新工程が現在のビュー(viewAllowsStage_)に不適合な商品だけを除外する＝前工程タブから即時退場。
+var LOCAL_STAGE_ = Object.create(null);
+
+// 派生ステータスの段階順（前進判定・解放判定用）。終端は同値(8)で扱う。
+var STAGE_ORDINAL_ = {
+  '採寸待ち': 1, '撮影待ち': 2, '出品待ち': 3, '出品作業中': 4, '出品中': 5,
+  '発送待ち': 6, '発送済み': 7,
+  '売却済み': 8, '返品済み': 8, '廃棄済み': 8, 'キャンセル': 8, 'キャンセル済み': 8,
+};
+function stageOrdinal_(s){ return STAGE_ORDINAL_[s] || 0; }
+
+// クライアント側の派生ステータス算出。サーバー products.js:DERIVED_STATUS(SQL CASE) と
+// 同順・同判定の前進ロジックのミラー（前進のみ・降格しない）。万一ドリフトしても
+// 影響は「表示が一瞬古い／一瞬隠れる」だけの安全側に倒れる。
+function deriveStageForward_(rawStatus, ex, saleDate){
+  ex = ex || {};
+  function has(k){ var v = ex[k]; return v != null && String(v).trim() !== ''; }
+  var dSaisun  = has('採寸日');
+  var dSatsuei = has('撮影日付');
+  var dShuppin = has('出品日');
+  var dHassou  = has('発送日付');
+  var dKanryou = has('完了日');
+  var dHanbai  = saleDate != null && String(saleDate).trim() !== '';
+  var acct     = has('使用アカウント');
+  var st = (rawStatus == null) ? '' : String(rawStatus).trim();
+  function inSet(arr){ return arr.indexOf(st) >= 0; }
+  if ((st === '出品待ち' || st === '出品作業中') && dShuppin && !dHanbai && !dHassou && !dKanryou) return '出品中';
+  if (st === '出品待ち' && dSatsuei && dSaisun && acct) return '出品作業中';
+  if (st === '出品待ち' && !(dSatsuei && dSaisun)) {
+    if (dSatsuei) return '採寸待ち';
+    if (dSaisun)  return '撮影待ち';
+    return '採寸待ち';
+  }
+  if (dKanryou && (st === '発送済み' || st === '発送待ち')) return '売却済み';
+  if (dHassou  && inSet(['採寸待ち','撮影待ち','出品待ち','出品作業中','出品中','発送待ち'])) return '発送済み';
+  if (dHanbai  && inSet(['採寸待ち','撮影待ち','出品待ち','出品作業中','出品中'])) return '発送待ち';
+  if (dSatsuei && dSaisun && (st === '採寸待ち' || st === '撮影待ち')) return '出品待ち';
+  if (dSaisun  && !dSatsuei && st === '採寸待ち') return '撮影待ち';
+  if (st !== '') return st;
+  if (dKanryou) return '売却済み';
+  if (dHassou)  return '発送済み';
+  if (dHanbai)  return '発送待ち';
+  if (dShuppin) return '出品中';
+  if (dSatsuei && dSaisun) return '出品待ち';
+  if (dSatsuei) return '採寸待ち';
+  if (dSaisun)  return '撮影待ち';
+  return '採寸待ち';
+}
+
+// 現在の一覧ビュー(STATE.tab/filter)にその派生ステータスの商品が表示されるか。
+// false を返した工程の商品はオーバーレイで除外される。
+function viewAllowsStage_(stage){
+  if (STATE.tab === 'hassou') return stage === '発送待ち' || stage === '発送済み';
+  if (STATE.tab === 'shouhin') {
+    switch (STATE.filter) {
+      case 'sokutei_machi':  return stage === '採寸待ち';
+      case 'satsuei_machi':  return stage === '撮影待ち';
+      case 'shuppin_machi':  return stage === '出品待ち';
+      case 'shuppin_sagyou': return stage === '出品作業中';
+      case 'shuppinchu':     return stage === '出品中';
+      default:               return stage !== '売却済み' && stage !== '返品済み'; // 商品管理 全件(noSold=1)
+    }
+  }
+  return true; // 売上タブ等は工程除外しない
+}
+
+// 保存で工程が前進した商品をオーバーレイに登録（詳細フォーム保存用）。
+// 工程に関わる日付/アカウントを触ったときだけ、かつ新工程が現工程より前進したときだけ登録する。
+var STAGE_ADVANCE_FIELDS_ = ['採寸日','撮影日付','出品日','販売日','発送日付','完了日','使用アカウント'];
+function registerLocalStage_(d, fields){
+  if (!d || !d.kanri || !fields) return;
+  var touched = false;
+  for (var i = 0; i < STAGE_ADVANCE_FIELDS_.length; i++) {
+    if (Object.prototype.hasOwnProperty.call(fields, STAGE_ADVANCE_FIELDS_[i])) { touched = true; break; }
+  }
+  if (!touched) return; // 工程に無関係な編集はオーバーレイ登録しない（誤除外防止）
+  var ex = d.extra || {};
+  // 販売日は sale_date 列由来。楽観マージ後の ex['販売日'] を優先、無ければ既存 d.saleDate。
+  var effSale = (ex['販売日'] != null && String(ex['販売日']).trim() !== '') ? ex['販売日'] : d.saleDate;
+  var newStage = deriveStageForward_(d.rawStatus, ex, effSale);
+  var oldStage = d.status || '';
+  if (stageOrdinal_(newStage) > stageOrdinal_(oldStage)) {
+    LOCAL_STAGE_[d.kanri] = { stage: newStage, fromTab: STATE.tab, fromFilter: (STATE.filter || ''), ts: Date.now() };
+  }
+}
+
+// オーバーレイ解放（メモリ肥大防止＆古い前進が後のサーバー修正をマスクしないように）。
+// 呼び出しは renderShouhinList の fresh fetch 後、当該ビューの生サーバー結果に対して。
+function pruneLocalStage_(serverItems){
+  var hasAny = false; for (var _k in LOCAL_STAGE_) { hasAny = true; break; }
   if (!hasAny) return;
-  var present = Object.create(null);
+  var byKanri = Object.create(null);
   for (var i = 0; i < serverItems.length; i++) {
-    if (serverItems[i] && serverItems[i].kanri) present[serverItems[i].kanri] = 1;
+    if (serverItems[i] && serverItems[i].kanri) byKanri[serverItems[i].kanri] = serverItems[i];
   }
   var now = Date.now();
-  for (var k in LOCAL_COMPLETED_) {
-    // サーバーが既に除外（反映完了）した、または 1 時間経過した kanri は解放
-    if (!present[k] || (now - LOCAL_COMPLETED_[k]) > 3600000) delete LOCAL_COMPLETED_[k];
+  var curTab = STATE.tab, curFilter = (STATE.filter || '');
+  for (var k in LOCAL_STAGE_) {
+    var ov = LOCAL_STAGE_[k];
+    if ((now - ov.ts) > 3600000) { delete LOCAL_STAGE_[k]; continue; } // TTL
+    var srv = byKanri[k];
+    if (srv) {
+      // サーバーがこのビューで当該 kanri を返した = 派生ステータス判明。
+      // それが新工程以降ならサーバー反映完了とみなして解放。
+      if (stageOrdinal_(srv.status) >= stageOrdinal_(ov.stage)) delete LOCAL_STAGE_[k];
+    } else if (curTab === ov.fromTab && curFilter === ov.fromFilter) {
+      // 元タブと同一ビューで当該 kanri が消えた = サーバーが前工程タブから外した→反映完了→解放。
+      // （他ビューの結果で消えていても元々居ないだけの可能性があるので誤解放しない）
+      delete LOCAL_STAGE_[k];
+    }
   }
 }
 
@@ -2392,13 +2489,16 @@ async function renderShouhinList(opts) {
   var cacheKey = listCacheKey_();
   var cached = LIST_CACHE[cacheKey];
   function paint(items){
-    // 発送タブ: ローカル完了済み（楽観除去）のカードは、サーバーがまだ古い一覧を
-    // 返していても確実に除外する。再フェッチ競合で発送済みに復活→他外注が重複登録、を防ぐ。
-    if (STATE.tab === 'hassou') {
-      var hasCompleted = false; for (var _ck in LOCAL_COMPLETED_) { hasCompleted = true; break; }
-      if (hasCompleted) {
-        items = items.filter(function(it){ return !(it && LOCAL_COMPLETED_[it.kanri]); });
-      }
+    // ローカル工程オーバーレイ: 保存で工程を前進させた商品は、サーバーがまだ古い派生
+    // ステータスの一覧を返していても、新工程が現ビューに不適合なら確実に除外する。
+    // 再フェッチ競合で前工程タブに復活→他外注が重複登録、を全工程で防ぐ（完了 ✓ も同経路）。
+    var hasOverlay = false; for (var _ok in LOCAL_STAGE_) { hasOverlay = true; break; }
+    if (hasOverlay) {
+      items = items.filter(function(it){
+        if (!it || !it.kanri) return true;
+        var ov = LOCAL_STAGE_[it.kanri];
+        return ov ? viewAllowsStage_(ov.stage) : true;
+      });
     }
     // 検索クエリは管理番号のみで照合（ブランド/状態等は対象外）
     var filtered = items;
@@ -2493,8 +2593,8 @@ async function renderShouhinList(opts) {
   try {
     const res = await api('/api/products?' + params.toString());
     var items = res.items || [];
-    // サーバーが完了を反映し終えた（=その kanri を返さなくなった）ら除外オーバーレイを解放
-    pruneLocalCompleted_(items);
+    // サーバーが前進を反映し終えた（=このビューで新工程以降を返した／前工程から外した）ら解放
+    pruneLocalStage_(items);
     LIST_CACHE[cacheKey] = { items: items, ts: Date.now() };
     paint(items);
   } catch (err) {
@@ -3149,8 +3249,9 @@ function onCardKanryouClick_(btn, kanri) {
         }
       }
     }
-    // 確定的にローカル除外（再フェッチが古い一覧を返しても発送済みに復活させない）
-    LOCAL_COMPLETED_[k] = Date.now();
+    // 確定的にローカル除外（再フェッチが古い一覧を返しても発送済みに復活させない）。
+    // 全工程共通の LOCAL_STAGE_ に「売却済み」で登録＝viewAllowsStage_(発送)=false で除外。
+    LOCAL_STAGE_[k] = { stage: '売却済み', fromTab: STATE.tab, fromFilter: (STATE.filter || ''), ts: Date.now() };
     LIST_CACHE = {};
     toast('完了しました（発送済みから除外）', 'success');
     if (STATE.tab === 'hassou') renderShouhinList({ silent: true });
@@ -8171,6 +8272,10 @@ async function saveDetails() {
   d.extra = ex;
   patchListCache_(d.kanri, fields);
   if (DETAIL_CACHE[d.kanri]) DETAIL_CACHE[d.kanri] = d;
+  // 工程を前進させる保存（採寸日/撮影日付/出品日/販売日/発送日付/完了日/使用アカウント）なら、
+  // 新派生ステータスをクライアントで算出し LOCAL_STAGE_ に登録＝再フェッチ競合で前工程タブに
+  // 復活しないよう確定除外する（販売日入力→出品待ち→発送待ち等、全保存箇所で即時退場）。
+  registerLocalStage_(d, fields);
 
   // 保存中フラグを立てて savebar を「保存中…」表示で固定（API 完了まで隠さない）
   STATE.savingDetails = true;
