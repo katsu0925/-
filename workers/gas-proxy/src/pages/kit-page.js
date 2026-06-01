@@ -50,6 +50,9 @@ export function getKitPageHtml(kitDataJson) {
   .guide-banner summary { cursor: pointer; font-size: 12px; color: #856404; }
   .guide-banner .guide-steps { margin-top: 6px; padding-left: 4px; font-size: 12px; line-height: 2; }
   .guide-banner .guide-steps span { display: inline-block; background: var(--primary); color: #fff; width: 20px; height: 20px; border-radius: 50%; text-align: center; line-height: 20px; font-size: 10px; font-weight: 700; margin-right: 4px; }
+  .guide-banner .guide-note { margin-top: 8px; padding: 8px 10px; background: #fff; border: 1px solid #ffe08a; border-radius: 6px; }
+  .guide-banner .guide-note summary { font-weight: 700; color: #9a3412; }
+  .guide-banner .guide-note .guide-note-body { margin-top: 6px; font-size: 12px; line-height: 1.85; color: #5a4a00; }
   .order-summary {
     background: var(--card-bg); margin: 16px; padding: 16px;
     border-radius: var(--radius); border: 1px solid var(--border);
@@ -256,6 +259,13 @@ export function getKitPageHtml(kitDataJson) {
             '<span>5</span> カテゴリ・サイズ・状態・価格を設定して出品完了！<br>' +
             '<span>&#x1F4A1;</span> 1枚目（トップ画像）は他の出品と画像が重複しないよう、加工アプリで明るさ・トリミングを少し調整してから出品するのがおすすめです（配布画像は無加工・透かしなし）。' +
           '</div>' +
+          '<details class="guide-note"><summary>&#x26A0;&#xFE0F; 画像が使えない・付いていないときは？</summary>' +
+            '<div class="guide-note-body">' +
+              '・配布画像が背景加工などで<strong>そのまま使えない</strong>場合や、<strong>「画像未アップロード」と表示され画像が無い</strong>商品は、お手元の商品を<strong>ご自身で撮影</strong>してメルカリにアップロードしてください。<br>' +
+              '・撮影のコツ: 明るい場所で、シワを伸ばして「全体・ブランドタグ・気になる傷や汚れ」を撮ると売れやすくなります。<br>' +
+              '・タイトル・説明文・採寸データはそのままご利用いただけます。' +
+            '</div>' +
+          '</details>' +
         '</details>' +
       '</div>' +
       '<div style="margin:0 16px 8px;display:flex;gap:8px;align-items:center">' +
