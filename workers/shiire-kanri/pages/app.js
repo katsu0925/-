@@ -1754,6 +1754,65 @@ function pruneLocalStage_(serverItems){
   }
 }
 
+// ---- 保存直後のフィールド値オーバーレイ（サーバー一時空白の表示マスク防止）----
+// 仕入れ管理シートへの GAS 書き込みは保存の約5秒後（fire-and-forget）で、その間に全行ダンプ/
+// 行同期(extra_json 全上書き)が古いシート断面で走ると D1 が一瞬空白になる。その空白を
+// openDetail/5.5秒再取得が掴むと「保存したのに出品日/URLが空欄」に見える。保存した非空値を
+// 保持し、サーバーが空のときだけ表示で補完する（前進のみ＝LOCAL_STAGE_ の値版）。
+var LOCAL_FIELD_VALUES_ = Object.create(null);
+
+// 保存した非空フィールド値を登録。空保存（クリア）は登録解除する。
+function registerLocalFieldValues_(kanri, fields){
+  if (!kanri || !fields) return;
+  var bag = LOCAL_FIELD_VALUES_[kanri];
+  Object.keys(fields).forEach(function(name){
+    var v = fields[name];
+    var blank = (v == null || String(v).trim() === '');
+    if (blank) { if (bag) delete bag.vals[name]; return; }
+    if (!bag) { bag = LOCAL_FIELD_VALUES_[kanri] = { vals: Object.create(null), ts: Date.now() }; }
+    bag.vals[name] = v;
+    bag.ts = Date.now();
+  });
+  if (bag) { var any=false; for (var _k in bag.vals){ any=true; break; } if (!any) delete LOCAL_FIELD_VALUES_[kanri]; }
+}
+
+// 保存値オーバーレイ取得（サーバーが空のときだけ表示補完に使う）。TTL 1h。
+function localFieldValue_(kanri, name){
+  var bag = LOCAL_FIELD_VALUES_[kanri];
+  if (!bag) return undefined;
+  if ((Date.now() - bag.ts) > 3600000) { delete LOCAL_FIELD_VALUES_[kanri]; return undefined; }
+  var v = bag.vals[name];
+  return (v == null || String(v) === '') ? undefined : v;
+}
+
+// サーバーが当該フィールドの非空値を返した＝反映完了→保存値オーバーレイ解放
+// （古い保存値が後のサーバー修正をマスクし続けないように）。TTL でも解放。
+function pruneLocalFieldValues_(item){
+  if (!item || !item.kanri) return;
+  var bag = LOCAL_FIELD_VALUES_[item.kanri];
+  if (!bag) return;
+  if ((Date.now() - bag.ts) > 3600000) { delete LOCAL_FIELD_VALUES_[item.kanri]; return; }
+  var ex = item.extra || {};
+  Object.keys(bag.vals).forEach(function(name){
+    var sv = ex[name];
+    if (sv != null && String(sv).trim() !== '') delete bag.vals[name];
+  });
+  var any=false; for (var _k in bag.vals){ any=true; break; }
+  if (!any) delete LOCAL_FIELD_VALUES_[item.kanri];
+}
+
+// DOM 値と下地（サーバー/保存値）が「実質同じ」か。getDirtyFields_ と同基準で誤差を吸収する。
+function fieldValuesEqual_(type, domVal, baseVal){
+  var a = (domVal == null) ? '' : String(domVal);
+  var b = (baseVal == null) ? '' : String(baseVal);
+  if (type === 'date') {
+    function norm(s){ if(!s) return ''; if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10); var dd=new Date(s); return isNaN(dd.getTime())?'':dd.toISOString().slice(0,10); }
+    return norm(a) === norm(b);
+  }
+  if (type === 'bool') return a.toUpperCase() === b.toUpperCase();
+  return a === b;
+}
+
 // 商品管理以外のタブ向け stale-while-revalidate キャッシュ
 // キー = tab[|sub] ／ 値 = { data, ts }
 // 2回目以降のタブ切替時にキャッシュを即時描画 → 裏で再取得して差分更新
@@ -6744,6 +6803,8 @@ async function openDetail(kanri, opts) {
     // → シートで画像を削除/差し替えても古い解決URLが残らない
     try { invalidateRemovedImagePaths_(cached && cached.extra, res.item && res.item.extra); } catch(e) {}
     DETAIL_CACHE[kanri] = res.item;
+    // サーバーが実値を返してきたフィールドは保存値オーバーレイから掃除（反映完了＝補完不要）。
+    try { pruneLocalFieldValues_(res.item); } catch(e) {}
     // フォーム入力中（dirty）は再描画でユーザー入力を消さない
     if (STATE.view === 'detail' && !STATE.detailDirty) {
       STATE.current = res.item;
@@ -6791,8 +6852,19 @@ function detailValue(d, name) {
   if (edits && Object.prototype.hasOwnProperty.call(edits, name)) {
     return edits[name];
   }
+  return detailBaselineValue_(d, name);
+}
+
+// バケット（編集中の値）を除いた「下地の表示値」。
+// 優先: サーバー extra(非空) → 保存直後の値オーバーレイ(サーバー一時空白の補完) → ステータス補完 → measure。
+// syncEditsFromDom_ の「実質変更だけバケットに溜める」判定の基準値にも使う。
+function detailBaselineValue_(d, name) {
   var ex = d.extra || {};
   if (ex[name] !== undefined && ex[name] !== '') return ex[name];
+  // サーバーが一時的に空（GAS書き込み待ちの間に全行ダンプ/行同期が古い断面で extra_json を
+  // 全上書きした瞬間）でも、保存した非空値があれば表示で補完する＝「保存したのに空欄」を防ぐ。
+  var ov = localFieldValue_(d.kanri, name);
+  if (ov !== undefined) return ov;
   // ステータスは extra が空でも raw/派生から確実に補完する
   // （補完しないと select の初期値が先頭オプション「採寸待ち」になり、
   //   発送済み/発送待ち商品の詳細を開いたときに採寸待ち表示の事故を起こす）
@@ -7279,9 +7351,19 @@ function syncEditsFromDom_() {
       if (type === 'readonly' || type === 'image' || type === 'status') return;
       var el = document.getElementById(detailFieldId(name));
       if (!el) return;
-      edits[name] = el.value;
+      // 下地（サーバー値＋保存値オーバーレイ）と実質同じならバケットに溜めない。
+      // これをしないと、サーバーが一時的に空を返した断面を renderDetail→入力イベントで
+      // 拾ったとき el.value（オーバーレイ補完で非空表示）が「変更扱い」になり、
+      // 未保存警告が誤点灯したままバケットに固着する（保存済みなのに警告→空欄バグの固着源）。
+      if (fieldValuesEqual_(type, el.value, detailBaselineValue_(d, name))) {
+        if (Object.prototype.hasOwnProperty.call(edits, name)) delete edits[name];
+      } else {
+        edits[name] = el.value;
+      }
     });
   });
+  var anyEdit = false; for (var _e in edits) { anyEdit = true; break; }
+  if (!anyEdit) clearDetailEdits_(d.kanri);
 }
 // 後方互換のためのエイリアス
 function captureDetailEdits_() { syncEditsFromDom_(); }
@@ -8276,6 +8358,9 @@ async function saveDetails() {
   // 新派生ステータスをクライアントで算出し LOCAL_STAGE_ に登録＝再フェッチ競合で前工程タブに
   // 復活しないよう確定除外する（販売日入力→出品待ち→発送待ち等、全保存箇所で即時退場）。
   registerLocalStage_(d, fields);
+  // 保存した非空フィールド値を保持＝サーバーが一時的に空 extra_json を返す断面でも
+  // 表示が空欄に化けないよう detailBaselineValue_ で補完する（「保存したのに空欄」防止）。
+  registerLocalFieldValues_(d.kanri, fields);
 
   // 保存中フラグを立てて savebar を「保存中…」表示で固定（API 完了まで隠さない）
   STATE.savingDetails = true;
@@ -8342,6 +8427,9 @@ async function saveDetails() {
             .then(function(r){
               if (!r || !r.item) return;
               DETAIL_CACHE[d.kanri] = r.item;
+              // GAS 反映後の実 D1 値。実値が返ったフィールドの保存値オーバーレイは掃除する
+              //（まだ空のフィールドはオーバーレイを残し、引き続き表示を補完する）。
+              try { pruneLocalFieldValues_(r.item); } catch(e) {}
               if (STATE.view === 'detail' && STATE.current && STATE.current.kanri === d.kanri && !STATE.detailDirty) {
                 clearDetailEdits_(d.kanri);
                 STATE.current = r.item;
