@@ -228,30 +228,31 @@ export async function saveDetails(request, env, user, ctx) {
 
 // 専用カラム更新を共通化（保存と GAS 確定後の reconcile 両方で使う）
 async function applyDetailColumns_(env, kanri, fields, mergedExtra, derivedStatus) {
-  // #6: extra_json は全体上書き(= extra_json = ?)をやめ、json_set で mergedExtra のキーだけを
-  //     原子的に更新する。全体上書きだと SELECT〜UPDATE の隙間に uploadImage の atomic json_set が
+  // #6: extra_json は全体上書き(= extra_json = ?)をやめ、json_patch で mergedExtra のキーだけを
+  //     マージ更新する。全体上書きだと SELECT〜UPDATE の隙間に uploadImage の atomic 書き込みが
   //     書いた画像URLキー（こちらの SELECT スナップショットには写っていない）を丸ごと消してしまう
   //     （過去の orphan-image / image-clobber インシデントと同型の lost-update レース）。
-  //     json_set なら mergedExtra に含まれるキーのみ set し、他キー（並行で書かれた画像URL等）は保持。
+  //     json_patch なら mergedExtra に含まれるキーのみ set し、他キー（並行で書かれた画像URL等）は保持。
   //     ※ saveDetails / reconcile / uploadImage はいずれも extra_json のキーを追加・更新するのみで
   //       削除しないため、全体上書きと結果は等価。
   const sets = [];
   const args = [];
   const extraEntries = Object.entries(mergedExtra || {});
   if (extraEntries.length) {
-    let expr = "COALESCE(extra_json, '{}')";
+    // #7: 旧実装は mergedExtra の各キーを json_set(?, ?) で連結し「2 バインド変数 × キー数」を消費していた。
+    //     extra_json は約70キーまで育つため 1 クエリで 140 変数超 → D1 の「1 クエリ100 バインド変数」上限を突破し
+    //     UPDATE が SQLITE_ERROR[7500] で例外 → 呼び出し側 try/catch で握り潰され、楽観書き込み・reconcile の
+    //     D1 反映が毎回サイレント失敗していた（保存後にリンク/出品日が消える事象の真因）。
+    //     json_patch(現値, ?) なら patch オブジェクト全体を 1 変数で渡せるため上限に当たらない。
+    //     json_patch は patch に含まれるキーのみ set し、未含有キー（並行で書かれた画像URL等）は保持するので
+    //     #6 の lost-update 対策はそのまま維持される。
+    //     json_patch は値が null のキーを削除扱いにするため、null→'' に正規化して「空文字で set」に揃える。
+    const patch = {};
     for (const [k, v] of extraEntries) {
-      const path = '$."' + String(k).replace(/"/g, '\\"') + '"';
-      if (v !== null && typeof v === 'object') {
-        // ネスト値（通常は発生しないが保険）は JSON テキストとして埋め込む
-        expr = `json_set(${expr}, ?, json(?))`;
-        args.push(path, JSON.stringify(v));
-      } else {
-        expr = `json_set(${expr}, ?, ?)`;
-        args.push(path, v == null ? '' : v);
-      }
+      patch[k] = (v == null) ? '' : v;
     }
-    sets.push(`extra_json = ${expr}`);
+    sets.push("extra_json = json_patch(COALESCE(extra_json, '{}'), ?)");
+    args.push(JSON.stringify(patch));
   }
   sets.push('updated_at = ?'); args.push(Date.now());
   function push(col, val) { sets.push(`${col} = ?`); args.push(val); }
