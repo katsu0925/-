@@ -28,7 +28,7 @@ function maybeApplyPremiumRepricing_() {
   }
 }
 
-// アソート商品シートのプレミアム3行を新価格（小¥7,400 / 中¥18,900 / 大¥38,900）に更新し、
+// アソート商品シートのプレミアム3行を顧客販売価格（小¥6,800 / 中¥16,200 / 大¥32,000）に更新し、
 // 説明列に撮影データ同梱の案内を追記する。更新できた行数を返す。
 // 手動でも単独実行可能（フラグ判定なしで即反映）。
 function applyPremiumRepricing_() {
@@ -41,10 +41,12 @@ function applyPremiumRepricing_() {
   if (lastRow < 2) return 0;
   var c = BULK_CONFIG.cols;
   var data = sh.getRange(2, 1, lastRow - 1, BULK_SHEET_HEADER.length).getValues();
+  // ↓ お客様が払う「販売価格」（シートD列）。自動選定の目標額（SubmitFix.gs PREMIUM_ASSORT_TARGET_V2_）
+  //   とは別物で、こちらの方が安い（差額が商品名の「○円分お得」訴求になる）。混同して同額にしないこと。
   var newPrice = {
-    'プレミアムアソート小ロット': 7400,
-    'プレミアムアソート中ロット': 18900,
-    'プレミアムアソート大ロット': 38900
+    'プレミアムアソート小ロット': 6800,
+    'プレミアムアソート中ロット': 16200,
+    'プレミアムアソート大ロット': 32000
   };
   var note = '【採寸撮影データ付き】出品キットから全商品の撮影画像をダウンロードでき、フリマ出品にそのまま使えます。';
   var count = 0;
