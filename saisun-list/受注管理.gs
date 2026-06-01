@@ -1673,8 +1673,25 @@ function testCreateKitSingle() {
 }
 
 function testCreateKitLink() {
-  var receiptNo = '20260421224044-251';
+  createKitForReceipt_('20260421224044-251');
+}
 
+/**
+ * 受付番号 20260530002719-307 の出品キット（デキルン）を生成するワンショット。
+ * GASエディタで本関数を選択して「実行」を押すと、キットURLが実行ログと
+ * 依頼管理シートAJ列に出力される。タイトル/説明文をAIで再生成し、
+ * 2026-06-01「採寸撮影付き」リブランド価格＋画像配布を反映した最新キットを作る。
+ */
+function createKitFor_20260530002719_307() {
+  createKitForReceipt_('20260530002719-307');
+}
+
+/**
+ * 指定受付番号の出品キットを生成し、Workers KVへ保存＋依頼管理シートAJ列にURLを書き込む。
+ * 受付番号は依頼展開済み（依頼管理シートの「選択リスト」に管理番号が入っている）であること。
+ * @param {string} receiptNo 受付番号
+ */
+function createKitForReceipt_(receiptNo) {
   // 商品データ再構築（スプレッドシートから読み込み）
   var data = buildProductRowsForReceipt_(receiptNo);
   if (!data) { console.error('データ構築失敗: ' + receiptNo); return; }
@@ -1705,7 +1722,7 @@ function testCreateKitLink() {
   // KV保存 + AJ列書込み
   om_saveKitToWorkers_(receiptNo, data.customerName, orderDate, totalPrice, data.productRows, aiResults, reqSheet, reqDataMap);
 
-  console.log('テスト完了: ' + receiptNo);
+  console.log('出品キット生成完了: ' + receiptNo);
 }
 
 /**
