@@ -1634,6 +1634,29 @@ async function openShiireDetail(shiireId, opts) {
 // キー = tab|filter|q ／ 値 = { items, ts }
 var LIST_CACHE = Object.create(null);
 
+// ローカル完了オーバーレイ（kanri -> ts）。
+// 発送タブで「完了 ✓」したカードは、サーバー側 D1/GAS の反映が一瞬でも遅れて
+// 再フェッチが古い一覧（その kanri 入り）を返しても、ローカルで確実に除外し続ける。
+// （楽観的な STATE.items 書き換えは直後の再フェッチ paint() で上書きされ復活し得る＝
+//   他の外注がまだ発送済みに見えて重複登録するリスクを断つための確定的除外）
+// サーバーがその kanri を返さなくなった＝反映完了とみなして解放（メモリ肥大防止）。
+var LOCAL_COMPLETED_ = Object.create(null);
+function pruneLocalCompleted_(serverItems){
+  // 発送タブの取得結果でのみ「サーバー反映済み」を判定（他タブの一覧では誤解放になるため）
+  if (STATE.tab !== 'hassou') return;
+  var hasAny = false; for (var _k in LOCAL_COMPLETED_) { hasAny = true; break; }
+  if (!hasAny) return;
+  var present = Object.create(null);
+  for (var i = 0; i < serverItems.length; i++) {
+    if (serverItems[i] && serverItems[i].kanri) present[serverItems[i].kanri] = 1;
+  }
+  var now = Date.now();
+  for (var k in LOCAL_COMPLETED_) {
+    // サーバーが既に除外（反映完了）した、または 1 時間経過した kanri は解放
+    if (!present[k] || (now - LOCAL_COMPLETED_[k]) > 3600000) delete LOCAL_COMPLETED_[k];
+  }
+}
+
 // 商品管理以外のタブ向け stale-while-revalidate キャッシュ
 // キー = tab[|sub] ／ 値 = { data, ts }
 // 2回目以降のタブ切替時にキャッシュを即時描画 → 裏で再取得して差分更新
@@ -2369,6 +2392,14 @@ async function renderShouhinList(opts) {
   var cacheKey = listCacheKey_();
   var cached = LIST_CACHE[cacheKey];
   function paint(items){
+    // 発送タブ: ローカル完了済み（楽観除去）のカードは、サーバーがまだ古い一覧を
+    // 返していても確実に除外する。再フェッチ競合で発送済みに復活→他外注が重複登録、を防ぐ。
+    if (STATE.tab === 'hassou') {
+      var hasCompleted = false; for (var _ck in LOCAL_COMPLETED_) { hasCompleted = true; break; }
+      if (hasCompleted) {
+        items = items.filter(function(it){ return !(it && LOCAL_COMPLETED_[it.kanri]); });
+      }
+    }
     // 検索クエリは管理番号のみで照合（ブランド/状態等は対象外）
     var filtered = items;
     if (qNorm) {
@@ -2462,6 +2493,8 @@ async function renderShouhinList(opts) {
   try {
     const res = await api('/api/products?' + params.toString());
     var items = res.items || [];
+    // サーバーが完了を反映し終えた（=その kanri を返さなくなった）ら除外オーバーレイを解放
+    pruneLocalCompleted_(items);
     LIST_CACHE[cacheKey] = { items: items, ts: Date.now() };
     paint(items);
   } catch (err) {
@@ -3116,6 +3149,8 @@ function onCardKanryouClick_(btn, kanri) {
         }
       }
     }
+    // 確定的にローカル除外（再フェッチが古い一覧を返しても発送済みに復活させない）
+    LOCAL_COMPLETED_[k] = Date.now();
     LIST_CACHE = {};
     toast('完了しました（発送済みから除外）', 'success');
     if (STATE.tab === 'hassou') renderShouhinList({ silent: true });
