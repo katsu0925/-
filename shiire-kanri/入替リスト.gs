@@ -257,10 +257,13 @@ function buildSwapList_(data, hMap, accountName, prevMonthStart, prevMonthEnd, e
     return { account: accountName, prevMonthCount: 0, items: [], email: null, emailSent: false };
   }
 
+  // 出品日の古い順（昇順）に並べる。出品日が空欄/不明の商品は「最新」とみなして末尾へ回す。
+  // （空欄を最古扱いすると、本日再出品したばかりで出品日未入力の新規出品が
+  //   返送対象の先頭に挙がってしまうため。日付のある古い商品を優先する）
   activeRows.sort(function(a, b) {
     if (!a.date && !b.date) return 0;
-    if (!a.date) return -1;
-    if (!b.date) return 1;
+    if (!a.date) return 1;   // a に出品日なし → 末尾へ
+    if (!b.date) return -1;  // b に出品日なし → 末尾へ
     return a.date.getTime() - b.date.getTime();
   });
 
