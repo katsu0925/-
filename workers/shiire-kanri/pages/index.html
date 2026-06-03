@@ -1843,6 +1843,28 @@
   .leave-sheet-actions .ls-cancel {
     background: var(--gray-soft); color: var(--text);
   }
+  /* 入力セット必須バリデーションの中央エラーカード */
+  .errcard-mask {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.5); z-index: 320;
+    align-items: center; justify-content: center; padding: 24px;
+    overscroll-behavior: contain; touch-action: none;
+  }
+  .errcard-mask.show { display: flex; }
+  .errcard {
+    width: 100%; max-width: 360px; background: var(--surface);
+    border-radius: 14px; border-top: 4px solid var(--danger);
+    padding: 22px 20px 18px; text-align: center;
+    box-shadow: 0 12px 32px rgba(0,0,0,.28);
+  }
+  .errcard-icon { font-size: 34px; line-height: 1; margin-bottom: 8px; }
+  .errcard h3 { margin: 0 0 8px; font-size: 16px; font-weight: 700; color: var(--danger); }
+  .errcard p { margin: 0 0 18px; font-size: 13px; line-height: 1.6; color: var(--text); white-space: pre-line; }
+  .errcard-btn {
+    width: 100%; padding: 13px; min-height: 48px; border: none; border-radius: 10px;
+    background: var(--danger); color: #fff; font-size: 15px; font-weight: 700; cursor: pointer;
+  }
+  .errcard-btn:hover { filter: brightness(0.95); }
   .size-help-btn {
     display: inline-flex; align-items: center; justify-content: center;
     width: 20px; height: 20px; border-radius: 50%;
@@ -2137,6 +2159,15 @@
 
 <div class="modal-mask" id="modal-mask">
   <div class="modal" id="modal-body"></div>
+</div>
+
+<div class="errcard-mask" id="errcard-mask">
+  <div class="errcard" role="alertdialog" aria-modal="true">
+    <div class="errcard-icon">⚠️</div>
+    <h3 id="errcard-title"></h3>
+    <p id="errcard-msg"></p>
+    <button class="errcard-btn" onclick="closeValidationErrorCard_()">修正する</button>
+  </div>
 </div>
 
 <script src="/app.js" defer></script>

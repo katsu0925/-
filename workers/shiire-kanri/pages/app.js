@@ -6503,6 +6503,9 @@ function flagInvalidField_(id) {
   el.addEventListener('change', clear);
 }
 
+// 値が「入力済み」か判定（trim 後の非空）。セット必須バリデーション用。
+function isFilled_(v){ return v != null && String(v).trim() !== ''; }
+
 // ===== 共通カスタムセレクト =====
 // ネイティブ <select> はデバイス依存で見た目バラバラ＋大量項目で操作しんどい。
 // renderDetail() / openModal() の最後に enhanceAllSelects_(rootEl) を呼んで
@@ -8328,8 +8331,9 @@ async function saveDetails() {
     var effMd_ = ('採寸日' in fields) ? fields['採寸日'] : ex['採寸日'];
     if (effMd_ && !effMb_) {
       // 採寸日が入っていて採寸者が空 → 保存をブロック
-      toast('採寸日を入力した場合は採寸者も選択してください', 'error');
-      flagInvalidField_(detailFieldId('採寸者'));
+      showValidationErrorCard_('採寸記録が未完成です',
+        '採寸日を入力した場合は採寸者も選択してください。',
+        [detailFieldId('採寸者')]);
       return;
     }
     if (effMb_ && !effMd_) {
@@ -8342,6 +8346,43 @@ async function saveDetails() {
       var dMdEl_ = document.getElementById(detailFieldId('採寸日'));
       if (dMdEl_) dMdEl_.value = dYmd_;
       toast('採寸者のみ入力されたため採寸日を本日で補完しました', 'success');
+    }
+  }
+
+  // 販売: 販売価格・販売場所・販売日 はセット必須（どれか1つでも入れば全部必須）。
+  // いずれかを今回編集したときだけ判定。最終状態（保存済み ex + 今回の fields）で揃うか見る。
+  if (('販売価格' in fields) || ('販売場所' in fields) || ('販売日' in fields)) {
+    var effSp_ = ('販売価格' in fields) ? fields['販売価格'] : ex['販売価格'];
+    var effSc_ = ('販売場所' in fields) ? fields['販売場所'] : ex['販売場所'];
+    var effSd_ = ('販売日'  in fields) ? fields['販売日']  : ex['販売日'];
+    if (isFilled_(effSp_) || isFilled_(effSc_) || isFilled_(effSd_)) {
+      var missSale_ = [];
+      if (!isFilled_(effSp_)) missSale_.push('販売価格');
+      if (!isFilled_(effSc_)) missSale_.push('販売場所');
+      if (!isFilled_(effSd_)) missSale_.push('販売日');
+      if (missSale_.length) {
+        showValidationErrorCard_('販売情報が未完成です',
+          '販売価格・販売場所・販売日はセットで入力してください。\n未入力: ' + missSale_.join('・'),
+          missSale_.map(detailFieldId));
+        return;
+      }
+    }
+  }
+
+  // 撮影・出品: 出品日・リンク はセット必須（どちらか入れば両方必須）。
+  if (('出品日' in fields) || ('リンク' in fields)) {
+    var effLd_ = ('出品日' in fields) ? fields['出品日'] : ex['出品日'];
+    var effLk_ = ('リンク' in fields) ? fields['リンク'] : ex['リンク'];
+    if (isFilled_(effLd_) || isFilled_(effLk_)) {
+      var missList_ = [];
+      if (!isFilled_(effLd_)) missList_.push('出品日');
+      if (!isFilled_(effLk_)) missList_.push('リンク');
+      if (missList_.length) {
+        showValidationErrorCard_('出品情報が未完成です',
+          '出品日とリンクはセットで入力してください。\n未入力: ' + missList_.join('・'),
+          missList_.map(detailFieldId));
+        return;
+      }
     }
   }
 
@@ -8896,6 +8937,47 @@ function openModal(html) {
 function closeModal() {
   document.getElementById('modal-mask').classList.remove('show');
   document.body.classList.remove('is-modal-open');
+}
+
+// ========== セット必須バリデーション用 中央エラーカード ==========
+// 「いずれか入力なら他も必須」を満たさない保存をブロックしたとき、欠けた項目を明示する。
+// 破棄確認ダイアログではなく告知のみなので OK（feedback_no_dialog 準拠）。
+// 閉じると欠けたフィールドを赤枠化し、先頭へスクロールする。
+function showValidationErrorCard_(title, message, missingIds) {
+  document.getElementById('errcard-title').textContent = title;
+  document.getElementById('errcard-msg').textContent = message;
+  STATE._errcardMissing = missingIds || [];
+  document.getElementById('errcard-mask').classList.add('show');
+  document.body.classList.add('is-modal-open');
+}
+// 赤枠＋入力で自動解除リスナーを付与（focus はしない）。
+// 日付フィールドは onfocus="onDateFieldFocus_" で空なら今日を自動補完＋change 発火するため、
+// flagInvalidField_ の focus を使うと販売日/採寸日/出品日が勝手に今日になり赤枠も即解除されてしまう。
+// セット必須カードの一括ハイライトでは focus を使わずに赤枠だけ付ける。
+function markFieldInvalidNoFocus_(id) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.classList.add('invalid-field');
+  var clear = function(){
+    el.classList.remove('invalid-field');
+    el.removeEventListener('input', clear);
+    el.removeEventListener('change', clear);
+  };
+  el.addEventListener('input', clear);
+  el.addEventListener('change', clear);
+}
+function closeValidationErrorCard_() {
+  document.getElementById('errcard-mask').classList.remove('show');
+  document.body.classList.remove('is-modal-open');
+  var ids = (STATE._errcardMissing || []).slice();
+  STATE._errcardMissing = [];
+  // 全欠けフィールドを赤枠化（focus しない＝日付の自動補完を誘発しない）。
+  ids.forEach(function(id){ markFieldInvalidNoFocus_(id); });
+  // 先頭の欠けフィールドへスクロール。
+  if (ids.length) {
+    var first = document.getElementById(ids[0]);
+    if (first) { try { first.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch(e){} }
+  }
 }
 
 async function openCreatePurchaseModal() {
