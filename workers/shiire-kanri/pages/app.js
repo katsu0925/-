@@ -9864,9 +9864,10 @@ async function submitCreateProduct(shiireId) {
   var sokMb_ = fields['採寸者'];
   var sokMd_ = fields['採寸日'];
   if (sokMd_ && !sokMb_) {
-    // 採寸日だけ入力 → 採寸者が空なら登録をブロック
-    toast('採寸日を入力した場合は採寸者も選択してください', 'error');
-    flagInvalidField_(createFieldId_('採寸者'));
+    // 採寸日だけ入力 → 採寸者が空なら登録をブロック（詳細画面と同じ中央赤カードで明示）
+    showValidationErrorCard_('採寸記録が未完成です',
+      '採寸日を入力した場合は採寸者も選択してください。',
+      [createFieldId_('採寸者')]);
     return;
   }
   if (sokMb_ && !sokMd_) {
