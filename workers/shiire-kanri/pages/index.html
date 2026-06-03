@@ -845,6 +845,15 @@
   }
   .cs-trigger:hover { border-color: #c9d1dd; }
   .cs-wrap.open > .cs-trigger { border-color: var(--primary); box-shadow: var(--focus-ring); }
+  /* カスタムセレクト（販売場所・採寸者など）は native <select> が不可視なので、
+     .invalid-field の赤枠がそのままでは見えない。隣接する可視トリガーへ赤枠を伝播させる。
+     background ではなく background-color のみ上書きしてドロップダウン矢印は残す。 */
+  .cs-wrap > select.cs-native.invalid-field ~ .cs-trigger {
+    border-color: var(--danger) !important;
+    background-color: var(--danger-soft) !important;
+    box-shadow: 0 0 0 3px rgba(198,40,40,.12) !important;
+    animation: invalid-shake .25s ease-in-out;
+  }
   .cs-trigger.is-empty .cs-display { color: #9aa3b2; }
   .cs-trigger:disabled, .cs-trigger[aria-disabled="true"] { background-color: #f3f5f9; color: #9aa3b2; cursor: not-allowed; }
   .cs-display { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
