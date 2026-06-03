@@ -92,6 +92,10 @@ function adminPanel_generateSwapLists() {
   try { generateSwapLists(); return { ok: true, message: '入替リストを生成しました' }; }
   catch (e) { return { ok: false, message: String(e.message || e) }; }
 }
+function adminPanel_sendSwapExceptHonpo() {
+  try { sendSwapListsExceptHonpo(); return { ok: true, message: '古着屋本舗以外のアカウントへ送信しました（結果は配信ログ・管理者メールを確認）' }; }
+  catch (e) { return { ok: false, message: String(e.message || e) }; }
+}
 
 // 入替リスト アカウント一覧（SWAP_ACCOUNTS_JSON）の取得・保存
 function adminPanel_getSwapAccounts() {

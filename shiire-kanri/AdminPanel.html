@@ -226,8 +226,10 @@ table.data th{background:#f0f0f0;font-weight:700;}
         <div class="btnRow"><button class="sm" onclick="addSwapAcctRow()">＋アカウントを追加</button></div>
         <div class="btnRow">
           <button class="primary" onclick="saveSwapSettings()">入替リスト設定を保存</button>
-          <button onclick="runTool('adminPanel_generateSwapLists','入替リスト手動生成')">手動生成</button>
+          <button onclick="runTool('adminPanel_generateSwapLists','入替リスト手動生成')">手動生成（全アカウント）</button>
+          <button onclick="runTool('adminPanel_sendSwapExceptHonpo','古着屋本舗以外に送信')">古着屋本舗以外に送信</button>
         </div>
+        <div class="note">「古着屋本舗以外に送信」=月初に古着屋本舗だけ届いてしまった時の再送用。古着屋本舗には送らず、ほしいが見つかる古着屋さん・かつ等にだけPDFを送る（前月販売分）。</div>
         <div class="log" id="swap-log"></div>
       </div>
     </div>

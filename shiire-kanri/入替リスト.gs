@@ -28,7 +28,12 @@ const SWAP_LOG_SHEET_NAME = '入替リスト配信ログ';
 //  入替リスト生成＆メール送信
 // ═══════════════════════════════════════════
 
-function generateSwapLists() {
+/**
+ * 入替リストを生成・送信する。
+ * @param {Array<string>=} filterNames 指定時はこのアカウント名だけに絞って送信（手動再送用）。
+ *   トリガーからは引数なしで呼ばれ、全アカウントが対象になる。
+ */
+function generateSwapLists(filterNames) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(SWAP_CONFIG.PRODUCT_SHEET_NAME);
   if (!sheet) throw new Error('商品管理シートが見つかりません');
@@ -59,6 +64,13 @@ function generateSwapLists() {
   const props = PropertiesService.getScriptProperties();
   var adminEmail = props.getProperty('ADMIN_OWNER_EMAIL') || '';
   var accounts = getSwapAccounts_(props);
+  // filterNames 指定時はそのアカウントだけに絞る（手動再送用。例: 古着屋本舗以外へ後から送る）
+  if (filterNames && filterNames.length) {
+    var allow = {};
+    for (var fi = 0; fi < filterNames.length; fi++) allow[normalizeText_(filterNames[fi])] = true;
+    accounts = accounts.filter(function(a) { return allow[normalizeText_(a.name)]; });
+    if (accounts.length === 0) { console.log('入替リスト: 指定アカウントに一致なし'); return; }
+  }
   var monthLabel = prevMonthStart.getFullYear() + '年' + (prevMonthStart.getMonth() + 1) + '月';
   var nowStr = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
   const results = [];
@@ -116,6 +128,17 @@ function generateSwapLists() {
     return r.account + ': 前月販売 ' + r.prevMonthCount + '件 → 返送対象 ' + r.items.length + '件 [' + r.status + ']' + (r.error ? ' ' + r.error : '');
   }).join('\n');
   console.log('入替リスト生成完了\n' + summary);
+}
+
+/**
+ * 古着屋本舗以外の全アカウントへ入替リストを送信（手動・再送用）。
+ * 月初配信で古着屋本舗だけ届いてしまった場合に、残りのアカウントへ後から送るために使う。
+ * 集計対象月は generateSwapLists と同じ（実行時点の前月）。
+ */
+function sendSwapListsExceptHonpo() {
+  var names = getSwapAccounts_().map(function(a) { return a.name; })
+    .filter(function(n) { return normalizeText_(n) !== normalizeText_('古着屋本舗'); });
+  return generateSwapLists(names);
 }
 
 /**
