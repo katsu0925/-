@@ -888,14 +888,19 @@ function importPhotographyData_(data) {
     }
     // E列(5)ステータスを「出品待ち」に変更（撮影データがあり、かつ採寸日入力済みのときのみ）
     // 採寸未済で撮影だけ先行した場合は status を触らない（誤付与防止）
+    // 前進のみ: 出品中／出品作業中など出品段階以降への「出品待ち」降格を防ぐ。
+    // 撮影同期が再実行されても、出品済み(出品日入力済み)の商品を巻き戻さない。
+    var STATUS_BEFORE_LISTING = ['', '採寸待ち', '撮影待ち', '出品待ち'];
     if (changed || entry.photographyDate) {
       var saisunDate = String(saisunData[rowIdx][0] || '').trim();
-      if (saisunDate) {
+      if (saisunDate && STATUS_BEFORE_LISTING.indexOf(currentStatus) !== -1) {
         console.log('E列を出品待ちに変更: 行' + row + ', changed=' + changed + ', photographyDate=' + entry.photographyDate);
         sh.getRange(row, 5).setValue('出品待ち');
         changed = true;
-      } else {
+      } else if (!saisunDate) {
         console.log('E列スキップ（採寸日未入力）: 行' + row + ', photographyDate=' + entry.photographyDate);
+      } else {
+        console.log('E列スキップ（出品段階以降のため降格しない）: 行' + row + ', status=' + currentStatus + ', photographyDate=' + entry.photographyDate);
       }
     } else {
       console.log('E列変更スキップ: 行' + row + ', changed=' + changed + ', photographyDate=' + entry.photographyDate);
