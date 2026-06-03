@@ -11,12 +11,18 @@ const SWAP_CONFIG = {
   PRODUCT_SHEET_NAME: '商品管理',
   WORKER_SHEET_NAME: '作業者マスター',
   HEADER_ROWS: 1,
+  // ↓ 既定（フォールバック）アカウント一覧。
+  //   管理パネル「入替リスト」タブで保存すると SWAP_ACCOUNTS_JSON が優先される。
   ACCOUNTS: [
     { name: '古着屋本舗', emailProp: 'SWAP_EMAIL_FURUGIYAHONPO' },
-    { name: 'ほしいが見つかる古着屋さん', emailProp: 'SWAP_EMAIL_HOSHIIGA' }
+    { name: 'ほしいが見つかる古着屋さん', emailProp: 'SWAP_EMAIL_HOSHIIGA' },
+    { name: 'かつ', emailProp: 'SWAP_EMAIL_KATSU' }
   ],
   STATUS_ACTIVE: '出品中'
 };
+
+// 配信ログシート名（成功/失敗を毎回記録。失敗が「見えない」問題への対策）
+const SWAP_LOG_SHEET_NAME = '入替リスト配信ログ';
 
 // ═══════════════════════════════════════════
 //  入替リスト生成＆メール送信
@@ -51,49 +57,143 @@ function generateSwapLists() {
   const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
 
   const props = PropertiesService.getScriptProperties();
+  var adminEmail = props.getProperty('ADMIN_OWNER_EMAIL') || '';
+  var accounts = getSwapAccounts_(props);
+  var monthLabel = prevMonthStart.getFullYear() + '年' + (prevMonthStart.getMonth() + 1) + '月';
+  var nowStr = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
   const results = [];
 
-  SWAP_CONFIG.ACCOUNTS.forEach(function(acct) {
-    var result = buildSwapList_(data, hMap, acct.name, prevMonthStart, prevMonthEnd, excludedNames);
+  // ★ アカウントごとに try/catch で完全隔離する。
+  //   1アカウントの失敗（PDF生成例外・メール例外）が後続アカウントの配信を止めない。
+  accounts.forEach(function(acct) {
+    var result = {
+      account: acct.name, prevMonthCount: 0, items: [],
+      email: acct.email || '', emailSent: false, adminSent: false, status: '', error: ''
+    };
+    try {
+      var built = buildSwapList_(data, hMap, acct.name, prevMonthStart, prevMonthEnd, excludedNames);
+      result.prevMonthCount = built.prevMonthCount;
+      result.items = built.items;
 
-    if (result.items.length > 0) {
-      var pdfBlob = generateSwapPdf_(acct.name, prevMonthStart, prevMonthEnd, result.prevMonthCount, result.items);
-      var email = props.getProperty(acct.emailProp);
-      var emailSent = false;
-      if (email) {
-        try {
-          sendSwapEmail_(email, acct.name, prevMonthStart, result.prevMonthCount, result.items, pdfBlob);
-          emailSent = true;
-        } catch (e) {
-          console.error('メール送信失敗 (' + acct.name + '): ' + e.message);
+      if (result.items.length === 0) {
+        result.status = '対象0件（送信なし）';
+      } else {
+        var pdfBlob = generateSwapPdf_(acct.name, prevMonthStart, prevMonthEnd, result.prevMonthCount, result.items);
+        var errs = [];
+        // 運用者へ送信（メール未設定ならスキップ＝管理者には届く）
+        if (acct.email) {
+          try { sendSwapEmail_(acct.email, acct.name, prevMonthStart, result.prevMonthCount, result.items, pdfBlob); result.emailSent = true; }
+          catch (e) { errs.push('運用者送信失敗: ' + (e.message || e)); console.error('入替リスト 運用者送信失敗 (' + acct.name + '): ' + (e.message || e)); }
         }
-      }
-      // 管理者にも同じPDFを送信
-      var adminEmail = props.getProperty('ADMIN_OWNER_EMAIL');
-      if (adminEmail && adminEmail !== email) {
-        try {
-          sendSwapEmail_(adminEmail, acct.name, prevMonthStart, result.prevMonthCount, result.items, pdfBlob);
-        } catch (e) {
-          console.error('管理者メール送信失敗 (' + acct.name + '): ' + e.message);
+        // 管理者へも同じPDFを送信（運用者送信が失敗しても独立して実行）
+        if (adminEmail && adminEmail !== acct.email) {
+          try { sendSwapEmail_(adminEmail, acct.name, prevMonthStart, result.prevMonthCount, result.items, pdfBlob); result.adminSent = true; }
+          catch (e) { errs.push('管理者送信失敗: ' + (e.message || e)); console.error('入替リスト 管理者送信失敗 (' + acct.name + '): ' + (e.message || e)); }
         }
+        result.error = errs.join(' / ');
+        result.status = errs.length ? ((result.emailSent || result.adminSent) ? '一部送信' : '送信失敗') : '送信完了';
       }
-      result.email = email;
-      result.emailSent = emailSent;
+    } catch (e) {
+      result.error = String(e && e.message || e);
+      result.status = '失敗（PDF生成等）';
+      console.error('入替リスト処理失敗 (' + acct.name + '): ' + result.error);
     }
     results.push(result);
+
+    // 1アカウントずつログへ追記（途中でタイムアウトしても痕跡が残る＝原因切り分け用）
+    appendSwapLog_([[
+      nowStr, monthLabel, acct.name, result.prevMonthCount, result.items.length,
+      result.emailSent ? acct.email : (acct.email ? '送信失敗' : '(未設定)'),
+      result.adminSent ? adminEmail : (adminEmail ? (result.items.length ? (result.status.indexOf('失敗') >= 0 ? '送信失敗' : '-') : '-') : '(管理者未設定)'),
+      result.status, result.error || ''
+    ]]);
   });
 
+  // 管理者へ月次サマリーを必ず送信（失敗があっても全体結果が手元に届くようにする）
+  sendSwapSummaryToAdmin_(adminEmail, monthLabel, results);
+
   var summary = results.map(function(r) {
-    return r.account + ': 前月販売 ' + r.prevMonthCount + '件 → 返送対象 ' + r.items.length + '件' +
-      (r.emailSent ? ' → ' + r.email + ' に送信済み' : r.email ? ' → メール送信失敗' : ' (メール未設定)');
+    return r.account + ': 前月販売 ' + r.prevMonthCount + '件 → 返送対象 ' + r.items.length + '件 [' + r.status + ']' + (r.error ? ' ' + r.error : '');
   }).join('\n');
   console.log('入替リスト生成完了\n' + summary);
+}
+
+/**
+ * 配信対象アカウント一覧を取得する。
+ * 優先: SWAP_ACCOUNTS_JSON（管理パネルで保存）/ なければ SWAP_CONFIG.ACCOUNTS（既定）。
+ * @return {Array<{name:string, email:string}>}
+ */
+function getSwapAccounts_(props) {
+  props = props || PropertiesService.getScriptProperties();
+  var raw = props.getProperty('SWAP_ACCOUNTS_JSON');
+  if (raw) {
+    try {
+      var arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        var list = [];
+        for (var i = 0; i < arr.length; i++) {
+          var name = arr[i] && arr[i].name ? String(arr[i].name).trim() : '';
+          if (!name) continue;
+          list.push({ name: name, email: arr[i].email ? String(arr[i].email).trim() : '' });
+        }
+        if (list.length > 0) return list;
+      }
+    } catch (e) {
+      console.error('SWAP_ACCOUNTS_JSON パース失敗: ' + e.message + ' → 既定アカウントを使用');
+    }
+  }
+  // フォールバック: 旧来の SWAP_CONFIG.ACCOUNTS + emailProp
+  return SWAP_CONFIG.ACCOUNTS.map(function(a) {
+    return { name: a.name, email: a.emailProp ? (props.getProperty(a.emailProp) || '') : '' };
+  });
+}
+
+/**
+ * 配信ログシートへ追記（なければ作成）。失敗してもメイン処理は止めない。
+ */
+function appendSwapLog_(rows) {
+  if (!rows || !rows.length) return;
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sh = ss.getSheetByName(SWAP_LOG_SHEET_NAME);
+    if (!sh) {
+      sh = ss.insertSheet(SWAP_LOG_SHEET_NAME);
+      sh.appendRow(['実行日時', '集計対象月', 'アカウント', '前月販売数', '返送対象数', '運用者送信先', '管理者送信先', '状態', '詳細/エラー']);
+      sh.getRange(1, 1, 1, 9).setFontWeight('bold').setBackground('#f0f0f0');
+      sh.setFrozenRows(1);
+    }
+    sh.getRange(sh.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
+  } catch (e) {
+    console.error('入替リスト配信ログ書き込み失敗: ' + e.message);
+  }
+}
+
+/**
+ * 管理者へ月次の配信結果サマリーを送信（全アカウントの成否を1通にまとめる）。
+ */
+function sendSwapSummaryToAdmin_(adminEmail, monthLabel, results) {
+  if (!adminEmail) return;
+  try {
+    var lines = results.map(function(r) {
+      return '・' + r.account + ': 前月販売 ' + r.prevMonthCount + '件 → 返送対象 ' + r.items.length + '件 [' + r.status + ']' +
+        (r.error ? '\n    ' + r.error : '');
+    });
+    var anyFail = results.some(function(r) { return r.status.indexOf('失敗') >= 0 || r.status === '一部送信'; });
+    var subject = '【入替リスト 配信結果】' + monthLabel + '分' + (anyFail ? ' ※要確認（失敗あり）' : '');
+    var body = monthLabel + '分の入替リスト配信結果です。\n\n' + lines.join('\n') +
+      '\n\n各アカウントのPDFは個別メールで送信済みです。\n詳細は「' + SWAP_LOG_SHEET_NAME + '」シートをご確認ください。';
+    MailApp.sendEmail(adminEmail, subject, body);
+  } catch (e) {
+    console.error('入替リスト サマリーメール送信失敗: ' + e.message);
+  }
 }
 
 /**
  * アカウント別に前月販売数をカウントし、出品中の古い順に同数の入替対象を抽出
  */
 function buildSwapList_(data, hMap, accountName, prevMonthStart, prevMonthEnd, excludedNames) {
+  // 使用アカウント列の値（normalizeText_ 済）と突き合わせるため、判定キーも正規化する
+  accountName = normalizeText_(accountName);
   var colId = hMap['管理番号'] - 1;
   var colDate = hMap['出品日'] - 1;
   var colSaleDate = hMap['販売日'] - 1;
@@ -312,7 +412,8 @@ function setSwapEmails() {
   var keys = [
     { key: 'ADMIN_OWNER_EMAIL', label: '管理者' },
     { key: 'SWAP_EMAIL_FURUGIYAHONPO', label: '古着屋本舗' },
-    { key: 'SWAP_EMAIL_HOSHIIGA', label: 'ほしいが見つかる古着屋さん' }
+    { key: 'SWAP_EMAIL_HOSHIIGA', label: 'ほしいが見つかる古着屋さん' },
+    { key: 'SWAP_EMAIL_KATSU', label: 'かつ' }
   ];
   for (var i = 0; i < keys.length; i++) {
     var current = props.getProperty(keys[i].key) || '(未設定)';
@@ -325,7 +426,8 @@ function setSwapEmails() {
   }
   ui.alert('設定完了', '管理者: ' + (props.getProperty('ADMIN_OWNER_EMAIL') || '未設定') + '\n' +
     '古着屋本舗: ' + (props.getProperty('SWAP_EMAIL_FURUGIYAHONPO') || '未設定') + '\n' +
-    'ほしいが見つかる古着屋さん: ' + (props.getProperty('SWAP_EMAIL_HOSHIIGA') || '未設定'), ui.ButtonSet.OK);
+    'ほしいが見つかる古着屋さん: ' + (props.getProperty('SWAP_EMAIL_HOSHIIGA') || '未設定') + '\n' +
+    'かつ: ' + (props.getProperty('SWAP_EMAIL_KATSU') || '未設定'), ui.ButtonSet.OK);
 }
 
 // ═══════════════════════════════════════════
@@ -389,7 +491,7 @@ function generateSwapListsPreviewForMonth_(year, month) {
   var folder = DriveApp.createFolder(folderName);
 
   var summary = [];
-  SWAP_CONFIG.ACCOUNTS.forEach(function(acct) {
+  getSwapAccounts_().forEach(function(acct) {
     var result = buildSwapList_(data, hMap, acct.name, prevMonthStart, prevMonthEnd, excludedNames);
 
     if (result.items.length > 0) {

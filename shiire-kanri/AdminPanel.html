@@ -221,11 +221,9 @@ table.data th{background:#f0f0f0;font-weight:700;}
         <div class="form-row"><label>トリガー日(毎月N日)</label><input type="number" id="swap-day" value="1" style="width:60px"></div>
         <div class="note">⚠ 毎月この日に入替リストを自動生成。変更後はsetupSwapListTriggerをGASエディタから再実行</div>
         <div class="subtitle">アカウント設定</div>
-        <div class="note">アカウント名=使用アカウント列の値と完全一致で判定。メール=入替リストPDFの送信先（空欄ならそのアカウントには送信しない）</div>
-        <div class="form-row"><label>アカウント1 名前</label><input type="text" id="swap-acct1-name" value="古着屋本舗"></div>
-        <div class="form-row"><label>アカウント1 メール</label><input type="text" id="swap-acct1-email"></div>
-        <div class="form-row"><label>アカウント2 名前</label><input type="text" id="swap-acct2-name" value="ほしいが見つかる古着屋さん"></div>
-        <div class="form-row"><label>アカウント2 メール</label><input type="text" id="swap-acct2-email"></div>
+        <div class="note">アカウント名=使用アカウント列の値と完全一致で判定。メール=入替リストPDFの送信先（空欄ならそのアカウントは管理者のみに送信）。行を追加すればアカウントを増やせます。</div>
+        <div id="swap-accts"></div>
+        <div class="btnRow"><button class="sm" onclick="addSwapAcctRow()">＋アカウントを追加</button></div>
         <div class="btnRow">
           <button class="primary" onclick="saveSwapSettings()">入替リスト設定を保存</button>
           <button onclick="runTool('adminPanel_generateSwapLists','入替リスト手動生成')">手動生成</button>
@@ -402,7 +400,7 @@ async function loadProperties(){
     var res=await run('adminPanel_getProperties');if(!res.ok)return;propsOriginal=res.props;propsLoaded=true;
     var categories={'基本':['SPREADSHEET_ID','IMAGE_FOLDER_ID','ADMIN_OWNER_EMAIL'],
       'API':['OPENAI_API_KEY'],
-      'メール':['SWAP_EMAIL_FURUGIYAHONPO','SWAP_EMAIL_HOSHIIGA','OWNER_USER_KEYS'],
+      'メール':['SWAP_ACCOUNTS_JSON','SWAP_EMAIL_FURUGIYAHONPO','SWAP_EMAIL_HOSHIIGA','SWAP_EMAIL_KATSU','OWNER_USER_KEYS'],
       'EC連携':['EC_SYNC_SRC_SPREADSHEET_ID','EC_SYNC_DST_SPREADSHEET_ID'],
       'xlsx':['XLSX_SOURCE_SPREADSHEET_ID','XLSX_REQUEST_SPREADSHEET_ID','XLSX_EXPORT_FOLDER_ID'],
       'その他':['SAISUN_LIST_SPREADSHEET_ID','INV_BUSY']};
@@ -485,18 +483,31 @@ async function saveMailSettings(){
 
 // 入替リスト
 var swapLoaded=false;
+function addSwapAcctRow(name,email){
+  var d=document.createElement('div');d.className='form-row swap-acct-row';
+  d.innerHTML='<input type="text" class="swap-acct-name" placeholder="アカウント名（使用アカウント列と一致）" value="'+escHtml(name||'')+'" style="flex:1">'+
+    '<input type="text" class="swap-acct-email" placeholder="送信先メール（空欄可）" value="'+escHtml(email||'')+'" style="flex:1.4">'+
+    '<button class="sm" onclick="this.parentNode.remove()">削除</button>';
+  $('swap-accts').appendChild(d);
+}
 async function loadSwapSettings(){
-  try{var res=await run('adminPanel_getProperties');if(!res.ok)return;
-    $('swap-acct1-email').value=(res.props.SWAP_EMAIL_FURUGIYAHONPO||{}).value||'';
-    $('swap-acct2-email').value=(res.props.SWAP_EMAIL_HOSHIIGA||{}).value||'';
+  try{var res=await run('adminPanel_getSwapAccounts');if(!res.ok)return;
+    var box=$('swap-accts');box.innerHTML='';
+    (res.accounts||[]).forEach(function(a){addSwapAcctRow(a.name,a.email);});
+    if(!(res.accounts||[]).length) addSwapAcctRow('','');
     swapLoaded=true;
   }catch(e){}
 }
 async function saveSwapSettings(){
-  var updates={};
-  if($('swap-acct1-email').value) updates.SWAP_EMAIL_FURUGIYAHONPO=$('swap-acct1-email').value;
-  if($('swap-acct2-email').value) updates.SWAP_EMAIL_HOSHIIGA=$('swap-acct2-email').value;
-  try{var res=await run('adminPanel_setProperties',updates);showToast(res.ok?'保存完了':'失敗');}catch(e){showToast('エラー');}
+  var accounts=[];
+  document.querySelectorAll('#swap-accts .swap-acct-row').forEach(function(row){
+    var name=row.querySelector('.swap-acct-name').value.trim();
+    var email=row.querySelector('.swap-acct-email').value.trim();
+    if(name) accounts.push({name:name,email:email});
+  });
+  try{var res=await run('adminPanel_setSwapAccounts',{accounts:accounts});
+    showToast(res.ok?('保存完了（'+accounts.length+'アカウント）'):('失敗: '+(res.message||'')));
+  }catch(e){showToast('エラー');}
 }
 
 // xlsx設定

@@ -92,6 +92,26 @@ function adminPanel_generateSwapLists() {
   try { generateSwapLists(); return { ok: true, message: '入替リストを生成しました' }; }
   catch (e) { return { ok: false, message: String(e.message || e) }; }
 }
+
+// 入替リスト アカウント一覧（SWAP_ACCOUNTS_JSON）の取得・保存
+function adminPanel_getSwapAccounts() {
+  try { return { ok: true, accounts: getSwapAccounts_() }; }
+  catch (e) { return { ok: false, message: String(e.message || e) }; }
+}
+function adminPanel_setSwapAccounts(payload) {
+  try {
+    var accounts = (payload && payload.accounts) || [];
+    if (!Array.isArray(accounts)) return { ok: false, message: '無効なデータ' };
+    var clean = [];
+    for (var i = 0; i < accounts.length; i++) {
+      var name = accounts[i] && accounts[i].name ? String(accounts[i].name).trim() : '';
+      if (!name) continue;
+      clean.push({ name: name, email: accounts[i].email ? String(accounts[i].email).trim() : '' });
+    }
+    PropertiesService.getScriptProperties().setProperty('SWAP_ACCOUNTS_JSON', JSON.stringify(clean));
+    return { ok: true, message: clean.length + 'アカウントを保存しました' };
+  } catch (e) { return { ok: false, message: String(e.message || e) }; }
+}
 function adminPanel_debugColumns() {
   try { debugCheckColumns(); return { ok: true, message: '列診断を実行しました' }; }
   catch (e) { return { ok: false, message: String(e.message || e) }; }
