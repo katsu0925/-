@@ -979,9 +979,12 @@ async function autoMatchPhotography(env) {
     for (const managedId of windowIds) {
       if (pendingSet.has(managedId)) continue;
 
-      // photo-metaまたはai-resultが存在するか確認
+      // photo-metaまたはai-resultが存在するか確認。
+      // ai-result は photo-meta が無いときだけ必要（meta があれば aiSynced は meta から判定でき、
+      // 下の「!metaJson && aiJson」再適用パスも meta 不在時のみ参照する）。synced 済みが大多数の
+      // ai-result 二重 get を避け、autoMatch の KV read を約半減する（回転ウィンドウと合わせ無料枠内に収める）。
       const metaJson = await env.CACHE.get(`photo-meta:${managedId}`);
-      const aiJson = await env.CACHE.get(`ai-result:${managedId}`);
+      const aiJson = metaJson ? null : await env.CACHE.get(`ai-result:${managedId}`);
       if (!metaJson && !aiJson) continue;
 
       let meta = null;
@@ -1252,22 +1255,41 @@ async function buildProtectedOriginalKeys_(env) {
 
 async function purgeSoftDeletedProducts(env) {
   try {
-    const list = await env.CACHE.list({ prefix: 'deleted-product:' });
     const now = Date.now();
-    let purged = 0;
 
-    // 【恒久対応】永久保存の真の原画（image-original の値）が指す R2 実体は
-    // 絶対に purge しない。ここで保護対象キーの集合を一度だけ構築する。
-    const protectedKeys = await buildProtectedOriginalKeys_(env);
-
-    for (const entry of list.keys) {
+    // ソフトデリート候補を列挙し、保持期間（purgeAt）を過ぎた「実際に消すもの」だけ先に振り分ける。
+    // deleted-product / deleted-image は7日保持で自然に小さく、purgeAt は値の中にあるため読み込みは必要。
+    const prodList = await env.CACHE.list({ prefix: 'deleted-product:' });
+    const dueProducts = [];
+    for (const entry of prodList.keys) {
       const json = await env.CACHE.get(entry.name);
       if (!json) continue;
-      const trash = JSON.parse(json);
+      let trash; try { trash = JSON.parse(json); } catch (_) { continue; }
+      if (typeof trash.purgeAt === 'number' && now < trash.purgeAt) continue; // 保持期間内は温存
+      dueProducts.push({ name: entry.name, trash });
+    }
 
-      // 保持期間内は温存（誤削除の復元用）
-      if (typeof trash.purgeAt === 'number' && now < trash.purgeAt) continue;
+    // 個別画像のソフトデリート分（delete-single / 画像上書きの旧版）
+    const imgList = await env.CACHE.list({ prefix: 'deleted-image:' });
+    const dueImages = [];
+    for (const entry of imgList.keys) {
+      const json = await env.CACHE.get(entry.name);
+      if (!json) continue;
+      let stash; try { stash = JSON.parse(json); } catch (_) { continue; }
+      if (typeof stash.purgeAt === 'number' && now < stash.purgeAt) continue; // 保持期間内は温存
+      dueImages.push({ name: entry.name, stash });
+    }
 
+    // 実際に purge する対象が無ければ、原画保護集合の構築（image-original の全件 KV 走査）は一切しない。
+    // image-original は TTL 無しでアップのたび増え続けるため、毎tick全走査は KV read 課金の時限爆弾になる
+    // （現状218件→将来数千件）。due があるときだけ1回だけ構築する。[[feedback_d1_cost_safeguard]] と同趣旨。
+    if (dueProducts.length === 0 && dueImages.length === 0) return;
+
+    // 【恒久対応】永久保存の真の原画（image-original の値）が指す R2 実体は絶対に purge しない。
+    const protectedKeys = await buildProtectedOriginalKeys_(env);
+
+    let purged = 0;
+    for (const { name, trash } of dueProducts) {
       // R2画像と image-backup を実削除（真の原画として保護中のキーは除く）
       for (const url of trash.urls || []) {
         const r2Key = url.replace(/^\/images\//, '').split('?')[0];
@@ -1277,26 +1299,16 @@ async function purgeSoftDeletedProducts(env) {
         if (tk) await env.IMAGES.delete(tk);
         await env.CACHE.delete(`image-backup:${trash.managedId}:${url}`);
       }
-      await env.CACHE.delete(entry.name);
+      await env.CACHE.delete(name);
       purged++;
       console.log(`[sync] Purged soft-deleted product ${trash.managedId} (${(trash.urls || []).length} images)`);
     }
-
     if (purged > 0) {
       console.log(`[sync] Purged ${purged} soft-deleted product(s)`);
     }
 
-    // 個別画像のソフトデリート分（delete-single / 画像上書きの旧版）も purge
-    const imgList = await env.CACHE.list({ prefix: 'deleted-image:' });
     let purgedImages = 0;
-    for (const entry of imgList.keys) {
-      const json = await env.CACHE.get(entry.name);
-      if (!json) continue;
-      const stash = JSON.parse(json);
-
-      // 保持期間内は温存（誤削除の復元用）
-      if (typeof stash.purgeAt === 'number' && now < stash.purgeAt) continue;
-
+    for (const { name, stash } of dueImages) {
       if (stash.url) {
         const r2Key = stash.url.replace(/^\/images\//, '').split('?')[0];
         // 真の原画として保護中の実体は削除しない（上書きで外れた旧版が原画のケース）
@@ -1305,7 +1317,7 @@ async function purgeSoftDeletedProducts(env) {
         const tk = deriveThumbKey_(r2Key);
         if (tk) await env.IMAGES.delete(tk);
       }
-      await env.CACHE.delete(entry.name);
+      await env.CACHE.delete(name);
       purgedImages++;
     }
     if (purgedImages > 0) {
