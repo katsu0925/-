@@ -4742,10 +4742,12 @@ function renderGrid_(items) {
     var thumb = document.createElement('div'); thumb.className = 'thumb';
     var imgEl = null;
     
-    if (it.imageUrl) {
+    // トップ画像: データ1 B列(imageUrl)が空でもタスキ箱画像(images[0])にフォールバック
+    var topImg = it.imageUrl || (it.images && it.images.length ? it.images[0] : '');
+    if (topImg) {
       var img = document.createElement('img');
-      var fixedUrl = convertDriveImageUrl(it.imageUrl, 300);
-      var fullUrl = convertDriveImageUrl(it.imageUrl);
+      var fixedUrl = convertDriveImageUrl(topImg, 300);
+      var fullUrl = convertDriveImageUrl(topImg);
       img.src = fixedUrl; img.alt = it.noLabel || id; img.loading = 'lazy'; img.referrerPolicy = 'no-referrer';
       img.className = 'product-image-clickable'; img.style.cursor = 'zoom-in';
       (function(mid, iurl, thumbUrl) {
@@ -4763,8 +4765,8 @@ function renderGrid_(items) {
     var spanBrand = document.createElement('div'); spanBrand.className = 'brandText'; spanBrand.textContent = it.brand || '';
     spanBrand.style.cursor = 'pointer';
     leftTitle.appendChild(spanNo);
-    (function(mid, iurl, thumbUrl) { leftTitle.addEventListener('click', function(e) { e.stopPropagation(); openDetailModal(mid, iurl, thumbUrl); }); })(id, it.imageUrl ? convertDriveImageUrl(it.imageUrl) : '', it.imageUrl ? convertDriveImageUrl(it.imageUrl, 300) : '');
-    (function(mid, iurl, thumbUrl) { spanBrand.addEventListener('click', function(e) { e.stopPropagation(); openDetailModal(mid, iurl, thumbUrl); }); })(id, it.imageUrl ? convertDriveImageUrl(it.imageUrl) : '', it.imageUrl ? convertDriveImageUrl(it.imageUrl, 300) : '');
+    (function(mid, iurl, thumbUrl) { leftTitle.addEventListener('click', function(e) { e.stopPropagation(); openDetailModal(mid, iurl, thumbUrl); }); })(id, topImg ? convertDriveImageUrl(topImg) : '', topImg ? convertDriveImageUrl(topImg, 300) : '');
+    (function(mid, iurl, thumbUrl) { spanBrand.addEventListener('click', function(e) { e.stopPropagation(); openDetailModal(mid, iurl, thumbUrl); }); })(id, topImg ? convertDriveImageUrl(topImg) : '', topImg ? convertDriveImageUrl(topImg, 300) : '');
     var price = document.createElement('div'); price.className = 'price'; price.textContent = yen(it.price);
     row1.appendChild(leftTitle); row1.appendChild(price); body.appendChild(row1);
     if (spanBrand.textContent) body.appendChild(spanBrand);
