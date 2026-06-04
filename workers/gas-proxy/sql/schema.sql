@@ -220,6 +220,7 @@ CREATE TABLE IF NOT EXISTS product_image_index (
   photographer TEXT,                        -- 撮影者（photo-meta 由来）
   save_count INTEGER NOT NULL DEFAULT 0,    -- 保存回数（save-log 由来）
   sort_key TEXT,                            -- 一覧初期描画順（buildSortKey_）
-  updated_at TEXT                           -- 行更新日時 / backfill 完了判定にも使用
+  updated_at TEXT,                          -- 行更新日時 / backfill 完了判定にも使用
+  urls_json TEXT                            -- 全画像URL配列JSON（KV product-images:${id} の D1 ミラー。prewarm が KV 全件 get を避けて読む）
 );
 CREATE INDEX IF NOT EXISTS idx_pii_sort_key ON product_image_index(sort_key);

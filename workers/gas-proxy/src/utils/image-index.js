@@ -70,7 +70,7 @@ export async function upsertImageIndexRow(env, managedId) {
 
   const existing = await env.DB.prepare(
     `SELECT managed_id, first_image_url, second_image_url, image_count, uploaded_at,
-            photographer, save_count, sort_key
+            photographer, save_count, sort_key, urls_json
        FROM product_image_index WHERE managed_id = ?`
   ).bind(managedId).first();
 
@@ -92,6 +92,8 @@ export async function upsertImageIndexRow(env, managedId) {
     photographer: meta.photographer || null,
     saveCount: saveLog.count || 0,
     sortKey: buildSortKey_(managedId),
+    // 全画像URL配列を D1 にミラー。prewarm が KV を全件 get せず D1 だけで一覧画像を組めるようにする。
+    urlsJson: JSON.stringify(urls),
   };
 
   // D1 課金ガード: 全列同値ならスキップ
@@ -102,7 +104,8 @@ export async function upsertImageIndexRow(env, managedId) {
       (existing.uploaded_at || null) === row.uploadedAt &&
       (existing.photographer || null) === row.photographer &&
       (existing.save_count || 0) === row.saveCount &&
-      (existing.sort_key || null) === row.sortKey) {
+      (existing.sort_key || null) === row.sortKey &&
+      (existing.urls_json || null) === row.urlsJson) {
     return;
   }
 
@@ -110,8 +113,8 @@ export async function upsertImageIndexRow(env, managedId) {
   await env.DB.prepare(
     `INSERT INTO product_image_index
        (managed_id, created_at, first_image_url, second_image_url, image_count,
-        uploaded_at, photographer, save_count, sort_key, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        uploaded_at, photographer, save_count, sort_key, updated_at, urls_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(managed_id) DO UPDATE SET
        first_image_url  = excluded.first_image_url,
        second_image_url = excluded.second_image_url,
@@ -120,10 +123,11 @@ export async function upsertImageIndexRow(env, managedId) {
        photographer     = excluded.photographer,
        save_count       = excluded.save_count,
        sort_key         = excluded.sort_key,
-       updated_at       = excluded.updated_at`
+       updated_at       = excluded.updated_at,
+       urls_json        = excluded.urls_json`
   ).bind(
     managedId, now, row.first, row.second, row.count,
-    row.uploadedAt, row.photographer, row.saveCount, row.sortKey, now
+    row.uploadedAt, row.photographer, row.saveCount, row.sortKey, now, row.urlsJson
   ).run();
 
   // 新規行のときだけ KV index を再構築（純 UPDATE では不要）

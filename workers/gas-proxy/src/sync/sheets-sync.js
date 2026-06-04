@@ -959,8 +959,24 @@ async function autoMatchPhotography(env) {
     const pending = pendingJson ? JSON.parse(pendingJson) : [];
     const pendingSet = new Set(pending);
 
+    // 回転ウィンドウ: 全件(約3,300件)を毎tick走査すると photo-meta:/ai-result: の二重 get が
+    // 月約59M回に達し KV読み取り課金の主因になっていた。cursor で毎回 AUTOMATCH_WINDOW 件だけ走査し、
+    // 約8〜9 tick（約45分）で全周する。新規アップは upload.js が pending へ直接 push 済み
+    // （イベント駆動が主経路）なので、この保険バックフィルが遅延しても同期の正しさには影響しない。
+    // cursor は整数1個で race 安全（最悪でもスライス再走査だけ）。
+    const AUTOMATCH_WINDOW = 400;
+    let cursor = 0;
+    const cursorRaw = await env.CACHE.get('automatch:cursor');
+    if (cursorRaw != null) {
+      const c = parseInt(cursorRaw, 10);
+      if (Number.isFinite(c) && c >= 0 && c < imageIndex.length) cursor = c;
+    }
+    const windowIds = imageIndex.slice(cursor, cursor + AUTOMATCH_WINDOW);
+    const nextCursor = (cursor + AUTOMATCH_WINDOW >= imageIndex.length) ? 0 : cursor + AUTOMATCH_WINDOW;
+    await env.CACHE.put('automatch:cursor', String(nextCursor));
+
     const newMatches = [];
-    for (const managedId of imageIndex) {
+    for (const managedId of windowIds) {
       if (pendingSet.has(managedId)) continue;
 
       // photo-metaまたはai-resultが存在するか確認
@@ -1353,33 +1369,60 @@ async function prewarmCaches(env) {
       else if (heldSet.has(p.managedId)) { p.status = '確保中'; p.selectable = false; }
     }
 
-    // R2画像をマージ
-    const imgIndexJson = await env.CACHE.get('product-images:index');
-    if (imgIndexJson) {
-      const imgIndex = JSON.parse(imgIndexJson);
-      const imgMap = {};
-      // 並列でKV取得（最大50件ずつ）
+    // R2画像をマージ（D1 product_image_index.urls_json を権威ソースに）
+    // 旧実装は毎tickで KV `product-images:${id}` を全件(約3,300件)get していて、これが
+    // KV読み取り課金($39.50/月)の主因だった。urls_json 列を D1 に持たせ、ここは D1 を1回 SELECT する。
+    // 未移行行（urls_json IS NULL）だけ KV フォールバックし、毎tick上限つきで D1 へ自己バックフィル
+    // （NULL→値の一度きり書き込み・[[feedback_d1_cost_safeguard]] 準拠＝同値の再書き込みはしない）。
+    // 全行移行後は KV read 0、表示は移行中も常に正常。
+    const { results: imgRows } = await env.DB.prepare(
+      'SELECT managed_id, urls_json FROM product_image_index'
+    ).all();
+    const imgMap = {};
+    const missing = [];
+    for (const r of (imgRows || [])) {
+      if (r.urls_json) {
+        try {
+          const urls = JSON.parse(r.urls_json);
+          if (Array.isArray(urls) && urls.length > 0) imgMap[String(r.managed_id).toUpperCase()] = urls;
+        } catch (_) { missing.push(r.managed_id); }
+      } else {
+        missing.push(r.managed_id);
+      }
+    }
+    // 未移行行のみ KV から補完（移行が進むと 0 に漸近）
+    if (missing.length > 0) {
+      const BACKFILL_LIMIT = 300; // 1tickあたりの D1 自己バックフィル上限（cron CPU・書き込み量を抑制）
+      let backfilled = 0;
       const batchSize = 50;
-      for (let i = 0; i < imgIndex.length; i += batchSize) {
-        const batch = imgIndex.slice(i, i + batchSize);
-        const results = await Promise.all(
+      for (let i = 0; i < missing.length; i += batchSize) {
+        const batch = missing.slice(i, i + batchSize);
+        const fetched = await Promise.all(
           batch.map(async (mid) => {
             const json = await env.CACHE.get(`product-images:${mid}`);
             return { mid, urls: json ? JSON.parse(json) : null };
           })
         );
-        for (const { mid, urls } of results) {
-          if (urls && urls.length > 0) imgMap[mid.toUpperCase()] = urls;
+        for (const { mid, urls } of fetched) {
+          if (urls && urls.length > 0) {
+            imgMap[String(mid).toUpperCase()] = urls;
+            if (backfilled < BACKFILL_LIMIT) {
+              await env.DB.prepare(
+                'UPDATE product_image_index SET urls_json = ? WHERE managed_id = ?'
+              ).bind(JSON.stringify(urls), mid).run();
+              backfilled++;
+            }
+          }
         }
       }
-      const imgPrefix = env.WORKERS_URL || '';
-      for (const p of items) {
-        const key = p.managedId.toUpperCase();
-        if (imgMap[key]) {
-          p.images = imgPrefix
-            ? imgMap[key].map(u => u.startsWith('/') ? imgPrefix + u : u)
-            : imgMap[key];
-        }
+    }
+    const imgPrefix = env.WORKERS_URL || '';
+    for (const p of items) {
+      const key = p.managedId.toUpperCase();
+      if (imgMap[key]) {
+        p.images = imgPrefix
+          ? imgMap[key].map(u => u.startsWith('/') ? imgPrefix + u : u)
+          : imgMap[key];
       }
     }
 
