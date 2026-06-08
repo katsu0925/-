@@ -4,6 +4,9 @@
 
 const APP_NAME = 'shiire-kanri';
 const CF_BASE = 'https://api.cloudflare.com/client/v4';
+// ログイン継続期間（ポリシー単位の session_duration。アプリ単位設定より優先される）
+// 1週間 = 168h。変更時はここだけ書き換えれば次回 Cron / POST /admin/sync-access で反映される。
+const DESIRED_SESSION_DURATION = '168h';
 
 export async function scheduledAccessSync(env) {
   if (!env.CF_API_TOKEN || !env.CF_ACCOUNT_ID) {
@@ -18,8 +21,8 @@ export async function scheduledAccessSync(env) {
     }
     const { appId, policyId } = await discoverApp(env);
     const updated = await updatePolicyEmails(env, appId, policyId, emails);
-    console.log(`[access-sync] policy ${policyId} updated emails=${emails.length} changed=${updated.changed}`);
-    return { ok: true, count: emails.length, changed: updated.changed };
+    console.log(`[access-sync] policy ${policyId} updated emails=${emails.length} changed=${updated.changed} session=${updated.sessionDuration}`);
+    return { ok: true, count: emails.length, changed: updated.changed, sessionDuration: updated.sessionDuration };
   } catch (err) {
     console.error('[access-sync] error', err.message);
     return { ok: false, error: err.message };
@@ -70,14 +73,18 @@ async function updatePolicyEmails(env, appId, policyId, emails) {
     .filter(Boolean)
     .map(s => s.toLowerCase()));
   const after = new Set(emails.map(e => e.toLowerCase()));
-  if (before.size === after.size && [...after].every(e => before.has(e))) {
-    return { changed: false };
+  const emailsSame = before.size === after.size && [...after].every(e => before.has(e));
+  // ログイン継続期間も enforce 対象。emails が同一でも session_duration がずれていれば PUT する。
+  const durationOk = policy.session_duration === DESIRED_SESSION_DURATION;
+  if (emailsSame && durationOk) {
+    return { changed: false, sessionDuration: policy.session_duration };
   }
   // #4: 急激な縮小ロックアウト防止。GAS の一時的な部分読み取りやバグで許可リストが
   //     大幅に縮むと全外注がアクセス不能になる。現行が十分な人数(>=4)で、新リストが
   //     その半数未満なら異常とみなし PUT をスキップしてログだけ残す（手動確認を促す）。
   //     本当に大量無効化したい場合は CF ダッシュボードで直接編集する運用。
-  if (before.size >= 4 && after.size < before.size * 0.5) {
+  //     ※ session_duration だけの変更（emails 同一）はこのガードの対象外。
+  if (!emailsSame && before.size >= 4 && after.size < before.size * 0.5) {
     console.error(`[access-sync] refuse shrink: before=${before.size} after=${after.size} (>=50% drop). policy unchanged.`);
     return { changed: false, skippedShrink: true, before: before.size, after: after.size };
   }
@@ -89,10 +96,10 @@ async function updatePolicyEmails(env, appId, policyId, emails) {
       include,
       exclude: policy.exclude || [],
       require: policy.require || [],
-      session_duration: policy.session_duration,
+      session_duration: DESIRED_SESSION_DURATION,
     },
   });
-  return { changed: true };
+  return { changed: true, sessionDuration: DESIRED_SESSION_DURATION };
 }
 
 async function cfApi(env, path, opts) {

@@ -46,7 +46,7 @@ Zero Trust ダッシュボード → Access → Applications → Add application
   - パス指定 `/api/*` と `/` は両方カバーする（ルートドメインを丸ごと指定）
   - ただし `/health` と `/admin/sync` は除外したいなら別アプリで bypass
 - **Identity provider**: Google（既設）
-- **Session duration**: 24h
+- **Session duration**: 1週間（168h）。実効値は**ポリシー単位** `session_duration` で enforce（`src/sync/access-sync.js` の `DESIRED_SESSION_DURATION`）。アプリ単位設定より優先され、5分Cron / `POST /admin/sync-access` で再適用される。変更はこの定数を書き換えて `wrangler deploy`
 
 #### Policy
 
