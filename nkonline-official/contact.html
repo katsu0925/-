@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>お問い合わせ｜NKonline</title>
+<meta name="description" content="NKonlineへのお問い合わせ。古着・アパレルの卸売（副業支援）、生成AIシステム開発・業務自動化のご相談はこちらから。フォーム・電話・メールでお気軽にどうぞ。">
+<meta property="og:title" content="お問い合わせ｜NKonline">
+<meta property="og:description" content="古着卸売・生成AI開発のご相談はこちらから。フォーム・電話・メール対応。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="icon" type="image/svg+xml" href="./favicon.svg">
+<link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="bar">
+    <a href="./index.html" class="logo">NK<span>online</span></a>
+    <nav class="nav" id="nav">
+      <a href="./index.html">ホーム</a>
+      <a href="./fukugyo.html">副業支援（古着卸）</a>
+      <a href="./ai.html">AIシステム開発</a>
+      <a href="./company.html">会社概要</a>
+      <a href="./contact.html" class="btn nav-cta">お問い合わせ</a>
+    </nav>
+    <button class="burger" aria-label="メニュー"><span></span><span></span><span></span></button>
+  </div>
+</header>
+
+<!-- ===== ヒーロー ===== -->
+<section class="hero compact">
+  <div class="bg"><img src="./img/team-office.jpg" alt="ワークスペース"></div>
+  <div class="overlay"></div>
+  <div class="container">
+    <span class="hero-tag" data-rv><span class="dot"></span>Contact</span>
+    <h1 data-rv>お問い合わせ</h1>
+    <p class="pagehead-sub" data-rv>仕入れのこと、業務の自動化のこと。<br>どんな小さなご相談でも歓迎します。下記フォーム・お電話・メールからどうぞ。</p>
+  </div>
+</section>
+
+<!-- ===== お問い合わせ ===== -->
+<section class="section white">
+  <div class="container contact-grid">
+
+    <!-- 連絡先 -->
+    <aside class="contact-aside" data-rv>
+      <span class="eyebrow">Get in touch</span>
+      <h2 class="s-title" style="font-size:clamp(24px,3vw,32px)">直接のご連絡も<br>歓迎します</h2>
+      <p class="s-lead" style="margin-bottom:28px">フォームのほか、お電話・メールでもお受けしています。お急ぎの場合はお電話が確実です。</p>
+      <div class="ci">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.8 19.8 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.8 19.8 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.13.96.36 1.9.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0122 16.92z"/></svg></div>
+        <div><div class="k">電話</div><div class="v"><a href="tel:09058201803">090-5820-1803</a></div></div>
+      </div>
+      <div class="ci">
+        <div class="ic"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 6l10 7L22 6"/></svg></div>
+        <div><div class="k">メール</div><div class="v"><a href="mailto:nkonline1030@gmail.com">nkonline1030@gmail.com</a></div></div>
+      </div>
+      <div class="ci">
+        <div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+        <div><div class="k">営業時間</div><div class="v" style="font-size:14.5px;font-weight:600">平日 10:00〜18:00</div><div class="k" style="margin-top:4px">土日祝のメッセージも対応します</div></div>
+      </div>
+      <div class="ci">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg></div>
+        <div><div class="k">所在地</div><div class="v" style="font-size:14px;font-weight:600;line-height:1.7">京都府京都市下京区朱雀宝蔵町44番地<br>協栄ビル2階 京都朱雀スタジオAW-209</div></div>
+      </div>
+    </aside>
+
+    <!-- フォーム -->
+    <div class="form-card" data-rv>
+      <form name="contact" method="POST" data-netlify="true" netlify-honeypot="bot-field" action="/thanks.html">
+        <input type="hidden" name="form-name" value="contact">
+        <p class="hp-field"><label>このフィールドは記入しないでください: <input name="bot-field"></label></p>
+
+        <div class="field">
+          <label for="name">お名前 <span class="req">必須</span></label>
+          <input type="text" id="name" name="お名前" placeholder="例：山田 太郎" required>
+        </div>
+
+        <div class="field">
+          <label for="company">会社名・屋号</label>
+          <input type="text" id="company" name="会社名・屋号" placeholder="例：山田商店（任意）">
+        </div>
+
+        <div class="field-row">
+          <div class="field">
+            <label for="email">メールアドレス <span class="req">必須</span></label>
+            <input type="email" id="email" name="メールアドレス" placeholder="example@mail.com" required>
+          </div>
+          <div class="field">
+            <label for="phone">電話番号</label>
+            <input type="tel" id="phone" name="電話番号" placeholder="090-0000-0000（任意）">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="subject">ご相談の種類 <span class="req">必須</span></label>
+          <select id="subject" name="ご相談の種類" required>
+            <option value="" disabled selected>選択してください</option>
+            <option value="古着卸売（副業支援）について">古着卸売（副業支援）について</option>
+            <option value="生成AIシステム開発について">生成AIシステム開発について</option>
+            <option value="その他・両方について">その他・両方について</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label for="message">お問い合わせ内容 <span class="req">必須</span></label>
+          <textarea id="message" name="お問い合わせ内容" placeholder="ご相談内容をご記入ください。「どんな古着が仕入れられる？」「この作業は自動化できる？」といった段階のご質問も歓迎です。" required></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-lg">送信する <span class="ar">→</span></button>
+        <p class="form-note">※ いただいたお問い合わせには、通常2〜3営業日以内にご返信します。<br>※ ご記入いただいた個人情報は、お問い合わせへの対応のみに使用します。</p>
+      </form>
+    </div>
+
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="container">
+    <div class="foot-top">
+      <div class="foot-brand">
+        <a href="./index.html" class="logo">NK<span>online</span></a>
+        <p>古着・アパレルのB2B卸売（副業支援）と、生成AIを活用したシステム開発・業務自動化。京都発のスモールチームです。</p>
+      </div>
+      <div class="foot-col">
+        <h5>Services</h5>
+        <ul>
+          <li><a href="./fukugyo.html">副業支援・古着卸売</a></li>
+          <li><a href="./ai.html">生成AIシステム開発</a></li>
+          <li><a href="https://wholesale.nkonline-tool.com" target="_blank" rel="noopener">デタウリ（個品仕入れ）</a></li>
+          <li><a href="https://wholesale.nkonline-tool.com/?page=bulk" target="_blank" rel="noopener">アソート（まとめ仕入れ）</a></li>
+        </ul>
+      </div>
+      <div class="foot-col">
+        <h5>Company</h5>
+        <ul>
+          <li><a href="./company.html">会社概要・代表</a></li>
+          <li><a href="./contact.html">お問い合わせ</a></li>
+          <li><a href="tel:09058201803">090-5820-1803</a></li>
+          <li><a href="mailto:nkonline1030@gmail.com">nkonline1030@gmail.com</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="foot-bottom">
+      <div class="legal">屋号 NKonline ／ 古物商許可 大阪府公安委員会 第62228R076481号<br>京都府京都市下京区朱雀宝蔵町44番地 協栄ビル2階 京都朱雀スタジオAW-209</div>
+      <div>© <span data-year>2026</span> NKonline</div>
+    </div>
+  </div>
+</footer>
+
+<script src="./js/main.js"></script>
+</body>
+</html>
