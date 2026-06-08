@@ -67,6 +67,8 @@ function doPost(e) {
       case 'lookupShiireById':       result = staff_lookupShiireById(body.payload || {}); break;
       case 'lookupIraiForRecovery':   result = staff_lookupIraiForRecovery(body.payload || {}); break;
       case 'applyRecoveredValues':    result = staff_applyRecoveredValues(body.payload || {}); break;
+      // 作業者列のメール混入を名前へ修復（apply省略=DRYRUN / apply:true=書き換え）
+      case 'repairWorkerEmails':      result = repairWorkerEmailNames_((body.payload || {}).apply === true); break;
       // 請求書（外注向けAPI、emailから本人解決して権限分離）
       case 'invoiceCurrentUser':         result = staff_invoiceCurrentUser(body.payload || {}, email); break;
       case 'listInvoices':               result = staff_listInvoices(body.payload || {}, email); break;

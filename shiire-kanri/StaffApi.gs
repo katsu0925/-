@@ -537,7 +537,7 @@ function staff_saveMeasurement(payload) {
 
   // 採寸日・採寸者
   sh.getRange(rowNum, STAFF_COL.採寸日).setValue(new Date());
-  sh.getRange(rowNum, STAFF_COL.採寸者).setValue(email || '');
+  sh.getRange(rowNum, STAFF_COL.採寸者).setValue(staff_resolveWorkerName_(email));
 
   // ステータスを IFS 式で再計算（採寸日が入る → 撮影待ち / 出品待ち 等）
   try { staff_recomputeStatus_(sh, rowNum); } catch(e) {}
@@ -1164,7 +1164,7 @@ function staff_apiSaveMeasurement(payload, email) {
     written++;
   });
   sh.getRange(rowNum, STAFF_COL.採寸日).setValue(new Date());
-  sh.getRange(rowNum, STAFF_COL.採寸者).setValue(email);
+  sh.getRange(rowNum, STAFF_COL.採寸者).setValue(staff_resolveWorkerName_(email));
 
   staff_invalidateListingCache_(kanri);
   return { ok: true, message: '採寸を保存しました（' + written + '項目）', kanri: kanri, row: rowNum };
@@ -1367,7 +1367,7 @@ function staff_apiSaveDetails(payload, email) {
   var mdIdx = STAFF_COL.採寸日 ? STAFF_COL.採寸日 - 1 : -1;
   var mbIdx = STAFF_COL.採寸者 ? STAFF_COL.採寸者 - 1 : -1;
   if (measureFieldUpdated && fields['採寸者'] === undefined) {
-    if (mbIdx >= 0 && !rowFormulas[mbIdx]) { rowVals[mbIdx] = email; dirtyIdx[mbIdx] = true; }
+    if (mbIdx >= 0 && !rowFormulas[mbIdx]) { rowVals[mbIdx] = staff_resolveWorkerName_(email); dirtyIdx[mbIdx] = true; }
   }
   // 採寸者と採寸日はセット必須: 採寸者が入っていて採寸日が空なら当日で補完する
   // （採寸者だけ登録されると報酬計算が合わなくなるため）
@@ -1994,7 +1994,7 @@ function staff_apiCreateProduct_impl_(payload, email) {
     if (fields[MEASURE_FIELDS[j]] !== undefined && fields[MEASURE_FIELDS[j]] !== '') { measureUpdated = true; break; }
   }
   if (measureUpdated && fields['採寸者'] === undefined && col['採寸者']) {
-    rowArr[col['採寸者'] - 1] = email;
+    rowArr[col['採寸者'] - 1] = staff_resolveWorkerName_(email);
   }
   // 採寸者と採寸日はセット必須: 採寸者が入っていて採寸日が空なら当日で補完する
   // （採寸者だけ登録されると報酬計算が合わなくなるため）

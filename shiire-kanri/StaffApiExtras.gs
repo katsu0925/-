@@ -697,6 +697,79 @@ function staff_resolveUserByEmail_(email) {
   return result;
 }
 
+// メール → 作業者マスターの「名前」に解決して返す。
+// - 採寸者/撮影者/出品者/発送者 の各「作業者」列には必ず名前を書く（報酬計算は名前で月次集計するため、
+//   メールが入ると歩合・件数に一切計上されないバグになる）。
+// - マスターに無いメールはメールのまま返す（監査情報を失わない）。
+// - 既に名前（'@' を含まない）が渡された場合はそのまま返す（二重変換・誤変換の防止）。
+// - 1リクエスト内の繰り返し呼び出しはキャッシュで作業者マスター再読み込みを避ける。
+var __workerNameCache_ = {};
+function staff_resolveWorkerName_(emailOrName) {
+  var raw = String(emailOrName == null ? '' : emailOrName);
+  var key = raw.trim().toLowerCase();
+  if (!key) return '';
+  if (key.indexOf('@') < 0) return raw; // 既に名前 → そのまま
+  if (Object.prototype.hasOwnProperty.call(__workerNameCache_, key)) return __workerNameCache_[key];
+  var name = '';
+  try { name = (staff_resolveUserByEmail_(key) || {}).name || ''; } catch (e) {}
+  var resolved = name || raw; // 未登録メールはメールのまま温存
+  __workerNameCache_[key] = resolved;
+  return resolved;
+}
+
+// 【一時／再実行可】既存の壊れた「作業者」セル（メールが入ってしまった行）を名前へ修復する。
+// 採寸者/撮影者/出品者/発送者 の各列を走査し、'@' を含む値を作業者マスターの名前に置換する。
+// 作業者マスターに無いメールはスキップ（手動確認が必要）して skipped に記録。
+//   - repairWorkerEmailNames_()        → dryRun（変更内容をログ出力するだけ・シートは触らない）
+//   - repairWorkerEmailNames_(true)     → 実際に書き換える
+// GASエディタから手動実行する想定（clasp run 未設定）。
+function repairWorkerEmailNames_(apply) {
+  apply = (apply === true);
+  var sh = staff_getSheet_();
+  var lastRow = sh.getLastRow();
+  var lastCol = sh.getLastColumn();
+  if (lastRow < 2) return { ok: true, message: 'データ行なし', changed: 0 };
+
+  var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0]
+    .map(function(v){ return String(v || '').trim(); });
+  function colOf(name) { var i = headers.indexOf(name); return i < 0 ? 0 : i + 1; }
+
+  var kanriCol = colOf('管理番号') || STAFF_COL.管理番号;
+  var targets = ['採寸者', '撮影者', '出品者', '発送者']
+    .map(function(h){ return { header: h, col: colOf(h) }; })
+    .filter(function(t){ return t.col > 0; });
+
+  var numRows = lastRow - 1;
+  var kanriVals = kanriCol ? sh.getRange(2, kanriCol, numRows, 1).getValues() : null;
+  var changes = [], skipped = [];
+
+  targets.forEach(function(t) {
+    var vals = sh.getRange(2, t.col, numRows, 1).getValues();
+    for (var r = 0; r < numRows; r++) {
+      var cur = String(vals[r][0] == null ? '' : vals[r][0]).trim();
+      if (!cur || cur.indexOf('@') < 0) continue; // メール形式（@含む）だけ対象
+      var name = staff_resolveWorkerName_(cur);
+      var kanri = kanriVals ? String(kanriVals[r][0] || '') : '';
+      if (!name || name.indexOf('@') >= 0) {
+        skipped.push({ row: r + 2, kanri: kanri, column: t.header, value: cur, reason: 'マスター未登録' });
+        continue;
+      }
+      changes.push({ row: r + 2, kanri: kanri, column: t.header, col: t.col, from: cur, to: name });
+      if (apply) sh.getRange(r + 2, t.col).setValue(name);
+    }
+  });
+
+  changes.forEach(function(c){
+    Logger.log('%s 行%s [%s] %s → %s', (apply ? '修復' : 'DRYRUN'), c.row, c.column, c.from, c.to, c.kanri);
+  });
+  skipped.forEach(function(s){
+    Logger.log('スキップ 行%s [%s] %s (%s) %s', s.row, s.column, s.value, s.reason, s.kanri);
+  });
+  Logger.log('%s 完了: 対象%s件 / スキップ%s件', (apply ? '修復' : 'DRYRUN'), changes.length, skipped.length);
+
+  return { ok: true, applied: apply, changed: changes.length, skippedCount: skipped.length, changes: changes, skipped: skipped };
+}
+
 // 任意のシートをヘッダー＋行で返す（読み取り専用）
 // payload: { name: string, limit?: number }
 // 経費申請シートは本人の行のみ返す（管理者は全件）
