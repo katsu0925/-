@@ -296,6 +296,7 @@ body.solid-head .burger span{background:var(--ink)}
 .field-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 .form-card .btn{width:100%;justify-content:center;margin-top:6px}
 .form-note{font-size:12px;color:var(--muted);margin-top:16px;line-height:1.7}
+.form-note a{color:var(--brand);font-weight:600}
 .hp-field{position:absolute;left:-9999px;opacity:0;height:0;overflow:hidden}
 
 /* ---------- 送信完了ページ ---------- */
@@ -334,6 +335,17 @@ body.solid-head .burger span{background:var(--ink)}
   background:rgba(255,255,255,.96);backdrop-filter:saturate(160%) blur(12px);
   border-top:1px solid var(--line);box-shadow:0 -10px 30px rgba(14,22,38,.10)}
 .sticky-cta .btn{flex:1;justify-content:center;padding:13px 12px;font-size:14px}
+
+/* ---------- プライバシーポリシー ---------- */
+.policy-wrap{padding:140px 0 90px;background:#fff}
+.policy{max-width:800px;margin:0 auto}
+.policy h1{font-size:clamp(26px,4vw,38px);font-weight:900;line-height:1.4;margin-bottom:10px}
+.policy .updated{font-size:13px;color:var(--muted);margin-bottom:36px}
+.policy h2{font-size:18px;font-weight:800;margin:40px 0 14px;padding-left:14px;border-left:4px solid var(--brand)}
+.policy p{font-size:14.5px;color:var(--muted);line-height:2;margin-bottom:14px}
+.policy ul{margin:0 0 14px;padding-left:24px}
+.policy li{font-size:14.5px;color:var(--muted);line-height:2;list-style:disc;margin-bottom:4px}
+.policy a{color:var(--brand);font-weight:600}
 
 /* ---------- マーキー ---------- */
 .marquee{background:var(--ink);color:#fff;overflow:hidden;padding:18px 0;white-space:nowrap}
