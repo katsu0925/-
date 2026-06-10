@@ -321,7 +321,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   // 初回全品半額キャンペーンチェック（他の割引と併用不可、ログイン必須）
   // memberCap: 100人目までの登録者のみ対象（GAS isFhpEligible_ と同等）
   if (fhpStatus.enabled && isLoggedIn && customerRow && purchaseCount === 0) {
-    const memberCap = fhpStatus.memberCap || 100;
+    const memberCap = fhpStatus.memberCap || 0;  // 0=無制限（先着上限は2026-06-10撤廃。|| 100 の地雷を回避）
     let fhpEligible = true;
     if (memberCap > 0) {
       // created_at < で自分より前の登録者数を取得（同一秒の曖昧さを排除）

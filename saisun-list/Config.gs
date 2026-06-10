@@ -269,12 +269,14 @@ function app_getFirstHalfPriceStatus_() {
   if (now > end) {
     return { enabled: false, rate: 0, endDate: endDate, reason: 'expired' };
   }
-  var memberCap = Number(props.getProperty('FHP_MEMBER_CAP') || 100);
+  // 先着上限は2026-06-10に撤廃（告知通り全会員の初回注文を50%OFF対象に）。0=無制限。
+  // 再び先着制にする場合のみ ScriptProperty FHP_MEMBER_CAP に正の数を設定する。
+  var memberCap = Number(props.getProperty('FHP_MEMBER_CAP') || 0);
   return { enabled: true, rate: rate, endDate: endDate, reason: 'active', memberCap: memberCap };
 }
 
 /**
- * FHP会員上限チェック（100人目までに登録した会員のみ対象）
+ * FHP会員上限チェック（memberCap人目までに登録した会員のみ対象。memberCap=0で無制限）
  * @param {object} customer - findCustomerByEmail_の返却値（row プロパティ必須）
  * @param {object} fhpStatus - app_getFirstHalfPriceStatus_の返却値
  * @return {boolean} FHP対象ならtrue
@@ -283,7 +285,7 @@ function isFhpEligible_(customer, fhpStatus) {
   if (!fhpStatus || !fhpStatus.enabled) return false;
   if (!customer || !customer.email) return false;
   if (!customer.row || customer.row < 2) return false;
-  var cap = fhpStatus.memberCap || 100;
+  var cap = Number(fhpStatus.memberCap) || 0;  // 0=無制限（|| 100 だと0が100に戻る地雷を回避）
   // row = シート行番号（ヘッダー=1, 最初の顧客=2）→ 登録順 = row - 1
   if (cap > 0 && (customer.row - 1) > cap) return false;
   // 依頼管理シートを直接スキャンして過去注文があるか確認（purchaseCount列が古い場合の抜け穴対策）
