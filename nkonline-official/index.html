@@ -2,18 +2,41 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>NKonline｜副業支援の古着卸 × 生成AIシステム開発</title>
-<meta name="description" content="NKonlineは、古着・アパレルのB2B卸売（副業支援）と、生成AIを活用したシステム開発・業務自動化の2軸で、はじめる人と効率化したい事業者を支える会社です。">
+<meta name="description" content="NKonlineは、古着・アパレルのB2B卸売（副業支援）と、生成AIを活用したシステム開発・業務自動化の2軸で、はじめる人と効率化したい事業者を支える会社です。会員登録・ご相談は無料。">
 <meta property="og:title" content="NKonline｜副業支援の古着卸 × 生成AIシステム開発">
-<meta property="og:description" content="古着・アパレルのB2B卸売と生成AI開発で、副業のはじめ方と業務の効率化を支えます。">
+<meta property="og:description" content="古着・アパレルのB2B卸売と生成AI開発で、副業のはじめ方と業務の効率化を支えます。会員登録・ご相談は無料。">
 <meta property="og:type" content="website">
+<meta property="og:url" content="https://nkonline-official.netlify.app/">
+<meta property="og:image" content="https://nkonline-official.netlify.app/img/hero-apparel.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://nkonline-official.netlify.app/">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Noto+Sans+JP:wght@400;500;700;900&display=swap">
 <link rel="icon" type="image/svg+xml" href="./favicon.svg">
 <link rel="stylesheet" href="./css/style.css">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "name": "NKonline",
+  "url": "https://nkonline-official.netlify.app/",
+  "email": "nkonline1030@gmail.com",
+  "telephone": "+81-90-5820-1803",
+  "address": {
+    "@type": "PostalAddress",
+    "postalCode": "600-8846",
+    "addressRegion": "京都府",
+    "addressLocality": "京都市下京区",
+    "streetAddress": "朱雀宝蔵町44番地 協栄ビル2階 京都朱雀スタジオAW-209",
+    "addressCountry": "JP"
+  }
+}
+</script>
 </head>
-<body>
+<body class="has-sticky">
 
 <!-- ===== ヘッダー ===== -->
 <header class="site-header">
@@ -32,7 +55,7 @@
 
 <!-- ===== ヒーロー ===== -->
 <section class="hero">
-  <div class="bg"><img src="./img/hero-apparel.jpg" alt="古着・アパレルの店内"></div>
+  <div class="bg"><img src="./img/hero-apparel.jpg" alt="古着・アパレルの店内" fetchpriority="high"></div>
   <div class="overlay"></div>
   <div class="container">
     <span class="hero-tag" data-rv><span class="dot"></span>Apparel B2B × Generative AI</span>
@@ -42,6 +65,7 @@
       <a href="./fukugyo.html" class="btn btn-primary btn-lg">副業支援を見る <span class="ar">→</span></a>
       <a href="./ai.html" class="btn btn-ghost btn-lg">AI開発を見る</a>
     </div>
+    <p class="cta-note" data-rv><span><span class="tick">✓</span>卸売サイトの会員登録・年会費は無料</span><span><span class="tick">✓</span>AI開発のご相談・お見積もり無料</span></p>
     <div class="stat-bar" data-rv>
       <div class="stat"><div class="num"><span data-count="10">10</span><span class="u">点〜</span></div><div class="lbl">小ロットで仕入れOK</div></div>
       <div class="stat"><div class="num"><span data-count="4">4</span><span class="u">ランク</span></div><div class="lbl">買うほどお得な会員制度</div></div>
@@ -71,7 +95,7 @@
 <section class="section white">
   <div class="container split">
     <div class="split-media" data-rv>
-      <img src="./img/rack-fashion.jpg" alt="アパレルのラック">
+      <img src="./img/rack-fashion.jpg" alt="アパレルのラック" loading="lazy" decoding="async">
       <div class="float br"><div class="fnum">小ロット</div><div class="flbl">10点〜仕入れOK</div></div>
     </div>
     <div class="split-body" data-rv>
@@ -93,7 +117,7 @@
     </div>
     <div class="grid grid-2" style="margin-top:54px">
       <article class="card" data-rv>
-        <div class="ph"><img src="./img/rack-women.jpg" alt="古着のラック"></div>
+        <div class="ph"><img src="./img/rack-women.jpg" alt="古着のラック" loading="lazy" decoding="async"></div>
         <div class="cbody">
           <span class="badge">SERVICE 01</span>
           <h3>副業支援・古着卸売 <span class="en">Apparel B2B</span></h3>
@@ -102,7 +126,7 @@
         </div>
       </article>
       <article class="card" data-rv>
-        <div class="ph"><img src="./img/code-screen.jpg" alt="コードの画面"></div>
+        <div class="ph"><img src="./img/code-screen.jpg" alt="コードの画面" loading="lazy" decoding="async"></div>
         <div class="cbody">
           <span class="badge">SERVICE 02</span>
           <h3>生成AIシステム開発 <span class="en">Generative AI</span></h3>
@@ -124,16 +148,16 @@
     </div>
     <div class="grid grid-2" style="margin-top:54px">
       <a class="card" href="https://wholesale.nkonline-tool.com" target="_blank" rel="noopener" data-rv>
-        <div class="ph"><img src="./img/tshirt-fold.jpg" alt="個品の古着"></div>
+        <div class="ph"><img src="./img/tshirt-fold.jpg" alt="個品の古着" loading="lazy" decoding="async"></div>
         <div class="cbody">
-          <span class="badge">个品仕入れ</span>
+          <span class="badge">個品仕入れ</span>
           <h3>デタウリ <span class="en">Detauri</span></h3>
           <p>1点ずつ厳選した古着を、採寸データと撮影画像付きで仕入れられる個品サイト。気になる商品だけをピンポイントで選べます。</p>
           <span class="more">wholesale.nkonline-tool.com <span class="ar">→</span></span>
         </div>
       </a>
       <a class="card" href="https://wholesale.nkonline-tool.com/?page=bulk" target="_blank" rel="noopener" data-rv>
-        <div class="ph"><img src="./img/denim-stack.jpg" alt="まとめ仕入れのデニム"></div>
+        <div class="ph"><img src="./img/denim-stack.jpg" alt="まとめ仕入れのデニム" loading="lazy" decoding="async"></div>
         <div class="cbody">
           <span class="badge">まとめ仕入れ</span>
           <h3>アソート <span class="en">Assort</span></h3>
@@ -171,7 +195,7 @@
 
 <!-- ===== CTA ===== -->
 <section class="cta-band">
-  <div class="bg"><img src="./img/store-interior.jpg" alt="店内"></div>
+  <div class="bg"><img src="./img/store-interior.jpg" alt="店内" loading="lazy" decoding="async"></div>
   <div class="overlay"></div>
   <div class="container" data-rv>
     <h2>仕入れも、業務の自動化も。<br>まずは気軽にご相談ください。</h2>
@@ -180,8 +204,15 @@
       <a href="./contact.html" class="btn btn-primary btn-lg">お問い合わせ <span class="ar">→</span></a>
       <a href="./fukugyo.html" class="btn btn-ghost btn-lg">サービスを見る</a>
     </div>
+    <p class="note">ご相談・お見積もりは無料です。通常2〜3営業日以内にご返信します。</p>
   </div>
 </section>
+
+<!-- モバイル固定CTA -->
+<div class="sticky-cta">
+  <a href="./contact.html" class="btn btn-primary">無料で相談する</a>
+  <a href="https://wholesale.nkonline-tool.com" target="_blank" rel="noopener" class="btn btn-ghost">卸売サイト</a>
+</div>
 
 <!-- ===== フッター ===== -->
 <footer class="site-footer">

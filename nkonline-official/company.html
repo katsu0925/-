@@ -2,17 +2,23 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>会社概要・代表メッセージ｜NKonline</title>
 <meta name="description" content="NKonlineの会社概要・代表メッセージ。屋号NKonline、代表 西出克利。古着・アパレルのB2B卸売と生成AIシステム開発を行っています。古物商許可 大阪府公安委員会 第62228R076481号。">
 <meta property="og:title" content="会社概要・代表メッセージ｜NKonline">
 <meta property="og:description" content="古着卸売と生成AI開発を営むNKonlineの会社概要と代表メッセージ。">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://nkonline-official.netlify.app/company.html">
+<meta property="og:image" content="https://nkonline-official.netlify.app/img/team-office.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://nkonline-official.netlify.app/company.html">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800;900&family=Noto+Sans+JP:wght@400;500;700;900&display=swap">
 <link rel="icon" type="image/svg+xml" href="./favicon.svg">
 <link rel="stylesheet" href="./css/style.css">
 </head>
-<body>
+<body class="has-sticky">
 
 <header class="site-header">
   <div class="bar">
@@ -30,7 +36,7 @@
 
 <!-- ===== ヒーロー ===== -->
 <section class="hero compact">
-  <div class="bg"><img src="./img/team-office.jpg" alt="NKonlineのワークスペース"></div>
+  <div class="bg"><img src="./img/team-office.jpg" alt="NKonlineのワークスペース" fetchpriority="high"></div>
   <div class="overlay"></div>
   <div class="container">
     <span class="hero-tag" data-rv><span class="dot"></span>About · Company</span>
@@ -43,7 +49,7 @@
 <section class="section white">
   <div class="container profile">
     <div class="profile-media" data-rv>
-      <img src="./img/store-interior.jpg" alt="古着・アパレルの取り扱い">
+      <img src="./img/store-interior.jpg" alt="古着・アパレルの取り扱い" loading="lazy" decoding="async">
     </div>
     <div data-rv>
       <span class="role">Message</span>
@@ -106,7 +112,7 @@
 
 <!-- ===== CTA ===== -->
 <section class="cta-band">
-  <div class="bg"><img src="./img/office-desk.jpg" alt="ワークスペース"></div>
+  <div class="bg"><img src="./img/office-desk.jpg" alt="ワークスペース" loading="lazy" decoding="async"></div>
   <div class="overlay"></div>
   <div class="container" data-rv>
     <h2>お仕事のご相談、<br>お待ちしています。</h2>
@@ -115,8 +121,15 @@
       <a href="./contact.html" class="btn btn-primary btn-lg">お問い合わせ <span class="ar">→</span></a>
       <a href="./index.html" class="btn btn-ghost btn-lg">サービス一覧へ</a>
     </div>
+    <p class="note">ご相談・お見積もりは無料です。通常2〜3営業日以内にご返信します。</p>
   </div>
 </section>
+
+<!-- モバイル固定CTA -->
+<div class="sticky-cta">
+  <a href="./contact.html" class="btn btn-primary">お問い合わせ</a>
+  <a href="https://wholesale.nkonline-tool.com" target="_blank" rel="noopener" class="btn btn-ghost">卸売サイト</a>
+</div>
 
 <footer class="site-footer">
   <div class="container">

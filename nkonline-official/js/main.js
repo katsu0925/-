@@ -66,6 +66,27 @@
     counters.forEach(function (el) { cio.observe(el); });
   }
 
+  /* --- お問い合わせ：URLの ?topic= で相談種類をプリセット --- */
+  var subj = document.getElementById('subject');
+  if (subj && 'URLSearchParams' in window) {
+    var topic = new URLSearchParams(location.search).get('topic');
+    var topicMap = {
+      fukugyo: '古着卸売（副業支援）について',
+      ai: '生成AIシステム開発について',
+      other: 'その他・両方について'
+    };
+    if (topic && topicMap[topic]) subj.value = topicMap[topic];
+  }
+
+  /* --- お問い合わせ：送信中はボタンにスピナー表示 --- */
+  var form = document.querySelector('form[name="contact"]');
+  if (form) {
+    form.addEventListener('submit', function () {
+      var btn = form.querySelector('button[type="submit"]');
+      if (btn) btn.classList.add('loading');
+    });
+  }
+
   /* --- 現在年をフッターに反映 --- */
   var y = document.querySelector('[data-year]');
   if (y) y.textContent = new Date().getFullYear();
