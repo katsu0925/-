@@ -95,12 +95,13 @@ export async function createReturn(request, env, user) {
   const destination = String(body.destination || '').trim();
   const ids = String(body.ids || '').trim();
   const reporter = String(body.reporter || '').trim();
+  const registerUser = String(body.registerUser || '').trim();
   const note = String(body.note || '');
   const count = body.count;
   const boxId = String(body.boxId || '').trim();
   if (!destination) return jsonError('destination required', 400);
   if (!ids) return jsonError('ids required', 400);
-  const r = await callGas(env, 'createReturn', { destination, ids, reporter, note, count, boxId }, user);
+  const r = await callGas(env, 'createReturn', { destination, ids, reporter, registerUser, note, count, boxId }, user);
   if (!r.ok) return jsonError(r.error || 'gas error', 502);
   return jsonOk({ created: true, boxId: r.boxId, row: r.row });
 }

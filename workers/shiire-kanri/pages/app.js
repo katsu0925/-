@@ -4055,7 +4055,7 @@ async function submitBashoCreate() {
 }
 
 // ========== 返送 ==========
-// 返送管理シート: A=箱ID B=報告者 C=移動先 D=管理番号 E=着数 F=備考
+// 返送管理シート: A=箱ID B=報告者 C=移動先 D=管理番号 E=着数 F=備考 G=返送日 H=登録者
 // 構造は場所移動とほぼ同じ。報告者の納品場所にある商品を IDピッカーで選択する。
 async function renderHensouList() {
   // フォーム/詳細から戻ってきた場合に list 状態へリセット（autoRefresh の許可条件）
@@ -4246,6 +4246,9 @@ function openHensouDetail(boxId) {
   var tsLine = it.timestamp
     ? '<div class="field-row"><label>返送日</label><div>' + esc(fmtDateTimeSlash_(it.timestamp)) + '</div></div>'
     : '';
+  var registerLine = it.registerUser
+    ? '<div class="field-row"><label>登録者</label><div>' + esc(it.registerUser) + '</div></div>'
+    : '';
   openModal(
     '<h3>↩️ 返送 詳細</h3>' +
     '<div class="field-row"><label>箱ID</label><div>' + esc(it.boxId || '') + '</div></div>' +
@@ -4255,6 +4258,7 @@ function openHensouDetail(boxId) {
     countLine +
     '<div class="field-row"><label>管理番号（' + ids.length + '点）</label>' + idsHtml + '</div>' +
     noteLine +
+    registerLine +
     '<div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">閉じる</button></div>'
   );
 }
@@ -4286,6 +4290,10 @@ async function openHensouCreate(editItem) {
   var workerOptions = ['<option value="">選択してください</option>'].concat(workers.map(function(w){
     return '<option value="' + esc(w) + '"' + (w === prefReporter ? ' selected' : '') + '>' + esc(w) + '</option>';
   })).join('');
+  // 登録者: 作業者マスタからドロップダウン（新規仕入れと同様、既定は手動選択）
+  var registerOptions = ['<option value="">選択してください</option>'].concat(workers.map(function(w){
+    return '<option value="' + esc(w) + '">' + esc(w) + '</option>';
+  })).join('');
   var boxId = isEdit ? String(editItem.boxId) : genBoxId_();
   var title = isEdit ? '↩️ 返送 編集' : '↩️ 返送 新規作成';
   var submitLabel = isEdit ? '更新' : '登録';
@@ -4314,6 +4322,10 @@ async function openHensouCreate(editItem) {
       '<div class="field-row"><label>備考</label>' +
         '<textarea id="hensou-note" rows="3">' + esc(prefNote) + '</textarea>' +
       '</div>' +
+      (isEdit ? '' :
+      '<div class="field-row"><label>登録者</label>' +
+        '<select id="hensou-register-user">' + registerOptions + '</select>' +
+      '</div>') +
     '</div>' +
     '<div class="form-actions sticky">' +
       '<button class="btn-secondary" onclick="renderHensouList()">キャンセル</button>' +
@@ -4469,10 +4481,12 @@ async function submitHensouCreate() {
   var ids = Array.from(checks).map(function(c){ return c.value; }).filter(Boolean).join(',');
   var countRaw = (document.getElementById('hensou-count').value || '').trim();
   var note = (document.getElementById('hensou-note').value || '').trim();
+  var registerUserEl = document.getElementById('hensou-register-user');
+  var registerUser = (registerUserEl && registerUserEl.value || '').trim();
   if (!reporter) { toast('報告者を選択してください', 'error'); return; }
   if (!dest) { toast('移動先を選択してください', 'error'); return; }
   if (!ids) { toast('管理番号を選択してください', 'error'); return; }
-  var body = { destination: dest, ids: ids, reporter: reporter, boxId: boxId, note: note };
+  var body = { destination: dest, ids: ids, reporter: reporter, boxId: boxId, note: note, registerUser: registerUser };
   if (countRaw !== '') {
     var n = Number(countRaw);
     if (!isNaN(n)) body.count = n;

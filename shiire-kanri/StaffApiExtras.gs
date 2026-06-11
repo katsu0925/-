@@ -87,7 +87,7 @@ function staff_apiCreateMove(payload, email) {
 
 // ========== 返送管理 ==========
 
-// 返送管理シート: A=箱ID B=報告者 C=移動先 D=管理番号 E=着数 F=備考 G=返送日
+// 返送管理シート: A=箱ID B=報告者 C=移動先 D=管理番号 E=着数 F=備考 G=返送日 H=登録者
 function staff_listReturns(opts) {
   opts = opts || {};
   var limit = Math.min(500, Math.max(10, parseInt(opts.limit, 10) || 200));
@@ -96,7 +96,7 @@ function staff_listReturns(opts) {
   if (!sh) return { ok: true, items: [] };
   var lastRow = sh.getLastRow();
   if (lastRow < 2) return { ok: true, items: [] };
-  var values = sh.getRange(2, 1, lastRow - 1, 7).getValues();
+  var values = sh.getRange(2, 1, lastRow - 1, 8).getValues();
   var tz = Session.getScriptTimeZone() || 'Asia/Tokyo';
   function fmt(d) {
     if (d instanceof Date) return Utilities.formatDate(d, tz, "yyyy-MM-dd HH:mm");
@@ -115,7 +115,8 @@ function staff_listReturns(opts) {
       ids: String(row[3] || ''),
       count: row[4] === '' || row[4] == null ? '' : Number(row[4]),
       note: String(row[5] || ''),
-      timestamp: fmt(row[6])
+      timestamp: fmt(row[6]),
+      registerUser: String(row[7] || '')
     });
   }
   out.sort(function(a, b){ return String(b.boxId).localeCompare(String(a.boxId)); });
@@ -123,7 +124,7 @@ function staff_listReturns(opts) {
 }
 
 // 返送を新規作成
-// payload: { destination, ids, count?, note?, boxId?, reporter? }
+// payload: { destination, ids, count?, note?, boxId?, reporter?, registerUser? }
 function staff_apiCreateReturn(payload, email) {
   payload = payload || {};
   var destination = String(payload.destination || '').trim();
@@ -131,6 +132,7 @@ function staff_apiCreateReturn(payload, email) {
   if (!destination) return { ok: false, error: '移動先を指定してください' };
   if (!ids) return { ok: false, error: '管理番号を指定してください' };
   var reporter = String(payload.reporter || '').trim() || String(email || '');
+  var registerUser = String(payload.registerUser || '').trim();
   var note = String(payload.note || '');
   var count = (payload.count === '' || payload.count == null) ? '' : Number(payload.count);
   if (count !== '' && isNaN(count)) count = '';
@@ -144,9 +146,9 @@ function staff_apiCreateReturn(payload, email) {
   if (!boxId) {
     boxId = 'RT-' + Utilities.formatDate(now, tz, 'yyyyMMdd-HHmmss');
   }
-  var rowArr = [boxId, reporter, destination, ids, count, note, now];
+  var rowArr = [boxId, reporter, destination, ids, count, note, now, registerUser];
   var appendAt = sh.getLastRow() + 1;
-  sh.getRange(appendAt, 1, 1, 7).setValues([rowArr]);
+  sh.getRange(appendAt, 1, 1, 8).setValues([rowArr]);
   // G列(返送日)は秒まで表示する書式に統一
   sh.getRange(appendAt, 7).setNumberFormat('yyyy-MM-dd HH:mm:ss');
   // onChange トリガー任せにせず、append 直後に処理を走らせて即時にステータス＝返品済みへ反映
@@ -286,7 +288,7 @@ function staff_apiUpdateReturn(payload, email) {
     for (var i = 0; i < values.length; i++) {
       if (String(values[i][0] || '').trim() === boxId) {
         var r = i + 2;
-        // A=箱ID, G=返送日 は据え置き、B=報告者 C=移動先 D=管理番号 E=着数 F=備考 を上書き
+        // A=箱ID, G=返送日, H=登録者 は据え置き、B=報告者 C=移動先 D=管理番号 E=着数 F=備考 を上書き
         sh.getRange(r, 2).setValue(reporter);
         sh.getRange(r, 3).setValue(destination);
         sh.getRange(r, 4).setValue(ids);
