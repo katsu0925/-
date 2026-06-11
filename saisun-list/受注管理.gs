@@ -115,6 +115,42 @@ function cronAutoExpandOrders() {
 
   if (receiptNos.length === 0) return;
 
+  // 失敗回数上限: 同一受付番号がタイムアウト等で失敗し続ける場合の無限再試行ループ防止
+  // 試行回数は実行「前」に記録する（タイムアウトで実行が死んでもカウントが残る）
+  // 成功すればI列にリンクが入って候補から外れ、カウンタは下の掃除で自然消滅する
+  var OM_AUTO_EXPAND_MAX_ATTEMPTS = 3;
+  var props = PropertiesService.getScriptProperties();
+  var attempts = {};
+  try { attempts = JSON.parse(props.getProperty('OM_AUTO_EXPAND_ATTEMPTS') || '{}'); } catch (e) { attempts = {}; }
+
+  // 候補から消えた（=解決済み）受付番号のカウンタを掃除
+  var candidateSet = {};
+  receiptNos.forEach(function(rn) { candidateSet[rn] = true; });
+  Object.keys(attempts).forEach(function(rn) { if (!candidateSet[rn]) delete attempts[rn]; });
+
+  var runnable = [];
+  var newlyExhausted = [];
+  receiptNos.forEach(function(rn) {
+    var c = attempts[rn] || 0;
+    if (c === OM_AUTO_EXPAND_MAX_ATTEMPTS) {
+      newlyExhausted.push(rn);
+      attempts[rn] = c + 1; // 通知済みマーク（再通知防止）
+    } else if (c < OM_AUTO_EXPAND_MAX_ATTEMPTS) {
+      runnable.push(rn);
+    }
+    // c > MAX は通知済みスキップ中
+  });
+
+  if (newlyExhausted.length > 0) {
+    props.setProperty('OM_AUTO_EXPAND_ATTEMPTS', JSON.stringify(attempts));
+    om_notifyAutoExpandFailure_(newlyExhausted, OM_AUTO_EXPAND_MAX_ATTEMPTS);
+  }
+  if (runnable.length < receiptNos.length) {
+    console.warn('cronAutoExpandOrders: 失敗上限到達でスキップ中: ' + receiptNos.filter(function(rn) { return runnable.indexOf(rn) < 0; }).join(', '));
+  }
+  if (runnable.length === 0) return;
+  receiptNos = runnable;
+
   // タイムアウト防止: 1回のcronで最大3件まで処理（残りは次回cronで）
   var MAX_PER_CRON = 3;
   if (receiptNos.length > MAX_PER_CRON) {
@@ -125,10 +161,40 @@ function cronAutoExpandOrders() {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(10000)) { console.log('cronAutoExpandOrders: ロック取得失敗'); return; }
   try {
+    // 試行回数を実行前に記録（タイムアウトしてもカウントが残るように）
+    receiptNos.forEach(function(rn) { attempts[rn] = (attempts[rn] || 0) + 1; });
+    props.setProperty('OM_AUTO_EXPAND_ATTEMPTS', JSON.stringify(attempts));
     console.log('cronAutoExpandOrders: ' + receiptNos.length + '件を自動展開: ' + receiptNos.join(', '));
     om_executeFullPipeline_(receiptNos, '自動展開', { silent: true, orderSsId: orderSsId });
   } finally {
     lock.releaseLock();
+  }
+}
+
+/**
+ * 自動展開が失敗上限に達した受付番号を管理者へメール通知（受付番号ごとに1回だけ）
+ */
+function om_notifyAutoExpandFailure_(receiptNos, maxAttempts) {
+  try {
+    var email = PropertiesService.getScriptProperties().getProperty('ADMIN_OWNER_EMAIL');
+    if (!email) return;
+    var body = '自動展開（cronAutoExpandOrders）が ' + maxAttempts + ' 回失敗したため、以下の受付番号の自動再試行を停止しました。\n\n'
+      + receiptNos.map(function(rn) { return '  - ' + rn; }).join('\n')
+      + '\n\n確認リンク・出品キット・商品管理の売却済み反映が未作成のままです（二重販売リスクに注意）。\n\n'
+      + '対処方法:\n'
+      + '1. Apps Script の実行ログで「自動展開」のエラー内容を確認\n'
+      + '2. 原因解消後、依頼管理シートのメニュー「依頼展開」で該当受付番号を手動実行\n'
+      + '   （または ScriptProperties の OM_AUTO_EXPAND_ATTEMPTS から該当受付番号を削除すると自動再試行が再開）\n'
+      + '3. 売却済み反映だけ漏れている場合は reapplyMissingSaleForReceipt(受付番号) を実行';
+    MailApp.sendEmail({
+      to: email,
+      subject: '【デタウリ】自動展開が' + maxAttempts + '回失敗: ' + receiptNos.join(', '),
+      body: body,
+      noReply: true
+    });
+    console.log('自動展開失敗アラート送信: ' + receiptNos.join(', '));
+  } catch (e) {
+    console.error('自動展開失敗アラート送信エラー: ' + (e.message || e));
   }
 }
 
@@ -306,6 +372,7 @@ function handleMissingProducts() {
 // ═══════════════════════════════════════════
 
 function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
+  var pipelineStart = Date.now(); // 経過時間ガード用（GAS 6分制限対策）
   var silent = opts && opts.silent;
   var orderSsId = (opts && opts.orderSsId) || '';
   var activeSs = orderSsId ? SpreadsheetApp.openById(orderSsId) : SpreadsheetApp.getActiveSpreadsheet();
@@ -409,7 +476,7 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
 
   var results = [];
   var allSaleLogEntries = [];
-  var allRecoveryRows = []; // { sheetRow, receiptNo } 回収完了から削除する行
+  var expandedReceiptSet = {}; // 回収完了へ展開した受付番号（後処理で13列目=受付番号一致行を削除）
 
   // バッチ用: 売却反映を全受付番号分まとめて最後に実行
   var allStatusA1s = [];
@@ -509,10 +576,8 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
     recoverySheet.getRange(recoveryStartRow, 1, outArr.length, outArr[0].length).setValues(outArr);
     om_ensureRecoveryHeaders_(recoverySheet);
 
-    // 削除対象として記録
-    for (var ri = 0; ri < outArr.length; ri++) {
-      allRecoveryRows.push(recoveryStartRow + ri);
-    }
+    // 削除対象として記録（行番号でなく受付番号で照合: 過去のタイムアウト実行が残した孤児行もまとめて削除できる）
+    expandedReceiptSet[receiptNo] = true;
 
     // --- Phase 2: 配布用リスト生成 + OpenAI API でタイトル・説明文自動生成 + XLSX出力 ---
     var maxRows = exportSheet.getMaxRows();
@@ -602,7 +667,11 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
     });
 
     // タイトル: GASロジック組み立て / 説明文: OpenAI API生成
-    var aiResults = om_generateMercariTexts_(productRows);
+    // 経過時間ガード: 残り時間が少なければAI生成を諦めテンプレ説明文で完走を優先する（6分制限タイムアウト→無限再試行ループ防止）
+    var elapsedSec = Math.round((Date.now() - pipelineStart) / 1000);
+    var skipApi = elapsedSec > 120;
+    if (skipApi) console.warn('経過' + elapsedSec + '秒のためAI説明文をスキップしテンプレートで生成: ' + receiptNo);
+    var aiResults = om_generateMercariTexts_(productRows, { skipApi: skipApi });
 
     for (var pi = 0; pi < productRows.length; pi++) {
       var pr = productRows[pi];
@@ -703,29 +772,47 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
   // temp SS削除
   try { DriveApp.getFileById(tmpSsId).setTrashed(true); } catch (e) {}
 
+  // 過去のタイムアウト実行で残留した tmp_dist_* を掃除（6時間より古いものを最大50件/回）
+  try {
+    var tmpFiles = DriveApp.searchFiles('title contains "tmp_dist_" and trashed = false');
+    var tmpCutoff = new Date(Date.now() - 6 * 3600 * 1000);
+    var sweptCount = 0;
+    while (tmpFiles.hasNext() && sweptCount < 50) {
+      var tmpFile = tmpFiles.next();
+      if (tmpFile.getId() === tmpSsId) continue;
+      if (tmpFile.getName().indexOf('tmp_dist_') === 0 && tmpFile.getDateCreated() < tmpCutoff) {
+        tmpFile.setTrashed(true);
+        sweptCount++;
+      }
+    }
+    if (sweptCount > 0) console.log('残留tmp_dist_掃除: ' + sweptCount + '件をゴミ箱へ');
+  } catch (e) {
+    console.warn('tmp_dist_掃除エラー: ' + (e.message || e));
+  }
+
   // --- 後処理: 売却履歴ログ書き込み ---
   if (allSaleLogEntries.length > 0) {
     om_writeSaleLog_(shiireSs, allSaleLogEntries);
   }
 
-  // --- 後処理: 回収完了から展開した行をバッチ削除 ---
-  if (allRecoveryRows.length > 0) {
+  // --- 後処理: 回収完了から展開した行をバッチ削除（13列目=受付番号で照合） ---
+  // 行番号でなく受付番号で照合することで、タイムアウトした過去実行が残した同一受付番号の孤児行も一掃する
+  var expandedReceiptNos = Object.keys(expandedReceiptSet);
+  if (expandedReceiptNos.length > 0) {
     SpreadsheetApp.flush(); // 書き込みを確定してからgetLastRowを呼ぶ
     var recLastRow = recoverySheet.getLastRow();
-    console.log('回収完了削除: allRecoveryRows=' + JSON.stringify(allRecoveryRows) + ' recLastRow=' + recLastRow);
+    console.log('回収完了削除: 対象受付番号=' + expandedReceiptNos.join(', ') + ' recLastRow=' + recLastRow);
     if (recLastRow >= 7) {
       // 行7以降のデータ行のみ対象（行1-6はヘッダー領域）
       var recLastCol = recoverySheet.getLastColumn();
-      if (recLastCol > 0) {
+      if (recLastCol >= 13) {
         var recData = recoverySheet.getRange(7, 1, recLastRow - 6, recLastCol).getValues();
-        var recDelSet = {};
-        allRecoveryRows.forEach(function(r) { recDelSet[r] = true; });
         var recKeep = [];
         for (var ri = 0; ri < recData.length; ri++) {
-          var sheetRow = ri + 7; // 実際のシート行番号
-          if (!recDelSet[sheetRow]) recKeep.push(recData[ri]);
+          var recReceipt = String(recData[ri][12] || '').trim(); // 13列目=【入力】受付番号
+          if (!expandedReceiptSet[recReceipt]) recKeep.push(recData[ri]);
         }
-        console.log('回収完了削除: データ行数=' + recData.length + ' 削除対象=' + allRecoveryRows.length + ' 残す行数=' + recKeep.length);
+        console.log('回収完了削除: データ行数=' + recData.length + ' 削除=' + (recData.length - recKeep.length) + ' 残す行数=' + recKeep.length);
         // 行7以降を全クリア
         recoverySheet.getRange(7, 1, recData.length, recLastCol).clearContent();
         if (recKeep.length > 0) {
@@ -2406,12 +2493,12 @@ var OM_MERCARI_SYSTEM_PROMPT = 'あなたはメルカリでの古着販売に特
  * @param {Array} productRows - [{brand, aiKeywords, item, size, condition, damageDetail, measurementText, priceText}]
  * @return {Array} [{title, description}]
  */
-function om_generateMercariTexts_(productRows) {
+function om_generateMercariTexts_(productRows, opts) {
   // タイトルはGASロジックで組み立て（API不要、即時、確実に36-40文字）
   var titles = productRows.map(function(pr) { return om_buildTitle_(pr); });
 
-  // 説明文はOpenAI APIで生成
-  var descriptions = om_generateDescriptions_(productRows);
+  // 説明文はOpenAI APIで生成（opts.skipApi=true ならテンプレートに切替）
+  var descriptions = om_generateDescriptions_(productRows, opts && opts.skipApi);
 
   var results = [];
   for (var i = 0; i < productRows.length; i++) {
@@ -2421,30 +2508,50 @@ function om_generateMercariTexts_(productRows) {
 }
 
 /**
- * 説明文のみをOpenAI APIで一括生成（10件ずつバッチ分割）
+ * 説明文のみをOpenAI APIで一括生成（バッチ分割 + fetchAll並列実行）
+ * 直列実行だと100点超の注文で6分制限を超えるため、全バッチを並列化（実時間≒最も遅い1バッチ分）
+ * @param {Array} productRows
+ * @param {boolean} skipApi - true ならAPIを呼ばずテンプレート説明文で即時生成（残り時間不足時）
  */
-function om_generateDescriptions_(productRows) {
+function om_generateDescriptions_(productRows, skipApi) {
   var apiKey = '';
   try { apiKey = PropertiesService.getScriptProperties().getProperty('OPENAI_API_KEY') || ''; } catch (e) {}
-  if (!apiKey) {
-    console.log('OPENAI_API_KEY未設定: テンプレート説明文で代替');
+  if (!apiKey || skipApi) {
+    console.log(skipApi ? '残り時間不足: テンプレート説明文で代替' : 'OPENAI_API_KEY未設定: テンプレート説明文で代替');
     return productRows.map(function(pr) { return om_fallbackDescription_(pr); });
   }
 
-  var BATCH_SIZE = 30;  // gpt-4o-miniは高速なので大きめバッチでAPI往復回数を削減
-  var allResults = [];
-
+  var BATCH_SIZE = 15;  // fetchAll並列なので往復回数のコストは無し。小さめにして1コールの応答時間とトークン上限超過リスクを抑える
+  var batches = [];
   for (var batchStart = 0; batchStart < productRows.length; batchStart += BATCH_SIZE) {
-    var batch = productRows.slice(batchStart, batchStart + BATCH_SIZE);
-    var batchResults = om_generateDescriptionsBatch_(batch, apiKey);
-    allResults = allResults.concat(batchResults);
+    batches.push(productRows.slice(batchStart, batchStart + BATCH_SIZE));
   }
 
-  console.log('メルカリ説明文生成完了: ' + allResults.length + '件（' + Math.ceil(productRows.length / BATCH_SIZE) + 'バッチ）');
+  var requests = batches.map(function(batch) {
+    return om_buildDescriptionRequest_(batch, apiKey);
+  });
+
+  var responses;
+  try {
+    responses = UrlFetchApp.fetchAll(requests);
+  } catch (e) {
+    console.error('メルカリ説明文 fetchAll エラー: ' + (e.message || e));
+    return productRows.map(function(pr) { return om_fallbackDescription_(pr); });
+  }
+
+  var allResults = [];
+  for (var bi = 0; bi < batches.length; bi++) {
+    allResults = allResults.concat(om_parseDescriptionResponse_(responses[bi], batches[bi]));
+  }
+
+  console.log('メルカリ説明文生成完了: ' + allResults.length + '件（' + batches.length + 'バッチ並列）');
   return allResults;
 }
 
-function om_generateDescriptionsBatch_(batch, apiKey) {
+/**
+ * 1バッチ分のOpenAIリクエストオブジェクトを構築（UrlFetchApp.fetchAll用）
+ */
+function om_buildDescriptionRequest_(batch, apiKey) {
   var userMsg = '以下の' + batch.length + '件の商品データそれぞれについて、メルカリ用の商品説明文を生成してください。\n'
     + '結果は {"items": [{"description": "..."}, ...]} の形式で、入力順と同じ順序で返してください。\n\n';
 
@@ -2462,24 +2569,30 @@ function om_generateDescriptionsBatch_(batch, apiKey) {
       + '販売価格: ' + (pr.priceText || '（なし）') + '\n\n';
   }
 
+  var payload = {
+    model: OM_MERCARI_MODEL,
+    messages: [
+      { role: 'system', content: OM_MERCARI_SYSTEM_PROMPT },
+      { role: 'user', content: userMsg }
+    ],
+    max_completion_tokens: 16000,
+    response_format: { type: 'json_object' }
+  };
+
+  return {
+    url: 'https://api.openai.com/v1/chat/completions',
+    method: 'post',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+    payload: JSON.stringify(payload),
+    muteHttpExceptions: true
+  };
+}
+
+/**
+ * 1バッチ分のOpenAIレスポンスをパース（失敗時はテンプレートにフォールバック）
+ */
+function om_parseDescriptionResponse_(resp, batch) {
   try {
-    var payload = {
-      model: OM_MERCARI_MODEL,
-      messages: [
-        { role: 'system', content: OM_MERCARI_SYSTEM_PROMPT },
-        { role: 'user', content: userMsg }
-      ],
-      max_completion_tokens: 16000,
-      response_format: { type: 'json_object' }
-    };
-
-    var resp = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'post',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
-    });
-
     var code = resp.getResponseCode();
     if (code < 200 || code >= 300) {
       console.error('OpenAI API error: HTTP ' + code + ' ' + resp.getContentText().substring(0, 200));
