@@ -4307,7 +4307,7 @@ async function openHensouCreate(editItem) {
       '<div class="field-row"><label>箱ID' + (isEdit ? '' : '<small>登録時に自動採番</small>') + '</label>' +
         '<input type="text" id="hensou-boxid" value="' + esc(boxId) + '" readonly>' +
       '</div>' +
-      '<div class="field-row"><label>報告者 *</label>' +
+      '<div class="field-row"><label>報告者 *<small>下の管理番号の商品一覧は「納品場所＝報告者」の商品がベースです（ステータスが出品中で、出品から30日以上経過した商品のみ表示）</small></label>' +
         '<select id="hensou-reporter" onchange="onHensouReporterChange()">' + workerOptions + '</select>' +
       '</div>' +
       '<div class="field-row"><label>移動先 *</label>' +
