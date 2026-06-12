@@ -940,6 +940,12 @@ function staff_apiUpdateShiireHoukokuQuantity(payload, email) {
   try { withLock_(15000, function(){ mergeReportToKanri_(); recalcUnitCost_(); }); } catch(err) {
     console.error('mergeReportToKanri_ failed: ' + (err.message || err));
   }
+  // スクリプト書き込みは onChange を発火させないため、数量入力の通知メールを明示的に起動する
+  try {
+    if (typeof handleChange_Mailer === 'function') handleChange_Mailer({});
+  } catch (err) {
+    console.error('handleChange_Mailer failed: ' + (err.message || err));
+  }
   return { ok: true, id: id, row: foundRow, quantity: quantity };
 }
 

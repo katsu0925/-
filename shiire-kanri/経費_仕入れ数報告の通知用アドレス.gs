@@ -5,7 +5,9 @@ const CONFIG_MAILER = {
   RECIPIENT_START_ROW: 4,
   SHEETS: [
     { name: "仕入れ数報告", subject: "仕入れ点数の報告が完了しました", intro: "仕入れ管理に登録をお願いします。",
-      fields: ["タイムスタンプ","報告者","区分コード","仕入れ日","内容","数量"], idHeader: "ID" },
+      fields: ["タイムスタンプ","報告者","区分コード","仕入れ日","内容","数量"], idHeader: "ID",
+      // 仕入れ管理登録時の Phase1 自動転記行（数量空欄）で送信しないためのガード
+      requireFields: ["数量"] },
     { name: "経費申請", subject: "経費が申請されました", intro: "経費が申請されましたので、確認してください。",
       fields: ["タイムスタンプ","名前","購入日","商品名","購入場所","購入場所リンク","購入金額","購入証明のためのレシートやスクショ"], idHeader: "ID" }
   ]
@@ -51,6 +53,12 @@ function processPendingForSheet(ss, def, recipients) {
     });
     const hasData = payloadPairs.some(p => p.value !== "");
     if (!hasData) return;
+    // requireFields が空の行は送信もマークもしない＝値が入った後のスキャンで初めて送信される
+    const missingRequired = (def.requireFields || []).some(f => {
+      const idx = fieldIdx[f];
+      return idx >= 0 && String(row[idx]).trim() === "";
+    });
+    if (missingRequired) return;
     const lines = [def.intro, ""];
     payloadPairs.forEach(p => { lines.push(p.label); lines.push(p.value); lines.push(""); });
     const body = lines.join("\n");
