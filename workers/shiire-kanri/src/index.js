@@ -2,7 +2,7 @@ import { corsOptions, jsonOk, jsonError } from './utils/response.js';
 import { getAccessUser } from './utils/access.js';
 import { withIdempotency } from './utils/idempotency.js';
 import { scheduledSync } from './sync/sheets-sync.js';
-import { scheduledAccessSync } from './sync/access-sync.js';
+import { scheduledAccessSync, debugAccessConfig } from './sync/access-sync.js';
 import { listProducts, getProduct, listProductCounts, getNextKanri, getNextKanriForPurchase, listProductThumbs, getProductImages, listKanrisWithImages, backfillThumbUrl } from './handlers/products.js';
 import { listPurchases, getPurchaseProducts } from './handlers/purchases.js';
 import { saveMeasurement, saveSale, saveDetails, uploadImage, resolveImage, createPurchase, createProduct, deleteProduct } from './handlers/write-proxy.js';
@@ -63,6 +63,14 @@ export default {
       const secret = request.headers.get('X-Sync-Secret') || '';
       if (!secret || secret !== env.SYNC_SECRET) return jsonError('unauthorized', 403);
       const result = await scheduledAccessSync(env);
+      return jsonOk(result);
+    }
+
+    // Access 設定の読み取り専用ダンプ（アプリ単位/全ポリシー/グローバルの session_duration 切り分け用）
+    if (path === '/admin/access-debug' && request.method === 'POST') {
+      const secret = request.headers.get('X-Sync-Secret') || '';
+      if (!secret || secret !== env.SYNC_SECRET) return jsonError('unauthorized', 403);
+      const result = await debugAccessConfig(env);
       return jsonOk(result);
     }
 

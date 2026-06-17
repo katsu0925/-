@@ -1,12 +1,17 @@
 // 5分Cron: 作業者マスター（O列=TRUE のメール）を Cloudflare Access のポリシーに反映
 // 必要な env: CF_API_TOKEN, CF_ACCOUNT_ID, GAS_API_URL, SYNC_SECRET
 // Application は Application name = "shiire-kanri" で自動発見、最初のポリシーを更新する
+// さらに「アプリ単位の session_duration」も同値に enforce する（下記参照）。
 
 const APP_NAME = 'shiire-kanri';
 const CF_BASE = 'https://api.cloudflare.com/client/v4';
-// ログイン継続期間（ポリシー単位の session_duration。アプリ単位設定より優先される）
-// 1週間 = 168h。変更時はここだけ書き換えれば次回 Cron / POST /admin/sync-access で反映される。
-const DESIRED_SESSION_DURATION = '168h';
+// ログイン継続期間。1ヶ月 = 730h（Cloudflare Access の上限）。
+// ※重要: session_duration は「ポリシー単位」と「アプリ単位（=全ポリシーの既定値）」の2箇所にあり、
+//   ポリシーだけ伸ばしてもアプリ単位の既定値（初期値24h）が実効上限として効いてしまうケースがある
+//   （実際 168h にした後も全員が毎日ログインを求められていた＝アプリ単位の24hが効いていた）。
+//   そのため本同期では「ポリシー単位」と「アプリ単位」の両方を DESIRED に揃える。
+//   変更時はここだけ書き換えれば次回 Cron / POST /admin/sync-access で両方に反映される。
+const DESIRED_SESSION_DURATION = '730h';
 
 export async function scheduledAccessSync(env) {
   if (!env.CF_API_TOKEN || !env.CF_ACCOUNT_ID) {
@@ -21,8 +26,17 @@ export async function scheduledAccessSync(env) {
     }
     const { appId, policyId } = await discoverApp(env);
     const updated = await updatePolicyEmails(env, appId, policyId, emails);
-    console.log(`[access-sync] policy ${policyId} updated emails=${emails.length} changed=${updated.changed} session=${updated.sessionDuration}`);
-    return { ok: true, count: emails.length, changed: updated.changed, sessionDuration: updated.sessionDuration };
+    // アプリ単位の session_duration も同値に揃える（ポリシーだけだと24hが実効上限になる問題への対処）
+    const appUpdated = await updateAppSessionDuration(env, appId);
+    console.log(`[access-sync] policy ${policyId} emails=${emails.length} polChanged=${updated.changed} appChanged=${appUpdated.changed} session=${updated.sessionDuration}/${appUpdated.sessionDuration}`);
+    return {
+      ok: true,
+      count: emails.length,
+      changed: updated.changed,
+      sessionDuration: updated.sessionDuration,
+      appChanged: appUpdated.changed,
+      appSessionDuration: appUpdated.sessionDuration,
+    };
   } catch (err) {
     console.error('[access-sync] error', err.message);
     return { ok: false, error: err.message };
@@ -98,6 +112,89 @@ async function updatePolicyEmails(env, appId, policyId, emails) {
       require: policy.require || [],
       session_duration: DESIRED_SESSION_DURATION,
     },
+  });
+  return { changed: true, sessionDuration: DESIRED_SESSION_DURATION };
+}
+
+// 読み取り専用の診断: アプリ単位 session_duration / 全ポリシーの session_duration /
+// アカウント全体のグローバルセッション設定を一括取得する（PUT は一切しない）。
+// 「168h にしたのに全員が毎回ログインを求められる」原因が、アプリ単位設定・
+// 2本目のポリシー・グローバルセッションのどれで頭打ちになっているかを切り分けるため。
+export async function debugAccessConfig(env) {
+  if (!env.CF_API_TOKEN || !env.CF_ACCOUNT_ID) {
+    return { ok: false, skipped: true, reason: 'CF_API_TOKEN or CF_ACCOUNT_ID not set' };
+  }
+  try {
+    const appsRes = await cfApi(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps?per_page=200`);
+    const app = (appsRes.result || []).find(a => a.name === APP_NAME);
+    if (!app) return { ok: false, error: `access app not found: ${APP_NAME}` };
+
+    const polRes = await cfApi(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${app.id}/policies`);
+    const policies = (polRes.result || []).map((p, i) => ({
+      order: i,
+      id: p.id,
+      name: p.name,
+      decision: p.decision,
+      precedence: p.precedence,
+      session_duration: p.session_duration ?? null,
+      includeCount: Array.isArray(p.include) ? p.include.length : 0,
+      emailCount: Array.isArray(p.include)
+        ? p.include.filter(r => r && r.email && r.email.email).length
+        : 0,
+    }));
+
+    // アカウント全体のグローバルセッション設定（organizations）
+    let org = null;
+    try {
+      const orgRes = await cfApi(env, `/accounts/${env.CF_ACCOUNT_ID}/access/organizations`);
+      const r = orgRes.result || {};
+      org = {
+        session_duration: r.session_duration ?? null,
+        auto_redirect_to_identity: r.auto_redirect_to_identity ?? null,
+        name: r.name ?? null,
+      };
+    } catch (e) {
+      org = { error: e.message };
+    }
+
+    return {
+      ok: true,
+      desiredSessionDuration: DESIRED_SESSION_DURATION,
+      app: {
+        id: app.id,
+        name: app.name,
+        domain: app.domain,
+        aud: app.aud ?? null,
+        session_duration: app.session_duration ?? null,
+        allowed_idps: app.allowed_idps || null,
+        app_launcher_visible: app.app_launcher_visible ?? null,
+      },
+      policies,
+      organization: org,
+    };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+// アプリ単位の session_duration を DESIRED に揃える。
+// Cloudflare の PUT /access/apps/{id} は全フィールド置換のため、GET の全項目を echo して
+// session_duration だけ上書きする（aud / domain / type 等の重要フィールドを保持。
+// 特に aud を保持しないと Worker 側 JWT 検証の aud 不一致でログイン不能になる）。
+async function updateAppSessionDuration(env, appId) {
+  const cur = await cfApi(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${appId}`);
+  const app = cur.result || {};
+  if (app.session_duration === DESIRED_SESSION_DURATION) {
+    return { changed: false, sessionDuration: app.session_duration };
+  }
+  const body = { ...app, session_duration: DESIRED_SESSION_DURATION };
+  // 読み取り専用メタのみ除去。aud は echo して保持する（消すと JWT 検証が aud 不一致で壊れる）。
+  delete body.id;
+  delete body.created_at;
+  delete body.updated_at;
+  await cfApi(env, `/accounts/${env.CF_ACCOUNT_ID}/access/apps/${appId}`, {
+    method: 'PUT',
+    body,
   });
   return { changed: true, sessionDuration: DESIRED_SESSION_DURATION };
 }
