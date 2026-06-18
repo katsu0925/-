@@ -7682,9 +7682,16 @@ async function addBundleMember_(kanri) {
   if (target === kanri) { showBundleError_('自分自身は指定できません'); return; }
   if (!/^[A-Za-z0-9_-]{1,32}$/.test(target)) { showBundleError_('管理番号の形式が不正です'); return; }
   try {
+    // バックエンドの toggle 契約は「body.kanri を body.target のグループに加える」。
+    // ここではモーダルを開いている現在の商品(kanri)が“基点グループ”＝ body.target、
+    // 入力された管理番号(target)が“加わる側”＝ body.kanri になる。
+    // これを逆に渡すと、現在の商品が既存グループから外れて入力番号と新しいペアを
+    // 作り直すため、3点目以降が前のメンバーを上書きし、同梱が常に1点しか残らない。
+    var anchor = kanri;   // いま編集中（グループの基点）の管理番号
+    var joiner = target;  // 入力された、グループに加える管理番号
     var res = await api('/api/bundles/toggle', {
-      method: 'POST', body: { kanri: kanri, target: target },
-      outbox: true, label: '同梱追加: ' + kanri + '+' + target
+      method: 'POST', body: { kanri: joiner, target: anchor },
+      outbox: true, label: '同梱追加: ' + anchor + '+' + joiner
     });
     if (!res || !res.ok) throw new Error((res && res.message) || 'failed');
     // BUNDLE_CACHE 全体を更新（影響範囲: kanri / target / 旧グループメンバー）
