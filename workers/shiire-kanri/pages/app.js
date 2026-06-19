@@ -3185,15 +3185,22 @@ function cardHtml(it) {
     var placeVal = (it.extra && it.extra['納品場所']) ? String(it.extra['納品場所']).trim() : '';
     placeHtml = '<div class="card-place">📍 ' + esc(placeVal || '（納品場所なし）') + '</div>';
   }
-  // 発送商品タブのみ「同梱マーク」をステータス左に表示。BUNDLE_CACHE 未解決時は空（後で再描画）。
+  // 発送商品タブの「発送待ち」カードのみ「同梱マーク」をステータス左に表示。
+  // 対象範囲＝発送待ち（未発送）に限定。BUNDLE_CACHE 未解決時は空（後で再描画）。
+  // Phase1: getBundleMembersForDisplay_ は派生グループ参照のため、自分のポインタが
+  //   dangling でも相手の members 経由でグループを復元でき、両方向に📦が出る。
+  // Phase2: ラベルを「同梱N点（相手の管理番号…）」の件数バッジ形式にする。
   var bundleMark = '';
-  if (STATE.tab === 'hassou') {
-    var binfo = getBundleFromCache_(it.kanri);
-    if (binfo && binfo.members && binfo.members.length > 1) {
-      var others = binfo.members.filter(function(m){ return m !== it.kanri; });
+  if (STATE.tab === 'hassou' && st === '発送待ち') {
+    var members = getBundleMembersForDisplay_(it.kanri);
+    if (members) {
+      var others = members.filter(function(m){ return m !== it.kanri; });
       if (others.length) {
-        var label = others.length === 1 ? (others[0] + 'と同梱') : (others.join('・') + 'と同梱');
-        bundleMark = '<span class="card-bundle" title="' + esc(label) + '">📦 ' + esc(label) + '</span>';
+        var full = others.join('・');
+        // カード上は最大3件まで表示（多数同梱でも崩れないよう「他N件」で省略）。
+        var shown = others.length > 3 ? (others.slice(0, 3).join('・') + ' 他' + (others.length - 3) + '件') : full;
+        var label = '同梱' + members.length + '点（' + shown + '）';
+        bundleMark = '<span class="card-bundle" title="' + esc(full + 'と同梱') + '">📦 ' + esc(label) + '</span>';
       }
     }
   }
@@ -3636,11 +3643,45 @@ function renderHassouGrouped_(items) {
     return a.localeCompare(b, 'ja');
   });
   // 並び順は固定: 販売日が古い順（=期限が近い順）→ 管理番号昇順
-  function cmp(a, b) {
-    var sa = a.saleDate ? new Date(a.saleDate).getTime() : Number.MAX_SAFE_INTEGER;
-    var sb = b.saleDate ? new Date(b.saleDate).getTime() : Number.MAX_SAFE_INTEGER;
-    if (sa !== sb) return sa - sb;
-    return kanriCompareAsc_(a.kanri, b.kanri);
+  function tupleOf(it) {
+    return { sd: it.saleDate ? new Date(it.saleDate).getTime() : Number.MAX_SAFE_INTEGER, kanri: it.kanri };
+  }
+  function cmpTuple(x, y) {
+    if (x.sd !== y.sd) return x.sd - y.sd;
+    return kanriCompareAsc_(x.kanri, y.kanri);
+  }
+  function cmp(a, b) { return cmpTuple(tupleOf(a), tupleOf(b)); }
+  // Phase2: 発送待ちでは同梱グループを隣接クラスタ表示する。
+  // クラスタ代表キー = 同アカウント内に存在する同梱メンバーの最小(販売日,管理番号)。
+  // クラスタ単位で「期限が近い順」を保ちつつ、同梱メンバー同士を連続配置する。
+  var clusterPending = (filterKey === 'pending');
+  function sortAccount_(src) {
+    if (!clusterPending) return src.slice().sort(cmp);
+    var inArr = Object.create(null);
+    src.forEach(function(it){ inArr[it.kanri] = it; });
+    var repCache = Object.create(null);
+    function repOf(it) {
+      if (repCache[it.kanri]) return repCache[it.kanri];
+      var members = getBundleMembersForDisplay_(it.kanri);
+      var coloc = members ? members.filter(function(m){ return inArr[m]; }) : null;
+      var rep;
+      if (!coloc || coloc.length < 2) {
+        rep = tupleOf(it); // 単独 or 同アカウント内に相手がいない → 自分のキー
+      } else {
+        rep = null;
+        coloc.forEach(function(m){
+          var t = tupleOf(inArr[m]);
+          if (!rep || cmpTuple(t, rep) < 0) rep = t; // クラスタ内の最も期限が近いメンバー
+        });
+      }
+      repCache[it.kanri] = rep;
+      return rep;
+    }
+    return src.slice().sort(function(a, b){
+      var c = cmpTuple(repOf(a), repOf(b));
+      if (c !== 0) return c;
+      return kanriCompareAsc_(a.kanri, b.kanri); // 同クラスタ内は管理番号昇順
+    });
   }
   // タブヘッダ: 発送待ち / 発送済み トグル
   var header = '<div class="tab-toolbar">' +
@@ -3652,7 +3693,7 @@ function renderHassouGrouped_(items) {
     '<span class="chip-count">' + countShipped + '</span></button>' +
   '</div>';
   var groupHtml = accounts.map(function(acc){
-    var arr = groups[acc].slice().sort(cmp);
+    var arr = sortAccount_(groups[acc]);
     var summary = '<summary>📮 ' + esc(acc) +
       '<span class="count">' + arr.length + '件</span></summary>';
     return '<details class="group-fold" open>' + summary +
@@ -7559,8 +7600,42 @@ function buildSummaryHtml_(d) {
 // ───────────────────────────────────────────────
 var BUNDLE_CACHE = {};
 
+// Phase1: 手動同梱グループの「相互表示」を完全化するための派生インデックス。
+// BUNDLE_CACHE の各エントリ members[] をグループ id 単位で統合し
+// 「管理番号 → グループ全員(自分含む)」を作る。
+// これにより、自分の bundle-of ポインタがサーバ側 #9(b) 自己修復で
+// dangling(=同梱なし扱い)に落ちていても、相手の members[] に自分が
+// 含まれていればグループを継承でき、片方向表示(=片方だけ📦が出る)を解消する。
+var BUNDLE_GROUPS_ = Object.create(null); // kanri -> string[] (グループ全員, 自分含む)
+
+function rebuildBundleGroups_() {
+  // グループ id 単位で members を統合（同一グループの重複をマージ）
+  var byId = Object.create(null);
+  Object.keys(BUNDLE_CACHE).forEach(function(k){
+    var info = BUNDLE_CACHE[k];
+    if (!info || !info.id || !Array.isArray(info.members)) return;
+    var set = byId[info.id] || (byId[info.id] = Object.create(null));
+    info.members.forEach(function(m){ if (m) set[m] = true; });
+    set[k] = true; // 念のため自分自身もグループに含める
+  });
+  var map = Object.create(null);
+  Object.keys(byId).forEach(function(id){
+    var members = Object.keys(byId[id]);
+    if (members.length < 2) return; // 1人グループは同梱の意味がない
+    members.forEach(function(m){ map[m] = members; });
+  });
+  BUNDLE_GROUPS_ = map;
+}
+
 function getBundleFromCache_(kanri) {
   return Object.prototype.hasOwnProperty.call(BUNDLE_CACHE, kanri) ? BUNDLE_CACHE[kanri] : undefined;
+}
+
+// 表示用: kanri が属する同梱グループ全員(自分含む)を返す。同梱なしなら null。
+// dangling な自己ポインタでも相手側 members 経由でグループを復元できる。
+function getBundleMembersForDisplay_(kanri) {
+  var g = BUNDLE_GROUPS_[kanri];
+  return (g && g.length > 1) ? g : null;
 }
 
 // 与えられた kanri 群を未解決のものだけ /api/bundles でバッチ取得し BUNDLE_CACHE に格納。
@@ -7582,6 +7657,8 @@ async function loadBundlesForKanris_(kanris) {
       // 失敗時はキャッシュ汚染しない（次回再試行）
     }
   }
+  // 取得結果を統合して同梱グループ派生マップを再構築（相互表示の要）
+  rebuildBundleGroups_();
 }
 
 function buildBundleHtml_(d) {
@@ -7735,6 +7812,8 @@ function invalidateBundlesAround_(kanris) {
     }
     delete BUNDLE_CACHE[k];
   });
+  // キャッシュ削除を派生マップへ反映（直後に再取得が走るが念のため整合させる）
+  rebuildBundleGroups_();
 }
 
 function rerenderBundleCard_(kanri) {
