@@ -3194,7 +3194,8 @@ function cardHtml(it) {
   if (STATE.tab === 'hassou' && st === '発送待ち') {
     var members = getBundleMembersForDisplay_(it.kanri);
     if (members) {
-      var others = members.filter(function(m){ return m !== it.kanri; });
+      var selfNorm = bundleNorm_(it.kanri);
+      var others = members.filter(function(m){ return bundleNorm_(m) !== selfNorm; });
       if (others.length) {
         var full = others.join('・');
         // カード上は最大3件まで表示（多数同梱でも崩れないよう「他N件」で省略）。
@@ -3658,19 +3659,19 @@ function renderHassouGrouped_(items) {
   function sortAccount_(src) {
     if (!clusterPending) return src.slice().sort(cmp);
     var inArr = Object.create(null);
-    src.forEach(function(it){ inArr[it.kanri] = it; });
+    src.forEach(function(it){ inArr[bundleNorm_(it.kanri)] = it; }); // 正規化キーで同梱メンバーを照合
     var repCache = Object.create(null);
     function repOf(it) {
       if (repCache[it.kanri]) return repCache[it.kanri];
       var members = getBundleMembersForDisplay_(it.kanri);
-      var coloc = members ? members.filter(function(m){ return inArr[m]; }) : null;
+      var coloc = members ? members.filter(function(m){ return inArr[bundleNorm_(m)]; }) : null;
       var rep;
       if (!coloc || coloc.length < 2) {
         rep = tupleOf(it); // 単独 or 同アカウント内に相手がいない → 自分のキー
       } else {
         rep = null;
         coloc.forEach(function(m){
-          var t = tupleOf(inArr[m]);
+          var t = tupleOf(inArr[bundleNorm_(m)]);
           if (!rep || cmpTuple(t, rep) < 0) rep = t; // クラスタ内の最も期限が近いメンバー
         });
       }
@@ -7600,29 +7601,80 @@ function buildSummaryHtml_(d) {
 // ───────────────────────────────────────────────
 var BUNDLE_CACHE = {};
 
-// Phase1: 手動同梱グループの「相互表示」を完全化するための派生インデックス。
-// BUNDLE_CACHE の各エントリ members[] をグループ id 単位で統合し
-// 「管理番号 → グループ全員(自分含む)」を作る。
-// これにより、自分の bundle-of ポインタがサーバ側 #9(b) 自己修復で
-// dangling(=同梱なし扱い)に落ちていても、相手の members[] に自分が
-// 含まれていればグループを継承でき、片方向表示(=片方だけ📦が出る)を解消する。
-var BUNDLE_GROUPS_ = Object.create(null); // kanri -> string[] (グループ全員, 自分含む)
+// 手動同梱グループの「相互表示」を完全化するための派生インデックス。
+// BUNDLE_CACHE の各エントリ {k, members[]} は「k と members 全員が同一グループ」を
+// 主張するので、それらを大文字小文字を無視して union し「連結成分」を作る。
+// これにより:
+//   (1) 自分の bundle-of ポインタがサーバ側 #9(b) 自己修復で dangling に落ちていても、
+//       相手の members[] に自分が含まれていればグループを継承できる（片方向表示の解消）。
+//   (2) 同じ物理商品が zC549/zc549 のように別ケースで KV 登録され、グループが
+//       分裂・孤児化していても、正規化キーで結べば 1 つの同梱グループに収束する
+//       （ZC549=2点 vs ZC596=4点 のような件数不一致を解消）。
+// キーは正規化(lower)、表示文字列は商品テーブル(STATE.items)の実ケースを最優先で採用する
+// （例: zk952 は小文字 k が正準で、ヒューリスティックな大文字化では誤る）。
+var BUNDLE_GROUPS_ = Object.create(null); // 正規化kanri(lower) -> string[] (表示用, 自分含む)
+
+function bundleNorm_(k){ return String(k == null ? '' : k).toLowerCase(); }
+
+// 商品リスト由来の「正規化kanri → 実ケース」マップ。表示ケースの真実はこちら。
+function buildCanonKanriMap_() {
+  var map = Object.create(null);
+  var lists = [
+    (typeof STATE !== 'undefined' && Array.isArray(STATE.items)) ? STATE.items : [],
+    (typeof STATE !== 'undefined' && Array.isArray(STATE.currentShiireProducts)) ? STATE.currentShiireProducts : []
+  ];
+  for (var i = 0; i < lists.length; i++) {
+    for (var j = 0; j < lists[i].length; j++) {
+      var kn = lists[i][j] && lists[i][j].kanri;
+      if (kn) { var n = bundleNorm_(kn); if (!map[n]) map[n] = kn; }
+    }
+  }
+  return map;
+}
 
 function rebuildBundleGroups_() {
-  // グループ id 単位で members を統合（同一グループの重複をマージ）
-  var byId = Object.create(null);
+  // 正規化キー上の union-find（連結成分）
+  var parent = Object.create(null);
+  function find(x){ while (parent[x] !== x){ parent[x] = parent[parent[x]]; x = parent[x]; } return x; }
+  function add(x){ if (parent[x] === undefined) parent[x] = x; }
+  function union(a, b){ add(a); add(b); var ra = find(a), rb = find(b); if (ra !== rb) parent[ra] = rb; }
+
+  // 表示用の元文字列を正規化キーごとに1つ保持（商品テーブルのケースを最優先）
+  var canon = buildCanonKanriMap_();
+  var display = Object.create(null);
+  function noteDisplay(orig){
+    var n = bundleNorm_(orig);
+    if (!n) return;
+    if (canon[n]) { display[n] = canon[n]; return; } // 商品テーブルのケースが最優先
+    if (!display[n]) display[n] = orig;              // 無ければ KV の元文字列
+  }
+
   Object.keys(BUNDLE_CACHE).forEach(function(k){
     var info = BUNDLE_CACHE[k];
     if (!info || !info.id || !Array.isArray(info.members)) return;
-    var set = byId[info.id] || (byId[info.id] = Object.create(null));
-    info.members.forEach(function(m){ if (m) set[m] = true; });
-    set[k] = true; // 念のため自分自身もグループに含める
+    var kn = bundleNorm_(k);
+    add(kn); noteDisplay(k);
+    info.members.forEach(function(m){
+      if (!m) return;
+      noteDisplay(m);
+      union(kn, bundleNorm_(m)); // k と各メンバーは同一グループ
+    });
   });
+
+  // 連結成分ごとにメンバー集合を作る
+  var comp = Object.create(null); // root -> {norm:true}
+  Object.keys(parent).forEach(function(n){
+    var r = find(n);
+    var set = comp[r] || (comp[r] = Object.create(null));
+    set[n] = true;
+  });
+
   var map = Object.create(null);
-  Object.keys(byId).forEach(function(id){
-    var members = Object.keys(byId[id]);
-    if (members.length < 2) return; // 1人グループは同梱の意味がない
-    members.forEach(function(m){ map[m] = members; });
+  Object.keys(comp).forEach(function(r){
+    var norms = Object.keys(comp[r]);
+    if (norms.length < 2) return; // 1人グループは同梱の意味がない
+    var members = norms.map(function(n){ return display[n] || n; });
+    norms.forEach(function(n){ map[n] = members; });
   });
   BUNDLE_GROUPS_ = map;
 }
@@ -7632,9 +7684,9 @@ function getBundleFromCache_(kanri) {
 }
 
 // 表示用: kanri が属する同梱グループ全員(自分含む)を返す。同梱なしなら null。
-// dangling な自己ポインタでも相手側 members 経由でグループを復元できる。
+// dangling な自己ポインタ・ケース不一致でも相手側 members 経由でグループを復元できる。
 function getBundleMembersForDisplay_(kanri) {
-  var g = BUNDLE_GROUPS_[kanri];
+  var g = BUNDLE_GROUPS_[bundleNorm_(kanri)];
   return (g && g.length > 1) ? g : null;
 }
 

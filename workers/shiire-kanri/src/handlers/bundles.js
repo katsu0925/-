@@ -37,6 +37,23 @@ const KEY_RE = /^[A-Za-z0-9_-]{1,32}$/;
 function bundleKey(id) { return 'bundle:' + id; }
 function ofKey(kanri)  { return 'bundle-of:' + kanri; }
 
+// 入力された管理番号を商品テーブル(D1)の正準ケースに解決する。
+// 同じ商品が zC549/zc549 のように別ケースで KV 登録され、bundle-of/グループが
+// 分裂・孤児化する（=「ZC549は2点なのにZC596は4点」表示崩れ）のを根本防止する。
+// 商品テーブルに無い番号や D1 不調時は入力をそのまま使う（同梱操作をブロックしない）。
+async function canonKanri(env, kanri) {
+  if (!kanri || !env || !env.DB) return kanri;
+  try {
+    const row = await env.DB
+      .prepare('SELECT kanri FROM products WHERE kanri = ?1 COLLATE NOCASE LIMIT 1')
+      .bind(kanri)
+      .first();
+    return (row && row.kanri) ? row.kanri : kanri;
+  } catch (e) {
+    return kanri;
+  }
+}
+
 async function readBundle(env, id) {
   if (!id) return null;
   const raw = await env.CACHE.get(bundleKey(id), 'json');
@@ -85,9 +102,11 @@ async function removeFromCurrentGroup(env, kanri) {
 export async function toggleBundle(request, env) {
   let body;
   try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
-  const kanri = String(body && body.kanri || '').trim();
-  const target = body && body.target ? String(body.target).trim() : '';
+  let kanri = String(body && body.kanri || '').trim();
+  let target = body && body.target ? String(body.target).trim() : '';
   if (!KEY_RE.test(kanri)) return jsonError('bad kanri', 400);
+  // ケース混在によるグループ分裂を防ぐため、保存前に商品テーブルの正準ケースへ解決
+  kanri = await canonKanri(env, kanri);
 
   // target 無し → 解除のみ
   if (!target) {
@@ -97,6 +116,7 @@ export async function toggleBundle(request, env) {
   if (!KEY_RE.test(target) && !target.startsWith('g:')) {
     return jsonError('bad target', 400);
   }
+  if (!target.startsWith('g:')) target = await canonKanri(env, target);
   if (target === kanri) return jsonError('same kanri', 400);
 
   // 1) target からグループ ID を解決
