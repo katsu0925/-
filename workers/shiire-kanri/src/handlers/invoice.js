@@ -51,6 +51,8 @@ export async function calcInvoicePreview(request, env, user) {
   const payload = { ym };
   const asStaffEmail = String(body.asStaffEmail || '').trim();
   if (asStaffEmail) payload.asStaffEmail = asStaffEmail;
+  // 手動明細(追加報酬・控除)があればプレビュー計算に反映する。
+  if (Array.isArray(body.manualItems)) payload.manualItems = body.manualItems;
   const r = await callGas(env, 'calcInvoicePreview', payload, user);
   if (!r.ok) return jsonError(r.error || 'gas error', r.error && r.error.indexOf('権限') >= 0 ? 403 : 502);
   // GAS は preview を直接返す（ラップしていない）。フラグ類含めて全部そのまま透過する。
@@ -76,7 +78,10 @@ export async function createInvoice(request, env, user) {
   try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
   const ym = String(body.ym || '').trim();
   if (!ym) return jsonError('ym required', 400);
-  const r = await callGas(env, 'createInvoice', { ym }, user);
+  const payload = { ym, force: !!body.force };
+  // 作成時に手動明細(追加報酬・控除)を一緒に確定する。
+  if (Array.isArray(body.manualItems)) payload.manualItems = body.manualItems;
+  const r = await callGas(env, 'createInvoice', payload, user);
   if (!r.ok) return jsonError(r.error || 'gas error', 502);
   return jsonOk({
     invoice: r.invoice || null,
@@ -84,6 +89,23 @@ export async function createInvoice(request, env, user) {
     overwritten: !!r.overwritten,
     superseded: r.superseded,
   });
+}
+
+// スタッフが自分の請求書の手動明細(自role分)を追加/編集/削除する。
+// GAS 側で「自分の請求書か」「支払済み/取消済みでないか」を検証する。
+export async function updateManualItems(request, env, user) {
+  let body;
+  try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
+  const invoiceNo = String(body.no || body.invoiceNo || '').trim();
+  if (!invoiceNo) return jsonError('invoiceNo required', 400);
+  if (!Array.isArray(body.manualItems)) return jsonError('manualItems required', 400);
+  const r = await callGas(env, 'updateManualItems', { no: invoiceNo, manualItems: body.manualItems }, user);
+  if (!r.ok) {
+    const e = String(r.error || '');
+    const code = (e.indexOf('権限') >= 0 || e.indexOf('他のスタッフ') >= 0 || e.indexOf('本人') >= 0) ? 403 : 502;
+    return jsonError(r.error || 'gas error', code);
+  }
+  return jsonOk({ updated: true, invoice: r.invoice || r });
 }
 
 export async function downloadInvoicePdf(request, env, user) {
@@ -163,6 +185,29 @@ export async function adminUpdateInvoiceStatus(request, env, user) {
   const r = await callGas(env, 'adminInv_updateInvoiceStatus', body || {}, user);
   if (!r.ok) return jsonError(r.error || 'gas error', r.error && r.error.indexOf('管理者') >= 0 ? 403 : 502);
   return jsonOk({ updated: true });
+}
+
+// 管理者が任意スタッフの請求書の手動明細(管理者role分)を追加/編集する。
+export async function adminUpdateManualItems(request, env, user) {
+  let body;
+  try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
+  const invoiceNo = String(body.no || body.invoiceNo || '').trim();
+  if (!invoiceNo) return jsonError('invoiceNo required', 400);
+  if (!Array.isArray(body.manualItems)) return jsonError('manualItems required', 400);
+  const r = await callGas(env, 'adminInv_updateManualItems', { no: invoiceNo, manualItems: body.manualItems }, user);
+  if (!r.ok) return jsonError(r.error || 'gas error', r.error && r.error.indexOf('管理者') >= 0 ? 403 : 502);
+  return jsonOk({ updated: true, invoice: r.invoice || r });
+}
+
+// 管理者が自動計算値の誤りを作業データ修正後に再発行する(A案・再計算)。
+export async function adminRecalcInvoice(request, env, user) {
+  let body;
+  try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
+  const invoiceNo = String(body.no || body.invoiceNo || '').trim();
+  if (!invoiceNo) return jsonError('invoiceNo required', 400);
+  const r = await callGas(env, 'adminInv_recalcInvoice', { no: invoiceNo }, user);
+  if (!r.ok) return jsonError(r.error || 'gas error', r.error && r.error.indexOf('管理者') >= 0 ? 403 : 502);
+  return jsonOk({ recalculated: r.recalculated !== false, 再計算元: r.再計算元, invoice: r.invoice || r });
 }
 
 export async function adminGetGraceRates(request, env, user) {

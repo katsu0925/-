@@ -18,8 +18,9 @@ import { getVapidPublicKey, subscribePush, unsubscribePush, getPushPrefs, setPus
 import {
   invoiceMe, listMyInvoices, getInvoiceDetail, listMyAvailableMonths,
   calcInvoicePreview, getInvoiceProfile, saveInvoiceProfile,
-  createInvoice, downloadInvoicePdf, requestInvoiceRevision, listMyRevisions,
+  createInvoice, updateManualItems, downloadInvoicePdf, requestInvoiceRevision, listMyRevisions,
   adminListInvoices, adminListRevisions, adminUpdateRevision, adminUpdateInvoiceStatus,
+  adminUpdateManualItems, adminRecalcInvoice,
   adminGetGraceRates, adminSaveGraceRates, adminGetSettings, adminSaveSettings,
 } from './handlers/invoice.js';
 
@@ -344,6 +345,9 @@ export default {
     if (path === '/api/invoice/create' && request.method === 'POST') {
       return withIdempotency(request, env, () => createInvoice(request, env, user));
     }
+    if (path === '/api/invoice/manual-items' && request.method === 'POST') {
+      return withIdempotency(request, env, () => updateManualItems(request, env, user));
+    }
     if (path === '/api/invoice/pdf' && request.method === 'GET') {
       return downloadInvoicePdf(request, env, user);
     }
@@ -366,6 +370,12 @@ export default {
     }
     if (path === '/api/admin-invoice/status' && request.method === 'POST') {
       return withIdempotency(request, env, () => adminUpdateInvoiceStatus(request, env, user));
+    }
+    if (path === '/api/admin-invoice/manual-items' && request.method === 'POST') {
+      return withIdempotency(request, env, () => adminUpdateManualItems(request, env, user));
+    }
+    if (path === '/api/admin-invoice/recalc' && request.method === 'POST') {
+      return withIdempotency(request, env, () => adminRecalcInvoice(request, env, user));
     }
     if (path === '/api/admin-invoice/grace-rates' && request.method === 'GET') {
       return adminGetGraceRates(request, env, user);
