@@ -78,6 +78,7 @@ function doPost(e) {
       case 'saveInvoiceProfile':         result = staff_saveInvoiceProfile(body.payload || {}, email); break;
       case 'listMyAvailableMonths':      result = staff_listMyAvailableMonths(body.payload || {}, email); break;
       case 'createInvoice':              result = staff_createInvoice(body.payload || {}, email); break;
+      case 'updateManualItems':          result = staff_updateManualItems(body.payload || {}, email); break;
       case 'downloadInvoicePdf':         result = staff_downloadInvoicePdf(body.payload || {}, email); break;
       case 'requestInvoiceRevision':     result = staff_requestInvoiceRevision(body.payload || {}, email); break;
       case 'listMyRevisions':            result = staff_listMyRevisions(body.payload || {}, email); break;
@@ -88,6 +89,8 @@ function doPost(e) {
       case 'adminInv_listAllRevisions':  result = adminInv_listAllRevisions(body.payload || {}, email); break;
       case 'adminInv_respondRevision':   result = adminInv_respondRevision(body.payload || {}, email); break;
       case 'adminInv_updateInvoiceStatus': result = adminInv_updateInvoiceStatus(body.payload || {}, email); break;
+      case 'adminInv_updateManualItems': result = adminInv_updateManualItems(body.payload || {}, email); break;
+      case 'adminInv_recalcInvoice':     result = adminInv_recalcInvoice(body.payload || {}, email); break;
       case 'adminInv_listGraceRates':    result = adminInv_listGraceRates(body.payload || {}, email); break;
       case 'adminInv_saveGraceRates':    result = adminInv_saveGraceRates(body.payload || {}, email); break;
       case 'adminInv_getAdminSettings':  result = adminInv_getAdminSettings(body.payload || {}, email); break;

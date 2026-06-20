@@ -42,7 +42,8 @@ var INV_WORKER_EXT_HEADERS = [
 //  Z=採寸単価, AA=撮影単価, AB=出品単価, AC=発送単価,
 //  AD=税込合計, AE=控除可能率, AF=調整額, AG=振込元銀行, AH=振込手数料, AI=請求額,
 //  AJ=ステータス, AK=作成日時, AL=更新日時, AM=支払日, AN=スナップショットJSON, AO=管理者メモ,
-//  AP=PDFダウンロード回数, AQ=最終ダウンロード日時, AR=PDFファイルID
+//  AP=PDFダウンロード回数, AQ=最終ダウンロード日時, AR=PDFファイルID,
+//  AS=手動明細JSON（追加報酬・控除の自由明細を格納する追記レイヤー。自動算出値は不変）
 var INV_HISTORY_HEADERS = [
   '請求書番号', '請求月', 'スタッフ名', 'スタッフメール',
   '屋号', '本名', '郵便番号', '住所', '電話', 'インボイス番号',
@@ -52,7 +53,7 @@ var INV_HISTORY_HEADERS = [
   '採寸単価', '撮影単価', '出品単価', '発送単価',
   '税込合計', '控除可能率', '調整額', '振込元銀行', '振込手数料', '請求額',
   'ステータス', '作成日時', '更新日時', '支払日', 'スナップショットJSON', '管理者メモ',
-  'PDFダウンロード回数', '最終ダウンロード日時', 'PDFファイルID'
+  'PDFダウンロード回数', '最終ダウンロード日時', 'PDFファイルID', '手動明細JSON'
 ];
 
 // 請求書履歴 ステータス（7段階）
@@ -158,6 +159,11 @@ function inv_ensureSheet_(ss, name, headers) {
   var curLastCol = Math.max(sh.getLastColumn(), 1);
   var cur = sh.getRange(1, 1, 1, curLastCol).getValues()[0]
     .map(function(v){ return String(v || '').trim(); });
+  // 先にグリッド列数を確保する（getRange でヘッダーを書く前に行うこと。
+  // 列数が足りない状態で getRange(1, headers.length) を呼ぶと範囲外エラーになるため）。
+  if (sh.getMaxColumns() < headers.length) {
+    sh.insertColumnsAfter(sh.getMaxColumns(), headers.length - sh.getMaxColumns());
+  }
   // 完全一致か（足りない場合は伸ばす）
   var changed = false;
   for (var i = 0; i < headers.length; i++) {
@@ -165,9 +171,6 @@ function inv_ensureSheet_(ss, name, headers) {
       sh.getRange(1, i + 1).setValue(headers[i]).setFontWeight('bold');
       changed = true;
     }
-  }
-  if (sh.getMaxColumns() < headers.length) {
-    sh.insertColumnsAfter(sh.getMaxColumns(), headers.length - sh.getMaxColumns());
   }
   sh.setFrozenRows(1);
   return 'existing sheet: ' + name + (changed ? ' (headers updated)' : ' (headers ok)');

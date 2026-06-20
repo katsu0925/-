@@ -341,14 +341,17 @@ function inv_getStaffRates_(staffRow) {
 
 // payload: { ym, email }
 // 戻り値: 請求書1枚分の全フィールド (CSVと同じ構造)
-function inv_calcInvoicePreview_(email, ym) {
+// manualItems(任意): 手動明細レイヤー（{label,amount,...} の配列 or JSON文字列）。
+function inv_calcInvoicePreview_(email, ym, manualItems) {
   var me = inv_resolveStaffByEmail_(email);
-  return inv_calcInvoicePreviewForStaff_(me, ym);
+  return inv_calcInvoicePreviewForStaff_(me, ym, manualItems);
 }
 
 // 解決済みの me を直接受け取って計算する内部版。
 // inv_createInvoice_ から呼ぶことで resolveStaffByEmail_ の二重実行を避ける。
-function inv_calcInvoicePreviewForStaff_(me, ym) {
+// manualItems(任意): 手動明細レイヤー。自動算出値は不変のまま、±の手動明細を加算して
+//   税込合計→調整額→振込手数料→請求額の連鎖を再計算する。空なら従来と完全に同じ結果。
+function inv_calcInvoicePreviewForStaff_(me, ym, manualItems) {
   ym = inv_norm_(ym);
   if (!/^\d{4}\/\d{2}$/.test(ym)) throw new Error('請求月の形式が不正: ' + ym);
   var summary = inv_getMonthlySummary_(me.name, ym);
@@ -402,17 +405,22 @@ function inv_calcInvoicePreviewForStaff_(me, ym) {
   var hasInvoiceNo = !!me.profile.インボイス登録番号;
   var 控除可能率 = hasInvoiceNo ? 1.00 : grace.可能率;
   var 控除不可率 = hasInvoiceNo ? 0.00 : grace.不可率;
-  // 調整額 = 税込合計 × 10/110 × 控除不可率 (買い手=管理者側の控除できない仕入税額分)
-  var 調整額 = Math.round(税込合計 * (10/110) * 控除不可率);
 
   // 振込元銀行: 管理者設定の最初の候補をデフォルトとする
   var 振込元銀行 = (settings && settings.振込元銀行候補 && settings.振込元銀行候補[0]) || '';
   var スタッフ振込先銀行 = me.profile.銀行名;
 
-  // 概算請求額 (手数料計算のために一旦算出)
-  var 概算請求額 = 税込合計 - 調整額;
-  var 振込手数料 = inv_calcTransferFee_(振込元銀行, スタッフ振込先銀行, 概算請求額, settings);
-  var 請求額 = Math.round(概算請求額 - 振込手数料);
+  // ── 手動明細レイヤーを加算して調整額→振込手数料→請求額を再計算 ──
+  // 自動算出値(税込合計自動)は不変。手動明細(±)を加えた総額で経過措置調整・手数料・請求額を出し直す。
+  // manualItems が空なら 手動明細合計=0 となり、税込合計/請求額は従来と完全に一致する。
+  var applied = inv_applyManualItems_({
+    税込合計自動: 税込合計,
+    控除可能率: 控除可能率,
+    控除不可率: 控除不可率,
+    振込元銀行: 振込元銀行,
+    スタッフ振込先銀行: スタッフ振込先銀行,
+    settings: settings
+  }, manualItems);
 
   return {
     ok: true,
@@ -436,16 +444,262 @@ function inv_calcInvoicePreviewForStaff_(me, ym) {
     集計: {
       作業合計: 作業合計,
       売上勝ち: 売上勝ち,
-      税込合計: 税込合計,
+      税込合計自動: 税込合計,            // 手動明細加算前(自動算出値・不変)
+      手動明細合計: applied.手動明細合計,  // 手動明細(±)の合計
+      税込合計: applied.税込合計,        // 手動明細加算後の総額（小計表示・PDFの基礎）
       控除可能率: 控除可能率, 控除不可率: 控除不可率,
-      調整額: 調整額,
-      振込元銀行: 振込元銀行, 振込手数料: 振込手数料,
-      請求額: 請求額
+      調整額: applied.調整額,
+      振込元銀行: 振込元銀行, 振込手数料: applied.振込手数料,
+      請求額: applied.請求額
     },
+    手動明細: applied.手動明細,
     報酬管理反映済み: summary.found,
     インボイス登録済み: hasInvoiceNo,
     経過措置: grace
   };
+}
+
+// ============================================================
+// 手動明細レイヤー（追加報酬・控除の自由明細）
+// ============================================================
+
+// 請求書履歴シートに '手動明細JSON' 列が無ければ末尾に追加する（自己修復マイグレーション）。
+// inv_setupAllSheets() をリモート実行できない環境でも、作成/編集の初回書き込み時に列を確保する。
+// 列の位置はヘッダー名で動的解決するため AS=45 固定に依存しない。既に存在すれば read のみで終了。
+function inv_ensureManualCol_(sh) {
+  if (!sh) return;
+  var lastCol = Math.max(sh.getLastColumn(), 1);
+  var hdr = sh.getRange(1, 1, 1, lastCol).getValues()[0]
+    .map(function(v){ return String(v || '').trim(); });
+  if (hdr.indexOf('手動明細JSON') >= 0) return; // 既に存在
+  var newCol = lastCol + 1;
+  if (sh.getMaxColumns() < newCol) {
+    sh.insertColumnsAfter(sh.getMaxColumns(), newCol - sh.getMaxColumns());
+  }
+  sh.getRange(1, newCol).setValue('手動明細JSON').setFontWeight('bold');
+}
+
+// 手動明細の正規化。配列 or JSON文字列を受け取り、{id,label,amount,addedByEmail,addedByRole,addedAt}
+// の配列に整える。amount は整数(±)。label と amount が両方空の行は捨てる。
+function inv_normalizeManualItems_(raw) {
+  var arr = raw;
+  if (typeof raw === 'string') {
+    try { arr = JSON.parse(raw || '[]'); } catch (e) { arr = []; }
+  }
+  if (!Array.isArray(arr)) return [];
+  var out = [];
+  for (var i = 0; i < arr.length; i++) {
+    var it = arr[i] || {};
+    var label = inv_norm_(it.label != null ? it.label : it['名目']);
+    var amount = inv_toNum_(it.amount != null ? it.amount : it['金額']);
+    if (!label && !amount) continue; // 空行は捨てる
+    out.push({
+      id: inv_norm_(it.id) || ('m' + (i + 1)),
+      label: label,
+      amount: Math.round(amount),
+      addedByEmail: inv_norm_(it.addedByEmail),
+      addedByRole: (it.addedByRole === 'admin') ? 'admin' : 'staff',
+      addedAt: inv_norm_(it.addedAt)
+    });
+  }
+  return out;
+}
+
+// 自動算出ベース(税込合計自動)に手動明細を加算し、調整額→概算請求額→振込手数料→請求額の
+// 連鎖を再計算する共有ヘルパー。プレビュー計算・作成・再編集の全経路で同一ロジックを使う。
+// base に必要なキー: 税込合計自動(number), 控除不可率(number),
+//   振込元銀行(string), スタッフ振込先銀行(string), settings(object)
+function inv_applyManualItems_(base, manualItems) {
+  var items = inv_normalizeManualItems_(manualItems);
+  var 手動明細合計 = 0;
+  for (var i = 0; i < items.length; i++) 手動明細合計 += items[i].amount;
+  var 税込合計 = Math.round((base.税込合計自動 || 0) + 手動明細合計);
+  var 控除不可率 = base.控除不可率 || 0;
+  // 調整額 = 税込合計 × 10/110 × 控除不可率 (買い手=管理者側の控除できない仕入税額分)
+  var 調整額 = Math.round(税込合計 * (10/110) * 控除不可率);
+  var 概算請求額 = 税込合計 - 調整額;
+  var 振込手数料 = inv_calcTransferFee_(base.振込元銀行, base.スタッフ振込先銀行, 概算請求額, base.settings);
+  var 請求額 = Math.round(概算請求額 - 振込手数料);
+  return {
+    手動明細: items,
+    手動明細合計: 手動明細合計,
+    税込合計: 税込合計,
+    調整額: 調整額,
+    概算請求額: 概算請求額,
+    振込手数料: 振込手数料,
+    請求額: 請求額
+  };
+}
+
+// 既存請求書の再計算ベースを復元する。請求書は「凍結された書類」なので、再編集時も
+// 自動算出値・控除率・銀行情報は作成時のスナップショットを優先して使う（ソースデータの
+// 後日変更で請求額が勝手にブレないため）。スナップショットが無い旧データはシート列で代替。
+function inv_baseForRecompute_(hit) {
+  var obj = hit.obj || {};
+  var snap = obj.スナップショット;
+  var 税込合計自動, 控除不可率, 振込元銀行, スタッフ振込先銀行, settings = null;
+  if (snap && snap.集計) {
+    var s = snap.集計;
+    // 税込合計自動 は本バージョン以降で保存。旧スナップショットは手動明細が無いので 税込合計 と等価。
+    税込合計自動 = (s.税込合計自動 != null) ? inv_toNum_(s.税込合計自動) : inv_toNum_(s.税込合計);
+    控除不可率 = (s.控除不可率 != null) ? inv_toNum_(s.控除不可率) : (1 - inv_toNum_(s.控除可能率));
+    振込元銀行 = inv_norm_(s.振込元銀行) || inv_norm_(obj.振込元銀行);
+    スタッフ振込先銀行 = inv_norm_((snap.プロフィール || {}).銀行名) || inv_norm_(obj.銀行名);
+    settings = snap.管理者設定 || null;
+  } else {
+    税込合計自動 = inv_toNum_(obj.税込合計);
+    控除不可率 = 1 - inv_toNum_(obj.控除可能率);
+    振込元銀行 = inv_norm_(obj.振込元銀行);
+    スタッフ振込先銀行 = inv_norm_(obj.銀行名);
+  }
+  if (控除不可率 < 0) 控除不可率 = 0;
+  if (!settings) {
+    try { var ar = inv_getAdminSettings_(); settings = (ar && ar.settings) || null; } catch (e) { settings = null; }
+  }
+  return {
+    税込合計自動: 税込合計自動,
+    控除不可率: 控除不可率,
+    振込元銀行: 振込元銀行,
+    スタッフ振込先銀行: スタッフ振込先銀行,
+    settings: settings
+  };
+}
+
+// 手動明細の2サブレイヤー(staff/admin)を編集者ロール基準でマージする。
+// editorRole が触れるのは同ロールの行だけ。他ロールの行(preserved)はそのまま温存する。
+// 既存行と同 id の場合は addedAt(初回追加時刻)を引き継ぐ。
+function inv_mergeManualItems_(existing, incoming, editorRole, editorEmail, nowStr) {
+  existing = inv_normalizeManualItems_(existing);
+  incoming = inv_normalizeManualItems_(incoming);
+  var preserved = [];
+  var byId = {};
+  for (var i = 0; i < existing.length; i++) {
+    if (existing[i].addedByRole === editorRole) byId[existing[i].id] = existing[i];
+    else preserved.push(existing[i]);
+  }
+  var mine = [];
+  for (var j = 0; j < incoming.length; j++) {
+    var it = incoming[j];
+    var prev = it.id && byId[it.id];
+    mine.push({
+      id: (it.id && /^[a-zA-Z]/.test(it.id)) ? it.id : (editorRole.charAt(0) + (j + 1) + '-' + nowStr.replace(/\D/g, '').slice(-6)),
+      label: it.label,
+      amount: it.amount,
+      addedByEmail: editorEmail,
+      addedByRole: editorRole,
+      addedAt: (prev && prev.addedAt) ? prev.addedAt : nowStr
+    });
+  }
+  return preserved.concat(mine);
+}
+
+// 既存請求書の手動明細レイヤーを差し替え、金額連鎖を再計算してシート/スナップショットへ書き戻す。
+// isAdminCall=false: スタッフ本人が自分の請求書の staff 行のみ更新（admin 行・自動値は不変）。
+// isAdminCall=true : 管理者が任意スタッフの admin 行を更新（staff 行・自動値は不変）。
+// 支払済み・取消済みは編集不可。金額が変わるため Drive の PDF キャッシュは破棄する。
+function inv_updateManualItemsForInvoice_(no, callerEmail, incomingItems, isAdminCall) {
+  no = inv_norm_(no);
+  if (!no) throw new Error('請求書番号が空です');
+  var caller = inv_resolveStaffByEmail_(inv_currentEmail_(callerEmail));
+  if (!caller || !caller.ok) throw new Error('スタッフ情報が取得できません');
+  if (isAdminCall && !caller.isAdmin) throw new Error('管理者権限がありません');
+
+  var result = inv_withLock_(function(){
+    // 手動明細JSON列を自己修復してから読む（旧データのシートにも列を確保する）
+    var ssH = inv_getSS_();
+    var histSh = ssH.getSheetByName(INV_SHEET.HISTORY);
+    if (histSh) inv_ensureManualCol_(histSh);
+    var hit = inv_findInvoiceByNo_(no);
+    if (!hit) throw new Error('請求書が見つかりません: ' + no);
+    var obj = hit.obj;
+    if (!isAdminCall && obj.スタッフ名 !== caller.name) throw new Error('他のスタッフの請求書は編集できません');
+    if (obj.ステータス === '取消済み') throw new Error('取消済みの請求書は編集できません');
+    if (obj.ステータス === '支払済み') throw new Error('支払済みの請求書は編集できません');
+
+    var nowStr = inv_nowISO_();
+    var editorRole = isAdminCall ? 'admin' : 'staff';
+    var editorEmail = caller.email;
+    var merged = inv_mergeManualItems_(obj.手動明細, incomingItems, editorRole, editorEmail, nowStr);
+    var base = inv_baseForRecompute_(hit);
+    var applied = inv_applyManualItems_(base, merged);
+
+    // スナップショットの集計を差し替える（自動算出ベースは保持）。手動明細も最新化。
+    var snap = obj.スナップショット;
+    if (!snap || typeof snap !== 'object') snap = {};
+    if (!snap.集計) snap.集計 = {};
+    snap.集計.税込合計自動 = base.税込合計自動;
+    snap.集計.手動明細合計 = applied.手動明細合計;
+    snap.集計.税込合計 = applied.税込合計;
+    snap.集計.控除不可率 = base.控除不可率;
+    snap.集計.調整額 = applied.調整額;
+    snap.集計.振込手数料 = applied.振込手数料;
+    snap.集計.請求額 = applied.請求額;
+    snap.手動明細 = applied.手動明細;
+
+    // シート書き戻し（変更があった列のみ）
+    var sh = hit.sheet, idx = hit.hmap.idx, r = obj._row;
+    function w(name, val) { if (name in idx) sh.getRange(r, idx[name] + 1).setValue(val); }
+    w('税込合計', applied.税込合計);
+    w('調整額', applied.調整額);
+    w('振込手数料', applied.振込手数料);
+    w('請求額', applied.請求額);
+    w('手動明細JSON', JSON.stringify(applied.手動明細));
+    w('スナップショットJSON', JSON.stringify(snap));
+    w('更新日時', nowStr);
+
+    // 監査ログを管理者メモへ追記
+    if ('管理者メモ' in idx) {
+      var roleLabel = isAdminCall ? '管理者' : 'スタッフ';
+      var memoLine = '[' + nowStr + '] ' + roleLabel + '(' + editorEmail + ') 手動明細を更新: '
+                   + applied.手動明細.length + '件 / 手動計 ¥' + Number(applied.手動明細合計).toLocaleString('ja-JP')
+                   + ' → 請求額 ¥' + Number(applied.請求額).toLocaleString('ja-JP');
+      var prevMemo = String(obj.管理者メモ || '');
+      w('管理者メモ', (prevMemo ? prevMemo + '\n' : '') + memoLine);
+    }
+
+    // 金額が変わったので Drive の PDF キャッシュを破棄し、次回DL時に再生成させる
+    if ('PDFファイルID' in idx) {
+      var oldFileId = inv_norm_(obj.PDFファイルID);
+      if (oldFileId) { try { DriveApp.getFileById(oldFileId).setTrashed(true); } catch (e) {} }
+      w('PDFファイルID', '');
+    }
+
+    // 返却用にフラットオブジェクトを最新化
+    obj.税込合計 = applied.税込合計;
+    obj.調整額 = applied.調整額;
+    obj.振込手数料 = applied.振込手数料;
+    obj.請求額 = applied.請求額;
+    obj.手動明細 = applied.手動明細;
+    obj.PDFファイルID = '';
+    obj.更新日時 = nowStr;
+    obj.スナップショット = snap;
+    return {
+      ok: true,
+      請求書番号: no,
+      editorRole: editorRole,
+      手動明細: applied.手動明細,
+      手動明細合計: applied.手動明細合計,
+      集計: snap.集計,
+      invoice: obj,
+      ownerEmail: inv_norm_(obj.スタッフメール),
+      ownerName: obj.スタッフ名,
+      請求月: obj.請求月
+    };
+  });
+
+  // ロック外: 管理者がスタッフの請求書を編集した場合はスタッフへ通知
+  try {
+    if (result && result.editorRole === 'admin' && result.ownerEmail
+        && result.ownerEmail !== inv_norm_(caller.email)) {
+      inv_mail_manualItemsEdited_(result.invoice, caller.email, {
+        手動明細合計: result.手動明細合計,
+        請求額: (result.集計 && result.集計.請求額) || 0
+      });
+    }
+  } catch (e) {
+    console.error('inv_mail_manualItemsEdited_ 失敗: ' + (e && e.message || e));
+  }
+  return result;
 }
 
 // ============================================================
@@ -723,6 +977,11 @@ function inv_historyRowToObject_(row, hmap) {
     var s = v('スナップショットJSON');
     if (s) snap = JSON.parse(String(s));
   } catch (e) { snap = null; }
+  var manual = [];
+  try {
+    var mj = v('手動明細JSON');
+    if (mj) manual = inv_normalizeManualItems_(String(mj));
+  } catch (e) { manual = []; }
   return {
     請求書番号:   inv_norm_(v('請求書番号')),
     請求月:       inv_toYm_(v('請求月')),
@@ -767,6 +1026,7 @@ function inv_historyRowToObject_(row, hmap) {
     PDFダウンロード回数: inv_toNum_(v('PDFダウンロード回数')),
     最終ダウンロード日時: inv_toDateTimeStr_(v('最終ダウンロード日時')),
     PDFファイルID: inv_norm_(v('PDFファイルID')),
+    手動明細: manual,
     スナップショット: snap
   };
 }
@@ -930,7 +1190,7 @@ function staff_calcInvoicePreview(payload, email) {
   try {
     var ym = inv_norm_((payload || {}).ym) || inv_prevYm_();
     var me = inv_resolveScopedStaff_(inv_currentEmail_(email), payload);
-    var preview = inv_calcInvoicePreviewForStaff_(me, ym);
+    var preview = inv_calcInvoicePreviewForStaff_(me, ym, (payload || {}).manualItems);
     return preview;
   } catch (e) {
     return { ok: false, error: String(e && e.message || e) };
@@ -1018,6 +1278,7 @@ function inv_createInvoice_(email, ym, options) {
     var ss = inv_getSS_();
     var sh = ss.getSheetByName(INV_SHEET.HISTORY);
     if (!sh) throw new Error('請求書履歴シートがありません。inv_setupAllSheets() を実行してください。');
+    inv_ensureManualCol_(sh); // 手動明細JSON列を自己修復（この後の readAllHistory/hmap に反映させる）
 
     // 個人情報チェック
     if (!me.profile.本名)   throw new Error('プロフィール: 本名 が未登録');
@@ -1059,7 +1320,7 @@ function inv_createInvoice_(email, ym, options) {
       flushColumn_(updateColIdx, rowsAsc.map(function(r){ return { row: r._row, v: nowPre }; }));
     }
 
-    var preview = inv_calcInvoicePreviewForStaff_(me, ym);
+    var preview = inv_calcInvoicePreviewForStaff_(me, ym, options.manualItems);
     var seq = inv_nextSeq_(data, ym, me.row);
     var invoiceNo = inv_buildInvoiceNo_(ym, me.row, seq);
     var createdAt = inv_nowISO_();
@@ -1117,6 +1378,7 @@ function inv_createInvoice_(email, ym, options) {
     set('更新日時', now);
     set('支払日', '');
     set('スナップショットJSON', JSON.stringify(preview));
+    set('手動明細JSON', JSON.stringify(preview.手動明細 || []));
     set('管理者メモ', '');
     set('PDFダウンロード回数', 0);
     set('最終ダウンロード日時', '');
@@ -1248,12 +1510,29 @@ function inv_buildInvoicePdfDownload_(no, email) {
 // ============================================================
 
 // 請求書作成
-//   payload: { ym, force? }
+//   payload: { ym, force?, manualItems? }
+//   manualItems = 自由明細（追加報酬・控除）の配列。作成前プレビューで編集した内容を確定保存する。
 function staff_createInvoice(payload, email) {
   try {
     payload = payload || {};
     var ym = inv_norm_(payload.ym);
-    return inv_createInvoice_(inv_currentEmail_(email), ym, { force: !!payload.force });
+    return inv_createInvoice_(inv_currentEmail_(email), ym, {
+      force: !!payload.force,
+      manualItems: payload.manualItems
+    });
+  } catch (e) {
+    return { ok: false, error: String(e && e.message || e) };
+  }
+}
+
+// 自分の請求書の手動明細を更新（自由明細レイヤーのみ・自動算出値は不変）
+//   payload: { no, manualItems }
+//   スタッフは自分の請求書の「自分が追加した(staff)行」だけを差し替えられる。
+//   管理者が追加した(admin)行・自動算出値・他人の請求書には触れない。
+function staff_updateManualItems(payload, email) {
+  try {
+    payload = payload || {};
+    return inv_updateManualItemsForInvoice_(inv_norm_(payload.no), inv_currentEmail_(email), payload.manualItems, false);
   } catch (e) {
     return { ok: false, error: String(e && e.message || e) };
   }

@@ -513,3 +513,45 @@ function adminInv_saveAdminSettings(payload, email) {
     return { ok: false, error: 'adminInv_saveAdminSettings: ' + String(e && e.message || e) };
   }
 }
+
+// 管理者が任意スタッフの請求書の手動明細(admin行)を更新する
+// payload: { no, manualItems }  manualItems は admin レイヤーの全置換（staff行・自動値は不変）
+function adminInv_updateManualItems(payload, email) {
+  try {
+    var me = adminInv_assertAdmin_(email);
+    payload = payload || {};
+    return inv_updateManualItemsForInvoice_(inv_norm_(payload.no), me.email, payload.manualItems, true);
+  } catch (e) {
+    return { ok: false, error: 'adminInv_updateManualItems: ' + String(e && e.message || e) };
+  }
+}
+
+// 請求書の自動算出値を「最新のソースデータ(報酬管理/商品管理/管理者設定)」で再計算し再発行する（A案）
+// 手動明細は引き継ぐ。inv_createInvoice_ が同月の有効行を取消にしてから新 seq で発行する。
+// payload: { no }
+function adminInv_recalcInvoice(payload, email) {
+  try {
+    var me = adminInv_assertAdmin_(email);
+    payload = payload || {};
+    var no = inv_norm_(payload.no);
+    if (!no) throw new Error('請求書番号が空です');
+    var hit = inv_findInvoiceByNo_(no);
+    if (!hit) throw new Error('請求書が見つかりません: ' + no);
+    var obj = hit.obj;
+    if (obj.ステータス === '支払済み') throw new Error('支払済みの請求書は再計算できません（先にステータスを戻してください）');
+    var ym = inv_norm_(obj.請求月);
+    var staffEmail = inv_norm_(obj.スタッフメール);
+    if (!ym) throw new Error('請求月が取得できません');
+    if (!staffEmail) throw new Error('スタッフメールが取得できません');
+    // 既存の手動明細(staff/admin両レイヤー)を引き継いで再発行
+    var manualItems = obj.手動明細 || [];
+    var res = inv_createInvoice_(staffEmail, ym, { force: false, manualItems: manualItems });
+    if (res && res.ok) {
+      res.recalculated = true;
+      res.再計算元 = no;
+    }
+    return res;
+  } catch (e) {
+    return { ok: false, error: 'adminInv_recalcInvoice: ' + String(e && e.message || e) };
+  }
+}

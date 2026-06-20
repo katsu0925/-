@@ -101,3 +101,36 @@ function inv_mail_revisionResponded_(invoice, revision, action, adminComment) {
   }
   inv_sendMail_([staffEmail], subject, body);
 }
+
+// 管理者がスタッフの手動明細(追加報酬・控除)を更新した時: スタッフ宛
+// summary: { 手動明細合計, 請求額 }
+function inv_mail_manualItemsEdited_(invoice, editorEmail, summary) {
+  var staffEmail = (invoice && invoice.スタッフメール) || '';
+  if (!staffEmail) {
+    console.warn('inv_mail_manualItemsEdited_: スタッフメールが空 請求書番号=' + ((invoice && invoice.請求書番号) || ''));
+    return;
+  }
+  summary = summary || {};
+  var subject = '【請求書 追加報酬・控除を更新】' + ((invoice && invoice.請求書番号) || '');
+  var items = (invoice && invoice.手動明細) || [];
+  var itemLines = items.length
+    ? items.map(function(it) {
+        var amt = Number(it.amount || 0);
+        var sign = amt >= 0 ? '+' : '−';
+        return '  ・' + (it.label || '(名目なし)') + '   ' + sign + '¥' + Math.abs(amt).toLocaleString('ja-JP');
+      }).join('\n')
+    : '  (現在 手動明細はありません)';
+  var body =
+    '管理者が請求書の手動明細（追加報酬・控除）を更新しました。\n' +
+    '----------------------------------------\n' +
+    '請求書番号: ' + ((invoice && invoice.請求書番号) || '') + '\n' +
+    '請求月:     ' + ((invoice && invoice.請求月) || '') + '\n' +
+    '----------------------------------------\n' +
+    '【手動明細】\n' + itemLines + '\n' +
+    '手動明細 合計: ¥' + Number(summary.手動明細合計 || 0).toLocaleString('ja-JP') + '\n' +
+    '更新後の請求額: ¥' + Number(summary.請求額 || (invoice && invoice.請求額) || 0).toLocaleString('ja-JP') + '\n' +
+    '----------------------------------------\n' +
+    'スタッフアプリ「報酬確認」より最新版の請求書をご確認ください。\n' +
+    '内容にご不明点がある場合は管理者へご連絡ください。';
+  inv_sendMail_([staffEmail], subject, body);
+}
