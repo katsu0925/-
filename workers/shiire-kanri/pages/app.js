@@ -5943,6 +5943,8 @@ function paintInvoiceSection_() {
           '<td class="invoice-cell-dl" style="padding:6px 8px;border-bottom:1px solid var(--border);text-align:right" title="' + esc(dlTitle) + '">' + dl + '</td>' +
           '<td style="padding:6px 8px;border-bottom:1px solid var(--border);white-space:nowrap">' +
             '<button class="btn-sm invoice-pdf-btn" data-no="' + esc(no) + '" onclick="downloadInvoicePdf_(this)" style="font-size:11px;margin-right:4px">PDF</button>' +
+            (viewingOther || st === '支払済み' || st === '取消済み' ? '' :
+              '<button class="btn-sm" onclick="openInvoiceManualEditModal_(\'' + esc(no) + '\')" style="font-size:11px;margin-right:4px">追加報酬・控除</button>') +
             (viewingOther ? '' :
               '<button class="btn-sm" onclick="openInvoiceRevisionModal_(\'' + esc(no) + '\')" style="font-size:11px">修正申請</button>') +
           '</td>' +
@@ -5959,29 +5961,226 @@ function onInvoiceMonthChange_(ym) {
   INVOICE_STATE.selectedYm = String(ym || '');
 }
 
-async function submitInvoiceCreate_() {
+// 「この月の請求書を作成」→ 即PDF確定ではなく作成前プレビューを開く。
+// プレビュー内で追加報酬・控除（自由明細）を足し引きしてから確定できる。
+function submitInvoiceCreate_() {
   var ym = INVOICE_STATE.selectedYm;
   if (!ym) { toast('請求対象月を選択してください', 'error'); return; }
-  var btn = document.getElementById('invoice-create-btn');
-  if (btn) { btn.disabled = true; btn.classList.add('btn-loading'); btn.textContent = '作成中'; }
+  openInvoicePreviewModal_(ym);
+}
+
+// ========== 手動明細エディタ（追加報酬・控除）── 共通部品 ==========
+// 自由明細行（名目＋金額・±可・複数行）の入力UI。スマホ/PC両対応:
+//   各行 = 名目(text) ＋ 符号トグル(＋/−) ＋ 金額(絶対値・数字キーパッド) ＋ 削除(✕)。
+//   負号は type=number だとモバイルで入力しづらいため、符号は明示トグルにし
+//   金額欄は絶対値のみ受け付ける。収集時に sign×magnitude で ± を復元する。
+// staff/admin どちらのレイヤーでも使う。収集(miCollectItems_)は自role分だけを返し、
+// 他role分はサーバー側(inv_mergeManualItems_)が温存する。
+
+function miRowHtml_(item) {
+  item = item || {};
+  var amt = Math.round(Number(item.amount || 0));
+  var sign = amt < 0 ? '-' : '+';
+  var mag = Math.abs(amt);
+  var id = item.id ? esc(String(item.id)) : '';
+  return '<div class="mi-row" data-id="' + id + '" style="display:flex;gap:6px;align-items:center;margin-bottom:6px">' +
+    '<input class="mi-label" type="text" value="' + esc(item.label || '') + '" placeholder="名目（例: 特別報酬）" ' +
+      'oninput="miRecalcTotal_()" maxlength="40" ' +
+      'style="flex:1 1 auto;min-width:0;padding:8px;font-size:14px;border:1px solid var(--border);border-radius:6px;background:var(--bg)">' +
+    '<button type="button" class="mi-sign" data-sign="' + sign + '" onclick="miToggleSign_(this)" ' +
+      'style="flex:0 0 auto;width:40px;padding:8px 0;font-size:18px;font-weight:700;border:1px solid var(--border);border-radius:6px;background:var(--bg);' +
+      (sign === '-' ? 'color:#c0392b' : 'color:#1a7f37') + '">' + sign + '</button>' +
+    '<input class="mi-amount" type="number" inputmode="numeric" min="0" step="1" value="' + (mag || '') + '" placeholder="金額" ' +
+      'oninput="miRecalcTotal_()" ' +
+      'style="flex:0 0 92px;width:92px;padding:8px;font-size:14px;text-align:right;border:1px solid var(--border);border-radius:6px;background:var(--bg)">' +
+    '<button type="button" onclick="miRemoveRow_(this)" title="この行を削除" ' +
+      'style="flex:0 0 auto;width:34px;padding:8px 0;font-size:14px;color:#c0392b;border:1px solid var(--border);border-radius:6px;background:var(--bg)">✕</button>' +
+  '</div>';
+}
+
+// エディタ全体のHTML。items=自role分(編集可)、opts.readonlyItems=他role(管理者)分の読み取り表示。
+function miEditorHtml_(items, opts) {
+  opts = opts || {};
+  items = Array.isArray(items) ? items : [];
+  var rows = items.length ? items.map(miRowHtml_).join('') : '';
+  var ro = opts.readonlyItems || [];
+  var readonlyHtml = '';
+  if (ro.length) {
+    readonlyHtml = '<div style="margin:2px 0 10px;padding:8px 10px;background:var(--bg);border:1px dashed var(--border);border-radius:6px;font-size:12px;color:var(--text-mute)">' +
+      '<div style="font-weight:600;margin-bottom:4px">' + esc(opts.readonlyLabel || '管理者が追加した項目（編集不可）') + '</div>' +
+      ro.map(function(it){
+        var a = Math.round(Number(it.amount || 0));
+        return '<div style="display:flex;justify-content:space-between;gap:8px;padding:1px 0">' +
+          '<span>' + esc(it.label || '') + '</span>' +
+          '<span style="font-variant-numeric:tabular-nums;white-space:nowrap">' + (a < 0 ? '−¥' : '＋¥') + Math.abs(a).toLocaleString('ja-JP') + '</span>' +
+        '</div>';
+      }).join('') +
+    '</div>';
+  }
+  return '<div class="mi-editor">' +
+    readonlyHtml +
+    '<div id="mi-rows">' + rows + '</div>' +
+    '<button type="button" onclick="miAddRow_()" ' +
+      'style="margin-top:2px;font-size:13px;padding:7px 12px;border:1px dashed var(--border);border-radius:6px;background:var(--bg);color:var(--text);width:100%">＋ 行を追加</button>' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;padding-top:8px;border-top:1px dashed var(--border);font-size:13px">' +
+      '<span style="color:var(--text-mute)">追加報酬・控除の合計</span>' +
+      '<strong id="mi-total" style="font-variant-numeric:tabular-nums">¥0</strong>' +
+    '</div>' +
+  '</div>';
+}
+
+function miAddRow_() {
+  var c = document.getElementById('mi-rows');
+  if (!c) return;
+  c.insertAdjacentHTML('beforeend', miRowHtml_({}));
+  miRecalcTotal_();
+  var rows = c.querySelectorAll('.mi-row');
+  if (rows.length) { var inp = rows[rows.length - 1].querySelector('.mi-label'); if (inp) { try { inp.focus(); } catch (e) {} } }
+}
+
+function miRemoveRow_(btn) {
+  var row = btn && btn.closest ? btn.closest('.mi-row') : null;
+  if (row && row.parentNode) row.parentNode.removeChild(row);
+  miRecalcTotal_();
+}
+
+function miToggleSign_(btn) {
+  var next = (btn.getAttribute('data-sign') === '-') ? '+' : '-';
+  btn.setAttribute('data-sign', next);
+  btn.textContent = next;
+  btn.style.color = next === '-' ? '#c0392b' : '#1a7f37';
+  miRecalcTotal_();
+}
+
+// 行を読んで {id?, label, amount(±)} 配列にする。名目・金額が両方空の行は捨てる。
+function miCollectItems_() {
+  var out = [];
+  var rows = document.querySelectorAll('#mi-rows .mi-row');
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
+    var labelEl = row.querySelector('.mi-label');
+    var signEl = row.querySelector('.mi-sign');
+    var amtEl = row.querySelector('.mi-amount');
+    var label = String((labelEl && labelEl.value) || '').trim();
+    var sign = (signEl && signEl.getAttribute('data-sign') === '-') ? -1 : 1;
+    var mag = Math.abs(Math.round(Number(String((amtEl && amtEl.value) || '').trim()) || 0));
+    var amount = sign * mag;
+    if (!label && !amount) continue;
+    var item = { label: label, amount: amount };
+    var id = row.getAttribute('data-id');
+    if (id) item.id = id;
+    out.push(item);
+  }
+  return out;
+}
+
+function miCurrentTotal_() {
+  var rows = document.querySelectorAll('#mi-rows .mi-row');
+  var sum = 0;
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i];
+    var signEl = row.querySelector('.mi-sign');
+    var amtEl = row.querySelector('.mi-amount');
+    var sign = (signEl && signEl.getAttribute('data-sign') === '-') ? -1 : 1;
+    var mag = Math.abs(Math.round(Number(String((amtEl && amtEl.value) || '').trim()) || 0));
+    sum += sign * mag;
+  }
+  return sum;
+}
+
+function miRecalcTotal_() {
+  var el = document.getElementById('mi-total');
+  if (!el) return;
+  var sum = miCurrentTotal_();
+  el.textContent = (sum < 0 ? '−¥' : '¥') + Math.abs(sum).toLocaleString('ja-JP');
+  el.style.color = sum < 0 ? '#c0392b' : '';
+}
+
+// プレビュー(or 編集)結果の金額内訳を表組みで描画する。preview = GAS calcInvoicePreview の戻り。
+function invoiceBreakdownHtml_(preview) {
+  var c = (preview && preview.件数) || {};
+  var s = (preview && preview.集計) || {};
+  function yen(n) { return '¥' + Math.round(Number(n) || 0).toLocaleString('ja-JP'); }
+  function syen(n) { var v = Math.round(Number(n) || 0); return (v < 0 ? '−¥' : '¥') + Math.abs(v).toLocaleString('ja-JP'); }
+  var manual = Math.round(Number(s.手動明細合計 || 0));
+  var adj = Math.round(Number(s.調整額 || 0));
+  var fee = Math.round(Number(s.振込手数料 || 0));
+  var rate = (s.控除可能率 != null) ? Math.round(Number(s.控除可能率) * 100) : 100;
+  function row(label, val, opt) {
+    opt = opt || {};
+    var tdL = 'padding:5px 6px;' + (opt.top ? 'border-top:1px solid var(--border);' : '') + (opt.mute ? 'color:var(--text-mute);' : '');
+    var tdR = 'padding:5px 6px;text-align:right;font-variant-numeric:tabular-nums;' + (opt.top ? 'border-top:1px solid var(--border);' : '') + (opt.strong ? 'font-weight:700;font-size:15px;' : '') + (opt.neg ? 'color:#c0392b;' : '');
+    return '<tr><td style="' + tdL + '">' + esc(label) + '</td><td style="' + tdR + '">' + val + '</td></tr>';
+  }
+  return '<table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:6px"><tbody>' +
+    row('件数（採寸/撮影/出品/発送）', (Number(c.採寸件数 || 0)) + ' / ' + (Number(c.撮影件数 || 0)) + ' / ' + (Number(c.出品件数 || 0)) + ' / ' + (Number(c.発送件数 || 0)), { mute: true }) +
+    row('自動算出 小計（税込）', yen(s.税込合計自動), { mute: true }) +
+    row('追加報酬・控除 合計', syen(manual), { mute: true, neg: manual < 0 }) +
+    row('税込合計', yen(s.税込合計), { top: true }) +
+    row('経過措置調整額（控除可能率 ' + rate + '%）', adj ? '−' + yen(adj) : yen(0), { mute: true }) +
+    row('振込手数料', fee ? '−' + yen(fee) : yen(0), { mute: true }) +
+    row('お支払い予定額（請求額）', yen(s.請求額), { top: true, strong: true }) +
+  '</tbody></table>';
+}
+
+// 作成前プレビューモーダル: 内訳 + 追加報酬・控除エディタ + 「この内容で作成」。
+function openInvoicePreviewModal_(ym) {
+  var html =
+    '<h3 style="margin:0 0 4px">請求書プレビュー</h3>' +
+    '<p style="margin:0 0 12px;font-size:13px;color:var(--text-mute)">請求対象月: <strong>' + esc(ym) + '</strong></p>' +
+    '<div id="invoice-preview-breakdown" style="min-height:80px">' +
+      '<div style="text-align:center;color:var(--text-mute);font-size:13px;padding:16px">計算中…</div>' +
+    '</div>' +
+    '<div style="margin-top:12px">' +
+      '<div style="font-weight:600;font-size:13px;margin-bottom:4px">追加報酬・控除（任意）</div>' +
+      '<p style="margin:0 0 8px;font-size:12px;color:var(--text-mute)">採寸・撮影・出品・発送などの自動計算分は編集できません。特別報酬・交通費・控除などをここで足し引きできます。入力後は「プレビュー更新」で金額に反映されます。</p>' +
+      miEditorHtml_([], {}) +
+    '</div>' +
+    '<div class="modal-actions" style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;flex-wrap:wrap">' +
+      '<button class="btn-cancel" onclick="closeModal()">キャンセル</button>' +
+      '<button class="btn-sm" onclick="refreshInvoicePreview_(\'' + esc(ym) + '\', this)" style="padding:7px 12px">プレビュー更新</button>' +
+      '<button class="btn-primary" onclick="confirmInvoiceCreate_(\'' + esc(ym) + '\', this)">この内容で作成</button>' +
+    '</div>';
+  openModal(html);
+  miRecalcTotal_();
+  refreshInvoicePreview_(ym, null);
+}
+
+async function refreshInvoicePreview_(ym, btn) {
+  var box = document.getElementById('invoice-preview-breakdown');
+  var restore = btn ? setBtnLoading(btn, '計算中…') : function(){};
   try {
-    var r = await api('/api/invoice/create', { method: 'POST', body: { ym: ym } });
+    var items = miCollectItems_();
+    var r = await api('/api/invoice/preview', { method: 'POST', body: { ym: ym, manualItems: items } });
+    var preview = (r && r.preview) || null;
+    if (!preview || preview.ok === false) throw new Error((preview && preview.error) || '計算に失敗しました');
+    if (box) box.innerHTML = invoiceBreakdownHtml_(preview);
+  } catch (e) {
+    if (box) box.innerHTML = '<div class="error" style="font-size:12px;padding:8px">プレビュー取得失敗: ' + esc(e.message) + '</div>';
+  } finally {
+    restore();
+  }
+}
+
+async function confirmInvoiceCreate_(ym, btn) {
+  var items = miCollectItems_();
+  var restore = setBtnLoading(btn, '作成中…');
+  try {
+    var r = await api('/api/invoice/create', { method: 'POST', body: { ym: ym, manualItems: items } });
     var inv = (r && r.invoice) || null;
     var no = inv && String(inv['請求書番号'] || inv.invoiceNo || '');
-    if (!no) { toast('作成に失敗しました', 'error'); return; }
+    if (!no) { restore(); toast('作成に失敗しました', 'error'); return; }
     // ピンポイント更新: 同月の既存非取消行を取消済みに、新規を先頭に追加
     var list = INVOICE_STATE.invoices || [];
     for (var i = 0; i < list.length; i++) {
       var item = list[i];
       var iYm = String(item['請求月'] || item.ym || '');
       var iSt = String(item['ステータス'] || item.status || '');
-      if (iYm === ym && iSt !== '取消済み') {
-        item['ステータス'] = '取消済み';
-      }
+      if (iYm === ym && iSt !== '取消済み') { item['ステータス'] = '取消済み'; }
     }
     INVOICE_STATE.invoices = [inv].concat(list);
-    // 月リストの hasInvoice フラグも更新
     (INVOICE_STATE.months || []).forEach(function(m){ if (m.ym === ym) m.hasInvoice = true; });
+    closeModal();
     paintInvoiceSection_();
     var supersededN = r && Number(r.superseded || 0);
     var msg = supersededN > 0
@@ -5989,9 +6188,63 @@ async function submitInvoiceCreate_() {
       : '請求書を作成しました（' + no + '）';
     toast(msg + ' — 一覧から「PDF」でダウンロード', 'success');
   } catch (e) {
+    restore(); // モーダルは残し再試行可能にする
     toast('作成失敗: ' + e.message, 'error');
-  } finally {
-    if (btn) { btn.disabled = false; btn.classList.remove('btn-loading'); btn.textContent = 'この月の請求書を作成'; }
+  }
+}
+
+// 作成済み請求書の追加報酬・控除を後から編集する（自分・未払いのみ）。
+// 最新の手動明細をサーバーから取り直し、自role(staff)分のみ編集・保存する。
+async function openInvoiceManualEditModal_(no) {
+  if (!no) return;
+  openModal(
+    '<h3 style="margin:0 0 4px">追加報酬・控除の編集</h3>' +
+    '<p style="margin:0 0 12px;font-size:13px;color:var(--text-mute)">対象: <code>' + esc(no) + '</code></p>' +
+    '<div id="invoice-manual-edit-body"><div style="text-align:center;color:var(--text-mute);font-size:13px;padding:20px">読み込み中…</div></div>'
+  );
+  try {
+    var r = await api('/api/invoice/detail?invoiceNo=' + encodeURIComponent(no));
+    var inv = (r && r.invoice) || null;
+    if (!inv) throw new Error('請求書が取得できません');
+    var manual = Array.isArray(inv['手動明細']) ? inv['手動明細'] : [];
+    var staffItems = manual.filter(function(it){ return it && it.addedByRole !== 'admin'; });
+    var adminItems = manual.filter(function(it){ return it && it.addedByRole === 'admin'; });
+    var box = document.getElementById('invoice-manual-edit-body');
+    if (!box) return;
+    box.innerHTML =
+      '<p style="margin:0 0 8px;font-size:12px;color:var(--text-mute)">採寸・撮影・出品・発送などの自動計算分は編集できません。特別報酬・交通費・控除など、自分で足し引きしたい項目だけここで編集します。保存すると請求額が再計算され、PDFは次回ダウンロード時に作り直されます。</p>' +
+      miEditorHtml_(staffItems, { readonlyItems: adminItems }) +
+      '<div class="modal-actions" style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px;flex-wrap:wrap">' +
+        '<button class="btn-cancel" onclick="closeModal()">キャンセル</button>' +
+        '<button class="btn-primary" onclick="saveInvoiceManualEdit_(\'' + esc(no) + '\', this)">保存</button>' +
+      '</div>';
+    miRecalcTotal_();
+  } catch (e) {
+    var box2 = document.getElementById('invoice-manual-edit-body');
+    if (box2) box2.innerHTML = '<div class="error" style="font-size:12px;padding:8px">取得失敗: ' + esc(e.message) + '</div>' +
+      '<div class="modal-actions" style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn-cancel" onclick="closeModal()">閉じる</button></div>';
+  }
+}
+
+async function saveInvoiceManualEdit_(no, btn) {
+  var items = miCollectItems_();
+  var restore = setBtnLoading(btn, '保存中…');
+  try {
+    var r = await api('/api/invoice/manual-items', { method: 'POST', body: { no: no, manualItems: items } });
+    var inv = (r && r.invoice) || null;
+    if (inv && inv['請求書番号']) {
+      var list = INVOICE_STATE.invoices || [];
+      for (var i = 0; i < list.length; i++) {
+        var n = String(list[i]['請求書番号'] || list[i].invoiceNo || '');
+        if (n === no) { list[i] = inv; break; }
+      }
+    }
+    closeModal();
+    paintInvoiceSection_();
+    toast('追加報酬・控除を更新しました', 'success');
+  } catch (e) {
+    restore(); // モーダルは残し再試行可能にする
+    toast('保存失敗: ' + e.message, 'error');
   }
 }
 

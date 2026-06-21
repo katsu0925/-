@@ -108,7 +108,9 @@ function adminInv_getInvoiceDetail(payload, email) {
     if (!no) throw new Error('請求書番号が空です');
     var inv = inv_findInvoiceByNo_(no);
     if (!inv) throw new Error('請求書が見つかりません: ' + no);
-    return { ok: true, invoice: inv };
+    // inv_findInvoiceByNo_ は {obj, hmap, sheet} のラッパーを返すため、
+    // フロント(AdminInvoice.html)が直接フィールド参照できるよう平坦オブジェクトを返す。
+    return { ok: true, invoice: inv.obj };
   } catch (e) {
     return { ok: false, error: String(e && e.message || e) };
   }

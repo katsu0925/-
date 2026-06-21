@@ -791,6 +791,15 @@ function inv_buildInvoiceHtml_(invoice, adminSettings) {
     addOne('その他業務', r.その他報酬);
   }
 
+  // 手動明細レイヤー（追加報酬・控除）を明細行に追加。
+  // 自動算出の items は 税込合計自動 に一致し、手動明細(±)を加えると小計(税込合計)と一致する。
+  var manualItems = inv_normalizeManualItems_(invoice.手動明細 || []);
+  for (var mi = 0; mi < manualItems.length; mi++) {
+    var m = manualItems[mi];
+    if (!m.amount) continue;
+    items.push({ name: m.label || '追加項目', qty: 1, unit: m.amount, amt: m.amount });
+  }
+
   var subtotal = s.税込合計 != null ? Number(s.税込合計) : items.reduce(function(a, it){ return a + it.amt; }, 0);
   var graceRate = s.控除可能率 != null ? s.控除可能率 : '';
   var adjustment = Number(s.調整額) || 0;
