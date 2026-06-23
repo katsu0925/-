@@ -28,7 +28,13 @@ export async function scheduledAccessSync(env) {
     const updated = await updatePolicyEmails(env, appId, policyId, emails);
     // アプリ単位の session_duration も同値に揃える（ポリシーだけだと24hが実効上限になる問題への対処）
     const appUpdated = await updateAppSessionDuration(env, appId);
-    console.log(`[access-sync] policy ${policyId} emails=${emails.length} polChanged=${updated.changed} appChanged=${appUpdated.changed} session=${updated.sessionDuration}/${appUpdated.sessionDuration}`);
+    // ★最重要: グローバル（アカウント全体）セッションも同値に揃える。
+    //   Cloudflare Access は 3層（ポリシー→アプリ→グローバル）で、一番外側のグローバルが
+    //   ハード上限になる。グローバルが既定24hのままだと、アプリ/ポリシーを730hにしても
+    //   24h ごとに IdP 再ログインを強制される（2026-06-23 判明の真因）。
+    //   ※ CF_API_TOKEN に Access: Organizations(Edit) 権限が無い間は skip ログのみ（無害）。
+    const orgUpdated = await updateGlobalSessionDuration(env);
+    console.log(`[access-sync] policy ${policyId} emails=${emails.length} polChanged=${updated.changed} appChanged=${appUpdated.changed} orgChanged=${orgUpdated.changed} session=${updated.sessionDuration}/${appUpdated.sessionDuration}/${orgUpdated.sessionDuration || orgUpdated.reason || 'skip'}`);
     return {
       ok: true,
       count: emails.length,
@@ -36,6 +42,10 @@ export async function scheduledAccessSync(env) {
       sessionDuration: updated.sessionDuration,
       appChanged: appUpdated.changed,
       appSessionDuration: appUpdated.sessionDuration,
+      orgChanged: orgUpdated.changed,
+      orgSessionDuration: orgUpdated.sessionDuration ?? null,
+      orgSkipped: orgUpdated.skipped || false,
+      orgReason: orgUpdated.reason || null,
     };
   } catch (err) {
     console.error('[access-sync] error', err.message);
@@ -197,6 +207,40 @@ async function updateAppSessionDuration(env, appId) {
     body,
   });
   return { changed: true, sessionDuration: DESIRED_SESSION_DURATION };
+}
+
+// グローバル（アカウント全体）の session_duration を DESIRED に揃える。
+// これが Access の最外層＝ハード上限。ここが既定24hだとアプリ/ポリシー730hが無効化される。
+// PUT /access/organizations は全フィールド置換のため GET の全項目を echo して session_duration
+// だけ上書きする（auth_domain / name 等の重要フィールドを保持。auth_domain を失うと壊れる）。
+// CF_API_TOKEN に organizations 編集権限が無い間は GET/PUT が Authentication error になるので
+// その場合は throw せず skip を返す（sync 全体は継続させる）。
+async function updateGlobalSessionDuration(env) {
+  let org;
+  try {
+    const cur = await cfApi(env, `/accounts/${env.CF_ACCOUNT_ID}/access/organizations`);
+    org = cur.result || {};
+  } catch (e) {
+    // 権限不足（Authentication error）等は致命にせず skip。token に Access:Organizations(Edit) を付ければ有効化される。
+    console.warn(`[access-sync] org session read skipped: ${e.message}`);
+    return { changed: false, skipped: true, reason: `read failed: ${e.message}` };
+  }
+  if (org.session_duration === DESIRED_SESSION_DURATION) {
+    return { changed: false, sessionDuration: org.session_duration };
+  }
+  const body = { ...org, session_duration: DESIRED_SESSION_DURATION };
+  delete body.created_at;
+  delete body.updated_at;
+  try {
+    await cfApi(env, `/accounts/${env.CF_ACCOUNT_ID}/access/organizations`, {
+      method: 'PUT',
+      body,
+    });
+  } catch (e) {
+    console.warn(`[access-sync] org session write skipped: ${e.message}`);
+    return { changed: false, skipped: true, reason: `write failed: ${e.message}`, prev: org.session_duration ?? null };
+  }
+  return { changed: true, sessionDuration: DESIRED_SESSION_DURATION, prev: org.session_duration ?? null };
 }
 
 async function cfApi(env, path, opts) {
