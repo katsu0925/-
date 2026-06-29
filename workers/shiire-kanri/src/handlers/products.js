@@ -9,6 +9,11 @@ const D_KANRYOU = "(json_extract(extra_json, '$.\"完了日\"') IS NOT NULL AND 
 const D_HANBAI  = "(sale_date IS NOT NULL AND sale_date <> '')";
 const ACCOUNT_SELECTED = "(json_extract(extra_json, '$.\"使用アカウント\"') IS NOT NULL AND json_extract(extra_json, '$.\"使用アカウント\"') <> '')";
 
+// 販売日(sale_date)が3か月以内か。発送商品タブの「完了」チップで、
+// 完了（完了日入力済み＝売却済み）の行を販売日から3か月以内に限って表示するための窓。
+// sale_date は "YYYY/MM/DD" or "YYYY-MM-DD" 文字列なので先頭10文字を正規化して date() 比較。
+const SALE_WITHIN_3M = "(sale_date IS NOT NULL AND sale_date <> '' AND date(replace(substr(sale_date, 1, 10), '/', '-')) >= date('now', '-3 months'))";
+
 // 出品待ちタブ／出品報告ピッカーから除外する「仮置き場」の納品場所。
 // family / なかの屋plus は撮影・採寸中の一時納品場所で、在庫保管場所へ移動報告
 // するまで出品させてはいけない（出品後に売れると発送処理ができなくなるため）。
@@ -152,9 +157,14 @@ export async function listProducts(request, env) {
     // 発送商品タブ — raw [ステータス] を参照する:
     //   1. 発送待ち（発送日付未入力）= これから発送
     //   2. 発送済み（明示的にステータス更新済）
-    // ※ 完了日が入った行は「完了」操作済みなので即除外する（D1.status の reconcile を待たない）。
-    //   reconcile が数分遅れても、完了ボタンを押した商品が発送済みリストに残り続けないようにする。
-    where.push(`((status = '発送待ち' AND NOT ${D_HASSOU}) OR status = '発送済み') AND NOT ${D_KANRYOU}`);
+    //   3. 完了（完了日入力済み＝売却済み）かつ 販売日が3か月以内
+    // 1・2 は従来通り「完了日が入った行」を除外する（完了したら発送待ち/発送済みからは外す）。
+    //   reconcile が数分遅れても、完了ボタンを押した商品が発送済みリストに残らないようにする。
+    // 3 は完了行を別枝で拾い、フロントの第3チップ「完了」でのみ表示する（販売日から3か月以内に限定）。
+    where.push(
+      `((((status = '発送待ち' AND NOT ${D_HASSOU}) OR status = '発送済み') AND NOT ${D_KANRYOU})` +
+      ` OR (${D_KANRYOU} AND ${SALE_WITHIN_3M}))`
+    );
   } else if (filter === 'sold') {
     where.push(`${ds} IN ('発送待ち','発送済み','売却済み')`);
   }

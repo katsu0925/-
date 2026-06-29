@@ -1693,7 +1693,9 @@ function deriveStageForward_(rawStatus, ex, saleDate){
 // 現在の一覧ビュー(STATE.tab/filter)にその派生ステータスの商品が表示されるか。
 // false を返した工程の商品はオーバーレイで除外される。
 function viewAllowsStage_(stage){
-  if (STATE.tab === 'hassou') return stage === '発送待ち' || stage === '発送済み';
+  // 発送商品タブは 発送待ち/発送済み に加え、第3チップ「完了」用に 売却済み も許容する。
+  // （完了直後の楽観オーバーレイで売却済みを除外せず、完了チップへ移して残す）
+  if (STATE.tab === 'hassou') return stage === '発送待ち' || stage === '発送済み' || stage === '売却済み';
   if (STATE.tab === 'shouhin') {
     switch (STATE.filter) {
       case 'sokutei_machi':  return stage === '採寸待ち';
@@ -3115,8 +3117,10 @@ function cardHtml(it) {
   // 発送タブでは raw ステータス（発送待ち/発送済み）を優先表示。
   // 派生ステータスは「撮影日付のみ入力」等で '採寸待ち' 等にフォールバックすることがあり、
   // 発送タブで表示すると意味不明な状態になるため、raw を優先する。
+  // ただし完了（派生 '売却済み'）は完了チップでそのまま表示する（reconcile 前で raw が
+  // '発送済み' のままでも、派生が '売却済み' なら完了として扱う）。
   const st = (STATE.tab === 'hassou')
-    ? (it.rawStatus || it.status || '')
+    ? (it.status === '売却済み' ? '売却済み' : (it.rawStatus || it.status || ''))
     : (it.status || '');
   let badgeClass = '';
   if (st === '売却済み') badgeClass = ' sold';
@@ -3205,9 +3209,10 @@ function cardHtml(it) {
       }
     }
   }
-  // 発送済み（hassou タブ）: 完了日が空ならワンタップ完了ボタン、入力済みなら日付バッジ
+  // 発送済み（hassou タブ）: 完了日が空ならワンタップ完了ボタン、入力済みなら日付バッジ。
+  // 完了（売却済み）カードは完了日バッジのみ（ボタンは出さない）。
   var kanryouHtml = '';
-  if (STATE.tab === 'hassou' && st === '発送済み') {
+  if (STATE.tab === 'hassou' && (st === '発送済み' || st === '売却済み')) {
     var kanryouVal = (it.extra && it.extra['完了日']) ? String(it.extra['完了日']).trim() : '';
     var kanriAttr = esc(it.kanri).replace(/'/g, '&#39;');
     if (kanryouVal) {
@@ -3216,7 +3221,7 @@ function cardHtml(it) {
           '<span class="card-kanryou-ico">✓</span>' +
           '<span class="card-kanryou-date">完了 ' + esc(fmtReadonlyDate_(kanryouVal)) + '</span>' +
         '</div>';
-    } else {
+    } else if (st === '発送済み') {
       kanryouHtml =
         '<div class="card-kanryou">' +
           '<button type="button" class="btn-kanryou" data-kanri="' + esc(it.kanri) + '" ' +
@@ -3612,9 +3617,9 @@ function pumpPrefetchQueue_() {
   }
 }
 
-// 発送商品タブの表示切替（発送待ち / 発送済み）
+// 発送商品タブの表示切替（発送待ち / 発送済み / 完了）
 function setHassouFilter_(key) {
-  if (key !== 'pending' && key !== 'shipped') return;
+  if (key !== 'pending' && key !== 'shipped' && key !== 'kanryou') return;
   if (STATE.hassouFilter === key) return;
   STATE.hassouFilter = key;
   try { localStorage.setItem('sk.hassouFilter', key); } catch(e) {}
@@ -3622,15 +3627,29 @@ function setHassouFilter_(key) {
 }
 
 function renderHassouGrouped_(items) {
-  var filterKey = STATE.hassouFilter === 'shipped' ? 'shipped' : 'pending';
-  var targetStatus = filterKey === 'shipped' ? '発送済み' : '発送待ち';
-  // チップに件数を出すため、フィルタ前に両者をカウント
-  var countPending = 0, countShipped = 0;
+  var filterKey = (STATE.hassouFilter === 'shipped' || STATE.hassouFilter === 'kanryou')
+    ? STATE.hassouFilter : 'pending';
+  var targetStatus = filterKey === 'shipped' ? '発送済み'
+    : (filterKey === 'kanryou' ? '売却済み' : '発送待ち');
+  // 実効ステータス: ローカル工程オーバーレイ(LOCAL_STAGE_)を前進のみ反映。
+  // 完了直後はサーバーがまだ '発送済み' を返していても '売却済み' を採用し、
+  // 発送済みチップに残さず「完了」チップへ即移動させる（reconcile ラグ対策）。
+  function effStatus_(it){
+    var ov = LOCAL_STAGE_ && LOCAL_STAGE_[it.kanri];
+    if (ov && ov.stage && stageOrdinal_(ov.stage) > stageOrdinal_(it.status || '')) return ov.stage;
+    return it.status;
+  }
+  // チップに件数を出すため、フィルタ前に3者をカウント
+  var countPending = 0, countShipped = 0, countKanryou = 0;
   items.forEach(function(it){
-    if (it.status === '発送待ち') countPending++;
-    else if (it.status === '発送済み') countShipped++;
+    var s = effStatus_(it);
+    if (s === '発送待ち') countPending++;
+    else if (s === '発送済み') countShipped++;
+    else if (s === '売却済み') countKanryou++;
   });
-  var filtered = items.filter(function(it){ return it.status === targetStatus; });
+  var filtered = items.filter(function(it){ return effStatus_(it) === targetStatus; });
+  // 表示用に実効ステータスを反映（完了直後のラグでもカードを「売却済み」表示にする・前進のみ）
+  filtered.forEach(function(it){ var s = effStatus_(it); if (s !== it.status) it.status = s; });
   // 使用アカウントごとにグループ化
   var groups = Object.create(null);
   filtered.forEach(function(it){
@@ -3657,6 +3676,8 @@ function renderHassouGrouped_(items) {
   // クラスタ単位で「期限が近い順」を保ちつつ、同梱メンバー同士を連続配置する。
   var clusterPending = (filterKey === 'pending');
   function sortAccount_(src) {
+    // 完了チップは「最近売れた順」が見やすいので販売日の新しい順（降順）にする
+    if (filterKey === 'kanryou') return src.slice().sort(function(a, b){ return -cmp(a, b); });
     if (!clusterPending) return src.slice().sort(cmp);
     var inArr = Object.create(null);
     src.forEach(function(it){ inArr[bundleNorm_(it.kanri)] = it; }); // 正規化キーで同梱メンバーを照合
@@ -3684,7 +3705,7 @@ function renderHassouGrouped_(items) {
       return kanriCompareAsc_(a.kanri, b.kanri); // 同クラスタ内は管理番号昇順
     });
   }
-  // タブヘッダ: 発送待ち / 発送済み トグル
+  // タブヘッダ: 発送待ち / 発送済み / 完了 トグル
   var header = '<div class="tab-toolbar">' +
     '<button type="button" class="chip' + (filterKey === 'pending' ? ' active' : '') + '"' +
     ' onclick="setHassouFilter_(\'pending\')">発送待ち' +
@@ -3692,6 +3713,9 @@ function renderHassouGrouped_(items) {
     '<button type="button" class="chip' + (filterKey === 'shipped' ? ' active' : '') + '"' +
     ' onclick="setHassouFilter_(\'shipped\')">発送済み' +
     '<span class="chip-count">' + countShipped + '</span></button>' +
+    '<button type="button" class="chip' + (filterKey === 'kanryou' ? ' active' : '') + '"' +
+    ' onclick="setHassouFilter_(\'kanryou\')">完了' +
+    '<span class="chip-count">' + countKanryou + '</span></button>' +
   '</div>';
   var groupHtml = accounts.map(function(acc){
     var arr = sortAccount_(groups[acc]);
@@ -3701,6 +3725,12 @@ function renderHassouGrouped_(items) {
       '<div class="cards-grid">' + arr.map(cardHtml).join('') + '</div>' +
       '</details>';
   }).join('');
+  if (!groupHtml) {
+    var emptyMsg = filterKey === 'kanryou'
+      ? '完了（販売日から3か月以内）の商品はありません'
+      : (filterKey === 'shipped' ? '発送済みの商品はありません' : '発送待ちの商品はありません');
+    groupHtml = '<div class="empty">' + emptyMsg + '</div>';
+  }
   return header + groupHtml;
 }
 
