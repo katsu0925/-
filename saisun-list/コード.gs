@@ -1216,6 +1216,7 @@ function onOpen(e) {
     .addItem("3. 商品自動選定（J列が空の場合）", "menuManualAssortSelect")
     .addSeparator()
     .addItem("★ 管理パネルを開く", "showAdminPanel")
+    .addItem("📋 返品棚卸しを番号順(1,2,3…)に並べ替え", "sortReturnTanaoroshi")
     .addToUi();
 
   // アソート商品管理メニューは、アソート商品スプレッドシートの
