@@ -153,6 +153,17 @@ function sendSwapListsExceptHonpo() {
 }
 
 /**
+ * 「かつ」だけへ入替リストを送信（手動・再送用の引数なしラッパー）。
+ * GASエディタの ▶実行 ドロップダウンは引数を渡せないため、かつ単独で再送
+ * したいときはこの関数を選んで実行する（＝generateSwapLists(['かつ']) と同じ）。
+ * かつの運用者宛＋管理者控えのみ送信。ほしい・古着屋本舗への重複送信はなし。
+ * 集計対象月は実行時点の前月。
+ */
+function sendSwapListKatsuOnly() {
+  return generateSwapLists(['かつ']);
+}
+
+/**
  * 配信対象アカウント一覧を取得する。
  * 優先: SWAP_ACCOUNTS_JSON（管理パネルで保存）/ なければ SWAP_CONFIG.ACCOUNTS（既定）。
  * @return {Array<{name:string, email:string}>}
