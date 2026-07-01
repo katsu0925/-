@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>入替リストの使い方｜NKonline</title>
+<style>
+  :root{
+    --brand:#2b6777;
+    --brand-dark:#204c57;
+    --accent:#52ab98;
+    --ink:#1f2933;
+    --muted:#5b6b7b;
+    --line:#e2e8ee;
+    --bg:#f6f8fa;
+    --note:#eaf4f8;
+    --note-b:#8fc4d6;
+    --tip:#eaf7f1;
+    --tip-b:#7fceb0;
+    --warn:#fdf3e2;
+    --warn-b:#e9c46a;
+    --card:#ffffff;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;
+    font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",Meiryo,sans-serif;
+    color:var(--ink);
+    background:var(--bg);
+    line-height:1.85;
+    font-size:16px;
+  }
+  .wrap{max-width:820px;margin:0 auto;padding:0 18px 80px}
+
+  header.hero{
+    background:linear-gradient(135deg,var(--brand),var(--brand-dark));
+    color:#fff;
+    padding:44px 18px 40px;
+    text-align:center;
+  }
+  header.hero .inner{max-width:820px;margin:0 auto}
+  header.hero .badge{
+    display:inline-block;font-size:13px;letter-spacing:.08em;
+    background:rgba(255,255,255,.18);padding:4px 14px;border-radius:999px;margin-bottom:14px;
+  }
+  header.hero h1{margin:0 0 10px;font-size:28px;line-height:1.4;font-weight:800}
+  header.hero p{margin:0;font-size:15px;opacity:.92}
+
+  .tldr{
+    background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:20px 22px;margin:28px 0 12px;box-shadow:0 2px 10px rgba(31,41,51,.05);
+  }
+  .tldr h2{margin:0 0 10px;font-size:18px;color:var(--brand-dark)}
+  .tldr ul{margin:0;padding-left:1.2em}
+  .tldr li{margin:4px 0}
+
+  nav.toc{
+    background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:16px 20px;margin:16px 0 8px;
+  }
+  nav.toc strong{display:block;font-size:14px;color:var(--muted);margin-bottom:8px;letter-spacing:.04em}
+  nav.toc ol{margin:0;padding-left:1.4em}
+  nav.toc a{color:var(--brand);text-decoration:none}
+  nav.toc a:hover{text-decoration:underline}
+
+  section{
+    background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:26px 26px 22px;margin:22px 0;box-shadow:0 2px 10px rgba(31,41,51,.04);
+  }
+  section h2{
+    margin:0 0 16px;font-size:21px;color:var(--brand-dark);
+    padding-bottom:10px;border-bottom:2px solid var(--line);
+    display:flex;align-items:center;gap:10px;
+  }
+  section h2 .num{
+    flex:0 0 auto;width:30px;height:30px;border-radius:50%;
+    background:var(--brand);color:#fff;font-size:15px;
+    display:inline-flex;align-items:center;justify-content:center;font-weight:700;
+  }
+  section h3{margin:22px 0 8px;font-size:16px;color:var(--brand-dark)}
+  p{margin:10px 0}
+  ul,ol{padding-left:1.3em}
+  li{margin:6px 0}
+  strong{color:var(--brand-dark)}
+
+  .box{border-radius:10px;padding:14px 16px;margin:16px 0;border-left:5px solid}
+  .box p{margin:4px 0}
+  .box .label{font-weight:700;display:block;margin-bottom:4px}
+  .box.note{background:var(--note);border-color:var(--note-b)}
+  .box.tip{background:var(--tip);border-color:var(--accent)}
+  .box.warn{background:var(--warn);border-color:var(--warn-b)}
+
+  .steps{counter-reset:step;list-style:none;padding:0;margin:16px 0}
+  .steps>li{
+    position:relative;padding:14px 16px 14px 60px;margin:10px 0;
+    background:#fbfdfe;border:1px solid var(--line);border-radius:10px;
+  }
+  .steps>li::before{
+    counter-increment:step;content:counter(step);
+    position:absolute;left:14px;top:14px;width:32px;height:32px;border-radius:50%;
+    background:var(--accent);color:#fff;font-weight:700;font-size:16px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .steps>li strong{display:block;margin-bottom:2px}
+
+  .pdf-mock{
+    border:1px solid #cfd8e0;border-radius:8px;background:#fff;
+    padding:18px 18px 8px;margin:14px 0;font-size:14px;
+    box-shadow:0 4px 14px rgba(31,41,51,.08);
+  }
+  .pdf-mock .pt{font-size:16px;font-weight:800;color:#111;margin-bottom:8px}
+  .pdf-mock .meta{color:#333;margin:2px 0}
+  .pdf-mock .meta b{color:#111}
+  table{width:100%;border-collapse:collapse;margin:12px 0;font-size:14px}
+  th,td{border:1px solid #d7dee5;padding:7px 9px;text-align:left}
+  th{background:#eef2f5;font-weight:700;color:var(--brand-dark)}
+  td.c,th.c{text-align:center}
+  .tag{display:inline-block;background:#eef2f5;border-radius:6px;padding:1px 8px;font-size:13px;color:var(--brand-dark);font-weight:600}
+
+  .faq dt{font-weight:700;color:var(--brand-dark);margin-top:16px}
+  .faq dd{margin:4px 0 0;padding-left:1.4em;position:relative}
+  .faq dd::before{content:"A.";position:absolute;left:0;color:var(--accent);font-weight:700}
+  .faq dt::before{content:"Q. ";color:var(--brand)}
+
+  footer{text-align:center;color:var(--muted);font-size:13px;margin-top:36px;padding-top:22px;border-top:1px solid var(--line)}
+  footer .brand{font-weight:700;color:var(--brand-dark)}
+
+  @media(max-width:600px){
+    header.hero h1{font-size:23px}
+    section{padding:20px 16px}
+    section h2{font-size:19px}
+    body{font-size:15px}
+    .steps>li{padding-left:56px}
+  }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="inner">
+    <div class="badge">運用アカウント様向けガイド</div>
+    <h1>入替リストの使い方</h1>
+    <p>毎月お送りする「商品入替リスト」の中身と、届いたあとの対応をまとめたページです。</p>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="tldr">
+    <h2>ひとことで言うと</h2>
+    <ul>
+      <li>毎月<strong>1日の朝9時ごろ</strong>、前月に売れた数と<strong>同じ点数分</strong>の「入れ替え対象商品」をメール（PDF添付）でお送りします。</li>
+      <li>選ばれるのは、いま出品中の中で<strong>いちばん古い商品</strong>から順番です。</li>
+      <li>やることは、<strong>リストの商品を返送（入れ替え）</strong>して、<strong>返送管理シートに報告</strong>するだけ。ステータスは自動で切り替わります。</li>
+    </ul>
+  </div>
+
+  <nav class="toc">
+    <strong>もくじ</strong>
+    <ol>
+      <li><a href="#what">入替リストとは？（目的）</a></li>
+      <li><a href="#when">いつ・どうやって届く？</a></li>
+      <li><a href="#inside">リストの中身（PDFの見方）</a></li>
+      <li><a href="#rule">どうやって選ばれるの？（選定ルール）</a></li>
+      <li><a href="#todo">届いたら何をする？（対応手順）</a></li>
+      <li><a href="#faq">よくある質問</a></li>
+      <li><a href="#admin">仕組み・運用メモ（管理者向け）</a></li>
+    </ol>
+  </nav>
+
+  <!-- 1 -->
+  <section id="what">
+    <h2><span class="num">1</span>入替リストとは？</h2>
+    <p>
+      <strong>入替リスト</strong>は、「そろそろ入れ替えましょう」という商品をまとめた月次のお知らせです。
+      前の月に<strong>売れた点数</strong>とちょうど同じ数だけ、いま出品中の商品の中から
+      <strong>いちばん長く売れ残っている（＝出品日が古い）もの</strong>をピックアップしています。
+    </p>
+    <h3>なぜ入れ替えるの？</h3>
+    <ul>
+      <li><strong>棚を新鮮に保つため。</strong>売れた分を新しい在庫で補充し、古い在庫を回転させます。</li>
+      <li><strong>売れ残りを減らすため。</strong>長く出品しても動かない商品を優先的に入れ替えます。</li>
+      <li><strong>在庫量を一定に保つため。</strong>「売れた数＝返す数」なので、出品中の総点数が大きく増減しません。</li>
+    </ul>
+    <div class="box note">
+      <span class="label">ポイント</span>
+      <p>入替リストは「今すぐ全部売れ！」という指示ではなく、<strong>古い在庫を新しい在庫と入れ替える（返送する）ため</strong>のリストです。</p>
+    </div>
+  </section>
+
+  <!-- 2 -->
+  <section id="when">
+    <h2><span class="num">2</span>いつ・どうやって届く？</h2>
+    <ul>
+      <li><span class="tag">タイミング</span> 毎月 <strong>1日の朝9時ごろ</strong>に自動送信されます。</li>
+      <li><span class="tag">届き方</span> ご登録のメールアドレスに、<strong>PDFを添付したメール</strong>で届きます。</li>
+      <li><span class="tag">集計対象</span> <strong>前の月</strong>の販売分です（例：6月1日に届くリスト＝5月に売れた分）。</li>
+    </ul>
+    <h3>メールの件名の例</h3>
+    <div class="box tip">
+      <p>【入替リスト】<strong>（アカウント名）</strong> 2026年6月分 — <strong>12件</strong></p>
+    </div>
+    <div class="box note">
+      <span class="label">前月の売上が0件だったら？</span>
+      <p>そのアカウントは入替対象が0件になるため、<strong>メールは送られません</strong>。「今月は届かない＝入れ替え不要」とご理解ください。</p>
+    </div>
+  </section>
+
+  <!-- 3 -->
+  <section id="inside">
+    <h2><span class="num">3</span>リストの中身（PDFの見方）</h2>
+    <p>PDFの上部にサマリー、その下に対象商品の一覧表が入っています。実物のイメージは次のとおりです。</p>
+
+    <div class="pdf-mock" aria-label="PDFのイメージ">
+      <div class="pt">入替リスト — （アカウント名）</div>
+      <div class="meta">集計期間: <b>2026年5月販売分（2026/5/1〜2026/5/31）</b></div>
+      <div class="meta">前月販売数: <b>12件</b></div>
+      <div class="meta">返送対象: <b>12件</b>（出品日 2025/12/11 〜 2026/1/8）</div>
+      <table>
+        <thead>
+          <tr><th class="c">No.</th><th>管理番号</th><th>納品場所</th><th>使用アカウント</th><th>出品日</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="c">1</td><td>zP1</td><td>A倉庫</td><td>（アカウント名）</td><td>2025/12/11</td></tr>
+          <tr><td class="c">2</td><td>zP8</td><td>A倉庫</td><td>（アカウント名）</td><td>2025/12/14</td></tr>
+          <tr><td class="c">3</td><td>zC102</td><td>B倉庫</td><td>（アカウント名）</td><td>2025/12/20</td></tr>
+          <tr><td class="c">…</td><td>…</td><td>…</td><td>…</td><td>…</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>各項目の意味</h3>
+    <table>
+      <thead><tr><th>項目</th><th>意味</th></tr></thead>
+      <tbody>
+        <tr><td><strong>前月販売数</strong></td><td>そのアカウントで前月に売れた点数。この数だけ入れ替えます。</td></tr>
+        <tr><td><strong>返送対象</strong></td><td>今回返送していただく点数（＝前月販売数と同じ）。</td></tr>
+        <tr><td><strong>管理番号</strong></td><td>商品を特定する番号（例：zP1）。現物のラベルと照合します。</td></tr>
+        <tr><td><strong>納品場所</strong></td><td>その商品が今ある保管場所。</td></tr>
+        <tr><td><strong>出品日</strong></td><td>出品した日。古い順に並んでいます（上ほど古い）。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- 4 -->
+  <section id="rule">
+    <h2><span class="num">4</span>どうやって選ばれるの？（選定ルール）</h2>
+    <p>入替リストは、次の順番で自動的に作られています。</p>
+    <ol class="steps">
+      <li><strong>前月の販売数を数える</strong>そのアカウントで、販売日が前月の商品を数えます（ステータスは問いません）。</li>
+      <li><strong>同じ数だけ「出品中」から選ぶ</strong>いま出品中の商品の中から、<strong>出品日が古い順</strong>に、前月販売数と同じ点数を抜き出します。</li>
+      <li><strong>出品したばかりの商品は後回し</strong>出品日が未入力の商品は「新しいもの」として扱い、リストの対象から外れやすくなります（出したばかりの商品が返送対象に入らないようにするため）。</li>
+      <li><strong>一部の保管場所は除外</strong>「入替除外」に設定された納品場所の商品は、対象から自動で外れます。</li>
+    </ol>
+    <div class="box tip">
+      <span class="label">つまり</span>
+      <p><strong>売れた数＝返す数</strong>で在庫量をキープしつつ、<strong>古いものから順番に</strong>入れ替わっていく仕組みです。</p>
+    </div>
+  </section>
+
+  <!-- 5 -->
+  <section id="todo">
+    <h2><span class="num">5</span>届いたら何をする？</h2>
+    <ol class="steps">
+      <li><strong>PDFの管理番号を確認する</strong>一覧表の管理番号（zP1 など）を見て、対象商品を特定します。</li>
+      <li><strong>現物を集めて返送（入れ替え）する</strong>該当商品を出品から下げ、返送・入れ替えの作業を行います。</li>
+      <li><strong>返送管理シートに報告する</strong>返送した<strong>管理番号</strong>を返送管理シートに記入します（箱ID・移動先・着数など）。管理番号は複数まとめて入力してOKです（カンマ・改行・スペース区切り）。</li>
+      <li><strong>あとは自動</strong>報告が入ると、システムが対象商品のステータスを自動で「<strong>返品済み</strong>」に変更し、納品場所も更新します。<u>手動でステータスを触る必要はありません。</u></li>
+    </ol>
+    <div class="box warn">
+      <span class="label">注意</span>
+      <p>すでに「売却済み・発送待ち・発送済み・廃棄済み・キャンセル済み」になっている商品は、返送報告しても自動でステータスは書き換わりません（誤変更防止のため）。リストの商品がすでに売れている等の場合は、無理に処理せず管理者にご連絡ください。</p>
+    </div>
+  </section>
+
+  <!-- 6 -->
+  <section id="faq">
+    <h2><span class="num">6</span>よくある質問</h2>
+    <dl class="faq">
+      <dt>なぜこの商品が選ばれたの？</dt>
+      <dd>出品日が古い順に選んでいるためです。長く売れていない在庫から優先して入れ替える方針です。</dd>
+
+      <dt>全部返さないといけない？</dt>
+      <dd>基本はリストにある点数を返送してください。事情があって難しい場合は管理者にご相談ください。</dd>
+
+      <dt>メールが届かない・PDFが開けない</dt>
+      <dd>前月の売上が0件だと送信されません。売上があったのに届かない場合は管理者へご連絡ください（同じPDFが管理者控えにも届いています）。</dd>
+
+      <dt>リストの商品が手元に見当たらない／状態が変わっている</dt>
+      <dd>無理に処理せず、管理番号を控えて管理者へご連絡ください。</dd>
+
+      <dt>今月は少ない／多いのはなぜ？</dt>
+      <dd>返送点数は「前月に売れた点数」と同じです。売れた分だけ入れ替えるため、月によって変動します。</dd>
+
+      <dt>返送報告のあと、ステータスは自分で変える？</dt>
+      <dd>いいえ。返送管理シートに管理番号を報告すれば、システムが自動で「返品済み」に変更します。</dd>
+    </dl>
+  </section>
+
+  <!-- 7 -->
+  <section id="admin">
+    <h2><span class="num">7</span>仕組み・運用メモ（管理者向け）</h2>
+    <p>参考として、自動化の内部仕様を高レベルでまとめます（運用アカウント様は読み飛ばして構いません）。</p>
+    <ul>
+      <li><strong>送信タイミング：</strong>毎月1日9時のトリガーで自動送信。集計対象は「実行時点の前月」。</li>
+      <li><strong>宛先：</strong>各運用アカウントのメールに加え、<strong>管理者にも同じPDF</strong>が届く。実行末尾に全アカウントの成否をまとめた<strong>サマリーメール</strong>も届く（失敗があれば件名に「※要確認」）。</li>
+      <li><strong>配信ログ：</strong>「入替リスト配信ログ」シートにアカウント単位で逐次記録（前月販売数・返送対象数・状態・エラー）。取りこぼしの切り分けはここを確認。</li>
+      <li><strong>アカウントの増減：</strong>管理パネルの「入替リスト」タブから追加・編集できる（コード変更不要）。</li>
+      <li><strong>手動再送：</strong>月初に一部だけ届いた等の場合、管理パネルの「古着屋本舗以外に送信」で残りを再送できる。</li>
+      <li><strong>除外設定：</strong>作業者マスターの「入替除外」列を TRUE にした納品場所は、選定対象から自動除外。</li>
+      <li><strong>ステータス反映：</strong>返送管理シートへの報告 →「返品済み」へ自動変更＋納品場所更新（別処理で自動化）。売却済み・発送待ち・発送済み・廃棄済み・キャンセル済みは変更対象外。</li>
+    </ul>
+    <div class="box note">
+      <p>選定は「出品日が古い順」。出品日が空欄の商品は<strong>最新扱い（末尾）</strong>となり、日付のある古い商品が不足した場合のみ補充的に入る安全設計です。</p>
+    </div>
+  </section>
+
+  <footer>
+    <p>本ページは商品入替リストの運用説明です。ご不明点は管理者までご連絡ください。</p>
+    <p><span class="brand">NKonline</span>　最終更新：2026年7月1日</p>
+  </footer>
+
+</div>
+</body>
+</html>

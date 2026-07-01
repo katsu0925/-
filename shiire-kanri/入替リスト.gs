@@ -24,6 +24,17 @@ const SWAP_CONFIG = {
 // 配信ログシート名（成功/失敗を毎回記録。失敗が「見えない」問題への対策）
 const SWAP_LOG_SHEET_NAME = '入替リスト配信ログ';
 
+// ─── PDFエクスポートのペーシング／リトライ設定 ───────────────
+//  複数アカウントを1実行でPDF化すると、Googleのエクスポートエンドポイントが
+//  短時間の連続アクセスをスロットリングし、3件目以降がハング → GAS6分上限で
+//  実行ごと強制終了 → 最後尾アカウント（例:かつ）が未配信＋サマリー未送信になる。
+//  対策として (1)エクスポート間に最小間隔を空ける (2)429/5xx・fetch例外は指数
+//  バックオフでリトライする。
+var SWAP_EXPORT_MIN_GAP_MS = 2500;    // 直前のPDFエクスポートからの最小間隔
+var SWAP_EXPORT_MAX_ATTEMPTS = 4;     // 1エクスポートあたりの最大試行回数
+var SWAP_EXPORT_BACKOFF_MS = 4000;    // リトライ待機ベース（試行ごとに ×attempt = 4s,8s,12s）
+var _swapExportLastTs = 0;            // 直近エクスポート時刻（同一実行内で保持しペーシングに使用）
+
 // ═══════════════════════════════════════════
 //  入替リスト生成＆メール送信
 // ═══════════════════════════════════════════
@@ -335,14 +346,42 @@ function exportSwapPdf_(spreadsheetId, filename) {
     '/export?format=pdf&size=A4&portrait=true&fitw=true&gridlines=false' +
     '&printtitle=false&sheetnames=false&pagenumbers=false&fzr=false';
   var token = ScriptApp.getOAuthToken();
-  var res = UrlFetchApp.fetch(url, {
-    headers: { Authorization: 'Bearer ' + token },
-    muteHttpExceptions: true
-  });
-  if (res.getResponseCode() !== 200) {
-    throw new Error('PDFエクスポート失敗: ' + res.getResponseCode() + ' / ' + res.getContentText());
+  var lastErr = '';
+
+  for (var attempt = 1; attempt <= SWAP_EXPORT_MAX_ATTEMPTS; attempt++) {
+    // 連続エクスポートのスロットリング回避: 直前エクスポートから最小間隔を空ける
+    // （アカウント間・リトライ間の両方に効く。初回は _swapExportLastTs=0 なので待たない）
+    if (_swapExportLastTs) {
+      var sinceLast = Date.now() - _swapExportLastTs;
+      if (sinceLast < SWAP_EXPORT_MIN_GAP_MS) Utilities.sleep(SWAP_EXPORT_MIN_GAP_MS - sinceLast);
+    }
+
+    var res = null, code = 0, fetchErr = null;
+    try {
+      res = UrlFetchApp.fetch(url, {
+        headers: { Authorization: 'Bearer ' + token },
+        muteHttpExceptions: true
+      });
+      code = res.getResponseCode();
+    } catch (e) {
+      fetchErr = String(e && e.message || e); // fetch自体の例外（接続断・タイムアウト等）もリトライ対象
+    }
+    _swapExportLastTs = Date.now();
+
+    if (!fetchErr && code === 200) {
+      return res.getBlob().setName(filename);
+    }
+    // 恒久的エラー（401/403 認可切れ・404 等、429以外の4xx）はリトライ無意味 → 即中断
+    if (!fetchErr && code !== 429 && code < 500) {
+      throw new Error('PDFエクスポート失敗: ' + code + ' / ' + res.getContentText());
+    }
+    // 一時的エラー（429/5xx / fetch例外）→ 指数バックオフして再試行
+    lastErr = fetchErr ? ('fetch例外: ' + fetchErr) : ('PDFエクスポート失敗: ' + code);
+    if (attempt < SWAP_EXPORT_MAX_ATTEMPTS) {
+      Utilities.sleep(SWAP_EXPORT_BACKOFF_MS * attempt); // 4s → 8s → 12s
+    }
   }
-  return res.getBlob().setName(filename);
+  throw new Error(lastErr + '（' + SWAP_EXPORT_MAX_ATTEMPTS + '回リトライ後）');
 }
 
 // ═══════════════════════════════════════════
