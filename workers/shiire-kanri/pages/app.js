@@ -8099,7 +8099,7 @@ async function openBundleModal_(kanri) {
           '<button class="modal-close" onclick="document.getElementById(\'bundle-modal\').remove()">×</button>' +
         '</div>' +
         '<div class="modal-body">' +
-          '<div style="margin-bottom:12px;font-size:13px;color:#666">同梱した商品は発送商品タブのカードに「○○と同梱」と表示されます。スプレッドシートには反映されません。</div>' +
+          '<div style="margin-bottom:12px;font-size:13px;color:#666">同梱に追加すると、メイン商品（最初に販売登録した商品）の販売日・販売場所が価格0円で自動登録され、発送日付・完了日も自動で反映されます。発送商品タブではメイン1枚に「📦 同梱N点」とまとまって表示されます。</div>' +
           '<div class="bundle-list">' + listHtml + '</div>' +
           '<div style="margin-top:16px">' +
             '<label style="display:block;font-size:13px;margin-bottom:4px">同梱する管理番号を追加</label>' +
