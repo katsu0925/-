@@ -1,6 +1,7 @@
 import { jsonOk, jsonError } from '../utils/response.js';
 import { invalidateCountsCache, DERIVED_STATUS } from './products.js';
 import { fanoutByTrigger } from './push.js';
+import { getOf, readBundle, writeBundle } from '../utils/bundle-store.js';
 
 // POST /api/save/measurement  body: { kanri, measure: {着丈, 肩幅, ...} }
 // POST /api/save/sale         body: { kanri, sale: {salePrice, saleDate, salePlace, saleShipping, saleFee} }
@@ -212,9 +213,13 @@ export async function saveDetails(request, env, user, ctx) {
   //   - 反映遅延は ~5秒だがフォアグラウンドの保存は即時 200 を返すので UX は変わらない
   if (ctx && typeof ctx.waitUntil === 'function') {
     ctx.waitUntil(dispatchGasSaveDetails_(env, user, kanri, fields, oldDerivedStatus, oldShiireId));
+    // 同梱グループへの自動転記（メインの販売/発送/完了保存をメンバーへ伝播）。
+    // 失敗してもメイン保存には影響させない（fanoutBundleAfterSave 内で握り潰し済み）。
+    ctx.waitUntil(fanoutBundleAfterSave(env, user, kanri, fields));
   } else {
     // ctx 未渡しの保険（通常は通らない）
     dispatchGasSaveDetails_(env, user, kanri, fields, oldDerivedStatus, oldShiireId).catch(() => {});
+    fanoutBundleAfterSave(env, user, kanri, fields).catch(() => {});
   }
 
   const t = { d1: Date.now() - __td1, total: Date.now() - __t0 };
@@ -299,7 +304,8 @@ async function applyDetailColumns_(env, kanri, fields, mergedExtra, derivedStatu
 
 // バックグラウンドで GAS に saveDetails を投入し、返ってきた record で D1 を確定反映する
 // reconcile 後に Push 通知（発送待ち/発送済み 遷移）も発火させる
-async function dispatchGasSaveDetails_(env, user, kanri, fields, oldDerivedStatus, oldShiireId) {
+// opts.suppressPush: 同梱メンバーへの自動転記時に true（1販売でN通のPushが飛ぶのを防ぎ、メインの1通だけにする）
+async function dispatchGasSaveDetails_(env, user, kanri, fields, oldDerivedStatus, oldShiireId, opts = {}) {
   let gasRes;
   try {
     gasRes = await callGas(env, 'saveDetails', { kanri, fields }, user);
@@ -344,9 +350,11 @@ async function dispatchGasSaveDetails_(env, user, kanri, fields, oldDerivedStatu
   // 販売日のみ入力で raw='出品中'→'発送待ち' に変わるケースは D1 単独では検知できないため、
   // ここで GAS round-trip 後に判定する。
   try {
-    const newDerivedStatus = String((gasRes && gasRes.derivedStatus) || '').trim();
-    if (newDerivedStatus && newDerivedStatus !== oldDerivedStatus) {
-      await maybePushOnStatusChange_(env, kanri, oldDerivedStatus, newDerivedStatus, mergedExtra, oldShiireId);
+    if (!opts.suppressPush) {
+      const newDerivedStatus = String((gasRes && gasRes.derivedStatus) || '').trim();
+      if (newDerivedStatus && newDerivedStatus !== oldDerivedStatus) {
+        await maybePushOnStatusChange_(env, kanri, oldDerivedStatus, newDerivedStatus, mergedExtra, oldShiireId);
+      }
     }
   } catch (err) {
     console.warn('[save details bg] push fanout failed', err.message);
@@ -426,6 +434,186 @@ async function logSaveFailure_(env, user, kanri, fields, reason) {
       kanri, fields, reason, ts: Date.now(), email: (user && user.email) || ''
     }), { expirationTtl: 86400 * 7 });
   } catch (e) { /* ignore */ }
+}
+
+// ============================================================
+// 同梱グループ自動転記（bundle fan-out）
+//
+// メイン（グループ内で最初に実価格で販売登録した商品）の保存を起点に、
+// 同梱メンバーへ次を自動転記する:
+//   - 販売系: メンバーの販売日が空 → {販売日, 販売場所, 販売価格:0, 送料:0, 手数料:0}
+//             メンバーが自動登録済み（価格0） → {販売日, 販売場所} のみ再転記（修正追従）
+//             メンバーに手動の実価格（>0）あり → 販売系はスキップ
+//   - 発送系: メンバーの発送日付が空 → {発送日付(+発送者)}（物理的に同梱発送のため全員対象）
+//   - 完了系: メンバーの完了日が空 → {完了日}
+// ステータス列は書かない。日付列の転記だけで DERIVED_STATUS（前進のみ・降格禁止）が
+// 発送待ち/発送済み/売却済みへ自動遷移する — 既存設計と同じパターン。
+// 転記ルールは冪等（同値なら patch が空になり何も送らない）なので、outbox 再送や
+// KV レースが起きても収束する。削除/クリア（空文字への変更）は自動化しない＝手動運用。
+// ============================================================
+
+// 転記トリガーになるフィールド。通常の詳細編集でこれらに触れていなければ KV すら読まない
+const FANOUT_TRIGGER_FIELDS_ = ['販売日', '販売場所', '販売価格', '発送日付', '発送者', '完了日'];
+
+// saveDetails 起点の fan-out（waitUntil から呼ぶ。例外は必ず内部で握り潰す）
+export async function fanoutBundleAfterSave(env, user, kanri, fields) {
+  try {
+    if (!fields || !FANOUT_TRIGGER_FIELDS_.some(k => fields[k] !== undefined)) return;
+    await runBundleFanout_(env, user, kanri, fields, 'save');
+  } catch (err) {
+    console.warn('[bundle fanout] save fanout failed', kanri, err && err.message);
+  }
+}
+
+// 同梱追加（/api/bundles/toggle）起点の fan-out — メインに販売情報がある状態で
+// 後からメンバーを追加したケースを拾う
+export async function fanoutBundleOnJoin(env, user, joinerKanri) {
+  try {
+    await runBundleFanout_(env, user, joinerKanri, null, 'join');
+  } catch (err) {
+    console.warn('[bundle fanout] join fanout failed', joinerKanri, err && err.message);
+  }
+}
+
+async function runBundleFanout_(env, user, sourceKanri, fields, mode) {
+  if (!env.CACHE || !env.DB) return;
+  const gid = await getOf(env, sourceKanri);
+  if (!gid) return;
+  const bundle = await readBundle(env, gid);
+  if (!bundle) return;
+  const norm = s => String(s || '').toLowerCase();
+  // dangling ポインタ（bundle-of は指すが members に居ない）は listBundles と同じく無視
+  if (!bundle.members.some(m => norm(m) === norm(sourceKanri))) return;
+
+  // メンバー全行を D1 から 1 クエリで取得（COLLATE NOCASE でレガシーなケース混在も救う。
+  // 以降の書込は D1 の正準ケース r.kanri を使う）
+  const placeholders = bundle.members.map(() => '?').join(',');
+  const rs = await env.DB.prepare(
+    `SELECT kanri, shiire_id, sale_date, sale_place, sale_price,
+            ${DERIVED_STATUS} AS derived_status,
+            json_extract(extra_json, '$.発送日付') AS ship_date,
+            json_extract(extra_json, '$.発送者')   AS shipper,
+            json_extract(extra_json, '$.完了日')   AS done_date
+     FROM products WHERE kanri COLLATE NOCASE IN (${placeholders})`
+  ).bind(...bundle.members).all();
+  const rows = (rs && rs.results) || [];
+  if (rows.length < 2) return;
+  const byNorm = new Map(rows.map(r => [norm(r.kanri), r]));
+  const trim = v => String(v == null ? '' : v).trim();
+
+  // ---- main 判定 ----
+  let mainKanri = (bundle.main && bundle.members.some(m => norm(m) === norm(bundle.main)))
+    ? bundle.main : '';
+
+  if (mode === 'save') {
+    // メンバー（非メイン）の編集は転記しない
+    if (mainKanri && norm(mainKanri) !== norm(sourceKanri)) return;
+    if (!mainKanri) {
+      // main 未設定: 「実価格つきの販売登録」かつ「未販売メンバーが居る」ときだけ main 化。
+      // 全員販売済みの既存同梱（レガシー）の販売日編集では main を立てない（誤集約防止）
+      const selfRow = byNorm.get(norm(sourceKanri));
+      const saleDate = (fields && fields['販売日'] !== undefined)
+        ? trim(fields['販売日']) : trim(selfRow && selfRow.sale_date);
+      const salePrice = Number((fields && fields['販売価格'] !== undefined)
+        ? fields['販売価格'] : (selfRow && selfRow.sale_price));
+      if (!saleDate || !(salePrice > 0)) return;
+      const hasEmpty = rows.some(r => norm(r.kanri) !== norm(sourceKanri) && !trim(r.sale_date));
+      if (!hasEmpty) return;
+      bundle.main = (selfRow && selfRow.kanri) || sourceKanri;
+      await writeBundle(env, bundle);
+      mainKanri = bundle.main;
+    }
+  } else {
+    // join: main 未設定なら「実売（販売日あり∧価格>0）がちょうど1件 ∧ 未販売が1件以上」の
+    // ときだけその実売メンバーを main 化（実売0件 or 2件以上＝レガシー混在は何もしない）
+    if (!mainKanri) {
+      const sold = rows.filter(r => trim(r.sale_date) && Number(r.sale_price) > 0);
+      const hasEmpty = rows.some(r => !trim(r.sale_date));
+      if (sold.length !== 1 || !hasEmpty) return;
+      bundle.main = sold[0].kanri;
+      await writeBundle(env, bundle);
+      mainKanri = bundle.main;
+    }
+  }
+
+  // ---- メインの現在値（save 時は今回の fields を優先。D1 楽観更新失敗時の保険） ----
+  const mainRow = byNorm.get(norm(mainKanri));
+  const mainVal = (fieldName, col) => {
+    if (mode === 'save' && fields && fields[fieldName] !== undefined) return trim(fields[fieldName]);
+    return mainRow ? trim(mainRow[col]) : '';
+  };
+  const mSaleDate  = mainVal('販売日', 'sale_date');
+  const mSalePlace = mainVal('販売場所', 'sale_place');
+  const mShipDate  = mainVal('発送日付', 'ship_date');
+  const mShipper   = mainVal('発送者', 'shipper');
+  const mDoneDate  = mainVal('完了日', 'done_date');
+
+  // save 時は今回触ったフィールド群のみ転記対象（値が空＝クリアは自動転記しない）
+  const touched = k => mode === 'join' || (fields && fields[k] !== undefined);
+  const saleActive = !!mSaleDate && (touched('販売日') || touched('販売場所') || touched('販売価格'));
+  const shipActive = !!mShipDate && (touched('発送日付') || touched('発送者'));
+  const doneActive = !!mDoneDate && touched('完了日');
+  if (!saleActive && !shipActive && !doneActive) return;
+
+  // ---- メンバーごとの patch 構築（冪等: 同値なら空 patch → 送らない） ----
+  const patches = [];
+  for (const r of rows) {
+    if (norm(r.kanri) === norm(mainKanri)) continue;
+    const patch = {};
+    if (saleActive) {
+      const memSaleDate = trim(r.sale_date);
+      const memPrice = Number(r.sale_price);
+      if (!memSaleDate) {
+        // 未販売 → フルセット自動登録（同梱分は価格・送料・手数料 0）
+        patch['販売日'] = mSaleDate;
+        if (mSalePlace) patch['販売場所'] = mSalePlace;
+        patch['販売価格'] = 0;
+        patch['送料'] = 0;
+        patch['手数料'] = 0;
+      } else if (!(memPrice > 0)) {
+        // 自動登録済み（価格0）→ 販売日/販売場所のみ修正追従
+        if (mSaleDate && mSaleDate !== memSaleDate) patch['販売日'] = mSaleDate;
+        if (mSalePlace && mSalePlace !== trim(r.sale_place)) patch['販売場所'] = mSalePlace;
+      }
+      // 手動の実価格（>0）を持つメンバーは販売系スキップ（上書きしない）
+    }
+    if (shipActive && !trim(r.ship_date)) {
+      patch['発送日付'] = mShipDate;
+      if (mShipper) patch['発送者'] = mShipper;
+    }
+    if (doneActive && !trim(r.done_date)) {
+      patch['完了日'] = mDoneDate;
+    }
+    if (Object.keys(patch).length) {
+      patches.push({
+        kanri: r.kanri,
+        fields: patch,
+        oldDerived: trim(r.derived_status),
+        oldShiireId: trim(r.shiire_id),
+      });
+    }
+  }
+  if (!patches.length) return;
+
+  // ---- D1 楽観更新（saveDetails 同期部と同型。patch キーのみ json_patch で反映） ----
+  await Promise.all(patches.map(async p => {
+    try {
+      const patchExtra = {};
+      for (const k of Object.keys(p.fields)) {
+        const v = p.fields[k];
+        patchExtra[k] = v == null ? '' : String(v);
+      }
+      await applyDetailColumns_(env, p.kanri, p.fields, patchExtra);
+    } catch (err) {
+      console.warn('[bundle fanout] member d1 update failed', p.kanri, err && err.message);
+    }
+  }));
+
+  // ---- GAS 投入（並列。失敗は logSaveFailure_ に記録され、メインの販売日再保存＝再転記がリトライ手段） ----
+  await Promise.all(patches.map(p =>
+    dispatchGasSaveDetails_(env, user, p.kanri, p.fields, p.oldDerived, p.oldShiireId, { suppressPush: true })
+  ));
+  invalidateCountsCache();
 }
 
 // POST /api/save/image  body: { kanri, field, dataUrl }

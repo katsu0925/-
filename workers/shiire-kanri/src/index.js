@@ -271,7 +271,8 @@ export default {
       return listBundles(request, env);
     }
     if (path === '/api/bundles/toggle' && request.method === 'POST') {
-      return withIdempotency(request, env, () => toggleBundle(request, env));
+      // user/ctx は同梱追加時の自動転記 fan-out（fanoutBundleOnJoin）用
+      return withIdempotency(request, env, () => toggleBundle(request, env, user, ctx));
     }
 
     // 売上ダッシュボード（今月/前月/通年/月別内訳）

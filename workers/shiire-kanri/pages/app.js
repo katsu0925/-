@@ -3189,13 +3189,17 @@ function cardHtml(it) {
     var placeVal = (it.extra && it.extra['納品場所']) ? String(it.extra['納品場所']).trim() : '';
     placeHtml = '<div class="card-place">📍 ' + esc(placeVal || '（納品場所なし）') + '</div>';
   }
-  // 発送商品タブの「発送待ち」カードのみ「同梱マーク」をステータス左に表示。
-  // 対象範囲＝発送待ち（未発送）に限定。BUNDLE_CACHE 未解決時は空（後で再描画）。
+  // 発送商品タブの同梱マーク。レガシー同梱＝発送待ちのみ（従来どおり）、
+  // メインあり同梱＝メインのカードは発送済み/完了チップでも表示（メンバーは集約で非表示のため、
+  // メイン1枚がグループ全体を代表していることをどのチップでも示す）。
+  // BUNDLE_CACHE 未解決時は空（後で再描画）。
   // Phase1: getBundleMembersForDisplay_ は派生グループ参照のため、自分のポインタが
   //   dangling でも相手の members 経由でグループを復元でき、両方向に📦が出る。
   // Phase2: ラベルを「同梱N点（相手の管理番号…）」の件数バッジ形式にする。
   var bundleMark = '';
-  if (STATE.tab === 'hassou' && st === '発送待ち') {
+  var isBundleMain_ = bundleNorm_(getBundleMainForDisplay_(it.kanri)) === bundleNorm_(it.kanri) &&
+                      !!getBundleMainForDisplay_(it.kanri);
+  if (STATE.tab === 'hassou' && (st === '発送待ち' || isBundleMain_)) {
     var members = getBundleMembersForDisplay_(it.kanri);
     if (members) {
       var selfNorm = bundleNorm_(it.kanri);
@@ -3639,7 +3643,19 @@ function renderHassouGrouped_(items) {
     if (ov && ov.stage && stageOrdinal_(ov.stage) > stageOrdinal_(it.status || '')) return ov.stage;
     return it.status;
   }
-  // チップに件数を出すため、フィルタ前に3者をカウント
+  // 同梱の集約表示: メインを持つグループはメイン1枚（＋📦バッジ）に集約し、
+  // メンバーは3チップとも非表示にする。レガシー同梱（main なし）は現行どおり全員表示。
+  // メインがこのリストに不在（3か月経過・検索絞り込み等）の場合はメンバーを表示する
+  // 安全網つき — メンバーが「どこにも見えない迷子」にならないようにする。
+  var presentNorms = {};
+  items.forEach(function(it){ presentNorms[bundleNorm_(it.kanri)] = 1; });
+  items = items.filter(function(it){
+    var main = getBundleMainForDisplay_(it.kanri);
+    if (!main) return true;                                        // レガシー/非同梱 → 現行どおり
+    if (bundleNorm_(main) === bundleNorm_(it.kanri)) return true;  // 自分がメイン
+    return !presentNorms[bundleNorm_(main)];                       // メイン不在なら安全側で表示
+  });
+  // チップに件数を出すため、フィルタ前に3者をカウント（集約後なので件数=カード枚数と整合）
   var countPending = 0, countShipped = 0, countKanryou = 0;
   items.forEach(function(it){
     var s = effStatus_(it);
@@ -7874,7 +7890,8 @@ function buildSummaryHtml_(d) {
 // ───────────────────────────────────────────────
 // 同梱（bundled shipping） UI
 // 状態:
-//   BUNDLE_CACHE[kanri] = { id, members:[...] } | null   ← null は「同梱なしと確認済み」
+//   BUNDLE_CACHE[kanri] = { id, members:[...], main } | null   ← null は「同梱なしと確認済み」
+//                          main はメイン（自動転記・集約表示の基準）。'' はレガシー同梱
 // API:
 //   GET  /api/bundles?kanris=...
 //   POST /api/bundles/toggle  body:{ kanri, target }
@@ -7896,6 +7913,11 @@ var BUNDLE_CACHE = {};
 // キーは正規化(lower)、表示文字列は商品テーブル(STATE.items)の実ケースを最優先で採用する
 // （例: zk952 は小文字 k が正準で、ヒューリスティックな大文字化では誤る）。
 var BUNDLE_GROUPS_ = Object.create(null); // 正規化kanri(lower) -> string[] (表示用, 自分含む)
+
+// 正規化kanri(lower) -> メインの表示ケース kanri。
+// メイン＝グループ内で最初に実価格で販売登録した商品（サーバー fan-out が KV bundle.main に記録）。
+// 発送商品タブの集約表示（メイン1枚＋同梱バッジ）の基準。エントリ無し＝レガシー同梱（現行表示）。
+var BUNDLE_MAIN_ = Object.create(null);
 
 function bundleNorm_(k){ return String(k == null ? '' : k).toLowerCase(); }
 
@@ -7932,11 +7954,13 @@ function rebuildBundleGroups_() {
     if (!display[n]) display[n] = orig;              // 無ければ KV の元文字列
   }
 
+  var mainByNorm = Object.create(null); // 正規化kanri -> main の正規化kanri（applyつなぎ）
   Object.keys(BUNDLE_CACHE).forEach(function(k){
     var info = BUNDLE_CACHE[k];
     if (!info || !info.id || !Array.isArray(info.members)) return;
     var kn = bundleNorm_(k);
     add(kn); noteDisplay(k);
+    if (info.main) { noteDisplay(info.main); mainByNorm[kn] = bundleNorm_(info.main); }
     info.members.forEach(function(m){
       if (!m) return;
       noteDisplay(m);
@@ -7953,13 +7977,25 @@ function rebuildBundleGroups_() {
   });
 
   var map = Object.create(null);
+  var mains = Object.create(null);
   Object.keys(comp).forEach(function(r){
     var norms = Object.keys(comp[r]);
     if (norms.length < 2) return; // 1人グループは同梱の意味がない
     var members = norms.map(function(n){ return display[n] || n; });
-    norms.forEach(function(n){ map[n] = members; });
+    // 成分内で main を確定（複数エントリが main を主張する異常系は先勝ち）。
+    // main が成分内に実在するもののみ採用（KVレース由来の迷子 main を無視）
+    var mainNorm = '';
+    for (var i = 0; i < norms.length && !mainNorm; i++) {
+      var m = mainByNorm[norms[i]];
+      if (m && comp[r][m]) mainNorm = m;
+    }
+    norms.forEach(function(n){
+      map[n] = members;
+      if (mainNorm) mains[n] = display[mainNorm] || mainNorm;
+    });
   });
   BUNDLE_GROUPS_ = map;
+  BUNDLE_MAIN_ = mains;
 }
 
 function getBundleFromCache_(kanri) {
@@ -7971,6 +8007,12 @@ function getBundleFromCache_(kanri) {
 function getBundleMembersForDisplay_(kanri) {
   var g = BUNDLE_GROUPS_[bundleNorm_(kanri)];
   return (g && g.length > 1) ? g : null;
+}
+
+// 表示用: kanri が属する同梱グループのメイン（表示ケース）を返す。
+// メイン無し（レガシー同梱・非同梱）なら '' — 呼び出し側は現行表示のまま扱う。
+function getBundleMainForDisplay_(kanri) {
+  return BUNDLE_MAIN_[bundleNorm_(kanri)] || '';
 }
 
 // 与えられた kanri 群を未解決のものだけ /api/bundles でバッチ取得し BUNDLE_CACHE に格納。
@@ -8009,8 +8051,14 @@ function buildBundleHtml_(d) {
     });
   }
   var members = (info && info.members) ? info.members.filter(function(m){ return m !== kanri; }) : [];
+  // メイン（販売/発送/完了の自動転記元）が居れば「★メイン」印を付ける。自分がメインの場合も明示
+  var mainK = getBundleMainForDisplay_(kanri);
+  var selfIsMain = mainK && bundleNorm_(mainK) === bundleNorm_(kanri);
   var membersHtml = members.length
-    ? members.map(function(m){ return '<span class="bundle-chip">' + esc(m) + '</span>'; }).join('')
+    ? members.map(function(m){
+        var isMain = mainK && bundleNorm_(m) === bundleNorm_(mainK);
+        return '<span class="bundle-chip">' + esc(m) + (isMain ? ' ★メイン' : '') + '</span>';
+      }).join('') + (selfIsMain ? '<span class="bundle-chip">この商品がメイン ★</span>' : '')
     : '<span class="bundle-empty">未設定</span>';
   return '<div class="summary-card" id="bundle-card">' +
     '<h4>同梱（発送をまとめる）</h4>' +

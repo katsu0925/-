@@ -1,8 +1,8 @@
 // 同梱（bundled shipping）グループ管理
 // スプレッドシートには反映せず Workers KV のみ。3点以上のグループに対応。
 //
-// KV スキーマ (env.CACHE):
-//   bundle:<groupId>  → JSON: { id, members: ["zA1","zC1",...], updatedAt }
+// KV スキーマ (env.CACHE): utils/bundle-store.js 参照
+//   bundle:<groupId>  → JSON: { id, members: ["zA1","zC1",...], updatedAt, main? }
 //   bundle-of:<kanri> → groupId （逆引き O(1)）
 //
 // 操作:
@@ -31,75 +31,23 @@
 //         同梱中として返す（dangling な bundle-of ポインタを読取時に自己修復）
 
 import { jsonOk, jsonError } from '../utils/response.js';
+// KV プリミティブは write-proxy.js（自動転記 fan-out）と共有するため bundle-store.js に抽出済み
+import {
+  KEY_RE, canonKanri, readBundle, writeBundle,
+  setOf, getOf, removeFromCurrentGroup,
+} from '../utils/bundle-store.js';
+import { fanoutBundleOnJoin } from './write-proxy.js';
 
-const KEY_RE = /^[A-Za-z0-9_-]{1,32}$/;
-
-function bundleKey(id) { return 'bundle:' + id; }
-function ofKey(kanri)  { return 'bundle-of:' + kanri; }
-
-// 入力された管理番号を商品テーブル(D1)の正準ケースに解決する。
-// 同じ商品が zC549/zc549 のように別ケースで KV 登録され、bundle-of/グループが
-// 分裂・孤児化する（=「ZC549は2点なのにZC596は4点」表示崩れ）のを根本防止する。
-// 商品テーブルに無い番号や D1 不調時は入力をそのまま使う（同梱操作をブロックしない）。
-async function canonKanri(env, kanri) {
-  if (!kanri || !env || !env.DB) return kanri;
-  try {
-    const row = await env.DB
-      .prepare('SELECT kanri FROM products WHERE kanri = ?1 COLLATE NOCASE LIMIT 1')
-      .bind(kanri)
-      .first();
-    return (row && row.kanri) ? row.kanri : kanri;
-  } catch (e) {
-    return kanri;
-  }
+// 同梱追加の成功後、メインの販売/発送/完了情報を新メンバーへ自動転記する。
+// waitUntil で応答をブロックせず、失敗してもトグル自体は成立させる。
+function kickJoinFanout_(ctx, env, user, kanri) {
+  const p = fanoutBundleOnJoin(env, user, kanri).catch(err => {
+    console.warn('[bundle toggle] join fanout failed', err && err.message);
+  });
+  if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(p);
 }
 
-async function readBundle(env, id) {
-  if (!id) return null;
-  const raw = await env.CACHE.get(bundleKey(id), 'json');
-  if (!raw || !Array.isArray(raw.members)) return null;
-  return raw;
-}
-
-async function writeBundle(env, b) {
-  // #9(a): 並行トグルで同一 kanri が二重 push された痕跡を消すため、保存前に重複排除
-  if (Array.isArray(b.members)) b.members = Array.from(new Set(b.members));
-  await env.CACHE.put(bundleKey(b.id), JSON.stringify(b));
-}
-
-async function deleteBundle(env, id) {
-  await env.CACHE.delete(bundleKey(id));
-}
-
-async function setOf(env, kanri, groupId) {
-  if (groupId) await env.CACHE.put(ofKey(kanri), groupId);
-  else await env.CACHE.delete(ofKey(kanri));
-}
-
-async function getOf(env, kanri) {
-  return env.CACHE.get(ofKey(kanri));
-}
-
-// kanri を既存グループから外す。1人になったらグループ削除。
-async function removeFromCurrentGroup(env, kanri) {
-  const gid = await getOf(env, kanri);
-  if (!gid) return;
-  const b = await readBundle(env, gid);
-  if (!b) { await setOf(env, kanri, null); return; }
-  const next = b.members.filter(m => m !== kanri);
-  await setOf(env, kanri, null);
-  if (next.length <= 1) {
-    // 残り1人以下になるなら全員クリアしてグループ削除
-    for (const m of next) await setOf(env, m, null);
-    await deleteBundle(env, gid);
-  } else {
-    b.members = next;
-    b.updatedAt = Date.now();
-    await writeBundle(env, b);
-  }
-}
-
-export async function toggleBundle(request, env) {
+export async function toggleBundle(request, env, user, ctx) {
   let body;
   try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
   let kanri = String(body && body.kanri || '').trim();
@@ -147,6 +95,7 @@ export async function toggleBundle(request, env) {
     await writeBundle(env, b);
     await setOf(env, target, groupId);
     await setOf(env, kanri, groupId);
+    kickJoinFanout_(ctx, env, user, kanri);
     return jsonOk({ added: true, groupId, members: b.members });
   }
 
@@ -157,6 +106,7 @@ export async function toggleBundle(request, env) {
   b.updatedAt = Date.now();
   await writeBundle(env, b);
   await setOf(env, kanri, groupId);
+  kickJoinFanout_(ctx, env, user, kanri);
   return jsonOk({ added: true, groupId, members: b.members });
 }
 
@@ -183,7 +133,8 @@ export async function listBundles(request, env) {
     //        （並行トグルの取りこぼしで生じた dangling ポインタ）場合は同梱中扱いしない。
     //        書込はせず読取時にフィルタするだけ（GET でのKV write/二次レース回避）。
     if (!b.members.includes(k)) continue;
-    result[k] = { id: b.id, members: b.members };
+    // main: 集約表示（メイン1枚＋同梱バッジ）の基準。無し＝レガシー同梱（現行表示）
+    result[k] = { id: b.id, members: b.members, main: b.main || '' };
   }
   return jsonOk({ bundles: result });
 }
