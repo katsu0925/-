@@ -20,6 +20,7 @@ function onOpen() {
     .addItem('💴 請求書管理を開く', 'showAdminInvoicePanel')
     .addSeparator()
     .addItem('🔢 仕入れ点数を修正', 'showShiireQuantityFix')
+    .addItem('🗑 削除検知を今すぐ実行', 'menu_runDeletedListingSweep')
     .addToUi();
 }
 
