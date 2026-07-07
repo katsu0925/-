@@ -3733,14 +3733,20 @@ function renderHassouGrouped_(items) {
     ' onclick="setHassouFilter_(\'kanryou\')">完了' +
     '<span class="chip-count">' + countKanryou + '</span></button>' +
   '</div>';
+  // 詳細画面の左右ナビ用: 現在表示中のチップ（発送待ち/発送済み/完了）に限定し、
+  // かつ画面に並んでいるとおりの順序（アカウント順 → sortAccount_ 順）のフラット配列を作る。
+  // これを detailNavList_() が最優先で使うことで、左右移動が別チップへ飛ばず表示順どおりになる。
+  var navOrder = [];
   var groupHtml = accounts.map(function(acc){
     var arr = sortAccount_(groups[acc]);
+    for (var _n = 0; _n < arr.length; _n++) navOrder.push(arr[_n]);
     var summary = '<summary>📮 ' + esc(acc) +
       '<span class="count">' + arr.length + '件</span></summary>';
     return '<details class="group-fold" open>' + summary +
       '<div class="cards-grid">' + arr.map(cardHtml).join('') + '</div>' +
       '</details>';
   }).join('');
+  STATE.hassouNavOrder = navOrder;
   if (!groupHtml) {
     var emptyMsg = filterKey === 'kanryou'
       ? '完了（販売日から3か月以内）の商品はありません'
@@ -7087,6 +7093,13 @@ function endGlobalProgress() {
 function detailNavList_() {
   var cur = STATE.current && STATE.current.kanri;
   if (!cur) return [];
+  // 発送商品タブは「現在表示中のチップ（発送待ち/発送済み/完了）＋表示順」に限定する。
+  // STATE.items は3チップ混在の全件（かつ同梱ケース解決に使う）ため、専用のナビ順を使う。
+  if (STATE.tab === 'hassou' && Array.isArray(STATE.hassouNavOrder)) {
+    for (var h = 0; h < STATE.hassouNavOrder.length; h++) {
+      if (STATE.hassouNavOrder[h].kanri === cur) return STATE.hassouNavOrder;
+    }
+  }
   var lists = [
     Array.isArray(STATE.items) ? STATE.items : [],
     Array.isArray(STATE.currentShiireProducts) ? STATE.currentShiireProducts : []
