@@ -32,6 +32,8 @@ var STAFF_COL = {
   ヒップ: 32,
   採寸日: 33,
   採寸者: 34,
+  撮影日付: 35,
+  撮影者: 36,
   // 販売（42-46, 65）
   販売日: 42,
   販売場所: 43,
@@ -982,6 +984,15 @@ function staff_syncDumpProducts() {
     return isNaN(n) ? null : n;
   }
 
+  // ペア整合スイープ: 採寸者×採寸日 / 撮影者×撮影日付 の片欠けを検出し、
+  // モードに応じて日付セルを補完する。values を書き換えるので同一サイクルの D1 dump に反映される。
+  // 5分Cron に同乗するため追加トリガー・追加読取りは発生しない。失敗しても同期本体は止めない。
+  try {
+    staff_pairIntegritySweep_(sh, values, headers, sheetTz, tz);
+  } catch (ePair) {
+    staff_pairSweepAudit_([[ '', 'ERROR', '', '', '', String(ePair), '', '', '', 'ERROR' ]]);
+  }
+
   var items = [];
   for (var i = 0; i < values.length; i++) {
     var row = values[i];
@@ -1028,6 +1039,176 @@ function staff_syncDumpProducts() {
     });
   }
   return { ok: true, items: items };
+}
+
+// ===== ペア整合スイープ =====
+// 「作業者あり × 日付空」を検出し、モードに応じて日付セルだけを補完する常時監視層。
+// 現行コード外（旧版・手動・未知経路）で作られた片欠けも、5分同期のたびに機械的に整合させる。
+// モードは Script Property PAIR_SWEEP_MODE で制御: 'dryrun'(既定=補完せずプレビューのみ) / 'on'(補完) / 'off'(停止)。
+// ステータスは一切書き換えない（既存の降格禁止設計を維持）。数式セルは触らない（StaffApi.gs:1374 の抜け穴と同型のため）。
+function staff_pairIntegritySweep_(sh, values, headers, sheetTz, tz) {
+  var props = PropertiesService.getScriptProperties();
+  var MODE = String(props.getProperty('PAIR_SWEEP_MODE') || 'dryrun').toLowerCase();
+  if (MODE === 'off') return;
+
+  var C_MEASURE_DATE = STAFF_COL.採寸日;    // 33
+  var C_MEASURE_BY   = STAFF_COL.採寸者;    // 34
+  var C_PHOTO_DATE   = STAFF_COL.撮影日付;  // 35
+  var C_PHOTO_BY     = STAFF_COL.撮影者;    // 36
+  var C_KANRI        = STAFF_COL.管理番号;  // 6
+  var C_STATUS       = STAFF_COL.ステータス; // 5
+  var tsColIdx0 = headers.indexOf('タイムスタンプ'); // 0-based, 無ければ -1
+
+  function isEmpty(v){ return v === '' || v === null || v === undefined; }
+  // Date でも文字列でも「yyyy-MM-dd」を抽出する。抽出できなければ '' を返す
+  function toDateStr(v){
+    if (v instanceof Date) return Utilities.formatDate(v, sheetTz, 'yyyy-MM-dd');
+    var s = String(v == null ? '' : v).trim();
+    if (!s) return '';
+    var m = s.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
+    if (m) return m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
+    return '';
+  }
+
+  // 補完候補（前進補完可能）と警告（作業者空=自動補完不可・手動確認要）を収集
+  var candidates = []; // {rowIdx0, col, field, dateStr, source, kanri, status, tsStr, worker}
+  var warns = [];      // 作業者空×日付あり（作業者は捏造できないため書き込まない）
+  for (var i = 0; i < values.length; i++) {
+    var row = values[i];
+    var kanri = String(row[C_KANRI - 1] || '').trim();
+    if (!kanri) continue;
+    var status = String(row[C_STATUS - 1] || '');
+    var tsStr = (tsColIdx0 >= 0) ? toDateStr(row[tsColIdx0]) : '';
+
+    var mBy = row[C_MEASURE_BY - 1], mDate = row[C_MEASURE_DATE - 1];
+    var pBy = row[C_PHOTO_BY - 1],   pDate = row[C_PHOTO_DATE - 1];
+
+    // ① 採寸者あり × 採寸日空 → 撮影日付 → タイムスタンプ → 検出時刻 の優先で補完
+    if (!isEmpty(mBy) && isEmpty(mDate)) {
+      var photoDateStr = toDateStr(pDate), v1, s1;
+      if (photoDateStr) { v1 = photoDateStr; s1 = '撮影日付'; }
+      else if (tsStr)   { v1 = tsStr;        s1 = 'タイムスタンプ'; }
+      else              { v1 = '';           s1 = '検出時刻'; }
+      candidates.push({ rowIdx0: i, col: C_MEASURE_DATE, field: '採寸日', dateStr: v1, source: s1, kanri: kanri, status: status, tsStr: tsStr, worker: String(mBy || '') });
+    }
+    // ② 撮影者あり × 撮影日付空 → タイムスタンプ → 検出時刻 の優先で補完
+    if (!isEmpty(pBy) && isEmpty(pDate)) {
+      var v2, s2;
+      if (tsStr) { v2 = tsStr; s2 = 'タイムスタンプ'; }
+      else       { v2 = '';    s2 = '検出時刻'; }
+      candidates.push({ rowIdx0: i, col: C_PHOTO_DATE, field: '撮影日付', dateStr: v2, source: s2, kanri: kanri, status: status, tsStr: tsStr, worker: String(pBy || '') });
+    }
+    // 逆方向（日付あり×作業者空）は作業者を捏造できないため補完せず警告のみ
+    if (isEmpty(mBy) && !isEmpty(mDate)) warns.push([ '', MODE, kanri, '採寸者', '', '日付あり作業者空', status, tsStr, '', 'WARN(作業者空・手動確認要)' ]);
+    if (isEmpty(pBy) && !isEmpty(pDate)) warns.push([ '', MODE, kanri, '撮影者', '', '日付あり作業者空', status, tsStr, '', 'WARN(作業者空・手動確認要)' ]);
+  }
+
+  if (!candidates.length && !warns.length) {
+    staff_pairSweepPreview_([]); // プレビューを空に更新（前サイクルの残骸を消す）
+    return;
+  }
+
+  var now = new Date();
+  var nowStr = Utilities.formatDate(now, sheetTz, 'yyyy-MM-dd HH:mm:ss');
+
+  // 数式セルは触らない。採寸日〜撮影日付の連続ブロックの formula を1回で取得
+  var minCol = Math.min(C_MEASURE_DATE, C_PHOTO_DATE); // 33
+  var maxCol = Math.max(C_MEASURE_DATE, C_PHOTO_DATE); // 35
+  var fRange = candidates.length
+    ? sh.getRange(2, minCol, values.length, maxCol - minCol + 1).getFormulas()
+    : null;
+
+  var previewRows = [];
+  var auditRows = [];
+  var applied = 0, skippedFormula = 0;
+
+  for (var k = 0; k < candidates.length; k++) {
+    var c = candidates[k];
+    var dateStr = c.dateStr, usedSource = c.source;
+    if (!dateStr) { dateStr = Utilities.formatDate(now, sheetTz, 'yyyy-MM-dd'); usedSource = '検出時刻'; }
+
+    var hasFormula = String(fRange[c.rowIdx0][c.col - minCol] || '') !== '';
+    if (hasFormula) {
+      skippedFormula++;
+      previewRows.push([ nowStr, MODE, c.kanri, c.field, dateStr, usedSource, c.status, c.tsStr, c.worker, 'SKIP(数式)' ]);
+      continue;
+    }
+
+    var result;
+    if (MODE === 'on') {
+      // sheetTz（スプレッドシートTZ=PDT 等）の 00:00 で日付セルを生成する。
+      // script TZ（JST）の new Date だと表示 TZ(sheetTz) で 1 日ズレる（既存の PDT 00:00 保存値とも不整合）。
+      var d = Utilities.parseDate(dateStr, sheetTz, 'yyyy-MM-dd');
+      sh.getRange(c.rowIdx0 + 2, c.col).setValue(d);
+      values[c.rowIdx0][c.col - 1] = d; // 同一サイクルの D1 dump に反映
+      applied++;
+      result = 'APPLIED';
+      auditRows.push([ nowStr, MODE, c.kanri, c.field, dateStr, usedSource, c.status, c.tsStr, c.worker, 'APPLIED' ]);
+    } else {
+      result = 'DRYRUN(未適用)';
+    }
+    previewRows.push([ nowStr, MODE, c.kanri, c.field, dateStr, usedSource, c.status, c.tsStr, c.worker, result ]);
+  }
+
+  // 警告行にも日時を刻んでプレビューへ
+  for (var w = 0; w < warns.length; w++) { warns[w][0] = nowStr; previewRows.push(warns[w]); }
+
+  staff_pairSweepPreview_(previewRows);   // 常に現状スナップショットで上書き（無限増殖しない）
+  if (auditRows.length) staff_pairSweepAudit_(auditRows); // 実適用のみ追記（適用済み行は翌サイクルで候補から外れる）
+}
+
+// プレビュー: 毎サイクル clear+上書き（=現在の未処理/SKIP/WARN のスナップショット。増殖しない）
+function staff_pairSweepPreview_(rows) {
+  try {
+    var ss = staff_getActiveSpreadsheet_();
+    var name = 'ペア補完プレビュー';
+    var sh = ss.getSheetByName(name) || ss.insertSheet(name);
+    var header = ['日時','モード','管理番号','対象','補完値','ソース','検出時ステータス','検出時TS','作業者','結果'];
+    sh.clearContents();
+    sh.getRange(1, 1, 1, header.length).setValues([header]);
+    if (rows && rows.length) sh.getRange(2, 1, rows.length, header.length).setValues(rows);
+  } catch (e) {}
+}
+
+// 監査ログ: 実適用行のみ追記（append-only。適用済みは翌サイクルで候補外れ＝増殖しない）
+function staff_pairSweepAudit_(rows) {
+  if (!rows || !rows.length) return;
+  try {
+    var ss = staff_getActiveSpreadsheet_();
+    var name = 'ペア補完ログ';
+    var sh = ss.getSheetByName(name);
+    if (!sh) {
+      sh = ss.insertSheet(name);
+      sh.getRange(1, 1, 1, 10).setValues([['日時','モード','管理番号','対象','補完値','ソース','検出時ステータス','検出時TS','作業者','結果']]);
+    }
+    sh.getRange(sh.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
+  } catch (e) {}
+}
+
+// ── PAIR_SWEEP_MODE 切替ヘルパー ─────────────────────────────
+// Script Property が 50件超で GAS の設定UIから編集できない場合、
+// GASエディタの関数ドロップダウンで下記を選んで ▶実行 すればモードを切り替えられる。
+// 現在値の確認は pairSweep_status を実行（実行ログに出力）。
+function pairSweep_status() {
+  var v = PropertiesService.getScriptProperties().getProperty('PAIR_SWEEP_MODE');
+  var cur = String(v || 'dryrun(未設定=既定)');
+  Logger.log('PAIR_SWEEP_MODE = ' + cur);
+  return cur;
+}
+function pairSweep_setOn() {
+  PropertiesService.getScriptProperties().setProperty('PAIR_SWEEP_MODE', 'on');
+  Logger.log('PAIR_SWEEP_MODE を on に設定しました（次の5分Cronから一括補完＋以降は自動補完）');
+  return 'on';
+}
+function pairSweep_setDryrun() {
+  PropertiesService.getScriptProperties().setProperty('PAIR_SWEEP_MODE', 'dryrun');
+  Logger.log('PAIR_SWEEP_MODE を dryrun に設定しました（プレビューのみ・書込みなし）');
+  return 'dryrun';
+}
+function pairSweep_setOff() {
+  PropertiesService.getScriptProperties().setProperty('PAIR_SWEEP_MODE', 'off');
+  Logger.log('PAIR_SWEEP_MODE を off に設定しました（スイープ停止・プレビューも更新しない）');
+  return 'off';
 }
 
 // 仕入れ管理シート 全行ダンプ
