@@ -350,6 +350,7 @@ function mergeReportToKanri_() {
 
 function recalcAssignNumbers_(kanriSheet, knr, numRows) {
   // 必要な列を一括読み取り
+  var ids = kanriSheet.getRange(2, knr.ID, numRows, 1).getValues();
   var categories = kanriSheet.getRange(2, knr.CATEGORY, numRows, 1).getValues();
   var dates = kanriSheet.getRange(2, knr.PURCHASE_DATE, numRows, 1).getValues();
   var counts = kanriSheet.getRange(2, knr.ITEM_COUNT, numRows, 1).getValues();
@@ -366,14 +367,15 @@ function recalcAssignNumbers_(kanriSheet, knr, numRows) {
     if (!groups[cat]) groups[cat] = [];
     groups[cat].push({
       idx: i,
+      sid: normalizeText_(ids[i][0]),
       purchaseDate: toSortableDate_(dates[i][0]),
       regDate: toSortableDate_(regDates[i][0]),
       count: count
     });
   }
 
-  // 区分コードごとにソートして連番を振る
-  var dirty = false;
+  // 区分コードごとにソートして採番案を算出（この時点ではまだ書き込まない）
+  var proposals = [];  // { idx, sid, cat, newVal }
   for (var cat in groups) {
     var rows = groups[cat];
     // 仕入れ日昇順 → 登録日時昇順
@@ -389,19 +391,116 @@ function recalcAssignNumbers_(kanriSheet, knr, numRows) {
     for (var r = 0; r < rows.length; r++) {
       var start = cumulative + 1;
       var end = cumulative + rows[r].count;
-      var newVal = 'z' + cat + start + '~' + end;
-
-      if (String(assignNums[rows[r].idx][0] || '') !== newVal) {
-        assignNums[rows[r].idx][0] = newVal;
-        dirty = true;
-      }
+      proposals.push({ idx: rows[r].idx, sid: rows[r].sid, cat: cat, newVal: 'z' + cat + start + '~' + end });
       cumulative = end;
+    }
+  }
+
+  // 【再発防止ガード】実物ラベル(商品管理)を侵食する採番を阻止する。
+  //   既に商品管理へ実物ラベルが振られている仕入れについて、
+  //   「今の予約レンジ(L列)は実物ラベルを内包しているのに、今回の採番案では内包しなくなる」
+  //   ケース(=過去日割り込み等で確定済みの箱がずれる回帰)を検出したら、採番を中断して管理者へ通知する。
+  //   ※既に内包していない箱(別要因の恒常的なズレ)は現状維持のため中断しない＝正常運用を止めない。
+  try {
+    var physMap = buildPhysicalLabelRangeMap_();
+    var regressions = [];
+    for (var p = 0; p < proposals.length; p++) {
+      var pr = proposals[p];
+      var phys = pr.sid ? physMap[pr.sid] : null;
+      if (!phys || phys.cat !== pr.cat) continue;
+      var oldRange = parseAssignRange_(assignNums[pr.idx][0]);
+      var newRange = parseAssignRange_(pr.newVal);
+      var oldEncloses = oldRange && oldRange.cat === phys.cat && oldRange.start <= phys.min && oldRange.end >= phys.max;
+      var newEncloses = newRange && newRange.cat === phys.cat && newRange.start <= phys.min && newRange.end >= phys.max;
+      if (oldEncloses && !newEncloses) {
+        regressions.push('・仕入れID ' + pr.sid + '（区分' + pr.cat + '）: 実物ラベル z' + phys.cat + phys.min + '〜z' + phys.cat + phys.max +
+                         ' / 予約 ' + String(assignNums[pr.idx][0] || '') + ' → ' + pr.newVal);
+      }
+    }
+    if (regressions.length > 0) {
+      var wmsg = '【割り当て管理番号 再計算を中断】\n' +
+        '確定済み(商品管理に実物ラベルあり)の箱の予約レンジがずれる採番を検出したため、L列を書き換えずに中断しました。\n' +
+        '主因は「仕入れ日を過去日にした仕入れの割り込み」です。該当仕入れの仕入れ日を実際の登録日に直してから再度お試しください。\n\n' +
+        regressions.join('\n');
+      console.error(wmsg);
+      notifyAssignConflict_(wmsg);
+      return;  // ★ 書き込まない（確定済みラベルを守る）
+    }
+  } catch (guardErr) {
+    // ガードの失敗(商品管理読み取り不能等)で本来の採番を止めないよう、ログのみ残して継続
+    console.error('割り当て番号ガードの実行に失敗（採番は続行）: ' + (guardErr && guardErr.message || guardErr));
+  }
+
+  // 競合なし → 差分のみ書き込み
+  var dirty = false;
+  for (var q = 0; q < proposals.length; q++) {
+    var pq = proposals[q];
+    if (String(assignNums[pq.idx][0] || '') !== pq.newVal) {
+      assignNums[pq.idx][0] = pq.newVal;
+      dirty = true;
     }
   }
 
   if (dirty) {
     kanriSheet.getRange(2, knr.ASSIGN_NUM, numRows, 1).setValues(assignNums);
     console.log('割り当て管理番号を再計算しました');
+  }
+}
+
+// ═══════════════════════════════════════════
+//  再発防止ガード用ヘルパー
+// ═══════════════════════════════════════════
+
+// 商品管理シートから 仕入れID → { cat, min, max }（実物ラベルの区分と最小/最大番号）を構築
+function buildPhysicalLabelRangeMap_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheetName = (typeof STAFF_SHEET_NAME !== 'undefined') ? STAFF_SHEET_NAME : '商品管理';
+  var sh = ss.getSheetByName(sheetName);
+  if (!sh) return {};
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return {};
+  var idCol  = (typeof STAFF_COL !== 'undefined' && STAFF_COL['仕入れID']) ? STAFF_COL['仕入れID'] : 2;
+  var knrCol = (typeof STAFF_COL !== 'undefined' && STAFF_COL['管理番号']) ? STAFF_COL['管理番号'] : 6;
+  var lo = Math.min(idCol, knrCol);
+  var hi = Math.max(idCol, knrCol);
+  var data = sh.getRange(2, lo, lastRow - 1, hi - lo + 1).getValues();
+  var idOff = idCol - lo;
+  var knrOff = knrCol - lo;
+  var map = {};
+  for (var i = 0; i < data.length; i++) {
+    var sid = String(data[i][idOff] || '').trim();
+    if (!sid) continue;
+    var m = String(data[i][knrOff] || '').trim().match(/^z([A-Za-z]+)(\d+)$/);
+    if (!m) continue;
+    var cat = m[1];
+    var num = parseInt(m[2], 10);
+    var cur = map[sid];
+    if (!cur) { map[sid] = { cat: cat, min: num, max: num }; }
+    else if (cur.cat === cat) { if (num < cur.min) cur.min = num; if (num > cur.max) cur.max = num; }
+  }
+  return map;
+}
+
+// "zC950~1074" → { cat:'C', start:950, end:1074 } / パース不能は null
+function parseAssignRange_(v) {
+  var m = String(v || '').trim().match(/^z([A-Za-z]+)(\d+)~(\d+)$/);
+  if (!m) return null;
+  return { cat: m[1], start: parseInt(m[2], 10), end: parseInt(m[3], 10) };
+}
+
+// 採番ガードの競合を管理者へメール通知（設定シートの通知先を再利用）。失敗しても採番処理は止めない。
+function notifyAssignConflict_(message) {
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var recipients = (typeof getRecipients === 'function') ? getRecipients(ss) : [];
+    if (!recipients || recipients.length === 0) return;
+    var subject = '【要確認】割り当て管理番号の再計算を中断しました';
+    for (var i = 0; i < recipients.length; i++) {
+      try { MailApp.sendEmail(recipients[i], subject, message); }
+      catch (e) { console.error('採番ガード通知メール送信失敗 ' + recipients[i] + ': ' + (e && e.message || e)); }
+    }
+  } catch (e) {
+    console.error('採番ガード通知処理に失敗: ' + (e && e.message || e));
   }
 }
 
