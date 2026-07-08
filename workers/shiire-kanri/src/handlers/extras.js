@@ -70,7 +70,41 @@ export async function updateReturn(request, env, user, boxId) {
   if (!ids) return jsonError('ids required', 400);
   const r = await callGas(env, 'updateReturn', { boxId: id, destination, ids, reporter, note, count }, user);
   if (!r.ok) return jsonError(r.error || 'gas error', 502);
+  // 楽観更新: 返送に入れた商品を即 '返品済み' にして候補（filter=shuppinchu）から外す
+  await markReturnedInD1_(env, ids);
   return jsonOk({ updated: true, boxId: r.boxId, row: r.row });
+}
+
+// 返送作成/更新時、D1 の該当行 status を即 '返品済み' に楽観更新する。
+// D1 の status 列は 5 分 Cron 同期まで旧値（出品中）のままで、その間 返送候補
+// （app.js onHensouReporterChange の filter=shuppinchu = derived '出品中'）に
+// 返送済み商品が出続けてしまう（シート上は既に「返品済み」なのに候補に並ぶ）。
+// ここで D1 も即 '返品済み' にすると derived_status が '返品済み' になり候補から外れる。
+// GAS の 返送済みステータス変更.gs（EXCLUDED_STATUS_TEXTS）と同じガードで、
+// 売却済み・廃棄済み・キャンセル済み・発送待ち・発送済み は上書きしない（＝GAS 側で
+// 返品済みにしなかった行は D1 でも変えない）。シートは既に返品済みなので、次回 Cron の
+// content_hash 比較でも '返品済み' を書き込み、巻き戻しは起きない。
+async function markReturnedInD1_(env, idsCsv) {
+  if (!env || !env.DB) return;
+  const ids = Array.from(new Set(
+    String(idsCsv || '').split(',').map((s) => s.trim()).filter(Boolean)
+  ));
+  if (!ids.length) return;
+  const now = Date.now();
+  const chunk = 90; // D1 の bind 変数上限(100)に余裕を持たせる
+  for (let i = 0; i < ids.length; i += chunk) {
+    const batch = ids.slice(i, i + chunk);
+    const ph = batch.map(() => '?').join(',');
+    try {
+      await env.DB.prepare(
+        `UPDATE products SET status = '返品済み', updated_at = ?` +
+        `  WHERE kanri IN (${ph})` +
+        `    AND status NOT IN ('返品済み','売却済み','廃棄済み','キャンセル済み','発送待ち','発送済み')`
+      ).bind(now, ...batch).run();
+    } catch (err) {
+      console.warn('[markReturnedInD1] d1 optimistic 返品済み failed: ' + err.message);
+    }
+  }
 }
 
 export async function deletePurchase(request, env, user, shiireId) {
@@ -103,6 +137,8 @@ export async function createReturn(request, env, user) {
   if (!ids) return jsonError('ids required', 400);
   const r = await callGas(env, 'createReturn', { destination, ids, reporter, registerUser, note, count, boxId }, user);
   if (!r.ok) return jsonError(r.error || 'gas error', 502);
+  // 楽観更新: 返送に入れた商品を即 '返品済み' にして候補（filter=shuppinchu）から外す
+  await markReturnedInD1_(env, ids);
   return jsonOk({ created: true, boxId: r.boxId, row: r.row });
 }
 
