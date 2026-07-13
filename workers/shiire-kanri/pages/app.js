@@ -3304,17 +3304,12 @@ function onCardKanryouClick_(btn, kanri) {
     String(d.getMonth() + 1).padStart(2, '0') + '/' +
     String(d.getDate()).padStart(2, '0');
   var fields = { '完了日': ymd };
-  fetch(API_BASE + '/api/save/details', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ kanri: k, fields: fields })
-  }).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, body: j }; }); })
-  .then(function(res){
-    if (!res.ok || !res.body || res.body.ok === false) throw new Error((res.body && res.body.error) || '保存失敗');
-    // 楽観反映: STATE.items の該当 kanri に 完了日 を入れて再描画
-    // 完了日が入ると GAS の IFS 式（StaffApi.gs:65 「完了日 notBlank → 売却済み」）で
-    // サーバー側 status は '売却済み' に再計算される。発送済みリストは status==='発送済み' で
-    // 絞っているため、ローカル status も '売却済み' に追従させて即座に一覧から外す。
-    // （従来は 完了日 だけ更新し status を据え置いていたため、タブを切り替えるまで残っていた）
+  // 楽観反映: STATE.items の該当 kanri に 完了日 を入れて再描画（成功時と再送待機時の両方で使う）
+  // 完了日が入ると GAS の IFS 式（StaffApi.gs:65 「完了日 notBlank → 売却済み」）で
+  // サーバー側 status は '売却済み' に再計算される。発送済みリストは status==='発送済み' で
+  // 絞っているため、ローカル status も '売却済み' に追従させて即座に一覧から外す。
+  // （従来は 完了日 だけ更新し status を据え置いていたため、タブを切り替えるまで残っていた）
+  function applyKanryouLocal_() {
     if (Array.isArray(STATE.items)) {
       for (var i = 0; i < STATE.items.length; i++) {
         if (STATE.items[i] && STATE.items[i].kanri === k) {
@@ -3329,14 +3324,49 @@ function onCardKanryouClick_(btn, kanri) {
     // 全工程共通の LOCAL_STAGE_ に「売却済み」で登録＝viewAllowsStage_(発送)=false で除外。
     LOCAL_STAGE_[k] = { stage: '売却済み', fromTab: STATE.tab, fromFilter: (STATE.filter || ''), ts: Date.now() };
     LIST_CACHE = {};
-    toast('完了しました（発送済みから除外）', 'success');
     if (STATE.tab === 'hassou') renderShouhinList({ silent: true });
     refreshCounts();
+  }
+  // saveDetails と同じ outbox 先積みパターン: fetch 前に IndexedDB へ積む。
+  // iOS はアプリ切替・カメラ起動時に in-flight fetch を resolve も reject もせず無音で
+  // 打ち切ることがあり、素の fetch だと then/catch とも走らず「保存中…」のまま固着する。
+  // 先積み＋fetchWithTimeout_ なら中断してもデータは残り、復帰時の flushOutbox_ が自動再送する。
+  var idemKey = genIdempotencyKey_();
+  outboxAdd_({ type: 'details', kanri: k, fields: fields, idempotencyKey: idemKey, label: k + '（完了日）' })
+  .then(function(outboxId){
+    try { refreshOutboxBadge_(); } catch(e) {}
+    return fetchWithTimeout_(API_BASE + '/api/save/details', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json', 'X-Idempotency-Key': idemKey },
+      body: JSON.stringify({ kanri: k, fields: fields })
+    }, 30000).then(
+      function(r){ return r.json().catch(function(){ return null; }).then(function(j){ return { status: r.status, httpOk: r.ok, json: j }; }); },
+      function(){ return null; } // ネットワーク失敗・タイムアウト・iOS 無音中断 → outbox に残す
+    ).then(function(res){
+      if (!res || (!res.httpOk && res.status >= 500)) {
+        // 通信不達 / サーバー一時エラー: outbox に残して自動再送。完了扱いで先へ進める
+        applyKanryouLocal_();
+        toast('📥 電波が不安定なため完了を待機中（接続復帰時に自動送信）', 'success');
+        try { refreshOutboxBadge_(); } catch(e) {}
+        return;
+      }
+      if (!res.httpOk || !res.json || res.json.ok === false) {
+        // 4xx / 入力エラー: 再送しても通らない → outbox から除去してボタンを戻す
+        if (outboxId != null) outboxRemove_(outboxId).then(refreshOutboxBadge_);
+        toast('保存失敗: ' + ((res.json && (res.json.error || res.json.message)) || ('http ' + res.status)), 'error');
+        btn.disabled = false;
+        btn.textContent = '完了 ✓';
+        btn.classList.remove('armed');
+        return;
+      }
+      // 成功: outbox から除去して楽観反映
+      if (outboxId != null) outboxRemove_(outboxId).then(refreshOutboxBadge_);
+      applyKanryouLocal_();
+      toast('完了しました（発送済みから除外）', 'success');
+    });
   }).catch(function(err){
     toast('保存失敗: ' + (err && err.message || '不明'), 'error');
-    btn.disabled = false;
-    btn.textContent = '完了 ✓';
-    btn.classList.remove('armed');
+    try { btn.disabled = false; btn.textContent = '完了 ✓'; btn.classList.remove('armed'); } catch(e) {}
   });
 }
 
@@ -8916,86 +8946,129 @@ async function saveDetails() {
     try { updateSavebar_(); } catch(e) {}
   }
 
+  // 送信前に IndexedDB outbox へ先積み（api() の outbox 先積みパターンと同じ）。
+  // iOS はアプリ切替・カメラ起動時に in-flight fetch を resolve も reject もせず無音で
+  // 打ち切ることがあり、旧実装（fetch 後の .catch 内で outboxAdd_）ではその場合に
+  // 再送もエラー表示もされず入力が消失した（zC1562 出品日消失事件）。
+  // 先積みなら無音中断でもデータは IndexedDB に残り、復帰時の flushOutbox_ が自動再送する。
+  var idemKey = genIdempotencyKey_();
+  var outboxId = await outboxAdd_({
+    type: 'details', kanri: d.kanri, fields: fields,
+    idempotencyKey: idemKey, label: d.kanri,
+  });
+  try { refreshOutboxBadge_(); } catch(e) {}
+
+  // 通信不達・5xx 時: outbox に残したまま楽観表示を維持（visibilitychange/online で自動再送）
+  function keepQueued_(msg) {
+    if (outboxId == null) {
+      // 先積み自体が失敗していた場合の保険（IndexedDB 不調）: ここで積み直す
+      outboxAdd_({ type: 'details', kanri: d.kanri, fields: fields, idempotencyKey: idemKey, label: d.kanri });
+    }
+    clearSavingBtn_();
+    toast(msg, 'success');
+    try { refreshOutboxBadge_(); } catch(e) {}
+  }
+
   // 背景で API へ送信 → 成功時は record（GAS が返す保存後の最新行）で d.extra を直接更新。
   // 旧実装は save 後に /api/products/:kanri を再 fetch していたが、record で代替できるため省略。
   // record が無い古い Worker 応答にはフォールバックで再 fetch を残す。
-  fetch(API_BASE + '/api/save/details', {
+  // fetchWithTimeout_ 必須: 素の fetch だと iOS の無音打ち切りで then/catch とも走らず
+  // 「保存中…」のまま固着する（30 秒で必ず reject させ、queued 経路に落とす）。
+  fetchWithTimeout_(API_BASE + '/api/save/details', {
     method: 'POST',
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-Idempotency-Key': idemKey },
     body: JSON.stringify({ kanri: d.kanri, fields: fields }),
-  })
-    .then(function(res){
-      if (!res.ok) throw new Error('http ' + res.status);
-      return res.json();
-    })
-    .then(function(json){
-      if (!json || !json.ok) throw new Error((json && (json.message || json.error)) || 'save failed');
+  }, 30000)
+    .then(
+      function(res){
+        return res.json().catch(function(){ return null; }).then(function(json){
+          return { status: res.status, httpOk: res.ok, json: json };
+        });
+      },
+      function(){
+        // ネットワーク失敗・タイムアウト・iOS 無音中断（AbortError）→ queued 経路へ
+        return null;
+      }
+    )
+    .then(function(r){
+      if (!r) {
+        keepQueued_('📥 電波が不安定なため保存を待機中（接続復帰時に自動送信）');
+        return;
+      }
+      if (!r.httpOk || !r.json || !r.json.ok) {
+        if (r.status >= 500) {
+          keepQueued_('📥 サーバー一時エラーのため保存を待機中（自動で再送します）');
+          return;
+        }
+        // 4xx / 入力エラー: 再送しても通らない → outbox から除去して楽観反映を巻き戻す
+        if (outboxId != null) outboxRemove_(outboxId).then(refreshOutboxBadge_);
+        Object.keys(prevValues).forEach(function(k){
+          if (prevValues[k] === undefined) delete ex[k];
+          else ex[k] = prevValues[k];
+        });
+        d.extra = ex;
+        clearSavingBtn_();
+        var raw = (r.json && (r.json.message || r.json.error)) || ('http ' + r.status);
+        toast('⚠️ 保存に失敗: ' + raw + '（再保存してください）', 'error');
+        return;
+      }
+      // 成功: outbox から除去して後処理へ
+      if (outboxId != null) outboxRemove_(outboxId).then(refreshOutboxBadge_);
+      var json = r.json;
       refreshCounts();
       // 一覧キャッシュは派生値が古くなる可能性があるため破棄
       LIST_CACHE = Object.create(null);
+      var afterP;
       if (json.record && typeof json.record === 'object') {
         // record をそのまま採用 → 1 往復省ける
-        return { item: mergeRecordIntoItem_(d, json.record), optimistic: !!json.optimistic };
+        afterP = Promise.resolve({ item: mergeRecordIntoItem_(d, json.record), optimistic: !!json.optimistic });
+      } else {
+        // フォールバック: 旧応答や record 欠損時はサーバー再取得
+        afterP = api('/api/products/' + encodeURIComponent(d.kanri)).then(function(r2){
+          return { item: r2 && r2.item, optimistic: false };
+        });
       }
-      // フォールバック: 旧応答や record 欠損時はサーバー再取得
-      return api('/api/products/' + encodeURIComponent(d.kanri)).then(function(r){
-        return { item: r && r.item, optimistic: false };
+      return afterP.then(function(res){
+        clearSavingBtn_();
+        toast('保存しました', 'success');
+        if (!res || !res.item) return;
+        DETAIL_CACHE[d.kanri] = res.item;
+        // 編集中（dirty）でなく、まだ同じ詳細を表示中なら再描画
+        if (STATE.view === 'detail' && STATE.current && STATE.current.kanri === d.kanri && !STATE.detailDirty) {
+          // 保存成功＋追加編集なし → edits をクリアして原本ベースで再描画
+          clearDetailEdits_(d.kanri);
+          STATE.current = res.item;
+          renderDetail();
+        }
+        // ★ Day 3: optimistic 応答の場合、GAS の派生値（粗利・利益・ステータス再計算等）が
+        //   裏で確定した頃合いに静かに再取得して UI を更新する。
+        //   ユーザは既に次の操作に進んでいることが多いので、現在の詳細表示中で dirty でない時だけ再描画。
+        if (res.optimistic) {
+          setTimeout(function(){
+            api('/api/products/' + encodeURIComponent(d.kanri))
+              .then(function(r3){
+                if (!r3 || !r3.item) return;
+                DETAIL_CACHE[d.kanri] = r3.item;
+                // GAS 反映後の実 D1 値。実値が返ったフィールドの保存値オーバーレイは掃除する
+                //（まだ空のフィールドはオーバーレイを残し、引き続き表示を補完する）。
+                try { pruneLocalFieldValues_(r3.item); } catch(e) {}
+                if (STATE.view === 'detail' && STATE.current && STATE.current.kanri === d.kanri && !STATE.detailDirty) {
+                  clearDetailEdits_(d.kanri);
+                  STATE.current = r3.item;
+                  renderDetail();
+                }
+              })
+              .catch(function(){ /* 黙って諦める。次回詳細を開いた時には D1 が確定済み */ });
+          }, 5500);
+        }
       });
-    })
-    .then(function(res){
-      clearSavingBtn_();
-      toast('保存しました', 'success');
-      if (!res || !res.item) return;
-      DETAIL_CACHE[d.kanri] = res.item;
-      // 編集中（dirty）でなく、まだ同じ詳細を表示中なら再描画
-      if (STATE.view === 'detail' && STATE.current && STATE.current.kanri === d.kanri && !STATE.detailDirty) {
-        // 保存成功＋追加編集なし → edits をクリアして原本ベースで再描画
-        clearDetailEdits_(d.kanri);
-        STATE.current = res.item;
-        renderDetail();
-      }
-      // ★ Day 3: optimistic 応答の場合、GAS の派生値（粗利・利益・ステータス再計算等）が
-      //   裏で確定した頃合いに静かに再取得して UI を更新する。
-      //   ユーザは既に次の操作に進んでいることが多いので、現在の詳細表示中で dirty でない時だけ再描画。
-      if (res.optimistic) {
-        setTimeout(function(){
-          api('/api/products/' + encodeURIComponent(d.kanri))
-            .then(function(r){
-              if (!r || !r.item) return;
-              DETAIL_CACHE[d.kanri] = r.item;
-              // GAS 反映後の実 D1 値。実値が返ったフィールドの保存値オーバーレイは掃除する
-              //（まだ空のフィールドはオーバーレイを残し、引き続き表示を補完する）。
-              try { pruneLocalFieldValues_(r.item); } catch(e) {}
-              if (STATE.view === 'detail' && STATE.current && STATE.current.kanri === d.kanri && !STATE.detailDirty) {
-                clearDetailEdits_(d.kanri);
-                STATE.current = r.item;
-                renderDetail();
-              }
-            })
-            .catch(function(){ /* 黙って諦める。次回詳細を開いた時には D1 が確定済み */ });
-        }, 5500);
-      }
     })
     .catch(function(err){
-      // 失敗時: 電波切れ等は IndexedDB キューに退避→online で自動再送（楽観UIは維持）
-      // 巻き戻しはせず、楽観反映を保ったままバックグラウンド再送に任せる
-      var isOffline = (typeof navigator !== 'undefined' && navigator.onLine === false) ||
-                      /Failed to fetch|NetworkError|TypeError/i.test(String(err && err.message || ''));
-      if (isOffline) {
-        outboxAdd_({ type: 'details', kanri: d.kanri, fields: fields });
-        clearSavingBtn_();
-        toast('📥 オフラインのため保存を待機中（接続復帰時に自動送信）', 'success');
-        return;
-      }
-      // オンラインだが API エラー: 楽観反映を巻き戻す
-      Object.keys(prevValues).forEach(function(k){
-        if (prevValues[k] === undefined) delete ex[k];
-        else ex[k] = prevValues[k];
-      });
-      d.extra = ex;
+      // ここに来るのは成功後の後処理（record マージ・フォールバック再取得等）の失敗のみ。
+      // 保存自体は確定済みなので巻き戻さず、保存中表示だけ解除する。
       clearSavingBtn_();
-      toast('⚠️ 保存に失敗: ' + err.message + '（再保存してください）', 'error');
+      console.warn('[saveDetails] 保存後処理でエラー', err);
     });
 }
 
