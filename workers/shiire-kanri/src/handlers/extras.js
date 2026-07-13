@@ -219,7 +219,12 @@ export async function createSagyousha(request, env, user) {
 // クライアントから ?fresh=1 で強制再取得可能。
 const SHEET_DUMP_TTL = 60;
 const SHEET_DUMP_CACHED = { '報酬管理': true, '仕入れ報告': true, '経費': true };
+// ①多層防御: フロント(BUSINESS_SHEETS)が実際に要求する3シートのみ Worker で通す。
+//   これ以外のシート名を GAS へ渡さないことで、任意シート閲覧の入口を塞ぐ。
+//   本人フィルタ・管理者判定は GAS(staff_dumpSheet)が正だが、その手前でも名前を絞る。
+const DUMP_ALLOWED_SHEETS = { '仕入れ数報告': true, '経費申請': true, '報酬管理': true };
 export async function dumpSheet(request, env, user, name) {
+  if (!DUMP_ALLOWED_SHEETS[name]) return jsonError('forbidden', 403);
   const url = new URL(request.url);
   const limit = Math.min(500, Math.max(10, parseInt(url.searchParams.get('limit'), 10) || 200));
   const fresh = url.searchParams.get('fresh') === '1';

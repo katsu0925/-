@@ -5,7 +5,7 @@ import { scheduledSync } from './sync/sheets-sync.js';
 import { scheduledAccessSync, debugAccessConfig } from './sync/access-sync.js';
 import { listProducts, getProduct, listProductCounts, getNextKanri, getNextKanriForPurchase, listProductThumbs, getProductImages, listKanrisWithImages, backfillThumbUrl } from './handlers/products.js';
 import { listPurchases, getPurchaseProducts } from './handlers/purchases.js';
-import { saveMeasurement, saveSale, saveDetails, uploadImage, resolveImage, createPurchase, createProduct, deleteProduct } from './handlers/write-proxy.js';
+import { saveMeasurement, saveSale, saveDetails, uploadImage, resolveImage, createPurchase, createProduct, deleteProduct, retrySaveFailures } from './handlers/write-proxy.js';
 import { imgProxy } from './handlers/img-proxy.js';
 import { thumbProxy } from './handlers/thumb-proxy.js';
 import { listWorkers, listAccounts, listSuppliers, listPlaces, listCategories, listSettings } from './handlers/master.js';
@@ -28,6 +28,8 @@ export default {
   async scheduled(event, env, ctx) {
     ctx.waitUntil(scheduledSync(env));
     ctx.waitUntil(scheduledAccessSync(env));
+    // ②保存耐久性: GAS reconcile に失敗して savefail に積まれた保存を再投入して確定させる
+    ctx.waitUntil(retrySaveFailures(env));
   },
 
   async fetch(request, env, ctx) {

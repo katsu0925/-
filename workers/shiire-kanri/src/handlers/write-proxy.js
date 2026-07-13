@@ -305,20 +305,22 @@ async function applyDetailColumns_(env, kanri, fields, mergedExtra, derivedStatu
 // バックグラウンドで GAS に saveDetails を投入し、返ってきた record で D1 を確定反映する
 // reconcile 後に Push 通知（発送待ち/発送済み 遷移）も発火させる
 // opts.suppressPush: 同梱メンバーへの自動転記時に true（1販売でN通のPushが飛ぶのを防ぎ、メインの1通だけにする）
+// opts.suppressFailureLog: savefail 再送Cron から呼ぶ時に true（失敗しても savefail を二重記録しない）
+// 戻り値: GAS reconcile が成功したら true、失敗（例外/ok=false）なら false。呼び出し側の再送判定に使う。
 async function dispatchGasSaveDetails_(env, user, kanri, fields, oldDerivedStatus, oldShiireId, opts = {}) {
   let gasRes;
   try {
     gasRes = await callGas(env, 'saveDetails', { kanri, fields }, user);
   } catch (err) {
     console.warn('[save details bg] gas exception', err.message);
-    await logSaveFailure_(env, user, kanri, fields, 'exception:' + err.message);
-    return;
+    if (!opts.suppressFailureLog) await logSaveFailure_(env, user, kanri, fields, 'exception:' + err.message);
+    return false;
   }
   if (!gasRes || !gasRes.ok) {
     const reason = (gasRes && gasRes.error) || 'unknown';
     console.warn('[save details bg] gas failed', reason);
-    await logSaveFailure_(env, user, kanri, fields, reason);
-    return;
+    if (!opts.suppressFailureLog) await logSaveFailure_(env, user, kanri, fields, reason);
+    return false;
   }
   // record があれば D1 を再更新（派生値の確定反映）
   const record = (gasRes.record && typeof gasRes.record === 'object') ? gasRes.record : null;
@@ -359,6 +361,7 @@ async function dispatchGasSaveDetails_(env, user, kanri, fields, oldDerivedStatu
   } catch (err) {
     console.warn('[save details bg] push fanout failed', err.message);
   }
+  return true;
 }
 
 // ステータス遷移を検知して Push 配信（発送待ち / 発送済み への遷移時）
@@ -434,6 +437,63 @@ async function logSaveFailure_(env, user, kanri, fields, reason) {
       kanri, fields, reason, ts: Date.now(), email: (user && user.email) || ''
     }), { expirationTtl: 86400 * 7 });
   } catch (e) { /* ignore */ }
+}
+
+// ============================================================
+// savefail 再送 Cron（②保存耐久性ギャップの解消）
+//
+// logSaveFailure_ が積んだ savefail:<kanri>:<ts> レコードには「D1 は楽観更新済みだが
+// GAS reconcile が失敗した保存」が入る。従来は消費者ゼロで TTL7日で消えるだけ＝
+// GAS 側（＝スプレッドシートの正）が永久に取り込まれない穴があった。
+// scheduled から本関数を呼び、GAS へ再投入して確定させる。
+//   - 成功 → savefail を削除
+//   - 失敗 → attempts を +1 して残す。SAVEFAIL_MAX_ATTEMPTS 回で dead-letter(savefail-dead:*)へ退避
+//   - 壊れたレコード → 削除
+// feedback_d1_cost_safeguard: 1回の実行で処理する件数を SAVEFAIL_MAX_PER_RUN で上限化し、
+//   reconcile 内の D1 書込みが暴走しないようにする（過去 $54 課金の教訓）。
+const SAVEFAIL_MAX_ATTEMPTS = 5;
+const SAVEFAIL_MAX_PER_RUN  = 100;
+export async function retrySaveFailures(env) {
+  const kv = env.CACHE;
+  if (!kv) return { processed: 0, recovered: 0, dropped: 0, kept: 0 };
+  let cursor = undefined;
+  let processed = 0, recovered = 0, dropped = 0, kept = 0;
+  try {
+    outer:
+    do {
+      const list = await kv.list({ prefix: 'savefail:', cursor, limit: 100 });
+      for (const k of list.keys) {
+        if (processed >= SAVEFAIL_MAX_PER_RUN) break outer;
+        // dead-letter は再送対象外（prefix 'savefail:' に 'savefail-dead:' は含まれない想定だが念のため）
+        if (k.name.indexOf('savefail-dead:') === 0) continue;
+        let rec = null;
+        try { rec = await kv.get(k.name, 'json'); } catch { rec = null; }
+        if (!rec || !rec.kanri || !rec.fields || typeof rec.fields !== 'object') {
+          try { await kv.delete(k.name); } catch {}
+          continue;
+        }
+        processed++;
+        const user = { email: (rec.email || 'cloudflare-proxy') };
+        let ok = false;
+        try {
+          ok = await dispatchGasSaveDetails_(env, user, rec.kanri, rec.fields, '', '', { suppressPush: true, suppressFailureLog: true });
+        } catch (e) { ok = false; }
+        if (ok) { try { await kv.delete(k.name); } catch {} recovered++; continue; }
+        const attempts = (Number(rec.attempts) || 0) + 1;
+        if (attempts >= SAVEFAIL_MAX_ATTEMPTS) {
+          try { await kv.delete(k.name); } catch {}
+          try { await kv.put('savefail-dead:' + rec.kanri + ':' + (rec.ts || Date.now()), JSON.stringify(Object.assign({}, rec, { attempts, deadAt: Date.now() })), { expirationTtl: 86400 * 30 }); } catch {}
+          dropped++;
+        } else {
+          try { await kv.put(k.name, JSON.stringify(Object.assign({}, rec, { attempts })), { expirationTtl: 86400 * 7 }); } catch {}
+          kept++;
+        }
+      }
+      cursor = list.list_complete ? undefined : list.cursor;
+    } while (cursor);
+  } catch (e) { console.warn('[savefail-retry] failed', e && e.message); }
+  if (processed) console.log(`[savefail-retry] processed=${processed} recovered=${recovered} dropped=${dropped} kept=${kept}`);
+  return { processed, recovered, dropped, kept };
 }
 
 // ============================================================

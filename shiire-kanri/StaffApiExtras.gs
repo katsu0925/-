@@ -779,6 +779,14 @@ function staff_dumpSheet(payload, email) {
   payload = payload || {};
   var name = String(payload.name || '').trim();
   if (!name) return { ok: false, error: 'name required' };
+  // ①サーバー側アクセス制御: 非管理者は業務3シートのみ閲覧可。
+  //   管理者は従来通り任意シートを全件閲覧できる（挙動維持）。
+  var me = staff_resolveUserByEmail_(email);
+  var isAdmin = !!(me && me.isAdmin);
+  var NONADMIN_ALLOWED_SHEETS_ = { '仕入れ数報告': true, '経費申請': true, '報酬管理': true };
+  if (!isAdmin && !NONADMIN_ALLOWED_SHEETS_[name]) {
+    return { ok: false, error: 'このシートを閲覧する権限がありません' };
+  }
   var limit = Math.min(500, Math.max(10, parseInt(payload.limit, 10) || 200));
   var ss = staff_getActiveSpreadsheet_();
   var sh = ss.getSheetByName(name);
@@ -790,17 +798,17 @@ function staff_dumpSheet(payload, email) {
   if (lastRow < 2) return { ok: true, headers: headers, rows: [] };
   var values = sh.getRange(2, 1, lastRow - 1, lastCol).getDisplayValues();
 
-  // 経費申請シート: 報酬管理と同じく、非管理者は本人の行のみに絞り込む
-  if (name === '経費申請') {
-    var me = staff_resolveUserByEmail_(email);
-    if (!me.isAdmin) {
-      var iName = headers.indexOf('名前');
-      if (iName < 0) return { ok: false, error: '経費申請シートに「名前」列がありません' };
-      var myName = String(me.name || '').trim();
-      values = values.filter(function(row){
-        return String(row[iName] || '').trim() === myName;
-      });
-    }
+  // 経費申請・報酬管理シート: 非管理者は本人（[名前]列一致）の行のみに絞り込む。
+  //   従来 報酬管理はフロント(paintHoushu_)側でのみ絞っておりサーバーは無防備だったため、
+  //   ここでサーバー側でも本人フィルタを掛けて他人の報酬・経費の露出を防ぐ。
+  if (!isAdmin && (name === '経費申請' || name === '報酬管理')) {
+    var iName = headers.indexOf('名前');
+    if (iName < 0) return { ok: false, error: name + 'シートに「名前」列がありません' };
+    var myName = String((me && me.name) || '').trim();
+    if (!myName) return { ok: true, headers: headers, rows: [] };
+    values = values.filter(function(row){
+      return String(row[iName] || '').trim() === myName;
+    });
   }
 
   // 末尾から limit 件を取得（新しい順表示）

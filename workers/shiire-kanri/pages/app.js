@@ -2670,7 +2670,10 @@ async function renderShouhinList(opts) {
       ordered.forEach(function(k){
         var label = (k === '__none__') ? '（未設定）' : k;
         var active = (STATE.accountFilter === k) ? ' active' : '';
-        var safeKey = String(k).replace(/'/g, "\\'");
+        // ⑦ XSS/属性インジェクション対策: onclick="...('KEY')" は二重引用符属性なので、
+        //    まず \ と ' を JS 文字列用にエスケープし、その結果を esc() で HTML 実体参照化する。
+        //    ブラウザが属性値の実体参照を復号 → 正しい JS 文字列リテラルになる（" や < を混入させない）。
+        var safeKey = esc(String(k).replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
         chipsArr.push('<button type="button" class="chip' + active +
           '" onclick="selectAccountChip_(\'' + safeKey + '\')">' + esc(label) +
           '<span class="chip-count">' + accCount[k] + '</span></button>');
@@ -4588,6 +4591,10 @@ async function submitHensouUpdate(boxId) {
   }
 }
 
+// 報告者切替の競合ガード（onBashoReporterChange と同型）: 素早く切り替えると先に投げた
+// 遅いレスポンスが後勝ち（last-write-wins）で picker を上書きし、別の報告者の返送候補を
+// 誤って表示してしまう。リクエストごとに連番を振り、await から戻った時点で最新でなければ描画を捨てる。
+var __hensouReqSeq = 0;
 async function onHensouReporterChange() {
   var sel = document.getElementById('hensou-reporter');
   var picker = document.getElementById('hensou-ids-picker');
@@ -4596,6 +4603,7 @@ async function onHensouReporterChange() {
     picker.innerHTML = '<div class="muted">先に「報告者」を選択してください</div>';
     return;
   }
+  var mySeq = ++__hensouReqSeq;
   picker.innerHTML = '<div class="muted">読み込み中…</div>';
   try {
     // 返送候補は AppSheet Valid_If と完全一致させる:
@@ -4603,6 +4611,8 @@ async function onHensouReporterChange() {
     //   AND ISNOTBLANK([出品日]) AND DATE([出品日]) <= (TODAY() - 30)
     // → サーバー側で listedBeforeDays=30 を渡して 30日以上前の出品のみ返す
     var res = await api('/api/products?place=' + encodeURIComponent(reporter) + '&filter=shuppinchu&listedBeforeDays=30&limit=10000&mode=list');
+    // 自分より後のリクエストが走っていたら（=報告者が切り替わった）描画しない
+    if (mySeq !== __hensouReqSeq) return;
     var items = (res.items || []);
     // 編集モード: 既存IDを必ず候補に含める（フィルタ外の商品でもチェック可能にする）
     var prefIds = Array.isArray(window.__hensouPrefIds) ? window.__hensouPrefIds : [];
@@ -6505,7 +6515,7 @@ function openInvoiceRevisionModal_(invoiceNo) {
 
 async function submitInvoiceRevision_(invoiceNo, btn) {
   var reason = String((document.getElementById('invoice-revision-reason') || {}).value || '').trim();
-  if (!reason) { alert('修正理由を入力してください'); return; }
+  if (!reason) { toast('修正理由を入力してください', 'error'); return; }
   // 二度押し防止: 送信ボタンを無効化＋ローディング表示（重複申請を防ぐ）
   var done = setBtnLoading(btn, '送信中…');
   try {
@@ -6514,13 +6524,13 @@ async function submitInvoiceRevision_(invoiceNo, btn) {
       outbox: true, label: '請求書修正申請: ' + invoiceNo
     });
     closeModal();
-    alert(resRev && resRev.queued ? '修正申請を予約しました（圏外時は復帰後に自動送信）' : '修正申請を送信しました。管理者の対応をお待ちください。');
+    toast(resRev && resRev.queued ? '修正申請を予約しました（圏外時は復帰後に自動送信）' : '修正申請を送信しました。管理者の対応をお待ちください。', 'success');
     // 一覧を再読込（ステータスが「修正申請中」へ変わる）
     INVOICE_STATE.loaded = false;
     await loadInvoiceData_();
   } catch (e) {
     done(); // モーダルは残すのでボタンを復帰させ再送信可能にする
-    alert('送信失敗: ' + e.message);
+    toast('送信失敗: ' + e.message, 'error');
   }
 }
 
@@ -6528,7 +6538,7 @@ async function submitInvoiceRevision_(invoiceNo, btn) {
 // バグるため、フォーム系は #content にフルページとして描画する。
 function openSettingsView_(kind) {
   closeDrawer();
-  if (kind === 'admin_invoice' && !STATE.isAdmin) { alert('権限がありません'); return; }
+  if (kind === 'admin_invoice' && !STATE.isAdmin) { toast('権限がありません', 'error'); return; }
   STATE.settingsReturn = {
     tab: STATE.tab || 'shouhin',
     filter: STATE.filter || '',
@@ -6670,7 +6680,7 @@ async function submitInvoiceProfile_() {
     exitSettingsView_();
   } catch (e) {
     if (btn) { btn.disabled = false; btn.innerHTML = orig; }
-    alert('保存失敗: ' + e.message);
+    toast('保存失敗: ' + e.message, 'error');
   }
 }
 
@@ -6808,7 +6818,7 @@ async function submitAdminInvoiceSettings_() {
     exitSettingsView_();
   } catch (e) {
     if (btn) { btn.disabled = false; btn.innerHTML = orig; }
-    alert('保存失敗: ' + e.message);
+    toast('保存失敗: ' + e.message, 'error');
   }
 }
 
@@ -7233,12 +7243,23 @@ function adjacentKanri_(direction) {
   if (nextIdx < 0 || nextIdx >= arr.length) return null;
   return { kanri: arr[nextIdx].kanri, index: nextIdx, total: arr.length };
 }
+// confirm() を使わない破棄ガード（feedback_no_dialog）。1回目は破棄せず toast で警告し、
+// 3秒以内の2回目の呼び出しで初めて破棄を許可する（商品管理の「もう一度で削除」二度押しと同じ
+// 非ブロッキング idiom）。key 単位で状態を持つので複数箇所で独立に使える。誤タップでは何も失われない。
+var __discardGuardAt = Object.create(null);
+function confirmDiscardTwoTap_(key, message) {
+  var now = Date.now();
+  if (now - (__discardGuardAt[key] || 0) < 3000) { __discardGuardAt[key] = 0; return true; }
+  __discardGuardAt[key] = now;
+  if (typeof toast === 'function') toast(message, 'error');
+  return false;
+}
 function gotoAdjacentDetail_(direction) {
   var info = adjacentKanri_(direction);
   if (!info) return;
-  // dirty 状態なら確認
+  // dirty 状態なら破棄ガード（confirm は使わず、もう一度で破棄＝二度押し）
   if (STATE.detailDirty && diffCount_() > 0) {
-    if (!confirm('未保存の変更があります。破棄して移動しますか？')) return;
+    if (!confirmDiscardTwoTap_('detail-move', '未保存の変更があります。もう一度で破棄して移動します')) return;
     STATE.detailDirty = false;
   }
   openDetail(info.kanri);
@@ -9846,7 +9867,8 @@ async function openCreateProductModal(shiireId) {
 // 新規商品フォームのキャンセル → 元の画面（仕入れ詳細 or 商品一覧）に戻る
 function cancelCreateProduct_() {
   if (STATE.createDirty) {
-    if (!confirm('入力内容を破棄して戻りますか？')) return;
+    // confirm は使わず、もう一度で破棄（feedback_no_dialog / 二度押し）
+    if (!confirmDiscardTwoTap_('create-cancel', '未保存の入力があります。もう一度で破棄して戻ります')) return;
   }
   var returnShiire = STATE.createProductReturnShiireId;
   STATE.createProductReturnShiireId = null;
