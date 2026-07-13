@@ -14,7 +14,7 @@ const ACCOUNT_SELECTED = "(json_extract(extra_json, '$.\"使用アカウント\"
 // sale_date は "YYYY/MM/DD" or "YYYY-MM-DD" 文字列なので先頭10文字を正規化して date() 比較。
 const SALE_WITHIN_3M = "(sale_date IS NOT NULL AND sale_date <> '' AND date(replace(substr(sale_date, 1, 10), '/', '-')) >= date('now', '-3 months'))";
 
-// 出品待ちタブ／出品報告ピッカーから除外する「仮置き場」の納品場所。
+// 出品待ち・出品作業中タブから除外する「仮置き場」の納品場所。
 // family / なかの屋plus は撮影・採寸中の一時納品場所で、在庫保管場所へ移動報告
 // するまで出品させてはいけない（出品後に売れると発送処理ができなくなるため）。
 // 管理者は設定シートの「出品待ち除外納品場所」列（master:settings KV）で編集でき、
@@ -150,8 +150,19 @@ export async function listProducts(request, env) {
       ex.args.forEach((a) => args.push(a));
     }
   } else if (filter === 'shuppin_sagyou') {
-    where.push(`${ds} = '出品作業中'`);
+    // 出品作業中も仮置き場を除外する。出品待ちタブだけ除外しても、使用アカウントが
+    // 入ると派生ステータスが '出品作業中' に進み、このタブ経由で出品できてしまうため
+    // （zC1600〜1621 が family のまま66点出品された経路）。includeHolding の扱いは
+    // shuppin_machi と同じ（ピッカー用途では仮置き場こそ対象なので除外しない）。
+    if (includeHolding) {
+      where.push(`${ds} = '出品作業中'`);
+    } else {
+      const ex = shuppinPlaceClause_(await getShuppinExcludePlaces_(env));
+      where.push(`${ds} = '出品作業中' AND ${ex.clause}`);
+      ex.args.forEach((a) => args.push(a));
+    }
   } else if (filter === 'shuppinchu') {
+    // 出品中は意図的に除外しない: 既に出品済みの仮置き場商品まで消えると管理不能になる。
     where.push(`${ds} = '出品中'`);
   } else if (filter === 'hassou') {
     // 発送商品タブ — raw [ステータス] を参照する:
@@ -304,13 +315,13 @@ const COUNTS_STALE_SEC = 60;
 
 async function computeCounts_(env) {
   const ds = `(${DERIVED_STATUS})`;
-  // 出品待ちは納品場所が仮置き場の行を除外（フィルタ側 shuppin_machi と同条件）
+  // 出品待ち・出品作業中は納品場所が仮置き場の行を除外（フィルタ側と同条件）
   const ex = shuppinPlaceClause_(await getShuppinExcludePlaces_(env));
   const buckets = {
     sokutei_machi:  `${ds} = '採寸待ち'`,
     satsuei_machi:  `${ds} = '撮影待ち'`,
     shuppin_machi:  `${ds} = '出品待ち' AND ${ex.clause}`,
-    shuppin_sagyou: `${ds} = '出品作業中'`,
+    shuppin_sagyou: `${ds} = '出品作業中' AND ${ex.clause}`,
     shuppinchu:     `${ds} = '出品中'`,
     hassou:         `((status = '発送待ち' AND NOT ${D_HASSOU}) OR status = '発送済み') AND NOT ${D_KANRYOU}`,
     sold:           `${ds} IN ('発送待ち','発送済み','売却済み')`,
@@ -324,7 +335,8 @@ async function computeCounts_(env) {
     ${parts.join(', ')}
     FROM products`;
   const stmt = env.DB.prepare(sql);
-  const row = await (ex.args.length ? stmt.bind(...ex.args) : stmt).first();
+  // ex.clause は machi / sagyou の2バケツで使うため、プレースホルダ出現順に2回バインドする
+  const row = await (ex.args.length ? stmt.bind(...ex.args, ...ex.args) : stmt).first();
   const counts = {};
   Object.keys(buckets).forEach(k => { counts[k] = Number(row[k] || 0); });
   counts.all = Number(row.total || 0);

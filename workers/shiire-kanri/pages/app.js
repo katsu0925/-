@@ -809,6 +809,26 @@ function settingsOptionsFor_(name, current) {
   return masterOptionsHtml_(list, current);
 }
 
+// ========== 仮置き場（出品除外納品場所）判定 ==========
+// サーバー products.js の getShuppinExcludePlaces_ と同じ規則:
+// 設定シート「出品待ち除外納品場所」列（/api/master/settings → STATE.settings）を優先し、
+// 未読込・列が空のときは既定値にフォールバックする。
+var HOLDING_PLACES_DEFAULT_ = ['family', 'なかの屋plus'];
+var HOLDING_PLACES_SETTING_KEY_ = '出品待ち除外納品場所';
+function holdingPlaces_() {
+  var list = STATE.settings && STATE.settings[HOLDING_PLACES_SETTING_KEY_];
+  if (Array.isArray(list)) {
+    var cleaned = list.map(function(v){ return String(v == null ? '' : v).trim(); }).filter(Boolean);
+    if (cleaned.length) return cleaned;
+  }
+  return HOLDING_PLACES_DEFAULT_;
+}
+// 納品場所が仮置き場か（空はサーバーの IFNULL ... NOT IN と同じく仮置き場扱いしない）
+function isHoldingPlace_(place) {
+  var p = String(place == null ? '' : place).trim();
+  return !!p && holdingPlaces_().indexOf(p) !== -1;
+}
+
 // ========== API ==========
 // 技術的なメッセージをスタッフ向けに和文化。元のメッセージは err.detail に保持してデバッグ可能。
 function humanizeApiError_(status, rawMsg) {
@@ -3242,6 +3262,12 @@ function cardHtml(it) {
     var placeVal = (it.extra && it.extra['納品場所']) ? String(it.extra['納品場所']).trim() : '';
     placeHtml = '<div class="card-place">📍 ' + esc(placeVal || '（納品場所なし）') + '</div>';
   }
+  // 仮置き場（family 等）の商品には出品不可の警告バッジ（商品管理タブ＝すべて/検索/各チップ）。
+  // 出品待ち・出品作業中タブからはサーバー側で除外されるため、主に「すべて」と検索で目に入る。
+  var holdingHtml = '';
+  if (STATE.tab === 'shouhin' && isHoldingPlace_(it.extra && it.extra['納品場所'])) {
+    holdingHtml = '<div class="card-holding">⚠️ 仮置き場・出品不可</div>';
+  }
   // 発送商品タブの同梱マーク。レガシー同梱＝発送待ちのみ（従来どおり）、
   // メインあり同梱＝メインのカードは発送済み/完了チップでも表示（メンバーは集約で非表示のため、
   // メイン1枚がグループ全体を代表していることをどのチップでも示す）。
@@ -3299,6 +3325,7 @@ function cardHtml(it) {
     '</div>' +
     accountHtml +
     placeHtml +
+    holdingHtml +
     shipDeadlineHtml_(it) +
     progressPillsHtml_(it) +
     kanryouHtml +
@@ -8551,7 +8578,12 @@ function renderDetail() {
         '<span class="hero-status' + statusCls + '">' + esc(status) + '</span>' +
         buildDeadlineHtml_(d) +
       '</div>' +
-    '</div>';
+    '</div>' +
+    // 仮置き場警告バナー: 場所移動を登録するまで出品系フィールドは保存できない（saveDetails のガードと対）
+    (isHoldingPlace_(ex['納品場所'])
+      ? '<div class="holding-banner">⚠️ この商品は仮置き場（' + esc(String(ex['納品場所']).trim()) + '）にあります。' +
+        '場所移動で在庫保管場所への移動を登録するまで、出品日・使用アカウントは保存できません。</div>'
+      : '');
 
   // sec-tabs
   var tabsHtml = '<div class="sec-tabs">' +
@@ -8964,6 +8996,23 @@ async function saveDetails() {
           missList_.map(detailFieldId));
         return;
       }
+    }
+  }
+
+  // 仮置き場ガード: 納品場所が仮置き場（family 等）のままの間は、出品日・使用アカウントの
+  // 新規入力を保存できない（仮置き場のまま出品→売れると発送処理ができない事故の防止）。
+  // 場所移動で在庫保管場所への移動を登録してから出品する。管理者のみそのまま保存できる。
+  if (!STATE.isAdmin && (isFilled_(fields['出品日']) || isFilled_(fields['使用アカウント']))) {
+    var effPl_ = ('納品場所' in fields) ? fields['納品場所'] : ex['納品場所'];
+    if (isHoldingPlace_(effPl_)) {
+      var blockedFlds_ = [];
+      if (isFilled_(fields['出品日'])) blockedFlds_.push('出品日');
+      if (isFilled_(fields['使用アカウント'])) blockedFlds_.push('使用アカウント');
+      showValidationErrorCard_('仮置き場のため出品できません',
+        '納品場所「' + String(effPl_).trim() + '」は仮置き場です。\n' +
+        '場所移動で在庫保管場所への移動を登録してから、' + blockedFlds_.join('・') + 'を保存してください。',
+        blockedFlds_.map(detailFieldId));
+      return;
     }
   }
 
