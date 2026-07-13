@@ -909,6 +909,40 @@ async function api(path, opts) {
   return json;
 }
 
+// ========== 画面状態の保存・復元（リロード差し戻し対策） ==========
+// リロード（SW更新の適用・iOSのメモリ解放による再読込など）が起きても、
+// 直前に見ていたタブ・詳細ページへ自動で戻れるように表示状態を localStorage に保存する。
+// これが無いと STATE 既定値の商品管理一覧で必ず起動する＝「勝手に差し戻される」体験になる。
+var UI_STATE_KEY = 'sk.uiState.v1';
+var UI_STATE_TTL_MS = 15 * 60 * 1000; // 15分より古い状態は復元しない（昔の画面が勝手に開く違和感防止）
+function saveUiState_() {
+  try {
+    if (!STATE.allowed) return;
+    var s = {
+      tab: STATE.tab, filter: STATE.filter, filterLabel: STATE.filterLabel,
+      business: STATE.business, businessLabel: STATE.businessLabel,
+      // 詳細ページ表示中だけ管理番号を保存（form/settings 等は一覧に丸める）
+      kanri: (STATE.view === 'detail' && STATE.current && STATE.current.kanri) ? STATE.current.kanri : '',
+      ts: Date.now()
+    };
+    localStorage.setItem(UI_STATE_KEY, JSON.stringify(s));
+  } catch(e) {}
+}
+function restoreUiState_() {
+  try {
+    var raw = localStorage.getItem(UI_STATE_KEY);
+    if (!raw) return null;
+    var s = JSON.parse(raw);
+    if (!s || !s.ts || (Date.now() - s.ts) > UI_STATE_TTL_MS) return null;
+    STATE.tab = s.tab || 'shouhin';
+    STATE.filter = s.filter || '';
+    STATE.filterLabel = s.filterLabel || '';
+    STATE.business = s.business || '';
+    STATE.businessLabel = s.businessLabel || '';
+    return s;
+  } catch(e) { return null; }
+}
+
 // ========== 起動 ==========
 // number 入力にフォーカスがあるときのマウスホイール操作で値が動かないように抑止
 // (ページスクロールしようとして数値が変わる事故を防止)
@@ -934,14 +968,31 @@ window.addEventListener('DOMContentLoaded', async function(){
     STATE.mastersPromise = loadMasters();
     // 自分の名前は業務メニューで必要。バックグラウンドで取得しつつ、業務タブ描画時には await
     STATE.userNamePromise = resolveSelfName_();
+    // 前回表示していたタブ・詳細ページを復元（リロード差し戻し対策。15分TTL）
+    var restoredUi = restoreUiState_();
     // 初期エントリを「list」状態として履歴にアンカー
     // （これがないと最初の戻るで認証画面まで抜けてしまう）
     replaceListState_();
     updateSearchPlaceholder_();
+    if (restoredUi) {
+      // bottomnav / drawer のアクティブ表示を復元後の STATE に合わせる
+      document.querySelectorAll('#bottomnav-inner button').forEach(function(b){
+        b.classList.toggle('active', STATE.tab !== 'business' && b.getAttribute('data-tab') === STATE.tab);
+      });
+      document.querySelectorAll('.drawer-item').forEach(function(d){
+        d.classList.toggle('active', STATE.tab === 'business'
+          ? d.getAttribute('data-business') === STATE.business
+          : d.getAttribute('data-filter') === STATE.filter);
+      });
+    }
     render();
     refreshCounts();
     loadThumbHasSet_();
     startPolling();
+    if (restoredUi && restoredUi.kanri) {
+      // 直前に開いていた詳細ページを開き直す（通常フローで履歴も積まれ「戻る」で一覧に戻れる）
+      openDetail(restoredUi.kanri);
+    }
     // 前セッションでオフライン時に積まれた保存をバックグラウンド再送
     setTimeout(flushOutbox_, 1500);
     // 起動時点でバッジを反映（前回タブ閉じ後に残った未送信件数を表示）
@@ -1411,6 +1462,7 @@ function updateSearchPlaceholder_() {
 
 // ========== レンダリング ==========
 function render() {
+  try { saveUiState_(); } catch(e) {}
   if (!STATE.allowed) { renderDenied(); return; }
   if (STATE.view === 'detail') {
     updateChipsBar_();
@@ -1898,7 +1950,8 @@ function persistListCacheNow_(){
 }
 function persistAllCachesNow_(){ persistTabCacheNow_(); persistListCacheNow_(); }
 document.addEventListener('visibilitychange', function(){
-  if (document.visibilityState === 'hidden') persistAllCachesNow_();
+  // バックグラウンド化の瞬間に画面状態も保存（iOS がプロセスを破棄しても直前の画面へ復元できる）
+  if (document.visibilityState === 'hidden') { saveUiState_(); persistAllCachesNow_(); }
   else if (document.visibilityState === 'visible') flushOutbox_();
 });
 window.addEventListener('pagehide', persistAllCachesNow_);
@@ -8427,6 +8480,8 @@ function renderSectionFields_(sec, d) {
 function renderDetail() {
   var d = STATE.current;
   if (!d) { render(); return; }
+  // openDetail は render() を経由せずここへ直接来るため、詳細の状態保存はここでも行う
+  try { saveUiState_(); } catch(e) {}
   setAppbarMode_('back');
   // 詳細では商品管理タブの chips-bar を確実に隠す（openDetail から直接呼ばれた場合の取りこぼし防止）
   updateChipsBar_();

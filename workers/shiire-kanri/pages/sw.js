@@ -7,9 +7,11 @@
 //  - GET 認証/動的 API: Network-First
 //  - POST/PUT/DELETE: 常に Network（書き込みはキャッシュ禁止）
 //  - VERSION を上げると activate 時に旧キャッシュを全削除
-//  - skipWaiting + clients.claim で即時切替、controllerchange でクライアントが UI 通知
+//  - 新 SW は waiting で待機し、クライアントが SKIP_WAITING を送ったときだけ切替
+//    （install 内の無条件 skipWaiting は「閲覧中に無断リロード→商品管理へ差し戻し」の
+//      原因だったため廃止。適用タイミングは sw-update.js が制御する）
 
-const VERSION = 'sk-2026-06-29-v132';
+const VERSION = 'sk-2026-07-13-v133';
 const SHELL_CACHE = 'shell-' + VERSION;
 const API_CACHE   = 'api-' + VERSION;
 
@@ -20,8 +22,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(SHELL_CACHE);
     try { await cache.addAll(SHELL_URLS); } catch (e) { /* オフライン初回は無視 */ }
-    // 即座に waiting を解除して activate へ移行
-    self.skipWaiting();
+    // ここで skipWaiting しない（waiting のまま待機し、sw-update.js の指示で切り替える）
   })());
 });
 

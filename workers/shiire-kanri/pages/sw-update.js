@@ -2,10 +2,13 @@
 // 目的: アプリ化したまま使うユーザーが古いバージョンに固定されないようにする
 // 戦略:
 //   1) 起動時 + 可視化時 + 5分ごとに reg.update() を強制
-//   2) 新 SW が installed になったら waiting に SKIP_WAITING → 即 activate
-//   3) controllerchange を検知したらユーザーに「更新があります」バナーを表示
-//   4) ユーザーがボタンを押すか 30 秒経過したら window.location.reload()
-//   5) フォーム編集中に勝手にリロードしない（dirty なら通知のみで止める）
+//   2) 起動時に waiting の新 SW がいたら SKIP_WAITING でサイレント適用（リロードしない。
+//      /app.js と /sw-update.js は SW 非介入で毎回ネットワークから読むため、
+//      ページは起動時点で常に最新コードで動いている＝世代交代にリロード不要）
+//   3) セッション途中に新 SW を検知したらバナー通知のみ。「更新」を押したときだけ
+//      SKIP_WAITING → リロードで即時適用する
+//   4) controllerchange / SW_ACTIVATED での自動リロードは「更新ボタンを押した後」限定
+//      （閲覧中の無断リロード＝商品管理タブへの差し戻しの原因だったため廃止）
 (function setupPwaUpdater(){
   if (!('serviceWorker' in navigator)) return;
 
@@ -67,10 +70,15 @@
   // 重複リロード/タイマーリロードの暴発を防ぐ
   var didReload = false;
   var pendingApplyTimer = null;
+  // 「更新」ボタン押下後だけ true になる。controllerchange / SW_ACTIVATED での
+  // リロードはこのフラグが立っているときに限定（サイレント適用ではリロードしない）
+  var applyRequested = false;
   function safeReload() {
     if (didReload) return;
     didReload = true;
     if (pendingApplyTimer) { clearTimeout(pendingApplyTimer); pendingApplyTimer = null; }
+    // リロード直前に画面状態（タブ・詳細）を保存 → 再読込後に app.js が復元する
+    try { if (window.saveUiState_) window.saveUiState_(); } catch(e) {}
     try { window.location.reload(); } catch(e) {}
   }
 
@@ -116,6 +124,7 @@
     // 短い fallback タイマーで強制リロードする（iOS スタンドアロンで
     // controllerchange が発火しないケースの保険）
     function applyUpdate() {
+      applyRequested = true;
       var waiting = reg.waiting;
       if (waiting) {
         try { waiting.postMessage({ type: 'SKIP_WAITING' }); } catch(e) {}
@@ -136,7 +145,15 @@
         showUpdateBanner(applyUpdate, v);
       });
     }
-    promptIfWaiting();
+
+    // 起動時: waiting の新 SW がいたらサイレントに切り替える（バナーもリロードも無し）。
+    // ページは毎回ネットワークから最新 /app.js を読んでいるため、ここで静かに
+    // 世代交代させればシェルキャッシュも次回起動から新版になる。
+    (function activateSilentlyAtStartup() {
+      var waiting = reg.waiting;
+      if (!waiting) return;
+      try { waiting.postMessage({ type: 'SKIP_WAITING' }); } catch(e) {}
+    })();
 
     reg.addEventListener('updatefound', function(){
       var nw = reg.installing;
@@ -167,11 +184,12 @@
   }).catch(function(){ /* SW 登録失敗は致命的ではない */ });
 
   // controllerchange = 新 SW がページを掌握した瞬間
-  // ここでリロードすると古い JS のまま動く問題を回避できる
   navigator.serviceWorker.addEventListener('controllerchange', function(){
     if (didReload) return;
     // 初回インストールの claim による発火はリロードしない（更新ではない）
     if (!hadControllerAtLoad) return;
+    // 「更新」ボタン押下後だけリロード（起動時サイレント適用では発火してもリロードしない）
+    if (!applyRequested) return;
     if (isEditing()) {
       // 編集中はリロードせず通知のみ
       showUpdateBanner(function(){ safeReload(); });
@@ -189,6 +207,8 @@
     if (didReload) return;
     // 初回インストールの activate ではリロードしない（controllerchange と同じ理由）
     if (!hadControllerAtLoad) return;
+    // 「更新」ボタン押下後だけリロード（controllerchange と同じゲート）
+    if (!applyRequested) return;
     if (isEditing()) {
       showUpdateBanner(function(){ safeReload(); });
       return;
