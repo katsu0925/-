@@ -1144,9 +1144,10 @@ var SHOUHIN_SORT_LABELS = {
   status: '状態',
   saleDate: '販売日',
   size: 'サイズ',
-  color: 'カラー'
+  color: 'カラー',
+  gender: '性別'
 };
-var SHOUHIN_SORT_KEYS = ['kanri','created','shiire','brand','status','saleDate','size','color'];
+var SHOUHIN_SORT_KEYS = ['kanri','created','shiire','brand','status','saleDate','size','color','gender'];
 function openSortDensityMenu_(ev) {
   if (ev) ev.stopPropagation();
   // 既存メニューがあれば閉じる
@@ -1257,8 +1258,25 @@ function applyShouhinSort_(items) {
       if (ca !== cb) return ca.localeCompare(cb, 'ja');
       return kanriCompareAsc_(a.kanri, b.kanri);
     });
+  } else if (key === 'gender') {
+    // レディース→メンズ→キッズ→ユニセックス→未設定。値は extra_json の「性別」
+    arr.sort(function(a,b){
+      var ra = genderRank_(a.extra && a.extra['性別']);
+      var rb = genderRank_(b.extra && b.extra['性別']);
+      if (ra !== rb) return ra - rb;
+      return kanriCompareAsc_(a.kanri, b.kanri);
+    });
   }
   return arr;
+}
+// 性別の並び順ランク（genderIconHtml_ と同じ値体系: 男性/女性 の旧表記も同一視）
+function genderRank_(v) {
+  var s = String(v || '');
+  if (s === 'レディース' || s === '女性') return 1;
+  if (s === 'メンズ' || s === '男性') return 2;
+  if (s === 'キッズ') return 3;
+  if (s === 'ユニセックス') return 4;
+  return 9;
 }
 // 商品管理タブのみ chips-bar を表示
 // 再描画時に横スクロール位置がリセットされないよう scrollLeft を保持＋アクティブチップを画面内に維持

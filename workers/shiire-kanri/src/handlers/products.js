@@ -225,6 +225,7 @@ export async function listProducts(request, env) {
            json_extract(extra_json, '$."使用アカウント"')   AS extra_account,
            json_extract(extra_json, '$."完了日"')           AS extra_kanryou,
            json_extract(extra_json, '$."納品場所"')          AS extra_place,
+           json_extract(extra_json, '$."性別"')             AS extra_gender,
            ${DERIVED_STATUS} AS derived_status
     FROM products
   `;
@@ -255,7 +256,7 @@ export async function listProducts(request, env) {
 
   try {
     const fp = await env.DB.prepare(fingerprintSql).bind(...args).first();
-    const etag = `"p${slim ? 'S9' : 'F5'}-${fp.cnt}-${fp.maxup}-${limit}"`;
+    const etag = `"p${slim ? 'S10' : 'F5'}-${fp.cnt}-${fp.maxup}-${limit}"`;
 
     // CF Edge は weak ETag (W/"...") に書き換えることがあるため、比較時は W/ プレフィクスを剥がす
     const inm = request.headers.get('If-None-Match') || '';
@@ -291,6 +292,8 @@ function formatProductSlim(row) {
   if (row.extra_kanryou) extra['完了日'] = String(row.extra_kanryou);
   // 発送商品カードに納品場所を表示するため slim でも 納品場所 を露出
   if (row.extra_place) extra['納品場所'] = String(row.extra_place);
+  // 商品管理タブの「性別」並び替え用に slim でも 性別 を露出
+  if (row.extra_gender) extra['性別'] = String(row.extra_gender);
   return {
     kanri: row.kanri,
     shiireId: row.shiire_id,
