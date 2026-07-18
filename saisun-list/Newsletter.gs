@@ -18,16 +18,17 @@ function getNewsletterSheet_() {
   var sheet = ss.getSheetByName('ニュースレター');
   if (!sheet) {
     sheet = ss.insertSheet('ニュースレター');
-    sheet.appendRow(['タイトル', '本文', '配信日時', 'ステータス', '頻度', '最終配信日', '対象']);
+    sheet.appendRow(['タイトル', '本文', '配信日時', 'ステータス', '頻度', '最終配信日', '対象', '送信済み(分割)']);
     sheet.setFrozenRows(1);
-    sheet.getRange(1, 1, 1, 7).setBackground('#1565c0').setFontColor('#fff').setFontWeight('bold');
+    sheet.getRange(1, 1, 1, 8).setBackground('#1565c0').setFontColor('#fff').setFontWeight('bold');
     return sheet;
   }
-  // 既存シートの後方互換: E・F・G列ヘッダーがなければ追加
+  // 既存シートの後方互換: E〜H列ヘッダーがなければ追加
   var lastCol = sheet.getLastColumn();
   if (lastCol < 5) sheet.getRange(1, 5).setValue('頻度');
   if (lastCol < 6) sheet.getRange(1, 6).setValue('最終配信日');
   if (lastCol < 7) sheet.getRange(1, 7).setValue('対象');
+  if (lastCol < 8) sheet.getRange(1, 8).setValue('送信済み(分割)');
   return sheet;
 }
 
@@ -448,6 +449,7 @@ function diagnoseNewsletter() {
  * - 「配信待ち」→ 配信日時が過去なら送信
  * - 「配信中」→ 頻度に応じて再配信（毎週: 7日経過 / 毎月: 月が変わった）
  * - 「停止」「配信済み」→ スキップ
+ * - 残枠が対象数に足りない場合は送れる分だけ送り、H列に送信済みリストを保存して翌朝続きから再開（分割配信）
  */
 function newsletterSendCron_() {
   try {
@@ -472,6 +474,18 @@ function newsletterSendCron_() {
       var frequency = String(data[i][4] || '一度').trim(); // E列: 頻度（後方互換）
       var lastSent = data[i][5]; // F列: 最終配信日
 
+      // H列: 分割配信の途中経過（送信済みメールアドレスのJSON配列）
+      var sentSet = {};
+      var prevSentCount = 0;
+      try {
+        var prevArr = JSON.parse(String(data[i][7] || '') || '[]');
+        for (var s = 0; s < prevArr.length; s++) {
+          sentSet[prevArr[s]] = true;
+          prevSentCount++;
+        }
+      } catch (_) {}
+      var inProgress = prevSentCount > 0;
+
       if (!title || !bodyText) continue;
       if (status === '停止' || status === '配信済み') continue;
       if (status !== '' && status !== '配信待ち' && status !== '配信中') continue;
@@ -479,7 +493,10 @@ function newsletterSendCron_() {
       var shouldSend = false;
       var sheetRow = i + 1;
 
-      if (frequency === '一度' || !frequency) {
+      if (inProgress) {
+        // 分割配信の続き: 日時・頻度の判定はスキップして残りに送る
+        shouldSend = true;
+      } else if (frequency === '一度' || !frequency) {
         // 通常配信: 配信日時チェック
         if (status === '配信済み') continue;
         if (scheduledAt) {
@@ -519,34 +536,47 @@ function newsletterSendCron_() {
 
       // G列: 配信対象（後方互換: 空なら全員）
       var target = String(data[i][6] || '全員').trim();
+      var logTarget = target !== '全員' ? '（対象: ' + target + '）' : '';
 
-      // メルマガ登録済み会員にメール送信（対象フィルタ適用）
-      var recipients = getNewsletterRecipients_(target);
+      // メルマガ登録済み会員にメール送信（対象フィルタ適用、送信済み・配信不可は除外）
+      var recipients = getNewsletterRecipients_(target).filter(function (rc) {
+        return !sentSet[rc.email];
+      });
 
-      // ★残枠チェック: 緊急メール用に5通分マージンを残す
-      // 残枠不足なら送信せずスキップ → 状態も更新しないので次回cronで再試行される
-      var SAFETY_MARGIN = 5;
-      var remainingQuota = MailApp.getRemainingDailyQuota();
       if (recipients.length === 0) {
-        console.log('newsletterSendCron_: "' + title + '" 配信対象0件のためスキップ');
+        if (inProgress) {
+          // 分割配信の残りが0 = 全員送信済み → 完了処理
+          sheet.getRange(sheetRow, 4).setValue((frequency === '一度' || !frequency) ? '配信済み' : '配信中');
+          sheet.getRange(sheetRow, 6).setValue(now);
+          sheet.getRange(sheetRow, 8).setValue('');
+          try {
+            appendDeliveryLog_(sh_getOrderSs_(), 'ニュースレター', '', '',
+              '「' + title + '」分割配信完了（累計' + prevSentCount + '件）' + logTarget + '（' + frequency + '）', '送信完了');
+          } catch (_) {}
+        } else {
+          console.log('newsletterSendCron_: "' + title + '" 配信対象0件のためスキップ');
+        }
         continue;
       }
-      if (recipients.length + SAFETY_MARGIN > remainingQuota) {
-        console.warn('newsletterSendCron_: 残枠不足で "' + title + '" をスキップ (recipients=' +
-                     recipients.length + ', remaining=' + remainingQuota +
-                     ', margin=' + SAFETY_MARGIN + '). 次回cronで再試行');
+
+      // ★残枠チェック: 緊急メール用に5通分マージンを残し、残枠の範囲で送れる分だけ送る（分割配信）
+      var SAFETY_MARGIN = 5;
+      var remainingQuota = MailApp.getRemainingDailyQuota();
+      var budget = remainingQuota - SAFETY_MARGIN;
+      if (budget <= 0) {
+        console.warn('newsletterSendCron_: 残枠なしで "' + title + '" をスキップ (remaining=' + remainingQuota + '). 次回cronで再試行');
         try {
-          var logSs0 = sh_getOrderSs_();
-          appendDeliveryLog_(logSs0, 'ニュースレター', '', '',
-            '「' + title + '」残枠不足でスキップ(対象=' + recipients.length + ' / 残=' + remainingQuota + ')',
+          appendDeliveryLog_(sh_getOrderSs_(), 'ニュースレター', '', '',
+            '「' + title + '」残枠なしでスキップ(対象=' + recipients.length + ' / 残=' + remainingQuota + ')',
             '送信保留');
         } catch (_) {}
         continue;
       }
 
+      var toSend = recipients.slice(0, budget);
       var sent = 0;
-      for (var r = 0; r < recipients.length; r++) {
-        var recip = recipients[r];
+      for (var r = 0; r < toSend.length; r++) {
+        var recip = toSend[r];
         try {
           var subject = '【デタウリ.Detauri】' + title;
           var body = recip.companyName + ' 様\n\n'
@@ -568,28 +598,50 @@ function newsletterSendCron_() {
             })
           });
           sent++;
+          sentSet[recip.email] = true;
         } catch (mailErr) {
+          var errMsg = (mailErr && mailErr.message) ? mailErr.message : String(mailErr);
           console.error('newsletterSendCron_ mail error: ' + recip.email, mailErr);
+          if (/invalid email|invalid argument|無効/i.test(errMsg)) {
+            // アドレス自体が不正 → 顧客管理P列に配信不可を記録し、以後リトライしない
+            nl_markCustomerUndeliverable_(recip.email, '送信エラー: ' + errMsg.substring(0, 80));
+            sentSet[recip.email] = true;
+          } else if (/quota|too many|limit/i.test(errMsg)) {
+            // 残枠切れ → 以降は翌朝に持ち越し
+            break;
+          }
+          // その他の一時エラーは sentSet に入れない = 翌朝リトライ
         }
       }
 
-      // ステータスと最終配信日を更新
-      if (frequency === '一度' || !frequency) {
-        sheet.getRange(sheetRow, 4).setValue('配信済み');
-      } else {
-        sheet.getRange(sheetRow, 4).setValue('配信中');
+      // 未送信の残りを数え、完了 or 分割持ち越しを判定
+      var pendingCount = 0;
+      for (var p = 0; p < recipients.length; p++) {
+        if (!sentSet[recipients[p].email]) pendingCount++;
       }
-      sheet.getRange(sheetRow, 6).setValue(now); // F列: 最終配信日
+      var sentTotal = Object.keys(sentSet).length;
 
-      // 自動配信ログに記録
       try {
-        var logSs = sh_getOrderSs_();
-        var logTarget = target !== '全員' ? '（対象: ' + target + '）' : '';
-        appendDeliveryLog_(logSs, 'ニュースレター', '', '', '「' + title + '」→ ' + sent + '件送信' + logTarget + '（' + frequency + '）', sent > 0 ? '送信完了' : '対象者なし');
+        if (pendingCount === 0) {
+          // 全員分完了: ステータスと最終配信日を更新、H列クリア
+          sheet.getRange(sheetRow, 4).setValue((frequency === '一度' || !frequency) ? '配信済み' : '配信中');
+          sheet.getRange(sheetRow, 6).setValue(now); // F列: 最終配信日
+          sheet.getRange(sheetRow, 8).setValue('');
+          appendDeliveryLog_(sh_getOrderSs_(), 'ニュースレター', '', '',
+            '「' + title + '」→ ' + sent + '件送信（累計' + sentTotal + '件完了）' + logTarget + '（' + frequency + '）',
+            sent > 0 || sentTotal > 0 ? '送信完了' : '対象者なし');
+        } else {
+          // 分割持ち越し: 送信済みリストをH列に保存し、翌朝続きから
+          sheet.getRange(sheetRow, 4).setValue('配信中');
+          sheet.getRange(sheetRow, 8).setValue(JSON.stringify(Object.keys(sentSet)));
+          appendDeliveryLog_(sh_getOrderSs_(), 'ニュースレター', '', '',
+            '「' + title + '」→ ' + sent + '件送信（分割: 累計' + sentTotal + '件 / 残' + pendingCount + '件は翌朝以降）' + logTarget,
+            '分割送信中');
+        }
       } catch (logErr) { console.log('optional: newsletter log: ' + (logErr.message || logErr)); }
 
       totalSent += sent;
-      console.log('newsletterSendCron_: "' + title + '" を ' + sent + '件送信（頻度: ' + frequency + '）');
+      console.log('newsletterSendCron_: "' + title + '" を ' + sent + '件送信（頻度: ' + frequency + '、残' + pendingCount + '件）');
     }
 
     console.log('newsletterSendCron_: 完了 合計送信=' + totalSent + '件');
@@ -616,7 +668,10 @@ function getNewsletterRecipients_(target) {
     var email = String(custData[i][CUSTOMER_SHEET_COLS.EMAIL] || '').trim();
     if (!email || email.indexOf('@') === -1) continue;
 
-    // 対象フィルタ: 購入回数(P列)で絞り込み
+    // P列: 配信不可フラグ（バウンス検知・送信エラー）があれば除外
+    if (String(custData[i][CUSTOMER_SHEET_COLS.MAIL_ERROR] || '').trim()) continue;
+
+    // 対象フィルタ: 購入回数(O列)で絞り込み
     if (tgt !== '全員') {
       var purchaseCount = Number(custData[i][CUSTOMER_SHEET_COLS.PURCHASE_COUNT] || 0);
       if (tgt === 'リピーター' && purchaseCount < 2) continue;
@@ -900,4 +955,126 @@ function dormantCouponCron_() {
 /** メルマガ配信停止URLを組み立てる（フロントエンド側で処理） */
 function nl_buildUnsubscribeUrl_(email) {
   return SITE_CONSTANTS.SITE_URL + '?action=unsubscribe&email=' + encodeURIComponent(email);
+}
+
+// =====================================================
+// バウンス（不達）検知 → 顧客管理P列「配信不可」フラグ
+// =====================================================
+
+/**
+ * 顧客管理シートのP列に配信不可フラグを記録する
+ * 以後 getNewsletterRecipients_ から除外される
+ * @param {string} email
+ * @param {string} reason - 記録する理由（例: 'バウンス検知', '送信エラー: ...'）
+ * @return {boolean} フラグを書き込んだらtrue（既フラグ済み・該当なしはfalse）
+ */
+function nl_markCustomerUndeliverable_(email, reason) {
+  try {
+    var target = String(email || '').trim().toLowerCase();
+    if (!target || target.indexOf('@') === -1) return false;
+
+    var sheet = getCustomerSheet_();
+
+    // P1ヘッダーが空なら補完（既存シートは15列運用のため）
+    var headerCell = sheet.getRange(1, CUSTOMER_SHEET_COLS.MAIL_ERROR + 1);
+    if (!String(headerCell.getValue() || '').trim()) {
+      headerCell.setValue('配信不可').setFontWeight('bold').setBackground('#ea4335').setFontColor('#ffffff');
+    }
+
+    var data = sheet.getDataRange().getValues();
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][CUSTOMER_SHEET_COLS.EMAIL] || '').trim().toLowerCase() !== target) continue;
+
+      // 既にフラグ済みなら何もしない
+      if (String(data[i][CUSTOMER_SHEET_COLS.MAIL_ERROR] || '').trim()) return false;
+
+      var stamp = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy/MM/dd');
+      sheet.getRange(i + 1, CUSTOMER_SHEET_COLS.MAIL_ERROR + 1)
+           .setValue('配信不可 ' + stamp + ' ' + String(reason || ''));
+
+      try {
+        appendDeliveryLog_(sh_getOrderSs_(), 'バウンス検知', target,
+          String(data[i][CUSTOMER_SHEET_COLS.COMPANY_NAME] || ''),
+          String(reason || '不達検知'), '配信除外');
+      } catch (_) {}
+
+      console.log('nl_markCustomerUndeliverable_: ' + target + ' を配信不可に設定 (' + reason + ')');
+      return true;
+    }
+    return false; // 顧客管理に該当メールなし
+  } catch (e) {
+    console.error('nl_markCustomerUndeliverable_ error:', e);
+    return false;
+  }
+}
+
+/**
+ * Gmailのバウンス通知（mailer-daemon）をスキャンし、不達アドレスを配信不可にする
+ * cronDaily9 から毎朝実行（直近days日分）
+ * @param {number} days - 遡る日数
+ * @return {number} 新規フラグ件数
+ */
+function nl_bounceSweep_(days) {
+  var d = Math.max(1, Number(days) || 3);
+  var flagged = 0;
+  try {
+    var threads = GmailApp.search('from:mailer-daemon newer_than:' + d + 'd', 0, 50);
+    var seen = {};
+    for (var t = 0; t < threads.length; t++) {
+      var msgs = threads[t].getMessages();
+      for (var m = 0; m < msgs.length; m++) {
+        var failed = nl_extractFailedRecipient_(msgs[m]);
+        if (!failed || seen[failed]) continue;
+        seen[failed] = true;
+        if (nl_markCustomerUndeliverable_(failed, 'バウンス検知')) flagged++;
+      }
+    }
+    if (threads.length || flagged) {
+      console.log('nl_bounceSweep_: スレッド' + threads.length + '件走査 / 新規フラグ' + flagged + '件');
+    }
+  } catch (e) {
+    console.error('nl_bounceSweep_ error:', e);
+  }
+  return flagged;
+}
+
+/**
+ * バウンス通知メールから不達先アドレスを抽出する
+ * @param {GmailMessage} msg
+ * @return {string} 不達メールアドレス（見つからなければ ''）
+ */
+function nl_extractFailedRecipient_(msg) {
+  try {
+    // 1) X-Failed-Recipients ヘッダー（Gmailのバウンスに付与される）
+    var hdr = '';
+    try { hdr = String(msg.getHeader('X-Failed-Recipients') || ''); } catch (_) {}
+    var candidate = (hdr.match(/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/) || [''])[0];
+
+    // 2) 本文から抽出（フォールバック）
+    if (!candidate) {
+      var bodyText = String(msg.getPlainBody() || '').substring(0, 3000);
+      var matches = bodyText.match(/[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}/g) || [];
+      var selfList = [SITE_CONSTANTS.CUSTOMER_EMAIL, SITE_CONSTANTS.CONTACT_EMAIL];
+      for (var i = 0; i < matches.length; i++) {
+        var addr = matches[i].toLowerCase();
+        if (/mailer-daemon|postmaster|no-?reply/.test(addr)) continue;
+        if (selfList.indexOf(addr) !== -1) continue;
+        candidate = addr;
+        break;
+      }
+    }
+    return String(candidate || '').toLowerCase();
+  } catch (e) {
+    return '';
+  }
+}
+
+/**
+ * バウンス一括スキャン（手動実行用・GASエディタから）
+ * 初回導入時に過去30日分をまとめて取り込む
+ */
+function nlBounceSweepManual() {
+  var flagged = nl_bounceSweep_(30);
+  console.log('nlBounceSweepManual: 過去30日分スキャン完了 / 新規フラグ' + flagged + '件');
+  return flagged;
 }

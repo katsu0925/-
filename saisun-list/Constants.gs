@@ -136,7 +136,8 @@ var CUSTOMER_SHEET_COLS = {
   SESSION_EXPIRY: 11, // L: セッション有効期限
   POINTS: 12,         // M: ポイント残高
   POINTS_UPDATED_AT: 13, // N: ポイント更新日
-  PURCHASE_COUNT: 14    // O: 購入回数
+  PURCHASE_COUNT: 14,   // O: 購入回数
+  MAIL_ERROR: 15        // P: 配信不可（バウンス検知・送信エラー。値があるとメルマガ配信から除外）
 };
 
 /**

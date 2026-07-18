@@ -177,6 +177,7 @@ function cronNewArrival() { newArrivalNotifyCron_(); }
 function cronWeeklyNewsletter() { weeklyNewsletterCron_(); }
 function cronFollowupEmail() { followupEmailCron_(); }
 function cronNewsletter() { newsletterSendCron_(); }
+function cronBounceSweep() { nl_bounceSweep_(3); }
 function cronDormantCoupon() { dormantCouponCron_(); }
 function cronPointExpiry() { pointExpiryCron_(); }
 // cronRfmAnalysis, cronProductAnalytics → saisun-list-bulk に移動
@@ -279,9 +280,9 @@ function cronDaily8() {
   runWithErrorNotify_('cronDaily8', [ga4SyncAll, sendMonthlyStockSummary]);
 }
 
-/** 毎日9時: 4関数を1トリガーで実行 */
+/** 毎日9時: 複数関数を1トリガーで実行（バウンス検知→メルマガの順で不達除外を先に反映） */
 function cronDaily9() {
-  runWithErrorNotify_('cronDaily9', [sendPaymentReminders, cancelExpiredPayments, cronNewsletter, cronDormantCoupon, cronDailySummary, ga4advice_cron]);
+  runWithErrorNotify_('cronDaily9', [sendPaymentReminders, cancelExpiredPayments, cronBounceSweep, cronNewsletter, cronDormantCoupon, cronDailySummary, ga4advice_cron]);
 }
 
 // =====================================================
