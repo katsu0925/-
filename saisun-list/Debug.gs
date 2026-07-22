@@ -1194,8 +1194,18 @@ function debugFixOrderRow(receiptNo) {
     return;
   }
 
-  // 送料の店負担（半額）
-  var storeShipping = Math.round(assortShipping / 2) || 0;
+  // 2026-07改定: アソート店負担は実費表160サイズ×数量（÷2廃止。BulkSubmit.gsと同一ロジック）
+  var storeShipping = 0;
+  var fixAddr = String(currentRow[5] || '');
+  var fixArea = '';
+  for (var pfKey in SHIPPING_AREAS) {
+    if (SHIPPING_AREAS.hasOwnProperty(pfKey) && fixAddr.indexOf(pfKey) === 0) { fixArea = SHIPPING_AREAS[pfKey]; break; }
+  }
+  if (fixArea && SHIPPING_ACTUAL_RATES[fixArea]) {
+    storeShipping = SHIPPING_ACTUAL_RATES[fixArea]['160'] * assortItemCount;
+  } else {
+    console.log('⚠ 住所(F列)から地域を判定できないため店負担送料は0のまま。M列を手動で設定してください: ' + fixAddr);
+  }
 
   console.log('=== 修正値 ===');
   console.log('H列(商品名): ' + productNames);

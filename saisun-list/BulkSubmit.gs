@@ -92,9 +92,9 @@ function apiBulkSubmit(form, items) {
     var detauriProductAmount = Math.max(0, Math.floor(Number(f.detauriProductAmount || 0)));
     var detauriShippingAmount = Math.max(0, Math.floor(Number(f.detauriShipping || 0)));
     var detauriItemCount = Math.max(0, Math.floor(Number(f.detauriItemCount || 0)));
-    // デタウリ最低数量チェック（アソートありなら制限なし、なしなら5点以上必要）
-    if (orderItems.length === 0 && detauriItemCount > 0 && detauriItemCount < 5) {
-      return { ok: false, message: 'デタウリ商品は5点以上で購入可能です（現在' + detauriItemCount + '点）' };
+    // デタウリ最低数量チェック（2026-07改定: 1点から購入可）
+    if (orderItems.length === 0 && detauriItemCount > 0 && detauriItemCount < 1) {
+      return { ok: false, message: 'デタウリ商品は1点以上で購入可能です（現在' + detauriItemCount + '点）' };
     }
 
     // === 割引計算（CartCalcと同じ順序: FHP → 会員割引 → クーポン） ===
@@ -170,7 +170,7 @@ function apiBulkSubmit(form, items) {
     // === 送料計算（CartCalcと同じ優先順序: ダイヤモンド > クーポン > ¥10,000以上 > 計算値） ===
     // 沖縄県はクーポン・閾値の対象外（ダイヤ会員特典のみ維持）
     var shippingPref = String(f.shippingPref || '');
-    var shippingSize = 'large';
+    var shippingSize = '160';
     var shippingAmount = 0;
     var shippingArea = '';
 
@@ -213,7 +213,7 @@ function apiBulkSubmit(form, items) {
             var ePid = String(orderItems[ei].productId || '').toUpperCase();
             if (excSetB[ePid]) shippingExcludedQty += Number(orderItems[ei].qty || 0);
           }
-          shippingAmount = (shippingExcludedQty > 0) ? SHIPPING_RATES[shippingArea][1] * shippingExcludedQty : 0;
+          shippingAmount = (shippingExcludedQty > 0) ? SHIPPING_RATES[shippingArea]['160'] * shippingExcludedQty : 0;
           detauriShippingAmount = 0;
         } else if (thresholdFree) {
           detauriShippingAmount = 0;
@@ -227,12 +227,13 @@ function apiBulkSubmit(form, items) {
               var _opid = String(orderItems[_oi].productId || '').toUpperCase();
               if (alwaysSetB[_opid]) alwaysQtyB += Number(orderItems[_oi].qty || 0);
             }
-            shippingAmount = (alwaysQtyB > 0) ? SHIPPING_RATES[shippingArea][1] * alwaysQtyB : 0;
+            shippingAmount = (alwaysQtyB > 0) ? SHIPPING_RATES[shippingArea]['160'] * alwaysQtyB : 0;
           } else {
             shippingAmount = 0;
           }
         } else {
-          shippingAmount = SHIPPING_RATES[shippingArea][1] * totalQty;
+          // アソートは1箱=160サイズ×数量
+          shippingAmount = SHIPPING_RATES[shippingArea]['160'] * totalQty;
         }
       }
     }
@@ -284,7 +285,7 @@ function apiBulkSubmit(form, items) {
     }
     if (shippingAmount > 0) {
       var shippingQtyLabel = shippingExcludedQty > 0 ? shippingExcludedQty : totalQty;
-      var shippingLabel = '【送料: ¥' + shippingAmount + '（' + (shippingPref || '') + '・大×' + shippingQtyLabel + '・税込';
+      var shippingLabel = '【送料: ¥' + shippingAmount + '（' + (shippingPref || '') + '・160×' + shippingQtyLabel + '・税込';
       if (shippingExcludedQty > 0) shippingLabel += '・送料除外商品分';
       shippingLabel += '）】';
       note = note ? (note + '\n' + shippingLabel) : shippingLabel;
@@ -294,6 +295,11 @@ function apiBulkSubmit(form, items) {
     var detauriTotal = detauriProductAmount + detauriShippingAmount;
 
     var totalWithShipping = discounted + shippingAmount + detauriTotal - couponDiscount;
+
+    // === 不正利用対策: 支払額0円の注文は購入不可 ===
+    if (totalWithShipping <= 0) {
+      return { ok: false, message: 'お支払い金額が0円の注文は承れません。ポイント利用額を調整してください。' };
+    }
 
     if (detauriTotal > 0) {
       var detauriNote = '【デタウリ合算: 商品代¥' + detauriProductAmount + '（' + detauriItemCount + '点）+ 送料¥' + detauriShippingAmount + '】';
@@ -328,7 +334,8 @@ function apiBulkSubmit(form, items) {
       productAmount: sum,
       discounted: discounted + detauriProductAmount,
       shippingAmount: shippingAmount + detauriShippingAmount,
-      storeShipping: calcStoreShippingByAddress_(shippingPref, totalQty) || 0,
+      // 2026-07改定: アソート店負担は実費表160サイズ×数量（÷2廃止）
+      storeShipping: (shippingArea && SHIPPING_ACTUAL_RATES[shippingArea]) ? SHIPPING_ACTUAL_RATES[shippingArea]['160'] * totalQty : 0,
       shippingSize: shippingSize,
       shippingPref: shippingPref,
       selectionList: '',

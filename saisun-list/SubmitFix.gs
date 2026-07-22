@@ -31,8 +31,8 @@ function apiSubmitEstimate(userKey, form, ids) {
     var hasBulkItems = f.bulkItems && f.bulkItems.length > 0;
     if (!list.length && !hasBulkItems) return { ok: false, message: 'カートが空です' };
 
-    // デタウリ最低注文数チェック（アソート併用時は1点〜、デタウリのみは5点〜）
-    var minDetauri = hasBulkItems ? 1 : 5;
+    // デタウリ最低注文数チェック（2026-07改定: 1点から購入可）
+    var minDetauri = 1;
     if (list.length > 0 && list.length < minDetauri) {
       return { ok: false, message: 'デタウリ商品は' + minDetauri + '点以上で購入可能です（現在' + list.length + '点）' };
     }
@@ -195,8 +195,8 @@ function apiSubmitEstimate(userKey, form, ids) {
     // === 送料計算（サーバー側で再計算 — 改ざん防止） ===
     var shippingPref = detectPrefecture_(address) || '';
     var shippingArea = shippingPref ? (SHIPPING_AREAS[shippingPref] || '') : '';
-    var shippingSize = 'large';
-    var shippingSizeLabel = '大';
+    var shippingSize = '160';
+    var shippingSizeLabel = '160サイズ';
     var shippingAmount = 0;
 
     if (list.length > 0 || hasBulkItems) {
@@ -225,24 +225,29 @@ function apiSubmitEstimate(userKey, form, ids) {
     // 送料無料クーポンも沖縄は対象外（ダイヤ会員特典は維持）
     var couponFreeEffective = shippingFreeCoupon && !isOkinawa;
 
-    // 送料無料判定の前に実際の配送コストを計算（店負担送料用）
+    // 厚み分類（顧客送料・店負担送料の両方で使用）
+    var _thick = 0, _thin = 0;
+    for (var _si = 0; _si < list.length; _si++) {
+      var _sp = productMap[list[_si]];
+      if (_sp && String(_sp.shippingMethod || '').trim() === 'ゆうパケットポスト') _thin++;
+      else _thick++;
+    }
+    // クリックポスト: デタウリが薄手ちょうど1点（全国一律・沖縄含む）
+    var isClickpost = (_thick === 0 && _thin === 1);
+
+    // 送料無料判定の前に実際の配送コスト（実費表・店負担送料用）を計算
     var actualShippingForStore = 0;
-    if (list.length > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
-      var _thick = 0, _thin = 0;
-      for (var _si = 0; _si < list.length; _si++) {
-        var _sp = productMap[list[_si]];
-        if (_sp && String(_sp.shippingMethod || '').trim() === 'ゆうパケットポスト') _thin++;
-        else _thick++;
-      }
-      var _sz = calcShippingSize_sf_(_thick, _thin);
-      if (!_sz.size) {
-        actualShippingForStore = calcMultiShipment_sf_(_thick, _thin, SHIPPING_RATES[shippingArea]).amount;
-      } else {
-        actualShippingForStore = SHIPPING_RATES[shippingArea][(_sz.size === 'small') ? 0 : 1];
+    if (list.length > 0) {
+      if (isClickpost) {
+        actualShippingForStore = SHIPPING_CONSTANTS.CLICKPOST_COST;
+      } else if (shippingArea && SHIPPING_ACTUAL_RATES[shippingArea]) {
+        var _actPts = _thick * SHIPPING_CONSTANTS.ITEM_POINTS.thick + _thin * SHIPPING_CONSTANTS.ITEM_POINTS.thin;
+        actualShippingForStore = calcBoxPlan_(_actPts, SHIPPING_ACTUAL_RATES[shippingArea]).amount;
       }
     }
-    if (bulkItemCount > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
-      actualShippingForStore += SHIPPING_RATES[shippingArea][1] * bulkItemCount;
+    if (bulkItemCount > 0 && shippingArea && SHIPPING_ACTUAL_RATES[shippingArea]) {
+      // アソートは1箱=160サイズ×数量
+      actualShippingForStore += SHIPPING_ACTUAL_RATES[shippingArea]['160'] * bulkItemCount;
     }
 
     // 送料無料判定（CartCalcと同じ優先順序: ダイヤモンド > クーポン > ¥10,000以上 > 計算値）
@@ -271,7 +276,7 @@ function apiSubmitEstimate(userKey, form, ids) {
           var beQty = Math.max(0, Math.floor(Number(f.bulkItems[bei].qty) || 0));
           if (excSetSF[bePid]) excludedBulkQty += beQty;
         }
-        bulkShippingAmount = (excludedBulkQty > 0) ? SHIPPING_RATES[shippingArea][1] * excludedBulkQty : 0;
+        bulkShippingAmount = (excludedBulkQty > 0) ? SHIPPING_RATES[shippingArea]['160'] * excludedBulkQty : 0;
       } else {
         bulkShippingAmount = 0;
       }
@@ -288,34 +293,32 @@ function apiSubmitEstimate(userKey, form, ids) {
           var _qty = Math.max(0, Math.floor(Number(f.bulkItems[_bi].qty) || 0));
           if (alwaysSet[_pid]) alwaysQty += _qty;
         }
-        bulkShippingAmount = (alwaysQty > 0) ? SHIPPING_RATES[shippingArea][1] * alwaysQty : 0;
+        bulkShippingAmount = (alwaysQty > 0) ? SHIPPING_RATES[shippingArea]['160'] * alwaysQty : 0;
       } else {
         bulkShippingAmount = 0;
       }
     } else {
       if (list.length > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
-        // 厚み分類→サイズ判定→料金計算（CartCalcと同一ロジック）
-        var thick = 0, thin = 0;
-        for (var si = 0; si < list.length; si++) {
-          var sp = productMap[list[si]];
-          if (sp && String(sp.shippingMethod || '').trim() === 'ゆうパケットポスト') thin++;
-          else thick++;
-        }
-        var sz = calcShippingSize_sf_(thick, thin);
-        if (!sz.size) {
-          // 上限超過: 複数口計算
-          var multi = calcMultiShipment_sf_(thick, thin, SHIPPING_RATES[shippingArea]);
-          shippingAmount = multi.amount;
-          shippingSize = 'multi';
-          shippingSizeLabel = multi.sizeLabel;
+        if (isClickpost) {
+          // クリックポスト: 薄手ちょうど1点（全国一律¥280・沖縄含む）
+          shippingAmount = SHIPPING_CONSTANTS.CLICKPOST_PRICE;
+          shippingSize = 'clickpost';
+          shippingSizeLabel = 'クリックポスト';
         } else {
-          shippingSize = sz.size;
-          shippingSizeLabel = (sz.size === 'small') ? '小' : '大';
-          shippingAmount = SHIPPING_RATES[shippingArea][(sz.size === 'small') ? 0 : 1];
+          // pt制: 箱詰めDPで最安の箱組み合わせを計算（CartCalcと同一ロジック）
+          var _custPts = _thick * SHIPPING_CONSTANTS.ITEM_POINTS.thick + _thin * SHIPPING_CONSTANTS.ITEM_POINTS.thin;
+          var _plan = calcBoxPlan_(_custPts, SHIPPING_RATES[shippingArea]);
+          shippingAmount = _plan.amount;
+          var _boxKeys = Object.keys(_plan.boxes);
+          var _nBoxes = 0;
+          for (var _bk = 0; _bk < _boxKeys.length; _bk++) _nBoxes += _plan.boxes[_boxKeys[_bk]];
+          shippingSize = (_nBoxes === 1) ? _boxKeys[0] : 'multi';
+          shippingSizeLabel = _plan.label;
         }
       }
       if (bulkItemCount > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
-        bulkShippingAmount = SHIPPING_RATES[shippingArea][1] * bulkItemCount;
+        // アソートは1箱=160サイズ×数量
+        bulkShippingAmount = SHIPPING_RATES[shippingArea]['160'] * bulkItemCount;
       }
     }
 
@@ -325,7 +328,8 @@ function apiSubmitEstimate(userKey, form, ids) {
     if (usePoints > 0 && contact && typeof findCustomerByEmail_ === 'function') {
       custForPoints = findCustomerByEmail_(contact);
       if (custForPoints && custForPoints.points >= usePoints) {
-        pointsUsed = Math.min(usePoints, Math.max(0, discounted + shippingAmount + bulkProductAmount + bulkShippingAmount - couponDiscount));
+        // 0円注文防止: お支払い金額が最低¥1残るよう、ポイントは合計−1円までに制限（CartCalcと同一ロジック）
+        pointsUsed = Math.min(usePoints, Math.max(0, discounted + shippingAmount + bulkProductAmount + bulkShippingAmount - couponDiscount - 1));
         var _ptRem = pointsUsed;
         var pointsOnProduct = Math.min(_ptRem, discounted); _ptRem -= pointsOnProduct;
         var pointsOnShipping = Math.min(_ptRem, shippingAmount); _ptRem -= pointsOnShipping;
@@ -377,6 +381,19 @@ function apiSubmitEstimate(userKey, form, ids) {
 
     // 送料込みの合計金額（クーポンは合計レベルで控除 — CartCalc step 6と一致）
     var totalWithShipping = discounted + shippingAmount + bulkTotal - couponDiscount;
+
+    // === 不正利用対策: 支払額0円の注文は購入不可 ===
+    if (totalWithShipping <= 0) {
+      return { ok: false, message: 'お支払い金額が0円の注文は承れません。ポイント利用額を調整してください。' };
+    }
+
+    // === 見積額ガード: フロント表示額とサーバー計算額の不一致検出（quotedTotalが送られた時のみ・旧タブ移行ウィンドウ許容） ===
+    if (f.quotedTotal !== undefined && f.quotedTotal !== null && String(f.quotedTotal) !== '') {
+      var quotedTotal = Math.round(Number(f.quotedTotal));
+      if (isFinite(quotedTotal) && quotedTotal !== totalWithShipping) {
+        return { ok: false, message: '表示中の合計金額が最新の送料体系と一致しません。お手数ですがページを再読み込みして、再度お試しください。' };
+      }
+    }
 
     // === 受付番号生成 ===
     var receiptNo = u_makeReceiptNo_();
@@ -505,7 +522,7 @@ function apiSubmitEstimate(userKey, form, ids) {
       totalCount: totalCount,
       discounted: discounted + bulkProductAmount,
       shippingAmount: shippingAmount + bulkShippingAmount,
-      storeShipping: Math.round(actualShippingForStore / 2) || 0,
+      storeShipping: Math.round(actualShippingForStore) || 0,
       shippingSize: shippingSize,
       shippingArea: shippingArea,
       shippingPref: shippingPref,
@@ -2102,57 +2119,10 @@ function menuManualAssortSelect() {
 }
 
 // =====================================================
-// 送料サイズ判定ヘルパー（CartCalc.html と同一ロジック）
+// 送料計算ヘルパー
+// pt制の箱詰めDPは Config.gs の calcBoxPlan_ を直接利用する
+// （旧 calcShippingSize_sf_ / calcMultiShipment_sf_ は2026-07送料改定で廃止）
 // =====================================================
-
-/**
- * 厚み分類からサイズを判定
- * @param {number} thick - 厚手商品数（非ゆうパケット）
- * @param {number} thin - 薄手商品数（ゆうパケットポスト）
- * @return {{ size: string|null }} size='small'|'large'|null(上限超過)
- */
-function calcShippingSize_sf_(thick, thin) {
-  var total = thick + thin;
-  if (thin === 0) {
-    if (total > 20) return { size: null };
-    return { size: 'large' };
-  }
-  if (thick === 0) {
-    if (total > 40) return { size: null };
-    return total <= 10 ? { size: 'small' } : { size: 'large' };
-  }
-  if (total > 40) return { size: null };
-  if (thick >= 10) return { size: 'large' };
-  return total <= 10 ? { size: 'small' } : { size: 'large' };
-}
-
-/**
- * 上限超過時の複数口送料計算
- * @param {number} thick - 厚手商品数
- * @param {number} thin - 薄手商品数
- * @param {Array} rates - [小サイズ料金, 大サイズ料金]
- * @return {{ amount: number, sizeLabel: string }}
- */
-function calcMultiShipment_sf_(thick, thin, rates) {
-  var smallRate = rates[0], largeRate = rates[1];
-  var totalAmount = 0, largeCnt = 0, smallCnt = 0;
-  if (thick > 0) {
-    var n = Math.ceil(thick / 20);
-    largeCnt += n;
-    totalAmount += n * largeRate;
-  }
-  var rem = thin;
-  while (rem > 0) {
-    var batch = Math.min(rem, 40);
-    if (batch <= 10) { smallCnt++; totalAmount += smallRate; }
-    else { largeCnt++; totalAmount += largeRate; }
-    rem -= batch;
-  }
-  var parts = [];
-  if (largeCnt > 0) parts.push('大×' + largeCnt);
-  if (smallCnt > 0) parts.push('小×' + smallCnt);
-  return { amount: totalAmount, sizeLabel: parts.join('、') };
-}
 
 // =====================================================
 // D1バックアップ ヘルパー（決済→依頼管理反映の確実化）

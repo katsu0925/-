@@ -7,6 +7,7 @@
  */
 import { jsonOk, jsonError } from '../utils/response.js';
 import { sendEvent as sendMetaEvent } from '../utils/meta-capi.js';
+import { verifyRecaptcha } from '../utils/recaptcha.js';
 import {
   verifyPasswordV2,
   createPasswordHash,
@@ -158,6 +159,20 @@ export async function register(args, env, bodyText, ctx) {
   const email = rawEmail.trim().toLowerCase();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return jsonError('メールアドレスの形式が正しくありません。');
+  }
+
+  // bot対策: reCAPTCHA検証（登録スパム・ポイント不正取得防止。RECAPTCHA_SECRET設定時は必須）
+  if (env.RECAPTCHA_SECRET) {
+    const recaptchaToken = String(params.recaptchaToken || '');
+    let recaptchaOk = false;
+    try {
+      recaptchaOk = recaptchaToken !== '' && await verifyRecaptcha(recaptchaToken, env.RECAPTCHA_SECRET);
+    } catch (e) {
+      recaptchaOk = false;
+    }
+    if (!recaptchaOk) {
+      return jsonError('bot判定されました。ブラウザを再読み込みして再度お試しください。');
+    }
   }
 
   // 重複チェック

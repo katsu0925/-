@@ -229,13 +229,11 @@ function syncBaseOrdersToIraiKanri() {
     if (baseShippingFee > 0) {
       // BASE側で送料が設定されている → 客負担
       shippingCustomer = baseShippingFee;
-      // 配送原価 = 客負担の半額（多口発送にも対応）
-      shippingStore = Math.round(baseShippingFee / 2);
-    } else {
-      // 送料0 → 送料表と住所から計算して店負担
-      if (orderPref && typeof calcStoreShippingByAddress_ === 'function') {
-        shippingStore = calcStoreShippingByAddress_(orderPref, orderTotalQty);
-      }
+    }
+    // 2026-07改定: 店負担は実費表を直接参照（÷2廃止）。アソートは1箱=160サイズ×数量
+    const orderAreaForShip = (typeof SHIPPING_AREAS !== 'undefined') ? (SHIPPING_AREAS[orderPref] || '') : '';
+    if (orderAreaForShip && typeof SHIPPING_ACTUAL_RATES !== 'undefined' && SHIPPING_ACTUAL_RATES[orderAreaForShip]) {
+      shippingStore = SHIPPING_ACTUAL_RATES[orderAreaForShip]['160'] * orderTotalQty;
     }
 
     let shippingSetForThisOrder = false;

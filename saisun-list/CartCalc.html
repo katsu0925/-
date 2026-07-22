@@ -20,6 +20,12 @@ var CartCalc = (function() {
     return '';
   }
 
+  // ---- 送料: pt制設定（Constants.gs SHIPPING_CONSTANTS と同期） ----
+  var ITEM_POINTS = { thin: 1, thick: 2 };                                  // 薄手(ゆうパケットポスト)=1pt / 厚手=2pt
+  var BOX_CAPACITY = { '60': 2, '80': 4, '100': 10, '140': 20, '160': 40 }; // 箱サイズごとの収容pt
+  var BOX_SIZES = ['60', '80', '100', '140', '160'];
+  var CLICKPOST_PRICE = 280;                                                // クリックポスト顧客価格（税込・全国一律・沖縄含む）
+
   // ---- 送料: 厚み分類 ----
   function classifyThickness(items) {
     var thick = 0, thin = 0;
@@ -30,42 +36,76 @@ var CartCalc = (function() {
     return { thick: thick, thin: thin, total: thick + thin };
   }
 
-  // ---- 送料: サイズ判定 ----
-  function calcShippingSize(thick, thin) {
-    var total = thick + thin;
-    if (thin === 0) {
-      if (total > 20) return { size: null, reason: 'overLimit' };
-      return { size: 'large', label: '大' };
+  // ---- 送料: 料金表の形式正規化（旧2段階[小,大]が来たら5サイズへ読み替え・移行ウィンドウ用） ----
+  function normalizeRates(r) {
+    if (!r) return null;
+    if (Object.prototype.toString.call(r) === '[object Array]') {
+      return { '60': r[0], '80': r[0], '100': r[0], '140': r[1], '160': r[1] };
     }
-    if (thick === 0) {
-      if (total > 40) return { size: null, reason: 'overLimit' };
-      return total <= 10 ? { size: 'small', label: '小' } : { size: 'large', label: '大' };
-    }
-    if (total > 40) return { size: null, reason: 'overLimit' };
-    if (thick >= 10) return { size: 'large', label: '大' };
-    return total <= 10 ? { size: 'small', label: '小' } : { size: 'large', label: '大' };
+    return r;
   }
 
-  // ---- 送料: 複数口計算 ----
-  function calcMultiShipment(thick, thin, rates) {
-    var smallRate = rates[0], largeRate = rates[1];
-    var totalAmount = 0, largeCnt = 0, smallCnt = 0;
-    if (thick > 0) {
-      var n = Math.ceil(thick / 20);
-      largeCnt += n;
-      totalAmount += n * largeRate;
+  // ---- 送料: pt数から最安の箱組み合わせをDPで求める ----
+  function calcBoxPlan(points, rates) {
+    var p = Math.max(0, Math.ceil(Number(points) || 0));
+    if (p === 0 || !rates) return { amount: 0, boxes: {}, label: '' };
+    var dp = [0];
+    var choice = [null];
+    for (var i = 1; i <= p; i++) {
+      dp[i] = Infinity;
+      choice[i] = null;
+      for (var s = 0; s < BOX_SIZES.length; s++) {
+        var sz = BOX_SIZES[s];
+        var rest = Math.max(0, i - BOX_CAPACITY[sz]);
+        var cost = Number(rates[sz] || 0) + dp[rest];
+        if (cost < dp[i]) { dp[i] = cost; choice[i] = sz; }
+      }
     }
-    var rem = thin;
-    while (rem > 0) {
-      var batch = Math.min(rem, 40);
-      if (batch <= 10) { smallCnt++; totalAmount += smallRate; }
-      else { largeCnt++; totalAmount += largeRate; }
-      rem -= batch;
+    var boxes = {};
+    var cur = p;
+    while (cur > 0) {
+      var chosen = choice[cur];
+      boxes[chosen] = (boxes[chosen] || 0) + 1;
+      cur = Math.max(0, cur - BOX_CAPACITY[chosen]);
     }
+    var order = ['160', '140', '100', '80', '60'];
     var parts = [];
-    if (largeCnt > 0) parts.push('大×' + largeCnt);
-    if (smallCnt > 0) parts.push('小×' + smallCnt);
-    return { amount: totalAmount, sizeLabel: parts.join('、'), largeCnt: largeCnt, smallCnt: smallCnt };
+    var totalBoxes = 0;
+    for (var o = 0; o < order.length; o++) {
+      var n = boxes[order[o]];
+      if (n) { parts.push(n > 1 ? order[o] + '×' + n : order[o]); totalBoxes += n; }
+    }
+    var label = (totalBoxes === 1) ? parts[0] + 'サイズ' : parts.join('＋');
+    return { amount: dp[p], boxes: boxes, label: label };
+  }
+
+  // ---- 送料: サイズ判定（単箱に収まる場合のサイズ。互換API） ----
+  function calcShippingSize(thick, thin) {
+    var points = thick * ITEM_POINTS.thick + thin * ITEM_POINTS.thin;
+    if (thick === 0 && thin === 1) return { size: 'clickpost', label: 'クリックポスト', points: points };
+    for (var i = 0; i < BOX_SIZES.length; i++) {
+      if (points <= BOX_CAPACITY[BOX_SIZES[i]]) return { size: BOX_SIZES[i], label: BOX_SIZES[i] + 'サイズ', points: points };
+    }
+    return { size: null, reason: 'overLimit', points: points };
+  }
+
+  // ---- 送料: 複数口計算（DP。互換API） ----
+  function calcMultiShipment(thick, thin, rates) {
+    var plan = calcBoxPlan(thick * ITEM_POINTS.thick + thin * ITEM_POINTS.thin, normalizeRates(rates));
+    return { amount: plan.amount, sizeLabel: plan.label, boxes: plan.boxes };
+  }
+
+  // ---- 送料: デタウリ送料の統合計算（クリックポスト判定＋pt制DP） ----
+  function calcShipment(thick, thin, rates) {
+    // クリックポスト: 薄手ちょうど1点（全国一律・沖縄含む）
+    if (thick === 0 && thin === 1) {
+      return { amount: CLICKPOST_PRICE, sizeLabel: 'クリックポスト', isClickpost: true, boxes: {}, remainingPts: 0 };
+    }
+    var points = thick * ITEM_POINTS.thick + thin * ITEM_POINTS.thin;
+    var plan = calcBoxPlan(points, normalizeRates(rates));
+    var cap = 0;
+    for (var sz in plan.boxes) { if (plan.boxes.hasOwnProperty(sz)) cap += BOX_CAPACITY[sz] * plan.boxes[sz]; }
+    return { amount: plan.amount, sizeLabel: plan.label, isClickpost: false, boxes: plan.boxes, remainingPts: Math.max(0, cap - points) };
   }
 
   // ---- 送料: 都道府県検出 ----
@@ -96,6 +136,7 @@ var CartCalc = (function() {
     '大島町','利島村','新島村','神津島村','三宅村','御蔵島村','八丈町','青ヶ島村','小笠原村',
     '奄美市','大和村','宇検村','瀬戸内町','龍郷町','喜界町','徳之島町','天城町','伊仙町',
     '和泊町','知名町','与論町','三島村','十島村',
+    '西之表市','中種子町','南種子町','屋久島町',
     '宮古島市','石垣市','多良間村','竹富町','与那国町','久米島町','座間味村','渡嘉敷村',
     '粟国村','渡名喜村','南大東村','北大東村','伊江村','伊是名村','伊平屋村',
     '佐渡市','隠岐の島町','海士町','西ノ島町','知夫村',
@@ -104,6 +145,8 @@ var CartCalc = (function() {
   ];
   function isRemoteIsland(text) {
     text = String(text || '');
+    // 「周防大島町」（山口県・本土扱い）は東京都「大島町」に部分一致するため先に除去
+    text = text.replace(/周防大島町/g, '');
     for (var i = 0; i < REMOTE_ISLANDS.length; i++) {
       if (text.indexOf(REMOTE_ISLANDS[i]) !== -1) return true;
     }
@@ -211,58 +254,61 @@ var CartCalc = (function() {
     var thresholdFree = !fhpApplied && !isOkinawa && combinedDiscountedProduct >= freeShipThreshold;
 
     // デタウリ送料
-    if (det.count > 0 && addrPref) {
-      var area = areas[addrPref];
-      if (area && rates[area]) {
+    if (det.count > 0) {
+      var t = classifyThickness(det.items);
+      // クリックポスト: 薄手ちょうど1点（全国一律¥280・沖縄含む・住所未入力でも確定表示可）
+      var isClickpost = (t.thick === 0 && t.thin === 1);
+      var area = addrPref ? areas[addrPref] : null;
+      if (addrPref && area && rates[area]) {
         if (diamondFree) {
           result.detauri.shipping = { amount: 0, label: 'デタウリ 送料', isFree: true, freeReason: 'ダイヤモンド会員特典' };
         } else if (couponFreeEffective) {
           result.detauri.shipping = { amount: 0, label: 'デタウリ 送料', isFree: true, freeReason: 'クーポン適用' };
         } else if (thresholdFree) {
           result.detauri.shipping = { amount: 0, label: 'デタウリ 送料', isFree: true, freeReason: '商品合計¥10,000以上' };
+        } else if (isClickpost) {
+          result.detauri.shipping = { amount: CLICKPOST_PRICE, label: 'デタウリ 送料（クリックポスト・全国一律）', isFree: false, freeReason: '', isClickpost: true };
+        } else if (t.total > 0) {
+          // pt制: 箱詰めDPで最安の箱組み合わせを計算
+          var ship = calcShipment(t.thick, t.thin, rates[area]);
+          result.detauri.shipping = { amount: ship.amount, label: 'デタウリ 送料（' + escHtml(addrPref) + '・' + ship.sizeLabel + '）', isFree: false, freeReason: '', remainingPts: ship.remainingPts };
+        }
+      } else if (!addrPref && isClickpost) {
+        // 住所未入力でもクリックポストは全国一律のため確定表示（ダイヤ会員は無料）
+        if (diamondFree) {
+          result.detauri.shipping = { amount: 0, label: 'デタウリ 送料', isFree: true, freeReason: 'ダイヤモンド会員特典' };
         } else {
-          // 厚み分類→サイズ判定→料金計算
-          var t = classifyThickness(det.items);
-          if (t.total > 0) {
-            var sz = calcShippingSize(t.thick, t.thin);
-            if (!sz.size) {
-              // 上限超過: 複数口
-              var multi = calcMultiShipment(t.thick, t.thin, rates[area]);
-              result.detauri.shipping = { amount: multi.amount, label: 'デタウリ 送料（' + escHtml(addrPref) + '・' + multi.sizeLabel + '）', isFree: false, freeReason: '' };
-            } else {
-              var rIdx = (sz.size === 'small') ? 0 : 1;
-              result.detauri.shipping = { amount: rates[area][rIdx], label: 'デタウリ 送料（' + escHtml(addrPref) + '・' + sz.label + '）', isFree: false, freeReason: '' };
-            }
-          }
+          result.detauri.shipping = { amount: CLICKPOST_PRICE, label: 'デタウリ 送料（クリックポスト・全国一律）', isFree: false, freeReason: '', isClickpost: true };
         }
       }
     }
 
-    // アソート送料（常に大サイズ × 数量）
+    // アソート送料（1箱=160サイズ × 数量）
     if (ass.totalQty > 0 && addrPref) {
       var aArea = areas[addrPref];
-      if (aArea && rates[aArea]) {
+      var aRates = (aArea && rates[aArea]) ? normalizeRates(rates[aArea]) : null;
+      if (aRates) {
         if (diamondFree) {
           result.assort.shipping = { amount: 0, label: 'アソート 送料', isFree: true, freeReason: 'ダイヤモンド会員特典' };
         } else if (couponFreeEffective) {
           // 送料無料クーポンの除外商品対応
           if (assortExcQty > 0) {
-            var excShip = rates[aArea][1] * assortExcQty;
-            result.assort.shipping = { amount: excShip, label: 'アソート 送料（' + escHtml(addrPref) + '・大×' + assortExcQty + '、一部商品除外）', isFree: false, freeReason: '' };
+            var excShip = aRates['160'] * assortExcQty;
+            result.assort.shipping = { amount: excShip, label: 'アソート 送料（' + escHtml(addrPref) + '・160×' + assortExcQty + '、一部商品除外）', isFree: false, freeReason: '' };
           } else {
             result.assort.shipping = { amount: 0, label: 'アソート 送料', isFree: true, freeReason: 'クーポン適用' };
           }
         } else if (thresholdFree) {
           // ¥10,000以上送料無料 — ただし価格破壊商品は対象外（数量分だけ送料請求）
           if (assortAlwaysChargeQty > 0) {
-            var alwaysShip = rates[aArea][1] * assortAlwaysChargeQty;
-            result.assort.shipping = { amount: alwaysShip, label: 'アソート 送料（' + escHtml(addrPref) + '・大×' + assortAlwaysChargeQty + '、価格破壊商品分）', isFree: false, freeReason: '' };
+            var alwaysShip = aRates['160'] * assortAlwaysChargeQty;
+            result.assort.shipping = { amount: alwaysShip, label: 'アソート 送料（' + escHtml(addrPref) + '・160×' + assortAlwaysChargeQty + '、価格破壊商品分）', isFree: false, freeReason: '' };
           } else {
             result.assort.shipping = { amount: 0, label: 'アソート 送料', isFree: true, freeReason: '商品合計¥10,000以上' };
           }
         } else {
-          var assortShipAmt = rates[aArea][1] * ass.totalQty;
-          result.assort.shipping = { amount: assortShipAmt, label: 'アソート 送料（' + escHtml(addrPref) + '・大×' + ass.totalQty + '）', isFree: false, freeReason: '' };
+          var assortShipAmt = aRates['160'] * ass.totalQty;
+          result.assort.shipping = { amount: assortShipAmt, label: 'アソート 送料（' + escHtml(addrPref) + '・160×' + ass.totalQty + '）', isFree: false, freeReason: '' };
         }
       }
     }
@@ -286,7 +332,8 @@ var CartCalc = (function() {
     var sumSubtotals = result.detauri.subtotal + result.assort.subtotal - result.couponDiscount;
     if (pointsUsed > 0 && customer) {
       var maxPts = customer.points || 0;
-      result.pointsApplied = Math.min(pointsUsed, maxPts, Math.max(0, sumSubtotals));
+      // 0円注文防止: お支払い金額が最低¥1残るよう、ポイントは合計−1円までに制限
+      result.pointsApplied = Math.min(pointsUsed, maxPts, Math.max(0, sumSubtotals - 1));
     }
 
     // -- Step 8: 合計 --
@@ -373,6 +420,12 @@ var CartCalc = (function() {
         var pShipLabel = pIsAssort ? 'アソート 送料' : 'デタウリ 送料';
         rows += '<div class="cart-row"' + pStyle + '><span>' + pShipLabel + '</span><span style="font-size:11px;color:#888;">住所を入力すると送料が表示されます</span></div>';
       }
+      // 同梱アップセル（箱に残容量がある場合のみ）
+      if (!pIsAssort && pData.shipping.amount > 0 && pData.shipping.remainingPts > 0) {
+        var pRem = pData.shipping.remainingPts;
+        var pThickFit = Math.floor(pRem / 2);
+        rows += '<div style="margin:2px 0 6px;font-size:11px;color:#2563eb;">📦 同じ送料で、あと薄手' + pRem + '点' + (pThickFit > 0 ? '（または厚手' + pThickFit + '点）' : '') + 'まで同梱できます</div>';
+      }
     }
 
     // 片チャネル時: ポイント行はsmall計の直前に
@@ -435,6 +488,12 @@ var CartCalc = (function() {
       } else if (sData.raw > 0) {
         rows += '<div class="cart-row"' + sSt + '><span>' + escHtml(sData.shipping.label || (sIsAssort ? 'アソート 送料' : 'デタウリ 送料')) + '</span><span>¥0（無料）</span></div>';
       }
+      // 同梱アップセル（箱に残容量がある場合のみ）
+      if (!sIsAssort && sData.shipping.amount > 0 && sData.shipping.remainingPts > 0) {
+        var sRem = sData.shipping.remainingPts;
+        var sThickFit = Math.floor(sRem / 2);
+        rows += '<div style="margin:2px 0 6px;font-size:11px;color:#2563eb;">📦 同じ送料で、あと薄手' + sRem + '点' + (sThickFit > 0 ? '（または厚手' + sThickFit + '点）' : '') + 'まで同梱できます</div>';
+      }
 
       // セカンダリ小計行
       var sSubLabel = sIsAssort ? 'アソート商品 小計' : 'デタウリ 小計';
@@ -475,6 +534,9 @@ var CartCalc = (function() {
     classifyThickness: classifyThickness,
     calcShippingSize: calcShippingSize,
     calcMultiShipment: calcMultiShipment,
+    calcBoxPlan: calcBoxPlan,
+    calcShipment: calcShipment,
+    normalizeRates: normalizeRates,
     detectPref: detectPref,
     isRemoteIsland: isRemoteIsland,
     calculate: calculate,

@@ -308,27 +308,42 @@ function testSuite_Order_() {
       }
     },
     {
-      name: 'calcShippingByAddress_ は送料を正しく計算する',
+      name: 'calcShippingByAddress_ は送料を正しく計算する（2026-07改定: pt制5サイズ）',
       fn: function() {
-        // 大阪府（関西エリア）10点以下 = 小型
-        var ship1 = calcShippingByAddress_('大阪府', 10);
-        assertEqual_(ship1, 1100, '大阪府 小型 should be 1100');
+        // 大阪府（関西）1点=2pt → 60サイズ
+        assertEqual_(calcShippingByAddress_('大阪府', 1), 750, '大阪府 1点(60) should be 750');
 
-        // 大阪府 11点以上 = 大型
-        var ship2 = calcShippingByAddress_('大阪府', 11);
-        assertEqual_(ship2, 1260, '大阪府 大型 should be 1260');
+        // 大阪府 5点=10pt → 100サイズ
+        assertEqual_(calcShippingByAddress_('大阪府', 5), 830, '大阪府 5点(100) should be 830');
 
-        // 東京都
-        var ship3 = calcShippingByAddress_('東京都', 10);
-        assertEqual_(ship3, 1300, '東京都 小型 should be 1300');
+        // 東京都（関東）10点=20pt → 140サイズ
+        assertEqual_(calcShippingByAddress_('東京都', 10), 1260, '東京都 10点(140) should be 1260');
 
-        // 北海道
-        var ship4 = calcShippingByAddress_('北海道', 15);
-        assertEqual_(ship4, 2380, '北海道 大型 should be 2380');
+        // 北海道 15点=30pt → 160サイズ
+        assertEqual_(calcShippingByAddress_('北海道', 15), 2720, '北海道 15点(160) should be 2720');
+
+        // 沖縄県（現行2段階の読み替え: 60/80/100=2500、140/160=3500）
+        assertEqual_(calcShippingByAddress_('沖縄県', 1), 2500, '沖縄県 1点(60) should be 2500');
+        assertEqual_(calcShippingByAddress_('沖縄県', 20), 3500, '沖縄県 20点(160) should be 3500');
+
+        // 離島は配送対象外 → null
+        assertEqual_(calcShippingByAddress_('沖縄県宮古島市平良', 5), null, '離島 should be null');
 
         // 不明なエリア
-        var ship5 = calcShippingByAddress_('不明', 10);
-        assertEqual_(ship5, 0, 'Unknown area should return 0');
+        assertEqual_(calcShippingByAddress_('不明', 10), 0, 'Unknown area should return 0');
+      }
+    },
+    {
+      name: 'calcStoreShippingByAddress_ は実費表を直接参照する（÷2廃止）',
+      fn: function() {
+        // 大阪府 1点=2pt → 実費60サイズ=500
+        assertEqual_(calcStoreShippingByAddress_('大阪府', 1), 500, '大阪府 実費60 should be 500');
+
+        // 東京都 10点=20pt → 実費140サイズ=840
+        assertEqual_(calcStoreShippingByAddress_('東京都', 10), 840, '東京都 実費140 should be 840');
+
+        // 沖縄県（ゆうパック大阪発）20点=40pt → 実費160サイズ=3180
+        assertEqual_(calcStoreShippingByAddress_('沖縄県', 20), 3180, '沖縄 実費160 should be 3180');
       }
     },
     {
@@ -420,7 +435,7 @@ function testSuite_Util_() {
         assert_(APP_CONFIG.appTitle, 'appTitle should be set');
         assert_(APP_CONFIG.data.spreadsheetId, 'data.spreadsheetId should be set');
         assert_(APP_CONFIG.minOrderCount > 0, 'minOrderCount should be positive');
-        assertEqual_(APP_CONFIG.minOrderCount, 10, 'minOrderCount should be 10');
+        assertEqual_(APP_CONFIG.minOrderCount, 1, 'minOrderCount should be 1');
       }
     },
     {
@@ -875,23 +890,44 @@ function testSuite_EdgeCases_() {
       }
     },
     {
-      name: '送料計算: 境界値テスト',
+      name: '送料計算: pt境界値テスト（箱容量 60=2/80=4/100=10/140=20/160=40）',
       fn: function() {
-        // 10点ちょうど = 小型
-        var s10 = calcShippingByAddress_('東京都', 10);
-        assert_(s10 > 0, 'Should return shipping for 10 items');
+        var rates = SHIPPING_RATES['kansai']; // {60:750, 80:780, 100:830, 140:950, 160:1110}
 
-        // 11点 = 大型（境界超え）
-        var s11 = calcShippingByAddress_('東京都', 11);
-        assert_(s11 > s10, 'Large box should cost more');
+        // 容量ちょうど → その箱1つ
+        assertEqual_(calcBoxPlan_(2, rates).amount, 750, '2pt = 60サイズ');
+        assertEqual_(calcBoxPlan_(4, rates).amount, 780, '4pt = 80サイズ');
+        assertEqual_(calcBoxPlan_(10, rates).amount, 830, '10pt = 100サイズ');
+        assertEqual_(calcBoxPlan_(20, rates).amount, 950, '20pt = 140サイズ');
+        assertEqual_(calcBoxPlan_(40, rates).amount, 1110, '40pt = 160サイズ');
 
-        // 0点
-        var s0 = calcShippingByAddress_('東京都', 0);
-        assert_(s0 > 0, '0 items should still use small box rate');
+        // 容量+1 → 1つ上の箱
+        assertEqual_(calcBoxPlan_(3, rates).amount, 780, '3pt = 80サイズ');
+        assertEqual_(calcBoxPlan_(11, rates).amount, 950, '11pt = 140サイズ');
+        assertEqual_(calcBoxPlan_(21, rates).amount, 1110, '21pt = 160サイズ');
 
-        // 負の値
-        var sNeg = calcShippingByAddress_('東京都', -5);
-        assert_(sNeg > 0, 'Negative count should use small box rate');
+        // 41pt → 複数口（160＋60 = 1110+750）
+        var over = calcBoxPlan_(41, rates);
+        assertEqual_(over.amount, 1860, '41pt = 160＋60 = 1860');
+        assertEqual_(over.boxes['160'], 1, '41pt should use one 160 box');
+        assertEqual_(over.boxes['60'], 1, '41pt should use one 60 box');
+
+        // 0pt → 0円
+        assertEqual_(calcBoxPlan_(0, rates).amount, 0, '0pt should be 0');
+
+        // calcShippingByAddress_ は0点・負数でも最低1点(2pt)として計算
+        assertEqual_(calcShippingByAddress_('東京都', 0), 780, '0 items should use 1-item rate');
+        assertEqual_(calcShippingByAddress_('東京都', -5), 780, 'Negative count should use 1-item rate');
+      }
+    },
+    {
+      name: '送料計算: クリックポスト・pt制の設定値',
+      fn: function() {
+        assertEqual_(SHIPPING_CONSTANTS.CLICKPOST_PRICE, 280, 'クリポ顧客価格 280');
+        assertEqual_(SHIPPING_CONSTANTS.CLICKPOST_COST, 185, 'クリポ実費 185（2026-10-01に240へ改定予定）');
+        assertEqual_(SHIPPING_CONSTANTS.ITEM_POINTS.thin, 1, '薄手 1pt');
+        assertEqual_(SHIPPING_CONSTANTS.ITEM_POINTS.thick, 2, '厚手 2pt');
+        assertEqual_(SHIPPING_CONSTANTS.FREE_SHIP_THRESHOLD, 10000, '送料無料閾値 10000');
       }
     },
     {

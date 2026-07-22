@@ -384,7 +384,7 @@ function getExportSettings_() {
       });
       return {
         appTitle: APP_CONFIG.appTitle || '決済システム',
-        minOrderCount: APP_CONFIG.minOrderCount || 10,
+        minOrderCount: APP_CONFIG.minOrderCount || 1,
         shippingEstimateText: (APP_CONFIG.uiText && APP_CONFIG.uiText.shippingEstimateText) || '',
         notes: notes,
         topNotes: notes,
@@ -404,7 +404,7 @@ function getExportSettings_() {
     // デフォルト
     return {
       appTitle: '決済システム',
-      minOrderCount: 10,
+      minOrderCount: 1,
       shippingEstimateText: '',
       notes: [],
       topNotes: [],
@@ -413,7 +413,7 @@ function getExportSettings_() {
       memberDiscount: memberDiscount
     };
   } catch (e) {
-    return { appTitle: '決済システム', minOrderCount: 10 };
+    return { appTitle: '決済システム', minOrderCount: 1 };
   }
 }
 

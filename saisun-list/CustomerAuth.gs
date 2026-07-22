@@ -335,6 +335,13 @@ function apiRegisterCustomer(userKey, params) {
         return { ok: false, message: 'このメールアドレスは既に登録されています' };
       }
 
+      // bot対策: reCAPTCHA検証（登録スパム・ポイント不正取得防止）
+      // ※重複チェックの後に実施: Worker側でトークン消費済みのGASフォールバック時も重複エラーを正しく返すため
+      if (!verifyRecaptcha_(String(params.recaptchaToken || ''))) {
+        lock.releaseLock();
+        return { ok: false, message: 'bot判定されました。ブラウザを再読み込みして再度お試しください。' };
+      }
+
       var passwordHash = createPasswordHash_(password);
       const sessionId = generateRandomId_(AUTH_CONSTANTS.SESSION_ID_LENGTH);
       const sessionExpiry = new Date(Date.now() + AUTH_CONSTANTS.SESSION_DURATION_MS);

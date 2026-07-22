@@ -2,8 +2,8 @@
 // === Config.gs 全体抜粋 ===
 const APP_CONFIG = {
   appTitle: 'デタウリ.Detauri',
-  // 最低購入（注文）点数を 5 に変更
-  minOrderCount: 5,
+  // 2026-07改定: 最低購入（注文）点数は1点
+  minOrderCount: 1,
   notifyEmails: (function() { try { return PropertiesService.getScriptProperties().getProperty('NOTIFY_EMAILS') || ''; } catch(e) { return ''; } })(),
   data: {
     spreadsheetId: (function() { try { return PropertiesService.getScriptProperties().getProperty('DATA_SPREADSHEET_ID') || ''; } catch(e) { return ''; } })(),
@@ -115,7 +115,7 @@ const APP_CONFIG = {
   uiText: {
     notes: [
       '<a href="https://drive.google.com/file/d/18X6qgQPWkaOXTg4YxELtru-4oBJxn7mn/view?usp=sharing" target="_blank" rel="noopener noreferrer">商品ページガイド</a>',
-      '5点から購入可能です。合計金額は商品代のみ <a href="https://drive.google.com/file/d/1g7UYUBw3-Y6M5HkSv3mfMe5jEjs795E3/view?usp=sharing" target="_blank" rel="noopener noreferrer">（送料別）</a>。送料は住所入力後に自動計算されます。',
+      '1点から購入可能です。合計金額は商品代のみ <a href="https://drive.google.com/file/d/1g7UYUBw3-Y6M5HkSv3mfMe5jEjs795E3/view?usp=sharing" target="_blank" rel="noopener noreferrer">（送料別）</a>。送料は住所入力後に自動計算されます。',
       'カートに入れた商品は15分間確保されます（会員は30分間）。在庫は先着順のためお早めにお手続きください。',
       '決済方法：クレジットカード／コンビニ払い／銀行振込／PayPay／ペイジー／Apple Pay／Paidy',
       '<span style="color:#b8002a;">10点以上で5％割引〜最大20％OFF ／ 会員登録で10％OFF（2026年9月末まで・併用可）</span>'
@@ -392,21 +392,39 @@ const SHIPPING_AREAS = {
   '沖縄県': 'okinawa'
 };
 
-//                            小      大       ※全て税込
+// 顧客送料（佐川実費×1.5・¥10単位切上げ・税込）。沖縄は現行2段階の読み替え（60/80/100=2500、140/160=3500）
 const SHIPPING_RATES = {
-  minami_kyushu:       [1320,  1700],
-  kita_kyushu:         [1280,  1620],
-  shikoku:             [1180,  1440],
-  chugoku:             [1200,  1480],
-  kansai:              [1100,  1260],
-  hokuriku:            [1160,  1420],
-  tokai:               [1180,  1440],
-  shinetsu:            [1220,  1540],
-  kanto:               [1300,  1680],
-  minami_tohoku:       [1400,  1900],
-  kita_tohoku:         [1460,  1980],
-  hokkaido:            [1640,  2380],
-  okinawa:             [2500,  3500]
+  minami_kyushu: { '60': 780, '80': 860, '100': 990,  '140': 1280, '160': 1760 },
+  kita_kyushu:   { '60': 770, '80': 840, '100': 960,  '140': 1220, '160': 1650 },
+  shikoku:       { '60': 750, '80': 810, '100': 890,  '140': 1080, '160': 1370 },
+  chugoku:       { '60': 770, '80': 830, '100': 900,  '140': 1110, '160': 1440 },
+  kansai:        { '60': 750, '80': 780, '100': 830,  '140': 950,  '160': 1110 },
+  hokuriku:      { '60': 750, '80': 810, '100': 870,  '140': 1070, '160': 1340 },
+  tokai:         { '60': 750, '80': 810, '100': 890,  '140': 1080, '160': 1400 },
+  shinetsu:      { '60': 770, '80': 830, '100': 920,  '140': 1160, '160': 1520 },
+  kanto:         { '60': 780, '80': 860, '100': 980,  '140': 1260, '160': 1730 },
+  minami_tohoku: { '60': 780, '80': 890, '100': 1050, '140': 1430, '160': 2010 },
+  kita_tohoku:   { '60': 800, '80': 900, '100': 1100, '140': 1490, '160': 2160 },
+  hokkaido:      { '60': 830, '80': 980, '100': 1230, '140': 1790, '160': 2720 },
+  okinawa:       { '60': 2500, '80': 2500, '100': 2500, '140': 3500, '160': 3500 }
+};
+
+// 実費（店負担原価）: 佐川急便 江坂発運賃表。沖縄のみゆうパック（大阪発）
+// ※南東北60は原本CSVの620円が誤りのため520円に訂正済み
+const SHIPPING_ACTUAL_RATES = {
+  minami_kyushu: { '60': 520, '80': 570, '100': 660, '140': 850,  '160': 1170 },
+  kita_kyushu:   { '60': 510, '80': 560, '100': 640, '140': 810,  '160': 1100 },
+  shikoku:       { '60': 500, '80': 540, '100': 590, '140': 720,  '160': 910 },
+  chugoku:       { '60': 510, '80': 550, '100': 600, '140': 740,  '160': 960 },
+  kansai:        { '60': 500, '80': 520, '100': 550, '140': 630,  '160': 740 },
+  hokuriku:      { '60': 500, '80': 540, '100': 580, '140': 710,  '160': 890 },
+  tokai:         { '60': 500, '80': 540, '100': 590, '140': 720,  '160': 930 },
+  shinetsu:      { '60': 510, '80': 550, '100': 610, '140': 770,  '160': 1010 },
+  kanto:         { '60': 520, '80': 570, '100': 650, '140': 840,  '160': 1150 },
+  minami_tohoku: { '60': 520, '80': 590, '100': 700, '140': 950,  '160': 1340 },
+  kita_tohoku:   { '60': 530, '80': 600, '100': 730, '140': 990,  '160': 1440 },
+  hokkaido:      { '60': 550, '80': 650, '100': 820, '140': 1190, '160': 1810 },
+  okinawa:       { '60': 1450, '80': 1810, '100': 2160, '140': 2860, '160': 3180 }
 };
 
 // 離島リスト（配送対象外）
@@ -416,6 +434,7 @@ const REMOTE_ISLANDS = [
   // 鹿児島県離島（本土以外）
   '奄美市', '大和村', '宇検村', '瀬戸内町', '龍郷町', '喜界町', '徳之島町', '天城町', '伊仙町',
   '和泊町', '知名町', '与論町', '三島村', '十島村',
+  '西之表市', '中種子町', '南種子町', '屋久島町',
   // 沖縄県離島（本島以外の主要離島地域）
   '宮古島市', '石垣市', '多良間村', '竹富町', '与那国町', '久米島町', '座間味村', '渡嘉敷村',
   '粟国村', '渡名喜村', '南大東村', '北大東村', '伊江村', '伊是名村', '伊平屋村',
@@ -436,6 +455,8 @@ const REMOTE_ISLANDS = [
  */
 function isRemoteIsland_(addressText) {
   var text = String(addressText || '').trim();
+  // 「周防大島町」（山口県・本土扱い）は東京都「大島町」に部分一致するため先に除去
+  text = text.replace(/周防大島町/g, '');
   for (var i = 0; i < REMOTE_ISLANDS.length; i++) {
     if (text.indexOf(REMOTE_ISLANDS[i]) !== -1) return true;
   }
@@ -468,7 +489,48 @@ function detectPrefecture_(addressText) {
 }
 
 /**
- * 住所と点数から送料を計算（箱サイズ: ≤10点=小、>10点=大）
+ * pt数から最安の箱組み合わせをDPで求める（pt制箱詰め）
+ * @param {number} points - 合計pt（厚手=2pt / 薄手=1pt）
+ * @param {Object} rates - サイズ→料金 { '60':n, '80':n, '100':n, '140':n, '160':n }
+ * @returns {{amount:number, boxes:Object, label:string}} boxes={サイズ:個数}、labelは単箱「100サイズ」/複数口「160×2＋80」
+ */
+function calcBoxPlan_(points, rates) {
+  var sizes = SHIPPING_CONSTANTS.BOX_SIZES;
+  var caps = SHIPPING_CONSTANTS.BOX_CAPACITY;
+  var p = Math.max(0, Math.ceil(Number(points) || 0));
+  if (p === 0) return { amount: 0, boxes: {}, label: '' };
+  var dp = [0];
+  var choice = [null];
+  for (var i = 1; i <= p; i++) {
+    dp[i] = Infinity;
+    choice[i] = null;
+    for (var s = 0; s < sizes.length; s++) {
+      var sz = sizes[s];
+      var rest = Math.max(0, i - caps[sz]);
+      var cost = rates[sz] + dp[rest];
+      if (cost < dp[i]) { dp[i] = cost; choice[i] = sz; }
+    }
+  }
+  var boxes = {};
+  var cur = p;
+  while (cur > 0) {
+    var chosen = choice[cur];
+    boxes[chosen] = (boxes[chosen] || 0) + 1;
+    cur = Math.max(0, cur - caps[chosen]);
+  }
+  var order = ['160', '140', '100', '80', '60'];
+  var parts = [];
+  var totalBoxes = 0;
+  for (var o = 0; o < order.length; o++) {
+    var n = boxes[order[o]];
+    if (n) { parts.push(n > 1 ? order[o] + '×' + n : order[o]); totalBoxes += n; }
+  }
+  var label = (totalBoxes === 1) ? parts[0] + 'サイズ' : parts.join('＋');
+  return { amount: dp[p], boxes: boxes, label: label };
+}
+
+/**
+ * 住所と点数から顧客送料を計算（薄手情報がない経路用: 全点厚手=2ptとして計算）
  * ※送料は全て税込み。会員割引は送料には適用しない。
  * @param {string} prefOrAddress - 都道府県名 or 住所テキスト
  * @param {number} totalCount - 合計点数
@@ -481,17 +543,21 @@ function calcShippingByAddress_(prefOrAddress, totalCount) {
   if (!pref) return 0;
   var area = SHIPPING_AREAS[pref];
   if (!area || !SHIPPING_RATES[area]) return 0;
-  var sizeIdx = (totalCount <= 10) ? 0 : 1;
-  return SHIPPING_RATES[area][sizeIdx];
+  var cnt = Math.max(1, Math.floor(Number(totalCount) || 0));
+  return calcBoxPlan_(cnt * SHIPPING_CONSTANTS.ITEM_POINTS.thick, SHIPPING_RATES[area]).amount;
 }
 
 /**
- * 店負担送料を計算（配送原価 = 客向け送料の半額）
+ * 店負担送料を計算（実費表を直接参照。全点厚手=2ptとして計算）
  */
 function calcStoreShippingByAddress_(prefOrAddress, totalCount) {
-  var customerShipping = calcShippingByAddress_(prefOrAddress, totalCount);
-  if (customerShipping === null || customerShipping === 0) return customerShipping;
-  return Math.round(customerShipping / 2);
+  if (isRemoteIsland_(prefOrAddress)) return null;
+  var pref = SHIPPING_AREAS[prefOrAddress] ? prefOrAddress : detectPrefecture_(prefOrAddress);
+  if (!pref) return 0;
+  var area = SHIPPING_AREAS[pref];
+  if (!area || !SHIPPING_ACTUAL_RATES[area]) return 0;
+  var cnt = Math.max(1, Math.floor(Number(totalCount) || 0));
+  return calcBoxPlan_(cnt * SHIPPING_CONSTANTS.ITEM_POINTS.thick, SHIPPING_ACTUAL_RATES[area]).amount;
 }
 
 var BRAND_LIST_CACHE_KEY = 'BRAND_LIST_CACHE';

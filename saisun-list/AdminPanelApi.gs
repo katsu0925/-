@@ -313,23 +313,11 @@ function adminPanel_getBizSettings() {
   var raw = PropertiesService.getScriptProperties().getProperty('CONFIG_BIZ_SETTINGS');
   var s = {};
   if (raw) { try { s = JSON.parse(raw); } catch (e) {} }
-  // 送料テーブルは別キー
-  var shRaw = PropertiesService.getScriptProperties().getProperty('CONFIG_SHIPPING_RATES');
-  var shippingRates = null;
-  if (shRaw) { try { shippingRates = JSON.parse(shRaw); } catch (e) {} }
-  if (!shippingRates) {
-    // Config.gsのデフォルト値
-    shippingRates = {
-      minami_kyushu:[1320,1700], kita_kyushu:[1280,1620], shikoku:[1180,1440],
-      chugoku:[1200,1480], kansai:[1100,1260], hokuriku:[1160,1420],
-      tokai:[1180,1440], shinetsu:[1220,1540], kanto:[1300,1680],
-      minami_tohoku:[1400,1900], kita_tohoku:[1460,1980], hokkaido:[1640,2380], okinawa:[2500,3500]
-    };
-  }
+  // 2026-07改定: 旧2段階送料テーブル(CONFIG_SHIPPING_RATES)は廃止。送料はConfig.gsの5サイズ運賃表＋pt制で管理
   return {
     ok: true,
     settings: {
-      minOrderCount: s.minOrderCount || 5,
+      minOrderCount: s.minOrderCount || 1,
       holdMinutes: s.holdMinutes || 15,
       holdMemberMinutes: s.holdMemberMinutes || 30,
       taxRate: s.taxRate || 0.10,
@@ -341,16 +329,15 @@ function adminPanel_getBizSettings() {
       rememberDays: s.rememberDays || 30,
       minPwLength: s.minPwLength || 6,
       csrfExpiry: s.csrfExpiry || 3600,
-      paymentExpiry: s.paymentExpiry || 259200,
-      shippingRates: shippingRates
+      paymentExpiry: s.paymentExpiry || 259200
     }
   };
 }
 
 function adminPanel_setBizSettings(settings) {
   var props = PropertiesService.getScriptProperties();
+  // 2026-07改定: 旧2段階送料テーブルは廃止。旧UIからの書き込みは無視する（送料はConfig.gsの5サイズ表で管理）
   if (settings.shippingRates) {
-    props.setProperty('CONFIG_SHIPPING_RATES', JSON.stringify(settings.shippingRates));
     delete settings.shippingRates;
   }
   if (Object.keys(settings).length > 0) {

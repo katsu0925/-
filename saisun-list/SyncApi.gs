@@ -626,10 +626,25 @@ function exportSettings_() {
   // 初回半額キャンペーンステータス
   settings.FIRST_HALF_PRICE_STATUS = JSON.stringify(app_getFirstHalfPriceStatus_());
 
-  // 送料設定
+  // 送料設定（2026-07改定: V2キー=5サイズ顧客表+実費表+pt制+クリックポスト）
+  settings.SHIPPING_CONFIG_V2 = JSON.stringify({
+    version: 2,
+    areas: SHIPPING_AREAS,
+    customer: SHIPPING_RATES,
+    actual: SHIPPING_ACTUAL_RATES,
+    clickpost: { price: SHIPPING_CONSTANTS.CLICKPOST_PRICE, cost: SHIPPING_CONSTANTS.CLICKPOST_COST },
+    points: SHIPPING_CONSTANTS.ITEM_POINTS,
+    boxCapacity: SHIPPING_CONSTANTS.BOX_CAPACITY
+  });
+
+  // 旧キー（移行ウィンドウ用・旧2段階[小,大]形状を新表から導出。旧Workersコードが残っていても破綻しない）
+  var legacyRates = {};
+  for (var lk in SHIPPING_RATES) {
+    legacyRates[lk] = [SHIPPING_RATES[lk]['100'], SHIPPING_RATES[lk]['160']];
+  }
   settings.SHIPPING_CONFIG = JSON.stringify({
     areas: SHIPPING_AREAS,
-    rates: SHIPPING_RATES
+    rates: legacyRates
   });
 
   // サイトURL
@@ -655,7 +670,7 @@ function exportSettings_() {
     try {
       var biz = JSON.parse(bizSettings);
       settings.HOLD_MINUTES = JSON.stringify({ default: biz.holdMinutes || 15, member: biz.holdMemberMinutes || 30 });
-      settings.MIN_ORDER_COUNT = String(biz.minOrderCount || 5);
+      settings.MIN_ORDER_COUNT = String(biz.minOrderCount || 1); // 2026-07改定: 1点から購入可
       settings.SESSION_CONFIG = JSON.stringify({ sessionHours: biz.sessionHours || 24, rememberDays: biz.rememberDays || 30, csrfExpiry: biz.csrfExpiry || 3600 });
       settings.PAYMENT_EXPIRY = String(biz.paymentExpiry || 259200);
     } catch (e) {}

@@ -57,12 +57,21 @@ var RECAPTCHA_CONSTANTS = {
 var TAX_RATE = 0.10;                               // 消費税10%
 
 /**
- * 送料計算の閾値
+ * 送料計算の閾値・pt制箱詰め設定（2026-07 送料改定）
  */
 var SHIPPING_CONSTANTS = {
-  SIZE_THRESHOLD: 10,                              // この数以下=小型、超=大型
   FREE_SHIP_THRESHOLD: 10000,                      // 商品合計これ以上で送料無料（FHP/価格破壊・沖縄県は対象外、ダイヤ会員は全地域無料）
-  ALWAYS_CHARGE_BULK_IDS: ['BLK-H2LZTP36']         // ¥10,000以上ルールを無効化する価格破壊商品ID（アソート）
+  ALWAYS_CHARGE_BULK_IDS: ['BLK-H2LZTP36'],        // ¥10,000以上ルールを無効化する価格破壊商品ID（アソート）
+
+  // pt制: 薄手(ゆうパケットポスト)=1pt / 厚手=2pt
+  ITEM_POINTS: { thin: 1, thick: 2 },
+  // 箱サイズごとの収容pt（昇順。DPは同額なら小さい箱を選ぶ）
+  BOX_CAPACITY: { '60': 2, '80': 4, '100': 10, '140': 20, '160': 40 },
+  BOX_SIZES: ['60', '80', '100', '140', '160'],
+
+  // クリックポスト: デタウリが薄手ちょうど1点のとき適用（全国一律・沖縄含む）
+  CLICKPOST_PRICE: 280,                            // 顧客価格（税込・全国一律）
+  CLICKPOST_COST: 185                              // 実費 ※2026-10-01に240円へ改定（日本郵便公式告知済）→改定日に要更新
 };
 
 /**

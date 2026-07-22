@@ -302,14 +302,12 @@
     <div class="tab-content" id="tab-biz">
       <div class="card">
         <div class="title">送料テーブル</div>
-        <div class="note">地域別の送料（税込）。小型=10点以下、大型=11点以上。Workers側にも5分同期で反映。&#9888; 変更はカート計算に即影響。</div>
-        <div id="shipping-table">読み込み中...</div>
-        <div class="btnRow"><button class="primary" onclick="saveShippingRates()">送料テーブルを保存</button></div>
+        <div class="note">2026-07改定: 送料は地域×5サイズ（60〜160）＋pt制箱詰めで自動計算になりました。運賃表の変更はコード（Config.gs の SHIPPING_RATES / SHIPPING_ACTUAL_RATES）で管理します。旧2段階（小型/大型）テーブルのこの画面からの編集は廃止しました。</div>
       </div>
       <div class="card">
         <div class="title">基本設定</div>
         <div class="form-row"><label>最低購入点数</label><input type="number" id="biz-minorder" style="width:60px"></div>
-        <div class="note">デタウリ個品の最低注文数。アソート併用時は1点から可。</div>
+        <div class="note">デタウリ個品の最低注文数（2026-07改定: 1点から購入可）。</div>
         <div class="form-row"><label>確保期間(通常/分)</label><input type="number" id="biz-hold-min" style="width:60px"></div>
         <div class="form-row"><label>確保期間(会員/分)</label><input type="number" id="biz-hold-member" style="width:60px"></div>
         <div class="note">カートに入れた商品の確保時間。超過すると自動解放。</div>
@@ -1168,13 +1166,12 @@ async function saveAiSettings(){
 
 // ========== タブ6: ビジネス設定 ==========
 var bizLoaded = false;
-var SHIPPING_AREAS_LABELS = {minami_kyushu:'南九州',kita_kyushu:'北九州',shikoku:'四国',chugoku:'中国',kansai:'関西',hokuriku:'北陸',tokai:'東海',shinetsu:'信越',kanto:'関東',minami_tohoku:'南東北',kita_tohoku:'北東北',hokkaido:'北海道',okinawa:'沖縄'};
 async function loadBizSettings(){
   try {
     var res = await run('adminPanel_getBizSettings');
     if(!res.ok) return;
     var s = res.settings;
-    $('biz-minorder').value = s.minOrderCount||5;
+    $('biz-minorder').value = s.minOrderCount||1;
     $('biz-hold-min').value = s.holdMinutes||15;
     $('biz-hold-member').value = s.holdMemberMinutes||30;
     $('biz-tax').value = s.taxRate||0.10;
@@ -1187,29 +1184,8 @@ async function loadBizSettings(){
     $('biz-pw-min').value = s.minPwLength||6;
     $('biz-csrf').value = s.csrfExpiry||3600;
     $('biz-pay-expiry').value = s.paymentExpiry||259200;
-    // 送料テーブル
-    var rates = s.shippingRates || {};
-    var html = '<table class="data"><tr><th>エリア</th><th>小型(≤10点)</th><th>大型(>10点)</th></tr>';
-    Object.keys(SHIPPING_AREAS_LABELS).forEach(function(k){
-      var r = rates[k] || [0,0];
-      html += '<tr><td>'+SHIPPING_AREAS_LABELS[k]+'</td><td><input type="number" data-ship="'+k+'-0" value="'+r[0]+'" style="width:70px"></td><td><input type="number" data-ship="'+k+'-1" value="'+r[1]+'" style="width:70px"></td></tr>';
-    });
-    html += '</table>';
-    $('shipping-table').innerHTML = html;
     bizLoaded = true;
   } catch(e){ appendLog('biz-log','エラー: '+e.message); }
-}
-async function saveShippingRates(){
-  var rates = {};
-  document.querySelectorAll('[data-ship]').forEach(function(el){
-    var parts = el.dataset.ship.split('-');
-    if(!rates[parts[0]]) rates[parts[0]] = [0,0];
-    rates[parts[0]][+parts[1]] = +el.value;
-  });
-  try {
-    var res = await run('adminPanel_setBizSettings',{shippingRates:rates});
-    showToast(res.ok?'送料テーブルを保存':'失敗');
-  } catch(e){ showToast('エラー'); }
 }
 async function saveBizSettings(){
   try {

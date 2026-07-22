@@ -40,20 +40,52 @@ const SHIPPING_AREAS = {
   '沖縄県': 'okinawa',
 };
 
+// 顧客送料（江坂佐川運賃表×1.5・¥10単位切上げ・税込。Config.gs SHIPPING_RATES と同期）
 const SHIPPING_RATES = {
-  minami_kyushu: [1320, 1700], kita_kyushu: [1280, 1620],
-  shikoku: [1180, 1440], chugoku: [1200, 1480],
-  kansai: [1100, 1260], hokuriku: [1160, 1420],
-  tokai: [1180, 1440], shinetsu: [1220, 1540],
-  kanto: [1300, 1680], minami_tohoku: [1400, 1900],
-  kita_tohoku: [1460, 1980], hokkaido: [1640, 2380],
-  okinawa: [2500, 3500],
+  minami_kyushu: { '60': 780, '80': 860, '100': 990,  '140': 1280, '160': 1760 },
+  kita_kyushu:   { '60': 770, '80': 840, '100': 960,  '140': 1220, '160': 1650 },
+  shikoku:       { '60': 750, '80': 810, '100': 890,  '140': 1080, '160': 1370 },
+  chugoku:       { '60': 770, '80': 830, '100': 900,  '140': 1110, '160': 1440 },
+  kansai:        { '60': 750, '80': 780, '100': 830,  '140': 950,  '160': 1110 },
+  hokuriku:      { '60': 750, '80': 810, '100': 870,  '140': 1070, '160': 1340 },
+  tokai:         { '60': 750, '80': 810, '100': 890,  '140': 1080, '160': 1400 },
+  shinetsu:      { '60': 770, '80': 830, '100': 920,  '140': 1160, '160': 1520 },
+  kanto:         { '60': 780, '80': 860, '100': 980,  '140': 1260, '160': 1730 },
+  minami_tohoku: { '60': 780, '80': 890, '100': 1050, '140': 1430, '160': 2010 },
+  kita_tohoku:   { '60': 800, '80': 900, '100': 1100, '140': 1490, '160': 2160 },
+  hokkaido:      { '60': 830, '80': 980, '100': 1230, '140': 1790, '160': 2720 },
+  okinawa:       { '60': 2500, '80': 2500, '100': 2500, '140': 3500, '160': 3500 },
 };
+
+// 実費（江坂佐川運賃表。沖縄はゆうパック大阪発。Config.gs SHIPPING_ACTUAL_RATES と同期）
+const SHIPPING_ACTUAL_RATES = {
+  minami_kyushu: { '60': 520, '80': 570, '100': 660, '140': 850,  '160': 1170 },
+  kita_kyushu:   { '60': 510, '80': 560, '100': 640, '140': 810,  '160': 1100 },
+  shikoku:       { '60': 500, '80': 540, '100': 590, '140': 720,  '160': 910 },
+  chugoku:       { '60': 510, '80': 550, '100': 600, '140': 740,  '160': 960 },
+  kansai:        { '60': 500, '80': 520, '100': 550, '140': 630,  '160': 740 },
+  hokuriku:      { '60': 500, '80': 540, '100': 580, '140': 710,  '160': 890 },
+  tokai:         { '60': 500, '80': 540, '100': 590, '140': 720,  '160': 930 },
+  shinetsu:      { '60': 510, '80': 550, '100': 610, '140': 770,  '160': 1010 },
+  kanto:         { '60': 520, '80': 570, '100': 650, '140': 840,  '160': 1150 },
+  minami_tohoku: { '60': 520, '80': 590, '100': 700, '140': 950,  '160': 1340 },
+  kita_tohoku:   { '60': 530, '80': 600, '100': 730, '140': 990,  '160': 1440 },
+  hokkaido:      { '60': 550, '80': 650, '100': 820, '140': 1190, '160': 1810 },
+  okinawa:       { '60': 1450, '80': 1810, '100': 2160, '140': 2860, '160': 3180 },
+};
+
+// pt制・クリックポスト設定（Constants.gs SHIPPING_CONSTANTS と同期。D1 SHIPPING_CONFIG_V2 優先）
+const ITEM_POINTS = { thin: 1, thick: 2 };
+const BOX_CAPACITY = { '60': 2, '80': 4, '100': 10, '140': 20, '160': 40 };
+const BOX_SIZES = ['60', '80', '100', '140', '160'];
+const CLICKPOST_PRICE = 280; // 顧客価格（税込・全国一律）
+const CLICKPOST_COST = 185;  // 実費 ※2026-10-01に240円へ改定（日本郵便公式告知済）
 
 const REMOTE_ISLANDS = [
   '大島町', '利島村', '新島村', '神津島村', '三宅村', '御蔵島村', '八丈町', '青ヶ島村', '小笠原村',
   '奄美市', '大和村', '宇検村', '瀬戸内町', '龍郷町', '喜界町', '徳之島町', '天城町', '伊仙町',
   '和泊町', '知名町', '与論町', '三島村', '十島村',
+  '西之表市', '中種子町', '南種子町', '屋久島町',
   '宮古島市', '石垣市', '多良間村', '竹富町', '与那国町', '久米島町', '座間味村', '渡嘉敷村',
   '粟国村', '渡名喜村', '南大東村', '北大東村', '伊江村', '伊是名村', '伊平屋村',
   '佐渡市', '隠岐の島町', '海士町', '西ノ島町', '知夫村',
@@ -105,8 +137,8 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     return jsonError('カートが空です');
   }
 
-  // デタウリ最低注文数チェック
-  const minDetauri = hasBulkItems ? 1 : 5;
+  // デタウリ最低注文数チェック（2026-07改定: 1点から購入可）
+  const minDetauri = 1;
   if (ids.length > 0 && ids.length < minDetauri) {
     return jsonError(`デタウリ商品は${minDetauri}点以上で購入可能です（現在${ids.length}点）`);
   }
@@ -271,22 +303,34 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     env.DB.prepare("SELECT value FROM settings WHERE key = 'MEMBER_DISCOUNT_STATUS'").first(),
     env.DB.prepare("SELECT value FROM settings WHERE key = 'FIRST_HALF_PRICE_STATUS'").first(),
     env.DB.prepare('SELECT points, purchase_count, total_spent FROM customers WHERE email = ?').bind(emailLower).first(),
-    env.DB.prepare("SELECT value FROM settings WHERE key = 'SHIPPING_CONFIG'").first(),
+    env.DB.prepare("SELECT value FROM settings WHERE key = 'SHIPPING_CONFIG_V2'").first(),
     env.DB.prepare("SELECT value FROM settings WHERE key = 'QTY_DISCOUNTS'").first(),
     env.DB.prepare("SELECT value FROM settings WHERE key = 'HOLD_MINUTES'").first(),
     env.DB.prepare("SELECT value FROM settings WHERE key = 'MIN_ORDER_COUNT'").first(),
     env.DB.prepare("SELECT value FROM settings WHERE key = 'FREE_SHIP_THRESHOLD'").first(),
   ]);
 
-  // D1から動的設定を読み込み（フォールバック: ハードコード値）
+  // D1から動的設定を読み込み（SHIPPING_CONFIG_V2・形状検証つき。無効時はハードコード値へフォールバック=fail-closed）
   let dynShippingRates = SHIPPING_RATES;
+  let dynActualRates = SHIPPING_ACTUAL_RATES;
   let dynShippingAreas = SHIPPING_AREAS;
+  let dynPoints = ITEM_POINTS;
+  let dynBoxCapacity = BOX_CAPACITY;
+  let dynClickpostPrice = CLICKPOST_PRICE;
+  let dynClickpostCost = CLICKPOST_COST;
   if (shippingRow) {
     try {
       const sc = JSON.parse(shippingRow.value);
-      if (sc.rates) dynShippingRates = sc.rates;
-      if (sc.areas) dynShippingAreas = sc.areas;
-    } catch (e) { /* fallthrough */ }
+      if (sc && sc.version === 2 && sc.customer && sc.actual && sc.areas) {
+        dynShippingRates = sc.customer;
+        dynActualRates = sc.actual;
+        dynShippingAreas = sc.areas;
+        if (sc.points && sc.points.thin > 0 && sc.points.thick > 0) dynPoints = sc.points;
+        if (sc.boxCapacity && sc.boxCapacity['160'] > 0) dynBoxCapacity = sc.boxCapacity;
+        if (sc.clickpost && sc.clickpost.price > 0) dynClickpostPrice = sc.clickpost.price;
+        if (sc.clickpost && sc.clickpost.cost > 0) dynClickpostCost = sc.clickpost.cost;
+      }
+    } catch (e) { /* 形状不正はハードコード値のまま */ }
   }
 
   let dynQtyDiscounts = null;
@@ -444,9 +488,14 @@ export async function submitEstimate(args, env, bodyText, ctx) {
 
   // ─── 送料計算 ───
   const shippingArea = dynShippingAreas[pref] || '';
-  let shippingSize = 'large';
-  let shippingSizeLabel = '大';
+  let shippingSize = '160';
+  let shippingSizeLabel = '160サイズ';
   let shippingAmount = 0;
+
+  // 厚み分類（顧客送料・店負担送料の両方で使用）
+  const { thick: cartThick, thin: cartThin } = classifyThickness(productResults);
+  // クリックポスト: デタウリが薄手ちょうど1点（全国一律・沖縄含む）
+  const isClickpost = cartThick === 0 && cartThin === 1;
 
   // ダイヤモンド会員送料無料チェック（mypage.js と同じランク判定テーブル）
   const totalSpent = customerRow ? (customerRow.total_spent || 0) : 0;
@@ -459,19 +508,19 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   // ¥10,000以上で送料無料（FHP適用時・沖縄県は対象外）
   const thresholdFree = !firstHalfPriceApplied && !isOkinawa && (discounted + bulkProductAmount) >= dynFreeShipThreshold;
 
-  // 送料無料判定前に実際の配送コストを計算（店負担送料用）
+  // 送料無料判定前に実際の配送コスト（実費表・店負担送料用）を計算
   let actualShippingForStore = 0;
-  if (ids.length > 0 && shippingArea && dynShippingRates[shippingArea]) {
-    const { thick: _thick, thin: _thin } = classifyThickness(productResults);
-    const _sz = calcShippingSize(_thick, _thin);
-    if (!_sz.size) {
-      actualShippingForStore = calcMultiShipment(_thick, _thin, dynShippingRates[shippingArea]).amount;
-    } else {
-      actualShippingForStore = dynShippingRates[shippingArea][_sz.size === 'small' ? 0 : 1];
+  if (ids.length > 0) {
+    if (isClickpost) {
+      actualShippingForStore = dynClickpostCost;
+    } else if (shippingArea && dynActualRates[shippingArea]) {
+      const actPts = cartThick * dynPoints.thick + cartThin * dynPoints.thin;
+      actualShippingForStore = calcBoxPlan(actPts, normalizeRates(dynActualRates[shippingArea]), dynBoxCapacity).amount;
     }
   }
-  if (bulkItemCount > 0 && shippingArea && dynShippingRates[shippingArea]) {
-    actualShippingForStore += dynShippingRates[shippingArea][1] * bulkItemCount;
+  if (bulkItemCount > 0 && shippingArea && dynActualRates[shippingArea]) {
+    // アソートは1箱=160サイズ×数量
+    actualShippingForStore += normalizeRates(dynActualRates[shippingArea])['160'] * bulkItemCount;
   }
 
   if (diamondFree) {
@@ -492,7 +541,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
         const qty = Math.max(0, Math.floor(Number(bi.qty) || 0));
         if (excludeIds.has(pid)) excludedBulkQty += qty;
       }
-      bulkShippingAmount = excludedBulkQty > 0 ? dynShippingRates[shippingArea][1] * excludedBulkQty : 0;
+      bulkShippingAmount = excludedBulkQty > 0 ? normalizeRates(dynShippingRates[shippingArea])['160'] * excludedBulkQty : 0;
     } else {
       bulkShippingAmount = 0;
     }
@@ -507,36 +556,40 @@ export async function submitEstimate(args, env, bodyText, ctx) {
         const qty = Math.max(0, Math.floor(Number(bi.qty) || 0));
         if (alwaysSet.has(pid)) alwaysQty += qty;
       }
-      bulkShippingAmount = alwaysQty > 0 ? dynShippingRates[shippingArea][1] * alwaysQty : 0;
+      bulkShippingAmount = alwaysQty > 0 ? normalizeRates(dynShippingRates[shippingArea])['160'] * alwaysQty : 0;
     } else {
       bulkShippingAmount = 0;
     }
   } else {
-    // 厚み分類 → サイズ判定 → 料金計算（CartCalc.html L32-77 と同一ロジック）
     if (ids.length > 0 && shippingArea && dynShippingRates[shippingArea]) {
-      const { thick, thin } = classifyThickness(productResults);
-      const sz = calcShippingSize(thick, thin);
-      if (!sz.size) {
-        // 上限超過: 複数口計算
-        const multi = calcMultiShipment(thick, thin, dynShippingRates[shippingArea]);
-        shippingAmount = multi.amount;
-        shippingSize = 'multi';
-        shippingSizeLabel = multi.sizeLabel;
+      if (isClickpost) {
+        // クリックポスト: 薄手ちょうど1点（全国一律¥280・沖縄含む）
+        shippingAmount = dynClickpostPrice;
+        shippingSize = 'clickpost';
+        shippingSizeLabel = 'クリックポスト';
       } else {
-        shippingSize = sz.size;
-        shippingSizeLabel = sz.size === 'small' ? '小' : '大';
-        shippingAmount = dynShippingRates[shippingArea][sz.size === 'small' ? 0 : 1];
+        // pt制: 箱詰めDPで最安の箱組み合わせを計算（CartCalc.html / SubmitFix.gs と同一ロジック）
+        const custPts = cartThick * dynPoints.thick + cartThin * dynPoints.thin;
+        const plan = calcBoxPlan(custPts, normalizeRates(dynShippingRates[shippingArea]), dynBoxCapacity);
+        shippingAmount = plan.amount;
+        const boxKeys = Object.keys(plan.boxes);
+        let nBoxes = 0;
+        for (const bk of boxKeys) nBoxes += plan.boxes[bk];
+        shippingSize = nBoxes === 1 ? boxKeys[0] : 'multi';
+        shippingSizeLabel = plan.label;
       }
     }
     if (bulkItemCount > 0 && shippingArea && dynShippingRates[shippingArea]) {
-      bulkShippingAmount = dynShippingRates[shippingArea][1] * bulkItemCount;
+      // アソートは1箱=160サイズ×数量
+      bulkShippingAmount = normalizeRates(dynShippingRates[shippingArea])['160'] * bulkItemCount;
     }
   }
 
   // ─── ポイント利用 ───
   let pointsUsed = 0;
   if (usePoints > 0 && customerRow && customerPoints >= usePoints) {
-    pointsUsed = Math.min(usePoints, Math.max(0, discounted + shippingAmount + bulkProductAmount + bulkShippingAmount - couponDiscount));
+    // 0円注文防止: お支払い金額が最低¥1残るよう、ポイントは合計−1円までに制限（CartCalcと同一ロジック）
+    pointsUsed = Math.min(usePoints, Math.max(0, discounted + shippingAmount + bulkProductAmount + bulkShippingAmount - couponDiscount - 1));
     let ptRem = pointsUsed;
     const pointsOnProduct = Math.min(ptRem, discounted); ptRem -= pointsOnProduct;
     const pointsOnShipping = Math.min(ptRem, shippingAmount); ptRem -= pointsOnShipping;
@@ -587,8 +640,17 @@ export async function submitEstimate(args, env, bodyText, ctx) {
 
   // アソート合算ノートは廃止（各列に正しく値が入るため不要）
 
+  // === 不正利用対策: 支払額0円の注文は購入不可 ===
   if (totalWithShipping <= 0) {
-    return jsonError('合計金額が0円以下です。');
+    return jsonError('お支払い金額が0円の注文は承れません。ポイント利用額を調整してください。');
+  }
+
+  // === 見積額ガード: フロント表示額とサーバー計算額の不一致検出（quotedTotalが送られた時のみ・旧タブ移行ウィンドウ許容） ===
+  if (form.quotedTotal !== undefined && form.quotedTotal !== null && String(form.quotedTotal) !== '') {
+    const quotedTotal = Math.round(Number(form.quotedTotal));
+    if (Number.isFinite(quotedTotal) && quotedTotal !== totalWithShipping) {
+      return jsonError('表示中の合計金額が最新の送料体系と一致しません。お手数ですがページを再読み込みして、再度お試しください。');
+    }
   }
 
   // ─── 決済トークン生成（受付番号は決済確認後にGAS側で発行） ───
@@ -805,7 +867,8 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   }
 
   // ─── ペンディング注文データ（GAS webhook互換） ───
-  const storeShipping = Math.round(actualShippingForStore / 2) || 0;
+  // 2026-07改定: 店負担送料は実費表直接参照（÷2廃止）
+  const storeShipping = Math.round(actualShippingForStore) || 0;
 
   // channel判定（GAS側プレミアムアソート自動選定用）
   const channel = hasBulkItems ? (ids.length > 0 ? 'まとめ' : 'アソート') : 'デタウリ';
@@ -971,7 +1034,7 @@ function calcCouponDiscount(type, value, productAmount) {
   return Math.min(value, productAmount); // fixed
 }
 
-// ─── 送料ヘルパー（CartCalc.html L32-77 / SubmitFix.gs L1606-1647 からポート） ───
+// ─── 送料ヘルパー（CartCalc.html / Config.gs calcBoxPlan_ と同一ロジック） ───
 
 function classifyThickness(results) {
   let thick = 0, thin = 0;
@@ -982,40 +1045,47 @@ function classifyThickness(results) {
   return { thick, thin, total: thick + thin };
 }
 
-function calcShippingSize(thick, thin) {
-  const total = thick + thin;
-  if (thin === 0) {
-    if (total > 20) return { size: null };
-    return { size: 'large' };
+// 旧2段階[小,大]形式が来たら5サイズへ読み替え（移行ウィンドウ・stale cache対策）
+function normalizeRates(r) {
+  if (!r) return null;
+  if (Array.isArray(r)) {
+    return { '60': r[0], '80': r[0], '100': r[0], '140': r[1], '160': r[1] };
   }
-  if (thick === 0) {
-    if (total > 40) return { size: null };
-    return total <= 10 ? { size: 'small' } : { size: 'large' };
-  }
-  if (total > 40) return { size: null };
-  if (thick >= 10) return { size: 'large' };
-  return total <= 10 ? { size: 'small' } : { size: 'large' };
+  return r;
 }
 
-function calcMultiShipment(thick, thin, rates) {
-  const smallRate = rates[0], largeRate = rates[1];
-  let totalAmount = 0, largeCnt = 0, smallCnt = 0;
-  if (thick > 0) {
-    const n = Math.ceil(thick / 20);
-    largeCnt += n;
-    totalAmount += n * largeRate;
+// pt数から最安の箱組み合わせをDPで求める
+function calcBoxPlan(points, rates, boxCapacity) {
+  const cap = boxCapacity || BOX_CAPACITY;
+  const p = Math.max(0, Math.ceil(Number(points) || 0));
+  if (p === 0 || !rates) return { amount: 0, boxes: {}, label: '' };
+  const dp = [0];
+  const choice = [null];
+  for (let i = 1; i <= p; i++) {
+    dp[i] = Infinity;
+    choice[i] = null;
+    for (const sz of BOX_SIZES) {
+      const rest = Math.max(0, i - cap[sz]);
+      const cost = Number(rates[sz] || 0) + dp[rest];
+      if (cost < dp[i]) { dp[i] = cost; choice[i] = sz; }
+    }
   }
-  let rem = thin;
-  while (rem > 0) {
-    const batch = Math.min(rem, 40);
-    if (batch <= 10) { smallCnt++; totalAmount += smallRate; }
-    else { largeCnt++; totalAmount += largeRate; }
-    rem -= batch;
+  const boxes = {};
+  let cur = p;
+  while (cur > 0) {
+    const chosen = choice[cur];
+    boxes[chosen] = (boxes[chosen] || 0) + 1;
+    cur = Math.max(0, cur - cap[chosen]);
   }
+  const order = ['160', '140', '100', '80', '60'];
   const parts = [];
-  if (largeCnt > 0) parts.push('大×' + largeCnt);
-  if (smallCnt > 0) parts.push('小×' + smallCnt);
-  return { amount: totalAmount, sizeLabel: parts.join('、') };
+  let totalBoxes = 0;
+  for (const o of order) {
+    const n = boxes[o];
+    if (n) { parts.push(n > 1 ? o + '×' + n : o); totalBoxes += n; }
+  }
+  const label = totalBoxes === 1 ? parts[0] + 'サイズ' : parts.join('＋');
+  return { amount: dp[p], boxes, label };
 }
 
 function makeReceiptNo() {
