@@ -403,11 +403,10 @@ async function getPublicSettings(env) {
     ],
   };
 
-  // 会員割引ON/OFFでノート切り替え
-  const discountNote = memberDiscount.enabled
-    ? '<span style="color:#b8002a;">10点以上で5％割引〜最大20％OFF ／ 会員登録で10％OFF（' + memberDiscount.endDate + 'まで・併用可）</span>'
-    : '<span style="color:#b8002a;">30点以上で10％割引</span>';
-  settings.notes.push(discountNote);
+  // 会員割引ONの時のみ会員10%OFFを案内（数量割引は2026-04廃止済みのため文言を出さない）
+  if (memberDiscount.enabled) {
+    settings.notes.push('<span style="color:#b8002a;">会員登録で10％OFF（' + memberDiscount.endDate + 'まで）</span>');
+  }
 
   await cache.put(SETTINGS_CACHE_KEY, JSON.stringify(settings), {
     expirationTtl: 300,
@@ -443,6 +442,21 @@ async function getStatsCache(env) {
 }
 
 async function getShippingConfig(db) {
+  // V2キー優先（5サイズ顧客表）。submit.js:321-334 と同じ形状検証。
+  // 旧キー SHIPPING_CONFIG は2要素[100,160]形状で、CartCalc.normalizeRates が
+  // 60/80箱にも100サイズ運賃を適用し送料見積が過大になる。V2があれば必ずV2を使う。
+  const v2Row = await db.prepare(
+    'SELECT value FROM settings WHERE key = ?'
+  ).bind('SHIPPING_CONFIG_V2').first();
+  if (v2Row) {
+    try {
+      const sc = JSON.parse(v2Row.value);
+      if (sc && sc.version === 2 && sc.customer && sc.areas) {
+        return { areas: sc.areas, rates: sc.customer };
+      }
+    } catch (e) { /* V2不正時は旧キーへフォールバック */ }
+  }
+  // フォールバック: 旧キー（移行期・V2欠落/不正時のみ）
   const row = await db.prepare(
     'SELECT value FROM settings WHERE key = ?'
   ).bind('SHIPPING_CONFIG').first();
