@@ -2249,29 +2249,31 @@ function createMinimalOrderRow_(paymentToken, paymentStatus, paymentMethod, paym
       + 'paymentId: ' + (paymentId || 'N/A') + '\n'
       + '決済方法: ' + (paymentMethod || 'N/A');
 
-    // 依頼管理の列: A=受付番号, B=日時, C=会社名, D=メール, E=電話, F=郵便番号, G=住所,
-    //   H=商品名, I=確認リンク, J=採寸, K=商品リスト, L=合計金額, M=発送ステータス,
-    //   N=備考, O=決済方法, P=ステータス, Q=入金確認, R=入金ステータス
+    // 依頼管理の列（正規33列 A-AG。権威マッピングは createOrder ビルダー参照）:
+    //   A=受付番号, B=依頼日時, C=会社名/氏名, D=連絡先, E=郵便番号, F=住所, G=電話番号, H=商品名,
+    //   I=確認リンク, J=選択リスト, K=合計点数, L=合計金額, M=送料(店負担), N=送料(客負担),
+    //   O=決済方法, P=決済ID, Q=入金確認, R=ポイント付与済, S=発送ステータス, V=ステータス, AD=備考
     var row = [
       receiptNo,                                         // A: 受付番号
-      Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss'), // B: 日時
-      companyName,                                       // C: 会社名
-      email,                                             // D: メール
-      phone,                                             // E: 電話
-      postal,                                            // F: 郵便番号
-      address,                                           // G: 住所
+      Utilities.formatDate(now, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm:ss'), // B: 依頼日時
+      companyName,                                       // C: 会社名/氏名
+      email,                                             // D: 連絡先
+      postal,                                            // E: 郵便番号
+      address,                                           // F: 住所
+      phone,                                             // G: 電話番号
       '【要確認】商品情報なし',                            // H: 商品名
       '',                                                // I: 確認リンク
-      '',                                                // J: 採寸
-      '',                                                // K: 商品リスト
+      '',                                                // J: 選択リスト
+      '',                                                // K: 合計点数
       totalAmount,                                       // L: 合計金額
-      '',                                                // M: 発送ステータス
-      noteText                                           // N: 備考
+      '',                                                // M: 送料(店負担)
+      ''                                                 // N: 送料(客負担)
     ];
 
     reqSh.appendRow(row);
 
-    // 入金確認列（Q列=17）と決済方法列（O列=15）を更新
+    // 入金確認(Q=17)・決済方法(O=15)・発送ステータス(S=19)・ステータス(V=22)・備考(AD=30)を設定。
+    // ※S/Vを埋めることで、この復旧行も管理画面の通常フロー（アクティブ受注一覧）に正しく表示される。
     var lastRow = reqSh.getLastRow();
     if (paymentStatus === 'paid') {
       reqSh.getRange(lastRow, 17).setValue('未対応');
@@ -2281,6 +2283,9 @@ function createMinimalOrderRow_(paymentToken, paymentStatus, paymentMethod, paym
     if (paymentMethod) {
       reqSh.getRange(lastRow, 15).setValue(getPaymentMethodDisplayName_(paymentMethod));
     }
+    reqSh.getRange(lastRow, 19).setValue('未着手');                 // S: 発送ステータス
+    reqSh.getRange(lastRow, 22).setValue(APP_CONFIG.statuses.open); // V: ステータス（依頼中）
+    reqSh.getRange(lastRow, 30).setValue(noteText);                // AD: 備考（自動復旧の詳細）
 
     console.log('Created minimal order row: ' + receiptNo + ' (paymentToken=' + paymentToken + ')');
 

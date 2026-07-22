@@ -1710,6 +1710,14 @@ function loadUserKey_() {
   return nk;
 }
 
+// HTTPステータスをエンドユーザー向けの平易な日本語メッセージへ変換（生の「HTTP 429」等を出さない）
+function httpErrorMessage_(status) {
+  if (status === 429) return 'アクセスが集中しています。少し時間をおいてから再度お試しください';
+  if (status === 401 || status === 403) return 'セッションの有効期限が切れました。お手数ですがページを再読み込みしてから再度お試しください';
+  if (status >= 500) return 'サーバーが混み合っています。しばらくしてから再度お試しください';
+  return '通信エラーが発生しました。電波の良い場所で再度お試しください';
+}
+
 function runApi(fn) {
   var args = Array.prototype.slice.call(arguments, 1);
   var extra = {};
@@ -1732,7 +1740,7 @@ function runApi(fn) {
       redirect: 'follow'
     })
     .then(function(res) {
-      if (!res.ok) throw new Error('HTTP ' + res.status);
+      if (!res.ok) throw new Error(httpErrorMessage_(res.status));
       return res.json();
     })
     .catch(function(err) {
@@ -1747,7 +1755,7 @@ function runApi(fn) {
           redirect: 'follow'
         })
         .then(function(res) {
-          if (!res.ok) throw new Error('HTTP ' + res.status);
+          if (!res.ok) throw new Error(httpErrorMessage_(res.status));
           return res.json();
         });
       }
@@ -2720,8 +2728,12 @@ function updatePayButton(total) {
         var _a = _p && G.settings && G.settings.shippingAreas ? G.settings.shippingAreas[_p] : '';
         return _a === 'okinawa';
       })();
+      // 初回50%OFF（FHP）適用中は¥10,000以上送料無料・送料無料クーポンとも対象外（CartCalcと同条件）
+      var _fhpOnB = G.firstHalfPrice && G.firstHalfPrice.eligible && G.customer;
       if (_isOkinawaB && _prodTotalB > 0) {
         _shipHintB.innerHTML = '<span style="font-size:11px;color:#b45309;">沖縄県は送料無料対象外</span>';
+      } else if (_fhpOnB && _prodTotalB > 0) {
+        _shipHintB.innerHTML = '<span style="font-size:11px;color:#b45309;">初回50%OFF適用中は送料無料対象外</span>';
       } else if (G.coupon && G.coupon.freeShipping && _prodTotalB > 0) {
         // 送料無料クーポン適用中（価格破壊商品・クーポン除外商品があれば一部送料別途）
         _shipHintB.innerHTML = calcExcludedQty_() > 0

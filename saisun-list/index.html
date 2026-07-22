@@ -2488,6 +2488,10 @@ function renderSummary_() {
   // 割引後の商品合計を保存（calculateShipping_ フォールバック用）
   state._discountedProductTotal = result.detauri.discounted + result.assort.discounted;
 
+  // ポイント適用前の総額（送料込・クーポン控除後＝CartCalc の sumSubtotals）を保存。
+  // ポイントプレビューの「合計−1円」上限クランプに使う（M4）。grandTotal = max(0, sumSubtotals - pointsApplied) の逆算。
+  state.lastSumSubtotals = result.grandTotal + result.pointsApplied;
+
   // state.lastShipping を更新（saveCartStorage / submit フォー用）
   var detShip = result.detauri.shipping;
   state.lastShipping = {
@@ -4209,6 +4213,14 @@ var _workerOnlyActions = {
   'apiSubmitEstimate': true
 };
 
+// HTTPステータスをエンドユーザー向けの平易な日本語メッセージへ変換（生の「HTTP 429」等を出さない）
+function httpErrorMessage_(status) {
+  if (status === 429) return 'アクセスが集中しています。少し時間をおいてから再度お試しください';
+  if (status === 401 || status === 403) return 'セッションの有効期限が切れました。お手数ですがページを再読み込みしてから再度お試しください';
+  if (status >= 500) return 'サーバーが混み合っています。しばらくしてから再度お試しください';
+  return '通信エラーが発生しました。電波の良い場所で再度お試しください';
+}
+
 function runApi(fn, _extra) {
   var args = Array.prototype.slice.call(arguments, 1);
   var extra = {};
@@ -4234,7 +4246,7 @@ function runApi(fn, _extra) {
       redirect: 'follow'
     })
     .then(function(res) {
-      if (!res.ok) throw new Error('HTTP ' + res.status);
+      if (!res.ok) throw new Error(httpErrorMessage_(res.status));
       return res.json();
     })
     .then(function(data) {
@@ -4256,7 +4268,7 @@ function runApi(fn, _extra) {
           redirect: 'follow'
         })
         .then(function(res) {
-          if (!res.ok) throw new Error('HTTP ' + res.status);
+          if (!res.ok) throw new Error(httpErrorMessage_(res.status));
           return res.json();
         })
         .then(function(data) {
@@ -6482,12 +6494,21 @@ function showPointSection_() {
   }
 }
 
+// ポイント利用可能上限＝min(保有pt, 合計−1円)。0円注文防止のため支払い額が最低¥1残るようにする（CartCalc.html:336 と同条件）
+function pointUseCap_() {
+  var max = (state.customer && state.customer.points) ? state.customer.points : 0;
+  if (typeof state.lastSumSubtotals === 'number') {
+    return Math.min(max, Math.max(0, state.lastSumSubtotals - 1));
+  }
+  return max;
+}
+
 function updatePointDiscountInfo_() {
   var info = $('pointDiscountInfo');
   if (!info) return;
   var pts = parseInt($('usePoints').value, 10) || 0;
-  var max = (state.customer && state.customer.points) ? state.customer.points : 0;
-  if (pts > max) { pts = max; $('usePoints').value = max; }
+  var cap = pointUseCap_();
+  if (pts > cap) { pts = cap; $('usePoints').value = cap; }
   if (pts < 0) { pts = 0; $('usePoints').value = 0; }
   if (pts > 0) {
     info.textContent = pts + 'ポイント利用で -' + yen(pts) + ' 割引（「変更を適用」で合計に反映）';
@@ -6498,8 +6519,8 @@ function updatePointDiscountInfo_() {
 
 function applyPointDiscount_() {
   var pts = parseInt($('usePoints').value, 10) || 0;
-  var max = (state.customer && state.customer.points) ? state.customer.points : 0;
-  if (pts > max) { pts = max; $('usePoints').value = max; }
+  var cap = pointUseCap_();
+  if (pts > cap) { pts = cap; $('usePoints').value = cap; }
   if (pts < 0) { pts = 0; $('usePoints').value = 0; }
   if (pts > 0) showToast('ポイント割引を適用しました');
   renderSummary_();
