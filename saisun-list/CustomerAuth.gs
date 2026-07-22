@@ -337,7 +337,8 @@ function apiRegisterCustomer(userKey, params) {
 
       // bot対策: reCAPTCHA検証（登録スパム・ポイント不正取得防止）
       // ※重複チェックの後に実施: Worker側でトークン消費済みのGASフォールバック時も重複エラーを正しく返すため
-      if (!verifyRecaptcha_(String(params.recaptchaToken || ''))) {
+      // ※開発環境はスキップ（結合テストがトークンなしで登録するため。本番・stagingでは必須）
+      if (!ENV_CONFIG.isDevelopment() && !verifyRecaptcha_(String(params.recaptchaToken || ''))) {
         lock.releaseLock();
         return { ok: false, message: 'bot判定されました。ブラウザを再読み込みして再度お試しください。' };
       }

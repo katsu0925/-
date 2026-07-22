@@ -1152,7 +1152,9 @@ function testSuite_CsrfEnv_() {
       name: '定数の整合性チェック',
       fn: function() {
         // AUTH_CONSTANTS
-        assert_(AUTH_CONSTANTS.HASH_ITERATIONS >= 10000, 'Hash iterations should be >= 10000');
+        // HASH_ITERATIONS は 2026-03-04 に 10000→1000 へ意図的に変更（GAS実行時間対策）
+        // 反復回数はハッシュ文字列に保存されないため、値を変えると既存パスワードが全て無効化される
+        assert_(AUTH_CONSTANTS.HASH_ITERATIONS >= 1000, 'Hash iterations should be >= 1000');
         assert_(AUTH_CONSTANTS.SALT_LENGTH >= 16, 'Salt should be >= 16 chars');
         assert_(AUTH_CONSTANTS.MIN_PASSWORD_LENGTH >= 6, 'Min password should be >= 6');
         assert_(AUTH_CONSTANTS.TEMP_PASSWORD_EXPIRY_MS > 0, 'Temp password expiry should be positive');

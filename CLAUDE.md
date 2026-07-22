@@ -152,7 +152,7 @@ apiCreateKomojuSession → KOMOJUページ → Webhook → HMAC-SHA256検証 →
 
 ### セキュリティ実装
 
-- **パスワードハッシュ:** `v2:salt:SHA-256×10000回` 形式。ログイン時にv1/legacyから自動移行
+- **パスワードハッシュ:** `v2:salt:SHA-256×1000回` 形式（2026-03-04に10000→1000へ変更。反復回数はハッシュに保存されないため変更禁止）。ログイン時にv1/legacyから自動移行
 - **CSRF:** `apiGetCsrfToken` でユーザー別トークン（CacheService、1時間有効）。状態変更APIで必須
 - **レート制限:** 各APIに個別上限（例: `apiLoginCustomer` 5回/時間、`apiSyncHolds` 30回/分）
 - **Webhook検証:** KOMOJU Webhook はHMAC-SHA256署名をタイミングセーフ比較で検証
