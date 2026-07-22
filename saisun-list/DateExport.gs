@@ -321,11 +321,12 @@ function apiGetCachedProducts() {
         data.settings.memberDiscount = memberDiscount;
         // notesも会員割引状態に応じて更新
         if (data.settings.notes && Array.isArray(data.settings.notes)) {
-          data.settings.notes = data.settings.notes.map(function(n) {
+          data.settings.notes = data.settings.notes.filter(function(n) {
+            // 会員割引OFF時は会員割引の案内を非表示（廃止済み数量割引への差し替えはしない）
             if (!memberDiscount.enabled && String(n).indexOf('会員登録で10％OFF') !== -1) {
-              return '<span style="color:#b8002a;">30点以上で10％割引</span>';
+              return false;
             }
-            return n;
+            return true;
           });
           data.settings.topNotes = data.settings.notes;
         }
@@ -375,12 +376,13 @@ function getExportSettings_() {
     // APP_CONFIG があれば使用
     if (typeof APP_CONFIG !== 'undefined' && APP_CONFIG) {
       var rawNotes = (APP_CONFIG.uiText && APP_CONFIG.uiText.notes) || [];
-      // 会員割引OFFの場合、ノートから会員割引の記述を除去（app_publicSettings_と同じロジック）
-      var notes = rawNotes.map(function(n) {
+      // 会員割引OFFの場合、ノートから会員割引の案内を非表示（app_publicSettings_と同じロジック）
+      // 数量割引は2026-04廃止済みのため、廃止済み文言への差し替えはしない
+      var notes = rawNotes.filter(function(n) {
         if (!memberDiscount.enabled && String(n).indexOf('会員登録で10％OFF') !== -1) {
-          return '<span style="color:#b8002a;">30点以上で10％割引</span>';
+          return false;
         }
-        return n;
+        return true;
       });
       return {
         appTitle: APP_CONFIG.appTitle || '決済システム',

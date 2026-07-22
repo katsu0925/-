@@ -118,7 +118,7 @@ const APP_CONFIG = {
       '1点から購入可能です。合計金額は商品代のみ <a href="https://drive.google.com/file/d/1g7UYUBw3-Y6M5HkSv3mfMe5jEjs795E3/view?usp=sharing" target="_blank" rel="noopener noreferrer">（送料別）</a>。送料は住所入力後に自動計算されます。',
       'カートに入れた商品は15分間確保されます（会員は30分間）。在庫は先着順のためお早めにお手続きください。',
       '決済方法：クレジットカード／コンビニ払い／銀行振込／PayPay／ペイジー／Apple Pay／Paidy',
-      '<span style="color:#b8002a;">10点以上で5％割引〜最大20％OFF ／ 会員登録で10％OFF（2026年9月末まで・併用可）</span>'
+      '<span style="color:#b8002a;">会員登録で10％OFF（2026年9月末まで）</span>'
     ],
     nextSteps: [],
     basePaymentUrl: ''
@@ -147,12 +147,13 @@ function app_publicSettings_() {
 
   const memberDiscount = app_getMemberDiscountStatus_();
 
-  // 会員割引OFFの場合、ノートから会員割引の記述を除去（30点割引は残す）
-  const notes = rawNotes.map(function(n) {
+  // 会員割引OFFの場合、ノートから会員割引の案内を非表示にする
+  // （数量割引は2026-04廃止済みのため、廃止済み文言への差し替えはしない）
+  const notes = rawNotes.filter(function(n) {
     if (!memberDiscount.enabled && String(n).indexOf('会員登録で10％OFF') !== -1) {
-      return '<span style="color:#b8002a;">30点以上で10％割引</span>';
+      return false;
     }
-    return n;
+    return true;
   });
 
   return {
