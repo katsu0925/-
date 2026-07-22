@@ -70,7 +70,7 @@ const WORKER_HANDLED = {
 
 // CSRFが必要なaction（Phase 2以降で有効化）
 const CSRF_REQUIRED = new Set([
-  // 'apiSubmitEstimate',
+  'apiSubmitEstimate',  // 注文送信はWorker完結（GASフォールバックなし）＝CSRF検証はここが唯一の防御
   // 'apiCreateKomojuSession',
   // 'apiChangePassword',
   // 'apiApplyReferralCode',

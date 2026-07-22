@@ -1720,6 +1720,7 @@ function runApi(fn) {
   if (IS_STANDALONE) {
     var payload = { action: fn, args: args };
     if ('recaptchaToken' in extra) payload.recaptchaToken = extra.recaptchaToken;
+    if (typeof G !== 'undefined' && G.csrfToken) payload.csrfToken = G.csrfToken;
     if (typeof ADMIN_KEY !== 'undefined' && ADMIN_KEY) payload.adminKey = ADMIN_KEY;
     var bodyStr = JSON.stringify(payload);
     var isWorkerOnly = !!_workerOnlyActions[fn];
@@ -3189,7 +3190,18 @@ function submitOrder() {
   btn.innerHTML = '<span class="pay-btn-spinner"></span> 処理中...';
   btn.classList.add('pay-button--loading');
 
-  runApi('apiSubmitEstimate', userKey, formData, detauriIds, { _runApiExtra_: true })
+  // CSRFトークン更新 + reCAPTCHAトークン取得を並列で先行実行してから注文送信（index.html と同方式）
+  Promise.all([
+    runApi('apiGetCsrfToken', userKey).then(function(_c) {
+      if (_c && _c.ok && _c.csrfToken) { G.csrfToken = _c.csrfToken; return true; }
+      return false;
+    }).catch(function() { return false; }),
+    getRecaptchaToken_().catch(function() { return ''; })
+  ])
+    .then(function(_pre) {
+      if (!_pre[0]) throw new Error('セキュリティトークンの取得に失敗しました。ページを再読み込みしてください。');
+      return runApi('apiSubmitEstimate', userKey, formData, detauriIds, { _runApiExtra_: true, recaptchaToken: _pre[1] || '' });
+    })
     .then(function(r) {
       G.submitting = false;
       if (r && r.ok && r.sessionUrl) {
