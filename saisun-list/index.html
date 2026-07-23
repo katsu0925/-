@@ -4208,9 +4208,10 @@ function getRecaptchaToken_() {
 
 // D1確保依存APIはGASフォールバック禁止（GASのPropertiesService確保とD1確保がデシンクする）
 // 認証系APIはGASフォールバックを許可（v1/legacyパスワード対応・D1同期遅延対応）
+// apiGetProductsVersion / apiCancelPendingPayment はGAS側に未実装のためフォールバック不可
 var _workerOnlyActions = {
   'apiSyncHolds': true, 'apiGetStatusDigest': true, 'apiValidateCoupon': true,
-  'apiSubmitEstimate': true
+  'apiSubmitEstimate': true, 'apiGetProductsVersion': true, 'apiCancelPendingPayment': true
 };
 
 // HTTPステータスをエンドユーザー向けの平易な日本語メッセージへ変換（生の「HTTP 429」等を出さない）

@@ -103,7 +103,8 @@ function calcSpendByPeriod(orders, now) {
   return { annualSpent, recentSpent, prevYearSpent };
 }
 
-function calculateRankFromOrders(orders) {
+// submit.js のダイヤモンド送料無料判定からも共用（GAS calculateRank_ と等価）
+export function calculateRankFromOrders(orders) {
   const now = new Date();
   const spend = calcSpendByPeriod(orders, now);
   const prevRank = rankFromSpent(spend.prevYearSpent);

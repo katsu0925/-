@@ -6,13 +6,17 @@
  */
 import { jsonOk, jsonError } from '../utils/response.js';
 import { generateCsrfToken } from '../utils/crypto.js';
+import { proxyToGas } from './proxy.js';
 
 const CSRF_TTL = 3600; // 1時間（秒）
 
 /**
  * apiGetCsrfToken — CSRFトークン発行
  *
- * userKey（IPベースのキー）に紐づくCSRFトークンを生成し、KVに保存。
+ * GAS発行に一本化し、同じトークンをKVにも複製保存する（1トークン2ストア）。
+ * GAS側 verifyCsrfToken_ はCacheServiceしか参照しないため、Worker独自発行の
+ * トークンだとGASプロキシ経由のCSRF必須API（プロフィール更新・パスワード変更・
+ * 紹介コード・SNSシェア）が常時失敗する。GAS発行ならGAS/Worker両方で検証可能。
  * フロントはこのトークンを状態変更APIに添付して送信する。
  */
 export async function getCsrfToken(args, env) {
@@ -21,7 +25,26 @@ export async function getCsrfToken(args, env) {
     return jsonError('userKey is required');
   }
 
-  const token = generateCsrfToken();
+  let token = '';
+  try {
+    const resp = await proxyToGas(
+      JSON.stringify({ action: 'apiGetCsrfToken', args: [userKey] }),
+      env
+    );
+    const data = await resp.json();
+    if (data && data.ok && typeof data.csrfToken === 'string' && data.csrfToken) {
+      token = data.csrfToken;
+    }
+  } catch (e) {
+    // GAS到達不能・応答異常時は下のローカル発行にフォールバック
+  }
+
+  // フォールバック: Workerローカル発行（Worker完結API向けのCSRF保護は維持される。
+  // この場合GASプロキシ経由のCSRF必須APIは失敗するが、GAS障害時のみの縮退動作）
+  if (!token) {
+    token = generateCsrfToken();
+  }
+
   const kvKey = `csrf:${userKey}`;
 
   // KV SESSIONSに保存（1時間有効）

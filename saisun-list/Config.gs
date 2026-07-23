@@ -134,7 +134,7 @@ function app_publicSettings_() {
   const ui = (APP_CONFIG && APP_CONFIG.uiText && typeof APP_CONFIG.uiText === 'object') ? APP_CONFIG.uiText : {};
 
   const appTitle = String(APP_CONFIG.appTitle || ui.appTitle || '');
-  const minOrderCount = Number((APP_CONFIG.minOrderCount != null ? APP_CONFIG.minOrderCount : (ui.minOrderCount != null ? ui.minOrderCount : 30)));
+  const minOrderCount = Number((APP_CONFIG.minOrderCount != null ? APP_CONFIG.minOrderCount : (ui.minOrderCount != null ? ui.minOrderCount : 1)));
 
   const shippingEstimateText = String(ui.shippingEstimateText || '');
 

@@ -87,12 +87,16 @@ function wn_filterAlreadySent_(recipients) {
 }
 
 /**
- * 送信済みフラグを記録（24時間有効）
+ * 送信済みフラグを記録（当日中の重複抑止・キーに日付入り）
+ * ※ CacheServiceのTTL上限は21600秒(6時間)。86400を指定してもサイレントに
+ *   切り詰められるため上限値を明示する。マーケ系Cron（9時ニュースレター/
+ *   10時新着/10時半週次/11時フォロー）は9:00〜11:00台に集中しており、
+ *   6時間で当日分の重複抑止は満たせる
  */
 function wn_markSent_(email) {
   var cache = CacheService.getScriptCache();
   var todayKey = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd');
-  cache.put('WN_SENT_' + todayKey + '_' + email, '1', 86400);
+  cache.put('WN_SENT_' + todayKey + '_' + email, '1', 21600);
 }
 
 // =====================================================

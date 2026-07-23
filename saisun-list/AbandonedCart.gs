@@ -26,8 +26,7 @@ function abandonedCartCron_() {
         var email = String(emails[i] || '').trim().toLowerCase();
         if (!email) continue;
 
-        var remindKey = 'CART_REMIND:' + email;
-        if (cache.get(remindKey)) continue;
+        if (mailGuardSentToday_('CART_REMIND_LOG', email)) continue;
 
         var customer = findCustomerByEmail_(email);
         if (!customer) continue;
@@ -65,7 +64,7 @@ function abandonedCartCron_() {
               ]
             })
           });
-          cache.put(remindKey, '1', 86400);
+          mailGuardMarkSent_('CART_REMIND_LOG', email);
           sent++;
           console.log('abandonedCartCron_: デタウリ メール送信 ' + email);
         } catch (mailErr) {
@@ -89,8 +88,7 @@ function abandonedCartCron_() {
         var bEmail = String(bulkEmails[bi] || '').trim().toLowerCase();
         if (!bEmail) continue;
 
-        var bulkRemindKey = 'BULK_CART_REMIND:' + bEmail;
-        if (cache.get(bulkRemindKey)) continue;
+        if (mailGuardSentToday_('BULK_CART_REMIND_LOG', bEmail)) continue;
 
         var bCustomer = findCustomerByEmail_(bEmail);
         if (!bCustomer) continue;
@@ -125,7 +123,7 @@ function abandonedCartCron_() {
               ]
             })
           });
-          cache.put(bulkRemindKey, '1', 86400);
+          mailGuardMarkSent_('BULK_CART_REMIND_LOG', bEmail);
           sent++;
           console.log('abandonedCartCron_: アソート メール送信 ' + bEmail);
         } catch (bulkMailErr) {
@@ -235,4 +233,47 @@ function notifyCartAbandoned_(userKey) {
   } catch (e) {
     console.log('optional: notifyCartAbandoned_: ' + (e.message || e));
   }
+}
+
+// =====================================================
+// 日次送信ガード（ScriptProperties永続版）
+// CacheServiceのTTL上限は21600秒(6時間)で、86400を指定してもサイレントに
+// 切り詰められる。30分ごとのcronAbandonedCartでは6時間で失効して同一顧客に
+// 1日最大4通の重複送信になるため、ScriptPropertiesに
+// { キー: 'yyyyMMdd' } のマップで当日分を永続記録する。
+// 書き込み時に当日以外のエントリを削除するためプロパティは肥大化しない。
+// PaymentReminder.gs からも共用。
+// =====================================================
+
+function mailGuardTodayKey_() {
+  return Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd');
+}
+
+function mailGuardLoad_(propName) {
+  var raw = PropertiesService.getScriptProperties().getProperty(propName);
+  if (!raw) return {};
+  try { return JSON.parse(raw) || {}; } catch (e) { return {}; }
+}
+
+/**
+ * 今日すでに送信済みか
+ * @param {string} propName - ガード用プロパティ名（サブシステムごとに分ける）
+ * @param {string} key - 送信単位のキー（メールアドレス・受付番号など）
+ */
+function mailGuardSentToday_(propName, key) {
+  return mailGuardLoad_(propName)[key] === mailGuardTodayKey_();
+}
+
+/**
+ * 送信済みを記録（当日以外の古いエントリはこのタイミングで削除）
+ */
+function mailGuardMarkSent_(propName, key) {
+  var today = mailGuardTodayKey_();
+  var log = mailGuardLoad_(propName);
+  var pruned = {};
+  for (var k in log) {
+    if (log[k] === today) pruned[k] = today;
+  }
+  pruned[key] = today;
+  PropertiesService.getScriptProperties().setProperty(propName, JSON.stringify(pruned));
 }

@@ -23,8 +23,6 @@ function sendPaymentReminders() {
   var today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  var cache = CacheService.getScriptCache();
-
   for (var i = 0; i < data.length; i++) {
     var row = data[i];
     var paymentStatus = String(row[REQUEST_SHEET_COLS.PAYMENT - 1] || '').trim();
@@ -59,20 +57,22 @@ function sendPaymentReminders() {
     var dayBeforeStr = Utilities.formatDate(dayBefore, 'Asia/Tokyo', 'yyyy-MM-dd');
     var deadlineStr = Utilities.formatDate(deadline, 'Asia/Tokyo', 'yyyy-MM-dd');
 
-    var cacheKeyPre = 'pay_remind_pre_' + receiptNo;
-    var cacheKeyDay = 'pay_remind_day_' + receiptNo;
+    // 重複ガードはScriptProperties永続版（AbandonedCart.gs mailGuard系）。
+    // CacheServiceはTTL上限6時間で当日中の手動再実行に耐えられないため使わない
+    var guardKeyPre = 'pre_' + receiptNo;
+    var guardKeyDay = 'day_' + receiptNo;
 
-    if (todayStr === dayBeforeStr && !cache.get(cacheKeyPre)) {
+    if (todayStr === dayBeforeStr && !mailGuardSentToday_('PAY_REMIND_LOG', guardKeyPre)) {
       // 期限前日リマインド
       sendPaymentReminderEmail_(email, companyName, receiptNo, totalAmount, paymentMethod, deadline, 'eve');
-      cache.put(cacheKeyPre, '1', 86400); // 24時間キャッシュ
+      mailGuardMarkSent_('PAY_REMIND_LOG', guardKeyPre);
       console.log('入金リマインド（前日）送信: ' + receiptNo + ' → ' + email);
     }
 
-    if (todayStr === deadlineStr && !cache.get(cacheKeyDay)) {
+    if (todayStr === deadlineStr && !mailGuardSentToday_('PAY_REMIND_LOG', guardKeyDay)) {
       // 期限当日リマインド
       sendPaymentReminderEmail_(email, companyName, receiptNo, totalAmount, paymentMethod, deadline, 'day');
-      cache.put(cacheKeyDay, '1', 86400);
+      mailGuardMarkSent_('PAY_REMIND_LOG', guardKeyDay);
       console.log('入金リマインド（当日）送信: ' + receiptNo + ' → ' + email);
     }
   }

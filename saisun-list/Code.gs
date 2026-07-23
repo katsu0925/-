@@ -311,6 +311,10 @@ function jsonResponse_(data) {
 // =====================================================
 
 var RATE_LIMITS = {
+  // 注: apiSubmitEstimate/apiBulkSubmit の 5回/h は Worker側（index.js RATE_LIMITS
+  // 30回/h・成功時のみカウント）と意図的に異なる。通常導線はWorker完結でGASに
+  // 到達しないため、この5回/hはGAS URLを直叩きする第三者への防御として維持する。
+  // 挙動差ではなく多層防御（値を揃えないこと）。
   'apiSubmitEstimate': { max: 5, windowSec: 3600, label: '決済は1時間に5回まで' },
   'apiBulkSubmit': { max: 5, windowSec: 3600, label: '決済は1時間に5回まで' },
   'apiSyncHolds':     { max: 30, windowSec: 60,   label: '確保操作は1分に30回まで' },

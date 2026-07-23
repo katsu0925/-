@@ -16,32 +16,36 @@ function listAllProperties() {
 
 /**
  * Workers連携に必要なプロパティを確認・設定
- * GASエディタから1回実行してください
+ * GASエディタから実行してください
  *
- * 設定する値:
- *   ADMIN_KEY         = "nkonline"（Workers ADMIN_KEY と一致させる）
- *   WORKERS_API_URL   = Workers.dev URL
+ * ★ 秘密値はコードに直書きしない（git履歴に残るため）。
+ *   ADMIN_KEY を設定する場合は setupWorkersIntegration('新しい値') のように
+ *   引数で渡して実行するか、プロジェクト設定 > スクリプトプロパティから直接設定する。
+ *   Workers側 ADMIN_KEY（wrangler secret）と必ず一致させること。
+ *
+ * @param {string} [adminKey] - 設定するADMIN_KEY（省略時は現状確認のみ）
  */
-function setupWorkersIntegration() {
+function setupWorkersIntegration(adminKey) {
   var props = PropertiesService.getScriptProperties();
 
-  // 現在の値を確認
+  // 現在の値を確認（値そのものはログに出さない）
   var currentAdminKey = props.getProperty('ADMIN_KEY') || '';
   var currentWorkersUrl = props.getProperty('WORKERS_API_URL') || '';
 
   console.log('=== Workers連携設定 ===');
-  console.log('現在の ADMIN_KEY: ' + (currentAdminKey ? '"' + currentAdminKey.substring(0, 3) + '***" (' + currentAdminKey.length + '文字)' : '未設定'));
+  console.log('現在の ADMIN_KEY: ' + (currentAdminKey ? '設定済み (' + currentAdminKey.length + '文字)' : '未設定'));
   console.log('現在の WORKERS_API_URL: ' + (currentWorkersUrl || '未設定'));
 
-  // Workers ADMIN_KEYと一致させる
-  var targetAdminKey = 'nkonline';
+  // WORKERS_API_URL は秘密値ではないため直書きのまま
   var targetWorkersUrl = 'https://detauri-gas-proxy.nsdktts1030.workers.dev';
 
-  if (currentAdminKey !== targetAdminKey) {
-    props.setProperty('ADMIN_KEY', targetAdminKey);
-    console.log('ADMIN_KEY を更新しました: "' + targetAdminKey + '"');
+  if (adminKey) {
+    props.setProperty('ADMIN_KEY', String(adminKey));
+    console.log('ADMIN_KEY を更新しました（値はログに出力しません）');
+  } else if (!currentAdminKey) {
+    console.log('ADMIN_KEY が未設定です。setupWorkersIntegration("値") の形で引数を渡して実行してください');
   } else {
-    console.log('ADMIN_KEY は正しく設定済み');
+    console.log('ADMIN_KEY は設定済み（変更なし）');
   }
 
   if (currentWorkersUrl !== targetWorkersUrl) {
@@ -55,18 +59,27 @@ function setupWorkersIntegration() {
   var verify = props.getProperties();
   console.log('');
   console.log('=== 設定確認 ===');
-  console.log('ADMIN_KEY: ' + (verify['ADMIN_KEY'] === targetAdminKey ? '✓ OK' : '✗ MISMATCH'));
+  console.log('ADMIN_KEY: ' + (verify['ADMIN_KEY'] ? '✓ 設定あり' : '✗ 未設定'));
   console.log('WORKERS_API_URL: ' + (verify['WORKERS_API_URL'] === targetWorkersUrl ? '✓ OK' : '✗ MISMATCH'));
 }
 
 /**
  * SYNC_SECRET を Script Properties に設定（D1同期用）
- * GASエディタから1回実行してください
+ *
+ * ★ 秘密値はコードに直書きしない（git履歴に残るため）。
+ *   GASエディタで setupSyncSecret('64桁hex') のように引数で渡して実行する。
+ *   Workers側 SYNC_SECRET（wrangler secret put SYNC_SECRET）と同一値にすること。
+ *
+ * @param {string} secret - 設定するSYNC_SECRET
  */
-function setupSyncSecret() {
-  var secret = '456995e18a339839a099f3fbbee42741902ab8f8bfd7f6a1ade750bbd2554278';
-  PropertiesService.getScriptProperties().setProperty('SYNC_SECRET', secret);
-  console.log('SYNC_SECRET を設定しました');
+function setupSyncSecret(secret) {
+  var v = String(secret || '').trim();
+  if (!v) {
+    console.log('引数が空です。setupSyncSecret("値") の形で実行してください（値はログに出力されません）');
+    return;
+  }
+  PropertiesService.getScriptProperties().setProperty('SYNC_SECRET', v);
+  console.log('SYNC_SECRET を設定しました（' + v.length + '文字）');
 }
 
 /**

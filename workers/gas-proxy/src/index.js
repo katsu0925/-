@@ -81,6 +81,9 @@ const CSRF_REQUIRED = new Set([
 // countOnSuccess: true の場合、ハンドラがHTTP 200を返したときのみカウント加算する
 //   （validationエラーで枠を消費しない＝住所未入力リトライ等で429にならない）
 const RATE_LIMITS = {
+  // 注: apiSubmitEstimate/apiBulkSubmit の 30回/h は GAS側（Code.gs RATE_LIMITS
+  // 5回/h）と意図的に異なる。ユーザー導線はここが実効上限で、GAS側の5回/hは
+  // GAS URL直叩きの第三者への防御として別に維持している。値を揃えないこと。
   apiSubmitEstimate:    { max: 30, windowSec: 3600, countOnSuccess: true },
   apiBulkSubmit:        { max: 30, windowSec: 3600, countOnSuccess: true },
   apiSyncHolds:         { max: 30, windowSec: 60 },

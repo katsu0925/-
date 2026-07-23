@@ -1698,8 +1698,9 @@ function getRecaptchaToken_() {
 
 // D1確保依存APIはGASフォールバック禁止（GASとD1のデシンク防止）
 // 認証系APIはGASフォールバックを許可（v1/legacyパスワード対応）
+// apiGetProductsVersion はGAS側に未実装のためフォールバック不可
 var _workerOnlyActions = {
-  'apiValidateCoupon': true, 'apiSubmitEstimate': true
+  'apiValidateCoupon': true, 'apiSubmitEstimate': true, 'apiGetProductsVersion': true
 };
 
 function loadUserKey_() {
@@ -2464,7 +2465,7 @@ function changeQty(productId, delta) {
 
   // アソートカゴ落ち候補登録（ログイン中かつカートに商品がある場合）
   if (G.sessionId && Object.keys(G.cart).length > 0) {
-    runApi('apiBulkRegisterCartAbandon', getUserKey_(), { sessionId: G.sessionId }).catch(function() {});
+    runApi('apiBulkRegisterCartAbandon', loadUserKey_(), { sessionId: G.sessionId }).catch(function() {});
   }
 
   // クーポン適用中にカートが変わったら再検証

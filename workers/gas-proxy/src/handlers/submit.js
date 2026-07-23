@@ -8,6 +8,7 @@
  */
 import { jsonOk, jsonError, corsResponse } from '../utils/response.js';
 import { sendEvent as sendMetaEvent } from '../utils/meta-capi.js';
+import { calculateRankFromOrders } from './mypage.js';
 
 // ─── 数量割引（廃止済み。comboBulkスキーマは維持、常に0%） ───
 
@@ -497,9 +498,25 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   // クリックポスト: デタウリが薄手ちょうど1点（全国一律・沖縄含む）
   const isClickpost = cartThick === 0 && cartThin === 1;
 
-  // ダイヤモンド会員送料無料チェック（mypage.js と同じランク判定テーブル）
-  const totalSpent = customerRow ? (customerRow.total_spent || 0) : 0;
-  const diamondFree = totalSpent >= 500000;
+  // ダイヤモンド会員送料無料チェック
+  // GAS calculateRank_ と等価な mypage.js calculateRankFromOrders に統一。
+  // 旧実装の total_spent >= 500000 は全期間累計で、12ヶ月ローリング集計・
+  // 救済ルール・復帰GOLD昇格と乖離していた（累計50万でも直近1年が少なければ非ダイヤ）。
+  let diamondFree = false;
+  if (customerRow) {
+    const { results: rankOrderRows } = await env.DB.prepare(
+      'SELECT total_amount, status, order_date FROM orders WHERE email = ?'
+    ).bind(emailLower).all();
+    const rankOrders = (rankOrderRows || []).map(r => {
+      const dt = r.order_date ? new Date(r.order_date) : null;
+      return {
+        total: Number(r.total_amount) || 0,
+        status: r.status || '',
+        _orderDate: dt && !isNaN(dt.getTime()) ? dt : null,
+      };
+    });
+    diamondFree = calculateRankFromOrders(rankOrders).freeShipping === true;
+  }
 
   const shippingFreeCoupon = validatedCoupon && (validatedCoupon.type === 'shipping_free' || validatedCoupon.freeShipping === true);
   // 沖縄県判定（送料無料閾値・クーポン送料無料の対象外。ダイヤ会員は対象）
