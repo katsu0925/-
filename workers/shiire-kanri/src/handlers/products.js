@@ -15,11 +15,11 @@ const ACCOUNT_SELECTED = "(json_extract(extra_json, '$.\"使用アカウント\"
 const SALE_WITHIN_3M = "(sale_date IS NOT NULL AND sale_date <> '' AND date(replace(substr(sale_date, 1, 10), '/', '-')) >= date('now', '-3 months'))";
 
 // 出品待ち・出品作業中タブから除外する「仮置き場」の納品場所。
-// family / なかの屋plus は撮影・採寸中の一時納品場所で、在庫保管場所へ移動報告
+// family / なかの屋plus / かえで は撮影・採寸中の一時納品場所で、在庫保管場所へ移動報告
 // するまで出品させてはいけない（出品後に売れると発送処理ができなくなるため）。
 // 管理者は設定シートの「出品待ち除外納品場所」列（master:settings KV）で編集でき、
 // KV ミス・列が空のときは下の既定値にフォールバックする。
-const DEFAULT_SHUPPIN_EXCLUDE_PLACES = ['family', 'なかの屋plus'];
+const DEFAULT_SHUPPIN_EXCLUDE_PLACES = ['family', 'なかの屋plus', 'かえで'];
 const SHUPPIN_EXCLUDE_SETTING_KEY = '出品待ち除外納品場所';
 
 async function getShuppinExcludePlaces_(env) {

@@ -813,7 +813,7 @@ function settingsOptionsFor_(name, current) {
 // サーバー products.js の getShuppinExcludePlaces_ と同じ規則:
 // 設定シート「出品待ち除外納品場所」列（/api/master/settings → STATE.settings）を優先し、
 // 未読込・列が空のときは既定値にフォールバックする。
-var HOLDING_PLACES_DEFAULT_ = ['family', 'なかの屋plus'];
+var HOLDING_PLACES_DEFAULT_ = ['family', 'なかの屋plus', 'かえで'];
 var HOLDING_PLACES_SETTING_KEY_ = '出品待ち除外納品場所';
 function holdingPlaces_() {
   var list = STATE.settings && STATE.settings[HOLDING_PLACES_SETTING_KEY_];
