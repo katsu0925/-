@@ -61,6 +61,16 @@
         color: #fff; border-radius: 6px; text-decoration: none; font-weight: 600; }
   .dl:hover { background: #15803d; }
 
+  /* クリックポストのサイトを別タブで開くリンク（ボタン風） */
+  a.ext {
+    display: inline-flex; align-items: center; gap: 6px; text-decoration: none;
+    padding: 8px 16px; border-radius: 6px; background: #ea580c; color: #fff;
+    font-weight: 600; font-size: 13px; white-space: nowrap;
+  }
+  a.ext:hover { background: #c2410c; }
+  a.ext.sub { background: #fff; color: #c2410c; border: 1px solid #fdba74; }
+  a.ext.sub:hover { background: #fff7ed; }
+
   textarea { width: 100%; height: 130px; font-family: monospace; font-size: 11px;
              border: 1px solid #d1d5db; border-radius: 6px; padding: 8px; }
 
@@ -102,6 +112,11 @@
         <li>マイページの<b>「まとめ印字」</b>でラベルをまとめて印刷し、封筒に貼ってポストに投函します</li>
         <li>投函後、マイページから<b>お問い合わせ番号入りのCSV</b>をダウンロードし、上のタブ②で取り込みます</li>
       </ol>
+      <div class="bar" style="margin:10px 0 0">
+        <a class="ext" href="https://clickpost.jp/" target="_blank" rel="noopener">📮 クリックポストを開く（別タブ）</a>
+        <a class="ext sub" href="https://clickpost.jp/howto/use" target="_blank" rel="noopener">使い方ガイド</a>
+        <span class="muted">開いたらYahoo! JAPAN ID または Amazonアカウントでログインし、「まとめ申込」へ進んでください</span>
+      </div>
     </div>
 
     <div class="bar">
@@ -146,6 +161,9 @@
         <li>下の「ファイルを選ぶ」でそのCSVを指定し、<b>「取り込む」</b>を押します</li>
         <li>依頼管理シートの<b>伝票番号・配送業者・発送ステータス</b>が自動で入り、<b>お客様に発送完了メール</b>が送られます</li>
       </ol>
+      <div class="bar" style="margin:10px 0 0">
+        <a class="ext" href="https://clickpost.jp/" target="_blank" rel="noopener">📮 クリックポストのマイページを開く（別タブ）</a>
+      </div>
     </div>
 
     <div class="bar">
@@ -281,7 +299,11 @@ function onCsv(res) {
   res.files.forEach(function(f, i) {
     html += '<a class="dl" id="dl' + i + '" download="' + esc(f.name) + '">' + esc(f.name) + '（' + f.count + '件）</a>';
   });
-  html += '</div>';
+  html += '</div>'
+    + '<div class="bar" style="margin-top:10px">'
+    + '<a class="ext" href="https://clickpost.jp/" target="_blank" rel="noopener">📮 クリックポストを開いて「まとめ申込」へ進む</a>'
+    + '<span class="muted">ログイン →「まとめ申込」→ 上のCSVをアップロード → 支払い → まとめ印字</span>'
+    + '</div>';
   if (res.skipped && res.skipped.length) {
     html += '<div style="margin-top:10px"><b>次の注文は不備のため除きました（手動でご対応ください）</b><ul>'
       + res.skipped.map(function(s) { return '<li>' + esc(s.receiptNo) + ' — ' + esc(s.reason) + '</li>'; }).join('')
