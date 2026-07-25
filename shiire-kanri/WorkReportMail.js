@@ -2,24 +2,84 @@
 // 商品管理シートの AG-AL 列（採寸/撮影/出品 × 日付・担当者）から
 // 日報・週報メールを生成して送信する。
 // 配信先は既存の「設定」シート K4:K（仕入れ数報告と共通）。
+// 集計から外す担当者は「設定」シートの「日報除外担当者」列（3行目ヘッダー・4行目以降）で運用管理する。
 
 var WORK_REPORT_CFG = {
   SHEET_NAME: '商品管理',
   START_COL: 33,  // AG = 採寸日
   WIDTH: 6,       // AG〜AL（採寸日/採寸担当/撮影日/撮影担当/出品日/出品担当）
   ACTIVE_WINDOW_DAYS: 30,  // 直近N日以内に名前が出現した担当者を「在籍」とみなす
-  EXCLUDE_PERSONS: ['Non']  // 日報・週報から除外する担当者（退職者など）
+  EXCLUDE_PERSONS: ['Non'],  // コード既定の除外担当者（設定シートの列と「和集合」で使う）
+  // 運用で除外担当者を足すための設定シート列。列位置は固定せずヘッダー名で解決するため
+  // 「設定」シートの空いている列に3行目ヘッダーを付けるだけで有効になる。
+  EXCLUDE_SETTING_SHEET: '設定',
+  EXCLUDE_SETTING_HEADER: '日報除外担当者',
+  EXCLUDE_HEADER_ROW: 3,   // 設定シートは 1行目=説明 / 2行目=空 / 3行目=ヘッダー / 4行目以降=データ
+  EXCLUDE_START_ROW: 4
 };
+
+// 設定シートの除外リストは1実行につき1回だけ読む（数千行のループから呼ばれるため）
+var wr_excludeCache_ = null;
+
+/**
+ * 除外担当者リスト = コード既定 EXCLUDE_PERSONS ∪ 設定シート「日報除外担当者」列（4行目以降）
+ * 列が無い・空でもコード既定は必ず効く（誤って除外が外れる事故を防ぐため和集合）。
+ * シート読み取りに失敗しても日報自体は止めない。
+ */
+function wr_getExcludePersons_() {
+  if (wr_excludeCache_) return wr_excludeCache_;
+  var set = {};
+  var defaults = WORK_REPORT_CFG.EXCLUDE_PERSONS || [];
+  for (var i = 0; i < defaults.length; i++) {
+    var dv = String(defaults[i] || '').trim();
+    if (dv) set[dv] = true;
+  }
+  try {
+    var sh = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(WORK_REPORT_CFG.EXCLUDE_SETTING_SHEET);
+    if (sh) {
+      var lastRow = sh.getLastRow();
+      var lastCol = sh.getLastColumn();
+      if (lastRow >= WORK_REPORT_CFG.EXCLUDE_START_ROW && lastCol >= 1) {
+        var headers = sh.getRange(WORK_REPORT_CFG.EXCLUDE_HEADER_ROW, 1, 1, lastCol).getDisplayValues()[0];
+        var target = -1;
+        for (var c = 0; c < headers.length; c++) {
+          // 同名ヘッダーが複数あっても最初の列を採用（後勝ちで別列を読む事故の予防）
+          if (String(headers[c] || '').trim() === WORK_REPORT_CFG.EXCLUDE_SETTING_HEADER) { target = c + 1; break; }
+        }
+        if (target > 0) {
+          var rows = lastRow - WORK_REPORT_CFG.EXCLUDE_START_ROW + 1;
+          var vals = sh.getRange(WORK_REPORT_CFG.EXCLUDE_START_ROW, target, rows, 1).getDisplayValues();
+          for (var r = 0; r < vals.length; r++) {
+            var sv = String(vals[r][0] || '').trim();
+            if (sv) set[sv] = true;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('wr_getExcludePersons_: 設定シート読み取り失敗（コード既定のみ適用）: ' + (e && e.message || e));
+  }
+  wr_excludeCache_ = Object.keys(set);
+  return wr_excludeCache_;
+}
 
 /** 除外対象判定（前後空白を吸収） */
 function wr_isExcluded_(name) {
   var t = String(name || '').trim();
   if (!t) return false;
-  var list = WORK_REPORT_CFG.EXCLUDE_PERSONS || [];
+  var list = wr_getExcludePersons_();
   for (var i = 0; i < list.length; i++) {
-    if (String(list[i]).trim() === t) return true;
+    if (list[i] === t) return true;
   }
   return false;
+}
+
+/** 動作確認: 現在有効な除外担当者リストをログ出力（GASエディタから手動実行） */
+function wr_debugExcludePersons() {
+  wr_excludeCache_ = null;
+  var list = wr_getExcludePersons_();
+  console.log('除外担当者(' + list.length + '件): ' + (list.length ? list.join(' / ') : '(なし)'));
+  return list;
 }
 
 // ──────────────────────────────────────────────
