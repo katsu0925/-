@@ -32,6 +32,11 @@ function sh_ensureRequestSheet_(ss) {
   let needs = false;
   for (let i = 0; i < header.length; i++) if (String(r1[i] || '') !== header[i]) { needs = true; break; }
   if (needs) sh.getRange(1, 1, 1, header.length).setValues([header]);
+  // AK列（37, 発送サイズ）の物理存在を保証。作業報酬(AE)の数式がAKを参照するため、
+  // 列が無いと #REF! になる。プルダウン/ヘッダーは sh_applyRequestStatusDropdown_ で付与。
+  if (sh.getMaxColumns() < REQUEST_SHEET_COLS.SHIP_SIZE) {
+    sh.insertColumnsAfter(sh.getMaxColumns(), REQUEST_SHEET_COLS.SHIP_SIZE - sh.getMaxColumns());
+  }
   return sh;
 }
 
@@ -93,6 +98,20 @@ function sh_applyRequestStatusDropdown_(ss) {
     .setAllowInvalid(false)
     .build();
   sh.getRange(2, 17, Math.max(1, maxRows - 1), 1).setDataValidation(paymentRule);
+
+  // AK列(37): 発送サイズ（デタウリ単品の作業報酬算定に使用）
+  // クリックポスト=50円 / 中箱=100円 / 大箱=250円。アソート系は箱数×250のためAKは不要。
+  const SHIP_SIZE_COL = REQUEST_SHEET_COLS.SHIP_SIZE; // 37 (AK)
+  // AK列が物理的に存在しない場合は列を追加してから設定する
+  if (sh.getMaxColumns() < SHIP_SIZE_COL) {
+    sh.insertColumnsAfter(sh.getMaxColumns(), SHIP_SIZE_COL - sh.getMaxColumns());
+  }
+  sh.getRange(1, SHIP_SIZE_COL).setValue('発送サイズ');
+  const shipSizeRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(['クリックポスト', '中箱', '大箱'], true)
+    .setAllowInvalid(false)
+    .build();
+  sh.getRange(2, SHIP_SIZE_COL, Math.max(1, maxRows - 1), 1).setDataValidation(shipSizeRule);
   return true;
 }
 
