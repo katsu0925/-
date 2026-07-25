@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', 'Meiryo', sans-serif;
+    margin: 0; padding: 0; color: #1f2937; font-size: 13px; background: #f8fafc;
+  }
+  .wrap { padding: 14px 16px 24px; }
+  h2 { font-size: 16px; margin: 0 0 10px; }
+  .tabs { display: flex; gap: 6px; border-bottom: 2px solid #e5e7eb; margin-bottom: 14px; }
+  .tab {
+    padding: 9px 16px; cursor: pointer; border: none; background: none;
+    font-size: 13px; font-weight: 600; color: #6b7280; border-bottom: 3px solid transparent;
+    margin-bottom: -2px; font-family: inherit;
+  }
+  .tab.active { color: #2563eb; border-bottom-color: #2563eb; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .steps {
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;
+    padding: 10px 14px; margin-bottom: 14px; line-height: 1.8;
+  }
+  .steps b { color: #1d4ed8; }
+  .steps ol { margin: 6px 0 0; padding-left: 20px; }
+
+  .bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  button.btn {
+    padding: 8px 16px; border-radius: 6px; border: 1px solid #d1d5db; background: #fff;
+    cursor: pointer; font-size: 13px; font-family: inherit; font-weight: 600; color: #374151;
+  }
+  button.btn:hover:not(:disabled) { background: #f3f4f6; }
+  button.btn.primary { background: #2563eb; border-color: #2563eb; color: #fff; }
+  button.btn.primary:hover:not(:disabled) { background: #1d4ed8; }
+  button.btn:disabled { opacity: .5; cursor: not-allowed; }
+  label.chk { display: inline-flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; }
+
+  table { width: 100%; border-collapse: collapse; background: #fff; font-size: 12px; }
+  th, td { border: 1px solid #e5e7eb; padding: 5px 7px; text-align: left; vertical-align: top; }
+  th { background: #f3f4f6; position: sticky; top: 0; font-size: 11px; white-space: nowrap; }
+  tr.ng { background: #fef2f2; }
+  tr.issued { background: #fffbeb; }
+  .tblwrap { max-height: 340px; overflow: auto; border: 1px solid #e5e7eb; border-radius: 6px; }
+  .err { color: #b91c1c; font-size: 11px; }
+  .muted { color: #6b7280; font-size: 11px; }
+  .nowrap { white-space: nowrap; }
+
+  .result { margin-top: 14px; }
+  .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; }
+  .card.ok { border-left: 4px solid #16a34a; }
+  .card.warn { border-left: 4px solid #f59e0b; }
+  .card.ng { border-left: 4px solid #dc2626; }
+  .card h3 { margin: 0 0 6px; font-size: 13px; }
+  .card ul { margin: 4px 0 0; padding-left: 18px; line-height: 1.7; }
+
+  .dl { display: inline-block; margin: 4px 8px 4px 0; padding: 8px 14px; background: #16a34a;
+        color: #fff; border-radius: 6px; text-decoration: none; font-weight: 600; }
+  .dl:hover { background: #15803d; }
+
+  textarea { width: 100%; height: 130px; font-family: monospace; font-size: 11px;
+             border: 1px solid #d1d5db; border-radius: 6px; padding: 8px; }
+
+  /* スピナー */
+  #overlay {
+    display: none; position: fixed; inset: 0; background: rgba(255,255,255,.82);
+    z-index: 100; align-items: center; justify-content: center; flex-direction: column; gap: 12px;
+  }
+  #overlay.on { display: flex; }
+  .spinner {
+    width: 38px; height: 38px; border: 4px solid #dbeafe; border-top-color: #2563eb;
+    border-radius: 50%; animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #overlayMsg { font-weight: 600; color: #374151; }
+</style>
+</head>
+<body>
+
+<div id="overlay">
+  <div class="spinner"></div>
+  <div id="overlayMsg">処理中です…</div>
+</div>
+
+<div class="wrap">
+  <div class="tabs">
+    <button class="tab active" data-panel="p1">① ラベルCSVを作る</button>
+    <button class="tab" data-panel="p2">② 伝票番号を取り込む</button>
+  </div>
+
+  <!-- ================= タブ① ================= -->
+  <div id="p1" class="panel active">
+    <div class="steps">
+      <b>作業の流れ</b>
+      <ol>
+        <li>下の一覧で発送する注文にチェックを入れ、<b>「CSVをダウンロード」</b>を押します（40件ごとに自動で分かれます）</li>
+        <li><b>clickpost.jp</b> にログインし、「まとめ申込」からダウンロードしたCSVをアップロードします</li>
+        <li>内容を確認して登録 → <b>Yahoo!ウォレット / Amazon Pay で支払い</b>を確定します</li>
+        <li>マイページの<b>「まとめ印字」</b>でラベルをまとめて印刷し、封筒に貼ってポストに投函します</li>
+        <li>投函後、マイページから<b>お問い合わせ番号入りのCSV</b>をダウンロードし、上のタブ②で取り込みます</li>
+      </ol>
+    </div>
+
+    <div class="bar">
+      <button class="btn primary" id="btnLoad">一覧を読み込む</button>
+      <label class="chk"><input type="checkbox" id="chkIssued"> 発行済みの注文も表示する（作り直したいとき）</label>
+      <span id="cnt" class="muted"></span>
+    </div>
+
+    <div class="tblwrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:34px"><input type="checkbox" id="chkAll"></th>
+            <th>受付番号</th>
+            <th>お届け先</th>
+            <th>郵便番号</th>
+            <th>住所（4行に分割したもの）</th>
+            <th>内容品</th>
+            <th>状態</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <tr><td colspan="7" class="muted" style="padding:16px">「一覧を読み込む」を押してください。</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="bar" style="margin-top:12px">
+      <button class="btn primary" id="btnCsv" disabled>選んだ注文のCSVをダウンロード</button>
+      <span class="muted">赤い行は住所や氏名に不備があるためCSVに含められません（クリックポストの画面で直接ご入力ください）</span>
+    </div>
+
+    <div id="csvResult" class="result"></div>
+  </div>
+
+  <!-- ================= タブ② ================= -->
+  <div id="p2" class="panel">
+    <div class="steps">
+      <b>やること</b>
+      <ol>
+        <li>clickpost.jp のマイページから、<b>お問い合わせ番号が入ったCSV</b>をダウンロードします</li>
+        <li>下の「ファイルを選ぶ」でそのCSVを指定し、<b>「取り込む」</b>を押します</li>
+        <li>依頼管理シートの<b>伝票番号・配送業者・発送ステータス</b>が自動で入り、<b>お客様に発送完了メール</b>が送られます</li>
+      </ol>
+    </div>
+
+    <div class="bar">
+      <input type="file" id="file" accept=".csv,text/csv">
+      <button class="btn primary" id="btnImport" disabled>取り込む</button>
+    </div>
+
+    <details style="margin-bottom:10px">
+      <summary class="muted" style="cursor:pointer">ファイルが選べない場合はこちら（CSVの中身を貼り付ける）</summary>
+      <textarea id="paste" placeholder="CSVの中身をそのまま貼り付けてください"></textarea>
+      <div class="bar" style="margin-top:6px">
+        <button class="btn" id="btnImportPaste">貼り付けた内容を取り込む</button>
+      </div>
+    </details>
+
+    <div id="impResult" class="result"></div>
+  </div>
+</div>
+
+<script>
+var rowsCache = [];
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"]/g, function(c) {
+    return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c];
+  });
+}
+function busy(on, msg) {
+  document.getElementById('overlayMsg').textContent = msg || '処理中です…';
+  document.getElementById('overlay').classList.toggle('on', !!on);
+}
+
+// ---- タブ切替 ----
+document.querySelectorAll('.tab').forEach(function(t) {
+  t.addEventListener('click', function() {
+    document.querySelectorAll('.tab').forEach(function(x) { x.classList.remove('active'); });
+    document.querySelectorAll('.panel').forEach(function(x) { x.classList.remove('active'); });
+    t.classList.add('active');
+    document.getElementById(t.dataset.panel).classList.add('active');
+  });
+});
+
+// ---- ① 一覧読み込み ----
+document.getElementById('btnLoad').addEventListener('click', loadList);
+document.getElementById('chkAll').addEventListener('change', function() {
+  var on = this.checked;
+  document.querySelectorAll('#tbody input.pick:not(:disabled)').forEach(function(c) { c.checked = on; });
+  updateCsvBtn();
+});
+
+function loadList() {
+  busy(true, '対象の注文を探しています…');
+  document.getElementById('csvResult').innerHTML = '';
+  google.script.run
+    .withSuccessHandler(renderList)
+    .withFailureHandler(function(e) { busy(false); alert('読み込みに失敗しました:\n' + e.message); })
+    .cp_listTargets({ includeIssued: document.getElementById('chkIssued').checked });
+}
+
+function renderList(res) {
+  busy(false);
+  rowsCache = (res && res.rows) || [];
+  var tb = document.getElementById('tbody');
+  if (!rowsCache.length) {
+    tb.innerHTML = '<tr><td colspan="7" class="muted" style="padding:16px">'
+      + 'ラベルを作る対象の注文はありませんでした。<br>'
+      + '（入金確認が「対応済」で、まだ発送していないクリックポストの注文が対象です）</td></tr>';
+    document.getElementById('cnt').textContent = '';
+    updateCsvBtn();
+    return;
+  }
+  var html = rowsCache.map(function(r, i) {
+    var ng = r.errors && r.errors.length;
+    var cls = ng ? 'ng' : (r.issuedAt ? 'issued' : '');
+    var state = ng ? '<span class="err">' + esc(r.errors.join(' / ')) + '</span>'
+                   : (r.issuedAt ? '<span class="muted">発行済 ' + esc(r.issuedAt) + '</span>' : 'OK');
+    if (!ng && !r.hasPaymentId) {
+      state += '<div class="muted">※この注文は発送完了メールの対象外です</div>';
+    }
+    var addr = (r.addr || []).filter(function(a) { return a; }).map(esc).join('<br>');
+    return '<tr class="' + cls + '">'
+      + '<td><input type="checkbox" class="pick" data-i="' + i + '"' + (ng ? ' disabled' : (r.issuedAt ? '' : ' checked')) + '></td>'
+      + '<td class="nowrap">' + esc(r.receiptNo) + '</td>'
+      + '<td>' + esc(r.name) + ' ' + esc(r.honorific) + '</td>'
+      + '<td class="nowrap">' + esc(r.postal) + '</td>'
+      + '<td>' + addr + '</td>'
+      + '<td class="nowrap">' + esc(r.content) + '</td>'
+      + '<td>' + state + '</td>'
+      + '</tr>';
+  }).join('');
+  tb.innerHTML = html;
+  tb.querySelectorAll('input.pick').forEach(function(c) { c.addEventListener('change', updateCsvBtn); });
+  var ngCount = rowsCache.filter(function(r) { return r.errors && r.errors.length; }).length;
+  document.getElementById('cnt').textContent = '対象 ' + rowsCache.length + '件'
+    + (ngCount ? '（うち不備 ' + ngCount + '件）' : '');
+  updateCsvBtn();
+}
+
+function picked() {
+  var out = [];
+  document.querySelectorAll('#tbody input.pick:checked').forEach(function(c) {
+    out.push(rowsCache[Number(c.dataset.i)]);
+  });
+  return out;
+}
+function updateCsvBtn() {
+  var n = picked().length;
+  var b = document.getElementById('btnCsv');
+  b.disabled = n === 0;
+  b.textContent = n ? ('選んだ ' + n + '件のCSVをダウンロード') : '選んだ注文のCSVをダウンロード';
+}
+
+// ---- ① CSV作成 ----
+document.getElementById('btnCsv').addEventListener('click', function() {
+  var list = picked().map(function(r) { return r.receiptNo; });
+  if (!list.length) return;
+  busy(true, 'CSVを作っています…');
+  google.script.run
+    .withSuccessHandler(onCsv)
+    .withFailureHandler(function(e) { busy(false); alert('CSVの作成に失敗しました:\n' + e.message); })
+    .cp_buildCsv(list);
+});
+
+function onCsv(res) {
+  busy(false);
+  var box = document.getElementById('csvResult');
+  if (!res || !res.ok) {
+    box.innerHTML = '<div class="card ng"><h3>CSVを作れませんでした</h3><div>' + esc(res && res.message) + '</div></div>';
+    return;
+  }
+  var html = '<div class="card ok"><h3>CSVができました（' + res.issued + '件）</h3>'
+    + '<div class="muted">ダウンロードが自動で始まらない場合は、下のボタンを押してください。</div><div style="margin-top:8px">';
+  res.files.forEach(function(f, i) {
+    html += '<a class="dl" id="dl' + i + '" download="' + esc(f.name) + '">' + esc(f.name) + '（' + f.count + '件）</a>';
+  });
+  html += '</div>';
+  if (res.skipped && res.skipped.length) {
+    html += '<div style="margin-top:10px"><b>次の注文は不備のため除きました（手動でご対応ください）</b><ul>'
+      + res.skipped.map(function(s) { return '<li>' + esc(s.receiptNo) + ' — ' + esc(s.reason) + '</li>'; }).join('')
+      + '</ul></div>';
+  }
+  html += '</div>';
+  box.innerHTML = html;
+
+  res.files.forEach(function(f, i) {
+    var a = document.getElementById('dl' + i);
+    a.href = URL.createObjectURL(b64ToBlob(f.base64));
+    try { a.click(); } catch (e) { /* 自動ダウンロードが塞がれた場合は手動クリックで対応 */ }
+  });
+  // 発行日時が記録されたので一覧を最新化する
+  loadList();
+}
+
+function b64ToBlob(b64) {
+  var bin = atob(b64);
+  var arr = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new Blob([arr], { type: 'text/csv' });
+}
+
+// ---- ② 伝票番号の取り込み ----
+document.getElementById('file').addEventListener('change', function() {
+  document.getElementById('btnImport').disabled = !this.files.length;
+});
+document.getElementById('btnImport').addEventListener('click', function() {
+  var f = document.getElementById('file').files[0];
+  if (!f) return;
+  busy(true, 'CSVを読み込んでいます…');
+  var fr = new FileReader();
+  fr.onload = function() {
+    var text = decodeCsv(fr.result);
+    sendImport(text);
+  };
+  fr.onerror = function() { busy(false); alert('ファイルを読み込めませんでした。'); };
+  fr.readAsArrayBuffer(f);
+});
+document.getElementById('btnImportPaste').addEventListener('click', function() {
+  var t = document.getElementById('paste').value;
+  if (!t.trim()) { alert('CSVの中身を貼り付けてください。'); return; }
+  busy(true, '取り込んでいます…');
+  sendImport(t);
+});
+
+/** クリックポストのCSVはShift-JIS。UTF-8の場合もあるので読めた方を採用する */
+function decodeCsv(buf) {
+  var sjis = '', utf8 = '';
+  try { sjis = new TextDecoder('shift_jis').decode(buf); } catch (e) {}
+  try { utf8 = new TextDecoder('utf-8').decode(buf); } catch (e) {}
+  var okSjis = sjis && sjis.indexOf('�') === -1;
+  var okUtf8 = utf8 && utf8.indexOf('�') === -1;
+  if (okSjis) return sjis;
+  if (okUtf8) return utf8;
+  return sjis || utf8 || '';
+}
+
+function sendImport(text) {
+  busy(true, '伝票番号を書き込んでいます…（メール送信のため少し時間がかかります）');
+  google.script.run
+    .withSuccessHandler(onImport)
+    .withFailureHandler(function(e) { busy(false); alert('取り込みに失敗しました:\n' + e.message); })
+    .cp_importTracking(text);
+}
+
+function onImport(res) {
+  busy(false);
+  var box = document.getElementById('impResult');
+  if (!res || !res.ok) {
+    box.innerHTML = '<div class="card ng"><h3>取り込めませんでした</h3><div>' + esc(res && res.message) + '</div></div>';
+    return;
+  }
+  var html = '<div class="card ok"><h3>' + res.updated.length + '件の伝票番号を取り込みました</h3>';
+  if (res.updated.length) {
+    html += '<ul>' + res.updated.map(function(u) {
+      return '<li>' + esc(u.receiptNo) + ' — ' + esc(u.customer) + '（伝票番号 ' + esc(u.tracking) + '）</li>';
+    }).join('') + '</ul>';
+  }
+  html += '</div>';
+
+  if (res.mailSkipped && res.mailSkipped.length) {
+    html += '<div class="card warn"><h3>発送完了メールが送られなかった注文</h3><ul>'
+      + res.mailSkipped.map(function(m) { return '<li>' + esc(m.receiptNo) + ' — ' + esc(m.reason) + '</li>'; }).join('')
+      + '</ul></div>';
+  }
+  if (res.unmatched && res.unmatched.length) {
+    html += '<div class="card ng"><h3>取り込めなかった行（手動でご確認ください）</h3><ul>'
+      + res.unmatched.map(function(u) {
+          return '<li>' + esc(u.label) + '（' + esc(u.tracking) + '） — ' + esc(u.reason) + '</li>';
+        }).join('')
+      + '</ul></div>';
+  }
+  box.innerHTML = html;
+}
+</script>
+</body>
+</html>

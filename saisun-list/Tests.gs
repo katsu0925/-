@@ -923,8 +923,14 @@ function testSuite_EdgeCases_() {
     {
       name: '送料計算: クリックポスト・pt制の設定値',
       fn: function() {
-        assertEqual_(SHIPPING_CONSTANTS.CLICKPOST_PRICE, 280, 'クリポ顧客価格 280');
-        assertEqual_(SHIPPING_CONSTANTS.CLICKPOST_COST, 185, 'クリポ実費 185（2026-10-01に240へ改定予定）');
+        assertEqual_(SHIPPING_CONSTANTS.CLICKPOST_PRICE, 280, 'クリポ顧客価格 280（改定後も据え置き）');
+        // 実費は 2026-10-01 JST の日本郵便運賃改定で 185→240。
+        // 現在日時に依存しないよう、境界日を明示的に渡して検証する。
+        assertEqual_(getClickpostCost_(new Date('2026-09-30T23:59:00+09:00')), 185, 'クリポ実費 改定前は185');
+        assertEqual_(getClickpostCost_(new Date('2026-10-01T00:00:00+09:00')), 240, 'クリポ実費 改定当日から240');
+        assertEqual_(getClickpostCost_(new Date('2027-01-15T12:00:00+09:00')), 240, 'クリポ実費 改定後は240');
+        // JST基準で判定していること（UTCだと 09-30 15:00Z = JST 10-01 00:00 が185になってしまう）
+        assertEqual_(getClickpostCost_(new Date('2026-09-30T15:00:00Z')), 240, 'クリポ実費 JST基準で判定');
         assertEqual_(SHIPPING_CONSTANTS.ITEM_POINTS.thin, 1, '薄手 1pt');
         assertEqual_(SHIPPING_CONSTANTS.ITEM_POINTS.thick, 2, '厚手 2pt');
         assertEqual_(SHIPPING_CONSTANTS.FREE_SHIP_THRESHOLD, 10000, '送料無料閾値 10000');

@@ -997,6 +997,18 @@ function writeSubmitData_(data) {
   row[REQUEST_SHEET_COLS.REWARD - 1] = buildRewardFormula_(writeRow, channel);
   reqSh.getRange(writeRow, 1, 1, row.length).setValues([row]);
 
+  // AK列（発送サイズ）: クリックポスト対象は受注時に自動セットする。
+  // row配列はAI列(35)までのため別書込。GAS直・Worker経由(_internalSavePendingOrder)とも
+  // ここを通るので1箇所で両経路をカバーできる。
+  // 効果: ①クリックポストCSVの抽出キーになる ②作業報酬(AE)が自動で50円になる
+  if (String(data.shippingSize || '') === 'clickpost') {
+    try {
+      reqSh.getRange(writeRow, REQUEST_SHEET_COLS.SHIP_SIZE).setValue('クリックポスト');
+    } catch (eShipSize) {
+      Logger.log('AK列(発送サイズ)の自動セットに失敗: ' + eShipSize);
+    }
+  }
+
   // 2. hold/openログシートの同期
   var holdState = st_getHoldState_(orderSs) || {};
   var holdItems = (holdState.items && typeof holdState.items === 'object') ? holdState.items : {};

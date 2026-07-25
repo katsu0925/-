@@ -1215,6 +1215,8 @@ function onOpen(e) {
     .addItem("2. 欠品処理（返品→再生成 一括処理）", "handleMissingProducts")
     .addItem("3. 商品自動選定（J列が空の場合）", "menuManualAssortSelect")
     .addSeparator()
+    .addItem("📮 クリックポスト ラベル発行", "showClickPostDialog")
+    .addSeparator()
     .addItem("★ 管理パネルを開く", "showAdminPanel")
     .addItem("📋 返品棚卸しを番号順(1,2,3…)に並べ替え", "sortReturnTanaoroshi")
     .addToUi();

@@ -70,9 +70,30 @@ var SHIPPING_CONSTANTS = {
   BOX_SIZES: ['60', '80', '100', '140', '160'],
 
   // クリックポスト: デタウリが薄手ちょうど1点のとき適用（全国一律・沖縄含む）
-  CLICKPOST_PRICE: 280,                            // 顧客価格（税込・全国一律）
-  CLICKPOST_COST: 185                              // 実費 ※2026-10-01に240円へ改定（日本郵便公式告知済）→改定日に要更新
+  CLICKPOST_PRICE: 280,                            // 顧客価格（税込・全国一律）※改定後も据え置き
+
+  // 実費は 2026-10-01（JST）の日本郵便運賃改定で 185→240 円。
+  // 呼び出し側（SubmitFix.gs / SyncApi.gs）を一切変更せずに切り替えるため、
+  // CLICKPOST_COST は日付判定するゲッターにしている。
+  // ※ SyncApi.gs が D1 SHIPPING_CONFIG_V2 に流すため、Worker 側も 5分Cron で自動追随する
+  CLICKPOST_COST_BEFORE: 185,                      // 改定前の実費
+  CLICKPOST_COST_AFTER: 240,                       // 改定後の実費
+  CLICKPOST_COST_CHANGE_YMD: '20261001',           // この日（JST）以降 AFTER を適用
+  get CLICKPOST_COST() { return getClickpostCost_(); }
 };
+
+/**
+ * クリックポストの実費を返す（2026-10-01 JST の運賃改定を日付で自動切替）
+ * @param {Date} [baseDate] 判定基準日。省略時は現在時刻。テストから境界日を渡すために引数化している
+ * @return {number} 185（改定前）または 240（改定後）
+ */
+function getClickpostCost_(baseDate) {
+  var d = (baseDate instanceof Date) ? baseDate : new Date();
+  var ymd = Utilities.formatDate(d, 'Asia/Tokyo', 'yyyyMMdd');
+  return (ymd >= SHIPPING_CONSTANTS.CLICKPOST_COST_CHANGE_YMD)
+    ? SHIPPING_CONSTANTS.CLICKPOST_COST_AFTER
+    : SHIPPING_CONSTANTS.CLICKPOST_COST_BEFORE;
+}
 
 /**
  * 時間定数（ミリ秒）
@@ -125,7 +146,8 @@ var REQUEST_SHEET_COLS = {
   TRACKING_URL: 34,     // AH: 追跡URL
   ITEM_PRICES: 35,      // AI: 商品単価JSON（注文時価格の永続化）
   KIT_URL: 36,          // AJ: 出品キットURL
-  SHIP_SIZE: 37         // AK: 発送サイズ（クリックポスト/中箱/大箱）※作業報酬の算定に使用
+  SHIP_SIZE: 37,        // AK: 発送サイズ（クリックポスト/中箱/大箱）※作業報酬の算定に使用
+  CP_ISSUED_AT: 38      // AL: CP発行日時（クリックポストのラベルCSVを発行した日時。二重発行防止マーカー）
 };
 
 /**

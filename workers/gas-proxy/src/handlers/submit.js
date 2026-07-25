@@ -79,8 +79,22 @@ const SHIPPING_ACTUAL_RATES = {
 const ITEM_POINTS = { thin: 1, thick: 2 };
 const BOX_CAPACITY = { '60': 2, '80': 4, '100': 10, '140': 20, '160': 40 };
 const BOX_SIZES = ['60', '80', '100', '140', '160'];
-const CLICKPOST_PRICE = 280; // 顧客価格（税込・全国一律）
-const CLICKPOST_COST = 185;  // 実費 ※2026-10-01に240円へ改定（日本郵便公式告知済）
+const CLICKPOST_PRICE = 280; // 顧客価格（税込・全国一律）※改定後も据え置き
+// 実費は 2026-10-01（JST）の日本郵便運賃改定で 185→240 円。
+// 通常は D1 SHIPPING_CONFIG_V2（GAS が5分Cronで流す値）が優先されるが、
+// D1 が読めないときのフォールバックもここで日付切替する（GAS Constants.gs の getClickpostCost_ と同じ判定）。
+const CLICKPOST_COST_BEFORE = 185;
+const CLICKPOST_COST_AFTER = 240;
+const CLICKPOST_COST_CHANGE_YMD = '20261001';
+
+/** クリックポスト実費のフォールバック値をJST基準の日付で切り替える */
+function getClickpostCostFallback(now) {
+  const d = (now instanceof Date) ? now : new Date();
+  // UTC+9時間 = JST。toISOString の日付部分を取り出して yyyymmdd にする
+  const jst = new Date(d.getTime() + 9 * 60 * 60 * 1000);
+  const ymd = jst.toISOString().slice(0, 10).replace(/-/g, '');
+  return ymd >= CLICKPOST_COST_CHANGE_YMD ? CLICKPOST_COST_AFTER : CLICKPOST_COST_BEFORE;
+}
 
 const REMOTE_ISLANDS = [
   '大島町', '利島村', '新島村', '神津島村', '三宅村', '御蔵島村', '八丈町', '青ヶ島村', '小笠原村',
@@ -318,7 +332,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   let dynPoints = ITEM_POINTS;
   let dynBoxCapacity = BOX_CAPACITY;
   let dynClickpostPrice = CLICKPOST_PRICE;
-  let dynClickpostCost = CLICKPOST_COST;
+  let dynClickpostCost = getClickpostCostFallback();
   if (shippingRow) {
     try {
       const sc = JSON.parse(shippingRow.value);

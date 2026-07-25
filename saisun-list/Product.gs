@@ -32,10 +32,12 @@ function sh_ensureRequestSheet_(ss) {
   let needs = false;
   for (let i = 0; i < header.length; i++) if (String(r1[i] || '') !== header[i]) { needs = true; break; }
   if (needs) sh.getRange(1, 1, 1, header.length).setValues([header]);
-  // AK列（37, 発送サイズ）の物理存在を保証。作業報酬(AE)の数式がAKを参照するため、
-  // 列が無いと #REF! になる。プルダウン/ヘッダーは sh_applyRequestStatusDropdown_ で付与。
-  if (sh.getMaxColumns() < REQUEST_SHEET_COLS.SHIP_SIZE) {
-    sh.insertColumnsAfter(sh.getMaxColumns(), REQUEST_SHEET_COLS.SHIP_SIZE - sh.getMaxColumns());
+  // AK列（37, 発送サイズ）/ AL列（38, CP発行日時）の物理存在を保証。
+  // AKは作業報酬(AE)の数式が参照するため列が無いと #REF! になる。
+  // ALはクリックポストCSVの二重発行防止マーカー（ClickPost.gs）で使用する。
+  // ヘッダー/プルダウンは sh_applyRequestStatusDropdown_ で付与。
+  if (sh.getMaxColumns() < REQUEST_SHEET_COLS.CP_ISSUED_AT) {
+    sh.insertColumnsAfter(sh.getMaxColumns(), REQUEST_SHEET_COLS.CP_ISSUED_AT - sh.getMaxColumns());
   }
   return sh;
 }
@@ -112,6 +114,14 @@ function sh_applyRequestStatusDropdown_(ss) {
     .setAllowInvalid(false)
     .build();
   sh.getRange(2, SHIP_SIZE_COL, Math.max(1, maxRows - 1), 1).setDataValidation(shipSizeRule);
+
+  // AL列(38): CP発行日時（クリックポストのラベルCSVを発行した日時）
+  // 同じ注文のラベルを二重に発行しないためのマーカー。プルダウンは付けない（自動記録のみ）。
+  const CP_ISSUED_COL = REQUEST_SHEET_COLS.CP_ISSUED_AT; // 38 (AL)
+  if (sh.getMaxColumns() < CP_ISSUED_COL) {
+    sh.insertColumnsAfter(sh.getMaxColumns(), CP_ISSUED_COL - sh.getMaxColumns());
+  }
+  sh.getRange(1, CP_ISSUED_COL).setValue('CP発行日時');
   return true;
 }
 

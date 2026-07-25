@@ -40,8 +40,9 @@ function buildTrackingUrl_(carrier, trackingNo) {
   if (c.indexOf('佐川') !== -1 || c.indexOf('sagawa') !== -1) {
     return 'https://k2k.sagawa-exp.co.jp/p/web/okurijosearch.do?okurijoNo=' + encodeURIComponent(trackingNo);
   }
-  // 日本郵便 / ゆうパック / ゆうパケット
-  if (c.indexOf('郵便') !== -1 || c.indexOf('ゆうパック') !== -1 || c.indexOf('ゆうパケット') !== -1 || c.indexOf('japan post') !== -1) {
+  // 日本郵便 / ゆうパック / ゆうパケット / クリックポスト（いずれも日本郵便の追跡ページ）
+  if (c.indexOf('郵便') !== -1 || c.indexOf('ゆうパック') !== -1 || c.indexOf('ゆうパケット') !== -1
+      || c.indexOf('クリックポスト') !== -1 || c.indexOf('clickpost') !== -1 || c.indexOf('japan post') !== -1) {
     return 'https://trackings.post.japanpost.jp/services/srv/search/?requestNo1=' + encodeURIComponent(trackingNo) + '&search.x=1';
   }
   // 西濃運輸
