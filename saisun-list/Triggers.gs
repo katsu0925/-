@@ -315,11 +315,11 @@ function cronDailySummary() {
     var payment = String(data[i][16] || '').trim(); // Q列: 入金確認
     var shipStatus = String(data[i][18] || '').trim(); // S列: 発送ステータス
 
-    // 入金待ち: 入金確認が空
-    if (!payment || payment === 'FALSE' || payment === 'false') {
+    // 入金待ち: 入金確認が「入金待ち」または空（Q列は列挙値 入金待ち/未対応/対応済）
+    if (!payment || payment === '入金待ち' || payment === 'FALSE' || payment === 'false') {
       pendingPayment++;
     }
-    // 発送待ち: 入金済み & 未発送
+    // 発送待ち: 入金済み（未対応/対応済）& 未発送
     else if (shipStatus !== '発送済み') {
       pendingShip++;
     }
