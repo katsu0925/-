@@ -82,6 +82,15 @@ function wr_debugExcludePersons() {
   return list;
 }
 
+/** 動作確認: 日報・週報に並ぶ担当者（母集合）をログ出力（GASエディタから手動実行） */
+function wr_debugActivePersons() {
+  wr_excludeCache_ = null;
+  var persons = wr_getActivePersons_();
+  console.log('日報に並ぶ担当者(' + persons.length + '名): ' + (persons.length ? persons.join(' / ') : '(なし)'));
+  console.log('除外担当者: ' + (wr_getExcludePersons_().join(' / ') || '(なし)'));
+  return persons;
+}
+
 // ──────────────────────────────────────────────
 // エントリポイント（トリガー対象）
 // ──────────────────────────────────────────────
@@ -206,19 +215,39 @@ function wr_collectWorkCounts_(startDate, endDate) {
 }
 
 /**
- * 直近ACTIVE_WINDOW_DAYS日以内に名前が出現した全担当者（ゼロ件含む全員表示の母集合）
+ * 日報・週報に名前を並べる母集合（ゼロ件でも「0」で表示する全員）
+ *   = 作業者マスターの有効な作業者（有効フラグO列=TRUE / StaffApi.gs:729 staff_listWorkers）
+ *   ∪ 商品管理で直近ACTIVE_WINDOW_DAYS日以内に名前が出た担当者（マスター未登録・表記ゆれの救済）
+ *   − 除外担当者（設定シート「日報除外担当者」列 ∪ コード既定）
  * 五十音順で返す
  */
 function wr_getActivePersons_() {
+  var set = {};
+
+  // 1) 作業者マスター（有効=TRUE）— 作業実績が0件でも必ず並べる
+  try {
+    var wres = staff_listWorkers();
+    if (wres && wres.ok && wres.items) {
+      for (var w = 0; w < wres.items.length; w++) {
+        var wn = String(wres.items[w] || '').trim();
+        if (wn && !wr_isExcluded_(wn)) set[wn] = true;
+      }
+    } else {
+      console.warn('wr_getActivePersons_: 作業者マスターを読めませんでした（実績ベースのみで継続）');
+    }
+  } catch (e) {
+    console.warn('wr_getActivePersons_: 作業者マスター読み取り失敗（実績ベースのみで継続）: ' + (e && e.message || e));
+  }
+
+  // 2) 直近N日に商品管理で実績がある担当者（マスター未登録の名前も落とさない）
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(WORK_REPORT_CFG.SHEET_NAME);
-  if (!sh) return [];
+  if (!sh) return Object.keys(set).sort(function(a, b) { return a.localeCompare(b, 'ja'); });
   var lastRow = sh.getLastRow();
-  if (lastRow < 2) return [];
+  if (lastRow < 2) return Object.keys(set).sort(function(a, b) { return a.localeCompare(b, 'ja'); });
   var now = new Date();
   var cutoff = new Date(now.getFullYear(), now.getMonth(), now.getDate() - WORK_REPORT_CFG.ACTIVE_WINDOW_DAYS);
   var values = sh.getRange(2, WORK_REPORT_CFG.START_COL, lastRow - 1, WORK_REPORT_CFG.WIDTH).getValues();
-  var set = {};
   var pairs = [[0,1],[2,3],[4,5]];
   for (var i = 0; i < values.length; i++) {
     for (var c = 0; c < pairs.length; c++) {
