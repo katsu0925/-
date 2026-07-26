@@ -70,6 +70,10 @@
   a.ext:hover { background: #c2410c; }
   a.ext.sub { background: #fff; color: #c2410c; border: 1px solid #fdba74; }
   a.ext.sub:hover { background: #fff7ed; }
+  /* 自作の面付けツール（クリックポスト本体と色で区別する） */
+  a.ext.tool { background: #2563eb; }
+  a.ext.tool:hover { background: #1d4ed8; }
+  code { background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 4px; padding: 1px 5px; font-size: 11px; }
 
   textarea { width: 100%; height: 130px; font-family: monospace; font-size: 11px;
              border: 1px solid #d1d5db; border-radius: 6px; padding: 8px; }
@@ -98,7 +102,8 @@
 <div class="wrap">
   <div class="tabs">
     <button class="tab active" data-panel="p1">① ラベルCSVを作る</button>
-    <button class="tab" data-panel="p2">② 伝票番号を取り込む</button>
+    <button class="tab" data-panel="p2">② ラベルを印刷する</button>
+    <button class="tab" data-panel="p3">③ 伝票番号を取り込む</button>
   </div>
 
   <!-- ================= タブ① ================= -->
@@ -109,8 +114,7 @@
         <li>下の一覧で発送する注文にチェックを入れ、<b>「CSVをダウンロード」</b>を押します（40件ごとに自動で分かれます）</li>
         <li><b>clickpost.jp</b> にログインし、「まとめ申込」からダウンロードしたCSVをアップロードします</li>
         <li>内容を確認して登録 → <b>Yahoo!ウォレット / Amazon Pay で支払い</b>を確定します</li>
-        <li>マイページの<b>「まとめ印字」</b>でラベルをまとめて印刷し、封筒に貼ってポストに投函します</li>
-        <li>投函後、マイページから<b>お問い合わせ番号入りのCSV</b>をダウンロードし、上のタブ②で取り込みます</li>
+        <li>支払いが終わったら、上のタブ <b>「② ラベルを印刷する」</b> へ進みます</li>
       </ol>
       <div class="bar" style="margin:10px 0 0">
         <a class="ext" href="https://clickpost.jp/" target="_blank" rel="noopener">📮 クリックポストを開く（別タブ）</a>
@@ -157,6 +161,70 @@
     <div class="steps">
       <b>やること</b>
       <ol>
+        <li>clickpost.jp のマイページで<b>「まとめ印字」</b>を押し、<b>印字PDF</b>をダウンロードします</li>
+        <li>下の<b>「ラベル面付けツールを開く」</b>を押し、その印字PDFと<b>①でダウンロードしたCSV</b>をまとめて入れます</li>
+        <li>「面付けしたPDFを作る」→「PDFを開いて印刷する」で、<b>A4・4面のラベルシール</b>に印刷します</li>
+        <li>ラベルを封筒に貼ってポストに投函したら、上のタブ <b>「③ 伝票番号を取り込む」</b> へ進みます</li>
+      </ol>
+      <div class="bar" style="margin:10px 0 0">
+        <a class="ext" href="https://clickpost.jp/" target="_blank" rel="noopener">📮 クリックポストのマイページを開く（別タブ）</a>
+        <a class="ext tool" href="https://clickpost-print.pages.dev/" target="_blank" rel="noopener">🖨 ラベル面付けツールを開く（別タブ）</a>
+      </div>
+      <div class="muted" style="margin-top:6px">
+        面付けツールのURL：<code>https://clickpost-print.pages.dev/</code>　作業するPCではブックマークしておくと便利です。
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>面付けツールは何をするもの？</h3>
+      <div>
+        クリックポストの印字PDFは、<b>1件だけ申し込んだ場合でもA4に4面（A6×4）の形で出てきます</b>。
+        41件だと2つ目のPDFに1面だけ乗って残り3面がまるごと無駄になり、刷り直しのときも同じことが起きます。
+        面付けツールは<b>中身の入っている面だけを拾って詰め直す</b>ので、ラベルシールを無駄にせずに印刷できます。
+      </div>
+      <ul>
+        <li>印字PDFと①のCSVを一緒に入れると、<b>どの面が誰宛か</b>の突合表を紙で印刷できます（貼る前の照合用）</li>
+        <li>一度印刷したラベルは記録され、<b>次に同じものを入れると警告</b>が出ます（二重に貼るのを防げます）</li>
+        <li>処理はすべてブラウザの中だけで行われます。<b>お届け先の氏名・住所が外部に送られることはありません</b></li>
+      </ul>
+    </div>
+
+    <div class="card warn">
+      <h3>印刷するときの設定（ここを間違えると位置がずれます）</h3>
+      <ul>
+        <li>用紙サイズ：<b>A4</b>　／　向き：<b>縦</b></li>
+        <li>倍率：<b>100%（実際のサイズ）</b> —「用紙に合わせる」は選ばないでください</li>
+        <li>両面印刷：<b>オフ</b></li>
+        <li>用紙は<b>A4・4面（A6サイズ）の宛名ラベルシール</b>を使います</li>
+      </ul>
+    </div>
+
+    <details style="margin-bottom:10px">
+      <summary style="cursor:pointer; font-weight:600">印刷位置がずれるとき（そのプリンタで初めて刷るときだけ）</summary>
+      <div class="card" style="margin-top:8px">
+        <ol style="margin:0; padding-left:18px; line-height:1.8">
+          <li>面付けツールの<b>「位置合わせシートを作る」</b>を押して、<b>普通紙</b>に1枚印刷します</li>
+          <li>印刷した紙をラベルシールに重ね、明るい方へかざします</li>
+          <li>紙の<b>真ん中の十字線</b>が、シールの切り取り線とぴったり重なっていればOKです</li>
+          <li>ずれていたら十字のそばの<b>1mm目盛り</b>でズレを読み、「横のズレ補正 / 縦のズレ補正」に入れて刷り直します<br>
+            例：十字線がシールの線より<b>2mm左</b>にある →「横のズレ補正」に <b>2</b> と入れる</li>
+        </ol>
+        <div class="muted" style="margin-top:8px">
+          合わせた値はそのPCに記憶されるので、2回目以降この作業は不要です。用紙のふちギリギリはどのプリンタでも印刷できないため、判断は<b>中央の十字</b>で行ってください。
+        </div>
+      </div>
+    </details>
+
+    <div class="bar">
+      <button class="btn primary" id="btnGoImport">投函できた → ③ 伝票番号を取り込む</button>
+    </div>
+  </div>
+
+  <!-- ================= タブ③ ================= -->
+  <div id="p3" class="panel">
+    <div class="steps">
+      <b>やること</b>
+      <ol>
         <li>clickpost.jp のマイページから、<b>お問い合わせ番号が入ったCSV</b>をダウンロードします</li>
         <li>下の「ファイルを選ぶ」でそのCSVを指定し、<b>「取り込む」</b>を押します</li>
         <li>依頼管理シートの<b>伝票番号・配送業者・発送ステータス</b>が自動で入り、<b>お客様に発送完了メール</b>が送られます</li>
@@ -197,13 +265,13 @@ function busy(on, msg) {
 }
 
 // ---- タブ切替 ----
+function showTab(panelId) {
+  document.querySelectorAll('.tab').forEach(function(x) { x.classList.toggle('active', x.dataset.panel === panelId); });
+  document.querySelectorAll('.panel').forEach(function(x) { x.classList.toggle('active', x.id === panelId); });
+  window.scrollTo(0, 0);
+}
 document.querySelectorAll('.tab').forEach(function(t) {
-  t.addEventListener('click', function() {
-    document.querySelectorAll('.tab').forEach(function(x) { x.classList.remove('active'); });
-    document.querySelectorAll('.panel').forEach(function(x) { x.classList.remove('active'); });
-    t.classList.add('active');
-    document.getElementById(t.dataset.panel).classList.add('active');
-  });
+  t.addEventListener('click', function() { showTab(t.dataset.panel); });
 });
 
 // ---- ① 一覧読み込み ----
@@ -300,10 +368,13 @@ function onCsv(res) {
     html += '<a class="dl" id="dl' + i + '" download="' + esc(f.name) + '">' + esc(f.name) + '（' + f.count + '件）</a>';
   });
   html += '</div>'
+    + '<div class="muted" style="margin-top:8px">'
+    + 'ダウンロードしたCSVは<b>この後の面付けにも使います</b>。消さずに残しておいてください。</div>'
     + '<div class="bar" style="margin-top:10px">'
     + '<a class="ext" href="https://clickpost.jp/" target="_blank" rel="noopener">📮 クリックポストを開いて「まとめ申込」へ進む</a>'
-    + '<span class="muted">ログイン →「まとめ申込」→ 上のCSVをアップロード → 支払い → まとめ印字</span>'
-    + '</div>';
+    + '<button class="btn primary" id="btnGoPrint">次へ：② ラベルを印刷する</button>'
+    + '</div>'
+    + '<div class="muted">ログイン →「まとめ申込」→ 上のCSVをアップロード → 支払いまで済ませてから、タブ②へ進んでください。</div>';
   if (res.skipped && res.skipped.length) {
     html += '<div style="margin-top:10px"><b>次の注文は不備のため除きました（手動でご対応ください）</b><ul>'
       + res.skipped.map(function(s) { return '<li>' + esc(s.receiptNo) + ' — ' + esc(s.reason) + '</li>'; }).join('')
@@ -311,6 +382,7 @@ function onCsv(res) {
   }
   html += '</div>';
   box.innerHTML = html;
+  document.getElementById('btnGoPrint').addEventListener('click', function() { showTab('p2'); });
 
   res.files.forEach(function(f, i) {
     var a = document.getElementById('dl' + i);
@@ -328,7 +400,10 @@ function b64ToBlob(b64) {
   return new Blob([arr], { type: 'text/csv' });
 }
 
-// ---- ② 伝票番号の取り込み ----
+// ---- ② ラベルを印刷する ----
+document.getElementById('btnGoImport').addEventListener('click', function() { showTab('p3'); });
+
+// ---- ③ 伝票番号の取り込み ----
 document.getElementById('file').addEventListener('change', function() {
   document.getElementById('btnImport').disabled = !this.files.length;
 });
