@@ -537,9 +537,11 @@ function staff_saveMeasurement(payload) {
     written++;
   });
 
-  // 採寸日・採寸者
-  sh.getRange(rowNum, STAFF_COL.採寸日).setValue(new Date());
+  // 採寸日・採寸者（採寸日は日付のみ＝シート TZ 00:00。実時刻は作業時刻ログへ）
+  var __md = staff_parseFieldDate_(new Date());
+  sh.getRange(rowNum, STAFF_COL.採寸日).setValue(__md);
   sh.getRange(rowNum, STAFF_COL.採寸者).setValue(staff_resolveWorkerName_(email));
+  try { staff_appendWorkTimeLog_(kanri, [{ field: '採寸日', date: __md }], email, '採寸保存'); } catch (e) {}
 
   // ステータスを IFS 式で再計算（採寸日が入る → 撮影待ち / 出品待ち 等）
   try { staff_recomputeStatus_(sh, rowNum); } catch(e) {}
@@ -567,8 +569,13 @@ function staff_saveSale(payload) {
   // 販売日（yyyy-mm-dd文字列 or 空）
   if (sale.date !== undefined) {
     if (sale.date) {
-      var d = new Date(sale.date);
-      sh.getRange(rowNum, STAFF_COL.販売日).setValue(isNaN(d.getTime()) ? sale.date : d);
+      // 日付のみ（シート TZ 00:00）で保存する。new Date('2026-07-01') は UTC 真夜中なので、
+      // そのまま入れるとシート TZ 次第で前日に表示されてしまう。
+      var d = staff_parseFieldDate_(sale.date);
+      sh.getRange(rowNum, STAFF_COL.販売日).setValue(d === null ? sale.date : d);
+      if (d !== null && staff_isNowLikeDate_(sale.date)) {
+        try { staff_appendWorkTimeLog_(kanri, [{ field: '販売日', date: d }], email, '販売保存'); } catch (e) {}
+      }
     } else {
       sh.getRange(rowNum, STAFF_COL.販売日).setValue('');
     }
@@ -1344,8 +1351,10 @@ function staff_apiSaveMeasurement(payload, email) {
     sh.getRange(rowNum, STAFF_COL[f]).setValue(n === '' ? '' : n);
     written++;
   });
-  sh.getRange(rowNum, STAFF_COL.採寸日).setValue(new Date());
+  var __md2 = staff_parseFieldDate_(new Date());   // 日付のみ（シート TZ 00:00）
+  sh.getRange(rowNum, STAFF_COL.採寸日).setValue(__md2);
   sh.getRange(rowNum, STAFF_COL.採寸者).setValue(staff_resolveWorkerName_(email));
+  try { staff_appendWorkTimeLog_(kanri, [{ field: '採寸日', date: __md2 }], email, '採寸保存(API)'); } catch (e) {}
 
   staff_invalidateListingCache_(kanri);
   return { ok: true, message: '採寸を保存しました（' + written + '項目）', kanri: kanri, row: rowNum };
@@ -1369,8 +1378,13 @@ function staff_apiSaveSale(payload, email) {
 
   if (sale.date !== undefined) {
     if (sale.date) {
-      var d = new Date(sale.date);
-      sh.getRange(rowNum, STAFF_COL.販売日).setValue(isNaN(d.getTime()) ? sale.date : d);
+      // 日付のみ（シート TZ 00:00）で保存する。new Date('2026-07-01') は UTC 真夜中なので、
+      // そのまま入れるとシート TZ 次第で前日に表示されてしまう。
+      var d = staff_parseFieldDate_(sale.date);
+      sh.getRange(rowNum, STAFF_COL.販売日).setValue(d === null ? sale.date : d);
+      if (d !== null && staff_isNowLikeDate_(sale.date)) {
+        try { staff_appendWorkTimeLog_(kanri, [{ field: '販売日', date: d }], email, '販売保存'); } catch (e) {}
+      }
     } else {
       sh.getRange(rowNum, STAFF_COL.販売日).setValue('');
     }
@@ -1424,30 +1438,68 @@ var DETAILS_DATE_ = {
   '返品日付': 1, '発送日付': 1, '完了日': 1, 'キャンセル日': 1, '廃棄日': 1
 };
 
-// 日付フィールドのパース。
-//   - フロントは <input type="date"> から `YYYY-MM-DD` を送る → `new Date(s)` だと UTC 真夜中扱いで JST 09:00 等のずれが発生
-//   - 「今日 (JST)」が来たら実際の保存時刻 `new Date()` を使う → 作業履歴の時刻が分まで残る
-//   - 過去日は JST 真夜中で確定 → fmtCell で date-only と判定される
-//   - 時刻付き ISO 文字列は素通し
+// スプレッドシートの表示タイムゾーン（実行中キャッシュ）。
+// 2026-07-28 に America/Los_Angeles → 'Asia/Tokyo' へ変更された（script TZ と一致）。
+// Sheets のセルは TZ を持たない「壁時計」なので、TZ を変えると表示は同じまま
+// GAS が読む instant だけがずれる。決め打ちせず必ずこの値を通すこと。
+function staff_sheetTz_() {
+  if (!staff_sheetTz_._tz) {
+    var tz = '';
+    try { tz = staff_getActiveSpreadsheet_().getSpreadsheetTimeZone(); } catch (e) {}
+    staff_sheetTz_._tz = tz || Session.getScriptTimeZone() || 'Asia/Tokyo';
+  }
+  return staff_sheetTz_._tz;
+}
+
+// JST の暦日 'yyyy-MM-dd' → シート TZ の 00:00:00 の Date（＝「日付のみ」セル）
+// staff_pairIntegritySweep_ と同じ方式。シート TZ が JST 以外のときに JST 真夜中で作ると
+// シート表示が前日になるため、必ず sheetTz で組み立てる。
+function staff_dateOnlyCell_(jstYmd) {
+  return Utilities.parseDate(jstYmd, staff_sheetTz_(), 'yyyy-MM-dd');
+}
+
+// 日付フィールドのパース。**必ず「日付のみ」（シート TZ の 00:00）で返す。**
+//   - 時刻成分が残っていると、シート側の集計（フィルタ / ピボット / <=DATE() 比較）と
+//     報酬集計（JST の getMonth）が月境界で 1 件ずれる余地が残る。実際に
+//     なかのや（児島）2026-07 でシート 84 / アプリ 85 が併存した（シート TZ が
+//     LA だった時代に GAS が書いた行が壁時計で 16 時間ぶん前日へ寄っていた）。
+//   - シート TZ 00:00 で持てば、シート表示 / fmtCell の date-only 判定 / 報酬集計（JST の
+//     getMonth）の三者が同じ日付で一致する。
+//   - 実際の作業時刻は捨てずに「作業時刻ログ」シートへ追記する（staff_appendWorkTimeLog_）。
 function staff_parseFieldDate_(raw) {
   if (raw === '' || raw === null || raw === undefined) return null;
-  if (raw instanceof Date) return isNaN(raw.getTime()) ? null : raw;
+  var jstYmd = '';
+  if (raw instanceof Date) {
+    if (isNaN(raw.getTime())) return null;
+    jstYmd = Utilities.formatDate(raw, 'Asia/Tokyo', 'yyyy-MM-dd');
+  } else {
+    var s = String(raw).trim();
+    if (!s) return null;
+    var m = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+    if (m) {
+      jstYmd = m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
+    } else {
+      var d = new Date(s);           // 時刻付き ISO 等
+      if (isNaN(d.getTime())) return null;
+      jstYmd = Utilities.formatDate(d, 'Asia/Tokyo', 'yyyy-MM-dd');
+    }
+  }
+  return staff_dateOnlyCell_(jstYmd);
+}
+
+// 「いま作業した」を意味する入力か（＝作業時刻ログに実時刻を残す対象）。
+//   - 時刻成分を含む値、または本日(JST)の日付 → 実作業とみなす
+//   - 過去日の手入力（遡り登録）はログ対象外
+function staff_isNowLikeDate_(raw) {
+  if (raw === '' || raw === null || raw === undefined) return false;
+  if (raw instanceof Date) return !isNaN(raw.getTime());
   var s = String(raw).trim();
-  if (!s) return null;
-  // 時刻成分付き (T HH:mm or 空白 HH:mm) は通常パース
-  if (/[T\s]\d{1,2}:\d{2}/.test(s)) {
-    var dx = new Date(s);
-    return isNaN(dx.getTime()) ? null : dx;
-  }
+  if (!s) return false;
+  if (/[T\s]\d{1,2}:\d{2}/.test(s)) return true;
   var m = s.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
-  if (m) {
-    var inputJst = m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
-    var todayJst = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
-    if (inputJst === todayJst) return new Date();         // 今日 → 実時刻
-    return new Date(inputJst + 'T00:00:00+09:00');        // 過去日 → JST 真夜中
-  }
-  var d = new Date(s);
-  return isNaN(d.getTime()) ? null : d;
+  if (!m) return false;
+  var inputJst = m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
+  return inputJst === Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyy-MM-dd');
 }
 
 function staff_apiSaveDetails(payload, email) {
@@ -1506,6 +1558,7 @@ function staff_apiSaveDetails(payload, email) {
   }
 
   // 全変更を rowVals に in-memory で適用（書き込みは最後に setValues 1 発）
+  var timeLogFields = [];   // 日付セルは日付のみで保存するので、実作業時刻はログへ退避する
   for (var i = 0; i < keys.length; i++) {
     var key = keys[i];
     if (DETAILS_READONLY_[key]) { skipped.push(key); continue; }
@@ -1521,6 +1574,7 @@ function staff_apiSaveDetails(payload, email) {
     } else if (DETAILS_DATE_[key]) {
       var d = staff_parseFieldDate_(raw);
       v = (d === null) ? String(raw) : d;
+      if (d !== null && staff_isNowLikeDate_(raw)) timeLogFields.push({ field: key, date: d });
     } else if (DETAILS_NUMERIC_[key]) {
       var n = Number(raw);
       if (isNaN(n)) { skipped.push(key); continue; }
@@ -1557,8 +1611,9 @@ function staff_apiSaveDetails(payload, email) {
     var mdVal = rowVals[mdIdx];
     if (mbVal !== '' && mbVal !== null && mbVal !== undefined &&
         (mdVal === '' || mdVal === null || mdVal === undefined)) {
-      rowVals[mdIdx] = new Date();
+      rowVals[mdIdx] = staff_parseFieldDate_(new Date());   // 日付のみ（シート TZ 00:00）
       dirtyIdx[mdIdx] = true;
+      timeLogFields.push({ field: '採寸日', date: rowVals[mdIdx] });
     }
   }
   // 逆パターン: 採寸日が入っていて採寸者が空なら保存をブロックする
@@ -1652,6 +1707,13 @@ function staff_apiSaveDetails(payload, email) {
   }
   __lap('flush');
 
+  // 日付セルは「日付のみ」で保存するため、実際の作業時刻は作業時刻ログへ退避する。
+  // ログ失敗で保存自体を落とさないよう try/catch で握りつぶす。
+  if (timeLogFields.length) {
+    try { staff_appendWorkTimeLog_(kanri, timeLogFields, email, '詳細保存'); } catch (e) {}
+  }
+  __lap('timelog');
+
   // record は in-memory rowVals から構築（旧実装は再 getValues + getDisplayValues で 2 op）
   // 日付列は Utilities.formatDate で 'yyyy-MM-dd' に整形（getDisplayValues 相当）
   var record = {};
@@ -1665,9 +1727,15 @@ function staff_apiSaveDetails(payload, email) {
       if (IMAGE_FIELDS_ALLOWED_[hk]) continue;
       var rawV = rowVals[ck];
       if (rawV instanceof Date) {
-        // 時刻が 00:00:00 なら日付のみ、そうでなければ datetime
-        var hasTime = rawV.getHours() || rawV.getMinutes() || rawV.getSeconds();
-        record[hk] = Utilities.formatDate(rawV, tz, hasTime ? 'yyyy-MM-dd HH:mm:ss' : 'yyyy-MM-dd');
+        // 日付列はシート TZ の 00:00 で保存している（時刻を持たない）ので、必ずシート TZ で
+        // 整形する。script TZ（JST）で見ると 16:00 に見えて日付が 1 日進むため。
+        if (DETAILS_DATE_[hk]) {
+          record[hk] = Utilities.formatDate(rawV, staff_sheetTz_(), 'yyyy-MM-dd');
+        } else {
+          // 時刻が 00:00:00 なら日付のみ、そうでなければ datetime
+          var hasTime = rawV.getHours() || rawV.getMinutes() || rawV.getSeconds();
+          record[hk] = Utilities.formatDate(rawV, tz, hasTime ? 'yyyy-MM-dd HH:mm:ss' : 'yyyy-MM-dd');
+        }
       } else if (rawV === null || rawV === undefined) {
         record[hk] = '';
       } else {
@@ -2184,7 +2252,7 @@ function staff_apiCreateProduct_impl_(payload, email) {
     var mdV = rowArr[col['採寸日'] - 1];
     if (mbV !== '' && mbV !== null && mbV !== undefined &&
         (mdV === '' || mdV === null || mdV === undefined)) {
-      rowArr[col['採寸日'] - 1] = new Date();
+      rowArr[col['採寸日'] - 1] = staff_parseFieldDate_(new Date());   // 日付のみ（シート TZ 00:00）
     }
     // 逆パターン: 採寸日が入っていて採寸者が空なら新規登録をブロックする
     var mbV2 = rowArr[col['採寸者'] - 1];

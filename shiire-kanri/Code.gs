@@ -69,6 +69,10 @@ function doPost(e) {
       case 'applyRecoveredValues':    result = staff_applyRecoveredValues(body.payload || {}); break;
       // 作業者列のメール混入を名前へ修復（apply省略=DRYRUN / apply:true=書き換え）
       case 'repairWorkerEmails':      result = repairWorkerEmailNames_((body.payload || {}).apply === true); break;
+      // 日付列の「日付のみ」化（apply省略=DRYRUN / apply:true=書き換え）※日付正規化.gs
+      case 'normalizeDateColumns':    result = dateNorm_run_((body.payload || {}).apply !== true); break;
+      case 'dateNormProbe':           result = dateNorm_probe_(body.payload || {}); break;
+      case 'dateNormApplyFix':        result = dateNorm_applyFix_(body.payload || {}); break;
       // 請求書（外注向けAPI、emailから本人解決して権限分離）
       case 'invoiceCurrentUser':         result = staff_invoiceCurrentUser(body.payload || {}, email); break;
       case 'listInvoices':               result = staff_listInvoices(body.payload || {}, email); break;
