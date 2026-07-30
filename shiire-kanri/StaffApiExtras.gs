@@ -355,7 +355,40 @@ function staff_apiDeletePurchase(payload, email) {
     }
   });
   if (!deleted) return { ok: false, error: '対象が見つかりません: ' + shiireId };
-  return { ok: true, shiireId: shiireId };
+
+  // カスケード削除: 仕入れ数報告に残る同ID行も消す
+  //   （残すと外注アプリの「仕入れ数報告」に永久に未処理カードとして出続ける）
+  //   失敗しても仕入れ管理の削除自体は成功扱いにする
+  var reportDeleted = 0;
+  try {
+    reportDeleted = staff_deleteShiireHoukokuRowsById_(ss, shiireId);
+  } catch (err) {
+    console.error('仕入れ数報告のカスケード削除に失敗: ID=' + shiireId + ' / ' + (err && err.message || err));
+  }
+  return { ok: true, shiireId: shiireId, reportRowsDeleted: reportDeleted };
+}
+
+// 仕入れ数報告シートから指定IDの行を削除する（仕入れ管理の削除に追随させる用）
+// 行番号がズレないよう下から削除する
+function staff_deleteShiireHoukokuRowsById_(ss, shiireId) {
+  var rptSh = ss.getSheetByName('仕入れ数報告');
+  if (!rptSh) return 0;
+  var last = rptSh.getLastRow();
+  if (last < 2) return 0;
+
+  var targets = [];
+  withLock_(20000, function(){
+    var rows = rptSh.getRange(2, 1, rptSh.getLastRow() - 1, 8).getValues();
+    for (var i = 0; i < rows.length; i++) {
+      if (String(rows[i][0] || '').trim() === shiireId) targets.push({ rowIndex: i + 2, values: rows[i] });
+    }
+    for (var t = targets.length - 1; t >= 0; t--) {
+      rptSh.deleteRow(targets[t].rowIndex);
+      console.log('仕入れ数報告 カスケード削除: ID=' + shiireId + ' 行=' + targets[t].rowIndex +
+                  ' 数量=' + targets[t].values[5] + ' 内容=' + targets[t].values[7]);
+    }
+  });
+  return targets.length;
 }
 
 // ========== AI 画像判定一覧 ==========

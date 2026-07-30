@@ -54,6 +54,7 @@ function doPost(e) {
       case 'appendKeihi':                  result = staff_apiAppendKeihi(body.payload || {}, email); break;
       case 'uploadKeihiImage':             result = staff_apiUploadKeihiImage(body.payload || {}, email); break;
       case 'updateShiireHoukokuQuantity':  result = staff_apiUpdateShiireHoukokuQuantity(body.payload || {}, email); break;
+      case 'runShiireSync':                result = staff_runShiireSync(); break;  // 仕入れ管理⇔仕入れ数報告 同期を手動実行（孤児掃除を含む）
       // Revision recovery (調査用 / インシデント対応)
       case 'listRevisions':     result = staff_listRevisions(body.payload || {}); break;
       case 'listRevisionsV2':   result = staff_listRevisionsV2(body.payload || {}); break;

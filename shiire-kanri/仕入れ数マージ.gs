@@ -47,6 +47,13 @@ function handleChange_ShiireSync(e) {
   });
 }
 
+// 同期を手動で1回走らせる（doPost の runShiireSync アクション / GASエディタから実行）
+// 孤児掃除（Phase1.6）もこの経路で走る
+function staff_runShiireSync() {
+  handleChange_ShiireSync({});
+  return { ok: true, ran: ['syncKanriToReport_', 'mergeReportToKanri_', 'recalcUnitCost_'] };
+}
+
 // ═══════════════════════════════════════════
 //  原価再計算（金額・送料・商品点数の変更時）
 //  H列 = Math.round((D列 + E列) / F列)
@@ -113,9 +120,11 @@ function syncKanriToReport_() {
 
   // 全行を収集（既存行の 内容/区分/報告者/仕入れ日 編集を後段で反映するため、SYNCED でフィルタしない）
   var pending = [];
+  var kanriIdSet = {};  // 孤児掃除用: 仕入れ管理に現存するIDの集合
   for (var i = 0; i < kanriData.length; i++) {
     var id = normalizeText_(kanriData[i][knr.ID - 1]);
     if (!id) continue;
+    kanriIdSet[id] = true;
 
     var purchaseDate = kanriData[i][knr.PURCHASE_DATE - 1];
     var category = String(kanriData[i][knr.CATEGORY - 1] || '').trim();
@@ -140,12 +149,17 @@ function syncKanriToReport_() {
   // 内容を後から仕入れ管理に追記するケースに対応するため、差分があれば既存行も上書きする
   // 数量・処理済みは逆方向同期（仕入れ管理 → 仕入れ数報告）用
   var existingMap = {};  // id -> { rowIndex(1始まり), content, category, reporter, purchaseDate, quantity, done }
+  var orphanRows = [];   // 孤児掃除候補: 仕入れ管理に存在しない かつ 数量未入力 の報告行
   var reportLastRow = reportSheet.getLastRow();
   if (reportLastRow >= 2) {
     var reportRows = reportSheet.getRange(2, 1, reportLastRow - 1, 8).getValues();
     for (var r = 0; r < reportRows.length; r++) {
       var rid = normalizeText_(reportRows[r][rpt.ID - 1]);
       if (!rid) continue;
+      // 仕入れ管理から削除されたIDで、まだ数量が入っていない行 → 外注アプリに永久に残る孤児
+      if (!kanriIdSet[rid] && !(Number(reportRows[r][rpt.QUANTITY - 1]) > 0)) {
+        orphanRows.push({ rowIndex: r + 2, id: rid, content: String(reportRows[r][rpt.CONTENT - 1] || '') });
+      }
       existingMap[rid] = {
         rowIndex: r + 2,
         content: String(reportRows[r][rpt.CONTENT - 1] || ''),
@@ -235,7 +249,43 @@ function syncKanriToReport_() {
     kanriSheet.getRange(syncedKanriRows[s] + 2, knr.SYNCED).setValue('TRUE');
   }
 
+  // Phase1.6: 孤児掃除（仕入れ管理から削除されたIDの未処理行を仕入れ数報告からも消す）
+  sweepOrphanReportRows_(reportSheet, orphanRows);
+
   console.log('仕入れ数マージ Phase1完了: ' + appendRows.length + '件作成 / ' + syncedKanriRows.length + '件同期済み');
+}
+
+/**
+ * 仕入れ数報告の孤児行を削除する
+ * 孤児 = 仕入れ管理にIDが存在しない かつ 数量が未入力（未処理）の行
+ * - 数量が入っている行は集計・監査の証跡なので絶対に削除しない
+ * - 行番号がズレないよう下から削除する
+ * - 想定外の大量削除（列ズレ・シート破損など）を防ぐため上限件数でガードし、超過時はメール通知のみ
+ * @param {Sheet} reportSheet 仕入れ数報告シート
+ * @param {Array} orphanRows [{ rowIndex, id, content }] （呼び出し側で収集済み）
+ */
+function sweepOrphanReportRows_(reportSheet, orphanRows) {
+  if (!orphanRows || orphanRows.length === 0) return 0;
+
+  var MAX_SWEEP = 20;
+  if (orphanRows.length > MAX_SWEEP) {
+    var msg = '仕入れ数報告の孤児行が異常に多いため自動削除を中止しました（' + orphanRows.length + '件 / 上限' + MAX_SWEEP + '件）。\n' +
+              '列ズレやシート破損の可能性があります。手動で確認してください。\n' +
+              '対象ID(先頭20件): ' + orphanRows.slice(0, 20).map(function(o) { return o.id; }).join(', ');
+    console.error(msg);
+    try { notifyAssignConflict_(msg); } catch (err) { console.error('孤児掃除の通知に失敗: ' + err); }
+    return 0;
+  }
+
+  // 下から削除（上から消すと以降の行番号がズレる）
+  var sorted = orphanRows.slice().sort(function(a, b) { return b.rowIndex - a.rowIndex; });
+  for (var i = 0; i < sorted.length; i++) {
+    reportSheet.deleteRow(sorted[i].rowIndex);
+    console.log('仕入れ数マージ Phase1.6(孤児掃除): 仕入れ数報告から削除 - ID=' + sorted[i].id +
+                ' 内容=' + sorted[i].content + '（仕入れ管理に該当行なし / 数量未入力）');
+  }
+  console.log('仕入れ数マージ Phase1.6(孤児掃除): ' + sorted.length + '件削除');
+  return sorted.length;
 }
 
 // ═══════════════════════════════════════════
