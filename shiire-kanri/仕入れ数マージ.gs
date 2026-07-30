@@ -20,10 +20,11 @@
  *   E列: 送料, F列: 商品点数, G列: 納品場所, ...
  *   I列: 内容, K列: 登録日時, L列: 割り当て管理番号, M列: 処理列(TRUE/FALSE)
  *
- * 割り当て管理番号の生成ルール:
+ * 割り当て管理番号の生成ルール（append-only・2026-07-30〜）:
  *   z{区分コード}{開始番号}~{終了番号}
- *   同一区分コード内で、仕入れ日→登録日時の順にソートし、商品点数を累計して連番を振る
- *   例: 区分A / 点数5→3→10 → zA1~5, zA6~8, zA9~18
+ *   L列は一度確定したら二度と動かさない。空欄かつ商品点数>0 の行だけを
+ *   区分の末尾（既存の予約レンジと実物ラベルの最大値の次）から採番する。
+ *   例: 区分A の末尾が zA151 のとき、点数10の新規箱 → zA152~161
  */
 
 var SHIIRE_MERGE_CONFIG = {
@@ -44,6 +45,7 @@ function handleChange_ShiireSync(e) {
     syncKanriToReport_();
     mergeReportToKanri_();
     recalcUnitCost_();
+    sweepUnassignedAssignNumbers_();
   });
 }
 
@@ -51,7 +53,7 @@ function handleChange_ShiireSync(e) {
 // 孤児掃除（Phase1.6）もこの経路で走る
 function staff_runShiireSync() {
   handleChange_ShiireSync({});
-  return { ok: true, ran: ['syncKanriToReport_', 'mergeReportToKanri_', 'recalcUnitCost_'] };
+  return { ok: true, ran: ['syncKanriToReport_', 'mergeReportToKanri_', 'recalcUnitCost_', 'sweepUnassignedAssignNumbers_'] };
 }
 
 // ═══════════════════════════════════════════
@@ -393,12 +395,24 @@ function mergeReportToKanri_() {
 }
 
 // ═══════════════════════════════════════════
-//  割り当て管理番号の再計算
+//  割り当て管理番号の採番（append-only）
 //  z{区分コード}{開始番号}~{終了番号}
-//  同一区分コード内で仕入れ日→登録日時順に累計
+//
+//  【不変条件】L列は一度確定したら二度と動かさない
+//    - L列が埋まっている行 = 凍結。値には一切触れず、整合性の検査だけ行う
+//    - L列が空 かつ 商品点数>0 の行 = 未採番。区分の末尾から新規に採番する
+//    - 同じ区分に未採番が複数あるときは 仕入れ日→登録日時 の順に連番
+//
+//  かつては毎回「区分内を1から全再計算」していたが、後から商品点数が入った箱が
+//  実物ラベル確定済みの箱の前に割り込み、採番が丸ごと中断する事故が起きたため
+//  append-only に変更した（2026-07-30）。新しい番号は必ず既存の最大値より後ろに
+//  出るので、確定済みラベルを侵食することが原理的に起こらない。
 // ═══════════════════════════════════════════
 
 function recalcAssignNumbers_(kanriSheet, knr, numRows) {
+  if (!numRows || numRows < 1) return;
+  var ss = kanriSheet.getParent();
+
   // 必要な列を一括読み取り
   var ids = kanriSheet.getRange(2, knr.ID, numRows, 1).getValues();
   var categories = kanriSheet.getRange(2, knr.CATEGORY, numRows, 1).getValues();
@@ -407,93 +421,123 @@ function recalcAssignNumbers_(kanriSheet, knr, numRows) {
   var regDates = kanriSheet.getRange(2, knr.REG_DATE, numRows, 1).getValues();
   var assignNums = kanriSheet.getRange(2, knr.ASSIGN_NUM, numRows, 1).getValues();
 
-  // 区分コードごとに行を収集
-  var groups = {};
+  // 実物ラベル(商品管理)は「L列が空なのにラベルが存在する」異常の検出にだけ使う。
+  // 読めなくても採番は止めない。
+  var physMap = {};
+  try {
+    physMap = buildPhysicalLabelRangeMap_();
+  } catch (physErr) {
+    console.error('実物ラベルの読み取りに失敗（採番は続行）: ' + (physErr && physErr.message || physErr));
+  }
+
+  var pendingByCat = {};  // 区分コード → 未採番行の配列
+  var anomalies = [];     // 凍結行の不整合（メール通知用）
+
   for (var i = 0; i < numRows; i++) {
     var cat = normalizeText_(categories[i][0]);
+    if (!cat) continue;
+    var sid = normalizeText_(ids[i][0]);
     var count = Number(counts[i][0]) || 0;
-    if (!cat || count <= 0) continue;
+    var cur = String(assignNums[i][0] || '').trim();
+    var rowNo = i + 2;
 
-    if (!groups[cat]) groups[cat] = [];
-    groups[cat].push({
+    // --- 凍結行: 絶対に書き換えない。整合性だけ検査する ---
+    if (cur) {
+      var rng = parseAssignRange_(cur);
+      if (!rng) {
+        anomalies.push('・' + rowNo + '行目 ' + sid + '（区分' + cat + '）: 割り当て管理番号「' + cur + '」の書式が不正です');
+      } else if (rng.cat !== cat) {
+        anomalies.push('・' + rowNo + '行目 ' + sid + '（区分' + cat + '）: 割り当て管理番号「' + cur + '」の区分が行の区分コードと一致しません');
+      } else if (count > 0 && (rng.end - rng.start + 1) !== count) {
+        anomalies.push('・' + rowNo + '行目 ' + sid + '（区分' + cat + '）: 商品点数 ' + count + '点 に対して予約レンジ「' + cur + '」は ' +
+                       (rng.end - rng.start + 1) + '番分 です');
+      }
+      continue;
+    }
+
+    // --- 未採番行 ---
+    if (count <= 0) continue;  // 商品点数が未確定 → 仕入れ数報告が入るまで待つ
+    if (sid && physMap[sid]) {
+      // L列が空なのに実物ラベルがある = 末尾に採番すると既存ラベルが宙に浮く。人が判断すべき状態。
+      var ph = physMap[sid];
+      anomalies.push('・' + rowNo + '行目 ' + sid + '（区分' + cat + '）: 割り当て管理番号が空なのに実物ラベル z' + ph.cat + ph.min +
+                     '〜z' + ph.cat + ph.max + ' が存在するため、自動採番を見送りました');
+      continue;
+    }
+    if (!pendingByCat[cat]) pendingByCat[cat] = [];
+    pendingByCat[cat].push({
       idx: i,
-      sid: normalizeText_(ids[i][0]),
+      sid: sid,
       purchaseDate: toSortableDate_(dates[i][0]),
       regDate: toSortableDate_(regDates[i][0]),
       count: count
     });
   }
 
-  // 区分コードごとにソートして採番案を算出（この時点ではまだ書き込まない）
-  var proposals = [];  // { idx, sid, cat, newVal }
-  for (var cat in groups) {
-    var rows = groups[cat];
-    // 仕入れ日昇順 → 登録日時昇順
+  // --- 未採番行に区分の末尾から採番する ---
+  var assigned = [];
+  for (var cat2 in pendingByCat) {
+    var rows = pendingByCat[cat2];
+    // 仕入れ日昇順 → 登録日時昇順（未採番同士の並びだけを決める。既存行の番号には影響しない）
     rows.sort(function(a, b) {
       if (a.purchaseDate < b.purchaseDate) return -1;
       if (a.purchaseDate > b.purchaseDate) return 1;
       if (a.regDate < b.regDate) return -1;
       if (a.regDate > b.regDate) return 1;
-      return 0;
+      return a.idx - b.idx;
     });
 
-    var cumulative = 0;
+    // 開始番号はSPAの新規登録と同じロジック（L列の予約レンジ末尾 と 実物ラベル の最大値 +1）
+    var next = staff_nextKanriNumber_(ss, 'z' + cat2);
     for (var r = 0; r < rows.length; r++) {
-      var start = cumulative + 1;
-      var end = cumulative + rows[r].count;
-      proposals.push({ idx: rows[r].idx, sid: rows[r].sid, cat: cat, newVal: 'z' + cat + start + '~' + end });
-      cumulative = end;
+      var start = next;
+      var end = next + rows[r].count - 1;
+      var newVal = 'z' + cat2 + start + '~' + end;
+      kanriSheet.getRange(rows[r].idx + 2, knr.ASSIGN_NUM).setValue(newVal);
+      assigned.push(rows[r].sid + '（区分' + cat2 + '/' + rows[r].count + '点）→ ' + newVal);
+      next = end + 1;
     }
   }
 
-  // 【再発防止ガード】実物ラベル(商品管理)を侵食する採番を阻止する。
-  //   既に商品管理へ実物ラベルが振られている仕入れについて、
-  //   「今の予約レンジ(L列)は実物ラベルを内包しているのに、今回の採番案では内包しなくなる」
-  //   ケース(=過去日割り込み等で確定済みの箱がずれる回帰)を検出したら、採番を中断して管理者へ通知する。
-  //   ※既に内包していない箱(別要因の恒常的なズレ)は現状維持のため中断しない＝正常運用を止めない。
-  try {
-    var physMap = buildPhysicalLabelRangeMap_();
-    var regressions = [];
-    for (var p = 0; p < proposals.length; p++) {
-      var pr = proposals[p];
-      var phys = pr.sid ? physMap[pr.sid] : null;
-      if (!phys || phys.cat !== pr.cat) continue;
-      var oldRange = parseAssignRange_(assignNums[pr.idx][0]);
-      var newRange = parseAssignRange_(pr.newVal);
-      var oldEncloses = oldRange && oldRange.cat === phys.cat && oldRange.start <= phys.min && oldRange.end >= phys.max;
-      var newEncloses = newRange && newRange.cat === phys.cat && newRange.start <= phys.min && newRange.end >= phys.max;
-      if (oldEncloses && !newEncloses) {
-        regressions.push('・仕入れID ' + pr.sid + '（区分' + pr.cat + '）: 実物ラベル z' + phys.cat + phys.min + '〜z' + phys.cat + phys.max +
-                         ' / 予約 ' + String(assignNums[pr.idx][0] || '') + ' → ' + pr.newVal);
-      }
-    }
-    if (regressions.length > 0) {
-      var wmsg = '【割り当て管理番号 再計算を中断】\n' +
-        '確定済み(商品管理に実物ラベルあり)の箱の予約レンジがずれる採番を検出したため、L列を書き換えずに中断しました。\n' +
-        '主因は「仕入れ日を過去日にした仕入れの割り込み」です。該当仕入れの仕入れ日を実際の登録日に直してから再度お試しください。\n\n' +
-        regressions.join('\n');
-      console.error(wmsg);
-      notifyAssignConflict_(wmsg);
-      return;  // ★ 書き込まない（確定済みラベルを守る）
-    }
-  } catch (guardErr) {
-    // ガードの失敗(商品管理読み取り不能等)で本来の採番を止めないよう、ログのみ残して継続
-    console.error('割り当て番号ガードの実行に失敗（採番は続行）: ' + (guardErr && guardErr.message || guardErr));
+  if (assigned.length > 0) {
+    console.log('割り当て管理番号を採番しました: ' + assigned.join(' / '));
   }
-
-  // 競合なし → 差分のみ書き込み
-  var dirty = false;
-  for (var q = 0; q < proposals.length; q++) {
-    var pq = proposals[q];
-    if (String(assignNums[pq.idx][0] || '') !== pq.newVal) {
-      assignNums[pq.idx][0] = pq.newVal;
-      dirty = true;
-    }
+  if (anomalies.length > 0) {
+    notifyAssignAnomaly_(anomalies);
   }
+}
 
-  if (dirty) {
-    kanriSheet.getRange(2, knr.ASSIGN_NUM, numRows, 1).setValues(assignNums);
-    console.log('割り当て管理番号を再計算しました');
+// ═══════════════════════════════════════════
+//  未採番スイープ（自己修復）
+//  商品点数が入っているのに割り当て管理番号が空の行が残っていないか点検し、
+//  あれば採番する。採番は本来 mergeReportToKanri_ から呼ばれるが、点数がシート
+//  直編集や別経路で入った場合に取りこぼすため、同期のたびに拾い直す。
+// ═══════════════════════════════════════════
+
+function sweepUnassignedAssignNumbers_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var kanriSheet = ss.getSheetByName(SHIIRE_MERGE_CONFIG.KANRI_SHEET_NAME);
+  if (!kanriSheet) return;
+
+  var knr = SHIIRE_MERGE_CONFIG.KNR;
+  var lastRow = kanriSheet.getLastRow();
+  if (lastRow < 2) return;
+  var numRows = lastRow - 1;
+
+  // C列(区分コード)〜L列(割り当て管理番号) を1回で読む
+  var lo = knr.CATEGORY, hi = knr.ASSIGN_NUM;
+  var data = kanriSheet.getRange(2, lo, numRows, hi - lo + 1).getValues();
+  var catOff = knr.CATEGORY - lo;
+  var cntOff = knr.ITEM_COUNT - lo;
+  var asgOff = knr.ASSIGN_NUM - lo;
+
+  for (var i = 0; i < numRows; i++) {
+    if (!normalizeText_(data[i][catOff])) continue;
+    if ((Number(data[i][cntOff]) || 0) <= 0) continue;
+    if (String(data[i][asgOff] || '').trim()) continue;
+    console.log('未採番スイープ: ' + (i + 2) + '行目に割り当て管理番号が無いため採番します');
+    recalcAssignNumbers_(kanriSheet, knr, numRows);
+    return;
   }
 }
 
@@ -539,12 +583,12 @@ function parseAssignRange_(v) {
 }
 
 // 採番ガードの競合を管理者へメール通知（設定シートの通知先を再利用）。失敗しても採番処理は止めない。
-function notifyAssignConflict_(message) {
+function notifyAssignConflict_(message, subjectOverride) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var recipients = (typeof getRecipients === 'function') ? getRecipients(ss) : [];
     if (!recipients || recipients.length === 0) return;
-    var subject = '【要確認】割り当て管理番号の再計算を中断しました';
+    var subject = subjectOverride || '【要確認】割り当て管理番号の再計算を中断しました';
     for (var i = 0; i < recipients.length; i++) {
       try { MailApp.sendEmail(recipients[i], subject, message); }
       catch (e) { console.error('採番ガード通知メール送信失敗 ' + recipients[i] + ': ' + (e && e.message || e)); }
@@ -552,6 +596,30 @@ function notifyAssignConflict_(message) {
   } catch (e) {
     console.error('採番ガード通知処理に失敗: ' + (e && e.message || e));
   }
+}
+
+// 凍結行(既に採番済み)の不整合を管理者へ通知する。
+// append-only なので採番自体は正常に完了している＝「止まった」わけではないことを本文で明示する。
+// 同じ内容を毎回送らないよう、ScriptProperties にハッシュを覚えて重複通知を抑止する。
+function notifyAssignAnomaly_(lines) {
+  var body = '【要確認】割り当て管理番号に不整合があります\n' +
+    '採番自体は正常に完了しています（既存の番号は書き換えていません）。\n' +
+    '下記の行はスプレッドシートの「管理メニュー → 🔢 仕入れ点数を修正」から修正してください。\n\n' +
+    lines.join('\n');
+  console.warn(body);
+
+  try {
+    var props = PropertiesService.getScriptProperties();
+    var bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.MD5, body, Utilities.Charset.UTF_8);
+    var digest = '';
+    for (var i = 0; i < bytes.length; i++) digest += ('0' + (bytes[i] & 0xFF).toString(16)).slice(-2);
+    if (props.getProperty('ASSIGN_ANOMALY_DIGEST') === digest) return;  // 同一内容の再通知は抑止
+    props.setProperty('ASSIGN_ANOMALY_DIGEST', digest);
+  } catch (e) {
+    console.error('採番不整合の通知抑止チェックに失敗（通知は続行）: ' + (e && e.message || e));
+  }
+
+  notifyAssignConflict_(body, '【要確認】割り当て管理番号に不整合があります');
 }
 
 // Date / 文字列 → ソート可能な文字列 "YYYY-MM-DD HH:MM:SS"

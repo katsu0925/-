@@ -2072,8 +2072,12 @@ function staff_apiCreatePurchase(payload, email) {
 //      同区分を連続で仕入れ登録しても番号レンジが重複しない。
 //   ② 商品管理シートの管理番号列 — 予約レンジを持たない実在商品（手入力等）への保険。
 // 従来は①を見ておらず、未投入の予約レンジと番号が重複していた。
+// ※前方一致ではなく「プレフィックス＋数字」の厳密一致で判定する。
+//   前方一致だと 'zA' が 'zAA100~200' を拾い、区分Aの番号が区分AAの番号まで飛んでしまうため。
 function staff_nextKanriNumber_(ss, prefix) {
-  var pl = prefix.length;
+  var esc = String(prefix).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  var reRange = new RegExp('^' + esc + '(\\d+)(?:~(\\d+))?$');  // "zB101~300" / "zB101"
+  var reSingle = new RegExp('^' + esc + '(\\d+)$');             // "zB101"
   var maxN = 0;
 
   // ① 仕入れ管理シートの割当管理番号(L列)= 予約済みレンジの末尾
@@ -2082,10 +2086,11 @@ function staff_nextKanriNumber_(ss, prefix) {
     var avals = ksh.getRange(2, 12, ksh.getLastRow() - 1, 1).getValues(); // L=12 割当管理番号
     for (var a = 0; a < avals.length; a++) {
       var av = String(avals[a][0] || '').trim();
-      if (!av || av.substring(0, pl) !== prefix) continue;
+      if (!av) continue;
+      var ma = reRange.exec(av);
+      if (!ma) continue;
       // "zB101~300" → 末尾 300 / "zB101"(レンジ無し) → 101
-      var tail = av.indexOf('~') >= 0 ? av.substring(av.indexOf('~') + 1) : av.substring(pl);
-      var endN = parseInt(tail, 10);
+      var endN = parseInt(ma[2] || ma[1], 10);
       if (!isNaN(endN) && endN > maxN) maxN = endN;
     }
   }
@@ -2097,8 +2102,10 @@ function staff_nextKanriNumber_(ss, prefix) {
     var pvals = psh.getRange(2, col, psh.getLastRow() - 1, 1).getValues();
     for (var r = 0; r < pvals.length; r++) {
       var k = String(pvals[r][0] || '').trim();
-      if (!k || k.substring(0, pl) !== prefix) continue;
-      var n = parseInt(k.substring(pl), 10);
+      if (!k) continue;
+      var mk = reSingle.exec(k);
+      if (!mk) continue;
+      var n = parseInt(mk[1], 10);
       if (!isNaN(n) && n > maxN) maxN = n;
     }
   }

@@ -16,9 +16,9 @@
  *   4) 元行の仕入れIDに紐づく登録済み商品の 仕入れ値・粗利・利益・利益率 を再同期
  *
  * 【減らす方向（過大報告：例 52→実際50）】
- *   - 対象行より後ろに同区分の別バッチがあると再採番で番号がズレるため自動修正を中止
- *   - 余る末尾番号にすでに商品が登録されている場合も中止
+ *   - 余る末尾番号にすでに商品が登録されている場合は中止
  *   - 安全なら 元行の点数・原価・管理番号(末尾を短縮)を更新し、登録済み商品を再同期
+ *   - 余った末尾番号は欠番になる（採番は append-only なので後続バッチはズレない）
  *
  * 起動: スプレッドシートの「管理メニュー → 🔢 仕入れ点数を修正」
  *       仕入れ管理シートで対象行のセルを選択してから実行する。
@@ -103,7 +103,8 @@ function showShiireQuantityFix() {
   } else {
     planMsg = '【点数を減らします】 ' + origCount + ' → ' + correctCount + '（' + diff + '点）\n\n'
       + '・元行の点数・原価・管理番号（末尾を短縮）を修正します\n'
-      + '・余る末尾番号に商品が登録済み、または後続に同区分の別バッチがある場合は中止します\n'
+      + '・余る末尾番号は欠番になります（他の箱の管理番号はズレません）\n'
+      + '・余る末尾番号にすでに商品が登録済みの場合は中止します\n'
       + '・元行に紐づく登録済み商品の 仕入れ値／利益 を再同期します\n\n'
       + '実行しますか？';
   }
@@ -146,20 +147,19 @@ function fixqty_doIncrease_(ss, sheet, activeRow, rowData, correctCount) {
   var supplierId = String(rowData[14 - 1] || '').trim(); // N列 仕入先名
   var diff = correctCount - origCount; // > 0
 
-  // --- 同区分の現在の累計点数（補助行の開始番号を決める）---
+  // --- 既存の仕入れID一覧（補助行IDの衝突回避用）---
   var lastRow = sheet.getLastRow();
   var allData = sheet.getRange(2, 1, lastRow - 1, Math.max(sheet.getLastColumn(), 14)).getValues();
-  var categoryTotal = 0;
   var existIds = {};
   for (var i = 0; i < allData.length; i++) {
     var rid = normalizeText_(allData[i][knr.ID - 1]);
     if (rid) existIds[rid] = true;
-    if (String(allData[i][knr.CATEGORY - 1] || '').trim() !== category) continue;
-    categoryTotal += Number(allData[i][knr.ITEM_COUNT - 1]) || 0;
   }
-  // recalcAssignNumbers_ は区分内を 1..累計 で連番にするため、補助行は累計+1 から始まる
-  var subStart = categoryTotal + 1;
-  var subEnd = categoryTotal + diff;
+  // --- 補助行の開始番号は「区分の最大末尾番号 +1」---
+  //   点数の累計から求めてはいけない。欠番（点数を減らした箱の余り番号）があると
+  //   累計 < 最大末尾 になり、既存レンジと衝突するため。
+  var subStart = staff_nextKanriNumber_(ss, 'z' + category);
+  var subEnd = subStart + diff - 1;
   var subAssign = 'z' + category + subStart + '~' + subEnd;
 
   // --- 金額・送料を点数按分（合計は不変）---
@@ -213,7 +213,21 @@ function fixqty_doIncrease_(ss, sheet, activeRow, rowData, correctCount) {
     + '■ 登録済み商品の再同期: ' + resync.count + ' 件（仕入れ値・利益）\n'
     + (resync.error ? '　⚠ ' + resync.error + '\n' : '')
     + '\n残り ' + diff + ' 点は、補助行（' + subAssign + '）に対してスタッフアプリから登録してください。';
-  return { ok: true, message: msg };
+  // 外注アプリ（Worker）が D1 を即時更新できるよう、構造化した結果も返す
+  return {
+    ok: true, message: msg, mode: 'increase',
+    shiireId: id, count: origCount, addedCount: diff, totalCount: correctCount,
+    amount: newOrigAmount, shipping: newOrigShipping, cost: newOrigCost,
+    sub: {
+      shiireId: subId,
+      date: Utilities.formatDate(today, 'Asia/Tokyo', 'yyyy-MM-dd'),
+      category: category, amount: subAmount, shipping: subShipping,
+      count: diff, place: place, cost: subCost,
+      content: '【点数修正 +' + diff + '】' + content + '（元ID:' + id + '）',
+      supplierId: supplierId, assignNum: subAssign, row: appendAt
+    },
+    resynced: resync.count
+  };
 }
 
 // ═══════════════════════════════════════════
@@ -229,32 +243,10 @@ function fixqty_doDecrease_(ss, sheet, activeRow, rowData, correctCount, startN,
   var shipping = Number(rowData[knr.SHIPPING - 1]) || 0;
   var content = String(rowData[knr.CONTENT - 1] || '').trim();
 
-  var lastRow = sheet.getLastRow();
-  var allData = sheet.getRange(2, 1, lastRow - 1, Math.max(sheet.getLastColumn(), 14)).getValues();
+  // 採番は append-only（既存の番号は誰も動かさない）ため、後続に同区分の別バッチが
+  // あっても番号はズレない。末尾を短縮して欠番になるだけなので中止しない。
 
-  // --- 安全チェック1: 対象行より後ろに同区分の別バッチがあるか ---
-  var targetSortDate = toSortableDate_(rowData[knr.PURCHASE_DATE - 1]);
-  var targetRegDate = toSortableDate_(rowData[knr.REG_DATE - 1]);
-  var targetSheetRow = activeRow;
-  for (var i = 0; i < allData.length; i++) {
-    var sheetRow = i + 2;
-    if (sheetRow === targetSheetRow) continue;
-    if (String(allData[i][knr.CATEGORY - 1] || '').trim() !== category) continue;
-    if ((Number(allData[i][knr.ITEM_COUNT - 1]) || 0) <= 0) continue;
-    var d = toSortableDate_(allData[i][knr.PURCHASE_DATE - 1]);
-    var rd = toSortableDate_(allData[i][knr.REG_DATE - 1]);
-    var after = (d > targetSortDate)
-      || (d === targetSortDate && rd > targetRegDate)
-      || (d === targetSortDate && rd === targetRegDate && sheetRow > targetSheetRow);
-    if (after) {
-      return { ok: false, error:
-        '対象行より後ろに同区分（' + category + '）の別バッチがあります（' + sheetRow + '行目）。\n'
-        + '点数を減らすと後続バッチの管理番号がズレ、登録済み商品との紐付けが壊れます。\n'
-        + '自動修正を中止しました。この区分は手動対応が必要です。' };
-    }
-  }
-
-  // --- 安全チェック2: 余る末尾番号にすでに商品が登録されていないか ---
+  // --- 安全チェック: 余る末尾番号にすでに商品が登録されていないか ---
   var phantomStart = startN + correctCount; // 不要になる先頭
   var phantomNums = [];
   for (var n = phantomStart; n <= endN; n++) phantomNums.push('z' + category + n);
@@ -290,7 +282,15 @@ function fixqty_doDecrease_(ss, sheet, activeRow, rowData, correctCount, startN,
     + (phantomNums.length ? phantomNums[0] + '〜' + phantomNums[phantomNums.length - 1] : 'なし') + '\n\n'
     + '■ 登録済み商品の再同期: ' + resync.count + ' 件（仕入れ値・利益）\n'
     + (resync.error ? '　⚠ ' + resync.error + '\n' : '');
-  return { ok: true, message: msg };
+  // 外注アプリ（Worker）が D1 を即時更新できるよう、構造化した結果も返す
+  return {
+    ok: true, message: msg, mode: 'decrease',
+    shiireId: id, count: correctCount, totalCount: correctCount,
+    assignNum: newAssign, cost: newCost, amount: amount, shipping: shipping,
+    freedFrom: (phantomNums.length ? phantomNums[0] : ''),
+    freedTo: (phantomNums.length ? phantomNums[phantomNums.length - 1] : ''),
+    resynced: resync.count
+  };
 }
 
 // ═══════════════════════════════════════════
@@ -357,4 +357,107 @@ function fixqty_resyncProductCost_(ss, shiireId, newCost) {
     updated++;
   }
   return { count: updated };
+}
+
+/** 指定の仕入れIDに紐づく登録済み商品の件数を数える */
+function fixqty_countRegisteredForShiire_(ss, shiireId) {
+  var sh = ss.getSheetByName(STAFF_SHEET_NAME);
+  if (!sh || sh.getLastRow() < 2) return 0;
+  var vals = sh.getRange(2, STAFF_COL.仕入れID, sh.getLastRow() - 1, 1).getValues();
+  var n = 0;
+  for (var r = 0; r < vals.length; r++) {
+    if (String(vals[r][0] || '').trim() === shiireId) n++;
+  }
+  return n;
+}
+
+// ═══════════════════════════════════════════
+//  外注アプリ用 API（doPost action: fixPurchaseQuantity）
+// ═══════════════════════════════════════════
+
+/**
+ * 外注アプリ（スタッフSPA）から仕入れ点数を修正する。
+ * payload: { shiireId, correctCount, dryRun }
+ *   dryRun: true  → 現状（点数・管理番号レンジ・登録済み件数）を返すだけ。修正画面の初期表示用。
+ *   dryRun: なし  → correctCount へ修正する。
+ *
+ * 管理者のみ実行可。採番が動くと全体に波及するため、外注スタッフには開放しない。
+ * 実処理はシートメニュー（showShiireQuantityFix）と同じ
+ * fixqty_doIncrease_ / fixqty_doDecrease_ を共有する。
+ */
+function staff_apiFixPurchaseQuantity(payload, email) {
+  payload = payload || {};
+  var shiireId = normalizeText_(payload.shiireId);
+  var dryRun = (payload.dryRun === true);
+  var correctCount = parseInt(payload.correctCount, 10);
+  if (!shiireId) return { ok: false, error: '仕入れIDが指定されていません' };
+
+  var me = staff_resolveUserByEmail_(email);
+  if (!me || !me.isAdmin) return { ok: false, error: '点数の修正は管理者のみ実行できます' };
+
+  var knr = SHIIRE_MERGE_CONFIG.KNR;
+  var ss = staff_getActiveSpreadsheet_();
+  var sheet = ss.getSheetByName(SHIIRE_MERGE_CONFIG.KANRI_SHEET_NAME);
+  if (!sheet) return { ok: false, error: '仕入れ管理シートが見つかりません' };
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { ok: false, error: '仕入れ管理にデータがありません' };
+
+  // 対象行を仕入れIDで特定
+  var ids = sheet.getRange(2, knr.ID, lastRow - 1, 1).getValues();
+  var targetRow = 0;
+  for (var i = 0; i < ids.length; i++) {
+    if (normalizeText_(ids[i][0]) === shiireId) { targetRow = i + 2; break; }
+  }
+  if (!targetRow) return { ok: false, error: '仕入れ管理にこのIDの行がありません: ' + shiireId };
+
+  var lastCol = Math.max(sheet.getLastColumn(), knr.SYNCED + 1);
+  var rowData = sheet.getRange(targetRow, 1, 1, lastCol).getValues()[0];
+  var category = String(rowData[knr.CATEGORY - 1] || '').trim();
+  var origCount = Number(rowData[knr.ITEM_COUNT - 1]) || 0;
+  var assignNum = String(rowData[knr.ASSIGN_NUM - 1] || '').trim();
+
+  if (!category) return { ok: false, error: 'この仕入れには区分コードが入っていません' };
+  if (origCount <= 0) return { ok: false, error: 'この仕入れはまだ点数が確定していません（仕入れ数報告の入力後に実行してください）' };
+  if (!assignNum) return { ok: false, error: 'この仕入れにはまだ管理番号が割り当てられていません' };
+
+  var m = assignNum.match(/(\d+)\s*~\s*(\d+)\s*$/);
+  if (!m) return { ok: false, error: '管理番号の形式が想定外です: ' + assignNum };
+  var startN = parseInt(m[1], 10);
+  var endN = parseInt(m[2], 10);
+  if (endN - startN + 1 !== origCount) {
+    return { ok: false, error: '点数（' + origCount + '点）と管理番号の範囲（' + assignNum + '＝'
+      + (endN - startN + 1) + '個）が一致していません。データがズレているため自動では直せません。' };
+  }
+
+  var registered = fixqty_countRegisteredForShiire_(ss, shiireId);
+
+  if (dryRun) {
+    return {
+      ok: true, dryRun: true, shiireId: shiireId, category: category,
+      count: origCount, assignNum: assignNum, rangeStart: startN, rangeEnd: endN,
+      registered: registered, row: targetRow
+    };
+  }
+
+  if (isNaN(correctCount) || correctCount < 1) return { ok: false, error: '正しい点数は1以上の数で入力してください' };
+  if (correctCount === origCount) return { ok: false, error: '今の点数と同じです（修正は不要です）' };
+  if (correctCount < registered) {
+    return { ok: false, error: 'この仕入れにはすでに ' + registered + ' 点の商品が登録されています。'
+      + correctCount + ' 点には減らせません。' };
+  }
+
+  var result = null;
+  withLock_(30000, function() {
+    if (correctCount > origCount) {
+      result = fixqty_doIncrease_(ss, sheet, targetRow, rowData, correctCount);
+    } else {
+      result = fixqty_doDecrease_(ss, sheet, targetRow, rowData, correctCount, startN, endN);
+    }
+  });
+  if (!result) return { ok: false, error: 'ほかの処理が実行中です。少し待ってからもう一度お試しください。' };
+  if (!result.ok) return { ok: false, error: result.error };
+
+  result.origCount = origCount;
+  result.correctCount = correctCount;
+  return result;
 }

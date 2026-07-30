@@ -1695,10 +1695,22 @@ async function openShiireDetail(shiireId, opts) {
         var rangeTotal = nk.rangeEnd - nk.rangeStart + 1;
         var registered = items.length;
         var remaining = Math.max(0, rangeTotal - registered);
+        var tailHtml = '';
+        if (nk.exhausted || (remaining === 0 && !nk.nextKanri)) {
+          // 予約した番号を使い切った状態。実物のほうが多い＝報告した点数が足りていない。
+          // ここで勝手に次の番号（末尾+1）を出すと別の箱の番号とぶつかるので出さない。
+          tailHtml = '<br><span style="color:#c62828;">この箱の番号はすべて使い切りました。実物がまだある場合は「実点数を修正」してください。</span>';
+        } else if (remaining > 0 && nk.nextKanri) {
+          tailHtml = '<br>次の番号: <strong>' + esc(nk.nextKanri) + '</strong>';
+        }
+        var fixBtnHtml = STATE.isAdmin
+          ? '<br><button class="btn small gray" style="margin-top:6px;" onclick="openFixQuantityModal(\'' +
+            esc(shiireId).replace(/\'/g, '%27') + '\')">実点数を修正</button>'
+          : '';
         rangeHtml = '<div class="meta" style="background:#f0f9ff;border-left:3px solid var(--primary);padding:6px 10px;border-radius:4px;margin-top:6px;">' +
           '割り当て管理番号: <strong>' + esc(nk.prefix + nk.rangeStart) + ' 〜 ' + esc(nk.prefix + nk.rangeEnd) + '</strong>' +
           ' （' + rangeTotal + '点 / 登録済 ' + registered + ' / 残り ' + remaining + '）' +
-          (remaining > 0 ? '<br>次の番号: <strong>' + esc(nk.nextKanri) + '</strong>' : '') +
+          tailHtml + fixBtnHtml +
           '</div>';
       }
     } catch (e) { /* ignore */ }
@@ -1717,6 +1729,107 @@ async function openShiireDetail(shiireId, opts) {
     c.innerHTML = head + body + fab;
   } catch (err) {
     c.innerHTML = '<div class="empty" style="color:#c62828">' + esc(err.message) + '</div>';
+  }
+}
+
+// ========== 実点数の修正（管理者のみ） ==========
+// 仕入れ数報告で申告した点数と実物の点数が食い違ったときに使う。
+// 「増やす」＝区分の最後尾に不足ぶんの行を追加（＝新しい連番を後ろに取る）。
+// 「減らす」＝余った末尾の番号を切り捨てて欠番にする。
+// どちらも【すでに発行済みの管理番号は1つも動かさない】。
+// 番号を詰め直すと、貼り終えたタグ・撮影済みの写真・他の箱の番号まで全部ズレるため。
+async function openFixQuantityModal(shiireId) {
+  openModal(
+    '<h3>🔢 実点数を修正</h3>' +
+    '<div class="loading">読み込み中…</div>'
+  );
+  var info;
+  try {
+    info = await api('/api/purchases/' + encodeURIComponent(shiireId) + '/fix-quantity');
+  } catch (err) {
+    openModal(
+      '<h3>🔢 実点数を修正</h3>' +
+      '<div class="notice" style="color:#c62828">' + esc(err.message) + '</div>' +
+      '<div class="modal-actions"><button class="btn-cancel" onclick="closeModal()">閉じる</button></div>'
+    );
+    return;
+  }
+  var prefix = 'z' + (info.category || '');
+  openModal(
+    '<h3>🔢 実点数を修正</h3>' +
+    '<div class="field-row"><label>仕入れID</label><div>' + esc(shiireId) + '</div></div>' +
+    '<div class="field-row"><label>今の点数</label><div>' + info.count + ' 点' +
+      '（管理番号 ' + esc(prefix + info.rangeStart) + ' 〜 ' + esc(prefix + info.rangeEnd) + '）</div></div>' +
+    '<div class="field-row"><label>登録済みの商品</label><div>' + info.registered + ' 点</div></div>' +
+    '<div class="field-row"><label>実際の点数 <span class="req">*</span></label>' +
+      '<input id="fq_count" type="number" inputmode="numeric" min="' + Math.max(1, info.registered) + '" value="' + info.count + '">' +
+      '<div class="meta" style="margin-top:4px;">実物を数えた点数を入れてください。</div></div>' +
+    '<div class="notice" style="margin-top:8px;">' +
+      '<strong>増やす場合</strong>：不足ぶんは区分の最後尾に新しい番号でまとめて確保します（例 ' + esc(prefix + info.rangeEnd) + ' の続きではなく、いま空いている最後の番号から）。仕入れ管理には「【点数修正 +n】」の行が1本増え、金額と送料は点数で按分し直します。<br>' +
+      '<strong>減らす場合</strong>：余った末尾の番号を欠番にします。すでに商品を登録した番号は減らせません。<br>' +
+      'いずれも<strong>すでに発行した管理番号は動きません</strong>（タグの貼り直しは不要です）。' +
+    '</div>' +
+    '<input type="hidden" id="fq_shiire" value="' + esc(shiireId) + '">' +
+    '<input type="hidden" id="fq_orig" value="' + info.count + '">' +
+    '<div class="modal-actions">' +
+      '<button class="btn-cancel" onclick="closeModal()">キャンセル</button>' +
+      '<button class="btn-submit" id="fq_submit" onclick="submitFixQuantity()">この内容で修正する</button>' +
+    '</div>'
+  );
+}
+
+// 送信ごとに1回だけ生成し、同じ送信の再試行では同じキーを使う（二重実行防止）
+var FQ_IDEMPOTENCY_KEY_ = '';
+
+async function submitFixQuantity() {
+  var btn = document.getElementById('fq_submit');
+  var shiireId = document.getElementById('fq_shiire').value;
+  var orig = parseInt(document.getElementById('fq_orig').value, 10);
+  var correctCount = parseInt(document.getElementById('fq_count').value, 10);
+  if (!correctCount || correctCount < 1) {
+    toast('実際の点数を入力してください', 'error'); flagInvalidField_('fq_count'); return;
+  }
+  if (correctCount === orig) {
+    toast('今の点数と同じです', 'error'); flagInvalidField_('fq_count'); return;
+  }
+  if (!FQ_IDEMPOTENCY_KEY_) FQ_IDEMPOTENCY_KEY_ = genIdempotencyKey_();
+  var done = setBtnLoading(btn, '修正中…');
+  startGlobalProgress();
+  try {
+    var res = await api('/api/purchases/' + encodeURIComponent(shiireId) + '/fix-quantity', {
+      method: 'POST',
+      body: { correctCount: correctCount },
+      idempotencyKey: FQ_IDEMPOTENCY_KEY_,
+    });
+    FQ_IDEMPOTENCY_KEY_ = '';
+    toast('点数を修正しました', 'success');
+    // 結果はトーストだと読み切れない（増やした場合は「どのIDのどの番号に登録するか」が要点）
+    // ので、モーダルをそのまま結果表示に差し替える。
+    var detail = '';
+    if (res.mode === 'increase' && res.sub) {
+      detail = '<div class="notice" style="margin-top:8px;">' +
+        '不足ぶん <strong>' + (res.correctCount - res.origCount) + ' 点</strong> は新しい仕入れとして追加しました。<br>' +
+        '　仕入れID: <strong>' + esc(res.sub.shiireId) + '</strong><br>' +
+        '　管理番号: <strong>' + esc(res.sub.assignNum) + '</strong><br>' +
+        'この番号ぶんの商品は、仕入れ一覧から <strong>' + esc(res.sub.shiireId) + '</strong> を開いて登録してください。' +
+        '</div>';
+    } else if (res.mode === 'decrease') {
+      detail = '<div class="notice" style="margin-top:8px;">' +
+        '管理番号を <strong>' + esc(res.assignNum) + '</strong> に短縮しました。余った末尾の番号は欠番です（他の箱の番号はズレていません）。' +
+        '</div>';
+    }
+    openModal(
+      '<h3>✅ 実点数を修正しました</h3>' +
+      '<div class="field-row"><label>点数</label><div>' + res.origCount + ' 点 → <strong>' + res.correctCount + ' 点</strong></div></div>' +
+      detail +
+      '<div class="modal-actions"><button class="btn-submit" onclick="closeModal(); openShiireDetail(\'' +
+        esc(shiireId).replace(/\'/g, '%27') + '\')">閉じる</button></div>'
+    );
+  } catch (err) {
+    toast('修正失敗: ' + err.message, 'error');
+    done();
+  } finally {
+    endGlobalProgress();
   }
 }
 
@@ -9798,10 +9911,16 @@ async function submitCreatePurchase() {
 // 未使用の先頭番号をサーバーに問い合わせる。
 // 1仕入れID = 1箱 を連番管理するため、商品の管理番号はその仕入れの
 // 予約レンジ内から採番する（全商品横断の連番は使わない）。
+// 直近の /next-kanri レスポンス。番号を出せなかった理由（枯渇 or 区分未設定）を
+// 呼び出し側が出し分けるために保持する。
+var LAST_NEXT_KANRI_ = null;
+
 async function suggestNextKanriRemote(shiireId) {
+  LAST_NEXT_KANRI_ = null;
   if (!shiireId) return '';
   try {
     const res = await api('/api/purchases/' + encodeURIComponent(shiireId) + '/next-kanri');
+    LAST_NEXT_KANRI_ = res;
     return res.nextKanri || '';
   } catch (e) {
     return '';
@@ -9875,6 +9994,15 @@ async function openCreateProductModal(shiireId) {
     } catch (e) { /* ignore */ }
   }
   const suggested = await suggestNextKanriRemote(shiireId);
+  if (!suggested && LAST_NEXT_KANRI_ && LAST_NEXT_KANRI_.exhausted) {
+    // この箱に予約した番号を使い切っている。ここで先の番号を勝手に使うと
+    // 別の箱に予約済みの番号とぶつかるので、フォームを開かず修正へ誘導する。
+    toast('この仕入れの管理番号は全部使い切りました。実物のほうが多い場合は「実点数を修正」してください', 'error');
+    STATE.createProductReturnShiireId = null;
+    STATE.view = 'list';
+    openShiireDetail(shiireId);
+    return;
+  }
   c.innerHTML = buildCreateProductHtml_({ withSelect: false, fixedShiireId: shiireId, suggested: suggested });
   enhanceAllSelects_(c);
   wireFeeAutoCalc_('cf_');
@@ -10532,8 +10660,14 @@ async function onShiireSelectChange_() {
       suggestNextKanriRemote(sid),
     ]);
     const items = productsRes.items || [];
+    // 採番できない理由は2種類あるので出し分ける。
+    //   枯渇 = 予約した番号を全部使い切った（実物のほうが多い）→ 実点数の修正が必要
+    //   未設定 = 区分コードが空でそもそも採番できない
+    var noKanriMsg = (LAST_NEXT_KANRI_ && LAST_NEXT_KANRI_.exhausted)
+      ? ' / ⚠ 管理番号を使い切りました（実点数の修正が必要です）'
+      : ' / ⚠ 区分コード未設定で採番不可';
     hint.innerHTML = '仕入れ ID: <strong>' + esc(sid) + '</strong> / 既存 ' + items.length + '件' +
-      (suggested ? ' / 自動採番: <strong>' + esc(suggested) + '</strong>' : ' / ⚠ 区分コード未設定で採番不可');
+      (suggested ? ' / 自動採番: <strong>' + esc(suggested) + '</strong>' : noKanriMsg);
     kanriInput.value = suggested || '';
     STATE.currentShiireProducts = items;
     // Phase 3: 候補管理番号 + 既存商品の管理番号を一括プリフェッチ。次回の開閉や採番変更が即時反映される

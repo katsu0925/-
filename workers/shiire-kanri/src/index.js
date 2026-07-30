@@ -10,7 +10,7 @@ import { imgProxy } from './handlers/img-proxy.js';
 import { thumbProxy } from './handlers/thumb-proxy.js';
 import { listWorkers, listAccounts, listSuppliers, listPlaces, listCategories, listSettings } from './handlers/master.js';
 import { lookupAiPrefill, lookupAiPrefillBatch } from './handlers/ai.js';
-import { listMoves, createMove, deleteMove, updateMove, listReturns, createReturn, deleteReturn, updateReturn, deletePurchase, listAiResults, listSagyousha, saveSagyousha, createSagyousha, dumpSheet, getListingText, appendKeihi, uploadKeihiImage, updateShiireHoukokuQuantity } from './handlers/extras.js';
+import { listMoves, createMove, deleteMove, updateMove, listReturns, createReturn, deleteReturn, updateReturn, deletePurchase, previewFixPurchaseQuantity, fixPurchaseQuantity, listAiResults, listSagyousha, saveSagyousha, createSagyousha, dumpSheet, getListingText, appendKeihi, uploadKeihiImage, updateShiireHoukokuQuantity } from './handlers/extras.js';
 import { getSalesSummary } from './handlers/sales.js';
 import { syncRowWebhook } from './handlers/sync-webhook.js';
 import { listBundles, toggleBundle } from './handlers/bundles.js';
@@ -179,6 +179,14 @@ export default {
     const purchaseNextKanriMatch = path.match(/^\/api\/purchases\/([^/]+)\/next-kanri$/);
     if (purchaseNextKanriMatch && request.method === 'GET') {
       return getNextKanriForPurchase(request, env, decodeURIComponent(purchaseNextKanriMatch[1]));
+    }
+    const purchaseFixQtyMatch = path.match(/^\/api\/purchases\/([^/]+)\/fix-quantity$/);
+    if (purchaseFixQtyMatch && request.method === 'GET') {
+      return previewFixPurchaseQuantity(request, env, user, decodeURIComponent(purchaseFixQtyMatch[1]));
+    }
+    if (purchaseFixQtyMatch && request.method === 'POST') {
+      const shiireId = decodeURIComponent(purchaseFixQtyMatch[1]);
+      return withIdempotency(request, env, () => fixPurchaseQuantity(request, env, user, shiireId));
     }
     if (path.startsWith('/api/purchases/') && request.method === 'DELETE') {
       const shiireId = decodeURIComponent(path.slice('/api/purchases/'.length));

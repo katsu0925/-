@@ -622,13 +622,18 @@ export async function getNextKanriForPurchase(request, env, shiireId) {
     }
     let nextN = 0;
     let withinRange = false;
+    let exhausted = false;
     if (startN > 0 && endN >= startN) {
       // 予約レンジ内の未使用先頭番号
       for (let n = startN; n <= endN; n++) {
         if (!used.has(n)) { nextN = n; withinRange = true; break; }
       }
-      // レンジが満杯ならレンジ末尾+1（オーバーフロー）
-      if (nextN === 0) nextN = endN + 1;
+      // レンジが満杯でも末尾+1 へはみ出さない。
+      //   採番は append-only（1仕入れ = 1連番ブロックを予約）なので endN+1 は
+      //   すでに別の箱に予約済みの番号であり、払い出すと管理番号が衝突する。
+      //   枯渇 = 報告した点数より実物が多い状態なので、番号を返さず exhausted で知らせ、
+      //   「実点数を修正」（補助行の追加採番）へ誘導する。
+      if (nextN === 0) exhausted = true;
     } else {
       // 予約レンジ未設定の旧仕入れ → 既存最大+1（フォールバック）
       nextN = maxUsed + 1;
@@ -636,8 +641,8 @@ export async function getNextKanriForPurchase(request, env, shiireId) {
     return jsonOk({
       shiireId, category, prefix, assignedKanri: assigned,
       rangeStart: startN, rangeEnd: endN,
-      registered: used.size, nextN, nextKanri: prefix + nextN,
-      withinRange,
+      registered: used.size, nextN, nextKanri: nextN > 0 ? prefix + nextN : '',
+      withinRange, exhausted,
     });
   } catch (err) {
     return jsonError('db error: ' + err.message, 500);

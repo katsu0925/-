@@ -115,6 +115,78 @@ export async function deletePurchase(request, env, user, shiireId) {
   return jsonOk({ deleted: true, shiireId: r.shiireId });
 }
 
+// GET /api/purchases/:id/fix-quantity
+// 実点数の修正画面の初期表示用。今の点数・管理番号レンジ・登録済み件数を返す。
+// 管理者判定は GAS 側（staff_apiFixPurchaseQuantity）が行う。
+export async function previewFixPurchaseQuantity(request, env, user, shiireId) {
+  const id = String(shiireId || '').trim();
+  if (!id) return jsonError('shiireId required', 400);
+  const r = await callGas(env, 'fixPurchaseQuantity', { shiireId: id, dryRun: true }, user);
+  if (!r.ok) return jsonError(r.error || 'gas error', 502);
+  return jsonOk({
+    shiireId: r.shiireId, category: r.category, count: r.count,
+    assignNum: r.assignNum, rangeStart: r.rangeStart, rangeEnd: r.rangeEnd,
+    registered: r.registered,
+  });
+}
+
+// POST /api/purchases/:id/fix-quantity  body: { correctCount }
+// 増やす → 区分の最後尾に補助行を追加（既存の管理番号は1つも動かさない）
+// 減らす → 予約レンジの末尾を短縮して欠番化
+export async function fixPurchaseQuantity(request, env, user, shiireId) {
+  const id = String(shiireId || '').trim();
+  if (!id) return jsonError('shiireId required', 400);
+  let body;
+  try { body = await request.json(); } catch { return jsonError('invalid json', 400); }
+  const correctCount = parseInt(body.correctCount, 10);
+  if (!Number.isFinite(correctCount) || correctCount < 1) return jsonError('正しい点数を入力してください', 400);
+
+  const r = await callGas(env, 'fixPurchaseQuantity', { shiireId: id, correctCount }, user);
+  if (!r.ok) return jsonError(r.error || 'gas error', 502);
+
+  // D1 楽観更新（次の Cron で確定するが、画面へ即反映するため）
+  try {
+    const now = Date.now();
+    if (r.mode === 'increase') {
+      // 元行は点数・管理番号そのまま。金額/送料/原価だけ按分し直される
+      await env.DB.prepare(
+        `UPDATE purchases SET amount = ?, shipping = ?, cost = ?, updated_at = ? WHERE shiire_id = ?`
+      ).bind(r.amount || 0, r.shipping || 0, r.cost || 0, now, id).run();
+      // 差分ぶんの補助行を追加
+      if (r.sub && r.sub.shiireId) {
+        const s = r.sub;
+        await env.DB.prepare(`
+          INSERT INTO purchases (shiire_id, date, amount, shipping, planned, place, cost, category,
+                                  content, supplier_id, register_user, registered_at, assigned_kanri, processed,
+                                  row_num, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          ON CONFLICT(shiire_id) DO UPDATE SET
+            amount = excluded.amount, shipping = excluded.shipping, planned = excluded.planned,
+            cost = excluded.cost, content = excluded.content,
+            assigned_kanri = excluded.assigned_kanri, updated_at = excluded.updated_at
+        `).bind(
+          s.shiireId, s.date || '', s.amount || 0, s.shipping || 0, s.count || 0,
+          s.place || '', s.cost || 0, s.category || '', s.content || '',
+          s.supplierId || '', (user && user.name) || '', new Date().toISOString(),
+          s.assignNum || '', 1, s.row || 0, now,
+        ).run();
+      }
+    } else if (r.mode === 'decrease') {
+      await env.DB.prepare(
+        `UPDATE purchases SET planned = ?, cost = ?, assigned_kanri = ?, updated_at = ? WHERE shiire_id = ?`
+      ).bind(r.count || 0, r.cost || 0, r.assignNum || '', now, id).run();
+    }
+  } catch (err) {
+    console.warn('[fixPurchaseQuantity] d1 optimistic update failed: ' + err.message);
+  }
+
+  return jsonOk({
+    fixed: true, shiireId: id, mode: r.mode, message: r.message || '',
+    origCount: r.origCount, correctCount: r.correctCount,
+    assignNum: r.assignNum || '', sub: r.sub || null,
+  });
+}
+
 export async function listReturns(request, env, user) {
   const url = new URL(request.url);
   const limit = Math.min(500, Math.max(10, parseInt(url.searchParams.get('limit'), 10) || 200));
