@@ -5143,33 +5143,46 @@ var BUSINESS_SHEETS = {
   houshu: '報酬管理'
 };
 
-async function renderBusinessSheet(menuKey) {
+async function renderBusinessSheet(menuKey, opts) {
   var c = document.getElementById('content');
   if (!BUSINESS_SHEETS[menuKey]) { renderPlaceholder(STATE.businessLabel || '業務'); return; }
   // 自分の名前が必要なので必ず解決を待つ（初回のみ。2回目以降はキャッシュ済み）
+  // 名前の解決待ちとシート取得を直列にすると往復2回ぶん待たされるので、先に取得を走らせる。
+  // （結果は fetchBusinessSheet_ の in-flight で共有されるので二重リクエストにはならない）
+  fetchBusinessSheet_(menuKey, opts).catch(function(){});
   if (STATE.userNamePromise && !STATE.userName) {
     c.innerHTML = '<div class="loading">読み込み中…</div>';
     try { await STATE.userNamePromise; } catch (e) {}
   }
   if (!STATE.userName) { showUserNamePicker_(); return; }
-  if (menuKey === 'shiire_houkoku') return renderShiireHoukokuTab_();
-  if (menuKey === 'keihi')          return renderKeihiTab_();
-  if (menuKey === 'houshu')         return renderHoushuTab_();
+  if (menuKey === 'shiire_houkoku') return renderShiireHoukokuTab_(opts);
+  if (menuKey === 'keihi')          return renderKeihiTab_(opts);
+  if (menuKey === 'houshu')         return renderHoushuTab_(opts);
 }
 
 // ---------- 共通: シートダンプ取得（自分用フィルタは表示時） ----------
 // Workers 側に 60秒 KV キャッシュ。再ロード即時表示のため localStorage にも前回値を保存し
 // SWR (stale-while-revalidate) で初回ペイントを高速化する。
+// 同じシートの取得が同時に走ったら1本にまとめる（タブ描画とプリフェッチの二重リクエスト防止）
+var BUSINESS_INFLIGHT_ = {};
 async function fetchBusinessSheet_(menuKey, opts) {
   var sheetName = BUSINESS_SHEETS[menuKey];
+  if (!sheetName) return { headers: [], rows: [], total: 0 };
+  var fresh = !!(opts && opts.fresh);
+  var flightKey = menuKey + (fresh ? '|fresh' : '');
+  if (BUSINESS_INFLIGHT_[flightKey]) return BUSINESS_INFLIGHT_[flightKey];
   var cacheKey = 'business|' + menuKey;
   var lsKey = 'shiire-kanri:sheet:' + menuKey;
-  var qs = '?limit=500' + ((opts && opts.fresh) ? '&fresh=1' : '');
-  var res = await api('/api/sheet/' + encodeURIComponent(sheetName) + qs);
-  var data = { headers: res.headers || [], rows: res.rows || [], total: res.total || (res.rows ? res.rows.length : 0) };
-  TAB_CACHE[cacheKey] = { data: data, ts: Date.now() };
-  try { localStorage.setItem(lsKey, JSON.stringify({ data: data, ts: Date.now() })); } catch (e) {}
-  return data;
+  var qs = '?limit=500' + (fresh ? '&fresh=1' : '');
+  var p = (async function(){
+    var res = await api('/api/sheet/' + encodeURIComponent(sheetName) + qs);
+    var data = { headers: res.headers || [], rows: res.rows || [], total: res.total || (res.rows ? res.rows.length : 0) };
+    TAB_CACHE[cacheKey] = { data: data, ts: Date.now() };
+    try { localStorage.setItem(lsKey, JSON.stringify({ data: data, ts: Date.now() })); } catch (e) {}
+    return data;
+  })();
+  BUSINESS_INFLIGHT_[flightKey] = p;
+  try { return await p; } finally { delete BUSINESS_INFLIGHT_[flightKey]; }
 }
 function readBusinessSheetCache_(menuKey) {
   var cached = TAB_CACHE['business|' + menuKey];
@@ -5196,14 +5209,14 @@ function nameMatchesSelf_(v) {
 }
 
 // ---------- 仕入れ数報告 ----------
-async function renderShiireHoukokuTab_() {
+async function renderShiireHoukokuTab_(opts) {
   if (STATE.tab !== 'business' || STATE.business !== 'shiire_houkoku' || STATE.view !== 'list') return;
   var c = document.getElementById('content');
   var cached = readBusinessSheetCache_('shiire_houkoku');
   if (cached) paintShiireHoukoku_(cached.data);
   else c.innerHTML = '<div class="loading">読み込み中…</div>';
   try {
-    var data = await fetchBusinessSheet_('shiire_houkoku');
+    var data = await fetchBusinessSheet_('shiire_houkoku', opts);
     paintShiireHoukoku_(data);
   } catch (e) {
     if (!cached) c.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
@@ -5335,7 +5348,23 @@ async function submitShiireHoukokuQty_(id) {
       outbox: true, label: '数量更新: ' + id + ' x ' + qty
     });
     toast(resQ && resQ.queued ? '送信を予約しました（圏外時は復帰後に自動送信）' : '送信しました（数量: ' + qty + '）');
-    delete TAB_CACHE['business|shiire_houkoku'];
+    // 送った行の数量をローカルキャッシュへ先に書いてカードを即「処理済み」へ移す。
+    // サーバー再取得（GAS 往復）を待たずに画面が進むので、送信後の待ち時間が体感で消える。
+    var localCache = readBusinessSheetCache_('shiire_houkoku');
+    if (localCache && localCache.data) {
+      var hh = localCache.data.headers || [];
+      var ii = colIdx_(hh, 'ID');
+      var qq = colIdx_(hh, '数量');
+      if (ii >= 0 && qq >= 0) {
+        (localCache.data.rows || []).forEach(function(r){
+          if (String(r[ii] || '').trim() === id) r[qq] = String(qty);
+        });
+        var stamped = { data: localCache.data, ts: Date.now() };
+        TAB_CACHE['business|shiire_houkoku'] = stamped;
+        try { localStorage.setItem('shiire-kanri:sheet:shiire_houkoku', JSON.stringify(stamped)); } catch (e) {}
+        paintShiireHoukoku_(localCache.data);
+      }
+    }
     await renderShiireHoukokuTab_();
   } catch (err) {
     toast('送信失敗: ' + err.message, 'error');
@@ -5346,14 +5375,14 @@ async function submitShiireHoukokuQty_(id) {
 }
 
 // ---------- 経費申請 ----------
-async function renderKeihiTab_() {
+async function renderKeihiTab_(opts) {
   if (STATE.tab !== 'business' || STATE.business !== 'keihi' || STATE.view !== 'list') return;
   var c = document.getElementById('content');
   var cached = readBusinessSheetCache_('keihi');
   if (cached) paintKeihi_(cached.data);
   else c.innerHTML = '<div class="loading">読み込み中…</div>';
   try {
-    var data = await fetchBusinessSheet_('keihi');
+    var data = await fetchBusinessSheet_('keihi', opts);
     paintKeihi_(data);
   } catch (e) {
     if (!cached) c.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
@@ -5730,7 +5759,7 @@ async function submitKeihiForm_() {
 }
 
 // ---------- 報酬確認 ----------
-async function renderHoushuTab_() {
+async function renderHoushuTab_(opts) {
   if (STATE.tab !== 'business' || STATE.business !== 'houshu' || STATE.view !== 'list') return;
   var c = document.getElementById('content');
   var cached = readBusinessSheetCache_('houshu');
@@ -5743,7 +5772,7 @@ async function renderHoushuTab_() {
       '</div>' +
     '</div>';
   try {
-    var data = await fetchBusinessSheet_('houshu');
+    var data = await fetchBusinessSheet_('houshu', opts);
     paintHoushu_(data);
   } catch (e) {
     if (!cached) c.innerHTML = '<div class="error">読み込み失敗: ' + esc(e.message) + '</div>';
@@ -11333,7 +11362,8 @@ if ('serviceWorker' in navigator) {
     if (STATE.tab === 'hensou')   return renderHensouList();
     if (STATE.tab === 'ai')       return renderAiList();
     if (STATE.tab === 'sagyou')   return renderSagyouList();
-    if (STATE.tab === 'business' && STATE.business) return renderBusinessSheet(STATE.business);
+    // 業務タブは Worker 側にも KV キャッシュがあるので ?fresh=1 でエッジごと引き直す
+    if (STATE.tab === 'business' && STATE.business) return renderBusinessSheet(STATE.business, { fresh: true });
   }
 
   async function triggerRefresh(){

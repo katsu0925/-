@@ -10,7 +10,7 @@ import { imgProxy } from './handlers/img-proxy.js';
 import { thumbProxy } from './handlers/thumb-proxy.js';
 import { listWorkers, listAccounts, listSuppliers, listPlaces, listCategories, listSettings } from './handlers/master.js';
 import { lookupAiPrefill, lookupAiPrefillBatch } from './handlers/ai.js';
-import { listMoves, createMove, deleteMove, updateMove, listReturns, createReturn, deleteReturn, updateReturn, deletePurchase, previewFixPurchaseQuantity, fixPurchaseQuantity, listAiResults, listSagyousha, saveSagyousha, createSagyousha, dumpSheet, getListingText, appendKeihi, uploadKeihiImage, updateShiireHoukokuQuantity } from './handlers/extras.js';
+import { listMoves, createMove, deleteMove, updateMove, listReturns, createReturn, deleteReturn, updateReturn, deletePurchase, previewFixPurchaseQuantity, fixPurchaseQuantity, listAiResults, listSagyousha, saveSagyousha, createSagyousha, dumpSheet, warmSheetDumpCache, getListingText, appendKeihi, uploadKeihiImage, updateShiireHoukokuQuantity } from './handlers/extras.js';
 import { getSalesSummary } from './handlers/sales.js';
 import { syncRowWebhook } from './handlers/sync-webhook.js';
 import { listBundles, toggleBundle } from './handlers/bundles.js';
@@ -30,6 +30,8 @@ export default {
     ctx.waitUntil(scheduledAccessSync(env));
     // ②保存耐久性: GAS reconcile に失敗して savefail に積まれた保存を再投入して確定させる
     ctx.waitUntil(retrySaveFailures(env));
+    // 仕入れ数報告タブの一覧を先回りで KV に温める（初回表示の GAS 往復 2〜4秒を消す）
+    ctx.waitUntil(warmSheetDumpCache(env));
   },
 
   async fetch(request, env, ctx) {
