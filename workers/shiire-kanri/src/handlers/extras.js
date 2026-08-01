@@ -295,13 +295,21 @@ export async function createSagyousha(request, env, user) {
 //             → メールごとにキーを分ける。共有キーにすると管理者が引いた全件（他人の報酬）が
 //               非管理者へそのまま配られてしまうため必須。
 // クライアントから ?fresh=1 で強制再取得可能。
+// ttl を過ぎても KV からは消さず（物理TTL = SHEET_DUMP_HOLD）、古い値を即返しつつ
+// 裏で作り直す（stale-while-revalidate）。user スコープは Cron で暖機できないので、
+// これが無いと各自 ttl ごとに GAS 往復を待たされる。
 const SHEET_DUMP_CACHE = {
   // 5分Cron(warmSheetDumpCache)が先回りで温めるので基本は常にヒットする。
   // 数量送信時は purgeSheetDumpCache で即時に捨てるため、古い一覧は残らない。
   '仕入れ数報告': { scope: 'global', ttl: 600 },
-  // 日次の updateRewardsNoFormula で更新されるので 60 秒程度のラグは許容。
-  '報酬管理':     { scope: 'user',   ttl: 60 },
+  // 自分の申請は appendKeihi が purge する。管理者は他人の申請も見えるので ttl は短め
+  // （stale 配信のおかげで ttl を短くしても待ち時間は増えず、裏の GAS 呼び出しが増えるだけ）。
+  '経費申請':     { scope: 'user',   ttl: 120 },
+  // 日次の updateRewardsNoFormula で更新されるので数分のラグは許容。
+  '報酬管理':     { scope: 'user',   ttl: 300 },
 };
+// 期限切れ後も stale 配信のために保持しておく時間。
+const SHEET_DUMP_HOLD = 86400;
 // GAS へは常に上限件数で取りに行き、返却時に必要な件数だけ切り出す。
 // キーに limit を含めないので purge / warm が1本のキーで済む（rows は新しい順なので先頭から切る）。
 const SHEET_DUMP_MAX = 500;
@@ -325,25 +333,33 @@ export async function purgeSheetDumpCache(env, name, user) {
   try { await kv.delete(key); } catch {}
 }
 
+// GAS から引き直して KV に入れ直す。stale 配信の裏側と暖機の共通処理。
+async function refillSheetDump_(env, name, user, cacheKey) {
+  const kv = env.CACHE || env.GAS_PROXY_CACHE;
+  const r = await callGas(env, 'dumpSheet', { name, limit: SHEET_DUMP_MAX }, user);
+  if (!r.ok) throw new Error(r.error || 'gas error');
+  const payload = { headers: r.headers || [], rows: r.rows || [], total: r.total || 0, ts: Date.now() };
+  if (kv && cacheKey) {
+    try { await kv.put(cacheKey, JSON.stringify(payload), { expirationTtl: SHEET_DUMP_HOLD }); } catch {}
+  }
+  return payload;
+}
+
 // 5分Cron から呼ぶ暖機。global スコープのシートのみ（user スコープは誰の分か決められない）。
 export async function warmSheetDumpCache(env) {
   const kv = env.CACHE || env.GAS_PROXY_CACHE;
   if (!kv) return;
   for (const name of Object.keys(SHEET_DUMP_CACHE)) {
-    const conf = SHEET_DUMP_CACHE[name];
-    if (conf.scope !== 'global') continue;
+    if (SHEET_DUMP_CACHE[name].scope !== 'global') continue;
     try {
-      const r = await callGas(env, 'dumpSheet', { name, limit: SHEET_DUMP_MAX }, null);
-      if (!r.ok) { console.warn('[warmSheetDumpCache] ' + name + ': ' + (r.error || 'gas error')); continue; }
-      const payload = { headers: r.headers || [], rows: r.rows || [], total: r.total || 0 };
-      await kv.put(sheetDumpCacheKey_(name, null), JSON.stringify(payload), { expirationTtl: conf.ttl });
+      await refillSheetDump_(env, name, null, sheetDumpCacheKey_(name, null));
     } catch (err) {
       console.warn('[warmSheetDumpCache] ' + name + ': ' + err.message);
     }
   }
 }
 
-export async function dumpSheet(request, env, user, name) {
+export async function dumpSheet(request, env, user, name, ctx) {
   if (!DUMP_ALLOWED_SHEETS[name]) return jsonError('forbidden', 403);
   const url = new URL(request.url);
   const limit = Math.min(SHEET_DUMP_MAX, Math.max(10, parseInt(url.searchParams.get('limit'), 10) || 200));
@@ -355,17 +371,26 @@ export async function dumpSheet(request, env, user, name) {
     try {
       const hit = await kv.get(cacheKey, 'json');
       if (hit && Array.isArray(hit.headers)) {
-        return jsonOk({ headers: hit.headers, rows: (hit.rows || []).slice(0, limit), total: hit.total || 0, cached: true });
+        const stale = (Date.now() - (hit.ts || 0)) >= conf.ttl * 1000;
+        // 期限切れでも待たせず古い値を返し、更新はレスポンス後に回す。
+        if (stale && ctx && typeof ctx.waitUntil === 'function') {
+          ctx.waitUntil(refillSheetDump_(env, name, user, cacheKey).catch(function(err){
+            console.warn('[dumpSheet revalidate] ' + name + ': ' + err.message);
+          }));
+        }
+        return jsonOk({ headers: hit.headers, rows: (hit.rows || []).slice(0, limit), total: hit.total || 0, cached: true, stale });
       }
     } catch {}
   }
-  const r = await callGas(env, 'dumpSheet', { name, limit: cacheKey ? SHEET_DUMP_MAX : limit }, user);
-  if (!r.ok) return jsonError(r.error || 'gas error', 502);
-  const payload = { headers: r.headers || [], rows: r.rows || [], total: r.total || 0 };
   if (kv && cacheKey) {
-    try { await kv.put(cacheKey, JSON.stringify(payload), { expirationTtl: conf.ttl }); } catch {}
+    let payload;
+    try { payload = await refillSheetDump_(env, name, user, cacheKey); }
+    catch (err) { return jsonError(err.message || 'gas error', 502); }
+    return jsonOk({ headers: payload.headers, rows: payload.rows.slice(0, limit), total: payload.total });
   }
-  return jsonOk({ headers: payload.headers, rows: payload.rows.slice(0, limit), total: payload.total });
+  const r = await callGas(env, 'dumpSheet', { name, limit }, user);
+  if (!r.ok) return jsonError(r.error || 'gas error', 502);
+  return jsonOk({ headers: r.headers || [], rows: r.rows || [], total: r.total || 0 });
 }
 
 // ?id=xxx&fmt=json で GAS doGet からタイトル・説明文を取得
@@ -499,7 +524,9 @@ export async function appendKeihi(request, env, user, ctx) {
   };
   const job = (async () => {
     const r = await callGas(env, 'appendKeihi', payload, user);
-    if (!r.ok) console.error('[appendKeihi waitUntil] gas error: ' + (r.error || 'unknown'));
+    if (!r.ok) { console.error('[appendKeihi waitUntil] gas error: ' + (r.error || 'unknown')); return; }
+    // 行が入った後に捨てる（先に捨てると追加前の一覧でキャッシュが埋め直される）
+    await purgeSheetDumpCache(env, '経費申請', user);
   })();
   if (ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(job);
   else await job;

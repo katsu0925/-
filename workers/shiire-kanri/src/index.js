@@ -406,7 +406,7 @@ export default {
     // 業務メニュー（汎用シートダンプ: 仕入れ数報告/経費申請/報酬管理）
     const sheetMatch = path.match(/^\/api\/sheet\/([^/]+)$/);
     if (sheetMatch && request.method === 'GET') {
-      return dumpSheet(request, env, user, decodeURIComponent(sheetMatch[1]));
+      return dumpSheet(request, env, user, decodeURIComponent(sheetMatch[1]), ctx);
     }
 
     // API/admin 以外は静的アセット（SPA fallback 含む）に委譲
