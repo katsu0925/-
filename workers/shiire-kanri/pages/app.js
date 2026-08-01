@@ -724,6 +724,18 @@ function writeCachedIsAdmin_(email, isAdmin) {
     localStorage.setItem(key, isAdmin ? '1' : '0');
   } catch(e) {}
 }
+// 解決済みの自分の名前も同じ理由でメール単位にキャッシュする。
+// これが無いと業務タブは毎回 /api/sagyousha（GAS 往復・数秒）の完了を待ってからでないと描画できない。
+function readCachedSelfName_(email) {
+  try {
+    return String(localStorage.getItem('shiire-kanri:selfName:' + (email || '').toLowerCase()) || '').trim();
+  } catch(e) { return ''; }
+}
+function writeCachedSelfName_(email, name) {
+  try {
+    localStorage.setItem('shiire-kanri:selfName:' + (email || '').toLowerCase(), name || '');
+  } catch(e) {}
+}
 
 // 業務メニュー（仕入れ数報告 / 経費申請 / 報酬確認）で「自分の行」を絞り込むために必須
 // LocalStorage で手動選択（業務メニュー用）の名前をオーバーライド可能。
@@ -751,11 +763,13 @@ async function resolveSelfName_() {
     }
     STATE.isAdmin = !!(r.currentUser && r.currentUser.isAdmin);
     writeCachedIsAdmin_(email, STATE.isAdmin);
+    writeCachedSelfName_(email, STATE.userName);
     applyAdminVisibility_();
     console.info('[resolveSelfName_] email=' + email + ' resolved=' + (resolved || '(none)') + ' applied=' + (STATE.userName || '(none)') + ' workers=' + items.length);
   } catch (err) {
     console.warn('resolveSelfName_ failed', err);
-    STATE.userName = '';
+    // 通信失敗時はキャッシュ済みの名前を維持する（一時的なエラーで業務タブが使えなくなるのを防ぐ）
+    STATE.userName = STATE.userName || readCachedSelfName_(STATE.email);
     STATE.allWorkers = [];
   }
 }
@@ -983,6 +997,8 @@ window.addEventListener('DOMContentLoaded', async function(){
     // 起動時点で localStorage の isAdmin を楽観適用 → 管理者タブが瞬時に出る。
     // 後段の resolveSelfName_（GAS 往復）で真の値が来たら上書きされる。
     STATE.isAdmin = readCachedIsAdmin_(STATE.email);
+    // 名前も同じく楽観適用。業務タブが /api/sagyousha の往復を待たずに描画できる。
+    STATE.userName = readCachedSelfName_(STATE.email);
     applyAdminVisibility_();
     // マスタ取得は一覧表示には不要なのでバックグラウンドで実行（フォーム/詳細を開く時に await）
     STATE.mastersPromise = loadMasters();
@@ -5143,18 +5159,26 @@ var BUSINESS_SHEETS = {
   houshu: '報酬管理'
 };
 
+// 自分の名前で「自分の行」を絞り込むタブだけ、名前の解決を待つ。
+// 仕入れ数報告は GAS 側も画面側も名前を一切使わない（全員同じ内容）ので待つ必要がない。
+// ここで待っていたせいで、シート自体が KV から即返っていても /api/sagyousha（GAS 往復・数秒）
+// が終わるまで「読み込み中…」のままだった。
+var BUSINESS_NEEDS_NAME = { keihi: true, houshu: true };
+
 async function renderBusinessSheet(menuKey, opts) {
   var c = document.getElementById('content');
   if (!BUSINESS_SHEETS[menuKey]) { renderPlaceholder(STATE.businessLabel || '業務'); return; }
-  // 自分の名前が必要なので必ず解決を待つ（初回のみ。2回目以降はキャッシュ済み）
   // 名前の解決待ちとシート取得を直列にすると往復2回ぶん待たされるので、先に取得を走らせる。
   // （結果は fetchBusinessSheet_ の in-flight で共有されるので二重リクエストにはならない）
   fetchBusinessSheet_(menuKey, opts).catch(function(){});
-  if (STATE.userNamePromise && !STATE.userName) {
-    c.innerHTML = '<div class="loading">読み込み中…</div>';
-    try { await STATE.userNamePromise; } catch (e) {}
+  if (BUSINESS_NEEDS_NAME[menuKey]) {
+    // 自分の名前が必要なので解決を待つ（キャッシュ済みなら待たない）
+    if (STATE.userNamePromise && !STATE.userName) {
+      c.innerHTML = '<div class="loading">読み込み中…</div>';
+      try { await STATE.userNamePromise; } catch (e) {}
+    }
+    if (!STATE.userName) { showUserNamePicker_(); return; }
   }
-  if (!STATE.userName) { showUserNamePicker_(); return; }
   if (menuKey === 'shiire_houkoku') return renderShiireHoukokuTab_(opts);
   if (menuKey === 'keihi')          return renderKeihiTab_(opts);
   if (menuKey === 'houshu')         return renderHoushuTab_(opts);
