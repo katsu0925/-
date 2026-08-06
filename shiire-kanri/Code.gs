@@ -73,6 +73,8 @@ function doPost(e) {
       case 'repairWorkerEmails':      result = repairWorkerEmailNames_((body.payload || {}).apply === true); break;
       // 日付列の「日付のみ」化（apply省略=DRYRUN / apply:true=書き換え）※日付正規化.gs
       case 'normalizeDateColumns':    result = dateNorm_run_((body.payload || {}).apply !== true); break;
+      // 報酬管理の作業単価4列(撮影/採寸/出品/発送)の凍結ズレ修正（apply省略=DRYRUN / apply:true=書き換え）※報酬更新.gs
+      case 'recalcRewardWorkDrift':   result = recalcWorkCountDrift((body.payload || {}).apply === true); break;
       case 'dateNormProbe':           result = dateNorm_probe_(body.payload || {}); break;
       case 'dateNormApplyFix':        result = dateNorm_applyFix_(body.payload || {}); break;
       // 請求書（外注向けAPI、emailから本人解決して権限分離）

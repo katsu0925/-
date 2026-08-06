@@ -1,5 +1,13 @@
 // 報酬更新.gs
-function updateRewardsNoFormula(allMonths) {
+// opts.workOnly : D撮影/E採寸/F出品/G発送 の4列だけを対象にし、現在値と異なるセルだけ書き戻す。
+//                 在庫管理(H)・アカウント運用(I)・立替経費(J)・利益歩合(K)・固定費(L) は
+//                 「その月の実績スナップショット」なので触らない（過去月の遡及書換えを防ぐ）。
+// opts.dryRun   : 書き込まず差分レポートだけ返す。
+function updateRewardsNoFormula(allMonths, opts) {
+  opts = opts || {};
+  var workOnly = opts.workOnly === true;
+  var dryRun   = opts.dryRun === true;
+  var report   = [];
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var shR = ss.getSheetByName('報酬管理');
   var shM = ss.getSheetByName('作業者マスター');
@@ -225,6 +233,9 @@ function updateRewardsNoFormula(allMonths) {
     expByNameMonth[nm3][mk3]=(expByNameMonth[nm3][mk3]||0)+v3;
   }
 
+  // workOnly は「現在値と違うセルだけ」書くため、D..L を1回だけまとめて読む。
+  var curVals = workOnly ? shR.getRange(startRow,4,lastRowR-startRow+1,9).getValues() : null;
+
   for (var u=0; u<updateRows.length; u++){
     var row = updateRows[u];
     var mk = row.mk;
@@ -253,10 +264,27 @@ function updateRewardsNoFormula(allMonths) {
     Logger.log('WRITE row=%s month=%s name=%s Q=%s K(%%)=%s salesAll=%s salesAccName=%s salesAccOnly=%s used=%s knownAMByName=%s knownAMByMonth=%s',
                row.row, mk, name, accTarget, rate.K, kBaseAll, kBaseAccName, kBaseAccOnly, kBase, JSON.stringify(knownByName), JSON.stringify(knownByMonth));
 
+    if (workOnly){
+      var cur = curVals[row.row-startRow];
+      var want = [dVal,eVal,fVal,gVal];
+      var LBL = ['撮影','採寸','出品','発送'];
+      var diff = false;
+      for (var w=0; w<4; w++){
+        if (Math.round(toNum(cur[w])) !== Math.round(want[w])){
+          diff = true;
+          report.push({ row:row.row, ym:mk, name:name, col:'DEFG'.charAt(w), label:LBL[w],
+                        before:toNum(cur[w]), after:want[w] });
+        }
+      }
+      if (diff && !dryRun) shR.getRange(row.row,4,1,4).setValues([want]);
+      continue;
+    }
+
     shR.getRange(row.row,4,1,9).setValues([[dVal,eVal,fVal,gVal,hVal,iVal,jVal,kVal,lVal]]);
   }
 
   Logger.log('END updateRewardsNoFormula');
+  if (workOnly) return { ok:true, applied:!dryRun, changed:report.length, rows:updateRows.length, diffs:report };
 }
 
 function setupDailyTrigger() {
@@ -275,6 +303,25 @@ function runOnceNow() {
  */
 function runFullRecalc() {
   updateRewardsNoFormula(true);
+}
+
+/**
+ * 作業単価4列(D撮影/E採寸/F出品/G発送)の「凍結ズレ」を全月スキャンして修正する。
+ *
+ * updateRewardsNoFormula は当月/前月しか再計算しないため、ウィンドウを外れた過去月に
+ * 商品管理側の日付が後から補完・修正されても報酬管理の金額は古いまま固定される。
+ * （例: 2026-08-05 の出品日一括補完で なかのや（児島）2026/06 が 99件分 ¥2,970 のまま残った）
+ *
+ * 4列はいずれも「商品管理の日付×担当者を数えて単価を掛けるだけ」の純粋な導出値なので、
+ * 全月再計算しても情報を失わない。逆に 在庫管理(H)/立替経費(J)/利益歩合(K) は当時の
+ * 在庫・経費・売上のスナップショットで、現在のデータから引き直すと過去の支払額が
+ * 変わってしまうため対象外にしている。
+ *
+ * @param {boolean} apply true で書き込み。省略・false は DRYRUN（差分レポートのみ）
+ */
+function recalcWorkCountDrift(apply) {
+  var r = updateRewardsNoFormula(true, { workOnly: true, dryRun: apply !== true });
+  return r || { ok: false, error: 'シートが見つからない、または対象行なし' };
 }
 
 // ═══════════════════════════════════════════════════
