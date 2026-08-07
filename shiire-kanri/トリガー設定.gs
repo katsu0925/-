@@ -29,9 +29,20 @@ function FULL_RESTORE_ALL() {
   console.log('全てのトリガーを復旧しました。');
 }
 
-/** 毎日3時: 行構造同期 → 報酬計算 → 欠番確認 */
+/**
+ * 毎日3時: 行構造同期 → 報酬計算 → 過去月の凍結ズレ修正 → 欠番確認
+ *
+ * updateRewardsNoFormula は当月/前月しか再計算しないため、過去月の商品管理を
+ * 後から補完・修正しても報酬管理の金額が古いまま固定される。その差分を
+ * 作業単価4列(D撮影/E採寸/F出品/G発送)だけ全月スキャンして直す。※報酬更新.gs
+ */
+function cronRecalcWorkDrift_() {
+  var r = recalcWorkCountDrift(true);
+  if (r && r.changed) console.log('cronRecalcWorkDrift_: ' + r.changed + '件修正 ' + JSON.stringify(r.diffs));
+}
+
 function cronDaily3() {
-  var fns = [syncRewardRows, updateRewardsNoFormula, 出力_欠番確認];
+  var fns = [syncRewardRows, updateRewardsNoFormula, cronRecalcWorkDrift_, 出力_欠番確認];
   for (var i = 0; i < fns.length; i++) {
     try { fns[i](); } catch (e) { console.error('cronDaily3 [' + fns[i].name + ']:', e); }
   }
