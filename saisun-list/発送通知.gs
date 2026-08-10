@@ -286,6 +286,7 @@ function shipMailOnEdit(e) {
 
     // Q列(入金確認)を自動で「対応済」に更新（P列=決済IDありの注文のみ到達するため無条件でOK）
     sh.getRange(row, 17).setValue('対応済');
+    touchRequestUpdatedAt_(sh, row);  // AF列(更新日時)を打ち直す
     Logger.log('入金確認 set to 対応済 at col=17');
 
     // 顧客の購入回数を更新

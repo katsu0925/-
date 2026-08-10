@@ -175,6 +175,24 @@ function buildRewardFormula_(rowNum, channel) {
 }
 
 /**
+ * 依頼管理シートの AF列（更新日時）に現在時刻を打ち直す共通ヘルパー。
+ * 入金確認(Q列)など、行の状態を変える書き込みの直後に呼ぶ。
+ * プログラムからの setValue では onEdit が発火しないため、書き込み側で明示的に呼ぶ必要がある。
+ *
+ * @param {Sheet} sheet 依頼管理シート
+ * @param {number} row 対象行番号（1-based / ヘッダー行は対象外）
+ * @param {Date} [when] 打刻する日時（省略時は現在時刻）
+ */
+function touchRequestUpdatedAt_(sheet, row, when) {
+  try {
+    if (!sheet || !(row >= 2)) return;
+    sheet.getRange(row, REQUEST_SHEET_COLS.UPDATED_AT).setValue(when || new Date());
+  } catch (e) {
+    console.error('touchRequestUpdatedAt_ error (row=' + row + '):', e);
+  }
+}
+
+/**
  * 顧客管理シートの列番号（0-indexed、getValues用）
  */
 var CUSTOMER_SHEET_COLS = {

@@ -1481,6 +1481,7 @@ function updateOrderPaymentStatus_(receiptNo, paymentStatus, paymentMethod) {
         }
         if (statusText !== null) {
           sheet.getRange(row, paymentConfirmCol).setValue(statusText);
+          touchRequestUpdatedAt_(sheet, row);  // AF列(更新日時)を打ち直す
         }
 
         // O列(15): 決済方法（日本語表示名）

@@ -191,13 +191,23 @@ Phase 5 (Order):  apiSubmitEstimate（価格計算+KOMOJU決済セッション�
 
 | 方法 | コード | Webhookイベント | 入金確認Q列 |
 |---|---|---|---|
-| クレジットカード | `credit_card` | `payment.captured` | 対応済 |
-| PayPay | `paypay` | `payment.captured` | 対応済 |
-| Apple Pay | `apple_pay` | `payment.captured` | 対応済 |
-| Paidy | `paidy` | `payment.captured` | 対応済 |
+| クレジットカード | `credit_card` | `payment.captured` | 未対応 |
+| PayPay | `paypay` | `payment.captured` | 未対応 |
+| Apple Pay | `apple_pay` | `payment.captured` | 未対応 |
+| Paidy | `paidy` | `payment.captured` | 未対応 |
 | コンビニ払い | `konbini` | `payment.authorized` | 入金待ち |
 | 銀行振込 | `bank_transfer` | `payment.authorized` | 入金待ち |
 | ペイジー | `pay_easy` | `payment.authorized` | 入金待ち |
+
+**Q列(入金確認)の3値の意味**（誤解しやすいので注意）
+
+| 値 | 意味 | 誰が書くか |
+|---|---|---|
+| 入金待ち | 未入金（後払いの承認済みだけの状態） | 注文作成時 / `payment.authorized` |
+| 未対応 | **入金済み・作業未着手** | 入金検知時（`updateOrderPaymentStatus_` KOMOJU.gs:1455 / `checkAwaitingPayments`） |
+| 対応済 | 処理終了（発送完了 or キャンセル） | 発送通知メール送信時（発送通知.gs:288）/ 入金期限切れ自動キャンセル（PaymentReminder.gs:232） |
+
+入金しただけでは「対応済」にはならない。「対応済」は発送 or キャンセルの終端マーカー。
 
 ### 6.2 決済フロー
 
@@ -213,7 +223,7 @@ Frontend → apiSubmitEstimate (Workers)
 KOMOJU → Webhook → GAS handleKomojuWebhook()
   → HMAC-SHA256署名検証
   → KOMOJU APIで決済状態を裏取り
-  → payment.captured → 対応済
+  → payment.captured → 未対応（＝入金済み・作業未着手）
   → payment.authorized（コンビニ等）→ 入金待ち
   → confirmPaymentAndCreateOrder()
     → 依頼管理シートに書き込み
@@ -341,7 +351,7 @@ Workers Cron同期後、D1データをKVにプリウォーム:
 | N | 送料(客負担) | |
 | O | 決済方法 | 日本語表示名 |
 | P | 決済ID | KOMOJU payment ID |
-| Q | 入金確認 | 対応済/入金待ち/未対応 |
+| Q | 入金確認 | 入金待ち(未入金)/未対応(入金済み・未処理)/対応済(発送orキャンセル済) → 6.1参照 |
 | R | ポイント付与済 | |
 | S | 発送ステータス | 未着手/発送済み |
 | T | 配送業者 | |
@@ -356,7 +366,7 @@ Workers Cron同期後、D1データをKVにプリウォーム:
 | AC | 発送通知 | |
 | AD | 備考 | 割引・送料・ポイント情報 |
 | AE | 作業報酬 | |
-| AF | 更新日時 | |
+| AF | 更新日時 | Q列(入金確認)を変更すると自動で打ち直される（手編集=onEdit / 自動更新=`touchRequestUpdatedAt_`） |
 | AG | チャネル | デタウリ/アソート/まとめ |
 
 ### 9.2 顧客管理（16列 A-P）

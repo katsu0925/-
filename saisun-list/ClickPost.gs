@@ -26,7 +26,13 @@ var CLICKPOST_CONFIG = {
   CONTENT_PREFIX: '衣類',     // 内容品の固定文言
   CARRIER_LABEL: '日本郵便（クリックポスト）',  // T列に書く配送業者名
   SHIP_STATUS_DONE: '発送済み',
-  PAYMENT_DONE: '対応済',
+  // Q列(入金確認)で「入金済み」とみなす値。
+  // このシステムでは 入金待ち=未入金 / 未対応=入金済み・作業未着手 / 対応済=処理終了 の3値運用で、
+  // 入金Webhookが書くのは '未対応'（KOMOJU.gs updateOrderPaymentStatus_）、
+  // '対応済' は発送通知メール送信後（発送通知.gs）か入金期限切れキャンセル（PaymentReminder.gs）でしか付かない。
+  // '対応済' だけを条件にすると「入金済み・未発送」というラベル発行のど真ん中の行が一件も拾えないため、
+  // 未対応 と 対応済 の両方を対象にする（発送済みは別途 S列で除外している）。
+  PAYMENT_PAID: ['未対応', '対応済'],
   SHIP_SIZE_LABEL: 'クリックポスト',
   // 幅の上限（半角=1 / 全角=2 で数える）
   NAME_MAX_WIDTH: 40,        // お届け先氏名: 全角20文字／半角40文字
@@ -91,7 +97,7 @@ function cp_csvHeader_() {
  * 抽出条件（すべて満たす行）:
  *   AG チャネル      = デタウリ
  *   AK 発送サイズ    = クリックポスト（空欄の過去行は K=1点 かつ M=クリポ実費 で救済）
- *   Q  入金確認      = 対応済
+ *   Q  入金確認      = 未対応 または 対応済（＝入金済み。入金待ち／空欄は除外）
  *   S  発送ステータス ≠ 発送済み
  *   V  ステータス    = 依頼中
  *   U  伝票番号      = 空
@@ -117,7 +123,7 @@ function cp_listTargets(opts) {
     if (!receiptNo) continue;
     if (String(v[C.CHANNEL - 1] || '').trim() !== 'デタウリ') continue;
     if (!cp_isClickpostRow_(v)) continue;
-    if (String(v[C.PAYMENT - 1] || '').trim() !== CLICKPOST_CONFIG.PAYMENT_DONE) continue;
+    if (CLICKPOST_CONFIG.PAYMENT_PAID.indexOf(String(v[C.PAYMENT - 1] || '').trim()) === -1) continue;
     if (String(v[C.SHIP_STATUS - 1] || '').trim() === CLICKPOST_CONFIG.SHIP_STATUS_DONE) continue;
     if (String(v[C.STATUS - 1] || '').trim() !== APP_CONFIG.statuses.open) continue;
     if (String(v[C.TRACKING - 1] || '').trim() !== '') continue;

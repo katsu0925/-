@@ -2298,6 +2298,7 @@ function createMinimalOrderRow_(paymentToken, paymentStatus, paymentMethod, paym
     reqSh.getRange(lastRow, 19).setValue('未着手');                 // S: 発送ステータス
     reqSh.getRange(lastRow, 22).setValue(APP_CONFIG.statuses.open); // V: ステータス（依頼中）
     reqSh.getRange(lastRow, 30).setValue(noteText);                // AD: 備考（自動復旧の詳細）
+    touchRequestUpdatedAt_(reqSh, lastRow);                        // AF: 更新日時
 
     console.log('Created minimal order row: ' + receiptNo + ' (paymentToken=' + paymentToken + ')');
 

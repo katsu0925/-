@@ -411,6 +411,21 @@ function onEdit(e) {
       try {
         const nowMs = u_nowMs_();
 
+        // Q列(入金確認)を手で書き換えたら AF列(更新日時)も打ち直す。
+        // プログラムからの書き込みでは onEdit が発火しないため、
+        // 自動更新側（KOMOJU.gs / 発送通知.gs / PaymentReminder.gs）は
+        // それぞれ touchRequestUpdatedAt_ を直接呼んでいる。
+        const paymentCol = (typeof REQUEST_SHEET_COLS !== 'undefined' && REQUEST_SHEET_COLS.PAYMENT) ? REQUEST_SHEET_COLS.PAYMENT : 17;
+        if (col <= paymentCol && paymentCol <= colEnd) {
+          const stampedAt = new Date(nowMs);
+          const receiptNos = sheet.getRange(row, 1, numRows, 1).getValues();
+          for (let k = 0; k < numRows; k++) {
+            if (String(receiptNos[k][0] || '').trim()) {
+              touchRequestUpdatedAt_(sheet, row + k, stampedAt);
+            }
+          }
+        }
+
         const statusCol = (typeof REQUEST_SHEET_COLS !== 'undefined' && REQUEST_SHEET_COLS.STATUS) ? REQUEST_SHEET_COLS.STATUS : 22;
         if (col <= statusCol && statusCol <= colEnd) {
           const start = row;

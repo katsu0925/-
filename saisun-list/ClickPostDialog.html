@@ -306,7 +306,8 @@ function renderList(res) {
   if (!rowsCache.length) {
     tb.innerHTML = '<tr><td colspan="7" class="muted" style="padding:16px">'
       + 'ラベルを作る対象の注文はありませんでした。<br>'
-      + '（入金確認が「対応済」で、まだ発送していないクリックポストの注文が対象です）</td></tr>';
+      + '（入金が済んでいて、まだ発送していないクリックポストの注文が対象です。<br>'
+      + '入金確認が「入金待ち」の注文は、入金が確認できるまで出てきません）</td></tr>';
     document.getElementById('cnt').textContent = '';
     updateCsvBtn();
     return;
