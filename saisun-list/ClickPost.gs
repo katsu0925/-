@@ -633,6 +633,63 @@ function cp_parseCsv_(text) {
 }
 
 // =====================================================
+// 入金完了のLINE通知
+// =====================================================
+
+/**
+ * クリックポスト対象の注文で入金が確認できたとき、業務用LINEグループへ知らせる。
+ * 宛先は朝の業務サマリー・受注通知と同じ（スクリプトプロパティ LINE_TO_ID）。
+ *
+ * 呼び出し元:
+ *   - SubmitFix.gs writeSubmitData_          … クレカ等、注文と同時に入金が済む注文
+ *   - KOMOJU.gs   updateOrderPaymentStatus_  … コンビニ／銀行振込など、あとから入金される注文
+ *
+ * 入金Webhookと5分Cron（checkAwaitingPayments）が同じ入金を拾うことがあるため、
+ * CacheServiceのマーカーで二重送信を抑止する。
+ *
+ * @param {string} receiptNo 受付番号
+ */
+function cp_notifyPaidToLine_(receiptNo) {
+  try {
+    receiptNo = String(receiptNo || '').trim();
+    if (!receiptNo) return;
+
+    var cache = CacheService.getScriptCache();
+    var cacheKey = 'cp_paid_line_' + receiptNo;
+    if (cache.get(cacheKey)) return;  // 直近6時間に送信済み
+
+    var C = REQUEST_SHEET_COLS;
+    var sh = cp_getRequestSheet_();
+    var last = sh.getLastRow();
+    if (last < 2) return;
+
+    var keys = sh.getRange(2, C.RECEIPT_NO, last - 1, 1).getValues();
+    var row = 0;
+    for (var i = 0; i < keys.length; i++) {
+      if (String(keys[i][0] || '').trim() === receiptNo) { row = i + 2; break; }
+    }
+    if (!row) return;
+
+    // 実際のシートの値で最終確認（クリックポスト対象か・本当に入金済みか）
+    var v = sh.getRange(row, 1, 1, C.CP_ISSUED_AT).getValues()[0];
+    if (String(v[C.CHANNEL - 1] || '').trim() !== 'デタウリ') return;
+    if (!cp_isClickpostRow_(v)) return;
+    if (CLICKPOST_CONFIG.PAYMENT_PAID.indexOf(String(v[C.PAYMENT - 1] || '').trim()) === -1) return;
+
+    var message = '📮 クリックポスト｜入金完了\n'
+      + '受付番号: ' + receiptNo + '\n'
+      + 'ラベル発行の対象になりました。\n'
+      + '依頼管理の「管理メニュー → 📮 クリックポスト ラベル発行」から進めてください。';
+
+    if (line_pushToGroup_(message, receiptNo)) {
+      cache.put(cacheKey, '1', 21600);  // 6時間
+    }
+  } catch (e) {
+    console.error('cp_notifyPaidToLine_ error (' + receiptNo + '):', e);
+  }
+}
+
+// =====================================================
 // 運用ユーティリティ
 // =====================================================
 

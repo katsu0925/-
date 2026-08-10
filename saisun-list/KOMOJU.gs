@@ -1471,6 +1471,7 @@ function updateOrderPaymentStatus_(receiptNo, paymentStatus, paymentMethod) {
         // ドロップダウン候補は ['入金待ち', '未対応', '対応済'] のみ。
         // cancelled / refunded は候補に無いためQ列を更新せず、V列（ステータス）で管理する。
         var paymentConfirmCol = 17;  // Q列
+        var prevPayment = String(sheet.getRange(row, paymentConfirmCol).getValue() || '').trim();
         var statusText = null;
         if (paymentStatus === 'paid' || paymentStatus === '未対応') {
           statusText = '未対応';
@@ -1494,6 +1495,14 @@ function updateOrderPaymentStatus_(receiptNo, paymentStatus, paymentMethod) {
         if (statusText === '未対応') {
           var notifyFlagCol = 28;  // AB列
           sheet.getRange(row, notifyFlagCol).setValue(false);
+        }
+
+        // 入金待ち → 未対応（＝入金完了）に変わった瞬間だけ、
+        // クリックポスト対象なら業務用LINEグループへ知らせる。
+        // 同じ入金でWebhookと5分Cronの両方が走ることがあるため、
+        // 「もう入金済みだった行」は対象外にして二重通知を防ぐ。
+        if (statusText === '未対応' && prevPayment !== '未対応' && prevPayment !== '対応済') {
+          cp_notifyPaidToLine_(receiptNo);
         }
 
         console.log('Updated payment status for row ' + row + ': ' + (statusText || '(skip: ' + paymentStatus + ')'));

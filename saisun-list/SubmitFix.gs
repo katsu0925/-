@@ -1007,6 +1007,12 @@ function writeSubmitData_(data) {
     } catch (eShipSize) {
       Logger.log('AK列(発送サイズ)の自動セットに失敗: ' + eShipSize);
     }
+    // クレカ等その場で入金が済む注文は、この時点で入金完了。業務用LINEグループへ知らせる。
+    // コンビニ／銀行振込のようにあとから入金される注文（＝ここでは入金待ち）は
+    // KOMOJU.gs updateOrderPaymentStatus_ 側で入金確認できたときに通知する。
+    if (paymentStatus === '未対応') {
+      cp_notifyPaidToLine_(data.receiptNo);
+    }
   }
 
   // 2. hold/openログシートの同期

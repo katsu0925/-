@@ -6,6 +6,42 @@ function getLineToId_() {
   return PropertiesService.getScriptProperties().getProperty('LINE_TO_ID') || '';
 }
 
+/**
+ * 業務用LINEグループへテキストを1通送る共通ヘルパー。
+ * 宛先は受注通知・朝の業務サマリーと同じ LINE_TO_ID（スクリプトプロパティ）。
+ *
+ * @param {string} message 送る本文
+ * @param {string} [label] ログに出す識別子（受付番号など）
+ * @return {boolean} 送信できたら true（未設定・失敗時は false）
+ */
+function line_pushToGroup_(message, label) {
+  var suffix = label ? ' (' + label + ')' : '';
+  var token = getLineAccessToken_();
+  var toId = getLineToId_();
+  if (!token || !toId) {
+    console.warn('LINE未設定のため送信スキップ' + suffix);
+    return false;
+  }
+  try {
+    var resp = UrlFetchApp.fetch('https://api.line.me/v2/bot/message/push', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { Authorization: 'Bearer ' + token },
+      payload: JSON.stringify({ to: toId, messages: [{ type: 'text', text: message }] }),
+      muteHttpExceptions: true
+    });
+    var code = resp.getResponseCode();
+    if (code < 200 || code >= 300) {
+      console.error('LINE通知エラー' + suffix + ': HTTP ' + code + ' ' + resp.getContentText());
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error('LINE通知送信失敗' + suffix + ': ' + (e.message || e));
+    return false;
+  }
+}
+
 function notifyUnsentRequests() {
   // 列構成: A=受付番号, B=依頼日時, C=会社名/氏名, H=商品名, AB=受注通知, AD=備考
   // トリガーからも動作するようID指定で開く（getActiveSpreadsheetはトリガー非対応の場合がある）
