@@ -130,7 +130,7 @@ function tr_setupTriggersOnce_() {
     { fn: 'cronAbandonedCart', type: 'minutes', interval: 30 },
     // 1時間ごと
     { fn: 'cronStatsCache', type: 'hours', interval: 1 },
-    // 毎日4時（ディスパッチャー: 確保クリーンアップ + ポイント処理 + ポイント失効 + プロパティ掃除）
+    // 毎日4時（ディスパッチャー: 確保クリーンアップ + ポイント処理 + ポイント失効 + プロパティ掃除 + 作業報酬数式の自己修復 + アーカイブ）
     { fn: 'cronDaily4To6', type: 'daily', hour: 4 },
     // 毎日7時（ディスパッチャー: インボイス領収書送付 + キャンセル取消 + BASEトークンチェック）
     { fn: 'cronDaily7', type: 'daily', hour: 7 },
@@ -182,6 +182,8 @@ function cronDormantCoupon() { dormantCouponCron_(); }
 function cronPointExpiry() { pointExpiryCron_(); }
 // cronRfmAnalysis, cronProductAnalytics → saisun-list-bulk に移動
 function cronArchiveOrders() { od_archiveCompletedOrders_(); }
+/** 依頼管理AE列(作業報酬)の数式欠落を自己修復（全面setValues等で潰れた行の救済） */
+function cronRepairRewardFormulas() { req_repairRewardFormulas_(); }
 function cronStatsCache() { st_calculateAndCacheStats_(); }
 function cronInvoiceReceipts() { processInvoiceReceipts(); }
 function cronCancelledInvoices() { processCancelledInvoices(); }
@@ -235,7 +237,7 @@ function cronEvery5min() {
 
 /** 毎日4時: 確保クリーンアップ + ポイント処理 + ポイント失効 + プロパティ掃除 */
 function cronDaily4To6() {
-  runWithErrorNotify_('cronDaily4To6', [cronCompactHolds, cronProcessPoints, cronPointExpiry, cleanupExecute, cronArchiveOrders]);
+  runWithErrorNotify_('cronDaily4To6', [cronCompactHolds, cronProcessPoints, cronPointExpiry, cleanupExecute, cronRepairRewardFormulas, cronArchiveOrders]);
 }
 
 /** 毎日7時: インボイス領収書送付 + キャンセル取消 + BASEトークン期限チェック */

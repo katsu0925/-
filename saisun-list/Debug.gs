@@ -794,6 +794,8 @@ function debugRestoreOrder(params) {
   ];
 
   reqSh.getRange(lastRow + 1, 1, 1, row.length).setValues([row]);
+  // AE列(作業報酬)は数式で焼く（空欄のままだと配送業者を入れても報酬が出ない）
+  reqSh.getRange(lastRow + 1, REQUEST_SHEET_COLS.REWARD).setFormula(buildRewardFormula_(lastRow + 1, 'デタウリ'));
   console.log('✅ 依頼管理シートに書き込み完了（行' + (lastRow + 1) + '）');
   console.log('');
   console.log('⚠ 次のステップ:');
@@ -1025,6 +1027,8 @@ function debugRestoreFromSaleLog(receiptNo) {
   ];
 
   reqSh.getRange(lastRow + 1, 1, 1, row.length).setValues([row]);
+  // AE列(作業報酬)は数式で焼く（空欄のままだと配送業者を入れても報酬が出ない）
+  reqSh.getRange(lastRow + 1, REQUEST_SHEET_COLS.REWARD).setFormula(buildRewardFormula_(lastRow + 1, channel));
   console.log('✅ 依頼管理シートに書き込み完了（行' + (lastRow + 1) + '）');
   console.log('管理番号: ' + managedIds.join(', '));
   console.log('ブランド: ' + brands.join(', '));

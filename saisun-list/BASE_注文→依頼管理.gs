@@ -122,6 +122,8 @@ function syncBaseOrdersToIraiKanri() {
   const dstIdx_ShippingStore = findAnyCol_(dstMap, ['送料(店負担)']);       // M列
   const dstIdx_ShippingCustomer = findAnyCol_(dstMap, ['送料(客負担)']);    // N列
   const dstIdx_PaymentMethod = findAnyCol_(dstMap, ['決済方法']);           // O列
+  const dstIdx_UpdatedAt = findAnyCol_(dstMap, ['更新日時']);               // AF列
+  const dstIdx_Channel = findAnyCol_(dstMap, ['チャネル']);                 // AG列
 
   // BASE_注文シートの決済方法列を探索
   const idxPaymentMethod_Order = findAnyCol_(orderMap, ['決済方法', '支払方法', 'payment_method', 'paymentMethod', 'Payment Method', '支払い方法']);
@@ -303,7 +305,20 @@ function syncBaseOrdersToIraiKanri() {
       // 対応済注文は実態と整合させる: 発送ステータス=発送済み、通知フラグ=TRUE(LINE通知抑制)
       out[dstIdx_ShipStatus] = isDispatched ? '発送済み' : '未着手';
       out[dstIdx_Status] = '依頼中';
-      if (dstIdx_PaymentStatus !== -1) out[dstIdx_PaymentStatus] = '未対応';  // R列: 入金確認
+      // Q列: 入金確認（3値運用）— BASE決済は入金済みなので「入金待ち」にはしない。
+      //   未対応 = 入金済み・未着手 / 対応済 = 発送orキャンセル済
+      if (dstIdx_PaymentStatus !== -1) out[dstIdx_PaymentStatus] = isDispatched ? '対応済' : '未対応';
+
+      // AF列: 更新日時 — 空だと90日アーカイブ(od_archiveCompletedOrders_)の対象外になり
+      //   依頼管理に永久に残る。BASE側の更新日時を採用し、日付として読めなければ現在時刻。
+      if (dstIdx_UpdatedAt !== -1) {
+        out[dstIdx_UpdatedAt] = (updatedAt instanceof Date) ? updatedAt : new Date();
+      }
+
+      // AG列: チャネル — BASE取込は常にアソート扱い。
+      //   空欄だとキャンセル時の在庫復帰・チャネル別集計・報酬数式の自己修復から漏れる。
+      //   ※作業報酬(AE)の数式は AG を参照しない（F1教訓）。分岐はコード側で行う。
+      if (dstIdx_Channel !== -1) out[dstIdx_Channel] = 'アソート';
 
       const hasXlsx = hasXlsx_(itemName);
       // 対応済の場合、xlsx関連も完了扱いに（既に送付済みの想定）
@@ -317,7 +332,7 @@ function syncBaseOrdersToIraiKanri() {
         out[pidColInDst] = pid;
       }
 
-      // AE列: 決済方法（BASE注文はBASE側で決済済み）
+      // O列: 決済方法（BASE注文はBASE側で決済済み）
       if (dstIdx_PaymentMethod !== -1) {
         if (idxPaymentMethod_Order !== -1) {
           const rawMethod = String(orderRow[idxPaymentMethod_Order] || '').trim();
@@ -326,6 +341,11 @@ function syncBaseOrdersToIraiKanri() {
           out[dstIdx_PaymentMethod] = 'BASE決済';
         }
       }
+
+      // P列: 決済ID は意図的に空のままにする。
+      //   発送通知.gs の shipMailOnEdit がこの列を「KOMOJU注文か」の判定に使っており、
+      //   値を入れるとS列を発送済みにした瞬間にデタウリ名義の発送通知メールが
+      //   BASEの購入者へ飛ぶ（BASE側の発送通知と二重になる）。
 
       // 送料: 注文の最初の新規行にのみ設定（重複計上を防止）
       if (!shippingSetForThisOrder) {
@@ -344,7 +364,7 @@ function syncBaseOrdersToIraiKanri() {
   const startRow = findAppendRowByMainCol_(shDst, dstIdx_ReceiptNo + 1);
   // AE列（作業報酬, 31列目）に数式を埋め込む。BASE取込は常にアソート＝箱数(K列)×250 固定。
   // 算定ロジックは buildRewardFormula_ に集約（'アソート' を渡すとアソート数式になる）。
-  const REWARD_COL_IDX = 30; // 0-based: AE列 = 31列目
+  const REWARD_COL_IDX = REQUEST_SHEET_COLS.REWARD - 1; // 0-based: AE列 = 31列目
   for (let i = 0; i < newRows.length; i++) {
     const r = startRow + i;
     if (REWARD_COL_IDX < newRows[i].length) {

@@ -2305,6 +2305,9 @@ function createMinimalOrderRow_(paymentToken, paymentStatus, paymentMethod, paym
     reqSh.getRange(lastRow, 22).setValue(APP_CONFIG.statuses.open); // V: ステータス（依頼中）
     reqSh.getRange(lastRow, 30).setValue(noteText);                // AD: 備考（自動復旧の詳細）
     touchRequestUpdatedAt_(reqSh, lastRow);                        // AF: 更新日時
+    // AG: チャネル（デタウリ経由の決済からの復旧行）→ AE: 作業報酬の数式もチャネルに合わせて焼く
+    reqSh.getRange(lastRow, REQUEST_SHEET_COLS.CHANNEL).setValue('デタウリ');
+    reqSh.getRange(lastRow, REQUEST_SHEET_COLS.REWARD).setFormula(buildRewardFormula_(lastRow, 'デタウリ'));
 
     console.log('Created minimal order row: ' + receiptNo + ' (paymentToken=' + paymentToken + ')');
 

@@ -2128,6 +2128,8 @@ function recoverKomojuPayment() {
       '', now, 'デタウリ'
     ];
     reqSh.getRange(lastRow2 + 1, 1, 1, row.length).setValues([row]);
+    // AE列(作業報酬)は数式で焼く（空欄のままだと配送業者を入れても報酬が出ない）
+    reqSh.getRange(lastRow2 + 1, REQUEST_SHEET_COLS.REWARD).setFormula(buildRewardFormula_(lastRow2 + 1, 'デタウリ'));
     console.log('=== ミニマル復旧完了 === 受付番号: ' + receiptNo + ' ※商品情報は手動入力必要');
   }
 

@@ -290,22 +290,32 @@ function handleMissingProducts() {
   var countCol = rIdx['合計点数'];
   var linkCol = rIdx['確認リンク'];
 
-  // バッチ更新: 全更新をメモリ上で処理してから一括書き込み
-  var updatedReqData = reqData.map(function(row) { return row.slice(); });
+  // ★重要: 以前はシート全体を setValues で書き戻していたが、
+  //   それだと AE列(作業報酬)の数式が静的値に潰れ、T列(配送業者)未入力の行は
+  //   空欄が焼き付いて後から配送業者を入れても報酬が出なくなる。
+  //   該当行の必要セルだけをピンポイントで更新する。
+  if (receiptCol === undefined || selectionCol === undefined) {
+    throw new Error('依頼管理シートに「受付番号」または「選択リスト」列が見つかりません');
+  }
+  var reqNow = new Date();
   receiptNoList.forEach(function(receiptNo) {
-    for (var i = 1; i < updatedReqData.length; i++) {
-      if (String(updatedReqData[i][receiptCol] || '').trim() === receiptNo) {
-        var currentList = String(updatedReqData[i][selectionCol] || '');
-        var currentIds = currentList.split(/[、,，\s]+/).map(function(s) { return s.trim(); }).filter(function(s) { return s; });
-        var newIds = currentIds.filter(function(id) { return !targetSet[id]; });
-        updatedReqData[i][selectionCol] = newIds.join('、');
-        if (countCol !== undefined) updatedReqData[i][countCol] = newIds.length;
-        if (linkCol !== undefined) updatedReqData[i][linkCol] = '';
-        break;
-      }
+    for (var i = 1; i < reqData.length; i++) {
+      if (String(reqData[i][receiptCol] || '').trim() !== receiptNo) continue;
+
+      var sheetRow = i + 1; // reqDataの0行目=ヘッダー行(シート1行目)
+      var currentIds = String(reqData[i][selectionCol] || '')
+        .split(/[、,，\s]+/)
+        .map(function(s) { return s.trim(); })
+        .filter(function(s) { return s; });
+      var newIds = currentIds.filter(function(id) { return !targetSet[id]; });
+
+      reqSheet.getRange(sheetRow, selectionCol + 1).setValue(newIds.join('、'));
+      if (countCol !== undefined) reqSheet.getRange(sheetRow, countCol + 1).setValue(newIds.length);
+      if (linkCol !== undefined) reqSheet.getRange(sheetRow, linkCol + 1).setValue('');
+      touchRequestUpdatedAt_(reqSheet, sheetRow, reqNow);
+      break;
     }
   });
-  reqSheet.getRange(1, 1, updatedReqData.length, updatedReqData[0].length).setValues(updatedReqData);
 
   // --- 欠品商品: ステータス→廃棄済み、廃棄日→今日、BO列クリア ---
   // --- 同じ受付番号の残り商品: 売却済み→ステータスクリア、BO列クリア ---
