@@ -175,6 +175,33 @@ function buildRewardFormula_(rowNum, channel) {
 }
 
 /**
+ * 発送サイズ別報酬（新スキーム）の適用開始日。
+ * これより前の依頼日時の行は、手作業で入った旧数式であっても書き換えない
+ * （＝過去に確定・支払済みの報酬額を遡って変えない）。
+ */
+var REWARD_SCHEME_V2_START_ = new Date(2026, 6, 25); // 2026-07-25
+
+/**
+ * AE列に入っている数式が「配送業者ベースの旧ルール」かどうかを判定する。
+ *
+ * 旧数式（コードには存在せず、シート上で手作業により列全体へドラッグされたもの）:
+ *   =IF(T{r}="","",IF(B{r}>=DATE(2026,6,1),
+ *      IF(T{r}="日本郵便",350*K{r},IF(OR(T{r}="佐川急便",T{r}="ヤマト運輸"),250*K{r},"")),
+ *      IF(T{r}="日本郵便",300*K{r},IF(OR(T{r}="佐川急便",T{r}="ヤマト運輸"),200*K{r},""))))
+ *
+ * buildRewardFormula_() が生成する数式には配送業者名が一切現れないため、
+ * 配送業者名を含む＝旧数式 と判定できる。
+ *
+ * @param {string} formula AE列の数式文字列
+ * @return {boolean} 旧数式なら true
+ */
+function isLegacyRewardFormula_(formula) {
+  var f = String(formula || '');
+  if (!f) return false;
+  return f.indexOf('日本郵便') !== -1 || f.indexOf('佐川急便') !== -1 || f.indexOf('ヤマト運輸') !== -1;
+}
+
+/**
  * 依頼管理シートの AF列（更新日時）に現在時刻を打ち直す共通ヘルパー。
  * 入金確認(Q列)など、行の状態を変える書き込みの直後に呼ぶ。
  * プログラムからの setValue では onEdit が発火しないため、書き込み側で明示的に呼ぶ必要がある。
