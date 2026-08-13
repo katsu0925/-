@@ -48,11 +48,13 @@ function req_getRequestSheet_() {
  *   3. AE列の値も空（＝静的な数値が入っている行は確定済みとみなして保護）
  *   4. AG列(チャネル)が入っている（空欄は判別不能なので触らない）
  *
- * ② 旧数式（配送業者ベース）の差し替え:
- *   シート上で手作業により AE列へドラッグされた旧数式が残っていると、
+ * ② 旧ルールの数式の差し替え:
+ *   シート上で手作業により AE列へドラッグされた旧数式（配送業者ベース）が残っていると、
  *   発送サイズ別報酬（2026-07-25改定）が永久に反映されない。
- *   REWARD_SCHEME_V2_START_ 以降の依頼日時の行に限り、新数式へ差し替える。
+ *   判定は「buildRewardFormula_() が返す期待数式と一致するか」で行う（isCurrentRewardFormula_）。
+ *   一致しない行のうち REWARD_SCHEME_V2_START_ 以降の依頼日時の行だけを現行数式へ差し替える。
  *   （それより前の行は支払済みの可能性があるため旧数式のまま保護する）
+ *   ※報酬ルールを改定した場合も、この経路で改定日以降の行が自動的に追随する。
  *
  * ③ 空行の掃除:
  *   受付番号が無い行に数式だけが残っていると、次に書き込まれる行が
@@ -97,9 +99,9 @@ function req_repairRewardFormulas_(sheet) {
     var row = startRow + i;
     var channel = String(channels[i][0] || '').trim();
 
-    // --- ② 旧数式（配送業者ベース）を新数式へ差し替える ---
+    // --- ② 旧ルールの数式を現行ルールの数式へ差し替える ---
     if (formula) {
-      if (!isLegacyRewardFormula_(formula)) continue; // 新数式 = 正常
+      if (channel && isCurrentRewardFormula_(formula, row, channel)) continue; // 現行ルール = 正常
       var d = requestedAt[i][0];
       if (!(d instanceof Date) || d < REWARD_SCHEME_V2_START_) {
         // 改定前の行 = 支払済みの可能性があるので触らない

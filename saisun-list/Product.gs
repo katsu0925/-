@@ -102,7 +102,8 @@ function sh_applyRequestStatusDropdown_(ss) {
   sh.getRange(2, 17, Math.max(1, maxRows - 1), 1).setDataValidation(paymentRule);
 
   // AK列(37): 発送サイズ（デタウリ単品の作業報酬算定に使用）
-  // クリックポスト=50円 / 中箱=100円 / 大箱=250円。アソート系は箱数×250のためAKは不要。
+  // クリックポスト=50円 / 中箱=100円 / 大箱=250円（配送業者が日本郵便なら350円）。
+  // アソート系は 箱数×250円（日本郵便なら箱数×350円）で AK は不要。
   const SHIP_SIZE_COL = REQUEST_SHEET_COLS.SHIP_SIZE; // 37 (AK)
   // AK列が物理的に存在しない場合は列を追加してから設定する
   if (sh.getMaxColumns() < SHIP_SIZE_COL) {
