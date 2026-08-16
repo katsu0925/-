@@ -1059,6 +1059,9 @@ async function refreshCounts() {
         b.textContent = String(c[k]);
       });
     });
+    // 発送商品タブの3チップは data-filter を持たない（サーバー集計とクライアント集計の
+    // 混在で作るため）。集計が後から届いたときは行ごと作り直す。
+    updateHassouChipsCounts_();
   } catch (err) {
     // 件数失敗は致命ではないので静かにログだけ
     console.warn('counts failed', err);
@@ -2459,10 +2462,18 @@ function tabCacheGuard_(tab) {
   // 描画中にユーザーが他タブへ移動していたら paint をスキップ
   return STATE.tab === tab && STATE.view === 'list';
 }
+// 実際にサーバーへ送るフィルタ名。
+// 発送商品タブの「完了」チップだけは別フィルタ（hassou_kanryou）で取りに行く。
+// 完了は500件超あり、発送待ち/発送済み（数十件）と同梱すると初期表示が10倍以上重くなるため、
+// 押されたときだけ取得する（= 遅延ロード）。
+function effectiveListFilter_() {
+  if (STATE.tab === 'hassou' && STATE.hassouFilter === 'kanryou') return 'hassou_kanryou';
+  return STATE.filter || '';
+}
 function listCacheKey_() {
   // 検索 q はサーバーには送らずクライアント側で正規化マッチさせるので、
   // キャッシュキーには含めない（q を変えるたびにキャッシュミスして再取得を防ぐ）。
-  return (STATE.tab || '') + '|' + (STATE.filter || '');
+  return (STATE.tab || '') + '|' + effectiveListFilter_();
 }
 // 楽観的に保存した変更を全キャッシュエントリに反映（一覧バッジを即座に更新）
 function patchListCache_(kanri, fields) {
@@ -2757,7 +2768,8 @@ async function renderShouhinList(opts) {
   // mode=list で最小フィールドだけ取得（モバイル高速化）— 詳細を開く時にフルデータを取り直す
   params.set('mode', 'list');
   // q はサーバーに送らずクライアント側で全角/半角を吸収して比較する
-  if (STATE.filter) params.set('filter', STATE.filter);
+  var effFilter = effectiveListFilter_();
+  if (effFilter) params.set('filter', effFilter);
   // 商品管理タブでは売却済み/返品済みは表示しない（chip 件数も同条件）
   if (STATE.tab === 'shouhin') params.set('noSold', '1');
   // 売上タブと発送タブには新規作成不要（既存商品を見る用途）
@@ -2837,11 +2849,11 @@ async function renderShouhinList(opts) {
     // 商品管理タブのみ並び替え設定を適用（発送タブはグルーピング側で並びを決める）
     var sorted = (STATE.tab === 'shouhin') ? applyShouhinSort_(filtered) : filtered;
     STATE.items = sorted;
-    // 商品管理タブで件数が多い & mobile 幅 のときは仮想スクロールを使う
-    // （5000+ 件を全描画すると iPhone で「追いかけ表示」が発生するため）
-    var useVlist = STATE.tab === 'shouhin' &&
-                   sorted.length > 100 &&
-                   (window.innerWidth || 0) < 900;
+    // 商品管理タブで件数が多いときは仮想スクロールを使う。
+    // モバイル: 5000+ 件を全描画すると iPhone で「追いかけ表示」が発生するため。
+    // PC: 実測で 2,957 枚 = DOM 46,901 ノード / 同期描画 618ms（しかもキャッシュ描画＋再取得後で2回）。
+    //     vlist は段組み（grid）対応にしたので PC でも使う。
+    var useVlist = STATE.tab === 'shouhin' && sorted.length > 100;
     // 既存の vlist は新描画前に必ず解除（スクロールリスナー残留防止）
     vlistDeactivate_();
     var body;
@@ -2870,12 +2882,42 @@ async function renderShouhinList(opts) {
   }
   if (cached) {
     paint(cached.items);
+    // cacheOnly: 同梱解決後の再描画など「サーバーに新しい情報を求めていない」再描画。
+    // ここで再フェッチすると発送タブが毎回 /api/products を2回叩くことになる。
+    if (opts.cacheOnly) return;
   } else if (!opts.silent) {
-    c.innerHTML = chip + '<div class="loading">読み込み中…</div>';
+    // 発送タブはチップ行だけ先に出す（読み込み中でもチップを押して切り替えられる）
+    var pre = (STATE.tab === 'hassou') ? hassouChipsToolbarHtml_(hassouFilterKey_(), null) : '';
+    c.innerHTML = chip + pre + '<div class="loading">読み込み中…</div>';
   }
 
+  // 初回（キャッシュ無し）の商品管理タブだけ、全件と並行して小さい1ページ目も取り、
+  // 先に着いたほうで描画する（＝つなぎページ）。全件は約3,000件・1.2MB あり、
+  // 受信〜JSON パースまでの数百ms がまるごと「読み込み中…」になっていた。
+  //
+  // ★つなぎページを出すのは「サーバーの並び順＝画面の並び順」が保証できるときだけ。
+  //   サーバーは管理番号順で返し、クライアントの既定並び替えも管理番号順なので、
+  //   その組み合わせなら 1ページ目の200件は「本当の先頭200件」になる。
+  //   並び替えを変えている / 検索中 / アカウント絞り込み中は、200件だけでは
+  //   正しい先頭を決められない（全件が要る）ので、つなぎは出さずに従来どおり待つ。
+  var wantPrimer = (STATE.tab === 'shouhin' && !cached && !opts.silent &&
+                    !qNorm && !STATE.accountFilter && (STATE.shouhinSort || 'kanri') === 'kanri');
+
   try {
-    const res = await api('/api/products?' + params.toString());
+    var fullPromise = api('/api/products?' + params.toString());
+    if (wantPrimer) {
+      var fullArrived = false;
+      fullPromise.then(function(){ fullArrived = true; }, function(){ fullArrived = true; });
+      var primerParams = new URLSearchParams(params.toString());
+      primerParams.set('limit', '200');
+      // await しない（全件のほうが先に着いたらそのまま全件を描く）
+      api('/api/products?' + primerParams.toString()).then(function(pres){
+        // 全件が先着 / タブやフィルタが切り替わった後なら、つなぎは捨てる（チラつき防止）
+        if (fullArrived || listCacheKey_() !== cacheKey) return;
+        paint(pres.items || []);
+      }).catch(function(){ /* つなぎなので失敗は無視 */ });
+    }
+    const res = await fullPromise;
     var items = res.items || [];
     // サーバーが前進を反映し終えた（=このビューで新工程以降を返した／前工程から外した）ら解放
     pruneLocalStage_(items);
@@ -2900,7 +2942,9 @@ async function resolveHassouBundles_(items) {
   if (!c) return;
   // 影響を受けたカード（同梱がある or 既に有り）のみ最小再描画したいが、
   // hassouGrouped レイアウトを再計算する方が安全 & 高速なのでまるごと再描画。
-  if (typeof renderShouhinList === 'function') renderShouhinList({ silent: true });
+  // cacheOnly: 同梱が解決しただけでサーバーの一覧は変わっていないので再フェッチしない
+  //   （これが無いと発送タブを開くたび /api/products が2回走っていた）。
+  if (typeof renderShouhinList === 'function') renderShouhinList({ silent: true, cacheOnly: true });
 }
 
 // 発送期限 = 販売日 + SHIP_DEADLINE_DAYS（AppSheet 同様の運用）
@@ -3633,11 +3677,15 @@ function applyCardThumb_(el, url) {
   el.innerHTML = '<img src="' + esc(url) + '" alt="" loading="lazy" decoding="async">';
 }
 
-// ===== 仮想スクロール（mobile 専用） =====
+// ===== 仮想スクロール（商品管理タブ） =====
 // 5000+ 件のカードを全部 DOM に置くと iPhone Safari でスクロール中に
-// content-visibility による「追いかけ表示」が起きて見づらいため、
-// 表示範囲（+ buffer）だけ DOM にマウントする方式に切替える。
-// PC（≥900px）ではグリッド表示なので対象外（content-visibility に任せる）。
+// content-visibility による「追いかけ表示」が起きて見づらい。
+// PC も同様に重く、実測で 2,957 枚 = DOM 46,901 ノード・同期描画 618ms かかっていた
+// （しかもキャッシュ描画と再取得後の2回走る）。
+// そこで表示範囲（+ 上下バッファ）だけ DOM にマウントする。
+//
+// PC（≥900px）では .cards-grid が段組み（grid）になるので、
+// 列数と行ピッチを実測して「行」単位で計算する。モバイルは display:contents ＝ cols=1。
 var VLIST = {
   active: false,
   items: [],
@@ -3645,8 +3693,12 @@ var VLIST = {
   topSpacer: null,
   windowEl: null,
   bottomSpacer: null,
-  itemHeight: 110,   // 初期値。マウント直後に実測して補正
-  buffer: 6,         // 上下バッファ枚数
+  itemHeight: 110,   // 行ピッチ（カード高 + 行間）。マウント直後に実測して補正
+  cols: 1,           // 段組みの列数。PC グリッド時に実測
+  gap: 8,            // 行間（モバイルは .card の margin-bottom 相当）
+  measured: false,   // 一度でも実測したか（実測はマウント直後とリサイズ時だけ＝スクロール中は測らない）
+  buffer: 6,         // 上下バッファ「行」数
+  refitting: false,  // 行ピッチ再測定による描き直し中（再入防止）
   startIdx: 0,
   endIdx: 0,
   rafScheduled: false,
@@ -3657,6 +3709,7 @@ var VLIST = {
 function vlistDeactivate_() {
   if (VLIST.active) {
     window.removeEventListener('scroll', vlistOnScroll_);
+    window.removeEventListener('resize', vlistOnResize_);
     VLIST.active = false;
   }
   VLIST.items = [];
@@ -3668,6 +3721,52 @@ function vlistDeactivate_() {
   VLIST.onAfter = null;
   VLIST.startIdx = 0;
   VLIST.endIdx = 0;
+  VLIST.measured = false;
+}
+
+// 列数と行間を実測する。
+// .cards-grid は モバイルで display:contents（grid ではない）なので cols=1・gap=8（.card の margin-bottom）。
+// PC は grid-template-columns が repeat(auto-fill,…) を解決した実トラック列（"320px 320px …"）で返るので、
+// トークン数がそのまま列数になる。
+function vlistMeasureLayout_() {
+  var cols = 1, gap = 8;
+  try {
+    var cs = getComputedStyle(VLIST.container);
+    if (cs.display === 'grid') {
+      var tracks = String(cs.gridTemplateColumns || '').trim();
+      if (tracks && tracks !== 'none') cols = tracks.split(/\s+/).length;
+      var g = parseFloat(cs.rowGap);
+      if (!isNaN(g)) gap = g;
+    }
+  } catch (e) {}
+  VLIST.cols = (cols > 0) ? cols : 1;
+  VLIST.gap = gap;
+}
+
+// 描画中カードの実測から「行ピッチ」を補正する。
+//
+// ★最大値ではなく平均を採ること。
+//   カード高は中身（ブランド名の折り返し・バッジの数）で 100〜130px と幅がある。
+//   ここで最大値を採ると行ピッチが過大になり、「1画面に必要な行数」を少なく見積もって
+//   スクロール時に画面下が一瞬空白になる（実測: ピッチ129 と読んだが実体は100px だった）。
+//   平均なら描画枚数の見積りが実体と一致する。位置ズレはスペーサ実測から毎回引き直すので蓄積しない。
+//
+// .vlist-window は display:contents なので自身の rect は 0。先頭カードの上端〜末尾カードの下端で測る。
+function vlistMeasureItemHeight_() {
+  if (!VLIST.active || !VLIST.windowEl) return false;
+  var kids = VLIST.windowEl.children;
+  if (!kids.length) return false;
+  var rows = Math.ceil(kids.length / VLIST.cols);
+  if (rows <= 0) return false;
+  var total = kids[kids.length - 1].getBoundingClientRect().bottom - kids[0].getBoundingClientRect().top;
+  if (!(total > 0)) return false;
+  // 行間は行と行の間にしか入らない（末尾の下には無い）ので1つ分足してから割る
+  var pitch = Math.round((total + VLIST.gap) / rows);
+  if (pitch < 20) return false;
+  VLIST.measured = true;
+  if (Math.abs(pitch - VLIST.itemHeight) <= 4) return false;
+  VLIST.itemHeight = pitch;
+  return true;
 }
 
 function vlistMount_(items, cardHtmlFn, onAfter) {
@@ -3686,22 +3785,14 @@ function vlistMount_(items, cardHtmlFn, onAfter) {
   VLIST.windowEl = container.querySelector('.vlist-window');
   VLIST.bottomSpacer = container.querySelector('.vlist-bottom-spacer');
   VLIST.active = true;
+  vlistMeasureLayout_();
   window.addEventListener('scroll', vlistOnScroll_, { passive: true });
+  window.addEventListener('resize', vlistOnResize_);
   vlistRender_(true);
-  // 1 枚目の高さを実測して itemHeight を補正（密度設定や端末で変わる）
+  // カード高を実測して行ピッチを補正（密度設定・端末・画像有無で変わる）
   setTimeout(function(){
-    if (!VLIST.active || !VLIST.windowEl) return;
-    var first = VLIST.windowEl.firstElementChild;
-    if (first) {
-      var h = first.getBoundingClientRect().height;
-      if (h && h > 0) {
-        var corrected = Math.round(h + 8); // margin-bottom 込み
-        if (Math.abs(corrected - VLIST.itemHeight) > 4) {
-          VLIST.itemHeight = corrected;
-          vlistRender_(true);
-        }
-      }
-    }
+    if (!VLIST.active) return;
+    if (vlistMeasureItemHeight_()) vlistRender_(true);
   }, 50);
 }
 
@@ -3715,6 +3806,15 @@ function vlistOnScroll_() {
   });
 }
 
+// ウィンドウ幅が変わると列数（auto-fill）も行ピッチも変わるので測り直す。
+function vlistOnResize_() {
+  if (!VLIST.active || !VLIST.container) return;
+  vlistMeasureLayout_();
+  vlistRender_(true);
+  vlistMeasureItemHeight_();
+  vlistRender_(true);
+}
+
 function vlistRender_(force) {
   if (!VLIST.active || !VLIST.container) return;
   // 親 DOM が差し替わった（タブ切替等）ら自動でクリーンアップ
@@ -3722,7 +3822,7 @@ function vlistRender_(force) {
     vlistDeactivate_();
     return;
   }
-  // .cards-grid は display:contents で rect が 0 になるため、
+  // .cards-grid は モバイルで display:contents となり rect が 0 になるため、
   // topSpacer（block 要素）の位置からリスト先頭の y 座標を取る。
   // topSpacer.top はスペーサの高さに関わらず常に「リスト先頭の y」を指す。
   var spacerRect = VLIST.topSpacer.getBoundingClientRect();
@@ -3730,19 +3830,42 @@ function vlistRender_(force) {
   var visibleStart = Math.max(0, -spacerRect.top);
   var visibleEnd = visibleStart + viewportH;
   var ih = VLIST.itemHeight;
+  var cols = VLIST.cols;
   var n = VLIST.items.length;
-  var startIdx = Math.max(0, Math.floor(visibleStart / ih) - VLIST.buffer);
-  var endIdx = Math.min(n, Math.ceil(visibleEnd / ih) + VLIST.buffer);
+  var rows = Math.ceil(n / cols);
+  // 行単位で範囲を出し、そこから枚数へ戻す。
+  // startIdx を必ず cols の倍数にすることで、先頭カードが必ず左端の列から始まる
+  // （スペーサは全幅 1 行を占めるので、行の途中から始まることがない）。
+  var startRow = Math.max(0, Math.floor(visibleStart / ih) - VLIST.buffer);
+  var endRow = Math.min(rows, Math.ceil(visibleEnd / ih) + VLIST.buffer);
+  var startIdx = startRow * cols;
+  var endIdx = Math.min(n, endRow * cols);
   if (!force && startIdx === VLIST.startIdx && endIdx === VLIST.endIdx) return;
   VLIST.startIdx = startIdx;
   VLIST.endIdx = endIdx;
-  VLIST.topSpacer.style.height = (startIdx * ih) + 'px';
-  VLIST.bottomSpacer.style.height = ((n - endIdx) * ih) + 'px';
+  VLIST.topSpacer.style.height = (startRow * ih) + 'px';
+  VLIST.bottomSpacer.style.height = ((rows - endRow) * ih) + 'px';
   var html = '';
   for (var i = startIdx; i < endIdx; i++) {
     html += VLIST.cardHtmlFn(VLIST.items[i]);
   }
   VLIST.windowEl.innerHTML = html;
+  // 安全網: 行ピッチが実体より大きいと「1画面に要る行数」を少なく見積もり、画面下が空白になる。
+  // 描画のたびに末尾カードが画面下端まで届いているか見て、届いていなければ測り直して1回だけ描き直す。
+  if (!VLIST.refitting && endIdx < n) {
+    var kids = VLIST.windowEl.children;
+    if (kids.length && kids[kids.length - 1].getBoundingClientRect().bottom < viewportH) {
+      VLIST.refitting = true;
+      var refit = false;
+      try {
+        refit = vlistMeasureItemHeight_();
+        if (refit) vlistRender_(true);
+      } finally {
+        VLIST.refitting = false;
+      }
+      if (refit) return;   // 描き直した側で onAfter まで済んでいる
+    }
+  }
   if (VLIST.onAfter) VLIST.onAfter();
 }
 
@@ -3775,8 +3898,12 @@ async function loadThumbHasSet_() {
     try {
       sessionStorage.setItem('tbthumb-has:v1', JSON.stringify({ ts: Date.now(), kanris: arr }));
     } catch(e) {}
+    // サムネの有無が分かっただけ＝サーバーの一覧内容は何も変わっていない。
+    // ここで render() を呼ぶと renderShouhinList が「キャッシュで描画→裏で再取得」を
+    // もう一度やり直すので、起動のたびに全件(約3,000件)スキャンが2回走っていた。
+    // cacheOnly で描き直すだけにする（キャッシュがまだ無い＝初回取得中なら従来どおり取得する）。
     if ((STATE.tab === 'shouhin' || STATE.tab === 'hassou') && STATE.view === 'list') {
-      try { render(); } catch(e) {}
+      try { renderShouhinList({ silent: true, cacheOnly: true }); } catch(e) {}
     }
   } catch(e) { /* 静かに失敗 */ }
 }
@@ -3794,6 +3921,11 @@ function isThumbNoneCached_(v) {
   }
   return false;
 }
+
+// 送信中の kanri（/api/products/thumbs のレスポンス待ち）。
+// 仮想スクロール導入でこの関数はスクロールのたびに走るため、これが無いと
+// 同じ kanri を何度も POST してしまう（サーバー側は 1 kanri = KV 1 read なので課金に直撃する）。
+var __thumbInflight = Object.create(null);
 
 // 一覧描画後に呼ぶ: タスキ箱（gas-proxy KV: product-images:<kanri>）から各カードのトップ画像を一括解決して差し替える。
 // セッションキャッシュで再描画コスト削減。画像なしのカードは 📷 のまま。
@@ -3814,46 +3946,59 @@ function resolveCardThumbsTasukibako_() {
       el.innerHTML = thumbImgHtml_(cached);
       return;
     }
-    if (!pendingMap[k]) {
+    if (!pendingMap[k] && !__thumbInflight[k]) {
       pendingMap[k] = true;
       pendingKanris.push(k);
     }
   });
   if (pendingKanris.length === 0) return;
-  // バッチサイズ200で分割
-  var BATCH = 200;
+  pendingKanris.forEach(function(k){ __thumbInflight[k] = true; });
+  // バッチサイズ100で分割し、直列で流す。
+  // 仮想スクロールでは1回あたり数十件しか出ないので通常1バッチで収まる。
+  // 並列に投げると初回描画時に Workers へ同時多発リクエストになるため直列にしている。
+  var BATCH = 100;
+  var slices = [];
   for (var i = 0; i < pendingKanris.length; i += BATCH) {
-    (function(slice){
-      fetch('/api/products/thumbs', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ kanris: slice })
-      }).then(function(r){ return r.ok ? r.json() : null; })
-        .then(function(res){
-          var items = (res && res.items) || {};
-          var resolvedUrls = [];
-          slice.forEach(function(k){
-            var ck = 'tbthumb:v2:' + k;
-            var url = items[k];
-            if (url) {
-              try { sessionStorage.setItem(ck, url); } catch(e) {}
-              var smallUrl = normalizeDriveUrl_(url, 200);
-              resolvedUrls.push(smallUrl);
-              var imgHtml = thumbImgHtml_(url);
-              document.querySelectorAll('.card-thumb.img-tasukibako[data-kanri="' + k.replace(/"/g,'\\"') + '"]').forEach(function(el){
-                el.classList.remove('img-tasukibako');
-                el.innerHTML = imgHtml;
-              });
-            } else {
-              // 画像なしをタイムスタンプ付きで記憶（TTL 5分後に再フェッチ → アップロード即反映）
-              try { sessionStorage.setItem(ck, '__none__:' + Date.now()); } catch(e) {}
-            }
-          });
-          // CF Edge Cache のプリ温め: lazy 範囲外の画像も先に /api/img で取得して
-          // 次にスクロールしてきたとき即時表示できるようにする（同時 8 並列で過負荷回避）。
-          prefetchImgUrls_(resolvedUrls);
-        }).catch(function(){ /* 静かに失敗（📷 のまま） */ });
-    })(pendingKanris.slice(i, i + BATCH));
+    slices.push(pendingKanris.slice(i, i + BATCH));
   }
+  (function next(){
+    var slice = slices.shift();
+    if (!slice) return;
+    fetch('/api/products/thumbs', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kanris: slice })
+    }).then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(res){
+        var items = (res && res.items) || {};
+        var resolvedUrls = [];
+        slice.forEach(function(k){
+          var ck = 'tbthumb:v2:' + k;
+          var url = items[k];
+          if (url) {
+            try { sessionStorage.setItem(ck, url); } catch(e) {}
+            var smallUrl = normalizeDriveUrl_(url, 200);
+            resolvedUrls.push(smallUrl);
+            var imgHtml = thumbImgHtml_(url);
+            document.querySelectorAll('.card-thumb.img-tasukibako[data-kanri="' + k.replace(/"/g,'\\"') + '"]').forEach(function(el){
+              el.classList.remove('img-tasukibako');
+              el.innerHTML = imgHtml;
+            });
+          } else {
+            // 画像なしをタイムスタンプ付きで記憶（TTL 5分後に再フェッチ → アップロード即反映）
+            try { sessionStorage.setItem(ck, '__none__:' + Date.now()); } catch(e) {}
+          }
+        });
+        // CF Edge Cache のプリ温め: lazy 範囲外の画像も先に /api/img で取得して
+        // 次にスクロールしてきたとき即時表示できるようにする（同時 8 並列で過負荷回避）。
+        prefetchImgUrls_(resolvedUrls);
+      })
+      .catch(function(){ /* 静かに失敗（📷 のまま） */ })
+      .then(function(){
+        // 成否に関わらず in-flight を解除（失敗した kanri は次の描画で再挑戦される）
+        slice.forEach(function(k){ delete __thumbInflight[k]; });
+        next();
+      });
+  })();
 }
 
 // /api/img プロキシを介して画像を先読みし、CF Edge Cache を温める。
@@ -3887,12 +4032,49 @@ function setHassouFilter_(key) {
   if (STATE.hassouFilter === key) return;
   STATE.hassouFilter = key;
   try { localStorage.setItem('sk.hassouFilter', key); } catch(e) {}
-  if (STATE.tab === 'hassou') renderShouhinList({ silent: true });
+  // 完了⇔発送待ち/発送済みはサーバー側フィルタが変わる（= 別キャッシュ）。
+  // silent にすると未取得時に真っ白になるので、非 silent で読み込み中スピナーを出す。
+  if (STATE.tab === 'hassou') renderShouhinList();
+}
+
+function hassouFilterKey_() {
+  return (STATE.hassouFilter === 'shipped' || STATE.hassouFilter === 'kanryou')
+    ? STATE.hassouFilter : 'pending';
+}
+
+// 発送商品タブの3チップ行。
+// cnt = { pending, shipped, kanryou }（null なら全件サーバー集計から埋める）。
+// 今表示しているチップの件数は実カード枚数（同梱集約後）、表示していない側は
+// サーバー集計 /api/products/counts の値を使う（同梱集約前なので数点ずれることがある）。
+function hassouChipsToolbarHtml_(filterKey, cnt) {
+  var sc = STATE.counts || {};
+  function n(v, key) {
+    if (v != null) return String(v);
+    return (sc[key] != null) ? String(sc[key]) : '—';
+  }
+  cnt = cnt || {};
+  var defs = [
+    { key: 'pending', lbl: '発送待ち', val: cnt.pending, cntKey: 'hassou_pending' },
+    { key: 'shipped', lbl: '発送済み', val: cnt.shipped, cntKey: 'hassou_shipped' },
+    { key: 'kanryou', lbl: '完了',     val: cnt.kanryou, cntKey: 'hassou_kanryou' }
+  ];
+  return '<div class="tab-toolbar" id="hassou-chips">' + defs.map(function(d){
+    return '<button type="button" class="chip' + (filterKey === d.key ? ' active' : '') + '"' +
+      ' onclick="setHassouFilter_(\'' + d.key + '\')">' + d.lbl +
+      '<span class="chip-count">' + n(d.val, d.cntKey) + '</span></button>';
+  }).join('') + '</div>';
+}
+
+// サーバー集計 /api/products/counts が後から届いたときに3チップの件数だけ差し替える。
+// クライアント側で数えられた側（今表示中のチップ）は STATE.hassouLiveCounts が勝つ。
+function updateHassouChipsCounts_() {
+  var el = document.getElementById('hassou-chips');
+  if (!el || STATE.tab !== 'hassou') return;
+  el.outerHTML = hassouChipsToolbarHtml_(hassouFilterKey_(), STATE.hassouLiveCounts);
 }
 
 function renderHassouGrouped_(items) {
-  var filterKey = (STATE.hassouFilter === 'shipped' || STATE.hassouFilter === 'kanryou')
-    ? STATE.hassouFilter : 'pending';
+  var filterKey = hassouFilterKey_();
   var targetStatus = filterKey === 'shipped' ? '発送済み'
     : (filterKey === 'kanryou' ? '売却済み' : '発送待ち');
   // 実効ステータス: ローカル工程オーバーレイ(LOCAL_STAGE_)を前進のみ反映。
@@ -3915,14 +4097,21 @@ function renderHassouGrouped_(items) {
     if (bundleNorm_(main) === bundleNorm_(it.kanri)) return true;  // 自分がメイン
     return !presentNorms[bundleNorm_(main)];                       // メイン不在なら安全側で表示
   });
-  // チップに件数を出すため、フィルタ前に3者をカウント（集約後なので件数=カード枚数と整合）
-  var countPending = 0, countShipped = 0, countKanryou = 0;
-  items.forEach(function(it){
-    var s = effStatus_(it);
-    if (s === '発送待ち') countPending++;
-    else if (s === '発送済み') countShipped++;
-    else if (s === '売却済み') countKanryou++;
-  });
+  // チップに件数を出すため、フィルタ前に3者をカウント（集約後なので件数=カード枚数と整合）。
+  // items は「完了」チップ選択時は完了行だけ、それ以外は発送待ち＋発送済みだけ（遅延ロード）なので、
+  // いま読み込んでいない側は null にしてサーバー集計（STATE.counts）から埋める。
+  var countPending = null, countShipped = null, countKanryou = null;
+  if (filterKey === 'kanryou') {
+    countKanryou = 0;
+    items.forEach(function(it){ if (effStatus_(it) === '売却済み') countKanryou++; });
+  } else {
+    countPending = 0; countShipped = 0;
+    items.forEach(function(it){
+      var s = effStatus_(it);
+      if (s === '発送待ち') countPending++;
+      else if (s === '発送済み') countShipped++;
+    });
+  }
   var filtered = items.filter(function(it){ return effStatus_(it) === targetStatus; });
   // 表示用に実効ステータスを反映（完了直後のラグでもカードを「売却済み」表示にする・前進のみ）
   filtered.forEach(function(it){ var s = effStatus_(it); if (s !== it.status) it.status = s; });
@@ -3982,17 +4171,8 @@ function renderHassouGrouped_(items) {
     });
   }
   // タブヘッダ: 発送待ち / 発送済み / 完了 トグル
-  var header = '<div class="tab-toolbar">' +
-    '<button type="button" class="chip' + (filterKey === 'pending' ? ' active' : '') + '"' +
-    ' onclick="setHassouFilter_(\'pending\')">発送待ち' +
-    '<span class="chip-count">' + countPending + '</span></button>' +
-    '<button type="button" class="chip' + (filterKey === 'shipped' ? ' active' : '') + '"' +
-    ' onclick="setHassouFilter_(\'shipped\')">発送済み' +
-    '<span class="chip-count">' + countShipped + '</span></button>' +
-    '<button type="button" class="chip' + (filterKey === 'kanryou' ? ' active' : '') + '"' +
-    ' onclick="setHassouFilter_(\'kanryou\')">完了' +
-    '<span class="chip-count">' + countKanryou + '</span></button>' +
-  '</div>';
+  STATE.hassouLiveCounts = { pending: countPending, shipped: countShipped, kanryou: countKanryou };
+  var header = hassouChipsToolbarHtml_(filterKey, STATE.hassouLiveCounts);
   // 詳細画面の左右ナビ用: 現在表示中のチップ（発送待ち/発送済み/完了）に限定し、
   // かつ画面に並んでいるとおりの順序（アカウント順 → sortAccount_ 順）のフラット配列を作る。
   // これを detailNavList_() が最優先で使うことで、左右移動が別チップへ飛ばず表示順どおりになる。

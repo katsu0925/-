@@ -623,6 +623,12 @@
       display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px;
     }
     body:not(.view-detail) .ai-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+    /* 仮想スクロールのスペーサは全幅1行を占める（= カードが必ず左端の列から始まる）。
+       .vlist-window は display:contents なので、中のカードは .cards-grid 直下の孫として
+       グリッドアイテムになる。上の `> .card` セレクタには当たらないので個別に margin を消す。 */
+    body:not(.view-detail) .cards-grid > .vlist-top-spacer,
+    body:not(.view-detail) .cards-grid > .vlist-bottom-spacer { grid-column: 1 / -1; }
+    body:not(.view-detail) .cards-grid .vlist-window > .card { margin-bottom: 0; }
   }
   /* P2 #93: スクロール時 appbar を隠す */
   .appbar { transition: transform .2s ease; }

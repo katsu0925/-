@@ -105,6 +105,26 @@ export const DERIVED_STATUS = `
 `;
 
 // GET /api/products?filter=...&q=...&shiire=...&limit=...&mode=list|full
+// ETag 用のテーブル全体指紋。WHERE 無しなので派生ステータスの CASE を一切評価しない（実測 19ms）。
+const FINGERPRINT_ALL_SQL = `
+  SELECT COUNT(*) AS cnt, COALESCE(MAX(updated_at), 0) AS maxup FROM products
+`;
+
+// FNV-1a 32bit。ETag にクエリ内容を織り込むだけの用途なので暗号強度は不要（crypto は await が必要で重い）。
+function hash32_(str) {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < str.length; i++) {
+    h ^= str.charCodeAt(i);
+    h = Math.imul(h, 0x01000193) >>> 0;
+  }
+  return h.toString(36);
+}
+
+// JST の YYYY-MM-DD。date('now') 依存フィルタの ETag に混ぜて日付跨ぎを検知する。
+function jstDateStr_() {
+  return new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
 export async function listProducts(request, env) {
   const u = new URL(request.url);
   const filter = u.searchParams.get('filter') || '';
@@ -172,14 +192,18 @@ export async function listProducts(request, env) {
     // 対象:
     //   1. 発送待ち（発送日付未入力）= これから発送
     //   2. 発送済み（明示的にステータス更新済）
-    //   3. 完了（完了日入力済み＝売却済み）かつ 販売日が3か月以内
-    // 1・2 は従来通り「完了日が入った行」を除外する（完了したら発送待ち/発送済みからは外す）。
+    // どちらも「完了日が入った行」を除外する（完了したら発送待ち/発送済みからは外す）。
     //   reconcile が数分遅れても、完了ボタンを押した商品が発送済みリストに残らないようにする。
-    // 3 は完了行を別枝で拾い、フロントの第3チップ「完了」でのみ表示する（販売日から3か月以内に限定）。
+    // 完了（第3チップ）は filter=hassou_kanryou に分離した — 完了行は 500件超あり、
+    //   発送待ち/発送済み（数十件）と一緒に返すと初期表示が10倍以上重くなるため。
+    //   フロントは「完了」チップを押したときだけ hassou_kanryou を取りに行く。
     where.push(
-      `((((status = '発送待ち' AND NOT ${D_HASSOU}) OR status = '発送済み') AND NOT ${D_KANRYOU})` +
-      ` OR (${D_KANRYOU} AND ${SALE_WITHIN_3M}))`
+      `(((status = '発送待ち' AND NOT ${D_HASSOU}) OR status = '発送済み') AND NOT ${D_KANRYOU})`
     );
+  } else if (filter === 'hassou_kanryou') {
+    // 発送商品タブ「完了」チップ専用 — 完了日入力済み（＝売却済み）かつ販売日が3か月以内。
+    // raw status を見ない理由は filter === 'hassou' のコメント参照（意図的に D_KANRYOU で判定）。
+    where.push(`(${D_KANRYOU} AND ${SALE_WITHIN_3M})`);
   } else if (filter === 'sold') {
     where.push(`${ds} IN ('発送待ち','発送済み','売却済み')`);
   }
@@ -245,18 +269,25 @@ export async function listProducts(request, env) {
     LIMIT ?
   `;
 
-  // ETag = 同一フィルタ条件で COUNT + MAX(updated_at) を取得し、これをハッシュ化したもの。
+  // ETag = テーブル全体の COUNT + MAX(updated_at) と、クエリ内容のハッシュを結合したもの。
   // 9人 × 30s ポーリング × 5000 行で毎回 JSON 化するのは重いので、変化がなければ 304 で返す。
   // クライアントの fetch() は no-cache + ETag があれば自動で If-None-Match を送る。
-  const fingerprintSql = `
-    SELECT COUNT(*) AS cnt, COALESCE(MAX(updated_at), 0) AS maxup
-    FROM products
-    ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
-  `;
+  //
+  // ★ 指紋を「フィルタ条件つき COUNT」から「テーブル全体の COUNT」に変えている（実測 106ms → 19ms）。
+  //   派生ステータスの巨大 CASE を指紋側でも評価していたのが遅さの原因。全体指紋なら
+  //   どの行が1行でも書き変われば maxup が動くので、フィルタ結果の変化は必ず検知できる
+  //   （全書き込み経路が updated_at を更新している前提。行削除は cnt が動く）。
+  //   逆に「他フィルタの行が変わっただけでも 304 を外す」= 空振り再送は増えるが、
+  //   毎リクエスト 87ms の D1 スキャンを削る方が明らかに得。
+  // 条件そのもの（where / bind 値 / 除外納品場所設定）が変われば別 ETag になるよう、
+  //   SQL と args のハッシュを混ぜる。date('now') に依存するフィルタは JST 日付も混ぜて
+  //   日付をまたいだ瞬間に必ず ETag が変わるようにする。
+  const usesNowDate = (filter === 'hassou_kanryou' || listedBeforeDays != null);
+  const variantKey = sql + '|' + JSON.stringify(args) + (usesNowDate ? '|' + jstDateStr_() : '');
 
   try {
-    const fp = await env.DB.prepare(fingerprintSql).bind(...args).first();
-    const etag = `"p${slim ? 'S10' : 'F5'}-${fp.cnt}-${fp.maxup}-${limit}"`;
+    const fp = await env.DB.prepare(FINGERPRINT_ALL_SQL).first();
+    const etag = `"p${slim ? 'S11' : 'F6'}-${fp.cnt}-${fp.maxup}-${limit}-${hash32_(variantKey)}"`;
 
     // CF Edge は weak ETag (W/"...") に書き換えることがあるため、比較時は W/ プレフィクスを剥がす
     const inm = request.headers.get('If-None-Match') || '';
@@ -316,7 +347,9 @@ function formatProductSlim(row) {
 // GET /api/products/counts → 各フィルタの件数を返す
 // Cache API + KV による SWR キャッシュ（TTL30s + 60s 以内なら stale 返却 + 裏で再生成）。
 // 9人 × 30s ポーリングで 18req/分の固定負荷だった D1 集約をほぼ消す。
-const COUNTS_CACHE_KEY = 'https://cache.local/products/counts/v1';
+// v2: 発送3チップ用の hassou_pending / hassou_shipped / hassou_kanryou を追加したのでキーを変える
+//     （旧レスポンスが最大90秒残ると新キーが欠けてチップが「—」表示になるため）
+const COUNTS_CACHE_KEY = 'https://cache.local/products/counts/v2';
 const COUNTS_TTL_SEC = 30;
 const COUNTS_STALE_SEC = 60;
 
@@ -331,10 +364,13 @@ async function computeCounts_(env) {
     shuppin_sagyou: `${ds} = '出品作業中' AND ${ex.clause}`,
     shuppinchu:     `${ds} = '出品中'`,
     // hassou バッジ = 「これから対応が必要な発送待ち/発送済み」の件数だけを数える。
-    //   filter=hassou のリスト側（上部）は完了枝 `OR (${D_KANRYOU} AND ${SALE_WITHIN_3M})` を持ち、
-    //   完了チップに販売3か月以内の完了行も表示するが、バッジ側はその完了枝を意図的に欠いている。
-    //   完了行はバッジの「要対応件数」に含めない設計なので、バッジ ≤ リスト件数となるのは正常。
+    //   完了行はバッジの「要対応件数」に含めない設計（= filter=hassou のリストとも一致する）。
     hassou:         `((status = '発送待ち' AND NOT ${D_HASSOU}) OR status = '発送済み') AND NOT ${D_KANRYOU}`,
+    // 発送商品タブの3チップ用。表示中でない側のチップ件数はこの3つから出す
+    // （完了だけ別フェッチにしたので、items を数えるだけでは他チップの件数が出せない）。
+    hassou_pending: `status = '発送待ち' AND NOT ${D_HASSOU} AND NOT ${D_KANRYOU}`,
+    hassou_shipped: `status = '発送済み' AND NOT ${D_KANRYOU}`,
+    hassou_kanryou: `${D_KANRYOU} AND ${SALE_WITHIN_3M}`,
     sold:           `${ds} IN ('発送待ち','発送済み','売却済み')`,
   };
   const parts = Object.entries(buckets).map(([key, cond]) =>
