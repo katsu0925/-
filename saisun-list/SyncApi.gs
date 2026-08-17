@@ -742,6 +742,11 @@ function exportWorkers_() {
  * 依頼管理シート → D1 ordersテーブル用エクスポート
  * マイページ注文履歴・ランク判定に使用
  * アーカイブシートも含めて全行エクスポート（D1側でPK=受付番号でUPSERT）
+ *
+ * BASE取込は「1注文 = 商品明細ごとに複数行」で書き込まれる。
+ * 行単位でpushするとD1のUPSERT(PK=受付番号)で最終行だけが残り、
+ * 合計点数・合計金額が明細1件分に、店負担送料は0に落ちていた。
+ * → 受付番号でグループ化し、点数と金額は合算、送料は最初の非ゼロを採用する。
  * @returns {object[]}
  */
 function exportOrders_() {
@@ -749,8 +754,10 @@ function exportOrders_() {
   if (!ssId) return [];
 
   var ss = SpreadsheetApp.openById(ssId);
-  var orders = [];
   var c = REQUEST_SHEET_COLS;
+
+  var byReceipt = {};
+  var ordered = [];
 
   var sheetNames = ['依頼管理', '依頼管理_アーカイブ'];
   for (var s = 0; s < sheetNames.length; s++) {
@@ -774,19 +781,57 @@ function exportOrders_() {
       if (dt instanceof Date) orderDate = dt.toISOString();
       else if (dt) { try { orderDate = new Date(dt).toISOString(); } catch (e) { orderDate = ''; } }
 
-      orders.push({
-        receiptNo: receiptNo,
-        email: email,
-        orderDate: orderDate,
-        products: String(row[c.PRODUCT_NAMES - 1] || ''),
-        itemCount: Number(row[c.TOTAL_COUNT - 1]) || 0,
-        totalAmount: Number(row[c.TOTAL_AMOUNT - 1]) || 0,
-        shippingCost: Number(row[c.SHIP_COST_SHOP - 1]) || 0,
-        status: String(row[c.STATUS - 1] || '').trim(),
-        carrier: String(row[c.CARRIER - 1] || '').trim(),
-        tracking: String(row[c.TRACKING - 1] || '').trim()
-      });
+      var o = byReceipt[receiptNo];
+      if (!o) {
+        o = {
+          receiptNo: receiptNo,
+          email: email,
+          orderDate: orderDate,
+          products: '',
+          itemCount: 0,
+          totalAmount: 0,
+          shippingCost: 0,
+          status: '',
+          carrier: '',
+          tracking: '',
+          _sheet: sheetNames[s],
+          _products: []
+        };
+        byReceipt[receiptNo] = o;
+        ordered.push(o);
+      } else if (o._sheet !== sheetNames[s]) {
+        // 同一注文がアクティブとアーカイブの両方に残っている異常時は
+        // 先に読んだシート側だけを採用する（二重加算の防止）
+        continue;
+      }
+
+      if (!o.orderDate && orderDate) o.orderDate = orderDate;
+
+      var pname = String(row[c.PRODUCT_NAMES - 1] || '').trim();
+      if (pname && o._products.indexOf(pname) === -1) o._products.push(pname);
+
+      o.itemCount += Number(row[c.TOTAL_COUNT - 1]) || 0;
+      o.totalAmount += Number(row[c.TOTAL_AMOUNT - 1]) || 0;
+
+      // 送料は注文内の代表行にのみ入る（BASE取込は先頭行のみ）
+      if (!o.shippingCost) o.shippingCost = Number(row[c.SHIP_COST_SHOP - 1]) || 0;
+
+      var st = String(row[c.STATUS - 1] || '').trim();
+      if (st) o.status = st;
+      var cr = String(row[c.CARRIER - 1] || '').trim();
+      if (cr) o.carrier = cr;
+      var tr = String(row[c.TRACKING - 1] || '').trim();
+      if (tr) o.tracking = tr;
     }
+  }
+
+  var orders = [];
+  for (var k = 0; k < ordered.length; k++) {
+    var g = ordered[k];
+    g.products = g._products.join('\n');
+    delete g._products;
+    delete g._sheet;
+    orders.push(g);
   }
 
   return orders;

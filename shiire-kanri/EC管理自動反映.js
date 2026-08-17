@@ -239,10 +239,9 @@ function syncBaseOrdersToEc() {
         fee = Math.round(paymentTotal * rate);
       }
 
-      // 店負担送料が0の場合、客負担送料 ÷ 2 で補完
-      if (!group.shippingStore && group.shippingCustomer) {
-        group.shippingStore = Math.round(group.shippingCustomer / 2);
-      }
+      // 2026-07 送料v2で「客負担送料 ÷ 2」フォールバックは廃止。
+      // 店負担送料は依頼管理側で実費表(SHIPPING_ACTUAL_RATES)から算出済みの値のみを正とする。
+      // （÷2は実費と無関係な概算で、原価・利益を歪めるため復活させない）
 
       const productPrice = group.totalSales;
       const sales = productPrice + (group.shippingCustomer || 0);
@@ -274,6 +273,29 @@ function syncBaseOrdersToEc() {
         if (dstTotalCountCol > 0 && group.totalCount > 0 && !String(rowData[dstTotalCountCol - 1] || '').trim()) {
           rowData[dstTotalCountCol - 1] = group.totalCount; dirty = true;
         }
+
+        // --- 送料は依頼管理を正として既存行にも追随させる ---
+        // 送料は実費が後から判明して依頼管理側で修正されるケースがあるが、
+        // 従来は「空セルのみ補完」だったため既存行が永久に古い値のままだった。
+        // 依頼管理側が0(未確定)のときは既存値を消さない（手入力・過去データ保護）。
+        let shipDirty = false;
+        if (dstShipStoreCol > 0 && group.shippingStore > 0 &&
+            (Number(rowData[dstShipStoreCol - 1]) || 0) !== group.shippingStore) {
+          rowData[dstShipStoreCol - 1] = group.shippingStore; shipDirty = true;
+        }
+        if (dstShipCustCol > 0 && group.shippingCustomer > 0 &&
+            (Number(rowData[dstShipCustCol - 1]) || 0) !== group.shippingCustomer) {
+          rowData[dstShipCustCol - 1] = group.shippingCustomer; shipDirty = true;
+        }
+        if (shipDirty) {
+          // 送料が変わったら派生値も依頼管理から再計算し直して整合させる
+          if (dstProductPriceCol > 0) rowData[dstProductPriceCol - 1] = productPrice;
+          rowData[dstSalesCol - 1] = sales;
+          if (dstFeeCol > 0) rowData[dstFeeCol - 1] = fee;
+          if (dstDepositCol > 0) rowData[dstDepositCol - 1] = deposit;
+          dirty = true;
+        }
+
         if (dirty) {
           dstSh.getRange(existingRow, 1, 1, dstLastCol).setValues([rowData]);
         }

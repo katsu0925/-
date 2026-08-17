@@ -185,7 +185,10 @@ function buildEcUpserts_(mainSs, col) {
   var idxDate = findHeaderIndex_(header, ['販売日','注文日','日付']);
   var idxSales = findHeaderIndex_(header, ['売上','売上金額','販売金額']);
   var idxFee = findHeaderIndex_(header, ['手数料額','販売手数料','手数料']);
-  var idxShip = findHeaderIndex_(header, ['送料','発送費','配送費']);
+  // EC管理の実ヘッダーは「店負担送料」。従来の候補('送料'等)は完全一致しないため
+  // idxShip = -1 となり、発送費(支出)が会計に一切計上されていなかった。
+  // ※「客負担送料」は顧客からの受取分＝売上に含まれる収益側なので候補に混ぜない。
+  var idxShip = findHeaderIndex_(header, ['店負担送料','送料','発送費','配送費']);
   var idxMemo = findHeaderIndex_(header, ['メモ','備考']);
 
   if (idxDate < 0) return [];
