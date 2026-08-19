@@ -583,6 +583,11 @@ wrangler deploy --env dev
 
 Workers の本番 URL: `https://shiire-kanri.nsdktts1030.workers.dev/`
 
+:::warn
+**`pages/sw.js` の `VERSION` は、SPA（`pages/app.js`）だけを直したときには上げないでください。**
+`/app.js` は Service Worker を素通りするため VERSION を上げなくても即反映されます。逆に上げると `activate` が全端末のキャッシュを一斉削除し、全端末がマスターを同時に取りに行って一時的な取得失敗を誘発します（2026-08-19 の発送方法空欄障害の引き金）。VERSION を上げるのは `index.html` やキャッシュ戦略自体を変更したときだけです。
+:::
+
 ## Cron トリガー再登録
 
 GAS 側のトリガーが消えた場合は、GAS エディタから `FULL_RESTORE_ALL()` を 1 回実行すれば全トリガー再登録できます。
@@ -828,6 +833,59 @@ wrangler secret put CF_API_TOKEN      # CF API（Access ポリシー更新用）
      --command "SELECT COUNT(*) FROM idempotency_keys"
    ```
 
+## 発送方法が全ページ空欄になる / 商品詳細が「読み込み中」から戻らない
+
+**2026-08-19 に発生し、恒久修正済み（commit `19e31ed` / Worker Ver `70dba214`）。** 同じ症状が再発したときの見方を残します。
+
+両症状の根因は同じで、**設定シートのマスター（`/api/master/settings` → `STATE.settings`）がクライアントで読めていない** ことです。
+
+| 症状 | 発生経路 |
+|---|---|
+| 発送方法が全ページ空欄 | 設定シート未読込時に旧固定リスト `SHIP_METHOD_OPTIONS` へフォールバックしていた。旧リストに現行値（「宅急便 セブン」等）が 1 つも含まれないため、どの `option` も selected にならずブラウザが先頭（空）を選択。**その状態で保存するとシート側の値まで空で上書き** された |
+| 詳細が「読み込み中」から戻らない | `api()` が素の `fetch`（タイムアウト無し）だったため、iOS の無音中断でマスター取得が永久 pending になり `openDetail` の `Promise.all` が返らなかった |
+
+**恒久対策として入れたもの（pages/app.js）**
+
+- 発送方法のフォールバックを `masterOptionsHtml_(SHIP_METHOD_OPTIONS, v)` 経由に変更。現在値がリストに無いときは「（マスター外）」option を付けて **必ず保持** する
+- `api()` を `fetchWithTimeout_` 化（GET 25 秒 / 書込 60 秒）
+- `loadMasters()` がマスターを localStorage（`shiire-kanri:master:*`）に退避し、起動時に前回値で即座に埋める。設定シートも他マスターと並列取得し、失敗時は 0.9 秒待って 1 回リトライ
+- `mastersReady_()` を追加し、詳細画面のマスター待ちを **最大 6 秒** で打ち切る（前回値がある場合のみ。初回起動は従来どおり待つ）
+
+**調査手順（再発時）**
+
+1. D1 で実データが消えているのか、表示だけの問題かを切り分ける
+   ```bash
+   cd /Users/katsu/saisun-repo/workers/shiire-kanri
+   wrangler d1 execute shiire-kanri-db --remote \
+     --command "SELECT COUNT(*) FROM products WHERE IFNULL(json_extract(extra_json,'\$.\"発送方法\"'),'')=''"
+   ```
+2. 空で上書きした保存を `idempotency_keys` から特定する（`created_at` は **unix 秒**、`record` は **フラット**）
+   ```bash
+   wrangler d1 execute shiire-kanri-db --remote \
+     --command "SELECT datetime(created_at,'unixepoch','+9 hours') AS t, user_email, json_extract(response_body,'\$.record.\"発送方法\"') AS ship FROM idempotency_keys WHERE path LIKE '%/save/details%' ORDER BY created_at DESC LIMIT 50"
+   ```
+3. マスター側が生きているかを直接確認（`cached:false` で GAS 往復まで通す）
+   ```bash
+   curl -s "https://shiire-kanri.nsdktts1030.workers.dev/api/master/settings"
+   ```
+
+:::danger
+**SPA（`pages/app.js`）だけの修正で `pages/sw.js` の `VERSION` を上げてはいけません。** `/app.js` は Service Worker を素通りする設計なので VERSION を上げる必要が無く、上げると `activate` が全端末のキャッシュを一斉削除し、全端末が 6 本のマスターを同時に取りに行きます。今回の障害はまさにこれが引き金でした（v137 → v138）。VERSION を上げるのは `index.html` やキャッシュ戦略そのものを変えたときだけにしてください。
+:::
+
+## 発送日付だけ入って発送者が空の行ができる
+
+**2026-08-19 に 4 層のガードを入れて恒久対策済み。** 発送者が空の行は報酬集計（発送者名 × 月）で **どの作業者にも計上されない** ため、放置すると報酬が過少になります。
+
+| 層 | 実装 |
+|---|---|
+| SPA 自動補完 | `pages/app.js` の change リスナー。発送者を選ぶと発送日付を当日で補完、発送日付を入れると発送者を「自分」で補完（作業者マスターに自分が居るときだけ） |
+| SPA バリデーション | `saveDetails()` 内。発送日付のみで発送者が空なら `showValidationErrorCard_` で保存をブロック |
+| GAS 自動補完 | `staff_apiSaveDetails`（`StaffApi.gs`）で発送日付⇄発送者を相互補完 |
+| GAS ブロック | 同関数で片欠けのまま書き込もうとした場合に拒否 |
+
+既存の片欠け行を後から埋めるときは、**納品場所と発送者の相関**（例: 納品場所「青木」→ 発送者「青木」が 95%）が手がかりになります。ただし推測であり、報酬確定済みの月は集計値が自動では変わらない点に注意してください。
+
 ## 同じ操作が二重登録された
 
 - 通常起きないはず（Workers の `withIdempotency` でブロック）
@@ -929,5 +987,6 @@ FULL_RESTORE_ALL()             // 全トリガー一括登録
 
 | 日付 | 版 | 変更内容 |
 |---|---|---|
+| 2026-08-19 | v1.3 | 発送日付⇄発送者を 4 層（SPA 自動補完・SPA バリデーション・GAS 相互補完・GAS ブロック）でセット必須化（GAS @256 / commit `763f221`）。設定シート未読込時に発送方法が空欄になり保存で値が消える不具合、および詳細画面が「読み込み中」から戻らない不具合を修正（commit `19e31ed` / Worker Ver `70dba214`）。トラブルシューティングに該当 2 節を新設し、デプロイ手順に「SPA だけの修正で sw.js の VERSION を上げない」運用ルールを明記。 |
 | 2026-07-04 | v1.2 | 同梱に main 自動確定＋販売/発送/完了の自動転記（fan-out）＋発送商品タブ 3 トグルの集約表示を追加（commit 5297a52 / Worker Ver 28200e83）。「同梱（bundled shipping）の仕組み」の章を新設。 |
 | 2026-06-21 | v1.1 | 請求書に「追加報酬・控除」（手動明細レイヤー）機能を追加。スタッフ／管理者でレイヤーを分離（編集者は自レイヤーのみ操作、他レイヤーはサーバー側で保持）。請求書詳細モーダルに管理者用エディタ・「自動算出を再計算（新番号で再発行）」ボタンを追加。全請求書タブに「振込用まとめCSV」出力を追加。PDF テンプレートが手動明細行を明細・小計・合計に反映。請求書履歴シートに「手動明細JSON」列を末尾追加。 |

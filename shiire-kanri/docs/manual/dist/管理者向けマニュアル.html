@@ -601,10 +601,10 @@ body.staff .cover { background: linear-gradient(135deg, #2faa55 0%, #1a6a3e 100%
       <div class="logo">📦</div>
       <h1 id="cover-title">shiire-kanri 管理者向けマニュアル</h1>
       <div class="subtitle">Web アプリ運用・GAS 実装・デプロイ手順</div>
-      <div class="meta">最終更新: 2026年7月4日<br>shiire-kanri.nsdktts1030.workers.dev</div>
+      <div class="meta">最終更新: 2026年8月19日<br>shiire-kanri.nsdktts1030.workers.dev</div>
     </section>
   
-<section class="toc"><h1>目次</h1><ul><li style="font-weight:600;"><a href="#はじめに">はじめに</a></li><li style="font-weight:600;"><a href="#システム全体像">システム全体像</a></li><li style="font-weight:600;"><a href="#未反映ゼロ保証アーキテクチャ">未反映ゼロ保証アーキテクチャ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#3-層構造">3 層構造</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#レイヤー-1-クライアント-outboxpagesappjs">レイヤー 1: クライアント outbox（pages/app.js）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#レイヤー-2-workers-冪等性ミドルウェアsrcutilsidempotencyjs">レイヤー 2: Workers 冪等性ミドルウェア（src/utils/idempotency.js）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#レイヤー-3-監視ポイント">レイヤー 3: 監視ポイント</a></li><li style="font-weight:600;"><a href="#新規外注スタッフの追加手順">新規外注スタッフの追加手順</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ステップ-1-作業者マスターに登録">ステップ 1: 作業者マスターに登録</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ステップ-2-5-分待つ">ステップ 2: 5 分待つ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ステップ-3-外注に-url-を共有">ステップ 3: 外注に URL を共有</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ステップ-4-外注本人がログイン">ステップ 4: 外注本人がログイン</a></li><li style="font-weight:600;"><a href="#管理者の主な業務">管理者の主な業務</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#1-adminpanelgas-エディタ内モーダル">1. AdminPanel（GAS エディタ内モーダル）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#2-請求書管理パネル">2. 請求書管理パネル</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#3-月次運用ルーチン">3. 月次運用ルーチン</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#4-ai-判定の運用">4. AI 判定の運用</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#5-ec-連携">5. EC 連携</a></li><li style="font-weight:600;"><a href="#スプレッドシート構造">スプレッドシート構造</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#主要シート一覧21">主要シート一覧（21+）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#商品管理シート-主要列staff_col">商品管理シート 主要列（STAFF_COL）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#作業者マスターシート-列">作業者マスターシート 列</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#請求書履歴シート-列構成">請求書履歴シート 列構成</a></li><li style="font-weight:600;"><a href="#gas-関数一覧">GAS 関数一覧</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#エントリポイント">エントリポイント</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#認証ユーティリティ">認証・ユーティリティ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#スタッフ向け-api-action-一覧">スタッフ向け API (action 一覧)</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#トリガーハンドラー">トリガーハンドラー</a></li><li style="font-weight:600;"><a href="#workers-ルート一覧">Workers ルート一覧</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#管理者運用系">管理者・運用系</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#認証マスター">認証・マスター</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#商品仕入れ">商品・仕入れ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#保存系">保存系</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#業務系">業務系</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#push-通知">Push 通知</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#請求書スタッフ">請求書（スタッフ）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#請求書管理者">請求書（管理者）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#汎用">汎用</a></li><li style="font-weight:600;"><a href="#デプロイ手順">デプロイ手順</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#gas-デプロイshiire-kanri">GAS デプロイ（shiire-kanri）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#cloudflare-workers-デプロイ">Cloudflare Workers デプロイ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#cron-トリガー再登録">Cron トリガー再登録</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#workers-cron-確認">Workers Cron 確認</a></li><li style="font-weight:600;"><a href="#環境変数シークレット一覧">環境変数・シークレット一覧</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#gas-スクリプトプロパティ">GAS スクリプトプロパティ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#workers-シークレットwrangler-secret">Workers シークレット（wrangler secret）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#workers-バインディングwranglertoml">Workers バインディング（wrangler.toml）</a></li><li style="font-weight:600;"><a href="#ビジネス設定adminpanel-から編集可能">ビジネス設定（AdminPanel から編集可能）</a></li><li style="font-weight:600;"><a href="#請求書フロー詳細">請求書フロー詳細</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ステータス遷移">ステータス遷移</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#csv--pdf-生成">CSV / PDF 生成</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#csv-28-項目">CSV 28 項目</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#重複防止">重複防止</a></li><li style="font-weight:600;"><a href="#同梱bundled-shippingの仕組み">同梱（bundled shipping）の仕組み</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#データ構造kv-専用">データ構造（KV 専用）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#自動転記fan-out">自動転記（fan-out）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#フロント集約表示pagesappjs">フロント集約表示（pages/app.js）</a></li><li style="font-weight:600;"><a href="#トラブルシューティング">トラブルシューティング</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#スタッフがログインできない">スタッフがログインできない</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#請求書-pdf-がダウンロードできない">請求書 PDF がダウンロードできない</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#報酬集計が更新されない">報酬集計が更新されない</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#workers-が応答しない">Workers が応答しない</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ai-判定が止まっている">AI 判定が止まっている</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ec-連携同期が遅延">EC 連携同期が遅延</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#スプレッドシート列を間違って削除した">スプレッドシート列を間違って削除した</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#外注から右下のバッジ未送信が消えないと連絡が来た">外注から「右下のバッジ（未送信）が消えない」と連絡が来た</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#同じ操作が二重登録された">同じ操作が二重登録された</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#仕入れ数点数を間違えて報告された">仕入れ数（点数）を間違えて報告された</a></li><li style="font-weight:600;"><a href="#改良時のマニュアル更新フロー">改良時のマニュアル更新フロー</a></li><li style="font-weight:600;"><a href="#参考リンク">参考リンク</a></li><li style="font-weight:600;"><a href="#付録-各シートの初期化">付録: 各シートの初期化</a></li><li style="font-weight:600;"><a href="#アップデート履歴">アップデート履歴</a></li></ul></section>
+<section class="toc"><h1>目次</h1><ul><li style="font-weight:600;"><a href="#はじめに">はじめに</a></li><li style="font-weight:600;"><a href="#システム全体像">システム全体像</a></li><li style="font-weight:600;"><a href="#未反映ゼロ保証アーキテクチャ">未反映ゼロ保証アーキテクチャ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#3-層構造">3 層構造</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#レイヤー-1-クライアント-outboxpagesappjs">レイヤー 1: クライアント outbox（pages/app.js）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#レイヤー-2-workers-冪等性ミドルウェアsrcutilsidempotencyjs">レイヤー 2: Workers 冪等性ミドルウェア（src/utils/idempotency.js）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#レイヤー-3-監視ポイント">レイヤー 3: 監視ポイント</a></li><li style="font-weight:600;"><a href="#新規外注スタッフの追加手順">新規外注スタッフの追加手順</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ステップ-1-作業者マスターに登録">ステップ 1: 作業者マスターに登録</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ステップ-2-5-分待つ">ステップ 2: 5 分待つ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ステップ-3-外注に-url-を共有">ステップ 3: 外注に URL を共有</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ステップ-4-外注本人がログイン">ステップ 4: 外注本人がログイン</a></li><li style="font-weight:600;"><a href="#管理者の主な業務">管理者の主な業務</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#1-adminpanelgas-エディタ内モーダル">1. AdminPanel（GAS エディタ内モーダル）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#2-請求書管理パネル">2. 請求書管理パネル</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#3-月次運用ルーチン">3. 月次運用ルーチン</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#4-ai-判定の運用">4. AI 判定の運用</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#5-ec-連携">5. EC 連携</a></li><li style="font-weight:600;"><a href="#スプレッドシート構造">スプレッドシート構造</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#主要シート一覧21">主要シート一覧（21+）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#商品管理シート-主要列staff_col">商品管理シート 主要列（STAFF_COL）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#作業者マスターシート-列">作業者マスターシート 列</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#請求書履歴シート-列構成">請求書履歴シート 列構成</a></li><li style="font-weight:600;"><a href="#gas-関数一覧">GAS 関数一覧</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#エントリポイント">エントリポイント</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#認証ユーティリティ">認証・ユーティリティ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#スタッフ向け-api-action-一覧">スタッフ向け API (action 一覧)</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#トリガーハンドラー">トリガーハンドラー</a></li><li style="font-weight:600;"><a href="#workers-ルート一覧">Workers ルート一覧</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#管理者運用系">管理者・運用系</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#認証マスター">認証・マスター</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#商品仕入れ">商品・仕入れ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#保存系">保存系</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#業務系">業務系</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#push-通知">Push 通知</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#請求書スタッフ">請求書（スタッフ）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#請求書管理者">請求書（管理者）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#汎用">汎用</a></li><li style="font-weight:600;"><a href="#デプロイ手順">デプロイ手順</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#gas-デプロイshiire-kanri">GAS デプロイ（shiire-kanri）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#cloudflare-workers-デプロイ">Cloudflare Workers デプロイ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#cron-トリガー再登録">Cron トリガー再登録</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#workers-cron-確認">Workers Cron 確認</a></li><li style="font-weight:600;"><a href="#環境変数シークレット一覧">環境変数・シークレット一覧</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#gas-スクリプトプロパティ">GAS スクリプトプロパティ</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#workers-シークレットwrangler-secret">Workers シークレット（wrangler secret）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#workers-バインディングwranglertoml">Workers バインディング（wrangler.toml）</a></li><li style="font-weight:600;"><a href="#ビジネス設定adminpanel-から編集可能">ビジネス設定（AdminPanel から編集可能）</a></li><li style="font-weight:600;"><a href="#請求書フロー詳細">請求書フロー詳細</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ステータス遷移">ステータス遷移</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#csv--pdf-生成">CSV / PDF 生成</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#csv-28-項目">CSV 28 項目</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#重複防止">重複防止</a></li><li style="font-weight:600;"><a href="#同梱bundled-shippingの仕組み">同梱（bundled shipping）の仕組み</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#データ構造kv-専用">データ構造（KV 専用）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#自動転記fan-out">自動転記（fan-out）</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#フロント集約表示pagesappjs">フロント集約表示（pages/app.js）</a></li><li style="font-weight:600;"><a href="#トラブルシューティング">トラブルシューティング</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#スタッフがログインできない">スタッフがログインできない</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#請求書-pdf-がダウンロードできない">請求書 PDF がダウンロードできない</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#報酬集計が更新されない">報酬集計が更新されない</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#workers-が応答しない">Workers が応答しない</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ai-判定が止まっている">AI 判定が止まっている</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#ec-連携同期が遅延">EC 連携同期が遅延</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#スプレッドシート列を間違って削除した">スプレッドシート列を間違って削除した</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#外注から右下のバッジ未送信が消えないと連絡が来た">外注から「右下のバッジ（未送信）が消えない」と連絡が来た</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#発送方法が全ページ空欄になる--商品詳細が読み込み中から戻らない">発送方法が全ページ空欄になる / 商品詳細が「読み込み中」から戻らない</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#発送日付だけ入って発送者が空の行ができる">発送日付だけ入って発送者が空の行ができる</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#同じ操作が二重登録された">同じ操作が二重登録された</a></li><li style="">&nbsp;&nbsp;&nbsp;&nbsp;<a href="#仕入れ数点数を間違えて報告された">仕入れ数（点数）を間違えて報告された</a></li><li style="font-weight:600;"><a href="#改良時のマニュアル更新フロー">改良時のマニュアル更新フロー</a></li><li style="font-weight:600;"><a href="#参考リンク">参考リンク</a></li><li style="font-weight:600;"><a href="#付録-各シートの初期化">付録: 各シートの初期化</a></li><li style="font-weight:600;"><a href="#アップデート履歴">アップデート履歴</a></li></ul></section>
 <h1 id="はじめに">はじめに</h1>
 <p>このマニュアルは、<strong>shiire-kanri Web アプリ</strong>の <strong>管理者（オーナー）向け</strong> の運用・保守手引きです。</p>
 <p>外注向けの操作方法は別冊「外注向けマニュアル」に分離してあります。本書は管理者しか触らない領域（スプレッドシート構造・GAS 関数一覧・デプロイ手順・トラブルシューティング）まで網羅しています。</p>
@@ -1746,6 +1746,12 @@ wrangler deploy
 wrangler deploy --env dev
 </code></pre>
 <p>Workers の本番 URL: <code>https://shiire-kanri.nsdktts1030.workers.dev/</code></p>
+<div class="warn">
+
+<p><strong><code>pages/sw.js</code> の <code>VERSION</code> は、SPA（<code>pages/app.js</code>）だけを直したときには上げないでください。</strong>
+<code>/app.js</code> は Service Worker を素通りするため VERSION を上げなくても即反映されます。逆に上げると <code>activate</code> が全端末のキャッシュを一斉削除し、全端末がマスターを同時に取りに行って一時的な取得失敗を誘発します（2026-08-19 の発送方法空欄障害の引き金）。VERSION を上げるのは <code>index.html</code> やキャッシュ戦略自体を変更したときだけです。</p>
+</div>
+
 <h2 id="cron-トリガー再登録">Cron トリガー再登録</h2>
 <p>GAS 側のトリガーが消えた場合は、GAS エディタから <code>FULL_RESTORE_ALL()</code> を 1 回実行すれば全トリガー再登録できます。</p>
 <pre><code class="language-javascript">FULL_RESTORE_ALL()  // トリガー設定.gs:2
@@ -2125,6 +2131,79 @@ wrangler tail
 </code></pre>
 </li>
 </ol>
+<h2 id="発送方法が全ページ空欄になる--商品詳細が読み込み中から戻らない">発送方法が全ページ空欄になる / 商品詳細が「読み込み中」から戻らない</h2>
+<p><strong>2026-08-19 に発生し、恒久修正済み（commit <code>19e31ed</code> / Worker Ver <code>70dba214</code>）。</strong> 同じ症状が再発したときの見方を残します。</p>
+<p>両症状の根因は同じで、<strong>設定シートのマスター（<code>/api/master/settings</code> → <code>STATE.settings</code>）がクライアントで読めていない</strong> ことです。</p>
+<table>
+<thead>
+<tr>
+<th>症状</th>
+<th>発生経路</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>発送方法が全ページ空欄</td>
+<td>設定シート未読込時に旧固定リスト <code>SHIP_METHOD_OPTIONS</code> へフォールバックしていた。旧リストに現行値（「宅急便 セブン」等）が 1 つも含まれないため、どの <code>option</code> も selected にならずブラウザが先頭（空）を選択。<strong>その状態で保存するとシート側の値まで空で上書き</strong> された</td>
+</tr>
+<tr>
+<td>詳細が「読み込み中」から戻らない</td>
+<td><code>api()</code> が素の <code>fetch</code>（タイムアウト無し）だったため、iOS の無音中断でマスター取得が永久 pending になり <code>openDetail</code> の <code>Promise.all</code> が返らなかった</td>
+</tr>
+</tbody></table>
+<p><strong>恒久対策として入れたもの（pages/app.js）</strong></p>
+<ul>
+<li>発送方法のフォールバックを <code>masterOptionsHtml_(SHIP_METHOD_OPTIONS, v)</code> 経由に変更。現在値がリストに無いときは「（マスター外）」option を付けて <strong>必ず保持</strong> する</li>
+<li><code>api()</code> を <code>fetchWithTimeout_</code> 化（GET 25 秒 / 書込 60 秒）</li>
+<li><code>loadMasters()</code> がマスターを localStorage（<code>shiire-kanri:master:*</code>）に退避し、起動時に前回値で即座に埋める。設定シートも他マスターと並列取得し、失敗時は 0.9 秒待って 1 回リトライ</li>
+<li><code>mastersReady_()</code> を追加し、詳細画面のマスター待ちを <strong>最大 6 秒</strong> で打ち切る（前回値がある場合のみ。初回起動は従来どおり待つ）</li>
+</ul>
+<p><strong>調査手順（再発時）</strong></p>
+<ol>
+<li>D1 で実データが消えているのか、表示だけの問題かを切り分ける<pre><code class="language-bash">cd /Users/katsu/saisun-repo/workers/shiire-kanri
+wrangler d1 execute shiire-kanri-db --remote \
+  --command &quot;SELECT COUNT(*) FROM products WHERE IFNULL(json_extract(extra_json,&#39;\$.\&quot;発送方法\&quot;&#39;),&#39;&#39;)=&#39;&#39;&quot;
+</code></pre>
+</li>
+<li>空で上書きした保存を <code>idempotency_keys</code> から特定する（<code>created_at</code> は <strong>unix 秒</strong>、<code>record</code> は <strong>フラット</strong>）<pre><code class="language-bash">wrangler d1 execute shiire-kanri-db --remote \
+  --command &quot;SELECT datetime(created_at,&#39;unixepoch&#39;,&#39;+9 hours&#39;) AS t, user_email, json_extract(response_body,&#39;\$.record.\&quot;発送方法\&quot;&#39;) AS ship FROM idempotency_keys WHERE path LIKE &#39;%/save/details%&#39; ORDER BY created_at DESC LIMIT 50&quot;
+</code></pre>
+</li>
+<li>マスター側が生きているかを直接確認（<code>cached:false</code> で GAS 往復まで通す）<pre><code class="language-bash">curl -s &quot;https://shiire-kanri.nsdktts1030.workers.dev/api/master/settings&quot;
+</code></pre>
+</li>
+</ol>
+<div class="danger">
+
+<p><strong>SPA（<code>pages/app.js</code>）だけの修正で <code>pages/sw.js</code> の <code>VERSION</code> を上げてはいけません。</strong> <code>/app.js</code> は Service Worker を素通りする設計なので VERSION を上げる必要が無く、上げると <code>activate</code> が全端末のキャッシュを一斉削除し、全端末が 6 本のマスターを同時に取りに行きます。今回の障害はまさにこれが引き金でした（v137 → v138）。VERSION を上げるのは <code>index.html</code> やキャッシュ戦略そのものを変えたときだけにしてください。</p>
+</div>
+
+<h2 id="発送日付だけ入って発送者が空の行ができる">発送日付だけ入って発送者が空の行ができる</h2>
+<p><strong>2026-08-19 に 4 層のガードを入れて恒久対策済み。</strong> 発送者が空の行は報酬集計（発送者名 × 月）で <strong>どの作業者にも計上されない</strong> ため、放置すると報酬が過少になります。</p>
+<table>
+<thead>
+<tr>
+<th>層</th>
+<th>実装</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>SPA 自動補完</td>
+<td><code>pages/app.js</code> の change リスナー。発送者を選ぶと発送日付を当日で補完、発送日付を入れると発送者を「自分」で補完（作業者マスターに自分が居るときだけ）</td>
+</tr>
+<tr>
+<td>SPA バリデーション</td>
+<td><code>saveDetails()</code> 内。発送日付のみで発送者が空なら <code>showValidationErrorCard_</code> で保存をブロック</td>
+</tr>
+<tr>
+<td>GAS 自動補完</td>
+<td><code>staff_apiSaveDetails</code>（<code>StaffApi.gs</code>）で発送日付⇄発送者を相互補完</td>
+</tr>
+<tr>
+<td>GAS ブロック</td>
+<td>同関数で片欠けのまま書き込もうとした場合に拒否</td>
+</tr>
+</tbody></table>
+<p>既存の片欠け行を後から埋めるときは、<strong>納品場所と発送者の相関</strong>（例: 納品場所「青木」→ 発送者「青木」が 95%）が手がかりになります。ただし推測であり、報酬確定済みの月は集計値が自動では変わらない点に注意してください。</p>
 <h2 id="同じ操作が二重登録された">同じ操作が二重登録された</h2>
 <ul>
 <li>通常起きないはず（Workers の <code>withIdempotency</code> でブロック）</li>
@@ -2214,6 +2293,11 @@ FULL_RESTORE_ALL()             // 全トリガー一括登録
 </tr>
 </thead>
 <tbody><tr>
+<td>2026-08-19</td>
+<td>v1.3</td>
+<td>発送日付⇄発送者を 4 層（SPA 自動補完・SPA バリデーション・GAS 相互補完・GAS ブロック）でセット必須化（GAS @256 / commit <code>763f221</code>）。設定シート未読込時に発送方法が空欄になり保存で値が消える不具合、および詳細画面が「読み込み中」から戻らない不具合を修正（commit <code>19e31ed</code> / Worker Ver <code>70dba214</code>）。トラブルシューティングに該当 2 節を新設し、デプロイ手順に「SPA だけの修正で sw.js の VERSION を上げない」運用ルールを明記。</td>
+</tr>
+<tr>
 <td>2026-07-04</td>
 <td>v1.2</td>
 <td>同梱に main 自動確定＋販売/発送/完了の自動転記（fan-out）＋発送商品タブ 3 トグルの集約表示を追加（commit 5297a52 / Worker Ver 28200e83）。「同梱（bundled shipping）の仕組み」の章を新設。</td>
