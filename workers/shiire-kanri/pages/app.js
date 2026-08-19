@@ -308,6 +308,37 @@ document.addEventListener('change', function(e){
     ('0' + d.getDate()).slice(-2);
   try { mdEl.dispatchEvent(new Event('change', { bubbles: true })); } catch(err) {}
 });
+// 発送者⇄発送日付も採寸と同じセット必須（発送者が空だと報酬の発送件数に一切計上されない）。
+//  - 発送者を選んだら発送日付を当日で補完
+//  - 発送日付を入れたら発送者を「自分」で補完（作業者マスターに自分が居るときだけ）
+document.addEventListener('change', function(e){
+  var t = e.target;
+  if (!t || !t.id) return;
+  var HB_IDS = ['f_' + escFieldId_('発送者'), 'cf_' + escFieldId_('発送者')];
+  var HD_IDS = ['f_' + escFieldId_('発送日付'), 'cf_' + escFieldId_('発送日付')];
+  var prefix = t.id.slice(0, t.id.indexOf('_') + 1);
+  if (HB_IDS.indexOf(t.id) >= 0) {
+    if (!t.value) return; // 発送者を空に戻したときは何もしない
+    var hdEl = document.getElementById(prefix + escFieldId_('発送日付'));
+    if (!hdEl || hdEl.value) return; // 発送日付が既に入っていれば触らない
+    var d = new Date();
+    hdEl.value = d.getFullYear() + '-' +
+      ('0' + (d.getMonth() + 1)).slice(-2) + '-' +
+      ('0' + d.getDate()).slice(-2);
+    try { hdEl.dispatchEvent(new Event('change', { bubbles: true })); } catch(err) {}
+  } else if (HD_IDS.indexOf(t.id) >= 0) {
+    if (!t.value) return; // 発送日付を消したときは何もしない
+    var me = String(STATE.userName || '').trim();
+    if (!me) return;      // 自分を特定できない端末では補完しない（誤った担当者を入れない）
+    var hbEl = document.getElementById(prefix + escFieldId_('発送者'));
+    if (!hbEl || hbEl.value) return; // 発送者が既に入っていれば触らない
+    var hasMe = Array.prototype.some.call(hbEl.options || [], function(o){ return o.value === me; });
+    if (!hasMe) return;
+    hbEl.value = me;
+    // change を投げると enhanceSelect_ の syncTrigger が走り、カスタム UI の表示も追従する
+    try { hbEl.dispatchEvent(new Event('change', { bubbles: true })); } catch(err) {}
+  }
+});
 function escFieldId_(name) {
   return name.replace(/[^A-Za-z0-9_]/g, function(ch){ return '_' + ch.charCodeAt(0).toString(16); });
 }
@@ -9344,6 +9375,31 @@ async function saveDetails() {
       var dMdEl_ = document.getElementById(detailFieldId('採寸日'));
       if (dMdEl_) dMdEl_.value = dYmd_;
       toast('採寸者のみ入力されたため採寸日を本日で補完しました', 'success');
+    }
+  }
+
+  // 発送者と発送日付もセット必須（発送者が空だと報酬の発送件数に一切計上されない）
+  // 発送者・発送日付のどちらかを編集したときだけ判定（既存の片欠け行は触らない）
+  if (('発送者' in fields) || ('発送日付' in fields)) {
+    var effHb_ = ('発送者'   in fields) ? fields['発送者']   : ex['発送者'];
+    var effHd_ = ('発送日付' in fields) ? fields['発送日付'] : ex['発送日付'];
+    if (isFilled_(effHd_) && !isFilled_(effHb_)) {
+      // 発送日付が入っていて発送者が空 → 保存をブロック
+      showValidationErrorCard_('発送記録が未完成です',
+        '発送日付を入力した場合は発送者も選択してください。',
+        [detailFieldId('発送者')]);
+      return;
+    }
+    if (isFilled_(effHb_) && !isFilled_(effHd_)) {
+      // 発送者だけ入力 → 発送日付を当日で自動補完
+      var hToday_ = new Date();
+      var hYmd_ = hToday_.getFullYear() + '-' +
+        ('0' + (hToday_.getMonth() + 1)).slice(-2) + '-' +
+        ('0' + hToday_.getDate()).slice(-2);
+      fields['発送日付'] = hYmd_;
+      var hHdEl_ = document.getElementById(detailFieldId('発送日付'));
+      if (hHdEl_) hHdEl_.value = hYmd_;
+      toast('発送者のみ入力されたため発送日付を本日で補完しました', 'success');
     }
   }
 

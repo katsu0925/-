@@ -11,7 +11,7 @@
 //    （install 内の無条件 skipWaiting は「閲覧中に無断リロード→商品管理へ差し戻し」の
 //      原因だったため廃止。適用タイミングは sw-update.js が制御する）
 
-const VERSION = 'sk-2026-08-16-v137';
+const VERSION = 'sk-2026-08-19-v138';
 const SHELL_CACHE = 'shell-' + VERSION;
 const API_CACHE   = 'api-' + VERSION;
 

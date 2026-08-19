@@ -1627,6 +1627,52 @@ function staff_apiSaveDetails(payload, email) {
     }
   }
 
+  // 発送日付と発送者もセット必須（採寸と同じ理由: 報酬計算は発送者「名前」で月次集計するため、
+  // 発送者が空のまま発送日付だけ入ると、その発送作業が誰の件数にも計上されない）
+  var hdCol = col['発送日付'] || col['発送日'] || 0;      // ヘッダー表記ゆれに追従（報酬更新.gs と同じ候補）
+  var hbCol = col['発送者']   || col['発送担当'] || 0;
+  var hdIdx = hdCol ? hdCol - 1 : -1;
+  var hbIdx = hbCol ? hbCol - 1 : -1;
+  // 補完に使う「保存した人」の作業者名。'cloudflare-proxy'（savefail 再送などの内部センチネル）は
+  // 作業者ではないので補完に使わない＝誰の実績にもならない偽名がシートに入るのを防ぐ
+  var hbAuto = '';
+  try { hbAuto = String(staff_resolveWorkerName_(email) || '').trim(); } catch (eHb) {}
+  if (hbAuto === 'cloudflare-proxy') hbAuto = '';
+  // 発送日付を登録したのに発送者の指定が無い → 保存した作業者で自動補完。
+  // 採寸者と違い「既に入っている発送者は上書きしない」（日付だけ後から訂正しても担当者を奪わない）
+  if (hbAuto && fields['発送日付'] !== undefined && fields['発送日付'] !== '' && fields['発送日付'] !== null &&
+      fields['発送者'] === undefined && hbIdx >= 0 && !rowFormulas[hbIdx]) {
+    var curHb = rowVals[hbIdx];
+    if (curHb === '' || curHb === null || curHb === undefined) {
+      rowVals[hbIdx] = hbAuto;
+      dirtyIdx[hbIdx] = true;
+    }
+  }
+  // 発送者が入っていて発送日付が空なら当日で補完する
+  if (hdIdx >= 0 && hbIdx >= 0 && !rowFormulas[hdIdx]) {
+    var hbVal = rowVals[hbIdx];
+    var hdVal = rowVals[hdIdx];
+    if (hbVal !== '' && hbVal !== null && hbVal !== undefined &&
+        (hdVal === '' || hdVal === null || hdVal === undefined)) {
+      rowVals[hdIdx] = staff_parseFieldDate_(new Date());   // 日付のみ（シート TZ 00:00）
+      dirtyIdx[hdIdx] = true;
+      timeLogFields.push({ field: '発送日付', date: rowVals[hdIdx] });
+    }
+  }
+  // 逆パターン: 発送日付が入っていて発送者が空なら保存をブロックする
+  // （このリクエストで発送日付／発送者を更新した場合のみ判定。既存の片欠け行は触らない）
+  // hbAuto が取れない（＝作業者を特定できない内部再送）ときはブロックしない。
+  // ここで弾くと savefail 再送 Cron が永久に失敗し続けるため。
+  if ((hbAuto || fields['発送者'] !== undefined) &&
+      (fields['発送日付'] !== undefined || fields['発送者'] !== undefined)) {
+    var chkHd = hdIdx >= 0 ? rowVals[hdIdx] : '';
+    var chkHb = hbIdx >= 0 ? rowVals[hbIdx] : '';
+    if (chkHd !== '' && chkHd !== null && chkHd !== undefined &&
+        (chkHb === '' || chkHb === null || chkHb === undefined)) {
+      return { ok: false, error: '発送日付を登録するには発送者も必須です（発送者と発送日付はセットで登録してください）' };
+    }
+  }
+
   // ステータスを AppSheet IFS 式で再計算（in-memory）
   var statusChanged = false;
   var derivedStatus = '';
