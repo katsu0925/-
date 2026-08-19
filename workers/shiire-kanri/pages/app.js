@@ -706,7 +706,26 @@ const DETAIL_SECTIONS = [
   ]}
 ];
 
+// マスターの最終取得結果を localStorage に退避しておく。
+// マスター取得が失敗/遅延すると STATE.settings が空のままになり、設定シート由来の
+// プルダウン（発送方法・状態・カラー・サイズ）が選択肢ゼロで描画されてしまう。
+// 前回値をそのまま使えば、オフラインでも通信失敗でも正しい選択肢を出せる。
+var MASTER_CACHE_PREFIX_ = 'shiire-kanri:master:';
+function masterCacheRead_(key) {
+  try {
+    var raw = localStorage.getItem(MASTER_CACHE_PREFIX_ + key);
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { return null; }
+}
+function masterCacheWrite_(key, val) {
+  try { localStorage.setItem(MASTER_CACHE_PREFIX_ + key, JSON.stringify(val)); } catch (e) {}
+}
+
 // マスター取得：失敗しても UI は壊さない
+// ① まず前回値（localStorage）で STATE を即座に埋める → 選択肢が空の画面を作らない
+// ② 5 つのリストマスタ + 設定シートを並列取得（設定シートを直列にすると、
+//    他のマスタが遅いだけでプルダウンが空のまま描画されてしまう）
+// ③ 1 回だけリトライ。最終的に失敗したら ① の前回値を保持したままにする
 async function loadMasters() {
   const tasks = [
     ['/api/master/workers',    'workers'],
@@ -715,22 +734,55 @@ async function loadMasters() {
     ['/api/master/places',     'places'],
     ['/api/master/categories', 'categories'],
   ];
+  // ① 前回値で下地を作る
+  tasks.forEach(function(t){
+    var cached = masterCacheRead_(t[1]);
+    if (Array.isArray(cached) && cached.length && !(STATE[t[1]] || []).length) STATE[t[1]] = cached;
+  });
+  var cachedSettings = masterCacheRead_('settings');
+  if (cachedSettings && typeof cachedSettings === 'object' && !Object.keys(STATE.settings || {}).length) {
+    STATE.settings = cachedSettings;
+  }
+  var cachedChannels = masterCacheRead_('saleChannels');
+  if (cachedChannels && typeof cachedChannels === 'object' && !Object.keys(STATE.saleChannels || {}).length) {
+    STATE.saleChannels = cachedChannels;
+  }
+
+  // ② + ③ 並列取得（各 1 回リトライ）
+  async function fetchWithRetry_(url) {
+    try { return await api(url); }
+    catch (err) {
+      // GAS 過負荷や一時的な 502 は即時リトライしても同じく失敗しやすいので少し待つ
+      await new Promise(function(r){ setTimeout(r, 900); });
+      return await api(url);
+    }
+  }
   await Promise.all(tasks.map(async ([url, key]) => {
     try {
-      const r = await api(url);
-      STATE[key] = Array.isArray(r.items) ? r.items : [];
+      const r = await fetchWithRetry_(url);
+      if (Array.isArray(r.items)) {
+        STATE[key] = r.items;
+        masterCacheWrite_(key, r.items);
+      }
     } catch (err) {
-      console.warn(key + ' load failed', err);
+      console.warn(key + ' load failed（前回値を継続使用）', err);
     }
-  }));
-  // 設定シート（複数列マスタ：状態/発送方法/カラー1/カテゴリ2/カテゴリ3 等）
-  try {
-    const r = await api('/api/master/settings');
-    STATE.settings = (r.items && typeof r.items === 'object' && !Array.isArray(r.items)) ? r.items : {};
-    STATE.saleChannels = (r.saleChannels && typeof r.saleChannels === 'object' && !Array.isArray(r.saleChannels)) ? r.saleChannels : {};
-  } catch (err) {
-    console.warn('settings load failed', err);
-  }
+  }).concat([(async function(){
+    // 設定シート（複数列マスタ：状態/発送方法/カラー1/カテゴリ2/カテゴリ3 等）
+    try {
+      const r = await fetchWithRetry_('/api/master/settings');
+      if (r.items && typeof r.items === 'object' && !Array.isArray(r.items) && Object.keys(r.items).length) {
+        STATE.settings = r.items;
+        masterCacheWrite_('settings', r.items);
+      }
+      if (r.saleChannels && typeof r.saleChannels === 'object' && !Array.isArray(r.saleChannels)) {
+        STATE.saleChannels = r.saleChannels;
+        masterCacheWrite_('saleChannels', r.saleChannels);
+      }
+    } catch (err) {
+      console.warn('settings load failed（前回値を継続使用）', err);
+    }
+  })()]));
 }
 
 // 自分のメール → 作業者マスターの「名前」を解決して STATE.userName に格納
@@ -933,12 +985,16 @@ async function api(path, opts) {
     var headers = {};
     if (opts.body) headers['Content-Type'] = 'application/json';
     if (idempotencyKey) headers['X-Idempotency-Key'] = idempotencyKey;
-    res = await fetch(API_BASE + path, {
+    // 素の fetch は iOS Safari のタブ移動・カメラ起動などで無音中断されると
+    // resolve も reject もされず、await している側が永久にハングする。
+    // （= 詳細画面が「読み込み中…」のまま戻らない / マスター取得が永久 pending）
+    // 必ず AbortController 付きで投げ、一定時間で reject させる。
+    res = await fetchWithTimeout_(API_BASE + path, {
       method: method,
       credentials: 'include',
       headers: headers,
       body: opts.body ? JSON.stringify(opts.body) : undefined,
-    });
+    }, isWrite ? 60000 : 25000);
   } catch (netErr) {
     // ネットワーク失敗 (status=0)
     if (useOutbox) {
@@ -7686,7 +7742,7 @@ async function openDetail(kanri, opts) {
   var cached = DETAIL_CACHE[kanri];
   if (cached) {
     STATE.current = cached;
-    if (STATE.mastersPromise) { try { await STATE.mastersPromise; } catch(e){} }
+    await mastersReady_();
     renderDetail();
   } else {
     document.getElementById('content').innerHTML = '<div class="loading">読み込み中…</div>';
@@ -7694,7 +7750,7 @@ async function openDetail(kanri, opts) {
   try {
     const [res] = await Promise.all([
       api('/api/products/' + encodeURIComponent(kanri)),
-      STATE.mastersPromise || Promise.resolve(),
+      mastersReady_(),
     ]);
     // 旧 extra と新 extra を比較し、消えた/変わった画像パスの sessionStorage 解決キャッシュを破棄
     // → シートで画像を削除/差し替えても古い解決URLが残らない
@@ -7926,9 +7982,12 @@ function fieldRowHtml(name, type, val) {
     if (setOptsShip) {
       inner = '<select id="' + id + '" oninput="updateFieldIcon_(this,\'shipmethod\')">' + setOptsShip + '</select>';
     } else {
-      var opts3 = SHIP_METHOD_OPTIONS.map(function(o){
-        return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + (o || '—') + '</option>';
-      }).join('');
+      // 設定シートが未読込のときは旧固定リストへ落ちるが、旧リストには現行の
+      // 「宅急便 セブン」等が含まれない。素直に map すると どの option も selected に
+      // ならず、ブラウザが先頭（空）を選ぶ = 画面上で発送方法が空欄になり、そのまま
+      // 保存するとシート側の値まで空で潰れる。masterOptionsHtml_ は現在値がリストに
+      // 無いとき「（マスター外）」option を付けて必ず保持するので、こちらを使う。
+      var opts3 = masterOptionsHtml_(SHIP_METHOD_OPTIONS, v);
       inner = '<select id="' + id + '" oninput="updateFieldIcon_(this,\'shipmethod\')">' + opts3 + '</select>';
     }
     input = '<div class="field-with-icon">' +
@@ -8198,6 +8257,18 @@ function masterOptionsHtml_(list, current) {
     out.push('<option value="' + esc(cur) + '" selected>' + esc(cur) + '（マスター外）</option>');
   }
   return out.join('');
+}
+
+// 詳細画面を開く前のマスター待ち。
+// 選択肢が無いまま描画すると発送方法などが空欄になるので基本は待つが、
+// 前回値（localStorage）が既にあるなら最大 6 秒で打ち切る。
+// これが無いと、マスター取得が遅い・失敗し続ける端末で
+// 詳細画面が「読み込み中…」から永久に戻らない。
+function mastersReady_() {
+  var pm = (STATE.mastersPromise || Promise.resolve()).catch(function(){});
+  var hasSettings = !!Object.keys(STATE.settings || {}).length;
+  if (!hasSettings) return pm; // 初回起動はマスターを持っていないので待つしかない
+  return Promise.race([pm, new Promise(function(r){ setTimeout(r, 6000); })]);
 }
 
 // セクションタブ → DETAIL_SECTIONS のマッピング
@@ -10642,9 +10713,12 @@ function createFieldRowHtml_(name, type, defVal) {
     if (setOptsShipC) {
       innerC = '<select id="' + id + '" oninput="updateFieldIcon_(this,\'shipmethod\')">' + setOptsShipC + '</select>';
     } else {
-      var opts3 = SHIP_METHOD_OPTIONS.map(function(o){
-        return '<option value="' + esc(o) + '"' + (String(v) === o ? ' selected' : '') + '>' + (o || '—') + '</option>';
-      }).join('');
+      // 設定シートが未読込のときは旧固定リストへ落ちるが、旧リストには現行の
+      // 「宅急便 セブン」等が含まれない。素直に map すると どの option も selected に
+      // ならず、ブラウザが先頭（空）を選ぶ = 画面上で発送方法が空欄になり、そのまま
+      // 保存するとシート側の値まで空で潰れる。masterOptionsHtml_ は現在値がリストに
+      // 無いとき「（マスター外）」option を付けて必ず保持するので、こちらを使う。
+      var opts3 = masterOptionsHtml_(SHIP_METHOD_OPTIONS, v);
       innerC = '<select id="' + id + '" oninput="updateFieldIcon_(this,\'shipmethod\')">' + opts3 + '</select>';
     }
     input = '<div class="field-with-icon">' +
