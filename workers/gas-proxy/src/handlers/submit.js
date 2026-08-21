@@ -418,13 +418,43 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     if (coupon.channel !== 'all' && !cartChannels.includes(coupon.channel)) {
       return jsonError('このクーポンは対象外のチャネルです。');
     }
-    // 開始日・有効期限チェック
-    const now = new Date();
-    if (coupon.start_date && now < new Date(coupon.start_date)) {
-      return jsonError('このクーポンはまだ有効期間前です。');
+    // 対象商品IDチェック（GAS Coupon.gs validateCoupon_ / coupon.js と同一意味論:
+    // 対象商品IDを設定したクーポンは「カート内の全商品が対象商品」の場合のみ有効。
+    // 対象商品IDはアソート商品IDのため、デタウリ個品が1点でも入っていれば適用不可）
+    if (coupon.target_products) {
+      const allowedIds = String(coupon.target_products).split(',')
+        .map(s => s.trim().toUpperCase()).filter(Boolean);
+      if (allowedIds.length > 0) {
+        const cartBulkIds = hasBulkItems
+          ? form.bulkItems.map(b => String(b.productId || '').trim().toUpperCase()).filter(Boolean)
+          : [];
+        const allMatch = ids.length === 0 && cartBulkIds.length > 0 &&
+          cartBulkIds.every(pid => allowedIds.includes(pid));
+        if (!allMatch) {
+          return jsonError('このクーポンは対象商品のみのご注文でご利用いただけます（対象外の商品がカートに含まれています）。');
+        }
+      }
     }
-    if (coupon.expires_at && now > new Date(coupon.expires_at)) {
-      return jsonError('このクーポンは有効期限切れです。');
+    // 開始日・有効期限チェック（GAS Coupon.gs validateCoupon_ / coupon.js と同一意味論:
+    // JSTの日付部で比較し、開始日は当日0:00から・失効日は当日23:59:59まで有効）
+    const jstDatePart = (d) => {
+      const t = new Date(d.getTime() + 9 * 3600 * 1000);
+      const mm = String(t.getUTCMonth() + 1).padStart(2, '0');
+      const dd = String(t.getUTCDate()).padStart(2, '0');
+      return t.getUTCFullYear() + '-' + mm + '-' + dd;
+    };
+    const todayJst = jstDatePart(new Date());
+    if (coupon.start_date) {
+      const start = new Date(coupon.start_date);
+      if (!isNaN(start.getTime()) && todayJst < jstDatePart(start)) {
+        return jsonError('このクーポンはまだ有効期間前です。');
+      }
+    }
+    if (coupon.expires_at) {
+      const expires = new Date(coupon.expires_at);
+      if (!isNaN(expires.getTime()) && todayJst > jstDatePart(expires)) {
+        return jsonError('このクーポンは有効期限切れです。');
+      }
     }
     // 利用回数上限
     if (coupon.max_uses > 0 && coupon.use_count >= coupon.max_uses) {

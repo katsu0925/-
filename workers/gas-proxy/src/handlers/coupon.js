@@ -51,15 +51,18 @@ export async function validateCoupon(args, env) {
 
   // 対象商品チェック（GAS Coupon.gs validateCoupon_ と同一意味論:
   // bulk専用 or all のクーポンを bulk チャネルから使う時のみ照合する。
-  // detauri個品側は商品IDの体系が異なるため対象外。比較は両辺 trim + 大文字化）
+  // detauri個品側は商品IDの体系が異なるため対象外。比較は両辺 trim + 大文字化。
+  // 対象商品IDを設定したクーポンは「カート内の全商品が対象商品」の場合のみ有効
+  // ＝1点でも対象外が混ざっていれば適用不可）
   const couponChannel = coupon.channel || 'all';
   if ((couponChannel === 'bulk' || couponChannel === 'all') && channel === 'bulk' && coupon.target_products) {
     const allowedIds = coupon.target_products.split(',')
       .map(s => s.trim().toUpperCase()).filter(Boolean);
-    if (allowedIds.length > 0 && productIds && productIds.length > 0) {
-      const hasMatch = productIds.some(pid => allowedIds.includes(String(pid).trim().toUpperCase()));
-      if (!hasMatch) {
-        return jsonOk({ ok: false, message: 'このクーポンはカート内の商品に適用できません' });
+    if (allowedIds.length > 0) {
+      const allMatch = productIds && productIds.length > 0 &&
+        productIds.every(pid => allowedIds.includes(String(pid).trim().toUpperCase()));
+      if (!allMatch) {
+        return jsonOk({ ok: false, message: 'このクーポンは対象商品のみのご注文でご利用いただけます（対象外の商品がカートに含まれています）' });
       }
     }
   }

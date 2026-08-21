@@ -935,19 +935,21 @@ function validateCoupon_(code, email, channel, productIds, customerName) {
   }
 
   // アソート商品の対象商品IDチェック（bulk専用 or all の場合、bulkチャンネルからの注文時に照合）
+  // 対象商品IDを設定したクーポンは「カート内の全商品が対象商品」の場合のみ有効。
+  // （1点でも対象外が混ざっていれば適用不可。クーポン控除はカート合計に対して
+  //   計算されるため、部分一致で通すと対象外商品にも割引が及んでしまう）
   if ((couponChannel === 'bulk' || couponChannel === 'all') && channel === 'bulk' && coupon.targetProducts) {
     var allowedIds = coupon.targetProducts.split(',').map(function(s) { return s.trim().toUpperCase(); }).filter(function(s) { return s; });
-    if (allowedIds.length > 0 && productIds && productIds.length > 0) {
-      var hasMatch = false;
-      for (var pi = 0; pi < productIds.length; pi++) {
-        var pid = String(productIds[pi]).trim().toUpperCase();
-        for (var ai = 0; ai < allowedIds.length; ai++) {
-          if (pid === allowedIds[ai]) { hasMatch = true; break; }
+    if (allowedIds.length > 0) {
+      var allMatch = !!(productIds && productIds.length > 0);
+      if (allMatch) {
+        for (var pi = 0; pi < productIds.length; pi++) {
+          var pid = String(productIds[pi]).trim().toUpperCase();
+          if (allowedIds.indexOf(pid) === -1) { allMatch = false; break; }
         }
-        if (hasMatch) break;
       }
-      if (!hasMatch) {
-        return { ok: false, message: 'このクーポンはカート内の商品に適用できません' };
+      if (!allMatch) {
+        return { ok: false, message: 'このクーポンは対象商品のみのご注文でご利用いただけます（対象外の商品がカートに含まれています）' };
       }
     }
   }
