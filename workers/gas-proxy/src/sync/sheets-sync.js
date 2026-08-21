@@ -921,10 +921,18 @@ async function updateSyncMeta(db, exportData) {
  */
 async function incrementAiFailure(env, managedId, reason) {
   try {
+    const msg = String(reason || '');
+    // 一時障害（429=クォータ/前払い残高切れ, 503=高負荷）は attempts に数えない。
+    // 数えると Gemini 側の一時的な事情だけで attempts=3 の恒久除外に達してしまい、
+    // 復旧しても自動で戻ってこない（2026-08-20 前払い移行の残高切れで51件が停止）。
+    // 記録だけ残して次Cronでそのまま再試行させる。
+    // トレードオフ: 長時間の障害中はバッチ枠を同じIDが占め続けるが、障害中はどのIDも
+    // 進まないので実害はなく、復旧後は自然に解消する。
+    const isTransient = /^Gemini API (429|503):/.test(msg);
     const existing = await env.CACHE.get(`ai-failed:${managedId}`);
     const f = existing ? JSON.parse(existing) : { attempts: 0 };
-    f.attempts = (f.attempts || 0) + 1;
-    f.lastError = String(reason || '').substring(0, 200);
+    if (!isTransient) f.attempts = (f.attempts || 0) + 1;
+    f.lastError = msg.substring(0, 200);
     f.lastAt = new Date().toISOString();
     await env.CACHE.put(`ai-failed:${managedId}`, JSON.stringify(f), { expirationTtl: 7 * 24 * 3600 });
     if (f.attempts >= 3) {
