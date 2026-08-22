@@ -34,6 +34,9 @@ function updateMonthlyInventoryTrend() {
   if (!sheetShiire)     throw new Error('仕入れ管理シートが見つかりません');
   if (!sheetShohin)     throw new Error('商品管理シートが見つかりません');
 
+  // --- 期末棚卸サマリーを棚卸明細から再生成（手入力の転記漏れ・誤転記を防ぐ） ---
+  rebuildTanaoroshiSummary_(ss);
+
   // --- 参照データ読み込み ---
   // 期末棚卸サマリー: A列(年月), B列(期首在庫金額)
   var tanaData  = sheetTanaoroshi.getRange('A2:B').getValues();
@@ -186,6 +189,71 @@ function updateMonthlyInventoryTrend() {
   }
 
   Logger.log('月次在庫推移を更新しました: ' + result.length + '行 (EC管理・売却履歴含む)');
+}
+
+// =====================================================
+// 期末棚卸サマリーの自動生成
+// =====================================================
+
+/**
+ * 「期末棚卸サマリー」を「棚卸明細」から再生成する
+ *
+ * 棚卸明細   : 3行目以降 A列(棚卸し日) D列(実地棚卸数) G列(棚卸金額)
+ * 生成先     : 期末棚卸サマリー 2行目以降 A列(年月 "yyyy/MM") B列(期末在庫金額)
+ *
+ * 従来このシートは完全手入力で、転記が止まると月次在庫推移の行そのものが
+ * 増えなくなる（行数はA列の年月リスト分しか作られないため）。さらに集計途中の
+ * 値を転記してしまう誤りも起きていたので、棚卸明細から機械的に作り直す。
+ *
+ * 実地棚卸数(D列)が1行でも未入力の月は「棚卸し中」とみなして出力しない。
+ * これにより集計途中の過少な金額がサマリーに載ることを防ぐ。
+ *
+ * @param {Spreadsheet} ss
+ * @returns {{written:number, skipped:string[]}|null}
+ */
+function rebuildTanaoroshiSummary_(ss) {
+  var shStock = ss.getSheetByName('棚卸明細');
+  var shSum   = ss.getSheetByName('期末棚卸サマリー');
+  if (!shStock || !shSum) return null;
+
+  var lastRow = shStock.getLastRow();
+  if (lastRow < 3) return null;
+
+  // A〜G列を一括読み込み（3行目がデータ開始行）
+  var vals = shStock.getRange(3, 1, lastRow - 2, 7).getValues();
+
+  // 年月ごとに集計 {年月: {sum:棚卸金額合計, rows:行数, filled:実地棚卸数の入力済み行数}}
+  var blocks = {};
+  for (var i = 0; i < vals.length; i++) {
+    var d = vals[i][0];
+    if (!(d instanceof Date) || isNaN(d.getTime())) continue;
+    var ym = toYM_(d);
+    if (!ym) continue;
+    if (!blocks[ym]) blocks[ym] = { sum: 0, rows: 0, filled: 0 };
+    blocks[ym].rows++;
+    var actual = vals[i][3]; // D列: 実地棚卸数
+    if (actual !== '' && actual != null) blocks[ym].filled++;
+    blocks[ym].sum += (Number(vals[i][6]) || 0); // G列: 棚卸金額
+  }
+
+  var ymKeys = Object.keys(blocks).sort();
+  var rows = [], skipped = [];
+  for (var k = 0; k < ymKeys.length; k++) {
+    var b = blocks[ymKeys[k]];
+    if (b.filled < b.rows) { skipped.push(ymKeys[k] + '(' + b.filled + '/' + b.rows + ')'); continue; }
+    rows.push([ymKeys[k], b.sum]);
+  }
+  if (rows.length === 0) return null;
+
+  var sumLastRow = shSum.getLastRow();
+  if (sumLastRow >= 2) shSum.getRange(2, 1, sumLastRow - 1, 2).clearContent();
+  // A列は "yyyy/MM" の文字列として保持する（日付に自動変換されるとキーが崩れる）
+  shSum.getRange(2, 1, rows.length, 1).setNumberFormat('@');
+  shSum.getRange(2, 1, rows.length, 2).setValues(rows);
+
+  Logger.log('期末棚卸サマリーを再生成: ' + rows.length + '行'
+    + (skipped.length ? ' / 棚卸し中のため除外: ' + skipped.join(', ') : ''));
+  return { written: rows.length, skipped: skipped };
 }
 
 // =====================================================

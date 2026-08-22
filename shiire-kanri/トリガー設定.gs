@@ -17,7 +17,7 @@ function FULL_RESTORE_ALL() {
   ScriptApp.newTrigger('processPendingKeywordRows').timeBased().everyMinutes(1).create();
   // 1時間ごと (分析)
   ScriptApp.newTrigger('buildWorkAnalysis').timeBased().everyHours(1).inTimezone('GMT+9').create();
-  // 毎日 3時 (ディスパッチャー: 報酬計算 + 欠番確認)
+  // 毎日 3時 (ディスパッチャー: 報酬計算 + 欠番確認 + 月次在庫推移)
   ScriptApp.newTrigger('cronDaily3').timeBased().everyDays(1).atHour(3).inTimezone('GMT+9').create();
   // 毎日 4時 (在庫日数計算)
   ScriptApp.newTrigger('recalcZaikoNissu').timeBased().everyDays(1).atHour(4).inTimezone('GMT+9').create();
@@ -30,7 +30,7 @@ function FULL_RESTORE_ALL() {
 }
 
 /**
- * 毎日3時: 行構造同期 → 報酬計算 → 過去月の凍結ズレ修正 → 欠番確認
+ * 毎日3時: 行構造同期 → 報酬計算 → 過去月の凍結ズレ修正 → 欠番確認 → 月次在庫推移
  *
  * updateRewardsNoFormula は当月/前月しか再計算しないため、過去月の商品管理を
  * 後から補完・修正しても報酬管理の金額が古いまま固定される。その差分を
@@ -42,7 +42,7 @@ function cronRecalcWorkDrift_() {
 }
 
 function cronDaily3() {
-  var fns = [syncRewardRows, updateRewardsNoFormula, cronRecalcWorkDrift_, 出力_欠番確認];
+  var fns = [syncRewardRows, updateRewardsNoFormula, cronRecalcWorkDrift_, 出力_欠番確認, updateMonthlyInventoryTrend];
   for (var i = 0; i < fns.length; i++) {
     try { fns[i](); } catch (e) { console.error('cronDaily3 [' + fns[i].name + ']:', e); }
   }
