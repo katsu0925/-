@@ -7,6 +7,7 @@
 import { jsonOk, jsonError } from '../utils/response.js';
 import { generateRandomHex } from '../utils/crypto.js';
 import { statementsInChunks } from '../utils/sql.js';
+import { resolveCustomerId, isOwnHold } from '../utils/identity.js';
 
 const HOLD_MINUTES_DEFAULT = 15;
 const HOLD_MINUTES_MEMBER = 30;
@@ -36,13 +37,10 @@ export async function syncHolds(args, env) {
   }
 
   // 会員判定（セッションから）
-  let holdMinutes = HOLD_MINUTES_DEFAULT;
-  if (sessionId) {
-    const session = await env.SESSIONS.get(`session:${sessionId}`, 'json');
-    if (session && session.customerId) {
-      holdMinutes = HOLD_MINUTES_MEMBER;
-    }
-  }
+  // customerId は確保時間の延長だけでなく「自分の確保」判定にも使う。
+  // 同じ会員が別端末で開いたとき、自分の確保が確保中（選択不可）にならないようにする。
+  const customerId = await resolveCustomerId(env, sessionId);
+  const holdMinutes = customerId ? HOLD_MINUTES_MEMBER : HOLD_MINUTES_DEFAULT;
 
   const now = Date.now();
   const untilMs = now + holdMinutes * 60 * 1000;
@@ -74,10 +72,13 @@ export async function syncHolds(args, env) {
 
     // 確保状況を取得（自分の確保は pending_payment / until_ms を引き継ぐため必要）
     const { results: holdRows } = await env.DB.prepare(
-      'SELECT user_key, until_ms, pending_payment, receipt_no FROM holds WHERE managed_id = ? AND until_ms > ?'
+      'SELECT user_key, customer_id, until_ms, pending_payment, receipt_no FROM holds WHERE managed_id = ? AND until_ms > ?'
     ).bind(managedId, now).all();
 
-    const otherHold = holdRows.find(h => h.user_key !== userKey);
+    // 他人の確保 = 「同じ端末でも同じ会員でもない」確保
+    const otherHold = holdRows.find(h => !isOwnHold(h, userKey, customerId));
+    // 決済処理中（pending_payment）まわりは端末単位で判定する。
+    // 別端末の決済処理中まで自分扱いにすると、同じ会員が同じ商品を二重注文できてしまう。
     const myHold = holdRows.find(h => h.user_key === userKey);
     const myPending = !!(myHold && myHold.pending_payment);
 
@@ -130,14 +131,15 @@ export async function syncHolds(args, env) {
     // 支払い予定の商品が他人に取られてしまう
     stmts.push(
       env.DB.prepare(`
-        INSERT INTO holds (managed_id, user_key, hold_id, until_ms, pending_payment, created_at)
-        VALUES (?, ?, ?, ?, 0, ?)
+        INSERT INTO holds (managed_id, user_key, hold_id, until_ms, pending_payment, created_at, customer_id)
+        VALUES (?, ?, ?, ?, 0, ?, ?)
         ON CONFLICT (managed_id, user_key) DO UPDATE SET
           hold_id = excluded.hold_id,
           until_ms = CASE WHEN holds.pending_payment = 1 THEN holds.until_ms ELSE excluded.until_ms END,
           pending_payment = holds.pending_payment,
-          created_at = excluded.created_at
-      `).bind(managedId, userKey, holdId, untilMs, new Date().toISOString())
+          created_at = excluded.created_at,
+          customer_id = excluded.customer_id
+      `).bind(managedId, userKey, holdId, untilMs, new Date().toISOString(), customerId)
     );
 
     // 決済処理中（pending_payment=1）の確保は DB 側の長い期限をそのまま返す。
@@ -194,6 +196,8 @@ export async function cancelPendingPayment(args, env) {
 
   // KOMOJU APIでステータス確認（偽cancelを防止）
   // 成功ステータス(captured/authorized)なら解放しない
+  // pending（コンビニ/銀行振込の受付済み＝支払い待ち）も解放しない。
+  // 解放すると支払い予定の商品が他人に売れて二重販売になる
   const komojuKey = env.KOMOJU_SECRET_KEY;
   if (komojuKey) {
     try {
@@ -209,7 +213,7 @@ export async function cancelPendingPayment(args, env) {
       const data = await resp.json();
       if (data.resource_data && data.resource_data.length > 0) {
         const session = data.resource_data[0];
-        if (session.payment && ['captured', 'authorized'].includes(session.payment.status)) {
+        if (session.payment && ['captured', 'authorized', 'pending'].includes(session.payment.status)) {
           return jsonOk({ released: false, reason: 'payment_already_confirmed' });
         }
       }

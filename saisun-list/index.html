@@ -4497,7 +4497,7 @@ function pollStatusNow_() {
 
   if (ids.length === 0) { state.timers.statusPoll = setTimeout(pollStatusNow_, 5000); return; }
 
-  runApi('apiGetStatusDigest', state.userKey, ids)
+  runApi('apiGetStatusDigest', state.userKey, ids, state.sessionId || null)
     .then(function(res) {
       if (res && res.ok && res.map) {
         // マージ: 楽観的・サーバー確認済みエントリを保護
@@ -4776,12 +4776,16 @@ function computeDisabledForCard_(it, id) {
   var selected = state.cart.ids.indexOf(id) !== -1;
   var effectiveStatus = effectiveStatusFor_(id, selected, it.status);
   var effectiveHeldByOther = effectiveHeldByOtherFor_(id);
+  // サーバー（apiGetStatusDigest）が「確保中だが他人ではない」と返した商品＝自分の確保。
+  // ログイン中は別端末で確保したものも会員IDで自分の確保と判定される
+  var d = state.cart.digest ? state.cart.digest[id] : null;
+  var mineHold = !!(d && statusKind_(normalizeStatus_(d.status || '')) === 'hold' && !d.heldByOther);
   // it.selectable は全ユーザー共通の商品フィード（KVキャッシュ）の値で、
   // 自分自身の確保でも false になる。自分のカートに入っている商品（＝自分の確保）は
   // selectable を無視する。無視しないと、カート復元後やリロード後に自分で選んだ商品が
   // 「確保中（選択不可）」と表示されてしまう（2026-08-25 事象）。
   // GAS側 Status.gs:222 も自分の確保は selectable=true のままにしている。
-  var disabled = (!selected && !it.selectable) || (statusKind_(effectiveStatus) === 'open') || (statusKind_(effectiveStatus) === 'hold' && effectiveHeldByOther);
+  var disabled = (!selected && !mineHold && !it.selectable) || (statusKind_(effectiveStatus) === 'open') || (statusKind_(effectiveStatus) === 'hold' && effectiveHeldByOther);
   return { selected: selected, effectiveStatus: effectiveStatus, effectiveHeldByOther: effectiveHeldByOther, disabled: disabled };
 }
 
@@ -6875,7 +6879,7 @@ function submitNow_() {
       }
       // ステップ2: 注文送信
       setSending_(true, '注文送信中...');
-      return runApi('apiSubmitEstimate', state.userKey, f, ids, { _runApiExtra_: true, recaptchaToken: recaptchaToken });
+      return runApi('apiSubmitEstimate', state.userKey, f, ids, state.sessionId || '', { _runApiExtra_: true, recaptchaToken: recaptchaToken });
     })
     .then(function(res) {
       if (!res || !res.ok) throw new Error(res && res.message ? res.message : '注文送信に失敗しました');
@@ -6887,6 +6891,8 @@ function submitNow_() {
       // KOMOJU決済ページへリダイレクト
       trackEvent_('redirect_to_payment', { payment_gateway: res.paidyRedirectUrl ? 'paidy' : 'komoju', page_type: 'detauri' });
       setSending_(true, '決済ページへ移動中...');
+      // 決済ページから戻ってこられなかった場合の後始末用にトークンを保存（checkAbandonedPayment_）
+      savePendingPaymentToken_(res.paymentToken || '');
       window.location.href = redirectTo;
     })
     .catch(function(e) {
@@ -6899,11 +6905,69 @@ function submitNow_() {
 // KOMOJU決済からの戻り処理
 // =====================================================
 
+// 決済ページへ送り出す際のトークン保管（戻り検知型の離脱検出）
+var PENDING_PAY_KEY = 'pending_payment_v1';
+
+function savePendingPaymentToken_(token) {
+  if (!token) return;
+  try { localStorage.setItem(PENDING_PAY_KEY, JSON.stringify({ token: token, at: Date.now() })); } catch (e) {}
+}
+
+function loadPendingPaymentToken_() {
+  try {
+    var raw = localStorage.getItem(PENDING_PAY_KEY);
+    if (!raw) return '';
+    var o = JSON.parse(raw);
+    if (!o || !o.token) return '';
+    // 7日以上前のものは判断材料にしない
+    if (o.at && (Date.now() - o.at) > 7 * 24 * 60 * 60 * 1000) { clearPendingPaymentToken_(); return ''; }
+    return String(o.token);
+  } catch (e) { return ''; }
+}
+
+function clearPendingPaymentToken_() {
+  try { localStorage.removeItem(PENDING_PAY_KEY); } catch (e) {}
+}
+
+// 決済ページから戻ってこなかった場合の後始末
+// ブラウザバックやタブを閉じた場合は戻りURL（?status=）を通らないため、
+// 次にサイトを開いたときに保存トークンで決済状況を照会し、
+// 未決済なら決済処理中ロックを解除してカートを元に戻す（2026-08-24 事故対策）
+function checkAbandonedPayment_() {
+  var token = loadPendingPaymentToken_();
+  if (!token) return;
+  runApi('apiCheckPaymentStatus', token).then(function(res) {
+    var paid = !!(res && res.ok && (res.status === 'paid' || res.status === 'authorized'));
+    clearPendingPaymentToken_();
+    if (paid) {
+      // 決済は成立している → カートを空にする
+      state.cart.ids = []; state.cart.itemsById = {}; state.cart.digest = {}; state.lastShipping = null;
+      saveCartStorage(); updateCartCount();
+      try { localStorage.removeItem('bulk_cart_v1'); } catch (e) {}
+      try { localStorage.removeItem('estimate_cart_v2'); } catch (e) {}
+      showToast('前回のご注文は完了しています');
+      return;
+    }
+    // 未決済 → ロック解除。カートはそのまま残すので選び直す必要はない
+    return runApi('apiCancelPendingPayment', token).then(function() {
+      if (state.cart.ids.length > 0) {
+        showToast('お支払いが完了しなかったため、選択中の商品をカートに戻しました');
+        runHoldSync_();
+      }
+    });
+  }).catch(function(e) {
+    console.log('Abandoned payment check (non-fatal):', e);
+  });
+}
+
 function handlePaymentReturn_() {
   var params = new URLSearchParams(window.location.search);
   var token = params.get('token') || params.get('receipt');  // 新フロー: ?token=, 旧フロー: ?receipt=
   var status = params.get('status');
-  if (!token || !status) return;
+  // 戻りURLを経由していない＝離脱の可能性。保存トークンで後始末する
+  if (!token || !status) { checkAbandonedPayment_(); return; }
+  // このトークンはここで処理するので保存分は破棄
+  clearPendingPaymentToken_();
 
   // URLからクエリパラメータを削除（履歴を汚さない）
   if (window.history && window.history.replaceState) {

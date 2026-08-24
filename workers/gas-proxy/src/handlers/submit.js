@@ -10,6 +10,7 @@ import { jsonOk, jsonError, corsResponse } from '../utils/response.js';
 import { selectInChunks, statementsInChunks } from '../utils/sql.js';
 import { sendEvent as sendMetaEvent } from '../utils/meta-capi.js';
 import { calculateRankFromOrders } from './mypage.js';
+import { resolveCustomerId } from '../utils/identity.js';
 
 // ─── 数量割引（廃止済み。comboBulkスキーマは維持、常に0%） ───
 
@@ -126,7 +127,13 @@ const KOMOJU_CURRENCY = 'JPY';
 const KOMOJU_PAYMENT_METHODS = [
   'credit_card', 'konbini', 'bank_transfer', 'paypay', 'pay_easy', 'apple_pay', 'paidy',
 ];
-const PAYMENT_EXPIRY_SECONDS = 259200; // 3日間
+// 決済処理中ロックの保持時間
+// クレカ/PayPay等の即時決済は数分で終わるため、まず30分だけ確保する。
+// コンビニ/銀行振込は着金まで日をまたぐので、Cronのスイープ（pending-sweep.js）が
+// KOMOJUに実際の決済手段を確認したうえで3日へ延長する。
+// 全件を最初から3日にすると、決済ページから離脱しただけの商品が
+// 3日間ロックされ続け、誰も買えなくなる（2026-08-24 事故）。
+const PAYMENT_EXPIRY_INSTANT_SECONDS = 1800; // 30分（初期値。3日への延長は pending-sweep.js が行う）
 
 // ─── メインハンドラ ───
 
@@ -145,6 +152,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   const userKey = String(args[0] || '').trim();
   const form = args[1] || {};
   const ids = args[2] || [];
+  const sessionId = String(args[3] || '').trim();
 
   if (!userKey) return jsonError('userKeyが不正です');
 
@@ -206,6 +214,9 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     return jsonError('住所から都道府県を判別できません。住所を確認してください。');
   }
 
+  // ログイン中の会員IDを解決（別端末で確保した自分の商品を弾かないため）
+  const customerId = await resolveCustomerId(env, sessionId);
+
   // reCAPTCHA検証 + D1クエリを並列実行
   let parsedBody;
   try { parsedBody = JSON.parse(bodyText); } catch (e) { parsedBody = {}; }
@@ -223,11 +234,14 @@ export async function submitEstimate(args, env, bodyText, ctx) {
       selectInChunks(ids, (ph, chunk) => env.DB.prepare(
         `SELECT managed_id, price, no_label, brand, category, size, color, shipping_method FROM products WHERE managed_id IN (${ph})`
       ).bind(...chunk)),
+      // 他人の確保チェック：同じ会員が別端末で確保した商品は自分の確保として扱う。
+      // customerId が空（未ログイン）のときは会員条件が常に真になり、従来どおり端末単位の判定になる
       selectInChunks(ids, (ph, chunk) => env.DB.prepare(
         `SELECT managed_id FROM holds
          WHERE managed_id IN (${ph})
-           AND user_key != ? AND until_ms > ?`
-      ).bind(...chunk, userKey, now)),
+           AND user_key != ? AND until_ms > ?
+           AND (? = '' OR customer_id != ?)`
+      ).bind(...chunk, userKey, now, customerId, customerId)),
       // 依頼中チェック：自分自身の決済処理中（pending_orders 未消費）のロックは除外。
       // 除外しないと決済ページから戻った本人が自分のロックで再注文できなくなる
       selectInChunks(ids, (ph, chunk) => env.DB.prepare(
@@ -763,7 +777,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
 
   // ─── D1 holds更新（pending_payment=1, until_ms延長）+ open_items即時追加 ───
   const now = Date.now();
-  const paymentHoldMs = PAYMENT_EXPIRY_SECONDS * 1000;
+  const paymentHoldMs = PAYMENT_EXPIRY_INSTANT_SECONDS * 1000;
   const holdUntilMs = now + paymentHoldMs;
 
   if (ids.length > 0) {
@@ -780,15 +794,16 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     for (const managedId of ids) {
       stmts.push(
         env.DB.prepare(`
-          INSERT INTO holds (managed_id, user_key, hold_id, until_ms, pending_payment, receipt_no, created_at)
-          VALUES (?, ?, ?, ?, 1, ?, ?)
+          INSERT INTO holds (managed_id, user_key, hold_id, until_ms, pending_payment, receipt_no, created_at, customer_id)
+          VALUES (?, ?, ?, ?, 1, ?, ?, ?)
           ON CONFLICT (managed_id, user_key) DO UPDATE SET
             hold_id = excluded.hold_id,
             until_ms = excluded.until_ms,
             pending_payment = 1,
             receipt_no = excluded.receipt_no,
-            created_at = excluded.created_at
-        `).bind(managedId, userKey, userKey + ':' + now, holdUntilMs, paymentToken, new Date().toISOString())
+            created_at = excluded.created_at,
+            customer_id = excluded.customer_id
+        `).bind(managedId, userKey, userKey + ':' + now, holdUntilMs, paymentToken, new Date().toISOString(), customerId)
       );
       // 即座にopen_itemsに追加 → 他ユーザーの確保・注文を即ブロック
       // 既存行が「自分の旧決済トークン」の場合のみ新トークンへ更新（他人の依頼中は書き換えない）

@@ -32,6 +32,7 @@
 import { incrementGeminiUsage } from '../usage.js';
 import { deriveThumbKey_ } from '../utils/thumb.js';
 import { upsertImageIndexRow, rebuildImageIndexKv } from '../utils/image-index.js';
+import { sweepExpiredPendingPayments } from './pending-sweep.js';
 
 // ─── 価格破壊商品ID（¥10,000以上・送料無料クーポンの送料無料対象外） ───
 // Constants.gs SHIPPING_CONSTANTS.ALWAYS_CHARGE_BULK_IDS / submit.js と同期
@@ -138,6 +139,9 @@ export async function scheduledSync(env) {
 
     // 10. ソフトデリート商品の purge（保持期間切れの R2画像を実削除）
     await purgeSoftDeletedProducts(env);
+
+    // 11. 決済処理中のまま期限切れになった確保を解放（KOMOJU照会つき）
+    await sweepExpiredPendingPayments(env);
 
     console.log('[sync] Sync completed successfully');
   } catch (e) {
