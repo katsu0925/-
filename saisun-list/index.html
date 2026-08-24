@@ -4776,7 +4776,12 @@ function computeDisabledForCard_(it, id) {
   var selected = state.cart.ids.indexOf(id) !== -1;
   var effectiveStatus = effectiveStatusFor_(id, selected, it.status);
   var effectiveHeldByOther = effectiveHeldByOtherFor_(id);
-  var disabled = (!it.selectable) || (statusKind_(effectiveStatus) === 'open') || (statusKind_(effectiveStatus) === 'hold' && effectiveHeldByOther);
+  // it.selectable は全ユーザー共通の商品フィード（KVキャッシュ）の値で、
+  // 自分自身の確保でも false になる。自分のカートに入っている商品（＝自分の確保）は
+  // selectable を無視する。無視しないと、カート復元後やリロード後に自分で選んだ商品が
+  // 「確保中（選択不可）」と表示されてしまう（2026-08-25 事象）。
+  // GAS側 Status.gs:222 も自分の確保は selectable=true のままにしている。
+  var disabled = (!selected && !it.selectable) || (statusKind_(effectiveStatus) === 'open') || (statusKind_(effectiveStatus) === 'hold' && effectiveHeldByOther);
   return { selected: selected, effectiveStatus: effectiveStatus, effectiveHeldByOther: effectiveHeldByOther, disabled: disabled };
 }
 
@@ -6858,8 +6863,13 @@ function submitNow_() {
       var syncResult = results[2];
       if (!csrfOk) throw new Error('セキュリティトークンの取得に失敗しました。ページを再読み込みしてください。');
       if (!syncResult || !syncResult.ok) throw new Error(syncResult && syncResult.message ? syncResult.message : '確保に失敗しました');
-      if (syncResult.failed && syncResult.failed.length) {
-        state.cart.ids = state.cart.ids.filter(function(x) { return !syncResult.failed.find(function(f) { return f.id === x; }); });
+      // own === true は「自分自身の決済処理中」＝他人に取られたわけではない。
+      // ここでカートから外すと、決済ページからブラウザバックした本人が
+      // 自分のロックのせいで注文できなくなる（2026-08-24 事故と同種）。
+      // 確保同期本体（runHoldSync_）と同じく own を除外して判定する。
+      var _blocked = (syncResult.failed || []).filter(function(f) { return f.own !== true; });
+      if (_blocked.length) {
+        state.cart.ids = state.cart.ids.filter(function(x) { return !_blocked.find(function(f) { return f.id === x; }); });
         saveCartStorage(); updateCartCount(); renderCartModal_();
         throw new Error('一部確保できない商品があります');
       }
