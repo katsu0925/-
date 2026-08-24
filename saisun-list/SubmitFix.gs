@@ -1801,23 +1801,46 @@ var PREMIUM_ASSORT_MAP_ = [
 var PREMIUM_ASSORT_MAX_ = 50;
 
 // 選定目標額＝箱に詰める商品の「サイト価格（データ1価格）合計」の狙い値。
-// これは顧客が払う販売価格（BulkProduct.gs newPrice: 小6,800/中16,200/大32,000）より高く、
-// 差額が商品名の「○円分お得」訴求になる（小+600/中+2,700/大+6,900＝目標 小7,400/中18,900/大38,900）。
+// これは顧客が払う販売価格（BulkProduct.gs PREMIUM_PRICE_V3_）より高く、
+// 差額が商品名の「○円分お得」訴求になる。
 // ※顧客価格と同額にしないこと（同額にすると「お得」が無くなり、未達だと過小配送＝訴求未達になる）。
-// フラグ PREMIUM_REPRICED_PROP_ がONなら下記V2目標、未反映なら PREMIUM_ASSORT_MAP_ の旧target。
+// フラグ PREMIUM_REPRICED_PROP_ がONなら下記の目標額、未反映なら PREMIUM_ASSORT_MAP_ の旧target。
+
+// 2026-06-01 リブランド時の目標額（現行。〜2026-08-28）
 var PREMIUM_ASSORT_TARGET_V2_ = {
   'プレミアムアソート小ロット': 7400,
   'プレミアムアソート中ロット': 18900,
   'プレミアムアソート大ロット': 38900
 };
+
+// 2026-08 改定（在庫消化・現金化優先）: 中/大の目標額を大きく下げ、1箱あたりの点数を絞った。
+//   小 7,400 → 7,900（顧客6,800・お得+1,100・約16点）
+//   中 18,900 → 14,800（顧客12,800・お得+2,000・30点）
+//   大 38,900 → 22,600（顧客19,800・お得+2,800・約46点）
+// 変更時は BulkProduct.gs PREMIUM_PRICE_V3_ と必ずセットで見直すこと（お得額は差分から自動計算）。
+var PREMIUM_ASSORT_TARGET_V3_ = {
+  'プレミアムアソート小ロット': 7900,
+  'プレミアムアソート中ロット': 14800,
+  'プレミアムアソート大ロット': 22600
+};
+
+// V3発効時刻。PREMIUM30（30%OFF・〜2026-08-28、メルマガ配信済み）が旧価格・旧お得額で走っているため、
+// キャンペーン終了の翌日から切り替える。これより前にデプロイしても選定目標額は旧V2のまま＝訴求未達を防ぐ。
+var PREMIUM_TARGET_V3_EFFECTIVE_MS_ = new Date('2026-08-29T00:00:00+09:00').getTime();
+
 var PREMIUM_REPRICED_PROP_ = 'PREMIUM_REPRICED_0601';
 
-// 6/1 価格反映済み（フラグON）なら新目標額、未反映なら旧目標額を返す。
+// いま有効な目標額（発効時刻を過ぎていればV3、それ以前はV2）。見つからなければ0。
+function getActivePremiumTargetTable_() {
+  return (Date.now() >= PREMIUM_TARGET_V3_EFFECTIVE_MS_) ? PREMIUM_ASSORT_TARGET_V3_ : PREMIUM_ASSORT_TARGET_V2_;
+}
+
+// 価格反映済み（フラグON）なら現行の目標額、未反映なら旧目標額を返す。
 function getPremiumTarget_(keyword, oldTarget) {
   try {
-    if (PropertiesService.getScriptProperties().getProperty(PREMIUM_REPRICED_PROP_) === '1'
-        && PREMIUM_ASSORT_TARGET_V2_[keyword]) {
-      return PREMIUM_ASSORT_TARGET_V2_[keyword];
+    if (PropertiesService.getScriptProperties().getProperty(PREMIUM_REPRICED_PROP_) === '1') {
+      var t = getActivePremiumTargetTable_()[keyword];
+      if (t) return t;
     }
   } catch (e) {}
   return oldTarget;
@@ -1874,7 +1897,7 @@ function selectProductsForPremiumAssort_(targetAmount, minCount, maxCount, order
     if (holdItems[p.managedId]) { _skipHold++; continue; }
     if (openItems[p.managedId]) { _skipOpen++; continue; }
     if (excludeSet[p.managedId]) { _skipExclude++; continue; }
-    var item = { id: p.managedId, price: p.price };
+    var item = { id: p.managedId, price: p.price, listedAt: String(p.listedAt || '') };
     if (classifyProductSeason_(p) === 'ss') ssPool.push(item);
     else awPool.push(item);
   }
@@ -1887,8 +1910,19 @@ function selectProductsForPremiumAssort_(targetAmount, minCount, maxCount, order
       var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
     }
   }
-  shuffle(ssPool);
-  shuffle(awPool);
+  // 2026-08 改定: 滞留在庫を先に出すため「掲載日（データ1 Z列）の昇順＝古い順」で並べる。
+  // 掲載日が空の行は最後尾（＝滞留が確認できないので後回し）。
+  // 先に shuffle してから安定ソートすることで「同じ掲載日の中だけランダム」になる。
+  function sortByListedAt(arr) {
+    shuffle(arr);
+    arr.sort(function (a, b) {
+      var ka = a.listedAt || '9999-99-99';
+      var kb = b.listedAt || '9999-99-99';
+      return ka < kb ? -1 : (ka > kb ? 1 : 0);
+    });
+  }
+  sortByListedAt(ssPool);
+  sortByListedAt(awPool);
 
   var season = getSeasonRatio_();
   var primaryPool = (season.primary === 'ss') ? ssPool : awPool;

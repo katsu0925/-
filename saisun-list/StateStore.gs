@@ -15,13 +15,29 @@ function pr_bumpProductsVersion_() {
 
 function pr_clearProductsCache_() {
   const cache = CacheService.getScriptCache();
-  const ck = 'PRODUCTS_CACHE_V1:' + String(APP_CONFIG.data.spreadsheetId) + ':' + String(APP_CONFIG.data.sheetName) + ':' + String(APP_CONFIG.data.headerRow);
+  const ck = 'PRODUCTS_CACHE_V2:' + String(APP_CONFIG.data.spreadsheetId) + ':' + String(APP_CONFIG.data.sheetName) + ':' + String(APP_CONFIG.data.headerRow);
   try { cache.remove(ck); } catch (e) { console.log('optional: cache remove: ' + (e.message || e)); }
+}
+
+/**
+ * 掲載日(Z列)を比較可能な 'yyyy-MM-dd' 文字列へ正規化する。
+ * Date型・'2026/08/01'・'2026-8-1'・'2026年8月1日' のいずれも同じ形にそろえる。
+ * 空・解釈できない値は '' を返す（呼び出し側で最後尾に回す）。
+ */
+function pr_normListedAt_(v) {
+  if (v instanceof Date) {
+    try { return Utilities.formatDate(v, 'Asia/Tokyo', 'yyyy-MM-dd'); } catch (e) { return ''; }
+  }
+  const s = String(v || '').trim();
+  if (!s) return '';
+  const m = s.match(/(\d{4})[-\/年.](\d{1,2})[-\/月.](\d{1,2})/);
+  if (m) return m[1] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[3]).slice(-2);
+  return '';
 }
 
 function pr_readProducts_() {
   const cache = CacheService.getScriptCache();
-  const ck = 'PRODUCTS_CACHE_V1:' + String(APP_CONFIG.data.spreadsheetId) + ':' + String(APP_CONFIG.data.sheetName) + ':' + String(APP_CONFIG.data.headerRow);
+  const ck = 'PRODUCTS_CACHE_V2:' + String(APP_CONFIG.data.spreadsheetId) + ':' + String(APP_CONFIG.data.sheetName) + ':' + String(APP_CONFIG.data.headerRow);
   const ver = pr_getProductsVersion_();
   const cached = cache.get(ck);
   if (cached) {
@@ -80,6 +96,8 @@ function pr_readProducts_() {
     const defectDetail = row.length > 23 ? String(row[23] || '').trim() : '';
     // 発送方法 (Y列 = index 24)
     const shippingMethod = row.length > 24 ? String(row[24] || '').trim() : '';
+    // 掲載日 (Z列 = index 25) — プレミアムアソートの滞留在庫優先選定で使用
+    const listedAt = row.length > 25 ? pr_normListedAt_(row[25]) : '';
     if (!managedId) continue;
 
     list.push({
@@ -107,7 +125,8 @@ function pr_readProducts_() {
       measureHemWidth: measureHemWidth || null,
       measureHip: measureHip || null,
       defectDetail: defectDetail,
-      shippingMethod: shippingMethod
+      shippingMethod: shippingMethod,
+      listedAt: listedAt
     });
   }
 

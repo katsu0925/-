@@ -9,7 +9,7 @@ const APP_CONFIG = {
     spreadsheetId: (function() { try { return PropertiesService.getScriptProperties().getProperty('DATA_SPREADSHEET_ID') || ''; } catch(e) { return ''; } })(),
     sheetName: 'データ1',
     headerRow: 2,
-    readCols: 25  // Y列(発送方法)まで読み込み
+    readCols: 26  // Z列(掲載日)まで読み込み ※プレミアムアソートの滞留在庫優先選定で使用
   },
   order: {
     spreadsheetId: '',
