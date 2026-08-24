@@ -41,10 +41,14 @@ function maybeApplyPremiumRepricing_() {
 // ・ScriptProperty PREMIUM_REPRICED_V3_PROP_ が反映済みラッチ（手で消さないこと）
 // ・1行以上書けた時だけラッチON＝商品名不一致で空振りした場合は次回読込で再試行
 // ・同時実行はロックで弾く（書き換え自体は冪等なので二重実行しても結果は同じ）
-// ・画像(G〜K列)は PREMIUM_IMAGES_V3_ が空なら据え置き。Canva画像が間に合わなくても
-//   価格・文言は正しく切り替わる（画像は後から applyPremiumRepricingNow() で差し替え可）
+// ・画像(G〜K列)は PREMIUM_IMAGES_V3_ の1枚目だけ新サムネへ差し替える。書き込み前に
+//   URLを取得して 200 かつ画像であることを確認し、開けない場合は既存画像を維持する
+//   （＝無人実行で壊れたURLを入れてサムネを失う事故を防ぐ）。空スロットは常に据え置き
+// ・結果は ADMIN_OWNER_EMAIL へメール通知する。失敗・空振りの通知は
+//   PREMIUM_REPRICED_V3_ALERT_PROP_ で1回に絞る（5分おきの再試行でメールが溢れないように）
 // =====================================================
 var PREMIUM_REPRICED_V3_PROP_ = 'PREMIUM_REPRICED_0829';
+var PREMIUM_REPRICED_V3_ALERT_PROP_ = 'PREMIUM_REPRICED_0829_ALERTED';
 
 function maybeApplyPremiumRepricingV3_() {
   if (typeof PREMIUM_TARGET_V3_EFFECTIVE_MS_ === 'undefined') return;
@@ -60,14 +64,159 @@ function maybeApplyPremiumRepricingV3_() {
     if (n > 0) {
       props.setProperty(PREMIUM_REPRICED_V3_PROP_, '1');
       console.log('プレミアムアソート 2026-08-29値下げ 自動反映完了: ' + n + '行更新');
+      premium_notifyAdmin_(
+        '【デタウリ】プレミアムアソートの新価格に切り替わりました',
+        premium_buildRepriceMailHtml_(n),
+        null);   // 成功はラッチで一回限りなので絞り込み不要
     } else {
       console.warn('プレミアムアソート 2026-08-29値下げ 自動反映: 対象行が見つからずスキップ（シートの商品名を要確認）');
+      premium_notifyAdmin_(
+        '【要確認・デタウリ】プレミアムアソートの値下げが反映できていません',
+        '<p>2026-08-29 の値下げを自動で反映しようとしましたが、'
+        + '<b>アソート商品シートに対象の商品が見つかりませんでした</b>。</p>'
+        + '<p>お客様に表示される価格は<b>旧価格のまま</b>ですが、箱に入れる商品の目標金額は'
+        + '<b>新しい金額に切り替わっています</b>。このままだと、お客様が払った金額より'
+        + '中身が少なくなってしまうため、<b>できるだけ早く確認してください</b>。</p>'
+        + '<p>確認する場所: アソート商品シートの商品名が「プレミアムアソート小ロット / 中ロット / 大ロット」'
+        + 'を含んでいるか。名前を変えた場合は BulkProduct.gs の PREMIUM_PRICE_V3_ も合わせて直してください。</p>'
+        + '<p>※ 5分おきに自動で再試行します。直れば成功メールが届きます。このお知らせは1回だけ送ります。</p>',
+        PREMIUM_REPRICED_V3_ALERT_PROP_);
     }
   } catch (e) {
     console.error('プレミアムアソート 2026-08-29値下げ 自動反映エラー:', e);
+    premium_notifyAdmin_(
+      '【要確認・デタウリ】プレミアムアソートの値下げ反映でエラーが発生しました',
+      '<p>2026-08-29 の値下げを自動で反映しようとしてエラーが出ました。</p>'
+      + '<p>お客様に表示される価格は<b>旧価格のまま</b>の可能性があります。箱に入れる商品の目標金額は'
+      + '<b>新しい金額に切り替わっています</b>ので、<b>できるだけ早く確認してください</b>。</p>'
+      + '<p>エラー内容: ' + premium_escapeHtml_(String(e && e.message ? e.message : e)) + '</p>'
+      + '<p>※ 5分おきに自動で再試行します。直れば成功メールが届きます。このお知らせは1回だけ送ります。</p>',
+      PREMIUM_REPRICED_V3_ALERT_PROP_);
   } finally {
     lock.releaseLock();
   }
+}
+
+/**
+ * 管理者へのお知らせメール。送信に失敗しても値下げ処理そのものは止めない。
+ * onceProp を渡すと、そのプロパティが立つまで1回だけ送る（再試行のたびにメールが来るのを防ぐ）。
+ */
+function premium_notifyAdmin_(subject, html, onceProp) {
+  try {
+    var props = PropertiesService.getScriptProperties();
+    if (onceProp && props.getProperty(onceProp) === '1') return;
+    var to = String(props.getProperty('ADMIN_OWNER_EMAIL') || APP_CONFIG.notifyEmails || '').split(',')[0].trim();
+    if (!to) { console.warn('プレミアムアソート通知: ADMIN_OWNER_EMAIL 未設定のため送信をスキップ'); return; }
+    var text = String(html)
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/(p|tr|h[1-6]|li)>/gi, '\n')
+      .replace(/<\/t[dh]>/gi, '\t')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    MailApp.sendEmail({ to: to, subject: subject, body: text, htmlBody: html, noReply: true });
+    if (onceProp) props.setProperty(onceProp, '1');
+    console.log('プレミアムアソート通知: 送信完了 → ' + to);
+  } catch (e) {
+    console.error('プレミアムアソート通知: 送信失敗', e);
+  }
+}
+
+function premium_escapeHtml_(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/**
+ * 反映結果のお知らせ本文。「こう書いたつもり」ではなく、
+ * **シートを読み直して実際に入っている値**を載せる（＝そのまま確認に使える）。
+ */
+function premium_buildRepriceMailHtml_(rowCount) {
+  var rows = [];
+  var err = '';
+  try {
+    var ss = SpreadsheetApp.openById(String(BULK_CONFIG.spreadsheetId || '').trim());
+    var sh = ss.getSheetByName(BULK_CONFIG.sheetName);
+    var lastRow = sh.getLastRow();
+    var c = BULK_CONFIG.cols;
+    var data = sh.getRange(2, 1, lastRow - 1, BULK_SHEET_HEADER.length).getValues();
+    for (var i = 0; i < data.length; i++) {
+      var name = String(data[i][c.name] || '').trim();
+      var key = null;
+      for (var k in PREMIUM_PRICE_V3_) { if (name === k || name.indexOf(k) >= 0) { key = k; break; } }
+      if (!key) continue;
+      var imgs = PREMIUM_IMAGES_V3_[key] || [];
+      // 「設定したつもり」ではなく、シートのG列に実際に入っている値で判定する
+      var wantImg = String(imgs[0] || '').trim();
+      var curImg = String(data[i][c.image1] || '').trim();
+      rows.push({
+        key: key,
+        name: name,
+        price: Number(data[i][c.price]) || 0,
+        target: (PREMIUM_ASSORT_TARGET_V3_ && PREMIUM_ASSORT_TARGET_V3_[key]) || 0,
+        stock: Number(data[i][c.stock]) || 0,
+        imageWanted: !!wantImg,
+        imageNew: !!wantImg && curImg === wantImg
+      });
+    }
+  } catch (e) {
+    err = String(e && e.message ? e.message : e);
+  }
+
+  var h = '<div style="font-family:sans-serif;font-size:14px;line-height:1.7">'
+    + '<p>プレミアムアソートの新価格が、サイトとBASEに自動で反映されました（' + rowCount + '件）。</p>'
+    + '<p>お客様に表示される販売価格と、箱に入れる商品の目標金額が、<b>同時に新しい設定へ切り替わっています</b>。</p>';
+
+  if (rows.length) {
+    h += '<table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;font-size:13px">'
+      + '<tr style="background:#f3f4f6"><th>商品</th><th>販売価格<br>（お客様が払う額）</th>'
+      + '<th>目標金額<br>（箱に入れる額）</th><th>お得額</th><th>在庫（箱数）</th><th>サムネ画像</th></tr>';
+    for (var r = 0; r < rows.length; r++) {
+      var x = rows[r];
+      var deal = x.target - x.price;
+      h += '<tr><td>' + premium_escapeHtml_(x.key) + '</td>'
+        + '<td align="right">' + premium_yen_(x.price) + '円</td>'
+        + '<td align="right">' + premium_yen_(x.target) + '円</td>'
+        + '<td align="right">' + (deal > 0 ? premium_yen_(deal) + '円' : '<b style="color:#b91c1c">' + premium_yen_(deal) + '円（要確認）</b>') + '</td>'
+        + '<td align="right">' + x.stock + '</td>'
+        + '<td>' + (x.imageNew ? '新しい画像に差し替え済み'
+              : (x.imageWanted ? '<b style="color:#b91c1c">差し替え失敗（要確認）</b>'
+                               : '<b style="color:#b45309">これまでの画像のまま</b>')) + '</td></tr>';
+    }
+    h += '</table>';
+  }
+  if (err) h += '<p style="color:#b91c1c">※ 確認用にシートを読み直す際にエラーが出ました: ' + premium_escapeHtml_(err) + '</p>';
+
+  var anyFailed = false, anyKept = false;
+  for (var q = 0; q < rows.length; q++) {
+    if (rows[q].imageNew) continue;
+    if (rows[q].imageWanted) anyFailed = true; else anyKept = true;
+  }
+  if (anyFailed) {
+    // 新しい画像URLを設定してあるのにシートに入らなかった＝URLが開けなかったケース。
+    // （壊れたURLを書き込まないよう、わざと据え置きにしている）
+    h += '<p style="background:#fee2e2;padding:10px;border-radius:6px">'
+      + '<b>サムネ画像の差し替えだけ失敗しました。</b>価格・タイトル・説明文は正しく新しくなっています。'
+      + '新しい画像のURLが開けなかったため、これまでの画像をそのまま残しました（消えてはいません）。'
+      + '下のURLをブラウザで開いて画像が表示されるか確かめてください。表示されるようになったら、'
+      + 'GASエディタで applyPremiumRepricingNow() を実行すると差し替わります。<br>'
+      + 'https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-small-v3.jpg</p>';
+  }
+  if (anyKept) {
+    // 旧サムネには金額も点数も入っていないため、表示が矛盾することはない（訴求が弱いだけ）。
+    h += '<p style="background:#fef3c7;padding:10px;border-radius:6px">'
+      + '<b>サムネ画像はこれまでのものを使っています。</b>画像に金額や点数は入っていないので、'
+      + '新しい価格と矛盾することはありません（新しい点数・お得額を画像でも見せられていない、というだけです）。'
+      + '差し替える場合は BulkProduct.gs の PREMIUM_IMAGES_V3_ にURLを入れて反映し、'
+      + 'GASエディタで applyPremiumRepricingNow() を実行してください。</p>';
+  }
+
+  h += '<p>確認先:<br>'
+    + 'サイト: https://wholesale.nkonline-tool.com/<br>'
+    + 'BASE管理画面の商品一覧</p>'
+    + '<p style="color:#6b7280;font-size:12px">※ 反映は最大10分ほどかかることがあります。'
+    + 'このお知らせは切り替え時の1回だけ送られます。</p></div>';
+  return h;
 }
 
 // =====================================================
@@ -94,14 +243,43 @@ var PREMIUM_PRICE_V3_ = {
   'プレミアムアソート大ロット': 19800   // 32,000 → 19,800（目標22,600・お得+2,800・約46点）
 };
 
-// 差し替える画像URL（G〜K列 = 画像URL1〜5）。Canvaで作り直したものをここに入れる。
-// 空文字／未指定のスロットは既存の画像をそのまま残す（＝全部空ならA工程では画像を一切触らない）。
-// Googleドライブ直リンクの形式: https://lh3.googleusercontent.com/d/<fileId>
+// 差し替える画像URL（G〜K列 = 画像URL1〜5）。1枚目だけ新しいサムネに差し替える。
+// 空文字／未指定のスロットは既存の画像をそのまま残す（＝2〜5枚目は今までどおり）。
+//
+// 画像の実体は saisun-list/img/premium-assort/ に置いてあり、main へ push すると
+// Cloudflare Pages が自動で配信する（＝恒久・公開URL）。BASE は add_image のときに
+// サーバー側でこのURLを取りに来るので、ログイン不要で開けるURLである必要がある。
+// ※ Googleドライブ（lh3.googleusercontent.com/d/<fileId>）は共有設定に左右されるため使わない。
 var PREMIUM_IMAGES_V3_ = {
-  'プレミアムアソート小ロット': ['', '', '', '', ''],
-  'プレミアムアソート中ロット': ['', '', '', '', ''],
-  'プレミアムアソート大ロット': ['', '', '', '', '']
+  'プレミアムアソート小ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-small-v3.jpg', '', '', '', ''],
+  'プレミアムアソート中ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-medium-v3.jpg', '', '', '', ''],
+  'プレミアムアソート大ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-large-v3.jpg', '', '', '', '']
 };
+
+// 画像URLの生存確認。8/29の自動反映は無人で走るので、URLが死んでいた場合に
+// 「開けないURL」をシートへ書き込んでサムネを丸ごと失うのが最悪のケースになる。
+// 200 かつ Content-Type が image/* のときだけ true を返し、それ以外は既存画像を維持する。
+var PREMIUM_IMAGE_CHECK_CACHE_ = {};
+function premium_imageUrlOk_(url) {
+  if (Object.prototype.hasOwnProperty.call(PREMIUM_IMAGE_CHECK_CACHE_, url)) {
+    return PREMIUM_IMAGE_CHECK_CACHE_[url];
+  }
+  var ok = false;
+  try {
+    var res = UrlFetchApp.fetch(url, { muteHttpExceptions: true, followRedirects: true });
+    var code = res.getResponseCode();
+    var head = res.getHeaders() || {};
+    var ct = String(head['Content-Type'] || head['content-type'] || '');
+    ok = (code === 200 && /^image\//i.test(ct));
+    if (!ok) {
+      console.warn('プレミアムアソート: 画像URLが使えないため据え置き（HTTP ' + code + ' / ' + ct + '） ' + url);
+    }
+  } catch (e) {
+    console.warn('プレミアムアソート: 画像URLの確認に失敗したため据え置き ' + url + ' / ' + e);
+  }
+  PREMIUM_IMAGE_CHECK_CACHE_[url] = ok;
+  return ok;
+}
 
 // 3桁区切り（説明文・商品名の表記に合わせる）
 function premium_yen_(n) {
@@ -199,6 +377,7 @@ function applyPremiumRepricing_(dryRun, force) {
       if (!url) continue;                                  // 空なら既存画像を維持
       var cur = String(data[i][c.image1 + j] || '').trim();
       if (cur === url) continue;
+      if (!premium_imageUrlOk_(url)) continue;             // 開けないURLは書き込まない（既存画像を守る）
       changes.push('画像URL' + (j + 1) + ': 差し替え');
       if (!dryRun) sh.getRange(row, c.image1 + j + 1).setValue(url);
     }
