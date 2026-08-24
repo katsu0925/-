@@ -6,6 +6,7 @@
  */
 import { jsonOk, jsonError } from '../utils/response.js';
 import { generateRandomHex } from '../utils/crypto.js';
+import { statementsInChunks } from '../utils/sql.js';
 
 const HOLD_MINUTES_DEFAULT = 15;
 const HOLD_MINUTES_MEMBER = 30;
@@ -152,13 +153,25 @@ export async function syncHolds(args, env) {
 
   // 自分の確保のうち、今回のリストに含まれないものを解放
   // pending_paymentの有無に関わらず削除（カートから外した＝不要な確保）
+  //
+  // NOT IN (?,?,...) は ids が99件を超えるとD1のSQL変数上限（100）に当たり、
+  // batch全体が "too many SQL variables" で失敗する。その結果、100点以上の
+  // カートでは確保が1件も作られなくなっていた（2026-08-25 修正）。
+  // 解放対象をJS側で差分算出し、分割DELETEする。
   if (ids.length > 0) {
-    const placeholders = ids.map(() => '?').join(',');
-    stmts.push(
+    const idSet = new Set(ids);
+    const { results: myHolds } = await env.DB.prepare(
+      'SELECT managed_id FROM holds WHERE user_key = ?'
+    ).bind(userKey).all();
+    const staleIds = (myHolds || [])
+      .map((h) => h.managed_id)
+      .filter((m) => !idSet.has(m));
+    for (const st of statementsInChunks(staleIds, (ph, chunk) =>
       env.DB.prepare(
-        `DELETE FROM holds WHERE user_key = ? AND managed_id NOT IN (${placeholders})`
-      ).bind(userKey, ...ids)
-    );
+        `DELETE FROM holds WHERE user_key = ? AND managed_id IN (${ph})`
+      ).bind(userKey, ...chunk))) {
+      stmts.push(st);
+    }
   }
 
   // バッチ実行
@@ -225,12 +238,12 @@ export async function cancelPendingPayment(args, env) {
 
   if (heldItems.length > 0) {
     const cancelIds = heldItems.map(h => h.managed_id);
-    const placeholders = cancelIds.map(() => '?').join(',');
-    stmts.push(
+    for (const st of statementsInChunks(cancelIds, (ph, chunk) =>
       env.DB.prepare(
-        `DELETE FROM open_items WHERE managed_id IN (${placeholders}) AND receipt_no = ?`
-      ).bind(...cancelIds, paymentToken)
-    );
+        `DELETE FROM open_items WHERE managed_id IN (${ph}) AND receipt_no = ?`
+      ).bind(...chunk, paymentToken))) {
+      stmts.push(st);
+    }
   }
 
   await env.DB.batch(stmts);

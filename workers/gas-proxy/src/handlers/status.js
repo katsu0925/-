@@ -5,6 +5,7 @@
  * 5秒ポーリングの負荷をGASから完全解放
  */
 import { jsonOk, jsonError } from '../utils/response.js';
+import { selectInChunks } from '../utils/sql.js';
 
 /**
  * apiGetStatusDigest — 商品ステータス一括取得
@@ -21,31 +22,26 @@ export async function getStatusDigest(args, env) {
   }
 
   // D1からholds取得（期限内のみ）
+  // ids はD1のSQL変数上限（100）を超えうるため分割実行する
   const now = Date.now();
-  const placeholders = ids.map(() => '?').join(',');
-
-  const holdsQuery = `
-    SELECT managed_id, user_key, until_ms, hold_id
-    FROM holds
-    WHERE managed_id IN (${placeholders})
-      AND until_ms > ?
-  `;
-  const holdsResult = await env.DB.prepare(holdsQuery)
-    .bind(...ids, now)
-    .all();
+  const holdRows = await selectInChunks(ids, (ph, chunk) =>
+    env.DB.prepare(`
+      SELECT managed_id, user_key, until_ms, hold_id
+      FROM holds
+      WHERE managed_id IN (${ph})
+        AND until_ms > ?
+    `).bind(...chunk, now));
 
   // open_items取得
-  const openQuery = `
-    SELECT managed_id FROM open_items
-    WHERE managed_id IN (${placeholders})
-  `;
-  const openResult = await env.DB.prepare(openQuery)
-    .bind(...ids)
-    .all();
+  const openRows = await selectInChunks(ids, (ph, chunk) =>
+    env.DB.prepare(`
+      SELECT managed_id FROM open_items
+      WHERE managed_id IN (${ph})
+    `).bind(...chunk));
 
   // holdsマップ構築（自分のholdを優先）
   const holdMap = {};
-  for (const h of holdsResult.results) {
+  for (const h of holdRows) {
     const existing = holdMap[h.managed_id];
     // 自分のholdがあれば常に優先（他ユーザーのholdで上書きしない）
     if (!existing || h.user_key === userKey) {
@@ -59,7 +55,7 @@ export async function getStatusDigest(args, env) {
 
   // openSetマップ構築
   const openSet = new Set();
-  for (const o of openResult.results) {
+  for (const o of openRows) {
     openSet.add(o.managed_id);
   }
 

@@ -7,6 +7,7 @@
  * ロールバック: submitEstimate末尾を `return await proxyToGasForSubmit(bodyText, env);` に戻すだけ
  */
 import { jsonOk, jsonError, corsResponse } from '../utils/response.js';
+import { selectInChunks, statementsInChunks } from '../utils/sql.js';
 import { sendEvent as sendMetaEvent } from '../utils/meta-capi.js';
 import { calculateRankFromOrders } from './mypage.js';
 
@@ -214,31 +215,31 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   let productResults = [];
   let sum = 0;
   if (ids.length > 0) {
-    const placeholders = ids.map(() => '?').join(',');
     const now = Date.now();
 
     // reCAPTCHA検証 + products/holds/open_items の3クエリを並列実行
+    // ids はD1のSQL変数上限（100）を超えうるため分割実行する
     const parallelTasks = [
-      env.DB.prepare(
-        `SELECT managed_id, price, no_label, brand, category, size, color, shipping_method FROM products WHERE managed_id IN (${placeholders})`
-      ).bind(...ids).all(),
-      env.DB.prepare(
+      selectInChunks(ids, (ph, chunk) => env.DB.prepare(
+        `SELECT managed_id, price, no_label, brand, category, size, color, shipping_method FROM products WHERE managed_id IN (${ph})`
+      ).bind(...chunk)),
+      selectInChunks(ids, (ph, chunk) => env.DB.prepare(
         `SELECT managed_id FROM holds
-         WHERE managed_id IN (${placeholders})
+         WHERE managed_id IN (${ph})
            AND user_key != ? AND until_ms > ?`
-      ).bind(...ids, userKey, now).all(),
+      ).bind(...chunk, userKey, now)),
       // 依頼中チェック：自分自身の決済処理中（pending_orders 未消費）のロックは除外。
       // 除外しないと決済ページから戻った本人が自分のロックで再注文できなくなる
-      env.DB.prepare(
+      selectInChunks(ids, (ph, chunk) => env.DB.prepare(
         `SELECT o.managed_id FROM open_items o
-          WHERE o.managed_id IN (${placeholders})
+          WHERE o.managed_id IN (${ph})
             AND NOT EXISTS (
               SELECT 1 FROM pending_orders po
                WHERE po.payment_token = o.receipt_no
                  AND po.consumed = 0
                  AND json_extract(po.data, '$.userKey') = ?
             )`
-      ).bind(...ids, userKey).all(),
+      ).bind(...chunk, userKey)),
     ];
 
     // reCAPTCHA検証も並列に含める
@@ -247,14 +248,14 @@ export async function submitEstimate(args, env, bodyText, ctx) {
       : Promise.resolve(true);
     parallelTasks.push(recaptchaPromise);
 
-    const [productsResult, holdsResult, openResult, recaptchaVerified] = await Promise.all(parallelTasks);
+    const [productRows, otherHoldRows, openRows, recaptchaVerified] = await Promise.all(parallelTasks);
 
     // reCAPTCHA検証結果チェック
     if (recaptchaToken && env.RECAPTCHA_SECRET && !recaptchaVerified) {
       return jsonError('bot判定されました。ブラウザを再読み込みして再度お試しください。');
     }
 
-    const results = productsResult.results;
+    const results = productRows;
     productResults = results;
 
     const foundIds = new Set(results.map(r => r.managed_id));
@@ -266,14 +267,14 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     for (const r of results) sum += r.price;
 
     // 確保チェック（他ユーザーに確保されていないか）
-    const otherHolds = holdsResult.results;
+    const otherHolds = otherHoldRows;
     if (otherHolds.length > 0) {
       const heldIds = otherHolds.map(h => h.managed_id);
       return jsonError('確保できない商品が含まれています: ' + heldIds.join('、'));
     }
 
     // 依頼中チェック
-    const openCheck = openResult.results;
+    const openCheck = openRows;
     if (openCheck.length > 0) {
       const openIds = openCheck.map(o => o.managed_id);
       return jsonError('依頼中の商品が含まれています: ' + openIds.join('、'));
@@ -768,11 +769,10 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   if (ids.length > 0) {
     // 同一ユーザーが決済ページから戻って再注文した場合、open_items には旧トークンの
     // 行が残る（PRIMARY KEY 衝突）。自分の旧トークンを新トークンへ引き継ぐため事前取得
-    const holdPh = ids.map(() => '?').join(',');
-    const { results: myPendingHolds } = await env.DB.prepare(
+    const myPendingHolds = await selectInChunks(ids, (ph, chunk) => env.DB.prepare(
       `SELECT managed_id, receipt_no FROM holds
-        WHERE user_key = ? AND pending_payment = 1 AND managed_id IN (${holdPh})`
-    ).bind(userKey, ...ids).all();
+        WHERE user_key = ? AND pending_payment = 1 AND managed_id IN (${ph})`
+    ).bind(userKey, ...chunk));
     const prevReceiptById = {};
     for (const r of myPendingHolds) prevReceiptById[r.managed_id] = r.receipt_no;
 
@@ -947,14 +947,13 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     // KOMOJU失敗 → holdsとopen_itemsを元に戻す
     console.error('KOMOJU session creation failed:', JSON.stringify(komojuResult));
     if (ids.length > 0) {
-      const placeholders = ids.map(() => '?').join(',');
       await env.DB.batch([
-        env.DB.prepare(
-          `UPDATE holds SET pending_payment = 0, receipt_no = '' WHERE managed_id IN (${placeholders}) AND user_key = ? AND receipt_no = ?`
-        ).bind(...ids, userKey, paymentToken),
-        env.DB.prepare(
-          `DELETE FROM open_items WHERE managed_id IN (${placeholders})`
-        ).bind(...ids),
+        ...statementsInChunks(ids, (ph, chunk) => env.DB.prepare(
+          `UPDATE holds SET pending_payment = 0, receipt_no = '' WHERE managed_id IN (${ph}) AND user_key = ? AND receipt_no = ?`
+        ).bind(...chunk, userKey, paymentToken)),
+        ...statementsInChunks(ids, (ph, chunk) => env.DB.prepare(
+          `DELETE FROM open_items WHERE managed_id IN (${ph})`
+        ).bind(...chunk)),
       ]);
     }
     return jsonError('決済セッションの作成に失敗しました。' + (komojuResult.error ? komojuResult.error.message || '' : ''));
