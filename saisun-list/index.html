@@ -4812,6 +4812,50 @@ function upsertCartItem_(it) {
   };
 }
 
+// =====================================================
+// カート復元リンク（?cart=ID1,ID2,...）
+// 決済ページからの離脱等でカートが失われたお客様に、
+// 運営が復元リンクを送って選び直しの手間をなくすための救済機能
+// =====================================================
+var _cartRestoreDone_ = false;
+function restoreCartFromUrl_() {
+  if (_cartRestoreDone_) return;
+  var raw = '';
+  try { raw = (new URLSearchParams(window.location.search)).get('cart') || ''; } catch (e) { return; }
+  if (!raw) return;
+  _cartRestoreDone_ = true;
+
+  // URLからパラメータを削除（リロードでの二重復元と履歴汚染を防ぐ）
+  try {
+    if (window.history && window.history.replaceState) {
+      var u = new URL(window.location.href);
+      u.searchParams.delete('cart');
+      window.history.replaceState({}, document.title, u.pathname + (u.search || '') + (u.hash || ''));
+    }
+  } catch (e) {}
+
+  var ids = raw.split(',').map(function(x) { return String(x || '').trim(); }).filter(Boolean);
+  var added = 0, skipped = 0;
+  for (var i = 0; i < ids.length; i++) {
+    var rid = ids[i];
+    var rp = state.productById ? state.productById[rid] : null;
+    if (!rp) { skipped++; continue; }                  // 掲載終了・売却済み
+    if (state.cart.ids.indexOf(rid) !== -1) continue;  // すでにカートにある
+    upsertCartItem_(rp);
+    state.cart.ids.push(rid);
+    state.cart.digest[rid] = { status: '確保中', heldByOther: false, _optimistic: true };
+    added++;
+  }
+  if (!added && !skipped) return;
+
+  saveCartStorage(); updateCartCount();
+  updateShippingDisplay_(); updateDetStickyBar_(); revalidateCoupon_();
+  for (var j = 0; j < ids.length; j++) updateCardUi_(ids[j]);
+  if (added) syncHoldsQueued_();  // 確保同期（他人が確保済みの商品はここで除外される）
+
+  showToast(added + '点をカートに戻しました' + (skipped ? '（' + skipped + '点は在庫切れのため除外）' : ''));
+}
+
 function renderGrid_(items) {
   var g = $('grid'); g.innerHTML = ''; state.ui.cardEls = {};
   
@@ -7948,6 +7992,9 @@ function applyProductData_(data) {
   state.dataLoaded = true;
   trackEvent_('page_loaded', { page_type: 'detauri', product_count: state.allProducts.length });
   filterAndRender(false);
+
+  // 復元リンク（?cart=）からカートを戻す（商品データ確定後に実行）
+  restoreCartFromUrl_();
 
   // メイン画面おすすめ商品を表示
   renderMainRecommendations_();
