@@ -30,6 +30,47 @@ function maybeApplyPremiumRepricing_() {
 }
 
 // =====================================================
+// 2026-08-29 値下げの自動反映（無人・一回限り）
+// -----------------------------------------------------
+// SubmitFix.gs の選定目標額は PREMIUM_TARGET_V3_EFFECTIVE_MS_ を過ぎると**自動でV3に切り替わる**。
+// シート側（顧客価格・タイトル・説明）が手動のままだと、切替直後に
+//   「客は旧価格¥16,200を払うのに、箱の中身は新目標額¥14,800分しか入らない」
+// という逆ざや（お得額がマイナス）の窓が開く。両者は必ず同時に動かす必要があるため、
+// 発効時刻を過ぎた最初のシート読込で一度だけ自動反映する。
+//
+// ・ScriptProperty PREMIUM_REPRICED_V3_PROP_ が反映済みラッチ（手で消さないこと）
+// ・1行以上書けた時だけラッチON＝商品名不一致で空振りした場合は次回読込で再試行
+// ・同時実行はロックで弾く（書き換え自体は冪等なので二重実行しても結果は同じ）
+// ・画像(G〜K列)は PREMIUM_IMAGES_V3_ が空なら据え置き。Canva画像が間に合わなくても
+//   価格・文言は正しく切り替わる（画像は後から applyPremiumRepricingNow() で差し替え可）
+// =====================================================
+var PREMIUM_REPRICED_V3_PROP_ = 'PREMIUM_REPRICED_0829';
+
+function maybeApplyPremiumRepricingV3_() {
+  if (typeof PREMIUM_TARGET_V3_EFFECTIVE_MS_ === 'undefined') return;
+  if (Date.now() < PREMIUM_TARGET_V3_EFFECTIVE_MS_) return;
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty(PREMIUM_REPRICED_V3_PROP_) === '1') return;
+
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(0)) return;   // 別実行が反映中。次回読込に任せる
+  try {
+    if (props.getProperty(PREMIUM_REPRICED_V3_PROP_) === '1') return;   // ロック待ちの間に済んでいた
+    var n = applyPremiumRepricing_(false);
+    if (n > 0) {
+      props.setProperty(PREMIUM_REPRICED_V3_PROP_, '1');
+      console.log('プレミアムアソート 2026-08-29値下げ 自動反映完了: ' + n + '行更新');
+    } else {
+      console.warn('プレミアムアソート 2026-08-29値下げ 自動反映: 対象行が見つからずスキップ（シートの商品名を要確認）');
+    }
+  } catch (e) {
+    console.error('プレミアムアソート 2026-08-29値下げ 自動反映エラー:', e);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// =====================================================
 // 2026-08 プレミアムアソート 値下げ・点数改定（在庫消化・現金化優先）
 // -----------------------------------------------------
 // アソート商品シートのプレミアム3行について、次の列を一度の実行でまとめて書き換える。
@@ -221,6 +262,7 @@ function bulk_getProducts_() {
  */
 function bulk_readProductsFromSheet_() {
   try { maybeApplyPremiumRepricing_(); } catch (e) {}
+  try { maybeApplyPremiumRepricingV3_(); } catch (e) {}
   var ssId = String(BULK_CONFIG.spreadsheetId || '').trim();
   if (!ssId) return [];
 
