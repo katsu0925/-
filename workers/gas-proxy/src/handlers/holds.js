@@ -66,37 +66,67 @@ export async function syncHolds(args, env) {
     ).bind(managedId).first();
 
     if (!productCheck) {
-      failed.push({ id: managedId, reason: '在庫なし' });
+      failed.push({ id: managedId, reason: '在庫なし', heldByOther: false });
       digest[managedId] = { status: '在庫なし', heldByOther: false, untilMs: 0 };
       continue;
     }
 
-    // 依頼中チェック
-    const openCheck = await env.DB.prepare(
-      'SELECT managed_id FROM open_items WHERE managed_id = ?'
-    ).bind(managedId).first();
+    // 確保状況を取得（自分の確保は pending_payment / until_ms を引き継ぐため必要）
+    const { results: holdRows } = await env.DB.prepare(
+      'SELECT user_key, until_ms, pending_payment, receipt_no FROM holds WHERE managed_id = ? AND until_ms > ?'
+    ).bind(managedId, now).all();
 
-    if (openCheck) {
-      failed.push({ id: managedId, reason: '依頼中' });
-      digest[managedId] = { status: '依頼中', heldByOther: false, untilMs: 0 };
-      continue;
+    const otherHold = holdRows.find(h => h.user_key !== userKey);
+    const myHold = holdRows.find(h => h.user_key === userKey);
+    const myPending = !!(myHold && myHold.pending_payment);
+
+    // 依頼中チェック
+    // 自分自身の決済処理中ロック（submitEstimate が入れた open_items）は除外する。
+    // 除外しないと、KOMOJU決済ページからブラウザバックで戻ってきた本人が
+    // 自分のロックで「依頼中」と判定され、カートが全消失する（2026-08-24 事故）
+    const openRow = await env.DB.prepare(
+      `SELECT o.receipt_no AS receipt_no,
+              EXISTS (
+                SELECT 1 FROM pending_orders po
+                 WHERE po.payment_token = o.receipt_no
+                   AND po.consumed = 0
+                   AND json_extract(po.data, '$.userKey') = ?
+              ) AS mine
+         FROM open_items o WHERE o.managed_id = ?`
+    ).bind(userKey, managedId).first();
+
+    if (openRow) {
+      const isMine = openRow.mine === 1
+        || (myPending && myHold.receipt_no && myHold.receipt_no === openRow.receipt_no);
+
+      if (!isMine && myPending) {
+        // 自分が決済処理中なのに依頼中トークンが一致しない稀なケース。
+        // カートからは外さず（own:true）状態だけ通知する
+        failed.push({ id: managedId, reason: '決済処理中', heldByOther: false, own: true });
+        digest[managedId] = {
+          status: '確保中', heldByOther: false, untilMs: myHold.until_ms, pendingPayment: true,
+        };
+        continue;
+      }
+
+      if (!isMine) {
+        // 自分の決済中は上で除外済み → ここは他人の注文で確定
+        failed.push({ id: managedId, reason: '依頼中', heldByOther: true });
+        digest[managedId] = { status: '依頼中', heldByOther: true, untilMs: 0 };
+        continue;
+      }
     }
 
-    // 他ユーザーの有効な確保チェック
-    const otherHold = await env.DB.prepare(
-      'SELECT user_key, until_ms FROM holds WHERE managed_id = ? AND user_key != ? AND until_ms > ?'
-    ).bind(managedId, userKey, now).first();
-
     if (otherHold) {
-      failed.push({ id: managedId, reason: '確保中' });
+      failed.push({ id: managedId, reason: '確保中', heldByOther: true });
       digest[managedId] = { status: '確保中', heldByOther: true, untilMs: 0 };
       continue;
     }
 
     // 自分の確保をUPSERT
-    // pending_payment=0 にリセット: syncHoldsが呼ばれる＝ユーザーが商品ページを閲覧中
-    // （KOMOJU決済ページではsyncHoldsは呼ばれない）
-    // 決済放棄後にpending_paymentが残り続けるバグを防止
+    // 決済処理中（pending_payment=1）の場合はフラグと期限を維持する。
+    // コンビニ/銀行振込は着金まで日をまたぐため、ここで解除すると
+    // 支払い予定の商品が他人に取られてしまう
     stmts.push(
       env.DB.prepare(`
         INSERT INTO holds (managed_id, user_key, hold_id, until_ms, pending_payment, created_at)
@@ -109,7 +139,15 @@ export async function syncHolds(args, env) {
       `).bind(managedId, userKey, holdId, untilMs, new Date().toISOString())
     );
 
-    digest[managedId] = { status: '確保中', heldByOther: false, untilMs };
+    // 決済処理中（pending_payment=1）の確保は DB 側の長い期限をそのまま返す。
+    // ここで15/30分の untilMs を返すとフロントのタイマーが誤って期限切れ扱いにする
+    const myUntilMs = myPending ? myHold.until_ms : untilMs;
+    digest[managedId] = {
+      status: '確保中',
+      heldByOther: false,
+      untilMs: myUntilMs,
+      pendingPayment: myPending,
+    };
   }
 
   // 自分の確保のうち、今回のリストに含まれないものを解放

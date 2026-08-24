@@ -227,9 +227,18 @@ export async function submitEstimate(args, env, bodyText, ctx) {
          WHERE managed_id IN (${placeholders})
            AND user_key != ? AND until_ms > ?`
       ).bind(...ids, userKey, now).all(),
+      // 依頼中チェック：自分自身の決済処理中（pending_orders 未消費）のロックは除外。
+      // 除外しないと決済ページから戻った本人が自分のロックで再注文できなくなる
       env.DB.prepare(
-        `SELECT managed_id FROM open_items WHERE managed_id IN (${placeholders})`
-      ).bind(...ids).all(),
+        `SELECT o.managed_id FROM open_items o
+          WHERE o.managed_id IN (${placeholders})
+            AND NOT EXISTS (
+              SELECT 1 FROM pending_orders po
+               WHERE po.payment_token = o.receipt_no
+                 AND po.consumed = 0
+                 AND json_extract(po.data, '$.userKey') = ?
+            )`
+      ).bind(...ids, userKey).all(),
     ];
 
     // reCAPTCHA検証も並列に含める
@@ -757,6 +766,16 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   const holdUntilMs = now + paymentHoldMs;
 
   if (ids.length > 0) {
+    // 同一ユーザーが決済ページから戻って再注文した場合、open_items には旧トークンの
+    // 行が残る（PRIMARY KEY 衝突）。自分の旧トークンを新トークンへ引き継ぐため事前取得
+    const holdPh = ids.map(() => '?').join(',');
+    const { results: myPendingHolds } = await env.DB.prepare(
+      `SELECT managed_id, receipt_no FROM holds
+        WHERE user_key = ? AND pending_payment = 1 AND managed_id IN (${holdPh})`
+    ).bind(userKey, ...ids).all();
+    const prevReceiptById = {};
+    for (const r of myPendingHolds) prevReceiptById[r.managed_id] = r.receipt_no;
+
     const stmts = [];
     for (const managedId of ids) {
       stmts.push(
@@ -772,12 +791,26 @@ export async function submitEstimate(args, env, bodyText, ctx) {
         `).bind(managedId, userKey, userKey + ':' + now, holdUntilMs, paymentToken, new Date().toISOString())
       );
       // 即座にopen_itemsに追加 → 他ユーザーの確保・注文を即ブロック
-      stmts.push(
-        env.DB.prepare(`
-          INSERT INTO open_items (managed_id, receipt_no, status, updated_at) VALUES (?, ?, '依頼中', ?)
-          ON CONFLICT (managed_id) DO NOTHING
-        `).bind(managedId, paymentToken, new Date().toISOString())
-      );
+      // 既存行が「自分の旧決済トークン」の場合のみ新トークンへ更新（他人の依頼中は書き換えない）
+      const prevReceipt = prevReceiptById[managedId];
+      if (prevReceipt && prevReceipt !== paymentToken) {
+        stmts.push(
+          env.DB.prepare(`
+            INSERT INTO open_items (managed_id, receipt_no, status, updated_at) VALUES (?, ?, '依頼中', ?)
+            ON CONFLICT (managed_id) DO UPDATE SET
+              receipt_no = excluded.receipt_no,
+              updated_at = excluded.updated_at
+            WHERE open_items.receipt_no = ?
+          `).bind(managedId, paymentToken, new Date().toISOString(), prevReceipt)
+        );
+      } else {
+        stmts.push(
+          env.DB.prepare(`
+            INSERT INTO open_items (managed_id, receipt_no, status, updated_at) VALUES (?, ?, '依頼中', ?)
+            ON CONFLICT (managed_id) DO NOTHING
+          `).bind(managedId, paymentToken, new Date().toISOString())
+        );
+      }
     }
     await env.DB.batch(stmts);
   }

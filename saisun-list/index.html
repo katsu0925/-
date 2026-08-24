@@ -5070,18 +5070,36 @@ function runHoldSync_() {
         for (var uid in state.ui.cardEls) updateCardUi_(uid);
       }
       if (res && res.failed && res.failed.length) {
+        var removedCnt = 0;
         for (var i = 0; i < res.failed.length; i++) {
           var fid = res.failed[i].id;
+          // own === true は「自分自身の決済処理中」＝カートから外してはいけない。
+          // 外すと決済ページからブラウザバックした本人のカートが全消失する（2026-08-24 事故）。
+          // 明示フラグでのみ判定（旧サーバー応答は own 未定義 → 従来どおり除去）
+          if (res.failed[i].own === true) {
+            if (state.cart.ids.indexOf(fid) === -1) state.cart.ids.push(fid);
+            if (!(res.digest && res.digest[fid])) {
+              state.cart.digest[fid] = { status: '確保中', heldByOther: false, _confirmedAt: Date.now() };
+            }
+            updateCardUi_(fid);
+            continue;
+          }
           var j = state.cart.ids.indexOf(fid);
-          if (j !== -1) state.cart.ids.splice(j, 1);
+          if (j !== -1) { state.cart.ids.splice(j, 1); removedCnt++; }
           var failReason = res.failed[i].reason || '確保中';
-          state.cart.digest[fid] = { status: failReason, heldByOther: true };
+          // heldByOther はサーバー値を優先（未指定なら従来どおり他人扱い）
+          var byOther = (res.failed[i].heldByOther === false) ? false : true;
+          state.cart.digest[fid] = { status: failReason, heldByOther: byOther };
           updateCardUi_(fid);
         }
         updateCartCount(); saveCartStorage();
         updateShippingDisplay_();
-        var reasons = res.failed.map(function(f) { return f.reason; }).filter(function(v, i, a) { return a.indexOf(v) === i; });
-        showToast(reasons.join('・') + 'の商品があります');
+        if (removedCnt > 0) {
+          var reasons = res.failed.filter(function(f) { return f.own !== true; })
+            .map(function(f) { return f.reason; })
+            .filter(function(v, i, a) { return v && a.indexOf(v) === i; });
+          showToast(reasons.join('・') + 'の商品があります');
+        }
       }
     })
     .catch(function(e) {
