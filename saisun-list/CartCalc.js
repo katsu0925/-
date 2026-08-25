@@ -282,7 +282,7 @@ var CartCalc = (function() {
       }
     }
 
-    // アソート送料（1箱=160サイズ × 数量）
+    // アソート送料（1箱=140サイズ × 数量）
     if (ass.totalQty > 0 && addrPref) {
       var aArea = areas[addrPref];
       var aRates = (aArea && rates[aArea]) ? normalizeRates(rates[aArea]) : null;
@@ -292,22 +292,22 @@ var CartCalc = (function() {
         } else if (couponFreeEffective) {
           // 送料無料クーポンの除外商品対応
           if (assortExcQty > 0) {
-            var excShip = aRates['160'] * assortExcQty;
-            result.assort.shipping = { amount: excShip, label: 'アソート 送料（' + escHtml(addrPref) + '・160×' + assortExcQty + '、一部商品除外）', isFree: false, freeReason: '' };
+            var excShip = aRates['140'] * assortExcQty;
+            result.assort.shipping = { amount: excShip, label: 'アソート 送料（' + escHtml(addrPref) + '・140×' + assortExcQty + '、一部商品除外）', isFree: false, freeReason: '' };
           } else {
             result.assort.shipping = { amount: 0, label: 'アソート 送料', isFree: true, freeReason: 'クーポン適用' };
           }
         } else if (thresholdFree) {
           // ¥10,000以上送料無料 — ただし価格破壊商品は対象外（数量分だけ送料請求）
           if (assortAlwaysChargeQty > 0) {
-            var alwaysShip = aRates['160'] * assortAlwaysChargeQty;
-            result.assort.shipping = { amount: alwaysShip, label: 'アソート 送料（' + escHtml(addrPref) + '・160×' + assortAlwaysChargeQty + '、価格破壊商品分）', isFree: false, freeReason: '' };
+            var alwaysShip = aRates['140'] * assortAlwaysChargeQty;
+            result.assort.shipping = { amount: alwaysShip, label: 'アソート 送料（' + escHtml(addrPref) + '・140×' + assortAlwaysChargeQty + '、価格破壊商品分）', isFree: false, freeReason: '' };
           } else {
             result.assort.shipping = { amount: 0, label: 'アソート 送料', isFree: true, freeReason: '商品合計¥10,000以上' };
           }
         } else {
-          var assortShipAmt = aRates['160'] * ass.totalQty;
-          result.assort.shipping = { amount: assortShipAmt, label: 'アソート 送料（' + escHtml(addrPref) + '・160×' + ass.totalQty + '）', isFree: false, freeReason: '' };
+          var assortShipAmt = aRates['140'] * ass.totalQty;
+          result.assort.shipping = { amount: assortShipAmt, label: 'アソート 送料（' + escHtml(addrPref) + '・140×' + ass.totalQty + '）', isFree: false, freeReason: '' };
         }
       }
     }

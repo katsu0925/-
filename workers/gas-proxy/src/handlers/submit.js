@@ -557,8 +557,8 @@ export async function submitEstimate(args, env, bodyText, ctx) {
 
   // ─── 送料計算 ───
   const shippingArea = dynShippingAreas[pref] || '';
-  let shippingSize = '160';
-  let shippingSizeLabel = '160サイズ';
+  let shippingSize = '140';
+  let shippingSizeLabel = '140サイズ';
   let shippingAmount = 0;
 
   // 厚み分類（顧客送料・店負担送料の両方で使用）
@@ -604,8 +604,8 @@ export async function submitEstimate(args, env, bodyText, ctx) {
     }
   }
   if (bulkItemCount > 0 && shippingArea && dynActualRates[shippingArea]) {
-    // アソートは1箱=160サイズ×数量
-    actualShippingForStore += normalizeRates(dynActualRates[shippingArea])['160'] * bulkItemCount;
+    // アソートは1箱=140サイズ×数量
+    actualShippingForStore += normalizeRates(dynActualRates[shippingArea])['140'] * bulkItemCount;
   }
 
   if (diamondFree) {
@@ -626,7 +626,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
         const qty = Math.max(0, Math.floor(Number(bi.qty) || 0));
         if (excludeIds.has(pid)) excludedBulkQty += qty;
       }
-      bulkShippingAmount = excludedBulkQty > 0 ? normalizeRates(dynShippingRates[shippingArea])['160'] * excludedBulkQty : 0;
+      bulkShippingAmount = excludedBulkQty > 0 ? normalizeRates(dynShippingRates[shippingArea])['140'] * excludedBulkQty : 0;
     } else {
       bulkShippingAmount = 0;
     }
@@ -641,7 +641,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
         const qty = Math.max(0, Math.floor(Number(bi.qty) || 0));
         if (alwaysSet.has(pid)) alwaysQty += qty;
       }
-      bulkShippingAmount = alwaysQty > 0 ? normalizeRates(dynShippingRates[shippingArea])['160'] * alwaysQty : 0;
+      bulkShippingAmount = alwaysQty > 0 ? normalizeRates(dynShippingRates[shippingArea])['140'] * alwaysQty : 0;
     } else {
       bulkShippingAmount = 0;
     }
@@ -665,8 +665,8 @@ export async function submitEstimate(args, env, bodyText, ctx) {
       }
     }
     if (bulkItemCount > 0 && shippingArea && dynShippingRates[shippingArea]) {
-      // アソートは1箱=160サイズ×数量
-      bulkShippingAmount = normalizeRates(dynShippingRates[shippingArea])['160'] * bulkItemCount;
+      // アソートは1箱=140サイズ×数量
+      bulkShippingAmount = normalizeRates(dynShippingRates[shippingArea])['140'] * bulkItemCount;
     }
   }
 

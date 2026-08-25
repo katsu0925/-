@@ -2350,8 +2350,8 @@ function calcBulkShipping_(bulkTotalQty) {
   if (!pref) return 0;
   var area = SHIPPING_AREAS[pref];
   if (!area || !SHIPPING_RATES[area]) return 0;
-  // アソート商品は1箱=160サイズ × 数量
-  return SHIPPING_RATES[area]['160'] * bulkTotalQty;
+  // アソート商品は1箱=140サイズ × 数量
+  return SHIPPING_RATES[area]['140'] * bulkTotalQty;
 }
 
 /** CartCalc入力を state/DOM から構築（index.html用） */

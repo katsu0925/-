@@ -195,8 +195,8 @@ function apiSubmitEstimate(userKey, form, ids) {
     // === 送料計算（サーバー側で再計算 — 改ざん防止） ===
     var shippingPref = detectPrefecture_(address) || '';
     var shippingArea = shippingPref ? (SHIPPING_AREAS[shippingPref] || '') : '';
-    var shippingSize = '160';
-    var shippingSizeLabel = '160サイズ';
+    var shippingSize = '140';
+    var shippingSizeLabel = '140サイズ';
     var shippingAmount = 0;
 
     if (list.length > 0 || hasBulkItems) {
@@ -246,8 +246,8 @@ function apiSubmitEstimate(userKey, form, ids) {
       }
     }
     if (bulkItemCount > 0 && shippingArea && SHIPPING_ACTUAL_RATES[shippingArea]) {
-      // アソートは1箱=160サイズ×数量
-      actualShippingForStore += SHIPPING_ACTUAL_RATES[shippingArea]['160'] * bulkItemCount;
+      // アソートは1箱=140サイズ×数量
+      actualShippingForStore += SHIPPING_ACTUAL_RATES[shippingArea]['140'] * bulkItemCount;
     }
 
     // 送料無料判定（CartCalcと同じ優先順序: ダイヤモンド > クーポン > ¥10,000以上 > 計算値）
@@ -276,7 +276,7 @@ function apiSubmitEstimate(userKey, form, ids) {
           var beQty = Math.max(0, Math.floor(Number(f.bulkItems[bei].qty) || 0));
           if (excSetSF[bePid]) excludedBulkQty += beQty;
         }
-        bulkShippingAmount = (excludedBulkQty > 0) ? SHIPPING_RATES[shippingArea]['160'] * excludedBulkQty : 0;
+        bulkShippingAmount = (excludedBulkQty > 0) ? SHIPPING_RATES[shippingArea]['140'] * excludedBulkQty : 0;
       } else {
         bulkShippingAmount = 0;
       }
@@ -293,7 +293,7 @@ function apiSubmitEstimate(userKey, form, ids) {
           var _qty = Math.max(0, Math.floor(Number(f.bulkItems[_bi].qty) || 0));
           if (alwaysSet[_pid]) alwaysQty += _qty;
         }
-        bulkShippingAmount = (alwaysQty > 0) ? SHIPPING_RATES[shippingArea]['160'] * alwaysQty : 0;
+        bulkShippingAmount = (alwaysQty > 0) ? SHIPPING_RATES[shippingArea]['140'] * alwaysQty : 0;
       } else {
         bulkShippingAmount = 0;
       }
@@ -317,8 +317,8 @@ function apiSubmitEstimate(userKey, form, ids) {
         }
       }
       if (bulkItemCount > 0 && shippingArea && SHIPPING_RATES[shippingArea]) {
-        // アソートは1箱=160サイズ×数量
-        bulkShippingAmount = SHIPPING_RATES[shippingArea]['160'] * bulkItemCount;
+        // アソートは1箱=140サイズ×数量
+        bulkShippingAmount = SHIPPING_RATES[shippingArea]['140'] * bulkItemCount;
       }
     }
 

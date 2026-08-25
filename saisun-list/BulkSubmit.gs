@@ -170,7 +170,7 @@ function apiBulkSubmit(form, items) {
     // === 送料計算（CartCalcと同じ優先順序: ダイヤモンド > クーポン > ¥10,000以上 > 計算値） ===
     // 沖縄県はクーポン・閾値の対象外（ダイヤ会員特典のみ維持）
     var shippingPref = String(f.shippingPref || '');
-    var shippingSize = '160';
+    var shippingSize = '140';
     var shippingAmount = 0;
     var shippingArea = '';
 
@@ -213,7 +213,7 @@ function apiBulkSubmit(form, items) {
             var ePid = String(orderItems[ei].productId || '').toUpperCase();
             if (excSetB[ePid]) shippingExcludedQty += Number(orderItems[ei].qty || 0);
           }
-          shippingAmount = (shippingExcludedQty > 0) ? SHIPPING_RATES[shippingArea]['160'] * shippingExcludedQty : 0;
+          shippingAmount = (shippingExcludedQty > 0) ? SHIPPING_RATES[shippingArea]['140'] * shippingExcludedQty : 0;
           detauriShippingAmount = 0;
         } else if (thresholdFree) {
           detauriShippingAmount = 0;
@@ -227,13 +227,13 @@ function apiBulkSubmit(form, items) {
               var _opid = String(orderItems[_oi].productId || '').toUpperCase();
               if (alwaysSetB[_opid]) alwaysQtyB += Number(orderItems[_oi].qty || 0);
             }
-            shippingAmount = (alwaysQtyB > 0) ? SHIPPING_RATES[shippingArea]['160'] * alwaysQtyB : 0;
+            shippingAmount = (alwaysQtyB > 0) ? SHIPPING_RATES[shippingArea]['140'] * alwaysQtyB : 0;
           } else {
             shippingAmount = 0;
           }
         } else {
-          // アソートは1箱=160サイズ×数量
-          shippingAmount = SHIPPING_RATES[shippingArea]['160'] * totalQty;
+          // アソートは1箱=140サイズ×数量
+          shippingAmount = SHIPPING_RATES[shippingArea]['140'] * totalQty;
         }
       }
     }
@@ -285,7 +285,7 @@ function apiBulkSubmit(form, items) {
     }
     if (shippingAmount > 0) {
       var shippingQtyLabel = shippingExcludedQty > 0 ? shippingExcludedQty : totalQty;
-      var shippingLabel = '【送料: ¥' + shippingAmount + '（' + (shippingPref || '') + '・160×' + shippingQtyLabel + '・税込';
+      var shippingLabel = '【送料: ¥' + shippingAmount + '（' + (shippingPref || '') + '・140×' + shippingQtyLabel + '・税込';
       if (shippingExcludedQty > 0) shippingLabel += '・送料除外商品分';
       shippingLabel += '）】';
       note = note ? (note + '\n' + shippingLabel) : shippingLabel;
@@ -334,8 +334,8 @@ function apiBulkSubmit(form, items) {
       productAmount: sum,
       discounted: discounted + detauriProductAmount,
       shippingAmount: shippingAmount + detauriShippingAmount,
-      // 2026-07改定: アソート店負担は実費表160サイズ×数量（÷2廃止）
-      storeShipping: (shippingArea && SHIPPING_ACTUAL_RATES[shippingArea]) ? SHIPPING_ACTUAL_RATES[shippingArea]['160'] * totalQty : 0,
+      // 2026-07改定: アソート店負担は実費表140サイズ×数量（÷2廃止）
+      storeShipping: (shippingArea && SHIPPING_ACTUAL_RATES[shippingArea]) ? SHIPPING_ACTUAL_RATES[shippingArea]['140'] * totalQty : 0,
       shippingSize: shippingSize,
       shippingPref: shippingPref,
       selectionList: '',

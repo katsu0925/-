@@ -1143,13 +1143,13 @@ body.admin-mode .admin-settings-fab{display:flex;}
             <td style="padding:6px;border:1px solid #f9a8d4;text-align:center;">石川・福井・富山</td>
           </tr>
           <tr>
-            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;font-weight:700;background:#fff0f6;">160サイズ</td>
-            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,760円</td>
-            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,650円</td>
-            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,370円</td>
-            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,440円</td>
+            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;font-weight:700;background:#fff0f6;">140サイズ</td>
+            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,280円</td>
+            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,220円</td>
+            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,080円</td>
             <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,110円</td>
-            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,340円</td>
+            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">950円</td>
+            <td style="padding:8px;border:1px solid #f9a8d4;text-align:center;">1,070円</td>
           </tr>
         </table>
       </div>
@@ -1178,13 +1178,13 @@ body.admin-mode .admin-settings-fab{display:flex;}
             <td style="padding:6px;border:1px solid #a5f3fc;text-align:center;">北海道</td>
           </tr>
           <tr>
-            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;font-weight:700;background:#f0fdff;">160サイズ</td>
-            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,400円</td>
-            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,520円</td>
-            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,730円</td>
-            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">2,010円</td>
-            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">2,160円</td>
-            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">2,720円</td>
+            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;font-weight:700;background:#f0fdff;">140サイズ</td>
+            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,080円</td>
+            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,160円</td>
+            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,260円</td>
+            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,430円</td>
+            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,490円</td>
+            <td style="padding:8px;border:1px solid #a5f3fc;text-align:center;">1,790円</td>
           </tr>
         </table>
       </div>
@@ -1199,7 +1199,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
             <th style="padding:8px;text-align:center;border:1px solid #fcd34d;">沖縄本島</th>
           </tr>
           <tr>
-            <td style="padding:8px;border:1px solid #fcd34d;text-align:center;font-weight:700;background:#fffbeb;">160サイズ</td>
+            <td style="padding:8px;border:1px solid #fcd34d;text-align:center;font-weight:700;background:#fffbeb;">140サイズ</td>
             <td style="padding:8px;border:1px solid #fcd34d;text-align:center;">3,500円</td>
           </tr>
         </table>
@@ -1210,7 +1210,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
     <div style="margin-bottom:20px;">
       <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #10b981;padding-bottom:8px;">サイズの目安</h3>
       <ul style="margin:0;padding-left:20px;color:#475569;font-size:13px;">
-        <li><strong>160サイズ</strong>：アソート1箱（10kg程度）。数量分の送料がかかります</li>
+        <li><strong>140サイズ</strong>：アソート1箱（10kg程度）。数量分の送料がかかります</li>
       </ul>
     </div>
     <!-- 配送について -->
@@ -2639,7 +2639,7 @@ function updateCart() {
   G._discountedDetauriTotal = result.detauri.discounted;
   G.shipping = result.assort.shipping.amount;
   G.shippingPref = input.addressPref || '';
-  G.shippingSize = result.assort.shipping.amount > 0 ? '160' : '';
+  G.shippingSize = result.assort.shipping.amount > 0 ? '140' : '';
   G.detauriShipping = result.detauri.shipping.amount;
 
   // --- CartCalcでサマリーHTML生成 ---
@@ -2777,10 +2777,10 @@ function calcShipping(totalQty) {
   var area = areas[pref];
   if (!area || !rates[area]) { G.shipping = 0; return; }
 
-  // アソート商品: 1箱=160サイズ × 数量
-  G.shippingSize = '160';
-  var rate160 = CartCalc.normalizeRates(rates[area])['160'];
-  G.shipping = rate160 * totalQty;
+  // アソート商品: 1箱=140サイズ × 数量
+  G.shippingSize = '140';
+  var rate140 = CartCalc.normalizeRates(rates[area])['140'];
+  G.shipping = rate140 * totalQty;
 }
 
 // 送料無料クーポン適用時に送料を請求する数量（クーポンの送料除外指定＋価格破壊商品の和集合）
@@ -2832,7 +2832,7 @@ function calcEffectiveShipping_() {
     if (excludedQty > 0 && G.shippingPref) {
       var rates = G.settings.shippingRates || {};
       var area = _areasEff[G.shippingPref];
-      return (area && rates[area]) ? CartCalc.normalizeRates(rates[area])['160'] * excludedQty : 0;
+      return (area && rates[area]) ? CartCalc.normalizeRates(rates[area])['140'] * excludedQty : 0;
     }
     return 0;
   }

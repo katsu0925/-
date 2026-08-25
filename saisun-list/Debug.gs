@@ -1198,7 +1198,7 @@ function debugFixOrderRow(receiptNo) {
     return;
   }
 
-  // 2026-07改定: アソート店負担は実費表160サイズ×数量（÷2廃止。BulkSubmit.gsと同一ロジック）
+  // 2026-07改定: アソート店負担は実費表140サイズ×数量（÷2廃止。BulkSubmit.gsと同一ロジック）
   var storeShipping = 0;
   var fixAddr = String(currentRow[5] || '');
   var fixArea = '';
@@ -1206,7 +1206,7 @@ function debugFixOrderRow(receiptNo) {
     if (SHIPPING_AREAS.hasOwnProperty(pfKey) && fixAddr.indexOf(pfKey) === 0) { fixArea = SHIPPING_AREAS[pfKey]; break; }
   }
   if (fixArea && SHIPPING_ACTUAL_RATES[fixArea]) {
-    storeShipping = SHIPPING_ACTUAL_RATES[fixArea]['160'] * assortItemCount;
+    storeShipping = SHIPPING_ACTUAL_RATES[fixArea]['140'] * assortItemCount;
   } else {
     console.log('⚠ 住所(F列)から地域を判定できないため店負担送料は0のまま。M列を手動で設定してください: ' + fixAddr);
   }
