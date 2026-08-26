@@ -1,6 +1,6 @@
 /* =========================================================
    NKonline — 共通スクリプト
-   スクロール演出 / stickyナビ / ハンバーガー / カウンター
+   スクロール演出 / stickyナビ / ハンバーガー / フォーム補助
    ========================================================= */
 (function () {
   'use strict';
@@ -39,31 +39,6 @@
         document.body.classList.remove('menu-open');
       });
     });
-  }
-
-  /* --- 数字カウントアップ（[data-count] を持つ .num） --- */
-  var counters = document.querySelectorAll('[data-count]');
-  if ('IntersectionObserver' in window && counters.length) {
-    var cio = new IntersectionObserver(function (entries) {
-      entries.forEach(function (e) {
-        if (!e.isIntersecting) return;
-        var el = e.target;
-        cio.unobserve(el);
-        var target = parseFloat(el.getAttribute('data-count'));
-        var dec = (el.getAttribute('data-count').indexOf('.') > -1) ? 1 : 0;
-        var dur = 1400, start = null;
-        var step = function (ts) {
-          if (!start) start = ts;
-          var p = Math.min((ts - start) / dur, 1);
-          var eased = 1 - Math.pow(1 - p, 3);
-          el.textContent = (target * eased).toFixed(dec);
-          if (p < 1) requestAnimationFrame(step);
-          else el.textContent = target.toFixed(dec);
-        };
-        requestAnimationFrame(step);
-      });
-    }, { threshold: 0.6 });
-    counters.forEach(function (el) { cio.observe(el); });
   }
 
   /* --- お問い合わせ：URLの ?topic= で相談種類をプリセット --- */
