@@ -275,6 +275,27 @@ function handleMissingProducts() {
     ui.ButtonSet.YES_NO);
   if (confirm !== ui.Button.YES) return;
 
+  // ★自動展開Cron（cronAutoExpandOrders）との競合防止
+  //   この直後に I列(確認リンク) を空にするため、その隙に Cron が
+  //   「J列あり＋I列空」の条件で同じ受付番号を拾うとパイプラインが二重実行され、
+  //   売却履歴が2倍になる（om_writeSaleLog_ は dedupe なしの append）。
+  //   Cron 側（cronAutoExpandOrders）と同じスクリプトロックを取ってから書き換える。
+  //   ※ ロックはスクリプト終了時に自動解放されるため try/finally は不要。
+  //     ただし結果ダイアログを開いたままロックを握ると顧客API（確保・注文送信）が
+  //     「現在混雑しています」になるので、パイプラインに releaseLock を渡して
+  //     書き込み完了直後（レポート表示前）に解放させる。
+  var omLock = LockService.getScriptLock();
+  if (!omLock.tryLock(10000)) {
+    ui.alert('欠品処理', '他の処理（自動展開など）が実行中のため、いま開始できません。\n1分ほど待ってから再実行してください。', ui.ButtonSet.OK);
+    return;
+  }
+  var omLockReleased = false;
+  var omReleaseLock = function() {
+    if (omLockReleased) return;
+    omLockReleased = true;
+    try { omLock.releaseLock(); } catch (e) { /* 解放済み */ }
+  };
+
   activeSs.toast('欠品処理を開始します...', '処理中', 60);
 
   // --- 依頼管理の選択リスト更新 + 確認リンク削除 ---
@@ -373,7 +394,9 @@ function handleMissingProducts() {
   activeSs.toast('欠品処理完了。再生成を開始します...', '処理中', 60);
 
   // --- 自動再生成: 残りの商品で全パイプラインを再実行 ---
-  om_executeFullPipeline_(receiptNoList, '欠品処理→再生成');
+  //   I列(確認リンク) が書き戻されるまでロックを保持したまま実行する
+  om_executeFullPipeline_(receiptNoList, '欠品処理→再生成', { releaseLock: omReleaseLock });
+  omReleaseLock();
 }
 
 // ═══════════════════════════════════════════
@@ -833,6 +856,12 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
   }
 
   SpreadsheetApp.flush();
+
+  // 呼び出し元がスクリプトロックを握っている場合、結果ダイアログの表示中も握り続けると
+  // 顧客API（確保・注文送信）が「現在混雑しています」になる。書き込みが終わった時点で解放する。
+  if (opts && typeof opts.releaseLock === 'function') {
+    try { opts.releaseLock(); } catch (e) { console.error('releaseLock失敗: ' + (e.message || e)); }
+  }
 
   // --- 結果レポート ---
   var msg = '';
