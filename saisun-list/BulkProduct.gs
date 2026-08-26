@@ -41,8 +41,9 @@ function maybeApplyPremiumRepricing_() {
 // ・ScriptProperty PREMIUM_REPRICED_V3_PROP_ が反映済みラッチ（手で消さないこと）
 // ・1行以上書けた時だけラッチON＝商品名不一致で空振りした場合は次回読込で再試行
 // ・同時実行はロックで弾く（書き換え自体は冪等なので二重実行しても結果は同じ）
-// ・画像(G〜K列)は PREMIUM_IMAGES_V3_ の1枚目だけ新サムネへ差し替える。書き込み前に
-//   URLを取得して 200 かつ画像であることを確認し、開けない場合は既存画像を維持する
+// ・画像(G〜K列)は PREMIUM_IMAGES_V3_ の1枚目（サムネ）と2枚目（出品キットのデモ画面）を
+//   差し替える。書き込み前にURLを取得して 200 かつ画像であることを確認し、
+//   開けない場合は既存画像を維持する
 //   （＝無人実行で壊れたURLを入れてサムネを失う事故を防ぐ）。空スロットは常に据え置き
 // ・結果は ADMIN_OWNER_EMAIL へメール通知する。失敗・空振りの通知は
 //   PREMIUM_REPRICED_V3_ALERT_PROP_ で1回に絞る（5分おきの再試行でメールが溢れないように）
@@ -243,8 +244,8 @@ var PREMIUM_PRICE_V3_ = {
   'プレミアムアソート大ロット': 19800   // 32,000 → 19,800（目標22,600・お得+2,800・約46点）
 };
 
-// 差し替える画像URL（G〜K列 = 画像URL1〜5）。1枚目だけ新しいサムネに差し替える。
-// 空文字／未指定のスロットは既存の画像をそのまま残す（＝2〜5枚目は今までどおり）。
+// 差し替える画像URL（G〜K列 = 画像URL1〜5）。1枚目＝サムネ、2枚目＝出品キットのデモ画面。
+// 空文字／未指定のスロットは既存の画像をそのまま残す（＝3〜5枚目は今までどおり）。
 //
 // 画像の実体は saisun-list/img/premium-assort/ に置いてあり、main へ push すると
 // Cloudflare Pages が自動で配信する（＝恒久・公開URL）。BASE は add_image のときに
@@ -256,12 +257,17 @@ var PREMIUM_PRICE_V3_ = {
 // そろって、そのまま出品できます」に変更。xlsx はお客様に伝わらないため、何が届くのか
 // （＝出品キット）を明記する。生成スクリプトは tools/premium-assort-thumb/generate.py
 // （v3のJPEGを土台に上部のタイトルと下部の帯だけ合成する）。
+// kit-demo-v1（2026-08-26）: 2枚目に登録されていたスプレッドシートのスクリーンショットを、
+// 出品キット（デモ画面）の画像へ差し替えた。お客様に渡すのは XLSX ではなく出品キットの
+// Webページなので、実物の画面を見せる。撮影元は /kit?mode=demo（トークン不要の常時公開）、
+// 生成スクリプトは tools/premium-assort-thumb/generate-kitdemo.py。
+// 画像ギャラリーはデモにサンプル写真が無く「画像未アップロード」と出るため意図的に除外している。
 // ★差し替えるときは必ずファイル名のバージョンを上げること。同名で上書きすると
 //   BASE 側の差分検知（画像URL5本のMD5）が反応せず、貼り直されない。
 var PREMIUM_IMAGES_V3_ = {
-  'プレミアムアソート小ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-small-v5.jpg', '', '', '', ''],
-  'プレミアムアソート中ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-medium-v5.jpg', '', '', '', ''],
-  'プレミアムアソート大ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-large-v5.jpg', '', '', '', '']
+  'プレミアムアソート小ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-small-v5.jpg', 'https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-kit-demo-v1.jpg', '', '', ''],
+  'プレミアムアソート中ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-medium-v5.jpg', 'https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-kit-demo-v1.jpg', '', '', ''],
+  'プレミアムアソート大ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-large-v5.jpg', 'https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-kit-demo-v1.jpg', '', '', '']
 };
 
 // 画像URLの生存確認。8/29の自動反映は無人で走るので、URLが死んでいた場合に
