@@ -7,6 +7,24 @@ const SKIP_RECEIPT_KEYS_ = new Set([
 ]);
 
 function syncBaseOrdersToIraiKanri() {
+  // 依頼管理への書き込み競合を防ぐためスクリプトロックを取得する。
+  // 既存行の読み取り（existingKeys 構築）と追記の間に他処理（欠品処理 handleMissingProducts /
+  // 自動展開 cronAutoExpandOrders）が依頼管理を書き換えると、重複チェックをすり抜けて
+  // 同一注文が二重登録される（2026-08-26 3FD535DB185FE486 の重複行）。
+  // 上記2つと同じ LockService.getScriptLock() を使うことで相互排他になる。
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) {
+    console.warn('syncBaseOrdersToIraiKanri: ロック取得失敗のためスキップ（次回Cronで再試行）');
+    return;
+  }
+  try {
+    syncBaseOrdersToIraiKanri_();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function syncBaseOrdersToIraiKanri_() {
   // XLSX商品（選べるパッケージのアソート商品）も依頼管理に反映する（選択リストは管理者が後から紐付け）
   const ORDER_STATUS_COL_1BASED = 7;
   // 「未対応」だけでなく「対応済」も取り込む（BASE側で即発送マークされる注文の取りこぼし対策）
