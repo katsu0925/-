@@ -72,8 +72,10 @@
     var topic = new URLSearchParams(location.search).get('topic');
     var topicMap = {
       fukugyo: '古着卸売（副業支援）について',
+      shien: 'AI導入支援について',
       ai: '生成AIシステム開発について',
-      other: 'その他・両方について'
+      web: 'ホームページ制作について',
+      other: 'その他・複数のサービスについて'
     };
     if (topic && topicMap[topic]) subj.value = topicMap[topic];
   }

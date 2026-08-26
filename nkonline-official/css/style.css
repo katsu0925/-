@@ -426,3 +426,10 @@ body.solid-head .burger span{background:var(--ink)}
   .split-media .float .fnum{font-size:24px}
   .card .cbody{padding:22px 20px 26px}
 }
+
+/* --- ナビ項目が増えたためタブレット幅で圧縮（AI導入支援 追加対応） --- */
+@media(min-width:761px) and (max-width:1180px){
+  .nav{gap:2px}
+  .nav a{font-size:13px;padding:8px 10px}
+  .nav .btn{margin-left:6px;padding:10px 16px;font-size:13px}
+}
