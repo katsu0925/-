@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-プレミアムアソート 2枚目画像（出品キット デモ画面）生成スクリプト（v1）
+プレミアムアソート 2枚目画像（出品キット デモ画面）生成スクリプト（v2）
 
 BASE のアソート商品ページの2枚目には、以前はスプレッドシートのスクリーンショットが
 登録されていた。お客様に届くのは XLSX ではなく「出品キット」の Web ページなので、
@@ -11,11 +11,19 @@ BASE のアソート商品ページの2枚目には、以前はスプレッド�
   （workers/gas-proxy/src/handlers/kit.js serveDemoKit。トークン不要で常時公開）
 
 なぜこの範囲だけ切り出すか:
-  - 画像ギャラリーはデモにサンプル写真が無く「画像未アップロード」と出るため除外する
-    （実際の納品では撮影画像が入るので、そのまま載せると逆に誤解を与える）。
-  - 仕入価格や「メルカリで出品」ボタンなど、アソート商品ページに関係しない要素も外す。
-  - 残すのは「メルカリ用タイトル／即出品用説明文／ブランド／商品情報／採寸データ」＝
-    お客様が受け取る中身そのもの。
+  - 切り出すのは「撮影画像ギャラリー／まとめて保存バー／メルカリ用タイトル／
+    即出品用説明文（実寸入り）／販売参考価格」＝お客様が受け取る中身そのもの。
+  - 仕入価格が出るカードのヘッダーと、「メルカリで出品」ボタンなど
+    アソート商品ページに関係しない要素は外す。
+  - 縦に長くなりすぎると右パネルの中で文字が読めなくなるので、撮影時に
+    商品情報テーブル（管理番号などの内部情報）を隠し、説明文の表示高さを詰めて、
+    採寸データのグリッドまでが 1 枚に収まるようにしている。
+  - 右パネルの幅は切り出した画像の縦横比から計算するので、上下が切れることはない。
+
+v1→v2（2026-08-26）:
+  デモが images:[] のダミー4点で「画像未アップロード」と出ていたため画像欄を外していた。
+  デモデータを実際に納品したキットの4点（撮影画像つき）に差し替えたので、
+  撮影画像ギャラリーを含めた範囲に切り出し直した。
 
 使い方:
   python3 generate-kitdemo.py              # img/premium-assort/premium-assort-kit-demo-v1.jpg
@@ -53,29 +61,36 @@ FEATURES = [
 
 BADGE = "出品キット付き"
 LEAD = "そのまま出品できるデータを Webページでお渡しします"
-NOTE = "※ 画面はデモ表示です。<br>実際は仕入れた1点ごとに掲載されます"
+NOTE = "※ 画面は実際の納品例です。<br>仕入れた1点ごとに掲載されます"
 
 FONT = '"Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif'
 
 
 def capture_card(page):
-    """デモ画面を開き、コピー欄〜採寸データまでを切り出した PNG バイト列を返す。"""
+    """デモ画面を開き、撮影画像ギャラリー〜コピー欄までを切り出した PNG バイト列を返す。"""
     page.goto(DEMO_URL, wait_until="networkidle")
     page.wait_for_timeout(2500)
     # 右下に浮いている操作ボタン（▲ / A+ / ▼）は本文に被るので隠す
-    page.add_style_tag(content=".float-btns{display:none !important;}")
-    page.wait_for_timeout(200)
+    page.add_style_tag(content=(
+        # 右下に浮いている操作ボタン（▲ / A+ / ▼）は本文に被るので隠す
+        ".float-btns{display:none !important;}"
+        # 管理番号などの内部情報が並ぶ商品情報テーブルは広告に不要なので隠す
+        ".product-details .detail-col:first-child{display:none !important;}"
+        # 説明文は全文スクロールできる欄。1枚に収めるため表示高さだけ詰める
+        ".copy-content{max-height:92px !important;}"
+    ))
+    page.wait_for_timeout(400)
 
     rect = page.evaluate(
         """() => {
           const card = document.querySelector('.product-card.open');
-          const copy = card.querySelector('.copy-section');
+          const gal = card.querySelector('.image-gallery');
           const det = card.querySelector('.product-details');
           const box = el => { const b = el.getBoundingClientRect();
             return {x: b.x, y: b.y + window.scrollY, w: b.width, h: b.height}; };
-          const c = box(copy), d = box(det);
-          return {x: Math.round(c.x), y: Math.round(c.y),
-                  w: Math.round(c.w), h: Math.round(d.y + d.h - c.y)};
+          const g = box(gal), d = box(det);
+          return {x: Math.round(g.x), y: Math.round(g.y),
+                  w: Math.round(g.w), h: Math.round(d.y + d.h - g.y)};
         }"""
     )
     shot = page.screenshot(full_page=True)
@@ -86,15 +101,18 @@ def capture_card(page):
     buf = io.BytesIO()
     crop.save(buf, format="PNG")
     print("デモ画面を切り出し: %dx%d" % crop.size)
-    return buf.getvalue()
+    return buf.getvalue(), crop.size
 
 
-def build_html(shot_data_uri):
+def build_html(shot_data_uri, shot_size):
     rows = "".join(
         '<li><i class="dot"></i><span class="ttl">%s</span>'
         '<span class="sub">%s</span></li>' % (t, s)
         for t, s in FEATURES
     )
+    # 右パネルは切り出し画像の縦横比に合わせる（上下が切れないように）
+    right_w = int(round(IMG_H * shot_size[0] / shot_size[1]))
+    left_w = COLS_W - GAP - right_w
     html = """<!doctype html><html><head><meta charset="utf-8"><style>
   * { margin:0; padding:0; box-sizing:border-box; }
   body { width:@SIZE@px; height:@SIZE@px; overflow:hidden;
@@ -112,9 +130,9 @@ def build_html(shot_data_uri):
   .dia { width:11px; height:11px; flex:none; transform:rotate(45deg); background:#c9a24a; }
   .lead { margin-top:20px; font-size:31px; font-weight:500; letter-spacing:.02em;
     color:#d6c69f; }
-  .cols { position:absolute; left:91px; top:@TOP@px; width:1218px; height:@IMGH@px;
-    display:flex; gap:30px; align-items:stretch; }
-  .left { width:406px; display:flex; flex-direction:column; justify-content:center; }
+  .cols { position:absolute; left:91px; top:@TOP@px; width:@COLSW@px; height:@IMGH@px;
+    display:flex; gap:@GAP@px; align-items:stretch; }
+  .left { width:@LEFTW@px; display:flex; flex-direction:column; justify-content:center; }
   .left ul { list-style:none; }
   .left li { list-style:none; display:grid;
     grid-template-columns:22px 1fr; column-gap:14px; margin-bottom:44px; }
@@ -125,10 +143,10 @@ def build_html(shot_data_uri):
   .left .sub { grid-column:2; margin-top:6px; font-size:25px; font-weight:400;
     color:#a89a7c; }
   .note { margin-top:52px; font-size:21px; line-height:1.6; color:#8a7f66; }
-  .right { flex:1; border-radius:14px; overflow:hidden;
+  .right { width:@RIGHTW@px; flex:none; border-radius:14px; overflow:hidden;
     border:1px solid rgba(184,147,63,.55);
     box-shadow:0 18px 46px rgba(0,0,0,.65); background:#fff; }
-  .right img { display:block; width:100%; }
+  .right img { display:block; width:100%; height:100%; object-fit:fill; }
 </style></head><body>
   <div class="frame"></div>
   <div class="head">
@@ -142,6 +160,10 @@ def build_html(shot_data_uri):
 </body></html>"""
     repl = {
         "@SIZE@": str(SIZE),
+        "@COLSW@": str(COLS_W),
+        "@GAP@": str(GAP),
+        "@LEFTW@": str(left_w),
+        "@RIGHTW@": str(right_w),
         "@FONT@": FONT,
         "@TOP@": str(TOP),
         "@IMGH@": str(IMG_H),
@@ -158,6 +180,8 @@ def build_html(shot_data_uri):
 
 TOP = 250
 IMG_H = 1110
+COLS_W = 1218
+GAP = 30
 
 
 def main():
@@ -174,13 +198,13 @@ def main():
         shot_page = browser.new_page(
             viewport={"width": SHOT_WIDTH, "height": 1200},
             device_scale_factor=SHOT_DSF)
-        png = capture_card(shot_page)
+        png, shot_size = capture_card(shot_page)
         shot_page.close()
 
         data_uri = "data:image/png;base64," + base64.b64encode(png).decode()
         page = browser.new_page(viewport={"width": SIZE, "height": SIZE},
                                 device_scale_factor=1)
-        page.set_content(build_html(data_uri))
+        page.set_content(build_html(data_uri, shot_size))
         page.wait_for_timeout(500)
         page.screenshot(path=str(dst), type="jpeg", quality=92)
         browser.close()

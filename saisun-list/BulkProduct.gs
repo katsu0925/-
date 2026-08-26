@@ -261,13 +261,17 @@ var PREMIUM_PRICE_V3_ = {
 // 出品キット（デモ画面）の画像へ差し替えた。お客様に渡すのは XLSX ではなく出品キットの
 // Webページなので、実物の画面を見せる。撮影元は /kit?mode=demo（トークン不要の常時公開）、
 // 生成スクリプトは tools/premium-assort-thumb/generate-kitdemo.py。
-// 画像ギャラリーはデモにサンプル写真が無く「画像未アップロード」と出るため意図的に除外している。
+// kit-demo-v2（2026-08-26）: デモが写真なしのダミー4点で「画像未アップロード」と出ていたため、
+// v1では画像ギャラリーを外していた。デモデータを実際に納品したキットの4点（撮影画像つき・
+// 受付番号と氏名だけサンプル値に匿名化）へ差し替えたので、撮影画像ギャラリーと採寸データ
+// まで写した画像に差し替えた。デモデータ本体は workers/gas-proxy/src/handlers/kit.js の
+// serveDemoKit にある。
 // ★差し替えるときは必ずファイル名のバージョンを上げること。同名で上書きすると
 //   BASE 側の差分検知（画像URL5本のMD5）が反応せず、貼り直されない。
 var PREMIUM_IMAGES_V3_ = {
-  'プレミアムアソート小ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-small-v5.jpg', 'https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-kit-demo-v1.jpg', '', '', ''],
-  'プレミアムアソート中ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-medium-v5.jpg', 'https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-kit-demo-v1.jpg', '', '', ''],
-  'プレミアムアソート大ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-large-v5.jpg', 'https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-kit-demo-v1.jpg', '', '', '']
+  'プレミアムアソート小ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-small-v5.jpg', 'https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-kit-demo-v2.jpg', '', '', ''],
+  'プレミアムアソート中ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-medium-v5.jpg', 'https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-kit-demo-v2.jpg', '', '', ''],
+  'プレミアムアソート大ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-large-v5.jpg', 'https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-kit-demo-v2.jpg', '', '', '']
 };
 
 // 画像URLの生存確認。8/29の自動反映は無人で走るので、URLが死んでいた場合に
