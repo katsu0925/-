@@ -508,3 +508,50 @@ body.solid-head .burger span{background:var(--ink)}
   .srow .sside{grid-column:1}
   .run{grid-template-columns:1fr;gap:12px}
 }
+
+/* =========================================================
+   微細モーション（2026-08-27）
+   スクロールの入り方・背景の視差・数字のカウント・ホバーの手応え。
+   演出は 1 要素あたり数 px の範囲に留め、飾りは足さない。
+   ========================================================= */
+
+/* --- スクロール：隣り合う要素を 0.06 秒ずつずらして立ち上げる --- */
+[data-rv]{
+  opacity:0;transform:translateY(18px);
+  transition:opacity .66s var(--ease),transform .66s var(--ease);
+  transition-delay:calc(var(--rvi,0) * 60ms);
+}
+
+/* --- ヒーロー見出し：1 行ずつせり上がる --- */
+.hero h1.lines{opacity:1;transform:none;transition:none}
+.hero h1 .hline{display:block;overflow:hidden;padding-bottom:.12em;margin-bottom:-.12em}
+.hero h1 .hline-i{
+  display:block;transform:translateY(108%);opacity:0;
+  transition:transform .82s cubic-bezier(.16,.86,.28,1),opacity .45s linear;
+  transition-delay:calc(var(--hi,0) * .11s + .12s);
+}
+.hero h1.lines.seen .hline-i{transform:none;opacity:1}
+
+/* --- 背景画像：スクロール量に対して 8% だけ遅れて動く --- */
+.hero .bg,.cta-band .bg{inset:-5% 0;will-change:transform}
+
+/* --- 数字：カウント中に横幅がぶれないよう固定 --- */
+.cnum{display:inline-block;text-align:left;font-variant-numeric:tabular-nums}
+
+/* --- ホバー：2px 浮いて影が伸びる／矢印は 4px 滑る --- */
+.card,.svc,.plan{transition:transform .3s var(--ease),box-shadow .3s var(--ease),border-color .3s var(--ease)}
+.card:hover,.svc:hover,.plan:hover{transform:translateY(-2px);box-shadow:0 20px 46px rgba(14,22,38,.13)}
+.plan.feature:hover{box-shadow:0 24px 52px rgba(255,90,54,.20)}
+.card:hover .ph img{transform:scale(1.035)}
+.btn .ar,.card .more .ar,.srow .more .ar,.door .darr{transition:transform .28s var(--ease)}
+.btn:hover .ar,.card:hover .more .ar,.srow .more:hover .ar{transform:translateX(4px)}
+.door:hover .darr{transform:translateX(4px)}
+
+/* --- 動きを減らす設定の端末では、すべて静止させる --- */
+@media(prefers-reduced-motion:reduce){
+  [data-rv]{opacity:1;transform:none;transition:none;transition-delay:0s}
+  .hero h1 .hline{overflow:visible}
+  .hero h1 .hline-i{transform:none;opacity:1;transition:none}
+  .hero .bg,.cta-band .bg{inset:0;transform:none!important;will-change:auto}
+  .card:hover,.svc:hover,.plan:hover{transform:none}
+}
