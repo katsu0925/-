@@ -3,7 +3,7 @@
 プレミアムアソート サムネイル生成スクリプト（v4）
 
 v3 の JPEG（黒×ゴールドのブランドアート＋下部の情報帯）を土台にして、
-上部のタイトルを差し替え、「採寸データ＋撮影画像 付属」の帯を1本足す。
+上部のタイトルを差し替え、下部に「出品キット付き」の帯を足す。
 
 なぜ土台を流用するか:
   ブランドアートはAI生成で、テキストが焼き込まれた JPEG しか残っていない。
@@ -15,7 +15,7 @@ v3 の JPEG（黒×ゴールドのブランドアート＋下部の情報帯）�
   サムネのタイトルだけ旧表記「採寸付きパッケージ」のまま残っていた。
 
 使い方:
-  python3 generate.py            # img/premium-assort/*-v4.jpg を出力
+  python3 generate.py            # img/premium-assort/*-v5.jpg を出力
   python3 generate.py --check    # 出力せずマスク範囲の妥当性だけ検査
 
 ★差し替えるときは必ずファイル名（バージョン）を変えること。
@@ -43,9 +43,9 @@ SIZE = 1400
 MASK_SOLID_UNTIL = 382
 MASK_FADE_UNTIL = 404
 
-# y=985..1078 はアートの暗い部分。ここにフェードさせながら帯を重ね、
-# 既存の情報帯を上へ延長したように見せる。
-BAND_TOP = 985
+# y=960 より下はアートが急に暗くなる（y=950 avg107 → y=970 avg25）。
+# それより上はノートPCの画面・キーボードで明るいため覆わない。
+BAND_TOP = 958
 BAND_BOTTOM = 1078
 
 LOTS = {
@@ -56,7 +56,10 @@ LOTS = {
 
 # 「採寸撮影付きパッケージ」は11文字。1400px に収めるため v3（9文字）より1文字を小さくする。
 TITLE_LINE2 = "採寸撮影付きパッケージ"
-BAND_TEXT = "全商品に 採寸データ（xlsx）＋ 撮影画像 付属"
+# 「xlsx」は伝わる人が少ないので使わない。何が届くのか（出品キット）と、
+# それで何ができるのか（そのまま出品できる）を平易な日本語で書く。
+BAND_BADGE = "出品キット付き"
+BAND_SUB = "採寸データも撮影画像もそろって、そのまま出品できます"
 
 # % 書式のエスケープを避けるため、置換はプレースホルダ方式にする
 HTML = """
@@ -101,23 +104,33 @@ HTML = """
   .title .l1 { font-size:132px; }
   .title .l2 { font-size:108px; }
 
-  /* 「採寸データ＋撮影画像 付属」の帯 */
+  /* 「出品キット付き」の帯。下部の情報帯を上へ延長したように見せる */
   .band {
     position:absolute; left:0; right:0; top:@BAND_TOP@px; height:@BAND_H@px;
     background: linear-gradient(to bottom,
-      rgba(5,4,3,0) 0%, rgba(5,4,3,.86) 34%, rgba(8,7,5,.97) 62%, rgba(10,9,5,1) 100%);
-    display:flex; align-items:flex-end; justify-content:center;
-    padding-bottom:14px;
+      rgba(5,4,3,0) 0%, rgba(5,4,3,.80) 26%, rgba(8,7,5,.96) 54%, rgba(10,9,5,1) 100%);
+    display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
+    padding-bottom:13px;
   }
-  .band .txt {
-    font-size:42px; font-weight:600; letter-spacing:.05em;
-    color:#e8d7a6;
-    display:flex; align-items:center; gap:22px;
+  /* 下の情報帯にある「◯円分お得」バッジと形をそろえる（枠線だけの版） */
+  .band .badge {
+    display:flex; align-items:center; gap:16px;
+    font-size:37px; font-weight:700; letter-spacing:.06em;
+    color:#f2e0ae;
+    border:2px solid #b8933f; border-radius:999px;
+    padding:7px 30px 9px;
+    background:rgba(0,0,0,.45);
     text-shadow:0 2px 6px rgba(0,0,0,.9);
   }
   .band .dot {
     width:9px; height:9px; flex:none;
     transform:rotate(45deg); background:#c9a24a;
+  }
+  .band .sub {
+    margin-top:11px;
+    font-size:30px; font-weight:500; letter-spacing:.03em;
+    color:#d6c69f;
+    text-shadow:0 2px 6px rgba(0,0,0,.95);
   }
 </style>
 
@@ -130,7 +143,8 @@ HTML = """
 </div>
 
 <div class="band">
-  <div class="txt"><i class="dot"></i>@BAND_TEXT@<i class="dot"></i></div>
+  <div class="badge"><i class="dot"></i>@BAND_BADGE@<i class="dot"></i></div>
+  <div class="sub">@BAND_SUB@</div>
 </div>
 """
 
@@ -145,7 +159,8 @@ def build_html(bg_data_uri, lot_label):
         "@BAND_H@": str(BAND_BOTTOM - BAND_TOP),
         "@LOT@": lot_label,
         "@LINE2@": TITLE_LINE2,
-        "@BAND_TEXT@": BAND_TEXT,
+        "@BAND_BADGE@": BAND_BADGE,
+        "@BAND_SUB@": BAND_SUB,
     }
     html = HTML
     for k, v in repl.items():
@@ -179,7 +194,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="出力せずマスク範囲の検査だけ行う")
     ap.add_argument("--base", default="v3", help="土台にするバージョン（既定 v3）")
-    ap.add_argument("--out", default="v4", help="出力バージョン（既定 v4）")
+    ap.add_argument("--out", default="v5", help="出力バージョン（既定 v5）")
     args = ap.parse_args()
 
     check_base_images(args.base)

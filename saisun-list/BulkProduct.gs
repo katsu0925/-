@@ -200,7 +200,7 @@ function premium_buildRepriceMailHtml_(rowCount) {
       + '新しい画像のURLが開けなかったため、これまでの画像をそのまま残しました（消えてはいません）。'
       + '下のURLをブラウザで開いて画像が表示されるか確かめてください。表示されるようになったら、'
       + 'GASエディタで applyPremiumRepricingNow() を実行すると差し替わります。<br>'
-      + 'https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-small-v4.jpg</p>';
+      + 'https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-small-v5.jpg</p>';
   }
   if (anyKept) {
     // 旧サムネには金額も点数も入っていないため、表示が矛盾することはない（訴求が弱いだけ）。
@@ -251,14 +251,17 @@ var PREMIUM_PRICE_V3_ = {
 // サーバー側でこのURLを取りに来るので、ログイン不要で開けるURLである必要がある。
 // ※ Googleドライブ（lh3.googleusercontent.com/d/<fileId>）は共有設定に左右されるため使わない。
 // v4（2026-08-26）: タイトルの旧表記「採寸付きパッケージ」を「採寸撮影付きパッケージ」へ修正し、
-// 下部に「全商品に 採寸データ（xlsx）＋ 撮影画像 付属」の帯を1本追加した。
-// 生成スクリプトは tools/premium-assort-thumb/generate.py（v3のJPEGを土台に上部だけ合成する）。
+// 下部に訴求の帯を1本追加した。
+// v5（2026-08-26）: 帯の文言から「xlsx」を外し、「出品キット付き／採寸データも撮影画像も
+// そろって、そのまま出品できます」に変更。xlsx はお客様に伝わらないため、何が届くのか
+// （＝出品キット）を明記する。生成スクリプトは tools/premium-assort-thumb/generate.py
+// （v3のJPEGを土台に上部のタイトルと下部の帯だけ合成する）。
 // ★差し替えるときは必ずファイル名のバージョンを上げること。同名で上書きすると
 //   BASE 側の差分検知（画像URL5本のMD5）が反応せず、貼り直されない。
 var PREMIUM_IMAGES_V3_ = {
-  'プレミアムアソート小ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-small-v4.jpg', '', '', '', ''],
-  'プレミアムアソート中ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-medium-v4.jpg', '', '', '', ''],
-  'プレミアムアソート大ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-large-v4.jpg', '', '', '', '']
+  'プレミアムアソート小ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-small-v5.jpg', '', '', '', ''],
+  'プレミアムアソート中ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-medium-v5.jpg', '', '', '', ''],
+  'プレミアムアソート大ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-large-v5.jpg', '', '', '', '']
 };
 
 // 画像URLの生存確認。8/29の自動反映は無人で走るので、URLが死んでいた場合に
