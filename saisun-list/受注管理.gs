@@ -413,15 +413,29 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
   var ui = null;
   if (!silent) { try { ui = SpreadsheetApp.getUi(); } catch (e) { /* cron */ } }
 
+  // 呼び出し元がスクリプトロックを握っている場合の解放フック（冪等）
+  var releaseCallerLock = function() {
+    if (opts && typeof opts.releaseLock === 'function') {
+      try { opts.releaseLock(); } catch (e) { console.error('releaseLock失敗: ' + (e.message || e)); }
+    }
+  };
+  // 異常終了で早期returnする場合も、モーダルを開く前に必ずロックを解放する。
+  //   握ったまま ui.alert を開くと人がOKを押すまで解放されず、その間ずっと
+  //   顧客API（確保・注文送信）が「現在混雑しています」になるため。
+  var bail = function(message) {
+    releaseCallerLock();
+    if (ui) ui.alert(message); else console.error(message);
+  };
+
   if (ui) activeSs.toast(callerLabel + ': 処理を開始します（' + receiptNos.length + '件）...', '処理中', 60);
   else console.log(callerLabel + ': 処理を開始します（' + receiptNos.length + '件）');
 
   // --- 共通データ読み込み ---
   var reqSheet = activeSs.getSheetByName('依頼管理');
-  if (!reqSheet) { if (ui) ui.alert('依頼管理シートが見つかりません。'); else console.error('依頼管理シートが見つかりません'); return; }
+  if (!reqSheet) { bail('依頼管理シートが見つかりません。'); return; }
 
   var reqLastRow = reqSheet.getLastRow();
-  if (reqLastRow < 2) { if (ui) ui.alert('依頼管理にデータがありません。'); else console.error('依頼管理にデータがありません'); return; }
+  if (reqLastRow < 2) { bail('依頼管理にデータがありません。'); return; }
 
   var reqData = reqSheet.getRange(1, 1, reqLastRow, reqSheet.getLastColumn()).getValues();
   var reqHeaders = reqData.shift();
@@ -431,8 +445,7 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
   var receiptCol = rIdx['受付番号'];
   var selectionCol = rIdx['選択リスト'];
   if (receiptCol === undefined || selectionCol === undefined) {
-    if (ui) ui.alert('依頼管理シートに「受付番号」または「選択リスト」列が見つかりません。');
-    else console.error('依頼管理シートに「受付番号」または「選択リスト」列が見つかりません');
+    bail('依頼管理シートに「受付番号」または「選択リスト」列が見つかりません。');
     return;
   }
 
@@ -485,8 +498,7 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
   var statusCol = mIdx['ステータス'] !== undefined ? mIdx['ステータス'] + 1 : 0;
   var idCol = idColIdx !== undefined ? idColIdx + 1 : 0;
   if (!statusCol || !idCol) {
-    if (ui) ui.alert('商品管理にステータス列または管理番号列が見つかりません。');
-    else console.error('商品管理にステータス列または管理番号列が見つかりません');
+    bail('商品管理にステータス列または管理番号列が見つかりません。');
     return;
   }
   // 管理番号→行番号マップ（重複行対応: 全行を配列で保持）
@@ -859,9 +871,7 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
 
   // 呼び出し元がスクリプトロックを握っている場合、結果ダイアログの表示中も握り続けると
   // 顧客API（確保・注文送信）が「現在混雑しています」になる。書き込みが終わった時点で解放する。
-  if (opts && typeof opts.releaseLock === 'function') {
-    try { opts.releaseLock(); } catch (e) { console.error('releaseLock失敗: ' + (e.message || e)); }
-  }
+  releaseCallerLock();
 
   // --- 結果レポート ---
   var msg = '';
