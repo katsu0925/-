@@ -412,6 +412,8 @@ function syncFull_(productSheet, returnSheet, aiSheet, destSheet) {
   const out = [];
   const outShipping = [];
   const outMeasurements = [];
+  // 画像数式が未確定の行 [outのindex, 管理番号]。ループ後にR2画像で一括補完する
+  const needImgRows = [];
   const emptyMeas = new Array(MEAS_WIDTH).fill('');
   const keys = Object.keys(productMap);
 
@@ -453,6 +455,8 @@ function syncFull_(productSheet, returnSheet, aiSheet, destSheet) {
     // 既存の画像数式があればDrive API呼び出しをスキップ
     let imgFormula = existImgByKey[keyC] || "";
     if (!imgFormula) {
+      // 未確定行はループ後にR2(タスキ箱)画像で上書きする。ここではDrive経路をフォールバック値として入れておく
+      needImgRows.push([out.length, keyC]);
       const rawPath = aiPathMap[keyC] || "";
       var fileId = "";
       try {
@@ -472,6 +476,22 @@ function syncFull_(productSheet, returnSheet, aiSheet, destSheet) {
     const srcMeas = rec.measurements || emptyMeas;
     const hasSrcMeas = srcMeas.some(v => v !== '' && v !== null && v !== undefined);
     outMeasurements.push(hasSrcMeas ? srcMeas : (measurementsByKey[keyC] || emptyMeas));
+  }
+
+  // ── B列画像をR2(タスキ箱)由来のURLで補完 ──
+  // 旧経路(AIキーワード抽出シート「写真」列→Driveサムネイル)はAppSheet廃止(2026-04-26)以降
+  // 書き手が居なくなり、2026/06以降の撮影分は充填率0%。R2にあればそちらを優先する。
+  // 既存の画像数式がある行は対象外なので、現行の表示は一切変わらない。
+  if (needImgRows.length > 0) {
+    const r2Map = fetchR2ImageUrls_(needImgRows.map(function (r) { return r[1]; }));
+    var r2Hit = 0;
+    for (var ni = 0; ni < needImgRows.length; ni++) {
+      const r2Url = r2Map[normalizeManagedIdForR2_(needImgRows[ni][1])];
+      if (!r2Url) continue;
+      out[needImgRows[ni][0]][0] = '="' + r2Url + '"';
+      r2Hit++;
+    }
+    if (r2Hit > 0) console.log('syncFull_: R2画像で補完 ' + r2Hit + '/' + needImgRows.length + '件');
   }
 
   const width = CONFIG.DEST_COL_KEY - CONFIG.DEST_WRITE_START_COL + 1;
@@ -985,6 +1005,75 @@ function buildImageFormula_(fileId) {
   if (!id) return "";
   const url = "https://drive.google.com/thumbnail?id=" + encodeURIComponent(id) + "&sz=w1000";
   return '="' + url + '"';
+}
+
+/**
+ * 管理番号をR2側(Workers normalizeManagedId)と同じ規則で正規化する。
+ * 全角英数→半角、長音符→ハイフン、全角スペース→半角、大文字化、trim。
+ * 商品管理とAIキーワード抽出で大文字小文字がゆれている分(約525件)もこれで吸収される。
+ */
+function normalizeManagedIdForR2_(raw) {
+  return String(raw ?? "")
+    .replace(/[\uFF21-\uFF3A\uFF41-\uFF5A\uFF10-\uFF19]/g, function (ch) {
+      return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0);
+    })
+    .replace(/\u30FC/g, '-')
+    .replace(/\u3000/g, ' ')
+    .toUpperCase()
+    .trim();
+}
+
+/**
+ * R2(タスキ箱)の代表画像URLを管理番号ごとに一括取得する。
+ * Workers の POST /admin/product-image-urls を SYNC_SECRET 認証で叩く。
+ * 返り値のキーは normalizeManagedIdForR2_ 済み。取得失敗時は {} を返し、
+ * 呼び出し側は従来のDrive経路のフォールバック値をそのまま使う。
+ */
+function fetchR2ImageUrls_(keys) {
+  const seen = {};
+  const uniq = [];
+  for (var i = 0; i < keys.length; i++) {
+    const k = normalizeManagedIdForR2_(keys[i]);
+    if (!k || seen[k]) continue;
+    seen[k] = true;
+    uniq.push(k);
+  }
+  if (uniq.length === 0) return {};
+
+  const props = PropertiesService.getScriptProperties();
+  const workersUrl = props.getProperty('WORKERS_URL') || 'https://detauri-gas-proxy.nsdktts1030.workers.dev';
+  const secret = props.getProperty('SYNC_SECRET') || '';
+  if (!secret) {
+    console.warn('fetchR2ImageUrls_: SYNC_SECRET 未設定のためスキップ');
+    return {};
+  }
+
+  const result = {};
+  const CHUNK = 500; // GAS側のPOSTボディを肥大させないための分割（Workers内でさらに90件ずつSQL分割される）
+  for (var s = 0; s < uniq.length; s += CHUNK) {
+    const chunk = uniq.slice(s, s + CHUNK);
+    try {
+      const res = UrlFetchApp.fetch(workersUrl + '/admin/product-image-urls', {
+        method: 'post',
+        contentType: 'application/json',
+        payload: JSON.stringify({ key: secret, managedIds: chunk }),
+        muteHttpExceptions: true,
+      });
+      if (res.getResponseCode() !== 200) {
+        console.warn('fetchR2ImageUrls_: HTTP ' + res.getResponseCode() + ' ' + res.getContentText().slice(0, 200));
+        continue;
+      }
+      const json = JSON.parse(res.getContentText() || '{}');
+      const urls = json && json.urls;
+      if (!urls) continue;
+      for (var key in urls) {
+        if (Object.prototype.hasOwnProperty.call(urls, key)) result[key] = urls[key];
+      }
+    } catch (e) {
+      console.warn('fetchR2ImageUrls_ error:', e.message || e);
+    }
+  }
+  return result;
 }
 
 function extractDriveFileId_(s) {

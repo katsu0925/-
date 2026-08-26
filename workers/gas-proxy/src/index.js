@@ -22,7 +22,7 @@ import * as coupon from './handlers/coupon.js';
 import * as mypage from './handlers/mypage.js';
 import * as submit from './handlers/submit.js';
 import { scheduledSync, batchAiJudgment, restorePhotoMetaFromGas, reprocessSingleAi, bulkReprocessAi, runReorderDryrun, runReorderApply } from './sync/sheets-sync.js';
-import { handleUpload, serveImage, backfillImageIndex } from './handlers/upload.js';
+import { handleUpload, serveImage, backfillImageIndex, getProductImageUrls } from './handlers/upload.js';
 import { getUploadPageHtml } from './pages/upload.html.js';
 import * as kitHandler from './handlers/kit.js';
 import { getGeminiUsage } from './usage.js';
@@ -184,6 +184,19 @@ self.addEventListener('fetch', e => {
         if (body.key !== env.SYNC_SECRET) return new Response('Unauthorized', { status: 401 });
         const result = await restorePhotoMetaFromGas(env);
         return new Response(JSON.stringify(result, null, 2), { headers: { 'Content-Type': 'application/json' } });
+      } catch (e) {
+        return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+      }
+    }
+
+    // データ1 B列の画像URL解決: POST /admin/product-image-urls (body: {key, managedIds: string[]})
+    // GAS syncFull_ から呼ばれ、管理番号→R2代表画像の絶対URLを返す
+    if (request.method === 'POST' && url.pathname === '/admin/product-image-urls') {
+      try {
+        const body = await request.json();
+        if (body.key !== env.SYNC_SECRET) return new Response('Unauthorized', { status: 401 });
+        const result = await getProductImageUrls(env, body.managedIds);
+        return new Response(JSON.stringify(result), { headers: { 'Content-Type': 'application/json' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
       }

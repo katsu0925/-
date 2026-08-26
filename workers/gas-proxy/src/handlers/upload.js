@@ -24,6 +24,7 @@
 import { jsonOk, jsonError, corsResponse } from '../utils/response.js';
 import { deriveThumbKey_ } from '../utils/thumb.js';
 import { upsertImageIndexRow, removeFromIndex } from '../utils/image-index.js';
+import { selectInChunks } from '../utils/sql.js';
 
 const MAX_IMAGES = 10;
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -1423,4 +1424,45 @@ async function handleSaveLog(request, env) {
   await invalidateListCache(env);
 
   return jsonOk({ count: log.count });
+}
+
+/**
+ * 管理番号 → R2代表画像の絶対URL を一括で返す（採寸付商品リストVer.2「データ1」B列 同期用）。
+ *
+ * 旧経路は AIキーワード抽出シートの「写真」列 → Drive サムネイルだったが、
+ * AppSheet 廃止（2026-04-26）以降その列を書く主体が居なくなり、2026/06 以降の撮影分は充填率0%。
+ * そこで GAS の syncFull_ から SYNC_SECRET 認証で本エンドポイントを叩き、R2（タスキ箱）由来のURLで埋める。
+ *
+ * KV を管理番号ぶんループすると過去に $48 の過剰読み課金を出しているため、
+ * 権威ソースである D1 product_image_index を IN 句1回で引く（D1変数上限100 → selectInChunks で分割）。
+ * 返却キーは正規化後（全角→半角・大文字）の管理番号。シート側の大文字小文字ゆれもこれで吸収される。
+ */
+export async function getProductImageUrls(env, managedIds) {
+  const list = Array.isArray(managedIds) ? managedIds : [];
+  const seen = new Set();
+  const ids = [];
+  for (const raw of list) {
+    const id = normalizeManagedId(String(raw || ''));
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    ids.push(id);
+  }
+  if (ids.length === 0) return { ok: true, count: 0, urls: {} };
+
+  const rows = await selectInChunks(ids, (placeholders, chunk) =>
+    env.DB.prepare(
+      `SELECT managed_id, first_image_url FROM product_image_index WHERE managed_id IN (${placeholders})`
+    ).bind(...chunk)
+  );
+
+  const prefix = env.WORKERS_URL || '';
+  const urls = {};
+  for (const r of rows) {
+    const u = r && r.first_image_url;
+    if (!u) continue;
+    const key = normalizeManagedId(String(r.managed_id || ''));
+    if (!key) continue;
+    urls[key] = u.startsWith('/') ? prefix + u : u;
+  }
+  return { ok: true, count: Object.keys(urls).length, urls };
 }
