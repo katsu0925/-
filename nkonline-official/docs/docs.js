@@ -42,6 +42,15 @@
     b.addEventListener('click', function () { window.print(); });
   });
 
+  /* --- 配布用モード：台本と講師向けの記載を隠す（印刷にも効く） --- */
+  document.querySelectorAll('[data-talk]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var on = document.body.classList.toggle('no-talk');
+      b.textContent = on ? '台本を表示する' : '配布用にする（台本を隠す）';
+      b.classList.toggle('done', on);
+    });
+  });
+
   /* --- 発表モード：1枚ずつ表示して ← → で送る --- */
   var deck = document.querySelector('.deck');
   if (!deck) return;

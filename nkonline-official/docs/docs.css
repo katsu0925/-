@@ -163,6 +163,7 @@ ul.box li::before{
 .tools .tb:hover{border-color:var(--ink)}
 .tools .tb.pri{background:var(--brand);border-color:var(--brand);color:#fff}
 .tools .tb.pri:hover{background:#e8431f}
+.tools .tb.done{background:var(--ok-tint);border-color:var(--ok);color:var(--ok)}
 
 /* ---------- 資料フッター ---------- */
 .doc-foot{
@@ -247,6 +248,13 @@ body.present .slide.now .two .bx h5{font-size:clamp(15px,1.6vw,20px)}
 body.present .slide.now .two .bx p{font-size:clamp(14px,1.5vw,18px)}
 body.present .slide.now pre{font-size:clamp(13px,1.4vw,17px)}
 body.present .talk{display:none}
+
+/* ---------- 配布用モード（台本・講師向けの記載を隠す） ---------- */
+[data-handout]{display:none}
+body.no-talk [data-handout]{display:block}
+body.no-talk .talk,
+body.no-talk [data-teacher],
+body.no-talk .who{display:none!important}
 body.present .present-bar{
   display:flex;position:fixed;left:0;right:0;bottom:0;z-index:60;
   align-items:center;gap:16px;padding:11px 20px;
