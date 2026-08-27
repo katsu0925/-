@@ -161,6 +161,7 @@ function sh_applyRequestStatusDropdown_(ss) {
   const shipSizeRule = SpreadsheetApp.newDataValidation()
     .requireValueInList(['クリックポスト', '中箱', '大箱'], true)
     .setAllowInvalid(false)
+    .setHelpText('中箱＝60〜120サイズ／大箱＝140サイズ以上。伝票に書くサイズをそのまま選んでください（クリックポストで送れるものは「クリックポスト」）')
     .build();
   sh.getRange(2, SHIP_SIZE_COL, rows, 1).setDataValidation(shipSizeRule);
 
