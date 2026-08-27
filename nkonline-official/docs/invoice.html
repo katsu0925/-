@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow">
+<title>【自分用】請求書・見積書をつくる｜NKonline</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800&family=Noto+Sans+JP:wght@400;500;700;900&display=swap">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="stylesheet" href="./docs.css">
+<style>
+/* === このページ専用（docs.css には入れない） === */
+.iv{margin:30px 0 10px}
+.iv-title{font-family:'Noto Sans JP',sans-serif;font-size:29px;font-weight:900;letter-spacing:.36em;text-indent:.36em;text-align:center;padding-bottom:12px;border-bottom:3px double var(--ink);margin-bottom:26px}
+.iv-head{display:flex;justify-content:space-between;gap:24px;align-items:flex-start;margin-bottom:24px}
+.iv-to{flex:1;min-width:0}
+.iv-to .iv-toline{display:flex;align-items:flex-end;gap:6px;border-bottom:1.5px solid var(--ink);padding-bottom:6px}
+.iv-to .iv-toline input{font-size:19px;font-weight:700}
+.iv-to .iv-toline select{font-size:15px;font-weight:700;flex:0 0 auto;width:auto}
+.iv-meta{flex:0 0 auto;width:250px}
+.iv-meta .r{display:flex;justify-content:space-between;gap:10px;font-size:13px;padding:4px 0}
+.iv-meta .r span{color:var(--muted);flex:0 0 auto;font-weight:700}
+.iv-meta .r input{text-align:right}
+.iv-subj{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}
+.iv-subj b{flex:0 0 auto;font-size:13px;color:var(--muted)}
+.iv-total-box{display:flex;justify-content:space-between;align-items:center;gap:16px;background:var(--ink);color:#fff;border-radius:var(--radius);padding:16px 24px;margin:0 0 8px}
+.iv-total-box span{font-size:13.5px;font-weight:700;letter-spacing:.04em}
+.iv-total-box b{font-family:'Archivo',sans-serif;font-size:31px;font-weight:800;letter-spacing:.01em}
+.iv-due{font-size:13px;color:var(--muted);margin:0 0 24px;display:flex;align-items:center;gap:8px}
+.iv-due b{color:var(--ink)}
+.iv-due input{width:150px}
+/* 画面が狭いときだけ、明細表を横スクロールにする（紙は元どおり） */
+.iv-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin-bottom:16px}
+table.iv-t{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:0}
+table.iv-t th{background:#f4f2ed;border:1px solid var(--line);padding:9px 10px;font-size:12.5px;font-weight:700;color:var(--ink-2);text-align:center;white-space:nowrap}
+table.iv-t td{border:1px solid var(--line);padding:4px 8px;vertical-align:middle}
+table.iv-t td.num{text-align:right;font-family:'Archivo',sans-serif;font-weight:700;white-space:nowrap}
+table.iv-t .f-price{text-align:right}
+table.iv-t .f-qty,table.iv-t .f-unit{text-align:center}
+table.iv-t .cn{width:auto}
+table.iv-t .cq{width:74px}
+table.iv-t .cu{width:60px}
+table.iv-t .cp{width:118px}
+table.iv-t .cr{width:96px}
+table.iv-t .ca{width:120px}
+table.iv-t .cx{width:34px}
+.iv-x{border:0;background:none;color:#b9b2a4;font-size:16px;line-height:1;cursor:pointer;padding:4px 6px;border-radius:6px}
+.iv-x:hover{background:var(--ng-tint);color:var(--ng)}
+.iv-sum{display:flex;justify-content:flex-end;margin-bottom:26px}
+table.iv-sumt{border-collapse:collapse;font-size:14px;min-width:340px}
+table.iv-sumt th{text-align:left;padding:7px 16px 7px 0;font-weight:500;color:var(--ink-2);white-space:nowrap}
+table.iv-sumt td{text-align:right;padding:7px 0;font-family:'Archivo',sans-serif;font-weight:700;white-space:nowrap;min-width:130px}
+table.iv-sumt tr.tot th{font-weight:900;color:var(--ink);font-size:15px;border-top:2px solid var(--ink);padding-top:10px}
+table.iv-sumt tr.tot td{font-size:19px;font-weight:800;border-top:2px solid var(--ink);padding-top:10px}
+table.iv-sumt tr.sub th,table.iv-sumt tr.sub td{color:var(--muted);font-size:12.5px;padding:3px 16px 3px 0}
+table.iv-sumt tr.sub td{padding:3px 0}
+.iv-cols{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin-bottom:24px}
+.iv-bx{border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px}
+.iv-bx h4{font-size:12px;font-weight:800;color:var(--muted);letter-spacing:.06em;margin-bottom:7px}
+.iv-bx textarea{width:100%;min-height:92px;resize:vertical;font-size:13.5px;line-height:1.85}
+.iv-from{border-top:1px solid var(--line);padding-top:18px;font-size:13px;line-height:1.95}
+.iv-from .nm{font-size:16px;font-weight:900;margin-bottom:4px}
+.iv-from .reg{margin-top:8px;display:flex;align-items:center;gap:6px;font-weight:700}
+.iv-from .reg input{width:170px;font-weight:700;letter-spacing:.04em}
+.f{font-family:inherit;font-size:14px;color:var(--ink);background:none;border:0;border-bottom:1px dashed #cfc8ba;padding:4px 2px;width:100%;line-height:1.6}
+.f:focus{outline:0;border-bottom-color:var(--brand);background:#fffaf8}
+.f::placeholder{color:#c3bcae}
+textarea.f{border:1px dashed #cfc8ba;border-radius:8px;padding:8px 10px}
+select.f{-webkit-appearance:none;appearance:none;cursor:pointer}
+input.f[type=number]{text-align:right;font-family:'Archivo',sans-serif;font-weight:700}
+.iv-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 4px}
+.iv-seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+.iv-seg label{padding:9px 20px;font-size:13.5px;font-weight:700;cursor:pointer;color:var(--muted)}
+.iv-seg label:first-child{border-right:1px solid var(--line)}
+.iv-seg input{position:absolute;opacity:0;pointer-events:none}
+.iv-seg input:checked+span{color:#fff}
+.iv-seg label:has(input:checked){background:var(--ink);color:#fff}
+.iv-btn{border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 15px;font-family:inherit;font-size:13px;font-weight:700;color:var(--ink-2);cursor:pointer;transition:.2s}
+.iv-btn:hover{border-color:var(--ink);background:#fbfaf7}
+.iv-btn.dz{border-color:var(--ng);color:var(--ng);background:var(--ng-tint)}
+.iv-chk{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--ink-2);cursor:pointer}
+.iv-saved{font-size:12px;font-weight:700;color:var(--ok);background:var(--ok-tint);border-radius:20px;padding:5px 12px;opacity:0;transition:opacity .3s}
+.iv-saved.on{opacity:1}
+@media print{
+  .who{display:none!important}
+  .iv{margin:0}
+  .f{border-bottom-color:transparent!important;background:none!important;padding:3px 2px}
+  textarea.f{border-color:#e6e1d6!important;overflow:hidden;resize:none}
+  .f::placeholder{color:transparent!important}
+  input[type=date]::-webkit-calendar-picker-indicator{display:none!important}
+  .iv-x{display:none!important}
+  table.iv-t tr.empty{display:none}
+  .iv-scroll{overflow:visible!important}
+  .iv-scroll table.iv-t{min-width:0!important}
+  .iv-total-box{background:#fff;color:var(--ink);border:2px solid var(--ink);border-radius:0;padding:12px 20px}
+  .iv-cols,.iv-sum,.iv-from,table.iv-t{break-inside:avoid;page-break-inside:avoid}
+}
+@media(max-width:720px){
+  .iv-head{flex-direction:column}
+  .iv-meta{width:100%}
+  .iv-cols{grid-template-columns:1fr}
+  table.iv-t{font-size:13px}
+  table.iv-t .cq{width:60px}table.iv-t .cp{width:92px}table.iv-t .cr{width:78px}table.iv-t .ca{width:92px}
+  .iv-scroll table.iv-t{min-width:530px}
+}
+</style>
+</head>
+<body>
+
+<div class="tools no-print">
+  <span class="tl">自分用 ／ 請求書・見積書</span>
+  <a class="tb" href="./index.html">資料一式へ戻る</a>
+  <a class="tb" href="./juchu-manual.html">受注対応マニュアル</a>
+  <button class="tb pri" data-print>印刷・PDFで保存</button>
+</div>
+
+<div class="sheet">
+
+<div class="who no-print"><b>自分用</b><em>入力して印刷するための道具です。印刷した紙・PDFはお客様にお渡しするものなので、この帯は印刷されません。</em></div>
+
+<div class="no-print">
+  <div class="doc-head">
+    <div class="doc-brand">NK<span>online</span></div>
+    <div class="doc-kind">自分用 ／ 事務</div>
+    <h1 class="doc-title">請求書・見積書をつくる</h1>
+    <p class="doc-sub">下の欄を埋めると、金額と消費税が自動で計算されます。<br>できあがったら<strong>「印刷・PDFで保存」→ 送信先を「PDFに保存」</strong>を選び、そのPDFをメールに添付してお送りください。</p>
+    <div class="doc-meta"><span>第1版</span><span>NKonline（エヌケーオンライン）</span><span>適格請求書（インボイス）の形式</span></div>
+  </div>
+
+  <div class="note tip"><span class="nt">入力した内容はこのパソコンに残ります</span>次に開いたときは前回の内容がそのまま出ます。<strong>宛名と品名だけ書き換えれば、次の請求書ができます。</strong>振込先と登録番号は一度入れれば毎回入れ直す必要はありません。<br>保存先はこのブラウザの中だけです。インターネット上には送られません。</div>
+
+  <div class="iv-bar" style="margin-top:22px">
+    <span class="iv-seg">
+      <label><input type="radio" name="mode" value="invoice" checked><span>請求書</span></label>
+      <label><input type="radio" name="mode" value="quote"><span>見積書</span></label>
+    </span>
+    <button class="iv-btn" id="addRow">＋ 品目の行を足す</button>
+    <label class="iv-chk"><input type="checkbox" id="whOn"> 源泉徴収を差し引く</label>
+    <button class="iv-btn" id="clearBtn">内容を空にする</button>
+    <span class="iv-saved" id="savedTag">保存しました</span>
+  </div>
+  <p class="doc-sub" style="margin:10px 0 0;font-size:12.5px">「源泉徴収を差し引く」は、<strong>法人のお客様から差し引くと言われたときだけ</strong>入れてください（研修・講演の報酬で求められることがあります）。判断に迷ったら、先方の経理にどちらで出すか聞くのがいちばん早いです。</p>
+</div>
+
+<!-- ===== ここから下が、印刷される部分 ===== -->
+<div class="iv">
+
+  <div class="iv-title" id="ivTitle">請求書</div>
+
+  <div class="iv-head">
+    <div class="iv-to">
+      <div class="iv-toline">
+        <input class="f" data-f="to" placeholder="株式会社〇〇">
+        <select class="f" data-f="honor" style="width:64px">
+          <option>御中</option>
+          <option>様</option>
+        </select>
+      </div>
+    </div>
+    <div class="iv-meta">
+      <div class="r"><span>発行日</span><input class="f" type="date" data-f="date"></div>
+      <div class="r"><span id="noLabel">請求書番号</span><input class="f" data-f="no" placeholder="INV-20260827-01"></div>
+      <div class="r"><span>取引年月日</span><input class="f" data-f="period" placeholder="2026年8月27日 実施分"></div>
+    </div>
+  </div>
+
+  <div class="iv-subj"><b>件名</b><input class="f" data-f="subject" placeholder="社内向けAI研修（120分）"></div>
+
+  <div class="iv-total-box">
+    <span id="bigLabel">ご請求金額（税込）</span><b id="bigTotal">¥0</b>
+  </div>
+  <p class="iv-due"><b id="dueLabel">お支払期限</b><input class="f" type="date" data-f="due"><button class="iv-btn no-print" id="due7" style="padding:5px 10px;font-size:12px">発行日から7日後にする</button></p>
+
+  <div class="iv-scroll">
+  <table class="iv-t">
+    <thead>
+      <tr>
+        <th class="cn">品名・内容</th>
+        <th class="cq">数量</th>
+        <th class="cu">単位</th>
+        <th class="cp">単価（税抜）</th>
+        <th class="cr">税率</th>
+        <th class="ca">金額（税抜）</th>
+        <th class="cx no-print"></th>
+      </tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+  </div>
+
+  <div class="iv-sum">
+    <table class="iv-sumt">
+      <tbody>
+        <tr><th>小計（税抜）</th><td id="sSub">¥0</td></tr>
+        <tr class="sub" id="r10"><th>10% 対象</th><td id="sB10">¥0</td></tr>
+        <tr class="sub" id="r10t"><th>消費税（10%）</th><td id="sT10">¥0</td></tr>
+        <tr class="sub" id="r8"><th>8% 対象（軽減税率）</th><td id="sB8">¥0</td></tr>
+        <tr class="sub" id="r8t"><th>消費税（8%）</th><td id="sT8">¥0</td></tr>
+        <tr class="tot" id="rGross"><th id="grossLabel">合計（税込）</th><td id="sGross">¥0</td></tr>
+        <tr class="sub" id="rWh"><th>源泉徴収税額</th><td id="sWh">−¥0</td></tr>
+        <tr class="tot" id="rNet"><th>お振込金額</th><td id="sNet">¥0</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="iv-cols">
+    <div class="iv-bx" id="bankBox">
+      <h4>お振込先</h4>
+      <textarea class="f" data-f="bank" placeholder="〇〇銀行 〇〇支店&#10;普通 1234567&#10;ニシデ カツトシ&#10;&#10;※ 振込手数料は御社にてご負担ください"></textarea>
+    </div>
+    <div class="iv-bx">
+      <h4>備考</h4>
+      <textarea class="f" data-f="note" placeholder="オンライン（Google Meet）で実施いたしました。&#10;ご不明な点はお気軽にお問い合わせください。"></textarea>
+    </div>
+  </div>
+
+  <div class="iv-from">
+    <div class="nm">NKonline（エヌケーオンライン）　代表　西出 克利</div>
+    〒600-8846　京都府京都市下京区朱雀宝蔵町44番地 協栄ビル2階 京都朱雀スタジオAW-209<br>
+    TEL 090-5820-1803　／　nkonline1030@gmail.com
+    <div class="reg">登録番号　<input class="f" data-f="regno" placeholder="T1234567890123"></div>
+  </div>
+
+</div>
+<!-- ===== 印刷される部分は、ここまで ===== -->
+
+<div class="no-print">
+
+<h2 class="h"><span class="n">1</span>使い方</h2>
+<ul class="num">
+  <li><strong>「請求書」か「見積書」を選ぶ。</strong>選んだほうに合わせて、表題と「支払期限／有効期限」の言葉が変わります。</li>
+  <li><strong>宛名・件名・品目を書く。</strong>数量と単価を入れれば、金額・消費税・合計はすべて自動で出ます。</li>
+  <li><strong>行が足りなければ「＋ 品目の行を足す」。</strong>使わなかった空の行は、印刷には出ません。</li>
+  <li><strong>「印刷・PDFで保存」を押す。</strong>プリンタを選ぶ画面で、送信先を「PDFに保存」にします。</li>
+  <li><strong>そのPDFをメールに添付して送る。</strong>郵送はしません。</li>
+</ul>
+
+<h2 class="h"><span class="n">2</span>いつ出すか</h2>
+<table class="t">
+  <thead><tr><th style="width:210px">サービス</th><th>請求のタイミング</th><th style="width:130px">見積書</th></tr></thead>
+  <tbody>
+    <tr><th>社内向けAI研修</th><td>実施した当日中に請求書を送る（発行から7日以内にお振込）</td><td>金額が1つなので基本は不要</td></tr>
+    <tr><th>導入伴走（月額顧問）</th><td>毎月1日ごろに当月分を送る（前払い）</td><td>不要</td></tr>
+    <tr><th>生成AIシステム開発</th><td>着手金50%を先に、残り50%を納品時に</td><td><strong>必ず出す</strong></td></tr>
+    <tr><th>ホームページ制作</th><td>納品時にまとめて</td><td><strong>必ず出す</strong></td></tr>
+    <tr><th>AI活用診断</th><td>無料。請求書は出さない</td><td>不要</td></tr>
+  </tbody>
+</table>
+<p class="doc-sub" style="margin-top:14px">支払い条件・キャンセル規定などの決めごとは、<a href="./juchu-manual.html#todo">受注対応マニュアルの「取引条件（決めたこと）」</a>にまとめています。<strong>そこに書いていない条件は、その場で決めない</strong>こと。</p>
+
+<h2 class="h"><span class="n">3</span>気をつけること</h2>
+<div class="note warn"><span class="nt">振込先と登録番号は、このパソコンの中だけ</span>入力した口座番号と登録番号は、このブラウザに保存されます。<strong>ページのファイル（HTML）には書き込みません。</strong>docs のURLは、知っていれば誰でも開けるためです。共用のパソコンでは入力しないでください。</div>
+<ul class="box">
+  <li>登録番号は <code>T</code> ＋ 数字13桁です。適格請求書として認められるために、<strong>税率ごとの消費税額</strong>とあわせて必ず入れます</li>
+  <li>消費税は税率ごとに合計してから計算し、1円未満は切り捨てています</li>
+  <li>「取引年月日」は、実際に研修をした日・納品した日を書きます（月まとめなら「2026年8月分」でも構いません）</li>
+  <li>見積書のときは、有効期限を必ず入れます（空欄のまま出さない）</li>
+  <li>控えは、送ったPDFをそのままメールの送信済みに残しておけば足ります</li>
+</ul>
+
+<div class="doc-foot">
+  <b>NKonline（エヌケーオンライン）</b>／ 自分用ページ（お客様には渡さない）<br>
+  このページは検索エンジンに登録されません（noindex）。入力内容はこのブラウザにのみ保存されます。
+</div>
+
+</div>
+
+</div>
+
+<script src="./docs.js"></script>
+<script>
+(function(){
+  'use strict';
+  var KEY='nkonline-invoice-v1';
+  var rows=document.getElementById('rows');
+  var mode='invoice';
+
+  function yen(n){ return '¥'+Math.round(n).toLocaleString('ja-JP'); }
+  function num(v){ var n=parseFloat(String(v).replace(/[^0-9.\-]/g,'')); return isNaN(n)?0:n; }
+  // 単価は見た目だけカンマ区切りにする（計算は num() が記号を落とすのでそのまま）
+  function fmtPrice(inp){ var v=String(inp.value).trim(); if(!v){ return; } var n=num(v); inp.value = n ? n.toLocaleString('ja-JP') : ''; }
+
+  function rowHtml(d){
+    d=d||{};
+    return '<td><input class="f f-name" placeholder="社内向けAI研修（120分・オンライン）"></td>'+
+           '<td><input class="f f-qty" type="number" step="any" placeholder="1"></td>'+
+           '<td><input class="f f-unit" placeholder="式"></td>'+
+           '<td><input class="f f-price" type="text" inputmode="numeric" placeholder="50,000"></td>'+
+           '<td><select class="f f-rate"><option value="10">10%</option><option value="8">8%</option><option value="0">対象外</option></select></td>'+
+           '<td class="num f-amt">¥0</td>'+
+           '<td class="cx no-print"><button class="iv-x" type="button" title="この行を消す">×</button></td>';
+  }
+  function addRow(d){
+    var tr=document.createElement('tr');
+    tr.innerHTML=rowHtml();
+    rows.appendChild(tr);
+    if(d){
+      tr.querySelector('.f-name').value=d.n||'';
+      tr.querySelector('.f-qty').value=d.q||'';
+      tr.querySelector('.f-unit').value=d.u||'';
+      tr.querySelector('.f-price').value=d.p||'';
+      fmtPrice(tr.querySelector('.f-price'));
+      tr.querySelector('.f-rate').value=d.r||'10';
+    }
+    return tr;
+  }
+
+  function calc(){
+    var base={10:0,8:0,0:0}, sub=0;
+    Array.prototype.forEach.call(rows.querySelectorAll('tr'),function(tr){
+      var q=num(tr.querySelector('.f-qty').value);
+      var p=num(tr.querySelector('.f-price').value);
+      var r=tr.querySelector('.f-rate').value;
+      var a=Math.round(q*p);
+      tr.querySelector('.f-amt').textContent=yen(a);
+      var blank=!tr.querySelector('.f-name').value.trim() && a===0;
+      tr.classList.toggle('empty',blank);
+      if(!blank){ base[r]=(base[r]||0)+a; sub+=a; }
+    });
+    var t10=Math.floor(base[10]*0.1), t8=Math.floor(base[8]*0.08);
+    var gross=sub+t10+t8;
+    var wh=0;
+    if(document.getElementById('whOn').checked){
+      wh = sub<=1000000 ? Math.floor(sub*0.1021) : Math.floor(1000000*0.1021+(sub-1000000)*0.2042);
+    }
+    var net=gross-wh;
+
+    document.getElementById('sSub').textContent=yen(sub);
+    document.getElementById('sB10').textContent=yen(base[10]);
+    document.getElementById('sT10').textContent=yen(t10);
+    document.getElementById('sB8').textContent=yen(base[8]);
+    document.getElementById('sT8').textContent=yen(t8);
+    document.getElementById('sGross').textContent=yen(gross);
+    document.getElementById('sWh').textContent='−'+yen(wh);
+    document.getElementById('sNet').textContent=yen(net);
+
+    show('r10', base[10]>0); show('r10t', base[10]>0);
+    show('r8', base[8]>0);  show('r8t', base[8]>0);
+    show('rWh', wh>0);      show('rNet', wh>0);
+
+    document.getElementById('bigTotal').textContent=yen(wh>0?net:gross);
+    document.getElementById('bigLabel').textContent =
+      wh>0 ? 'お振込金額' : (mode==='quote' ? 'お見積金額（税込）' : 'ご請求金額（税込）');
+  }
+  function show(id,on){ document.getElementById(id).style.display = on ? '' : 'none'; }
+
+  function applyMode(){
+    var q = (mode==='quote');
+    document.getElementById('ivTitle').textContent = q ? '御見積書' : '請求書';
+    document.getElementById('noLabel').textContent = q ? '見積書番号' : '請求書番号';
+    document.getElementById('dueLabel').textContent = q ? '有効期限' : 'お支払期限';
+    document.getElementById('grossLabel').textContent = q ? 'お見積金額（税込）' : '合計（税込）';
+    document.getElementById('bankBox').style.display = q ? 'none' : '';
+    calc();
+  }
+
+  function collect(){
+    var o={mode:mode, wh:document.getElementById('whOn').checked, rows:[]};
+    Array.prototype.forEach.call(document.querySelectorAll('[data-f]'),function(el){
+      o[el.getAttribute('data-f')]=el.value;
+    });
+    Array.prototype.forEach.call(rows.querySelectorAll('tr'),function(tr){
+      o.rows.push({
+        n:tr.querySelector('.f-name').value, q:tr.querySelector('.f-qty').value,
+        u:tr.querySelector('.f-unit').value, p:tr.querySelector('.f-price').value,
+        r:tr.querySelector('.f-rate').value
+      });
+    });
+    return o;
+  }
+
+  var tag=document.getElementById('savedTag'), tmr=null, hide=null;
+  function save(){
+    try{ localStorage.setItem(KEY, JSON.stringify(collect())); }catch(e){ return; }
+    tag.classList.add('on');
+    clearTimeout(hide); hide=setTimeout(function(){ tag.classList.remove('on'); },1400);
+  }
+  function queueSave(){ clearTimeout(tmr); tmr=setTimeout(save,400); }
+
+  function restore(){
+    var raw=null;
+    try{ raw=localStorage.getItem(KEY); }catch(e){}
+    var d = raw ? JSON.parse(raw) : null;
+    if(d){
+      Array.prototype.forEach.call(document.querySelectorAll('[data-f]'),function(el){
+        var k=el.getAttribute('data-f');
+        if(typeof d[k]==='string') el.value=d[k];
+      });
+      document.getElementById('whOn').checked = !!d.wh;
+      mode = d.mode==='quote' ? 'quote' : 'invoice';
+      var m=document.querySelector('input[name=mode][value="'+mode+'"]'); if(m) m.checked=true;
+      (d.rows&&d.rows.length ? d.rows : [null,null,null]).forEach(addRow);
+    }else{
+      addRow(); addRow(); addRow();
+      var t=new Date(), p=function(n){ return ('0'+n).slice(-2); };
+      var today=t.getFullYear()+'-'+p(t.getMonth()+1)+'-'+p(t.getDate());
+      document.querySelector('[data-f=date]').value=today;
+      document.querySelector('[data-f=no]').value='INV-'+t.getFullYear()+p(t.getMonth()+1)+p(t.getDate())+'-01';
+      var d7=new Date(t.getTime()+7*86400000);
+      document.querySelector('[data-f=due]').value=d7.getFullYear()+'-'+p(d7.getMonth()+1)+'-'+p(d7.getDate());
+    }
+    while(rows.querySelectorAll('tr').length<3) addRow();
+  }
+
+  // 備考・お振込先は、書いた分だけ縦に伸ばす（印刷でスクロールバーが出ないように）
+  function autoGrow(ta){ ta.style.height='auto'; ta.style.height=Math.max(92, ta.scrollHeight+2)+'px'; }
+  function growAll(){ Array.prototype.forEach.call(document.querySelectorAll('textarea.f'), autoGrow); }
+
+  document.addEventListener('input',function(e){
+    if(e.target.tagName==='TEXTAREA' && e.target.classList.contains('f')) autoGrow(e.target);
+    if(e.target.closest('.iv') || e.target.id==='whOn'){ calc(); queueSave(); }
+  });
+  // 単価は入力欄から離れたときにカンマを入れる
+  document.addEventListener('focusout',function(e){
+    if(e.target.classList && e.target.classList.contains('f-price')){ fmtPrice(e.target); calc(); queueSave(); }
+  });
+  document.addEventListener('change',function(e){
+    if(e.target.name==='mode'){ mode=e.target.value; applyMode(); queueSave(); }
+    else if(e.target.closest('.iv') || e.target.id==='whOn'){ calc(); queueSave(); }
+  });
+  rows.addEventListener('click',function(e){
+    var b=e.target.closest('.iv-x'); if(!b) return;
+    var tr=b.closest('tr');
+    if(rows.querySelectorAll('tr').length>1) tr.parentNode.removeChild(tr);
+    else { tr.innerHTML=rowHtml(); }
+    calc(); save();
+  });
+  document.getElementById('addRow').addEventListener('click',function(){ addRow(); save(); });
+  document.getElementById('due7').addEventListener('click',function(){
+    var v=document.querySelector('[data-f=date]').value; if(!v) return;
+    var t=new Date(v+'T00:00:00'); t=new Date(t.getTime()+7*86400000);
+    var p=function(n){ return ('0'+n).slice(-2); };
+    document.querySelector('[data-f=due]').value=t.getFullYear()+'-'+p(t.getMonth()+1)+'-'+p(t.getDate());
+    save();
+  });
+
+  // 「内容を空にする」は2回押し（確認ダイアログは出さない）
+  var cb=document.getElementById('clearBtn'), armed=false, disarm=null;
+  cb.addEventListener('click',function(){
+    if(!armed){
+      armed=true; cb.classList.add('dz'); cb.textContent='もう一度押すと消えます';
+      clearTimeout(disarm);
+      disarm=setTimeout(function(){ armed=false; cb.classList.remove('dz'); cb.textContent='内容を空にする'; },6000);
+      return;
+    }
+    clearTimeout(disarm); armed=false; cb.classList.remove('dz'); cb.textContent='内容を空にする';
+    document.querySelector('[data-f=to]').value='';
+    document.querySelector('[data-f=subject]').value='';
+    document.querySelector('[data-f=period]').value='';
+    document.querySelector('[data-f=note]').value='';
+    rows.innerHTML=''; addRow(); addRow(); addRow();
+    document.getElementById('whOn').checked=false;
+    growAll(); calc(); save();
+  });
+
+  restore();
+  applyMode();
+  growAll();
+})();
+</script>
+</body>
+</html>
