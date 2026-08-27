@@ -158,6 +158,16 @@ function sh_applyRequestStatusDropdown_(ss) {
     sh.insertColumnsAfter(sh.getMaxColumns(), REQUEST_SHEET_COLS.CP_ISSUED_AT - sh.getMaxColumns());
   }
   sh.getRange(1, SHIP_SIZE_COL).setValue('発送サイズ');
+  // 入力規則の setHelpText はプルダウン列では表示されないことがあるため、
+  // ヘッダーにメモ（マウスを乗せれば必ず出る）でも同じ定義を出しておく。
+  sh.getRange(1, SHIP_SIZE_COL).setNote(
+    '【発送サイズ】発送した人が選ぶ列です。\n\n'
+    + '・クリックポスト … クリックポストで送れるもの\n'
+    + '・中箱 … 60〜120サイズ\n'
+    + '・大箱 … 140サイズ以上\n\n'
+    + '伝票に書くサイズをそのまま選んでください。\n'
+    + '※空欄のままだと作業報酬が計算されません。'
+  );
   const shipSizeRule = SpreadsheetApp.newDataValidation()
     .requireValueInList(['クリックポスト', '中箱', '大箱'], true)
     .setAllowInvalid(false)
