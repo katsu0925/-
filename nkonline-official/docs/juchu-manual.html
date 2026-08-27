@@ -1,0 +1,1001 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow">
+<title>受注対応マニュアル｜NKonline（社内用）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800&family=Noto+Sans+JP:wght@400;500;700;900&display=swap">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="stylesheet" href="./docs.css">
+</head>
+<body>
+
+<div class="tools no-print">
+  <span class="tl">社内用 ／ 検索には出ません</span>
+  <a class="tb" href="./index.html">資料一式へ戻る</a>
+  <a class="tb" href="../contact.html">お問い合わせページ</a>
+  <button class="tb pri" data-print>印刷する</button>
+</div>
+
+<div class="sheet">
+
+<div class="doc-head">
+  <div class="doc-brand">NK<span>online</span></div>
+  <div class="doc-kind">社内用 ／ 受注対応マニュアル</div>
+  <h1 class="doc-title">相談が来てから、終わるまで</h1>
+  <p class="doc-sub">お問い合わせが届いたら、まずこのページを開きます。<br>サービスごとに「何を聞くか」「何を約束しているか」「どう進めるか」「何を送るか」を、この1枚だけで最後まで通せるようにまとめています。</p>
+  <div class="doc-meta"><span>第1版</span><span>2026年8月</span><span>NKonline（エヌケーオンライン）</span></div>
+</div>
+
+<div class="toc">
+  <h4>この資料の中身</h4>
+  <ol start="0">
+    <li><a href="#s0">相談が来たら、まずこれ</a></li>
+    <li><a href="#s1">どのサービスの話か見分ける</a></li>
+    <li><a href="#s2">どの相談でも共通のルール</a></li>
+    <li><a href="#sa">A｜古着卸（副業支援）</a></li>
+    <li><a href="#sb">B｜AI活用診断（無料）</a></li>
+    <li><a href="#sc">C｜導入伴走（月額顧問）</a></li>
+    <li><a href="#sd">D｜社内向けAI研修</a></li>
+    <li><a href="#se">E｜生成AIシステム開発</a></li>
+    <li><a href="#sf">F｜ホームページ制作</a></li>
+    <li><a href="#sg">G｜その他・決まっていない</a></li>
+    <li><a href="#mail">メール文例（コピーして使う）</a></li>
+    <li><a href="#todo">先に決めておくこと</a></li>
+    <li><a href="#sheet">案件シート（印刷用）</a></li>
+  </ol>
+</div>
+
+<h2 class="h" id="s0"><span class="n">0</span>相談が来たら、まずこれ</h2>
+
+<p>お問い合わせフォーム・メール・電話、どこから来ても最初の3つは同じです。順番も変えません。</p>
+
+<ul class="num">
+  <li><strong>受け取ったことを、その日のうちに返す。</strong>　内容への回答はまだ書かなくてかまいません。「届きました・いつまでに詳しくお返しします」だけで十分です。文例は <a href="#m01">M-01</a>。</li>
+  <li><strong>どのサービスの話か決める。</strong>　次の「1. どのサービスの話か見分ける」の表で行き先を1つ選びます。フォームの「ご相談の種類」がそのまま入っていることが多いです。</li>
+  <li><strong>案件シートを1枚印刷する。</strong>　このページの一番下（<a href="#sheet">12</a>）にあります。聞いたことは全部そこに手書きします。あとで見返すのはこの紙です。</li>
+</ul>
+
+<div class="note tip">
+  <span class="nt">最初の返信が早いほど、それだけで決まりやすくなります</span>
+  サイトには「2〜3営業日以内にご返信します」と書いてありますが、これは<strong>遅れてもいい上限</strong>です。実際は当日、遅くとも翌営業日に一次返信します。相手はたいてい他社にも同時に問い合わせています。
+</div>
+
+<h2 class="h" id="s1"><span class="n">1</span>どのサービスの話か見分ける</h2>
+
+<table class="t">
+  <thead>
+    <tr><th style="width:22%">相談の種類</th><th style="width:34%">こういう言い方で来る</th><th style="width:22%">行き先</th><th>お金の話</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><strong>古着卸売（副業支援）</strong></td><td>仕入れたい／副業を始めたい／メルカリで売りたい／アソートって何ですか</td><td><a href="#sa">A</a></td><td>商品代金（サイトのカートで確定）</td></tr>
+    <tr><td><strong>AI導入支援</strong></td><td>AIを使いたいがどこから手をつければ／業務を効率化したい／うちでも使えますか</td><td><a href="#sb">B</a> →（続けば）<a href="#sc">C</a></td><td>診断は<strong>無料</strong>／伴走は¥33,000／月</td></tr>
+    <tr><td><strong>社内向けAI研修</strong></td><td>スタッフに教えてほしい／研修をお願いしたい／何人まで大丈夫ですか</td><td><a href="#sd">D</a></td><td>¥55,000／回（税込）</td></tr>
+    <tr><td><strong>生成AIシステム開発</strong></td><td>こういう仕組みを作れませんか／自動化したい／既存システムとつなげたい</td><td><a href="#se">E</a></td><td>個別見積もり（相談・見積もりは無料）</td></tr>
+    <tr><td><strong>ホームページ制作</strong></td><td>HPを作りたい／古いので直したい／スマホで見づらい</td><td><a href="#sf">F</a></td><td>¥20,000〜／¥35,000〜／保守¥3,000月</td></tr>
+    <tr><td><strong>その他・複数</strong></td><td>まだ決まっていない／全部まとめて聞きたい</td><td><a href="#sg">G</a></td><td>まず無料相談に寄せる</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <span class="nt">迷ったら「B｜AI活用診断（無料）」に寄せる</span>
+  AI関連で行き先が読めないときは、無料の診断に入れてしまうのがいちばん安全です。診断は無料なので、相手も断りにくくありません。話を聞いてから、研修（D）なのか開発（E）なのか伴走（C）なのかを決めれば十分間に合います。
+</div>
+
+<h2 class="h" id="s2"><span class="n">2</span>どの相談でも共通のルール</h2>
+
+<ul class="ck">
+  <li><strong>返信は当日、遅くとも翌営業日。</strong>　内容が固まっていなくても、受け取った合図だけは先に返す。</li>
+  <li><strong>金額はすべて税込で伝える。</strong>　サイトの表記が税込なので、口頭やメールで税別に切り替えない。</li>
+  <li><strong>打ち合わせはオンラインが基本。</strong>　訪問を求められたら「実施できるかと交通費は個別のご相談」と答える。その場で可否を即答しない。</li>
+  <li><strong>AIツールの利用料はお客様のご契約。</strong>　ChatGPTやClaudeの月額はこちらの料金に含まれない。最初の説明で必ず触れる。含まれると思われたまま進むと、あとで必ずもめる。</li>
+  <li><strong>値引き交渉には、その場で応じない。</strong>　サイトに載っている金額が正価。持ち帰って、次の連絡でどうするか答える。</li>
+  <li><strong>契約を迫らない。</strong>　「検討します」で終わった相手を追いかけない。追う代わりに、次の一手だけ書いて送っておく（<a href="#m12">M-12</a>）。</li>
+  <li><strong>できないことは、できないと先に言う。</strong>　やったことがない領域を「できます」と言わない。実績がない分は、無料の診断や小さく作る進め方でカバーする。</li>
+  <li><strong>お客様に <code>/docs/</code> のURLを直接送らない。</strong>　資料はPDFにして添付する。ここは社内用のページ。</li>
+</ul>
+
+<div class="note warn">
+  <span class="nt">言ってはいけないこと</span>
+  実績の数、他社の社名、「〇〇社に導入済み」といった話は、事実でない限り一切出しません。相手が実績を聞いてきたら、<strong>「提供を始めたばかりで、その分この価格でご案内しています」</strong>と正直に答えます。これは弱点ではなく、いま出せる一番強い説明です。
+</div>
+
+<h2 class="h" id="sa"><span class="n">3</span>A｜古着卸（副業支援）</h2>
+<p class="doc-sub" style="margin-top:-6px">対応ページ：<code>fukugyo.html</code>（副業支援・古着卸売）</p>
+
+<h3 class="h3">相談で確認すること</h3>
+<ul class="box">
+  <li>どこで売るつもりか（メルカリ／ヤフオク／実店舗／これから決める）</li>
+  <li>販売の経験はあるか、いまも続けているか</li>
+  <li>月にどれくらいの点数・金額を考えているか</li>
+  <li>1点ずつ選びたいのか（デタウリ）、まとめて欲しいのか（アソート）</li>
+  <li>採寸・撮影を自分でやりたいか、済んでいるものが欲しいか</li>
+  <li>会員登録がまだなら、その場で案内できるか</li>
+</ul>
+
+<h3 class="h3">サイトで約束していること（必ず守る）</h3>
+<table class="t">
+  <thead><tr><th style="width:30%">項目</th><th>公開している内容</th></tr></thead>
+  <tbody>
+    <tr><td>最小ロット</td><td><strong>1点から</strong>仕入れられる</td></tr>
+    <tr><td>会員登録</td><td>登録・年会費とも<strong>無料</strong>。ポイントと会員ランクがある</td></tr>
+    <tr><td>商品の状態</td><td>個品は<strong>検品済み・採寸データ・撮影画像つき</strong></td></tr>
+    <tr><td>送料</td><td>届け先と配送方法によって変わる。一定額以上で無料になる場合がある。<strong>カートで確認できる</strong></td></tr>
+    <tr><td>支払い方法</td><td>クレジットカード／コンビニ払い／銀行振込</td></tr>
+    <tr><td>2つの買い方</td><td>デタウリ＝1点ずつ選ぶ／アソート＝テーマ別のセット</td></tr>
+  </tbody>
+</table>
+
+<h3 class="h3">進め方</h3>
+<table class="t">
+  <thead><tr><th style="width:16%">いつ</th><th style="width:42%">やること</th><th>使うもの</th></tr></thead>
+  <tbody>
+    <tr><td>当日</td><td>一次返信。聞きたいことを2〜3個だけ添える</td><td><a href="#m01">M-01</a></td></tr>
+    <tr><td>返事が来たら</td><td>会員登録のURLを案内する。ここまでで役割はほぼ終わり</td><td><a href="#m10">M-10</a></td></tr>
+    <tr><td>登録後</td><td>注文・支払いはサイト側で完結。こちらから追わない</td><td>—</td></tr>
+    <tr><td>発送後</td><td>発送通知は自動で出る。個別対応が必要なときだけ手を出す</td><td>—</td></tr>
+  </tbody>
+</table>
+
+<div class="note warn">
+  <span class="nt">この相談で、やってはいけないこと</span>
+  ・<strong>まとめ買いの値引きを提案しない。</strong>数量割引はサイトに載せていません。<br>
+  ・<strong>「10点から」と言わない。</strong>いまは1点から仕入れられます。<br>
+  ・メールで在庫を1点ずつ紹介し始めない。手間だけ増えて、注文にはつながりません。サイトで選んでもらいます。
+</div>
+
+<h2 class="h" id="sb"><span class="n">4</span>B｜AI活用診断（無料）</h2>
+<p class="doc-sub" style="margin-top:-6px">対応ページ：<code>ai-shien.html</code>（AI導入支援）／ 料金：<strong>無料</strong></p>
+
+<h3 class="h3">これは何をするものか</h3>
+<p>「うちはどこから手をつけるべきか」を整理するところまでを、無料でやります。ここで信用を取って、伴走（C）か研修（D）につなげるのが本来の目的です。<strong>この段階では売り込みません。</strong></p>
+
+<h3 class="h3">相談で確認すること</h3>
+<ul class="box">
+  <li>業種と、社内の人数（アルバイト・パートを含めて何人が使うか）</li>
+  <li>いま何に時間を取られているか（具体的な作業名で3つ）</li>
+  <li>AIを使ったことがあるか。ある場合、何を使って、なぜ続かなかったか</li>
+  <li>すでに契約しているツールがあるか（ChatGPT有料版など）</li>
+  <li>社外に出せない情報があるか（顧客名簿・見積書・カルテなど）</li>
+  <li>決めるのは誰か。相談相手が決裁者か</li>
+</ul>
+
+<h3 class="h3">サイトで約束していること（必ず守る）</h3>
+<ul class="ck">
+  <li>無料ヒアリング → AI活用診断。<strong>ここまでは無料</strong>と明記している</li>
+  <li>やること：業務の洗い出しヒアリング／AIが効く・効かないの切り分け／着手する順番の提案</li>
+  <li>オンラインで対応する</li>
+</ul>
+
+<h3 class="h3">進め方</h3>
+<table class="t">
+  <thead><tr><th style="width:16%">いつ</th><th style="width:42%">やること</th><th>使うもの</th></tr></thead>
+  <tbody>
+    <tr><td>当日</td><td>一次返信。診断が無料であることを最初に書く</td><td><a href="#m01">M-01</a></td></tr>
+    <tr><td>返事が来たら</td><td>オンラインの日程を3つ提示する</td><td><a href="#m02">M-02</a></td></tr>
+    <tr><td>当日</td><td>30〜60分。上の項目を聞き取る。<strong>提案より聞くことを優先</strong></td><td>配布資料05 ヒアリングシート</td></tr>
+    <tr><td>3営業日以内</td><td>「効くところ・効かないところ・着手順」を短くまとめて送る</td><td>配布資料04 診断シート</td></tr>
+    <tr><td>そのメールの最後</td><td>次の選択肢を2つだけ置く（伴走／研修）。選ばせずに終わってよい</td><td><a href="#m12">M-12</a></td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <span class="nt">無料の範囲をはみ出させない</span>
+  診断で出すのは<strong>順番の提案まで</strong>です。プロンプトを書いてあげる、設定を代わりにやる、といった作業に入ったら、それはもう伴走（C）の中身です。頼まれたら「そこからは月額の伴走でお引き受けしています」と答えます。
+</div>
+
+<h2 class="h" id="sc"><span class="n">5</span>C｜導入伴走（月額顧問）</h2>
+<p class="doc-sub" style="margin-top:-6px">対応ページ：<code>ai-shien.html</code>／ 料金：<strong>¥33,000／月（税込）</strong>・最低契約期間なし</p>
+
+<h3 class="h3">サイトで約束していること（必ず守る）</h3>
+<table class="t">
+  <thead><tr><th style="width:34%">約束</th><th>中身</th></tr></thead>
+  <tbody>
+    <tr><td>月1回の定例</td><td>オンラインのミーティング</td></tr>
+    <tr><td>チャットでの随時相談</td><td>定例の間も質問を受ける</td></tr>
+    <tr><td>プロンプト・運用ルールの整備</td><td>使う形にして渡す</td></tr>
+    <tr><td>ツール選定・設定のアドバイス</td><td><strong>アドバイスまで</strong>。代行するとは書いていない</td></tr>
+    <tr><td>入力してよい情報の線引きづくり</td><td>社内ルールとして文章にする</td></tr>
+    <tr><td>解約</td><td>最低契約期間なし・<strong>いつでも解約できる</strong></td></tr>
+  </tbody>
+</table>
+
+<h3 class="h3">進め方</h3>
+<table class="t">
+  <thead><tr><th style="width:16%">いつ</th><th style="width:42%">やること</th><th>使うもの</th></tr></thead>
+  <tbody>
+    <tr><td>開始が決まったら</td><td>御礼と、初回定例の日程を送る。支払い条件もここで確定させる</td><td><a href="#m04">M-04</a>／<a href="#m09">M-09</a></td></tr>
+    <tr><td>初回定例</td><td>診断で出した着手順のうち、<strong>1つだけ</strong>を今月やることに決める</td><td>配布資料04</td></tr>
+    <tr><td>月の途中</td><td>チャットで質問に答える。プロンプトを作って渡す</td><td>配布資料01 プロンプト集</td></tr>
+    <tr><td>初月のうち</td><td>入力してよい情報の線引きを、1枚の文章にして渡す</td><td>配布資料03 AI利用ルール</td></tr>
+    <tr><td>毎月の定例</td><td>先月やったこと・今月やること・詰まっていることの3つだけ話す</td><td>—</td></tr>
+    <tr><td>解約の申し出</td><td>引き止めない。渡した資料はそのまま使ってよいと伝える</td><td>—</td></tr>
+  </tbody>
+</table>
+
+<div class="note warn">
+  <span class="nt">この単価で続けるための線引き</span>
+  月¥33,000です。<strong>毎月ゼロから資料を作り直したら赤字になります。</strong>プロンプト集・AI利用ルール・診断シートは共通のものを使い回し、そのお客様に合わせて差し替えるのは例題の部分だけにします。<br>
+  それでも足りない規模の話（システムを作る・毎週入る）になったら、伴走ではなく開発（E）として別に見積もります。
+</div>
+
+<h2 class="h" id="sd"><span class="n">6</span>D｜社内向けAI研修</h2>
+<p class="doc-sub" style="margin-top:-6px">対応ページ：<code>ai-shien.html</code>／ 公開ページ：<code>kenshu.html</code>（当日の中身を全公開）／ 料金：<strong>¥55,000／回（税込）</strong></p>
+
+<h3 class="h3">相談で確認すること</h3>
+<ul class="box">
+  <li>参加人数（おおよそで可。人数の制限はないと伝える）</li>
+  <li>職種の内訳（事務・営業・現場など）と、パソコンの慣れ具合</li>
+  <li>オンラインか、集まって受けるか</li>
+  <li>希望日の候補（2時間程度。前後の予定も確認）</li>
+  <li>いちばん困っている業務は何か（<strong>第5部の例題をここに合わせる</strong>）</li>
+  <li>すでに契約しているAIツールがあるか。当日、参加者が触れる環境があるか</li>
+  <li>録画してよいか。資料を社内で配ってよいか</li>
+</ul>
+
+<h3 class="h3">サイトで約束していること（必ず守る）</h3>
+<ul class="ck">
+  <li>2時間程度・<strong>人数の制限はなし</strong></li>
+  <li>事前に30分のヒアリング（内容のすり合わせ）</li>
+  <li>基本操作から実務での使い方まで</li>
+  <li>その場での質疑応答</li>
+  <li><strong>そのまま使えるプロンプト集をお渡しする</strong></li>
+  <li><strong>実施後2週間はメールで質問に対応する</strong></li>
+  <li>オンライン開催に対応・単発の利用も歓迎</li>
+</ul>
+
+<h3 class="h3">進め方（配布資料一式と対応）</h3>
+<table class="t">
+  <thead><tr><th style="width:20%">いつ</th><th style="width:40%">やること</th><th>使う資料</th></tr></thead>
+  <tbody>
+    <tr><td>受注直後</td><td>御礼を送り、事前ヒアリング30分の日程を決める</td><td>配布資料05 ヒアリングシート</td></tr>
+    <tr><td>実施7日前まで</td><td>事前ヒアリングを実施。困っている業務を3つ書き取る</td><td>配布資料05</td></tr>
+    <tr><td>実施3日前まで</td><td><strong>第5部の例題だけ</strong>を、そのお客様の業務に差し替える</td><td>配布資料02 研修スライド</td></tr>
+    <tr><td>実施前日</td><td>前日確認のメール。当日配る資料をPDFで用意しておく</td><td><a href="#m06">M-06</a>／配布資料01・03</td></tr>
+    <tr><td>当日</td><td>スライドを発表モードで進行。台本どおりで足りる</td><td>配布資料02</td></tr>
+    <tr><td>当日中</td><td>御礼とあわせて、プロンプト集とAI利用ルールをPDFで送る</td><td><a href="#m07">M-07</a>／配布資料01・03</td></tr>
+    <tr><td>2週間後</td><td>質問受付の終了を知らせ、次の選択肢（伴走）を1行だけ置く</td><td><a href="#m08">M-08</a>／配布資料04</td></tr>
+  </tbody>
+</table>
+
+<div class="note warn">
+  <span class="nt">差し替えてよいのは第5部の例題だけ</span>
+  スライドを案件ごとに作り直さないこと。それがこの価格で続けられる条件です。<br>
+  <strong>第4部（安全に使う）は、どのお客様でも削りません。</strong>ここを削ると、情報の取り扱いについて何も言わずに研修したことになります。
+</div>
+
+<div class="note tip">
+  <span class="nt">実績を聞かれたら</span>
+  <code>kenshu.html</code> は当日やることを全部公開しているページです。実績の代わりにこれを見せます。「中身を先に全部お見せしています」は、実績がない段階でいちばん効く答えです。ただし<strong>URLではなくPDFで送る資料</strong>と、<strong>公開しているページ</strong>を混同しないこと。<code>/docs/</code> は社内用です。
+</div>
+
+<h2 class="h" id="se"><span class="n">7</span>E｜生成AIシステム開発</h2>
+<p class="doc-sub" style="margin-top:-6px">対応ページ：<code>ai.html</code>／ 料金：<strong>個別見積もり</strong>（相談・見積もりは無料）</p>
+
+<h3 class="h3">相談で確認すること</h3>
+<ul class="box">
+  <li>いま何を、誰が、どれくらいの頻度で手作業しているか</li>
+  <li>その作業にかかっている時間（1日／1週間あたり）</li>
+  <li>使っているシステム・サービス（会計、在庫、EC、スプレッドシートなど）</li>
+  <li>データはどこにあるか。取り出せるか（CSV・API・画面のコピー）</li>
+  <li>いつまでに欲しいか。動かす期限があるか</li>
+  <li>予算の目安。ないなら「小さく作る」提案から入る</li>
+  <li>作ったあと、誰が運用するか</li>
+</ul>
+
+<h3 class="h3">サイトで約束していること（必ず守る）</h3>
+<ul class="ck">
+  <li>無料相談・ヒアリング → ご提案・お見積もり → 開発・導入（<strong>小さく作って動かす</strong>）→ 運用サポート</li>
+  <li>在庫・受注・顧客対応などの自動化、既存システムへの組み込み、生成AIを活用した低コストな実装、導入時の動作確認・調整</li>
+  <li>運用サポートは要相談（運用しながらの改善・仕様変更・追加対応）</li>
+  <li>内容と規模で費用が大きく変わるため<strong>定額表示はしていない</strong>。相談と見積もりは無料</li>
+</ul>
+
+<h3 class="h3">進め方</h3>
+<table class="t">
+  <thead><tr><th style="width:20%">いつ</th><th style="width:40%">やること</th><th>使うもの</th></tr></thead>
+  <tbody>
+    <tr><td>当日</td><td>一次返信。相談・見積もりが無料であることを書く</td><td><a href="#m01">M-01</a></td></tr>
+    <tr><td>返事が来たら</td><td>オンラインで60分。上の項目を全部埋める</td><td><a href="#m02">M-02</a>／案件シート</td></tr>
+    <tr><td>ヒアリング後</td><td>やらないことを先に決める。<strong>最初の1本を小さく切り出す</strong></td><td>—</td></tr>
+    <tr><td>5営業日以内</td><td>見積もりを送る。範囲・納期・含まないものを必ず書く</td><td><a href="#m03">M-03</a></td></tr>
+    <tr><td>受注</td><td>御礼と着手の連絡。支払い条件をここで確定させる</td><td><a href="#m04">M-04</a></td></tr>
+    <tr><td>開発中</td><td>週1で、動くところまでを見せる。仕様書より動くものを先に出す</td><td>—</td></tr>
+    <tr><td>納品</td><td>動作確認に立ち会う。運用する人に操作を渡す</td><td>—</td></tr>
+    <tr><td>納品後</td><td>運用サポートを続けるかどうかを確認する</td><td>—</td></tr>
+  </tbody>
+</table>
+
+<div class="note warn">
+  <span class="nt">見積もりでいちばん事故るところ</span>
+  ・<strong>その場で金額を言わない。</strong>持ち帰って書面で出す。<br>
+  ・<strong>「含まないもの」を必ず書く。</strong>他社サービスの利用料、既存システム側の改修、データの手入力、公開後の運用。書いていないものは含まれると読まれます。<br>
+  ・<strong>やったことがない部分は、そう書く。</strong>調べる時間を見積もりに入れて、正直に出したほうが安く済みます。<br>
+  ・<strong>一発で全部作らない。</strong>サイトにも「小さく作って動かす」と書いています。最初の1本が動いてから次を見積もります。
+</div>
+
+<h2 class="h" id="sf"><span class="n">8</span>F｜ホームページ制作</h2>
+<p class="doc-sub" style="margin-top:-6px">対応ページ：<code>ai.html#web</code>／ 料金：1ページ<strong>¥20,000〜</strong>／複数ページ<strong>¥35,000〜</strong>／保守<strong>¥3,000／月</strong>（すべて税込）</p>
+
+<h3 class="h3">相談で確認すること</h3>
+<ul class="box">
+  <li>いまサイトはあるか。あるならURLと、何が不満か</li>
+  <li>1ページで足りるか、複数ページが要るか</li>
+  <li>載せたい内容（メニュー・料金・アクセス・写真・SNS）</li>
+  <li>写真はあるか。撮影が必要か。ロゴはあるか</li>
+  <li>独自ドメインを持っているか。<strong>持っていないなら実費が別途かかると先に伝える</strong></li>
+  <li>文章は誰が書くか（お客様に書いてもらうか、こちらでまとめるか）</li>
+  <li>公開したい時期</li>
+  <li>公開後、自分で更新したいか。保守を付けるか</li>
+</ul>
+
+<h3 class="h3">サイトで約束していること（必ず守る）</h3>
+<table class="t">
+  <thead><tr><th style="width:26%">プラン</th><th style="width:22%">金額（税込）</th><th>含むもの</th></tr></thead>
+  <tbody>
+    <tr><td>1ページプラン</td><td>¥20,000〜</td><td>1ページ構成のLP形式／スマホ対応／お問い合わせフォーム／地図・SNSリンク設置</td></tr>
+    <tr><td>複数ページプラン</td><td>¥35,000〜</td><td>トップ＋下層ページ／メニュー・料金・アクセス／スマホ対応／フォーム／写真の簡単な加工</td></tr>
+    <tr><td>保守・更新サポート</td><td>¥3,000／月</td><td>文言修正／写真差し替え／不具合対応／<strong>いつでも解約</strong>。付けるかどうかは任意</td></tr>
+  </tbody>
+</table>
+
+<div class="note">
+  <span class="nt">「〜」の意味をはっきりさせる</span>
+  ¥20,000〜・¥35,000〜は<strong>下限</strong>です。ページ数と要望で変わるため、必ず見積もりを出してから受けます。<br>
+  <strong>独自ドメイン・サーバーの費用は別途実費</strong>です。お持ちでない場合は取得からお手伝いすると書いていますが、費用はお客様負担です。これを言い忘れると必ずもめます。
+</div>
+
+<h3 class="h3">進め方</h3>
+<table class="t">
+  <thead><tr><th style="width:20%">いつ</th><th style="width:40%">やること</th><th>使うもの</th></tr></thead>
+  <tbody>
+    <tr><td>当日</td><td>一次返信。プラン2つと保守を一度に説明しない。まず用途を聞く</td><td><a href="#m01">M-01</a></td></tr>
+    <tr><td>返事が来たら</td><td>オンラインで30〜60分。上の項目を埋める</td><td><a href="#m02">M-02</a>／案件シート</td></tr>
+    <tr><td>3営業日以内</td><td>プランと金額、ドメイン等の実費、公開までの日数を書面で送る</td><td><a href="#m03">M-03</a></td></tr>
+    <tr><td>受注</td><td>御礼と着手。<strong>写真と文章をいつまでにもらうか</strong>をここで決める</td><td><a href="#m04">M-04</a></td></tr>
+    <tr><td>制作中</td><td>途中で1回見てもらう。直しは<strong>まとめて2回まで</strong>と最初に伝える</td><td>—</td></tr>
+    <tr><td>公開</td><td>公開の連絡。スマホでの見え方を一緒に確認する</td><td><a href="#m11">M-11</a></td></tr>
+    <tr><td>公開後</td><td>保守を付けるか確認する。付けないなら、それで終わりにする</td><td><a href="#m11">M-11</a></td></tr>
+  </tbody>
+</table>
+
+<div class="note warn">
+  <span class="nt">この案件が長引く原因は、ほぼ1つ</span>
+  <strong>お客様から写真と文章が来ないこと</strong>です。着手の連絡（M-04）で期限を切り、来なければ制作は止まる旨をやわらかく書いておきます。デザインの好みで長引くことは、実はあまりありません。
+</div>
+
+<h2 class="h" id="sg"><span class="n">9</span>G｜その他・決まっていない</h2>
+
+<p>フォームで「その他・複数のサービスについて」が選ばれている、あるいは何を求めているか読み取れない場合です。</p>
+
+<ul class="num">
+  <li><strong>推測で提案を書かない。</strong>　外れると、それだけで相手が離れます。</li>
+  <li><strong>一次返信で、質問を2つだけ返す。</strong>　「いま何にいちばん時間を取られていますか」「いつまでに何が変わっているといいですか」。この2つでたいてい行き先が決まります。</li>
+  <li><strong>AI寄りの話なら、無料の診断（B）に寄せる。</strong>　無料なので誘いやすく、話を聞けば分類できます。</li>
+  <li><strong>古着の仕入れ寄りなら、会員登録（A）に寄せる。</strong>　登録は無料なので、迷っている段階でも案内できます。</li>
+  <li><strong>どちらでもない・営業メールなら、無理に広げない。</strong>　丁寧に終わらせます。</li>
+</ul>
+
+<div class="pagebreak"></div>
+
+<h2 class="h" id="mail"><span class="n">10</span>メール文例（コピーして使う）</h2>
+
+<p>【　】の部分だけ書き換えて使います。右上の「コピー」を押すと全文がコピーされます。<strong>署名は毎回そのまま残します</strong>（古物商許可の表記を含むため）。</p>
+
+<div class="pc" id="m01">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">M-01</span>一次返信（すべての相談で共通）</div><div class="pc-when">問い合わせを受け取った当日〜翌営業日</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+<pre>件名：お問い合わせありがとうございます（NKonline）
+
+<b>【お名前】</b> 様
+
+お問い合わせいただき、ありがとうございます。
+NKonline の西出です。
+
+いただいた内容を確認いたしました。
+<b>【いつまで（例：本日中／明日中）】</b>に、詳しいご案内をお送りいたします。
+
+先に2点だけ、お聞かせいただけますでしょうか。
+
+　1. <b>【質問1】</b>
+　2. <b>【質問2】</b>
+
+お返事をいただいてからのご案内でも、
+こちらから先にご提案をお送りする形でも、どちらでも大丈夫です。
+
+引き続きよろしくお願いいたします。
+
+――――――――――――――――――
+NKonline（エヌケーオンライン）
+西出 克利
+nkonline1030@gmail.com
+090-5820-1803
+古物商許可 大阪府公安委員会 第62228R076481号
+――――――――――――――――――</pre>
+    <p class="pc-note">▸ 内容への回答はまだ書かなくてよい。<strong>「届いた」と「いつ返す」の2つだけ</strong>先に伝えるのが目的です。</p>
+  </div>
+</div>
+
+<div class="pc" id="m02">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">M-02</span>打ち合わせの日程を決める</div><div class="pc-when">診断・開発・HP制作の相談で、話を聞く場を作るとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+<pre>件名：打ち合わせの日程について（NKonline）
+
+<b>【お名前】</b> 様
+
+お世話になっております。NKonline の西出です。
+
+一度オンラインでお話をうかがえればと思います。
+所要は <b>【30分／60分】</b> 程度を予定しております。
+
+下記のいずれかでご都合はいかがでしょうか。
+
+　・<b>【日付】</b> <b>【時間】</b>〜
+　・<b>【日付】</b> <b>【時間】</b>〜
+　・<b>【日付】</b> <b>【時間】</b>〜
+
+いずれも難しい場合は、ご都合のよい日時をいくつかお知らせください。
+こちらで調整いたします。
+
+当日は <b>【会議ツール】</b> を使用します。
+日程が決まりましたら、URLをお送りいたします。
+
+お手数ですがよろしくお願いいたします。
+
+――――――――――――――――――
+NKonline（エヌケーオンライン）
+西出 克利
+nkonline1030@gmail.com
+090-5820-1803
+――――――――――――――――――</pre>
+    <p class="pc-note">▸ 候補は<strong>必ず3つ出す</strong>。「ご都合はいかがですか」だけだと返事が止まります。</p>
+  </div>
+</div>
+
+<div class="pc" id="m03">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">M-03</span>お見積もりの送付</div><div class="pc-when">生成AI開発・ホームページ制作</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+<pre>件名：お見積もりのご送付（NKonline）
+
+<b>【お名前】</b> 様
+
+お世話になっております。NKonline の西出です。
+先日はお時間をいただき、ありがとうございました。
+
+うかがった内容をもとに、お見積もりをお送りいたします。
+
+■ ご依頼の内容
+　<b>【何を作るか・何を直すか】</b>
+
+■ 金額
+　<b>【金額】</b> 円（税込）
+
+■ 納期の目安
+　ご発注から <b>【日数・週数】</b> 程度
+　※ 資料・写真・文章をご用意いただく期間は含みません
+
+■ 含まれるもの
+　・<b>【項目】</b>
+　・<b>【項目】</b>
+　・<b>【項目】</b>
+
+■ 含まれないもの（別途のご負担になります）
+　・<b>【例：独自ドメイン・サーバーの費用（実費）】</b>
+　・<b>【例：AIツールのご利用料金（お客様ご契約分）】</b>
+　・<b>【例：既存システム側の改修】</b>
+
+■ 進め方
+　いきなり全部を作らず、まず <b>【最初に作る範囲】</b> を動く形にしてお見せします。
+　そこを確認いただいてから、次に進みます。
+
+ご不明な点、ここは要らない・ここを足したい、といったご要望がありましたら
+遠慮なくお知らせください。金額を組み直してお送りします。
+
+ご検討のほど、よろしくお願いいたします。
+
+――――――――――――――――――
+NKonline（エヌケーオンライン）
+西出 克利
+nkonline1030@gmail.com
+090-5820-1803
+――――――――――――――――――</pre>
+    <p class="pc-note">▸ <strong>「含まれないもの」を空欄のまま送らない。</strong>ここが後から必ず問題になります。書くことがなければ「現時点で別途費用はございません」と明記します。</p>
+  </div>
+</div>
+
+<div class="pc" id="m04">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">M-04</span>受注の御礼と、着手のご案内</div><div class="pc-when">「お願いします」の返事が来たらすぐ</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+<pre>件名：ご依頼ありがとうございます（NKonline）
+
+<b>【お名前】</b> 様
+
+このたびはご依頼いただき、ありがとうございます。
+NKonline の西出です。
+
+下記の内容で進めさせていただきます。
+
+■ 内容　<b>【何を】</b>
+■ 金額　<b>【金額】</b> 円（税込）
+■ 予定　<b>【開始日】</b> 〜 <b>【完了予定日】</b>
+■ お支払い　<b>【お支払い方法・時期】</b>
+
+つきましては、下記をご用意いただけますでしょうか。
+
+　・<b>【必要なもの1】</b>
+　・<b>【必要なもの2】</b>
+
+<b>【期限】</b>までにいただけますと、予定どおりに進められます。
+そろわない場合は、その分だけ後ろにずれる形になりますので、
+難しいようでしたら早めにお知らせください。一緒に考えます。
+
+次のご連絡は <b>【いつ・何を】</b> になります。
+
+どうぞよろしくお願いいたします。
+
+――――――――――――――――――
+NKonline（エヌケーオンライン）
+西出 克利
+nkonline1030@gmail.com
+090-5820-1803
+――――――――――――――――――</pre>
+    <p class="pc-note">▸ このメールで<strong>「次にこちらから連絡するのはいつか」</strong>を必ず書く。ここを書くと、途中の催促が来なくなります。</p>
+  </div>
+</div>
+
+<div class="pc" id="m05">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">M-05</span>研修：日程確定と事前ヒアリングのお願い</div><div class="pc-when">研修の受注直後</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+<pre>件名：研修の日程と、事前のお打ち合わせについて（NKonline）
+
+<b>【お名前】</b> 様
+
+このたびは社内向けAI研修をご依頼いただき、ありがとうございます。
+NKonline の西出です。
+
+下記の内容で承りました。
+
+■ 実施日　<b>【日付】</b> <b>【開始時刻】</b>〜（2時間程度）
+■ 形式　<b>【オンライン／会場：場所】</b>
+■ 参加人数　<b>【人数】</b> 名程度（人数の制限はございません）
+■ 費用　55,000円（税込・1回）
+
+当日の内容をお客様の業務に合わせるため、
+事前に30分ほどお打ち合わせのお時間をいただいております。
+
+　・<b>【日付】</b> <b>【時間】</b>〜
+　・<b>【日付】</b> <b>【時間】</b>〜
+　・<b>【日付】</b> <b>【時間】</b>〜
+
+実施日の1週間前までに行えますと、当日の例題まで作り込めます。
+
+事前にお聞きしたいのは、主に次の点です。
+その場でお答えいただければ十分ですので、ご準備は不要です。
+
+　・いま社内でいちばん時間がかかっている業務
+　・参加される方のパソコンの慣れ具合
+　・社外に出せない情報（お客様の名簿・見積書など）の有無
+　・当日、参加者の方がAIを実際に触れる環境があるか
+
+よろしくお願いいたします。
+
+――――――――――――――――――
+NKonline（エヌケーオンライン）
+西出 克利
+nkonline1030@gmail.com
+090-5820-1803
+――――――――――――――――――</pre>
+    <p class="pc-note">▸ 事前ヒアリングは<strong>サイトで約束している内容</strong>です。省略しないこと。ここで聞いた業務が、当日の第5部の例題になります。</p>
+  </div>
+</div>
+
+<div class="pc" id="m06">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">M-06</span>研修：前日の確認</div><div class="pc-when">実施の前日</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+<pre>件名：明日の研修について（NKonline）
+
+<b>【お名前】</b> 様
+
+お世話になっております。NKonline の西出です。
+いよいよ明日となりました。最終のご案内です。
+
+■ 日時　<b>【日付】</b> <b>【開始時刻】</b>〜<b>【終了時刻】</b>
+■ 形式　<b>【オンライン／会場】</b>
+■ 参加URL　<b>【URL】</b>
+　（会場の場合）<b>【場所・入館方法】</b>
+
+■ ご参加の方へ
+　・パソコンまたはスマートフォンをお手元にご用意ください
+　・途中でご質問いただいて問題ありません
+　・メモは不要です。資料は当日中にお送りします
+
+■ 当日の流れ
+　前半：AIでできること・できないこと、基本の使い方
+　後半：<b>【お客様の業務名】</b>を例にした実際の使い方、安全に使うためのルール、質疑応答
+
+ご不明な点がありましたら、当日の朝でもかまいませんのでご連絡ください。
+明日はよろしくお願いいたします。
+
+――――――――――――――――――
+NKonline（エヌケーオンライン）
+西出 克利
+nkonline1030@gmail.com
+090-5820-1803
+――――――――――――――――――</pre>
+    <p class="pc-note">▸ 「メモは不要です。資料は当日中にお送りします」と先に書いておくと、当日、参加者が書き写す時間を気にせず進められます。</p>
+  </div>
+</div>
+
+<div class="pc" id="m07">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">M-07</span>研修：当日の御礼と資料のお渡し</div><div class="pc-when">実施した日のうちに（翌日に持ち越さない）</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+<pre>件名：本日はありがとうございました（資料をお送りします／NKonline）
+
+<b>【お名前】</b> 様
+
+本日は研修のお時間をいただき、ありがとうございました。
+NKonline の西出です。
+
+お約束しておりました資料を添付いたします。
+そのまま社内で回覧・印刷していただいてかまいません。
+
+　・プロンプト集（そのままコピーして使える文例集）
+　・AI利用ルール（入力してよい情報・いけない情報の線引き）
+
+■ ご質問について
+本日から2週間、<b>【日付】</b>まで、メールでのご質問を承ります。
+「これはAIに聞いていいのか」「うまく答えが返ってこない」など、
+どんな細かいことでもこのメールにご返信ください。
+
+■ 本日、特に使えそうだったところ
+　<b>【当日の質疑で出た、その会社ならではの話を1〜2行】</b>
+
+まずはプロンプト集の中から1つだけ、明日試してみてください。
+全部を一度に始めようとすると、たいてい続きません。
+
+引き続きよろしくお願いいたします。
+
+――――――――――――――――――
+NKonline（エヌケーオンライン）
+西出 克利
+nkonline1030@gmail.com
+090-5820-1803
+――――――――――――――――――</pre>
+    <p class="pc-note">▸ 資料は<strong>PDFにして添付</strong>します。社内用ページのURLは送りません。<br>▸ 「本日、特に使えそうだったところ」は必ず埋めます。ここが1行あるだけで、使い回しの資料ではないと伝わります。</p>
+  </div>
+</div>
+
+<div class="pc" id="m08">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">M-08</span>研修：2週間後の締め</div><div class="pc-when">質問受付の期限日</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+<pre>件名：その後いかがでしょうか（NKonline）
+
+<b>【お名前】</b> 様
+
+お世話になっております。NKonline の西出です。
+先日の研修から2週間が経ちました。
+
+お約束していたメールでのご質問受付は、本日までとなります。
+気になっていることがありましたら、本日中にお送りください。
+
+その後、社内での使い方はいかがでしょうか。
+「思ったより使われていない」「一部の人しか使っていない」というのは、
+どこの会社でもよくあることですので、気にされなくて大丈夫です。
+
+もし、続けて相談できる相手が必要だとお感じでしたら、
+月額の導入伴走（33,000円／月・税込）もご用意しています。
+月1回のオンライン定例と、その間のチャット相談、
+プロンプトや社内ルールの整備までお引き受けするものです。
+最低契約期間はなく、いつでも解約いただけます。
+
+もちろん、いまのところ必要ないということでしたら、それで問題ありません。
+またお困りのことがありましたら、いつでもご連絡ください。
+
+このたびはありがとうございました。
+
+――――――――――――――――――
+NKonline（エヌケーオンライン）
+西出 克利
+nkonline1030@gmail.com
+090-5820-1803
+――――――――――――――――――</pre>
+    <p class="pc-note">▸ 伴走の案内は<strong>1回だけ</strong>。断られたら追わない。ここで押すと、研修そのものの印象まで悪くなります。</p>
+  </div>
+</div>
+
+<div class="pc" id="m09">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">M-09</span>伴走：初回定例のご案内</div><div class="pc-when">月額顧問の開始が決まったとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+<pre>件名：導入伴走の開始について（NKonline）
+
+<b>【お名前】</b> 様
+
+このたびは導入伴走をご依頼いただき、ありがとうございます。
+NKonline の西出です。
+
+■ 内容　月1回の定例（オンライン）＋その間のチャット相談
+■ 費用　33,000円（税込）／月
+■ 開始　<b>【年月】</b>分より
+■ お支払い　<b>【お支払い方法・時期】</b>
+※ 最低契約期間はございません。ご不要になりましたらいつでもお知らせください。
+
+初回の定例を下記のいずれかで設定させてください。
+
+　・<b>【日付】</b> <b>【時間】</b>〜
+　・<b>【日付】</b> <b>【時間】</b>〜
+　・<b>【日付】</b> <b>【時間】</b>〜
+
+初回では、先にお渡しした整理をもとに
+「今月やること」を<b>1つだけ</b>決めます。
+いくつも同時に進めると、たいてい全部が止まってしまうためです。
+
+なお、ChatGPT・Claude などのAIツールそのもののご利用料金は
+お客様のご契約となります。あわせてご承知おきください。
+
+よろしくお願いいたします。
+
+――――――――――――――――――
+NKonline（エヌケーオンライン）
+西出 克利
+nkonline1030@gmail.com
+090-5820-1803
+――――――――――――――――――</pre>
+    <p class="pc-note">▸ <strong>AIツール料金がお客様負担であることを、開始のメールで必ず書く。</strong>口頭で言っただけだと残りません。</p>
+  </div>
+</div>
+
+<div class="pc" id="m10">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">M-10</span>古着卸：会員登録のご案内</div><div class="pc-when">仕入れの相談に返信するとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+<pre>件名：古着の仕入れについて（NKonline）
+
+<b>【お名前】</b> 様
+
+お問い合わせいただき、ありがとうございます。
+NKonline の西出です。
+
+弊社では、古着の卸売を会員制のサイトでご案内しております。
+会員登録・年会費とも無料で、ご登録いただくとすぐに商品をご覧いただけます。
+
+■ 買い方は2通りあります
+　・1点ずつ選ぶ（デタウリ）　… 気になる商品だけを1点から仕入れられます
+　・まとめて仕入れる（アソート）… テーマ別のセットで、選ぶ手間がかかりません
+
+■ 商品について
+　検品済みで、採寸データと撮影画像が付いています。
+　届いたその日から出品していただけます。
+
+■ お支払い
+　クレジットカード・コンビニ払い・銀行振込がご利用いただけます。
+
+■ 送料
+　お届け先と配送方法によって変わります。
+　一定額以上のご注文で無料になる場合があり、
+　カートの画面でご注文前に確認いただけます。
+
+会員登録はこちらからお願いいたします。
+
+https://wholesale.nkonline-tool.com
+
+ご不明な点がありましたら、このメールにご返信ください。
+どの商品を選べばよいかといったご相談も承ります。
+
+よろしくお願いいたします。
+
+――――――――――――――――――
+NKonline（エヌケーオンライン）
+西出 克利
+nkonline1030@gmail.com
+090-5820-1803
+古物商許可 大阪府公安委員会 第62228R076481号
+――――――――――――――――――</pre>
+    <p class="pc-note">▸ <strong>「1点から」</strong>と書く。「10点から」は昔の条件で、いまは違います。<br>▸ 送料は「カートで確認できる」までにとどめ、金額を口約束しないこと。</p>
+  </div>
+</div>
+
+<div class="pc" id="m11">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">M-11</span>HP制作：公開のご連絡と保守のご案内</div><div class="pc-when">サイトを公開した日</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+<pre>件名：ホームページを公開いたしました（NKonline）
+
+<b>【お名前】</b> 様
+
+お世話になっております。NKonline の西出です。
+ホームページを公開いたしました。
+
+<b>【公開URL】</b>
+
+パソコン・スマートフォンのどちらからでもご覧いただけます。
+お手すきのときに、スマートフォンからも一度ご確認ください。
+実際にお客様がご覧になるのは、ほとんどがスマートフォンです。
+
+■ 公開後の修正について
+文言の間違いや写真の差し替えなど、お気づきの点は
+<b>【期限】</b>までにまとめてお知らせください。無料で対応いたします。
+
+■ その後の更新について
+月額3,000円（税込）の保守・更新サポートもご用意しています。
+文言の修正、写真の差し替え、不具合への対応を承るもので、
+いつでも解約いただけます。
+
+ご自身で更新される場合は不要ですので、
+必要になったときにお知らせいただければ大丈夫です。
+
+このたびはありがとうございました。
+
+――――――――――――――――――
+NKonline（エヌケーオンライン）
+西出 克利
+nkonline1030@gmail.com
+090-5820-1803
+――――――――――――――――――</pre>
+    <p class="pc-note">▸ 保守は<strong>任意</strong>とサイトに書いています。押し売りにならないよう「必要になったときで大丈夫」を必ず添えます。</p>
+  </div>
+</div>
+
+<div class="pc" id="m12">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">M-12</span>見送り・保留になったとき</div><div class="pc-when">「検討します」「今回は見送ります」と言われたら</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+<pre>件名：ご連絡ありがとうございました（NKonline）
+
+<b>【お名前】</b> 様
+
+ご連絡いただき、ありがとうございます。
+NKonline の西出です。
+
+承知いたしました。今回はこのままで問題ございません。
+ご検討いただけただけでありがたく思っております。
+
+一点だけ、今回うかがった中で
+<b>【相手が困っていたこと】</b>については、
+ご依頼がなくてもすぐに試せることがあります。
+
+　<b>【今日からできる具体的な一手を1〜2行】</b>
+
+まずはこれだけでも、少し変わるかと思います。
+
+また状況が変わりましたら、いつでもご連絡ください。
+その際、あらためて一からうかがいますので、
+気を使っていただく必要はありません。
+
+ありがとうございました。
+
+――――――――――――――――――
+NKonline（エヌケーオンライン）
+西出 克利
+nkonline1030@gmail.com
+090-5820-1803
+――――――――――――――――――</pre>
+    <p class="pc-note">▸ 追いかけない代わりに、<strong>ただで役に立つことを1つだけ置いて</strong>終わります。戻ってくるのは、たいていこのメールを送った相手です。</p>
+  </div>
+</div>
+
+<h2 class="h" id="todo"><span class="n">11</span>先に決めておくこと</h2>
+
+<p>下は<strong>サイトのどこにも書いていない</strong>ことです。聞かれてから考えると必ず返事が遅れます。先に決めて、この欄を埋めておきます。</p>
+
+<table class="t">
+  <thead><tr><th style="width:32%">決めること</th><th style="width:34%">決めた内容</th><th>いつ必要になるか</th></tr></thead>
+  <tbody>
+    <tr><td>振込先の口座</td><td class="fill">【　　　　　　　　　】</td><td>研修・開発・HP制作の受注時</td></tr>
+    <tr><td>前払いか、後払いか</td><td class="fill">【　　　　　　　　　】</td><td>受注メール（M-04）を書くとき</td></tr>
+    <tr><td>請求書の出し方・タイミング</td><td class="fill">【　　　　　　　　　】</td><td>法人のお客様はほぼ必ず求めます</td></tr>
+    <tr><td>研修の日程変更・キャンセル</td><td class="fill">【　　　　　　　　　】</td><td>直前の変更を言われたとき</td></tr>
+    <tr><td>オンライン会議のツール</td><td class="fill">【　　　　　　　　　】</td><td>日程案内（M-02）を書くとき</td></tr>
+    <tr><td>訪問時の交通費</td><td class="fill">【　　　　　　　　　】</td><td>「来てほしい」と言われたとき</td></tr>
+    <tr><td>研修の録画・資料の社内配布</td><td class="fill">【　　　　　　　　　】</td><td>事前ヒアリングで聞かれます</td></tr>
+    <tr><td>HP制作の修正回数</td><td class="fill">【　　　　　　　　　】</td><td>着手メール（M-04）で伝えます</td></tr>
+  </tbody>
+</table>
+
+<div class="note warn">
+  <span class="nt">埋まるまでは、その場で答えない</span>
+  未定のまま聞かれたら「持ち帰って、本日中にお返しします」と答えます。<strong>その場の勢いで条件を作らないこと。</strong>一度言った条件は、次のお客様にも同じことを言わなければならなくなります。
+</div>
+
+<div class="pagebreak"></div>
+
+<h2 class="h" id="sheet"><span class="n">12</span>案件シート（1件につき1枚）</h2>
+
+<p class="no-print">相談を受けたら、このページを印刷して手書きで埋めます。上の「印刷する」を押すとこのシートも一緒に出ます。</p>
+
+<table class="t">
+  <tbody>
+    <tr><th style="width:26%">受付日</th><td class="fill">　　　　年　　月　　日</td><th style="width:20%">連絡の経路</th><td class="fill">フォーム ／ メール ／ 電話 ／ 紹介</td></tr>
+    <tr><th>お名前</th><td class="fill">　</td><th>会社名・屋号</th><td class="fill">　</td></tr>
+    <tr><th>メール</th><td class="fill">　</td><th>電話</th><td class="fill">　</td></tr>
+    <tr><th>相談の種類</th><td class="fill" colspan="3">A 古着卸　／　B 診断　／　C 伴走　／　D 研修　／　E 開発　／　F HP制作　／　G その他</td></tr>
+  </tbody>
+</table>
+
+<table class="t">
+  <thead><tr><th colspan="2">聞き取り</th></tr></thead>
+  <tbody>
+    <tr><th style="width:26%">いま困っていること</th><td class="fill" style="height:64px">　</td></tr>
+    <tr><th>いつまでに、どうなりたいか</th><td class="fill" style="height:52px">　</td></tr>
+    <tr><th>予算の目安</th><td class="fill">　</td></tr>
+    <tr><th>決めるのは誰か</th><td class="fill">本人 ／ 他にいる（　　　　　　　　　　）</td></tr>
+    <tr><th>社外に出せない情報</th><td class="fill">ある（　　　　　　　　　　）／ ない ／ 未確認</td></tr>
+    <tr><th>使っているツール・システム</th><td class="fill" style="height:52px">　</td></tr>
+    <tr><th>他社にも相談しているか</th><td class="fill">している ／ していない ／ 未確認</td></tr>
+  </tbody>
+</table>
+
+<table class="t">
+  <thead><tr><th colspan="2">こちらから伝えたこと（言ったらチェック）</th></tr></thead>
+  <tbody>
+    <tr><th style="width:26%">金額</th><td class="fill">□ 税込で伝えた　／　金額：　　　　　　　　　　円</td></tr>
+    <tr><th>含まれないもの</th><td class="fill">□ 伝えた（　　　　　　　　　　　　　　　　　）</td></tr>
+    <tr><th>AIツールの利用料</th><td class="fill">□ お客様負担であることを伝えた　／　□ この案件では該当なし</td></tr>
+    <tr><th>次の連絡</th><td class="fill">□ いつ・何を送るか伝えた　→　　　月　　日までに（　　　　　　　　）</td></tr>
+  </tbody>
+</table>
+
+<table class="t">
+  <thead><tr><th colspan="4">進み方</th></tr></thead>
+  <tbody>
+    <tr><th style="width:26%">一次返信</th><td class="fill" style="width:22%">　月　日</td><th style="width:26%">見積もり送付</th><td class="fill">　月　日</td></tr>
+    <tr><th>打ち合わせ</th><td class="fill">　月　日</td><th>受注／見送り</th><td class="fill">　月　日（受注 ／ 見送り）</td></tr>
+    <tr><th>着手</th><td class="fill">　月　日</td><th>完了・納品</th><td class="fill">　月　日</td></tr>
+    <tr><th>入金確認</th><td class="fill">　月　日</td><th>アフター終了</th><td class="fill">　月　日</td></tr>
+  </tbody>
+</table>
+
+<table class="t">
+  <thead><tr><th colspan="2">終わったあとのメモ（次に活かすため）</th></tr></thead>
+  <tbody>
+    <tr><th style="width:26%">うまくいったこと</th><td class="fill" style="height:56px">　</td></tr>
+    <tr><th>次はこうする</th><td class="fill" style="height:56px">　</td></tr>
+    <tr><th>見送りだった理由</th><td class="fill" style="height:44px">　</td></tr>
+  </tbody>
+</table>
+
+<div class="doc-foot">
+  社内用の資料です。お客様にはこのページのURLを送らず、必要な部分をPDFにしてお渡しします。<br>
+  内容を変えたときは、対応するサービスページ（fukugyo.html ／ ai-shien.html ／ ai.html）の記載と食い違っていないか必ず確認してください。<strong>サイトに書いてあることが正で、この資料が従います。</strong>
+</div>
+
+</div>
+
+<script src="./docs.js"></script>
+</body>
+</html>

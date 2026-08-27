@@ -272,6 +272,13 @@ body.present .present-bar{
 .hb .hw{display:inline-block;margin-top:9px;font-size:12px;font-weight:700;color:var(--brand)}
 
 /* ---------- 印刷 ---------- */
+/* ---------- 本文中のファイル名・パス ---------- */
+code{
+  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  font-size:.88em;background:var(--paper);border:1px solid var(--line);
+  border-radius:5px;padding:1px 6px;white-space:nowrap;
+}
+
 @media print{
   @page{size:A4;margin:14mm 12mm}
   body{background:#fff}
