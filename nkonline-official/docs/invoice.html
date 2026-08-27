@@ -63,7 +63,7 @@ table.iv-sumt tr.sub td{padding:3px 0}
 .iv-from{border-top:1px solid var(--line);padding-top:18px;font-size:13px;line-height:1.95}
 .iv-from .nm{font-size:16px;font-weight:900;margin-bottom:4px}
 .iv-from .reg{margin-top:8px;display:flex;align-items:center;gap:6px;font-weight:700}
-.iv-from .reg input{width:170px;font-weight:700;letter-spacing:.04em}
+.iv-from .reg b{font-weight:900;letter-spacing:.04em}
 .f{font-family:inherit;font-size:14px;color:var(--ink);background:none;border:0;border-bottom:1px dashed #cfc8ba;padding:4px 2px;width:100%;line-height:1.6}
 .f:focus{outline:0;border-bottom-color:var(--brand);background:#fffaf8}
 .f::placeholder{color:#c3bcae}
@@ -129,7 +129,7 @@ input.f[type=number]{text-align:right;font-family:'Archivo',sans-serif;font-weig
     <div class="doc-meta"><span>第1版</span><span>NKonline（エヌケーオンライン）</span><span>適格請求書（インボイス）の形式</span></div>
   </div>
 
-  <div class="note tip"><span class="nt">入力した内容はこのパソコンに残ります</span>次に開いたときは前回の内容がそのまま出ます。<strong>宛名と品名だけ書き換えれば、次の請求書ができます。</strong>振込先と登録番号は一度入れれば毎回入れ直す必要はありません。<br>保存先はこのブラウザの中だけです。インターネット上には送られません。</div>
+  <div class="note tip"><span class="nt">入力した内容はこのパソコンに残ります</span>次に開いたときは前回の内容がそのまま出ます。<strong>宛名と品名だけ書き換えれば、次の請求書ができます。</strong>振込先は一度入れれば毎回入れ直す必要はありません。<br>保存先はこのブラウザの中だけです。インターネット上には送られません。</div>
 
   <div class="iv-bar" style="margin-top:22px">
     <span class="iv-seg">
@@ -220,7 +220,7 @@ input.f[type=number]{text-align:right;font-family:'Archivo',sans-serif;font-weig
     <div class="nm">NKonline（エヌケーオンライン）　代表　西出 克利</div>
     〒600-8846　京都府京都市下京区朱雀宝蔵町44番地 協栄ビル2階 京都朱雀スタジオAW-209<br>
     TEL 090-5820-1803　／　nkonline1030@gmail.com
-    <div class="reg">登録番号　<input class="f" data-f="regno" placeholder="T1234567890123"></div>
+    <div class="reg">登録番号　<b>T9810785107076</b></div>
   </div>
 
 </div>
@@ -251,9 +251,9 @@ input.f[type=number]{text-align:right;font-family:'Archivo',sans-serif;font-weig
 <p class="doc-sub" style="margin-top:14px">支払い条件・キャンセル規定などの決めごとは、<a href="./juchu-manual.html#todo">受注対応マニュアルの「取引条件（決めたこと）」</a>にまとめています。<strong>そこに書いていない条件は、その場で決めない</strong>こと。</p>
 
 <h2 class="h"><span class="n">3</span>気をつけること</h2>
-<div class="note warn"><span class="nt">振込先と登録番号は、このパソコンの中だけ</span>入力した口座番号と登録番号は、このブラウザに保存されます。<strong>ページのファイル（HTML）には書き込みません。</strong>docs のURLは、知っていれば誰でも開けるためです。共用のパソコンでは入力しないでください。</div>
+<div class="note warn"><span class="nt">振込先は、このパソコンの中だけ</span>入力した口座番号は、このブラウザに保存されます。<strong>ページのファイル（HTML）には書き込みません。</strong>docs のURLは、知っていれば誰でも開けるためです。共用のパソコンでは入力しないでください。</div>
 <ul class="box">
-  <li>登録番号は <code>T</code> ＋ 数字13桁です。適格請求書として認められるために、<strong>税率ごとの消費税額</strong>とあわせて必ず入れます</li>
+  <li>登録番号 <code>T9810785107076</code> は、はじめから入っています（国税庁の公表サイトで誰でも確認できる番号のため、ページに直接書いています）。適格請求書として認められるには、この番号と<strong>税率ごとの消費税額</strong>の両方が必要です</li>
   <li>消費税は税率ごとに合計してから計算し、1円未満は切り捨てています</li>
   <li>「取引年月日」は、実際に研修をした日・納品した日を書きます（月まとめなら「2026年8月分」でも構いません）</li>
   <li>見積書のときは、有効期限を必ず入れます（空欄のまま出さない）</li>
