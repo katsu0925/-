@@ -555,3 +555,42 @@ body.solid-head .burger span{background:var(--ink)}
   .hero .bg,.cta-band .bg{inset:0;transform:none!important;will-change:auto}
   .card:hover,.svc:hover,.plan:hover{transform:none}
 }
+
+/* =========================================================
+   研修ページ（/kenshu）— 時間割・プロンプト実物・線引き表
+   ========================================================= */
+.tt{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.tt th,.tt td{text-align:left;padding:16px 22px;border-bottom:1px solid var(--line);vertical-align:top}
+.tt tr:last-child th,.tt tr:last-child td{border-bottom:none}
+.tt thead th{background:var(--ink);color:#fff;font-size:12.5px;letter-spacing:.06em;font-weight:800;padding:14px 22px}
+.tt tbody th{width:112px;white-space:nowrap;font-family:'Archivo',sans-serif;font-weight:800;font-size:14px;color:var(--brand);background:#faf9f6}
+.tt td .tth{font-size:15px;font-weight:800;color:var(--ink);margin-bottom:5px}
+.tt td p{font-size:13.5px;color:var(--muted);line-height:1.85}
+.tt td .tag{display:inline-block;font-size:11px;font-weight:700;color:var(--brand);background:var(--brand-tint);border-radius:999px;padding:2px 10px;margin-left:8px;vertical-align:2px}
+.tt tr.rest th{color:var(--muted)}
+.tt tr.rest td .tth{color:var(--muted);font-weight:700}
+
+/* --- 実物のプロンプト --- */
+.smp{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:24px 26px;margin-bottom:14px}
+.smp .sh{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+.smp .sid{font-family:'Archivo',sans-serif;font-weight:800;font-size:11.5px;letter-spacing:.06em;color:#fff;background:var(--ink);border-radius:5px;padding:3px 9px}
+.smp h4{font-size:16px;font-weight:900}
+.smp .swhen{font-size:12.5px;color:var(--muted);margin-bottom:14px}
+.smp pre{background:var(--ink);color:#e8ecf3;border-radius:12px;padding:18px 20px;font-family:'SFMono-Regular',Consolas,'Courier New',monospace;font-size:12.5px;line-height:1.95;white-space:pre-wrap;word-break:break-word;overflow-x:auto}
+.smp pre b{color:#ffb9a6;font-weight:700}
+.smp .snote{font-size:12.5px;color:var(--muted);line-height:1.85;margin-top:12px}
+
+/* --- 入力してよい情報の3段階 --- */
+.tt tr.ok th{color:#1c8a6b;background:#e3f5ee}
+.tt tr.warn th{color:#b8860b;background:#fdf3dc}
+.tt tr.ng th{color:#c62f2f;background:#fceaea}
+
+@media(max-width:760px){
+  .tt thead{display:none}
+  .tt tbody th,.tt tbody td{display:block;width:auto;padding:14px 18px;border-bottom:none}
+  .tt tbody th{padding-bottom:0;background:transparent}
+  .tt tbody tr{display:block;border-bottom:1px solid var(--line)}
+  .tt tbody tr:last-child{border-bottom:none}
+  .smp{padding:20px}
+  .smp pre{font-size:12px;padding:15px 16px}
+}

@@ -261,6 +261,16 @@ body.present .present-bar{
 }
 .present-bar button:hover{background:rgba(255,255,255,.14)}
 
+/* ---------- 資料ハブ ---------- */
+.hub{display:grid;gap:12px;margin:22px 0 10px}
+.hb{display:block;background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px;transition:.25s;text-decoration:none;color:inherit}
+.hb:hover{border-color:var(--ink);transform:translateY(-2px);box-shadow:0 10px 26px rgba(14,22,38,.08)}
+.hb .hn{display:inline-block;font-family:'Archivo',sans-serif;font-weight:800;font-size:11px;letter-spacing:.08em;color:#fff;background:var(--ink);border-radius:5px;padding:3px 8px;margin-bottom:9px}
+.hb .hn.out{background:var(--brand)}
+.hb h3{font-size:17px;font-weight:900;margin-bottom:6px}
+.hb p{font-size:13.5px;line-height:1.9;color:var(--muted)}
+.hb .hw{display:inline-block;margin-top:9px;font-size:12px;font-weight:700;color:var(--brand)}
+
 /* ---------- 印刷 ---------- */
 @media print{
   @page{size:A4;margin:14mm 12mm}
