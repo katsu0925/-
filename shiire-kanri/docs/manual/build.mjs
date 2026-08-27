@@ -1,4 +1,4 @@
-// shiire-kanri マニュアル PDF ビルダー
+// shiire-kanri マニュアル HTML ビルダー
 //
 // 使い方:
 //   npm install     （初回のみ）
@@ -9,17 +9,17 @@
 // 仕組み:
 //   1. manual-{staff,admin}.md を marked で HTML 化
 //   2. style.css を埋め込み、目次（TOC）を自動生成
-//   3. 中間 HTML を /tmp に出力
-//   4. Chrome headless で --print-to-pdf
+//   3. 画像を base64 データURI で埋め込んだ配布用 HTML を dist/ に出力
+//
+//   ※ PDF 出力は 2026-08-27 に廃止。配布用 HTML が単一正本。
+//      印刷が必要なときはブラウザの印刷機能から A4 に出力する（style.css に @media print あり）。
 //
 // 依存:
 //   - Node 18+
-//   - macOS の Google Chrome (/Applications/Google Chrome.app/...)
 //   - marked, marked-gfm-heading-id（package.json）
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { Marked } from 'marked';
 import { gfmHeadingId } from 'marked-gfm-heading-id';
@@ -27,14 +27,10 @@ import { gfmHeadingId } from 'marked-gfm-heading-id';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = __dirname;
 const DIST = path.join(ROOT, 'dist');
-const TMP = path.join(ROOT, '.build');
-
-const CHROME = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 
 const TARGETS = {
   staff: {
     md: 'manual-staff.md',
-    pdf: '外注向けマニュアル.pdf',
     html: '外注向けマニュアル.html',
     bodyClass: 'staff',
     title: '管理アプリ 外注向けマニュアル',
@@ -42,7 +38,6 @@ const TARGETS = {
   },
   admin: {
     md: 'manual-admin.md',
-    pdf: '管理者向けマニュアル.pdf',
     html: '管理者向けマニュアル.html',
     bodyClass: 'admin',
     title: 'shiire-kanri 管理者向けマニュアル',
@@ -600,10 +595,7 @@ async function buildOne(key) {
   const t = TARGETS[key];
   const mdPath = path.join(ROOT, t.md);
   const cssPath = path.join(ROOT, 'style.css');
-  const tmpHtml = path.join(TMP, `${key}.html`);
-  const outPdf = path.join(DIST, t.pdf);
 
-  await fs.mkdir(TMP, { recursive: true });
   await fs.mkdir(DIST, { recursive: true });
 
   const md = await fs.readFile(mdPath, 'utf8');
@@ -621,42 +613,6 @@ async function buildOne(key) {
       <div class="meta">最終更新: ${new Date().toLocaleDateString('ja-JP', { year:'numeric', month:'long', day:'numeric' })}<br>shiire-kanri.nsdktts1030.workers.dev</div>
     </section>
   `;
-
-  const html = `<!doctype html>
-<html lang="ja">
-<head>
-<meta charset="utf-8">
-<base href="file://${ROOT}/">
-<title>${t.title}</title>
-<style>${css}</style>
-</head>
-<body class="${t.bodyClass}">
-${cover}
-${toc}
-${bodyHtml}
-</body>
-</html>`;
-
-  await fs.writeFile(tmpHtml, html);
-
-  // Chrome headless で PDF 化
-  try {
-    execFileSync(CHROME, [
-      '--headless=new',
-      '--disable-gpu',
-      '--no-pdf-header-footer',
-      '--no-sandbox',
-      '--virtual-time-budget=5000',
-      `--print-to-pdf=${outPdf}`,
-      `file://${tmpHtml}`,
-    ], { stdio: 'inherit' });
-  } catch (e) {
-    console.error(`PDF生成失敗 (${key}):`, e.message);
-    throw e;
-  }
-
-  const stat = await fs.stat(outPdf);
-  console.log(`✅ ${t.pdf} (${(stat.size / 1024).toFixed(1)} KB) → ${outPdf}`);
 
   // 配布用 HTML (画像 base64 埋込み + タップでプレビュー)
   const outHtml = path.join(DIST, t.html);

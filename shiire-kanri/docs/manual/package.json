@@ -2,7 +2,7 @@
   "name": "shiire-kanri-manual",
   "version": "1.0.0",
   "private": true,
-  "description": "shiire-kanri Webアプリのマニュアル（外注用・管理者用）の Markdown と PDF ビルドツール",
+  "description": "shiire-kanri Webアプリのマニュアル（外注用・管理者用）の Markdown と HTML ビルドツール",
   "scripts": {
     "build": "node build.mjs",
     "build:staff": "node build.mjs staff",

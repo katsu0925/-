@@ -951,10 +951,12 @@ UI や機能を変更したら、以下の順序でマニュアルを更新し�
 
 1. `/Users/katsu/saisun-repo/shiire-kanri/docs/manual/manual-staff.md` または `manual-admin.md` を編集
 2. UI 変更が大きいなら関連スクリーンショットを撮り直して `screenshots/staff/` または `screenshots/admin/` に同名で上書き
-3. `npm run build` で PDF 再生成
-4. `dist/外注向けマニュアル.pdf` / `dist/管理者向けマニュアル.pdf` を関係者に共有
+3. `npm run build` で HTML 再生成
+4. `dist/外注向けマニュアル.html` / `dist/管理者向けマニュアル.html` を関係者に共有
 
-PDF ビルド詳細は `/Users/katsu/saisun-repo/shiire-kanri/docs/manual/README.md` を参照。
+HTML は画像を base64 で埋め込んだ自己完結ファイルなので、そのまま送れば単体で開けます。印刷が必要なときはブラウザの印刷機能から A4 に出力してください（PDF 出力は 2026-08-27 に廃止しました）。
+
+ビルド詳細は `/Users/katsu/saisun-repo/shiire-kanri/docs/manual/README.md` を参照。
 
 ---
 
