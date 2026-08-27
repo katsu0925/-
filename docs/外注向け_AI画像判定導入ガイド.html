@@ -38,10 +38,10 @@ th { background: #f3f4f6; font-weight: 700; }
 <body>
 
 <h1>商品情報AI自動入力のお知らせ</h1>
-<p class="date">2026年4月2日</p>
+<p class="date">初版 2026年4月2日／改訂 2026年8月27日（外注アプリ対応）</p>
 
 <div class="highlight">
-<b>タスキ箱に画像をアップするだけで、ブランド・カテゴリ・カラーなどの商品情報がAppSheetに自動入力されるようになりました。</b>
+<b>タスキ箱に画像をアップするだけで、ブランド・カテゴリ・カラーなどの商品情報が外注アプリに自動入力されるようになりました。</b>
 </div>
 
 <h2>何が変わったか</h2>
@@ -81,7 +81,7 @@ th { background: #f3f4f6; font-weight: 700; }
 <div class="flow-num">2</div>
 <div class="flow-text">
 <b>タスキ箱に画像アップ</b><br>
-<small>管理番号を入力して、いつも通りアップロードしてください。</small>
+<small>管理番号を入力して、いつも通りアップロードしてください。アップした時点で<b>撮影日付・撮影者も自動で入ります</b>（手入力は不要です）。</small>
 </div>
 </div>
 
@@ -96,8 +96,8 @@ th { background: #f3f4f6; font-weight: 700; }
 <div class="flow-step">
 <div class="flow-num">3</div>
 <div class="flow-text">
-<b>AppSheetで商品登録</b><br>
-<small>仕入れ商品選択 → 管理番号を確認 → 商品情報が<b>自動で入っています</b>。</small>
+<b>外注アプリで商品を開く</b><br>
+<small>👕商品管理タブ →「管理番号で検索」→ 商品カードをタップ。「基本」タブに商品情報が<b>自動で入っています</b>。</small>
 </div>
 </div>
 
@@ -105,7 +105,7 @@ th { background: #f3f4f6; font-weight: 700; }
 <div class="flow-num">4</div>
 <div class="flow-text">
 <b>AI入力値を確認・修正</b><br>
-<small>AIが入力した値が正しいか確認し、間違っていれば修正してください。</small>
+<small>「基本」タブで、AIが入力した値が正しいか実物と見比べて確認し、間違っていれば修正してください。</small>
 </div>
 </div>
 
@@ -113,7 +113,7 @@ th { background: #f3f4f6; font-weight: 700; }
 <div class="flow-num">5</div>
 <div class="flow-text">
 <b>採寸データを入力</b><br>
-<small>着丈・肩幅・身幅など、いつも通り採寸値を入力してください。</small>
+<small>「採寸」タブで、着丈・肩幅・身幅など、いつも通り採寸値を入力してください。</small>
 </div>
 </div>
 
@@ -121,7 +121,7 @@ th { background: #f3f4f6; font-weight: 700; }
 <div class="flow-num">6</div>
 <div class="flow-text">
 <b>状態・発送方法を入力して保存</b><br>
-<small>この2つはAIでは判定できないため、手入力が必要です。</small>
+<small>この2つはAIでは判定できないため、「基本」タブで手入力が必要です。</small>
 </div>
 </div>
 
@@ -160,8 +160,8 @@ th { background: #f3f4f6; font-weight: 700; }
 
 <h2>よくある質問</h2>
 
-<h3>Q. 画像アップ後、すぐにAppSheetで登録しても大丈夫？</h3>
-<p>AI判定には約5分かかります。画像アップ後、5分以上経ってからAppSheetで商品登録すれば、自動入力された状態で開けます。<b>10着まとめてアップ→まとめて採寸</b>のバッチ作業なら自然に5分は経つので問題ありません。</p>
+<h3>Q. 画像アップ後、すぐに外注アプリを開いても大丈夫？</h3>
+<p>AI判定には約5分かかります。画像アップ後、5分以上経ってから外注アプリで商品を開けば、自動入力された状態で見られます。<b>10着まとめてアップ→まとめて採寸</b>のバッチ作業なら自然に5分は経つので問題ありません。</p>
 
 <h3>Q. AIが間違った値を入力していた場合は？</h3>
 <p>通常の手入力と同じように、そのまま値を修正してください。AIの入力値は初期値なので、自由に変更できます。</p>
@@ -172,8 +172,16 @@ th { background: #f3f4f6; font-weight: 700; }
 <h3>Q. 既存の商品データはどうなる？</h3>
 <p>既に登録済みの商品データには影響ありません。新しく登録する商品からAI自動入力が適用されます。</p>
 
+<h2>アップデート履歴</h2>
+
+<table>
+<tr><th>日付</th><th>版</th><th>変更内容</th></tr>
+<tr><td>2026-08-27</td><td>v2</td><td>商品情報の入力先を外注アプリ（👕商品管理タブ）の表記に統一。撮影日付・撮影者も自動入力される点を追記</td></tr>
+<tr><td>2026-04-02</td><td>v1</td><td>初版</td></tr>
+</table>
+
 <div class="footer">
-NKonline 業務改善通知 | AI画像判定システム（Gemini 2.5 Flash Lite）
+NKonline 業務改善通知 | AI画像判定システム（Google Gemini）
 </div>
 
 </body>
