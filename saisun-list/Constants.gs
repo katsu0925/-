@@ -245,9 +245,43 @@ function buildRewardFormulaV2_(rowNum, channel) {
   return '=IF(T' + r + '="","",' + bigBox + '*K' + r + ')';
 }
 
+/** 数式文字列の先頭 '=' を外す（別の数式へ埋め込むためのヘルパー）。 */
+function stripRewardFormulaEquals_(formula) {
+  var f = String(formula || '');
+  return f.charAt(0) === '=' ? f.slice(1) : f;
+}
+
+/**
+ * v3改定日より前の行に入れる数式（v2据え置き＋箱数入力ありなら新ルール）。
+ *
+ * 原則は v2 のまま据え置き（確定・支払済みの報酬を遡って変えない）。
+ * ただし **発送サイズ(V列)と箱数(W列)が両方入力されている行だけ** は v3（単価×箱数）で計算する。
+ * 箱数(W列)は 2026-08-27 に新設した列なので、手を入れていない過去の行は必ず空欄＝v2のまま。
+ * つまり遡及的な減給・増給は起きず、**発送者が箱数を入れた行だけがその場で正しい額になる**。
+ *
+ * ★シート数式側で分岐させているのがポイント。コード側のフラグで切り替えると、
+ *   箱数を入力しても翌朝4時の自己修復が走るまで金額が変わらない（＝入力しても反応しない）。
+ * ★両方の入力を条件にしているのは、箱数だけ入れた旧アソート行（発送サイズ空欄）が
+ *   v3では空欄＝¥0に落ちてしまうのを避けるため。
+ *
+ * @param {number} rowNum 対象行番号（1-based）
+ * @param {string} channel チャネル（v2側の分岐に使う）
+ * @return {string} 数式文字列
+ */
+function buildRewardFormulaV2WithBoxOverride_(rowNum, channel) {
+  var r = rowNum;
+  var size = colLetter_(REQUEST_SHEET_COLS.SHIP_SIZE) + r;   // V: 発送サイズ
+  var boxes = colLetter_(REQUEST_SHEET_COLS.BOX_COUNT) + r;  // W: 箱数
+  var v3 = stripRewardFormulaEquals_(buildRewardFormula_(r, channel));
+  var v2 = stripRewardFormulaEquals_(buildRewardFormulaV2_(r, channel));
+  return '=IF(AND(' + size + '<>"",' + boxes + '<>""),' + v3 + ',' + v2 + ')';
+}
+
 /**
  * 依頼日時に応じて「その行に入っているべき数式」を返す。
  * v3改定日より前の行は v2 のまま据え置く（確定・支払済みの報酬を遡って変えない）。
+ * ただし据え置き行でも **発送サイズと箱数が両方入力されていれば v3（単価×箱数）** で計算する
+ * （`buildRewardFormulaV2WithBoxOverride_` 参照。箱数は新設列なので過去行は空欄＝据え置きのまま）。
  *
  * @param {number} rowNum 対象行番号（1-based）
  * @param {string} channel チャネル（AI列）
@@ -256,7 +290,7 @@ function buildRewardFormulaV2_(rowNum, channel) {
  */
 function buildRewardFormulaForDate_(rowNum, channel, requestDate) {
   if (requestDate instanceof Date && requestDate.getTime() && requestDate < REWARD_SCHEME_V3_START_) {
-    return buildRewardFormulaV2_(rowNum, channel);
+    return buildRewardFormulaV2WithBoxOverride_(rowNum, channel);
   }
   return buildRewardFormula_(rowNum, channel);
 }
