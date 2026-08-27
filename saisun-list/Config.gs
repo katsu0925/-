@@ -94,18 +94,20 @@ const APP_CONFIG = {
     shippingStatus: 18,    // S列: 発送ステータス
     carrier: 19,           // T列: 配送業者
     trackingNo: 20,        // U列: 伝票番号
-    status: 21,            // V列: ステータス
-    person: 22,            // W列: 担当者
-    listEnclosed: 23,      // X列: リスト同梱
-    xlsxSent: 24,          // Y列: xlsx送付
-    invoiceReq: 25,        // Z列: インボイス発行
-    invoiceSent: 26,       // AA列: インボイス状況
-    notifyFlag: 27,        // AB列: 受注通知
-    shipNotifyFlag: 28,    // AC列: 発送通知
-    note: 29,              // AD列: 備考
-    reward: 30,            // AE列: 作業報酬
-    updatedAt: 31,         // AF列: 更新日時
-    channel: 32            // AG列: チャネル（デタウリ/アソート）
+    shipSize: 21,          // V列: 発送サイズ（クリックポスト/中箱/大箱）
+    boxCount: 22,          // W列: 箱数（空欄=1箱）
+    status: 23,            // X列: ステータス
+    person: 24,            // Y列: 担当者
+    listEnclosed: 25,      // Z列: リスト同梱
+    xlsxSent: 26,          // AA列: xlsx送付
+    invoiceReq: 27,        // AB列: インボイス発行
+    invoiceSent: 28,       // AC列: インボイス状況
+    notifyFlag: 29,        // AD列: 受注通知
+    shipNotifyFlag: 30,    // AE列: 発送通知
+    note: 31,              // AF列: 備考
+    reward: 32,            // AG列: 作業報酬
+    updatedAt: 33,         // AH列: 更新日時
+    channel: 34            // AI列: チャネル（デタウリ/アソート）
   },
   statuses: {
     open: '依頼中',

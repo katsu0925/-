@@ -50,7 +50,7 @@ function notifyUnsentRequests() {
   const data = sh.getDataRange().getValues();
   const sentRows = [];
   for (let i = 1; i < data.length; i++) {
-    const flag = data[i][27];  // AB列 (index 27) = 受注通知フラグ
+    const flag = data[i][REQUEST_SHEET_COLS.NOTIFY_FLAG - 1];  // AD列 (index 29) = 受注通知フラグ
     const isFalse = (flag === false) || (String(flag).toUpperCase() === 'FALSE');
     if (!isFalse) continue;
     const receiptNo = data[i][0];   // A列: 受付番号
@@ -64,7 +64,7 @@ function notifyUnsentRequests() {
     }
     const companyName = data[i][2]; // C列: 会社名/氏名
     const productName = data[i][7]; // H列: 商品名
-    const note = data[i][29];       // AD列: 備考
+    const note = data[i][REQUEST_SHEET_COLS.NOTE - 1];       // AF列: 備考
     const message =
       '受付番号: ' + receiptNo + '\n' +
       '依頼日時: ' + dateStr + '\n' +
@@ -101,7 +101,7 @@ function notifyUnsentRequests() {
   }
   // バッチでフラグ更新
   if (sentRows.length > 0) {
-    const ranges = sentRows.map(r => sh.getRange(r, 28));
+    const ranges = sentRows.map(r => sh.getRange(r, REQUEST_SHEET_COLS.NOTIFY_FLAG));
     const rangeList = sh.getRangeList(ranges.map(r => r.getA1Notation()));
     rangeList.setValue(true);
   }

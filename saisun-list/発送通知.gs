@@ -14,13 +14,13 @@ const SHIPMAIL_CONFIG = {
   COL_COUNT_K: 11,         // K列: 合計点数
   COL_AMOUNT_L: 12,        // L列: 合計金額
   COL_STATUS_M: 19,        // S列: 発送ステータス
-  COL_STATUS_P: 22,        // V列: ステータス
+  COL_STATUS_P: 24,        // X列: ステータス
   COL_CARRIER_W: 20,       // T列: 配送業者
   COL_TRACKING_X: 21,      // U列: 伝票番号
-  FLAG_COL: 29,            // AC列: 発送通知
+  FLAG_COL: 31,            // AE列: 発送通知
   COL_PAYMENT_ID_AF: 16,  // P列: 決済ID（KOMOJUのみ）
-  COL_TRACKING_URL: 34,   // AH列: 追跡URL
-  COL_KIT_URL: 36          // AJ列: 出品キットURL
+  COL_TRACKING_URL: 36,   // AJ列: 追跡URL
+  COL_KIT_URL: 38          // AL列: 出品キットURL
 };
 
 /**
@@ -106,6 +106,10 @@ function shipMailOnEdit(e) {
       Logger.log('STOP: newValue is not 発送済み');
       return;
     }
+
+    // ★列移設（発送サイズ→V / 箱数→W）が未実施だと以降の列指定が全てズレるため、ここで移設を保証する。
+    //   「発送済み」への変更時だけ通る経路なので、通常の編集には一切コストがかからない。
+    if (typeof sh_migrateShipSizeColumns_ === 'function') sh_migrateShipSizeColumns_(sh);
 
     const flagCell = sh.getRange(row, SHIPMAIL_CONFIG.FLAG_COL);
     const flagged = String(flagCell.getValue() || '').trim();

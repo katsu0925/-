@@ -146,7 +146,7 @@ function wn_sendSoldReport_() {
   var lastRow = sh.getLastRow();
   if (lastRow < 2) { console.log('wn_sendSoldReport_: データなし'); return; }
 
-  var data = sh.getRange(2, 1, lastRow - 1, 35).getValues(); // AI列(35)まで取得
+  var data = sh.getRange(2, 1, lastRow - 1, REQUEST_SHEET_COLS.ITEM_PRICES).getValues(); // AK列(37)まで取得
 
   // 直近7日の売約を集計
   var now = new Date();
@@ -159,7 +159,7 @@ function wn_sendSoldReport_() {
     if (!(dateVal instanceof Date)) continue;
     if (dateVal < weekAgo) continue;
 
-    var status = String(data[i][21] || '').trim(); // V列
+    var status = String(data[i][REQUEST_SHEET_COLS.STATUS - 1] || '').trim(); // X列
     if (status === 'キャンセル' || status === '返品') continue;
 
     var selectionList = String(data[i][9] || '').trim(); // J列: 選択リスト
@@ -168,10 +168,10 @@ function wn_sendSoldReport_() {
     var managedIds = u_parseSelectionList_(selectionList);
     if (managedIds.length === 0) continue;
 
-    // AI列: 商品単価JSON（データ1から消えた商品のフォールバック用）
+    // AK列: 商品単価JSON（データ1から消えた商品のフォールバック用）
     var unitPriceMap = {};
     try {
-      var aiVal = data[i][34]; // AI列(idx 34)
+      var aiVal = data[i][REQUEST_SHEET_COLS.ITEM_PRICES - 1]; // AK列(idx 36)
       if (aiVal) unitPriceMap = JSON.parse(String(aiVal));
     } catch (e) { /* パースエラーは無視 */ }
 

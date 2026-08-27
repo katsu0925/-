@@ -300,7 +300,7 @@ function cronDailySummary() {
   var lastRow = sh.getLastRow();
   if (lastRow < 2) return;
 
-  var data = sh.getRange(2, 1, lastRow - 1, 33).getValues();
+  var data = sh.getRange(2, 1, lastRow - 1, REQUEST_SHEET_COLS.CHANNEL).getValues();
 
   var pendingPayment = 0; // 入金待ち
   var pendingShip = 0;    // 発送待ち
@@ -310,7 +310,7 @@ function cronDailySummary() {
   var todayStr = Utilities.formatDate(today, 'Asia/Tokyo', 'yyyy/MM/dd');
 
   for (var i = 0; i < data.length; i++) {
-    var status = String(data[i][21] || '').trim(); // V列: ステータス
+    var status = String(data[i][REQUEST_SHEET_COLS.STATUS - 1] || '').trim(); // X列: ステータス
     if (status === '完了' || status === 'キャンセル' || status === '返品') continue;
     if (!data[i][0]) continue; // 受付番号が空ならスキップ
 

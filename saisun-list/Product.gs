@@ -11,31 +11,83 @@ function sh_getOrderSs_() {
   return SpreadsheetApp.openById(app_getOrderSpreadsheetId_());
 }
 
+/** 依頼管理 / 依頼管理_アーカイブ のヘッダー（A〜AI列）。AJ以降は sh_applyRequestStatusDropdown_ で付与。 */
+const REQUEST_SHEET_HEADER_ = [
+  '受付番号','依頼日時','会社名/氏名','連絡先','郵便番号','住所','電話番号','商品名',
+  '確認リンク','選択リスト','合計点数','合計金額','送料(店負担)','送料(客負担)','決済方法','決済ID',
+  '入金確認','ポイント付与済','発送ステータス','配送業者','伝票番号','発送サイズ','箱数','ステータス','担当者',
+  'リスト同梱','xlsx送付','インボイス発行','インボイス状況','受注通知',
+  '発送通知','備考','作業報酬','更新日時','チャネル'
+];
+
+/**
+ * 【1回だけ効く列移設】発送サイズ／箱数を V・W列（配送業者・伝票番号の隣）へ移す。
+ *
+ * 旧レイアウト: … T=配送業者, U=伝票番号, V=ステータス, …, AK=発送サイズ, AL=CP発行日時
+ * 新レイアウト: … T=配送業者, U=伝票番号, V=発送サイズ, W=箱数, X=ステータス, …
+ *
+ * ★必ず moveColumns / insertColumnsBefore を使う（コピー＋deleteColumn は禁止）。
+ *   前者はシート上の既存数式の参照を自動追従させるため、過去行の作業報酬の数式が
+ *   #REF! にならずそのまま計算され続ける。後者は確定済みの報酬額を壊す。
+ *
+ * 判定は「22列目のヘッダーが『ステータス』か」だけで行う（＝旧レイアウトの動かぬ証拠）。
+ * 移設済みなら何もしないので、何度呼んでも安全。
+ *
+ * @param {Sheet} sh 依頼管理 または 依頼管理_アーカイブ
+ * @return {boolean} 移設を実行したら true
+ */
+function sh_migrateShipSizeColumns_(sh) {
+  try {
+    if (!sh || sh.getMaxColumns() < REQUEST_SHEET_COLS.SHIP_SIZE) return false;
+    const at22 = String(sh.getRange(1, REQUEST_SHEET_COLS.SHIP_SIZE).getValue() || '').trim();
+    if (at22 !== 'ステータス') return false; // 旧レイアウトではない＝移設済み or 新規シート
+
+    const oldShipSizeCol = 37; // 旧AK列
+    const hasOldShipSize = sh.getMaxColumns() >= oldShipSizeCol &&
+      String(sh.getRange(1, oldShipSizeCol).getValue() || '').trim() === '発送サイズ';
+
+    if (hasOldShipSize) {
+      // AK(37) を V(22) へ移動 → 旧22〜36が23〜37へずれる。既存数式の参照も自動追従。
+      sh.moveColumns(sh.getRange(1, oldShipSizeCol, 1, 1), REQUEST_SHEET_COLS.SHIP_SIZE);
+      // 箱数(W)を新設
+      sh.insertColumnsBefore(REQUEST_SHEET_COLS.BOX_COUNT, 1);
+    } else {
+      // アーカイブ等、発送サイズ列を持たないシートは空2列を挿入するだけ
+      sh.insertColumnsBefore(REQUEST_SHEET_COLS.SHIP_SIZE, 2);
+    }
+    // 挿入列が左隣の入力規則を引き継ぐことがあるので、箱数列は明示的に張り替える
+    sh.getRange(2, REQUEST_SHEET_COLS.BOX_COUNT, Math.max(1, sh.getMaxRows() - 1), 1).clearDataValidations();
+    console.log('依頼管理の列移設を実行: ' + sh.getName());
+    return true;
+  } catch (e) {
+    console.error('sh_migrateShipSizeColumns_ error (' + (sh && sh.getName()) + '):', e);
+    return false;
+  }
+}
+
 function sh_ensureRequestSheet_(ss) {
   const name = String(APP_CONFIG.order.requestSheetName || '依頼管理');
   let sh = ss.getSheetByName(name);
   if (!sh) sh = ss.insertSheet(name);
-  // 列構成（33列 A-AG）:
+  // 列構成（39列 A-AM）:
   // A=受付番号, B=依頼日時, C=会社名/氏名, D=連絡先, E=郵便番号, F=住所, G=電話番号, H=商品名,
   // I=確認リンク, J=選択リスト, K=合計点数, L=合計金額, M=送料(店負担), N=送料(客負担), O=決済方法, P=決済ID,
-  // Q=入金確認, R=ポイント付与済, S=発送ステータス, T=配送業者, U=伝票番号, V=ステータス, W=担当者,
-  // X=リスト同梱, Y=xlsx送付, Z=インボイス発行, AA=インボイス状況, AB=受注通知,
-  // AC=発送通知, AD=備考, AE=作業報酬, AF=更新日時, AG=チャネル
-  const header = [
-    '受付番号','依頼日時','会社名/氏名','連絡先','郵便番号','住所','電話番号','商品名',
-    '確認リンク','選択リスト','合計点数','合計金額','送料(店負担)','送料(客負担)','決済方法','決済ID',
-    '入金確認','ポイント付与済','発送ステータス','配送業者','伝票番号','ステータス','担当者',
-    'リスト同梱','xlsx送付','インボイス発行','インボイス状況','受注通知',
-    '発送通知','備考','作業報酬','更新日時','チャネル'
-  ];
+  // Q=入金確認, R=ポイント付与済, S=発送ステータス, T=配送業者, U=伝票番号,
+  // V=発送サイズ, W=箱数, X=ステータス, Y=担当者,
+  // Z=リスト同梱, AA=xlsx送付, AB=インボイス発行, AC=インボイス状況, AD=受注通知,
+  // AE=発送通知, AF=備考, AG=作業報酬, AH=更新日時, AI=チャネル,
+  // AJ=追跡URL, AK=商品単価JSON, AL=出品キットURL, AM=CP発行日時
+  // ★列を移設した直後の書き込みで列ズレを起こさないよう、ヘッダー確認より先に移設を試みる
+  sh_migrateShipSizeColumns_(sh);
+  const header = REQUEST_SHEET_HEADER_;
   const r1 = sh.getRange(1, 1, 1, header.length).getValues()[0];
   let needs = false;
   for (let i = 0; i < header.length; i++) if (String(r1[i] || '') !== header[i]) { needs = true; break; }
   if (needs) sh.getRange(1, 1, 1, header.length).setValues([header]);
-  // AK列（37, 発送サイズ）/ AL列（38, CP発行日時）の物理存在を保証。
-  // AKは作業報酬(AE)の数式が参照するため列が無いと #REF! になる。
-  // ALはクリックポストCSVの二重発行防止マーカー（ClickPost.gs）で使用する。
-  // ヘッダー/プルダウンは sh_applyRequestStatusDropdown_ で付与。
+  // AM列（39, CP発行日時）までの物理存在を保証。
+  // V(発送サイズ)/W(箱数)は作業報酬(AG)の数式が参照するため列が無いと #REF! になる。
+  // AMはクリックポストCSVの二重発行防止マーカー（ClickPost.gs）で使用する。
+  // AJ以降のヘッダー/プルダウンは sh_applyRequestStatusDropdown_ で付与。
   if (sh.getMaxColumns() < REQUEST_SHEET_COLS.CP_ISSUED_AT) {
     sh.insertColumnsAfter(sh.getMaxColumns(), REQUEST_SHEET_COLS.CP_ISSUED_AT - sh.getMaxColumns());
   }
@@ -58,13 +110,9 @@ function sh_ensureArchiveSheet_(ss) {
   const name = '依頼管理_アーカイブ';
   let sh = ss.getSheetByName(name);
   if (!sh) sh = ss.insertSheet(name);
-  const header = [
-    '受付番号','依頼日時','会社名/氏名','連絡先','郵便番号','住所','電話番号','商品名',
-    '確認リンク','選択リスト','合計点数','合計金額','送料(店負担)','送料(客負担)','決済方法','決済ID',
-    '入金確認','ポイント付与済','発送ステータス','配送業者','伝票番号','ステータス','担当者',
-    'リスト同梱','xlsx送付','インボイス発行','インボイス状況','受注通知',
-    '発送通知','備考','作業報酬','更新日時','チャネル'
-  ];
+  // 依頼管理と同じ並びに揃える（過去行と新規追記の列がズレないよう先に移設）
+  sh_migrateShipSizeColumns_(sh);
+  const header = REQUEST_SHEET_HEADER_;
   const r1 = sh.getRange(1, 1, 1, header.length).getValues()[0];
   let needs = false;
   for (let i = 0; i < header.length; i++) if (String(r1[i] || '') !== header[i]) { needs = true; break; }
@@ -87,48 +135,52 @@ function sh_ensureOpenLogSheet_(ss) {
 function sh_applyRequestStatusDropdown_(ss) {
   const sh = sh_ensureRequestSheet_(ss);
   const maxRows = sh.getMaxRows();
-  // V列(22): ステータス（依頼中/発送済み等）
+  const rows = Math.max(1, maxRows - 1);
+  // X列(24): ステータス（依頼中/発送済み等）
   const statusRule = SpreadsheetApp.newDataValidation()
     .requireValueInList(APP_CONFIG.statuses.allowed, true)
     .setAllowInvalid(false)
     .build();
-  sh.getRange(2, 22, Math.max(1, maxRows - 1), 1).setDataValidation(statusRule);
+  sh.getRange(2, REQUEST_SHEET_COLS.STATUS, rows, 1).setDataValidation(statusRule);
 
   // Q列(17): 入金確認ステータス
   const paymentRule = SpreadsheetApp.newDataValidation()
     .requireValueInList(['入金待ち', '未対応', '対応済'], true)
     .setAllowInvalid(false)
     .build();
-  sh.getRange(2, 17, Math.max(1, maxRows - 1), 1).setDataValidation(paymentRule);
+  sh.getRange(2, REQUEST_SHEET_COLS.PAYMENT, rows, 1).setDataValidation(paymentRule);
 
-  // AK列(37): 発送サイズ（デタウリ単品の作業報酬算定に使用）
-  // クリックポスト=50円 / 中箱=100円 / 大箱=250円（配送業者が日本郵便なら350円）。
-  // アソート系は 箱数×250円（日本郵便なら箱数×350円）で AK は不要。
-  const SHIP_SIZE_COL = REQUEST_SHEET_COLS.SHIP_SIZE; // 37 (AK)
-  // AK列が物理的に存在しない場合は列を追加してから設定する
-  if (sh.getMaxColumns() < SHIP_SIZE_COL) {
-    sh.insertColumnsAfter(sh.getMaxColumns(), SHIP_SIZE_COL - sh.getMaxColumns());
+  // V列(22): 発送サイズ ／ W列(23): 箱数 — 発送作業者が入力する2列（作業報酬の算定に使用）
+  // 報酬 = 単価(クリックポスト50 / 中箱100 / 大箱250。大箱かつ日本郵便は350) × 箱数（空欄=1箱）
+  const SHIP_SIZE_COL = REQUEST_SHEET_COLS.SHIP_SIZE;
+  const BOX_COUNT_COL = REQUEST_SHEET_COLS.BOX_COUNT;
+  if (sh.getMaxColumns() < REQUEST_SHEET_COLS.CP_ISSUED_AT) {
+    sh.insertColumnsAfter(sh.getMaxColumns(), REQUEST_SHEET_COLS.CP_ISSUED_AT - sh.getMaxColumns());
   }
   sh.getRange(1, SHIP_SIZE_COL).setValue('発送サイズ');
   const shipSizeRule = SpreadsheetApp.newDataValidation()
     .requireValueInList(['クリックポスト', '中箱', '大箱'], true)
     .setAllowInvalid(false)
     .build();
-  sh.getRange(2, SHIP_SIZE_COL, Math.max(1, maxRows - 1), 1).setDataValidation(shipSizeRule);
+  sh.getRange(2, SHIP_SIZE_COL, rows, 1).setDataValidation(shipSizeRule);
 
-  // AL列(38): CP発行日時（クリックポストのラベルCSVを発行した日時）
+  sh.getRange(1, BOX_COUNT_COL).setValue('箱数');
+  const boxCountRule = SpreadsheetApp.newDataValidation()
+    .requireNumberGreaterThan(0)
+    .setAllowInvalid(false)
+    .setHelpText('発送した箱の数を入力してください（空欄なら1箱として計算されます）')
+    .build();
+  sh.getRange(2, BOX_COUNT_COL, rows, 1).setDataValidation(boxCountRule);
+
+  // AM列(39): CP発行日時（クリックポストのラベルCSVを発行した日時）
   // 同じ注文のラベルを二重に発行しないためのマーカー。プルダウンは付けない（自動記録のみ）。
-  const CP_ISSUED_COL = REQUEST_SHEET_COLS.CP_ISSUED_AT; // 38 (AL)
-  if (sh.getMaxColumns() < CP_ISSUED_COL) {
-    sh.insertColumnsAfter(sh.getMaxColumns(), CP_ISSUED_COL - sh.getMaxColumns());
-  }
-  sh.getRange(1, CP_ISSUED_COL).setValue('CP発行日時');
+  sh.getRange(1, REQUEST_SHEET_COLS.CP_ISSUED_AT).setValue('CP発行日時');
   return true;
 }
 
 function sh_ensureAllOnce_(ss) {
   const props = PropertiesService.getScriptProperties();
-  const k = 'SHEETS_READY_V4:' + ss.getId();
+  const k = 'SHEETS_READY_V5:' + ss.getId();
   if (props.getProperty(k) === '1') return;
   sh_ensureRequestSheet_(ss);
   sh_ensureHoldSheet_(ss);

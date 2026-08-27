@@ -44,14 +44,14 @@ function od_rebuildOpenStateFromRequestSheet_(orderSs) {
   const items = {};
   
   if (lastRow >= 2) {
-    const values = sh.getRange(2, 1, lastRow - 1, 32).getValues();
+    const values = sh.getRange(2, 1, lastRow - 1, REQUEST_SHEET_COLS.STATUS).getValues();
 
     var rc = APP_CONFIG.requestCols || {};
     for (let i = 0; i < values.length; i++) {
       const row = values[i];
       const receiptNo = String(row[rc.receiptNo || 0] || '').trim();
       const selectionList = String(row[rc.selectionList || 9] || '');
-      const status = String(row[rc.status || 21] || '').trim();
+      const status = String(row[rc.status || 23] || '').trim();
       
       if (!receiptNo || !status) continue;
       
@@ -148,8 +148,8 @@ function od_handleRequestSheetStatusEdits_(orderSs, requestSheet, startRow, endR
   const numRows = Math.max(0, endRow - startRow + 1);
   if (numRows === 0) return;
 
-  // AG列(チャネル)まで読み取る
-  var readCols = Math.max(33, REQUEST_SHEET_COLS.CHANNEL || 33);
+  // AI列(チャネル)まで読み取る
+  var readCols = Math.max(35, REQUEST_SHEET_COLS.CHANNEL || 35);
   const values = requestSheet.getRange(startRow, 1, numRows, readCols).getValues();
 
   var rc = APP_CONFIG.requestCols || {};
@@ -157,13 +157,13 @@ function od_handleRequestSheetStatusEdits_(orderSs, requestSheet, startRow, endR
     const row = values[i];
     const receiptNo = String(row[rc.receiptNo || 0] || '').trim();
     const selectionList = String(row[rc.selectionList || 9] || '');
-    const status = String(row[rc.status || 21] || '').trim();
+    const status = String(row[rc.status || 23] || '').trim();
 
     if (!receiptNo) continue;
 
     // キャンセル時にアソート在庫を復帰
     if (status === 'キャンセル') {
-      var channel = String(row[(REQUEST_SHEET_COLS.CHANNEL || 33) - 1] || '').trim();
+      var channel = String(row[(REQUEST_SHEET_COLS.CHANNEL || 35) - 1] || '').trim();
       var totalCount = Number(row[(REQUEST_SHEET_COLS.TOTAL_COUNT || 11) - 1] || 0);
       if (channel === 'アソート' && selectionList) {
         try {
@@ -356,7 +356,7 @@ function od_archiveCompletedOrders_() {
     if (lastRow < 3) return; // ヘッダー + 行2(ARRAYFORMULA) のみ
 
     // 全データ取得（getValuesでARRAYFORMULAの計算結果が値で返る）
-    var numCols = 33; // A-AG
+    var numCols = REQUEST_SHEET_LAST_COL; // A-AM
     var data = reqSheet.getRange(2, 1, lastRow - 1, numCols).getValues();
 
     var now = new Date();

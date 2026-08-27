@@ -1138,8 +1138,8 @@ function debugFixOrderRow(receiptNo) {
   if (targetRow === -1) { console.log('受付番号が見つかりません: ' + receiptNo); return; }
 
   // 現在の値を取得
-  var currentRow = reqSh.getRange(targetRow, 1, 1, 33).getValues()[0];
-  var note = String(currentRow[29] || '');
+  var currentRow = reqSh.getRange(targetRow, 1, 1, REQUEST_SHEET_COLS.CHANNEL).getValues()[0];
+  var note = String(currentRow[REQUEST_SHEET_COLS.NOTE - 1] || '');
   console.log('該当行: ' + targetRow);
   console.log('現在のH列: ' + currentRow[7]);
   console.log('現在の備考: ' + note);
@@ -1230,8 +1230,8 @@ function debugFixOrderRow(receiptNo) {
   // 備考からアソート合算行を削除（数値が各列に入ったので不要）
   var newNote = note.replace(/\n?【アソート合算[^】]*】/g, '').trim();
   if (newNote !== note) {
-    reqSh.getRange(targetRow, 30).setValue(newNote);
-    console.log('AD列(備考): アソート合算行を削除 → ' + newNote);
+    reqSh.getRange(targetRow, REQUEST_SHEET_COLS.NOTE).setValue(newNote);
+    console.log('AF列(備考): アソート合算行を削除 → ' + newNote);
   }
 
   console.log('✓ 行 ' + targetRow + ' を修正しました');
@@ -1570,12 +1570,12 @@ function analyzeShippingThreshold() {
   var lastRow = sh.getLastRow();
   if (lastRow < 2) { console.log('データなし'); return; }
 
-  var data = sh.getRange(2, 1, lastRow - 1, 22).getValues();
+  var data = sh.getRange(2, 1, lastRow - 1, REQUEST_SHEET_COLS.STATUS).getValues();
   var amounts = [];
   var shippingPaid = []; // 客負担送料が発生した注文
 
   for (var i = 0; i < data.length; i++) {
-    var status = String(data[i][21] || '').trim(); // V列: ステータス
+    var status = String(data[i][REQUEST_SHEET_COLS.STATUS - 1] || '').trim(); // X列: ステータス
     if (status === 'キャンセル' || status === '返品') continue;
     var amount = Number(data[i][11]) || 0; // L列: 合計金額
     if (amount <= 0) continue;

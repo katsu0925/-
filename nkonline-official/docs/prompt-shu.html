@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex,nofollow">
+<title>そのまま使える プロンプト集｜NKonline AI導入支援</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@700;800&family=Noto+Sans+JP:wght@400;500;700;900&display=swap">
+<link rel="icon" type="image/svg+xml" href="../favicon.svg">
+<link rel="stylesheet" href="./docs.css">
+</head>
+<body>
+
+<div class="tools no-print">
+  <span class="tl">配布資料 ／ 社内向けAI研修</span>
+  <button class="tb" data-print>印刷・PDFで保存</button>
+  <a class="tb pri" href="../ai-shien.html">AI導入支援について</a>
+</div>
+
+<div class="sheet">
+
+<div class="doc-head">
+  <div class="doc-brand">NK<span>online</span></div>
+  <div class="doc-kind">社内向けAI研修 配布資料 01</div>
+  <h1 class="doc-title">そのまま使える プロンプト集</h1>
+  <p class="doc-sub">【　】の部分を自分の状況に書き換えて、ChatGPT や Claude にそのまま貼り付けてお使いください。<br>全36本。まずはご自身の仕事に近いものを1つ、今日試していただくのがおすすめです。</p>
+  <div class="doc-meta"><span>第1版</span><span>NKonline（エヌケーオンライン）</span><span>お問い合わせ：nkonline1030@gmail.com</span></div>
+</div>
+
+<h2 class="h"><span class="n">0</span>まず、これだけ覚えてください</h2>
+<p class="lead">プロンプト（AIへの指示文）がうまくいかないときは、たいてい次の4つのどれかが抜けています。この4点さえ書けば、集の中に該当するものがなくても自分で書けるようになります。</p>
+<table class="t">
+  <thead><tr><th style="width:120px">要素</th><th>書くこと</th><th>例</th></tr></thead>
+  <tbody>
+    <tr><th>① 立場</th><td>AIに何の役をやってもらうか</td><td>あなたは飲食店の店長です</td></tr>
+    <tr><th>② 状況</th><td>今どういう場面か・前提は何か</td><td>スタッフ4名、予算は月3万円まで</td></tr>
+    <tr><th>③ してほしいこと</th><td>何を出してほしいか（ひとつに絞る）</td><td>お詫びのメールを書いてください</td></tr>
+    <tr><th>④ 出し方</th><td>形式・長さ・してはいけないこと</td><td>400文字・箇条書き・推測で補わない</td></tr>
+  </tbody>
+</table>
+<div class="note tip"><span class="nt">効きめが大きいのは④です</span>「推測で補わないでください」「私が渡した情報以外は使わないでください」の一文を足すだけで、それらしい作り話がぐっと減ります。この集のプロンプトにも、ほとんどに入れてあります。</div>
+<div class="note warn"><span class="nt">入力してはいけないもの</span>お客様の氏名・住所・電話番号・メールアドレス、従業員の個人情報、取引先との契約書、マイナンバー、口座情報、パスワード。<br>これらは、たとえ便利でも入力しないでください。要旨や「【お客様】」といった置き換えで、ほとんどの場合は十分に使えます。詳しくは配布資料03「社内AI利用ルール」をご覧ください。</div>
+
+<div class="toc">
+  <h4>もくじ</h4>
+  <ol>
+    <li><a href="#ch-A">メール・連絡文（6本）</a></li>
+    <li><a href="#ch-B">会議・議事録（4本）</a></li>
+    <li><a href="#ch-C">資料・文章づくり（5本）</a></li>
+    <li><a href="#ch-D">調べもの・情報整理（4本）</a></li>
+    <li><a href="#ch-E">数字・表・データ（4本）</a></li>
+    <li><a href="#ch-F">お客様対応・接客（4本）</a></li>
+    <li><a href="#ch-G">アイデア出し・企画（4本）</a></li>
+    <li><a href="#ch-H">見直し・チェック（5本）</a></li>
+  </ol>
+</div>
+
+<h2 class="h pagebreak" id="ch-A"><span class="n">A</span>メール・連絡文</h2>
+<p class="lead">一番よく使う場面です。「誰に・どんな状況で・何を伝えたいか」を書けば、たたき台はすぐ出てきます。</p>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">A-01</span>お詫びのメールを書く</div><div class="pc-when">納期の遅れ・ミス・行き違いをお詫びするとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>あなたは<b>【業種】</b>の会社で、取引先対応を担当している社員です。
+以下の状況について、取引先へ送るお詫びのメールを書いてください。
+
+<b>【状況】</b>
+・何が起きたか：<b>【例：ご注文いただいた商品の出荷が2日遅れた】</b>
+・原因：<b>【例：社内の在庫確認の手違い】</b>
+・こちらの対応：<b>【例：本日中に発送し、送料は当方で負担する】</b>
+
+<b>【条件】</b>
+・言い訳がましくならないようにする
+・お詫び → 原因 → 今後の対応 → 締め、の順にする
+・400文字程度
+・件名も付ける</pre>
+    <p class="pc-note">▸ 原因を書きたくない場合は「原因は社内で確認中」と入れてください。事実でないことは書かせないでください。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">A-02</span>角を立てずに断る</div><div class="pc-when">見積り・提案・依頼をお断りするとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下の依頼をお断りするメールを書いてください。
+
+<b>【依頼の内容】</b>
+<b>【例：新規のお取引について、当社の対応が難しい価格帯でのご相談をいただいた】</b>
+
+<b>【条件】</b>
+・今後も関係を続けたい相手なので、突き放した印象にしない
+・断る理由は「社内の事情」ではなく、できるだけ具体的に
+・代わりに提案できることがあれば1つ添える
+・300文字程度
+・件名も付ける</pre>
+    <p class="pc-note">▸ 「今後も関係を続けたい相手か」を必ず伝えると、文章のかたさが変わります。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">A-03</span>催促のメールを書く</div><div class="pc-when">返信・入金・書類が来ないとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下について、催促のメールを書いてください。
+
+<b>【状況】</b>
+・待っているもの：<b>【例：先週お送りしたお見積りへのご返答】</b>
+・いつお願いしたか：<b>【例：8月10日】</b>
+・期限：<b>【例：8月30日までにご返答いただきたい】</b>
+・相手との関係：<b>【例：3年ほど取引がある得意先】</b>
+
+<b>【条件】</b>
+・催促だと分かるが、責める調子にしない
+・「行き違いでしたら申し訳ありません」の一文を入れる
+・200〜250文字
+・件名も付ける</pre>
+    <p class="pc-note">▸ 1回目・2回目・3回目で調子を変えたいときは「これは3回目の連絡です」と伝えてください。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">A-04</span>はじめての相手へ挨拶する</div><div class="pc-when">紹介された相手・問い合わせをくれた相手への初回連絡</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>はじめてご連絡する相手へのメールを書いてください。
+
+<b>【こちら】</b>
+・会社名／屋号：<b>【　】</b>
+・事業内容：<b>【　】</b>
+・私の役割：<b>【　】</b>
+
+<b>【相手】</b>
+・会社名：<b>【　】</b>
+・きっかけ：<b>【例：〇〇様からご紹介いただいた／サイトからお問い合わせをいただいた】</b>
+
+<b>【伝えたいこと】</b>
+<b>【例：一度オンラインで30分ほどお話しさせていただきたい】</b>
+
+<b>【条件】</b>
+・売り込みの印象を強くしない
+・350文字程度
+・件名も付ける</pre>
+    <p class="pc-note">▸ 自社の説明は毎回同じなので、一度作ったら次からは貼り付けて使い回せます。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">A-05</span>長いメールを短くする</div><div class="pc-when">書いたけれど長すぎる・伝わりにくいと感じたとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下のメールを、意味を変えずに短くしてください。
+
+<b>【条件】</b>
+・元の半分くらいの長さにする
+・削ってよいのは、なくても意味が通じる部分だけ
+・お願いしていること（相手にしてほしいこと）は必ず残す
+・変更した箇所を、最後に箇条書きで教えてください
+
+<b>【元の文章】</b>
+---
+<b>【ここに貼り付け】</b>
+---</pre>
+    <p class="pc-note">▸ 「変更した箇所を教えて」を付けると、勝手に意味を変えていないか確認できます。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">A-06</span>言い回しのかたさを調整する</div><div class="pc-when">ていねいすぎる／くだけすぎると感じたとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下の文章を書き直してください。
+
+<b>【今の印象】</b><b>【例：かたすぎて距離を感じる】</b>
+<b>【したい印象】</b><b>【例：ていねいだが、話しかけるような親しみがある】</b>
+<b>【相手】</b><b>【例：長く取引のある個人事業主の方】</b>
+
+<b>【条件】</b>
+・内容は変えず、言い回しだけ変える
+・3パターン出して、それぞれの印象の違いを一言で説明してください
+
+<b>【元の文章】</b>
+---
+<b>【ここに貼り付け】</b>
+---</pre>
+    <p class="pc-note">▸ 3パターン出させて選ぶのが早いです。1つだけ出させると、直しの往復が増えます。</p>
+  </div>
+</div>
+
+<h2 class="h pagebreak" id="ch-B"><span class="n">B</span>会議・議事録</h2>
+<p class="lead">メモさえあれば、整えるのはAIの得意分野です。録音の書き起こしをそのまま貼っても構いません。</p>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">B-01</span>メモから議事録を作る</div><div class="pc-when">会議中の走り書きを、共有できる形にするとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下のメモから議事録を作ってください。
+
+<b>【会議名】</b><b>【　】</b>
+<b>【日時】</b><b>【　】</b>
+<b>【参加者】</b><b>【　】</b>
+
+<b>【条件】</b>
+・「決まったこと」「持ち帰りになったこと」「次にやること（担当と期限）」の3つに分ける
+・メモに書かれていないことは推測して補わない
+・分からない部分は「（メモから判断できず）」と書く
+
+<b>【メモ】</b>
+---
+<b>【ここに貼り付け】</b>
+---</pre>
+    <p class="pc-note">▸ 「推測して補わない」は必ず入れてください。これがないと、それらしい嘘が混ざります。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">B-02</span>長い議事録を3行にする</div><div class="pc-when">上司や他部署へ、要点だけ共有するとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下の議事録を、3行で要約してください。
+
+<b>【条件】</b>
+・1行目：何が決まったか
+・2行目：誰が何をいつまでにやるか
+・3行目：まだ決まっていないこと
+・各行60文字以内
+
+<b>【議事録】</b>
+---
+<b>【ここに貼り付け】</b>
+---</pre>
+    <p class="pc-note">▸ 行ごとに何を書くか指定すると、要約の質が安定します。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">B-03</span>会議のアジェンダを作る</div><div class="pc-when">会議の前に、進行の骨組みを作るとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下の会議のアジェンダ（進行表）を作ってください。
+
+<b>【会議の目的】</b><b>【例：来期の仕入れ方針を決める】</b>
+<b>【所要時間】</b><b>【例：60分】</b>
+<b>【参加者】</b><b>【例：代表、仕入れ担当2名、経理1名】</b>
+<b>【今わかっている論点】</b><b>【例：仕入れ単価が上がっている／在庫が増えている】</b>
+
+<b>【条件】</b>
+・各項目に所要時間を割り振る
+・最後の10分は「決まったことの確認」に使う
+・その場で決めるべきことと、持ち帰ってよいことを分けて書く</pre>
+    <p class="pc-note">▸ 時間を先に決めてから作らせると、現実的な分量になります。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">B-04</span>決定事項と宿題を切り分ける</div><div class="pc-when">話がまとまらなかった会議のあと</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下の議論の記録から、次の3つを取り出して表にしてください。
+
+1. すでに決まったこと
+2. まだ決まっていないこと（と、決めるために必要な情報）
+3. 誰かがやる必要があること（担当・期限が書かれていれば一緒に）
+
+<b>【条件】</b>
+・記録に書かれていないことは足さない
+・担当や期限が不明なものは「未定」と書く
+
+<b>【記録】</b>
+---
+<b>【ここに貼り付け】</b>
+---</pre>
+    <p class="pc-note">▸ 「決まっていないこと」を先に見えるようにすると、次の会議が短くなります。</p>
+  </div>
+</div>
+
+<h2 class="h pagebreak" id="ch-C"><span class="n">C</span>資料・文章づくり</h2>
+<p class="lead">ゼロから書くのが一番つらい作業です。たたき台さえ出れば、あとは直すだけになります。</p>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">C-01</span>提案資料の骨子を作る</div><div class="pc-when">お客様向けの提案書・企画書を作るとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下の提案について、資料の構成（骨子）を作ってください。
+
+<b>【提案先】</b><b>【例：従業員15名の飲食店】</b>
+<b>【提案する内容】</b><b>【例：予約管理の効率化】</b>
+<b>【相手が困っていること】</b><b>【例：電話予約の取りこぼしが多い】</b>
+<b>【予算感】</b><b>【例：初期10万円、月額1万円まで】</b>
+
+<b>【条件】</b>
+・スライド1枚＝1メッセージで、8〜10枚分
+・各ページに「見出し」と「そのページで言いたいこと1文」を書く
+・相手の困りごと → 原因 → 解決策 → 費用 → 進め方、の流れにする</pre>
+    <p class="pc-note">▸ 骨子だけ先に作らせて、中身は自分で埋めるのが一番早いです。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">C-02</span>わかりにくい文章を書き直す</div><div class="pc-when">社内の文章が伝わっていないと感じたとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下の文章を、専門知識がない人にも伝わるように書き直してください。
+
+<b>【読む人】</b><b>【例：入社したばかりのアルバイトスタッフ】</b>
+
+<b>【条件】</b>
+・専門用語を使う場合は、そのつどかっこ書きで説明する
+・1文を60文字以内にする
+・箇条書きにできるところは箇条書きにする
+・元の文章にない情報は足さない
+
+<b>【元の文章】</b>
+---
+<b>【ここに貼り付け】</b>
+---</pre>
+    <p class="pc-note">▸ 「読む人」を具体的に書くほど、ちょうどよい難しさになります。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">C-03</span>社内向けのお知らせ文</div><div class="pc-when">制度変更・ルール変更を全員に伝えるとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>社内向けのお知らせ文を書いてください。
+
+<b>【伝えること】</b><b>【例：9月1日から勤怠の打刻方法が変わる】</b>
+<b>【いつから】</b><b>【　】</b>
+<b>【誰が対象か】</b><b>【　】</b>
+<b>【スタッフにしてほしいこと】</b><b>【例：8月中にアプリを入れておく】</b>
+<b>【変更の理由】</b><b>【　】</b>
+
+<b>【条件】</b>
+・最初の3行で「何が」「いつから」「何をすればいいか」が分かるようにする
+・詳細はそのあとに書く
+・不安をあおる書き方をしない
+・400文字程度</pre>
+    <p class="pc-note">▸ 先に結論、あとから理由。社内文書はこの順番が一番読まれます。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">C-04</span>手順書のたたき台を作る</div><div class="pc-when">業務を人に引き継ぐとき・マニュアルを作るとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下の作業について、手順書のたたき台を作ってください。
+
+<b>【作業名】</b><b>【　】</b>
+<b>【やる人】</b><b>【例：入って1か月のスタッフ】</b>
+<b>【使うもの】</b><b>【例：レジ端末、専用アプリ】</b>
+
+<b>【私が今やっている手順（順不同で構いません）】</b>
+<b>【ここに思い出せる範囲で書く】</b>
+
+<b>【条件】</b>
+・番号付きの手順にする
+・各手順に「間違えやすいポイント」があれば注記を付ける
+・私の説明に抜けていそうな箇所は、最後に「確認したい点」としてまとめて質問してください</pre>
+    <p class="pc-note">▸ 最後の「確認したい点」が効きます。自分では当たり前すぎて書き忘れた手順が見つかります。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">C-05</span>求人票のたたき台を作る</div><div class="pc-when">人を募集するとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下の条件で求人の募集文を書いてください。
+
+<b>【職種】</b><b>【　】</b>
+<b>【仕事の内容】</b><b>【　】</b>
+<b>【雇用形態・勤務時間】</b><b>【　】</b>
+<b>【給与】</b><b>【　】</b>
+<b>【勤務地】</b><b>【　】</b>
+<b>【求める人】</b><b>【例：未経験可、コツコツした作業が苦にならない方】</b>
+<b>【会社の雰囲気】</b><b>【　】</b>
+
+<b>【条件】</b>
+・実際にやる作業が想像できるように書く
+・「アットホームな職場」のような、どこにでもある表現は使わない
+・法律上書けないこと（年齢・性別の限定など）が私の条件に含まれていたら指摘してください</pre>
+    <p class="pc-note">▸ 最後の一文が安全弁です。年齢や性別の限定は原則書けません。</p>
+  </div>
+</div>
+
+<h2 class="h pagebreak" id="ch-D"><span class="n">D</span>調べもの・情報整理</h2>
+<p class="lead">調べものは便利な反面、いちばん間違いが混ざりやすい使い方です。事実の確認は必ず自分で行ってください。</p>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">D-01</span>知らない用語をかみ砕いてもらう</div><div class="pc-when">会議で出た言葉が分からなかったとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre><b>【調べたい言葉】</b>について、次の順で説明してください。
+
+1. ひとことで言うと何か（1文）
+2. 中学生にも分かる説明（3文以内）
+3. <b>【私の業種】</b>の現場では、どういう場面で出てくるか
+4. よく一緒に出てくる言葉を3つと、その違い
+
+<b>【条件】</b>
+・断定できないことは「断定できない」と書く</pre>
+    <p class="pc-note">▸ 4番目が便利です。似た言葉との区別がついていないことが多いためです。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">D-02</span>長い文章の要点をつかむ</div><div class="pc-when">契約書・報告書・記事などを読む時間がないとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下の文章を読んで、次を教えてください。
+
+1. 全体の要点（3行）
+2. 私が特に注意して読むべき箇所と、その理由
+3. この文章の中で、判断が分かれそうな部分
+
+<b>【私の立場】</b><b>【例：この契約を結ぶかどうか判断する側】</b>
+
+<b>【条件】</b>
+・文章に書かれていないことは補わない
+・「たぶんこうだろう」という推測を書く場合は、推測だと明記する
+
+<b>【文章】</b>
+---
+<b>【ここに貼り付け】</b>
+---</pre>
+    <p class="pc-note">▸ 契約書は要約させても構いませんが、最終判断は必ず人が行ってください。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">D-03</span>賛成と反対の両方を出してもらう</div><div class="pc-when">判断に迷っているとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下について、賛成の立場と反対の立場の両方から意見を出してください。
+
+<b>【検討していること】</b><b>【例：来年から自社ECを始めるかどうか】</b>
+<b>【前提】</b><b>【例：スタッフ4名、EC経験なし、初期費用は50万円まで】</b>
+
+<b>【条件】</b>
+・賛成5つ、反対5つ
+・それぞれ「なぜそう言えるか」を1文添える
+・最後に「これを決めるために、まず調べるべきこと」を3つ挙げる</pre>
+    <p class="pc-note">▸ AIに結論を出させず、判断材料を出させる使い方です。ここが一番相性がいいです。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">D-04</span>比較表にまとめる</div><div class="pc-when">候補が複数あって選べないとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下の候補を比較表にしてください。
+
+<b>【比較したいもの】</b><b>【例：A社／B社／C社のレジシステム】</b>
+<b>【私が重視すること】</b><b>【例：初期費用、月額、使いやすさ、サポート】</b>
+
+<b>【条件】</b>
+・表の形式で出す
+・私が知らない情報は、勝手に埋めずに「要確認」と書く
+・最後に「私の重視することを踏まえると、どれが有力か」を理由付きで書く</pre>
+    <p class="pc-note">▸ 「勝手に埋めずに要確認と書く」が重要です。これがないと、それらしい数字が入ります。</p>
+  </div>
+</div>
+
+<h2 class="h pagebreak" id="ch-E"><span class="n">E</span>数字・表・データ</h2>
+<p class="lead">計算そのものより、「表を整える」「数式を作る」ほうが得意です。金額の計算結果は必ず自分で検算してください。</p>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">E-01</span>バラバラの表記をそろえる</div><div class="pc-when">手入力のリストを整えるとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下のリストの表記をそろえてください。
+
+<b>【そろえたいルール】</b>
+・日付は 2026/08/27 の形式
+・全角の英数字は半角にする
+・株式会社の表記は「株式会社〇〇」に統一
+・余分な空白は削除
+
+<b>【条件】</b>
+・行数は変えない
+・判断に迷った行は、最後にまとめて教えてください
+
+<b>【リスト】</b>
+---
+<b>【ここに貼り付け】</b>
+---</pre>
+    <p class="pc-note">▸ 行数を変えないよう指示しないと、勝手にまとめられることがあります。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">E-02</span>表計算の数式を作ってもらう</div><div class="pc-when">ExcelやGoogleスプレッドシートで、やりたい計算があるとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下をやりたいのですが、<b>【Googleスプレッドシート／Excel】</b>の数式を教えてください。
+
+<b>【やりたいこと】</b><b>【例：A列の商品名がB列のリストに含まれていたら「あり」と表示したい】</b>
+<b>【データの場所】</b><b>【例：データはA2から下、リストはSheet2のA列】</b>
+
+<b>【条件】</b>
+・数式をそのまま貼れる形で出す
+・その数式が何をしているか、1行で説明する
+・エラーが出やすいケースがあれば教えてください</pre>
+    <p class="pc-note">▸ 「そのまま貼れる形で」と書かないと、説明文が混ざって貼れないことがあります。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">E-03</span>データから気づきを出す</div><div class="pc-when">売上表などを眺めても何も見えてこないとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下のデータを見て、気づいたことを5つ挙げてください。
+
+<b>【このデータは何か】</b><b>【例：直近6か月の商品カテゴリ別売上】</b>
+<b>【私が知りたいこと】</b><b>【例：来月どこに力を入れるべきか】</b>
+
+<b>【条件】</b>
+・データから直接読み取れることだけを書く
+・推測が入る場合は「推測ですが」と明記する
+・最後に「このデータだけでは判断できないこと」を挙げる
+
+<b>【データ】</b>
+---
+<b>【ここに貼り付け】</b>
+---</pre>
+    <p class="pc-note">▸ 「このデータだけでは判断できないこと」を出させると、早合点を防げます。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">E-04</span>数字の入った説明文を作る</div><div class="pc-when">資料や報告で、数字を文章にするとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下の数字を使って、報告用の文章を書いてください。
+
+<b>【数字】</b>
+<b>【例：前月比 売上+12%、客数-3%、客単価+15%】</b>
+<b>【読む人】</b><b>【例：数字が苦手な社内メンバー】</b>
+
+<b>【条件】</b>
+・私が渡した数字以外は使わない（新しい数字を作らない）
+・数字が何を意味するかを言葉で補う
+・200文字程度</pre>
+    <p class="pc-note">▸ 「新しい数字を作らない」は必ず入れてください。AIは平気で数字を足します。</p>
+  </div>
+</div>
+
+<h2 class="h pagebreak" id="ch-F"><span class="n">F</span>お客様対応・接客</h2>
+<p class="lead">そのまま送らず、必ず自分の言葉に直してから使ってください。お客様の氏名や連絡先は入力しないでください。</p>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">F-01</span>クレームへの返信文を考える</div><div class="pc-when">お叱りのご連絡をいただいたとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下のご意見に対する返信文を書いてください。
+
+<b>【いただいたご意見の要旨】</b>
+<b>【例：届いた商品に汚れがあった。写真と違う】</b>
+<b>【事実確認の結果】</b><b>【例：検品漏れがあったことを確認済み】</b>
+<b>【こちらの対応方針】</b><b>【例：返品送料は当方負担、代替品か返金を選んでいただく】</b>
+
+<b>【条件】</b>
+・まずお詫びし、言い訳から始めない
+・こちらの落ち度でない部分まで認めない
+・選んでいただく形にする
+・350文字程度</pre>
+    <p class="pc-note">▸ お客様のお名前・住所・注文番号などは入力しないでください。要旨だけで十分書けます。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">F-02</span>よくある質問（FAQ）を作る</div><div class="pc-when">同じ質問に何度も答えているとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下の情報をもとに、お客様向けのよくある質問を10個作ってください。
+
+<b>【サービス・商品の概要】</b><b>【　】</b>
+<b>【実際によく聞かれること】</b><b>【　】</b>
+<b>【答えたくない・触れたくないこと】</b><b>【例：仕入れ先については書かない】</b>
+
+<b>【条件】</b>
+・質問はお客様が実際に使う言葉で書く
+・答えは3行以内
+・私が渡した情報から答えられないものは「要確認」と書き、作り話をしない</pre>
+    <p class="pc-note">▸ 「答えたくないこと」を先に伝えると、余計な情報が載りません。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">F-03</span>商品説明文を書く</div><div class="pc-when">商品ページ・チラシの文章を作るとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下の商品の説明文を書いてください。
+
+<b>【商品】</b><b>【　】</b>
+<b>【素材・サイズなどの事実】</b><b>【　】</b>
+<b>【想定するお客様】</b><b>【　】</b>
+<b>【使ってほしい場面】</b><b>【　】</b>
+
+<b>【条件】</b>
+・私が渡した事実だけを使う。書いていない特徴を付け足さない
+・「最高級」「絶対」などの断定的な表現は使わない
+・150文字と300文字の2パターン作る</pre>
+    <p class="pc-note">▸ 「書いていない特徴を付け足さない」が生命線です。景品表示法の観点からも必ず入れてください。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">F-04</span>接客のトークを作る</div><div class="pc-when">説明の仕方を統一したいとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下の場面での接客トークを作ってください。
+
+<b>【場面】</b><b>【例：初めて来店されたお客様に、当店の仕組みを説明する】</b>
+<b>【伝えたいこと】</b><b>【　】</b>
+<b>【避けたいこと】</b><b>【例：押し売りに感じさせない】</b>
+
+<b>【条件】</b>
+・実際に声に出せる話し言葉で書く
+・30秒で話せる長さ
+・お客様から出そうな質問を3つと、その答えも付ける</pre>
+    <p class="pc-note">▸ 「30秒で話せる長さ」のように時間で指定すると、現場で使える分量になります。</p>
+  </div>
+</div>
+
+<h2 class="h pagebreak" id="ch-G"><span class="n">G</span>アイデア出し・企画</h2>
+<p class="lead">AIは「良いアイデアを出す」より「たくさん出す」ほうが得意です。選ぶのは人の仕事だと考えてください。</p>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">G-01</span>とにかく数を出してもらう</div><div class="pc-when">考えが煮詰まったとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下について、アイデアを20個出してください。
+
+<b>【テーマ】</b><b>【例：来店したお客様にもう一度来ていただくための施策】</b>
+<b>【条件（守ってほしい制約）】</b>
+・費用：<b>【例：1件あたり100円以内】</b>
+・人手：<b>【例：既存スタッフのみ、新しい作業は1日5分まで】</b>
+
+<b>【条件】</b>
+・ありきたりなものも含めて構わないので、まず20個出す
+・最後に「費用と手間の割に効きそうなもの」を3つ選んで理由を書く</pre>
+    <p class="pc-note">▸ 20個などと数を先に決めると、質より量に切り替わります。選ぶのは自分で。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">G-02</span>ひとつの案を深掘りする</div><div class="pc-when">気になる案を具体化したいとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下の案を、実行できるところまで具体化してください。
+
+<b>【案】</b><b>【　】</b>
+<b>【うちの状況】</b><b>【例：スタッフ4名、予算月3万円まで】</b>
+
+<b>【出してほしいもの】</b>
+1. 具体的に何をするか（手順）
+2. 必要なもの・費用の目安
+3. 誰がどれくらいの時間を使うか
+4. うまくいかないとしたら、どこでつまずくか
+5. 小さく試すとしたら、まず何をするか</pre>
+    <p class="pc-note">▸ 5番目が一番大事です。いきなり全部やらずに済みます。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">G-03</span>名前・タイトル案を出す</div><div class="pc-when">サービス名・商品名・件名を決めるとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下について、名前の候補を15個出してください。
+
+<b>【何の名前か】</b><b>【　】</b>
+<b>【伝えたい印象】</b><b>【例：気軽さ、続けやすさ】</b>
+<b>【避けたい印象】</b><b>【例：安っぽい、子どもっぽい】</b>
+<b>【文字数の目安】</b><b>【例：ひらがな・カタカナで6文字以内】</b>
+
+<b>【条件】</b>
+・読み方が分かれそうなものは、ふりがなを付ける
+・すでに有名な商標と似ているものがあれば指摘してください</pre>
+    <p class="pc-note">▸ 最後の指摘は参考程度に。実際の商標確認は特許情報プラットフォーム（J-PlatPat）で行ってください。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">G-04</span>反対意見を言ってもらう</div><div class="pc-when">自分の考えに穴がないか確かめたいとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>私はこれから<b>【やろうとしていること】</b>をしようと思っています。
+
+<b>【背景】</b><b>【　】</b>
+
+あなたは慎重な立場の相談相手として、この計画に反対してください。
+
+<b>【条件】</b>
+・思いつきの反論ではなく、実際に起きそうな問題を挙げる
+・「うまくいかないとしたら、その原因は何か」を5つ
+・そのうえで、それでも進めるなら何を準備すべきかを3つ</pre>
+    <p class="pc-note">▸ 賛成しかしないAIに、あえて反対役をやらせる使い方です。壁打ちにはこれが一番効きます。</p>
+  </div>
+</div>
+
+<h2 class="h pagebreak" id="ch-H"><span class="n">H</span>見直し・チェック</h2>
+<p class="lead">AIに「書かせる」より「見てもらう」ほうが、失敗が少なく効果が分かりやすい使い方です。まずここから始めるのもおすすめです。</p>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">H-01</span>誤字脱字・表記ゆれを見つける</div><div class="pc-when">資料や文章を出す前に</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下の文章をチェックしてください。
+
+<b>【見てほしい点】</b>
+・誤字脱字
+・同じ意味なのに書き方が違うところ（表記ゆれ）
+・数字や日付の食い違い
+
+<b>【条件】</b>
+・文章は書き換えず、「何行目の、どこが、どう気になるか」だけを一覧で出す
+・直す必要がないものは挙げない
+
+<b>【文章】</b>
+---
+<b>【ここに貼り付け】</b>
+---</pre>
+    <p class="pc-note">▸ 「書き換えずに指摘だけ」にすると、勝手に文章を変えられずに済みます。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">H-02</span>抜け漏れをチェックする</div><div class="pc-when">見積書・提案書・申請書を出す前に</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下の<b>【書類の種類】</b>について、一般的に必要とされる項目が抜けていないか確認してください。
+
+<b>【条件】</b>
+・抜けている項目を一覧で出す
+・「あったほうがよい」程度のものは、必須と分けて書く
+・内容の良し悪しではなく、項目の有無だけを見てください
+
+<b>【書類】</b>
+---
+<b>【ここに貼り付け】</b>
+---</pre>
+    <p class="pc-note">▸ 取引先の名称や金額を伏せても、項目チェックはできます。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">H-03</span>分かりにくいところを指摘してもらう</div><div class="pc-when">自分では分かるが、他人に伝わるか不安なとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下の文章を、<b>【読む人】</b>の立場で読んで、分かりにくいところを指摘してください。
+
+<b>【条件】</b>
+・「ここが分かりにくい」「なぜ分かりにくいか」「どう直せばよいか」の3点セットで書く
+・全部で5か所まで
+・書き直した文章は出さなくて構いません</pre>
+    <p class="pc-note">▸ 「読む人」を変えて2回やると、対象ごとの直し方が見えます。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">H-04</span>送る前の最終確認をする</div><div class="pc-when">重要なメール・書類を送る直前に</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>これから<b>【送り先】</b>に、以下を送ります。送る前に確認したいので、次を教えてください。
+
+1. 相手が読んだときに、誤解しそうなところ
+2. 失礼に受け取られかねない表現
+3. 情報として足りていないところ
+4. 逆に、書かないほうがよさそうなところ
+
+<b>【条件】</b>
+・書き直しは不要。指摘だけしてください
+
+<b>【送るもの】</b>
+---
+<b>【ここに貼り付け】</b>
+---</pre>
+    <p class="pc-note">▸ 4番目が意外と効きます。書きすぎているところを教えてくれます。</p>
+  </div>
+</div>
+<div class="pc">
+  <div class="pc-h">
+    <div><div class="pc-t"><span class="id">H-05</span>どう返すべきか相談する</div><div class="pc-when">返信に困るメールが来たとき</div></div>
+    <button class="copy no-print">コピー</button>
+  </div>
+  <div class="pc-b">
+    <pre>以下のような連絡をいただきました。どう返すべきか相談させてください。
+
+<b>【相手との関係】</b><b>【　】</b>
+<b>【私の希望】</b><b>【例：断りたいが、関係は続けたい】</b>
+
+<b>【教えてほしいこと】</b>
+1. 相手が本当に求めていそうなこと
+2. 返信の方針（3パターンと、それぞれの結果の予想）
+3. 私の希望に一番近い方針
+
+<b>【いただいた連絡の要旨】</b>
+---
+<b>【ここに要旨を書く】</b>
+---</pre>
+    <p class="pc-note">▸ 本文をそのまま貼らず、要旨に直してから相談するのが安全です。</p>
+  </div>
+</div>
+
+<h2 class="h pagebreak"><span class="n">◎</span>うまくいかないときの直し方</h2>
+<table class="t">
+  <thead><tr><th style="width:230px">こうなったら</th><th>こう直す</th></tr></thead>
+  <tbody>
+    <tr><td>答えがぼんやりしている</td><td>「立場」と「状況」を足す。とくに人数・予算・期限などの数字を入れる。</td></tr>
+    <tr><td>長すぎる／短すぎる</td><td>「400文字程度」「3行で」と長さを数字で指定する。</td></tr>
+    <tr><td>知らないはずのことを書いてくる</td><td>「私が渡した情報以外は使わないでください」「分からない部分は『要確認』と書いてください」を足す。</td></tr>
+    <tr><td>惜しいが少し違う</td><td>やり直させず、「3行目だけ、もっと丁寧な言い方にしてください」と部分的に直させる。</td></tr>
+    <tr><td>何度やっても的外れ</td><td>いったん新しい会話を始める。前のやりとりに引きずられていることがあります。</td></tr>
+    <tr><td>いつも同じような文章になる</td><td>「別の切り口で3パターン出してください」と、選択肢を出させてから選ぶ。</td></tr>
+  </tbody>
+</table>
+
+<h2 class="h"><span class="n">◎</span>最後に</h2>
+<p class="body">AIは、下書きを作るのは得意ですが、正しさの保証はしません。<strong>出てきたものをそのまま外に出さない</strong>——これだけは守ってください。数字・日付・固有名詞・法律に関わる記述は、必ずご自身で確認してから使ってください。</p>
+<p class="body">この集にない場面でも、冒頭の「4点セット」に当てはめれば書けます。うまくいったプロンプトは、ぜひ社内で共有して、みなさんの集に育ててください。</p>
+
+<div class="doc-foot">
+  <b>NKonline（エヌケーオンライン）</b>／ 代表 西出 克利<br>
+  京都府京都市下京区朱雀宝蔵町44番地 協栄ビル2階 京都朱雀スタジオAW-209<br>
+  nkonline1030@gmail.com ／ 090-5820-1803<br>
+  <br>
+  本資料は、NKonline の社内向けAI研修をご受講いただいた企業さまへの配布資料です。貴社内でのご利用・複製はご自由にどうぞ。社外への配布・再販はご遠慮ください。
+</div>
+
+</div>
+
+<script src="./docs.js"></script>
+</body>
+</html>

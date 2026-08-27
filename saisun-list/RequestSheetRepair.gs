@@ -32,7 +32,11 @@ function req_getRequestSheet_() {
   try {
     var ss = sh_getOrderSs_();
     if (!ss) return null;
-    return ss.getSheetByName(String(APP_CONFIG.order.requestSheetName || '依頼管理'));
+    var sh = ss.getSheetByName(String(APP_CONFIG.order.requestSheetName || '依頼管理'));
+    // ★列移設（発送サイズ→V / 箱数→W）が未実施のまま報酬数式を焼くと参照先がズレるため、
+    //   修復処理に入る前に必ず移設を済ませておく。移設済みなら何もしない。
+    if (sh) sh_migrateShipSizeColumns_(sh);
+    return sh;
   } catch (e) {
     console.error('req_getRequestSheet_ error:', e);
     return null;
@@ -59,7 +63,7 @@ function req_getRequestSheet_() {
  * ③ 空行の掃除:
  *   受付番号が無い行に数式だけが残っていると、次に書き込まれる行が
  *   旧ルールで計算されてしまう（GASが上書きしない経路では気づけない）。
- *   受付番号が空なのに AE に数式が入っている行はクリアする。
+ *   受付番号が空なのに AG に数式が入っている行はクリアする。
  *
  * @param {Sheet} [sheet] 依頼管理シート（省略時は自動取得）
  * @return {{fixed:number, legacyReplaced:number, legacyKeptOld:number, blankCleared:number, skippedNoChannel:number, scanned:number}} 修復結果
@@ -99,21 +103,24 @@ function req_repairRewardFormulas_(sheet) {
     var row = startRow + i;
     var channel = String(channels[i][0] || '').trim();
 
-    // --- ② 旧ルールの数式を現行ルールの数式へ差し替える ---
+    var reqDate = requestedAt[i][0];
+    var isV3Row = (reqDate instanceof Date) && reqDate.getTime() && reqDate >= REWARD_SCHEME_V3_START_;
+
+    // --- ② 旧ルールの数式を、その行の依頼日時に見合う数式へ差し替える ---
     if (formula) {
-      if (channel && isCurrentRewardFormula_(formula, row, channel)) continue; // 現行ルール = 正常
-      var d = requestedAt[i][0];
-      if (!(d instanceof Date) || d < REWARD_SCHEME_V2_START_) {
+      // v3行はチャネル非依存（サイズ×箱数）なので channel が空でも判定できる
+      if ((channel || isV3Row) && isCurrentRewardFormula_(formula, row, channel, reqDate)) continue; // 期待どおり = 正常
+      if (!(reqDate instanceof Date) || reqDate < REWARD_SCHEME_V2_START_) {
         // 改定前の行 = 支払済みの可能性があるので触らない
         result.legacyKeptOld++;
         continue;
       }
-      if (!channel) {
+      if (!channel && !isV3Row) {
         result.skippedNoChannel++;
         continue;
       }
       try {
-        sh.getRange(row, REQUEST_SHEET_COLS.REWARD).setFormula(buildRewardFormula_(row, channel));
+        sh.getRange(row, REQUEST_SHEET_COLS.REWARD).setFormula(buildRewardFormulaForDate_(row, channel, reqDate));
         result.legacyReplaced++;
       } catch (eL) {
         console.error('req_repairRewardFormulas_ 旧数式差替失敗 row=' + row, eL);
@@ -125,14 +132,15 @@ function req_repairRewardFormulas_(sheet) {
     // 静的な値が入っている行は確定済み報酬とみなして保護
     if (String(rewardValues[i][0] || '').trim() !== '') continue;
 
-    if (!channel) {
-      // チャネル不明 = デタウリ(サイズ別)かアソート(箱数×250)か決められない
+    if (!channel && !isV3Row) {
+      // v2以前はチャネル不明だとデタウリ(サイズ別)かアソート(箱数×250)か決められない
+      // （v3以降はサイズ×箱数の1本なのでチャネル不要）
       result.skippedNoChannel++;
       continue;
     }
 
     try {
-      sh.getRange(row, REQUEST_SHEET_COLS.REWARD).setFormula(buildRewardFormula_(row, channel));
+      sh.getRange(row, REQUEST_SHEET_COLS.REWARD).setFormula(buildRewardFormulaForDate_(row, channel, reqDate));
       result.fixed++;
     } catch (e) {
       console.error('req_repairRewardFormulas_ 書込失敗 row=' + row, e);
@@ -142,7 +150,7 @@ function req_repairRewardFormulas_(sheet) {
   result.blankCleared = req_clearBlankRewardCells_(sh, startRow, blankRows);
 
   if (result.fixed || result.legacyReplaced || result.blankCleared || result.skippedNoChannel) {
-    console.log('作業報酬(AE)修復: 復旧=' + result.fixed +
+    console.log('作業報酬(AG)修復: 復旧=' + result.fixed +
       '件 / 旧数式差替=' + result.legacyReplaced +
       '件 / 改定前につき据置=' + result.legacyKeptOld +
       '件 / 空行クリア=' + result.blankCleared +
@@ -289,4 +297,30 @@ function repairIraiKanriMissingFields() {
   };
   console.log('依頼管理の欠落列補完: ' + JSON.stringify(summary));
   return summary;
+}
+
+
+/**
+ * 【手動実行1回】発送サイズ／箱数を V・W列（伝票番号の隣）へ移す。
+ *
+ * 発送作業者が「どのサイズの箱を何箱送ったか」を配送業者・伝票番号と並べて入力できるようにするための列移設。
+ * 依頼管理・依頼管理_アーカイブの両方に適用する。実体は Product.gs の sh_migrateShipSizeColumns_。
+ *
+ * ※通常は注文書き込み時（sh_ensureRequestSheet_）に自動で1回実行されるため、
+ *   この関数は「注文が来る前に手で済ませておきたい」ときのための入口。移設済みなら何もしない。
+ */
+function migrateShipSizeColumns() {
+  var ss = SpreadsheetApp.openById(app_getOrderSpreadsheetId_());
+  var moved = [];
+  var reqSh = ss.getSheetByName(String(APP_CONFIG.order.requestSheetName || '依頼管理'));
+  if (reqSh && sh_migrateShipSizeColumns_(reqSh)) moved.push(reqSh.getName());
+  var arcSh = ss.getSheetByName('依頼管理_アーカイブ');
+  if (arcSh && sh_migrateShipSizeColumns_(arcSh)) moved.push(arcSh.getName());
+
+  // ヘッダー・プルダウンを新しい列位置に張り直す
+  sh_applyRequestStatusDropdown_(ss);
+
+  var msg = moved.length ? ('列移設を実行しました: ' + moved.join(' / ')) : '列移設は不要でした（すでに新しい並びです）';
+  console.log(msg);
+  return { moved: moved, message: msg };
 }

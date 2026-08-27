@@ -41,6 +41,10 @@ function syncBaseOrdersToIraiKanri_() {
   if (!shItem) throw new Error('シート「BASE_注文商品」が見つかりません');
   if (!shDst) throw new Error('シート「依頼管理」が見つかりません');
 
+  // ★ヘッダーを読む前に列移設（発送サイズ→V / 箱数→W）を済ませる。
+  //   移設前のレイアウトのまま書き込むと列がズレるため、必ずここで実行する。
+  sh_migrateShipSizeColumns_(shDst);
+
   const orderLastRow = shOrder.getLastRow();
   const itemLastRow = shItem.getLastRow();
   const dstLastRow = shDst.getLastRow();
@@ -380,12 +384,21 @@ function syncBaseOrdersToIraiKanri_() {
   if (newRows.length === 0) return;
 
   const startRow = findAppendRowByMainCol_(shDst, dstIdx_ReceiptNo + 1);
-  // AE列（作業報酬, 31列目）に数式を埋め込む。BASE取込は常にアソート＝箱数(K列)×250 固定。
-  // 算定ロジックは buildRewardFormula_ に集約（'アソート' を渡すとアソート数式になる）。
-  const REWARD_COL_IDX = REQUEST_SHEET_COLS.REWARD - 1; // 0-based: AE列 = 31列目
+  // AG列（作業報酬）に数式を埋め込む。算定ロジックは buildRewardFormula_ に集約。
+  // 報酬 = 単価(V列の発送サイズ) × 箱数(W列)。BASE取込は常にアソート＝大箱なので、
+  // 発送者の入力を待たずに V=大箱 / W=合計点数(=箱数) を初期値として入れておく（発送者は必要なら直す）。
+  const REWARD_COL_IDX = findAnyCol_(dstMap, ['作業報酬']);
+  const SHIP_SIZE_IDX = findAnyCol_(dstMap, ['発送サイズ']);
+  const BOX_COUNT_IDX = findAnyCol_(dstMap, ['箱数']);
   for (let i = 0; i < newRows.length; i++) {
     const r = startRow + i;
-    if (REWARD_COL_IDX < newRows[i].length) {
+    if (SHIP_SIZE_IDX !== -1 && SHIP_SIZE_IDX < newRows[i].length && !newRows[i][SHIP_SIZE_IDX]) {
+      newRows[i][SHIP_SIZE_IDX] = '大箱';
+    }
+    if (BOX_COUNT_IDX !== -1 && BOX_COUNT_IDX < newRows[i].length && !newRows[i][BOX_COUNT_IDX]) {
+      newRows[i][BOX_COUNT_IDX] = (dstIdx_TotalCount !== -1 ? (newRows[i][dstIdx_TotalCount] || '') : '');
+    }
+    if (REWARD_COL_IDX !== -1 && REWARD_COL_IDX < newRows[i].length) {
       newRows[i][REWARD_COL_IDX] = buildRewardFormula_(r, 'アソート');
     }
   }

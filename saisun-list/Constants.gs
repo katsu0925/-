@@ -108,6 +108,11 @@ var TIME_CONSTANTS = {
 
 /**
  * 依頼管理シートの列番号（1-indexed）
+ *
+ * ★2026-08-27 列移設: 発送作業者が入力する「発送サイズ」「箱数」を、同じく作業者が入力する
+ *   T列(配送業者)・U列(伝票番号) の直後（V/W列）へ移した。旧レイアウトでは発送サイズが
+ *   AK列（右端）にあり入力漏れ＝報酬の払い漏れが起きていたため。
+ *   シート側の移設は migrateShipSizeColumns()（RequestSheetRepair.gs）で1回だけ実行する。
  */
 var REQUEST_SHEET_COLS = {
   RECEIPT_NO: 1,        // A: 受付番号
@@ -131,72 +136,136 @@ var REQUEST_SHEET_COLS = {
   SHIP_STATUS: 19,      // S: 発送ステータス
   CARRIER: 20,          // T: 配送業者
   TRACKING: 21,         // U: 伝票番号
-  STATUS: 22,           // V: ステータス
-  STAFF: 23,            // W: 担当者
-  LIST_ENCLOSED: 24,    // X: リスト同梱
-  XLSX_SENT: 25,        // Y: xlsx送付
-  INVOICE_REQ: 26,      // Z: インボイス発行
-  INVOICE_SENT: 27,     // AA: インボイス状況
-  NOTIFY_FLAG: 28,      // AB: 受注通知
-  SHIP_NOTIFY_FLAG: 29, // AC: 発送通知
-  NOTE: 30,             // AD: 備考
-  REWARD: 31,           // AE: 作業報酬
-  UPDATED_AT: 32,       // AF: 更新日時
-  CHANNEL: 33,          // AG: チャネル（デタウリ/アソート）
-  TRACKING_URL: 34,     // AH: 追跡URL
-  ITEM_PRICES: 35,      // AI: 商品単価JSON（注文時価格の永続化）
-  KIT_URL: 36,          // AJ: 出品キットURL
-  SHIP_SIZE: 37,        // AK: 発送サイズ（クリックポスト/中箱/大箱）※作業報酬の算定に使用
-  CP_ISSUED_AT: 38      // AL: CP発行日時（クリックポストのラベルCSVを発行した日時。二重発行防止マーカー）
+  SHIP_SIZE: 22,        // V: 発送サイズ（クリックポスト/中箱/大箱）※作業報酬の算定に使用
+  BOX_COUNT: 23,        // W: 箱数（空欄=1箱として計算）※作業報酬の算定に使用
+  STATUS: 24,           // X: ステータス
+  STAFF: 25,            // Y: 担当者
+  LIST_ENCLOSED: 26,    // Z: リスト同梱
+  XLSX_SENT: 27,        // AA: xlsx送付
+  INVOICE_REQ: 28,      // AB: インボイス発行
+  INVOICE_SENT: 29,     // AC: インボイス状況
+  NOTIFY_FLAG: 30,      // AD: 受注通知
+  SHIP_NOTIFY_FLAG: 31, // AE: 発送通知
+  NOTE: 32,             // AF: 備考
+  REWARD: 33,           // AG: 作業報酬
+  UPDATED_AT: 34,       // AH: 更新日時
+  CHANNEL: 35,          // AI: チャネル（デタウリ/アソート）
+  TRACKING_URL: 36,     // AJ: 追跡URL
+  ITEM_PRICES: 37,      // AK: 商品単価JSON（注文時価格の永続化）
+  KIT_URL: 38,          // AL: 出品キットURL
+  CP_ISSUED_AT: 39      // AM: CP発行日時（クリックポストのラベルCSVを発行した日時。二重発行防止マーカー）
 };
 
-/** 大箱・アソートで1箱あたりの単価が割増（250→350円）になる配送業者。 */
+/** 依頼管理シートの総列数（新規シート作成・列不足時の拡張に使う）。 */
+var REQUEST_SHEET_LAST_COL = REQUEST_SHEET_COLS.CP_ISSUED_AT;
+
+/**
+ * 列番号（1-based）を A1記法の列文字へ変換する。
+ * 報酬数式を REQUEST_SHEET_COLS から組み立てるために使う
+ * （列を移動しても定数を直すだけで数式が追随するようにするため）。
+ */
+function colLetter_(colNum) {
+  var n = Number(colNum), s = '';
+  while (n > 0) {
+    var m = (n - 1) % 26;
+    s = String.fromCharCode(65 + m) + s;
+    n = Math.floor((n - m - 1) / 26);
+  }
+  return s;
+}
+
+/** 大箱で1箱あたりの単価が割増（250→350円）になる配送業者。 */
 var REWARD_CARRIER_PREMIUM_ = '日本郵便';
 
 /**
- * 発送作業報酬（AE列）の数式を生成する共通ヘルパー。
- * 依頼管理シートへの行書込時に呼び出し、AE列に焼き込む。
- *
- * 報酬の考え方（2026-07-25 改定・発送サイズ別／2026-08-13 日本郵便の大箱を割増）:
- *  - デタウリ単品（channel==='デタウリ'）: 1回の発送＝発送サイズ（AK列）の額そのまま（点数掛けなし）
- *      クリックポスト=50 / 中箱=100 / 大箱=250。**大箱かつ配送業者(T列)が日本郵便なら 350**
- *      AK未選択なら空欄（作業者がサイズを選ぶと自動計算）
- *  - アソート系（アソート/デタウリ(アソート)/デタウリ+アソート/まとめ/BASE取込=チャネル空欄）:
- *      140サイズ段ボールに数量を詰める運用のため 箱数(K列)×250。
- *      **配送業者が日本郵便なら 箱数×350**（アソートはAK列を選ばない運用なので業者だけで判定）
- *  いずれも T列（配送業者）が未入力の間は空欄（＝未発送なら報酬0）。
- *
- * ★日本郵便の割増は「大箱相当のゆうパック」を想定したもの。クリックポストも配送業者は
- *   日本郵便になるが、AK='クリックポスト' が先に一致するため 50 のままで正しい（順序を入れ替えない）。
- *
- * @param {number} rowNum 対象行番号（1-based）
- * @param {string} channel チャネル（'デタウリ' のみサイズ別、それ以外はアソート扱い）
- * @return {string} AE列に設定する数式文字列
- */
-function buildRewardFormula_(rowNum, channel) {
-  var r = rowNum;
-  // 大箱／アソート1箱あたりの単価。日本郵便（ゆうパック）だけ割増。
-  var bigBox = 'IF(T' + r + '="' + REWARD_CARRIER_PREMIUM_ + '",350,250)';
-  if (channel === 'デタウリ') {
-    return '=IF(T' + r + '="","",IF(AK' + r + '="クリックポスト",50,IF(AK' + r + '="中箱",100,IF(AK' + r + '="大箱",' + bigBox + ',""))))';
-  }
-  // アソート系は 箱数×単価
-  return '=IF(T' + r + '="","",' + bigBox + '*K' + r + ')';
-}
-
-/**
- * 発送サイズ別報酬（新スキーム）の適用開始日。
+ * 発送サイズ別報酬（v2）の適用開始日。
  * これより前の依頼日時の行は、旧ルールの数式が入っていても書き換えない
  * （＝過去に確定・支払済みの報酬額を遡って変えない）。
- * 2026-08-13 の日本郵便割増もこの境界を流用する（＝7/25以降の行だけ追随させる）。
  */
 var REWARD_SCHEME_V2_START_ = new Date(2026, 6, 25); // 2026-07-25
 
 /**
- * AE列に入っている数式が「今の報酬ルールの数式」と一致しているかを判定する。
+ * 「発送サイズ×箱数」一本化（v3）の適用開始日。
+ * これより前の行は v2 の数式（デタウリ=サイズ額フラット／アソート=250×K）のまま据え置く。
+ */
+var REWARD_SCHEME_V3_START_ = new Date(2026, 7, 27); // 2026-08-27
+
+/**
+ * 発送作業報酬（AG列）の数式を生成する共通ヘルパー（現行 = v3）。
+ * 依頼管理シートへの行書込時に呼び出し、AG列に焼き込む。
+ *
+ * 報酬の考え方（2026-08-27 改定・チャネル非依存の「サイズ×箱数」一本化）:
+ *  - 単価 = 発送サイズ(V列): クリックポスト=50 / 中箱=100 / 大箱=250
+ *      **大箱かつ配送業者(T列)が日本郵便なら 350**
+ *  - 報酬 = 単価 × 箱数(W列)。**箱数が空欄なら1箱として計算**（入力漏れによる払い漏れを防ぐ）
+ *  - T列（配送業者）が未入力の間は空欄（＝未発送なら報酬0）
+ *  - V列（発送サイズ）が未選択の間も空欄（＝作業者がサイズを選ぶと自動計算される）
+ *
+ * ★クリックポストも配送業者は日本郵便になるが、V='クリックポスト' の判定が先に一致するため
+ *   50 のままで正しい（IFの順序を入れ替えない）。
+ * ★channel は v2 数式との互換のために受け取るだけで、v3 では使わない
+ *   （F1教訓＝BASE取込アソートはチャネル空欄なので、数式でチャネルを判定してはいけない）。
+ *
+ * @param {number} rowNum 対象行番号（1-based）
+ * @param {string} channel チャネル（v3では未使用）
+ * @return {string} AG列に設定する数式文字列
+ */
+function buildRewardFormula_(rowNum, channel) {
+  var r = rowNum;
+  var carrier = colLetter_(REQUEST_SHEET_COLS.CARRIER) + r;    // T: 配送業者
+  var size = colLetter_(REQUEST_SHEET_COLS.SHIP_SIZE) + r;     // V: 発送サイズ
+  var boxes = colLetter_(REQUEST_SHEET_COLS.BOX_COUNT) + r;    // W: 箱数
+  // 単価（大箱は日本郵便だけ割増）
+  var unit = 'IF(' + size + '="クリックポスト",50,IF(' + size + '="中箱",100,'
+           + 'IF(' + carrier + '="' + REWARD_CARRIER_PREMIUM_ + '",350,250)))';
+  // サイズが3種のいずれかのときだけ計算する（想定外の値で #VALUE! にしない）
+  var sizeFilled = 'OR(' + size + '="クリックポスト",' + size + '="中箱",' + size + '="大箱")';
+  // 箱数は空欄=1箱。N() は数値以外を0にするので MAX(1,…) で1箱に丸める
+  return '=IF(' + carrier + '="","",IF(' + sizeFilled + ',' + unit + '*MAX(1,N(' + boxes + ')),""))';
+}
+
+/**
+ * 旧ルール（v2 = 2026-07-25〜2026-08-26）の数式。
+ * v3 改定日より前の行を自己修復が書き換えてしまわないよう、比較用に残してある。
+ * ★列移設（発送サイズ AK→V）に合わせて列文字も新レイアウトで生成する。
+ *   シート側の moveColumns は既存数式の参照を自動で追従させるため、
+ *   移設後のシートに入っている v2 数式も V列を参照した形になっている。
+ *
+ * @param {number} rowNum 対象行番号（1-based）
+ * @param {string} channel チャネル（'デタウリ' のみサイズ額フラット、それ以外はアソート扱い）
+ * @return {string} v2 の数式文字列
+ */
+function buildRewardFormulaV2_(rowNum, channel) {
+  var r = rowNum;
+  var size = colLetter_(REQUEST_SHEET_COLS.SHIP_SIZE) + r;
+  var bigBox = 'IF(T' + r + '="' + REWARD_CARRIER_PREMIUM_ + '",350,250)';
+  if (channel === 'デタウリ') {
+    return '=IF(T' + r + '="","",IF(' + size + '="クリックポスト",50,IF(' + size + '="中箱",100,IF(' + size + '="大箱",' + bigBox + ',""))))';
+  }
+  return '=IF(T' + r + '="","",' + bigBox + '*K' + r + ')';
+}
+
+/**
+ * 依頼日時に応じて「その行に入っているべき数式」を返す。
+ * v3改定日より前の行は v2 のまま据え置く（確定・支払済みの報酬を遡って変えない）。
+ *
+ * @param {number} rowNum 対象行番号（1-based）
+ * @param {string} channel チャネル（AI列）
+ * @param {Date} [requestDate] 依頼日時（B列）。省略時は現行(v3)扱い
+ * @return {string} 数式文字列
+ */
+function buildRewardFormulaForDate_(rowNum, channel, requestDate) {
+  if (requestDate instanceof Date && requestDate.getTime() && requestDate < REWARD_SCHEME_V3_START_) {
+    return buildRewardFormulaV2_(rowNum, channel);
+  }
+  return buildRewardFormula_(rowNum, channel);
+}
+
+/**
+ * AG列に入っている数式が「その行に入っているべき数式」と一致しているかを判定する。
  *
  * ★「配送業者名を含むか」で旧数式を見分ける方式は使えない。2026-08-13 の日本郵便割増で
- *   buildRewardFormula_() 自身が '日本郵便' を含むようになったため。
+ *   数式自身が '日本郵便' を含むようになったため。
  *   代わりに **期待される数式と完全一致するか**（空白差は無視）で判定する。
  *   一致しない＝旧ルール or 手書き の数式 とみなす。
  *
@@ -205,15 +274,16 @@ var REWARD_SCHEME_V2_START_ = new Date(2026, 6, 25); // 2026-07-25
  *      IF(T{r}="日本郵便",350*K{r},IF(OR(T{r}="佐川急便",T{r}="ヤマト運輸"),250*K{r},"")),
  *      IF(T{r}="日本郵便",300*K{r},IF(OR(T{r}="佐川急便",T{r}="ヤマト運輸"),200*K{r},""))))
  *
- * @param {string} formula AE列の数式文字列
+ * @param {string} formula AG列の数式文字列
  * @param {number} rowNum 対象行番号（1-based）
- * @param {string} channel チャネル（AG列）
- * @return {boolean} 現行ルールの数式なら true
+ * @param {string} channel チャネル（AI列）
+ * @param {Date} [requestDate] 依頼日時（B列）
+ * @return {boolean} その行に入っているべき数式なら true
  */
-function isCurrentRewardFormula_(formula, rowNum, channel) {
+function isCurrentRewardFormula_(formula, rowNum, channel, requestDate) {
   var f = normalizeRewardFormula_(formula);
   if (!f) return false;
-  return f === normalizeRewardFormula_(buildRewardFormula_(rowNum, channel));
+  return f === normalizeRewardFormula_(buildRewardFormulaForDate_(rowNum, channel, requestDate));
 }
 
 /** 数式比較用の正規化（空白の有無だけの差で作り直さないようにする）。 */

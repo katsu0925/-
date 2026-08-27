@@ -835,7 +835,7 @@ function apiAdminLinkOrder(adminKey, receiptNo, userKey, ids) {
     // K列(11): 合計点数
     reqSh.getRange(targetRow, 11).setValue(list.length);
     // AF列(32): 更新日時
-    reqSh.getRange(targetRow, 32).setValue(new Date(now));
+    reqSh.getRange(targetRow, REQUEST_SHEET_COLS.UPDATED_AT).setValue(new Date(now));
 
     // キャッシュ無効化
     st_invalidateStatusCache_(orderSs);
@@ -961,20 +961,22 @@ function writeSubmitData_(data) {
     '未着手',                                     // S: 発送ステータス
     '',                                          // T: 配送業者
     '',                                          // U: 伝票番号
-    APP_CONFIG.statuses.open,                    // V: ステータス
-    '',                                          // W: 担当者
-    '未',                                         // X: リスト同梱
-    '未',                                         // Y: xlsx送付
-    data.form.invoiceReceipt ? '希望' : '',      // Z: インボイス発行
-    '',                                          // AA: インボイス状況
-    paymentStatus === '入金待ち' ? '' : false,     // AB: 受注通知（入金待ちは空白、入金済みはFALSE）
-    '',                                          // AC: 発送通知
-    data.form.note || '',                        // AD: 備考
-    '',                                          // AE: 作業報酬
-    new Date(now),                               // AF: 更新日時
-    channel,                                     // AG: チャネル
-    '',                                          // AH: 追跡URL
-    (function() {                                // AI: 商品単価JSON（注文時価格、新形式: 個品/アソート分離）
+    channel === 'デタウリ' ? '' : '大箱',          // V: 発送サイズ（発送者が入力。アソート系は大箱を初期値に）
+    channel === 'デタウリ' ? '' : totalCount,     // W: 箱数（空欄=1箱として計算。アソート系はK列と同じ箱数）
+    APP_CONFIG.statuses.open,                    // X: ステータス
+    '',                                          // Y: 担当者
+    '未',                                         // Z: リスト同梱
+    '未',                                         // AA: xlsx送付
+    data.form.invoiceReceipt ? '希望' : '',      // AB: インボイス発行
+    '',                                          // AC: インボイス状況
+    paymentStatus === '入金待ち' ? '' : false,     // AD: 受注通知（入金待ちは空白、入金済みはFALSE）
+    '',                                          // AE: 発送通知
+    data.form.note || '',                        // AF: 備考
+    '',                                          // AG: 作業報酬
+    new Date(now),                               // AH: 更新日時
+    channel,                                     // AI: チャネル
+    '',                                          // AJ: 追跡URL
+    (function() {                                // AK: 商品単価JSON（注文時価格、新形式: 個品/アソート分離）
       var aMap = {}, dMap = {};
       (data.assortItemDetails || []).forEach(function(it) {
         if (it.managedId) aMap[it.managedId] = it.price || 0;
@@ -992,20 +994,21 @@ function writeSubmitData_(data) {
     })()
   ];
   var writeRow = sh_findNextRowByDisplayKey_(reqSh, 1, 1);
-  // AE列（作業報酬）は数式で残す。発送サイズ別の算定は buildRewardFormula_ に集約。
-  //  デタウリ単品=発送サイズ(AK列)の額そのまま / アソート系=箱数(K列)×250
+  // AG列（作業報酬）は数式で残す。算定は buildRewardFormula_ に集約。
+  //  報酬 = 単価(V列の発送サイズ) × 箱数(W列。空欄なら1箱)
   row[REQUEST_SHEET_COLS.REWARD - 1] = buildRewardFormula_(writeRow, channel);
   reqSh.getRange(writeRow, 1, 1, row.length).setValues([row]);
 
-  // AK列（発送サイズ）: クリックポスト対象は受注時に自動セットする。
-  // row配列はAI列(35)までのため別書込。GAS直・Worker経由(_internalSavePendingOrder)とも
+  // V列（発送サイズ）: クリックポスト対象は受注時に自動セットする。
+  // row配列はAK列(37)までのため別書込。GAS直・Worker経由(_internalSavePendingOrder)とも
   // ここを通るので1箇所で両経路をカバーできる。
-  // 効果: ①クリックポストCSVの抽出キーになる ②作業報酬(AE)が自動で50円になる
+  // 効果: ①クリックポストCSVの抽出キーになる ②作業報酬(AG)が自動で50円になる
   if (String(data.shippingSize || '') === 'clickpost') {
     try {
       reqSh.getRange(writeRow, REQUEST_SHEET_COLS.SHIP_SIZE).setValue('クリックポスト');
+      reqSh.getRange(writeRow, REQUEST_SHEET_COLS.BOX_COUNT).setValue('');
     } catch (eShipSize) {
-      Logger.log('AK列(発送サイズ)の自動セットに失敗: ' + eShipSize);
+      Logger.log('V列(発送サイズ)の自動セットに失敗: ' + eShipSize);
     }
     // クレカ等その場で入金が済む注文は、この時点で入金完了。業務用LINEグループへ知らせる。
     // コンビニ／銀行振込のようにあとから入金される注文（＝ここでは入金待ち）は
@@ -2064,7 +2067,7 @@ function manualPremiumAssortSelect() {
   reqSh.getRange(targetRow, 10).setValue(selectionList);
   var hText = String(reqSh.getRange(targetRow, 8).getValue() || '');
   reqSh.getRange(targetRow, 11).setValue(calcTotalCountFromProductNames_(hText));
-  reqSh.getRange(targetRow, 32).setValue(new Date());
+  reqSh.getRange(targetRow, REQUEST_SHEET_COLS.UPDATED_AT).setValue(new Date());
 
   // openStateに追加
   var openState = st_getOpenState_(orderSs) || {};
@@ -2151,7 +2154,7 @@ function menuManualAssortSelect() {
   reqSh.getRange(targetRow, 10).setValue(selectionList);
   var hText = String(reqSh.getRange(targetRow, 8).getValue() || '');
   reqSh.getRange(targetRow, 11).setValue(calcTotalCountFromProductNames_(hText));
-  reqSh.getRange(targetRow, 32).setValue(new Date());
+  reqSh.getRange(targetRow, REQUEST_SHEET_COLS.UPDATED_AT).setValue(new Date());
 
   // openStateに追加
   var openState = st_getOpenState_(orderSs) || {};
@@ -2324,8 +2327,8 @@ function createMinimalOrderRow_(paymentToken, paymentStatus, paymentMethod, paym
 
     reqSh.appendRow(row);
 
-    // 入金確認(Q=17)・決済方法(O=15)・発送ステータス(S=19)・ステータス(V=22)・備考(AD=30)を設定。
-    // ※S/Vを埋めることで、この復旧行も管理画面の通常フロー（アクティブ受注一覧）に正しく表示される。
+    // 入金確認(Q=17)・決済方法(O=15)・発送ステータス(S=19)・ステータス(X=24)・備考(AF=32)を設定。
+    // ※S/Xを埋めることで、この復旧行も管理画面の通常フロー（アクティブ受注一覧）に正しく表示される。
     var lastRow = reqSh.getLastRow();
     if (paymentStatus === 'paid') {
       reqSh.getRange(lastRow, 17).setValue('未対応');
@@ -2336,10 +2339,10 @@ function createMinimalOrderRow_(paymentToken, paymentStatus, paymentMethod, paym
       reqSh.getRange(lastRow, 15).setValue(getPaymentMethodDisplayName_(paymentMethod));
     }
     reqSh.getRange(lastRow, 19).setValue('未着手');                 // S: 発送ステータス
-    reqSh.getRange(lastRow, 22).setValue(APP_CONFIG.statuses.open); // V: ステータス（依頼中）
-    reqSh.getRange(lastRow, 30).setValue(noteText);                // AD: 備考（自動復旧の詳細）
-    touchRequestUpdatedAt_(reqSh, lastRow);                        // AF: 更新日時
-    // AG: チャネル（デタウリ経由の決済からの復旧行）→ AE: 作業報酬の数式もチャネルに合わせて焼く
+    reqSh.getRange(lastRow, REQUEST_SHEET_COLS.STATUS).setValue(APP_CONFIG.statuses.open); // X: ステータス（依頼中）
+    reqSh.getRange(lastRow, REQUEST_SHEET_COLS.NOTE).setValue(noteText);                   // AF: 備考（自動復旧の詳細）
+    touchRequestUpdatedAt_(reqSh, lastRow);                        // AH: 更新日時
+    // AI: チャネル（デタウリ経由の決済からの復旧行）→ AG: 作業報酬の数式もチャネルに合わせて焼く
     reqSh.getRange(lastRow, REQUEST_SHEET_COLS.CHANNEL).setValue('デタウリ');
     reqSh.getRange(lastRow, REQUEST_SHEET_COLS.REWARD).setFormula(buildRewardFormula_(lastRow, 'デタウリ'));
 

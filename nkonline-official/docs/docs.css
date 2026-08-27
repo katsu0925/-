@@ -1,0 +1,289 @@
+/* =========================================================
+   NKonline — 配布資料 共通スタイル
+   画面で読む／そのままA4で印刷（PDF保存）できることを両立させる。
+   公式サイト本体（css/style.css）とは独立させ、資料単体で完結させる。
+   ========================================================= */
+
+:root{
+  --ink:#0e1626;
+  --ink-2:#172037;
+  --paper:#f6f5f1;
+  --muted:#5d6b82;
+  --line:#e3ded4;
+  --brand:#ff5a36;
+  --brand-tint:#ffe9e2;
+  --ok:#1c8a6b;
+  --ok-tint:#e3f5ee;
+  --warn:#b8860b;
+  --warn-tint:#fdf3dc;
+  --ng:#c62f2f;
+  --ng-tint:#fceaea;
+  --radius:14px;
+}
+
+*{margin:0;padding:0;box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:'Noto Sans JP','Hiragino Sans','Yu Gothic',sans-serif;
+  color:var(--ink);
+  background:var(--paper);
+  line-height:1.9;
+  letter-spacing:.01em;
+  -webkit-font-smoothing:antialiased;
+}
+a{color:var(--brand);font-weight:600}
+
+/* ---------- 用紙 ---------- */
+.sheet{
+  max-width:900px;margin:0 auto;background:#fff;
+  padding:clamp(28px,5vw,60px) clamp(20px,5vw,64px) 80px;
+  box-shadow:0 20px 60px rgba(14,22,38,.09);
+  min-height:100vh;
+}
+
+/* ---------- 表紙まわり ---------- */
+.doc-head{border-bottom:3px solid var(--ink);padding-bottom:22px;margin-bottom:34px}
+.doc-brand{
+  font-family:'Archivo','Noto Sans JP',sans-serif;font-weight:800;
+  font-size:19px;letter-spacing:-.01em;color:var(--ink);
+}
+.doc-brand span{color:var(--brand)}
+.doc-kind{font-size:12px;color:var(--muted);letter-spacing:.08em;margin-top:14px}
+.doc-title{font-size:clamp(24px,4vw,34px);font-weight:900;line-height:1.4;margin-top:6px}
+.doc-sub{font-size:14px;color:var(--muted);margin-top:12px;line-height:1.95}
+.doc-meta{
+  display:flex;gap:8px 26px;flex-wrap:wrap;
+  font-size:12px;color:var(--muted);margin-top:18px;
+}
+
+/* ---------- 見出し ---------- */
+h2.h{
+  font-size:19px;font-weight:900;line-height:1.5;
+  margin:46px 0 16px;padding:0 0 10px 0;
+  border-bottom:2px solid var(--line);
+}
+h2.h .n{
+  display:inline-block;background:var(--ink);color:#fff;
+  font-family:'Archivo','Noto Sans JP',sans-serif;font-size:13px;font-weight:800;
+  border-radius:7px;padding:2px 10px;margin-right:12px;vertical-align:2px;
+}
+h3.h3{font-size:16px;font-weight:900;margin:30px 0 12px;padding-left:12px;border-left:4px solid var(--brand)}
+p.lead{font-size:14.5px;color:var(--muted);line-height:2;margin-bottom:16px}
+p.body{font-size:14.5px;line-height:2;margin-bottom:14px}
+
+/* ---------- 表 ---------- */
+table.t{width:100%;border-collapse:collapse;margin:16px 0 8px;font-size:13.5px}
+table.t th,table.t td{border:1px solid var(--line);padding:12px 14px;text-align:left;vertical-align:top;line-height:1.8}
+table.t th{background:#faf9f6;font-weight:700;white-space:nowrap}
+table.t thead th{background:var(--ink);color:#fff;white-space:normal}
+table.t td.fill{background:#fcfbf8;color:#b6b0a4}
+
+/* 3段階の線引き（安全／要判断／禁止） */
+.lv-ok th,.lv-ok td:first-child{background:var(--ok-tint);color:var(--ok);font-weight:700}
+.lv-warn th,.lv-warn td:first-child{background:var(--warn-tint);color:var(--warn);font-weight:700}
+.lv-ng th,.lv-ng td:first-child{background:var(--ng-tint);color:var(--ng);font-weight:700}
+
+/* ---------- 箇条書き ---------- */
+ul.ck{list-style:none;display:grid;gap:10px;margin:14px 0}
+ul.ck li{position:relative;padding-left:28px;font-size:14px;line-height:1.85}
+ul.ck li::before{
+  content:"";position:absolute;left:2px;top:8px;width:7px;height:12px;
+  border-right:2px solid var(--brand);border-bottom:2px solid var(--brand);transform:rotate(40deg);
+}
+ul.num{list-style:none;counter-reset:n;display:grid;gap:12px;margin:14px 0}
+ul.num li{position:relative;padding-left:34px;font-size:14px;line-height:1.85;counter-increment:n}
+ul.num li::before{
+  content:counter(n);position:absolute;left:0;top:3px;
+  width:23px;height:23px;border-radius:7px;background:var(--brand);color:#fff;
+  font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;
+}
+ul.plain{margin:12px 0 12px 22px}
+ul.plain li{font-size:14px;line-height:1.95;margin-bottom:5px}
+
+/* 記入欄（□） */
+ul.box{list-style:none;display:grid;gap:9px;margin:14px 0}
+ul.box li{position:relative;padding-left:28px;font-size:14px;line-height:1.85}
+ul.box li::before{
+  content:"";position:absolute;left:0;top:6px;width:15px;height:15px;
+  border:1.5px solid var(--muted);border-radius:3px;
+}
+
+/* ---------- 注意ボックス ---------- */
+.note{background:var(--paper);border-radius:var(--radius);padding:18px 22px;margin:18px 0;font-size:13.5px;line-height:1.95}
+.note .nt{display:block;font-weight:900;margin-bottom:6px;font-size:14px}
+.note.warn{background:var(--ng-tint)}
+.note.warn .nt{color:var(--ng)}
+.note.tip{background:var(--ok-tint)}
+.note.tip .nt{color:var(--ok)}
+
+/* ---------- プロンプトカード ---------- */
+.pc{border:1px solid var(--line);border-radius:var(--radius);margin:16px 0;overflow:hidden;background:#fff}
+.pc-h{display:flex;gap:12px;align-items:flex-start;justify-content:space-between;padding:16px 18px;background:#faf9f6;border-bottom:1px solid var(--line)}
+.pc-t{font-size:15px;font-weight:900;line-height:1.6}
+.pc-t .id{font-family:'Archivo','Noto Sans JP',sans-serif;color:var(--brand);margin-right:10px}
+.pc-when{font-size:12.5px;color:var(--muted);margin-top:4px;line-height:1.75}
+.pc-b{padding:18px}
+.pc pre{
+  font-family:'SFMono-Regular',Consolas,'Noto Sans JP',monospace;
+  white-space:pre-wrap;word-break:break-word;
+  font-size:13px;line-height:1.95;color:var(--ink);
+  background:var(--paper);border-radius:10px;padding:16px 18px;
+}
+.pc pre b{color:var(--brand);font-weight:700}
+.pc-note{font-size:12.5px;color:var(--muted);margin-top:12px;line-height:1.85}
+.copy{
+  flex:none;border:1px solid var(--line);background:#fff;border-radius:8px;
+  font-family:inherit;font-size:12px;font-weight:700;color:var(--muted);
+  padding:7px 14px;cursor:pointer;transition:.25s;white-space:nowrap;
+}
+.copy:hover{border-color:var(--ink);color:var(--ink)}
+.copy.done{background:var(--ok-tint);border-color:var(--ok);color:var(--ok)}
+
+/* ---------- 目次 ---------- */
+.toc{background:var(--paper);border-radius:var(--radius);padding:24px 28px;margin:24px 0 10px}
+.toc h4{font-size:13px;letter-spacing:.08em;color:var(--muted);margin-bottom:14px;font-weight:700}
+.toc ol{margin-left:20px}
+.toc li{font-size:14px;line-height:2;margin-bottom:2px}
+.toc a{color:var(--ink);font-weight:500}
+.toc a:hover{color:var(--brand)}
+
+/* ---------- 印刷ボタン（画面のみ） ---------- */
+.tools{
+  position:sticky;top:0;z-index:20;background:rgba(255,255,255,.94);
+  backdrop-filter:blur(10px);border-bottom:1px solid var(--line);
+  display:flex;gap:10px;align-items:center;flex-wrap:wrap;
+  padding:12px clamp(20px,5vw,64px);margin:0 auto;max-width:900px;
+}
+.tools .tl{font-size:12.5px;color:var(--muted);margin-right:auto}
+.tools .tb{
+  border:1px solid var(--line);background:#fff;border-radius:8px;
+  font-family:inherit;font-size:12.5px;font-weight:700;color:var(--ink);
+  padding:8px 16px;cursor:pointer;transition:.25s;text-decoration:none;
+}
+.tools .tb:hover{border-color:var(--ink)}
+.tools .tb.pri{background:var(--brand);border-color:var(--brand);color:#fff}
+.tools .tb.pri:hover{background:#e8431f}
+
+/* ---------- 資料フッター ---------- */
+.doc-foot{
+  margin-top:60px;padding-top:24px;border-top:2px solid var(--line);
+  font-size:12.5px;color:var(--muted);line-height:1.95;
+}
+.doc-foot b{color:var(--ink)}
+
+/* ---------- スライド（研修用） ---------- */
+.deck{margin-top:10px}
+.slide{
+  background:#fff;border:1px solid var(--line);border-radius:var(--radius);
+  padding:26px 28px 24px;margin-bottom:16px;position:relative;
+}
+.slide .sn{
+  display:inline-block;font-family:'Archivo',sans-serif;font-weight:800;
+  font-size:12px;letter-spacing:.06em;color:#fff;background:var(--ink);
+  border-radius:6px;padding:3px 9px;margin-bottom:12px;
+}
+.slide .sn.part{background:var(--brand)}
+.slide h3{font-size:22px;font-weight:900;line-height:1.5;letter-spacing:-.01em;margin-bottom:8px}
+.slide .sub{font-size:14px;color:var(--muted);line-height:1.9;margin-bottom:14px}
+.slide ul{margin:0 0 4px 0;list-style:none}
+.slide ul li{
+  font-size:15px;line-height:1.9;padding-left:22px;position:relative;margin-bottom:8px;
+}
+.slide ul li::before{
+  content:'';position:absolute;left:6px;top:.72em;width:7px;height:7px;
+  border-radius:2px;background:var(--brand);
+}
+.slide ul li b{font-weight:700}
+.slide .big{
+  font-size:26px;font-weight:900;line-height:1.6;letter-spacing:-.01em;
+  padding:18px 0;color:var(--ink);
+}
+.slide .two{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:6px 0 4px}
+.slide .two .bx{background:var(--paper);border-radius:10px;padding:16px 18px}
+.slide .two .bx h5{font-size:13px;font-weight:800;margin-bottom:8px}
+.slide .two .bx p{font-size:13.5px;line-height:1.85;color:var(--muted)}
+.slide .two .bx.ok{background:var(--ok-tint)}
+.slide .two .bx.ok h5{color:var(--ok)}
+.slide .two .bx.ng{background:var(--ng-tint)}
+.slide .two .bx.ng h5{color:var(--ng)}
+.slide pre{
+  background:var(--ink);color:#e8ecf3;border-radius:10px;padding:16px 18px;margin:10px 0 4px;
+  font-family:'SFMono-Regular',Consolas,'Courier New',monospace;
+  font-size:12.5px;line-height:1.95;white-space:pre-wrap;word-break:break-word;
+}
+.slide pre b{color:#ffb9a6;font-weight:700}
+.talk{
+  margin-top:16px;padding:14px 16px;background:var(--paper);
+  border-left:4px solid var(--line);border-radius:0 8px 8px 0;
+}
+.talk .tk{
+  display:block;font-size:11px;font-weight:800;letter-spacing:.1em;
+  color:var(--muted);margin-bottom:6px;
+}
+.talk p{font-size:13px;line-height:1.95;color:var(--ink-2);margin-bottom:6px}
+.talk p:last-child{margin-bottom:0}
+.talk .min{color:var(--brand);font-weight:700}
+
+/* ---------- 発表モード ---------- */
+.present-bar{display:none}
+body.present{background:#0e1626}
+body.present .tools{display:none}
+body.present .sheet{max-width:none;margin:0;padding:0;box-shadow:none;background:transparent;min-height:0}
+body.present .sheet > *:not(.deck){display:none}
+body.present .deck{margin:0}
+body.present .deck > .slide:not(.now){display:none}
+body.present .slide.now{
+  margin:0;border:0;border-radius:0;
+  min-height:calc(100vh - 56px);
+  display:flex;flex-direction:column;justify-content:center;
+  padding:clamp(30px,6vw,90px);
+}
+body.present .slide.now h3{font-size:clamp(28px,4vw,46px)}
+body.present .slide.now .sub{font-size:clamp(15px,1.6vw,20px)}
+body.present .slide.now ul li{font-size:clamp(17px,1.9vw,25px);margin-bottom:14px;padding-left:30px}
+body.present .slide.now ul li::before{width:10px;height:10px;left:8px}
+body.present .slide.now .big{font-size:clamp(30px,4vw,48px)}
+body.present .slide.now .two .bx h5{font-size:clamp(15px,1.6vw,20px)}
+body.present .slide.now .two .bx p{font-size:clamp(14px,1.5vw,18px)}
+body.present .slide.now pre{font-size:clamp(13px,1.4vw,17px)}
+body.present .talk{display:none}
+body.present .present-bar{
+  display:flex;position:fixed;left:0;right:0;bottom:0;z-index:60;
+  align-items:center;gap:16px;padding:11px 20px;
+  background:rgba(14,22,38,.94);color:#fff;
+}
+.present-bar .pb-c{font-family:'Archivo',sans-serif;font-weight:800;font-size:13px;letter-spacing:.06em}
+.present-bar .pb-h{font-size:12px;color:rgba(255,255,255,.62);margin-right:auto}
+.present-bar button{
+  border:1px solid rgba(255,255,255,.32);background:transparent;color:#fff;
+  border-radius:8px;font-family:inherit;font-size:12.5px;font-weight:700;
+  padding:7px 15px;cursor:pointer;transition:.25s;
+}
+.present-bar button:hover{background:rgba(255,255,255,.14)}
+
+/* ---------- 印刷 ---------- */
+@media print{
+  @page{size:A4;margin:14mm 12mm}
+  body{background:#fff}
+  .sheet{max-width:none;margin:0;padding:0;box-shadow:none;min-height:0}
+  .tools,.copy,.no-print{display:none!important}
+  h2.h{break-after:avoid;page-break-after:avoid}
+  h3.h3{break-after:avoid;page-break-after:avoid}
+  .pc,.note,table.t tr{break-inside:avoid;page-break-inside:avoid}
+  .slide{break-inside:avoid;page-break-inside:avoid;border-color:#d8d2c6}
+  .present-bar{display:none!important}
+  .pagebreak{break-before:page;page-break-before:always}
+  a{color:var(--ink);text-decoration:none}
+}
+
+/* ---------- レスポンシブ ---------- */
+@media(max-width:640px){
+  .pc-h{flex-direction:column}
+  .copy{align-self:flex-start}
+  table.t{font-size:12.5px}
+  table.t th,table.t td{padding:10px}
+  .doc-meta{gap:6px 16px}
+  .slide{padding:20px}
+  .slide h3{font-size:19px}
+  .slide .two{grid-template-columns:1fr}
+}

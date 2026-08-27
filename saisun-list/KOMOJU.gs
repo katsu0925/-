@@ -2247,8 +2247,8 @@ function findAndRestorePendingOrder() {
   reqSh.getRange(targetRow, 10).setValue(selectionList); // J列
   reqSh.getRange(targetRow, 11).setValue(totalCount);    // K列
   if (remarks) {
-    var currentAD = reqSh.getRange(targetRow, 30).getValue();
-    reqSh.getRange(targetRow, 30).setValue(String(currentAD || '') + '\n備考: ' + remarks); // AD列
+    var currentNote = reqSh.getRange(targetRow, REQUEST_SHEET_COLS.NOTE).getValue();
+    reqSh.getRange(targetRow, REQUEST_SHEET_COLS.NOTE).setValue(String(currentNote || '') + '\n備考: ' + remarks); // AF列(備考)
   }
 
   console.log('=== 復旧完了 ===');
