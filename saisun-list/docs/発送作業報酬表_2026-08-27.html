@@ -2,195 +2,587 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<title>発送作業の報酬表（2026年8月27日〜）</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>発送作業の報酬表</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&family=Zen+Kaku+Gothic+New:wght@500;700;900&family=Roboto+Mono:wght@500;700&display=swap">
 <style>
-  @page { size: A4; margin: 14mm 13mm; }
-  * { box-sizing: border-box; }
-  body {
-    font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
-    color: #1c1c1c; line-height: 1.75; font-size: 10.5pt; margin: 0;
+/* ── 帳票（伝票）の作法を借りた配色。藍＝構造、朱＝注意書きの朱印 ───────── */
+:root{
+  --paper:#ffffff;
+  --surface:#f2f5f9;
+  --surface-2:#e7edf4;
+  --ink:#141c27;
+  --ink-2:#4f5d70;
+  --rule:#ccd6e2;
+  --rule-strong:#a3b4c7;
+  --band-bg:#13406e;
+  --band-fg:#f3f7fc;
+  --accent:#13406e;
+  --accent-soft:#e6eef7;
+  --shu:#b0382a;
+  --shu-fg:#b0382a;
+  --shu-soft:#fcf0ee;
+  --shu-rule:#e6bdb6;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#111823;
+    --surface:#1a2331;
+    --surface-2:#222e3e;
+    --ink:#e9eef5;
+    --ink-2:#a2b1c4;
+    --rule:#2d3a4b;
+    --rule-strong:#4a5b70;
+    --band-bg:#17273c;
+    --band-fg:#eaf1fa;
+    --accent:#8fb9ea;
+    --accent-soft:#1b2a3d;
+    --shu:#e8836f;
+    --shu-fg:#f0937f;
+    --shu-soft:#2d1d1a;
+    --shu-rule:#5a3129;
   }
-  h1 { font-size: 19pt; margin: 0 0 4px; letter-spacing: .02em; }
-  .sub { color: #666; font-size: 9.5pt; margin: 0 0 18px; }
-  h2 {
-    font-size: 13pt; margin: 22px 0 10px; padding: 6px 10px;
-    background: #1f4e79; color: #fff; border-radius: 3px;
+}
+:root[data-theme="dark"]{
+  --paper:#111823;
+  --surface:#1a2331;
+  --surface-2:#222e3e;
+  --ink:#e9eef5;
+  --ink-2:#a2b1c4;
+  --rule:#2d3a4b;
+  --rule-strong:#4a5b70;
+  --band-bg:#17273c;
+  --band-fg:#eaf1fa;
+  --accent:#8fb9ea;
+  --accent-soft:#1b2a3d;
+  --shu:#e8836f;
+  --shu-fg:#f0937f;
+  --shu-soft:#2d1d1a;
+  --shu-rule:#5a3129;
+}
+
+*{ box-sizing:border-box; }
+
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"BIZ UDPGothic","Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;
+  font-size:17px;
+  line-height:1.9;
+  -webkit-text-size-adjust:100%;
+}
+
+.sheet{
+  max-width:46rem;
+  margin:0 auto;
+  padding:0 0 4rem;
+}
+
+/* ── 表題 ─────────────────────────────────────────────────────────── */
+.masthead{
+  background:var(--band-bg);
+  color:var(--band-fg);
+  padding:2.4rem 1.5rem 2rem;
+}
+.masthead > div{ max-width:42rem; margin:0 auto; }
+.eyebrow{
+  font-family:"Zen Kaku Gothic New","Hiragino Sans",sans-serif;
+  font-weight:500;
+  font-size:.78rem;
+  letter-spacing:.18em;
+  opacity:.72;
+  margin:0 0 .7rem;
+}
+h1{
+  font-family:"Zen Kaku Gothic New","Hiragino Sans",sans-serif;
+  font-weight:900;
+  font-size:clamp(1.85rem,7vw,2.5rem);
+  line-height:1.25;
+  letter-spacing:.01em;
+  text-wrap:balance;
+  margin:0;
+}
+.applied{
+  display:inline-block;
+  margin:1.1rem 0 0;
+  padding:.3rem .8rem;
+  border:1px solid rgba(243,247,252,.42);
+  border-radius:2px;
+  font-family:"Roboto Mono","BIZ UDPGothic",monospace;
+  font-size:.82rem;
+  font-weight:500;
+  letter-spacing:.03em;
+  line-height:1.6;
+}
+
+.body{ padding:0 1.5rem; }
+.body > *{ max-width:42rem; margin-left:auto; margin-right:auto; }
+
+.lead{
+  background:var(--surface);
+  border-left:3px solid var(--accent);
+  padding:1.1rem 1.25rem;
+  margin-top:2rem;
+  font-size:1rem;
+}
+.lead p{ margin:0; }
+.lead p + p{ margin-top:.6rem; }
+
+/* ── 見出し ───────────────────────────────────────────────────────── */
+h2{
+  font-family:"Zen Kaku Gothic New","Hiragino Sans",sans-serif;
+  font-weight:700;
+  font-size:1.35rem;
+  line-height:1.4;
+  text-wrap:balance;
+  margin:3.2rem 0 0;
+  padding-bottom:.6rem;
+  border-bottom:2px solid var(--rule-strong);
+}
+h2 + p, h2 + .cells, h2 + .rates, h2 + .formula, h2 + .keypoint{ margin-top:1.2rem; }
+
+h3{
+  font-family:"Zen Kaku Gothic New","Hiragino Sans",sans-serif;
+  font-weight:700;
+  font-size:.95rem;
+  letter-spacing:.04em;
+  color:var(--ink-2);
+  margin:2rem 0 .6rem;
+}
+
+p{ margin:1rem auto; }
+b, strong{ font-weight:700; }
+
+/* ── 入力する2つのセル ────────────────────────────────────────────── */
+.cells{
+  display:grid;
+  gap:.9rem;
+  margin-bottom:1.4rem;
+}
+.cell{
+  border:1px solid var(--rule);
+  border-top:3px solid var(--accent);
+  background:var(--surface);
+  padding:1rem 1.15rem 1.1rem;
+}
+.cell-head{
+  display:flex;
+  align-items:baseline;
+  gap:.7rem;
+  flex-wrap:wrap;
+}
+.chip{
+  display:inline-block;
+  background:var(--band-bg);
+  color:var(--band-fg);
+  font-family:"Roboto Mono","BIZ UDPGothic",monospace;
+  font-weight:700;
+  font-size:.9rem;
+  letter-spacing:.06em;
+  padding:.15rem .55rem;
+  border-radius:2px;
+  line-height:1.5;
+}
+.cell-name{
+  font-family:"Zen Kaku Gothic New","Hiragino Sans",sans-serif;
+  font-weight:700;
+  font-size:1.2rem;
+}
+.cell p{ margin:.55rem 0 0; font-size:.97rem; line-height:1.8; }
+
+/* ── 注意（朱書き） ───────────────────────────────────────────────── */
+.warn{
+  background:var(--shu-soft);
+  border:1px solid var(--shu-rule);
+  border-left:3px solid var(--shu);
+  padding:1rem 1.2rem;
+  margin:1.5rem auto;
+  font-size:.97rem;
+  line-height:1.8;
+}
+.warn-title{
+  display:block;
+  font-family:"Zen Kaku Gothic New","Hiragino Sans",sans-serif;
+  font-weight:700;
+  font-size:1.03rem;
+  color:var(--shu-fg);
+  margin-bottom:.35rem;
+}
+.warn p{ margin:.4rem 0 0; }
+.warn p:first-of-type{ margin-top:0; }
+
+/* ── 計算式 ───────────────────────────────────────────────────────── */
+.formula{
+  background:var(--accent-soft);
+  border:1px solid var(--rule);
+  padding:1.4rem 1rem;
+  text-align:center;
+  font-family:"Zen Kaku Gothic New","Hiragino Sans",sans-serif;
+  font-weight:900;
+  font-size:clamp(1.05rem,4.4vw,1.4rem);
+  line-height:1.6;
+  color:var(--ink);
+  margin:1.2rem auto;
+}
+
+/* ── 単価・例の一覧（横スクロールしない行組み） ──────────────────── */
+.rates{
+  list-style:none;
+  margin:1.2rem auto;
+  padding:0;
+  border-top:1px solid var(--rule);
+}
+.rates li{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:1rem;
+  padding:.85rem .2rem;
+  border-bottom:1px solid var(--rule);
+}
+.rate-name{
+  display:block;
+  font-family:"Zen Kaku Gothic New","Hiragino Sans",sans-serif;
+  font-weight:700;
+  font-size:1.05rem;
+  line-height:1.5;
+}
+.rate-note{
+  display:block;
+  font-size:.87rem;
+  color:var(--ink-2);
+  line-height:1.6;
+}
+.yen{
+  font-family:"Zen Kaku Gothic New","Hiragino Sans",sans-serif;
+  font-weight:900;
+  font-size:1.5rem;
+  white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+  line-height:1.3;
+}
+.yen i{ font-style:normal; font-size:.95rem; font-weight:700; margin-left:.1em; }
+
+.notes{ margin:1rem auto 0; padding-left:1.3em; font-size:.93rem; color:var(--ink-2); }
+.notes li{ margin:.45rem 0; line-height:1.8; }
+.notes strong{ color:var(--ink); }
+
+/* ── 140サイズの分かれ目 ──────────────────────────────────────────── */
+.keypoint{
+  border:2px solid var(--accent);
+  padding:1.1rem 1rem;
+  text-align:center;
+  font-family:"Zen Kaku Gothic New","Hiragino Sans",sans-serif;
+  font-weight:900;
+  font-size:clamp(1.05rem,4.4vw,1.35rem);
+  line-height:1.6;
+  margin:1.2rem auto;
+}
+.split{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:.9rem;
+  margin:1.2rem auto;
+}
+.split div{
+  border:1px solid var(--rule);
+  background:var(--surface);
+  padding:1rem .9rem;
+  text-align:center;
+}
+.split .size{
+  display:block;
+  font-family:"Roboto Mono","BIZ UDPGothic",monospace;
+  font-weight:500;
+  font-size:.88rem;
+  color:var(--ink-2);
+  line-height:1.7;
+  font-variant-numeric:tabular-nums;
+}
+.split .pick{
+  display:block;
+  font-family:"Zen Kaku Gothic New","Hiragino Sans",sans-serif;
+  font-weight:900;
+  font-size:1.45rem;
+  color:var(--accent);
+  margin-top:.4rem;
+  line-height:1.4;
+}
+
+/* ── これまでとの変更点 ───────────────────────────────────────────── */
+.changes{
+  display:grid;
+  gap:1rem;
+  margin:1.2rem auto;
+}
+.change{
+  border:1px solid var(--rule);
+  padding:1rem 1.1rem;
+}
+.change > h4{
+  font-family:"Zen Kaku Gothic New","Hiragino Sans",sans-serif;
+  font-weight:700;
+  font-size:1.02rem;
+  margin:0 0 .7rem;
+}
+.ba{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:.8rem;
+}
+.ba > div{ min-width:0; }
+.ba dt{
+  font-family:"Zen Kaku Gothic New","Hiragino Sans",sans-serif;
+  font-size:.72rem;
+  font-weight:700;
+  letter-spacing:.12em;
+  color:var(--ink-2);
+  padding-bottom:.3rem;
+  margin-bottom:.4rem;
+  border-bottom:1px solid var(--rule);
+}
+.ba dd{ margin:0; font-size:.93rem; line-height:1.75; color:var(--ink-2); }
+.ba .now dt{ color:var(--accent); border-bottom-color:var(--accent); }
+.ba .now dd{ color:var(--ink); font-weight:700; }
+
+footer{
+  max-width:42rem;
+  margin:3.5rem auto 0;
+  padding:1.2rem 0 0;
+  border-top:1px solid var(--rule);
+  font-size:.85rem;
+  line-height:1.8;
+  color:var(--ink-2);
+}
+footer p{ margin:.4rem auto; }
+
+@media (min-width:44rem){
+  .cells{ grid-template-columns:1fr 1fr; }
+}
+@media (max-width:26rem){
+  .ba{ grid-template-columns:1fr; }
+  .split{ grid-template-columns:1fr; }
+}
+
+/* ── 印刷（A4） ───────────────────────────────────────────────────── */
+@page{ size:A4; margin:14mm 13mm; }
+@media print{
+  :root, :root[data-theme="dark"], :root:not([data-theme="light"]){
+    --paper:#ffffff; --surface:#f2f5f9; --surface-2:#e7edf4;
+    --ink:#141c27; --ink-2:#4f5d70; --rule:#ccd6e2; --rule-strong:#a3b4c7;
+    --band-bg:#13406e; --band-fg:#f3f7fc; --accent:#13406e; --accent-soft:#e6eef7;
+    --shu:#b0382a; --shu-fg:#b0382a; --shu-soft:#fcf0ee; --shu-rule:#e6bdb6;
   }
-  h3 { font-size: 11pt; margin: 16px 0 6px; }
-  table { border-collapse: collapse; width: 100%; margin: 8px 0 12px; font-size: 10pt; }
-  th, td { border: 1px solid #b9c4cf; padding: 7px 9px; text-align: left; vertical-align: middle; }
-  th { background: #eef3f8; font-weight: 600; }
-  td.money { text-align: right; font-weight: 700; white-space: nowrap; font-size: 11.5pt; }
-  .lead { background: #f6f8fa; border-left: 4px solid #1f4e79; padding: 10px 14px; margin: 10px 0 14px; }
-  .warn { background: #fff6f4; border-left: 4px solid #c0392b; padding: 10px 14px; margin: 12px 0; }
-  .warn strong { color: #c0392b; }
-  .keypoint {
-    text-align: center; font-size: 13pt; font-weight: 700;
-    background: #fffbe6; border: 2px solid #e0a800; border-radius: 4px;
-    padding: 12px; margin: 14px 0;
+  body{ font-size:10.5pt; line-height:1.7; }
+  .sheet{ max-width:none; padding-bottom:0; }
+  .masthead{ padding:0 0 1rem; background:none; color:var(--ink);
+             border-bottom:3px solid var(--accent); }
+  .applied{ border-color:var(--rule-strong); }
+  .body{ padding:0; }
+  .cell, .warn, .formula, .keypoint, .change, .split, .rates li{
+    break-inside:avoid; page-break-inside:avoid;
   }
-  .formula {
-    text-align: center; font-size: 14pt; font-weight: 700;
-    background: #eef3f8; border: 1px solid #b9c4cf; border-radius: 4px;
-    padding: 14px; margin: 12px 0;
-  }
-  ul { margin: 6px 0 12px; padding-left: 1.4em; }
-  li { margin: 4px 0; }
-  .col { display: inline-block; background: #1f4e79; color: #fff; border-radius: 3px;
-         padding: 1px 7px; font-weight: 700; font-size: 9.5pt; }
-  footer { margin-top: 26px; padding-top: 10px; border-top: 1px solid #ccc;
-           color: #777; font-size: 9pt; }
-  .nobreak { break-inside: avoid; page-break-inside: avoid; }
+  h2{ break-after:avoid; page-break-after:avoid; margin-top:1.6rem; }
+  .cells{ grid-template-columns:1fr 1fr; }
+  a[href]::after{ content:none; }
+}
 </style>
 </head>
 <body>
 
-<h1>発送作業の報酬表</h1>
-<p class="sub">2026年8月27日（木）発送分から適用　／　NKonline</p>
+<div class="sheet">
 
-<div class="lead">
-  発送作業の報酬の計算方法が変わりました。<br>
-  <strong>これまでは「箱の大きさ」だけで決まっていましたが、これからは「箱の大きさ × 送った箱の数」で計算します。</strong><br>
-  そのため、発送が終わったら<strong>依頼管理シートに2か所を入力していただく必要があります。</strong>
+  <header class="masthead">
+    <div>
+      <p class="eyebrow">NKonline ／ 発送作業をお願いしている皆さまへ</p>
+      <h1>発送作業の報酬表</h1>
+      <span class="applied">2026年8月27日（木）発送分から適用</span>
+    </div>
+  </header>
+
+  <div class="body">
+
+    <div class="lead">
+      <p>発送作業の報酬の計算方法が変わりました。</p>
+      <p>これまでは<b>「箱の大きさ」だけ</b>で決まっていましたが、これからは<b>「箱の大きさ × 送った箱の数」</b>で計算します。</p>
+      <p>そのため、発送が終わったら依頼管理シートに<b>2か所を入力していただく必要があります。</b></p>
+    </div>
+
+    <h2>発送が終わったら入力する2か所</h2>
+
+    <p>依頼管理シートの、<b>伝票番号のすぐ右となり</b>にあります。</p>
+
+    <div class="cells">
+      <div class="cell">
+        <div class="cell-head">
+          <span class="chip">V列</span>
+          <span class="cell-name">発送サイズ</span>
+        </div>
+        <p>セルを押すとプルダウンが出ます。<b>クリックポスト／中箱／大箱</b>の3つから選んでください。</p>
+      </div>
+      <div class="cell">
+        <div class="cell-head">
+          <span class="chip">W列</span>
+          <span class="cell-name">箱数</span>
+        </div>
+        <p>送った箱の数を数字で入れてください（1箱なら「1」）。</p>
+      </div>
+    </div>
+
+    <p>この2つを入れると、報酬（AG列）が<b>その場で自動計算されます。</b>電卓で計算する必要はありません。</p>
+
+    <div class="warn">
+      <span class="warn-title">発送サイズが空欄のままだと、報酬が計算されません</span>
+      <p>金額の欄が空っぽのままになり、その発送は報酬に入りません。発送したら必ず選んでください。</p>
+      <p>※箱数が空欄のときは「1箱」として計算されます。2箱以上のときだけ必ず入力してください。</p>
+    </div>
+
+    <h2>報酬の計算</h2>
+
+    <div class="formula">報酬 ＝ 1箱あたりの金額 × 箱数</div>
+
+    <h3>1箱あたりの金額</h3>
+
+    <ul class="rates">
+      <li>
+        <div>
+          <span class="rate-name">クリックポスト</span>
+          <span class="rate-note">クリックポストで送れるもの</span>
+        </div>
+        <span class="yen">50<i>円</i></span>
+      </li>
+      <li>
+        <div>
+          <span class="rate-name">中箱</span>
+          <span class="rate-note">60〜120サイズ</span>
+        </div>
+        <span class="yen">100<i>円</i></span>
+      </li>
+      <li>
+        <div>
+          <span class="rate-name">大箱</span>
+          <span class="rate-note">140サイズ以上</span>
+        </div>
+        <span class="yen">250<i>円</i></span>
+      </li>
+      <li>
+        <div>
+          <span class="rate-name">大箱（日本郵便で発送したとき）</span>
+          <span class="rate-note">140サイズ以上を、日本郵便で送ったとき</span>
+        </div>
+        <span class="yen">350<i>円</i></span>
+      </li>
+    </ul>
+
+    <ul class="notes">
+      <li>クリックポストは、日本郵便で発送しても<strong>50円</strong>です（350円にはなりません）。</li>
+      <li>大箱を日本郵便で送ったときの350円は以前からのルールですが、これまで報酬表に載っていなかったため、あらためて記載しました。</li>
+    </ul>
+
+    <h2>中箱と大箱の見分け方</h2>
+
+    <div class="keypoint">中箱と大箱の分かれ目は「140サイズ」です</div>
+
+    <div class="split">
+      <div>
+        <span class="size">60・80・100・120サイズ</span>
+        <span class="pick">中箱</span>
+      </div>
+      <div>
+        <span class="size">140・160・180サイズ など</span>
+        <span class="pick">大箱</span>
+      </div>
+    </div>
+
+    <p>サイズの数え方は宅配便と同じで、<b>箱の たて ＋ よこ ＋ 高さ の合計（cm）</b>です。すでに伝票にサイズを書いているはずなので、<b>伝票に書いたサイズをそのまま当てはめて選べば大丈夫です。</b></p>
+
+    <h2>計算の例</h2>
+
+    <ul class="rates">
+      <li>
+        <div>
+          <span class="rate-name">クリックポストで1件</span>
+          <span class="rate-note">50円 × 1箱</span>
+        </div>
+        <span class="yen">50<i>円</i></span>
+      </li>
+      <li>
+        <div>
+          <span class="rate-name">中箱（100サイズ）を2箱</span>
+          <span class="rate-note">100円 × 2箱</span>
+        </div>
+        <span class="yen">200<i>円</i></span>
+      </li>
+      <li>
+        <div>
+          <span class="rate-name">大箱（160サイズ）を3箱</span>
+          <span class="rate-note">250円 × 3箱</span>
+        </div>
+        <span class="yen">750<i>円</i></span>
+      </li>
+      <li>
+        <div>
+          <span class="rate-name">大箱（140サイズ）を2箱、日本郵便で発送</span>
+          <span class="rate-note">350円 × 2箱</span>
+        </div>
+        <span class="yen">700<i>円</i></span>
+      </li>
+    </ul>
+
+    <h2>これまでとの変更点</h2>
+
+    <div class="changes">
+
+      <div class="change">
+        <h4>入力するところ</h4>
+        <div class="ba">
+          <div><dl><dt>これまで</dt><dd>とくになし</dd></dl></div>
+          <div class="now"><dl><dt>2026年8月27日〜</dt><dd>発送サイズ（V列）と箱数（W列）</dd></dl></div>
+        </div>
+      </div>
+
+      <div class="change">
+        <h4>単品（デタウリ）の報酬</h4>
+        <div class="ba">
+          <div><dl><dt>これまで</dt><dd>箱の大きさだけで決まる（何箱送っても同じ金額）</dd></dl></div>
+          <div class="now"><dl><dt>2026年8月27日〜</dt><dd>箱の大きさ × 箱数</dd></dl></div>
+        </div>
+      </div>
+
+      <div class="change">
+        <h4>まとめ売り（アソート）の報酬</h4>
+        <div class="ba">
+          <div><dl><dt>これまで</dt><dd>箱数 × 250円</dd></dl></div>
+          <div class="now"><dl><dt>2026年8月27日〜</dt><dd>単品と同じ計算（箱の大きさ × 箱数）</dd></dl></div>
+        </div>
+      </div>
+
+      <div class="change">
+        <h4>大箱＋日本郵便</h4>
+        <div class="ba">
+          <div><dl><dt>これまで</dt><dd>350円（表に未記載）</dd></dl></div>
+          <div class="now"><dl><dt>2026年8月27日〜</dt><dd>350円（表に記載）</dd></dl></div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="warn">
+      <span class="warn-title">すでにお支払い済みの報酬は変わりません</span>
+      <p>2026年8月27日より前のご依頼は、これまでのルールのままです。さかのぼって金額が変わることはありません。</p>
+    </div>
+
+    <footer>
+      <p>発送作業の報酬表（2026-08-27版）</p>
+      <p>このページは2026年8月12日にお送りした報酬表の差し替えです。古い報酬表は破棄してください。</p>
+      <p>ご不明な点は、いつもの連絡先までお気軽にどうぞ。</p>
+    </footer>
+
+  </div>
 </div>
-
-<h2>1. 発送が終わったら入力する2か所</h2>
-
-<p>依頼管理シートの、<strong>伝票番号のすぐ右となり</strong>にあります。</p>
-
-<table class="nobreak">
-  <tr>
-    <th style="width:16%">場所</th>
-    <th style="width:22%">入力するもの</th>
-    <th>入れかた</th>
-  </tr>
-  <tr>
-    <td><span class="col">V列</span></td>
-    <td><strong>発送サイズ</strong></td>
-    <td>セルを押すとプルダウンが出ます。<strong>クリックポスト／中箱／大箱</strong>の3つから選んでください。</td>
-  </tr>
-  <tr>
-    <td><span class="col">W列</span></td>
-    <td><strong>箱数</strong></td>
-    <td>送った箱の数を数字で入れてください（1箱なら「1」）。</td>
-  </tr>
-</table>
-
-<p>この2つを入れると、報酬（AG列）がその場で自動計算されます。電卓で計算する必要はありません。</p>
-
-<div class="warn">
-  <strong>⚠ 発送サイズが空欄のままだと、報酬が計算されません。</strong><br>
-  金額の欄が空っぽのままになり、その発送は報酬に入りません。発送したら必ず選んでください。<br>
-  ※箱数が空欄のときは「1箱」として計算されます。2箱以上のときだけ必ず入力してください。
-</div>
-
-<h2>2. 報酬の計算</h2>
-
-<div class="formula">報酬 ＝ 1箱あたりの金額 × 箱数</div>
-
-<h3>1箱あたりの金額</h3>
-
-<table class="nobreak">
-  <tr>
-    <th style="width:34%">発送サイズ</th>
-    <th>どれを選ぶか</th>
-    <th style="width:18%">1箱あたり</th>
-  </tr>
-  <tr>
-    <td>クリックポスト</td>
-    <td>クリックポストで送れるもの</td>
-    <td class="money">50円</td>
-  </tr>
-  <tr>
-    <td>中箱</td>
-    <td>60〜120サイズ</td>
-    <td class="money">100円</td>
-  </tr>
-  <tr>
-    <td>大箱</td>
-    <td>140サイズ以上</td>
-    <td class="money">250円</td>
-  </tr>
-  <tr>
-    <td>大箱<br>（日本郵便で発送したとき）</td>
-    <td>140サイズ以上を、日本郵便で送ったとき</td>
-    <td class="money">350円</td>
-  </tr>
-</table>
-
-<ul>
-  <li>クリックポストは、日本郵便で発送しても<strong>50円</strong>です（350円にはなりません）。</li>
-  <li>大箱を日本郵便で送ったときの350円は以前からのルールですが、これまで報酬表に載っていなかったため、あらためて記載しました。</li>
-</ul>
-
-<h2>3. 中箱と大箱の見分け方</h2>
-
-<div class="keypoint">中箱と大箱の分かれ目は「140サイズ」です</div>
-
-<table class="nobreak">
-  <tr><th style="width:34%">箱のサイズ</th><th>選ぶもの</th></tr>
-  <tr><td>60・80・100・120サイズ</td><td><strong>中箱</strong></td></tr>
-  <tr><td>140・160・180サイズ など</td><td><strong>大箱</strong></td></tr>
-</table>
-
-<p>
-サイズの数え方は宅配便と同じで、<strong>箱の たて ＋ よこ ＋ 高さ の合計（cm）</strong>です。<br>
-すでに伝票にサイズを書いているはずなので、<strong>伝票に書いたサイズをそのまま当てはめて選べば大丈夫です。</strong>
-</p>
-
-<h2>4. 計算の例</h2>
-
-<table class="nobreak">
-  <tr>
-    <th style="width:44%">発送のしかた</th>
-    <th style="width:12%">箱数</th>
-    <th>報酬</th>
-  </tr>
-  <tr><td>クリックポストで1件</td><td>1</td><td class="money">50円</td></tr>
-  <tr><td>中箱（100サイズ）を2箱</td><td>2</td><td class="money">200円</td></tr>
-  <tr><td>大箱（160サイズ）を3箱</td><td>3</td><td class="money">750円</td></tr>
-  <tr><td>大箱（140サイズ）を2箱、日本郵便で発送</td><td>2</td><td class="money">700円</td></tr>
-</table>
-
-<h2>5. これまでとの変更点</h2>
-
-<table class="nobreak">
-  <tr>
-    <th style="width:34%">項目</th>
-    <th style="width:33%">これまで</th>
-    <th style="width:33%">2026年8月27日〜</th>
-  </tr>
-  <tr>
-    <td>入力するところ</td>
-    <td>とくになし</td>
-    <td><strong>発送サイズ（V列）と箱数（W列）</strong></td>
-  </tr>
-  <tr>
-    <td>単品（デタウリ）の報酬</td>
-    <td>箱の大きさだけで決まる<br>（何箱送っても同じ金額）</td>
-    <td><strong>箱の大きさ × 箱数</strong></td>
-  </tr>
-  <tr>
-    <td>まとめ売り（アソート）の報酬</td>
-    <td>箱数 × 250円</td>
-    <td><strong>単品と同じ計算</strong><br>（箱の大きさ × 箱数）</td>
-  </tr>
-  <tr>
-    <td>大箱＋日本郵便</td>
-    <td>350円（表に未記載）</td>
-    <td>350円（<strong>表に記載</strong>）</td>
-  </tr>
-</table>
-
-<div class="warn">
-  <strong>すでにお支払い済みの報酬は変わりません。</strong><br>
-  2026年8月27日より前のご依頼は、これまでのルールのままです。さかのぼって金額が変わることはありません。
-</div>
-
-<footer>
-  発送作業の報酬表（2026-08-27版）／ この用紙は2026年8月12日にお送りした報酬表の差し替えです。古い報酬表は破棄してください。<br>
-  ご不明な点は、いつもの連絡先までお気軽にどうぞ。
-</footer>
 
 </body>
 </html>
