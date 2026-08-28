@@ -123,7 +123,7 @@ var REQUEST_SHEET_COLS = {
   ADDRESS: 6,           // F: 住所
   PHONE: 7,             // G: 電話番号
   PRODUCT_NAMES: 8,     // H: 商品名
-  CONFIRM_LINK: 9,      // I: 確認リンク
+  CONFIRM_LINK: 9,      // I: ピッキングリスト（外注の作業用紙。依頼展開時に設定）
   SELECTION_LIST: 10,   // J: 選択リスト
   TOTAL_COUNT: 11,      // K: 合計点数
   TOTAL_AMOUNT: 12,     // L: 合計金額

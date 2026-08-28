@@ -139,7 +139,8 @@ function syncBaseOrdersToIraiKanri_() {
   const dstIdx_XlsxSend = findAnyCol_(dstMap, ['xlsx送付']);
   const dstIdx_Status = findAnyCol_(dstMap, ['ステータス']);
   const dstIdx_PaymentStatus = findAnyCol_(dstMap, ['入金確認']);  // T列
-  const dstIdx_ConfirmLink = findAnyCol_(dstMap, ['確認リンク']);  // I列
+  // 列名は「確認リンク」→「ピッキングリスト」へ改称。移行中はどちらでも引けるようにする
+  const dstIdx_ConfirmLink = findAnyCol_(dstMap, ['ピッキングリスト', '確認リンク']);  // I列
   const dstIdx_NotifyFlag = findAnyCol_(dstMap, ['受注通知', '通知フラグ']);  // AB列
   const dstIdx_ShippingStore = findAnyCol_(dstMap, ['送料(店負担)']);       // M列
   const dstIdx_ShippingCustomer = findAnyCol_(dstMap, ['送料(客負担)']);    // N列

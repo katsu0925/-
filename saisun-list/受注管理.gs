@@ -92,7 +92,7 @@ function cronAutoExpandOrders() {
   var lastRow = reqSheet.getLastRow();
   if (lastRow < 2) return;
 
-  var confirmCol = REQUEST_SHEET_COLS.CONFIRM_LINK;     // I列: 9
+  var confirmCol = REQUEST_SHEET_COLS.CONFIRM_LINK;     // I列: 9（ピッキングリストURL＝展開済みの印）
   var selectionCol = REQUEST_SHEET_COLS.SELECTION_LIST;  // J列: 10
   var statusCol = REQUEST_SHEET_COLS.STATUS;             // V列: 22
   var receiptCol = REQUEST_SHEET_COLS.RECEIPT_NO;        // A列: 1
@@ -529,14 +529,6 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
   var statusColLetter = om_colNumToLetter_(statusCol);
   var boColLetter = om_colNumToLetter_(67);
 
-  // XLSX用temp SSを事前に1回だけ作成（ループ内で使い回す）
-  var srcSheet = om_getSheetByGid_(shiireSs, OM_DIST_SHEET_GID);
-  var tmpSs = SpreadsheetApp.create('tmp_dist_' + Date.now());
-  var tmpSsId = tmpSs.getId();
-  var copiedSheet = srcSheet.copyTo(tmpSs);
-  copiedSheet.setName(srcSheet.getName());
-  om_deleteAllExceptSheet_(tmpSs, copiedSheet.getSheetId());
-
   // --- 受付番号ごとにループ処理 ---
   for (var g = 0; g < receiptNos.length; g++) {
     var receiptNo = receiptNos[g];
@@ -747,15 +739,6 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
     }
     exportSheet.getRange('I1').setValue(totalPrice.toLocaleString('ja-JP') + '円');
 
-    // flush不要: XLSX生成前にexportSheetに書き込み済み
-
-    // XLSX出力 + 確認リンク更新（事前作成のtemp SSを使い回す）
-    var xlsxResult = om_exportDistributionXlsx_fast_(customerName, receiptNo, orderSsId, exportSheet, tmpSsId, copiedSheet);
-    if (!xlsxResult || !xlsxResult.ok) {
-      results.push({ receiptNo: receiptNo, ok: false, message: 'XLSX生成エラー: ' + (xlsxResult ? xlsxResult.message : '不明') });
-      continue;
-    }
-
     // --- Phase 3: 売却反映データを蓄積（バッチ実行はループ後） ---
     // outArr の管理番号→行マップ（O(1)検索用）
     var outArrMap = {};
@@ -786,7 +769,7 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
       });
     });
 
-    results.push({ receiptNo: receiptNo, ok: true, fileName: xlsxResult.fileName });
+    results.push({ receiptNo: receiptNo, ok: true });
 
     // 出品キットデータをWorkers KVに保存
     try {
@@ -813,27 +796,6 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
 
   // 売却反映後、商品管理キャッシュを無効化（1回だけ）
   clearProductCache_();
-
-  // temp SS削除
-  try { DriveApp.getFileById(tmpSsId).setTrashed(true); } catch (e) {}
-
-  // 過去のタイムアウト実行で残留した tmp_dist_* を掃除（6時間より古いものを最大50件/回）
-  try {
-    var tmpFiles = DriveApp.searchFiles('title contains "tmp_dist_" and trashed = false');
-    var tmpCutoff = new Date(Date.now() - 6 * 3600 * 1000);
-    var sweptCount = 0;
-    while (tmpFiles.hasNext() && sweptCount < 50) {
-      var tmpFile = tmpFiles.next();
-      if (tmpFile.getId() === tmpSsId) continue;
-      if (tmpFile.getName().indexOf('tmp_dist_') === 0 && tmpFile.getDateCreated() < tmpCutoff) {
-        tmpFile.setTrashed(true);
-        sweptCount++;
-      }
-    }
-    if (sweptCount > 0) console.log('残留tmp_dist_掃除: ' + sweptCount + '件をゴミ箱へ');
-  } catch (e) {
-    console.warn('tmp_dist_掃除エラー: ' + (e.message || e));
-  }
 
   // --- 後処理: 売却履歴ログ書き込み ---
   if (allSaleLogEntries.length > 0) {
@@ -1295,23 +1257,6 @@ function batchExpandPhase3_(state, props, cache, stateKey) {
   exportSheet.getRange('I1').setValue(totalPrice.toLocaleString('ja-JP') + '円');
   console.log('配布用リスト書込み完了: ' + exportData.length + '行');
 
-  // XLSX出力
-  var srcSheet = om_getSheetByGid_(shiireSs, OM_DIST_SHEET_GID);
-  var tmpSs = SpreadsheetApp.create('tmp_dist_' + Date.now());
-  var tmpSsId = tmpSs.getId();
-  var copiedSheet = srcSheet.copyTo(tmpSs);
-  copiedSheet.setName(srcSheet.getName());
-  om_deleteAllExceptSheet_(tmpSs, copiedSheet.getSheetId());
-
-  var xlsxResult = om_exportDistributionXlsx_fast_(state.customerName, receiptNo, orderSsId, exportSheet, tmpSsId, copiedSheet);
-  try { DriveApp.getFileById(tmpSsId).setTrashed(true); } catch (e) {}
-
-  if (xlsxResult && xlsxResult.ok) {
-    console.log('XLSX出力完了: ' + xlsxResult.fileName);
-  } else {
-    console.error('XLSX出力エラー: ' + (xlsxResult ? xlsxResult.message : '不明'));
-  }
-
   // 売却反映
   var mainSheet = shiireSs.getSheetByName('商品管理');
   var mData = mainSheet.getDataRange().getValues();
@@ -1522,152 +1467,6 @@ function cleanupObsoleteTriggers() {
   });
 
   SpreadsheetApp.getActiveSpreadsheet().toast(deleted + '件の不要トリガーを削除しました', '完了', 5);
-}
-
-// ═══════════════════════════════════════════
-// XLSX出力（高速版: 事前作成のtemp SSを使い回す）
-// ═══════════════════════════════════════════
-
-function om_exportDistributionXlsx_fast_(customerName, receiptNo, optOrderSsId, exportSheet, tmpSsId, copiedSheet) {
-  var rawName = String(customerName || '').trim();
-  if (!rawName) return { ok: false, message: 'customerName が空です' };
-
-  receiptNo = String(receiptNo || '').trim();
-  if (!receiptNo) return { ok: false, message: 'receiptNo が空です' };
-
-  var baseName = rawName + '様';
-  var exportFileName = baseName + '_' + receiptNo + '.xlsx';
-  var folder = DriveApp.getFolderById(OM_XLSX_FOLDER_ID);
-
-  // 同名ファイル・旧形式（受付番号なし）を削除
-  var oldFileName = baseName + '.xlsx';
-  [exportFileName, oldFileName].forEach(function(fname) {
-    var existing = folder.getFilesByName(fname);
-    while (existing.hasNext()) {
-      existing.next().setTrashed(true);
-    }
-  });
-
-  // exportSheetの書き込みを確定してからデータ取得
-  SpreadsheetApp.flush();
-  // exportSheet（配布用リスト）のデータをtemp SSのcopiedSheetにコピー
-  var srcData = exportSheet.getDataRange();
-  var srcVals = srcData.getValues();
-  var srcRows = srcVals.length;
-  var srcCols = srcVals[0].length;
-
-  // copiedSheetをクリアしてデータを書き込み
-  var copiedMaxR = copiedSheet.getMaxRows();
-  var copiedMaxC = copiedSheet.getMaxColumns();
-  if (copiedMaxR > 1) copiedSheet.getRange(1, 1, copiedMaxR, copiedMaxC).clearContent();
-  // 行数が足りなければ追加
-  if (copiedMaxR < srcRows) copiedSheet.insertRowsAfter(copiedMaxR, srcRows - copiedMaxR);
-  if (copiedMaxC < srcCols) copiedSheet.insertColumnsAfter(copiedMaxC, srcCols - copiedMaxC);
-  copiedSheet.getRange(1, 1, srcRows, srcCols).setValues(srcVals);
-
-  om_trimColumnBAfterSecondHyphen_(copiedSheet);
-  om_trimToDataBoundsStrict_(copiedSheet);
-  SpreadsheetApp.flush();
-
-  var xlsxBlob = om_exportAsXlsxBlob_(tmpSsId, exportFileName);
-  var outFile = folder.createFile(xlsxBlob);
-  outFile.setName(exportFileName);
-  outFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  var url = outFile.getUrl();
-
-  om_updateRequestSheetLink_(rawName, receiptNo, url, optOrderSsId);
-
-  return { ok: true, url: url, fileName: exportFileName };
-}
-
-// ═══════════════════════════════════════════
-// XLSX出力（レガシー版: handleMissingProducts等から呼ばれる互換用）
-// ═══════════════════════════════════════════
-
-function om_exportDistributionXlsx_(customerName, receiptNo, optOrderSsId) {
-  var shiireSs = SpreadsheetApp.openById(OM_SHIIRE_SS_ID);
-
-  var rawName = String(customerName || '').trim();
-  if (!rawName) return { ok: false, message: 'customerName が空です' };
-
-  receiptNo = String(receiptNo || '').trim();
-  if (!receiptNo) return { ok: false, message: 'receiptNo が空です' };
-
-  var baseName = rawName + '様';
-  var exportFileName = baseName + '_' + receiptNo + '.xlsx';
-  var folder = DriveApp.getFolderById(OM_XLSX_FOLDER_ID);
-
-  // 同名ファイル・旧形式（受付番号なし）を削除
-  var oldFileName = baseName + '.xlsx';
-  [exportFileName, oldFileName].forEach(function(fname) {
-    var existing = folder.getFilesByName(fname);
-    while (existing.hasNext()) {
-      existing.next().setTrashed(true);
-    }
-  });
-
-  var srcSheet = om_getSheetByGid_(shiireSs, OM_DIST_SHEET_GID);
-  var tmpSs = SpreadsheetApp.create('tmp_' + baseName + '_' + Date.now());
-  var tmpId = tmpSs.getId();
-  var copied = srcSheet.copyTo(tmpSs);
-  copied.setName(srcSheet.getName());
-  om_deleteAllExceptSheet_(tmpSs, copied.getSheetId());
-  om_trimColumnBAfterSecondHyphen_(copied);
-  om_trimToDataBoundsStrict_(copied);
-  SpreadsheetApp.flush();
-
-  var xlsxBlob = om_exportAsXlsxBlob_(tmpId, exportFileName);
-  var outFile = folder.createFile(xlsxBlob);
-  outFile.setName(exportFileName);
-  outFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  var url = outFile.getUrl();
-
-  // 依頼管理のリンク更新（本SSから直接取得）
-  om_updateRequestSheetLink_(rawName, receiptNo, url, optOrderSsId);
-
-  DriveApp.getFileById(tmpId).setTrashed(true);
-  return { ok: true, url: url, fileName: exportFileName };
-}
-
-function om_updateRequestSheetLink_(name, receiptNo, url, optOrderSsId) {
-  var ss = optOrderSsId ? SpreadsheetApp.openById(optOrderSsId) : SpreadsheetApp.getActiveSpreadsheet();
-  var sh = ss.getSheetByName('依頼管理');
-  if (!sh) return;
-
-  var lastRow = Math.max(sh.getLastRow(), 1);
-  var lastCol = Math.max(sh.getLastColumn(), 1);
-  var headers = sh.getRange(1, 1, 1, lastCol).getDisplayValues()[0];
-  var receiptCol = om_findColByName_(headers, '受付番号');
-  var nameCol = om_findColByName_(headers, '会社名/氏名');
-  var linkCol = om_findColByName_(headers, '確認リンク');
-  if (receiptCol === -1 || nameCol === -1 || linkCol === -1) return;
-
-  var dataRows = lastRow - 1;
-  if (dataRows < 1) return;
-  var minCol = Math.min(receiptCol, nameCol);
-  var maxCol = Math.max(receiptCol, nameCol);
-  var allVals = sh.getRange(2, minCol, dataRows, maxCol - minCol + 1).getDisplayValues();
-  var rOff = receiptCol - minCol;
-  var nOff = nameCol - minCol;
-  var targetReceipt = String(receiptNo || '').trim();
-  var targetName = String(name || '').trim();
-  var matchRows = [];
-  for (var i = 0; i < dataRows; i++) {
-    var r = String(allVals[i][rOff] || '').trim();
-    var n = String(allVals[i][nOff] || '').trim();
-    if (r === targetReceipt && n === targetName) matchRows.push(i + 2);
-  }
-  var found = matchRows.length > 0;
-  if (found) {
-    var rangeList = sh.getRangeList(matchRows.map(function(row) { return sh.getRange(row, linkCol).getA1Notation(); }));
-    rangeList.setValue(url);
-  }
-  if (!found) {
-    var newRow = lastRow + 1;
-    sh.getRange(newRow, receiptCol).setValue(targetReceipt);
-    sh.getRange(newRow, nameCol).setValue(targetName);
-    sh.getRange(newRow, linkCol).setValue(url);
-  }
 }
 
 // ═══════════════════════════════════════════
@@ -2039,8 +1838,13 @@ function om_saveKitToWorkers_(receiptNo, customerName, orderDate, totalPrice, pr
     return;
   }
 
-  // 依頼管理シート AJ列にURL書込み
+  // 依頼管理シートにURLを2本書き込む
+  //   AL列 出品キット      … 顧客が使う（発送通知メールで配布）
+  //   I列  ピッキングリスト … 外注が在庫保管庫から拾うときに印刷する作業用紙
+  // 同じトークンで、載せる項目だけが違う。旧・配布用リストXLSXが兼ねていた
+  // 「顧客への成果物」と「外注の作業書類」を、ここで2つに分けている。
   var kitUrl = 'https://wholesale.nkonline-tool.com/kit?token=' + token;
+  var pickUrl = 'https://wholesale.nkonline-tool.com/pick?token=' + token;
   var reqData = reqSheet.getDataRange().getValues();
   var reqHeaders = reqData[0];
   var receiptColIdx = -1;
@@ -2051,12 +1855,16 @@ function om_saveKitToWorkers_(receiptNo, customerName, orderDate, totalPrice, pr
     for (var ri = 1; ri < reqData.length; ri++) {
       if (String(reqData[ri][receiptColIdx] || '').trim() === receiptNo) {
         reqSheet.getRange(ri + 1, REQUEST_SHEET_COLS.KIT_URL).setValue(kitUrl);
+        // I列は自動展開の「処理済み」判定にも使われている（om_autoExpand の
+        // `if (confirmLink) continue;`）。XLSXのURLの代わりにこれを入れることで
+        // 判定はそのまま動く。
+        reqSheet.getRange(ri + 1, REQUEST_SHEET_COLS.CONFIRM_LINK).setValue(pickUrl);
         break;
       }
     }
   }
 
-  console.log('キットKV保存完了: ' + receiptNo + ' → ' + kitUrl);
+  console.log('キットKV保存完了: ' + receiptNo + ' → キット ' + kitUrl + ' / ピッキング ' + pickUrl);
 }
 
 function om_writeSaleLog_(ss, entries) {
@@ -2228,78 +2036,6 @@ function reapplyMissingSaleForReceipt(receiptNo) {
   clearProductCache_();
   SpreadsheetApp.flush();
   console.log('=== 売却反映復旧完了: ' + receiptNo + ' ===');
-}
-
-// ═══════════════════════════════════════════
-// XLSX用サブ関数（shiire-kanri/xlsxダウンロード.gs 由来）
-// ═══════════════════════════════════════════
-
-function om_getSheetByGid_(ss, gid) {
-  var sheets = ss.getSheets();
-  for (var i = 0; i < sheets.length; i++) {
-    if (sheets[i].getSheetId() === gid) return sheets[i];
-  }
-  throw new Error('指定gidのシートが見つかりません: ' + gid);
-}
-
-function om_deleteAllExceptSheet_(ss, keepSheetId) {
-  var sheets = ss.getSheets();
-  for (var i = sheets.length - 1; i >= 0; i--) {
-    var sh = sheets[i];
-    if (sh.getSheetId() !== keepSheetId) {
-      if (ss.getSheets().length > 1) ss.deleteSheet(sh);
-    }
-  }
-}
-
-function om_trimColumnBAfterSecondHyphen_(sheet) {
-  var lastRow = sheet.getLastRow();
-  if (lastRow < 1) return;
-  var rng = sheet.getRange(1, 5, lastRow, 1);
-  var vals = rng.getDisplayValues();
-  for (var i = 0; i < vals.length; i++) {
-    var s = String(vals[i][0] || '');
-    if (!s) { vals[i][0] = ''; continue; }
-    var parts = s.split('-');
-    if (parts.length >= 2) { vals[i][0] = parts[0] + '-' + parts[1]; }
-    else { vals[i][0] = s; }
-  }
-  rng.setValues(vals);
-}
-
-function om_trimToDataBoundsStrict_(sheet) {
-  var rowCand = Math.max(sheet.getLastRow(), 1);
-  var colCand = Math.max(sheet.getLastColumn(), 1);
-  var vals = sheet.getRange(1, 1, rowCand, colCand).getDisplayValues();
-  var lastR = 1;
-  var lastC = 1;
-  for (var r = 0; r < vals.length; r++) {
-    var row = vals[r];
-    for (var c = 0; c < row.length; c++) {
-      if (String(row[c] || '').trim() !== '') {
-        if (r + 1 > lastR) lastR = r + 1;
-        if (c + 1 > lastC) lastC = c + 1;
-      }
-    }
-  }
-  var maxR = sheet.getMaxRows();
-  var maxC = sheet.getMaxColumns();
-  if (maxR > lastR) sheet.deleteRows(lastR + 1, maxR - lastR);
-  if (maxC > lastC) sheet.deleteColumns(lastC + 1, maxC - lastC);
-}
-
-function om_exportAsXlsxBlob_(spreadsheetId, filename) {
-  var url = 'https://docs.google.com/spreadsheets/d/' + spreadsheetId + '/export?format=xlsx';
-  var token = ScriptApp.getOAuthToken();
-  var res = UrlFetchApp.fetch(url, {
-    headers: { Authorization: 'Bearer ' + token },
-    muteHttpExceptions: true
-  });
-  var code = res.getResponseCode();
-  if (code !== 200) {
-    throw new Error('XLSXエクスポートに失敗しました: ' + code + ' / ' + res.getContentText());
-  }
-  return res.getBlob().setName(filename);
 }
 
 // ═══════════════════════════════════════════

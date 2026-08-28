@@ -9,7 +9,6 @@ const SHIPMAIL_CONFIG = {
   COL_RECEIPT_NO: 1,      // A列: 受付番号
   COL_CUSTOMER_C: 3,      // C列: 会社名/氏名
   COL_CONTACT_D: 4,       // D列: 連絡先メール
-  COL_CONFIRM_LINK_I: 9,  // I列: 確認リンク
   COL_SELECTION_J: 10,     // J列: 選択リスト
   COL_COUNT_K: 11,         // K列: 合計点数
   COL_AMOUNT_L: 12,        // L列: 合計金額
@@ -149,7 +148,6 @@ function shipMailOnEdit(e) {
     const receiptNo = String(rowVals[SHIPMAIL_CONFIG.COL_RECEIPT_NO - 1] || '').trim();
     const customer = String(rowVals[SHIPMAIL_CONFIG.COL_CUSTOMER_C - 1] || '').trim();
     const contactEmail = String(rowVals[SHIPMAIL_CONFIG.COL_CONTACT_D - 1] || '').trim();
-    const confirmLink = String(rowVals[SHIPMAIL_CONFIG.COL_CONFIRM_LINK_I - 1] || '').trim();
     const selectionList = String(rowVals[SHIPMAIL_CONFIG.COL_SELECTION_J - 1] || '').trim();
     const totalCount = rowVals[SHIPMAIL_CONFIG.COL_COUNT_K - 1] || 0;
     const totalAmount = rowVals[SHIPMAIL_CONFIG.COL_AMOUNT_L - 1] || 0;
@@ -226,13 +224,6 @@ function shipMailOnEdit(e) {
 
       custBody += '━━━━━━━━━━━━━━━━━━━━\n\n';
 
-      // Google Drive 共有リンク
-      if (confirmLink) {
-        custBody += '■ ご注文明細（Google Drive）\n'
-          + '以下のリンクからご注文内容をご確認いただけます。\n'
-          + confirmLink + '\n\n';
-      }
-
       // 出品キットリンク
       if (kitUrl) {
         custBody += '■ 出品キット\n'
@@ -262,7 +253,6 @@ function shipMailOnEdit(e) {
         ? '<a href="' + trackingUrl + '" style="color:#1a73e8">' + trackingNo + '</a>'
         : trackingNo });
 
-      if (confirmLink) shipRows.push({ label: 'ご注文明細', value: '赤ボタンからご確認いただけます' });
       if (kitUrl) shipRows.push({ label: '出品キット', value: '青ボタンから確認できます' });
 
       var shipHtmlSections = [{ title: '発送内容', rows: shipRows }];
@@ -270,7 +260,6 @@ function shipMailOnEdit(e) {
       // CTAボタン
       var shipCta = [];
       if (trackingUrl) shipCta.push({ text: '配送状況を確認', url: trackingUrl, tertiary: true });
-      if (confirmLink) shipCta.push({ text: 'ご注文明細を確認', url: confirmLink });
       if (kitUrl) shipCta.push({ text: '出品キットを確認', url: kitUrl, secondary: true });
       if (shipCta.length === 0) shipCta = null;
 
@@ -402,7 +391,6 @@ function testShipMailByReceiptNo(receiptNo) {
   const rowVals = sh.getRange(targetRow, 1, 1, maxCol).getValues()[0];
 
   const customer = String(rowVals[SHIPMAIL_CONFIG.COL_CUSTOMER_C - 1] || '').trim();
-  const confirmLink = String(rowVals[SHIPMAIL_CONFIG.COL_CONFIRM_LINK_I - 1] || '').trim();
   const selectionList = String(rowVals[SHIPMAIL_CONFIG.COL_SELECTION_J - 1] || '').trim();
   const totalCount = rowVals[SHIPMAIL_CONFIG.COL_COUNT_K - 1] || 0;
   const totalAmount = rowVals[SHIPMAIL_CONFIG.COL_AMOUNT_L - 1] || 0;
@@ -434,11 +422,6 @@ function testShipMailByReceiptNo(receiptNo) {
   }
   if (selectionList) custBody += '\n■ 選択商品\n' + selectionList + '\n';
   custBody += '━━━━━━━━━━━━━━━━━━━━\n\n';
-  if (confirmLink) {
-    custBody += '■ ご注文明細（Google Drive）\n'
-      + '以下のリンクからご注文内容をご確認いただけます。\n'
-      + confirmLink + '\n\n';
-  }
   if (kitUrl) {
     custBody += '■ 出品キット\n'
       + 'メルカリ出品用の商品タイトル・説明文をご用意しました。\n'
@@ -466,14 +449,12 @@ function testShipMailByReceiptNo(receiptNo) {
     ? '<a href="' + trackingUrl + '" style="color:#1a73e8">' + trackingNo + '</a>'
     : trackingNo });
 
-  if (confirmLink) shipRows.push({ label: 'ご注文明細', value: '赤ボタンからご確認いただけます' });
   if (kitUrl) shipRows.push({ label: '出品キット', value: '青ボタンから確認できます' });
 
   var shipHtmlSections = [{ title: '発送内容', rows: shipRows }];
 
   var shipCta = [];
   if (trackingUrl) shipCta.push({ text: '配送状況を確認', url: trackingUrl, tertiary: true });
-  if (confirmLink) shipCta.push({ text: 'ご注文明細を確認', url: confirmLink });
   if (kitUrl) shipCta.push({ text: '出品キットを確認', url: kitUrl, secondary: true });
   if (shipCta.length === 0) shipCta = null;
 

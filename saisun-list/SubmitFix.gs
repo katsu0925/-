@@ -920,7 +920,7 @@ function writeSubmitData_(data) {
   // 1. 依頼管理シートに書き込み
   // 列構成（33列 A-AG）:
   // A=受付番号, B=依頼日時, C=会社名/氏名, D=連絡先, E=郵便番号, F=住所, G=電話番号, H=商品名,
-  // I=確認リンク, J=選択リスト, K=合計点数, L=合計金額, M=送料(店負担), N=送料(客負担), O=決済方法, P=決済ID,
+  // I=ピッキングリスト, J=選択リスト, K=合計点数, L=合計金額, M=送料(店負担), N=送料(客負担), O=決済方法, P=決済ID,
   // Q=入金確認, R=ポイント付与済, S=発送ステータス, T=配送業者, U=伝票番号, V=ステータス, W=担当者,
   // X=リスト同梱, Y=xlsx送付, Z=インボイス発行, AA=インボイス状況, AB=受注通知,
   // AC=発送通知, AD=備考, AE=作業報酬, AF=更新日時, AG=チャネル
@@ -938,7 +938,12 @@ function writeSubmitData_(data) {
   // アソート商品の場合、選択リスト/合計点数の扱いが異なる
   var selectionList = data.selectionList || (data.ids ? data.ids.join('、') : '');
   var totalCount = data._sheetTotalCount || calcTotalCountFromProductNames_(productNames) || data.totalCount || (data.ids ? data.ids.length : 0);
-  var confirmLink = (channel === 'デタウリ' || data._hasManagedIds) ? createOrderConfirmLink_(data.receiptNo, data) : '';
+  // I列は注文時には空にしておく。依頼展開のときに om_saveKitToWorkers_ が
+  // ピッキングリスト（外注の作業用紙）のURLを入れる列になったため。
+  // ここに値が入っていると自動展開が「処理済み」と誤判定して注文を飛ばす。
+  // 旧「注文確認リンク」（氏名入りの注文明細スプレッドシートをDriveに作って
+  // 公開共有していた）は廃止した。同じ内容は発送通知メールの本文に載っている。
+  var confirmLink = '';
   var row = [
     data.receiptNo,                              // A: 受付番号
     new Date(now),                               // B: 依頼日時
@@ -948,7 +953,7 @@ function writeSubmitData_(data) {
     data.form.address || '',                     // F: 住所
     data.form.phone || '',                       // G: 電話番号
     productNames,                                // H: 商品名
-    confirmLink,                                 // I: 確認リンク
+    confirmLink,                                 // I: ピッキングリスト（依頼展開時に設定）
     selectionList,                               // J: 選択リスト
     totalCount,                                  // K: 合計点数
     Math.max(0, (data.discounted || 0) - (data.couponDiscount || 0)),  // L: 合計金額（クーポン控除後の商品代、送料は N列）
@@ -1697,82 +1702,6 @@ function apiCancelOrder(receiptNo) {
   }
 }
 
-
-// =====================================================
-// 注文確認用 Google Drive 共有リンク生成
-// =====================================================
-
-/**
- * 注文確認用スプレッドシートをDriveに作成し、共有リンクを返す
- */
-function createOrderConfirmLink_(receiptNo, data) {
-  try {
-    if (!receiptNo || !data) return '';
-
-    var form = data.form || {};
-    var ids = data.ids || [];
-    var datetime = new Date(data.createdAtMs || Date.now());
-    var dateStr = Utilities.formatDate(datetime, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm');
-
-    var ss = SpreadsheetApp.create('注文明細_' + receiptNo);
-    var sheet = ss.getActiveSheet();
-    sheet.setName('注文明細');
-
-    var grandTotal = Math.max(0, (data.discounted || 0) - (data.couponDiscount || 0) + (data.shippingAmount || 0));
-    var headerRows = [
-      ['デタウリ.Detauri - ご注文明細'],
-      [''],
-      ['受付番号', receiptNo],
-      ['注文日時', dateStr],
-      ['会社名/氏名', form.companyName || ''],
-      ['合計点数', String(ids.length) + '点'],
-      ['合計金額', String(Number(grandTotal).toLocaleString()) + '円（税込・送料込）'],
-      [''],
-      ['■ 選択商品一覧'],
-      ['No.', '管理番号']
-    ];
-
-    for (var i = 0; i < ids.length; i++) {
-      headerRows.push([i + 1, ids[i]]);
-    }
-
-    headerRows.push(['']);
-    headerRows.push(['※ このシートは閲覧専用です。']);
-    headerRows.push(['※ ご不明点はお問い合わせください: ' + SITE_CONSTANTS.CONTACT_EMAIL]);
-
-    sheet.getRange(1, 1, headerRows.length, 2).setValues(headerRows);
-
-    sheet.getRange(1, 1).setFontSize(14).setFontWeight('bold');
-    sheet.getRange(10, 1, 1, 2).setFontWeight('bold').setBackground('#f0f0f0');
-    sheet.setColumnWidth(1, 120);
-    sheet.setColumnWidth(2, 200);
-
-    var protection = sheet.protect().setDescription('注文明細（閲覧専用）');
-    protection.setWarningOnly(true);
-
-    var file = DriveApp.getFileById(ss.getId());
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-
-    try {
-      if (typeof EXPORT_FOLDER_ID !== 'undefined' && EXPORT_FOLDER_ID) {
-        var folder = DriveApp.getFolderById(EXPORT_FOLDER_ID);
-        folder.addFile(file);
-        DriveApp.getRootFolder().removeFile(file);
-      }
-    } catch (moveErr) {
-      console.warn('フォルダ移動スキップ: ' + (moveErr.message || moveErr));
-    }
-
-    var url = ss.getUrl();
-    console.log('注文確認リンク作成: ' + receiptNo + ' → ' + url);
-    return url;
-
-  } catch (e) {
-    console.error('createOrderConfirmLink_ error:', e);
-    return '';
-  }
-}
-
 /**
  * H列の商品名テキストから合計点数を算出する
  * 「選べるxlsx付きパッケージ」はカウントしない
@@ -2306,7 +2235,7 @@ function createMinimalOrderRow_(paymentToken, paymentStatus, paymentMethod, paym
 
     // 依頼管理の列（正規33列 A-AG。権威マッピングは createOrder ビルダー参照）:
     //   A=受付番号, B=依頼日時, C=会社名/氏名, D=連絡先, E=郵便番号, F=住所, G=電話番号, H=商品名,
-    //   I=確認リンク, J=選択リスト, K=合計点数, L=合計金額, M=送料(店負担), N=送料(客負担),
+    //   I=ピッキングリスト, J=選択リスト, K=合計点数, L=合計金額, M=送料(店負担), N=送料(客負担),
     //   O=決済方法, P=決済ID, Q=入金確認, R=ポイント付与済, S=発送ステータス, V=ステータス, AD=備考
     var row = [
       receiptNo,                                         // A: 受付番号
@@ -2317,7 +2246,7 @@ function createMinimalOrderRow_(paymentToken, paymentStatus, paymentMethod, paym
       address,                                           // F: 住所
       phone,                                             // G: 電話番号
       '【要確認】商品情報なし',                            // H: 商品名
-      '',                                                // I: 確認リンク
+      '',                                                // I: ピッキングリスト（依頼展開時に設定）
       '',                                                // J: 選択リスト
       '',                                                // K: 合計点数
       totalAmount,                                       // L: 合計金額

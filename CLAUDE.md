@@ -89,7 +89,7 @@ setEnvProduction()   // 本番に戻す
 | `ApiPublic.gs` | 公開API（検索、確保、注文、メール通知） |
 | `CustomerAuth.gs` | 認証（登録/ログイン/セッション/ランク/ポイント） |
 | `KOMOJU.gs` | KOMOJU決済セッション作成・Webhook処理・署名検証 |
-| `SubmitFix.gs` | 注文送信（高速版）、Drive確認ファイル生成 |
+| `SubmitFix.gs` | 注文送信（高速版） |
 | `Product.gs` | 商品データ読み込み・CacheServiceキャッシュ |
 | `StateStore.gs` | 確保/依頼中状態の永続化 |
 | `Triggers.gs` | onEditハンドラ、トリガー設定 |
@@ -135,7 +135,8 @@ Workers は Phase 1（商品+CSRF）のみ有効化済み。Phase 2-5 は `index
 **注文フロー:**
 ```
 apiSyncHolds (15分確保) → apiSubmitEstimate (注文送信) → 依頼管理シート書き込み
-  → Drive確認ファイル生成 (I列にURL) → メール通知 (管理者+顧客)
+  → メール通知 (管理者+顧客)
+  → 依頼展開 → 出品キット(AL列)＋ピッキングリスト(I列)のURLを生成
   → M列「発送済み」変更 (onEdit) → 発送通知メール → P列「完了」自動更新
 ```
 
@@ -146,7 +147,7 @@ apiCreateKomojuSession → KOMOJUページ → Webhook → HMAC-SHA256検証 →
 
 ### スプレッドシート構造（主要列）
 
-**依頼管理シート:** A=受付番号, D=メール, H=商品名, I=確認リンク(Drive URL), L=合計金額, M=発送ステータス, P=ステータス, R=入金確認, AA=通知フラグ, AB=ポイント付与済
+**依頼管理シート:** A=受付番号, D=メール, H=商品名, I=ピッキングリスト(外注の作業用紙URL・依頼展開済みの印), L=合計金額, M=発送ステータス, P=ステータス, R=入金確認, AA=通知フラグ, AB=ポイント付与済
 
 **顧客管理シート:** A=ID, B=メール, C=パスワードハッシュ(v2:salt:hash), K=セッションID, L=セッション有効期限, M=ポイント残高
 

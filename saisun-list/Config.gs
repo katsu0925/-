@@ -81,7 +81,7 @@ const APP_CONFIG = {
     address: 5,            // F列: 住所
     phone: 6,              // G列: 電話番号
     productNames: 7,       // H列: 商品名
-    confirmLink: 8,        // I列: 確認リンク
+    confirmLink: 8,        // I列: ピッキングリスト（外注の作業用紙）
     selectionList: 9,      // J列: 選択リスト
     totalCount: 10,        // K列: 合計点数
     totalAmount: 11,       // L列: 合計金額

@@ -50,7 +50,7 @@ function kitaudit_resolveCols_(headers) {
     receipt:  find('受付番号')   || SHIPMAIL_CONFIG.COL_RECEIPT_NO,
     customer: find('会社名/氏名') || SHIPMAIL_CONFIG.COL_CUSTOMER_C,
     contact:  find('連絡先')      || SHIPMAIL_CONFIG.COL_CONTACT_D,
-    confirm:  find('確認リンク') || SHIPMAIL_CONFIG.COL_CONFIRM_LINK_I,
+    confirm:  find('ピッキングリスト') || find('確認リンク') || REQUEST_SHEET_COLS.CONFIRM_LINK,
     kit:      find('出品キット') || SHIPMAIL_CONFIG.COL_KIT_URL
   };
 }
@@ -309,4 +309,49 @@ function cronKitXlsxSweep() {
   } catch (e) {
     console.error('cronKitXlsxSweep: 通知メール送信失敗:', e);
   }
+}
+
+/**
+ * 【手動実行】依頼管理・依頼管理_アーカイブのI列見出しを
+ * 「確認リンク」→「ピッキングリスト」へ改称する。
+ *
+ * I列の中身が「配布用リストXLSXのURL」から「外注が印刷して使う
+ * ピッキングリストのURL」に変わったため、見出しを実態に合わせる。
+ * コード側は移行中どちらの名前でも引けるようにしてある。
+ *
+ * 見出しセルを書き換えるだけで、列の移動も行の変更もしない。
+ */
+function renameConfirmLinkColumn() {
+  var ss = sh_getOrderSs_();
+  var results = [];
+
+  KITAUDIT_REQUEST_SHEETS.forEach(function(name) {
+    var sh = ss.getSheetByName(name);
+    if (!sh) { results.push(name + ': シートなし'); return; }
+
+    var lastCol = sh.getLastColumn();
+    if (lastCol < 1) { results.push(name + ': 列なし'); return; }
+
+    var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    var col = 0;
+    for (var i = 0; i < headers.length; i++) {
+      if (String(headers[i] || '').trim() === '確認リンク') { col = i + 1; break; }
+      if (String(headers[i] || '').trim() === 'ピッキングリスト') {
+        results.push(name + ': 既に改称済み（' + (i + 1) + '列目）');
+        return;
+      }
+    }
+    if (!col) { results.push(name + ': 「確認リンク」見出しが見つかりません'); return; }
+    if (col !== REQUEST_SHEET_COLS.CONFIRM_LINK) {
+      // 想定と違う位置にあるなら触らない。列ズレを黙って上書きしないため
+      results.push(name + ': 想定外の位置（' + col + '列目・想定' + REQUEST_SHEET_COLS.CONFIRM_LINK + '）。手で確認してください');
+      return;
+    }
+
+    sh.getRange(1, col).setValue('ピッキングリスト');
+    results.push(name + ': ' + col + '列目を「ピッキングリスト」に改称しました');
+  });
+
+  results.forEach(function(r) { console.log(r); });
+  return results;
 }
