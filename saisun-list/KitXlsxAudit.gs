@@ -277,3 +277,36 @@ function listRecentKitXlsxCustomers() {
   });
   return rows.length;
 }
+
+/**
+ * 毎日4時の cronDaily4To6 から呼ばれる定期掃除。
+ * 発送から90日を過ぎた配布用リストXLSXの公開リンクを閉じる。
+ *
+ * 事前告知メールは送らない方針（2026-08-29決定）。顧客は発送メールで既に
+ * 出品キットのURLを受け取っており、告知すると機能追加なのに縮小と読まれるため。
+ * リンク切れの問い合わせが来たら個別に案内する。
+ *
+ * 通常は対象0件で何も起きない。実際に閉じたときだけ記録としてメールを送る。
+ */
+function cronKitXlsxSweep() {
+  var res = revokeKitXlsxSharing(KITAUDIT_RECENT_DAYS, true);
+  if (!res || (res.done === 0 && res.failed === 0)) return;
+
+  var props = PropertiesService.getScriptProperties();
+  var to = String(props.getProperty('ADMIN_OWNER_EMAIL') || APP_CONFIG.notifyEmails || '')
+    .split(',')[0].trim();
+  if (!to) return;
+
+  var subject = '【デタウリ】配布用リストXLSXの公開リンクを ' + res.done + '件 閉じました';
+  var body = '発送から' + KITAUDIT_RECENT_DAYS + '日を過ぎた配布用リストXLSXの公開リンクを閉じました。\n\n'
+    + '　解除: ' + res.done + '件\n'
+    + '　失敗: ' + res.failed + '件\n\n'
+    + 'ファイルは削除していません。共有し直せば同じURLが復活します。\n'
+    + 'お客様からリンク切れの問い合わせが来た場合は、出品キットのURLをご案内ください。\n'
+    + '現在の状態は auditKitXlsxFolder() で確認できます。';
+  try {
+    MailApp.sendEmail(to, subject, body);
+  } catch (e) {
+    console.error('cronKitXlsxSweep: 通知メール送信失敗:', e);
+  }
+}

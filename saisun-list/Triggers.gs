@@ -237,7 +237,7 @@ function cronEvery5min() {
 
 /** 毎日4時: 確保クリーンアップ + ポイント処理 + ポイント失効 + プロパティ掃除 */
 function cronDaily4To6() {
-  runWithErrorNotify_('cronDaily4To6', [cronCompactHolds, cronProcessPoints, cronPointExpiry, cleanupExecute, cronRepairRewardFormulas, cronArchiveOrders]);
+  runWithErrorNotify_('cronDaily4To6', [cronCompactHolds, cronProcessPoints, cronPointExpiry, cleanupExecute, cronRepairRewardFormulas, cronArchiveOrders, cronKitXlsxSweep]);
 }
 
 /** 毎日7時: インボイス領収書送付 + キャンセル取消 + BASEトークン期限チェック */
