@@ -254,7 +254,10 @@ function buildPrompt(lang, kind) {
     `古着 = second-hand clothing, 仕入れ = sourcing/purchasing stock, 出品 = listing an item, ` +
     `採寸 = measurements, アソート = assort (bulk lot). ` +
     `円 always means Japanese yen (${lang === 'zh-CN' ? '日元' : 'JPY'}) - never convert the amount or change the currency. ` +
-    `Marketplace names (メルカリ/Mercari, ラクマ/Rakuma, Yahoo!フリマ, BASE) stay as their usual Latin names.`;
+    `Marketplace names (メルカリ/Mercari, ラクマ/Rakuma, Yahoo!フリマ, BASE) stay as their usual Latin names. ` +
+    // 実際に「デタウリ→Detour」と訳された。屋号は絶対に訳させない
+    `デタウリ is our own shop name and is always written "Detauri" - never translate or re-spell it. ` +
+    `Plain text only: no Markdown, no ** or ## or bullets that were not in the source.`;
   if (kind === 'defect') {
     return common + ` This text describes flaws on a used garment (stains, yellowing, holes, pilling). ` +
       `Be literal and precise about the body part and the type of flaw. Do not soften or exaggerate.`;
@@ -288,6 +291,10 @@ async function callModel(env, text, kind, lang, budget) {
     .trim();
   // 原文が1行なら訳も1行のはず。解説を付け足してきた分を捨てる
   if (text.indexOf('\n') < 0) out = out.split('\n')[0].trim();
+  // 素のテキストとして表示するので、勝手に付いたMarkdownの装飾は剥がす
+  if (text.indexOf('**') < 0) out = out.replace(/\*\*/g, '');
+  if (text.indexOf('##') < 0) out = out.replace(/^#{1,6}\s+/gm, '');
+  out = out.replace(/\bDetour\b/g, 'Detauri');
   out = out.replace(/^["'「『]|["'」』]$/g, '').trim();
   if (!out) {
     const fin = r?.choices?.[0]?.finish_reason || '';
