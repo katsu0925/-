@@ -427,6 +427,11 @@ self.addEventListener('fetch', e => {
         return await kitHandler.exportCsv(request, env, url);
       }
 
+      // ピッキングリスト（外注の作業用・印刷向け）
+      if (url.pathname === '/pick') {
+        return await kitHandler.servePickList(request, env, url);
+      }
+
       // アップロードページ
       // HTMLにユーザー固有データは含まれず、認証は localStorage の token で fetch 時に行う。
       // → CDN edge にキャッシュさせ、2回目以降は Worker を起動せず即時返す。

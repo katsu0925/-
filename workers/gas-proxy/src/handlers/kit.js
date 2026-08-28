@@ -6,6 +6,7 @@
  *   GET  /kit?token={uuid}   — キットページHTML配信
  *   GET  /api/kit/zip/{managedId}?token={uuid} — 商品画像ZIP
  *   GET  /api/kit/csv?token={uuid}             — 全商品の一覧CSV（旧配布用リストXLSXと同じ14列）
+ *   GET  /pick?token={uuid}                    — ピッキングリスト（外注の作業用・印刷向け）
  *
  * 認証:
  *   saveKit: ADMIN_KEY認証（bodyのadminKeyフィールド）
@@ -14,6 +15,7 @@
 
 import { jsonOk, jsonError } from '../utils/response.js';
 import { getKitPageHtml } from '../pages/kit-page.js';
+import { getPickPageHtml } from '../pages/pick-page.js';
 
 const KIT_TTL = 15552000; // 半年（180日）— 46点ロットを出品しきり、季節を一巡できる長さ
 
@@ -143,6 +145,82 @@ export async function serveKit(request, env, url) {
       'Referrer-Policy': 'no-referrer',
       'Cache-Control': 'private, no-store',
     },
+  });
+}
+
+// ─── GET /pick?token={uuid} ───
+
+// 外注の作業用。キットと同じトークン・同じKVを使うが、載せる項目が違う
+// （拾うのに要るものだけ／顧客の氏名は出さない）。
+export async function servePickList(request, env, url) {
+  const token = url.searchParams.get('token');
+  if (!token) {
+    return pickErrorPage('トークンが指定されていません。');
+  }
+
+  const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+  const rlKey = `rl:pick:${ip}`;
+  const rlCount = parseInt(await env.SESSIONS.get(rlKey) || '0', 10);
+  if (rlCount >= 60) {
+    return pickErrorPage('アクセス回数の上限に達しました。しばらくしてからお試しください。', 429);
+  }
+  await env.SESSIONS.put(rlKey, String(rlCount + 1), { expirationTtl: 60 });
+
+  const receiptNo = await env.CACHE.get(`kit-token:${token}`);
+  if (!receiptNo) {
+    return pickErrorPage('リンクが無効または期限切れです。');
+  }
+
+  const kitJson = await env.CACHE.get(`kit:${receiptNo}`);
+  if (!kitJson) {
+    return pickErrorPage('リンクが無効または期限切れです。');
+  }
+
+  let kitData;
+  try {
+    kitData = JSON.parse(kitJson);
+  } catch {
+    return pickErrorPage('データの読み込みに失敗しました。');
+  }
+
+  // 作業に不要な項目は埋め込む前に落とす。紙は持ち歩かれるため氏名は載せない。
+  const slim = {
+    receiptNo: kitData.receiptNo || '',
+    items: (kitData.items || []).map(it => ({
+      boxId: it.boxId || '',
+      managedId: it.managedId || '',
+      brand: it.brand || '',
+      item: it.item || '',
+      size: it.size || '',
+      color: it.color || '',
+    })),
+  };
+
+  // XSSエスケープ: </script> インジェクション防止
+  const safeJson = JSON.stringify(slim).replace(/</g, '\\u003c');
+
+  return new Response(getPickPageHtml(safeJson), {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Referrer-Policy': 'no-referrer',
+      'Cache-Control': 'private, no-store',
+      'X-Robots-Tag': 'noindex, nofollow',
+    },
+  });
+}
+
+function pickErrorPage(message, status = 403) {
+  const html = `<!DOCTYPE html><html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow"><title>ピッキングリスト</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;
+display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f5f5f5}
+.m{text-align:center;padding:40px;max-width:420px}.m h1{font-size:18px;color:#1a1a2e;margin-bottom:12px}
+.m p{color:#666;font-size:14px;line-height:1.7}</style></head>
+<body><div class="m"><h1>ピッキングリスト</h1><p>${message}</p></div></body></html>`;
+  return new Response(html, {
+    status,
+    headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'private, no-store' },
   });
 }
 
