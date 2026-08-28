@@ -33,24 +33,67 @@ function kitaudit_parseReceiptNo_(fileName) {
   return /^\d{14}-\d+$/.test(tail) ? tail : '';
 }
 
-/** 依頼管理シートを 受付番号 → {customer, confirmLink, kitUrl} のマップにする */
-function kitaudit_loadRequestMap_() {
-  var sh = sh_getOrderSs_().getSheetByName('依頼管理');
-  if (!sh) throw new Error('依頼管理シートが見つかりません');
-  var last = sh.getLastRow();
-  if (last < 2) return {};
-  var maxCol = Math.max(SHIPMAIL_CONFIG.COL_KIT_URL, SHIPMAIL_CONFIG.COL_CONFIRM_LINK_I);
-  var vals = sh.getRange(2, 1, last - 1, maxCol).getValues();
-  var map = {};
-  for (var i = 0; i < vals.length; i++) {
-    var rn = String(vals[i][SHIPMAIL_CONFIG.COL_RECEIPT_NO - 1] || '').trim();
-    if (!rn) continue;
-    map[rn] = {
-      customer: String(vals[i][SHIPMAIL_CONFIG.COL_CUSTOMER_C - 1] || '').trim(),
-      confirmLink: String(vals[i][SHIPMAIL_CONFIG.COL_CONFIRM_LINK_I - 1] || '').trim(),
-      kitUrl: String(vals[i][SHIPMAIL_CONFIG.COL_KIT_URL - 1] || '').trim()
-    };
+// 依頼管理は完了した注文を 依頼管理_アーカイブ へ移すので、両方を見ないと
+// 「キットが無い」の判定を大きく取り違える（実際、初回の棚卸しは68件中63件を
+// 「シートに行が無い」と誤判定した）。
+var KITAUDIT_REQUEST_SHEETS = ['依頼管理', '依頼管理_アーカイブ'];
+
+/** ヘッダー名から列番号を引く。見つからなければ SHIPMAIL_CONFIG の固定値に落とす */
+function kitaudit_resolveCols_(headers) {
+  function find(name) {
+    for (var i = 0; i < headers.length; i++) {
+      if (String(headers[i] || '').trim() === name) return i + 1;
+    }
+    return 0;
   }
+  return {
+    receipt:  find('受付番号')   || SHIPMAIL_CONFIG.COL_RECEIPT_NO,
+    customer: find('会社名/氏名') || SHIPMAIL_CONFIG.COL_CUSTOMER_C,
+    confirm:  find('確認リンク') || SHIPMAIL_CONFIG.COL_CONFIRM_LINK_I,
+    kit:      find('出品キット') || SHIPMAIL_CONFIG.COL_KIT_URL
+  };
+}
+
+/** 依頼管理＋アーカイブを 受付番号 → {customer, confirmLink, kitUrl, sheet} のマップにする */
+function kitaudit_loadRequestMap_() {
+  var ss = sh_getOrderSs_();
+  var map = {};
+  var found = 0;
+
+  KITAUDIT_REQUEST_SHEETS.forEach(function(name) {
+    var sh = ss.getSheetByName(name);
+    if (!sh) { console.warn('シートが見つかりません（読み飛ばし）: %s', name); return; }
+    var last = sh.getLastRow();
+    var lastCol = sh.getLastColumn();
+    if (last < 2 || lastCol < 1) return;
+
+    var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    var c = kitaudit_resolveCols_(headers);
+    var need = Math.max(c.receipt, c.customer, c.confirm, c.kit);
+    if (need > lastCol) {
+      console.warn('%s: 必要な列(%s)がシートの列数(%s)を超えています', name, need, lastCol);
+      return;
+    }
+    console.log('%s: %s行 / 受付番号=%s 会社名=%s 確認リンク=%s 出品キット=%s',
+      name, last - 1, c.receipt, c.customer, c.confirm, c.kit);
+
+    var vals = sh.getRange(2, 1, last - 1, need).getValues();
+    for (var i = 0; i < vals.length; i++) {
+      var rn = String(vals[i][c.receipt - 1] || '').trim();
+      if (!rn) continue;
+      // 依頼管理（進行中）を優先。アーカイブは未登録のものだけ足す
+      if (map[rn]) continue;
+      map[rn] = {
+        customer: String(vals[i][c.customer - 1] || '').trim(),
+        confirmLink: String(vals[i][c.confirm - 1] || '').trim(),
+        kitUrl: String(vals[i][c.kit - 1] || '').trim(),
+        sheet: name
+      };
+      found++;
+    }
+  });
+
+  console.log('依頼管理＋アーカイブ 合計 %s件の受付番号を読み込みました', found);
   return map;
 }
 
@@ -79,7 +122,8 @@ function kitaudit_scan_() {
       isPublic: access === String(DriveApp.Access.ANYONE_WITH_LINK) || access === String(DriveApp.Access.ANYONE),
       access: access,
       hasKit: !!(req && req.kitUrl),
-      inSheet: !!req
+      inSheet: !!req,
+      sheet: req ? req.sheet : ''
     });
   }
 
