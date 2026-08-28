@@ -257,7 +257,12 @@ function buildPrompt(lang, kind) {
     `Marketplace names (メルカリ/Mercari, ラクマ/Rakuma, Yahoo!フリマ, BASE) stay as their usual Latin names. ` +
     // 実際に「デタウリ→Detour」と訳された。屋号は絶対に訳させない
     `デタウリ is our own shop name and is always written "Detauri" - never translate or re-spell it. ` +
-    `Plain text only: no Markdown, no ** or ## or bullets that were not in the source.`;
+    `Plain text only: no Markdown, no ** or ## or bullets that were not in the source. ` +
+    // 説明文の中に並ぶ日本語ブランド名を音写して "Snider" "Free Area" 等になっていた
+    `Japanese fashion brand names keep their official Latin spelling ` +
+    `(スナイデル=SNIDEL, 自由区=JIYU-KU, 組曲=KUMIKYOKU, インディヴィ=INDIVI, ローリーズファーム=LOWRYS FARM, ` +
+    `レプシィム=LEPSIM, ジルスチュアート=JILL STUART, アプワイザーリッシェ=Apuweiser-riche). ` +
+    `If you are not sure of a brand's Latin spelling, leave it in Japanese - never invent a phonetic spelling.`;
   if (kind === 'defect') {
     return common + ` This text describes flaws on a used garment (stains, yellowing, holes, pilling). ` +
       `Be literal and precise about the body part and the type of flaw. Do not soften or exaggerate.`;
