@@ -628,3 +628,98 @@ function apiBulkInit() {
     return { ok: false, message: (e && e.message) ? e.message : String(e) };
   }
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// 顧客向け文言から「xlsx」を消す（2026-08-29）
+//
+// お客様に渡すのは XLSX ではなく出品キット（Webページ＋CSV）になったので、
+// 商品名と説明文の言い回しを実態に合わせる。BASE・自社サイトへは5分Cronで反映。
+//
+// ⚠️ 触ってはいけないもの:
+//   ・商品名の先頭「◯,◯◯◯円分お得」… premium_rewriteName_ の判定条件。
+//     壊すと次の値下げで商品名だけ黙って更新がスキップされる
+//   ・説明文の「必ず◯円(税込み)以上」「・販売価格：◯円（税込み）」
+//     … premium_rewriteDesc_ の置換対象。表記が変わると金額が更新されなくなる
+//   置換後に上記が残っているか必ず検証し、崩れていればその行は書き込まない。
+// ═══════════════════════════════════════════════════════════════════════════
+
+var PREMIUM_XLSX_WORDING_ = [
+  // [置換前, 置換後]
+  ['即出品xlsx', '出品キット'],
+  ['紙ではなく、すぐ使えるxlsxデータ＋撮影画像でお渡しします。',
+   '紙ではなく、そのまま出品に使える「出品キット」（Webページ）でお渡しします。採寸データや商品情報の一覧はCSVでダウンロードして保存できます。']
+];
+
+/**
+ * プレミアムアソート3行の商品名・説明文から「xlsx」の表現を置き換える。
+ * @param {boolean} execute true のときだけ実際に書き込む。既定は下見のみ
+ */
+function replacePremiumXlsxWording(execute) {
+  var dryRun = (execute !== true);
+  var ssId = String(BULK_CONFIG.spreadsheetId || '').trim();
+  if (!ssId) { console.error('BULK_CONFIG.spreadsheetId が未設定です'); return 0; }
+  var ss = SpreadsheetApp.openById(ssId);
+  var sh = ss.getSheetByName(BULK_CONFIG.sheetName);
+  if (!sh) { console.error('シートが見つかりません: ' + BULK_CONFIG.sheetName); return 0; }
+
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return 0;
+  var c = BULK_CONFIG.cols;
+  var data = sh.getRange(2, 1, lastRow - 1, BULK_SHEET_HEADER.length).getValues();
+  var changed = 0;
+
+  for (var i = 0; i < data.length; i++) {
+    var name = String(data[i][c.name] || '');
+    var matchKey = null;
+    for (var k in PREMIUM_PRICE_V3_) { if (name.indexOf(k) >= 0) { matchKey = k; break; } }
+    if (!matchKey) continue;
+
+    var row = i + 2;
+    var desc = String(data[i][c.description] || '');
+    var newName = name, newDesc = desc;
+    PREMIUM_XLSX_WORDING_.forEach(function(pair) {
+      newName = newName.split(pair[0]).join(pair[1]);
+      newDesc = newDesc.split(pair[0]).join(pair[1]);
+    });
+
+    if (newName === name && newDesc === desc) {
+      console.log('[%s] 変更なし（既に置換済み）', matchKey);
+      continue;
+    }
+
+    // --- 安全確認: 値下げ自動反映が依存している表記を壊していないか ---
+    var problems = [];
+    if (!/^[0-9,]+円分お得/.test(newName)) problems.push('商品名の先頭「◯円分お得」が消えた');
+    if (desc.indexOf('必ず') >= 0 && !/必ず[0-9,]+円\(税込み\)以上/.test(newDesc)) problems.push('「必ず◯円(税込み)以上」が壊れた');
+    if (desc.indexOf('・販売価格：') >= 0 && !/・販売価格：[0-9,]+円（税込み）/.test(newDesc)) problems.push('「・販売価格：◯円（税込み）」が壊れた');
+    if (problems.length) {
+      console.error('[%s] 行%s は書き込みません: %s', matchKey, row, problems.join(' / '));
+      continue;
+    }
+
+    console.log('[%s] 行%s%s', matchKey, row, dryRun ? '（下見）' : '');
+    if (newName !== name) console.log('  商品名: %s\n     →   %s', name, newName);
+    if (newDesc !== desc) console.log('  説明文: xlsx の記述を出品キット＋CSVの案内へ置換');
+
+    if (!dryRun) {
+      if (newName !== name) sh.getRange(row, c.name + 1).setValue(newName);
+      if (newDesc !== desc) sh.getRange(row, c.description + 1).setValue(newDesc);
+    }
+    changed++;
+  }
+
+  if (dryRun) {
+    console.log('下見のみ。%s行が対象です。実行するには runReplacePremiumXlsxWording() を呼んでください。', changed);
+  } else if (changed > 0) {
+    SpreadsheetApp.flush();
+    bulk_clearCache_();
+    console.log('%s行を更新し、アソート商品キャッシュをクリアしました。BASE/自社サイトへの反映は最大およそ10分です。', changed);
+  }
+  return changed;
+}
+
+/** 【手動実行】下見。シートは変更しない */
+function previewReplacePremiumXlsxWording() { return replacePremiumXlsxWording(false); }
+
+/** 【手動実行】実際に書き換える */
+function runReplacePremiumXlsxWording() { return replacePremiumXlsxWording(true); }
