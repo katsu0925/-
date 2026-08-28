@@ -250,8 +250,8 @@ function buildPrompt(lang, kind) {
     `Keep brand names, product codes, sizes, numbers, currency amounts and URLs exactly as they are. ` +
     `Keep the same meaning; never add or drop information. ` +
     // 用語のブレを防ぐ。「物販→物流」「円→元」のような取り違えが実際に出た
-    `Glossary: 物販/せどり = reselling (${lang === 'zh-CN' ? '二手转售' : 'reselling'}), ` +
-    `古着 = second-hand clothing, 仕入れ = sourcing/purchasing stock, 出品 = listing an item, ` +
+    `Use these words, not paraphrases: 物販 = reselling, せどり = reselling, ` +
+    `古着 = second-hand clothing, 仕入れ = sourcing, 出品 = listing, ` +
     `採寸 = measurements, アソート = assort (bulk lot). ` +
     `円 always means Japanese yen (${lang === 'zh-CN' ? '日元' : 'JPY'}) - never convert the amount or change the currency. ` +
     `Marketplace names (メルカリ/Mercari, ラクマ/Rakuma, Yahoo!フリマ, BASE) stay as their usual Latin names. ` +
@@ -353,7 +353,7 @@ export async function runTranslationBatch(env, limit = MAX_ITEMS_PER_RUN) {
   const items = q.results || [];
   if (!items.length) return { done: 0, empty: true };
 
-  let done = 0, failed = 0;
+  let done = 0, failed = 0, written = 0;
   for (const it of items) {
     if (budget.base + budget.spent >= MAX_NEURONS_PER_DAY) break;
     let ok = true;
@@ -382,8 +382,12 @@ export async function runTranslationBatch(env, limit = MAX_ITEMS_PER_RUN) {
     } else {
       failed++;
     }
+    if (budget.spent - written > 0) {       // 1件ごとに書き戻す
+      await addBudget(db, budget.spent - written);
+      written = budget.spent;
+    }
   }
-  if (budget.spent > 0) await addBudget(db, budget.spent);
+  if (budget.spent - written > 0) await addBudget(db, budget.spent - written);
   return { done, failed, neurons: Math.round(budget.base + budget.spent) };
 }
 
@@ -426,6 +430,11 @@ export async function purgeDynamicDict(env) {
 
 /** Cron から呼ぶ入口 */
 export async function scheduledTranslate(env) {
+  const LOCK = 'i18n:mt:lock';
+  try {
+    if (await env.CACHE.get(LOCK)) { console.log('[i18n-mt] locked, skip'); return; }
+    await env.CACHE.put(LOCK, '1', { expirationTtl: 280 });
+  } catch (e) { /* KVが落ちていても翻訳自体は続ける */ }
   try {
     await ensureI18nSchema(env.DB);
     const min = new Date().getUTCMinutes();
@@ -441,6 +450,8 @@ export async function scheduledTranslate(env) {
     console.log('[i18n-mt]', JSON.stringify({ ...enq, ...art, ...run }));
   } catch (e) {
     console.error('[i18n-mt] scheduled failed:', e && e.message);
+  } finally {
+    try { await env.CACHE.delete(LOCK); } catch (e) {}
   }
 }
 
