@@ -212,8 +212,8 @@
       var txt = el.textContent;
       if (!txt || !HAS_JP.test(txt)) continue;
       if (skipEl(el)) continue;
-      var out = lookup(txt);
-      if (out == null) continue;
+      var out = strings[norm(txt)];         // 段落まるごとの置換は完全一致だけ。
+      if (out == null) continue;            // パターン置換だと中の要素まで壊しかねない
       el.setAttribute('data-i18n-block', '1');
       el.textContent = out;                 // 訳文では太字などの装飾は落ちる
     }
