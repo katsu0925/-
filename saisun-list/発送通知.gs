@@ -23,6 +23,14 @@ const SHIPMAIL_CONFIG = {
   COL_KIT_URL: 38          // AL列: 出品キットURL
 };
 
+// 出品キットの案内文。プレーンテキスト版とHTML版で同じことを言うため一箇所に置く。
+// 閲覧期限は Worker 側の KIT_TTL（15552000秒 = 半年）と対になっている。
+// 期限を変えるときは workers/gas-proxy/src/handlers/kit.js と一緒に直す。
+var SHIPMAIL_KIT_NOTES = [
+  '出品キットの商品一覧は「全商品の一覧をCSVでダウンロード」からお手元に保存できます（Excel・スプレッドシートで開けます）。',
+  '出品キットの閲覧期限は発送から半年です。必要なデータはお早めに保存してください。'
+];
+
 /**
  * 配送業者名と伝票番号から追跡URLを生成
  * @param {string} carrier - 配送業者名
@@ -230,7 +238,9 @@ function shipMailOnEdit(e) {
         custBody += '■ 出品キット\n'
           + 'メルカリ出品用の商品タイトル・説明文をご用意しました。\n'
           + '以下のリンクからご利用いただけます。\n'
-          + kitUrl + '\n\n';
+          + kitUrl + '\n'
+          + '※ ' + SHIPMAIL_KIT_NOTES[0] + '\n'
+          + '※ ' + SHIPMAIL_KIT_NOTES[1] + '\n\n';
       }
 
       custBody += '商品到着まで今しばらくお待ちください。\n'
@@ -269,10 +279,10 @@ function shipMailOnEdit(e) {
         lead: 'デタウリ.Detauri をご利用いただきありがとうございます。\n下記の内容で商品を発送いたしました。',
         sections: shipHtmlSections,
         cta: shipCta,
-        notes: [
+        notes: (kitUrl ? SHIPMAIL_KIT_NOTES : []).concat([
           '商品到着まで今しばらくお待ちください。',
           '到着後、内容にご不明点がございましたらお気軽にお問い合わせください。'
-        ]
+        ])
       });
 
       GmailApp.sendEmail(contactEmail, custSubject, custBody, { from: SITE_CONSTANTS.CUSTOMER_EMAIL, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL, htmlBody: custHtmlBody, bcc: SHIPMAIL_CONFIG.TO_EMAIL });
@@ -433,7 +443,9 @@ function testShipMailByReceiptNo(receiptNo) {
     custBody += '■ 出品キット\n'
       + 'メルカリ出品用の商品タイトル・説明文をご用意しました。\n'
       + '以下のリンクからご利用いただけます。\n'
-      + kitUrl + '\n\n';
+      + kitUrl + '\n'
+      + '※ ' + SHIPMAIL_KIT_NOTES[0] + '\n'
+      + '※ ' + SHIPMAIL_KIT_NOTES[1] + '\n\n';
   }
   custBody += '商品到着まで今しばらくお待ちください。\n'
     + '到着後、内容にご不明点がございましたらお気軽にお問い合わせください。\n\n'
@@ -470,10 +482,10 @@ function testShipMailByReceiptNo(receiptNo) {
     lead: 'デタウリ.Detauri をご利用いただきありがとうございます。\n下記の内容で商品を発送いたしました。',
     sections: shipHtmlSections,
     cta: shipCta,
-    notes: [
+    notes: (kitUrl ? SHIPMAIL_KIT_NOTES : []).concat([
       '商品到着まで今しばらくお待ちください。',
       '到着後、内容にご不明点がございましたらお気軽にお問い合わせください。'
-    ]
+    ])
   });
 
   GmailApp.sendEmail(myEmail, custSubject, custBody, { htmlBody: custHtmlBody });
