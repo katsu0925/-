@@ -475,7 +475,7 @@ function wn_generateBrandColumnAI_(brand, stats, catList, avgPrice) {
   ];
 
   var payload = {
-    model: 'gpt-5-mini',
+    model: 'gpt-5.6-luna',
     messages: messages,
     max_completion_tokens: 2000
   };

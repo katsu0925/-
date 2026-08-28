@@ -5,7 +5,7 @@
 // =====================================================
 
 var NEWSLETTER_AI_CONFIG = {
-  MODEL: 'gpt-5-mini',
+  MODEL: 'gpt-5.6-luna',
   ENDPOINT: 'https://api.openai.com/v1/chat/completions',
   MAX_COMPLETION_TOKENS: 8000
 };

@@ -12,7 +12,7 @@ var ARTICLE_CONFIG = {
   CONTENT_CACHE_PREFIX: 'ARTICLE_CONTENT:',
   CONTENT_CACHE_TTL: 86400,
   MAX_ARTICLES_DISPLAY: 20,
-  MODEL: 'gpt-5-mini',
+  MODEL: 'gpt-5.6-luna',
   ENDPOINT: 'https://api.openai.com/v1/chat/completions',
   MAX_COMPLETION_TOKENS: 16000
 };
