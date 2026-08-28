@@ -1,0 +1,567 @@
+<title>古着スタッフ採用マニュアル</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@500;700;900&family=Noto+Sans+JP:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
+
+<style>
+:root{
+  --ground:#EFF2F5; --sheet:#FFFFFF;
+  --ink:#15202E; --ink-2:#41505F; --muted:#6B7A89;
+  --rule:#DCE3EA; --rule-soft:#E9EEF3;
+  --accent:#C8401A; --accent-wash:#FBEDE8;
+  --go:#1B6B4A; --go-wash:#E7F2EC;
+  --stop:#8C2F39; --stop-wash:#F7EAEC;
+  --code:#F2F5F8;
+  --shadow:0 1px 2px rgba(21,32,46,.06), 0 12px 32px -18px rgba(21,32,46,.35);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#0D141C; --sheet:#151E28;
+    --ink:#E8EDF3; --ink-2:#B7C2CE; --muted:#8A98A6;
+    --rule:#28343F; --rule-soft:#212C36;
+    --accent:#FF8054; --accent-wash:#2A1B15;
+    --go:#5FC79A; --go-wash:#14251E;
+    --stop:#E8848F; --stop-wash:#2A1A1D;
+    --code:#101821;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 16px 40px -20px rgba(0,0,0,.8);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0D141C; --sheet:#151E28;
+  --ink:#E8EDF3; --ink-2:#B7C2CE; --muted:#8A98A6;
+  --rule:#28343F; --rule-soft:#212C36;
+  --accent:#FF8054; --accent-wash:#2A1B15;
+  --go:#5FC79A; --go-wash:#14251E;
+  --stop:#E8848F; --stop-wash:#2A1A1D;
+  --code:#101821;
+  --shadow:0 1px 2px rgba(0,0,0,.4), 0 16px 40px -20px rgba(0,0,0,.8);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;background:var(--ground);color:var(--ink);
+  font-family:"Noto Sans JP",system-ui,-apple-system,"Hiragino Sans","Yu Gothic",sans-serif;
+  font-size:16px;line-height:1.8;-webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:960px;margin:0 auto;padding:24px 16px 90px}
+.sheet{background:var(--sheet);border:1px solid var(--rule);border-radius:14px;box-shadow:var(--shadow);padding:clamp(20px,3.6vw,46px)}
+h1,h2,h3{font-family:"Zen Kaku Gothic New","Noto Sans JP",sans-serif;text-wrap:balance;margin:0}
+p{margin:0 0 14px}p:last-child{margin-bottom:0}
+a{color:var(--accent)}
+
+.who{display:flex;gap:13px;align-items:flex-start;flex-wrap:wrap;background:var(--ink);color:var(--sheet);border-radius:10px;padding:13px 17px;margin-bottom:26px}
+.who b{font-family:"IBM Plex Mono",monospace;font-size:11.5px;letter-spacing:.14em;border:1px solid currentColor;border-radius:5px;padding:2px 9px;white-space:nowrap;flex:none}
+.who em{font-style:normal;font-size:13px;line-height:1.7;opacity:.88}
+
+.brand{font-family:"IBM Plex Mono",monospace;font-size:11.5px;font-weight:600;letter-spacing:.2em;color:var(--accent);margin-bottom:10px}
+h1{font-size:clamp(25px,4.6vw,36px);font-weight:900;line-height:1.3}
+.meta{display:flex;flex-wrap:wrap;gap:7px;margin-top:16px}
+.meta span{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.06em;color:var(--muted);border:1px solid var(--rule);border-radius:999px;padding:3px 10px}
+
+/* 覚えるのはこの1行 */
+.spine{
+  margin:26px 0 6px;padding:22px 24px;border-radius:12px;
+  background:var(--ink);color:var(--sheet);
+}
+.spine .lbl{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.18em;opacity:.65;margin-bottom:12px}
+.spine .line{display:flex;flex-wrap:wrap;align-items:center;gap:10px 12px;font-family:"Zen Kaku Gothic New",sans-serif;font-weight:900;font-size:clamp(17px,3vw,24px);line-height:1.35}
+.spine .line i{font-style:normal;opacity:.45;font-weight:500}
+.spine .note2{margin-top:14px;font-size:13.5px;opacity:.8;line-height:1.7}
+
+h2{font-size:clamp(18px,2.8vw,22px);font-weight:900;line-height:1.4;margin:48px 0 16px;padding-top:20px;border-top:1px solid var(--rule);display:flex;gap:12px;align-items:baseline}
+h2 .n{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600;color:var(--accent);flex:none}
+h3{font-size:16px;font-weight:700;margin:26px 0 8px}
+
+/* カンペのカード */
+.cards{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:18px 0}
+@media (max-width:720px){.cards{grid-template-columns:1fr}}
+.card{border:1px solid var(--rule);border-radius:11px;padding:18px 20px;background:var(--sheet)}
+.card.go{border-color:color-mix(in srgb,var(--go) 40%,transparent);background:var(--go-wash)}
+.card.stop{border-color:color-mix(in srgb,var(--stop) 40%,transparent);background:var(--stop-wash)}
+.card h3{margin:0 0 4px;font-size:16.5px}
+.card .cap{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.1em;color:var(--muted);margin-bottom:12px}
+.card.go .cap{color:var(--go)}
+.card.stop .cap{color:var(--stop)}
+.card ol,.card ul{margin:0;padding-left:1.25em}
+.card li{margin-bottom:9px;font-size:14.8px;line-height:1.7}
+.card li:last-child{margin-bottom:0}
+.card li b{font-weight:700}
+.card li small{display:block;color:var(--muted);font-size:12.8px;line-height:1.6;margin-top:1px}
+
+/* 時間配分 */
+.clock{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 4px}
+.clock div{flex:1 1 140px;border:1px solid var(--rule);border-radius:9px;padding:11px 14px}
+.clock b{display:block;font-family:"IBM Plex Mono",monospace;font-size:17px;font-variant-numeric:tabular-nums;color:var(--accent);line-height:1.3}
+.clock span{font-size:13px;color:var(--ink-2)}
+
+.note{border-left:3px solid var(--accent);background:var(--accent-wash);border-radius:0 9px 9px 0;padding:14px 19px;margin:18px 0;font-size:14.5px;line-height:1.78}
+.note .nt{display:block;font-weight:700;margin-bottom:4px;color:var(--accent)}
+.note.warn{border-left-color:var(--stop);background:var(--stop-wash)}
+.note.warn .nt{color:var(--stop)}
+
+/* 台本 */
+.say{border:1px solid var(--rule);border-left:3px solid var(--ink);border-radius:0 10px 10px 0;padding:15px 19px;margin:14px 0;background:var(--code)}
+.say .role{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.12em;color:var(--muted);margin-bottom:7px}
+.say p{margin:0;font-size:15px;line-height:1.85}
+
+.tw{overflow-x:auto;margin:16px 0;border:1px solid var(--rule);border-radius:10px}
+table{border-collapse:collapse;width:100%;min-width:480px;font-size:14.5px}
+th,td{text-align:left;padding:10px 15px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+thead th{background:var(--code);font-weight:700;font-size:12.8px;white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+td.num{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* 折りたたみ */
+details{border:1px solid var(--rule);border-radius:11px;margin:12px 0;background:var(--sheet);overflow:hidden}
+details[open]{box-shadow:var(--shadow)}
+summary{
+  cursor:pointer;padding:14px 18px;font-weight:700;font-size:15px;list-style:none;
+  display:flex;align-items:center;gap:10px;background:var(--code);
+}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"＋";font-family:"IBM Plex Mono",monospace;color:var(--accent);font-weight:600;flex:none}
+details[open] summary::before{content:"−"}
+summary:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+summary em{font-style:normal;font-weight:400;color:var(--muted);font-size:13px}
+.dbody{padding:18px 20px 20px;border-top:1px solid var(--rule)}
+.dbody > :first-child{margin-top:0}
+
+/* テンプレ */
+.tpl{border:1px solid var(--rule);border-radius:11px;margin:14px 0;overflow:hidden}
+.tpl-h{display:flex;align-items:center;gap:11px;flex-wrap:wrap;padding:11px 15px;background:var(--code);border-bottom:1px solid var(--rule)}
+.tpl-id{font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;letter-spacing:.08em;color:var(--sheet);background:var(--ink);border-radius:4px;padding:2px 8px;flex:none}
+.tpl-t{font-weight:700;font-size:14.2px;flex:1 1 180px;line-height:1.5}
+.copy{font-family:"Noto Sans JP",sans-serif;font-size:12.5px;font-weight:700;border:1px solid var(--ink);background:transparent;color:var(--ink);border-radius:6px;padding:5px 14px;cursor:pointer;flex:none;transition:background .15s,color .15s}
+.copy:hover{background:var(--ink);color:var(--sheet)}
+.copy:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.copy.done{background:var(--go);border-color:var(--go);color:#fff}
+.tpl pre{margin:0;padding:15px 17px;white-space:pre-wrap;word-break:break-word;font-family:"Noto Sans JP",sans-serif;font-size:13.8px;line-height:1.85;color:var(--ink-2)}
+.tpl .hint{padding:0 17px 13px;font-size:12.8px;color:var(--muted);line-height:1.7}
+
+ul.ng{list-style:none;padding:0;margin:12px 0}
+ul.ng li{position:relative;padding:6px 0 6px 25px;font-size:14.8px;line-height:1.75}
+ul.ng li::before{content:"×";position:absolute;left:4px;top:6px;color:var(--stop);font-weight:700}
+ul.chk{list-style:none;padding:0;margin:12px 0}
+ul.chk li{position:relative;padding:6px 0 6px 28px;border-bottom:1px solid var(--rule-soft);font-size:14.8px}
+ul.chk li:last-child{border-bottom:0}
+ul.chk li::before{content:"";position:absolute;left:2px;top:14px;width:12px;height:12px;border:1.5px solid var(--muted);border-radius:3px}
+
+.links{margin:14px 0;display:flex;flex-direction:column;gap:8px}
+.links span{font-size:13px;color:var(--muted);margin-bottom:-4px}
+.links a{font-family:"IBM Plex Mono",monospace;font-size:12.3px;word-break:break-all;background:var(--code);border:1px solid var(--rule-soft);border-radius:7px;padding:8px 12px;text-decoration:none;display:block}
+.links a:hover{border-color:var(--accent)}
+
+.hist{font-size:13.8px;padding-left:1.2em}
+.hist li{margin-bottom:7px}
+
+@media print{
+  body{background:#fff}
+  .sheet{border:0;box-shadow:none;padding:0}
+  .copy{display:none}
+  .who{background:#fff;color:#000;border:2px solid #000}
+  .spine{background:#fff;color:#000;border:2px solid #000}
+  details{break-inside:avoid}
+  details:not([open]) .dbody{display:block}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+</style>
+
+<div class="wrap">
+<div class="sheet">
+
+<div class="who">
+  <b>自分用</b>
+  <em>電話しながら開くカンペです。上の1画面だけ見れば回ります。細かいことは下の折りたたみの中に入れてあります。</em>
+</div>
+
+<div class="brand">NKONLINE ／ 古着の検品・採寸・撮影</div>
+<h1>採用の電話カンペ</h1>
+<div class="meta"><span>第2版</span><span>2026年8月28日</span><span>NKonline</span></div>
+
+<div class="spine">
+  <div class="lbl">覚えるのはこの1行だけ</div>
+  <div class="line">
+    <span>エリア</span><i>→</i><span>電話</span><i>→</i><span>20点だけ試す</span><i>→</i><span>本採用</span>
+  </div>
+  <div class="note2">メッセージで長いやり取りをしません。エリアだけ確認したら、すぐ電話の日程を決めます。文字のやり取りが続くほど、そのあいだに他社へ流れます。</div>
+</div>
+
+<h2><span class="n">01</span>電話で聞く6つ</h2>
+
+<p>この順番で聞きます。増やさないでください。答えは応募者シート（下の折りたたみ）に書きます。</p>
+
+<div class="cards">
+  <div class="card go">
+    <div class="cap">ASK ／ 聞く</div>
+    <h3>順番に6つ</h3>
+    <ol>
+      <li><b>お住まいの市区町村</b><small>大阪府全域・兵庫県東部・京都府南部の外なら、ここで丁重に終了</small></li>
+      <li><b>いまのお仕事と、作業できる曜日・時間帯</b></li>
+      <li><b>1週間に何点くらいできそうか</b><small>「分からない」でOK。目安は1日3〜4点と伝える</small></li>
+      <li><b>服を広げて撮れる場所はありますか。明るいですか</b><small>ここが一番の脱落ポイント。具体的に確認する</small></li>
+      <li><b>ペットと、たばこ（ご本人・同居のご家族）</b><small>販売用なので、においと毛だけ先に確認していますと添える</small></li>
+      <li><b>いつから始められますか</b></li>
+    </ol>
+  </div>
+
+  <div class="card">
+    <div class="cap">TELL ／ 必ず言う</div>
+    <h3>言い忘れると後で揉める4つ</h3>
+    <ol>
+      <li><b>時給ではありません。1点60円の出来高です</b><small>慣れた方で1時間に8〜10点。時給換算の数字はこちらからは言わない</small></li>
+      <li><b>雇用ではなく業務委託です。確定申告はご本人でお願いします</b></li>
+      <li><b>月末締め・翌月振込。初回だけ入金まで最大2か月空きます</b><small>ここを言わずに始めると必ず問い合わせが来る</small></li>
+      <li><b>まず20〜30点だけお願いします。その分も同じ1点60円でお支払いします</b><small>無償ではない、と必ず言う</small></li>
+    </ol>
+  </div>
+</div>
+
+<div class="card stop" style="margin-top:14px">
+  <div class="cap">STOP ／ その場で切る</div>
+  <ul class="ng" style="margin:0">
+    <li>3エリアの外にお住まい</li>
+    <li>「時給いくらですか」を繰り返し、出来高制を受け入れられない</li>
+    <li>服を広げて撮れる場所が、今もこれからも確保できない</li>
+    <li>作業の前に前払いや保証を求められる</li>
+  </ul>
+</div>
+
+<h2><span class="n">02</span>15分の組み立て</h2>
+
+<div class="clock">
+  <div><b>0–1分</b><span>あいさつと、今日の流れ</span></div>
+  <div><b>1–4分</b><span>こちらから説明</span></div>
+  <div><b>4–9分</b><span>6つ聞く</span></div>
+  <div><b>9–13分</b><span>相手の質問に答える</span></div>
+  <div><b>13–15分</b><span>次にやることを決めて締める</span></div>
+</div>
+
+<div class="say">
+  <div class="role">冒頭 ／ そのまま言える</div>
+  <p>「NKonlineです。お時間ありがとうございます。15分ほどで終わります。<br>はじめに私からお仕事の中身を3分ほどご説明して、そのあと何点かおうかがいします。<br>途中で分からないところがあれば、いつでも止めてください。」</p>
+</div>
+
+<div class="say">
+  <div class="role">説明 ／ この順番で3分</div>
+  <p>①　届いた古着を、傷や汚れのチェック → アプリにサイズを入力 → ハンガーにかけて撮影。この3つです<br>②　写真の背景加工はこちらでやるので、撮ったままで大丈夫です<br>③　ハンガーなどの道具はお貸しします。ご用意いただくのはスマホだけです<br>④　報酬は1点60円。時給ではなく、こなした点数で決まります<br>⑤　月末締めの翌月振込です。初回だけ入金まで少し空きます<br>⑥　雇用ではなく業務委託になります<br>⑦　まずは20〜30点だけお願いして、ご自身のペースをつかんでいただきます</p>
+</div>
+
+<div class="say">
+  <div class="role">締め ／ 次を決めてから切る</div>
+  <p>「ではまず〔20〕点、〔　月　日〕ごろにお渡しします。<br>今日お話ししたことは、このあとメッセージにもまとめてお送りしますね。<br>読んでみて気になるところがあれば、遠慮なく言ってください。」</p>
+</div>
+
+<div class="note warn">
+  <span class="nt">電話だけで終わらせない</span>
+  金額・締め日・トライアルの点数と期限は、通話のあと<strong>必ず文字でも送ります</strong>（下の <a href="#t04">T-04</a>）。「言った・聞いていない」はここでしか防げません。
+</div>
+
+<h2><span class="n">03</span>送る文面</h2>
+
+<p>使うのは実質この5本です。〔　〕だけ書き換えます。</p>
+
+<div class="tpl" id="t01">
+  <div class="tpl-h"><span class="tpl-id">T-01</span><span class="tpl-t">応募が来たら、その日のうちに（電話の日程を決める）</span><button class="copy" type="button">コピー</button></div>
+  <pre>〔お名前〕さま
+
+はじめまして。NKonlineと申します。
+このたびはご応募いただき、ありがとうございます。
+
+進め方をお伝えします。
+まず15分ほどお電話でお話しさせてください。
+そのうえで、20〜30点だけの少量から始めていただく流れです。
+いきなり大量にお願いすることはありませんので、ご安心ください。
+
+お電話は、下記のいずれかでご都合はいかがでしょうか。
+
+・〔  月  日（  ）  時〜〕
+・〔  月  日（  ）  時〜〕
+・〔  月  日（  ）  時〜〕
+
+難しければ、ご希望の日時をお知らせください。
+通話はLINEを使わせていただきます。日時が決まりましたらIDをお送りします。
+音声のみですので、お顔を出していただく必要はありません。
+
+なお今回の募集は、大阪府全域・兵庫県東部・京都府南部にお住まいの方に
+限らせていただいております。念のためご確認ください。
+
+よろしくお願いいたします。
+
+NKonline</pre>
+</div>
+
+<div class="tpl" id="t02">
+  <div class="tpl-h"><span class="tpl-id">T-02</span><span class="tpl-t">エリア外の方へ（すぐ返す）</span><button class="copy" type="button">コピー</button></div>
+  <pre>〔お名前〕さま
+
+はじめまして。NKonlineと申します。
+ご応募いただき、ありがとうございます。
+
+たいへん申し訳ないのですが、今回の募集は
+大阪府全域・兵庫県東部・京都府南部にお住まいの方に
+限らせていただいております。
+
+商品のお届けと回収にかかる費用の都合で、
+どうしてもこの範囲でお願いしている状況です。
+せっかくご連絡をいただいたのに、力になれず申し訳ありません。
+
+このたびはありがとうございました。
+
+NKonline</pre>
+</div>
+
+<div class="tpl" id="t03">
+  <div class="tpl-h"><span class="tpl-id">T-03</span><span class="tpl-t">日時が決まったとき（LINEを渡す）</span><button class="copy" type="button">コピー</button></div>
+  <pre>〔お名前〕さま
+
+ありがとうございます。
+それでは〔  月  日（  ）  時〕からよろしくお願いいたします。
+
+通話はLINEで行いますので、下記から友だち追加をお願いします。
+
+〔LINEのURL〕
+
+追加いただきましたら、スタンプでも構いませんのでお知らせください。
+当日、こちらから発信いたします。15分ほどで終わる想定です。
+
+NKonline</pre>
+</div>
+
+<div class="tpl" id="t04">
+  <div class="tpl-h"><span class="tpl-id">T-04</span><span class="tpl-t">通話のあと、当日中に（いちばん大事）</span><button class="copy" type="button">コピー</button></div>
+  <pre>〔お名前〕さま
+
+先ほどはお時間をいただき、ありがとうございました。
+お話しした内容をまとめておきます。
+
+【お願いする作業】
+検品（傷・汚れ・ほつれ）→ 採寸（アプリに入力）→ 撮影（支給ハンガー）
+写真の背景加工はこちらで行いますので、撮ったままで大丈夫です。
+
+【まずお願いする分】
+・点数：〔20〕点
+・期限：〔  月  日〕まで
+・報酬：1点60円（このトライアル分も、通常と同じようにお支払いします）
+
+【お渡しするもの】
+・お洋服〔  〕点／撮影用ハンガー〔・パンツハンガー／トルソー〕
+
+【お渡しの方法】
+〔宅配でお送りします。到着予定は  月  日です〕
+〔  月  日（  ）  時に〔場所〕でお渡しします〕
+
+【報酬とお支払い】
+・1点60円の出来高制です（時間ではなく点数で決まります）
+・月末締め、翌月〔  日〕にお振込みします
+・初回は、作業してから入金まで少し間が空きます
+
+【その他】
+・雇用ではなく業務委託です。確定申告はご本人でお願いします
+・体調やご都合で難しいときは、早めに教えてください。量を調整します
+
+アプリのご案内は別途お送りします。
+使っていて分からないところが出たら、途中でかまいませんので聞いてください。
+黙って止まってしまうのがいちばんもったいないので、
+「これで合っていますか」だけでも送っていただけると助かります。
+
+よろしくお願いいたします。
+
+NKonline</pre>
+</div>
+
+<div class="tpl" id="t05">
+  <div class="tpl-h"><span class="tpl-id">T-05</span><span class="tpl-t">今回は見送るとき</span><button class="copy" type="button">コピー</button></div>
+  <pre>〔お名前〕さま
+
+このたびはお時間をいただき、ありがとうございました。
+
+慎重に検討させていただきましたが、
+今回の募集条件との兼ね合いで、
+残念ながらお見送りとさせていただくことになりました。
+
+〔お名前〕さまのご経験やお人柄によるものではなく、
+こちらの作業の進め方との相性によるものです。
+
+またあらためて募集を出すこともございますので、
+その際にご縁がありましたら幸いです。
+
+このたびは本当にありがとうございました。
+
+NKonline</pre>
+  <div class="hint">理由は書きません。聞かれても「募集条件との兼ね合いで」で通します。</div>
+</div>
+
+<details>
+  <summary>ときどき使う文面（返信が来ない／工程だけの依頼） <em>2本</em></summary>
+  <div class="dbody">
+
+  <div class="tpl">
+    <div class="tpl-h"><span class="tpl-id">T-06</span><span class="tpl-t">返信が来ないとき（1回だけ声をかける）</span><button class="copy" type="button">コピー</button></div>
+    <pre>〔お名前〕さま
+
+先日はご応募ありがとうございました。その後いかがでしょうか。
+
+お忙しければ無理に進めていただく必要はまったくありません。
+「今回は見送ります」のひとことだけいただければ、
+こちらでいったん締めさせていただきます。
+
+もし進めていただけるようでしたら、
+前回お送りした内容にお返事いただけますと幸いです。
+
+NKonline</pre>
+    <div class="hint">これを送って1週間動きがなければ、それ以上は追いません。</div>
+  </div>
+
+  <div class="tpl">
+    <div class="tpl-h"><span class="tpl-id">T-07</span><span class="tpl-t">「検品だけ」など工程を切り出した依頼・事業所からの相談</span><button class="copy" type="button">コピー</button></div>
+    <pre>〔お名前〕さま
+
+ご連絡ありがとうございます。
+
+申し訳ありませんが、現在は
+「検品・採寸・撮影」の3つをひと続きでお願いできる方のみの募集となっており、
+一部の工程だけを切り出した形では募集をしておりません。
+
+なお、就労支援の事業所さまなど、
+複数名で分担して3工程を担っていただける形であれば、
+これまでにもお願いしている実績がございます。
+その形でご検討いただけるようでしたら、
+下記を教えていただけますでしょうか。
+
+・事業所さまの所在地
+・1か月に対応いただけそうな点数の目安
+・商品の受け渡し方法のご希望
+
+よろしくお願いいたします。
+
+NKonline</pre>
+  </div>
+
+  </div>
+</details>
+
+<h2><span class="n">04</span>細かいこと</h2>
+
+<p>ふだんは開かなくて大丈夫です。迷ったときだけ。</p>
+
+<details>
+  <summary>トライアルの見かたと、本採用の手続き <em>20〜30点をどう判定するか</em></summary>
+  <div class="dbody">
+    <h3>トライアルで見るのは4つ</h3>
+    <ul class="chk">
+      <li>期日どおりに終わったか</li>
+      <li>採寸の数字に抜けや明らかな間違いがないか</li>
+      <li>写真が、明るく・全体が入り・ピントが合い・シワが整えてあるか</li>
+      <li>分からないことを途中で聞いてこられたか（黙って止まっていないか）</li>
+    </ul>
+    <p>2つ以上外れていたら見送り（T-05）。1つだけなら、その1点だけ伝えてもう一度お願いします。<strong>まとめて何個も指摘すると、そこで辞めます。</strong></p>
+
+    <h3>本採用が決まったら、この順番で</h3>
+    <ul class="chk">
+      <li>お名前（フルネーム）・ご住所・お電話番号・振込口座をうかがう<strong>（個人情報を聞くのはここが最初）</strong></li>
+      <li>外注アプリのアカウントを発行し、ログイン情報を送る</li>
+      <li>操作マニュアルと動画のURLを送る</li>
+      <li>撮影用ハンガー（必要ならパンツハンガー・トルソー）をお渡しする</li>
+      <li>初回の点数とお渡し日を決める</li>
+      <li>締め日と振込日を、あらためて文面で伝える</li>
+      <li>初回の納品には、その日のうちに返事をする。良かった点を1つ、直してほしい点を1つだけ</li>
+    </ul>
+  </div>
+</details>
+
+<details>
+  <summary>よく聞かれること <em>8つの答え方</em></summary>
+  <div class="dbody">
+    <div class="tw">
+    <table>
+      <thead><tr><th>聞かれること</th><th>こう答える</th></tr></thead>
+      <tbody>
+        <tr><td>時給にするといくら</td><td>出来高制なので時給はありません。慣れている方で1時間に8〜10点ほどです。時給に換算した数字は、こちらからは言いません。</td></tr>
+        <tr><td>報酬はいつ振り込まれる</td><td>月末締め、翌月振込。初回だけ作業開始から入金まで最長2か月ほど空くことを先に伝えます。</td></tr>
+        <tr><td>何点からお願いできる</td><td>トライアルは20〜30点。そのあとは月100点が目安ですが、届かない月もこなした分はお支払いします。</td></tr>
+        <tr><td>続けられなかったら</td><td>お預かりしている商品を返していただければ終わりです。違約金のようなものはありません。</td></tr>
+        <tr><td>確定申告は</td><td>業務委託なのでご本人で申告していただきます。年間の支払額はこちらからお伝えできます。</td></tr>
+        <tr><td>パソコンは必要か</td><td>不要です。スマホかタブレットだけで完結します。</td></tr>
+        <tr><td>家族に手伝ってもらってもいいか</td><td>問題ありません。ただし商品の管理と品質の責任は、契約する方にお願いします。</td></tr>
+        <tr><td>在庫を預かることもできる</td><td>ご希望があれば保管料を別途お支払いします。金額は相談させてください。</td></tr>
+      </tbody>
+    </table>
+    </div>
+  </div>
+</details>
+
+<details>
+  <summary>応募者シート <em>1件につき1枚</em></summary>
+  <div class="dbody">
+    <ul class="chk">
+      <li>お名前／応募日／どの投稿から</li>
+      <li>お住まい（市区町村）とエリア判定</li>
+      <li>いまのお仕事／作業できる曜日・時間帯</li>
+      <li>週の対応点数（本人の申告）</li>
+      <li>撮影できる場所（あり・なし・要相談）</li>
+      <li>ペット／喫煙</li>
+      <li>電話した日と、話した所感</li>
+      <li>トライアル：点数・期限・結果</li>
+      <li>本採用：開始日</li>
+      <li>結果（採用／見送り／音信不通でクローズ）</li>
+    </ul>
+  </div>
+</details>
+
+<details>
+  <summary>ジモティーの受信箱（3投稿ぶん） <em>1日1回、3つとも見る</em></summary>
+  <div class="dbody">
+    <p>求人を3本出しているので、メッセージのスレッドも分かれています。</p>
+    <div class="links">
+      <span>完全在宅・入口枠（18ecae）</span>
+      <a href="https://jmty.jp/web_mail/posts/65ce1676701cee57f9da27be/threads">https://jmty.jp/web_mail/posts/65ce1676701cee57f9da27be/threads</a>
+      <span>受け渡し型（1lvhbq）</span>
+      <a href="https://jmty.jp/web_mail/posts/694573842e90a13cbbadcd64/threads">https://jmty.jp/web_mail/posts/694573842e90a13cbbadcd64/threads</a>
+      <span>投稿ごとの受信箱の一覧（副業枠1rfzh0はここから）</span>
+      <a href="https://jmty.jp/web_mail/posts">https://jmty.jp/web_mail/posts</a>
+    </div>
+  </div>
+</details>
+
+<details>
+  <summary>アップデート履歴</summary>
+  <div class="dbody">
+    <ul class="hist">
+      <li><strong>第2版　2026年8月28日</strong>　電話面談を軸に全面的に組み直し。7ステップを「エリア → 電話 → 20点だけ試す → 本採用」の4つに縮め、電話中に見る1画面（聞く6つ・言う4つ・切る4つ・15分の組み立て・そのまま言える台本）を先頭に置きました。文面は12本から実質5本に整理。試し撮りのステップは電話の中に吸収し、トライアル20〜30点に一本化。細かい内容は折りたたみに移動。</li>
+      <li><strong>第1版　2026年8月28日</strong>　新規作成。ジモティー求人を3本体制に整理したのに合わせて、応募対応の手順と文面12本をまとめました。募集エリアを大阪府全域・兵庫県東部・京都府南部の3つに限定。</li>
+    </ul>
+  </div>
+</details>
+
+</div>
+</div>
+
+<script>
+document.querySelectorAll('.copy').forEach(function(btn){
+  btn.addEventListener('click', function(){
+    var box = btn.closest('.tpl');
+    var text = box ? box.querySelector('pre').innerText : '';
+    var done = function(){
+      btn.textContent = 'コピーしました';
+      btn.classList.add('done');
+      setTimeout(function(){ btn.textContent = 'コピー'; btn.classList.remove('done'); }, 1800);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(function(){ fallback(text, done); });
+    } else {
+      fallback(text, done);
+    }
+  });
+});
+function fallback(text, done){
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly','');
+  ta.style.position = 'fixed';
+  ta.style.top = '-1000px';
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); done(); } catch(e) {}
+  document.body.removeChild(ta);
+}
+</script>
