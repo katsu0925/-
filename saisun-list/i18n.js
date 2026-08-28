@@ -25,6 +25,7 @@
   var STORAGE_KEY  = 'detauri_lang';
   var DEFAULT_LANG = 'ja';
   var ASSET_HOST   = 'https://wholesale.nkonline-tool.com';
+  var WORKER_ORIGIN = 'https://detauri-gas-proxy.nsdktts1030.workers.dev';
   var LANGS = [
     { code: 'ja',    label: '日本語' },
     { code: 'en',    label: 'English' },
@@ -44,6 +45,7 @@
   var patterns = [];
   var observer = null;
   var booted   = false;
+  var dynLoaded = false;
   var spaced   = false;      // 単語間に空白を要する言語か（en=true / ja,zh-CN=false）
 
   /* ---------------------------------------------------------------- utils */
@@ -146,6 +148,21 @@
     return lead + out + trail;
   }
 
+  // 傷・汚れ詳細のように誤訳が取引トラブルになりうる箇所は、日本語の原文も残す
+  var ORIGINAL_LABEL = { en: 'Japanese original:', 'zh-CN': '日文原文：' };
+
+  function keepOriginal(node, original) {
+    var host = node.parentNode;
+    if (!host || host.nodeType !== 1 || !host.closest) return;
+    var box = host.closest('[data-i18n-keep-original]');
+    if (!box || box.querySelector('.i18n-original')) return;
+    var span = document.createElement('span');
+    span.className = 'i18n-original';
+    span.setAttribute('translate', 'no');   // ここを再翻訳させない
+    span.textContent = (ORIGINAL_LABEL[cur] || '') + ' ' + original;
+    box.appendChild(span);
+  }
+
   function trText(node) {
     var v = node.nodeValue;
     if (!v || !HAS_JP.test(v)) return;
@@ -154,7 +171,10 @@
     var lead  = /^\s*/.exec(v)[0];
     var trail = /\s*$/.exec(v)[0];
     var next  = padEdges(node, out, lead, trail);
-    if (next !== v) node.nodeValue = next;    // 同値代入は再通知を招くので避ける
+    if (next === v) return;                   // 同値代入は再通知を招くので避ける
+    var original = v.trim();
+    node.nodeValue = next;
+    keepOriginal(node, original);
   }
 
   function trAttrs(el) {
@@ -262,6 +282,7 @@
       '.i18n-switch select:hover{opacity:1;}' +
       '.i18n-switch select option{color:#111;background:#fff;}' +
       '.i18n-switch-wrap{position:relative;display:inline-flex;align-items:center;}' +
+      '.i18n-original{display:block;margin-top:6px;font-size:11px;line-height:1.5;opacity:.7;}' +
       '.i18n-switch-wrap::after{content:"";position:absolute;right:6px;top:50%;pointer-events:none;' +
       'width:0;height:0;margin-top:-1px;border-left:3px solid transparent;border-right:3px solid transparent;' +
       'border-top:4px solid currentColor;opacity:.7;}';
@@ -361,6 +382,18 @@
     if (lang === cur) useDict(payload);
   };
 
+  // シート由来のテキスト（商品名・傷汚れ詳細・記事）の訳。Workerが配信する
+  // 静的辞書（人手）を上書きしないよう、既にあるキーは触らない
+  global.__I18N_REGISTER_DYNAMIC__ = function (lang, map) {
+    if (lang !== cur || !map) return;
+    var added = 0;
+    for (var k in map) {
+      if (!Object.prototype.hasOwnProperty.call(map, k)) continue;
+      if (strings[k] == null) { strings[k] = map[k]; added++; }
+    }
+    if (added && booted) applyAll();
+  };
+
   function loadDict(lang, cb) {
     if (DICT_CACHE[lang]) { useDict(DICT_CACHE[lang]); cb(null); return; }
     var s = document.createElement('script');
@@ -368,6 +401,17 @@
     s.async = false;
     s.onload = function () { cb(null); };
     s.onerror = function () { cb(new Error('dict ' + lang + ' failed')); };
+    (document.head || document.documentElement).appendChild(s);
+  }
+
+  // 商品データ・記事の訳。表示を止めたくないので静的辞書とは切り離して後追いで読む
+  function loadDynamicDict(lang) {
+    if (dynLoaded) return;
+    dynLoaded = true;
+    var s = document.createElement('script');
+    s.src = WORKER_ORIGIN + '/i18n/dict/' + encodeURIComponent(lang) + '.js';
+    s.async = true;
+    s.onerror = function () {};
     (document.head || document.documentElement).appendChild(s);
   }
 
@@ -416,11 +460,13 @@
     function go() {
       if (!dictDone || !domDone || booted) return;
       booted = true;
+      injectStyle();
       try { applyAll(); } finally { unveil(); }
       startObserver();
       wrapDialogs();
       buildSwitcher();
       hookLinks();
+      loadDynamicDict(cur);
     }
     loadDict(cur, function (err) {
       if (err) { cur = DEFAULT_LANG; unveil(); onReady(buildSwitcher); return; }

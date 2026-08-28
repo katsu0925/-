@@ -23,7 +23,11 @@ WORKERS_URL = "https://detauri-gas-proxy.nsdktts1030.workers.dev"
 # （AIキーワード書込み前にウォームされた古いタイトルが 24h KV に貼り付くのを防ぐ）
 SHIIRE_KANRI_URL = "https://shiire-kanri.nsdktts1030.workers.dev"
 
-# Cron Trigger: 5分ごとにD1 ⇔ Sheets同期
+# Workers AI（商品データ・記事の翻訳。Cron内でのみ使用・1日3,000 Neuron上限）
+[ai]
+binding = "AI"
+
+# Cron Trigger: 5分ごとにD1 ⇔ Sheets同期 → 翻訳キューの消化
 [triggers]
 crons = ["*/5 * * * *"]
 

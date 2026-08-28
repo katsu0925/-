@@ -13,6 +13,7 @@
 
 import { corsOptions, corsResponse, jsonOk, jsonError } from './utils/response.js';
 import { proxyToGas } from './handlers/proxy.js';
+import { serveDynamicDict, scheduledTranslate } from './i18n/mt.js';
 import * as products from './handlers/products.js';
 import * as session from './handlers/session.js';
 import * as auth from './handlers/auth.js';
@@ -133,6 +134,12 @@ export default {
     }
 
     // PWA: manifest.json
+    // 商品データ・記事の翻訳辞書（日本語以外を選んだ人だけが読む）
+    if (request.method === 'GET' && url.pathname.startsWith('/i18n/dict/')) {
+      const lang = decodeURIComponent(url.pathname.slice('/i18n/dict/'.length)).replace(/\.js$/, '');
+      return await serveDynamicDict(env, lang);
+    }
+
     if (request.method === 'GET' && url.pathname === '/manifest.json') {
       const manifest = JSON.stringify({
         name: 'タスキ箱',
@@ -415,6 +422,11 @@ self.addEventListener('fetch', e => {
         return await kitHandler.zipProduct(request, env, url);
       }
 
+      // 出品キット 全商品一覧CSV（旧配布用リストXLSXの代替）
+      if (url.pathname === '/api/kit/csv') {
+        return await kitHandler.exportCsv(request, env, url);
+      }
+
       // アップロードページ
       // HTMLにユーザー固有データは含まれず、認証は localStorage の token で fetch 時に行う。
       // → CDN edge にキャッシュさせ、2回目以降は Worker を起動せず即時返す。
@@ -514,7 +526,8 @@ self.addEventListener('fetch', e => {
 
   // Cron Trigger: D1 ⇔ Sheets 同期
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(scheduledSync(env));
+    // 同期のあとに翻訳（新しい商品・記事を見てから動かすため直列にする）
+    ctx.waitUntil(scheduledSync(env).then(() => scheduledTranslate(env)));
   },
 };
 

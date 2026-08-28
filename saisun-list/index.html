@@ -5227,7 +5227,7 @@ function renderDetailModalLocal(item, imageUrl, thumbUrl) {
   var defectHtml = '';
   if (item.defectDetail) {
     var escaped = escapeHtml_(item.defectDetail).replace(/\n/g, '<br>');
-    defectHtml = '<div class="detail-section"><div class="detail-section-title">傷・汚れ詳細</div><div class="detail-defect">' + escaped + '</div></div>';
+    defectHtml = '<div class="detail-section"><div class="detail-section-title">傷・汚れ詳細</div><div class="detail-defect" data-i18n-keep-original>' + escaped + '</div></div>';
   }
   
   var measurementsHtml = '';
