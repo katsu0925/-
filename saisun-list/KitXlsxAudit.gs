@@ -239,3 +239,12 @@ function revokeKitXlsxSharing(olderThanDays, execute) {
 function previewRevokeKitXlsxSharing() {
   return revokeKitXlsxSharing(KITAUDIT_RECENT_DAYS, false);
 }
+
+/**
+ * 【手動実行】90日より古い公開ファイルの共有を実際に解除する。
+ * エディタのプルダウンからは引数を渡せないため、実行用のラッパーを置いておく。
+ * revokeKitXlsxSharing を引数なしで実行すると下見で止まる（安全側の既定）。
+ */
+function runRevokeKitXlsxSharing() {
+  return revokeKitXlsxSharing(KITAUDIT_RECENT_DAYS, true);
+}
