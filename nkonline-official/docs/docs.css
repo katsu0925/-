@@ -163,7 +163,6 @@ ul.box li::before{
 .tools .tb:hover{border-color:var(--ink)}
 .tools .tb.pri{background:var(--brand);border-color:var(--brand);color:#fff}
 .tools .tb.pri:hover{background:#e8431f}
-.tools .tb.done{background:var(--ok-tint);border-color:var(--ok);color:var(--ok)}
 
 /* ---------- 資料フッター ---------- */
 .doc-foot{
@@ -231,50 +230,6 @@ ul.box li::before{
 .talk p:last-child{margin-bottom:0}
 .talk .min{color:var(--brand);font-weight:700}
 
-/* ---------- 発表モード ---------- */
-.present-bar{display:none}
-body.present{background:#0e1626}
-body.present .tools{display:none}
-body.present .sheet{max-width:none;margin:0;padding:0;box-shadow:none;background:transparent;min-height:0}
-body.present .sheet > *:not(.deck){display:none}
-body.present .deck{margin:0}
-body.present .deck > .slide:not(.now){display:none}
-body.present .slide.now{
-  margin:0;border:0;border-radius:0;
-  min-height:calc(100vh - 56px);
-  display:flex;flex-direction:column;justify-content:center;
-  padding:clamp(30px,6vw,90px);
-}
-body.present .slide.now h3{font-size:clamp(28px,4vw,46px)}
-body.present .slide.now .sub{font-size:clamp(15px,1.6vw,20px)}
-body.present .slide.now ul li{font-size:clamp(17px,1.9vw,25px);margin-bottom:14px;padding-left:30px}
-body.present .slide.now ul li::before{width:10px;height:10px;left:8px}
-body.present .slide.now .big{font-size:clamp(30px,4vw,48px)}
-body.present .slide.now .two .bx h5{font-size:clamp(15px,1.6vw,20px)}
-body.present .slide.now .two .bx p{font-size:clamp(14px,1.5vw,18px)}
-body.present .slide.now pre{font-size:clamp(13px,1.4vw,17px)}
-body.present .talk{display:none}
-
-/* ---------- 配布用モード（台本・講師向けの記載を隠す） ---------- */
-[data-handout]{display:none}
-body.no-talk [data-handout]{display:block}
-body.no-talk .talk,
-body.no-talk [data-teacher],
-body.no-talk .who{display:none!important}
-body.present .present-bar{
-  display:flex;position:fixed;left:0;right:0;bottom:0;z-index:60;
-  align-items:center;gap:16px;padding:11px 20px;
-  background:rgba(14,22,38,.94);color:#fff;
-}
-.present-bar .pb-c{font-family:'Archivo',sans-serif;font-weight:800;font-size:13px;letter-spacing:.06em}
-.present-bar .pb-h{font-size:12px;color:rgba(255,255,255,.62);margin-right:auto}
-.present-bar button{
-  border:1px solid rgba(255,255,255,.32);background:transparent;color:#fff;
-  border-radius:8px;font-family:inherit;font-size:12.5px;font-weight:700;
-  padding:7px 15px;cursor:pointer;transition:.25s;
-}
-.present-bar button:hover{background:rgba(255,255,255,.14)}
-
 /* ---------- 資料ハブ ---------- */
 .hub{display:grid;gap:12px;margin:22px 0 10px}
 .hb{display:block;background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px;transition:.25s;text-decoration:none;color:inherit}
@@ -285,7 +240,6 @@ body.present .present-bar{
 .hb p{font-size:13.5px;line-height:1.9;color:var(--muted)}
 .hb .hw{display:inline-block;margin-top:9px;font-size:12px;font-weight:700;color:var(--brand)}
 
-/* ---------- 印刷 ---------- */
 /* ---------- 本文中のファイル名・パス ---------- */
 code{
   font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
@@ -327,7 +281,6 @@ code{
   h3.h3{break-after:avoid;page-break-after:avoid}
   .pc,.note,table.t tr{break-inside:avoid;page-break-inside:avoid}
   .slide{break-inside:avoid;page-break-inside:avoid;border-color:#d8d2c6}
-  .present-bar{display:none!important}
   .pagebreak{break-before:page;page-break-before:always}
   a{color:var(--ink);text-decoration:none}
 }
