@@ -201,7 +201,7 @@ function premium_buildRepriceMailHtml_(rowCount) {
       + '新しい画像のURLが開けなかったため、これまでの画像をそのまま残しました（消えてはいません）。'
       + '下のURLをブラウザで開いて画像が表示されるか確かめてください。表示されるようになったら、'
       + 'GASエディタで applyPremiumRepricingNow() を実行すると差し替わります。<br>'
-      + 'https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-small-v5.jpg</p>';
+      + 'https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-small-v6.jpg</p>';
   }
   if (anyKept) {
     // 旧サムネには金額も点数も入っていないため、表示が矛盾することはない（訴求が弱いだけ）。
@@ -266,12 +266,15 @@ var PREMIUM_PRICE_V3_ = {
 // 受付番号と氏名だけサンプル値に匿名化）へ差し替えたので、撮影画像ギャラリーと採寸データ
 // まで写した画像に差し替えた。デモデータ本体は workers/gas-proxy/src/handlers/kit.js の
 // serveDemoKit にある。
+// v6（2026-08-29）: 土台アートのノートPCに Excel が映っていたのを、実際の出品キット画面に
+// 差し替えた。文字としての「xlsx」は v5 で消したが、絵が Excel のままだと訴求と実物が
+// 食い違うため。画面の座標は generate.py の SCREEN_* に実測値がある。
 // ★差し替えるときは必ずファイル名のバージョンを上げること。同名で上書きすると
 //   BASE 側の差分検知（画像URL5本のMD5）が反応せず、貼り直されない。
 var PREMIUM_IMAGES_V3_ = {
-  'プレミアムアソート小ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-small-v5.jpg', 'https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-kit-demo-v2.jpg', '', '', ''],
-  'プレミアムアソート中ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-medium-v5.jpg', 'https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-kit-demo-v2.jpg', '', '', ''],
-  'プレミアムアソート大ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-large-v5.jpg', 'https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-kit-demo-v2.jpg', '', '', '']
+  'プレミアムアソート小ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-small-v6.jpg', 'https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-kit-demo-v2.jpg', '', '', ''],
+  'プレミアムアソート中ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-medium-v6.jpg', 'https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-kit-demo-v2.jpg', '', '', ''],
+  'プレミアムアソート大ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-large-v6.jpg', 'https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-kit-demo-v2.jpg', '', '', '']
 };
 
 // 画像URLの生存確認。8/29の自動反映は無人で走るので、URLが死んでいた場合に

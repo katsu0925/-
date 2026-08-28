@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-プレミアムアソート サムネイル生成スクリプト（v4）
+プレミアムアソート サムネイル生成スクリプト（v6）
 
 v3 の JPEG（黒×ゴールドのブランドアート＋下部の情報帯）を土台にして、
 上部のタイトルを差し替え、下部に「出品キット付き」の帯を足す。
@@ -14,8 +14,13 @@ v3 の JPEG（黒×ゴールドのブランドアート＋下部の情報帯）�
   2026-06-01 のリブランドで「採寸付き」→「採寸撮影付き」に変わったのに、
   サムネのタイトルだけ旧表記「採寸付きパッケージ」のまま残っていた。
 
+v6 で足したこと:
+  土台アートのノートPCに Excel が映っているが、お客様に渡すのは XLSX ではなく
+  出品キット（Webページ）なので、画面部分を実際のキット画面に差し替える。
+  文字としての「xlsx」は v5 で消したが、絵が Excel のままだと訴求と実物が食い違う。
+
 使い方:
-  python3 generate.py            # img/premium-assort/*-v5.jpg を出力
+  python3 generate.py            # img/premium-assort/*-v6.jpg を出力
   python3 generate.py --check    # 出力せずマスク範囲の妥当性だけ検査
 
 ★差し替えるときは必ずファイル名（バージョン）を変えること。
@@ -47,6 +52,19 @@ MASK_FADE_UNTIL = 404
 # それより上はノートPCの画面・キーボードで明るいため覆わない。
 BAND_TOP = 958
 BAND_BOTTOM = 1078
+
+# ノートPC画面の位置（3ロットとも同じ座標。白い表計算部分の輪郭から実測）。
+# 画面上端は緑のリボンを含むので、白色検出より少し上を取っている。
+SCREEN_LEFT = 750
+SCREEN_TOP = 662
+SCREEN_RIGHT = 1272
+SCREEN_BOTTOM = 960
+
+# 差し替えに使うキット画面。ノートPCの画面比（522:298 ≒ 1.75）に合わせて撮る。
+DEMO_URL = "https://wholesale.nkonline-tool.com/kit?mode=demo"
+SCREEN_SHOT_W = 900
+SCREEN_SHOT_H = 513
+SCREEN_SHOT_DSF = 2
 
 LOTS = {
     "small": "小ロット",
@@ -104,6 +122,27 @@ HTML = """
   .title .l1 { font-size:132px; }
   .title .l2 { font-size:108px; }
 
+  /* ノートPCの画面をキットの画面に差し替える。
+     元の画面と同じくらいの明るさに落とし、斜めのグレアを重ねて
+     「貼り付けた」感じが出ないようにする */
+  .screen {
+    position:absolute;
+    left:@SCR_L@px; top:@SCR_T@px; width:@SCR_W@px; height:@SCR_H@px;
+    overflow:hidden;
+    box-shadow: inset 0 0 0 1px rgba(0,0,0,.55),
+                0 0 18px rgba(0,0,0,.45);
+  }
+  .screen img {
+    display:block; width:100%; height:100%; object-fit:cover; object-position:top center;
+    filter: brightness(.93) saturate(.94) contrast(1.02);
+  }
+  .screen .glare {
+    position:absolute; inset:0;
+    background: linear-gradient(108deg,
+      rgba(255,255,255,.16) 0%, rgba(255,255,255,.05) 26%,
+      rgba(255,255,255,0) 46%, rgba(0,0,0,.10) 100%);
+  }
+
   /* 「出品キット付き」の帯。下部の情報帯を上へ延長したように見せる */
   .band {
     position:absolute; left:0; right:0; top:@BAND_TOP@px; height:@BAND_H@px;
@@ -137,6 +176,8 @@ HTML = """
 <div class="mask"></div>
 <div class="glow"></div>
 
+<div class="screen"><img src="@SCREEN@"><i class="glare"></i></div>
+
 <div class="title">
   <span class="line l1">@LOT@</span>
   <span class="line l2">@LINE2@</span>
@@ -149,10 +190,15 @@ HTML = """
 """
 
 
-def build_html(bg_data_uri, lot_label):
+def build_html(bg_data_uri, lot_label, screen_data_uri):
     repl = {
         "@SIZE@": str(SIZE),
         "@BG@": bg_data_uri,
+        "@SCREEN@": screen_data_uri,
+        "@SCR_L@": str(SCREEN_LEFT),
+        "@SCR_T@": str(SCREEN_TOP),
+        "@SCR_W@": str(SCREEN_RIGHT - SCREEN_LEFT),
+        "@SCR_H@": str(SCREEN_BOTTOM - SCREEN_TOP),
         "@FADE_END@": str(MASK_FADE_UNTIL),
         "@SOLID_PCT@": "%.2f" % (MASK_SOLID_UNTIL / MASK_FADE_UNTIL * 100),
         "@BAND_TOP@": str(BAND_TOP),
@@ -194,7 +240,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="出力せずマスク範囲の検査だけ行う")
     ap.add_argument("--base", default="v3", help="土台にするバージョン（既定 v3）")
-    ap.add_argument("--out", default="v5", help="出力バージョン（既定 v5）")
+    ap.add_argument("--out", default="v6", help="出力バージョン（既定 v6）")
     args = ap.parse_args()
 
     check_base_images(args.base)
@@ -204,13 +250,26 @@ def main():
     with sync_playwright() as p:
         # headless_shell は未インストール。インストール済みの Chrome を使う
         browser = p.chromium.launch(channel="chrome")
+
+        # 先にキット画面を撮る。ノートPC画面と同じ比率で撮っておき、
+        # あとで縮小するだけにする（object-fit で切れないように）
+        shot_page = browser.new_page(
+            viewport={"width": SCREEN_SHOT_W, "height": SCREEN_SHOT_H},
+            device_scale_factor=SCREEN_SHOT_DSF)
+        shot_page.goto(DEMO_URL, wait_until="networkidle")
+        shot_page.wait_for_timeout(1200)
+        screen_png = shot_page.screenshot()
+        shot_page.close()
+        screen_uri = "data:image/png;base64," + base64.b64encode(screen_png).decode()
+        print("キット画面を撮影: %d KB" % (len(screen_png) // 1024))
+
         page = browser.new_page(viewport={"width": SIZE, "height": SIZE},
                                 device_scale_factor=1)
         for key, lot_label in LOTS.items():
             src = IMG_DIR / ("premium-assort-%s-%s.jpg" % (key, args.base))
             dst = IMG_DIR / ("premium-assort-%s-%s.jpg" % (key, args.out))
             data_uri = "data:image/jpeg;base64," + base64.b64encode(src.read_bytes()).decode()
-            page.set_content(build_html(data_uri, lot_label))
+            page.set_content(build_html(data_uri, lot_label, screen_uri))
             page.wait_for_timeout(400)
             page.screenshot(path=str(dst), type="jpeg", quality=92)
             print("生成: %s (%d KB)" % (dst.name, dst.stat().st_size // 1024))

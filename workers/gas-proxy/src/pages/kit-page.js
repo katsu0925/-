@@ -305,15 +305,20 @@ export function getKitPageHtml(kitDataJson) {
         '<input type="text" id="kitSearch" placeholder="管理番号・ブランドで検索" oninput="filterProducts()" style="flex:1;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px">' +
         '<a href="https://jp.mercari.com/sell/create" target="_blank" rel="noopener" style="padding:8px 14px;background:#ef4444;color:#fff;border-radius:8px;text-decoration:none;font-size:12px;font-weight:700;white-space:nowrap">メルカリで出品</a>' +
       '</div>' +
-      (data.isDemo ? '' :
-        '<div class="kit-csv-bar">' +
-          '<button type="button" class="kit-csv-btn" id="kitCsvBtn" onclick="downloadKitCsv(this)">' +
-            '<span class="btn-icon">&#x1F4C4;</span><span class="kit-csv-label">全商品の一覧をCSVでダウンロード</span>' +
-          '</button>' +
-          '<div class="kit-csv-note">タイトル・説明文・採寸・金額などをまとめた一覧です。Excel やスプレッドシートで開けます。' +
-            (expiryText ? '<br><strong>このページは ' + esc(expiryText) + ' まで閲覧できます。</strong>必要なデータは期間内に保存してください。' : '') +
-          '</div>' +
-        '</div>') +
+      // デモでも同じ見た目で出す（このページの画面がサムネイルの素材になるため）。
+      // ただしトークンが無いので押しても動かない＝デモではボタンにしない。
+      '<div class="kit-csv-bar">' +
+        (data.isDemo
+          ? '<div class="kit-csv-btn" aria-disabled="true">' +
+              '<span class="btn-icon">&#x1F4C4;</span><span class="kit-csv-label">全商品の一覧をCSVでダウンロード</span>' +
+            '</div>'
+          : '<button type="button" class="kit-csv-btn" id="kitCsvBtn" onclick="downloadKitCsv(this)">' +
+              '<span class="btn-icon">&#x1F4C4;</span><span class="kit-csv-label">全商品の一覧をCSVでダウンロード</span>' +
+            '</button>') +
+        '<div class="kit-csv-note">タイトル・説明文・採寸・金額などをまとめた一覧です。Excel やスプレッドシートで開けます。' +
+          (expiryText ? '<br><strong>このページは ' + esc(expiryText) + ' まで閲覧できます。</strong>必要なデータは期間内に保存してください。' : '') +
+        '</div>' +
+      '</div>' +
       '<div id="progressBar" style="margin:0 16px 8px;font-size:12px;color:#666"></div>' +
     '</div>' +
     '<div id="productList"></div>' +
