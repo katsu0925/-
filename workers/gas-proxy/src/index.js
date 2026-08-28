@@ -27,6 +27,7 @@ import { handleUpload, serveImage, backfillImageIndex, getProductImageUrls } fro
 import { getUploadPageHtml } from './pages/upload.html.js';
 import * as kitHandler from './handlers/kit.js';
 import { getGeminiUsage } from './usage.js';
+import { checkGeminiModelHealth } from './admin/model-health.js';
 
 // ─── フィーチャーフラグ: Workers側で処理するaction ───
 // 各Phaseで段階的に追加。削除で即ロールバック。
@@ -281,6 +282,18 @@ self.addEventListener('fetch', e => {
         return new Response(txt, { headers: { 'Content-Type': 'application/json' } });
       } catch (e) {
         return new Response(JSON.stringify({ error: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
+      }
+    }
+
+    // Geminiモデルの鮮度チェック: GET /admin/model-health?key=...
+    // saisun-list GAS の ModelWatch が毎日叩く。通知とメールは GAS 側の担当。
+    if (request.method === 'GET' && url.pathname === '/admin/model-health') {
+      if (url.searchParams.get('key') !== env.SYNC_SECRET) return new Response('Unauthorized', { status: 401 });
+      try {
+        const result = await checkGeminiModelHealth(env);
+        return new Response(JSON.stringify(result), { headers: { 'Content-Type': 'application/json' } });
+      } catch (e) {
+        return new Response(JSON.stringify({ ok: false, error: e.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });
       }
     }
 

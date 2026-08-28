@@ -277,9 +277,9 @@ function cronBaseTokenCheck() {
   }
 }
 
-/** 毎日8時: GA4同期 + 月次在庫サマリーメール(1日のみ) */
+/** 毎日8時: GA4同期 + 月次在庫サマリーメール(1日のみ) + 課金APIモデルの鮮度チェック */
 function cronDaily8() {
-  runWithErrorNotify_('cronDaily8', [ga4SyncAll, sendMonthlyStockSummary]);
+  runWithErrorNotify_('cronDaily8', [ga4SyncAll, sendMonthlyStockSummary, modelWatch_cron]);
 }
 
 /** 毎日9時: 複数関数を1トリガーで実行（バウンス検知→メルマガの順で不達除外を先に反映） */
