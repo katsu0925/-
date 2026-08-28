@@ -49,6 +49,7 @@ function kitaudit_resolveCols_(headers) {
   return {
     receipt:  find('受付番号')   || SHIPMAIL_CONFIG.COL_RECEIPT_NO,
     customer: find('会社名/氏名') || SHIPMAIL_CONFIG.COL_CUSTOMER_C,
+    contact:  find('連絡先')      || SHIPMAIL_CONFIG.COL_CONTACT_D,
     confirm:  find('確認リンク') || SHIPMAIL_CONFIG.COL_CONFIRM_LINK_I,
     kit:      find('出品キット') || SHIPMAIL_CONFIG.COL_KIT_URL
   };
@@ -69,7 +70,7 @@ function kitaudit_loadRequestMap_() {
 
     var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
     var c = kitaudit_resolveCols_(headers);
-    var need = Math.max(c.receipt, c.customer, c.confirm, c.kit);
+    var need = Math.max(c.receipt, c.customer, c.contact, c.confirm, c.kit);
     if (need > lastCol) {
       console.warn('%s: 必要な列(%s)がシートの列数(%s)を超えています', name, need, lastCol);
       return;
@@ -85,6 +86,7 @@ function kitaudit_loadRequestMap_() {
       if (map[rn]) continue;
       map[rn] = {
         customer: String(vals[i][c.customer - 1] || '').trim(),
+        contact: c.contact ? String(vals[i][c.contact - 1] || '').trim() : '',
         confirmLink: String(vals[i][c.confirm - 1] || '').trim(),
         kitUrl: String(vals[i][c.kit - 1] || '').trim(),
         sheet: name
@@ -123,7 +125,10 @@ function kitaudit_scan_() {
       access: access,
       hasKit: !!(req && req.kitUrl),
       inSheet: !!req,
-      sheet: req ? req.sheet : ''
+      sheet: req ? req.sheet : '',
+      customer: req ? req.customer : '',
+      contact: req ? req.contact : '',
+      kitUrl: req ? req.kitUrl : ''
     });
   }
 
@@ -247,4 +252,28 @@ function previewRevokeKitXlsxSharing() {
  */
 function runRevokeKitXlsxSharing() {
   return revokeKitXlsxSharing(KITAUDIT_RECENT_DAYS, true);
+}
+
+/**
+ * 【手動実行】まだ公開したままのXLSX（＝90日以内）の宛先一覧を出す。
+ * 案内メールを送る相手と、そこに載せる出品キットURLを1画面で確認するため。
+ */
+function listRecentKitXlsxCustomers() {
+  var rows = kitaudit_scan_().filter(function(r) { return r.isPublic; });
+  var tz = Session.getScriptTimeZone();
+  var seen = {};
+  console.log('まだ公開中のXLSX: %s件', rows.length);
+  rows.forEach(function(r) {
+    if (r.receiptNo && seen[r.receiptNo]) {
+      console.log('  （同一受注の重複ファイル）%s', r.name);
+      return;
+    }
+    if (r.receiptNo) seen[r.receiptNo] = true;
+    console.log('\n受付番号: %s（%s / %s日前）', r.receiptNo || '(不明)',
+      Utilities.formatDate(r.created, tz, 'yyyy-MM-dd'), r.ageDays);
+    console.log('  宛名  : %s', r.customer || '(依頼管理に無し)');
+    console.log('  連絡先: %s', r.contact || '(無し)');
+    console.log('  キット: %s', r.kitUrl || '(未発行)');
+  });
+  return rows.length;
 }
