@@ -355,3 +355,44 @@ function renameConfirmLinkColumn() {
   results.forEach(function(r) { console.log(r); });
   return results;
 }
+
+/**
+ * 【手動実行】依頼管理・依頼管理_アーカイブのAA列見出しを
+ * 「xlsx送付」→「キット送付」へ改称する。
+ *
+ * お客様に渡すのが XLSX ではなく出品キットになったため。中身の値（未/済/無し）
+ * の意味は変わらないので、見出しセルを書き換えるだけ。
+ * コード側は移行中どちらの名前でも引けるようにしてある。
+ */
+function renameXlsxSendColumn() {
+  var ss = sh_getOrderSs_();
+  var results = [];
+
+  KITAUDIT_REQUEST_SHEETS.forEach(function(name) {
+    var sh = ss.getSheetByName(name);
+    if (!sh) { results.push(name + ': シートなし'); return; }
+
+    var lastCol = sh.getLastColumn();
+    if (lastCol < 1) { results.push(name + ': 列なし'); return; }
+
+    var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    var col = 0;
+    for (var i = 0; i < headers.length; i++) {
+      var h = String(headers[i] || '').trim();
+      if (h === 'キット送付') { results.push(name + ': 既に改称済み（' + (i + 1) + '列目）'); return; }
+      if (h === 'xlsx送付') { col = i + 1; break; }
+    }
+    if (!col) { results.push(name + ': 「xlsx送付」見出しが見つかりません'); return; }
+    if (col !== REQUEST_SHEET_COLS.XLSX_SENT) {
+      // 想定と違う位置なら触らない。列ズレを黙って上書きしないため
+      results.push(name + ': 想定外の位置（' + col + '列目・想定' + REQUEST_SHEET_COLS.XLSX_SENT + '）。手で確認してください');
+      return;
+    }
+
+    sh.getRange(1, col).setValue('キット送付');
+    results.push(name + ': ' + col + '列目を「キット送付」に改称しました');
+  });
+
+  results.forEach(function(r) { console.log(r); });
+  return results;
+}

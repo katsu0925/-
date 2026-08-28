@@ -164,7 +164,7 @@ Phase 5 (Order):  apiSubmitEstimate（価格計算+KOMOJU決済セッション�
 | `StateStore.gs` | 確保/依頼中状態の永続化 |
 | `SyncApi.gs` | D1 ↔ Sheets 同期API |
 | `Triggers.gs` | onEditハンドラ、トリガー設定 |
-| `受注管理.gs` | 依頼展開（回収完了・XLSX生成・売却反映） |
+| `受注管理.gs` | 依頼展開（回収完了・出品キット生成・売却反映） |
 
 ### 5.2 設定値
 
@@ -282,7 +282,7 @@ KOMOJU → Webhook: payment.updated
 1. 決済完了 → `detectPremiumAssort_()` でキーワード検出
 2. `selectProductsForPremiumAssort_()` で商品選定（シーズン考慮、90%オンシーズン目標）
 3. J列に管理番号書き込み
-4. `om_executeFullPipeline_()` で自動展開（回収完了・XLSX生成・売却反映）
+4. `om_executeFullPipeline_()` で自動展開（回収完了・出品キット生成・売却反映）
 
 ### 7.4 依頼展開パイプライン
 
@@ -290,7 +290,7 @@ KOMOJU → Webhook: payment.updated
 
 1. **Phase 1**: 仕入れ管理 → 回収完了シートに商品展開
 2. **Phase 2**: 配布用リスト生成 + OpenAI API（gpt-4o-mini）でメルカリ説明文自動生成（20件/バッチ）
-3. **XLSX出力**: 配布用リストをExcelファイルとしてDriveに保存 → I列に確認リンク
+3. **出品キット生成**: 商品データをWorkers KVへ保存 → AL列にキットURL / I列にピッキングリストURL
 4. **Phase 3**: 商品管理ステータス → 「売却済み」、BO列 → 受付番号
 5. **後処理**: 売却履歴ログ書き込み、回収完了行削除
 
@@ -361,7 +361,7 @@ Workers Cron同期後、D1データをKVにプリウォーム:
 | X | ステータス | 依頼中/完了/キャンセル/返品 |
 | Y | 担当者 | |
 | Z | リスト同梱 | 未/済 |
-| AA | xlsx送付 | 未/済 |
+| AA | キット送付 | 未/済 |
 | AB | インボイス発行 | |
 | AC | インボイス状況 | |
 | AD | 受注通知 | |
@@ -585,7 +585,7 @@ setEnvProduction()   // 本番に戻す
 
 メニュー → `expandOrder()` → 受付番号入力
 
-自動処理: 回収完了展開 → AI説明文生成 → XLSX出力 → 確認リンク更新 → 売却反映
+自動処理: 回収完了展開 → AI説明文生成 → 出品キット生成 → キット/ピッキングURL書込み → 売却反映
 
 ### 16.2 会員割引ON/OFF
 

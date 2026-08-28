@@ -99,7 +99,7 @@ const APP_CONFIG = {
     status: 23,            // X列: ステータス
     person: 24,            // Y列: 担当者
     listEnclosed: 25,      // Z列: リスト同梱
-    xlsxSent: 26,          // AA列: xlsx送付
+    xlsxSent: 26,          // AA列: キット送付
     invoiceReq: 27,        // AB列: インボイス発行
     invoiceSent: 28,       // AC列: インボイス状況
     notifyFlag: 29,        // AD列: 受注通知

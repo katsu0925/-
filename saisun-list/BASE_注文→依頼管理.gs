@@ -136,7 +136,8 @@ function syncBaseOrdersToIraiKanri_() {
 
   const dstIdx_ShipStatus = findAnyCol_(dstMap, ['発送ステータス']);
   const dstIdx_ListInclude = findAnyCol_(dstMap, ['リスト同梱']);
-  const dstIdx_XlsxSend = findAnyCol_(dstMap, ['xlsx送付']);
+  // 列名は「xlsx送付」→「キット送付」へ改称。移行中はどちらでも引けるようにする
+  const dstIdx_XlsxSend = findAnyCol_(dstMap, ['キット送付', 'xlsx送付']);
   const dstIdx_Status = findAnyCol_(dstMap, ['ステータス']);
   const dstIdx_PaymentStatus = findAnyCol_(dstMap, ['入金確認']);  // T列
   // 列名は「確認リンク」→「ピッキングリスト」へ改称。移行中はどちらでも引けるようにする
@@ -159,7 +160,7 @@ function syncBaseOrdersToIraiKanri_() {
     ['電話番号', dstIdx_Tel],
     ['発送ステータス', dstIdx_ShipStatus],
     ['リスト同梱', dstIdx_ListInclude],
-    ['xlsx送付', dstIdx_XlsxSend],
+    ['キット送付', dstIdx_XlsxSend],
     ['ステータス', dstIdx_Status],
     ['受付番号', dstIdx_ReceiptNo],
     ['備考', dstIdx_Remarks],
@@ -343,10 +344,10 @@ function syncBaseOrdersToIraiKanri_() {
       //   ※作業報酬(AE)の数式は AG を参照しない（F1教訓）。分岐はコード側で行う。
       if (dstIdx_Channel !== -1) out[dstIdx_Channel] = 'アソート';
 
-      const hasXlsx = hasXlsx_(itemName);
-      // 対応済の場合、xlsx関連も完了扱いに（既に送付済みの想定）
-      out[dstIdx_ListInclude] = hasXlsx ? (isDispatched ? '済' : '未') : '無し';
-      out[dstIdx_XlsxSend] = hasXlsx ? (isDispatched ? '済' : '未') : '無し';
+      const hasKit = hasListingKit_(itemName);
+      // 対応済の場合、キット関連も完了扱いに（既に送付済みの想定）
+      out[dstIdx_ListInclude] = hasKit ? (isDispatched ? '済' : '未') : '無し';
+      out[dstIdx_XlsxSend] = hasKit ? (isDispatched ? '済' : '未') : '無し';
 
       // AB列: 通知フラグ — 対応済は既に発送済みなのでTRUE(LINE通知抑制)、未対応はFALSE(新規通知対象)
       if (dstIdx_NotifyFlag !== -1) out[dstIdx_NotifyFlag] = isDispatched ? true : false;
@@ -601,9 +602,19 @@ function findAppendRowByMainCol_(sheet, col1Based) {
   return lastFilled + 1;
 }
 
-function hasXlsx_(text) {
-  const s = String(text || '').toLowerCase();
-  return s.indexOf('xlsx') !== -1;
+// 出品キットが付く商品かどうか。
+// 以前は商品名に "xlsx" が含まれるかで判定していたが、商品名から xlsx という
+// 語を消したので、キットが付く商品の正であるプレミアムアソート3種と照合する。
+// 旧い商品名（"即出品xlsx…"）の注文が後から取り込まれても拾えるよう、
+// 旧判定もフォールバックとして残す。
+function hasListingKit_(text) {
+  const name = String(text || '');
+  if (typeof PREMIUM_PRICE_V3_ !== 'undefined') {
+    for (const key in PREMIUM_PRICE_V3_) {
+      if (name.indexOf(key) !== -1) return true;
+    }
+  }
+  return name.toLowerCase().indexOf('xlsx') !== -1;  // 旧商品名の保険
 }
 
 function buildAddr2CandidateIdxs_(headerRow, firstIdx) {

@@ -983,7 +983,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
 
   // 商品名リスト構築（GAS writeSubmitData_ のH列用）
   const allProductNames = [];
-  if (ids.length > 0) allProductNames.push('選べるxlsx付きパッケージ');
+  if (ids.length > 0) allProductNames.push('選べる出品キット付きパッケージ');
   for (const oi of orderItems) {
     let label = oi.name + ' x' + oi.qty + oi.unit;
     if (oi.discountRate > 0) label += '(' + oi.discountRate + '%OFF)';

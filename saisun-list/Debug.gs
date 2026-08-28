@@ -782,7 +782,7 @@ function debugRestoreOrder(params) {
     '依頼中',                     // V: ステータス
     '',                           // W: 担当者
     '未',                         // X: リスト同梱
-    '未',                         // Y: xlsx送付
+    '未',                         // Y: キット送付
     '',                           // Z: インボイス発行
     '',                           // AA: インボイス状況
     false,                        // AB: 受注通知
@@ -1015,7 +1015,7 @@ function debugRestoreFromSaleLog(receiptNo) {
     '依頼中',                     // V: ステータス
     '',                           // W: 担当者
     '未',                         // X: リスト同梱
-    '未',                         // Y: xlsx送付
+    '未',                         // Y: キット送付
     '',                           // Z: インボイス発行
     '',                           // AA: インボイス状況
     false,                        // AB: 受注通知

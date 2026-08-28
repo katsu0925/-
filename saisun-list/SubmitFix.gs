@@ -499,7 +499,7 @@ function apiSubmitEstimate(userKey, form, ids) {
 
     // === 商品名リストを構築（デタウリ個品はまとめて1行 + アソート商品は個別） ===
     var allProductNames = [];
-    if (list.length > 0) allProductNames.push('選べるxlsx付きパッケージ');
+    if (list.length > 0) allProductNames.push('選べる出品キット付きパッケージ');
     allProductNames = allProductNames.concat(bulkProductNames);
 
     // === チャネル判定 ===
@@ -922,10 +922,10 @@ function writeSubmitData_(data) {
   // A=受付番号, B=依頼日時, C=会社名/氏名, D=連絡先, E=郵便番号, F=住所, G=電話番号, H=商品名,
   // I=ピッキングリスト, J=選択リスト, K=合計点数, L=合計金額, M=送料(店負担), N=送料(客負担), O=決済方法, P=決済ID,
   // Q=入金確認, R=ポイント付与済, S=発送ステータス, T=配送業者, U=伝票番号, V=ステータス, W=担当者,
-  // X=リスト同梱, Y=xlsx送付, Z=インボイス発行, AA=インボイス状況, AB=受注通知,
+  // X=リスト同梱, Y=キット送付, Z=インボイス発行, AA=インボイス状況, AB=受注通知,
   // AC=発送通知, AD=備考, AE=作業報酬, AF=更新日時, AG=チャネル
   var reqSh = sh_ensureRequestSheet_(orderSs);
-  var productNames = data.productNames || '選べるxlsx付きパッケージ';
+  var productNames = data.productNames || '選べる出品キット付きパッケージ';
   if (productNames.indexOf('\n') !== -1) {
     productNames = productNames.split('\n').map(function(s) { return '・' + s; }).join('\n');
   } else if (productNames.indexOf('、') !== -1) {
@@ -971,7 +971,7 @@ function writeSubmitData_(data) {
     APP_CONFIG.statuses.open,                    // X: ステータス
     '',                                          // Y: 担当者
     '未',                                         // Z: リスト同梱
-    '未',                                         // AA: xlsx送付
+    '未',                                         // AA: キット送付
     data.form.invoiceReceipt ? '希望' : '',      // AB: インボイス発行
     '',                                          // AC: インボイス状況
     paymentStatus === '入金待ち' ? '' : false,     // AD: 受注通知（入金待ちは空白、入金済みはFALSE）
@@ -1704,7 +1704,10 @@ function apiCancelOrder(receiptNo) {
 
 /**
  * H列の商品名テキストから合計点数を算出する
- * 「選べるxlsx付きパッケージ」はカウントしない
+ * 「選べる出品キット付きパッケージ」はカウントしない
+ * この関数はシートのH列を読み直して再計算する経路（:1998 / :2085）があるため、
+ * 改称前の「選べるxlsx付きパッケージ」が入った既存行も必ず除外する。
+ * 片方だけにすると過去の注文の合計点数が1点ずつ増える。
  * 各行の「x2」「×3」等を合算、なければ1として加算
  */
 function calcTotalCountFromProductNames_(productNamesText) {
@@ -1714,7 +1717,8 @@ function calcTotalCountFromProductNames_(productNamesText) {
   for (var i = 0; i < lines.length; i++) {
     var line = lines[i].replace(/^・/, '').trim();
     if (!line) continue;
-    if (line.indexOf('選べるxlsx付きパッケージ') !== -1) continue;
+    if (line.indexOf('選べる出品キット付きパッケージ') !== -1) continue;
+    if (line.indexOf('選べるxlsx付きパッケージ') !== -1) continue;  // 改称前の既存行
     var m = line.match(/[x×]\s*(\d+)/i);
     total += m ? parseInt(m[1], 10) : 1;
   }

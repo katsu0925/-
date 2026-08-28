@@ -141,7 +141,7 @@ var REQUEST_SHEET_COLS = {
   STATUS: 24,           // X: ステータス
   STAFF: 25,            // Y: 担当者
   LIST_ENCLOSED: 26,    // Z: リスト同梱
-  XLSX_SENT: 27,        // AA: xlsx送付
+  XLSX_SENT: 27,        // AA: キット送付
   INVOICE_REQ: 28,      // AB: インボイス発行
   INVOICE_SENT: 29,     // AC: インボイス状況
   NOTIFY_FLAG: 30,      // AD: 受注通知
