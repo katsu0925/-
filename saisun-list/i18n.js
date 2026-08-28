@@ -416,7 +416,8 @@
     var added = 0;
     for (var k in map) {
       if (!Object.prototype.hasOwnProperty.call(map, k)) continue;
-      if (strings[k] == null) { strings[k] = map[k]; added++; }
+      var key = norm(k);                  // 全角スペース等を静的辞書と同じ形に揃える
+      if (key && strings[key] == null) { strings[key] = map[k]; added++; }
     }
     if (added && booted) applyAll();
   };
