@@ -273,6 +273,27 @@ function buildPrompt(lang, kind) {
   return common;
 }
 
+/**
+ * 機械翻訳の自動点検。
+ * 外国語が読めなくても気づける種類の壊れ方だけを機械的に弾く:
+ *   - 金額や重量などの数字が訳文から消えている（3,300円 が抜ける等）
+ *   - 訳文が極端に短い＝途中で切れている
+ *   - かなが残っている＝訳し漏れ
+ * 引っかかったら訳を保存しない。**日本語のまま出るほうが、誤訳が出るより安全**
+ */
+function checkTranslation(source, text) {
+  // 3桁以上の数字（金額・重量・年）は必ず残っていなければならない。
+  // 1〜2桁は「3〜9月 → March-September」のように語へ変わるのが正しいので見ない
+  const nums = (v) => (String(v).match(/\d[\d,]{2,}/g) || []).map((n) => n.replace(/,/g, ''));
+  const have = new Set(nums(text));
+  for (const n of nums(source)) {
+    if (!have.has(n)) return '数字が消えている: ' + n;
+  }
+  if (text.length < source.length * 0.3) return '訳が短すぎる（途中で切れた可能性）';
+  if (/[ぁ-んァ-ヶ]/.test(text)) return 'かなが残っている（訳し漏れ）';
+  return '';
+}
+
 /** モデルを1回叩く。使ったNeuronは budget.spent に足す */
 async function callModel(env, text, kind, lang, budget) {
   const r = await env.AI.run(MODEL, {
@@ -308,6 +329,8 @@ async function callModel(env, text, kind, lang, budget) {
   if (out.length > Math.max(200, text.length * 8)) {
     throw new Error('too long(' + out.length + '): ' + out.slice(0, 120));
   }
+  const bad = checkTranslation(text, out);
+  if (bad) throw new Error(bad + ' | ' + out.slice(0, 100));
   return out;
 }
 
