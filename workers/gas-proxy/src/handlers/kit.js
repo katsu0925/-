@@ -93,6 +93,10 @@ export async function saveKit(request, env) {
     }
   }
 
+  // 閲覧期限をデータに焼き込む。KVのTTLは保存時に決まるので、ここで確定する。
+  // ページ側は「半年」ではなく実際の日付を出せる（何をいつまでに保存すべきか伝わる）。
+  kitData.expiresAt = new Date(Date.now() + KIT_TTL * 1000).toISOString();
+
   // KV保存
   await env.CACHE.put(`kit:${receiptNo}`, JSON.stringify(kitData), { expirationTtl: KIT_TTL });
   await env.CACHE.put(`kit-token:${token}`, receiptNo, { expirationTtl: KIT_TTL });

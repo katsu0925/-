@@ -233,6 +233,20 @@ export function getKitPageHtml(kitDataJson) {
   var observer = null;
 
   // 顧客名マスク
+  // 閲覧期限。表示は必ず JST 固定（顧客の端末の時差で1日ずれると案内として嘘になる）
+  function formatExpiry(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    try {
+      return new Intl.DateTimeFormat('ja-JP', {
+        timeZone: 'Asia/Tokyo', year: 'numeric', month: 'long', day: 'numeric'
+      }).format(d);
+    } catch (e) {
+      return d.getFullYear() + '年' + (d.getMonth() + 1) + '月' + d.getDate() + '日';
+    }
+  }
+
   function maskName(name) {
     if (!name || name.length <= 1) return name || '';
     return name.charAt(0) + new Array(Math.min(name.length - 1, 3) + 1).join('*') + ' 様';
@@ -257,6 +271,7 @@ export function getKitPageHtml(kitDataJson) {
   // 半年TTLの間は旧形式(customerName)のキットも残るため両対応する。
   var maskedName = data.customerLabel || maskName(data.customerName);
   var orderDate = data.orderDate || '';
+  var expiryText = formatExpiry(data.expiresAt);
   var totalPrice = data.totalPrice ? Number(data.totalPrice).toLocaleString('ja-JP') : '0';
 
   // ヘッダー + ガイド + サマリー
@@ -295,7 +310,9 @@ export function getKitPageHtml(kitDataJson) {
           '<button type="button" class="kit-csv-btn" id="kitCsvBtn" onclick="downloadKitCsv(this)">' +
             '<span class="btn-icon">&#x1F4C4;</span><span class="kit-csv-label">全商品の一覧をCSVでダウンロード</span>' +
           '</button>' +
-          '<div class="kit-csv-note">タイトル・説明文・採寸・金額などをまとめた一覧です。Excel やスプレッドシートで開けます。</div>' +
+          '<div class="kit-csv-note">タイトル・説明文・採寸・金額などをまとめた一覧です。Excel やスプレッドシートで開けます。' +
+            (expiryText ? '<br><strong>このページは ' + esc(expiryText) + ' まで閲覧できます。</strong>必要なデータは期間内に保存してください。' : '') +
+          '</div>' +
         '</div>') +
       '<div id="progressBar" style="margin:0 16px 8px;font-size:12px;color:#666"></div>' +
     '</div>' +
