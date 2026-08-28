@@ -1,0 +1,450 @@
+<title>NKonlineリール設計書</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho+B1:wght@600;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root{
+    --paper:#F3F4F1;
+    --card:#FBFBF9;
+    --ink:#15191C;
+    --ink-2:#3E464C;
+    --ink-3:#6B7479;
+    --rule:#D9DCD5;
+    --rule-2:#E7E9E3;
+    --ai:#274C86;          /* 藍 */
+    --ai-soft:#E4EAF3;
+    --moss:#3C7263;        /* 深緑 = 良い指標 */
+    --moss-soft:#E2EDE9;
+    --rust:#A64F35;        /* 錆 = やらないこと */
+    --rust-soft:#F4E6E0;
+    --shadow:0 1px 2px rgba(21,25,28,.05), 0 8px 24px -18px rgba(21,25,28,.35);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#101315;
+      --card:#171B1E;
+      --ink:#E8EBE7;
+      --ink-2:#B3BAB8;
+      --ink-3:#828C8C;
+      --rule:#2A3034;
+      --rule-2:#22282B;
+      --ai:#8FB3E4;
+      --ai-soft:#1B2836;
+      --moss:#7FBFAC;
+      --moss-soft:#172823;
+      --rust:#E09A7F;
+      --rust-soft:#2C1D17;
+      --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -20px rgba(0,0,0,.9);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#101315;
+    --card:#171B1E;
+    --ink:#E8EBE7;
+    --ink-2:#B3BAB8;
+    --ink-3:#828C8C;
+    --rule:#2A3034;
+    --rule-2:#22282B;
+    --ai:#8FB3E4;
+    --ai-soft:#1B2836;
+    --moss:#7FBFAC;
+    --moss-soft:#172823;
+    --rust:#E09A7F;
+    --rust-soft:#2C1D17;
+    --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 28px -20px rgba(0,0,0,.9);
+  }
+
+  *{box-sizing:border-box}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"Zen Kaku Gothic New","Hiragino Kaku Gothic ProN","Yu Gothic",system-ui,sans-serif;
+    font-size:16px;
+    line-height:1.9;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:940px;margin:0 auto;padding:0 24px 96px}
+  .col{max-width:680px}
+
+  h1,h2,h3{font-family:"Shippori Mincho B1","Yu Mincho",serif;font-weight:700;text-wrap:balance;line-height:1.45;margin:0}
+  h1{font-size:clamp(30px,5.4vw,44px);letter-spacing:.01em}
+  h2{font-size:clamp(21px,3vw,26px)}
+  h3{font-size:17px;font-family:"Zen Kaku Gothic New",sans-serif;font-weight:700;line-height:1.7}
+  p{margin:0}
+  a{color:var(--ai)}
+
+  .eyebrow{
+    font-family:"IBM Plex Mono",ui-monospace,monospace;
+    font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--ink-3);
+  }
+
+  /* ヘッダー */
+  header.masthead{border-bottom:1px solid var(--rule);margin-bottom:56px}
+  .masthead-inner{padding:56px 0 32px;display:flex;flex-direction:column;gap:18px}
+  .masthead .lede{color:var(--ink-2);max-width:62ch}
+  .meta{
+    display:flex;flex-wrap:wrap;gap:8px 22px;
+    font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-3);
+    padding-top:6px;border-top:1px solid var(--rule-2);margin-top:6px;
+  }
+
+  section{margin-bottom:64px;scroll-margin-top:24px}
+  .sec-head{display:flex;align-items:baseline;gap:14px;margin-bottom:22px;padding-bottom:10px;border-bottom:1px solid var(--rule)}
+  .sec-head .num{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ai);letter-spacing:.08em;padding-top:2px}
+  .stack{display:flex;flex-direction:column;gap:18px}
+  .stack-lg{display:flex;flex-direction:column;gap:28px}
+
+  /* 結論ボックス */
+  .verdict{
+    background:var(--card);border:1px solid var(--rule);border-left:3px solid var(--ai);
+    border-radius:3px;padding:26px 28px;display:flex;flex-direction:column;gap:14px;box-shadow:var(--shadow);
+  }
+  .verdict p{max-width:64ch}
+  .verdict strong{color:var(--ai)}
+
+  /* 原因カード */
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px}
+  .card{
+    background:var(--card);border:1px solid var(--rule);border-radius:3px;
+    padding:20px 22px;display:flex;flex-direction:column;gap:9px;
+  }
+  .card .tag{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.1em;color:var(--ink-3)}
+  .card p{font-size:14.5px;color:var(--ink-2);line-height:1.85}
+
+  /* 数値チップ */
+  .figs{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:3px;overflow:hidden}
+  .fig{background:var(--card);padding:18px 20px;display:flex;flex-direction:column;gap:4px}
+  .fig .v{font-family:"IBM Plex Mono",monospace;font-size:24px;font-weight:500;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.3}
+  .fig .k{font-size:12.5px;color:var(--ink-3);line-height:1.6}
+
+  /* テーブル */
+  .tablewrap{overflow-x:auto;border:1px solid var(--rule);border-radius:3px;background:var(--card)}
+  table{border-collapse:collapse;width:100%;min-width:520px;font-size:14px}
+  th,td{text-align:left;padding:11px 16px;border-bottom:1px solid var(--rule-2);vertical-align:top;line-height:1.75}
+  th{font-family:"IBM Plex Mono",monospace;font-size:11.5px;letter-spacing:.08em;color:var(--ink-3);font-weight:500;white-space:nowrap;background:var(--paper)}
+  tbody tr:last-child td{border-bottom:none}
+  td.mono,th.mono{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:13px}
+
+  /* 施策 */
+  .move{display:grid;grid-template-columns:88px 1fr;gap:0 22px;align-items:start}
+  .move .rail{
+    display:flex;flex-direction:column;gap:6px;padding-top:3px;
+    font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.08em;color:var(--ink-3);
+    border-right:1px solid var(--rule-2);padding-right:16px;min-height:100%;
+  }
+  .move .rail .pri{color:var(--ai);font-size:13px}
+  .move .body{display:flex;flex-direction:column;gap:12px;max-width:66ch}
+  .move p{color:var(--ink-2);font-size:15px}
+  ul{margin:0;padding-left:1.1em;display:flex;flex-direction:column;gap:7px}
+  li{color:var(--ink-2);font-size:14.5px;line-height:1.85}
+  li::marker{color:var(--ink-3)}
+  li b{color:var(--ink);font-weight:700}
+  @media (max-width:640px){
+    .move{grid-template-columns:1fr;gap:10px}
+    .move .rail{flex-direction:row;gap:14px;border-right:none;border-bottom:1px solid var(--rule-2);padding:0 0 8px}
+  }
+
+  /* パイプライン */
+  .pipe{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+  .step{
+    background:var(--card);border:1px solid var(--rule);border-radius:3px;padding:15px 16px;
+    display:flex;flex-direction:column;gap:6px;position:relative;
+  }
+  .step .n{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--ai);letter-spacing:.1em}
+  .step .t{font-size:14.5px;font-weight:700;line-height:1.6}
+  .step .d{font-size:12.5px;color:var(--ink-3);line-height:1.7;font-family:"IBM Plex Mono",monospace}
+  .loopnote{
+    margin-top:12px;font-size:13px;color:var(--ink-3);
+    border-left:2px solid var(--moss);padding-left:12px;line-height:1.8;
+  }
+
+  /* 良い/悪い */
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media (max-width:720px){.split{grid-template-columns:1fr}}
+  .panel{border:1px solid var(--rule);border-radius:3px;padding:20px 22px;display:flex;flex-direction:column;gap:12px}
+  .panel.good{background:var(--moss-soft);border-color:color-mix(in srgb,var(--moss) 30%,transparent)}
+  .panel.bad{background:var(--rust-soft);border-color:color-mix(in srgb,var(--rust) 30%,transparent)}
+  .panel h3{font-size:14px}
+  .panel.good h3{color:var(--moss)}
+  .panel.bad h3{color:var(--rust)}
+  .panel li{font-size:14px}
+
+  /* フック表 */
+  .hooks{display:flex;flex-direction:column;gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:3px;overflow:hidden}
+  .hook{background:var(--card);padding:16px 20px;display:grid;grid-template-columns:120px 1fr;gap:4px 20px;align-items:baseline}
+  .hook .type{font-size:13px;font-weight:700;color:var(--ai)}
+  .hook .ex{font-size:14.5px;color:var(--ink)}
+  .hook .why{grid-column:2;font-size:12.5px;color:var(--ink-3);line-height:1.75}
+  @media (max-width:640px){.hook{grid-template-columns:1fr}.hook .why{grid-column:1}}
+
+  /* 出典 */
+  .sources{font-size:13px;color:var(--ink-3);line-height:2.1}
+  .sources a{color:var(--ink-2);text-decoration:none;border-bottom:1px solid var(--rule)}
+  .sources a:hover{color:var(--ai);border-color:var(--ai)}
+  .caveat{font-size:13px;color:var(--ink-3);line-height:1.85;border-left:2px solid var(--rule);padding-left:14px;max-width:64ch}
+
+  a:focus-visible,summary:focus-visible{outline:2px solid var(--ai);outline-offset:3px;border-radius:2px}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <div class="masthead-inner">
+      <p class="eyebrow">Instagram Reels ／ 品質改善リサーチ</p>
+      <h1>自動投稿を止めずに、<br>リールの中身だけを一段上げる</h1>
+      <p class="lede">結論から言うと、上げるべきは「映像のきれいさ」ではなく <b>冒頭3秒・素材の一次性・音の設計</b> の3点です。2026年のInstagramは、AIで作ったこと自体は減点しませんが、<b>テンプレ量産で人の手が入っていないもの</b>を推奨から外します。NKonlineには競合が持っていない一次素材（実在庫・検品・出荷・実データ・自社AIツールの画面）があり、そこが最大の差になります。</p>
+      <div class="meta">
+        <span>調査日 2026-08-28</span>
+        <span>対象 NKonline（古着卸 ／ AI導入支援）</span>
+        <span>前提 リール自動生成＋API自動投稿を運用中</span>
+      </div>
+    </div>
+  </header>
+
+  <section>
+    <div class="sec-head"><span class="num">01</span><h2>いま起きていること</h2></div>
+    <div class="stack">
+      <div class="verdict">
+        <p>AI生成＋自動投稿の動画が伸びないとき、原因はほぼ <strong>4つのどれか</strong> に収まります。解像度やエフェクトの問題であることは、まずありません。</p>
+        <p>そして2026年4月のアルゴリズム変更で、<strong>「他人の素材の寄せ集め」「実質的な編集が加わっていない量産物」はフォロワー外への推奨対象から外される</strong>方針が明文化されました。テンプレ動画の量産は、以前より明確に不利になっています。</p>
+      </div>
+      <div class="cards">
+        <div class="card">
+          <span class="tag">原因 A</span>
+          <h3>冒頭3秒が設計されていない</h3>
+          <p>視聴者の約45%は最初の3秒で離脱を判断し、フックが成否の7割を決めるとされます。自動生成の動画は「タイトル→本編」という素直な構成になりがちで、ここが最も弱い。</p>
+        </div>
+        <div class="card">
+          <span class="tag">原因 B</span>
+          <h3>素材が一次情報でない</h3>
+          <p>ストック映像やフル生成映像は誰でも作れます。倉庫・検品・梱包・実売データ・自社ツール画面といった「そこにしかない絵」が入っていないと、量産物として扱われます。</p>
+        </div>
+        <div class="card">
+          <span class="tag">原因 C</span>
+          <h3>音が設計されていない</h3>
+          <p>API投稿では音源はファイルに焼き込むのが原則で、トレンド音源に頼れません。無音・汎用BGM・棒読みナレーションのままだと、それだけで素人っぽさが出ます。</p>
+        </div>
+        <div class="card">
+          <span class="tag">原因 D</span>
+          <h3>テンポと情報密度</h3>
+          <p>1カットが長い、字幕が読み切れない、尺が長すぎる。伸びる帯は15〜30秒で、1カット1.5〜2.5秒が目安。90秒の詰め込みは完走率を落とします。</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">02</span><h2>2026年の前提（数字と仕様）</h2></div>
+    <div class="stack-lg">
+      <div class="figs">
+        <div class="fig"><span class="v">15–30<span style="font-size:14px">秒</span></span><span class="k">成果が出やすい尺。上限は90秒</span></div>
+        <div class="fig"><span class="v">45<span style="font-size:14px">%</span></span><span class="k">冒頭3秒で離脱を判断する割合</span></div>
+        <div class="fig"><span class="v">1080×1920</span><span class="k">9:16／30fps／3〜90秒</span></div>
+        <div class="fig"><span class="v">15<span style="font-size:14px">時間</span></span><span class="k">トライアルリールの結果が出るまで</span></div>
+      </div>
+
+      <div class="stack">
+        <h3>アルゴリズムが見ている順番</h3>
+        <p style="color:var(--ink-2);font-size:15px;max-width:66ch">2026年時点で重視されるのは <b>完走率／平均視聴時間 → シェア → 保存</b> の順。いいね数の比重は下がっています。2025年12月にはInsights APIに <b>スキップ率</b> やリポスト数などの指標が追加され、「どこで飛ばされたか」が数値で取れるようになりました。改善ループを回す材料は揃っています。</p>
+      </div>
+
+      <div class="stack">
+        <h3>API投稿でできること・できないこと</h3>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>項目</th><th>内容</th><th class="mono">影響</th></tr></thead>
+            <tbody>
+              <tr><td>動画仕様</td><td>MP4/MOV・H.264＋AAC 44.1kHz・9:16 1080×1920・30fps・3〜90秒・1GB以内・ビットレート3,500kbps以上推奨・<b>moovアトム先頭（faststart）</b>／edit list不可</td><td class="mono">必須</td></tr>
+              <tr><td>投稿上限</td><td>24時間あたり100投稿とする資料が多い一方、25〜50とする資料もある。<code>GET /{ig-user-id}/content_publishing_limit</code> で自アカウントの実値を確認するのが確実</td><td class="mono">要実測</td></tr>
+              <tr><td>APIコール</td><td>ビジネスアカウントあたり200コール/時（アプリ単位ではなくアカウント単位で共有）</td><td class="mono">設計制約</td></tr>
+              <tr><td>音源</td><td>原則、音はファイルに焼き込む。Facebookログイン連携の一部アカウントのみ、Meta公認音源のIDを事前指定して添付できる。ビジネスアカウントは使える曲自体が減る</td><td class="mono">最大の制約</td></tr>
+              <tr><td>トライアルリール</td><td>アプリ側の機能。フォロワー以外にだけ先行配信し、72時間以内に伸びれば自動でフォロワーにも展開</td><td class="mono">手動運用</td></tr>
+              <tr><td>Insights</td><td>視聴数・リーチ・平均視聴時間・保存・シェア・スキップ率などを <code>GET /{ig-media-id}/insights</code> で取得。フォロワー1,000人未満は一部取得不可</td><td class="mono">計測基盤</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="caveat">「45%」「7割」などの数値は運用会社のブログ由来の目安で、Metaの公式発表ではありません。仕様・上限は必ず自アカウントのAPIレスポンスで確認してください。</p>
+      </div>
+
+      <div class="split">
+        <div class="panel good">
+          <h3>減点されない使い方</h3>
+          <ul>
+            <li>実写素材の<b>編集・構成・要約</b>にAIを使う</li>
+            <li>自社データ・自社実務を元にした台本生成</li>
+            <li>1本ごとに人が手を入れる（フック・字幕・順番）</li>
+            <li>生成部分にはAI infoラベルを素直に付ける</li>
+          </ul>
+        </div>
+        <div class="panel bad">
+          <h3>推奨から外れる使い方</h3>
+          <ul>
+            <li>同一テンプレに文字だけ差し替えた<b>大量生成</b></li>
+            <li>他人の動画・拾い物の素材が主体の構成</li>
+            <li>全編フル生成映像を毎日投稿（アカウント単位のAIクリエイターラベル対象になりうる）</li>
+            <li>90秒に情報を詰め込む</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">03</span><h2>打ち手（効果の大きい順）</h2></div>
+    <div class="stack-lg">
+
+      <div class="move">
+        <div class="rail"><span class="pri">最優先</span><span>素材</span></div>
+        <div class="body">
+          <h3>一次素材の比率を、1本あたり最低5割にする</h3>
+          <p>ここが唯一、他社に真似できない部分です。生成映像を足すのではなく、実写の在庫棚・検品・採寸・梱包・出荷、スプレッドシートの実数字、自社AIツールの画面録画を「撮り溜め」て、AIは<b>編集側</b>に回す。撮影は週1回まとめ撮りで十分回ります。</p>
+          <ul>
+            <li><b>撮り溜めリスト:</b> 入荷開封／棚の引き／検品の手元／採寸／たたみ・梱包／伝票貼り／出荷の山／ツール操作画面</li>
+            <li><b>撮り方:</b> 手ぶれ防止に固定＋寄りの手元カット。窓光か白色LED1灯。背景は什器か無地。これだけで「素人動画」から抜けます</li>
+            <li>素材はR2かDriveにタグ付きで貯め、生成側から参照できる状態にしておく</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="move">
+        <div class="rail"><span class="pri">最優先</span><span>フック</span></div>
+        <div class="body">
+          <h3>1本につきフックを3案作り、冒頭0.8秒に「結論の絵」を置く</h3>
+          <p>タイトルカードから始めない。最初のフレームで結果・数字・違和感を見せ、テキストは<b>7〜10文字</b>で読み切れる量に。フックだけ差し替えた3本を作るのは、いまの自動生成の仕組みなら追加コストがほぼゼロです。</p>
+          <div class="hooks" style="margin-top:4px">
+            <div class="hook"><span class="type">数字提示</span><span class="ex">「1点800円の古着が、3,800円で売れた話」</span><span class="why">仕入れ値と販売額を最初のカットに同時表示</span></div>
+            <div class="hook"><span class="type">損失回避</span><span class="ex">「この検品を飛ばすと、返品で利益が消えます」</span><span class="why">副業層の一番の恐怖に直接触れる</span></div>
+            <div class="hook"><span class="type">ビフォーアフター</span><span class="ex">完成した出品ページを先に見せてから工程へ戻る</span><span class="why">「どうやって？」を作ってから説明に入る</span></div>
+            <div class="hook"><span class="type">対象指定</span><span class="ex">「在庫を1点から仕入れたい人だけ見てください」</span><span class="why">狙った層の視聴維持率だけが上がる</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="move">
+        <div class="rail"><span class="pri">高</span><span>構成</span></div>
+        <div class="body">
+          <h3>型を5つに絞り、1本20秒・7カットで固定する</h3>
+          <p>毎回ゼロから構成を作らない。勝ちパターンの型をテンプレ化し、中身（商品・数字・実務）だけ入れ替える。テンプレ「量産」との違いは、<b>各本に実写と実データが入っているか</b>です。</p>
+          <ul>
+            <li><b>型1 実演:</b> 仕入れ→検品→出品→売れた。価格を最後に出す</li>
+            <li><b>型2 数字暴露:</b> 今月の仕入額・販売額・粗利をそのまま出す（自社データが強い）</li>
+            <li><b>型3 失敗談:</b> やらかし→原因→対策。保存されやすい</li>
+            <li><b>型4 舞台裏:</b> 検品・梱包の手元とASMR的な音。完走率が高い</li>
+            <li><b>型5 AI導入支援:</b> 「毎日30分かかっていた作業」を画面録画で30秒に圧縮して見せる</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="move">
+        <div class="rail"><span class="pri">高</span><span>音</span></div>
+        <div class="body">
+          <h3>ナレーション・環境音・BGMを、数値で揃える</h3>
+          <p>API投稿ではトレンド音源が使えない前提で音を作り込むしかありません。逆に言えば、ここを整えるだけで同ジャンルの自動投稿アカウントより明確に上に立てます。</p>
+          <ul>
+            <li><b>ナレーション:</b> ElevenLabs等のAPI対応TTSで日本語。速度をやや速め、語尾を切る。全編ナレーションより「無音＋字幕＋環境音」の方が刺さる型もある（型4）</li>
+            <li><b>環境音を録る:</b> ハンガーの音、テープの音、たたむ音。一次素材の音は生成では出せません</li>
+            <li><b>ラウドネス:</b> 全体 −14 LUFS、BGMはナレーションより −16〜−20dB下げる。書き出し時に <code>loudnorm</code> で統一</li>
+            <li>音源は商用可のライセンス素材か自社録音に統一し、権利の履歴を残す</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="move">
+        <div class="rail"><span class="pri">中</span><span>仕上げ</span></div>
+        <div class="body">
+          <h3>字幕とエンコードの詰め</h3>
+          <ul>
+            <li>字幕は1行11〜13文字・最大2行。セーフエリアは上下それぞれ<b>15%</b>空ける（UIに隠れる）</li>
+            <li>キーワードだけ色を変える。フォントは太ゴシック1種に固定してブランドを作る</li>
+            <li>書き出し: <code>-c:v libx264 -profile:v high -pix_fmt yuv420p -r 30 -b:v 10M -c:a aac -ar 44100 -movflags +faststart</code></li>
+            <li>カバー画像は1枚目のフレーム任せにせず、<code>cover_url</code> で指定してプロフィール上の見栄えを揃える</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="move">
+        <div class="rail"><span class="pri">中</span><span>運用</span></div>
+        <div class="body">
+          <h3>本数を増やすのではなく、テストの回数を増やす</h3>
+          <p>週3〜4本。1本ごとにフック3案。まずトライアルリールでフォロワー外に当て、15時間後の数字で勝ち案だけを本配信に回す。これで「量産だが人の判断が入っている」状態になり、オリジナリティ方針とも噛み合います。</p>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">04</span><h2>いまの資産で組める仕組み</h2></div>
+    <div class="stack-lg">
+      <p style="color:var(--ink-2);font-size:15px;max-width:66ch">GAS＋スプレッドシート＋Cloudflare Workers/R2 という既存構成に、レンダリングと計測を足すだけで完結します。動画レンダリングだけはNode実行環境が要るので、GitHub Actions（またはローカルMac）で回すのが現実的です。</p>
+      <div>
+        <div class="pipe">
+          <div class="step"><span class="n">01</span><span class="t">台本生成</span><span class="d">Claude API<br>型＋実データを投入</span></div>
+          <div class="step"><span class="n">02</span><span class="t">素材選択</span><span class="d">R2 / Drive<br>タグ付き実写クリップ</span></div>
+          <div class="step"><span class="n">03</span><span class="t">音声合成</span><span class="d">TTS API<br>loudnorm 統一</span></div>
+          <div class="step"><span class="n">04</span><span class="t">レンダリング</span><span class="d">Remotion + ffmpeg<br>GitHub Actions</span></div>
+          <div class="step"><span class="n">05</span><span class="t">人の確認</span><span class="d">フック3案から選ぶ<br>ここは自動化しない</span></div>
+          <div class="step"><span class="n">06</span><span class="t">投稿</span><span class="d">Graph API<br>container → publish</span></div>
+          <div class="step"><span class="n">07</span><span class="t">計測</span><span class="d">Insights API<br>→ スプレッドシート</span></div>
+          <div class="step"><span class="n">08</span><span class="t">学習</span><span class="d">勝ちフックを<br>01のプロンプトへ</span></div>
+        </div>
+        <p class="loopnote">07→08→01 が閉じていることが要点です。既存の <code>GA4Analytics.gs</code> / 月次レポートHTMLと同じ作りで、フック別の完走率・保存率を貯めるシートを1枚足せば、次の台本生成の材料になります。</p>
+      </div>
+
+      <div class="stack">
+        <h3>技術選択の判断</h3>
+        <div class="tablewrap">
+          <table>
+            <thead><tr><th>用途</th><th>推奨</th><th>理由</th></tr></thead>
+            <tbody>
+              <tr><td>テンプレ動画の量産</td><td><b>Remotion</b>（React で動画を定義）</td><td>データ差し込みで同型を何十本も生成できる。字幕・カウントアップ・価格表示などの動きをコードで再現できるのが強い</td></tr>
+              <tr><td>実写の切り貼り・音量調整</td><td><b>ffmpeg</b></td><td>結合・トリム・loudnorm・faststart まで一括。既存のスクリプト運用と相性が良い</td></tr>
+              <tr><td>挿し込み用の生成映像</td><td><b>Veo 3.1</b>（9:16ネイティブ・4/6/8秒・音声同期）</td><td>全編ではなくイメージカット1〜2枚に留める用途。人物の動きが要るなら Kling、物理挙動やストーリー性なら Sora 2</td></tr>
+              <tr><td>ナレーション</td><td><b>API対応のTTS</b>（ElevenLabs / Google / CoeFont 等）</td><td>自動化前提ならAPIがあるものに限定。日本語の自然さは実際に3社試して耳で決める</td></tr>
+              <tr><td>配信・ホスティング</td><td><b>R2 の公開URL</b></td><td>Graph API は動画の公開URLを取りに来る。既存のWorkers構成にそのまま乗る</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">05</span><h2>30日でやること</h2></div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th class="mono">週</th><th>やること</th><th>できあがるもの</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">1週目</td><td>直近30本のInsightsを全部引き出し、完走率・保存・シェア・スキップ率をシート化。撮影リストを作り、倉庫で60〜90分まとめ撮り</td><td>現状の基準値と、一次素材ライブラリの初版</td></tr>
+          <tr><td class="mono">2週目</td><td>型を5つに絞ってRemotionテンプレ化。字幕・セーフエリア・ラウドネスを規格として固定</td><td>「NKonline仕様」の書き出し設定</td></tr>
+          <tr><td class="mono">3週目</td><td>1本＝フック3案で生成。トライアルリールで当て、15時間後の数字で本配信を決める運用を回す</td><td>フック別の勝率データ</td></tr>
+          <tr><td class="mono">4週目</td><td>勝ちフックを台本生成プロンプトに反映。Insights自動収集をGASトリガー化</td><td>閉じた改善ループ</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="caveat" style="margin-top:16px">判断基準の目安: 完走率25%以上／保存率1%以上なら型として残す。3秒視聴率が低い本は、内容ではなく<b>フックだけ</b>を作り直して再投稿する。</p>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="num">06</span><h2>出典</h2></div>
+    <div class="sources">
+      <a href="https://0120.co.jp/blog/video-89/">Instagram Reels アルゴリズム 2026年5月最新（エンゲージメント上昇要因の分解）</a><br>
+      <a href="https://tatap.jp/knowledge/reels-production/">リール制作完全ガイド 2026年版（尺・フック・構成）</a><br>
+      <a href="https://addness.co.jp/media/instagram-reel-playcount/">インスタ リール 再生回数の3つの数値基準</a><br>
+      <a href="https://www.tubefilter.com/2026/04/30/instagram-removes-algorithm-recommendations-repost-content-aggregator/">Instagram's new penalty for unoriginal content aggregators（2026年4月）</a><br>
+      <a href="https://getixgroup.com/blog/does-ai-content-hurt-social-reach-2026">Will AI-Generated Content Hurt Your Reach in 2026?</a><br>
+      <a href="https://tatap.jp/knowledge/instagram-ai-label/">Instagram AIラベルとは（仕組み・表示ルール・企業の対策）</a><br>
+      <a href="https://www.getphyllo.com/post/a-complete-guide-to-the-instagram-reels-api">Instagram Reels API: Complete Developer Guide (2026)</a><br>
+      <a href="https://www.netrows.com/blog/instagram-graph-api-guide-2026">Instagram Graph API 2026: Versions, Rate Limits &amp; Content Publishing</a><br>
+      <a href="https://blog.lunabloomai.com/instagram-reels-specifications/">Instagram Reels Specifications: The 2026 Creator Reference</a><br>
+      <a href="https://storrito.com/resources/how-instagram-marketing-api-metrics-work/">How Instagram's Updated Marketing API Metrics Work（2025年12月の新指標）</a><br>
+      <a href="https://bundle.social/instagram-music-api">Instagram Music API for Reels Audio IDs（音源添付の条件）</a><br>
+      <a href="https://www.hottolink.co.jp/column/20251209_119964/">Instagramのトライアルリールとは</a><br>
+      <a href="https://www.aquallc.jp/remotion-ai-video-guide/">Remotion × AI で動画自動生成（2026年最新）</a><br>
+      <a href="https://shift-ai.co.jp/blog/39024/">Veo 3.1 の使い方・料金・Sora 2 との比較</a><br>
+      <a href="https://note2video.com/blog/ai-narration-tools-comparison">AIナレーション9社比較（2026・API有無）</a>
+    </div>
+  </section>
+
+</div>
