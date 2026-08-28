@@ -1724,15 +1724,15 @@ export async function bulkReprocessAi(env, managedIds, options = {}) {
 
 // ─── Gemini AI判定 ───
 
-const GEMINI_MODEL = 'gemini-2.5-flash-lite';
+const GEMINI_MODEL = 'gemini-3.5-flash-lite';
 const GEMINI_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 // 画像並び替え判定は視覚分類精度を優先して flash を使用
-const ORDERING_MODEL = 'gemini-2.5-flash';
+const ORDERING_MODEL = 'gemini-3.5-flash';
 const ORDERING_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${ORDERING_MODEL}:generateContent`;
 
-// 怪しいケースだけ高精度化するためのスポット用 Pro モデル
-const ORDERING_PRO_MODEL = 'gemini-2.5-pro';
+// 怪しいケースだけ高精度化するためのスポット用モデル（3.5-pro は存在しないため 3.7-flash）
+const ORDERING_PRO_MODEL = 'gemini-3.7-flash';
 const ORDERING_PRO_ENDPOINT = `https://generativelanguage.googleapis.com/v1beta/models/${ORDERING_PRO_MODEL}:generateContent`;
 
 const AI_PRODUCT_PROMPT = `あなたは古着の商品情報を画像から判定する専門家です。以下の画像の古着商品について、JSON形式で情報を返してください。
