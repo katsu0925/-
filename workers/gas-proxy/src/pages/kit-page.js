@@ -100,6 +100,22 @@ export function getKitPageHtml(kitDataJson) {
   .save-images-btn .btn-icon { font-size: 14px; }
   .save-images-btn.primary-save { background: var(--accent); color: #fff; border-color: var(--accent); }
   .save-images-btn.primary-save:active { opacity: 0.9; }
+  .kit-csv-bar { margin: 0 16px 8px; }
+  .kit-csv-btn {
+    width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
+    background: #fff; color: var(--text); border: 1px solid var(--border);
+    padding: 9px 12px; border-radius: 8px; font-size: 12px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .kit-csv-btn:active { background: #f0f0f0; transform: scale(0.99); }
+  .kit-csv-btn[disabled] { opacity: 0.7; cursor: default; }
+  .kit-csv-note { margin-top: 4px; font-size: 11px; color: var(--text-light); line-height: 1.5; }
+  .kit-spinner {
+    width: 13px; height: 13px; flex: none; border-radius: 50%;
+    border: 2px solid rgba(0,0,0,0.15); border-top-color: var(--primary);
+    animation: kit-spin 0.7s linear infinite;
+  }
+  @keyframes kit-spin { to { transform: rotate(360deg); } }
   .copy-section { padding: 0 16px 12px; }
   .copy-block { margin-bottom: 10px; }
   .copy-block-label { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
@@ -237,7 +253,9 @@ export function getKitPageHtml(kitDataJson) {
 
   // コンテナ取得
   var container = document.getElementById('kitContainer');
-  var maskedName = maskName(data.customerName);
+  // 新しいキットは KV に生の氏名を持たない（customerLabel = マスク済み）。
+  // 半年TTLの間は旧形式(customerName)のキットも残るため両対応する。
+  var maskedName = data.customerLabel || maskName(data.customerName);
   var orderDate = data.orderDate || '';
   var totalPrice = data.totalPrice ? Number(data.totalPrice).toLocaleString('ja-JP') : '0';
 
@@ -272,6 +290,13 @@ export function getKitPageHtml(kitDataJson) {
         '<input type="text" id="kitSearch" placeholder="管理番号・ブランドで検索" oninput="filterProducts()" style="flex:1;padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px">' +
         '<a href="https://jp.mercari.com/sell/create" target="_blank" rel="noopener" style="padding:8px 14px;background:#ef4444;color:#fff;border-radius:8px;text-decoration:none;font-size:12px;font-weight:700;white-space:nowrap">メルカリで出品</a>' +
       '</div>' +
+      (data.isDemo ? '' :
+        '<div class="kit-csv-bar">' +
+          '<button type="button" class="kit-csv-btn" id="kitCsvBtn" onclick="downloadKitCsv(this)">' +
+            '<span class="btn-icon">&#x1F4C4;</span><span class="kit-csv-label">全商品の一覧をCSVでダウンロード</span>' +
+          '</button>' +
+          '<div class="kit-csv-note">タイトル・説明文・採寸・金額などをまとめた一覧です。Excel やスプレッドシートで開けます。</div>' +
+        '</div>') +
       '<div id="progressBar" style="margin:0 16px 8px;font-size:12px;color:#666"></div>' +
     '</div>' +
     '<div id="productList"></div>' +
@@ -522,6 +547,55 @@ export function getKitPageHtml(kitDataJson) {
     var token = new URLSearchParams(window.location.search).get('token');
     if (!token) { alert('トークンが不正です'); return; }
     window.location.href = '/api/kit/zip/' + encodeURIComponent(productId) + '?token=' + encodeURIComponent(token);
+  };
+
+  // ─── 全商品一覧CSVダウンロード ───
+  // fetch → Blob にしているのは、スピナーを「本当に終わったとき」に止めるため。
+  // Blob が使えない環境では素の遷移にフォールバックする（Content-Disposition が
+  // attachment なのでページは遷移しない）。
+  window.downloadKitCsv = async function(btn) {
+    var token = new URLSearchParams(window.location.search).get('token');
+    if (!token) { alert('トークンが不正です'); return; }
+    var url = '/api/kit/csv?token=' + encodeURIComponent(token);
+
+    var label = btn.querySelector('.kit-csv-label');
+    var icon = btn.querySelector('.btn-icon');
+    var origLabel = label.textContent;
+    btn.disabled = true;
+    icon.outerHTML = '<span class="kit-spinner"></span>';
+    label.textContent = '作成中...';
+
+    var restore = function(text) {
+      var sp = btn.querySelector('.kit-spinner');
+      if (sp) sp.outerHTML = '<span class="btn-icon">&#x1F4C4;</span>';
+      label.textContent = text;
+      setTimeout(function() { label.textContent = origLabel; btn.disabled = false; }, 2000);
+    };
+
+    try {
+      var res = await fetch(url, { credentials: 'same-origin' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      var blob = await res.blob();
+
+      var name = '出品リスト.csv';
+      var cd = res.headers.get('Content-Disposition') || '';
+      var m = cd.match(/filename\*=UTF-8''([^;]+)/);
+      if (m) { try { name = decodeURIComponent(m[1]); } catch (e) {} }
+
+      var objUrl = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = objUrl;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function() { URL.revokeObjectURL(objUrl); }, 10000);
+
+      restore('ダウンロードしました');
+    } catch (e) {
+      restore('ダウンロードを開始しました');
+      window.location.href = url;
+    }
   };
 
   // ─── 出品済みチェック（localStorage保存） ───

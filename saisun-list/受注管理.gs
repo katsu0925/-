@@ -1956,6 +1956,17 @@ function createKitFromDistList() {
  * @param {Sheet} reqSheet - 依頼管理シート
  * @param {Object} reqDataMap - 受付番号→行データマップ
  */
+/**
+ * 顧客名をキットページ表示用にマスクする（kit-page.js の maskName と同じ規則）。
+ * 先頭1文字 + '*'×最大3 + ' 様'。KVに生の氏名を保存しないための前処理。
+ */
+function om_maskCustomerName_(name) {
+  var s = String(name || '').trim();
+  if (s.length <= 1) return s;
+  var stars = Math.min(s.length - 1, 3);
+  return s.charAt(0) + new Array(stars + 1).join('*') + ' 様';
+}
+
 function om_saveKitToWorkers_(receiptNo, customerName, orderDate, totalPrice, productRows, aiResults, reqSheet, reqDataMap) {
   var props = PropertiesService.getScriptProperties();
   var workersUrl = props.getProperty('WORKERS_URL') || 'https://detauri-gas-proxy.nsdktts1030.workers.dev';
@@ -1983,6 +1994,7 @@ function om_saveKitToWorkers_(receiptNo, customerName, orderDate, totalPrice, pr
     var ai = aiResults[i] || {};
     items.push({
       managedId: pr.targetId || '',
+      boxId: pr.boxId || '',
       brand: pr.brand || '',
       item: pr.item || '',
       cat3: pr.cat3 || '',
@@ -1990,6 +2002,7 @@ function om_saveKitToWorkers_(receiptNo, customerName, orderDate, totalPrice, pr
       color: pr.color || '',
       gender: pr.gender || '',
       condition: pr.condition || '',
+      damageDetail: pr.damageDetail || '',
       aiKeywords: pr.aiKeywords || '',
       measurementText: pr.measurementText || '',
       priceText: pr.priceText || '',
@@ -2000,7 +2013,9 @@ function om_saveKitToWorkers_(receiptNo, customerName, orderDate, totalPrice, pr
 
   var kitData = {
     receiptNo: receiptNo,
-    customerName: customerName,
+    // 生の顧客名は送らない。キットページは元々マスク表示しかしていないため
+    // （kit-page.js の maskName）、KV に個人情報を残す理由がない。
+    customerLabel: om_maskCustomerName_(customerName),
     orderDate: dateStr,
     totalPrice: totalPrice,
     items: items

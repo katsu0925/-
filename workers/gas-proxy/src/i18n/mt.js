@@ -87,19 +87,27 @@ function translatable(s) {
   return HAS_JP.test(t);
 }
 
-/** HTML本文を、タグを壊さないようテキスト片に割る */
-export function splitHtmlText(html) {
-  const out = [];
-  const re = /<[^>]*>/g;
-  let last = 0, m;
-  while ((m = re.exec(html)) !== null) {
-    const seg = html.slice(last, m.index);
-    if (seg.trim()) out.push(seg.trim());
-    last = re.lastIndex;
-  }
-  const tail = html.slice(last);
-  if (tail.trim()) out.push(tail.trim());
-  return out;
+/**
+ * 記事本文を段落単位に割る。
+ * <strong> のようなインラインタグで切ってしまうと「30%増」だけがAIに渡り、
+ * 文脈を勝手に補った訳（"Sales have increased by 30%."）が出てしまうので、
+ * ブロック要素だけで切り、インラインタグは落として「画面に見えている文字列」にする。
+ * クライアント側は段落要素の textContent 全体をキーに突き合わせる
+ */
+export function splitHtmlBlocks(html) {
+  return String(html || '')
+    .split(/<\/(?:p|h[1-6]|li|div|blockquote|tr|section)\s*>/i)
+    .map((b) => b
+      .replace(/<[^>]*>/g, '')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/\s+/g, ' ')
+      .trim())
+    .filter(Boolean);
 }
 
 /* ------------------------------------------------------------------ budget */
@@ -214,7 +222,7 @@ export async function enqueueArticles(env) {
     const detail = await call('apiGetArticleContent', [a.id]);
     const content = detail && detail.article && detail.article.content;
     if (!content) continue;
-    for (const seg of splitHtmlText(content)) await collect(seg, 'article', found);
+    for (const seg of splitHtmlBlocks(content)) await collect(seg, 'article', found);
     markers.push({ key, id: a.id });
     fetched++;
   }

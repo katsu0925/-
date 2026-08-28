@@ -5,16 +5,17 @@
  *   POST /api/kit/save       — GASから呼び出し。キットデータをKV保存
  *   GET  /kit?token={uuid}   — キットページHTML配信
  *   GET  /api/kit/zip/{managedId}?token={uuid} — 商品画像ZIP
+ *   GET  /api/kit/csv?token={uuid}             — 全商品の一覧CSV（旧配布用リストXLSXと同じ14列）
  *
  * 認証:
  *   saveKit: ADMIN_KEY認証（bodyのadminKeyフィールド）
- *   serveKit / zipProduct: UUIDv4トークン
+ *   serveKit / zipProduct / exportCsv: UUIDv4トークン
  */
 
 import { jsonOk, jsonError } from '../utils/response.js';
 import { getKitPageHtml } from '../pages/kit-page.js';
 
-const KIT_TTL = 7776000; // 90日
+const KIT_TTL = 15552000; // 半年（180日）— 46点ロットを出品しきり、季節を一巡できる長さ
 
 // ─── POST /api/kit/save ───
 
@@ -135,6 +136,91 @@ export async function serveKit(request, env, url) {
   return new Response(html, {
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
+      'Referrer-Policy': 'no-referrer',
+      'Cache-Control': 'private, no-store',
+    },
+  });
+}
+
+// ─── GET /api/kit/csv?token={uuid} ───
+
+// 旧「配布用リスト」XLSX の列順・ヘッダーをそのまま踏襲する（1列目だけは
+// XLSX ではチェックボックスで見出しが空欄だったため「出品済」と名前を付けた）。
+const KIT_CSV_COLUMNS = [
+  ['出品済',                    () => 'FALSE'],
+  ['メルカリ用タイトル',        it => it.title],
+  ['即出品用説明文（コピペ用）', it => it.description],
+  ['箱ID',                      it => it.boxId],
+  ['管理番号(照合用)',          it => it.managedId],
+  ['ブランド',                  it => it.brand],
+  ['AIキーワード',              it => it.aiKeywords],
+  ['アイテム',                  it => it.item],
+  ['サイズ',                    it => it.size],
+  ['状態',                      it => it.condition],
+  ['傷汚れ詳細',                it => it.damageDetail],
+  ['採寸情報',                  it => it.measurementText],
+  ['金額',                      it => it.priceText],
+  ['性別',                      it => it.gender],
+];
+
+// RFC4180: 説明文に改行・カンマ・引用符が入るため、全セルを引用符で囲んで
+// 内側の " を "" にエスケープする。先頭が = + - @ のセルは Excel が数式として
+// 解釈する（CSVインジェクション）ので ' を前置して無害化する。
+function csvCell(value) {
+  let s = value == null ? '' : String(value);
+  if (/^[=+\-@]/.test(s)) s = "'" + s;
+  return '"' + s.replace(/"/g, '""') + '"';
+}
+
+export async function exportCsv(request, env, url) {
+  const token = url.searchParams.get('token');
+  if (!token) {
+    return jsonError('Missing token', 400);
+  }
+
+  // レート制限（IP 20回/分）— ZIPより重いので serveKit より厳しめ
+  const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+  const rlKey = `rl:kitcsv:${ip}`;
+  const rlCount = parseInt(await env.SESSIONS.get(rlKey) || '0', 10);
+  if (rlCount >= 20) {
+    return jsonError('Too many requests', 429);
+  }
+  await env.SESSIONS.put(rlKey, String(rlCount + 1), { expirationTtl: 60 });
+
+  const receiptNo = await env.CACHE.get(`kit-token:${token}`);
+  if (!receiptNo) {
+    return jsonError('Invalid or expired token', 403);
+  }
+
+  const kitJson = await env.CACHE.get(`kit:${receiptNo}`);
+  if (!kitJson) {
+    return jsonError('Invalid or expired token', 403);
+  }
+
+  let kitData;
+  try {
+    kitData = JSON.parse(kitJson);
+  } catch {
+    return jsonError('Invalid kit data', 500);
+  }
+
+  const items = kitData.items || [];
+  const lines = [KIT_CSV_COLUMNS.map(c => csvCell(c[0])).join(',')];
+  for (const item of items) {
+    lines.push(KIT_CSV_COLUMNS.map(c => csvCell(c[1](item))).join(','));
+  }
+
+  // CRLF + UTF-8 BOM。BOM が無いと Excel が Shift_JIS と誤認して全部文字化けする。
+  const body = '\uFEFF' + lines.join('\r\n') + '\r\n';
+
+  const fileName = `出品リスト_${receiptNo}.csv`;
+  const asciiName = `kit-list-${receiptNo}.csv`;
+
+  return new Response(body, {
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition':
+        `attachment; filename="${asciiName}"; filename*=UTF-8''${encodeURIComponent(fileName)}`,
       'Referrer-Policy': 'no-referrer',
       'Cache-Control': 'private, no-store',
     },

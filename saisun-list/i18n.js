@@ -199,6 +199,26 @@
     }
   }
 
+  // <strong> 等で分断された段落は、要素まるごとを1つのキーとして差し替える。
+  // 断片ごとに訳すと文脈のない短文になり、機械翻訳が勝手に文脈を補ってしまうため
+  var BLOCK_SEL = 'p,h1,h2,h3,h4,h5,h6,li,dd,td,blockquote,figcaption,.article-item-summary';
+
+  function trBlocks(root) {
+    if (!root.querySelectorAll) return;
+    var els = root.querySelectorAll(BLOCK_SEL);
+    for (var i = 0; i < els.length; i++) {
+      var el = els[i];
+      if (el.getAttribute('data-i18n-block') || !el.children.length) continue;  // 素のテキストは通常経路で足りる
+      var txt = el.textContent;
+      if (!txt || !HAS_JP.test(txt)) continue;
+      if (skipEl(el)) continue;
+      var out = lookup(txt);
+      if (out == null) continue;
+      el.setAttribute('data-i18n-block', '1');
+      el.textContent = out;                 // 訳文では太字などの装飾は落ちる
+    }
+  }
+
   function applyTo(root) {
     if (!root) return;
     if (root.nodeType === 3) { if (!skipEl(root.parentNode)) trText(root); return; }
@@ -219,7 +239,14 @@
     }
   }
 
+  function applyToWithBlocks(root) {
+    if (root && root.nodeType === 1) trBlocks(root);   // 先に段落まるごとを処理する
+    else if (root && (root.nodeType === 9 || root.nodeType === 11)) trBlocks(root);
+    applyTo(root);
+  }
+
   function applyAll() {
+    trBlocks(document);
     applyTo(document.documentElement);
     var t = document.title;
     if (t && HAS_JP.test(t)) { var o = lookup(t); if (o != null) document.title = o; }
@@ -233,7 +260,7 @@
       for (var i = 0; i < muts.length; i++) {
         var m = muts[i];
         if (m.type === 'childList') {
-          for (var j = 0; j < m.addedNodes.length; j++) applyTo(m.addedNodes[j]);
+          for (var j = 0; j < m.addedNodes.length; j++) applyToWithBlocks(m.addedNodes[j]);
         } else if (m.type === 'characterData') {
           if (!skipEl(m.target.parentNode)) trText(m.target);
         } else if (m.type === 'attributes') {
