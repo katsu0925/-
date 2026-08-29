@@ -264,12 +264,12 @@
       <div class="card">
         <div class="title">チャットボット (Chatbot.gs)</div>
         <div class="note">サイト内チャットボットで使用するモデル。</div>
-        <div class="form-row"><label>モデル</label><input type="text" id="ai-chat-model" placeholder="gpt-5-mini"></div>
+        <div class="form-row"><label>モデル</label><input type="text" id="ai-chat-model" placeholder="gpt-5.6-luna"></div>
       </div>
       <div class="card">
         <div class="title">記事自動生成 (Articles.gs)</div>
         <div class="note">記事自動生成で使用。生成スケジュール: 月=売り方, 水=仕入れ, 金=副業基礎, 日=トレンド。</div>
-        <div class="form-row"><label>モデル</label><input type="text" id="ai-article-model" placeholder="gpt-5-mini"></div>
+        <div class="form-row"><label>モデル</label><input type="text" id="ai-article-model" placeholder="gpt-5.6-luna"></div>
         <div class="form-row"><label>表示上限</label><input type="number" id="ai-article-max" style="width:60px"></div>
         <div class="note">サイトに表示する記事の最大数。</div>
       </div>
@@ -1139,8 +1139,8 @@ async function loadAiSettings(){
   try {
     var res = await run('adminPanel_getAiSettings');
     if(!res.ok) return;
-    $('ai-chat-model').value = res.chatModel || 'gpt-5-mini';
-    $('ai-article-model').value = res.articleModel || 'gpt-5-mini';
+    $('ai-chat-model').value = res.chatModel || 'gpt-5.6-luna';
+    $('ai-article-model').value = res.articleModel || 'gpt-5.6-luna';
     $('ai-article-max').value = res.articleMaxDisplay || 10;
     $('ai-order-model').value = res.orderModel || 'gpt-4o-mini';
     $('ai-order-batch').value = res.orderBatchSize || 30;

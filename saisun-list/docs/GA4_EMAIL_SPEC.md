@@ -108,7 +108,7 @@ ga4advice_cron()
 | 流入元・ファネル | GA4 Data API | `ga4advice_fetchYesterdayGA4_()` |
 | 注文データ | 依頼管理シート | `ga4advice_collectOrderMetrics_()` |
 | ニュースレター履歴 | ニュースレターシート | `ga4advice_collectWeeklyOrderMetrics_()` |
-| AIアドバイス | OpenAI API (`gpt-5-mini`) | `ga4advice_callAI_()` |
+| AIアドバイス | OpenAI API (`gpt-5.6-luna`) | `ga4advice_callAI_()` |
 
 ### AI分析プロンプト仕様
 

@@ -218,7 +218,7 @@ function adminPanel_getBizSettings() {
       payeasyRate: s.payeasyRate || 0.0275,
       paidyRate: s.paidyRate || 0.035,
       jimotiRate: s.jimotiRate || 0.10,
-      aiModel: s.aiModel || 'gpt-5-mini',
+      aiModel: s.aiModel || 'gpt-5.6-luna',
       aiDailyLimit: s.aiDailyLimit || 200,
       aiMaxKeywords: s.aiMaxKeywords || 8,
       aiMinKeywords: s.aiMinKeywords || 3,

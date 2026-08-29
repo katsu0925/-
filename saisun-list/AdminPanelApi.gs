@@ -292,8 +292,8 @@ function adminPanel_getAiSettings() {
   if (raw) { try { s = JSON.parse(raw); } catch (e) {} }
   return {
     ok: true,
-    chatModel: s.chatModel || 'gpt-5-mini',
-    articleModel: s.articleModel || 'gpt-5-mini',
+    chatModel: s.chatModel || 'gpt-5.6-luna',
+    articleModel: s.articleModel || 'gpt-5.6-luna',
     articleMaxDisplay: s.articleMaxDisplay || 10,
     orderModel: s.orderModel || 'gpt-4o-mini',
     orderBatchSize: s.orderBatchSize || 30
