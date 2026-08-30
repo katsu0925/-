@@ -11,6 +11,13 @@
 //  → 列位置はヘッダー名で解決し、見つからないときだけ従来の列番号にフォールバックする。
 //    （同名ヘッダーが複数ある場合は「最初の列」を優先）
 //
+// ■ 2026-08-30 タイムアウト修正
+//  商品管理が 7,400 行を超え、集計ループ内の Utilities.formatDate（約 25,000 回）が
+//  6分の実行上限を食い潰して毎回タイムアウト → シートは clear() だけされて空のまま だった。
+//  → wa_ym_ / wa_day_ から Utilities.formatDate を排除（スクリプトTZ=Asia/Tokyo なので
+//    Date のローカルゲッターと GMT+9 フォーマットは一致する）。
+//  → clear() を「集計が終わって書き出す直前」へ移動。途中で落ちても前回の内容が残る。
+//
 // ※ セル結合は一切使わない。Sheet.clear() は結合を解除しないため、
 //   結合を使うと毎時の再実行でレイアウトが壊れる。
 
@@ -44,13 +51,10 @@ function buildWorkAnalysis() {
   if (!src) throw new Error(WA_SRC_NAME + ' シートが見つかりません');
   var dst = ss.getSheetByName(WA_DST_NAME) || ss.insertSheet(WA_DST_NAME);
 
-  dst.clear();
-  dst.setFrozenRows(0);
-  try { dst.setHiddenGridlines(true); } catch (e) {}
-
   var lastRow = src.getLastRow();
   var lastCol = src.getLastColumn();
   if (lastRow < 2) {
+    wa_reset_(dst);
     dst.getRange(1, 1).setValue('データがありません');
     return;
   }
@@ -143,6 +147,8 @@ function buildWorkAnalysis() {
   var curLabel = Utilities.formatDate(mStart, 'GMT+9', 'yyyy年M月');
 
   // ---- 出力（すべて A列起点・行カーソルで縦積み） ----
+  // clear() はここまで来てから。集計中に落ちてもシートを空にしない。
+  wa_reset_(dst);
   var r = 1;
   var width = Math.max(7, pivotMonths.length + 2);
 
@@ -244,11 +250,18 @@ function buildWorkAnalysis() {
 
   // ---- 体裁 ----
   dst.setColumnWidth(1, 200);
-  for (var cw = 2; cw <= width; cw++) dst.setColumnWidth(cw, 92);
+  dst.setColumnWidths(2, width - 1, 92);
   dst.setFrozenRows(2);
 }
 
 /* ============================ 出力ヘルパー ============================ */
+
+/** 出力先シートを初期化する（書き出し直前にだけ呼ぶ） */
+function wa_reset_(sh) {
+  sh.clear();
+  sh.setFrozenRows(0);
+  try { sh.setHiddenGridlines(true); } catch (e) {}
+}
 
 /** 行数・列数が足りなければ追加する（setValues のはみ出しエラー防止） */
 function wa_ensure_(sh, row, col, numRows, numCols) {
@@ -382,8 +395,15 @@ function wa_date_(v) {
   return d;
 }
 
-function wa_ym_(d)  { return Utilities.formatDate(d, 'GMT+9', 'yyyy/MM'); }
-function wa_day_(d) { return Utilities.formatDate(d, 'GMT+9', 'yyyy/MM/dd'); }
+/**
+ * 集計ループから 1 行あたり最大 5 回呼ばれる。Utilities.formatDate は
+ * ネイティブ呼び出しで重く、2万回超で 6 分の実行上限を超えるため使わない。
+ * appsscript.json の timeZone が Asia/Tokyo なので、Date のローカルゲッターは
+ * 'GMT+9' フォーマットと同じ値を返す。
+ */
+function wa_pad2_(n) { return n < 10 ? '0' + n : String(n); }
+function wa_ym_(d)  { return d.getFullYear() + '/' + wa_pad2_(d.getMonth() + 1); }
+function wa_day_(d) { return wa_ym_(d) + '/' + wa_pad2_(d.getDate()); }
 
 /** '8/1(金)' 形式の表示ラベル */
 function wa_dayLabel_(d) {
