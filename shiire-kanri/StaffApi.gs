@@ -945,6 +945,75 @@ function staff_setupSyncSecret() {
 
 // 商品管理シート 全行ダンプ（Cloudflare D1 への同期用）
 // ヘッダー駆動で全カラムを extra に格納。主要カラムは個別フィールドにも残す（既存互換）
+// ═══════════════════════════════════════════
+//  日付セルの文字列化（Utilities.formatDate の呼び出しを減らす）
+// ═══════════════════════════════════════════
+// Utilities.formatDate はネイティブ呼び出しが重く、実測でおよそ 7ms/回かかる。
+// 商品管理が 7,500 行に育ち、全列 × 日付セルで数万回走った結果、
+// syncDumpProducts の doPost が 147〜360 秒かかり 5分Cron ごとに 1 本タイムアウトしていた
+// （2026-08-31 実行履歴で確認。同じ原因で 2026-08-30 に buildWorkAnalysis も直している）。
+//
+// スクリプト TZ とシート TZ が共に Asia/Tokyo のときだけ、Date のローカルゲッターで
+// 同じ文字列を組み立てる（V8 ランタイムの Date ローカルゲッターは appsscript.json の
+// timeZone に従うので Asia/Tokyo なら formatDate(d,'Asia/Tokyo',…) と完全に同値）。
+// TZ が食い違う環境では従来どおり Utilities.formatDate に倒す。
+//
+// ⚠ 出力が 1 文字でも変われば D1 の全行 UPSERT と日付の意味の変化を招く。
+//    ここを触ったら必ず verifyFastDateFormat()（日付フォーマット検証.gs）を通すこと。
+// ⚠ 同じ整形は staff_syncDumpProducts（5分Cronの全行ダンプ）と
+//    staff_buildProductRowPayload_（行単位 webhook）の両方が使う。食い違うと D1 が
+//    書いた側によって別の値になるため、必ずこの共有関数だけを経由させる。
+function sfd_fast_(tz, sheetTz) { return tz === 'Asia/Tokyo' && sheetTz === 'Asia/Tokyo'; }
+function sfd_p2_(n) { return n < 10 ? '0' + n : '' + n; }
+function sfd_ymd_(d) { return d.getFullYear() + '-' + sfd_p2_(d.getMonth() + 1) + '-' + sfd_p2_(d.getDate()); }
+function sfd_iso_(d) {
+  return sfd_ymd_(d) + 'T' + sfd_p2_(d.getHours()) + ':' + sfd_p2_(d.getMinutes()) + ':' + sfd_p2_(d.getSeconds()) + '+09:00';
+}
+
+/** 日付セル → 'yyyy-MM-dd'（旧 fmtDate 相当） */
+function sfd_date_(d, sheetTz, fast) {
+  if (!(d instanceof Date)) return String(d || '');
+  return fast ? sfd_ymd_(d) : Utilities.formatDate(d, sheetTz, 'yyyy-MM-dd');
+}
+
+/** タイムスタンプ → ISO 文字列（旧 fmtTs 相当） */
+function sfd_ts_(d, tz, fast) {
+  if (!(d instanceof Date)) return String(d || '');
+  return fast ? sfd_iso_(d) : Utilities.formatDate(d, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
+}
+
+/**
+ * セル1個 → 文字列（旧 fmtCell 相当）。
+ * 「日付のみ」セルの検出は単一 TZ では誤爆する。
+ * 例: AppSheet が PDT 起点で書いた `2026-04-06T07:00Z` は JST で 16:00、PDT で 00:00。
+ *     web フロント側で `new Date('2026-05-07')` を保存した値は UTC 起点で JST 09:00。
+ * → JST/UTC/America/Los_Angeles のいずれかで 00:00:00 なら date-only と判定する。
+ */
+function sfd_cell_(d, tz, sheetTz, fast) {
+  if (!(d instanceof Date)) return (d === null || d === undefined) ? '' : String(d);
+  if (fast) {
+    // JST の真夜中（ローカルゲッター＝スクリプトTZ=Asia/Tokyo）
+    if (d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0) return sfd_ymd_(d);
+    var uh = d.getUTCHours(), um = d.getUTCMinutes(), us = d.getUTCSeconds();
+    // UTC の真夜中
+    if (uh === 0 && um === 0 && us === 0) return sfd_ymd_(d);
+    // LA の真夜中は UTC 07:00:00(PDT) / 08:00:00(PST) のときしか有り得ない。
+    // 該当する僅かなセルだけ formatDate で夏時間を確定させる（ほぼ呼ばれない）。
+    if (um === 0 && us === 0 && (uh === 7 || uh === 8)
+        && Utilities.formatDate(d, 'America/Los_Angeles', 'HH:mm:ss') === '00:00:00') {
+      return sfd_ymd_(d);
+    }
+    return sfd_iso_(d);
+  }
+  var hmsJst = Utilities.formatDate(d, sheetTz, 'HH:mm:ss');
+  var hmsUtc = Utilities.formatDate(d, 'UTC', 'HH:mm:ss');
+  var hmsLa  = Utilities.formatDate(d, 'America/Los_Angeles', 'HH:mm:ss');
+  if (hmsJst === '00:00:00' || hmsUtc === '00:00:00' || hmsLa === '00:00:00') {
+    return Utilities.formatDate(d, sheetTz, 'yyyy-MM-dd');
+  }
+  return Utilities.formatDate(d, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
+}
+
 function staff_syncDumpProducts() {
   var ss = staff_getActiveSpreadsheet_();
   var sh = ss.getSheetByName(STAFF_SHEET_NAME);
@@ -960,31 +1029,11 @@ function staff_syncDumpProducts() {
   // スプレッドシートの TZ が JST と異なる（PDT など）と日付セルの時刻成分が getHours() でゼロにならず
   // 全日付セルが ISO 化されてしまう。TZ 上の HH:mm:ss で判定することで「日付のみ」セルを正しく検出する
   var sheetTz = ss.getSpreadsheetTimeZone() || tz;
-  function fmtDate(d) {
-    if (d instanceof Date) return Utilities.formatDate(d, sheetTz, 'yyyy-MM-dd');
-    return String(d || '');
-  }
-  function fmtTs(d) {
-    if (d instanceof Date) return Utilities.formatDate(d, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
-    return String(d || '');
-  }
-  // 「日付のみ」セルの検出は単一 TZ では誤爆する。
-  // 例: AppSheet が PDT 起点で書いた `2026-04-06T07:00Z` は JST で 16:00、PDT で 00:00。
-  //     web フロント側で `new Date('2026-05-07')` を保存した値は UTC 起点で JST 09:00。
-  // → JST/UTC/America/Los_Angeles のいずれかで 00:00:00 なら date-only と判定する。
-  function fmtCell(d) {
-    if (d instanceof Date) {
-      var hmsJst = Utilities.formatDate(d, sheetTz, 'HH:mm:ss');
-      var hmsUtc = Utilities.formatDate(d, 'UTC', 'HH:mm:ss');
-      var hmsLa  = Utilities.formatDate(d, 'America/Los_Angeles', 'HH:mm:ss');
-      if (hmsJst === '00:00:00' || hmsUtc === '00:00:00' || hmsLa === '00:00:00') {
-        return Utilities.formatDate(d, sheetTz, 'yyyy-MM-dd');
-      }
-      return Utilities.formatDate(d, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
-    }
-    if (d === null || d === undefined) return '';
-    return String(d);
-  }
+  var FAST = sfd_fast_(tz, sheetTz);
+  function fmtDate(d) { return sfd_date_(d, sheetTz, FAST); }
+  function fmtTs(d) { return sfd_ts_(d, tz, FAST); }
+  // 「日付のみ」セルの判定条件は sfd_cell_ のコメントを参照（3 TZ のいずれかで真夜中なら date-only）
+  function fmtCell(d) { return sfd_cell_(d, tz, sheetTz, FAST); }
   function num(v) {
     if (v === '' || v === null || v === undefined) return null;
     var n = Number(v);
@@ -1068,8 +1117,9 @@ function staff_pairIntegritySweep_(sh, values, headers, sheetTz, tz) {
 
   function isEmpty(v){ return v === '' || v === null || v === undefined; }
   // Date でも文字列でも「yyyy-MM-dd」を抽出する。抽出できなければ '' を返す
+  var FAST = sfd_fast_(tz, sheetTz);
   function toDateStr(v){
-    if (v instanceof Date) return Utilities.formatDate(v, sheetTz, 'yyyy-MM-dd');
+    if (v instanceof Date) return sfd_date_(v, sheetTz, FAST);
     var s = String(v == null ? '' : v).trim();
     if (!s) return '';
     var m = s.match(/(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})/);
@@ -2515,29 +2565,11 @@ function staff_buildProductRowPayload_(sh, rowNum) {
 
   var tz = Session.getScriptTimeZone() || 'Asia/Tokyo';
   var sheetTz = ss.getSpreadsheetTimeZone() || tz;
-  function fmtDate(d) {
-    if (d instanceof Date) return Utilities.formatDate(d, sheetTz, 'yyyy-MM-dd');
-    return String(d || '');
-  }
-  function fmtTs(d) {
-    if (d instanceof Date) return Utilities.formatDate(d, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
-    return String(d || '');
-  }
-  // 「日付のみ」セルは JST/UTC/PDT のいずれかで 00:00:00 になるので、
-  // 3 TZ いずれかで真夜中なら date-only と判定する（fmtCell コメント参照）
-  function fmtCell(d) {
-    if (d instanceof Date) {
-      var hmsJst = Utilities.formatDate(d, sheetTz, 'HH:mm:ss');
-      var hmsUtc = Utilities.formatDate(d, 'UTC', 'HH:mm:ss');
-      var hmsLa  = Utilities.formatDate(d, 'America/Los_Angeles', 'HH:mm:ss');
-      if (hmsJst === '00:00:00' || hmsUtc === '00:00:00' || hmsLa === '00:00:00') {
-        return Utilities.formatDate(d, sheetTz, 'yyyy-MM-dd');
-      }
-      return Utilities.formatDate(d, tz, "yyyy-MM-dd'T'HH:mm:ssXXX");
-    }
-    if (d === null || d === undefined) return '';
-    return String(d);
-  }
+  var FAST = sfd_fast_(tz, sheetTz);
+  function fmtDate(d) { return sfd_date_(d, sheetTz, FAST); }
+  function fmtTs(d) { return sfd_ts_(d, tz, FAST); }
+  // 5分Cronの全行ダンプ（staff_syncDumpProducts）と必ず同じ整形にする＝共有の sfd_cell_ だけを通す
+  function fmtCell(d) { return sfd_cell_(d, tz, sheetTz, FAST); }
   function num(v) {
     if (v === '' || v === null || v === undefined) return null;
     var n = Number(v);
