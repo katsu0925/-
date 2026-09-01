@@ -35,6 +35,21 @@ var SWAP_EXPORT_MAX_ATTEMPTS = 4;     // 1エクスポートあたりの最大�
 var SWAP_EXPORT_BACKOFF_MS = 4000;    // リトライ待機ベース（試行ごとに ×attempt = 4s,8s,12s）
 var _swapExportLastTs = 0;            // 直近エクスポート時刻（同一実行内で保持しペーシングに使用）
 
+// ─── 送れなかった分の自動持ち越し設定 ─────────────────────
+//  Apps Script のメール枠(無料Gmail=100通/日)は Google アカウント単位で全スクリプト
+//  共有のため、同じ9時台に走る saisun-list のメルマガ配信が枠を使い切ると、
+//  入替リストの最後尾アカウント（例:かつ）だけ送信できずに落ちる（2026-09-01 実例）。
+//  対策として「送れなかったアカウントをプロパティに退避 → 1時間ごとに残枠を見て、
+//  空き次第そのまま送る」方式にする。枠が無い間はメールを1通も消費しない。
+var SWAP_PENDING_PROP = 'SWAP_PENDING_JSON';  // 持ち越し状態の保存先（Script Properties）
+var SWAP_RETRY_FN = 'retrySwapListPending';   // 持ち越し再送のハンドラ名
+var SWAP_RETRY_INTERVAL_MS = 60 * 60 * 1000;  // 再チェック間隔（1時間）
+var SWAP_RETRY_MAX_HOURS = 72;                // 打ち切りまでの時間（3日）
+var SWAP_QUOTA_RESERVE = 2;                   // サマリー・緊急メール用に必ず残す通数
+var SWAP_STATUS_DONE = '送信完了';
+var SWAP_STATUS_NONE = '対象0件（送信なし）';
+var SWAP_STATUS_CARRY = 'メール枠不足で持ち越し';
+
 // ═══════════════════════════════════════════
 //  入替リスト生成＆メール送信
 // ═══════════════════════════════════════════
@@ -43,8 +58,11 @@ var _swapExportLastTs = 0;            // 直近エクスポート時刻（同一
  * 入替リストを生成・送信する。
  * @param {Array<string>=} filterNames 指定時はこのアカウント名だけに絞って送信（手動再送用）。
  *   トリガーからは引数なしで呼ばれ、全アカウントが対象になる。
+ * @param {{monthStartMs:number, firstFailedAt:number, done:Object}=} retryCtx
+ *   持ち越し再送のときだけ retrySwapListPending から内部的に渡す。
+ *   集計対象月を初回実行時に固定し、既に届いた宛先への二重送信を防ぐ。
  */
-function generateSwapLists(filterNames) {
+function generateSwapLists(filterNames, retryCtx) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName(SWAP_CONFIG.PRODUCT_SHEET_NAME);
   if (!sheet) throw new Error('商品管理シートが見つかりません');
@@ -69,8 +87,11 @@ function generateSwapLists(filterNames) {
   var excludedNames = getExcludedWorkers_(ss);
 
   const now = new Date();
-  const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+  // 持ち越し再送では初回実行時の集計対象月をそのまま使う（月をまたいでも中身がズレない）
+  const prevMonthStart = (retryCtx && retryCtx.monthStartMs)
+    ? new Date(retryCtx.monthStartMs)
+    : new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevMonthEnd = new Date(prevMonthStart.getFullYear(), prevMonthStart.getMonth() + 1, 0);
 
   const props = PropertiesService.getScriptProperties();
   var adminEmail = props.getProperty('ADMIN_OWNER_EMAIL') || '';
@@ -85,10 +106,15 @@ function generateSwapLists(filterNames) {
   var monthLabel = prevMonthStart.getFullYear() + '年' + (prevMonthStart.getMonth() + 1) + '月';
   var nowStr = Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss');
   const results = [];
+  // 送れなかったアカウント。実行の最後にプロパティへ退避して1時間後に再挑戦する。
+  var carryOver = [];
+  // 持ち越し再送時に「既に届いている宛先」を飛ばすためのマップ { アカウント名: {op:bool, admin:bool} }
+  var doneMap = (retryCtx && retryCtx.done) || {};
 
   // ★ アカウントごとに try/catch で完全隔離する。
   //   1アカウントの失敗（PDF生成例外・メール例外）が後続アカウントの配信を止めない。
   accounts.forEach(function(acct) {
+    var done = doneMap[acct.name] || {};
     var result = {
       account: acct.name, prevMonthCount: 0, items: [],
       email: acct.email || '', emailSent: false, adminSent: false, status: '', error: ''
@@ -98,23 +124,38 @@ function generateSwapLists(filterNames) {
       result.prevMonthCount = built.prevMonthCount;
       result.items = built.items;
 
+      // このアカウントで今回まだ送っていない宛先の数（＝必要なメール枠）
+      var needOperator = !!(acct.email && !done.op);
+      var needAdmin = !!(adminEmail && adminEmail !== acct.email && !done.admin);
+      var need = (needOperator ? 1 : 0) + (needAdmin ? 1 : 0);
+      var remaining = swap_remainingQuota_();
+
       if (result.items.length === 0) {
-        result.status = '対象0件（送信なし）';
+        result.status = SWAP_STATUS_NONE;
+      } else if (need === 0) {
+        // 持ち越し再送で全宛先が既に届いている（通常は起きないが安全弁）
+        result.emailSent = !!done.op; result.adminSent = !!done.admin;
+        result.status = SWAP_STATUS_DONE;
+      } else if (remaining < need + SWAP_QUOTA_RESERVE) {
+        // ★枠不足。PDFも作らずそのまま持ち越す（メールを1通も消費しない）
+        result.status = SWAP_STATUS_CARRY;
+        result.error = 'メール残枠' + remaining + '通（必要' + need + '通＋予備' + SWAP_QUOTA_RESERVE + '通）';
+        console.warn('入替リスト: ' + acct.name + ' を持ち越し — ' + result.error);
       } else {
         var pdfBlob = generateSwapPdf_(acct.name, prevMonthStart, prevMonthEnd, result.prevMonthCount, result.items);
         var errs = [];
         // 運用者へ送信（メール未設定ならスキップ＝管理者には届く）
-        if (acct.email) {
+        if (needOperator) {
           try { sendSwapEmail_(acct.email, acct.name, prevMonthStart, result.prevMonthCount, result.items, pdfBlob); result.emailSent = true; }
           catch (e) { errs.push('運用者送信失敗: ' + (e.message || e)); console.error('入替リスト 運用者送信失敗 (' + acct.name + '): ' + (e.message || e)); }
-        }
+        } else if (done.op) { result.emailSent = true; }
         // 管理者へも同じPDFを送信（運用者送信が失敗しても独立して実行）
-        if (adminEmail && adminEmail !== acct.email) {
+        if (needAdmin) {
           try { sendSwapEmail_(adminEmail, acct.name, prevMonthStart, result.prevMonthCount, result.items, pdfBlob); result.adminSent = true; }
           catch (e) { errs.push('管理者送信失敗: ' + (e.message || e)); console.error('入替リスト 管理者送信失敗 (' + acct.name + '): ' + (e.message || e)); }
-        }
+        } else if (done.admin) { result.adminSent = true; }
         result.error = errs.join(' / ');
-        result.status = errs.length ? ((result.emailSent || result.adminSent) ? '一部送信' : '送信失敗') : '送信完了';
+        result.status = errs.length ? ((result.emailSent || result.adminSent) ? '一部送信' : '送信失敗') : SWAP_STATUS_DONE;
       }
     } catch (e) {
       result.error = String(e && e.message || e);
@@ -123,22 +164,46 @@ function generateSwapLists(filterNames) {
     }
     results.push(result);
 
-    // 1アカウントずつログへ追記（途中でタイムアウトしても痕跡が残る＝原因切り分け用）
-    appendSwapLog_([[
-      nowStr, monthLabel, acct.name, result.prevMonthCount, result.items.length,
-      result.emailSent ? acct.email : (acct.email ? '送信失敗' : '(未設定)'),
-      result.adminSent ? adminEmail : (adminEmail ? (result.items.length ? (result.status.indexOf('失敗') >= 0 ? '送信失敗' : '-') : '-') : '(管理者未設定)'),
-      result.status, result.error || ''
-    ]]);
+    // 未達の宛先が残っていれば持ち越し対象にする（届いた宛先は done に記録＝二重送信しない）
+    if (result.status !== SWAP_STATUS_DONE && result.status !== SWAP_STATUS_NONE) {
+      carryOver.push({
+        name: acct.name,
+        done: { op: !!(done.op || result.emailSent), admin: !!(done.admin || result.adminSent) },
+        lastError: result.status + (result.error ? ' / ' + result.error : '')
+      });
+    }
+
+    // 1アカウントずつログへ追記（途中でタイムアウトしても痕跡が残る＝原因切り分け用）。
+    // 持ち越し待ちの1時間ごとの再送では、決着が付いた行だけ記録してログの肥大を防ぐ。
+    var shouldLog = !retryCtx || result.status === SWAP_STATUS_DONE ||
+      result.status === SWAP_STATUS_NONE || result.status === '一部送信';
+    if (shouldLog) {
+      appendSwapLog_([[
+        nowStr, monthLabel, acct.name, result.prevMonthCount, result.items.length,
+        result.emailSent ? acct.email : (acct.email ? (result.status === SWAP_STATUS_CARRY ? '持ち越し' : '送信失敗') : '(未設定)'),
+        result.adminSent ? adminEmail : (adminEmail ? (result.items.length ? (result.status === SWAP_STATUS_CARRY ? '持ち越し' : (result.status.indexOf('失敗') >= 0 ? '送信失敗' : '-')) : '-') : '(管理者未設定)'),
+        result.status, result.error || ''
+      ]]);
+    }
   });
 
-  // 管理者へ月次サマリーを必ず送信（失敗があっても全体結果が手元に届くようにする）
-  sendSwapSummaryToAdmin_(adminEmail, monthLabel, results);
+  // ★送れなかった分は退避して1時間後に再挑戦。全部送れていれば持ち越しを解除する。
+  //   filterNames で一部だけ流したときに、対象外アカウントの持ち越しを消さないようマージする。
+  swap_updatePending_(props, accounts, carryOver, prevMonthStart, retryCtx);
+
+  // 管理者へ月次サマリーを送信（失敗があっても全体結果が手元に届くようにする）。
+  // 持ち越し再送では、全部送り切ったときだけ完了報告を出す（毎時サマリーで枠を食わない）。
+  if (!retryCtx) {
+    sendSwapSummaryToAdmin_(adminEmail, monthLabel, results, carryOver, false);
+  } else if (carryOver.length === 0) {
+    sendSwapSummaryToAdmin_(adminEmail, monthLabel, results, carryOver, true);
+  }
 
   var summary = results.map(function(r) {
     return r.account + ': 前月販売 ' + r.prevMonthCount + '件 → 返送対象 ' + r.items.length + '件 [' + r.status + ']' + (r.error ? ' ' + r.error : '');
   }).join('\n');
-  console.log('入替リスト生成完了\n' + summary);
+  console.log('入替リスト生成完了\n' + summary +
+    (carryOver.length ? '\n※持ち越し ' + carryOver.length + '件（1時間後に自動再送）' : ''));
 }
 
 /**
@@ -161,6 +226,140 @@ function sendSwapListsExceptHonpo() {
  */
 function sendSwapListKatsuOnly() {
   return generateSwapLists(['かつ']);
+}
+
+// ═══════════════════════════════════════════
+//  送れなかった分の自動持ち越し（メール枠が空き次第そのまま送る）
+// ═══════════════════════════════════════════
+
+/** 残りメール送信枠。取得に失敗したら0扱い＝安全側（送らずに持ち越す）。 */
+function swap_remainingQuota_() {
+  try { return MailApp.getRemainingDailyQuota(); }
+  catch (e) { console.error('入替リスト: 残枠取得失敗 ' + (e.message || e)); return 0; }
+}
+
+/** 持ち越し状態を取得（無ければ null）。 */
+function swap_getPending_(props) {
+  props = props || PropertiesService.getScriptProperties();
+  var raw = props.getProperty(SWAP_PENDING_PROP);
+  if (!raw) return null;
+  try {
+    var st = JSON.parse(raw);
+    return (st && st.accounts && st.accounts.length) ? st : null;
+  } catch (e) {
+    console.error('SWAP_PENDING_JSON パース失敗: ' + (e.message || e));
+    return null;
+  }
+}
+
+/**
+ * 今回の実行結果を持ち越し状態へ反映する。
+ * 今回処理しなかったアカウント（filterNames で絞ったときの対象外）の持ち越しは温存する。
+ * @param {Array<{name:string}>} accounts 今回処理したアカウント一覧
+ * @param {Array<Object>} carryOver 今回送れなかったアカウント
+ */
+function swap_updatePending_(props, accounts, carryOver, prevMonthStart, retryCtx) {
+  var processed = {};
+  accounts.forEach(function(a) { processed[a.name] = true; });
+
+  var prev = swap_getPending_(props);
+  var sameMonth = !!(prev && prev.monthStartMs === prevMonthStart.getTime());
+  var merged = [];
+  if (sameMonth) {
+    prev.accounts.forEach(function(a) { if (!processed[a.name]) merged.push(a); });
+  }
+  carryOver.forEach(function(a) { merged.push(a); });
+
+  if (merged.length === 0) { swap_clearPending_(props); return; }
+  var firstFailedAt = (retryCtx && retryCtx.firstFailedAt) || (sameMonth && prev.firstFailedAt) || Date.now();
+  swap_savePending_(props, merged, prevMonthStart, firstFailedAt);
+}
+
+/** 持ち越しを保存して1時間後の再挑戦トリガーを張り直す。 */
+function swap_savePending_(props, carryOver, prevMonthStart, firstFailedAt) {
+  var st = {
+    monthStartMs: prevMonthStart.getTime(),
+    firstFailedAt: firstFailedAt || Date.now(),
+    accounts: carryOver
+  };
+  props.setProperty(SWAP_PENDING_PROP, JSON.stringify(st));
+  try {
+    // replaceTrigger_ が同名の既存トリガーを消してから1本だけ張る（毎時ぶら下がりを防ぐ）
+    replaceTrigger_(SWAP_RETRY_FN, function(tb) { tb.timeBased().after(SWAP_RETRY_INTERVAL_MS).create(); });
+    console.log('入替リスト: ' + carryOver.length + '件を持ち越し（' +
+      carryOver.map(function(a) { return a.name; }).join(' / ') + '）→ 1時間後に再挑戦');
+  } catch (e) {
+    console.error('入替リスト: 再挑戦トリガー作成失敗 ' + (e.message || e));
+  }
+}
+
+/** 持ち越しを解除して再挑戦トリガーを削除する。 */
+function swap_clearPending_(props) {
+  props = props || PropertiesService.getScriptProperties();
+  props.deleteProperty(SWAP_PENDING_PROP);
+  try {
+    ScriptApp.getProjectTriggers().forEach(function(t) {
+      if (t.getHandlerFunction() === SWAP_RETRY_FN) ScriptApp.deleteTrigger(t);
+    });
+  } catch (e) {
+    console.error('入替リスト: 再挑戦トリガー削除失敗 ' + (e.message || e));
+  }
+}
+
+/**
+ * 持ち越し分の再送（1時間ごとの自動トリガーから呼ばれる）。
+ * メール枠が空いていなければ何もせず、さらに1時間後へ回す（メールを消費しない）。
+ * SWAP_RETRY_MAX_HOURS を超えたら打ち切ってログ＋管理者通知を残す。
+ */
+function retrySwapListPending() {
+  var props = PropertiesService.getScriptProperties();
+  var st = swap_getPending_(props);
+  if (!st) { swap_clearPending_(props); return; }
+
+  var monthStart = new Date(st.monthStartMs);
+  var monthLabel = monthStart.getFullYear() + '年' + (monthStart.getMonth() + 1) + '月';
+  var names = st.accounts.map(function(a) { return a.name; });
+
+  // 打ち切り判定
+  var elapsedH = (Date.now() - (st.firstFailedAt || Date.now())) / 3600000;
+  if (elapsedH > SWAP_RETRY_MAX_HOURS) {
+    var lastErrs = st.accounts.map(function(a) { return a.name + ': ' + (a.lastError || '不明'); }).join(' / ');
+    appendSwapLog_([[
+      Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss'),
+      monthLabel, names.join(' / '), '', '', '打ち切り', '打ち切り', '持ち越し打ち切り',
+      SWAP_RETRY_MAX_HOURS + '時間再試行しても送信できず。手動で generateSwapLists を実行してください / ' + lastErrs
+    ]]);
+    var adminEmail = props.getProperty('ADMIN_OWNER_EMAIL') || '';
+    if (adminEmail && swap_remainingQuota_() >= 1) {
+      try {
+        MailApp.sendEmail(adminEmail, '【入替リスト】持ち越し配信を打ち切りました ※要対応',
+          monthLabel + '分の入替リストのうち、以下のアカウントを ' + SWAP_RETRY_MAX_HOURS + '時間再試行しましたが送信できませんでした。\n\n' +
+          lastErrs + '\n\n手動で送るには GASエディタで generateSwapLists を実行してください' +
+          '（「かつ」だけなら sendSwapListKatsuOnly）。\n詳細は「' + SWAP_LOG_SHEET_NAME + '」シートをご確認ください。');
+      } catch (e) { console.error('入替リスト: 打ち切り通知の送信失敗 ' + (e.message || e)); }
+    }
+    swap_clearPending_(props);
+    return;
+  }
+
+  var done = {};
+  st.accounts.forEach(function(a) { done[a.name] = a.done || {}; });
+  console.log('入替リスト: 持ち越し再挑戦（' + names.join(' / ') + '） 残枠=' + swap_remainingQuota_());
+  try {
+    generateSwapLists(names, { monthStartMs: st.monthStartMs, firstFailedAt: st.firstFailedAt, done: done });
+  } catch (e) {
+    console.error('入替リスト: 持ち越し再挑戦で例外 ' + (e.message || e));
+  }
+
+  // 一度きりトリガーは発火済み。持ち越しが残っているなら必ず次を張り直す
+  // （generateSwapLists が例外や早期returnで抜けても再送チェーンを切らさない）。
+  if (swap_getPending_(props)) {
+    try {
+      replaceTrigger_(SWAP_RETRY_FN, function(tb) { tb.timeBased().after(SWAP_RETRY_INTERVAL_MS).create(); });
+    } catch (e) {
+      console.error('入替リスト: 再挑戦トリガー再作成失敗 ' + (e.message || e));
+    }
+  }
 }
 
 /**
@@ -216,17 +415,31 @@ function appendSwapLog_(rows) {
 /**
  * 管理者へ月次の配信結果サマリーを送信（全アカウントの成否を1通にまとめる）。
  */
-function sendSwapSummaryToAdmin_(adminEmail, monthLabel, results) {
+function sendSwapSummaryToAdmin_(adminEmail, monthLabel, results, carryOver, isRetryComplete) {
   if (!adminEmail) return;
+  carryOver = carryOver || [];
   try {
+    // 残枠が無いときにサマリーで無理に1通使わない（持ち越し分の配信を優先する）
+    if (swap_remainingQuota_() < 1) {
+      console.warn('入替リスト: メール残枠なしのためサマリー送信を見送り');
+      return;
+    }
     var lines = results.map(function(r) {
       return '・' + r.account + ': 前月販売 ' + r.prevMonthCount + '件 → 返送対象 ' + r.items.length + '件 [' + r.status + ']' +
         (r.error ? '\n    ' + r.error : '');
     });
     var anyFail = results.some(function(r) { return r.status.indexOf('失敗') >= 0 || r.status === '一部送信'; });
-    var subject = '【入替リスト 配信結果】' + monthLabel + '分' + (anyFail ? ' ※要確認（失敗あり）' : '');
-    var body = monthLabel + '分の入替リスト配信結果です。\n\n' + lines.join('\n') +
-      '\n\n各アカウントのPDFは個別メールで送信済みです。\n詳細は「' + SWAP_LOG_SHEET_NAME + '」シートをご確認ください。';
+    var subject = isRetryComplete
+      ? '【入替リスト 持ち越し分 配信完了】' + monthLabel + '分'
+      : '【入替リスト 配信結果】' + monthLabel + '分' +
+        (carryOver.length ? ' ※持ち越しあり（自動再送します）' : (anyFail ? ' ※要確認（失敗あり）' : ''));
+    var body = monthLabel + '分の入替リスト' + (isRetryComplete ? '（持ち越し分）' : '') + '配信結果です。\n\n' + lines.join('\n');
+    if (carryOver.length) {
+      body += '\n\n■ 未配信（1時間ごとにメール枠の空きを確認して自動再送します）\n' +
+        carryOver.map(function(a) { return '・' + a.name; }).join('\n') +
+        '\n※ ' + SWAP_RETRY_MAX_HOURS + '時間経っても送れない場合は打ち切って改めて通知します。';
+    }
+    body += '\n\n各アカウントのPDFは個別メールで送信済みです。\n詳細は「' + SWAP_LOG_SHEET_NAME + '」シートをご確認ください。';
     MailApp.sendEmail(adminEmail, subject, body);
   } catch (e) {
     console.error('入替リスト サマリーメール送信失敗: ' + e.message);
