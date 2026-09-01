@@ -2041,6 +2041,14 @@ function trackEcommerce_(name, items, value, extra) {
   if (extra) { for (var k in extra) p[k] = extra[k]; }
   trackEvent_(name, p);
 }
+// カートを開いた＝view_cart。開く経路が4つあるので必ずここを通す
+function trackViewCart_() {
+  try {
+    var _ids = state.cart.ids || [], _items = [], _val = 0;
+    for (var _i = 0; _i < _ids.length; _i++) { var _it = state.cart.itemsById[_ids[_i]]; if (_it) { _items.push(buildGaItem_(_it, _i)); _val += Number(_it.price || 0); } }
+    trackEcommerce_('view_cart', _items, _val);
+  } catch(e) {}
+}
 function buildGaItem_(item, idx) {
   return {
     item_id: item.managedId || item.id || '',
@@ -5618,6 +5626,7 @@ function closeDetailModal() {
   if (chatFab) chatFab.style.display = '';
   if (detailReturnTo_ === 'cart') {
     detailReturnTo_ = null;
+    trackViewCart_();
     renderCartModal_(); openModal($('cartModal'));
   }
   detailReturnTo_ = null;
@@ -6855,7 +6864,10 @@ function submitNow_() {
   // === 通常モード: KOMOJU決済フロー ===
   var f = readForm_();
   var err = validateForm_(f);
-  if (err) { showToast(err); submitting_ = false; return; }
+  if (err) {
+    trackEvent_('checkout_error', { error_stage: 'validation', error_message: String(err).slice(0, 100), page_type: 'detauri' });
+    showToast(err); submitting_ = false; return;
+  }
   $('submitBtn').disabled = true;
   setSending_(true, '注文を準備中...');
 
@@ -6903,6 +6915,7 @@ function submitNow_() {
       window.location.href = redirectTo;
     })
     .catch(function(e) {
+      trackEvent_('checkout_error', { error_stage: 'submit', error_message: String(e && e.message ? e.message : '注文送信に失敗しました').slice(0, 100), page_type: 'detauri' });
       showToast(e.message || '注文送信に失敗しました');
     })
     .finally(function() { setSending_(false); $('submitBtn').disabled = false; submitting_ = false; });
@@ -7148,9 +7161,7 @@ function bindUi_() {
   });
   
   $('openCartBtn').addEventListener('click', function() {
-    var _cartIds = state.cart.ids || [], _cartItems = [], _cartVal = 0;
-    for (var _ci = 0; _ci < _cartIds.length; _ci++) { var _cit = state.cart.itemsById[_cartIds[_ci]]; if (_cit) { _cartItems.push(buildGaItem_(_cit, _ci)); _cartVal += Number(_cit.price || 0); } }
-    trackEcommerce_('view_cart', _cartItems, _cartVal);
+    trackViewCart_();
     loadSharedAddress_(); renderCartModal_(); openModal($('cartModal'));
   });
   // カートクリアボタンはrenderSummary_()内で動的生成
@@ -8855,10 +8866,10 @@ body.admin-mode .article-panel{bottom:186px;}
 <!-- デタウリ モバイル固定決済バー -->
 <div id="detStickyBar">
   <div id="detStickyBarInfo"><small id="detStickyBarLabel">デタウリ</small><strong id="detStickyBarTotal">¥0</strong><div id="detStickyShipHint"></div></div>
-  <button id="detStickyBarBtn" type="button" onclick="loadSharedAddress_(); renderCartModal_(); openModal($('cartModal'));">カートを確認 →</button>
+  <button id="detStickyBarBtn" type="button" onclick="trackViewCart_(); loadSharedAddress_(); renderCartModal_(); openModal($('cartModal'));">カートを確認 →</button>
 </div>
 <!-- 確保トースト -->
-<div id="cartAddToast"><span id="cartAddToastText">確保しました</span><button class="toast-cta" type="button" onclick="hideCartAddToast_();loadSharedAddress_();renderCartModal_();openModal($('cartModal'));">カートを見る →</button></div>
+<div id="cartAddToast"><span id="cartAddToastText">確保しました</span><button class="toast-cta" type="button" onclick="hideCartAddToast_();trackViewCart_();loadSharedAddress_();renderCartModal_();openModal($('cartModal'));">カートを見る →</button></div>
 <!-- アソート商品クイックビューモーダル -->
 <div id="bulkQvOverlay" onclick="closeBulkQv_()"></div>
 <div id="bulkQvModal">
