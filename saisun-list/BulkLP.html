@@ -1990,7 +1990,7 @@ window.addEventListener('DOMContentLoaded', function() {
             _trackGoogleAdsConversion(pending.value || 0, 'JPY');
           }
           // GA4 purchase（Meta/Adsと同じ復帰点で発火・transaction_idで重複排除）
-          trackEcommerce_('purchase', pending.gaItems || [], Number(pending.value || 0), { transaction_id: token });
+          try { trackEcommerce_('purchase', pending.gaItems || [], Number(pending.value || 0), { transaction_id: token }); } catch(e) {}
           console.log('[Meta Pixel] BulkLP Purchase fired after payment return:', pending.value);
         }
       } catch(e) { console.warn('Meta Pixel Purchase error:', e); }

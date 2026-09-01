@@ -6995,9 +6995,11 @@ function handlePaymentReturn_() {
         // 受付番号を表示（決済確認後に発行された正式な受付番号）
         $('doneReceipt').textContent = res.receiptNo || token;
         // GA4 purchase（カートをクリアする前に明細を確定させる）
-        var _pcIds = state.cart.ids || [], _pcItems = [];
-        for (var _pi = 0; _pi < _pcIds.length; _pi++) { var _pit = state.cart.itemsById[_pcIds[_pi]]; if (_pit) _pcItems.push(buildGaItem_(_pit, _pi)); }
-        trackEcommerce_('purchase', _pcItems, Number(res.totalAmount || 0), { transaction_id: res.receiptNo || token });
+        try {
+          var _pcIds = state.cart.ids || [], _pcItems = [];
+          for (var _pi = 0; _pi < _pcIds.length; _pi++) { var _pit = state.cart.itemsById[_pcIds[_pi]]; if (_pit) _pcItems.push(buildGaItem_(_pit, _pi)); }
+          trackEcommerce_('purchase', _pcItems, Number(res.totalAmount || 0), { transaction_id: res.receiptNo || token });
+        } catch(e) {}
         state.cart.ids = []; state.cart.itemsById = {}; state.cart.digest = {}; state.lastShipping = null;
         saveCartStorage(); updateCartCount();
         try { localStorage.removeItem('bulk_cart_v1'); } catch (e) {}
