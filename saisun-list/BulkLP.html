@@ -1989,6 +1989,8 @@ window.addEventListener('DOMContentLoaded', function() {
           if (typeof _trackGoogleAdsConversion === 'function') {
             _trackGoogleAdsConversion(pending.value || 0, 'JPY');
           }
+          // GA4 purchase（Meta/Adsと同じ復帰点で発火・transaction_idで重複排除）
+          trackEcommerce_('purchase', pending.gaItems || [], Number(pending.value || 0), { transaction_id: token });
           console.log('[Meta Pixel] BulkLP Purchase fired after payment return:', pending.value);
         }
       } catch(e) { console.warn('Meta Pixel Purchase error:', e); }
@@ -3235,7 +3237,7 @@ function submitOrder() {
         // 決済完了後にPurchaseを発火するため、カート情報をlocalStorageに保存
         try {
           var _contentIds = items.map(function(it) { return it.productId; });
-          localStorage.setItem('_meta_purchase_pending', JSON.stringify({ value: _convVal, contentIds: _contentIds }));
+          localStorage.setItem('_meta_purchase_pending', JSON.stringify({ value: _convVal, contentIds: _contentIds, gaItems: _chkItems }));
         } catch(e) {}
         window.location.href = _redirectTo;
       } else {
