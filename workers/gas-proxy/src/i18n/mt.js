@@ -288,7 +288,7 @@ function buildPrompt(lang, kind) {
  * 機械翻訳の自動点検。
  * 外国語が読めなくても気づける種類の壊れ方だけを機械的に弾く:
  *   - 金額や重量などの数字が訳文から消えている（3,300円 が抜ける等）
- *   - 訳文が極端に短い＝途中で切れている
+ *   - 訳文が極端に短い＝途中で切れている / 極端に長い＝丸ごと捏造している
  *   - かなが残っている＝訳し漏れ
  *   - 中国語のはずが英語で返っている＝言語の取り違え（checkLanguage）
  * 引っかかったら訳を保存しない。**日本語のまま出るほうが、誤訳が出るより安全**
@@ -329,6 +329,17 @@ function checkLanguage(source, text, lang) {
   return '';
 }
 
+/**
+ * 訳文の長さの上限。原文が短いと「おわりに」(4字) が150字の段落に化けるような
+ * 丸ごとの捏造が起きるので、言語ごとに実測の膨張率から決める。
+ * 英語は日本語1字が最大6.7倍まで伸びる（裏傷み → Damage on the inside）が、
+ * 中国語は最大1.8倍。レビュー済み1,285件で誤検知0・実際に起きた捏造4件は弾ける
+ */
+const MAX_LEN = {
+  en: { floor: 80, mult: 8 },
+  'zh-CN': { floor: 40, mult: 3 },
+};
+
 /** モデルを1回叩く。使ったNeuronは budget.spent に足す */
 async function callModel(env, text, kind, lang, budget) {
   const r = await env.AI.run(MODEL, {
@@ -361,7 +372,8 @@ async function callModel(env, text, kind, lang, budget) {
     const fin = r?.choices?.[0]?.finish_reason || '';
     throw new Error('empty(' + fin + '): ' + JSON.stringify(r).slice(0, 140));
   }
-  if (out.length > Math.max(200, text.length * 8)) {
+  const cap = MAX_LEN[lang] || { floor: 200, mult: 8 };
+  if (out.length > Math.max(cap.floor, text.length * cap.mult)) {
     throw new Error('too long(' + out.length + '): ' + out.slice(0, 120));
   }
   const bad = checkTranslation(text, out, lang);
