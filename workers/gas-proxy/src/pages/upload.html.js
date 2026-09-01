@@ -214,6 +214,21 @@ input[type=file]{width:100%;padding:8px;border:1.5px dashed #ccc;border-radius:8
           <div id="tapModeHint" style="display:none;padding:8px;background:#fef3c7;border:1px solid #f59e0b;border-radius:6px;font-size:11px;color:#92400e;margin-top:4px">
             画像を選択後、<strong>順番にタップ</strong>して番号を付けてください。タップ順 = アップロード順。タップした分だけアップロードされます。
           </div>
+          <!-- 写真ピッカーが固まるとき用のヒント（常時・折りたたみ） -->
+          <details id="pickerHelp" style="margin-top:6px;font-size:11px">
+            <summary style="cursor:pointer;color:#b45309">⚠️ 写真が選べない・白い◯が出たまま進まないときは？</summary>
+            <div style="margin-top:6px;padding:8px;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;color:#92400e;line-height:1.7">
+              写真を選んで決定を押したあと、写真の真ん中に<strong>白い◯</strong>が出たまま先に進まないことがあります。iPhoneが写真の元データを取り出せずに止まっている状態です。<br>
+              <strong>1.</strong> 画面の右上から下にスワイプしてコントロールセンターを開き、<strong>低電力モード（黄色いバッテリーのボタン）をOFF</strong>にしてから選び直してください。<br>
+              <strong>2.</strong> それでも直らないときは、<strong>設定 &gt; 写真 &gt;「オリジナルをこのiPhoneにダウンロード」</strong>に変えると起きなくなります。
+            </div>
+          </details>
+          <!-- 取り込みに失敗したときの自動案内 -->
+          <div id="pickerStuckHint" style="display:none;margin-top:6px;padding:10px;background:#fffbeb;border:1px solid #f59e0b;border-radius:6px;font-size:12px;color:#92400e;line-height:1.7">
+            <strong>写真を取り込めませんでした。</strong><br>
+            <strong>低電力モード</strong>がONだと、iPhoneが写真の元データをダウンロードできず、白い◯が出たまま止まってしまいます。コントロールセンターで<strong>低電力モード（黄色いバッテリーのボタン）をOFF</strong>にしてから、もう一度選び直してください。
+            <div style="margin-top:8px;text-align:right"><button type="button" onclick="hidePickerStuckHint()" style="padding:5px 12px;border:1px solid #f59e0b;background:#fff;color:#92400e;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer">閉じる</button></div>
+          </div>
         </div>
         <div style="margin-top:8px">
           <label style="display:inline-flex;align-items:center;gap:5px;font-size:13px;color:#374151;cursor:pointer">
@@ -1584,8 +1599,55 @@ function removeBgReplace(fileIndex) {
   }
 }
 
+// ─── 写真ピッカーが固まったときの自動案内 ───
+// iOSは低電力モード中 iCloud写真のダウンロードを止めるため、原本が端末に無い写真を
+// 選ぶとピッカーが進捗0%（白い◯）のまま固まり、change が一度も発火しない。
+// 「ピッカーを長く開いていたのに0枚で戻ってきた」ことを手掛かりに案内を出す。
+var _pickerOpenedAt = 0;
+var _pickerCheckTimer = null;
+
+function hidePickerStuckHint() {
+  if (_pickerCheckTimer) { clearTimeout(_pickerCheckTimer); _pickerCheckTimer = null; }
+  var el = document.getElementById('pickerStuckHint');
+  if (el) el.style.display = 'none';
+}
+
+(function initPickerStuckHint() {
+  var input = document.getElementById('uploadFiles');
+  if (!input) return;
+
+  input.addEventListener('click', function() {
+    _pickerOpenedAt = Date.now();
+    hidePickerStuckHint();
+  });
+
+  function checkStuck() {
+    if (!_pickerOpenedAt) return;
+    var elapsed = Date.now() - _pickerOpenedAt;
+    _pickerOpenedAt = 0;
+    if (elapsed < 30000) return; // すぐ閉じただけ（単なるキャンセル）は無視
+    // 戻った直後は change が少し遅れて届くことがあるので待ってから判定する
+    if (_pickerCheckTimer) clearTimeout(_pickerCheckTimer);
+    _pickerCheckTimer = setTimeout(function() {
+      _pickerCheckTimer = null;
+      if (_pickerOpenedAt) return; // 再びピッカーを開いた
+      if (input.files && input.files.length > 0) return; // 取り込めている
+      var el = document.getElementById('pickerStuckHint');
+      if (el) el.style.display = 'block';
+    }, 800);
+  }
+
+  window.addEventListener('focus', checkStuck);
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') checkStuck();
+  });
+  // iOSでは focus / visibilitychange が来ないことがあるので操作再開でも判定する
+  document.addEventListener('pointerdown', checkStuck, { passive: true });
+})();
+
 // ─── プレビュー・アップロード ───
 function showPreview() {
+  hidePickerStuckHint();
   startBgPreload(); // ファイル選択時にモデル読み込み開始
   var input = document.getElementById('uploadFiles');
   var grid = document.getElementById('uploadPreview');
