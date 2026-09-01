@@ -4566,6 +4566,7 @@ function pollStatusNow_() {
           }
           saveCartStorage(); updateCartCount(); updateShippingDisplay_();
           updateDetStickyBar_(); // 送料計算後にスティッキーバー再更新
+          trackEvent_('cart_item_lost', { item_count: expired.length, reason: 'expired_or_held', source: 'status_poll', page_type: 'detauri' });
           showToast('他のユーザーが確保中または期限切れの商品（' + expired.length + '点）をカートから除外しました');
         }
 
@@ -5066,6 +5067,12 @@ function toggleCartOptimistic_(id) {
     if (rec && rec.item) upsertCartItem_(rec.item);
   }
 
+  // 一覧カードのボタンも詳細モーダルの追加もここを通る＝カート増減の計測はこの1か所に集約する
+  try {
+    var _tgIt = state.cart.itemsById[id] || (state.productById ? state.productById[id] : null);
+    if (_tgIt) trackEcommerce_(adding ? 'add_to_cart' : 'remove_from_cart', [buildGaItem_(_tgIt)], Number(_tgIt.price || 0));
+  } catch(e) {}
+
   // 確保ステータスの楽観的更新（API応答を待たず即時反映）
   if (adding) {
     // 追加時: digest エントリを作成/更新して自分の確保として扱う
@@ -5166,6 +5173,7 @@ function runHoldSync_() {
           var reasons = res.failed.filter(function(f) { return f.own !== true; })
             .map(function(f) { return f.reason; })
             .filter(function(v, i, a) { return v && a.indexOf(v) === i; });
+          trackEvent_('cart_item_lost', { item_count: removedCnt, reason: String(reasons.join('・') || '確保失敗').slice(0, 60), source: 'hold_sync', page_type: 'detauri' });
           showToast(reasons.join('・') + 'の商品があります');
         }
       }
@@ -5637,7 +5645,7 @@ function addToCartFromModal(managedId) {
   if (idx === -1) {
     var _gaItem = state.productById ? state.productById[managedId] : null;
     if (_gaItem) {
-      trackEcommerce_('add_to_cart', [buildGaItem_(_gaItem)], Number(_gaItem.price || 0));
+      // GA4 の add_to_cart は toggleCartOptimistic_ 側で送る（二重送信になるためここでは送らない）
       try { _trackMetaAddToCart(Number(_gaItem.price || 0), managedId); } catch(e) {}
     }
     toggleCartOptimistic_(managedId);
