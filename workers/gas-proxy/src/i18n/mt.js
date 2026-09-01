@@ -240,6 +240,13 @@ export async function enqueueArticles(env) {
 
 /* ------------------------------------------------------------------ 翻訳 */
 
+const GLOSSARY = {
+  en: '物販 = reselling, せどり = reselling, 古着 = second-hand clothing, 仕入れ = sourcing, '
+    + '出品 = listing, 採寸 = measurements, アソート = assort (bulk lot)',
+  'zh-CN': '物販 = 转卖, せどり = 转卖, 古着 = 二手服装, 仕入れ = 进货, '
+    + '出品 = 上架, 採寸 = 尺寸测量, アソート = 混装批发',
+};
+
 function buildPrompt(lang, kind) {
   const target = LANG_NAME[lang];
   const common =
@@ -249,10 +256,10 @@ function buildPrompt(lang, kind) {
     `Keep the same number of lines as the input. ` +
     `Keep brand names, product codes, sizes, numbers, currency amounts and URLs exactly as they are. ` +
     `Keep the same meaning; never add or drop information. ` +
-    // 用語のブレを防ぐ。「物販→物流」「円→元」のような取り違えが実際に出た
-    `Use these words, not paraphrases: 物販 = reselling, せどり = reselling, ` +
-    `古着 = second-hand clothing, 仕入れ = sourcing, 出品 = listing, ` +
-    `採寸 = measurements, アソート = assort (bulk lot). ` +
+    // 用語のブレを防ぐ。「物販→物流」「円→元」のような取り違えが実際に出た。
+    // 訳語は必ずターゲット言語で与える。英語の訳語を中国語向けのプロンプトに混ぜると
+    // 中国語の文の中に "reselling" が残り、ひどいときは全文が英語で返ってくる
+    `Use these words, not paraphrases: ${GLOSSARY[lang]}. ` +
     `円 always means Japanese yen (${lang === 'zh-CN' ? '日元' : 'JPY'}) - never convert the amount or change the currency. ` +
     `Marketplace names (メルカリ/Mercari, ラクマ/Rakuma, Yahoo!フリマ, BASE) stay as their usual Latin names. ` +
     // 実際に「デタウリ→Detour」と訳された。屋号は絶対に訳させない
@@ -262,7 +269,11 @@ function buildPrompt(lang, kind) {
     `Japanese fashion brand names keep their official Latin spelling ` +
     `(スナイデル=SNIDEL, 自由区=JIYU-KU, 組曲=KUMIKYOKU, インディヴィ=INDIVI, ローリーズファーム=LOWRYS FARM, ` +
     `レプシィム=LEPSIM, ジルスチュアート=JILL STUART, アプワイザーリッシェ=Apuweiser-riche). ` +
-    `If you are not sure of a brand's Latin spelling, leave it in Japanese - never invent a phonetic spelling.`;
+    `If you are not sure of a brand's Latin spelling, leave it in Japanese - never invent a phonetic spelling.` +
+    // 中国語のはずが全文英語で返る事故が実際に起きた（商品名1件が英文のまま保存された）
+    (lang === 'en' ? '' :
+      ` Write every word of your reply in ${target}. Latin letters are allowed only for brand names, ` +
+      `shop names, marketplace names, product codes and units - never for ordinary words or sentences.`);
   if (kind === 'defect') {
     return common + ` This text describes flaws on a used garment (stains, yellowing, holes, pilling). ` +
       `Be literal and precise about the body part and the type of flaw. Do not soften or exaggerate.`;
@@ -279,9 +290,10 @@ function buildPrompt(lang, kind) {
  *   - 金額や重量などの数字が訳文から消えている（3,300円 が抜ける等）
  *   - 訳文が極端に短い＝途中で切れている
  *   - かなが残っている＝訳し漏れ
+ *   - 中国語のはずが英語で返っている＝言語の取り違え（checkLanguage）
  * 引っかかったら訳を保存しない。**日本語のまま出るほうが、誤訳が出るより安全**
  */
-function checkTranslation(source, text) {
+function checkTranslation(source, text, lang) {
   // 3桁以上の数字（金額・重量・年）は必ず残っていなければならない。
   // 1〜2桁は「3〜9月 → March-September」のように語へ変わるのが正しいので見ない
   const nums = (v) => (String(v).match(/\d[\d,]{2,}/g) || []).map((n) => n.replace(/,/g, ''));
@@ -291,6 +303,29 @@ function checkTranslation(source, text) {
   }
   if (text.length < source.length * 0.3) return '訳が短すぎる（途中で切れた可能性）';
   if (/[ぁ-んァ-ヶ]/.test(text)) return 'かなが残っている（訳し漏れ）';
+  return checkLanguage(source, text, lang);
+}
+
+// 「英語の地の文」を見分けるための機能語。ブランド名には出てこない語だけを並べる
+const EN_FUNCTION_WORDS =
+  /\b(the|is|are|was|were|and|of|for|with|from|this|that|these|has|have|been|will|can|not|but|your|our|their|about|into|than|when|which|while|per|on|in|at|to|by)\b/gi;
+
+/**
+ * 訳文がちゃんとターゲット言語で書かれているか。
+ * 中国語のはずが丸ごと英語で返る事故が実際に起きた
+ * （アソート商品名1件が英文のまま保存され、中国語表示に英語が出ていた）。
+ * ブランド名の羅列は英字のままが正解なので、機能語が出たときだけ弾く
+ */
+function checkLanguage(source, text, lang) {
+  if (lang === 'en') return '';
+  // 原文にある英単語（引用された英語のUIラベルなど）はそのまま残るのが正しい
+  const inSource = new Set((source.match(EN_FUNCTION_WORDS) || []).map((w) => w.toLowerCase()));
+  const leaked = (text.match(EN_FUNCTION_WORDS) || []).filter((w) => !inSource.has(w.toLowerCase()));
+  if (leaked.length) return '英語のまま返ってきている: ' + leaked.slice(0, 3).join(' ');
+  // ひらがなが並ぶ＝地の文。訳文に漢字が1文字もないなら訳せていない
+  if ((source.match(/[ぁ-ん]/g) || []).length >= 6 && !/[一-鿿]/.test(text)) {
+    return '訳文に漢字がない（訳し漏れ・取り違え）';
+  }
   return '';
 }
 
@@ -329,7 +364,7 @@ async function callModel(env, text, kind, lang, budget) {
   if (out.length > Math.max(200, text.length * 8)) {
     throw new Error('too long(' + out.length + '): ' + out.slice(0, 120));
   }
-  const bad = checkTranslation(text, out);
+  const bad = checkTranslation(text, out, lang);
   if (bad) throw new Error(bad + ' | ' + out.slice(0, 100));
   return out;
 }
