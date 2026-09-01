@@ -88,41 +88,24 @@ function startNewMonthInternal(newDate){
   const shStock=ss.getSheetByName(SHEET_STOCK);
   if(!shStock) throw new Error('シート「'+SHEET_STOCK+'」が見つかりません');
 
-  const lastDate=getLatestStockDate();
-
   try{
+    // 同じ棚卸日のブロックを二重に作らない（2026/02/28 で実際に1件の重複行が発生している）
+    if(getBlockRowsByDate(newDate).length>0){
+      throw new Error(toYMD(normalizeDate(newDate))+' の棚卸ブロックは既に存在します');
+    }
+
     const pm=getPurchaseMap();
     const pMap=pm.map;
     const outflowMap=buildOutflowCountMap();
+    const adjMap=buildAdjustMap_(shStock,newDate);
 
-    const prevActuals=new Map();
-
-    if(lastDate){
-      const lastBlock=getBlockRowsByDate(lastDate);
-      if(lastBlock.length>0){
-        const lr=shStock.getLastRow();
-        if(lr>=3){
-          const bd=shStock.getRange(3,2,lr-2,3).getValues();
-          for(let i=0;i<lastBlock.length;i++){
-            const r=lastBlock[i];
-            const idx=r-3;
-            if(idx<0 || idx>=bd.length) continue;
-            const id=String(bd[idx][0]||'').trim();
-            const dVal=bd[idx][2];
-            const dNum=(dVal===''||dVal==null)?'':Number(dVal);
-            if(id){
-              prevActuals.set(id,(dNum===''||isNaN(dNum))?0:(Number(dNum)||0));
-            }
-          }
-        }
-      }
-    }
-
+    // 旧実装は「前月の実地棚卸数(D列)をそのまま今月の理論在庫(C列)に引き継ぐ」だったため、
+    // 当月に売れた分が一切反映されず、一度書かれた数字が永久に減らなかった。
+    // 毎月 calcTheory で引き直す（実地棚卸で出た差異は adjMap 側で引き継がれる）。
     const rows=[];
     for(let i=0;i<pm.orderedIds.length;i++){
       const id=pm.orderedIds[i];
-      const theory = prevActuals.has(id) ? prevActuals.get(id) : calcTheory(id,pMap,outflowMap);
-      rows.push([newDate,id,Number(theory)||0,'','','','']);
+      rows.push([newDate,id,Number(calcTheory(id,pMap,outflowMap,adjMap))||0,'','','','']);
     }
     if(rows.length===0){ log_('startNewMonth: rows=0'); throw new Error('仕入れ管理シートに対象データがありません'); }
 
@@ -179,6 +162,7 @@ function syncCurrentMonthIds(){
     const pm=getPurchaseMap();
     const pMap=pm.map;
     const outflowMap=buildOutflowCountMap();
+    const adjMap=buildAdjustMap_(shStock,lastDate);
 
     const block=getBlockRowsByDate(lastDate);
     const currentIds=new Set();
@@ -202,7 +186,7 @@ function syncCurrentMonthIds(){
     const rows=[];
     for(let i=0;i<addIds.length;i++){
       const id=addIds[i];
-      const theory=calcTheory(id,pMap,outflowMap);
+      const theory=calcTheory(id,pMap,outflowMap,adjMap);
       rows.push([lastDate,id,Number(theory)||0,'','','','']);
     }
 
@@ -229,6 +213,8 @@ function syncCurrentMonthIds(){
   }
 }
 
+// ⚠️ 旧運用の名残。C列は recomputeComputedColumns() が毎回 calcTheory で引き直すため、
+// この関数を実行しても末尾の recomputeComputedColumns() で上書きされる。どこからも呼ばれていない。
 function recalcCurrentTheoryFromPrev(){
   const props = PropertiesService.getScriptProperties();
   if(props.getProperty(BUSY_KEY)==='1'){
@@ -318,31 +304,73 @@ function getPurchaseMap(){
   return {ids:[...new Set(orderedIds)],orderedIds,map};
 }
 
+// 在庫から抜けたとみなすステータス。
+// 「返品済み」は含めない — メルカリから引き上げてデタウリ卸に回しただけで現物は手元にある。
+const OUTFLOW_STATUSES=['売却済み','発送済み','キャンセル','廃棄済み'];
+
+// 仕入れIDごとの出庫点数を数える。
+// 旧実装は 販売日/返品日付/キャンセル日/廃棄日 の「日付列が埋まっているか」で数えていたため、
+// 販売日が空のまま売却済みになっている商品（AppSheet時代の移行分・約1,800点）を1点も引けず、
+// さらに返品済み（＝手元にある在庫）を出庫として数える誤りもあった。
+// ステータスで数えれば日付欠落の影響を受けない。
 function buildOutflowCountMap(){
   const sh=SpreadsheetApp.getActive().getSheetByName(SHEET_PRODUCT);
   if(!sh) return new Map();
   const lr=sh.getLastRow();
   if(lr<2) return new Map();
-  const ids=sh.getRange(2,2,lr-1,1).getValues().flat();
-  const ap=sh.getRange(2,42,lr-1,1).getValues().flat();
-  const ay=sh.getRange(2,51,lr-1,1).getValues().flat();
-  const bh=sh.getRange(2,60,lr-1,1).getValues().flat();
-  const bi=sh.getRange(2,61,lr-1,1).getValues().flat();
+  const headers=sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0].map(v=>String(v||'').trim());
+  const idCol=headers.indexOf('仕入れID');
+  const stCol=headers.indexOf('ステータス');
+  if(idCol<0||stCol<0){
+    log_('buildOutflowCountMap: 列が見つかりません 仕入れID='+idCol+' ステータス='+stCol);
+    throw new Error('商品管理シートに「仕入れID」または「ステータス」列がありません');
+  }
+  const ids=sh.getRange(2,idCol+1,lr-1,1).getValues().flat();
+  const sts=sh.getRange(2,stCol+1,lr-1,1).getValues().flat();
   const m=new Map();
   for(let i=0;i<ids.length;i++){
     const id=String(ids[i]||'').trim();
     if(!id) continue;
-    const c=(ap[i]?1:0)+(ay[i]?1:0)+(bh[i]?1:0)+(bi[i]?1:0);
-    m.set(id,(m.get(id)||0)+c);
+    if(OUTFLOW_STATUSES.indexOf(String(sts[i]||'').trim())<0) continue;
+    m.set(id,(m.get(id)||0)+1);
   }
   return m;
 }
 
-function calcTheory(id,pMap,outflowMap){
+// 理論在庫 = 仕入れ点数 − 出庫点数 + 実地棚卸で確定した過去の差異（累計）
+function calcTheory(id,pMap,outflowMap,adjMap){
   const p=pMap.get(id);
   const base=p?p.qty:0;
   const out=outflowMap.get(id)||0;
-  return base-out;
+  const adj=(adjMap&&adjMap.get(id))||0;
+  return base-out+adj;
+}
+
+// 過去ブロック（excludeDate の棚卸日は除く）のE列＝実地−理論の差異を仕入れIDごとに累計する。
+// 実地棚卸で見つかった差異（紛失・数え漏れ）を翌月以降の理論在庫へ引き継ぐため。
+// 差異が一度も出ていなければ全て0なので、理論在庫は 仕入れ点数−出庫点数 そのものになる。
+function buildAdjustMap_(shStock,excludeDate){
+  const m=new Map();
+  if(!shStock) return m;
+  const lr=shStock.getLastRow();
+  if(lr<3) return m;
+  const vals=shStock.getRange(3,1,lr-2,5).getValues();
+  const exYmd=excludeDate?toYMD(normalizeDate(excludeDate)):null;
+  for(let i=0;i<vals.length;i++){
+    const d=vals[i][0];
+    if(!d) continue;
+    const dt=new Date(d);
+    if(isNaN(dt.getTime())) continue;
+    if(exYmd && toYMD(normalizeDate(dt))===exYmd) continue;
+    const id=String(vals[i][1]||'').trim();
+    if(!id) continue;
+    const e=vals[i][4];
+    if(e===''||e==null) continue;
+    const n=Number(e);
+    if(isNaN(n)||n===0) continue;
+    m.set(id,(m.get(id)||0)+n);
+  }
+  return m;
 }
 
 function getLatestStockDate(){
@@ -391,6 +419,9 @@ function getBlockRowsByDate(dateObj){
   return rows;
 }
 
+// 最新ブロックの C(理論在庫)・E(差異)・F(商品原価)・G(棚卸金額) を計算し直す。
+// C を毎回引き直すのがこの関数の要 — 旧実装は C を一切更新しなかったため、
+// 行が作られた月の数字のまま固定され、その後どれだけ売れても棚卸数が減らなかった。
 function recomputeComputedColumns(){
   const ss=SpreadsheetApp.getActive();
   const sh=ss.getSheetByName(SHEET_STOCK);
@@ -402,39 +433,60 @@ function recomputeComputedColumns(){
   const rows=getBlockRowsByDate(lastDate);
   if(rows.length===0) return;
 
+  // C・D列まで書き換えるので、ブロックの行が連続していない場合は触らない（範囲書き込みでズレるため）
+  if(rows[rows.length-1]-rows[0]+1!==rows.length){
+    log_('recomputeComputedColumns: 最新ブロックの行が連続していません（'+rows[0]+'〜'+rows[rows.length-1]+' / '+rows.length+'行）。中止');
+    return;
+  }
+
   const pMap=getPurchaseMap().map;
+  const outflowMap=buildOutflowCountMap();
+  const adjMap=buildAdjustMap_(sh,lastDate);
 
   const bVals=sh.getRange(rows[0],2,rows.length,1).getValues().flat();
   const cVals=sh.getRange(rows[0],3,rows.length,1).getValues().flat();
   const dVals=sh.getRange(rows[0],4,rows.length,1).getValues().flat();
 
-  const eOut=[];const fOut=[];const gOut=[];
+  const cOut=[];const dOut=[];const eOut=[];const fOut=[];const gOut=[];
+  let dSynced=0;
   for(let i=0;i<rows.length;i++){
     const id=String(bVals[i]||'').trim();
-    if(!id){eOut.push(['']);fOut.push(['']);gOut.push(['']);continue;}
+    if(!id){cOut.push([cVals[i]]);dOut.push([dVals[i]]);eOut.push(['']);fOut.push(['']);gOut.push(['']);continue;}
 
-    const cRaw=cVals[i];
-    const cNum=(cRaw===''||cRaw==null)?NaN:Number(cRaw);
+    const cOldRaw=cVals[i];
+    const cOld=(cOldRaw===''||cOldRaw==null)?NaN:Number(cOldRaw);
+    const cNum=calcTheory(id,pMap,outflowMap,adjMap);
 
-    const dRaw=dVals[i];
+    // D列(実地棚卸数)は、実地カウントされていない行だけ新しい理論値に追従させる。
+    // 「実地カウントされていない」＝ D が旧C と同値。実際に数えて別の値が入っている行と、
+    // まだ空の行には絶対に触らない。
+    let dRaw=dVals[i];
+    const hadD=!(dRaw===''||dRaw==null);
+    if(hadD && !isNaN(cOld) && Number(dRaw)===cOld && cNum!==cOld){ dRaw=cNum; dSynced++; }
+
     const hasD=!(dRaw===''||dRaw==null);
     const dNum=hasD?Number(dRaw):NaN;
 
     const p=pMap.get(id);
     const cost=(p&&!isNaN(Number(p.cost)))?Number(p.cost):'';
 
-    const eVal=(!hasD || isNaN(dNum) || isNaN(cNum)) ? '' : (dNum-cNum);
+    const eVal=(!hasD || isNaN(dNum)) ? '' : (dNum-cNum);
     const fVal=(cost===''||cost==null||isNaN(Number(cost))) ? '' : Number(cost);
     const gVal=(!hasD || fVal==='' || isNaN(dNum)) ? '' : (dNum*fVal);
 
+    cOut.push([cNum]);
+    dOut.push([hasD?dRaw:'']);
     eOut.push([eVal]);
     fOut.push([fVal]);
     gOut.push([gVal]);
   }
 
+  sh.getRange(rows[0],3,rows.length,1).setValues(cOut);
+  sh.getRange(rows[0],4,rows.length,1).setValues(dOut);
   sh.getRange(rows[0],5,rows.length,1).setValues(eOut);
   sh.getRange(rows[0],6,rows.length,1).setValues(fOut);
   sh.getRange(rows[0],7,rows.length,1).setValues(gOut);
+  if(dSynced) log_('recomputeComputedColumns: 実地未カウント行のD列を理論値に更新 '+dSynced+'件 / '+rows.length+'行');
 }
 
 function findFirstEmptyRowAtoG(sh,fromRow){

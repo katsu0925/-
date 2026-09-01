@@ -34,6 +34,10 @@ function updateMonthlyInventoryTrend() {
   if (!sheetShiire)     throw new Error('仕入れ管理シートが見つかりません');
   if (!sheetShohin)     throw new Error('商品管理シートが見つかりません');
 
+  // --- 棚卸明細の理論在庫(C列)を最新の出庫状況で引き直す ---
+  // これを先に走らせないと、行が作られた月の数字のまま固定された棚卸数で集計されてしまう
+  try { recomputeComputedColumns(); } catch (e) { Logger.log('recomputeComputedColumns 失敗: ' + e); }
+
   // --- 期末棚卸サマリーを棚卸明細から再生成（手入力の転記漏れ・誤転記を防ぐ） ---
   rebuildTanaoroshiSummary_(ss);
 
@@ -223,12 +227,20 @@ function rebuildTanaoroshiSummary_(ss) {
   var vals = shStock.getRange(3, 1, lastRow - 2, 7).getValues();
 
   // 年月ごとに集計 {年月: {sum:棚卸金額合計, rows:行数, filled:実地棚卸数の入力済み行数}}
-  var blocks = {};
+  // 同じ年月に同じ仕入れIDが2行ある場合は先勝ちで2行目以降を無視する
+  //（2026/02/28 に実際に1件発生し、その月だけ666点・¥76,590 が二重計上されていた）
+  var blocks = {}, seenIds = {}, dupRows = [];
   for (var i = 0; i < vals.length; i++) {
     var d = vals[i][0];
     if (!(d instanceof Date) || isNaN(d.getTime())) continue;
     var ym = toYM_(d);
     if (!ym) continue;
+    var pid = String(vals[i][1] || '').trim(); // B列: 仕入れID
+    if (pid) {
+      var dupKey = ym + '\u0000' + pid;
+      if (seenIds[dupKey]) { dupRows.push(ym + ' ' + pid + '(行' + (i + 3) + ')'); continue; }
+      seenIds[dupKey] = true;
+    }
     if (!blocks[ym]) blocks[ym] = { sum: 0, rows: 0, filled: 0 };
     blocks[ym].rows++;
     var actual = vals[i][3]; // D列: 実地棚卸数
@@ -252,8 +264,9 @@ function rebuildTanaoroshiSummary_(ss) {
   shSum.getRange(2, 1, rows.length, 2).setValues(rows);
 
   Logger.log('期末棚卸サマリーを再生成: ' + rows.length + '行'
-    + (skipped.length ? ' / 棚卸し中のため除外: ' + skipped.join(', ') : ''));
-  return { written: rows.length, skipped: skipped };
+    + (skipped.length ? ' / 棚卸し中のため除外: ' + skipped.join(', ') : '')
+    + (dupRows.length ? ' / 重複行を無視: ' + dupRows.join(', ') : ''));
+  return { written: rows.length, skipped: skipped, duplicates: dupRows };
 }
 
 // =====================================================
