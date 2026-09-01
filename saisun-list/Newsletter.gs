@@ -559,10 +559,11 @@ function newsletterSendCron_() {
         continue;
       }
 
-      // ★残枠チェック: 緊急メール用に5通分マージンを残し、残枠の範囲で送れる分だけ送る（分割配信）
-      var SAFETY_MARGIN = 5;
-      var remainingQuota = MailApp.getRemainingDailyQuota();
-      var budget = remainingQuota - SAFETY_MARGIN;
+      // ★残枠チェック: 残枠の範囲で送れる分だけ送る（分割配信）
+      // 枠の出どころは Mailer.gs が決める（Brevo設定済み=300通/日 / 未設定=Gmail枠）。
+      // どちらもマージンを引いた値が返る。
+      var remainingQuota = mail_remainingBulkQuota_();
+      var budget = remainingQuota;
       if (budget <= 0) {
         console.warn('newsletterSendCron_: 残枠なしで "' + title + '" をスキップ (remaining=' + remainingQuota + '). 次回cronで再試行');
         try {
@@ -589,8 +590,8 @@ function newsletterSendCron_() {
             + '※ メルマガ配信停止: '
             + nl_buildUnsubscribeUrl_(recip.email) + '\n';
 
-          GmailApp.sendEmail(recip.email, subject, body, {
-            from: SITE_CONSTANTS.CUSTOMER_EMAIL, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
+          mail_sendBulk_(recip.email, subject, body, {
+            name: recip.companyName,
             htmlBody: buildHtmlEmail_({
               greeting: recip.companyName + ' 様',
               lead: bodyText,
@@ -805,7 +806,9 @@ function setupDormantCoupons() {
       '',          // O: 対象商品ID
       '',          // P: 送料除外商品ID
       '',          // Q: 限定顧客名
-      ''           // R: 限定顧客メール
+      '',          // R: 限定顧客メール
+      false        // S: 送料無料併用（S列追加後、ここが欠けていて setValues が
+                   //    「列数が一致しません」で落ちる状態だった）
     ]]);
     created.push(tier.code);
   }
@@ -899,8 +902,8 @@ function dormantCouponCron_() {
           + '※ メルマガ配信停止: '
           + nl_buildUnsubscribeUrl_(email) + '\n';
 
-        GmailApp.sendEmail(email, subject, body, {
-          from: SITE_CONSTANTS.CUSTOMER_EMAIL, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
+        mail_sendBulk_(email, subject, body, {
+          name: companyName,
           htmlBody: buildHtmlEmail_({
             greeting: companyName + ' 様',
             lead: 'ご無沙汰しております。\n最近サイトにお越しいただけていないようですので、\n感謝の気持ちを込めて10%OFFクーポンをお届けします。',

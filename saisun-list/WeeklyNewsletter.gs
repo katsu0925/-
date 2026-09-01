@@ -235,6 +235,12 @@ function wn_sendSoldReport_() {
 
   // 送信
   var recipients = wn_filterAlreadySent_(getNewsletterRecipients_());
+  var wnBudget = mail_remainingBulkQuota_();
+  if (recipients.length > wnBudget) {
+    console.warn('週3メルマガ: 残枠 ' + wnBudget + '通のため ' +
+      recipients.length + '件中 ' + Math.max(0, wnBudget) + '件のみ送信');
+    recipients = recipients.slice(0, Math.max(0, wnBudget));
+  }
   var sent = 0;
 
   for (var c = 0; c < recipients.length; c++) {
@@ -274,8 +280,8 @@ function wn_sendSoldReport_() {
         text: stockCount + '点 — 人気商品は早い者勝ちです'
       });
 
-      GmailApp.sendEmail(recip.email, subject, body, {
-        from: SITE_CONSTANTS.CUSTOMER_EMAIL, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
+      mail_sendBulk_(recip.email, subject, body, {
+        name: recip.companyName,
         htmlBody: buildHtmlEmail_({
           greeting: recip.companyName + ' 様',
           lead: 'いつもデタウリ.Detauri をご利用いただきありがとうございます。',
@@ -388,6 +394,12 @@ function wn_sendBrandColumn_() {
 
   // 送信
   var recipients = wn_filterAlreadySent_(getNewsletterRecipients_());
+  var wnBudget = mail_remainingBulkQuota_();
+  if (recipients.length > wnBudget) {
+    console.warn('週3メルマガ: 残枠 ' + wnBudget + '通のため ' +
+      recipients.length + '件中 ' + Math.max(0, wnBudget) + '件のみ送信');
+    recipients = recipients.slice(0, Math.max(0, wnBudget));
+  }
   var sent = 0;
 
   for (var c = 0; c < recipients.length; c++) {
@@ -413,8 +425,8 @@ function wn_sendBrandColumn_() {
         + 'お問い合わせ: ' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
         + '──────────────────\n';
 
-      GmailApp.sendEmail(recip.email, subject, body, {
-        from: SITE_CONSTANTS.CUSTOMER_EMAIL, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
+      mail_sendBulk_(recip.email, subject, body, {
+        name: recip.companyName,
         htmlBody: buildHtmlEmail_({
           greeting: recip.companyName + ' 様',
           lead: columnText,
@@ -632,6 +644,12 @@ function wn_sendWeekendPicks_() {
 
   // 送信
   var recipients = wn_filterAlreadySent_(getNewsletterRecipients_());
+  var wnBudget = mail_remainingBulkQuota_();
+  if (recipients.length > wnBudget) {
+    console.warn('週3メルマガ: 残枠 ' + wnBudget + '通のため ' +
+      recipients.length + '件中 ' + Math.max(0, wnBudget) + '件のみ送信');
+    recipients = recipients.slice(0, Math.max(0, wnBudget));
+  }
   var sent = 0;
 
   for (var c = 0; c < recipients.length; c++) {
@@ -662,8 +680,8 @@ function wn_sendWeekendPicks_() {
         + 'お問い合わせ: ' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
         + '──────────────────\n';
 
-      GmailApp.sendEmail(recip.email, subject, body, {
-        from: SITE_CONSTANTS.CUSTOMER_EMAIL, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
+      mail_sendBulk_(recip.email, subject, body, {
+        name: recip.companyName,
         htmlBody: buildHtmlEmail_({
           greeting: recip.companyName + ' 様',
           lead: '今週の週末セレクトをお届けします。',

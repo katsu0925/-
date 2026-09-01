@@ -185,6 +185,10 @@ function cronArchiveOrders() { od_archiveCompletedOrders_(); }
 /** 依頼管理AE列(作業報酬)の数式欠落を自己修復（全面setValues等で潰れた行の救済） */
 function cronRepairRewardFormulas() { req_repairRewardFormulas_(); }
 function cronStatsCache() { st_calculateAndCacheStats_(); }
+/** 販促メールの日次送信カウンタ（前日以前）を掃除 */
+function cronMailCounterCleanup() { mail_cleanupSentCounters_(); }
+/** 期限切れの再来クーポン（AGAIN14-*）を掃除 */
+function cronReturnCouponCleanup() { rc_cleanupExpiredReturnCoupons_(); }
 function cronInvoiceReceipts() { processInvoiceReceipts(); }
 function cronCancelledInvoices() { processCancelledInvoices(); }
 
@@ -237,7 +241,7 @@ function cronEvery5min() {
 
 /** 毎日4時: 確保クリーンアップ + ポイント処理 + ポイント失効 + プロパティ掃除 */
 function cronDaily4To6() {
-  runWithErrorNotify_('cronDaily4To6', [cronCompactHolds, cronProcessPoints, cronPointExpiry, cleanupExecute, cronRepairRewardFormulas, cronArchiveOrders, cronKitXlsxSweep]);
+  runWithErrorNotify_('cronDaily4To6', [cronCompactHolds, cronProcessPoints, cronPointExpiry, cleanupExecute, cronRepairRewardFormulas, cronArchiveOrders, cronKitXlsxSweep, cronMailCounterCleanup, cronReturnCouponCleanup]);
 }
 
 /** 毎日7時: インボイス領収書送付 + キャンセル取消 + BASEトークン期限チェック */

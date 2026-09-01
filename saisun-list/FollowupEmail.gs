@@ -54,7 +54,11 @@ function followupEmailCron_() {
       var totalAmount = Number(data[i][REQUEST_SHEET_COLS.TOTAL_AMOUNT - 1]) || 0;
 
       try {
-        var subject = '【デタウリ.Detauri】ご利用ありがとうございました（受付番号：' + receiptNo + '）';
+        // 発送完了メールで発行済みの再来クーポンを引く（未使用かつ期限内のときだけ差し込む）
+        var fuCoupon = rc_findActiveReturnCoupon_(receiptNo);
+        var subject = fuCoupon
+          ? '【デタウリ.Detauri】その後いかがですか？（クーポンは' + fuCoupon.expiresStr + 'まで）'
+          : '【デタウリ.Detauri】ご利用ありがとうございました（受付番号：' + receiptNo + '）';
         var body = companyName + ' 様\n\n'
           + '先日はデタウリ.Detauri をご利用いただき、誠にありがとうございました。\n'
           + '商品はお手元に届きましたでしょうか？\n\n'
@@ -71,11 +75,13 @@ function followupEmailCron_() {
           + 'いただいたフィードバックは、今後のサービス向上に活かしてまいります。\n\n'
           + '▼ ご意見・ご感想はこちら\n'
           + SITE_CONSTANTS.SITE_URL + '\n\n'
+          + (fuCoupon ? rc_couponMailText_(fuCoupon) : '')
           + '━━━━━━━━━━━━━━━━━━━━\n'
-          + '■ 次回のお買い物もお待ちしております\n'
+          + '■ 出品はお済みですか？\n'
           + '━━━━━━━━━━━━━━━━━━━━\n'
-          + '・会員登録で全品10%OFF（2026年9月末まで）\n'
-          + '・会員様はポイントが貯まります（ランクに応じて1〜5%）\n\n'
+          + '発送完了メールの「出品キット」から、商品タイトルと説明文を\n'
+          + 'そのままコピーして出品いただけます。\n'
+          + '採寸データと撮影画像も同じ画面にまとまっています。\n\n'
           + '▼ 新着商品をチェック\n'
           + SITE_CONSTANTS.SITE_URL + '\n\n'
           + '※ このメールは自動送信です。\n\n'
@@ -85,8 +91,8 @@ function followupEmailCron_() {
           + 'お問い合わせ: ' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
           + '──────────────────\n';
 
-        GmailApp.sendEmail(email, subject, body, {
-          from: SITE_CONSTANTS.CUSTOMER_EMAIL, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
+        mail_sendBulk_(email, subject, body, {
+          name: companyName,
           htmlBody: buildHtmlEmail_({
             greeting: companyName + ' 様',
             lead: '先日はデタウリ.Detauri をご利用いただき、誠にありがとうございました。\n商品はお手元に届きましたでしょうか？',
@@ -104,13 +110,10 @@ function followupEmailCron_() {
                 text: '商品の品質やお取引について、ご意見・ご感想を\nお聞かせいただけると大変嬉しく思います。\nいただいたフィードバックは、今後のサービス向上に活かしてまいります。'
               },
               {
-                title: '次回のお買い物もお待ちしております',
-                items: [
-                  '会員登録で全品10%OFF（2026年9月末まで）',
-                  '会員様はポイントが貯まります（ランクに応じて1〜5%）'
-                ]
+                title: '出品はお済みですか？',
+                text: '発送完了メールの「出品キット」から、商品タイトルと説明文をそのままコピーして出品いただけます。採寸データと撮影画像も同じ画面にまとまっています。'
               }
-            ],
+            ].concat(fuCoupon ? [rc_couponMailSection_(fuCoupon)] : []),
             cta: { text: '新着商品をチェック', url: SITE_CONSTANTS.SITE_URL },
             notes: ['このメールは自動送信です。']
           })

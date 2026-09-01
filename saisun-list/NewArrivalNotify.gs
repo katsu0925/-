@@ -128,6 +128,19 @@ function newArrivalNotifyCron_() {
     var recipients = getNewsletterRecipients_();
     var sent = 0;
 
+    // ★残枠チェック: 以前はノーガードで98通投げていたため、
+    //   後続の週3メルマガ(10:30)とフォローアップ(11:00)が枠切れで黙って落ちていた。
+    var naBudget = mail_remainingBulkQuota_();
+    if (naBudget <= 0) {
+      console.warn('newArrivalNotifyCron_: 本日の送信枠なしでスキップ (対象=' + recipients.length + '件)');
+      return;
+    }
+    if (recipients.length > naBudget) {
+      console.warn('newArrivalNotifyCron_: 残枠 ' + naBudget + '通のため ' +
+        recipients.length + '件中 ' + naBudget + '件のみ送信');
+      recipients = recipients.slice(0, naBudget);
+    }
+
     for (var c = 0; c < recipients.length; c++) {
       var recip = recipients[c];
       try {
@@ -151,8 +164,8 @@ function newArrivalNotifyCron_() {
           + 'お問い合わせ: ' + SITE_CONSTANTS.CONTACT_EMAIL + '\n'
           + '──────────────────\n';
 
-        GmailApp.sendEmail(recip.email, subject, body, {
-          from: SITE_CONSTANTS.CUSTOMER_EMAIL, replyTo: SITE_CONSTANTS.CUSTOMER_EMAIL,
+        mail_sendBulk_(recip.email, subject, body, {
+          name: recip.companyName,
           htmlBody: buildHtmlEmail_({
             greeting: recip.companyName + ' 様',
             lead: 'デタウリ.Detauri に新しい商品が入荷しました！',
@@ -172,7 +185,14 @@ function newArrivalNotifyCron_() {
         if (typeof wn_markSent_ === 'function') wn_markSent_(recip.email);
         sent++;
       } catch (mailErr) {
+        var naErr = (mailErr && mailErr.message) ? mailErr.message : String(mailErr);
         console.error('newArrivalNotifyCron_ mail error: ' + recip.email, mailErr);
+        if (/invalid email|invalid argument|無効/i.test(naErr)) {
+          nl_markCustomerUndeliverable_(recip.email, '送信エラー: ' + naErr.substring(0, 80));
+        } else if (/quota|too many|limit/i.test(naErr)) {
+          console.warn('newArrivalNotifyCron_: 枠切れのため以降を中止');
+          break;
+        }
       }
     }
 

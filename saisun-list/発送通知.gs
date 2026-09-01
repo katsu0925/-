@@ -195,6 +195,10 @@ function shipMailOnEdit(e) {
     // --- 顧客宛発送通知メール（Drive共有リンク付き） ---
     if (contactEmail && contactEmail.indexOf('@') !== -1) {
       var custSubject = '【デタウリ.Detauri】商品を発送しました（受付番号：' + receiptNo + '）';
+      // 再来クーポン: 2回目の注文は平均11日・71%が14日以内に起きるため、
+      // 商品到着の直前に届くこのメールに14日間有効の10%OFFを同梱する。
+      // 発行に失敗しても発送メールは通常どおり送る（戻り値nullなら差し込みを省略）。
+      var returnCoupon = rc_issueReturnCoupon_(receiptNo, contactEmail);
       var custBody = customer + ' 様\n\n'
         + 'デタウリ.Detauri をご利用いただきありがとうございます。\n'
         + '下記の内容で商品を発送いたしました。\n\n'
@@ -234,6 +238,8 @@ function shipMailOnEdit(e) {
           + '※ ' + SHIPMAIL_KIT_NOTES[1] + '\n\n';
       }
 
+      if (returnCoupon) custBody += rc_couponMailText_(returnCoupon);
+
       custBody += '商品到着まで今しばらくお待ちください。\n'
         + '到着後、内容にご不明点がございましたらお気軽にお問い合わせください。\n\n'
         + '──────────────────\n'
@@ -256,6 +262,7 @@ function shipMailOnEdit(e) {
       if (kitUrl) shipRows.push({ label: '出品キット', value: '青ボタンから確認できます' });
 
       var shipHtmlSections = [{ title: '発送内容', rows: shipRows }];
+      if (returnCoupon) shipHtmlSections.push(rc_couponMailSection_(returnCoupon));
 
       // CTAボタン
       var shipCta = [];
