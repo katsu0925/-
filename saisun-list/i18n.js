@@ -21,7 +21,7 @@
   if (global.__I18N__ && global.__I18N__._doc === document) return;
   var DICT_CACHE = global.__I18N_DICTS__ || (global.__I18N_DICTS__ = {});
 
-  var VERSION      = '1';
+  var VERSION      = '2';
   var STORAGE_KEY  = 'detauri_lang';
   var DEFAULT_LANG = 'ja';
   var ASSET_HOST   = 'https://wholesale.nkonline-tool.com';
