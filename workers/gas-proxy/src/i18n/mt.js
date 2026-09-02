@@ -278,10 +278,25 @@ function buildPrompt(lang, kind) {
     return common + ` This text describes flaws on a used garment (stains, yellowing, holes, pilling). ` +
       `Be literal and precise about the body part and the type of flaw. Do not soften or exaggerate.`;
   }
+  if (kind === 'heading') {
+    return common + ` This is a section heading from a blog article. Translate it as a heading: ` +
+      `a short phrase of at most 12 words. Never explain it, never turn it into a sentence or a paragraph.`;
+  }
   if (kind === 'article') {
     return common + ` This is one paragraph from a blog article for resellers. Write natural, readable ${target}.`;
   }
   return common;
+}
+
+/**
+ * 「まとめ」「注意点」のような短い見出しは、モデルが本文だと思って段落に膨らませる。
+ * 長さガードに引っかかって訳が捨てられ、記事の見出しだけ日本語で残っていた。
+ * 見出しは見出しとして訳させ、出力トークンも短く抑える
+ */
+function isHeading(source, kind) {
+  if (kind !== 'article') return false;
+  const t = String(source).trim();
+  return t.length <= 30 && t.indexOf('\n') < 0 && !/[。．]$/.test(t);
 }
 
 /**
@@ -342,12 +357,14 @@ const MAX_LEN = {
 
 /** モデルを1回叩く。使ったNeuronは budget.spent に足す */
 async function callModel(env, text, kind, lang, budget) {
+  const role = isHeading(text, kind) ? 'heading' : kind;
   const r = await env.AI.run(MODEL, {
     messages: [
-      { role: 'system', content: buildPrompt(lang, kind) },
+      { role: 'system', content: buildPrompt(lang, role) },
       { role: 'user', content: text },
     ],
-    max_tokens: Math.min(1200, Math.ceil(text.length * 1.8) + 120),
+    // 見出しは短い。枠を与えると本文を書き始めるので出力の上限も絞る
+    max_tokens: Math.min(role === 'heading' ? 120 : 1200, Math.ceil(text.length * 1.8) + 120),
     temperature: 0.2,
   });
   const u = r?.usage || {};
@@ -384,6 +401,11 @@ async function callModel(env, text, kind, lang, budget) {
 /**
  * 1件を訳す。長文は行ごとに分けて訳し、行単位でもキャッシュする。
  * アソートの説明文は7点がほぼ同じ雛形なので、行で持つと実際の呼び出しが激減する
+ *
+ * 1行の失敗で親をまるごと諦めてはいけない。実際に、アソート説明文(3,000字)の中の
+ * 1行だけモデルが壊れた訳を返し、点検に弾かれ、3,026字の説明文が en/zh とも
+ * 丸ごと日本語のまま残っていた（しかもその行以降の40行は翻訳すら試されていない）。
+ * 失敗した行だけ日本語で残して先へ進む。**日本語が1行混じるほうが全文日本語より良い**
  */
 async function translateOne(env, source, kind, lang, budget) {
   const db = env.DB;
@@ -392,21 +414,33 @@ async function translateOne(env, source, kind, lang, budget) {
   }
   const lines = source.split('\n');
   const out = [];
+  let need = 0, failed = 0;
   for (const line of lines) {
     const t = line.trim();
     if (!t || !HAS_JP.test(t)) { out.push(line); continue; }   // 空行・URL・数字はそのまま
+    need++;
     const h = await sha1(t);
     const hit = await db.prepare('SELECT text FROM translations WHERE hash = ? AND lang = ?')
       .bind(h, lang).first();
     if (hit && hit.text) { out.push(hit.text); continue; }
+    // 予算切れは「部分訳」として確定させてはいけない。翌日やり直せるよう親ごと中断する
     if (budget.base + budget.spent >= MAX_NEURONS_PER_DAY) throw new Error('budget');
-    const tr = await callModel(env, t, kind, lang, budget);
-    await db.prepare(
-      `INSERT OR REPLACE INTO translations (hash, lang, source, text, kind, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?)`
-    ).bind(h, lang, t, tr, kind + '-line', new Date().toISOString()).run();
-    out.push(tr);
+    try {
+      const tr = await callModel(env, t, kind, lang, budget);
+      await db.prepare(
+        `INSERT OR REPLACE INTO translations (hash, lang, source, text, kind, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`
+      ).bind(h, lang, t, tr, kind + '-line', new Date().toISOString()).run();
+      out.push(tr);
+    } catch (e) {
+      failed++;
+      out.push(line);                                          // その行だけ日本語のまま
+      console.warn('[i18n-mt] line kept as Japanese', lang, String(e && e.message || e).slice(0, 120));
+    }
   }
+  // 訳せた行が少なすぎるなら「部分訳」ではなく本当の失敗。親を確定させない
+  const tolerance = Math.max(2, Math.ceil(need * 0.1));
+  if (failed > tolerance) throw new Error('lines failed ' + failed + '/' + need);
   return out.join('\n');
 }
 
