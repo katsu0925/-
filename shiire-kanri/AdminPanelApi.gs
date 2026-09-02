@@ -99,7 +99,7 @@ function adminPanel_sendSwapExceptHonpo() {
 
 // 入替リスト アカウント一覧（SWAP_ACCOUNTS_JSON）の取得・保存
 function adminPanel_getSwapAccounts() {
-  try { return { ok: true, accounts: getSwapAccounts_() }; }
+  try { return { ok: true, accounts: getSwapAccounts_(), excludeKanris: getExcludedKanriList_() }; }
   catch (e) { return { ok: false, message: String(e.message || e) }; }
 }
 function adminPanel_setSwapAccounts(payload) {
@@ -112,8 +112,27 @@ function adminPanel_setSwapAccounts(payload) {
       if (!name) continue;
       clean.push({ name: name, email: accounts[i].email ? String(accounts[i].email).trim() : '' });
     }
-    PropertiesService.getScriptProperties().setProperty('SWAP_ACCOUNTS_JSON', JSON.stringify(clean));
-    return { ok: true, message: clean.length + 'アカウントを保存しました' };
+    var props = PropertiesService.getScriptProperties();
+    props.setProperty('SWAP_ACCOUNTS_JSON', JSON.stringify(clean));
+
+    // 除外管理番号（未指定のときは既存値を触らない。空配列は「除外なし」として保存する）
+    var exMsg = '';
+    if (payload && payload.excludeKanris !== undefined) {
+      var ex = payload.excludeKanris;
+      if (typeof ex === 'string') ex = ex.split(/[\s,、，\n]+/);
+      if (!Array.isArray(ex)) return { ok: false, message: '除外管理番号が無効なデータです' };
+      var exClean = [];
+      var seen = {};
+      for (var j = 0; j < ex.length; j++) {
+        var id = normalizeText_(ex[j]);
+        if (!id || seen[id.toUpperCase()]) continue;
+        seen[id.toUpperCase()] = true;
+        exClean.push(id);
+      }
+      props.setProperty(SWAP_EXCLUDE_KANRI_PROP, JSON.stringify(exClean));
+      exMsg = '／除外管理番号' + exClean.length + '件';
+    }
+    return { ok: true, message: clean.length + 'アカウントを保存しました' + exMsg };
   } catch (e) { return { ok: false, message: String(e.message || e) }; }
 }
 function adminPanel_debugColumns() {

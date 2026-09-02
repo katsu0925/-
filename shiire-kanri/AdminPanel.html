@@ -224,6 +224,9 @@ table.data th{background:#f0f0f0;font-weight:700;}
         <div class="note">アカウント名=使用アカウント列の値と完全一致で判定。メール=入替リストPDFの送信先（空欄ならそのアカウントは管理者のみに送信）。行を追加すればアカウントを増やせます。</div>
         <div id="swap-accts"></div>
         <div class="btnRow"><button class="sm" onclick="addSwapAcctRow()">＋アカウントを追加</button></div>
+        <div class="subtitle">入替対象から外す管理番号</div>
+        <div class="note">ここに書いた管理番号は、出品中でも入替リスト（返送候補）に入りません。改行かカンマ区切りで複数書けます。大文字小文字は区別しません。空にすれば除外なしになります。</div>
+        <div class="form-row"><textarea id="swap-exclude" rows="3" placeholder="例）zY146, zY235" style="flex:1"></textarea></div>
         <div class="btnRow">
           <button class="primary" onclick="saveSwapSettings()">入替リスト設定を保存</button>
           <button onclick="runTool('adminPanel_generateSwapLists','入替リスト手動生成')">手動生成（全アカウント）</button>
@@ -497,6 +500,7 @@ async function loadSwapSettings(){
     var box=$('swap-accts');box.innerHTML='';
     (res.accounts||[]).forEach(function(a){addSwapAcctRow(a.name,a.email);});
     if(!(res.accounts||[]).length) addSwapAcctRow('','');
+    $('swap-exclude').value=(res.excludeKanris||[]).join(', ');
     swapLoaded=true;
   }catch(e){}
 }
@@ -507,8 +511,9 @@ async function saveSwapSettings(){
     var email=row.querySelector('.swap-acct-email').value.trim();
     if(name) accounts.push({name:name,email:email});
   });
-  try{var res=await run('adminPanel_setSwapAccounts',{accounts:accounts});
-    showToast(res.ok?('保存完了（'+accounts.length+'アカウント）'):('失敗: '+(res.message||'')));
+  var excludeKanris=$('swap-exclude').value.split(/[\s,、，]+/).filter(function(v){return v.trim();});
+  try{var res=await run('adminPanel_setSwapAccounts',{accounts:accounts,excludeKanris:excludeKanris});
+    showToast(res.ok?(res.message||'保存完了'):('失敗: '+(res.message||'')));
   }catch(e){showToast('エラー');}
 }
 

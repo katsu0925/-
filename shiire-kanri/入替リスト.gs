@@ -24,6 +24,13 @@ const SWAP_CONFIG = {
 // 配信ログシート名（成功/失敗を毎回記録。失敗が「見えない」問題への対策）
 const SWAP_LOG_SHEET_NAME = '入替リスト配信ログ';
 
+// ─── 入替対象から外す管理番号（個別指定） ───────────────────
+//  「この商品は返送させたくない」を管理番号単位で指定する。編集は管理パネル
+//  「入替リスト」タブ。優先: SWAP_EXCLUDE_KANRI_JSON（保存済みなら空でも尊重）
+//  / 未設定なら下の既定リスト。突き合わせは大文字小文字を無視する。
+var SWAP_EXCLUDE_KANRI_PROP = 'SWAP_EXCLUDE_KANRI_JSON';
+var SWAP_EXCLUDE_KANRI_DEFAULT = ['zY146', 'zY235'];
+
 // ─── PDFエクスポートのペーシング／リトライ設定 ───────────────
 //  複数アカウントを1実行でPDF化すると、Googleのエクスポートエンドポイントが
 //  短時間の連続アクセスをスロットリングし、3件目以降がハング → GAS6分上限で
@@ -96,6 +103,7 @@ function generateSwapLists(filterNames, retryCtx) {
   const props = PropertiesService.getScriptProperties();
   var adminEmail = props.getProperty('ADMIN_OWNER_EMAIL') || '';
   var accounts = getSwapAccounts_(props);
+  var excludedKanris = getExcludedKanris_(props);
   // filterNames 指定時はそのアカウントだけに絞る（手動再送用。例: 古着屋本舗以外へ後から送る）
   if (filterNames && filterNames.length) {
     var allow = {};
@@ -120,7 +128,7 @@ function generateSwapLists(filterNames, retryCtx) {
       email: acct.email || '', emailSent: false, adminSent: false, status: '', error: ''
     };
     try {
-      var built = buildSwapList_(data, hMap, acct.name, prevMonthStart, prevMonthEnd, excludedNames);
+      var built = buildSwapList_(data, hMap, acct.name, prevMonthStart, prevMonthEnd, excludedNames, excludedKanris);
       result.prevMonthCount = built.prevMonthCount;
       result.items = built.items;
 
@@ -449,7 +457,8 @@ function sendSwapSummaryToAdmin_(adminEmail, monthLabel, results, carryOver, isR
 /**
  * アカウント別に前月販売数をカウントし、出品中の古い順に同数の入替対象を抽出
  */
-function buildSwapList_(data, hMap, accountName, prevMonthStart, prevMonthEnd, excludedNames) {
+function buildSwapList_(data, hMap, accountName, prevMonthStart, prevMonthEnd, excludedNames, excludedKanris) {
+  excludedKanris = excludedKanris || {};
   // 使用アカウント列の値（normalizeText_ 済）と突き合わせるため、判定キーも正規化する
   accountName = normalizeText_(accountName);
   var colId = hMap['管理番号'] - 1;
@@ -482,8 +491,12 @@ function buildSwapList_(data, hMap, accountName, prevMonthStart, prevMonthEnd, e
     var location = normalizeText_(data[r][colLocation]);
     if (location && excludedNames[location]) continue;
 
-    var listDate = parseSwapDate_(data[r][colDate]);
     var id = normalizeText_(data[r][colId]);
+
+    // 個別に除外指定された管理番号は返送候補に入れない（管理パネルで登録）
+    if (id && excludedKanris[id.toUpperCase()]) continue;
+
+    var listDate = parseSwapDate_(data[r][colDate]);
 
     activeRows.push({ id: id, date: listDate, dateStr: data[r][colDate], location: location });
   }
@@ -502,7 +515,10 @@ function buildSwapList_(data, hMap, accountName, prevMonthStart, prevMonthEnd, e
     return a.date.getTime() - b.date.getTime();
   });
 
+  // 「どれを返すか」は出品日の古い順で決める。ここまでの並びがその選定結果。
   var swapItems = activeRows.slice(0, prevMonthSalesCount);
+  // 「どう並べるか」は現場の探しやすさ優先で管理番号の昇順にする（zY53 → zY56 → zY146）。
+  swapItems.sort(function(a, b) { return compareSwapKanri_(a.id, b.id); });
   return { account: accountName, prevMonthCount: prevMonthSalesCount, items: swapItems, email: null, emailSent: false };
 }
 
@@ -517,10 +533,9 @@ function generateSwapPdf_(accountName, prevStart, prevEnd, prevCount, items) {
   var periodStr = year + '年' + month + '月販売分（' +
     formatSwapDate_(prevStart) + '〜' + formatSwapDate_(prevEnd) + '）';
 
-  var dateRange = '';
-  if (items.length > 0) {
-    dateRange = '出品日 ' + items[0].dateStr + ' 〜 ' + items[items.length - 1].dateStr;
-  }
+  // 並び順は管理番号順なので、日付レンジは最古・最新を別途求める
+  var span = swapListedSpan_(items);
+  var dateRange = span ? ('出品日 ' + span.first + ' 〜 ' + span.last) : '';
 
   var tmpSs = SpreadsheetApp.create('tmp_swap_' + accountName + '_' + Date.now());
   var tmpId = tmpSs.getId();
@@ -617,10 +632,8 @@ function sendSwapEmail_(email, accountName, prevStart, prevCount, items, pdfBlob
   var month = prevStart.getMonth() + 1;
   var subject = '【入替リスト】' + accountName + ' ' + year + '年' + month + '月分 — ' + items.length + '件';
 
-  var dateRange = '';
-  if (items.length > 0) {
-    dateRange = '\n出品日範囲: ' + items[0].dateStr + ' 〜 ' + items[items.length - 1].dateStr;
-  }
+  var span = swapListedSpan_(items);
+  var dateRange = span ? ('\n出品日範囲: ' + span.first + ' 〜 ' + span.last) : '';
 
   var body = accountName + ' の入替リストです。\n\n' +
     '前月販売数: ' + prevCount + '件\n' +
@@ -640,6 +653,44 @@ function sendSwapEmail_(email, accountName, prevStart, prevCount, items, pdfBlob
  * 作業者マスターのB列(名前)・O列(有効フラグ)を読み、
  * 有効フラグがFALSEの作業者名をセットで返す
  */
+/**
+ * 入替対象から個別に外す管理番号のセットを返す（キーは大文字化した管理番号）。
+ * 優先: SWAP_EXCLUDE_KANRI_JSON（管理パネル保存。空配列なら「除外なし」として尊重）。
+ * 未設定のときだけ SWAP_EXCLUDE_KANRI_DEFAULT を使う。
+ */
+function getExcludedKanris_(props) {
+  var list = getExcludedKanriList_(props);
+  var map = {};
+  for (var i = 0; i < list.length; i++) map[list[i].toUpperCase()] = true;
+  var n = Object.keys(map).length;
+  if (n > 0) console.log('入替リスト: 除外管理番号 ' + n + '件: ' + Object.keys(map).join(', '));
+  return map;
+}
+
+/**
+ * 除外管理番号を配列で返す（管理パネル表示用。正規化のみで大文字化しない）。
+ */
+function getExcludedKanriList_(props) {
+  props = props || PropertiesService.getScriptProperties();
+  var list = SWAP_EXCLUDE_KANRI_DEFAULT;
+  var raw = props.getProperty(SWAP_EXCLUDE_KANRI_PROP);
+  if (raw !== null && raw !== undefined && String(raw).trim() !== '') {
+    try {
+      var arr = JSON.parse(raw);
+      // 保存済みなら空配列も「除外なし」という意思表示として尊重する
+      if (Array.isArray(arr)) list = arr;
+    } catch (e) {
+      console.error(SWAP_EXCLUDE_KANRI_PROP + ' パース失敗: ' + e.message + ' → 既定の除外リストを使用');
+    }
+  }
+  var out = [];
+  for (var i = 0; i < list.length; i++) {
+    var id = normalizeText_(list[i]);
+    if (id) out.push(id);
+  }
+  return out;
+}
+
 function getExcludedWorkers_(ss) {
   var excluded = {};
 
@@ -672,6 +723,48 @@ function getExcludedWorkers_(ss) {
   var count = Object.keys(excluded).length;
   if (count > 0) console.log('入替リスト: 除外作業者 ' + count + '名: ' + Object.keys(excluded).join(', '));
   return excluded;
+}
+
+/**
+ * 明細の出品日の最古・最新（表示文字列）を返す。並び順に依存しない。
+ * 出品日が1件も無ければ null。
+ */
+function swapListedSpan_(items) {
+  var first = null, last = null;
+  for (var i = 0; i < (items || []).length; i++) {
+    var d = items[i].date;
+    if (!d) continue;
+    if (!first || d.getTime() < first.date.getTime()) first = { date: d, str: items[i].dateStr };
+    if (!last || d.getTime() > last.date.getTime()) last = { date: d, str: items[i].dateStr };
+  }
+  return first ? { first: first.str, last: last.str } : null;
+}
+
+/**
+ * 管理番号を自然順（英字プレフィックス→数値）で比較する。
+ * 単純な文字列比較だと zY146 < zY53 になってしまうため、数字部分は数値として比較する。
+ * 英字は大文字小文字を無視（zk865 と zK865 を同じ並びに置く）。
+ */
+function compareSwapKanri_(a, b) {
+  var ta = swapKanriTokens_(a), tb = swapKanriTokens_(b);
+  var n = Math.max(ta.length, tb.length);
+  for (var i = 0; i < n; i++) {
+    var x = ta[i], y = tb[i];
+    if (x === undefined) return -1;
+    if (y === undefined) return 1;
+    if (typeof x === 'number' && typeof y === 'number') {
+      if (x !== y) return x - y;
+    } else {
+      var sx = String(x), sy = String(y);
+      if (sx !== sy) return sx < sy ? -1 : 1;
+    }
+  }
+  return 0;
+}
+
+function swapKanriTokens_(id) {
+  var parts = String(id || '').toUpperCase().match(/\d+|\D+/g) || [];
+  return parts.map(function(p) { return /^\d+$/.test(p) ? parseInt(p, 10) : p; });
 }
 
 function parseSwapDate_(str) {
@@ -770,6 +863,7 @@ function generateSwapListsPreviewForMonth_(year, month) {
   const data = sheet.getRange(SWAP_CONFIG.HEADER_ROWS + 1, 1, numRows, lastCol).getDisplayValues();
 
   var excludedNames = getExcludedWorkers_(ss);
+  var excludedKanris = getExcludedKanris_();
 
   // 指定年月の月初〜月末
   var prevMonthStart = new Date(year, month - 1, 1);
@@ -781,7 +875,7 @@ function generateSwapListsPreviewForMonth_(year, month) {
 
   var summary = [];
   getSwapAccounts_().forEach(function(acct) {
-    var result = buildSwapList_(data, hMap, acct.name, prevMonthStart, prevMonthEnd, excludedNames);
+    var result = buildSwapList_(data, hMap, acct.name, prevMonthStart, prevMonthEnd, excludedNames, excludedKanris);
 
     if (result.items.length > 0) {
       var pdfBlob = generateSwapPdf_(acct.name, prevMonthStart, prevMonthEnd, result.prevMonthCount, result.items);
