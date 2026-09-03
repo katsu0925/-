@@ -196,6 +196,25 @@ function cronCancelledInvoices() { processCancelledInvoices(); }
 // ディスパッチャー共通（エラー時LINE通知付き）
 // =====================================================
 
+/** 同一エラーのLINE通知を抑止する間隔（分） */
+var ERROR_NOTIFY_THROTTLE_MIN = 30;
+
+/**
+ * エラー文面の可変部分（件数・行番号・日時・トークン片など）を潰した抑止キーを作る。
+ * 同じ原因のエラーは同じキーになり、ERROR_NOTIFY_THROTTLE_MIN 分に1通だけ通知する。
+ * 別種のエラーが起きたときは即座に通知される（キーが変わるため）。
+ */
+function errorNotifyKey_(dispatcherName, errorsText) {
+  var norm = String(errorsText)
+    .replace(/[0-9a-f]{16,}/gi, '#')  // state・トークン・ハッシュ
+    .replace(/\d+/g, '#');            // 件数・行番号・日時
+  var bytes = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.MD5, dispatcherName + '|' + norm, Utilities.Charset.UTF_8);
+  var hex = '';
+  for (var i = 0; i < bytes.length; i++) hex += ('0' + (bytes[i] & 0xff).toString(16)).slice(-2);
+  return 'ERRNOTIFY_' + hex.slice(0, 20);
+}
+
 /** ディスパッチャー共通: 関数リストを順次実行し、エラーがあればLINE通知 */
 function runWithErrorNotify_(dispatcherName, fns) {
   var errors = [];
@@ -212,6 +231,15 @@ function runWithErrorNotify_(dispatcherName, fns) {
   }
   if (errors.length > 0) {
     try {
+      // 同一エラーの連投を抑止（BASEメンテ等で5分ごとに鳴り続けるのを防ぐ）
+      var throttleKey = errorNotifyKey_(dispatcherName, errors.join('\n'));
+      var cache = CacheService.getScriptCache();
+      if (cache.get(throttleKey)) {
+        console.log(dispatcherName + ': 同一エラーのためLINE通知を抑止（' + ERROR_NOTIFY_THROTTLE_MIN + '分に1通）');
+        return;
+      }
+      cache.put(throttleKey, '1', ERROR_NOTIFY_THROTTLE_MIN * 60);
+
       var token = getLineAccessToken_();
       var toId = getLineToId_();
       if (token && toId) {

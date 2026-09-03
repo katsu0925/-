@@ -299,6 +299,21 @@ function baseTestOrders() {
   return baseSyncOrdersBetween_(start, end);
 }
 
+/**
+ * BASE側の一時障害（メンテナンス / 5xx）かどうかを判定する。
+ * これらは時間が経てば復旧し、次回のcronで自動的に追いつくためLINE通知しない。
+ * 例: 400 {"error":"maintenance","error_description":"現在サービスは..."}
+ *     503 {...} / 502 <html>...
+ * ※トークン更新失敗の文面（BASEAPI.gs:210）にもレスポンス本文がそのまま含まれるため、
+ *   「再認証してください」と書かれていてもここで一時障害と判定できる。
+ */
+function baseIsMaintenanceOrServerError_(msg) {
+  var m = String(msg || '');
+  if (/"error"\s*:\s*"maintenance"/.test(m)) return true;      // BASEメンテナンス（400で返る）
+  if (/(?:^|[\s\/])5\d\d\s+[\{<]/.test(m)) return true;        // 500/502/503/504（JSON/HTML本文つき）
+  return false;
+}
+
 function baseSyncOrdersNow() {
   const last = baseGetLastSyncAt_();
   var result;
@@ -310,6 +325,11 @@ function baseSyncOrdersNow() {
     }
   } catch (e) {
     var msg = String(e.message || '');
+    // BASE側のメンテナンス・サーバーエラーは次回実行に回す（LINE通知しない）
+    if (baseIsMaintenanceOrServerError_(msg)) {
+      console.warn('baseSyncOrdersNow: BASE側の一時障害、次回に継続: ' + msg);
+      return { ok: false, reason: 'base_unavailable' };
+    }
     // 帯域制限エラーは次回実行に回す（LINE通知しない）
     if (msg.indexOf('Bandwidth quota') !== -1) {
       console.warn('baseSyncOrdersNow: 帯域制限に到達、次回に継続');
