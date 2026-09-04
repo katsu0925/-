@@ -241,16 +241,141 @@ export async function listAiResults(request, env, user) {
   }
 }
 
-export async function listSagyousha(request, env, user) {
+// ===== 作業者マスター（/api/sagyousha）=====
+// GAS staff_listSagyousha は商品管理 7,500行 × 33〜58列（画像列を含む 26 列ブロック）を
+// 一括読みして月次集計するため実測 20〜90 秒かかる。アプリ側の読み取りタイムアウトは 25 秒なので、
+// resolveSelfName_(app.js) が AbortError を握りつぶして STATE.allWorkers = [] になり、
+// 業務タブが「作業者マスターにあなたのメールが見つかりませんでした／取得できませんでした」で
+// 開けなくなっていた（メールは登録済みでも起きる）。
+// items は requester に依らず同一（差分の currentUser.isAdmin は items から導出できる）なので
+// global スコープ 1 本で KV に載せ、stale-while-revalidate ＋ 5分Cron 暖機で GAS 往復を体感から外す。
+const SAGYOUSHA_CACHE_KEY = 'sagyousha:v1';
+// これを過ぎたら stale を返しつつ裏で作り直す。作業者マスターは滅多に変わらず、
+// 月次集計も作業者管理タブの表示用なので 30 分のラグで足りる。
+// 短くすると 20〜90 秒の重い GAS 実行が増え、他の API まで詰まる。
+const SAGYOUSHA_TTL = 1800;
+// 物理TTL。GAS が長時間不調でも古い値で業務タブを開けるようにする。
+const SAGYOUSHA_HOLD = 86400;
+// 常に上限ヶ月で取得し、返却時に months で切る（キーを 1 本に保つ）。
+const SAGYOUSHA_MONTHS = 12;
+// 背景リフィルの多重起動よけ。KV は結果整合なので完全な排他ではないが、
+// 全員が起動時に叩くエンドポイントなので群がりはこれで十分減る。
+const SAGYOUSHA_LOCK_KEY = 'sagyousha:refilling';
+
+// 直近 n ヶ月（JST基準・新しい順）。GAS が返す months と同じ並び。
+// キャッシュに焼いた months をそのまま返すと月替わり直後にズレるので Worker 側で作る。
+function recentMonthsJst_(n) {
+  const jst = new Date(Date.now() + 9 * 3600 * 1000);
+  let y = jst.getUTCFullYear();
+  let m = jst.getUTCMonth();
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    out.push(y + '-' + String(m + 1).padStart(2, '0'));
+    m -= 1;
+    if (m < 0) { m = 11; y -= 1; }
+  }
+  return out;
+}
+
+// GAS の staff_listSagyousha と同じ判定（items のメールは GAS 側で trim + 小文字化済み）
+function sagyoushaIsAdmin_(items, user) {
+  const email = String((user && user.email) || '').trim().toLowerCase();
+  if (!email) return false;
+  return (items || []).some(function (w) {
+    return w && w.admin === true && (
+      String(w.email1 || '').trim().toLowerCase() === email ||
+      String(w.email2 || '').trim().toLowerCase() === email
+    );
+  });
+}
+
+async function refillSagyousha_(env) {
+  const kv = env.CACHE || env.GAS_PROXY_CACHE;
+  const r = await callGas(env, 'listSagyousha', { months: SAGYOUSHA_MONTHS }, null);
+  if (!r.ok) throw new Error(r.error || 'gas error');
+  const payload = { items: r.items || [], ts: Date.now() };
+  if (kv) {
+    try { await kv.put(SAGYOUSHA_CACHE_KEY, JSON.stringify(payload), { expirationTtl: SAGYOUSHA_HOLD }); } catch {}
+  }
+  return payload;
+}
+
+// stale ヒット時にレスポンスの裏で回す作り直し。ロック中なら諦める（次のリクエストか Cron が拾う）。
+async function revalidateSagyousha_(env) {
+  const kv = env.CACHE || env.GAS_PROXY_CACHE;
+  if (kv) {
+    try {
+      if (await kv.get(SAGYOUSHA_LOCK_KEY)) return;
+      await kv.put(SAGYOUSHA_LOCK_KEY, '1', { expirationTtl: 120 });
+    } catch {}
+  }
+  try { await refillSagyousha_(env); }
+  catch (err) { console.warn('[sagyousha revalidate] ' + err.message); }
+}
+
+// 5分Cron から呼ぶ暖機。まだ期限内なら GAS を叩かない
+// （1 回 20〜90 秒の重い実行なので、5 分ごとに無条件で走らせると GAS 側が詰まる）。
+export async function warmSagyoushaCache(env) {
+  const kv = env.CACHE || env.GAS_PROXY_CACHE;
+  if (!kv) return;
+  try {
+    const hit = await kv.get(SAGYOUSHA_CACHE_KEY, 'json');
+    if (hit && Array.isArray(hit.items) && (Date.now() - (hit.ts || 0)) < SAGYOUSHA_TTL * 1000) return;
+  } catch {}
+  try { await refillSagyousha_(env); }
+  catch (err) { console.warn('[warmSagyoushaCache] ' + err.message); }
+}
+
+// 作業者マスターを書き換えたあとに呼ぶ。
+// 捨てると次の読み取りが 20〜90 秒の GAS 直行になりタイムアウトするので、
+// キャッシュ上の該当行だけ更新し、ts を落として次の読み取りで裏から作り直させる。
+async function patchSagyoushaCache_(env, patch) {
+  const kv = env.CACHE || env.GAS_PROXY_CACHE;
+  if (!kv) return;
+  try {
+    const hit = await kv.get(SAGYOUSHA_CACHE_KEY, 'json');
+    if (!hit || !Array.isArray(hit.items)) return;
+    const items = hit.items.slice();
+    const idx = items.findIndex(function (w) { return w && w.row === patch.row; });
+    const base = idx >= 0 ? items[idx] : { row: patch.row, rates: { satsuei: 0, sokutei: 0, shuppin: 0, hassou: 0 }, monthly: {} };
+    const next = Object.assign({}, base);
+    if (typeof patch.name === 'string') next.name = patch.name;
+    if (typeof patch.email1 === 'string') next.email1 = patch.email1.trim().toLowerCase();
+    if (typeof patch.email2 === 'string') next.email2 = patch.email2.trim().toLowerCase();
+    if (typeof patch.enabled === 'boolean') next.enabled = patch.enabled;
+    if (typeof patch.admin === 'boolean') next.admin = patch.admin;
+    if (idx >= 0) items[idx] = next; else items.push(next);
+    // ts=0 = 常に stale 扱い → 次の読み取りが即返しつつ裏で GAS から正を取り直す
+    await kv.put(SAGYOUSHA_CACHE_KEY, JSON.stringify({ items, ts: 0 }), { expirationTtl: SAGYOUSHA_HOLD });
+  } catch {}
+}
+
+export async function listSagyousha(request, env, user, ctx) {
   const url = new URL(request.url);
   const months = Math.min(12, Math.max(1, parseInt(url.searchParams.get('months'), 10) || 6));
-  const r = await callGas(env, 'listSagyousha', { months }, user);
-  if (!r.ok) return jsonError(r.error || 'gas error', 502);
-  return jsonOk({
-    items: r.items || [],
-    months: r.months || [],
-    currentUser: r.currentUser || { email: (user && user.email) || '', isAdmin: false },
-  });
+  const fresh = url.searchParams.get('fresh') === '1';
+  const kv = env.CACHE || env.GAS_PROXY_CACHE;
+  const respond = function (items, extra) {
+    return jsonOk(Object.assign({
+      items: items || [],
+      months: recentMonthsJst_(months),
+      currentUser: { email: (user && user.email) || '', isAdmin: sagyoushaIsAdmin_(items, user) },
+    }, extra || {}));
+  };
+  if (kv && !fresh) {
+    let hit = null;
+    try { hit = await kv.get(SAGYOUSHA_CACHE_KEY, 'json'); } catch {}
+    if (hit && Array.isArray(hit.items)) {
+      const stale = (Date.now() - (hit.ts || 0)) >= SAGYOUSHA_TTL * 1000;
+      // 期限切れでも待たせず古い値を返し、更新はレスポンス後に回す。
+      if (stale && ctx && typeof ctx.waitUntil === 'function') ctx.waitUntil(revalidateSagyousha_(env));
+      return respond(hit.items, { cached: true, stale });
+    }
+  }
+  let payload;
+  try { payload = await refillSagyousha_(env); }
+  catch (err) { return jsonError(err.message || 'gas error', 502); }
+  return respond(payload.items);
 }
 
 export async function saveSagyousha(request, env, user) {
@@ -268,6 +393,7 @@ export async function saveSagyousha(request, env, user) {
   };
   const r = await callGas(env, 'saveSagyousha', payload, user);
   if (!r.ok) return jsonError(r.error || 'gas error', r.error && r.error.indexOf('管理者') >= 0 ? 403 : 502);
+  await patchSagyoushaCache_(env, Object.assign({ row }, payload));
   return jsonOk({ saved: true, row: r.row });
 }
 
@@ -285,6 +411,7 @@ export async function createSagyousha(request, env, user) {
   };
   const r = await callGas(env, 'createSagyousha', payload, user);
   if (!r.ok) return jsonError(r.error || 'gas error', r.error && r.error.indexOf('管理者') >= 0 ? 403 : 502);
+  await patchSagyoushaCache_(env, Object.assign({ row: r.row }, payload));
   return jsonOk({ created: true, row: r.row });
 }
 

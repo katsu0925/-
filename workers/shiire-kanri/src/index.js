@@ -10,7 +10,7 @@ import { imgProxy } from './handlers/img-proxy.js';
 import { thumbProxy } from './handlers/thumb-proxy.js';
 import { listWorkers, listAccounts, listSuppliers, listPlaces, listCategories, listSettings } from './handlers/master.js';
 import { lookupAiPrefill, lookupAiPrefillBatch } from './handlers/ai.js';
-import { listMoves, createMove, deleteMove, updateMove, listReturns, createReturn, deleteReturn, updateReturn, deletePurchase, previewFixPurchaseQuantity, fixPurchaseQuantity, listAiResults, listSagyousha, saveSagyousha, createSagyousha, dumpSheet, warmSheetDumpCache, getListingText, appendKeihi, uploadKeihiImage, updateShiireHoukokuQuantity } from './handlers/extras.js';
+import { listMoves, createMove, deleteMove, updateMove, listReturns, createReturn, deleteReturn, updateReturn, deletePurchase, previewFixPurchaseQuantity, fixPurchaseQuantity, listAiResults, listSagyousha, warmSagyoushaCache, saveSagyousha, createSagyousha, dumpSheet, warmSheetDumpCache, getListingText, appendKeihi, uploadKeihiImage, updateShiireHoukokuQuantity } from './handlers/extras.js';
 import { getSalesSummary } from './handlers/sales.js';
 import { syncRowWebhook } from './handlers/sync-webhook.js';
 import { listBundles, toggleBundle } from './handlers/bundles.js';
@@ -32,6 +32,9 @@ export default {
     ctx.waitUntil(retrySaveFailures(env));
     // 仕入れ数報告タブの一覧を先回りで KV に温める（初回表示の GAS 往復 2〜4秒を消す）
     ctx.waitUntil(warmSheetDumpCache(env));
+    // 作業者マスターも先回りで温める（GAS 実測 20〜90 秒 = アプリの 25 秒タイムアウト超え）。
+    // 期限内なら中で早期 return するので、5 分ごとに GAS を叩くわけではない。
+    ctx.waitUntil(warmSagyoushaCache(env));
   },
 
   async fetch(request, env, ctx) {
@@ -269,7 +272,7 @@ export default {
 
     // 作業者管理
     if (path === '/api/sagyousha' && request.method === 'GET') {
-      return listSagyousha(request, env, user);
+      return listSagyousha(request, env, user, ctx);
     }
     if (path === '/api/sagyousha' && request.method === 'POST') {
       return withIdempotency(request, env, () => saveSagyousha(request, env, user));
