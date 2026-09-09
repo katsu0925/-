@@ -60,8 +60,10 @@ def visualize(ann_path):
                 img_path = p
                 break
         if not img_path:
-            # テストディレクトリから直接探す
-            p = os.path.join(os.path.dirname(__file__), '..', '..', 'tools', 'ai-measure-test', fname)
+            # 元画像の置き場から直接探す（旧 tools/ai-measure-test は写メジャー削除で消滅）
+            src_dir = os.environ.get('KP_SRC_IMAGES') or \
+                os.path.join(os.path.dirname(__file__), '..', 'data', 'src')
+            p = os.path.join(src_dir, fname)
             if os.path.exists(p):
                 img_path = p
 

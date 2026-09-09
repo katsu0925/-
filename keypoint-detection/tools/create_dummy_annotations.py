@@ -235,7 +235,10 @@ def main():
     os.makedirs(os.path.join(img_dir, 'train'), exist_ok=True)
     os.makedirs(os.path.join(img_dir, 'val'), exist_ok=True)
 
-    src_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'tools', 'ai-measure-test')
+    # 元画像の置き場。旧デフォルトの tools/ai-measure-test は写メジャー削除(2026-09-10)で
+    # 無くなったため、環境変数 KP_SRC_IMAGES で渡す（未設定なら data/src を見る）
+    src_dir = os.environ.get('KP_SRC_IMAGES') or \
+        os.path.join(os.path.dirname(__file__), '..', 'data', 'src')
 
     for cat_name, data in DUMMY_DATA.items():
         # キーポイント数の検証

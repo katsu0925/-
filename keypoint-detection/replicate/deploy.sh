@@ -45,8 +45,12 @@ echo ""
 read -p "ローカルテストを実行しますか？ (y/N): " RUN_TEST
 
 if [ "$RUN_TEST" = "y" ]; then
-    TEST_IMG="../../tools/ai-measure-test/IMG_1722.jpg"
-    if [ -f "$TEST_IMG" ]; then
+    # 旧デフォルトの ../../tools/ai-measure-test/ は写メジャー削除(2026-09-10)で
+    # 無くなったため、テスト画像は TEST_IMG で渡す
+    #   例: TEST_IMG=~/Desktop/tops.jpg ./deploy.sh
+    if [ -z "$TEST_IMG" ]; then
+        echo "テスト画像が未指定です。TEST_IMG=<画像パス> を付けて実行してください"
+    elif [ -f "$TEST_IMG" ]; then
         cog predict -i image=@"$TEST_IMG" -i category=tops -i scale=0.0429
     else
         echo "テスト画像が見つかりません: $TEST_IMG"
