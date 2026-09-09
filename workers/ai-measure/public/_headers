@@ -1,5 +1,0 @@
-/sw.js
-  Cache-Control: no-cache, no-store, must-revalidate
-
-/manifest.json
-  Cache-Control: public, max-age=86400
