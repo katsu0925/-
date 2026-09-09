@@ -38,29 +38,138 @@ function captureConsoleLog_(fn) {
 
 var AP_SECRET_PATTERNS_ = ['SECRET', 'TOKEN', 'PASSWORD', 'KEY', 'HASH'];
 
-function adminPanel_getProperties() {
+/** 一覧に既定で出さない内部状態キー（「内部キーも表示」で出せる） */
+var AP_INTERNAL_PREFIXES_ = ['STATE_', 'PENDING_ORDER_', 'PAYMENT_', 'CALLS_',
+  'ATTEMPTS_', 'BACKOFF_', 'BATCH_EXPAND_', 'BREVO_SENT_'];
+
+/** 消すと本番が止まるキー。画面からは削除させない（GASの設定画面からなら可能） */
+var AP_PROTECTED_KEYS_ = ['ADMIN_KEY', 'ADMIN_OWNER_EMAIL',
+  'KOMOJU_SECRET_KEY', 'KOMOJU_SECRET_KEY_LIVE', 'KOMOJU_SECRET_KEY_TEST', 'KOMOJU_WEBHOOK_SECRET',
+  'DATA_SPREADSHEET_ID', 'DETAIL_SPREADSHEET_ID', 'BULK_SPREADSHEET_ID',
+  'SYNC_SECRET', 'WORKERS_API_URL',
+  'BASE_CLIENT_ID', 'BASE_CLIENT_SECRET', 'BASE_ACCESS_TOKEN', 'BASE_REFRESH_TOKEN'];
+
+/** スクリプトプロパティのストア上限（Apps Scriptの割当: 1ストア合計500KB） */
+var AP_PROPS_LIMIT_BYTES_ = 500 * 1024;
+
+/** 掃除の対象にする経過日数（KOMOJUの決済有効期限3日を大きく超えたもの） */
+var AP_SWEEP_AGE_DAYS_ = 14;
+
+function ap_isInternalKey_(k) {
+  for (var i = 0; i < AP_INTERNAL_PREFIXES_.length; i++) {
+    if (k.indexOf(AP_INTERNAL_PREFIXES_[i]) === 0) return true;
+  }
+  return false;
+}
+
+function ap_isSecretKey_(k) {
+  var u = String(k).toUpperCase();
+  for (var i = 0; i < AP_SECRET_PATTERNS_.length; i++) {
+    if (u.indexOf(AP_SECRET_PATTERNS_[i]) !== -1) return true;
+  }
+  return false;
+}
+
+function ap_isProtectedKey_(k) {
+  return AP_PROTECTED_KEYS_.indexOf(String(k)) !== -1;
+}
+
+/** UTF-8バイト数（ストア使用量の概算に使う） */
+function ap_byteLen_(s) {
+  s = String(s == null ? '' : s);
+  var n = 0;
+  for (var i = 0; i < s.length; i++) {
+    var c = s.charCodeAt(i);
+    if (c < 0x80) n += 1;
+    else if (c < 0x800) n += 2;
+    else if (c >= 0xD800 && c <= 0xDBFF) { n += 4; i++; }
+    else n += 3;
+  }
+  return n;
+}
+
+/** ストア全体の使用量（件数・バイト数・内部キー分） */
+function ap_propsUsage_(allProps) {
+  var count = 0, bytes = 0, internalCount = 0, internalBytes = 0;
+  for (var k in allProps) {
+    var b = ap_byteLen_(k) + ap_byteLen_(allProps[k]);
+    count++; bytes += b;
+    if (ap_isInternalKey_(k)) { internalCount++; internalBytes += b; }
+  }
+  return {
+    count: count,
+    bytes: bytes,
+    limitBytes: AP_PROPS_LIMIT_BYTES_,
+    percent: Math.round(bytes / AP_PROPS_LIMIT_BYTES_ * 1000) / 10,
+    internalCount: internalCount,
+    internalBytes: internalBytes
+  };
+}
+
+function ap_parseJson_(s) {
+  try { return JSON.parse(s); } catch (e) { return null; }
+}
+
+/**
+ * 掃除対象かどうかを判定し、対象なら理由を返す（対象外は空文字）。
+ * 判断できないもの・現役の可能性があるものは必ず空文字を返して残す。
+ */
+function ap_sweepReason_(k, v, todayKey, cutoffMs) {
+  if (k.indexOf('BREVO_SENT_') === 0) {
+    return k === todayKey ? '' : '前日以前の送信カウンタ';
+  }
+  if (k.indexOf('PENDING_ORDER_') === 0) {
+    var d = ap_parseJson_(v);
+    if (!d) return '壊れた未確定注文データ';
+    var ms = Number(d.createdAtMs || 0);
+    if (!ms) return '';  // 日時が読めないものは触らない
+    return ms < cutoffMs ? AP_SWEEP_AGE_DAYS_ + '日以上前の未確定注文' : '';
+  }
+  if (k.indexOf('PAYMENT_') === 0) {
+    var p = ap_parseJson_(v);
+    if (!p) return '壊れた決済セッション';
+    var t = Date.parse(p.createdAt || p.created_at || '');
+    if (!t) return '';
+    return t < cutoffMs ? AP_SWEEP_AGE_DAYS_ + '日以上前の決済セッション' : '';
+  }
+  return '';
+}
+
+/**
+ * プロパティ一覧。
+ * @param {boolean} [includeInternal] 内部状態キー（PENDING_ORDER_ 等）も含める
+ */
+function adminPanel_getProperties(includeInternal) {
   var props = PropertiesService.getScriptProperties().getProperties();
   var result = {};
+  var internals = [];
   var keys = Object.keys(props).sort();
   for (var i = 0; i < keys.length; i++) {
     var k = keys[i];
-    // 内部状態キーは除外
-    if (k.indexOf('STATE_') === 0 || k.indexOf('PENDING_ORDER_') === 0 || k.indexOf('PAYMENT_') === 0) continue;
-    if (k.indexOf('CALLS_') === 0 || k.indexOf('ATTEMPTS_') === 0 || k.indexOf('BACKOFF_') === 0) continue;
-    if (k.indexOf('BATCH_EXPAND_') === 0) continue;
+    var val = props[k] || '';
 
-    var isSecret = false;
-    var kUpper = k.toUpperCase();
-    for (var s = 0; s < AP_SECRET_PATTERNS_.length; s++) {
-      if (kUpper.indexOf(AP_SECRET_PATTERNS_[s]) !== -1) { isSecret = true; break; }
+    // 内部状態キーは編集対象にしない。件数・容量・削除だけできるようにする
+    if (ap_isInternalKey_(k)) {
+      if (includeInternal) {
+        internals.push({
+          key: k,
+          bytes: ap_byteLen_(k) + ap_byteLen_(val),
+          preview: val.substring(0, 60)
+        });
+      }
+      continue;
     }
+
     result[k] = {
-      value: props[k] || '',
-      masked: isSecret,
-      hasValue: !!props[k]
+      value: val,
+      masked: ap_isSecretKey_(k),
+      hasValue: !!val,
+      bytes: ap_byteLen_(k) + ap_byteLen_(val),
+      protected: ap_isProtectedKey_(k)
     };
   }
-  return { ok: true, props: result };
+  internals.sort(function (a, b) { return b.bytes - a.bytes; });
+  return { ok: true, props: result, internals: internals, usage: ap_propsUsage_(props) };
 }
 
 function adminPanel_setProperties(updates) {
@@ -81,6 +190,106 @@ function adminPanel_setProperties(updates) {
     // 空文字は変更なし（既存値維持）
   }
   return { ok: true, message: changed + '件のプロパティを更新しました' };
+}
+
+/**
+ * 新しいプロパティを1件登録する。
+ * GASの「プロジェクトの設定」画面が上限で使えないときの登録口。
+ */
+function adminPanel_addProperty(key, value) {
+  var k = String(key == null ? '' : key).trim();
+  var v = String(value == null ? '' : value).trim();
+  if (!k) return { ok: false, message: 'キー名を入力してください' };
+  if (!/^[A-Za-z0-9_.\-]{1,120}$/.test(k)) {
+    return { ok: false, message: 'キー名は英数字と _ . - のみ（120文字以内）で入力してください' };
+  }
+  if (!v) return { ok: false, message: '値を入力してください' };
+
+  var props = PropertiesService.getScriptProperties();
+  if (props.getProperty(k) !== null) {
+    return { ok: false, message: '「' + k + '」は既に登録されています。一覧から値を上書きしてください' };
+  }
+  try {
+    props.setProperty(k, v);
+  } catch (e) {
+    var u = ap_propsUsage_(props.getProperties());
+    return {
+      ok: false,
+      message: '保存できませんでした（' + (e.message || e) + '）\n' +
+        '現在の使用量: ' + Math.round(u.bytes / 1024) + 'KB / ' + u.count + '件。' +
+        '「不要キーを掃除」で空けてから再実行してください',
+      usage: u
+    };
+  }
+  return {
+    ok: true,
+    message: '「' + k + '」を登録しました',
+    usage: ap_propsUsage_(props.getProperties())
+  };
+}
+
+/**
+ * 指定したキーを削除する（保護キーは除外）。
+ * @param {string[]|string} keys
+ */
+function adminPanel_deleteProperties(keys) {
+  var list = (keys instanceof Array) ? keys : [keys];
+  var props = PropertiesService.getScriptProperties();
+  var all = props.getProperties();
+  var deleted = 0, freed = 0, skipped = [], missing = 0;
+
+  for (var i = 0; i < list.length; i++) {
+    var k = String(list[i] || '').trim();
+    if (!k) continue;
+    if (ap_isProtectedKey_(k)) { skipped.push(k); continue; }
+    if (!(k in all)) { missing++; continue; }
+    freed += ap_byteLen_(k) + ap_byteLen_(all[k]);
+    props.deleteProperty(k);
+    deleted++;
+  }
+
+  var msg = deleted + '件を削除しました（約' + Math.round(freed / 1024 * 10) / 10 + 'KB解放）';
+  if (skipped.length) msg += '\n保護キーのため削除しませんでした: ' + skipped.join(', ');
+  if (missing) msg += '\n' + missing + '件は既にありませんでした';
+  return { ok: true, message: msg, deleted: deleted, freed: freed, usage: ap_propsUsage_(props.getProperties()) };
+}
+
+/**
+ * 明らかに不要な内部キーをまとめて掃除する。
+ * @param {boolean} dryRun true なら削除せず対象を返すだけ
+ */
+function adminPanel_sweepProperties(dryRun) {
+  var props = PropertiesService.getScriptProperties();
+  var all = props.getProperties();
+  var todayKey = '';
+  try { todayKey = mail_todayKey_(); } catch (e) { todayKey = ''; }
+  var cutoffMs = Date.now() - AP_SWEEP_AGE_DAYS_ * 24 * 60 * 60 * 1000;
+
+  var targets = [];
+  var bytes = 0;
+  for (var k in all) {
+    var reason = ap_sweepReason_(k, all[k], todayKey, cutoffMs);
+    if (!reason) continue;
+    var b = ap_byteLen_(k) + ap_byteLen_(all[k]);
+    bytes += b;
+    targets.push({ key: k, reason: reason, bytes: b });
+  }
+  targets.sort(function (a, b2) { return b2.bytes - a.bytes; });
+
+  if (!dryRun) {
+    for (var i = 0; i < targets.length; i++) props.deleteProperty(targets[i].key);
+  }
+
+  return {
+    ok: true,
+    dryRun: !!dryRun,
+    count: targets.length,
+    bytes: bytes,
+    targets: targets.slice(0, 50),
+    message: (dryRun ? '掃除対象: ' : '掃除しました: ') +
+      targets.length + '件（約' + Math.round(bytes / 1024 * 10) / 10 + 'KB）',
+    usage: ap_propsUsage_(props.getProperties())
+  };
 }
 
 // =====================================================

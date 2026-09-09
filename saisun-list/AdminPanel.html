@@ -45,6 +45,14 @@
     table.data th,table.data td{padding:4px 6px;border:1px solid #e6e8ee;text-align:left;}
     table.data th{background:#f0f0f0;font-weight:700;}
     .note{font-size:11px;color:#888;margin-top:4px;}
+    .spin{display:inline-block;width:12px;height:12px;border:2px solid #d9deea;border-top-color:#111;border-radius:50%;animation:apspin .8s linear infinite;vertical-align:-2px;margin-right:6px;}
+    @keyframes apspin{to{transform:rotate(360deg);}}
+    .loading{font-size:12px;color:#666;display:flex;align-items:center;}
+    .usage{margin-top:10px;font-size:12px;}
+    .usage .bar{height:8px;background:#eee;border-radius:6px;overflow:hidden;margin-top:6px;}
+    .usage .bar>i{display:block;height:100%;background:#111;}
+    .chk{display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;margin-top:8px;}
+    .chk input{width:auto;flex:none;}
     .confirm-overlay{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:100;}
     .confirm-modal{display:none;position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#fff;border-radius:14px;width:min(380px,90vw);z-index:101;box-shadow:0 8px 30px rgba(0,0,0,.2);}
     .confirm-header{padding:12px 14px;border-bottom:1px solid #e6e8ee;display:flex;justify-content:space-between;align-items:center;}
@@ -289,11 +297,29 @@
       <div class="card">
         <div class="title">スクリプトプロパティ</div>
         <div class="note">秘密キー(SECRET/TOKEN/KEY等)は値がマスクされます。新しい値を入力して保存すると上書きされます。</div>
+        <div class="usage" id="props-usage"></div>
+      </div>
+
+      <div class="card">
+        <div class="title">新しいキーを登録</div>
+        <div class="note">GASの「プロジェクトの設定」画面が上限で使えないときは、ここから登録できます。値は保存後マスクされます。</div>
+        <div class="form-row"><label>キー名</label><input type="text" id="props-new-key" placeholder="例: BREVO_API_KEY"></div>
+        <div class="form-row"><label>値</label><input type="text" id="props-new-val" placeholder="値を貼り付け"></div>
+        <div class="btnRow">
+          <button class="primary" id="btnAddProp" onclick="addProperty()">登録する</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="title">登録済みキー</div>
+        <label class="chk"><input type="checkbox" id="props-show-internal" onchange="loadProperties()">内部キーも表示（PENDING_ORDER_ / PAYMENT_ / BREVO_SENT_ など）</label>
         <div id="props-container" style="margin-top:10px;">読み込み中...</div>
         <div class="btnRow">
           <button class="primary" id="btnSaveProps" onclick="saveProperties()" disabled>変更を保存</button>
           <button onclick="loadProperties()">再読み込み</button>
+          <button class="danger" id="btnSweepProps" onclick="sweepProperties()">不要キーを掃除</button>
         </div>
+        <div class="note">「掃除」の対象は、前日以前の送信カウンタと、14日以上前の未確定注文・決済セッションだけです。削除前に一覧を表示して確認できます。</div>
         <div class="log" id="props-log"></div>
       </div>
     </div>
@@ -894,21 +920,35 @@ async function saveBizDiscountSettings(){
 var propsLoaded = false;
 var propsOriginal = {};
 
+function propsShowInternal(){ var el=$('props-show-internal'); return !!(el && el.checked); }
+function fmtKb(b){ return (Math.round((b||0)/1024*10)/10) + 'KB'; }
+
 async function loadProperties(){
-  $('props-container').innerHTML = '読み込み中...';
+  $('props-container').innerHTML = '<div class="loading"><span class="spin"></span>読み込み中...</div>';
   $('btnSaveProps').disabled = true;
   try {
-    var res = await run('adminPanel_getProperties');
+    var res = await run('adminPanel_getProperties', propsShowInternal());
     if(!res.ok){ $('props-container').innerHTML = 'エラー'; return; }
     propsOriginal = res.props;
     propsLoaded = true;
-    renderProperties(res.props);
+    renderPropsUsage(res.usage);
+    renderProperties(res.props, res.internals || []);
   } catch(e){ $('props-container').innerHTML = 'エラー: ' + e.message; }
 }
 
-function renderProperties(props){
+function renderPropsUsage(u){
+  var el = $('props-usage');
+  if(!el || !u) return;
+  var pct = Math.min(100, u.percent || 0);
+  el.innerHTML = '<div><b>使用量 ' + fmtKb(u.bytes) + ' / ' + fmtKb(u.limitBytes) + '</b>（' + (u.percent||0) + '%・' + u.count + '件）</div>' +
+    '<div class="bar"><i style="width:' + pct + '%;' + (pct >= 80 ? 'background:#dc3545;' : '') + '"></i></div>' +
+    '<div class="note">うち内部キー ' + u.internalCount + '件 / ' + fmtKb(u.internalBytes) + '。上限が近いときは下の「不要キーを掃除」で空けてください。</div>';
+}
+
+function renderProperties(props, internals){
   var categories = {
     'メール通知': ['ADMIN_OWNER_EMAIL','NOTIFY_EMAILS','CONTACT_EMAIL'],
+    'メール配信(Brevo)': ['BREVO_API_KEY','BREVO_SENDER'],
     'スプレッドシートID': ['DATA_SPREADSHEET_ID','DETAIL_SPREADSHEET_ID','BULK_SPREADSHEET_ID','OM_SHIIRE_SS_ID'],
     'KOMOJU': ['KOMOJU_SECRET_KEY','KOMOJU_WEBHOOK_SECRET','KOMOJU_MODE','KOMOJU_SECRET_KEY_LIVE','KOMOJU_SECRET_KEY_TEST'],
     '外部API': ['RECAPTCHA_SECRET','WORKERS_API_URL','SYNC_SECRET','LINE_ACCESS_TOKEN','LINE_TO_ID','OPENAI_API_KEY'],
@@ -939,10 +979,25 @@ function renderProperties(props){
       html += '<div class="form-row"><label title="'+k+'">'+k+'</label>'+
         '<input type="'+inputType+'" data-prop="'+k+'" value="'+escHtml(val)+'" placeholder="'+placeholder+'" oninput="onPropChange()">'+
         (p.masked ? '<button class="sm" onclick="togglePw(this)">表示</button>' : '')+
+        (p.protected
+          ? '<span class="note" style="margin:0;white-space:nowrap;">保護</span>'
+          : '<button class="sm danger" data-k="'+escHtml(k)+'" onclick="deleteProperty(this.dataset.k)">削除</button>')+
         '</div>';
     });
     html += '</details>';
   });
+
+  if(internals && internals.length){
+    html += '<details><summary>内部キー ('+internals.length+')</summary>'+
+      '<div class="note">未確定注文・決済セッション・送信カウンタなど、コードが自動で作る一時キーです。値は編集できません。</div>'+
+      '<table class="data"><thead><tr><th>キー</th><th>サイズ</th><th>中身（先頭60字）</th><th>操作</th></tr></thead><tbody>';
+    internals.forEach(function(it){
+      html += '<tr><td>'+escHtml(it.key)+'</td><td>'+fmtKb(it.bytes)+'</td><td>'+escHtml(it.preview)+'</td>'+
+        '<td><button class="sm danger" data-k="'+escHtml(it.key)+'" onclick="deleteProperty(this.dataset.k)">削除</button></td></tr>';
+    });
+    html += '</tbody></table></details>';
+  }
+
   $('props-container').innerHTML = html;
 }
 
@@ -956,27 +1011,59 @@ function togglePw(btn){
 
 function onPropChange(){ $('btnSaveProps').disabled = false; }
 
-async function saveProperties(){
-  var inputs = document.querySelectorAll('[data-prop]');
-  var updates = {};
-  var count = 0;
-  inputs.forEach(function(input){
-    var k = input.dataset.prop;
-    var v = input.value;
-    var orig = propsOriginal[k];
-    if(v !== (orig ? orig.value||'' : '')) { updates[k] = v || ''; count++; }
-  });
-  if(count === 0){ showToast('変更なし'); return; }
-  showConfirm(count + '件のプロパティを更新します', async function(){
+async function addProperty(){
+  var k = ($('props-new-key').value || '').trim();
+  var v = ($('props-new-val').value || '').trim();
+  if(!k){ showToast('キー名を入力してください'); return; }
+  if(!v){ showToast('値を入力してください'); return; }
+  var btn = $('btnAddProp');
+  var label = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span>登録中...';
+  clearLog('props-log');
+  try {
+    var res = await run('adminPanel_addProperty', k, v);
+    appendLog('props-log', res.message);
+    showToast(res.ok ? '登録しました' : '登録できません');
+    if(res.ok){ $('props-new-key').value=''; $('props-new-val').value=''; loadProperties(); }
+  } catch(e){ appendLog('props-log', 'エラー: ' + e.message); showToast('エラー'); }
+  finally { btn.disabled = false; btn.innerHTML = label; }
+}
+
+function deleteProperty(k){
+  showConfirm('「'+k+'」を削除します。よろしいですか？', async function(){
     clearLog('props-log');
-    appendLog('props-log', '保存中...');
+    appendLog('props-log', '削除中...');
     try {
-      var res = await run('adminPanel_setProperties', updates);
-      appendLog('props-log', res.ok ? res.message : '失敗: ' + res.message);
-      showToast(res.ok ? '保存完了' : '保存失敗');
+      var res = await run('adminPanel_deleteProperties', [k]);
+      appendLog('props-log', res.message);
+      showToast(res.ok ? '削除しました' : '失敗');
       if(res.ok) loadProperties();
     } catch(e){ appendLog('props-log', 'エラー: ' + e.message); showToast('エラー'); }
-  });
+  }, '削除の確認');
+}
+
+async function sweepProperties(){
+  var btn = $('btnSweepProps');
+  var label = btn.innerHTML;
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span>確認中...';
+  clearLog('props-log');
+  try {
+    var dry = await run('adminPanel_sweepProperties', true);
+    if(!dry.ok){ appendLog('props-log', '確認に失敗しました'); return; }
+    if(!dry.count){ appendLog('props-log', '掃除できる不要キーはありませんでした'); showToast('対象なし'); return; }
+    appendLog('props-log', dry.message);
+    (dry.targets||[]).forEach(function(t){ appendLog('props-log', '・'+t.key+'（'+t.reason+'・'+fmtKb(t.bytes)+'）'); });
+    showConfirm(dry.count+'件（約'+fmtKb(dry.bytes)+'）を削除します。\n対象は前日以前の送信カウンタと、14日以上前の未確定注文・決済セッションだけです。\n在庫の確保はここでは解放されません（ツールの「期限切れ確保を整理」で行います）。', async function(){
+      appendLog('props-log', '削除中...');
+      try {
+        var res = await run('adminPanel_sweepProperties', false);
+        appendLog('props-log', res.message);
+        showToast(res.ok ? '掃除しました' : '失敗');
+        if(res.ok) loadProperties();
+      } catch(e){ appendLog('props-log', 'エラー: ' + e.message); showToast('エラー'); }
+    }, '掃除の確認');
+  } catch(e){ appendLog('props-log', 'エラー: ' + e.message); showToast('エラー'); }
+  finally { btn.disabled = false; btn.innerHTML = label; }
 }
 
 // ========== タブ10: トリガー管理 ==========
