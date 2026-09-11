@@ -16,6 +16,7 @@ const RETURN_STATUS_SYNC_CONFIG = {
   PRODUCT_ID_HEADER_NAME: "管理番号",
   PRODUCT_STATUS_HEADER_NAME: "ステータス",
   PRODUCT_LOCATION_HEADER_NAME: "納品場所",
+  PRODUCT_RECEIPT_HEADER_NAME: "受付番号",   // BO列。デタウリ受注で売れた商品に入る
   RETURN_ID_COL: 4,
   RETURN_DEST_COL: 3,
   RETURNED_STATUS_TEXT: "返品済み",
@@ -49,10 +50,18 @@ function updateReturnStatusNowInner_() {
   const idCol = requireCol_(header, RETURN_STATUS_SYNC_CONFIG.PRODUCT_ID_HEADER_NAME, '商品管理');
   const statusCol = requireCol_(header, RETURN_STATUS_SYNC_CONFIG.PRODUCT_STATUS_HEADER_NAME, '商品管理');
   const locationCol = requireCol_(header, RETURN_STATUS_SYNC_CONFIG.PRODUCT_LOCATION_HEADER_NAME, '商品管理');
+  // 受付番号（BO列）はソフト解決。見つからなければガードは効かないので警告だけ残す。
+  const receiptCol = findColByName_(header, RETURN_STATUS_SYNC_CONFIG.PRODUCT_RECEIPT_HEADER_NAME);
+  if (receiptCol < 0) {
+    console.warn('商品管理に「' + RETURN_STATUS_SYNC_CONFIG.PRODUCT_RECEIPT_HEADER_NAME + '」列が無いため、デタウリ売却済みガードは無効');
+  }
   const numRows = productLastRow - productHeaderRow;
   const idVals = productSheet.getRange(productHeaderRow + 1, idCol, numRows, 1).getDisplayValues();
   const statusVals = productSheet.getRange(productHeaderRow + 1, statusCol, numRows, 1).getValues();
   const locVals = productSheet.getRange(productHeaderRow + 1, locationCol, numRows, 1).getValues();
+  const receiptVals = receiptCol > 0
+    ? productSheet.getRange(productHeaderRow + 1, receiptCol, numRows, 1).getDisplayValues()
+    : null;
   const excludedSet = new Set((RETURN_STATUS_SYNC_CONFIG.EXCLUDED_STATUS_TEXTS || []).map(normalizeText_));
   const returnedTextNorm = normalizeText_(RETURN_STATUS_SYNC_CONFIG.RETURNED_STATUS_TEXT);
   let statusChanged = false;
@@ -63,8 +72,15 @@ function updateReturnStatusNowInner_() {
     const dest = returnedIdMap.get(id);
     if (dest === undefined) continue;
     // ステータス更新
+    // 返送管理は追記のみの履歴なので、ここに一度載った管理番号は永久に対象であり続ける。
+    // デタウリで売れた商品（受付番号あり）が何かの拍子に「売却済み」から外れると、
+    // 除外リストに掛からない状態（出品中など）を経由してこの同期が「返品済み」を再付与し、
+    // データ1へ再掲載＝販売済みなのに再び買える状態になる（2026-06-01 zAA1）。
+    // 受付番号が入っている行はステータスを触らない。注文キャンセル時は saisun-list の
+    // PaymentReminder.gs:restoreProductStatusForCancel_ が BO列を空にするのでガードは自動で外れる。
+    const hasReceipt = receiptVals ? !!String(receiptVals[r][0] || '').trim() : false;
     const currentStatusNorm = normalizeText_(statusVals[r][0]);
-    if (!excludedSet.has(currentStatusNorm) && currentStatusNorm !== returnedTextNorm) {
+    if (!hasReceipt && !excludedSet.has(currentStatusNorm) && currentStatusNorm !== returnedTextNorm) {
       statusVals[r][0] = RETURN_STATUS_SYNC_CONFIG.RETURNED_STATUS_TEXT;
       statusChanged = true;
     }

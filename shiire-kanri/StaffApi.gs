@@ -110,10 +110,87 @@ function staff_recomputeStatus_(sh, rowNum, hdr, col) {
   var rowVals = sh.getRange(rowNum, 1, 1, lastCol).getValues()[0];
   var calc = staff_calcStatus_(rowVals, col);
   var current = String(rowVals[STAFF_COL.ステータス - 1] || '');
+  // デタウリ受注で売れた行（BO列 受付番号あり）は日付列が空のまま「売却済み」が正。
+  // ここで IFS 再算出すると出品日だけを見て「出品中」へ降格し、返送管理に載っている
+  // 商品なら 返送済みステータス変更.gs（毎時）がさらに「返品済み」を再付与 →
+  // デタウリのデータ1へ再掲載＝販売済み商品が再び買える状態になる（2026-06-01 zAA1）。
+  // 受付番号が入っている限りステータスは触らない。注文キャンセル時は
+  // saisun-list PaymentReminder.gs:restoreProductStatusForCancel_ が BO列を空にするので
+  // そこで自動的にこのガードが外れる。
+  var receiptCol_ = col['受付番号'];
+  if (receiptCol_ && !staff_isBlankCell_(rowVals[receiptCol_ - 1])) {
+    return { changed: false, current: current, calc: current, skipped: '受付番号あり' };
+  }
   // 判定列がすべて空なら算出も空。その場合はステータスもクリアする（削除時に前段階へ戻す）。
   if (calc === current) return { changed: false, current: current, calc: calc };
   sh.getRange(rowNum, STAFF_COL.ステータス).setValue(calc);
   return { changed: true, prev: current, status: calc };
+}
+
+// ========== デタウリ売却済みの取りこぼし復旧 ==========
+// BO列「受付番号」が入っている＝デタウリで売れた行なのに、ステータスが「売却済み」から
+// 外れてしまった行を一括で戻す。売却履歴シート（A=売却日 / B=管理番号 / C=受付番号）に
+// 同じ受付番号の売却記録がある行だけを対象にするので、誤爆せず何度実行しても安全。
+//
+// 発生経路（2026-06-01 zAA1）:
+//   staff_recomputeStatus_ が日付列だけで IFS 再算出 → 出品日しか無いので「出品中」へ降格
+//   → 返送管理に載っている商品なので 返送済みステータス変更.gs（毎時）が「返品済み」を再付与
+//   → デタウリのデータ1へ再掲載され、販売済みなのに再び購入できる状態になった。
+// 経路そのものは staff_recomputeStatus_ と 返送済みステータス変更.gs の受付番号ガードで封鎖済み。
+//
+// Apps Script エディタから repairSoldByReceiptNo() を実行（既定は dry-run＝ログのみ）。
+// 実際に書き戻すときは repairSoldByReceiptNo(false)。
+function repairSoldByReceiptNo(dryRun) {
+  if (dryRun === undefined) dryRun = true;
+  var SOLD = '売却済み';
+  var ss = SpreadsheetApp.getActiveSpreadsheet() || staff_getSheet_().getParent();
+  var sh = ss.getSheetByName(STAFF_SHEET_NAME);
+  if (!sh) throw new Error(STAFF_SHEET_NAME + ' シートが見つかりません');
+
+  var hdr = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+  var col = buildHeaderMap_(hdr);
+  var receiptCol = col['受付番号'];
+  if (!receiptCol) throw new Error('「受付番号」列がヘッダーに見つかりません');
+
+  // 売却履歴: 管理番号 → 受付番号
+  var soldLog = Object.create(null);
+  var logSh = ss.getSheetByName('売却履歴');
+  if (logSh && logSh.getLastRow() > 1) {
+    var logVals = logSh.getRange(2, 1, logSh.getLastRow() - 1, 3).getDisplayValues();
+    for (var i = 0; i < logVals.length; i++) {
+      var k = String(logVals[i][1] || '').trim();
+      if (k) soldLog[k] = String(logVals[i][2] || '').trim();
+    }
+  }
+
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return { ok: true, fixed: 0, targets: [] };
+  var numRows = lastRow - 1;
+  var kanriVals  = sh.getRange(2, STAFF_COL.管理番号, numRows, 1).getDisplayValues();
+  var statusVals = sh.getRange(2, STAFF_COL.ステータス, numRows, 1).getValues();
+  var receiptVals = sh.getRange(2, receiptCol, numRows, 1).getDisplayValues();
+
+  var targets = [];
+  var skippedNoLog = [];
+  for (var r = 0; r < numRows; r++) {
+    var receipt = String(receiptVals[r][0] || '').trim();
+    if (!receipt) continue;
+    var status = String(statusVals[r][0] || '').trim();
+    if (status === SOLD) continue;
+    var kanri = String(kanriVals[r][0] || '').trim();
+    if (soldLog[kanri] !== receipt) { skippedNoLog.push(kanri + '(' + status + '/' + receipt + ')'); continue; }
+    targets.push({ row: r + 2, kanri: kanri, from: status, receipt: receipt });
+    statusVals[r][0] = SOLD;
+  }
+
+  Logger.log('repairSoldByReceiptNo: 対象 ' + targets.length + '件 / 売却履歴に記録なしでスキップ ' + skippedNoLog.length + '件' + (dryRun ? ' [dry-run]' : ''));
+  targets.forEach(function(t) { Logger.log('  行' + t.row + ' ' + t.kanri + ': ' + t.from + ' → ' + SOLD + ' (' + t.receipt + ')'); });
+  if (skippedNoLog.length) Logger.log('  スキップ: ' + skippedNoLog.join(', '));
+
+  if (!dryRun && targets.length) {
+    sh.getRange(2, STAFF_COL.ステータス, numRows, 1).setValues(statusVals);
+  }
+  return { ok: true, dryRun: dryRun, fixed: dryRun ? 0 : targets.length, targets: targets, skippedNoLog: skippedNoLog };
 }
 
 // 指定の管理番号リストの E列ステータスを「売却済み」に一括書き戻す（5/3 Ctrl+H 連鎖被害の復旧用）
