@@ -140,6 +140,20 @@ function staff_recomputeStatus_(sh, rowNum, hdr, col) {
 //
 // Apps Script エディタから repairSoldByReceiptNo() を実行（既定は dry-run＝ログのみ）。
 // 実際に書き戻すときは repairSoldByReceiptNo(false)。
+// ★GASエディタの「実行」ドロップダウンから直接選べる引数なし版（本当に書き戻す）。
+//   ドロップダウンでは引数を渡せず repairSoldByReceiptNo だけを選ぶと dry-run になるため、
+//   実行用にこちらを用意している。まずログだけ見たいときは repairSoldByReceiptNoDryRun を選ぶ。
+function repairSoldByReceiptNoRun() {
+  var res = repairSoldByReceiptNo(false);
+  Logger.log('復旧完了: ' + res.fixed + '件');
+  return res;
+}
+
+// ★同じくドロップダウン用。ログだけ出して何も書き換えない。
+function repairSoldByReceiptNoDryRun() {
+  return repairSoldByReceiptNo(true);
+}
+
 function repairSoldByReceiptNo(dryRun) {
   if (dryRun === undefined) dryRun = true;
   var SOLD = '売却済み';
