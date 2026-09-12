@@ -66,13 +66,27 @@ function updateMonthlyInventoryTrend() {
   }
 
   // --- 売却履歴データ読み込み ---
-  // A列(売却日), E列(仕入れ値)
-  var baikyDateYM = [], baikyCost = [];
+  // A列(売却日), B列(管理番号), E列(仕入れ値)
+  // 同じ管理番号が2〜4行ある行が混ざっている。欠品処理とアソート自動展開Cronの
+  // 同時実行レースで二重記録されたもので、2026-06 より前に 419件・703行。
+  // 1点の商品は1回しか売れないので、管理番号ごとに最初の1行だけを使う。
+  // シートは売却日の昇順に追記されるので「最初の1行」＝最も早い売却日になる。
+  // 重複行は仕入れ値が空のことが多く、残す行の金額は先勝ちでも最大値でも一致する。
+  var baikyDateYM = [], baikyCost = [], baikyDupRows = 0;
   if (sheetBaiky) {
     var baikyLastRow = sheetBaiky.getLastRow();
     if (baikyLastRow >= 2) {
-      baikyDateYM = sheetBaiky.getRange('A2:A' + baikyLastRow).getValues().flat().map(function(v) { return toYM_(v); });
-      baikyCost   = sheetBaiky.getRange('E2:E' + baikyLastRow).getValues().flat();
+      var baikyVals = sheetBaiky.getRange(2, 1, baikyLastRow - 1, 5).getValues();
+      var baikySeen = Object.create(null);
+      for (var bi = 0; bi < baikyVals.length; bi++) {
+        var bKanri = String(baikyVals[bi][1] || '').trim();
+        if (bKanri) {
+          if (baikySeen[bKanri]) { baikyDupRows++; continue; }
+          baikySeen[bKanri] = true;
+        }
+        baikyDateYM.push(toYM_(baikyVals[bi][0]));
+        baikyCost.push(baikyVals[bi][4]);
+      }
     }
   }
 
@@ -192,7 +206,8 @@ function updateMonthlyInventoryTrend() {
     sheetMain.getRange(3, 1, result.length, 17).setValues(result);
   }
 
-  Logger.log('月次在庫推移を更新しました: ' + result.length + '行 (EC管理・売却履歴含む)');
+  Logger.log('月次在庫推移を更新しました: ' + result.length + '行 (EC管理・売却履歴含む)'
+    + (baikyDupRows ? ' / 売却履歴の重複行を除外: ' + baikyDupRows + '行' : ''));
 }
 
 // =====================================================
