@@ -96,16 +96,17 @@ function startNewMonthInternal(newDate){
 
     const pm=getPurchaseMap();
     const pMap=pm.map;
-    const outflowMap=buildOutflowCountMap();
+    const flowMap=buildOutflowDateMap_();
     const adjMap=buildAdjustMap_(shStock,newDate);
+    const newYmd=toYMD(normalizeDate(newDate));
 
     // 旧実装は「前月の実地棚卸数(D列)をそのまま今月の理論在庫(C列)に引き継ぐ」だったため、
     // 当月に売れた分が一切反映されず、一度書かれた数字が永久に減らなかった。
-    // 毎月 calcTheory で引き直す（実地棚卸で出た差異は adjMap 側で引き継がれる）。
+    // 毎月 calcTheoryAt_ で引き直す（実地棚卸で出た差異は adjMap 側で引き継がれる）。
     const rows=[];
     for(let i=0;i<pm.orderedIds.length;i++){
       const id=pm.orderedIds[i];
-      rows.push([newDate,id,Number(calcTheory(id,pMap,outflowMap,adjMap))||0,'','','','']);
+      rows.push([newDate,id,Number(calcTheoryAt_(id,pMap,flowMap,adjMap,newYmd))||0,'','','','']);
     }
     if(rows.length===0){ log_('startNewMonth: rows=0'); throw new Error('仕入れ管理シートに対象データがありません'); }
 
@@ -161,8 +162,9 @@ function syncCurrentMonthIds(){
   try{
     const pm=getPurchaseMap();
     const pMap=pm.map;
-    const outflowMap=buildOutflowCountMap();
+    const flowMap=buildOutflowDateMap_();
     const adjMap=buildAdjustMap_(shStock,lastDate);
+    const lastYmd=toYMD(normalizeDate(lastDate));
 
     const block=getBlockRowsByDate(lastDate);
     const currentIds=new Set();
@@ -186,7 +188,7 @@ function syncCurrentMonthIds(){
     const rows=[];
     for(let i=0;i<addIds.length;i++){
       const id=addIds[i];
-      const theory=calcTheory(id,pMap,outflowMap,adjMap);
+      const theory=calcTheoryAt_(id,pMap,flowMap,adjMap,lastYmd);
       rows.push([lastDate,id,Number(theory)||0,'','','','']);
     }
 
@@ -213,7 +215,7 @@ function syncCurrentMonthIds(){
   }
 }
 
-// ⚠️ 旧運用の名残。C列は recomputeComputedColumns() が毎回 calcTheory で引き直すため、
+// ⚠️ 旧運用の名残。C列は recomputeComputedColumns() が毎回 calcTheoryAt_ で引き直すため、
 // この関数を実行しても末尾の recomputeComputedColumns() で上書きされる。どこからも呼ばれていない。
 function recalcCurrentTheoryFromPrev(){
   const props = PropertiesService.getScriptProperties();
@@ -310,41 +312,127 @@ function getPurchaseMap(){
 // 「返品済み」は含めない — メルカリから引き上げてデタウリ卸に回しただけで現物は手元にある。
 const OUTFLOW_STATUSES=['売却済み','発送済み','発送待ち','キャンセル','廃棄済み'];
 
-// 仕入れIDごとの出庫点数を数える。
-// 旧実装は 販売日/返品日付/キャンセル日/廃棄日 の「日付列が埋まっているか」で数えていた。
-// デタウリ受注（アソートの自動展開を含む）で売れた商品は 販売日ではなく BO列「受付番号」＋
-// 売却履歴シートに記録され、ステータスだけが「売却済み」になる設計なので、
-// 約1,800点が1点も出庫として数えられていなかった。さらに返品済み（＝手元にある在庫）を
-// 出庫に数える誤りもあった。ステータスで数えればどちらの経路でも正しく引ける。
-function buildOutflowCountMap(){
-  const sh=SpreadsheetApp.getActive().getSheetByName(SHEET_PRODUCT);
-  if(!sh) return new Map();
-  const lr=sh.getLastRow();
-  if(lr<2) return new Map();
-  const headers=sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0].map(v=>String(v||'').trim());
-  const idCol=headers.indexOf('仕入れID');
-  const stCol=headers.indexOf('ステータス');
-  if(idCol<0||stCol<0){
-    log_('buildOutflowCountMap: 列が見つかりません 仕入れID='+idCol+' ステータス='+stCol);
-    throw new Error('商品管理シートに「仕入れID」または「ステータス」列がありません');
+// 受付番号から売却日を読む。デタウリ受注の受付番号は2形式ある。
+//   20260215233934-223 → 2026-02-15（yyyyMMddHHmmss-連番）
+//   260113 / 260209CU  → 2026-01-13 / 2026-02-09（yyMMdd＋任意の英字）
+// 16桁hexや「ファスト補填」など日付を持たない値もあるので、その場合は '' を返す。
+function receiptToYmd_(v){
+  const s=String(v||'').trim();
+  if(!s) return '';
+  let m=s.match(/^(\d{4})(\d{2})(\d{2})\d{6}/);
+  if(m) return m[1]+'-'+m[2]+'-'+m[3];
+  m=s.match(/^(\d{2})(\d{2})(\d{2})[A-Za-z]{0,3}$/);
+  if(m){
+    const mo=Number(m[2]), da=Number(m[3]);
+    if(mo>=1&&mo<=12&&da>=1&&da<=31) return '20'+m[1]+'-'+m[2]+'-'+m[3];
   }
-  const ids=sh.getRange(2,idCol+1,lr-1,1).getValues().flat();
-  const sts=sh.getRange(2,stCol+1,lr-1,1).getValues().flat();
+  return '';
+}
+
+function cellToYmd_(v){
+  if(v===''||v==null) return '';
+  if(v instanceof Date && !isNaN(v.getTime())) return toYMD(normalizeDate(v));
+  const m=String(v).match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if(!m) return '';
+  return m[1]+'-'+('0'+m[2]).slice(-2)+'-'+('0'+m[3]).slice(-2);
+}
+
+// 仕入れIDごとに「出庫した日付の配列」と「日付が分からなかった点数」を集める。
+// 出庫日の取り方（この順に試す）:
+//   1. 廃棄済み→廃棄日 / キャンセル→キャンセル日 / それ以外→販売日
+//   2. BO列「受付番号」に埋まっている日付（デタウリ受注はここにしか日付が無い）
+//   3. 売却履歴シート（管理番号 → 最も早い売却日）
+//   4. 同じ受付番号＝同じ注文の中で判明している最も早い日付
+// 2026-09-12 実測でこれで 3,971点中 3,946点（99.4%）の出庫日が確定する。
+// 残り25点は受付番号も無く追跡不能なので unknown に積み、常に出庫済みとして扱う。
+function buildOutflowDateMap_(){
+  const ss=SpreadsheetApp.getActive();
+  const sh=ss.getSheetByName(SHEET_PRODUCT);
   const m=new Map();
-  for(let i=0;i<ids.length;i++){
-    const id=String(ids[i]||'').trim();
-    if(!id) continue;
-    if(OUTFLOW_STATUSES.indexOf(String(sts[i]||'').trim())<0) continue;
-    m.set(id,(m.get(id)||0)+1);
+  if(!sh) return m;
+  const lr=sh.getLastRow();
+  if(lr<2) return m;
+
+  const headers=sh.getRange(1,1,1,sh.getLastColumn()).getValues()[0].map(v=>String(v||'').trim());
+  const need={仕入れID:0,管理番号:0,ステータス:0,販売日:0,キャンセル日:0,廃棄日:0,受付番号:0};
+  const missing=[];
+  Object.keys(need).forEach(k=>{ need[k]=headers.indexOf(k); if(need[k]<0) missing.push(k); });
+  if(missing.length){
+    log_('buildOutflowDateMap_: 商品管理に列がありません '+missing.join(','));
+    throw new Error('商品管理シートに次の列がありません: '+missing.join(', '));
   }
+
+  // 売却履歴: 管理番号 → 最も早い売却日
+  const logMap=new Map();
+  const shLog=ss.getSheetByName('売却履歴');
+  if(shLog && shLog.getLastRow()>1){
+    const lv=shLog.getRange(2,1,shLog.getLastRow()-1,3).getValues();
+    for(let i=0;i<lv.length;i++){
+      const k=String(lv[i][1]||'').trim();
+      const d=cellToYmd_(lv[i][0]);
+      if(!k||!d) continue;
+      if(!logMap.has(k)||d<logMap.get(k)) logMap.set(k,d);
+    }
+  }
+
+  const cols=[need.仕入れID,need.管理番号,need.ステータス,need.販売日,need.キャンセル日,need.廃棄日,need.受付番号];
+  const maxCol=Math.max.apply(null,cols)+1;
+  const vals=sh.getRange(2,1,lr-1,maxCol).getValues();
+
+  const recs=[];
+  for(let i=0;i<vals.length;i++){
+    const row=vals[i];
+    const sid=String(row[need.仕入れID]||'').trim();
+    if(!sid) continue;
+    const st=String(row[need.ステータス]||'').trim();
+    if(OUTFLOW_STATUSES.indexOf(st)<0) continue;
+    const kanri=String(row[need.管理番号]||'').trim();
+    const receipt=String(row[need.受付番号]||'').trim();
+    let d = st==='廃棄済み' ? cellToYmd_(row[need.廃棄日])
+          : st==='キャンセル' ? cellToYmd_(row[need.キャンセル日])
+          : cellToYmd_(row[need.販売日]);
+    if(!d) d=receiptToYmd_(receipt);
+    if(!d && kanri) d=logMap.get(kanri)||'';
+    recs.push({sid:sid,receipt:receipt,d:d});
+  }
+
+  // 同じ受付番号（＝同じ注文）の中で判明している最も早い日付を、日付不明の行へ流用する
+  const byReceipt=new Map();
+  for(let i=0;i<recs.length;i++){
+    const r=recs[i];
+    if(!r.receipt||!r.d) continue;
+    if(!byReceipt.has(r.receipt)||r.d<byReceipt.get(r.receipt)) byReceipt.set(r.receipt,r.d);
+  }
+  let unknownTotal=0;
+  for(let i=0;i<recs.length;i++){
+    const r=recs[i];
+    if(!r.d && r.receipt && byReceipt.has(r.receipt)) r.d=byReceipt.get(r.receipt);
+    let e=m.get(r.sid);
+    if(!e){ e={dates:[],unknown:0}; m.set(r.sid,e); }
+    if(r.d) e.dates.push(r.d); else { e.unknown++; unknownTotal++; }
+  }
+  m.forEach(e=>e.dates.sort());
+  if(unknownTotal) log_('buildOutflowDateMap_: 出庫日が特定できない商品 '+unknownTotal+'点（常に出庫済みとして扱う）');
   return m;
 }
 
-// 理論在庫 = 仕入れ点数 − 出庫点数 + 実地棚卸で確定した過去の差異（累計）
-function calcTheory(id,pMap,outflowMap,adjMap){
+// asOfYmd 時点の理論在庫 = 仕入れ点数 − その日までの出庫点数 + 実地棚卸で確定した差異（累計）
+// asOfYmd を渡すのが要。旧実装は「今のステータス」だけで数えていたため、棚卸日より後に
+// 売れた分まで差し引かれ、同じ棚卸日の数字が日が経つごとに目減りしていた。
+function calcTheoryAt_(id,pMap,flowMap,adjMap,asOfYmd){
   const p=pMap.get(id);
-  const base=p?p.qty:0;
-  const out=outflowMap.get(id)||0;
+  if(!p) return 0;
+  const lotYmd=cellToYmd_(p.date);
+  if(asOfYmd && lotYmd && lotYmd>asOfYmd) return 0;   // 棚卸日より後に仕入れたロット
+  const base=Number(p.qty)||0;
+  const f=flowMap?flowMap.get(id):null;
+  let out=0;
+  if(f){
+    out=f.unknown;
+    for(let i=0;i<f.dates.length;i++){
+      if(!asOfYmd||f.dates[i]<=asOfYmd) out++; else break;
+    }
+  }
   const adj=(adjMap&&adjMap.get(id))||0;
   return base-out+adj;
 }
@@ -426,56 +514,110 @@ function getBlockRowsByDate(dateObj){
 // C を毎回引き直すのがこの関数の要 — 旧実装は C を一切更新しなかったため、
 // 行が作られた月の数字のまま固定され、その後どれだけ売れても棚卸数が減らなかった。
 function recomputeComputedColumns(){
-  const ss=SpreadsheetApp.getActive();
-  const sh=ss.getSheetByName(SHEET_STOCK);
+  const sh=SpreadsheetApp.getActive().getSheetByName(SHEET_STOCK);
   if(!sh) return;
-
   const lastDate=getLatestStockDate();
   if(!lastDate) return;
+  const r=recomputeBlock_(sh,lastDate,{pMap:getPurchaseMap().map,flowMap:buildOutflowDateMap_()},false);
+  if(r && r.dSynced) log_('recomputeComputedColumns: 実地未カウント行のD列を理論値に更新 '+r.dSynced+'件 / '+r.rows+'行');
+}
 
-  const rows=getBlockRowsByDate(lastDate);
-  if(rows.length===0) return;
+// ★GASエディタの「実行」ドロップダウン用。棚卸明細の全ブロックを棚卸日基準で引き直す。
+//   まずログだけ見る → recomputeAllStockBlocksDryRun
+//   実際に書き戻す   → recomputeAllStockBlocksRun
+// 過去ブロックも直すので、月次在庫推移（期末棚卸サマリー経由）が全期間で入れ替わる。
+function recomputeAllStockBlocksDryRun(){ return recomputeAllStockBlocks(true); }
+function recomputeAllStockBlocksRun(){ return recomputeAllStockBlocks(false); }
+
+function recomputeAllStockBlocks(dryRun){
+  if(dryRun===undefined) dryRun=true;
+  const sh=SpreadsheetApp.getActive().getSheetByName(SHEET_STOCK);
+  if(!sh) throw new Error('シート「'+SHEET_STOCK+'」が見つかりません');
+  const lr=sh.getLastRow();
+  if(lr<3) return {ok:true,blocks:[]};
+
+  const ctx={pMap:getPurchaseMap().map,flowMap:buildOutflowDateMap_()};
+
+  // 棚卸日を昇順に列挙（重複なし）
+  const seen={},dates=[];
+  const col=sh.getRange(3,1,lr-2,1).getValues();
+  for(let i=0;i<col.length;i++){
+    const v=col[i][0];
+    if(!v) continue;
+    const dt=new Date(v);
+    if(isNaN(dt.getTime())) continue;
+    const ymd=toYMD(normalizeDate(dt));
+    if(seen[ymd]) continue;
+    seen[ymd]=true; dates.push(normalizeDate(dt));
+  }
+  dates.sort((x,y)=>x-y);
+
+  const report=[];
+  for(let i=0;i<dates.length;i++){
+    const r=recomputeBlock_(sh,dates[i],ctx,dryRun);
+    if(r) report.push(r);
+  }
+  Logger.log('recomputeAllStockBlocks'+(dryRun?' [dry-run]':'')+': '+report.length+'ブロック');
+  report.forEach(function(r){
+    Logger.log('  '+r.ymd+'  '+r.rows+'行  '+r.qtyBefore+'点/¥'+r.amtBefore.toLocaleString()
+      +' → '+r.qtyAfter+'点/¥'+r.amtAfter.toLocaleString()
+      +'  ('+(r.amtAfter-r.amtBefore>=0?'+':'')+(r.amtAfter-r.amtBefore).toLocaleString()+')');
+  });
+  if(!dryRun) log_('recomputeAllStockBlocks: '+report.length+'ブロックを引き直しました');
+  return {ok:true,dryRun:dryRun,blocks:report};
+}
+
+// 1ブロック分を棚卸日基準で引き直す。dryRun なら計算だけしてシートには書かない。
+function recomputeBlock_(sh,blockDate,ctx,dryRun){
+  const rows=getBlockRowsByDate(blockDate);
+  if(rows.length===0) return null;
 
   // C・D列まで書き換えるので、ブロックの行が連続していない場合は触らない（範囲書き込みでズレるため）
   if(rows[rows.length-1]-rows[0]+1!==rows.length){
-    log_('recomputeComputedColumns: 最新ブロックの行が連続していません（'+rows[0]+'〜'+rows[rows.length-1]+' / '+rows.length+'行）。中止');
-    return;
+    log_('recomputeBlock_: '+toYMD(blockDate)+' の行が連続していません（'+rows[0]+'〜'+rows[rows.length-1]+' / '+rows.length+'行）。中止');
+    return null;
   }
 
-  const pMap=getPurchaseMap().map;
-  const outflowMap=buildOutflowCountMap();
-  const adjMap=buildAdjustMap_(sh,lastDate);
+  const ymd=toYMD(normalizeDate(blockDate));
+  const adjMap=buildAdjustMap_(sh,blockDate);
 
   const bVals=sh.getRange(rows[0],2,rows.length,1).getValues().flat();
   const cVals=sh.getRange(rows[0],3,rows.length,1).getValues().flat();
   const dVals=sh.getRange(rows[0],4,rows.length,1).getValues().flat();
 
   const cOut=[];const dOut=[];const eOut=[];const fOut=[];const gOut=[];
-  let dSynced=0;
+  let dSynced=0,qtyBefore=0,amtBefore=0,qtyAfter=0,amtAfter=0;
+  const dupSeen={};
   for(let i=0;i<rows.length;i++){
     const id=String(bVals[i]||'').trim();
     if(!id){cOut.push([cVals[i]]);dOut.push([dVals[i]]);eOut.push(['']);fOut.push(['']);gOut.push(['']);continue;}
 
     const cOldRaw=cVals[i];
     const cOld=(cOldRaw===''||cOldRaw==null)?NaN:Number(cOldRaw);
-    const cNum=calcTheory(id,pMap,outflowMap,adjMap);
+    // 同じブロックに同じ仕入れIDが二重にある場合、2行目以降は 0 にして二重計上を止める
+    const isDup=!!dupSeen[id];
+    dupSeen[id]=true;
+    const cNum=isDup?0:calcTheoryAt_(id,ctx.pMap,ctx.flowMap,adjMap,ymd);
 
     // D列(実地棚卸数)は、実地カウントされていない行だけ新しい理論値に追従させる。
     // 「実地カウントされていない」＝ D が旧C と同値。実際に数えて別の値が入っている行と、
     // まだ空の行には絶対に触らない。
     let dRaw=dVals[i];
     const hadD=!(dRaw===''||dRaw==null);
+    if(hadD){ qtyBefore+=Number(dRaw)||0; }
     if(hadD && !isNaN(cOld) && Number(dRaw)===cOld && cNum!==cOld){ dRaw=cNum; dSynced++; }
 
     const hasD=!(dRaw===''||dRaw==null);
     const dNum=hasD?Number(dRaw):NaN;
 
-    const p=pMap.get(id);
+    const p=ctx.pMap.get(id);
     const cost=(p&&!isNaN(Number(p.cost)))?Number(p.cost):'';
 
     const eVal=(!hasD || isNaN(dNum)) ? '' : (dNum-cNum);
     const fVal=(cost===''||cost==null||isNaN(Number(cost))) ? '' : Number(cost);
     const gVal=(!hasD || fVal==='' || isNaN(dNum)) ? '' : (dNum*fVal);
+
+    if(hasD){ qtyAfter+=dNum; if(gVal!=='') amtAfter+=gVal; }
 
     cOut.push([cNum]);
     dOut.push([hasD?dRaw:'']);
@@ -483,13 +625,18 @@ function recomputeComputedColumns(){
     fOut.push([fVal]);
     gOut.push([gVal]);
   }
+  // 変更前の棚卸金額はG列の現在値から取る（点数は上のループでD列の現在値を積んである）
+  const gNow=sh.getRange(rows[0],7,rows.length,1).getValues().flat();
+  for(let i=0;i<gNow.length;i++) amtBefore+=Number(gNow[i])||0;
 
-  sh.getRange(rows[0],3,rows.length,1).setValues(cOut);
-  sh.getRange(rows[0],4,rows.length,1).setValues(dOut);
-  sh.getRange(rows[0],5,rows.length,1).setValues(eOut);
-  sh.getRange(rows[0],6,rows.length,1).setValues(fOut);
-  sh.getRange(rows[0],7,rows.length,1).setValues(gOut);
-  if(dSynced) log_('recomputeComputedColumns: 実地未カウント行のD列を理論値に更新 '+dSynced+'件 / '+rows.length+'行');
+  if(!dryRun){
+    sh.getRange(rows[0],3,rows.length,1).setValues(cOut);
+    sh.getRange(rows[0],4,rows.length,1).setValues(dOut);
+    sh.getRange(rows[0],5,rows.length,1).setValues(eOut);
+    sh.getRange(rows[0],6,rows.length,1).setValues(fOut);
+    sh.getRange(rows[0],7,rows.length,1).setValues(gOut);
+  }
+  return {ymd:ymd,rows:rows.length,dSynced:dSynced,qtyBefore:qtyBefore,amtBefore:amtBefore,qtyAfter:qtyAfter,amtAfter:amtAfter};
 }
 
 function findFirstEmptyRowAtoG(sh,fromRow){
