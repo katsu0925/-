@@ -522,15 +522,24 @@ function recomputeComputedColumns(){
   if(r && r.dSynced) log_('recomputeComputedColumns: 実地未カウント行のD列を理論値に更新 '+r.dSynced+'件 / '+r.rows+'行');
 }
 
-// ★GASエディタの「実行」ドロップダウン用。棚卸明細の全ブロックを棚卸日基準で引き直す。
+// 引き直しの下限。この日より前の棚卸ブロックには一切触らない。
+// 2025年分（〜2025-12-31）は確定申告を提出済みで、期末在庫を後から動かすと申告内容が
+// 変わってしまう。2025年末の誤差は2026年の期首在庫としてそのまま引き継ぎ、
+// 当期（2026年）の売上原価で吸収する方針（2026-09-12 ユーザー判断「今季で調整する」）。
+// 過去に遡る必要が出たらこの日付を変えるだけでよい。
+const STOCK_RECOMPUTE_FROM='2026-01-01';
+
+// ★GASエディタの「実行」ドロップダウン用。棚卸明細のブロックを棚卸日基準で引き直す。
 //   まずログだけ見る → recomputeAllStockBlocksDryRun
 //   実際に書き戻す   → recomputeAllStockBlocksRun
-// 過去ブロックも直すので、月次在庫推移（期末棚卸サマリー経由）が全期間で入れ替わる。
+// 対象は STOCK_RECOMPUTE_FROM 以降のブロックだけ。月次在庫推移（期末棚卸サマリー経由）も
+// 同じ範囲だけ入れ替わる。
 function recomputeAllStockBlocksDryRun(){ return recomputeAllStockBlocks(true); }
 function recomputeAllStockBlocksRun(){ return recomputeAllStockBlocks(false); }
 
-function recomputeAllStockBlocks(dryRun){
+function recomputeAllStockBlocks(dryRun,fromYmd){
   if(dryRun===undefined) dryRun=true;
+  if(fromYmd===undefined) fromYmd=STOCK_RECOMPUTE_FROM;
   const sh=SpreadsheetApp.getActive().getSheetByName(SHEET_STOCK);
   if(!sh) throw new Error('シート「'+SHEET_STOCK+'」が見つかりません');
   const lr=sh.getLastRow();
@@ -552,19 +561,22 @@ function recomputeAllStockBlocks(dryRun){
   }
   dates.sort((x,y)=>x-y);
 
-  const report=[];
+  const report=[];const skipped=[];
   for(let i=0;i<dates.length;i++){
+    const ymd=toYMD(normalizeDate(dates[i]));
+    if(fromYmd && ymd<fromYmd){ skipped.push(ymd); continue; }
     const r=recomputeBlock_(sh,dates[i],ctx,dryRun);
     if(r) report.push(r);
   }
-  Logger.log('recomputeAllStockBlocks'+(dryRun?' [dry-run]':'')+': '+report.length+'ブロック');
+  Logger.log('recomputeAllStockBlocks'+(dryRun?' [dry-run]':'')+': '+report.length+'ブロック'
+    +(skipped.length?' / '+fromYmd+'より前のため対象外: '+skipped.join(', '):''));
   report.forEach(function(r){
     Logger.log('  '+r.ymd+'  '+r.rows+'行  '+r.qtyBefore+'点/¥'+r.amtBefore.toLocaleString()
       +' → '+r.qtyAfter+'点/¥'+r.amtAfter.toLocaleString()
       +'  ('+(r.amtAfter-r.amtBefore>=0?'+':'')+(r.amtAfter-r.amtBefore).toLocaleString()+')');
   });
-  if(!dryRun) log_('recomputeAllStockBlocks: '+report.length+'ブロックを引き直しました');
-  return {ok:true,dryRun:dryRun,blocks:report};
+  if(!dryRun) log_('recomputeAllStockBlocks: '+report.length+'ブロックを引き直しました（'+fromYmd+'以降）');
+  return {ok:true,dryRun:dryRun,from:fromYmd,blocks:report,skipped:skipped};
 }
 
 // 1ブロック分を棚卸日基準で引き直す。dryRun なら計算だけしてシートには書かない。
