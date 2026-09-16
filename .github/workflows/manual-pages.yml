@@ -26,14 +26,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # 公開するのは外注向けだけ。管理者向け（シート構造・GAS関数・API一覧）は載せない
+      # PDF は 2026-08-27 に廃止済み。検索に出さないため noindex を差し込む
       - name: ルート index.html を生成
         run: |
           mkdir -p _site
-          cp shiire-kanri/docs/manual/dist/*.html _site/
-          cp shiire-kanri/docs/manual/dist/*.pdf _site/
+          cp shiire-kanri/docs/manual/dist/外注向けマニュアル.html _site/
+          sed -i 's#<head>#<head>\n<meta name="robots" content="noindex, nofollow">#' _site/外注向けマニュアル.html
+          grep -q 'name="robots" content="noindex' _site/外注向けマニュアル.html
           cat > _site/index.html <<'EOF'
           <!doctype html>
           <html lang="ja"><head><meta charset="utf-8">
+          <meta name="robots" content="noindex, nofollow">
           <meta name="viewport" content="width=device-width,initial-scale=1">
           <title>shiire-kanri マニュアル</title>
           <style>
@@ -46,10 +50,7 @@ jobs:
           </style></head><body>
           <h1>📦 shiire-kanri マニュアル</h1>
           <ul>
-            <li><a href="外注向けマニュアル.html">外注向けマニュアル（HTML）</a><small>スマホ・PCで閲覧、画像タップで拡大</small></li>
-            <li><a href="外注向けマニュアル.pdf">外注向けマニュアル（PDF）</a><small>印刷・オフライン用</small></li>
-            <li><a href="管理者向けマニュアル.html">管理者向けマニュアル（HTML）</a></li>
-            <li><a href="管理者向けマニュアル.pdf">管理者向けマニュアル（PDF）</a></li>
+            <li><a href="外注向けマニュアル.html">外注向けマニュアル</a><small>スマホ・PCで閲覧、画像タップで拡大／印刷はブラウザの印刷機能から</small></li>
           </ul>
           </body></html>
           EOF
