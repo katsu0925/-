@@ -99,6 +99,10 @@ function chatbot_buildSystemPrompt_() {
   var memberDiscountText = memberDiscount.enabled
     ? '会員登録で10%OFF（' + memberDiscount.endDate + 'まで）が適用されます。'
     : '現在、会員割引は実施しておりません。';
+  // FHPは期間限定。終了後に案内が残らないよう、実ステータスで出し分ける
+  // （app_getFirstHalfPriceStatus_ は endDate 超過で enabled:false を返す）。
+  // FHP適用時は「¥10,000以上送料無料」が効かないため、注記も期間中だけ出す。
+  var fhp = app_getFirstHalfPriceStatus_();
 
   return [
     'あなたは「デタウリ.Detauri」の公式AIアシスタントです。',
@@ -129,8 +133,10 @@ function chatbot_buildSystemPrompt_() {
     '',
     '【割引情報】',
     '・' + memberDiscountText,
-    '・初回50%OFFキャンペーン（会員登録後の初回注文、2026年9月末まで）',
-    '・商品合計¥10,000以上で送料無料（※初回50%OFF適用時・沖縄県・アソートの価格破壊商品は対象外）',
+    fhp.enabled ? '・初回50%OFFキャンペーン（会員登録後の初回注文、' + fhp.endDate + 'まで）' : null,
+    fhp.enabled
+      ? '・商品合計¥10,000以上で送料無料（※初回50%OFF適用時・沖縄県・アソートの価格破壊商品は対象外）'
+      : '・商品合計¥10,000以上で送料無料（※沖縄県・アソートの価格破壊商品は対象外）',
     '',
     '【発送について】',
     '・入金確認後、3〜5営業日（土日祝休み）以内に発送します（「1〜3営業日」ではありません。必ず「3〜5営業日（土日祝休み）」と回答してください）',
@@ -175,7 +181,7 @@ function chatbot_buildSystemPrompt_() {
     '・個人情報やセキュリティに関わる質問には答えないでください',
     '・商品の在庫状況や具体的な商品の推薦はできません（サイトで直接検索するよう案内してください）',
     '・競合サービスについてのコメントは控えてください'
-  ].join('\n');
+  ].filter(function (l) { return l !== null; }).join('\n');
 }
 
 /**
@@ -219,6 +225,8 @@ function chatbot_callOpenAI_(apiKey, messages) {
 function chatbot_fallbackReply_(message) {
   var msg = String(message || '');
   var lower = msg.toLowerCase();
+  // FHPは期間限定。終了後に案内が残らないよう実ステータスで出し分ける（下の「割引」ルールで使用）
+  var fbFhp = app_getFirstHalfPriceStatus_();
   // カタカナ→ひらがな変換（簡易）
   var hira = msg.replace(/[\u30A1-\u30F6]/g, function(c) {
     return String.fromCharCode(c.charCodeAt(0) - 0x60);
@@ -285,10 +293,12 @@ function chatbot_fallbackReply_(message) {
     // --- 割引 ---
     [['割引', 'セール', '安く', 'お得', 'クーポン', 'キャンペーン', 'オフ', 'off', 'OFF', '値引'],
      '現在ご利用いただける割引は以下の通りです。\n\n' +
-     '・会員登録で10%OFF（2026年9月末まで）\n' +
-     '・初回50%OFFキャンペーン（会員登録後の初回注文、2026年9月末まで）\n' +
+     '・会員登録で10%OFF（2027年3月末まで）\n' +
+     (fbFhp.enabled ? '・初回50%OFFキャンペーン（会員登録後の初回注文、2026年9月末まで）\n' : '') +
      '・商品合計¥10,000以上で送料無料！\n' +
-     '　※初回50%OFFキャンペーン適用時・沖縄県・アソートの「価格破壊商品」は¥10,000以上送料無料の対象外です\n\n' +
+     (fbFhp.enabled
+       ? '　※初回50%OFFキャンペーン適用時・沖縄県・アソートの「価格破壊商品」は¥10,000以上送料無料の対象外です\n\n'
+       : '　※沖縄県・アソートの「価格破壊商品」は¥10,000以上送料無料の対象外です\n\n') +
      '※デタウリの数量割引（10/30/50/100点）は廃止しました。'],
 
     // --- 会員・ランク・ポイント ---

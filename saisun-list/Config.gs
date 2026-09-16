@@ -120,7 +120,7 @@ const APP_CONFIG = {
       '1点から購入可能です。合計金額は商品代のみ <a href="https://drive.google.com/file/d/1g7UYUBw3-Y6M5HkSv3mfMe5jEjs795E3/view?usp=sharing" target="_blank" rel="noopener noreferrer">（送料別）</a>。送料は住所入力後に自動計算されます。',
       'カートに入れた商品は15分間確保されます（会員は30分間）。在庫は先着順のためお早めにお手続きください。',
       '決済方法：クレジットカード／コンビニ払い／銀行振込／PayPay／ペイジー／Apple Pay／Paidy',
-      '<span style="color:#b8002a;">会員登録で10％OFF（2026年9月末まで）</span>'
+      '<span style="color:#b8002a;">会員登録で10％OFF（2027年3月末まで）</span>'
     ],
     nextSteps: [],
     basePaymentUrl: ''

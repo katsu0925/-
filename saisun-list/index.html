@@ -734,7 +734,7 @@
   </div>
   <div id="pageTransition"><div class="pt-content"><div class="pt-title">デタウリ.Detauri</div><div class="pt-sub">読み込み中...</div></div></div>
   <div class="promo-banner" id="promoBanner">
-    先行登録のお得：いま会員登録で初回購入<strong>全品50%OFF</strong>（9/30まで）＋全品<strong>10%OFF</strong>＋初回<strong>500ポイント</strong>！さらに<strong>¥10,000以上で送料無料</strong><span style="font-size:10px;opacity:.8">※初回50%OFF時・アソートの価格破壊商品・沖縄県は対象外</span> <a href="#" id="promoRegisterLink">今すぐ無料登録 ＞</a>
+    <span id="promoBannerText">先行登録のお得：いま会員登録で初回購入<strong>全品50%OFF</strong>（9/30まで）＋全品<strong>10%OFF</strong>＋初回<strong>500ポイント</strong>！さらに<strong>¥10,000以上で送料無料</strong><span style="font-size:10px;opacity:.8">※初回50%OFF時・アソートの価格破壊商品・沖縄県は対象外</span></span> <a href="#" id="promoRegisterLink">今すぐ無料登録 ＞</a>
     <button class="promo-close" id="promoClose" type="button">✕</button>
   </div>
   <div class="topbar">
@@ -1512,7 +1512,7 @@
       <div class="guide-section" style="margin-top:20px;">
         <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">割引について</h3>
         <ul style="margin:0;padding-left:20px;color:#475569;">
-          <li style="margin-bottom:8px;" id="guideMemberDiscount"><strong>会員割引</strong>：無料会員登録で<span style="color:#b8002a;font-weight:700;">10%OFF</span><span style="color:#666;font-size:13px;">（2026年9月末まで）</span></li>
+          <li style="margin-bottom:8px;" id="guideMemberDiscount"><strong>会員割引</strong>：無料会員登録で<span style="color:#b8002a;font-weight:700;">10%OFF</span><span style="color:#666;font-size:13px;">（2027年3月末まで）</span></li>
           <li id="guideCombineDiscount"><strong>初回全品半額キャンペーン</strong>：会員登録後、初回注文は<span style="color:#b8002a;font-weight:700;">全品50%OFF</span><span style="color:#666;font-size:13px;">（2026年9月末まで）</span></li>
           <li style="margin-top:8px;"><strong>ポイント利用</strong>：購入ごとにポイントが貯まり、1pt=1円として次回以降の割引に使用できます（レギュラー1%/シルバー3%/ゴールド・ダイヤモンド5%還元）</li>
         </ul>
@@ -1571,7 +1571,7 @@
         <p style="margin:8px 0 0;font-size:12px;color:#94a3b8;">※ポイントの有効期限は最終更新日から6ヶ月間です</p>
       </div>
 
-      <div class="guide-section" style="margin-top:20px;">
+      <div class="guide-section" id="guideFhpBonus" style="margin-top:20px;">
         <div style="background:#fff3e0;border-radius:10px;padding:16px 18px;border:1px solid #ffe0b2;">
           <h3 style="margin:0 0 8px;font-size:16px;color:#e65100;">🎁 初回購入特典（先行登録のお得）</h3>
           <p style="margin:0;font-size:14px;color:#bf360c;font-weight:700;line-height:1.6;">新規会員登録で初回購入が全品50%OFF！<br>さらに500ポイントプレゼント</p>
@@ -2163,6 +2163,19 @@ var SESSION_KEY = 'estimate_session';
 var MEMBER_DISCOUNT_RATE = 0.10;  // 会員割引（APIから更新される）
 var MEMBER_DISCOUNT_ENABLED = true; // 会員割引ON/OFF（APIから更新される）
 var MEMBER_DISCOUNT_END_DATE = '2026-09-30'; // 期限（APIから更新される）
+// 初回全品半額（FHP）の終了日。会員割引とは別のキャンペーンなので別定数で持つ。
+// 旧実装は案内文の表示可否を MEMBER_DISCOUNT_ENABLED で判定しており、会員割引を
+// 延長するとFHP終了後も「初回全品半額」の案内が残る状態だった。
+var FIRST_HALF_PRICE_END_DATE = '2026-09-30';
+/** FHPキャンペーンが期間内か（JSTの日付で比較。終了日当日は有効） */
+function isFhpCampaignActive_() {
+  var t = new Date(Date.now() + 9 * 3600 * 1000);
+  var mm = String(t.getUTCMonth() + 1);
+  if (mm.length < 2) mm = '0' + mm;
+  var dd = String(t.getUTCDate());
+  if (dd.length < 2) dd = '0' + dd;
+  return (t.getUTCFullYear() + '-' + mm + '-' + dd) <= FIRST_HALF_PRICE_END_DATE;
+}
 // 価格破壊商品（¥10,000以上送料無料の対象外）— Constants.gs ALWAYS_CHARGE_BULK_IDS と同期
 var ALWAYS_CHARGE_BULK_IDS = ['BLK-H2LZTP36'];
 // 段階的数量割引（デタウリ）は2026-04-22に廃止 — CartCalc に委譲（常に0を返す）
@@ -8061,7 +8074,15 @@ function applyProductData_(data) {
   var guideMember = $('guideMemberDiscount');
   var guideCombine = $('guideCombineDiscount');
   if (guideMember) guideMember.style.display = MEMBER_DISCOUNT_ENABLED ? '' : 'none';
-  if (guideCombine) guideCombine.style.display = MEMBER_DISCOUNT_ENABLED ? '' : 'none';
+  if (guideCombine) guideCombine.style.display = isFhpCampaignActive_() ? '' : 'none';
+  // 初回購入特典セクションもFHP期間で出し分ける（期間外は文面が嘘になるため）
+  var guideFhpBonus = $('guideFhpBonus');
+  if (guideFhpBonus) guideFhpBonus.style.display = isFhpCampaignActive_() ? '' : 'none';
+  // プロモバナーは会員割引・送料無料も告知しているので、消さずにFHP抜きの文面へ差し替える
+  if (!isFhpCampaignActive_()) {
+    var promoText = $('promoBannerText');
+    if (promoText) promoText.textContent = 'いま会員登録で全品10%OFF＋初回500ポイント！さらに¥10,000以上で送料無料（※アソートの価格破壊商品・沖縄県は対象外）';
+  }
 
   // 割引設定反映後にUI更新（バッジ・プロモバナー・価格）
   updateAuthUi_();
@@ -8219,11 +8240,15 @@ boot();
 
     // --- 割引・セール ---
     { q: '割引はある？', category: '割引・セール',
-      a: '【現在の割引制度】\n\n1. 会員登録割引：全品10%OFF（2026年9月末まで）\n2. 初回全品半額キャンペーン：会員登録後の初回注文は全品50%OFF（2026年9月末まで）\n3. 商品合計¥10,000以上で送料無料！\n\n※初回50%OFFキャンペーン適用時は他の割引・¥10,000以上送料無料が適用されません。\n※アソートの「価格破壊商品」は¥10,000以上でも送料別途かかります。\n※沖縄県は¥10,000以上送料無料の対象外です（ダイヤモンド会員は無料）。\n\nまずは無料会員登録がおすすめです！' },
+      a: isFhpCampaignActive_()
+        ? '【現在の割引制度】\n\n1. 会員登録割引：全品10%OFF（2027年3月末まで）\n2. 初回全品半額キャンペーン：会員登録後の初回注文は全品50%OFF（2026年9月末まで）\n3. 商品合計¥10,000以上で送料無料！\n\n※初回50%OFFキャンペーン適用時は他の割引・¥10,000以上送料無料が適用されません。\n※アソートの「価格破壊商品」は¥10,000以上でも送料別途かかります。\n※沖縄県は¥10,000以上送料無料の対象外です（ダイヤモンド会員は無料）。\n\nまずは無料会員登録がおすすめです！'
+        : '【現在の割引制度】\n\n1. 会員登録割引：全品10%OFF（2027年3月末まで）\n2. 商品合計¥10,000以上で送料無料！\n\n※アソートの「価格破壊商品」は¥10,000以上でも送料別途かかります。\n※沖縄県は¥10,000以上送料無料の対象外です（ダイヤモンド会員は無料）。\n\nまずは無料会員登録がおすすめです！' },
     { q: '数量割引はある？', category: '割引・セール',
-      a: '以前の「10/30/50/100点で5〜20%OFF」の数量割引は2026年4月で終了しました。\n\n現在は以下の割引をご利用いただけます：\n・会員登録で全品10%OFF（2026年9月末まで）\n・初回注文は全品50%OFFキャンペーン（2026年9月末まで）\n\n無料会員登録だけでしっかりお得にご購入いただけます。' },
+      a: isFhpCampaignActive_()
+        ? '以前の「10/30/50/100点で5〜20%OFF」の数量割引は2026年4月で終了しました。\n\n現在は以下の割引をご利用いただけます：\n・会員登録で全品10%OFF（2027年3月末まで）\n・初回注文は全品50%OFFキャンペーン（2026年9月末まで）\n\n無料会員登録だけでしっかりお得にご購入いただけます。'
+        : '以前の「10/30/50/100点で5〜20%OFF」の数量割引は2026年4月で終了しました。\n\n現在は以下の割引をご利用いただけます：\n・会員登録で全品10%OFF（2027年3月末まで）\n・商品合計¥10,000以上で送料無料（※沖縄県・アソートの「価格破壊商品」は対象外）\n\n無料会員登録だけでしっかりお得にご購入いただけます。' },
     { q: '会員割引の期間は？', category: '割引・セール',
-      a: '会員登録で全品10%OFFの特典は2026年9月末までの期間限定です。\n\n・無料登録するだけで適用\n・期間中はいつでもご利用いただけます\n\nお早めの登録がおすすめです！' },
+      a: '会員登録で全品10%OFFの特典は2027年3月末までの期間限定です。\n\n・無料登録するだけで適用\n・期間中はいつでもご利用いただけます\n\nお早めの登録がおすすめです！' },
 
     // --- 会員 ---
     { q: '会員登録の方法は？', category: '会員',
@@ -9169,6 +9194,8 @@ function trackView_(managedId) {
   if (!popup) return;
 
   function shouldShow() {
+    // FHPキャンペーン期間外は表示しない（2026-09-30で終了。文面が嘘になる）
+    if (typeof isFhpCampaignActive_ === 'function' && !isFhpCampaignActive_()) return false;
     // ログイン中は表示しない
     if (typeof state !== 'undefined' && state.sessionId) return false;
     // 7日以内に閉じていたら表示しない

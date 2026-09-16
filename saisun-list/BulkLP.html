@@ -583,12 +583,28 @@ body.admin-mode .admin-settings-fab{display:flex;}
 <body>
 <script type="application/json" id="__initial_bulk__"><?!= initialBulkData || '' ?></script>
 <script>(function(){try{if(sessionStorage.getItem('_pageTransition')==='1'){document.body.style.background='#1a1a2e';document.body.classList.add('page-entering');sessionStorage.removeItem('_pageTransition');}}catch(e){}try{if((typeof google==='undefined'||!google.script)&&window.location.pathname.indexOf('BulkLP')!==-1){history.replaceState(null,'','/'+window.location.search+window.location.hash);}}catch(e){}})()</script>
+<script>
+// 初回全品半額（FHP）の終了日。index.html の FIRST_HALF_PRICE_END_DATE と同値を保つこと。
+// 期間外はキャンペーン告知が事実と食い違うので、FAQ本文とDOMの両方で出し分ける。
+// ※FAQ配列より前で定義しておくこと（FAQはパース時に評価されるため）。
+var BULK_FHP_END_DATE = '2026-09-30';
+/** FHPキャンペーンが期間内か（JSTの日付で比較。終了日当日は有効） */
+function bulkIsFhpCampaignActive_() {
+  var t = new Date(Date.now() + 9 * 3600 * 1000);
+  var mm = String(t.getUTCMonth() + 1);
+  if (mm.length < 2) mm = '0' + mm;
+  var dd = String(t.getUTCDate());
+  if (dd.length < 2) dd = '0' + dd;
+  return (t.getUTCFullYear() + '-' + mm + '-' + dd) <= BULK_FHP_END_DATE;
+}
+</script>
+
 <!-- 管理者バー -->
 <div class="admin-bar" id="adminBar">管理者モード<span>アソート商品</span><button class="admin-exit" id="adminExit" type="button">管理者モード解除</button></div>
 
 <!-- プロモバナー -->
 <div class="promo-banner" id="promoBanner">
-  先行登録のお得：いま会員登録で初回購入<strong>全品50%OFF</strong>（9/30まで）＋全品<strong>10%OFF</strong>＋初回<strong>500ポイント</strong>！さらに<strong>¥10,000以上で送料無料</strong><span style="font-size:10px;opacity:.8">※初回50%OFF時・価格破壊商品・沖縄県は対象外</span> <a href="#" id="promoRegisterLink">今すぐ無料登録 ＞</a>
+  <span id="promoBannerText">先行登録のお得：いま会員登録で初回購入<strong>全品50%OFF</strong>（9/30まで）＋全品<strong>10%OFF</strong>＋初回<strong>500ポイント</strong>！さらに<strong>¥10,000以上で送料無料</strong><span style="font-size:10px;opacity:.8">※初回50%OFF時・価格破壊商品・沖縄県は対象外</span></span> <a href="#" id="promoRegisterLink">今すぐ無料登録 ＞</a>
   <button class="promo-close" id="promoClose" type="button">✕</button>
 </div>
 
@@ -1045,7 +1061,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
     <div style="margin-bottom:20px;">
       <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">割引について</h3>
       <ul style="margin:0;padding-left:20px;color:#475569;">
-        <li style="margin-bottom:8px;"><strong>会員割引</strong>：無料会員登録で<span style="color:#b8002a;font-weight:700;">10%OFF</span>＋初回<span style="color:#b8002a;font-weight:700;">500ポイント</span>プレゼント<span style="color:#666;font-size:13px;">（2026年9月末まで）</span></li>
+        <li style="margin-bottom:8px;"><strong>会員割引</strong>：無料会員登録で<span style="color:#b8002a;font-weight:700;">10%OFF</span>＋初回<span style="color:#b8002a;font-weight:700;">500ポイント</span>プレゼント<span style="color:#666;font-size:13px;">（2027年3月末まで）</span></li>
         <li><strong>ポイント利用</strong>：購入ごとに貯まるポイントを1pt=1円として割引に使用できます</li>
       </ul>
     </div>
@@ -1092,7 +1108,7 @@ body.admin-mode .admin-settings-fab{display:flex;}
         <div>* ポイントの有効期限は最終更新日から6ヶ月です</div>
       </div>
     </div>
-    <div style="margin-bottom:20px;">
+    <div style="margin-bottom:20px;" id="guideFhpBonus">
       <h3 style="margin:0 0 12px;font-size:16px;color:#1e293b;border-bottom:2px solid #3b82f6;padding-bottom:8px;">初回購入特典</h3>
       <div style="background:linear-gradient(135deg,#fff7ed,#fef3c7);border:1px solid #fbbf24;border-radius:12px;padding:16px 18px;text-align:center;">
         <div style="font-size:18px;font-weight:800;color:#b8002a;margin-bottom:6px;">🎉 新規会員登録で初回購入が全品50%OFF！</div>
@@ -5081,9 +5097,11 @@ var modalContactFiles_ = [];
 
     // --- 割引・セール ---
     { q: '割引はある？', category: '割引・セール',
-      a: '【現在の割引制度】\n\n1. 会員割引：無料登録で10%OFF（2026年9月末まで）＋初回500ポイント\n\n2. 初回50%OFFキャンペーン：会員登録後、初めてのご注文に限り全品50%OFF（2026年9月末まで）\n\n3. ポイント利用：購入ごとに貯まるポイントを1pt=1円で使用可能\n\n4. クーポンコードによる割引\n\n5. 商品合計¥10,000以上で送料無料！（沖縄県は対象外）\n\n※初回50%OFFキャンペーン適用時は他の割引・¥10,000以上送料無料は適用されません。\n※デタウリの数量割引（10/30/50/100点）は廃止しました。' },
+      a: bulkIsFhpCampaignActive_()
+        ? '【現在の割引制度】\n\n1. 会員割引：無料登録で10%OFF（2027年3月末まで）＋初回500ポイント\n\n2. 初回50%OFFキャンペーン：会員登録後、初めてのご注文に限り全品50%OFF（2026年9月末まで）\n\n3. ポイント利用：購入ごとに貯まるポイントを1pt=1円で使用可能\n\n4. クーポンコードによる割引\n\n5. 商品合計¥10,000以上で送料無料！（沖縄県は対象外）\n\n※初回50%OFFキャンペーン適用時は他の割引・¥10,000以上送料無料は適用されません。\n※デタウリの数量割引（10/30/50/100点）は廃止しました。'
+        : '【現在の割引制度】\n\n1. 会員割引：無料登録で10%OFF（2027年3月末まで）＋初回500ポイント\n\n2. ポイント利用：購入ごとに貯まるポイントを1pt=1円で使用可能\n\n3. クーポンコードによる割引\n\n4. 商品合計¥10,000以上で送料無料！（沖縄県は対象外）\n\n※デタウリの数量割引（10/30/50/100点）は廃止しました。' },
     { q: '会員割引の期間は？', category: '割引・セール',
-      a: '会員登録で全品10%OFFの特典は2026年9月末までの期間限定です。\n\n・無料登録するだけで適用\n・期間中はいつでもご利用いただけます\n\nお早めの登録がおすすめです！' },
+      a: '会員登録で全品10%OFFの特典は2027年3月末までの期間限定です。\n\n・無料登録するだけで適用\n・期間中はいつでもご利用いただけます\n\nお早めの登録がおすすめです！' },
 
     // --- 会員 ---
     { q: '会員登録の方法は？', category: '会員',
@@ -5903,6 +5921,17 @@ function copyShareUrl_(url) {
 })();
 </script>
 
+<script>
+(function () {
+  if (bulkIsFhpCampaignActive_()) return;
+  var el = document.getElementById('guideFhpBonus');
+  if (el) el.style.display = 'none';
+  // プロモバナーは会員割引・送料無料も告知しているので、消さずにFHP抜きの文面へ差し替える
+  var promoText = document.getElementById('promoBannerText');
+  if (promoText) promoText.textContent = 'いま会員登録で全品10%OFF＋初回500ポイント！さらに¥10,000以上で送料無料（※価格破壊商品・沖縄県は対象外）';
+})();
+</script>
+
 <!-- 非ログインユーザー向けポップアップ -->
 <div class="fhp-popup" id="fhpPopup">
   <button class="fhp-popup-close" id="fhpPopupClose" type="button">&times;</button>
@@ -5919,6 +5948,8 @@ function copyShareUrl_(url) {
   if (!popup) return;
 
   function shouldShow() {
+    // FHPキャンペーン期間外は表示しない（2026-09-30で終了。文面が嘘になる）
+    if (!bulkIsFhpCampaignActive_()) return false;
     // Don't show if logged in
     if (typeof G !== 'undefined' && G.customer) return false;
     try {

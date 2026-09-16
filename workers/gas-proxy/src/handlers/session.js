@@ -6,6 +6,7 @@
  */
 import { jsonOk, jsonError } from '../utils/response.js';
 import { generateCsrfToken } from '../utils/crypto.js';
+import { isCampaignActive } from '../utils/campaign.js';
 import { proxyToGas } from './proxy.js';
 
 const CSRF_TTL = 3600; // 1時間（秒）
@@ -129,7 +130,7 @@ export async function validateSession(args, env) {
     try {
       const fhp = JSON.parse(fhpStatus.value);
       firstHalfPrice = {
-        eligible: !!(fhp.enabled && customer.purchase_count === 0),
+        eligible: !!(isCampaignActive(fhp) && customer.purchase_count === 0),
         rate: fhp.rate || 0.5,
       };
     } catch (e) { /* ignore */ }

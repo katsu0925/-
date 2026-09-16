@@ -11,6 +11,7 @@ import { selectInChunks, statementsInChunks } from '../utils/sql.js';
 import { sendEvent as sendMetaEvent } from '../utils/meta-capi.js';
 import { calculateRankFromOrders } from './mypage.js';
 import { resolveCustomerId } from '../utils/identity.js';
+import { isCampaignActive } from '../utils/campaign.js';
 
 // ─── 数量割引（廃止済み。comboBulkスキーマは維持、常に0%） ───
 
@@ -403,7 +404,7 @@ export async function submitEstimate(args, env, bodyText, ctx) {
 
   // 初回全品半額キャンペーンチェック（他の割引と併用不可、ログイン必須）
   // memberCap: 100人目までの登録者のみ対象（GAS isFhpEligible_ と同等）
-  if (fhpStatus.enabled && isLoggedIn && customerRow && purchaseCount === 0) {
+  if (isCampaignActive(fhpStatus) && isLoggedIn && customerRow && purchaseCount === 0) {
     const memberCap = fhpStatus.memberCap || 0;  // 0=無制限（先着上限は2026-06-10撤廃。|| 100 の地雷を回避）
     let fhpEligible = true;
     if (memberCap > 0) {

@@ -8,6 +8,7 @@
  *   - pointsExpiryDate: points_updated_at + 12ヶ月
  */
 import { jsonOk, jsonError } from '../utils/response.js';
+import { isCampaignActive } from '../utils/campaign.js';
 
 const RANK_TIERS = {
   DIAMOND: { name: 'ダイヤモンド', threshold: 500000, pointRate: 0.05, freeShipping: true,  color: '#00bcd4' },
@@ -219,7 +220,7 @@ export async function getMyPage(args, env) {
   if (fhpRow) {
     try {
       const fhp = JSON.parse(fhpRow.value);
-      let eligible = !!(fhp.enabled && (customer.purchase_count || 0) === 0);
+      let eligible = !!(isCampaignActive(fhp) && (customer.purchase_count || 0) === 0);
 
       // 非キャンセル過去注文があるかチェック（purchase_count列が古い場合の抜け穴対策）
       if (eligible) {

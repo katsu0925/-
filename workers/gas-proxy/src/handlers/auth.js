@@ -14,6 +14,7 @@ import {
   generateSessionId,
   generateCsrfToken,
 } from '../utils/crypto.js';
+import { isCampaignActive } from '../utils/campaign.js';
 
 const SESSION_DURATION_MS = 86400000;      // 24時間
 const SESSION_REMEMBER_ME_MS = 2592000000; // 30日
@@ -100,7 +101,7 @@ export async function login(args, env) {
     if (fhpRow) {
       try {
         const parsed = JSON.parse(fhpRow.value);
-        let eligible = !!(parsed.enabled && customer.purchase_count === 0);
+        let eligible = !!(isCampaignActive(parsed) && customer.purchase_count === 0);
         if (eligible && parsed.memberCap > 0) {
           const orderRow = await env.DB.prepare(
             'SELECT COUNT(*) AS cnt FROM customers WHERE created_at < ?'
