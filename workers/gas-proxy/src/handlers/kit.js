@@ -19,6 +19,42 @@ import { getPickPageHtml } from '../pages/pick-page.js';
 
 const KIT_TTL = 15552000; // 半年（180日）— 46点ロットを出品しきり、季節を一巡できる長さ
 
+// 閲覧期限の残りがこれを割ったら、開いたときに期限を付け直す（ローリング延長）。
+// KV の TTL は put 時に固定されるため、何もしなければ発送から KIT_TTL で必ず消える。
+// 使っているお客様のリンクがある日突然死ぬのを防ぐ。閾値を半分にしてあるので、
+// 毎回書き戻すわけではなく、残り90日を切ったあとの初回閲覧でだけ KV へ書く。
+const KIT_RENEW_THRESHOLD = KIT_TTL / 2; // 90日
+
+/**
+ * キットの閲覧期限を必要に応じて延長する。
+ * 戻り値は（延長したなら更新後の）キットJSON文字列。
+ */
+async function touchKitExpiry(env, receiptNo, token, kitJson) {
+  let kitData;
+  try {
+    kitData = JSON.parse(kitJson);
+  } catch {
+    return kitJson; // 壊れていたら触らない（表示側でエラーにする）
+  }
+
+  const remainingMs = kitData.expiresAt ? Date.parse(kitData.expiresAt) - Date.now() : 0;
+  if (Number.isFinite(remainingMs) && remainingMs > KIT_RENEW_THRESHOLD * 1000) {
+    return kitJson; // まだ十分に残っている
+  }
+
+  kitData.expiresAt = new Date(Date.now() + KIT_TTL * 1000).toISOString();
+  const nextJson = JSON.stringify(kitData);
+  try {
+    // kit と kit-token は寿命を揃える。片方だけ残ってもページは開かない。
+    await env.CACHE.put(`kit:${receiptNo}`, nextJson, { expirationTtl: KIT_TTL });
+    await env.CACHE.put(`kit-token:${token}`, receiptNo, { expirationTtl: KIT_TTL });
+  } catch (e) {
+    console.warn(`touchKitExpiry: 期限延長に失敗 (receiptNo=${receiptNo}): ${e}`);
+    return kitJson; // 延長できなくても表示は止めない
+  }
+  return nextJson;
+}
+
 // ─── POST /api/kit/save ───
 
 export async function saveKit(request, env) {
@@ -106,6 +142,14 @@ export async function saveKit(request, env) {
   return jsonOk({ ok: true, receiptNo });
 }
 
+// 期限切れ・無効トークン時の案内。「見られない」だけで終わらせず、
+// お客様が次にとる行動（受付番号を添えて問い合わせ）まで書く。
+const KIT_EXPIRED_MESSAGE =
+  'このリンクは無効か、閲覧期限を過ぎています。<br><br>'
+  + 'お手数ですが、発送完了メールに記載の<b>受付番号</b>を添えて下記までご連絡ください。'
+  + '新しい出品キットをご案内します。<br><br>'
+  + '<a href="mailto:nkonline1030@gmail.com">nkonline1030@gmail.com</a>';
+
 // ─── GET /kit?token={uuid} ───
 
 export async function serveKit(request, env, url) {
@@ -126,16 +170,19 @@ export async function serveKit(request, env, url) {
   // トークン → 受付番号 → キットデータ
   const receiptNo = await env.CACHE.get(`kit-token:${token}`);
   if (!receiptNo) {
-    return kitErrorPage('リンクが無効または期限切れです。');
+    return kitErrorPage(KIT_EXPIRED_MESSAGE);
   }
 
   const kitJson = await env.CACHE.get(`kit:${receiptNo}`);
   if (!kitJson) {
-    return kitErrorPage('リンクが無効または期限切れです。');
+    return kitErrorPage(KIT_EXPIRED_MESSAGE);
   }
 
+  // 見に来てくれているうちは期限を切らさない。残りが少なければここで付け直す。
+  const freshJson = await touchKitExpiry(env, receiptNo, token, kitJson);
+
   // XSSエスケープ: </script> インジェクション防止
-  const safeJson = kitJson.replace(/</g, '\\u003c');
+  const safeJson = freshJson.replace(/</g, '\\u003c');
 
   const html = getKitPageHtml(safeJson);
 
@@ -279,9 +326,12 @@ export async function exportCsv(request, env, url) {
     return jsonError('Invalid or expired token', 403);
   }
 
+  // CSV を落としに来ている＝まだ使っているので、ここでも期限を付け直す
+  const freshJson = await touchKitExpiry(env, receiptNo, token, kitJson);
+
   let kitData;
   try {
-    kitData = JSON.parse(kitJson);
+    kitData = JSON.parse(freshJson);
   } catch {
     return jsonError('Invalid kit data', 500);
   }

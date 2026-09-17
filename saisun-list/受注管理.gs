@@ -868,6 +868,43 @@ function om_executeFullPipeline_(receiptNos, callerLabel, opts) {
 var BATCH_EXPAND_AI_SIZE_ = 20; // OpenAI 1回あたりの処理件数（スプレッドシート再読込+API呼出で6分制限に収める）
 
 /**
+ * 受付番号の行を 「依頼管理」→「依頼管理_アーカイブ」の順で探す。
+ *
+ * 完了した注文はアーカイブへ移されるので、発送から数か月後の
+ * 「出品キットが見られない」という問い合わせでは、大抵アーカイブ側にいる。
+ * 依頼管理だけ見ていると「受付番号が見つかりません」で復旧が止まってしまう。
+ *
+ * @param {Spreadsheet} orderSs 受注スプレッドシート
+ * @param {string} receiptNo 受付番号
+ * @return {{sheet:Sheet, sheetName:string, rowNumber:number, row:Array, rIdx:Object}|null}
+ */
+function om_findRequestRow_(orderSs, receiptNo) {
+  var target = String(receiptNo || '').trim();
+  if (!target) return null;
+
+  var sheets = [sh_ensureRequestSheet_(orderSs), orderSs.getSheetByName('依頼管理_アーカイブ')];
+  for (var s = 0; s < sheets.length; s++) {
+    var sh = sheets[s];
+    if (!sh) continue;
+    var lastRow = sh.getLastRow();
+    var lastCol = sh.getLastColumn();
+    if (lastRow < 2 || lastCol < 1) continue;
+
+    var headers = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    var rIdx = {};
+    headers.forEach(function(h, i) { rIdx[String(h || '').trim()] = i; });
+
+    var values = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
+    for (var i = 0; i < values.length; i++) {
+      if (String(values[i][0] || '').trim() === target) {
+        return { sheet: sh, sheetName: sh.getName(), rowNumber: i + 2, row: values[i], rIdx: rIdx };
+      }
+    }
+  }
+  return null;
+}
+
+/**
  * ヘルパー: 受付番号から全スプレッドシートデータを読み込み、productRows等を構築する。
  * Phase 1 と Phase 3 の両方で呼び出すことで、大きなデータを ScriptProperties に保存せずに済む。
  *
@@ -876,22 +913,12 @@ var BATCH_EXPAND_AI_SIZE_ = 20; // OpenAI 1回あたりの処理件数（スプ�
  */
 function buildProductRowsForReceipt_(receiptNo) {
   var orderSs = sh_getOrderSs_();
-  var reqSh = sh_ensureRequestSheet_(orderSs);
-  var lastRow = reqSh.getLastRow();
-  if (lastRow < 2) { console.log('依頼管理が空です'); return null; }
 
-  // 受付番号→行を検索
-  var targetRow = -1;
-  var reqData = reqSh.getRange(2, 1, lastRow - 1, reqSh.getLastColumn()).getValues();
-  var reqHeaders = reqSh.getRange(1, 1, 1, reqSh.getLastColumn()).getValues()[0];
-  var rIdx = {};
-  reqHeaders.forEach(function(h, i) { rIdx[String(h || '').trim()] = i; });
-
-  for (var i = 0; i < reqData.length; i++) {
-    if (String(reqData[i][0]).trim() === receiptNo) { targetRow = i; break; }
-  }
-  if (targetRow < 0) { console.log('受付番号が見つかりません: ' + receiptNo); return null; }
-  var reqRow = reqData[targetRow];
+  var located = om_findRequestRow_(orderSs, receiptNo);
+  if (!located) { console.log('受付番号が見つかりません: ' + receiptNo); return null; }
+  if (located.sheetName !== '依頼管理') console.log('%s から読み込みます: %s', located.sheetName, receiptNo);
+  var rIdx = located.rIdx;
+  var reqRow = located.row;
 
   var selectionCol = rIdx['選択リスト'];
   var selectionStr = String(reqRow[selectionCol] || '');
@@ -1626,10 +1653,10 @@ function createKitFor_20260530002719_307() {
  * 受付番号は依頼展開済み（依頼管理シートの「選択リスト」に管理番号が入っている）であること。
  * @param {string} receiptNo 受付番号
  */
-function createKitForReceipt_(receiptNo) {
+function createKitForReceipt_(receiptNo, existingToken) {
   // 商品データ再構築（スプレッドシートから読み込み）
   var data = buildProductRowsForReceipt_(receiptNo);
-  if (!data) { console.error('データ構築失敗: ' + receiptNo); return; }
+  if (!data) { console.error('データ構築失敗: ' + receiptNo); return ''; }
 
   // タイトル+説明文をOpenAI APIで生成
   var aiResults = om_generateMercariTexts_(data.productRows);
@@ -1655,9 +1682,67 @@ function createKitForReceipt_(receiptNo) {
   }
 
   // KV保存 + AJ列書込み
-  om_saveKitToWorkers_(receiptNo, data.customerName, orderDate, totalPrice, data.productRows, aiResults, reqSheet, reqDataMap);
+  var kitUrl = om_saveKitToWorkers_(receiptNo, data.customerName, orderDate, totalPrice, data.productRows, aiResults, reqSheet, reqDataMap, existingToken);
 
   console.log('出品キット生成完了: ' + receiptNo);
+  return kitUrl || '';
+}
+
+/** 出品キットURLから token を取り出す。取れなければ空文字 */
+function om_extractKitToken_(kitUrl) {
+  var m = String(kitUrl || '').match(/[?&]token=([0-9a-fA-F-]{36})/);
+  return m ? m[1] : '';
+}
+
+/**
+ * 【手動実行】「出品キットが見られなくなった」と連絡が来たときの復旧。
+ *
+ * 出品キットの中身は Cloudflare KV に期限付きで置いてあるので、
+ * 期限切れやデータ欠落でページが開かなくなることがある。
+ * この関数はシートから中身を組み直して KV に入れ直す。
+ *
+ * 大事なのは、依頼管理（またはアーカイブ）AL列に入っている
+ * 既存のURLの token をそのまま使い回すこと。
+ * 発送完了メールに載っているリンクがそのまま使えるようになるので、
+ * お客様に新しいURLを送り直す必要がない。
+ *
+ * 使い方（GASエディタ）:
+ *   1. この関数を選んで「実行」する（受付番号を引数に取るラッパーを作るか、直接呼ぶ）
+ *   2. 実行ログに出たURLを開いて、商品が並んでいることを確かめる
+ *
+ * @param {string} receiptNo 受付番号
+ * @return {string} 出品キットURL（失敗時は空文字）
+ */
+function reissueKitForReceipt_(receiptNo) {
+  var orderSs = sh_getOrderSs_();
+  var located = om_findRequestRow_(orderSs, receiptNo);
+  if (!located) { console.error('受付番号が見つかりません: ' + receiptNo); return ''; }
+
+  var currentKitUrl = String(located.row[REQUEST_SHEET_COLS.KIT_URL - 1] || '').trim();
+  var token = om_extractKitToken_(currentKitUrl);
+  console.log(token
+    ? '既存トークンを引き継ぎます（お客様が持っているURLがそのまま復活します）: ' + currentKitUrl
+    : '既存の出品キットURLが無いため、新しいURLを発行します（お客様へのご案内が必要です）');
+
+  var kitUrl = createKitForReceipt_(receiptNo, token);
+  if (!kitUrl) { console.error('出品キットの作り直しに失敗しました: ' + receiptNo); return ''; }
+
+  console.log('━━ 出品キット 復旧完了 ━━');
+  console.log('受付番号  : %s（%s）', receiptNo, located.sheetName);
+  console.log('出品キットURL: %s', kitUrl);
+  console.log('%s', token
+    ? '発送完了メールに載っているリンクと同じURLです。お客様はそのまま開けます。'
+    : '新しいURLです。お客様へご案内ください。');
+  return kitUrl;
+}
+
+/**
+ * 【手動実行】受付番号 20260610222826-977 の出品キットを復旧するワンショット。
+ * GASエディタでこの関数を選んで「実行」を押すだけ。
+ * 発送完了メールのリンクがそのまま開けるようになる。
+ */
+function reissueKitFor_20260610222826_977() {
+  return reissueKitForReceipt_('20260610222826-977');
 }
 
 /**
@@ -1766,17 +1851,19 @@ function om_maskCustomerName_(name) {
   return s.charAt(0) + new Array(stars + 1).join('*') + ' 様';
 }
 
-function om_saveKitToWorkers_(receiptNo, customerName, orderDate, totalPrice, productRows, aiResults, reqSheet, reqDataMap) {
+function om_saveKitToWorkers_(receiptNo, customerName, orderDate, totalPrice, productRows, aiResults, reqSheet, reqDataMap, existingToken) {
   var props = PropertiesService.getScriptProperties();
   var workersUrl = props.getProperty('WORKERS_URL') || 'https://detauri-gas-proxy.nsdktts1030.workers.dev';
   var adminKey = props.getProperty('ADMIN_KEY');
   if (!adminKey) {
     console.warn('om_saveKitToWorkers_: ADMIN_KEY未設定');
-    return;
+    return '';
   }
 
-  // UUIDv4トークン生成
-  var token = Utilities.getUuid();
+  // UUIDv4トークン生成。ただし作り直し（復旧）のときは、既に発送完了メールで
+  // お客様に渡してあるトークンをそのまま引き継ぐ。
+  // こうすると「前にもらったリンクがまた開ける」状態に戻る（新URLの送り直しが要らない）。
+  var token = String(existingToken || '').trim() || Utilities.getUuid();
 
   // 注文日フォーマット
   var dateStr = '';
@@ -1835,7 +1922,7 @@ function om_saveKitToWorkers_(receiptNo, customerName, orderDate, totalPrice, pr
   var code = resp.getResponseCode();
   if (code !== 200) {
     console.error('キットKV保存失敗: HTTP ' + code + ' ' + resp.getContentText());
-    return;
+    return '';
   }
 
   // 依頼管理シートにURLを2本書き込む
@@ -1845,26 +1932,21 @@ function om_saveKitToWorkers_(receiptNo, customerName, orderDate, totalPrice, pr
   // 「顧客への成果物」と「外注の作業書類」を、ここで2つに分けている。
   var kitUrl = 'https://wholesale.nkonline-tool.com/kit?token=' + token;
   var pickUrl = 'https://wholesale.nkonline-tool.com/pick?token=' + token;
-  var reqData = reqSheet.getDataRange().getValues();
-  var reqHeaders = reqData[0];
-  var receiptColIdx = -1;
-  for (var hi = 0; hi < reqHeaders.length; hi++) {
-    if (String(reqHeaders[hi] || '').trim() === '受付番号') { receiptColIdx = hi; break; }
-  }
-  if (receiptColIdx >= 0) {
-    for (var ri = 1; ri < reqData.length; ri++) {
-      if (String(reqData[ri][receiptColIdx] || '').trim() === receiptNo) {
-        reqSheet.getRange(ri + 1, REQUEST_SHEET_COLS.KIT_URL).setValue(kitUrl);
-        // I列は自動展開の「処理済み」判定にも使われている（om_autoExpand の
-        // `if (confirmLink) continue;`）。XLSXのURLの代わりにこれを入れることで
-        // 判定はそのまま動く。
-        reqSheet.getRange(ri + 1, REQUEST_SHEET_COLS.CONFIRM_LINK).setValue(pickUrl);
-        break;
-      }
-    }
+
+  // 完了済みの注文は依頼管理_アーカイブにいるので、両方を探して書き戻す。
+  var located = om_findRequestRow_(reqSheet.getParent(), receiptNo);
+  if (located) {
+    located.sheet.getRange(located.rowNumber, REQUEST_SHEET_COLS.KIT_URL).setValue(kitUrl);
+    // I列は自動展開の「処理済み」判定にも使われている（om_autoExpand の
+    // `if (confirmLink) continue;`）。XLSXのURLの代わりにこれを入れることで
+    // 判定はそのまま動く。
+    located.sheet.getRange(located.rowNumber, REQUEST_SHEET_COLS.CONFIRM_LINK).setValue(pickUrl);
+  } else {
+    console.warn('依頼管理・アーカイブのどちらにも行が無くURLを書き込めませんでした: ' + receiptNo);
   }
 
   console.log('キットKV保存完了: ' + receiptNo + ' → キット ' + kitUrl + ' / ピッキング ' + pickUrl);
+  return kitUrl;
 }
 
 function om_writeSaleLog_(ss, entries) {

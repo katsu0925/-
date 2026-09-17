@@ -587,22 +587,39 @@ setEnvProduction()   // 本番に戻す
 
 自動処理: 回収完了展開 → AI説明文生成 → 出品キット生成 → キット/ピッキングURL書込み → 売却反映
 
-### 16.2 会員割引ON/OFF
+### 16.2 「出品キットが見られない」と問い合わせが来たとき
+
+出品キットの中身は Cloudflare KV に期限付き（現在180日）で置いてある。
+期限切れやデータ欠落でページが開かなくなった場合は、GASエディタで復旧する。
+
+```javascript
+reissueKitForReceipt_('20260610222826-977')   // 受付番号を入れる
+```
+
+- 依頼管理（完了済みなら 依頼管理_アーカイブ）AL列の**既存URLのtokenをそのまま使い回す**ので、
+  発送完了メールに載っているリンクがそのまま開けるようになる（新URLの送り直し不要）
+- AL列が空の場合は新しいURLが発行されるので、実行ログのURLをお客様へ案内する
+- 実行後は必ずログのURLを開いて、商品が並んでいることを確かめる
+
+なお、キットページやCSVを開くと閉鎖までの残りが90日を切っていれば自動で180日に延長される
+（`workers/gas-proxy/src/handlers/kit.js` の `touchKitExpiry`）。使っている間は期限切れにならない。
+
+### 16.3 会員割引ON/OFF
 
 GASエディタまたはメニューから `toggleMemberDiscount()` を実行。
 
-### 16.3 初回半額ON/OFF
+### 16.4 初回半額ON/OFF
 
 `toggleFirstHalfPrice()` を実行。
 
-### 16.4 キャッシュクリア
+### 16.5 キャッシュクリア
 
 ```javascript
 pr_clearProductsCache_()       // 商品キャッシュ
 st_calculateAndCacheStats_()   // 統計キャッシュ
 ```
 
-### 16.5 手動同期
+### 16.6 手動同期
 
 ```javascript
 apiSyncExportData({
@@ -621,6 +638,7 @@ apiSyncExportData({
 | ログインできない | セッション期限切れ | 顧客管理L列を確認 |
 | 決済エラー | KOMOJU APIキー | Script Properties `KOMOJU_SECRET_KEY` |
 | メール届かない | D列空 or GmailAppエイリアス未設定 | 依頼管理D列、Gmailエイリアス確認 |
+| 出品キットが開かない | KVの閲覧期限切れ | `reissueKitForReceipt_('受付番号')` で再発行（※16.2）|
 | 送料が違う | 都道府県未検出 | 住所先頭に都道府県名があるか |
 | 確保が早く消える | 確保時間設定 | `APP_CONFIG.holds.minutes` |
 | D1同期が遅れる | Workers Cron | Cloudflareダッシュボード、`SYNC_SECRET`一致確認 |
