@@ -24,6 +24,53 @@ const SWAP_CONFIG = {
 // 配信ログシート名（成功/失敗を毎回記録。失敗が「見えない」問題への対策）
 const SWAP_LOG_SHEET_NAME = '入替リスト配信ログ';
 
+// ─── 返送対象の選び方（2モード） ─────────────────────────
+//  'sales' = 従来。前月販売数と同じ点数だけ、出品日の古い順に返してもらう。
+//  'aging' = 滞留日数基準。出品日から SWAP_AGING_DAYS 日を超えた商品を返してもらう。
+//
+//  aging を入れた理由（2026-09-17 実測）:
+//   出品後の月次売却率は 30〜60日の12.6%をピークに落ち、120〜180日で1.4%、
+//   180日超は1,570点中1点しか売れていない。再出品625件のその後の売却も47件(7.5%)で、
+//   再出品ループでは滞留在庫を救えていない。一方デタウリへ回せば現金になるため、
+//   「前月何点売れたか」ではなく「何日売れ残ったか」で返送対象を決めるほうが実態に合う。
+//
+//  ⚠ 既定は 'sales' のまま。切り替えは ScriptProperty SWAP_MODE に 'aging' を入れる。
+//     aging モードでは前月販売ゼロでもリストが出る（従来は0件なら配信しない）。
+var SWAP_MODE_PROP = 'SWAP_MODE';
+var SWAP_AGING_DAYS_PROP = 'SWAP_AGING_DAYS';
+var SWAP_AGING_MAX_PROP = 'SWAP_AGING_MAX_PER_RUN';
+var SWAP_AGING_DAYS_DEFAULT = 120;      // この日数を超えて売れ残ったら返送対象
+var SWAP_AGING_MAX_DEFAULT = 100;       // 1アカウント1回あたりの上限（返送箱と現場負荷の都合）
+
+/** 返送対象の選定モードを返す（'sales' | 'aging'）。既定は従来どおり 'sales'。 */
+function swapMode_() {
+  try {
+    return String(PropertiesService.getScriptProperties().getProperty(SWAP_MODE_PROP) || '').trim() === 'aging'
+      ? 'aging' : 'sales';
+  } catch (e) { return 'sales'; }
+}
+
+/** ScriptProperty から正の整数を読む。未設定・不正値は既定値。 */
+function swapIntProp_(propName, defaultValue) {
+  try {
+    var n = Number(PropertiesService.getScriptProperties().getProperty(propName));
+    return (isFinite(n) && n > 0) ? Math.floor(n) : defaultValue;
+  } catch (e) { return defaultValue; }
+}
+
+/**
+ * PDF・メールに出す「なぜこの点数なのか」の1行。
+ * 受け取る側（外注）が件数の根拠を誤解しないよう、モードに応じて書き分ける。
+ */
+function swapCriterionLabel_(prevCount) {
+  if (swapMode_() === 'aging') {
+    return '選定基準: 出品から' + swapIntProp_(SWAP_AGING_DAYS_PROP, SWAP_AGING_DAYS_DEFAULT)
+      + '日以上売れ残っている商品（1回あたり最大'
+      + swapIntProp_(SWAP_AGING_MAX_PROP, SWAP_AGING_MAX_DEFAULT) + '件）';
+  }
+  return '前月販売数: ' + prevCount + '件';
+}
+
 // ─── 入替対象から外す管理番号（個別指定） ───────────────────
 //  「この商品は返送させたくない」を管理番号単位で指定する。編集は管理パネル
 //  「入替リスト」タブ。優先: SWAP_EXCLUDE_KANRI_JSON（保存済みなら空でも尊重）
@@ -501,7 +548,11 @@ function buildSwapList_(data, hMap, accountName, prevMonthStart, prevMonthEnd, e
     activeRows.push({ id: id, date: listDate, dateStr: data[r][colDate], location: location });
   }
 
-  if (prevMonthSalesCount === 0) {
+  var mode = swapMode_();
+
+  // sales モードは前月販売ゼロなら配信しない（従来どおり）。
+  // aging モードは「何日売れ残ったか」で決めるので、前月販売ゼロでも対象を出す。
+  if (mode !== 'aging' && prevMonthSalesCount === 0) {
     return { account: accountName, prevMonthCount: 0, items: [], email: null, emailSent: false };
   }
 
@@ -516,7 +567,25 @@ function buildSwapList_(data, hMap, accountName, prevMonthStart, prevMonthEnd, e
   });
 
   // 「どれを返すか」は出品日の古い順で決める。ここまでの並びがその選定結果。
-  var swapItems = activeRows.slice(0, prevMonthSalesCount);
+  var takeCount;
+  if (mode === 'aging') {
+    // 出品日から N 日を超えたものだけ。活性行は既に出品日昇順なので、
+    // しきい値を割った時点で打ち切れば「古い順に該当分だけ」が取れる。
+    var agingDays = swapIntProp_(SWAP_AGING_DAYS_PROP, SWAP_AGING_DAYS_DEFAULT);
+    var cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - agingDays);
+    takeCount = 0;
+    for (var i = 0; i < activeRows.length; i++) {
+      // 出品日が空欄の行は末尾に寄せてあるので、ここに来た時点で以降は全て対象外
+      if (!activeRows[i].date || activeRows[i].date > cutoff) break;
+      takeCount++;
+    }
+    // 1回で大量に返送させると現場が詰まるので上限を掛ける（残りは次回に回る）
+    takeCount = Math.min(takeCount, swapIntProp_(SWAP_AGING_MAX_PROP, SWAP_AGING_MAX_DEFAULT));
+  } else {
+    takeCount = prevMonthSalesCount;
+  }
+  var swapItems = activeRows.slice(0, takeCount);
   // 「どう並べるか」は現場の探しやすさ優先で管理番号の昇順にする（zY53 → zY56 → zY146）。
   swapItems.sort(function(a, b) { return compareSwapKanri_(a.id, b.id); });
   return { account: accountName, prevMonthCount: prevMonthSalesCount, items: swapItems, email: null, emailSent: false };
@@ -546,7 +615,7 @@ function generateSwapPdf_(accountName, prevStart, prevEnd, prevCount, items) {
     // ヘッダー情報
     sh.getRange('A1').setValue(title).setFontSize(14).setFontWeight('bold');
     sh.getRange('A2').setValue('集計期間: ' + periodStr);
-    sh.getRange('A3').setValue('前月販売数: ' + prevCount + '件');
+    sh.getRange('A3').setValue(swapCriterionLabel_(prevCount));
     sh.getRange('A4').setValue('返送対象: ' + items.length + '件' + (dateRange ? '（' + dateRange + '）' : ''));
 
     // テーブルヘッダー（6行目）
@@ -636,7 +705,7 @@ function sendSwapEmail_(email, accountName, prevStart, prevCount, items, pdfBlob
   var dateRange = span ? ('\n出品日範囲: ' + span.first + ' 〜 ' + span.last) : '';
 
   var body = accountName + ' の入替リストです。\n\n' +
-    '前月販売数: ' + prevCount + '件\n' +
+    swapCriterionLabel_(prevCount) + '\n' +
     '返送対象: ' + items.length + '件' + dateRange + '\n\n' +
     '詳細はPDFをご確認ください。';
 
