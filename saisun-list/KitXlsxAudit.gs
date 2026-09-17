@@ -210,10 +210,20 @@ function revokeKitXlsxSharing(olderThanDays, execute) {
   var rows = kitaudit_scan_();
   var tz = Session.getScriptTimeZone();
 
-  var targets = rows.filter(function(r) { return r.ageDays > cutoff && r.isPublic; });
+  var aged = rows.filter(function(r) { return r.ageDays > cutoff && r.isPublic; });
+
+  // 代わりの出品キットURLが発行されていない受注はXLSXを閉じない。
+  // 閉じてしまうと、そのお客様は受け取ったデータを見る手段が一つも無くなる。
+  // （移行の前提は「発送メールで既にキットURLを渡してある」こと。そうでない行は保留する）
+  var targets = aged.filter(function(r) { return r.hasKit; });
+  var kept = aged.filter(function(r) { return !r.hasKit; });
 
   console.log('%s %s日より古い公開ファイル: %s件（全%s件中）',
-    dryRun ? '【下見】' : '【実行】', cutoff, targets.length, rows.length);
+    dryRun ? '【下見】' : '【実行】', cutoff, aged.length, rows.length);
+  if (kept.length) {
+    console.log('  うち %s件は出品キットURLが未発行のため閉じません（先にキットを作ってください）:', kept.length);
+    kept.forEach(function(r) { console.log('    保留: %s | %s', r.receiptNo || '(受付番号不明)', r.name); });
+  }
 
   var done = 0, failed = 0;
   targets.forEach(function(r) {
@@ -237,7 +247,7 @@ function revokeKitXlsxSharing(olderThanDays, execute) {
   } else {
     console.log('共有解除 %s件 / 失敗 %s件。ファイルは削除していません。', done, failed);
   }
-  return { targets: targets.length, done: done, failed: failed, dryRun: dryRun };
+  return { targets: targets.length, kept: kept.length, done: done, failed: failed, dryRun: dryRun };
 }
 
 /** 【手動実行】既定値（90日）での下見。エディタの実行メニューから選べるようにするためのラッパー */

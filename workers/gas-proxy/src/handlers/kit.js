@@ -19,6 +19,81 @@ import { getPickPageHtml } from '../pages/pick-page.js';
 
 const KIT_TTL = 15552000; // 半年（180日）— 46点ロットを出品しきり、季節を一巡できる長さ
 
+// 閲覧期限の残りがこれを割ったら、開いたときに期限を付け直す（ローリング延長）。
+// KV の TTL は put 時に固定されるため、何もしなければ発送から KIT_TTL で必ず消える。
+// 使っているお客様のリンクがある日突然死ぬのを防ぐ。閾値を半分にしてあるので、
+// 毎回書き戻すわけではなく、残り90日を切ったあとの初回閲覧でだけ KV へ書く。
+const KIT_RENEW_THRESHOLD = KIT_TTL / 2; // 90日
+
+// キット本文の置き場所。
+//   kit-gen:{受付番号}             → いまの世代ID（期限なし。保存し直したときだけ書く）
+//   kit-body:{受付番号}:{世代ID}    → キットJSON（期限付き。世代ごとに別キー）
+//   kit:{受付番号}                 → 旧形式のキットJSON（世代方式にする前に保存したもの）
+// 閲覧時の期限延長は「読んだ本文をそのキーに書き戻す」ので、本文キーを保存し直しと
+// 共有すると、KV の古い読み取り（最大60秒ほど）が新しい本文を旧本文で上書きしうる。
+// 世代ごとにキーを分ければ、延長が書くのは読んだ世代のキーだけになり巻き戻らない。
+async function loadKit(env, receiptNo) {
+  const gen = await env.CACHE.get(`kit-gen:${receiptNo}`);
+  if (gen) {
+    const key = `kit-body:${receiptNo}:${gen}`;
+    const json = await env.CACHE.get(key);
+    return json ? { key, json } : null;
+  }
+  const key = `kit:${receiptNo}`;
+  const json = await env.CACHE.get(key);
+  return json ? { key, json } : null;
+}
+
+function kitRemainingMs(expiresAt) {
+  const t = Date.parse(expiresAt || '');
+  return Number.isFinite(t) ? t - Date.now() : 0;
+}
+
+/**
+ * キットの閲覧期限を必要に応じて延長する。
+ * トークンと本文はそれぞれ自分の期限を見て別々に延長する（片方の書き込みが
+ * 失敗しても、次の閲覧でその片方だけやり直される）。
+ * 戻り値は（延長したなら更新後の）キットJSON文字列。
+ */
+async function touchKitExpiry(env, receiptNo, token, tokenMeta, kit) {
+  const renewBelowMs = KIT_RENEW_THRESHOLD * 1000;
+  const nextExpiresAt = new Date(Date.now() + KIT_TTL * 1000).toISOString();
+
+  // 1) トークン。値（受付番号）は変わらないので、古い読み取りから書いても害がない。
+  //    期限を持っていない旧トークンは、初回の閲覧で一度だけ書き直す。
+  if (kitRemainingMs(tokenMeta && tokenMeta.expiresAt) <= renewBelowMs) {
+    try {
+      await env.CACHE.put(`kit-token:${token}`, receiptNo, {
+        expirationTtl: KIT_TTL,
+        metadata: { expiresAt: nextExpiresAt },
+      });
+    } catch (e) {
+      console.warn(`touchKitExpiry: トークンの期限延長に失敗 (receiptNo=${receiptNo}): ${e}`);
+    }
+  }
+
+  // 2) 本文。読んだキー（＝読んだ世代）にだけ書き戻す。
+  let kitData;
+  try {
+    kitData = JSON.parse(kit.json);
+  } catch {
+    return kit.json; // 壊れていたら触らない（表示側でエラーにする）
+  }
+  if (kitRemainingMs(kitData.expiresAt) > renewBelowMs) {
+    return kit.json; // まだ十分に残っている
+  }
+
+  kitData.expiresAt = nextExpiresAt;
+  const nextJson = JSON.stringify(kitData);
+  try {
+    await env.CACHE.put(kit.key, nextJson, { expirationTtl: KIT_TTL });
+  } catch (e) {
+    console.warn(`touchKitExpiry: 本文の期限延長に失敗 (receiptNo=${receiptNo}): ${e}`);
+    return kit.json; // 延長できなくても表示は止めない
+  }
+  return nextJson;
+}
+
 // ─── POST /api/kit/save ───
 
 export async function saveKit(request, env) {
@@ -99,12 +174,25 @@ export async function saveKit(request, env) {
   // ページ側は「半年」ではなく実際の日付を出せる（何をいつまでに保存すべきか伝わる）。
   kitData.expiresAt = new Date(Date.now() + KIT_TTL * 1000).toISOString();
 
-  // KV保存
-  await env.CACHE.put(`kit:${receiptNo}`, JSON.stringify(kitData), { expirationTtl: KIT_TTL });
-  await env.CACHE.put(`kit-token:${token}`, receiptNo, { expirationTtl: KIT_TTL });
+  // KV保存（本文→世代ポインタ→トークンの順。ポインタが先に届いて本文が無い、を避ける）
+  const gen = `${Date.now().toString(36)}-${crypto.randomUUID().slice(0, 8)}`;
+  await env.CACHE.put(`kit-body:${receiptNo}:${gen}`, JSON.stringify(kitData), { expirationTtl: KIT_TTL });
+  await env.CACHE.put(`kit-gen:${receiptNo}`, gen);
+  await env.CACHE.put(`kit-token:${token}`, receiptNo, {
+    expirationTtl: KIT_TTL,
+    metadata: { expiresAt: kitData.expiresAt },
+  });
 
   return jsonOk({ ok: true, receiptNo });
 }
+
+// 期限切れ・無効トークン時の案内。「見られない」だけで終わらせず、
+// お客様が次にとる行動（受付番号を添えて問い合わせ）まで書く。
+const KIT_EXPIRED_MESSAGE =
+  'このリンクは無効か、閲覧期限を過ぎています。<br><br>'
+  + 'お手数ですが、発送完了メールに記載の<b>受付番号</b>を添えて下記までご連絡ください。'
+  + '新しい出品キットをご案内します。<br><br>'
+  + '<a href="mailto:nkonline1030@gmail.com">nkonline1030@gmail.com</a>';
 
 // ─── GET /kit?token={uuid} ───
 
@@ -124,18 +212,21 @@ export async function serveKit(request, env, url) {
   await env.SESSIONS.put(rlKey, String(rlCount + 1), { expirationTtl: 60 });
 
   // トークン → 受付番号 → キットデータ
-  const receiptNo = await env.CACHE.get(`kit-token:${token}`);
+  const { value: receiptNo, metadata: tokenMeta } = await env.CACHE.getWithMetadata(`kit-token:${token}`);
   if (!receiptNo) {
-    return kitErrorPage('リンクが無効または期限切れです。');
+    return kitErrorPage(KIT_EXPIRED_MESSAGE);
   }
 
-  const kitJson = await env.CACHE.get(`kit:${receiptNo}`);
-  if (!kitJson) {
-    return kitErrorPage('リンクが無効または期限切れです。');
+  const kit = await loadKit(env, receiptNo);
+  if (!kit) {
+    return kitErrorPage(KIT_EXPIRED_MESSAGE);
   }
+
+  // 見に来てくれているうちは期限を切らさない。残りが少なければここで付け直す。
+  const freshJson = await touchKitExpiry(env, receiptNo, token, tokenMeta, kit);
 
   // XSSエスケープ: </script> インジェクション防止
-  const safeJson = kitJson.replace(/</g, '\\u003c');
+  const safeJson = freshJson.replace(/</g, '\\u003c');
 
   const html = getKitPageHtml(safeJson);
 
@@ -171,14 +262,14 @@ export async function servePickList(request, env, url) {
     return pickErrorPage('リンクが無効または期限切れです。');
   }
 
-  const kitJson = await env.CACHE.get(`kit:${receiptNo}`);
-  if (!kitJson) {
+  const kit = await loadKit(env, receiptNo);
+  if (!kit) {
     return pickErrorPage('リンクが無効または期限切れです。');
   }
 
   let kitData;
   try {
-    kitData = JSON.parse(kitJson);
+    kitData = JSON.parse(kit.json);
   } catch {
     return pickErrorPage('データの読み込みに失敗しました。');
   }
@@ -269,19 +360,22 @@ export async function exportCsv(request, env, url) {
   }
   await env.SESSIONS.put(rlKey, String(rlCount + 1), { expirationTtl: 60 });
 
-  const receiptNo = await env.CACHE.get(`kit-token:${token}`);
+  const { value: receiptNo, metadata: tokenMeta } = await env.CACHE.getWithMetadata(`kit-token:${token}`);
   if (!receiptNo) {
     return jsonError('Invalid or expired token', 403);
   }
 
-  const kitJson = await env.CACHE.get(`kit:${receiptNo}`);
-  if (!kitJson) {
+  const kit = await loadKit(env, receiptNo);
+  if (!kit) {
     return jsonError('Invalid or expired token', 403);
   }
 
+  // CSV を落としに来ている＝まだ使っているので、ここでも期限を付け直す
+  const freshJson = await touchKitExpiry(env, receiptNo, token, tokenMeta, kit);
+
   let kitData;
   try {
-    kitData = JSON.parse(kitJson);
+    kitData = JSON.parse(freshJson);
   } catch {
     return jsonError('Invalid kit data', 500);
   }
