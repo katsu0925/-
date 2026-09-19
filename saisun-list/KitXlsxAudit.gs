@@ -296,19 +296,22 @@ function listRecentKitXlsxCustomers() {
  * 出品キットのURLを受け取っており、告知すると機能追加なのに縮小と読まれるため。
  * リンク切れの問い合わせが来たら個別に案内する。
  *
- * 通常は対象0件で何も起きない。実際に閉じたときだけ記録としてメールを送る。
+ * 通常は対象0件で何も起きない。閉じた件数はログにだけ残し、
+ * メールは閉じられなかった（失敗した）ものがあるときだけ送る（2026-09-19）。
  */
 function cronKitXlsxSweep() {
   var res = revokeKitXlsxSharing(KITAUDIT_RECENT_DAYS, true);
-  if (!res || (res.done === 0 && res.failed === 0)) return;
+  if (!res) return;
+  if (res.done > 0) console.log('cronKitXlsxSweep: 公開リンクを ' + res.done + '件 閉じました');
+  if (res.failed === 0) return;
 
   var props = PropertiesService.getScriptProperties();
   var to = String(props.getProperty('ADMIN_OWNER_EMAIL') || APP_CONFIG.notifyEmails || '')
     .split(',')[0].trim();
   if (!to) return;
 
-  var subject = '【デタウリ】配布用リストXLSXの公開リンクを ' + res.done + '件 閉じました';
-  var body = '発送から' + KITAUDIT_RECENT_DAYS + '日を過ぎた配布用リストXLSXの公開リンクを閉じました。\n\n'
+  var subject = '【デタウリ】配布用リストXLSXの公開リンクを閉じられませんでした（' + res.failed + '件）';
+  var body = '発送から' + KITAUDIT_RECENT_DAYS + '日を過ぎた配布用リストXLSXの公開リンクを閉じる処理で、失敗したものがあります。\n\n'
     + '　解除: ' + res.done + '件\n'
     + '　失敗: ' + res.failed + '件\n\n'
     + 'ファイルは削除していません。共有し直せば同じURLが復活します。\n'

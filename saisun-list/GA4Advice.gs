@@ -2,13 +2,14 @@
 // =====================================================
 // GA4 日次アラート + 週次AIアドバイス
 // cronDaily9 → ga4advice_cron() で毎朝実行
-//   月曜 → 週次サマリー（GA4 + 注文データ + メルマガ履歴 + AI分析）
-//   火〜日 → 日次アラート（異常検出±2.0σ時のみ送信、AIなし）
+//   毎日 → 日次アラート（±2.0σ の「急減」を検出したときだけ送信、AIなし）
+//   週次サマリー（GA4 + 注文データ + メルマガ履歴 + AI分析）は 2026-09-19 に自動配信を停止。
+//   見たいときは testGA4AdviceWeekly() を手動実行する。
 // =====================================================
 
 /**
  * エントリポイント（cronDaily9 から呼ばれる）
- * 曜日で日次アラート / 週次サマリーを分岐
+ * 毎日、日次アラートだけを回す（月曜の週次サマリーは 2026-09-19 に停止）
  */
 function ga4advice_cron() {
   var adminEmail = String(PropertiesService.getScriptProperties().getProperty('ADMIN_OWNER_EMAIL') || '').trim();
@@ -17,28 +18,25 @@ function ga4advice_cron() {
     return;
   }
 
-  var dow = new Date().getDay(); // 0=日, 1=月, ..., 6=土
-  if (dow === 1) {
-    ga4advice_weeklySummary_(adminEmail);
-  } else {
-    ga4advice_dailyAlert_(adminEmail);
-  }
+  ga4advice_dailyAlert_(adminEmail);
 }
 
 // =====================================================
-// 日次アラート（火〜日: 異常検出時のみ送信）
+// 日次アラート（毎日: 急減を検出したときだけ送信）
 // =====================================================
 
 /**
  * 日次アラート処理
- * 異常値(±2.0σ)があればアラートメール送信、なければ送信しない
+ * 「急減」の異常値(±2.0σ)があればアラートメール送信、なければ送信しない。
+ * 急増は件数が少ないと頻発し、対応も要らないのでメールしない（2026-09-19）
  */
 function ga4advice_dailyAlert_(adminEmail) {
   var ss = SpreadsheetApp.openById(String(APP_CONFIG.data.spreadsheetId).trim());
   var daily = ga4advice_extractDailyMetrics_(ss);
 
+  daily.anomalies = daily.anomalies.filter(function(an) { return an.direction === '急減'; });
   if (daily.anomalies.length === 0) {
-    console.log('ga4advice_dailyAlert_: 異常なし → 送信スキップ');
+    console.log('ga4advice_dailyAlert_: 急減なし → 送信スキップ');
     return;
   }
 
