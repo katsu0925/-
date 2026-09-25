@@ -27,6 +27,10 @@ var NLHALF0930 = {
   EXPIRES: '2026-09-30',
   MEMO: 'メルマガ登録者限定 半額（2026-09-25配信・9/30まで）',
   TEST_TO: 'nsdktts1030@gmail.com',
+  // 公式LINE用の共通コード（友だちはメールと紐付かないため個別コード不可）。
+  // 注文時のメールで1人1回。NLHALF- 接頭辞なので閾値送料無料の対象外も同じく効く
+  LINE_CODE: 'NLHALF-LINE',
+  LINE_MEMO: '公式LINE配布 半額（2026-09-25配信・9/30まで・共通コード）',
   SUBJECT: '【デタウリ.Detauri】メルマガ登録者さま限定｜全品半額クーポン（9/30まで）'
 };
 
@@ -224,6 +228,41 @@ function nlHalf0930_issueCodesLocked_(emails) {
   try { return nlHalf0930_issueCodes_(emails); } finally { lock.releaseLock(); }
 }
 
+/** 公式LINE用の共通コードを登録（冪等）。配信文は LINE Official Account Manager から手動で送る */
+function nlHalf0930_setupLineCoupon() {
+  nlHalf0930_assertEditor_();
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var sh = sh_ensureCouponSheet_(sh_getOrderSs_());
+    var lastRow = sh.getLastRow();
+    if (lastRow >= 2) {
+      var codes = sh.getRange(2, 1, lastRow - 1, 1).getValues();
+      for (var i = 0; i < codes.length; i++) {
+        if (String(codes[i][0] || '').trim().toUpperCase() === NLHALF0930.LINE_CODE) {
+          return '登録済みです: ' + NLHALF0930.LINE_CODE + '（行' + (i + 2) + '）';
+        }
+      }
+    }
+    sh.getRange(sh.getLastRow() + 1, 1, 1, COUPON_COL_COUNT).setValues([[
+      NLHALF0930.LINE_CODE, 'rate', NLHALF0930.RATE,
+      new Date(NLHALF0930.EXPIRES + 'T00:00:00+09:00'),
+      0,      // E: 利用上限なし（共通コード）
+      0, true, true, NLHALF0930.LINE_MEMO, 'all',
+      new Date(NLHALF0930.START + 'T00:00:00+09:00'),
+      false, false, 'all', '', '', '', '',  // R: 限定顧客メールなし
+      false
+    ]]);
+    SpreadsheetApp.flush();
+    try { CacheService.getScriptCache().remove(COUPON_CACHE_KEY); } catch (e) {}
+    var msg = '登録しました: ' + NLHALF0930.LINE_CODE + '（D1反映は最大5分後）';
+    console.log(msg);
+    return msg;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 /** 運営アドレス宛てにテスト送信（実コードを1件発行する＝カートで半額・送料の確認に使える） */
 function nlHalf0930_sendTest() {
   nlHalf0930_assertEditor_();
@@ -319,11 +358,13 @@ function nlHalf0930_status() {
   var states = nlHalf0930_loadStates_();
   var sh = sh_ensureCouponSheet_(sh_getOrderSs_());
   var lastRow = sh.getLastRow();
-  var issued = 0, usedCount = 0;
+  var issued = 0, usedCount = 0, lineUsed = 0;
   if (lastRow >= 2) {
     var rows = sh.getRange(2, 1, lastRow - 1, COUPON_COL_COUNT).getValues();
     for (var i = 0; i < rows.length; i++) {
-      if (String(rows[i][COUPON_COLS.CODE] || '').toUpperCase().indexOf(NLHALF0930.PREFIX) !== 0) continue;
+      var rowCode = String(rows[i][COUPON_COLS.CODE] || '').trim().toUpperCase();
+      if (rowCode === NLHALF0930.LINE_CODE) { lineUsed = Number(rows[i][COUPON_COLS.USE_COUNT]) || 0; continue; }
+      if (rowCode.indexOf(NLHALF0930.PREFIX) !== 0) continue;
       issued++;
       if (Number(rows[i][COUPON_COLS.USE_COUNT]) > 0) usedCount++;
     }
@@ -336,6 +377,7 @@ function nlHalf0930_status() {
     unknown: keys.filter(function(k) { return states[k].s === 'SENDING'; }),
     issued: issued,
     used: usedCount,
+    lineUsed: lineUsed,
     remainingQuota: mail_remainingBulkQuota_()
   };
   console.log('nlHalf0930_status: ' + JSON.stringify(out));

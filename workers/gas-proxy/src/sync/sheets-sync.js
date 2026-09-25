@@ -83,6 +83,12 @@ export async function scheduledSync(env) {
         () => syncCoupons(env.DB, exportData.coupons));
     }
 
+    // クーポン利用履歴（「1人1回」判定用）。追記のみ＝シートから消えた行もD1には残す（安全側）
+    if (Array.isArray(exportData.couponUsage) && exportData.couponUsage.length > 0) {
+      await syncIfChanged(env.DB, 'coupon_usage', exportData.couponUsage,
+        () => syncCouponUsage(env.DB, exportData.couponUsage));
+    }
+
     if (exportData.settings) {
       await syncIfChanged(env.DB, 'settings', exportData.settings,
         () => syncSettings(env.DB, exportData.settings));
@@ -858,6 +864,27 @@ async function syncCoupons(db, rows) {
       c.shippingExcludeProducts || '', c.freeShipping ? 1 : 0,
       c.targetCustomerName || '',
       c.targetCustomerEmail || '', new Date().toISOString()
+    )
+  );
+
+  const batchSize = 50;
+  for (let i = 0; i < stmts.length; i += batchSize) {
+    await db.batch(stmts.slice(i, i + batchSize));
+  }
+}
+
+async function syncCouponUsage(db, rows) {
+  // 既存行は (code, email, receipt_no) で重複判定して挿入しない＝何度流しても増えない
+  const stmts = rows.map(u =>
+    db.prepare(`
+      INSERT INTO coupon_usage (code, email, receipt_no, used_at)
+      SELECT ?1, ?2, ?3, ?4
+      WHERE NOT EXISTS (
+        SELECT 1 FROM coupon_usage WHERE code = ?1 AND email = ?2 AND receipt_no = ?3
+      )
+    `).bind(
+      String(u.code || '').toUpperCase(), String(u.email || '').toLowerCase(),
+      u.receiptNo || '', u.usedAt || new Date().toISOString()
     )
   );
 

@@ -59,6 +59,8 @@ function apiSyncExportData(params) {
     // クーポンデータ
     if (tables.indexOf('coupons') !== -1) {
       result.coupons = exportCoupons_();
+      // クーポン利用履歴（Worker の「1人1回」判定 coupon_usage 用。無いと同じメールで何度でも通る）
+      result.couponUsage = exportCouponUsage_();
     }
 
     // 設定データ
@@ -569,6 +571,34 @@ function exportOpenItems_() {
   }
 
   return items;
+}
+
+/**
+ * クーポン利用履歴シート → [{ code, email, receiptNo, usedAt }]
+ * code は大文字・email は小文字に正規化（Worker submit.js / coupon.js の照合と揃える）
+ */
+function exportCouponUsage_() {
+  var ssId = app_getOrderSpreadsheetId_();
+  if (!ssId) return [];
+  var sh = SpreadsheetApp.openById(ssId).getSheetByName(COUPON_LOG_SHEET_NAME);
+  if (!sh) return [];
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return [];
+  var data = sh.getRange(2, 1, lastRow - 1, 4).getValues();
+  var out = [];
+  for (var i = 0; i < data.length; i++) {
+    var code = String(data[i][0] || '').trim().toUpperCase();
+    var email = String(data[i][1] || '').trim().toLowerCase();
+    if (!code || !email) continue;
+    var at = data[i][3];
+    out.push({
+      code: code,
+      email: email,
+      receiptNo: String(data[i][2] || '').trim(),
+      usedAt: (at instanceof Date && !isNaN(at.getTime())) ? at.toISOString() : ''
+    });
+  }
+  return out;
 }
 
 function exportCoupons_() {
