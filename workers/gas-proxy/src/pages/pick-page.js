@@ -51,8 +51,6 @@ export function getPickPageHtml(safeJson) {
   td.mid { width: 74px; font-weight: 700; white-space: nowrap; }
   td.size { width: 62px; white-space: nowrap; }
   td.color { width: 74px; white-space: nowrap; }
-  /* 箱が変わる行に太線を引く。箱ごとにまとめて拾えるようにするため */
-  tr.newbox td { border-top: 2px solid #111; }
   .foot { margin-top: 14px; font-size: 11px; color: #555; display: flex; justify-content: space-between; }
   .empty { padding: 40px; text-align: center; color: #666; }
   @media print {
@@ -77,12 +75,11 @@ export function getPickPageHtml(safeJson) {
 
   var items = (data.items || []).slice();
 
-  // 箱ID順 → 管理番号順。箱を行ったり来たりせずに拾えるようにする
+  // 管理番号順（zC210 → zC1099 のように数字は数値として並べる）。
+  // 以前は箱ID順→管理番号順で、箱が変わる行に太線を引いていたが、
+  // 管理番号で探す運用に合わせて管理番号だけで並べ、太線もやめた。
   items.sort(function(a, b) {
-    var ab = String(a.boxId || ''), bb = String(b.boxId || '');
-    if (ab !== bb) return ab < bb ? -1 : 1;
-    var am = String(a.managedId || ''), bm = String(b.managedId || '');
-    return am < bm ? -1 : (am > bm ? 1 : 0);
+    return String(a.managedId || '').localeCompare(String(b.managedId || ''), 'ja', { numeric: true });
   });
 
   var printedAt = new Date();
@@ -120,13 +117,10 @@ export function getPickPageHtml(safeJson) {
           '<th>ブランド</th><th>アイテム</th><th>サイズ</th><th>色</th>' +
         '</tr></thead><tbody>';
 
-    var prevBox = null;
     items.forEach(function(it, i) {
       var box = String(it.boxId || '');
-      var cls = (prevBox !== null && box !== prevBox) ? ' class="newbox"' : '';
-      prevBox = box;
       html +=
-        '<tr' + cls + '>' +
+        '<tr>' +
           '<td class="chk">□</td>' +
           '<td class="no">' + (i + 1) + '</td>' +
           '<td class="box">' + esc(box || '—') + '</td>' +
