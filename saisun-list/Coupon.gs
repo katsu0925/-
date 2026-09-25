@@ -807,7 +807,8 @@ function apiValidateCoupon(code, email, productAmount, channel, productIds, cust
       label: label,
       comboMember: result.comboMember || false,
       comboBulk: result.comboBulk || false,
-      shippingExcludeProducts: result.shippingExcludeProducts || ''
+      shippingExcludeProducts: result.shippingExcludeProducts || '',
+      noThresholdFreeShip: result.noThresholdFreeShip === true
     };
   } catch (e) {
     return { ok: false, message: String(e && e.message ? e.message : e) };
@@ -889,6 +890,22 @@ function getCouponDataCached_() {
  * @param {string[]} [productIds] - アソート商品の場合、カート内の商品IDリスト
  * @param {string} [customerName] - 顧客名（限定顧客クーポンの判定用）
  */
+/**
+ * 「¥10,000以上送料無料」の対象外にするクーポンの接頭辞（半額級クーポン）。
+ * 閾値判定は割引前金額で行うため、半額だと ¥12,000→¥6,000 の支払いでも送料無料になってしまう。
+ * FHPと同じく閾値無料だけを外す。Worker utils/campaign.js と同じ値を保つこと。
+ */
+var NO_THRESHOLD_FREESHIP_COUPON_PREFIXES = ['NLHALF-'];
+
+function isNoThresholdFreeShipCoupon_(code) {
+  var c = String(code || '').trim().toUpperCase();
+  if (!c) return false;
+  for (var i = 0; i < NO_THRESHOLD_FREESHIP_COUPON_PREFIXES.length; i++) {
+    if (c.indexOf(NO_THRESHOLD_FREESHIP_COUPON_PREFIXES[i]) === 0) return true;
+  }
+  return false;
+}
+
 function validateCoupon_(code, email, channel, productIds, customerName) {
   if (!code) return { ok: false, message: 'クーポンコードを入力してください' };
   code = String(code).trim().toUpperCase();
@@ -1015,7 +1032,7 @@ function validateCoupon_(code, email, channel, productIds, customerName) {
     return { ok: false, message: 'クーポン設定にエラーがあります' };
   }
 
-  return { ok: true, type: type, value: value, row: coupon.rowIndex, comboMember: coupon.comboMember, comboBulk: coupon.comboBulk, shippingExcludeProducts: coupon.shippingExcludeProducts || '', freeShipping: coupon.freeShipping === true };
+  return { ok: true, type: type, value: value, row: coupon.rowIndex, comboMember: coupon.comboMember, comboBulk: coupon.comboBulk, shippingExcludeProducts: coupon.shippingExcludeProducts || '', freeShipping: coupon.freeShipping === true, noThresholdFreeShip: isNoThresholdFreeShipCoupon_(code) };
 }
 
 /**

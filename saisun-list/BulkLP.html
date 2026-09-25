@@ -2533,7 +2533,8 @@ function buildCartCalcInput_(assortSubtotal, assortTotalQty) {
       freeShipping: !!G.coupon.freeShipping,
       comboBulk: G.coupon.comboBulk,
       comboMember: G.coupon.comboMember,
-      shippingExcludeProducts: G.coupon.shippingExcludeProducts || undefined
+      shippingExcludeProducts: G.coupon.shippingExcludeProducts || undefined,
+      noThresholdFreeShip: !!G.coupon.noThresholdFreeShip
     };
   }
 
@@ -2760,6 +2761,8 @@ function updatePayButton(total) {
         _shipHintB.innerHTML = '<span style="font-size:11px;color:#b45309;">沖縄県は送料無料対象外</span>';
       } else if (_fhpOnB && _prodTotalB > 0) {
         _shipHintB.innerHTML = '<span style="font-size:11px;color:#b45309;">初回50%OFF適用中は送料無料対象外</span>';
+      } else if (G.coupon && G.coupon.noThresholdFreeShip && !G.coupon.freeShipping && _prodTotalB > 0) {
+        _shipHintB.innerHTML = '<span style="font-size:11px;color:#b45309;">半額クーポン適用中は送料無料対象外</span>';
       } else if (G.coupon && G.coupon.freeShipping && _prodTotalB > 0) {
         // 送料無料クーポン適用中（価格破壊商品・クーポン除外商品があれば一部送料別途）
         _shipHintB.innerHTML = calcExcludedQty_() > 0
@@ -2907,7 +2910,7 @@ function recalcDetauriShipping_() {
   // 商品合計（アソート+デタウリ）¥10,000以上で送料無料（割引後の商品価格で判定、FHP適用時・沖縄県は対象外）
   var _fhpOn2 = G.firstHalfPrice && G.firstHalfPrice.eligible && G.customer;
   var _isOkinawaDet = (G.settings && G.settings.shippingAreas && G.settings.shippingAreas[pref]) === 'okinawa';
-  if (!_fhpOn2 && !_isOkinawaDet) {
+  if (!_fhpOn2 && !_isOkinawaDet && !(G.coupon && G.coupon.noThresholdFreeShip)) {
     var _assortSub = typeof G._discountedBulkTotal === 'number' ? G._discountedBulkTotal : 0;
     if (_assortSub <= 0) Object.keys(G.cart).forEach(function(pid) { var _p = G.products.find(function(x){return x.productId===pid;}); if (_p) _assortSub += Number(_p.price||0)*G.cart[pid]; });
     var _assortDet = typeof G._discountedDetauriTotal === 'number' ? G._discountedDetauriTotal : (G.detauriCartTotal || 0);
@@ -3185,7 +3188,7 @@ function submitOrder() {
   // 商品合計（アソート+デタウリ）¥10,000以上で送料無料（割引後の商品価格で判定、FHP適用時・沖縄県は対象外）
   var _fhpOn3 = G.firstHalfPrice && G.firstHalfPrice.eligible && G.customer;
   var _submitIsOkinawa = (G.settings && G.settings.shippingAreas && G.settings.shippingAreas[G.shippingPref]) === 'okinawa';
-  if (!_fhpOn3 && !_submitIsOkinawa) {
+  if (!_fhpOn3 && !_submitIsOkinawa && !(G.coupon && G.coupon.noThresholdFreeShip)) {
     var _submitProdTotal = typeof G._discountedBulkTotal === 'number' ? G._discountedBulkTotal : 0;
     if (_submitProdTotal <= 0) items.forEach(function(it) { var _p = G.products.find(function(x){return x.productId===it.productId;}); if (_p) _submitProdTotal += Number(_p.price||0)*it.qty; });
     _submitProdTotal += (typeof G._discountedDetauriTotal === 'number' ? G._discountedDetauriTotal : detauriProductAmount);

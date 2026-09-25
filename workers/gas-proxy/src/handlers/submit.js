@@ -11,7 +11,7 @@ import { selectInChunks, statementsInChunks } from '../utils/sql.js';
 import { sendEvent as sendMetaEvent } from '../utils/meta-capi.js';
 import { calculateRankFromOrders } from './mypage.js';
 import { resolveCustomerId } from '../utils/identity.js';
-import { isCampaignActive } from '../utils/campaign.js';
+import { isCampaignActive, isNoThresholdFreeShipCoupon } from '../utils/campaign.js';
 
 // ─── 数量割引（廃止済み。comboBulkスキーマは維持、常に0%） ───
 
@@ -591,8 +591,9 @@ export async function submitEstimate(args, env, bodyText, ctx) {
   // 沖縄県判定（送料無料閾値・クーポン送料無料の対象外。ダイヤ会員は対象）
   const isOkinawa = shippingArea === 'okinawa';
   const couponFreeEffective = shippingFreeCoupon && !isOkinawa;
-  // ¥10,000以上で送料無料（FHP適用時・沖縄県は対象外）
-  const thresholdFree = !firstHalfPriceApplied && !isOkinawa && (discounted + bulkProductAmount) >= dynFreeShipThreshold;
+  // ¥10,000以上で送料無料（FHP適用時・沖縄県・半額級クーポン(NLHALF-)は対象外）
+  const noThresholdCoupon = !!validatedCoupon && isNoThresholdFreeShipCoupon(activeCouponCode);
+  const thresholdFree = !firstHalfPriceApplied && !isOkinawa && !noThresholdCoupon && (discounted + bulkProductAmount) >= dynFreeShipThreshold;
 
   // 送料無料判定前に実際の配送コスト（実費表・店負担送料用）を計算
   let actualShippingForStore = 0;

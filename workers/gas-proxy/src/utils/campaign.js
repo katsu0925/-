@@ -35,3 +35,16 @@ export function isCampaignActive(status, now) {
   if (isNaN(end.getTime())) return true;
   return jstDatePart(now instanceof Date ? now : new Date()) <= jstDatePart(end);
 }
+
+/**
+ * 「¥10,000以上送料無料」の対象外にするクーポンの接頭辞。
+ * 半額級のクーポンは閾値判定が割引前金額で行われるため、¥12,000→¥6,000 の支払いでも送料無料になってしまう。
+ * FHP（初回半額）と同じく閾値無料だけを外す（送料無料クーポン・ダイヤ会員特典は別判定のまま）。
+ * GAS Coupon.gs NO_THRESHOLD_FREESHIP_COUPON_PREFIXES と同じ値を保つこと。
+ */
+export const NO_THRESHOLD_FREESHIP_COUPON_PREFIXES = ['NLHALF-'];
+
+export function isNoThresholdFreeShipCoupon(code) {
+  const c = String(code || '').trim().toUpperCase();
+  return !!c && NO_THRESHOLD_FREESHIP_COUPON_PREFIXES.some(p => c.startsWith(p));
+}

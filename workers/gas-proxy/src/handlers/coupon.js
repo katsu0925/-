@@ -4,6 +4,7 @@
  * apiValidateCoupon — D1 coupons + coupon_usage で検証
  */
 import { jsonOk, jsonError } from '../utils/response.js';
+import { isNoThresholdFreeShipCoupon } from '../utils/campaign.js';
 
 /**
  * apiValidateCoupon — クーポン検証
@@ -146,5 +147,6 @@ export async function validateCoupon(args, env) {
     comboMember: coupon.combo_member === 1,
     comboBulk: coupon.combo_bulk === 1,
     shippingExcludeProducts: coupon.shipping_exclude_products || '',
+    noThresholdFreeShip: isNoThresholdFreeShipCoupon(code),
   });
 }

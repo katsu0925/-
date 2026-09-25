@@ -221,7 +221,8 @@ function apiSubmitEstimate(userKey, form, ids) {
     // 沖縄は送料無料（閾値・クーポン）の対象外（ダイヤ会員特典は維持）
     var isOkinawa = (shippingArea === 'okinawa');
     // ¥10,000以上で送料無料（FHP・沖縄は対象外）
-    var thresholdFree = !firstHalfPriceApplied && !isOkinawa && (discounted + bulkProductAmount) >= 10000;
+    // 半額級クーポン(NLHALF-)も閾値無料の対象外（Worker submit.js と同条件）
+    var thresholdFree = !firstHalfPriceApplied && !isOkinawa && !(validatedCoupon && validatedCoupon.noThresholdFreeShip) && (discounted + bulkProductAmount) >= 10000;
     // 送料無料クーポンも沖縄は対象外（ダイヤ会員特典は維持）
     var couponFreeEffective = shippingFreeCoupon && !isOkinawa;
 

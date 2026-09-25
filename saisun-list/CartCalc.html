@@ -250,8 +250,9 @@ var CartCalc = (function() {
     // 送料無料クーポン（shipping_free型 または rate/fixed型の送料無料併用フラグ）— FHP時は無効、沖縄は対象外
     var shippingFreeCoupon = !fhpApplied && coupon && (coupon.type === 'shipping_free' || coupon.freeShipping === true);
     var couponFreeEffective = shippingFreeCoupon && !isOkinawa;
-    // ¥10,000以上で送料無料（FHP・沖縄は対象外）
-    var thresholdFree = !fhpApplied && !isOkinawa && combinedDiscountedProduct >= freeShipThreshold;
+    // ¥10,000以上で送料無料（FHP・沖縄・半額級クーポン(NLHALF-)は対象外）
+    var noThresholdCoupon = !fhpApplied && !!(coupon && coupon.noThresholdFreeShip);
+    var thresholdFree = !fhpApplied && !isOkinawa && !noThresholdCoupon && combinedDiscountedProduct >= freeShipThreshold;
 
     // デタウリ送料
     if (det.count > 0) {
@@ -340,7 +341,7 @@ var CartCalc = (function() {
     result.grandTotal = Math.max(0, sumSubtotals - result.pointsApplied);
 
     // -- 送料無料プログレスバー（FHP時・沖縄は非表示） --
-    if (!fhpApplied && !isOkinawa && combinedDiscountedProduct > 0 && combinedDiscountedProduct < freeShipThreshold) {
+    if (!fhpApplied && !isOkinawa && !noThresholdCoupon && combinedDiscountedProduct > 0 && combinedDiscountedProduct < freeShipThreshold) {
       result.freeShipProgress = {
         show: true,
         current: combinedDiscountedProduct,
@@ -348,7 +349,7 @@ var CartCalc = (function() {
         remaining: freeShipThreshold - combinedDiscountedProduct,
         pct: Math.min(100, Math.round((combinedDiscountedProduct / freeShipThreshold) * 100))
       };
-    } else if (!fhpApplied && !isOkinawa && combinedDiscountedProduct >= freeShipThreshold) {
+    } else if (!fhpApplied && !isOkinawa && !noThresholdCoupon && combinedDiscountedProduct >= freeShipThreshold) {
       result.freeShipProgress = { show: true, current: combinedDiscountedProduct, threshold: freeShipThreshold, remaining: 0, pct: 100 };
     }
 

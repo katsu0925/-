@@ -2277,7 +2277,8 @@ function calculateShipping_() {
 
   // 商品合計¥10,000以上で送料無料（割引後の商品価格で判定、FHP適用時・沖縄県は対象外）
   var _fhpActive = state.firstHalfPrice && state.firstHalfPrice.eligible && state.customer;
-  if (!_fhpActive && !_isOkinawa) {
+  var _noThresholdCoupon = !!(state.appliedCoupon && state.appliedCoupon.noThresholdFreeShip);
+  if (!_fhpActive && !_isOkinawa && !_noThresholdCoupon) {
     var _freeShipSum = typeof state._discountedProductTotal === 'number'
       ? state._discountedProductTotal
       : (function() {
@@ -2414,7 +2415,8 @@ function buildCartCalcInputIdx_(sum, count, bulk) {
       freeShipping: !!state.appliedCoupon.freeShipping,
       comboBulk: state.appliedCoupon.comboBulk,
       comboMember: state.appliedCoupon.comboMember,
-      shippingExcludeProducts: state.appliedCoupon.shippingExcludeProducts || undefined
+      shippingExcludeProducts: state.appliedCoupon.shippingExcludeProducts || undefined,
+      noThresholdFreeShip: !!state.appliedCoupon.noThresholdFreeShip
     };
   }
   var pts = parseInt(($('usePoints') ? $('usePoints').value : '0'), 10) || 0;
@@ -6681,7 +6683,7 @@ function restoreCoupon_() {
       showToast('クーポンの有効期限が切れました');
       return;
     }
-    state.appliedCoupon = { code: saved.code, type: res.type, value: res.value, discountAmount: res.discountAmount, label: res.label, comboMember: res.comboMember || false, comboBulk: res.comboBulk || false, freeShipping: res.freeShipping || false };
+    state.appliedCoupon = { code: saved.code, type: res.type, value: res.value, discountAmount: res.discountAmount, label: res.label, comboMember: res.comboMember || false, comboBulk: res.comboBulk || false, freeShipping: res.freeShipping || false, noThresholdFreeShip: res.noThresholdFreeShip || false };
     saveCouponToStorage_();
     var dt = res.type === 'shipping_free' ? '' : '（-' + yen(res.discountAmount) + '）';
     $('couponInfo').innerHTML = '<span style="color:#2e7d32;">&#10003; ' + escapeHtml_(res.label) + dt + '適用済み</span>';
@@ -6721,7 +6723,7 @@ function applyCoupon_() {
       restoreBtn_();
       return;
     }
-    state.appliedCoupon = { code: code.toUpperCase(), type: res.type, value: res.value, discountAmount: res.discountAmount, label: res.label, comboMember: res.comboMember || false, comboBulk: res.comboBulk || false, freeShipping: res.freeShipping || false };
+    state.appliedCoupon = { code: code.toUpperCase(), type: res.type, value: res.value, discountAmount: res.discountAmount, label: res.label, comboMember: res.comboMember || false, comboBulk: res.comboBulk || false, freeShipping: res.freeShipping || false, noThresholdFreeShip: res.noThresholdFreeShip || false };
     saveCouponToStorage_();
     trackEvent_('apply_coupon', { coupon_code: code.toUpperCase(), discount_type: res.type, discount_amount: res.discountAmount, page_type: 'detauri' });
     var discountText = res.type === 'shipping_free' ? '' : '（-' + yen(res.discountAmount) + '）';
@@ -6782,7 +6784,7 @@ function revalidateCoupon_() {
       return;
     }
     // 有効 → 割引額を更新
-    state.appliedCoupon = { code: code, type: res.type, value: res.value, discountAmount: res.discountAmount, label: res.label, comboMember: res.comboMember || false, comboBulk: res.comboBulk || false, freeShipping: res.freeShipping || false };
+    state.appliedCoupon = { code: code, type: res.type, value: res.value, discountAmount: res.discountAmount, label: res.label, comboMember: res.comboMember || false, comboBulk: res.comboBulk || false, freeShipping: res.freeShipping || false, noThresholdFreeShip: res.noThresholdFreeShip || false };
     saveCouponToStorage_();
     var discountText = res.type === 'shipping_free' ? '' : '（-' + yen(res.discountAmount) + '）';
     $('couponInfo').innerHTML = '<span style="color:#2e7d32;">&#10003; ' + escapeHtml_(res.label) + discountText + '適用済み</span>';

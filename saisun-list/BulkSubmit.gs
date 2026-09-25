@@ -186,7 +186,8 @@ function apiBulkSubmit(form, items) {
     var shippingFreeCoupon = validatedCoupon && (validatedCoupon.type === 'shipping_free' || validatedCoupon.freeShipping === true);
     var isOkinawa = ((SHIPPING_AREAS[shippingPref] || '') === 'okinawa');
     // ¥10,000以上で送料無料（FHP・沖縄は対象外）
-    var thresholdFree = !firstHalfPriceApplied && !isOkinawa && (discounted + detauriProductAmount) >= 10000;
+    // 半額級クーポン(NLHALF-)も閾値無料の対象外（Worker submit.js と同条件）
+    var thresholdFree = !firstHalfPriceApplied && !isOkinawa && !(validatedCoupon && validatedCoupon.noThresholdFreeShip) && (discounted + detauriProductAmount) >= 10000;
     // 送料無料クーポンも沖縄は対象外（ダイヤ会員特典は維持）
     var couponFreeEffective = shippingFreeCoupon && !isOkinawa;
 
