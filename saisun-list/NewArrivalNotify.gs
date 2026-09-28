@@ -44,7 +44,7 @@ function newArrivalNotifyCron_() {
       if (!managedId) continue;
       currentIds[managedId] = true;
       productMap[managedId] = {
-        brand: String(values[i][3] || '').trim(),    // D列
+        brand: wn_brandOrEmpty_(values[i][3]),    // D列
         state: String(values[i][2] || '').trim(),     // C列
         size: String(values[i][4] || '').trim(),      // E列
         category: String(values[i][6] || '').trim(),  // G列

@@ -103,6 +103,16 @@ function wn_markSent_(email) {
 // 価格フォーマット
 // =====================================================
 
+/**
+ * ブランド名の正規化。「記載なし」「不明」等のプレースホルダは空文字に落とす
+ * （メルマガで「記載なし 特集」のような意味不明な切り口・表記を出さないため）
+ */
+var WN_PLACEHOLDER_BRANDS = ['記載なし', '不明', 'ブランド名なし', 'ロゴなし', 'ノーブランド', 'なし', '無し', '-', 'no brand', 'nobrand', 'unknown'];
+function wn_brandOrEmpty_(brand) {
+  var b = String(brand || '').trim();
+  return WN_PLACEHOLDER_BRANDS.indexOf(b.toLowerCase()) === -1 ? b : '';
+}
+
 function wn_formatPrice_(price) {
   return '¥' + String(price).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 }
@@ -127,7 +137,7 @@ function wn_sendSoldReport_() {
         var mid = String(dataValues[d][10] || '').trim(); // K列: 管理番号
         if (!mid) continue;
         productMap[mid] = {
-          brand: String(dataValues[d][3] || '').trim(),    // D列
+          brand: wn_brandOrEmpty_(dataValues[d][3]),    // D列
           category: String(dataValues[d][6] || '').trim(), // G列
           price: Number(dataValues[d][8] || 0)             // I列
         };
@@ -180,7 +190,7 @@ function wn_sendSoldReport_() {
       var info = productMap[mid];
       if (info) {
         soldItems.push({
-          name: info.brand + ' / ' + info.category,
+          name: info.brand ? info.brand + ' / ' + info.category : info.category,
           amount: info.price,
           brand: info.brand,
           date: dateVal,
@@ -324,7 +334,7 @@ function wn_sendBrandColumn_() {
 
   var brandStats = {};
   for (var i = 0; i < values.length; i++) {
-    var brand = String(values[i][3] || '').trim();  // D列
+    var brand = wn_brandOrEmpty_(values[i][3]);  // D列
     var category = String(values[i][6] || '').trim(); // G列
     var price = Number(values[i][8] || 0);           // I列
     if (!brand) continue;
@@ -553,7 +563,7 @@ function wn_sendWeekendPicks_() {
     var managedId = String(values[i][10] || '').trim();
     if (!managedId) continue;
 
-    var brand = String(values[i][3] || '').trim();
+    var brand = wn_brandOrEmpty_(values[i][3]);
     var category = String(values[i][6] || '').trim();
     var price = Number(values[i][8] || 0);
     var size = String(values[i][4] || '').trim();
