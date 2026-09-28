@@ -620,10 +620,11 @@ function wn_sendWeekendPicks_() {
       filterParam = '?size=' + encodeURIComponent(topSize);
       break;
     case 'state':
-      var newItems = products.filter(function(p) { return p.state === '新品' || p.state === '未使用'; });
+      // 状態はランク表記（S=新品・未使用 / A=美品 / AB / B / C）
+      var newItems = products.filter(function(p) { return p.state === 'S'; });
       if (newItems.length < 3) {
-        // 新品が少ない場合は「状態良好」に切り替え
-        newItems = products.filter(function(p) { return p.state === '目立った傷や汚れなし' || p.state === '新品' || p.state === '未使用'; });
+        // 新品が少ない場合は S+A の「状態良好」に切り替え
+        newItems = products.filter(function(p) { return p.state === 'S' || p.state === 'A'; });
         title = '状態良好アイテム特集 — ' + newItems.length + '点';
       } else {
         title = '新品・未使用タグ付き特集 — ' + newItems.length + '点';
