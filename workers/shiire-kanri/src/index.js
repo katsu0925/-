@@ -7,7 +7,7 @@ import { listProducts, getProduct, listProductCounts, getNextKanri, getNextKanri
 import { listPurchases, getPurchaseProducts } from './handlers/purchases.js';
 import { saveMeasurement, saveSale, saveDetails, uploadImage, resolveImage, createPurchase, createProduct, deleteProduct, retrySaveFailures } from './handlers/write-proxy.js';
 import { imgProxy } from './handlers/img-proxy.js';
-import { thumbProxy } from './handlers/thumb-proxy.js';
+import { thumbProxy, staffImgProxy } from './handlers/thumb-proxy.js';
 import { listWorkers, listAccounts, listSuppliers, listPlaces, listCategories, listSettings } from './handlers/master.js';
 import { lookupAiPrefill, lookupAiPrefillBatch } from './handlers/ai.js';
 import { listMoves, createMove, deleteMove, updateMove, listReturns, createReturn, deleteReturn, updateReturn, deletePurchase, previewFixPurchaseQuantity, fixPurchaseQuantity, listAiResults, listSagyousha, warmSagyoushaCache, saveSagyousha, createSagyousha, dumpSheet, warmSheetDumpCache, getListingText, appendKeihi, uploadKeihiImage, updateShiireHoukokuQuantity } from './handlers/extras.js';
@@ -223,6 +223,10 @@ export default {
     // 一覧 22 件で原本 3.8MB → 130KB に削減。詳細表示(原本)は wholesale.nkonline-tool.com 直
     if (path === '/api/thumb' && request.method === 'GET') {
       return thumbProxy(request, env, ctx);
+    }
+    // 外注アプリの画像列（QR/売却済み/ポストシール）— 非公開 R2 (STAFF_IMAGES) から配信
+    if (path === '/api/simg' && request.method === 'GET') {
+      return staffImgProxy(request, env, ctx);
     }
 
     // 新規作成（GAS プロキシ）

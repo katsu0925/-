@@ -48,6 +48,12 @@ id = "9a4f7973bc644ab086397fd71564985f"
 binding = "IMAGES"
 bucket_name = "detauri-images"
 
+# 外注アプリの画像列（QR・バーコード画像/売却済み商品画像/ポストシール）専用。
+# 公開ドメイン・r2.dev は付けない＝ /api/simg（Access 認証後）経由でのみ閲覧可。
+[[r2_buckets]]
+binding = "STAFF_IMAGES"
+bucket_name = "shiire-kanri-images"
+
 # Secrets (wrangler secret put で設定)
 # - GAS_API_URL          : shiire-kanri GAS Web App URL (deploy ID 含む /exec)
 # - SYNC_SECRET          : GAS との共通シークレット (Sheets ダンプ・書き込み認可)

@@ -2052,6 +2052,29 @@ function staff_apiUploadImage(payload, email) {
   return { ok: true, path: relPath, url: url, kanri: kanri, field: field, row: rowNum };
 }
 
+// 画像列に R2 参照 ("r2:staff/<kanri>/<slug>-xxx.jpg") を書き込む（2026-09-29〜 画像本体は Worker が非公開 R2 に保存）。
+// 対象の1セルだけを書く。saveDetails を使うと採寸日/発送日付の補完や利益列の書き戻しが走るため専用にしている。
+function staff_apiSetImageCell(payload, email) {
+  payload = payload || {};
+  var kanri = String(payload.kanri || '').trim();
+  var field = String(payload.field || '').trim();
+  var value = String(payload.value || '').trim();
+  if (!kanri) return { ok: false, error: '管理番号が空です' };
+  if (!IMAGE_FIELDS_ALLOWED_[field]) return { ok: false, error: '画像列ではありません: ' + field };
+  if (!/^r2:staff\/[\w-]+\/[\w-]+\.(jpg|png|webp|gif)$/.test(value)) return { ok: false, error: '画像参照の形式が不正です' };
+
+  var sh = staff_getSheet_();
+  var lastRow = sh.getLastRow();
+  if (lastRow < 2) return { ok: false, error: 'シートが空です' };
+  var found = sh.getRange(2, STAFF_COL.管理番号, lastRow - 1, 1).createTextFinder(kanri).matchEntireCell(true).findNext();
+  if (!found) return { ok: false, error: '該当なし: ' + kanri };
+  var rowNum = found.getRow();
+  var col = buildHeaderMap_(sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0]);
+  if (!col[field]) return { ok: false, error: 'ヘッダーが見つかりません: ' + field };
+  sh.getRange(rowNum, col[field]).setValue(value);
+  return { ok: true, path: value, kanri: kanri, field: field, row: rowNum };
+}
+
 // AppSheet 旧形式の相対パス (例: "商品管理_Images/zS5.売却済み商品画像.013345.jpg") を Drive のシェアURL に解決
 // path 末尾のファイル名で 商品管理_Images フォルダを検索し、ANYONE_WITH_LINK 共有を付与して uc?id= URL を返す
 function staff_apiResolveImage(payload, email) {

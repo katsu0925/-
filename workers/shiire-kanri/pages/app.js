@@ -3055,12 +3055,12 @@ function shipDeadlineHtml_(it) {
 }
 
 // 画像フィールドの表示＋アップロード UI
-// v が http(s) URL: そのままプレビュー
+// v が http(s) URL / R2 参照 (r2:staff/...): そのままプレビュー
 // v が AppSheet 旧形式の相対パス（"商品管理_Images/..."）: data-legacy で残し、resolveLegacyImages_ が後で解決
 // v が空: 画像なし表示
 function imageFieldHtml_(id, name, v) {
   var s = String(v || '');
-  var isUrl = /^https?:/.test(s);
+  var isUrl = /^https?:/.test(s) || isStaffR2Ref_(s);
   var isLegacy = !isUrl && s.length > 0;
   var safeName = esc(name).replace(/\'/g,"%27");
   // アップロード進行中ならローカル blob プレビューを優先（renderDetail() の再描画でも維持される）
@@ -3330,6 +3330,14 @@ function onImageFieldFile_(file, fieldId, fieldName) {
 function normalizeDriveUrl_(url, size) {
   if (!url) return url;
   var sz = size || 800;
+  // 外注アプリの画像列（2026-09-29〜 非公開 R2 保存）: "r2:staff/..." → /api/simg
+  // 一覧/サムネ (≤400) はリサイズ、詳細・拡大は原本（アップロード時に端末で縮小済み）
+  if (isStaffR2Ref_(url)) {
+    var skey = '/api/simg?key=' + encodeURIComponent(url.slice(3));
+    if (sz > 400) return skey;
+    var sw = sz <= 100 ? 100 : sz <= 160 ? 160 : sz <= 200 ? 200 : sz <= 240 ? 240 : sz <= 320 ? 320 : 400;
+    return skey + '&w=' + sw;
+  }
   var id = '';
   var m = url.match(/^https?:\/\/drive\.google\.com\/uc\?(?:.*&)?id=([^&]+)/);
   if (m) id = m[1];
@@ -3355,6 +3363,11 @@ function normalizeDriveUrl_(url, size) {
     }
   }
   return url;
+}
+
+// シートの画像列に入る R2 参照（"r2:staff/<kanri>/<slug>-xxx.jpg"）か
+function isStaffR2Ref_(v) {
+  return /^r2:staff\//.test(String(v || ''));
 }
 
 // 一覧サムネ用 <img> 生成。CSS の card-thumb 実寸は 56×56 (compact も同サイズ)。
@@ -8849,7 +8862,7 @@ function buildBasicImgsHtml_(d) {
   fields.forEach(function(name){
     var v = String(ex[name] || '');
     if (!v) return;
-    if (/^https?:/.test(v)) {
+    if (/^https?:/.test(v) || isStaffR2Ref_(v)) {
       var thumbU = normalizeDriveUrl_(v, 320);
       var largeU = normalizeDriveUrl_(v, 1200);
       modalPrefetch.push(largeU);

@@ -130,19 +130,69 @@ export async function thumbProxy(request, env, ctx) {
   if (!env.IMAGES) {
     return new Response('R2 not bound', { status: 500 });
   }
+  return serveResized_(env.IMAGES, key, w, 'shiire-kanri-thumb.local', ctx, {
+    cacheControl: 'public, max-age=31536000, s-maxage=31536000, immutable',
+    cors: true,
+  });
+}
 
+// GET /api/simg?key=staff/<kanri>/<slug>-<stamp>.jpg[&w=320]
+// 外注アプリの画像列（QR/売却済み/ポストシール）専用の非公開バケット STAFF_IMAGES から配信。
+// Access 認証の後段でのみルーティングされるため、ログインしている人しか見られない。
+// w 省略時は原本（アップロード時に端末側で縮小済み）。
+const STAFF_KEY_RE = /^staff\/[\w-]+\/[\w-]{8,}\.(?:jpg|png|webp|gif)$/;
+// 配信時の Content-Type は拡張子から固定（保存時のメタデータを信用しない）
+const STAFF_MIME = { jpg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif' };
+const STAFF_SAFE_HEADERS = {
+  'X-Content-Type-Options': 'nosniff',
+  'Content-Security-Policy': "default-src 'none'; sandbox",
+};
+export async function staffImgProxy(request, env, ctx) {
+  const url = new URL(request.url);
+  const key = (url.searchParams.get('key') || '').replace(/^\/+/, '');
+  const wRaw = url.searchParams.get('w');
+  if (!STAFF_KEY_RE.test(key)) return new Response('bad key', { status: 400 });
+  if (!env.STAFF_IMAGES) return new Response('R2 not bound', { status: 500 });
+  // ブラウザにだけキャッシュさせ、共有キャッシュ（CDN/プロキシ）には載せない
+  const cacheControl = 'private, max-age=31536000, immutable';
+  if (!wRaw) {
+    const obj = await env.STAFF_IMAGES.get(key);
+    if (!obj) return new Response('not found', { status: 404 });
+    return new Response(obj.body, {
+      headers: {
+        'Content-Type': STAFF_MIME[key.split('.').pop()],
+        'Cache-Control': cacheControl,
+        ...STAFF_SAFE_HEADERS,
+      },
+    });
+  }
+  const w = parseInt(wRaw, 10);
+  if (!ALLOWED_W.has(w)) return new Response('bad w', { status: 400 });
+  return serveResized_(env.STAFF_IMAGES, key, w, 'shiire-kanri-simg.local', ctx, {
+    cacheControl, cors: false, fallbackType: STAFF_MIME[key.split('.').pop()], extraHeaders: STAFF_SAFE_HEADERS,
+  });
+}
+
+async function serveResized_(bucket, key, w, cacheHost, ctx, opts) {
   // caches.default キーは Access cookie を含めない固定 URL にしてユーザー横断キャッシュ
-  const cacheKey = new Request(`https://shiire-kanri-thumb.local/${key}?w=${w}`, {
+  // （Worker 内部キャッシュ。参照は認証後の本ハンドラからのみ）
+  const cacheKey = new Request(`https://${cacheHost}/${key}?w=${w}`, {
     method: 'GET',
   });
   const cache = caches.default;
   const cached = await cache.match(cacheKey);
-  if (cached) return cached;
+  if (cached) {
+    if (cached.headers.get('Cache-Control') === opts.cacheControl) return cached;
+    const hit = new Response(cached.body, cached);
+    hit.headers.set('Cache-Control', opts.cacheControl);
+    return hit;
+  }
 
-  const obj = await env.IMAGES.get(key);
+  const obj = await bucket.get(key);
   if (!obj) return new Response('not found', { status: 404 });
 
   const inputBuf = await obj.arrayBuffer();
+  const corsHeaders = { ...(opts.cors ? { 'Access-Control-Allow-Origin': '*' } : {}), ...(opts.extraHeaders || {}) };
 
   let outputBuf;
   try {
@@ -164,10 +214,10 @@ export async function thumbProxy(request, env, ctx) {
     // デコード失敗時は原本を素通し（500 を返すと一覧が壊れる）
     return new Response(inputBuf, {
       headers: {
-        'Content-Type': obj.httpMetadata?.contentType || 'image/jpeg',
-        'Cache-Control': 'public, max-age=300',
+        'Content-Type': opts.fallbackType || obj.httpMetadata?.contentType || 'image/jpeg',
+        'Cache-Control': opts.cacheControl.replace(/max-age=\d+/, 'max-age=300').replace(/, s-maxage=\d+/, '').replace(', immutable', ''),
         'X-Thumb-Fallback': String(err && err.message || err).slice(0, 100),
-        'Access-Control-Allow-Origin': '*',
+        ...corsHeaders,
       },
     });
   }
@@ -175,16 +225,19 @@ export async function thumbProxy(request, env, ctx) {
   const res = new Response(outputBuf, {
     headers: {
       'Content-Type': 'image/jpeg',
-      'Cache-Control': 'public, max-age=31536000, s-maxage=31536000, immutable',
-      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': opts.cacheControl,
       'X-Thumb-Source': 'r2-wasm',
+      ...corsHeaders,
     },
   });
 
+  // Cache API は private 指定のレスポンスを保存しないため、内部キャッシュ用には public で入れる
+  const toStore = res.clone();
+  toStore.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
   if (ctx && typeof ctx.waitUntil === 'function') {
-    ctx.waitUntil(cache.put(cacheKey, res.clone()));
+    ctx.waitUntil(cache.put(cacheKey, toStore));
   } else {
-    await cache.put(cacheKey, res.clone());
+    await cache.put(cacheKey, toStore);
   }
   return res;
 }

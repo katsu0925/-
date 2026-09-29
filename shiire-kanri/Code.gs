@@ -37,6 +37,7 @@ function doPost(e) {
       case 'deleteProduct':     result = staff_apiDeleteProduct(body.payload || {}, email); break;
       case 'uploadImage':       result = staff_apiUploadImage(body.payload || {}, email); break;
       case 'resolveImage':      result = staff_apiResolveImage(body.payload || {}, email); break;
+      case 'setImageCell':      result = staff_apiSetImageCell(body.payload || {}, email); break;
       // AppSheet 互換タブ用 追加API
       case 'listMoves':         result = staff_listMoves(body.payload || {}); break;
       case 'createMove':        result = staff_apiCreateMove(body.payload || {}, email); break;

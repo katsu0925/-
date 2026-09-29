@@ -688,6 +688,14 @@ export async function uploadImage(request, env, user) {
   if (!field) return jsonError('field required', 400);
   if (!dataUrl) return jsonError('dataUrl required', 400);
 
+  // 2026-09-29: 保存先を Drive → 非公開 R2 (STAFF_IMAGES) に切替。既存の Drive 画像はそのまま
+  // （旧形式パスは /api/image/resolve で引き続き表示）。バインド未設定時のみ旧 GAS/Drive 経路。
+  // JPEG/PNG/WebP/GIF 以外（端末で縮小できず HEIC 等の生ファイルが来た場合）は従来どおり Drive へ。
+  if (env.STAFF_IMAGES) {
+    const r2Res = await uploadImageToR2_(request, env, user, kanri, field, dataUrl);
+    if (r2Res) return r2Res;
+  }
+
   const gasRes = await callGas(env, 'uploadImage', { kanri, field, dataUrl }, user);
   if (!gasRes.ok) {
     const reason = gasRes.error || 'gas error';
@@ -732,6 +740,80 @@ export async function uploadImage(request, env, user) {
   return jsonOk({ uploaded: true, url: gasRes.url, path: gasRes.path || '', field });
 }
 
+// 画像列 → R2 キー用の英字スラッグ（GAS の IMAGE_FIELDS_ALLOWED_ と同じ3列のみ許可）
+const STAFF_IMAGE_SLUG_ = { 'QR・バーコード画像': 'qr', '売却済み商品画像': 'sold', 'ポストシール': 'postseal' };
+
+function sniffRasterImage_(b) {
+  if (b.length >= 3 && b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return { mime: 'image/jpeg', ext: 'jpg' };
+  if (b.length >= 8 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47) return { mime: 'image/png', ext: 'png' };
+  if (b.length >= 6 && b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38) return { mime: 'image/gif', ext: 'gif' };
+  if (b.length >= 12 && b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 &&
+      b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50) return { mime: 'image/webp', ext: 'webp' };
+  return null;
+}
+
+// dataUrl を R2 に置き、シートには "r2:<key>" を書く（セル書き込みは GAS setImageCell）。
+// R2 対象外の形式なら null を返し、呼び出し側が旧 Drive 経路に回す。
+// キーの末尾は冪等キー由来にして、outbox 再送で同じ画像が二重保存されないようにする。
+async function uploadImageToR2_(request, env, user, kanri, field, dataUrl) {
+  const slug = STAFF_IMAGE_SLUG_[field];
+  if (!slug) return jsonError('画像列ではありません: ' + field, 400);
+  const m = dataUrl.match(/^data:(image\/[a-zA-Z0-9+.-]+);base64,(.+)$/);
+  if (!m) return null;
+  let bytes;
+  try {
+    const bin = atob(m[2]);
+    bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  } catch {
+    return null;
+  }
+  // 申告 MIME ではなく実データの先頭バイトで判定し、ラスター画像4種だけを R2 に置く
+  // （SVG/HTML 等を自サイトのオリジンで配信させる保存型 XSS を防ぐ）。それ以外は null＝Drive 経路へ。
+  const sniffed = sniffRasterImage_(bytes);
+  if (!sniffed) return null;
+  const mime = sniffed.mime;
+  const ext = sniffed.ext;
+
+  const jst = new Date(Date.now() + 9 * 3600 * 1000).toISOString().replace(/[-:T]/g, '').slice(0, 14);
+  const idemRaw = String(request.headers.get('X-Idempotency-Key') || '').replace(/[^\w-]/g, '').slice(-12);
+  const idem = idemRaw.length >= 8 ? idemRaw : '';
+  const suffix = idem || crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+  const safeKanri = kanri.replace(/[^\w-]/g, '_');
+  const key = 'staff/' + safeKanri + '/' + slug + '-' + (idem ? '' : jst + '-') + suffix + '.' + ext;
+  const ref = 'r2:' + key;
+
+  try {
+    await env.STAFF_IMAGES.put(key, bytes, {
+      httpMetadata: { contentType: mime },
+      customMetadata: { kanri, field: slug, by: String(user && user.email || '') },
+    });
+  } catch (err) {
+    try { await logSaveFailure_(env, user, kanri, { image: field, dataUrlLen: dataUrl.length }, 'uploadImage:r2:' + err.message); } catch (e) { /* ignore */ }
+    return jsonError('画像の保存に失敗しました', 502);
+  }
+
+  // saveDetails は日付補完・利益列の書き戻しを伴うため使わない。対象セルだけを書く専用処理。
+  const gasRes = await callGas(env, 'setImageCell', { kanri, field, value: ref }, user);
+  if (!gasRes.ok) {
+    const reason = gasRes.error || 'gas error';
+    console.warn('[uploadImage] GAS NG kanri=' + kanri + ' field=' + field + ' error=' + reason);
+    try { await logSaveFailure_(env, user, kanri, { image: field, dataUrlLen: dataUrl.length }, 'uploadImage:' + reason); } catch (e) { /* ignore */ }
+    return jsonError(reason, 502);
+  }
+
+  try {
+    const jsonPath = '$."' + field.replace(/"/g, '\\"') + '"';
+    await env.DB.prepare(
+      "UPDATE products SET extra_json = json_set(COALESCE(extra_json, '{}'), ?, ?), updated_at = ? WHERE kanri = ?"
+    ).bind(jsonPath, ref, Date.now(), kanri).run();
+  } catch (err) {
+    console.warn('[upload image] d1 update failed', err.message);
+  }
+
+  return jsonOk({ uploaded: true, url: ref, path: ref, field });
+}
+
 // POST /api/image/resolve  body: { kanri, field, path }
 // AppSheet 旧形式の相対パスを Drive シェアURL に解決。KV キャッシュ 1日。
 // Drive の uc?id=FILE_ID は <img> タグから直接表示できない（リダイレクト/ウイルススキャン警告）
@@ -753,6 +835,8 @@ export async function resolveImage(request, env, user) {
   const field = String(body.field || '').trim();
   const kanri = String(body.kanri || '').trim();
   if (!path) return jsonError('path required', 400);
+  // R2 参照は GAS 不要（開きっぱなしの旧 app.js がレガシー扱いで問い合わせてきた場合の保険）
+  if (/^r2:staff\//.test(path)) return jsonOk({ url: '/api/simg?key=' + encodeURIComponent(path.slice(3)) });
 
   const cacheKey = 'imgresolve:' + path;
   if (env.CACHE) {
