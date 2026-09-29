@@ -240,7 +240,7 @@ function premium_buildRepriceMailHtml_(rowCount) {
 // 差額がそのまま商品名の「○円分お得」訴求になるため、**両者を同額にしないこと**。
 var PREMIUM_PRICE_V3_ = {
   'プレミアムアソート小ロット': 6800,   // 据置（目標7,900・お得+1,100・約16点）
-  'プレミアムアソート中ロット': 12800,  // 16,200 → 12,800（目標14,800・お得+2,000・30点）
+  'プレミアムアソート中ロット': 12800,  // 16,200 → 12,800（目標14,800・お得+2,000・約30点）
   'プレミアムアソート大ロット': 19800   // 32,000 → 19,800（目標22,600・お得+2,800・約46点）
 };
 
@@ -269,11 +269,13 @@ var PREMIUM_PRICE_V3_ = {
 // v6（2026-08-29）: 土台アートのノートPCに Excel が映っていたのを、実際の出品キット画面に
 // 差し替えた。文字としての「xlsx」は v5 で消したが、絵が Excel のままだと訴求と実物が
 // 食い違うため。画面の座標は generate.py の SCREEN_* に実測値がある。
+// medium-v7（2026-09-29）: 中ロットだけ点数が「30点」と言い切りになっていたのを「約30点」に修正。
+// 選定は金額合計で行うため点数は固定ではない（小・大は元から「約」付き）。v6の帯を画像合成で直しただけ。
 // ★差し替えるときは必ずファイル名のバージョンを上げること。同名で上書きすると
 //   BASE 側の差分検知（画像URL5本のMD5）が反応せず、貼り直されない。
 var PREMIUM_IMAGES_V3_ = {
   'プレミアムアソート小ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-small-v6.jpg', 'https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-kit-demo-v2.jpg', '', '', ''],
-  'プレミアムアソート中ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-medium-v6.jpg', 'https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-kit-demo-v2.jpg', '', '', ''],
+  'プレミアムアソート中ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-medium-v7.jpg', 'https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-kit-demo-v2.jpg', '', '', ''],
   'プレミアムアソート大ロット': ['https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-large-v6.jpg', 'https://wholesale.nkonline-tool.com/img/premium-assort/premium-assort-kit-demo-v2.jpg', '', '', '']
 };
 
