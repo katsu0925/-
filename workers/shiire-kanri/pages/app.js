@@ -976,9 +976,16 @@ async function api(path, opts) {
       idempotencyKey: idempotencyKey,
       label: opts.label || path,
     });
-    try { refreshOutboxBadge_(); } catch (e) {}
+    outboxMarkInflight_(outboxId);
   }
-
+  try {
+    return await apiSend_(path, method, opts, idempotencyKey, useOutbox, outboxId, isWrite);
+  } finally {
+    // 成功・破棄・待機のどれでも初回送信は終わった → 以後は flush 対象（残っていれば）
+    if (useOutbox) outboxUnmarkInflight_(outboxId);
+  }
+}
+async function apiSend_(path, method, opts, idempotencyKey, useOutbox, outboxId, isWrite) {
   // ② fetch 試行
   let res;
   try {
@@ -1007,11 +1014,15 @@ async function api(path, opts) {
     throw e;
   }
   let json;
-  try { json = await res.json(); } catch { json = { ok: false, message: 'invalid response' }; }
+  try { json = await readJson_(res); } catch (bodyErr) {
+    // 本文が届かない（途中切断・タイムアウト）: outbox 経路は通信失敗と同じく待機扱い（破棄しない）
+    if (useOutbox) return { ok: true, queued: true, message: '送信を予約しました（応答の受信に失敗）' };
+    json = { ok: false, message: 'invalid response' };
+  }
   if (!res.ok || !json.ok) {
     const raw = json.message || json.error || ('http ' + res.status);
     if (useOutbox) {
-      if (res.status >= 500 || res.status === 0) {
+      if (res.status >= 500 || res.status === 0 || isInflight409_(res)) {
         // サーバー側エラー → outbox に残し、楽観成功として返す
         return { ok: true, queued: true, message: '送信を予約しました（サーバー一時エラー）' };
       }
@@ -2232,6 +2243,25 @@ window.addEventListener('beforeunload', function(e){
 //   { type:'generic', method, url, body, idempotencyKey, label?, attempts, createdAt }
 var OUTBOX_DB = 'sk-outbox';
 var OUTBOX_STORE = 'queue';
+// 画面側の初回送信がまだ応答待ちの outbox ID。これを数えるとバッジが正常保存のたびに
+// 「未送信1件」と出るうえ、復帰時 flush が同じ冪等キーで二重送信 → 409 → 破棄していた。
+// 初回送信中は flush 対象・バッジ件数から外す（ページ内メモリなので再読込後は自然に空＝再送対象に戻る）。
+var _outboxInflight = Object.create(null);
+function outboxMarkInflight_(id){ if (id != null) _outboxInflight[id] = true; }
+function outboxUnmarkInflight_(id){
+  if (id == null) return;
+  delete _outboxInflight[id];
+  try { refreshOutboxBadge_(); } catch (e) {}
+}
+// サーバー withIdempotency の「同じ操作を処理中」409。入力エラーではないので破棄せず再送待ちにする。
+function isInflight409_(res){
+  try { return !!(res && res.status === 409 && res.headers && res.headers.get('X-Idempotent-Inflight') === 'true'); }
+  catch (e) { return false; }
+}
+// 再送で「一時的」とみなす 4xx（破棄しない）: 認証切れ・タイムアウト・処理中・混雑
+function isRetriable4xx_(status, inflight409){
+  return inflight409 || status === 401 || status === 408 || status === 429;
+}
 // 冪等キー生成（クライアント側 UUID）。同じ送信を2回試みた場合、サーバー側は
 // X-Idempotency-Key を見て重複を1件にまとめる。outbox 再送時も同じキーを使う。
 function genIdempotencyKey_(){
@@ -2266,11 +2296,20 @@ function fetchWithTimeout_(url, opts, timeoutMs) {
     throw err;
   });
 }
+// 応答本文の JSON 読み取り（タイムアウト付き）。fetchWithTimeout_ のタイマーはヘッダー受信で
+// 解除されるため、本文受信が止まると r.json() が永久に待ち、送信中フラグ（_outboxInflight）が
+// 外れず再送もされなくなる。必ず reject させて「通信失敗＝outbox に残す」経路へ落とす。
+function readJson_(r, timeoutMs) {
+  return new Promise(function(resolve, reject){
+    var timer = setTimeout(function(){ reject(new Error('body timeout')); }, timeoutMs || 20000);
+    r.json().then(function(j){ clearTimeout(timer); resolve(j); }, function(e){ clearTimeout(timer); reject(e); });
+  });
+}
 // outbox の未送信件数をバッジに反映（Phase C で実装。それまでは no-op）
 function refreshOutboxBadge_(){
   if (typeof document === 'undefined') return;
   outboxList_().then(function(items){
-    var n = (items || []).length;
+    var n = (items || []).filter(function(it){ return !_outboxInflight[it.id]; }).length;
     var badge = document.getElementById('outbox-badge');
     if (!badge) {
       if (n === 0) return;
@@ -2320,7 +2359,7 @@ function showOutboxModal_(){
             '<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">' +
               '<div style="flex:1;min-width:0">' +
                 '<div style="font-size:13px;font-weight:600;color:#111;word-break:break-all">' + label + '</div>' +
-                '<div style="font-size:11px;color:#6b7280;margin-top:2px">' + typeLabel + ' / ' + fmtAge(it.createdAt) + ' / 再送 ' + (it.attempts || 0) + '回</div>' +
+                '<div style="font-size:11px;color:#6b7280;margin-top:2px">' + typeLabel + ' / ' + fmtAge(it.createdAt) + ' / ' + (_outboxInflight[it.id] ? '<b style="color:#2563eb">送信中…</b>' : ('再送 ' + (it.attempts || 0) + '回')) + '</div>' +
               '</div>' +
               '<button data-discard="' + it.id + '" style="flex:0 0 auto;font-size:11px;padding:4px 8px;background:#fee2e2;border:1px solid #fecaca;color:#b91c1c;border-radius:4px;cursor:pointer">破棄</button>' +
             '</div>' +
@@ -2349,13 +2388,15 @@ function showOutboxModal_(){
     document.body.appendChild(modal);
     var flushBtn = modal.querySelector('#outbox-flush-btn');
     if (flushBtn) flushBtn.addEventListener('click', function(){
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+        toast('📵 オフラインです。電波の良い場所で再度お試しください', 'error');
+        return;
+      }
       flushBtn.disabled = true;
-      flushBtn.textContent = '再送中…';
-      flushOutbox_().then(function(){
-        setTimeout(function(){ try { modal.remove(); showOutboxModal_(); } catch (e) {} }, 600);
-      }).catch(function(){
-        flushBtn.disabled = false;
-        flushBtn.textContent = '今すぐ再送を試す';
+      flushBtn.innerHTML = '<span class="outbox-spin"></span>再送中…';
+      manualFlushOutbox_().then(function(stats){
+        try { toast(outboxFlushSummary_(stats), (stats.failed || stats.discarded) ? 'error' : 'success'); } catch (e) {}
+        try { modal.remove(); showOutboxModal_(); } catch (e) {}
       });
     });
     modal.querySelectorAll('button[data-discard]').forEach(function(btn){
@@ -2448,41 +2489,90 @@ function outboxUpdate_(rec) {
     });
   }).catch(function(){});
 }
-function flushOutbox_() {
-  if (_outboxFlushing) return Promise.resolve();
-  if (typeof navigator !== 'undefined' && navigator.onLine === false) return Promise.resolve();
-  _outboxFlushing = true;
-  // ウォッチドッグ: 万一 reduce チェーンが固着しても 300 秒で必ずロックを解放する。
-  // 主因の「iOS 無音 fetch 打ち切り」は retryOutboxItem_ の fetchWithTimeout_ で塞いだが、
-  // IndexedDB トランザクションが oncomplete も onerror も発火しないハング等に備えた保険。
-  // これが無いと _outboxFlushing が true のまま固着し、outbox が永久に再送されなくなる
-  // （「未送信N件」バッジが消えなくなる実機バグの根本原因）。
-  var settled = false;
-  var watchdog = setTimeout(function(){
-    if (settled) return;
-    settled = true;
-    _outboxFlushing = false;
-    try { refreshOutboxBadge_(); } catch (e) {}
-  }, 300000);
-  function finish() {
-    if (settled) return;
-    settled = true;
-    clearTimeout(watchdog);
-    _outboxFlushing = false;
-    try { refreshOutboxBadge_(); } catch (e) {}
-  }
-  return outboxList_().then(function(items){
-    if (!items.length) { finish(); return; }
-    return items.reduce(function(p, rec){
-      return p.then(function(){
-        return retryOutboxItem_(rec);
-      });
-    }, Promise.resolve()).then(function(){
-      finish();
+function outboxGet_(id) {
+  return outboxOpen_().then(function(db){
+    return new Promise(function(resolve, reject){
+      var r = db.transaction(OUTBOX_STORE, 'readonly').objectStore(OUTBOX_STORE).get(id);
+      r.onsuccess = function(){ resolve(r.result || null); };
+      r.onerror = function(){ reject(r.error); };
     });
-  }).then(null, function(){ finish(); });
+  }).catch(function(){ return null; });
 }
-function retryOutboxItem_(rec) {
+// 実行中の flush を共有する Promise。多重起動時は同じ Promise を返す（結果は stats）。
+var _outboxFlushP = null;
+var _outboxGen = 0;
+// stats: { sent, failed, discarded, inflight, discardedLabels[], offline? }
+// opts.quiet: 1件ごとのトーストを出さない（手動再送はまとめて1回表示するため）
+function flushOutbox_(opts) {
+  opts = opts || {};
+  if (_outboxFlushP) return _outboxFlushP;
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    return Promise.resolve({ sent: 0, failed: 0, discarded: 0, inflight: 0, discardedLabels: [], offline: true });
+  }
+  var gen = ++_outboxGen;
+  var stats = { sent: 0, failed: 0, discarded: 0, inflight: 0, discardedLabels: [] };
+  _outboxFlushing = true;
+  _outboxFlushP = new Promise(function(resolve){
+    // ウォッチドッグ: 万一チェーンが固着しても 300 秒で必ず Promise を完了させロックを解放する。
+    // 世代番号を進めるので、固着していた旧チェーンは以後の項目を処理しない（新旧 flush の並走防止）。
+    // これが無いと _outboxFlushing が true のまま固着し、outbox が永久に再送されなくなる
+    // （「未送信N件」バッジが消えなくなる実機バグの根本原因）。
+    var settled = false;
+    var watchdog = setTimeout(function(){ if (gen === _outboxGen) _outboxGen++; finish(); }, 300000);
+    function finish() {
+      if (settled) return;
+      settled = true;
+      clearTimeout(watchdog);
+      _outboxFlushing = false;
+      _outboxFlushP = null;
+      try { refreshOutboxBadge_(); } catch (e) {}
+      resolve(stats);
+    }
+    outboxList_().then(function(items){
+      return items.reduce(function(p, snap){
+        return p.then(function(){
+          if (gen !== _outboxGen || settled) return;
+          // 画面側の初回送信がまだ応答待ち → 二重送信しない（409→誤破棄の原因だった）
+          if (_outboxInflight[snap.id]) { stats.inflight++; return; }
+          // 一覧取得後に初回送信が成功して消えている場合があるので、送る直前に最新を読み直す
+          return outboxGet_(snap.id).then(function(rec){
+            if (!rec || _outboxInflight[rec.id]) return;
+            var limitMs = ((rec.type === 'image' || rec.type === 'keihi-image') ? 60000 : 30000) + 15000;
+            // 本文の読み取り（r.json）待ちで固着しても、1件ごとに必ず次へ進める
+            return Promise.race([
+              retryOutboxItem_(rec, opts),
+              new Promise(function(r){ setTimeout(function(){ r('failed'); }, limitMs); })
+            ]).then(function(outcome){
+              if (outcome === 'sent') stats.sent++;
+              else if (outcome === 'discarded') { stats.discarded++; stats.discardedLabels.push(rec.label || rec.kanri || rec.url || ''); }
+              else if (outcome === 'inflight') stats.inflight++;
+              else stats.failed++;
+            });
+          });
+        });
+      }, Promise.resolve());
+    }).then(finish, finish);
+  });
+  return _outboxFlushP;
+}
+// 手動の「今すぐ再送」: 実行中の自動 flush があれば終わるのを待ち、最新の一覧で改めて送る
+function manualFlushOutbox_() {
+  var prev = _outboxFlushP || Promise.resolve();
+  return prev.then(null, function(){}).then(function(){ return flushOutbox_({ quiet: true }); });
+}
+function outboxFlushSummary_(st) {
+  if (!st || st.offline) return '📵 オフラインです。電波の良い場所で再度お試しください';
+  var parts = [];
+  if (st.sent) parts.push('✓ 送信成功 ' + st.sent + '件');
+  if (st.failed) parts.push('⚠️ 失敗 ' + st.failed + '件（あとで自動再送）');
+  if (st.inflight) parts.push('⏳ 処理中 ' + st.inflight + '件');
+  if (st.discarded) parts.push('✗ 破棄 ' + st.discarded + '件（要再入力: ' + st.discardedLabels.join('、') + '）');
+  return parts.length ? parts.join(' / ') : '✓ 未送信はありません';
+}
+// 戻り値: 'sent' | 'failed' | 'discarded' | 'inflight'
+function retryOutboxItem_(rec, opts) {
+  opts = opts || {};
+  var quiet = !!opts.quiet;
   var url, body, method = 'POST', label = '';
   if (rec.type === 'details') {
     url = '/api/save/details';
@@ -2506,7 +2596,7 @@ function retryOutboxItem_(rec) {
     body = (rec.body == null) ? undefined : (typeof rec.body === 'string' ? rec.body : JSON.stringify(rec.body));
     label = rec.label || rec.url || '';
   } else {
-    return outboxRemove_(rec.id);
+    return outboxRemove_(rec.id).then(function(){ return 'discarded'; });
   }
   var headers = { 'Content-Type': 'application/json' };
   // 冪等キー: あればサーバーに送って重複登録を防ぐ
@@ -2519,30 +2609,45 @@ function retryOutboxItem_(rec) {
     method: method, credentials: 'include', headers: headers,
     body: body
   }, timeoutMs).then(function(r){
-    return r.json().then(function(j){ return { ok: r.ok, status: r.status, body: j }; })
-      .catch(function(){ return { ok: r.ok, status: r.status, body: null }; });
+    var inflight409 = isInflight409_(r);
+    return readJson_(r).then(function(j){ return { ok: r.ok, status: r.status, body: j, inflight409: inflight409 }; })
+      .catch(function(){ return { ok: r.ok, status: r.status, body: null, inflight409: inflight409 }; });
   })
     .then(function(res){
-      // 4xx (クライアントエラー) は再送しても通らないので諦めて除去
-      if (res.status >= 400 && res.status < 500) {
-        try { toast('⚠️ 未送信を破棄: ' + label + '（要再入力）', 'error'); } catch(e){}
-        return outboxRemove_(rec.id);
+      // 同じ操作をサーバーが処理中（別経路の送信が先行中）→ 破棄せず次回に回す。
+      // 結果不明のまま残ったサーバーロックだと永久に 409 になるため、失敗回数には数え、
+      // 30回で「手動で再保存してください」の通常ルートに乗せる（サーバー側で自動再実行はしない＝二重登録防止）
+      if (res.inflight409) {
+        rec.attempts = (rec.attempts || 0) + 1;
+        if (rec.attempts >= 30) {
+          try { toast('⚠️ ' + label + ' の再送に失敗（手動で再保存してください）', 'error'); } catch(e){}
+          return outboxRemove_(rec.id).then(function(){ return 'discarded'; });
+        }
+        return outboxUpdate_(rec).then(function(){ return 'inflight'; });
+      }
+      // 4xx (クライアントエラー) は再送しても通らないので諦めて除去。
+      // ただし認証切れ・タイムアウト・混雑は一時的なので通常の失敗として残す
+      if (res.status >= 400 && res.status < 500 && !isRetriable4xx_(res.status, false)) {
+        if (!quiet) { try { toast('⚠️ 未送信を破棄: ' + label + '（要再入力）', 'error'); } catch(e){} }
+        return outboxRemove_(rec.id).then(function(){ return 'discarded'; });
       }
       if (!res.ok || !res.body || res.body.ok === false) throw new Error('retry failed');
       // 再送成功
-      try { toast('✓ オフライン中の保存を再送しました' + (label ? '（' + label + '）' : ''), 'success'); } catch(e){}
+      if (!quiet) { try { toast('✓ オフライン中の保存を再送しました' + (label ? '（' + label + '）' : ''), 'success'); } catch(e){} }
       LIST_CACHE = Object.create(null);
-      try { refreshOutboxBadge_(); } catch(e){}
-      return outboxRemove_(rec.id);
+      return outboxRemove_(rec.id).then(function(){
+        try { refreshOutboxBadge_(); } catch(e){}
+        return 'sent';
+      });
     })
     .catch(function(){
       rec.attempts = (rec.attempts || 0) + 1;
       if (rec.attempts >= 30) {
         // 諦め: ユーザー手動対応へ（しきい値を 10→30 に緩和、倉庫の長時間圏外を想定）
         try { toast('⚠️ ' + label + ' の再送に失敗（手動で再保存してください）', 'error'); } catch(e){}
-        return outboxRemove_(rec.id);
+        return outboxRemove_(rec.id).then(function(){ return 'discarded'; });
       }
-      return outboxUpdate_(rec);
+      return outboxUpdate_(rec).then(function(){ return 'failed'; });
     });
 }
 function tabCacheGuard_(tab) {
@@ -3273,7 +3378,7 @@ function onImageFieldFile_(file, fieldId, fieldName) {
   var idemKey = genIdempotencyKey_();
   prepareImageDataUrl_(file).then(function(dataUrl){
     return outboxAdd_({ type: 'image', kanri: kanri, field: fieldName, dataUrl: dataUrl, idempotencyKey: idemKey })
-      .then(function(outboxId){ return { dataUrl: dataUrl, outboxId: outboxId }; });
+      .then(function(outboxId){ outboxMarkInflight_(outboxId); return { dataUrl: dataUrl, outboxId: outboxId }; });
   }).then(function(prep){
     // outbox に確実に積まれた → ユーザーには即座に「保存完了」を案内
     var sOk = document.getElementById(fieldId + '_status');
@@ -3287,11 +3392,11 @@ function onImageFieldFile_(file, fieldId, fieldName) {
       credentials: 'include',
       headers: { 'Content-Type': 'application/json', 'X-Idempotency-Key': idemKey },
       body: JSON.stringify({ kanri: kanri, field: fieldName, dataUrl: prep.dataUrl })
-    }, 60000).then(function(r){ return r.json().then(function(j){ return { ok: r.ok, body: j }; }); })
+    }, 60000).then(function(r){ return readJson_(r).then(function(j){ return { ok: r.ok, body: j }; }); })
     .then(function(res){
       if (!res.ok || !res.body) throw new Error((res.body && res.body.error) || 'fetch failed');
       // 成功 → outbox から除去（重複再送を防ぐ）
-      if (prep.outboxId != null) outboxRemove_(prep.outboxId);
+      if (prep.outboxId != null) outboxRemove_(prep.outboxId).then(function(){ outboxUnmarkInflight_(prep.outboxId); });
       var url = res.body.url || '';
       var path = res.body.path || '';
       // STATE.current.extra に Drive URL を先に書き込んでから pending を解除する
@@ -3313,6 +3418,7 @@ function onImageFieldFile_(file, fieldId, fieldName) {
       // 静かに outbox 再送に委ねる（「✓ 保存完了」はそのまま）
       // pending は解除しておく（永続的にスピナーが残るのを防ぐ）。outbox の再送には影響しない。
       clearPending_();
+      outboxUnmarkInflight_(prep.outboxId);
     });
   }).catch(function(err){
     // outbox にも積めなかった（IndexedDB 利用不可など）— 例外的にエラー表示
@@ -3708,16 +3814,18 @@ function onCardKanryouClick_(btn, kanri) {
   var idemKey = genIdempotencyKey_();
   outboxAdd_({ type: 'details', kanri: k, fields: fields, idempotencyKey: idemKey, label: k + '（完了日）' })
   .then(function(outboxId){
-    try { refreshOutboxBadge_(); } catch(e) {}
+    outboxMarkInflight_(outboxId);
     return fetchWithTimeout_(API_BASE + '/api/save/details', {
       method: 'POST', credentials: 'include',
       headers: { 'Content-Type': 'application/json', 'X-Idempotency-Key': idemKey },
       body: JSON.stringify({ kanri: k, fields: fields })
     }, 30000).then(
-      function(r){ return r.json().catch(function(){ return null; }).then(function(j){ return { status: r.status, httpOk: r.ok, json: j }; }); },
+      // 本文の受信失敗は通信失敗と同じ扱い（null → outbox に残す）
+      function(r){ var i409 = isInflight409_(r); return readJson_(r).then(function(j){ return { status: r.status, httpOk: r.ok, json: j, inflight409: i409 }; }, function(){ return null; }); },
       function(){ return null; } // ネットワーク失敗・タイムアウト・iOS 無音中断 → outbox に残す
     ).then(function(res){
-      if (!res || (!res.httpOk && res.status >= 500)) {
+      outboxUnmarkInflight_(outboxId);
+      if (!res || res.inflight409 || (!res.httpOk && res.status >= 500)) {
         // 通信不達 / サーバー一時エラー: outbox に残して自動再送。完了扱いで先へ進める
         applyKanryouLocal_();
         toast('📥 電波が不安定なため完了を待機中（接続復帰時に自動送信）', 'success');
@@ -9585,7 +9693,7 @@ async function saveDetails() {
     type: 'details', kanri: d.kanri, fields: fields,
     idempotencyKey: idemKey, label: d.kanri,
   });
-  try { refreshOutboxBadge_(); } catch(e) {}
+  outboxMarkInflight_(outboxId);
 
   // 通信不達・5xx 時: outbox に残したまま楽観表示を維持（visibilitychange/online で自動再送）
   function keepQueued_(msg) {
@@ -9611,9 +9719,11 @@ async function saveDetails() {
   }, 30000)
     .then(
       function(res){
-        return res.json().catch(function(){ return null; }).then(function(json){
-          return { status: res.status, httpOk: res.ok, json: json };
-        });
+        var i409 = isInflight409_(res);
+        // 本文の受信失敗は通信失敗と同じ扱い（null → queued 経路）
+        return readJson_(res).then(function(json){
+          return { status: res.status, httpOk: res.ok, json: json, inflight409: i409 };
+        }, function(){ return null; });
       },
       function(){
         // ネットワーク失敗・タイムアウト・iOS 無音中断（AbortError）→ queued 経路へ
@@ -9621,12 +9731,13 @@ async function saveDetails() {
       }
     )
     .then(function(r){
+      outboxUnmarkInflight_(outboxId);
       if (!r) {
         keepQueued_('📥 電波が不安定なため保存を待機中（接続復帰時に自動送信）');
         return;
       }
       if (!r.httpOk || !r.json || !r.json.ok) {
-        if (r.status >= 500) {
+        if (r.status >= 500 || r.inflight409) {
           keepQueued_('📥 サーバー一時エラーのため保存を待機中（自動で再送します）');
           return;
         }
