@@ -176,15 +176,36 @@ function syncBaseOrdersToIraiKanri_() {
   }
 
   const orderByKey = new Map();
+  const cancelledKeys = new Set();
   for (let r = 0; r < orders.length; r++) {
     const row = orders[r];
     const status = normalizeKey_(row[ORDER_STATUS_COL_1BASED - 1]);
+    if (status === 'キャンセル') {
+      const cancelledKey = normalizeKey_(row[idxOrderKey_Order]);
+      if (cancelledKey) cancelledKeys.add(cancelledKey);
+      continue;
+    }
     if (!VALID_ORDER_STATUSES[status]) continue;
 
     const key = normalizeKey_(row[idxOrderKey_Order]);
     if (!key) continue;
     if (SKIP_RECEIPT_KEYS_.has(key)) continue; // 手動削除済み注文の再挿入を抑止
     orderByKey.set(key, row);
+  }
+
+  // 取り込み済みの注文が後からBASE側でキャンセルされた場合に依頼管理へ反映する。
+  // （新規行の追記だけでは、既存行のステータスが「依頼中」のまま残る）
+  try {
+    applyBaseCancelToIraiKanri_(shDst, dstValues, cancelledKeys, {
+      receiptNo: dstIdx_ReceiptNo,
+      status: dstIdx_Status,
+      shipStatus: dstIdx_ShipStatus,
+      selectionList: findAnyCol_(dstMap, ['選択リスト']),
+      payment: dstIdx_PaymentStatus,
+      updatedAt: dstIdx_UpdatedAt
+    });
+  } catch (e) {
+    console.error('applyBaseCancelToIraiKanri_ error:', e);
   }
 
   const itemsByKey = new Map();
@@ -405,6 +426,70 @@ function syncBaseOrdersToIraiKanri_() {
     }
   }
   shDst.getRange(startRow, 1, newRows.length, dstColCount).setValues(newRows);
+}
+
+/**
+ * BASE側でキャンセルされた注文を依頼管理の既存行へ反映する。
+ * 対象は ステータスが「依頼中」（または空）かつ 発送ステータスが「発送済み」でない行のみ。
+ * 手動でキャンセル/返品/完了にした行は上書きしない。
+ *
+ * @param {Sheet} shDst 依頼管理シート
+ * @param {Array<Array>} dstValues 依頼管理の2行目以降の値
+ * @param {Set<string>} cancelledKeys BASE_注文で「キャンセル」になっている注文キー
+ * @param {Object} idx 依頼管理の列インデックス（0-based）
+ * @return {number} キャンセルに更新した行数
+ */
+function applyBaseCancelToIraiKanri_(shDst, dstValues, cancelledKeys, idx) {
+  if (!cancelledKeys || cancelledKeys.size === 0) return 0;
+
+  const targetRows = [];
+  for (let r = 0; r < dstValues.length; r++) {
+    const row = dstValues[r];
+    const key = normalizeKey_(row[idx.receiptNo]);
+    if (!key || !cancelledKeys.has(key)) continue;
+
+    const status = String(row[idx.status] || '').trim();
+    if (status && status !== '依頼中') continue;
+
+    if (String(row[idx.shipStatus] || '').trim() === '発送済み') {
+      console.warn('applyBaseCancelToIraiKanri_: 発送済みのためキャンセル反映をスキップ: ' + key + ' row=' + (r + 2));
+      continue;
+    }
+    const selectionList = (idx.selectionList !== -1) ? String(row[idx.selectionList] || '') : '';
+    targetRows.push({ sheetRow: r + 2, key: key, selectionList: selectionList });
+  }
+  if (targetRows.length === 0) return 0;
+
+  const now = new Date();
+  const orderSs = sh_getOrderSs_();
+  let applied = 0;
+  for (let i = 0; i < targetRows.length; i++) {
+    const t = targetRows[i];
+
+    // プログラムからの書き込みでは onEdit が発火しないため、依頼中状態の解除を明示的に呼ぶ。
+    // ステータスを書く「前」に行う: 失敗した行は「依頼中」のまま残り、次回Cronで再試行される
+    // （解除は冪等なので何度呼んでも二重処理にならない）。
+    try {
+      od_syncOpenStateForReceipt_(orderSs, t.key, t.selectionList, 'キャンセル', now.getTime());
+      // 前回の実行が「状態は保存済み・依頼中シートの書き直しで失敗」で終わっていた場合、
+      // 上の呼び出しは変更なしで素通りするため、シートを状態から書き直しておく。
+      if (u_parseSelectionList_(t.selectionList).length > 0) {
+        od_writeOpenLogSheetFromState_(orderSs, st_getOpenState_(orderSs).items || {}, now.getTime());
+      }
+    } catch (e) {
+      console.error('applyBaseCancelToIraiKanri_: 依頼中状態の解除に失敗、次回再試行 row=' + t.sheetRow, e);
+      continue;
+    }
+
+    // 入金確認（プルダウン制約: 入金待ち/未対応/対応済）— キャンセル済みは「対応済」
+    if (idx.payment !== -1) shDst.getRange(t.sheetRow, idx.payment + 1).setValue('対応済');
+    if (idx.updatedAt !== -1) shDst.getRange(t.sheetRow, idx.updatedAt + 1).setValue(now);
+    // ステータスは最後に書く（これが再試行対象から外れる印になる）
+    shDst.getRange(t.sheetRow, idx.status + 1).setValue('キャンセル');
+    applied++;
+    console.log('BASEキャンセル反映: ' + t.key + ' row=' + t.sheetRow);
+  }
+  return applied;
 }
 
 // 診断用: BASE_注文 で「対応済」だが依頼管理に未反映の孤立注文を一覧化する
