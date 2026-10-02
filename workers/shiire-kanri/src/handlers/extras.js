@@ -29,8 +29,10 @@ export async function deleteMove(request, env, user, moveId) {
   const id = String(moveId || '').trim();
   if (!id) return jsonError('moveId required', 400);
   const r = await callGas(env, 'deleteMove', { moveId: id }, user);
-  if (!r.ok) return jsonError(r.error || 'gas error', 502);
-  return jsonOk({ deleted: true, moveId: r.moveId });
+  // シートに既に行が無い（＝削除済み）なら成功扱い（deletePurchase と同じ理由: 502 だと outbox が再送し続ける）
+  const alreadyGone = !r.ok && /^対象が見つかりません/.test(String(r.error || ''));
+  if (!r.ok && !alreadyGone) return jsonError(r.error || 'gas error', 502);
+  return jsonOk({ deleted: true, moveId: id, alreadyDeleted: alreadyGone });
 }
 
 export async function updateMove(request, env, user, moveId) {
@@ -52,8 +54,10 @@ export async function deleteReturn(request, env, user, boxId) {
   const id = String(boxId || '').trim();
   if (!id) return jsonError('boxId required', 400);
   const r = await callGas(env, 'deleteReturn', { boxId: id }, user);
-  if (!r.ok) return jsonError(r.error || 'gas error', 502);
-  return jsonOk({ deleted: true, boxId: r.boxId });
+  // シートに既に行が無い（＝削除済み）なら成功扱い（deletePurchase と同じ理由: 502 だと outbox が再送し続ける）
+  const alreadyGone = !r.ok && /^対象が見つかりません/.test(String(r.error || ''));
+  if (!r.ok && !alreadyGone) return jsonError(r.error || 'gas error', 502);
+  return jsonOk({ deleted: true, boxId: id, alreadyDeleted: alreadyGone });
 }
 
 export async function updateReturn(request, env, user, boxId) {
