@@ -111,8 +111,30 @@ export async function deletePurchase(request, env, user, shiireId) {
   const id = String(shiireId || '').trim();
   if (!id) return jsonError('shiireId required', 400);
   const r = await callGas(env, 'deletePurchase', { shiireId: id }, user);
-  if (!r.ok) return jsonError(r.error || 'gas error', 502);
-  return jsonOk({ deleted: true, shiireId: r.shiireId });
+  // シートに既に行が無い（＝削除済み）なら成功扱いにする。
+  // 502 で返すと SPA の outbox が「サーバー一時エラー」とみなして 30 回まで再送し続け、
+  // 「未送信: 仕入れ削除」がずっと残る（シートは消えているのにアプリからは消せない）。
+  const alreadyGone = !r.ok && /^対象が見つかりません/.test(String(r.error || ''));
+  if (!r.ok && !alreadyGone) return jsonError(r.error || 'gas error', 502);
+  // D1 側の削除に失敗したら 5xx で返して outbox に再送させる
+  // （再送時は上の「削除済み」分岐を通って D1 削除だけをやり直す）。
+  if (!(await deletePurchaseInD1_(env, id))) return jsonError('D1 の削除に失敗しました。自動で再送します。', 503);
+  return jsonOk({ deleted: true, shiireId: id, alreadyDeleted: alreadyGone });
+}
+
+// 仕入れ削除時、D1 の該当行も即消す。
+// 5分 Cron は payload 全体の checksum が前回と同じだと stale 削除まで含めて丸ごとスキップする。
+// 「登録 → 次の Cron より前に削除」だとシートは登録前と同じ内容に戻る＝checksum 不変で、
+// createPurchase が楽観 INSERT した D1 行だけが取り残され、他の仕入れ行が変わるまで
+// 一覧に出続ける。GAS の deleteRow は onChange を発火しないので削除 diff webhook も来ない。
+async function deletePurchaseInD1_(env, shiireId) {
+  try {
+    await env.DB.prepare('DELETE FROM purchases WHERE shiire_id = ?').bind(shiireId).run();
+    return true;
+  } catch (err) {
+    console.warn('[deletePurchase] d1 delete failed: ' + err.message);
+    return false;
+  }
 }
 
 // GET /api/purchases/:id/fix-quantity
