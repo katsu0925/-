@@ -367,6 +367,13 @@ function baseSyncSingleStock_(productId) {
  * baseSyncOrdersNow() の後に呼ばれる
  */
 function baseSyncStockFromOrders_() {
+  // キャンセル時の在庫復帰（restoreBulkStockForBaseCancel_）と同じスクリプトロックで、
+  // 在庫の読み取り〜書き込み〜処理済み記録までを保護する。取れなければ次回Cronで再試行。
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) {
+    console.warn('baseSyncStockFromOrders_: ロック取得失敗のためスキップ（次回Cronで再試行）');
+    return;
+  }
   try {
     var ss = baseGetTargetSpreadsheet_();
     var shItem = ss.getSheetByName('BASE_注文商品');
@@ -382,6 +389,7 @@ function baseSyncStockFromOrders_() {
     var idxQty = findAnyCol_(itemMap, ['数量']);
     var idxStatus = findAnyCol_(itemMap, ['ステータス']);
     var idxName = findAnyCol_(itemMap, ['商品名']);
+    var idxOrderKey = findAnyCol_(itemMap, ['注文キー']);
     if (idxBaseItemId === -1 || idxQty === -1) return;
 
     var items = shItem.getRange(2, 1, itemLastRow - 1, shItem.getLastColumn()).getValues();
@@ -409,6 +417,7 @@ function baseSyncStockFromOrders_() {
     var lastProcessed = props.getProperty('BASE_STOCK_LAST_ITEM_ROW') || '0';
     var lastProcessedRow = Number(lastProcessed) || 0;
 
+    var ledger = baseReadStockDeductLedger_(props);
     var changed = false;
     for (var i = lastProcessedRow; i < items.length; i++) {
       var orderBaseId = String(items[i][idxBaseItemId] || '').trim();
@@ -428,19 +437,88 @@ function baseSyncStockFromOrders_() {
       var newStock = Math.max(0, currentStock - qty);
       bulkData[bulkRow][c.stock] = newStock;
       changed = true;
+      // 実際に減らした数を注文キー別に記録（キャンセル時はこの数だけ戻す）
+      var orderKeyForLedger = (idxOrderKey !== -1) ? String(items[i][idxOrderKey] || '').trim() : '';
+      if (orderKeyForLedger && currentStock - newStock > 0) {
+        baseAddStockDeductLedger_(ledger, orderKeyForLedger, orderBaseId, currentStock - newStock);
+      }
       var itemLabel = (idxName !== -1) ? String(items[i][idxName] || '').trim() : orderBaseId;
       console.log('BASE注文在庫減: ' + itemLabel + ' (ID:' + orderBaseId + ') ' + currentStock + ' → ' + newStock);
     }
 
+    // 発送まで終わった注文の減算記録はもう戻すことがないので捨てる（未対応・キャンセルの分は残す）
+    var prunedLedger = basePruneStockDeductLedger_(ledger, items, idxOrderKey, idxStatus);
+    var ledgerJson = JSON.stringify(prunedLedger);
+    if (ledgerJson.length > BASE_STOCK_DEDUCT_LEDGER_MAX_CHARS_) {
+      // 記録を保存できないまま在庫だけ減らすと、キャンセル時に戻せなくなる。何も書かずに中断する。
+      throw new Error('減算記録がScriptPropertyの上限を超えます（' + ledgerJson.length + '文字）');
+    }
+
     if (changed) {
       bulkSh.getRange(2, 1, bulkData.length, BULK_SHEET_HEADER.length).setValues(bulkData);
+      // ロック解放前に書き込みを確定させる（保留のまま解放すると、次の在庫復帰が古い値を読む）
+      SpreadsheetApp.flush();
       bulk_clearCache_();
     }
 
-    props.setProperty('BASE_STOCK_LAST_ITEM_ROW', String(items.length));
+    // 処理済み位置と減算記録は1回の呼び出しでまとめて保存する
+    var toSave = { 'BASE_STOCK_LAST_ITEM_ROW': String(items.length) };
+    toSave[BASE_STOCK_DEDUCT_LEDGER_PROP_] = ledgerJson;
+    props.setProperties(toSave);
   } catch (e) {
     console.error('baseSyncStockFromOrders_ error: ' + (e.message || e));
+  } finally {
+    lock.releaseLock();
   }
+}
+
+// =====================================================
+// BASE注文の在庫減算記録（キャンセル時の在庫復帰用）
+// 形式: [{ k: 注文キー, items: { BASE商品ID: 減算数 } }, ...]（古い順）
+// =====================================================
+
+var BASE_STOCK_DEDUCT_LEDGER_PROP_ = 'BASE_STOCK_DEDUCT_LEDGER';
+var BASE_STOCK_DEDUCT_LEDGER_MAX_CHARS_ = 8500; // ScriptProperty 1値の上限(9KB)対策
+
+function baseReadStockDeductLedger_(props) {
+  try {
+    var parsed = JSON.parse(props.getProperty(BASE_STOCK_DEDUCT_LEDGER_PROP_) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+function baseAddStockDeductLedger_(ledger, orderKey, baseItemId, qty) {
+  var entry = null;
+  for (var i = 0; i < ledger.length; i++) {
+    if (ledger[i] && ledger[i].k === orderKey) { entry = ledger[i]; break; }
+  }
+  if (!entry) {
+    entry = { k: orderKey, items: {} };
+    ledger.push(entry);
+  }
+  entry.items[baseItemId] = (Number(entry.items[baseItemId]) || 0) + qty;
+}
+
+/**
+ * 全商品が「対応済」（発送済み）になった注文の減算記録を除いた配列を返す。
+ * 未対応・キャンセルの注文、BASE_注文商品に見当たらない注文の記録は残す。
+ */
+function basePruneStockDeductLedger_(ledger, items, idxOrderKey, idxStatus) {
+  if (idxOrderKey === -1 || idxStatus === -1) return ledger;
+  var seen = {};
+  var notDispatched = {};
+  for (var i = 0; i < items.length; i++) {
+    var k = String(items[i][idxOrderKey] || '').trim();
+    if (!k) continue;
+    seen[k] = true;
+    if (String(items[i][idxStatus] || '').trim() !== '対応済') notDispatched[k] = true;
+  }
+  return ledger.filter(function(entry) {
+    if (!entry || !entry.k) return false;
+    return !(seen[entry.k] && !notDispatched[entry.k]);
+  });
 }
 
 // =====================================================

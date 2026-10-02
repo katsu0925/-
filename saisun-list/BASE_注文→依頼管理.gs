@@ -193,6 +193,19 @@ function syncBaseOrdersToIraiKanri_() {
     orderByKey.set(key, row);
   }
 
+  const itemsByKey = new Map();
+  for (let r = 0; r < items.length; r++) {
+    const row = items[r];
+    const key = normalizeKey_(row[idxOrderKey_Item]);
+    if (!key) continue;
+
+    const pid = normalizeKey_(row[idxProductId_Item]);
+    if (!pid) continue;
+
+    if (!itemsByKey.has(key)) itemsByKey.set(key, []);
+    itemsByKey.get(key).push(row);
+  }
+
   // 取り込み済みの注文が後からBASE側でキャンセルされた場合に依頼管理へ反映する。
   // （新規行の追記だけでは、既存行のステータスが「依頼中」のまま残る）
   try {
@@ -206,19 +219,6 @@ function syncBaseOrdersToIraiKanri_() {
     });
   } catch (e) {
     console.error('applyBaseCancelToIraiKanri_ error:', e);
-  }
-
-  const itemsByKey = new Map();
-  for (let r = 0; r < items.length; r++) {
-    const row = items[r];
-    const key = normalizeKey_(row[idxOrderKey_Item]);
-    if (!key) continue;
-
-    const pid = normalizeKey_(row[idxProductId_Item]);
-    if (!pid) continue;
-
-    if (!itemsByKey.has(key)) itemsByKey.set(key, []);
-    itemsByKey.get(key).push(row);
   }
 
   const existingKeys = new Set();
@@ -443,15 +443,19 @@ function applyBaseCancelToIraiKanri_(shDst, dstValues, cancelledKeys, idx) {
   if (!cancelledKeys || cancelledKeys.size === 0) return 0;
 
   const targetRows = [];
+  const shippedKeys = new Set(); // 1行でも発送済みがある注文はアソート在庫を戻さない
   for (let r = 0; r < dstValues.length; r++) {
     const row = dstValues[r];
     const key = normalizeKey_(row[idx.receiptNo]);
     if (!key || !cancelledKeys.has(key)) continue;
 
+    const isShipped = String(row[idx.shipStatus] || '').trim() === '発送済み';
+    if (isShipped) shippedKeys.add(key);
+
     const status = String(row[idx.status] || '').trim();
     if (status && status !== '依頼中') continue;
 
-    if (String(row[idx.shipStatus] || '').trim() === '発送済み') {
+    if (isShipped) {
       console.warn('applyBaseCancelToIraiKanri_: 発送済みのためキャンセル反映をスキップ: ' + key + ' row=' + (r + 2));
       continue;
     }
@@ -462,6 +466,8 @@ function applyBaseCancelToIraiKanri_(shDst, dstValues, cancelledKeys, idx) {
 
   const now = new Date();
   const orderSs = sh_getOrderSs_();
+  const stockDoneKeys = new Set();
+  const stockFailedKeys = new Set();
   let applied = 0;
   for (let i = 0; i < targetRows.length; i++) {
     const t = targetRows[i];
@@ -481,6 +487,24 @@ function applyBaseCancelToIraiKanri_(shDst, dstValues, cancelledKeys, idx) {
       continue;
     }
 
+    // アソート在庫の復帰（注文単位で1回だけ）。これもステータスを書く前に行い、
+    // 失敗した注文は「依頼中」のまま残して次回Cronで再試行する。
+    if (stockFailedKeys.has(t.key)) continue;
+    if (!stockDoneKeys.has(t.key)) {
+      if (shippedKeys.has(t.key)) {
+        console.warn('applyBaseCancelToIraiKanri_: 発送済みの行があるため在庫復帰をスキップ: ' + t.key);
+      } else {
+        try {
+          restoreBulkStockForBaseCancel_(t.key);
+        } catch (e) {
+          console.error('applyBaseCancelToIraiKanri_: 在庫復帰に失敗、次回再試行: ' + t.key, e);
+          stockFailedKeys.add(t.key);
+          continue;
+        }
+      }
+      stockDoneKeys.add(t.key);
+    }
+
     // 入金確認（プルダウン制約: 入金待ち/未対応/対応済）— キャンセル済みは「対応済」
     if (idx.payment !== -1) shDst.getRange(t.sheetRow, idx.payment + 1).setValue('対応済');
     if (idx.updatedAt !== -1) shDst.getRange(t.sheetRow, idx.updatedAt + 1).setValue(now);
@@ -490,6 +514,92 @@ function applyBaseCancelToIraiKanri_(shDst, dstValues, cancelledKeys, idx) {
     console.log('BASEキャンセル反映: ' + t.key + ' row=' + t.sheetRow);
   }
   return applied;
+}
+
+/**
+ * BASE注文のキャンセル時にアソート在庫（アソート商品シート Q列）を戻す。
+ * baseSyncStockFromOrders_（BASE注文で在庫を減らす処理）が残した減算記録
+ * （BASE_STOCK_DEDUCT_LEDGER）にある数だけ、BASE商品ID（R列）で突き合わせて戻す。
+ * BASE取込の行は選択リストが空なので bulk_restoreStock_（商品名×数量の形式が前提）は使えない。
+ *
+ * 減算記録が無い注文（減算されていない／すでに戻した）は何もしない。
+ * 二重加算を防ぐため、記録の削除 → 在庫書き込み（1回の setValues）の順で行い、
+ * 書き込みに失敗したら記録を元に戻して throw する。
+ * 公開フラグ（O列）は触らない（BASE注文での減算側も触らないため）。
+ * ※呼び出し側でスクリプトロックを保持していること（減算側と相互排他）。
+ *
+ * @param {string} orderKey BASEの注文キー
+ * @return {number} 在庫を戻した商品数（記録なし・対象なしは0）
+ */
+function restoreBulkStockForBaseCancel_(orderKey) {
+  const props = PropertiesService.getScriptProperties();
+  const ledger = baseReadStockDeductLedger_(props);
+  let entry = null;
+  for (let i = 0; i < ledger.length; i++) {
+    if (ledger[i] && ledger[i].k === orderKey) { entry = ledger[i]; break; }
+  }
+  if (!entry) return 0;
+
+  const qtyByBaseId = entry.items || {};
+  const remaining = ledger.filter(function(x) { return x !== entry; });
+  const beforeJson = JSON.stringify(ledger);
+  const afterJson = JSON.stringify(remaining);
+
+  const bulkSh = bulk_getSs_().getSheetByName(BULK_CONFIG.sheetName);
+  if (!bulkSh) throw new Error('シート「' + BULK_CONFIG.sheetName + '」が見つかりません');
+
+  const c = BULK_CONFIG.cols;
+  const bulkLastRow = bulkSh.getLastRow();
+  const bulkData = (bulkLastRow >= 2)
+    ? bulkSh.getRange(2, 1, bulkLastRow - 1, BULK_SHEET_HEADER.length).getValues()
+    : [];
+
+  const changes = [];
+  for (let r = 0; r < bulkData.length; r++) {
+    const baseId = String(bulkData[r][c.baseItemId] || '').trim();
+    const qty = Number(qtyByBaseId[baseId]) || 0;
+    if (!baseId || qty <= 0) continue;
+
+    const stockRaw = bulkData[r][c.stock];
+    const stock = (stockRaw === '' || stockRaw === null || stockRaw === undefined) ? -1 : Number(stockRaw);
+    if (isNaN(stock) || stock === -1) continue; // 無制限に変更済みならスキップ
+
+    changes.push({
+      r: r,
+      from: stock,
+      to: stock + qty,
+      productId: String(bulkData[r][c.productId] || '').trim(),
+      name: String(bulkData[r][c.name] || '').trim()
+    });
+  }
+
+  // 先に減算記録を消す（在庫を書いた後に記録の削除で失敗すると次回二重加算になるため）
+  props.setProperty(BASE_STOCK_DEDUCT_LEDGER_PROP_, afterJson);
+  if (changes.length === 0) return 0;
+
+  try {
+    // 対象行をまたぐ在庫列だけを1回の setValues で書く（途中まで書いて失敗、を作らない）
+    const minR = changes[0].r;
+    const maxR = changes[changes.length - 1].r;
+    const out = [];
+    for (let r = minR; r <= maxR; r++) out.push([bulkData[r][c.stock]]);
+    for (let i = 0; i < changes.length; i++) out[changes[i].r - minR][0] = changes[i].to;
+    bulkSh.getRange(minR + 2, c.stock + 1, out.length, 1).setValues(out);
+    SpreadsheetApp.flush();
+  } catch (e) {
+    props.setProperty(BASE_STOCK_DEDUCT_LEDGER_PROP_, beforeJson);
+    throw e;
+  }
+
+  bulk_clearCache_();
+  for (let i = 0; i < changes.length; i++) {
+    console.log('BASEキャンセル在庫復帰: ' + orderKey + ' ' + changes[i].name + ' ' + changes[i].from + ' → ' + changes[i].to);
+    // BASE側の在庫も合わせる（失敗しても5分Cronの商品同期で追いつく）
+    if (changes[i].productId) {
+      try { baseSyncSingleStock_(changes[i].productId); } catch (e) { console.error('BASE在庫復帰同期エラー:', e); }
+    }
+  }
+  return changes.length;
 }
 
 // 診断用: BASE_注文 で「対応済」だが依頼管理に未反映の孤立注文を一覧化する
